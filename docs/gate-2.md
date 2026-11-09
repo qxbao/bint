@@ -83,7 +83,7 @@ bint eval report <batch> --json > gate2-<repo>.json
 |---|---|
 | Ngưỡng được chốt bởi | orca <dquanbao@gmail.com>, 2026-11-10 |
 | Thước đo chính đã chọn | tỷ lệ đạt (`bint − minimal`, cận dưới CI95 > 0); ràng buộc chi phí ≤ +25 % |
-| Commit chốt | _(điền sau khi commit)_ |
+| Commit chốt | `9135dfa5528b2d42e62adbda75b318ede819a6ec` |
 | Repository thử nghiệm | _(chưa)_ |
 
 ## Kết quả
