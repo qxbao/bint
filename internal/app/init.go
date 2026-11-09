@@ -15,6 +15,7 @@ import (
 	"bint/internal/fsafe"
 	"bint/internal/gitrepo"
 	"bint/internal/harness/claude"
+	"bint/internal/skills"
 	"bint/internal/state"
 	"bint/internal/store"
 )
@@ -29,8 +30,12 @@ type InitOptions struct {
 	AgentsMD   bool // ghi khối Bint vào AGENTS.md và nhập lại trong CLAUDE.md
 	Force      bool // ghi đè khối Bint đã bị sửa tay (có sao lưu)
 	BintPath   string
-	Confirm    func(question string) bool
-	Now        func() time.Time
+	// Version là phiên bản Bint (ghi vào .bint/skills/core.lock).
+	Version string
+	// NoSkills: không xuất bản skill gốc.
+	NoSkills bool
+	Confirm  func(question string) bool
+	Now      func() time.Time
 }
 
 // StepStatus là trạng thái một bước khởi tạo.
@@ -69,9 +74,6 @@ func (r *InitReport) add(name string, st StepStatus, format string, a ...any) {
 		r.HasProblem = true
 	}
 }
-
-const agentsBlock = `<!-- Khối do Bint quản lý (bint init). Quy tắc bắt buộc đã được người duyệt sẽ
-được đặt ở đây. Không sửa tay: sửa mục tri thức tương ứng rồi chạy lại Bint. -->`
 
 // Init khởi tạo Bint cho repository. Có tính lặp an toàn: chạy lại không mất dữ
 // liệu và không ghi đè nội dung người dùng đã sửa.
@@ -191,8 +193,12 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		return nil, err
 	}
 
-	// 5. Skill b-bootstrap thuộc P2.
-	rep.add("skill b-bootstrap", StepSkipped, "chưa có trong bản này (P2)")
+	// 5. Skill gốc (b-bootstrap) cho các harness có adapter.
+	if !opts.NoSkills {
+		if err := installSkills(rep, cfgRoot, cfg, paths, manifest, opts.Version, opts.Force, now); err != nil {
+			return nil, err
+		}
+	}
 
 	// 6. Hook ghi nhận.
 	gitignore := []string{".bint/local.yml"}
@@ -224,7 +230,11 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 
 	// Tài liệu cấp repository (tuỳ chọn ở P0).
 	if opts.AgentsMD {
-		if err := syncAgentDocs(rep, opts, root, paths, manifest, cfg, now); err != nil {
+		inner, _, err := AgentsBlock(cfgRoot, cfg)
+		if err != nil {
+			return nil, err
+		}
+		if err := syncAgentDocs(rep, opts, root, paths, manifest, cfg, inner, now); err != nil {
 			return nil, err
 		}
 	}
@@ -241,7 +251,8 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		"Commit .bint/config.yml (và .gitignore) để cả nhóm dùng chung cấu hình",
 		"Kiểm tra môi trường: bint doctor",
 		"Xem lượt chạy đã ghi nhận: bint runs list",
-		"Bootstrap tri thức sẽ có ở P2; khung đánh giá (bint eval --help) chỉ cần khi muốn đo trên repository này",
+		"Bootstrap tri thức: chạy /b-bootstrap trong Claude Code (hoặc `bint bootstrap` để xem dữ liệu khảo sát), rồi `bint knowledge review` và `bint bootstrap publish`",
+		"Khung đánh giá (bint eval --help) chỉ cần khi muốn đo trên repository này",
 	)
 	return rep, nil
 }
@@ -311,19 +322,42 @@ func installClaudeHooks(rep *InitReport, opts InitOptions, root string, paths st
 	return true, nil
 }
 
-func syncAgentDocs(rep *InitReport, opts InitOptions, root string, paths state.Paths, m *fsafe.Manifest, cfg config.Config, now time.Time) error {
-	r, err := fsafe.SyncBlock(fsafe.BlockSync{
-		Path: filepath.Join(root, "AGENTS.md"), RelName: "AGENTS.md", Markers: fsafe.HTMLMarkers,
-		Inner: agentsBlock, Force: opts.Force, BackupDir: paths.Backups, Manifest: m, Now: now,
+func installSkills(rep *InitReport, root string, cfg config.Config, paths state.Paths, m *fsafe.Manifest, version string, force bool, now time.Time) error {
+	var targets []skills.Target
+	for _, h := range cfg.Harnesses.Enabled {
+		if h == claude.HarnessName {
+			targets = append(targets, skills.ClaudeTarget)
+		} else {
+			rep.add("skill "+h, StepSkipped, "adapter %s chưa có (P5)", h)
+		}
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	outs, err := skills.Install(skills.InstallOptions{
+		Root: root, Targets: targets, BintVersion: version, Force: force,
+		BackupDir: paths.Backups, Manifest: m, Now: now,
 	})
 	if err != nil {
 		return err
 	}
-	rep.addSync("AGENTS.md", r)
-
-	if !slices.Contains(cfg.Harnesses.Enabled, claude.HarnessName) {
-		return nil
+	for _, o := range outs {
+		name := "skill " + o.Skill
+		switch o.Result {
+		case fsafe.Created:
+			rep.add(name, StepCreated, "%s", o.Path)
+		case fsafe.Updated:
+			rep.add(name, StepUpdated, "%s (bản cũ: %s)", o.Path, o.Backup)
+		case fsafe.Unchanged:
+			rep.add(name, StepOK, "%s", o.Path)
+		case fsafe.Conflict:
+			rep.add(name, StepConflict, "%s: %s", o.Path, o.Detail)
+		}
 	}
+	return nil
+}
+
+func syncClaudeImport(rep *InitReport, opts InitOptions, root string, paths state.Paths, m *fsafe.Manifest, now time.Time) error {
 	claudeMD := filepath.Join(root, "CLAUDE.md")
 	if data, err := os.ReadFile(claudeMD); err == nil {
 		block, _ := fsafe.ReadBlock(claudeMD, fsafe.HTMLMarkers)
@@ -334,7 +368,7 @@ func syncAgentDocs(rep *InitReport, opts InitOptions, root string, paths state.P
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	r, err = fsafe.SyncBlock(fsafe.BlockSync{
+	r, err := fsafe.SyncBlock(fsafe.BlockSync{
 		Path: claudeMD, RelName: "CLAUDE.md", Markers: fsafe.HTMLMarkers, Inner: "@AGENTS.md",
 		Force: opts.Force, BackupDir: paths.Backups, Manifest: m, Now: now, Placement: fsafe.AtStart,
 	})

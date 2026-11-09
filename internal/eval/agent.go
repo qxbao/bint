@@ -23,6 +23,8 @@ type AgentRequest struct {
 	LogPath string
 	CaseID  string
 	Arm     string
+	// Env là biến môi trường bổ sung cho tiến trình agent.
+	Env []string
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
@@ -111,7 +113,7 @@ func (a *ClaudeAgent) Args() []string {
 // Run giao đề bài qua stdin và đọc kết quả JSON.
 func (a *ClaudeAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	var stdout bytes.Buffer
-	r := runProcess(ctx, req.Dir, a.bin(), a.Args(), req.Timeout, req.LogPath, cleanEnv(), strings.NewReader(req.Prompt), &stdout)
+	r := runProcess(ctx, req.Dir, a.bin(), a.Args(), req.Timeout, req.LogPath, cleanEnv(req.Env...), strings.NewReader(req.Prompt), &stdout)
 	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut}
 	if r.Err != nil {
 		res.Error = r.Err.Error()
@@ -220,7 +222,7 @@ func (a *CommandAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	if err := os.WriteFile(promptFile, []byte(req.Prompt), 0o600); err != nil {
 		return AgentResult{ExitCode: -1, Error: err.Error()}
 	}
-	env := cleanEnv("BINT_EVAL_PROMPT_FILE="+promptFile, "BINT_EVAL_CASE="+req.CaseID, "BINT_EVAL_ARM="+req.Arm)
+	env := cleanEnv(append([]string{"BINT_EVAL_PROMPT_FILE=" + promptFile, "BINT_EVAL_CASE=" + req.CaseID, "BINT_EVAL_ARM=" + req.Arm}, req.Env...)...)
 	prog, args := shellCommand(a.Command)
 	var stdout bytes.Buffer
 	r := runProcess(ctx, req.Dir, prog, args, req.Timeout, req.LogPath, env, strings.NewReader(req.Prompt), &stdout)

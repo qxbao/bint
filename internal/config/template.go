@@ -54,7 +54,8 @@ func Render(p InitParams) string {
     fingerprint: symbol     # symbol | hunk | file
 
 knowledge:
-  require_human_approval_for: [rule]
+  require_human_approval_for: [rule]   # luôn chứa rule: chỉ người mới duyệt được quy tắc bắt buộc
+  agents_md_max_items: 15              # số mục tối đa trong khối Bint của AGENTS.md
 
 memory:
   enabled: true
@@ -78,7 +79,9 @@ eval:
   budget_usd: null          # bắt buộc đặt trước khi chạy tự động
   harness: claude
   timeout_minutes: 30       # mỗi lượt chạy tác nhân
-  minimal_context: .bint/evals/minimal.md   # AGENTS.md ngắn cho nhánh "minimal"
+  minimal_source: knowledge   # nhánh "minimal": knowledge = AGENTS.md dựng từ tri thức; file = minimal_context
+  minimal_context: .bint/evals/minimal.md   # AGENTS.md viết tay khi minimal_source: file
+  minimal_include_candidates: false         # đưa cả mục chưa duyệt vào nhánh minimal
   agent:
     model: null             # null = mặc định của harness
     permission_mode: acceptEdits

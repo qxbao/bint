@@ -38,6 +38,7 @@ func newInitCmd(stdio IO) *cobra.Command {
 		scope     string
 		agentsMD  bool
 		force     bool
+		noSkills  bool
 	)
 	c := &cobra.Command{
 		Use:   "init",
@@ -62,7 +63,7 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 			}
 			opts := app.InitOptions{
 				Dir: dir, Harnesses: harnesses, HooksScope: sc, AgentsMD: agentsMD, Force: force,
-				BintPath: bintPath(),
+				BintPath: bintPath(), Version: Version, NoSkills: noSkills,
 			}
 			switch {
 			case hooks:
@@ -106,8 +107,9 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 	f.BoolVar(&hooks, "hooks", false, "cài hook ghi nhận lượt chạy mà không hỏi")
 	f.BoolVar(&noHooks, "no-hooks", false, "không cài (hoặc gỡ) hook ghi nhận")
 	f.StringVar(&scope, "hooks-scope", string(claude.ScopeLocal), "nơi cài hook Claude Code: local | project | user")
-	f.BoolVar(&agentsMD, "agents-md", false, "ghi khối bint vào AGENTS.md và nhập lại AGENTS.md trong CLAUDE.md")
-	f.BoolVar(&force, "force", false, "ghi đè khối bint đã bị sửa tay (bản cũ được sao lưu)")
+	f.BoolVar(&agentsMD, "agents-md", false, "ghi khối bint (quy tắc đã duyệt) vào AGENTS.md và nhập lại AGENTS.md trong CLAUDE.md")
+	f.BoolVar(&force, "force", false, "ghi đè khối bint hoặc skill gốc đã bị sửa tay (bản cũ được sao lưu)")
+	f.BoolVar(&noSkills, "no-skills", false, "không xuất bản skill gốc (b-bootstrap) cho harness")
 	return c
 }
 
@@ -229,8 +231,6 @@ func newHookCmd(stdio IO) *cobra.Command {
 
 func plannedCommands() []*cobra.Command {
 	planned := []struct{ use, short, phase string }{
-		{"bootstrap", "Khảo sát repository và sinh tri thức ứng viên", "P2"},
-		{"knowledge", "Quản lý tri thức: list, search, approve, verify, diff", "P2–P3"},
 		{"context", "Truy xuất ngữ cảnh theo tác vụ hoặc đường dẫn", "P3"},
 		{"index", "Dựng lại chỉ mục tri thức", "P3"},
 		{"mcp", "MCP server của Context Engine", "P3"},
@@ -238,7 +238,6 @@ func plannedCommands() []*cobra.Command {
 		{"run", "Thực thi workflow b-req, b-feat, b-review, b-do", "P4"},
 		{"skill", "Quản lý skill gốc và lớp phủ", "P4"},
 		{"sync", "Đồng bộ skill và adapter", "P4–P5"},
-		{"inspect", "Khám phá repository", "P2"},
 		{"evolve", "Tiến hoá tri thức và skill", "P6+"},
 	}
 	var out []*cobra.Command

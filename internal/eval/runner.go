@@ -326,7 +326,7 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	if err := prepareWorkdir(ctx, env.RepoDir, env.WorkRoot, a.Case.Source.Base, work); err != nil {
 		return finish("error", "dựng thư mục làm việc: "+err.Error())
 	}
-	setup, err := prepareArm(ctx, a.Arm, opts.LeakageMode, env.RepoDir, env.Cfg.Eval.MinimalContext, a.Case, leakIn, work)
+	setup, err := prepareArm(ctx, env, a.Arm, opts.LeakageMode, a.Case, leakIn, work)
 	if errors.Is(err, ErrArmUnavailable) {
 		return finish("skipped", err.Error())
 	}

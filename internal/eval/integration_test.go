@@ -88,6 +88,7 @@ func testEnv(t *testing.T, root string) (Env, Store, *sql.DB) {
 	cfg.Eval.TestCommand = &tc
 	cfg.Eval.TimeoutMinutes = 2
 	cfg.Eval.Mine.MinSourceLines = 1 // lời giải của fixture chỉ có một dòng
+	cfg.Eval.MinimalSource = "file"  // kiểm thử P1: AGENTS.md viết tay
 	state := t.TempDir()
 	env := Env{RepoDir: root, WorkRoot: filepath.Join(state, "eval-work"), Cfg: cfg}
 	db, err := store.Open(context.Background(), filepath.Join(state, "state.sqlite"))

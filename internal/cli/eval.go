@@ -18,7 +18,6 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/eval"
-	"bint/internal/gitrepo"
 	"bint/internal/store"
 )
 
@@ -48,7 +47,7 @@ func openEval(cmd *cobra.Command, withDB bool) (*evalCtx, error) {
 	e := &evalCtx{
 		ws:    ws,
 		cases: eval.NewStore(ws.Paths.Root, bintDir),
-		env:   eval.Env{RepoDir: ws.Repo.Toplevel, WorkRoot: ws.Paths.EvalWork, Cfg: ws.Config},
+		env:   eval.Env{RepoDir: ws.Repo.Toplevel, WorkRoot: ws.Paths.EvalWork, BintRoot: filepath.Dir(bintDir), Cfg: ws.Config},
 	}
 	if withDB {
 		if e.st, err = ws.OpenStore(cmd.Context()); err != nil {
@@ -70,13 +69,14 @@ Quy trình:
   2. bint eval mine --verify     khai thác commit có kiểm thử fail→pass làm ứng viên
   3. bint eval show <id>         đọc, sửa đề bài trong tệp ứng viên nếu cần
      bint eval approve <id>...   duyệt vào .bint/evals/cases/ (có thể commit)
-  4. bint eval estimate          ước tính chi phí và cỡ mẫu
+  4. bint eval bootstrap --budget 5   (nhánh minimal, strict) dựng tri thức tại commit gốc
+     bint eval estimate          ước tính chi phí và cỡ mẫu
   5. bint eval run --budget 20   chạy các nhánh × lần lặp trong thư mục cô lập
   6. bint eval report            so sánh theo cặp kèm khoảng tin cậy 95%`,
 	}
 	c.AddCommand(newEvalMineCmd(stdio), newEvalVerifyCmd(stdio), newEvalListCmd(stdio), newEvalShowCmd(stdio),
 		newEvalApproveCmd(stdio), newEvalRejectCmd(stdio), newEvalEstimateCmd(stdio), newEvalRunCmd(stdio),
-		newEvalReportCmd(stdio))
+		newEvalReportCmd(stdio), newEvalBootstrapCmd(stdio))
 	return c
 }
 
@@ -445,25 +445,7 @@ func newEvalShowCmd(stdio IO) *cobra.Command {
 	}
 }
 
-func reviewer(ctx context.Context, dir string) string {
-	name, _ := gitrepo.Run(ctx, dir, "config", "user.name")
-	email, _ := gitrepo.Run(ctx, dir, "config", "user.email")
-	name, email = strings.TrimSpace(name), strings.TrimSpace(email)
-	switch {
-	case name != "" && email != "":
-		return name + " <" + email + ">"
-	case name != "":
-		return name
-	case email != "":
-		return email
-	}
-	for _, k := range []string{"USER", "USERNAME"} {
-		if v := os.Getenv(k); v != "" {
-			return v
-		}
-	}
-	return "unknown"
-}
+func reviewer(ctx context.Context, dir string) string { return app.GitIdentity(ctx, dir) }
 
 func newEvalApproveCmd(stdio IO) *cobra.Command {
 	var (
@@ -661,10 +643,10 @@ func resolveArms(e *evalCtx, flagArms []string, explicit bool, w io.Writer) ([]s
 			fmt.Fprintf(w, "Bỏ nhánh %s: %v\n", a, err)
 			continue
 		}
-		if a == eval.ArmMinimal {
+		if a == eval.ArmMinimal && e.ws.Config.Eval.MinimalSource == "file" {
 			p := filepath.Join(e.ws.Repo.Toplevel, filepath.FromSlash(e.ws.Config.Eval.MinimalContext))
 			if _, err := os.Stat(p); err != nil {
-				msg := fmt.Sprintf("chưa có %s (AGENTS.md ngắn viết tay; P2 sẽ sinh tự động)", e.ws.Config.Eval.MinimalContext)
+				msg := fmt.Sprintf("chưa có %s (eval.minimal_source: file); đặt minimal_source: knowledge để dựng từ tri thức", e.ws.Config.Eval.MinimalContext)
 				if explicit {
 					return nil, fmt.Errorf("nhánh minimal: %s", msg)
 				}
@@ -784,8 +766,9 @@ func newEvalRunCmd(stdio IO) *cobra.Command {
 		Short: "Chạy các nhánh so sánh × nhiều lần lặp trên tác vụ đã duyệt",
 		Long: `Mỗi lượt chạy trong một repository tạm chỉ chứa lịch sử tới commit gốc (agent không
 thể đọc commit lời giải), đã gỡ mọi tệp ngữ cảnh agent (AGENTS.md, CLAUDE.md, .claude/,
-.bint/...). Nhánh "none" giữ nguyên như vậy; nhánh "minimal" thêm AGENTS.md từ
-eval.minimal_context. Sau khi agent làm xong, tệp kiểm thử của commit được áp vào và
+.bint/...). Nhánh "none" giữ nguyên như vậy; nhánh "minimal" thêm AGENTS.md dựng từ
+tri thức (eval.minimal_source: knowledge; strict dùng ảnh chụp của ` + "`bint eval bootstrap`" + `
+hoặc tri thức đã commit tại commit gốc) hoặc từ tệp eval.minimal_context (file). Sau khi agent làm xong, tệp kiểm thử của commit được áp vào và
 eval.test_command quyết định đạt/không.
 
 Ngân sách là bắt buộc với harness có chi phí (--budget hoặc eval.budget_usd): Bint từ
@@ -1140,4 +1123,145 @@ func short(s string) string {
 		return s[:10]
 	}
 	return s
+}
+
+func newEvalBootstrapCmd(stdio IO) *cobra.Command {
+	var (
+		sel          selection
+		budget       float64
+		agentCommand string
+		model        string
+		force        bool
+		keep         bool
+		list         bool
+		yes          bool
+	)
+	c := &cobra.Command{
+		Use:   "bootstrap",
+		Short: "Dựng tri thức tại commit gốc của từng tác vụ (b-bootstrap) cho nhánh minimal ở chế độ strict",
+		Long: `Chế độ strict (mục 12.3) yêu cầu tri thức của nhánh minimal được dựng TẠI commit gốc
+của tác vụ, không phải từ trạng thái hiện tại (vốn đã chứa lời giải). Lệnh này chạy
+skill b-bootstrap bằng agent trong một repository cô lập tại mỗi commit gốc (chỉ có
+lịch sử tới đó, đã gỡ mọi tệp ngữ cảnh agent) và lưu các mục agent ghi được vào
+<state>/eval-work/knowledge/<commit>/. ` + "`bint eval run`" + ` dùng ảnh chụp này cho nhánh minimal.
+
+Các mục trong ảnh chụp là đầu ra tự động, chưa được người duyệt — đó chính là thứ
+cổng quyết định 1 đo. Commit gốc đã có ảnh chụp được bỏ qua (--force để làm lại).`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			e, err := openEval(cmd, true)
+			if err != nil {
+				return err
+			}
+			defer e.Close()
+			w := stdio.Out
+			cases, err := sel.pick(e)
+			if err != nil {
+				return err
+			}
+			var bases []string
+			for _, cs := range cases {
+				if !slices.Contains(bases, cs.Source.Base) {
+					bases = append(bases, cs.Source.Base)
+				}
+			}
+			if list {
+				tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
+				fmt.Fprintln(tw, "COMMIT GỐC\tẢNH CHỤP\tMỤC\tCHI PHÍ\tMÔ HÌNH\tTẠO LÚC")
+				for _, b := range bases {
+					meta, _, ok, err := eval.ReadSnapshot(e.env.WorkRoot, b)
+					switch {
+					case err != nil:
+						fmt.Fprintf(tw, "%s\tlỗi: %v\t\t\t\t\n", short(b), err)
+					case !ok:
+						fmt.Fprintf(tw, "%s\t-\t\t\t\t\n", short(b))
+					default:
+						cost := "-"
+						if meta.CostUSD != nil {
+							cost = fmt.Sprintf("$%.2f", *meta.CostUSD)
+						}
+						fmt.Fprintf(tw, "%s\tcó\t%d\t%s\t%s\t%s\n", short(b), meta.Items, cost, meta.Model, fmtISO(meta.CreatedAt))
+					}
+				}
+				return tw.Flush()
+			}
+			var todo []string
+			for _, b := range bases {
+				if _, _, ok, _ := eval.ReadSnapshot(e.env.WorkRoot, b); ok && !force {
+					continue
+				}
+				todo = append(todo, b)
+			}
+			fmt.Fprintf(w, "%d tác vụ, %d commit gốc, %d cần dựng tri thức\n", len(cases), len(bases), len(todo))
+			if len(todo) == 0 {
+				return nil
+			}
+			var agent eval.Agent
+			if agentCommand != "" {
+				agent = &eval.CommandAgent{Command: agentCommand}
+			} else {
+				agent = &eval.ClaudeAgent{Cfg: e.ws.Config.Eval.Agent, Model: model, MaxCostUSD: e.ws.Config.Limits.PerRun.MaxCostUSD}
+			}
+			var bud *float64
+			if cmd.Flags().Changed("budget") {
+				bud = &budget
+			} else if e.ws.Config.Eval.BudgetUSD != nil {
+				bud = e.ws.Config.Eval.BudgetUSD
+			}
+			if agent.ReportsCost() && bud == nil {
+				return usageError{fmt.Errorf("cần ngân sách: --budget <USD> hoặc eval.budget_usd")}
+			}
+			if !yes {
+				if !isTerminal(stdio.In) {
+					return usageError{fmt.Errorf("cần --yes khi chạy không tương tác")}
+				}
+				if !confirm(stdio, fmt.Sprintf("Chạy b-bootstrap bằng %s cho %d commit gốc?", agent.Name(), len(todo))) {
+					return fmt.Errorf("đã huỷ")
+				}
+			}
+			self, _ := os.Executable()
+			spent, failed := 0.0, 0
+			for i, b := range todo {
+				if bud != nil && spent >= *bud {
+					fmt.Fprintf(w, "Dừng: đã tiêu $%.2f, chạm ngân sách $%.2f; %d commit gốc còn lại\n", spent, *bud, len(todo)-i)
+					break
+				}
+				meta, err := eval.BootstrapSnapshot(ctx, e.env, b, eval.BootstrapOptions{Agent: agent, BintPath: self, BintVersion: Version, Keep: keep})
+				if meta.CostUSD != nil {
+					spent += *meta.CostUSD
+				}
+				cost := ""
+				if meta.CostUSD != nil {
+					cost = fmt.Sprintf(" $%.2f", *meta.CostUSD)
+				}
+				if err != nil {
+					failed++
+					fmt.Fprintf(w, "[%d/%d] %s ✗ %v%s\n", i+1, len(todo), short(b), err, cost)
+					if ctx.Err() != nil {
+						return withCode(ExitError, fmt.Errorf("đã dừng theo yêu cầu"))
+					}
+					continue
+				}
+				fmt.Fprintf(w, "[%d/%d] %s ✓ %d mục%s %s\n", i+1, len(todo), short(b), meta.Items, cost, meta.Error)
+			}
+			if agent.ReportsCost() {
+				fmt.Fprintf(w, "Tổng chi phí: $%.2f\n", spent)
+			}
+			if failed > 0 {
+				return withCode(ExitError, fmt.Errorf("%d commit gốc không dựng được tri thức", failed))
+			}
+			return nil
+		},
+	}
+	sel.flags(c)
+	f := c.Flags()
+	f.Float64Var(&budget, "budget", 0, "ngân sách USD (mặc định eval.budget_usd)")
+	f.StringVar(&agentCommand, "agent-command", "", "dùng lệnh tuỳ chỉnh làm agent (đề bài qua stdin; BINT_AGENT=1 và bint trong PATH)")
+	f.StringVar(&model, "model", "", "mô hình")
+	f.BoolVar(&force, "force", false, "dựng lại cả commit gốc đã có ảnh chụp")
+	f.BoolVar(&keep, "keep-workdirs", false, "giữ thư mục làm việc để điều tra")
+	f.BoolVar(&list, "list", false, "chỉ liệt kê ảnh chụp hiện có")
+	f.BoolVarP(&yes, "yes", "y", false, "không hỏi xác nhận")
+	return c
 }

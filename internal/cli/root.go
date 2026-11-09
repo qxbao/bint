@@ -99,6 +99,7 @@ func NewRoot(stdio IO) *cobra.Command {
 
 	root.AddGroup(
 		&cobra.Group{ID: "project", Title: "Dự án:"},
+		&cobra.Group{ID: "knowledge", Title: "Tri thức:"},
 		&cobra.Group{ID: "runs", Title: "Lượt chạy:"},
 		&cobra.Group{ID: "eval", Title: "Đánh giá:"},
 		&cobra.Group{ID: "planned", Title: "Dự kiến (chưa có trong bản này):"},
@@ -110,6 +111,7 @@ func NewRoot(stdio IO) *cobra.Command {
 		}
 	}
 	add("project", newInitCmd(stdio), newDoctorCmd(stdio), newStatusCmd(stdio))
+	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio))
 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
 	add("eval", newEvalCmd(stdio))
 	add("planned", plannedCommands()...)

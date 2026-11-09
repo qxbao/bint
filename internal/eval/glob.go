@@ -1,73 +1,15 @@
 package eval
 
-import (
-	"path"
-	"regexp"
-	"strings"
-	"sync"
-)
+import "bint/internal/pathglob"
 
-// Pattern là mẫu glob kiểu gitignore đơn giản trên đường dẫn dùng '/':
-//   - "*" khớp mọi ký tự trừ '/', "?" khớp một ký tự trừ '/';
-//   - "**" khớp qua nhiều cấp thư mục ("**/" có thể rỗng);
-//   - mẫu không chứa '/' được so với tên tệp (basename).
-type Pattern struct {
-	raw      string
-	re       *regexp.Regexp
-	basename bool
-}
-
-var patternCache sync.Map
+// Pattern là mẫu glob kiểu gitignore đơn giản (xem package pathglob).
+type Pattern = pathglob.Pattern
 
 // CompilePattern dịch mẫu glob sang biểu thức chính quy.
-func CompilePattern(p string) Pattern {
-	if v, ok := patternCache.Load(p); ok {
-		return v.(Pattern)
-	}
-	var b strings.Builder
-	b.WriteString("^")
-	for i := 0; i < len(p); i++ {
-		c := p[i]
-		switch {
-		case c == '*' && i+1 < len(p) && p[i+1] == '*':
-			if i+2 < len(p) && p[i+2] == '/' {
-				b.WriteString("(?:.*/)?")
-				i += 2
-			} else {
-				b.WriteString(".*")
-				i++
-			}
-		case c == '*':
-			b.WriteString("[^/]*")
-		case c == '?':
-			b.WriteString("[^/]")
-		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
-		}
-	}
-	b.WriteString("$")
-	pt := Pattern{raw: p, re: regexp.MustCompile(b.String()), basename: !strings.Contains(p, "/")}
-	patternCache.Store(p, pt)
-	return pt
-}
-
-// Match cho biết đường dẫn tương đối (dấu '/') có khớp mẫu không.
-func (p Pattern) Match(rel string) bool {
-	if p.basename {
-		return p.re.MatchString(path.Base(rel))
-	}
-	return p.re.MatchString(rel)
-}
+func CompilePattern(p string) Pattern { return pathglob.Compile(p) }
 
 // MatchAny cho biết rel có khớp một trong các mẫu không.
-func MatchAny(patterns []string, rel string) bool {
-	for _, p := range patterns {
-		if CompilePattern(p).Match(rel) {
-			return true
-		}
-	}
-	return false
-}
+func MatchAny(patterns []string, rel string) bool { return pathglob.MatchAny(patterns, rel) }
 
 // DefaultTestPatterns nhận diện tệp kiểm thử và dữ liệu kiểm thử ở các hệ sinh thái phổ biến.
 var DefaultTestPatterns = []string{

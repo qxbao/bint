@@ -98,6 +98,8 @@ type Freshness struct {
 
 type Knowledge struct {
 	RequireHumanApprovalFor []string `yaml:"require_human_approval_for"`
+	// AgentsMDMaxItems giới hạn số mục tri thức trong khối Bint của AGENTS.md (mục 8.5).
+	AgentsMDMaxItems int `yaml:"agents_md_max_items"`
 }
 
 type Memory struct {
@@ -118,11 +120,17 @@ type Eval struct {
 	LeakageMode           string   `yaml:"leakage_mode"`
 	BudgetUSD             *float64 `yaml:"budget_usd"`
 	// Harness dùng để chạy tác vụ đánh giá (P1 chỉ hỗ trợ claude).
-	Harness        string    `yaml:"harness"`
-	TimeoutMinutes int       `yaml:"timeout_minutes"`
-	MinimalContext string    `yaml:"minimal_context"`
-	Agent          EvalAgent `yaml:"agent"`
-	Mine           EvalMine  `yaml:"mine"`
+	Harness        string `yaml:"harness"`
+	TimeoutMinutes int    `yaml:"timeout_minutes"`
+	MinimalContext string `yaml:"minimal_context"`
+	// MinimalSource: "knowledge" = AGENTS.md của nhánh minimal dựng từ tri thức
+	// (P2); "file" = dùng tệp viết tay minimal_context (P1).
+	MinimalSource string `yaml:"minimal_source"`
+	// MinimalIncludeCandidates đưa cả mục chưa duyệt vào nhánh minimal (luôn bật với
+	// ảnh chụp tri thức do `bint eval bootstrap` sinh).
+	MinimalIncludeCandidates bool      `yaml:"minimal_include_candidates"`
+	Agent                    EvalAgent `yaml:"agent"`
+	Mine                     EvalMine  `yaml:"mine"`
 }
 
 // EvalAgent là tham số gọi harness khi chạy đánh giá.
@@ -202,7 +210,7 @@ func Default() Config {
 			Retrieval:  Retrieval{Lexical: true, Structural: true},
 			Freshness:  Freshness{VerifyChangedSources: true, Fingerprint: "symbol"},
 		},
-		Knowledge: Knowledge{RequireHumanApprovalFor: []string{"rule"}},
+		Knowledge: Knowledge{RequireHumanApprovalFor: []string{"rule"}, AgentsMDMaxItems: 15},
 		Memory:    Memory{Enabled: true, Scope: "project", RetentionDays: 90},
 		Eval: Eval{
 			Repeats:        3,
@@ -211,6 +219,7 @@ func Default() Config {
 			Harness:        "claude",
 			TimeoutMinutes: 30,
 			MinimalContext: ".bint/evals/minimal.md",
+			MinimalSource:  "knowledge",
 			Agent: EvalAgent{
 				PermissionMode: "acceptEdits",
 				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"},
@@ -385,6 +394,9 @@ func (c Config) Validate() error {
 		// Mục 15.5: chỉ người mới nâng được quy tắc bắt buộc; không cho tắt bằng cấu hình.
 		add(`knowledge.require_human_approval_for: bắt buộc chứa "rule"`)
 	}
+	if c.Knowledge.AgentsMDMaxItems < 1 || c.Knowledge.AgentsMDMaxItems > 50 {
+		add("knowledge.agents_md_max_items: phải trong khoảng 1..50 (AGENTS.md cần ngắn)")
+	}
 	if c.Memory.Scope != "project" {
 		add(`memory.scope: v1 chỉ hỗ trợ "project"`)
 	}
@@ -413,6 +425,9 @@ func (c Config) Validate() error {
 	}
 	if c.Eval.MinimalContext == "" || filepath.IsAbs(c.Eval.MinimalContext) || strings.HasPrefix(filepath.ToSlash(filepath.Clean(c.Eval.MinimalContext)), "../") {
 		add("eval.minimal_context: phải là đường dẫn tương đối trong repository")
+	}
+	if !slices.Contains([]string{"knowledge", "file"}, c.Eval.MinimalSource) {
+		add("eval.minimal_source: phải là knowledge | file")
 	}
 	if !slices.Contains([]string{"acceptEdits", "auto", "dontAsk", "bypassPermissions"}, c.Eval.Agent.PermissionMode) {
 		add("eval.agent.permission_mode: phải là acceptEdits | auto | dontAsk | bypassPermissions")

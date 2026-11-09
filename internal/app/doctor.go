@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,7 +16,9 @@ import (
 	"bint/internal/fsafe"
 	"bint/internal/gitrepo"
 	"bint/internal/harness/claude"
+	"bint/internal/knowledge"
 	"bint/internal/runlog"
+	"bint/internal/skills"
 	"bint/internal/spool"
 	"bint/internal/state"
 	"bint/internal/store"
@@ -196,7 +199,47 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 	} else {
 		r.add("lệnh kiểm thử", LevelOK, "%s", *cfg.Eval.TestCommand)
 	}
+	knowledgeChecks(r, filepath.Dir(filepath.Dir(src.Project)), cfg)
 	return r
+}
+
+// knowledgeChecks kiểm tra tệp tri thức đọc được và skill gốc đã xuất bản còn
+// nguyên bản (mục 6.6). Kiểm tra bằng chứng đầy đủ: `bint knowledge verify`.
+func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
+	items, bad, err := knowledge.NewStore(root).List()
+	switch {
+	case err != nil:
+		r.add("tri thức", LevelFail, "%v", err)
+	case len(bad) > 0:
+		r.add("tri thức", LevelFail, "%d tệp không đọc được, ví dụ %s", len(bad), bad[0].Error())
+	default:
+		counts := map[string]int{}
+		for _, it := range items {
+			counts[it.Status]++
+		}
+		lvl := LevelOK
+		detail := fmt.Sprintf("%d mục: %d verified, %d candidate, %d stale", len(items), counts[knowledge.StatusVerified], counts[knowledge.StatusCandidate], counts[knowledge.StatusStale])
+		if counts[knowledge.StatusCandidate]+counts[knowledge.StatusStale] > 0 {
+			lvl, detail = LevelInfo, detail+" — duyệt: `bint knowledge review`"
+		}
+		r.add("tri thức", lvl, "%s", detail)
+	}
+	if !slices.Contains(cfg.Harnesses.Enabled, claude.HarnessName) {
+		return
+	}
+	for _, sk := range skills.Core() {
+		st, err := skills.Status(root, skills.ClaudeTarget, sk)
+		switch {
+		case err != nil:
+			r.add("skill "+sk.Name, LevelWarn, "%v", err)
+		case st == "missing":
+			r.add("skill "+sk.Name, LevelInfo, "chưa xuất bản cho Claude Code (chạy lại `bint init` hoặc `bint bootstrap`)")
+		case st == "differs":
+			r.add("skill "+sk.Name, LevelWarn, "khác bản của Bint (bị sửa tay hoặc Bint đã nâng cấp): chạy `bint bootstrap` để cập nhật")
+		default:
+			r.add("skill "+sk.Name, LevelOK, "%s", filepath.ToSlash(filepath.Join(skills.ClaudeTarget.Dir, sk.Name, "SKILL.md")))
+		}
+	}
 }
 
 func claudeHookCheck(root string) Check {

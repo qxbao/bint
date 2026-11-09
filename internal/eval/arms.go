@@ -56,7 +56,9 @@ type ArmSetup struct {
 //     khả dụng cho tác vụ đó (nội dung viết sau commit gốc có thể chứa lời giải).
 //   - economy: dùng phiên bản hiện tại trong repository nếu nó không lộ lời giải
 //     theo CheckLeak; kết quả chỉ dùng để sàng lọc.
-func prepareArm(ctx context.Context, arm, mode, repoDir, minimalPath string, c *Case, leakIn *LeakInput, dir string) (ArmSetup, error) {
+//
+// Với eval.minimal_source: knowledge, nội dung dựng từ tri thức (xem knowledge.go).
+func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn *LeakInput, dir string) (ArmSetup, error) {
 	var s ArmSetup
 	stripped, err := stripContext(dir)
 	if err != nil {
@@ -66,7 +68,17 @@ func prepareArm(ctx context.Context, arm, mode, repoDir, minimalPath string, c *
 	switch arm {
 	case ArmNone:
 	case ArmMinimal:
-		content, src, screening, err := minimalContent(ctx, mode, repoDir, minimalPath, c, leakIn)
+		var (
+			content   []byte
+			src       string
+			screening bool
+			err       error
+		)
+		if env.Cfg.Eval.MinimalSource == "file" {
+			content, src, screening, err = minimalContent(ctx, mode, env.RepoDir, env.Cfg.Eval.MinimalContext, c, leakIn)
+		} else {
+			content, src, screening, err = minimalFromKnowledge(ctx, env, mode, c, leakIn)
+		}
 		if err != nil {
 			return s, err
 		}

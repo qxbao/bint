@@ -17,6 +17,8 @@ import (
 type Env struct {
 	RepoDir  string // thư mục gốc worktree của người dùng (chỉ đọc)
 	WorkRoot string // <state>/eval-work
+	// BintRoot là thư mục chứa .bint/ đang dùng (tri thức hiện tại); rỗng = RepoDir.
+	BintRoot string
 	Cfg      config.Config
 }
 
