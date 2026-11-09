@@ -46,6 +46,7 @@ type Config struct {
 	Memory    Memory    `yaml:"memory"`
 	Eval      Eval      `yaml:"eval"`
 	Evolution Evolution `yaml:"evolution"`
+	Limits    Limits    `yaml:"limits"`
 	Security  Security  `yaml:"security"`
 }
 
@@ -116,6 +117,43 @@ type Eval struct {
 	Arms                  []string `yaml:"arms"`
 	LeakageMode           string   `yaml:"leakage_mode"`
 	BudgetUSD             *float64 `yaml:"budget_usd"`
+	// Harness dùng để chạy tác vụ đánh giá (P1 chỉ hỗ trợ claude).
+	Harness        string    `yaml:"harness"`
+	TimeoutMinutes int       `yaml:"timeout_minutes"`
+	MinimalContext string    `yaml:"minimal_context"`
+	Agent          EvalAgent `yaml:"agent"`
+	Mine           EvalMine  `yaml:"mine"`
+}
+
+// EvalAgent là tham số gọi harness khi chạy đánh giá.
+type EvalAgent struct {
+	Model          *string  `yaml:"model"`
+	PermissionMode string   `yaml:"permission_mode"`
+	AllowedTools   []string `yaml:"allowed_tools"`
+	SettingSources string   `yaml:"setting_sources"`
+	ExtraArgs      []string `yaml:"extra_args"`
+}
+
+// EvalMine là tiêu chí chọn commit làm tác vụ đánh giá (mục 12.2).
+type EvalMine struct {
+	MaxCommits      int      `yaml:"max_commits"`
+	MinSourceLines  int      `yaml:"min_source_lines"`
+	MaxSourceLines  int      `yaml:"max_source_lines"`
+	MaxFiles        int      `yaml:"max_files"`
+	MinMessageChars int      `yaml:"min_message_chars"`
+	TestPatterns    []string `yaml:"test_patterns"`
+	IgnorePatterns  []string `yaml:"ignore_patterns"`
+}
+
+// Limits là giới hạn vận hành (mục 5).
+type Limits struct {
+	PerRun         PerRunLimits `yaml:"per_run"`
+	ProtectedPaths []string     `yaml:"protected_paths"`
+}
+
+type PerRunLimits struct {
+	MaxCostUSD *float64 `yaml:"max_cost_usd"`
+	MaxTurns   *int     `yaml:"max_turns"`
 }
 
 type Evolution struct {
@@ -167,9 +205,22 @@ func Default() Config {
 		Knowledge: Knowledge{RequireHumanApprovalFor: []string{"rule"}},
 		Memory:    Memory{Enabled: true, Scope: "project", RetentionDays: 90},
 		Eval: Eval{
-			Repeats:     3,
-			Arms:        []string{"none", "minimal", "bint"},
-			LeakageMode: "strict",
+			Repeats:        3,
+			Arms:           []string{"none", "minimal", "bint"},
+			LeakageMode:    "strict",
+			Harness:        "claude",
+			TimeoutMinutes: 30,
+			MinimalContext: ".bint/evals/minimal.md",
+			Agent: EvalAgent{
+				PermissionMode: "acceptEdits",
+				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"},
+				SettingSources: "project,local",
+				ExtraArgs:      []string{},
+			},
+			Mine: EvalMine{
+				MaxCommits: 2000, MinSourceLines: 3, MaxSourceLines: 400, MaxFiles: 12, MinMessageChars: 20,
+				TestPatterns: []string{}, IgnorePatterns: []string{},
+			},
 		},
 		Evolution: Evolution{
 			Enabled:    true,
@@ -178,6 +229,7 @@ func Default() Config {
 			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2},
 			Adoption:   EvolutionAdoption{BindToModelVersion: true},
 		},
+		Limits:   Limits{ProtectedPaths: []string{"migrations/**", ".github/workflows/**"}},
 		Security: Security{RequireApprovalForCommands: true},
 	}
 }
@@ -352,6 +404,28 @@ func (c Config) Validate() error {
 	}
 	if c.Eval.BudgetUSD != nil && *c.Eval.BudgetUSD < 0 {
 		add("eval.budget_usd: không được âm")
+	}
+	if c.Eval.Harness != "claude" {
+		add(`eval.harness: P1 chỉ hỗ trợ "claude" (dùng --agent-command cho tác nhân tuỳ chỉnh)`)
+	}
+	if c.Eval.TimeoutMinutes < 1 {
+		add("eval.timeout_minutes: phải >= 1")
+	}
+	if c.Eval.MinimalContext == "" || filepath.IsAbs(c.Eval.MinimalContext) || strings.HasPrefix(filepath.ToSlash(filepath.Clean(c.Eval.MinimalContext)), "../") {
+		add("eval.minimal_context: phải là đường dẫn tương đối trong repository")
+	}
+	if !slices.Contains([]string{"acceptEdits", "auto", "dontAsk", "bypassPermissions"}, c.Eval.Agent.PermissionMode) {
+		add("eval.agent.permission_mode: phải là acceptEdits | auto | dontAsk | bypassPermissions")
+	}
+	m := c.Eval.Mine
+	if m.MaxCommits < 1 || m.MaxFiles < 1 || m.MinSourceLines < 1 || m.MaxSourceLines < m.MinSourceLines || m.MinMessageChars < 0 {
+		add("eval.mine: cần max_commits, max_files, min_source_lines >= 1 và max_source_lines >= min_source_lines")
+	}
+	if c.Limits.PerRun.MaxCostUSD != nil && *c.Limits.PerRun.MaxCostUSD <= 0 {
+		add("limits.per_run.max_cost_usd: phải > 0")
+	}
+	if c.Limits.PerRun.MaxTurns != nil && *c.Limits.PerRun.MaxTurns < 1 {
+		add("limits.per_run.max_turns: phải >= 1")
 	}
 	if !slices.Contains([]string{"propose", "auto"}, c.Evolution.Mode) {
 		add("evolution.mode: phải là propose | auto")

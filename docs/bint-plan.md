@@ -1,10 +1,20 @@
 # BINT — KẾ HOẠCH THIẾT KẾ VÀ TRIỂN KHAI
 
 **Tên:** Bao Intelligence (Bint)  
-**Trạng thái:** Đề xuất kiến trúc — bản sửa đổi 2  
+**Trạng thái:** Đề xuất kiến trúc — bản sửa đổi 3  
 **Phạm vi:** CLI, repository intelligence, agent skills, orchestration, memory và self-evolution.
 
-### Thay đổi chính so với bản trước
+### Thay đổi ở bản sửa đổi 3
+
+1. Thêm ba mức sử dụng; cổng quyết định là việc của nhóm phát triển Bint, người dùng cuối chỉ cần khung đánh giá khi bật tiến hoá (mục 4, 16).
+2. Thêm cách để người đóng góp và duyệt tri thức nhanh, có ghi nhận tác giả; hook Git `post-merge` tuỳ chọn (mục 6, 8, 14).
+3. Thêm phiếu tác vụ được lập từ mô tả tự do, nối với truy xuất theo đường dẫn, giới hạn quyền và tín hiệu kết quả (mục 6, 9).
+4. Thêm giới hạn vận hành: ngân sách mỗi lượt chạy và đường dẫn được bảo vệ (mục 5).
+5. Thêm nhánh tham chiếu lý tưởng và quy trình chẩn đoán khi không qua cổng quyết định (mục 12, 16).
+6. Ghi nhận điều kiện cho việc tái sử dụng tri thức giữa các repository; hoãn tới sau v1.0 (mục 1, 8).
+7. Sửa đường dẫn đầu ra của b-req về thư mục trạng thái cục bộ (mục 6).
+
+### Thay đổi ở bản sửa đổi 2
 
 1. Đưa khung đánh giá lên giai đoạn đầu, thêm các cổng quyết định với tiêu chí dừng được ấn định trước (mục 1, 2, 12, 16).
 2. Khai thác tác vụ đánh giá từ lịch sử Git của repository, có cơ chế chống rò rỉ đáp án (mục 12).
@@ -86,6 +96,8 @@ Những phần trùng với năng lực sẵn có (workflow lập kế hoạch, 
 - Tự động triển khai thay đổi lên môi trường sản xuất.
 - Hỗ trợ toàn diện mọi harness ngay từ phiên bản đầu.
 - Tự sửa chính sách bảo mật và tiêu chí đánh giá của hệ thống.
+- Chia sẻ tri thức giữa các repository (xuất/nhập gói tri thức); xem điều kiện ở mục 8.9.
+- Tiện ích mở rộng cho IDE.
 
 ---
 
@@ -260,7 +272,7 @@ Các bước:
 6. Cài hook ghi nhận lượt chạy nếu harness hỗ trợ và người dùng đồng ý, để bắt đầu tích luỹ dữ liệu ngay.
 7. Cập nhật `.gitignore` theo nguyên tắc không xoá cấu hình hiện có.
 8. Phát hiện lệnh kiểm thử và lệnh dựng môi trường, ghi vào cấu hình dưới dạng đề xuất chờ xác nhận (không chạy).
-9. Thông báo các bước tiếp theo: khai thác tập đánh giá (`bint eval mine`) và bootstrap.
+9. Thông báo bước tiếp theo là bootstrap. Khung đánh giá chỉ được gợi ý khi người dùng muốn bật mức 3 (mục 4.4).
 
 `bint init` không nên tự ý sử dụng mô hình, cài đặt phần mềm bổ sung hoặc chạy lệnh có tác dụng phụ trên dự án.
 
@@ -339,6 +351,29 @@ Cần phân biệt:
 
 Không được mặc định ghi đè những tài liệu người dùng đã chỉnh sửa.
 
+### 4.4. Các mức sử dụng
+
+Người dùng chỉ phải bỏ thêm công sức khi đã thấy lợi ích từ mức trước. Bint gợi ý chuyển mức dựa trên dữ liệu, không ép.
+
+**Mức 1 — Dùng ngay (mặc định)**
+
+```text
+bint init        # một lần, có hỏi đồng ý ở các bước ghi tệp và cài hook
+b-bootstrap      # trong harness; xem và chấp nhận bản thay đổi
+```
+
+Sau đó làm việc bình thường. Agent dùng Context Engine qua MCP và hook theo đường dẫn. Mục chưa duyệt chỉ được trả về như tài liệu tham khảo. Lượt chạy được ghi nhận ngầm.
+
+**Mức 2 — Tri thức được duyệt**
+
+Người dùng duyệt các mục chờ bằng `bint knowledge review` và ghi thêm tri thức của mình bằng `bint knowledge add` (mục 8.8). Quy tắc đã duyệt được chèn như quy tắc bắt buộc.
+
+**Mức 3 — Tiến hoá có kiểm chứng**
+
+Người dùng xác nhận lệnh kiểm thử và lệnh dựng môi trường, khai thác và duyệt tập đánh giá (`bint eval mine`), đặt ngân sách, sau đó duyệt các đề xuất tiến hoá. Bint chỉ gợi ý bật mức này khi đã đủ điều kiện ở mục 10.6.
+
+Chi phí chạy đánh giá ở mức 3 chỉ biết được sau P1. Nếu chi phí cao, mức này có thể chỉ phù hợp với nhóm hoặc repository lớn, và tài liệu người dùng phải nói rõ điều đó.
+
 ---
 
 ## 5. Hệ thống cấu hình
@@ -386,6 +421,7 @@ context:
 
 knowledge:
   require_human_approval_for: [rule]
+  git_post_merge_hook: false
 
 memory:
   enabled: true
@@ -413,6 +449,14 @@ evolution:
     auto_low_risk: false
     bind_to_model_version: true
 
+limits:
+  per_run:
+    max_cost_usd: null
+    max_turns: null
+  protected_paths:
+    - "migrations/**"
+    - ".github/workflows/**"
+
 security:
   allow_external_agents: false
   allow_network_in_evals: false
@@ -433,6 +477,15 @@ Yêu cầu của người dùng được quyền ghi đè lựa chọn role/harn
 
 Cần hỗ trợ cấu hình toàn cục cho những giá trị dùng chung và cấu hình riêng ở máy cá nhân.
 
+### Giới hạn vận hành
+
+Ràng buộc từ phía dự án hoặc tổ chức (ngân sách, đường dẫn nhạy cảm) được khai báo trong cấu hình thay vì để agent tự suy ra:
+
+- Chi phí và số lượt tối đa cho mỗi lượt chạy, theo từng workflow.
+- Đường dẫn được bảo vệ: mọi thay đổi chạm vào chúng đều cần phê duyệt (ví dụ migration, cấu hình CI, tệp liên quan tới bảo mật).
+
+Mức thực thi phụ thuộc vào khả năng của harness. Với workflow do Bint điều phối (cấp 3 trở lên), giới hạn được áp ở tầng chương trình. Với phiên làm việc trực tiếp trong harness, giới hạn chỉ được áp khi harness có hook chặn được thao tác; nếu không, nó chỉ là chỉ dẫn và phải được báo rõ như vậy.
+
 ---
 
 ## 6. Hệ thống skill gốc
@@ -445,7 +498,7 @@ Các workflow dưới đây trùng một phần với năng lực sẵn có củ
 
 **Quy trình:**
 
-1. Phân tích mục tiêu và phạm vi.
+1. Phân tích mục tiêu và phạm vi; lập hoặc hoàn thiện phiếu tác vụ (mục 6.7).
 2. Truy xuất kiến thức dự án.
 3. Xác định các khu vực mã nguồn liên quan.
 4. Phát hiện các yêu cầu còn thiếu hoặc mâu thuẫn.
@@ -457,13 +510,16 @@ Các workflow dưới đây trùng một phần với năng lực sẵn có củ
 **Đầu ra mặc định:**
 
 ```text
-.bint/runtime/tasks/<task-id>/
+<state>/runtime/tasks/<task-id>/
+├── task.yml          # phiếu tác vụ (mục 6.7)
 ├── requirement.md
 ├── plan.md
 └── tasks.md
 ```
 
 Có thể xuất các tài liệu sang `docs/spec/<feature>/` theo cấu hình dự án.
+
+`<state>` là thư mục trạng thái cục bộ (mục 3.1).
 
 Yêu cầu phải gắn với tiêu chí chấp nhận; mỗi đầu việc phải có điều kiện hoàn thành rõ ràng.
 
@@ -506,6 +562,8 @@ Các thao tác có nguy cơ mất dữ liệu phải tuân thủ chính sách ph
 
 Bint có thể ghi nhận không phát hiện vấn đề nghiêm trọng, nhưng không được tự xem đó là bằng chứng tuyệt đối rằng thay đổi an toàn.
 
+Mỗi phát hiện có ID. Người review có thể chuyển một phát hiện thành mục tri thức `lesson` hoặc `warning` bằng một lệnh (`bint knowledge add --from-review <finding-id>`). Mục do agent đề xuất theo cách này vẫn ở trạng thái `candidate`.
+
 ### 6.4. b-do — Điều phối toàn bộ công việc
 
 **Đầu vào:** Một yêu cầu tự nhiên của người dùng.
@@ -517,6 +575,8 @@ Bint có thể ghi nhận không phát hiện vấn đề nghiêm trọng, nhưn
 Tuỳ độ phức tạp, có thể bỏ qua những bước không cần thiết.
 
 Ví dụ: sửa lỗi chính tả không nhất thiết phải tạo bộ yêu cầu hoàn chỉnh.
+
+Bước Classify luôn lập phiếu tác vụ (mục 6.7), kể cả khi bỏ qua b-req. Với tác vụ nhỏ, phiếu có thể chỉ gồm mục tiêu và phạm vi.
 
 b-do chịu trách nhiệm:
 
@@ -557,6 +617,31 @@ Khi nâng cấp Bint:
 1. Thay skill gốc bằng phiên bản mới, cập nhật `core.lock`.
 2. Áp lại lớp phủ.
 3. Nếu một điểm neo không còn tồn tại, báo xung đột và giữ bản cũ cho tới khi người dùng xử lý; không tự đoán vị trí mới.
+
+### 6.7. Phiếu tác vụ
+
+Người dùng mô tả tác vụ bằng văn bản tự do; Bint không bắt buộc đầu vào có cấu trúc. Bước Classify của b-do, hoặc bước đầu của b-req, lập một phiếu tác vụ từ mô tả đó:
+
+```yaml
+goal: "SQLite bị khoá khi chạy kiểm thử tích hợp song song"
+verify:
+  command: "go test -race ./internal/db/..."
+  criteria:
+    - "Không còn lỗi database is locked qua nhiều lần chạy"
+scope:
+  allow: ["internal/db/**"]
+  deny: ["migrations/**"]
+constraints: []
+autonomy: ask_on_protected   # ask_always | ask_on_protected | auto
+```
+
+Phiếu tác vụ phục vụ ba việc:
+
+- `scope` là đầu vào cho truy xuất theo đường dẫn và cho giới hạn quyền ghi.
+- `verify` trở thành tín hiệu kết quả mạnh (mục 9.6) khi lệnh kiểm chứng đã được người xác nhận.
+- `autonomy` kết hợp với đường dẫn được bảo vệ (mục 5) để quyết định khi nào phải hỏi người dùng.
+
+Bint chỉ hỏi lại khi thiếu trường quan trọng cho một tác vụ rủi ro cao, ví dụ không xác định được cách kiểm chứng một thay đổi chạm vào đường dẫn được bảo vệ. Người dùng có thể tự viết phiếu nếu muốn kiểm soát chặt.
 
 ---
 
@@ -635,7 +720,7 @@ Mỗi đơn vị tri thức là một tệp `.bint/knowledge/items/<ulid>.md` g�
 - Nguồn bằng chứng: đường dẫn, vùng ký hiệu, commit.
 - Fingerprint của từng nguồn bằng chứng.
 - Nguồn gốc: `human`, `agent` hoặc `imported`; lượt chạy đã tạo ra mục này; các đầu vào agent đã đọc khi tạo.
-- Người duyệt và thời điểm duyệt, nếu có.
+- Tác giả (theo danh tính Git), người duyệt và thời điểm duyệt, nếu có.
 - Mức tin cậy, phiên bản, thời điểm xác thực, trạng thái hiệu lực.
 
 Các mức trạng thái:
@@ -648,11 +733,14 @@ Quy tắc chuyển trạng thái:
 |---|---|
 | `candidate → verified` (loại `rule`) | Người duyệt qua `bint knowledge approve` |
 | `candidate → verified` (loại khác) | Qua kiểm tra xác định được bằng chương trình và không mâu thuẫn với mục `verified` khác; người dùng có thể yêu cầu duyệt tay cho mọi loại |
+| `candidate → verified` (`origin: human`) | Coi như đã được tác giả duyệt; trong nhóm, việc xem xét diễn ra qua quy trình review mã thông thường vì tệp nằm trong Git |
 | `verified → stale` | Fingerprint của nguồn bằng chứng thay đổi |
 | `stale → verified` | Xác thực lại theo mục 8.4 |
 | `* → deprecated` | Người dùng, hoặc đề xuất tiến hoá đã được chấp nhận |
 
 Agent không được tự nâng một mục do chính agent tạo lên thành quy tắc bắt buộc.
+
+Mục `candidate` có thể được Context Engine trả về như tài liệu tham khảo, gắn nhãn "chưa duyệt", nhưng không bao giờ được chèn như quy tắc bắt buộc. Mục bị gắn cờ có đầu vào từ bên thứ ba (mục 15.5) không được trả về cho tới khi được duyệt.
 
 Thông tin được trích xuất trực tiếp từ mã nguồn vẫn có thể trở nên lỗi thời khi nguồn thay đổi.
 
@@ -744,6 +832,26 @@ Tri thức và skill được commit nghĩa là nhiều người cùng dùng, tr
 - Mỗi đề xuất tiến hoá ghi phiên bản gốc của đối tượng nó sửa. Nếu phiên bản gốc đã thay đổi (do người khác đã áp dụng thay đổi khác), đề xuất trở thành không hợp lệ và phải đánh giá lại trên phiên bản mới.
 - Khi hai thay đổi cùng sửa một skill được merge qua Git, `bint doctor` phát hiện và yêu cầu xử lý thủ công; Bint không tự hợp nhất.
 - Tri thức do người khác commit cũng là đầu vào cần kiểm soát nguồn gốc (xem mục 15.5).
+
+### 8.8. Đóng góp và duyệt tri thức
+
+Tri thức giá trị nhất thường nằm trong đầu những người đã làm lâu với dự án, không nằm trong mã nguồn. Bint phải làm cho việc ghi lại tri thức đó rẻ hơn việc giải thích lại cho agent lần thứ hai.
+
+- **Ghi nhanh:** `bint knowledge add --type warning --paths 'internal/db/**' "<nội dung>"` tạo một mục `origin: human`, tác giả lấy từ cấu hình Git. Có thể gọi qua CLI, hoặc qua công cụ MCP khi người dùng yêu cầu agent ghi lại điều vừa trao đổi.
+- **Từ review:** chuyển phát hiện của b-review thành mục tri thức bằng một lệnh (mục 6.3).
+- **Duyệt theo lô:** `bint knowledge review` hiển thị lần lượt các mục chờ duyệt, mỗi mục kèm bằng chứng, nguồn gốc và phạm vi; người dùng chấp nhận, sửa hoặc từ chối bằng một phím. Bint nhắc khi có mục chờ duyệt nhưng không chặn công việc.
+- **Ghi nhận đóng góp:** mỗi mục lưu tác giả. `bint knowledge stats` cho biết mỗi mục được truy xuất và được trích dẫn bao nhiêu lần. Tác động thực của một mục chỉ được báo cáo khi đã có đánh giá loại bỏ (mục 9.7); không suy ra tác động từ số lần sử dụng.
+- **Hook Git tuỳ chọn:** hook `post-merge` (mặc định tắt) cập nhật chỉ mục và in tóm tắt tri thức mới từ người khác. Bint không cài hook `pre-commit`, vì chặn commit là can thiệp quá sâu vào quy trình của người dùng.
+
+### 8.9. Tái sử dụng giữa repository (sau v1.0)
+
+Chia sẻ tri thức giữa các repository có giá trị trong tổ chức có nhiều dự án dùng chung quy ước, nhưng phải giữ ba giới hạn:
+
+- **Tri thức chung ít giá trị.** Phần có ích nhất của Bint là những điều bất thường của từng dự án. Quy tắc chung (ví dụ cách xử lý đồng thời trong Go) phần lớn mô hình đã biết; chèn thêm chủ yếu làm tăng chi phí.
+- **Lợi ích không tự chuyển giao.** Một mục có tác động tốt ở repository A phải được đánh giá lại ở repository B. Tiêu chí để xuất một mục phải dựa trên tác động đo bằng đánh giá loại bỏ, không dựa trên tỷ lệ đạt của các lượt chạy có dùng mục đó.
+- **Gói tri thức là đầu vào không đáng tin.** Mục được nhập luôn có `origin: imported`, bắt đầu ở `candidate` và đi qua quy trình duyệt như mọi mục khác. Phiên bản đầu không hỗ trợ nhập trực tiếp từ URL. Việc lọc dữ liệu nhạy cảm khi xuất phải được người xem lại, không chỉ dựa vào bộ lọc tự động.
+
+Hướng tiếp cận dự kiến: `bint knowledge export` và `bint knowledge import` làm việc với tệp cục bộ, không cần dịch vụ trung tâm.
 
 ---
 
@@ -843,6 +951,7 @@ Evolution Engine chỉ đáng tin khi kết quả của lượt chạy được 
 | Tín hiệu | Nguồn | Độ mạnh |
 |---|---|---|
 | Kiểm thử liên quan qua/không qua | CLI, hook | Mạnh nếu kiểm thử bao phủ thay đổi |
+| Lệnh kiểm chứng trong phiếu tác vụ qua/không qua | CLI, hook | Mạnh nếu lệnh đã được người xác nhận |
 | Đáp ứng tiêu chí chấp nhận | b-feat, b-review | Trung bình, do agent tự đánh giá |
 | Người dùng sửa lại diff của agent trong phiên | Git, hook | Trung bình |
 | Thay đổi bị hoàn tác trong N ngày | Quét lịch sử Git | Mạnh (tiêu cực) |
@@ -1096,6 +1205,10 @@ Mọi phép đo có/không có Bint chạy ít nhất ba nhánh trên cùng tậ
 2. **Tối giản:** AGENTS.md ngắn chứa các quy tắc bất thường, không có Context Engine.
 3. **Bint đầy đủ:** Context Engine, chèn theo đường dẫn, skill.
 
+Khi cần chẩn đoán (mục 12.9), chạy thêm:
+
+4. **Tham chiếu lý tưởng:** thay bộ truy xuất bằng tập mục tri thức "đúng", tức những mục có phạm vi chồng lên các tệp trong lời giải thật, lấy từ chính kho tri thức được dựng ở chế độ `strict` tại commit gốc. Nhánh này không đưa nội dung lời giải vào, nhưng có lộ gián tiếp vị trí cần sửa, nên chỉ dùng làm cận trên: nếu truy xuất hoàn hảo trên kho tri thức hiện có thì được lợi tối đa bao nhiêu. Đây không phải cấu hình dùng thật và không bao giờ được báo cáo như kết quả của Bint.
+
 Nhánh 2 là mốc khó vượt nhất và quan trọng nhất: nếu Bint đầy đủ không tốt hơn nó, phần phức tạp còn lại không có lý do tồn tại.
 
 Đánh giá loại bỏ (bỏ từng mục hoặc từng nhóm tri thức) dùng cùng cơ chế để xác định tác động thực (mục 9.7).
@@ -1141,6 +1254,24 @@ Theo dõi riêng:
 - Chi phí kiểm chứng sau triển khai.
 
 Việc tiến hoá có thể bị từ chối khi lợi ích kỳ vọng không bù được chi phí, ngay cả khi ứng viên có kết quả tốt hơn.
+
+### 12.9. Chẩn đoán khi không qua cổng
+
+Biết rằng không qua cổng quyết định chưa đủ để biết nên sửa gì hay nên dừng. `bint eval report` tách nguyên nhân theo thứ tự dưới đây và dừng ở nguyên nhân đầu tiên được xác nhận:
+
+| Nguyên nhân | Dấu hiệu | Hướng xử lý |
+|---|---|---|
+| Đo lường không đủ tin cậy | Khoảng tin cậy quá rộng; kiểm thử chập chờn; kiểm tra rò rỉ thất bại; phiên bản mô hình đổi giữa chừng | Sửa phép đo, chưa kết luận gì về Bint |
+| Nội dung tri thức không giúp | Nhánh tham chiếu lý tưởng không tốt hơn nhánh tối giản | Sửa truy xuất sẽ vô ích; xem lại loại tri thức được sinh, hoặc thu hẹp hay dừng |
+| Truy xuất bỏ sót | Nhánh lý tưởng tốt hơn nhánh tối giản nhưng Bint đầy đủ thì không; tập truy xuất phủ thấp so với tập lý tưởng | Sửa truy xuất: phạm vi đường dẫn, thẻ, xếp hạng |
+| Truy xuất đúng nhưng không được áp dụng | Mục đúng có trong ngữ cảnh nhưng không được trích dẫn ở các lượt thất bại | Sửa cách trình bày: vị trí, độ dài, mức ưu tiên |
+| Ngữ cảnh gây nhiễu | Bint đầy đủ kém hơn tối giản; chi phí và thao tác khám phá tăng; độ chính xác truy xuất thấp | Giảm ngân sách ngữ cảnh, lọc chặt hơn, ưu tiên chèn theo đường dẫn |
+
+Quy tắc:
+
+- Báo cáo chẩn đoán là dữ liệu để người ra quyết định, không tự kích hoạt thay đổi.
+- Chẩn đoán và điều chỉnh chỉ dùng tập xác thực. Lần đo lại ở cổng phải dùng tác vụ chưa từng dùng để chẩn đoán; nếu không, việc qua cổng chỉ phản ánh mức khớp với chính tập đã dùng để sửa.
+- Mỗi vòng chẩn đoán–sửa–đo lại được tính vào giới hạn số vòng của cổng (mục 16).
 
 ---
 
@@ -1227,6 +1358,9 @@ Bản đầu ưu tiên Manual và Deferred. Không giả định mọi harness �
 | `bint context --paths <path>...` | Quy tắc theo đường dẫn |
 | `bint knowledge approve <id>` | Duyệt mục tri thức |
 | `bint knowledge diff` | Xem tri thức mới hoặc bị sửa từ người khác |
+| `bint knowledge add` | Ghi nhanh một mục tri thức, kể cả từ phát hiện review |
+| `bint knowledge review` | Duyệt theo lô các mục chờ |
+| `bint knowledge stats` | Số lần truy xuất, trích dẫn và tác giả của từng mục |
 | `bint index rebuild` | Dựng lại chỉ mục từ tệp |
 | `bint docs render` | Sinh tài liệu cho người đọc |
 | `bint mcp serve` | Chạy MCP server |
@@ -1327,22 +1461,24 @@ Biện pháp:
 
 Nguyên tắc sắp xếp: phần ghi nhận dữ liệu và đo lường đi trước, vì mọi quyết định phía sau phụ thuộc vào chúng và dữ liệu cần thời gian để tích luỹ. Các phần trùng với năng lực sẵn có của harness chỉ được xây ở mức tối thiểu.
 
+Cổng quyết định 1 và 2 là việc của nhóm phát triển Bint, chạy trên các repository thử nghiệm đại diện (mục 17) để quyết định hướng đi của sản phẩm. Người dùng cuối không phải chạy lại chúng; khung đánh giá trên repository của người dùng chỉ cần khi bật mức 3 (mục 4.4).
+
 ### P0 — Nền tảng CLI và ghi nhận lượt chạy
 
 **Mục tiêu:** Có một công cụ độc lập, cấu hình ổn định và bắt đầu tích luỹ dữ liệu ngay.
 
 Công việc:
 
-- [x] Khởi tạo Go module và cấu trúc package.
-- [x] Xây CLI và quản lý lỗi.
-- [x] Định nghĩa config schema v1.
-- [x] Thư mục trạng thái cục bộ ngoài repository, xác định theo `git-common-dir`.
-- [x] Triển khai SQLite và migration (chọn driver hỗ trợ FTS5, ưu tiên không cần CGO để dễ biên dịch chéo; xác minh trước khi chốt).
-- [x] Triển khai `bint init` và `bint doctor`.
-- [x] Cơ chế đồng bộ tệp an toàn, có sao lưu; quản lý khối đánh dấu trong AGENTS.md.
-- [x] Hàng đợi sự kiện `spool/` và lệnh nạp, loại trùng theo `event_id`.
-- [x] Hook ghi nhận tối thiểu cho harness đầu tiên: bắt đầu và kết thúc phiên, tệp được sửa, lệnh kiểm thử.
-- [x] Kiểm thử CLI trên các trạng thái repository khác nhau, kể cả nhiều worktree.
+- [ ] Khởi tạo Go module và cấu trúc package.
+- [ ] Xây CLI và quản lý lỗi.
+- [ ] Định nghĩa config schema v1.
+- [ ] Thư mục trạng thái cục bộ ngoài repository, xác định theo `git-common-dir`.
+- [ ] Triển khai SQLite và migration (chọn driver hỗ trợ FTS5, ưu tiên không cần CGO để dễ biên dịch chéo; xác minh trước khi chốt).
+- [ ] Triển khai `bint init` và `bint doctor`.
+- [ ] Cơ chế đồng bộ tệp an toàn, có sao lưu; quản lý khối đánh dấu trong AGENTS.md.
+- [ ] Hàng đợi sự kiện `spool/` và lệnh nạp, loại trùng theo `event_id`.
+- [ ] Hook ghi nhận tối thiểu cho harness đầu tiên: bắt đầu và kết thúc phiên, tệp được sửa, lệnh kiểm thử.
+- [ ] Kiểm thử CLI trên các trạng thái repository khác nhau, kể cả nhiều worktree.
 
 **Nghiệm thu:** Người dùng có thể khởi tạo Bint nhiều lần mà không mất dữ liệu hoặc ghi đè thay đổi chưa được chấp nhận; lượt chạy từ nhiều worktree song song được ghi về cùng một cơ sở dữ liệu mà không trùng hay mất sự kiện.
 
@@ -1374,10 +1510,11 @@ Công việc:
 - [ ] Quy trình `b-bootstrap` sinh quy tắc bất thường và điểm dễ sai.
 - [ ] Kiểm tra xác định được: đường dẫn, ký hiệu, ví dụ mã.
 - [ ] `bint knowledge approve` và bảng chuyển trạng thái.
+- [ ] `bint knowledge add` và `bint knowledge review` (duyệt theo lô).
 - [ ] Sinh AGENTS.md (khối Bint) và CLAUDE.md (nhập lại).
 - [ ] Đo nhánh "tối giản" so với "không ngữ cảnh".
 
-**Cổng quyết định 1:** Với ngưỡng được ghi vào tài liệu trước khi chạy, nhánh tối giản không được kém nhánh không ngữ cảnh về tỷ lệ đạt (trong khoảng tin cậy) và phải giảm rõ rệt chi phí hoặc thao tác khám phá. Nếu không đạt: điều chỉnh loại tri thức được sinh và đo lại; sau hai vòng vẫn không đạt thì dừng hướng sinh tri thức tự động, chỉ giữ tri thức do người viết.
+**Cổng quyết định 1:** Với ngưỡng được ghi vào tài liệu trước khi chạy, nhánh tối giản không được kém nhánh không ngữ cảnh về tỷ lệ đạt (trong khoảng tin cậy) và phải giảm rõ rệt chi phí hoặc thao tác khám phá. Nếu không đạt: chẩn đoán theo mục 12.9, điều chỉnh rồi đo lại trên tác vụ chưa dùng để chẩn đoán; sau hai vòng vẫn không đạt thì dừng hướng sinh tri thức tự động, chỉ giữ tri thức do người viết.
 
 ### P3 — Context Engine và vòng đời tri thức
 
@@ -1393,9 +1530,10 @@ Công việc:
 - [ ] Xác thực lại theo mức rủi ro.
 - [ ] Ghi nhận truy xuất và trích dẫn (`cite_knowledge`).
 - [ ] Thu thập tín hiệu kết quả (mục 9.6), quét hoàn tác từ lịch sử Git.
+- [ ] Nhánh tham chiếu lý tưởng và báo cáo chẩn đoán (mục 12.9).
 - [ ] Đo nhánh "Bint đầy đủ" so với "tối giản".
 
-**Cổng quyết định 2:** Bint đầy đủ phải tốt hơn nhánh tối giản trên thước đo đã chọn trước. Nếu không, Context Engine được thu hẹp về chế độ chèn theo đường dẫn (phần rẻ nhất) và các giai đoạn tiến hoá được xem xét lại.
+**Cổng quyết định 2:** Bint đầy đủ phải tốt hơn nhánh tối giản trên thước đo đã chọn trước. Nếu không, chẩn đoán theo mục 12.9. Lỗi truy xuất hoặc lỗi trình bày thì sửa và đo lại trên tác vụ mới. Nếu nguyên nhân là nội dung tri thức, hoặc vẫn không đạt sau hai vòng, Context Engine được thu hẹp về chế độ chèn theo đường dẫn (phần rẻ nhất) và các giai đoạn tiến hoá được xem xét lại.
 
 ### P4 — Workflow tối thiểu
 
@@ -1409,6 +1547,8 @@ Công việc:
 - [ ] Kiểm tra tiêu chí chấp nhận, gắn với tín hiệu kết quả.
 - [ ] Ghi nhận lỗi và trạng thái gián đoạn.
 - [ ] Nâng cấp skill gốc và áp lại lớp phủ.
+- [ ] Phiếu tác vụ (mục 6.7) và giới hạn vận hành (mục 5).
+- [ ] Chuyển phát hiện review thành tri thức.
 
 **Nghiệm thu:** Một yêu cầu tính năng đi qua b-do với các đầu ra liên kết bằng task ID; nâng cấp phiên bản Bint không làm mất lớp phủ.
 
@@ -1615,6 +1755,9 @@ Bint chỉ nên tuyên bố rằng hệ thống đang tiến hoá hiệu quả k
 14. **Chỉ người mới nâng được quy tắc bắt buộc**; agent không tự xác thực tri thức do agent tạo.
 15. **Đánh giá trên tác vụ lịch sử phải chống rò rỉ đáp án**.
 16. **Mọi cải tiến gắn với phiên bản mô hình** đã dùng để kiểm chứng nó.
+17. **Không bắt buộc đầu vào có cấu trúc**; phiếu tác vụ do Bint lập từ mô tả tự do.
+18. **Người dùng cuối không gánh việc kiểm chứng sản phẩm**; cổng quyết định thuộc về nhóm phát triển, khung đánh giá theo repository chỉ cần khi bật tiến hoá.
+19. **Tri thức nhập từ bên ngoài luôn bắt đầu ở `candidate`**.
 
 ### Thứ tự triển khai ưu tiên
 

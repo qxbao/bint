@@ -241,7 +241,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		"Commit .bint/config.yml (và .gitignore) để cả nhóm dùng chung cấu hình",
 		"Kiểm tra môi trường: bint doctor",
 		"Xem lượt chạy đã ghi nhận: bint runs list",
-		"Khai thác tập đánh giá (bint eval mine) và bootstrap sẽ có ở P1/P2",
+		"Bootstrap tri thức sẽ có ở P2; khung đánh giá (bint eval --help) chỉ cần khi muốn đo trên repository này",
 	)
 	return rep, nil
 }

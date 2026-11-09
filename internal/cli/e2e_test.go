@@ -141,8 +141,8 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("status: %d\n%s", code, out)
 	}
 
-	out, code = run(t, root, "", "eval", "mine")
-	if code != 3 || !strings.Contains(out, "P1") {
+	out, code = run(t, root, "", "bootstrap")
+	if code != 3 || !strings.Contains(out, "P2") {
 		t.Fatalf("planned command: %d\n%s", code, out)
 	}
 }

@@ -76,6 +76,23 @@ eval:
   arms: [none, minimal, bint]
   leakage_mode: strict      # strict | economy
   budget_usd: null          # bắt buộc đặt trước khi chạy tự động
+  harness: claude
+  timeout_minutes: 30       # mỗi lượt chạy tác nhân
+  minimal_context: .bint/evals/minimal.md   # AGENTS.md ngắn cho nhánh "minimal"
+  agent:
+    model: null             # null = mặc định của harness
+    permission_mode: acceptEdits
+    allowed_tools: [Read, Edit, Write, Glob, Grep, Bash]
+    setting_sources: "project,local"   # không nạp hook/cấu hình cấp người dùng
+    extra_args: []
+  mine:                     # tiêu chí chọn commit làm tác vụ (bint eval mine)
+    max_commits: 2000
+    min_source_lines: 3
+    max_source_lines: 400
+    max_files: 12
+    min_message_chars: 20
+    test_patterns: []       # rỗng = mẫu dựng sẵn (_test.go, test_*.py, *.spec.ts, ...)
+    ignore_patterns: []
 
 evolution:
   enabled: true
@@ -89,6 +106,14 @@ evolution:
   adoption:
     auto_low_risk: false
     bind_to_model_version: true
+
+limits:
+  per_run:
+    max_cost_usd: null
+    max_turns: null
+  protected_paths:
+    - "migrations/**"
+    - ".github/workflows/**"
 
 security:
   allow_external_agents: false
