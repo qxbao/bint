@@ -643,6 +643,13 @@ func resolveArms(e *evalCtx, flagArms []string, explicit bool, w io.Writer) ([]s
 			fmt.Fprintf(w, "Bỏ nhánh %s: %v\n", a, err)
 			continue
 		}
+		if err := eval.ArmRequirement(a, e.ws.Config); err != nil {
+			if explicit {
+				return nil, usageError{err}
+			}
+			fmt.Fprintf(w, "Bỏ nhánh %s: %v\n", a, err)
+			continue
+		}
 		if a == eval.ArmMinimal && e.ws.Config.Eval.MinimalSource == "file" {
 			p := filepath.Join(e.ws.Repo.Toplevel, filepath.FromSlash(e.ws.Config.Eval.MinimalContext))
 			if _, err := os.Stat(p); err != nil {
@@ -901,7 +908,7 @@ ngân sách. Ctrl-C dừng an toàn; chạy tiếp bằng --resume <batch-id>.`,
 	}
 	sel.flags(c)
 	f := c.Flags()
-	f.StringSliceVar(&arms, "arms", nil, "nhánh: none, minimal (mặc định eval.arms, bỏ nhánh chưa có)")
+	f.StringSliceVar(&arms, "arms", nil, "nhánh: none, minimal, bint, ideal (ideal chỉ để chẩn đoán; mặc định eval.arms)")
 	f.IntVar(&repeats, "repeats", 3, "số lần lặp mỗi nhánh (mặc định eval.repeats)")
 	f.Float64Var(&budget, "budget", 0, "ngân sách USD cho đợt này (mặc định eval.budget_usd)")
 	f.Float64Var(&costPerRun, "cost-per-run", 0, "chi phí ước tính mỗi lượt khi chưa có lịch sử")
@@ -1106,14 +1113,29 @@ func printReport(w io.Writer, rep eval.Report, perCase bool) {
 		}
 		tw.Flush()
 	}
-	if len(rep.Diagnostics) > 0 {
-		fmt.Fprintln(w, "\nĐộ tin cậy của phép đo:")
+	fmt.Fprintln(w, "\nĐộ tin cậy của phép đo:")
+	if len(rep.Diagnostics) == 0 {
+		fmt.Fprintln(w, "  ✓ không có cảnh báo")
+	} else {
 		for _, d := range rep.Diagnostics {
 			icon := "i"
 			if d.Level == "warn" {
 				icon = "!"
 			}
 			fmt.Fprintf(w, "  %s %s\n", icon, d.Detail)
+		}
+	}
+	if g := rep.Gate2; g != nil {
+		fmt.Fprintln(w, "\nChẩn đoán cổng quyết định 2 (mục 12.9; chỉ dùng tập validation để chẩn đoán):")
+		for _, c := range g.Checks {
+			fmt.Fprintf(w, "  · %s\n", c)
+		}
+		fmt.Fprintf(w, "  → %s: %s\n", g.Cause, g.Detail)
+		for _, a := range rep.Arms {
+			if a.Arm == eval.ArmIdeal {
+				fmt.Fprintln(w, "  Nhánh ideal là cận trên chẩn đoán (lộ gián tiếp vị trí cần sửa), không phải kết quả của Bint.")
+				break
+			}
 		}
 	}
 }

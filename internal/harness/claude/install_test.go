@@ -101,16 +101,16 @@ func TestModelNameAndRelPath(t *testing.T) {
 		t.Fatal("modelName")
 	}
 	root := t.TempDir()
-	if r, ok := relPath(root, root, filepath.Join(root, "a", "b.go")); !ok || r != "a/b.go" {
+	if r, ok := RelPath(root, root, filepath.Join(root, "a", "b.go")); !ok || r != "a/b.go" {
 		t.Fatalf("abs: %q %v", r, ok)
 	}
-	if r, ok := relPath(root, filepath.Join(root, "a"), "b.go"); !ok || r != "a/b.go" {
+	if r, ok := RelPath(root, filepath.Join(root, "a"), "b.go"); !ok || r != "a/b.go" {
 		t.Fatalf("rel: %q %v", r, ok)
 	}
-	if _, ok := relPath(root, root, filepath.Join(filepath.Dir(root), "x.go")); ok {
+	if _, ok := RelPath(root, root, filepath.Join(filepath.Dir(root), "x.go")); ok {
 		t.Fatal("outside accepted")
 	}
-	if _, ok := relPath(root, root, "../x.go"); ok {
+	if _, ok := RelPath(root, root, "../x.go"); ok {
 		t.Fatal("dotdot accepted")
 	}
 }

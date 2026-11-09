@@ -39,6 +39,8 @@ func newInitCmd(stdio IO) *cobra.Command {
 		agentsMD  bool
 		force     bool
 		noSkills  bool
+		mcp       bool
+		noMCP     bool
 	)
 	c := &cobra.Command{
 		Use:   "init",
@@ -61,9 +63,17 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 			if err != nil {
 				return err
 			}
+			if mcp && noMCP {
+				return usageError{fmt.Errorf("--mcp và --no-mcp loại trừ nhau")}
+			}
 			opts := app.InitOptions{
 				Dir: dir, Harnesses: harnesses, HooksScope: sc, AgentsMD: agentsMD, Force: force,
 				BintPath: bintPath(), Version: Version, NoSkills: noSkills,
+			}
+			if mcp {
+				opts.MCP = ptr(true)
+			} else if noMCP {
+				opts.MCP = ptr(false)
 			}
 			switch {
 			case hooks:
@@ -110,6 +120,8 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 	f.BoolVar(&agentsMD, "agents-md", false, "ghi khối bint (quy tắc đã duyệt) vào AGENTS.md và nhập lại AGENTS.md trong CLAUDE.md")
 	f.BoolVar(&force, "force", false, "ghi đè khối bint hoặc skill gốc đã bị sửa tay (bản cũ được sao lưu)")
 	f.BoolVar(&noSkills, "no-skills", false, "không xuất bản skill gốc (b-bootstrap) cho harness")
+	f.BoolVar(&mcp, "mcp", false, "đăng ký MCP server của Bint (Context Engine) vào .mcp.json cho Claude Code")
+	f.BoolVar(&noMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi .mcp.json")
 	return c
 }
 
@@ -222,7 +234,7 @@ func newHookCmd(stdio IO) *cobra.Command {
 		Short: "Nhận sự kiện hook Claude Code từ stdin và ghi vào spool",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			app.RunClaudeHook(cmd.Context(), stdio.In, stdio.Err, Version)
+			app.RunClaudeHook(cmd.Context(), stdio.In, stdio.Out, stdio.Err, Version)
 			return nil // không bao giờ chặn agent
 		},
 	})
@@ -231,9 +243,6 @@ func newHookCmd(stdio IO) *cobra.Command {
 
 func plannedCommands() []*cobra.Command {
 	planned := []struct{ use, short, phase string }{
-		{"context", "Truy xuất ngữ cảnh theo tác vụ hoặc đường dẫn", "P3"},
-		{"index", "Dựng lại chỉ mục tri thức", "P3"},
-		{"mcp", "MCP server của Context Engine", "P3"},
 		{"docs", "Sinh tài liệu cho người đọc từ tri thức", "P3"},
 		{"run", "Thực thi workflow b-req, b-feat, b-review, b-do", "P4"},
 		{"skill", "Quản lý skill gốc và lớp phủ", "P4"},

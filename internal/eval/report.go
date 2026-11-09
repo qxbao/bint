@@ -80,6 +80,8 @@ type Report struct {
 	Paired      []Paired     `json:"paired"`
 	Cases       []CaseResult `json:"cases"`
 	Diagnostics []Diagnostic `json:"diagnostics"`
+	// Gate2 là chẩn đoán theo mục 12.9 khi đợt có nhánh bint/ideal.
+	Gate2 *Gate2Diagnosis `json:"gate2_diagnosis,omitempty"`
 }
 
 // reportSeed cố định để báo cáo tái lập được.
@@ -253,8 +255,8 @@ func BuildReport(ctx context.Context, db *sql.DB, b Batch, baseline string, curr
 		rep.Arms = append(rep.Arms, *s)
 	}
 
-	paired := func(arm string, pick func(*agg) []float64) (*Stat, float64) {
-		a, base := perCase(arm, pick), perCase(baseline, pick)
+	pairedVs := func(arm, against string, pick func(*agg) []float64) (*Stat, float64) {
+		a, base := perCase(arm, pick), perCase(against, pick)
 		var d []float64
 		for _, id := range caseIDs {
 			va, okA := a[id]
@@ -268,19 +270,29 @@ func BuildReport(ctx context.Context, db *sql.DB, b Batch, baseline string, curr
 		}
 		return &Stat{Mean: Mean(d), CI: BootstrapMeanCI(d, BootstrapIters, 0.05, reportSeed), N: len(d)}, SD(d)
 	}
-	for _, arm := range arms {
-		if arm == baseline {
-			continue
-		}
-		pd, sd := paired(arm, pickPass)
+	addPaired := func(arm, against string) {
+		pd, sd := pairedVs(arm, against, pickPass)
 		if pd == nil {
-			continue
+			return
 		}
-		p := Paired{Arm: arm, Baseline: baseline, PassDiff: *pd, SDDiff: finite(sd)}
-		p.CostDiff, _ = paired(arm, pickCost)
-		p.TimeDiff, _ = paired(arm, pickDur)
-		p.TurnDiff, _ = paired(arm, pickTurns)
+		p := Paired{Arm: arm, Baseline: against, PassDiff: *pd, SDDiff: finite(sd)}
+		p.CostDiff, _ = pairedVs(arm, against, pickCost)
+		p.TimeDiff, _ = pairedVs(arm, against, pickDur)
+		p.TurnDiff, _ = pairedVs(arm, against, pickTurns)
 		rep.Paired = append(rep.Paired, p)
+	}
+	for _, arm := range arms {
+		if arm != baseline {
+			addPaired(arm, baseline)
+		}
+	}
+	// Cổng quyết định 2 so Bint đầy đủ (và tham chiếu lý tưởng) với nhánh tối giản.
+	if baseline != ArmMinimal && slices.Contains(arms, ArmMinimal) {
+		for _, arm := range []string{ArmBint, ArmIdeal} {
+			if slices.Contains(arms, arm) {
+				addPaired(arm, ArmMinimal)
+			}
+		}
 	}
 
 	for _, id := range caseIDs {
@@ -291,6 +303,14 @@ func BuildReport(ctx context.Context, db *sql.DB, b Batch, baseline string, curr
 		rep.Cases = append(rep.Cases, cr)
 	}
 	rep.Diagnostics = diagnose(rep, b, rows, models, harnessVersions, fingerprints, current, touched)
+	if slices.Contains(arms, ArmBint) || slices.Contains(arms, ArmIdeal) {
+		cu, err := batchContext(ctx, db, b.BatchID)
+		if err != nil {
+			return rep, err
+		}
+		g := diagnoseGate2(rep, rows, cu)
+		rep.Gate2 = &g
+	}
 	return rep, nil
 }
 
@@ -373,7 +393,6 @@ func diagnose(rep Report, b Batch, rows []AttemptRow, models map[string]map[stri
 	if touched > 0 {
 		info("touched_tests", "%d lượt agent có sửa tệp kiểm thử (tệp kiểm thử chấm điểm vẫn được ghi đè bằng bản của commit)", touched)
 	}
-	info("scope", "P1 chỉ chẩn đoán được nhóm \"đo lường không đủ tin cậy\" (mục 12.9); các nguyên nhân còn lại cần nhánh tham chiếu lý tưởng và nhánh bint (P2–P3)")
 	return ds
 }
 

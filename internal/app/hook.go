@@ -16,12 +16,16 @@ import (
 // RunClaudeHook xử lý một lần gọi hook của Claude Code. Không bao giờ trả lỗi
 // cho harness: lỗi được ghi vào hook-errors.log trong thư mục trạng thái (hoặc
 // stderr nếu chưa xác định được thư mục đó) để hook không chặn agent.
-func RunClaudeHook(ctx context.Context, stdin io.Reader, stderr io.Writer, version string) {
+func RunClaudeHook(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, version string) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	data, err := io.ReadAll(io.LimitReader(stdin, 8<<20))
 	if err == nil {
-		_, err = claude.HandleHook(ctx, bytes.NewReader(data), claude.HookEnv{BintVersion: version})
+		var res claude.HookResult
+		res, err = claude.HandleHook(ctx, bytes.NewReader(data), claude.HookEnv{BintVersion: version})
+		if err == nil && res.Output != "" {
+			fmt.Fprintln(stdout, res.Output)
+		}
 	}
 	if err == nil {
 		return

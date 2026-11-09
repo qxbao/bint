@@ -120,6 +120,23 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 	}
 }
 
+// OpenMemory mở cơ sở dữ liệu trong bộ nhớ đã qua migration (một kết nối duy nhất,
+// vì mỗi kết nối :memory: là một cơ sở dữ liệu riêng). Dùng cho chỉ mục tạm của
+// Context Engine khi không có thư mục trạng thái (thư mục đánh giá, hook).
+func OpenMemory(ctx context.Context) (*Store, error) {
+	db, err := sql.Open("sqlite", ":memory:?_pragma=foreign_keys(0)")
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	s := &Store{DB: db, Path: ":memory:"}
+	if err := s.migrate(ctx); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
 func isBusy(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "SQLITE_BUSY") || strings.Contains(msg, "database is locked")

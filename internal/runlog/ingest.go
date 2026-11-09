@@ -205,9 +205,73 @@ func applyRunEffects(ctx context.Context, tx *sql.Tx, runID string, e spool.Even
 		if cmd == "" {
 			return nil
 		}
-		return upsertArtifact(ctx, tx, runID, "test.command", cmd, ts)
+		if err := upsertArtifact(ctx, tx, runID, "test.command", cmd, ts); err != nil {
+			return err
+		}
+		// Tín hiệu kết quả (mục 9.6): mạnh nếu là lệnh kiểm thử đã được người xác nhận
+		// (eval.test_command), trung bình nếu chỉ nhận diện theo mẫu.
+		ok, has := p["ok"].(bool)
+		if !has {
+			return nil
+		}
+		strength := "medium"
+		if c, _ := p["confirmed"].(bool); c {
+			strength = "strong"
+		}
+		return UpsertSignal(ctx, tx, Signal{RunID: runID, Kind: SignalTests, Positive: ok, Strength: strength,
+			Source: "hook", Detail: cmd, DedupKey: "tests:" + e.EventID, ObservedAt: ts})
+	case spool.ContextRetrieved:
+		labels, _ := p["labels"].(map[string]any)
+		for i, id := range strList(p["ids"]) {
+			label, _ := labels[id].(string)
+			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO context_usages
+				(usage_id, run_id, event_id, channel, item_id, rank, label, created_at) VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?)`,
+				ulid.New(), runID, e.EventID, str(p, "channel"), id, i+1, label, ts); err != nil {
+				return err
+			}
+		}
+		return nil
+	case spool.KnowledgeCited:
+		for _, id := range strList(p["ids"]) {
+			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO knowledge_citations
+				(citation_id, run_id, event_id, item_id, note, created_at) VALUES (?, ?, ?, ?, NULLIF(?, ''), ?)`,
+				ulid.New(), runID, e.EventID, id, str(p, "note"), ts); err != nil {
+				return err
+			}
+		}
+		return nil
+	case spool.ObservationReported:
+		paths, _ := json.Marshal(strList(p["paths"]))
+		_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO observations
+			(observation_id, run_id, event_id, kind, title, body, paths, item_id, created_at)
+			VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?)`,
+			ulid.New(), runID, e.EventID, str(p, "kind"), str(p, "title"), str(p, "body"), string(paths), str(p, "item_id"), ts)
+		return err
+	case spool.RunRated:
+		rating := str(p, "rating")
+		if rating != "good" && rating != "bad" {
+			return nil
+		}
+		return UpsertSignal(ctx, tx, Signal{RunID: runID, Kind: SignalRating, Positive: rating == "good", Strength: "strong",
+			Source: "cli", Detail: str(p, "note"), DedupKey: "rating:" + runID, ObservedAt: ts})
 	}
 	return nil
+}
+
+// strList đọc mảng chuỗi trong payload JSON.
+func strList(v any) []string {
+	var out []string
+	switch xs := v.(type) {
+	case []any:
+		for _, x := range xs {
+			if s, ok := x.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+	case []string:
+		out = append(out, xs...)
+	}
+	return out
 }
 
 func upsertArtifact(ctx context.Context, tx *sql.Tx, runID, kind, path, ts string) error {

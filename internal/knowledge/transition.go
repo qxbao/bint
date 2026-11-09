@@ -37,6 +37,10 @@ type TransitionInput struct {
 	Now       time.Time
 }
 
+// HighRisk cho biết loại tri thức có rủi ro cao khi sai (mục 8.4): xác thực lại
+// cần người, và chỉ những loại này mới đáng tốn agent để nhận định lại.
+func HighRisk(typ string) bool { return typ == TypeRule || typ == TypeWarning }
+
 // ErrTransition: chuyển trạng thái không được phép.
 var ErrTransition = errors.New("không được chuyển trạng thái")
 
@@ -53,7 +57,8 @@ var TransitionTable = []Rule{
 	{StatusCandidate, StatusVerified, "loại khác: qua kiểm tra xác định được và không mâu thuẫn với mục verified (`bint knowledge verify --apply`), hoặc người duyệt"},
 	{StatusCandidate, StatusVerified, "origin: human: được tạo ở verified ngay (tác giả là người duyệt); xem xét tiếp qua review mã"},
 	{StatusVerified, StatusStale, "fingerprint của bằng chứng thay đổi (`bint knowledge verify --apply`)"},
-	{StatusStale, StatusVerified, "xác thực lại: kiểm tra xác định được qua, rồi người duyệt (`bint knowledge approve`) — fingerprint được làm mới"},
+	{StatusStale, StatusVerified, "xác thực lại, loại rủi ro cao (rule, warning) hoặc cần người duyệt: kiểm tra xác định được qua, rồi người duyệt (`bint knowledge approve --refresh`; `bint knowledge revalidate` cho agent nhận định trước)"},
+	{StatusStale, StatusVerified, "xác thực lại, loại khác: mọi kiểm tra xác định được (trừ fingerprint) qua → fingerprint được làm mới (`bint knowledge verify --apply`)"},
 	{"*", StatusDeprecated, "người dùng (`bint knowledge reject` / `deprecate`), hoặc đề xuất tiến hoá đã được chấp nhận (P6)"},
 }
 
@@ -92,7 +97,10 @@ func Transition(it *Item, in TransitionInput) error {
 		if len(in.Conflicts) > 0 {
 			return deny("mâu thuẫn với mục verified %v; giải quyết trước", in.Conflicts)
 		}
-		needHuman := slices.Contains(in.RequireHuman, it.Type) || it.Type == TypeRule || it.Origin.ThirdParty || from == StatusStale
+		// Xác thực lại (mục 8.4): loại rủi ro cao (rule, warning) cần người — agent
+		// chỉ đưa nhận định; loại khác qua kiểm tra xác định được là đủ.
+		needHuman := slices.Contains(in.RequireHuman, it.Type) || it.Type == TypeRule || it.Origin.ThirdParty ||
+			(from == StatusStale && HighRisk(it.Type))
 		if in.Actor.Kind == ActorSystem && needHuman {
 			return deny("loại %q%s cần người duyệt", it.Type, map[bool]string{true: " (gắn cờ bên thứ ba)", false: ""}[it.Origin.ThirdParty])
 		}

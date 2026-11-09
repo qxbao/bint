@@ -150,7 +150,7 @@ func cleanEnv(extra ...string) []string {
 		k, _, _ := strings.Cut(kv, "=")
 		switch strings.ToUpper(k) {
 		case "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT",
-			"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR":
+			"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "BINT_EVAL_CONTEXT":
 			continue
 		}
 		out = append(out, kv)

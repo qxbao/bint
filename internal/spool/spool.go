@@ -31,6 +31,13 @@ const (
 	SessionEnded   = "session.ended"
 	FileModified   = "file.modified"
 	TestCompleted  = "test.completed"
+
+	// P3: Context Engine (mục 9.7). payload.ids là danh sách ID tri thức.
+	ContextRetrieved    = "context.retrieved"
+	KnowledgeCited      = "knowledge.cited"
+	ObservationReported = "observation.reported"
+	// P3: tín hiệu kết quả do người chấm (bint runs rate).
+	RunRated = "run.rated"
 )
 
 // Event là một sự kiện trong spool.

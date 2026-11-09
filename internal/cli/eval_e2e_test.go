@@ -91,8 +91,8 @@ func TestEvalEndToEnd(t *testing.T) {
 	if out, code := run(t, root, "", "eval", "run", "--arms", "none", "--yes"); code != 2 || !strings.Contains(out, "ngân sách") {
 		t.Fatalf("run without budget: %d\n%s", code, out)
 	}
-	if out, code := run(t, root, "", "eval", "run", "--arms", "bint", "--yes", "--budget", "1"); code != 2 || !strings.Contains(out, "P3") {
-		t.Fatalf("bint arm: %d\n%s", code, out)
+	if out, code := run(t, root, "", "eval", "run", "--arms", "bogus", "--yes", "--budget", "1"); code != 2 || !strings.Contains(out, "không hợp lệ") {
+		t.Fatalf("invalid arm: %d\n%s", code, out)
 	}
 
 	agentDir := t.TempDir()

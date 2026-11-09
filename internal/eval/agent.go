@@ -25,6 +25,9 @@ type AgentRequest struct {
 	Arm     string
 	// Env là biến môi trường bổ sung cho tiến trình agent.
 	Env []string
+	// MCPConfig / Settings: tệp cấu hình MCP và settings bổ sung (nhánh bint).
+	MCPConfig string
+	Settings  string
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
@@ -39,6 +42,8 @@ type AgentResult struct {
 	OutputTokens *int64
 	CostUSD      *float64
 	Model        string
+	// Text là câu trả lời cuối của agent (trường result), nếu harness báo.
+	Text string
 }
 
 // Agent chạy một tác vụ trong thư mục làm việc (adapter cấp 3: thực thi theo chương trình).
@@ -84,12 +89,27 @@ func (a *ClaudeAgent) Version(ctx context.Context) string {
 	return f[0]
 }
 
+// BintMCPTools là các công cụ MCP của Bint được cho phép ở nhánh bint.
+var BintMCPTools = []string{"mcp__bint__context_for_task", "mcp__bint__context_for_paths", "mcp__bint__knowledge_search",
+	"mcp__bint__knowledge_get", "mcp__bint__cite_knowledge", "mcp__bint__report_observation"}
+
 // Args dựng đối số dòng lệnh (tách riêng để kiểm thử).
-func (a *ClaudeAgent) Args() []string {
+func (a *ClaudeAgent) Args() []string { return a.ArgsFor(AgentRequest{}) }
+
+// ArgsFor dựng đối số cho một yêu cầu cụ thể (thêm MCP/settings ở nhánh bint).
+func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 	args := []string{"-p", "--output-format", "json", "--no-session-persistence", "--strict-mcp-config",
 		"--permission-mode", a.Cfg.PermissionMode}
-	if len(a.Cfg.AllowedTools) > 0 {
-		args = append(args, "--allowedTools", strings.Join(a.Cfg.AllowedTools, ","))
+	tools := append([]string{}, a.Cfg.AllowedTools...)
+	if req.MCPConfig != "" {
+		args = append(args, "--mcp-config", req.MCPConfig)
+		tools = append(tools, BintMCPTools...)
+	}
+	if req.Settings != "" {
+		args = append(args, "--settings", req.Settings)
+	}
+	if len(tools) > 0 {
+		args = append(args, "--allowedTools", strings.Join(tools, ","))
 	}
 	if a.Cfg.SettingSources != "" {
 		args = append(args, "--setting-sources", a.Cfg.SettingSources)
@@ -113,7 +133,7 @@ func (a *ClaudeAgent) Args() []string {
 // Run giao đề bài qua stdin và đọc kết quả JSON.
 func (a *ClaudeAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	var stdout bytes.Buffer
-	r := runProcess(ctx, req.Dir, a.bin(), a.Args(), req.Timeout, req.LogPath, cleanEnv(req.Env...), strings.NewReader(req.Prompt), &stdout)
+	r := runProcess(ctx, req.Dir, a.bin(), a.ArgsFor(req), req.Timeout, req.LogPath, cleanEnv(req.Env...), strings.NewReader(req.Prompt), &stdout)
 	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut}
 	if r.Err != nil {
 		res.Error = r.Err.Error()
@@ -159,6 +179,7 @@ func parseClaudeJSON(out []byte, res *AgentResult) {
 	}
 	res.NumTurns = r.NumTurns
 	res.CostUSD = r.TotalCostUSD
+	res.Text = r.Result
 	if u := r.Usage; u != nil {
 		if u.InputTokens != nil {
 			total := *u.InputTokens
@@ -222,7 +243,11 @@ func (a *CommandAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	if err := os.WriteFile(promptFile, []byte(req.Prompt), 0o600); err != nil {
 		return AgentResult{ExitCode: -1, Error: err.Error()}
 	}
-	env := cleanEnv(append([]string{"BINT_EVAL_PROMPT_FILE=" + promptFile, "BINT_EVAL_CASE=" + req.CaseID, "BINT_EVAL_ARM=" + req.Arm}, req.Env...)...)
+	extra := []string{"BINT_EVAL_PROMPT_FILE=" + promptFile, "BINT_EVAL_CASE=" + req.CaseID, "BINT_EVAL_ARM=" + req.Arm}
+	if req.MCPConfig != "" {
+		extra = append(extra, "BINT_EVAL_MCP_CONFIG="+req.MCPConfig)
+	}
+	env := cleanEnv(append(extra, req.Env...)...)
 	prog, args := shellCommand(a.Command)
 	var stdout bytes.Buffer
 	r := runProcess(ctx, req.Dir, prog, args, req.Timeout, req.LogPath, env, strings.NewReader(req.Prompt), &stdout)

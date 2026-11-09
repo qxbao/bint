@@ -187,7 +187,7 @@ func AddKnowledge(ctx context.Context, k *KnowledgeWS, opts AddOptions) (AddResu
 	for i := range it.Evidence {
 		e := &it.Evidence[i]
 		if b, ok := src.Read(e.Path); ok {
-			if fp, err := knowledge.Fingerprint(*e, b); err == nil {
+			if fp, err := knowledge.FingerprintWith(*e, b, k.Config.Context.Freshness.Fingerprint); err == nil {
 				e.Fingerprint = fp
 			}
 		}
@@ -241,6 +241,13 @@ type VerifyReport struct {
 	Items       map[string]*knowledge.Item
 	LoadErrors  []knowledge.LoadError
 	Transitions []AppliedTransition
+	// Relocated: mục được cập nhật vùng dòng (nội dung bằng chứng không đổi).
+	Relocated []string
+	// DeprecateProposals: mục stale quá knowledge.stale_deprecate_days ngày (mục 8.4).
+	// Chỉ là đề xuất; người dùng quyết định bằng `bint knowledge deprecate`.
+	DeprecateProposals []string
+	// NeedsReview: mục stale rủi ro cao (rule, warning) cần người hoặc agent nhận định.
+	NeedsReview []string
 }
 
 // AppliedTransition là một lần chuyển trạng thái đã áp dụng.
@@ -268,19 +275,34 @@ func VerifyKnowledge(ctx context.Context, k *KnowledgeWS, refs []string, apply b
 		return rep, err
 	}
 	v := knowledge.Verifier{Src: k.Source(), All: all}
+	staleLimit := time.Duration(k.Config.Knowledge.StaleDeprecateDays) * 24 * time.Hour
 	for _, it := range targets {
 		r := v.Verify(it)
 		rep.Results = append(rep.Results, r)
 		rep.Items[it.ID] = it
+		if it.Status == knowledge.StatusStale {
+			if t, err := time.Parse(time.RFC3339, it.UpdatedAt); err == nil && now.Sub(t) > staleLimit {
+				rep.DeprecateProposals = append(rep.DeprecateProposals, it.ID)
+			} else if knowledge.HighRisk(it.Type) {
+				rep.NeedsReview = append(rep.NeedsReview, it.ID)
+			}
+		}
 		if !apply {
 			continue
 		}
 		from := it.Status
+		changed := false
+		if r.ApplyRelocations(it) {
+			// Chỉ cập nhật vị trí; nội dung bằng chứng không đổi nên trạng thái giữ nguyên.
+			changed = true
+			rep.Relocated = append(rep.Relocated, it.ID)
+			r = v.Verify(it)
+		}
 		switch {
 		case it.Status == knowledge.StatusVerified && (r.Has(knowledge.CodeFingerprint) || r.Has(knowledge.CodeEvidence) || r.Has(knowledge.CodeSymbol)) && !r.OK():
 			reason := "bằng chứng thay đổi: " + firstError(r)
-			if err := knowledge.Transition(it, knowledge.TransitionInput{To: knowledge.StatusStale, Actor: knowledge.Actor{Kind: knowledge.ActorSystem}, Reason: reason, Now: now}); err != nil {
-				continue
+			if err := knowledge.Transition(it, knowledge.TransitionInput{To: knowledge.StatusStale, Actor: knowledge.Actor{Kind: knowledge.ActorSystem}, Reason: reason, Now: now}); err == nil {
+				changed = true
 			}
 		case it.Status == knowledge.StatusCandidate && r.OK():
 			err := knowledge.Transition(it, knowledge.TransitionInput{
@@ -288,16 +310,39 @@ func VerifyKnowledge(ctx context.Context, k *KnowledgeWS, refs []string, apply b
 				RequireHuman: k.Config.Knowledge.RequireHumanApprovalFor, Now: now,
 				Reason: "qua kiểm tra xác định được",
 			})
-			if err != nil {
-				continue // cần người duyệt: để nguyên
+			if err == nil {
+				changed = true
 			}
-		default:
+		case it.Status == knowledge.StatusStale && !knowledge.HighRisk(it.Type) && (r.OK() || r.OnlyErrors(knowledge.CodeFingerprint)):
+			// Xác thực lại loại rủi ro thấp (mục 8.4 bước 1): đường dẫn, ký hiệu, ví dụ mã
+			// vẫn khớp → làm mới fingerprint. Hệ thống không làm được thì để nguyên.
+			cp := *it
+			cp.Evidence = append([]knowledge.Evidence(nil), it.Evidence...)
+			if knowledge.FillFingerprints(&cp, k.Source(), k.Config.Context.Freshness.Fingerprint) != nil {
+				break
+			}
+			if r2 := v.Verify(&cp); !r2.OK() {
+				break
+			}
+			err := knowledge.Transition(&cp, knowledge.TransitionInput{
+				To: knowledge.StatusVerified, Actor: knowledge.Actor{Kind: knowledge.ActorSystem}, ChecksPassed: true,
+				RequireHuman: k.Config.Knowledge.RequireHumanApprovalFor, Now: now,
+				Reason: "xác thực lại: kiểm tra xác định được qua, fingerprint được làm mới",
+			})
+			if err == nil {
+				*it = cp
+				changed = true
+			}
+		}
+		if !changed {
 			continue
 		}
 		if err := k.Store.Save(it); err != nil {
 			return rep, err
 		}
-		rep.Transitions = append(rep.Transitions, AppliedTransition{it.ID, from, it.Status, it.StatusReason})
+		if it.Status != from {
+			rep.Transitions = append(rep.Transitions, AppliedTransition{it.ID, from, it.Status, it.StatusReason})
+		}
 	}
 	return rep, nil
 }
@@ -380,7 +425,7 @@ func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]R
 			Reason: act.Reason, RequireHuman: k.Config.Knowledge.RequireHumanApprovalFor, Now: act.Now}
 		if act.To == knowledge.StatusVerified {
 			if act.Refresh {
-				if err := knowledge.FillFingerprints(it, k.Source()); err != nil {
+				if err := knowledge.FillFingerprints(it, k.Source(), k.Config.Context.Freshness.Fingerprint); err != nil {
 					o.Err = err
 					outs = append(outs, o)
 					continue

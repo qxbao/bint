@@ -43,20 +43,9 @@ Chỉ người mới duyệt được quy tắc bắt buộc (rule).`,
 		newKnowledgeVerifyCmd(stdio), newKnowledgeReviewCmd(stdio), newKnowledgeApproveCmd(stdio),
 		newKnowledgeRejectCmd(stdio, "reject", "Từ chối mục chờ duyệt (→ deprecated, giữ dấu vết)"),
 		newKnowledgeRejectCmd(stdio, "deprecate", "Loại bỏ một mục (→ deprecated)"),
-		newKnowledgeRmCmd(stdio), newKnowledgeTransitionsCmd(stdio))
-	for _, p := range []struct{ use, short, phase string }{
-		{"search", "Tìm kiếm tri thức (FTS5)", "P3"},
-		{"diff", "Tri thức mới hoặc bị sửa từ người khác", "P3"},
-		{"stats", "Số lần truy xuất, trích dẫn và tác giả của từng mục", "P3"},
-	} {
-		p := p
-		c.AddCommand(&cobra.Command{
-			Use: p.use, Short: p.short + " [" + p.phase + "]", DisableFlagParsing: true,
-			RunE: func(*cobra.Command, []string) error {
-				return withCode(ExitNotImplemented, fmt.Errorf("`bint knowledge %s` chưa được triển khai trong bản này (dự kiến %s)", p.use, p.phase))
-			},
-		})
-	}
+		newKnowledgeRmCmd(stdio), newKnowledgeTransitionsCmd(stdio),
+		newKnowledgeSearchCmd(stdio), newKnowledgeStatsCmd(stdio), newKnowledgeDiffCmd(stdio),
+		newKnowledgeRevalidateCmd(stdio))
 	return c
 }
 
@@ -390,7 +379,15 @@ func newKnowledgeVerifyCmd(stdio IO) *cobra.Command {
   candidate → verified  loại không cần người duyệt (không phải rule, không trong
                         knowledge.require_human_approval_for, không gắn cờ bên thứ ba)
                         và không có lỗi
-  verified  → stale     bằng chứng thay đổi hoặc không còn`,
+  verified  → stale     bằng chứng thay đổi hoặc không còn
+  stale     → verified  loại rủi ro thấp (fact, pattern, decision, lesson): mọi kiểm
+                        tra trừ fingerprint qua → fingerprint được làm mới
+  vùng dòng             bằng chứng chỉ bị dịch chuyển (nội dung không đổi) → cập
+                        nhật lines, trạng thái giữ nguyên
+
+Mục stale rủi ro cao (rule, warning) cần người duyệt (bint knowledge revalidate
+để agent nhận định trước). Mục stale quá knowledge.stale_deprecate_days được đề
+xuất deprecated; Bint không tự chuyển.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			k, err := openKnowledge(cmd)
 			if err != nil {
@@ -412,7 +409,9 @@ func newKnowledgeVerifyCmd(stdio IO) *cobra.Command {
 			}
 			if asJSON {
 				if err := writeJSON(stdio.Out, map[string]any{"results": rep.Results, "transitions": rep.Transitions,
-					"load_errors": loadErrStrings(rep.LoadErrors), "errors": errorsN, "warnings": warnN}); err != nil {
+					"relocated": nonNilStrings(rep.Relocated), "deprecate_proposals": nonNilStrings(rep.DeprecateProposals),
+					"needs_review": nonNilStrings(rep.NeedsReview),
+					"load_errors":  loadErrStrings(rep.LoadErrors), "errors": errorsN, "warnings": warnN}); err != nil {
 					return err
 				}
 			} else {
@@ -432,6 +431,15 @@ func newKnowledgeVerifyCmd(stdio IO) *cobra.Command {
 				}
 				for _, t := range rep.Transitions {
 					fmt.Fprintf(stdio.Out, "→ %s: %s → %s (%s)\n", t.ID, t.From, t.To, t.Reason)
+				}
+				if len(rep.Relocated) > 0 {
+					fmt.Fprintf(stdio.Out, "↕ cập nhật vùng dòng (nội dung không đổi): %s\n", strings.Join(rep.Relocated, ", "))
+				}
+				if len(rep.NeedsReview) > 0 {
+					fmt.Fprintf(stdio.Out, "? stale rủi ro cao, cần xác thực lại (`bint knowledge revalidate` hoặc `approve --refresh`): %s\n", strings.Join(rep.NeedsReview, ", "))
+				}
+				if len(rep.DeprecateProposals) > 0 {
+					fmt.Fprintf(stdio.Out, "⌛ stale quá %d ngày, đề xuất `bint knowledge deprecate`: %s\n", k.Config.Knowledge.StaleDeprecateDays, strings.Join(rep.DeprecateProposals, ", "))
 				}
 				fmt.Fprintf(stdio.Out, "\n%d mục, %d lỗi, %d cảnh báo", len(rep.Results), errorsN, warnN)
 				if apply {
@@ -714,4 +722,11 @@ func openEditor(path string, stdio IO) error {
 		return fmt.Errorf("mở trình soạn thảo %q: %w", ed, err)
 	}
 	return nil
+}
+
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }

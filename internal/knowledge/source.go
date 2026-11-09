@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"bint/internal/symbols"
 )
 
 // Source là một trạng thái mã nguồn để kiểm tra bằng chứng: cây làm việc hiện tại
@@ -157,35 +159,167 @@ func normalizeLines(b []byte) []string {
 	return lines
 }
 
-// Fingerprint tính fingerprint của bằng chứng trên nội dung tệp: "lines:<băm>" cho
-// vùng dòng, "file:<băm>" cho cả tệp. Fingerprint theo ký hiệu (tree-sitter) thuộc P3.
+// Mức fingerprint (mục 8.4), theo thứ tự ưu tiên.
+const (
+	FPSymbol = "symbol" // vùng của ký hiệu (hàm, kiểu, khối cấu hình)
+	FPLines  = "lines"  // vùng dòng
+	FPFile   = "file"   // cả tệp
+)
+
+func hashLines(lines []string) string {
+	h := sha256.Sum256([]byte(strings.Join(lines, "\n")))
+	return hex.EncodeToString(h[:])[:16]
+}
+
+// Fingerprint tính fingerprint của bằng chứng với mức ưu tiên mặc định (ký hiệu).
 func Fingerprint(e Evidence, content []byte) (string, error) {
+	return FingerprintWith(e, content, FPSymbol)
+}
+
+// FingerprintWith tính fingerprint theo mức ưu tiên pref (context.freshness.fingerprint:
+// symbol | hunk | file):
+//   - symbol: "symbol:<băm>" của vùng ký hiệu nếu bằng chứng có symbol và định vị
+//     được; nếu không thì lùi về vùng dòng, rồi cả tệp;
+//   - hunk: "lines:<băm>" nếu có vùng dòng, nếu không thì cả tệp;
+//   - file: "file:<băm>".
+func FingerprintWith(e Evidence, content []byte, pref string) (string, error) {
 	lines := normalizeLines(content)
+	if pref == FPFile {
+		return FPFile + ":" + hashLines(lines), nil
+	}
+	if pref == FPSymbol && e.Symbol != "" {
+		if r, ok := symbols.Locate(e.Path, content, e.Symbol); ok && r.To <= len(lines) {
+			return FPSymbol + ":" + hashLines(lines[r.From-1:r.To]), nil
+		}
+	}
 	from, to, ok, err := e.LineRange()
 	if err != nil {
 		return "", err
 	}
-	kind := "file"
-	if ok {
-		if to > len(lines) {
-			return "", fmt.Errorf("%s có %d dòng, bằng chứng tham chiếu dòng %s", e.Path, len(lines), e.Lines)
-		}
-		lines = lines[from-1 : to]
-		kind = "lines"
+	if !ok {
+		return FPFile + ":" + hashLines(lines), nil
 	}
-	h := sha256.Sum256([]byte(strings.Join(lines, "\n")))
-	return kind + ":" + hex.EncodeToString(h[:])[:16], nil
+	if to > len(lines) {
+		return "", fmt.Errorf("%s có %d dòng, bằng chứng tham chiếu dòng %s", e.Path, len(lines), e.Lines)
+	}
+	return FPLines + ":" + hashLines(lines[from-1:to]), nil
 }
 
-// FillFingerprints tính fingerprint cho mọi bằng chứng của mục từ src.
-func FillFingerprints(it *Item, src Source) error {
+// Kết quả đối chiếu bằng chứng.
+const (
+	EvMatch     = "match"     // fingerprint khớp
+	EvRelocated = "relocated" // vùng dòng chỉ bị dịch chuyển, nội dung không đổi
+	EvChanged   = "changed"   // nội dung thay đổi (hoặc ký hiệu không còn)
+	EvNone      = "none"      // bằng chứng chưa có fingerprint
+)
+
+// EvidenceCheck là kết quả đối chiếu một bằng chứng với nội dung hiện tại.
+type EvidenceCheck struct {
+	Status string
+	// Current là fingerprint hiện tại cùng mức với fingerprint đã lưu.
+	Current string
+	// Lines là vùng dòng mới khi Status = relocated.
+	Lines  string
+	Detail string
+}
+
+// maxRelocateWork giới hạn chi phí tìm lại vùng dòng (số dòng × độ dài vùng).
+const maxRelocateWork = 4_000_000
+
+// CheckEvidence đối chiếu bằng chứng với nội dung tệp theo đúng mức fingerprint
+// đã lưu, để mục được ghi trước khi có mức ký hiệu vẫn được kiểm tra đúng.
+//
+// Với mức vùng dòng: nếu nội dung tại vùng cũ khác, tìm lại khối dòng có cùng băm
+// (gần vùng cũ nhất). Tìm thấy nghĩa là các thay đổi trong tệp không chồng lên vùng
+// được tham chiếu, chỉ đẩy nó lên/xuống — tương đương quy tắc "chỉ lỗi thời khi
+// khối thay đổi của git diff chồng lên vùng dòng" (mục 8.4) mà không cần commit gốc.
+func CheckEvidence(e Evidence, content []byte) EvidenceCheck {
+	kind, want, _ := strings.Cut(e.Fingerprint, ":")
+	if e.Fingerprint == "" {
+		return EvidenceCheck{Status: EvNone}
+	}
+	lines := normalizeLines(content)
+	switch kind {
+	case FPFile:
+		cur := FPFile + ":" + hashLines(lines)
+		return verdict(cur, e.Fingerprint, "")
+	case FPSymbol:
+		r, ok := symbols.Locate(e.Path, content, e.Symbol)
+		if !ok || r.To > len(lines) {
+			return EvidenceCheck{Status: EvChanged, Detail: fmt.Sprintf("không còn tìm thấy ký hiệu %q", e.Symbol)}
+		}
+		return verdict(FPSymbol+":"+hashLines(lines[r.From-1:r.To]), e.Fingerprint, "")
+	case FPLines:
+		from, to, ok, err := e.LineRange()
+		if err != nil || !ok {
+			return EvidenceCheck{Status: EvChanged, Detail: "fingerprint vùng dòng nhưng bằng chứng không có vùng dòng hợp lệ"}
+		}
+		if to <= len(lines) {
+			if c := verdict(FPLines+":"+hashLines(lines[from-1:to]), e.Fingerprint, ""); c.Status == EvMatch {
+				return c
+			}
+		}
+		n := to - from + 1
+		if n <= len(lines) && len(lines)*n <= maxRelocateWork {
+			best := -1
+			for s := 0; s+n <= len(lines); s++ {
+				if hashLines(lines[s:s+n]) == want && (best < 0 || absInt(s+1-from) < absInt(best+1-from)) {
+					best = s
+				}
+			}
+			if best >= 0 {
+				nl := fmt.Sprintf("%d-%d", best+1, best+n)
+				if n == 1 {
+					nl = fmt.Sprint(best + 1)
+				}
+				return EvidenceCheck{Status: EvRelocated, Current: e.Fingerprint, Lines: nl,
+					Detail: fmt.Sprintf("nội dung không đổi, dịch từ dòng %s sang %s", e.Lines, nl)}
+			}
+		}
+		cur := ""
+		if to <= len(lines) {
+			cur = FPLines + ":" + hashLines(lines[from-1:to])
+		}
+		d := "nội dung vùng dòng đã thay đổi"
+		if to > len(lines) {
+			d = fmt.Sprintf("tệp còn %d dòng, không tìm lại được vùng %s", len(lines), e.Lines)
+		}
+		return EvidenceCheck{Status: EvChanged, Current: cur, Detail: d}
+	}
+	return EvidenceCheck{Status: EvChanged, Detail: fmt.Sprintf("mức fingerprint lạ %q", kind)}
+}
+
+func verdict(cur, stored, detail string) EvidenceCheck {
+	if cur == stored {
+		return EvidenceCheck{Status: EvMatch, Current: cur}
+	}
+	if detail == "" {
+		detail = "nội dung đã thay đổi"
+	}
+	return EvidenceCheck{Status: EvChanged, Current: cur, Detail: detail}
+}
+
+func absInt(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// FillFingerprints tính fingerprint cho mọi bằng chứng của mục từ src, theo mức
+// ưu tiên pref (rỗng = symbol).
+func FillFingerprints(it *Item, src Source, pref ...string) error {
+	p := FPSymbol
+	if len(pref) > 0 && pref[0] != "" {
+		p = pref[0]
+	}
 	for i := range it.Evidence {
 		e := &it.Evidence[i]
 		b, ok := src.Read(e.Path)
 		if !ok {
 			return fmt.Errorf("bằng chứng %s: không có tệp trong %s", e.Path, src.Name())
 		}
-		fp, err := Fingerprint(*e, b)
+		fp, err := FingerprintWith(*e, b, p)
 		if err != nil {
 			return fmt.Errorf("bằng chứng %s: %w", e, err)
 		}

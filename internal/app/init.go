@@ -27,9 +27,11 @@ type InitOptions struct {
 	// Hooks: nil = hỏi qua Confirm (nếu có), không thì bỏ qua.
 	Hooks      *bool
 	HooksScope claude.Scope
-	AgentsMD   bool // ghi khối Bint vào AGENTS.md và nhập lại trong CLAUDE.md
-	Force      bool // ghi đè khối Bint đã bị sửa tay (có sao lưu)
-	BintPath   string
+	// MCP: true = đăng ký MCP server vào .mcp.json, false = gỡ, nil = giữ nguyên.
+	MCP      *bool
+	AgentsMD bool // ghi khối Bint vào AGENTS.md và nhập lại trong CLAUDE.md
+	Force    bool // ghi đè khối Bint đã bị sửa tay (có sao lưu)
+	BintPath string
 	// Version là phiên bản Bint (ghi vào .bint/skills/core.lock).
 	Version string
 	// NoSkills: không xuất bản skill gốc.
@@ -213,6 +215,26 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			return nil, err
 		}
 		hookInstalled = installed
+	}
+	if opts.MCP != nil && slices.Contains(cfg.Harnesses.Enabled, claude.HarnessName) {
+		p := claude.MCPConfigPath(root)
+		res, err := claude.InstallMCP(p, opts.BintPath, paths.Backups, *opts.MCP, now)
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case *opts.MCP && res.Changed:
+			rep.add("MCP server", StepUpdated, ".mcp.json: mục %q (bint mcp serve)", claude.MCPServerName)
+			if opts.BintPath != "bint" {
+				rep.add("MCP server", StepWarn, "bint không có trong PATH: .mcp.json ghi đường dẫn tuyệt đối %s — không nên commit cho cả nhóm", opts.BintPath)
+			}
+		case *opts.MCP:
+			rep.add("MCP server", StepOK, ".mcp.json đã có mục %q", claude.MCPServerName)
+		case res.Changed:
+			rep.add("MCP server", StepUpdated, "đã gỡ mục %q khỏi .mcp.json", claude.MCPServerName)
+		default:
+			rep.add("MCP server", StepSkipped, ".mcp.json không có mục %q", claude.MCPServerName)
+		}
 	}
 	if hookInstalled && opts.HooksScope == claude.ScopeLocal {
 		gitignore = append(gitignore, ".claude/settings.local.json")

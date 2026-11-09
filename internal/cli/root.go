@@ -111,7 +111,8 @@ func NewRoot(stdio IO) *cobra.Command {
 		}
 	}
 	add("project", newInitCmd(stdio), newDoctorCmd(stdio), newStatusCmd(stdio))
-	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio))
+	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
+		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
 	add("eval", newEvalCmd(stdio))
 	add("planned", plannedCommands()...)

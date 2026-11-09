@@ -1,5 +1,6 @@
-// Package claude là adapter cấp 2 (Skill + Hook) cho Claude Code ở P0: chỉ ghi
-// nhận sự kiện vòng đời phiên, tệp được sửa và lệnh kiểm thử.
+// Package claude là adapter cấp 2 (Skill + Hook) cho Claude Code: ghi nhận sự kiện
+// vòng đời phiên, tệp được sửa, lệnh kiểm thử, lần dùng công cụ MCP của Bint (P0,
+// P3), và chèn ngữ cảnh theo đường dẫn trước khi agent đọc/sửa tệp (P3).
 package claude
 
 import (
@@ -12,12 +13,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"bint/internal/config"
+	"bint/internal/ctxengine"
 	"bint/internal/detect"
 	"bint/internal/gitrepo"
+	"bint/internal/knowledge"
 	"bint/internal/spool"
 	"bint/internal/state"
 )
@@ -31,7 +35,19 @@ const (
 	evSessionEnd         = "SessionEnd"
 	evPostToolUse        = "PostToolUse"
 	evPostToolUseFailure = "PostToolUseFailure"
+	evPreToolUse         = "PreToolUse"
 )
+
+// pathTools là các công cụ đọc/sửa tệp được chèn ngữ cảnh theo đường dẫn.
+var pathTools = map[string]string{
+	"Read": "file_path", "Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path",
+}
+
+// MCPPrefix là tiền tố tên công cụ MCP của Bint trong Claude Code (server "bint").
+const MCPPrefix = "mcp__bint__"
+
+var knowledgeRefRe = regexp.MustCompile(`\[k:([0-9A-HJKMNP-TV-Z]{26})\]`)
+var itemIDRe = regexp.MustCompile(`item_id: ([0-9A-HJKMNP-TV-Z]{26})`)
 
 var editTools = map[string]string{
 	"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path",
@@ -48,6 +64,7 @@ type HookInput struct {
 	ToolName      string          `json:"tool_name"`
 	ToolInput     map[string]any  `json:"tool_input"`
 	ToolUseID     string          `json:"tool_use_id"`
+	ToolResponse  json.RawMessage `json:"tool_response"`
 	AgentID       string          `json:"agent_id"`
 	AgentType     string          `json:"agent_type"`
 }
@@ -64,6 +81,8 @@ type HookResult struct {
 	Written   bool
 	SpoolFile string
 	Skipped   string // lý do bỏ qua, nếu có
+	// Output là JSON in ra stdout cho Claude Code (chèn ngữ cảnh), rỗng nếu không có.
+	Output string
 }
 
 // HandleHook đọc dữ liệu hook từ in và ghi tối đa một sự kiện vào spool.
@@ -90,6 +109,9 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 			return HookResult{}, err
 		}
 	}
+	if p := os.Getenv(ctxengine.EvalEnv); p != "" {
+		return handleEvalHook(hi, cwd, p)
+	}
 	repo, err := gitrepo.Discover(ctx, cwd)
 	if errors.Is(err, gitrepo.ErrNotRepo) {
 		return HookResult{Skipped: "không phải repository Git"}, nil
@@ -97,7 +119,7 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 	if err != nil {
 		return HookResult{}, err
 	}
-	cfg, _, err := config.LoadFirst(repo.ConfigRoots(), false)
+	cfg, cfgSrc, err := config.LoadFirst(repo.ConfigRoots(), false)
 	if err != nil {
 		return HookResult{}, err
 	}
@@ -124,6 +146,48 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 	}
 
 	switch hi.HookEventName {
+	case evPreToolUse:
+		if !cfg.Context.Interfaces.PathHooks || cfgSrc.Project == "" {
+			return HookResult{Skipped: "context.interfaces.path_hooks tắt"}, nil
+		}
+		field, ok := pathTools[hi.ToolName]
+		if !ok {
+			return HookResult{Skipped: "công cụ không đọc/sửa tệp"}, nil
+		}
+		p, _ := hi.ToolInput[field].(string)
+		rel, inside := RelPath(repo.Toplevel, cwd, p)
+		if !inside {
+			return HookResult{Skipped: "tệp nằm ngoài repository"}, nil
+		}
+		kroot := filepath.Dir(filepath.Dir(cfgSrc.Project))
+		mem := ctxengine.NewSessionMemory(paths.Runtime, HarnessName, hi.SessionID)
+		pack, ok := injectPaths(time.Duration(cfg.Context.PathHookTimeoutMS)*time.Millisecond, func() (ctxengine.Pack, error) {
+			items, _, err := knowledge.NewStore(kroot).List()
+			if err != nil {
+				return ctxengine.Pack{}, err
+			}
+			e := &ctxengine.Engine{Items: items, Src: &knowledge.WorktreeSource{Root: kroot},
+				MaxTokens: cfg.Context.MaxTokens, PathMaxItems: cfg.Context.PathMaxItems}
+			return e.ForPaths([]string{rel}, mem.Seen()), nil
+		})
+		if !ok {
+			return HookResult{Skipped: "quá hạn hoặc lỗi khi truy xuất theo đường dẫn"}, nil
+		}
+		if len(pack.Entries) == 0 {
+			return HookResult{Skipped: "không có tri thức khớp " + rel}, nil
+		}
+		mem.Add(pack.IDs())
+		key := hi.ToolUseID
+		if key == "" {
+			key = now.Format(time.RFC3339Nano)
+		}
+		cev := ctxengine.ContextEvent(HarnessName, hi.SessionID, repo.Toplevel, ctxengine.ChannelHookPath, key, pack, now)
+		cev.Source = "hook:" + HarnessName
+		f, err := spool.Write(paths.Spool, cev)
+		if err != nil {
+			return HookResult{}, err
+		}
+		return HookResult{Written: true, SpoolFile: f, Output: preToolOutput(pack.Render())}, nil
 	case evSessionStart:
 		ev.Type = spool.SessionStarted
 		ev.Payload["source"] = hi.Source
@@ -153,10 +217,17 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 			key = now.Format(time.RFC3339Nano)
 		}
 		ev.EventID = eventID(hi.SessionID, hi.HookEventName, key)
-		if field, isEdit := editTools[hi.ToolName]; isEdit {
+		if strings.HasPrefix(hi.ToolName, MCPPrefix) {
+			if !ok {
+				return HookResult{Skipped: "công cụ MCP của Bint lỗi"}, nil
+			}
+			if skip := mcpEvent(&ev, hi); skip != "" {
+				return HookResult{Skipped: skip}, nil
+			}
+		} else if field, isEdit := editTools[hi.ToolName]; isEdit {
 			ev.Type = spool.FileModified
 			p, _ := hi.ToolInput[field].(string)
-			rel, inside := relPath(repo.Toplevel, cwd, p)
+			rel, inside := RelPath(repo.Toplevel, cwd, p)
 			if !inside {
 				return HookResult{Skipped: "tệp nằm ngoài repository"}, nil
 			}
@@ -174,6 +245,11 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 			}
 			ev.Type = spool.TestCompleted
 			ev.Payload["command"] = detect.Redact(cmd, 300)
+			// Lệnh đã được người xác nhận (eval.test_command) cho tín hiệu kết quả mạnh (mục 9.6).
+			if tc := cfg.Eval.TestCommand; tc != nil && strings.TrimSpace(*tc) != "" &&
+				strings.Contains(strings.TrimSpace(cmd), strings.TrimSpace(*tc)) {
+				ev.Payload["confirmed"] = true
+			}
 		} else {
 			return HookResult{Skipped: "công cụ không thuộc phạm vi ghi nhận"}, nil
 		}
@@ -186,6 +262,131 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 		return HookResult{}, err
 	}
 	return HookResult{Written: true, SpoolFile: f}, nil
+}
+
+// mcpEvent điền sự kiện cho lần gọi công cụ MCP của Bint (mục 9.7): truy xuất,
+// trích dẫn, quan sát. ID được lấy từ đầu ra của server (đã kiểm tra tồn tại).
+func mcpEvent(ev *spool.Event, hi HookInput) string {
+	tool := strings.TrimPrefix(hi.ToolName, MCPPrefix)
+	resp := string(hi.ToolResponse)
+	refs := func() []any {
+		seen := map[string]bool{}
+		var out []any
+		for _, m := range knowledgeRefRe.FindAllStringSubmatch(resp, -1) {
+			if !seen[m[1]] {
+				seen[m[1]] = true
+				out = append(out, m[1])
+			}
+		}
+		return out
+	}
+	switch tool {
+	case "context_for_task", "context_for_paths":
+		ids := refs()
+		if len(ids) == 0 {
+			return "truy xuất MCP không trả mục nào"
+		}
+		ev.Type = spool.ContextRetrieved
+		ev.Payload["channel"] = map[string]string{"context_for_task": ctxengine.ChannelMCPTask, "context_for_paths": ctxengine.ChannelMCPPaths}[tool]
+		ev.Payload["ids"] = ids
+		if t, _ := hi.ToolInput["task"].(string); t != "" {
+			ev.Payload["query"] = detect.Redact(t, 300)
+		}
+	case "cite_knowledge":
+		ids := refs()
+		if len(ids) == 0 {
+			return "trích dẫn không hợp lệ"
+		}
+		ev.Type = spool.KnowledgeCited
+		ev.Payload["ids"] = ids
+		if n, _ := hi.ToolInput["note"].(string); n != "" {
+			ev.Payload["note"] = detect.Redact(n, 300)
+		}
+	case "report_observation":
+		ev.Type = spool.ObservationReported
+		for _, k := range []string{"kind", "title", "body"} {
+			if v, _ := hi.ToolInput[k].(string); v != "" {
+				ev.Payload[k] = detect.Redact(v, 2000)
+			}
+		}
+		if ps, ok := hi.ToolInput["paths"].([]any); ok {
+			ev.Payload["paths"] = ps
+		}
+		if m := itemIDRe.FindStringSubmatch(resp); m != nil {
+			ev.Payload["item_id"] = m[1]
+		}
+	default:
+		return "công cụ MCP chỉ đọc, không ghi nhận"
+	}
+	return ""
+}
+
+// preToolOutput dựng JSON để Claude Code chèn ngữ cảnh vào lần gọi công cụ.
+func preToolOutput(text string) string {
+	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]any{
+		"hookEventName": evPreToolUse, "additionalContext": text,
+	}})
+	return string(b)
+}
+
+// injectPaths chạy truy xuất theo đường dẫn trong giới hạn thời gian; quá hạn thì
+// bỏ qua để không chặn agent (mục 13.1).
+func injectPaths(d time.Duration, f func() (ctxengine.Pack, error)) (ctxengine.Pack, bool) {
+	if d <= 0 {
+		d = 1500 * time.Millisecond
+	}
+	type res struct {
+		p   ctxengine.Pack
+		err error
+	}
+	ch := make(chan res, 1)
+	go func() {
+		p, err := f()
+		ch <- res{p, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.p, r.err == nil
+	case <-time.After(d):
+		return ctxengine.Pack{}, false
+	}
+}
+
+// handleEvalHook phục vụ lượt đánh giá nhánh bint: chỉ chèn theo đường dẫn, ghi
+// nhật ký vào tệp của lượt (không có thư mục trạng thái).
+func handleEvalHook(hi HookInput, cwd, cfgPath string) (HookResult, error) {
+	if hi.HookEventName != evPreToolUse {
+		return HookResult{Skipped: "chế độ đánh giá: chỉ chèn theo đường dẫn"}, nil
+	}
+	field, ok := pathTools[hi.ToolName]
+	if !ok {
+		return HookResult{Skipped: "công cụ không đọc/sửa tệp"}, nil
+	}
+	ec, err := ctxengine.LoadEvalConfig(cfgPath)
+	if err != nil {
+		return HookResult{}, err
+	}
+	p, _ := hi.ToolInput[field].(string)
+	rel, inside := RelPath(ec.Root, cwd, p)
+	if !inside {
+		return HookResult{Skipped: "tệp nằm ngoài thư mục làm việc"}, nil
+	}
+	mem := ctxengine.NewSessionMemory(filepath.Dir(ec.Log), HarnessName, hi.SessionID)
+	pack, ok := injectPaths(3*time.Second, func() (ctxengine.Pack, error) {
+		items, _, err := knowledge.Store{Dir: ec.ItemsDir}.List()
+		if err != nil {
+			return ctxengine.Pack{}, err
+		}
+		e := &ctxengine.Engine{Items: items, Src: &knowledge.WorktreeSource{Root: ec.Root}, MaxTokens: ec.MaxTokens,
+			PathMaxItems: ec.PathMaxItems, ExcludeEvalCase: ec.ExcludeEvalCase, PathIncludeCandidates: ec.IncludeCandidates}
+		return e.ForPaths([]string{rel}, mem.Seen()), nil
+	})
+	if !ok || len(pack.Entries) == 0 {
+		return HookResult{Skipped: "không có tri thức khớp"}, nil
+	}
+	mem.Add(pack.IDs())
+	ctxengine.AppendLog(ec.Log, ctxengine.PackLog(ctxengine.ChannelHookPath, pack))
+	return HookResult{Output: preToolOutput(pack.Render())}, nil
 }
 
 func eventID(parts ...string) string {
@@ -220,9 +421,9 @@ func modelName(raw json.RawMessage) string {
 	return ""
 }
 
-// relPath trả về đường dẫn tương đối (dấu '/') của p so với root; p tương đối
+// RelPath trả về đường dẫn tương đối (dấu '/') của p so với root; p tương đối
 // được hiểu theo cwd. inside=false nếu p nằm ngoài root.
-func relPath(root, cwd, p string) (string, bool) {
+func RelPath(root, cwd, p string) (string, bool) {
 	if p == "" {
 		return "", false
 	}

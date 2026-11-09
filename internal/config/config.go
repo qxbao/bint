@@ -77,6 +77,10 @@ type Context struct {
 	Interfaces ContextInterface `yaml:"interfaces"`
 	Retrieval  Retrieval        `yaml:"retrieval"`
 	Freshness  Freshness        `yaml:"freshness"`
+	// PathMaxItems giới hạn số mục được chèn cho một lần truy xuất theo đường dẫn.
+	PathMaxItems int `yaml:"path_max_items"`
+	// PathHookTimeoutMS: hook chèn theo đường dẫn quá hạn thì bỏ qua, không chặn agent.
+	PathHookTimeoutMS int `yaml:"path_hook_timeout_ms"`
 }
 
 type ContextInterface struct {
@@ -100,6 +104,9 @@ type Knowledge struct {
 	RequireHumanApprovalFor []string `yaml:"require_human_approval_for"`
 	// AgentsMDMaxItems giới hạn số mục tri thức trong khối Bint của AGENTS.md (mục 8.5).
 	AgentsMDMaxItems int `yaml:"agents_md_max_items"`
+	// StaleDeprecateDays: mục stale quá số ngày này mà chưa được xác thực lại thì
+	// được đề xuất chuyển sang deprecated (mục 8.4); Bint không tự chuyển.
+	StaleDeprecateDays int `yaml:"stale_deprecate_days"`
 }
 
 type Memory struct {
@@ -205,12 +212,14 @@ func Default() Config {
 		},
 		Roles: Roles{Planner: "claude", Implementer: "claude", Reviewer: "claude", Evolver: "claude"},
 		Context: Context{
-			MaxTokens:  6000,
-			Interfaces: ContextInterface{MCP: true, PathHooks: true, CLI: true},
-			Retrieval:  Retrieval{Lexical: true, Structural: true},
-			Freshness:  Freshness{VerifyChangedSources: true, Fingerprint: "symbol"},
+			MaxTokens:         6000,
+			Interfaces:        ContextInterface{MCP: true, PathHooks: true, CLI: true},
+			Retrieval:         Retrieval{Lexical: true, Structural: true},
+			Freshness:         Freshness{VerifyChangedSources: true, Fingerprint: "symbol"},
+			PathMaxItems:      5,
+			PathHookTimeoutMS: 1500,
 		},
-		Knowledge: Knowledge{RequireHumanApprovalFor: []string{"rule"}, AgentsMDMaxItems: 15},
+		Knowledge: Knowledge{RequireHumanApprovalFor: []string{"rule"}, AgentsMDMaxItems: 15, StaleDeprecateDays: 30},
 		Memory:    Memory{Enabled: true, Scope: "project", RetentionDays: 90},
 		Eval: Eval{
 			Repeats:        3,
@@ -382,6 +391,15 @@ func (c Config) Validate() error {
 	if c.Context.MaxTokens <= 0 {
 		add("context.max_tokens: phải > 0")
 	}
+	if c.Context.PathMaxItems < 1 || c.Context.PathMaxItems > 30 {
+		add("context.path_max_items: phải trong khoảng 1..30")
+	}
+	if c.Context.PathHookTimeoutMS < 100 || c.Context.PathHookTimeoutMS > 10000 {
+		add("context.path_hook_timeout_ms: phải trong khoảng 100..10000")
+	}
+	if c.Knowledge.StaleDeprecateDays < 1 {
+		add("knowledge.stale_deprecate_days: phải >= 1")
+	}
 	if !slices.Contains([]string{"symbol", "hunk", "file"}, c.Context.Freshness.Fingerprint) {
 		add("context.freshness.fingerprint: phải là symbol | hunk | file")
 	}
@@ -407,7 +425,7 @@ func (c Config) Validate() error {
 		add("eval.repeats: phải >= 1")
 	}
 	for _, a := range c.Eval.Arms {
-		if !slices.Contains([]string{"none", "minimal", "bint"}, a) {
+		if !slices.Contains([]string{"none", "minimal", "bint", "ideal"}, a) {
 			add("eval.arms: nhánh không hợp lệ %q", a)
 		}
 	}

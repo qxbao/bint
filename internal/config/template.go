@@ -52,10 +52,13 @@ func Render(p InitParams) string {
   freshness:
     verify_changed_sources: true
     fingerprint: symbol     # symbol | hunk | file
+  path_max_items: 5         # số mục tối đa chèn cho một tệp (hook theo đường dẫn)
+  path_hook_timeout_ms: 1500   # hook quá hạn thì bỏ qua, không chặn agent
 
 knowledge:
   require_human_approval_for: [rule]   # luôn chứa rule: chỉ người mới duyệt được quy tắc bắt buộc
   agents_md_max_items: 15              # số mục tối đa trong khối Bint của AGENTS.md
+  stale_deprecate_days: 30             # stale quá hạn → đề xuất deprecated (không tự chuyển)
 
 memory:
   enabled: true

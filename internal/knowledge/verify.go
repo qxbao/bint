@@ -28,7 +28,15 @@ const (
 	CodeOverview    = "overview"    // tổng quan/cấu trúc thư mục: không ưu tiên (mục 4.2)
 	CodeLength      = "length"      // quá dài cho tri thức chèn vào ngữ cảnh
 	CodeUnreviewed  = "unreviewed"  // mục trạng thái verified nhưng thiếu dấu vết duyệt
+	CodeRelocated   = "relocated"   // vùng dòng của bằng chứng dịch chuyển, nội dung không đổi
 )
+
+// Relocation là một bằng chứng có vùng dòng cần cập nhật (nội dung không đổi).
+type Relocation struct {
+	Index int    `json:"index"`
+	From  string `json:"from"`
+	To    string `json:"to"`
+}
 
 // Finding là một phát hiện của kiểm tra xác định được.
 type Finding struct {
@@ -39,8 +47,19 @@ type Finding struct {
 
 // Result là kết quả kiểm tra một mục.
 type Result struct {
-	ID       string    `json:"id"`
-	Findings []Finding `json:"findings"`
+	ID        string       `json:"id"`
+	Findings  []Finding    `json:"findings"`
+	Relocated []Relocation `json:"relocated,omitempty"`
+}
+
+// ApplyRelocations cập nhật vùng dòng của các bằng chứng chỉ bị dịch chuyển.
+func (r Result) ApplyRelocations(it *Item) bool {
+	for _, rl := range r.Relocated {
+		if rl.Index < len(it.Evidence) && it.Evidence[rl.Index].Lines == rl.From {
+			it.Evidence[rl.Index].Lines = rl.To
+		}
+	}
+	return len(r.Relocated) > 0
 }
 
 // OK cho biết không có lỗi (cảnh báo không chặn).
@@ -130,25 +149,31 @@ func (v Verifier) Verify(it *Item) Result {
 		add(LevelError, CodeSchema, "%s", p)
 	}
 
-	// Bằng chứng: tồn tại, vùng dòng hợp lệ, fingerprint khớp, ký hiệu có mặt.
+	// Bằng chứng: tồn tại, vùng dòng hợp lệ, fingerprint khớp (theo mức đã lưu, có
+	// định vị lại khi vùng dòng chỉ bị dịch chuyển), ký hiệu có mặt.
 	evidenceText := map[string][]byte{}
-	for _, e := range it.Evidence {
+	for i, e := range it.Evidence {
 		b, ok := v.Src.Read(e.Path)
 		if !ok {
 			add(LevelError, CodeEvidence, "bằng chứng %s: không có tệp trong %s", e.Path, v.Src.Name())
 			continue
 		}
 		evidenceText[e.Path] = b
-		fp, err := Fingerprint(e, b)
-		if err != nil {
-			add(LevelError, CodeEvidence, "bằng chứng %s: %v", e, err)
-			continue
-		}
-		switch {
-		case e.Fingerprint == "":
+		if e.Fingerprint == "" {
+			if _, err := Fingerprint(e, b); err != nil {
+				add(LevelError, CodeEvidence, "bằng chứng %s: %v", e, err)
+				continue
+			}
 			add(LevelWarn, CodeFingerprint, "bằng chứng %s chưa có fingerprint (không phát hiện được khi lỗi thời)", e)
-		case e.Fingerprint != fp:
-			add(LevelError, CodeFingerprint, "bằng chứng %s đã thay đổi kể từ khi ghi (%s → %s)", e, e.Fingerprint, fp)
+		} else {
+			switch c := CheckEvidence(e, b); c.Status {
+			case EvChanged:
+				add(LevelError, CodeFingerprint, "bằng chứng %s đã thay đổi kể từ khi ghi: %s", e, c.Detail)
+			case EvRelocated:
+				add(LevelWarn, CodeRelocated, "bằng chứng %s: %s (`bint knowledge verify --apply` cập nhật vùng dòng)", e, c.Detail)
+				r.Relocated = append(r.Relocated, Relocation{Index: i, From: e.Lines, To: c.Lines})
+				e.Lines = c.Lines
+			}
 		}
 		if e.Symbol != "" && !containsWord(regionOf(e, b), e.Symbol) {
 			add(LevelError, CodeSymbol, "ký hiệu %q không có trong %s", e.Symbol, e)

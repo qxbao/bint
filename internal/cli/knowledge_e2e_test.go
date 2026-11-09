@@ -148,8 +148,8 @@ func TestKnowledgeEndToEnd(t *testing.T) {
 	if out, code := run(t, root, "", "doctor"); !strings.Contains(out, "tri thức") || !strings.Contains(out, "skill b-bootstrap") {
 		t.Fatalf("doctor: %d\n%s", code, out)
 	}
-	if out, code := run(t, root, "", "knowledge", "search", "x"); code != 3 {
-		t.Fatalf("search chưa triển khai: %d\n%s", code, out)
+	if out, code := run(t, root, "", "knowledge", "search", "x"); code != 0 {
+		t.Fatalf("search: %d\n%s", code, out)
 	}
 }
 

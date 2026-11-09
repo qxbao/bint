@@ -93,7 +93,8 @@ func committedItems(ctx context.Context, repoDir, commit string) ([]*knowledge.I
 	return items, nil
 }
 
-func minimalFromKnowledge(ctx context.Context, env Env, mode string, c *Case, leakIn *LeakInput) ([]byte, string, bool, error) {
+// knowledgeFor chọn tập tri thức của tác vụ cho các nhánh minimal, bint, ideal.
+func knowledgeFor(ctx context.Context, env Env, mode string, c *Case, leakIn *LeakInput) (knowledgeSet, error) {
 	cfg := env.Cfg.Eval
 	opts := knowledge.RenderOptions{MaxItems: env.Cfg.Knowledge.AgentsMDMaxItems, IncludeCandidates: cfg.MinimalIncludeCandidates}
 	notFromCase := func(items []*knowledge.Item) []*knowledge.Item {
@@ -109,25 +110,25 @@ func minimalFromKnowledge(ctx context.Context, env Env, mode string, c *Case, le
 	if mode == LeakStrict {
 		_, items, ok, err := ReadSnapshot(env.WorkRoot, c.Source.Base)
 		if err != nil {
-			return nil, "", false, err
+			return knowledgeSet{}, err
 		}
 		src := "bootstrap@" + short(c.Source.Base)
+		candidates := cfg.MinimalIncludeCandidates
 		if ok {
 			// Ảnh chụp là đầu ra tự động của bootstrap: mọi mục đều chưa duyệt, và đó
 			// chính là thứ đang được đo.
-			opts.IncludeCandidates = true
+			candidates = true
 		} else {
 			items, err = committedItems(ctx, env.RepoDir, c.Source.Base)
 			if err != nil {
-				return nil, "", false, err
+				return knowledgeSet{}, err
 			}
 			if len(items) == 0 {
-				return nil, "", false, fmt.Errorf("%w: strict cần tri thức dựng tại commit gốc %s — chạy `bint eval bootstrap` (hoặc dùng economy để sàng lọc)", ErrArmUnavailable, short(c.Source.Base))
+				return knowledgeSet{}, fmt.Errorf("%w: strict cần tri thức dựng tại commit gốc %s — chạy `bint eval bootstrap` (hoặc dùng economy để sàng lọc)", ErrArmUnavailable, short(c.Source.Base))
 			}
 			src = short(c.Source.Base) + ":" + knowledge.ItemsRel
 		}
-		content := renderMinimal(notFromCase(items), opts)
-		return content, fmt.Sprintf("%s#%s", src, hash12(content)), false, nil
+		return knowledgeSet{items: notFromCase(items), src: src, candidates: candidates}, nil
 	}
 
 	// economy
@@ -137,22 +138,29 @@ func minimalFromKnowledge(ctx context.Context, env Env, mode string, c *Case, le
 	}
 	items, _, err := knowledge.NewStore(root).List()
 	if err != nil {
-		return nil, "", true, err
+		return knowledgeSet{}, err
 	}
 	kept, err := EconomyFilter(ctx, env.RepoDir, c, notFromCase(items))
 	if err != nil {
-		return nil, "", true, err
+		return knowledgeSet{}, err
 	}
 	if len(kept) == 0 {
-		return nil, "", true, fmt.Errorf("%w: không mục tri thức nào có bằng chứng khớp tại commit gốc %s", ErrArmUnavailable, short(c.Source.Base))
+		return knowledgeSet{}, fmt.Errorf("%w: không mục tri thức nào có bằng chứng khớp tại commit gốc %s", ErrArmUnavailable, short(c.Source.Base))
 	}
-	content := renderMinimal(kept, opts)
 	if leakIn != nil {
-		if r := CheckLeak(string(content), *leakIn); r.Status == "fail" {
-			return nil, "", true, fmt.Errorf("%w: tri thức chứa mã của lời giải (%s)", ErrArmUnavailable, r.Findings[0].Detail)
+		// Kiểm tra toàn bộ nội dung tri thức (không chỉ phần vào AGENTS.md): nhánh bint
+		// có thể trả bất kỳ mục nào qua Context Engine.
+		var all strings.Builder
+		for _, it := range kept {
+			all.WriteString(it.Title + "\n" + it.Body + "\n")
+		}
+		all.WriteString(string(renderMinimal(kept, opts)))
+		if r := CheckLeak(all.String(), *leakIn); r.Status == "fail" {
+			return knowledgeSet{}, fmt.Errorf("%w: tri thức chứa mã của lời giải (%s)", ErrArmUnavailable, r.Findings[0].Detail)
 		}
 	}
-	return content, fmt.Sprintf("worktree:%s[%d]#%s", knowledge.ItemsRel, len(kept), hash12(content)), true, nil
+	return knowledgeSet{items: kept, src: fmt.Sprintf("worktree:%s[%d]", knowledge.ItemsRel, len(kept)), screening: true,
+		candidates: cfg.MinimalIncludeCandidates}, nil
 }
 
 // EconomyFilter giữ các mục mà mọi bằng chứng tồn tại và khớp fingerprint tại
@@ -172,8 +180,7 @@ next:
 			if !ok || e.Fingerprint == "" {
 				continue next
 			}
-			fp, err := knowledge.Fingerprint(e, b)
-			if err != nil || fp != e.Fingerprint {
+			if c := knowledge.CheckEvidence(e, b); c.Status != knowledge.EvMatch && c.Status != knowledge.EvRelocated {
 				continue next
 			}
 			if e.Commit != "" {
@@ -191,4 +198,14 @@ func renderMinimal(items []*knowledge.Item, opts knowledge.RenderOptions) []byte
 	opts.ForEval = true
 	s, _ := knowledge.RenderAgents(items, opts)
 	return []byte(s)
+}
+
+// minimalFromKnowledge dựng AGENTS.md của nhánh minimal từ tri thức của tác vụ.
+func minimalFromKnowledge(ctx context.Context, env Env, mode string, c *Case, leakIn *LeakInput) ([]byte, string, bool, error) {
+	ks, err := knowledgeFor(ctx, env, mode, c, leakIn)
+	if err != nil {
+		return nil, "", mode == LeakEconomy, err
+	}
+	content := renderMinimal(ks.items, knowledge.RenderOptions{MaxItems: env.Cfg.Knowledge.AgentsMDMaxItems, IncludeCandidates: ks.candidates})
+	return content, fmt.Sprintf("%s#%s", ks.src, hash12(content)), ks.screening, nil
 }

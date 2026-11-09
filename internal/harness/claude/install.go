@@ -55,7 +55,10 @@ func SettingsPath(scope Scope, repoRoot string) (string, error) {
 // HookTimeoutSeconds giới hạn thời gian mỗi lần chạy hook; hook chỉ ghi một tệp nhỏ.
 const HookTimeoutSeconds = 10
 
-const toolMatcher = "Edit|Write|MultiEdit|NotebookEdit|Bash"
+const toolMatcher = "Edit|Write|MultiEdit|NotebookEdit|Bash|mcp__bint__.*"
+
+// pathMatcher: công cụ được chèn ngữ cảnh theo đường dẫn (PreToolUse).
+const pathMatcher = "Read|Edit|Write|MultiEdit|NotebookEdit"
 
 // hookSubcommand nhận diện hook do Bint cài (để cập nhật/gỡ mà không động tới hook khác).
 const hookSubcommand = "hook claude"
@@ -92,6 +95,7 @@ func desiredGroups(cmd string) map[string]map[string]any {
 		evSessionEnd:         group(""),
 		evPostToolUse:        group(toolMatcher),
 		evPostToolUseFailure: group(toolMatcher),
+		evPreToolUse:         group(pathMatcher),
 	}
 }
 

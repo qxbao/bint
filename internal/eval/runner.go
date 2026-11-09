@@ -326,7 +326,7 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	if err := prepareWorkdir(ctx, env.RepoDir, env.WorkRoot, a.Case.Source.Base, work); err != nil {
 		return finish("error", "dựng thư mục làm việc: "+err.Error())
 	}
-	setup, err := prepareArm(ctx, env, a.Arm, opts.LeakageMode, a.Case, leakIn, work)
+	setup, err := prepareArm(ctx, env, a.Arm, opts.LeakageMode, a.Case, leakIn, work, logDir)
 	if errors.Is(err, ErrArmUnavailable) {
 		return finish("skipped", err.Error())
 	}
@@ -355,7 +355,11 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	ar := opts.Agent.Run(ctx, AgentRequest{
 		Dir: work, Prompt: AgentPrompt(a.Case.Prompt), Timeout: env.timeout(),
 		LogPath: filepath.Join(logDir, "agent.log"), CaseID: a.Case.ID, Arm: a.Arm,
+		MCPConfig: setup.MCPConfig, Settings: setup.Settings, Env: evalContextEnv(setup),
 	})
+	if err := recordContextUsage(bg, db, row.AttemptID, setup); err != nil {
+		return finish("error", "ghi nhận ngữ cảnh: "+err.Error())
+	}
 	adur := ar.Duration.Milliseconds()
 	exit := int64(ar.ExitCode)
 	row.AgentDurationMS, row.AgentExitCode = &adur, &exit

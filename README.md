@@ -3,9 +3,10 @@
 CLI hỗ trợ coding agent: ghi nhận lượt chạy, đo lường, và (ở các giai đoạn sau)
 tri thức dự án có kiểm chứng. Kế hoạch đầy đủ: [docs/bint-plan.md](docs/bint-plan.md).
 
-**Trạng thái: P0 (CLI, ghi nhận lượt chạy) + P1 (khung đánh giá) + P2 (bootstrap tối giản).**
-Chưa có số liệu đo trên repository thử nghiệm; cổng quyết định 1 chưa chạy — ngưỡng
-đã chốt ở [docs/gate-1.md](docs/gate-1.md).
+**Trạng thái: P0 (CLI, ghi nhận lượt chạy) + P1 (khung đánh giá) + P2 (bootstrap tối giản)
++ P3 (Context Engine và vòng đời tri thức).**
+Chưa có số liệu đo trên repository thử nghiệm; cổng quyết định 1 và 2 chưa chạy — ngưỡng
+đã chốt ở [docs/gate-1.md](docs/gate-1.md) và [docs/gate-2.md](docs/gate-2.md).
 
 ## Cài đặt
 
@@ -71,6 +72,10 @@ internal/knowledge/       P2: định dạng mục tri thức, bảng chuyển t
 internal/inspect/         P2: static discovery (ngôn ngữ, manifest, lệnh, công cụ, tài liệu, mã sinh, điểm nóng Git)
 internal/skills/          P2: skill gốc nhúng trong tệp thực thi (b-bootstrap), xuất bản + core.lock
 internal/pathglob/        mẫu glob dùng chung
+internal/symbols/         P3: vùng dòng của ký hiệu (go/parser cho Go, heuristic cho ngôn ngữ khác)
+internal/kindex/          P3: chỉ mục FTS5 dẫn xuất từ tệp tri thức
+internal/ctxengine/       P3: Context Engine — truy xuất theo tác vụ/đường dẫn, gói ngữ cảnh, cấu hình nhánh bint
+internal/mcpserver/       P3: MCP server stdio và sáu công cụ
 ```
 
 **Luồng ghi nhận:** Claude Code gọi `bint hook claude` → hook xác định repository từ
@@ -138,8 +143,11 @@ commit. Agent làm xong → tệp kiểm thử của commit mới được áp v
 
 **Nhánh.** `none`: chỉ harness. `minimal`: thêm `AGENTS.md` dựng từ tri thức
 (`eval.minimal_source: knowledge`, mặc định từ P2) hoặc từ tệp viết tay `eval.minimal_context`
-(`minimal_source: file`). `bint` cần Context Engine (P3) nên bị bỏ khi lấy từ cấu hình, báo lỗi
-khi chỉ định bằng `--arms`.
+(`minimal_source: file`). `bint` (P3): cùng AGENTS.md và **cùng tập tri thức** với `minimal`, thêm
+MCP server `bint` (`--mcp-config`) và hook PreToolUse chèn theo đường dẫn (`--settings`), chạy
+ngoài thư mục làm việc trên bản sao tri thức; truy xuất/trích dẫn ghi vào `eval_context_usage`.
+`ideal` (chỉ để chẩn đoán, mục 12.9): AGENTS.md + mọi mục có phạm vi chồng lên tệp của lời giải
+thật — cận trên, không phải kết quả của Bint. `bint`/`ideal` cần `minimal_source: knowledge`.
 
 **Chống rò rỉ.** `strict`: nhánh `minimal` chỉ dùng tri thức dựng **tại commit gốc** — ảnh chụp do
 `bint eval bootstrap` sinh (chạy `b-bootstrap` bằng agent trong repository cô lập tại commit gốc,
@@ -240,12 +248,86 @@ in bản thay đổi; không có terminal thì chỉ xem trước (`--yes` để
 
 Giới hạn đã biết của P2:
 
-- Fingerprint theo vùng dòng hoặc cả tệp; theo ký hiệu (tree-sitter) thuộc P3. Chèn thêm dòng phía
+- (Đã xử lý ở P3: fingerprint theo ký hiệu, định vị lại vùng dòng.) Ở P2: chèn thêm dòng phía
   trên vùng bằng chứng làm mục thành stale dù nội dung không đổi.
 - Chưa phát hiện tự động mâu thuẫn giữa các mục, hay với tài liệu sẵn có; người duyệt chịu trách nhiệm.
 - `knowledge review` đọc lựa chọn theo dòng (phím + Enter), chưa đọc một phím.
 - Skill chỉ được xuất bản cho Claude Code; harness khác dùng `bint bootstrap skill` (adapter ở P5).
-- `knowledge search`, `diff`, `stats` thuộc P3.
+
+## Context Engine và vòng đời tri thức (P3)
+
+```sh
+bint context "thêm cột email vào bảng users"     # gói ngữ cảnh theo tác vụ (FTS5 + phạm vi + bằng chứng)
+bint context --paths internal/db/db.go           # quy tắc/cảnh báo có phạm vi khớp tệp
+bint init --hooks --mcp                          # hook PreToolUse chèn theo đường dẫn + .mcp.json
+bint mcp serve                                   # MCP stdio: context_for_task, context_for_paths,
+                                                 #   knowledge_search, knowledge_get, cite_knowledge, report_observation
+bint knowledge search "migration" | stats | diff [ORIG_HEAD..HEAD]
+bint knowledge revalidate --budget 1             # agent nhận định lại mục stale rủi ro cao
+bint index rebuild                               # dựng lại chỉ mục (bình thường tự đồng bộ)
+bint runs rate <id> good|bad                     # chấm lượt chạy (tín hiệu mạnh)
+bint runs scan                                   # gắn commit với lượt, phát hiện hoàn tác
+```
+
+**Chỉ mục.** Bảng `knowledge_index` + FTS5 (`unicode61 remove_diacritics 2`: "tien te" khớp
+"tiền tệ"; ký hiệu CamelCase được tách từ) trong SQLite là dữ liệu **dẫn xuất**: mọi lệnh truy xuất
+so chữ ký thư mục `.bint/knowledge/items` và chỉ ghi lại mục đổi. Repository chưa có thư mục trạng
+thái thì chỉ mục nằm trong bộ nhớ.
+
+**Truy xuất** (mục 8.2). Theo tác vụ: từ khoá BM25 (giữ kết quả ≥ 30 % điểm tốt nhất), đường dẫn
+nêu trong mô tả, miền/thẻ/ký hiệu → loại mục deprecated, mục bên thứ ba chưa duyệt, mục rút ra từ
+chính tác vụ đánh giá → kiểm tra bằng chứng ngay lúc truy xuất → loại trùng → quy tắc trước → cắt
+theo `context.max_tokens` (~3 ký tự/token). Theo đường dẫn: chỉ mục có phạm vi cụ thể khớp (mục toàn
+cục đã ở AGENTS.md), ưu tiên phạm vi hẹp, tối đa `context.path_max_items`, không lặp mục đã chèn
+trong phiên. Nhãn: **quy tắc bắt buộc** chỉ khi `rule` đã duyệt, không gắn cờ bên thứ ba và bằng
+chứng còn khớp; mục chưa duyệt hoặc bằng chứng đã đổi thành **tham khảo** kèm cảnh báo. Mọi đầu ra
+nằm trong khung `<bint-context>` "dữ liệu tham khảo", kèm `[k:<id>]` và nguồn gốc (mục 15.5).
+
+**Hook** (Claude Code). `PreToolUse` cho `Read|Edit|Write|MultiEdit|NotebookEdit`: trả
+`hookSpecificOutput.additionalContext`; quá `context.path_hook_timeout_ms` (1500) thì bỏ qua, không
+chặn agent; tắt bằng `context.interfaces.path_hooks: false`. `PostToolUse` cho `mcp__bint__.*` ghi
+`context.retrieved`, `knowledge.cited`, `observation.reported` vào spool — hook biết `session_id`
+nên quy được về lượt chạy; MCP server thì không, nên không có hook thì truy xuất qua MCP không được
+quy về lượt nào. Cài lại hook sau khi nâng cấp: `bint init --hooks`.
+
+**Quy công** (mục 9.7). `context_usages` = được truy xuất, `knowledge_citations` = được áp dụng
+(agent gọi `cite_knowledge`). `knowledge stats` báo hai mức này và tác giả; tác động thực chỉ đo
+bằng đánh giá loại bỏ.
+
+**Chống lỗi thời** (mục 8.4). Fingerprint mặc định theo **ký hiệu** (`context.freshness.fingerprint:
+symbol`): Go phân tích bằng `go/parser`; JS/TS, Java, Kotlin, Rust, C/C++, C#, PHP, Swift, Scala, Dart
+theo dòng khai báo + đếm ngoặc; Python/Ruby/YAML theo thụt lề; TOML theo bảng — các ngôn ngữ ngoài Go
+là heuristic. Kế hoạch đề xuất tree-sitter, nhưng binding Go đều cần CGO, trái quyết định biên dịch
+Go thuần; `symbols.Locator` là điểm cắm khi có bản thuần Go. Không định vị được ký hiệu → vùng dòng →
+cả tệp. Mục cũ được kiểm tra đúng theo mức fingerprint đã lưu. Với vùng dòng, nếu nội dung cũ còn
+nguyên ở vị trí khác (khối thay đổi không chồng lên vùng) thì mục **không** lỗi thời; `verify --apply`
+cập nhật `lines`. Xác thực lại: loại rủi ro thấp (fact, pattern, decision, lesson) qua mọi kiểm tra
+trừ fingerprint → `verify --apply` làm mới fingerprint và đưa về verified; `rule`/`warning` cần người
+(`approve --refresh`), `knowledge revalidate` cho agent (chỉ Read/Grep/Glob, theo lô, trong ngân sách)
+đưa nhận định valid/outdated/unsure vào `knowledge_revalidations` — không tự đổi trạng thái. Mục stale
+quá `knowledge.stale_deprecate_days` (30) được đề xuất deprecated.
+
+**Tín hiệu kết quả** (mục 9.6, bảng `outcome_signals`, không gộp thành một điểm): `tests` (mạnh nếu
+lệnh khớp `eval.test_command` đã xác nhận, ngược lại trung bình), `rating` (người chấm, mạnh), `committed`
+(commit chạm tệp lượt đã sửa trong 24 giờ sau lượt, yếu — gắn theo thời gian/tệp là gần đúng),
+`reverted` (commit đó bị `git revert` trong 14 ngày, mạnh tiêu cực). Nhãn: hoàn tác hoặc chấm bad →
+failure; chấm good → success; lần kiểm thử mạnh cuối cùng quyết định; còn lại `unlabeled`. Hiện ở
+`runs list` và `runs show`.
+
+**Chẩn đoán cổng 2** (mục 12.9). Đợt có `bint`/`ideal`: báo cáo thêm so sánh theo cặp với `minimal`
+và xét theo thứ tự: đo lường → nội dung (`ideal` không hơn `minimal`) → truy xuất bỏ sót (độ phủ tập
+đúng < 50 %) → không được áp dụng (mục đúng ít được trích dẫn ở lượt thất bại) → nhiễu. Chỉ là dữ liệu
+cho người quyết định.
+
+Giới hạn đã biết của P3:
+
+- Chưa đo trên repository thử nghiệm (ngưỡng cổng 2 đã chốt, chưa chạy).
+- Phân loại loại công việc theo từ khoá thô; chưa có truy xuất ngữ nghĩa (mục 8.3: chỉ thêm khi FTS5
+  không đạt).
+- Gói ngữ cảnh chưa gồm skill có thể áp dụng (skill thuộc P4).
+- Tín hiệu "người dùng sửa lại diff của agent trong phiên" chưa thu.
+- Hook `post-merge` tuỳ chọn (mục 8.8) chưa có; dùng `bint knowledge diff` sau `git pull`.
+- MCP server tự hiện thực phần tối thiểu của giao thức (initialize, ping, tools/list, tools/call).
 
 ## Phát triển
 
