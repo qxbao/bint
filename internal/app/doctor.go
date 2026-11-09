@@ -1,0 +1,248 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"bint/internal/config"
+	"bint/internal/detect"
+	"bint/internal/fsafe"
+	"bint/internal/gitrepo"
+	"bint/internal/harness/claude"
+	"bint/internal/runlog"
+	"bint/internal/spool"
+	"bint/internal/state"
+	"bint/internal/store"
+)
+
+// Level là mức của một kết quả kiểm tra.
+type Level string
+
+const (
+	LevelOK   Level = "ok"
+	LevelInfo Level = "info"
+	LevelWarn Level = "warn"
+	LevelFail Level = "fail"
+)
+
+// Check là một kết quả của `bint doctor`.
+type Check struct {
+	Name   string
+	Level  Level
+	Detail string
+}
+
+// DoctorReport tổng hợp các kiểm tra.
+type DoctorReport struct{ Checks []Check }
+
+func (r *DoctorReport) add(name string, l Level, format string, a ...any) {
+	r.Checks = append(r.Checks, Check{Name: name, Level: l, Detail: fmt.Sprintf(format, a...)})
+}
+
+// Failed cho biết có kiểm tra nào thất bại.
+func (r *DoctorReport) Failed() bool {
+	for _, c := range r.Checks {
+		if c.Level == LevelFail {
+			return true
+		}
+	}
+	return false
+}
+
+// Doctor kiểm tra môi trường. Chỉ đọc, ngoại trừ việc áp migration còn thiếu khi
+// mở cơ sở dữ liệu.
+func Doctor(ctx context.Context, dir string) *DoctorReport {
+	r := &DoctorReport{}
+
+	gv, err := gitrepo.Version(ctx)
+	if err != nil {
+		r.add("git", LevelFail, "không chạy được git: %v", err)
+		return r
+	}
+	if !gitAtLeast(gv, 2, 31) {
+		r.add("git", LevelFail, "phiên bản %s; cần >= 2.31 (rev-parse --path-format)", gv)
+		return r
+	}
+	r.add("git", LevelOK, "%s", gv)
+
+	repo, err := gitrepo.Discover(ctx, dir)
+	if err != nil {
+		r.add("repository", LevelFail, "%v", err)
+		return r
+	}
+	kind := "worktree chính"
+	if repo.IsLinkedWorktree() {
+		kind = "worktree phụ"
+	}
+	r.add("repository", LevelOK, "%s (%s)", repo.Toplevel, kind)
+
+	if err := store.CheckFTS5(ctx); err != nil {
+		r.add("sqlite fts5", LevelFail, "%v", err)
+	} else {
+		r.add("sqlite fts5", LevelOK, "khả dụng (modernc.org/sqlite, không cần CGO)")
+	}
+
+	cfg, src, err := config.LoadFirst(repo.ConfigRoots(), true)
+	switch {
+	case errors.Is(err, config.ErrNoProjectConfig):
+		r.add("cấu hình", LevelFail, "%v", err)
+		return r
+	case err != nil:
+		r.add("cấu hình", LevelFail, "%v", err)
+		return r
+	}
+	layers := []string{src.Project}
+	if src.Global != "" {
+		layers = append([]string{src.Global}, layers...)
+	}
+	if src.Local != "" {
+		layers = append(layers, src.Local)
+	}
+	r.add("cấu hình", LevelOK, "hợp lệ, schema v%d (%s)", cfg.Version, strings.Join(layers, " → "))
+
+	paths, err := state.Resolve(repo, cfg)
+	if err != nil {
+		r.add("thư mục trạng thái", LevelFail, "%v", err)
+		return r
+	}
+	if !paths.Initialized() {
+		r.add("thư mục trạng thái", LevelFail, "%s chưa được tạo trên máy này (chạy `bint init`)", paths.Root)
+		return r
+	}
+	if info, err := paths.ReadRepoInfo(); err != nil {
+		r.add("thư mục trạng thái", LevelFail, "repo.json: %v", err)
+	} else if state.NormalizePath(info.CommonDir) != state.NormalizePath(repo.CommonDir) {
+		r.add("thư mục trạng thái", LevelFail, "thuộc repository khác: %s", info.CommonDir)
+	} else if err := checkWritable(paths.Spool); err != nil {
+		r.add("thư mục trạng thái", LevelFail, "spool không ghi được: %v", err)
+	} else {
+		r.add("thư mục trạng thái", LevelOK, "%s (dùng chung cho mọi worktree)", paths.Root)
+	}
+
+	s, err := store.Open(ctx, paths.DB)
+	if err != nil {
+		r.add("cơ sở dữ liệu", LevelFail, "%v", err)
+	} else {
+		v, _ := s.Version(ctx)
+		mode, _ := s.JournalMode(ctx)
+		lvl := LevelOK
+		if mode != "wal" {
+			lvl = LevelWarn
+		}
+		r.add("cơ sở dữ liệu", lvl, "schema v%d/%d, journal=%s", v, store.LatestVersion(), mode)
+		stuck := 0
+		s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs WHERE status = 'running' AND COALESCE(last_event_at, started_at) < ?`,
+			store.FormatTime(time.Now().Add(-runlog.DefaultStaleAfter))).Scan(&stuck)
+		if stuck > 0 {
+			r.add("lượt chạy treo", LevelInfo, "%d lượt chạy sẽ được đánh dấu interrupted ở lần nạp tới", stuck)
+		}
+		s.Close()
+	}
+
+	pending, _ := spool.Pending(paths.Spool)
+	switch {
+	case len(pending) > 200:
+		r.add("spool", LevelWarn, "%d tệp chờ nạp; chạy `bint events ingest`", len(pending))
+	default:
+		r.add("spool", LevelOK, "%d tệp chờ nạp", len(pending))
+	}
+	if n := spool.RejectedCount(paths.Spool); n > 0 {
+		r.add("spool hỏng", LevelWarn, "%d tệp trong %s", n, filepath.Join(paths.Spool, "rejected"))
+	}
+	if fi, err := os.Stat(filepath.Join(paths.Root, HookErrorLog)); err == nil && fi.Size() > 0 {
+		r.add("lỗi hook", LevelWarn, "xem %s", filepath.Join(paths.Root, HookErrorLog))
+	}
+
+	detected := map[string]detect.Harness{}
+	for _, h := range detect.Harnesses() {
+		detected[h.Name] = h
+	}
+	for _, h := range cfg.Harnesses.Enabled {
+		d := detected[h]
+		if !d.Present {
+			r.add("harness "+h, LevelWarn, "không tìm thấy trên máy này")
+			continue
+		}
+		where := d.Binary
+		if where == "" {
+			where = d.Home
+		}
+		r.add("harness "+h, LevelOK, "%s", where)
+		if h == claude.HarnessName {
+			r.Checks = append(r.Checks, claudeHookCheck(repo.Toplevel))
+		}
+	}
+
+	if block, err := fsafe.ReadBlock(filepath.Join(repo.Toplevel, ".gitignore"), fsafe.HashMarkers); err != nil {
+		r.add(".gitignore", LevelWarn, "%v", err)
+	} else if block == nil {
+		r.add(".gitignore", LevelWarn, "thiếu khối bint (chạy lại `bint init`)")
+	} else {
+		r.add(".gitignore", LevelOK, "có khối bint")
+	}
+
+	if cfg.Eval.TestCommand == nil {
+		hint := ""
+		if cfg.Eval.SuggestedTestCommand != nil {
+			hint = fmt.Sprintf(" (đề xuất: %q)", *cfg.Eval.SuggestedTestCommand)
+		}
+		r.add("lệnh kiểm thử", LevelInfo, "eval.test_command chưa được xác nhận%s", hint)
+	} else {
+		r.add("lệnh kiểm thử", LevelOK, "%s", *cfg.Eval.TestCommand)
+	}
+	return r
+}
+
+func claudeHookCheck(root string) Check {
+	var found []string
+	for _, sc := range []claude.Scope{claude.ScopeLocal, claude.ScopeProject, claude.ScopeUser} {
+		p, err := claude.SettingsPath(sc, root)
+		if err != nil {
+			continue
+		}
+		if ok, _ := claude.HooksInstalled(p); ok {
+			found = append(found, string(sc))
+		}
+	}
+	switch len(found) {
+	case 0:
+		return Check{"hook claude", LevelWarn, "chưa cài; lượt chạy sẽ không được ghi nhận (bint init --hooks)"}
+	case 1:
+		return Check{"hook claude", LevelOK, "phạm vi " + found[0]}
+	default:
+		return Check{"hook claude", LevelInfo, "cài ở nhiều phạm vi (" + strings.Join(found, ", ") + "); sự kiện trùng được loại theo event_id"}
+	}
+}
+
+func checkWritable(dir string) error {
+	f, err := os.CreateTemp(dir, ".doctor-*")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	f.Close()
+	return os.Remove(name)
+}
+
+func gitAtLeast(v string, major, minor int) bool {
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) < 2 {
+		return false
+	}
+	ma, err1 := strconv.Atoi(parts[0])
+	mi, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return ma > major || (ma == major && mi >= minor)
+}
+
+// HookErrorLog là tệp (trong thư mục trạng thái) ghi lỗi của hook; hook không
+// bao giờ làm gián đoạn agent nên lỗi chỉ được ghi lại ở đây.
+const HookErrorLog = "hook-errors.log"
