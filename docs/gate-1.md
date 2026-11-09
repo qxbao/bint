@@ -81,7 +81,7 @@ bint eval report <batch> --json > gate1-<repo>.json
 | Mục | Giá trị |
 |---|---|
 | Ngưỡng được chốt bởi | orca <dquanbao@gmail.com>, 2026-11-10 |
-| Commit chốt | _(SHA của commit thêm tài liệu này ở trạng thái đã chốt — điền ở commit kế tiếp)_ |
+| Commit chốt | `39d10f573008819a350e3130a57432d075c95a13` |
 | Repository thử nghiệm | _(chưa)_ |
 
 ## Kết quả
