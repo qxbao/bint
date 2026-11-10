@@ -30,12 +30,12 @@ func TestIsTestCommand(t *testing.T) {
 }
 
 func TestExecutedTestCommandDoesNotInventShortCircuitedRuns(t *testing.T) {
-	for _, cmd := range []string{"true || go test ./...", "true # comment; go test ./...", "false && go test ./...", "if false; then go test ./...; fi", "printf 'go test ./...'", "go test ./...; false"} {
+	for _, cmd := range []string{"true || go test ./...", "true # comment; go test ./...", "false && go test ./...", "if false; then go test ./...; fi", "printf 'go test ./...'", "go test ./...; false", "go test ./... &", "go test ./...;", "go test ./... | true"} {
 		if IsExecutedTestCommand(cmd) {
 			t.Errorf("script không chứng minh test chạy: %q", cmd)
 		}
 	}
-	for _, cmd := range []string{"go test ./...", "GOCACHE=/tmp/cache go test ./...", "timeout 10 go test ./...", "npm test", "mvn -q test"} {
+	for _, cmd := range []string{"go test ./...", "GOCACHE=/tmp/cache go test ./...", "timeout 10 go test ./...", "npm test", "mvn -q test", "go test -run '^(A|B)$' ./..."} {
 		if !IsExecutedTestCommand(cmd) {
 			t.Errorf("mất test trực tiếp: %q", cmd)
 		}

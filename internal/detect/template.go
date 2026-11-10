@@ -130,7 +130,8 @@ func MatchesTemplate(cmd, tmpl string) bool {
 // hoặc substitution; script loại đó không được nâng thành bằng chứng test.
 // IsTestCommand cũ giữ nguyên cho các adapter khác.
 func IsExecutedTestCommand(cmd string, configured ...string) bool {
-	if strings.Contains(cmd, "<<") || strings.Contains(cmd, "$(") || strings.ContainsRune(cmd, '`') || strings.ContainsRune(cmd, '#') {
+	cmd = strings.TrimSpace(cmd)
+	if strings.Contains(cmd, "$(") || strings.ContainsRune(cmd, '`') || !singlePlainShellCommand(cmd) {
 		return false
 	}
 	segments := shellSegments(cmd)
@@ -155,6 +156,42 @@ func IsExecutedTestCommand(cmd string, configured ...string) bool {
 		}
 	}
 	return false
+}
+
+// Bảo toàn dấu nháy để phân biệt ký tự đối số với toán tử shell. Đặc biệt
+// shellSegments bỏ toán tử cuối nên len(segments)==1 chưa loại được "test &".
+func singlePlainShellCommand(cmd string) bool {
+	var quote byte
+	for i := 0; i < len(cmd); i++ {
+		c := cmd[i]
+		if quote == '\'' {
+			if c == '\'' {
+				quote = 0
+			}
+			continue
+		}
+		if c == '\\' {
+			if i+1 == len(cmd) {
+				return false
+			}
+			i++
+			continue
+		}
+		if quote == '"' {
+			if c == '"' {
+				quote = 0
+			}
+			continue
+		}
+		if c == '\'' || c == '"' {
+			quote = c
+			continue
+		}
+		if strings.ContainsRune(";&|()<>#\r\n", rune(c)) {
+			return false
+		}
+	}
+	return quote == 0
 }
 
 func firstSegment(tmpl string) []string {
