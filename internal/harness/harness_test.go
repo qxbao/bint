@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -304,5 +305,28 @@ func TestCodexMCPBlock(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(p); string(b) != "[mcp_servers.bint]\ncommand = \"mine\"\n" {
 		t.Fatal("đã ghi đè cấu hình của người dùng")
+	}
+}
+
+// P5-03: Describe, Available và NewAgent phải nhất quán về binary cấu hình.
+func TestDescribeConfiguredBinaryUsable(t *testing.T) {
+	cfg := config.Default()
+	a, _ := Get("codex")
+	dir := t.TempDir()
+	cases := map[string]bool{filepath.Join(dir, "none"): false, dir: false}
+	noexec := filepath.Join(dir, "noexec")
+	os.WriteFile(noexec, []byte("x"), 0o644)
+	cases[noexec] = runtime.GOOS == "windows"
+	ok := filepath.Join(dir, "codex")
+	os.WriteFile(ok, []byte("#!/bin/sh\n"), 0o755)
+	cases[ok] = true
+	for bin, want := range cases {
+		cfg.Harnesses.Codex.Binary = bin
+		if got := Describe(a, cfg, nil).Installed; got != want {
+			t.Errorf("%s: Installed = %v, muốn %v", bin, got, want)
+		}
+		if got := Available("codex", cfg); got != want {
+			t.Errorf("%s: Available = %v, muốn %v", bin, got, want)
+		}
 	}
 }

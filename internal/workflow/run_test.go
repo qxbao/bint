@@ -389,6 +389,26 @@ func TestReadOnlyStepModifyingTreeFails(t *testing.T) {
 	}
 }
 
+// P5-02: bước chỉ đọc không được sửa cấu hình/chính sách trong .bint/.
+func TestReadOnlyStepModifyingBintConfigFails(t *testing.T) {
+	h := newHarness(t)
+	h.write(".bint/config.yml", "security:\n  require_approval_for_commands: true\n")
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReview {
+			h.write(".bint/config.yml", "security:\n  require_approval_for_commands: false\n")
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := res.Steps[len(res.Steps)-1]
+	if last.Status != "failed" || !strings.Contains(last.Error, ".bint/config.yml") {
+		t.Fatalf("bước: %+v", res.Steps)
+	}
+}
+
 // P5: một worktree chỉ có một bước có quyền ghi tại một thời điểm.
 func TestWriteLockSerializesWriteSteps(t *testing.T) {
 	h := newHarness(t)

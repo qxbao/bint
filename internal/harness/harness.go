@@ -11,6 +11,7 @@ package harness
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -215,7 +216,7 @@ var LevelTitles = map[int]string{0: "không hỗ trợ", 1: "Skill + MCP/CLI", 2
 func Describe(a Adapter, cfg config.Config, versionOf func(Adapter) string) Info {
 	d := detect.Find(a.Name())
 	if bin := cfg.Harnesses.Agent(a.Name()).Binary; bin != "" {
-		d.Binary, d.Present = bin, true
+		d.Binary, d.Present = bin, usableBinary(bin)
 	}
 	caps := a.Capabilities()
 	in := Info{Name: a.Name(), Title: a.Title(), Enabled: slices.Contains(cfg.Harnesses.Enabled, a.Name()),
@@ -384,7 +385,7 @@ func (e *UnavailableError) Error() string {
 // Available cho biết chương trình của harness có trên máy (PATH hoặc harnesses.<h>.binary).
 func Available(name string, cfg config.Config) bool {
 	if bin := cfg.Harnesses.Agent(name).Binary; bin != "" {
-		return fileExists(bin)
+		return usableBinary(bin)
 	}
 	return detect.Find(name).Binary != ""
 }
@@ -570,6 +571,15 @@ func (Antigravity) HookEvents() string                       { return "SessionSt
 func (Antigravity) NewAgent(o AgentOptions) eval.Agent {
 	h := o.Config.Harnesses.Antigravity
 	return &eval.AgyAgent{Binary: h.Binary, Model: model(o.Model, h.Model), ExtraArgs: h.ExtraArgs}
+}
+
+// usableBinary: đường dẫn là tệp thường và (trên Unix) có quyền thực thi.
+func usableBinary(p string) bool {
+	fi, err := os.Stat(p)
+	if err != nil || fi.IsDir() {
+		return false
+	}
+	return runtime.GOOS == "windows" || fi.Mode().Perm()&0o111 != 0
 }
 
 func fileExists(p string) bool {

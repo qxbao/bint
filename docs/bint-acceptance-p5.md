@@ -136,3 +136,8 @@ Các phép thử cùng tri thức dùng một repository và một knowledge ID 
 5. Lưu smoke logs của harness thật theo phiên bản đã công bố, đặc biệt payload công cụ và kết quả PreToolUse/PostToolUse của Antigravity, để hoàn thiện bằng chứng tích hợp thực tế.
 
 Đầu ra phục vụ kiểm tra cục bộ (không phải artifact phát hành): `/tmp/bint-p5-probes-wfidum3s/` chứa hai probe workflow, probe eval và overlay Go; `/tmp/bint-p5-smoke-nkkp9zfx/` chứa repository/binary giả lập và `shared-results.json`, `missing-binary-result.json`. Các đường dẫn này có thể mất khi môi trường tạm được dọn.
+
+## Cập nhật sau khi sửa (2026-11-10)
+
+- P5-01, P5-02, P5-03 đã được sửa kèm test (tranh chấp đồng thời, nhiều tiến trình thật, thu hồi khoá bỏ lại, bước chỉ đọc sửa `.bint/config.yml`, nhất quán `Describe`/`Available`). `go vet ./...` và `go test -race -count=1 ./...` đều xanh.
+- **Còn mở — điều kiện nghiệm thu lại số 5:** chưa lưu smoke log của harness thật (Claude Code, Codex, Antigravity) theo phiên bản đã công bố, đặc biệt payload công cụ và kết quả PreToolUse/PostToolUse của Antigravity. Việc này tốn chi phí gọi mô hình và cần CLI đã đăng nhập; chủ dự án sẽ làm sau. Cho tới lúc đó P5 chưa nên được coi là nghiệm thu đầy đủ.

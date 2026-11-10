@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -30,13 +31,18 @@ import (
 var ErrWriteLocked = errors.New("worktree đang có một bước có quyền ghi khác chạy")
 
 // WriteLock là khoá ghi của một worktree.
-type WriteLock struct{ path string }
+type WriteLock struct{ path, content string }
 
 // lockDir là thư mục chứa khoá ghi trong thư mục trạng thái.
 func lockDir(tasksDir string) string { return filepath.Join(filepath.Dir(tasksDir), "locks") }
 
 // AcquireWriteLock lấy khoá ghi cho worktree root. Khoá của tiến trình đã chết được
 // coi là bỏ lại và bị thay.
+//
+// Giao thức: nội dung khoá được ghi đầy đủ vào tệp tạm rồi công bố nguyên tử bằng
+// os.Link (thất bại nếu đã có khoá), nên không bao giờ có tệp khoá rỗng/dở dang. Việc
+// thu hồi khoá bỏ lại dùng os.Rename sang tên duy nhất: chỉ một bên thắng; bên thắng
+// kiểm tra lại nội dung đúng là khoá đã thấy là bỏ lại, nếu không thì trả lại.
 func AcquireWriteLock(tasksDir, root, owner string) (*WriteLock, error) {
 	dir := lockDir(tasksDir)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -44,46 +50,76 @@ func AcquireWriteLock(tasksDir, root, owner string) (*WriteLock, error) {
 	}
 	h := sha256.Sum256([]byte(state.NormalizePath(root)))
 	p := filepath.Join(dir, "write-"+hex.EncodeToString(h[:])[:16]+".lock")
-	content := fmt.Sprintf("%d\n%s\n%s\n%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339), root, owner)
-	for attempt := 0; attempt < 2; attempt++ {
-		f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	var nonce [8]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return nil, err
+	}
+	token := hex.EncodeToString(nonce[:])
+	content := fmt.Sprintf("%d\n%s\n%s\n%s\n%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339), root, owner, token)
+
+	tmp := p + ".tmp-" + token
+	if err := os.WriteFile(tmp, []byte(content), 0o600); err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmp)
+
+	for attempt := 0; attempt < 5; attempt++ {
+		err := os.Link(tmp, p)
 		if err == nil {
-			_, werr := f.WriteString(content)
-			cerr := f.Close()
-			if werr != nil || cerr != nil {
-				os.Remove(p)
-				return nil, errors.Join(werr, cerr)
-			}
-			return &WriteLock{path: p}, nil
+			return &WriteLock{path: p, content: content}, nil
 		}
 		if !errors.Is(err, os.ErrExist) {
 			return nil, err
 		}
-		b, _ := os.ReadFile(p)
+		b, rerr := os.ReadFile(p)
+		if rerr != nil {
+			if errors.Is(rerr, os.ErrNotExist) {
+				continue // vừa được trả, thử lại
+			}
+			return nil, rerr
+		}
 		lines := strings.Split(string(b), "\n")
 		pid, _ := strconv.Atoi(strings.TrimSpace(lines[0]))
-		if pid > 0 && task.ProcessAlive(pid) {
-			who := ""
-			if len(lines) > 3 {
-				who = strings.TrimSpace(lines[3])
-			}
-			return nil, fmt.Errorf("%w (tiến trình %d, %s); chờ bước đó xong hoặc dùng worktree khác", ErrWriteLocked, pid, who)
+		if pid <= 0 || len(lines) < 5 {
+			// Không thể dở dang (công bố nguyên tử) nên tệp hỏng là bất thường: không tự thu hồi.
+			return nil, fmt.Errorf("%w (tệp khoá %s không hợp lệ; xoá tay nếu chắc chắn không có bước nào đang chạy)", ErrWriteLocked, p)
 		}
-		os.Remove(p) // khoá bỏ lại của tiến trình đã chết
+		if task.ProcessAlive(pid) {
+			return nil, fmt.Errorf("%w (tiến trình %d, %s); chờ bước đó xong hoặc dùng worktree khác", ErrWriteLocked, pid, strings.TrimSpace(lines[3]))
+		}
+		// Khoá bỏ lại: chuyển sang tên duy nhất để chỉ một bên thu hồi được.
+		stale := p + ".stale-" + token
+		if err := os.Rename(p, stale); err != nil {
+			continue // bên khác đã thu hồi/trả
+		}
+		sb, _ := os.ReadFile(stale)
+		if string(sb) != string(b) {
+			// Đã lỡ chuyển đi khoá của chủ khác: trả lại nếu chỗ còn trống.
+			if lerr := os.Link(stale, p); lerr != nil {
+				os.Remove(stale)
+				return nil, ErrWriteLocked
+			}
+			os.Remove(stale)
+			return nil, ErrWriteLocked
+		}
+		os.Remove(stale)
 	}
 	return nil, ErrWriteLocked
 }
 
-// Release trả khoá.
+// Release trả khoá, chỉ khi tệp khoá vẫn là của chính chủ này.
 func (l *WriteLock) Release() {
-	if l != nil {
+	if l == nil {
+		return
+	}
+	if b, err := os.ReadFile(l.path); err == nil && string(b) == l.content {
 		os.Remove(l.path)
 	}
 }
 
 // WorktreeSnapshot trả về mã cây (git tree) đại diện cho toàn bộ cây làm việc: tệp
-// đã theo dõi và tệp mới chưa bị .gitignore loại, trừ .bint/ (tri thức ứng viên do
-// CLI bint ghi). Dùng chỉ mục tạm nên không đụng tới chỉ mục của người dùng.
+// đã theo dõi và tệp mới chưa bị .gitignore loại, trừ .bint/knowledge/ (ứng viên
+// tri thức do CLI bint ghi). Cấu hình, skill, tập đánh giá trong .bint/ vẫn được bảo vệ. Dùng chỉ mục tạm nên không đụng tới chỉ mục của người dùng.
 func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 	tmp, err := os.CreateTemp("", "bint-index-*")
 	if err != nil {
@@ -107,7 +143,7 @@ func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 		}
 		return strings.TrimSpace(string(out)), nil
 	}
-	if _, err := run("add", "-A", "--", ".", ":(exclude).bint"); err != nil {
+	if _, err := run("add", "-A", "--", ".", ":(exclude).bint/knowledge"); err != nil {
 		return "", err
 	}
 	return run("write-tree")
