@@ -116,6 +116,30 @@ func TestEconomyFilter(t *testing.T) {
 	writeFile(t, root, "lib/new.go", "package lib\n")
 	newFile := saveItem(t, root, knowledge.TypeRule, "Tệp chưa có tại gốc", knowledge.Evidence{Path: "lib/new.go"})
 
+	// Nguồn gốc (mục 12.3): chỉ mục tạo tại/trước commit gốc mới được giữ.
+	baseTime := strings.TrimSpace(testutil.Git(t, root, "show", "-s", "--format=%cI", base))
+	bt, _ := time.Parse(time.RFC3339, baseTime)
+	origin := func(it *knowledge.Item, commit string, created time.Time) {
+		it.Origin.Commit, it.CreatedAt = commit, knowledge.Now(created)
+		if err := knowledge.NewStore(root).Save(it); err != nil {
+			t.Fatal(err)
+		}
+	}
+	origin(stable, base, bt)
+	origin(changed, base, bt)
+	origin(futureCommit, base, bt)
+	origin(lesson, base, bt)
+	origin(newFile, base, bt)
+	// Bằng chứng cũ (hàm A tại gốc) nhưng kết luận sinh sau lời giải.
+	lateOrigin := saveItem(t, root, knowledge.TypeRule, "Kết luận mới, bằng chứng cũ", knowledge.Evidence{Path: "lib/a.go", Lines: "3"})
+	origin(lateOrigin, after, bt.Add(time.Hour))
+	// Cùng origin.commit hợp lệ nhưng created_at sau commit gốc.
+	lateTime := saveItem(t, root, knowledge.TypeRule, "Tạo sau commit gốc", knowledge.Evidence{Path: "lib/a.go", Lines: "3"})
+	origin(lateTime, base, bt.Add(time.Hour))
+	// Không có origin.commit: không chứng minh được thời điểm → loại.
+	noOrigin := saveItem(t, root, knowledge.TypeRule, "Không rõ nguồn gốc", knowledge.Evidence{Path: "lib/a.go", Lines: "3"})
+	origin(noOrigin, "", bt)
+
 	env := knowledgeEnv(t, root)
 	c := &Case{ID: "c1", Source: Source{Base: base}}
 	content, _, screening, err := minimalFromKnowledge(ctx, env, LeakEconomy, c, nil)
@@ -126,7 +150,7 @@ func TestEconomyFilter(t *testing.T) {
 	if !screening || !strings.Contains(s, stable.ID) {
 		t.Fatalf("economy:\n%s", s)
 	}
-	for _, it := range []*knowledge.Item{changed, futureCommit, lesson, newFile} {
+	for _, it := range []*knowledge.Item{changed, futureCommit, lesson, newFile, lateOrigin, lateTime, noOrigin} {
 		if strings.Contains(s, it.ID) {
 			t.Errorf("%q không được lọt vào nhánh minimal", it.Title)
 		}

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,6 +26,8 @@ var stepRe = regexp.MustCompile(`step="([a-z-]+)"`)
 type fakeAgent struct {
 	h    *harness
 	cost *float64
+	// turns: số lượt agent báo về mỗi bước.
+	turns *int64
 }
 
 func (a *fakeAgent) Name() string                   { return "fake" }
@@ -42,7 +45,7 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 	a.h.calls = append(a.h.calls, step)
 	a.h.prompts[step] = req.Prompt
 	agentEnv := &Env{Root: a.h.root, Cfg: a.h.cfg, Tasks: a.h.tasks, Spool: a.h.spool, Actor: "agent", RunID: envs[EnvRunID]}
-	res := eval.AgentResult{CostUSD: a.cost, Duration: time.Millisecond, Model: "fake-model"}
+	res := eval.AgentResult{CostUSD: a.cost, NumTurns: a.turns, Duration: time.Millisecond, Model: "fake-model"}
 	if err := a.h.behave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
 		res.ExitCode, res.Error = 1, err.Error()
 	}
@@ -64,6 +67,9 @@ type harness struct {
 	behave  func(ctx context.Context, step string, e *Env, taskID string) error
 	limits  []*float64
 	cost    *float64
+	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
+	turns      *int64
+	turnLimits []*int
 }
 
 func newHarness(t *testing.T) *harness {
@@ -108,9 +114,10 @@ func (h *harness) happy(_ context.Context, step string, e *Env, id string) error
 
 func (h *harness) runner() *Runner {
 	env := &Env{Root: h.root, Cfg: h.cfg, Tasks: h.tasks, Spool: h.spool, Human: true, Actor: "người duyệt", Version: "test"}
-	return &Runner{Env: env, Agent: func(step string, maxCost *float64, _ *int) (eval.Agent, error) {
+	return &Runner{Env: env, Agent: func(step string, maxCost *float64, maxTurns *int) (eval.Agent, error) {
 		h.limits = append(h.limits, maxCost)
-		return &fakeAgent{h: h, cost: h.cost}, nil
+		h.turnLimits = append(h.turnLimits, maxTurns)
+		return &fakeAgent{h: h, cost: h.cost, turns: h.turns}, nil
 	}}
 }
 
@@ -452,5 +459,77 @@ func TestUnavailableAdapterFailsStep(t *testing.T) {
 	}
 	if ents, _ := os.ReadDir(lockDir(h.tasks.Dir)); len(ents) != 0 {
 		t.Fatalf("khoá còn sót: %v", ents)
+	}
+}
+
+// A2: limits.workflows.b-do.max_turns là tổng mọi bước; truyền phần còn lại xuống bước
+// và dừng khi hết.
+func TestBDoMaxTurnsIsTotalBudget(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Limits.Workflows = map[string]config.PerRunLimits{StepDo: {MaxTurns: ptr(3)}}
+	h.turns = ptr(int64(2))
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng mới"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat" || !strings.Contains(res.Reason, "max_turns") {
+		t.Fatalf("%+v %v", res, h.calls)
+	}
+	if len(h.turnLimits) != 2 || h.turnLimits[0] == nil || *h.turnLimits[0] != 3 || h.turnLimits[1] == nil || *h.turnLimits[1] != 1 {
+		t.Fatalf("giới hạn lượt từng bước: %v", h.turnLimits)
+	}
+}
+
+// A2: không cấu hình riêng b-do thì per_run.max_turns vẫn là tổng của lượt điều phối.
+func TestBDoMaxTurnsFromPerRun(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Limits.PerRun.MaxTurns = ptr(3)
+	h.turns = ptr(int64(2))
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng mới"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat" {
+		t.Fatalf("%+v %v", res, h.calls)
+	}
+}
+
+// A1: SetStatus(done) tự tính lại diff, không dựa vào PendingPaths (chỉ Runner điền).
+func TestDoneRechecksProtectedPathsFromDiff(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.cfg.Eval.TestCommand = nil
+	res, err := h.runner().Run(ctx, RunOptions{Workflow: StepReq, Request: "Đổi app.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.write("migrations/001.sql", "-- sửa\n")
+	h.tasks.Update(res.TaskID, time.Now(), func(t *task.Task) error {
+		t.State.PendingPaths = nil
+		t.Ticket.Verify.Criteria = []string{"đã đổi"}
+		t.State.Criteria = []task.CriterionCheck{{Index: 1, Met: true, Evidence: "agent tự nhận"}}
+		return nil
+	})
+	agent := &Env{Root: h.root, Cfg: h.cfg, Tasks: h.tasks, Spool: h.spool}
+	_, blockers, err := agent.SetStatus(ctx, res.TaskID, task.StatusDone, TransitionOptions{})
+	var nd *NotDoneError
+	if !errors.As(err, &nd) || !strings.Contains(strings.Join(blockers, ";"), "migrations/001.sql") {
+		t.Fatalf("done phải bị chặn vì migrations/**: %v %v", err, blockers)
+	}
+	// Người duyệt xong thì không còn bị chặn bởi đường dẫn này.
+	human := &Env{Root: h.root, Cfg: h.cfg, Tasks: h.tasks, Spool: h.spool, Human: true, Actor: "người"}
+	t2, _ := h.tasks.Load(res.TaskID)
+	t2.State.ProtectedApproval = nil
+	pend, err := human.UnapprovedChanges(ctx, t2)
+	if err != nil || len(pend) != 1 {
+		t.Fatalf("UnapprovedChanges: %v %v", pend, err)
+	}
+	h.tasks.Update(res.TaskID, time.Now(), func(t *task.Task) error {
+		t.State.ProtectedApproval = &task.Approval{Paths: []string{"migrations/001.sql"}, By: "người", At: "x"}
+		return nil
+	})
+	t3, _ := h.tasks.Load(res.TaskID)
+	if pend, _ := human.UnapprovedChanges(ctx, t3); len(pend) != 0 {
+		t.Fatalf("đã duyệt mà vẫn chặn: %v", pend)
 	}
 }

@@ -26,10 +26,37 @@ const (
 	// xuất được thay bằng tập mục "đúng" (phạm vi chồng lên tệp của lời giải thật).
 	// Có lộ gián tiếp vị trí cần sửa nên chỉ là cận trên; không bao giờ là kết quả của Bint.
 	ArmIdeal = "ideal"
+	// ArmBase / ArmCandidate: đối chiếu một đề xuất tiến hoá (P6, mục 11.2). Cả hai đưa
+	// tri thức tới agent theo cùng một cách (Variant.Delivery); base dùng tập tri thức
+	// hiện có của tác vụ, candidate dùng tập đó sau khi áp đề xuất. Đánh giá loại bỏ
+	// (bỏ một mục hoặc nhóm mục) là trường hợp đề xuất deprecate.
+	ArmBase      = "base"
+	ArmCandidate = "candidate"
 )
 
 // Arms là các nhánh hợp lệ.
-var Arms = []string{ArmNone, ArmMinimal, ArmBint, ArmIdeal}
+var Arms = []string{ArmNone, ArmMinimal, ArmBint, ArmIdeal, ArmBase, ArmCandidate}
+
+// Variant mô tả cặp nhánh base/candidate của một lần đối chiếu đề xuất.
+type Variant struct {
+	// Delivery: ArmMinimal (AGENTS.md) hoặc ArmBint (AGENTS.md + Context Engine).
+	Delivery string
+	// Label ghi vào nguồn ngữ cảnh để kiểm toán (ví dụ ID đề xuất).
+	Label string
+	// Candidate biến tập tri thức của tác vụ (đã lọc chống rò rỉ) thành tập ứng viên.
+	// Không được sửa các mục đầu vào. Trả lỗi bọc ErrArmUnavailable khi đề xuất không
+	// áp dụng được tại commit gốc của tác vụ.
+	Candidate func(ctx context.Context, items []*knowledge.Item, c *Case, leak *LeakInput) ([]*knowledge.Item, error)
+}
+
+// DeliveryArm trả về nhánh thực sự quyết định cách đưa ngữ cảnh (base/candidate →
+// Variant.Delivery), để kiểm tra khả năng của harness.
+func (e Env) DeliveryArm(arm string) string {
+	if (arm == ArmBase || arm == ArmCandidate) && e.Variant != nil {
+		return e.Variant.Delivery
+	}
+	return arm
+}
 
 // Chế độ chống rò rỉ (mục 12.3).
 const (
@@ -54,6 +81,9 @@ func ArmNotImplemented(arm string) error {
 // tập tri thức với minimal, nên cần eval.minimal_source: knowledge để phép so sánh
 // chỉ khác nhau ở cách đưa tri thức tới agent.
 func ArmRequirement(arm string, cfg config.Config) error {
+	if arm == ArmBase || arm == ArmCandidate {
+		return fmt.Errorf("nhánh %s chỉ dùng để đối chiếu đề xuất tiến hoá (`bint evolve evaluate`)", arm)
+	}
 	if (arm == ArmBint || arm == ArmIdeal) && cfg.Eval.MinimalSource != "knowledge" {
 		return fmt.Errorf("nhánh %s cần eval.minimal_source: knowledge (cùng tập tri thức với minimal)", arm)
 	}
@@ -126,13 +156,32 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 		if err := ArmRequirement(arm, env.Cfg); err != nil {
 			return s, err
 		}
+	case ArmBase, ArmCandidate:
+		if env.Variant == nil {
+			return s, ArmRequirement(arm, env.Cfg)
+		}
+		if d := env.Variant.Delivery; d != ArmMinimal && d != ArmBint {
+			return s, fmt.Errorf("Variant.Delivery phải là minimal hoặc bint, nhận %q", d)
+		}
 	default:
 		return s, ArmNotImplemented(arm)
 	}
 
-	ks, err := knowledgeFor(ctx, env, mode, c, leakIn)
+	variant := arm == ArmBase || arm == ArmCandidate
+	ks, err := knowledgeFor(ctx, env, mode, c, leakIn, variant)
 	if err != nil {
 		return s, err
+	}
+	if variant {
+		// Đề xuất được đánh giá như thể đã được áp dụng: cùng tập tri thức, cùng cách đưa
+		// tới agent; chỉ khác ở thay đổi của đề xuất.
+		if arm == ArmCandidate {
+			if ks.items, err = env.Variant.Candidate(ctx, ks.items, c, leakIn); err != nil {
+				return s, err
+			}
+		}
+		ks.src = fmt.Sprintf("%s{%s:%s}", ks.src, arm, env.Variant.Label)
+		arm = env.Variant.Delivery
 	}
 	s.Screening = ks.screening
 	opts := knowledge.RenderOptions{MaxItems: env.Cfg.Knowledge.AgentsMDMaxItems, IncludeCandidates: ks.candidates}

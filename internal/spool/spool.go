@@ -31,6 +31,9 @@ const (
 	SessionEnded   = "session.ended"
 	FileModified   = "file.modified"
 	TestCompleted  = "test.completed"
+	// P6: tệp agent đọc (payload.paths), để phát hiện khám phá lặp lại (mục 10.2).
+	// Chỉ harness có hook trước công cụ đọc tệp mới cung cấp (Claude Code).
+	FileRead = "file.read"
 
 	// P3: Context Engine (mục 9.7). payload.ids là danh sách ID tri thức.
 	ContextRetrieved    = "context.retrieved"

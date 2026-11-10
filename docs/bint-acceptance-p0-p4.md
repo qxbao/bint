@@ -4,6 +4,19 @@ Ngày kiểm tra: 2026-11-10. Phiên bản được kiểm tra: `c52633419d8c39b
 
 Đối chiếu với `docs/bint-plan.md`, đặc biệt mục 16 và các mục được dẫn chiếu trong từng giai đoạn. Báo cáo này thay thế nhận định trên phiên bản P3 trước khi cập nhật main. Không thay đổi mã nguồn hoặc đánh dấu hoàn thành kế hoạch.
 
+## Cập nhật sau khi sửa lỗi (2026-11-10)
+
+A1, A2, A3 đã được sửa kèm kiểm thử; A4 không còn tái hiện ở HEAD (test đã có nhánh theo `runtime.GOOS`). Đã chạy lại: `CGO_ENABLED=0 go build`, `go vet ./...`, `go test -count=1 ./...` và `go test -race -count=1 ./...` đều PASS (123 test, 30 package).
+
+| Mục | Trạng thái | Sửa đổi và kiểm thử |
+|---|---|---|
+| A1 | Đã đóng | `Env.UnapprovedChanges` (`internal/workflow/ops.go`) tính lại diff so với base tại điểm chuyển sang done; `TestDoneRechecksProtectedPathsFromDiff` |
+| A2 | Đã đóng | `max_turns` của b-do là tổng ngân sách lượt, truyền phần còn lại xuống bước, hết thì `blocked` (`internal/workflow/run.go`); `TestBDoMaxTurnsIsTotalBudget`, `TestBDoMaxTurnsFromPerRun`. Số lượt đã dùng nằm trong bộ nhớ của lượt điều phối, `run resume` đếm lại từ 0 |
+| A3 | Đã đóng | `EconomyFilter` loại mục thiếu `origin.commit`, commit không phải tổ tiên của base, hoặc `created_at` sau commit base; mở rộng `TestEconomyFilter` |
+| A4 | Không còn tái hiện | `internal/harness/claude` PASS ở HEAD |
+
+Chưa đổi: các điều kiện 3–5 ở cuối tài liệu (baseline P1, gate 1/2, quyết định fingerprint và tín hiệu còn thiếu) cần agent thật và repository thử nghiệm. P1–P3 vẫn chưa đủ bằng chứng; P4 chỉ còn thiếu dữ liệu thực tế, không còn lỗi A1/A2 đã biết. Phần dưới là kết quả của lần kiểm tra ban đầu.
+
 ## Kết luận
 
 **Chưa đủ điều kiện ký nghiệm thu toàn bộ P0–P4.** P4 đã được triển khai trên main mới, nhưng còn lỗi thực thi giới hạn. P1 chưa có baseline thực tế; hai cổng quyết định của P2/P3 mới chốt ngưỡng, chưa chạy đo.

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"bint/internal/knowledge"
 )
@@ -93,8 +94,18 @@ func committedItems(ctx context.Context, repoDir, commit string) ([]*knowledge.I
 	return items, nil
 }
 
+// CaseKnowledge trả về tập tri thức mà các nhánh minimal/bint/base dùng cho tác vụ
+// (đã lọc chống rò rỉ theo chế độ), cho phép tập rỗng. Dùng để chọn tác vụ chịu ảnh
+// hưởng của một đề xuất trước khi tốn chi phí chạy.
+func CaseKnowledge(ctx context.Context, env Env, mode string, c *Case, leakIn *LeakInput) ([]*knowledge.Item, bool, error) {
+	ks, err := knowledgeFor(ctx, env, mode, c, leakIn, true)
+	return ks.items, ks.candidates, err
+}
+
 // knowledgeFor chọn tập tri thức của tác vụ cho các nhánh minimal, bint, ideal.
-func knowledgeFor(ctx context.Context, env Env, mode string, c *Case, leakIn *LeakInput) (knowledgeSet, error) {
+// allowEmpty (nhánh base/candidate): không có tri thức nào dùng được tại commit gốc
+// thì tập rỗng là mốc hợp lệ, không phải nhánh không khả dụng.
+func knowledgeFor(ctx context.Context, env Env, mode string, c *Case, leakIn *LeakInput, allowEmpty bool) (knowledgeSet, error) {
 	cfg := env.Cfg.Eval
 	opts := knowledge.RenderOptions{MaxItems: env.Cfg.Knowledge.AgentsMDMaxItems, IncludeCandidates: cfg.MinimalIncludeCandidates}
 	notFromCase := func(items []*knowledge.Item) []*knowledge.Item {
@@ -123,6 +134,9 @@ func knowledgeFor(ctx context.Context, env Env, mode string, c *Case, leakIn *Le
 			if err != nil {
 				return knowledgeSet{}, err
 			}
+			if len(items) == 0 && allowEmpty {
+				return knowledgeSet{src: short(c.Source.Base) + ":(không có tri thức)", candidates: candidates}, nil
+			}
 			if len(items) == 0 {
 				return knowledgeSet{}, fmt.Errorf("%w: strict cần tri thức dựng tại commit gốc %s — chạy `bint eval bootstrap` (hoặc dùng economy để sàng lọc)", ErrArmUnavailable, short(c.Source.Base))
 			}
@@ -143,6 +157,9 @@ func knowledgeFor(ctx context.Context, env Env, mode string, c *Case, leakIn *Le
 	kept, err := EconomyFilter(ctx, env.RepoDir, c, notFromCase(items))
 	if err != nil {
 		return knowledgeSet{}, err
+	}
+	if len(kept) == 0 && allowEmpty {
+		return knowledgeSet{src: "worktree:(không mục nào khớp tại commit gốc)", screening: true, candidates: cfg.MinimalIncludeCandidates}, nil
 	}
 	if len(kept) == 0 {
 		return knowledgeSet{}, fmt.Errorf("%w: không mục tri thức nào có bằng chứng khớp tại commit gốc %s", ErrArmUnavailable, short(c.Source.Base))
@@ -165,15 +182,36 @@ func knowledgeFor(ctx context.Context, env Env, mode string, c *Case, leakIn *Le
 
 // EconomyFilter giữ các mục mà mọi bằng chứng tồn tại và khớp fingerprint tại
 // commit gốc, và mọi commit được nêu làm bằng chứng là tổ tiên của commit gốc.
+// Mục có origin.commit không phải tổ tiên của commit gốc, hoặc created_at sau thời
+// điểm commit gốc, cũng bị loại (kết luận sinh sau lời giải dù dẫn bằng chứng cũ).
 // Mục không có bằng chứng (tri thức do người viết) bị loại vì không chứng minh được
 // nó không đến từ lời giải.
 func EconomyFilter(ctx context.Context, repoDir string, c *Case, items []*knowledge.Item) ([]*knowledge.Item, error) {
 	src := &knowledge.CommitSource{RepoDir: repoDir, Commit: c.Source.Base}
+	var baseTime time.Time
+	if out, err := git(ctx, repoDir, "show", "-s", "--format=%cI", c.Source.Base); err == nil {
+		baseTime, _ = time.Parse(time.RFC3339, strings.TrimSpace(string(out)))
+	}
 	var out []*knowledge.Item
 next:
 	for _, it := range items {
 		if !it.Active() || len(it.Evidence) == 0 {
 			continue
+		}
+		// Nguồn gốc: mục phải chứng minh được tạo tại/trước commit gốc. Không chứng
+		// minh được (thiếu origin.commit, commit không phải tổ tiên, tạo sau commit
+		// gốc, hoặc thiếu/không đọc được created_at) thì loại.
+		if it.Origin.Commit == "" {
+			continue
+		}
+		if _, err := git(ctx, repoDir, "merge-base", "--is-ancestor", it.Origin.Commit, c.Source.Base); err != nil {
+			continue
+		}
+		if !baseTime.IsZero() {
+			ct, err := time.Parse(time.RFC3339, it.CreatedAt)
+			if err != nil || ct.After(baseTime) {
+				continue
+			}
 		}
 		for _, e := range it.Evidence {
 			b, ok := src.Read(e.Path)
@@ -202,7 +240,7 @@ func renderMinimal(items []*knowledge.Item, opts knowledge.RenderOptions) []byte
 
 // minimalFromKnowledge dựng AGENTS.md của nhánh minimal từ tri thức của tác vụ.
 func minimalFromKnowledge(ctx context.Context, env Env, mode string, c *Case, leakIn *LeakInput) ([]byte, string, bool, error) {
-	ks, err := knowledgeFor(ctx, env, mode, c, leakIn)
+	ks, err := knowledgeFor(ctx, env, mode, c, leakIn, false)
 	if err != nil {
 		return nil, "", mode == LeakEconomy, err
 	}

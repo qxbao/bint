@@ -257,6 +257,22 @@ type EvolutionTrigger struct {
 type EvolutionEvaluation struct {
 	Enabled       bool `yaml:"enabled"`
 	MaxCandidates int  `yaml:"max_candidates"`
+	// Metric là thước đo chính, chọn trước khi đánh giá (mục 12.7): pass_rate |
+	// cost_usd | turns. Đề xuất loại bỏ tri thức luôn được đo theo "không kém" về tỷ lệ đạt.
+	Metric string `yaml:"metric"`
+	// MinEffect: mức cải thiện tỷ lệ đạt muốn phát hiện, dùng ước tính cỡ mẫu (mục 12.5).
+	MinEffect float64 `yaml:"min_effect"`
+	// NonInferiorityMargin: tỷ lệ đạt được phép giảm tối đa (cận dưới CI95) khi thước đo
+	// chính không phải tỷ lệ đạt, hoặc khi loại bỏ tri thức.
+	NonInferiorityMargin float64 `yaml:"non_inferiority_margin"`
+	// Repeats: số lần lặp mỗi nhánh (0 = eval.repeats).
+	Repeats int `yaml:"repeats"`
+	// BudgetUSD: ngân sách đã duyệt cho một lần đối chiếu (Probe); null = chưa duyệt.
+	BudgetUSD *float64 `yaml:"budget_usd"`
+	// Delivery: cách đưa tri thức tới agent ở cả hai nhánh: bint (Context Engine) | minimal (AGENTS.md).
+	Delivery string `yaml:"delivery"`
+	// LeakageMode: strict | economy (mục 12.3) cho đánh giá đề xuất.
+	LeakageMode string `yaml:"leakage_mode"`
 }
 
 type EvolutionAdoption struct {
@@ -313,11 +329,12 @@ func Default() Config {
 			},
 		},
 		Evolution: Evolution{
-			Enabled:    true,
-			Mode:       "propose",
-			Trigger:    EvolutionTrigger{MinSimilarRuns: 3, MinNewEvidence: 2},
-			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2},
-			Adoption:   EvolutionAdoption{BindToModelVersion: true},
+			Enabled: true,
+			Mode:    "propose",
+			Trigger: EvolutionTrigger{MinSimilarRuns: 3, MinNewEvidence: 2},
+			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2, Metric: "pass_rate", MinEffect: 0.10,
+				NonInferiorityMargin: 0.05, Delivery: "bint", LeakageMode: "economy"},
+			Adoption: EvolutionAdoption{BindToModelVersion: true},
 		},
 		Workflow: Workflow{
 			MaxReviewRounds: 2, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
@@ -564,8 +581,32 @@ func (c Config) Validate() error {
 	if !slices.Contains([]string{"propose", "auto"}, c.Evolution.Mode) {
 		add("evolution.mode: phải là propose | auto")
 	}
-	if c.Evolution.Evaluation.MaxCandidates < 1 {
-		add("evolution.evaluation.max_candidates: phải >= 1")
+	{
+		ev := c.Evolution.Evaluation
+		if ev.MaxCandidates < 1 {
+			add("evolution.evaluation.max_candidates: phải >= 1")
+		}
+		if !slices.Contains([]string{"pass_rate", "cost_usd", "turns"}, ev.Metric) {
+			add("evolution.evaluation.metric: phải là pass_rate | cost_usd | turns")
+		}
+		if ev.MinEffect <= 0 || ev.MinEffect >= 1 {
+			add("evolution.evaluation.min_effect: phải trong khoảng (0, 1)")
+		}
+		if ev.NonInferiorityMargin < 0 || ev.NonInferiorityMargin >= 1 {
+			add("evolution.evaluation.non_inferiority_margin: phải trong khoảng [0, 1)")
+		}
+		if ev.Repeats < 0 {
+			add("evolution.evaluation.repeats: phải >= 0")
+		}
+		if ev.BudgetUSD != nil && *ev.BudgetUSD <= 0 {
+			add("evolution.evaluation.budget_usd: phải > 0 hoặc null")
+		}
+		if !slices.Contains([]string{"bint", "minimal"}, ev.Delivery) {
+			add("evolution.evaluation.delivery: phải là bint | minimal")
+		}
+		if !slices.Contains([]string{"strict", "economy"}, ev.LeakageMode) {
+			add("evolution.evaluation.leakage_mode: phải là strict | economy")
+		}
 	}
 	if len(errs) > 0 {
 		slices.Sort(errs)

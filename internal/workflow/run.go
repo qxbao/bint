@@ -86,12 +86,14 @@ type Result struct {
 }
 
 type runState struct {
-	opts         RunOptions
-	t            *task.Task
-	runID        string
-	res          *Result
-	spent        float64
-	costKnown    bool
+	opts      RunOptions
+	t         *task.Task
+	runID     string
+	res       *Result
+	spent     float64
+	costKnown bool
+	// turns: tổng số lượt agent đã dùng trong lượt điều phối (chỉ tính bước báo num_turns).
+	turns        int64
 	limit        config.PerRunLimits
 	ran          map[string]int
 	warnedNoCost bool
@@ -388,6 +390,17 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		maxCost = minPtr(maxCost, rem)
 	}
 	maxTurns := stepLim.MaxTurns
+	if rs.opts.Workflow == StepDo && rs.limit.MaxTurns != nil {
+		rem := int64(*rs.limit.MaxTurns) - rs.turns
+		if rem <= 0 {
+			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.b-do.max_turns (đã dùng %d lượt)", rs.turns))
+			return false
+		}
+		if maxTurns == nil || int64(*maxTurns) > rem {
+			v := int(rem)
+			maxTurns = &v
+		}
+	}
 	agent, err := r.Agent(step, maxCost, maxTurns)
 	if err != nil {
 		r.fail(rs, step, err.Error())
@@ -454,6 +467,9 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	if res.CostUSD != nil {
 		rs.spent += *res.CostUSD
 		rs.costKnown = true
+	}
+	if res.NumTurns != nil {
+		rs.turns += *res.NumTurns
 	}
 	status, endReason := "completed", ""
 	switch {

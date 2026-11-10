@@ -201,6 +201,15 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		if len(rels) == 0 {
 			return Result{Skipped: "tệp nằm ngoài repository"}, nil
 		}
+		// Tệp được đọc (P6, mục 10.2): dữ liệu cho phát hiện khám phá lặp lại. Ghi trước
+		// mọi nhánh bên dưới; lỗi ghi không chặn agent.
+		if info.Kind == ToolRead {
+			rev := ev
+			rev.Type = spool.FileRead
+			rev.Payload = map[string]any{"paths": rels, "tool": hi.ToolName}
+			rev.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), "read")
+			spool.Write(paths.Spool, rev)
+		}
 		// Giới hạn vận hành (mục 5): sửa đường dẫn được bảo vệ cần người duyệt. Hook chỉ
 		// yêu cầu harness hỏi người dùng, không tự quyết.
 		ask := ""

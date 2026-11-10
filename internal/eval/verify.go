@@ -22,6 +22,8 @@ type Env struct {
 	Cfg      config.Config
 	// BintExe là tệp thực thi bint cho hook/MCP của nhánh bint; rỗng = tiến trình hiện tại.
 	BintExe string
+	// Variant: cặp nhánh base/candidate khi đối chiếu đề xuất tiến hoá (P6); nil ngoài đó.
+	Variant *Variant
 }
 
 // ErrNoTestCommand: người dùng chưa xác nhận lệnh kiểm thử.

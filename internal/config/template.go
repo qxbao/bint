@@ -116,9 +116,16 @@ evolution:
   trigger:
     min_similar_runs: 3
     min_new_evidence: 2
-  evaluation:
+  evaluation:               # bint evolve evaluate (đối chiếu base/candidate, mục 11.2)
     enabled: true
-    max_candidates: 2
+    max_candidates: 2       # số đề xuất tối đa mỗi lần bint evolve propose
+    metric: pass_rate       # thước đo chính chọn trước: pass_rate | cost_usd | turns
+    min_effect: 0.10        # mức cải thiện tỷ lệ đạt muốn phát hiện (ước tính cỡ mẫu)
+    non_inferiority_margin: 0.05   # tỷ lệ đạt được phép giảm tối đa khi loại bỏ tri thức
+    repeats: 0              # 0 = eval.repeats
+    budget_usd: null        # ngân sách đã duyệt cho một lần đối chiếu; null = chưa duyệt
+    delivery: bint          # cách đưa tri thức ở cả hai nhánh: bint | minimal
+    leakage_mode: economy   # strict | economy (mục 12.3)
   adoption:
     auto_low_risk: false
     bind_to_model_version: true

@@ -255,6 +255,13 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		}
 		if to == task.StatusDone {
 			blockers = task.DoneBlockers(t, task.DoneInput{Worktree: fp, VerifyConfirmed: e.VerifyConfirmed(t)})
+			// Tính lại từ diff hiện tại, không tin PendingPaths (chỉ Runner điền).
+			pend, err := e.UnapprovedChanges(ctx, t)
+			if err != nil {
+				blockers = append(blockers, "không xác định được tệp đã sửa: "+err.Error())
+			} else if len(pend) > 0 {
+				blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
+			}
 			if len(blockers) > 0 && !o.Force {
 				return &NotDoneError{Blockers: blockers}
 			}
@@ -270,6 +277,28 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 	}
 	e.emit(t, spool.TaskStatus, map[string]any{"status": to, "reason": o.Reason, "forced": o.Force && len(blockers) > 0})
 	return t, blockers, nil
+}
+
+// UnapprovedChanges trả về tệp đã sửa (so với base của tác vụ) cần người duyệt
+// nhưng chưa nằm trong ProtectedApproval.
+func (e *Env) UnapprovedChanges(ctx context.Context, t *task.Task) ([]string, error) {
+	files, err := task.ChangedFiles(ctx, e.Root, t.State.Base)
+	if err != nil {
+		return nil, err
+	}
+	sc := task.CheckScope(files, t.Ticket, e.Cfg.Limits.ProtectedPaths)
+	approved := ApprovedPaths(t)
+	need := sc.NeedsApproval()
+	if t.Ticket.Autonomy == task.AutonomyAskAlways {
+		need = append(append([]string{}, need...), sc.OutsideAllow...)
+	}
+	var out []string
+	for _, f := range need {
+		if !slices.Contains(approved, f) && !slices.Contains(out, f) {
+			out = append(out, f)
+		}
+	}
+	return out, nil
 }
 
 // NotDoneError: chưa đủ bằng chứng để coi là hoàn thành.

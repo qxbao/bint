@@ -203,6 +203,13 @@ func applyRunEffects(ctx context.Context, tx *sql.Tx, runID string, e spool.Even
 			return nil
 		}
 		return upsertArtifact(ctx, tx, runID, "file.modified", path, ts)
+	case spool.FileRead:
+		for _, path := range strList(p["paths"]) {
+			if err := upsertArtifact(ctx, tx, runID, "file.read", path, ts); err != nil {
+				return err
+			}
+		}
+		return nil
 	case spool.TestCompleted:
 		cmd := str(p, "command")
 		if cmd == "" {
