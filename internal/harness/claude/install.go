@@ -58,7 +58,8 @@ const HookTimeoutSeconds = 10
 const toolMatcher = "Edit|Write|MultiEdit|NotebookEdit|Bash|Skill|mcp__bint__.*"
 
 // pathMatcher: công cụ được chèn ngữ cảnh theo đường dẫn (PreToolUse).
-const pathMatcher = "Read|Edit|Write|MultiEdit|NotebookEdit"
+// Bash: chụp trạng thái working tree trước lệnh để phát hiện tệp sửa qua shell.
+const pathMatcher = "Read|Edit|Write|MultiEdit|NotebookEdit|Bash"
 
 // hookSubcommand nhận diện hook do Bint cài (để cập nhật/gỡ mà không động tới hook khác).
 const hookSubcommand = "hook claude"

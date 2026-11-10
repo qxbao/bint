@@ -57,6 +57,8 @@ type Input struct {
 	ToolUseID    string
 	ToolResponse string
 	AgentType    string
+	// TranscriptPath: tệp transcript của phiên (nếu harness cung cấp ở SessionEnd).
+	TranscriptPath string
 }
 
 // ToolKind phân loại một lần gọi công cụ.
@@ -93,6 +95,9 @@ type Dialect struct {
 	// PreToolOutput dựng đầu ra cho sự kiện trước công cụ: text là ngữ cảnh chèn
 	// (rỗng nếu không có), ask là lý do cần người duyệt (rỗng nếu không cần).
 	PreToolOutput func(text, ask string) string
+	// Usage đọc token của phiên từ transcript (nil nếu harness không hỗ trợ). Giá trị nil
+	// nghĩa là không biết, không phải 0 (mục 9.2).
+	Usage func(transcriptPath string) (in, out *int64)
 }
 
 // Env cho phép kiểm thử thay thế đồng hồ và thư mục hiện tại.
@@ -191,6 +196,13 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 	switch hi.Event {
 	case EvPreTool:
 		info := d.Classify(hi.ToolName, hi.ToolInput)
+		if info.Kind == ToolShell {
+			// Ảnh chụp working tree trước lệnh shell, để phát hiện tệp lệnh đó sửa (PostTool).
+			if snap, ok := takeSnapshot(ctx, repo.Toplevel); ok {
+				saveSnapshot(paths.Runtime, h, hi.SessionID, snap)
+			}
+			return Result{Skipped: "ảnh chụp trước lệnh shell"}, nil
+		}
 		if info.Kind != ToolRead && info.Kind != ToolEdit {
 			return Result{Skipped: "công cụ không đọc/sửa tệp"}, nil
 		}
@@ -284,6 +296,16 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 	case EvSessionEnd:
 		ev.Type = spool.SessionEnded
 		ev.Payload["reason"] = hi.Reason
+		if d.Usage != nil && hi.TranscriptPath != "" {
+			in, out := d.Usage(hi.TranscriptPath)
+			if in != nil {
+				ev.Payload["input_tokens"] = *in
+			}
+			if out != nil {
+				ev.Payload["output_tokens"] = *out
+			}
+			// Không có bảng giá trong mã: cost_usd để trống (NULL), không suy từ token.
+		}
 		ev.EventID = EventID(h, hi.SessionID, hi.RawEvent, hi.Reason, now.Truncate(time.Second).Format(time.RFC3339))
 	case EvPostTool, EvPostToolFailure:
 		ok := hi.Event == EvPostTool
@@ -339,6 +361,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			}
 			return res, nil
 		case ToolShell:
+			shellModified(ctx, ev, paths.Spool, paths.Runtime, repo.Toplevel)
 			var known []string
 			for _, c := range []*string{cfg.Eval.TestCommand, cfg.Eval.SuggestedTestCommand} {
 				if c != nil {
@@ -567,18 +590,19 @@ func outside(rel string) bool {
 
 // ClaudeStyleInput là payload hook kiểu Claude Code (Codex dùng cùng khuôn).
 type ClaudeStyleInput struct {
-	SessionID     string          `json:"session_id"`
-	Cwd           string          `json:"cwd"`
-	HookEventName string          `json:"hook_event_name"`
-	Source        string          `json:"source"`
-	Reason        string          `json:"reason"`
-	Model         json.RawMessage `json:"model"`
-	ToolName      string          `json:"tool_name"`
-	ToolInput     json.RawMessage `json:"tool_input"`
-	ToolUseID     string          `json:"tool_use_id"`
-	ToolResponse  json.RawMessage `json:"tool_response"`
-	AgentID       string          `json:"agent_id"`
-	AgentType     string          `json:"agent_type"`
+	SessionID      string          `json:"session_id"`
+	Cwd            string          `json:"cwd"`
+	HookEventName  string          `json:"hook_event_name"`
+	Source         string          `json:"source"`
+	Reason         string          `json:"reason"`
+	Model          json.RawMessage `json:"model"`
+	ToolName       string          `json:"tool_name"`
+	ToolInput      json.RawMessage `json:"tool_input"`
+	ToolUseID      string          `json:"tool_use_id"`
+	ToolResponse   json.RawMessage `json:"tool_response"`
+	AgentID        string          `json:"agent_id"`
+	AgentType      string          `json:"agent_type"`
+	TranscriptPath string          `json:"transcript_path"`
 }
 
 // claudeEvents ánh xạ hook_event_name kiểu Claude Code sang loại chuẩn hoá.
@@ -595,7 +619,7 @@ func NormalizeClaudeStyle(raw []byte) (Input, error) {
 	}
 	in := Input{SessionID: ci.SessionID, Cwd: ci.Cwd, RawEvent: ci.HookEventName, Event: claudeEvents[ci.HookEventName],
 		Source: ci.Source, Reason: ci.Reason, Model: ModelName(ci.Model), ToolName: ci.ToolName, ToolUseID: ci.ToolUseID,
-		ToolResponse: RawText(ci.ToolResponse), AgentType: ci.AgentType}
+		ToolResponse: RawText(ci.ToolResponse), AgentType: ci.AgentType, TranscriptPath: ci.TranscriptPath}
 	if ci.HookEventName != "" && in.Event == "" {
 		in.Event = "other"
 	}
