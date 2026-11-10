@@ -1,0 +1,71 @@
+{
+  "head": "dff6570896298b7b921fcf124eec8cd26b84530f",
+  "platform": "Linux amd64, non-root, Go 1.25.1",
+  "commands": [
+    {
+      "command": "go test -count=1 ./...",
+      "exit": 0
+    },
+    {
+      "command": "go test -race -count=1 ./internal/evolve ./internal/cli ./internal/workflow",
+      "exit": 0
+    },
+    {
+      "command": "go vet ./...",
+      "exit": 0
+    },
+    {
+      "command": "CGO_ENABLED=0 go build -o /tmp/bint-acceptance-p6-dff6570 ./cmd/bint",
+      "exit": 0
+    },
+    {
+      "command": "five audit probes through Go overlay",
+      "exit": 1,
+      "failed_tests": 5
+    },
+    {
+      "command": "lock probe repeated -count=2",
+      "exit": 1,
+      "runs": [
+        {
+          "overlapping_acquisitions": 1854,
+          "total_acquisitions": 1884
+        },
+        {
+          "overlapping_acquisitions": 1758,
+          "total_acquisitions": 1806
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "P6-01",
+      "severity": "high",
+      "observation": "Evolution lock admits concurrent owners; full probe example 1786 overlapping acquisitions / 1856 successful acquisitions"
+    },
+    {
+      "id": "P6-02",
+      "severity": "high",
+      "observation": "Valid proposal accepted after fake evolver mutates an already-dirty source file"
+    },
+    {
+      "id": "P6-03",
+      "severity": "high",
+      "observation": "Second-file write error leaves first rollback file modified while proposal stays applied"
+    },
+    {
+      "id": "P6-04",
+      "severity": "medium",
+      "observation": "Applied update loses explicit external draft inputs and third_party flag; verified item returned as rule"
+    },
+    {
+      "id": "P6-05",
+      "severity": "medium",
+      "observation": "Deterministic merge of equal-title facts drops unique body text from active knowledge; source deprecated file remains"
+    }
+  ],
+  "paid_model_calls": 0,
+  "empirical_independent_test_benefit_proven": false,
+  "product_source_modified": false
+}
