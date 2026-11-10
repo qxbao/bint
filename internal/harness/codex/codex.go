@@ -214,20 +214,11 @@ func HooksInstalled(path string) (bool, error) {
 	return claude.HooksPresent(path, desiredGroups("x"), isBintHook)
 }
 
-// HooksTrusted cho biết người dùng đã duyệt (trust) ít nhất một hook trong tệp path
-// trong Codex (bảng [hooks.state] của ~/.codex/config.toml). Codex lưu băm nội
-// dung: hook đã đổi sau khi duyệt sẽ cần duyệt lại, Bint không kiểm tra được băm.
+// HooksTrusted kiểm tra mọi hook Bint trong file bằng metadata/hash của Codex.
+// Caller có root/binary tuỳ chỉnh nên dùng InspectHookTrust để nhận lý do lỗi.
 func HooksTrusted(path string) bool {
-	h, err := Home()
-	if err != nil {
-		return false
-	}
-	b, err := os.ReadFile(filepath.Join(h, "config.toml"))
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(b), `[hooks.state."`+filepath.ToSlash(path)+`:`) ||
-		strings.Contains(string(b), `[hooks.state."`+path+`:`)
+	r, err := InspectHookTrust(context.Background(), "", filepath.Dir(filepath.Dir(path)), path)
+	return err == nil && r.AllTrusted()
 }
 
 // ProjectTrusted cho biết repository được Codex tin cậy (cần cho .codex/config.toml
