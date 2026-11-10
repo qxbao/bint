@@ -100,6 +100,7 @@ type Dialect struct {
 	// PostToolOutcome xác minh kết quả riêng của harness. nil giữ nguyên hợp
 	// đồng Claude; known=false ghi test command nhưng không tạo tín hiệu pass/fail.
 	PostToolOutcome func(Input, ToolInfo) (success, known bool)
+	IsTestCommand   func(string, ...string) bool
 	// Usage đọc token của phiên từ transcript (nil nếu harness không hỗ trợ). Giá trị nil
 	// nghĩa là không biết, không phải 0 (mục 9.2).
 	Usage func(transcriptPath string) (in, out *int64)
@@ -384,7 +385,11 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 					known = append(known, *c)
 				}
 			}
-			if !detect.IsTestCommand(info.Command, known...) {
+			isTest := detect.IsTestCommand
+			if d.IsTestCommand != nil {
+				isTest = d.IsTestCommand
+			}
+			if !isTest(info.Command, known...) {
 				return Result{Skipped: "lệnh shell không phải kiểm thử"}, nil
 			}
 			ev.Type = spool.TestCompleted

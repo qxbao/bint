@@ -25,6 +25,7 @@ import (
 
 	"context"
 
+	"bint/internal/detect"
 	"bint/internal/fsafe"
 	"bint/internal/harness/claude"
 	"bint/internal/harness/hookcore"
@@ -108,6 +109,7 @@ var Dialect = hookcore.Dialect{
 	PreToolOutput:     hookcore.ClaudeStylePreToolOutput("deny"),
 	ProtectedPathHelp: approvalHelp,
 	PostToolOutcome:   postToolOutcome,
+	IsTestCommand:     detect.IsExecutedTestCommand,
 }
 
 func approvalHelp(paths []string) string {

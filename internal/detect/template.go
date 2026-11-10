@@ -125,6 +125,31 @@ func MatchesTemplate(cmd, tmpl string) bool {
 	return false
 }
 
+// IsExecutedTestCommand là lựa chọn bảo thủ cho Codex: chỉ nhận diện ở vị trí
+// lệnh, không tìm chữ "go test" trong đối số/tài liệu. Không diễn giải heredoc
+// hoặc substitution; script loại đó không được nâng thành bằng chứng test.
+// IsTestCommand cũ giữ nguyên cho các adapter khác.
+func IsExecutedTestCommand(cmd string, configured ...string) bool {
+	if strings.Contains(cmd, "<<") || strings.Contains(cmd, "$(") || strings.ContainsRune(cmd, '`') {
+		return false
+	}
+	for _, tmpl := range configured {
+		if strings.TrimSpace(tmpl) != "" && MatchesTemplate(cmd, tmpl) {
+			return true
+		}
+	}
+	for _, seg := range shellSegments(cmd) {
+		seg = stripWrappers(seg)
+		if len(seg) == 0 || strings.ContainsAny(seg[0], " \t\r\n") {
+			continue
+		}
+		if at := testRunner.FindStringIndex(strings.Join(seg, " ")); at != nil && at[0] == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func firstSegment(tmpl string) []string {
 	segs := shellSegments(tmpl)
 	if len(segs) != 1 {

@@ -69,6 +69,20 @@ func TestRealCodexTestOutcomeIsNotAssumedFromPostToolUse(t *testing.T) {
 	}
 }
 
+func TestCodexWritingTestInstructionsIsNotATestRun(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"calc.go": "package p\n"})
+	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"codex"}, Hooks: no()})
+	b, err := os.ReadFile("../harness/codex/testdata/codex-0.167/planning-command.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := codexHook(t, map[string]any{"session_id": "planning", "cwd": root, "hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_use_id": "planning-docs", "tool_input": map[string]any{"command": string(b)}})
+	if r.Written {
+		t.Fatalf("đã ghi test.completed dù shell chỉ ghi tài liệu: %+v", r)
+	}
+}
+
 func hashTree(t *testing.T, root string, rels ...string) string {
 	t.Helper()
 	h := sha256.New()
