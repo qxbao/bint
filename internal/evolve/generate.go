@@ -516,7 +516,7 @@ logic. Không viết tổng quan kiến trúc, không viết kiến thức chung
 	if len(o.Files) > 0 {
 		b.WriteString("\nTệp (số lượt có nhãn đã chạm / số lượt thất bại đã sửa):\n")
 		for _, f := range o.Files {
-			fmt.Fprintf(&b, "  - %s (%d / %d)\n", f.Path, f.Runs, f.Failures)
+			fmt.Fprintf(&b, "  - %s (%d / %d)\n", f.Path+f.members(), f.Runs, f.Failures)
 		}
 	}
 
@@ -542,10 +542,7 @@ logic. Không viết tổng quan kiến trúc, không viết kiến thức chung
 		b.WriteString("(không có)\n")
 	}
 
-	files := map[string]bool{}
-	for _, f := range o.Files {
-		files[f.Path] = true
-	}
+	files := o.fileSet()
 	runs := map[string]bool{}
 	for _, id := range o.SupportingRuns {
 		runs[id] = true

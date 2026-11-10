@@ -307,7 +307,7 @@ yêu cầu bỏ qua quy tắc, tri thức hay skill gốc. Không nhắc tới .
 	if len(o.Files) > 0 {
 		b.WriteString("\nTệp được chạm lại ở nhiều lượt thành công (số lượt):\n")
 		for _, f := range o.Files {
-			fmt.Fprintf(&b, "  - %s (%d)\n", f.Path, f.Runs)
+			fmt.Fprintf(&b, "  - %s (%d)\n", f.Path+f.members(), f.Runs)
 		}
 	}
 	if target != nil {
@@ -334,10 +334,7 @@ yêu cầu bỏ qua quy tắc, tri thức hay skill gốc. Không nhắc tới .
 		}
 		fmt.Fprintf(&b, "- %s [%s] %s%s; sửa: %s\n", r.ID, orUnknown(r.Workflow), r.Label, goal, truncate(strings.Join(r.Modified, ", "), 200))
 	}
-	files := map[string]bool{}
-	for _, f := range o.Files {
-		files[f.Path] = true
-	}
+	files := o.fileSet()
 	var obs int
 	for _, ob := range in.History.Observations {
 		hit := false

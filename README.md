@@ -560,7 +560,7 @@ sửa). **Cơ hội** (mục 10.2):
 
 | Loại | Điều kiện | Hành động | Tạo bởi |
 |---|---|---|---|
-| `exploration` | tệp được chạm lại ở ≥ `min_similar_runs` lượt có nhãn, không mục nào có phạm vi khớp | create | agent |
+| `exploration` | tệp (hoặc ≥ 2 tệp cùng mẫu tên trong một thư mục: `handlers/*_handler.py`, `test_*.py`, `*_test.go`) được chạm lại ở ≥ `min_similar_runs` lượt có nhãn, không mục nào có phạm vi khớp | create | agent |
 | `failure_hotspot` | tệp bị sửa ở ≥ `min_new_evidence` lượt thất bại, chưa có warning/rule | create | agent |
 | `stale_used` | mục stale vẫn được truy xuất, hoặc `revalidate` nhận định outdated | update | agent |
 | `stale_expired` | stale quá `knowledge.stale_deprecate_days` | deprecate | xác định |
