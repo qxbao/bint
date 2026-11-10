@@ -10,12 +10,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"bint/internal/state"
-	"bint/internal/task"
 )
 
 // Cô lập các bước có quyền ghi (mục 15.2, P5):
@@ -31,18 +29,21 @@ import (
 var ErrWriteLocked = errors.New("worktree đang có một bước có quyền ghi khác chạy")
 
 // WriteLock là khoá ghi của một worktree.
-type WriteLock struct{ path, content string }
+type WriteLock struct {
+	path, content string
+	f             *os.File // tệp đang giữ khoá hệ điều hành; nil nếu không giữ
+}
 
 // lockDir là thư mục chứa khoá ghi trong thư mục trạng thái.
 func lockDir(tasksDir string) string { return filepath.Join(filepath.Dir(tasksDir), "locks") }
 
-// AcquireWriteLock lấy khoá ghi cho worktree root. Khoá của tiến trình đã chết được
-// coi là bỏ lại và bị thay.
+// AcquireWriteLock lấy khoá ghi cho worktree root, không chờ.
 //
-// Giao thức: nội dung khoá được ghi đầy đủ vào tệp tạm rồi công bố nguyên tử bằng
-// os.Link (thất bại nếu đã có khoá), nên không bao giờ có tệp khoá rỗng/dở dang. Việc
-// thu hồi khoá bỏ lại dùng os.Rename sang tên duy nhất: chỉ một bên thắng; bên thắng
-// kiểm tra lại nội dung đúng là khoá đã thấy là bỏ lại, nếu không thì trả lại.
+// Giao thức: tính độc quyền do khoá của hệ điều hành (flock trên Unix, LockFileEx trên
+// Windows) trên tệp khoá bảo đảm; nội dung tệp (PID, chủ) chỉ để thông báo. Khoá của
+// tiến trình đã chết tự được hệ điều hành nhả nên không còn bước "thu hồi dựa trên
+// quan sát stale" — thứ từng có thể tạm gỡ khoá của chủ đang sống (R1). Vì Release xoá
+// tệp, sau khi khoá được phải kiểm tra tệp vẫn là tệp ở đường dẫn, nếu không thì mở lại.
 func AcquireWriteLock(tasksDir, root, owner string) (*WriteLock, error) {
 	dir := lockDir(tasksDir)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -54,67 +55,61 @@ func AcquireWriteLock(tasksDir, root, owner string) (*WriteLock, error) {
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return nil, err
 	}
-	token := hex.EncodeToString(nonce[:])
-	content := fmt.Sprintf("%d\n%s\n%s\n%s\n%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339), root, owner, token)
+	content := fmt.Sprintf("%d\n%s\n%s\n%s\n%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339), root, owner, hex.EncodeToString(nonce[:]))
 
-	tmp := p + ".tmp-" + token
-	if err := os.WriteFile(tmp, []byte(content), 0o600); err != nil {
-		return nil, err
-	}
-	defer os.Remove(tmp)
-
-	for attempt := 0; attempt < 5; attempt++ {
-		err := os.Link(tmp, p)
-		if err == nil {
-			return &WriteLock{path: p, content: content}, nil
-		}
-		if !errors.Is(err, os.ErrExist) {
+	for attempt := 0; attempt < 8; attempt++ {
+		f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0o600)
+		if err != nil {
 			return nil, err
 		}
-		b, rerr := os.ReadFile(p)
-		if rerr != nil {
-			if errors.Is(rerr, os.ErrNotExist) {
-				continue // vừa được trả, thử lại
-			}
-			return nil, rerr
+		busy, err := tryFlock(f)
+		if err != nil {
+			f.Close()
+			return nil, err
 		}
-		lines := strings.Split(string(b), "\n")
-		pid, _ := strconv.Atoi(strings.TrimSpace(lines[0]))
-		if pid <= 0 || len(lines) < 5 {
-			// Không thể dở dang (công bố nguyên tử) nên tệp hỏng là bất thường: không tự thu hồi.
-			return nil, fmt.Errorf("%w (tệp khoá %s không hợp lệ; xoá tay nếu chắc chắn không có bước nào đang chạy)", ErrWriteLocked, p)
+		if busy {
+			holder := describeHolder(p)
+			f.Close()
+			return nil, fmt.Errorf("%w%s; chờ bước đó xong hoặc dùng worktree khác", ErrWriteLocked, holder)
 		}
-		if task.ProcessAlive(pid) {
-			return nil, fmt.Errorf("%w (tiến trình %d, %s); chờ bước đó xong hoặc dùng worktree khác", ErrWriteLocked, pid, strings.TrimSpace(lines[3]))
+		if !sameFile(f, p) {
+			f.Close() // chủ trước vừa xoá tệp khi trả khoá; mở lại
+			continue
 		}
-		// Khoá bỏ lại: chuyển sang tên duy nhất để chỉ một bên thu hồi được.
-		stale := p + ".stale-" + token
-		if err := os.Rename(p, stale); err != nil {
-			continue // bên khác đã thu hồi/trả
+		if err := f.Truncate(0); err == nil {
+			_, err = f.WriteAt([]byte(content), 0)
 		}
-		sb, _ := os.ReadFile(stale)
-		if string(sb) != string(b) {
-			// Đã lỡ chuyển đi khoá của chủ khác: trả lại nếu chỗ còn trống.
-			if lerr := os.Link(stale, p); lerr != nil {
-				os.Remove(stale)
-				return nil, ErrWriteLocked
-			}
-			os.Remove(stale)
-			return nil, ErrWriteLocked
+		if err != nil {
+			f.Close()
+			return nil, err
 		}
-		os.Remove(stale)
+		return &WriteLock{path: p, content: content, f: f}, nil
 	}
 	return nil, ErrWriteLocked
 }
 
-// Release trả khoá, chỉ khi tệp khoá vẫn là của chính chủ này.
+// describeHolder mô tả chủ đang giữ khoá từ nội dung tệp (chỉ để báo lỗi).
+func describeHolder(p string) string {
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(b), "\n")
+	if len(lines) < 5 {
+		return ""
+	}
+	return fmt.Sprintf(" (tiến trình %s, %s)", strings.TrimSpace(lines[0]), strings.TrimSpace(lines[3]))
+}
+
+// Release trả khoá, chỉ khi chính chủ này đang giữ khoá hệ điều hành.
 func (l *WriteLock) Release() {
-	if l == nil {
+	if l == nil || l.f == nil {
 		return
 	}
-	if b, err := os.ReadFile(l.path); err == nil && string(b) == l.content {
-		os.Remove(l.path)
-	}
+	// Còn giữ khoá nên không ai khác sửa/xoá tệp: xoá rồi mới đóng (nhả khoá).
+	removeLockFile(l.path)
+	l.f.Close()
+	l.f = nil
 }
 
 // WorktreeSnapshot trả về mã cây (git tree) đại diện cho toàn bộ cây làm việc: tệp

@@ -434,8 +434,7 @@ func TestWriteLockSerializesWriteSteps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := l2.path
-	os.WriteFile(p, []byte("2147483646\nx\nx\nchết\n"), 0o600)
+	deadOwner(t, l2) // chủ chết: hệ điều hành nhả khoá, tệp còn lại
 	l3, err := AcquireWriteLock(h.tasks.Dir, h.root, "b")
 	if err != nil {
 		t.Fatalf("khoá của tiến trình chết phải được thay: %v", err)
