@@ -29,7 +29,7 @@ const (
 	snapMaxAge = 6 * time.Hour
 	// snapDefaultTimeout: hạn chụp một ảnh khi cấu hình không đặt (hook phải xong rất nhanh, mục 13.1).
 	snapDefaultTimeout = 1500 * time.Millisecond
-	cleanState   = "clean"
+	cleanState         = "clean"
 )
 
 // hashBudget: tổng byte được băm cho một ảnh chụp; vượt thì các tệp còn lại dùng dấu size+mtime.
