@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"bint/internal/config"
@@ -77,8 +78,63 @@ const (
 // ErrArmUnavailable: nhánh không chạy được cho tác vụ này (không phải lỗi hạ tầng).
 var ErrArmUnavailable = errors.New("nhánh không khả dụng")
 
+// ContextVariant là chiến lược chọn/đưa ngữ cảnh của nhánh bint (P8: thử nghiệm chiến lược
+// chọn ngữ cảnh). Viết sau tên nhánh: "bint@task=off+path=off+mcp=off+tokens=3000+items=3" (dấu + vì --arms tách theo dấu phẩy).
+// Hai biến thể cùng đợt được so sánh ghép cặp như mọi nhánh.
+type ContextVariant struct {
+	NoTaskHook, NoPathHook, NoMCP bool
+	MaxTokens, PathMaxItems       int
+}
+
+// SplitArm tách tên nhánh và biến thể ngữ cảnh. Chỉ nhánh bint nhận biến thể.
+func SplitArm(arm string) (string, ContextVariant, error) {
+	var v ContextVariant
+	base, spec, ok := strings.Cut(arm, "@")
+	if !ok {
+		return arm, v, nil
+	}
+	if base != ArmBint {
+		return base, v, fmt.Errorf("chỉ nhánh bint nhận biến thể ngữ cảnh, nhận %q", arm)
+	}
+	for _, kv := range strings.Split(spec, "+") {
+		k, val, _ := strings.Cut(strings.TrimSpace(kv), "=")
+		switch k {
+		case "task", "path", "mcp":
+			if val != "off" && val != "on" {
+				return base, v, fmt.Errorf("biến thể %q: %s chỉ nhận on|off", arm, k)
+			}
+			off := val == "off"
+			switch k {
+			case "task":
+				v.NoTaskHook = off
+			case "path":
+				v.NoPathHook = off
+			default:
+				v.NoMCP = off
+			}
+		case "tokens", "items":
+			n, err := strconv.Atoi(val)
+			if err != nil || n <= 0 {
+				return base, v, fmt.Errorf("biến thể %q: %s cần số nguyên dương", arm, k)
+			}
+			if k == "tokens" {
+				v.MaxTokens = n
+			} else {
+				v.PathMaxItems = n
+			}
+		default:
+			return base, v, fmt.Errorf("biến thể %q: khoá %q không hỗ trợ (task, path, mcp, tokens, items)", arm, k)
+		}
+	}
+	return base, v, nil
+}
+
 // ArmNotImplemented trả lỗi nếu nhánh không hợp lệ.
 func ArmNotImplemented(arm string) error {
+	arm, _, err := SplitArm(arm)
+	if err != nil {
+		return err
+	}
 	for _, a := range Arms {
 		if a == arm {
 			return nil
@@ -91,6 +147,7 @@ func ArmNotImplemented(arm string) error {
 // tập tri thức với minimal, nên cần eval.minimal_source: knowledge để phép so sánh
 // chỉ khác nhau ở cách đưa tri thức tới agent.
 func ArmRequirement(arm string, cfg config.Config) error {
+	arm, _, _ = SplitArm(arm)
 	if arm == ArmBase || arm == ArmCandidate {
 		return fmt.Errorf("nhánh %s chỉ dùng để đối chiếu đề xuất tiến hoá (`bint evolve evaluate`)", arm)
 	}
@@ -143,6 +200,10 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 		return s, err
 	}
 	s.Stripped = stripped
+	arm, cv, err := SplitArm(arm)
+	if err != nil {
+		return s, err
+	}
 	writeAgents := func(content []byte) error {
 		if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), content, 0o644); err != nil {
 			return err
@@ -256,6 +317,12 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 	s.ContextLog = filepath.Join(logDir, "context.jsonl")
 	ec := ctxengine.EvalConfig{ItemsDir: itemsDir, Root: dir, Log: s.ContextLog, ExcludeEvalCase: c.ID,
 		MaxTokens: env.Cfg.Context.MaxTokens, PathMaxItems: env.Cfg.Context.PathMaxItems, IncludeCandidates: ks.candidates}
+	if cv.MaxTokens > 0 {
+		ec.MaxTokens = cv.MaxTokens
+	}
+	if cv.PathMaxItems > 0 {
+		ec.PathMaxItems = cv.PathMaxItems
+	}
 	s.EvalConfig = filepath.Join(logDir, "context.json")
 	if err := writeJSONFile(s.EvalConfig, ec); err != nil {
 		return s, err
@@ -266,21 +333,30 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 			return s, err
 		}
 	}
-	s.MCPConfig = filepath.Join(logDir, "mcp.json")
-	if err := writeJSONFile(s.MCPConfig, map[string]any{"mcpServers": map[string]any{
-		"bint": map[string]any{"command": exe, "args": []string{"mcp", "serve", "--eval-config", s.EvalConfig}},
-	}}); err != nil {
-		return s, err
+	if !cv.NoMCP {
+		s.MCPConfig = filepath.Join(logDir, "mcp.json")
+		if err := writeJSONFile(s.MCPConfig, map[string]any{"mcpServers": map[string]any{
+			"bint": map[string]any{"command": exe, "args": []string{"mcp", "serve", "--eval-config", s.EvalConfig}},
+		}}); err != nil {
+			return s, err
+		}
 	}
 	s.Settings = filepath.Join(logDir, "settings.json")
 	hook := map[string]any{"type": "command", "command": `"` + filepath.ToSlash(exe) + `" hook claude`, "timeout": 10}
-	if err := writeJSONFile(s.Settings, map[string]any{"hooks": map[string]any{
-		"PreToolUse":       []any{map[string]any{"matcher": "Read|Edit|Write|MultiEdit|NotebookEdit", "hooks": []any{hook}}},
-		"UserPromptSubmit": []any{map[string]any{"hooks": []any{hook}}},
-	}}); err != nil {
+	hooks := map[string]any{}
+	if !cv.NoPathHook {
+		hooks["PreToolUse"] = []any{map[string]any{"matcher": "Read|Edit|Write|MultiEdit|NotebookEdit", "hooks": []any{hook}}}
+	}
+	if !cv.NoTaskHook {
+		hooks["UserPromptSubmit"] = []any{map[string]any{"hooks": []any{hook}}}
+	}
+	if err := writeJSONFile(s.Settings, map[string]any{"hooks": hooks}); err != nil {
 		return s, err
 	}
-	full := append(content, []byte(BintToolsNote)...)
+	full := content
+	if !cv.NoMCP {
+		full = append(content, []byte(BintToolsNote)...)
+	}
 	s.ContextSource = fmt.Sprintf("%s+engine#%s", ks.src, hash12(full))
 	return s, writeAgents(full)
 }

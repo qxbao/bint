@@ -313,7 +313,7 @@ func BuildReportUpTo(ctx context.Context, db *sql.DB, b Batch, baseline string, 
 		rep.Cases = append(rep.Cases, cr)
 	}
 	rep.Diagnostics = diagnose(rep, b, rows, models, harnessVersions, fingerprints, current, touched)
-	if slices.Contains(arms, ArmBint) || slices.Contains(arms, ArmIdeal) {
+	if slices.ContainsFunc(arms, func(a string) bool { base, _, _ := SplitArm(a); return base == ArmBint }) || slices.Contains(arms, ArmIdeal) {
 		cu, err := batchContext(ctx, db, b.BatchID)
 		if err != nil {
 			return rep, err

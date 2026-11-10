@@ -92,6 +92,17 @@ func TestBintAndIdealArms(t *testing.T) {
 	if err != nil || !strings.Contains(hr.Output, `"UserPromptSubmit"`) || !strings.Contains(hr.Output, scoped.ID) {
 		t.Fatalf("chèn theo đề bài: %+v %v", hr, err)
 	}
+	// Biến thể chiến lược ngữ cảnh: tắt hook theo đề bài và MCP.
+	vdir, vlog := t.TempDir(), t.TempDir()
+	vs, err := prepareArm(ctx, env, "bint@task=off+mcp=off", LeakStrict, c, nil, vdir, vlog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vset, _ := os.ReadFile(vs.Settings)
+	vagents, _ := os.ReadFile(filepath.Join(vdir, "AGENTS.md"))
+	if vs.MCPConfig != "" || strings.Contains(string(vset), "UserPromptSubmit") || !strings.Contains(string(vset), "PreToolUse") || strings.Contains(string(vagents), "context_for_task") {
+		t.Fatalf("biến thể: %+v\n%s\n%s", vs, vset, vagents)
+	}
 	logb, _ := os.ReadFile(s.ContextLog)
 	if !strings.Contains(string(logb), ctxengine.ChannelHookTask) {
 		t.Fatalf("nhật ký thiếu kênh hook:task: %s", logb)
@@ -128,5 +139,20 @@ func TestBintAndIdealArms(t *testing.T) {
 	env.Cfg.Eval.MinimalSource = "file"
 	if _, err := prepareArm(ctx, env, ArmBint, LeakStrict, c, nil, t.TempDir(), t.TempDir()); err == nil {
 		t.Fatal("phải từ chối khi minimal_source: file")
+	}
+}
+
+func TestSplitArm(t *testing.T) {
+	base, v, err := SplitArm("bint@task=off+mcp=off+tokens=3000+items=3")
+	if err != nil || base != ArmBint || !v.NoTaskHook || v.NoPathHook || !v.NoMCP || v.MaxTokens != 3000 || v.PathMaxItems != 3 {
+		t.Fatalf("%s %+v %v", base, v, err)
+	}
+	for _, bad := range []string{"minimal@task=off", "bint@task=maybe", "bint@foo=1", "bint@tokens=0"} {
+		if _, _, err := SplitArm(bad); err == nil {
+			t.Errorf("%q phải lỗi", bad)
+		}
+	}
+	if ArmNotImplemented("bint@path=off") != nil || ArmNotImplemented("bint@x=1") == nil {
+		t.Fatal("ArmNotImplemented với biến thể")
 	}
 }
