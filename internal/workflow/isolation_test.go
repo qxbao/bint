@@ -2,7 +2,9 @@ package workflow
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -97,12 +99,24 @@ func TestAcquireWriteLockExclusiveAcrossProcesses(t *testing.T) {
 	}
 }
 
+// lockChild tranh khoá cho tới khi giữ được lockRounds lần. AcquireWriteLock cố ý trả
+// lỗi ngay khi khoá đang bị giữ (không chờ), nên tiến trình con phải nghỉ ngẫu nhiên
+// sau mỗi lần thất bại: thử dồn dập một số lần cố định thì một tiến trình có thể hết
+// lượt thử trong vài mili giây trong khi các tiến trình khác chuyền khoá cho nhau (đói
+// lượt) — đó là nguyên nhân kiểm thử từng chập chờn, không phải lỗi của khoá.
 func lockChild() {
+	const lockRounds = 20
 	tasks, marker := os.Getenv("BINT_LOCK_TASKS"), os.Getenv("BINT_LOCK_MARKER")
 	got := 0
-	for i := 0; i < 300; i++ {
+	deadline := time.Now().Add(30 * time.Second)
+	for got < lockRounds && time.Now().Before(deadline) {
 		l, err := AcquireWriteLock(tasks, "/repo", "child")
 		if err != nil {
+			if !errors.Is(err, ErrWriteLocked) {
+				fmt.Println("lỗi không mong đợi:", err)
+				os.Exit(1)
+			}
+			time.Sleep(time.Duration(50+rand.IntN(450)) * time.Microsecond)
 			continue
 		}
 		got++
@@ -116,8 +130,8 @@ func lockChild() {
 		os.Remove(marker)
 		l.Release()
 	}
-	if got == 0 {
-		fmt.Println("không lấy được khoá lần nào")
+	if got < lockRounds {
+		fmt.Printf("chỉ lấy được khoá %d/%d lần trong 30 giây\n", got, lockRounds)
 		os.Exit(1)
 	}
 	os.Exit(0)
