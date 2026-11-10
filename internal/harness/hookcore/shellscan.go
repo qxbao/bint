@@ -38,7 +38,10 @@ var hashBudget int64 = 32 << 20
 // treeSnapshot: đường dẫn (tương đối repository) → dấu trạng thái. Tệp sạch không có mặt.
 type treeSnapshot map[string]string
 
-func takeSnapshot(ctx context.Context, top string) (treeSnapshot, bool) {
+// takeSnapshot chụp working tree. prev (có thể nil) là ảnh trước lệnh: tệp đã có trong
+// prev được lấy dấu theo đúng cách đã dùng ở prev (băm hay size+mtime), để việc hết ngân
+// sách băm ở một trong hai lần chụp không làm tệp không đổi trông như đã đổi.
+func takeSnapshot(ctx context.Context, top string, prev treeSnapshot) (treeSnapshot, bool) {
 	out, err := gitrepo.Run(ctx, top, "status", "--porcelain=v1", "-z", "-uall")
 	if err != nil {
 		return nil, false
@@ -61,20 +64,47 @@ func takeSnapshot(ctx context.Context, top string) (treeSnapshot, bool) {
 		if ctx.Err() != nil {
 			return nil, false // quá hạn: không biết, không đoán
 		}
-		snap[path] = xy + ":" + fileStamp(filepath.Join(top, filepath.FromSlash(path)), &budget)
+		snap[path] = xy + ":" + fileStamp(filepath.Join(top, filepath.FromSlash(path)), &budget, stampModeOf(prev[path]))
 	}
 	return snap, true
 }
 
-func fileStamp(p string, budget *int64) string {
+// Cách lấy dấu một tệp.
+const (
+	stampAuto = iota // băm nếu còn ngân sách, không thì size+mtime
+	stampHash        // băm (ảnh trước đã băm tệp này), không tính vào ngân sách
+	stampStat        // size+mtime (ảnh trước đã dùng dấu này)
+)
+
+// stampModeOf suy ra cách lấy dấu đã dùng từ một mục của ảnh chụp ("XY:dấu").
+func stampModeOf(entry string) int {
+	if len(entry) < 4 {
+		return stampAuto
+	}
+	switch v := entry[3:]; {
+	case strings.Contains(v, ":"):
+		return stampStat
+	case len(v) == 16:
+		return stampHash
+	}
+	return stampAuto
+}
+
+func fileStamp(p string, budget *int64, mode int) string {
 	st, err := os.Lstat(p)
 	if err != nil {
 		return "deleted"
 	}
-	if !st.Mode().IsRegular() || st.Size() > maxHashBytes || st.Size() > *budget {
-		return fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
+	statStamp := fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
+	if !st.Mode().IsRegular() || st.Size() > maxHashBytes || mode == stampStat {
+		return statStamp
 	}
-	*budget -= st.Size()
+	if mode == stampAuto {
+		if st.Size() > *budget {
+			return statStamp
+		}
+		*budget -= st.Size()
+	}
 	b, err := os.ReadFile(p)
 	if err != nil {
 		return "unreadable"
@@ -144,7 +174,7 @@ func shellModified(ctx context.Context, base spool.Event, spoolDir, runtimeDir, 
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	after, ok := takeSnapshot(ctx, top)
+	after, ok := takeSnapshot(ctx, top, before)
 	if !ok {
 		return
 	}

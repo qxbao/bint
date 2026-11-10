@@ -200,7 +200,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			// Ảnh chụp working tree trước lệnh shell, để phát hiện tệp lệnh đó sửa (PostTool).
 			sctx, cancel := context.WithTimeout(ctx, snapTimeout(cfg.Context.PathHookTimeoutMS))
 			defer cancel()
-			if snap, ok := takeSnapshot(sctx, repo.Toplevel); ok {
+			if snap, ok := takeSnapshot(sctx, repo.Toplevel, nil); ok {
 				saveSnapshot(paths.Runtime, h, hi.SessionID, hi.ToolUseID, snap)
 			}
 			return Result{Skipped: "ảnh chụp trước lệnh shell"}, nil

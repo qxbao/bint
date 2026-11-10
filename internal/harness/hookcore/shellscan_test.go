@@ -26,7 +26,7 @@ func TestSnapshotExpiredContextGivesNothing(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 	defer cancel()
 	time.Sleep(2 * time.Millisecond)
-	if s, ok := takeSnapshot(ctx, d); ok || s != nil {
+	if s, ok := takeSnapshot(ctx, d, nil); ok || s != nil {
 		t.Fatalf("quá hạn phải không có ảnh: %v %v", s, ok)
 	}
 }
@@ -36,7 +36,7 @@ func TestSnapshotHashBudgetFallsBackToSizeMtime(t *testing.T) {
 	old := hashBudget
 	hashBudget = 100 // nhỏ hơn big.bin
 	defer func() { hashBudget = old }()
-	s, ok := takeSnapshot(context.Background(), d)
+	s, ok := takeSnapshot(context.Background(), d, nil)
 	if !ok {
 		t.Fatal("không chụp được")
 	}
@@ -63,5 +63,30 @@ func TestSaveSnapshotCleansOrphans(t *testing.T) {
 	}
 	if _, ok := loadSnapshot(rt, "claude", "s", "t2"); ok {
 		t.Error("khoá khác tool_use_id không được dùng chung ảnh")
+	}
+}
+
+// Ảnh trước băm được tệp, ảnh sau hết ngân sách băm: tệp không đổi không được coi là đã đổi.
+func TestSnapshotStampModeFollowsBefore(t *testing.T) {
+	d := gitRepo(t)
+	before, ok := takeSnapshot(context.Background(), d, nil)
+	if !ok {
+		t.Fatal("không chụp được ảnh trước")
+	}
+	old := hashBudget
+	hashBudget = 0
+	defer func() { hashBudget = old }()
+	after, ok := takeSnapshot(context.Background(), d, before)
+	if !ok {
+		t.Fatal("không chụp được ảnh sau")
+	}
+	if ch := changedPaths(before, after); len(ch) != 0 {
+		t.Errorf("không tệp nào đổi mà vẫn báo đổi: %v", ch)
+	}
+	// Tệp thật sự đổi vẫn phải được phát hiện.
+	os.WriteFile(filepath.Join(d, "small.txt"), []byte("khác"), 0o644)
+	after, _ = takeSnapshot(context.Background(), d, before)
+	if _, ok := changedPaths(before, after)["small.txt"]; !ok {
+		t.Error("small.txt đổi nhưng không được phát hiện")
 	}
 }
