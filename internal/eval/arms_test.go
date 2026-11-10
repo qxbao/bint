@@ -1,6 +1,8 @@
 package eval
 
 import (
+	"bint/internal/harness/claude"
+	"bint/internal/harness/hookcore"
 	"context"
 	"encoding/json"
 	"os"
@@ -78,6 +80,21 @@ func TestBintAndIdealArms(t *testing.T) {
 	p := e.ForPaths([]string{"lib/a.go"}, nil)
 	if len(p.Entries) != 1 || p.Entries[0].ID != scoped.ID {
 		t.Fatalf("engine trong thư mục đánh giá: %+v", p)
+	}
+	// Hook UserPromptSubmit chèn gói ngữ cảnh theo đề bài, không chờ agent gọi MCP.
+	settings, _ := os.ReadFile(s.Settings)
+	if !strings.Contains(string(settings), "UserPromptSubmit") {
+		t.Fatalf("settings thiếu hook UserPromptSubmit: %s", settings)
+	}
+	t.Setenv(ctxengine.EvalEnv, s.EvalConfig)
+	hr, err := hookcore.Handle(ctx, hookcore.Input{SessionID: "S", Cwd: dir, Event: hookcore.EvPrompt,
+		Prompt: "Sửa lỗi trong lib/a.go"}, claude.Dialect, hookcore.Env{})
+	if err != nil || !strings.Contains(hr.Output, `"UserPromptSubmit"`) || !strings.Contains(hr.Output, scoped.ID) {
+		t.Fatalf("chèn theo đề bài: %+v %v", hr, err)
+	}
+	logb, _ := os.ReadFile(s.ContextLog)
+	if !strings.Contains(string(logb), ctxengine.ChannelHookTask) {
+		t.Fatalf("nhật ký thiếu kênh hook:task: %s", logb)
 	}
 	// Agent giả lập: hook trả mục đúng, agent trích dẫn; mục khác bị truy xuất thừa.
 	ctxengine.AppendLog(s.ContextLog, ctxengine.PackLog(ctxengine.ChannelHookPath, p))

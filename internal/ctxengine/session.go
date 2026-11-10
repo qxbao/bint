@@ -16,6 +16,8 @@ const (
 	ChannelMCPTask  = "mcp:task"
 	ChannelMCPPaths = "mcp:paths"
 	ChannelHookPath = "hook:path"
+	// ChannelHookTask: hook chèn gói ngữ cảnh theo đề bài khi agent nhận yêu cầu.
+	ChannelHookTask = "hook:task"
 	ChannelCLI      = "cli"
 )
 

@@ -275,7 +275,8 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 	s.Settings = filepath.Join(logDir, "settings.json")
 	hook := map[string]any{"type": "command", "command": `"` + filepath.ToSlash(exe) + `" hook claude`, "timeout": 10}
 	if err := writeJSONFile(s.Settings, map[string]any{"hooks": map[string]any{
-		"PreToolUse": []any{map[string]any{"matcher": "Read|Edit|Write|MultiEdit|NotebookEdit", "hooks": []any{hook}}},
+		"PreToolUse":       []any{map[string]any{"matcher": "Read|Edit|Write|MultiEdit|NotebookEdit", "hooks": []any{hook}}},
+		"UserPromptSubmit": []any{map[string]any{"hooks": []any{hook}}},
 	}}); err != nil {
 		return s, err
 	}
