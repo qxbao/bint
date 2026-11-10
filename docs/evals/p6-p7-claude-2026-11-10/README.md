@@ -1,6 +1,6 @@
 # Số liệu P6–P7 (Claude Code, Sonnet) — chuẩn bị quyết định mở P8
 
-**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe), `20cc037`–`aa66d8c` (bootstrap theo vùng mã, đo lại nhánh bint), `f2fd149`–`276500d` (kênh tri thức, mở P8). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$73 (trần nâng từ $25) (USD do harness báo).
+**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe), `20cc037`–`aa66d8c` (bootstrap theo vùng mã, đo lại nhánh bint), `f2fd149`–`276500d` (kênh tri thức, mở P8). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$87 (trần nâng từ $25) (USD do harness báo).
 
 **Kết luận:** chưa đạt nghiệm thu P6 và P7. Về lý thuyết P8 **khả thi có điều kiện**. Tỷ lệ đạt nền sau bản sửa đặc tả là 33–40 %. Với thiết kế Probe mới (ít tác vụ, lặp theo kế hoạch, dừng sớm), mức cải thiện +15–20 điểm % phát hiện được với ~30 tác vụ mỗi đề xuất, tốn ≤ $25–60 mỗi lần đối chiếu. Nút thắt còn lại là số tác vụ đã duyệt, cùng một lần Probe thật để đo σ_b (mục cuối).
 
@@ -244,6 +244,16 @@ Thiết kế tuần tự làm đúng vai trò: loại đề xuất không hiệu
 - Thử nghiệm chiến lược chọn ngữ cảnh: nhánh `bint@task=off+path=off+mcp=off+tokens=N+items=N`, so sánh ghép cặp trong cùng đợt.
 - Theo dõi chi phí: mỗi vòng ghi `<runtime>/evolve/cycles/<id>.json`; `bint evolve history` cộng tổng.
 - Thay đổi workflow: đi qua đề xuất skill (L2), được vòng đối chiếu nhưng luôn chờ người duyệt.
+
+**Thử nghiệm chiến lược ngữ cảnh đầu tiên** — hook chèn theo đề bài bật (`bint`) so với tắt (`bint@task=off`), 30 tác vụ có ảnh chụp tri thức strict, 1 lần lặp, $13,37:
+
+| | bint | bint@task=off | Δ (tắt − bật) |
+|---|---:|---:|---|
+| Tỷ lệ đạt | 40 % | 50 % | +10,0 điểm % [−6,7, +26,7] |
+| Chi phí/lượt | $0,218 | $0,228 | +$0,010 [−0,016, +0,039] |
+| Thời gian | 40 s | 70 s | **+30 s [+2, +76]** |
+
+Hook làm lượt chạy nhanh hơn có ý nghĩa thống kê, nhưng không tăng tỷ lệ đạt; điểm ước lượng còn nghiêng về phía tắt hook (chưa có ý nghĩa). Tri thức đang chèn là mục tự sinh chưa qua duyệt; chèn sớm loại tri thức này có thể dẫn hướng sai. Giữ mặc định hiện tại; cần lặp lại với tri thức đã duyệt và nhiều lần lặp trước khi đổi.
 
 **Chưa đạt nghiệm thu P8:** chưa có đề xuất nào cải thiện được tỷ lệ đạt trên tập test độc lập. Việc tiếp theo: chạy `bint evolve cycle` định kỳ khi có lịch sử phiên mới (cơ hội mới), và đo biến thể chiến lược ngữ cảnh `bint` so với `bint@task=off` để định lượng tác động của hook mới.
 
