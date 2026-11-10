@@ -26,6 +26,7 @@ type LeakInput struct {
 	AddedLines []string        // dòng được thêm vào tệp mã nguồn (không gồm kiểm thử)
 	NewIdents  map[string]bool // định danh lời giải đưa vào mà trước đó chưa có
 	TestIdents map[string]bool // định danh xuất hiện trong phần kiểm thử được thêm
+	TestAdded  []string        // dòng được thêm vào tệp kiểm thử
 }
 
 var identRe = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]{3,}`)
@@ -84,6 +85,7 @@ func BuildLeakInput(ctx context.Context, repoDir string, c *Case) (LeakInput, er
 		if err != nil {
 			return in, err
 		}
+		in.TestAdded = added
 		idents(strings.Join(added, "\n"), in.TestIdents)
 	}
 	return in, nil
@@ -120,7 +122,11 @@ func normWS(s string) string { return strings.TrimSpace(wsRe.ReplaceAllString(s,
 //   - fail: đề bài chứa nguyên một dòng mã của lời giải, hoặc tham chiếu commit lời giải;
 //   - warn: đề bài chứa chú thích của lời giải, định danh mới mà kiểm thử không
 //     dùng tới (kiểm thử dùng tới thì agent buộc phải biết tên), hoặc trông như có khối mã/diff.
+//
+// Khối giao diện (InterfaceHeader, do DeriveSpec sinh) được bỏ qua: nó chỉ chứa chữ
+// ký mà kiểm thử buộc agent phải dùng, không chứa thân hàm hay giá trị.
 func CheckLeak(prompt string, in LeakInput) LeakReport {
+	prompt = StripInterface(prompt)
 	np := normWS(prompt)
 	var fs []LeakFinding
 	add := func(sev, kind, detail string) {

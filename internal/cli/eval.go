@@ -75,7 +75,7 @@ Quy trình:
   5. bint eval run --budget 20   chạy các nhánh × lần lặp trong thư mục cô lập
   6. bint eval report            so sánh theo cặp kèm khoảng tin cậy 95%`,
 	}
-	c.AddCommand(newEvalMineCmd(stdio), newEvalVerifyCmd(stdio), newEvalListCmd(stdio), newEvalShowCmd(stdio),
+	c.AddCommand(newEvalMineCmd(stdio), newEvalVerifyCmd(stdio), newEvalListCmd(stdio), newEvalShowCmd(stdio), newEvalSpecCmd(stdio),
 		newEvalApproveCmd(stdio), newEvalRejectCmd(stdio), newEvalEstimateCmd(stdio), newEvalRunCmd(stdio),
 		newEvalReportCmd(stdio), newEvalBootstrapCmd(stdio))
 	return c
@@ -190,16 +190,24 @@ func applyVerification(ctx context.Context, e *evalCtx, c *eval.Case, runs int) 
 	}
 }
 
+// specLabel: trạng thái đặc tả và số chữ ký giao diện đã nối vào đề bài ("-" = chưa phân tích).
+func specLabel(c *eval.Case) string {
+	if c.Spec == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%s·%d", c.Spec.Status, len(c.Spec.Interface))
+}
+
 func printCaseTable(w io.Writer, cs []*eval.Case) {
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tTRẠNG THÁI\tTẬP\tNGÀY\tMÃ/TEST (dòng)\tRÒ RỈ\tFAIL→PASS\tTIÊU ĐỀ")
+	fmt.Fprintln(tw, "ID\tTRẠNG THÁI\tTẬP\tNGÀY\tMÃ/TEST (dòng)\tRÒ RỈ\tĐẶC TẢ\tFAIL→PASS\tTIÊU ĐỀ")
 	for _, c := range cs {
 		date := c.Source.Date
 		if len(date) >= 10 {
 			date = date[:10]
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d/%d\t%s\t%s\t%s\n", c.ID, c.Status, orDash(c.Split), date,
-			c.Stats.SourceLines, c.Stats.TestLines, c.Leak.Status, verifyLabel(c), truncate(c.Source.Subject, 60))
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d/%d\t%s\t%s\t%s\t%s\n", c.ID, c.Status, orDash(c.Split), date,
+			c.Stats.SourceLines, c.Stats.TestLines, c.Leak.Status, specLabel(c), verifyLabel(c), truncate(c.Source.Subject, 60))
 	}
 	tw.Flush()
 }
@@ -437,6 +445,14 @@ func newEvalShowCmd(stdio IO) *cobra.Command {
 			for _, f := range c.Leak.Findings {
 				fmt.Fprintf(w, "  [%s] %s: %s\n", f.Severity, f.Kind, f.Detail)
 			}
+			if s := c.Spec; s != nil {
+				fmt.Fprintf(w, "Đặc tả:      %s, %d chữ ký giao diện trong đề bài\n", s.Status, len(s.Interface))
+				for _, f := range s.Findings {
+					fmt.Fprintf(w, "  [%s] %s: %s\n", f.Severity, f.Kind, f.Detail)
+				}
+			} else {
+				fmt.Fprintln(w, "Đặc tả:      chưa phân tích (`bint eval spec "+c.ID+"`)")
+			}
 			fmt.Fprintf(w, "\n--- Đề bài ---\n%s\n", c.Prompt)
 			if c.OriginalMessage != "" && c.OriginalMessage != c.Prompt {
 				fmt.Fprintf(w, "\n--- Thông điệp commit gốc ---\n%s\n", c.OriginalMessage)
@@ -521,6 +537,13 @@ Tập con (build/validation/test) được gán tất định theo ID nếu khô
 				note := ""
 				if c.Leak.Status != "pass" {
 					note = " (rò rỉ: " + c.Leak.Status + ")"
+				}
+				if c.Spec != nil && c.Spec.Status != "pass" {
+					var kinds []string
+					for _, f := range c.Spec.Findings {
+						kinds = append(kinds, f.Kind)
+					}
+					note += " (thiếu đặc tả: " + strings.Join(kinds, ", ") + ")"
 				}
 				if !c.Verified() {
 					note += " (chưa kiểm chứng)"

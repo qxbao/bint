@@ -144,6 +144,16 @@ lời giải thật; ứng viên không đạt bị loại. Ứng viên chứa t
 mục trạng thái; `approve` từ chối đề bài `fail` (trừ `--force`) và tác vụ chưa kiểm chứng (trừ
 `--unverified`), ghi người duyệt và gán tập `build/validation/test` (50/25/25, tất định theo ID).
 
+**Đặc tả đề bài (`mine`, `bint eval spec`).** Đề bài từ tiêu đề commit thường không nói tên
+hàm/lớp/hằng mới mà kiểm thử ẩn gọi tới; agent không đoán được nên tác vụ không giải được ở mọi
+nhánh. `mine` nối vào cuối đề bài khối *"Interface the hidden tests will use"*: đường dẫn và **chữ
+ký** (không thân hàm, không giá trị hằng) của định danh vừa mới trong lời giải vừa được kiểm thử
+dùng tới; kiểm tra rò rỉ bỏ qua đúng khối này. Cảnh báo thiếu đặc tả (cột ĐẶC TẢ, `show`,
+`approve`): `interface_gap` — định danh mới với cả repository mà không trích được chữ ký (khoá
+chuỗi, thuộc tính…); `exact_text` — kiểm thử so khớp nguyên văn chuỗi mới mà đề bài không nêu;
+`short_prompt` — đề bài < 100 ký tự. `bint eval spec [id…|--all]` áp lại cho ứng viên cũ
+(`--approved` cho tác vụ đã duyệt: đổi fingerprint).
+
 **Cô lập (`run`).** Mỗi lượt là một repository Git **mới** chỉ chứa lịch sử tới commit gốc
 (`git fetch <repo> <sha>` vào kho đệm, rồi clone cục bộ, gỡ remote) — không dùng
 `git worktree` vì worktree dùng chung kho đối tượng và agent có thể `git show` commit lời giải.
