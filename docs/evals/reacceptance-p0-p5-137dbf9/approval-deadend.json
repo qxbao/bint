@@ -1,0 +1,15 @@
+{
+  "task_id": "01M729FMSSSSRKSTV44601DESQ",
+  "approve": {
+    "exit": 0,
+    "stdout": "01M729FMSSSSRKSTV44601DESQ: không có gì chờ duyệt.\n",
+    "stderr": ""
+  },
+  "done_after_approve": {
+    "exit": 1,
+    "stdout": "",
+    "stderr": "lỗi: chưa đủ bằng chứng để chuyển done:\n  - thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: migrations/001.sql (bint task approve)\n"
+  },
+  "expected_done_exit": 0,
+  "source_head": "137dbf939ea783357e23be9e87b70b5d7199a5b4"
+}

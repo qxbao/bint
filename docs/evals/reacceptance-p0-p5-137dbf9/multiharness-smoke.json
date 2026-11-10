@@ -1,0 +1,116 @@
+[
+  {
+    "selection": "codex",
+    "exit": 0,
+    "knowledge_id": "01M729QBY2A110PTTFKGYB0WFA",
+    "result": {
+      "task_id": "01M729QC1F716ZNN04NTYVK34Z",
+      "run_id": "01M729QC1FRVC0M8W5SMAG4N5V",
+      "task_status": "done",
+      "reason": "b-do finalize",
+      "steps": [
+        {
+          "step": "b-req",
+          "run_id": "01M729QC3EKBPRDQWRM3300TS7",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        },
+        {
+          "step": "b-feat",
+          "run_id": "01M729QCDDH70C4S500663AVBT",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        },
+        {
+          "step": "b-review",
+          "run_id": "01M729QCHV12X64Z7VGFBRK396",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        }
+      ],
+      "cost_usd": null,
+      "notes": [
+        "sửa ngoài scope.allow: done.txt"
+      ]
+    }
+  },
+  {
+    "selection": "antigravity",
+    "exit": 0,
+    "knowledge_id": "01M729QBY2A110PTTFKGYB0WFA",
+    "result": {
+      "task_id": "01M729QCTFQ0C2RXRN8AT4XVSJ",
+      "run_id": "01M729QCTFTGVRDPSNMA59829R",
+      "task_status": "done",
+      "reason": "b-do finalize",
+      "steps": [
+        {
+          "step": "b-req",
+          "run_id": "01M729QCVXJ63NQVTTZMJ5S8X4",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        },
+        {
+          "step": "b-feat",
+          "run_id": "01M729QCZY96RT986SMM64SGAR",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        },
+        {
+          "step": "b-review",
+          "run_id": "01M729QD495ZHVTT50MR5FDGBE",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        }
+      ],
+      "cost_usd": null,
+      "notes": [
+        "sửa ngoài scope.allow: done.txt"
+      ]
+    }
+  },
+  {
+    "selection": "mixed",
+    "exit": 0,
+    "knowledge_id": "01M729QBY2A110PTTFKGYB0WFA",
+    "result": {
+      "task_id": "01M729QDCYPRJ6Q4Z2AD3169XE",
+      "run_id": "01M729QDCY85NJY456A0YG01H0",
+      "task_status": "done",
+      "reason": "b-do finalize",
+      "steps": [
+        {
+          "step": "b-req",
+          "run_id": "01M729QDEG7F1TCP510HB7JT8M",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        },
+        {
+          "step": "b-feat",
+          "run_id": "01M729QDHV3ZPEVTD5RRCCJ58Q",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        },
+        {
+          "step": "b-review",
+          "run_id": "01M729QDP5Q59YW0Z30ECFFSZN",
+          "status": "completed",
+          "cost_usd": null,
+          "duration": "0s"
+        }
+      ],
+      "cost_usd": null,
+      "notes": [
+        "sửa ngoài scope.allow: done.txt"
+      ]
+    }
+  }
+]

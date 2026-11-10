@@ -1,0 +1,14 @@
+[
+  {
+    "probe": "A1 protected done without approval",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "lỗi: chưa đủ bằng chứng để chuyển done:\n  - thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: migrations/001.sql (bint task approve)\n"
+  },
+  {
+    "probe": "A1 done after fixture human approval",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "lỗi: chưa đủ bằng chứng để chuyển done:\n  - thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: migrations/001.sql (bint task approve)\n"
+  }
+]
