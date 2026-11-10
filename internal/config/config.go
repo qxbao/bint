@@ -155,6 +155,10 @@ type Eval struct {
 	Arms                  []string `yaml:"arms"`
 	LeakageMode           string   `yaml:"leakage_mode"`
 	BudgetUSD             *float64 `yaml:"budget_usd"`
+	// PriorRunUSD: chi phí tiên nghiệm mỗi lượt khi chưa có lịch sử đo được (lượt đầu của
+	// đợt đầu tiên). Chọn thận trọng ($0,50) để lượt đầu không chạy lọt ngân sách nhỏ; từ
+	// khi có lượt thật thì dùng chi phí đo được. 0 = tắt (không chặn lượt đầu).
+	PriorRunUSD float64 `yaml:"prior_run_usd"`
 	// Harness dùng để chạy tác vụ đánh giá (claude | codex | antigravity).
 	Harness        string `yaml:"harness"`
 	TimeoutMinutes int    `yaml:"timeout_minutes"`
@@ -325,6 +329,7 @@ func Default() Config {
 			Repeats:        3,
 			Arms:           []string{"none", "minimal", "bint"},
 			LeakageMode:    "strict",
+			PriorRunUSD:    0.5,
 			Harness:        "claude",
 			TimeoutMinutes: 30,
 			MinimalContext: ".bint/evals/minimal.md",
@@ -545,6 +550,9 @@ func (c Config) Validate() error {
 	}
 	if c.Eval.BudgetUSD != nil && *c.Eval.BudgetUSD < 0 {
 		add("eval.budget_usd: không được âm")
+	}
+	if c.Eval.PriorRunUSD < 0 {
+		add("eval.prior_run_usd: không được âm")
 	}
 	if !slices.Contains(KnownHarnesses, c.Eval.Harness) {
 		add("eval.harness: harness không hỗ trợ %q (hỗ trợ: %s; --agent-command cho tác nhân tuỳ chỉnh)", c.Eval.Harness, strings.Join(KnownHarnesses, ", "))

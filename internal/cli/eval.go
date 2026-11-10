@@ -836,7 +836,7 @@ ngân sách. Ctrl-C dừng an toàn; chạy tiếp bằng --resume <batch-id>.`,
 			}
 			opts := eval.RunOptions{
 				Agent: agent, RequestedModel: model, Parallel: parallel, Seed: seed, KeepWorkdirs: keep,
-				BintVersion: Version, ResumeBatch: resume,
+				BintVersion: Version, ResumeBatch: resume, PriorRunUSD: cfg.Eval.PriorRunUSD,
 			}
 			if cmd.Flags().Changed("budget") {
 				opts.BudgetUSD = &budget

@@ -771,7 +771,7 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 				}
 			}
 			opts := eval.RunOptions{Agent: agent, RequestedModel: model, Parallel: parallel, Seed: seed, KeepWorkdirs: keep,
-				BintVersion: Version, ResumeBatch: resume}
+				BintVersion: Version, ResumeBatch: resume, PriorRunUSD: cfg.Eval.PriorRunUSD}
 			if cmd.Flags().Changed("budget") {
 				opts.BudgetUSD = &budget
 			} else if ev.BudgetUSD != nil {

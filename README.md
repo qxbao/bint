@@ -181,7 +181,9 @@ giải; báo cáo đánh dấu kết quả chỉ để sàng lọc.
 **Ngân sách.** Bắt buộc với Claude Code (`--budget` hoặc `eval.budget_usd`). Ước tính =
 tác vụ × nhánh × lần lặp × chi phí trung bình mỗi lượt từ lịch sử (hoặc `--cost-per-run`);
 vượt ngân sách thì từ chối chạy. Khi chạy, lượt mới không bắt đầu nếu đã tiêu + chi phí dự
-kiến vượt ngân sách (trạng thái `budget_exhausted`, chạy tiếp bằng `--resume <batch> --budget
+kiến vượt ngân sách; khi chưa lượt nào đo được chi phí thì dùng giá trị tiên nghiệm
+`eval.prior_run_usd` (mặc định $0,50; 0 = tắt), từ lượt thật đầu tiên dùng chi phí đo được
+và thông báo nêu rõ lý do dừng (trạng thái `budget_exhausted`, chạy tiếp bằng `--resume <batch> --budget
 <tổng mới>`). `limits.per_run.max_cost_usd` → `claude --max-budget-usd` cho từng lượt.
 
 **Báo cáo.** Tỷ lệ đạt mỗi nhánh (trung bình theo tác vụ, CI95 bootstrap 10 000 lần, hạt giống

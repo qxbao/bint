@@ -90,6 +90,7 @@ eval:
   arms: [none, minimal, bint]
   leakage_mode: strict      # strict | economy
   budget_usd: null          # bắt buộc đặt trước khi chạy tự động
+  prior_run_usd: 0.5        # chi phí tiên nghiệm mỗi lượt khi chưa có lịch sử; lượt không bắt đầu nếu ngân sách còn lại nhỏ hơn mức này (0 = tắt)
   harness: claude           # claude | codex | antigravity
   timeout_minutes: 30       # mỗi lượt chạy tác nhân
   minimal_source: knowledge   # nhánh "minimal": knowledge = AGENTS.md dựng từ tri thức; file = minimal_context

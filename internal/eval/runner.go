@@ -33,11 +33,14 @@ type RunOptions struct {
 	RequestedModel string
 	BudgetUSD      *float64
 	EstimatedUSD   *float64
-	Parallel       int
-	Seed           uint64
-	KeepWorkdirs   bool
-	BintVersion    string
-	Notes          []string
+	// PriorRunUSD là chi phí tiên nghiệm mỗi lượt, chỉ dùng khi đợt chưa có lượt nào
+	// đo được chi phí (eval.prior_run_usd). 0 = không áp tiên nghiệm (hành vi cũ).
+	PriorRunUSD  float64
+	Parallel     int
+	Seed         uint64
+	KeepWorkdirs bool
+	BintVersion  string
+	Notes        []string
 	// ResumeBatch chạy tiếp các lượt chưa xong của một đợt cũ (cùng tác vụ, nhánh, lần lặp).
 	ResumeBatch string
 	Progress    func(AttemptRow, int, int)
@@ -55,6 +58,8 @@ type RunResult struct {
 	Done     int
 	Skipped  int
 	SpentUSD float64
+	// StopReason giải thích vì sao đợt dừng do ngân sách (rỗng nếu không).
+	StopReason string
 }
 
 // Plan dựng danh sách lượt chạy, xáo trộn theo hạt giống để các nhánh xen kẽ nhau
@@ -191,6 +196,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	var (
 		mu         sync.Mutex
 		budgetHit  bool
+		stopReason string
 		inflight   int
 		wg         sync.WaitGroup
 		jobs       = make(chan Attempt)
@@ -202,8 +208,9 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	}
 	// tryStart áp ngân sách ngay trước khi bắt đầu một lượt: không bắt đầu nếu đã
 	// tiêu + chi phí dự kiến của các lượt đang chạy và của lượt này (theo trung bình
-	// các lượt đã xong) vượt ngân sách. Khi chưa lượt nào có chi phí thì chỉ dừng
-	// lúc đã tiêu hết ngân sách (limits.per_run.max_cost_usd chặn từng lượt).
+	// các lượt đã xong) vượt ngân sách. Khi chưa lượt nào có chi phí thì dùng chi phí
+	// tiên nghiệm PriorRunUSD thay cho số đo; từ khi có lượt thật thì dùng chi phí đo
+	// được. Nhờ vậy lượt đầu không chạy khi ngân sách còn lại nhỏ hơn chi phí ước tính.
 	tryStart := func() bool {
 		mu.Lock()
 		defer mu.Unlock()
@@ -211,12 +218,20 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 			return false
 		}
 		if b := opts.BudgetUSD; b != nil {
-			expected := 0.0
+			perRun, measured := opts.PriorRunUSD, false
 			if costN > 0 {
-				expected = spent / float64(costN) * float64(inflight+1)
+				perRun, measured = spent/float64(costN), true
 			}
+			expected := perRun * float64(inflight+1)
 			if spent >= *b || spent+expected > *b {
 				budgetHit = true
+				if measured {
+					stopReason = fmt.Sprintf("còn $%.2f, chi phí ước tính %d lượt (đang chạy + lượt kế) ≈ $%.2f theo trung bình đo được $%.2f/lượt",
+						max(*b-spent, 0), inflight+1, expected, perRun)
+				} else {
+					stopReason = fmt.Sprintf("còn $%.2f, chưa đo được chi phí lượt nào nên dùng giá trị tiên nghiệm $%.2f/lượt (eval.prior_run_usd); tăng --budget hoặc hạ eval.prior_run_usd",
+						max(*b-spent, 0), perRun)
+				}
 				return false
 			}
 		}
@@ -268,6 +283,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 
 	res.Done = finishedCt
 	res.SpentUSD = spent
+	res.StopReason = stopReason
 	status := "completed"
 	switch {
 	case ctx.Err() != nil:
@@ -280,8 +296,8 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 		return res, err
 	}
 	if status == "budget_exhausted" {
-		return res, fmt.Errorf("%w: đã tiêu $%.2f / $%.2f; chạy tiếp bằng `bint eval run --resume %s --budget <mới>`",
-			ErrBudget, spent, *opts.BudgetUSD, batch.BatchID)
+		return res, fmt.Errorf("%w: đã tiêu $%.2f / $%.2f (%s); chạy tiếp bằng `bint eval run --resume %s --budget <mới>`",
+			ErrBudget, spent, *opts.BudgetUSD, stopReason, batch.BatchID)
 	}
 	return res, ctx.Err()
 }
