@@ -458,7 +458,10 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		case err != nil:
 			res.Error = "chụp cây làm việc sau bước chỉ đọc: " + err.Error()
 		case after != snapBefore:
-			changed := ChangedPaths(ctx, r.Root, snapBefore, after)
+			changed := ReadonlyViolations(ctx, r.Root, snapBefore, after)
+			if len(changed) == 0 {
+				break
+			}
 			res.Error = fmt.Sprintf("bước chỉ đọc %s (%s) đã sửa cây làm việc: %s — Bint không hoàn tác, hãy xem lại", step, agent.Name(), strings.Join(changed, ", "))
 		}
 	}
