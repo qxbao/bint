@@ -87,6 +87,28 @@ func TestBashFileChangesRecorded(t *testing.T) {
 	}
 }
 
+// Hai lệnh Bash song song (Pre A, Pre B, Post A, Post B) cùng phiên: cả hai tệp đều được ghi.
+func TestParallelBashKeyedByToolUseID(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n", "b.go": "package b\n"})
+	mustInit(t, InitOptions{Dir: root, Hooks: yes()})
+	arts := artifactsFn(t, root)
+	runHook(t, hookInput("s3", "SessionStart", root, nil))
+	in := func(id string) map[string]any {
+		return map[string]any{"tool_name": "Bash", "tool_use_id": id, "tool_input": map[string]any{"command": "x"}}
+	}
+	runHook(t, hookInput("s3", "PreToolUse", root, in("A")))
+	runHook(t, hookInput("s3", "PreToolUse", root, in("B")))
+	os.WriteFile(filepath.Join(root, "a.go"), []byte("package a // A\n"), 0o644)
+	runHook(t, hookInput("s3", "PostToolUse", root, in("A")))
+	os.WriteFile(filepath.Join(root, "b.go"), []byte("package b // B\n"), 0o644)
+	runHook(t, hookInput("s3", "PostToolUse", root, in("B")))
+	got := modified(arts())
+	if got["a.go"] != 1 || got["b.go"] != 1 {
+		t.Errorf("thiếu sự kiện: %v", got)
+	}
+}
+
 // Không có ảnh chụp trước (hook Pre chưa cài): không tổng hợp giả.
 func TestBashWithoutPreSnapshotRecordsNothing(t *testing.T) {
 	testutil.Isolate(t)

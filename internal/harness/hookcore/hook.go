@@ -198,8 +198,10 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		info := d.Classify(hi.ToolName, hi.ToolInput)
 		if info.Kind == ToolShell {
 			// Ảnh chụp working tree trước lệnh shell, để phát hiện tệp lệnh đó sửa (PostTool).
-			if snap, ok := takeSnapshot(ctx, repo.Toplevel); ok {
-				saveSnapshot(paths.Runtime, h, hi.SessionID, snap)
+			sctx, cancel := context.WithTimeout(ctx, snapTimeout(cfg.Context.PathHookTimeoutMS))
+			defer cancel()
+			if snap, ok := takeSnapshot(sctx, repo.Toplevel); ok {
+				saveSnapshot(paths.Runtime, h, hi.SessionID, hi.ToolUseID, snap)
 			}
 			return Result{Skipped: "ảnh chụp trước lệnh shell"}, nil
 		}
@@ -361,7 +363,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			}
 			return res, nil
 		case ToolShell:
-			shellModified(ctx, ev, paths.Spool, paths.Runtime, repo.Toplevel)
+			shellModified(ctx, ev, paths.Spool, paths.Runtime, repo.Toplevel, hi.ToolUseID, snapTimeout(cfg.Context.PathHookTimeoutMS))
 			var known []string
 			for _, c := range []*string{cfg.Eval.TestCommand, cfg.Eval.SuggestedTestCommand} {
 				if c != nil {

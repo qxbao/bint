@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"bint/internal/gitrepo"
 	"bint/internal/spool"
@@ -24,8 +25,15 @@ import (
 const (
 	maxSnapFiles = 5000
 	maxHashBytes = 8 << 20
+	// Ảnh chụp mồ côi (Pre có, Post không đến) cũ hơn mức này bị dọn khi ghi ảnh mới.
+	snapMaxAge = 6 * time.Hour
+	// snapDefaultTimeout: hạn chụp một ảnh khi cấu hình không đặt (hook phải xong rất nhanh, mục 13.1).
+	snapDefaultTimeout = 1500 * time.Millisecond
 	cleanState   = "clean"
 )
+
+// hashBudget: tổng byte được băm cho một ảnh chụp; vượt thì các tệp còn lại dùng dấu size+mtime.
+var hashBudget int64 = 32 << 20
 
 // treeSnapshot: đường dẫn (tương đối repository) → dấu trạng thái. Tệp sạch không có mặt.
 type treeSnapshot map[string]string
@@ -36,6 +44,7 @@ func takeSnapshot(ctx context.Context, top string) (treeSnapshot, bool) {
 		return nil, false
 	}
 	snap := treeSnapshot{}
+	budget := hashBudget
 	parts := strings.Split(out, "\x00")
 	for i := 0; i < len(parts); i++ {
 		e := parts[i]
@@ -49,19 +58,23 @@ func takeSnapshot(ctx context.Context, top string) (treeSnapshot, bool) {
 		if strings.HasPrefix(path, ".bint/") || len(snap) >= maxSnapFiles {
 			continue
 		}
-		snap[path] = xy + ":" + fileStamp(filepath.Join(top, filepath.FromSlash(path)))
+		if ctx.Err() != nil {
+			return nil, false // quá hạn: không biết, không đoán
+		}
+		snap[path] = xy + ":" + fileStamp(filepath.Join(top, filepath.FromSlash(path)), &budget)
 	}
 	return snap, true
 }
 
-func fileStamp(p string) string {
+func fileStamp(p string, budget *int64) string {
 	st, err := os.Lstat(p)
 	if err != nil {
 		return "deleted"
 	}
-	if !st.Mode().IsRegular() || st.Size() > maxHashBytes {
+	if !st.Mode().IsRegular() || st.Size() > maxHashBytes || st.Size() > *budget {
 		return fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
 	}
+	*budget -= st.Size()
 	b, err := os.ReadFile(p)
 	if err != nil {
 		return "unreadable"
@@ -86,21 +99,30 @@ func changedPaths(before, after treeSnapshot) map[string]string {
 	return out
 }
 
-func snapPath(runtimeDir, harness, session string) string {
-	return filepath.Join(runtimeDir, "shellsnap-"+EventID(harness, session)[3:19]+".json")
+// snapPath khoá ảnh chụp theo tool_use_id khi harness cung cấp (lệnh song song, subagent
+// dùng chung session_id), nếu không thì theo phiên.
+func snapPath(runtimeDir, harness, session, toolID string) string {
+	return filepath.Join(runtimeDir, "shellsnap-"+EventID(harness, session, toolID)[3:19]+".json")
 }
 
-func saveSnapshot(runtimeDir, harness, session string, s treeSnapshot) {
+func saveSnapshot(runtimeDir, harness, session, toolID string, s treeSnapshot) {
 	if os.MkdirAll(runtimeDir, 0o755) != nil {
 		return
 	}
+	if old, _ := filepath.Glob(filepath.Join(runtimeDir, "shellsnap-*.json")); len(old) > 0 {
+		for _, o := range old {
+			if st, err := os.Stat(o); err == nil && time.Since(st.ModTime()) > snapMaxAge {
+				os.Remove(o)
+			}
+		}
+	}
 	if b, err := json.Marshal(s); err == nil {
-		os.WriteFile(snapPath(runtimeDir, harness, session), b, 0o644)
+		os.WriteFile(snapPath(runtimeDir, harness, session, toolID), b, 0o644)
 	}
 }
 
-func loadSnapshot(runtimeDir, harness, session string) (treeSnapshot, bool) {
-	p := snapPath(runtimeDir, harness, session)
+func loadSnapshot(runtimeDir, harness, session, toolID string) (treeSnapshot, bool) {
+	p := snapPath(runtimeDir, harness, session, toolID)
 	b, err := os.ReadFile(p)
 	if err != nil {
 		return nil, false
@@ -115,11 +137,13 @@ func loadSnapshot(runtimeDir, harness, session string) (treeSnapshot, bool) {
 
 // shellModified ghi file.modified cho tệp đổi trong lúc lệnh shell chạy. event_id gồm
 // (phiên, đường dẫn, trạng thái sau) nên lệnh song song hay hook gọi lặp không ghi trùng.
-func shellModified(ctx context.Context, base spool.Event, spoolDir, runtimeDir, top string) {
-	before, ok := loadSnapshot(runtimeDir, base.Harness, base.SessionID)
+func shellModified(ctx context.Context, base spool.Event, spoolDir, runtimeDir, top, toolID string, timeout time.Duration) {
+	before, ok := loadSnapshot(runtimeDir, base.Harness, base.SessionID, toolID)
 	if !ok {
 		return // không có ảnh chụp trước (hook PreToolUse chưa cài): không tổng hợp giả
 	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	after, ok := takeSnapshot(ctx, top)
 	if !ok {
 		return
@@ -131,4 +155,12 @@ func shellModified(ctx context.Context, base spool.Event, spoolDir, runtimeDir, 
 		e.EventID = EventID(base.Harness, base.SessionID, "shell-diff", p, state)
 		spool.Write(spoolDir, e)
 	}
+}
+
+// snapTimeout: hạn chụp ảnh working tree, dùng lại context.path_hook_timeout_ms.
+func snapTimeout(ms int) time.Duration {
+	if ms <= 0 {
+		return snapDefaultTimeout
+	}
+	return time.Duration(ms) * time.Millisecond
 }
