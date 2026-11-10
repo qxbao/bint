@@ -104,9 +104,13 @@ func SeqDecide(p eval.Paired, plan Plan, j, k int) SeqStep {
 		return st
 	}
 	se := *p.SDDiff / math.Sqrt(float64(p.PassDiff.N))
+	// SD ước từ mẫu nhỏ: đổi biên z sang phân vị Student-t cùng mức (ν = n−1) để
+	// không dừng sớm quá lạc quan khi mới có vài tác vụ.
+	nu := float64(p.PassDiff.N - 1)
+	st.Z = tFromZ(st.Z, nu)
 	st.Lo = st.Mean - st.Z*se
 	st.Hi = st.Mean + st.Z*se
-	st.Hi95 = st.Mean + zCI95*se
+	st.Hi95 = st.Mean + tFromZ(zCI95, nu)*se
 	threshold, label := 0.0, "tỷ lệ đạt tăng"
 	futile, futileWhy := st.Hi95 < plan.MinEffect, fmt.Sprintf("cận trên CI95 %+.3f < mức hiệu ứng tối thiểu %.2f", st.Hi95, plan.MinEffect)
 	if plan.Kind == "non_inferiority" {
@@ -236,4 +240,15 @@ func sequentialReport(ctx context.Context, db *sql.DB, b eval.Batch, plan Plan, 
 	}
 	rep, err := eval.BuildReport(ctx, db, b, eval.ArmBase, current)
 	return rep, nil, err
+}
+
+// tFromZ đổi phân vị chuẩn z thành phân vị Student-t cùng xác suất với ν bậc tự do
+// (khai triển Cornish–Fisher; sai số < 1% với ν ≥ 3, ν nhỏ hơn được chặn về 3 cho
+// thận trọng hơn là sai số lớn của khai triển).
+func tFromZ(z, nu float64) float64 {
+	if nu < 3 {
+		nu = 3
+	}
+	z3, z5, z7 := z*z*z, math.Pow(z, 5), math.Pow(z, 7)
+	return z + (z3+z)/(4*nu) + (5*z5+16*z3+3*z)/(96*nu*nu) + (3*z7+19*z5+17*z3-15*z)/(384*nu*nu*nu)
 }

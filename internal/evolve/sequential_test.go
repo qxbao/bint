@@ -37,8 +37,9 @@ func TestSeqDecideSuperiority(t *testing.T) {
 	if st := SeqDecide(pairedOfStats(0.5, 0.3, 25), plan, 1, 4); !st.Stop || st.Verdict != VerdictSupported {
 		t.Fatalf("%+v", st)
 	}
-	// +0,2, SD 0,4, n=25: se=0,08; z1=4,05 → cận dưới −0,12: chưa dừng; z3=2,34 → +0,013 > 0: dừng ở điểm nhìn 3.
-	p := pairedOfStats(0.2, 0.4, 25)
+	// +0,2, SD 0,4, n=30: se=0,073; biên đổi sang Student-t (ν=29): z1≈4,4 → cận dưới < 0:
+	// chưa dừng; z3≈2,45 → cận dưới ≈ +0,02 > 0: dừng ở điểm nhìn 3.
+	p := pairedOfStats(0.2, 0.4, 30)
 	if st := SeqDecide(p, plan, 1, 4); st.Stop {
 		t.Fatalf("điểm nhìn 1 không được dừng: %+v", st)
 	}
