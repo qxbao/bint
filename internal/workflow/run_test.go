@@ -13,6 +13,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/eval"
 	adapters "bint/internal/harness"
+	"bint/internal/knowledge"
 	"bint/internal/runlog"
 	"bint/internal/store"
 	"bint/internal/task"
@@ -370,7 +371,7 @@ func TestReadOnlyStepModifyingTreeFails(t *testing.T) {
 	h := newHarness(t)
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 		if step == StepReview {
-			h.write(".bint/knowledge/x.md", "ứng viên do bint ghi\n") // .bint/ không tính
+			knowledge.NewStore(h.root).Save(newItem(knowledge.StatusCandidate)) // candidate mới do bint ghi: không tính
 			h.write("app.txt", "sửa lén\n")
 		}
 		return h.happy(ctx, step, e, id)
@@ -434,8 +435,7 @@ func TestWriteLockSerializesWriteSteps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := l2.path
-	os.WriteFile(p, []byte("2147483646\nx\nx\nchết\n"), 0o600)
+	deadOwner(t, l2) // chủ chết: hệ điều hành nhả khoá, tệp còn lại
 	l3, err := AcquireWriteLock(h.tasks.Dir, h.root, "b")
 	if err != nil {
 		t.Fatalf("khoá của tiến trình chết phải được thay: %v", err)

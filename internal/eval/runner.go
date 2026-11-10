@@ -8,6 +8,8 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,14 +35,27 @@ type RunOptions struct {
 	RequestedModel string
 	BudgetUSD      *float64
 	EstimatedUSD   *float64
-	Parallel       int
-	Seed           uint64
-	KeepWorkdirs   bool
-	BintVersion    string
-	Notes          []string
+	// PriorRunUSD là chi phí tiên nghiệm mỗi lượt, chỉ dùng khi đợt chưa có lượt nào
+	// đo được chi phí (eval.prior_run_usd). 0 = không áp tiên nghiệm (hành vi cũ).
+	PriorRunUSD  float64
+	Parallel     int
+	Seed         uint64
+	KeepWorkdirs bool
+	BintVersion  string
+	Notes        []string
 	// ResumeBatch chạy tiếp các lượt chưa xong của một đợt cũ (cùng tác vụ, nhánh, lần lặp).
 	ResumeBatch string
 	Progress    func(AttemptRow, int, int)
+	// RepeatMajor sắp kế hoạch theo lần lặp: mọi tác vụ và nhánh của lần lặp 1 (xáo trộn
+	// trong lần lặp) chạy trước lần lặp 2, v.v. Nhờ đó tại mỗi ranh giới lần lặp mọi cặp
+	// đều cân bằng. Look != nil ngầm bật.
+	RepeatMajor bool
+	// Look được gọi (tuần tự, không bao giờ đồng thời) khi mọi lượt của một lần lặp đã xong,
+	// theo thứ tự lần lặp 1, 2, ...; khi chạy song song chỉ gọi sau khi lượt cuối của lần
+	// lặp đó kết thúc hẳn. stop = true thì không bắt đầu lượt mới (lượt đang chạy vẫn xong)
+	// và đợt có trạng thái "stopped_early". Khi tiếp tục (ResumeBatch), các lần lặp đã xong
+	// từ trước cũng được "nhìn" lại theo thứ tự trước khi chạy lượt đầu tiên.
+	Look func(repeatDone int) (stop bool, reason string)
 	// OnBatch được gọi ngay sau khi đợt mới được tạo (trước lượt đầu tiên), để bên gọi
 	// liên kết đợt với dữ liệu của nó (ví dụ đề xuất tiến hoá); lỗi thì đợt bị huỷ.
 	OnBatch func(batchID string) error
@@ -55,6 +70,8 @@ type RunResult struct {
 	Done     int
 	Skipped  int
 	SpentUSD float64
+	// StopReason giải thích vì sao đợt dừng do ngân sách (rỗng nếu không).
+	StopReason string
 }
 
 // Plan dựng danh sách lượt chạy, xáo trộn theo hạt giống để các nhánh xen kẽ nhau
@@ -72,6 +89,32 @@ func Plan(cases []*Case, arms []string, repeats int, seed uint64) []Attempt {
 	rng.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 	return out
 }
+
+// PlanByRepeat dựng danh sách lượt theo lần lặp: lần lặp 1 (mọi tác vụ × nhánh, xáo
+// trộn theo hạt giống trong lần lặp) trước, rồi lần lặp 2, v.v. Cùng hạt giống cho cùng
+// thứ tự nên tiếp tục (resume) một đợt vẫn chạy phần còn lại theo đúng thứ tự cũ.
+func PlanByRepeat(cases []*Case, arms []string, repeats int, seed uint64) []Attempt {
+	rng := rand.New(rand.NewPCG(seed, 0x6576616c))
+	var out []Attempt
+	for r := 1; r <= repeats; r++ {
+		start := len(out)
+		for _, c := range cases {
+			for _, arm := range arms {
+				out = append(out, Attempt{Case: c, Arm: arm, Repeat: r})
+			}
+		}
+		part := out[start:]
+		rng.Shuffle(len(part), func(i, j int) { part[i], part[j] = part[j], part[i] })
+	}
+	return out
+}
+
+// StatusStoppedEarly: đợt dừng theo kế hoạch tuần tự (Look báo đủ bằng chứng), khác với
+// chạy dở do lỗi, huỷ hoặc hết ngân sách.
+const StatusStoppedEarly = "stopped_early"
+
+// StoppedEarlyNote là tiền tố ghi chú của đợt dừng sớm theo kế hoạch tuần tự.
+const StoppedEarlyNote = "dừng sớm theo kế hoạch tuần tự: "
 
 // ErrBudget: ngân sách không đủ.
 var ErrBudget = errors.New("vượt ngân sách")
@@ -115,6 +158,8 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 				return res, err
 			}
 		}
+		// Tiếp tục một đợt đã dừng sớm: ghi chú dừng cũ hết hiệu lực, kết thúc mới sẽ ghi lại.
+		b.Notes = slices.DeleteFunc(slices.Clone(b.Notes), func(n string) bool { return strings.HasPrefix(n, StoppedEarlyNote) })
 		batch = b
 		byID := map[string]*Case{}
 		for _, c := range opts.Cases {
@@ -165,20 +210,30 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	}
 	res.BatchID = batch.BatchID
 
-	plan := Plan(opts.Cases, opts.Arms, opts.Repeats, opts.Seed)
+	var plan []Attempt
+	if opts.RepeatMajor || opts.Look != nil {
+		plan = PlanByRepeat(opts.Cases, opts.Arms, opts.Repeats, opts.Seed)
+	} else {
+		plan = Plan(opts.Cases, opts.Arms, opts.Repeats, opts.Seed)
+	}
 	res.Total = len(plan)
 	var todo []Attempt
+	// remaining[r] = số lượt của lần lặp r chưa xong; về 0 thì lần lặp r đã xong hẳn.
+	remaining := map[int]int{}
 	for _, a := range plan {
 		if !done[a.key()] {
 			todo = append(todo, a)
+			remaining[a.Repeat]++
 		}
 	}
 	res.Done = len(plan) - len(todo)
 
-	// Dựng sẵn kho đệm commit gốc và dữ liệu đối chiếu rò rỉ cho mỗi tác vụ.
+	// Kiểm tra commit gốc và dựng dữ liệu đối chiếu rò rỉ cho mỗi tác vụ. Kho đệm commit
+	// gốc được tạo lười ở lượt đầu dùng base và dọn ngay khi lượt cuối dùng base xong,
+	// nên số kho tồn tại cùng lúc bị chặn bởi số lượt chạy song song thay vì số tác vụ.
 	leakIns := map[string]*LeakInput{}
 	for _, c := range opts.Cases {
-		if _, err := ensureBase(ctx, env.RepoDir, env.WorkRoot, c.Source.Base); err != nil {
+		if err := checkBaseCommit(ctx, env.RepoDir, c.Source.Base); err != nil {
 			return res, finishWith(ctx, db, &batch, "failed", opts.Now, err)
 		}
 		in, err := BuildLeakInput(ctx, env.RepoDir, c)
@@ -188,9 +243,20 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 		leakIns[c.ID] = &in
 	}
 
+	// pending đếm số lượt còn phải chạy trên mỗi base; về 0 thì dọn kho đệm của base.
+	pending := map[string]int{}
+	for _, a := range todo {
+		pending[a.Case.Source.Base]++
+	}
+	defer func() { // lượt không được chạy (huỷ, hết ngân sách): dọn nốt kho còn lại
+		for base := range pending {
+			releaseBase(env, base)
+		}
+	}()
 	var (
 		mu         sync.Mutex
 		budgetHit  bool
+		stopReason string
 		inflight   int
 		wg         sync.WaitGroup
 		jobs       = make(chan Attempt)
@@ -202,21 +268,63 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	}
 	// tryStart áp ngân sách ngay trước khi bắt đầu một lượt: không bắt đầu nếu đã
 	// tiêu + chi phí dự kiến của các lượt đang chạy và của lượt này (theo trung bình
-	// các lượt đã xong) vượt ngân sách. Khi chưa lượt nào có chi phí thì chỉ dừng
-	// lúc đã tiêu hết ngân sách (limits.per_run.max_cost_usd chặn từng lượt).
+	// các lượt đã xong) vượt ngân sách. Khi chưa lượt nào có chi phí thì dùng chi phí
+	// tiên nghiệm PriorRunUSD thay cho số đo; từ khi có lượt thật thì dùng chi phí đo
+	// được. Nhờ vậy lượt đầu không chạy khi ngân sách còn lại nhỏ hơn chi phí ước tính.
+	var (
+		lookMu      sync.Mutex // Look không bao giờ chạy đồng thời
+		nextLook    = 1
+		lookStopped bool
+		lookReason  string
+	)
+	// runLooks gọi Look theo thứ tự cho mọi lần lặp đã xong hẳn mà chưa được nhìn.
+	runLooks := func() {
+		if opts.Look == nil {
+			return
+		}
+		lookMu.Lock()
+		defer lookMu.Unlock()
+		for {
+			mu.Lock()
+			k := nextLook
+			ready := !lookStopped && k <= opts.Repeats && remaining[k] == 0
+			if ready {
+				nextLook++
+			}
+			mu.Unlock()
+			if !ready {
+				return
+			}
+			if stop, why := opts.Look(k); stop {
+				mu.Lock()
+				lookStopped, lookReason = true, why
+				mu.Unlock()
+				return
+			}
+		}
+	}
+	runLooks() // tiếp tục: các lần lặp đã xong từ trước
 	tryStart := func() bool {
 		mu.Lock()
 		defer mu.Unlock()
-		if budgetHit {
+		if budgetHit || lookStopped {
 			return false
 		}
 		if b := opts.BudgetUSD; b != nil {
-			expected := 0.0
+			perRun, measured := opts.PriorRunUSD, false
 			if costN > 0 {
-				expected = spent / float64(costN) * float64(inflight+1)
+				perRun, measured = spent/float64(costN), true
 			}
+			expected := perRun * float64(inflight+1)
 			if spent >= *b || spent+expected > *b {
 				budgetHit = true
+				if measured {
+					stopReason = fmt.Sprintf("còn $%.2f, chi phí ước tính %d lượt (đang chạy + lượt kế) ≈ $%.2f theo trung bình đo được $%.2f/lượt",
+						max(*b-spent, 0), inflight+1, expected, perRun)
+				} else {
+					stopReason = fmt.Sprintf("còn $%.2f, chưa đo được chi phí lượt nào nên dùng giá trị tiên nghiệm $%.2f/lượt (eval.prior_run_usd); tăng --budget hoặc hạ eval.prior_run_usd",
+						max(*b-spent, 0), perRun)
+				}
 				return false
 			}
 		}
@@ -232,11 +340,18 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 			row := runAttempt(ctx, env, db, batch, opts, a, harnessVersion, leakIns[a.Case.ID])
 			mu.Lock()
 			inflight--
+			base := a.Case.Source.Base
+			pending[base]--
+			if pending[base] == 0 {
+				delete(pending, base)
+				releaseBase(env, base)
+			}
 			if row.CostUSD != nil {
 				spent += *row.CostUSD
 				costN++
 			}
 			finishedCt++
+			remaining[a.Repeat]--
 			if row.Status == "skipped" {
 				res.Skipped++
 			}
@@ -245,6 +360,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 			if opts.Progress != nil {
 				opts.Progress(row, n, res.Total)
 			}
+			runLooks()
 		}
 	}
 	for i := 0; i < opts.Parallel; i++ {
@@ -253,7 +369,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	}
 	for _, a := range todo {
 		mu.Lock()
-		stop := budgetHit
+		stop := budgetHit || lookStopped
 		mu.Unlock()
 		if ctx.Err() != nil || stop {
 			break
@@ -268,20 +384,31 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 
 	res.Done = finishedCt
 	res.SpentUSD = spent
+	res.StopReason = stopReason
 	status := "completed"
 	switch {
 	case ctx.Err() != nil:
 		status = "cancelled"
+	case lookStopped && finishedCt < res.Total:
+		// Dừng theo kế hoạch tuần tự (không phải lỗi); ưu tiên hơn hết ngân sách vì đã đủ bằng chứng.
+		status, res.StopReason = StatusStoppedEarly, lookReason
 	case budgetHit:
 		status = "budget_exhausted"
 	}
 	res.Status = status
-	if err := updateBatch(context.WithoutCancel(ctx), db, batch.BatchID, status, nowString(opts.Now()), batch.Notes); err != nil {
+	dbStatus := status
+	if status == StatusStoppedEarly {
+		// Bảng chỉ cho phép các trạng thái cũ; dừng sớm theo kế hoạch là đợt "completed"
+		// kèm ghi chú đánh dấu (StoppedEarlyNote) để báo cáo không coi là chạy dở.
+		dbStatus = "completed"
+		batch.Notes = append(batch.Notes, StoppedEarlyNote+res.StopReason)
+	}
+	if err := updateBatch(context.WithoutCancel(ctx), db, batch.BatchID, dbStatus, nowString(opts.Now()), batch.Notes); err != nil {
 		return res, err
 	}
 	if status == "budget_exhausted" {
-		return res, fmt.Errorf("%w: đã tiêu $%.2f / $%.2f; chạy tiếp bằng `bint eval run --resume %s --budget <mới>`",
-			ErrBudget, spent, *opts.BudgetUSD, batch.BatchID)
+		return res, fmt.Errorf("%w: đã tiêu $%.2f / $%.2f (%s); chạy tiếp bằng `bint eval run --resume %s --budget <mới>`",
+			ErrBudget, spent, *opts.BudgetUSD, stopReason, batch.BatchID)
 	}
 	return res, ctx.Err()
 }
@@ -339,7 +466,7 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 		}
 	}
 
-	if err := prepareWorkdir(ctx, env.RepoDir, env.WorkRoot, a.Case.Source.Base, work); err != nil {
+	if err := prepareWorkdir(ctx, env, a.Case.Source.Base, work); err != nil {
 		return finish("error", "dựng thư mục làm việc: "+err.Error())
 	}
 	setup, err := prepareArm(ctx, env, a.Arm, opts.LeakageMode, a.Case, leakIn, work, logDir)
@@ -368,8 +495,10 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 		}
 	}
 
+	// Nhánh có tập skill (.claude/skills do prepareArm đặt vào): cấp công cụ Skill và đo kích hoạt.
+	_, skErr := os.Stat(filepath.Join(work, ".claude", "skills"))
 	ar := opts.Agent.Run(ctx, AgentRequest{
-		Dir: work, Prompt: AgentPrompt(a.Case.Prompt), Timeout: env.timeout(),
+		Dir: work, HasSkills: skErr == nil, Prompt: AgentPrompt(a.Case.Prompt), Timeout: env.timeout(),
 		LogPath: filepath.Join(logDir, "agent.log"), CaseID: a.Case.ID, Arm: a.Arm,
 		MCPConfig: setup.MCPConfig, Settings: setup.Settings, Env: evalContextEnv(setup),
 	})
@@ -380,6 +509,7 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	exit := int64(ar.ExitCode)
 	row.AgentDurationMS, row.AgentExitCode = &adur, &exit
 	row.NumTurns, row.InputTokens, row.OutputTokens, row.CostUSD, row.Model = ar.NumTurns, ar.InputTokens, ar.OutputTokens, ar.CostUSD, ar.Model
+	row.SkillsActivated = ar.SkillsActivated
 	if ctx.Err() != nil {
 		return finish("error", "bị huỷ trong khi agent chạy")
 	}

@@ -322,6 +322,7 @@ func DraftItem(d *Draft, id string, base *knowledge.Item, src knowledge.Source, 
 	for i := range it.Evidence {
 		e := &it.Evidence[i]
 		if b, ok := src.Read(e.Path); ok {
+			*e = knowledge.NarrowEvidence(*e, b)
 			if fp, err := knowledge.FingerprintWith(*e, b, fpPref); err == nil {
 				e.Fingerprint = fp
 			}
@@ -515,7 +516,7 @@ logic. Không viết tổng quan kiến trúc, không viết kiến thức chung
 	if len(o.Files) > 0 {
 		b.WriteString("\nTệp (số lượt có nhãn đã chạm / số lượt thất bại đã sửa):\n")
 		for _, f := range o.Files {
-			fmt.Fprintf(&b, "  - %s (%d / %d)\n", f.Path, f.Runs, f.Failures)
+			fmt.Fprintf(&b, "  - %s (%d / %d)\n", f.Path+f.members(), f.Runs, f.Failures)
 		}
 	}
 
@@ -541,10 +542,7 @@ logic. Không viết tổng quan kiến trúc, không viết kiến thức chung
 		b.WriteString("(không có)\n")
 	}
 
-	files := map[string]bool{}
-	for _, f := range o.Files {
-		files[f.Path] = true
-	}
+	files := o.fileSet()
 	runs := map[string]bool{}
 	for _, id := range o.SupportingRuns {
 		runs[id] = true
@@ -608,6 +606,7 @@ Cuối câu trả lời, in DUY NHẤT một khối JSON:
   "inputs":["<tệp đã đọc>"],
   "expected_benefit":"<lợi ích kiểm chứng được>","reason":"<vì sao, dẫn tệp:dòng>"}]}
 - Tối đa 1 phần tử. Bằng chứng phải trỏ tới dòng có thật trong mã hiện tại.
+- Bằng chứng được đối chiếu lại tại commit gốc của từng tác vụ cũ. Chọn dòng hẹp trong một hàm/phương thức (ghi kèm #Ký_hiệu của hàm đó, không ghi cả lớp) và ưu tiên mã đã tồn tại lâu, ổn định qua nhiều commit; tránh dòng vừa mới thêm hoặc vừa sửa gần đây.
 - Không có gì đáng ghi → {"proposals":[]}.
 `)
 	return b.String()

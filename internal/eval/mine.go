@@ -123,6 +123,7 @@ func Mine(ctx context.Context, repoDir string, m config.EvalMine, st Store, opts
 		if err != nil {
 			return res, err
 		}
+		ApplySpec(ctx, repoDir, c, in)
 		c.Leak = CheckLeak(c.Prompt, in)
 		if err := st.SaveCandidate(c); err != nil {
 			return res, err

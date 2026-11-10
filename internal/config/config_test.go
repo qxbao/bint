@@ -44,6 +44,9 @@ func TestRenderRoundTrip(t *testing.T) {
 	if cfg.Eval.BudgetUSD != nil {
 		t.Fatal("budget must be null")
 	}
+	if cfg.Eval.PriorRunUSD != 0.5 {
+		t.Fatalf("prior_run_usd mặc định = %v, mong đợi 0.5", cfg.Eval.PriorRunUSD)
+	}
 }
 
 func TestRenderMatchesDefaults(t *testing.T) {

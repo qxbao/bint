@@ -4,7 +4,7 @@
   "enabled": false,
   "installed": false,
   "binary": "/nonexistent/bint-reaccept-codex",
-  "home": "/home/DUCLH/.codex",
+  "home": "~/.codex",
   "verified_with": "codex-cli 0.167",
   "level": 3,
   "level_title": "Programmatic Execution",

@@ -144,6 +144,23 @@ lời giải thật; ứng viên không đạt bị loại. Ứng viên chứa t
 mục trạng thái; `approve` từ chối đề bài `fail` (trừ `--force`) và tác vụ chưa kiểm chứng (trừ
 `--unverified`), ghi người duyệt và gán tập `build/validation/test` (50/25/25, tất định theo ID).
 
+**Đặc tả đề bài (`mine`, `bint eval spec`).** Đề bài từ tiêu đề commit thường không nói tên
+hàm/lớp/hằng mới mà kiểm thử ẩn gọi tới; agent không đoán được nên tác vụ không giải được ở mọi
+nhánh. `mine` nối vào cuối đề bài khối *"Interface the hidden tests will use"*: đường dẫn và **chữ
+ký** (không thân hàm, không giá trị hằng) của định danh vừa mới trong lời giải vừa được kiểm thử
+dùng tới; kiểm tra rò rỉ bỏ qua đúng khối này. Cảnh báo thiếu đặc tả (cột ĐẶC TẢ, `show`,
+`approve`): `interface_gap` — định danh mới với cả repository mà không trích được chữ ký (khoá
+chuỗi, thuộc tính…); `exact_text` — kiểm thử so khớp nguyên văn chuỗi mới mà đề bài không nêu
+(cụm có khoảng trắng ≥ 12 ký tự, hoặc chuỗi ngắn "đặc thù" ≥ 3 ký tự: chữ hoa liên tiếp, ký hiệu
+hay không phải ASCII, mà tệp lời giải đụng tới chưa có ở commit gốc; nội dung chuỗi chỉ được cảnh
+báo, không bao giờ vào đề bài); `short_prompt` — đề bài < 100 ký tự. Khối giao diện còn ghi
+**tên** (không giá trị) của hợp đồng ẩn khác: `CLI flag: --from` (cờ test kiểm mà lời giải thêm),
+`Config key (path): qa_skills` (khoá trong tệp yml/yaml/json/toml lời giải thêm), `Data key: __v`
+(khoá dict/chỉ số trong mã lời giải thêm), và thuộc tính mô-đun bị `monkeypatch.setattr` /
+`mock.patch` / `patch.object` thay thế (đi qua cơ chế chữ ký, không trích được thì `interface_gap`).
+Mỗi gợi ý có `kind` (`signature` mặc định/`flag`/`config_key`/`data_key`). `bint eval spec [id…|--all]` áp lại cho ứng viên cũ
+(`--approved` cho tác vụ đã duyệt: đổi fingerprint).
+
 **Cô lập (`run`).** Mỗi lượt là một repository Git **mới** chỉ chứa lịch sử tới commit gốc
 (`git fetch <repo> <sha>` vào kho đệm, rồi clone cục bộ, gỡ remote) — không dùng
 `git worktree` vì worktree dùng chung kho đối tượng và agent có thể `git show` commit lời giải.
@@ -168,10 +185,19 @@ hiện tại, chỉ giữ mục có mọi bằng chứng tồn tại và khớp 
 chứng là tổ tiên của commit gốc, không rút ra từ chính tác vụ, và nội dung không chứa mã của lời
 giải; báo cáo đánh dấu kết quả chỉ để sàng lọc.
 
+**Kho đệm commit gốc.** Mỗi base được nạp vào một kho trần riêng (`<state>/eval-work/bases/<sha>.git`,
+chỉ chứa lịch sử tới commit gốc, không có alternates) rồi clone cho từng lượt. Kho được tạo lười,
+dọn ngay khi lượt cuối dùng base xong (`eval.keep_bases: true` để giữ, kèm `eval.base_cache_max_mb`
+để giới hạn theo LRU), và `bint eval clean` xoá phần còn sót. Trước khi nạp, Bint kiểm tra đĩa còn
+ít nhất `eval.min_free_mb` (mặc định 1024) và dừng có thông báo nếu thiếu. `eval.base_depth: N` nạp
+nông; mặc định 0 = đầy đủ lịch sử, để số liệu so sánh được với các đợt cũ.
+
 **Ngân sách.** Bắt buộc với Claude Code (`--budget` hoặc `eval.budget_usd`). Ước tính =
 tác vụ × nhánh × lần lặp × chi phí trung bình mỗi lượt từ lịch sử (hoặc `--cost-per-run`);
 vượt ngân sách thì từ chối chạy. Khi chạy, lượt mới không bắt đầu nếu đã tiêu + chi phí dự
-kiến vượt ngân sách (trạng thái `budget_exhausted`, chạy tiếp bằng `--resume <batch> --budget
+kiến vượt ngân sách; khi chưa lượt nào đo được chi phí thì dùng giá trị tiên nghiệm
+`eval.prior_run_usd` (mặc định $0,50; 0 = tắt), từ lượt thật đầu tiên dùng chi phí đo được
+và thông báo nêu rõ lý do dừng (trạng thái `budget_exhausted`, chạy tiếp bằng `--resume <batch> --budget
 <tổng mới>`). `limits.per_run.max_cost_usd` → `claude --max-budget-usd` cho từng lượt.
 
 **Báo cáo.** Tỷ lệ đạt mỗi nhánh (trung bình theo tác vụ, CI95 bootstrap 10 000 lần, hạt giống
@@ -541,7 +567,7 @@ sửa). **Cơ hội** (mục 10.2):
 
 | Loại | Điều kiện | Hành động | Tạo bởi |
 |---|---|---|---|
-| `exploration` | tệp được chạm lại ở ≥ `min_similar_runs` lượt có nhãn, không mục nào có phạm vi khớp | create | agent |
+| `exploration` | tệp (hoặc ≥ 2 tệp cùng mẫu tên trong một thư mục: `handlers/*_handler.py`, `test_*.py`, `*_test.go`) được chạm lại ở ≥ `min_similar_runs` lượt có nhãn, không mục nào có phạm vi khớp | create | agent |
 | `failure_hotspot` | tệp bị sửa ở ≥ `min_new_evidence` lượt thất bại, chưa có warning/rule | create | agent |
 | `stale_used` | mục stale vẫn được truy xuất, hoặc `revalidate` nhận định outdated | update | agent |
 | `stale_expired` | stale quá `knowledge.stale_deprecate_days` | deprecate | xác định |
@@ -552,8 +578,8 @@ Cơ hội dựa trên lượt chạy cần đủ lượt có nhãn **và** ≥ `
 xuất trước cùng đối tượng; cơ hội đã có đề xuất đang chờ thì không đề xuất lại.
 
 **Điều kiện tiên quyết** (mục 10.6) được kiểm tra ở mỗi lần quét: lượt có nhãn, tác vụ đánh giá đã
-kiểm chứng ở tập validation/test đủ cỡ mẫu cho `evolution.evaluation.min_effect` (độ lệch chuẩn đo từ
-các đợt trước), ước tính chi phí một lần đối chiếu nằm trong `evolution.evaluation.budget_usd`. Không
+kiểm chứng ở tập validation/test đủ cỡ mẫu cho `evolution.evaluation.min_effect` (mặc định 0,15: +10 điểm %
+không phát hiện được với tác vụ của một repository; cỡ mẫu theo mô hình phương sai bên dưới), ước tính chi phí một lần đối chiếu nằm trong `evolution.evaluation.budget_usd`. Không
 đạt → đề xuất vẫn được tạo nhưng ghi rõ **chưa được kiểm chứng định lượng**.
 
 **Đề xuất** (mục 10.4) lưu trong cơ sở dữ liệu trạng thái cục bộ (bảng `evolution_proposals`, schema
@@ -583,6 +609,26 @@ rỉ gián tiếp còn lại được ghi trong kết luận. `--prospective` ch
 `supported | not_supported | inconclusive` theo kế hoạch đã chốt (cảnh báo đo lường chặn → inconclusive).
 Trên tập **test**, nếu tác vụ đã dùng để đối chiếu một đề xuất khác cùng đối tượng thì kết quả bị đánh
 dấu **không độc lập** (mục 12.2).
+
+**Probe tuần tự** (ít tác vụ, nhiều lần lặp, dừng sớm). Mỗi đề xuất chỉ có vài chục tác vụ đủ điều kiện,
+nên cỡ mẫu được tính theo phương sai của chênh lệch theo tác vụ khi mỗi nhánh lặp R lần:
+`σ²(R) = σ_b² + W/R`, với `W` = trung bình theo tác vụ của `2·p(1−p)` (ước lượng không chệch `k(m−k)/(m(m−1))`
+từ các tác vụ có ≥ 2 lượt cùng nhánh `none` trong lịch sử; chưa có dữ liệu thì p = 0,5, W = 0,5) và `σ_b` là độ
+lệch giữa các tác vụ về hiệu ứng thật (`evolution.evaluation.effect_sd`, mặc định 0,15; chỉ ước lượng từ lịch
+sử khi có đủ chênh lệch ghép cặp kèm lặp). Mỗi con số in kèm nguồn. Trước khi chạy, `evolve evaluate` in kế hoạch:
+số tác vụ `n(R) = ⌈((z₀.₉₇₅+z₀.₈)·σ(R)/δ)²⌉` (δ = `min_effect`, hoặc `non_inferiority_margin` cho loại bỏ),
+số lần lặp R, số lượt và chi phí tối đa/kỳ vọng. `evolution.evaluation.repeats: 0` để bộ lập kế hoạch chọn R
+trong 1..`max_repeats` (mặc định 8) sao cho `n·2·R` thấp nhất với `n` ≤ số tác vụ sẵn có; > 0 thì cố định R.
+Không R nào thoả → từ chối kèm mức chênh lệch nhỏ nhất phát hiện được, trừ khi có `--force`.
+
+Các lượt chạy theo từng lần lặp (mọi tác vụ và nhánh của lần lặp 1, xáo trộn, rồi lần lặp 2, ...) nên mỗi ranh
+giới lần lặp đều cân bằng. Tối đa 4 điểm nhìn (K = min(R, 4)); tại điểm nhìn j dùng biên kiểu O'Brien–Fleming
+`z_j = c_K·√(K/j)` (c_K = 1,96 / 1,977 / 2,004 / 2,024 cho K = 1..4, đã hiệu chỉnh để tổng sai số loại I ≈ 5 %)
+trên CI chuẩn của trung bình chênh lệch ghép cặp: **superiority** dừng và supported nếu cận dưới > 0;
+**non-inferiority** dừng và supported nếu cận dưới > −margin; **futility** dừng và not_supported nếu cận trên
+CI95 < `min_effect` (hoặc < −margin với non-inferiority). Điểm nhìn cuối luôn kết luận. Số điểm nhìn, điểm dừng
+và lý do được ghi vào kết luận; đợt dừng sớm theo kế hoạch không bị coi là "incomplete". `--resume` chạy tiếp theo
+đúng thứ tự cũ (cùng hạt giống) và nhìn lại các lần lặp đã xong trước khi chạy lượt mới.
 
 **Áp dụng** (`apply`, chỉ người; khoá tiến hoá trong `<state>/runtime/locks/evolve.lock`):
 - Phiên bản gốc phải còn khớp — mục bị sửa sau khi đề xuất (người khác áp dụng, `git pull`, sửa tay)
@@ -717,3 +763,8 @@ Managed (tiến trình nền được cài đặt riêng) chưa có.
 go test ./...                 # gồm kiểm thử đầu-cuối build tệp thực thi thật
 go test -race ./...           # cần CGO/gcc
 ```
+
+CI (GitHub Actions, `.github/workflows/ci.yml`) chạy lint (gofmt, `go mod tidy -diff`, `go vet`,
+staticcheck), `go test -race` và build chéo 6 nền tảng trên mỗi PR/push vào `main`. Workflow
+release (`.github/workflows/release.yml`) đã viết sẵn nhưng đang bị khoá. Chi tiết, cách chạy
+lại trên local và cách kích hoạt CD: [docs/ci-cd.md](docs/ci-cd.md).

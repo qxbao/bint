@@ -46,7 +46,7 @@ Nhận định chỉ là dữ liệu cho người duyệt; trạng thái không 
 				agent = &eval.ClaudeAgent{Cfg: cfg, Model: model}
 			}
 			rep, err := app.RevalidateKnowledge(cmd.Context(), k, app.RevalidateOptions{
-				Refs: args, MaxItems: maxItems, BatchSize: batch, BudgetUSD: budget, Agent: agent,
+				Refs: args, MaxItems: maxItems, BatchSize: batch, BudgetUSD: budget, PriorRunUSD: k.Config.Eval.PriorRunUSD, Agent: agent,
 				Timeout: time.Duration(k.Config.Eval.TimeoutMinutes) * time.Minute,
 			})
 			if err != nil {
@@ -75,6 +75,9 @@ Nhận định chỉ là dữ liệu cho người duyệt; trạng thái không 
 			}
 			for _, id := range rep.Skipped {
 				fmt.Fprintf(stdio.Out, "- %s  bỏ qua (giới hạn số mục hoặc ngân sách)\n", id)
+			}
+			if rep.StopReason != "" {
+				fmt.Fprintf(stdio.Out, "\nDừng vì ngân sách: %s.\n", rep.StopReason)
 			}
 			fmt.Fprintf(stdio.Out, "\nĐã tiêu $%.4f. Nhận định không đổi trạng thái: approve --refresh hoặc deprecate.\n", rep.SpentUSD)
 			return nil

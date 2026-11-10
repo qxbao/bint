@@ -1,0 +1,129 @@
+# CI của Bint: lint, test, build. Không publish artifact, không release.
+# Tài liệu: docs/ci-cd.md
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Chỉ đọc mã nguồn; không job nào cần ghi.
+permissions:
+  contents: read
+
+# Một lần chạy cho mỗi ref; PR có commit mới thì huỷ lần chạy cũ.
+# Push lên main không bị huỷ để mỗi commit trên main đều có kết quả.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Bản staticcheck cố định; nâng cấp có chủ đích (xem docs/ci-cd.md).
+  STATICCHECK_VERSION: v0.7.0
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::Các tệp chưa gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go.mod/go.sum gọn
+        run: go mod tidy -diff
+
+      - name: go mod verify
+        run: go mod verify
+
+      - name: go vet (linux, windows)
+        run: |
+          go vet ./...
+          GOOS=windows go vet ./...
+
+      - name: staticcheck (linux, windows)
+        run: |
+          go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+          staticcheck ./...
+          GOOS=windows staticcheck ./...
+
+  test:
+    name: Test (race)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # Kiểm thử đầu-cuối gọi git thật và tạo commit trong repository tạm.
+      - name: Môi trường
+        run: |
+          go version
+          git --version
+          git config --global user.name "bint-ci"
+          git config --global user.email "bint-ci@users.noreply.github.com"
+
+      # -race cần CGO (gcc có sẵn trên runner). -count=1 bỏ qua cache kết quả test
+      # vì cache build được khôi phục giữa các lần chạy.
+      - name: go test -race
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race -count=1 -timeout 15m ./...
+
+  build:
+    name: Build (đa nền tảng)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # Cùng cờ build với release (release.yml), chỉ khác chuỗi phiên bản.
+      - name: Biên dịch chéo
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          version="0.0.0-ci+${GITHUB_SHA::12}"
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            goos=${target%/*}
+            goarch=${target#*/}
+            ext=""
+            [ "$goos" = windows ] && ext=".exe"
+            echo "::group::$target"
+            GOOS=$goos GOARCH=$goarch go build -trimpath \
+              -ldflags "-s -w -X bint/internal/cli.Version=${version}" \
+              -o "dist/bint-${goos}-${goarch}${ext}" ./cmd/bint
+            echo "::endgroup::"
+          done
+          ls -l dist/
+
+      - name: Chạy thử bản linux/amd64
+        run: |
+          ./dist/bint-linux-amd64 --version
+          ./dist/bint-linux-amd64 --help > /dev/null

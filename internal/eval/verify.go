@@ -76,7 +76,9 @@ func VerifyCase(ctx context.Context, env Env, c *Case, afterRuns int, now time.T
 		}
 		return v
 	}
-	if err := prepareWorkdir(ctx, env.RepoDir, env.WorkRoot, c.Source.Base, dir); err != nil {
+	err = prepareWorkdir(ctx, env, c.Source.Base, dir)
+	releaseBase(env, c.Source.Base) // verify chỉ cần clone một lần
+	if err != nil {
 		return fail("error", "dựng thư mục làm việc: %v", err)
 	}
 	if s := env.setupCommand(); s != "" {

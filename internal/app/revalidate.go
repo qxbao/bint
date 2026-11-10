@@ -36,9 +36,11 @@ type RevalidateOptions struct {
 	MaxItems  int
 	BatchSize int
 	BudgetUSD float64
-	Agent     eval.Agent
-	Timeout   time.Duration
-	Now       time.Time
+	// PriorRunUSD: chi phí tiên nghiệm mỗi lô khi chưa đo được lô nào (eval.prior_run_usd); 0 = tắt.
+	PriorRunUSD float64
+	Agent       eval.Agent
+	Timeout     time.Duration
+	Now         time.Time
 }
 
 // RevalidateReport là kết quả.
@@ -46,6 +48,25 @@ type RevalidateReport struct {
 	Results  []Revalidation `json:"results"`
 	Skipped  []string       `json:"skipped"` // ngoài giới hạn số mục hoặc ngân sách
 	SpentUSD float64        `json:"spent_usd"`
+	// StopReason: lý do ngừng gọi agent vì ngân sách (rỗng nếu không dừng).
+	StopReason string `json:"stop_reason,omitempty"`
+}
+
+// batchUnaffordable trả lý do không bắt đầu một lô khi ngân sách còn lại nhỏ hơn chi phí
+// ước tính của lô. Chưa đo được lô nào thì dùng chi phí tiên nghiệm (eval.prior_run_usd),
+// sau đó dùng trung bình đo được. Rỗng = đủ ngân sách.
+func batchUnaffordable(remaining, spent float64, measuredN int, prior float64) string {
+	if remaining <= 0 {
+		return fmt.Sprintf("đã hết ngân sách (còn $%.2f)", max(remaining, 0))
+	}
+	per, src := prior, "giá trị tiên nghiệm eval.prior_run_usd"
+	if measuredN > 0 {
+		per, src = spent/float64(measuredN), "trung bình đo được"
+	}
+	if remaining < per {
+		return fmt.Sprintf("còn $%.2f, nhỏ hơn chi phí ước tính $%.2f/lô (%s)", remaining, per, src)
+	}
+	return ""
 }
 
 // ErrNoBudget: chưa đặt ngân sách cho thao tác gọi mô hình.
@@ -114,10 +135,12 @@ func RevalidateKnowledge(ctx context.Context, k *KnowledgeWS, opts RevalidateOpt
 	}
 	logDir := filepath.Join(k.Paths.Runtime, "revalidate")
 	os.MkdirAll(logDir, 0o700)
+	measuredN := 0
 	for start := 0; start < len(queue); start += opts.BatchSize {
 		batch := queue[start:min(start+opts.BatchSize, len(queue))]
 		remaining := opts.BudgetUSD - rep.SpentUSD
-		if opts.Agent.ReportsCost() && remaining <= 0 {
+		if why := batchUnaffordable(remaining, rep.SpentUSD, measuredN, opts.PriorRunUSD); opts.Agent.ReportsCost() && why != "" {
+			rep.StopReason = why
 			for _, it := range batch {
 				rep.Skipped = append(rep.Skipped, it.ID)
 			}
@@ -134,6 +157,7 @@ func RevalidateKnowledge(ctx context.Context, k *KnowledgeWS, opts RevalidateOpt
 		cost := res.CostUSD
 		if cost != nil {
 			rep.SpentUSD += *cost
+			measuredN++
 		}
 		verdicts := parseVerdicts(res.Text)
 		for i, it := range batch {

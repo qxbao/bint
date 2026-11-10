@@ -66,7 +66,9 @@ type Case struct {
 	// {test_files} và {test_dirs}.
 	TestCommand string `yaml:"test_command,omitempty"`
 
-	Leak         LeakReport    `yaml:"leak_check"`
+	Leak LeakReport `yaml:"leak_check"`
+	// Spec: chữ ký giao diện đã nối vào đề bài và cảnh báo thiếu đặc tả (spec.go).
+	Spec         *SpecReport   `yaml:"spec,omitempty"`
 	Verification *Verification `yaml:"verification,omitempty"`
 
 	MinedAt      string `yaml:"mined_at"`

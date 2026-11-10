@@ -188,7 +188,7 @@ func FingerprintWith(e Evidence, content []byte, pref string) (string, error) {
 		return FPFile + ":" + hashLines(lines), nil
 	}
 	if pref == FPSymbol && e.Symbol != "" {
-		if r, ok := symbols.Locate(e.Path, content, e.Symbol); ok && r.To <= len(lines) {
+		if r, ok := symbols.Locate(e.Path, content, e.Symbol); ok && r.To <= len(lines) && !containerWithLines(e, r) {
 			return FPSymbol + ":" + hashLines(lines[r.From-1:r.To]), nil
 		}
 	}
@@ -203,6 +203,40 @@ func FingerprintWith(e Evidence, content []byte, pref string) (string, error) {
 		return "", fmt.Errorf("%s có %d dòng, bằng chứng tham chiếu dòng %s", e.Path, len(lines), e.Lines)
 	}
 	return FPLines + ":" + hashLines(lines[from-1:to]), nil
+}
+
+// containerWithLines: ký hiệu là vật chứa (lớp, kiểu) và bằng chứng có vùng dòng nằm
+// trong đó. Băm cả lớp sẽ mất hiệu lực mỗi khi lớp có thêm thành viên, nên dùng phần
+// thân liên quan (vùng dòng) thay vì toàn bộ lớp.
+func containerWithLines(e Evidence, r symbols.Region) bool {
+	from, to, ok, err := e.LineRange()
+	return r.Container && err == nil && ok && from >= r.From && to <= r.To
+}
+
+// NarrowEvidence thu hẹp ký hiệu của bằng chứng khi nó chỉ là vật chứa (lớp): nếu vùng
+// dòng nằm trọn trong một hàm/phương thức thì dùng ký hiệu của hàm đó ("Lớp.phương_thức").
+// Không đổi gì nếu không chắc chắn; chỉ làm ký hiệu hẹp hơn, không bao giờ rộng hơn.
+func NarrowEvidence(e Evidence, content []byte) Evidence {
+	if e.Symbol == "" {
+		return e
+	}
+	from, to, ok, err := e.LineRange()
+	if err != nil || !ok {
+		return e
+	}
+	r, found := symbols.Locate(e.Path, content, e.Symbol)
+	if !found || !containerWithLines(e, r) {
+		return e
+	}
+	name, er, found := symbols.Enclosing(e.Path, content, from, to)
+	if !found || er.From < r.From || er.To > r.To {
+		return e
+	}
+	if lr, ok := symbols.Locate(e.Path, content, name); !ok || lr.From != er.From || lr.To != er.To {
+		return e
+	}
+	e.Symbol = name
+	return e
 }
 
 // Kết quả đối chiếu bằng chứng.

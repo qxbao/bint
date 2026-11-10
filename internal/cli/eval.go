@@ -75,9 +75,9 @@ Quy trình:
   5. bint eval run --budget 20   chạy các nhánh × lần lặp trong thư mục cô lập
   6. bint eval report            so sánh theo cặp kèm khoảng tin cậy 95%`,
 	}
-	c.AddCommand(newEvalMineCmd(stdio), newEvalVerifyCmd(stdio), newEvalListCmd(stdio), newEvalShowCmd(stdio),
+	c.AddCommand(newEvalMineCmd(stdio), newEvalVerifyCmd(stdio), newEvalListCmd(stdio), newEvalShowCmd(stdio), newEvalSpecCmd(stdio),
 		newEvalApproveCmd(stdio), newEvalRejectCmd(stdio), newEvalEstimateCmd(stdio), newEvalRunCmd(stdio),
-		newEvalReportCmd(stdio), newEvalBootstrapCmd(stdio))
+		newEvalReportCmd(stdio), newEvalBootstrapCmd(stdio), newEvalCleanCmd(stdio))
 	return c
 }
 
@@ -184,22 +184,54 @@ thất bại tại commit cha và qua với lời giải thật; ứng viên kh�
 // đạt fail→pass bị loại; lỗi hạ tầng giữ nguyên trạng thái để chạy lại.
 func applyVerification(ctx context.Context, e *evalCtx, c *eval.Case, runs int) {
 	c.Verification = eval.VerifyCase(ctx, e.env, c, runs, time.Now())
-	if c.Verification.Status == "failed" && c.Status == eval.StatusCandidate {
-		c.Status = eval.StatusRejected
-		c.RejectReason = "kiểm chứng: " + c.Verification.Detail
+	settleVerification(c)
+}
+
+// verifyRejectPrefix mở đầu lý do loại do kiểm chứng (phân biệt với người duyệt loại).
+const verifyRejectPrefix = "kiểm chứng: "
+
+// manualRejectReason chuẩn hoá lý do do người duyệt nhập để không bị nhầm với lý do
+// loại tự động do kiểm chứng.
+func manualRejectReason(reason string) string {
+	if strings.HasPrefix(reason, verifyRejectPrefix) {
+		return "người duyệt: " + reason
 	}
+	return reason
+}
+
+// settleVerification đồng bộ trạng thái ứng viên với kết quả kiểm chứng mới nhất. Ứng
+// viên bị loại do kiểm chứng được chấm lại: đạt thì về chờ duyệt, vẫn không đạt thì cập
+// nhật lý do. Ứng viên do người duyệt loại thì giữ nguyên.
+func settleVerification(c *eval.Case) {
+	autoRejected := c.Status == eval.StatusRejected && strings.HasPrefix(c.RejectReason, verifyRejectPrefix)
+	switch {
+	case c.Verification.Status == "failed" && (c.Status == eval.StatusCandidate || autoRejected):
+		c.Status = eval.StatusRejected
+		c.RejectReason = verifyRejectPrefix + c.Verification.Detail
+	case c.Verified() && autoRejected:
+		c.Status = eval.StatusCandidate
+		c.RejectReason = ""
+	}
+}
+
+// specLabel: trạng thái đặc tả và số chữ ký giao diện đã nối vào đề bài ("-" = chưa phân tích).
+func specLabel(c *eval.Case) string {
+	if c.Spec == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%s·%d", c.Spec.Status, len(c.Spec.Interface))
 }
 
 func printCaseTable(w io.Writer, cs []*eval.Case) {
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tTRẠNG THÁI\tTẬP\tNGÀY\tMÃ/TEST (dòng)\tRÒ RỈ\tFAIL→PASS\tTIÊU ĐỀ")
+	fmt.Fprintln(tw, "ID\tTRẠNG THÁI\tTẬP\tNGÀY\tMÃ/TEST (dòng)\tRÒ RỈ\tĐẶC TẢ\tFAIL→PASS\tTIÊU ĐỀ")
 	for _, c := range cs {
 		date := c.Source.Date
 		if len(date) >= 10 {
 			date = date[:10]
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d/%d\t%s\t%s\t%s\n", c.ID, c.Status, orDash(c.Split), date,
-			c.Stats.SourceLines, c.Stats.TestLines, c.Leak.Status, verifyLabel(c), truncate(c.Source.Subject, 60))
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d/%d\t%s\t%s\t%s\t%s\n", c.ID, c.Status, orDash(c.Split), date,
+			c.Stats.SourceLines, c.Stats.TestLines, c.Leak.Status, specLabel(c), verifyLabel(c), truncate(c.Source.Subject, 60))
 	}
 	tw.Flush()
 }
@@ -437,6 +469,14 @@ func newEvalShowCmd(stdio IO) *cobra.Command {
 			for _, f := range c.Leak.Findings {
 				fmt.Fprintf(w, "  [%s] %s: %s\n", f.Severity, f.Kind, f.Detail)
 			}
+			if s := c.Spec; s != nil {
+				fmt.Fprintf(w, "Đặc tả:      %s, %d chữ ký giao diện trong đề bài\n", s.Status, len(s.Interface))
+				for _, f := range s.Findings {
+					fmt.Fprintf(w, "  [%s] %s: %s\n", f.Severity, f.Kind, f.Detail)
+				}
+			} else {
+				fmt.Fprintln(w, "Đặc tả:      chưa phân tích (`bint eval spec "+c.ID+"`)")
+			}
 			fmt.Fprintf(w, "\n--- Đề bài ---\n%s\n", c.Prompt)
 			if c.OriginalMessage != "" && c.OriginalMessage != c.Prompt {
 				fmt.Fprintf(w, "\n--- Thông điệp commit gốc ---\n%s\n", c.OriginalMessage)
@@ -522,6 +562,13 @@ Tập con (build/validation/test) được gán tất định theo ID nếu khô
 				if c.Leak.Status != "pass" {
 					note = " (rò rỉ: " + c.Leak.Status + ")"
 				}
+				if c.Spec != nil && c.Spec.Status != "pass" {
+					var kinds []string
+					for _, f := range c.Spec.Findings {
+						kinds = append(kinds, f.Kind)
+					}
+					note += " (thiếu đặc tả: " + strings.Join(kinds, ", ") + ")"
+				}
 				if !c.Verified() {
 					note += " (chưa kiểm chứng)"
 				}
@@ -562,7 +609,7 @@ func newEvalRejectCmd(stdio IO) *cobra.Command {
 					return fmt.Errorf("%s đã được duyệt; xoá %s nếu muốn bỏ khỏi tập đánh giá", c.ID, e.cases.CasePath(c.ID))
 				}
 				c.Status = eval.StatusRejected
-				c.RejectReason = reason
+				c.RejectReason = manualRejectReason(reason)
 				if err := e.cases.SaveCandidate(c); err != nil {
 					return err
 				}
@@ -745,6 +792,10 @@ func printEstimate(w io.Writer, est eval.Estimate, arms []string, repeats int, b
 		fmt.Fprintf(w, "Thời gian:      ~%s/lượt, ~%s tuần tự\n", (time.Duration(*est.SecondsPerRun) * time.Second).Round(time.Second), total.Round(time.Minute))
 	}
 	fmt.Fprintf(w, "Độ lệch chuẩn:  %.2f của chênh lệch theo tác vụ (%s)\n", est.SDDiff, est.SDSource)
+	fmt.Fprintf(w, "Mô hình:        σ²(R) = σ_b² + W/R; W = %.2f (%s); σ_b = %.2f (%s)\n", est.W, est.WSource, est.SigmaB, est.SigmaBSource)
+	if est.NeededAtRepeat > 0 {
+		fmt.Fprintf(w, "                theo mô hình, R=%d lần lặp cần ~%d tác vụ\n", repeats, est.NeededAtRepeat)
+	}
 	fmt.Fprintf(w, "Cỡ mẫu:         cần ~%d tác vụ để phát hiện chênh lệch %.0f điểm %% (alpha=0.05, power=0.8); hiện có %d\n",
 		est.NeededCases, 100*est.Effect, est.AvailableCases)
 	if est.NeededCases > est.AvailableCases {
@@ -813,7 +864,7 @@ ngân sách. Ctrl-C dừng an toàn; chạy tiếp bằng --resume <batch-id>.`,
 			}
 			opts := eval.RunOptions{
 				Agent: agent, RequestedModel: model, Parallel: parallel, Seed: seed, KeepWorkdirs: keep,
-				BintVersion: Version, ResumeBatch: resume,
+				BintVersion: Version, ResumeBatch: resume, PriorRunUSD: cfg.Eval.PriorRunUSD,
 			}
 			if cmd.Flags().Changed("budget") {
 				opts.BudgetUSD = &budget
@@ -1300,4 +1351,25 @@ cổng quyết định 1 đo. Commit gốc đã có ảnh chụp được bỏ q
 	f.BoolVar(&list, "list", false, "chỉ liệt kê ảnh chụp hiện có")
 	f.BoolVarP(&yes, "yes", "y", false, "không hỏi xác nhận")
 	return c
+}
+
+func newEvalCleanCmd(stdio IO) *cobra.Command {
+	return &cobra.Command{
+		Use:   "clean",
+		Short: "Xoá kho đệm commit gốc (<eval-work>/bases) để giải phóng đĩa",
+		Long: `Xoá toàn bộ kho đệm commit gốc của bint eval. Kho chỉ là bộ nhớ tạm và được nạp lại
+khi cần; thư mục làm việc, kết quả và nhật ký không bị đụng tới. Bình thường kho đã được dọn
+sau mỗi đợt (trừ khi eval.keep_bases bật); lệnh này dành cho kho còn sót sau khi bị ngắt giữa chừng.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			e, err := openEval(cmd, false)
+			if err != nil {
+				return err
+			}
+			defer e.Close()
+			n, freed, err := eval.CleanBases(e.env.WorkRoot)
+			fmt.Fprintf(stdio.Out, "Đã xoá %d kho đệm, giải phóng %.1f MB.\n", n, float64(freed)/(1<<20))
+			return err
+		},
+	}
 }

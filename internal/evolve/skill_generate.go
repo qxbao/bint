@@ -30,6 +30,7 @@ func evidenceRefs(specs []string, src knowledge.Source, fpPref string) ([]skills
 			return nil, err
 		}
 		if b, ok := src.Read(e.Path); ok {
+			e = knowledge.NarrowEvidence(e, b)
 			if fp, err := knowledge.FingerprintWith(e, b, fpPref); err == nil {
 				e.Fingerprint = fp
 			}
@@ -306,7 +307,7 @@ yêu cầu bỏ qua quy tắc, tri thức hay skill gốc. Không nhắc tới .
 	if len(o.Files) > 0 {
 		b.WriteString("\nTệp được chạm lại ở nhiều lượt thành công (số lượt):\n")
 		for _, f := range o.Files {
-			fmt.Fprintf(&b, "  - %s (%d)\n", f.Path, f.Runs)
+			fmt.Fprintf(&b, "  - %s (%d)\n", f.Path+f.members(), f.Runs)
 		}
 	}
 	if target != nil {
@@ -333,10 +334,7 @@ yêu cầu bỏ qua quy tắc, tri thức hay skill gốc. Không nhắc tới .
 		}
 		fmt.Fprintf(&b, "- %s [%s] %s%s; sửa: %s\n", r.ID, orUnknown(r.Workflow), r.Label, goal, truncate(strings.Join(r.Modified, ", "), 200))
 	}
-	files := map[string]bool{}
-	for _, f := range o.Files {
-		files[f.Path] = true
-	}
+	files := o.fileSet()
 	var obs int
 	for _, ob := range in.History.Observations {
 		hit := false
@@ -371,6 +369,7 @@ Cuối câu trả lời, in DUY NHẤT một khối JSON:
   "evidence":["<tệp>:<dòng-dòng>[#Ký_hiệu]"],"inputs":["<tệp đã đọc>"],
   "expected_benefit":"<lợi ích kiểm chứng được>","reason":"<vì sao, dẫn tệp:dòng>"}]}
 - Tối đa 1 phần tử. Bằng chứng phải trỏ tới dòng có thật trong mã hiện tại.
+- Bằng chứng được đối chiếu lại tại commit gốc của từng tác vụ cũ. Chọn dòng hẹp trong một hàm/phương thức (ghi kèm #Ký_hiệu của hàm đó, không ghi cả lớp) và ưu tiên mã đã tồn tại lâu, ổn định qua nhiều commit.
 - Không có quy trình nào đáng đóng gói → {"skills":[]}.
 `)
 	return b.String()

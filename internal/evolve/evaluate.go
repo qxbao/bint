@@ -202,6 +202,15 @@ const derivedWindow = 24 * time.Hour
 // lời giải và commit lời giải nằm trong cửa sổ thời gian của lượt. Rỗng = không liên quan.
 func DerivedFrom(p *Proposal, h *History, c *eval.Case) string {
 	commitAt, _ := time.Parse(time.RFC3339, c.Source.Date)
+	// Tiến cứu: commit lời giải sinh sau khi đề xuất được tạo. Đề xuất vẫn thấy NỘI DUNG
+	// công việc của lượt căn cứ, nên chỉ bỏ cửa sổ cho lượt đã kết thúc trước đề xuất và
+	// đã được gắn commit (công việc của nó đã nằm trong commit khác, không thể là commit
+	// này). Lượt chưa gắn commit hoặc không xác định được: giữ cửa sổ (bảo thủ).
+	var created time.Time
+	afterProposal := false
+	if t, err := store.ParseTime(p.CreatedAt); err == nil && !commitAt.IsZero() && commitAt.After(t) {
+		created, afterProposal = t, true
+	}
 	files := append(append([]string{}, c.SourceFiles...), c.TestFiles...)
 	for _, ref := range p.SupportingRuns {
 		r := h.ByID[ref.RunID]
@@ -223,6 +232,9 @@ func DerivedFrom(p *Proposal, h *History, c *eval.Case) string {
 		}
 		if err2 != nil {
 			end = start
+		}
+		if afterProposal && err2 == nil && !end.After(created) && len(r.Commits) > 0 {
+			continue
 		}
 		if commitAt.Before(start) || commitAt.After(end.Add(derivedWindow)) {
 			continue
@@ -315,7 +327,17 @@ type Verdict struct {
 }
 
 // ComputeVerdict đối chiếu báo cáo (candidate − base, theo cặp) với kế hoạch.
-func ComputeVerdict(rep eval.Report, plan Plan) Verdict {
+func ComputeVerdict(rep eval.Report, plan Plan) Verdict { return computeVerdict(rep, plan, nil) }
+
+// ComputeVerdictSeq như ComputeVerdict nhưng cho đợt chạy tuần tự: kết luận dùng cùng
+// biên O'Brien–Fleming như điểm nhìn (SeqDecide) tại điểm nhìn seq, và ghi số điểm nhìn,
+// điểm dừng và lý do vào Notes/Detail. Đợt dừng sớm theo kế hoạch không bị chặn bởi
+// cảnh báo "incomplete" (báo cáo ở điểm nhìn không phát cảnh báo đó).
+func ComputeVerdictSeq(rep eval.Report, plan Plan, seq SeqInfo) Verdict {
+	return computeVerdict(rep, plan, &seq)
+}
+
+func computeVerdict(rep eval.Report, plan Plan, seq *SeqInfo) Verdict {
 	var v Verdict
 	for _, d := range rep.Diagnostics {
 		if d.Level != "warn" {
@@ -339,6 +361,25 @@ func ComputeVerdict(rep eval.Report, plan Plan) Verdict {
 	}
 	pd := p.PassDiff
 	v.PassDiff = &pd
+	if seq != nil && Sequential(plan) {
+		if plan.Kind != "non_inferiority" {
+			v.Metric = &pd
+		}
+		st := SeqDecide(*p, plan, seq.J, seq.K)
+		if st.Verdict == "" {
+			v.Verdict, v.Detail = VerdictInconclusive, "không đủ tác vụ chấm được ở cả hai nhánh để áp biên tuần tự"
+			return v
+		}
+		v.Verdict = st.Verdict
+		v.Detail = fmt.Sprintf("%s (%+.3f, CI chuẩn tại z=%.2f [%+.3f, %+.3f], CI95 cận trên %+.3f, %d tác vụ)",
+			st.Reason, st.Mean, st.Z, st.Lo, st.Hi, st.Hi95, st.N)
+		if seq.J < seq.K {
+			v.Notes = append(v.Notes, fmt.Sprintf("dừng sớm tại điểm nhìn %d/%d (lần lặp %d/%d), các lần lặp sau không chạy: %s", seq.J, seq.K, seq.Repeat, seq.Repeats, st.Reason))
+		} else {
+			v.Notes = append(v.Notes, fmt.Sprintf("chạy đủ %d điểm nhìn (lần lặp %d), kết luận ở điểm nhìn cuối với biên z=%.2f", seq.K, seq.Repeats, st.Z))
+		}
+		return v
+	}
 	fmtCI := func(s eval.Stat) string {
 		return fmt.Sprintf("%+.3f, CI95 [%+.3f, %+.3f], %d tác vụ", s.Mean, s.CI.Lo, s.CI.Hi, s.N)
 	}
@@ -523,11 +564,26 @@ func Finalize(ctx context.Context, db *sql.DB, p *Proposal, e Evaluation, curren
 	if err != nil {
 		return Verdict{}, eval.Report{}, err
 	}
-	rep, err := eval.BuildReport(ctx, db, b, eval.ArmBase, current)
-	if err != nil {
-		return Verdict{}, rep, err
+	var (
+		rep eval.Report
+		v   Verdict
+	)
+	if IsSequential(b) && Sequential(p.Plan) {
+		var info *SeqInfo
+		if rep, info, err = sequentialReport(ctx, db, b, p.Plan, current); err != nil {
+			return Verdict{}, rep, err
+		}
+		if info != nil {
+			v = ComputeVerdictSeq(rep, p.Plan, *info)
+		} else {
+			v = ComputeVerdict(rep, p.Plan)
+		}
+	} else {
+		if rep, err = eval.BuildReport(ctx, db, b, eval.ArmBase, current); err != nil {
+			return Verdict{}, rep, err
+		}
+		v = ComputeVerdict(rep, p.Plan)
 	}
-	v := ComputeVerdict(rep, p.Plan)
 	var ind *bool
 	if e.Split == eval.SplitTest {
 		ok, why, err := Independent(ctx, db, p, e.CaseIDs)
@@ -588,5 +644,3 @@ func orProbe(k string) string {
 	}
 	return k
 }
-
-func nowStr(t time.Time) string { return store.FormatTime(t) }

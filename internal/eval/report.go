@@ -94,9 +94,19 @@ const CIWarnWidth = 0.30
 // BuildReport tổng hợp báo cáo cho một đợt. current là các tác vụ hiện có (để
 // phát hiện tác vụ bị sửa sau khi chạy); có thể nil.
 func BuildReport(ctx context.Context, db *sql.DB, b Batch, baseline string, current map[string]*Case) (Report, error) {
+	return BuildReportUpTo(ctx, db, b, baseline, current, 0)
+}
+
+// BuildReportUpTo như BuildReport nhưng chỉ tính các lượt có lần lặp <= maxRepeat
+// (0 = tất cả). Dùng cho điểm nhìn tuần tự: các lượt của lần lặp sau (đã bắt đầu khi
+// chạy song song) không được lẫn vào phép đo tại ranh giới lần lặp.
+func BuildReportUpTo(ctx context.Context, db *sql.DB, b Batch, baseline string, current map[string]*Case, maxRepeat int) (Report, error) {
 	rows, err := Attempts(ctx, db, "batch_id = ?", b.BatchID)
 	if err != nil {
 		return Report{}, err
+	}
+	if maxRepeat > 0 {
+		rows = slices.DeleteFunc(rows, func(r AttemptRow) bool { return r.Repeat > maxRepeat })
 	}
 	rep := Report{Batch: b}
 	arms := slices.Clone(b.Arms)
@@ -320,7 +330,10 @@ func diagnose(rep Report, b Batch, rows []AttemptRow, models map[string]map[stri
 	warn := func(kind, f string, a ...any) { ds = append(ds, Diagnostic{"warn", kind, fmt.Sprintf(f, a...)}) }
 	info := func(kind, f string, a ...any) { ds = append(ds, Diagnostic{"info", kind, fmt.Sprintf(f, a...)}) }
 
-	if b.Status != "completed" {
+	if why := StoppedEarlyReason(b); why != "" {
+		// Dừng theo kế hoạch tuần tự: không phải chạy dở, không chặn kết luận.
+		info("stopped_early", "đợt dừng sớm theo kế hoạch tuần tự: %s; các lần lặp còn lại không chạy", why)
+	} else if b.Status != "completed" {
 		warn("incomplete", "đợt ở trạng thái %s: thiếu lượt chạy, kết quả có thể lệch", b.Status)
 	}
 	if b.LeakageMode == LeakEconomy {
@@ -396,6 +409,16 @@ func diagnose(rep Report, b Batch, rows []AttemptRow, models map[string]map[stri
 	return ds
 }
 
+// StoppedEarlyReason trả về lý do nếu đợt dừng sớm theo kế hoạch tuần tự (xem StoppedEarlyNote).
+func StoppedEarlyReason(b Batch) string {
+	for _, n := range b.Notes {
+		if why, ok := strings.CutPrefix(n, StoppedEarlyNote); ok {
+			return why
+		}
+	}
+	return ""
+}
+
 // finite trả về nil cho NaN/Inf (không đo được), để JSON ghi null thay vì lỗi.
 func finite(v float64) *float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
@@ -422,6 +445,8 @@ type EstimateInput struct {
 	Model      string
 	CostPerRun *float64 // ghi đè khi chưa có lịch sử
 	Effect     float64  // chênh lệch tỷ lệ đạt muốn phát hiện (0..1)
+	// EffectSD là σ_b mặc định khi lịch sử không đủ để ước lượng (0 = DefaultEffectSD).
+	EffectSD float64
 }
 
 // Estimate là ước tính cỡ mẫu và chi phí.
@@ -436,6 +461,14 @@ type Estimate struct {
 	Effect         float64  `json:"effect"`
 	NeededCases    int      `json:"needed_cases"`
 	AvailableCases int      `json:"available_cases"`
+	// Mô hình phương sai σ²(R) = σ_b² + W/R (xem plan.go) và cỡ mẫu theo mô hình tại
+	// R = Repeats của đầu vào. SDDiff/NeededCases giữ nguyên cách tính cũ.
+	W              float64 `json:"w"`
+	WSource        string  `json:"w_source"`
+	SigmaB         float64 `json:"sigma_b"`
+	SigmaBSource   string  `json:"sigma_b_source"`
+	SigmaMeasured  bool    `json:"sigma_b_measured"`
+	NeededAtRepeat int     `json:"needed_cases_at_repeats"`
 }
 
 // EstimateRun tính số lượt, chi phí = tác vụ × lần lặp × nhánh × chi phí trung bình
@@ -480,6 +513,15 @@ func EstimateRun(ctx context.Context, db *sql.DB, in EstimateInput) (Estimate, e
 		e.SDDiff, e.SDSource = AssumedSDDiff, "giả định thận trọng (chưa đủ dữ liệu)"
 	}
 	e.NeededCases = PairedSampleSize(e.SDDiff, in.Effect)
+	vm, err := HistoricalVariance(ctx, db, in.Harness, in.EffectSD)
+	if err != nil {
+		return e, err
+	}
+	e.W, e.WSource, e.SigmaB, e.SigmaBSource = vm.W, vm.WSource, vm.SigmaB, vm.SigmaSource
+	e.SigmaMeasured = vm.SigmaMeasured
+	if in.Repeats > 0 {
+		e.NeededAtRepeat = ProbeSampleSize(math.Sqrt(vm.Sigma2(in.Repeats)), in.Effect)
+	}
 	return e, nil
 }
 

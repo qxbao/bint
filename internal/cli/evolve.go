@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -231,6 +232,9 @@ func printScan(w io.Writer, res evolve.ScanResult) {
 		fmt.Fprintf(w, "      %s\n", o.Summary)
 		for _, f := range o.Files {
 			fmt.Fprintf(w, "        %s (%d lượt, %d thất bại)\n", f.Path, f.Runs, f.Failures)
+			if len(f.Members) > 0 {
+				fmt.Fprintf(w, "          gồm: %s\n", strings.Join(f.Members, ", "))
+			}
 		}
 	}
 	fmt.Fprintln(w, "\nBước tiếp: `bint evolve propose [op-…]` (cơ hội cần agent: thêm --budget <USD>).")
@@ -652,6 +656,7 @@ func newEvolveEvaluateCmd(stdio IO) *cobra.Command {
 		resume       string
 		prospective  bool
 		regression   bool
+		force        bool
 		asJSON       bool
 	)
 	c := &cobra.Command{
@@ -672,7 +677,15 @@ lại sau một thời gian) để loại hẳn rủi ro này.
 
 Quy trình (mục 12.2): xác thực trên validation, kết luận trên test. Không chỉnh đề
 xuất theo kết quả test rồi báo cáo lại trên chính tập đó: đề xuất là bất biến; đề xuất
-mới cùng đối tượng đối chiếu lại trên các tác vụ test đã dùng sẽ bị đánh dấu không độc lập.`,
+mới cùng đối tượng đối chiếu lại trên các tác vụ test đã dùng sẽ bị đánh dấu không độc lập.
+
+Probe tuần tự (ít tác vụ, nhiều lần lặp, dừng sớm): trước khi chạy, Bint lập kế hoạch từ
+mô hình σ²(R) = σ_b² + W/R — chọn số lần lặp R (evolution.evaluation.repeats = 0) sao cho
+tổng số lượt thấp nhất mà số tác vụ cần ≤ số tác vụ sẵn có, rồi in số tác vụ, R, số lượt và
+chi phí tối đa. Không khả thi (không phát hiện được mức hiệu ứng đã chọn) thì từ chối và nêu
+mức nhỏ nhất phát hiện được, trừ khi có --force. Các lượt chạy theo từng lần lặp; sau mỗi
+điểm nhìn (tối đa 4) Bint dừng sớm nếu đã đủ bằng chứng theo biên O'Brien–Fleming (thắng,
+không kém, hoặc futility).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -771,7 +784,8 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 				}
 			}
 			opts := eval.RunOptions{Agent: agent, RequestedModel: model, Parallel: parallel, Seed: seed, KeepWorkdirs: keep,
-				BintVersion: Version, ResumeBatch: resume}
+				BintVersion: Version, ResumeBatch: resume, PriorRunUSD: cfg.Eval.PriorRunUSD, RepeatMajor: true}
+			curBatch := resume // đợt đang chạy, cho callback Look
 			if cmd.Flags().Changed("budget") {
 				opts.BudgetUSD = &budget
 			} else if ev.BudgetUSD != nil {
@@ -876,23 +890,67 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 				if len(chosen) == 0 {
 					return fmt.Errorf("không tác vụ nào thuộc tập %s chịu ảnh hưởng của đề xuất; đề xuất không kiểm chứng định lượng được trên tập này", split)
 				}
-				if !cmd.Flags().Changed("repeats") {
-					repeats = ev.Repeats
-					if repeats <= 0 {
-						repeats = cfg.Eval.Repeats
-					}
-				}
-				if repeats < 1 {
-					return usageError{fmt.Errorf("--repeats phải >= 1")}
-				}
 				if seed == 0 {
 					seed = uint64(now.UnixNano())
+				}
+				// R cố định bởi --repeats hoặc evolution.evaluation.repeats > 0; ngược lại do PlanProbe chọn.
+				fixed := 0
+				switch {
+				case cmd.Flags().Changed("repeats"):
+					if repeats < 1 {
+						return usageError{fmt.Errorf("--repeats phải >= 1")}
+					}
+					fixed = repeats
+				case ev.Repeats > 0:
+					fixed = ev.Repeats
+				}
+				sequential := !regression && evolve.Sequential(p.Plan)
+				var seqNote string
+				if regression {
+					// Tập đại diện nhỏ (không nhằm phát hiện hiệu ứng): giữ cách cũ, không lập kế hoạch.
+					if repeats = fixed; repeats < 1 {
+						repeats = max(cfg.Eval.Repeats, 1)
+					}
+				} else {
+					effect := p.Plan.MinEffect
+					if p.Plan.Kind == "non_inferiority" {
+						effect = p.Plan.Margin
+					}
+					vm, err := eval.HistoricalVariance(ctx, e.st.DB, agent.Name(), ev.EffectSD)
+					if err != nil {
+						return err
+					}
+					in := eval.PlanInput{Available: len(chosen), Effect: effect, SigmaB: vm.SigmaB, SigmaBMeasured: vm.SigmaMeasured, W: vm.W, MaxRepeats: ev.MaxRepeats, FixedRepeats: fixed}
+					if avg, n, err := eval.HistoricalCost(ctx, e.st.DB, agent.Name(), model); err != nil {
+						return err
+					} else if n > 0 {
+						in.CostPerRun = avg
+					}
+					pp := eval.PlanProbe(in)
+					printProbePlan(w, pp, vm, in, sequential)
+					if !pp.Feasible && !force {
+						return withCode(ExitError, fmt.Errorf("kế hoạch không khả thi: với %d tác vụ và tối đa %d lần lặp chỉ phát hiện được chênh lệch từ %.1f điểm %% (cần %.1f); thêm tác vụ, nâng evolution.evaluation.min_effect/non_inferiority_margin, hoặc dùng --force để chạy vẫn",
+							len(chosen), pp.Repeats, 100*pp.MinDetectable, 100*effect))
+					}
+					repeats = pp.Repeats
+					if pp.Feasible && pp.Cases < len(chosen) {
+						// Chỉ chạy đủ số tác vụ cần: chọn ngẫu nhiên theo hạt giống để không thiên về ID.
+						rng := rand.New(rand.NewPCG(seed, 0x70726f62))
+						rng.Shuffle(len(chosen), func(i, j int) { chosen[i], chosen[j] = chosen[j], chosen[i] })
+						chosen = chosen[:pp.Cases]
+						slices.SortFunc(chosen, func(a, b *eval.Case) int { return strings.Compare(a.ID, b.ID) })
+					}
+					seqNote = fmt.Sprintf("%d tác vụ × %d lần lặp × 2 nhánh, tối đa %d lượt, %d điểm nhìn ở lần lặp %v",
+						len(chosen), repeats, len(chosen)*2*repeats, len(evolve.SeqLooks(repeats)), evolve.SeqLooks(repeats))
 				}
 				arms := []string{eval.ArmBase, eval.ArmCandidate}
 				opts.Cases, opts.Arms, opts.Repeats, opts.LeakageMode, opts.Seed = chosen, arms, repeats, mode, seed
 				opts.Notes = append(runNotes(chosen, mode, agent, bare), fmt.Sprintf("đối chiếu đề xuất %s (%s), cách đưa tri thức: %s, tập %s", p.ID, p.Action, delivery, split))
+				if sequential {
+					opts.Notes = append(opts.Notes, evolve.SeqNotePrefix+seqNote)
+				}
 				est, err := eval.EstimateRun(ctx, e.st.DB, eval.EstimateInput{Cases: len(chosen), Arms: arms, Repeats: repeats,
-					Harness: agent.Name(), Model: model, Effect: p.Plan.MinEffect})
+					Harness: agent.Name(), Model: model, Effect: p.Plan.MinEffect, EffectSD: ev.EffectSD})
 				if err != nil {
 					return err
 				}
@@ -915,6 +973,7 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 					record.CaseIDs = append(record.CaseIDs, c.ID)
 				}
 				opts.OnBatch = func(id string) error {
+					curBatch = id
 					record.BatchID = id
 					return evolve.RecordEvaluation(ctx, e.st.DB, &record)
 				}
@@ -932,6 +991,18 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 					fmt.Fprintf(w, "[%d/%d] %s %-9s #%d  %-8s%s\n", n, total, r.CaseID, r.Arm, r.Repeat, r.Status, attemptExtras(r))
 				}
 			}
+			// Điểm nhìn chỉ cho đợt tuần tự: đợt mới (đánh dấu ở ghi chú) hoặc đợt tiếp tục có đánh dấu đó.
+			if !regression && evolve.Sequential(p.Plan) && record.Kind != evolve.EvalRegression {
+				resumed := false
+				if resume != "" {
+					if b, err := eval.GetBatch(ctx, e.st.DB, resume); err == nil {
+						resumed = evolve.IsSequential(b)
+					}
+				}
+				if resume == "" || resumed {
+					opts.Look = evolve.NewLook(ctx, e.st.DB, p.Plan, func() string { return curBatch }, current)
+				}
+			}
 			res, runErr := eval.Run(ctx, e.env, e.st.DB, opts)
 			if res.BatchID == "" {
 				return runErr
@@ -946,12 +1017,31 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 			if err != nil {
 				return err
 			}
+			// Kích hoạt skill thực tế trong các lượt đối chiếu (đọc từ đầu ra của agent, không qua hook).
+			var activation []evolve.SkillActivation
+			if len(p.SkillChanges) > 0 {
+				var names []string
+				for _, c := range p.SkillChanges {
+					if c.Op == evolve.ActionCreate || c.Op == evolve.ActionUpdate {
+						names = append(names, c.Name)
+					}
+				}
+				if rows, aerr := eval.Attempts(ctx, e.st.DB, "batch_id = ?", res.BatchID); aerr == nil {
+					activation = evolve.ProbeActivation(rows, names)
+				}
+			}
 			if asJSON {
 				return writeJSON(w, map[string]any{"evaluation_id": record.ID, "batch_id": res.BatchID, "status": res.Status,
-					"verdict": v, "report": rep})
+					"verdict": v, "report": rep, "skill_activation": activation})
 			}
 			fmt.Fprintf(w, "\nĐợt %s: %s, %d/%d lượt\n", res.BatchID, res.Status, res.Done, res.Total)
+			if res.Status == eval.StatusStoppedEarly {
+				fmt.Fprintf(w, "Dừng sớm: %s\n", res.StopReason)
+			}
 			printReport(w, rep, false)
+			for _, a := range activation {
+				fmt.Fprintf(w, "  skill %s, nhánh %s: được gọi ở %d/%d lượt đo được\n", a.Skill, a.Arm, a.Activated, a.Measured)
+			}
 			fmt.Fprintf(w, "\nKết luận (%s, tập %s): %s — %s\n", p.Plan.Kind, orDash(record.Split), v.Verdict, v.Detail)
 			for _, n := range v.Notes {
 				fmt.Fprintf(w, "  lưu ý: %s\n", n)
@@ -967,7 +1057,8 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 	}
 	f := c.Flags()
 	f.StringVar(&split, "split", eval.SplitValidation, "tập tác vụ: validation (xác thực ứng viên) | test (kiểm tra độc lập)")
-	f.IntVar(&repeats, "repeats", 3, "số lần lặp mỗi nhánh (mặc định evolution.evaluation.repeats hoặc eval.repeats)")
+	f.IntVar(&repeats, "repeats", 3, "cố định số lần lặp mỗi nhánh (mặc định: evolution.evaluation.repeats nếu > 0, ngược lại do bộ lập kế hoạch chọn)")
+	f.BoolVar(&force, "force", false, "chạy dù kế hoạch không khả thi (không phát hiện được mức hiệu ứng đã chọn)")
 	f.Float64Var(&budget, "budget", 0, "ngân sách USD (mặc định evolution.evaluation.budget_usd)")
 	f.IntVar(&limit, "limit", 0, "số tác vụ tối đa (0 = mọi tác vụ chịu ảnh hưởng)")
 	f.BoolVarP(&yes, "yes", "y", false, "không hỏi xác nhận")
@@ -985,6 +1076,34 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 	f.BoolVar(&prospective, "prospective", false, "chỉ dùng tác vụ có commit sau khi đề xuất được tạo (không rủi ro rò rỉ; cần khai thác tác vụ mới)")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
+}
+
+// printProbePlan in kế hoạch Probe trước khi chạy: số tác vụ, R, số lượt và chi phí tối đa,
+// kèm kỳ vọng nếu dừng sớm (giả định thô: điểm dừng phân bố đều trên các điểm nhìn).
+func printProbePlan(w io.Writer, pp eval.ProbePlan, vm eval.VarModel, in eval.PlanInput, sequential bool) {
+	fmt.Fprintf(w, "Kế hoạch Probe: σ²(R) = σ_b² + W/R; W = %.2f (%s); σ_b = %.2f (%s)\n", vm.W, vm.WSource, vm.SigmaB, vm.SigmaSource)
+	if pp.SigmaB > vm.SigmaB+1e-9 {
+		fmt.Fprintf(w, "  σ_b nâng lên %.2f (sàn mô hình lật √(δ(1−δ))·(1−W/0,5): tác vụ gần tất định nên hiệu ứng là lật hẳn một phần tác vụ)\n", pp.SigmaB)
+	}
+	if !pp.Feasible {
+		fmt.Fprintf(w, "  KHÔNG KHẢ THI: %d tác vụ sẵn có, R = %d (σ = %.2f) chỉ phát hiện được chênh lệch từ %.1f điểm %% (cần %.1f điểm %%)\n",
+			in.Available, pp.Repeats, pp.Sigma, 100*pp.MinDetectable, 100*in.Effect)
+		return
+	}
+	fmt.Fprintf(w, "  %d tác vụ (trong %d sẵn có) × %d lần lặp × 2 nhánh = tối đa %d lượt (σ = %.2f, phát hiện chênh lệch %.1f điểm %%)\n",
+		pp.Cases, in.Available, pp.Repeats, pp.MaxRuns, pp.Sigma, 100*in.Effect)
+	frac := 1.0
+	if sequential {
+		k := len(evolve.SeqLooks(pp.Repeats))
+		frac = float64(k+1) / float64(2*k)
+		fmt.Fprintf(w, "  %d điểm nhìn ở lần lặp %v; kỳ vọng ~%.0f lượt nếu dừng sớm (giả định thô: điểm dừng phân bố đều)\n",
+			k, evolve.SeqLooks(pp.Repeats), frac*float64(pp.MaxRuns))
+	}
+	if pp.CostKnown {
+		fmt.Fprintf(w, "  chi phí tối đa ~$%.2f, kỳ vọng ~$%.2f\n", pp.MaxCost, frac*pp.MaxCost)
+	} else {
+		fmt.Fprintln(w, "  chi phí: chưa có lịch sử chi phí của harness để ước tính")
+	}
 }
 
 func firstClause(s string) string {

@@ -155,6 +155,22 @@ type Eval struct {
 	Arms                  []string `yaml:"arms"`
 	LeakageMode           string   `yaml:"leakage_mode"`
 	BudgetUSD             *float64 `yaml:"budget_usd"`
+	// PriorRunUSD: chi phí tiên nghiệm mỗi lượt khi chưa có lịch sử đo được (lượt đầu của
+	// đợt đầu tiên). Chọn thận trọng ($0,50) để lượt đầu không chạy lọt ngân sách nhỏ; từ
+	// khi có lượt thật thì dùng chi phí đo được. 0 = tắt (không chặn lượt đầu).
+	PriorRunUSD float64 `yaml:"prior_run_usd"`
+	// Kho đệm commit gốc (<eval-work>/bases). Mặc định dọn khi mọi lượt dùng base đã xong.
+	// KeepBases giữ kho giữa các đợt (nhanh hơn, tốn đĩa: ~60 MB/base trên monorepo).
+	KeepBases bool `yaml:"keep_bases"`
+	// BaseCacheMaxMB: khi KeepBases, trần tổng dung lượng kho đệm (xoá kho dùng lâu nhất
+	// trước); 0 = không giới hạn.
+	BaseCacheMaxMB int `yaml:"base_cache_max_mb"`
+	// BaseDepth: số commit nạp cho kho đệm; 0 = đầy đủ lịch sử (mặc định, để số liệu so
+	// sánh được với các đợt cũ). > 0 nạp nông, nhỏ hơn nhiều nhưng agent mất `git log` sâu.
+	BaseDepth int `yaml:"base_depth"`
+	// MinFreeMB: dung lượng trống tối thiểu còn lại sau khi tạo một kho đệm; thiếu thì dừng
+	// có thông báo thay vì làm đầy đĩa giữa đợt chạy.
+	MinFreeMB int `yaml:"min_free_mb"`
 	// Harness dùng để chạy tác vụ đánh giá (claude | codex | antigravity).
 	Harness        string `yaml:"harness"`
 	TimeoutMinutes int    `yaml:"timeout_minutes"`
@@ -264,6 +280,9 @@ type EvolutionDeferred struct {
 type EvolutionTrigger struct {
 	MinSimilarRuns int `yaml:"min_similar_runs"`
 	MinNewEvidence int `yaml:"min_new_evidence"`
+	// GroupDepth: số cấp thư mục đầu của khu vực mã khi nhóm tác vụ (mục 10.3); 0 = 2. Nhóm
+	// chiếm quá nửa số lượt tự được hạ sâu thêm để tách monorepo.
+	GroupDepth int `yaml:"group_depth"`
 }
 
 type EvolutionEvaluation struct {
@@ -277,8 +296,14 @@ type EvolutionEvaluation struct {
 	// NonInferiorityMargin: tỷ lệ đạt được phép giảm tối đa (cận dưới CI95) khi thước đo
 	// chính không phải tỷ lệ đạt, hoặc khi loại bỏ tri thức.
 	NonInferiorityMargin float64 `yaml:"non_inferiority_margin"`
-	// Repeats: số lần lặp mỗi nhánh (0 = eval.repeats).
+	// Repeats: số lần lặp mỗi nhánh. 0 = để bộ lập kế hoạch Probe chọn R (1..MaxRepeats)
+	// sao cho tổng số lượt thấp nhất; > 0 = cố định R.
 	Repeats int `yaml:"repeats"`
+	// MaxRepeats: R tối đa mà bộ lập kế hoạch được chọn.
+	MaxRepeats int `yaml:"max_repeats"`
+	// EffectSD (σ_b): độ lệch chuẩn giữa các tác vụ của hiệu ứng thật, dùng khi lịch sử
+	// không đủ để ước lượng (dữ liệu một nhánh không xác định được đại lượng này).
+	EffectSD float64 `yaml:"effect_sd"`
 	// BudgetUSD: ngân sách đã duyệt cho một lần đối chiếu (Probe); null = chưa duyệt.
 	BudgetUSD *float64 `yaml:"budget_usd"`
 	// Delivery: cách đưa tri thức tới agent ở cả hai nhánh: bint (Context Engine) | minimal (AGENTS.md).
@@ -325,6 +350,8 @@ func Default() Config {
 			Repeats:        3,
 			Arms:           []string{"none", "minimal", "bint"},
 			LeakageMode:    "strict",
+			PriorRunUSD:    0.5,
+			MinFreeMB:      1024,
 			Harness:        "claude",
 			TimeoutMinutes: 30,
 			MinimalContext: ".bint/evals/minimal.md",
@@ -345,8 +372,8 @@ func Default() Config {
 			Mode:      "propose",
 			Execution: "manual", Deferred: EvolutionDeferred{MaxPerRun: 2},
 			Trigger: EvolutionTrigger{MinSimilarRuns: 3, MinNewEvidence: 2},
-			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2, Metric: "pass_rate", MinEffect: 0.10,
-				NonInferiorityMargin: 0.05, Delivery: "bint", LeakageMode: "economy"},
+			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2, Metric: "pass_rate", MinEffect: 0.15,
+				NonInferiorityMargin: 0.10, MaxRepeats: 8, EffectSD: 0.15, Delivery: "bint", LeakageMode: "economy"},
 			Adoption: EvolutionAdoption{BindToModelVersion: true},
 		},
 		Workflow: Workflow{
@@ -546,6 +573,12 @@ func (c Config) Validate() error {
 	if c.Eval.BudgetUSD != nil && *c.Eval.BudgetUSD < 0 {
 		add("eval.budget_usd: không được âm")
 	}
+	if c.Eval.BaseCacheMaxMB < 0 || c.Eval.BaseDepth < 0 || c.Eval.MinFreeMB < 0 {
+		add("eval.base_cache_max_mb, eval.base_depth, eval.min_free_mb: không được âm")
+	}
+	if c.Eval.PriorRunUSD < 0 {
+		add("eval.prior_run_usd: không được âm")
+	}
 	if !slices.Contains(KnownHarnesses, c.Eval.Harness) {
 		add("eval.harness: harness không hỗ trợ %q (hỗ trợ: %s; --agent-command cho tác nhân tuỳ chỉnh)", c.Eval.Harness, strings.Join(KnownHarnesses, ", "))
 	}
@@ -619,6 +652,12 @@ func (c Config) Validate() error {
 		}
 		if ev.Repeats < 0 {
 			add("evolution.evaluation.repeats: phải >= 0")
+		}
+		if ev.MaxRepeats < 1 {
+			add("evolution.evaluation.max_repeats: phải >= 1")
+		}
+		if ev.EffectSD <= 0 || ev.EffectSD >= 1 {
+			add("evolution.evaluation.effect_sd: phải trong khoảng (0, 1)")
 		}
 		if ev.BudgetUSD != nil && *ev.BudgetUSD <= 0 {
 			add("evolution.evaluation.budget_usd: phải > 0 hoặc null")

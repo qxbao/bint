@@ -16,7 +16,7 @@ Ngày: 2026-11-10. Phạm vi: các đợt đo Bint P1/gate 1/gate 2 trên reposi
 ### Quyết định
 
 1. Giữ mục tiêu biên dịch Go không phụ thuộc CGO. Go có thể tiếp tục dùng `go/parser` cho ký hiệu; không gắn nhãn phương án này là tree-sitter.
-2. Pilot Bflow dùng `context.freshness.fingerprint: hunk` trong cấu hình cục bộ của bản sao thí nghiệm. Khi tạo tri thức cho đợt đo, bằng chứng phải có `path:a-b` rõ ràng để thật sự có mức `lines:`. Kiểm tra mức thực tế đã lưu, không suy ra từ tên cấu hình.
+2. Pilot Codex (repository A) dùng `context.freshness.fingerprint: hunk` trong cấu hình cục bộ của bản sao thí nghiệm. Khi tạo tri thức cho đợt đo, bằng chứng phải có `path:a-b` rõ ràng để thật sự có mức `lines:`. Kiểm tra mức thực tế đã lưu, không suy ra từ tên cấu hình.
 3. Ngoài Go, heuristic ký hiệu chỉ là khả năng hỗ trợ hạn chế, không được dùng làm bằng chứng đã đáp ứng trọn yêu cầu tree-sitter/P3. Không đổi mức/băm của tri thức cũ trong lúc đo; mỗi mục được kiểm tra theo fingerprint đã lưu.
 4. Khi không xác định được vùng đáng tin cậy, dùng phạm vi tệp hoặc cảnh báo/chuyển stale; không tự tuyên bố mục còn đúng chỉ vì tìm thấy tên ký hiệu.
 5. Quy tắc rủi ro cao (`rule`, `warning`) đã stale cần người duyệt lại; nhận định agent không tự thay thế phê duyệt. Các phép đo không được tự nâng candidate bootstrap thành quy tắc bắt buộc đã verified.
@@ -52,10 +52,10 @@ Phần còn thiếu không ngăn một pilot được chấm bằng kiểm thử
 - Với Codex hiện tại, gate 1 thiếu chỉ số USD/`num_turns` của Bint; gate 2 thiếu dữ liệu cho ràng buộc chi phí và nhánh Codex chỉ có MCP + AGENTS.md, không có path hook trong đợt đánh giá.
 - Có thể chạy pilot đo tỷ lệ đạt/thời gian/token, nhưng không tự thay chúng vào chỉ số gate đã chọn. Muốn thay thước đo phải chốt một giao thức mới trước đợt đo tiếp theo; kết quả đã nhìn thấy chỉ dùng để thăm dò/ước tính, không để hợp thức hoá ngưỡng mới hồi tố.
 
-## Bằng chứng của pilot Bflow
+## Bằng chứng của pilot Codex
 
-- Source được chốt tại `9d071abe858606b526cffcb087a233763df0a956`, Bint tại `b5896a4c41737f5eea953f0018c400b432d30eaa`.
-- Hai snapshot strict tại các commit cha `5cbab0535230…` và `067dbfd57973…`, mỗi snapshot 4 mục; cả 8 mục đều giữ trạng thái candidate.
+- Bint tại `b5896a4c41737f5eea953f0018c400b432d30eaa`.
+- Hai snapshot strict tại hai commit cha của tác vụ, mỗi snapshot 4 mục; cả 8 mục đều giữ trạng thái candidate.
 - Kiểm tra dữ liệu thật đã lưu: 21 bằng chứng đều có fingerprint `lines:`, không có mục tự được nâng verified.
 - `go test -count=1 ./internal/symbols ./internal/knowledge ./internal/runlog` qua trên source Bint nói trên. Đây là xác minh cục bộ cho hành vi đang được viện dẫn, không phải chứng minh parser TypeScript chính xác.
-- Protocol, kiểm chứng tác vụ và báo cáo lượt chạy được lưu trong `docs/evals/bflow-codex-2026-11-10/`.
+- Số liệu lượt chạy và báo cáo được lưu trong `docs/evals/pilot-codex-2026-11-10/`.

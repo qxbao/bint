@@ -142,7 +142,7 @@ P0 đủ bằng chứng chức năng trên nền tảng Linux được kiểm tr
 
 | Hạng mục | Kết quả / bằng chứng |
 |---|---|
-| eval mine | Có; unit/integration và pilot thật khai thác 562 ứng viên Bflow |
+| eval mine | Có; unit/integration và pilot thật khai thác 562 ứng viên (repository A) |
 | Môi trường tại base cô lập | Có; kho Git riêng không chứa commit lời giải; integrity tests qua |
 | Viết lại đề/kiểm rò rỉ/duyệt tác vụ | Có cơ chế; cặp đề bài–oracle của pilot còn cần owner review |
 | Nhiều nhánh/lần lặp/một harness | Có; tests hiện tại qua, pilot Codex thật đã lưu |
@@ -151,7 +151,7 @@ P0 đủ bằng chứng chức năng trên nền tảng Linux được kiểm tr
 | strict/economy | Có; integrity tests và probe A3 cũ qua |
 | Baseline thực tế | Có pilot thật; mới 2 tác vụ validation ×3, chưa đủ “tập tác vụ đủ lớn” |
 
-Pilot Bflow hiện có được chạy bằng Bint `b5896a4`, không được ghi là một lượt đo lại của `137dbf9`. Nó chứng minh đường chạy thật, đồng thời cho thấy thiếu cỡ mẫu và vấn đề oracle; không đủ ký P1 thực nghiệm.
+Pilot Codex hiện có được chạy bằng Bint `b5896a4`, không được ghi là một lượt đo lại của `137dbf9`. Nó chứng minh đường chạy thật, đồng thời cho thấy thiếu cỡ mẫu và vấn đề oracle; không đủ ký P1 thực nghiệm.
 
 ### P2
 
