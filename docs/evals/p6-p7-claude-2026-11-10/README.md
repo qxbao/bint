@@ -1,6 +1,6 @@
 # Số liệu P6–P7 (Claude Code, Sonnet) — chuẩn bị quyết định mở P8
 
-**Ngày:** 2026-11-10. **Bint:** `dff6570` cộng bản sửa đặc tả đề bài (chưa commit lúc đo). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$8,2 (USD do harness báo).
+**Ngày:** 2026-11-10. **Bint:** `dff6570` cộng bản sửa đặc tả đề bài (chưa commit lúc đo). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$14,3 (USD do harness báo).
 
 **Kết luận:** chưa đạt nghiệm thu P6 và P7; **chưa mở P8**. Có hai nút thắt. Thứ nhất, tỷ lệ đạt nền trên tác vụ thật gần 0 do đề bài thiếu đặc tả; đã có bản sửa và bản sửa cho thấy hiệu quả. Thứ hai, chi phí Probe ở cỡ mẫu cần thiết rất lớn.
 
@@ -63,6 +63,62 @@ Khi mọi nhánh cùng 0 %, không đề xuất tri thức hay skill nào đo đ
 `bint eval mine` và lệnh mới `bint eval spec` nối vào đề bài **chữ ký** (không có thân hàm, không có giá trị hằng) của những định danh vừa mới trong lời giải vừa được test dùng tới. Lệnh cũng cảnh báo `interface_gap`, `exact_text` và `short_prompt`. Trên 92 tác vụ: 42 tác vụ được nối chữ ký, 39 tác vụ không còn cảnh báo nào.
 
 Kiểm tra nhanh trên 3 tác vụ có chữ ký và không còn cảnh báo (nhánh `none`, 2 lần lặp, $1,86): **2/6 lượt đạt**, trước đó 0/12 trên các tác vụ cùng loại. Tác vụ từng trượt vì `AttributeError` giờ chạy tới phần kiểm hành vi; nó vẫn trượt, nhưng là trượt thật về hành vi. Mẫu này rất nhỏ: nó chỉ cho thấy tác vụ đã trở nên giải được, chưa phải ước lượng tỷ lệ đạt nền.
+
+## Đo lại tỷ lệ đạt nền sau bản sửa (bước 3)
+
+Bint `04d6b2c`, gồm bản sửa đặc tả và các bản sửa F2/F4, F5, F6, F10, F13.
+- **Cấu hình:** nhánh `none`, 1 lần lặp, Sonnet.
+- **Tập đo:** 30 tác vụ build và validation của repository B. Trong đó 24 tác vụ không còn cảnh báo đặc tả và 6 tác vụ chỉ có cảnh báo `short_prompt`. Tập test không dùng tới.
+
+| | Giá trị |
+|---|---|
+| Tỷ lệ đạt | **10/30 = 33 %** (Wilson CI95 ~19–51 %) |
+| Chi phí | $6,05; **$0,20/lượt** |
+| Thời gian | trung vị ~40 s/lượt; một lượt dài 17,7 phút (agent tự chạy bộ test lớn) |
+| Lỗi hạ tầng | 0 |
+| Bộ đệm `eval-work` sau đợt | 2,5 MB (trước bản sửa F10: 4,8 GB với 80 tác vụ) |
+
+Phân loại 20 lượt trượt, đọc từ log test (không tốn thêm chi phí):
+- **~11 lượt sai hành vi thật:** bỏ sót trường hợp biên hoặc sai logic. Đây là phần tri thức L1 và skill L2 có thể giúp.
+- **~9 lượt trượt vì "hợp đồng ẩn" mà đặc tả chưa bắt được:**
+  - chuỗi so khớp nguyên văn không có khoảng trắng (`exact_text` bỏ sót);
+  - định dạng đối số dòng lệnh;
+  - khoá trong tệp cấu hình YAML;
+  - thuộc tính module do test thay thế (`interface_gap` bỏ sót vì định danh không nằm trong mã).
+
+  Nếu loại nhóm này, tỷ lệ đạt trên tác vụ thực sự đủ đặc tả là khoảng 10/21, tức gần 50 %.
+
+## Khả thi của P8 trên lý thuyết
+
+**Mô hình:** đối chiếu ghép cặp theo tác vụ, R lần lặp mỗi nhánh.
+- Phương sai của chênh lệch theo tác vụ: σ² = σ_b² + 2p(1−p)/R, với p ≈ 0,4 và σ_b là độ lệch giữa các tác vụ (giả định 0,15–0,25).
+- Cỡ mẫu: n = (2,8·σ/δ)², ứng với α = 0,05 và power 0,8.
+- Đơn giá: $0,20 mỗi lượt.
+
+| Mức cải thiện δ | R | Tác vụ cần | Chi phí một Probe |
+|---:|---:|---:|---:|
+| +10 điểm % | 2 | 206–238 | $165–190 |
+| +10 điểm % | 8 | 65–97 | $210–310 |
+| +15 điểm % | 4 | 50–64 | $80–100 |
+| +15 điểm % | 8 | 29–43 | $95–140 |
+| +20 điểm % | 4 | 28–36 | $45–58 |
+| +20 điểm % | 8 | 17–25 | $54–80 |
+
+**Nút thắt là nguồn tác vụ, không phải tiền.** Ước tính nguồn tác vụ của repository B:
+- 892 ứng viên × ~90 % kiểm chứng được × ~45 % đủ đặc tả ≈ 360 tác vụ dùng được.
+- Tập validation chiếm 25 %, tức ≈ 90 tác vụ.
+- Sau lọc phạm vi và bằng chứng của từng đề xuất (đo được 24 % trước bản sửa F2/F4; ước 40–50 % sau bản sửa), mỗi đề xuất còn **khoảng 20–45 tác vụ**.
+
+Với nguồn tác vụ đó:
+- **+10 điểm %:** không khả thi ở quy mô một repository, vì thiếu tác vụ ở bất kỳ R nào.
+- **+15 đến +20 điểm %:** khả thi khi tăng số lần lặp (R = 4–8). Mỗi Probe tốn ~$50–140, mỗi vòng Propose–Probe–Compose (~3 Probe) ~$150–400.
+- **Mức cải thiện thực tế:** một mục tri thức ít khi nâng +15 điểm % trên toàn tập. Nhưng Probe chỉ tính tác vụ trong phạm vi của đề xuất, nên trong phạm vi hẹp, mức đó có thể xảy ra.
+
+**Kết luận:** P8 khả thi có điều kiện, nhưng **chưa sẵn sàng**. Cần:
+1. Thiết kế Probe theo hướng ít tác vụ, nhiều lần lặp, cho phép dừng sớm theo phương pháp tuần tự. Mục tiêu nhắm δ ≥ 15 điểm % trong phạm vi đề xuất. Mức +10 điểm % chỉ dùng làm ngưỡng không kém (non-inferiority), không làm ngưỡng chấp nhận.
+2. Đo σ_b thật bằng các lần lặp bổ sung trên cùng tập tác vụ. σ_b đang là giả định và quyết định toàn bộ bảng trên.
+3. Mở rộng phát hiện hợp đồng ẩn (chuỗi ngắn, khoá cấu hình, thuộc tính module), rồi kiểm chứng và duyệt thêm tác vụ để mỗi đề xuất có ≥ 30 tác vụ.
+4. Đặt ngân sách mỗi vòng khoảng $150–400 và chấp nhận rằng P8 chỉ phát hiện được cải thiện lớn.
 
 ## Phát hiện về Bint
 
