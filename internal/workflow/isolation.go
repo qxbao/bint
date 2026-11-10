@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"bint/internal/knowledge"
 	"bint/internal/state"
 )
 
@@ -113,8 +114,9 @@ func (l *WriteLock) Release() {
 }
 
 // WorktreeSnapshot trả về mã cây (git tree) đại diện cho toàn bộ cây làm việc: tệp
-// đã theo dõi và tệp mới chưa bị .gitignore loại, trừ .bint/knowledge/ (ứng viên
-// tri thức do CLI bint ghi). Cấu hình, skill, tập đánh giá trong .bint/ vẫn được bảo vệ. Dùng chỉ mục tạm nên không đụng tới chỉ mục của người dùng.
+// đã theo dõi và tệp mới chưa bị .gitignore loại, kể cả .bint/knowledge/: việc tạo
+// ứng viên tri thức mới được phân loại riêng bởi ReadonlyViolations, còn sửa/xoá mục
+// đã có vẫn bị tính là vi phạm. Dùng chỉ mục tạm nên không đụng tới chỉ mục của người dùng.
 func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 	tmp, err := os.CreateTemp("", "bint-index-*")
 	if err != nil {
@@ -138,7 +140,7 @@ func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 		}
 		return strings.TrimSpace(string(out)), nil
 	}
-	if _, err := run("add", "-A", "--", ".", ":(exclude).bint/knowledge"); err != nil {
+	if _, err := run("add", "-A", "--", "."); err != nil {
 		return "", err
 	}
 	return run("write-tree")
@@ -159,6 +161,38 @@ func ChangedPaths(ctx context.Context, root, before, after string) []string {
 		}
 	}
 	return ps
+}
+
+// ReadonlyViolations trả về các đường dẫn đổi giữa hai ảnh chụp mà bước chỉ đọc
+// không được phép đổi. Ngoại lệ duy nhất: tệp tri thức MỚI (chưa có ở ảnh trước) trong
+// thư mục items, hợp lệ và ở trạng thái candidate. Sửa/xoá mục có sẵn, hoặc tệp mới tự
+// gán status khác candidate đều là vi phạm.
+func ReadonlyViolations(ctx context.Context, root, before, after string) []string {
+	cmd := exec.CommandContext(ctx, "git", "diff", "--name-status", "--no-renames", "-z", before, after)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return ChangedPaths(ctx, root, before, after)
+	}
+	var bad []string
+	f := strings.Split(string(out), "\x00")
+	for i := 0; i+1 < len(f); i += 2 {
+		st, p := f[i], f[i+1]
+		if st == "A" && strings.HasPrefix(p, knowledge.ItemsRel+"/") && newCandidateFile(root, p) {
+			continue
+		}
+		bad = append(bad, p)
+	}
+	return bad
+}
+
+func newCandidateFile(root, rel string) bool {
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+	if err != nil {
+		return false
+	}
+	it, err := knowledge.Parse(b)
+	return err == nil && it.Status == knowledge.StatusCandidate
 }
 
 // stateDirs là thư mục trạng thái Bint mà agent cần ghi (lệnh bint task …, spool).

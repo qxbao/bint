@@ -13,6 +13,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/eval"
 	adapters "bint/internal/harness"
+	"bint/internal/knowledge"
 	"bint/internal/runlog"
 	"bint/internal/store"
 	"bint/internal/task"
@@ -370,7 +371,7 @@ func TestReadOnlyStepModifyingTreeFails(t *testing.T) {
 	h := newHarness(t)
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 		if step == StepReview {
-			h.write(".bint/knowledge/x.md", "ứng viên do bint ghi\n") // .bint/ không tính
+			knowledge.NewStore(h.root).Save(newItem(knowledge.StatusCandidate)) // candidate mới do bint ghi: không tính
 			h.write("app.txt", "sửa lén\n")
 		}
 		return h.happy(ctx, step, e, id)
