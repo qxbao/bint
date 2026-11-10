@@ -80,14 +80,14 @@ bint eval report <batch> --json > gate1-<repo>.json
 
 | Mục | Giá trị |
 |---|---|
-| Ngưỡng được chốt bởi | orca <dquanbao@gmail.com>, 2026-11-10 |
+| Ngưỡng được chốt bởi | chủ dự án Bint, 2026-11-10 |
 | Commit chốt | `39d10f573008819a350e3130a57432d075c95a13` |
 | Repository thử nghiệm | _(chưa)_ |
 
 ## Kết quả
 
-Pilot Codex thật trên Bflow ngày 2026-11-10 được ghi tại
-[báo cáo và artifact](evals/bflow-codex-2026-11-10/README.md).
+Pilot Codex thật trên repository A (TypeScript) ngày 2026-11-10 được ghi tại
+[báo cáo và artifact](evals/pilot-codex-2026-11-10/README.md).
 Baseline P1 hoàn tất 6 lượt trên 2 tác vụ validation, đạt 3/6 lượt (50%),
 CI95 [0%, 100%]. Đợt so sánh đã hoàn tất 18 lượt: none, minimal và bint đều đạt 3/6 lượt (50%).
 Chênh lệch minimal−none là 0 điểm % trong mẫu; đây chưa phải phép đo gate chính thức.

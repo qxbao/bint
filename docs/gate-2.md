@@ -81,15 +81,15 @@ bint eval report <batch> --json > gate2-<repo>.json
 
 | Mục | Giá trị |
 |---|---|
-| Ngưỡng được chốt bởi | orca <dquanbao@gmail.com>, 2026-11-10 |
+| Ngưỡng được chốt bởi | chủ dự án Bint, 2026-11-10 |
 | Thước đo chính đã chọn | tỷ lệ đạt (`bint − minimal`, cận dưới CI95 > 0); ràng buộc chi phí ≤ +25 % |
 | Commit chốt | `9135dfa5528b2d42e62adbda75b318ede819a6ec` |
 | Repository thử nghiệm | _(chưa)_ |
 
 ## Kết quả
 
-Pilot Codex thật trên Bflow ngày 2026-11-10 được ghi tại
-[báo cáo và artifact](evals/bflow-codex-2026-11-10/README.md).
+Pilot Codex thật trên repository A (TypeScript) ngày 2026-11-10 được ghi tại
+[báo cáo và artifact](evals/pilot-codex-2026-11-10/README.md).
 Nhánh `bint` trong pilot dùng cùng snapshot strict với `minimal`, qua MCP + AGENTS.md;
 đây là thăm dò kỹ thuật, chưa phải phép đo đủ điều kiện mở gate 2.
 Đợt so sánh đã hoàn tất: bint và minimal cùng đạt 3/6 lượt (50%);
