@@ -57,6 +57,7 @@ func scanSkills(in ScanInput, h *History, groups map[string]*Group, minRuns int,
 		g := groups[mod]
 		var good []string
 		touch := map[string]*FileStat{}
+		support := map[string][]string{}
 		for _, r := range g.runs {
 			if r.Label != runlog.LabelSuccess {
 				continue
@@ -67,6 +68,7 @@ func scanSkills(in ScanInput, h *History, groups map[string]*Group, minRuns int,
 					touch[f] = &FileStat{Path: f}
 				}
 				touch[f].Runs++
+				support[f] = append(support[f], r.ID)
 			}
 		}
 		var files []FileStat
@@ -75,12 +77,13 @@ func scanSkills(in ScanInput, h *History, groups map[string]*Group, minRuns int,
 				files = append(files, *touch[f])
 			}
 		}
+		files = append(files, siblingStats(support, minRuns, covers)...)
 		if len(files) == 0 || len(good) < minRuns || g.Failure*2 > g.Labeled {
 			continue
 		}
 		o := Opportunity{Key: "skill:" + mod, Level: LevelL2, Kind: KindSkillCandidate, Action: ActionCreate, Generator: GenAgent,
 			Group: mod, Files: topFiles(files, 8), SupportingRuns: good}
-		o.Summary = fmt.Sprintf("%d lượt thành công trong %s chạm cùng %d tệp (≥ %d lượt/tệp) mà chưa có skill nào bao phủ: gói quy trình thành skill chuyên biệt",
+		o.Summary = fmt.Sprintf("%d lượt thành công trong %s chạm cùng %d tệp hoặc nhóm tệp anh em (≥ %d lượt mỗi đơn vị) mà chưa có skill nào bao phủ: gói quy trình thành skill chuyên biệt",
 			len(good), mod, len(files), minRuns)
 		add(o, minRuns)
 	}
