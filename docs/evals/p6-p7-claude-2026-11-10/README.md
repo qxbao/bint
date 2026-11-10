@@ -1,8 +1,8 @@
 # Số liệu P6–P7 (Claude Code, Sonnet) — chuẩn bị quyết định mở P8
 
-**Ngày:** 2026-11-10. **Bint:** `dff6570` cộng bản sửa đặc tả đề bài (chưa commit lúc đo). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$14,3 (USD do harness báo).
+**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$19,9 (USD do harness báo).
 
-**Kết luận:** chưa đạt nghiệm thu P6 và P7; **chưa mở P8**. Có hai nút thắt. Thứ nhất, tỷ lệ đạt nền trên tác vụ thật gần 0 do đề bài thiếu đặc tả; đã có bản sửa và bản sửa cho thấy hiệu quả. Thứ hai, chi phí Probe ở cỡ mẫu cần thiết rất lớn.
+**Kết luận:** chưa đạt nghiệm thu P6 và P7. Về lý thuyết P8 **khả thi có điều kiện**. Tỷ lệ đạt nền sau bản sửa đặc tả là 33–40 %. Với thiết kế Probe mới (ít tác vụ, lặp theo kế hoạch, dừng sớm), mức cải thiện +15–20 điểm % phát hiện được với ~30 tác vụ mỗi đề xuất, tốn ≤ $25–60 mỗi lần đối chiếu. Nút thắt còn lại là số tác vụ đã duyệt, cùng một lần Probe thật để đo σ_b (mục cuối).
 
 ## Repository thử nghiệm
 
@@ -88,37 +88,63 @@ Phân loại 20 lượt trượt, đọc từ log test (không tốn thêm chi p
 
   Nếu loại nhóm này, tỷ lệ đạt trên tác vụ thực sự đủ đặc tả là khoảng 10/21, tức gần 50 %.
 
+## Đo phương sai (lặp lại trên cùng 30 tác vụ)
+
+Đợt thứ hai (nhánh `none`, cùng 30 tác vụ, $5,60) đạt **12/30**, tương đương đợt đầu (10/30).
+
+Ghép hai lượt theo tác vụ:
+- 16 tác vụ trượt cả hai lượt, 8 tác vụ đạt cả hai, 6 tác vụ một đạt một trượt.
+- **80 % tác vụ cho cùng kết quả** ở hai lượt.
+- Phương sai trong tác vụ đo được: **W = 0,20**. Mức giả định cho biến nhị phân với p ≈ 0,37 là 2p(1−p) = 0,46.
+
+Hệ quả:
+1. Tác vụ gần tất định, nên lặp nhiều lần mỗi tác vụ chỉ giảm được phần nhiễu nhỏ.
+2. Một đề xuất có tác dụng sẽ chủ yếu "lật" hẳn một phần tác vụ từ trượt sang đạt, nên phương sai giữa tác vụ xấp xỉ δ(1−δ). Giá trị σ_b = 0,15 giả định trước đó là quá lạc quan.
+
+Bộ lập kế hoạch nay lấy sàn σ_b = √(δ(1−δ))·(1 − W/0,5) khi σ_b chưa đo được từ dữ liệu ghép cặp.
+
+## Nguồn tác vụ sau bản mở rộng đặc tả
+
+`bint eval spec` bản mới bắt thêm bốn loại hợp đồng ẩn: chuỗi ngắn đặc thù, cờ dòng lệnh, khoá cấu hình/khoá dữ liệu, và tên bị monkeypatch.
+
+Trên 27 tác vụ đã chạy:
+- **Precision 4/4:** không tác vụ nào trong 19 tác vụ trượt vì hành vi hoặc đã đạt bị cảnh báo nhầm.
+- **Recall 4/8** với nhóm trượt vì hợp đồng ẩn. Bốn ca còn sót gồm cặp cờ + giá trị đã có ở base, chuỗi nằm ngoài tệp lời giải, và hành vi đệm.
+
+Trên toàn bộ 892 ứng viên:
+- **293 tác vụ (33 %) đủ đặc tả**, không còn cảnh báo.
+- 92 tác vụ đã duyệt chia theo tập: build 15 sạch + 3 chỉ có `short_prompt`; validation 8 + 3; test 10 + 4.
+
+Ước tính nguồn tác vụ:
+- Tối đa: 892 × ~90 % kiểm chứng được × 33 % ≈ 265 tác vụ dùng được, tức ≈ 66 tác vụ mỗi tập validation/test.
+- Sau lọc phạm vi và bằng chứng theo đề xuất: **≈ 16–33 tác vụ mỗi đề xuất**.
+
 ## Khả thi của P8 trên lý thuyết
 
-**Mô hình:** đối chiếu ghép cặp theo tác vụ, R lần lặp mỗi nhánh.
-- Phương sai của chênh lệch theo tác vụ: σ² = σ_b² + 2p(1−p)/R, với p ≈ 0,4 và σ_b là độ lệch giữa các tác vụ (giả định 0,15–0,25).
+**Mô hình:**
+- σ²(R) = σ_b² + W/R, với W = 0,20 đo được và σ_b lấy theo sàn mô hình lật.
 - Cỡ mẫu: n = (2,8·σ/δ)², ứng với α = 0,05 và power 0,8.
 - Đơn giá: $0,20 mỗi lượt.
+- Bộ lập kế hoạch chọn R rẻ nhất mà n vừa với số tác vụ sẵn có.
 
-| Mức cải thiện δ | R | Tác vụ cần | Chi phí một Probe |
-|---:|---:|---:|---:|
-| +10 điểm % | 2 | 206–238 | $165–190 |
-| +10 điểm % | 8 | 65–97 | $210–310 |
-| +15 điểm % | 4 | 50–64 | $80–100 |
-| +15 điểm % | 8 | 29–43 | $95–140 |
-| +20 điểm % | 4 | 28–36 | $45–58 |
-| +20 điểm % | 8 | 17–25 | $54–80 |
+Chi phí trong bảng là **chi phí tối đa** khi chạy đủ R. Đối chiếu tuần tự dừng sớm khi kết quả đã rõ, nên chi phí thực tế thường thấp hơn.
 
-**Nút thắt là nguồn tác vụ, không phải tiền.** Ước tính nguồn tác vụ của repository B:
-- 892 ứng viên × ~90 % kiểm chứng được × ~45 % đủ đặc tả ≈ 360 tác vụ dùng được.
-- Tập validation chiếm 25 %, tức ≈ 90 tác vụ.
-- Sau lọc phạm vi và bằng chứng của từng đề xuất (đo được 24 % trước bản sửa F2/F4; ước 40–50 % sau bản sửa), mỗi đề xuất còn **khoảng 20–45 tác vụ**.
+| δ cần phát hiện | 16 tác vụ/đề xuất | 33 tác vụ/đề xuất | 66 tác vụ/đề xuất |
+|---|---|---|---|
+| +10 điểm % | không khả thi | không khả thi | n = 65, R = 4, ≤ $104 |
+| +15 điểm % | không khả thi | n = 30, R = 5, ≤ $60 | n = 51, R = 2, ≤ $41 |
+| +20 điểm % | không khả thi | n = 31, R = 2, ≤ $25 | n = 51, R = 1, ≤ $20 |
+| +25 điểm % | n = 15, R = 4, ≤ $24 | n = 22, R = 2, ≤ $18 | n = 34, R = 1, ≤ $14 |
 
-Với nguồn tác vụ đó:
-- **+10 điểm %:** không khả thi ở quy mô một repository, vì thiếu tác vụ ở bất kỳ R nào.
-- **+15 đến +20 điểm %:** khả thi khi tăng số lần lặp (R = 4–8). Mỗi Probe tốn ~$50–140, mỗi vòng Propose–Probe–Compose (~3 Probe) ~$150–400.
-- **Mức cải thiện thực tế:** một mục tri thức ít khi nâng +15 điểm % trên toàn tập. Nhưng Probe chỉ tính tác vụ trong phạm vi của đề xuất, nên trong phạm vi hẹp, mức đó có thể xảy ra.
+**Kết luận: P8 khả thi về lý thuyết, có điều kiện.**
+- **Mức +15 đến +20 điểm %:** phát hiện được với ~30 tác vụ mỗi đề xuất. Mỗi lần đối chiếu tốn ≤ $25–60, mỗi vòng Propose–Probe–Compose (~3 lần đối chiếu) ≤ $75–180.
+- **Mức +10 điểm %:** chỉ khả thi khi mỗi đề xuất có ≥ 65 tác vụ, gần như toàn bộ tập validation của một repository cỡ này.
+- **Nút thắt là nguồn tác vụ đã duyệt, không phải tiền.** Hiện chỉ có 92 tác vụ đã duyệt; mỗi đề xuất cần ~30 tác vụ sạch trong phạm vi. Việc duyệt tác vụ (`bint eval approve`) là việc của người.
 
-**Kết luận:** P8 khả thi có điều kiện, nhưng **chưa sẵn sàng**. Cần:
-1. Thiết kế Probe theo hướng ít tác vụ, nhiều lần lặp, cho phép dừng sớm theo phương pháp tuần tự. Mục tiêu nhắm δ ≥ 15 điểm % trong phạm vi đề xuất. Mức +10 điểm % chỉ dùng làm ngưỡng không kém (non-inferiority), không làm ngưỡng chấp nhận.
-2. Đo σ_b thật bằng các lần lặp bổ sung trên cùng tập tác vụ. σ_b đang là giả định và quyết định toàn bộ bảng trên.
-3. Mở rộng phát hiện hợp đồng ẩn (chuỗi ngắn, khoá cấu hình, thuộc tính module), rồi kiểm chứng và duyệt thêm tác vụ để mỗi đề xuất có ≥ 30 tác vụ.
-4. Đặt ngân sách mỗi vòng khoảng $150–400 và chấp nhận rằng P8 chỉ phát hiện được cải thiện lớn.
+**Điều kiện mở P8:**
+1. Duyệt thêm tác vụ sạch cho tập validation và test, mục tiêu ≥ 60 tác vụ mỗi tập.
+2. Chạy một lần Probe thật bằng thiết kế mới (L1 trên validation), dự kiến ≤ $60. Lần chạy này cho số đo σ_b đầu tiên từ dữ liệu ghép cặp, thay cho mức sàn giả định.
+3. Chốt ngưỡng chấp nhận δ ≥ 15 điểm % trong phạm vi đề xuất, và biên không kém 10 điểm %.
 
 ## Phát hiện về Bint
 
