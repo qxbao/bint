@@ -180,10 +180,12 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	}
 	res.Done = len(plan) - len(todo)
 
-	// Dựng sẵn kho đệm commit gốc và dữ liệu đối chiếu rò rỉ cho mỗi tác vụ.
+	// Kiểm tra commit gốc và dựng dữ liệu đối chiếu rò rỉ cho mỗi tác vụ. Kho đệm commit
+	// gốc được tạo lười ở lượt đầu dùng base và dọn ngay khi lượt cuối dùng base xong,
+	// nên số kho tồn tại cùng lúc bị chặn bởi số lượt chạy song song thay vì số tác vụ.
 	leakIns := map[string]*LeakInput{}
 	for _, c := range opts.Cases {
-		if _, err := ensureBase(ctx, env.RepoDir, env.WorkRoot, c.Source.Base); err != nil {
+		if err := checkBaseCommit(ctx, env.RepoDir, c.Source.Base); err != nil {
 			return res, finishWith(ctx, db, &batch, "failed", opts.Now, err)
 		}
 		in, err := BuildLeakInput(ctx, env.RepoDir, c)
@@ -193,6 +195,16 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 		leakIns[c.ID] = &in
 	}
 
+	// pending đếm số lượt còn phải chạy trên mỗi base; về 0 thì dọn kho đệm của base.
+	pending := map[string]int{}
+	for _, a := range todo {
+		pending[a.Case.Source.Base]++
+	}
+	defer func() { // lượt không được chạy (huỷ, hết ngân sách): dọn nốt kho còn lại
+		for base := range pending {
+			releaseBase(env, base)
+		}
+	}()
 	var (
 		mu         sync.Mutex
 		budgetHit  bool
@@ -247,6 +259,12 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 			row := runAttempt(ctx, env, db, batch, opts, a, harnessVersion, leakIns[a.Case.ID])
 			mu.Lock()
 			inflight--
+			base := a.Case.Source.Base
+			pending[base]--
+			if pending[base] == 0 {
+				delete(pending, base)
+				releaseBase(env, base)
+			}
 			if row.CostUSD != nil {
 				spent += *row.CostUSD
 				costN++
@@ -355,7 +373,7 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 		}
 	}
 
-	if err := prepareWorkdir(ctx, env.RepoDir, env.WorkRoot, a.Case.Source.Base, work); err != nil {
+	if err := prepareWorkdir(ctx, env, a.Case.Source.Base, work); err != nil {
 		return finish("error", "dựng thư mục làm việc: "+err.Error())
 	}
 	setup, err := prepareArm(ctx, env, a.Arm, opts.LeakageMode, a.Case, leakIn, work, logDir)

@@ -159,6 +159,18 @@ type Eval struct {
 	// đợt đầu tiên). Chọn thận trọng ($0,50) để lượt đầu không chạy lọt ngân sách nhỏ; từ
 	// khi có lượt thật thì dùng chi phí đo được. 0 = tắt (không chặn lượt đầu).
 	PriorRunUSD float64 `yaml:"prior_run_usd"`
+	// Kho đệm commit gốc (<eval-work>/bases). Mặc định dọn khi mọi lượt dùng base đã xong.
+	// KeepBases giữ kho giữa các đợt (nhanh hơn, tốn đĩa: ~60 MB/base trên monorepo).
+	KeepBases bool `yaml:"keep_bases"`
+	// BaseCacheMaxMB: khi KeepBases, trần tổng dung lượng kho đệm (xoá kho dùng lâu nhất
+	// trước); 0 = không giới hạn.
+	BaseCacheMaxMB int `yaml:"base_cache_max_mb"`
+	// BaseDepth: số commit nạp cho kho đệm; 0 = đầy đủ lịch sử (mặc định, để số liệu so
+	// sánh được với các đợt cũ). > 0 nạp nông, nhỏ hơn nhiều nhưng agent mất `git log` sâu.
+	BaseDepth int `yaml:"base_depth"`
+	// MinFreeMB: dung lượng trống tối thiểu còn lại sau khi tạo một kho đệm; thiếu thì dừng
+	// có thông báo thay vì làm đầy đĩa giữa đợt chạy.
+	MinFreeMB int `yaml:"min_free_mb"`
 	// Harness dùng để chạy tác vụ đánh giá (claude | codex | antigravity).
 	Harness        string `yaml:"harness"`
 	TimeoutMinutes int    `yaml:"timeout_minutes"`
@@ -330,6 +342,7 @@ func Default() Config {
 			Arms:           []string{"none", "minimal", "bint"},
 			LeakageMode:    "strict",
 			PriorRunUSD:    0.5,
+			MinFreeMB:      1024,
 			Harness:        "claude",
 			TimeoutMinutes: 30,
 			MinimalContext: ".bint/evals/minimal.md",
@@ -550,6 +563,9 @@ func (c Config) Validate() error {
 	}
 	if c.Eval.BudgetUSD != nil && *c.Eval.BudgetUSD < 0 {
 		add("eval.budget_usd: không được âm")
+	}
+	if c.Eval.BaseCacheMaxMB < 0 || c.Eval.BaseDepth < 0 || c.Eval.MinFreeMB < 0 {
+		add("eval.base_cache_max_mb, eval.base_depth, eval.min_free_mb: không được âm")
 	}
 	if c.Eval.PriorRunUSD < 0 {
 		add("eval.prior_run_usd: không được âm")

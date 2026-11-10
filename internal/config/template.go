@@ -90,6 +90,10 @@ eval:
   arms: [none, minimal, bint]
   leakage_mode: strict      # strict | economy
   budget_usd: null          # bắt buộc đặt trước khi chạy tự động
+  keep_bases: false         # true = giữ kho đệm commit gốc giữa các đợt (nhanh hơn, tốn đĩa)
+  base_cache_max_mb: 0      # khi keep_bases: trần dung lượng kho đệm, xoá kho dùng lâu nhất trước (0 = không giới hạn)
+  base_depth: 0             # 0 = nạp đầy đủ lịch sử tới commit gốc; N > 0 = nạp nông (giữ 0 để so sánh với số liệu cũ)
+  min_free_mb: 1024         # dừng nếu sau khi tạo kho đệm đĩa còn ít hơn mức này (MB)
   prior_run_usd: 0.5        # chi phí tiên nghiệm mỗi lượt khi chưa có lịch sử; lượt không bắt đầu nếu ngân sách còn lại nhỏ hơn mức này (0 = tắt)
   harness: claude           # claude | codex | antigravity
   timeout_minutes: 30       # mỗi lượt chạy tác nhân

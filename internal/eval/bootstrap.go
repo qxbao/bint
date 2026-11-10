@@ -68,7 +68,9 @@ func BootstrapSnapshot(ctx context.Context, env Env, base string, opts Bootstrap
 		}
 	}
 
-	if err := prepareWorkdir(ctx, env.RepoDir, env.WorkRoot, base, work); err != nil {
+	err := prepareWorkdir(ctx, env, base, work)
+	releaseBase(env, base) // bootstrap chỉ cần clone một lần
+	if err != nil {
 		return meta, fmt.Errorf("dựng thư mục làm việc: %w", err)
 	}
 	if _, err := stripContext(work); err != nil {

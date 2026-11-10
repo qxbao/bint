@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Môi trường làm việc của một lượt đánh giá là một repository Git MỚI chỉ chứa
@@ -17,17 +19,19 @@ import (
 // Mỗi commit gốc có một kho trần đệm (<eval-work>/bases/<sha>.git) được nạp bằng
 // `git fetch <repo> <sha>`, nên chỉ chứa đối tượng tới được từ commit đó. Mỗi lượt
 // chạy clone cục bộ từ kho đệm (hardlink, nhanh) rồi gỡ remote.
+//
+// Kho đệm chỉ là bộ nhớ tạm: được dọn khi mọi lượt dùng base đó đã xong (releaseBase),
+// giới hạn theo LRU (eval.base_cache_max_mb) và xoá tay bằng `bint eval clean`.
 
 var baseLocks sync.Map
 
-// ensureBase tạo kho đệm cho commit base nếu chưa có.
-func ensureBase(ctx context.Context, repoDir, workRoot, base string) (string, error) {
-	dir := filepath.Join(workRoot, "bases", base+".git")
-	muAny, _ := baseLocks.LoadOrStore(dir, &sync.Mutex{})
-	mu := muAny.(*sync.Mutex)
-	mu.Lock()
-	defer mu.Unlock()
+// ensureBaseLocked tạo kho đệm cho commit base nếu chưa có. Bên gọi giữ khoá của kho
+// (lockBase) trong suốt thời gian dùng kho, nên releaseBase/PruneBases không xoá giữa chừng.
+func ensureBaseLocked(ctx context.Context, env Env, base string) (string, error) {
+	dir := filepath.Join(basesDir(env.WorkRoot), base+".git")
 	if out, err := gitString(ctx, dir, "rev-parse", "--verify", "-q", "refs/heads/eval-base"); err == nil && out == base {
+		now := time.Now()
+		os.Chtimes(dir, now, now) // đánh dấu vừa dùng cho LRU
 		return dir, nil
 	}
 	os.RemoveAll(dir)
@@ -36,29 +40,58 @@ func ensureBase(ctx context.Context, repoDir, workRoot, base string) (string, er
 	if err := os.MkdirAll(tmp, 0o700); err != nil {
 		return "", err
 	}
+	// Kiểm tra dung lượng trước khi nạp (tmp đã tồn tại nên đo được ổ đĩa).
+	if err := checkFreeSpace(ctx, env, tmp); err != nil {
+		os.RemoveAll(tmp)
+		return "", err
+	}
 	if _, err := git(ctx, tmp, "init", "-q", "--bare"); err != nil {
+		os.RemoveAll(tmp)
 		return "", err
 	}
-	src, err := filepath.Abs(repoDir)
+	src, err := filepath.Abs(env.RepoDir)
 	if err != nil {
+		os.RemoveAll(tmp)
 		return "", err
 	}
-	if _, err := git(ctx, tmp, "fetch", "-q", "--no-tags", "--no-write-fetch-head", src, base+":refs/heads/eval-base"); err != nil {
+	// Mặc định nạp đầy đủ lịch sử tới commit gốc (số liệu cũ dựa trên đó). eval.base_depth
+	// > 0 nạp nông; git bỏ qua --depth với đường dẫn cục bộ nên dùng URL file://.
+	args := []string{"fetch", "-q", "--no-tags", "--no-write-fetch-head"}
+	if d := env.Cfg.Eval.BaseDepth; d > 0 {
+		args = append(args, "--depth", strconv.Itoa(d))
+		src = "file://" + filepath.ToSlash(src)
+	}
+	args = append(args, src, base+":refs/heads/eval-base")
+	if _, err := git(ctx, tmp, args...); err != nil {
 		os.RemoveAll(tmp)
 		return "", fmt.Errorf("nạp commit gốc %s: %w", short(base), err)
 	}
 	if _, err := git(ctx, tmp, "symbolic-ref", "HEAD", "refs/heads/eval-base"); err != nil {
+		os.RemoveAll(tmp)
 		return "", err
 	}
 	if err := os.Rename(tmp, dir); err != nil {
+		os.RemoveAll(tmp)
 		return "", err
 	}
 	return dir, nil
 }
 
-// prepareWorkdir tạo thư mục làm việc tại commit base trong dest.
-func prepareWorkdir(ctx context.Context, repoDir, workRoot, base, dest string) error {
-	cache, err := ensureBase(ctx, repoDir, workRoot, base)
+// checkBaseCommit kiểm tra nhanh commit gốc có trong repository người dùng, không tạo
+// kho đệm (kho được tạo lười ở lượt đầu dùng base, để không giữ cùng lúc mọi kho).
+func checkBaseCommit(ctx context.Context, repoDir, base string) error {
+	if _, err := git(ctx, repoDir, "cat-file", "-e", base+"^{commit}"); err != nil {
+		return fmt.Errorf("commit gốc %s không có trong repository: %w", short(base), err)
+	}
+	return nil
+}
+
+// prepareWorkdir tạo thư mục làm việc tại commit base trong dest. Giữ khoá của kho đệm
+// suốt lúc nạp và clone nên dọn kho song song (releaseBase) không phá clone đang chạy.
+func prepareWorkdir(ctx context.Context, env Env, base, dest string) error {
+	unlock := lockBase(filepath.Join(basesDir(env.WorkRoot), base+".git"))
+	defer unlock()
+	cache, err := ensureBaseLocked(ctx, env, base)
 	if err != nil {
 		return err
 	}

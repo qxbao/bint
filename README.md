@@ -178,6 +178,13 @@ hiện tại, chỉ giữ mục có mọi bằng chứng tồn tại và khớp 
 chứng là tổ tiên của commit gốc, không rút ra từ chính tác vụ, và nội dung không chứa mã của lời
 giải; báo cáo đánh dấu kết quả chỉ để sàng lọc.
 
+**Kho đệm commit gốc.** Mỗi base được nạp vào một kho trần riêng (`<state>/eval-work/bases/<sha>.git`,
+chỉ chứa lịch sử tới commit gốc, không có alternates) rồi clone cho từng lượt. Kho được tạo lười,
+dọn ngay khi lượt cuối dùng base xong (`eval.keep_bases: true` để giữ, kèm `eval.base_cache_max_mb`
+để giới hạn theo LRU), và `bint eval clean` xoá phần còn sót. Trước khi nạp, Bint kiểm tra đĩa còn
+ít nhất `eval.min_free_mb` (mặc định 1024) và dừng có thông báo nếu thiếu. `eval.base_depth: N` nạp
+nông; mặc định 0 = đầy đủ lịch sử, để số liệu so sánh được với các đợt cũ.
+
 **Ngân sách.** Bắt buộc với Claude Code (`--budget` hoặc `eval.budget_usd`). Ước tính =
 tác vụ × nhánh × lần lặp × chi phí trung bình mỗi lượt từ lịch sử (hoặc `--cost-per-run`);
 vượt ngân sách thì từ chối chạy. Khi chạy, lượt mới không bắt đầu nếu đã tiêu + chi phí dự

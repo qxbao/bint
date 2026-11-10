@@ -77,7 +77,7 @@ Quy trình:
 	}
 	c.AddCommand(newEvalMineCmd(stdio), newEvalVerifyCmd(stdio), newEvalListCmd(stdio), newEvalShowCmd(stdio), newEvalSpecCmd(stdio),
 		newEvalApproveCmd(stdio), newEvalRejectCmd(stdio), newEvalEstimateCmd(stdio), newEvalRunCmd(stdio),
-		newEvalReportCmd(stdio), newEvalBootstrapCmd(stdio))
+		newEvalReportCmd(stdio), newEvalBootstrapCmd(stdio), newEvalCleanCmd(stdio))
 	return c
 }
 
@@ -1323,4 +1323,25 @@ cổng quyết định 1 đo. Commit gốc đã có ảnh chụp được bỏ q
 	f.BoolVar(&list, "list", false, "chỉ liệt kê ảnh chụp hiện có")
 	f.BoolVarP(&yes, "yes", "y", false, "không hỏi xác nhận")
 	return c
+}
+
+func newEvalCleanCmd(stdio IO) *cobra.Command {
+	return &cobra.Command{
+		Use:   "clean",
+		Short: "Xoá kho đệm commit gốc (<eval-work>/bases) để giải phóng đĩa",
+		Long: `Xoá toàn bộ kho đệm commit gốc của bint eval. Kho chỉ là bộ nhớ tạm và được nạp lại
+khi cần; thư mục làm việc, kết quả và nhật ký không bị đụng tới. Bình thường kho đã được dọn
+sau mỗi đợt (trừ khi eval.keep_bases bật); lệnh này dành cho kho còn sót sau khi bị ngắt giữa chừng.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			e, err := openEval(cmd, false)
+			if err != nil {
+				return err
+			}
+			defer e.Close()
+			n, freed, err := eval.CleanBases(e.env.WorkRoot)
+			fmt.Fprintf(stdio.Out, "Đã xoá %d kho đệm, giải phóng %.1f MB.\n", n, float64(freed)/(1<<20))
+			return err
+		},
+	}
 }
