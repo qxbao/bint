@@ -1,6 +1,6 @@
 # Số liệu P6–P7 (Claude Code, Sonnet) — chuẩn bị quyết định mở P8
 
-**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$39,6 (trần nâng từ $25) (USD do harness báo).
+**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe), `20cc037`–`aa66d8c` (bootstrap theo vùng mã, đo lại nhánh bint). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$57 (trần nâng từ $25) (USD do harness báo).
 
 **Kết luận:** chưa đạt nghiệm thu P6 và P7. Về lý thuyết P8 **khả thi có điều kiện**. Tỷ lệ đạt nền sau bản sửa đặc tả là 33–40 %. Với thiết kế Probe mới (ít tác vụ, lặp theo kế hoạch, dừng sớm), mức cải thiện +15–20 điểm % phát hiện được với ~30 tác vụ mỗi đề xuất, tốn ≤ $25–60 mỗi lần đối chiếu. Nút thắt còn lại là số tác vụ đã duyệt, cùng một lần Probe thật để đo σ_b (mục cuối).
 
@@ -146,6 +146,30 @@ Trên toàn bộ 892 ứng viên:
 
 **Kết luận:** với tri thức tự sinh chưa qua duyệt, Bint **chưa hiệu quả**. Tỷ lệ đạt ngang chạy thường, còn chi phí cao hơn khoảng 16 %. Hiện chưa thấy bằng chứng Bint làm hỏng việc, nhưng nó đang tốn thêm mà chưa đem lại lợi ích đo được.
 
+### Đo lại sau khi sửa nội dung tri thức
+
+**Chẩn đoán:** tri thức bootstrap ban đầu chủ yếu nói về CI, build và phát hành, không liên quan tới các tác vụ sửa mã runtime. Hướng dẫn trong AGENTS.md cũng không nêu tên đầy đủ của công cụ MCP; Claude Code ẩn công cụ MCP sau ToolSearch, nên agent không gọi.
+
+**Bản sửa (`20cc037`):**
+- Bootstrap ưu tiên 6 thư mục bị sửa nhiều nhất trong 300 commit tới commit gốc. Lịch sử này agent vốn đọc được, nên không lộ lời giải.
+- Hướng dẫn nêu tên đầy đủ của công cụ và cách nạp qua ToolSearch.
+
+Dựng lại 30 ảnh chụp (4–8 mục mỗi ảnh, $9,21), rồi chạy lại nhánh `bint` 1 lần lặp ($5,93). Một đợt chạy trước đó bị loại vì tài khoản hết hạn mức giữa chừng (xem F14).
+
+| So sánh với none | Tỷ lệ đạt | Δ tỷ lệ đạt | Δ chi phí/lượt | Δ lượt hội thoại | Tác vụ đạt/trượt ngược với none |
+|---|---:|---|---|---|---|
+| bint (tri thức cũ) | 40 % | +3,3 điểm % [−12, +18] | +$0,031 [+0,009, +0,054] | +0,6 [−1,1, +2,6] | 6 / 4 |
+| **bint (tri thức theo vùng mã)** | **40 %** | **+3,3 điểm % [−13, +20]** | **+$0,004 [−0,022, +0,030]** | **−1,9 [−4,1, +0,4]** | 2 / 2 |
+
+(Cột cuối của dòng mới chỉ đếm tác vụ mà none cho cùng kết quả ở cả 2 lần lặp.)
+
+**Đọc kết quả:**
+- **Chi phí phụ trội biến mất:** từ +16 % còn +2 %, không còn ý nghĩa thống kê. Số lượt hội thoại có xu hướng giảm ~14 %, nhưng chưa có ý nghĩa thống kê.
+- **Tỷ lệ đạt vẫn không đổi.**
+- **Kênh truy xuất:** hook theo đường dẫn chèn tri thức ở 22/30 lượt. **Không lượt nào gọi công cụ MCP**, kể cả khi hướng dẫn đã nêu rõ cách nạp, và không có trích dẫn nào. Context Engine qua MCP hiện không đóng góp gì; toàn bộ tác động đến từ hook.
+
+**Kết luận:** sau khi sửa, Bint **không còn tốn thêm**, nhưng cũng **chưa làm tăng tỷ lệ đạt đo được**. Với 30 tác vụ và 1 lần lặp, phép đo chỉ thấy được mức tăng ≥ ~18 điểm %, nên mức tăng nhỏ hơn vẫn có thể tồn tại. Hướng cải thiện tiếp theo là đẩy tri thức qua hook (kênh duy nhất đang hoạt động) thay vì trông vào việc agent tự gọi MCP, và dùng tri thức đã qua người duyệt.
+
 ## Khả thi của P8 trên lý thuyết
 
 **Mô hình:**
@@ -189,6 +213,8 @@ Chi phí trong bảng là **chi phí tối đa** khi chạy đủ R. Đối chi�
 | F11 | Thấp | Kiểm chứng lại một ứng viên đã bị loại thì phần kiểm chứng thành `verified`, nhưng trạng thái vẫn là `rejected` kèm lý do cũ. |
 | F12 | Thấp | Nhóm tác vụ theo hai cấp thư mục đầu, quá thô với monorepo: cả repository B dồn vào một nhóm. |
 | F13 | Trung bình | Khi chưa có lịch sử chi phí, lượt đầu tiên vẫn chạy dù ngân sách chỉ $0,01 (đã tiêu $0,29). |
+| F14 | Cao (đã sửa, `aa66d8c`) | Agent hết hạn mức sử dụng (429) giữa đợt vẫn bị chấm là **trượt**, làm sai số liệu (một đợt ghi 4/30). Nay ghi là lỗi hạ tầng, đợt dừng ở `interrupted`, `--resume` chạy lại các lượt đó. |
+| F15 | Cao | Agent không gọi công cụ MCP của Context Engine (0/30 lượt) dù hướng dẫn nêu rõ tên và cách nạp; chỉ hook theo đường dẫn có tác dụng. |
 
 ## Việc cần làm trước khi mở P8
 
