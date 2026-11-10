@@ -48,6 +48,7 @@ const (
 	CapReadOnly       = "readonly"
 	CapCost           = "cost"
 	CapTurnLimit      = "turn_limit"
+	CapSkillEvents    = "skill_events"
 )
 
 // AllCapabilities liệt kê khoá khả năng cùng nhãn tiếng Việt.
@@ -62,6 +63,7 @@ var AllCapabilities = []struct{ Key, Title string }{
 	{CapReadOnly, "Giữ bước chỉ đọc"},
 	{CapCost, "Báo chi phí (áp max_cost_usd)"},
 	{CapTurnLimit, "Giới hạn số lượt (max_turns)"},
+	{CapSkillEvents, "Ghi nhận skill được kích hoạt (skill.activated)"},
 }
 
 // Capability là một ô trong bảng khả năng.
@@ -425,6 +427,7 @@ func (Claude) Capabilities() []Capability {
 		{CapReadOnly, Yes, "--disallowedTools Edit,Write,…; Bint kiểm tra cây làm việc sau bước"},
 		{CapCost, Yes, "total_cost_usd; --max-budget-usd"},
 		{CapTurnLimit, Yes, "--max-turns"},
+		{CapSkillEvents, Yes, "PostToolUse công cụ Skill → skill.activated"},
 	}
 }
 
@@ -495,6 +498,7 @@ func (Codex) Capabilities() []Capability {
 		{CapReadOnly, Partial, "sandbox workspace-write (bint CLI cần ghi thư mục trạng thái); Bint kiểm tra cây làm việc sau bước"},
 		{CapCost, No, "chỉ báo token; max_cost_usd chỉ là chỉ dẫn"},
 		{CapTurnLimit, No, "không có cờ giới hạn lượt; max_turns chỉ là chỉ dẫn"},
+		{CapSkillEvents, No, "skill được chọn ngầm, không có công cụ gọi skill đi qua hook: không ghi nhận (không tổng hợp giả)"},
 	}
 }
 
@@ -553,6 +557,7 @@ func (Antigravity) Capabilities() []Capability {
 		{CapReadOnly, Partial, "--mode plan; Bint kiểm tra cây làm việc sau bước"},
 		{CapCost, No, "chỉ báo token; max_cost_usd chỉ là chỉ dẫn"},
 		{CapTurnLimit, No, "không có cờ giới hạn lượt; max_turns chỉ là chỉ dẫn"},
+		{CapSkillEvents, No, "skill được chọn ngầm, không có công cụ gọi skill đi qua hook: không ghi nhận (không tổng hợp giả)"},
 	}
 }
 

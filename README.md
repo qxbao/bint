@@ -5,7 +5,7 @@ tri thức dự án có kiểm chứng. Kế hoạch đầy đủ: [docs/bint-pl
 
 **Trạng thái: P0 (CLI, ghi nhận lượt chạy) + P1 (khung đánh giá) + P2 (bootstrap tối giản)
 + P3 (Context Engine và vòng đời tri thức) + P4 (workflow tối thiểu) + P5 (multi-harness:
-Claude Code, Codex, Antigravity) + P6 (tiến hoá tri thức L1, chế độ propose).**
+Claude Code, Codex, Antigravity) + P6 (tiến hoá tri thức L1, chế độ propose) + P7 (tiến hoá skill L2).**
 Chưa có số liệu đo trên repository thử nghiệm; cổng quyết định 1 và 2 chưa chạy — ngưỡng
 đã chốt ở [docs/gate-1.md](docs/gate-1.md) và [docs/gate-2.md](docs/gate-2.md).
 
@@ -602,14 +602,114 @@ muộn. `bint status` nhắc khi có đề xuất chờ duyệt.
 
 Giới hạn đã biết của P6:
 
-- Chỉ chế độ Manual; chưa có bộ kích hoạt Deferred/Managed (mục 13.3–13.4).
+- Chế độ Manual và Deferred (xem dưới); chưa có Managed (tiến trình nền, mục 13.4) — không giả định mọi harness cho phép tác vụ nền bền vững.
 - Nhóm tác vụ theo khu vực mã, chưa dùng mô tả tác vụ hay biểu diễn ngữ nghĩa.
-- `evaluate` chỉ cho đề xuất đang chờ; kiểm tra hồi quy của cải tiến đã áp dụng khi đổi mô hình mới
-  được báo, chưa tự đối chiếu lại (P7).
+- `evaluate` cho đề xuất đang chờ; với đề xuất đã áp dụng (tri thức hoặc skill), đổi mô hình được báo ở
+  `bint evolve history` / `bint skill regress` và kiểm tra lại bằng `evaluate --regression`.
 - Ở chế độ economy, tri thức hiện có tạo sau commit gốc của tác vụ bị loại (A3), nên đánh giá loại bỏ
   chỉ đo được trên tác vụ cũ hơn mục bị loại bỏ; tác vụ không chịu ảnh hưởng được báo kèm lý do.
 - Chưa có số liệu thật: tiêu chí nghiệm thu P6 (lợi ích trên tập kiểm tra độc lập) cần chạy trên
   repository thử nghiệm có đủ lượt có nhãn và tác vụ đánh giá.
+
+## Tiến hoá skill — L2 (P7)
+
+Cùng vòng đề xuất → đối chiếu → áp dụng → quay lui của L1, đối tượng là **skill chuyên biệt** trong
+`.bint/skills/evolved/<tên>/`. Skill gốc (`b-*`) bất biến: không bao giờ là đối tượng của đề xuất,
+tuỳ biến chúng chỉ qua lớp phủ do người viết (mục 6.6).
+
+```sh
+bint evolve scan                         # thêm cơ hội L2: skill_candidate, skill_merge, skill_stale
+bint evolve propose op-… --budget 1      # tạo skill: agent evolver soạn; gộp/loại bỏ: xác định, không gọi mô hình
+bint skill check ep_…                    # kiểm tra điều kiện kích hoạt TRƯỚC khi đối chiếu
+bint evolve show ep_…                    # đọc SKILL.md / bản thay đổi: đây là chỉ dẫn sẽ nằm trong ngữ cảnh agent
+bint evolve evaluate ep_… --split validation --budget 5 --yes   # base = tập skill hiện có, candidate = sau đề xuất
+bint evolve evaluate ep_… --split test --budget 10 --yes
+bint evolve apply ep_…                   # xuất bản cho harness (bint sync) ngay sau khi ghi
+bint evolve rollback ep_…                # khôi phục tệp và gỡ bản đã xuất bản
+bint skill list | show | versions | diff # skill gốc và tiến hoá, lịch sử phiên bản, bản thay đổi
+bint skill regress                       # skill nào chưa xác thực với mô hình hiện dùng
+bint evolve evaluate ep_… --regression --model <mô hình> --yes  # chạy lại tập nhỏ đại diện
+```
+
+**Kích hoạt thực tế**: hook Claude Code ghi `skill.activated` khi công cụ Skill chạy; bảng `run_skill_usages`
+(migration 0007) liên kết skill với lượt chạy. `bint skill check` báo số lượt đủ điều kiện mà skill thực sự
+được kích hoạt; `skill_ignored` (action update, agent viết lại mô tả, giữ tên) khi < 20% với ≥ `min_similar_runs`
+lượt đủ điều kiện. Hook cũ cần `bint init --hooks` để thêm `Skill` vào matcher.
+
+**Cơ hội** (từ lượt chạy có nhãn, mục 10.2): `skill_candidate` — khu vực mã có quy trình được xác nhận
+hiệu quả ở ≥ `evolution.trigger.min_similar_runs` lượt thành công mà chưa có skill bao phủ (cần
+`min_new_evidence` lượt mới so với đề xuất trước); `skill_merge` — hai skill mô tả tương đồng ≥ 50% và
+chồng đường dẫn kích hoạt; `skill_stale` — mọi mẫu `triggers.paths` không còn khớp tệp nào. Không có
+cơ hội "skill bị bỏ qua": Bint chưa nhận được sự kiện `skill.activated` từ harness nào và không tổng hợp
+giả sự kiện (mục 13.2).
+
+**Kiểm tra xác định được** (không gọi mô hình) trước khi đề xuất thành hình, và lặp lại khi áp dụng /
+`bint sync` / `bint doctor`: tên hợp lệ (không `b-*`, không trùng skill gốc); mô tả một dòng 20–400 ký
+tự (harness chọn skill theo mô tả); frontmatter chỉ `name` và `description` (không tự xin quyền hay hook);
+không ghi đè quy tắc/tri thức/skill gốc, không nhắc `.bint/evals`, `.bint/config.yml` hay dữ liệu Bint
+quản lý (đề xuất không tự sửa tiêu chí chấm điểm); bằng chứng, ký hiệu, ví dụ mã, đường dẫn khớp mã thật
+(cùng bộ kiểm tra của tri thức); điều kiện kích hoạt khớp tệp thật; không trùng chức năng với skill khác;
+chứa lệnh thực thi → rủi ro cao (`--confirm-risk`). Đề xuất tạo/sửa skill tối thiểu rủi ro trung bình.
+
+**Điều kiện kích hoạt** (`bint skill check`): mẫu đường dẫn còn khớp tệp; kích hoạt được ở ≥ 50% lượt
+thành công làm căn cứ (không quá hẹp); không kích hoạt ở > 35% lượt có nhãn không liên quan (không quá
+rộng, cần ≥ 3 lượt để kết luận); mô tả không trùng skill khác. Đây là kiểm tra theo đường dẫn — harness
+quyết định kích hoạt thật theo mô tả; kích hoạt thực tế chỉ được đo gián tiếp qua đối chiếu.
+
+**Đối chiếu**: tác vụ chịu ảnh hưởng là tác vụ thoả điều kiện kích hoạt của skill bị thay đổi (tệp hoặc
+từ khoá trong đề bài). Skill được đặt vào thư mục làm việc của cả hai nhánh (`.claude/skills` và
+`.agents/skills`, đúng định dạng từng nơi), cùng một tập tri thức. Mọi skill đặt vào phải áp dụng được tại
+commit gốc: bằng chứng khớp và nội dung không chứa mã lời giải (skill của đề xuất không thoả → tác vụ bị
+loại; skill khác không thoả → bỏ khỏi cả hai nhánh). Tạo/sửa: tốt hơn trên thước đo chọn trước;
+gộp/loại bỏ: không kém về tỷ lệ đạt. Nguồn ngữ cảnh ghi `skills[tên@băm]` để kiểm toán.
+
+**Hợp nhất** giữ skill có phiên bản cao hơn, hợp điều kiện kích hoạt và bằng chứng, thêm vào cuối mọi
+dòng của skill kia chưa có — không mất kiến thức; skill bị gộp thành `deprecated` và ghi `merged_from`.
+
+**Phiên bản gắn mô hình** (mục 12.6): `skill.yaml` ghi từng phiên bản kèm băm, đề xuất, harness, mô
+hình, kiểm chứng hay chưa, lần đối chiếu và người duyệt; `versions/N.md` giữ ảnh chụp để `bint skill
+diff` xem bản thay đổi. Khi mô hình hiện dùng khác mô hình đã kiểm chứng, `bint skill regress` đánh dấu
+"chưa xác thực với mô hình hiện tại" (kết quả cũ không là mốc cho mô hình mới) và
+`evolve evaluate --regression` chạy lại tối đa 5 tác vụ đại diện (chính các tác vụ đã làm căn cứ, base =
+tập skill trước đề xuất dựng lại, candidate = hiện tại). Lần chạy này ghi `kind = regression`, không bao
+giờ dùng làm căn cứ áp dụng; kết quả: `revalid` (vẫn có lợi), `regressed` (không còn bằng chứng có lợi),
+`inconclusive`. Bint chỉ báo cáo; không tự gỡ skill.
+
+**Làm việc nhóm** (mục 8.7): skill và `skill.yaml` được commit; đề xuất ghi băm SKILL.md + skill.yaml làm
+phiên bản gốc và mất hiệu lực nếu đổi. Hai thay đổi cùng sửa một skill rồi merge (nội dung không khớp
+phiên bản ghi trong `skill.yaml`, dấu xung đột, thiếu ảnh chụp) → `bint doctor` báo lỗi để xử lý thủ
+công; Bint không tự hợp nhất. `bint sync` xuất bản skill còn hiệu lực cho harness và gỡ bản của skill bị
+loại bỏ, xoá hoặc lỗi thời (bản đã bị sửa tay không bao giờ bị xoá; ghi vào `core.lock`, mục `evolved`).
+
+Giới hạn đã biết của P7:
+
+- Skill mới/sửa có hiệu lực ngay khi người áp dụng (người áp dụng là người duyệt): hãy đọc SKILL.md ở
+  `evolve show` — skill là chỉ dẫn hành vi do agent soạn từ dữ liệu không đáng tin.
+- Sự kiện `skill.activated` chỉ có ở Claude Code (hook PostToolUse của công cụ Skill). Codex và
+  Antigravity chọn skill ngầm, không có công cụ gọi skill đi qua hook: không đo được, và Bint không tổng
+  hợp giả (khả năng `skill_events` trong bảng khả năng ghi rõ). Cơ hội `skill_ignored` chỉ dựa vào lượt
+  của Claude Code.
+- Chưa có số liệu thật: tiêu chí nghiệm thu P7 (skill đề xuất từ lịch sử, chứng minh hữu ích trên tập
+  tác vụ đối chiếu trước khi áp dụng) mới được kiểm chứng bằng kiểm thử với agent giả
+  (`TestEvaluateSkillProposal`), chưa chạy trên repository thật.
+
+## Chế độ thực thi tiến hoá: Deferred (mục 13.3–13.4)
+
+`evolution.execution: deferred` — khi đủ bằng chứng mới Bint **đánh dấu yêu cầu tiến hoá** (tệp trong
+`<state>/runtime/evolve/requests`) và xử lý ở **lần gọi CLI phù hợp tiếp theo** (`bint status` khi có sự kiện
+mới hoặc còn yêu cầu chờ; hoặc `bint evolve process`). Hook không bao giờ chạy vòng gọi mô hình.
+
+```sh
+bint evolve queue [--all]                 # yêu cầu đã đánh dấu: pending | done | skipped
+bint evolve process [--budget 2] [--max N]   # đánh dấu + xử lý ngay (người dùng)
+```
+
+Mỗi lần xử lý: kiểm tra khoá tiến hoá (đang bị giữ → không làm gì, yêu cầu vẫn chờ) và ngân sách
+(`evolution.deferred.budget_usd`; null = chỉ yêu cầu không cần mô hình: loại bỏ, gộp, skill lỗi thời; yêu cầu cần
+agent evolver chờ ngân sách), tối đa `evolution.deferred.max_per_run` yêu cầu, rồi tạo **đề xuất** qua cùng đường
+với `bint evolve propose`. Không áp dụng gì (chế độ propose). Cơ hội không còn sẵn sàng lúc xử lý (đã có đề xuất,
+điều kiện đổi) → `skipped` kèm lý do. Không xử lý trong phiên agent (đề xuất tiến hoá chỉ dành cho người dùng).
+Managed (tiến trình nền được cài đặt riêng) chưa có.
 
 ## Phát triển
 

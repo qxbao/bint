@@ -100,9 +100,11 @@ type Proposal struct {
 	SupportingRuns  []RunRef      `json:"supporting_runs"`
 	ExpectedBenefit string        `json:"expected_benefit"`
 	Changes         []Change      `json:"candidate_changes"`
-	Risk            string        `json:"risk_level"`
-	RiskReasons     []string      `json:"risk_reasons"`
-	Plan            Plan          `json:"evaluation_plan"`
+	// SkillChanges: thay đổi skill của đề xuất L2 (target_type skill); Changes rỗng.
+	SkillChanges []SkillChange `json:"skill_changes,omitempty"`
+	Risk         string        `json:"risk_level"`
+	RiskReasons  []string      `json:"risk_reasons"`
+	Plan         Plan          `json:"evaluation_plan"`
 	// Quantitative: điều kiện tiên quyết (mục 10.6) đạt lúc đề xuất. Nếu không, đề xuất
 	// chỉ là L1 chờ người duyệt và chưa được kiểm chứng định lượng.
 	Quantitative bool     `json:"quantitative"`

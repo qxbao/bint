@@ -43,6 +43,15 @@ func Classify(tool string, input map[string]any) hookcore.ToolInfo {
 		p, _ := input[f].(string)
 		return hookcore.ToolInfo{Kind: hookcore.ToolRead, Paths: nonEmpty(p)}
 	}
+	if tool == "Skill" {
+		// Tên khoá phụ thuộc phiên bản Claude Code: "skill" (mới) hoặc "command" (cũ).
+		for _, k := range []string{"skill", "command", "name"} {
+			if s, _ := input[k].(string); strings.TrimSpace(s) != "" {
+				return hookcore.ToolInfo{Kind: hookcore.ToolSkill, Skill: strings.TrimPrefix(strings.TrimSpace(s), "/")}
+			}
+		}
+		return hookcore.ToolInfo{Kind: hookcore.ToolSkill}
+	}
 	if tool == "Bash" {
 		c, _ := input["command"].(string)
 		return hookcore.ToolInfo{Kind: hookcore.ToolShell, Command: c}

@@ -195,6 +195,16 @@ func newStatusCmd(stdio IO) *cobra.Command {
 				parts = append(parts, fmt.Sprintf("%s=%d", k, counts[k]))
 			}
 			fmt.Fprintf(w, "Lượt chạy:      %d %s\n", total, strings.Join(parts, " "))
+			// Chế độ deferred (mục 13.4): lần gọi CLI này là "lần gọi phù hợp tiếp theo" để xử lý yêu cầu tiến hoá.
+			if ev := ws.Config.Evolution; ev.Enabled && ev.Execution == "deferred" {
+				deferredTick(cmd, w, func() (bool, float64) {
+					b := 0.0
+					if ev.Deferred.BudgetUSD != nil {
+						b = *ev.Deferred.BudgetUSD
+					}
+					return true, b
+				}, res.Events)
+			}
 			var pending int
 			if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM evolution_proposals WHERE status = 'proposed'`).Scan(&pending); err == nil && pending > 0 {
 				fmt.Fprintf(w, "Tiến hoá:       %d đề xuất chờ duyệt (bint evolve list)\n", pending)

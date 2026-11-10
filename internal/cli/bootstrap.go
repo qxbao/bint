@@ -247,7 +247,7 @@ func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) (int, error) 
 		return 0, err
 	}
 	outs, err := skills.Install(skills.InstallOptions{Root: k.Root, Targets: targets, BintVersion: Version, Force: force,
-		BackupDir: k.Paths.Backups, Manifest: m, Now: time.Now()})
+		BackupDir: k.Paths.Backups, Manifest: m, Now: time.Now(), Files: k.Source().Files()})
 	if err != nil {
 		return 0, err
 	}
@@ -264,6 +264,8 @@ func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) (int, error) 
 			fmt.Fprintf(w, "+ skill %s: %s\n", o.Skill, o.Path)
 		case fsafe.Updated:
 			fmt.Fprintf(w, "~ skill %s: %s (cập nhật)\n", o.Skill, o.Path)
+		case fsafe.Removed:
+			fmt.Fprintf(w, "- skill %s: %s (%s)\n", o.Skill, o.Path, o.Detail)
 		default:
 			fmt.Fprintf(w, "✓ skill %s: %s\n", o.Skill, o.Path)
 		}

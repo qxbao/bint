@@ -211,6 +211,7 @@ const (
 	Updated   Outcome = "updated"   // thay khối do Bint ghi trước đó
 	Unchanged Outcome = "unchanged" // không cần thay đổi
 	Conflict  Outcome = "conflict"  // khối đã bị người dùng sửa; không ghi
+	Removed   Outcome = "removed"   // gỡ tệp do Bint từng xuất bản
 )
 
 // BlockSync mô tả yêu cầu đồng bộ một khối trong một tệp.

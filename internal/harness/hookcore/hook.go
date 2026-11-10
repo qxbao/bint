@@ -68,11 +68,13 @@ const (
 	ToolEdit
 	ToolShell
 	ToolMCP
+	ToolSkill
 )
 
 // ToolInfo mô tả một lần gọi công cụ theo cách hiểu của Bint.
 type ToolInfo struct {
-	Kind ToolKind
+	Skill string // ToolSkill: tên skill được kích hoạt
+	Kind  ToolKind
 	// Paths: tệp được đọc/sửa (tương đối theo cwd hoặc tuyệt đối).
 	Paths []string
 	// Command: lệnh shell (ToolShell).
@@ -297,6 +299,13 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			if skip := mcpEvent(&ev, info.MCPTool, hi); skip != "" {
 				return Result{Skipped: skip}, nil
 			}
+		case ToolSkill:
+			if !ok || info.Skill == "" {
+				return Result{Skipped: "lần gọi skill không thành công"}, nil
+			}
+			ev.Type = spool.SkillActivated
+			ev.Payload["skill"] = info.Skill
+			ev.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), info.Skill)
 		case ToolEdit:
 			var rels []string
 			for _, p := range info.Paths {

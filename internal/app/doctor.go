@@ -242,6 +242,7 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 		}
 		r.add("tri thức", lvl, "%s", detail)
 	}
+	evolvedChecks(r, root)
 	targets := harness.SkillTargets(cfg.Harnesses.Enabled)
 	for _, core := range skills.Core() {
 		sk, _, cerr := skills.Composed(root, core)
@@ -264,6 +265,36 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 				r.add("skill "+sk.Name, LevelOK, "%s", rel)
 			}
 		}
+	}
+}
+
+// evolvedChecks kiểm tra toàn vẹn skill tiến hoá (P7): xung đột merge giữa hai thay đổi cùng
+// sửa một skill phải do người xử lý (mục 8.7).
+func evolvedChecks(r *DoctorReport, root string) {
+	list, bad, err := skills.LoadEvolved(root)
+	if err != nil {
+		r.add("skill tiến hoá", LevelFail, "%v", err)
+		return
+	}
+	probs := skills.CheckEvolved(root)
+	active := 0
+	for _, e := range list {
+		if e.Active() {
+			active++
+		}
+	}
+	if len(list) == 0 && len(bad) == 0 && len(probs) == 0 {
+		return
+	}
+	for _, p := range probs {
+		lvl := LevelWarn
+		if p.Conflict {
+			lvl = LevelFail
+		}
+		r.add("skill tiến hoá "+p.Skill, lvl, "%s", p.Detail)
+	}
+	if len(probs) == 0 {
+		r.add("skill tiến hoá", LevelOK, "%d skill (%d đang hoạt động)", len(list), active)
 	}
 }
 

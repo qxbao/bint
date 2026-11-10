@@ -18,6 +18,7 @@ import (
 	"bint/internal/harness"
 	"bint/internal/knowledge"
 	"bint/internal/runlog"
+	"bint/internal/skills"
 )
 
 type evolveCtx struct {
@@ -62,11 +63,16 @@ người duyệt quyết định; không thay đổi nào được tự áp dụ
   bint evolve evaluate <id>         đối chiếu base/candidate trên tác vụ chịu ảnh hưởng (--split validation, rồi test)
   bint evolve apply <id>            áp dụng (cần kết quả supported, độc lập trên test; hoặc --unverified)
   bint evolve rollback <id>         quay lui
-  bint evolve history               lịch sử áp dụng, đối chiếu mô hình, chi phí tiến hoá`,
+  bint evolve history               lịch sử áp dụng, đối chiếu mô hình, chi phí tiến hoá
+  bint evolve queue | process       yêu cầu tiến hoá đã đánh dấu / xử lý ngay (chế độ deferred)
+
+Cấp độ: L1 tiến hoá tri thức (P6); L2 tiến hoá skill chuyên biệt (P7): tạo skill từ quy trình
+được xác nhận hiệu quả nhiều lần, hợp nhất skill trùng, loại bỏ skill lỗi thời. Skill gốc bất
+biến, không bao giờ là đối tượng của đề xuất (xem bint skill).`,
 	}
 	c.AddCommand(newEvolveScanCmd(stdio), newEvolveProposeCmd(stdio), newEvolveListCmd(stdio), newEvolveShowCmd(stdio),
 		newEvolveEvaluateCmd(stdio), newEvolveApplyCmd(stdio), newEvolveRejectCmd(stdio), newEvolveRollbackCmd(stdio),
-		newEvolveHistoryCmd(stdio))
+		newEvolveHistoryCmd(stdio), newEvolveQueueCmd(stdio), newEvolveProcessCmd(stdio))
 	return c
 }
 
@@ -94,7 +100,12 @@ func (e *evolveCtx) scan(ctx context.Context, days int, gitScan bool) (evolve.Sc
 	if err != nil {
 		return evolve.ScanResult{}, nil, err
 	}
-	in := evolve.ScanInput{DB: e.st.DB, Cfg: e.k.Config, Items: items, Cases: cases, Now: now, Window: window}
+	evolved, _, err := skills.LoadEvolved(e.k.Root)
+	if err != nil {
+		return evolve.ScanResult{}, nil, err
+	}
+	in := evolve.ScanInput{DB: e.st.DB, Cfg: e.k.Config, Items: items, Cases: cases, Now: now, Window: window,
+		Evolved: evolved, Files: e.k.Source().Files()}
 	if in.Window == 0 {
 		in.Window = evolve.DefaultWindow
 		if d := e.k.Config.Memory.RetentionDays; d > 0 {
@@ -212,7 +223,11 @@ func printScan(w io.Writer, res evolve.ScanResult) {
 		if !o.Ready {
 			state = "chưa: " + o.Blocked
 		}
-		fmt.Fprintf(w, "  %s  %-15s → %-9s [%s] %s\n", o.ID, o.Kind, o.Action, o.Generator, state)
+		lvl := "L1"
+		if o.Level != "" {
+			lvl = o.Level
+		}
+		fmt.Fprintf(w, "  %s  %s %-15s → %-9s [%s] %s\n", o.ID, lvl, o.Kind, o.Action, o.Generator, state)
 		fmt.Fprintf(w, "      %s\n", o.Summary)
 		for _, f := range o.Files {
 			fmt.Fprintf(w, "        %s (%d lượt, %d thất bại)\n", f.Path, f.Runs, f.Failures)
@@ -346,6 +361,9 @@ func requireHumanCLI(op string) error {
 }
 
 func changeIDs(p *evolve.Proposal) []string {
+	if p.IsSkill() {
+		return evolve.SkillChangeNames(p)
+	}
 	var out []string
 	for _, c := range p.Changes {
 		out = append(out, c.Op+":"+c.ItemID)
@@ -358,7 +376,7 @@ func proposalState(e *evolveCtx, p *evolve.Proposal) (string, []evolve.BaseProbl
 	if p.Status != evolve.StatusProposed {
 		return p.Status, nil
 	}
-	probs, err := p.CheckBase(e.k.Store)
+	probs, err := p.CheckBaseWS(e.k)
 	if err != nil || len(probs) > 0 {
 		return "outdated", probs
 	}
@@ -474,7 +492,8 @@ func newEvolveShowCmd(stdio IO) *cobra.Command {
 					"evaluations": nonNilSlice(evs), "adoptions": nonNilSlice(ads), "label_drift": nonNilSlice(drift)})
 			}
 			items, _, _ := e.k.Items()
-			printProposal(stdio.Out, p, st, probs, evs, ads, drift, items, e.caseMap())
+			evolved, _, _ := skills.LoadEvolved(e.k.Root)
+			printProposal(stdio.Out, p, st, probs, evs, ads, drift, items, evolved, e.caseMap())
 			return nil
 		},
 	}
@@ -490,7 +509,7 @@ func nonNilSlice[T any](s []T) []T {
 }
 
 func printProposal(w io.Writer, p *evolve.Proposal, state string, probs []evolve.BaseProblem, evs []evolve.Evaluation,
-	ads []evolve.Adoption, drift []string, items []*knowledge.Item, cases map[string]*eval.Case) {
+	ads []evolve.Adoption, drift []string, items []*knowledge.Item, evolved []*skills.Evolved, cases map[string]*eval.Case) {
 	fmt.Fprintf(w, "Đề xuất:     %s (%s)\n", p.ID, state)
 	if p.StatusReason != "" {
 		fmt.Fprintf(w, "Lý do TT:    %s\n", p.StatusReason)
@@ -544,6 +563,7 @@ func printProposal(w io.Writer, p *evolve.Proposal, state string, probs []evolve
 		byID[it.ID] = it
 	}
 	fmt.Fprintln(w, "\nThay đổi:")
+	printSkillChanges(w, p, evolved)
 	for _, ch := range p.Changes {
 		fmt.Fprintf(w, "  [%s] %s", ch.Op, ch.ItemID)
 		if ch.Reason != "" {
@@ -598,6 +618,9 @@ func printProposal(w io.Writer, p *evolve.Proposal, state string, probs []evolve
 			if k := evolve.EvidenceKind(p, e.CaseIDs, cases); k != "" {
 				kind = ", " + evolve.KindLabel(k)
 			}
+			if e.Kind == evolve.EvalRegression {
+				kind += ", kiểm tra hồi quy"
+			}
 			fmt.Fprintf(w, "  %s  %s  %s, %d tác vụ%s, %s → %s%s%s\n    %s\n", e.ID, e.BatchID, orDash(e.Split), len(e.CaseIDs), kind, e.Delivery,
 				orDash(e.Verdict), ind, stale, e.Detail)
 		}
@@ -628,6 +651,7 @@ func newEvolveEvaluateCmd(stdio IO) *cobra.Command {
 		bare         bool
 		resume       string
 		prospective  bool
+		regression   bool
 		asJSON       bool
 	)
 	c := &cobra.Command{
@@ -667,11 +691,17 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 			if err != nil {
 				return err
 			}
-			if p.Status != evolve.StatusProposed {
-				return fmt.Errorf("đề xuất %s ở trạng thái %s: chỉ đối chiếu đề xuất đang chờ", p.ID, p.Status)
-			}
-			if st, probs := proposalState(e, p); st == "outdated" {
-				return fmt.Errorf("đề xuất %s không còn hợp lệ: %s: %s", p.ID, probs[0].ID, probs[0].Detail)
+			if regression {
+				if p.Status != evolve.StatusApplied {
+					return usageError{fmt.Errorf("--regression chỉ dùng cho đề xuất đã áp dụng (đề xuất %s: %s)", p.ID, p.Status)}
+				}
+			} else {
+				if p.Status != evolve.StatusProposed {
+					return fmt.Errorf("đề xuất %s ở trạng thái %s: chỉ đối chiếu đề xuất đang chờ", p.ID, p.Status)
+				}
+				if st, probs := proposalState(e, p); st == "outdated" {
+					return fmt.Errorf("đề xuất %s không còn hợp lệ: %s: %s", p.ID, probs[0].ID, probs[0].Detail)
+				}
 			}
 			if delivery == "" {
 				delivery = ev.Delivery
@@ -687,7 +717,45 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 				return usageError{fmt.Errorf("--leakage-mode phải là strict | economy")}
 			}
 			now := time.Now()
-			e.env.Variant = evolve.Variant(p, delivery, e.ws.Repo.Toplevel, e.k.Source(), cfg.Context.Freshness.Fingerprint, now)
+			var skillBefore, skillAfter evolve.SkillSet
+			if p.IsSkill() {
+				list, _, err := skills.LoadEvolved(e.k.Root)
+				if err != nil {
+					return err
+				}
+				if regression {
+					// Skill đã áp dụng: base = trước đề xuất (dựng lại), candidate = hiện tại.
+					if skillBefore, err = evolve.ReverseSet(e.k.Root, p, list); err != nil {
+						return err
+					}
+					skillAfter = evolve.CurrentSet(list)
+				} else {
+					skillBefore = evolve.CurrentSet(list)
+					if skillAfter, err = evolve.ApplyToSet(p, skillBefore, e.k.Source(), cfg.Context.Freshness.Fingerprint); err != nil {
+						return err
+					}
+				}
+				e.env.Variant = evolve.SkillVariant(p, delivery, e.ws.Repo.Toplevel, skillBefore, skillAfter)
+			} else if regression {
+				// Tri thức đã áp dụng: base = tập trước đề xuất (dựng lại từ bản ghi kiểm toán).
+				bi, err := evolve.BeforeItems(ctx, e.st.DB, p)
+				if err != nil {
+					return err
+				}
+				cur, _, err := e.k.Items()
+				if err != nil {
+					return err
+				}
+				touchedNow := map[string]*knowledge.Item{}
+				for _, it := range cur {
+					if _, ok := bi[it.ID]; ok {
+						touchedNow[it.ID] = it
+					}
+				}
+				e.env.Variant = evolve.RegressionVariant(p, delivery, e.ws.Repo.Toplevel, bi, touchedNow)
+			} else {
+				e.env.Variant = evolve.Variant(p, delivery, e.ws.Repo.Toplevel, e.k.Source(), cfg.Context.Freshness.Fingerprint, now)
+			}
 
 			var agent eval.Agent
 			if agentCommand != "" {
@@ -729,12 +797,32 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 				e.env.Variant.Delivery = record.Delivery
 				opts.Cases = allCases
 			} else {
-				if split != eval.SplitValidation && split != eval.SplitTest {
+				if !regression && split != eval.SplitValidation && split != eval.SplitTest {
 					return usageError{fmt.Errorf("--split phải là validation | test (tập build dùng để xây đề xuất, mục 12.2)")}
+				}
+				candidates := filterSplit(allCases, split)
+				if regression {
+					// Tập nhỏ đại diện: chính các tác vụ đã làm căn cứ áp dụng đề xuất (mục 12.6).
+					ids, err := evolve.OriginalCases(ctx, e.st.DB, p)
+					if err != nil {
+						return err
+					}
+					if len(ids) == 0 {
+						return fmt.Errorf("đề xuất %s không có lần đối chiếu supported nào để lấy tập đại diện", p.ID)
+					}
+					candidates = nil
+					for _, c := range allCases {
+						if slices.Contains(ids, c.ID) {
+							candidates = append(candidates, c)
+						}
+					}
+					if limit == 0 {
+						limit = 5
+					}
 				}
 				var pool []*eval.Case
 				unverified, older := 0, 0
-				for _, c := range filterSplit(allCases, split) {
+				for _, c := range candidates {
 					if !c.Verified() {
 						unverified++
 						continue
@@ -753,7 +841,17 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 				if err != nil {
 					return err
 				}
-				impacts, err := evolve.SelectCases(ctx, e.env, mode, p, hist, pool)
+				var impacts []evolve.CaseImpact
+				switch {
+				case regression:
+					for _, c := range pool {
+						impacts = append(impacts, evolve.CaseImpact{CaseID: c.ID, Split: c.Split, Case: c, Affected: true, Reason: "tập đại diện"})
+					}
+				case p.IsSkill():
+					impacts, err = evolve.SelectSkillCases(ctx, e.env, mode, p, hist, pool, skillBefore, skillAfter)
+				default:
+					impacts, err = evolve.SelectCases(ctx, e.env, mode, p, hist, pool)
+				}
 				if err != nil {
 					return err
 				}
@@ -809,6 +907,10 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 					}
 				}
 				record = evolve.Evaluation{ProposalID: p.ID, Split: split, BaseKey: p.BaseKey(), Delivery: delivery, CreatedAt: nowISO(now)}
+				if regression {
+					record.Kind, record.Split = evolve.EvalRegression, ""
+					opts.Notes = append(opts.Notes, "kiểm tra hồi quy mô hình (mục 12.6): kết quả không dùng làm căn cứ áp dụng")
+				}
 				for _, c := range chosen {
 					record.CaseIDs = append(record.CaseIDs, c.ID)
 				}
@@ -879,6 +981,7 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 	f.BoolVar(&keep, "keep-workdirs", false, "giữ thư mục làm việc")
 	f.BoolVar(&bare, "bare", false, "claude --bare")
 	f.StringVar(&resume, "resume", "", "chạy tiếp một đợt đối chiếu của đề xuất này")
+	f.BoolVar(&regression, "regression", false, "kiểm tra hồi quy khi đổi mô hình: chạy lại tập nhỏ đại diện của đề xuất (tri thức hoặc skill) đã áp dụng (base = trước đề xuất, candidate = hiện tại); không dùng làm căn cứ áp dụng")
 	f.BoolVar(&prospective, "prospective", false, "chỉ dùng tác vụ có commit sau khi đề xuất được tạo (không rủi ro rò rỉ; cần khai thác tác vụ mới)")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
@@ -903,14 +1006,18 @@ func newEvolveApplyCmd(stdio IO) *cobra.Command {
 	)
 	c := &cobra.Command{
 		Use:   "apply <id>",
-		Short: "Áp dụng đề xuất vào .bint/knowledge (chỉ người dùng; ghi bản kiểm toán để quay lui)",
+		Short: "Áp dụng đề xuất vào .bint/knowledge hoặc .bint/skills/evolved (chỉ người dùng; ghi bản kiểm toán để quay lui)",
 		Long: `Điều kiện (mục 12.7): phiên bản gốc còn khớp; có kết quả supported, độc lập, trên tập
 test với đúng phiên bản gốc đó — hoặc --unverified (áp dụng như đề xuất L1 chưa kiểm
 chứng, được ghi rõ trong lịch sử); rủi ro cao (sửa/loại bỏ quy tắc hoặc cảnh báo đã duyệt)
 cần --confirm-risk. Mọi mục được kiểm tra xác định được lại trước khi ghi.
 
 Mục mới do agent soạn vào trạng thái candidate (cần duyệt như mọi mục do agent tạo);
-mục được sửa nhận người áp dụng làm người duyệt; loại bỏ dùng trạng thái deprecated.`,
+mục được sửa nhận người áp dụng làm người duyệt; loại bỏ dùng trạng thái deprecated.
+
+Đề xuất skill (L2): skill mới/sửa có hiệu lực ngay (người áp dụng là người duyệt nên cần đọc
+kỹ SKILL.md: bint evolve show) và được xuất bản cho harness bằng bint sync ngay sau đó; phiên
+bản được ghi kèm harness/mô hình đã kiểm chứng (mục 12.6).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			e, err := openEvolve(cmd)
@@ -927,6 +1034,9 @@ mục được sửa nhận người áp dụng làm người duyệt; loại b�
 				return writeJSON(stdio.Out, res)
 			}
 			w := stdio.Out
+			if res.Proposal != nil && res.Proposal.IsSkill() {
+				defer syncAfterSkillChange(w, e.k)
+			}
 			kind := ""
 			if res.EvidenceKind != "" {
 				kind = " (" + evolve.KindLabel(res.EvidenceKind) + ")"
@@ -999,6 +1109,9 @@ func newEvolveRollbackCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(stdio.Out, "Đã quay lui %s (bản ghi %s)\n", res.Proposal.ID, res.AdoptionID)
+			if res.Proposal.IsSkill() {
+				defer syncAfterSkillChange(stdio.Out, e.k)
+			}
 			for _, f := range res.Files {
 				op := "~"
 				if f.After == nil {

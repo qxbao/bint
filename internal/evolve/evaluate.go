@@ -394,7 +394,15 @@ type Evaluation struct {
 	Independent *bool    `json:"independent"`
 	Detail      string   `json:"detail"`
 	CreatedAt   string   `json:"created_at"`
+	// Kind: probe (đối chiếu trước khi áp dụng) | regression (kiểm tra lại sau khi đổi mô hình, mục 12.6).
+	Kind string `json:"kind"`
 }
+
+// Loại lần đối chiếu.
+const (
+	EvalProbe      = "probe"
+	EvalRegression = "regression"
+)
 
 // RecordEvaluation ghi liên kết đề xuất ↔ đợt đánh giá trước khi chạy (để tiếp tục được).
 func RecordEvaluation(ctx context.Context, db *sql.DB, e *Evaluation) error {
@@ -403,8 +411,8 @@ func RecordEvaluation(ctx context.Context, db *sql.DB, e *Evaluation) error {
 	}
 	ids, _ := json.Marshal(nonNil(e.CaseIDs))
 	_, err := db.ExecContext(ctx, `INSERT INTO evolution_evaluations (evaluation_id, proposal_id, batch_id, split, base_key,
-		delivery, case_ids, created_at) VALUES (?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?)`,
-		e.ID, e.ProposalID, e.BatchID, e.Split, e.BaseKey, e.Delivery, string(ids), e.CreatedAt)
+		delivery, case_ids, created_at, kind) VALUES (?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?)`,
+		e.ID, e.ProposalID, e.BatchID, e.Split, e.BaseKey, e.Delivery, string(ids), e.CreatedAt, orProbe(e.Kind))
 	return err
 }
 
@@ -424,13 +432,13 @@ func SetVerdict(ctx context.Context, db *sql.DB, id string, v Verdict, independe
 }
 
 const evalCols = `evaluation_id, proposal_id, batch_id, COALESCE(split, ''), base_key, delivery, case_ids,
-	COALESCE(verdict, ''), independent, COALESCE(detail, ''), created_at`
+	COALESCE(verdict, ''), independent, COALESCE(detail, ''), created_at, kind`
 
 func scanEvaluation(sc interface{ Scan(...any) error }) (Evaluation, error) {
 	var e Evaluation
 	var ids string
 	var ind sql.NullInt64
-	err := sc.Scan(&e.ID, &e.ProposalID, &e.BatchID, &e.Split, &e.BaseKey, &e.Delivery, &ids, &e.Verdict, &ind, &e.Detail, &e.CreatedAt)
+	err := sc.Scan(&e.ID, &e.ProposalID, &e.BatchID, &e.Split, &e.BaseKey, &e.Delivery, &ids, &e.Verdict, &ind, &e.Detail, &e.CreatedAt, &e.Kind)
 	e.CaseIDs = jsonStrings(ids)
 	if ind.Valid {
 		b := ind.Int64 == 1
@@ -496,7 +504,7 @@ func Independent(ctx context.Context, db *sql.DB, p *Proposal, caseIDs []string)
 			return false, "", err
 		}
 		for _, e := range evs {
-			if e.Split != eval.SplitTest {
+			if e.Split != eval.SplitTest || e.Kind == EvalRegression {
 				continue
 			}
 			for _, id := range e.CaseIDs {
@@ -567,11 +575,18 @@ func Prospective(p *Proposal, caseIDs []string, cases map[string]*eval.Case) boo
 func VerifiedBy(evs []Evaluation, p *Proposal) (Evaluation, bool) {
 	for i := len(evs) - 1; i >= 0; i-- {
 		e := evs[i]
-		if e.Split == eval.SplitTest && e.Verdict == VerdictSupported && e.Independent != nil && *e.Independent && e.BaseKey == p.BaseKey() {
+		if e.Kind != EvalRegression && e.Split == eval.SplitTest && e.Verdict == VerdictSupported && e.Independent != nil && *e.Independent && e.BaseKey == p.BaseKey() {
 			return e, true
 		}
 	}
 	return Evaluation{}, false
+}
+
+func orProbe(k string) string {
+	if k == "" {
+		return EvalProbe
+	}
+	return k
 }
 
 func nowStr(t time.Time) string { return store.FormatTime(t) }

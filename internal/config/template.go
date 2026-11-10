@@ -113,6 +113,11 @@ eval:
 evolution:
   enabled: true
   mode: propose
+  execution: manual         # manual | deferred (mục 13.4): deferred = Bint đánh dấu yêu cầu tiến hoá khi đủ
+                            # bằng chứng mới và xử lý ở lần gọi CLI phù hợp tiếp theo (bint status, bint evolve process)
+  deferred:
+    max_per_run: 2          # số yêu cầu xử lý tối đa mỗi lần gọi CLI
+    budget_usd: null        # ngân sách agent evolver khi xử lý tự động; null = chỉ yêu cầu không cần mô hình
   trigger:
     min_similar_runs: 3
     min_new_evidence: 2

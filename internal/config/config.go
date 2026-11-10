@@ -242,11 +242,23 @@ type PerRunLimits struct {
 }
 
 type Evolution struct {
-	Enabled    bool                `yaml:"enabled"`
-	Mode       string              `yaml:"mode"`
+	Enabled bool   `yaml:"enabled"`
+	Mode    string `yaml:"mode"`
+	// Execution: manual (người gọi bint evolve) | deferred (Bint đánh dấu yêu cầu tiến hoá và
+	// xử lý ở lần gọi CLI phù hợp tiếp theo, mục 13.4). Managed (tiến trình nền) chưa có.
+	Execution  string              `yaml:"execution"`
+	Deferred   EvolutionDeferred   `yaml:"deferred"`
 	Trigger    EvolutionTrigger    `yaml:"trigger"`
 	Evaluation EvolutionEvaluation `yaml:"evaluation"`
 	Adoption   EvolutionAdoption   `yaml:"adoption"`
+}
+
+type EvolutionDeferred struct {
+	// MaxPerRun: số yêu cầu xử lý tối đa mỗi lần gọi CLI.
+	MaxPerRun int `yaml:"max_per_run"`
+	// BudgetUSD: ngân sách agent evolver cho yêu cầu cần mô hình khi xử lý tự động; null =
+	// chỉ xử lý yêu cầu không cần mô hình (loại bỏ, gộp), phần còn lại chờ `bint evolve process --budget`.
+	BudgetUSD *float64 `yaml:"budget_usd"`
 }
 
 type EvolutionTrigger struct {
@@ -329,8 +341,9 @@ func Default() Config {
 			},
 		},
 		Evolution: Evolution{
-			Enabled: true,
-			Mode:    "propose",
+			Enabled:   true,
+			Mode:      "propose",
+			Execution: "manual", Deferred: EvolutionDeferred{MaxPerRun: 2},
 			Trigger: EvolutionTrigger{MinSimilarRuns: 3, MinNewEvidence: 2},
 			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2, Metric: "pass_rate", MinEffect: 0.10,
 				NonInferiorityMargin: 0.05, Delivery: "bint", LeakageMode: "economy"},
@@ -580,6 +593,15 @@ func (c Config) Validate() error {
 	}
 	if !slices.Contains([]string{"propose", "auto"}, c.Evolution.Mode) {
 		add("evolution.mode: phải là propose | auto")
+	}
+	if !slices.Contains([]string{"manual", "deferred"}, c.Evolution.Execution) {
+		add("evolution.execution: phải là manual | deferred (managed chưa hỗ trợ)")
+	}
+	if c.Evolution.Deferred.MaxPerRun < 1 {
+		add("evolution.deferred.max_per_run: phải >= 1")
+	}
+	if b := c.Evolution.Deferred.BudgetUSD; b != nil && *b <= 0 {
+		add("evolution.deferred.budget_usd: phải > 0 hoặc null")
 	}
 	{
 		ev := c.Evolution.Evaluation
