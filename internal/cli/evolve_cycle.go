@@ -311,7 +311,12 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 			probed++
 			v, err := probe(p.ID, split)
 			if err != nil {
-				return stop(err)
+				// Hết ngân sách/hạn mức thì dừng cả vòng; lỗi riêng của đề xuất (kế hoạch không
+				// khả thi, không có tác vụ) thì chuyển sang đề xuất kế.
+				if err == errBudgetLeft || strings.Contains(err.Error(), "hạn mức") || ctx.Err() != nil {
+					return stop(err)
+				}
+				break
 			}
 			if v != evolve.VerdictSupported {
 				break
