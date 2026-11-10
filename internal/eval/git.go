@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -57,45 +56,6 @@ type FileChange struct {
 	Added   int
 	Deleted int
 	Binary  bool
-}
-
-// diffFiles liệt kê tệp thay đổi giữa from và to (không theo dõi đổi tên).
-func diffFiles(ctx context.Context, dir, from, to string) ([]FileChange, error) {
-	ns, err := git(ctx, dir, "diff", "--no-renames", "--name-status", "-z", from, to)
-	if err != nil {
-		return nil, err
-	}
-	num, err := git(ctx, dir, "diff", "--no-renames", "--numstat", "-z", from, to)
-	if err != nil {
-		return nil, err
-	}
-	var out []FileChange
-	idx := map[string]int{}
-	parts := strings.Split(string(ns), "\x00")
-	for i := 0; i+1 < len(parts); i += 2 {
-		if parts[i] == "" {
-			break
-		}
-		idx[parts[i+1]] = len(out)
-		out = append(out, FileChange{Path: parts[i+1], Status: parts[i][0]})
-	}
-	for _, rec := range strings.Split(string(num), "\x00") {
-		f := strings.SplitN(rec, "\t", 3)
-		if len(f) != 3 {
-			continue
-		}
-		i, ok := idx[f[2]]
-		if !ok {
-			continue
-		}
-		if f[0] == "-" {
-			out[i].Binary = true
-			continue
-		}
-		out[i].Added, _ = strconv.Atoi(f[0])
-		out[i].Deleted, _ = strconv.Atoi(f[1])
-	}
-	return out, nil
 }
 
 // copyFilesFromCommit ghi phiên bản của các tệp tại commit (đọc từ repository

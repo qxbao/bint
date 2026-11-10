@@ -573,5 +573,3 @@ func VerifiedBy(evs []Evaluation, p *Proposal) (Evaluation, bool) {
 	}
 	return Evaluation{}, false
 }
-
-func nowStr(t time.Time) string { return store.FormatTime(t) }
