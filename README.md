@@ -736,3 +736,8 @@ Managed (tiến trình nền được cài đặt riêng) chưa có.
 go test ./...                 # gồm kiểm thử đầu-cuối build tệp thực thi thật
 go test -race ./...           # cần CGO/gcc
 ```
+
+CI (GitHub Actions, `.github/workflows/ci.yml`) chạy lint (gofmt, `go mod tidy -diff`, `go vet`,
+staticcheck), `go test -race` và build chéo 6 nền tảng trên mỗi PR/push vào `main`. Workflow
+release (`.github/workflows/release.yml`) đã viết sẵn nhưng đang bị khoá. Chi tiết, cách chạy
+lại trên local và cách kích hoạt CD: [docs/ci-cd.md](docs/ci-cd.md).

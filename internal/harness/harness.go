@@ -586,8 +586,3 @@ func usableBinary(p string) bool {
 	}
 	return runtime.GOOS == "windows" || fi.Mode().Perm()&0o111 != 0
 }
-
-func fileExists(p string) bool {
-	fi, err := os.Stat(p)
-	return err == nil && !fi.IsDir()
-}
