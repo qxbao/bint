@@ -469,17 +469,42 @@ func covered(items []*knowledge.Item, f string, types []string) bool {
 	return false
 }
 
-// siblingPattern tổng quát hoá một tệp thành mẫu tệp anh em cùng thư mục: giữ hậu tố sau dấu
-// "_" cuối của tên ("handlers/user_handler.py" -> "handlers/*_handler.py"), không có thì theo
-// phần mở rộng ("pkg/a.go" -> "pkg/*.go").
+// siblingPattern tổng quát hoá một tệp thành mẫu tên chung trong cùng thư mục: hậu tố sau
+// dấu "_" cuối ("handlers/user_handler.py" -> "handlers/*_handler.py", "a_test.go" ->
+// "*_test.go") hoặc tiền tố "test_" ("test_x.py" -> "test_*.py"). Không có đặc trưng tên
+// chung thì trả "" — không có mẫu theo phần mở rộng, vì quá rộng để coi là quy trình lặp lại.
 func siblingPattern(f string) string {
 	dir, base := path.Split(f)
 	ext := path.Ext(base)
 	stem := strings.TrimSuffix(base, ext)
+	if strings.HasPrefix(stem, "test_") && len(stem) > len("test_") {
+		return dir + "test_*" + ext
+	}
 	if i := strings.LastIndex(stem, "_"); i > 0 && i < len(stem)-1 {
 		return dir + "*" + stem[i:] + ext
 	}
-	return dir + "*" + ext
+	return ""
+}
+
+// members mô tả các tệp thành viên của một mẫu anh em cho prompt (rỗng nếu là tệp lẻ).
+func (f FileStat) members() string {
+	if len(f.Members) == 0 {
+		return ""
+	}
+	return " — gồm: " + truncate(strings.Join(f.Members, ", "), 300)
+}
+
+// fileSet: mọi đường dẫn tệp thật của cơ hội (tệp lẻ và thành viên của mẫu anh em), để khớp
+// quan sát theo tệp.
+func (o Opportunity) fileSet() map[string]bool {
+	out := map[string]bool{}
+	for _, f := range o.Files {
+		out[f.Path] = true
+		for _, m := range f.Members {
+			out[m] = true
+		}
+	}
+	return out
 }
 
 // siblingStats tìm quy trình lặp lại trên nhiều tệp anh em mà từng tệp riêng chưa đạt ngưỡng:
@@ -497,6 +522,9 @@ func siblingStats(support map[string][]string, minRuns int, skip func(string) bo
 			continue
 		}
 		pt := siblingPattern(f)
+		if pt == "" {
+			continue
+		}
 		a := pats[pt]
 		if a == nil {
 			a = &agg{runs: map[string]bool{}}
