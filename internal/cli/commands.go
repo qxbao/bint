@@ -195,6 +195,10 @@ func newStatusCmd(stdio IO) *cobra.Command {
 				parts = append(parts, fmt.Sprintf("%s=%d", k, counts[k]))
 			}
 			fmt.Fprintf(w, "Lượt chạy:      %d %s\n", total, strings.Join(parts, " "))
+			var pending int
+			if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM evolution_proposals WHERE status = 'proposed'`).Scan(&pending); err == nil && pending > 0 {
+				fmt.Fprintf(w, "Tiến hoá:       %d đề xuất chờ duyệt (bint evolve list)\n", pending)
+			}
 			if res.Events > 0 || res.Interrupted > 0 {
 				fmt.Fprintf(w, "Vừa nạp:        %d sự kiện, %d lượt chuyển interrupted\n", res.Events, res.Interrupted)
 			}
@@ -264,7 +268,6 @@ func newHookCmd(stdio IO) *cobra.Command {
 func plannedCommands() []*cobra.Command {
 	planned := []struct{ use, short, phase string }{
 		{"docs", "Sinh tài liệu cho người đọc từ tri thức", "P3"},
-		{"evolve", "Tiến hoá tri thức và skill", "P6+"},
 	}
 	var out []*cobra.Command
 	for _, p := range planned {

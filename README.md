@@ -5,7 +5,7 @@ tri thức dự án có kiểm chứng. Kế hoạch đầy đủ: [docs/bint-pl
 
 **Trạng thái: P0 (CLI, ghi nhận lượt chạy) + P1 (khung đánh giá) + P2 (bootstrap tối giản)
 + P3 (Context Engine và vòng đời tri thức) + P4 (workflow tối thiểu) + P5 (multi-harness:
-Claude Code, Codex, Antigravity).**
+Claude Code, Codex, Antigravity) + P6 (tiến hoá tri thức L1, chế độ propose).**
 Chưa có số liệu đo trên repository thử nghiệm; cổng quyết định 1 và 2 chưa chạy — ngưỡng
 đã chốt ở [docs/gate-1.md](docs/gate-1.md) và [docs/gate-2.md](docs/gate-2.md).
 
@@ -510,6 +510,106 @@ Giới hạn đã biết của P5:
 - Antigravity: không có MCP cấp dự án, không chèn ngữ cảnh qua hook; đề bài `bint run` đi qua một đối
   số dòng lệnh (tối đa 120 KiB).
 - Chưa cô lập bằng worktree riêng cho từng bước ghi; chưa có cấp 4 (điều phối nhiều agent song song).
+
+## Tiến hoá tri thức — L1 (P6)
+
+Evolution Engine cấp L1 (mục 10–11 của kế hoạch), chế độ **propose**: Bint phát hiện cơ hội,
+soạn đề xuất có bằng chứng, đối chiếu bằng khung đánh giá; **người duyệt** quyết định áp dụng.
+Không thay đổi nào được tự áp dụng (`evolution.mode: auto` thuộc P8).
+
+```sh
+bint evolve scan                         # cơ hội + điều kiện tiên quyết (không gọi mô hình)
+bint evolve propose --no-agent           # đề xuất xác định: loại bỏ, gộp mục trùng
+bint evolve propose op-1a2b3c4d --budget 1   # cơ hội tạo/sửa tri thức: agent evolver soạn
+bint evolve show ep_…                    # thay đổi, phiên bản gốc, căn cứ, kế hoạch, kết quả
+bint evolve evaluate ep_… --split validation --budget 5 --yes
+bint evolve evaluate ep_… --split test --budget 10 --yes
+bint evolve apply ep_…                   # cần kết quả supported, độc lập trên test
+bint evolve apply ep_… --unverified      # hoặc: chấp nhận rõ là chưa kiểm chứng (được ghi lại)
+bint evolve rollback ep_…
+bint evolve history                      # kiểm chứng, đối chiếu mô hình, theo dõi sau áp dụng, chi phí
+```
+
+**Dữ liệu** (chỉ đọc, đã lọc): lượt chạy đã kết thúc trong cửa sổ `memory.retention_days`, các
+bước workflow gộp vào lượt gốc; nhãn kết quả tính từ tín hiệu (mục 9.6) sau khi quét Git để cập
+nhật commit/hoàn tác đến muộn — **lượt `unlabeled` không bao giờ là bằng chứng**. Hook Claude Code
+giờ ghi thêm `file.read` (tệp agent đọc) để đo khám phá lặp lại; Codex/Antigravity không có hook
+trước công cụ đọc nên chỉ có tệp được sửa.
+
+**Nhóm tác vụ** (MVP, mục 10.3): theo khu vực mã chính của lượt (hai cấp thư mục đầu của tệp được
+sửa). **Cơ hội** (mục 10.2):
+
+| Loại | Điều kiện | Hành động | Tạo bởi |
+|---|---|---|---|
+| `exploration` | tệp được chạm lại ở ≥ `min_similar_runs` lượt có nhãn, không mục nào có phạm vi khớp | create | agent |
+| `failure_hotspot` | tệp bị sửa ở ≥ `min_new_evidence` lượt thất bại, chưa có warning/rule | create | agent |
+| `stale_used` | mục stale vẫn được truy xuất, hoặc `revalidate` nhận định outdated | update | agent |
+| `stale_expired` | stale quá `knowledge.stale_deprecate_days` | deprecate | xác định |
+| `unused` | truy xuất ở ≥ `min_similar_runs` lượt có nhãn, chưa từng được trích dẫn | deprecate | xác định |
+| `duplicate` | cùng loại, phạm vi chồng, tiêu đề gần trùng | merge | xác định |
+
+Cơ hội dựa trên lượt chạy cần đủ lượt có nhãn **và** ≥ `min_new_evidence` lượt chưa dùng cho đề
+xuất trước cùng đối tượng; cơ hội đã có đề xuất đang chờ thì không đề xuất lại.
+
+**Điều kiện tiên quyết** (mục 10.6) được kiểm tra ở mỗi lần quét: lượt có nhãn, tác vụ đánh giá đã
+kiểm chứng ở tập validation/test đủ cỡ mẫu cho `evolution.evaluation.min_effect` (độ lệch chuẩn đo từ
+các đợt trước), ước tính chi phí một lần đối chiếu nằm trong `evolution.evaluation.budget_usd`. Không
+đạt → đề xuất vẫn được tạo nhưng ghi rõ **chưa được kiểm chứng định lượng**.
+
+**Đề xuất** (mục 10.4) lưu trong cơ sở dữ liệu trạng thái cục bộ (bảng `evolution_proposals`, schema
+có phiên bản) và bất biến: hành động, **phiên bản gốc** của mỗi mục bị sửa (phiên bản + băm tệp), lượt
+làm căn cứ kèm nhãn lúc đó, thay đổi (chỉ nội dung: loại, tiêu đề, thân, phạm vi, bằng chứng — không
+đặt được trạng thái, người duyệt, nguồn gốc hay cờ bên thứ ba), **rủi ro do Bint tính** (sửa/loại bỏ
+rule/warning đã duyệt = cao), **kế hoạch đánh giá chốt trước** (`superiority` trên
+`evolution.evaluation.metric`, hoặc `non_inferiority` với `non_inferiority_margin` cho loại bỏ/gộp).
+Agent evolver (`roles.evolver`, chỉ Read/Grep/Glob, dữ liệu đóng khung là dữ liệu không đáng tin) trả
+JSON; mỗi ứng viên phải qua kiểm tra xác định được như `bint knowledge add` (bằng chứng tồn tại, không
+trùng, độ dài, cờ bên thứ ba tự gắn) — không qua thì bị loại kèm lý do. Agent sửa cây làm việc → bỏ kết quả.
+
+**Đối chiếu** (`evaluate`, mục 11.2) dùng khung đánh giá với hai nhánh mới `base` và `candidate`: cùng
+tập tri thức của tác vụ (lọc chống rò rỉ theo `evolution.evaluation.leakage_mode`), cùng cách đưa tới
+agent (`delivery: bint | minimal`); `candidate` = sau khi áp đề xuất. Đề xuất deprecate chính là
+**đánh giá loại bỏ** (mục 9.7, 12.4). Chỉ chạy tác vụ đã duyệt, đã kiểm chứng fail→pass, mà đề xuất thực
+sự đổi tập tri thức và mục đổi có phạm vi liên quan tới tệp của tác vụ.
+
+Nội dung mới của đề xuất luôn được viết *sau* các tác vụ trong lịch sử, nên không qua được điều kiện nguồn
+gốc của economy (A3: mục tạo sau commit gốc bị loại). Thay vào đó, đối chiếu **hồi cứu** dùng ba lớp chặn:
+(1) bằng chứng của nội dung phải đã khớp tại commit gốc; (2) nội dung không chứa mã của lời giải;
+(3) loại tác vụ mà lời giải có thể đến từ chính các lượt làm căn cứ của đề xuất — commit lời giải được quét
+Git gắn với lượt đó, hoặc lượt đó sửa tệp của lời giải và commit nằm trong cửa sổ 24 giờ sau lượt. Rủi ro rò
+rỉ gián tiếp còn lại được ghi trong kết luận. `--prospective` chỉ dùng tác vụ sinh sau đề xuất (**tiến cứu**)
+để loại hẳn rủi ro này. `show`, `apply` và `history` ghi rõ lần đối chiếu làm căn cứ là tiến cứu hay hồi cứu
+(đề xuất chỉ loại bỏ tri thức không có nội dung mới nên không phân loại). Kết luận
+`supported | not_supported | inconclusive` theo kế hoạch đã chốt (cảnh báo đo lường chặn → inconclusive).
+Trên tập **test**, nếu tác vụ đã dùng để đối chiếu một đề xuất khác cùng đối tượng thì kết quả bị đánh
+dấu **không độc lập** (mục 12.2).
+
+**Áp dụng** (`apply`, chỉ người; khoá tiến hoá trong `<state>/runtime/locks/evolve.lock`):
+- Phiên bản gốc phải còn khớp — mục bị sửa sau khi đề xuất (người khác áp dụng, `git pull`, sửa tay)
+  làm đề xuất **không hợp lệ** (`list` hiện `outdated`); bác bỏ và đề xuất lại.
+- Cần kết quả `supported`, độc lập, trên test, với đúng phiên bản gốc hiện tại — hoặc `--unverified`.
+- Rủi ro cao cần `--confirm-risk`. Mọi mục được kiểm tra xác định được lại trước khi ghi.
+- Mục mới do agent soạn vào `candidate` (duyệt bằng `bint knowledge review`); mục được sửa nhận người
+  áp dụng làm người duyệt; loại bỏ = `deprecated` (`delete` chỉ cho mục candidate/deprecated).
+- Bản ghi kiểm toán (`evolution_adoptions`) giữ nội dung trước/sau từng tệp: `rollback` khôi phục, từ
+  chối nếu tệp đã bị sửa sau khi áp dụng (trừ `--force`).
+
+`history` gắn mỗi lần áp dụng với harness/mô hình của lần đối chiếu làm căn cứ và báo **chưa xác thực
+với mô hình hiện tại** khi mô hình đổi (`evolution.adoption.bind_to_model_version`, mục 12.6); theo dõi
+số lần truy xuất/trích dẫn sau áp dụng (chỉ là gợi ý, không phải tác động); chi phí tạo ứng viên và
+chi phí đối chiếu tính riêng (mục 12.8). `show` báo khi nhãn của lượt làm căn cứ đã đổi do tín hiệu đến
+muộn. `bint status` nhắc khi có đề xuất chờ duyệt.
+
+Giới hạn đã biết của P6:
+
+- Chỉ chế độ Manual; chưa có bộ kích hoạt Deferred/Managed (mục 13.3–13.4).
+- Nhóm tác vụ theo khu vực mã, chưa dùng mô tả tác vụ hay biểu diễn ngữ nghĩa.
+- `evaluate` chỉ cho đề xuất đang chờ; kiểm tra hồi quy của cải tiến đã áp dụng khi đổi mô hình mới
+  được báo, chưa tự đối chiếu lại (P7).
+- Ở chế độ economy, tri thức hiện có tạo sau commit gốc của tác vụ bị loại (A3), nên đánh giá loại bỏ
+  chỉ đo được trên tác vụ cũ hơn mục bị loại bỏ; tác vụ không chịu ảnh hưởng được báo kèm lý do.
+- Chưa có số liệu thật: tiêu chí nghiệm thu P6 (lợi ích trên tập kiểm tra độc lập) cần chạy trên
+  repository thử nghiệm có đủ lượt có nhãn và tác vụ đánh giá.
 
 ## Phát triển
 

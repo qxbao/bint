@@ -41,7 +41,10 @@ type RunOptions struct {
 	// ResumeBatch chạy tiếp các lượt chưa xong của một đợt cũ (cùng tác vụ, nhánh, lần lặp).
 	ResumeBatch string
 	Progress    func(AttemptRow, int, int)
-	Now         func() time.Time
+	// OnBatch được gọi ngay sau khi đợt mới được tạo (trước lượt đầu tiên), để bên gọi
+	// liên kết đợt với dữ liệu của nó (ví dụ đề xuất tiến hoá); lỗi thì đợt bị huỷ.
+	OnBatch func(batchID string) error
+	Now     func() time.Time
 }
 
 // RunResult tóm tắt một đợt.
@@ -153,6 +156,11 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 		}
 		if err := createBatch(ctx, db, batch); err != nil {
 			return res, err
+		}
+		if opts.OnBatch != nil {
+			if err := opts.OnBatch(batch.BatchID); err != nil {
+				return res, finishWith(ctx, db, &batch, "failed", opts.Now, err)
+			}
 		}
 	}
 	res.BatchID = batch.BatchID

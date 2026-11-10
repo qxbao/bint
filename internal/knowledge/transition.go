@@ -59,7 +59,7 @@ var TransitionTable = []Rule{
 	{StatusVerified, StatusStale, "fingerprint của bằng chứng thay đổi (`bint knowledge verify --apply`)"},
 	{StatusStale, StatusVerified, "xác thực lại, loại rủi ro cao (rule, warning) hoặc cần người duyệt: kiểm tra xác định được qua, rồi người duyệt (`bint knowledge approve --refresh`; `bint knowledge revalidate` cho agent nhận định trước)"},
 	{StatusStale, StatusVerified, "xác thực lại, loại khác: mọi kiểm tra xác định được (trừ fingerprint) qua → fingerprint được làm mới (`bint knowledge verify --apply`)"},
-	{"*", StatusDeprecated, "người dùng (`bint knowledge reject` / `deprecate`), hoặc đề xuất tiến hoá đã được chấp nhận (P6)"},
+	{"*", StatusDeprecated, "người dùng (`bint knowledge reject` / `deprecate`), hoặc đề xuất tiến hoá đã được người duyệt áp dụng (`bint evolve apply`)"},
 }
 
 // Transition áp một lần chuyển trạng thái lên mục (chỉ trong bộ nhớ). Trả lỗi

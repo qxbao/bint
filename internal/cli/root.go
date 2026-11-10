@@ -103,6 +103,7 @@ func NewRoot(stdio IO) *cobra.Command {
 		&cobra.Group{ID: "workflow", Title: "Workflow:"},
 		&cobra.Group{ID: "runs", Title: "Lượt chạy:"},
 		&cobra.Group{ID: "eval", Title: "Đánh giá:"},
+		&cobra.Group{ID: "evolve", Title: "Tiến hoá:"},
 		&cobra.Group{ID: "planned", Title: "Dự kiến (chưa có trong bản này):"},
 	)
 	add := func(group string, cmds ...*cobra.Command) {
@@ -117,6 +118,7 @@ func NewRoot(stdio IO) *cobra.Command {
 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newSkillCmd(stdio))
 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
 	add("eval", newEvalCmd(stdio))
+	add("evolve", newEvolveCmd(stdio))
 	add("planned", plannedCommands()...)
 	root.AddCommand(newHookCmd(stdio))
 	return root

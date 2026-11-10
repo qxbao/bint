@@ -213,23 +213,41 @@ next:
 				continue
 			}
 		}
-		for _, e := range it.Evidence {
-			b, ok := src.Read(e.Path)
-			if !ok || e.Fingerprint == "" {
-				continue next
-			}
-			if c := knowledge.CheckEvidence(e, b); c.Status != knowledge.EvMatch && c.Status != knowledge.EvRelocated {
-				continue next
-			}
-			if e.Commit != "" {
-				if _, err := git(ctx, repoDir, "merge-base", "--is-ancestor", e.Commit, c.Source.Base); err != nil {
-					continue next
-				}
-			}
+		if !evidenceHolds(ctx, repoDir, c, src, it) {
+			continue next
 		}
 		out = append(out, it)
 	}
 	return out, nil
+}
+
+// EvidenceHoldsAt cho biết mọi bằng chứng của mục tồn tại và khớp fingerprint tại
+// commit gốc của tác vụ, và mọi commit được nêu làm bằng chứng là tổ tiên của nó —
+// tức điều mục nói đã đúng và nhìn thấy được trong mã lúc tác vụ bắt đầu. Không xét
+// nguồn gốc/thời điểm tạo mục (EconomyFilter xét thêm phần đó).
+func EvidenceHoldsAt(ctx context.Context, repoDir string, c *Case, it *knowledge.Item) bool {
+	if len(it.Evidence) == 0 {
+		return false
+	}
+	return evidenceHolds(ctx, repoDir, c, &knowledge.CommitSource{RepoDir: repoDir, Commit: c.Source.Base}, it)
+}
+
+func evidenceHolds(ctx context.Context, repoDir string, c *Case, src knowledge.Source, it *knowledge.Item) bool {
+	for _, e := range it.Evidence {
+		b, ok := src.Read(e.Path)
+		if !ok || e.Fingerprint == "" {
+			return false
+		}
+		if ch := knowledge.CheckEvidence(e, b); ch.Status != knowledge.EvMatch && ch.Status != knowledge.EvRelocated {
+			return false
+		}
+		if e.Commit != "" {
+			if _, err := git(ctx, repoDir, "merge-base", "--is-ancestor", e.Commit, c.Source.Base); err != nil {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func renderMinimal(items []*knowledge.Item, opts knowledge.RenderOptions) []byte {

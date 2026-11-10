@@ -21,12 +21,16 @@ import (
 // Run là một đơn vị công việc dùng cho phân tích: một lượt chạy gốc (không có lượt
 // cha) gộp với mọi lượt con của nó (các bước của workflow).
 type Run struct {
-	ID          string   `json:"run_id"`
-	Workflow    string   `json:"workflow"`
-	Harness     string   `json:"harness,omitempty"`
-	Model       string   `json:"model,omitempty"`
-	TaskID      string   `json:"task_id,omitempty"`
-	StartedAt   string   `json:"started_at"`
+	ID        string `json:"run_id"`
+	Workflow  string `json:"workflow"`
+	Harness   string `json:"harness,omitempty"`
+	Model     string `json:"model,omitempty"`
+	TaskID    string `json:"task_id,omitempty"`
+	StartedAt string `json:"started_at"`
+	// EndedAt: kết thúc (hoặc sự kiện cuối) của lượt gốc và mọi lượt con.
+	EndedAt string `json:"ended_at,omitempty"`
+	// Commits: commit được gắn với lượt (tín hiệu committed của quét Git).
+	Commits     []string `json:"commits,omitempty"`
 	Label       string   `json:"label"`
 	LabelReason string   `json:"label_reason"`
 	Modified    []string `json:"modified,omitempty"`
@@ -118,7 +122,8 @@ func LoadHistory(ctx context.Context, db *sql.DB, now time.Time, lookback time.D
 	h := &History{ByID: map[string]*Run{}, RetrievedRuns: map[string][]string{}, CitedRuns: map[string][]string{}, Revalidation: map[string]string{}}
 	since := store.FormatTime(now.Add(-lookback))
 	rows, err := db.QueryContext(ctx, `SELECT run_id, COALESCE(parent_run_id, ''), COALESCE(workflow, ''), COALESCE(harness, ''),
-		COALESCE(model, ''), COALESCE(task_id, ''), COALESCE(started_at, ''), cost_usd, status
+		COALESCE(model, ''), COALESCE(task_id, ''), COALESCE(started_at, ''),
+		COALESCE(finished_at, last_event_at, started_at, ''), cost_usd, status
 		FROM runs WHERE started_at >= ? ORDER BY started_at, run_id`, since)
 	if err != nil {
 		return nil, err
@@ -133,7 +138,7 @@ func LoadHistory(ctx context.Context, db *sql.DB, now time.Time, lookback time.D
 		var r Run
 		var par, status string
 		var cost sql.NullFloat64
-		if err := rows.Scan(&r.ID, &par, &r.Workflow, &r.Harness, &r.Model, &r.TaskID, &r.StartedAt, &cost, &status); err != nil {
+		if err := rows.Scan(&r.ID, &par, &r.Workflow, &r.Harness, &r.Model, &r.TaskID, &r.StartedAt, &r.EndedAt, &cost, &status); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -192,6 +197,14 @@ func LoadHistory(ctx context.Context, db *sql.DB, now time.Time, lookback time.D
 			return nil, err
 		}
 		signals[root.ID] = append(signals[root.ID], sigs...)
+		for _, sg := range sigs {
+			if sg.Kind == runlog.SignalCommitted && sg.Detail != "" {
+				root.Commits = appendUnique(root.Commits, sg.Detail)
+			}
+		}
+		if x.r.EndedAt > root.EndedAt {
+			root.EndedAt = x.r.EndedAt
+		}
 		arts, err := runlog.RunArtifacts(ctx, db, x.r.ID)
 		if err != nil {
 			return nil, err

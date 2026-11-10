@@ -91,6 +91,18 @@ func TestPathHookMCPAndStats(t *testing.T) {
 	if len(runs) != 1 {
 		t.Fatalf("runs: %+v", runs)
 	}
+	// P6: mỗi lần Read ghi file.read (kể cả khi không có tri thức để chèn) cho phát hiện
+	// khám phá lặp lại; Edit không ghi.
+	arts, _ := runlog.RunArtifacts(ctx, c.Store.DB, runs[0].RunID)
+	reads := map[string]int{}
+	for _, a := range arts {
+		if a.Kind == "file.read" {
+			reads[a.Path] = a.Count
+		}
+	}
+	if len(reads) != 2 || reads["internal/db/db.go"] != 1 || reads["README.md"] != 1 {
+		t.Fatalf("file.read: %+v", arts)
+	}
 
 	// Backend MCP của repository: truy xuất, tìm kiếm, trích dẫn, quan sát.
 	b := &RepoBackend{Dir: root}
