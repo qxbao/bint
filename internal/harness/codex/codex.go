@@ -107,6 +107,7 @@ var Dialect = hookcore.Dialect{
 	Harness: HarnessName, Classify: Classify, InjectRead: false, InjectEdit: true,
 	PreToolOutput:     hookcore.ClaudeStylePreToolOutput("deny"),
 	ProtectedPathHelp: approvalHelp,
+	PostToolOutcome:   postToolOutcome,
 }
 
 func approvalHelp(paths []string) string {

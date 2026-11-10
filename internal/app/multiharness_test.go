@@ -18,8 +18,56 @@ import (
 	"bint/internal/harness/codex"
 	"bint/internal/harness/hookcore"
 	"bint/internal/runlog"
+	"bint/internal/spool"
 	"bint/internal/testutil"
 )
+
+func TestRealCodexTestOutcomeIsNotAssumedFromPostToolUse(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"calc.go": "package probe2\n"})
+	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"codex"}, Hooks: no()})
+	for _, tc := range []struct {
+		name        string
+		known, want bool
+	}{{"failed", true, false}, {"passed", true, true}, {"missing", false, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			name := tc.name
+			if name == "missing" {
+				name = "failed"
+			}
+			b, err := os.ReadFile("../harness/codex/testdata/codex-0.167/test-" + name + "-hook.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var m map[string]any
+			if err = json.Unmarshal(b, &m); err != nil {
+				t.Fatal(err)
+			}
+			m["cwd"] = root
+			trace := filepath.Join(t.TempDir(), "transcript.jsonl")
+			m["transcript_path"] = trace
+			if tc.known {
+				b, err = os.ReadFile("../harness/codex/testdata/codex-0.167/test-" + name + "-transcript.jsonl")
+				if err != nil {
+					t.Fatal(err)
+				}
+				os.WriteFile(trace, b, 0o600)
+			}
+			r := codexHook(t, m)
+			if !r.Written {
+				t.Fatalf("không ghi test command: %+v", r)
+			}
+			events, err := spool.ReadFile(r.SpoolFile)
+			if err != nil || len(events) != 1 {
+				t.Fatalf("events: %v %v", events, err)
+			}
+			got, known := events[0].Payload["ok"].(bool)
+			if known != tc.known || tc.known && got != tc.want {
+				t.Fatalf("%s: ok=%v known=%v; muốn ok=%v known=%v", tc.name, got, known, tc.want, tc.known)
+			}
+		})
+	}
+}
 
 func hashTree(t *testing.T, root string, rels ...string) string {
 	t.Helper()
@@ -206,7 +254,14 @@ func TestCodexAndAntigravityHooks(t *testing.T) {
 		"tool_input": map[string]any{"command": patch}, "tool_response": "Success"})); !r.Written {
 		t.Fatalf("codex apply_patch: %+v", r)
 	}
-	if r := codexHook(t, with(map[string]any{"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_use_id": "e2",
+	// Giữ kỳ vọng test qua, bổ sung đúng bằng chứng exit_code mà payload Codex thiếu.
+	trace, err := os.ReadFile("../harness/codex/testdata/codex-0.167/test-passed-transcript.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracePath := filepath.Join(t.TempDir(), "codex.jsonl")
+	os.WriteFile(tracePath, trace, 0o600)
+	if r := codexHook(t, with(map[string]any{"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_use_id": "exec-5ec2f312-e1d8-473b-8579-579b517a59a0", "transcript_path": tracePath,
 		"tool_input": map[string]any{"command": "go test ./..."}})); !r.Written {
 		t.Fatalf("codex test: %+v", r)
 	}

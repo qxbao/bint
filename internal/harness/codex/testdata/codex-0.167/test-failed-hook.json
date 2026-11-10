@@ -1,0 +1,15 @@
+{
+  "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+  "turn_id": "01a1c6bc-c36d-7172-a1a1-6f8e284c6c43",
+  "transcript_path": "/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-33-41-01a1c6bc-c342-7752-9d9b-cf04210d692a.jsonl",
+  "cwd": "/repo",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+  },
+  "tool_response": "--- FAIL: TestDeliberate (0.00s)\n    deliberate_test.go:6: BINT_EXPECTED_FAILURE\nFAIL\nFAIL\tprobe2\t0.003s\nFAIL\n",
+  "tool_use_id": "exec-cdab86a2-6449-4f6c-bca0-82007f5ca5b6"
+}
