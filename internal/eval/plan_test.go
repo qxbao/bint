@@ -63,3 +63,22 @@ func TestEstimateSigmaB(t *testing.T) {
 		t.Fatalf("phải chặn dưới ở 0, được %v", got)
 	}
 }
+
+func TestPlanProbeFlipFloor(t *testing.T) {
+	// Số đo thật: W ≈ 0,17 (tác vụ gần tất định). σ_b giả định 0,15 được nâng lên sàn lật.
+	if f := FlipSigmaB(0.15, 0.17); f < 0.23 || f > 0.24 {
+		t.Fatalf("sàn lật δ=0,15, W=0,17: %v", f)
+	}
+	assumed := PlanProbe(PlanInput{Available: 200, Effect: 0.15, SigmaB: 0.15, W: 0.17, MaxRepeats: 8})
+	measured := PlanProbe(PlanInput{Available: 200, Effect: 0.15, SigmaB: 0.15, W: 0.17, MaxRepeats: 8, SigmaBMeasured: true})
+	if assumed.SigmaB <= 0.15 || measured.SigmaB != 0.15 {
+		t.Fatalf("σ_b: giả định %v, đo được %v", assumed.SigmaB, measured.SigmaB)
+	}
+	if assumed.Cases*assumed.Repeats <= measured.Cases*measured.Repeats {
+		t.Fatalf("sàn lật phải làm kế hoạch tốn hơn: %+v vs %+v", assumed, measured)
+	}
+	// Tác vụ hoàn toàn ngẫu nhiên (W = 0,5): không áp sàn.
+	if FlipSigmaB(0.15, 0.5) != 0 {
+		t.Fatal("W = 0,5 không áp sàn")
+	}
+}

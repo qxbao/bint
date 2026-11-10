@@ -467,6 +467,7 @@ type Estimate struct {
 	WSource        string  `json:"w_source"`
 	SigmaB         float64 `json:"sigma_b"`
 	SigmaBSource   string  `json:"sigma_b_source"`
+	SigmaMeasured  bool    `json:"sigma_b_measured"`
 	NeededAtRepeat int     `json:"needed_cases_at_repeats"`
 }
 
@@ -517,6 +518,7 @@ func EstimateRun(ctx context.Context, db *sql.DB, in EstimateInput) (Estimate, e
 		return e, err
 	}
 	e.W, e.WSource, e.SigmaB, e.SigmaBSource = vm.W, vm.WSource, vm.SigmaB, vm.SigmaSource
+	e.SigmaMeasured = vm.SigmaMeasured
 	if in.Repeats > 0 {
 		e.NeededAtRepeat = ProbeSampleSize(math.Sqrt(vm.Sigma2(in.Repeats)), in.Effect)
 	}

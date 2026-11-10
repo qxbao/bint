@@ -61,6 +61,21 @@ type VarModel struct {
 	WSource     string  `json:"w_source"`
 	SigmaB      float64 `json:"sigma_b"`
 	SigmaSource string  `json:"sigma_b_source"`
+	// SigmaMeasured: σ_b đo từ lịch sử ghép cặp (không áp sàn mô hình lật).
+	SigmaMeasured bool `json:"sigma_b_measured"`
+}
+
+// FlipSigmaB là sàn của σ_b khi tác vụ gần tất định: hiệu ứng δ khi đó chủ yếu là
+// "lật" hẳn một phần δ số tác vụ (chênh lệch theo tác vụ ∈ {0, 1}), nên phương sai
+// giữa tác vụ ≈ δ(1−δ). Mức tất định ước từ W (W = 0,5 khi mọi tác vụ 50/50, W = 0
+// khi tất định): sàn = √(δ(1−δ))·(1 − W/0,5). Đo trên monorepo thật: W ≈ 0,17 (83 %
+// tác vụ cho cùng kết quả ở hai lượt), nên σ_b mặc định 0,15 là quá lạc quan.
+func FlipSigmaB(effect, w float64) float64 {
+	if effect <= 0 || effect >= 1 {
+		return 0
+	}
+	det := math.Max(0, 1-w/0.5)
+	return math.Sqrt(effect*(1-effect)) * det
 }
 
 // Sigma2 là σ²(R).
@@ -149,6 +164,7 @@ func HistoricalVariance(ctx context.Context, db *sql.DB, harness string, effectS
 	if len(d) >= minSigmaPairs {
 		if sb := EstimateSigmaB(d, m.W, rSum/float64(len(d))); !math.IsNaN(sb) {
 			m.SigmaB = sb
+			m.SigmaMeasured = true
 			m.SigmaSource = fmt.Sprintf("đo từ %d cặp tác vụ có lặp (Var(d̄) − W/R, chặn dưới ở 0)", len(d))
 		}
 	}
@@ -164,6 +180,8 @@ type PlanInput struct {
 	MaxRepeats int     // R tối đa
 	// FixedRepeats > 0 cố định R thay vì để bộ lập kế hoạch chọn.
 	FixedRepeats int
+	// SigmaBMeasured: σ_b đo từ lịch sử; false = giả định, áp sàn FlipSigmaB.
+	SigmaBMeasured bool
 }
 
 // ProbePlan là kế hoạch một lần Probe.
@@ -176,7 +194,8 @@ type ProbePlan struct {
 	// MinDetectable là δ nhỏ nhất phát hiện được với số tác vụ của kế hoạch ở R đã
 	// chọn (khi không khả thi: số tác vụ hiện có ở R tối đa).
 	MinDetectable float64 `json:"min_detectable"`
-	Sigma         float64 `json:"sigma"` // σ(R)
+	Sigma         float64 `json:"sigma"`   // σ(R)
+	SigmaB        float64 `json:"sigma_b"` // σ_b đã dùng (sau sàn mô hình lật)
 	CostKnown     bool    `json:"cost_known"`
 }
 
@@ -196,7 +215,11 @@ func PlanProbe(in PlanInput) ProbePlan {
 	if maxR < 1 {
 		maxR = DefaultMaxRepeats
 	}
-	m := VarModel{W: in.W, SigmaB: in.SigmaB}
+	sb := in.SigmaB
+	if !in.SigmaBMeasured {
+		sb = math.Max(sb, FlipSigmaB(in.Effect, in.W))
+	}
+	m := VarModel{W: in.W, SigmaB: sb}
 	lo, hi := 1, maxR
 	if in.FixedRepeats > 0 {
 		lo, hi = in.FixedRepeats, in.FixedRepeats
@@ -204,6 +227,7 @@ func PlanProbe(in PlanInput) ProbePlan {
 	fill := func(p *ProbePlan, r, n int) {
 		p.Repeats, p.Cases, p.MaxRuns = r, n, n*2*r
 		p.Sigma = math.Sqrt(m.Sigma2(r))
+		p.SigmaB = m.SigmaB
 		p.MinDetectable = math.Inf(1)
 		if n > 0 {
 			p.MinDetectable = (z975 + z80) * p.Sigma / math.Sqrt(float64(n))

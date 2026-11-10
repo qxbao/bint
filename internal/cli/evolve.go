@@ -920,7 +920,7 @@ không kém, hoặc futility).`,
 					if err != nil {
 						return err
 					}
-					in := eval.PlanInput{Available: len(chosen), Effect: effect, SigmaB: vm.SigmaB, W: vm.W, MaxRepeats: ev.MaxRepeats, FixedRepeats: fixed}
+					in := eval.PlanInput{Available: len(chosen), Effect: effect, SigmaB: vm.SigmaB, SigmaBMeasured: vm.SigmaMeasured, W: vm.W, MaxRepeats: ev.MaxRepeats, FixedRepeats: fixed}
 					if avg, n, err := eval.HistoricalCost(ctx, e.st.DB, agent.Name(), model); err != nil {
 						return err
 					} else if n > 0 {
@@ -1082,6 +1082,9 @@ không kém, hoặc futility).`,
 // kèm kỳ vọng nếu dừng sớm (giả định thô: điểm dừng phân bố đều trên các điểm nhìn).
 func printProbePlan(w io.Writer, pp eval.ProbePlan, vm eval.VarModel, in eval.PlanInput, sequential bool) {
 	fmt.Fprintf(w, "Kế hoạch Probe: σ²(R) = σ_b² + W/R; W = %.2f (%s); σ_b = %.2f (%s)\n", vm.W, vm.WSource, vm.SigmaB, vm.SigmaSource)
+	if pp.SigmaB > vm.SigmaB+1e-9 {
+		fmt.Fprintf(w, "  σ_b nâng lên %.2f (sàn mô hình lật √(δ(1−δ))·(1−W/0,5): tác vụ gần tất định nên hiệu ứng là lật hẳn một phần tác vụ)\n", pp.SigmaB)
+	}
 	if !pp.Feasible {
 		fmt.Fprintf(w, "  KHÔNG KHẢ THI: %d tác vụ sẵn có, R = %d (σ = %.2f) chỉ phát hiện được chênh lệch từ %.1f điểm %% (cần %.1f điểm %%)\n",
 			in.Available, pp.Repeats, pp.Sigma, 100*pp.MinDetectable, 100*in.Effect)

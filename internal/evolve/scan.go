@@ -417,7 +417,7 @@ func CheckPrerequisites(ctx context.Context, db *sql.DB, cfg config.Config, case
 	if err != nil {
 		return p, err
 	}
-	pin := eval.PlanInput{Available: p.Cases[eval.SplitTest], Effect: ev.MinEffect, SigmaB: est.SigmaB, W: est.W,
+	pin := eval.PlanInput{Available: p.Cases[eval.SplitTest], Effect: ev.MinEffect, SigmaB: est.SigmaB, SigmaBMeasured: est.SigmaMeasured, W: est.W,
 		MaxRepeats: ev.MaxRepeats, FixedRepeats: ev.Repeats}
 	if est.CostPerRun != nil {
 		pin.CostPerRun = *est.CostPerRun
@@ -433,7 +433,7 @@ func CheckPrerequisites(ctx context.Context, db *sql.DB, cfg config.Config, case
 	add("validation_cases", p.Cases[eval.SplitValidation] > 0, "%d tác vụ tập validation đã kiểm chứng (để xác thực ứng viên)", p.Cases[eval.SplitValidation])
 	add("test_cases", plan.Feasible,
 		"%d tác vụ tập test đã kiểm chứng; cần ~%d (R = %d) để phát hiện chênh lệch %.0f điểm %% (σ_b %.2f theo %s; W %.2f theo %s)",
-		p.Cases[eval.SplitTest], p.NeededCases, plan.Repeats, 100*ev.MinEffect, est.SigmaB, est.SigmaBSource, est.W, est.WSource)
+		p.Cases[eval.SplitTest], p.NeededCases, plan.Repeats, 100*ev.MinEffect, plan.SigmaB, sigmaNote(est.SigmaB, plan.SigmaB, est.SigmaBSource), est.W, est.WSource)
 	if est.CostPerRun != nil {
 		v := *est.CostPerRun * float64(runs)
 		p.ProbeUSD = &v
@@ -648,4 +648,12 @@ func orUnknown(s string) string {
 		return "?"
 	}
 	return s
+}
+
+// sigmaNote ghi nguồn σ_b, kèm ghi chú khi bộ lập kế hoạch nâng nó lên sàn mô hình lật.
+func sigmaNote(assumed, used float64, src string) string {
+	if used > assumed+1e-9 {
+		return fmt.Sprintf("%s, nâng lên sàn mô hình lật vì tác vụ gần tất định", src)
+	}
+	return src
 }
