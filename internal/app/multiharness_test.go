@@ -79,7 +79,7 @@ func TestMultiHarnessInit(t *testing.T) {
 		t.Fatalf(".agents/hooks.json: %s", ag)
 	}
 	cx := read(t, filepath.Join(root, ".codex/hooks.json"))
-	if !strings.Contains(cx, "bint hook codex") || !strings.Contains(cx, `"apply_patch"`) {
+	if !strings.Contains(cx, "bint hook codex") || !strings.Contains(cx, `"apply_patch|Bash|shell|exec_command"`) {
 		t.Fatalf(".codex/hooks.json: %s", cx)
 	}
 	toml := read(t, filepath.Join(root, ".codex/config.toml"))

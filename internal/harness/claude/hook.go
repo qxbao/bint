@@ -73,6 +73,7 @@ func nonEmpty(p string) []string {
 var Dialect = hookcore.Dialect{
 	Harness: HarnessName, Classify: Classify, InjectRead: true, InjectEdit: true,
 	PreToolOutput: hookcore.ClaudeStylePreToolOutput("ask"),
+	Usage:         TranscriptUsage,
 }
 
 // HookEnv / HookResult giữ tên cũ cho mã gọi.

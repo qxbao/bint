@@ -193,9 +193,13 @@ func applyRunEffects(ctx context.Context, tx *sql.Tx, runID string, e spool.Even
 			end_reason  = NULLIF(?2, ''),
 			duration_ms = CASE WHEN started_at IS NOT NULL
 			              THEN CAST(ROUND((julianday(?1) - julianday(started_at)) * 86400000) AS INTEGER)
-			              ELSE NULL END
+			              ELSE NULL END,
+			input_tokens  = CASE WHEN input_tokens IS NULL OR COALESCE(workflow, '') = 'session'
+			                THEN COALESCE(?4, input_tokens) ELSE input_tokens END,
+			output_tokens = CASE WHEN output_tokens IS NULL OR COALESCE(workflow, '') = 'session'
+			                THEN COALESCE(?5, output_tokens) ELSE output_tokens END
 			WHERE run_id = ?3 AND (finished_at IS NULL OR finished_at < ?1)`,
-			ts, str(p, "reason"), runID)
+			ts, str(p, "reason"), runID, intOrNil(p, "input_tokens"), intOrNil(p, "output_tokens"))
 		return err
 	case spool.FileModified:
 		path := str(p, "path")

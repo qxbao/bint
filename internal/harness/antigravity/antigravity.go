@@ -199,7 +199,7 @@ func HookSpec(bintPath string) map[string]any {
 	}
 	return map[string]any{
 		"SessionStart": []any{h("SessionStart")},
-		"PreToolUse":   []any{map[string]any{"matcher": "write_to_file|replace_file_content|multi_replace_file_content", "hooks": []any{h("PreToolUse")}}},
+		"PreToolUse":   []any{map[string]any{"matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command", "hooks": []any{h("PreToolUse")}}},
 		"PostToolUse":  []any{map[string]any{"matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command", "hooks": []any{h("PostToolUse")}}},
 	}
 }
