@@ -210,6 +210,29 @@ echo '{"type":"result","num_turns":2}'
 	if err != nil || rv.Verdict != VerdictSupported {
 		t.Fatalf("hồi quy phải supported (cải tiến vẫn có lợi): %v %+v", err, rv)
 	}
+
+	// Probe tuần tự: 4 lần lặp, chênh lệch +1 không dao động → dừng ở điểm nhìn 1 (lần lặp 1);
+	// kết luận supported, không bị chặn bởi "incomplete", tiếp tục vẫn giữ nguyên.
+	old := MinSeqCases
+	MinSeqCases = 2 // fixture chỉ có 2 tác vụ
+	defer func() { MinSeqCases = old }()
+	srec := Evaluation{ProposalID: p.ID, BaseKey: p.BaseKey(), Delivery: eval.ArmMinimal, CreatedAt: store.FormatTime(now), Kind: EvalRegression}
+	for _, c := range cases {
+		srec.CaseIDs = append(srec.CaseIDs, c.ID)
+	}
+	sopts := eval.RunOptions{Cases: cases, Arms: []string{eval.ArmBase, eval.ArmCandidate}, Repeats: 4, RepeatMajor: true,
+		LeakageMode: eval.LeakEconomy, Agent: &eval.CommandAgent{Command: "sh " + filepath.ToSlash(script)}, Seed: 9, BintVersion: "test",
+		Notes:   []string{SeqNotePrefix + "4 lần lặp"},
+		OnBatch: func(id string) error { srec.BatchID = id; return RecordEvaluation(ctx, db, &srec) }}
+	sopts.Look = NewLook(ctx, db, p.Plan, func() string { return srec.BatchID }, current)
+	sres, err := eval.Run(ctx, env, db, sopts)
+	if err != nil || sres.Status != eval.StatusStoppedEarly || sres.Done != 4 {
+		t.Fatalf("tuần tự: %v %+v", err, sres)
+	}
+	sv, _, err := Finalize(ctx, db, p, srec, current)
+	if err != nil || sv.Verdict != VerdictSupported || !strings.Contains(strings.Join(sv.Notes, ";"), "dừng sớm tại điểm nhìn 1/4") {
+		t.Fatalf("kết luận tuần tự: %v %+v", err, sv)
+	}
 }
 
 func TestDerivedFromWindowAndKind(t *testing.T) {
