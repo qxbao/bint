@@ -214,7 +214,8 @@ Chi phí trong bảng là **chi phí tối đa** khi chạy đủ R. Đối chi�
 | F12 | Thấp | Nhóm tác vụ theo hai cấp thư mục đầu, quá thô với monorepo: cả repository B dồn vào một nhóm. |
 | F13 | Trung bình | Khi chưa có lịch sử chi phí, lượt đầu tiên vẫn chạy dù ngân sách chỉ $0,01 (đã tiêu $0,29). |
 | F14 | Cao (đã sửa, `aa66d8c`) | Agent hết hạn mức sử dụng (429) giữa đợt vẫn bị chấm là **trượt**, làm sai số liệu (một đợt ghi 4/30). Nay ghi là lỗi hạ tầng, đợt dừng ở `interrupted`, `--resume` chạy lại các lượt đó. |
-| F15 | Cao | Agent không gọi công cụ MCP của Context Engine (0/30 lượt) dù hướng dẫn nêu rõ tên và cách nạp; chỉ hook theo đường dẫn có tác dụng. |
+| F15 | Cao | Agent không gọi công cụ MCP của Context Engine (0/30 lượt). Cấu hình đúng: thử trực tiếp thì agent thấy và gọi được công cụ. Agent chỉ coi lời gợi ý trong AGENTS.md là tuỳ chọn và tự đọc mã. Chỉ hook theo đường dẫn có tác dụng. |
+| F16 | Cao (đã sửa, `f2fd149`) | `context_for_task`/`context_for_paths` chỉ trả ID trong `structuredContent`, mà Claude Code chỉ đưa trường này cho mô hình. Trước bản sửa, kể cả khi được gọi, MCP cũng không đem tri thức tới agent. |
 
 ## Việc cần làm trước khi mở P8
 
