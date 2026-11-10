@@ -27,7 +27,7 @@ func TestCodexEvalIsolatesHomeAndRemovesCredentials(t *testing.T) {
 	os.WriteFile(filepath.Join(source, "AGENTS.md"), []byte("USER_ONLY"), 0o600)
 	bin := filepath.Join(t.TempDir(), "codex")
 	os.WriteFile(bin, []byte("#!/bin/sh\ncat >/dev/null\nprintf '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"%s\"}}\\n' \"$CODEX_HOME\"\n"), 0o755)
-	r := (&CodexAgent{Binary: bin}).Run(context.Background(), AgentRequest{Dir: t.TempDir(), Arm: ArmNone, Prompt: "probe", Timeout: time.Second})
+	r := (&CodexAgent{Binary: bin}).Run(context.Background(), AgentRequest{Dir: t.TempDir(), Arm: ArmNone, Prompt: "probe", Timeout: 5 * time.Second})
 	if r.Error != "" {
 		t.Fatal(r.Error)
 	}
@@ -88,7 +88,7 @@ func TestCodexProfileKeepsRuntimeWithoutUserContext(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(profile, "AGENTS.md")); !os.IsNotExist(err) {
 		t.Fatal("đã chép AGENTS người dùng")
 	}
-	if info, err := os.Stat(filepath.Join(profile, "auth.json")); err != nil || info.Mode().Perm() != 0o600 {
+	if info, err := os.Stat(filepath.Join(profile, "auth.json")); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("auth permissions: %v %v", info, err)
 	}
 	sk := cfg["skills"].(map[string]any)
@@ -116,5 +116,27 @@ func TestCodexProfileKeepsRuntimeWithoutUserContext(t *testing.T) {
 				t.Errorf("bỏ sót symlink skill %s", want)
 			}
 		}
+	}
+}
+
+func TestCodexEvalProfileRemovedAfterTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("stub POSIX")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	source := filepath.Join(home, ".codex")
+	os.MkdirAll(source, 0o700)
+	t.Setenv("CODEX_HOME", source)
+	os.WriteFile(filepath.Join(source, "auth.json"), []byte(`{"tokens":{"access_token":"fixture-only"}}`), 0o600)
+	bin := filepath.Join(t.TempDir(), "codex")
+	os.WriteFile(bin, []byte("#!/bin/sh\ncat >/dev/null\nprintf '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"%s\"}}\\n' \"$CODEX_HOME\"\nsleep 60\n"), 0o755)
+	r := (&CodexAgent{Binary: bin}).Run(context.Background(), AgentRequest{Dir: t.TempDir(), Arm: ArmNone, Prompt: "probe", Timeout: 5 * time.Second})
+	if !r.TimedOut || r.Text == "" || r.Text == source {
+		t.Fatalf("không tái hiện timeout trong profile riêng: %+v", r)
+	}
+	if _, err := os.Stat(r.Text); !os.IsNotExist(err) {
+		t.Fatalf("auth profile chưa dọn sau timeout: %v", err)
 	}
 }

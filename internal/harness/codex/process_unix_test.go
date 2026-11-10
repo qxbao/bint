@@ -20,9 +20,22 @@ func TestMetadataCancellationKillsDescendants(t *testing.T) {
 	bin := filepath.Join(root, "codex")
 	script := fmt.Sprintf("#!/bin/sh\nsleep 60 &\nprintf '%%s' \"$!\" > %q\nwhile IFS= read -r line; do\ncase \"$line\" in *'\"method\":\"initialize\"'*) printf '%%s\\n' '{\"id\":1,\"result\":{}}';; esac\ndone\n", pidFile)
 	os.WriteFile(bin, []byte(script), 0o755)
-	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err := InspectHookTrust(ctx, bin, root, filepath.Join(root, "hooks.json"))
+	done := make(chan error, 1)
+	go func() { _, err := InspectHookTrust(ctx, bin, root, filepath.Join(root, "hooks.json")); done <- err }()
+	// Chờ tiến trình con thực sự tồn tại trước khi huỷ; không dùng ngân sách
+	// 400ms cho cả khởi động shell khi bộ test đang chạy đồng thời/race.
+	for deadline := time.Now().Add(8 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if _, err := os.Stat(pidFile); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("metadata stub không khởi tạo được child")
+		}
+	}
+	cancel()
+	err := <-done
 	if err == nil {
 		t.Fatal("metadata chưa trả mà không báo lỗi")
 	}
