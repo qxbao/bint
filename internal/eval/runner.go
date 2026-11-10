@@ -8,6 +8,8 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,6 +46,16 @@ type RunOptions struct {
 	// ResumeBatch chạy tiếp các lượt chưa xong của một đợt cũ (cùng tác vụ, nhánh, lần lặp).
 	ResumeBatch string
 	Progress    func(AttemptRow, int, int)
+	// RepeatMajor sắp kế hoạch theo lần lặp: mọi tác vụ và nhánh của lần lặp 1 (xáo trộn
+	// trong lần lặp) chạy trước lần lặp 2, v.v. Nhờ đó tại mỗi ranh giới lần lặp mọi cặp
+	// đều cân bằng. Look != nil ngầm bật.
+	RepeatMajor bool
+	// Look được gọi (tuần tự, không bao giờ đồng thời) khi mọi lượt của một lần lặp đã xong,
+	// theo thứ tự lần lặp 1, 2, ...; khi chạy song song chỉ gọi sau khi lượt cuối của lần
+	// lặp đó kết thúc hẳn. stop = true thì không bắt đầu lượt mới (lượt đang chạy vẫn xong)
+	// và đợt có trạng thái "stopped_early". Khi tiếp tục (ResumeBatch), các lần lặp đã xong
+	// từ trước cũng được "nhìn" lại theo thứ tự trước khi chạy lượt đầu tiên.
+	Look func(repeatDone int) (stop bool, reason string)
 	// OnBatch được gọi ngay sau khi đợt mới được tạo (trước lượt đầu tiên), để bên gọi
 	// liên kết đợt với dữ liệu của nó (ví dụ đề xuất tiến hoá); lỗi thì đợt bị huỷ.
 	OnBatch func(batchID string) error
@@ -77,6 +89,32 @@ func Plan(cases []*Case, arms []string, repeats int, seed uint64) []Attempt {
 	rng.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 	return out
 }
+
+// PlanByRepeat dựng danh sách lượt theo lần lặp: lần lặp 1 (mọi tác vụ × nhánh, xáo
+// trộn theo hạt giống trong lần lặp) trước, rồi lần lặp 2, v.v. Cùng hạt giống cho cùng
+// thứ tự nên tiếp tục (resume) một đợt vẫn chạy phần còn lại theo đúng thứ tự cũ.
+func PlanByRepeat(cases []*Case, arms []string, repeats int, seed uint64) []Attempt {
+	rng := rand.New(rand.NewPCG(seed, 0x6576616c))
+	var out []Attempt
+	for r := 1; r <= repeats; r++ {
+		start := len(out)
+		for _, c := range cases {
+			for _, arm := range arms {
+				out = append(out, Attempt{Case: c, Arm: arm, Repeat: r})
+			}
+		}
+		part := out[start:]
+		rng.Shuffle(len(part), func(i, j int) { part[i], part[j] = part[j], part[i] })
+	}
+	return out
+}
+
+// StatusStoppedEarly: đợt dừng theo kế hoạch tuần tự (Look báo đủ bằng chứng), khác với
+// chạy dở do lỗi, huỷ hoặc hết ngân sách.
+const StatusStoppedEarly = "stopped_early"
+
+// StoppedEarlyNote là tiền tố ghi chú của đợt dừng sớm theo kế hoạch tuần tự.
+const StoppedEarlyNote = "dừng sớm theo kế hoạch tuần tự: "
 
 // ErrBudget: ngân sách không đủ.
 var ErrBudget = errors.New("vượt ngân sách")
@@ -120,6 +158,8 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 				return res, err
 			}
 		}
+		// Tiếp tục một đợt đã dừng sớm: ghi chú dừng cũ hết hiệu lực, kết thúc mới sẽ ghi lại.
+		b.Notes = slices.DeleteFunc(slices.Clone(b.Notes), func(n string) bool { return strings.HasPrefix(n, StoppedEarlyNote) })
 		batch = b
 		byID := map[string]*Case{}
 		for _, c := range opts.Cases {
@@ -170,12 +210,20 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	}
 	res.BatchID = batch.BatchID
 
-	plan := Plan(opts.Cases, opts.Arms, opts.Repeats, opts.Seed)
+	var plan []Attempt
+	if opts.RepeatMajor || opts.Look != nil {
+		plan = PlanByRepeat(opts.Cases, opts.Arms, opts.Repeats, opts.Seed)
+	} else {
+		plan = Plan(opts.Cases, opts.Arms, opts.Repeats, opts.Seed)
+	}
 	res.Total = len(plan)
 	var todo []Attempt
+	// remaining[r] = số lượt của lần lặp r chưa xong; về 0 thì lần lặp r đã xong hẳn.
+	remaining := map[int]int{}
 	for _, a := range plan {
 		if !done[a.key()] {
 			todo = append(todo, a)
+			remaining[a.Repeat]++
 		}
 	}
 	res.Done = len(plan) - len(todo)
@@ -223,10 +271,43 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	// các lượt đã xong) vượt ngân sách. Khi chưa lượt nào có chi phí thì dùng chi phí
 	// tiên nghiệm PriorRunUSD thay cho số đo; từ khi có lượt thật thì dùng chi phí đo
 	// được. Nhờ vậy lượt đầu không chạy khi ngân sách còn lại nhỏ hơn chi phí ước tính.
+	var (
+		lookMu      sync.Mutex // Look không bao giờ chạy đồng thời
+		nextLook    = 1
+		lookStopped bool
+		lookReason  string
+	)
+	// runLooks gọi Look theo thứ tự cho mọi lần lặp đã xong hẳn mà chưa được nhìn.
+	runLooks := func() {
+		if opts.Look == nil {
+			return
+		}
+		lookMu.Lock()
+		defer lookMu.Unlock()
+		for {
+			mu.Lock()
+			k := nextLook
+			ready := !lookStopped && k <= opts.Repeats && remaining[k] == 0
+			if ready {
+				nextLook++
+			}
+			mu.Unlock()
+			if !ready {
+				return
+			}
+			if stop, why := opts.Look(k); stop {
+				mu.Lock()
+				lookStopped, lookReason = true, why
+				mu.Unlock()
+				return
+			}
+		}
+	}
+	runLooks() // tiếp tục: các lần lặp đã xong từ trước
 	tryStart := func() bool {
 		mu.Lock()
 		defer mu.Unlock()
-		if budgetHit {
+		if budgetHit || lookStopped {
 			return false
 		}
 		if b := opts.BudgetUSD; b != nil {
@@ -270,6 +351,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 				costN++
 			}
 			finishedCt++
+			remaining[a.Repeat]--
 			if row.Status == "skipped" {
 				res.Skipped++
 			}
@@ -278,6 +360,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 			if opts.Progress != nil {
 				opts.Progress(row, n, res.Total)
 			}
+			runLooks()
 		}
 	}
 	for i := 0; i < opts.Parallel; i++ {
@@ -286,7 +369,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	}
 	for _, a := range todo {
 		mu.Lock()
-		stop := budgetHit
+		stop := budgetHit || lookStopped
 		mu.Unlock()
 		if ctx.Err() != nil || stop {
 			break
@@ -306,11 +389,21 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	switch {
 	case ctx.Err() != nil:
 		status = "cancelled"
+	case lookStopped && finishedCt < res.Total:
+		// Dừng theo kế hoạch tuần tự (không phải lỗi); ưu tiên hơn hết ngân sách vì đã đủ bằng chứng.
+		status, res.StopReason = StatusStoppedEarly, lookReason
 	case budgetHit:
 		status = "budget_exhausted"
 	}
 	res.Status = status
-	if err := updateBatch(context.WithoutCancel(ctx), db, batch.BatchID, status, nowString(opts.Now()), batch.Notes); err != nil {
+	dbStatus := status
+	if status == StatusStoppedEarly {
+		// Bảng chỉ cho phép các trạng thái cũ; dừng sớm theo kế hoạch là đợt "completed"
+		// kèm ghi chú đánh dấu (StoppedEarlyNote) để báo cáo không coi là chạy dở.
+		dbStatus = "completed"
+		batch.Notes = append(batch.Notes, StoppedEarlyNote+res.StopReason)
+	}
+	if err := updateBatch(context.WithoutCancel(ctx), db, batch.BatchID, dbStatus, nowString(opts.Now()), batch.Notes); err != nil {
 		return res, err
 	}
 	if status == "budget_exhausted" {

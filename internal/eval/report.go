@@ -94,9 +94,19 @@ const CIWarnWidth = 0.30
 // BuildReport tổng hợp báo cáo cho một đợt. current là các tác vụ hiện có (để
 // phát hiện tác vụ bị sửa sau khi chạy); có thể nil.
 func BuildReport(ctx context.Context, db *sql.DB, b Batch, baseline string, current map[string]*Case) (Report, error) {
+	return BuildReportUpTo(ctx, db, b, baseline, current, 0)
+}
+
+// BuildReportUpTo như BuildReport nhưng chỉ tính các lượt có lần lặp <= maxRepeat
+// (0 = tất cả). Dùng cho điểm nhìn tuần tự: các lượt của lần lặp sau (đã bắt đầu khi
+// chạy song song) không được lẫn vào phép đo tại ranh giới lần lặp.
+func BuildReportUpTo(ctx context.Context, db *sql.DB, b Batch, baseline string, current map[string]*Case, maxRepeat int) (Report, error) {
 	rows, err := Attempts(ctx, db, "batch_id = ?", b.BatchID)
 	if err != nil {
 		return Report{}, err
+	}
+	if maxRepeat > 0 {
+		rows = slices.DeleteFunc(rows, func(r AttemptRow) bool { return r.Repeat > maxRepeat })
 	}
 	rep := Report{Batch: b}
 	arms := slices.Clone(b.Arms)
@@ -320,7 +330,10 @@ func diagnose(rep Report, b Batch, rows []AttemptRow, models map[string]map[stri
 	warn := func(kind, f string, a ...any) { ds = append(ds, Diagnostic{"warn", kind, fmt.Sprintf(f, a...)}) }
 	info := func(kind, f string, a ...any) { ds = append(ds, Diagnostic{"info", kind, fmt.Sprintf(f, a...)}) }
 
-	if b.Status != "completed" {
+	if why := StoppedEarlyReason(b); why != "" {
+		// Dừng theo kế hoạch tuần tự: không phải chạy dở, không chặn kết luận.
+		info("stopped_early", "đợt dừng sớm theo kế hoạch tuần tự: %s; các lần lặp còn lại không chạy", why)
+	} else if b.Status != "completed" {
 		warn("incomplete", "đợt ở trạng thái %s: thiếu lượt chạy, kết quả có thể lệch", b.Status)
 	}
 	if b.LeakageMode == LeakEconomy {
@@ -394,6 +407,16 @@ func diagnose(rep Report, b Batch, rows []AttemptRow, models map[string]map[stri
 		info("touched_tests", "%d lượt agent có sửa tệp kiểm thử (tệp kiểm thử chấm điểm vẫn được ghi đè bằng bản của commit)", touched)
 	}
 	return ds
+}
+
+// StoppedEarlyReason trả về lý do nếu đợt dừng sớm theo kế hoạch tuần tự (xem StoppedEarlyNote).
+func StoppedEarlyReason(b Batch) string {
+	for _, n := range b.Notes {
+		if why, ok := strings.CutPrefix(n, StoppedEarlyNote); ok {
+			return why
+		}
+	}
+	return ""
 }
 
 // finite trả về nil cho NaN/Inf (không đo được), để JSON ghi null thay vì lỗi.
