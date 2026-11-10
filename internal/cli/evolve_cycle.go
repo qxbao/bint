@@ -480,3 +480,24 @@ func printCycle(w io.Writer, r CycleReport) {
 		fmt.Fprintf(w, "Dừng: %s\n", r.StopReason)
 	}
 }
+
+// cycleTotals cộng các báo cáo vòng đã lưu (theo dõi chi phí tiến hoá, mục 12.8).
+func cycleTotals(runtime string) (int, CycleReport) {
+	var sum CycleReport
+	files, _ := filepath.Glob(filepath.Join(runtime, "evolve", "cycles", "ec_*.json"))
+	n := 0
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		var r CycleReport
+		if err != nil || json.Unmarshal(data, &r) != nil {
+			continue
+		}
+		n++
+		sum.SpentUSD += r.SpentUSD
+		sum.GenerationUSD += r.GenerationUSD
+		sum.ProbeUSD += r.ProbeUSD
+		sum.AutoApplied = append(sum.AutoApplied, r.AutoApplied...)
+		sum.RolledBack = append(sum.RolledBack, r.RolledBack...)
+	}
+	return n, sum
+}

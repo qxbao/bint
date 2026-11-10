@@ -172,6 +172,9 @@ func TestEvolveEndToEnd(t *testing.T) {
 	if out, code := run(t, root, "", "evolve", "cycle", "--budget", "3", "--no-propose"); code != 0 || !strings.Contains(out, "Vòng ec_") || strings.Contains(out, "Tự áp dụng") {
 		t.Fatalf("cycle: %d\n%s", code, out)
 	}
+	if out, _ := run(t, root, "", "evolve", "history"); !strings.Contains(out, "Vòng tự động (bint evolve cycle): 1 vòng") {
+		t.Fatalf("history thiếu chi phí vòng:\n%s", out)
+	}
 	if out, code := run(t, root, "", "evolve", "rollback", dep); code != 0 || !strings.Contains(out, "Đã quay lui") {
 		t.Fatalf("rollback: %d\n%s", code, out)
 	}
