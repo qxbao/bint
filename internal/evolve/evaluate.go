@@ -380,7 +380,7 @@ func computeVerdict(rep eval.Report, plan Plan, seq *SeqInfo) Verdict {
 		}
 		return v
 	}
-	fmtCI :=func(s eval.Stat) string {
+	fmtCI := func(s eval.Stat) string {
 		return fmt.Sprintf("%+.3f, CI95 [%+.3f, %+.3f], %d tác vụ", s.Mean, s.CI.Lo, s.CI.Hi, s.N)
 	}
 	switch plan.Kind {

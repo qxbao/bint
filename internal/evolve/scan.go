@@ -411,22 +411,31 @@ func CheckPrerequisites(ctx context.Context, db *sql.DB, cfg config.Config, case
 			p.Cases[c.Split]++
 		}
 	}
-	repeats := ev.Repeats
-	if repeats <= 0 {
-		repeats = cfg.Eval.Repeats
-	}
+	// Kế hoạch Probe: R do bộ lập kế hoạch chọn (repeats = 0) hoặc cố định (> 0).
 	est, err := eval.EstimateRun(ctx, db, eval.EstimateInput{Cases: p.Cases[eval.SplitTest], Arms: []string{eval.ArmBase, eval.ArmCandidate},
-		Repeats: repeats, Harness: cfg.Eval.Harness, Effect: ev.MinEffect})
+		Repeats: max(ev.Repeats, 1), Harness: cfg.Eval.Harness, Effect: ev.MinEffect, EffectSD: ev.EffectSD})
 	if err != nil {
 		return p, err
 	}
-	p.NeededCases = est.NeededCases
-	add("validation_cases", p.Cases[eval.SplitValidation] > 0, "%d tác vụ tập validation đã kiểm chứng (để xác thực ứng viên)", p.Cases[eval.SplitValidation])
-	add("test_cases", p.Cases[eval.SplitTest] >= est.NeededCases && est.NeededCases > 0,
-		"%d tác vụ tập test đã kiểm chứng; cần ~%d để phát hiện chênh lệch %.0f điểm %% (độ lệch chuẩn %.2f, %s)",
-		p.Cases[eval.SplitTest], est.NeededCases, 100*ev.MinEffect, est.SDDiff, est.SDSource)
+	pin := eval.PlanInput{Available: p.Cases[eval.SplitTest], Effect: ev.MinEffect, SigmaB: est.SigmaB, W: est.W,
+		MaxRepeats: ev.MaxRepeats, FixedRepeats: ev.Repeats}
 	if est.CostPerRun != nil {
-		v := *est.CostPerRun * float64(est.NeededCases*2*repeats)
+		pin.CostPerRun = *est.CostPerRun
+	}
+	plan := eval.PlanProbe(pin)
+	// Cỡ mẫu cần có: n(R) của kế hoạch khi khả thi, n ở R lớn nhất khi không.
+	p.NeededCases = plan.Cases
+	runs := plan.MaxRuns
+	if !plan.Feasible {
+		p.NeededCases = eval.ProbeSampleSize(plan.Sigma, ev.MinEffect)
+		runs = p.NeededCases * 2 * plan.Repeats
+	}
+	add("validation_cases", p.Cases[eval.SplitValidation] > 0, "%d tác vụ tập validation đã kiểm chứng (để xác thực ứng viên)", p.Cases[eval.SplitValidation])
+	add("test_cases", plan.Feasible,
+		"%d tác vụ tập test đã kiểm chứng; cần ~%d (R = %d) để phát hiện chênh lệch %.0f điểm %% (σ_b %.2f theo %s; W %.2f theo %s)",
+		p.Cases[eval.SplitTest], p.NeededCases, plan.Repeats, 100*ev.MinEffect, est.SigmaB, est.SigmaBSource, est.W, est.WSource)
+	if est.CostPerRun != nil {
+		v := *est.CostPerRun * float64(runs)
 		p.ProbeUSD = &v
 	}
 	switch {

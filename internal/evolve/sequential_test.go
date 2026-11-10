@@ -89,7 +89,9 @@ func TestSeqDecideNonInferiority(t *testing.T) {
 func TestComputeVerdictSeqNotBlocked(t *testing.T) {
 	plan := Plan{Kind: "superiority", Metric: "pass_rate", MinEffect: 0.15}
 	p := pairedOfStats(0.5, 0.3, 25)
-	mk := func(d eval.Diagnostic) eval.Report { return eval.Report{Paired: []eval.Paired{p}, Diagnostics: []eval.Diagnostic{d}} }
+	mk := func(d eval.Diagnostic) eval.Report {
+		return eval.Report{Paired: []eval.Paired{p}, Diagnostics: []eval.Diagnostic{d}}
+	}
 	stopped := mk(eval.Diagnostic{Level: "info", Kind: "stopped_early", Detail: "dừng sớm"})
 	v := ComputeVerdictSeq(stopped, plan, SeqInfo{K: 4, J: 1, Repeat: 2, Repeats: 8})
 	if v.Verdict != VerdictSupported {
@@ -113,7 +115,9 @@ func TestComputeVerdictSeqNotBlocked(t *testing.T) {
 	}
 }
 
-func contains(s, sub string) bool { return len(sub) == 0 || (len(s) >= len(sub) && indexOf(s, sub) >= 0) }
+func contains(s, sub string) bool {
+	return len(sub) == 0 || (len(s) >= len(sub) && indexOf(s, sub) >= 0)
+}
 
 func indexOf(s, sub string) int {
 	for i := 0; i+len(sub) <= len(s); i++ {

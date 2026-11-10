@@ -578,8 +578,8 @@ Cơ hội dựa trên lượt chạy cần đủ lượt có nhãn **và** ≥ `
 xuất trước cùng đối tượng; cơ hội đã có đề xuất đang chờ thì không đề xuất lại.
 
 **Điều kiện tiên quyết** (mục 10.6) được kiểm tra ở mỗi lần quét: lượt có nhãn, tác vụ đánh giá đã
-kiểm chứng ở tập validation/test đủ cỡ mẫu cho `evolution.evaluation.min_effect` (độ lệch chuẩn đo từ
-các đợt trước), ước tính chi phí một lần đối chiếu nằm trong `evolution.evaluation.budget_usd`. Không
+kiểm chứng ở tập validation/test đủ cỡ mẫu cho `evolution.evaluation.min_effect` (mặc định 0,15: +10 điểm %
+không phát hiện được với tác vụ của một repository; cỡ mẫu theo mô hình phương sai bên dưới), ước tính chi phí một lần đối chiếu nằm trong `evolution.evaluation.budget_usd`. Không
 đạt → đề xuất vẫn được tạo nhưng ghi rõ **chưa được kiểm chứng định lượng**.
 
 **Đề xuất** (mục 10.4) lưu trong cơ sở dữ liệu trạng thái cục bộ (bảng `evolution_proposals`, schema
@@ -609,6 +609,26 @@ rỉ gián tiếp còn lại được ghi trong kết luận. `--prospective` ch
 `supported | not_supported | inconclusive` theo kế hoạch đã chốt (cảnh báo đo lường chặn → inconclusive).
 Trên tập **test**, nếu tác vụ đã dùng để đối chiếu một đề xuất khác cùng đối tượng thì kết quả bị đánh
 dấu **không độc lập** (mục 12.2).
+
+**Probe tuần tự** (ít tác vụ, nhiều lần lặp, dừng sớm). Mỗi đề xuất chỉ có vài chục tác vụ đủ điều kiện,
+nên cỡ mẫu được tính theo phương sai của chênh lệch theo tác vụ khi mỗi nhánh lặp R lần:
+`σ²(R) = σ_b² + W/R`, với `W` = trung bình theo tác vụ của `2·p(1−p)` (ước lượng không chệch `k(m−k)/(m(m−1))`
+từ các tác vụ có ≥ 2 lượt cùng nhánh `none` trong lịch sử; chưa có dữ liệu thì p = 0,5, W = 0,5) và `σ_b` là độ
+lệch giữa các tác vụ về hiệu ứng thật (`evolution.evaluation.effect_sd`, mặc định 0,15; chỉ ước lượng từ lịch
+sử khi có đủ chênh lệch ghép cặp kèm lặp). Mỗi con số in kèm nguồn. Trước khi chạy, `evolve evaluate` in kế hoạch:
+số tác vụ `n(R) = ⌈((z₀.₉₇₅+z₀.₈)·σ(R)/δ)²⌉` (δ = `min_effect`, hoặc `non_inferiority_margin` cho loại bỏ),
+số lần lặp R, số lượt và chi phí tối đa/kỳ vọng. `evolution.evaluation.repeats: 0` để bộ lập kế hoạch chọn R
+trong 1..`max_repeats` (mặc định 8) sao cho `n·2·R` thấp nhất với `n` ≤ số tác vụ sẵn có; > 0 thì cố định R.
+Không R nào thoả → từ chối kèm mức chênh lệch nhỏ nhất phát hiện được, trừ khi có `--force`.
+
+Các lượt chạy theo từng lần lặp (mọi tác vụ và nhánh của lần lặp 1, xáo trộn, rồi lần lặp 2, ...) nên mỗi ranh
+giới lần lặp đều cân bằng. Tối đa 4 điểm nhìn (K = min(R, 4)); tại điểm nhìn j dùng biên kiểu O'Brien–Fleming
+`z_j = c_K·√(K/j)` (c_K = 1,96 / 1,977 / 2,004 / 2,024 cho K = 1..4, đã hiệu chỉnh để tổng sai số loại I ≈ 5 %)
+trên CI chuẩn của trung bình chênh lệch ghép cặp: **superiority** dừng và supported nếu cận dưới > 0;
+**non-inferiority** dừng và supported nếu cận dưới > −margin; **futility** dừng và not_supported nếu cận trên
+CI95 < `min_effect` (hoặc < −margin với non-inferiority). Điểm nhìn cuối luôn kết luận. Số điểm nhìn, điểm dừng
+và lý do được ghi vào kết luận; đợt dừng sớm theo kế hoạch không bị coi là "incomplete". `--resume` chạy tiếp theo
+đúng thứ tự cũ (cùng hạt giống) và nhìn lại các lần lặp đã xong trước khi chạy lượt mới.
 
 **Áp dụng** (`apply`, chỉ người; khoá tiến hoá trong `<state>/runtime/locks/evolve.lock`):
 - Phiên bản gốc phải còn khớp — mục bị sửa sau khi đề xuất (người khác áp dụng, `git pull`, sửa tay)
