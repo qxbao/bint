@@ -29,6 +29,19 @@ func TestIsTestCommand(t *testing.T) {
 	}
 }
 
+func TestExecutedTestCommandDoesNotInventShortCircuitedRuns(t *testing.T) {
+	for _, cmd := range []string{"true || go test ./...", "true # comment; go test ./...", "false && go test ./...", "if false; then go test ./...; fi", "printf 'go test ./...'", "go test ./...; false"} {
+		if IsExecutedTestCommand(cmd) {
+			t.Errorf("script không chứng minh test chạy: %q", cmd)
+		}
+	}
+	for _, cmd := range []string{"go test ./...", "GOCACHE=/tmp/cache go test ./...", "timeout 10 go test ./...", "npm test", "mvn -q test"} {
+		if !IsExecutedTestCommand(cmd) {
+			t.Errorf("mất test trực tiếp: %q", cmd)
+		}
+	}
+}
+
 func TestRedact(t *testing.T) {
 	in := `API_KEY=abc123 DB_URL="postgres://u:pw@h/db" go test --token=xyz -H "Authorization: Bearer qq" ./...`
 	out := Redact(in, 0)

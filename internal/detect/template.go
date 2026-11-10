@@ -130,15 +130,22 @@ func MatchesTemplate(cmd, tmpl string) bool {
 // hoặc substitution; script loại đó không được nâng thành bằng chứng test.
 // IsTestCommand cũ giữ nguyên cho các adapter khác.
 func IsExecutedTestCommand(cmd string, configured ...string) bool {
-	if strings.Contains(cmd, "<<") || strings.Contains(cmd, "$(") || strings.ContainsRune(cmd, '`') {
+	if strings.Contains(cmd, "<<") || strings.Contains(cmd, "$(") || strings.ContainsRune(cmd, '`') || strings.ContainsRune(cmd, '#') {
+		return false
+	}
+	segments := shellSegments(cmd)
+	// Codex chỉ cung cấp exit code của toàn script. Không được gán kết quả
+	// script cho một test có thể đã bị short-circuit, điều kiện hoặc set -e bỏ qua.
+	if len(segments) != 1 {
 		return false
 	}
 	for _, tmpl := range configured {
-		if strings.TrimSpace(tmpl) != "" && MatchesTemplate(cmd, tmpl) {
+		pat := shellSegments(tmpl)
+		if len(pat) == 1 && matchTokens(stripWrappers(pat[0]), stripWrappers(segments[0])) {
 			return true
 		}
 	}
-	for _, seg := range shellSegments(cmd) {
+	for _, seg := range segments {
 		seg = stripWrappers(seg)
 		if len(seg) == 0 || strings.ContainsAny(seg[0], " \t\r\n") {
 			continue
