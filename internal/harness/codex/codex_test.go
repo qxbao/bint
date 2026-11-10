@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"bint/internal/harness/hookcore"
 )
 
 func TestSessionEndTimeoutMatchesRealCodex(t *testing.T) {
@@ -41,6 +43,58 @@ func TestSessionEndTimeoutMatchesRealCodex(t *testing.T) {
 			if h.Timeout < 1 || h.Timeout > 3 {
 				t.Fatalf("SessionEnd timeout=%d: Codex chỉ cho phép tối đa 3s", h.Timeout)
 			}
+		}
+	}
+}
+
+func TestRealCodexHookPayloads(t *testing.T) {
+	raw, err := os.ReadFile("testdata/codex-0.167/hooks.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var records []struct {
+		Stdin json.RawMessage `json:"stdin"`
+	}
+	if err := json.Unmarshal(raw, &records); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, record := range records {
+		in, err := hookcore.NormalizeClaudeStyle(record.Stdin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if in.SessionID == "" || in.Cwd != "/repo" || in.Event == "" {
+			t.Fatalf("payload mất trường: %+v", in)
+		}
+		seen[in.RawEvent] = true
+		if in.ToolName == "" {
+			continue
+		}
+		info := Classify(in.ToolName, in.ToolInput)
+		switch in.ToolName {
+		case "Bash":
+			if info.Kind != hookcore.ToolShell || info.Command != "cat hookcheck.txt" {
+				t.Fatalf("shell: %+v", info)
+			}
+		case "apply_patch":
+			if info.Kind != hookcore.ToolEdit || len(info.Paths) == 0 {
+				t.Fatalf("patch: %+v", info)
+			}
+			for _, path := range info.Paths {
+				seen[filepath.Base(path)] = true
+			}
+		case "mcp__bint__context_for_task", "mcp__bint__context_for_paths", "mcp__bint__cite_knowledge":
+			if info.Kind != hookcore.ToolMCP || info.MCPTool != strings.TrimPrefix(in.ToolName, "mcp__bint__") {
+				t.Fatalf("MCP: %+v", info)
+			}
+		default:
+			t.Fatalf("fixture thêm tool chưa kiểm tra: %s", in.ToolName)
+		}
+	}
+	for _, key := range []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "hookcheck.txt", "probe.txt", "moved.txt", "extra.txt", "001.sql"} {
+		if !seen[key] {
+			t.Errorf("fixture chưa bao phủ %s", key)
 		}
 	}
 }

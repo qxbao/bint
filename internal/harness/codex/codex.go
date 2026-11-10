@@ -28,6 +28,7 @@ import (
 	"bint/internal/fsafe"
 	"bint/internal/harness/claude"
 	"bint/internal/harness/hookcore"
+	"bint/internal/ulid"
 )
 
 // HarnessName là tên harness trong cấu hình và cơ sở dữ liệu.
@@ -104,7 +105,20 @@ func shellCommand(v any) string {
 // bằng `bint task approve` (BINT_APPROVED_PATHS) rồi chạy lại.
 var Dialect = hookcore.Dialect{
 	Harness: HarnessName, Classify: Classify, InjectRead: false, InjectEdit: true,
-	PreToolOutput: hookcore.ClaudeStylePreToolOutput("deny"),
+	PreToolOutput:     hookcore.ClaudeStylePreToolOutput("deny"),
+	ProtectedPathHelp: approvalHelp,
+}
+
+func approvalHelp(paths []string) string {
+	id := os.Getenv("BINT_TASK_ID")
+	if !ulid.Valid(id) {
+		return ""
+	}
+	cmd := "bint task approve " + id
+	for _, path := range paths {
+		cmd += " --path '" + strings.ReplaceAll(path, "'", "'\\''") + "'"
+	}
+	return " Hook đã chặn trước khi có diff; người dùng chạy `" + cmd + "`, rồi `bint run resume " + id + "`. Agent không được tự duyệt."
 }
 
 // HandleHook đọc dữ liệu hook Codex từ in và xử lý.

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"bint/internal/ctxengine"
 	"bint/internal/eval"
 	"bint/internal/gitrepo"
+	"bint/internal/knowledge"
 	"bint/internal/spool"
 	"bint/internal/task"
 	"bint/internal/ulid"
@@ -445,18 +447,33 @@ type Approval struct {
 
 // Approve: người xác nhận lệnh kiểm chứng hiện tại và duyệt các thay đổi đang chờ
 // (đường dẫn bảo vệ/deny). Không đổi trạng thái; `bint run resume` tiếp tục.
-func (e *Env) Approve(ref string) (*task.Task, Approval, error) {
+func (e *Env) Approve(ref string, requestedPaths ...string) (*task.Task, Approval, error) {
 	var a Approval
 	if !e.Human {
 		return nil, a, fmt.Errorf("%w: bint task approve", ErrAgent)
 	}
+	var explicit []string
+	for _, p := range requestedPaths {
+		p = path.Clean(strings.ReplaceAll(p, `\`, "/"))
+		if err := knowledge.ValidRelPath(p); err != nil {
+			return nil, a, err
+		}
+		if p == "." || strings.ContainsAny(p, "*?[]\x00\r\n") {
+			return nil, a, fmt.Errorf("--path cần tên tệp cụ thể trong repository, không phải glob: %q", p)
+		}
+		explicit = appendUnique(explicit, p)
+	}
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
+		if len(explicit) > 0 && task.Terminal(t.State.Status) {
+			return fmt.Errorf("không duyệt trước đường dẫn cho tác vụ đã %s", t.State.Status)
+		}
 		if cmd := strings.TrimSpace(t.Ticket.Verify.Command); cmd != "" && !e.VerifyConfirmed(t) {
 			t.State.VerifyApproval = &task.Approval{Command: cmd, By: e.actor(), At: e.at()}
 			a.VerifyCommand = cmd
 		}
 		// Tính lại từ diff hiện tại (task chưa qua Runner/checkScope thì PendingPaths rỗng).
 		pending := append([]string{}, t.State.PendingPaths...)
+		pending = appendUnique(pending, explicit...)
 		if cur, derr := e.UnapprovedChanges(context.Background(), t); derr == nil {
 			pending = appendUnique(pending, cur...)
 		}
@@ -468,6 +485,12 @@ func (e *Env) Approve(ref string) (*task.Task, Approval, error) {
 			t.State.ProtectedApproval = &task.Approval{Paths: appendUnique(prev, pending...), By: e.actor(), At: e.at()}
 			a.Paths = pending
 			t.State.PendingPaths = nil
+		}
+		if len(explicit) > 0 && task.Paused(t.State.Status) {
+			// Hook deny trước khi sửa nên không có diff và b-feat chưa thực hiện
+			// phần việc này. Chỉ lựa chọn --path mới yêu cầu chạy lại b-feat.
+			t.State.ResumeFrom = task.StatusInProgress
+			t.State.AwaitingCheck = false
 		}
 		return nil
 	})

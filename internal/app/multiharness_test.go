@@ -136,6 +136,39 @@ func codexHook(t *testing.T, m map[string]any) hookcore.Result {
 	return res
 }
 
+func TestRealCodexDenialExplainsApproval(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"a.go": "package a\n"})
+	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"codex"}, Hooks: no()})
+	t.Setenv("BINT_TASK_ID", "01M72Y6VA6NQ42T45QCVDXBF50")
+	b, err := os.ReadFile("../harness/codex/testdata/codex-0.167/hooks.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var records []struct {
+		Stdin map[string]any `json:"stdin"`
+	}
+	if err := json.Unmarshal(b, &records); err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		m := record.Stdin
+		input, _ := m["tool_input"].(map[string]any)
+		patch, _ := input["command"].(string)
+		if m["hook_event_name"] != "PreToolUse" || !strings.Contains(patch, "migrations/001.sql") {
+			continue
+		}
+		m["cwd"] = root
+		input["command"] = strings.ReplaceAll(patch, "/repo", root)
+		r := codexHook(t, m)
+		if !strings.Contains(r.Output, "deny") || !strings.Contains(r.Output, "--path 'migrations/001.sql'") || !strings.Contains(r.Output, "bint run resume") {
+			t.Fatalf("deny không có cách tiếp tục: %s", r.Output)
+		}
+		return
+	}
+	t.Fatal("thiếu fixture deny thật")
+}
+
 func agyHook(t *testing.T, event string, m map[string]any) hookcore.Result {
 	t.Helper()
 	b, _ := json.Marshal(m)

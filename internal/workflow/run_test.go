@@ -234,6 +234,33 @@ func TestProtectedPathBlocksThenResumeWithoutRerunningFeat(t *testing.T) {
 	}
 }
 
+func TestApproveUnwrittenPathRerunsFeat(t *testing.T) {
+	h := newHarness(t)
+	// Như Codex đã bị deny thật: bước kết thúc nhưng chưa có diff.
+	h.behave = func(context.Context, string, *Env, string) error { return nil }
+	r := h.runner()
+	ctx := context.Background()
+	res, err := r.Run(ctx, RunOptions{Workflow: StepDo, Request: "Create a migration", Plan: ptr(false), NoReview: true})
+	if err != nil || res.Status != task.StatusBlocked {
+		t.Fatalf("blocked: %+v %v", res, err)
+	}
+	if _, a, err := r.Approve(res.TaskID, "migrations/002.sql"); err != nil || len(a.Paths) != 1 {
+		t.Fatalf("approve: %+v %v", a, err)
+	}
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		tk, _ := h.tasks.Load(id)
+		if !strings.Contains(strings.Join(ApprovedPaths(tk), ","), "migrations/002.sql") {
+			t.Fatal("mất duyệt đường dẫn")
+		}
+		h.write("migrations/002.sql", "SELECT 1;\n")
+		return h.happy(ctx, step, e, id)
+	}
+	res, err = r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true, NoReview: true})
+	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-feat" {
+		t.Fatalf("resume: %+v %v, calls=%v", res, err, h.calls)
+	}
+}
+
 func TestReviewLoopStopsAfterMaxRounds(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Workflow.MaxReviewRounds = 1
