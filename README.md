@@ -150,8 +150,15 @@ nhánh. `mine` nối vào cuối đề bài khối *"Interface the hidden tests 
 ký** (không thân hàm, không giá trị hằng) của định danh vừa mới trong lời giải vừa được kiểm thử
 dùng tới; kiểm tra rò rỉ bỏ qua đúng khối này. Cảnh báo thiếu đặc tả (cột ĐẶC TẢ, `show`,
 `approve`): `interface_gap` — định danh mới với cả repository mà không trích được chữ ký (khoá
-chuỗi, thuộc tính…); `exact_text` — kiểm thử so khớp nguyên văn chuỗi mới mà đề bài không nêu;
-`short_prompt` — đề bài < 100 ký tự. `bint eval spec [id…|--all]` áp lại cho ứng viên cũ
+chuỗi, thuộc tính…); `exact_text` — kiểm thử so khớp nguyên văn chuỗi mới mà đề bài không nêu
+(cụm có khoảng trắng ≥ 12 ký tự, hoặc chuỗi ngắn "đặc thù" ≥ 3 ký tự: chữ hoa liên tiếp, ký hiệu
+hay không phải ASCII, mà tệp lời giải đụng tới chưa có ở commit gốc; nội dung chuỗi chỉ được cảnh
+báo, không bao giờ vào đề bài); `short_prompt` — đề bài < 100 ký tự. Khối giao diện còn ghi
+**tên** (không giá trị) của hợp đồng ẩn khác: `CLI flag: --from` (cờ test kiểm mà lời giải thêm),
+`Config key (path): qa_skills` (khoá trong tệp yml/yaml/json/toml lời giải thêm), `Data key: __v`
+(khoá dict/chỉ số trong mã lời giải thêm), và thuộc tính mô-đun bị `monkeypatch.setattr` /
+`mock.patch` / `patch.object` thay thế (đi qua cơ chế chữ ký, không trích được thì `interface_gap`).
+Mỗi gợi ý có `kind` (`signature` mặc định/`flag`/`config_key`/`data_key`). `bint eval spec [id…|--all]` áp lại cho ứng viên cũ
 (`--approved` cho tác vụ đã duyệt: đổi fingerprint).
 
 **Cô lập (`run`).** Mỗi lượt là một repository Git **mới** chỉ chứa lịch sử tới commit gốc

@@ -39,8 +39,10 @@ type SpecReport struct {
 	Findings  []LeakFinding   `yaml:"findings,omitempty"`
 }
 
-// InterfaceHint là chữ ký một định danh mà kiểm thử sẽ dùng.
+// InterfaceHint là một thứ kiểm thử sẽ dùng mà lời giải đưa vào: chữ ký định danh,
+// cờ dòng lệnh, khoá cấu hình hoặc khoá dữ liệu. Chỉ có TÊN, không bao giờ có giá trị.
 type InterfaceHint struct {
+	Kind      string `yaml:"kind,omitempty"` // signature (mặc định) | flag | config_key | data_key
 	Path      string `yaml:"path"`
 	Name      string `yaml:"name"`
 	Owner     string `yaml:"owner,omitempty"` // lớp chứa (nếu là phương thức)
@@ -61,12 +63,11 @@ func DeriveSpec(ctx context.Context, repoDir string, c *Case, prompt string, in 
 			required = append(required, id)
 		}
 	}
-	sort.Strings(required)
-
 	type srcFile struct {
 		path  string
 		lines []string
 		added map[string]bool
+		raw   []string // dòng thêm mới theo thứ tự diff
 	}
 	var files []srcFile
 	for _, f := range c.SourceFiles {
@@ -82,8 +83,37 @@ func DeriveSpec(ctx context.Context, repoDir string, c *Case, prompt string, in 
 		for _, a := range added {
 			am[strings.TrimSpace(a)] = true
 		}
-		files = append(files, srcFile{path: f, lines: strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n"), added: am})
+		files = append(files, srcFile{path: f, lines: strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n"), added: am, raw: added})
 	}
+
+	var srcLines []fileLines
+	for _, sf := range files {
+		srcLines = append(srcLines, fileLines{sf.path, sf.raw})
+	}
+
+	// Thuộc tính module bị test thay thế (monkeypatch/mock): tên nằm trong chuỗi nên
+	// không thành định danh test dùng; coi như định danh test dùng tới. Tên mới với cả
+	// repository đi qua cơ chế chữ ký; tên đã có nơi khác nhưng lời giải import/gán vào
+	// mô-đun thì ghi là thuộc tính mô-đun.
+	srcText := strings.Join(in.AddedLines, "\n")
+	extra := map[string]bool{}
+	have := map[string]bool{}
+	for _, n := range required {
+		have[n] = true
+	}
+	patches := patchTargets(in.TestAdded)
+	for _, pt := range patches {
+		name := pt.Name
+		if have[name] || !wordIn(srcText, name) {
+			continue
+		}
+		have[name] = true
+		if !existsAt(ctx, repoDir, c.Source.Base, name) {
+			extra[name] = true
+			required = append(required, name)
+		}
+	}
+	sort.Strings(required)
 
 	var gaps []string
 	for _, name := range required {
@@ -107,10 +137,41 @@ func DeriveSpec(ctx context.Context, repoDir string, c *Case, prompt string, in 
 		}
 		// Chỉ là khoảng trống đặc tả khi tên thật sự mới với cả repository: tên có sẵn
 		// (builtin, biến môi trường, fixture, hằng ở module khác) agent tìm được.
-		if !found && codeLike(name) && !hexLikeRe.MatchString(name) && !existsAt(ctx, repoDir, c.Source.Base, name) {
+		if !found && (extra[name] || codeLike(name) && !hexLikeRe.MatchString(name) && !existsAt(ctx, repoDir, c.Source.Base, name)) {
 			gaps = append(gaps, name)
 		}
 	}
+
+	// Cờ dòng lệnh và khoá cấu hình/dữ liệu do lời giải đưa vào mà test kiểm: chỉ đưa
+	// TÊN vào khối giao diện. Khoá đã vào khối thì không còn là khoảng trống.
+	named := map[string]bool{}
+	for _, h := range rep.Interface {
+		named[h.Name] = true
+	}
+	for _, pt := range patches {
+		name := pt.Name
+		if named[name] || !wordIn(srcText, name) {
+			continue
+		}
+		if h, ok := importedAttr(pt, srcLines); ok {
+			named[name] = true
+			rep.Interface = append(rep.Interface, h)
+		}
+	}
+	rep.Interface = append(rep.Interface, flagHints(ctx, repoDir, c.Source.Base, c.SourceFiles, in, prompt)...)
+	keys := keyHints(ctx, repoDir, c.Source.Base, c.SourceFiles, in, prompt, srcLines, named)
+	rep.Interface = append(rep.Interface, keys...)
+	skipText := map[string]bool{}
+	for _, h := range rep.Interface {
+		skipText[h.Name] = true
+	}
+	var left []string
+	for _, g := range gaps {
+		if !skipText[g] {
+			left = append(left, g)
+		}
+	}
+	gaps = left
 	if len(gaps) > 0 {
 		add("interface_gap", fmt.Sprintf("kiểm thử dùng %d định danh mới không trích được chữ ký (khoá, chuỗi, thuộc tính…): %s",
 			len(gaps), strings.Join(firstN(gaps, 6), ", ")))
@@ -120,7 +181,7 @@ func DeriveSpec(ctx context.Context, repoDir string, c *Case, prompt string, in 
 		add("short_prompt", fmt.Sprintf("đề bài chỉ %d ký tự (< %d): thường chỉ là tiêu đề commit, thiếu hành vi mong đợi", n, MinPromptChars))
 	}
 
-	if texts := exactTexts(in, prompt); len(texts) > 0 {
+	if texts := exactTexts(ctx, repoDir, c.Source.Base, c.SourceFiles, in, prompt, skipText); len(texts) > 0 {
 		add("exact_text", fmt.Sprintf("kiểm thử so khớp nguyên văn %d chuỗi mới của lời giải mà đề bài không nêu, ví dụ %q",
 			len(texts), truncate(texts[0], 60)))
 	}
@@ -143,6 +204,17 @@ func WithInterface(prompt string, hints []InterfaceHint) string {
 	b.WriteString("\n\n")
 	b.WriteString(InterfaceHeader)
 	for _, h := range hints {
+		switch h.Kind {
+		case HintFlag:
+			fmt.Fprintf(&b, "\n- %s", h.Signature)
+			continue
+		case HintConfigKey:
+			fmt.Fprintf(&b, "\n- Config key (%s): %s", h.Path, h.Name)
+			continue
+		case HintDataKey:
+			fmt.Fprintf(&b, "\n- Data key: %s", h.Name)
+			continue
+		}
 		loc := h.Path
 		if h.Owner != "" {
 			loc += " (in " + h.Owner + ")"
@@ -158,27 +230,6 @@ func StripInterface(prompt string) string {
 		return strings.TrimRight(prompt[:i], " \t\n")
 	}
 	return prompt
-}
-
-// exactTexts: chuỗi trong phần kiểm thử được thêm, cũng nằm trong mã lời giải
-// được thêm, nhưng đề bài không nêu — agent phải đoán đúng từng chữ.
-func exactTexts(in LeakInput, prompt string) []string {
-	src := strings.Join(in.AddedLines, "\n")
-	np := normWS(prompt)
-	seen := map[string]bool{}
-	var out []string
-	for _, m := range stringLitRe.FindAllStringSubmatch(strings.Join(in.TestAdded, "\n"), -1) {
-		s := m[1] + m[2]
-		if len([]rune(s)) < minExactText || seen[s] || strings.Contains(np, normWS(s)) || !strings.Contains(src, s) {
-			continue
-		}
-		if !strings.ContainsAny(s, " \t") { // một từ/định danh: đã xét ở interface_gap
-			continue
-		}
-		seen[s] = true
-		out = append(out, s)
-	}
-	return out
 }
 
 var hexLikeRe = regexp.MustCompile(`^[0-9a-fA-F]{6,}$`)
