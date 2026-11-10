@@ -6,6 +6,18 @@ import (
 	"bint/internal/eval"
 )
 
+func TestManualRejectReasonKhongGiaLoaiTuDong(t *testing.T) {
+	c := &eval.Case{Status: eval.StatusRejected, RejectReason: manualRejectReason("kiểm chứng: x"),
+		Verification: &eval.Verification{Status: "verified"}}
+	settleVerification(c)
+	if c.Status != eval.StatusRejected {
+		t.Errorf("loại thủ công bị khôi phục: %s %q", c.Status, c.RejectReason)
+	}
+	if got := manualRejectReason("lý do khác"); got != "lý do khác" {
+		t.Errorf("%q", got)
+	}
+}
+
 func TestSettleVerificationKiemChungLai(t *testing.T) {
 	ok := &eval.Verification{Status: "verified"}
 	bad := &eval.Verification{Status: "failed", Detail: "mới"}

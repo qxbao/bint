@@ -190,6 +190,15 @@ func applyVerification(ctx context.Context, e *evalCtx, c *eval.Case, runs int) 
 // verifyRejectPrefix mở đầu lý do loại do kiểm chứng (phân biệt với người duyệt loại).
 const verifyRejectPrefix = "kiểm chứng: "
 
+// manualRejectReason chuẩn hoá lý do do người duyệt nhập để không bị nhầm với lý do
+// loại tự động do kiểm chứng.
+func manualRejectReason(reason string) string {
+	if strings.HasPrefix(reason, verifyRejectPrefix) {
+		return "người duyệt: " + reason
+	}
+	return reason
+}
+
 // settleVerification đồng bộ trạng thái ứng viên với kết quả kiểm chứng mới nhất. Ứng
 // viên bị loại do kiểm chứng được chấm lại: đạt thì về chờ duyệt, vẫn không đạt thì cập
 // nhật lý do. Ứng viên do người duyệt loại thì giữ nguyên.
@@ -600,7 +609,7 @@ func newEvalRejectCmd(stdio IO) *cobra.Command {
 					return fmt.Errorf("%s đã được duyệt; xoá %s nếu muốn bỏ khỏi tập đánh giá", c.ID, e.cases.CasePath(c.ID))
 				}
 				c.Status = eval.StatusRejected
-				c.RejectReason = reason
+				c.RejectReason = manualRejectReason(reason)
 				if err := e.cases.SaveCandidate(c); err != nil {
 					return err
 				}

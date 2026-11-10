@@ -234,29 +234,38 @@ func TestDerivedFromWindowAndKind(t *testing.T) {
 			t.Errorf("%s %s: %v", tc.c.Source.Date, tc.c.SourceFiles[0], got)
 		}
 	}
-	// Tiến cứu: đề xuất tạo lúc start+48h; commit cùng tệp ngay sau đó (trong 24h của lượt
-	// căn cứ không còn quan trọng) được dùng, còn commit trước/đồng thời đề xuất giữ cửa sổ.
+	// Tiến cứu: đề xuất tạo lúc start+48h; lượt R kết thúc ngay trước đó.
 	created := start.Add(48 * time.Hour)
-	h.ByID["R"].EndedAt = store.FormatTime(created.Add(-time.Minute)) // lượt kết thúc ngay trước đề xuất
-	for _, tc := range []struct {
-		c    *eval.Case
-		want bool
-	}{
-		{mk(created.Add(time.Minute), "lib/a.go"), false},    // cùng ngày sau đề xuất: dùng được
-		{mk(created, "lib/a.go"), true},                      // đồng thời: bị loại
-		{mk(created.Add(-30*time.Minute), "lib/a.go"), true}, // trước đề xuất, trong cửa sổ lượt
-	} {
-		if got := DerivedFrom(p, h, tc.c) != ""; got != tc.want {
-			t.Errorf("tiến cứu %s: %v", tc.c.Source.Date, got)
+	run := h.ByID["R"]
+	run.EndedAt = store.FormatTime(created.Add(-time.Minute))
+	after := mk(created.Add(time.Minute), "lib/a.go") // commit C sau đề xuất, cùng tệp, trong 24h
+	// Kịch bản rò rỉ: R chưa gắn commit (công việc có thể chính là C) → phải loại.
+	if DerivedFrom(p, h, after) == "" {
+		t.Error("R chưa gắn commit, C sau đề xuất cùng tệp: phải bị loại")
+	}
+	// R đã gắn commit khác trước đề xuất → được dùng.
+	run.Commits = []string{"def1234"}
+	if DerivedFrom(p, h, after) != "" {
+		t.Error("R đã gắn commit khác: tác vụ sau đề xuất phải được dùng")
+	}
+	// Commit đồng thời/trước đề xuất: giữ cửa sổ dù R đã gắn commit.
+	for _, at := range []time.Time{created, created.Add(-30 * time.Minute)} {
+		if DerivedFrom(p, h, mk(at, "lib/a.go")) == "" {
+			t.Errorf("commit lúc %s phải bị loại", at)
 		}
 	}
-	// Commit gắn với lượt căn cứ vẫn bị loại dù sau đề xuất.
-	h.ByID["R"].Commits = []string{"abc"}
-	if DerivedFrom(p, h, mk(created.Add(time.Minute), "lib/a.go")) == "" {
+	// R kết thúc sau đề xuất: không xác định được → giữ cửa sổ.
+	run.EndedAt = store.FormatTime(created.Add(time.Minute))
+	if DerivedFrom(p, h, mk(created.Add(2*time.Minute), "lib/a.go")) == "" {
+		t.Error("R kết thúc sau đề xuất: phải giữ cửa sổ")
+	}
+	// Commit chính của lượt căn cứ vẫn bị loại.
+	run.EndedAt = store.FormatTime(created.Add(-time.Minute))
+	run.Commits = []string{"abc"}
+	if DerivedFrom(p, h, after) == "" {
 		t.Error("commit thuộc lượt căn cứ phải bị loại")
 	}
-	h.ByID["R"].Commits = nil
-	h.ByID["R"].EndedAt = store.FormatTime(start.Add(time.Hour))
+	run.Commits, run.EndedAt = nil, store.FormatTime(start.Add(time.Hour))
 	old, future := mk(start, "x"), mk(start.Add(72*time.Hour), "x")
 	cases := map[string]*eval.Case{old.ID: old, future.ID: future}
 	if k := EvidenceKind(p, []string{future.ID}, cases); k != KindProspective {
