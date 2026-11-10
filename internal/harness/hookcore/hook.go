@@ -351,8 +351,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			ev.Type = spool.TestCompleted
 			ev.Payload["command"] = detect.Redact(info.Command, 300)
 			// Lệnh đã được người xác nhận (eval.test_command) cho tín hiệu kết quả mạnh (mục 9.6).
-			if tc := cfg.Eval.TestCommand; tc != nil && strings.TrimSpace(*tc) != "" &&
-				strings.Contains(strings.TrimSpace(info.Command), strings.TrimSpace(*tc)) {
+			if isConfirmedTest(cfg.Eval.TestCommand, info.Command) {
 				ev.Payload["confirmed"] = true
 			}
 		default:
@@ -627,4 +626,13 @@ func ClaudeStylePreToolOutput(decision string) func(text, ask string) string {
 		b, _ := json.Marshal(map[string]any{"hookSpecificOutput": out})
 		return string(b)
 	}
+}
+
+// isConfirmedTest cho biết lệnh shell chạy đúng eval.test_command (coi là mẫu:
+// {test_files} khớp các đối số đường dẫn, phần cố định khớp theo token).
+func isConfirmedTest(tc *string, command string) bool {
+	if tc == nil || strings.TrimSpace(*tc) == "" {
+		return false
+	}
+	return detect.MatchesTemplate(command, *tc)
 }
