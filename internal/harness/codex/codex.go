@@ -171,12 +171,18 @@ func desiredGroups(cmd string) map[string]map[string]any {
 		}
 		return g
 	}
-	return map[string]map[string]any{
+	groups := map[string]map[string]any{
 		"SessionStart": group(""),
 		"SessionEnd":   group(""),
 		"PreToolUse":   group("apply_patch|Bash|shell|exec_command"),
 		"PostToolUse":  group("apply_patch|Bash|shell|exec_command|mcp__bint__.*"),
 	}
+	// Codex 0.167 giới hạn SessionEnd ở 3 giây; không dùng chung bản đồ h
+	// để giữ timeout của các sự kiện còn lại ở 10 giây.
+	groups["SessionEnd"]["hooks"] = []any{map[string]any{
+		"type": "command", "command": cmd, "timeout": 3,
+	}}
+	return groups
 }
 
 // InstallHooks thêm (hoặc cập nhật) hook của Bint trong hooks.json, giữ nguyên hook khác.
