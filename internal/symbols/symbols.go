@@ -27,6 +27,9 @@ type Region struct {
 	From, To int
 	// Exact = true khi phân tích cú pháp thật (Go), false khi heuristic.
 	Exact bool
+	// Container = true khi vùng là vật chứa các ký hiệu khác (lớp, kiểu, module): nội
+	// dung của nó đổi mỗi khi có thành viên mới, nên không phải bằng chứng ổn định.
+	Container bool
 }
 
 // Locator tìm vùng của ký hiệu sym trong tệp rel có nội dung src.
@@ -75,7 +78,7 @@ func (builtin) Locate(rel string, src []byte, sym string) (Region, bool) {
 	case "brace":
 		return locateBrace(lines, sym)
 	case "indent":
-		return locateIndent(lines, sym, `^\s*(async\s+def|def|class|module)\s+`+regexp.QuoteMeta(lastPart(sym))+`\b`)
+		return locateIndentQualified(lines, sym)
 	case "yaml":
 		return locateIndent(lines, sym, `^\s*["']?`+regexp.QuoteMeta(lastPart(sym))+`["']?\s*:`)
 	case "toml":
@@ -143,19 +146,25 @@ func locateGo(src []byte, sym string) (Region, bool) {
 				continue
 			}
 			for _, s := range d.Specs {
+				container := false
 				var names []*ast.Ident
 				switch s := s.(type) {
 				case *ast.TypeSpec:
 					names = []*ast.Ident{s.Name}
+					if s.Name.Name == name {
+						container = true
+					}
 				case *ast.ValueSpec:
 					names = s.Names
 				}
 				for _, n := range names {
 					if n.Name == name {
+						r, ok := reg(s)
 						if len(d.Specs) == 1 {
-							return reg(d)
+							r, ok = reg(d)
 						}
-						return reg(s)
+						r.Container = container
+						return r, ok
 					}
 				}
 			}
@@ -180,6 +189,8 @@ func recvName(e ast.Expr) string {
 
 var declKeywords = `(func|function|class|interface|struct|enum|trait|impl|fn|def|type|const|let|var|val|object|record|module|namespace|protocol|extension)`
 
+var braceContainer = regexp.MustCompile(`\b(class|interface|struct|enum|trait|impl|object|module|namespace|protocol|extension)\b`)
+
 func locateBrace(lines []string, sym string) (Region, bool) {
 	name := regexp.QuoteMeta(lastPart(sym))
 	pats := []*regexp.Regexp{
@@ -194,7 +205,7 @@ func locateBrace(lines []string, sym string) (Region, bool) {
 				continue
 			}
 			if end, ok := braceEnd(lines, i); ok {
-				return Region{From: i + 1, To: end + 1}, true
+				return Region{From: i + 1, To: end + 1, Container: braceContainer.MatchString(l)}, true
 			}
 		}
 	}
@@ -259,6 +270,8 @@ func braceEnd(lines []string, start int) (int, bool) {
 	return 0, false
 }
 
+var indentContainer = regexp.MustCompile(`^\s*(class|module)\s`)
+
 func locateIndent(lines []string, sym, pattern string) (Region, bool) {
 	re := regexp.MustCompile(pattern)
 	for i, l := range lines {
@@ -281,7 +294,7 @@ func locateIndent(lines []string, sym, pattern string) (Region, bool) {
 			}
 			end = j
 		}
-		return Region{From: i + 1, To: end + 1}, true
+		return Region{From: i + 1, To: end + 1, Container: indentContainer.MatchString(l)}, true
 	}
 	return Region{}, false
 }
@@ -320,4 +333,107 @@ func locateTOML(lines []string, sym string) (Region, bool) {
 		return Region{From: i + 1, To: end + 1}, true
 	}
 	return locateIndent(lines, sym, `^\s*`+regexp.QuoteMeta(lastPart(sym))+`\s*=`)
+}
+
+func indentPattern(name string) string {
+	return `^\s*(async\s+def|def|class|module)\s+` + regexp.QuoteMeta(name) + `\b`
+}
+
+// locateIndentQualified định vị "Lớp.phương_thức" (Python, Ruby): tìm lớp trước rồi
+// tìm phương thức BÊN TRONG lớp đó, để hai lớp có phương thức trùng tên không bị nhầm
+// theo thứ tự trong tệp. Nếu không tìm thấy phần định danh trước thì lùi về cách cũ
+// (khớp theo tên cuối); fingerprint vẫn phải khớp nội dung nên không nới được gì.
+func locateIndentQualified(lines []string, sym string) (Region, bool) {
+	parts := strings.Split(sym, ".")
+	if len(parts) < 2 {
+		return locateIndent(lines, sym, indentPattern(lastPart(sym)))
+	}
+	lo, hi := 0, len(lines)
+	var r Region
+	for i, p := range parts {
+		found, ok := locateIndent(lines[lo:hi], p, indentPattern(p))
+		if !ok {
+			if i == 0 {
+				return locateIndent(lines, sym, indentPattern(lastPart(sym)))
+			}
+			return Region{}, false
+		}
+		r = Region{From: found.From + lo, To: found.To + lo, Container: found.Container}
+		lo, hi = r.From, r.To // r.From là chỉ số 0 của dòng kế tiếp tiêu đề
+	}
+	return r, true
+}
+
+var indentDef = regexp.MustCompile(`^\s*(async\s+def|def|class)\s+(\w+)`)
+
+// Enclosing trả về ký hiệu hàm/phương thức hẹp nhất (dạng "Lớp.phương_thức") bao trọn
+// vùng dòng [from, to]. Hỗ trợ Go và Python/Ruby; ngôn ngữ khác không có kết quả.
+func Enclosing(rel string, src []byte, from, to int) (string, Region, bool) {
+	switch lang(rel) {
+	case "go":
+		return enclosingGo(src, from, to)
+	case "indent":
+		return enclosingIndent(splitLines(src), from, to)
+	}
+	return "", Region{}, false
+}
+
+func enclosingGo(src []byte, from, to int) (string, Region, bool) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "x.go", src, parser.SkipObjectResolution)
+	if err != nil && f == nil {
+		return "", Region{}, false
+	}
+	for _, d := range f.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		r := Region{From: fset.Position(fd.Pos()).Line, To: fset.Position(fd.End()).Line, Exact: true}
+		if r.From > from || r.To < to {
+			continue
+		}
+		name := fd.Name.Name
+		if fd.Recv != nil && len(fd.Recv.List) > 0 {
+			name = recvName(fd.Recv.List[0].Type) + "." + name
+		}
+		return name, r, true
+	}
+	return "", Region{}, false
+}
+
+func enclosingIndent(lines []string, from, to int) (string, Region, bool) {
+	type frame struct {
+		ind  int
+		name string
+	}
+	var stack []frame
+	best, bestName := Region{}, ""
+	for i, l := range lines {
+		m := indentDef.FindStringSubmatch(l)
+		if m == nil {
+			continue
+		}
+		ind := indentOf(l)
+		for len(stack) > 0 && stack[len(stack)-1].ind >= ind {
+			stack = stack[:len(stack)-1]
+		}
+		name := m[2]
+		if len(stack) > 0 {
+			name = stack[len(stack)-1].name + "." + name
+		}
+		stack = append(stack, frame{ind, name})
+		if m[1] == "class" {
+			continue
+		}
+		r, ok := locateIndent(lines[i:], m[2], indentPattern(m[2]))
+		if !ok || r.From != 1 {
+			continue
+		}
+		r = Region{From: i + 1, To: i + r.To}
+		if r.From <= from && r.To >= to && r.From >= best.From {
+			best, bestName = r, name
+		}
+	}
+	return bestName, best, bestName != ""
 }

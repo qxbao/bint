@@ -206,6 +206,7 @@ func CheckSkillDraft(d *SkillDraft, src knowledge.Source, others []*skills.Evolv
 	if src != nil {
 		for i := range it.Evidence {
 			if b, ok := src.Read(it.Evidence[i].Path); ok {
+				it.Evidence[i] = knowledge.NarrowEvidence(it.Evidence[i], b)
 				if fp, err := knowledge.FingerprintWith(it.Evidence[i], b, "symbol"); err == nil {
 					it.Evidence[i].Fingerprint = fp
 				}

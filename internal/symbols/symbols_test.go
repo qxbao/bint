@@ -2,6 +2,22 @@ package symbols
 
 import "testing"
 
+func TestLocateQualifiedAndEnclosingPython(t *testing.T) {
+	src := []byte("class B:\n    def run(self):\n        return 1\n\nclass A:\n    x = 1\n\n    def run(self):\n        return 2\n")
+	if r, ok := Locate("m.py", src, "A.run"); !ok || r.From != 8 || r.To != 9 {
+		t.Errorf("A.run: %+v %v", r, ok)
+	}
+	if r, ok := Locate("m.py", src, "A"); !ok || !r.Container {
+		t.Errorf("lớp phải là vật chứa: %+v %v", r, ok)
+	}
+	if n, r, ok := Enclosing("m.py", src, 9, 9); !ok || n != "A.run" || r.From != 8 {
+		t.Errorf("Enclosing = %q %+v %v", n, r, ok)
+	}
+	if _, _, ok := Enclosing("m.py", src, 6, 6); ok {
+		t.Error("thuộc tính lớp không thuộc hàm nào")
+	}
+}
+
 func TestLocateGo(t *testing.T) {
 	src := []byte(`package x
 

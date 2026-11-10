@@ -30,6 +30,7 @@ func evidenceRefs(specs []string, src knowledge.Source, fpPref string) ([]skills
 			return nil, err
 		}
 		if b, ok := src.Read(e.Path); ok {
+			e = knowledge.NarrowEvidence(e, b)
 			if fp, err := knowledge.FingerprintWith(e, b, fpPref); err == nil {
 				e.Fingerprint = fp
 			}
@@ -371,6 +372,7 @@ Cuối câu trả lời, in DUY NHẤT một khối JSON:
   "evidence":["<tệp>:<dòng-dòng>[#Ký_hiệu]"],"inputs":["<tệp đã đọc>"],
   "expected_benefit":"<lợi ích kiểm chứng được>","reason":"<vì sao, dẫn tệp:dòng>"}]}
 - Tối đa 1 phần tử. Bằng chứng phải trỏ tới dòng có thật trong mã hiện tại.
+- Bằng chứng được đối chiếu lại tại commit gốc của từng tác vụ cũ. Chọn dòng hẹp trong một hàm/phương thức (ghi kèm #Ký_hiệu của hàm đó, không ghi cả lớp) và ưu tiên mã đã tồn tại lâu, ổn định qua nhiều commit.
 - Không có quy trình nào đáng đóng gói → {"skills":[]}.
 `)
 	return b.String()
