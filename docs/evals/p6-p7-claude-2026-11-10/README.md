@@ -1,6 +1,6 @@
 # Số liệu P6–P7 (Claude Code, Sonnet) — chuẩn bị quyết định mở P8
 
-**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$19,9 (USD do harness báo).
+**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$39,6 (trần nâng từ $25) (USD do harness báo).
 
 **Kết luận:** chưa đạt nghiệm thu P6 và P7. Về lý thuyết P8 **khả thi có điều kiện**. Tỷ lệ đạt nền sau bản sửa đặc tả là 33–40 %. Với thiết kế Probe mới (ít tác vụ, lặp theo kế hoạch, dừng sớm), mức cải thiện +15–20 điểm % phát hiện được với ~30 tác vụ mỗi đề xuất, tốn ≤ $25–60 mỗi lần đối chiếu. Nút thắt còn lại là số tác vụ đã duyệt, cùng một lần Probe thật để đo σ_b (mục cuối).
 
@@ -118,6 +118,33 @@ Trên toàn bộ 892 ứng viên:
 Ước tính nguồn tác vụ:
 - Tối đa: 892 × ~90 % kiểm chứng được × 33 % ≈ 265 tác vụ dùng được, tức ≈ 66 tác vụ mỗi tập validation/test.
 - Sau lọc phạm vi và bằng chứng theo đề xuất: **≈ 16–33 tác vụ mỗi đề xuất**.
+
+## So sánh có Bint và không có Bint (30 tác vụ)
+
+**Cấu hình:**
+- Tri thức dựng theo chế độ strict: `bint eval bootstrap` tại commit gốc của từng tác vụ. 30 ảnh chụp, mỗi ảnh 4–7 mục chưa qua người duyệt, tốn $6,57.
+- Nhánh `minimal` (AGENTS.md dựng từ tri thức) và nhánh `bint` (AGENTS.md + Context Engine), mỗi nhánh 1 lần lặp, tốn $13,16.
+- Nhánh `none` dùng lại 2 lần lặp đã đo ở trên.
+- Ghép cặp theo tác vụ; CI95 bootstrap theo tác vụ.
+
+| Nhánh | Tỷ lệ đạt | Chi phí TB/lượt | Số lượt hội thoại TB |
+|---|---:|---:|---:|
+| none | 22/60 = 37 % | $0,194 | 13,3 |
+| minimal | 11/30 = 37 % | $0,214 | 12,5 |
+| bint | 12/30 = 40 % | $0,225 | 13,9 |
+
+| So sánh | Δ tỷ lệ đạt | Δ chi phí/lượt | Δ lượt hội thoại | Tác vụ tốt hơn / kém hơn |
+|---|---|---|---|---|
+| minimal − none | +0,0 điểm % [−15, +15] | +$0,020 [−0,006, +0,046] | −0,8 [−3,3, +1,8] | 5 / 5 |
+| bint − none | +3,3 điểm % [−12, +18] | **+$0,031 [+0,009, +0,054]** (+16 %) | +0,6 [−1,1, +2,6] | 6 / 4 |
+
+**Đọc kết quả:**
+- **Tỷ lệ đạt:** không thấy khác biệt. Khoảng tin cậy ±15 điểm % không loại trừ mức tăng hay giảm nhỏ.
+- **Chi phí:** nhánh `bint` đắt hơn khoảng 16 % mỗi lượt, và chênh lệch có ý nghĩa thống kê. Nhánh `minimal` đắt hơn khoảng 10 %, chưa có ý nghĩa.
+- **Số lượt hội thoại:** không giảm.
+- **Truy xuất:** log truy xuất chỉ ghi hook theo đường dẫn, mỗi lượt tối đa 1 lần chèn (25/30 lượt); không thấy lượt nào gọi công cụ MCP.
+
+**Kết luận:** với tri thức tự sinh chưa qua duyệt, Bint **chưa hiệu quả**. Tỷ lệ đạt ngang chạy thường, còn chi phí cao hơn khoảng 16 %. Hiện chưa thấy bằng chứng Bint làm hỏng việc, nhưng nó đang tốn thêm mà chưa đem lại lợi ích đo được.
 
 ## Khả thi của P8 trên lý thuyết
 
