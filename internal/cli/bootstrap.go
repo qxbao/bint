@@ -13,6 +13,7 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/fsafe"
+	"bint/internal/harness"
 	"bint/internal/inspect"
 	"bint/internal/knowledge"
 	"bint/internal/skills"
@@ -236,14 +237,9 @@ Bước tiếp theo:
 
 // installSkillsCLI xuất bản skill gốc (đã ghép lớp phủ); trả về số xung đột.
 func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) (int, error) {
-	var targets []skills.Target
-	for _, h := range k.Config.Harnesses.Enabled {
-		if h == "claude" {
-			targets = append(targets, skills.ClaudeTarget)
-		}
-	}
+	targets := harness.SkillTargets(k.Config.Harnesses.Enabled)
 	if len(targets) == 0 {
-		fmt.Fprintln(w, "! Không harness nào có adapter skill (hỗ trợ claude); dùng `bint skill show <tên>` để lấy nội dung.")
+		fmt.Fprintln(w, "! Không harness nào có adapter skill; dùng `bint skill show <tên>` để lấy nội dung.")
 		return 0, nil
 	}
 	m, err := fsafe.LoadManifest(k.Paths.Manifest)

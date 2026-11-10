@@ -15,7 +15,9 @@ import (
 	"bint/internal/detect"
 	"bint/internal/fsafe"
 	"bint/internal/gitrepo"
+	"bint/internal/harness"
 	"bint/internal/harness/claude"
+	"bint/internal/harness/codex"
 	"bint/internal/knowledge"
 	"bint/internal/runlog"
 	"bint/internal/skills"
@@ -176,9 +178,25 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		if where == "" {
 			where = d.Home
 		}
-		r.add("harness "+h, LevelOK, "%s", where)
-		if h == claude.HarnessName {
-			r.Checks = append(r.Checks, claudeHookCheck(repo.Toplevel))
+		ad, ok := harness.Get(h)
+		if !ok {
+			r.add("harness "+h, LevelOK, "%s", where)
+			continue
+		}
+		info := harness.Describe(ad, cfg, nil)
+		r.add("harness "+h, LevelOK, "%s — cấp %d (%s), xem `bint harness show %s`", where, info.Level, info.LevelTitle, h)
+		if hi, ok := ad.(harness.HookInstaller); ok {
+			r.Checks = append(r.Checks, hookCheck(ad, hi, repo.Toplevel))
+		}
+		if mi, ok := ad.(harness.MCPInstaller); ok && cfg.Context.Interfaces.MCP {
+			if mi.MCPInstalled(repo.Toplevel) {
+				r.add("MCP "+h, LevelOK, "đã đăng ký")
+			} else {
+				r.add("MCP "+h, LevelInfo, "chưa đăng ký MCP server của Bint (bint init --mcp)")
+			}
+		}
+		if h == codex.HarnessName && !codex.ProjectTrusted(repo.Toplevel) {
+			r.add("codex trust", LevelInfo, "repository chưa được Codex tin cậy: .codex/config.toml và .codex/hooks.json cấp dự án chưa có hiệu lực")
 		}
 	}
 
@@ -224,47 +242,55 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 		}
 		r.add("tri thức", lvl, "%s", detail)
 	}
-	if !slices.Contains(cfg.Harnesses.Enabled, claude.HarnessName) {
-		return
-	}
+	targets := harness.SkillTargets(cfg.Harnesses.Enabled)
 	for _, core := range skills.Core() {
 		sk, _, cerr := skills.Composed(root, core)
 		if cerr != nil {
 			r.add("skill "+core.Name, LevelWarn, "%v", cerr)
 			continue
 		}
-		st, err := skills.Status(root, skills.ClaudeTarget, sk)
-		switch {
-		case err != nil:
-			r.add("skill "+sk.Name, LevelWarn, "%v", err)
-		case st == "missing":
-			r.add("skill "+sk.Name, LevelInfo, "chưa xuất bản cho Claude Code (bint sync)")
-		case st == "differs":
-			r.add("skill "+sk.Name, LevelWarn, "khác bản của Bint (bị sửa tay, lớp phủ đổi hoặc Bint đã nâng cấp): chạy `bint sync`")
-		default:
-			r.add("skill "+sk.Name, LevelOK, "%s", filepath.ToSlash(filepath.Join(skills.ClaudeTarget.Dir, sk.Name, "SKILL.md")))
+		for _, t := range targets {
+			who := strings.Join(harness.HarnessesForTarget(cfg.Harnesses.Enabled, t.Dir), ", ")
+			rel := filepath.ToSlash(filepath.Join(t.Dir, sk.Name, "SKILL.md"))
+			st, err := skills.Status(root, t, sk)
+			switch {
+			case err != nil:
+				r.add("skill "+sk.Name, LevelWarn, "%v", err)
+			case st == "missing":
+				r.add("skill "+sk.Name, LevelInfo, "chưa xuất bản cho %s (bint sync)", who)
+			case st == "differs":
+				r.add("skill "+sk.Name, LevelWarn, "%s khác bản của Bint (bị sửa tay, lớp phủ đổi hoặc Bint đã nâng cấp): chạy `bint sync`", rel)
+			default:
+				r.add("skill "+sk.Name, LevelOK, "%s", rel)
+			}
 		}
 	}
 }
 
-func claudeHookCheck(root string) Check {
+func hookCheck(ad harness.Adapter, hi harness.HookInstaller, root string) Check {
+	name := "hook " + ad.Name()
 	var found []string
+	var paths []string
 	for _, sc := range []claude.Scope{claude.ScopeLocal, claude.ScopeProject, claude.ScopeUser} {
-		p, err := claude.SettingsPath(sc, root)
-		if err != nil {
+		p, err := hi.HooksPath(sc, root)
+		if err != nil || slices.Contains(paths, p) {
 			continue
 		}
-		if ok, _ := claude.HooksInstalled(p); ok {
+		paths = append(paths, p)
+		if ok, _ := hi.HooksInstalled(p); ok {
 			found = append(found, string(sc))
+			if ad.Name() == codex.HarnessName && !codex.HooksTrusted(p) {
+				return Check{name, LevelWarn, "đã cài ở " + p + " nhưng chưa được duyệt trong Codex (mở codex, /hooks)"}
+			}
 		}
 	}
 	switch len(found) {
 	case 0:
-		return Check{"hook claude", LevelWarn, "chưa cài; lượt chạy sẽ không được ghi nhận (bint init --hooks)"}
+		return Check{name, LevelWarn, "chưa cài; lượt chạy trực tiếp trong " + ad.Title() + " sẽ không được ghi nhận (bint init --hooks)"}
 	case 1:
-		return Check{"hook claude", LevelOK, "phạm vi " + found[0]}
+		return Check{name, LevelOK, "phạm vi " + found[0]}
 	default:
-		return Check{"hook claude", LevelInfo, "cài ở nhiều phạm vi (" + strings.Join(found, ", ") + "); sự kiện trùng được loại theo event_id"}
+		return Check{name, LevelInfo, "cài ở nhiều phạm vi (" + strings.Join(found, ", ") + "); sự kiện trùng được loại theo event_id"}
 	}
 }
 

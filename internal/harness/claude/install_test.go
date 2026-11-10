@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"bint/internal/harness/hookcore"
 )
 
 func TestInstallPreservesAndIsIdempotent(t *testing.T) {
@@ -28,7 +31,12 @@ func TestInstallPreservesAndIsIdempotent(t *testing.T) {
 	os.WriteFile(p, []byte(orig), 0o644)
 	backups := filepath.Join(dir, "backups")
 
-	res, err := InstallHooks(p, `C:\Program Files\bint\bint.exe`, backups, time.Now())
+	// filepath.ToSlash chỉ đổi dấu '\' trên Windows; nơi khác dùng đường dẫn có dấu cách.
+	exe, want := `/opt/my tools/bint`, `\"/opt/my tools/bint\" hook claude`
+	if runtime.GOOS == "windows" {
+		exe, want = `C:\Program Files\bint\bint.exe`, `\"C:/Program Files/bint/bint.exe\" hook claude`
+	}
+	res, err := InstallHooks(p, exe, backups, time.Now())
 	if err != nil || !res.Changed || res.BackupPath == "" {
 		t.Fatalf("install: %+v %v", res, err)
 	}
@@ -46,7 +54,7 @@ func TestInstallPreservesAndIsIdempotent(t *testing.T) {
 	if strings.Contains(s, "old/bint") {
 		t.Fatal("stale bint hook not replaced")
 	}
-	if !strings.Contains(s, `\"C:/Program Files/bint/bint.exe\" hook claude`) {
+	if !strings.Contains(s, want) {
 		t.Fatalf("command not quoted:\n%s", s)
 	}
 	if ok, _ := HooksInstalled(p); !ok {
@@ -57,7 +65,7 @@ func TestInstallPreservesAndIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err = InstallHooks(p, `C:\Program Files\bint\bint.exe`, backups, time.Now())
+	res, err = InstallHooks(p, exe, backups, time.Now())
 	if err != nil || res.Changed {
 		t.Fatalf("second install should be no-op: %+v %v", res, err)
 	}
@@ -95,9 +103,9 @@ func TestInstallCreatesFileAndRejectsGarbage(t *testing.T) {
 }
 
 func TestModelNameAndRelPath(t *testing.T) {
-	if modelName(json.RawMessage(`"claude-x"`)) != "claude-x" ||
-		modelName(json.RawMessage(`{"id":"m-id","display_name":"M"}`)) != "m-id" ||
-		modelName(nil) != "" {
+	if hookcore.ModelName(json.RawMessage(`"claude-x"`)) != "claude-x" ||
+		hookcore.ModelName(json.RawMessage(`{"id":"m-id","display_name":"M"}`)) != "m-id" ||
+		hookcore.ModelName(nil) != "" {
 		t.Fatal("modelName")
 	}
 	root := t.TempDir()

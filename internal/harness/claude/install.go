@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"bint/internal/fsafe"
+	"bint/internal/jsondoc"
 )
 
 // Scope là phạm vi tệp settings của Claude Code để cài hook.
@@ -109,34 +109,37 @@ type InstallResult struct {
 // InstallHooks thêm (hoặc cập nhật) các hook ghi nhận của Bint vào tệp settings,
 // giữ nguyên mọi khoá và hook khác.
 func InstallHooks(settingsPath, bintPath, backupDir string, now time.Time) (InstallResult, error) {
-	return editHooks(settingsPath, backupDir, now, HookCommand(bintPath))
+	return EditHooks(settingsPath, backupDir, "claude/"+filepath.Base(settingsPath), now, desiredGroups(HookCommand(bintPath)), isBintHook)
 }
 
 // UninstallHooks gỡ các hook của Bint khỏi tệp settings.
 func UninstallHooks(settingsPath, backupDir string, now time.Time) (InstallResult, error) {
-	return editHooks(settingsPath, backupDir, now, "")
+	return EditHooks(settingsPath, backupDir, "claude/"+filepath.Base(settingsPath), now, nil, isBintHook)
 }
 
-func editHooks(settingsPath, backupDir string, now time.Time, cmd string) (InstallResult, error) {
-	res := InstallResult{Path: settingsPath}
-	raw, err := os.ReadFile(settingsPath)
+// EditHooks sửa khoá "hooks" (định dạng của Claude Code, Codex dùng chung) trong
+// tệp JSON: gỡ mọi handler mà isOurs nhận là của Bint, rồi thêm các nhóm desired
+// (nil = chỉ gỡ). Giữ nguyên mọi khoá và hook khác; có sao lưu trước khi ghi.
+func EditHooks(path, backupDir, backupRel string, now time.Time, desired map[string]map[string]any, isOurs func(cmd string) bool) (InstallResult, error) {
+	res := InstallResult{Path: path}
+	raw, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return res, err
 	}
-	doc, err := parseOrdered(raw)
+	doc, err := jsondoc.Parse(raw)
 	if err != nil {
-		return res, fmt.Errorf("%s: %w", settingsPath, err)
+		return res, fmt.Errorf("%s: %w", path, err)
 	}
 	hooks := map[string][]any{}
-	if v, ok := doc.get("hooks"); ok {
+	if v, ok := doc.Get("hooks"); ok {
 		var m map[string]json.RawMessage
 		if err := json.Unmarshal(v, &m); err != nil {
-			return res, fmt.Errorf("%s: khoá hooks không phải object: %w", settingsPath, err)
+			return res, fmt.Errorf("%s: khoá hooks không phải object: %w", path, err)
 		}
 		for ev, list := range m {
 			var groups []any
 			if err := json.Unmarshal(list, &groups); err != nil {
-				return res, fmt.Errorf("%s: hooks.%s không phải mảng: %w", settingsPath, ev, err)
+				return res, fmt.Errorf("%s: hooks.%s không phải mảng: %w", path, ev, err)
 			}
 			hooks[ev] = groups
 		}
@@ -154,7 +157,7 @@ func editHooks(settingsPath, backupDir string, now time.Time, cmd string) (Insta
 			var keepH []any
 			for _, h := range hs {
 				hm, _ := h.(map[string]any)
-				if c, _ := hm["command"].(string); hm != nil && isBintHook(c) {
+				if c, _ := hm["command"].(string); hm != nil && isOurs(c) {
 					continue
 				}
 				keepH = append(keepH, h)
@@ -171,34 +174,28 @@ func editHooks(settingsPath, backupDir string, now time.Time, cmd string) (Insta
 			hooks[ev] = kept
 		}
 	}
-	if cmd != "" {
-		for ev, g := range desiredGroups(cmd) {
-			hooks[ev] = append(hooks[ev], g)
-		}
+	for ev, g := range desired {
+		hooks[ev] = append(hooks[ev], g)
 	}
 	if len(hooks) == 0 {
-		doc.del("hooks")
-	} else {
-		b, err := json.Marshal(hooks)
-		if err != nil {
-			return res, err
-		}
-		doc.set("hooks", b)
+		doc.Del("hooks")
+	} else if err := doc.SetValue("hooks", hooks); err != nil {
+		return res, err
 	}
-	out, err := doc.marshalIndent()
+	out, err := doc.MarshalIndent()
 	if err != nil {
 		return res, err
 	}
-	if bytes.Equal(normalizeJSON(raw), normalizeJSON(out)) {
+	if jsondoc.Equal(raw, out) {
 		return res, nil
 	}
-	if len(raw) == 0 && cmd == "" {
+	if len(raw) == 0 && desired == nil {
 		return res, nil
 	}
-	if res.BackupPath, err = fsafe.Backup(settingsPath, backupDir, "claude/"+filepath.Base(settingsPath), now); err != nil {
+	if res.BackupPath, err = fsafe.Backup(path, backupDir, backupRel, now); err != nil {
 		return res, err
 	}
-	if err := fsafe.WriteAtomic(settingsPath, out, 0o644); err != nil {
+	if err := fsafe.WriteAtomic(path, out, 0o644); err != nil {
 		return res, err
 	}
 	res.Changed = true
@@ -207,6 +204,12 @@ func editHooks(settingsPath, backupDir string, now time.Time, cmd string) (Insta
 
 // HooksInstalled cho biết tệp settings có chứa đủ hook của Bint không.
 func HooksInstalled(settingsPath string) (bool, error) {
+	return HooksPresent(settingsPath, desiredGroups("x"), isBintHook)
+}
+
+// HooksPresent cho biết khoá "hooks" của tệp có handler của Bint cho mọi sự kiện
+// trong want.
+func HooksPresent(settingsPath string, want map[string]map[string]any, isOurs func(string) bool) (bool, error) {
 	raw, err := os.ReadFile(settingsPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -222,11 +225,11 @@ func HooksInstalled(settingsPath string) (bool, error) {
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return false, err
 	}
-	for ev := range desiredGroups("x") {
+	for ev := range want {
 		found := false
 		for _, g := range s.Hooks[ev] {
 			for _, h := range g.Hooks {
-				if isBintHook(h.Command) {
+				if isOurs(h.Command) {
 					found = true
 				}
 			}
@@ -236,99 +239,4 @@ func HooksInstalled(settingsPath string) (bool, error) {
 		}
 	}
 	return true, nil
-}
-
-func normalizeJSON(b []byte) []byte {
-	var v any
-	if json.Unmarshal(b, &v) != nil {
-		return b
-	}
-	out, _ := json.Marshal(v)
-	return out
-}
-
-// orderedDoc giữ thứ tự các khoá cấp cao nhất của tệp settings để hạn chế xáo trộn.
-type orderedDoc struct {
-	keys []string
-	vals map[string]json.RawMessage
-}
-
-func parseOrdered(raw []byte) (*orderedDoc, error) {
-	d := &orderedDoc{vals: map[string]json.RawMessage{}}
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return d, nil
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	tok, err := dec.Token()
-	if err != nil {
-		return nil, err
-	}
-	if delim, ok := tok.(json.Delim); !ok || delim != '{' {
-		return nil, errors.New("tệp settings không phải JSON object")
-	}
-	for dec.More() {
-		kt, err := dec.Token()
-		if err != nil {
-			return nil, err
-		}
-		k := kt.(string)
-		var v json.RawMessage
-		if err := dec.Decode(&v); err != nil {
-			return nil, err
-		}
-		if _, dup := d.vals[k]; !dup {
-			d.keys = append(d.keys, k)
-		}
-		d.vals[k] = v
-	}
-	return d, nil
-}
-
-func (d *orderedDoc) get(k string) (json.RawMessage, bool) {
-	v, ok := d.vals[k]
-	return v, ok
-}
-
-func (d *orderedDoc) set(k string, v json.RawMessage) {
-	if _, ok := d.vals[k]; !ok {
-		d.keys = append(d.keys, k)
-	}
-	d.vals[k] = v
-}
-
-func (d *orderedDoc) del(k string) {
-	if _, ok := d.vals[k]; !ok {
-		return
-	}
-	delete(d.vals, k)
-	for i, kk := range d.keys {
-		if kk == k {
-			d.keys = append(d.keys[:i], d.keys[i+1:]...)
-			break
-		}
-	}
-}
-
-func (d *orderedDoc) marshalIndent() ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteString("{")
-	for i, k := range d.keys {
-		if i > 0 {
-			buf.WriteString(",")
-		}
-		kb, _ := json.Marshal(k)
-		buf.WriteString("\n  ")
-		buf.Write(kb)
-		buf.WriteString(": ")
-		var ind bytes.Buffer
-		if err := json.Indent(&ind, d.vals[k], "  ", "  "); err != nil {
-			return nil, err
-		}
-		buf.Write(ind.Bytes())
-	}
-	if len(d.keys) > 0 {
-		buf.WriteString("\n")
-	}
-	buf.WriteString("}\n")
-	return buf.Bytes(), nil
 }

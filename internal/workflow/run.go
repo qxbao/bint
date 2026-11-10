@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -94,6 +95,8 @@ type runState struct {
 	limit        config.PerRunLimits
 	ran          map[string]int
 	warnedNoCost bool
+	// warnedNoTurns: đã ghi chú harness không áp được max_turns.
+	warnedNoTurns bool
 }
 
 func (r *Runner) logf(format string, a ...any) {
@@ -392,7 +395,31 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	}
 	if maxCost != nil && !agent.ReportsCost() && !rs.warnedNoCost {
 		rs.warnedNoCost = true
-		rs.res.Notes = append(rs.res.Notes, "agent không báo chi phí: giới hạn max_cost_usd chỉ là chỉ dẫn")
+		rs.res.Notes = append(rs.res.Notes, agent.Name()+" không báo chi phí: giới hạn max_cost_usd chỉ là chỉ dẫn")
+	}
+	if tl, ok := agent.(eval.TurnLimiter); ok && maxTurns != nil && !tl.EnforcesTurns() && !rs.warnedNoTurns {
+		rs.warnedNoTurns = true
+		rs.res.Notes = append(rs.res.Notes, agent.Name()+" không có giới hạn số lượt: max_turns chỉ là chỉ dẫn")
+	}
+
+	// Cô lập (P5): bước có quyền ghi giữ khoá ghi của worktree; bước chỉ đọc được
+	// kiểm tra lại cây làm việc sau khi agent xong.
+	readOnly := readonlySteps[step]
+	var snapBefore string
+	if readOnly {
+		snap, err := WorktreeSnapshot(ctx, r.Root)
+		if err != nil {
+			r.fail(rs, step, "chụp cây làm việc trước bước chỉ đọc: "+err.Error())
+			return false
+		}
+		snapBefore = snap
+	} else {
+		lock, err := AcquireWriteLock(r.Tasks.Dir, r.Root, rs.t.State.ID+" "+step)
+		if err != nil {
+			r.block(rs, err.Error())
+			return false
+		}
+		defer lock.Release()
 	}
 
 	child := ulid.New()
@@ -407,10 +434,21 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	prompt := r.prompt(ctx, rs, step, child)
 	r.logf("▶ %s (lượt %s)…", step, child)
 	env := []string{EnvRunID + "=" + child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
+		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
 	res := agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt,
 		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
-		LogPath: rs.t.LogPath(step + "-" + child + ".log"), Env: env})
+		LogPath: rs.t.LogPath(step + "-" + child + ".log"), Env: env, ReadOnly: readOnly, WritableDirs: r.stateDirs()})
+	if readOnly && ctx.Err() == nil {
+		after, err := WorktreeSnapshot(ctx, r.Root)
+		switch {
+		case err != nil:
+			res.Error = "chụp cây làm việc sau bước chỉ đọc: " + err.Error()
+		case after != snapBefore:
+			changed := ChangedPaths(ctx, r.Root, snapBefore, after)
+			res.Error = fmt.Sprintf("bước chỉ đọc %s (%s) đã sửa cây làm việc: %s — Bint không hoàn tác, hãy xem lại", step, agent.Name(), strings.Join(changed, ", "))
+		}
+	}
 
 	sr := StepResult{Step: step, RunID: child, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error}
 	if res.CostUSD != nil {

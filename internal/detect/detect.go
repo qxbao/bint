@@ -20,10 +20,15 @@ type Harness struct {
 	Present bool
 }
 
-var harnessSpecs = []struct{ name, bin, home string }{
-	{"claude", "claude", ".claude"},
-	{"codex", "codex", ".codex"},
-	{"antigravity", "antigravity", ".antigravity"},
+var harnessSpecs = []struct {
+	name  string
+	bins  []string
+	homes []string
+}{
+	{"claude", []string{"claude"}, []string{".claude"}},
+	{"codex", []string{"codex"}, []string{".codex"}},
+	// Antigravity CLI cài chương trình `agy`; cấu hình nằm trong ~/.gemini.
+	{"antigravity", []string{"agy", "antigravity"}, []string{".gemini/antigravity-cli", ".gemini/antigravity", ".antigravity"}},
 }
 
 // Harnesses phát hiện các harness Bint biết.
@@ -32,18 +37,34 @@ func Harnesses() []Harness {
 	var out []Harness
 	for _, s := range harnessSpecs {
 		h := Harness{Name: s.name}
-		if p, err := exec.LookPath(s.bin); err == nil {
-			h.Binary = p
+		for _, b := range s.bins {
+			if p, err := exec.LookPath(b); err == nil {
+				h.Binary = p
+				break
+			}
 		}
 		if home != "" {
-			if fi, err := os.Stat(filepath.Join(home, s.home)); err == nil && fi.IsDir() {
-				h.Home = filepath.Join(home, s.home)
+			for _, d := range s.homes {
+				if fi, err := os.Stat(filepath.Join(home, filepath.FromSlash(d))); err == nil && fi.IsDir() {
+					h.Home = filepath.Join(home, filepath.FromSlash(d))
+					break
+				}
 			}
 		}
 		h.Present = h.Binary != "" || h.Home != ""
 		out = append(out, h)
 	}
 	return out
+}
+
+// Find trả về kết quả phát hiện của một harness.
+func Find(name string) Harness {
+	for _, h := range Harnesses() {
+		if h.Name == name {
+			return h
+		}
+	}
+	return Harness{Name: name}
 }
 
 // Commands là lệnh kiểm thử và dựng môi trường đề xuất.

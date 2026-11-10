@@ -14,7 +14,9 @@ import (
 	"bint/internal/detect"
 	"bint/internal/fsafe"
 	"bint/internal/gitrepo"
+	"bint/internal/harness"
 	"bint/internal/harness/claude"
+	"bint/internal/harness/codex"
 	"bint/internal/skills"
 	"bint/internal/state"
 	"bint/internal/store"
@@ -202,42 +204,64 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		}
 	}
 
-	// 6. Hook ghi nhận.
+	// 6. Hook ghi nhận và MCP server cho từng harness được bật (theo adapter).
 	gitignore := []string{".bint/local.yml"}
-	hookInstalled := false
 	for _, h := range cfg.Harnesses.Enabled {
-		if h != claude.HarnessName {
-			rep.add("hook "+h, StepSkipped, "adapter %s chưa có ở P0", h)
+		ad, ok := harness.Get(h)
+		if !ok {
 			continue
 		}
-		installed, err := installClaudeHooks(rep, opts, root, paths, now)
+		hi, ok := ad.(harness.HookInstaller)
+		if !ok {
+			rep.add("hook "+h, StepSkipped, "%s không có hook", ad.Title())
+			continue
+		}
+		path, installed, err := installHooks(rep, opts, ad, hi, root, paths, now)
 		if err != nil {
 			return nil, err
 		}
-		hookInstalled = installed
-	}
-	if opts.MCP != nil && slices.Contains(cfg.Harnesses.Enabled, claude.HarnessName) {
-		p := claude.MCPConfigPath(root)
-		res, err := claude.InstallMCP(p, opts.BintPath, paths.Backups, *opts.MCP, now)
-		if err != nil {
-			return nil, err
-		}
-		switch {
-		case *opts.MCP && res.Changed:
-			rep.add("MCP server", StepUpdated, ".mcp.json: mục %q (bint mcp serve)", claude.MCPServerName)
-			if opts.BintPath != "bint" {
-				rep.add("MCP server", StepWarn, "bint không có trong PATH: .mcp.json ghi đường dẫn tuyệt đối %s — không nên commit cho cả nhóm", opts.BintPath)
+		if installed && opts.HooksScope == claude.ScopeLocal {
+			if rel, err := filepath.Rel(root, path); err == nil && !strings.HasPrefix(rel, "..") {
+				gitignore = append(gitignore, filepath.ToSlash(rel))
 			}
-		case *opts.MCP:
-			rep.add("MCP server", StepOK, ".mcp.json đã có mục %q", claude.MCPServerName)
-		case res.Changed:
-			rep.add("MCP server", StepUpdated, "đã gỡ mục %q khỏi .mcp.json", claude.MCPServerName)
-		default:
-			rep.add("MCP server", StepSkipped, ".mcp.json không có mục %q", claude.MCPServerName)
 		}
 	}
-	if hookInstalled && opts.HooksScope == claude.ScopeLocal {
-		gitignore = append(gitignore, ".claude/settings.local.json")
+	if opts.MCP != nil {
+		for _, h := range cfg.Harnesses.Enabled {
+			ad, ok := harness.Get(h)
+			if !ok {
+				continue
+			}
+			mi, ok := ad.(harness.MCPInstaller)
+			if !ok {
+				rep.add("MCP "+h, StepSkipped, "%s", harness.CapabilityOf(ad, harness.CapMCP).Detail)
+				continue
+			}
+			res, err := mi.InstallMCP(harness.MCPRequest{Root: root, BintPath: opts.BintPath, BackupDir: paths.Backups,
+				Manifest: manifest, Install: *opts.MCP, Force: opts.Force, Now: now})
+			if err != nil {
+				return nil, err
+			}
+			name := "MCP " + h
+			switch {
+			case res.Conflict != "":
+				rep.add(name, StepConflict, "%s", res.Conflict)
+			case *opts.MCP && res.Changed:
+				rep.add(name, StepUpdated, "%s: mục %q (bint mcp serve)", res.Path, claude.MCPServerName)
+				if opts.BintPath != "bint" {
+					rep.add(name, StepWarn, "bint không có trong PATH: %s ghi đường dẫn tuyệt đối %s — không nên commit cho cả nhóm", res.Path, opts.BintPath)
+				}
+			case *opts.MCP:
+				rep.add(name, StepOK, "%s đã có mục %q", res.Path, claude.MCPServerName)
+			case res.Changed:
+				rep.add(name, StepUpdated, "đã gỡ mục %q khỏi %s", claude.MCPServerName, res.Path)
+			default:
+				rep.add(name, StepSkipped, "%s không có mục %q", res.Path, claude.MCPServerName)
+			}
+			if res.Note != "" {
+				rep.add(name, StepWarn, "%s", res.Note)
+			}
+		}
 	}
 
 	// 7. .gitignore: chỉ thêm khối, không xoá cấu hình sẵn có.
@@ -294,65 +318,64 @@ func (r *InitReport) addSync(name string, res fsafe.Result) {
 	}
 }
 
-func installClaudeHooks(rep *InitReport, opts InitOptions, root string, paths state.Paths, now time.Time) (bool, error) {
-	settings, err := claude.SettingsPath(opts.HooksScope, root)
+// installHooks cài (hoặc gỡ) hook ghi nhận của một harness; trả về tệp hook và việc
+// hook có đang được cài.
+func installHooks(rep *InitReport, opts InitOptions, ad harness.Adapter, hi harness.HookInstaller, root string, paths state.Paths, now time.Time) (string, bool, error) {
+	name := "hook " + ad.Name()
+	settings, err := hi.HooksPath(opts.HooksScope, root)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
-	already, err := claude.HooksInstalled(settings)
+	already, err := hi.HooksInstalled(settings)
 	if err != nil {
-		rep.add("hook claude", StepWarn, "không đọc được %s: %v", settings, err)
-		return false, nil
+		rep.add(name, StepWarn, "không đọc được %s: %v", settings, err)
+		return settings, false, nil
 	}
 	want := already // đã cài thì làm mới (cập nhật đường dẫn bint) mà không hỏi lại
 	if opts.Hooks != nil {
 		want = *opts.Hooks
 	} else if !already {
 		if opts.Confirm != nil {
-			want = opts.Confirm(fmt.Sprintf("Cài hook ghi nhận lượt chạy cho Claude Code vào %s?", settings))
+			want = opts.Confirm(fmt.Sprintf("Cài hook ghi nhận lượt chạy cho %s vào %s?", ad.Title(), settings))
 		} else {
-			rep.add("hook claude", StepSkipped, "chưa có sự đồng ý; chạy lại với --hooks để cài")
-			return false, nil
+			rep.add(name, StepSkipped, "chưa có sự đồng ý; chạy lại với --hooks để cài")
+			return settings, false, nil
 		}
 	}
 	if !want {
 		if already {
-			res, err := claude.UninstallHooks(settings, paths.Backups, now)
+			res, err := hi.UninstallHooks(settings, paths.Backups, now)
 			if err != nil {
-				return false, err
+				return settings, false, err
 			}
 			if res.Changed {
-				rep.add("hook claude", StepUpdated, "đã gỡ khỏi %s", settings)
+				rep.add(name, StepUpdated, "đã gỡ khỏi %s", settings)
 			}
-			return false, nil
+			return settings, false, nil
 		}
-		rep.add("hook claude", StepSkipped, "người dùng không đồng ý")
-		return false, nil
+		rep.add(name, StepSkipped, "người dùng không đồng ý")
+		return settings, false, nil
 	}
-	res, err := claude.InstallHooks(settings, opts.BintPath, paths.Backups, now)
+	res, err := hi.InstallHooks(settings, opts.BintPath, paths.Backups, now)
 	if err != nil {
-		return false, err
+		return settings, false, err
 	}
 	switch {
 	case !res.Changed:
-		rep.add("hook claude", StepOK, "%s", settings)
+		rep.add(name, StepOK, "%s", settings)
 	case already:
-		rep.add("hook claude", StepUpdated, "%s", settings)
+		rep.add(name, StepUpdated, "%s", settings)
 	default:
-		rep.add("hook claude", StepCreated, "%s (SessionStart, SessionEnd, PostToolUse, PostToolUseFailure)", settings)
+		rep.add(name, StepCreated, "%s (%s)", settings, hi.HookEvents())
 	}
-	return true, nil
+	if ad.Name() == codex.HarnessName && !codex.HooksTrusted(settings) {
+		rep.add(name, StepWarn, "Codex chỉ chạy hook đã được duyệt: mở codex trong repository và duyệt hook của Bint (/hooks)")
+	}
+	return settings, true, nil
 }
 
 func installSkills(rep *InitReport, root string, cfg config.Config, paths state.Paths, m *fsafe.Manifest, version string, force bool, now time.Time) error {
-	var targets []skills.Target
-	for _, h := range cfg.Harnesses.Enabled {
-		if h == claude.HarnessName {
-			targets = append(targets, skills.ClaudeTarget)
-		} else {
-			rep.add("skill "+h, StepSkipped, "adapter %s chưa có (P5)", h)
-		}
-	}
+	targets := harness.SkillTargets(cfg.Harnesses.Enabled)
 	if len(targets) == 0 {
 		return nil
 	}

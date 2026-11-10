@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"bint/internal/fsafe"
+	"bint/internal/jsondoc"
 )
 
 // MCPServerName là tên server trong cấu hình MCP; công cụ có tiền tố mcp__bint__.
@@ -26,12 +26,12 @@ func InstallMCP(path, bintPath, backupDir string, install bool, now time.Time) (
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return res, err
 	}
-	doc, err := parseOrdered(raw)
+	doc, err := jsondoc.Parse(raw)
 	if err != nil {
 		return res, fmt.Errorf("%s: %w", path, err)
 	}
 	servers := map[string]json.RawMessage{}
-	if v, ok := doc.get("mcpServers"); ok {
+	if v, ok := doc.Get("mcpServers"); ok {
 		if err := json.Unmarshal(v, &servers); err != nil {
 			return res, fmt.Errorf("%s: mcpServers không phải object: %w", path, err)
 		}
@@ -50,22 +50,22 @@ func InstallMCP(path, bintPath, backupDir string, install bool, now time.Time) (
 		delete(servers, MCPServerName)
 	}
 	if len(servers) == 0 {
-		doc.del("mcpServers")
+		doc.Del("mcpServers")
 	} else {
 		b, err := json.Marshal(servers)
 		if err != nil {
 			return res, err
 		}
-		doc.set("mcpServers", b)
+		doc.Set("mcpServers", b)
 	}
-	out, err := doc.marshalIndent()
+	out, err := doc.MarshalIndent()
 	if err != nil {
 		return res, err
 	}
-	if bytes.Equal(normalizeJSON(raw), normalizeJSON(out)) {
+	if jsondoc.Equal(raw, out) {
 		return res, nil
 	}
-	if len(doc.keys) == 0 && len(raw) == 0 {
+	if doc.Len() == 0 && len(raw) == 0 {
 		return res, nil
 	}
 	if res.BackupPath, err = fsafe.Backup(path, backupDir, "claude/.mcp.json", now); err != nil {

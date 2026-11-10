@@ -4,7 +4,8 @@ CLI hỗ trợ coding agent: ghi nhận lượt chạy, đo lường, và (ở c
 tri thức dự án có kiểm chứng. Kế hoạch đầy đủ: [docs/bint-plan.md](docs/bint-plan.md).
 
 **Trạng thái: P0 (CLI, ghi nhận lượt chạy) + P1 (khung đánh giá) + P2 (bootstrap tối giản)
-+ P3 (Context Engine và vòng đời tri thức) + P4 (workflow tối thiểu).**
++ P3 (Context Engine và vòng đời tri thức) + P4 (workflow tối thiểu) + P5 (multi-harness:
+Claude Code, Codex, Antigravity).**
 Chưa có số liệu đo trên repository thử nghiệm; cổng quyết định 1 và 2 chưa chạy — ngưỡng
 đã chốt ở [docs/gate-1.md](docs/gate-1.md) và [docs/gate-2.md](docs/gate-2.md).
 
@@ -20,7 +21,7 @@ Go thuần, không cần CGO (SQLite qua `modernc.org/sqlite`, có FTS5), biên 
 ## Dùng
 
 ```sh
-bint init --hooks        # khởi tạo; cài hook ghi nhận + skill b-bootstrap cho Claude Code
+bint init --hooks        # khởi tạo; cài hook ghi nhận + skill gốc cho các harness được bật
 bint doctor              # kiểm tra môi trường
 bint runs list           # lượt chạy đã ghi nhận (tự nạp spool trước)
 bint runs show <id>      # chi tiết, chấp nhận tiền tố ID
@@ -30,8 +31,9 @@ bint events ingest       # nạp spool thủ công
 
 `bint init` chạy lại bao nhiêu lần cũng an toàn:
 
-- Skill gốc `.claude/skills/b-bootstrap/SKILL.md` được xuất bản (phiên bản ghi trong
-  `.bint/skills/core.lock`); bản bị sửa tay không bị ghi đè (`--force`), `--no-skills` để bỏ.
+- Skill gốc được xuất bản cho từng harness được bật (`.claude/skills/` cho Claude Code,
+  `.agents/skills/` cho Codex và Antigravity; phiên bản ghi trong `.bint/skills/core.lock`);
+  bản bị sửa tay không bị ghi đè (`--force`), `--no-skills` để bỏ.
 
 - `.bint/config.yml` chỉ được tạo khi chưa có; không bao giờ bị ghi đè.
 - Lệnh kiểm thử được phát hiện và ghi dưới dạng `suggested_test_command`; Bint không
@@ -39,8 +41,10 @@ bint events ingest       # nạp spool thủ công
 - `.gitignore`, `AGENTS.md`, `CLAUDE.md` chỉ bị chạm trong khối `bint:begin … bint:end`.
   Nếu bạn sửa tay khối đó, Bint báo xung đột thay vì ghi đè (`--force` để ghi đè, bản
   cũ được sao lưu). `AGENTS.md`/`CLAUDE.md` chỉ được tạo khi có `--agents-md`.
-- Hook được thêm vào settings của Claude Code mà giữ nguyên các khoá và hook khác.
-  `--hooks-scope local|project|user` (mặc định `local` = `.claude/settings.local.json`).
+- Hook được thêm vào cấu hình của từng harness mà giữ nguyên các khoá và hook khác
+  (Claude Code: `.claude/settings[.local].json`; Codex: `.codex/hooks.json`; Antigravity:
+  `.agents/hooks.json`). `--hooks-scope local|project|user` (mặc định `local`: tệp trong
+  repository và được thêm vào `.gitignore`; `user`: thư mục cấu hình người dùng).
   `--no-hooks` gỡ hook của Bint.
 
 ### Mã thoát
@@ -64,7 +68,12 @@ internal/state/           thư mục trạng thái ngoài repository, repo-id t�
 internal/store/           SQLite (WAL) + migration có phiên bản (migrations/*.sql)
 internal/spool/           hàng đợi sự kiện dạng tệp (mỗi lần hook = một tệp, ghi nguyên tử)
 internal/runlog/          nạp spool → events/runs, loại trùng theo event_id; truy vấn
-internal/harness/claude/  hook handler + cài/gỡ hook cho Claude Code
+internal/harness/         P5: HarnessAdapter, bảng khả năng, chọn harness theo role
+internal/harness/hookcore/ P5: xử lý hook dùng chung (dialect theo harness)
+internal/harness/claude/  adapter Claude Code: hook, .mcp.json
+internal/harness/codex/   P5: adapter Codex: .codex/hooks.json, .codex/config.toml, apply_patch
+internal/harness/antigravity/ P5: adapter Antigravity CLI: .agents/hooks.json, payload camelCase
+internal/jsondoc/         sửa tệp JSON của harness, giữ thứ tự khoá
 internal/fsafe/           ghi nguyên tử, sao lưu, khối đánh dấu, manifest băm
 internal/detect/          phát hiện harness, lệnh test đề xuất, nhận diện lệnh test, che bí mật
 internal/eval/            P1: khai thác tác vụ, kiểm tra rò rỉ, môi trường cô lập, nhánh, agent, chạy, thống kê, báo cáo
@@ -423,14 +432,84 @@ Cấu hình mới: khối `workflow:` (`max_review_rounds`, `timeout_minutes`, `
 
 Giới hạn đã biết của P4:
 
-- Adapter thực thi chỉ có Claude Code (`--agent-command` cho tác nhân khác); role trỏ harness khác → lỗi (P5).
 - Classify bằng heuristic từ khoá; chưa có agent phân loại.
-- Agent chạy trên cây làm việc hiện tại (không worktree cô lập); không chạy song song nhiều bước ghi.
+- Agent chạy trên cây làm việc hiện tại (không worktree cô lập); P5 thêm khoá ghi theo worktree.
 - Kiểm tra đường dẫn bảo vệ của `bint run` là **sau** b-feat (đối chiếu diff), không chặn trước; trong
   phiên tương tác thì hook hỏi trước khi sửa.
 - Agent không báo chi phí (`--agent-command`): giới hạn chi phí chỉ là chỉ dẫn (ghi chú trong kết quả).
 - Tiếp tục từ `in_review` chạy lại b-review (không dùng lại vòng review cũ, vì mã có thể đã đổi).
 - Chưa xuất tài liệu sang `docs/spec/<feature>/`.
+
+## Multi-Harness (P5)
+
+Workflow (skill gốc + lớp phủ, phiếu tác vụ, `bint run`) và nguồn tri thức (`.bint/knowledge`,
+AGENTS.md, Context Engine) giờ tách khỏi harness thực thi. Mỗi harness có một **adapter** (mục 7)
+khai báo bảng khả năng đã đối chiếu với một phiên bản cụ thể; khả năng không có được báo, không
+được mô phỏng.
+
+```sh
+bint harness list                 # harness trên máy, phiên bản, cấp hỗ trợ, bảng khả năng
+bint harness show codex           # chi tiết từng khả năng (--json)
+bint init --harness claude,codex,antigravity --hooks --mcp
+bint run b-do --role implementer=codex "…"        # b-feat bằng Codex, các bước khác theo roles
+bint run b-review --harness antigravity --task <id>
+bint eval run --harness codex …                   # đo trên harness khác (nhánh không hỗ trợ → skipped)
+```
+
+| Khả năng | Claude Code | Codex CLI (0.167) | Antigravity CLI (agy 1.5.3) |
+|---|---|---|---|
+| Skill | `.claude/skills` | `.agents/skills` | `.agents/skills` (dùng chung với Codex) |
+| Ẩn skill (`disable-model-invocation`) | ✓ | ✗ (khoá bị bỏ khi xuất bản) | ✗ |
+| MCP server của Bint | `.mcp.json` | `.codex/config.toml` — cần dự án được Codex tin cậy | ✗ (chỉ cấp người dùng; dùng CLI `bint`) |
+| Hook ghi nhận | SessionStart/End, PostToolUse(+Failure) | `.codex/hooks.json`: SessionStart/End, PreToolUse, PostToolUse — mỗi hook cần được duyệt trong Codex | `.agents/hooks.json`: SessionStart, PreToolUse, PostToolUse — không có kết thúc phiên |
+| Chèn ngữ cảnh theo đường dẫn | trước Read/Edit/Write | chỉ trước `apply_patch` | ✗ (PreToolUse chỉ trả quyết định) |
+| Đường dẫn bảo vệ | hỏi (`ask`) | chặn (`deny`) kèm lý do | hỏi (`ask`) |
+| Thực thi (`bint run`) | `claude -p` | `codex exec --json` (stdin) | `agy --print=… --output-format json` |
+| Bước chỉ đọc | cấm công cụ sửa tệp | sandbox `workspace-write` | `--mode plan` |
+| Chi phí / giới hạn lượt | ✓ / ✓ | token / ✗ | token / ✗ |
+
+Cấp hỗ trợ (mục 7): cả ba ở **cấp 3** (Skill + Hook + thực thi theo chương trình); cấp 4 chưa có.
+
+**Chọn harness** cho từng bước theo thứ tự (mục 5): `--role role=harness` → `--harness` →
+`roles.planner|implementer|reviewer` → `harnesses.default`. Harness phải nằm trong
+`harnesses.enabled` — yêu cầu dòng lệnh không vượt qua cấu hình dự án. Tham số gọi Codex/Antigravity
+ở `harnesses.codex|antigravity.{binary, model, extra_args}`; Bint không tự thêm cờ bỏ quyền
+(`--dangerously-*`). Adapter không khả dụng (thiếu chương trình) → bước thất bại với lỗi nêu cách xử lý.
+
+**Cô lập bước có quyền ghi:** mỗi worktree chỉ một bước có quyền ghi (b-feat) chạy tại một thời điểm,
+bất kể harness (khoá trong `<state>/runtime/locks/`, khoá của tiến trình đã chết bị thay); muốn chạy
+song song thì dùng worktree khác. Bước chỉ đọc (b-req, b-review) được **kiểm tra lại ở tầng chương
+trình**: ảnh chụp cây làm việc (chỉ mục Git tạm, trừ `.bint/`) trước và sau bước phải trùng nhau,
+không thì bước thất bại kèm danh sách tệp bị sửa (Bint không tự hoàn tác). Codex chạy mọi bước trong
+sandbox `workspace-write` kèm `--add-dir <thư mục trạng thái>` để lệnh `bint task …` ghi được; agent
+nhận `BINT_RUNNER_PID` để không nhầm tiến trình điều phối (bị sandbox che PID) là đã chết.
+
+**Chuẩn hoá sự kiện** (mục 13.2): `bint hook codex` (khuôn payload như Claude Code; `apply_patch`
+sửa nhiều tệp → mỗi tệp một `file.modified`) và `bint hook antigravity <sự kiện>` (payload camelCase
+`toolCall{name,args}`, không chứa tên sự kiện) chuẩn hoá về cùng mô hình lượt chạy. Sự kiện harness
+không có thì không tổng hợp giả: lượt Antigravity không có `session.ended` và sẽ được đóng
+`interrupted` theo thời gian như mọi lượt không có sự kiện kết thúc.
+
+**Đánh giá trên nhiều harness:** `eval.harness` / `bint eval run --harness` nhận `claude | codex |
+antigravity`; harness ghi trong đợt đánh giá nên không trộn kết quả. Nhánh `bint` trên Codex = MCP
+(`-c mcp_servers.bint…`) + AGENTS.md, không chèn theo đường dẫn (hook Codex cần duyệt trust); trên
+Antigravity nhánh `bint` bị bỏ qua (`skipped`, kèm lý do). Codex/Antigravity không báo chi phí: ngân
+sách chỉ là chỉ dẫn.
+
+Đã kiểm chứng trên máy phát triển: payload hook và đầu ra `codex exec --json` của codex-cli 0.167
+(gồm việc agent nhận `additionalContext` của PreToolUse); chuỗi `bint run b-req → b-feat → b-review
+--harness codex` chạy thật trên repository nháp. Antigravity: định dạng hook/skill theo tài liệu đi
+kèm agy 1.5.3 và payload SessionStart/Stop bắt được; payload công cụ (tên `write_to_file`,
+`run_command`, khoá `TargetFile`/`CommandLine`) chưa bắt được trực tiếp (hết quota) — bảng khả năng
+ghi rõ điều này.
+
+Giới hạn đã biết của P5:
+
+- Hook Codex chỉ chạy sau khi người dùng duyệt trong Codex (`/hooks`); `bint doctor` báo khi chưa duyệt.
+- Codex không có công cụ đọc tệp riêng nên chèn ngữ cảnh theo đường dẫn chỉ xảy ra trước khi sửa.
+- Antigravity: không có MCP cấp dự án, không chèn ngữ cảnh qua hook; đề bài `bint run` đi qua một đối
+  số dòng lệnh (tối đa 120 KiB).
+- Chưa cô lập bằng worktree riêng cho từng bước ghi; chưa có cấp 4 (điều phối nhiều agent song song).
 
 ## Phát triển
 

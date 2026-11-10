@@ -115,6 +115,13 @@ func (m *Manifest) Set(key, hash string) {
 	m.Entries[key] = hash
 }
 
+// Delete xoá key (chưa lưu xuống đĩa).
+func (m *Manifest) Delete(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.Entries, key)
+}
+
 // Save lưu manifest xuống đĩa.
 func (m *Manifest) Save() error {
 	m.mu.Lock()
@@ -330,4 +337,55 @@ func ReadBlock(path string, mk Markers) (*string, error) {
 	}
 	s := normalizeInner(b.inner)
 	return &s, nil
+}
+
+// RemoveBlock gỡ khối Bint khỏi tệp (cùng quy tắc chống ghi đè như SyncBlock: khối
+// đã bị sửa ngoài Bint chỉ bị gỡ khi Force). Không có khối → Unchanged. Tệp chỉ
+// còn khoảng trắng sau khi gỡ thì bị xoá.
+func RemoveBlock(req BlockSync) (Result, error) {
+	key := req.RelName + "#bint"
+	data, err := os.ReadFile(req.Path)
+	if errors.Is(err, os.ErrNotExist) {
+		return Result{Outcome: Unchanged}, nil
+	}
+	if err != nil {
+		return Result{}, err
+	}
+	content := string(data)
+	b, err := findBlock(content, req.Markers)
+	if err != nil {
+		return Result{Outcome: Conflict, Detail: err.Error()}, nil
+	}
+	if b == nil {
+		return Result{Outcome: Unchanged}, nil
+	}
+	have := normalizeInner(b.inner)
+	if prev, known := req.Manifest.Get(key); !req.Force && (!known || prev != Hash(have)) {
+		return Result{Outcome: Conflict, Detail: "nội dung trong khối bint đã bị sửa ngoài Bint; dùng --force để gỡ (bản cũ sẽ được sao lưu)"}, nil
+	}
+	next := content[:b.start] + content[b.end:]
+	next = strings.TrimRight(next, "\r\n")
+	if next != "" {
+		next += "\n"
+	}
+	bp, err := Backup(req.Path, req.BackupDir, req.RelName, req.Now)
+	if err != nil {
+		return Result{}, fmt.Errorf("sao lưu %s: %w", req.Path, err)
+	}
+	if strings.TrimSpace(next) == "" {
+		if err := os.Remove(req.Path); err != nil {
+			return Result{}, err
+		}
+	} else {
+		info, err := os.Stat(req.Path)
+		perm := os.FileMode(0o644)
+		if err == nil {
+			perm = info.Mode().Perm()
+		}
+		if err := WriteAtomic(req.Path, []byte(next), perm); err != nil {
+			return Result{}, err
+		}
+	}
+	req.Manifest.Delete(key)
+	return Result{Outcome: Updated, BackupPath: bp}, nil
 }

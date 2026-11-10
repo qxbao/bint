@@ -100,6 +100,9 @@ type LockEntry struct {
 	// (trước P4) nghĩa là bằng SHA256.
 	Composed  string   `yaml:"composed,omitempty"`
 	Published []string `yaml:"published,omitempty"`
+	// Variants: băm nội dung đã xuất bản theo từng định dạng khác định dạng gốc
+	// (ví dụ "agents" cho .agents/skills) — để máy khác trong nhóm nhận ra tệp chưa bị sửa.
+	Variants map[string]string `yaml:"variants,omitempty"`
 }
 
 // PublishedHash trả về băm nội dung đã xuất bản.
@@ -148,10 +151,57 @@ type Target struct {
 	Harness string
 	// Dir là thư mục skill tương đối với gốc repository, ví dụ ".claude/skills".
 	Dir string
+	// Format: "" = định dạng gốc (Claude Code); FormatAgents = chỉ giữ name và
+	// description trong frontmatter.
+	Format string
 }
+
+// FormatAgents là định dạng SKILL.md tối giản của .agents/skills (Codex, Antigravity):
+// frontmatter chỉ có name và description. Khoá harness không hiểu (ví dụ
+// disable-model-invocation) bị bỏ thay vì giả lập (mục 7: chính sách skill nội bộ).
+const FormatAgents = "agents"
 
 // ClaudeTarget là nơi Claude Code đọc skill cấp dự án.
 var ClaudeTarget = Target{Harness: "claude", Dir: ".claude/skills"}
+
+// AgentsTarget là nơi Codex và Antigravity đọc skill cấp dự án.
+var AgentsTarget = Target{Harness: "codex,antigravity", Dir: ".agents/skills", Format: FormatAgents}
+
+// ForTarget trả về skill ở định dạng của target.
+func ForTarget(s Skill, t Target) Skill {
+	if t.Format != FormatAgents {
+		return s
+	}
+	c := strings.ReplaceAll(string(s.Content), "\r\n", "\n")
+	if !strings.HasPrefix(c, "---\n") {
+		return s
+	}
+	end := strings.Index(c[4:], "\n---\n")
+	if end < 0 {
+		return s
+	}
+	var fm yaml.Node
+	if err := yaml.Unmarshal([]byte(c[4:4+end]), &fm); err != nil || len(fm.Content) == 0 || fm.Content[0].Kind != yaml.MappingNode {
+		return s
+	}
+	m := fm.Content[0]
+	var kept []*yaml.Node
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		switch m.Content[i].Value {
+		case "name", "description":
+			kept = append(kept, m.Content[i], m.Content[i+1])
+		}
+	}
+	m.Content = kept
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(m); err != nil {
+		return s
+	}
+	enc.Close()
+	return Skill{Name: s.Name, Content: []byte("---\n" + buf.String() + "---\n" + c[4+end+5:])}
+}
 
 // Outcome của một lần xuất bản.
 type Outcome struct {
@@ -208,7 +258,16 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 		}
 		for _, t := range opts.Targets {
 			rel := filepath.ToSlash(filepath.Join(t.Dir, s.Name, "SKILL.md"))
-			o, err := publish(opts, s, rel, prev.PublishedHash())
+			ts := ForTarget(s, t)
+			prevHash := prev.PublishedHash()
+			if t.Format != "" {
+				prevHash = prev.Variants[t.Format]
+				if entry.Variants == nil {
+					entry.Variants = map[string]string{}
+				}
+				entry.Variants[t.Format] = ts.Hash()
+			}
+			o, err := publish(opts, ts, rel, prevHash)
 			if err != nil {
 				return outs, err
 			}
@@ -277,6 +336,7 @@ func publish(opts InstallOptions, s Skill, rel, lockSHA string) (Outcome, error)
 // Status cho biết trạng thái một skill đã xuất bản so với nội dung mong muốn s
 // (đã ghép lớp phủ) — dùng cho doctor.
 func Status(root string, t Target, s Skill) (string, error) {
+	s = ForTarget(s, t)
 	full := filepath.Join(root, filepath.FromSlash(t.Dir), s.Name, "SKILL.md")
 	b, err := os.ReadFile(full)
 	if errors.Is(err, os.ErrNotExist) {

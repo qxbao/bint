@@ -11,6 +11,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/eval"
+	adapters "bint/internal/harness"
 	"bint/internal/runlog"
 	"bint/internal/store"
 	"bint/internal/task"
@@ -356,3 +357,100 @@ func TestAgentArgs(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// P5: bước chỉ đọc sửa cây làm việc thì thất bại, bất kể harness hứa gì.
+func TestReadOnlyStepModifyingTreeFails(t *testing.T) {
+	h := newHarness(t)
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReview {
+			h.write(".bint/knowledge/x.md", "ứng viên do bint ghi\n") // .bint/ không tính
+			h.write("app.txt", "sửa lén\n")
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := res.Steps[len(res.Steps)-1]
+	if last.Step != StepReview || last.Status != "failed" || !strings.Contains(last.Error, "bước chỉ đọc") ||
+		!strings.Contains(last.Error, "app.txt") || strings.Contains(last.Error, ".bint") {
+		t.Fatalf("bước: %+v", res.Steps)
+	}
+	if res.Status != task.StatusFailed {
+		t.Fatalf("tác vụ: %s", res.Status)
+	}
+}
+
+// P5: một worktree chỉ có một bước có quyền ghi tại một thời điểm.
+func TestWriteLockSerializesWriteSteps(t *testing.T) {
+	h := newHarness(t)
+	lock, err := AcquireWriteLock(h.tasks.Dir, h.root, "phiên khác")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "bước có quyền ghi khác") || strings.Contains(strings.Join(h.calls, ","), StepFeat) {
+		t.Fatalf("phải chặn b-feat: %+v %v", res, h.calls)
+	}
+	lock.Release()
+	// Khoá bỏ lại của tiến trình đã chết bị thay.
+	os.MkdirAll(lockDir(h.tasks.Dir), 0o700)
+	ents, _ := os.ReadDir(lockDir(h.tasks.Dir))
+	if len(ents) != 0 {
+		t.Fatalf("khoá còn sót: %v", ents)
+	}
+	l2, err := AcquireWriteLock(h.tasks.Dir, h.root, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := l2.path
+	os.WriteFile(p, []byte("2147483646\nx\nx\nchết\n"), 0o600)
+	l3, err := AcquireWriteLock(h.tasks.Dir, h.root, "b")
+	if err != nil {
+		t.Fatalf("khoá của tiến trình chết phải được thay: %v", err)
+	}
+	l3.Release()
+	// Worktree khác: khoá riêng.
+	other := t.TempDir()
+	l4, err := AcquireWriteLock(h.tasks.Dir, other, "c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l4.Release()
+}
+
+// P5: adapter không khả dụng → bước thất bại với lỗi rõ ràng, không để lại khoá.
+func TestUnavailableAdapterFailsStep(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Harnesses.Enabled = []string{"claude", "codex"}
+	h.cfg.Harnesses.Codex.Binary = filepath.Join(t.TempDir(), "khong-co")
+	f := HarnessAgents(h.cfg, "", "", adapters.Selection{Roles: map[string]string{"implementer": "codex"}})
+	if _, err := f(StepFeat, nil, nil); err == nil || !strings.Contains(err.Error(), "không khả dụng") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := HarnessAgents(h.cfg, "", "", adapters.Selection{All: "antigravity"})(StepReq, nil, nil); err == nil ||
+		!strings.Contains(err.Error(), "harnesses.enabled") {
+		t.Fatalf("harness chưa bật: %v", err)
+	}
+	r := h.runner()
+	r.Agent = func(step string, c *float64, n *int) (eval.Agent, error) {
+		if step == StepFeat {
+			return f(step, c, n)
+		}
+		return &fakeAgent{h: h}, nil
+	}
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != task.StatusFailed || !strings.Contains(res.Reason, "không khả dụng") {
+		t.Fatalf("%+v", res)
+	}
+	if ents, _ := os.ReadDir(lockDir(h.tasks.Dir)); len(ents) != 0 {
+		t.Fatalf("khoá còn sót: %v", ents)
+	}
+}

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/fsafe"
+	"bint/internal/harness"
 	"bint/internal/skills"
 )
 
@@ -36,8 +36,10 @@ type skillRow struct {
 	Anchors   []string `json:"anchors"`
 	Overlay   string   `json:"overlay"`
 	Published string   `json:"published"`
-	Locked    string   `json:"locked,omitempty"`
-	Problem   string   `json:"problem,omitempty"`
+	// Targets: trạng thái theo từng thư mục xuất bản (current | differs | missing).
+	Targets map[string]string `json:"targets,omitempty"`
+	Locked  string            `json:"locked,omitempty"`
+	Problem string            `json:"problem,omitempty"`
 }
 
 func newSkillListCmd(stdio IO) *cobra.Command {
@@ -52,7 +54,7 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			lock, _ := skills.ReadLock(k.Root)
-			claude := slices.Contains(k.Config.Harnesses.Enabled, "claude")
+			targets := harness.SkillTargets(k.Config.Harnesses.Enabled)
 			rows := []skillRow{}
 			for _, core := range skills.Core() {
 				row := skillRow{Name: core.Name, Version: core.Hash(), Overlay: "-", Published: "-"}
@@ -70,8 +72,15 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 				}
 				if err != nil {
 					row.Overlay, row.Problem = "xung đột", err.Error()
-				} else if claude {
-					row.Published, _ = skills.Status(k.Root, skills.ClaudeTarget, composed)
+				} else if len(targets) > 0 {
+					row.Targets = map[string]string{}
+					var parts []string
+					for _, t := range targets {
+						st, _ := skills.Status(k.Root, t, composed)
+						row.Targets[t.Dir] = st
+						parts = append(parts, t.Dir+":"+st)
+					}
+					row.Published = strings.Join(parts, " ")
 				}
 				rows = append(rows, row)
 			}
@@ -79,7 +88,7 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 				return writeJSON(stdio.Out, rows)
 			}
 			tw := tabwriter.NewWriter(stdio.Out, 0, 2, 2, ' ', 0)
-			fmt.Fprintln(tw, "SKILL\tPHIÊN BẢN\tCORE.LOCK\tLỚP PHỦ\tCLAUDE\tĐIỂM NEO")
+			fmt.Fprintln(tw, "SKILL\tPHIÊN BẢN\tCORE.LOCK\tLỚP PHỦ\tXUẤT BẢN\tĐIỂM NEO")
 			for _, r := range rows {
 				locked := "-"
 				if r.Locked != "" {
@@ -176,7 +185,8 @@ func newSyncCmd(stdio IO) *cobra.Command {
 		Use:   "sync",
 		Short: "Ghép skill gốc với lớp phủ và xuất bản cho harness; cập nhật core.lock",
 		Long: `Ghép skill gốc với lớp phủ (.bint/skills/overlays/) và xuất bản cho các harness có
-adapter (P4: Claude Code → .claude/skills/). Chạy sau khi sửa lớp phủ hoặc nâng cấp Bint.
+adapter: Claude Code → .claude/skills/, Codex và Antigravity → .agents/skills/ (frontmatter
+chỉ giữ name, description). Chạy sau khi sửa lớp phủ hoặc nâng cấp Bint.
 
   - Skill đã xuất bản bị sửa tay → xung đột, không ghi đè (--force để ghi đè, có sao lưu);
     tuỳ biến thuộc về lớp phủ.

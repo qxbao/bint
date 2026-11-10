@@ -37,7 +37,17 @@ func Render(p InitParams) string {
 	for _, e := range p.Harnesses {
 		w("    - %s\n", e)
 	}
-	w("  default: %s\n\n", h)
+	w("  default: %s\n", h)
+	w(`  codex:                    # bint run / bint eval với Codex (codex exec --json, sandbox workspace-write)
+    binary: ""              # rỗng = tìm trong PATH
+    model: null
+    extra_args: []
+  antigravity:              # bint run / bint eval với Antigravity CLI (agy -p --output-format json)
+    binary: ""
+    model: null
+    extra_args: []          # ví dụ ["--sandbox"]; Bint không tự thêm --dangerously-skip-permissions
+`)
+	w("\n")
 	w("roles:\n  planner: %s\n  implementer: %s\n  reviewer: %s\n  evolver: %s\n\n", h, h, h, h)
 	w(`context:
   max_tokens: 6000
@@ -80,7 +90,7 @@ eval:
   arms: [none, minimal, bint]
   leakage_mode: strict      # strict | economy
   budget_usd: null          # bắt buộc đặt trước khi chạy tự động
-  harness: claude
+  harness: claude           # claude | codex | antigravity
   timeout_minutes: 30       # mỗi lượt chạy tác nhân
   minimal_source: knowledge   # nhánh "minimal": knowledge = AGENTS.md dựng từ tri thức; file = minimal_context
   minimal_context: .bint/evals/minimal.md   # AGENTS.md viết tay khi minimal_source: file

@@ -323,6 +323,14 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	}
 	os.MkdirAll(logDir, 0o700)
 
+	// Harness không hỗ trợ nhánh này một cách trung thực (ví dụ thiếu MCP và hook
+	// theo đường dẫn) → bỏ qua kèm lý do thay vì đo một nhánh khác dưới tên này.
+	if ac, ok := opts.Agent.(ArmChecker); ok {
+		if why := ac.ArmUnavailable(a.Arm); why != "" {
+			return finish("skipped", why)
+		}
+	}
+
 	if err := prepareWorkdir(ctx, env.RepoDir, env.WorkRoot, a.Case.Source.Base, work); err != nil {
 		return finish("error", "dựng thư mục làm việc: "+err.Error())
 	}

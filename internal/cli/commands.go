@@ -116,12 +116,12 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 	f.StringSliceVar(&harnesses, "harness", nil, "harness kích hoạt khi tạo cấu hình mới (claude, codex, antigravity)")
 	f.BoolVar(&hooks, "hooks", false, "cài hook ghi nhận lượt chạy mà không hỏi")
 	f.BoolVar(&noHooks, "no-hooks", false, "không cài (hoặc gỡ) hook ghi nhận")
-	f.StringVar(&scope, "hooks-scope", string(claude.ScopeLocal), "nơi cài hook Claude Code: local | project | user")
+	f.StringVar(&scope, "hooks-scope", string(claude.ScopeLocal), "nơi cài hook: local | project | user (Claude: .claude/settings[.local].json; Codex: .codex/hooks.json; Antigravity: .agents/hooks.json; local = thêm vào .gitignore)")
 	f.BoolVar(&agentsMD, "agents-md", false, "ghi khối bint (quy tắc đã duyệt) vào AGENTS.md và nhập lại AGENTS.md trong CLAUDE.md")
 	f.BoolVar(&force, "force", false, "ghi đè khối bint hoặc skill gốc đã bị sửa tay (bản cũ được sao lưu)")
-	f.BoolVar(&noSkills, "no-skills", false, "không xuất bản skill gốc (b-bootstrap) cho harness")
-	f.BoolVar(&mcp, "mcp", false, "đăng ký MCP server của Bint (Context Engine) vào .mcp.json cho Claude Code")
-	f.BoolVar(&noMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi .mcp.json")
+	f.BoolVar(&noSkills, "no-skills", false, "không xuất bản skill gốc cho harness (.claude/skills, .agents/skills)")
+	f.BoolVar(&mcp, "mcp", false, "đăng ký MCP server của Bint (Context Engine) cho harness hỗ trợ: .mcp.json (Claude Code), .codex/config.toml (Codex)")
+	f.BoolVar(&noMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi cấu hình harness")
 	return c
 }
 
@@ -236,6 +236,26 @@ func newHookCmd(stdio IO) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app.RunClaudeHook(cmd.Context(), stdio.In, stdio.Out, stdio.Err, Version)
 			return nil // không bao giờ chặn agent
+		},
+	}, &cobra.Command{
+		Use:   "codex",
+		Short: "Nhận sự kiện hook Codex từ stdin và ghi vào spool",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			app.RunHook(cmd.Context(), "codex", "", stdio.In, stdio.Out, stdio.Err, Version)
+			return nil
+		},
+	}, &cobra.Command{
+		Use:   "antigravity <sự kiện>",
+		Short: "Nhận sự kiện hook Antigravity (SessionStart | PreToolUse | PostToolUse) từ stdin",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ev := ""
+			if len(args) > 0 {
+				ev = args[0]
+			}
+			app.RunHook(cmd.Context(), "antigravity", ev, stdio.In, stdio.Out, stdio.Err, Version)
+			return nil
 		},
 	})
 	return c

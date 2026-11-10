@@ -67,6 +67,31 @@ type State struct {
 type Harnesses struct {
 	Enabled []string `yaml:"enabled"`
 	Default string   `yaml:"default"`
+	// Tham số gọi harness khi Bint điều phối (bint run, bint eval). Claude Code dùng
+	// workflow.agent / eval.agent (có quyền theo công cụ); Codex và Antigravity dùng
+	// các khoá dưới đây.
+	Codex       HarnessAgent `yaml:"codex"`
+	Antigravity HarnessAgent `yaml:"antigravity"`
+}
+
+// HarnessAgent là tham số gọi một harness không phải Claude Code.
+type HarnessAgent struct {
+	// Binary: đường dẫn chương trình (rỗng = tìm trong PATH).
+	Binary string `yaml:"binary"`
+	// Model: null = mặc định của harness.
+	Model     *string  `yaml:"model"`
+	ExtraArgs []string `yaml:"extra_args"`
+}
+
+// Agent trả về tham số của harness h (rỗng với claude).
+func (h Harnesses) Agent(name string) HarnessAgent {
+	switch name {
+	case "codex":
+		return h.Codex
+	case "antigravity":
+		return h.Antigravity
+	}
+	return HarnessAgent{}
 }
 
 type Roles struct {
@@ -130,7 +155,7 @@ type Eval struct {
 	Arms                  []string `yaml:"arms"`
 	LeakageMode           string   `yaml:"leakage_mode"`
 	BudgetUSD             *float64 `yaml:"budget_usd"`
-	// Harness dùng để chạy tác vụ đánh giá (P1 chỉ hỗ trợ claude).
+	// Harness dùng để chạy tác vụ đánh giá (claude | codex | antigravity).
 	Harness        string `yaml:"harness"`
 	TimeoutMinutes int    `yaml:"timeout_minutes"`
 	MinimalContext string `yaml:"minimal_context"`
@@ -252,8 +277,10 @@ func Default() Config {
 		Project: Project{Root: "auto"},
 		State:   State{Dir: "auto"},
 		Harnesses: Harnesses{
-			Enabled: []string{"claude"},
-			Default: "claude",
+			Enabled:     []string{"claude"},
+			Default:     "claude",
+			Codex:       HarnessAgent{ExtraArgs: []string{}},
+			Antigravity: HarnessAgent{ExtraArgs: []string{}},
 		},
 		Roles: Roles{Planner: "claude", Implementer: "claude", Reviewer: "claude", Evolver: "claude"},
 		Context: Context{
@@ -489,8 +516,8 @@ func (c Config) Validate() error {
 	if c.Eval.BudgetUSD != nil && *c.Eval.BudgetUSD < 0 {
 		add("eval.budget_usd: không được âm")
 	}
-	if c.Eval.Harness != "claude" {
-		add(`eval.harness: P1 chỉ hỗ trợ "claude" (dùng --agent-command cho tác nhân tuỳ chỉnh)`)
+	if !slices.Contains(KnownHarnesses, c.Eval.Harness) {
+		add("eval.harness: harness không hỗ trợ %q (hỗ trợ: %s; --agent-command cho tác nhân tuỳ chỉnh)", c.Eval.Harness, strings.Join(KnownHarnesses, ", "))
 	}
 	if c.Eval.TimeoutMinutes < 1 {
 		add("eval.timeout_minutes: phải >= 1")

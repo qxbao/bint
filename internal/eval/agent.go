@@ -28,6 +28,12 @@ type AgentRequest struct {
 	// MCPConfig / Settings: tệp cấu hình MCP và settings bổ sung (nhánh bint).
 	MCPConfig string
 	Settings  string
+	// ReadOnly: bước không được sửa cây làm việc (b-req, b-review); harness áp ở mức
+	// nó hỗ trợ, Bint kiểm tra lại sau bước.
+	ReadOnly bool
+	// WritableDirs: thư mục ngoài repository mà agent cần ghi (thư mục trạng thái
+	// Bint, cho lệnh `bint task ...`) — dùng cho harness có sandbox.
+	WritableDirs []string
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
@@ -66,6 +72,9 @@ type ClaudeAgent struct {
 
 func (a *ClaudeAgent) Name() string      { return "claude" }
 func (a *ClaudeAgent) ReportsCost() bool { return true }
+func (a *ClaudeAgent) ReadOnlyMode() string {
+	return "--disallowedTools Edit,Write,… + Bint kiểm tra cây làm việc"
+}
 
 func (a *ClaudeAgent) bin() string {
 	if a.Binary != "" {

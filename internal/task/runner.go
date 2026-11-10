@@ -24,11 +24,20 @@ func (e *BusyError) Error() string {
 	return "tác vụ đang được `bint run` điều phối (pid " + strconv.Itoa(e.Runner.PID) + ", lượt " + e.Runner.RunID + ")"
 }
 
+// EnvRunnerPID: PID của tiến trình `bint run` đang điều phối, truyền cho tiến trình
+// agent của từng bước. Agent chạy trong sandbox có không gian PID riêng (Codex,
+// Antigravity) không thấy được PID đó; tiến trình con của chính runner thì runner
+// chắc chắn còn sống (nó đang chờ bước kết thúc).
+const EnvRunnerPID = "BINT_RUNNER_PID"
+
 // RunnerAlive cho biết tiến trình điều phối còn sống. Tiến trình ở máy khác (thư
 // mục trạng thái dùng chung qua mạng) được coi là còn sống.
 func RunnerAlive(r *Runner) bool {
 	if r == nil {
 		return false
+	}
+	if p := os.Getenv(EnvRunnerPID); p != "" && p == strconv.Itoa(r.PID) {
+		return true
 	}
 	host, _ := os.Hostname()
 	if r.Host != "" && host != "" && r.Host != host {

@@ -18,6 +18,7 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/eval"
+	"bint/internal/harness"
 	"bint/internal/store"
 )
 
@@ -759,6 +760,7 @@ func newEvalRunCmd(stdio IO) *cobra.Command {
 		budget       float64
 		costPerRun   float64
 		agentCommand string
+		harnessName  string
 		model        string
 		bare         bool
 		parallel     int
@@ -796,7 +798,18 @@ ngân sách. Ctrl-C dừng an toàn; chạy tiếp bằng --resume <batch-id>.`,
 			if agentCommand != "" {
 				agent = &eval.CommandAgent{Command: agentCommand}
 			} else {
-				agent = &eval.ClaudeAgent{Cfg: cfg.Eval.Agent, Model: model, MaxCostUSD: cfg.Limits.PerRun.MaxCostUSD, Bare: bare}
+				h := harnessName
+				if h == "" {
+					h = cfg.Eval.Harness
+				}
+				if bare && h != "claude" {
+					return usageError{fmt.Errorf("--bare chỉ dùng với harness claude")}
+				}
+				agent, err = harness.NewAgent(h, harness.AgentOptions{Config: cfg, Eval: true, Model: model,
+					MaxCost: cfg.Limits.PerRun.MaxCostUSD, Bare: bare})
+				if err != nil {
+					return err
+				}
 			}
 			opts := eval.RunOptions{
 				Agent: agent, RequestedModel: model, Parallel: parallel, Seed: seed, KeepWorkdirs: keep,
@@ -912,7 +925,8 @@ ngân sách. Ctrl-C dừng an toàn; chạy tiếp bằng --resume <batch-id>.`,
 	f.IntVar(&repeats, "repeats", 3, "số lần lặp mỗi nhánh (mặc định eval.repeats)")
 	f.Float64Var(&budget, "budget", 0, "ngân sách USD cho đợt này (mặc định eval.budget_usd)")
 	f.Float64Var(&costPerRun, "cost-per-run", 0, "chi phí ước tính mỗi lượt khi chưa có lịch sử")
-	f.StringVar(&agentCommand, "agent-command", "", "dùng lệnh tuỳ chỉnh làm agent thay cho Claude Code (đề bài qua stdin)")
+	f.StringVar(&agentCommand, "agent-command", "", "dùng lệnh tuỳ chỉnh làm agent thay cho harness (đề bài qua stdin)")
+	f.StringVar(&harnessName, "harness", "", "harness chạy tác vụ: claude | codex | antigravity (mặc định eval.harness); nhánh harness không hỗ trợ được bỏ qua kèm lý do")
 	f.StringVar(&model, "model", "", "mô hình (mặc định eval.agent.model hoặc mặc định của harness)")
 	f.BoolVar(&bare, "bare", false, "claude --bare: không nạp CLAUDE.md/bộ nhớ cấp người dùng (cần ANTHROPIC_API_KEY)")
 	f.IntVarP(&parallel, "parallel", "j", 1, "số lượt chạy song song")

@@ -110,7 +110,7 @@ func TestContextEngineEndToEnd(t *testing.T) {
 	}
 
 	// init --mcp ghi .mcp.json; runs rate từ chối trong phiên agent.
-	if out, code := run(t, root, "", "init", "--no-hooks", "--mcp"); code != 0 && !strings.Contains(out, "MCP server") {
+	if out, code := run(t, root, "", "init", "--no-hooks", "--mcp"); code != 0 && !strings.Contains(out, "MCP claude") {
 		t.Fatalf("init --mcp: %d\n%s", code, out)
 	}
 	asAgent(t)

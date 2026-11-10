@@ -14,6 +14,7 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/ctxengine"
+	"bint/internal/harness"
 	"bint/internal/runlog"
 	"bint/internal/task"
 	"bint/internal/workflow"
@@ -25,6 +26,8 @@ type runFlags struct {
 	noReview     bool
 	agentCommand string
 	model        string
+	harness      string
+	roles        []string
 	asJSON       bool
 	ef           editFlags
 }
@@ -56,7 +59,9 @@ Mã thoát: 0 nếu workflow kết thúc bình thường (done, hoặc bước �
 blocked / failed / interrupted.`,
 		Example: `  bint run b-do "Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db"
   bint run b-req --task 01J…   # chỉ lập kế hoạch cho tác vụ có sẵn
-  bint run b-do --agent-command ./my-agent.sh "…"`,
+  bint run b-do --agent-command ./my-agent.sh "…"
+  bint run b-do --role implementer=codex "…"   # b-feat bằng Codex, các bước khác theo roles
+  bint run b-review --harness antigravity --task 01J…`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -82,7 +87,9 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 	f := c.Flags()
 	f.BoolVar(&rf.noReview, "no-review", false, "bỏ bước b-review (b-do)")
 	f.StringVar(&rf.agentCommand, "agent-command", "", "lệnh tác nhân tuỳ chỉnh cho mọi bước (đề bài qua stdin và $BINT_EVAL_PROMPT_FILE)")
-	f.StringVar(&rf.model, "model", "", "mô hình (ghi đè workflow.agent.model)")
+	f.StringVar(&rf.model, "model", "", "mô hình (ghi đè workflow.agent.model / harnesses.<h>.model)")
+	f.StringVar(&rf.harness, "harness", "", "harness cho mọi bước của lượt này (claude | codex | antigravity; phải có trong harnesses.enabled)")
+	f.StringArrayVar(&rf.roles, "role", nil, "harness cho một role, dạng role=harness (planner|implementer|reviewer hoặc b-req|b-feat|b-review); lặp lại được")
 	f.BoolVar(&rf.asJSON, "json", false, "in kết quả dạng JSON")
 	if full {
 		f.StringVar(&rf.taskRef, "task", "", "chạy trên tác vụ có sẵn")
@@ -101,7 +108,19 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, o workflow.RunOption
 	if env.RunID != "" {
 		return fmt.Errorf("không chạy `bint run` lồng trong một bước workflow khác (BINT_RUN_ID=%s)", env.RunID)
 	}
-	r := &workflow.Runner{Env: env, Agent: workflow.DefaultAgents(k.Config, rf.agentCommand, rf.model)}
+	sel := harness.Selection{All: rf.harness}
+	if rf.harness != "" {
+		if _, ok := harness.Get(rf.harness); !ok {
+			return usageError{fmt.Errorf("--harness: harness không hỗ trợ %q (%s)", rf.harness, strings.Join(harness.Names(), ", "))}
+		}
+	}
+	if sel.Roles, err = harness.ParseRoleOverrides(rf.roles); err != nil {
+		return usageError{err}
+	}
+	if rf.agentCommand != "" && (rf.harness != "" || len(rf.roles) > 0) {
+		return usageError{errors.New("--agent-command không đi cùng --harness/--role")}
+	}
+	r := &workflow.Runner{Env: env, Agent: workflow.HarnessAgents(k.Config, rf.agentCommand, rf.model, sel)}
 	if !rf.asJSON {
 		r.Logf = func(format string, a ...any) { fmt.Fprintf(stdio.Out, format+"\n", a...) }
 	}

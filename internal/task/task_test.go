@@ -228,3 +228,22 @@ func TestChangedFilesAndFingerprint(t *testing.T) {
 		t.Fatalf("commit mới vẫn tính so với base: %v", files)
 	}
 }
+
+// Agent trong sandbox (không gian PID riêng) không thấy PID của runner: tiến trình
+// con của chính runner đó (BINT_RUNNER_PID) không được đánh dấu tác vụ interrupted.
+func TestRunnerAliveFromSandboxedChild(t *testing.T) {
+	host, _ := os.Hostname()
+	r := &Runner{PID: 2147483646, Host: host, RunID: "r1"}
+	t.Setenv(EnvRunnerPID, "")
+	if RunnerAlive(r) {
+		t.Fatal("PID không tồn tại phải coi là chết")
+	}
+	t.Setenv(EnvRunnerPID, "2147483646")
+	if !RunnerAlive(r) {
+		t.Fatal("tiến trình con của runner phải coi runner còn sống")
+	}
+	t.Setenv(EnvRunnerPID, "123")
+	if RunnerAlive(r) {
+		t.Fatal("runner khác không được coi là còn sống")
+	}
+}
