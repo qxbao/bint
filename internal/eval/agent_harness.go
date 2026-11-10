@@ -122,8 +122,23 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	if err != nil {
 		return AgentResult{ExitCode: -1, Error: err.Error()}
 	}
+	env := cleanEnv(req.Env...)
+	if req.Arm != "" {
+		for _, arg := range a.ExtraArgs {
+			if arg == "--ignore-user-config" {
+				return AgentResult{ExitCode: -1, Error: "Codex eval cô lập không dùng --ignore-user-config vì cờ đó bỏ cấu hình chặn user skill"}
+			}
+		}
+		var cleanup func()
+		env, cleanup, err = codexEvalProfile(req, env)
+		if err != nil {
+			return AgentResult{ExitCode: -1, Error: err.Error()}
+		}
+		defer cleanup()
+		args = append([]string{"--no-daemon"}, args...)
+	}
 	var stdout bytes.Buffer
-	r := runProcess(ctx, req.Dir, a.bin(), args, req.Timeout, req.LogPath, cleanEnv(req.Env...), strings.NewReader(req.Prompt), &stdout)
+	r := runProcess(ctx, req.Dir, a.bin(), args, req.Timeout, req.LogPath, env, strings.NewReader(req.Prompt), &stdout)
 	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, Model: a.Model}
 	if r.Err != nil {
 		res.Error = r.Err.Error()
