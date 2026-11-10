@@ -265,6 +265,7 @@ func ConfigPath(repoRoot string) string { return filepath.Join(repoRoot, ".codex
 const MCPServerName = "bint"
 
 var mcpTableRe = regexp.MustCompile(`(?m)^\s*\[mcp_servers\.(?:bint|"bint")\]`)
+var mcpNamespaceRe = regexp.MustCompile(`(?m)^\s*\[mcp_servers\.(?:bint|"bint")(?:\]|\.)`)
 
 // MCPBlock là nội dung khối Bint trong .codex/config.toml.
 func MCPBlock(bintPath string) string {
@@ -316,8 +317,8 @@ func InstallMCP(repoRoot, bintPath, backupDir string, m *fsafe.Manifest, install
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fsafe.Result{}, err
 	}
-	if mcpTableRe.MatchString(outsideBlock(string(raw))) {
-		return fsafe.Result{Outcome: fsafe.Conflict, Detail: p + " đã có bảng [mcp_servers.bint] ngoài khối bint; gỡ nó hoặc để nguyên (Bint không ghi đè)"}, nil
+	if mcpNamespaceRe.MatchString(outsideBlock(string(raw))) {
+		return fsafe.Result{Outcome: fsafe.Conflict, Detail: p + " đã có bảng của mcp_servers.bint ngoài khối bint (kể cả bảng con tools); giữ nguyên cấu hình thủ công hoặc gỡ phần đó trước khi cài lại (Bint không ghi đè)"}, nil
 	}
 	return fsafe.SyncBlock(req)
 }

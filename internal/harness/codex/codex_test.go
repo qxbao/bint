@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"bint/internal/fsafe"
 	"bint/internal/harness/hookcore"
 )
 
@@ -44,6 +45,29 @@ func TestSessionEndTimeoutMatchesRealCodex(t *testing.T) {
 				t.Fatalf("SessionEnd timeout=%d: Codex chỉ cho phép tối đa 3s", h.Timeout)
 			}
 		}
+	}
+}
+
+func TestMCPUpgradePreservesManualCitationPolicy(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".codex"), 0o755)
+	// Cấu hình hợp lệ trước nâng cấp: block cũ và policy người dùng thêm tay.
+	m, _ := fsafe.LoadManifest(filepath.Join(t.TempDir(), "manifest.json"))
+	inner := "[mcp_servers.bint]\ncommand = 'bint'\nargs = ['mcp', 'serve']"
+	_, err := fsafe.SyncBlock(fsafe.BlockSync{Path: ConfigPath(root), RelName: ".codex/config.toml", Markers: fsafe.HashMarkers, Inner: inner, Manifest: m, Now: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(ConfigPath(root))
+	old := string(b) + "\n[mcp_servers.bint.tools.cite_knowledge]\napproval_mode = 'prompt'\n"
+	os.WriteFile(ConfigPath(root), []byte(old), 0o644)
+	r, err := InstallMCP(root, "bint", t.TempDir(), m, true, false, time.Now())
+	if err != nil || r.Outcome != fsafe.Conflict {
+		t.Fatalf("phải báo xung đột thay vì tạo bảng trùng: %+v %v", r, err)
+	}
+	b, _ = os.ReadFile(ConfigPath(root))
+	if string(b) != old {
+		t.Fatal("đã sửa policy thủ công")
 	}
 }
 
