@@ -1046,7 +1046,7 @@ không kém, hoặc futility).`,
 			for _, n := range v.Notes {
 				fmt.Fprintf(w, "  lưu ý: %s\n", n)
 			}
-			if res.Status == "cancelled" || errors.Is(runErr, eval.ErrBudget) {
+			if res.Status == "cancelled" || errors.Is(runErr, eval.ErrBudget) || errors.Is(runErr, eval.ErrQuota) {
 				fmt.Fprintf(w, "Chạy tiếp: bint evolve evaluate %s --resume %s\n", p.ID, res.BatchID)
 			}
 			if errors.Is(runErr, context.Canceled) {

@@ -32,6 +32,8 @@ type Batch struct {
 
 // AttemptRow là một lượt chạy (tác vụ × nhánh × lần lặp).
 type AttemptRow struct {
+	// quota: lượt hỏng vì agent hết hạn mức (chỉ dùng trong bộ chạy, không lưu).
+	quota           bool
 	AttemptID       string
 	BatchID         string
 	CaseID          string
@@ -198,7 +200,12 @@ func ListBatches(ctx context.Context, db *sql.DB, limit int) ([]Batch, error) {
 }
 
 func startAttempt(ctx context.Context, db *sql.DB, a AttemptRow) error {
-	// Lượt "running" còn sót từ một lần chạy bị ngắt sẽ được chạy lại.
+	// Lượt "running" còn sót từ một lần chạy bị ngắt, hoặc lượt hỏng vì hạ tầng, sẽ được
+	// chạy lại: xoá bản ghi cũ cùng dữ liệu truy xuất của nó.
+	if _, err := db.ExecContext(ctx, `DELETE FROM eval_context_usage WHERE attempt_id IN (SELECT attempt_id FROM evaluation_runs
+		WHERE batch_id = ? AND case_id = ? AND arm = ? AND repeat_index = ?)`, a.BatchID, a.CaseID, a.Arm, a.Repeat); err != nil {
+		return err
+	}
 	if _, err := db.ExecContext(ctx, `DELETE FROM evaluation_runs WHERE batch_id = ? AND case_id = ? AND arm = ? AND repeat_index = ?`,
 		a.BatchID, a.CaseID, a.Arm, a.Repeat); err != nil {
 		return err
