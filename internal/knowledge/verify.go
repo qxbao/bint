@@ -175,7 +175,7 @@ func (v Verifier) Verify(it *Item) Result {
 				e.Lines = c.Lines
 			}
 		}
-		if e.Symbol != "" && !containsWord(regionOf(e, b), e.Symbol) {
+		if e.Symbol != "" && !containsSymbol(regionOf(e, b), e.Symbol) {
 			add(LevelError, CodeSymbol, "ký hiệu %q không có trong %s", e.Symbol, e)
 		}
 	}
@@ -215,7 +215,7 @@ func (v Verifier) Verify(it *Item) Result {
 	for _, sym := range it.Scope.Symbols {
 		found := false
 		for _, b := range corpus {
-			if containsWord(b, sym) {
+			if containsSymbol(b, sym) {
 				found = true
 				break
 			}
@@ -386,6 +386,21 @@ func regionOf(e Evidence, b []byte) []byte {
 		return b
 	}
 	return []byte(strings.Join(lines[from-1:to], "\n"))
+}
+
+// containsSymbol: ký hiệu có mặt trong văn bản. Ký hiệu định danh đầy đủ ("Lớp.phương_thức",
+// "pkg::fn", "Type#method") không xuất hiện nguyên văn trong mã — định nghĩa chỉ ghi tên cuối
+// (def __post_init__) — nên khớp theo tên cuối; vị trí đúng trong lớp do symbols.Locate và
+// fingerprint bảo đảm.
+func containsSymbol(b []byte, sym string) bool {
+	if containsWord(b, sym) {
+		return true
+	}
+	sym = strings.TrimSpace(sym)
+	if i := strings.LastIndexAny(sym, ".:#"); i >= 0 && i+1 < len(sym) {
+		return containsWord(b, sym[i+1:])
+	}
+	return false
 }
 
 func containsWord(b []byte, word string) bool {
