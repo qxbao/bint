@@ -92,8 +92,22 @@ type Lock struct {
 
 // LockEntry ghi phiên bản một skill gốc.
 type LockEntry struct {
-	SHA256    string   `yaml:"sha256"`
+	// SHA256 là băm skill gốc (phiên bản đang dùng).
+	SHA256 string `yaml:"sha256"`
+	// Overlay là băm lớp phủ đã áp (rỗng = không có).
+	Overlay string `yaml:"overlay,omitempty"`
+	// Composed là băm nội dung đã xuất bản (gốc + lớp phủ); rỗng ở core.lock cũ
+	// (trước P4) nghĩa là bằng SHA256.
+	Composed  string   `yaml:"composed,omitempty"`
 	Published []string `yaml:"published,omitempty"`
+}
+
+// PublishedHash trả về băm nội dung đã xuất bản.
+func (e LockEntry) PublishedHash() string {
+	if e.Composed != "" {
+		return e.Composed
+	}
+	return e.SHA256
 }
 
 // ReadLock đọc core.lock (rỗng nếu chưa có).
@@ -113,7 +127,7 @@ func ReadLock(root string) (Lock, error) {
 func writeLock(root string, l Lock) (bool, error) {
 	var b strings.Builder
 	b.WriteString("# Do Bint quản lý: phiên bản skill gốc đang dùng (mục 6.6). Không sửa tay;\n")
-	b.WriteString("# tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (P4).\n")
+	b.WriteString("# tuỳ biến theo dự án đặt trong .bint/skills/overlays/ rồi chạy `bint sync`.\n")
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
@@ -159,8 +173,11 @@ type InstallOptions struct {
 	Now         time.Time
 }
 
-// Install xuất bản mọi skill gốc cho các harness và cập nhật core.lock. Tệp đã bị
-// sửa ngoài Bint (băm khác bản Bint ghi lần trước) không bị ghi đè trừ khi Force.
+// Install ghép skill gốc với lớp phủ, xuất bản cho các harness và cập nhật
+// core.lock (mục 6.6). Tệp đã bị sửa ngoài Bint (băm khác bản Bint ghi lần trước)
+// không bị ghi đè trừ khi Force. Lớp phủ không áp được (điểm neo không còn sau
+// nâng cấp, cú pháp sai) → xung đột: bản đã xuất bản và mục core.lock cũ được giữ
+// nguyên cho tới khi người dùng sửa lớp phủ; Force không vượt qua được xung đột này.
 func Install(opts InstallOptions) ([]Outcome, error) {
 	lock, err := ReadLock(opts.Root)
 	if err != nil {
@@ -171,11 +188,27 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 	}
 	lock.BintVersion = opts.BintVersion
 	var outs []Outcome
-	for _, s := range Core() {
-		entry := LockEntry{SHA256: s.Hash()}
+	for _, core := range Core() {
+		prev := lock.Skills[core.Name]
+		s, ov, err := Composed(opts.Root, core)
+		if err != nil {
+			var ce *ConflictError
+			if !errors.As(err, &ce) {
+				return outs, err
+			}
+			for _, t := range opts.Targets {
+				outs = append(outs, Outcome{Skill: core.Name, Path: filepath.ToSlash(filepath.Join(t.Dir, core.Name, "SKILL.md")),
+					Result: fsafe.Conflict, Detail: ce.Error() + "; giữ bản đã xuất bản trước đó"})
+			}
+			continue
+		}
+		entry := LockEntry{SHA256: core.Hash(), Overlay: ov.Hash()}
+		if ov != nil {
+			entry.Composed = s.Hash()
+		}
 		for _, t := range opts.Targets {
 			rel := filepath.ToSlash(filepath.Join(t.Dir, s.Name, "SKILL.md"))
-			o, err := publish(opts, s, rel, lock.Skills[s.Name].SHA256)
+			o, err := publish(opts, s, rel, prev.PublishedHash())
 			if err != nil {
 				return outs, err
 			}
@@ -185,6 +218,10 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 			}
 		}
 		lock.Skills[s.Name] = entry
+	}
+	for _, orphan := range OrphanOverlays(opts.Root) {
+		outs = append(outs, Outcome{Skill: strings.TrimSuffix(filepath.Base(orphan), ".md"), Path: orphan, Result: fsafe.Conflict,
+			Detail: "lớp phủ cho skill gốc không tồn tại (đổi tên hoặc bị bỏ ở phiên bản này?)"})
 	}
 	if _, err := writeLock(opts.Root, lock); err != nil {
 		return outs, err
@@ -222,7 +259,7 @@ func publish(opts InstallOptions, s Skill, rel, lockSHA string) (Outcome, error)
 	pristine := (known && prev == cur) || (lockSHA != "" && lockSHA == Skill{Content: have}.Hash())
 	if !opts.Force && !pristine {
 		o.Result = fsafe.Conflict
-		o.Detail = "skill gốc đã bị sửa ngoài Bint (tuỳ biến thuộc về lớp phủ, P4); --force để ghi đè (bản cũ được sao lưu)"
+		o.Detail = "skill đã bị sửa ngoài Bint (tuỳ biến đặt trong " + OverlayPath(s.Name) + ", xem `bint skill overlay`); --force để ghi đè (bản cũ được sao lưu)"
 		return o, nil
 	}
 	bp, err := fsafe.Backup(full, opts.BackupDir, rel, opts.Now)
@@ -237,7 +274,8 @@ func publish(opts InstallOptions, s Skill, rel, lockSHA string) (Outcome, error)
 	return o, nil
 }
 
-// Status cho biết trạng thái một skill đã xuất bản (dùng cho doctor).
+// Status cho biết trạng thái một skill đã xuất bản so với nội dung mong muốn s
+// (đã ghép lớp phủ) — dùng cho doctor.
 func Status(root string, t Target, s Skill) (string, error) {
 	full := filepath.Join(root, filepath.FromSlash(t.Dir), s.Name, "SKILL.md")
 	b, err := os.ReadFile(full)

@@ -181,7 +181,10 @@ func applyRunEffects(ctx context.Context, tx *sql.Tx, runID string, e spool.Even
 			WHERE run_id = ?8`,
 			ts, str(p, "model"), str(p, "harness_version"), str(p, "bint_version"),
 			str(p, "git_head"), str(p, "git_branch"), e.Worktree, runID)
-		return err
+		if err != nil {
+			return err
+		}
+		return recomputeDuration(ctx, tx, runID)
 	case spool.SessionEnded:
 		// Chỉ áp dụng nếu đây là lần kết thúc mới nhất đã biết.
 		_, err := tx.ExecContext(ctx, `UPDATE runs SET
@@ -247,6 +250,10 @@ func applyRunEffects(ctx context.Context, tx *sql.Tx, runID string, e spool.Even
 			VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?)`,
 			ulid.New(), runID, e.EventID, str(p, "kind"), str(p, "title"), str(p, "body"), string(paths), str(p, "item_id"), ts)
 		return err
+	case spool.WorkflowStarted, spool.WorkflowFinished, spool.StepStarted, spool.StepFinished,
+		spool.TaskLinked, spool.TaskStatus, spool.TaskArtifact, spool.TaskVerified, spool.TaskCriteria,
+		spool.TaskError, spool.ReviewCompleted:
+		return applyWorkflowEffects(ctx, tx, runID, e, ts)
 	case spool.RunRated:
 		rating := str(p, "rating")
 		if rating != "good" && rating != "bad" {
@@ -256,6 +263,16 @@ func applyRunEffects(ctx context.Context, tx *sql.Tx, runID string, e spool.Even
 			Source: "cli", Detail: str(p, "note"), DedupKey: "rating:" + runID, ObservedAt: ts})
 	}
 	return nil
+}
+
+// recomputeDuration tính lại duration_ms khi started_at đổi sau khi lượt đã kết
+// thúc (sự kiện bắt đầu được nạp sau sự kiện kết thúc: tên tệp spool cùng mili giây
+// không đảm bảo thứ tự).
+func recomputeDuration(ctx context.Context, tx *sql.Tx, runID string) error {
+	_, err := tx.ExecContext(ctx, `UPDATE runs SET
+		duration_ms = CAST(ROUND((julianday(finished_at) - julianday(started_at)) * 86400000) AS INTEGER)
+		WHERE run_id = ? AND finished_at IS NOT NULL AND started_at IS NOT NULL`, runID)
+	return err
 }
 
 // strList đọc mảng chuỗi trong payload JSON.

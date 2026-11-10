@@ -14,6 +14,10 @@ const (
 	SignalRating    = "rating"    // người dùng chấm (bint runs rate)
 	SignalCommitted = "committed" // thay đổi của lượt được commit (yếu, tích cực)
 	SignalReverted  = "reverted"  // commit của lượt bị hoàn tác (mạnh, tiêu cực)
+	// P4.
+	SignalVerify   = "verify"   // lệnh kiểm chứng của phiếu tác vụ (mạnh nếu người đã xác nhận)
+	SignalCriteria = "criteria" // agent đối chiếu tiêu chí chấp nhận (trung bình)
+	SignalReview   = "review"   // b-review có phát hiện nghiêm trọng (trung bình, tiêu cực)
 )
 
 // Signal là một tín hiệu kết quả. Không gộp thành một điểm: mỗi tín hiệu giữ
@@ -79,8 +83,8 @@ const (
 // Label suy ra nhãn kết quả từ các tín hiệu, kèm lý do. Quy tắc (mục 9.6):
 //   - bị hoàn tác, hoặc người chấm "bad" → failure (tín hiệu mạnh tiêu cực thắng);
 //   - người chấm "good" → success;
-//   - kiểm thử: chỉ tính lần chạy CUỐI trong phiên, và chỉ khi là lệnh đã được người
-//     xác nhận (strong); qua → success, không qua → failure;
+//   - kiểm thử hoặc lệnh kiểm chứng của phiếu tác vụ: chỉ tính lần chạy CUỐI, và chỉ
+//     khi là lệnh đã được người xác nhận (strong); qua → success, không qua → failure;
 //   - còn lại (chỉ có tín hiệu yếu/trung bình như "được commit") → unlabeled,
 //     không được dùng làm bằng chứng cho đề xuất tiến hoá.
 func Label(sigs []Signal) (string, string) {
@@ -90,7 +94,7 @@ func Label(sigs []Signal) (string, string) {
 		if s.Kind == SignalReverted && !s.Positive {
 			return LabelFailure, "thay đổi bị hoàn tác: " + s.Detail
 		}
-		if s.Kind == SignalTests && s.Strength == "strong" {
+		if (s.Kind == SignalTests || s.Kind == SignalVerify) && s.Strength == "strong" {
 			lastStrongTest = &sigs[i]
 		}
 	}

@@ -16,6 +16,7 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/knowledge"
+	"bint/internal/task"
 )
 
 var findingIcon = map[string]string{knowledge.LevelError: "✗", knowledge.LevelWarn: "!"}
@@ -51,9 +52,10 @@ Chỉ người mới duyệt được quy tắc bắt buộc (rule).`,
 
 func newKnowledgeAddCmd(stdio IO) *cobra.Command {
 	var (
-		o        app.AddOptions
-		bodyFile string
-		asJSON   bool
+		o          app.AddOptions
+		bodyFile   string
+		asJSON     bool
+		fromReview string
 	)
 	c := &cobra.Command{
 		Use:   "add [nội dung | -]",
@@ -68,7 +70,11 @@ Bằng chứng: --evidence 'path[:a-b][#Symbol][@commit]' (lặp lại được)
 của vùng dòng (hoặc cả tệp) được tính để phát hiện khi bằng chứng thay đổi.
 
 Mục không qua kiểm tra xác định được (đường dẫn, dòng, ký hiệu, ví dụ mã, trùng
-lặp, cờ bên thứ ba) thì không được ghi.`,
+lặp, cờ bên thứ ba) thì không được ghi.
+
+--from-review <finding-id> chuyển một phát hiện của b-review (ID <task-id>.<n>) thành
+mục warning (mặc định) hoặc lesson: tiêu đề, nội dung, phạm vi và bằng chứng lấy từ phát
+hiện; cờ khác ghi đè. Mục do agent đề xuất theo cách này vẫn ở trạng thái candidate.`,
 		Example: `  bint knowledge add --type warning --paths 'internal/db/**' \
     --evidence internal/db/db.go:40-52 "Mở SQLite bằng store.Open; tự mở sql.Open sẽ thiếu busy_timeout"
   bint knowledge add --type rule --title "Không sửa tay *.pb.go" --evidence Makefile:12 - < note.md`,
@@ -77,6 +83,11 @@ lặp, cờ bên thứ ba) thì không được ghi.`,
 			k, err := openKnowledge(cmd)
 			if err != nil {
 				return err
+			}
+			if fromReview != "" {
+				if err := fillFromReview(cmd, &o, fromReview); err != nil {
+					return err
+				}
 			}
 			switch {
 			case bodyFile != "":
@@ -96,6 +107,9 @@ lặp, cờ bên thứ ba) thì không được ghi.`,
 			}
 			if strings.TrimSpace(o.Body) == "" {
 				return usageError{fmt.Errorf("thiếu nội dung (đối số, '-' cho stdin, hoặc --body-file)")}
+			}
+			if o.Type == "" {
+				return usageError{fmt.Errorf("thiếu --type")}
 			}
 			if !slices.Contains(knowledge.Types, o.Type) {
 				return usageError{fmt.Errorf("--type phải là một trong: %s", strings.Join(knowledge.Types, ", "))}
@@ -125,7 +139,7 @@ lặp, cờ bên thứ ba) thì không được ghi.`,
 		},
 	}
 	f := c.Flags()
-	f.StringVarP(&o.Type, "type", "t", "", "loại: rule | warning | pattern | fact | decision | lesson (bắt buộc)")
+	f.StringVarP(&o.Type, "type", "t", "", "loại: rule | warning | pattern | fact | decision | lesson (bắt buộc, trừ --from-review)")
 	f.StringVar(&o.Title, "title", "", "tiêu đề một dòng (mặc định: dòng đầu nội dung)")
 	f.StringSliceVar(&o.Paths, "paths", nil, "phạm vi đường dẫn (glob), bỏ trống = toàn repository")
 	f.StringSliceVar(&o.Symbols, "symbols", nil, "ký hiệu liên quan")
@@ -140,7 +154,7 @@ lặp, cờ bên thứ ba) thì không được ghi.`,
 	f.StringVar(&o.EvalCase, "eval-case", "", "tác vụ đánh giá mà mục này rút ra từ đó")
 	f.StringVar(&bodyFile, "body-file", "", "đọc nội dung từ tệp")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")
-	c.MarkFlagRequired("type")
+	f.StringVar(&fromReview, "from-review", "", "chuyển phát hiện review <task-id>.<n> thành mục warning/lesson")
 	f.MarkHidden("eval-case")
 	return c
 }
@@ -729,4 +743,64 @@ func nonNilStrings(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+// fillFromReview điền AddOptions từ một phát hiện review (mục 6.3). Giá trị người
+// dùng đã đặt bằng cờ được giữ.
+func fillFromReview(cmd *cobra.Command, o *app.AddOptions, id string) error {
+	taskRef, ok := task.SplitFindingID(id)
+	if !ok {
+		return usageError{fmt.Errorf("ID phát hiện %q không hợp lệ (dạng <task-id>.<n>)", id)}
+	}
+	env, _, err := openWorkflow(cmd)
+	if err != nil {
+		return err
+	}
+	t, err := env.Tasks.Load(taskRef)
+	if err != nil {
+		return err
+	}
+	rev, err := t.LoadReview()
+	if err != nil {
+		return err
+	}
+	_, n, _ := strings.Cut(id, ".")
+	f, round := rev.Find(t.State.ID + "." + n)
+	if f == nil {
+		return fmt.Errorf("không tìm thấy phát hiện %s", id)
+	}
+	if o.Type == "" {
+		o.Type = knowledge.TypeWarning
+	}
+	if o.Type != knowledge.TypeWarning && o.Type != knowledge.TypeLesson {
+		return usageError{fmt.Errorf("--from-review chỉ tạo mục warning hoặc lesson")}
+	}
+	if o.Title == "" {
+		o.Title = f.Title
+	}
+	if strings.TrimSpace(o.Body) == "" {
+		body := strings.TrimSpace(f.Body)
+		if body == "" {
+			body = f.Title
+		}
+		o.Body = body + "\n\nCăn cứ: " + f.Evidence + "\n\n(Rút ra từ phát hiện review " + f.ID + ", tác vụ " + t.State.ID + ".)"
+	}
+	if len(o.Paths) == 0 && f.Path != "" {
+		o.Paths = []string{f.Path}
+	}
+	if len(o.Evidence) == 0 && f.Path != "" {
+		spec := f.Path
+		if f.Lines != "" {
+			spec += ":" + f.Lines
+		}
+		o.Evidence = []string{spec}
+	}
+	if f.Path != "" {
+		o.Inputs = append(o.Inputs, f.Path)
+	}
+	o.Tags = append(o.Tags, "review")
+	if o.RunID == "" && round != nil {
+		o.RunID = round.RunID
+	}
+	return nil
 }

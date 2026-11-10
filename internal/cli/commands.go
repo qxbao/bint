@@ -244,9 +244,6 @@ func newHookCmd(stdio IO) *cobra.Command {
 func plannedCommands() []*cobra.Command {
 	planned := []struct{ use, short, phase string }{
 		{"docs", "Sinh tài liệu cho người đọc từ tri thức", "P3"},
-		{"run", "Thực thi workflow b-req, b-feat, b-review, b-do", "P4"},
-		{"skill", "Quản lý skill gốc và lớp phủ", "P4"},
-		{"sync", "Đồng bộ skill và adapter", "P4–P5"},
 		{"evolve", "Tiến hoá tri thức và skill", "P6+"},
 	}
 	var out []*cobra.Command

@@ -56,5 +56,9 @@ func Isolate(t *testing.T) (stateDir string) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	// Kiểm thử có thể đang chạy trong một phiên agent/lượt workflow thật.
+	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS"} {
+		t.Setenv(k, "")
+	}
 	return stateDir
 }

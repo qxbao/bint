@@ -205,7 +205,7 @@ b-bootstrap trong harness:
 			if !noSkill {
 				if !k.Paths.Initialized() {
 					fmt.Fprintln(stdio.Out, "! Chưa `bint init` trên máy này: bỏ qua cài skill.")
-				} else if err := installSkillsCLI(stdio.Out, k, force); err != nil {
+				} else if _, err := installSkillsCLI(stdio.Out, k, force); err != nil {
 					return err
 				}
 			}
@@ -234,7 +234,8 @@ Bước tiếp theo:
 	return c
 }
 
-func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) error {
+// installSkillsCLI xuất bản skill gốc (đã ghép lớp phủ); trả về số xung đột.
+func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) (int, error) {
 	var targets []skills.Target
 	for _, h := range k.Config.Harnesses.Enabled {
 		if h == "claude" {
@@ -242,24 +243,26 @@ func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) error {
 		}
 	}
 	if len(targets) == 0 {
-		fmt.Fprintln(w, "! Không harness nào có adapter skill (P2 hỗ trợ claude); dùng `bint bootstrap skill` để lấy nội dung.")
-		return nil
+		fmt.Fprintln(w, "! Không harness nào có adapter skill (hỗ trợ claude); dùng `bint skill show <tên>` để lấy nội dung.")
+		return 0, nil
 	}
 	m, err := fsafe.LoadManifest(k.Paths.Manifest)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	outs, err := skills.Install(skills.InstallOptions{Root: k.Root, Targets: targets, BintVersion: Version, Force: force,
 		BackupDir: k.Paths.Backups, Manifest: m, Now: time.Now()})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := m.Save(); err != nil {
-		return err
+		return 0, err
 	}
+	conflicts := 0
 	for _, o := range outs {
 		switch o.Result {
 		case fsafe.Conflict:
+			conflicts++
 			fmt.Fprintf(w, "✗ skill %s: %s — %s\n", o.Skill, o.Path, o.Detail)
 		case fsafe.Created:
 			fmt.Fprintf(w, "+ skill %s: %s\n", o.Skill, o.Path)
@@ -269,15 +272,15 @@ func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) error {
 			fmt.Fprintf(w, "✓ skill %s: %s\n", o.Skill, o.Path)
 		}
 	}
-	return nil
+	return conflicts, nil
 }
 
 func newBootstrapSkillCmd(stdio IO) *cobra.Command {
 	return &cobra.Command{
 		Use:   "skill [tên]",
-		Short: "In nội dung skill gốc (mặc định b-bootstrap) để dùng với harness chưa có adapter",
+		Short: "In nội dung skill (mặc định b-bootstrap, đã ghép lớp phủ) để dùng với harness chưa có adapter",
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			name := "b-bootstrap"
 			if len(args) == 1 {
 				name = args[0]
@@ -285,6 +288,11 @@ func newBootstrapSkillCmd(stdio IO) *cobra.Command {
 			s, ok := skills.Get(name)
 			if !ok {
 				return fmt.Errorf("không có skill gốc %q", name)
+			}
+			if k, err := app.OpenKnowledge(cmd.Context(), "."); err == nil {
+				if c, _, err := skills.Composed(k.Root, s); err == nil {
+					s = c
+				}
 			}
 			_, err := stdio.Out.Write(s.Content)
 			return err

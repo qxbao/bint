@@ -22,6 +22,7 @@ import (
 	"bint/internal/detect"
 	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
+	"bint/internal/pathglob"
 	"bint/internal/spool"
 	"bint/internal/state"
 )
@@ -144,12 +145,13 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 	if hi.AgentType != "" {
 		ev.Payload["agent_type"] = hi.AgentType
 	}
+	// Lượt chạy do `bint run` điều phối: sự kiện thuộc về lượt đó (mục 9.2).
+	if id := strings.TrimSpace(os.Getenv(EnvRunID)); id != "" {
+		ev.RunID = id
+	}
 
 	switch hi.HookEventName {
 	case evPreToolUse:
-		if !cfg.Context.Interfaces.PathHooks || cfgSrc.Project == "" {
-			return HookResult{Skipped: "context.interfaces.path_hooks tắt"}, nil
-		}
 		field, ok := pathTools[hi.ToolName]
 		if !ok {
 			return HookResult{Skipped: "công cụ không đọc/sửa tệp"}, nil
@@ -158,6 +160,19 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 		rel, inside := RelPath(repo.Toplevel, cwd, p)
 		if !inside {
 			return HookResult{Skipped: "tệp nằm ngoài repository"}, nil
+		}
+		// Giới hạn vận hành (mục 5): sửa đường dẫn được bảo vệ cần người duyệt. Hook chỉ
+		// yêu cầu harness hỏi người dùng ("ask"), không tự từ chối.
+		ask := ""
+		if _, isEdit := editTools[hi.ToolName]; isEdit && cfgSrc.Project != "" &&
+			pathglob.MatchAny(cfg.Limits.ProtectedPaths, rel) && !approvedPath(rel) {
+			ask = fmt.Sprintf("Bint: %s thuộc đường dẫn được bảo vệ (limits.protected_paths trong .bint/config.yml); thay đổi cần người dùng duyệt.", rel)
+		}
+		if !cfg.Context.Interfaces.PathHooks || cfgSrc.Project == "" {
+			if ask != "" {
+				return HookResult{Output: preToolOutput("", ask)}, nil
+			}
+			return HookResult{Skipped: "context.interfaces.path_hooks tắt"}, nil
 		}
 		kroot := filepath.Dir(filepath.Dir(cfgSrc.Project))
 		mem := ctxengine.NewSessionMemory(paths.Runtime, HarnessName, hi.SessionID)
@@ -170,10 +185,13 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 				MaxTokens: cfg.Context.MaxTokens, PathMaxItems: cfg.Context.PathMaxItems}
 			return e.ForPaths([]string{rel}, mem.Seen()), nil
 		})
-		if !ok {
-			return HookResult{Skipped: "quá hạn hoặc lỗi khi truy xuất theo đường dẫn"}, nil
-		}
-		if len(pack.Entries) == 0 {
+		if !ok || len(pack.Entries) == 0 {
+			if ask != "" {
+				return HookResult{Output: preToolOutput("", ask)}, nil
+			}
+			if !ok {
+				return HookResult{Skipped: "quá hạn hoặc lỗi khi truy xuất theo đường dẫn"}, nil
+			}
 			return HookResult{Skipped: "không có tri thức khớp " + rel}, nil
 		}
 		mem.Add(pack.IDs())
@@ -183,11 +201,12 @@ func HandleHook(ctx context.Context, in io.Reader, env HookEnv) (HookResult, err
 		}
 		cev := ctxengine.ContextEvent(HarnessName, hi.SessionID, repo.Toplevel, ctxengine.ChannelHookPath, key, pack, now)
 		cev.Source = "hook:" + HarnessName
+		cev.RunID = ev.RunID
 		f, err := spool.Write(paths.Spool, cev)
 		if err != nil {
 			return HookResult{}, err
 		}
-		return HookResult{Written: true, SpoolFile: f, Output: preToolOutput(pack.Render())}, nil
+		return HookResult{Written: true, SpoolFile: f, Output: preToolOutput(pack.Render(), ask)}, nil
 	case evSessionStart:
 		ev.Type = spool.SessionStarted
 		ev.Payload["source"] = hi.Source
@@ -321,11 +340,34 @@ func mcpEvent(ev *spool.Event, hi HookInput) string {
 	return ""
 }
 
-// preToolOutput dựng JSON để Claude Code chèn ngữ cảnh vào lần gọi công cụ.
-func preToolOutput(text string) string {
-	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]any{
-		"hookEventName": evPreToolUse, "additionalContext": text,
-	}})
+// EnvRunID: lượt chạy do `bint run` cấp cho tiến trình agent; hook gắn sự kiện vào đó.
+const EnvRunID = "BINT_RUN_ID"
+
+// EnvApprovedPaths: tệp được bảo vệ mà người đã duyệt cho tác vụ đang điều phối
+// (mỗi dòng một đường dẫn tương đối); hook không hỏi lại các tệp này.
+const EnvApprovedPaths = "BINT_APPROVED_PATHS"
+
+func approvedPath(rel string) bool {
+	for _, l := range strings.Split(os.Getenv(EnvApprovedPaths), "\n") {
+		if strings.TrimSpace(l) == rel {
+			return true
+		}
+	}
+	return false
+}
+
+// preToolOutput dựng JSON để Claude Code chèn ngữ cảnh vào lần gọi công cụ; ask khác
+// rỗng thì yêu cầu harness hỏi người dùng trước khi cho chạy công cụ.
+func preToolOutput(text, ask string) string {
+	out := map[string]any{"hookEventName": evPreToolUse}
+	if text != "" {
+		out["additionalContext"] = text
+	}
+	if ask != "" {
+		out["permissionDecision"] = "ask"
+		out["permissionDecisionReason"] = ask
+	}
+	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": out})
 	return string(b)
 }
 
@@ -386,7 +428,7 @@ func handleEvalHook(hi HookInput, cwd, cfgPath string) (HookResult, error) {
 	}
 	mem.Add(pack.IDs())
 	ctxengine.AppendLog(ec.Log, ctxengine.PackLog(ctxengine.ChannelHookPath, pack))
-	return HookResult{Output: preToolOutput(pack.Render())}, nil
+	return HookResult{Output: preToolOutput(pack.Render(), "")}, nil
 }
 
 func eventID(parts ...string) string {

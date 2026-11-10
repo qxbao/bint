@@ -33,6 +33,9 @@ const (
 // KnownHarnesses là các harness mà schema v1 chấp nhận.
 var KnownHarnesses = []string{"claude", "codex", "antigravity"}
 
+// WorkflowNames là các workflow gốc (mục 6).
+var WorkflowNames = []string{"b-do", "b-req", "b-feat", "b-review"}
+
 var knowledgeKinds = []string{"rule", "fact", "pattern", "decision", "lesson", "warning"}
 
 type Config struct {
@@ -46,6 +49,7 @@ type Config struct {
 	Memory    Memory    `yaml:"memory"`
 	Eval      Eval      `yaml:"eval"`
 	Evolution Evolution `yaml:"evolution"`
+	Workflow  Workflow  `yaml:"workflow"`
 	Limits    Limits    `yaml:"limits"`
 	Security  Security  `yaml:"security"`
 }
@@ -162,8 +166,49 @@ type EvalMine struct {
 
 // Limits là giới hạn vận hành (mục 5).
 type Limits struct {
-	PerRun         PerRunLimits `yaml:"per_run"`
-	ProtectedPaths []string     `yaml:"protected_paths"`
+	PerRun PerRunLimits `yaml:"per_run"`
+	// Workflows ghi đè per_run cho từng workflow (b-do, b-req, b-feat, b-review).
+	// Với b-do, giới hạn áp cho tổng mọi bước của một lượt điều phối.
+	Workflows      map[string]PerRunLimits `yaml:"workflows"`
+	ProtectedPaths []string                `yaml:"protected_paths"`
+}
+
+// ForWorkflow trả về giới hạn của một workflow: giá trị riêng nếu có, không thì per_run.
+func (l Limits) ForWorkflow(name string) PerRunLimits {
+	out := l.PerRun
+	if w, ok := l.Workflows[name]; ok {
+		if w.MaxCostUSD != nil {
+			out.MaxCostUSD = w.MaxCostUSD
+		}
+		if w.MaxTurns != nil {
+			out.MaxTurns = w.MaxTurns
+		}
+	}
+	return out
+}
+
+// Workflow cấu hình các workflow gốc do Bint điều phối (`bint run`, mục 6).
+type Workflow struct {
+	// MaxReviewRounds: số vòng b-review → b-feat tối đa của b-do trước khi dừng chờ người.
+	MaxReviewRounds int `yaml:"max_review_rounds"`
+	// TimeoutMinutes giới hạn thời gian mỗi bước agent.
+	TimeoutMinutes int `yaml:"timeout_minutes"`
+	// VerifyTimeoutMinutes giới hạn thời gian lệnh kiểm chứng của phiếu tác vụ.
+	VerifyTimeoutMinutes int           `yaml:"verify_timeout_minutes"`
+	Agent                WorkflowAgent `yaml:"agent"`
+}
+
+// WorkflowAgent là tham số gọi harness cho các bước workflow.
+type WorkflowAgent struct {
+	Model          *string `yaml:"model"`
+	PermissionMode string  `yaml:"permission_mode"`
+	// AllowedTools cho bước có quyền ghi (b-feat).
+	AllowedTools []string `yaml:"allowed_tools"`
+	// ReadonlyTools cho bước chỉ đọc (b-req, b-review); công cụ sửa tệp bị cấm thêm
+	// bằng --disallowedTools.
+	ReadonlyTools  []string `yaml:"readonly_tools"`
+	SettingSources string   `yaml:"setting_sources"`
+	ExtraArgs      []string `yaml:"extra_args"`
 }
 
 type PerRunLimits struct {
@@ -247,7 +292,16 @@ func Default() Config {
 			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2},
 			Adoption:   EvolutionAdoption{BindToModelVersion: true},
 		},
-		Limits:   Limits{ProtectedPaths: []string{"migrations/**", ".github/workflows/**"}},
+		Workflow: Workflow{
+			MaxReviewRounds: 2, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
+			Agent: WorkflowAgent{
+				PermissionMode: "acceptEdits",
+				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"},
+				ReadonlyTools:  []string{"Read", "Glob", "Grep", "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)"},
+				ExtraArgs:      []string{},
+			},
+		},
+		Limits:   Limits{Workflows: map[string]PerRunLimits{}, ProtectedPaths: []string{"migrations/**", ".github/workflows/**"}},
 		Security: Security{RequireApprovalForCommands: true},
 	}
 }
@@ -459,6 +513,26 @@ func (c Config) Validate() error {
 	}
 	if c.Limits.PerRun.MaxTurns != nil && *c.Limits.PerRun.MaxTurns < 1 {
 		add("limits.per_run.max_turns: phải >= 1")
+	}
+	for name, w := range c.Limits.Workflows {
+		if !slices.Contains(WorkflowNames, name) {
+			add("limits.workflows: workflow không hợp lệ %q (%s)", name, strings.Join(WorkflowNames, ", "))
+		}
+		if w.MaxCostUSD != nil && *w.MaxCostUSD <= 0 {
+			add("limits.workflows.%s.max_cost_usd: phải > 0", name)
+		}
+		if w.MaxTurns != nil && *w.MaxTurns < 1 {
+			add("limits.workflows.%s.max_turns: phải >= 1", name)
+		}
+	}
+	if c.Workflow.MaxReviewRounds < 0 || c.Workflow.MaxReviewRounds > 10 {
+		add("workflow.max_review_rounds: phải trong khoảng 0..10")
+	}
+	if c.Workflow.TimeoutMinutes < 1 || c.Workflow.VerifyTimeoutMinutes < 1 {
+		add("workflow.timeout_minutes, workflow.verify_timeout_minutes: phải >= 1")
+	}
+	if !slices.Contains([]string{"acceptEdits", "auto", "dontAsk", "bypassPermissions"}, c.Workflow.Agent.PermissionMode) {
+		add("workflow.agent.permission_mode: phải là acceptEdits | auto | dontAsk | bypassPermissions")
 	}
 	if !slices.Contains([]string{"propose", "auto"}, c.Evolution.Mode) {
 		add("evolution.mode: phải là propose | auto")

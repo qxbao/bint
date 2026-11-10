@@ -227,15 +227,20 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 	if !slices.Contains(cfg.Harnesses.Enabled, claude.HarnessName) {
 		return
 	}
-	for _, sk := range skills.Core() {
+	for _, core := range skills.Core() {
+		sk, _, cerr := skills.Composed(root, core)
+		if cerr != nil {
+			r.add("skill "+core.Name, LevelWarn, "%v", cerr)
+			continue
+		}
 		st, err := skills.Status(root, skills.ClaudeTarget, sk)
 		switch {
 		case err != nil:
 			r.add("skill "+sk.Name, LevelWarn, "%v", err)
 		case st == "missing":
-			r.add("skill "+sk.Name, LevelInfo, "chưa xuất bản cho Claude Code (chạy lại `bint init` hoặc `bint bootstrap`)")
+			r.add("skill "+sk.Name, LevelInfo, "chưa xuất bản cho Claude Code (bint sync)")
 		case st == "differs":
-			r.add("skill "+sk.Name, LevelWarn, "khác bản của Bint (bị sửa tay hoặc Bint đã nâng cấp): chạy `bint bootstrap` để cập nhật")
+			r.add("skill "+sk.Name, LevelWarn, "khác bản của Bint (bị sửa tay, lớp phủ đổi hoặc Bint đã nâng cấp): chạy `bint sync`")
 		default:
 			r.add("skill "+sk.Name, LevelOK, "%s", filepath.ToSlash(filepath.Join(skills.ClaudeTarget.Dir, sk.Name, "SKILL.md")))
 		}

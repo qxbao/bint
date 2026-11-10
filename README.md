@@ -4,7 +4,7 @@ CLI hỗ trợ coding agent: ghi nhận lượt chạy, đo lường, và (ở c
 tri thức dự án có kiểm chứng. Kế hoạch đầy đủ: [docs/bint-plan.md](docs/bint-plan.md).
 
 **Trạng thái: P0 (CLI, ghi nhận lượt chạy) + P1 (khung đánh giá) + P2 (bootstrap tối giản)
-+ P3 (Context Engine và vòng đời tri thức).**
++ P3 (Context Engine và vòng đời tri thức) + P4 (workflow tối thiểu).**
 Chưa có số liệu đo trên repository thử nghiệm; cổng quyết định 1 và 2 chưa chạy — ngưỡng
 đã chốt ở [docs/gate-1.md](docs/gate-1.md) và [docs/gate-2.md](docs/gate-2.md).
 
@@ -76,6 +76,8 @@ internal/symbols/         P3: vùng dòng của ký hiệu (go/parser cho Go, he
 internal/kindex/          P3: chỉ mục FTS5 dẫn xuất từ tệp tri thức
 internal/ctxengine/       P3: Context Engine — truy xuất theo tác vụ/đường dẫn, gói ngữ cảnh, cấu hình nhánh bint
 internal/mcpserver/       P3: MCP server stdio và sáu công cụ
+internal/task/            P4: phiếu tác vụ, bảng chuyển trạng thái, tài liệu, kiểm chứng, tiêu chí, review
+internal/workflow/        P4: thao tác tác vụ dùng chung + orchestrator `bint run` (giới hạn vận hành)
 ```
 
 **Luồng ghi nhận:** Claude Code gọi `bint hook claude` → hook xác định repository từ
@@ -328,6 +330,107 @@ Giới hạn đã biết của P3:
 - Tín hiệu "người dùng sửa lại diff của agent trong phiên" chưa thu.
 - Hook `post-merge` tuỳ chọn (mục 8.8) chưa có; dùng `bint knowledge diff` sau `git pull`.
 - MCP server tự hiện thực phần tối thiểu của giao thức (initialize, ping, tools/list, tools/call).
+
+## Workflow tối thiểu (P4)
+
+Bốn skill gốc mới — `b-req` (phân tích, lập kế hoạch), `b-feat` (thực thi), `b-review` (đánh giá
+thay đổi), `b-do` (điều phối) — chỉ ở mức tối thiểu cần cho ghi nhận và điều phối (mục 6). Mọi đầu
+ra liên kết bằng **task ID**.
+
+```sh
+# Trong Claude Code (skill được xuất bản khi init/sync):
+/b-do Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db
+
+# Hoặc Bint Core điều phối theo chương trình (adapter cấp 3, giới hạn áp ở tầng chương trình):
+bint run b-do "Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db"
+bint run b-req|b-feat|b-review --task <id>      # một bước trên tác vụ có sẵn
+bint run status <task-id|run-id>                # tác vụ + các lượt chạy (cha b-do, con từng bước)
+bint run resume <task-id>                       # tiếp tục tác vụ blocked / interrupted / failed
+
+bint task new "<mô tả tự do>"                   # Classify: lập phiếu tác vụ (mục 6.7)
+bint task list | show <id> | set <id> … | transitions
+bint task write <id> requirement|plan|tasks -   # tài liệu (agent ghi qua stdin)
+bint task verify <id>                           # chạy lệnh kiểm chứng (chỉ khi người đã xác nhận)
+bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí chấp nhận
+bint task error <id> --step b-feat "…"          # ghi lỗi / lần thử thất bại
+bint task review <id> -                         # vòng review (JSON) → review.json + review.md
+bint task approve <id>                          # NGƯỜI: xác nhận lệnh kiểm chứng, duyệt đường dẫn bảo vệ
+bint task status <id> done [--force]            # done cần bằng chứng; chỉ người --force được
+
+bint skill list | show <tên> [--core] | overlay <tên>
+bint sync                                       # ghép skill gốc + lớp phủ, xuất bản, cập nhật core.lock
+bint knowledge add --from-review <task-id>.<n>  # phát hiện review → mục warning/lesson
+```
+
+**Tác vụ** nằm ở `<state>/runtime/tasks/<task-id>/` (ngoài repository): `task.yml` (phiếu: `goal`,
+`verify.command`/`criteria`, `scope.allow`/`deny`, `constraints`, `autonomy`; sửa được bằng tay),
+`state.json` (do Bint ghi qua khoá thư mục: trạng thái, lịch sử chuyển, kiểm chứng, tiêu chí, duyệt,
+lỗi, lượt chạy), `requirement.md`, `plan.md`, `tasks.md`, `review.json`/`review.md`, `logs/`.
+Classify xác định được: mục tiêu = dòng đầu mô tả; `scope.allow` = đường dẫn nêu trong mô tả mà có
+thật; `verify.command` = `eval.test_command` đã xác nhận; đề xuất bỏ b-req cho việc nhỏ (heuristic,
+`--plan`/`--no-plan` ghi đè). Chỉ hỏi lại khi tác vụ chạm đường dẫn bảo vệ mà không có cách kiểm chứng.
+
+**Trạng thái:** `created → planned → in_progress → in_review → done`; `blocked`, `interrupted`,
+`failed` nhớ trạng thái trước để tiếp tục; `cancelled` kết thúc. **done cần bằng chứng**: lệnh kiểm
+chứng đã được người xác nhận và lần chạy cuối qua trên **đúng trạng thái mã hiện tại** (fingerprint
+HEAD + diff + tệp chưa theo dõi), hoặc — khi không có lệnh kiểm chứng — mọi tiêu chí được đối chiếu là
+đạt; không tiêu chí nào bị đánh dấu chưa đạt; không có thay đổi chạm đường dẫn bảo vệ chưa duyệt.
+
+**Chỉ người** (chặn khi phát hiện biến môi trường của phiên agent, như ở P2): xác nhận lệnh kiểm
+chứng và duyệt thay đổi (`task approve`), đặt `autonomy: auto`, `done --force`. Lệnh kiểm chứng do
+agent đề xuất không được chạy trước khi người xác nhận (`security.require_approval_for_commands`).
+
+**`bint run`** cấp `run_id` cho lượt b-do (cha) và mỗi bước (con, `parent_run_id`), ghi `run_steps`,
+chi phí/token/mô hình; agent nhận `BINT_RUN_ID`, `BINT_TASK_ID`, `BINT_AGENT=1`, nên lệnh `bint task`
+và hook của Claude Code gắn sự kiện vào đúng lượt con. Đề bài = skill (gốc + lớp phủ) + khối
+`<bint-task>` (phiếu, tài liệu, phát hiện review cần sửa, phạm vi diff) + gói ngữ cảnh của Context
+Engine. b-req/b-review chạy với `workflow.agent.readonly_tools` và `--disallowedTools Edit,Write,…`.
+Giới hạn vận hành (mục 5):
+
+| Giới hạn | Áp dụng |
+|---|---|
+| `limits.workflows.<wf>.max_cost_usd` (mặc định `limits.per_run`) | b-do: tổng các bước; mỗi bước `--max-budget-usd` = min(giới hạn bước, phần còn lại); hết → blocked |
+| `limits.workflows.<wf>.max_turns` | `--max-turns` cho bước |
+| `limits.protected_paths`, `scope.deny` | sau b-feat, đối chiếu tệp đã sửa với commit gốc; có terminal thì hỏi, không thì blocked chờ `task approve` |
+| ngoài `scope.allow` | chỉ hỏi khi `autonomy: ask_always` (ngoài ra ghi chú) |
+| `workflow.max_review_rounds` (2) | phát hiện `bug`/`risk` mức critical/high → quay lại b-feat; hết vòng → blocked |
+| `workflow.timeout_minutes`, `verify_timeout_minutes` | mỗi bước agent / lệnh kiểm chứng |
+
+Trong phiên Claude Code (không qua `bint run`), hook `PreToolUse` trả `permissionDecision: "ask"`
+khi agent sửa tệp thuộc `limits.protected_paths` (cần cài lại hook: `bint init --hooks`); không có
+hook thì giới hạn chỉ là chỉ dẫn trong skill. Ctrl-C trong `bint run` → bước bị dừng, tác vụ
+`interrupted`; tiến trình bị kill → lần đọc tác vụ sau phát hiện tiến trình đã chết và chuyển
+`interrupted`. Sau khi người duyệt, `resume` không chạy lại b-feat mà tiếp tục kiểm tra → kiểm chứng →
+review.
+
+**Tín hiệu kết quả mới** (mục 9.6): `verify` (lệnh kiểm chứng; mạnh nếu đã xác nhận — quyết định nhãn
+như kiểm thử mạnh), `criteria` (agent tự đối chiếu, trung bình), `review` (phát hiện nghiêm trọng,
+trung bình, tiêu cực). "Không phát hiện vấn đề" không tạo tín hiệu tích cực.
+
+**Skill gốc và lớp phủ** (mục 6.6). Skill gốc khai báo điểm neo `<!-- bint:anchor <tên> -->` …
+`<!-- bint:anchor-end <tên> -->` (b-req: `project-rules`, `plan-template`; b-feat: `project-rules`,
+`test-strategy`; b-review: `review-checklist`; b-do: `routing`; b-bootstrap: `investigation-focus`).
+Lớp phủ `.bint/skills/overlays/<skill>.md` (commit được) chỉ chứa khối
+`<!-- bint:overlay <tên> append|prepend|replace -->` … `<!-- bint:overlay-end -->` ở cột đầu; văn bản
+khác bị bỏ qua. `bint sync` (và `init`, `bootstrap`) ghép rồi xuất bản; `core.lock` ghi băm skill gốc,
+lớp phủ và bản đã xuất bản. Nâng cấp Bint: skill gốc mới được áp lại lớp phủ; nếu lớp phủ dùng điểm neo
+không còn → **xung đột**, bản đã xuất bản và mục `core.lock` cũ được giữ nguyên cho tới khi sửa lớp phủ
+(`--force` không vượt qua được). Skill đã xuất bản bị sửa tay → xung đột như P2.
+
+Cấu hình mới: khối `workflow:` (`max_review_rounds`, `timeout_minutes`, `verify_timeout_minutes`,
+`agent.{model, permission_mode, allowed_tools, readonly_tools, setting_sources, extra_args}`) và
+`limits.workflows`. Migration 0004 chỉ thêm chỉ mục `runs(task_id)`, `runs(parent_run_id)`.
+
+Giới hạn đã biết của P4:
+
+- Adapter thực thi chỉ có Claude Code (`--agent-command` cho tác nhân khác); role trỏ harness khác → lỗi (P5).
+- Classify bằng heuristic từ khoá; chưa có agent phân loại.
+- Agent chạy trên cây làm việc hiện tại (không worktree cô lập); không chạy song song nhiều bước ghi.
+- Kiểm tra đường dẫn bảo vệ của `bint run` là **sau** b-feat (đối chiếu diff), không chặn trước; trong
+  phiên tương tác thì hook hỏi trước khi sửa.
+- Agent không báo chi phí (`--agent-command`): giới hạn chi phí chỉ là chỉ dẫn (ghi chú trong kết quả).
+- Tiếp tục từ `in_review` chạy lại b-review (không dùng lại vòng review cũ, vì mã có thể đã đổi).
+- Chưa xuất tài liệu sang `docs/spec/<feature>/`.
 
 ## Phát triển
 

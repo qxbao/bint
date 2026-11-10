@@ -113,10 +113,23 @@ evolution:
     auto_low_risk: false
     bind_to_model_version: true
 
+workflow:                   # workflow gốc do Bint điều phối (bint run)
+  max_review_rounds: 2      # số vòng review → sửa tối đa của b-do
+  timeout_minutes: 60       # mỗi bước agent
+  verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
+  agent:
+    model: null
+    permission_mode: acceptEdits
+    allowed_tools: [Read, Edit, Write, Glob, Grep, Bash]          # bước có quyền ghi (b-feat)
+    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)"]   # b-req, b-review
+    setting_sources: ""     # rỗng = mặc định của harness (gồm hook ghi nhận)
+    extra_args: []
+
 limits:
   per_run:
     max_cost_usd: null
     max_turns: null
+  workflows: {}             # ví dụ: {b-do: {max_cost_usd: 5}, b-feat: {max_turns: 60}}
   protected_paths:
     - "migrations/**"
     - ".github/workflows/**"

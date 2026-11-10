@@ -38,6 +38,21 @@ const (
 	ObservationReported = "observation.reported"
 	// P3: tín hiệu kết quả do người chấm (bint runs rate).
 	RunRated = "run.rated"
+
+	// P4: workflow do Bint điều phối và tác vụ (mục 6). Sự kiện của `bint run`
+	// mang run_id do Bint cấp; sự kiện của `bint task` gắn vào lượt chạy hiện tại
+	// (BINT_RUN_ID, hoặc phiên harness) hoặc lượt gần nhất của tác vụ.
+	WorkflowStarted  = "workflow.started"
+	WorkflowFinished = "workflow.finished"
+	StepStarted      = "step.started"
+	StepFinished     = "step.finished"
+	TaskLinked       = "task.linked"
+	TaskStatus       = "task.status"
+	TaskArtifact     = "task.artifact"
+	TaskVerified     = "task.verified"
+	TaskCriteria     = "task.criteria"
+	TaskError        = "task.error"
+	ReviewCompleted  = "review.completed"
 )
 
 // Event là một sự kiện trong spool.

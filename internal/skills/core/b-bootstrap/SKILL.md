@@ -60,6 +60,9 @@ Mỗi ứng viên phải qua cả bốn câu hỏi, nếu không thì bỏ:
 
 Giới hạn: **tối đa 12 mục**, trong đó tối đa 5 mục `rule`.
 
+<!-- bint:anchor investigation-focus -->
+<!-- bint:anchor-end investigation-focus -->
+
 ## Bước 3 — Ghi tri thức
 
 Mỗi mục một lệnh. Nội dung qua stdin (`-`), viết ở thể mệnh lệnh, nêu ngắn lý do:

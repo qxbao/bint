@@ -1,0 +1,230 @@
+package task
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"bint/internal/testutil"
+)
+
+func TestFromRequestAndClassify(t *testing.T) {
+	root := testutil.NewRepo(t, map[string]string{"internal/db/db.go": "package db\n", "README.md": "x\n"})
+	tk := FromRequest(root, "Sửa lỗi database is locked trong internal/db và README.md, không chạm migrations/**\nchi tiết thêm", "go test ./...")
+	if tk.Goal != "Sửa lỗi database is locked trong internal/db và README.md, không chạm migrations/**" || tk.Request == "" {
+		t.Fatalf("goal/request: %+v", tk)
+	}
+	if !slices.Equal(tk.Scope.Allow, []string{"internal/db/**", "README.md", "migrations/**"}) {
+		t.Fatalf("scope: %v", tk.Scope.Allow)
+	}
+	if tk.Verify.Command != "go test ./..." || tk.Autonomy != AutonomyAskOnProtected {
+		t.Fatalf("verify/autonomy: %+v", tk)
+	}
+	if c := Classify("Sửa lỗi chính tả trong README"); c.Plan {
+		t.Fatalf("việc nhỏ không cần b-req: %+v", c)
+	}
+	if c := Classify("Thêm tính năng xuất báo cáo CSV cho trang quản trị"); !c.Plan {
+		t.Fatalf("tính năng cần b-req: %+v", c)
+	}
+	if c := Classify("a\nb\nc"); !c.Plan {
+		t.Fatal("nhiều dòng cần b-req")
+	}
+}
+
+func TestAssess(t *testing.T) {
+	prot := []string{"migrations/**", ".github/workflows/**"}
+	a := Assess(Ticket{Goal: "Thêm cột email", Scope: Scope{Allow: []string{"migrations/**", "internal/db/**"}}}, prot, false)
+	if a.Risk != "high" || len(a.Questions) != 1 || !slices.Equal(a.Protected, []string{"migrations/**"}) {
+		t.Fatalf("rủi ro cao thiếu kiểm chứng phải hỏi: %+v", a)
+	}
+	a = Assess(Ticket{Goal: "Sửa .github/workflows/ci.yml cho đúng phiên bản Go", Verify: Verify{Command: "make ci"}}, prot, false)
+	if a.Risk != "high" || len(a.Questions) != 0 {
+		t.Fatalf("có lệnh kiểm chứng thì không hỏi: %+v", a)
+	}
+	a = Assess(Ticket{Goal: "Đổi tên biến", Scope: Scope{Allow: []string{"internal/x/**"}}}, prot, false)
+	if a.Risk != "low" || len(a.Questions) != 0 {
+		t.Fatalf("rủi ro thấp: %+v", a)
+	}
+}
+
+func TestCheckScope(t *testing.T) {
+	tk := Ticket{Scope: Scope{Allow: []string{"internal/db/**"}, Deny: []string{"internal/db/gen/**"}}}
+	c := CheckScope([]string{"internal/db/a.go", "internal/db/gen/x.go", "migrations/001.sql", "cmd/main.go"}, tk, []string{"migrations/**"})
+	if !slices.Equal(c.Protected, []string{"migrations/001.sql"}) || !slices.Equal(c.Denied, []string{"internal/db/gen/x.go"}) ||
+		!slices.Equal(c.OutsideAllow, []string{"cmd/main.go"}) || len(c.NeedsApproval()) != 2 {
+		t.Fatalf("%+v", c)
+	}
+}
+
+func newStore(t *testing.T) Store { return Store{Dir: t.TempDir()} }
+
+func TestTransitionsAndDoneBlockers(t *testing.T) {
+	s := newStore(t)
+	now := time.Now()
+	tk, err := s.Create(Ticket{Goal: "g", Verify: Verify{Command: "true", Criteria: []string{"c1"}}}, State{Workflow: "b-do"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create(Ticket{Goal: " "}, State{}, now); err == nil {
+		t.Fatal("phiếu thiếu goal phải lỗi")
+	}
+	st := &tk.State
+	if err := st.Apply(StatusDone, "x", "", Now(now)); err == nil {
+		t.Fatal("created → done không hợp lệ")
+	}
+	for _, to := range []string{StatusPlanned, StatusInProgress, StatusBlocked} {
+		if err := st.Apply(to, "x", "r", Now(now)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if st.ResumeFrom != StatusInProgress {
+		t.Fatalf("resume_from = %q", st.ResumeFrom)
+	}
+	st.Apply(StatusInProgress, "x", "", Now(now))
+	if st.ResumeFrom != "" || len(st.History) != 5 {
+		t.Fatalf("%+v", st)
+	}
+
+	in := DoneInput{Worktree: "fp1", VerifyConfirmed: false}
+	if b := DoneBlockers(tk, in); len(b) != 1 || !strings.Contains(b[0], "chưa được người xác nhận") {
+		t.Fatalf("blockers: %v", b)
+	}
+	in.VerifyConfirmed = true
+	st.Verifications = append(st.Verifications, Verification{Command: "true", Passed: true, Worktree: "fp0"})
+	if b := DoneBlockers(tk, in); len(b) != 1 || !strings.Contains(b[0], "mã đã thay đổi") {
+		t.Fatalf("mã đổi sau kiểm chứng: %v", b)
+	}
+	st.Verifications[0].Worktree = "fp1"
+	if b := DoneBlockers(tk, in); len(b) != 0 {
+		t.Fatalf("đủ bằng chứng: %v", b)
+	}
+	st.Criteria = append(st.Criteria, CriterionCheck{Index: 1, Met: false, Evidence: "x"})
+	if b := DoneBlockers(tk, in); len(b) != 1 || !strings.Contains(b[0], "tiêu chí 1 chưa đạt") {
+		t.Fatalf("tiêu chí chưa đạt phải chặn: %v", b)
+	}
+	st.PendingPaths = []string{"migrations/1.sql"}
+	if b := DoneBlockers(tk, in); len(b) != 2 {
+		t.Fatalf("đường dẫn chờ duyệt phải chặn: %v", b)
+	}
+
+	// Không có lệnh kiểm chứng: cần mọi tiêu chí đạt; không có gì thì không có bằng chứng.
+	tk2 := &Task{Ticket: Ticket{Goal: "g", Verify: Verify{Criteria: []string{"a", "b"}}}}
+	tk2.State.Criteria = []CriterionCheck{{Index: 1, Met: true}}
+	if b := DoneBlockers(tk2, DoneInput{}); len(b) != 1 || !strings.Contains(b[0], "tiêu chí 2 chưa được đối chiếu") {
+		t.Fatalf("%v", b)
+	}
+	if b := DoneBlockers(&Task{Ticket: Ticket{Goal: "g"}}, DoneInput{}); len(b) != 1 {
+		t.Fatalf("không bằng chứng: %v", b)
+	}
+}
+
+func TestStoreUpdateResolveAndReconcile(t *testing.T) {
+	s := newStore(t)
+	now := time.Now()
+	a, _ := s.Create(Ticket{Goal: "a"}, State{}, now)
+	if got, err := s.Resolve(strings.ToLower(a.State.ID[:20])); err != nil || got != a.State.ID {
+		t.Fatalf("resolve: %v %v", got, err)
+	}
+	// Phiếu sửa tay sai cú pháp/khoá lạ bị từ chối khi nạp.
+	os.WriteFile(filepath.Join(a.Dir, TicketFile), []byte("goal: x\nbogus: 1\n"), 0o600)
+	if _, err := s.Load(a.State.ID); err == nil {
+		t.Fatal("khoá lạ phải lỗi")
+	}
+	b, _ := s.Create(Ticket{Goal: "b"}, State{}, now)
+	upd, err := s.Update(b.State.ID, now, func(t *Task) error {
+		t.Ticket.Verify.Command = "make test"
+		return t.State.Apply(StatusInProgress, "x", "", Now(now))
+	})
+	if err != nil || upd.Ticket.Verify.Command != "make test" {
+		t.Fatal(err)
+	}
+	re, _ := s.Load(b.State.ID)
+	if re.Ticket.Verify.Command != "make test" || re.State.Status != StatusInProgress {
+		t.Fatalf("không được lưu: %+v", re)
+	}
+	// Tiến trình điều phối đã chết → interrupted.
+	s.Update(b.State.ID, now, func(t *Task) error {
+		host, _ := os.Hostname()
+		t.State.Runner = &Runner{PID: 999999999, Host: host, RunID: "R1"}
+		return nil
+	})
+	re, _ = s.Load(b.State.ID)
+	if run, changed := re.Reconcile(now); !changed || run != "R1" || re.State.Status != StatusInterrupted || re.State.ResumeFrom != StatusInProgress {
+		t.Fatalf("reconcile: %v %v %+v", run, changed, re.State)
+	}
+	// Tiến trình còn sống (chính mình) thì không đổi.
+	re.ClaimRunner("R2", now)
+	if _, changed := re.Reconcile(now); changed {
+		t.Fatal("tiến trình còn sống không được đổi")
+	}
+}
+
+func TestReviewSubmission(t *testing.T) {
+	root := testutil.NewRepo(t, map[string]string{"a.go": "l1\nl2\nl3\n"})
+	sub, errs := ParseSubmission([]byte(`{"summary":"ok","findings":[
+		{"kind":"bug","severity":"high","title":"t","path":"a.go","lines":"2-3","evidence":"e"},
+		{"kind":"suggestion","severity":"low","title":"s","evidence":"e"}]}`), root)
+	if len(errs) != 0 || len(sub.Findings) != 2 {
+		t.Fatalf("%v", errs)
+	}
+	_, errs = ParseSubmission([]byte(`{"summary":"","findings":[{"kind":"nit","severity":"x","title":"","path":"a.go","lines":"2-9","evidence":""}]}`), root)
+	if len(errs) != 6 {
+		t.Fatalf("phải có 6 lỗi: %v", errs)
+	}
+	if _, errs = ParseSubmission([]byte(`{"summary":"x","extra":1}`), root); len(errs) != 1 {
+		t.Fatal("khoá lạ phải lỗi")
+	}
+
+	s := newStore(t)
+	tk, _ := s.Create(Ticket{Goal: "g"}, State{}, time.Now())
+	r1, err := tk.AddRound(sub, "agent", "RUN1", "t")
+	if err != nil || r1.Round != 1 || r1.Findings[0].ID != tk.State.ID+".1" || len(r1.Blocking()) != 1 {
+		t.Fatalf("%+v %v", r1, err)
+	}
+	r2, _ := tk.AddRound(Submission{Summary: "sạch"}, "agent", "RUN2", "t")
+	if r2.Round != 2 || len(r2.Findings) != 0 {
+		t.Fatalf("%+v", r2)
+	}
+	rev, _ := tk.LoadReview()
+	if f, round := rev.Find(tk.State.ID + ".2"); f == nil || round.RunID != "RUN1" || f.Kind != "suggestion" {
+		t.Fatal("không tìm thấy phát hiện")
+	}
+	md, _ := os.ReadFile(filepath.Join(tk.Dir, ReviewMD))
+	if !strings.Contains(string(md), "["+tk.State.ID+".1] bug/high") || !strings.Contains(string(md), "Không có phát hiện") {
+		t.Fatalf("review.md:\n%s", md)
+	}
+	if ref, ok := SplitFindingID(tk.State.ID[:10] + ".2"); !ok || ref != tk.State.ID[:10] {
+		t.Fatal("split")
+	}
+}
+
+func TestChangedFilesAndFingerprint(t *testing.T) {
+	ctx := context.Background()
+	root := testutil.NewRepo(t, map[string]string{"a.go": "x\n"})
+	base := testutil.Git(t, root, "rev-parse", "HEAD")
+	fp0 := WorktreeFingerprint(ctx, root)
+	os.WriteFile(filepath.Join(root, "a.go"), []byte("y\n"), 0o644)
+	os.MkdirAll(filepath.Join(root, "migrations"), 0o755)
+	os.WriteFile(filepath.Join(root, "migrations", "1 init.sql"), []byte("--\n"), 0o644)
+	files, err := ChangedFiles(ctx, root, base)
+	if err != nil || !slices.Equal(files, []string{"a.go", "migrations/1 init.sql"}) {
+		t.Fatalf("%v %v", files, err)
+	}
+	fp1 := WorktreeFingerprint(ctx, root)
+	if fp1 == fp0 || fp1 == "" {
+		t.Fatal("fingerprint phải đổi khi mã đổi")
+	}
+	os.WriteFile(filepath.Join(root, "migrations", "1 init.sql"), []byte("-- khác\n"), 0o644)
+	if WorktreeFingerprint(ctx, root) == fp1 {
+		t.Fatal("fingerprint phải đổi khi tệp chưa theo dõi đổi")
+	}
+	testutil.Git(t, root, "add", "-A")
+	testutil.Git(t, root, "commit", "-q", "-m", "c")
+	if files, _ := ChangedFiles(ctx, root, base); len(files) != 2 {
+		t.Fatalf("commit mới vẫn tính so với base: %v", files)
+	}
+}
