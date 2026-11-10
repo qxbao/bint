@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,13 +29,61 @@ type BootstrapOptions struct {
 }
 
 // bootstrapPrompt bọc skill b-bootstrap thành đề bài cho agent không tương tác.
-func bootstrapPrompt(s skills.Skill) string {
+// focus là các vùng mã hoạt động nhiều nhất theo lịch sử tới commit gốc (hotAreas).
+func bootstrapPrompt(s skills.Skill, focus []string) string {
 	var b strings.Builder
 	b.WriteString("Bạn đang chạy skill b-bootstrap của Bint trên repository ở thư mục hiện tại, không có người tương tác.\n")
 	b.WriteString("CLI `bint` có sẵn trong PATH. Làm đủ các bước dưới đây rồi dừng; không sửa mã nguồn.\n\n")
+	if len(focus) > 0 {
+		b.WriteString("Ưu tiên của lần chạy này: tri thức giúp người sắp sửa mã ở các vùng hoạt động nhiều nhất gần đây ")
+		b.WriteString("(đếm theo `git log` tới commit hiện tại):\n")
+		for _, f := range focus {
+			b.WriteString("- " + f + "\n")
+		}
+		b.WriteString("Đọc mã và test ở các vùng này; ghi quy ước, điểm dễ sai, hợp đồng hành vi (định dạng đầu ra, ")
+		b.WriteString("trường hợp biên mà test hay kiểm) với scope theo đường dẫn của vùng. Tri thức về CI, build, ")
+		b.WriteString("phát hành chỉ ghi nếu còn dư chỗ sau khi đã phủ các vùng trên.\n\n")
+	}
 	b.WriteString(s.Body())
 	b.WriteString("\n")
 	return b.String()
+}
+
+// hotAreas trả về tối đa n thư mục chứa nhiều tệp bị sửa nhất trong maxCommits commit
+// gần nhất của work. work chỉ có lịch sử tới commit gốc nên gợi ý này không mang thông
+// tin về lời giải (agent vốn đọc được cùng lịch sử đó).
+func hotAreas(ctx context.Context, work string, maxCommits, n int) []string {
+	out, err := gitString(ctx, work, "log", "--no-merges", "--name-only", "--format=", "-n", strconv.Itoa(maxCommits))
+	if err != nil {
+		return nil
+	}
+	count := map[string]int{}
+	for _, f := range strings.Split(out, "\n") {
+		f = strings.TrimSpace(f)
+		if f == "" || !strings.Contains(f, "/") {
+			continue
+		}
+		dir := path.Dir(f)
+		// Gộp thư mục test vào thư mục mã cha: vùng là nơi có mã, test thuộc về vùng đó.
+		if b := path.Base(dir); b == "tests" || b == "test" || b == "__tests__" {
+			dir = path.Dir(dir)
+		}
+		count[dir]++
+	}
+	dirs := make([]string, 0, len(count))
+	for d := range count {
+		dirs = append(dirs, d)
+	}
+	sort.Slice(dirs, func(i, j int) bool {
+		if count[dirs[i]] != count[dirs[j]] {
+			return count[dirs[i]] > count[dirs[j]]
+		}
+		return dirs[i] < dirs[j]
+	})
+	if len(dirs) > n {
+		dirs = dirs[:n]
+	}
+	return dirs
 }
 
 // BootstrapSnapshot chạy b-bootstrap bằng agent trong một repository cô lập tại
@@ -93,8 +144,9 @@ func BootstrapSnapshot(ctx context.Context, env Env, base string, opts Bootstrap
 	if opts.BintPath != "" {
 		agentEnv = append(agentEnv, "PATH="+filepath.Dir(opts.BintPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
+	meta.Focus = hotAreas(ctx, work, 300, 6)
 	ar := opts.Agent.Run(ctx, AgentRequest{
-		Dir: work, Prompt: bootstrapPrompt(skill), Timeout: env.timeout(), LogPath: meta.Log,
+		Dir: work, Prompt: bootstrapPrompt(skill, meta.Focus), Timeout: env.timeout(), LogPath: meta.Log,
 		CaseID: "bootstrap-" + short(base), Arm: "bootstrap", Env: agentEnv,
 	})
 	meta.DurationMS = ar.Duration.Milliseconds()

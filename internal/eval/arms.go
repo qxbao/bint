@@ -288,10 +288,15 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 const BintToolsNote = `
 ## Công cụ tri thức (Bint)
 
-Có MCP server ` + "`bint`" + `: gọi context_for_task với mô tả tác vụ ở đầu tác vụ, và
-context_for_paths trước khi sửa tệp lạ. Khi áp dụng một mục tri thức, gọi
-cite_knowledge với ID của mục. Trước khi đọc/sửa tệp, quy tắc khớp đường dẫn có thể
-được chèn tự động.
+MCP server ` + "`bint`" + ` có tri thức về repository này (quy tắc, điểm dễ sai, hợp đồng hành vi).
+Các công cụ có thể chưa được nạp sẵn: nạp bằng ToolSearch với truy vấn
+"select:mcp__bint__context_for_task,mcp__bint__context_for_paths,mcp__bint__cite_knowledge".
+
+1. Đầu tác vụ: gọi mcp__bint__context_for_task với mô tả tác vụ (và các tệp đã biết).
+2. Trước khi sửa một tệp: gọi mcp__bint__context_for_paths với đường dẫn tệp.
+3. Khi áp dụng một mục tri thức: gọi mcp__bint__cite_knowledge với ID của mục.
+
+Trước khi đọc/sửa tệp, quy tắc khớp đường dẫn cũng có thể được chèn tự động.
 `
 
 func writeJSONFile(p string, v any) error {
