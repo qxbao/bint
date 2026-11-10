@@ -1,0 +1,184 @@
+{
+  "batch_id": "eb_01M726DEZ2Q15V34AF085HMTWA",
+  "batch_status": "completed",
+  "attempts": 18,
+  "arms": [
+    {
+      "arm": "none",
+      "attempts": 6,
+      "graded": 6,
+      "passed": 3,
+      "errors": 0,
+      "skipped": 0,
+      "timeouts": 0,
+      "pass_rate": {
+        "mean": 0.5,
+        "ci95": [
+          0,
+          1
+        ],
+        "n": 2
+      },
+      "agent_seconds": {
+        "mean": 64.88333333333333,
+        "ci95": [
+          49.29466666666667,
+          80.472
+        ],
+        "n": 2
+      },
+      "within_case_sd": 0,
+      "mixed_cases": 0,
+      "cases_with_repeats": 2,
+      "models": [
+        "gpt-6.1-sol"
+      ]
+    },
+    {
+      "arm": "minimal",
+      "attempts": 6,
+      "graded": 6,
+      "passed": 3,
+      "errors": 0,
+      "skipped": 0,
+      "timeouts": 0,
+      "pass_rate": {
+        "mean": 0.5,
+        "ci95": [
+          0,
+          1
+        ],
+        "n": 2
+      },
+      "agent_seconds": {
+        "mean": 59.194833333333335,
+        "ci95": [
+          53.034,
+          65.35566666666666
+        ],
+        "n": 2
+      },
+      "within_case_sd": 0,
+      "mixed_cases": 0,
+      "cases_with_repeats": 2,
+      "models": [
+        "gpt-6.1-sol"
+      ]
+    },
+    {
+      "arm": "bint",
+      "attempts": 6,
+      "graded": 6,
+      "passed": 3,
+      "errors": 0,
+      "skipped": 0,
+      "timeouts": 0,
+      "pass_rate": {
+        "mean": 0.5,
+        "ci95": [
+          0,
+          1
+        ],
+        "n": 2
+      },
+      "agent_seconds": {
+        "mean": 69.11166666666666,
+        "ci95": [
+          55.50466666666666,
+          82.71866666666666
+        ],
+        "n": 2
+      },
+      "within_case_sd": 0,
+      "mixed_cases": 0,
+      "cases_with_repeats": 2,
+      "models": [
+        "gpt-6.1-sol"
+      ]
+    }
+  ],
+  "paired": [
+    {
+      "arm": "minimal",
+      "baseline": "none",
+      "pass_rate_diff": {
+        "mean": 0,
+        "ci95": [
+          0,
+          0
+        ],
+        "n": 2
+      },
+      "sd_diff": 0,
+      "agent_seconds_diff": {
+        "mean": -5.688500000000001,
+        "ci95": [
+          -15.11633333333333,
+          3.7393333333333274
+        ],
+        "n": 2
+      }
+    },
+    {
+      "arm": "bint",
+      "baseline": "none",
+      "pass_rate_diff": {
+        "mean": 0,
+        "ci95": [
+          0,
+          0
+        ],
+        "n": 2
+      },
+      "sd_diff": 0,
+      "agent_seconds_diff": {
+        "mean": 4.228333333333328,
+        "ci95": [
+          2.2466666666666697,
+          6.209999999999987
+        ],
+        "n": 2
+      }
+    },
+    {
+      "arm": "bint",
+      "baseline": "minimal",
+      "pass_rate_diff": {
+        "mean": 0,
+        "ci95": [
+          0,
+          0
+        ],
+        "n": 2
+      },
+      "sd_diff": 0,
+      "agent_seconds_diff": {
+        "mean": 9.91683333333333,
+        "ci95": [
+          2.4706666666666592,
+          17.363
+        ],
+        "n": 2
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "level": "info",
+      "kind": "touched_tests",
+      "detail": "18 lượt agent có sửa tệp kiểm thử (tệp kiểm thử chấm điểm vẫn được ghi đè bằng bản của commit)"
+    }
+  ],
+  "bint_attempts": 6,
+  "bint_attempts_with_retrieval": 6,
+  "bint_attempts_with_citation": 0,
+  "bint_retrieval_fraction": 1.0,
+  "channels": [
+    "mcp:paths",
+    "mcp:paths,mcp:task",
+    "mcp:task"
+  ],
+  "agent_nonzero_exits": 0,
+  "missing_cost_rows": 18,
+  "missing_num_turns_rows": 18
+}

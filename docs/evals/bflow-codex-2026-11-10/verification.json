@@ -1,0 +1,117 @@
+[
+  {
+    "id": "c63becc87df97",
+    "source": {
+      "commit": "63becc87df9795178ed6d5b75d1a0adb33f5575d",
+      "base": "5cbab0535230fa9b8d17d0967f6aba9862aa0e94",
+      "subject": "fix(test-strategy): domain-logic characterization is recommended instead of required"
+    },
+    "test_files": [
+      "packages/test-strategy/test/resolver.test.ts"
+    ],
+    "stats": {
+      "files": 3,
+      "source_lines": 11,
+      "test_lines": 8
+    },
+    "leak_check": {
+      "status": "pass"
+    },
+    "verification": {
+      "status": "verified",
+      "fail_before": true,
+      "pass_after": true,
+      "after_runs": 2,
+      "test_command": "pnpm exec tsc -b --pretty false && pnpm exec vitest run packages/test-strategy/test/resolver.test.ts --minWorkers=1 --maxWorkers=2 --no-file-parallelism",
+      "verified_at": "2026-11-10T07:19:46Z"
+    },
+    "pilot_eligible": true
+  },
+  {
+    "id": "cf367037230c7",
+    "source": {
+      "commit": "f367037230c728af0c7974b85f329fafdce90aaf",
+      "base": "067dbfd57973b72db8f5f0719da45592696186cc",
+      "subject": "fix(specification): name the expected classification and its reasons on a mismatch"
+    },
+    "test_files": [
+      "packages/specification/test/specification.test.ts"
+    ],
+    "stats": {
+      "files": 2,
+      "source_lines": 3,
+      "test_lines": 6
+    },
+    "leak_check": {
+      "status": "pass"
+    },
+    "verification": {
+      "status": "verified",
+      "fail_before": true,
+      "pass_after": true,
+      "after_runs": 2,
+      "test_command": "pnpm exec tsc -b --pretty false && pnpm exec vitest run packages/specification/test/specification.test.ts --minWorkers=1 --maxWorkers=2 --no-file-parallelism",
+      "verified_at": "2026-11-10T07:22:32Z"
+    },
+    "pilot_eligible": true
+  },
+  {
+    "id": "c4942b0864564",
+    "source": {
+      "commit": "4942b08645647558da5e17db1e36d71226f6588a",
+      "base": "c91a13937750310093f8570e04a463413a798c77",
+      "subject": "fix(test-strategy): correct contextual TDD and evidence coverage after review"
+    },
+    "test_files": [
+      "packages/test-strategy/test/evidence.test.ts",
+      "packages/test-strategy/test/resolver.test.ts"
+    ],
+    "stats": {
+      "files": 7,
+      "source_lines": 33,
+      "test_lines": 56
+    },
+    "leak_check": {
+      "status": "pass"
+    },
+    "verification": {
+      "status": "error",
+      "fail_before": false,
+      "pass_after": false,
+      "after_runs": 2,
+      "detail": "lệnh dựng môi trường thất bại (mã 1) (log: /home/DUCLH/.local/state/bint/repo-d99e6fd112ce/eval-work/verify/c4942b0864564.log)",
+      "test_command": "pnpm exec tsc -b --pretty false && pnpm exec vitest run packages/test-strategy/test/evidence.test.ts packages/test-strategy/test/resolver.test.ts --minWorkers=1 --maxWorkers=2 --no-file-parallelism",
+      "verified_at": "2026-11-10T07:24:06Z"
+    },
+    "pilot_eligible": false
+  },
+  {
+    "id": "c28cb819bfa02",
+    "source": {
+      "commit": "28cb819bfa02263860e9109359acbcb1d0e2ea65",
+      "base": "d8a054a97d41682b4ddbcae3186b9738bb97bcb6",
+      "subject": "fix(skills): bound bundle traversal and allow atomic link retirement"
+    },
+    "test_files": [
+      "packages/skills/test/storage.test.ts"
+    ],
+    "stats": {
+      "files": 2,
+      "source_lines": 24,
+      "test_lines": 3
+    },
+    "leak_check": {
+      "status": "pass"
+    },
+    "verification": {
+      "status": "failed",
+      "fail_before": true,
+      "pass_after": false,
+      "after_runs": 2,
+      "detail": "kiểm thử KHÔNG qua với lời giải thật (mã 1, timeout=false) (log: /home/DUCLH/.local/state/bint/repo-d99e6fd112ce/eval-work/verify/c28cb819bfa02.log)",
+      "test_command": "pnpm exec tsc -b --pretty false && pnpm exec vitest run packages/skills/test/storage.test.ts --minWorkers=1 --maxWorkers=2 --no-file-parallelism",
+      "verified_at": "2026-11-10T07:25:37Z"
+    },
+    "pilot_eligible": false
+  }
+]

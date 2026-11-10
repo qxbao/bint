@@ -1,0 +1,94 @@
+{
+  "batch": {
+    "BatchID": "eb_01M725QA1H0CWBW1EBNWQWJK98",
+    "Status": "completed",
+    "Harness": "codex",
+    "HarnessVersion": "0.167.0",
+    "RequestedModel": "gpt-6.1-sol",
+    "BintVersion": "0.1.0-dev",
+    "LeakageMode": "strict",
+    "Arms": [
+      "none"
+    ],
+    "Repeats": 3,
+    "CaseIDs": [
+      "c63becc87df97",
+      "cf367037230c7"
+    ],
+    "PromptVersion": 1,
+    "Seed": 20261110,
+    "BudgetUSD": null,
+    "EstimatedUSD": null,
+    "GitHead": "9d071abe858606b526cffcb087a233763df0a956",
+    "StartedAt": "2026-11-10T07:28:23Z",
+    "FinishedAt": "2026-11-10T07:40:26Z",
+    "Notes": [
+      "agent chạy với quyền của người dùng, mạng không bị chặn ở tầng hệ điều hành (security.allow_network_in_evals chỉ là chỉ dẫn ở P1)"
+    ]
+  },
+  "arms": [
+    {
+      "arm": "none",
+      "attempts": 6,
+      "graded": 6,
+      "passed": 3,
+      "errors": 0,
+      "skipped": 0,
+      "timeouts": 0,
+      "pass_rate": {
+        "mean": 0.5,
+        "ci95": [
+          0,
+          1
+        ],
+        "n": 2
+      },
+      "agent_seconds": {
+        "mean": 55.03866666666667,
+        "ci95": [
+          53.93066666666667,
+          56.14666666666667
+        ],
+        "n": 2
+      },
+      "within_case_sd": 0,
+      "mixed_cases": 0,
+      "cases_with_repeats": 2,
+      "models": [
+        "gpt-6.1-sol"
+      ]
+    }
+  ],
+  "paired": null,
+  "cases": [
+    {
+      "case_id": "c63becc87df97",
+      "split": "validation",
+      "arms": {
+        "none": {
+          "passed": 3,
+          "graded": 3,
+          "other": 0
+        }
+      }
+    },
+    {
+      "case_id": "cf367037230c7",
+      "split": "validation",
+      "arms": {
+        "none": {
+          "passed": 0,
+          "graded": 3,
+          "other": 0
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "level": "info",
+      "kind": "touched_tests",
+      "detail": "6 lượt agent có sửa tệp kiểm thử (tệp kiểm thử chấm điểm vẫn được ghi đè bằng bản của commit)"
+    }
+  ]
+}

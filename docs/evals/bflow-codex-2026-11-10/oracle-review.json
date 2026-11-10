@@ -1,0 +1,10 @@
+{
+  "case_id": "cf367037230c7",
+  "example_attempt_id": "ea_01M725XFM1P115F9XBDCV5WYSN",
+  "status": "requires_owner_review_before_formal_test_use",
+  "finding": "Hidden test compares exact diagnostic wording. Agent output contains expected/declaration/reasons fields but differs from the exact string required by the oracle. This observation does not regrade the attempt.",
+  "failure_excerpt": "\n FAIL  packages/specification/test/specification.test.ts > adaptive classification and schema > names the expected classification when declared complexity, risk or level disagree with the assessment\nAssertionError: expected [Function] to throw error including 'classification must match assessed im…' but got '[\\n  {\\n    \"code\": \"custom\",\\n    \"m…'\n\n- Expected\n+ Received\n\n- classification must match assessed impact and affected paths: expected complexity standard, riskLevel medium, level full; got complexity complex, riskLevel medium, level full; derived from metadata.sdd.assessment and affectedPaths (ordinary behavior change)\n+ [\n+   {\n+     \"code\": \"custom\",\n+     \"message\": \"classification must match assessed impact and affected paths: expected complexity=standard, riskLevel=medium, level=full; declared complexity=complex, riskLevel=medium, level=full; reasons: ordinary behavior change\",\n+     \"path\": [\n+       \"complexity\"\n+     ]\n+   },\n+   {\n+     \"code\": \"custom\",\n+     \"message\": \"designProposal is required for complex changes\",\n+     \"path\": [\n+       \"metadata\",\n+       \"sdd\",",
+  "scores_changed": false,
+  "tests_weakened": false,
+  "future_action": "Review whether the exact diagnostic format is a public acceptance requirement and whether the task description states it; use a newly preregistered/unseen test set for conclusions after any changes."
+}

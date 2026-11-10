@@ -1,0 +1,25 @@
+{
+  "gate_1": {
+    "status": "not_eligible_for_formal_acceptance",
+    "qualified_repositories": 1,
+    "required_repositories": 2,
+    "eligible_test_cases_per_repo": 0,
+    "validation_pilot_cases": 2,
+    "required_test_cases_per_repo": 20,
+    "repeats": 3,
+    "leakage_mode": "strict",
+    "required_efficiency_metric": "USD cost or Bint num_turns",
+    "efficiency_metric_available_from_pinned_codex_adapter": false
+  },
+  "gate_2": {
+    "status": "not_formally_opened",
+    "gate_1_passed": false,
+    "usd_cost_available": false,
+    "codex_delivery": "AGENTS.md + MCP, no path hook in evaluation",
+    "note": "Exploratory comparison is not formal Gate 2 acceptance"
+  },
+  "threshold_changes": false,
+  "api_key_billing_authorized_usd": 0,
+  "auth_mode": "ChatGPT subscription",
+  "missing_metrics_policy": "null, never zero"
+}

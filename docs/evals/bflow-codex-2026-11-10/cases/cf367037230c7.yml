@@ -1,0 +1,37 @@
+# Tác vụ đánh giá đã duyệt (bint eval). Sửa prompt hoặc test_command sẽ đổi fingerprint của tác vụ.
+schema: 1
+id: cf367037230c7
+status: approved
+split: validation
+source:
+  commit: f367037230c728af0c7974b85f329fafdce90aaf
+  base: 067dbfd57973b72db8f5f0719da45592696186cc
+  author: deledcfdf <quanganhngx@gmail.com>
+  date: "2026-10-29T19:59:14+07:00"
+  subject: 'fix(specification): name the expected classification and its reasons on a mismatch'
+prompt: |-
+  fix(specification): name the expected classification and its reasons on a mismatch
+
+  A live Coordinator retried propose_workflow on an opaque 'classification must
+  match' error until the run stalled. The message now lists the derived and
+  declared complexity, risk and level plus the assessment reasons.
+test_files:
+  - packages/specification/test/specification.test.ts
+source_files:
+  - packages/specification/src/schema.ts
+stats:
+  files: 2
+  source_lines: 3
+  test_lines: 6
+leak_check:
+  status: pass
+verification:
+  status: verified
+  fail_before: true
+  pass_after: true
+  after_runs: 2
+  test_command: pnpm exec tsc -b --pretty false && pnpm exec vitest run packages/specification/test/specification.test.ts --minWorkers=1 --maxWorkers=2 --no-file-parallelism
+  verified_at: "2026-11-10T07:22:32Z"
+mined_at: "2026-11-10T07:17:02Z"
+reviewed_by: Bint evaluation preparation (Codex) <bint-eval@local.invalid>
+reviewed_at: "2026-11-10T07:28:23Z"
