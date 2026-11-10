@@ -146,7 +146,14 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if task.Terminal(t.State.Status) {
 			return nil, fmt.Errorf("tác vụ %s đã %s", t.State.ID, t.State.Status)
 		}
-		if o.Workflow == StepReq && !slices.Contains([]string{task.StatusCreated, task.StatusPlanned}, t.State.Status) {
+		planningState := t.State.Status
+		if o.Resume && task.Paused(planningState) {
+			planningState = t.State.ResumeFrom
+			if planningState == "" {
+				planningState = task.StatusCreated
+			}
+		}
+		if o.Workflow == StepReq && !slices.Contains([]string{task.StatusCreated, task.StatusPlanned}, planningState) {
 			return nil, fmt.Errorf("b-req chỉ chạy trên tác vụ created/planned (đang %s)", t.State.Status)
 		}
 		if !o.Resume && task.Paused(t.State.Status) {

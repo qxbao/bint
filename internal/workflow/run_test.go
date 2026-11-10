@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,6 +20,42 @@ import (
 	"bint/internal/task"
 	"bint/internal/testutil"
 )
+
+func TestResumeInterruptedPlannerFromRealCodexState(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	ctx := context.Background()
+	tk, _, err := r.NewTask(ctx, NewTaskOptions{Workflow: StepReq, Request: "Plan documenting Add"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile("testdata/codex-interrupted-planner.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observed struct {
+		Status     string `json:"status"`
+		ResumeFrom string `json:"resume_from"`
+	}
+	if err = json.Unmarshal(b, &observed); err != nil {
+		t.Fatal(err)
+	}
+	if observed.Status != task.StatusInterrupted || observed.ResumeFrom != task.StatusCreated {
+		t.Fatal("fixture không phải planner bị Ctrl-C")
+	}
+	_, err = h.tasks.Update(tk.State.ID, time.Now(), func(tk *task.Task) error {
+		tk.State.Status = observed.Status
+		tk.State.ResumeFrom = observed.ResumeFrom
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Run(ctx, RunOptions{Workflow: StepReq, TaskRef: tk.State.ID, Resume: true})
+	if err != nil || res.Status != task.StatusPlanned || strings.Join(h.calls, ",") != "b-req" {
+		t.Fatalf("không tiếp tục được planner: %+v %v calls=%v", res, err, h.calls)
+	}
+}
 
 var stepRe = regexp.MustCompile(`step="([a-z-]+)"`)
 
