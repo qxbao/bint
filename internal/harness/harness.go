@@ -489,11 +489,11 @@ func (Codex) SkillTarget() skills.Target { return skills.AgentsTarget }
 func (Codex) Capabilities() []Capability {
 	return []Capability{
 		{CapSkills, Yes, ".agents/skills/<tên>/SKILL.md (dùng chung với Antigravity)"},
-		{CapHiddenSkills, No, "không có cơ chế ẩn; bỏ khoá disable-model-invocation khi xuất bản"},
+		{CapHiddenSkills, Partial, "không ẩn khỏi người dùng; agents/openai.yaml policy.allow_implicit_invocation: false loại khỏi danh sách tự kích hoạt (Codex 0.167); Bint chưa sinh policy này, bỏ disable-model-invocation khi xuất bản"},
 		{CapMCP, Partial, ".codex/config.toml [mcp_servers.bint] — chỉ hiệu lực khi dự án được Codex tin cậy"},
 		{CapHooks, Partial, ".codex/hooks.json: SessionStart, SessionEnd, PreToolUse, PostToolUse; mỗi hook cần được duyệt (trust) trong Codex; không tách lần gọi công cụ thất bại"},
 		{CapPathContext, Partial, "chỉ trước khi sửa (apply_patch); Codex đọc tệp qua shell nên không chèn khi đọc"},
-		{CapProtectedPaths, Partial, "PreToolUse deny kèm lý do (không hỏi được trong codex exec); duyệt bằng bint task approve"},
+		{CapProtectedPaths, Partial, "PreToolUse deny kèm lý do (không hỏi được trong codex exec); duyệt trước tệp chưa có diff bằng bint task approve <id> --path <tệp>, rồi resume"},
 		{CapExecute, Yes, "codex exec --json, đề bài qua stdin"},
 		{CapReadOnly, Partial, "sandbox workspace-write (bint CLI cần ghi thư mục trạng thái); Bint kiểm tra cây làm việc sau bước"},
 		{CapCost, No, "chỉ báo token; max_cost_usd chỉ là chỉ dẫn"},

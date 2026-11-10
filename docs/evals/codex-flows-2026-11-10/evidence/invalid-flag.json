@@ -1,0 +1,21 @@
+{
+  "task_id": "01M72YXNHZRVP8ZC6B79ZTCGF1",
+  "run_id": "01M72YXNHY6XBDRWXEM8DAR74S",
+  "task_status": "failed",
+  "reason": "b-feat: codex thoát với mã 2: error: unexpected argument '--bint-invalid-probe-flag' found\n\n  tip: to pass '--bint-invalid-probe-flag' as a value, use '-- --bint-invalid-probe-flag'\n\nUsage: codex exec [OPTIONS] [PROMPT]\n       codex exec [OPTIONS] \u003cCOMMAND\u003e [ARGS]\n\nFor more information, try '--help'.",
+  "steps": [
+    {
+      "step": "b-feat",
+      "run_id": "01M72YXNKHXVCMAKJWQMQC7FMC",
+      "status": "failed",
+      "cost_usd": null,
+      "duration": "0s",
+      "error": "codex thoát với mã 2: error: unexpected argument '--bint-invalid-probe-flag' found\n\n  tip: to pass '--bint-invalid-probe-flag' as a value, use '-- --bint-invalid-probe-flag'\n\nUsage: codex exec [OPTIONS] [PROMPT]\n       codex exec [OPTIONS] \u003cCOMMAND\u003e [ARGS]\n\nFor more information, try '--help'."
+    }
+  ],
+  "cost_usd": null,
+  "notes": [
+    "chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác",
+    "chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành"
+  ]
+}

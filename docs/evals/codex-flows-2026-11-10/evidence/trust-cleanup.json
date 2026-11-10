@@ -1,0 +1,11 @@
+{
+  "removed_project_entries": [
+    "/probe/repo",
+    "/state/eval-project/eval-work/runs/eb_01M72Y34NDFVVBHXVQ9YFW2N80/c7f6ba68ccf02-none-1",
+    "/state/eval-project/eval-work/runs/eb_01M72Y34NDFVVBHXVQ9YFW2N80/c7f6ba68ccf02-bint-1",
+    "/state/eval-project/eval-work/runs/eb_01M72Y34NDFVVBHXVQ9YFW2N80/c7f6ba68ccf02-minimal-1"
+  ],
+  "only_temporary_project_entries_changed": true,
+  "removed_count": 4,
+  "remaining_temporary_entries": []
+}

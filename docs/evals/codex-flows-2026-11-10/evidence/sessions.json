@@ -1,0 +1,197 @@
+[
+  {
+    "index": 1,
+    "phase": "F1/F2/F3",
+    "session_id": "01a1c5d5-d8c7-73f0-97f2-d91073a321d6",
+    "evidence": "run-01.jsonl",
+    "usage": {
+      "input_tokens": 33169,
+      "cached_input_tokens": 28672,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 73,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "index": 2,
+    "phase": "F1/F2/F3",
+    "session_id": "01a1c5d6-2f25-7c53-a31b-5838f5884c28",
+    "evidence": "run-02.jsonl",
+    "usage": {
+      "input_tokens": 48668,
+      "cached_input_tokens": 44288,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 265,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "index": 3,
+    "phase": "F1/F2/F3",
+    "session_id": "01a1c5d6-9b96-7fd1-9707-7be00404cf4c",
+    "evidence": "run-03.jsonl",
+    "usage": {
+      "input_tokens": 32186,
+      "cached_input_tokens": 28160,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 145,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "index": 4,
+    "phase": "F1/F2/F3",
+    "session_id": "01a1c5d7-1c3c-7941-8fd2-fbe59d1c69de",
+    "evidence": "run-04.jsonl",
+    "usage": {
+      "input_tokens": 62332,
+      "cached_input_tokens": 30208,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 280,
+      "reasoning_output_tokens": 8
+    }
+  },
+  {
+    "index": 5,
+    "phase": "F1/F2/F3",
+    "session_id": "01a1c5d8-022c-7173-97df-60a0c71a7e3e",
+    "evidence": "run-05.jsonl",
+    "usage": {
+      "input_tokens": 129931,
+      "cached_input_tokens": 121600,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 696,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "index": 6,
+    "phase": "F1/F2/F3",
+    "session_id": "01a1c5db-43b7-7162-9761-71ac7be405e1",
+    "evidence": "run-06.jsonl",
+    "usage": {
+      "input_tokens": 60266,
+      "cached_input_tokens": 18688,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 247,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "index": 7,
+    "phase": "F5",
+    "session_id": "01a1c5dd-8652-7c12-bb4a-bba35262e0fd",
+    "evidence": "workflow-b-req-01M72XV1DKCRW259AFBF73DGD0.log",
+    "usage": {
+      "input_tokens": 113242,
+      "cached_input_tokens": 102144,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1519,
+      "reasoning_output_tokens": 47
+    }
+  },
+  {
+    "index": 8,
+    "phase": "F5",
+    "session_id": "01a1c5df-f814-7782-867e-828ba258a0a0",
+    "evidence": "workflow-b-req-01M72XZXVKYCNX7TJZ2XWY8QDJ.log",
+    "usage": {
+      "input_tokens": 74995,
+      "cached_input_tokens": 54528,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1065,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "index": 9,
+    "phase": "F5",
+    "session_id": "01a1c5e0-920b-74d3-9994-474d594e5ccf",
+    "evidence": "workflow-b-feat-01M72Y14AQF78CVZ31DF6BEH2T.log",
+    "usage": {
+      "input_tokens": 95214,
+      "cached_input_tokens": 75136,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 918,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "index": 10,
+    "phase": "F5",
+    "session_id": "01a1c5e1-3c21-7e43-9ce1-d38d343a8d32",
+    "evidence": "workflow-b-review-01M72Y2ESTEDGWNABEA2QZAHB8.log",
+    "usage": {
+      "input_tokens": 99465,
+      "cached_input_tokens": 87296,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 880,
+      "reasoning_output_tokens": 42
+    }
+  },
+  {
+    "index": 11,
+    "phase": "F6",
+    "session_id": "01a1c5e1-95e1-7450-bca2-e71d62d5fb30",
+    "evidence": "eval-c7f6ba68ccf02-none-1-agent.log",
+    "usage": {
+      "input_tokens": 89682,
+      "cached_input_tokens": 72576,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 757,
+      "reasoning_output_tokens": 21
+    }
+  },
+  {
+    "index": 12,
+    "phase": "F6",
+    "session_id": "01a1c5e2-3ebc-72d3-8098-82db4e0db51a",
+    "evidence": "eval-c7f6ba68ccf02-bint-1-agent.log",
+    "usage": {
+      "input_tokens": 116076,
+      "cached_input_tokens": 82048,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 706,
+      "reasoning_output_tokens": 71
+    }
+  },
+  {
+    "index": 13,
+    "phase": "F6",
+    "session_id": "01a1c5e2-de15-78c2-bf65-5a53ecf4e710",
+    "evidence": "eval-c7f6ba68ccf02-minimal-1-agent.log",
+    "usage": {
+      "input_tokens": 109752,
+      "cached_input_tokens": 88320,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 555,
+      "reasoning_output_tokens": 25
+    }
+  },
+  {
+    "index": 14,
+    "phase": "F5",
+    "session_id": "01a1c5e3-6fe8-7a21-959b-7fd4a039fddb",
+    "evidence": "workflow-b-feat-01M72Y6VFFGHBSP34418XSTDVH.log",
+    "usage": {
+      "input_tokens": 92153,
+      "cached_input_tokens": 82048,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 629,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "index": 15,
+    "phase": "F5",
+    "session_id": "01a1c5e8-6ff0-7283-8faa-5518fd2630de",
+    "evidence": "workflow-b-feat-01M72YGVSSY45MN97RRBEJ8R3N.log",
+    "usage": {
+      "input_tokens": 112914,
+      "cached_input_tokens": 92928,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 581,
+      "reasoning_output_tokens": 11
+    }
+  }
+]

@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"01a1c5d5-d8c7-73f0-97f2-d91073a321d6"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll read `sum.go` once using the shell.\n"}}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/bash -lc 'cat sum.go'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"/bin/bash -lc 'cat sum.go'","aggregated_output":"package probe\n\nfunc Sum(a,b int) int { return a-b }\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"Read `sum.go`. `Sum(a, b int)` returns `a-b`. No files edited."}}
+{"type":"turn.completed","usage":{"input_tokens":33169,"cached_input_tokens":28672,"cache_write_input_tokens":0,"output_tokens":73,"reasoning_output_tokens":0}}

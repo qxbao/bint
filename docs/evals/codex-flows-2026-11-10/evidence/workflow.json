@@ -1,0 +1,20 @@
+{
+  "task_id": "01M72XV1C2P5ZC3XEMXZZZ6VXC",
+  "run_id": "01M72XV1C2WFR3EE1HV1PZ4G07",
+  "task_status": "failed",
+  "reason": "b-req không ghi tài liệu nào (requirement/plan/tasks)",
+  "steps": [
+    {
+      "step": "b-req",
+      "run_id": "01M72XV1DKCRW259AFBF73DGD0",
+      "status": "completed",
+      "cost_usd": null,
+      "duration": "52s"
+    }
+  ],
+  "cost_usd": null,
+  "notes": [
+    "codex không báo chi phí: giới hạn max_cost_usd chỉ là chỉ dẫn",
+    "codex không có giới hạn số lượt: max_turns chỉ là chỉ dẫn"
+  ]
+}

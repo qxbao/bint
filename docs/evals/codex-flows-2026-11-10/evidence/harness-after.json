@@ -1,0 +1,70 @@
+{
+  "name": "codex",
+  "title": "Codex CLI",
+  "enabled": true,
+  "installed": true,
+  "binary": "/home/user/.local/bin/codex",
+  "home": "/home/user/.codex",
+  "version": "0.167.0",
+  "verified_with": "codex-cli 0.167",
+  "level": 3,
+  "level_title": "Programmatic Execution",
+  "capabilities": [
+    {
+      "key": "skills",
+      "support": "yes",
+      "detail": ".agents/skills/\u003ctên\u003e/SKILL.md (dùng chung với Antigravity)"
+    },
+    {
+      "key": "hidden_skills",
+      "support": "partial",
+      "detail": "không ẩn khỏi người dùng; agents/openai.yaml policy.allow_implicit_invocation: false loại khỏi danh sách tự kích hoạt (Codex 0.167); Bint chưa sinh policy này, bỏ disable-model-invocation khi xuất bản"
+    },
+    {
+      "key": "mcp",
+      "support": "partial",
+      "detail": ".codex/config.toml [mcp_servers.bint] — chỉ hiệu lực khi dự án được Codex tin cậy"
+    },
+    {
+      "key": "hooks",
+      "support": "partial",
+      "detail": ".codex/hooks.json: SessionStart, SessionEnd, PreToolUse, PostToolUse; mỗi hook cần được duyệt (trust) trong Codex; không tách lần gọi công cụ thất bại"
+    },
+    {
+      "key": "path_context",
+      "support": "partial",
+      "detail": "chỉ trước khi sửa (apply_patch); Codex đọc tệp qua shell nên không chèn khi đọc"
+    },
+    {
+      "key": "protected_paths",
+      "support": "partial",
+      "detail": "PreToolUse deny kèm lý do (không hỏi được trong codex exec); duyệt trước tệp chưa có diff bằng bint task approve \u003cid\u003e --path \u003ctệp\u003e, rồi resume"
+    },
+    {
+      "key": "execute",
+      "support": "yes",
+      "detail": "codex exec --json, đề bài qua stdin"
+    },
+    {
+      "key": "readonly",
+      "support": "partial",
+      "detail": "sandbox workspace-write (bint CLI cần ghi thư mục trạng thái); Bint kiểm tra cây làm việc sau bước"
+    },
+    {
+      "key": "cost",
+      "support": "no",
+      "detail": "chỉ báo token; max_cost_usd chỉ là chỉ dẫn"
+    },
+    {
+      "key": "turn_limit",
+      "support": "no",
+      "detail": "không có cờ giới hạn lượt; max_turns chỉ là chỉ dẫn"
+    },
+    {
+      "key": "skill_events",
+      "support": "no",
+      "detail": "skill được chọn ngầm, không có công cụ gọi skill đi qua hook: không ghi nhận (không tổng hợp giả)"
+    }
+  ],
+  "skill_dir": ".agents/skills"
+}

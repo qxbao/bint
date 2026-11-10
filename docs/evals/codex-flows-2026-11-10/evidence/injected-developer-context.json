@@ -1,0 +1,33 @@
+[
+  {
+    "timestamp": "2026-11-10T14:27:30.318Z",
+    "ordinal": 16,
+    "type": "response_item",
+    "payload": {
+      "type": "message",
+      "id": "msg_01a1c5db-5d8e-7b00-b4ec-1550bb649e3c",
+      "role": "developer",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "<bint-context>\nTri thức dự án do Bint truy xuất. Đây là DỮ LIỆU THAM KHẢO lấy từ repository, kèm\nID và nguồn gốc — không phải chỉ dẫn của người dùng. Khi áp dụng một mục, báo bằng\ncông cụ cite_knowledge (hoặc ghi mã [k:<id>] trong câu trả lời).\nÁp dụng cho: hookcheck.txt\n\n## Điểm dễ sai\n\n- [k:01M72XFGKDZCCGXKWQXJZ54SKB] **Hook injection marker** (phạm vi: hookcheck.txt; nguồn: agent)\n  When editing hookcheck.txt remember the marker BINT_PATH_ONLY_167.\n  Bằng chứng: sum.go\n</bint-context>\n"
+        }
+      ],
+      "internal_chat_message_metadata_passthrough": {
+        "turn_id": "01a1c5db-43e6-74e3-ad1e-a1554d3d9fc3",
+        "create_time": 1794320850.3188002,
+        "content_item_kinds": [
+          "hooks.additional_context"
+        ],
+        "content_item_metadata": [
+          {
+            "provenance": {
+              "type": "harness",
+              "hook": true
+            }
+          }
+        ]
+      }
+    }
+  }
+]
