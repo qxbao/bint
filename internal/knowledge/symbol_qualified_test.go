@@ -14,3 +14,20 @@ func TestContainsSymbolQualified(t *testing.T) {
 		}
 	}
 }
+
+// Agent ghi lệch vùng dòng: bằng chứng được đặt lại theo định nghĩa của ký hiệu.
+func TestSnapEvidence(t *testing.T) {
+	src := []byte("x = 1\n\n\ndef helper():\n    return 2\n\n\ndef target(a):\n    return a\n")
+	e := SnapEvidence(Evidence{Path: "m.py", Lines: "1-2", Symbol: "target"}, src)
+	if e.Lines != "8-9" {
+		t.Fatalf("mong đợi 8-9, được %q", e.Lines)
+	}
+	ok := Evidence{Path: "m.py", Lines: "4-5", Symbol: "helper"}
+	if SnapEvidence(ok, src) != ok {
+		t.Fatal("bằng chứng đúng không được đổi")
+	}
+	missing := Evidence{Path: "m.py", Lines: "1-2", Symbol: "nope"}
+	if SnapEvidence(missing, src) != missing {
+		t.Fatal("ký hiệu không có thì giữ nguyên để kiểm tra báo lỗi")
+	}
+}

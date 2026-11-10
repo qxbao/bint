@@ -213,6 +213,21 @@ func containerWithLines(e Evidence, r symbols.Region) bool {
 	return r.Container && err == nil && ok && from >= r.From && to <= r.To
 }
 
+// SnapEvidence sửa vùng dòng của bằng chứng khi agent ghi lệch: bằng chứng có ký hiệu
+// nhưng vùng dòng không chứa ký hiệu đó, còn ký hiệu định vị được trong tệp, thì vùng
+// dòng được đặt lại theo định nghĩa của ký hiệu. Bằng chứng khác giữ nguyên.
+func SnapEvidence(e Evidence, content []byte) Evidence {
+	if e.Symbol == "" || containsSymbol(regionOf(e, content), e.Symbol) {
+		return e
+	}
+	r, found := symbols.Locate(e.Path, content, e.Symbol)
+	if !found || r.Container {
+		return e
+	}
+	e.Lines = fmt.Sprintf("%d-%d", r.From, r.To)
+	return e
+}
+
 // NarrowEvidence thu hẹp ký hiệu của bằng chứng khi nó chỉ là vật chứa (lớp): nếu vùng
 // dòng nằm trọn trong một hàm/phương thức thì dùng ký hiệu của hàm đó ("Lớp.phương_thức").
 // Không đổi gì nếu không chắc chắn; chỉ làm ký hiệu hẹp hơn, không bao giờ rộng hơn.

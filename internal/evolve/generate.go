@@ -312,6 +312,7 @@ func DraftItem(d *Draft, id string, base *knowledge.Item, src knowledge.Source, 
 		it.UpdatedAt = knowledge.Now(now)
 	}
 	it.Title, it.Body, it.Scope = strings.TrimSpace(d.Title), strings.TrimSpace(d.Body), d.Scope
+	it.Scope.Paths = pruneScopePaths(it.Scope.Paths, src)
 	for _, spec := range d.Evidence {
 		e, err := app.ParseEvidenceSpec(spec)
 		if err != nil {
@@ -322,7 +323,7 @@ func DraftItem(d *Draft, id string, base *knowledge.Item, src knowledge.Source, 
 	for i := range it.Evidence {
 		e := &it.Evidence[i]
 		if b, ok := src.Read(e.Path); ok {
-			*e = knowledge.NarrowEvidence(*e, b)
+			*e = knowledge.NarrowEvidence(knowledge.SnapEvidence(*e, b), b)
 			if fp, err := knowledge.FingerprintWith(*e, b, fpPref); err == nil {
 				e.Fingerprint = fp
 			}
@@ -336,6 +337,25 @@ func DraftItem(d *Draft, id string, base *knowledge.Item, src knowledge.Source, 
 		}
 	}
 	return &it, nil
+}
+
+// pruneScopePaths bỏ đường dẫn phạm vi cụ thể (không phải mẫu glob) không có trong cây làm
+// việc — agent hay đoán tên tệp test chưa tồn tại — miễn còn lại ít nhất một đường dẫn;
+// nếu không còn gì thì giữ nguyên để kiểm tra xác định báo lỗi như cũ.
+func pruneScopePaths(paths []string, src knowledge.Source) []string {
+	if src == nil {
+		return paths
+	}
+	var keep []string
+	for _, p := range paths {
+		if strings.ContainsAny(p, "*?[{") || knowledge.HasFileOrDir(src, strings.TrimSuffix(p, "/")) {
+			keep = append(keep, p)
+		}
+	}
+	if len(keep) == 0 {
+		return paths
+	}
+	return keep
 }
 
 func evidencePaths(es []knowledge.Evidence) []string {
