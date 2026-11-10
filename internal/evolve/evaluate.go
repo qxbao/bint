@@ -588,5 +588,3 @@ func orProbe(k string) string {
 	}
 	return k
 }
-
-func nowStr(t time.Time) string { return store.FormatTime(t) }
