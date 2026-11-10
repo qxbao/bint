@@ -139,7 +139,7 @@ evolution:
     delivery: bint          # cách đưa tri thức ở cả hai nhánh: bint | minimal
     leakage_mode: economy   # strict | economy (mục 12.3)
   adoption:
-    auto_low_risk: false
+    auto_low_risk: false    # bint evolve cycle tự áp dụng đề xuất rủi ro thấp chỉ tạo mục mới (candidate) đã supported độc lập trên test
     bind_to_model_version: true
 
 workflow:                   # workflow gốc do Bint điều phối (bint run)

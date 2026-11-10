@@ -66,6 +66,7 @@ người duyệt quyết định; không thay đổi nào được tự áp dụ
   bint evolve rollback <id>         quay lui
   bint evolve history               lịch sử áp dụng, đối chiếu mô hình, chi phí tiến hoá
   bint evolve queue | process       yêu cầu tiến hoá đã đánh dấu / xử lý ngay (chế độ deferred)
+  bint evolve cycle --budget <USD>  một vòng tự động Propose–Probe–Compose (P8)
 
 Cấp độ: L1 tiến hoá tri thức (P6); L2 tiến hoá skill chuyên biệt (P7): tạo skill từ quy trình
 được xác nhận hiệu quả nhiều lần, hợp nhất skill trùng, loại bỏ skill lỗi thời. Skill gốc bất
@@ -73,7 +74,7 @@ biến, không bao giờ là đối tượng của đề xuất (xem bint skill)
 	}
 	c.AddCommand(newEvolveScanCmd(stdio), newEvolveProposeCmd(stdio), newEvolveListCmd(stdio), newEvolveShowCmd(stdio),
 		newEvolveEvaluateCmd(stdio), newEvolveApplyCmd(stdio), newEvolveRejectCmd(stdio), newEvolveRollbackCmd(stdio),
-		newEvolveHistoryCmd(stdio), newEvolveQueueCmd(stdio), newEvolveProcessCmd(stdio))
+		newEvolveHistoryCmd(stdio), newEvolveQueueCmd(stdio), newEvolveProcessCmd(stdio), newEvolveCycleCmd(stdio))
 	return c
 }
 
