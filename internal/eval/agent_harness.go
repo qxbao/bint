@@ -75,8 +75,9 @@ func (a *CodexAgent) bin() string {
 	return "codex"
 }
 
-// ArmUnavailable: nhánh bint trên Codex chỉ có MCP + AGENTS.md (không chèn theo đường
-// dẫn, vì hook của Codex cần người duyệt trust); vẫn chạy được, ghi rõ trong báo cáo.
+// ArmUnavailable: nhánh bint dùng MCP + AGENTS.md và PreToolUse(apply_patch).
+// Hook vẫn cần trust của Codex; tác vụ tự động phải chủ động chọn cách duyệt hook
+// đã kiểm tra (ExtraArgs), adapter không tự bỏ qua trust của người dùng.
 func (a *CodexAgent) ArmUnavailable(string) string { return "" }
 
 // ArgsFor dựng đối số dòng lệnh cho một yêu cầu.
@@ -99,6 +100,13 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 		args = append(args, "-c", "mcp_servers.bint.command="+tomlString(srv.Command),
 			"-c", "mcp_servers.bint.args="+tomlStrings(srv.Args),
 			"-c", `mcp_servers.bint.tools.cite_knowledge.approval_mode="approve"`)
+		if req.Settings != "" {
+			// Settings là tín hiệu nhánh cần path hook. Dựng dialect Codex từ
+			// chính executable Bint của MCP; không chạy lệnh hook Claude trong settings.
+			cmd := `"` + strings.ReplaceAll(srv.Command, `\`, `/`) + `" hook codex`
+			hooks := `[{matcher="apply_patch",hooks=[{type="command",command=` + tomlString(cmd) + `,timeout=10}]}]`
+			args = append(args, "-c", "hooks.PreToolUse="+hooks)
+		}
 	}
 	args = append(args, a.ExtraArgs...)
 	return append(args, "-"), nil

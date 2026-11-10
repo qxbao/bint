@@ -20,6 +20,22 @@ const codexSample = `{"type":"thread.started","thread_id":"01a1c35f-6ec6-78e1-9f
 {"type":"turn.completed","usage":{"input_tokens":62713,"cached_input_tokens":29568,"cache_write_input_tokens":0,"output_tokens":509,"reasoning_output_tokens":195}}
 `
 
+func TestRealCodexJSONL(t *testing.T) {
+	b, err := os.ReadFile("testdata/codex-0.167/citation-approved.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("{\"type\":\"future.event\",\"extra\":true}\n{\"type\":\"item.completed\"}\n")...)
+	var r AgentResult
+	parseCodexJSONL(b, &r)
+	if r.Error != "" || r.InputTokens == nil || *r.InputTokens != 60266 || r.OutputTokens == nil || *r.OutputTokens != 247 || !strings.Contains(r.Text, "citation succeeded") {
+		t.Fatalf("JSONL thật: %+v", r)
+	}
+	if r.CostUSD != nil || r.NumTurns != nil {
+		t.Fatal("không được mô phỏng cost/turn từ token hoặc turn.started")
+	}
+}
+
 // Mẫu đầu ra thật của `agy --output-format json` (agy 1.5.3).
 const agySample = `{"conversation_id":"e15c9026","status":"SUCCESS","response":"Done.\n","duration_seconds":3.8,"num_turns":1,"usage":{"input_tokens":10046,"output_tokens":114,"thinking_tokens":0,"cache_read_tokens":5608,"total_tokens":10160}}`
 const agyQuota = `{"conversation_id":"4a1b","status":"ERROR","response":"","error":"Individual quota reached.","duration_seconds":0,"num_turns":1,"usage":{"input_tokens":0,"output_tokens":0},"finished_reason":"error"}`
@@ -104,6 +120,28 @@ func TestCodexEvalCitationApproval(t *testing.T) {
 	plain, _ := (&CodexAgent{}).ArgsFor(AgentRequest{})
 	if strings.Contains(strings.Join(plain, " "), "approval_mode") {
 		t.Fatal("không cấu hình MCP khi không được yêu cầu")
+	}
+}
+
+func TestCodexEvalPathHook(t *testing.T) {
+	// F2 đã bắt được tool_name=apply_patch, tool_input.command trên Codex thật.
+	mcp := filepath.Join(t.TempDir(), "mcp.json")
+	os.WriteFile(mcp, []byte(`{"mcpServers":{"bint":{"command":"/path with spaces/bint","args":["mcp","serve"]}}}`), 0o644)
+	a := &CodexAgent{}
+	args, err := a.ArgsFor(AgentRequest{MCPConfig: mcp, Settings: "settings.json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := strings.Join(args, " ")
+	if !strings.Contains(s, `hooks.PreToolUse=[{matcher="apply_patch"`) || !strings.Contains(s, `hook codex`) {
+		t.Fatalf("nhánh bint thiếu path hook Codex: %v", args)
+	}
+	if strings.Contains(s, "hook claude") || strings.Contains(s, "bypass-hook-trust") {
+		t.Fatal("không mượn hook Claude hoặc tự bỏ duyệt trust")
+	}
+	plain, _ := a.ArgsFor(AgentRequest{MCPConfig: mcp})
+	if strings.Contains(strings.Join(plain, " "), "hooks.PreToolUse") {
+		t.Fatal("không thêm hook khi nhánh không yêu cầu")
 	}
 }
 
