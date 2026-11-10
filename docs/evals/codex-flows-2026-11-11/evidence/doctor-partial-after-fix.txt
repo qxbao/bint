@@ -1,0 +1,18 @@
+  ✓  git                 2.43.0
+  ✓  repository          /probe/repo (worktree chính)
+  ✓  sqlite fts5         khả dụng (modernc.org/sqlite, không cần CGO)
+  ✓  cấu hình            hợp lệ, schema v1 (/probe/repo/.bint/config.yml)
+  ✓  thư mục trạng thái  /probe/state/bint/repo-57695fe77f47 (dùng chung cho mọi worktree)
+  ✓  cơ sở dữ liệu       schema v8/8, journal=wal
+  ✓  spool               6 tệp chờ nạp
+  ✓  harness codex       /home/user/.local/bin/codex — cấp 3 (Programmatic Execution), xem `bint harness show codex`
+  !  hook codex          đã cài ở /probe/repo/.codex/hooks.json: 3/4 đã trust, 1 chưa duyệt, 0 đã đổi, 0 bị tắt; mở codex, /hooks để duyệt định nghĩa hiện hành
+  ✓  MCP codex           đã đăng ký
+  ✓  .gitignore          có khối bint
+  i  lệnh kiểm thử       eval.test_command chưa được xác nhận (đề xuất: "go test ./...")
+  ✓  tri thức            0 mục: 0 verified, 0 candidate, 0 stale
+  ✓  skill b-bootstrap   .agents/skills/b-bootstrap/SKILL.md
+  ✓  skill b-do          .agents/skills/b-do/SKILL.md
+  ✓  skill b-feat        .agents/skills/b-feat/SKILL.md
+  ✓  skill b-req         .agents/skills/b-req/SKILL.md
+  ✓  skill b-review      .agents/skills/b-review/SKILL.md

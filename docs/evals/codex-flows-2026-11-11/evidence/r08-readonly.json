@@ -1,0 +1,17 @@
+{
+  "task_id": "01M73CNXJBXZXDVXHWW74H1E80",
+  "run_id": "01M73CNXJB1ZA3HZ7CAPF1HK4Y",
+  "task_status": "failed",
+  "reason": "b-review: bước chỉ đọc b-review (codex) đã sửa cây làm việc: readonly-canary.txt — Bint không hoàn tác, hãy xem lại",
+  "steps": [
+    {
+      "step": "b-review",
+      "run_id": "01M73CNXM7C3A9F23V80RTS22A",
+      "status": "failed",
+      "cost_usd": null,
+      "duration": "36s",
+      "error": "bước chỉ đọc b-review (codex) đã sửa cây làm việc: readonly-canary.txt — Bint không hoàn tác, hãy xem lại"
+    }
+  ],
+  "cost_usd": null
+}

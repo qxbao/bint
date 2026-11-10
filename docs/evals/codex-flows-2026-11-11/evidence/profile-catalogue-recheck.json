@@ -1,0 +1,26 @@
+[
+  {
+    "attempt": "c7f6ba68ccf02-bint-1",
+    "available_skill_names": null,
+    "context_note": "metadata rechecked after eval on retained workdir, same production profile constructor, no model request",
+    "instruction_canary_present": false,
+    "read_only_real_cli": true,
+    "skill_canary_present": false
+  },
+  {
+    "attempt": "c7f6ba68ccf02-minimal-1",
+    "available_skill_names": null,
+    "context_note": "metadata rechecked after eval on retained workdir, same production profile constructor, no model request",
+    "instruction_canary_present": false,
+    "read_only_real_cli": true,
+    "skill_canary_present": false
+  },
+  {
+    "attempt": "c7f6ba68ccf02-none-1",
+    "available_skill_names": null,
+    "context_note": "metadata rechecked after eval on retained workdir, same production profile constructor, no model request",
+    "instruction_canary_present": false,
+    "read_only_real_cli": true,
+    "skill_canary_present": false
+  }
+]

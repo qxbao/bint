@@ -1,5 +1,8 @@
 # Kiểm chứng các flow Codex — 2026-11-10
 
+**Cập nhật:** các hạng mục còn mở đã được kiểm tra tiếp trong [biên bản 2026-11-11](../codex-flows-2026-11-11/README.md).
+Giữ nguyên bằng chứng/kết luận tại thời điểm đợt đầu; các lỗi tín hiệu test và planner resume mới phát hiện được sửa ở đợt sau.
+
 **Trạng thái:** đã chạy 15 session Codex thật, sửa các lỗi citation, path hook eval và tiếp tục sau khi bị chặn. `b-do` đủ ba bước, đường dẫn bảo vệ → duyệt → resume, và eval strict ba nhánh đã qua trên corpus nhỏ. **Chưa nghiệm thu toàn bộ mọi tình huống F1–F7**: các phần chưa chạy thật được liệt kê riêng bên dưới. Không suy rộng từ tác vụ cộng/nhân số nguyên sang hiệu quả trên dự án lớn.
 
 ## Thiết lập và ranh giới bằng chứng

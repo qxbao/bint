@@ -542,10 +542,26 @@ Báo cáo tách rõ phần chưa kiểm chứng (Ctrl-C, timeout, đăng nhập 
 Giới hạn đã biết của P5:
 
 - Hook Codex chỉ chạy sau khi người dùng duyệt trong Codex (`/hooks`); `bint doctor` báo khi chưa duyệt.
+- `bint doctor` hỏi metadata `hooks/list` của Codex để kiểm mọi định nghĩa/hash hiện hành;
+  hook mới, modified hoặc disabled đều được cảnh báo. Nếu API metadata không dùng được thì báo
+  chưa xác minh, không suy từ một trust entry cũ.
 - Codex không có công cụ đọc tệp riêng nên chèn ngữ cảnh theo đường dẫn chỉ xảy ra trước khi sửa.
+- `PostToolUse` Codex xuất hiện cả khi shell thất bại. Bint đọc `exit_code` trong transcript
+  cùng `tool_use_id`; thiếu bằng chứng thì kết quả unknown. Chỉ một lệnh test trực tiếp được
+  nâng thành tín hiệu test; script nhiều lệnh, heredoc, chạy nền hoặc rẽ nhánh không được suy pass.
 - Antigravity: không có MCP cấp dự án, không chèn ngữ cảnh qua hook; đề bài `bint run` đi qua một đối
   số dòng lệnh (tối đa 120 KiB).
 - Chưa cô lập bằng worktree riêng cho từng bước ghi; chưa có cấp 4 (điều phối nhiều agent song song).
+
+Eval Codex dùng profile tạm chỉ chứa runtime/provider cần thiết và bản sao auth dạng tệp
+(0600), không mang AGENTS/plugin/hook cá nhân sang; user/admin skill được tắt theo đường dẫn,
+bundled skill bị tắt. Profile chứa auth được xoá cả khi timeout/huỷ. Thiếu `auth.json` dạng tệp
+thì báo không hỗ trợ đăng nhập cô lập tự động; không fallback sang home người dùng.
+Đây là cô lập ngữ cảnh tự nạp và Git, không phải sandbox hermetic chặn mọi phép đọc host/mạng.
+
+[Nghiệm thu tiếp ngày 2026-11-11](docs/evals/codex-flows-2026-11-11/README.md) có thêm 15 session
+thật: đủ 5 skill, fail-open hook, readonly hậu kiểm, timeout, Ctrl-C/resume và eval strict 3/3.
+Flow Claude↔Codex còn blocked vì Claude chưa đăng nhập, theo quyết định của người dùng.
 
 ## Tiến hoá tri thức — L1 (P6)
 

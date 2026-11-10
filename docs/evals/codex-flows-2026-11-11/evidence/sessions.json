@@ -1,0 +1,149 @@
+[
+  {
+    "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+    "source": "r01-nonfatal.jsonl",
+    "usage": {
+      "input_tokens": 37178,
+      "cached_input_tokens": 33792,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 321,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "session_id": "01a1c6bf-d5d1-7543-9104-411c06420f60",
+    "source": "r02-req-explicit.jsonl",
+    "usage": {
+      "input_tokens": 75399,
+      "cached_input_tokens": 70144,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1131,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "session_id": "01a1c6c1-1287-7a83-ae06-68b7d1d9a06f",
+    "source": "r03-feat-explicit.jsonl",
+    "usage": {
+      "input_tokens": 77259,
+      "cached_input_tokens": 69888,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1104,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "session_id": "01a1c6c2-3c98-7730-adfe-ca79a7c5f04c",
+    "source": "r04-review-implicit.jsonl",
+    "usage": {
+      "input_tokens": 95699,
+      "cached_input_tokens": 76928,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 801,
+      "reasoning_output_tokens": 18
+    }
+  },
+  {
+    "session_id": "01a1c6c3-81ef-7463-b6a7-61769c44f5f5",
+    "source": "r05-bootstrap-explicit.jsonl",
+    "usage": {
+      "input_tokens": 80742,
+      "cached_input_tokens": 72064,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 549,
+      "reasoning_output_tokens": 22
+    }
+  },
+  {
+    "session_id": "01a1c6c5-5e6e-7163-8770-39093c587c19",
+    "source": "r06-do-explicit.jsonl",
+    "usage": {
+      "input_tokens": 93174,
+      "cached_input_tokens": 63744,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1364,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "session_id": "01a1c6c7-426e-72f1-9320-299dd5052257",
+    "source": "r07-review-explicit-policy.jsonl",
+    "usage": {
+      "input_tokens": 62558,
+      "cached_input_tokens": 45312,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 711,
+      "reasoning_output_tokens": 11
+    }
+  },
+  {
+    "session_id": "01a1c6ce-051b-78a0-bff4-76cff984f5da",
+    "source": "workflow-b-feat-01M73CW0X37G0J2VQJS1F3V6AE.log",
+    "usage": null
+  },
+  {
+    "session_id": "01a1c6ca-f6ec-7980-ac39-b3bf534e1aa5",
+    "source": "workflow-b-review-01M73CNXM7C3A9F23V80RTS22A.log",
+    "usage": {
+      "input_tokens": 63736,
+      "cached_input_tokens": 56064,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1067,
+      "reasoning_output_tokens": 57
+    }
+  },
+  {
+    "session_id": "01a1c6cc-fed2-7092-a8ab-91d60e04b03b",
+    "source": "workflow-b-req-01M73CSZH1PR85PM4611GKA7Q6.log",
+    "usage": null
+  },
+  {
+    "session_id": "01a1c6d0-10fb-7fd2-9912-8de1152fa40a",
+    "source": "workflow-b-req-01M73D044W5928F90D04NX9CCS.log",
+    "usage": {
+      "input_tokens": 64739,
+      "cached_input_tokens": 47232,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1579,
+      "reasoning_output_tokens": 17
+    }
+  },
+  {
+    "session_id": "01a1c6cc-fe96-7860-ade1-46dceee37a88",
+    "source": "workflow-b-feat-01M73CSZH2D5SHKYTM10CSPV5V.log",
+    "usage": null
+  },
+  {
+    "session_id": "01a1c6d3-86ea-7e01-ace4-8da9622457d0",
+    "source": "eval-c7f6ba68ccf02-minimal-1-agent.log",
+    "usage": {
+      "input_tokens": 48618,
+      "cached_input_tokens": 45184,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 293,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "session_id": "01a1c6d2-7f6c-7552-be00-367c1ff33b42",
+    "source": "eval-c7f6ba68ccf02-none-1-agent.log",
+    "usage": {
+      "input_tokens": 48549,
+      "cached_input_tokens": 35840,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 355,
+      "reasoning_output_tokens": 0
+    }
+  },
+  {
+    "session_id": "01a1c6d3-15e1-7361-a5e7-1350eb98651a",
+    "source": "eval-c7f6ba68ccf02-bint-1-agent.log",
+    "usage": {
+      "input_tokens": 53085,
+      "cached_input_tokens": 24832,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 468,
+      "reasoning_output_tokens": 0
+    }
+  }
+]

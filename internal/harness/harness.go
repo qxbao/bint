@@ -491,7 +491,7 @@ func (Codex) Capabilities() []Capability {
 		{CapSkills, Yes, ".agents/skills/<tên>/SKILL.md (dùng chung với Antigravity)"},
 		{CapHiddenSkills, Partial, "không ẩn khỏi người dùng; agents/openai.yaml policy.allow_implicit_invocation: false loại khỏi danh sách tự kích hoạt (Codex 0.167); Bint chưa sinh policy này, bỏ disable-model-invocation khi xuất bản"},
 		{CapMCP, Partial, ".codex/config.toml [mcp_servers.bint] — chỉ hiệu lực khi dự án được Codex tin cậy"},
-		{CapHooks, Partial, ".codex/hooks.json: SessionStart, SessionEnd, PreToolUse, PostToolUse; mỗi hook cần được duyệt (trust) trong Codex; không tách lần gọi công cụ thất bại"},
+		{CapHooks, Partial, ".codex/hooks.json: SessionStart/End, Pre/PostToolUse; cần trust từng định nghĩa; kết quả shell lấy từ exit_code của transcript cùng tool_use_id, thiếu thì unknown; script phức tạp không nâng thành tín hiệu test"},
 		{CapPathContext, Partial, "chỉ trước khi sửa (apply_patch); Codex đọc tệp qua shell nên không chèn khi đọc"},
 		{CapProtectedPaths, Partial, "PreToolUse deny kèm lý do (không hỏi được trong codex exec); duyệt trước tệp chưa có diff bằng bint task approve <id> --path <tệp>, rồi resume"},
 		{CapExecute, Yes, "codex exec --json, đề bài qua stdin"},

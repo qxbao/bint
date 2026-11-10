@@ -6,6 +6,8 @@
 //     công cụ đọc tệp riêng (đọc qua shell) nên chỉ chèn ngữ cảnh trước apply_patch;
 //     additionalContext của PreToolUse được agent nhận (đã thử). Mỗi hook cần được
 //     người dùng duyệt (trust) trong Codex trước khi chạy.
+//     PostToolUse có cả shell fail: exit_code lấy từ transcript cùng tool_use_id;
+//     thiếu bằng chứng thì ghi unknown, không suy thành công từ tên sự kiện.
 //   - MCP: bảng [mcp_servers.bint] trong <repo>/.codex/config.toml — chỉ có hiệu lực
 //     khi dự án được Codex tin cậy (trust_level = "trusted").
 //   - Thực thi: `codex exec --json`, đề bài qua stdin; sandbox workspace-write.
@@ -35,8 +37,8 @@ import (
 // HarnessName là tên harness trong cấu hình và cơ sở dữ liệu.
 const HarnessName = "codex"
 
-// MCPPrefix: tiền tố tên công cụ MCP của Bint trong payload hook (giả định cùng
-// quy ước với Claude Code; chưa thấy Codex gửi hook cho công cụ MCP).
+// MCPPrefix: tiền tố thật đã bắt từ hook context_for_task/paths/cite_knowledge
+// của Codex 0.167; không suy từ tên tool của Claude Code.
 const MCPPrefix = "mcp__bint__"
 
 var patchFileRe = regexp.MustCompile(`(?m)^\*\*\* (?:Add|Update|Delete) File: (.+?)\s*$|^\*\*\* Move to: (.+?)\s*$`)

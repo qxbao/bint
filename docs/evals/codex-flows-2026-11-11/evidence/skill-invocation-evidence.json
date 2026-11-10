@@ -1,0 +1,34 @@
+[
+  {
+    "session_log": "r03-feat-explicit.jsonl",
+    "actual_skill_read_commands": [
+      "/bin/bash -lc 'cat .agents/skills/b-feat/SKILL.md\n/probe/bint task show 01M73C00JVVYRWY2Z7J770TKZV\nprintenv BINT_RUN_ID\n git status --short'"
+    ]
+  },
+  {
+    "session_log": "r04-review-implicit.jsonl",
+    "actual_skill_read_commands": [
+      "/bin/bash -lc 'cat .agents/skills/b-review/SKILL.md'"
+    ]
+  },
+  {
+    "session_log": "r05-bootstrap-explicit.jsonl",
+    "actual_skill_read_commands": [
+      "/bin/bash -lc 'cat .agents/skills/b-bootstrap/SKILL.md; /probe/bint bootstrap --json; /probe/bint knowledge list'"
+    ]
+  },
+  {
+    "session_log": "r06-do-explicit.jsonl",
+    "actual_skill_read_commands": [
+      "/bin/bash -lc \"pwd && rg --files -g 'AGENTS.md' -g 'calc.go' -g 'go.mod' -g '.bint/config.yml' -g 'SKILL.md' .agents .bint .\"",
+      "/bin/bash -lc 'cat .agents/skills/b-feat/SKILL.md .agents/skills/b-review/SKILL.md .bint/config.yml; git status --short; cat calc.go'",
+      "/bin/bash -lc '/probe/bint task set --help; git diff -- calc.go calc_test.go; cat Makefile; cat .agents/skills/b-do/SKILL.md'"
+    ]
+  },
+  {
+    "session_log": "r07-review-explicit-policy.jsonl",
+    "actual_skill_read_commands": [
+      "/bin/bash -lc 'cat .agents/skills/b-review/SKILL.md; /probe/bint task show 01M73C00JVVYRWY2Z7J770TKZV; git status --short'"
+    ]
+  }
+]
