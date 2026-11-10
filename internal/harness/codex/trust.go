@@ -36,6 +36,7 @@ func InspectHookTrust(ctx context.Context, binary, root, path string) (HookTrust
 	cmd.Dir = root
 	cmd.Stderr = io.Discard
 	cmd.WaitDelay = time.Second
+	prepareMetadataProcess(cmd)
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return report, err
@@ -49,9 +50,7 @@ func InspectHookTrust(ctx context.Context, binary, root, path string) (HookTrust
 	}
 	defer func() {
 		in.Close()
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
+		killMetadataProcess(cmd)
 		cmd.Wait()
 	}()
 	enc := json.NewEncoder(in)
