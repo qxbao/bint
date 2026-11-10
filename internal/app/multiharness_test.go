@@ -83,6 +83,21 @@ func TestCodexWritingTestInstructionsIsNotATestRun(t *testing.T) {
 	}
 }
 
+func TestInitBootstrapHintMatchesDefaultHarness(t *testing.T) {
+	testutil.Isolate(t)
+	for _, name := range []string{"codex", "claude"} {
+		root := testutil.NewRepo(t, map[string]string{"a.go": "package a\n"})
+		r := mustInit(t, InitOptions{Dir: root, Harnesses: []string{name}, Hooks: no()})
+		steps := strings.Join(r.NextSteps, "\n")
+		if name == "codex" && !strings.Contains(steps, "$b-bootstrap trong Codex") {
+			t.Fatalf("Codex nhận hướng dẫn sai harness: %s", steps)
+		}
+		if name == "claude" && !strings.Contains(steps, "/b-bootstrap trong Claude Code") {
+			t.Fatal("đổi hướng dẫn Claude mặc định")
+		}
+	}
+}
+
 func hashTree(t *testing.T, root string, rels ...string) string {
 	t.Helper()
 	h := sha256.New()

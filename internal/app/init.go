@@ -293,11 +293,15 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 	if cfg.Eval.TestCommand == nil {
 		rep.NextSteps = append(rep.NextSteps, "Xác nhận lệnh kiểm thử: điền eval.test_command trong .bint/config.yml")
 	}
+	bootstrapSkill := "/b-bootstrap trong Claude Code"
+	if cfg.Harnesses.Default == codex.HarnessName {
+		bootstrapSkill = "$b-bootstrap trong Codex"
+	}
 	rep.NextSteps = append(rep.NextSteps,
 		"Commit .bint/config.yml (và .gitignore) để cả nhóm dùng chung cấu hình",
 		"Kiểm tra môi trường: bint doctor",
 		"Xem lượt chạy đã ghi nhận: bint runs list",
-		"Bootstrap tri thức: chạy /b-bootstrap trong Claude Code (hoặc `bint bootstrap` để xem dữ liệu khảo sát), rồi `bint knowledge review` và `bint bootstrap publish`",
+		"Bootstrap tri thức: chạy "+bootstrapSkill+" (hoặc `bint bootstrap` để xem dữ liệu khảo sát), rồi `bint knowledge review` và `bint bootstrap publish`",
 		"Khung đánh giá (bint eval --help) chỉ cần khi muốn đo trên repository này",
 	)
 	return rep, nil
