@@ -1,6 +1,6 @@
 # Số liệu P6–P7 (Claude Code, Sonnet) — chuẩn bị quyết định mở P8
 
-**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe), `20cc037`–`aa66d8c` (bootstrap theo vùng mã, đo lại nhánh bint). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$57 (trần nâng từ $25) (USD do harness báo).
+**Ngày:** 2026-11-10. **Bint:** `dff6570` (đợt đầu), `04d6b2c`–`2764e8f` (đo lại, đo phương sai, kế hoạch Probe), `20cc037`–`aa66d8c` (bootstrap theo vùng mã, đo lại nhánh bint), `f2fd149`–`276500d` (kênh tri thức, mở P8). **Harness:** Claude Code 2.1.322, mô hình `claude-sonnet-5-5`. **Ngân sách đã duyệt:** $25. **Đã tiêu:** ~$73 (trần nâng từ $25) (USD do harness báo).
 
 **Kết luận:** chưa đạt nghiệm thu P6 và P7. Về lý thuyết P8 **khả thi có điều kiện**. Tỷ lệ đạt nền sau bản sửa đặc tả là 33–40 %. Với thiết kế Probe mới (ít tác vụ, lặp theo kế hoạch, dừng sớm), mức cải thiện +15–20 điểm % phát hiện được với ~30 tác vụ mỗi đề xuất, tốn ≤ $25–60 mỗi lần đối chiếu. Nút thắt còn lại là số tác vụ đã duyệt, cùng một lần Probe thật để đo σ_b (mục cuối).
 
@@ -216,8 +216,38 @@ Chi phí trong bảng là **chi phí tối đa** khi chạy đủ R. Đối chi�
 | F14 | Cao (đã sửa, `aa66d8c`) | Agent hết hạn mức sử dụng (429) giữa đợt vẫn bị chấm là **trượt**, làm sai số liệu (một đợt ghi 4/30). Nay ghi là lỗi hạ tầng, đợt dừng ở `interrupted`, `--resume` chạy lại các lượt đó. |
 | F15 | Cao | Agent không gọi công cụ MCP của Context Engine (0/30 lượt). Cấu hình đúng: thử trực tiếp thì agent thấy và gọi được công cụ. Agent chỉ coi lời gợi ý trong AGENTS.md là tuỳ chọn và tự đọc mã. Chỉ hook theo đường dẫn có tác dụng. |
 | F16 | Cao (đã sửa, `f2fd149`) | `context_for_task`/`context_for_paths` chỉ trả ID trong `structuredContent`, mà Claude Code chỉ đưa trường này cho mô hình. Trước bản sửa, kể cả khi được gọi, MCP cũng không đem tri thức tới agent. |
+| F17 | Cao (đã sửa, `c1794a6`) | Ký hiệu dạng `Lớp.phương_thức` trong bằng chứng luôn bị báo "không có trong mã" (định nghĩa chỉ ghi tên cuối), nên mọi đề xuất của evolver neo theo phương thức bị loại. |
+| F18 | Trung bình (đã sửa, `7e9c358`) | Evolver hay ghi lệch vùng dòng vài dòng, hoặc đưa vào phạm vi một tệp test không tồn tại; cả đề xuất bị loại. Nay vùng dòng được đặt lại theo ký hiệu, đường dẫn phạm vi không tồn tại bị bỏ. |
 
-## Việc cần làm trước khi mở P8
+## Mở P8 (2026-11-11)
+
+**Kênh đưa tri thức (sửa F15):** hook `UserPromptSubmit` chèn gói ngữ cảnh theo đề bài ngay khi agent nhận yêu cầu (`340459e`), không chờ agent tự gọi MCP. Kiểm tra bằng Haiku (13 lượt, ~$1,1, dừng sớm vì đã đủ để kết luận): **13/13 lượt nhận tri thức qua kênh `hook:task`**.
+
+**Tác vụ:** quét lại đặc tả 787 ứng viên ($0) → 168 không cảnh báo đặc tả/rò rỉ → kiểm chứng fail→pass 83 (76 đạt) → bỏ 4 tác vụ thay đổi ≥ 299 dòng → duyệt 90, chia ngẫu nhiên validation/test. **Validation 70, test 73.** Các tác vụ này do agent duyệt (người dùng cho phép vượt chặn); kết quả trên chúng kém tin cậy hơn một bậc so với tác vụ người duyệt.
+
+**Vòng đối chiếu đầu tiên (vòng hiệu chỉnh)** — đề xuất tạo một mục tri thức cho vùng mã hay bị đọc lại:
+
+| | Giá trị |
+|---|---|
+| Kế hoạch | 34 tác vụ × R = 4 × 2 nhánh = tối đa 272 lượt, trần $60, phát hiện δ = 15 điểm % |
+| Thực tế | **Dừng ở điểm nhìn 1/4 sau 70 lượt, $14,58** (futility) |
+| Δ tỷ lệ đạt | +0,0 điểm % [−8,8, +8,8] (26 % cả hai nhánh) |
+| Δ chi phí/lượt | +$0,010 [−0,009, +0,030] |
+| Kết luận | not_supported: cận trên CI95 +8,6 điểm % < 15 điểm % |
+
+Thiết kế tuần tự làm đúng vai trò: loại đề xuất không hiệu quả sau 1/4 chi phí tối đa. σ_b vẫn chưa đo được vì dừng trước khi có lần lặp thứ hai.
+
+**Mã P8 đã có:**
+- `bint evolve cycle --budget X` — một vòng Propose–Probe–Compose: kiểm tra hồi quy đề xuất đã áp dụng → tạo đề xuất → đối chiếu validation rồi test → tự áp dụng tối đa một đề xuất mỗi vòng; chỉ tính kết quả đối chiếu sau lần áp dụng gần nhất, nên tác động cộng dồn luôn được đo lại. Chạy thử trên repository B: không có cơ hội mới, $0.
+- Tự áp dụng rủi ro thấp (`evolution.adoption.auto_low_risk`, mặc định tắt): chỉ đề xuất tạo mục mới (vào candidate), rủi ro thấp, supported độc lập trên test; tác nhân `bint-auto`.
+- Hồi quy: đề xuất do `bint-auto` áp dụng thì tự quay lui; do người áp dụng thì đề xuất quay lui.
+- Thử nghiệm chiến lược chọn ngữ cảnh: nhánh `bint@task=off+path=off+mcp=off+tokens=N+items=N`, so sánh ghép cặp trong cùng đợt.
+- Theo dõi chi phí: mỗi vòng ghi `<runtime>/evolve/cycles/<id>.json`; `bint evolve history` cộng tổng.
+- Thay đổi workflow: đi qua đề xuất skill (L2), được vòng đối chiếu nhưng luôn chờ người duyệt.
+
+**Chưa đạt nghiệm thu P8:** chưa có đề xuất nào cải thiện được tỷ lệ đạt trên tập test độc lập. Việc tiếp theo: chạy `bint evolve cycle` định kỳ khi có lịch sử phiên mới (cơ hội mới), và đo biến thể chiến lược ngữ cảnh `bint` so với `bint@task=off` để định lượng tác động của hook mới.
+
+## Việc cần làm trước khi mở P8 (đã xử lý, xem mục "Mở P8")
 
 1. Dùng bản sửa đặc tả, rồi đo lại tỷ lệ đạt nền trên tập validation đủ lớn. Chỉ chọn tác vụ không còn cảnh báo, hoặc viết lại đề bài cho những tác vụ có cảnh báo. Mục tiêu là tỷ lệ đạt nền khoảng 30–70 %.
 2. Sửa F2/F4 (neo bằng chứng theo hàm, ưu tiên mã tồn tại tại commit cũ), F5, F6, F10, F13.
