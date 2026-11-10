@@ -455,13 +455,18 @@ func (e *Env) Approve(ref string) (*task.Task, Approval, error) {
 			t.State.VerifyApproval = &task.Approval{Command: cmd, By: e.actor(), At: e.at()}
 			a.VerifyCommand = cmd
 		}
-		if len(t.State.PendingPaths) > 0 {
+		// Tính lại từ diff hiện tại (task chưa qua Runner/checkScope thì PendingPaths rỗng).
+		pending := append([]string{}, t.State.PendingPaths...)
+		if cur, derr := e.UnapprovedChanges(context.Background(), t); derr == nil {
+			pending = appendUnique(pending, cur...)
+		}
+		if len(pending) > 0 {
 			prev := []string{}
 			if t.State.ProtectedApproval != nil {
 				prev = t.State.ProtectedApproval.Paths
 			}
-			t.State.ProtectedApproval = &task.Approval{Paths: appendUnique(prev, t.State.PendingPaths...), By: e.actor(), At: e.at()}
-			a.Paths = t.State.PendingPaths
+			t.State.ProtectedApproval = &task.Approval{Paths: appendUnique(prev, pending...), By: e.actor(), At: e.at()}
+			a.Paths = pending
 			t.State.PendingPaths = nil
 		}
 		return nil
