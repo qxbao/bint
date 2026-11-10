@@ -946,12 +946,28 @@ mới cùng đối tượng đối chiếu lại trên các tác vụ test đã 
 			if err != nil {
 				return err
 			}
+			// Kích hoạt skill thực tế trong các lượt đối chiếu (đọc từ đầu ra của agent, không qua hook).
+			var activation []evolve.SkillActivation
+			if len(p.SkillChanges) > 0 {
+				var names []string
+				for _, c := range p.SkillChanges {
+					if c.Op == evolve.ActionCreate || c.Op == evolve.ActionUpdate {
+						names = append(names, c.Name)
+					}
+				}
+				if rows, aerr := eval.Attempts(ctx, e.st.DB, "batch_id = ?", res.BatchID); aerr == nil {
+					activation = evolve.ProbeActivation(rows, names)
+				}
+			}
 			if asJSON {
 				return writeJSON(w, map[string]any{"evaluation_id": record.ID, "batch_id": res.BatchID, "status": res.Status,
-					"verdict": v, "report": rep})
+					"verdict": v, "report": rep, "skill_activation": activation})
 			}
 			fmt.Fprintf(w, "\nĐợt %s: %s, %d/%d lượt\n", res.BatchID, res.Status, res.Done, res.Total)
 			printReport(w, rep, false)
+			for _, a := range activation {
+				fmt.Fprintf(w, "  skill %s, nhánh %s: được gọi ở %d/%d lượt đo được\n", a.Skill, a.Arm, a.Activated, a.Measured)
+			}
 			fmt.Fprintf(w, "\nKết luận (%s, tập %s): %s — %s\n", p.Plan.Kind, orDash(record.Split), v.Verdict, v.Detail)
 			for _, n := range v.Notes {
 				fmt.Fprintf(w, "  lưu ý: %s\n", n)

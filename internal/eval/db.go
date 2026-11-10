@@ -61,6 +61,8 @@ type AttemptRow struct {
 	TouchedTests    *bool
 	Error           string
 	LogDir          string
+	// SkillsActivated: skill đã được gọi trong lượt; nil = không đo được (khác rỗng = đo rồi, không gọi).
+	SkillsActivated []string
 }
 
 func nullStr(s string) any {
@@ -211,19 +213,19 @@ func startAttempt(ctx context.Context, db *sql.DB, a AttemptRow) error {
 func finishAttempt(ctx context.Context, db *sql.DB, a AttemptRow) error {
 	_, err := db.ExecContext(ctx, `UPDATE evaluation_runs SET status=?, model=?, context_source=?, finished_at=?,
 		duration_ms=?, agent_duration_ms=?, agent_exit_code=?, num_turns=?, input_tokens=?, output_tokens=?, cost_usd=?,
-		setup_ok=?, test_exit_code=?, test_passed=?, files_changed=?, lines_changed=?, touched_tests=?, error=?
+		setup_ok=?, test_exit_code=?, test_passed=?, files_changed=?, lines_changed=?, touched_tests=?, error=?, skills_activated=?
 		WHERE attempt_id=?`,
 		a.Status, nullStr(a.Model), nullStr(a.ContextSource), nullStr(a.FinishedAt), nullI(a.DurationMS),
 		nullI(a.AgentDurationMS), nullI(a.AgentExitCode), nullI(a.NumTurns), nullI(a.InputTokens), nullI(a.OutputTokens),
 		nullF(a.CostUSD), nullB(a.SetupOK), nullI(a.TestExitCode), nullB(a.TestPassed), nullI(a.FilesChanged),
-		nullI(a.LinesChanged), nullB(a.TouchedTests), nullStr(a.Error), a.AttemptID)
+		nullI(a.LinesChanged), nullB(a.TouchedTests), nullStr(a.Error), skillsJSON(a.SkillsActivated), a.AttemptID)
 	return err
 }
 
 const attemptCols = `attempt_id, batch_id, case_id, case_fingerprint, case_split, arm, repeat_index, status, harness,
 	harness_version, model, context_source, started_at, finished_at, duration_ms, agent_duration_ms, agent_exit_code,
 	num_turns, input_tokens, output_tokens, cost_usd, setup_ok, test_exit_code, test_passed, files_changed,
-	lines_changed, touched_tests, error, log_dir`
+	lines_changed, touched_tests, error, log_dir, skills_activated`
 
 // Attempts đọc các lượt của một đợt (where rỗng = mọi đợt).
 func Attempts(ctx context.Context, db *sql.DB, where string, args ...any) ([]AttemptRow, error) {
@@ -240,13 +242,13 @@ func Attempts(ctx context.Context, db *sql.DB, where string, args ...any) ([]Att
 	var out []AttemptRow
 	for rows.Next() {
 		var a AttemptRow
-		var split, hv, model, src, fin, errS, logDir sql.NullString
+		var split, hv, model, src, fin, errS, logDir, skills sql.NullString
 		var dur, adur, aexit, turns, in, outT, texit, files, lines sql.NullInt64
 		var cost sql.NullFloat64
 		var setup, passed, touched sql.NullBool
 		if err := rows.Scan(&a.AttemptID, &a.BatchID, &a.CaseID, &a.CaseFingerprint, &split, &a.Arm, &a.Repeat,
 			&a.Status, &a.Harness, &hv, &model, &src, &a.StartedAt, &fin, &dur, &adur, &aexit, &turns, &in, &outT,
-			&cost, &setup, &texit, &passed, &files, &lines, &touched, &errS, &logDir); err != nil {
+			&cost, &setup, &texit, &passed, &files, &lines, &touched, &errS, &logDir, &skills); err != nil {
 			return nil, err
 		}
 		a.CaseSplit, a.HarnessVersion, a.Model, a.ContextSource = split.String, hv.String, model.String, src.String
@@ -258,9 +260,21 @@ func Attempts(ctx context.Context, db *sql.DB, where string, args ...any) ([]Att
 			a.CostUSD = &cost.Float64
 		}
 		a.SetupOK, a.TestPassed, a.TouchedTests = bp(setup), bp(passed), bp(touched)
+		if skills.Valid {
+			json.Unmarshal([]byte(skills.String), &a.SkillsActivated)
+		}
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+// skillsJSON: nil → NULL (không đo được); slice (kể cả rỗng) → mảng JSON.
+func skillsJSON(s []string) any {
+	if s == nil {
+		return nil
+	}
+	b, _ := json.Marshal(s)
+	return string(b)
 }
 
 func ip(n sql.NullInt64) *int64 {

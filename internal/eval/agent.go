@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,9 @@ type AgentRequest struct {
 	// WritableDirs: thư mục ngoài repository mà agent cần ghi (thư mục trạng thái
 	// Bint, cho lệnh `bint task ...`) — dùng cho harness có sandbox.
 	WritableDirs []string
+	// HasSkills: thư mục làm việc có tập skill cấp dự án (.claude/skills). Khi đó harness
+	// Claude được cấp công cụ Skill và đầu ra được phân tích để biết skill nào được gọi.
+	HasSkills bool
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
@@ -50,6 +54,9 @@ type AgentResult struct {
 	Model        string
 	// Text là câu trả lời cuối của agent (trường result), nếu harness báo.
 	Text string
+	// SkillsActivated: tên skill agent đã gọi qua công cụ Skill (không trùng, theo thứ tự
+	// xuất hiện). Chỉ harness báo tool_use mới điền; nil = không đo được, không phải 0.
+	SkillsActivated []string
 }
 
 // Agent chạy một tác vụ trong thư mục làm việc (adapter cấp 3: thực thi theo chương trình).
@@ -110,6 +117,15 @@ func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 	args := []string{"-p", "--output-format", "json", "--no-session-persistence", "--strict-mcp-config",
 		"--permission-mode", a.Cfg.PermissionMode}
 	tools := append([]string{}, a.Cfg.AllowedTools...)
+	if req.HasSkills {
+		// Cần tool_use để biết skill có được gọi không: stream-json (kèm --verbose) vẫn kết
+		// thúc bằng dòng type=result cùng trường với json nên phần đọc chi phí không đổi.
+		args[2] = "stream-json"
+		args = append(args, "--verbose")
+		if !slices.Contains(tools, "Skill") {
+			tools = append(tools, "Skill")
+		}
+	}
 	if req.MCPConfig != "" {
 		args = append(args, "--mcp-config", req.MCPConfig)
 		tools = append(tools, BintMCPTools...)
@@ -148,6 +164,9 @@ func (a *ClaudeAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 		res.Error = r.Err.Error()
 	}
 	parseClaudeJSON(stdout.Bytes(), &res)
+	if req.HasSkills {
+		res.SkillsActivated = parseClaudeSkills(stdout.Bytes())
+	}
 	if res.Error == "" && r.ExitCode != 0 && !r.TimedOut {
 		res.Error = "agent thoát với mã " + strconv.Itoa(r.ExitCode) + ": " + truncate(strings.TrimSpace(r.Tail), 300)
 	}
@@ -219,6 +238,40 @@ func parseClaudeJSON(out []byte, res *AgentResult) {
 	if r.IsError && res.Error == "" {
 		res.Error = "agent báo lỗi: " + r.Subtype + " " + truncate(r.Result, 200)
 	}
+}
+
+// parseClaudeSkills đọc đầu ra `--output-format stream-json`: mỗi dòng type=assistant có
+// thể chứa khối tool_use tên Skill, đầu vào {"skill": "<tên>"}. Trả về slice không nil
+// (rỗng = đã đo, không skill nào được gọi) để phân biệt với "không đo được".
+func parseClaudeSkills(out []byte) []string {
+	names := []string{}
+	for _, line := range bytes.Split(out, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 || line[0] != '{' {
+			continue
+		}
+		var ev struct {
+			Type    string `json:"type"`
+			Message struct {
+				Content []struct {
+					Type  string `json:"type"`
+					Name  string `json:"name"`
+					Input struct {
+						Skill string `json:"skill"`
+					} `json:"input"`
+				} `json:"content"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(line, &ev) != nil || ev.Type != "assistant" {
+			continue
+		}
+		for _, c := range ev.Message.Content {
+			if c.Type == "tool_use" && c.Name == "Skill" && c.Input.Skill != "" && !slices.Contains(names, c.Input.Skill) {
+				names = append(names, c.Input.Skill)
+			}
+		}
+	}
+	return names
 }
 
 func jsonCandidates(out []byte) [][]byte {

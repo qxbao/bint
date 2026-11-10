@@ -368,8 +368,10 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 		}
 	}
 
+	// Nhánh có tập skill (.claude/skills do prepareArm đặt vào): cấp công cụ Skill và đo kích hoạt.
+	_, skErr := os.Stat(filepath.Join(work, ".claude", "skills"))
 	ar := opts.Agent.Run(ctx, AgentRequest{
-		Dir: work, Prompt: AgentPrompt(a.Case.Prompt), Timeout: env.timeout(),
+		Dir: work, HasSkills: skErr == nil, Prompt: AgentPrompt(a.Case.Prompt), Timeout: env.timeout(),
 		LogPath: filepath.Join(logDir, "agent.log"), CaseID: a.Case.ID, Arm: a.Arm,
 		MCPConfig: setup.MCPConfig, Settings: setup.Settings, Env: evalContextEnv(setup),
 	})
@@ -380,6 +382,7 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	exit := int64(ar.ExitCode)
 	row.AgentDurationMS, row.AgentExitCode = &adur, &exit
 	row.NumTurns, row.InputTokens, row.OutputTokens, row.CostUSD, row.Model = ar.NumTurns, ar.InputTokens, ar.OutputTokens, ar.CostUSD, ar.Model
+	row.SkillsActivated = ar.SkillsActivated
 	if ctx.Err() != nil {
 		return finish("error", "bị huỷ trong khi agent chạy")
 	}
