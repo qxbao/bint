@@ -91,6 +91,22 @@ func TestCodexAndAgyArgs(t *testing.T) {
 	}
 }
 
+func TestCodexEvalCitationApproval(t *testing.T) {
+	mcp := filepath.Join(t.TempDir(), "mcp.json")
+	os.WriteFile(mcp, []byte(`{"mcpServers":{"bint":{"command":"bint","args":["mcp","serve"]}}}`), 0o644)
+	args, err := (&CodexAgent{}).ArgsFor(AgentRequest{MCPConfig: mcp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(args, " "), `mcp_servers.bint.tools.cite_knowledge.approval_mode="approve"`) {
+		t.Fatalf("eval không cấu hình quyền citation: %v", args)
+	}
+	plain, _ := (&CodexAgent{}).ArgsFor(AgentRequest{})
+	if strings.Contains(strings.Join(plain, " "), "approval_mode") {
+		t.Fatal("không cấu hình MCP khi không được yêu cầu")
+	}
+}
+
 // Chạy chương trình giả thay cho codex/agy: kiểm tra đề bài tới đúng kênh (stdin /
 // đối số) và kết quả được đọc lại.
 func TestCodexAndAgyRunWithFakeBinary(t *testing.T) {

@@ -191,6 +191,9 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		if mi, ok := ad.(harness.MCPInstaller); ok && cfg.Context.Interfaces.MCP {
 			if mi.MCPInstalled(repo.Toplevel) {
 				r.add("MCP "+h, LevelOK, "đã đăng ký")
+				if h == codex.HarnessName && !codex.CitationApprovalConfigured(repo.Toplevel) {
+					r.add("MCP codex citation", LevelWarn, "chưa xác minh cite_knowledge được phép chạy với approval policy never; chạy bint init --mcp hoặc đặt [mcp_servers.bint.tools.cite_knowledge] approval_mode = \"approve\" trong .codex/config.toml")
+				}
 			} else {
 				r.add("MCP "+h, LevelInfo, "chưa đăng ký MCP server của Bint (bint init --mcp)")
 			}

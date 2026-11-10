@@ -44,3 +44,41 @@ func TestSessionEndTimeoutMatchesRealCodex(t *testing.T) {
 		}
 	}
 }
+
+func TestInstalledMCPCanCiteWithApprovalNever(t *testing.T) {
+	// Lỗi thật được lưu cạnh fixture của executor, không dùng agent giả để kết luận.
+	b, err := os.ReadFile("../../eval/testdata/codex-0.167/citation-denied.jsonl")
+	if err != nil || !strings.Contains(string(b), "MCP tool call requires approval, but approval policy is never") {
+		t.Fatalf("fixture citation: %s, %v", b, err)
+	}
+	block := MCPBlock("bint")
+	if !strings.Contains(block, "[mcp_servers.bint.tools.cite_knowledge]\napproval_mode = \"approve\"") {
+		t.Fatalf("citation vẫn cần duyệt dưới policy never:\n%s", block)
+	}
+	if strings.Contains(block, "default_tools_approval_mode") || strings.Contains(block, "report_observation") {
+		t.Fatal("không được tự duyệt mọi tool hoặc tool tạo tri thức")
+	}
+}
+
+func TestCitationApprovalConfigured(t *testing.T) {
+	for _, tc := range []struct {
+		name, config string
+		want         bool
+	}{
+		{"installed", MCPBlock("bint"), true},
+		{"missing", "[mcp_servers.bint]\ncommand = 'bint'\n", false},
+		{"prompt", "[mcp_servers.bint.tools.cite_knowledge]\napproval_mode = 'prompt'\n", false},
+		{"other tool", "[mcp_servers.bint.tools.report_observation]\napproval_mode = 'approve'\n", false},
+		{"comment", "# [mcp_servers.bint.tools.cite_knowledge]\n# approval_mode = 'approve'\n", false},
+		{"quoted", "[mcp_servers.\"bint\".tools.\"cite_knowledge\"] # local\napproval_mode = 'approve' # explicit\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			os.MkdirAll(filepath.Join(root, ".codex"), 0o755)
+			os.WriteFile(ConfigPath(root), []byte(tc.config), 0o644)
+			if got := CitationApprovalConfigured(root); got != tc.want {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

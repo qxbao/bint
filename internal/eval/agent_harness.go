@@ -97,7 +97,8 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 			return nil, err
 		}
 		args = append(args, "-c", "mcp_servers.bint.command="+tomlString(srv.Command),
-			"-c", "mcp_servers.bint.args="+tomlStrings(srv.Args))
+			"-c", "mcp_servers.bint.args="+tomlStrings(srv.Args),
+			"-c", `mcp_servers.bint.tools.cite_knowledge.approval_mode="approve"`)
 	}
 	args = append(args, a.ExtraArgs...)
 	return append(args, "-"), nil

@@ -260,7 +260,33 @@ func MCPBlock(bintPath string) string {
 	}
 	b, _ := json.Marshal(filepath.ToSlash(cmd))
 	return "# Do Bint quản lý (bint init --mcp): MCP server của Context Engine.\n" +
-		"[mcp_servers.bint]\ncommand = " + string(b) + "\nargs = [\"mcp\", \"serve\"]"
+		"[mcp_servers.bint]\ncommand = " + string(b) + "\nargs = [\"mcp\", \"serve\"]\n\n" +
+		"# Chỉ ghi trích dẫn đã kiểm tra; không tự duyệt tool tạo/sửa tri thức.\n" +
+		"[mcp_servers.bint.tools.cite_knowledge]\napproval_mode = \"approve\""
+}
+
+// CitationApprovalConfigured xác minh khai báo tường minh trong cấu hình dự án.
+// Không suy đoán chính sách kế thừa ở cấp user/managed; doctor báo chưa xác minh
+// nếu người dùng chọn một cách viết TOML khác (ví dụ bảng inline).
+func CitationApprovalConfigured(repoRoot string) bool {
+	b, err := os.ReadFile(ConfigPath(repoRoot))
+	if err != nil {
+		return false
+	}
+	section := false
+	header := regexp.MustCompile(`^\[mcp_servers\.(?:bint|"bint")\.tools\.(?:cite_knowledge|"cite_knowledge")\]\s*(?:#.*)?$`)
+	approved := regexp.MustCompile(`^approval_mode\s*=\s*(?:"approve"|'approve')\s*(?:#.*)?$`)
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "[") {
+			section = header.MatchString(line)
+			continue
+		}
+		if section && approved.MatchString(line) {
+			return true
+		}
+	}
+	return false
 }
 
 // InstallMCP thêm (install = true) hoặc gỡ khối [mcp_servers.bint] trong
