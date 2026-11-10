@@ -1,0 +1,12 @@
+{
+  "runs": 18,
+  "cost_per_run_usd": null,
+  "cost_source": "chưa có lịch sử",
+  "total_cost_usd": null,
+  "seconds_per_run": null,
+  "sd_diff": 0.5,
+  "sd_source": "giả định thận trọng (chưa đủ dữ liệu)",
+  "effect": 0.1,
+  "needed_cases": 197,
+  "available_cases": 2
+}

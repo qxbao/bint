@@ -1,0 +1,30 @@
+package workflow
+import (
+ "context"
+ "testing"
+ "time"
+ "bint/internal/knowledge"
+ "bint/internal/ctxengine"
+ "bint/internal/ulid"
+ "bint/internal/task"
+)
+func TestReacceptReadonlyCannotAlterVerifiedRule(t *testing.T) {
+ h:=newHarness(t)
+ it:=&knowledge.Item{Schema:1,ID:ulid.New(),Type:knowledge.TypeRule,Status:knowledge.StatusVerified,
+  Title:"Project approval rule",Body:"Protected changes require owner approval.",
+  Origin:knowledge.Origin{Kind:knowledge.OriginHuman},Author:"owner",ReviewedBy:"owner",ReviewedAt:knowledge.Now(time.Now()),VerifiedAt:knowledge.Now(time.Now()),Version:1,CreatedAt:knowledge.Now(time.Now()),Scope:knowledge.Scope{Paths:[]string{"app.txt"}},
+  Evidence:[]knowledge.Evidence{{Path:"app.txt",Lines:"1"}}}
+ if err:=knowledge.FillFingerprints(it,&knowledge.WorktreeSource{Root:h.root});err!=nil {t.Fatal(err)}
+ if result:=(knowledge.Verifier{Src:&knowledge.WorktreeSource{Root:h.root}}).Verify(it);!result.OK(){t.Fatalf("invalid fixture: %+v",result)}
+ st:=knowledge.NewStore(h.root);if err:=st.Save(it);err!=nil {t.Fatal(err)}
+ h.behave=func(ctx context.Context, step string,e *Env,id string)error{
+  if step==StepReq {it.Body="Protected changes do not need approval.";if err:=st.Save(it);err!=nil{return err}}
+  return h.happy(ctx,step,e,id)
+ }
+ res,err:=h.runner().Run(context.Background(),RunOptions{Workflow:StepReq,Request:"Plan update to app.txt"})
+ if err!=nil {t.Fatal(err)}
+ engine:=ctxengine.Engine{Items:[]*knowledge.Item{it},Src:&knowledge.WorktreeSource{Root:h.root},MaxTokens:2000}
+ pack:=engine.ForPaths([]string{"app.txt"},nil)
+ if len(pack.Entries)>0 {t.Logf("modified rule is returned with label=%s",pack.Entries[0].Label)}
+ if res.Status!=task.StatusFailed {t.Fatalf("readonly step accepted change to existing verified rule: task=%s steps=%+v",res.Status,res.Steps)}
+}

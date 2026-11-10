@@ -34,6 +34,10 @@ const (
 	// P6: tệp agent đọc (payload.paths), để phát hiện khám phá lặp lại (mục 10.2).
 	// Chỉ harness có hook trước công cụ đọc tệp mới cung cấp (Claude Code).
 	FileRead = "file.read"
+	// P7: agent kích hoạt một skill (payload.skill). Chỉ harness có công cụ gọi skill đi qua
+	// hook mới cung cấp (Claude Code: công cụ Skill); Codex và Antigravity không có, và sự
+	// kiện không được hỗ trợ thì không được tổng hợp giả (mục 13.2).
+	SkillActivated = "skill.activated"
 
 	// P3: Context Engine (mục 9.7). payload.ids là danh sách ID tri thức.
 	ContextRetrieved    = "context.retrieved"

@@ -15,6 +15,7 @@ import (
 	"bint/internal/app"
 	"bint/internal/eval"
 	"bint/internal/knowledge"
+	"bint/internal/skills"
 	"bint/internal/store"
 	"bint/internal/task"
 	"bint/internal/ulid"
@@ -142,7 +143,7 @@ func Apply(ctx context.Context, o ApplyOptions) (ApplyResult, error) {
 	if p.Status != StatusProposed {
 		return res, fmt.Errorf("đề xuất %s ở trạng thái %s: chỉ áp dụng được đề xuất đang chờ (proposed)", p.ID, p.Status)
 	}
-	if probs, err := p.CheckBase(o.K.Store); err != nil {
+	if probs, err := p.CheckBaseWS(o.K); err != nil {
 		return res, err
 	} else if len(probs) > 0 {
 		var ds []string
@@ -164,6 +165,9 @@ func Apply(ctx context.Context, o ApplyOptions) (ApplyResult, error) {
 		return res, fmt.Errorf("đề xuất %s có rủi ro cao (%s); xem lại rồi thêm --confirm-risk", p.ID, strings.Join(p.RiskReasons, "; "))
 	}
 
+	if p.IsSkill() {
+		return applySkill(ctx, o, p, res)
+	}
 	who := app.GitIdentity(ctx, o.K.Root)
 	items, _, err := o.K.Items()
 	if err != nil {
@@ -271,46 +275,9 @@ func Apply(ctx context.Context, o ApplyOptions) (ApplyResult, error) {
 		}
 		res.Files = append(res.Files, FileChange{Path: relItemPath(w.id), Before: w.before, After: after})
 	}
-	res.AdoptionID = "ead_" + ulid.At(o.Now)
-	if reason == "" {
-		reason = "người duyệt chấp nhận"
-	}
-	if !res.Verified {
-		reason += " (chưa kiểm chứng định lượng)"
-	} else if res.EvidenceKind = EvidenceKind(p, res.Evaluation.CaseIDs, o.Cases); res.EvidenceKind != "" {
-		reason += " (" + KindLabel(res.EvidenceKind) + ")"
-	}
-	harness, model, evalID := "", "", ""
-	if res.Evaluation != nil {
-		evalID = res.Evaluation.ID
-		harness, model, err = batchModel(ctx, o.DB, res.Evaluation.BatchID)
-		if err != nil {
-			return res, err
-		}
-	}
-	files, _ := json.Marshal(res.Files)
-	tx, err := o.DB.BeginTx(ctx, nil)
-	if err != nil {
-		restore()
+	if err := finishApply(ctx, o, p, &res, reason, restore); err != nil {
 		return res, err
 	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO evolution_adoptions (adoption_id, proposal_id, action, actor, verified,
-		evaluation_id, harness, model, files, reason, created_at) VALUES (?, ?, 'apply', ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?)`,
-		res.AdoptionID, p.ID, who, map[bool]int{true: 1, false: 0}[res.Verified], evalID, harness, model, string(files), reason,
-		store.FormatTime(o.Now)); err != nil {
-		restore()
-		return res, err
-	}
-	if err := SetStatus(ctx, tx, p.ID, StatusApplied, reason, o.Now); err != nil {
-		restore()
-		return res, err
-	}
-	if err := tx.Commit(); err != nil {
-		restore()
-		return res, err
-	}
-	p.Status = StatusApplied
 	for _, ch := range p.Changes {
 		if ch.Op == ActionCreate {
 			res.Notes = append(res.Notes, fmt.Sprintf("mục mới %s ở candidate (do agent soạn): duyệt bằng `bint knowledge review` hoặc `bint knowledge approve %s`", ch.ItemID, ch.ItemID))
@@ -485,6 +452,7 @@ func Rollback(ctx context.Context, o RollbackOptions) (RollbackResult, error) {
 			if err := os.Remove(abs); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return res, err
 			}
+			pruneEvolvedDirs(o.K.Root, f.Path)
 		} else {
 			os.MkdirAll(filepath.Dir(abs), 0o755)
 			if err := os.WriteFile(abs, []byte(*f.Before), 0o644); err != nil {
@@ -601,7 +569,19 @@ func HistoryOf(ctx context.Context, db *sql.DB, currentModel string, bindModel b
 				case currentModel == "" || a.Model == "":
 					e.ModelStatus = "không xác định được mô hình để đối chiếu"
 				case !strings.Contains(currentModel, a.Model) && !strings.Contains(a.Model, currentModel):
-					e.ModelStatus = fmt.Sprintf("chưa xác thực với mô hình hiện tại (%s; đã kiểm chứng với %s): kết quả cũ không dùng làm mốc cho mô hình mới", currentModel, a.Model)
+					e.ModelStatus = fmt.Sprintf("chưa xác thực với mô hình hiện tại (%s; đã kiểm chứng với %s): kết quả cũ không dùng làm mốc cho mô hình mới; kiểm tra hồi quy: `bint evolve evaluate %s --regression --yes`", currentModel, a.Model, p.ID)
+					if rv, ok, err := latestRegression(ctx, db, p.ID, currentModel); err != nil {
+						return nil, err
+					} else if ok {
+						switch rv.Verdict {
+						case VerdictSupported:
+							e.ModelStatus = "đã xác thực lại với " + currentModel + " (kiểm tra hồi quy): " + rv.Detail
+						case VerdictNotSupported:
+							e.ModelStatus = "HỒI QUY với " + currentModel + ": không còn bằng chứng cải tiến có lợi (" + rv.Detail + "); cân nhắc quay lui"
+						default:
+							e.ModelStatus = "kiểm tra hồi quy với " + currentModel + " chưa kết luận: " + rv.Detail
+						}
+					}
 				default:
 					e.ModelStatus = "khớp mô hình hiện tại"
 				}
@@ -628,4 +608,68 @@ func CurrentModel(ctx context.Context, db *sql.DB, configured *string) string {
 	db.QueryRowContext(ctx, `SELECT model FROM runs WHERE model IS NOT NULL AND model <> '' ORDER BY started_at DESC LIMIT 1`).Scan(&m)
 	primary, _, _ := strings.Cut(m.String, ",")
 	return primary
+}
+
+// finishApply ghi bản kiểm toán áp dụng và đổi trạng thái đề xuất (một giao dịch). Lỗi →
+// restore trả tệp về như trước khi áp dụng. Dùng chung cho đề xuất tri thức và skill.
+func finishApply(ctx context.Context, o ApplyOptions, p *Proposal, resp *ApplyResult, reason string, restore func()) error {
+	res := *resp
+	who := app.GitIdentity(ctx, o.K.Root)
+	var err error
+	res.AdoptionID = "ead_" + ulid.At(o.Now)
+	if reason == "" {
+		reason = "người duyệt chấp nhận"
+	}
+	if !res.Verified {
+		reason += " (chưa kiểm chứng định lượng)"
+	} else if res.EvidenceKind = EvidenceKind(p, res.Evaluation.CaseIDs, o.Cases); res.EvidenceKind != "" {
+		reason += " (" + KindLabel(res.EvidenceKind) + ")"
+	}
+	harness, model, evalID := "", "", ""
+	if res.Evaluation != nil {
+		evalID = res.Evaluation.ID
+		harness, model, err = batchModel(ctx, o.DB, res.Evaluation.BatchID)
+		if err != nil {
+			return err
+		}
+	}
+	files, _ := json.Marshal(res.Files)
+	tx, err := o.DB.BeginTx(ctx, nil)
+	if err != nil {
+		restore()
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `INSERT INTO evolution_adoptions (adoption_id, proposal_id, action, actor, verified,
+		evaluation_id, harness, model, files, reason, created_at) VALUES (?, ?, 'apply', ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?)`,
+		res.AdoptionID, p.ID, who, map[bool]int{true: 1, false: 0}[res.Verified], evalID, harness, model, string(files), reason,
+		store.FormatTime(o.Now)); err != nil {
+		restore()
+		return err
+	}
+	if err := SetStatus(ctx, tx, p.ID, StatusApplied, reason, o.Now); err != nil {
+		restore()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		restore()
+		return err
+	}
+	p.Status = StatusApplied
+	*resp = res
+	return nil
+}
+
+// pruneEvolvedDirs xoá thư mục skill tiến hoá còn trống sau khi tệp bị gỡ (quay lui đề xuất tạo
+// skill). Chỉ động tới .bint/skills/evolved: thư mục tri thức được giữ nguyên dù trống.
+func pruneEvolvedDirs(root, rel string) {
+	if !strings.HasPrefix(rel, skills.EvolvedRel+"/") {
+		return
+	}
+	stop := filepath.Join(root, filepath.FromSlash(skills.EvolvedRel))
+	for dir := filepath.Dir(filepath.Join(root, filepath.FromSlash(rel))); dir != stop && strings.HasPrefix(dir, stop); dir = filepath.Dir(dir) {
+		if os.Remove(dir) != nil { // không rỗng
+			return
+		}
+	}
 }

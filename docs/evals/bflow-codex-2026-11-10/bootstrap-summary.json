@@ -1,0 +1,30 @@
+[
+  {
+    "base": "067dbfd57973b72db8f5f0719da45592696186cc",
+    "created_at": "2026-11-10T07:33:52Z",
+    "harness": "command",
+    "harness_version": null,
+    "model": "gpt-6.1-sol",
+    "cost_usd": null,
+    "duration_ms": 84892,
+    "agent_exit_code": 0,
+    "items": 4,
+    "skill_sha": "4ce0e1d98454a778",
+    "bint_version": "0.1.0-dev",
+    "error": null
+  },
+  {
+    "base": "5cbab0535230fa9b8d17d0967f6aba9862aa0e94",
+    "created_at": "2026-11-10T07:32:11Z",
+    "harness": "command",
+    "harness_version": null,
+    "model": "gpt-6.1-sol",
+    "cost_usd": null,
+    "duration_ms": 95301,
+    "agent_exit_code": 0,
+    "items": 4,
+    "skill_sha": "4ce0e1d98454a778",
+    "bint_version": "0.1.0-dev",
+    "error": null
+  }
+]

@@ -15,6 +15,7 @@ import (
 	"bint/internal/eval"
 	"bint/internal/knowledge"
 	"bint/internal/runlog"
+	"bint/internal/skills"
 )
 
 // Loại cơ hội tiến hoá (mục 10.2).
@@ -62,8 +63,10 @@ type FileStat struct {
 
 // Opportunity là một cơ hội tiến hoá L1.
 type Opportunity struct {
-	ID        string     `json:"id"`
-	Key       string     `json:"key"`
+	ID  string `json:"id"`
+	Key string `json:"key"`
+	// Level: "" hoặc L1 = tri thức; L2 = skill (P7).
+	Level     string     `json:"level,omitempty"`
 	Kind      string     `json:"kind"`
 	Action    string     `json:"action"`
 	Generator string     `json:"generator"`
@@ -129,6 +132,10 @@ type ScanInput struct {
 	Now     time.Time
 	Window  time.Duration
 	History *History // nil = nạp từ DB
+	// Evolved và Files: skill tiến hoá hiện có và tệp theo dõi của repository, cho cơ hội
+	// L2 (nil = không quét skill).
+	Evolved []*skills.Evolved
+	Files   []string
 }
 
 // DefaultWindow là cửa sổ lịch sử mặc định khi memory.retention_days không đặt.
@@ -313,6 +320,9 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 			add(o, e)
 		}
 	}
+
+	// Theo skill tiến hoá (L2).
+	scanSkills(in, h, groups, m, add)
 
 	// Theo mục tri thức.
 	labeledOf := func(ids []string) []string {

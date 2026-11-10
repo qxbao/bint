@@ -1,6 +1,6 @@
 # Cổng quyết định 2 — Context Engine
 
-**Trạng thái: ĐÃ CHỐT (2026-11-10) — chưa chạy đo.**
+**Trạng thái: ĐÃ CHỐT (2026-11-10) — cổng chính thức chưa mở; có pilot Codex để thăm dò kỹ thuật.**
 Theo mục 16 và 19 của kế hoạch, ngưỡng dưới đây được chốt và commit trước khi chạy
 đo (SHA ở mục "Chốt" cuối tài liệu). Không điều chỉnh ngưỡng, thước đo, điều kiện hay
 quy trình sau khi đã thấy kết quả; mọi thay đổi phải là một lần chốt mới, ghi rõ lý do,
@@ -88,4 +88,16 @@ bint eval report <batch> --json > gate2-<repo>.json
 
 ## Kết quả
 
-_(chưa chạy)_
+Pilot Codex thật trên Bflow ngày 2026-11-10 được ghi tại
+[báo cáo và artifact](evals/bflow-codex-2026-11-10/README.md).
+Nhánh `bint` trong pilot dùng cùng snapshot strict với `minimal`, qua MCP + AGENTS.md;
+đây là thăm dò kỹ thuật, chưa phải phép đo đủ điều kiện mở gate 2.
+Đợt so sánh đã hoàn tất: bint và minimal cùng đạt 3/6 lượt (50%);
+6/6 lượt bint có truy xuất, 4 lời gọi cite bị chặn quyền, số trích dẫn ghi nhận bằng 0.
+
+**Quyết định hiện tại: chưa mở gate chính thức.** Gate 1 chưa được nghiệm thu;
+mới có một repository và hai tác vụ validation. Codex không báo chi phí USD để kiểm tra
+ràng buộc +25%, và nhánh đánh giá Codex chưa có path hook. Không báo pilot là gate đã qua.
+
+Quyết định về sai khác fingerprint và tín hiệu còn thiếu:
+[fingerprint-outcome-decisions.md](fingerprint-outcome-decisions.md).

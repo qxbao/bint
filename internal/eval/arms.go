@@ -15,6 +15,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/ctxengine"
 	"bint/internal/knowledge"
+	"bint/internal/skills"
 )
 
 // Các nhánh so sánh (mục 12.4).
@@ -46,7 +47,16 @@ type Variant struct {
 	// Candidate biến tập tri thức của tác vụ (đã lọc chống rò rỉ) thành tập ứng viên.
 	// Không được sửa các mục đầu vào. Trả lỗi bọc ErrArmUnavailable khi đề xuất không
 	// áp dụng được tại commit gốc của tác vụ.
+	// Base biến tập tri thức của nhánh base (nil = dùng nguyên). Chỉ dùng khi kiểm tra hồi quy
+	// một đề xuất đã áp dụng: base = tập TRƯỚC đề xuất (dựng lại), candidate = tập hiện tại.
+	Base func(ctx context.Context, items []*knowledge.Item, c *Case, leak *LeakInput) ([]*knowledge.Item, error)
+	// nil = đề xuất không đổi tri thức (đề xuất skill, P7).
 	Candidate func(ctx context.Context, items []*knowledge.Item, c *Case, leak *LeakInput) ([]*knowledge.Item, error)
+	// Skills trả về tập skill (tên → nội dung SKILL.md) đặt vào thư mục làm việc của một
+	// nhánh (ArmBase hoặc ArmCandidate) cho tác vụ c; nil = không đặt skill nào. Đề xuất
+	// skill (L2) đối chiếu hai tập skill, cùng một tập tri thức. Trả lỗi bọc
+	// ErrArmUnavailable khi đề xuất không áp dụng được cho tác vụ.
+	Skills func(ctx context.Context, arm string, c *Case, leak *LeakInput) (map[string][]byte, error)
 }
 
 // DeliveryArm trả về nhánh thực sự quyết định cách đưa ngữ cảnh (base/candidate →
@@ -175,12 +185,28 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 	if variant {
 		// Đề xuất được đánh giá như thể đã được áp dụng: cùng tập tri thức, cùng cách đưa
 		// tới agent; chỉ khác ở thay đổi của đề xuất.
-		if arm == ArmCandidate {
+		if arm == ArmBase && env.Variant.Base != nil {
+			if ks.items, err = env.Variant.Base(ctx, ks.items, c, leakIn); err != nil {
+				return s, err
+			}
+		}
+		if arm == ArmCandidate && env.Variant.Candidate != nil {
 			if ks.items, err = env.Variant.Candidate(ctx, ks.items, c, leakIn); err != nil {
 				return s, err
 			}
 		}
 		ks.src = fmt.Sprintf("%s{%s:%s}", ks.src, arm, env.Variant.Label)
+		if env.Variant.Skills != nil {
+			set, err := env.Variant.Skills(ctx, arm, c, leakIn)
+			if err != nil {
+				return s, err
+			}
+			desc, err := writeSkillSet(dir, set)
+			if err != nil {
+				return s, err
+			}
+			ks.src += desc
+		}
 		arm = env.Variant.Delivery
 	}
 	s.Screening = ks.screening
@@ -320,6 +346,34 @@ func minimalContent(ctx context.Context, mode, repoDir, minimalPath string, c *C
 		}
 	}
 	return data, fmt.Sprintf("worktree:%s#%s", rel, hash12(data)), true, nil
+}
+
+// writeSkillSet đặt skill vào thư mục làm việc ở cả hai nơi harness đọc skill cấp dự án
+// (.claude/skills và .agents/skills, đúng định dạng từng nơi) và trả về mô tả để kiểm toán.
+func writeSkillSet(dir string, set map[string][]byte) (string, error) {
+	var names []string
+	for n := range set {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var parts []string
+	for _, n := range names {
+		sk := skills.Skill{Name: n, Content: set[n]}
+		for _, t := range []skills.Target{skills.ClaudeTarget, skills.AgentsTarget} {
+			p := filepath.Join(dir, filepath.FromSlash(t.Dir), n, "SKILL.md")
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				return "", err
+			}
+			if err := os.WriteFile(p, skills.ForTarget(sk, t).Content, 0o644); err != nil {
+				return "", err
+			}
+		}
+		parts = append(parts, n+"@"+sk.Hash())
+	}
+	if len(parts) == 0 {
+		return "+skills[]", nil
+	}
+	return "+skills[" + strings.Join(parts, ",") + "]", nil
 }
 
 func hash12(b []byte) string {

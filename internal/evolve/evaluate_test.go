@@ -183,6 +183,33 @@ echo '{"type":"result","num_turns":2}'
 	if probs, _ := p2.CheckBase(k.Store); len(probs) != 1 {
 		t.Fatalf("base p2: %+v", probs)
 	}
+
+	// Kiểm tra hồi quy khi đổi mô hình cho đề xuất TRI THỨC đã áp dụng: base = tập trước đề xuất
+	// (dựng lại từ bản ghi kiểm toán), candidate = hiện tại.
+	bi, err := BeforeItems(ctx, db, p)
+	if err != nil || len(bi) != 1 || bi[p.Changes[0].ItemID] != nil {
+		t.Fatalf("trước đề xuất tạo: mục chưa tồn tại: %v %v", err, bi)
+	}
+	curItems, _, _ := k.Items()
+	after := map[string]*knowledge.Item{}
+	for _, it := range curItems {
+		after[it.ID] = it
+	}
+	env.Variant = RegressionVariant(p, eval.ArmMinimal, root, bi, after)
+	rrec := Evaluation{ProposalID: p.ID, BaseKey: p.BaseKey(), Delivery: eval.ArmMinimal, CreatedAt: store.FormatTime(now), Kind: EvalRegression}
+	for _, c := range cases {
+		rrec.CaseIDs = append(rrec.CaseIDs, c.ID)
+	}
+	rres, err := eval.Run(ctx, env, db, eval.RunOptions{Cases: cases, Arms: []string{eval.ArmBase, eval.ArmCandidate}, Repeats: 2,
+		LeakageMode: eval.LeakEconomy, Agent: &eval.CommandAgent{Command: "sh " + filepath.ToSlash(script)}, Seed: 5, BintVersion: "test",
+		OnBatch: func(id string) error { rrec.BatchID = id; return RecordEvaluation(ctx, db, &rrec) }})
+	if err != nil || rres.Done != 8 {
+		t.Fatalf("hồi quy: %v %+v", err, rres)
+	}
+	rv, _, err := Finalize(ctx, db, p, rrec, current)
+	if err != nil || rv.Verdict != VerdictSupported {
+		t.Fatalf("hồi quy phải supported (cải tiến vẫn có lợi): %v %+v", err, rv)
+	}
 }
 
 func TestDerivedFromWindowAndKind(t *testing.T) {

@@ -1,0 +1,40 @@
+{
+  "recorded_at": "2026-11-10T08:20:24.146932+00:00",
+  "comparison_batch": "eb_01M726DEZ2Q15V34AF085HMTWA",
+  "gate_1": {
+    "formal_status": "INCONCLUSIVE_NOT_ELIGIBLE",
+    "pilot_noninferiority_observed": true,
+    "pilot_pass_rate_difference": {
+      "mean": 0,
+      "ci95": [
+        0,
+        0
+      ],
+      "n": 2
+    },
+    "efficiency_condition": "NOT_MEASURABLE: USD cost and num_turns unavailable",
+    "admissibility": "NOT_MET: one repo, two validation tasks; requires two ecosystems and >=20 test tasks per repo"
+  },
+  "gate_2": {
+    "formal_status": "NOT_OPENED",
+    "pilot_pass_rate_superiority_observed": false,
+    "pilot_pass_rate_difference": {
+      "mean": 0,
+      "ci95": [
+        0,
+        0
+      ],
+      "n": 2
+    },
+    "cost_cap_condition": "NOT_MEASURABLE: USD cost unavailable",
+    "retrieval_fraction_observed": 1.0,
+    "retrieval_threshold_observed": true,
+    "delivery_limitation": "Codex MCP + AGENTS.md only; no path hook in eval; 4 cite calls denied approval"
+  },
+  "no_threshold_changes": true,
+  "missing_cost_and_turns_are_not_zero": true,
+  "statistical_caution": "Paired bootstrap CI [0,0] describes only two cases whose outcomes are identical across arms; it is not proof of repository-wide equivalence.",
+  "oracle_review": "cf367037230c7 exact diagnostic wording needs owner review; scores and tests preserved",
+  "fingerprint_decision": "D-FP-01: hunk/lines for this TS pilot; eight candidates, 21 lines fingerprints; no claim of tree-sitter support",
+  "signals_decision": "D-SIG-01: defer user diff-edit attribution; keep weak/medium-only runs unlabeled; blocked cite permission is not evidence of non-application"
+}

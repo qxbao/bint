@@ -1,6 +1,6 @@
 # Cổng quyết định 1 — Bootstrap tối giản
 
-**Trạng thái: ĐÃ CHỐT (2026-11-10) — chưa chạy đo.**
+**Trạng thái: ĐÃ CHỐT (2026-11-10) — có pilot Codex; chưa đủ điều kiện nghiệm thu chính thức.**
 Theo mục 16 và 19 của kế hoạch, ngưỡng dưới đây được chốt và commit trước khi chạy
 đo (SHA ở mục "Chốt" cuối tài liệu). Không điều chỉnh ngưỡng, điều kiện hay quy trình
 sau khi đã thấy kết quả; mọi thay đổi phải là một lần chốt mới, ghi rõ lý do, và chỉ
@@ -86,4 +86,15 @@ bint eval report <batch> --json > gate1-<repo>.json
 
 ## Kết quả
 
-_(chưa chạy)_
+Pilot Codex thật trên Bflow ngày 2026-11-10 được ghi tại
+[báo cáo và artifact](evals/bflow-codex-2026-11-10/README.md).
+Baseline P1 hoàn tất 6 lượt trên 2 tác vụ validation, đạt 3/6 lượt (50%),
+CI95 [0%, 100%]. Đợt so sánh đã hoàn tất 18 lượt: none, minimal và bint đều đạt 3/6 lượt (50%).
+Chênh lệch minimal−none là 0 điểm % trong mẫu; đây chưa phải phép đo gate chính thức.
+
+**Quyết định hiện tại: chưa đủ điều kiện nghiệm thu.** Mới có một repository,
+hai tác vụ validation; adapter Codex không cung cấp USD hoặc `num_turns` để kiểm tra
+điều kiện hiệu quả. Không thay token/thời gian vào ngưỡng đã chốt sau khi thấy dữ liệu.
+
+Quyết định về sai khác fingerprint và tín hiệu còn thiếu:
+[fingerprint-outcome-decisions.md](fingerprint-outcome-decisions.md).

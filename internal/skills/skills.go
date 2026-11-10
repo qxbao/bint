@@ -88,6 +88,8 @@ const LockRel = ".bint/skills/core.lock"
 type Lock struct {
 	BintVersion string               `yaml:"bint_version"`
 	Skills      map[string]LockEntry `yaml:"skills"`
+	// Evolved: skill chuyên biệt do tiến hoá tạo ra đã được xuất bản (P7).
+	Evolved map[string]LockEntry `yaml:"evolved,omitempty"`
 }
 
 // LockEntry ghi phiên bản một skill gốc.
@@ -221,6 +223,9 @@ type InstallOptions struct {
 	BackupDir   string
 	Manifest    *fsafe.Manifest
 	Now         time.Time
+	// Files: các tệp theo dõi của repository, để phát hiện skill tiến hoá lỗi thời
+	// (nil = bỏ qua kiểm tra này).
+	Files []string
 }
 
 // Install ghép skill gốc với lớp phủ, xuất bản cho các harness và cập nhật
@@ -281,6 +286,11 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 	for _, orphan := range OrphanOverlays(opts.Root) {
 		outs = append(outs, Outcome{Skill: strings.TrimSuffix(filepath.Base(orphan), ".md"), Path: orphan, Result: fsafe.Conflict,
 			Detail: "lớp phủ cho skill gốc không tồn tại (đổi tên hoặc bị bỏ ở phiên bản này?)"})
+	}
+	eo, err := installEvolved(opts, &lock)
+	outs = append(outs, eo...)
+	if err != nil {
+		return outs, err
 	}
 	if _, err := writeLock(opts.Root, lock); err != nil {
 		return outs, err

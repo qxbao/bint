@@ -1,0 +1,42 @@
+package workflow
+import (
+ "fmt"
+ "os"
+ "path/filepath"
+ "strings"
+ "sync"
+ "sync/atomic"
+ "testing"
+ "time"
+)
+func TestReacceptStaleReclamationExclusive(t *testing.T) {
+ tasks:=filepath.Join(t.TempDir(),"tasks")
+ root:=t.TempDir()
+ var overlap,acquired atomic.Int64
+ for round:=0;round<24;round++ {
+  l,err:=AcquireWriteLock(tasks,root,"dead-owner")
+  if err!=nil {t.Fatal(err)}
+  lines:=strings.Split(l.content,"\n");lines[0]="2147483646"
+  if err:=os.WriteFile(l.path,[]byte(strings.Join(lines,"\n")),0600);err!=nil {t.Fatal(err)}
+  var active atomic.Int64
+  var wg sync.WaitGroup
+  start:=make(chan struct{})
+  for w:=0;w<24;w++ {
+   wg.Add(1)
+   go func(n int){defer wg.Done();<-start
+    for j:=0;j<30;j++{
+     own,err:=AcquireWriteLock(tasks,root,fmt.Sprint(n))
+     if err!=nil {continue}
+     acquired.Add(1)
+     if active.Add(1)>1 {overlap.Add(1)}
+     time.Sleep(150*time.Microsecond)
+     active.Add(-1)
+     own.Release()
+    }
+   }(w)
+  }
+  close(start);wg.Wait()
+ }
+ if overlap.Load()>0 {t.Fatalf("stale reclamation violated exclusivity: overlapping acquisitions=%d total=%d",overlap.Load(),acquired.Load())}
+ t.Logf("no overlap in %d acquisitions",acquired.Load())
+}

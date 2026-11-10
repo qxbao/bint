@@ -16,6 +16,7 @@ import (
 	"bint/internal/eval"
 	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
+	"bint/internal/skills"
 	"bint/internal/store"
 	"bint/internal/task"
 	"bint/internal/ulid"
@@ -197,6 +198,13 @@ func indexItems(items []*knowledge.Item) map[string]*knowledge.Item {
 
 // deterministicProposal dựng đề xuất không cần mô hình: loại bỏ và gộp mục trùng.
 func deterministicProposal(in ProposeInput, o Opportunity, items []*knowledge.Item) (*Proposal, error) {
+	if o.Level == LevelL2 {
+		all, _, err := skills.LoadEvolved(in.K.Root)
+		if err != nil {
+			return nil, err
+		}
+		return deterministicSkillProposal(in, o, all)
+	}
 	byID := indexItems(items)
 	var targets []*knowledge.Item
 	for _, id := range o.Targets {
@@ -352,6 +360,13 @@ type agentCandidate struct {
 }
 
 func agentProposal(ctx context.Context, in ProposeInput, o Opportunity, items []*knowledge.Item, remaining float64) (*Proposal, []string, *float64, error) {
+	if o.Level == LevelL2 {
+		all, _, err := skills.LoadEvolved(in.K.Root)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return agentSkillProposal(ctx, in, o, all, remaining)
+	}
 	byID := indexItems(items)
 	var target *knowledge.Item
 	action := ActionCreate

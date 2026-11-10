@@ -55,7 +55,7 @@ func SettingsPath(scope Scope, repoRoot string) (string, error) {
 // HookTimeoutSeconds giới hạn thời gian mỗi lần chạy hook; hook chỉ ghi một tệp nhỏ.
 const HookTimeoutSeconds = 10
 
-const toolMatcher = "Edit|Write|MultiEdit|NotebookEdit|Bash|mcp__bint__.*"
+const toolMatcher = "Edit|Write|MultiEdit|NotebookEdit|Bash|Skill|mcp__bint__.*"
 
 // pathMatcher: công cụ được chèn ngữ cảnh theo đường dẫn (PreToolUse).
 const pathMatcher = "Read|Edit|Write|MultiEdit|NotebookEdit"

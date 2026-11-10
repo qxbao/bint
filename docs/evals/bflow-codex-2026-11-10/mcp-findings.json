@@ -1,0 +1,38 @@
+[
+  {
+    "attempt_id": "ea_01M7272H23Y492J6ZFVPMKS4JF",
+    "case_id": "cf367037230c7",
+    "server": "bint",
+    "tool": "cite_knowledge",
+    "error": {
+      "message": "MCP tool call requires approval, but approval policy is never"
+    }
+  },
+  {
+    "attempt_id": "ea_01M727EEKF712EHN522EVR87MR",
+    "case_id": "c63becc87df97",
+    "server": "bint",
+    "tool": "cite_knowledge",
+    "error": {
+      "message": "MCP tool call requires approval, but approval policy is never"
+    }
+  },
+  {
+    "attempt_id": "ea_01M727ZGJW0F8VZD99P2D467EA",
+    "case_id": "c63becc87df97",
+    "server": "bint",
+    "tool": "cite_knowledge",
+    "error": {
+      "message": "MCP tool call requires approval, but approval policy is never"
+    }
+  },
+  {
+    "attempt_id": "ea_01M728BRGNYXNDGDYFPVZN7PP8",
+    "case_id": "c63becc87df97",
+    "server": "bint",
+    "tool": "cite_knowledge",
+    "error": {
+      "message": "MCP tool call requires approval, but approval policy is never"
+    }
+  }
+]

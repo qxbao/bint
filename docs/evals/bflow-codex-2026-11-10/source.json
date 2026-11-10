@@ -1,0 +1,12 @@
+{
+  "source": "/home/DUCLH/orca/bflow",
+  "head": "9d071abe858606b526cffcb087a233763df0a956",
+  "git_status": " M packages/runtime/test/agentic/flow04-platform-startup.test.ts\n",
+  "dirty_file_sha256": "e5538239766faf179c2a708e3e27c3b8a2ec75e4986938f80d3841f5ee0308cc",
+  "created_at": "20261110T071615Z",
+  "experiment_dir": "/home/DUCLH/.local/state/bint/experiments/bflow-20261110T071615Z",
+  "bint_binary_sha256": "cdbd02e2a3b5354d6f45201262834e2be4e45fc5de865cc30331e3438009a471",
+  "codex_harness_version": "0.167.0",
+  "auth_mode": "ChatGPT; isolated CODEX_HOME/HOME; API-key env removed; user config ignored",
+  "source_worktree_mutated_by_experiment": false
+}

@@ -24,9 +24,17 @@ func newSkillCmd(stdio IO) *cobra.Command {
 .bint/skills/overlays/<skill>.md, chỉ tại các điểm neo skill gốc khai báo. ` + "`bint sync`" + `
 ghép skill gốc với lớp phủ và xuất bản cho harness; core.lock ghi phiên bản đang dùng.
 
-Khi nâng cấp Bint, lớp phủ được áp lại; điểm neo không còn → xung đột, bản cũ được giữ.`,
+Khi nâng cấp Bint, lớp phủ được áp lại; điểm neo không còn → xung đột, bản cũ được giữ.
+
+Skill chuyên biệt do tiến hoá tạo (L2, ` + "`bint evolve`" + `) nằm trong .bint/skills/evolved/<tên>/ và được
+xuất bản cùng skill gốc. Mỗi phiên bản gắn với mô hình đã kiểm chứng nó:
+  bint skill diff <tên>      bản thay đổi giữa hai phiên bản
+  bint skill versions <tên>  lịch sử phiên bản, mô hình, người duyệt
+  bint skill check <tên|đề xuất>  kiểm tra điều kiện kích hoạt
+  bint skill regress         skill nào chưa xác thực với mô hình hiện dùng`,
 	}
-	c.AddCommand(newSkillListCmd(stdio), newSkillShowCmd(stdio), newSkillOverlayCmd(stdio))
+	c.AddCommand(newSkillListCmd(stdio), newSkillShowCmd(stdio), newSkillOverlayCmd(stdio), newSkillDiffCmd(stdio),
+		newSkillVersionsCmd(stdio), newSkillCheckCmd(stdio), newSkillRegressCmd(stdio))
 	return c
 }
 
@@ -40,6 +48,10 @@ type skillRow struct {
 	Targets map[string]string `json:"targets,omitempty"`
 	Locked  string            `json:"locked,omitempty"`
 	Problem string            `json:"problem,omitempty"`
+	// Kind: core | evolved. Skill tiến hoá: Status (active | deprecated), Stale (lý do lỗi thời).
+	Kind   string `json:"kind"`
+	Status string `json:"status,omitempty"`
+	Stale  string `json:"stale,omitempty"`
 }
 
 func newSkillListCmd(stdio IO) *cobra.Command {
@@ -57,7 +69,7 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 			targets := harness.SkillTargets(k.Config.Harnesses.Enabled)
 			rows := []skillRow{}
 			for _, core := range skills.Core() {
-				row := skillRow{Name: core.Name, Version: core.Hash(), Overlay: "-", Published: "-"}
+				row := skillRow{Name: core.Name, Version: core.Hash(), Overlay: "-", Published: "-", Kind: "core"}
 				if as, err := core.Anchors(); err == nil {
 					for _, a := range as {
 						row.Anchors = append(row.Anchors, a.Name)
@@ -84,12 +96,40 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 				}
 				rows = append(rows, row)
 			}
+			evolved, evProblems, _ := skills.LoadEvolved(k.Root)
+			files := k.Source().Files()
+			for _, ev := range evolved {
+				row := skillRow{Name: ev.Meta.Name, Version: fmt.Sprintf("v%d", ev.Meta.Version), Overlay: "-", Published: "-", Kind: "evolved",
+					Status: ev.Meta.Status, Anchors: ev.Meta.Triggers.Paths}
+				if stale, why := ev.Stale(files); stale {
+					row.Stale = why
+				}
+				if ev.Active() && row.Stale == "" && len(targets) > 0 {
+					row.Targets = map[string]string{}
+					var parts []string
+					for _, t := range targets {
+						st, _ := skills.Status(k.Root, t, ev.AsSkill())
+						row.Targets[t.Dir] = st
+						parts = append(parts, t.Dir+":"+st)
+					}
+					row.Published = strings.Join(parts, " ")
+				}
+				rows = append(rows, row)
+			}
 			if asJSON {
 				return writeJSON(stdio.Out, rows)
 			}
 			tw := tabwriter.NewWriter(stdio.Out, 0, 2, 2, ' ', 0)
 			fmt.Fprintln(tw, "SKILL\tPHIÊN BẢN\tCORE.LOCK\tLỚP PHỦ\tXUẤT BẢN\tĐIỂM NEO")
 			for _, r := range rows {
+				if r.Kind == "evolved" {
+					state := "tiến hoá/" + r.Status
+					if r.Stale != "" {
+						state += ", lỗi thời"
+					}
+					fmt.Fprintf(tw, "%s\t%s\t-\t%s\t%s\t%s\n", r.Name, r.Version, state, r.Published, strings.Join(r.Anchors, ", "))
+					continue
+				}
 				locked := "-"
 				if r.Locked != "" {
 					locked = r.Locked
@@ -100,7 +140,13 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", r.Name, r.Version, locked, r.Overlay, r.Published, strings.Join(r.Anchors, ", "))
 			}
 			tw.Flush()
+			for _, p := range evProblems {
+				fmt.Fprintf(stdio.Out, "✗ skill tiến hoá hỏng: %s\n", p)
+			}
 			for _, r := range rows {
+				if r.Stale != "" {
+					fmt.Fprintf(stdio.Out, "! %s lỗi thời, không được xuất bản: %s\n", r.Name, r.Stale)
+				}
 				if r.Problem != "" {
 					fmt.Fprintf(stdio.Out, "✗ %s: %s\n", r.Name, r.Problem)
 				}
@@ -125,7 +171,13 @@ func newSkillShowCmd(stdio IO) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, ok := skills.Get(args[0])
 			if !ok {
-				return fmt.Errorf("không có skill gốc %q", args[0])
+				if k, err := openKnowledge(cmd); err == nil {
+					if ev, err := skills.LoadEvolvedOne(k.Root, args[0]); err == nil {
+						_, werr := stdio.Out.Write(ev.Content)
+						return werr
+					}
+				}
+				return fmt.Errorf("không có skill %q (gốc hoặc tiến hoá)", args[0])
 			}
 			if !core {
 				if k, err := openKnowledge(cmd); err == nil {

@@ -1,0 +1,10 @@
+{
+  "gate-1.md": {
+    "frozen_body_sha256": "d0058a6c5a4568896d7215d2f4b5fc7b4b13b887eecca01e4a66ba8c692d0059",
+    "source": "Existing committed gate contract; results section excluded"
+  },
+  "gate-2.md": {
+    "frozen_body_sha256": "2310c3fe54bae3f1657da58898509b2fcbce64afc7f9e32e77b7213f33548430",
+    "source": "Existing committed gate contract; results section excluded"
+  }
+}

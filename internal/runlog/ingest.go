@@ -210,6 +210,14 @@ func applyRunEffects(ctx context.Context, tx *sql.Tx, runID string, e spool.Even
 			}
 		}
 		return nil
+	case spool.SkillActivated:
+		name := str(p, "skill")
+		if name == "" {
+			return nil
+		}
+		_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO run_skill_usages (usage_id, run_id, event_id, skill, created_at)
+			VALUES (?, ?, ?, ?, ?)`, ulid.New(), runID, e.EventID, name, ts)
+		return err
 	case spool.TestCompleted:
 		cmd := str(p, "command")
 		if cmd == "" {

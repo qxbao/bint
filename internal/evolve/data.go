@@ -39,7 +39,9 @@ type Run struct {
 	ReadCount int      `json:"read_count"`
 	Retrieved []string `json:"retrieved,omitempty"`
 	Cited     []string `json:"cited,omitempty"`
-	CostUSD   *float64 `json:"cost_usd,omitempty"`
+	// Skills: skill đã kích hoạt trong lượt (sự kiện skill.activated).
+	Skills  []string `json:"skills,omitempty"`
+	CostUSD *float64 `json:"cost_usd,omitempty"`
 	// Module là khu vực mã chính của lượt (xem ModuleOf).
 	Module string `json:"module"`
 }
@@ -81,6 +83,10 @@ type History struct {
 	CitedRuns     map[string][]string
 	// Revalidation: nhận định gần nhất của agent cho mục stale (mục 8.4).
 	Revalidation map[string]string
+	// SkillRuns: skill → lượt gốc đã kích hoạt nó (sự kiện skill.activated). SkillData = có ít
+	// nhất một sự kiện trong cửa sổ — không có thì không kết luận được skill bị bỏ qua.
+	SkillRuns map[string][]string
+	SkillData bool
 }
 
 // ModuleOf trả về khu vực mã của một tệp: tối đa hai cấp thư mục đầu ("internal/eval"
@@ -119,7 +125,7 @@ func primaryModule(modified, read []string) string {
 // LoadHistory nạp các lượt chạy đã kết thúc trong cửa sổ lookback, gộp lượt con vào
 // lượt gốc, tính nhãn kết quả từ tín hiệu (mục 9.6).
 func LoadHistory(ctx context.Context, db *sql.DB, now time.Time, lookback time.Duration) (*History, error) {
-	h := &History{ByID: map[string]*Run{}, RetrievedRuns: map[string][]string{}, CitedRuns: map[string][]string{}, Revalidation: map[string]string{}}
+	h := &History{ByID: map[string]*Run{}, SkillRuns: map[string][]string{}, RetrievedRuns: map[string][]string{}, CitedRuns: map[string][]string{}, Revalidation: map[string]string{}}
 	since := store.FormatTime(now.Add(-lookback))
 	rows, err := db.QueryContext(ctx, `SELECT run_id, COALESCE(parent_run_id, ''), COALESCE(workflow, ''), COALESCE(harness, ''),
 		COALESCE(model, ''), COALESCE(task_id, ''), COALESCE(started_at, ''),
@@ -262,6 +268,12 @@ func LoadHistory(ctx context.Context, db *sql.DB, now time.Time, lookback time.D
 		h.CitedRuns, func(r *Run, id string) { r.Cited = appendUnique(r.Cited, id) }); err != nil {
 		return nil, err
 	}
+
+	if err := usage(`SELECT COALESCE(run_id, ''), skill FROM run_skill_usages WHERE created_at >= ? ORDER BY created_at`,
+		h.SkillRuns, func(r *Run, id string) { r.Skills = appendUnique(r.Skills, id) }); err != nil {
+		return nil, err
+	}
+	h.SkillData = len(h.SkillRuns) > 0
 
 	obs, err := db.QueryContext(ctx, `SELECT COALESCE(run_id, ''), kind, title, COALESCE(body, ''), paths, COALESCE(item_id, '')
 		FROM observations WHERE created_at >= ? ORDER BY created_at`, since)

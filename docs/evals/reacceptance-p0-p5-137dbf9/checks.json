@@ -1,0 +1,103 @@
+{
+  "source_head": "137dbf939ea783357e23be9e87b70b5d7199a5b4",
+  "platform": "Linux amd64, Go 1.25.1",
+  "checks": [
+    {
+      "command": "CGO_ENABLED=0 go build -o /tmp/bint-reacceptance-137dbf9 ./cmd/bint",
+      "exit": 0
+    },
+    {
+      "command": "go vet ./...",
+      "exit": 0
+    },
+    {
+      "command": "go test -count=1 ./...",
+      "exit": 1,
+      "failed_package": "bint/internal/workflow",
+      "failed_test": "TestAcquireWriteLockExclusiveAcrossProcesses",
+      "evidence": "tiến trình 5: hai tiến trình cùng giữ khoá: open .../inside: file exists; other children timed out before 20 acquisitions"
+    },
+    {
+      "command": "go test -race -count=1 ./...",
+      "exit": 0
+    },
+    {
+      "command": "go test -count=2 ./internal/workflow -run ^TestAcquireWriteLockExclusiveAcrossProcesses$ -v",
+      "exit": 0,
+      "passes": 2,
+      "note": "Does not negate the full-suite failure or stale-reclamation probe failures"
+    },
+    {
+      "command": "go test -count=1 -overlay /tmp/bint-audit-probes-caebagwp/overlay.json ./internal/workflow ./internal/eval -run ^TestAcceptance -v",
+      "exit": 0,
+      "tests": [
+        "TestAcceptanceBDoTurnLimitPropagates",
+        "TestAcceptanceEconomyRejectsFutureOrigin"
+      ]
+    },
+    {
+      "command": "go test -count=1 -overlay /tmp/bint-p5-probes-wfidum3s/overlay.json ./internal/workflow -run ^TestAcceptanceP5 -v",
+      "exit": 0,
+      "tests": [
+        "TestAcceptanceP5ReadOnlyCannotChangeConfig",
+        "TestAcceptanceP5WriteLockConcurrent"
+      ]
+    },
+    {
+      "probe": "stale reclamation contention, unmodified implementation via temporary added test overlay",
+      "runs": [
+        {
+          "exit": 1,
+          "overlapping_acquisitions": 65,
+          "total_acquisitions": 2497
+        },
+        {
+          "exit": 1,
+          "overlapping_acquisitions": 76,
+          "total_acquisitions": 2407
+        }
+      ],
+      "parameters": {
+        "rounds": 24,
+        "goroutines_per_round": 24,
+        "attempts_per_goroutine": 30,
+        "critical_section_microseconds": 150
+      }
+    },
+    {
+      "probe": "readonly existing verified rule edit",
+      "exit": 1,
+      "actual_task_status": "planned",
+      "actual_step_status": "completed",
+      "expected": "read-only violation rejected",
+      "fixture_verifier_ok": true,
+      "modified_rule_context_label": "rule"
+    },
+    {
+      "probe": "new binary direct CLI protected done then human approval",
+      "initial_done_exit": 1,
+      "approve_exit": 0,
+      "approve_message": "không có gì chờ duyệt",
+      "done_after_approve_exit": 1,
+      "expected_after_approve_exit": 0
+    },
+    {
+      "probe": "configured missing Codex binary",
+      "installed": false,
+      "result": "pass"
+    },
+    {
+      "probe": "native adapters with fake binaries and shared knowledge",
+      "selections": [
+        "codex",
+        "antigravity",
+        "mixed"
+      ],
+      "all_task_statuses": "done",
+      "result": "pass"
+    }
+  ],
+  "production_source_modified": false,
+  "new_paid_model_benchmark": false,
+  "historical_live_pilot": "b5896a4 on Bflow; not represented as a new run of this source"
+}
