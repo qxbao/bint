@@ -174,7 +174,7 @@ func desiredGroups(cmd string) map[string]map[string]any {
 	return map[string]map[string]any{
 		"SessionStart": group(""),
 		"SessionEnd":   group(""),
-		"PreToolUse":   group("apply_patch"),
+		"PreToolUse":   group("apply_patch|Bash|shell|exec_command"),
 		"PostToolUse":  group("apply_patch|Bash|shell|exec_command|mcp__bint__.*"),
 	}
 }

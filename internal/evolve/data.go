@@ -91,16 +91,104 @@ type History struct {
 
 // ModuleOf trả về khu vực mã của một tệp: tối đa hai cấp thư mục đầu ("internal/eval"
 // cho internal/eval/report.go, "cmd" cho cmd/main.go, "." cho tệp ở gốc).
-func ModuleOf(p string) string {
+func ModuleOf(p string) string { return ModuleAtDepth(p, DefaultGroupDepth) }
+
+// DefaultGroupDepth: số cấp thư mục đầu mặc định của khu vực mã.
+const DefaultGroupDepth = 2
+
+// maxGroupDepth chặn việc tự hạ sâu nhóm.
+const maxGroupDepth = 6
+
+// ModuleAtDepth như ModuleOf nhưng với số cấp thư mục đầu tuỳ ý (depth < 1 = mặc định).
+func ModuleAtDepth(p string, depth int) string {
+	if depth < 1 {
+		depth = DefaultGroupDepth
+	}
 	dir := path.Dir(p)
 	if dir == "." || dir == "/" {
 		return "."
 	}
 	parts := strings.Split(dir, "/")
-	if len(parts) > 2 {
-		parts = parts[:2]
+	if len(parts) > depth {
+		parts = parts[:depth]
 	}
 	return strings.Join(parts, "/")
+}
+
+// primaryModuleAt: như primaryModule với số cấp thư mục đã cho.
+func primaryModuleAt(modified, read []string, depth int) string {
+	pick := modified
+	if len(pick) == 0 {
+		pick = read
+	}
+	counts := map[string]int{}
+	for _, p := range pick {
+		counts[ModuleAtDepth(p, depth)]++
+	}
+	best, n := "", 0
+	for m, c := range counts {
+		if c > n || (c == n && m < best) {
+			best, n = m, c
+		}
+	}
+	return best
+}
+
+// assignModules gán khu vực mã cho từng lượt (ID -> khu vực), bắt đầu từ baseDepth cấp thư
+// mục (< 1 = mặc định). Monorepo dồn gần hết lượt vào một nhóm thì quá thô: nhóm nào chiếm
+// quá nửa số lượt có khu vực và đủ lớn (≥ 2*minRuns lượt) được hạ sâu thêm một cấp, lặp lại
+// tới maxGroupDepth, miễn là việc hạ sâu thật sự tách được nhóm.
+func assignModules(runs []*Run, baseDepth, minRuns int) map[string]string {
+	if baseDepth < 1 {
+		baseDepth = DefaultGroupDepth
+	}
+	if minRuns < 1 {
+		minRuns = 1
+	}
+	out := map[string]string{}
+	total := 0
+	for _, r := range runs {
+		if mod := primaryModuleAt(r.Modified, r.Read, baseDepth); mod != "" {
+			out[r.ID] = mod
+			total++
+		}
+	}
+	byRun := map[string]*Run{}
+	for _, r := range runs {
+		byRun[r.ID] = r
+	}
+	var split func(ids []string, depth int)
+	split = func(ids []string, depth int) {
+		if depth >= maxGroupDepth || len(ids) < 2*minRuns || len(ids)*2 <= total {
+			return
+		}
+		sub := map[string][]string{}
+		for _, id := range ids {
+			r := byRun[id]
+			mod := primaryModuleAt(r.Modified, r.Read, depth+1)
+			sub[mod] = append(sub[mod], id)
+		}
+		if len(sub) < 2 {
+			split(ids, depth+1) // cùng một thư mục sâu hơn: thử cấp kế tiếp
+			return
+		}
+		for mod, group := range sub {
+			for _, id := range group {
+				out[id] = mod
+			}
+			split(group, depth+1)
+		}
+	}
+	byMod := map[string][]string{}
+	for _, r := range runs {
+		if mod := out[r.ID]; mod != "" {
+			byMod[mod] = append(byMod[mod], r.ID)
+		}
+	}
+	for _, ids := range byMod {
+		split(ids, baseDepth)
+	}
+	return out
 }
 
 // primaryModule: khu vực có nhiều tệp được sửa nhất; không sửa tệp nào thì theo tệp đọc.

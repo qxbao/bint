@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -137,23 +136,101 @@ func lockChild() {
 	os.Exit(0)
 }
 
-// Khoá của tiến trình đã chết bị thu hồi.
+// Khoá của tiến trình đã chết bị thu hồi: hệ điều hành nhả khoá khi tiến trình thoát,
+// tệp khoá (nội dung PID chết) còn lại không cản trở.
 func TestAcquireWriteLockReclaimsDeadOwner(t *testing.T) {
 	tasks := filepath.Join(t.TempDir(), "tasks")
-	cmd := exec.Command(os.Args[0], "-test.run=^$")
-	cmd.Run() // tiến trình đã thoát → PID chết
-	dead := cmd.Process.Pid
 	l, err := AcquireWriteLock(tasks, "/repo", "x")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(l.path)
-	lines := strings.Split(string(b), "\n")
-	lines[0] = strconv.Itoa(dead)
-	os.WriteFile(l.path, []byte(strings.Join(lines, "\n")), 0o600)
+	deadOwner(t, l)
 	l2, err := AcquireWriteLock(tasks, "/repo", "y")
 	if err != nil {
 		t.Fatalf("không thu hồi được khoá bỏ lại: %v", err)
 	}
 	l2.Release()
+}
+
+// deadOwner giả lập chủ chết: nhả khoá hệ điều hành, để lại tệp mang PID chết.
+func deadOwner(t *testing.T, l *WriteLock) {
+	t.Helper()
+	lines := strings.Split(l.content, "\n")
+	lines[0] = "2147483646"
+	l.f.Close()
+	if err := os.WriteFile(l.path, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// R1: chủ còn sống không bao giờ bị thay dù nội dung tệp trông như khoá bỏ lại.
+func TestAcquireWriteLockLiveHolderNeverReclaimed(t *testing.T) {
+	tasks := filepath.Join(t.TempDir(), "tasks")
+	l, err := AcquireWriteLock(tasks, "/repo", "sống")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(l.content, "\n")
+	lines[0] = "2147483646"
+	os.WriteFile(l.path, []byte(strings.Join(lines, "\n")), 0o600)
+	for i := 0; i < 20; i++ {
+		if l2, err := AcquireWriteLock(tasks, "/repo", "kẻ cướp"); err == nil {
+			l2.Release()
+			t.Fatal("lấy được khoá đang có chủ sống")
+		} else if !errors.Is(err, ErrWriteLocked) {
+			t.Fatal(err)
+		}
+	}
+	l.Release()
+	l3, err := AcquireWriteLock(tasks, "/repo", "mới")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l3.Release()
+}
+
+// R1 (probe reacceptance): nhiều reclaimer đồng thời trên khoá bỏ lại (PID chết) không
+// được chồng chủ; chủ mới xuất hiện giữa lúc người khác đọc và thu hồi không bị gỡ.
+func TestReacceptStaleReclamationExclusive(t *testing.T) {
+	tasks := filepath.Join(t.TempDir(), "tasks")
+	root := t.TempDir()
+	var overlap, acquired atomic.Int64
+	for round := 0; round < 24; round++ {
+		l, err := AcquireWriteLock(tasks, root, "dead-owner")
+		if err != nil {
+			t.Fatal(err)
+		}
+		deadOwner(t, l)
+		var active atomic.Int64
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for w := 0; w < 24; w++ {
+			wg.Add(1)
+			go func(n int) {
+				defer wg.Done()
+				<-start
+				for j := 0; j < 30; j++ {
+					own, err := AcquireWriteLock(tasks, root, fmt.Sprint(n))
+					if err != nil {
+						continue
+					}
+					acquired.Add(1)
+					if active.Add(1) > 1 {
+						overlap.Add(1)
+					}
+					time.Sleep(150 * time.Microsecond)
+					active.Add(-1)
+					own.Release()
+				}
+			}(w)
+		}
+		close(start)
+		wg.Wait()
+	}
+	if overlap.Load() > 0 {
+		t.Fatalf("thu hồi khoá bỏ lại vi phạm tính độc quyền: chồng chủ=%d tổng=%d", overlap.Load(), acquired.Load())
+	}
+	if acquired.Load() == 0 {
+		t.Fatal("không lượt nào lấy được khoá")
+	}
 }

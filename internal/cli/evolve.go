@@ -231,6 +231,9 @@ func printScan(w io.Writer, res evolve.ScanResult) {
 		fmt.Fprintf(w, "      %s\n", o.Summary)
 		for _, f := range o.Files {
 			fmt.Fprintf(w, "        %s (%d lượt, %d thất bại)\n", f.Path, f.Runs, f.Failures)
+			if len(f.Members) > 0 {
+				fmt.Fprintf(w, "          gồm: %s\n", strings.Join(f.Members, ", "))
+			}
 		}
 	}
 	fmt.Fprintln(w, "\nBước tiếp: `bint evolve propose [op-…]` (cơ hội cần agent: thêm --budget <USD>).")

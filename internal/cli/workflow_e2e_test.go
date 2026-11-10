@@ -213,3 +213,40 @@ func TestWorkflowProtectedPathsAndTaskCLI(t *testing.T) {
 		t.Fatalf("đọc tệp không cần hỏi:\n%s", out)
 	}
 }
+
+// R3: task chưa qua Runner/checkScope: done bị chặn vì đường dẫn bảo vệ -> approve phải
+// tính lại diff và duyệt được -> done thành công (không --force, không gán tay ProtectedApproval).
+func TestTaskApproveRecomputesDiffWithoutRunner(t *testing.T) {
+	testutil.Isolate(t)
+	asHuman(t)
+	root := testutil.NewRepo(t, map[string]string{"app.txt": "v1\n", "migrations/001.sql": "--\n"})
+	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
+		t.Fatalf("init: %d\n%s", code, out)
+	}
+	out, code := run(t, root, "", "task", "new", "--criteria", "migration đã sửa", "--no-plan", "Sửa migrations/001.sql")
+	if code != 0 {
+		t.Fatalf("task new: %d\n%s", code, out)
+	}
+	out, _ = run(t, root, "", "task", "list", "--json")
+	var tasks []struct{ ID string }
+	if json.Unmarshal([]byte(out), &tasks) != nil || len(tasks) != 1 {
+		t.Fatalf("task list: %s", out)
+	}
+	id := tasks[0].ID
+	if out, code := run(t, root, "", "task", "status", id, "in_progress"); code != 0 {
+		t.Fatalf("in_progress: %d\n%s", code, out)
+	}
+	os.WriteFile(filepath.Join(root, "migrations", "001.sql"), []byte("ALTER;\n"), 0o644)
+	if out, code := run(t, root, "", "task", "criteria", id, "1", "met", "--evidence", "đã sửa"); code != 0 {
+		t.Fatalf("criteria: %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "status", id, "done"); code == 0 || !strings.Contains(out, "chưa được duyệt") {
+		t.Fatalf("done phải bị chặn: %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "approve", id); code != 0 || !strings.Contains(out, "Duyệt thay đổi: migrations/001.sql") {
+		t.Fatalf("approve phải duyệt migrations/001.sql: %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "status", id, "done"); code != 0 {
+		t.Fatalf("done sau approve: %d\n%s", code, out)
+	}
+}

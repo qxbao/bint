@@ -280,6 +280,9 @@ type EvolutionDeferred struct {
 type EvolutionTrigger struct {
 	MinSimilarRuns int `yaml:"min_similar_runs"`
 	MinNewEvidence int `yaml:"min_new_evidence"`
+	// GroupDepth: số cấp thư mục đầu của khu vực mã khi nhóm tác vụ (mục 10.3); 0 = 2. Nhóm
+	// chiếm quá nửa số lượt tự được hạ sâu thêm để tách monorepo.
+	GroupDepth int `yaml:"group_depth"`
 }
 
 type EvolutionEvaluation struct {

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"path"
 	"slices"
 	"sort"
 	"strings"
@@ -59,6 +60,10 @@ type FileStat struct {
 	Path     string `json:"path"`
 	Runs     int    `json:"runs"`
 	Failures int    `json:"failures"`
+	// Members: với mẫu anh em (Path chứa "*"), các tệp cụ thể đã được chạm; Runs là số lượt
+	// có nhãn phân biệt chạm ít nhất một thành viên.
+	Members []string `json:"members,omitempty"`
+	runIDs  []string
 }
 
 // Opportunity là một cơ hội tiến hoá L1.
@@ -179,6 +184,7 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 		e = 1
 	}
 
+	modOf := assignModules(h.Runs, in.Cfg.Evolution.Trigger.GroupDepth, m)
 	groups := map[string]*Group{}
 	for _, r := range h.Runs {
 		res.Runs++
@@ -188,13 +194,14 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 		if len(r.Read) > 0 {
 			res.ReadData++
 		}
-		if r.Module == "" {
+		mod := modOf[r.ID]
+		if mod == "" {
 			continue // lượt không chạm tệp nào: không quy được về khu vực mã
 		}
-		g := groups[r.Module]
+		g := groups[mod]
 		if g == nil {
-			g = &Group{Module: r.Module, Workflows: map[string]int{}}
-			groups[r.Module] = g
+			g = &Group{Module: mod, Workflows: map[string]int{}}
+			groups[mod] = g
 		}
 		g.runs = append(g.runs, r)
 		g.Runs++
@@ -283,6 +290,12 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 		}
 		var explore, hot []FileStat
 		exploreRuns, hotRuns := map[string]bool{}, map[string]bool{}
+		for _, sib := range siblingStats(support, m, func(f string) bool { return covered(active, f, nil) }) {
+			explore = append(explore, sib)
+			for _, id := range sib.runIDs {
+				exploreRuns[id] = true
+			}
+		}
 		for _, f := range sortedKeys(touch) {
 			fs := touch[f]
 			if fs.Runs >= m && !covered(active, f, nil) {
@@ -454,6 +467,82 @@ func covered(items []*knowledge.Item, f string, types []string) bool {
 		}
 	}
 	return false
+}
+
+// siblingPattern tổng quát hoá một tệp thành mẫu tên chung trong cùng thư mục: hậu tố sau
+// dấu "_" cuối ("handlers/user_handler.py" -> "handlers/*_handler.py", "a_test.go" ->
+// "*_test.go") hoặc tiền tố "test_" ("test_x.py" -> "test_*.py"). Không có đặc trưng tên
+// chung thì trả "" — không có mẫu theo phần mở rộng, vì quá rộng để coi là quy trình lặp lại.
+func siblingPattern(f string) string {
+	dir, base := path.Split(f)
+	ext := path.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+	if strings.HasPrefix(stem, "test_") && len(stem) > len("test_") {
+		return dir + "test_*" + ext
+	}
+	if i := strings.LastIndex(stem, "_"); i > 0 && i < len(stem)-1 {
+		return dir + "*" + stem[i:] + ext
+	}
+	return ""
+}
+
+// members mô tả các tệp thành viên của một mẫu anh em cho prompt (rỗng nếu là tệp lẻ).
+func (f FileStat) members() string {
+	if len(f.Members) == 0 {
+		return ""
+	}
+	return " — gồm: " + truncate(strings.Join(f.Members, ", "), 300)
+}
+
+// fileSet: mọi đường dẫn tệp thật của cơ hội (tệp lẻ và thành viên của mẫu anh em), để khớp
+// quan sát theo tệp.
+func (o Opportunity) fileSet() map[string]bool {
+	out := map[string]bool{}
+	for _, f := range o.Files {
+		out[f.Path] = true
+		for _, m := range f.Members {
+			out[m] = true
+		}
+	}
+	return out
+}
+
+// siblingStats tìm quy trình lặp lại trên nhiều tệp anh em mà từng tệp riêng chưa đạt ngưỡng:
+// gom tệp (chưa đạt ngưỡng tệp, không bị skip) theo siblingPattern; mẫu có ≥ 2 tệp và được
+// ≥ minRuns lượt phân biệt chạm thì thành một đơn vị. Tệp đã đạt ngưỡng ở cấp tệp bị loại
+// khỏi mẫu để không trùng cơ hội cấp tệp. support: tệp -> ID lượt có nhãn đã chạm.
+func siblingStats(support map[string][]string, minRuns int, skip func(string) bool) []FileStat {
+	type agg struct {
+		files []string
+		runs  map[string]bool
+	}
+	pats := map[string]*agg{}
+	for _, f := range sortedKeys(support) {
+		if len(support[f]) >= minRuns || skip(f) {
+			continue
+		}
+		pt := siblingPattern(f)
+		if pt == "" {
+			continue
+		}
+		a := pats[pt]
+		if a == nil {
+			a = &agg{runs: map[string]bool{}}
+			pats[pt] = a
+		}
+		a.files = append(a.files, f)
+		for _, id := range support[f] {
+			a.runs[id] = true
+		}
+	}
+	var out []FileStat
+	for _, pt := range sortedKeys(pats) {
+		a := pats[pt]
+		if len(a.files) >= 2 && len(a.runs) >= minRuns {
+			out = append(out, FileStat{Path: pt, Runs: len(a.runs), Members: a.files, runIDs: sortedKeys(a.runs)})
+		}
+	}
+	return out
 }
 
 func topFiles(fs []FileStat, n int) []FileStat {
