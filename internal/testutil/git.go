@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -56,6 +57,19 @@ func Isolate(t *testing.T) (stateDir string) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	// Chương trình harness giả đứng đầu PATH: kết quả không phụ thuộc máy có cài
+	// claude/codex/agy hay không, và kiểm thử không bao giờ gọi harness thật.
+	bin := t.TempDir()
+	for _, name := range []string{"claude", "codex", "agy"} {
+		file, body := name, "#!/bin/sh\necho 'bint test: harness giả' >&2\nexit 1\n"
+		if runtime.GOOS == "windows" {
+			file, body = name+".bat", "@echo bint test: harness gia 1>&2\r\n@exit /b 1\r\n"
+		}
+		if err := os.WriteFile(filepath.Join(bin, file), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	// Kiểm thử có thể đang chạy trong một phiên agent/lượt workflow thật.
 	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS"} {
 		t.Setenv(k, "")
