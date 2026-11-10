@@ -234,6 +234,29 @@ func TestDerivedFromWindowAndKind(t *testing.T) {
 			t.Errorf("%s %s: %v", tc.c.Source.Date, tc.c.SourceFiles[0], got)
 		}
 	}
+	// Tiến cứu: đề xuất tạo lúc start+48h; commit cùng tệp ngay sau đó (trong 24h của lượt
+	// căn cứ không còn quan trọng) được dùng, còn commit trước/đồng thời đề xuất giữ cửa sổ.
+	created := start.Add(48 * time.Hour)
+	h.ByID["R"].EndedAt = store.FormatTime(created.Add(-time.Minute)) // lượt kết thúc ngay trước đề xuất
+	for _, tc := range []struct {
+		c    *eval.Case
+		want bool
+	}{
+		{mk(created.Add(time.Minute), "lib/a.go"), false},    // cùng ngày sau đề xuất: dùng được
+		{mk(created, "lib/a.go"), true},                      // đồng thời: bị loại
+		{mk(created.Add(-30*time.Minute), "lib/a.go"), true}, // trước đề xuất, trong cửa sổ lượt
+	} {
+		if got := DerivedFrom(p, h, tc.c) != ""; got != tc.want {
+			t.Errorf("tiến cứu %s: %v", tc.c.Source.Date, got)
+		}
+	}
+	// Commit gắn với lượt căn cứ vẫn bị loại dù sau đề xuất.
+	h.ByID["R"].Commits = []string{"abc"}
+	if DerivedFrom(p, h, mk(created.Add(time.Minute), "lib/a.go")) == "" {
+		t.Error("commit thuộc lượt căn cứ phải bị loại")
+	}
+	h.ByID["R"].Commits = nil
+	h.ByID["R"].EndedAt = store.FormatTime(start.Add(time.Hour))
 	old, future := mk(start, "x"), mk(start.Add(72*time.Hour), "x")
 	cases := map[string]*eval.Case{old.ID: old, future.ID: future}
 	if k := EvidenceKind(p, []string{future.ID}, cases); k != KindProspective {

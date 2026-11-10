@@ -202,6 +202,13 @@ const derivedWindow = 24 * time.Hour
 // lời giải và commit lời giải nằm trong cửa sổ thời gian của lượt. Rỗng = không liên quan.
 func DerivedFrom(p *Proposal, h *History, c *eval.Case) string {
 	commitAt, _ := time.Parse(time.RFC3339, c.Source.Date)
+	// Tiến cứu: commit lời giải sinh sau khi đề xuất được tạo thì đề xuất không thể đã
+	// thấy nó, nên cửa sổ thời gian không áp dụng (vẫn loại nếu commit được quét Git gắn
+	// với lượt căn cứ, kiểm ở dưới). Đồng thời hoặc trước đề xuất: giữ cửa sổ như cũ.
+	afterProposal := false
+	if created, err := store.ParseTime(p.CreatedAt); err == nil && !commitAt.IsZero() && commitAt.After(created) {
+		afterProposal = true
+	}
 	files := append(append([]string{}, c.SourceFiles...), c.TestFiles...)
 	for _, ref := range p.SupportingRuns {
 		r := h.ByID[ref.RunID]
@@ -213,7 +220,7 @@ func DerivedFrom(p *Proposal, h *History, c *eval.Case) string {
 				return fmt.Sprintf("lời giải (%s) là commit của lượt căn cứ %s", shortSHA(c.Source.Commit), r.ID)
 			}
 		}
-		if commitAt.IsZero() {
+		if commitAt.IsZero() || afterProposal {
 			continue
 		}
 		start, err1 := store.ParseTime(r.StartedAt)
