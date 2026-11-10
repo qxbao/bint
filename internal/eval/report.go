@@ -422,6 +422,8 @@ type EstimateInput struct {
 	Model      string
 	CostPerRun *float64 // ghi đè khi chưa có lịch sử
 	Effect     float64  // chênh lệch tỷ lệ đạt muốn phát hiện (0..1)
+	// EffectSD là σ_b mặc định khi lịch sử không đủ để ước lượng (0 = DefaultEffectSD).
+	EffectSD float64
 }
 
 // Estimate là ước tính cỡ mẫu và chi phí.
@@ -436,6 +438,13 @@ type Estimate struct {
 	Effect         float64  `json:"effect"`
 	NeededCases    int      `json:"needed_cases"`
 	AvailableCases int      `json:"available_cases"`
+	// Mô hình phương sai σ²(R) = σ_b² + W/R (xem plan.go) và cỡ mẫu theo mô hình tại
+	// R = Repeats của đầu vào. SDDiff/NeededCases giữ nguyên cách tính cũ.
+	W              float64 `json:"w"`
+	WSource        string  `json:"w_source"`
+	SigmaB         float64 `json:"sigma_b"`
+	SigmaBSource   string  `json:"sigma_b_source"`
+	NeededAtRepeat int     `json:"needed_cases_at_repeats"`
 }
 
 // EstimateRun tính số lượt, chi phí = tác vụ × lần lặp × nhánh × chi phí trung bình
@@ -480,6 +489,14 @@ func EstimateRun(ctx context.Context, db *sql.DB, in EstimateInput) (Estimate, e
 		e.SDDiff, e.SDSource = AssumedSDDiff, "giả định thận trọng (chưa đủ dữ liệu)"
 	}
 	e.NeededCases = PairedSampleSize(e.SDDiff, in.Effect)
+	vm, err := HistoricalVariance(ctx, db, in.Harness, in.EffectSD)
+	if err != nil {
+		return e, err
+	}
+	e.W, e.WSource, e.SigmaB, e.SigmaBSource = vm.W, vm.WSource, vm.SigmaB, vm.SigmaSource
+	if in.Repeats > 0 {
+		e.NeededAtRepeat = ProbeSampleSize(math.Sqrt(vm.Sigma2(in.Repeats)), in.Effect)
+	}
 	return e, nil
 }
 

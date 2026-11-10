@@ -296,8 +296,14 @@ type EvolutionEvaluation struct {
 	// NonInferiorityMargin: tỷ lệ đạt được phép giảm tối đa (cận dưới CI95) khi thước đo
 	// chính không phải tỷ lệ đạt, hoặc khi loại bỏ tri thức.
 	NonInferiorityMargin float64 `yaml:"non_inferiority_margin"`
-	// Repeats: số lần lặp mỗi nhánh (0 = eval.repeats).
+	// Repeats: số lần lặp mỗi nhánh. 0 = để bộ lập kế hoạch Probe chọn R (1..MaxRepeats)
+	// sao cho tổng số lượt thấp nhất; > 0 = cố định R.
 	Repeats int `yaml:"repeats"`
+	// MaxRepeats: R tối đa mà bộ lập kế hoạch được chọn.
+	MaxRepeats int `yaml:"max_repeats"`
+	// EffectSD (σ_b): độ lệch chuẩn giữa các tác vụ của hiệu ứng thật, dùng khi lịch sử
+	// không đủ để ước lượng (dữ liệu một nhánh không xác định được đại lượng này).
+	EffectSD float64 `yaml:"effect_sd"`
 	// BudgetUSD: ngân sách đã duyệt cho một lần đối chiếu (Probe); null = chưa duyệt.
 	BudgetUSD *float64 `yaml:"budget_usd"`
 	// Delivery: cách đưa tri thức tới agent ở cả hai nhánh: bint (Context Engine) | minimal (AGENTS.md).
@@ -366,8 +372,8 @@ func Default() Config {
 			Mode:      "propose",
 			Execution: "manual", Deferred: EvolutionDeferred{MaxPerRun: 2},
 			Trigger: EvolutionTrigger{MinSimilarRuns: 3, MinNewEvidence: 2},
-			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2, Metric: "pass_rate", MinEffect: 0.10,
-				NonInferiorityMargin: 0.05, Delivery: "bint", LeakageMode: "economy"},
+			Evaluation: EvolutionEvaluation{Enabled: true, MaxCandidates: 2, Metric: "pass_rate", MinEffect: 0.15,
+				NonInferiorityMargin: 0.10, MaxRepeats: 8, EffectSD: 0.15, Delivery: "bint", LeakageMode: "economy"},
 			Adoption: EvolutionAdoption{BindToModelVersion: true},
 		},
 		Workflow: Workflow{
@@ -646,6 +652,12 @@ func (c Config) Validate() error {
 		}
 		if ev.Repeats < 0 {
 			add("evolution.evaluation.repeats: phải >= 0")
+		}
+		if ev.MaxRepeats < 1 {
+			add("evolution.evaluation.max_repeats: phải >= 1")
+		}
+		if ev.EffectSD <= 0 || ev.EffectSD >= 1 {
+			add("evolution.evaluation.effect_sd: phải trong khoảng (0, 1)")
 		}
 		if ev.BudgetUSD != nil && *ev.BudgetUSD <= 0 {
 			add("evolution.evaluation.budget_usd: phải > 0 hoặc null")

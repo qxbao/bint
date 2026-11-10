@@ -130,9 +130,11 @@ evolution:
     enabled: true
     max_candidates: 2       # số đề xuất tối đa mỗi lần bint evolve propose
     metric: pass_rate       # thước đo chính chọn trước: pass_rate | cost_usd | turns
-    min_effect: 0.10        # mức cải thiện tỷ lệ đạt muốn phát hiện (ước tính cỡ mẫu)
-    non_inferiority_margin: 0.05   # tỷ lệ đạt được phép giảm tối đa khi loại bỏ tri thức
-    repeats: 0              # 0 = eval.repeats
+    min_effect: 0.15        # mức cải thiện tỷ lệ đạt muốn phát hiện (ước tính cỡ mẫu); +10 điểm % không phát hiện được với tác vụ của một repository
+    non_inferiority_margin: 0.10   # tỷ lệ đạt được phép giảm tối đa khi loại bỏ tri thức
+    repeats: 0              # số lần lặp mỗi nhánh; 0 = bộ lập kế hoạch Probe chọn R (1..max_repeats), > 0 = cố định R
+    max_repeats: 8          # R tối đa mà bộ lập kế hoạch được chọn
+    effect_sd: 0.15         # σ_b: độ lệch chuẩn giữa các tác vụ của hiệu ứng thật (khi lịch sử không đủ để đo)
     budget_usd: null        # ngân sách đã duyệt cho một lần đối chiếu; null = chưa duyệt
     delivery: bint          # cách đưa tri thức ở cả hai nhánh: bint | minimal
     leakage_mode: economy   # strict | economy (mục 12.3)

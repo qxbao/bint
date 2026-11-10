@@ -792,6 +792,10 @@ func printEstimate(w io.Writer, est eval.Estimate, arms []string, repeats int, b
 		fmt.Fprintf(w, "Thời gian:      ~%s/lượt, ~%s tuần tự\n", (time.Duration(*est.SecondsPerRun) * time.Second).Round(time.Second), total.Round(time.Minute))
 	}
 	fmt.Fprintf(w, "Độ lệch chuẩn:  %.2f của chênh lệch theo tác vụ (%s)\n", est.SDDiff, est.SDSource)
+	fmt.Fprintf(w, "Mô hình:        σ²(R) = σ_b² + W/R; W = %.2f (%s); σ_b = %.2f (%s)\n", est.W, est.WSource, est.SigmaB, est.SigmaBSource)
+	if est.NeededAtRepeat > 0 {
+		fmt.Fprintf(w, "                theo mô hình, R=%d lần lặp cần ~%d tác vụ\n", repeats, est.NeededAtRepeat)
+	}
 	fmt.Fprintf(w, "Cỡ mẫu:         cần ~%d tác vụ để phát hiện chênh lệch %.0f điểm %% (alpha=0.05, power=0.8); hiện có %d\n",
 		est.NeededCases, 100*est.Effect, est.AvailableCases)
 	if est.NeededCases > est.AvailableCases {
