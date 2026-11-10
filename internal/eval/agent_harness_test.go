@@ -2,7 +2,9 @@ package eval
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -142,6 +144,44 @@ func TestCodexEvalPathHook(t *testing.T) {
 	plain, _ := a.ArgsFor(AgentRequest{MCPConfig: mcp})
 	if strings.Contains(strings.Join(plain, " "), "hooks.PreToolUse") {
 		t.Fatal("không thêm hook khi nhánh không yêu cầu")
+	}
+}
+
+func TestCodexEvalHookQuotesExecutableLiterally(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("kiểm chứng POSIX shell")
+	}
+	for _, name := range []string{"literal$(printf expanded)", "single'and\"double", `back\slash$HOME`} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			bin := filepath.Join(root, name, "bint")
+			os.MkdirAll(filepath.Dir(bin), 0o755)
+			os.WriteFile(bin, []byte("#!/bin/sh\nprintf '%s %s' \"$1\" \"$2\"\n"), 0o755)
+			mcp := filepath.Join(root, "mcp.json")
+			b, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"bint": map[string]any{"command": bin}}})
+			os.WriteFile(mcp, b, 0o644)
+			args, err := (&CodexAgent{}).ArgsFor(AgentRequest{MCPConfig: mcp, Settings: "settings.json"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var command string
+			for _, arg := range args {
+				if !strings.HasPrefix(arg, "hooks.PreToolUse=") {
+					continue
+				}
+				i := strings.Index(arg, "command=")
+				if i < 0 {
+					t.Fatal("thiếu command")
+				}
+				if err := json.NewDecoder(strings.NewReader(arg[i+len("command="):])).Decode(&command); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out, err := exec.Command("sh", "-c", command).CombinedOutput()
+			if err != nil || string(out) != "hook codex" {
+				t.Fatalf("đường dẫn bị shell diễn giải: %s %v", out, err)
+			}
+		})
 	}
 }
 

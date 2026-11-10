@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -103,7 +105,10 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 		if req.Settings != "" {
 			// Settings là tín hiệu nhánh cần path hook. Dựng dialect Codex từ
 			// chính executable Bint của MCP; không chạy lệnh hook Claude trong settings.
-			cmd := `"` + strings.ReplaceAll(srv.Command, `\`, `/`) + `" hook codex`
+			cmd := "'" + strings.ReplaceAll(srv.Command, "'", "'\\''") + "' hook codex"
+			if runtime.GOOS == "windows" {
+				cmd = `"` + filepath.ToSlash(srv.Command) + `" hook codex`
+			}
 			hooks := `[{matcher="apply_patch",hooks=[{type="command",command=` + tomlString(cmd) + `,timeout=10}]}]`
 			args = append(args, "-c", "hooks.PreToolUse="+hooks)
 		}
