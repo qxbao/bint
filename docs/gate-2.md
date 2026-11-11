@@ -1,6 +1,6 @@
 # Cổng quyết định 2 — Context Engine
 
-**Trạng thái: ĐÃ CHỐT (2026-11-10) — cổng chính thức chưa mở; có pilot Codex để thăm dò kỹ thuật.**
+**Trạng thái: ĐÃ CHỐT (2026-11-10) — cổng chính thức chưa mở; đã có pilot Codex và đợt đo Claude Code để thăm dò kỹ thuật.**
 Theo mục 16 và 19 của kế hoạch, ngưỡng dưới đây được chốt và commit trước khi chạy
 đo (SHA ở mục "Chốt" cuối tài liệu). Không điều chỉnh ngưỡng, thước đo, điều kiện hay
 quy trình sau khi đã thấy kết quả; mọi thay đổi phải là một lần chốt mới, ghi rõ lý do,
@@ -84,7 +84,7 @@ bint eval report <batch> --json > gate2-<repo>.json
 | Ngưỡng được chốt bởi | chủ dự án Bint, 2026-11-10 |
 | Thước đo chính đã chọn | tỷ lệ đạt (`bint − minimal`, cận dưới CI95 > 0); ràng buộc chi phí ≤ +25 % |
 | Commit chốt | `9135dfa5528b2d42e62adbda75b318ede819a6ec` |
-| Repository thử nghiệm | _(chưa)_ |
+| Repository đáp ứng đầy đủ giao thức nghiệm thu | _(chưa có; các pilot ghi bên dưới)_ |
 
 ## Kết quả
 
@@ -96,8 +96,10 @@ Nhánh `bint` trong pilot dùng cùng snapshot strict với `minimal`, qua MCP +
 6/6 lượt bint có truy xuất, 4 lời gọi cite bị chặn quyền, số trích dẫn ghi nhận bằng 0.
 
 **Quyết định hiện tại: chưa mở gate chính thức.** Gate 1 chưa được nghiệm thu;
-mới có một repository và hai tác vụ validation. Codex không báo chi phí USD để kiểm tra
-ràng buộc +25%, và nhánh đánh giá Codex chưa có path hook. Không báo pilot là gate đã qua.
+pilot này chỉ có một repository và hai tác vụ validation, Codex không báo chi phí USD
+để kiểm tra ràng buộc +25%, và tại thời điểm chạy pilot nhánh đánh giá Codex chưa có path hook
+(bản sửa sau đó đã bổ sung path hook và quyền `cite_knowledge`, kiểm chứng tại
+[đợt Codex 2026-11-11](evals/codex-flows-2026-11-11/README.md)).
 
 Quyết định về sai khác fingerprint và tín hiệu còn thiếu:
 [fingerprint-outcome-decisions.md](fingerprint-outcome-decisions.md).

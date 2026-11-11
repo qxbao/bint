@@ -8,7 +8,7 @@ thi duy nhất `./cmd/bint`. CI/CD dùng GitHub Actions, gồm hai workflow tác
 | CI | `.github/workflows/ci.yml` | **Đang hoạt động** | PR vào `main`, push lên `main`, chạy tay |
 | Release (CD) | `.github/workflows/release.yml` | **Bản nháp, bị khoá** | chỉ chạy tay (`workflow_dispatch`), mọi job bị bỏ qua khi chưa bật |
 
-Không workflow nào publish artifact ra ngoài, tạo tag hay deploy ở trạng thái hiện tại.
+Không workflow nào publish artifact ra ngoài, tạo tag hay deploy ở trạng thái mặc định khi chưa bật `BINT_CD_ENABLED=true`.
 
 ## CI (`ci.yml`)
 
@@ -98,7 +98,7 @@ go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
 go install honnef.co/go/tools/cmd/staticcheck@v0.7.0 && GOOS=windows "$(go env GOPATH)/bin/staticcheck" ./...
 
 # Test
-CGO_ENABLED=1 go test -race -count=1 ./...
+CGO_ENABLED=1 go test -race -count=1 -timeout 15m ./...
 
 # Build một nền tảng
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/bint ./cmd/bint
@@ -108,12 +108,15 @@ Kiểm tra cú pháp workflow (tuỳ chọn, không bắt buộc trong CI):
 `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` (cài thêm `shellcheck` để kiểm cả
 các khối `run:`).
 
-> **macOS:** `go test ./...` hiện fail 6 test (`internal/app`, `internal/cli`,
-> `internal/state`, `internal/harness/claude`) vì `$TMPDIR` (`/var/folders/…`) là symlink tới
-> `/private/var/…` và một số phép so sánh đường dẫn của Bint không chuẩn hoá symlink. CI chạy
-> trên Linux nên không gặp. Tạm thời trên macOS:
-> `TMPDIR="$(cd "$TMPDIR" && pwd -P)" go test ./...`. Đây là lỗi thật cần sửa ở mã nguồn
-> (repository nằm dưới đường dẫn symlink cũng bị ảnh hưởng), không thuộc phạm vi CI.
+> **Chạy `go test` từ phiên agent:** `app.InAgentSession` coi tiến trình là agent khi có biến môi
+> trường nhận diện (`BINT_AGENT`, `CLAUDECODE`, `AI_AGENT`, `CODEX_SANDBOX`,
+> `CODEX_SANDBOX_NETWORK_DISABLED`, `GEMINI_CLI`) và chặn các thao tác chỉ dành cho người
+> (`approve`, `apply`, `reject`). `testutil.Isolate` không tự xoá các biến này, nên kiểm thử đóng
+> vai người dùng phải gọi `asHuman(t)` (hoặc đặt rỗng từng biến) để không lỗi `ErrAgentForbidden`
+> khi chạy trong phiên agent.
+>
+> **macOS:** `$TMPDIR` (`/var/folders/…`) là symlink tới `/private/var/…`; nếu gặp test so sánh
+> đường dẫn lỗi vì symlink, chạy `TMPDIR="$(cd "$TMPDIR" && pwd -P)" go test ./...`.
 
 ## Xem kết quả CI trên GitHub
 
@@ -158,9 +161,9 @@ publish — chỉ khi dry_run = false
 
 1. **Không có trigger tự động**: chỉ `workflow_dispatch`; không có `push: tags`, `release`,
    `schedule`.
-2. **Biến repository `BINT_CD_ENABLED` chưa đặt** → job `guard` bị bỏ qua, `build` và `publish`
-   phụ thuộc vào nó nên cũng bị bỏ qua. Bấm "Run workflow" lúc này chỉ tạo một lần chạy với mọi
-   job ở trạng thái *skipped*.
+2. **Biến repository `BINT_CD_ENABLED` chưa đặt (hoặc khác `true`)** → job `guard` bị bỏ qua,
+   `build` và `publish` phụ thuộc vào nó nên cũng bị bỏ qua. Bấm "Run workflow" lúc này chỉ tạo
+   một lần chạy với mọi job ở trạng thái *skipped*.
 3. `dry_run` mặc định `true` → kể cả khi đã bật, mặc định chỉ build.
 4. Job `publish` dùng environment `release`; environment chưa tạo thì GitHub tự tạo khi chạy lần
    đầu mà không có người duyệt, nên **phải tạo và cấu hình người duyệt trước khi bật** (bước 2

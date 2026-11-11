@@ -1,8 +1,8 @@
 # Quyết định vận hành: fingerprint và tín hiệu kết quả
 
-Ngày: 2026-11-10. Phạm vi: các đợt đo Bint P1/gate 1/gate 2 trên repository thật.
+Ngày: 2026-11-10 (cập nhật đối chiếu 2026-11-11). Phạm vi: các đợt đo Bint P1/gate 1/gate 2 trên repository thật.
 
-Đây là quyết định về cấu hình và cách diễn giải bằng chứng, theo yêu cầu của chủ dự án. Không thay thế các ngưỡng đã chốt trong `gate-1.md`, `gate-2.md`; không tuyên bố phần chưa triển khai đã hoàn thành.
+Đây là quyết định về cấu hình và cách diễn giải bằng chứng, theo yêu cầu của chủ dự án. Không thay thế các ngưỡng đã chốt trong `gate-1.md`, `gate-2.md`; không tuyên bố phần chưa triển khai đã hoàn thành. (Các bản sửa sau pilot đã bổ sung path hook và cấu hình duyệt `cite_knowledge` cho adapter Codex — xem [docs/status.md](status.md) và [docs/evals/README.md](evals/README.md).)
 
 ## D-FP-01 — Chấp nhận phương án phân tích theo năng lực, dùng vùng dòng cho pilot TypeScript
 
@@ -49,7 +49,7 @@ Phần còn thiếu không ngăn một pilot được chấm bằng kiểm thử
 ## Liên hệ với hai gate
 
 - Các quyết định trên không hạ cỡ mẫu, số repository, số lần lặp, yêu cầu strict, điều kiện mở gate 2 hoặc ngưỡng hiệu quả.
-- Với Codex hiện tại, gate 1 thiếu chỉ số USD/`num_turns` của Bint; gate 2 thiếu dữ liệu cho ràng buộc chi phí và nhánh Codex chỉ có MCP + AGENTS.md, không có path hook trong đợt đánh giá.
+- Với Codex, gate 1 vẫn thiếu chỉ số USD/`num_turns`; gate 2 thiếu dữ liệu cho ràng buộc chi phí. Tại thời điểm chạy pilot, nhánh `bint` trên Codex chỉ có MCP + `AGENTS.md`; các bản sửa sau đó đã bổ sung path hook và quyền `cite_knowledge` (kiểm chứng ở [đợt Codex 2026-11-11](evals/codex-flows-2026-11-11/README.md)).
 - Có thể chạy pilot đo tỷ lệ đạt/thời gian/token, nhưng không tự thay chúng vào chỉ số gate đã chọn. Muốn thay thước đo phải chốt một giao thức mới trước đợt đo tiếp theo; kết quả đã nhìn thấy chỉ dùng để thăm dò/ước tính, không để hợp thức hoá ngưỡng mới hồi tố.
 
 ## Bằng chứng của pilot Codex

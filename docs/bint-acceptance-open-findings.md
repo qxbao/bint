@@ -1,5 +1,7 @@
 # Nghiệm thu các lỗi còn mở sau tái nghiệm thu P0–P5 và đợt đo P6–P7
 
+> **Bản ghi lịch sử:** Biên bản dưới đây phản ánh trạng thái tại commit được kiểm tra. Tổng hợp hiện trạng và các phát hiện đã đóng / còn mở tại `HEAD` xem ở [docs/status.md](status.md) và [docs/evals/README.md](evals/README.md).
+
 Ngày: 2026-11-10. Merge vào `main`: `8b5cc9f` (nhánh `fix/open-findings`), cộng commit sửa bổ sung ghi ở cuối.
 
 Nguồn lỗi: [bint-reacceptance-p0-p5-137dbf9.md](bint-reacceptance-p0-p5-137dbf9.md) (R1–R3) và

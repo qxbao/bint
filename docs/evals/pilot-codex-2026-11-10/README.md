@@ -1,5 +1,7 @@
 # Pilot Codex — 2026-11-10
 
+> **Bản ghi lịch sử:** Báo cáo dưới đây phản ánh số liệu và trạng thái nhánh tại thời điểm chạy đợt đo. Tổng hợp hiện trạng tại `HEAD` xem ở [docs/status.md](../../status.md) và [docs/evals/README.md](../README.md).
+
 **Trạng thái:** pilot hạ tầng đã hoàn tất. Chưa đủ điều kiện nghiệm thu gate 1; gate 2 chưa mở chính thức.
 
 ## Thiết lập

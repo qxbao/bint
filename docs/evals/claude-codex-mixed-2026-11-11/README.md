@@ -1,5 +1,7 @@
 # Nghiệm thu flow hỗn hợp Claude Code ↔ Codex CLI — 2026-11-11
 
+> **Bản ghi lịch sử:** Báo cáo dưới đây phản ánh số liệu và trạng thái nhánh tại thời điểm chạy đợt đo. Tổng hợp hiện trạng tại `HEAD` xem ở [docs/status.md](../../status.md) và [docs/evals/README.md](../README.md).
+
 **Kết luận ngắn:**
 
 - **A (Claude lập kế hoạch → Codex thực thi → Claude review): đạt thật**, task `done` có bằng chứng verify, sau khi sửa 3 lỗi chặn/sai dữ liệu.
@@ -68,7 +70,7 @@ Không sửa gate, ngưỡng, oracle hay test hiện có; không nhân đôi ski
 
 ## Các bản sửa đã có ở `main` chưa?
 
-**Chưa.** `main` = `origin/main` = `7dd832f`, đã rẽ nhánh khỏi `duc` (35 commit riêng so với 21). Đọc mã ở `main` (**[suy luận từ code]**, không chạy binary `main`): không có `withBintExecutableRule`, `decodeSubmission`, `IsBintInvocation`, `cost_usd_partial`, và prompt b-feat không nhắc tiêu chí `unmet`. Năm bản sửa của đợt này chỉ nằm ở `fix/claude-codex-mixed`; chưa merge, chưa push.
+**Đã hợp nhất vào `main`** (qua merge commit `9dbe955`, có mặt tại `183ac17`): cả năm commit `fcbe5dd`, `d96cd0c`, `f18dfc1`, `ebb11d1`, `dd2b88a` (`withBintExecutableRule`, `decodeSubmission`, `IsBintInvocation`, `cost_usd_partial` và nhắc tiêu chí `unmet` trong đề bài `b-feat`) đều đã nằm trên `main`.
 
 ## Phát hiện mở (chưa sửa)
 

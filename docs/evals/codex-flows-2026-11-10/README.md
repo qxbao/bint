@@ -1,5 +1,7 @@
 # Kiểm chứng các flow Codex — 2026-11-10
 
+> **Bản ghi lịch sử:** Báo cáo dưới đây phản ánh số liệu và trạng thái nhánh tại thời điểm chạy đợt đo. Tổng hợp hiện trạng tại `HEAD` xem ở [docs/status.md](../../status.md) và [docs/evals/README.md](../README.md).
+
 **Cập nhật:** các hạng mục còn mở đã được kiểm tra tiếp trong [biên bản 2026-11-11](../codex-flows-2026-11-11/README.md).
 Giữ nguyên bằng chứng/kết luận tại thời điểm đợt đầu; các lỗi tín hiệu test và planner resume mới phát hiện được sửa ở đợt sau.
 

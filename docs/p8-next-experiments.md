@@ -1,12 +1,12 @@
 # Kế hoạch thử nghiệm tiếp theo sau khi mở P8
 
-Ngày: 2026-11-11. Bối cảnh: số liệu ở `docs/evals/p6-p7-claude-2026-11-10/README.md`.
+Ngày: 2026-11-11. Bối cảnh: [số liệu P6–P7](evals/p6-p7-claude-2026-11-10/README.md), [trạng thái hiện tại](status.md) và [Kế hoạch E/H](p8-harness-evolution-plan.md).
 
 ## Hiện trạng
 
 - **Tỷ lệ đạt:** trên 30 tác vụ, có Bint đạt 40%, không có Bint đạt 37%. Khoảng tin cậy rộng ±15 điểm %, nên chưa có khác biệt.
-- **Chi phí:** ngang nhau.
-- **Tri thức đang dùng:** do agent tự viết từ mã, chưa ai duyệt. Agent giải đề tự đọc mã cũng biết những điều này, nên tri thức hầu như không thêm thông tin mới.
+- **Chi phí:** ngang nhau (chênh lệch khoảng +2%, chưa có ý nghĩa thống kê).
+- **Tri thức trong đợt đo:** do agent tự viết từ mã, chưa qua người duyệt. Agent giải đề tự đọc mã cũng biết những điều này, nên tri thức hầu như không thêm thông tin mới.
 - **Giới hạn của cỡ mẫu:** với 30 tác vụ chỉ phát hiện được hiệu ứng khoảng 15 điểm % trở lên. Mức +3–5 điểm như các công bố về tối ưu harness thì cần hàng trăm tác vụ.
 
 Có hai kế hoạch. Chúng độc lập với nhau và mỗi kế hoạch có cổng dừng riêng:
@@ -26,7 +26,7 @@ Có hai kế hoạch. Chúng độc lập với nhau và mỗi kế hoạch có 
 2. Lấy commit gốc sớm nhất B0 của nhóm tác vụ đó. Người viết checkout B0 trong một worktree riêng và viết tri thức chỉ dựa trên mã và lịch sử tới B0. Người viết không mở danh sách tác vụ hay commit sửa lỗi.
 3. Mỗi mục phải có bằng chứng (tệp:dòng) tồn tại ở B0. Khi dựng ảnh chụp cho từng tác vụ, Bint kiểm tra bằng chứng còn khớp tại commit gốc của tác vụ (giống điều kiện của chế độ economy).
 
-**Mã cần viết** (khoảng nửa ngày, không tốn token):
+**Mã cần viết cho A** (khoảng nửa ngày, không tốn token — hiện chưa triển khai):
 
 - `bint eval snapshot import --base <commit> --from <thư mục items>`: nhận mục do người viết (origin human) làm ảnh chụp của commit gốc. Hiện ảnh chụp chỉ nhận mục do agent viết, thông qua `bint eval bootstrap`.
 - `bint eval snapshot import --group <vùng>`: áp một bộ mục cho mọi tác vụ của vùng. Mục nào có bằng chứng không còn khớp ở commit gốc của tác vụ thì bị loại và được ghi lại.
@@ -72,27 +72,20 @@ Trần ngân sách: $20.
 **Khác biệt so với vòng P8 đầu tiên:**
 
 1. Agent giải đề yếu hơn nên còn nhiều chỗ để cải thiện. Agent viết đề xuất mạnh hơn nên có thể mang thông tin mới.
-2. Nguồn cơ hội là **lượt thất bại trên tập validation**, không chỉ lịch sử phiên làm việc. Người viết đề xuất đọc log của lượt trượt và viết bài học hoặc quy trình: mục `lesson`/`procedure`, hoặc đề xuất skill.
-3. Phạm vi thay đổi gồm quy trình (skill, chỉ dẫn dùng công cụ), không chỉ thêm sự kiện.
+2. Nguồn cơ hội là **lượt thất bại trên tập validation**, không chỉ lịch sử phiên làm việc. Reflector đọc bản tóm tắt của lượt trượt và viết mục `lesson` (đề xuất skill đi qua luồng L2 riêng).
+3. Phạm vi thay đổi gồm bài học từ thất bại và quy trình (skill; chỉ dẫn công cụ thuộc [Kế hoạch H](p8-harness-evolution-plan.md)).
 
 **Ràng buộc chống rò rỉ:**
 
 - Chỉ đọc lượt thất bại trên **validation**. Không bao giờ đọc log, đề bài hay diff của tập **test**.
-- Bài học rút ra từ một tác vụ không được dùng khi chấm lại chính tác vụ đó. Quy tắc này đã có trong mục 12.3 của kế hoạch Bint.
-- Bài học không được chứa tên tệp, hàm hay đoạn mã của lời giải. Thêm kiểm tra xác định so mục đề xuất với diff lời giải của các tác vụ validation đã đọc, và loại nếu trùng.
+- Bài học rút ra từ một tác vụ không được dùng khi chấm lại chính tác vụ đó (mục 12.3 của kế hoạch Bint).
+- Bài học không được chứa tên tệp, hàm hay đoạn mã của lời giải (`CheckLesson` kiểm tra xác định dòng mã, định danh mới và chuỗi literal dài so với diff lời giải của các tác vụ validation nguồn).
 
-**Mã cần viết** (khoảng 1–1,5 ngày, không tốn token):
+**Hạ tầng đã triển khai (qua [Kế hoạch E](p8-harness-evolution-plan.md), thay cho giao diện dự kiến ban đầu):**
 
-- `bint evolve cycle --propose-model opus --model haiku`: tách model của người viết đề xuất khỏi model thực thi. Hiện cả hai dùng chung `--model`.
-- Nguồn cơ hội mới `eval_failure`:
-  - `bint evolve scan --from-eval <batch>` gom các lượt trượt trên validation theo vùng mã.
-  - Mỗi nhóm có ≥ 3 lượt trượt thành một cơ hội.
-  - Từ chối batch thuộc tập test.
-- Đề bài cho người viết đề xuất:
-  - Đưa tóm tắt log lượt trượt, gồm lệnh đã chạy, test fail và lỗi cuối.
-  - Yêu cầu viết bài học tổng quát hoá được, chia làm hai loại theo cách của tài liệu harness: bài học chung cho mọi vùng và bài học riêng cho vùng.
-- Kiểm tra rò rỉ bài học so với diff lời giải của validation.
-- Test cho tất cả các phần trên. Thêm e2e với agent giả để chắc chắn tập test không bao giờ lọt vào đầu vào của người viết đề xuất.
+- `bint experience digest <batch|run>` dựng bản tóm tắt thất bại xác định; `bint evolve scan` tự tìm cơ hội `failure_lesson` từ các lượt trượt trên validation và lượt thật có nhãn thất bại (theo ngưỡng `evolution.trigger.min_similar_runs` tác vụ phân biệt, không cần cờ `scan --from-eval`).
+- Mô hình rút bài học tách riêng qua `roles.reflector: claude` và `harnesses.claude.models.reflector: opus` (hoặc ghi đè bằng `bint evolve propose --reflector-model opus`), nên `bint evolve cycle --model haiku --budget 25 --max 3` tự động dùng Opus cho reflector và Haiku cho thực thi/đối chiếu (không cần cờ `--propose-model`).
+- Kiểm tra rò rỉ (`CheckLesson`), loại tác vụ nguồn khỏi tập đối chiếu và kiểm thử đầu-cuối với agent giả đã hoàn tất.
 
 **Đo:**
 
@@ -101,7 +94,7 @@ Trần ngân sách: $20.
 | B0 | Đo `none` với Haiku trên validation (70 tác vụ, 1 lần lặp) để biết mức nền | ~$5 |
 | — | **Cổng:** tỷ lệ đạt của Haiku trong khoảng 15–60%. Ngoài khoảng đó thì đổi executor (Sonnet) hoặc dừng | — |
 | B1 | Đo `bint` với Haiku trên validation, cùng đợt với B0, để lấy log lượt trượt | ~$5 |
-| B2 | `bint evolve cycle --propose-model opus --model haiku --budget 25 --max 3`: Opus viết tối đa 3 đề xuất từ lượt trượt; mỗi đề xuất đối chiếu trên validation rồi test, có dừng sớm | ≤ $25 |
+| B2 | Với `harnesses.claude.models.reflector: opus`: chạy `bint evolve cycle --model haiku --budget 25 --max 3` để rút tối đa 3 đề xuất từ lượt trượt và đối chiếu trên validation rồi test (có dừng sớm) | ≤ $25 |
 | B3 | Nếu có đề xuất đạt trên test: chạy lại trên test với 2 lần lặp để xác nhận | ~$5–10 |
 
 Trần ngân sách: $40.
@@ -122,9 +115,9 @@ Trần ngân sách: $40.
 
 ## Thứ tự đề xuất
 
-1. Viết mã cho cả A và B trước, vì không tốn token.
+1. Mã cho B đã có qua Kế hoạch E; nếu chạy cả A thì viết thêm lệnh `bint eval snapshot import` (không tốn token).
 2. Chạy B0 ($5). Đây là bước rẻ nhất và cho biết ngay hướng B có khả thi không.
-3. Song song với bước 2, người dùng viết tri thức cho A.
+3. Song song với bước 2, người dùng viết tri thức cho A tại commit gốc B0.
 4. Chạy A và B2 theo cổng của từng kế hoạch.
 
 Tổng trần cho cả hai kế hoạch: $60. Mỗi lần chạy có tốn tiền đều cần người dùng duyệt trước.

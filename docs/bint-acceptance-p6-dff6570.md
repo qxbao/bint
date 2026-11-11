@@ -1,5 +1,7 @@
 # Nghiệm thu P6 — Tiến hoá tri thức L1
 
+> **Bản ghi lịch sử:** Biên bản dưới đây phản ánh trạng thái tại commit được kiểm tra. Tổng hợp hiện trạng và các phát hiện đã đóng / còn mở tại `HEAD` xem ở [docs/status.md](status.md) và [docs/evals/README.md](evals/README.md).
+
 Ngày: 2026-11-10. Commit kiểm tra: **`dff6570896298b7b921fcf124eec8cd26b84530f`**.
 
 Chuẩn đối chiếu: P6 tại mục 16, điều kiện dữ liệu mục 10.6, vòng Propose–Probe–Compose, kiểm chứng độc lập và các ranh giới mục 15 của `bint-plan.md`. Source hiện có P7; biên bản này chỉ nghiệm thu P6 và các thành phần dùng chung liên quan.
