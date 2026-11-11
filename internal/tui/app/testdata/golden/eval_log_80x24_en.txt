@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│──────────────⠋ 1 background job─┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy                                │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evaluation│─────────────────────────────────────────────────────────────────┐
+│   Candidates · Cases · Batches · ⠋Log                                        │
+│ ┌─│Log│──────────────────────────────────────────────────Esc cancel safely─┐ │
+│ │ ── Progress by cell (case × arm × repeat) ────────────────────────────── │ │
+│ │ 3/8 runs done                                                            │ │
+│ │ · waiting  ✓ passed  ✗ failed  ◷ timeout  ! error  – skipped             │ │
+│ │ c0003cccc none ✓· bint ✗·                                                │ │
+│ │ c0004dddd none ·◷ bint ··                                                │ │
+│ │ ── Running: eval run ─────────────────────────────────────────────────── │ │
+│ │ Ước tính: 8 lượt, khoảng $1.20                                           │ │
+│ │ Kế hoạch: 2 tác vụ × nhánh none,bint × 2 lần lặp (0 lượt đã xong từ trư… │ │
+│ │ Lượt 1/8: c0003cccc · none · lần 1 → passed                              │ │
+│ │ Lượt 2/8: c0003cccc · bint · lần 1 → failed                              │ │
+│ │ Lượt 3/8: c0004dddd · none · lần 2 → timeout                             │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────┘

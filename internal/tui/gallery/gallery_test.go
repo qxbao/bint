@@ -44,7 +44,7 @@ func TestNoLineExceedsWidth(t *testing.T) {
 				m := New(Options{Lang: lang, Mode: mode})
 				m.SetSize(sz[0], sz[1])
 				// Duyệt hết các trang cuộn.
-				for page := 0; page < 14; page++ {
+				for page := 0; page < 20; page++ {
 					out := m.Render()
 					ls := strings.Split(out, "\n")
 					if len(ls) != sz[1] {
@@ -127,6 +127,24 @@ func TestShowsEveryComponent(t *testing.T) {
 		"Virtual list", "colored diff", "+- **Endpoints need /v1**", "Confirm dialog", "Reject 12 items?", "Form generated from Options", "Equivalent CLI command", "▸ Advanced"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("trang trưng bày thiếu %q", want)
+		}
+	}
+}
+
+// Biểu đồ cột có mặt trong trang trưng bày: ở mọi ngôn ngữ (kể cả locale giả) có hàng 100% và khối đặc.
+func TestGalleryHasBarChart(t *testing.T) {
+	for _, lang := range langs {
+		m := New(Options{Lang: lang, Mode: theme.Mono})
+		m.SetSize(100, 30)
+		var all strings.Builder
+		for page := 0; page < 20; page++ {
+			all.WriteString(ansi.Strip(m.Render()) + "\n")
+			m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		}
+		for _, want := range []string{"100%", "█", "50%", "[ 25– 75]"} {
+			if !strings.Contains(all.String(), want) {
+				t.Errorf("%s: trang trưng bày thiếu %q ở phần biểu đồ cột", lang, want)
+			}
 		}
 	}
 }

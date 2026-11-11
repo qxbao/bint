@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy                                │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evaluation│─────────────────────────────────────────────────────────────────┐
+│   Candidates · Cases · Batches                                               │
+│ ┌─┌─│Approve candidate c0002bbbb?│───────────────────────────────────────┐─┐ │
+│ │ │ This candidate does not meet the approval conditions. Tick the boxes │ │ │
+│ │ │ below only if you are sure.                                          │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Add c0002bbbb (Sửa lỗi khoá cơ sở dữ liệu) to the evaluation set.    │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ✗ not verified fail→pass                                             │ │ │
+│ │ │ ✗ the prompt leaks the solution: đề bài chứa mã của lời giải         │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ▸ [ ] Approve anyway although: the prompt leaks the solution         │ │ │
+│ │ │       (--force)                                                      │ │ │
+│ │ │   [ ] Approve anyway without fail→pass verification (--unverified)   │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Split: ▏empty = assigned from the ID (build | validation | test)     │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Approve   [Esc] Cancel                                       │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ └─ a approve  x reject  m mine  v verify  A all ───────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

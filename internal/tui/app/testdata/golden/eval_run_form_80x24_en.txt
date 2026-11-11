@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy                                │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evaluation│─────────────────────────────────────────────────────────────────┐
+│   Candidates · Cases · Batches                                               │
+│ ┌─│Run the arms × repeats comparison on approved cases (background, conf…│─┐ │
+│ │ ▸ Split           (●) (empty) ( ) build ( ) validation ( ) test          │ │
+│ │   Specific cases                                                         │ │
+│ │   Arms            none, minimal, bint                                    │ │
+│ │   Repeats         3                                                      │ │
+│ │   Budget ($)                                                             │ │
+│ │   Harness         claude                                                 │ │
+│ │   Leakage mode    ( ) (empty) (●) strict ( ) economy                     │ │
+│ │   ▸ Advanced                                                             │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │   Equivalent CLI command: bint eval run                                  │ │
+│ │   Enter submit  Tab next field  Ctrl+Y copy command  Esc leave           │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

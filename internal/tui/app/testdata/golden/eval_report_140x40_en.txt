@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evaluation│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Candidates · Cases · Batches                                                                                                           │
+│ ┌─│Batches (2)│────────────────────────────────────────────────────┐┌─│Report · 0000000001│────────────────────────────────────────────┐ │
+│ │   ↺ 0000000002 cancelled      none           1×3     2026-11-11… ││ Batch eb_01EVALDONE0000000000000001 — completed                  │ │
+│ │ ▸ ✓ 0000000001 completed      none,bint      2×2     2026-11-11… ││   Harness command -, requested model -, leakage economy, 2       │ │
+│ │                                                                  ││     cases × 2 repeats, seed 7                                    │ │
+│ │                                                                  ││   Started 2026-11-11 09:00, finished 2026-11-11 09:30, git -     │ │
+│ │                                                                  ││   Baseline: none                                                 │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Pass rate by arm                                                 │ │
+│ │                                                                  ││   none ██████████[██████████░░░░░░░░░]░░░░░░░░░░  50% [ 25– 75]  │ │
+│ │                                                                  ││   bint █████████████████████████████████████████           100%  │ │
+│ │                                                                  ││   [ ] = 95% confidence interval; ┃ = very narrow interval; no    │ │
+│ │                                                                  ││   marks = interval not available                                 │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Arms                                                             │ │
+│ │                                                                  ││   none: pass 50% [25, 75]; graded 4/4 runs; errors 0, skipped    │ │
+│ │                                                                  ││       0, timeouts 0                                              │ │
+│ │                                                                  ││       cost -, time - s, agent turns -; variation sd 0.35, 1/2    │ │
+│ │                                                                  ││       cases inconsistent; models claude-opus-5-5                 │ │
+│ │                                                                  ││   bint: pass 100% [-]; graded 4/4 runs; errors 0, skipped 0,     │ │
+│ │                                                                  ││       timeouts 0                                                 │ │
+│ │                                                                  ││       cost -, time - s, agent turns -                            │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Paired comparison (same cases; 95% bootstrap interval over case… │ │
+│ │                                                                  ││   bint − none: 2 cases, pass difference +50.0 points [+10.0,     │ │
+│ │                                                                  ││       +90.0]                                                     │ │
+│ │                                                                  ││       Δ cost -, Δ time -, Δ turns -                              │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ By case (passed/graded)                                          │ │
+│ │                                                                  ││   c0003cccc build none 1/2 bint 2/2                              │ │
+│ │                                                                  ││   c0004dddd validation none 1/2 (+1 error/skipped) bint 2/2      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Measurement reliability                                          │ │
+│ │                                                                  ││   ! chế độ economy: kết quả chỉ dùng để sàng lọc                 │ │
+│ └─ r run  R resume  b baseline  B bootstrap  C clean ──────────────┘└─ b baseline  Enter switch pane ──────────────────────────────────┘ │
+└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────────────────────┘

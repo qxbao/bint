@@ -19,7 +19,7 @@ import (
 	"bint/internal/tui/theme"
 )
 
-// capt ghi các hành động của màn Lượt chạy và Tiến hoá thay vì gọi dịch vụ thật: Do trả ngay giá trị dựng sẵn, Job chờ
+// capt ghi các hành động của màn Lượt chạy, Đánh giá và Tiến hoá thay vì gọi dịch vụ thật: Do trả ngay giá trị dựng sẵn, Job chờ
 // tới khi được thả (release) hoặc bị huỷ.
 type capt struct {
 	mu      sync.Mutex
@@ -61,7 +61,7 @@ func capture(jobIDs ...string) (*actions.Registry, *capt) {
 	var list []actions.Action
 	for _, a := range actions.Default().All() {
 		a := a
-		if a.Screen == actions.Runs || a.Screen == actions.Evolve {
+		if a.Screen == actions.Runs || a.Screen == actions.Evolve || a.Screen == actions.Eval {
 			if a.Do != nil {
 				a.Do = func(_ context.Context, _ actions.Env, o any) tea.Msg {
 					c.record(a.ID, o)
@@ -76,7 +76,7 @@ func capture(jobIDs ...string) (*actions.Registry, *capt) {
 					select {
 					case <-c.release[a.ID]:
 					case <-ctx.Done():
-						return nil, ctx.Err()
+						return c.values[a.ID], ctx.Err() // huỷ: dịch vụ trả kết quả một phần cùng lỗi huỷ
 					}
 					return c.values[a.ID], nil
 				}

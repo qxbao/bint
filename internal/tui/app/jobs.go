@@ -54,8 +54,8 @@ func (m *Model) startJob(a actions.Action, opts any) (tea.Model, tea.Cmd) {
 	if a.JobInfo != nil {
 		info = a.JobInfo(opts)
 	}
-	// Mỗi lúc một việc workflow, và một việc nặng của Tiến hoá.
-	for kind, busy := range map[string]error{jobs.KindWorkflow: actions.ErrWorkflowBusy, jobs.KindEvolve: actions.ErrEvolveBusy} {
+	// Mỗi lúc một việc workflow, một việc nặng của Tiến hoá và một việc nặng của Đánh giá.
+	for kind, busy := range map[string]error{jobs.KindWorkflow: actions.ErrWorkflowBusy, jobs.KindEvolve: actions.ErrEvolveBusy, jobs.KindEval: actions.ErrEvalBusy} {
 		if info.Kind == kind && m.jobs.OfKind(kind) != nil {
 			id := a.ID
 			return m, func() tea.Msg { return actions.ResultMsg{ID: id, Opts: opts, Err: busy} }

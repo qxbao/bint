@@ -29,6 +29,8 @@ func ErrText(cat *i18n.Catalog, err error) string {
 		return cat.T("err.workflow_busy")
 	case errors.Is(err, actions.ErrEvolveBusy):
 		return cat.T("err.evolve_busy")
+	case errors.Is(err, actions.ErrEvalBusy):
+		return cat.T("err.eval_busy")
 	case errors.Is(err, app.ErrCancelled), errors.Is(err, context.Canceled):
 		return cat.T("err.cancelled")
 	}

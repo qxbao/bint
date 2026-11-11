@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evaluation~~~~⟧│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   ⟦Candidates~~~~⟧ · ⟦Cases~~⟧ · ⟦Batches~~~⟧                                                                                            │
+│ ┌─│⟦Candidates (2)~~~~~~⟧│────────────────────────────⟦pending~~~⟧─┐┌─│⟦Details~~~⟧ · c0002bbbb│───────────────────────────────────────┐ │
+│ │   ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng       ││ c0002bbbb                                                        │ │
+│ │ ▸ ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu               ││ ⟦Status~~~⟧ ⟦candidate~~~~⟧                                      │ │
+│ │                                                                  ││ ⟦File~~⟧    /state/demo/evals/candidates/c0002bbbb.yml           │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Prompt~~~⟧                                                      │ │
+│ │                                                                  ││   Sửa lỗi khoá: gọi Close() trong defer.                         │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Source commit~~~~~~⟧                                            │ │
+│ │                                                                  ││ ⟦Commit~~~⟧ c0002bbbbcom (Sửa lỗi khoá cơ sở dữ liệu)            │ │
+│ │                                                                  ││ ⟦Base~~⟧    c0002bbbbbas                                         │ │
+│ │                                                                  ││ ⟦Author~~~⟧ Dev 2026-11-10                                       │ │
+│ │                                                                  ││ ⟦Size~~⟧    ⟦2 files, 30 source lines, 20 test                   │ │
+│ │                                                                  ││             lines~~~~~~~~~~~~~~⟧                                 │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Fail→pass verification~~~~~~~~~⟧                                │ │
+│ │                                                                  ││   · ⟦not verified yet (press v)~~~~~~~~~~~⟧                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Solution leakage~~~~~~~⟧                                        │ │
+│ │                                                                  ││   ✗ ⟦leaks the solution~~~~~~~~⟧                                 │ │
+│ │                                                                  ││     [fail] solution_code: đề bài chứa mã của lời giải            │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Specification~~~~~~⟧                                            │ │
+│ │                                                                  ││   · ⟦not analysed yet (press p)~~~~~~~~~~~⟧                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Test command~~~~~⟧                                              │ │
+│ │                                                                  ││   go test ./...                                                  │ │
+│ │                                                                  ││   ⟦Test files: internal/db/db_test.go~~~~~⟧                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a ⟦approve~~~⟧  x ⟦reject~~~⟧  m ⟦mine~~⟧  v ⟦verify~~~⟧  A ⟦a…─┘└─ e ⟦edit~~⟧  Enter ⟦switch pane~~~~~⟧ ───────────────────────────┘ │
+└─[m→ ⟦Mine~~⟧] [a→ ⟦Approve~~~⟧] [x→ ⟦Reject~~~⟧] [r→ ⟦Run~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────────────────────────────┘

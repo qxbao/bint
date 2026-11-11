@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy                                │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evaluation│─────────────────────────────────────────────────────────────────┐
+│   Candidates · Cases · Batches                                               │
+│ ┌─│Report · 0000000001│────────────────────────────────────────────1-16/30─┐ │
+│ │ Batch eb_01EVALDONE0000000000000001 — completed                          │ │
+│ │   Harness command -, requested model -, leakage economy, 2 cases × 2     │ │
+│ │     repeats, seed 7                                                      │ │
+│ │   Started 2026-11-11 09:00, finished 2026-11-11 09:30, git -             │ │
+│ │   Baseline: none                                                         │ │
+│ │                                                                          │ │
+│ │ Pass rate by arm                                                         │ │
+│ │   none ███████████[███████████░░░░░░░░░░]░░░░░░░░░░░  50% [ 25– 75] 2/4  │ │
+│ │   bint █████████████████████████████████████████████           100% 4/4  │ │
+│ │   [ ] = 95% confidence interval; ┃ = very narrow interval; no marks =    │ │
+│ │   interval not available                                                 │ │
+│ │                                                                          │ │
+│ │ Arms                                                                     │ │
+│ │   none: pass 50% [25, 75]; graded 4/4 runs; errors 0, skipped 0,         │ │
+│ │       timeouts 0                                                         │ │
+│ │       cost -, time - s, agent turns -; variation sd 0.35, 1/2 cases      │ │
+│ └─ b baseline  Enter switch pane ──────────────────────────────────────────┘ │
+└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────┘

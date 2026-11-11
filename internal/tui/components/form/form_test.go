@@ -330,3 +330,54 @@ func TestPointerFloatAndUintFields(t *testing.T) {
 		t.Fatal("uint64 không nhận số âm")
 	}
 }
+
+// Struct nhúng (vd. app.EvalSelection trong EvalRunOptions): ô của trường nhúng hiện đúng vị trí khai báo, nhận giá trị
+// từ Options khởi đầu, Build ghi lại vào đúng trường nhúng và dòng lệnh CLI nêu đúng cờ.
+type embSel struct {
+	Split string `flag:"split" form:"choices=build|validation|test"`
+	Limit int    `flag:"limit" form:"advanced"`
+}
+
+type EmbSel = embSel
+
+type embOpts struct {
+	First string `flag:"first"`
+	EmbSel
+	Last bool   `flag:"last"`
+	Id   string `arg:"id"`
+}
+
+func TestEmbeddedStructFields(t *testing.T) {
+	if got := names(Fields(embOpts{})); got != "first,split,limit,last,id" {
+		t.Fatalf("thứ tự ô (trường nhúng đúng chỗ khai báo): %s", got)
+	}
+	fs := Fields(&embOpts{})
+	by := map[string]Field{}
+	for _, f := range fs {
+		by[f.Name] = f
+	}
+	if f := by["split"]; f.Kind != Choice || len(f.Choices) != 3 || f.Advanced {
+		t.Errorf("split: %+v", f)
+	}
+	if f := by["limit"]; f.Kind != Int || !f.Advanced {
+		t.Errorf("limit: %+v", f)
+	}
+	m := New("x.y", "x y", embOpts{First: "a", EmbSel: EmbSel{Split: "test", Limit: 3}})
+	m.FocusField("first")
+	typeText(&m, "b") // "ab"
+	m.FocusField("split")
+	m.Update(k("left")) // test → validation
+	m.FocusField("limit")
+	m.Update(k("ctrl+u"))
+	typeText(&m, "7")
+	m.FocusField("id")
+	typeText(&m, "42")
+	v, err := m.Build()
+	o, _ := v.(embOpts)
+	if err != nil || o.First != "ab" || o.Split != "validation" || o.Limit != 7 || o.Id != "42" {
+		t.Fatalf("Build: %+v %v", o, err)
+	}
+	if got := m.CLI(); got != "bint x y --first ab --split validation --limit 7 42" {
+		t.Fatalf("CLI: %s", got)
+	}
+}

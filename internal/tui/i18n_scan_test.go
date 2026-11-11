@@ -191,7 +191,11 @@ func TestNoUnusedKeys(t *testing.T) {
 		// Màn Lượt chạy và Tiến hoá (giai đoạn 3): hành động, thẻ, nhãn trường, nhãn nhóm, câu hỏi giữa chừng của evaluate
 		// (ghép từ khoá evolvesvc.ConfirmEvaluateKey), tên thẻ con, lý do chặn, loại cặp...
 		"action.runs.", "action.evolve.", "prompt.evolve.", "rn.tab.", "rn.label.", "rn.f.", "rn.lf.", "rn.rating.",
-		"ev.tab.", "ev.sub.", "ev.f.", "ev.pair.", "ev.apply.blocked.", "ev.evals.independent.", "ev.job.title."}
+		"ev.tab.", "ev.sub.", "ev.f.", "ev.pair.", "ev.apply.blocked.", "ev.evals.independent.", "ev.job.title.",
+		// Màn Đánh giá (giai đoạn 4): hành động, nhãn form (đã có "form."), câu hỏi giữa chừng của eval run/bootstrap (ghép từ
+		// khoá app.ConfirmEval*Key), tên thẻ, trạng thái ứng viên/kiểm chứng/rò rỉ/đặc tả/đợt (ghép từ giá trị dữ liệu), tiêu
+		// đề kết quả việc nền, lý do kiểm chứng ở hộp duyệt.
+		"action.eval.", "prompt.eval.", "eval.tab.", "eval.st.", "eval.vs.", "eval.ls.", "eval.ss.", "eval.bst.", "eval.job.title.", "eval.approve.verify_"}
 	for _, k := range vi.Keys() {
 		if k == "app.name" || strings.Contains(code, `"`+k+`"`) {
 			continue

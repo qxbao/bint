@@ -25,7 +25,7 @@ type Coverage struct {
 }
 
 // CurrentPhase là giai đoạn của kế hoạch TUI đã làm xong (docs/tui-plan.md mục 9).
-const CurrentPhase = 3
+const CurrentPhase = 4
 
 // Data là dữ liệu phủ hiện hành.
 var Data = Coverage{
@@ -47,18 +47,6 @@ var Data = Coverage{
 		"task new --file":           "TUI soạn mô tả trong ô nhiều dòng thay vì đọc từ tệp",
 	},
 	Pending: map[string]int{
-		"eval approve":                4,
-		"eval bootstrap":              4,
-		"eval clean":                  4,
-		"eval estimate":               4,
-		"eval list":                   4,
-		"eval mine":                   4,
-		"eval reject":                 4,
-		"eval report":                 4,
-		"eval run":                    4,
-		"eval show":                   4,
-		"eval spec":                   4,
-		"eval verify":                 4,
 		"harness component add":       5,
 		"harness component approve":   5,
 		"harness component deprecate": 5,
@@ -92,5 +80,5 @@ var Data = Coverage{
 		"init --no-skills":   5,
 		"init --update":      5,
 	},
-	PendingCeiling: 42,
+	PendingCeiling: 30,
 }

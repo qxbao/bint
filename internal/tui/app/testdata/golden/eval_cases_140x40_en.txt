@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evaluation│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Candidates · Cases · Batches                                                                                                           │
+│ ┌─│Approved cases (2)│──────────────────────────────────all splits─┐┌─│Details · c0003cccc│────────────────────────────────────────────┐ │
+│ │ ▸ ✓ c0003cccc     build      Đổi cách tính phí                   ││ c0003cccc                                                        │ │
+│ │   ✓ c0004dddd     validation Tách hàm Open                       ││ Status      approved                                             │ │
+│ │                                                                  ││ Split       build                                                │ │
+│ │                                                                  ││ File        /state/demo/evals/candidates/c0003cccc.yml           │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Prompt                                                           │ │
+│ │                                                                  ││   Đổi cách tính phí theo bậc.                                    │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Source commit                                                    │ │
+│ │                                                                  ││ Commit      c0003cccccom (Đổi cách tính phí)                     │ │
+│ │                                                                  ││ Base        c0003ccccbas                                         │ │
+│ │                                                                  ││ Author      Dev 2026-11-10                                       │ │
+│ │                                                                  ││ Size        2 files, 30 source lines, 20 test lines              │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Fail→pass verification                                           │ │
+│ │                                                                  ││   ✓ verified (fail→pass)                                         │ │
+│ │                                                                  ││     failed before: yes; passed after: yes; runs after: 2; at     │ │
+│ │                                                                  ││     2026-11-11T08:00:00Z                                         │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Solution leakage                                                 │ │
+│ │                                                                  ││   ✓ no leak                                                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Specification                                                    │ │
+│ │                                                                  ││   · not analysed yet (press p)                                   │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Test command                                                     │ │
+│ │                                                                  ││   go test ./...                                                  │ │
+│ │                                                                  ││   Test files: internal/db/db_test.go                             │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ r run  E estimate  t split  p spec ─────────────────────────────┘└─ e edit  Enter switch pane ──────────────────────────────────────┘ │
+└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────────────────────┘

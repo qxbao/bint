@@ -12,6 +12,7 @@ test (`go test ./internal/tui/...`) chỉ chống thụt lùi bố cục, còn "
 | `knowledge.tape` | Tri thức ở ~80×24: hộp thư → lô `nguon:lo-thu` → chọn, chi tiết, xác nhận duyệt lô, lọc, form thêm, bảng chuyển trạng thái | `knowledge-*.png`, `knowledge.gif` |
 | `knowledge-wide.tape` | Như trên ở ~140×40 (hai khung danh sách + chi tiết) kèm thẻ Tìm kiếm và Xuất bản AGENTS.md | `knowledge-wide-*.png`, `knowledge-wide.gif` |
 | `runs-wide.tape` | Lượt chạy ở ~140×40: danh sách rỗng, form quét Git, thẻ Bài học và form tóm tắt thất bại | `runs-wide-*.png`, `runs-wide.gif` |
+| `eval-wide.tape` | Đánh giá ở ~140×40: thẻ Ứng viên, form khai thác/ước tính/chạy đợt, thẻ Tác vụ và Đợt (đợt thật cần harness nên không chụp báo cáo) | `eval-wide-*.png`, `eval-wide.gif` |
 | `evolve-wide.tape` | Tiến hoá ở ~140×40: cơ hội, form quét và đề xuất, thẻ Đề xuất/Lịch sử/Hàng đợi | `evolve-wide-*.png`, `evolve-wide.gif` |
 | `gallery.tape` | Trang trưng bày component: tối, sáng, 16 màu, NO_COLOR; vi, en, locale giả | `gallery-*.png`, `gallery.gif` |
 
@@ -23,7 +24,7 @@ rồi đặt `/tmp/bint` vào PATH). Chạy từ **thư mục gốc repository**
 ```sh
 go build -o /tmp/bint-vhs/bint ./cmd/bint
 export PATH=/tmp/bint-vhs:$PATH
-for t in overview overview-wide init knowledge knowledge-wide runs-wide evolve-wide gallery; do vhs internal/tui/testdata/vhs/$t.tape; done
+for t in overview overview-wide init knowledge knowledge-wide runs-wide eval-wide evolve-wide gallery; do vhs internal/tui/testdata/vhs/$t.tape; done
 ls internal/tui/testdata/vhs/out
 ```
 

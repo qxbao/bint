@@ -112,9 +112,9 @@ func checkSplit(flag, split string) error {
 // EvalMineOptions: `bint eval mine`.
 type EvalMineOptions struct {
 	Rev        string `flag:"rev"`
-	Limit      int    `flag:"limit"`
+	Limit      int    `flag:"limit" form:"advanced"`
 	Verify     bool   `flag:"verify"`
-	VerifyRuns int    `flag:"verify-runs"`
+	VerifyRuns int    `flag:"verify-runs" form:"advanced"`
 	// Progress báo tiến độ kiểm chứng từng ứng viên mới (chỉ khi Verify).
 	Progress func(EvalProgress)
 }
@@ -173,9 +173,9 @@ func EvalMine(ctx context.Context, e *EvalWorkspace, opts EvalMineOptions) (*Eva
 
 // EvalVerifyOptions: `bint eval verify [id...]`.
 type EvalVerifyOptions struct {
-	IDs      []string
-	All      bool `flag:"all"`
-	Runs     int  `flag:"runs"`
+	IDs      []string `arg:"id" form:"suggest=candidates"`
+	All      bool     `flag:"all"`
+	Runs     int      `flag:"runs" form:"advanced"`
 	Progress func(EvalProgress)
 }
 
@@ -273,7 +273,7 @@ func EvalVerify(ctx context.Context, e *EvalWorkspace, opts EvalVerifyOptions) (
 // EvalListOptions: `bint eval list`.
 type EvalListOptions struct {
 	All   bool   `flag:"all"`
-	Split string `flag:"split"`
+	Split string `flag:"split" form:"choices=build|validation|test"`
 }
 
 func EvalListDefaults(config.Config) EvalListOptions { return EvalListOptions{} }
@@ -323,7 +323,9 @@ func FilterSplit(cs []*eval.Case, split string) []*eval.Case {
 // ---- eval show ----
 
 // EvalShowOptions: `bint eval show <id>`.
-type EvalShowOptions struct{ ID string }
+type EvalShowOptions struct {
+	ID string `arg:"id" form:"required,suggest=eval_ids"`
+}
 
 func EvalShowDefaults(config.Config) EvalShowOptions { return EvalShowOptions{} }
 
@@ -365,9 +367,9 @@ func EvalShow(ctx context.Context, e *EvalWorkspace, opts EvalShowOptions) (*Eva
 
 // EvalSpecOptions: `bint eval spec [id...]`.
 type EvalSpecOptions struct {
-	IDs      []string
-	All      bool `flag:"all"`
-	Approved bool `flag:"approved"`
+	IDs      []string `arg:"id" form:"suggest=candidates"`
+	All      bool     `flag:"all"`
+	Approved bool     `flag:"approved"`
 }
 
 func EvalSpecDefaults(config.Config) EvalSpecOptions { return EvalSpecOptions{} }
@@ -453,10 +455,10 @@ func EvalSpec(ctx context.Context, e *EvalWorkspace, opts EvalSpecOptions) (*Eva
 
 // EvalApproveOptions: `bint eval approve <id>...`.
 type EvalApproveOptions struct {
-	IDs        []string
-	Force      bool   `flag:"force"`
-	Unverified bool   `flag:"unverified"`
-	Split      string `flag:"split"`
+	IDs        []string `arg:"id" form:"required,suggest=candidates"`
+	Force      bool     `flag:"force" form:"hidden"`      // chỉ đặt qua ô chọn của hộp đỏ
+	Unverified bool     `flag:"unverified" form:"hidden"` // như Force
+	Split      string   `flag:"split" form:"choices=build|validation|test"`
 }
 
 func EvalApproveDefaults(config.Config) EvalApproveOptions { return EvalApproveOptions{} }
@@ -557,8 +559,8 @@ func EvalApprove(ctx context.Context, e *EvalWorkspace, opts EvalApproveOptions)
 
 // EvalRejectOptions: `bint eval reject <id>...`.
 type EvalRejectOptions struct {
-	IDs    []string
-	Reason string `flag:"reason"`
+	IDs    []string `arg:"id" form:"required,suggest=candidates"`
+	Reason string   `flag:"reason"`
 }
 
 func EvalRejectDefaults(config.Config) EvalRejectOptions {

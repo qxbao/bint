@@ -30,6 +30,9 @@ const (
 	// KindEvolve: việc nặng của màn Tiến hoá (propose, evaluate, process, cycle; có thể gọi mô hình và tốn tiền);
 	// mỗi lúc một việc loại này trong tiến trình TUI.
 	KindEvolve = "evolve"
+	// KindEval: việc nặng của màn Đánh giá (run, bootstrap, verify, mine có kiểm chứng; chạy tác vụ bằng agent, có thể
+	// tốn tiền); mỗi lúc một việc loại này trong tiến trình TUI. Tách khỏi KindEvolve vì hai bên ghi đợt riêng.
+	KindEval = "eval"
 )
 
 // PromptKind phân biệt câu hỏi có/không và câu hỏi trả lời tự do.
@@ -81,6 +84,13 @@ type DoneMsg struct {
 	Job   int
 	Value any
 	Err   error
+}
+
+// DataMsg là thông điệp có kiểu do việc nền gửi cho màn hình sở hữu nó (vd. kế hoạch ô và kết quả từng lượt của
+// `eval run`), để màn hình không phải phân tích chữ log (docs/tui-plan.md mục 7).
+type DataMsg struct {
+	Job   int
+	Value any
 }
 
 // TailMsg nhắc đọc thêm đuôi log của bước đang chạy.
@@ -144,6 +154,9 @@ func (b *Bridge) ConfirmRequest(r app.ConfirmRequest) bool {
 
 // Log gửi một dòng tiến trình (bỏ khi việc đã bị huỷ).
 func (b *Bridge) Log(line string) { b.send(LogMsg{Job: b.Job, Line: line}) }
+
+// Send gửi một giá trị có kiểu về màn hình sở hữu việc (thành DataMsg; bỏ khi việc đã bị huỷ).
+func (b *Bridge) Send(v any) { b.send(DataMsg{Job: b.Job, Value: v}) }
 
 // OnStep báo bước agent bắt đầu/kết thúc.
 func (b *Bridge) OnStep(ev workflow.StepEvent) { b.send(StepMsg{Job: b.Job, Event: ev}) }
@@ -243,7 +256,7 @@ func (t *Table) Remove(id int, err error) {
 		if j.ID == id {
 			t.list = append(t.list[:i], t.list[i+1:]...)
 			j.Ended, j.Err, j.tail = time.Now(), err, nil
-			if j.Kind != KindWorkflow && j.Kind != KindVerify && j.Kind != KindEvolve {
+			if j.Kind != KindWorkflow && j.Kind != KindVerify && j.Kind != KindEvolve && j.Kind != KindEval {
 				return // việc thường không giữ lại log
 			}
 			t.done = append(t.done, j)

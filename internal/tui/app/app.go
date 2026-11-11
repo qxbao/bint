@@ -23,6 +23,7 @@ import (
 	"bint/internal/tui/components/tabs"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/jobs"
+	elscreen "bint/internal/tui/screens/eval"
 	evscreen "bint/internal/tui/screens/evolve"
 	"bint/internal/tui/screens/initplaceholder"
 	knscreen "bint/internal/tui/screens/knowledge"
@@ -69,6 +70,10 @@ type Options struct {
 	RunsLoader   rnscreen.Loader
 	RunsDetailer rnscreen.Detailer
 	RunsLessons  rnscreen.LessonLoader
+	// EvalLoader/EvalDetailer/EvalReporter thay được trong kiểm thử; nil = nạp thật.
+	EvalLoader   elscreen.Loader
+	EvalDetailer elscreen.Detailer
+	EvalReporter elscreen.Reporter
 	// EvolveLoader/EvolveDetailer thay được trong kiểm thử; nil = nạp thật.
 	EvolveLoader   evscreen.Loader
 	EvolveDetailer evscreen.Detailer
@@ -103,6 +108,7 @@ type Model struct {
 	tk  *tkscreen.Model
 	rn  *rnscreen.Model
 	ev  *evscreen.Model
+	el  *elscreen.Model
 	// screens là các màn hình chuyên biệt theo tab (giao diện chung ui.Screen); mô hình gốc không rẽ nhánh theo màn.
 	screens map[actions.Screen]ui.Screen
 
@@ -160,7 +166,9 @@ func New(ctx context.Context, opts Options) *Model {
 		Lessons: opts.RunsLessons, Gate: m.gate})
 	m.ev = evscreen.New(evscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.EvolveLoader, Detailer: opts.EvolveDetailer,
 		Gate: m.gate, Jobs: m.jobs})
-	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk, actions.Runs: m.rn, actions.Evolve: m.ev}
+	m.el = elscreen.New(elscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.EvalLoader, Detailer: opts.EvalDetailer,
+		Reporter: opts.EvalReporter, Gate: m.gate, Jobs: m.jobs})
+	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk, actions.Runs: m.rn, actions.Eval: m.el, actions.Evolve: m.ev}
 	for _, sc := range m.screens {
 		sc.SetEnv(m.th, m.cat)
 	}
@@ -309,6 +317,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.kn.Focus(*msg.Filter), m.startTick())
 		case msg.Screen == actions.Tasks && msg.TaskID != "":
 			return m, tea.Batch(m.tk.Focus(msg.TaskID), m.startTick())
+		case msg.Screen == actions.Eval && msg.EvalCaseID != "":
+			return m, tea.Batch(m.el.Focus(msg.EvalCaseID), m.startTick())
 		case msg.Screen == actions.Evolve && msg.ProposalID != "":
 			return m, tea.Batch(m.ev.Focus(msg.ProposalID), m.startTick())
 		}
@@ -343,6 +353,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			j.Log.Add(msg.Line)
 		}
 		return m, m.pump()
+	case jobs.DataMsg:
+		m.pumping = false
+		var cmd tea.Cmd
+		if j := m.jobs.Get(msg.Job); j != nil {
+			cmd = m.toScreenOf(j.Action, msg)
+		}
+		return m, tea.Batch(cmd, m.pump())
 	case jobs.StepMsg:
 		m.pumping = false
 		return m, tea.Batch(m.onStep(msg), m.pump())
@@ -770,7 +787,7 @@ func (m *Model) screenBody(env ui.Env) string {
 		return ini.View(env)
 	case actions.Overview:
 		return m.ov.View(env)
-	case actions.Knowledge, actions.Tasks, actions.Runs, actions.Evolve:
+	case actions.Knowledge, actions.Tasks, actions.Runs, actions.Eval, actions.Evolve:
 		return m.screens[s].View(env)
 	default:
 		return placeholder.View(env, s, m.ov.Data.ForScreen(s))

@@ -56,7 +56,7 @@ func TestInboxLinesAndTargets(t *testing.T) {
 	wants := []want{
 		{"overview.inbox.batch", actions.Knowledge}, {"overview.inbox.batch", actions.Knowledge}, {"overview.inbox.knowledge", actions.Knowledge},
 		{"overview.inbox.components", actions.System}, {"overview.inbox.task", actions.Tasks}, {"overview.inbox.proposal", actions.Evolve},
-		{"overview.inbox.eval", actions.Eval}, {"overview.inbox.doctor_warn", actions.System}, {"overview.inbox.doctor_fail", actions.System},
+		{"overview.inbox.eval", actions.Eval}, {"overview.inbox.eval", actions.Eval}, {"overview.inbox.doctor_warn", actions.System}, {"overview.inbox.doctor_fail", actions.System},
 		{"overview.inbox.source_error", actions.Evolve},
 	}
 	if len(in) != len(wants) {
@@ -79,19 +79,22 @@ func TestInboxLinesAndTargets(t *testing.T) {
 	if got := strings.Join(in[4].Commands, ";"); got != "bint task show 01TASK1" {
 		t.Errorf("lệnh tác vụ: %s", got)
 	}
-	if got := strings.Join(in[6].Commands, ";"); got != "bint eval show 01EVAL1;bint eval show 01EVAL2" {
-		t.Errorf("lệnh eval: %s", got)
+	// Mỗi ứng viên đánh giá một dòng, mang ID để Enter chọn đúng ứng viên ở màn Đánh giá.
+	for i, id := range []string{"01EVAL1", "01EVAL2"} {
+		if got := strings.Join(in[6+i].Commands, ";"); got != "bint eval show "+id || in[6+i].EvalCaseID != id {
+			t.Errorf("dòng eval %d: %s / %q", i, got, in[6+i].EvalCaseID)
+		}
 	}
-	if got := strings.Join(in[7].Commands, ";"); got != "bint doctor;bint init --update" {
+	if got := strings.Join(in[8].Commands, ";"); got != "bint doctor;bint init --update" {
 		t.Errorf("doctor mẫu cũ phải gợi ý init --update: %s", got)
 	}
-	if in[9].Level != "fail" || !strings.Contains(in[9].Detail, "proposals") {
-		t.Errorf("nguồn lỗi phải là một dòng lỗi riêng: %+v", in[9])
+	if in[10].Level != "fail" || !strings.Contains(in[10].Detail, "proposals") {
+		t.Errorf("nguồn lỗi phải là một dòng lỗi riêng: %+v", in[10])
 	}
 	// Nguồn lỗi không làm mất nguồn khác: đủ dòng của năm nguồn còn lại ở trên.
 	out := plain(newModel(t, Options{Mode: theme.Mono}, d, 140, 40).Render())
 	for _, want := range []string{"5 mục tri thức chờ duyệt thuộc lô nguon:lo-thu", "3 mục tri thức chờ duyệt (không thuộc lô nào)", "2 thành phần harness chờ duyệt",
-		"Tác vụ bị chặn — Thêm cột email", "Đề xuất tiến hoá chờ duyệt — create 01PROP1", "2 ứng viên đánh giá chờ duyệt", "Doctor cảnh báo", "Doctor báo lỗi", "Không đọc được nguồn việc"} {
+		"Tác vụ bị chặn — Thêm cột email", "Đề xuất tiến hoá chờ duyệt — create 01PROP1", "Ứng viên đánh giá chờ duyệt — 01EVAL1", "Ứng viên đánh giá chờ duyệt — 01EVAL2", "Doctor cảnh báo", "Doctor báo lỗi", "Không đọc được nguồn việc"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("thiếu %q:\n%s", want, out)
 		}
@@ -129,7 +132,7 @@ func TestInboxEnterOnBlockedTaskOpensTasksScreenAtThatTask(t *testing.T) {
 	if !strings.Contains(out, "Thêm cột email") || !strings.Contains(out, "Chi tiết") {
 		t.Fatalf("màn Tác vụ phải hiện tác vụ đó:\n%s", out)
 	}
-	press(t, m, "1", "j", "j", "j", "enter") // thành phần harness → Hệ thống
+	press(t, m, "1", "j", "j", "j", "j", "enter") // dòng doctor → Hệ thống (4 dòng sau tác vụ: đề xuất, hai ứng viên, doctor)
 	if m.Tab() != 6 {
 		t.Fatalf("tab = %d, muốn 6", m.Tab())
 	}

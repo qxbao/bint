@@ -327,3 +327,65 @@ func TestEvalSelectionPick(t *testing.T) {
 		t.Fatalf("split lạ: %v", err)
 	}
 }
+
+// OnPlan chạy trước lời hỏi xác nhận (đợt mới: đúng tác vụ, nhánh, lần lặp; chưa có Done); trả không thì không có đợt.
+func TestEvalRunOnPlanBeforeConfirm(t *testing.T) {
+	e, _ := evalFixture(t)
+	ctx := context.Background()
+	opts := EvalRunDefaults(e.WS.Config)
+	opts.Arms, opts.ArmsExplicit = []string{eval.ArmNone}, true
+	opts.AgentCommand = "true"
+	opts.Repeats = 2
+	var order []string
+	var plan EvalRunPlan
+	opts.OnPlan = func(p EvalRunPlan) { order, plan = append(order, "plan"), p }
+	opts.Confirm = func(ConfirmRequest) bool { order = append(order, "confirm"); return false }
+	if _, err := EvalRun(ctx, e, opts); !errors.Is(err, ErrCancelled) {
+		t.Fatalf("từ chối: %v", err)
+	}
+	if len(order) != 2 || order[0] != "plan" || order[1] != "confirm" {
+		t.Fatalf("thứ tự: %v", order)
+	}
+	if len(plan.CaseIDs) != 1 || plan.CaseIDs[0] != "case-1" || len(plan.Arms) != 1 || plan.Arms[0] != eval.ArmNone || plan.Repeats != 2 ||
+		plan.BatchID != "" || len(plan.Done) != 0 {
+		t.Fatalf("kế hoạch: %+v", plan)
+	}
+	if bs, err := eval.ListBatches(ctx, e.Store.DB, 10); err != nil || len(bs) != 0 {
+		t.Fatalf("không được tạo đợt: %v %v", err, bs)
+	}
+}
+
+// Tiếp tục đợt cũ: OnPlan báo tác vụ/nhánh/lần lặp của đợt và các lượt đã có kết quả (bỏ lượt dở và lỗi hạ tầng).
+func TestEvalRunOnPlanResumeReportsDone(t *testing.T) {
+	e, _ := evalFixture(t)
+	ctx := context.Background()
+	db := e.Store.DB
+	if _, err := db.Exec(`INSERT INTO eval_batches(batch_id, status, harness, leakage_mode, arms, repeats, case_ids, prompt_version, seed, started_at, notes)
+		VALUES ('eb_x','cancelled','command','economy','["none"]',3,'["case-1"]',1,1,'2026-01-01T00:00:00Z','[]')`); err != nil {
+		t.Fatal(err)
+	}
+	ins := func(id string, rep int, status, errMsg string) {
+		if _, err := db.Exec(`INSERT INTO evaluation_runs(attempt_id, batch_id, case_id, case_fingerprint, arm, repeat_index, status, harness, started_at, error)
+			VALUES (?, 'eb_x', 'case-1', 'f', 'none', ?, ?, 'command', '2026-01-01T00:00:00Z', ?)`, id, rep, status, errMsg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ins("a1", 1, "passed", "")
+	ins("a2", 2, "running", "")
+	ins("a3", 3, "error", eval.InfraErrorPrefix+"hết hạn mức")
+	opts := EvalRunDefaults(e.WS.Config)
+	opts.Resume, opts.AgentCommand = "eb_x", "true"
+	var plan EvalRunPlan
+	called := 0
+	opts.OnPlan = func(p EvalRunPlan) { called++; plan = p }
+	opts.Confirm = func(ConfirmRequest) bool { return false }
+	if _, err := EvalRun(ctx, e, opts); !errors.Is(err, ErrCancelled) {
+		t.Fatalf("từ chối: %v", err)
+	}
+	if called != 1 || plan.BatchID != "eb_x" || plan.Repeats != 3 || len(plan.CaseIDs) != 1 || len(plan.Arms) != 1 {
+		t.Fatalf("kế hoạch: %d %+v", called, plan)
+	}
+	if len(plan.Done) != 1 || plan.Done[0].Repeat != 1 || plan.Done[0].Status != "passed" {
+		t.Fatalf("Done: %+v", plan.Done)
+	}
+}

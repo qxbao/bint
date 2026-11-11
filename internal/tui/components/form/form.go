@@ -9,6 +9,7 @@ package form
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -44,9 +45,9 @@ type Field struct {
 	Multiline bool
 	Suggest   string
 	Choices   []string
-	index     int  // chỉ số trường trong struct
-	ptr       bool // trường *float64: ô trống = nil
-	unsigned  bool // trường uint64
+	index     []int // đường chỉ số tới trường trong struct (qua trường nhúng)
+	ptr       bool  // trường *float64: ô trống = nil
+	unsigned  bool  // trường uint64
 }
 
 // LabelKey là khoá i18n của nhãn ô.
@@ -67,13 +68,23 @@ func fields(opts any, withHidden bool) []Field {
 	if t == nil || t.Kind() != reflect.Struct {
 		return nil
 	}
+	return structFields(t, nil, withHidden)
+}
+
+// structFields duyệt các trường của t; trường nhúng (Anonymous) kiểu struct được duyệt đệ quy tại chỗ, nên ô của
+// struct nhúng đứng đúng vị trí khai báo của nó. prefix là đường chỉ số tới t.
+func structFields(t reflect.Type, prefix []int, withHidden bool) []Field {
 	var out []Field
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
+		if sf.Anonymous && sf.Type.Kind() == reflect.Struct && sf.Tag.Get("flag") == "" && sf.Tag.Get("arg") == "" {
+			out = append(out, structFields(sf.Type, append(slices.Clone(prefix), i), withHidden)...)
+			continue
+		}
 		if !sf.IsExported() {
 			continue
 		}
-		f := Field{index: i}
+		f := Field{index: append(slices.Clone(prefix), i)}
 		if n := sf.Tag.Get("flag"); n != "" {
 			f.Name = n
 		} else if n := sf.Tag.Get("arg"); n != "" {
@@ -179,7 +190,7 @@ func New(actionID, cliPath string, defaults any) Model {
 	m.choice = make([]int, len(m.Fields))
 	m.bools = make([]bool, len(m.Fields))
 	for i, f := range m.Fields {
-		fv := cp.Field(f.index)
+		fv := cp.FieldByIndex(f.index)
 		switch f.Kind {
 		case String:
 			m.inputs[i] = input.New(fv.String())
@@ -394,7 +405,7 @@ func (m *Model) Build() (any, error) {
 	m.FieldErr = map[int]string{}
 	var bad error
 	for i, f := range m.Fields {
-		fv := out.Field(f.index)
+		fv := out.FieldByIndex(f.index)
 		val := strings.TrimSpace(m.inputs[i].Text)
 		switch f.Kind {
 		case String:
@@ -540,7 +551,7 @@ func CLIFor(cliPath string, def, v any) string {
 	dv, vv := reflect.ValueOf(def), reflect.ValueOf(v)
 	var flags, args []string
 	for _, f := range AllFields(v) {
-		fv, df := vv.Field(f.index), dv.Field(f.index)
+		fv, df := vv.FieldByIndex(f.index), dv.FieldByIndex(f.index)
 		if reflect.DeepEqual(fv.Interface(), df.Interface()) && !f.Arg {
 			continue
 		}

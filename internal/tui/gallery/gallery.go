@@ -13,6 +13,7 @@ import (
 	"bint/internal/app"
 	"bint/internal/config"
 	"bint/internal/i18n"
+	"bint/internal/tui/components/barchart"
 	"bint/internal/tui/components/confirm"
 	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/form"
@@ -193,6 +194,16 @@ func (m *Model) Render() string {
 		{Title: cat.T("gallery.sample.log_orchestrator"), Lines: []string{"▶ b-feat [claude] (…)", "✓ b-feat 12s"}},
 		{Title: cat.T("gallery.sample.log_step"), Lines: []string{"{\"type\":\"assistant\"…}", cat.T("gallery.sample.log_line")}},
 	}, min(iw-2, 64), 6), "\n")...)
+
+	section(cat.T("gallery.section.barchart"))
+	for _, l := range barchart.Render(th, []barchart.Row{
+		{Label: "none", Value: 0.5, Lo: 0.25, Hi: 0.75, Valid: true, Note: "n=10"},
+		{Label: cat.T("gallery.sample.arm"), Value: 0.9, Lo: 0.6, Hi: 0.98, Valid: true, Note: "n=10"},
+		{Label: "bint", Value: 1, Lo: 0.7, Hi: 1, Valid: true, Note: "n=10"},
+		{Label: "minimal", Value: 0.2, Valid: false, Note: "n=2"},
+	}, min(iw-4, 76)) {
+		add("  " + l)
+	}
 
 	section(cat.T("gallery.section.confirm"))
 	dlg := confirm.Model{Title: cat.T("gallery.confirm.title"), Body: []string{cat.T("gallery.confirm.body")}, Danger: true, Input: true,

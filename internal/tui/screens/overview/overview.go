@@ -46,11 +46,21 @@ type Inbox struct {
 	TaskID string
 	// ProposalID: đề xuất cần chọn ở màn Tiến hoá (chỉ với Target = Evolve và dòng của một đề xuất).
 	ProposalID string
+	// EvalCaseID: ứng viên đánh giá cần chọn ở màn Đánh giá (chỉ với Target = Eval và dòng của một ứng viên).
+	EvalCaseID string
 	// Commands là lệnh CLI xử lý từng việc của dòng (hiện ở trang giữ chỗ của tab chưa làm).
 	Commands []string
 }
 
-const maxTaskRows, maxProposalRows = 5, 5
+const maxTaskRows, maxProposalRows, maxEvalRows = 5, 5, 5
+
+// shortID rút ID dài thành 10 ký tự cuối (phần phân biệt của ULID); ID ngắn hơn giữ nguyên.
+func shortID(id string) string {
+	if r := []rune(id); len(r) > 10 {
+		return string(r[len(r)-10:])
+	}
+	return id
+}
 
 // sourceTarget là tab xử lý lỗi đọc của từng nguồn.
 var sourceTarget = map[string]actions.Screen{
@@ -109,12 +119,14 @@ func (d Data) Inbox() []Inbox {
 		out = append(out, Inbox{Level: "info", Key: "overview.inbox.proposal", Detail: strings.TrimSpace(e.Action + " " + id), Target: actions.Evolve,
 			ProposalID: e.ID, Commands: []string{"bint evolve show " + e.ID}})
 	}
-	if n := len(p.EvalCandidates); n > 0 {
-		in := Inbox{Level: "info", Key: "overview.inbox.eval", Count: n, Target: actions.Eval}
-		for _, id := range p.EvalCandidates {
-			in.Commands = append(in.Commands, "bint eval show "+id)
+	for i, id := range p.EvalCandidates {
+		if i == maxEvalRows {
+			out = append(out, Inbox{Level: "info", Key: "overview.inbox.eval_more", Count: len(p.EvalCandidates) - maxEvalRows, Target: actions.Eval,
+				Commands: []string{"bint eval list"}})
+			break
 		}
-		out = append(out, in)
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.eval", Detail: shortID(id), Target: actions.Eval, EvalCaseID: id,
+			Commands: []string{"bint eval show " + id}})
 	}
 	for _, c := range p.Doctor {
 		in := Inbox{Level: "warn", Key: "overview.inbox.doctor_warn", Detail: c.Name + ": " + c.Detail, Target: actions.System, Commands: []string{"bint doctor"}}
@@ -197,12 +209,13 @@ func LoadCmd(ctx context.Context, dir string) tea.Cmd {
 }
 
 // NavMsg yêu cầu chuyển sang một tab; Filter (nếu có) là bộ lọc đặt sẵn cho màn Tri thức, TaskID là tác vụ cần
-// chọn ở màn Tác vụ, ProposalID là đề xuất cần chọn ở màn Tiến hoá.
+// chọn ở màn Tác vụ, ProposalID là đề xuất cần chọn ở màn Tiến hoá, EvalCaseID là ứng viên cần chọn ở màn Đánh giá.
 type NavMsg struct {
 	Screen     actions.Screen
 	Filter     *knowledge.Filter
 	TaskID     string
 	ProposalID string
+	EvalCaseID string
 }
 
 // Model là trạng thái màn Tổng quan.
@@ -236,7 +249,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "enter":
 			if in := m.Data.Inbox(); m.Cursor < len(in) {
-				nav := NavMsg{Screen: in[m.Cursor].Target, Filter: in[m.Cursor].Filter, TaskID: in[m.Cursor].TaskID, ProposalID: in[m.Cursor].ProposalID}
+				nav := NavMsg{Screen: in[m.Cursor].Target, Filter: in[m.Cursor].Filter, TaskID: in[m.Cursor].TaskID, ProposalID: in[m.Cursor].ProposalID, EvalCaseID: in[m.Cursor].EvalCaseID}
 				return m, func() tea.Msg { return nav }
 			}
 		}

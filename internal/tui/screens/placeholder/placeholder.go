@@ -1,4 +1,4 @@
-// Package placeholder là trang giữ chỗ cho sáu tab chưa có màn hình thật: nói rõ giai đoạn dự kiến
+// Package placeholder là trang giữ chỗ cho các tab chưa có màn hình thật: nói rõ giai đoạn dự kiến
 // và liệt kê lệnh CLI tương đương để người dùng không bị chặn trong lúc chờ.
 package placeholder
 
@@ -21,7 +21,6 @@ type Info struct {
 
 // Tabs là thông tin các tab giữ chỗ (khớp giai đoạn trong docs/tui-plan.md mục 9).
 var Tabs = map[actions.Screen]Info{
-	actions.Eval:   {Phase: 4, Commands: []string{"bint eval mine", "bint eval approve <id>", "bint eval estimate", "bint eval run", "bint eval report"}},
 	actions.System: {Phase: 5, Commands: []string{"bint doctor", "bint init --update", "bint sync", "bint harness list", "bint update"}},
 }
 

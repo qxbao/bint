@@ -1,8 +1,8 @@
 # Kế hoạch TUI cho Bint
 
-Trạng thái: **giai đoạn 0, 1, 2 và 3 đã triển khai** (2026-11-11); các giai đoạn 4–6 chưa làm. Kế hoạch đề
+Trạng thái: **giai đoạn 0, 1, 2, 3 và 4 đã triển khai** (2026-11-11); các giai đoạn 5–6 chưa làm. Kế hoạch đề
 xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
-và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3).
+và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4).
 
 ## 1. Mục tiêu
 
@@ -432,7 +432,7 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 | 1 ✅ | Tổng quan + hộp thư; Tri thức đầy đủ, gồm duyệt theo lô và lọc theo `nguon:*`. | Duyệt 30 mục từ một lần `/b-knowledge` trong < 1 phút, không gõ lệnh. |
 | 2 ✅ | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
 | 3 ✅ | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
-| 4 | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
+| 4 ✅ | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
 | 5 | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
 | 6 | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README. | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
 
@@ -558,7 +558,7 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
 - **Chưa có**: chuột, chế độ hẹp đầy đủ, hành động ghi nào trong sổ ngoài "Khởi tạo với mặc định" (nên chế độ
   `--read-only` mới chỉ có cơ chế và ẩn hành động ghi đó), `bubblezone`, `teatest` (golden dùng `View()` của mô
   hình), các màn hình của giai đoạn 2–6 (giai đoạn 1: xem 12.3). Danh sách chưa làm ở
-  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3).
+  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3, 30 sau giai đoạn 4).
 
 ### 12.3 Giai đoạn 1 (đã xong, 2026-11-11)
 
@@ -840,4 +840,81 @@ so cả nội dung và hộp quay lui hiện phần sẽ mất; bỏ trường `
 go test ./internal/tui/app ./internal/tui/gallery -update    # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước)
 go test -race ./internal/tui/app -run 'Milestone|Confirm|Cancel|LiveLog|Exit|OneHeavy|Evolve'   # việc nền, câu hỏi, huỷ
 bint tui                                                      # 4 (Lượt chạy) → I (nạp spool) → 6 (Tiến hoá) → s → p → a/u
+```
+
+### 12.6 Giai đoạn 4 (đã xong, 2026-11-11)
+
+Mốc "xong": chạy một đợt nhỏ và đọc báo cáo trong TUI. Kiểm bằng `TestMilestoneEvalRunReport` (`internal/tui/app`, dịch vụ thật, `sh`): repo tạm có `eval.test_command` và một commit lời
+giải kèm kiểm thử mới → `5` rồi `m` (bật "Kiểm chứng fail→pass ngay", việc nền có log) → thẻ Ứng viên hiện ứng viên đã kiểm chứng → `a` (hộp thường, Enter) → thẻ Tác vụ có tác vụ → `r` (form: một nhánh
+`none`, 2 lần lặp, agent lệnh tuỳ chỉnh ở nhóm Nâng cao; dòng CLI tương đương khớp) → hộp xác nhận kèm ước tính và lưu ý → Enter → đợt `completed` (2/2 lượt) → thẻ Đợt tự mở báo cáo với dòng biểu đồ cột
+`none █████… 100%`. Cùng nhóm kiểm thử: trả "không" ở hộp xác nhận không tạo đợt nào trong SQLite; huỷ khi đang hỏi kết thúc trong hạn giờ; Esc khi đang chạy cho đợt `cancelled` và màn hiện
+`bint eval run --resume <đợt>`. Chưa đo được tự động: ảnh VHS, cảm nhận thẩm mỹ của biểu đồ, đợt với harness thật (claude/codex, có chi phí).
+
+**Tầng dịch vụ** (`internal/app/eval_cases.go`, `eval_run.go`): thẻ `arg`/`form` cho mọi trường `Options` dùng trong form — `IDs` là `arg:"id"` (gợi ý `candidates`), `EvalShowOptions.ID` bắt buộc,
+`EvalReportOptions.BatchID` là `arg:"batch-id"`; `--split` có `choices=build|validation|test`, `--leakage-mode` có `choices=strict|economy`; `--arms`, `--harness`, `--baseline` có gợi ý mờ
+(`arms`, `harnesses`) thay vì `choices` (`choices` chỉ áp cho ô một giá trị, còn `--arms` là danh sách); nhóm Nâng cao: `--limit`, `--seed`, `--parallel`, `--keep-workdirs`, `--bare`,
+`--cost-per-run`, `--agent-command`, `--model`, `--effect`, `--verify-runs`, `--runs`; `form:"hidden"`: `--yes`, `--resume` (đặt bởi hành động "Chạy tiếp"), `--list`, và `--force`/`--unverified` của approve
+(chỉ đặt qua ô chọn của hộp đỏ). Thêm `EvalRunOptions.OnPlan func(EvalRunPlan)` với `EvalRunPlan{BatchID, CaseIDs, Arms, Repeats, Done}`: gọi **trước** lời hỏi xác nhận, ở đợt mới (sau `Pick` và
+`resolveArms`) và ở `--resume` (`Done` đọc bằng `eval.Attempts`, bỏ lượt đang chạy dở và lỗi hạ tầng như `eval.Run`, vì các lượt đó chạy lại). CLI không đặt `OnPlan` nên đầu ra không đổi; mọi e2e eval cũ
+chạy nguyên, không sửa khẳng định nào. **`components/form`** nay duyệt trường nhúng (`Field.index` thành đường chỉ số, `FieldByIndex`, đệ quy vào trường `Anonymous` như `actions.flagNames`): trước đó
+`EvalSelection` (`--split/--case/--limit`) nhúng trong `EvalRunOptions`/`EvalEstimateOptions`/`EvalBootstrapOptions` bị bỏ qua; ô của struct nhúng đứng đúng vị trí khai báo, thứ tự ô của struct không nhúng giữ nguyên.
+
+**Sổ hành động** (`actions/eval.go`): `eval.mine/verify/list/show/spec/approve/reject/estimate/run/report/bootstrap/clean` cùng hành động giao diện (`eval.resume`, `eval.open_file`, `eval.baseline`,
+`eval.split`, `eval.filter`, `eval.refresh`, `eval.next_view`, `eval.prev_view`). `Writes`: mine, verify, spec, approve, reject, run, bootstrap, clean, và hai hành động giao diện ghi (`resume`, `open_file`). Việc
+nặng chạy nền (`Action.Job`, loại mới `jobs.KindEval`, **mỗi lúc một việc**, việc thứ hai nhận `actions.ErrEvalBusy` và chỉ hiện thông báo): run, resume, bootstrap, verify, mine khi bật kiểm chứng (mine không
+kiểm chứng là việc thường). `runEvalRun`: `OnResume/OnEstimate/OnNotes/Progress` thành dòng log dịch qua khoá `eval.log.*`; `Confirm` thành hộp thoại (khoá `prompt.eval.run.confirm.*`,
+`prompt.eval.bootstrap.confirm.*`) kèm chính các dòng ước tính + lưu ý làm phần chi tiết; **không bao giờ đặt `Yes`**. `ArmsExplicit`/`BudgetExplicit` suy ra khi giá trị khác mặc định theo cấu hình. Lưới ô cần
+thông điệp có kiểu từ việc nền: thêm `jobs.Bridge.Send(v any)` sinh `jobs.DataMsg{Job, Value}` (mô hình gốc chuyển cho màn sở hữu việc); màn nhận `app.EvalRunPlan`, `actions.EvalAttempt` (một lượt kèm
+`N`/`Total`), `actions.EvalVerifyStep` và `actions.EvalBootstrapProgress`, không phân tích chữ log. `coverage.go`: gỡ 12 lệnh `eval`, `CurrentPhase = 4`, `PendingCeiling` 42 → 30; các ca ngược của
+`coverage_test.go` đổi mẫu từ `eval list` sang `sync` (giai đoạn 5) và vẫn đỏ đúng chỗ.
+
+**Màn Đánh giá** (`internal/tui/screens/eval`): thẻ **Ứng viên** (chờ duyệt; `A` gồm đã loại; chi tiết: đề bài dựng bằng trình xem Markdown, nguồn commit + gốc, kiểm chứng, rò rỉ (tính lại khi xem),
+đặc tả + chữ ký giao diện, lý do loại, lệnh chấm), **Tác vụ** (đã duyệt, `t` lọc theo tập build/validation/test), **Đợt** (danh sách; chi tiết là báo cáo: thông tin đợt, **biểu đồ cột tỷ lệ đạt + CI95**
+theo nhánh, từng nhánh (đạt kèm CI, chấm/lượt, lỗi/bỏ/quá giờ, chi phí, thời gian, lượt agent, dao động, mô hình), so sánh theo cặp, bảng theo tác vụ, guardrail, chẩn đoán độ tin cậy, chẩn đoán cổng 2; `b` đổi
+mốc `--baseline`), **Log** khi có việc nền (lưới ô + log trực tiếp; Esc huỷ an toàn). ≥ 100 cột (vùng nội dung, như các màn trước) hai khung, hẹp một khung (`Tab`/`Enter` đổi); `/` lọc, `Ctrl+R` làm mới, `,`/`.` đổi thẻ. Phím:
+`m v V p a x e A t r R E b B C`. Hàm định dạng số và CI viết trong màn (không import `internal/cli`).
+
+**Hộp duyệt/loại** dựng từ dữ liệu đã nạp: ứng viên hợp lệ → hộp thường có ô nhập tập (trống = tự chia theo ID); bị chặn (đã loại, rò rỉ `fail`, chưa kiểm chứng) → hộp **đỏ** có ô chọn riêng cho `--force` (nêu lý do:
+đã loại / lộ lời giải) và `--unverified`, mặc định không chọn — không chọn thì yêu cầu gửi không có cờ và dịch vụ trả `Problem` nguyên văn. `EvalApprove` tự kiểm lại lúc ghi nên lệch giữa lúc xem và lúc ghi
+chỉ thất bại an toàn. Hộp kết quả liệt kê từng ID (`EvalApproveOutcome`: đã duyệt kèm tập và ghi chú, đã duyệt từ trước, không duyệt được + lý do). `x` loại kèm ô lý do (trống = lý do mặc định của CLI). `C` hỏi trước khi
+xoá kho đệm. **Chạy tiếp**: `R` ở thẻ Đợt trên đợt chưa `completed` mở form dùng chung ô với `eval run` (đặt lại ngân sách hoặc lệnh agent: đợt chạy bằng agent lệnh phải tiếp tục bằng chính harness đó; các ô tác vụ/nhánh/lặp bị
+dịch vụ bỏ qua) rồi hộp xác nhận ở việc nền.
+
+**Component `components/barchart`**: `Render(th, rows, width)`; `Row{Label, Value, Lo, Hi, Valid, Note}`; cột ngang, nhãn căn theo `text.Width` sau NFC, khối đặc (accent) cho phần đạt, khối rỗng (muted), hai đầu khoảng tin cậy bằng
+`[` `]` (hoặc `┃` khi một ô) màu key, phần trăm + `[lo–hi]` bên phải khi đủ rộng (≥ 44 cột), chú thích khi ≥ 64 cột; CI không hợp lệ thì không vẽ mốc và không in khoảng. Có trong gallery (`gallery.section.barchart`).
+
+**Tích hợp**: màn vào bảng `screens`; `overview.NavMsg.EvalCaseID` + `Focus(id)`; hộp thư nay có **một dòng mỗi ứng viên đánh giá** (khoá `overview.inbox.eval`, tối đa 5 rồi "và N ứng viên khác"), Enter mở màn Đánh giá, thẻ
+Ứng viên, chọn đúng ứng viên; `screens/placeholder` chỉ còn tab Hệ thống. `eval run` xong → toast và thẻ Đợt mở báo cáo của đợt vừa chạy; đợt dừng (huỷ, ngân sách, hạn mức) → hộp thoại kèm lệnh `--resume`.
+
+**Phủ và kiểm thử**: test dịch vụ (`OnPlan` trước `Confirm` ở đợt mới và `--resume`, trả không không tạo đợt), test form (struct nhúng; mỗi form eval gửi đúng `Options` + dòng CLI; trường ẩn không có ô), test hành động với dịch vụ
+thật (mine, spec, verify nền, list, show, approve, reject, estimate, report, clean; `run`/`bootstrap` qua cầu kênh), test `Writes`/`HumanOnly`, test màn hình (thẻ, lọc, tập con, khung hẹp, báo cáo từ `eval.Report` dựng tay, đổi mốc,
+hộp duyệt thường/đỏ + ô chọn, hộp loại, lưới ô nhận `DataMsg`, Esc huỷ, `ErrEvalBusy`, chạy tiếp, `--read-only` từ chối mọi `Writes` qua phím, bảng lệnh và yêu cầu trực tiếp cho cả Do và Job, Enter ở hộp thư, không dòng nào vượt
+chiều rộng), mốc `TestMilestoneEvalRunReport` và hai kiểm thử dịch vụ thật (trả không/huỷ khi đang hỏi, Esc → `cancelled`), golden 80×24 và 140×40 (vi/en/xx, đơn sắc; thêm mã màu ở bốn chế độ cho báo cáo), `i18n_scan_test` (tiền
+tố động mới `action.eval.`, `prompt.eval.`, `eval.tab.`, `eval.st.`, `eval.vs.`, `eval.ls.`, `eval.ss.`, `eval.bst.`, `eval.job.title.`, `eval.approve.verify_`), `eval-wide.tape`.
+
+**Chỗ lệch so với kế hoạch (người duyệt có thể đổi)**
+
+- **`eval approve/reject` không là `HumanOnly`**: CLI hiện không chặn `InAgentSession` ở hai lệnh này (mục 2 của kế hoạch không liệt kê eval trong thao tác chỉ dành cho người) và giai đoạn này giữ nguyên hành vi CLI. Muốn khoá
+  thì cần phiếu riêng (đổi CLI + đặt `HumanOnly`).
+- **Loại việc `KindEval` riêng**, tách khỏi `KindEvolve` (`evolve evaluate` cũng chạy eval): hai bên ghi đợt riêng và CLI cho chạy song song; mỗi loại một việc đủ chống bấm nhầm hai lần.
+- **Ô không có trạng thái "đang chạy"**: dịch vụ chỉ báo lượt đã xong (`Progress` sau `runAttempt`), không có sự kiện bắt đầu lượt, nên ô chỉ có chờ hoặc kết quả (đạt, trượt, quá giờ, lỗi, bỏ). Ô "đang chạy" cần sửa
+  `internal/eval/runner.go` (ngoài phạm vi).
+- **`EvalEstimateDefaults.Harness` là "claude"** còn `EvalRunDefaults.Harness` là `eval.harness`: giữ đúng CLI.
+- **`--arms`/`--harness` là ô gợi ý mờ**, không phải ô chọn (`choices` chỉ áp cho giá trị đơn).
+- **Lưới ô và `DataMsg`** thay vì phân tích chữ log (mục 7); `actions.EvalAttempt` bọc `eval.AttemptRow` kèm `N`/`Total`.
+- **Hộp thư đổi hình dạng**: dòng "N ứng viên đánh giá chờ duyệt" thay bằng một dòng mỗi ứng viên (golden Tổng quan không đổi vì mẫu không có ứng viên; test hộp thư đổi).
+- **`eval estimate` ở `--read-only`** vẫn dùng được (đọc, mở cơ sở dữ liệu có thể áp migration nếu schema cũ như các màn trước); mọi hành động `Writes` bị ẩn/từ chối.
+- **Chưa làm** (đúng phạm vi): duyệt/loại theo lô (chọn nhiều; dịch vụ đã nhận nhiều ID nhưng form/hộp một ID), sửa đề bài ngoài việc mở tệp ứng viên bằng `e`, chạy nhiều đợt song song, huỷ đợt của tiến trình khác,
+  `bootstrap --list` (ảnh chụp tri thức), `eval report --cases` (đã loại trừ: bảng theo tác vụ luôn hiện), ảnh VHS thật và bước CI xuất ảnh (`.github/workflows/**` được bảo vệ), chuột và chế độ hẹp đầy đủ (giai đoạn 6).
+
+**Lỗi tìm thấy khi viết kiểm thử (đã sửa)**: `rebuild()` của màn dùng chỉ số danh sách cũ khi `Data` vừa bị thay bằng danh sách ngắn hơn (sau duyệt/loại) gây panic — nay chụp con trỏ theo ID trước khi thay dữ liệu và các hàm
+`Cand/CursorCase/CursorBatch` kiểm biên; `form.fields()` bỏ qua trường nhúng (xem trên).
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app ./internal/tui/gallery -update    # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước)
+go test -race ./internal/tui/app -run 'Milestone|Eval'        # việc nền, câu hỏi, huỷ, một việc nặng mỗi lúc
+vhs internal/tui/testdata/vhs/eval-wide.tape                  # ảnh màn Đánh giá (cần vhs, ttyd, ffmpeg; xem README cùng thư mục)
+bint tui                                                      # 5 (Đánh giá) → m (khai thác + kiểm chứng) → a (duyệt) → E (ước tính) → r (chạy) → xem thẻ Đợt
 ```

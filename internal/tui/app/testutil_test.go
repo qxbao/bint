@@ -177,6 +177,15 @@ func newModel(t *testing.T, o Options, data overview.Data, w, h int) *Model {
 	if o.EvolveDetailer == nil {
 		o.EvolveDetailer = sampleEvolveDetail
 	}
+	if o.EvalLoader == nil {
+		o.EvalLoader = sampleEvalLoader
+	}
+	if o.EvalDetailer == nil {
+		o.EvalDetailer = sampleEvalDetail
+	}
+	if o.EvalReporter == nil {
+		o.EvalReporter = sampleEvalReport
+	}
 	o.SpinnerFPS = time.Millisecond
 	m := New(context.Background(), o)
 	m.SetSize(w, h)

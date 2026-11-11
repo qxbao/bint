@@ -16,9 +16,9 @@ import (
 
 // EvalSelection là bộ lọc tác vụ dùng chung cho estimate, run và bootstrap.
 type EvalSelection struct {
-	Split   string   `flag:"split"`
-	CaseIDs []string `flag:"case"`
-	Limit   int      `flag:"limit"`
+	Split   string   `flag:"split" form:"choices=build|validation|test"`
+	CaseIDs []string `flag:"case" form:"suggest=eval_ids"`
+	Limit   int      `flag:"limit" form:"advanced"`
 }
 
 // Validate: tên tập hợp lệ.
@@ -67,13 +67,13 @@ func (s EvalSelection) Pick(e *EvalWorkspace) ([]*eval.Case, error) {
 type EvalEstimateOptions struct {
 	EvalSelection
 	// Arms rỗng = lấy eval.arms; ArmsExplicit = người dùng chỉ định (nhánh không dùng được là lỗi).
-	Arms         []string `flag:"arms"`
+	Arms         []string `flag:"arms" form:"suggest=arms"`
 	ArmsExplicit bool
 	Repeats      int      `flag:"repeats"`
-	Effect       float64  `flag:"effect"`
-	CostPerRun   *float64 `flag:"cost-per-run"`
-	Model        string   `flag:"model"`
-	Harness      string   `flag:"harness"`
+	Effect       float64  `flag:"effect" form:"advanced"`
+	CostPerRun   *float64 `flag:"cost-per-run" form:"advanced"`
+	Model        string   `flag:"model" form:"advanced"`
+	Harness      string   `flag:"harness" form:"advanced,suggest=harnesses"`
 	// Log nhận các dòng thông báo (nhánh bị bỏ); nil = bỏ.
 	Log io.Writer
 }
@@ -125,23 +125,23 @@ func EvalEstimate(ctx context.Context, e *EvalWorkspace, opts EvalEstimateOption
 // EvalRunOptions: `bint eval run`.
 type EvalRunOptions struct {
 	EvalSelection
-	Arms         []string `flag:"arms"`
+	Arms         []string `flag:"arms" form:"suggest=arms"`
 	ArmsExplicit bool
 	Repeats      int      `flag:"repeats"`
 	BudgetUSD    *float64 `flag:"budget"` // mặc định eval.budget_usd (xem EvalRunDefaults)
 	// BudgetExplicit: người dùng chỉ định ngân sách (khi tiếp tục đợt cũ thì ghi đè ngân sách của đợt).
 	BudgetExplicit bool
-	CostPerRun     *float64 `flag:"cost-per-run"`
-	AgentCommand   string   `flag:"agent-command"`
-	Harness        string   `flag:"harness"`
-	Model          string   `flag:"model"`
-	Bare           bool     `flag:"bare"`
-	Parallel       int      `flag:"parallel"`
-	Seed           uint64   `flag:"seed"`
-	KeepWorkdirs   bool     `flag:"keep-workdirs"`
-	Resume         string   `flag:"resume"`
-	LeakageMode    string   `flag:"leakage-mode"`
-	Yes            bool     `flag:"yes"`
+	CostPerRun     *float64 `flag:"cost-per-run" form:"advanced"`
+	AgentCommand   string   `flag:"agent-command" form:"advanced"`
+	Harness        string   `flag:"harness" form:"suggest=harnesses"`
+	Model          string   `flag:"model" form:"advanced"`
+	Bare           bool     `flag:"bare" form:"advanced"`
+	Parallel       int      `flag:"parallel" form:"advanced"`
+	Seed           uint64   `flag:"seed" form:"advanced"`
+	KeepWorkdirs   bool     `flag:"keep-workdirs" form:"advanced"`
+	Resume         string   `flag:"resume" form:"hidden"` // đặt bởi hành động "Chạy tiếp" của màn Đánh giá
+	LeakageMode    string   `flag:"leakage-mode" form:"choices=strict|economy"`
+	Yes            bool     `flag:"yes" form:"hidden"`
 	BintVersion    string
 
 	// Confirm hỏi "Bắt đầu chạy?" (nil và không Yes: lỗi dùng sai "cần --yes khi chạy không tương tác").
@@ -150,10 +150,23 @@ type EvalRunOptions struct {
 	Log io.Writer
 	// OnResume được gọi khi tiếp tục một đợt cũ; OnEstimate ngay sau khi ước tính (trước các
 	// kiểm tra ngân sách); OnNotes sau các kiểm tra ngân sách (reportsCost = harness báo chi phí).
-	OnResume   func(b eval.Batch)
+	OnResume func(b eval.Batch)
+	// OnPlan báo kế hoạch của đợt (tác vụ × nhánh × lần lặp) ngay trước lời hỏi xác nhận, cả đợt mới (sau Pick và
+	// resolveArms) lẫn đợt tiếp tục (Done: các lượt đã có kết quả trong cơ sở dữ liệu); TUI dựng lưới ô từ đây.
+	OnPlan     func(EvalRunPlan)
 	OnEstimate func(est eval.Estimate, arms []string, repeats int, budget *float64)
 	OnNotes    func(notes []string, reportsCost bool)
 	Progress   func(r eval.AttemptRow, n, total int)
+}
+
+// EvalRunPlan là kế hoạch của một đợt chạy: tập ô là tích CaseIDs × Arms × [1..Repeats].
+type EvalRunPlan struct {
+	BatchID string // chỉ có khi tiếp tục một đợt cũ
+	CaseIDs []string
+	Arms    []string
+	Repeats int
+	// Done: các lượt đã có kết quả của đợt (chỉ khi tiếp tục; không gồm lượt dở hoặc lỗi hạ tầng vì chúng chạy lại).
+	Done []eval.AttemptRow
 }
 
 // EvalRunDefaults: số lần lặp, chế độ chống rò rỉ và harness theo cấu hình.
@@ -257,6 +270,17 @@ func EvalRun(ctx context.Context, e *EvalWorkspace, opts EvalRunOptions) (*EvalR
 		if opts.OnResume != nil {
 			opts.OnResume(b)
 		}
+		if opts.OnPlan != nil {
+			done, err := eval.Attempts(ctx, e.Store.DB, "batch_id = ?", b.BatchID)
+			if err != nil {
+				return nil, err
+			}
+			// Cùng tiêu chí với eval.Run: lượt đang chạy dở và lượt hỏng vì hạ tầng sẽ được chạy lại.
+			done = slices.DeleteFunc(done, func(r eval.AttemptRow) bool {
+				return r.Status == "running" || (r.Status == "error" && strings.HasPrefix(r.Error, eval.InfraErrorPrefix))
+			})
+			opts.OnPlan(EvalRunPlan{BatchID: b.BatchID, CaseIDs: b.CaseIDs, Arms: b.Arms, Repeats: b.Repeats, Done: done})
+		}
 	} else {
 		if err := opts.Validate(); err != nil {
 			return nil, err
@@ -302,6 +326,13 @@ func EvalRun(ctx context.Context, e *EvalWorkspace, opts EvalRunOptions) (*EvalR
 		if opts.OnNotes != nil {
 			opts.OnNotes(ro.Notes, agent.ReportsCost())
 		}
+		if opts.OnPlan != nil {
+			ids := make([]string, len(cases))
+			for i, c := range cases {
+				ids[i] = c.ID
+			}
+			opts.OnPlan(EvalRunPlan{CaseIDs: ids, Arms: arms, Repeats: opts.Repeats})
+		}
 	}
 	if err := ConfirmOrFail(opts.Yes, opts.Confirm, ConfirmRequest{Key: ConfirmEvalRunKey, Text: "Bắt đầu chạy?"}); err != nil {
 		return nil, err
@@ -315,9 +346,9 @@ func EvalRun(ctx context.Context, e *EvalWorkspace, opts EvalRunOptions) (*EvalR
 
 // EvalReportOptions: `bint eval report [batch-id]`.
 type EvalReportOptions struct {
-	BatchID  string
-	Baseline string `flag:"baseline"`
-	List     bool   `flag:"list"`
+	BatchID  string `arg:"batch-id" form:"suggest=batches"`
+	Baseline string `flag:"baseline" form:"suggest=arms"`
+	List     bool   `flag:"list" form:"hidden"` // TUI luôn có danh sách đợt ở thẻ Đợt
 	// (--json, --cases chỉ định dạng đầu ra: không thuộc dịch vụ)
 }
 
@@ -366,12 +397,12 @@ func EvalReport(ctx context.Context, e *EvalWorkspace, opts EvalReportOptions) (
 type EvalBootstrapOptions struct {
 	EvalSelection
 	BudgetUSD    *float64 `flag:"budget"`
-	AgentCommand string   `flag:"agent-command"`
-	Model        string   `flag:"model"`
+	AgentCommand string   `flag:"agent-command" form:"advanced"`
+	Model        string   `flag:"model" form:"advanced"`
 	Force        bool     `flag:"force"`
-	KeepWorkdirs bool     `flag:"keep-workdirs"`
-	List         bool     `flag:"list"`
-	Yes          bool     `flag:"yes"`
+	KeepWorkdirs bool     `flag:"keep-workdirs" form:"advanced"`
+	List         bool     `flag:"list" form:"hidden"`
+	Yes          bool     `flag:"yes" form:"hidden"`
 	BintVersion  string
 	// BintPath là tệp bint đưa vào PATH của agent; rỗng = tệp đang chạy.
 	BintPath string

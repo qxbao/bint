@@ -175,6 +175,46 @@ func TestGoldenScreens(t *testing.T) {
 					press(t, m, "6", ".", ".", ".")
 					return m
 				},
+				"eval": func() *Model { // thẻ Ứng viên
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "5")
+					return m
+				},
+				"eval_detail": func() *Model { // chi tiết ứng viên bị chặn (hẹp: một khung)
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "5", "j", "enter")
+					return m
+				},
+				"eval_cases": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "5", ".")
+					return m
+				},
+				"eval_batches": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "5", ".", ".")
+					return m
+				},
+				"eval_report": func() *Model { // báo cáo đợt: biểu đồ cột, bảng nhánh, so sánh cặp (hẹp: một khung)
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "5", ".", ".", "j", "enter")
+					return m
+				},
+				"eval_approve_red": func() *Model { // hộp đỏ duyệt ứng viên lộ lời giải chưa kiểm chứng
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "5", "j", "a")
+					return m
+				},
+				"eval_run_form": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "5", "r")
+					return m
+				},
+				"eval_log": func() *Model { // thẻ Log: lưới ô tiến độ và log của việc chạy đợt
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					evalGridModel(t, m)
+					return m
+				},
 				"knowledge_publish": func() *Model {
 					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
 					press(t, m, "2")
@@ -228,6 +268,15 @@ func TestGoldenTasksColorModes(t *testing.T) {
 		press(t, m, "3", ".", ".", ".", ".", "tab")
 		out := strings.ReplaceAll(m.Render(), "\x1b", "␛")
 		checkGolden(t, fmt.Sprintf("tasks_140x40_vi_%s.ansi.txt", mode), out+"\n")
+	}
+}
+
+// Ảnh chụp có mã màu của màn Đánh giá (báo cáo đợt với biểu đồ cột) ở từng chế độ màu.
+func TestGoldenEvalColorModes(t *testing.T) {
+	for _, mode := range allModes() {
+		m := newModel(t, Options{Mode: mode, Lang: "vi"}, sampleData(), 140, 40)
+		press(t, m, "5", ".", ".", "j")
+		checkGolden(t, fmt.Sprintf("eval_140x40_vi_%s.ansi.txt", mode), strings.ReplaceAll(m.Render(), "\x1b", "␛")+"\n")
 	}
 }
 

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy                                │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evaluation│─────────────────────────────────────────────────────────────────┐
+│   Candidates · Cases · Batches                                               │
+│ ┌─│Details · c0002bbbb│────────────────────────────────────────────1-16/26─┐ │
+│ │ c0002bbbb                                                                │ │
+│ │ Status      candidate                                                    │ │
+│ │ File        /state/demo/evals/candidates/c0002bbbb.yml                   │ │
+│ │                                                                          │ │
+│ │ Prompt                                                                   │ │
+│ │   Sửa lỗi khoá: gọi Close() trong defer.                                 │ │
+│ │                                                                          │ │
+│ │ Source commit                                                            │ │
+│ │ Commit      c0002bbbbcom (Sửa lỗi khoá cơ sở dữ liệu)                    │ │
+│ │ Base        c0002bbbbbas                                                 │ │
+│ │ Author      Dev 2026-11-10                                               │ │
+│ │ Size        2 files, 30 source lines, 20 test lines                      │ │
+│ │                                                                          │ │
+│ │ Fail→pass verification                                                   │ │
+│ │   · not verified yet (press v)                                           │ │
+│ │                                                                          │ │
+│ └─ e edit  Enter switch pane ──────────────────────────────────────────────┘ │
+└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────┘

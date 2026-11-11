@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evaluation~~~~⟧│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   ⟦Candidates~~~~⟧ · ⟦Cases~~⟧ · ⟦Batches~~~⟧                                                                                            │
+│ ┌─│⟦Candidates (2)~~~~~~⟧│────────────────────────────⟦pending~~~⟧─┐┌─│⟦Details~~~⟧ · c0001aaaa│───────────────────────────────────────┐ │
+│ │ ▸ ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng       ││ c0001aaaa                                                        │ │
+│ │   ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu               ││ ⟦Status~~~⟧ ⟦candidate~~~~⟧                                      │ │
+│ │                                                                  ││ ⟦File~~⟧    /state/demo/evals/candidates/c0001aaaa.yml           │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Prompt~~~⟧                                                      │ │
+│ │                                                                  ││   Thêm cột email vào bảng người dùng và trả nó ở API.            │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Source commit~~~~~~⟧                                            │ │
+│ │                                                                  ││ ⟦Commit~~~⟧ c0001aaaacom (Thêm cột email vào bảng người dùng)    │ │
+│ │                                                                  ││ ⟦Base~~⟧    c0001aaaabas                                         │ │
+│ │                                                                  ││ ⟦Author~~~⟧ Dev 2026-11-10                                       │ │
+│ │                                                                  ││ ⟦Size~~⟧    ⟦2 files, 30 source lines, 20 test                   │ │
+│ │                                                                  ││             lines~~~~~~~~~~~~~~⟧                                 │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Fail→pass verification~~~~~~~~~⟧                                │ │
+│ │                                                                  ││   ✓ ⟦verified (fail→pass)~~~~~~~~⟧                               │ │
+│ │                                                                  ││     ⟦failed before: ⟦yes~~⟧; passed after: ⟦yes~~⟧; runs after:  │ │
+│ │                                                                  ││     2; at 2026-11-11T08:00:00Z~~~~~~~~~~~~~~~~~~~~⟧              │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Solution leakage~~~~~~~⟧                                        │ │
+│ │                                                                  ││   ✓ ⟦no leak~~~⟧                                                 │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Specification~~~~~~⟧                                            │ │
+│ │                                                                  ││   · ⟦not analysed yet (press p)~~~~~~~~~~~⟧                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Test command~~~~~⟧                                              │ │
+│ │                                                                  ││   go test ./...                                                  │ │
+│ │                                                                  ││   ⟦Test files: internal/db/db_test.go~~~~~⟧                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a ⟦approve~~~⟧  x ⟦reject~~~⟧  m ⟦mine~~⟧  v ⟦verify~~~⟧  A ⟦a…─┘└─ e ⟦edit~~⟧  Enter ⟦switch pane~~~~~⟧ ───────────────────────────┘ │
+└─[m→ ⟦Mine~~⟧] [a→ ⟦Approve~~~⟧] [x→ ⟦Reject~~~⟧] [r→ ⟦Run~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────────────────────────────┘

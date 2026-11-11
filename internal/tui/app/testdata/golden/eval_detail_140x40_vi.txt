@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Đánh giá│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Ứng viên · Tác vụ · Đợt                                                                                                                │
+│ ┌─│Ứng viên (2)│─────────────────────────────────────────chờ duyệt─┐┌─│Chi tiết · c0002bbbb│───────────────────────────────────────────┐ │
+│ │   ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng       ││ c0002bbbb                                                        │ │
+│ │ ▸ ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu               ││ Trạng thái  chờ duyệt                                            │ │
+│ │                                                                  ││ Tệp         /state/demo/evals/candidates/c0002bbbb.yml           │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Đề bài                                                           │ │
+│ │                                                                  ││   Sửa lỗi khoá: gọi Close() trong defer.                         │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Nguồn commit                                                     │ │
+│ │                                                                  ││ Commit      c0002bbbbcom (Sửa lỗi khoá cơ sở dữ liệu)            │ │
+│ │                                                                  ││ Commit gốc  c0002bbbbbas                                         │ │
+│ │                                                                  ││ Tác giả     Dev 2026-11-10                                       │ │
+│ │                                                                  ││ Quy mô      2 tệp, 30 dòng mã, 20 dòng kiểm thử                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Kiểm chứng fail→pass                                             │ │
+│ │                                                                  ││   · chưa kiểm chứng (bấm v)                                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Rò rỉ lời giải                                                   │ │
+│ │                                                                  ││   ✗ lộ lời giải                                                  │ │
+│ │                                                                  ││     [fail] solution_code: đề bài chứa mã của lời giải            │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Đặc tả                                                           │ │
+│ │                                                                  ││   · chưa phân tích (bấm p)                                       │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Lệnh chấm                                                        │ │
+│ │                                                                  ││   go test ./...                                                  │ │
+│ │                                                                  ││   Tệp kiểm thử: internal/db/db_test.go                           │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a duyệt  x loại  m khai thác  v kiểm chứng  A gồm đã loại ──────┘└─ e sửa  Enter đổi khung ─────────────────────────────────────────┘ │
+└─[m→ Khai thác] [a→ Duyệt] [x→ Loại] [r→ Chạy đợt] [q→ Thoát] [?→ Trợ giúp]───────────────────────────────────────────────────────────────┘

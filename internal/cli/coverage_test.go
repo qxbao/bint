@@ -327,7 +327,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("thiếu lý do và giai đoạn sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.Excluded["tui"] = ""
-		cov.Pending["eval list"] = 9
+		cov.Pending["sync"] = 9
 		cov.ExcludedFlags["--json"] = ""
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`Excluded["tui"] thiếu lý do`, "giai đoạn phải từ 1 đến 6", `ExcludedFlags["--json"] thiếu lý do`} {
@@ -370,8 +370,8 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	})
 	t.Run("Pending còn mục của giai đoạn đã xong", func(t *testing.T) {
 		cov := clone(actions.Data)
-		cov.Pending["eval list"] = actions.CurrentPhase
-		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["eval list"]`) {
+		cov.Pending["sync"] = actions.CurrentPhase // lệnh của giai đoạn 5 bị đánh dấu xong sớm
+		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["sync"]`) {
 			t.Fatalf("%v", p)
 		}
 		cov = clone(actions.Data)

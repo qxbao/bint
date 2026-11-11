@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ Đánh giá │ TH │ HT                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Đánh giá│───────────────────────────────────────────────────────────────────┐
+│   Ứng viên · Tác vụ · Đợt                                                    │
+│ ┌─│Chi tiết · c0002bbbb│───────────────────────────────────────────1-16/26─┐ │
+│ │ c0002bbbb                                                                │ │
+│ │ Trạng thái  chờ duyệt                                                    │ │
+│ │ Tệp         /state/demo/evals/candidates/c0002bbbb.yml                   │ │
+│ │                                                                          │ │
+│ │ Đề bài                                                                   │ │
+│ │   Sửa lỗi khoá: gọi Close() trong defer.                                 │ │
+│ │                                                                          │ │
+│ │ Nguồn commit                                                             │ │
+│ │ Commit      c0002bbbbcom (Sửa lỗi khoá cơ sở dữ liệu)                    │ │
+│ │ Commit gốc  c0002bbbbbas                                                 │ │
+│ │ Tác giả     Dev 2026-11-10                                               │ │
+│ │ Quy mô      2 tệp, 30 dòng mã, 20 dòng kiểm thử                          │ │
+│ │                                                                          │ │
+│ │ Kiểm chứng fail→pass                                                     │ │
+│ │   · chưa kiểm chứng (bấm v)                                              │ │
+│ │                                                                          │ │
+│ └─ e sửa  Enter đổi khung ─────────────────────────────────────────────────┘ │
+└─[m→ Khai thác] [a→ Duyệt] [x→ Loại] [r→ Chạy đợt] [q→ Thoát] [?→ Trợ giúp]───┘

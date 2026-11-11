@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evaluation~~~~⟧│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   ⟦Candidates~~~~⟧ · ⟦Cases~~⟧ · ⟦Batches~~~⟧                                                                                            │
+│ ┌─│⟦Candidates (2)~~~~~~⟧│────────────────────────────⟦pending~~~⟧─┐┌─│⟦Details~~~⟧ · c0002bbbb│───────────────────────────────────────┐ │
+│ │   ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng       ││ c0002bbbb                                                        │ │
+│ │ ▸ ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu               ││ ⟦Status~~~⟧ ⟦candidate~~~~⟧                                      │ │
+│ │                                                                  ││ ⟦File~~⟧    /state/demo/evals/candidates/c0002bbbb.yml           │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Prompt~~~⟧                                                      │ │
+│ │                                                                  ││   Sửa lỗi khoá: gọi Close() trong defer.                         │ │
+│ │                      ┌─│⟦Approve candidate c0002bbbb?~~~~~~~~⟧│───────────────────────────────────────────────┐                      │ │
+│ │                      │ ⟦This candidate does not meet the approval conditions. Tick the boxes below only if    │                      │ │
+│ │                      │ you are sure.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                  │ở dữ liệu)            │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ ⟦Add c0002bbbb (Sửa lỗi khoá cơ sở dữ liệu) to the evaluation set.~~~~~~~~~~~~⟧        │                      │ │
+│ │                      │                                                                                        │est                   │ │
+│ │                      │ ✗ ⟦not verified fail→pass~~~~~~~~~⟧                                                    │                      │ │
+│ │                      │ ✗ ⟦the prompt leaks the solution: đề bài chứa mã của lời giải~~~~~~~~~~~~~⟧            │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ ▸ [ ] ⟦Approve anyway although: ⟦the prompt leaks the solution~~~~~~~~~~~~⟧            │                      │ │
+│ │                      │       (--force)~~~~~~~~~~~~~~⟧                                                         │                      │ │
+│ │                      │   [ ] ⟦Approve anyway without fail→pass verification                                   │                      │ │
+│ │                      │       (--unverified)~~~~~~~~~~~~~~~~~~~~~~~~⟧                                          │                      │ │
+│ │                      │                                                                                        │a lời giải            │ │
+│ │                      │ ⟦Split~~⟧: ▏⟦empty = assigned from the ID (build | validation | test)~~~~~~~~~~~~~~~…  │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ [Enter] ⟦Approve~~~⟧   [Esc] ⟦Cancel~~~⟧                                               │                      │ │
+│ │                      └────────────────────────────────────────────────────────────────────────────────────────┘                      │ │
+│ │                                                                  ││ ⟦Test command~~~~~⟧                                              │ │
+│ │                                                                  ││   go test ./...                                                  │ │
+│ │                                                                  ││   ⟦Test files: internal/db/db_test.go~~~~~⟧                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a ⟦approve~~~⟧  x ⟦reject~~~⟧  m ⟦mine~~⟧  v ⟦verify~~~⟧  A ⟦a…─┘└─ e ⟦edit~~⟧  Enter ⟦switch pane~~~~~⟧ ───────────────────────────┘ │
+└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

@@ -83,6 +83,10 @@ var ErrWorkflowBusy = errors.New("a workflow job is already running")
 // tiến trình TUI).
 var ErrEvolveBusy = errors.New("an evolution job is already running")
 
+// ErrEvalBusy: đã có một việc Đánh giá nặng đang chạy (run, bootstrap, verify, mine có kiểm chứng; mỗi lúc một việc
+// trong tiến trình TUI).
+var ErrEvalBusy = errors.New("an evaluation job is already running")
+
 // Targeted là thông điệp nội bộ của một màn hình (kết quả nạp...): mô hình gốc chuyển nó cho đúng màn hình.
 type Targeted interface{ Target() Screen }
 
