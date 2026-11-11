@@ -1,5 +1,7 @@
 # Nghiệm thu tiếp các flow Codex — 2026-11-11
 
+> **Bản ghi lịch sử:** Báo cáo dưới đây phản ánh số liệu và trạng thái nhánh tại thời điểm chạy đợt đo. Tổng hợp hiện trạng tại `HEAD` xem ở [docs/status.md](../../status.md) và [docs/evals/README.md](../README.md).
+
 **Kết luận:** đã kiểm tra tiếp toàn bộ nhóm F1–F7, hoàn thành các phép thử Codex còn mở của đợt trước và sửa thêm các lỗi chặn flow/sai dữ liệu. **Flow hỗn hợp Claude↔Codex bị chặn do Claude chưa đăng nhập**, được người dùng chọn ghi nhận thay vì đăng nhập. Không kết luận flow này đã đạt. Các giới hạn chưa thể khẳng định bằng phép thử hữu hạn được ghi ở cuối.
 
 Đọc cùng [biên bản đợt đầu](../codex-flows-2026-11-10/README.md). Đợt đầu dùng 15 session; đợt tiếp theo này thêm **15 session** (12 hoàn tất, 1 bị Ctrl-C, 1 timeout, 1 trả 401 trước khi sinh kết quả). Không có lời gọi `--agent-command`, không dùng agent giả để kết luận hành vi Codex. API metadata/debug không chạy model, không tính vào 15 session.

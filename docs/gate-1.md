@@ -1,6 +1,6 @@
 # Cổng quyết định 1 — Bootstrap tối giản
 
-**Trạng thái: ĐÃ CHỐT (2026-11-10) — có pilot Codex; chưa đủ điều kiện nghiệm thu chính thức.**
+**Trạng thái: ĐÃ CHỐT (2026-11-10) — đã chạy pilot Codex và đợt đo Claude Code; chưa đủ điều kiện nghiệm thu chính thức.**
 Theo mục 16 và 19 của kế hoạch, ngưỡng dưới đây được chốt và commit trước khi chạy
 đo (SHA ở mục "Chốt" cuối tài liệu). Không điều chỉnh ngưỡng, điều kiện hay quy trình
 sau khi đã thấy kết quả; mọi thay đổi phải là một lần chốt mới, ghi rõ lý do, và chỉ
@@ -82,7 +82,7 @@ bint eval report <batch> --json > gate1-<repo>.json
 |---|---|
 | Ngưỡng được chốt bởi | chủ dự án Bint, 2026-11-10 |
 | Commit chốt | `39d10f573008819a350e3130a57432d075c95a13` |
-| Repository thử nghiệm | _(chưa)_ |
+| Repository đáp ứng đầy đủ giao thức nghiệm thu | _(chưa có; các pilot ghi bên dưới)_ |
 
 ## Kết quả
 
@@ -92,9 +92,11 @@ Baseline P1 hoàn tất 6 lượt trên 2 tác vụ validation, đạt 3/6 lư�
 CI95 [0%, 100%]. Đợt so sánh đã hoàn tất 18 lượt: none, minimal và bint đều đạt 3/6 lượt (50%).
 Chênh lệch minimal−none là 0 điểm % trong mẫu; đây chưa phải phép đo gate chính thức.
 
-**Quyết định hiện tại: chưa đủ điều kiện nghiệm thu.** Mới có một repository,
-hai tác vụ validation; adapter Codex không cung cấp USD hoặc `num_turns` để kiểm tra
-điều kiện hiệu quả. Không thay token/thời gian vào ngưỡng đã chốt sau khi thấy dữ liệu.
+**Quyết định hiện tại: chưa đủ điều kiện nghiệm thu.** Pilot Codex mới chạy trên một repository
+với hai tác vụ validation, và adapter Codex không cung cấp USD hoặc `num_turns` để kiểm tra
+điều kiện hiệu quả (không thay token/thời gian vào ngưỡng đã chốt sau khi đã thấy dữ liệu).
+[Đợt đo Claude Code tiếp theo](evals/p6-p7-claude-2026-11-10/README.md) có cỡ mẫu lớn hơn nhưng
+vẫn mới trên một repository và chưa đáp ứng đầy đủ điều kiện qua cổng.
 
 Quyết định về sai khác fingerprint và tín hiệu còn thiếu:
 [fingerprint-outcome-decisions.md](fingerprint-outcome-decisions.md).

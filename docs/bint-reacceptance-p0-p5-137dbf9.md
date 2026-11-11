@@ -1,5 +1,7 @@
 # Tái nghiệm thu P0–P5 sau các bản sửa
 
+> **Bản ghi lịch sử:** Biên bản dưới đây phản ánh trạng thái tại commit được kiểm tra. Tổng hợp hiện trạng và các phát hiện đã đóng / còn mở tại `HEAD` xem ở [docs/status.md](status.md) và [docs/evals/README.md](evals/README.md).
+
 Ngày: 2026-11-10. Commit kiểm tra: **`137dbf939ea783357e23be9e87b70b5d7199a5b4`**.
 
 Các bản sửa được đối chiếu: `49a85ef` (A1–A3), `8ff7416` (P5-01–03), `1a12bc6` (kiểm thử tranh chấp nhiều tiến trình). P6 đã có trong source nhưng không thuộc phạm vi nghiệm thu sản phẩm của biên bản này.

@@ -1,5 +1,7 @@
 # Biên bản nghiệm thu P0–P4
 
+> **Bản ghi lịch sử:** Biên bản dưới đây phản ánh trạng thái tại commit được kiểm tra. Tổng hợp hiện trạng và các phát hiện đã đóng / còn mở tại `HEAD` xem ở [docs/status.md](status.md) và [docs/evals/README.md](evals/README.md).
+
 Ngày kiểm tra: 2026-11-10. Phiên bản được kiểm tra: `c52633419d8c39b2e650191f46dcbc6e5a4db281` (`P4: Workflow tối thiểu`).
 
 Đối chiếu với `docs/bint-plan.md`, đặc biệt mục 16 và các mục được dẫn chiếu trong từng giai đoạn. Báo cáo này thay thế nhận định trên phiên bản P3 trước khi cập nhật main. Không thay đổi mã nguồn hoặc đánh dấu hoàn thành kế hoạch.

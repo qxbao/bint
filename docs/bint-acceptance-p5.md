@@ -1,5 +1,7 @@
 # Biên bản nghiệm thu P5 — Multi-Harness
 
+> **Bản ghi lịch sử:** Biên bản dưới đây phản ánh trạng thái tại commit được kiểm tra. Tổng hợp hiện trạng và các phát hiện đã đóng / còn mở tại `HEAD` xem ở [docs/status.md](status.md) và [docs/evals/README.md](evals/README.md).
+
 Ngày kiểm tra: 2026-11-10.
 
 - HEAD được kiểm tra: `25202fb00945ddaf4e936d519e4203a12abc21f5`.

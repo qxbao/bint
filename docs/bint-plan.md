@@ -1,5 +1,7 @@
 # BINT — KẾ HOẠCH THIẾT KẾ VÀ TRIỂN KHAI
 
+> **Ghi chú:** Đây là tài liệu đặc tả thiết kế gốc của Bint (bao gồm cả các mục tiêu dài hạn chưa triển khai như Kế hoạch H và TUI). Các số mục trong tài liệu này được mã nguồn và các mục tri thức tham chiếu trực tiếp nên được giữ cố định. Xem [hướng dẫn sử dụng](README.md), [trạng thái hiện tại](status.md) và [mục lục thực nghiệm](evals/README.md) để tra cứu hành vi CLI hiện hành.
+
 **Tên:** Bao Intelligence (Bint)  
 **Trạng thái:** Đề xuất kiến trúc — bản sửa đổi 3  
 **Phạm vi:** CLI, repository intelligence, agent skills, orchestration, memory và self-evolution.

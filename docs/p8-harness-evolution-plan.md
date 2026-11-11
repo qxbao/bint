@@ -1,6 +1,6 @@
 # Kế hoạch: tiến hoá quy trình và bài học từ thất bại
 
-Ngày: 2026-11-11. Mở rộng P8 theo hai ý học từ các nghiên cứu tối ưu harness.
+Ngày: 2026-11-11. Mở rộng P8 theo hai ý học từ các nghiên cứu tối ưu harness (hiện trạng tổng thể xem tại [docs/status.md](status.md)):
 
 1. **Kế hoạch E — Bài học từ thất bại.** Mỗi lượt thất bại được tóm tắt, rồi rút thành bài học có phạm vi rõ ràng. Thư viện bài học tích luỹ dần, tương tự `EXPERIENCE.md`.
 2. **Kế hoạch H — Sửa được quy trình.** Ngoài tri thức và skill, vòng tiến hoá được đề xuất thay đổi:
@@ -11,7 +11,7 @@ Ngày: 2026-11-11. Mở rộng P8 theo hai ý học từ các nghiên cứu tố
 
    Mỗi thay đổi thuộc một trong hai loại: **chung** (mọi vùng mã) hoặc **riêng** (một vùng mã).
 
-Nên làm E trước. E tận dụng gần như toàn bộ hạ tầng đã có: mục tri thức loại `lesson`, đề xuất, đối chiếu, hook theo đề bài. E cũng là một thành phần ("bộ nhớ") của H. Bộ khung phân loại chung/riêng trong H dùng lại được cho bài học của E.
+E tận dụng gần như toàn bộ hạ tầng đã có (mục tri thức loại `lesson`, đề xuất, đối chiếu, hook theo đề bài) và cũng là thành phần "bộ nhớ" của H. Hiện **E1–E5 và kiểm thử xác định của E6, cùng H1–H4, đã có mã** (kèm kiểm thử không tốn token); phần đo của cả hai kế hoạch (E6, H5) **chưa chạy** vì cần ngân sách được duyệt.
 
 ## Hiện trạng: Bint đang điều khiển được gì
 
@@ -27,7 +27,7 @@ Nên làm E trước. E tận dụng gần như toàn bộ hạ tầng đã có:
 
 ---
 
-## Kế hoạch E — Bài học từ thất bại
+## Kế hoạch E — Bài học từ thất bại (đã có mã, chưa đo)
 
 ### Luồng xử lý
 
@@ -60,11 +60,11 @@ lượt thất bại ──► bản tóm tắt thất bại ──► agent rú
 - **Vùng mã:** thư mục bị sửa hoặc thư mục của test fail. Nhóm theo trục này sinh bài học *riêng*.
 - **Dấu hiệu hành vi:** ví dụ "không chạy test liên quan". Nhóm theo trục này gom được qua nhiều vùng và sinh bài học *chung*.
 
-**Cơ hội mới `failure_lesson`:** sinh ra khi một nhóm có từ 3 lượt thất bại trở lên.
+**Cơ hội `failure_lesson`:** ngưỡng nhóm lấy từ `evolution.trigger.min_similar_runs` (mặc định 3), đếm tác vụ phân biệt để các lần lặp của cùng tác vụ không tự làm nhóm đủ điều kiện.
 
 ### E2. Rút bài học (tốn token, model cấu hình riêng)
 
-- Thêm vai trò mới `roles.reflector`. Mặc định dùng model mạnh nhất có sẵn, ví dụ Opus, tách khỏi model thực thi.
+- Vai trò `roles.reflector` lấy mô hình từ `harnesses.claude.models.reflector` (mặc định `opus`), tách khỏi mô hình thực thi (`bint evolve propose --reflector-model <model>` ghi đè cho một lần chạy; hiện chỉ hỗ trợ `claude` với `--tools ""` trong thư mục làm việc rỗng).
 - Đầu vào: bản tóm tắt của một nhóm thất bại, kèm các bài học sẵn có cùng phạm vi để tránh trùng.
 - Đầu ra theo khuôn cố định:
 
@@ -76,15 +76,15 @@ lượt thất bại ──► bản tóm tắt thất bại ──► agent rú
   evidence: [<attempt/run id>...]   # chính các lượt thất bại trong nhóm
   ```
 
-- Agent viết thành 2 ứng viên, tương tự cách tách "chung" và "riêng" của nghiên cứu harness:
+- Agent viết tối đa 2 ứng viên theo hai phạm vi:
   - **bài học chung:** điểm yếu chung của agent, ví dụ "chạy test của module trước khi kết thúc";
   - **bài học riêng:** quy trình hay bẫy của vùng mã đó.
 
-  Cả hai đi tiếp sang bước kiểm tra.
+  Các ứng viên có mặt trong đầu ra đi tiếp sang bước kiểm tra.
 
 ### E3. Kiểm tra xác định (không tốn token)
 
-1. **Rò rỉ.** Với lượt eval, so bài học với diff lời giải của các tác vụ làm bằng chứng. Bài học có chứa định danh (tên hàm, hằng, chuỗi) xuất hiện trong phần **thêm mới** của diff thì bị loại. Bài học là "cách làm", không được là "đáp án".
+1. **Rò rỉ.** Với lượt eval, `CheckLesson` so bài học với diff lời giải của các tác vụ nguồn: chặn dòng mã, định danh mới ở vị trí mã và chuỗi literal dài của phần thêm mới (trừ phần đã có trong kiểm thử).
 2. **Tổng quát.** Bài học chung phải có bằng chứng từ ít nhất 2 vùng mã khác nhau. Bài học riêng phải có ít nhất 2 lượt thất bại trong vùng của nó.
 3. **Trùng.** Dùng cơ chế phát hiện mục trùng đã có. Nếu trùng thì đề xuất gộp thay vì tạo mới.
 4. **Độ dài và hình thức.** Trigger, mistake và instead đều phải có; tổng không quá khoảng 80 từ.
@@ -92,7 +92,7 @@ lượt thất bại ──► bản tóm tắt thất bại ──► agent rú
 
 ### E4. Đề xuất, đối chiếu, áp dụng
 
-- Mỗi bài học qua kiểm tra trở thành một đề xuất L1, loại `create lesson`.
+- Mỗi bài học qua kiểm tra trở thành đề xuất L1 `create lesson` (hoặc `update` gộp bài học `failure_lesson` trùng).
 - Đề xuất đi đúng vòng `bint evolve cycle`: validation trước, test sau, có dừng sớm, và tự bác bỏ nếu không đạt.
 - Một bài học **đạt trên tập test độc lập** có bằng chứng rõ là tổng quát hoá được, vì nó rút ra từ validation mà vẫn giúp được trên test.
 - Áp dụng tự động vẫn theo quy tắc hiện có: chỉ khi rủi ro thấp, chỉ tạo mục mới, mục vào trạng thái candidate, và phải bật `auto_low_risk`.
@@ -101,14 +101,11 @@ lượt thất bại ──► bản tóm tắt thất bại ──► agent rú
 
 - **`bint experience show`:** hiển thị thư viện như một `EXPERIENCE.md`. Bài học chung xếp trước, bài học riêng nhóm theo vùng. Mỗi bài học kèm số lần được chèn và số lần đạt/trượt khi có nó.
 - **Không chèn cả tệp.** Hook theo đề bài:
-  - luôn chèn top-k bài học *chung*, mặc định k=3;
+  - luôn chèn top-k bài học *chung*, mặc định k=3 (`context.lessons.global_k`);
   - chèn bài học *riêng* khi đề bài hoặc đường dẫn khớp phạm vi.
 
-  Hai phần có ngân sách token riêng để bài học không chiếm chỗ của tri thức.
-- **Vòng đời:**
-  - Bài học không được chèn sau N lượt, hoặc gắn với tỷ lệ đạt thấp hơn khi không có nó, trở thành cơ hội `unused`/`deprecate` (đã có sẵn).
-  - Bài học trùng sinh cơ hội gộp (đã có sẵn).
-  - Như vậy thư viện không phình mãi, khác với một điểm yếu đã được ghi nhận ở phương pháp gốc.
+  Phần bài học dùng ngân sách token riêng `context.lessons.max_tokens` (mặc định 600) để không chiếm chỗ của tri thức thường.
+- **Vòng đời:** bài học `failure_lesson` không sinh cơ hội `unused` theo trích dẫn `[k:id]` (vì là chỉ dẫn hành vi) mà được theo dõi qua số lần chèn và tỷ lệ đạt/trượt trong `experience show`; bài học trùng được gộp qua bước đề xuất.
 
 ### E6. Kiểm thử và đo
 
@@ -132,14 +129,14 @@ Trần: $30.
 - Có bài học đạt trên test: đạt nghiệm thu P8 với nguồn thất bại.
 - Không có bài học nào đạt sau 3 đề xuất: ghi kết luận âm tính và xem lại cách tóm tắt thất bại trước khi thử tiếp.
 
-**Ước lượng công:** khoảng 1,5–2 ngày viết mã.
+**Ước lượng công (đã hoàn thành phần mã):** khoảng 1,5–2 ngày viết mã.
 
 ---
 
 ### Trạng thái thực hiện (mã E1–E6, chưa đo)
 
 Mã của E1–E5 và kiểm thử không tốn token của E6 đã xong; phần đo (đợt validation, reflector thật,
-`evolve cycle` thật) **chưa chạy**, chờ đo chung với Kế hoạch H.
+`evolve cycle` dùng nguồn bài học thật) **chưa chạy**.
 
 - **E1:** `bint experience digest <đợt|lượt>` (`internal/evolve/failure*.go`). Lượt eval ghi vết công cụ
   (stream-json trong `agent.log`) và `files.txt` trước khi áp tệp kiểm thử ẩn (`internal/eval`). Log cũ
@@ -189,7 +186,9 @@ Giới hạn đã biết:
   diễn đạt lại ý của lời giải.
 - Chất lượng bài học do reflector thật viết và hiệu ứng lên tỷ lệ đạt **chưa được kiểm chứng**.
 
-## Kế hoạch H — Sửa được quy trình, tách chung/riêng
+## Kế hoạch H — Sửa được quy trình, tách chung/riêng (mã H1–H4 đã xong, chưa đo)
+
+> **Lưu ý:** các mục H1–H5 dưới đây là thiết kế gốc. Phần đã cài đặt và chỗ khác thiết kế (ví dụ lệnh thực tế là `bint harness component …` và `bint harness render`) nằm ở mục "Trạng thái thực hiện (mã H1–H4, chưa đo)" bên dưới; hướng dẫn sử dụng xem [docs/harness-components.md](harness-components.md).
 
 ### H1. Đưa thành phần quy trình thành tệp, có phiên bản (không tốn token)
 
@@ -390,11 +389,11 @@ Giới hạn đã biết:
 
 ## Thứ tự và tổng chi phí
 
-1. E1–E3: mã và kiểm thử, không tốn token.
-2. E: đo, trần $30. Cần duyệt.
-3. H1–H2: mã, không tốn token. Có thể làm song song với bước 2.
-4. H: đo bước 1, trần $13. Cần duyệt.
-5. H3–H4: mã, rồi H đo bước 2, trần $25. Cần duyệt.
+1. E1–E5 và kiểm thử xác định E6 (không tốn token): **đã hoàn thành**.
+2. E: chạy thực nghiệm đo hiệu quả, trần $30 (cần duyệt trước khi chạy).
+3. H1–H2: viết mã và kiểm thử (không tốn token): **đã hoàn thành**.
+4. H: đo bước 1, trần $13 (cần duyệt).
+5. H3–H4: viết mã (**đã hoàn thành**), rồi đo bước 2 của H, trần $25 (cần duyệt).
 
 Tổng trần cả hai kế hoạch: khoảng $70. Mỗi bước tốn tiền đều cần người dùng duyệt trước.
 
