@@ -226,13 +226,15 @@ type State struct {
 	// Reason giải thích trạng thái hiện tại (ví dụ vì sao blocked).
 	Reason string `json:"reason,omitempty"`
 	// ResumeFrom là trạng thái hoạt động trước khi blocked/interrupted/failed.
-	ResumeFrom        string           `json:"resume_from,omitempty"`
-	Classification    *Classification  `json:"classification,omitempty"`
-	History           []Transition     `json:"history"`
-	Criteria          []CriterionCheck `json:"criteria,omitempty"`
-	Verifications     []Verification   `json:"verifications,omitempty"`
-	VerifyApproval    *Approval        `json:"verify_approval,omitempty"`
-	ProtectedApproval *Approval        `json:"protected_approval,omitempty"`
+	ResumeFrom     string          `json:"resume_from,omitempty"`
+	Classification *Classification `json:"classification,omitempty"`
+	// PlanningContractVersion: 0 = task cũ (không bị chặn tự động), 1 = artifact b-req theo hợp đồng v1.
+	PlanningContractVersion int              `json:"planning_contract_version,omitempty"`
+	History                 []Transition     `json:"history"`
+	Criteria                []CriterionCheck `json:"criteria,omitempty"`
+	Verifications           []Verification   `json:"verifications,omitempty"`
+	VerifyApproval          *Approval        `json:"verify_approval,omitempty"`
+	ProtectedApproval       *Approval        `json:"protected_approval,omitempty"`
 	// PendingPaths là tệp đã sửa chạm đường dẫn bảo vệ/deny đang chờ người duyệt.
 	PendingPaths []string      `json:"pending_paths,omitempty"`
 	Errors       []ErrorRecord `json:"errors,omitempty"`
