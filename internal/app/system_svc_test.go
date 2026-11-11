@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -601,5 +602,217 @@ func TestDiffSkillAndVersionsOfEvolvedSkill(t *testing.T) {
 	}
 	if _, err := SkillVersions(ctx, root, SkillVersionsOptions{Name: "khong-co"}); err == nil {
 		t.Fatal("skill tiến hoá lạ phải lỗi")
+	}
+}
+
+// 5a.1: sau ErrConfigChanged, RebaseConfigEdit đặt mốc theo tệp gốc mới (bản tạm và Seed giữ nguyên) nên lần ghi
+// lại thành công và diff tính theo nội dung mới; thay đổi xảy ra SAU mốc mới vẫn bị từ chối.
+func TestRebaseConfigEdit(t *testing.T) {
+	root := sysRepo(t, InitOptions{})
+	ctx := context.Background()
+	proj := config.ProjectPath(root)
+	orig, _ := os.ReadFile(proj)
+	e, err := PrepareConfigEdit(ctx, root, config.LayerProject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(e.TempPath)
+	other := append(append([]byte{}, orig...), []byte("# người khác\n")...)
+	os.WriteFile(proj, other, 0o644)
+	mine := []byte(strings.Replace(string(other), "language: auto", "language: en", 1))
+	if _, err := SaveConfigEdit(ctx, root, e, mine); !errors.Is(err, ErrConfigChanged) {
+		t.Fatalf("phải từ chối: %v", err)
+	}
+	e2, err := RebaseConfigEdit(ctx, root, e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e2.TempPath != e.TempPath || string(e2.Seed) != string(e.Seed) || string(e2.Original) != string(other) || e2.BaseHash == e.BaseHash {
+		t.Fatalf("rebase sai: %+v", e2)
+	}
+	c, err := CheckConfigEdit(ctx, root, e2, mine)
+	if err != nil || !c.Valid || strings.Contains(c.Diff, "-# người khác") || !strings.Contains(c.Diff, "+  language: en") {
+		t.Fatalf("diff phải theo tệp mới: %v %+v", err, c)
+	}
+	os.WriteFile(proj, append(other, '#', '\n'), 0o644) // đổi tiếp sau mốc mới
+	if _, err := SaveConfigEdit(ctx, root, e2, mine); !errors.Is(err, ErrConfigChanged) {
+		t.Fatalf("đổi sau mốc mới vẫn phải bị từ chối: %v", err)
+	}
+	e3, _ := RebaseConfigEdit(ctx, root, e2)
+	if _, err := SaveConfigEdit(ctx, root, e3, mine); err != nil {
+		t.Fatalf("ghi sau rebase: %v", err)
+	}
+}
+
+// 5a.2: local.yml có `language:` rỗng (kèm chú thích) vẫn ghi ra `language: vi` hợp lệ qua ValidateWith.
+func TestSetUILanguageEmptyValue(t *testing.T) {
+	root := sysRepo(t, InitOptions{})
+	local := config.LocalPath(root)
+	os.WriteFile(local, []byte("ui:\n  language: # chú thích\n"), 0o644)
+	res, err := SetUILanguage(context.Background(), root, UILanguageOptions{Language: "vi", Layer: "local"})
+	if err != nil || !res.Changed {
+		t.Fatalf("%v %+v", err, res)
+	}
+	b, _ := os.ReadFile(local)
+	if string(b) != "ui:\n  language: vi # chú thích\n" {
+		t.Fatalf("%q", b)
+	}
+	if _, err := config.ValidateWith(root, config.LayerLocal, b); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// 5b.3/5a.4: core.lock ghi phiên bản cũ, nội dung skill khớp → PlanSync vẫn coi core.lock là thay đổi (có diff);
+// cùng phiên bản thì không; lock bị xoá cũng là thay đổi. Sync thật ghi lock mang phiên bản binary.
+func TestPlanSyncCountsCoreLock(t *testing.T) {
+	root := sysRepo(t, InitOptions{Version: "0.1.0"})
+	ctx := context.Background()
+	lock := filepath.Join(root, filepath.FromSlash(".bint/skills/core.lock"))
+	plan, err := PlanSync(ctx, root, "0.1.0", SyncOptions{})
+	if err != nil || plan.Changes != 0 || plan.LockChanged {
+		t.Fatalf("cùng phiên bản: %v %+v", err, plan)
+	}
+	before, _ := os.ReadFile(lock)
+	plan, err = PlanSync(ctx, root, "9.9.9", SyncOptions{})
+	if err != nil || !plan.LockChanged || plan.Changes != 1 || !strings.Contains(plan.LockDiff, "9.9.9") {
+		t.Fatalf("lock lệch phiên bản phải là thay đổi: %v %+v", err, plan)
+	}
+	if after, _ := os.ReadFile(lock); string(after) != string(before) {
+		t.Fatal("PlanSync không được ghi core.lock")
+	}
+	// Thiếu tệp lock.
+	os.Remove(lock)
+	plan, err = PlanSync(ctx, root, "0.1.0", SyncOptions{})
+	if err != nil || !plan.LockChanged || plan.Changes == 0 {
+		t.Fatalf("thiếu lock: %v %+v", err, plan)
+	}
+	if _, err := Sync(ctx, root, "9.9.9", SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(lock); !strings.Contains(string(b), "9.9.9") {
+		t.Fatalf("lock phải mang phiên bản binary:\n%s", b)
+	}
+	if plan, _ := PlanSync(ctx, root, "9.9.9", SyncOptions{}); plan.Changes != 0 || plan.LockChanged {
+		t.Fatalf("sau sync phải khớp: %+v", plan)
+	}
+}
+
+// 5b.1: SetupSteps biến thay đổi của form Cài đặt repo thành các lần chạy init tuần tự nhắm đúng phạm vi hook.
+func TestSetupSteps(t *testing.T) {
+	st := func(claudeScopes, codexScopes []string) InitState {
+		return InitState{Root: "/r", Enabled: []string{"claude", "codex"}, Harnesses: []HarnessInitState{
+			{Name: "claude", Enabled: true, HasHooks: true, HookScopes: claudeScopes},
+			{Name: "codex", Enabled: true, HasHooks: true, HookScopes: codexScopes},
+		}}
+	}
+	type step = InitFlagOptions
+	off := func(sc string) step { return step{NoHooks: true, HooksScope: sc} }
+	on := func(sc string) step { return step{Hooks: true, HooksScope: sc} }
+	cases := []struct {
+		name  string
+		s     InitState
+		ch    InitFlagOptions
+		scope string
+		want  []step
+	}{
+		{"không đổi hook: giữ nguyên", st(nil, nil), InitFlagOptions{MCP: true}, "local", []step{{MCP: true}}},
+		{"tắt, hook ở project", st([]string{"project"}, nil), InitFlagOptions{NoHooks: true}, "project", []step{off("project")}},
+		{"tắt, hook ở local và project của claude", st([]string{"local", "project"}, nil), InitFlagOptions{NoHooks: true}, "local",
+			[]step{off("local"), off("project")}},
+		{"tắt, hook ở user", st([]string{"user"}, nil), InitFlagOptions{NoHooks: true}, "user", []step{off("user")}},
+		{"tắt, Codex dùng chung tệp local=project: một bước", st(nil, []string{"local", "project"}), InitFlagOptions{NoHooks: true}, "local",
+			[]step{off("local")}},
+		{"tắt kèm cờ khác: cờ đi kèm bước đầu", st([]string{"local", "project"}, nil), InitFlagOptions{NoHooks: true, MCP: true}, "local",
+			[]step{{NoHooks: true, HooksScope: "local", MCP: true}, off("project")}},
+		{"đổi local → project: gỡ trước, cài sau", st([]string{"local"}, nil), InitFlagOptions{Hooks: true, HooksScope: "project"}, "project",
+			[]step{off("local"), on("project")}},
+		{"đổi project → user", st([]string{"project"}, nil), InitFlagOptions{Hooks: true, HooksScope: "user"}, "user",
+			[]step{off("project"), on("user")}},
+		{"đổi local → project với Codex dùng chung tệp: không gỡ tệp sắp cài", st([]string{"local"}, []string{"local", "project"}),
+			InitFlagOptions{Hooks: true, HooksScope: "project"}, "project", []step{off("local"), on("project")}},
+		{"Codex một mình đổi local → project: chỉ cài", st(nil, []string{"local", "project"}),
+			InitFlagOptions{Hooks: true, HooksScope: "project"}, "project", []step{on("project")}},
+		{"bật mới: phạm vi tường minh", st(nil, nil), InitFlagOptions{Hooks: true}, "local", []step{on("local")}},
+		{"bật mới ở project", st(nil, nil), InitFlagOptions{Hooks: true, HooksScope: "project"}, "project", []step{on("project")}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := SetupSteps(c.s, c.ch, c.scope)
+			if !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("got  %+v\nwant %+v", got, c.want)
+			}
+		})
+	}
+}
+
+// 5b.1: chạy thật các bước của SetupSteps (claude + codex, hook local → project): sau khi chạy mỗi harness chỉ còn hook ở project và
+// hook Codex (tệp chung local=project) không bị mất.
+func TestSetupStepsRunMovesHooksWithSharedCodexFile(t *testing.T) {
+	root := sysRepo(t, InitOptions{Harnesses: []string{"claude", "codex"}, Hooks: boolPtrT(true)})
+	ctx := context.Background()
+	st, err := ReadInitState(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := st.FormDefaults()
+	if !form.Hooks || form.HooksScope != "local" {
+		t.Fatalf("điều kiện thử: %+v", form)
+	}
+	steps := SetupSteps(st, InitFlagOptions{Hooks: true, HooksScope: "project"}, "project")
+	if len(steps) != 2 || !steps[0].NoHooks || !steps[1].Hooks {
+		t.Fatalf("bước: %+v", steps)
+	}
+	for _, s := range steps {
+		io, err := s.ToInit(root, "bint", "test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Init(ctx, io); err != nil {
+			t.Fatal(err)
+		}
+	}
+	after, _ := ReadInitState(ctx, root)
+	for _, h := range after.Harnesses {
+		if !h.Enabled || !h.HasHooks {
+			continue
+		}
+		want := []string{"project"}
+		if h.Name == "codex" { // tệp chung: local và project cùng trỏ .codex/hooks.json
+			want = []string{"local", "project"}
+		}
+		if !reflect.DeepEqual(h.HookScopes, want) {
+			t.Errorf("%s: HookScopes=%v, muốn %v", h.Name, h.HookScopes, want)
+		}
+	}
+	if got := after.HooksScope(); got != "project" {
+		t.Errorf("HooksScope=%q", got)
+	}
+}
+
+func boolPtrT(b bool) *bool { return &b }
+
+// 5a.5: SetUILanguage báo ui.language hiệu lực sau khi ghép lớp và lớp che giá trị vừa ghi.
+func TestSetUILanguageReportsEffective(t *testing.T) {
+	root := sysRepo(t, InitOptions{})
+	ctx := context.Background()
+	// Ghi vào local: hiệu lực đúng giá trị vừa ghi, không bị che.
+	r, err := SetUILanguage(ctx, root, UILanguageOptions{Language: "vi", Layer: "local"})
+	if err != nil || r.Effective != "vi" || r.ShadowedBy != "" {
+		t.Fatalf("%v %+v", err, r)
+	}
+	// Ghi vào project khi local.yml đặt vi: hiệu lực vẫn là vi, bị lớp local che.
+	r, err = SetUILanguage(ctx, root, UILanguageOptions{Language: "en", Layer: "project"})
+	if err != nil || !r.Changed || r.Effective != "vi" || r.ShadowedBy != config.LayerLocal {
+		t.Fatalf("project bị local che: %v %+v", err, r)
+	}
+	// Local trùng giá trị: không bị che.
+	r, err = SetUILanguage(ctx, root, UILanguageOptions{Language: "vi", Layer: "project"})
+	if err != nil || r.Effective != "vi" || r.ShadowedBy != "" {
+		t.Fatalf("%v %+v", err, r)
+	}
+	// Không đổi gì (giá trị đã đúng) vẫn báo hiệu lực.
+	r, err = SetUILanguage(ctx, root, UILanguageOptions{Language: "vi", Layer: "project"})
+	if err != nil || r.Changed || r.Effective != "vi" {
+		t.Fatalf("%v %+v", err, r)
 	}
 }

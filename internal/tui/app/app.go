@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	bintapp "bint/internal/app"
 	"bint/internal/app/evolvesvc"
+	"bint/internal/config"
 	"bint/internal/detect"
 	"bint/internal/i18n"
 	"bint/internal/tui/actions"
@@ -82,8 +84,10 @@ type Options struct {
 	EvolveDetailer evscreen.Detailer
 	// SystemLoad thay các hàm nạp dữ liệu của màn Hệ thống (trường nil = nạp thật); thay được trong kiểm thử.
 	SystemLoad syscreen.Loaders
-	// Getenv thay os.Getenv khi chọn ngôn ngữ sau khi lưu ui.language = auto; nil = os.Getenv.
+	// Getenv thay os.Getenv khi chọn ngôn ngữ sau khi lưu ui.language; nil = os.Getenv.
 	Getenv func(string) string
+	// LangFlag là giá trị cờ --lang (rỗng = không chỉ định); cờ thắng mọi giá trị ui.language vừa ghi.
+	LangFlag string
 	// Agent thay cách dựng agent của từng bước workflow (nil = harness theo cấu hình); tiêm agent giả trong kiểm thử.
 	AgentFactory workflow.AgentFactory
 	// CycleRunner thay cách chạy các bước của `evolve cycle` (nil = trong tiến trình); tiêm runner giả trong kiểm thử.
@@ -368,7 +372,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(sc.Update(msg), m.tickIfBusy())
 		}
 	case actions.LanguageMsg:
-		m.setLanguage(msg.Lang)
+		m.setLanguage(msg)
 	case actions.DeniedMsg:
 		return m, tea.Batch(m.toScreenOf(msg.ID, msg), m.tickIfBusy())
 	case actions.RequestMsg:
@@ -676,16 +680,36 @@ func (m *Model) applyLanguage(lang string) {
 
 // setLanguage đổi ngôn ngữ ngay trong phiên sau khi ghi ui.language: vi/en dùng thẳng lựa chọn của người dùng,
 // auto thì chọn lại theo BINT_LANG, LC_ALL/LANG (mục 7.1).
-func (m *Model) setLanguage(lang string) {
-	if lang == "" || lang == "auto" {
-		getenv := m.opts.Getenv
-		if getenv == nil {
-			getenv = os.Getenv
-		}
-		lang = i18n.Resolve("", getenv("BINT_LANG"), "auto", getenv("LC_ALL"), getenv("LC_MESSAGES"), getenv("LANG"))
+// setLanguage chọn lại ngôn ngữ giao diện theo đúng thứ tự đã công bố: --lang > BINT_LANG > ui.language hiệu lực (msg.Lang, đã
+// ghép lớp) > LC_ALL/LC_MESSAGES/LANG > vi. Khi kết quả khác giá trị người dùng vừa chọn (msg.Chosen) vì một bậc cao hơn che nó thì
+// báo bằng toast nêu nguồn che.
+func (m *Model) setLanguage(msg actions.LanguageMsg) {
+	getenv := m.opts.Getenv
+	if getenv == nil {
+		getenv = os.Getenv
 	}
+	cfg := msg.Lang
+	if cfg == "" {
+		cfg = "auto"
+	}
+	lang, from := i18n.ResolveFrom(m.opts.LangFlag, getenv("BINT_LANG"), cfg, getenv("LC_ALL"), getenv("LC_MESSAGES"), getenv("LANG"))
 	if i18n.Supported(lang) {
 		m.applyLanguage(lang)
+	}
+	if msg.Chosen == "" || msg.Chosen == "auto" || lang == msg.Chosen {
+		return
+	}
+	src := ""
+	switch {
+	case from == i18n.FromFlag:
+		src = "--lang"
+	case from == i18n.FromEnv:
+		src = "BINT_LANG"
+	case msg.Layer != "":
+		src = filepath.ToSlash(filepath.Join(config.DirName, config.LocalFileName))
+	}
+	if src != "" {
+		m.toast = m.cat.T("sy.lang.shadowed", i18n.A{"chosen": msg.Chosen, "used": lang, "source": src})
 	}
 }
 

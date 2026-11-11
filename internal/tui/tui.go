@@ -89,7 +89,7 @@ func Run(ctx context.Context, o Options) error {
 	if o.Gallery {
 		model = gallery.New(gallery.Options{Lang: lang, Mode: mode})
 	} else {
-		root = tuiapp.New(ctx, tuiapp.Options{Dir: o.Dir, Version: o.Version, BintPath: o.BintPath, Lang: lang, Mode: mode,
+		root = tuiapp.New(ctx, tuiapp.Options{Dir: o.Dir, Version: o.Version, BintPath: o.BintPath, Lang: lang, LangFlag: o.Lang, Mode: mode,
 			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported})
 		model = root
 	}

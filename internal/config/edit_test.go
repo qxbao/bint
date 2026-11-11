@@ -31,6 +31,8 @@ func TestSetUILanguageTable(t *testing.T) {
 		{"ui null", "ui:\nx: 1\n", "vi", "ui:\n  language: vi\nx: 1\n", true},
 		{"CRLF", "version: 1\r\nui:\r\n  language: auto\r\nx: 1\r\n", "vi", "version: 1\r\nui:\r\n  language: vi\r\nx: 1\r\n", true},
 		{"CRLF thiếu khối ui", "version: 1\r\n", "vi", "version: 1\r\n\r\nui:\r\n  language: vi            " + uiBlockComment + "\r\n", true},
+		{"language rỗng (5a.2)", "ui:\n  language:\nx: 1\n", "vi", "ui:\n  language: vi\nx: 1\n", true},
+		{"language rỗng kèm chú thích (5a.2)", "ui:\n  language: # chú thích\nx: 1\n", "en", "ui:\n  language: en # chú thích\nx: 1\n", true},
 		{"tiếng Việt trước khoá", "# Cấu hình dự án — tiếng Việt\nui:\n  language: auto\n", "vi", "# Cấu hình dự án — tiếng Việt\nui:\n  language: vi\n", true},
 	}
 	for _, c := range cases {

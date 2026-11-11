@@ -282,17 +282,26 @@ func TestSystemReadOnlyDeniesEveryWritingAction(t *testing.T) {
 // sysReal dựng repository thật đã init và mô hình dùng dịch vụ thật, trình soạn thảo giả ghi lại đường dẫn bản tạm.
 func sysReal(t *testing.T) (m *Model, root string, execs *[]actions.ExecMsg) {
 	t.Helper()
+	return sysRealWith(t, nil, nil)
+}
+
+// sysRealWith như sysReal; before chạy sau khi init xong (chuẩn bị tệp trong repo), mut chỉnh Options của mô hình.
+func sysRealWith(t *testing.T, before func(root string), mut func(*Options)) (m *Model, root string, execs *[]actions.ExecMsg) {
+	t.Helper()
 	testutil.Isolate(t)
 	asHumanTUI(t)
 	root = testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
 	if _, err := bintapp.Init(context.Background(), bintapp.InitOptions{Dir: root, BintPath: "bint", Harnesses: []string{"claude"}}); err != nil {
 		t.Fatal(err)
 	}
+	if before != nil {
+		before(root)
+	}
 	var recorded []actions.ExecMsg
 	var list []actions.Action
 	for _, a := range actions.Default().All() {
 		a := a
-		if a.ID == "system.config_edit" {
+		if a.ID == "system.config_edit" || a.ID == "system.open_file" {
 			orig := a.Do
 			a.Do = func(ctx context.Context, env actions.Env, o any) tea.Msg {
 				msg := orig(ctx, env, o)
@@ -305,6 +314,9 @@ func sysReal(t *testing.T) (m *Model, root string, execs *[]actions.ExecMsg) {
 		list = append(list, a)
 	}
 	opts := Options{Dir: root, Mode: theme.Mono, Registry: actions.NewRegistry(list), Editor: func(string) *exec.Cmd { return exec.Command("true") }}
+	if mut != nil {
+		mut(&opts)
+	}
 	m = newModel(t, opts, sampleData(), 140, 40)
 	press(t, m, "7")
 	return m, root, &recorded
@@ -390,16 +402,68 @@ func TestSystemConfigEditRefusedWhenOriginalChangedMeanwhile(t *testing.T) {
 	proj := config.ProjectPath(root)
 	orig, _ := os.ReadFile(proj)
 	press(t, m, "e", "ctrl+s")
+	st := (*execs)[0].Opts.(actions.ConfigEditState)
 	other := string(orig) + "# người khác vừa sửa\n"
 	if err := os.WriteFile(proj, []byte(other), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	editWith(t, m, (*execs)[0], strings.Replace(string(orig), "language: auto", "language: en", 1))
+	mine := strings.Replace(string(orig), "language: auto", "language: en", 1)
+	editWith(t, m, (*execs)[0], mine)
 	press(t, m, "enter") // xác nhận ghi
 	if b, _ := os.ReadFile(proj); string(b) != other {
 		t.Fatalf("tệp gốc đổi trong lúc sửa thì không được ghi đè:\n%s", b)
 	}
-	hasAll(t, plain(m.Render()), "đã bị đổi")
+	// 5a.1: bản sửa của người dùng KHÔNG bị xoá; hộp cho sửa lại hoặc bỏ.
+	if b, err := os.ReadFile(st.Edit.TempPath); err != nil || string(b) != mine {
+		t.Fatalf("bản tạm phải còn nguyên sau khi bị từ chối: %v %q", err, b)
+	}
+	hasAll(t, plain(m.Render()), "đã bị đổi", "Sửa lại")
+	// Sửa lại: mở lại bản tạm; người dùng giữ nguyên bản sửa (đã gộp tay) rồi thoát → diff theo tệp gốc MỚI.
+	press(t, m, "enter")
+	if len(*execs) != 2 {
+		t.Fatalf("sửa lại phải mở trình soạn thảo lần nữa: %d", len(*execs))
+	}
+	merged := strings.Replace(other, "language: auto", "language: en", 1)
+	if err := os.WriteFile(st.Edit.TempPath, []byte(merged), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, cmd := m.Update(actions.ResultMsg{ID: "system.open_file", Opts: (*execs)[1].Opts})
+	drive(t, m, cmd)
+	out := plain(m.Render())
+	hasAll(t, out, "Ghi cấu hình?", "+  language: en")
+	if strings.Contains(out, "người khác vừa sửa") && strings.Contains(out, "-# người khác") {
+		t.Fatalf("diff phải theo tệp gốc mới, không xoá dòng của người khác:\n%s", out)
+	}
+	press(t, m, "enter")
+	if b, _ := os.ReadFile(proj); string(b) != merged {
+		t.Fatalf("lần ghi lại phải thành công:\n%s", b)
+	}
+	if _, err := os.Stat(st.Edit.TempPath); err == nil {
+		t.Fatal("ghi thành công thì bản tạm phải bị xoá")
+	}
+}
+
+// 5a.1: Validate lỗi lúc ghi (không phải lúc kiểm) cũng giữ bản tạm; Bỏ thì xoá.
+func TestSystemConfigEditWriteRejectedKeepsTempUntilDiscard(t *testing.T) {
+	m, root, execs := sysReal(t)
+	proj := config.ProjectPath(root)
+	orig, _ := os.ReadFile(proj)
+	press(t, m, "e", "ctrl+s")
+	st := (*execs)[0].Opts.(actions.ConfigEditState)
+	editWith(t, m, (*execs)[0], strings.Replace(string(orig), "language: auto", "language: en", 1))
+	// Giữa lúc kiểm và ghi, một lớp khác làm bản sửa không còn hợp lệ: local.yml đặt giá trị sai.
+	if err := os.WriteFile(config.LocalPath(root), []byte("ui:\n  language: fr\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	press(t, m, "enter")
+	if _, err := os.Stat(st.Edit.TempPath); err != nil {
+		t.Fatalf("bản tạm phải còn sau khi ghi bị từ chối: %v", err)
+	}
+	hasAll(t, plain(m.Render()), "Sửa lại")
+	press(t, m, "esc")
+	if _, err := os.Stat(st.Edit.TempPath); err == nil {
+		t.Fatal("Bỏ thì bản tạm phải bị xoá")
+	}
 }
 
 // Ghi ngôn ngữ bằng dịch vụ thật qua màn hình: local.yml được tạo, config.yml không đổi, giao diện đổi ngay.
@@ -462,4 +526,61 @@ func TestSystemRedBoxesUseErrorRole(t *testing.T) {
 	if !found {
 		t.Error("hộp sync --force phải là hộp đỏ")
 	}
+}
+
+// 5a.5: sau khi ghi ui.language, ngôn ngữ trong phiên theo đúng thứ tự --lang > BINT_LANG > ui.language hiệu lực (đã ghép lớp) > LC_ALL/LANG;
+// khi lớp cao hơn hoặc BINT_LANG/--lang che giá trị vừa ghi thì toast cảnh báo nêu nguồn che.
+func TestSystemLanguageShadowed(t *testing.T) {
+	t.Run("ghi vào project khi local.yml đặt ngôn ngữ khác", func(t *testing.T) {
+		m, root, _ := sysRealWith(t, func(root string) {
+			if err := os.WriteFile(config.LocalPath(root), []byte("ui:\n  language: vi\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}, func(o *Options) { o.Lang, o.SystemLoad.Config = "en", bintapp.ConfigView })
+		press(t, m, ".", ".", ".", ".", ".", ".", "j", "enter", "tab", " ", "ctrl+s") // chọn en, ghi vào project
+		if b, _ := os.ReadFile(config.ProjectPath(root)); !strings.Contains(string(b), "language: en") {
+			t.Fatalf("config.yml phải được ghi en:\n%s", b)
+		}
+		if m.Lang() != "vi" {
+			t.Fatalf("local.yml (vi) che giá trị vừa ghi: giao diện phải là vi, đang %s", m.Lang())
+		}
+		hasAll(t, plain(m.Render()), "ui.language = en", ".bint/local.yml")
+	})
+	for _, c := range []struct{ name, source string }{{"BINT_LANG", "BINT_LANG"}, {"--lang", "--lang"}} {
+		t.Run(c.name+" che giá trị vừa ghi", func(t *testing.T) {
+			m, root, _ := sysRealWith(t, nil, func(o *Options) {
+				o.Lang, o.SystemLoad.Config = "en", bintapp.ConfigView
+				if c.name == "BINT_LANG" {
+					o.Getenv = func(k string) string {
+						if k == "BINT_LANG" {
+							return "en"
+						}
+						return ""
+					}
+				} else {
+					o.LangFlag = "en"
+				}
+			})
+			press(t, m, ".", ".", ".", ".", ".", ".", "j", "enter", "ctrl+s") // chọn vi, ghi vào local
+			if b, _ := os.ReadFile(config.LocalPath(root)); !strings.Contains(string(b), "language: vi") {
+				t.Fatalf("local.yml phải được ghi vi:\n%s", b)
+			}
+			if m.Lang() != "en" {
+				t.Fatalf("%s che giá trị vừa ghi: giao diện phải giữ en, đang %s", c.source, m.Lang())
+			}
+			hasAll(t, plain(m.Render()), "ui.language = vi", c.source)
+		})
+	}
+	t.Run("không bị che thì đổi ngay", func(t *testing.T) {
+		m, _, _ := sysRealWith(t, nil, func(o *Options) {
+			o.Getenv, o.SystemLoad.Config = func(string) string { return "" }, bintapp.ConfigView
+		})
+		press(t, m, ".", ".", ".", ".", ".", ".", "j", "j", "enter", "ctrl+s")
+		if m.Lang() != "en" {
+			t.Fatalf("giao diện phải đổi ngay: %s", m.Lang())
+		}
+		if out := plain(m.Render()); strings.Contains(out, "takes precedence") || strings.Contains(out, "ưu tiên hơn") {
+			t.Fatalf("không bị che thì không có cảnh báo:\n%s", plain(m.Render()))
+		}
+	})
 }

@@ -85,10 +85,31 @@ func diffInit(init, v app.InitFlagOptions) (ch app.InitFlagOptions, harness bool
 	return ch, !slices.Equal(a, b)
 }
 
+// cmdSetupEdit mở form Cài đặt repo từ phím e/Enter: chỉ khi thẻ đã nạp xong không lỗi (form điền sẵn từ InitState thật; mở với
+// trạng thái rỗng thì diff so với mốc sai). Đang nạp hoặc nạp lỗi thì báo, không mở.
 func (m *Model) cmdSetupEdit() tea.Cmd {
+	return m.openSetup(false)
+}
+
+// openSetup: waitLoad = true (từ bảng lệnh) thì khi thẻ chưa nạp xong sẽ nhớ việc mở form và mở trong onLoaded.
+func (m *Model) openSetup(waitLoad bool) tea.Cmd {
 	if !m.allowed("system.repo_apply") {
 		return nil
 	}
+	s := m.slots[TabSetup]
+	switch {
+	case s.Loading || !s.Loaded && s.Err == nil: // đang nạp (hoặc chưa bắt đầu nạp)
+		if waitLoad {
+			m.setupPending = true
+		}
+		m.setToast(m.t("sy.setup.loading"), false)
+		return nil
+	case s.Err != nil:
+		m.setupPending = false
+		m.setToast(m.t("sy.setup.loaderr", i18n.A{"err": ui.ErrText(m.cat, s.Err)}), true)
+		return nil
+	}
+	m.setupPending = false
 	if m.setup.NotInit {
 		m.setToast(m.t("sy.setup.notinit"), true)
 		return nil
@@ -98,7 +119,8 @@ func (m *Model) cmdSetupEdit() tea.Cmd {
 	return nil
 }
 
-// submitSetup xử lý form Cài đặt repo: không đổi gì thì không chạy init; có đổi thì xin kế hoạch xem trước của phần đã đổi.
+// submitSetup xử lý form Cài đặt repo: không đổi gì thì không chạy init; có đổi thì tách thành các bước (app.SetupSteps: gỡ hook ở phạm
+// vi cũ trước, cài ở phạm vi mới sau) rồi xin kế hoạch xem trước của từng bước, tuần tự.
 func (m *Model) submitSetup(v app.InitFlagOptions) tea.Cmd {
 	ch, harness := diffInit(m.setupInit, v)
 	if harness {
@@ -111,28 +133,54 @@ func (m *Model) submitSetup(v app.InitFlagOptions) tea.Cmd {
 		m.setToast(m.t("sy.setup.nochange"), false)
 		return nil
 	}
+	m.setupSteps, m.setupPlans, m.setupIdx, m.setupRep = app.SetupSteps(m.setup, ch, v.HooksScope), nil, 0, nil
 	m.frmBusy = true
-	return m.request("system.repo_plan", ch)
+	return m.request("system.repo_plan", m.setupSteps[0])
 }
 
+func (m *Model) resetSetupRun() {
+	m.setupSteps, m.setupPlans, m.setupIdx, m.setupRep = nil, nil, 0, nil
+}
+
+// onRepoPlan nhận kế hoạch của một bước; còn bước thì xin tiếp, hết thì hiện hộp xem trước gồm từng bước kèm dòng CLI tương đương.
 func (m *Model) onRepoPlan(msg actions.ResultMsg) tea.Cmd {
-	m.finishForm("system.repo_apply")
+	o, _ := msg.Opts.(app.InitFlagOptions)
 	if msg.Err != nil {
+		m.finishForm("system.repo_apply")
+		m.resetSetupRun()
 		m.fail(msg.Err)
 		return nil
 	}
+	if m.setupIdx >= len(m.setupSteps) || !reflect.DeepEqual(m.setupSteps[m.setupIdx], o) { // yêu cầu trực tiếp, không qua form
+		m.setupSteps, m.setupPlans, m.setupIdx = []app.InitFlagOptions{o}, nil, 0
+	}
 	pl, _ := msg.Value.(app.InitPlan)
-	o, _ := msg.Opts.(app.InitFlagOptions)
-	body := m.planLines(pl)
-	cli := form.CLIFor("init", app.InitDefaults(m.cfg.Effective), o)
-	body = append(body, "", m.th.S(theme.Muted, m.t("ui.cli_equivalent")+" ")+cli, m.th.S(theme.Muted, m.t("sy.setup.preview.estimate")))
-	title, danger := m.t("sy.setup.preview.title"), false
-	if o.Force {
-		danger = true
+	m.setupPlans = append(m.setupPlans, pl)
+	if m.setupIdx++; m.setupIdx < len(m.setupSteps) {
+		return m.request("system.repo_plan", m.setupSteps[m.setupIdx])
+	}
+	m.finishForm("system.repo_apply")
+	steps := m.setupSteps
+	var body []string
+	danger := false
+	for i, st := range steps {
+		if len(steps) > 1 {
+			if i > 0 {
+				body = append(body, "")
+			}
+			body = append(body, m.th.Bold(m.t("sy.setup.step", i18n.A{"n": i + 1, "total": len(steps)})))
+		}
+		body = append(body, m.planLines(m.setupPlans[i])...)
+		body = append(body, "", m.th.S(theme.Muted, m.t("ui.cli_equivalent")+" ")+form.CLIFor("init", app.InitDefaults(m.cfg.Effective), st))
+		danger = danger || st.Force
+	}
+	if danger {
 		body = append([]string{m.th.S(theme.Err, m.t("sy.setup.preview.force")), ""}, body...)
 	}
-	m.dlg = &dialog{c: confirm.Model{Title: title, Body: body, Danger: danger, YesLabel: m.t("sy.setup.preview.run"), NoLabel: m.t("sy.cancel")},
-		onYes: func(string) tea.Cmd { return m.request("system.repo_apply", o) }}
+	body = append(body, m.th.S(theme.Muted, m.t("sy.setup.preview.estimate")))
+	m.setupIdx = 0
+	m.dlg = &dialog{c: confirm.Model{Title: m.t("sy.setup.preview.title"), Body: body, Danger: danger, YesLabel: m.t("sy.setup.preview.run"), NoLabel: m.t("sy.cancel")},
+		onYes: func(string) tea.Cmd { return m.request("system.repo_apply", steps[0]) }}
 	return nil
 }
 
@@ -166,14 +214,34 @@ func (m *Model) planLines(pl app.InitPlan) []string {
 	return append(append(out, ""), keeps...)
 }
 
+// onRepoApply nhận báo cáo của một bước; chạy bước kế tiếp (dừng ở lỗi đầu tiên), hết bước thì hiện báo cáo gộp và nạp lại thẻ.
 func (m *Model) onRepoApply(msg actions.ResultMsg) tea.Cmd {
+	o, _ := msg.Opts.(app.InitFlagOptions)
+	if m.setupIdx >= len(m.setupSteps) || !reflect.DeepEqual(m.setupSteps[m.setupIdx], o) {
+		m.setupSteps, m.setupIdx, m.setupRep = []app.InitFlagOptions{o}, 0, nil
+	}
+	steps, idx := m.setupSteps, m.setupIdx
 	if msg.Err != nil {
+		m.resetSetupRun()
 		m.fail(msg.Err)
-		return nil
+		return tea.Batch(m.reload(TabSetup), m.reload(TabConfig)) // bước trước có thể đã đổi trạng thái
 	}
 	rep, _ := msg.Value.(*app.InitReport)
-	m.showOut(m.t("sy.setup.applied.title"), m.reportLines(rep))
-	m.setToast(m.t("sy.setup.applied", i18n.A{"problem": boolInt(rep != nil && rep.HasProblem)}), rep != nil && rep.HasProblem)
+	if rep != nil {
+		if len(steps) > 1 {
+			m.setupRep = append(m.setupRep, m.th.Bold(m.t("sy.setup.step", i18n.A{"n": idx + 1, "total": len(steps)})))
+		}
+		m.setupRep = append(m.setupRep, m.reportLines(rep)...)
+		m.setupProblem = m.setupProblem || rep.HasProblem
+	}
+	if m.setupIdx++; m.setupIdx < len(steps) {
+		return m.request("system.repo_apply", steps[m.setupIdx])
+	}
+	problem := m.setupProblem
+	m.showOut(m.t("sy.setup.applied.title"), m.setupRep)
+	m.setToast(m.t("sy.setup.applied", i18n.A{"problem": boolInt(problem)}), problem)
+	m.resetSetupRun()
+	m.setupProblem = false
 	return tea.Batch(m.reload(TabSetup), m.reload(TabConfig))
 }
 

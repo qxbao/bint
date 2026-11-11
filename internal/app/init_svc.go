@@ -104,6 +104,83 @@ func (o InitFlagOptions) ToInit(dir, bintPath, version string) (InitOptions, err
 	return opts, nil
 }
 
+// SetupSteps đổi phần thay đổi ch (kết quả so form Cài đặt repo với InitState s) thành các lần chạy init tuần tự.
+// app.Init chỉ nhắm MỘT phạm vi hook mỗi lần (--hooks-scope, mặc định local), nên tắt hook hoặc đổi phạm vi khi hook đang cài ở
+// phạm vi khác sẽ không tác động hook thật nếu chỉ gửi một lần:
+//   - tắt hook: một bước --no-hooks cho mỗi phạm vi đang có hook;
+//   - bật hoặc đổi phạm vi (formScope là phạm vi trên form): các bước gỡ ở mọi phạm vi cũ TRƯỚC, bước --hooks ở phạm vi
+//     mới SAU. Phạm vi cũ mà hook nằm đúng tệp mà phạm vi mới sẽ cài (Codex dùng chung .codex/hooks.json cho local và
+//     project) không cần bước gỡ: gỡ rồi cài lại chỉ để mất hook rồi tạo lại, còn gỡ sau khi cài thì mất hook vừa cài.
+//
+// Các cờ không liên quan hook đi kèm bước đầu. Không có thay đổi hook thì trả đúng ch (một bước).
+func SetupSteps(s InitState, ch InitFlagOptions, formScope string) []InitFlagOptions {
+	if !ch.Hooks && !ch.NoHooks {
+		return []InitFlagOptions{ch}
+	}
+	scope := ch.HooksScope
+	if scope == "" {
+		scope = formScope
+	}
+	if scope == "" {
+		scope = s.HooksScope()
+	}
+	rest := ch
+	rest.Hooks, rest.NoHooks, rest.HooksScope = false, false, ""
+
+	type hookFile struct{ harness, path string }
+	installed := map[string][]hookFile{}
+	target := map[hookFile]bool{}
+	for _, h := range s.Harnesses {
+		if !h.Enabled || !h.HasHooks {
+			continue
+		}
+		ad, ok := harness.Get(h.Name)
+		if !ok {
+			continue
+		}
+		hi, ok := ad.(harness.HookInstaller)
+		if !ok {
+			continue
+		}
+		for _, sc := range h.HookScopes {
+			if p, err := hi.HooksPath(claude.Scope(sc), s.Root); err == nil {
+				installed[sc] = append(installed[sc], hookFile{h.Name, p})
+			}
+		}
+		if p, err := hi.HooksPath(claude.Scope(scope), s.Root); err == nil {
+			target[hookFile{h.Name, p}] = true
+		}
+	}
+	var steps []InitFlagOptions
+	covered := map[hookFile]bool{}
+	for _, sc := range []string{"local", "project", "user"} {
+		if ch.Hooks && sc == scope {
+			continue
+		}
+		need := false
+		for _, f := range installed[sc] {
+			need = need || (!covered[f] && !(ch.Hooks && target[f]))
+		}
+		if !need {
+			continue
+		}
+		for _, f := range installed[sc] {
+			covered[f] = true
+		}
+		steps = append(steps, InitFlagOptions{NoHooks: true, HooksScope: sc})
+	}
+	if ch.Hooks {
+		steps = append(steps, InitFlagOptions{Hooks: true, HooksScope: scope})
+	}
+	if len(steps) == 0 { // không có gì để gỡ (trạng thái không khớp): giữ nguyên yêu cầu
+		return []InitFlagOptions{ch}
+	}
+	first := rest
+	first.Hooks, first.NoHooks, first.HooksScope = steps[0].Hooks, steps[0].NoHooks, steps[0].HooksScope
+	steps[0] = first
+	return steps
+}
+
 // HarnessInitState là trạng thái hook/MCP của một harness (probe chỉ đọc, không gọi chương trình harness).
 type HarnessInitState struct {
 	Name    string
@@ -564,18 +641,10 @@ func UpgradeConfig(ctx context.Context, dir string, o ConfigUpgradeOptions) (*In
 	return Init(ctx, InitOptions{Dir: dir, Update: true, BintPath: o.BintPath, Version: o.Version, Now: o.Now})
 }
 
-// ConfigBackupPath tìm đường dẫn bản sao lưu trong báo cáo của app.Init (chi tiết "… (bản cũ: <đường dẫn>)").
+// ConfigBackupPath là đường dẫn bản sao lưu cấu hình của lần nâng (InitReport.ConfigBackup); rỗng nếu không có.
 func ConfigBackupPath(rep *InitReport) string {
 	if rep == nil {
 		return ""
 	}
-	for _, s := range rep.Steps {
-		if s.Name != ".bint/config.yml" || s.Status != StepUpdated {
-			continue
-		}
-		if _, after, ok := strings.Cut(s.Detail, "(bản cũ: "); ok {
-			return strings.TrimSuffix(after, ")")
-		}
-	}
-	return ""
+	return rep.ConfigBackup
 }

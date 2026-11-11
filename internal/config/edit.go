@@ -175,6 +175,10 @@ func replaceScalar(lines []string, n *yaml.Node, lang string) ([]byte, bool, err
 	if start > len(line) {
 		return nil, false, fmt.Errorf("không định vị được ui.language ở dòng %d", n.Line)
 	}
+	if n.Tag == "!!null" && n.Value == "" { // `language:` không có giá trị: nút null nằm ngay sau dấu ':'
+		lines[ln] = line[:start] + " " + lang + line[start:]
+		return []byte(strings.Join(lines, "")), true, nil
+	}
 	end := start
 	if start < len(line) && (line[start] == '"' || line[start] == '\'') {
 		q := line[start]

@@ -158,3 +158,24 @@ func TestResolvePrecedence(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveFromReportsSource(t *testing.T) {
+	cases := []struct {
+		flag, env, cfg string
+		sys            []string
+		lang           string
+		from           int
+	}{
+		{"en", "vi", "vi", nil, "en", FromFlag},
+		{"", "en", "vi", nil, "en", FromEnv},
+		{"", "", "en", []string{"vi_VN.UTF-8"}, "en", FromConfig},
+		{"", "", "auto", []string{"", "", "en_US.UTF-8"}, "en", 5},
+		{"", "", "auto", nil, Default, FromDefault},
+	}
+	for _, c := range cases {
+		lang, from := ResolveFrom(c.flag, c.env, c.cfg, c.sys...)
+		if lang != c.lang || from != c.from {
+			t.Errorf("%+v: got (%s,%d)", c, lang, from)
+		}
+	}
+}

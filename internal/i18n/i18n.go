@@ -242,13 +242,28 @@ func expand(s string, args []A) string {
 // ui.language > LC_ALL/LANG (sys, theo thứ tự đưa vào) > vi. Giá trị không hỗ trợ (hoặc "auto",
 // rỗng) ở một bậc thì bỏ qua và xét bậc kế. Pseudo chỉ được chọn qua cờ hoặc BINT_LANG.
 func Resolve(flag, env, cfg string, sys ...string) string {
+	l, _ := ResolveFrom(flag, env, cfg, sys...)
+	return l
+}
+
+// Nguồn của ngôn ngữ do ResolveFrom chọn.
+const (
+	FromFlag    = 0  // cờ --lang
+	FromEnv     = 1  // biến BINT_LANG
+	FromConfig  = 2  // khoá ui.language
+	FromDefault = -1 // không bậc nào hợp lệ: ngôn ngữ mặc định
+	// Từ 3 trở đi là các biến hệ thống theo thứ tự đưa vào (LC_ALL, LC_MESSAGES, LANG).
+)
+
+// ResolveFrom như Resolve nhưng trả thêm bậc đã quyết định (FromFlag, FromEnv, FromConfig, 3+ cho biến hệ thống, FromDefault).
+func ResolveFrom(flag, env, cfg string, sys ...string) (lang string, from int) {
 	for i, v := range append([]string{flag, env, cfg}, sys...) {
 		l := normalizeLang(v)
 		if Supported(l) || (l == Pseudo && i < 2) {
-			return l
+			return l, i
 		}
 	}
-	return Default
+	return Default, FromDefault
 }
 
 // normalizeLang đưa "vi_VN.UTF-8", "en-US", "EN" về "vi", "en".

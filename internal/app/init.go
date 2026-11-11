@@ -78,6 +78,9 @@ type InitReport struct {
 	// GitMode: chế độ hiện diện trong Git đang áp (track | local).
 	GitMode    string
 	HasProblem bool
+	// ConfigBackup là đường dẫn bản sao lưu .bint/config.yml do upgradeConfig (init --update) tạo; rỗng nếu không nâng cấu hình.
+	// Dùng trường này thay vì tách từ câu chữ trong Detail của bước (câu chữ có thể đổi hoặc được dịch).
+	ConfigBackup string
 }
 
 func (r *InitReport) add(name string, st StepStatus, format string, a ...any) {
@@ -567,6 +570,7 @@ func upgradeConfig(rep *InitReport, update bool, cfgRoot, cfgPath, backups strin
 		detail += fmt.Sprintf("; sửa %d dòng chú thích hỏng", up.Fixed)
 	}
 	rep.add(name, StepUpdated, "%s (bản cũ: %s)", detail, bak)
+	rep.ConfigBackup = bak
 	for _, n := range up.Notes {
 		rep.add(name, StepSkipped, "%s", n)
 	}

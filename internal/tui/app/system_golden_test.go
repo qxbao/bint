@@ -82,8 +82,9 @@ func systemScreens(t *testing.T, lang string, w, h int) map[string]func() *Model
 		},
 		"system_upgrade_done": func() *Model {
 			m := sysAt(t, o, w, h, 0)
-			m.Update(actions.ResultMsg{ID: "system.config_upgrade", Value: &bintapp.InitReport{Steps: []bintapp.Step{{Name: ".bint/config.yml", Status: bintapp.StepUpdated,
-				Detail: "thêm: harnesses.claude.models (bản cũ: /state/demo-7f3a9c/backups/20261112T080000Z/.bint/config.yml)"}}}})
+			m.Update(actions.ResultMsg{ID: "system.config_upgrade", Value: &bintapp.InitReport{
+				ConfigBackup: "/state/demo-7f3a9c/backups/20261112T080000Z/.bint/config.yml",
+				Steps:        []bintapp.Step{{Name: ".bint/config.yml", Status: bintapp.StepUpdated, Detail: "thêm: harnesses.claude.models"}}}})
 			return m
 		},
 		"system_update": func() *Model { return sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9) },

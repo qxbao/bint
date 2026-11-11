@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 
@@ -90,8 +91,16 @@ type Model struct {
 	// đang chạy và phiên cập nhật gần nhất.
 	setup     app.InitState
 	setupInit app.InitFlagOptions
-	updInfo   UpdateInfo
-	upd       updateState
+	// Chạy Cài đặt repo nhiều bước (app.SetupSteps): các bước, kế hoạch đã nhận, bước đang chờ kết quả, báo cáo gộp.
+	setupSteps   []app.InitFlagOptions
+	setupPlans   []app.InitPlan
+	setupIdx     int
+	setupRep     []string
+	setupProblem bool
+	// setupPending: bảng lệnh yêu cầu mở form khi thẻ chưa nạp xong; onLoaded mở sau khi nạp.
+	setupPending bool
+	updInfo      UpdateInfo
+	upd          updateState
 	// versions: phiên bản harness đã lấy (V), theo tên; verBusy: tên đang lấy.
 	versions map[string]string
 	verBusy  map[string]bool
@@ -118,6 +127,8 @@ type Model struct {
 	idxRes *app.IndexRebuildResult
 	// Sửa cấu hình: phiên đang mở ($EDITOR) hoặc đang chờ xác nhận.
 	edit *app.ConfigEdit
+	// rebase: lần kiểm kế tiếp phải đặt lại mốc theo tệp gốc hiện tại (sửa lại sau ErrConfigChanged).
+	rebase bool
 
 	dlg      *dialog
 	frm      *form.Model
@@ -272,13 +283,17 @@ func (m *Model) rowCount(tab int) int {
 func (m *Model) syncList(tab int) { m.lst[tab].SetN(m.rowCount(tab)) }
 
 // rebuildComponents lọc danh sách thành phần theo loại, trạng thái và chữ, giữ con trỏ theo ID.
-func (m *Model) rebuildComponents() {
+//
+// Khi đang chờ dữ liệu mới cho một yêu cầu Focus (focusID != ""), con trỏ nhắm thành phần theo focus: không tìm thấy thì báo toast và bỏ
+// yêu cầu, trừ khi còn một lần nạp nữa đang xếp hàng (laterLoad: dữ liệu vừa về có thể cũ hơn yêu cầu).
+func (m *Model) rebuildComponents(laterLoad bool) {
 	keepKind, keepID := hcomp.Kind(""), ""
 	if d := m.CursorComponent(); d != nil {
 		keepKind, keepID = d.Component.Kind, d.Component.ID
 	}
-	if m.focusID != "" {
-		keepKind, keepID, m.focusKind, m.focusID = m.focusKind, m.focusID, "", ""
+	want := m.focusID
+	if want != "" {
+		keepKind, keepID = m.focusKind, want
 	}
 	f := strings.ToLower(strings.TrimSpace(m.filter))
 	m.compIdx = m.compIdx[:0]
@@ -293,17 +308,29 @@ func (m *Model) rebuildComponents() {
 		m.compIdx = append(m.compIdx, i)
 	}
 	m.syncList(TabComponents)
+	found := false
 	for pos, i := range m.compIdx {
 		c := m.comps.Details[i].Component
 		if keepID != "" && c.ID == keepID && (keepKind == "" || c.Kind == keepKind) {
 			m.lst[TabComponents].MoveTo(pos)
+			found = true
 			break
 		}
+	}
+	if want == "" || (!found && laterLoad) {
+		return
+	}
+	m.focusKind, m.focusID = "", ""
+	if !found {
+		m.setToast(m.t("sy.comp.notfound", i18n.A{"id": want}), true)
 	}
 }
 
 // CursorComponent trả thành phần dưới con trỏ ở thẻ Thành phần (nil nếu trống).
 func (m *Model) CursorComponent() *app.ComponentDetail {
+	if m.focusID != "" { // đang chờ dữ liệu mới cho yêu cầu Focus: danh sách hiện tại có thể cũ, không để hành động nhắm nhầm
+		return nil
+	}
 	c := m.lst[TabComponents].Cursor
 	if c < 0 || c >= len(m.compIdx) {
 		return nil
@@ -330,9 +357,8 @@ func (m *Model) Focus(kind, id string) tea.Cmd {
 	m.tab = TabComponents
 	m.focusKind, m.focusID = hcomp.Kind(kind), id
 	m.det.Reset()
-	if m.slots[TabComponents].Loaded {
-		m.rebuildComponents()
-		return nil
+	if sl := m.slots[TabComponents]; sl.Loaded || sl.Loading { // danh sách đã nạp (hoặc đang nạp, có thể đã cũ) có thể cũ (thành phần mới sinh sau đó): nạp lại, đặt con trỏ khi dữ liệu mới về
+		return m.load(TabComponents)
 	}
 	return m.ensureTab(TabComponents)
 }
@@ -418,6 +444,12 @@ func (m *Model) onLoaded(msg LoadedMsg) tea.Cmd {
 		next = m.load(msg.Tab)
 	}
 	if msg.Err != nil {
+		if msg.Tab == TabComponents && next == nil {
+			m.focusKind, m.focusID = "", "" // nạp lỗi: bỏ yêu cầu Focus đang chờ
+		}
+		if msg.Tab == TabSetup && m.setupPending { // nạp lỗi: không mở form, báo lỗi
+			return tea.Batch(next, m.openSetup(false))
+		}
 		return next
 	}
 	s.Loaded = true
@@ -432,7 +464,7 @@ func (m *Model) onLoaded(msg LoadedMsg) tea.Cmd {
 		m.syncList(TabHarness)
 	case TabComponents:
 		m.comps = msg.Value.(ComponentsData)
-		m.rebuildComponents()
+		m.rebuildComponents(next != nil)
 	case TabSkills:
 		m.skills = msg.Value.(app.SkillList)
 		m.syncList(TabSkills)
@@ -444,6 +476,9 @@ func (m *Model) onLoaded(msg LoadedMsg) tea.Cmd {
 		m.rebuildDoctor()
 	case TabSetup:
 		m.setup = msg.Value.(app.InitState)
+		if m.setupPending && m.frm == nil && m.dlg == nil {
+			return tea.Batch(next, m.openSetup(false))
+		}
 	case TabUpdate:
 		m.updInfo = msg.Value.(UpdateInfo)
 	}
@@ -485,11 +520,11 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	case "system.config_check":
 		return m.onConfigChecked(msg)
 	case "system.config_save":
-		m.dlg, m.edit = nil, nil
+		m.dlg = nil
 		if msg.Err != nil {
-			m.fail(msg.Err)
-			return nil
+			return m.onConfigSaveRejected(msg)
 		}
+		m.edit = nil
 		m.setToast(m.t("sy.config.saved"), false)
 		return m.reload(TabConfig)
 	case "system.language_save":
@@ -505,8 +540,11 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 			key = "sy.lang.unchanged"
 		}
 		m.setToast(m.t(key, i18n.A{"lang": o.Language, "path": r.Path}), false)
-		lang := o.Language
-		return tea.Batch(m.reload(TabConfig), func() tea.Msg { return actions.LanguageMsg{Lang: lang} })
+		lm := actions.LanguageMsg{Lang: r.Effective, Chosen: o.Language, Layer: string(r.ShadowedBy)}
+		if lm.Lang == "" { // dịch vụ không trả giá trị hiệu lực (lỗi ghép lớp): dùng giá trị vừa chọn
+			lm.Lang = o.Language
+		}
+		return tea.Batch(m.reload(TabConfig), func() tea.Msg { return lm })
 	case "system.harness_version":
 		v, _ := msg.Value.(actions.VersionResult)
 		delete(m.verBusy, v.Name)
@@ -670,11 +708,41 @@ func (m *Model) afterEditor(err error) tea.Cmd {
 		m.fail(rerr)
 		return nil
 	}
-	return m.request("system.config_check", actions.ConfigApplyArgs{Edit: *e, Data: data})
+	rebase := m.rebase
+	m.rebase = false
+	return m.request("system.config_check", actions.ConfigApplyArgs{Edit: *e, Data: data, Rebase: rebase})
+}
+
+// onConfigSaveRejected: ghi bị từ chối (tệp gốc đã đổi hoặc Validate lỗi lúc ghi). Bản tạm còn nguyên; hộp cho
+// sửa lại (sau ErrConfigChanged thì kiểm và diff theo tệp gốc mới) hoặc bỏ (xoá bản tạm).
+func (m *Model) onConfigSaveRejected(msg actions.ResultMsg) tea.Cmd {
+	a, _ := msg.Opts.(actions.ConfigApplyArgs)
+	e := a.Edit
+	m.edit = &e
+	changed := errors.Is(msg.Err, app.ErrConfigChanged)
+	body := append([]string{m.th.S(theme.Err, m.t("sy.config.rejected"))}, wrapText(ui.ErrText(m.cat, msg.Err), 72)...)
+	body = append(body, "", m.th.S(theme.Muted, m.t("sy.config.rejected.kept", i18n.A{"path": e.TempPath})))
+	m.dlg = &dialog{c: confirm.Model{Title: m.t("sy.config.rejected.title"), Body: body, Danger: true,
+		YesLabel: m.t("sy.config.reedit"), NoLabel: m.t("sy.config.discard")},
+		onYes: func(string) tea.Cmd {
+			m.rebase = changed
+			return m.request("system.open_file", actions.OpenFileOptions{Path: e.TempPath})
+		},
+		onNo: func() tea.Cmd {
+			os.Remove(e.TempPath)
+			m.edit, m.rebase = nil, false
+			m.setToast(m.t("sy.config.discarded"), false)
+			return nil
+		}}
+	return nil
 }
 
 func (m *Model) onConfigChecked(msg actions.ResultMsg) tea.Cmd {
 	a, _ := msg.Opts.(actions.ConfigApplyArgs)
+	if m.edit != nil && a.Edit.TempPath == m.edit.TempPath { // phiên đã đặt lại mốc (sửa lại sau khi tệp gốc đổi)
+		e := a.Edit
+		m.edit = &e
+	}
 	drop := func() {
 		os.Remove(a.Edit.TempPath)
 		m.edit = nil
@@ -809,7 +877,7 @@ func (m *Model) listKey(s string) (tea.Cmd, bool) {
 			m.pane = paneList
 		case m.tab == TabComponents && m.filter != "":
 			m.filter = ""
-			m.rebuildComponents()
+			m.rebuildComponents(true)
 		}
 		return nil, true
 	case "ctrl+r", "f5":
@@ -851,7 +919,7 @@ func (m *Model) textKey(msg tea.KeyPressMsg) tea.Cmd {
 		in.Update(msg)
 		m.filter = in.Text
 	}
-	m.rebuildComponents()
+	m.rebuildComponents(true)
 	return nil
 }
 
@@ -1042,7 +1110,7 @@ func (m *Model) submitForm(v any) tea.Cmd {
 	if o, ok := v.(app.ComponentListOptions); ok { // bộ lọc là trạng thái của màn hình, không có hành động ghi/đọc riêng
 		m.frm = nil
 		m.kindF, m.statusF = string(o.Kind), o.Status
-		m.rebuildComponents()
+		m.rebuildComponents(true)
 		return nil
 	}
 	switch o := v.(type) {
@@ -1131,7 +1199,7 @@ func (m *Model) Command(id string) tea.Cmd {
 		return m.setTab(TabSetup)
 	case "system.repo_plan", "system.repo_apply":
 		m.tab = TabSetup
-		return tea.Batch(m.ensureTab(TabSetup), m.cmdSetupEdit())
+		return tea.Batch(m.ensureTab(TabSetup), m.openSetup(true))
 	case "system.config_upgrade_plan", "system.config_upgrade":
 		return m.OpenConfigUpgrade()
 	case "system.update":

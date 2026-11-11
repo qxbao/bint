@@ -316,11 +316,19 @@ func (m *Model) syncPlanLines(p app.SyncPlan) []string {
 		}
 		out = append(out, line)
 	}
+	if p.LockChanged {
+		g, role := outcomeGlyph(fsafe.Updated)
+		out = append(out, m.th.S(role, g)+" "+skills.LockRel+" — "+m.t("sy.sync.lock"))
+	}
 	for _, f := range p.Files {
 		if f.Diff != "" {
 			out = append(out, "")
 			out = append(out, coloredDiff(m.th, f.Diff)...)
 		}
+	}
+	if p.LockDiff != "" {
+		out = append(out, "")
+		out = append(out, coloredDiff(m.th, p.LockDiff)...)
 	}
 	return out
 }

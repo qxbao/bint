@@ -6,8 +6,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 
 	bintapp "bint/internal/app"
 	"bint/internal/config"
+	"bint/internal/harness/claude"
 	"bint/internal/testutil"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/screens/overview"
@@ -481,4 +484,208 @@ func TestUpdateTabShowsLiveLogAndEscCancels(t *testing.T) {
 	if strings.Contains(out, "Khởi động lại ngay?") {
 		t.Fatal("huỷ không được hỏi khởi động lại")
 	}
+}
+
+// 5b.3/5a.4: core.lock ghi phiên bản cũ nhưng nội dung skill khớp → Enter mục hộp thư lệch phiên bản, s, xác nhận thì
+// core.lock mang phiên bản binary và mục hộp thư biến mất sau khi nạp lại.
+func TestInboxVersionSkewSyncClearsItem(t *testing.T) {
+	f, root, calls := lifeFixture(t, func(o *Options) {
+		if _, err := bintapp.Sync(context.Background(), o.Dir, "0.1.0", bintapp.SyncOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		o.Version = "9.9.9"
+		o.Loader = overview.Load
+	})
+	lock := filepath.Join(root, ".bint", "skills", "core.lock")
+	f.press("r")
+	f.pump(func() bool { return !f.m.ov.Loading }, nil)
+	skew := func() bool {
+		for _, it := range f.m.ov.Data.Inbox() {
+			if it.Key == "overview.inbox.version_skew" {
+				return true
+			}
+		}
+		return false
+	}
+	if !skew() {
+		t.Fatalf("hộp thư phải có mục lệch phiên bản: %+v", f.m.ov.Data.Inbox())
+	}
+	f.press("enter", "s")
+	f.waitFor("core.lock") // hộp xem trước phải nêu core.lock, không phải 'đã cập nhật'
+	if calls.count("system.sync") != 0 {
+		t.Fatal("chưa xác nhận thì chưa sync")
+	}
+	f.press("enter")
+	f.pump(func() bool { return calls.count("system.sync") == 1 }, nil)
+	if b, _ := os.ReadFile(lock); !strings.Contains(string(b), "9.9.9") {
+		t.Fatalf("core.lock phải mang phiên bản binary:\n%s", b)
+	}
+	f.press("1", "r")
+	f.pump(func() bool { return !f.m.ov.Loading }, nil)
+	if skew() {
+		t.Fatalf("mục lệch phiên bản phải biến mất: %+v", f.m.ov.Data.Inbox())
+	}
+}
+
+// installClaudeHook cài hook Claude ở phạm vi sc bằng app.Init (như `bint init --hooks --hooks-scope sc`).
+func installClaudeHook(t *testing.T, root string, sc claude.Scope) {
+	t.Helper()
+	if _, err := bintapp.Init(context.Background(), bintapp.InitOptions{Dir: root, BintPath: "bint", Harnesses: []string{"claude"},
+		Hooks: boolPtr(true), HooksScope: sc, NoSkills: true, Version: "0.1.0"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func claudeHookScopes(t *testing.T, root string) []string {
+	t.Helper()
+	st, err := bintapp.ReadInitState(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range st.Harnesses {
+		if h.Name == "claude" {
+			return h.HookScopes
+		}
+	}
+	t.Fatal("không thấy harness claude")
+	return nil
+}
+
+// 5b.1: hook đang cài ở phạm vi project, bỏ chọn hook → hook bị gỡ khỏi settings.json (không chỉ settings.local.json); hộp xem
+// trước nêu dòng CLI nhắm đúng phạm vi.
+func TestSetupTabHookScopeOff(t *testing.T) {
+	f, root, c := lifeFixture(t, nil)
+	installClaudeHook(t, root, claude.ScopeProject)
+	if got := claudeHookScopes(t, root); !slices.Equal(got, []string{"project"}) {
+		t.Fatalf("điều kiện thử: %v", got)
+	}
+	f.sysTab(syscreen.TabSetup)
+	f.waitFor("Mẫu cấu hình")
+	f.press("e")
+	hasAll(t, f.screen(), "Phạm vi hook")
+	f.press("tab", " ", "ctrl+s") // tắt hook
+	f.waitFor("Xem trước init")
+	hasAll(t, f.screen(), "bint init --no-hooks --hooks-scope project")
+	f.press("enter")
+	f.pump(func() bool {
+		return c.count("system.repo_apply") >= 1 && strings.Contains(f.screen(), "Kết quả init")
+	}, nil)
+	if got := claudeHookScopes(t, root); len(got) != 0 {
+		t.Fatalf("hook phải bị gỡ khỏi mọi phạm vi, còn %v", got)
+	}
+	if b, _ := os.ReadFile(filepath.Join(root, ".claude", "settings.json")); strings.Contains(string(b), "hook claude") {
+		t.Fatalf("settings.json còn hook:\n%s", b)
+	}
+}
+
+// 5b.1: đổi phạm vi khi hook đang bật: gỡ ở phạm vi cũ TRƯỚC rồi cài ở phạm vi mới; hộp xem trước liệt kê từng bước kèm
+// dòng CLI; sau khi chạy HookScopes chỉ còn phạm vi đã chọn và form mở lại điền sẵn đúng phạm vi.
+func TestSetupTabHookScopeMove(t *testing.T) {
+	f, root, c := lifeFixture(t, nil)
+	installClaudeHook(t, root, claude.ScopeLocal)
+	f.sysTab(syscreen.TabSetup)
+	f.waitFor("Mẫu cấu hình")
+	f.press("e", "tab", "tab", "tab", " ", "ctrl+s") // phạm vi: local → project
+	f.waitFor("Xem trước init")
+	out := f.screen()
+	// Phạm vi local là mặc định của --hooks-scope nên dòng CLI của bước gỡ không ghi ra.
+	hasAll(t, out, "Bước 1/2", "bint init --no-hooks", "Bước 2/2", "bint init --hooks --hooks-scope project", "settings.local.json", "settings.json")
+	if strings.Index(out, "bint init --no-hooks") > strings.Index(out, "bint init --hooks --hooks-scope project") {
+		t.Fatalf("phải gỡ ở phạm vi cũ trước khi cài ở phạm vi mới:\n%s", out)
+	}
+	f.press("enter")
+	f.pump(func() bool {
+		return c.count("system.repo_apply") >= 2 && strings.Contains(f.screen(), "Kết quả init")
+	}, nil)
+	if got := claudeHookScopes(t, root); !slices.Equal(got, []string{"project"}) {
+		t.Fatalf("HookScopes phải chỉ còn project: %v", got)
+	}
+	if c.count("system.repo_apply") != 2 {
+		t.Fatalf("phải chạy đúng hai bước: %d", c.count("system.repo_apply"))
+	}
+	f.press("esc") // đóng khung kết quả
+	f.pump(func() bool { return strings.Contains(f.screen(), "Mẫu cấu hình") && !f.m.sy.Capturing() }, nil)
+	f.press("e")
+	// Form điền sẵn phạm vi project: gửi ngay thì không có gì thay đổi (nếu còn điền local thì form đề nghị đổi hook).
+	f.press("ctrl+s")
+	if out := f.screen(); !strings.Contains(out, "Không có gì thay đổi") || c.count("system.repo_plan") != 2 {
+		t.Fatalf("form phải điền sẵn phạm vi project:\n%s", out)
+	}
+}
+
+// gatedInit là hàm nạp InitState có điều khiển: chặn tới khi release, đếm số lần gọi, tuỳ chọn trả lỗi.
+type gatedInit struct {
+	release chan struct{}
+	started atomic.Int32
+	fail    atomic.Bool
+}
+
+func newGatedInit() *gatedInit { return &gatedInit{release: make(chan struct{})} }
+
+func (g *gatedInit) load(ctx context.Context, dir string) (bintapp.InitState, error) {
+	g.started.Add(1)
+	<-g.release
+	if g.fail.Load() {
+		return bintapp.InitState{}, errors.New("không đọc được trạng thái")
+	}
+	return bintapp.ReadInitState(ctx, dir)
+}
+
+// 5b.2: form Cài đặt repo chỉ mở khi thẻ đã nạp xong không lỗi. (a) mở từ bảng lệnh khi chưa nạp: form mở SAU khi nạp xong với giá trị
+// từ InitState thật (không đổi gì thì gửi form báo "không có gì thay đổi", chứ không phải đề nghị tắt hook đang bật); (b) e lúc đang
+// nạp: không mở form, báo đang nạp; (c) e sau nạp lỗi: không mở form, báo lỗi.
+func TestSetupFormWaitsForLoad(t *testing.T) {
+	setup := func(t *testing.T) (*fixture, *gatedInit, *lifeCalls) {
+		g := newGatedInit()
+		f, r, c := lifeFixture(t, func(o *Options) { o.SystemLoad.Init = g.load })
+		installClaudeHook(t, r, claude.ScopeProject) // trạng thái thật: hook đang bật ở phạm vi project
+		return f, g, c
+	}
+	t.Run("bảng lệnh khi chưa nạp", func(t *testing.T) {
+		f, g, c := setup(t)
+		_, cmd := f.m.run("system.repo_plan")
+		f.pump(func() bool { return g.started.Load() == 1 }, cmd)
+		if f.m.sy.Capturing() {
+			t.Fatalf("chưa nạp xong thì chưa được mở form:\n%s", f.screen())
+		}
+		close(g.release)
+		f.pump(func() bool { return f.m.sy.Capturing() }, nil)
+		hasAll(t, f.screen(), "Phạm vi hook")
+		f.press("ctrl+s") // form điền từ trạng thái thật: hook project bật → không có gì thay đổi
+		if out := f.screen(); !strings.Contains(out, "Không có gì thay đổi") || c.count("system.repo_plan") != 0 {
+			t.Fatalf("form phải điền sẵn từ InitState thật:\n%s", out)
+		}
+	})
+	t.Run("e lúc đang nạp", func(t *testing.T) {
+		f, g, _ := setup(t)
+		f.sysTab(syscreen.TabSetup)
+		f.pump(func() bool { return g.started.Load() == 1 }, nil)
+		f.press("e")
+		if f.m.sy.Capturing() {
+			t.Fatalf("đang nạp thì e không được mở form:\n%s", f.screen())
+		}
+		hasAll(t, f.screen(), "Đang nạp")
+		close(g.release)
+		f.pump(func() bool { return strings.Contains(f.screen(), "Mẫu cấu hình") }, nil)
+		if f.m.sy.Capturing() {
+			t.Fatal("phím e lúc đang nạp không được để lại việc mở form chờ")
+		}
+	})
+	t.Run("e sau nạp lỗi", func(t *testing.T) {
+		f, g, _ := setup(t)
+		g.fail.Store(true)
+		close(g.release)
+		f.sysTab(syscreen.TabSetup)
+		f.waitFor("Không nạp được dữ liệu")
+		f.press("e")
+		if f.m.sy.Capturing() {
+			t.Fatalf("nạp lỗi thì không được mở form:\n%s", f.screen())
+		}
+		hasAll(t, f.screen(), "không đọc được trạng thái")
+		_, cmd := f.m.run("system.repo_plan")
+		f.settle(cmd)
+		if f.m.sy.Capturing() {
+			t.Fatal("bảng lệnh sau nạp lỗi cũng không được mở form")
+		}
+	})
 }

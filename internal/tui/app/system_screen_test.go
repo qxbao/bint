@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -293,4 +294,41 @@ func TestInboxEnterOnComponentOpensThatComponent(t *testing.T) {
 		}
 		hasAll(t, plain(m.Render()), "Chi tiết · "+want)
 	}
+}
+
+// 5a.3: thẻ Thành phần đã nạp, một candidate mới xuất hiện, Enter dòng hộp thư → nạp lại danh sách và con trỏ nằm đúng thành phần mới
+// (không dùng danh sách cũ); thành phần không còn thì báo toast và hộp duyệt không nhắm thành phần khác.
+func TestInboxEnterOnComponentReloadsWhenLoaded(t *testing.T) {
+	var added atomic.Bool
+	extra := hcomp.Component{Kind: hcomp.KindGuidance, Meta: hcomp.Meta{ID: "moi-them", Scope: "global", Status: hcomp.StatusCandidate, Origin: hcomp.OriginAgent, Version: 1},
+		Title: "Mới thêm", Body: "x", File: "guidance/moi-them.md"}
+	loader := func(ctx context.Context, dir string) (syscreen.ComponentsData, error) {
+		d := sampleComponents()
+		if added.Load() {
+			d.Details = append(d.Details, bintapp.ComponentDetail{Component: extra, Row: bintapp.RowOfComponent(extra), Content: "# Mới thêm\n"})
+		}
+		return d, nil
+	}
+	d := sampleData()
+	d.Pending = &bintapp.PendingWorkReport{Components: []bintapp.PendingComponent{{Kind: "guidance", ID: "moi-them"}}}
+	m := newModel(t, Options{Mode: theme.Mono, SystemLoad: syscreen.Loaders{Components: loader}}, d, 140, 40)
+	press(t, m, "7", ".", ".") // thẻ Thành phần, nạp lần đầu (chưa có thành phần mới)
+	if c := m.sy.CursorComponent(); c == nil || c.Component.ID == "moi-them" {
+		t.Fatalf("điều kiện thử: %+v", c)
+	}
+	added.Store(true)
+	press(t, m, "1", "enter") // hộp thư → Hệ thống › Thành phần
+	if m.Tab() != 6 || m.sy.Tab() != syscreen.TabComponents {
+		t.Fatalf("tab = %d, thẻ = %d", m.Tab(), m.sy.Tab())
+	}
+	if c := m.sy.CursorComponent(); c == nil || c.Component.ID != "moi-them" {
+		t.Fatalf("con trỏ phải ở thành phần mới sau khi nạp lại: %+v", c)
+	}
+	hasAll(t, plain(m.Render()), "Chi tiết · moi-them")
+
+	// Thành phần không còn: báo toast, con trỏ không bị đặt bừa.
+	d.Pending = &bintapp.PendingWorkReport{Components: []bintapp.PendingComponent{{Kind: "guidance", ID: "da-mat"}}}
+	m2 := newModel(t, Options{Mode: theme.Mono, SystemLoad: syscreen.Loaders{Components: loader}}, d, 140, 40)
+	press(t, m2, "7", ".", ".", "1", "enter")
+	hasAll(t, plain(m2.Render()), "da-mat", "không còn")
 }

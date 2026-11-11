@@ -243,6 +243,9 @@ func TestDoctorAndStateReportOldConfigTemplate(t *testing.T) {
 	if b, err := os.ReadFile(bak); bak == "" || err != nil || string(b) != old {
 		t.Fatalf("bản sao lưu %q: %v", bak, err)
 	}
+	if rep.ConfigBackup != bak { // 5b.4: trường có cấu trúc do upgradeConfig điền
+		t.Fatalf("InitReport.ConfigBackup=%q, muốn %q", rep.ConfigBackup, bak)
+	}
 	if has() != nil {
 		t.Fatal("sau khi nâng doctor không còn báo mẫu cũ")
 	}
@@ -317,5 +320,19 @@ func TestUpdateOptionsValidateAndDefaults(t *testing.T) {
 	t.Setenv(SourceEnv, good)
 	if d := UpdateDefaults(); d.Source != good || d.Pull {
 		t.Fatalf("Defaults: %+v", d)
+	}
+}
+
+// 5b.4: ConfigBackupPath đọc trường có cấu trúc, không phân tích câu chữ của Detail (đổi câu chữ không làm mất bản sao lưu).
+func TestConfigBackupPathUsesStructuredField(t *testing.T) {
+	rep := &InitReport{ConfigBackup: "/x/backups/config.yml", Steps: []Step{{Name: ".bint/config.yml", Status: StepUpdated, Detail: "old backup: elsewhere"}}}
+	if got := ConfigBackupPath(rep); got != "/x/backups/config.yml" {
+		t.Fatalf("%q", got)
+	}
+	if got := ConfigBackupPath(&InitReport{Steps: []Step{{Name: ".bint/config.yml", Status: StepUpdated, Detail: "thêm: x (bản cũ: /y)"}}}); got != "" {
+		t.Fatalf("không được cắt chuỗi Detail: %q", got)
+	}
+	if ConfigBackupPath(nil) != "" {
+		t.Fatal("nil")
 	}
 }

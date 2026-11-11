@@ -30,6 +30,9 @@ type ConfigEditState struct{ Edit app.ConfigEdit }
 type ConfigApplyArgs struct {
 	Edit app.ConfigEdit
 	Data []byte
+	// Rebase: đặt lại mốc theo tệp gốc hiện tại trước khi kiểm (sửa lại sau khi ghi bị từ chối vì tệp gốc đổi).
+	// Kết quả (ResultMsg.Opts) mang phiên sửa đã đặt lại mốc, Rebase=false.
+	Rebase bool
 }
 
 // HarnessVersionOptions: lấy phiên bản của một harness (gọi chương trình harness).
@@ -41,7 +44,11 @@ type HarnessVersionOptions struct {
 type OpenFileOptions struct{ Path string }
 
 // LanguageMsg báo mô hình gốc đổi ngôn ngữ giao diện ngay trong phiên (sau khi ghi ui.language).
-type LanguageMsg struct{ Lang string }
+//
+// Lang là ui.language hiệu lực (đã ghép lớp) cần dùng để chọn ngôn ngữ; Chosen là giá trị người dùng vừa chọn/ghi ("" = không có, vd.
+// phím L); Layer là lớp cấu hình đang che giá trị vừa ghi ("" = không bị che). Mô hình gốc chọn ngôn ngữ theo thứ tự đã công bố
+// (--lang > BINT_LANG > Lang > LC_ALL/LANG) và cảnh báo khi kết quả khác Chosen.
+type LanguageMsg struct{ Lang, Chosen, Layer string }
 
 // RestartOptions là yêu cầu khởi động lại bint sau khi cập nhật: Path là tệp vừa cài (app.UpdateResult.Target), exec lại với
 // cùng đối số và môi trường. Hành động system.restart là giao diện thuần, mô hình gốc xử lý.
@@ -168,14 +175,23 @@ func systemActions() []Action {
 		mk("system.config_check", "config_check", "", 0, "", nil, false, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				a := opts.(ConfigApplyArgs)
+				if a.Rebase {
+					e, err := app.RebaseConfigEdit(ctx, env.Dir, a.Edit)
+					if err != nil {
+						return res("system.config_check", opts, nil, err)
+					}
+					a.Edit, a.Rebase = e, false
+				}
 				c, err := app.CheckConfigEdit(ctx, env.Dir, a.Edit, a.Data)
-				return res("system.config_check", opts, c, err)
+				return res("system.config_check", a, c, err)
 			}),
 		mk("system.config_save", "config_save", "", 0, "", nil, true, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				a := opts.(ConfigApplyArgs)
 				r, err := app.SaveConfigEdit(ctx, env.Dir, a.Edit, a.Data)
-				_ = os.Remove(a.Edit.TempPath)
+				if err == nil { // bị từ chối thì giữ bản tạm: màn hình cho sửa lại hoặc bỏ (người dùng không mất bản sửa)
+					_ = os.Remove(a.Edit.TempPath)
+				}
 				return res("system.config_save", opts, r, err)
 			}),
 		mk("system.config_view", "config_view", "", 0, "", nil, false, false,

@@ -166,6 +166,26 @@ func PrepareConfigEdit(ctx context.Context, dir string, layer config.Layer) (Con
 	return e, nil
 }
 
+// RebaseConfigEdit đặt lại mốc của phiên sửa theo tệp thật HIỆN TẠI (Original, Existed, BaseHash), giữ nguyên bản
+// tạm và Seed. Dùng khi ghi bị từ chối vì tệp gốc đã đổi và người dùng chọn sửa lại: lần kiểm kế tiếp lập diff
+// theo nội dung mới, lần ghi sau so băm với mốc mới (vẫn không đè thay đổi xảy ra sau mốc này).
+func RebaseConfigEdit(ctx context.Context, dir string, e ConfigEdit) (ConfigEdit, error) {
+	if _, _, err := configCtx(ctx, dir); err != nil {
+		return e, err
+	}
+	data, err := os.ReadFile(e.Path)
+	switch {
+	case err == nil:
+		e.Existed, e.Original = true, data
+	case errors.Is(err, os.ErrNotExist):
+		e.Existed, e.Original = false, nil
+	default:
+		return e, err
+	}
+	e.BaseHash = hashBytes(e.Original)
+	return e, nil
+}
+
 // ConfigCheck là kết quả kiểm tra bản đã sửa.
 type ConfigCheck struct {
 	// Changed: nội dung khác bản tạm ban đầu. Valid: cấu hình ghép lớp với nội dung mới qua Validate().
@@ -271,6 +291,10 @@ type UILanguageResult struct {
 	// Changed: tệp đã được ghi (false = giá trị đã đúng sẵn ở lớp đó).
 	Changed bool
 	Backup  string
+	// Effective là ui.language HIỆU LỰC sau khi ghi (đã ghép lớp toàn cục → dự án → strategy → cục bộ). ShadowedBy là lớp cao hơn
+	// đang che giá trị vừa ghi (Effective khác Language), rỗng nếu không bị che. (--lang và BINT_LANG nằm ngoài cấu hình: TUI tự xét.)
+	Effective  string
+	ShadowedBy config.Layer
 }
 
 // SetUILanguage ghi ui.language vào lớp cấu hình, chỉ sửa đúng dòng cần sửa (giữ chú thích và các dòng khác),
@@ -297,11 +321,18 @@ func SetUILanguage(ctx context.Context, dir string, o UILanguageOptions) (UILang
 	if err != nil {
 		return res, fmt.Errorf("%s: %w", path, err)
 	}
+	merged, err := config.ValidateWith(root, layer, next)
+	if err != nil && !(!changed && cur != nil) {
+		return res, err
+	}
+	if err == nil {
+		res.Effective = merged.UI.Language
+		if layer == config.LayerProject && res.Effective != o.Language {
+			res.ShadowedBy = config.LayerLocal // chỉ lớp cục bộ đứng trên lớp dự án
+		}
+	}
 	if !changed && cur != nil {
 		return res, nil
-	}
-	if _, err := config.ValidateWith(root, layer, next); err != nil {
-		return res, err
 	}
 	w, err := writeConfigLayer(ws, root, layer, hashBytes(cur), next)
 	res.Changed, res.Backup = err == nil, w.Backup

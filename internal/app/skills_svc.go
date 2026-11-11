@@ -358,8 +358,12 @@ type SyncPlan struct {
 	NoTargets bool
 	Files     []SyncFile
 	Conflicts int
-	// Changes: số tệp sẽ được tạo/cập nhật/gỡ.
+	// Changes: số tệp sẽ được tạo/cập nhật/gỡ, kể cả core.lock (khi LockChanged): mọi chỗ dùng Changes
+	// (kể cả "đã cập nhật" của màn hình) nhờ vậy không bỏ sót việc chỉ có core.lock cần ghi.
 	Changes int
+	// LockChanged: core.lock sau sync khác bản thật (bint_version khác hoặc thiếu tệp); LockDiff là thay đổi đó.
+	LockChanged bool
+	LockDiff    string
 }
 
 // PlanSync xem trước `sync` mà không ghi gì vào repository: chạy chính skills.Install trên một bản sao tạm
@@ -419,6 +423,13 @@ func PlanSync(ctx context.Context, dir, version string, o SyncOptions) (SyncPlan
 			f.Diff = skills.Diff(out.Path+" (hiện tại)", out.Path+" (sau sync)", string(before), string(after))
 		}
 		plan.Files = append(plan.Files, f)
+	}
+	lockRel := filepath.FromSlash(skills.LockRel)
+	before, _ := os.ReadFile(filepath.Join(k.Root, lockRel))
+	after, _ := os.ReadFile(filepath.Join(root, lockRel))
+	if string(before) != string(after) {
+		plan.LockChanged, plan.Changes = true, plan.Changes+1
+		plan.LockDiff = skills.Diff(skills.LockRel+" (hiện tại)", skills.LockRel+" (sau sync)", string(before), string(after))
 	}
 	return plan, nil
 }
