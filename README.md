@@ -385,6 +385,7 @@ bint run resume <task-id>                       # tiếp tục tác vụ blocked
 bint task new "<mô tả tự do>"                   # Classify: lập phiếu tác vụ (mục 6.7)
 bint task list | show <id> | set <id> … | transitions
 bint task write <id> requirement|plan|tasks -   # tài liệu (agent ghi qua stdin)
+bint task lint <id> [--strict] [--json]         # kiểm ba tài liệu b-req theo hợp đồng v1 (AC↔TSK, câu hỏi mở)
 bint task verify <id>                           # chạy lệnh kiểm chứng (chỉ khi người đã xác nhận)
 bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí chấp nhận
 bint task error <id> --step b-feat "…"          # ghi lỗi / lần thử thất bại
@@ -404,6 +405,17 @@ lỗi, lượt chạy), `requirement.md`, `plan.md`, `tasks.md`, `review.json`/`
 Classify xác định được: mục tiêu = dòng đầu mô tả; `scope.allow` = đường dẫn nêu trong mô tả mà có
 thật; `verify.command` = `eval.test_command` đã xác nhận; đề xuất bỏ b-req cho việc nhỏ (heuristic,
 `--plan`/`--no-plan` ghi đè). Chỉ hỏi lại khi tác vụ chạm đường dẫn bảo vệ mà không có cách kiểm chứng.
+
+**Hợp đồng artifact của b-req (v1).** Đầu ra của `b-req` có khuôn kiểm được bằng máy:
+`requirement.md` có `- [ ] AC-N: …` dưới `## Tiêu chí chấp nhận` (khớp từng tiêu chí trong `task.yml`),
+`tasks.md` có `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`, `plan.md` không rỗng; mọi AC phải
+được TSK bao phủ. Tác vụ mới qua `b-req` mang `planning_contract_version: 1`: sai khuôn thì `bint run`
+dừng **trước** `b-feat` (`blocked`, trạng thái trước đó là `planned`; sửa bằng `bint task write`, kiểm
+bằng `bint task lint <id>`, rồi `bint run resume` — không chạy lại `b-req`) và kiểm lại trước mỗi lần
+gọi `b-feat` để bắt tài liệu bị sửa sau đó. Tác vụ cũ và `--no-plan` giữ đường chạy cũ;
+`bint task lint --strict` áp hợp đồng lên tác vụ cũ để người dùng chủ động nâng cấp. Core chỉ kiểm
+cấu trúc, không đánh giá nội dung (việc của `b-review` và người dùng). Chạy lại `b-req` trên tác vụ đã
+có tiêu chí cần `bint task set --clear-criteria` (`--criteria` chỉ nối thêm).
 
 **Trạng thái:** `created → planned → in_progress → in_review → done`; `blocked`, `interrupted`,
 `failed` nhớ trạng thái trước để tiếp tục; `cancelled` kết thúc. **done cần bằng chứng**: lệnh kiểm

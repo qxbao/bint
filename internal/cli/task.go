@@ -103,7 +103,8 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 	}
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
-		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio))
+		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
+		newTaskLintCmd(stdio))
 	return c
 }
 
@@ -717,4 +718,63 @@ func newTaskTransitionsCmd(stdio IO) *cobra.Command {
 			return tw.Flush()
 		},
 	}
+}
+
+func newTaskLintCmd(stdio IO) *cobra.Command {
+	var strict, asJSON bool
+	c := &cobra.Command{
+		Use:   "lint <task-id>",
+		Short: "Kiểm ba tài liệu của b-req (requirement/plan/tasks) theo hợp đồng artifact v1",
+		Long: `Kiểm requirement.md, plan.md, tasks.md của tác vụ: đủ tệp không rỗng, AC-N liên tục và khớp từng
+tiêu chí trong task.yml, TSK-N có tham chiếu AC và "xong khi:", mọi AC được TSK bao phủ, và liệt kê
+câu hỏi mở (## Câu hỏi mở). Không sửa gì và không ghi state.
+
+Task theo hợp đồng v1 (planning_contract_version: 1) luôn kiểm nghiêm ngặt; task cũ chỉ cảnh báo
+trừ khi có --strict (chủ động nâng cấp). Mã thoát: 1 khi có lỗi hoặc câu hỏi mở, 0 khi chỉ có cảnh báo.
+
+Câu hỏi mở: ghi câu trả lời dạng "- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>" bằng
+bint task write <id> requirement -, rồi bint run resume <id>.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			env, _, err := openWorkflow(cmd)
+			if err != nil {
+				return err
+			}
+			t, err := env.Tasks.Load(args[0])
+			if err != nil {
+				return err
+			}
+			v1 := t.State.PlanningContractVersion >= task.PlanningContractV1
+			rep := task.LintPlanningTask(t, strict || v1)
+			if asJSON {
+				if err := writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "contract_version": t.State.PlanningContractVersion,
+					"errors": rep.Errors, "warnings": rep.Warnings, "open_questions": rep.OpenQuestions}); err != nil {
+					return err
+				}
+			} else {
+				w := stdio.Out
+				for _, i := range rep.Errors {
+					fmt.Fprintf(w, "✗ [%s] %s: %s\n", i.Code, i.Artifact, i.Detail)
+				}
+				for _, i := range rep.Warnings {
+					fmt.Fprintf(w, "! [%s] %s: %s\n", i.Code, i.Artifact, i.Detail)
+				}
+				for _, i := range rep.OpenQuestions {
+					fmt.Fprintf(w, "? [%s] %s: %s\n", i.Code, i.Artifact, i.Detail)
+				}
+				if len(rep.Errors)+len(rep.Warnings)+len(rep.OpenQuestions) == 0 {
+					fmt.Fprintf(w, "✓ %s: artifact đạt hợp đồng v1\n", t.State.ID)
+				} else if len(rep.OpenQuestions) > 0 {
+					fmt.Fprintf(w, "Ghi câu trả lời vào requirement.md (— Trả lời: …) rồi bint run resume %s\n", t.State.ID)
+				}
+			}
+			if rep.Blocking() || len(rep.OpenQuestions) > 0 {
+				return withCode(ExitError, fmt.Errorf("tác vụ %s: %d lỗi, %d câu hỏi mở", t.State.ID, len(rep.Errors), len(rep.OpenQuestions)))
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&strict, "strict", false, "áp hợp đồng v1 lên task cũ (không ghi state)")
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
 }

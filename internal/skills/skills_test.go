@@ -59,3 +59,20 @@ func TestInstallNeverOverwritesEdits(t *testing.T) {
 		t.Fatalf("bản khớp core.lock phải được nâng cấp: %+v", outs)
 	}
 }
+
+// Overlay cũ gắn vào anchor; sửa khuôn b-req không được làm mất chúng.
+func TestCoreSkillBReqKeepsAnchorsAndContract(t *testing.T) {
+	s, ok := Get("b-req")
+	if !ok {
+		t.Fatal("thiếu b-req")
+	}
+	for _, want := range []string{
+		"<!-- bint:anchor project-rules -->", "<!-- bint:anchor-end project-rules -->",
+		"<!-- bint:anchor plan-template -->", "<!-- bint:anchor-end plan-template -->",
+		"AC-1:", "TSK-1 [AC-1]", "xong khi:", "--clear-criteria", "bint task lint",
+	} {
+		if !strings.Contains(s.Body(), want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+}
