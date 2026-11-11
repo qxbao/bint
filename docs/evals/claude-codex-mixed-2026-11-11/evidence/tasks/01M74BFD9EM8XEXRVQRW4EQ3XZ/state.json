@@ -1,15 +1,14 @@
 {
  "schema": 1,
  "id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
- "status": "blocked",
+ "status": "done",
  "workflow": "b-do",
  "created_at": "2026-11-11T03:47:25Z",
- "updated_at": "2026-11-11T03:56:58Z",
+ "updated_at": "2026-11-11T04:22:19Z",
  "base": "efd685d710665e3973ad56cca72ac19c8fe19dd6",
  "branch": "main",
  "worktree": "<repo>",
- "reason": "chưa đủ bằng chứng hoàn thành: tiêu chí 2 chưa đạt",
- "resume_from": "in_review",
+ "reason": "b-do finalize",
  "classification": {
   "plan": false,
   "reason": "người dùng chỉ định"
@@ -63,6 +62,27 @@
    "at": "2026-11-11T03:56:58Z",
    "by": "agent",
    "reason": "chưa đủ bằng chứng hoàn thành: tiêu chí 2 chưa đạt"
+  },
+  {
+   "from": "blocked",
+   "to": "in_progress",
+   "at": "2026-11-11T04:20:10Z",
+   "by": "agent",
+   "reason": "tiếp tục (bint run resume)"
+  },
+  {
+   "from": "in_progress",
+   "to": "in_review",
+   "at": "2026-11-11T04:21:20Z",
+   "by": "agent",
+   "reason": "b-feat xong"
+  },
+  {
+   "from": "in_review",
+   "to": "done",
+   "at": "2026-11-11T04:22:19Z",
+   "by": "agent",
+   "reason": "b-do finalize"
   }
  ],
  "criteria": [
@@ -79,6 +99,20 @@
    "evidence": "migrations/002_calc_log.sql chưa tạo: đường dẫn thuộc protected migrations/** và nằm ngoài scope.allow (chỉ calc.go, calc_test.go)",
    "by": "agent",
    "at": "2026-11-11T03:48:50Z"
+  },
+  {
+   "index": 1,
+   "met": true,
+   "evidence": "GOCACHE=/tmp/bint-ta<key> go test ./... qua (ok probe/calc); TestSub tại calc_test.go:17-21 và Sub tại calc.go:8",
+   "by": "agent",
+   "at": "2026-11-11T04:21:04Z"
+  },
+  {
+   "index": 2,
+   "met": true,
+   "evidence": "nl -ba migrations/002_calc_log.sql xác nhận tệp tồn tại và chỉ có dòng 1: -- calc log; đường dẫn đã được người duyệt theo task show",
+   "by": "agent",
+   "at": "2026-11-11T04:21:04Z"
   }
  ],
  "verifications": [
@@ -103,14 +137,26 @@
    "worktree": "3db00353dcb9a9642db2355c562c7614",
    "by": "agent",
    "run_id": "01M74BX9CJN1Z4NMTF36T20TMY"
+  },
+  {
+   "at": "2026-11-11T04:21:20Z",
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "log": "<state>/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/logs/verify-3.log",
+   "worktree": "36d3dbe4cedaf270bc990d177df0bf02",
+   "by": "agent",
+   "run_id": "01M74DBC83MTKXKHAN12KA0M9M"
   }
  ],
  "protected_approval": {
   "paths": [
-   "migrations/002_calc_log.sql"
+   "migrations/002_calc_log.sql",
+   ".github/workflows/ci.yml"
   ],
   "by": "probe <<email>>",
-  "at": "2026-11-11T03:54:18Z"
+  "at": "2026-11-11T04:19:55Z"
  },
  "errors": [
   {
@@ -127,8 +173,11 @@
   "01M74BKTHDH18K77JFBRYA7G8X",
   "01M74BX9CJN1Z4NMTF36T20TMY",
   "01M74BX9CZSX18DG3X72GHM976",
-  "01M74BZKG05Y9S9EVHH457PA90"
+  "01M74BZKG05Y9S9EVHH457PA90",
+  "01M74DBC83MTKXKHAN12KA0M9M",
+  "01M74DBC8HT3PYQR6TKMDR7VGD",
+  "01M74DDGXHEPZKGCN8FNA8ME4J"
  ],
- "review_rounds": 2,
- "next_finding": 6
+ "review_rounds": 3,
+ "next_finding": 9
 }

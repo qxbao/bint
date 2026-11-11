@@ -2380,5 +2380,257 @@
    "task_id": "01M74C22PYS7WAC7NZJP89RY3W",
    "verification_status": "passed"
   }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "workflow.started",
+  "source": "bint-run",
+  "payload": {
+   "bint_version": "0.1.0-dev",
+   "git_branch": "main",
+   "git_head": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+   "parent_run_id": "01M74BZKG05Y9S9EVHH457PA90",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
+   "workflow": "b-do"
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "task.status",
+  "source": "bint-run",
+  "payload": {
+   "forced": false,
+   "reason": "tiếp tục (bint run resume)",
+   "status": "in_progress",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ"
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "step.started",
+  "source": "bint-run",
+  "payload": {
+   "name": "b-feat",
+   "status": "running",
+   "step_id": "st_01M74DBC8HT3PYQR6TKMDR7VGD"
+  }
+ },
+ {
+  "run_id": "01M74DBC8HT3PYQR6TKMDR7VGD",
+  "type": "workflow.started",
+  "source": "bint-run",
+  "payload": {
+   "bint_version": "0.1.0-dev",
+   "git_branch": "main",
+   "git_head": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+   "harness": "codex",
+   "parent_run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
+   "workflow": "b-feat"
+  }
+ },
+ {
+  "run_id": "01M74DBC8HT3PYQR6TKMDR7VGD",
+  "type": "session.started",
+  "source": "hook:codex",
+  "payload": {
+   "bint_version": "0.1.0-dev",
+   "git_branch": "main",
+   "git_head": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+   "linked_worktree": false,
+   "model": "gpt-6-luna",
+   "source": "startup"
+  }
+ },
+ {
+  "run_id": "01M74DBC8HT3PYQR6TKMDR7VGD",
+  "type": "test.completed",
+  "source": "hook:codex",
+  "payload": {
+   "command": "GOCACHE=*** go test ./...",
+   "confirmed": true,
+   "ok": true,
+   "tool": "Bash"
+  }
+ },
+ {
+  "run_id": "01M74DBC8HT3PYQR6TKMDR7VGD",
+  "type": "task.criteria",
+  "source": "cli",
+  "payload": {
+   "evidence": "GOCACHE=/tmp/bint-ta<key> go test ./... qua (ok probe/calc); TestSub tại calc_test.go:17-21 và Sub tại calc.go:8",
+   "index": 1,
+   "met": true,
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ"
+  }
+ },
+ {
+  "run_id": "01M74DBC8HT3PYQR6TKMDR7VGD",
+  "type": "task.criteria",
+  "source": "cli",
+  "payload": {
+   "evidence": "nl -ba migrations/002_calc_log.sql xác nhận tệp tồn tại và chỉ có dòng 1: -- calc log; đường dẫn đã được người duyệt theo task show",
+   "index": 2,
+   "met": true,
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ"
+  }
+ },
+ {
+  "run_id": "01M74DBC8HT3PYQR6TKMDR7VGD",
+  "type": "session.ended",
+  "source": "hook:codex",
+  "payload": {
+   "reason": "other"
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "step.finished",
+  "source": "bint-run",
+  "payload": {
+   "name": "b-feat",
+   "status": "completed",
+   "step_id": "st_01M74DBC8HT3PYQR6TKMDR7VGD"
+  }
+ },
+ {
+  "run_id": "01M74DBC8HT3PYQR6TKMDR7VGD",
+  "type": "workflow.finished",
+  "source": "bint-run",
+  "payload": {
+   "end_reason": "",
+   "input_tokens": 154235,
+   "model": "",
+   "output_tokens": 2792,
+   "status": "completed",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ"
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "task.verified",
+  "source": "bint-run",
+  "payload": {
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
+   "timed_out": false
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "task.status",
+  "source": "bint-run",
+  "payload": {
+   "forced": false,
+   "reason": "b-feat xong",
+   "status": "in_review",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ"
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "step.started",
+  "source": "bint-run",
+  "payload": {
+   "name": "b-review",
+   "status": "running",
+   "step_id": "st_01M74DDGXHEPZKGCN8FNA8ME4J"
+  }
+ },
+ {
+  "run_id": "01M74DDGXHEPZKGCN8FNA8ME4J",
+  "type": "workflow.started",
+  "source": "bint-run",
+  "payload": {
+   "bint_version": "0.1.0-dev",
+   "git_branch": "main",
+   "git_head": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+   "harness": "claude",
+   "parent_run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
+   "workflow": "b-review"
+  }
+ },
+ {
+  "run_id": "01M74DDGXHEPZKGCN8FNA8ME4J",
+  "type": "session.started",
+  "source": "hook:claude",
+  "payload": {
+   "bint_version": "0.1.0-dev",
+   "git_branch": "main",
+   "git_head": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+   "linked_worktree": false,
+   "source": "startup"
+  }
+ },
+ {
+  "run_id": "01M74DDGXHEPZKGCN8FNA8ME4J",
+  "type": "review.completed",
+  "source": "cli",
+  "payload": {
+   "blocking": 0,
+   "findings": 3,
+   "path": "<state>/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/review.json",
+   "round": 3,
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ"
+  }
+ },
+ {
+  "run_id": "01M74DDGXHEPZKGCN8FNA8ME4J",
+  "type": "session.ended",
+  "source": "hook:claude",
+  "payload": {
+   "reason": "other"
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "step.finished",
+  "source": "bint-run",
+  "payload": {
+   "name": "b-review",
+   "status": "completed",
+   "step_id": "st_01M74DDGXHEPZKGCN8FNA8ME4J"
+  }
+ },
+ {
+  "run_id": "01M74DDGXHEPZKGCN8FNA8ME4J",
+  "type": "workflow.finished",
+  "source": "bint-run",
+  "payload": {
+   "cost_usd": 0.3466374,
+   "end_reason": "",
+   "input_tokens": 219099,
+   "model": "claude-opus-5-5",
+   "output_tokens": 5818,
+   "status": "completed",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ"
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "task.status",
+  "source": "bint-run",
+  "payload": {
+   "forced": false,
+   "reason": "b-do finalize",
+   "status": "done",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ"
+  }
+ },
+ {
+  "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+  "type": "workflow.finished",
+  "source": "bint-run",
+  "payload": {
+   "cost_usd_partial": 0.3466374,
+   "end_reason": "task done: b-do finalize",
+   "status": "completed",
+   "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
+   "verification_status": "passed"
+  }
  }
 ]
