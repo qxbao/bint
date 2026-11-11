@@ -76,3 +76,25 @@ func TestCoreSkillBReqKeepsAnchorsAndContract(t *testing.T) {
 		}
 	}
 }
+
+// Một skill b-req cho cả hai mức; b-do chuyển giao độ sâu và giữ anchor routing.
+func TestCoreSkillsDepthGuidance(t *testing.T) {
+	req, _ := Get("b-req")
+	for _, want := range []string{"## Độ sâu phân tích", "standard", "deep", "Giả định và mâu thuẫn", "Lựa chọn và lý do",
+		"Vùng ảnh hưởng", "Rủi ro và rollback", "Chiến lược kiểm thử", "Checklist nhất quán", "classification.depth"} {
+		if !strings.Contains(req.Body(), want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+	do, _ := Get("b-do")
+	for _, want := range []string{"<!-- bint:anchor routing -->", "<!-- bint:anchor-end routing -->", "classification.depth", "--depth deep"} {
+		if !strings.Contains(do.Body(), want) {
+			t.Errorf("b-do thiếu %q", want)
+		}
+	}
+	for _, n := range []string{"b-req", "b-do"} {
+		if _, ok := Get(n + "-deep"); ok {
+			t.Errorf("không được thêm skill %s-deep", n)
+		}
+	}
+}

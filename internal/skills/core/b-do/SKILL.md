@@ -26,14 +26,18 @@ Luôn lập phiếu tác vụ, kể cả với việc nhỏ:
 bint task new "<yêu cầu nguyên văn>" --workflow b-do --json
 ```
 
-Kết quả gồm `classification` (Bint đề xuất có cần b-req không) và `questions`. Nếu có
+Kết quả gồm `classification` (Bint đề xuất có cần b-req không: `plan`; nếu có thì mức phân tích
+`depth` = `standard`|`deep` và `depth_reason`) và `questions`. Nếu có
 câu hỏi, hỏi người dùng rồi cập nhật phiếu (`bint task set`) trước khi tiếp tục.
 
 Chọn đường đi:
 
 - việc nhỏ, rõ ràng (sửa chính tả, đổi tên, sửa lỗi đã chỉ rõ chỗ): bỏ b-req; phiếu chỉ cần
-  mục tiêu, phạm vi và (nếu có) lệnh kiểm chứng;
-- còn lại: làm b-req trước.
+  mục tiêu, phạm vi và (nếu có) lệnh kiểm chứng. Ngoại lệ: nếu `classification.plan` là `true` vì
+  phạm vi chạm đường dẫn được bảo vệ (`depth_reason: protected_paths`) thì **không** bỏ b-req, trừ
+  khi người dùng đã nói rõ bỏ qua;
+- còn lại: làm b-req trước, ở mức `classification.depth` (không có = `standard`). Người dùng muốn
+  phân tích sâu hơn thì lập phiếu bằng `bint task new … --depth deep`; độ sâu không tự đổi giữa lượt.
 
 <!-- bint:anchor routing -->
 <!-- bint:anchor-end routing -->
@@ -42,7 +46,10 @@ Chọn đường đi:
 
 Làm lần lượt theo hướng dẫn của từng skill, dùng **cùng task ID**:
 
-1. **b-req** (nếu cần): theo skill `/b-req`; kết thúc ở trạng thái `planned`.
+1. **b-req** (nếu cần): theo skill `/b-req`, ở mức `classification.depth` đã chọn cho phiếu
+   (`bint task show <id> --json`); kết thúc ở trạng thái `planned`. Còn câu hỏi mở (`bint task lint
+   <id>` báo `open_questions`) thì **dừng, hỏi người dùng** và ghi câu trả lời vào `requirement.md`
+   (`- [x] Q-1: … — Trả lời: …`) rồi mới sang b-feat.
 2. **b-feat**: theo skill `/b-feat`; kết thúc ở `in_review`.
 3. **b-review**: theo skill `/b-review`; ghi phát hiện bằng `bint task review`.
 4. Có phát hiện `bug` mức `critical`/`high`: quay lại b-feat

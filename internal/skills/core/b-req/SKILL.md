@@ -53,7 +53,30 @@ bint context "<mục tiêu>"          # quy tắc, điểm dễ sai đã biết 
 ```
 
 Đọc mã ở các khu vực liên quan. Tìm yêu cầu còn thiếu hoặc mâu thuẫn; nếu một điểm
-mơ hồ thay đổi cách làm, ghi nó vào mục "Câu hỏi mở" thay vì tự chọn.
+mơ hồ thay đổi cách làm, ghi nó vào mục "Câu hỏi mở" (khuôn `- [ ] Q-N: …`, xem Bước 3) thay vì
+tự chọn.
+
+## Độ sâu phân tích
+
+Bint chọn độ sâu **một lần** lúc tạo tác vụ và không đổi giữa lượt. Dưới `bint run`, đề bài có
+dòng `Phân tích: standard|deep` và `Lý do:`; chạy tay thì đọc `classification.depth` trong
+`bint task show <id> --json` (rỗng = `standard`). `deep` được chọn khi phạm vi chạm đường dẫn được
+bảo vệ (`protected_paths`), khi yêu cầu dài/nhiều ý (`complex_request`), hoặc khi người dùng chỉ định
+(`user_override`). Độ sâu không đổi quyền ghi hay cách duyệt.
+
+- **standard**: ba tài liệu ngắn như ở Bước 3.
+- **deep**: **cùng** ba tài liệu và cùng hợp đồng v1, nhưng `plan.md` (và `requirement.md` khi hợp)
+  phải làm thêm, mỗi mục một đoạn ngắn:
+  1. *Giả định và mâu thuẫn*: điều bạn đang dựa vào; chỗ yêu cầu, mã và tri thức dự án mâu thuẫn nhau.
+     Giả định nào làm đổi cách làm thì ghi thành câu hỏi mở thay vì tự chọn.
+  2. *Lựa chọn và lý do*: ít nhất hai hướng khả dĩ và vì sao chọn hướng này.
+  3. *Vùng ảnh hưởng*: module, API, dữ liệu, người dùng bị chạm; nơi gọi tới.
+  4. *Rủi ro và rollback*: điều gì có thể hỏng, phát hiện bằng cách nào, quay lại ra sao.
+  5. *Chiến lược kiểm thử*: kiểm thử sẽ thêm/chạy và phần chưa kiểm được.
+  6. *Checklist nhất quán*: mỗi `AC-N` có `TSK` bao phủ, mỗi `TSK` có điều kiện "xong khi" đo được,
+     `--allow` đủ cho mọi tệp trong kế hoạch.
+
+Không thêm tệp, trạng thái hay bước duyệt mới; chỉ hỏi người khi có Q thật sự cản trở triển khai.
 
 <!-- bint:anchor project-rules -->
 <!-- bint:anchor-end project-rules -->

@@ -379,6 +379,7 @@ ra liên kết bằng **task ID**.
 # Hoặc Bint Core điều phối theo chương trình (adapter cấp 3, giới hạn áp ở tầng chương trình):
 bint run b-do "Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db"
 bint run b-req|b-feat|b-review --task <id>      # một bước trên tác vụ có sẵn
+bint run b-do --depth deep "<mô tả>"            # b-req phân tích sâu (auto | standard | deep)
 bint run status <task-id|run-id>                # tác vụ + các lượt chạy (cha b-do, con từng bước)
 bint run resume <task-id>                       # tiếp tục tác vụ blocked / interrupted / failed
 
@@ -416,6 +417,23 @@ gọi `b-feat` để bắt tài liệu bị sửa sau đó. Tác vụ cũ và `-
 `bint task lint --strict` áp hợp đồng lên tác vụ cũ để người dùng chủ động nâng cấp. Core chỉ kiểm
 cấu trúc, không đánh giá nội dung (việc của `b-review` và người dùng). Chạy lại `b-req` trên tác vụ đã
 có tiêu chí cần `bint task set --clear-criteria` (`--criteria` chỉ nối thêm).
+
+**Độ sâu của b-req.** `Classification.Plan` quyết định *có* chạy `b-req` không; `Classification.Depth`
+(`standard`|`deep`, kèm `depth_reason`) quyết định *phân tích kỹ đến đâu*, vẫn cùng một skill và cùng
+ba artifact. Với `--depth auto` (mặc định), Bint chọn **một lần** lúc tạo tác vụ: `deep` khi phạm vi chạm
+`limits.protected_paths` (`protected_paths`) hoặc yêu cầu từ 5 dòng không trống / hơn 100 từ
+(`complex_request`); còn lại `standard`. Rủi ro cao tự bật `b-req` trừ khi có `--no-plan`; mô tả dài
+**không** nâng `Assessment.Risk`. `deep` thêm vào `plan.md` các mục giả định/mâu thuẫn, lựa chọn và lý
+do, vùng ảnh hưởng, rủi ro/rollback, chiến lược kiểm thử, checklist AC↔TSK. `--depth standard|deep` là
+ghi đè của người dùng: hàm ý có `b-req`, lỗi nếu đi cùng `--no-plan` hoặc workflow `b-feat`/`b-review`,
+và chỉ nhận khi tác vụ còn `created` (hoặc `bint run b-req --task <id> --depth …` để lập kế hoạch lại
+trên tác vụ `planned`). `resume` luôn dùng độ sâu đã lưu; tác vụ cũ không có `depth` được hiểu là `standard`.
+
+```sh
+bint run b-do "Đổi tên cột email trong migrations/…"       # chạm đường dẫn bảo vệ → b-req, depth deep
+bint run b-do --no-plan "Đổi tên biến trong internal/x"    # việc nhỏ: bỏ b-req (người dùng chọn)
+bint task new --depth deep "Thiết kế lại luồng thanh toán" # phân tích sâu theo yêu cầu
+```
 
 **Trạng thái:** `created → planned → in_progress → in_review → done`; `blocked`, `interrupted`,
 `failed` nhớ trạng thái trước để tiếp tục; `cancelled` kết thúc. **done cần bằng chứng**: lệnh kiểm
