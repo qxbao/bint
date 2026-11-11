@@ -1,0 +1,70 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python3 /probe/repo/.codex/bint-recorder.py hook codex",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "apply_patch|Bash|shell|exec_command|mcp__bint__.*"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python3 /probe/repo/.codex/bint-recorder.py hook codex ",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "apply_patch|Bash|shell|exec_command"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /probe/repo/.codex/probe-nonfatal.py error",
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "command": "python3 /probe/repo/.codex/probe-nonfatal.py malformed",
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "command": "python3 /probe/repo/.codex/probe-nonfatal.py timeout",
+            "timeout": 1
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "python3 /probe/repo/.codex/bint-recorder.py hook codex",
+            "timeout": 3,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "python3 /probe/repo/.codex/bint-recorder.py hook codex",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

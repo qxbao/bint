@@ -1,0 +1,15 @@
+Lượt chạy:      3 (1 tác vụ × 3 nhánh [none, minimal, bint] × 1 lần lặp)
+Chi phí:        chưa biết (chưa có lịch sử) — dùng --cost-per-run để ước tính
+Độ lệch chuẩn:  0.50 của chênh lệch theo tác vụ (giả định thận trọng (chưa đủ dữ liệu))
+Mô hình:        σ²(R) = σ_b² + W/R; W = 0.50 (giả định thận trọng p = 0,5 (chưa có tác vụ nào lặp ở nhánh none)); σ_b = 0.15 (cấu hình evolution.evaluation.effect_sd = 0.15 (không xác định được từ dữ liệu một nhánh))
+                theo mô hình, R=1 lần lặp cần ~411 tác vụ
+Cỡ mẫu:         cần ~197 tác vụ để phát hiện chênh lệch 10 điểm % (alpha=0.05, power=0.8); hiện có 1
+                → tập hiện tại chưa đủ để phát hiện mức chênh lệch này; kết quả sẽ có khoảng tin cậy rộng.
+Lưu ý: harness này không báo chi phí nên không áp được ngân sách.
+Lưu ý: agent chạy với quyền của người dùng, mạng không bị chặn ở tầng hệ điều hành (security.allow_network_in_evals chỉ là chỉ dẫn ở P1)
+[1/3] c7f6ba68ccf02 none    #1  passed    36s
+[2/3] c7f6ba68ccf02 bint    #1  passed    34s
+[3/3] c7f6ba68ccf02 minimal #1  passed    31s
+
+Đợt eb_01M72Y34NDFVVBHXVQ9YFW2N80: completed, 3/3 lượt
+Xem báo cáo: bint eval report eb_01M72Y34NDFVVBHXVQ9YFW2N80

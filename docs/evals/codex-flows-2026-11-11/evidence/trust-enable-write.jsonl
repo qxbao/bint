@@ -1,0 +1,6 @@
+{"request": {"id": 1, "method": "initialize", "params": {"clientInfo": {"name": "bint-codex-acceptance", "version": "1"}, "capabilities": {"experimentalApi": true}}}}
+{"response": {"id": 1, "result": {"userAgent": "bint-codex-acceptance/0.167.0 (Ubuntu 24.4.0; x86_64) Orca/1.4.230 (bint-codex-acceptance; 1)", "codexHome": "/probe/repo/.codex/profile", "platformFamily": "unix", "platformOs": "linux"}}}
+{"request": {"method": "initialized"}}
+{"request": {"id": 2, "method": "config/value/write", "params": {"keyPath": "hooks.state.\"/probe/repo/.codex/hooks.json:pre_tool_use:0:0\"", "mergeStrategy": "replace", "value": {"trusted_hash": "sha256:34c04817f8a5260e3a528a3ce1d40ee1d1d0a94d555775467fcf68a255965c33", "enabled": true}}}}
+{"response": {"method": "remoteControl/status/changed", "params": {"status": "disabled", "serverName": "DUCLH-D5-U", "installationId": "334d8136-56a9-450d-83b2-54bfba46ff45", "environmentId": null}, "emittedAtMs": 1794335700491}}
+{"response": {"id": 2, "result": {"status": "ok", "version": "sha256:5eaa0961d61cae5635a9b62d8d1ea17be1545fc19e04a3ecf504e868e17a9498", "filePath": "/probe/repo/.codex/profile/config.toml", "overriddenMetadata": null}}}

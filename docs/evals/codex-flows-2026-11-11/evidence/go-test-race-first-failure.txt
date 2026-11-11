@@ -1,0 +1,11 @@
+ok  	bint/internal/harness	2.454s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	1.195s
+--- FAIL: TestMetadataCancellationKillsDescendants (0.93s)
+    process_unix_test.go:31: open /tmp/TestMetadataCancellationKillsDescendants3896024105/001/child.pid: no such file or directory
+FAIL
+FAIL	bint/internal/harness/codex	6.181s
+ok  	bint/internal/harness/hookcore	1.454s
+ok  	bint/internal/app	23.181s
+ok  	bint/internal/eval	59.464s
+FAIL

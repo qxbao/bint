@@ -485,11 +485,11 @@ bint eval run --harness codex …                   # đo trên harness khác (n
 | Khả năng | Claude Code | Codex CLI (0.167) | Antigravity CLI (agy 1.5.3) |
 |---|---|---|---|
 | Skill | `.claude/skills` | `.agents/skills` | `.agents/skills` (dùng chung với Codex) |
-| Ẩn skill (`disable-model-invocation`) | ✓ | ✗ (khoá bị bỏ khi xuất bản) | ✗ |
-| MCP server của Bint | `.mcp.json` | `.codex/config.toml` — cần dự án được Codex tin cậy | ✗ (chỉ cấp người dùng; dùng CLI `bint`) |
+| Ẩn skill / chỉ gọi tường minh | ✓ (`disable-model-invocation`) | không ẩn khỏi người; `agents/openai.yaml` có `policy.allow_implicit_invocation: false` (Bint chưa sinh policy này) | ✗ |
+| MCP server của Bint | `.mcp.json` | `.codex/config.toml` — cần dự án được Codex tin cậy; riêng `cite_knowledge` được đặt `approval_mode = "approve"` | ✗ (chỉ cấp người dùng; dùng CLI `bint`) |
 | Hook ghi nhận | SessionStart/End, PostToolUse(+Failure) | `.codex/hooks.json`: SessionStart/End, PreToolUse, PostToolUse — mỗi hook cần được duyệt trong Codex | `.agents/hooks.json`: SessionStart, PreToolUse, PostToolUse — không có kết thúc phiên |
 | Chèn ngữ cảnh theo đường dẫn | trước Read/Edit/Write | chỉ trước `apply_patch` | ✗ (PreToolUse chỉ trả quyết định) |
-| Đường dẫn bảo vệ | hỏi (`ask`) | chặn (`deny`) kèm lý do | hỏi (`ask`) |
+| Đường dẫn bảo vệ | hỏi (`ask`) | chặn (`deny`); khi chưa có diff: `task approve <id> --path <tệp>` rồi `run resume <id>` | hỏi (`ask`) |
 | Thực thi (`bint run`) | `claude -p` | `codex exec --json` (stdin) | `agy --print=… --output-format json` |
 | Bước chỉ đọc | cấm công cụ sửa tệp | sandbox `workspace-write` | `--mode plan` |
 | Chi phí / giới hạn lượt | ✓ / ✓ | token / ✗ | token / ✗ |
@@ -518,9 +518,15 @@ không có thì không tổng hợp giả: lượt Antigravity không có `sessi
 
 **Đánh giá trên nhiều harness:** `eval.harness` / `bint eval run --harness` nhận `claude | codex |
 antigravity`; harness ghi trong đợt đánh giá nên không trộn kết quả. Nhánh `bint` trên Codex = MCP
-(`-c mcp_servers.bint…`) + AGENTS.md, không chèn theo đường dẫn (hook Codex cần duyệt trust); trên
+(`-c mcp_servers.bint…`) + AGENTS.md + hook trước `apply_patch` (Codex vẫn yêu cầu duyệt trust); trên
 Antigravity nhánh `bint` bị bỏ qua (`skipped`, kèm lý do). Codex/Antigravity không báo chi phí: ngân
 sách chỉ là chỉ dẫn.
+
+Adapter không tự bỏ duyệt hook. Trong phép thử tự động với hook Bint đã đọc và kiểm tra,
+có thể chủ động đặt `harnesses.codex.extra_args: ["--dangerously-bypass-hook-trust"]` cho từng
+lượt chạy; sandbox vẫn là `workspace-write`. Cờ này ảnh hưởng mọi hook được bật trong lượt đó,
+vì vậy không đặt mặc định cho dự án/người dùng. Quyền MCP chỉ áp riêng `cite_knowledge`, không
+tự duyệt các tool tạo/sửa tri thức. `bint doctor` cảnh báo khi chưa xác minh cấu hình citation.
 
 Đã kiểm chứng trên máy phát triển: payload hook và đầu ra `codex exec --json` của codex-cli 0.167
 (gồm việc agent nhận `additionalContext` của PreToolUse); chuỗi `bint run b-req → b-feat → b-review
@@ -529,13 +535,33 @@ kèm agy 1.5.3 và payload SessionStart/Stop bắt được; payload công cụ 
 `run_command`, khoá `TargetFile`/`CommandLine`) chưa bắt được trực tiếp (hết quota) — bảng khả năng
 ghi rõ điều này.
 
+Đợt [kiểm chứng Codex thật ngày 2026-11-10](docs/evals/codex-flows-2026-11-10/README.md)
+dùng 15 session: `b-do` đủ ba bước, bảo vệ/duyệt/tiếp tục và eval strict 3 nhánh đã chạy thật.
+Báo cáo tách rõ phần chưa kiểm chứng (Ctrl-C, timeout, đăng nhập hết hạn, phối hợp Claude↔Codex).
+
 Giới hạn đã biết của P5:
 
 - Hook Codex chỉ chạy sau khi người dùng duyệt trong Codex (`/hooks`); `bint doctor` báo khi chưa duyệt.
+- `bint doctor` hỏi metadata `hooks/list` của Codex để kiểm mọi định nghĩa/hash hiện hành;
+  hook mới, modified hoặc disabled đều được cảnh báo. Nếu API metadata không dùng được thì báo
+  chưa xác minh, không suy từ một trust entry cũ.
 - Codex không có công cụ đọc tệp riêng nên chèn ngữ cảnh theo đường dẫn chỉ xảy ra trước khi sửa.
+- `PostToolUse` Codex xuất hiện cả khi shell thất bại. Bint đọc `exit_code` trong transcript
+  cùng `tool_use_id`; thiếu bằng chứng thì kết quả unknown. Chỉ một lệnh test trực tiếp được
+  nâng thành tín hiệu test; script nhiều lệnh, heredoc, chạy nền hoặc rẽ nhánh không được suy pass.
 - Antigravity: không có MCP cấp dự án, không chèn ngữ cảnh qua hook; đề bài `bint run` đi qua một đối
   số dòng lệnh (tối đa 120 KiB).
 - Chưa cô lập bằng worktree riêng cho từng bước ghi; chưa có cấp 4 (điều phối nhiều agent song song).
+
+Eval Codex dùng profile tạm chỉ chứa runtime/provider cần thiết và bản sao auth dạng tệp
+(0600), không mang AGENTS/plugin/hook cá nhân sang; user/admin skill được tắt theo đường dẫn,
+bundled skill bị tắt. Profile chứa auth được xoá cả khi timeout/huỷ. Thiếu `auth.json` dạng tệp
+thì báo không hỗ trợ đăng nhập cô lập tự động; không fallback sang home người dùng.
+Đây là cô lập ngữ cảnh tự nạp và Git, không phải sandbox hermetic chặn mọi phép đọc host/mạng.
+
+[Nghiệm thu tiếp ngày 2026-11-11](docs/evals/codex-flows-2026-11-11/README.md) có thêm 15 session
+thật: đủ 5 skill, fail-open hook, readonly hậu kiểm, timeout, Ctrl-C/resume và eval strict 3/3.
+Flow Claude↔Codex còn blocked vì Claude chưa đăng nhập, theo quyết định của người dùng.
 
 ## Tiến hoá tri thức — L1 (P6)
 

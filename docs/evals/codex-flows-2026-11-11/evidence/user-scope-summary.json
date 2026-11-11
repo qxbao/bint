@@ -1,0 +1,6 @@
+{
+  "idempotent": true,
+  "foreign_hook_present": true,
+  "bint_user_hooks": 4,
+  "after_uninstall_foreign_only": true
+}

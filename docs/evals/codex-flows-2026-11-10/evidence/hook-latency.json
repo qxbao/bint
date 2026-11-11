@@ -1,0 +1,8 @@
+{
+  "captured_hook_calls": 125,
+  "median_ms": 12.165,
+  "p95_ms": 143.492,
+  "max_ms": 1515.652,
+  "nonzero_exits": 0,
+  "notes": "Wall time includes bint hook subprocess and Git snapshot; wrapper recording overhead excluded; these are not per-event benchmark distributions."
+}

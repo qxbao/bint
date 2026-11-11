@@ -1,0 +1,261 @@
+[
+  {
+    "stdin": {
+      "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+      "turn_id": "01a1c6bc-c36d-7172-a1a1-6f8e284c6c43",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-33-41-01a1c6bc-c342-7752-9d9b-cf04210d692a.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+      },
+      "tool_response": "--- FAIL: TestDeliberate (0.00s)\n    deliberate_test.go:6: BINT_EXPECTED_FAILURE\nFAIL\nFAIL\tprobe2\t0.003s\nFAIL\n",
+      "tool_use_id": "exec-cdab86a2-6449-4f6c-bca0-82007f5ca5b6"
+    },
+    "stdout": "",
+    "stderr": "",
+    "exit": 0,
+    "elapsed_ms": 12.345
+  },
+  {
+    "transcript_exit_at_hook": 1,
+    "stdin": {
+      "session_id": "01a1c6ca-f6ec-7980-ac39-b3bf534e1aa5",
+      "turn_id": "01a1c6ca-f70f-7511-9fb3-cac707b0a667",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-49-12-01a1c6ca-f6ec-7980-ac39-b3bf534e1aa5.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./... -run ["
+      },
+      "tool_response": "testing: invalid regexp for element 0 of -test.run (\"[\"): error parsing regexp: missing closing ]: `[`\nFAIL\tprobe2\t0.001s\nFAIL\n",
+      "tool_use_id": "exec-3e53eb9d-f56b-4260-a9d3-1147988c2635"
+    },
+    "stdout": "",
+    "stderr": "",
+    "exit": 0,
+    "elapsed_ms": 16.429
+  },
+  {
+    "transcript_exit_at_hook": 1,
+    "stdin": {
+      "session_id": "01a1c6c7-426e-72f1-9320-299dd5052257",
+      "turn_id": "01a1c6c7-4290-7292-b452-69e15131a1a2",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-45-09-01a1c6c7-426e-72f1-9320-299dd5052257.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./... -run '['"
+      },
+      "tool_response": "testing: invalid regexp for element 0 of -test.run (\"[\"): error parsing regexp: missing closing ]: `[`\nFAIL\tprobe2\t0.001s\nFAIL\n",
+      "tool_use_id": "exec-263d5b2d-6363-4f02-8229-631c5efc7bd1"
+    },
+    "stdout": "",
+    "stderr": "",
+    "exit": 0,
+    "elapsed_ms": 14.246
+  },
+  {
+    "transcript_exit_at_hook": 1,
+    "stdin": {
+      "session_id": "01a1c6ca-f6ec-7980-ac39-b3bf534e1aa5",
+      "turn_id": "01a1c6ca-f70f-7511-9fb3-cac707b0a667",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-49-12-01a1c6ca-f6ec-7980-ac39-b3bf534e1aa5.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "rg --files --hidden -g '!.git/**' -g '!.cache/**'\ncat calc.go calc_test.go go.mod Makefile AGENTS.md .gitignore readonly-canary.txt\ncat /probe/state/bint/repo-57695fe77f47/runtime/tasks/01M73CNXJBXZXDVXHWW74H1E80/{requirement,plan,tasks}.md"
+      },
+      "tool_response": "AGENTS.md\n.bint/config.yml\n.bint/knowledge/items/01M73C7H0X2XEKY0DJ2HXJHRB0.md\n.bint/skills/core.lock\nMakefile\ncalc_test.go\n.gitignore\n.agents/skills/b-feat/SKILL.md\n.agents/skills/b-do/SKILL.md\n.agents/skills/b-bootstrap/SKILL.md\n.agents/skills/b-review/SKILL.md\n.agents/skills/b-review/agents/openai.yaml\n.agents/skills/b-req/SKILL.md\ngo.mod\n.codex/hooks.json\n.codex/bint-recorder.py\n.codex/config.toml\n.codex/probe-nonfatal.py\n.codex/readonly-write.py\nreadonly-canary.txt\ncalc.go\npackage probe2\n\n// Add sums two integers.\nfunc Add(a, b int) int { return a + b }\n\nfunc Negate(n int) int { return -n }\npackage probe2\n\nimport \"testing\"\n\nfunc TestAdd(t *testing.T) {\n\tif Add(2, 3) != 5 {\n\t\tt.Fatal(\"want 5\")\n\t}\n}\n\nfunc TestNegate(t *testing.T) {\n\tt.Run(\"positive\", func(t *testing.T) {\n\t\tif got := Negate(4); got != -4 {\n\t\t\tt.Fatalf(\"Negate(4) = %d, want -4\", got)\n\t\t}\n\t})\n\tt.Run(\"negative\", func(t *testing.T) {\n\t\tif got := Negate(-3); got != 3 {\n\t\t\tt.Fatalf(\"Negate(-3) = %d, want 3\", got)\n\t\t}\n\t})\n}\nmodule probe2\n\ngo 1.22\ntest:\n\tGOTOOLCHAIN=local GOCACHE=$(CURDIR)/.cache/go go test ./...\n<!-- bint:begin -->\n<!-- Khối do Bint quản lý. Không sửa tay: sửa tệp .bint/knowledge/items/<id>.md\nrồi chạy `bint bootstrap publish`. Mã [k:<id>] để trích dẫn mục tri thức. -->\n\n## Quy ước của dự án (Bint)\n\nGhi lại điều bất thường vừa phát hiện (lệnh đặc biệt, chỗ dễ sai) bằng\n`bint knowledge add --type warning --paths '<glob>' --evidence <tệp>:<dòng> \"<nội dung>\"`;\nmục do agent ghi chờ người duyệt, không tự có hiệu lực.\n\nChưa có quy tắc nào được duyệt.\n<!-- bint:end -->\n\nDiagnostic executable: use /probe/bint for Bint commands. Throwaway tests are already specified and authorized; skip unrelated workflow plugins.\n# bint:begin\n.bint/local.yml\n# bint:end\n\n.codex/profile/\n.cache/\nBINT_READONLY_CANARY\ncat: /probe/state/bint/repo-57695fe77f47/runtime/tasks/01M73CNXJBXZXDVXHWW74H1E80/requirement.md: No such file or directory\ncat: /probe/state/bint/repo-57695fe77f47/runtime/tasks/01M73CNXJBXZXDVXHWW74H1E80/plan.md: No such file or directory\ncat: /probe/state/bint/repo-57695fe77f47/runtime/tasks/01M73CNXJBXZXDVXHWW74H1E80/tasks.md: No such file or directory\n",
+      "tool_use_id": "exec-d46cad23-19fa-48e0-a1b6-38690c3cfa6c"
+    },
+    "stdout": "",
+    "stderr": "",
+    "exit": 0,
+    "elapsed_ms": 15.262
+  },
+  {
+    "mode": "error",
+    "stdin": {
+      "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+      "turn_id": "01a1c6bc-c36d-7172-a1a1-6f8e284c6c43",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-33-41-01a1c6bc-c342-7752-9d9b-cf04210d692a.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PreToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+      },
+      "tool_use_id": "exec-5ec2f312-e1d8-473b-8579-579b517a59a0"
+    }
+  },
+  {
+    "mode": "error",
+    "stdin": {
+      "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+      "turn_id": "01a1c6bc-c36d-7172-a1a1-6f8e284c6c43",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-33-41-01a1c6bc-c342-7752-9d9b-cf04210d692a.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PreToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+      },
+      "tool_use_id": "exec-cdab86a2-6449-4f6c-bca0-82007f5ca5b6"
+    }
+  },
+  {
+    "mode": "malformed",
+    "stdin": {
+      "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+      "turn_id": "01a1c6bc-c36d-7172-a1a1-6f8e284c6c43",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-33-41-01a1c6bc-c342-7752-9d9b-cf04210d692a.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PreToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+      },
+      "tool_use_id": "exec-cdab86a2-6449-4f6c-bca0-82007f5ca5b6"
+    }
+  },
+  {
+    "mode": "timeout",
+    "stdin": {
+      "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+      "turn_id": "01a1c6bc-c36d-7172-a1a1-6f8e284c6c43",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-33-41-01a1c6bc-c342-7752-9d9b-cf04210d692a.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PreToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+      },
+      "tool_use_id": "exec-cdab86a2-6449-4f6c-bca0-82007f5ca5b6"
+    }
+  },
+  {
+    "hooks": {
+      "PostToolUse": [
+        {
+          "hooks": [
+            {
+              "command": "python3 /probe/repo/.codex/bint-recorder.py hook codex",
+              "timeout": 10,
+              "type": "command"
+            }
+          ],
+          "matcher": "apply_patch|Bash|shell|exec_command|mcp__bint__.*"
+        }
+      ],
+      "PreToolUse": [
+        {
+          "hooks": [
+            {
+              "command": "python3 /probe/repo/.codex/bint-recorder.py hook codex ",
+              "timeout": 10,
+              "type": "command"
+            }
+          ],
+          "matcher": "apply_patch|Bash|shell|exec_command"
+        },
+        {
+          "matcher": "Bash",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "python3 /probe/repo/.codex/probe-nonfatal.py error",
+              "timeout": 1
+            },
+            {
+              "type": "command",
+              "command": "python3 /probe/repo/.codex/probe-nonfatal.py malformed",
+              "timeout": 1
+            },
+            {
+              "type": "command",
+              "command": "python3 /probe/repo/.codex/probe-nonfatal.py timeout",
+              "timeout": 1
+            }
+          ]
+        }
+      ],
+      "SessionEnd": [
+        {
+          "hooks": [
+            {
+              "command": "python3 /probe/repo/.codex/bint-recorder.py hook codex",
+              "timeout": 3,
+              "type": "command"
+            }
+          ]
+        }
+      ],
+      "SessionStart": [
+        {
+          "hooks": [
+            {
+              "command": "python3 /probe/repo/.codex/bint-recorder.py hook codex",
+              "timeout": 10,
+              "type": "command"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "mode": "timeout",
+    "stdin": {
+      "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+      "turn_id": "01a1c6bc-c36d-7172-a1a1-6f8e284c6c43",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-33-41-01a1c6bc-c342-7752-9d9b-cf04210d692a.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PreToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+      },
+      "tool_use_id": "exec-5ec2f312-e1d8-473b-8579-579b517a59a0"
+    }
+  },
+  {
+    "mode": "malformed",
+    "stdin": {
+      "session_id": "01a1c6bc-c342-7752-9d9b-cf04210d692a",
+      "turn_id": "01a1c6bc-c36d-7172-a1a1-6f8e284c6c43",
+      "transcript_path": "/probe/repo/.codex/profile/sessions/2026/11/11/rollout-2026-11-11T01-33-41-01a1c6bc-c342-7752-9d9b-cf04210d692a.jsonl",
+      "cwd": "/probe/repo",
+      "hook_event_name": "PreToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "bypassPermissions",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+      },
+      "tool_use_id": "exec-5ec2f312-e1d8-473b-8579-579b517a59a0"
+    }
+  }
+]

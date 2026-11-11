@@ -216,7 +216,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			rep.add("hook "+h, StepSkipped, "%s không có hook", ad.Title())
 			continue
 		}
-		path, installed, err := installHooks(rep, opts, ad, hi, root, paths, now)
+		path, installed, err := installHooks(ctx, rep, opts, ad, hi, root, paths, now, cfg.Harnesses.Codex.Binary)
 		if err != nil {
 			return nil, err
 		}
@@ -293,11 +293,15 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 	if cfg.Eval.TestCommand == nil {
 		rep.NextSteps = append(rep.NextSteps, "Xác nhận lệnh kiểm thử: điền eval.test_command trong .bint/config.yml")
 	}
+	bootstrapSkill := "/b-bootstrap trong Claude Code"
+	if cfg.Harnesses.Default == codex.HarnessName {
+		bootstrapSkill = "$b-bootstrap trong Codex"
+	}
 	rep.NextSteps = append(rep.NextSteps,
 		"Commit .bint/config.yml (và .gitignore) để cả nhóm dùng chung cấu hình",
 		"Kiểm tra môi trường: bint doctor",
 		"Xem lượt chạy đã ghi nhận: bint runs list",
-		"Bootstrap tri thức: chạy /b-bootstrap trong Claude Code (hoặc `bint bootstrap` để xem dữ liệu khảo sát), rồi `bint knowledge review` và `bint bootstrap publish`",
+		"Bootstrap tri thức: chạy "+bootstrapSkill+" (hoặc `bint bootstrap` để xem dữ liệu khảo sát), rồi `bint knowledge review` và `bint bootstrap publish`",
 		"Khung đánh giá (bint eval --help) chỉ cần khi muốn đo trên repository này",
 	)
 	return rep, nil
@@ -320,7 +324,7 @@ func (r *InitReport) addSync(name string, res fsafe.Result) {
 
 // installHooks cài (hoặc gỡ) hook ghi nhận của một harness; trả về tệp hook và việc
 // hook có đang được cài.
-func installHooks(rep *InitReport, opts InitOptions, ad harness.Adapter, hi harness.HookInstaller, root string, paths state.Paths, now time.Time) (string, bool, error) {
+func installHooks(ctx context.Context, rep *InitReport, opts InitOptions, ad harness.Adapter, hi harness.HookInstaller, root string, paths state.Paths, now time.Time, codexBinary string) (string, bool, error) {
 	name := "hook " + ad.Name()
 	settings, err := hi.HooksPath(opts.HooksScope, root)
 	if err != nil {
@@ -368,8 +372,13 @@ func installHooks(rep *InitReport, opts InitOptions, ad harness.Adapter, hi harn
 	default:
 		rep.add(name, StepCreated, "%s (%s)", settings, hi.HookEvents())
 	}
-	if ad.Name() == codex.HarnessName && !codex.HooksTrusted(settings) {
-		rep.add(name, StepWarn, "Codex chỉ chạy hook đã được duyệt: mở codex trong repository và duyệt hook của Bint (/hooks)")
+	if ad.Name() == codex.HarnessName {
+		trust, err := codex.InspectHookTrust(ctx, codexBinary, root, settings)
+		if err != nil {
+			rep.add(name, StepWarn, "chưa xác minh trust hook Codex: %v; mở codex trong repository và /hooks", err)
+		} else if !trust.AllTrusted() {
+			rep.add(name, StepWarn, "Codex: %s; mở codex trong repository và duyệt hook của Bint (/hooks)", trust.String())
+		}
 	}
 	return settings, true, nil
 }

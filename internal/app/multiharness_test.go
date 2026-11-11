@@ -18,8 +18,85 @@ import (
 	"bint/internal/harness/codex"
 	"bint/internal/harness/hookcore"
 	"bint/internal/runlog"
+	"bint/internal/spool"
 	"bint/internal/testutil"
 )
+
+func TestRealCodexTestOutcomeIsNotAssumedFromPostToolUse(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"calc.go": "package probe2\n"})
+	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"codex"}, Hooks: no()})
+	for _, tc := range []struct {
+		name        string
+		known, want bool
+	}{{"failed", true, false}, {"passed", true, true}, {"missing", false, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			name := tc.name
+			if name == "missing" {
+				name = "failed"
+			}
+			b, err := os.ReadFile("../harness/codex/testdata/codex-0.167/test-" + name + "-hook.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var m map[string]any
+			if err = json.Unmarshal(b, &m); err != nil {
+				t.Fatal(err)
+			}
+			m["cwd"] = root
+			trace := filepath.Join(t.TempDir(), "transcript.jsonl")
+			m["transcript_path"] = trace
+			if tc.known {
+				b, err = os.ReadFile("../harness/codex/testdata/codex-0.167/test-" + name + "-transcript.jsonl")
+				if err != nil {
+					t.Fatal(err)
+				}
+				os.WriteFile(trace, b, 0o600)
+			}
+			r := codexHook(t, m)
+			if !r.Written {
+				t.Fatalf("không ghi test command: %+v", r)
+			}
+			events, err := spool.ReadFile(r.SpoolFile)
+			if err != nil || len(events) != 1 {
+				t.Fatalf("events: %v %v", events, err)
+			}
+			got, known := events[0].Payload["ok"].(bool)
+			if known != tc.known || tc.known && got != tc.want {
+				t.Fatalf("%s: ok=%v known=%v; muốn ok=%v known=%v", tc.name, got, known, tc.want, tc.known)
+			}
+		})
+	}
+}
+
+func TestCodexWritingTestInstructionsIsNotATestRun(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"calc.go": "package p\n"})
+	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"codex"}, Hooks: no()})
+	b, err := os.ReadFile("../harness/codex/testdata/codex-0.167/planning-command.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := codexHook(t, map[string]any{"session_id": "planning", "cwd": root, "hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_use_id": "planning-docs", "tool_input": map[string]any{"command": string(b)}})
+	if r.Written {
+		t.Fatalf("đã ghi test.completed dù shell chỉ ghi tài liệu: %+v", r)
+	}
+}
+
+func TestInitBootstrapHintMatchesDefaultHarness(t *testing.T) {
+	testutil.Isolate(t)
+	for _, name := range []string{"codex", "claude"} {
+		root := testutil.NewRepo(t, map[string]string{"a.go": "package a\n"})
+		r := mustInit(t, InitOptions{Dir: root, Harnesses: []string{name}, Hooks: no()})
+		steps := strings.Join(r.NextSteps, "\n")
+		if name == "codex" && !strings.Contains(steps, "$b-bootstrap trong Codex") {
+			t.Fatalf("Codex nhận hướng dẫn sai harness: %s", steps)
+		}
+		if name == "claude" && !strings.Contains(steps, "/b-bootstrap trong Claude Code") {
+			t.Fatal("đổi hướng dẫn Claude mặc định")
+		}
+	}
+}
 
 func hashTree(t *testing.T, root string, rels ...string) string {
 	t.Helper()
@@ -136,6 +213,39 @@ func codexHook(t *testing.T, m map[string]any) hookcore.Result {
 	return res
 }
 
+func TestRealCodexDenialExplainsApproval(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"a.go": "package a\n"})
+	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"codex"}, Hooks: no()})
+	t.Setenv("BINT_TASK_ID", "01M72Y6VA6NQ42T45QCVDXBF50")
+	b, err := os.ReadFile("../harness/codex/testdata/codex-0.167/hooks.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var records []struct {
+		Stdin map[string]any `json:"stdin"`
+	}
+	if err := json.Unmarshal(b, &records); err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		m := record.Stdin
+		input, _ := m["tool_input"].(map[string]any)
+		patch, _ := input["command"].(string)
+		if m["hook_event_name"] != "PreToolUse" || !strings.Contains(patch, "migrations/001.sql") {
+			continue
+		}
+		m["cwd"] = root
+		input["command"] = strings.ReplaceAll(patch, "/repo", root)
+		r := codexHook(t, m)
+		if !strings.Contains(r.Output, "deny") || !strings.Contains(r.Output, "--path 'migrations/001.sql'") || !strings.Contains(r.Output, "bint run resume") {
+			t.Fatalf("deny không có cách tiếp tục: %s", r.Output)
+		}
+		return
+	}
+	t.Fatal("thiếu fixture deny thật")
+}
+
 func agyHook(t *testing.T, event string, m map[string]any) hookcore.Result {
 	t.Helper()
 	b, _ := json.Marshal(m)
@@ -173,7 +283,14 @@ func TestCodexAndAntigravityHooks(t *testing.T) {
 		"tool_input": map[string]any{"command": patch}, "tool_response": "Success"})); !r.Written {
 		t.Fatalf("codex apply_patch: %+v", r)
 	}
-	if r := codexHook(t, with(map[string]any{"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_use_id": "e2",
+	// Giữ kỳ vọng test qua, bổ sung đúng bằng chứng exit_code mà payload Codex thiếu.
+	trace, err := os.ReadFile("../harness/codex/testdata/codex-0.167/test-passed-transcript.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracePath := filepath.Join(t.TempDir(), "codex.jsonl")
+	os.WriteFile(tracePath, trace, 0o600)
+	if r := codexHook(t, with(map[string]any{"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_use_id": "exec-5ec2f312-e1d8-473b-8579-579b517a59a0", "transcript_path": tracePath,
 		"tool_input": map[string]any{"command": "go test ./..."}})); !r.Written {
 		t.Fatalf("codex test: %+v", r)
 	}

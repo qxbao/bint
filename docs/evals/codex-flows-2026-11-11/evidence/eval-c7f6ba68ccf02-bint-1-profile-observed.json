@@ -1,0 +1,19 @@
+{
+  "debug_exit": 0,
+  "user_instruction_canary_present": false,
+  "user_skill_canary_present": false,
+  "auth_logged_in": true,
+  "auth_file_mode": "0o600",
+  "profile_is_source_home": false,
+  "unscoped_bullet_names_initial_extractor": [
+    "Relevance",
+    "mcp__codex_apps__codex_document_control",
+    "mcp__codex_apps__hotline",
+    "mcp__codex_apps__pets",
+    "mcp__codex_apps__plugin_management",
+    "mcp__codex_apps__safety_settings",
+    "mcp__codex_apps__search_service",
+    "mcp__codex_apps__sites"
+  ],
+  "catalogue_note": "Initial extractor matched unrelated tool bullet lists; skill inventory is not established by this field. See independent real-CLI metadata recheck."
+}

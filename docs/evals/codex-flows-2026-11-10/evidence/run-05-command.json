@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "codex",
+    "--no-daemon",
+    "-a",
+    "never",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--ignore-rules",
+    "-m",
+    "gpt-6.1-sol",
+    "-c",
+    "model_reasoning_effort=\"low\"",
+    "-c",
+    "projects.\"/probe/repo\".trust_level=\"trusted\"",
+    "--cd",
+    "/probe/repo",
+    "--dangerously-bypass-hook-trust",
+    "-"
+  ],
+  "prompt": "This is a throwaway diagnostic probe; skip workflow/brainstorming skills. In apply_patch: update hookcheck.txt to ok2, move probe.txt to moved.txt, add extra.txt with x, then delete extra.txt with a second patch. Attempt to add migrations/001.sql with SELECT 1 using apply_patch exactly once; if hook denies, report its reason and stop editing protected paths (no shell fallback). Run shell go test using GOTOOLCHAIN=local and GOCACHE=$PWD/.cache/go. Call Bint MCP context_for_task for Sum, context_for_paths for sum.go and cite_knowledge for any returned knowledge ID. If approval blocks citation, report it; do not change policy. Finally report any marker you received from hook context. Brief answer.\n"
+}

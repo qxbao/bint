@@ -1,0 +1,13 @@
+{"type":"thread.started","thread_id":"01a1c5d7-1c3c-7941-8fd2-fbe59d1c69de"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"item.completed","item":{"id":"item_1","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"item.completed","item":{"id":"item_2","type":"error","message":"clamping SessionEnd hook timeout to 3s in /probe/repo/.codex/hooks.json"}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"I’ll add `hookcheck.txt` with `ok`, then run the test command once.\n"}}
+{"type":"item.completed","item":{"id":"item_5","type":"agent_message","text":"I’m using the using-superpowers skill to check applicable workflow instructions.\n"}}
+{"type":"item.started","item":{"id":"item_6","type":"file_change","changes":[{"path":"/probe/repo/hookcheck.txt","kind":"add"}],"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_6","type":"file_change","changes":[{"path":"/probe/repo/hookcheck.txt","kind":"add"}],"status":"completed"}}
+{"type":"item.started","item":{"id":"item_7","type":"command_execution","command":"/bin/bash -lc 'GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./...'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_7","type":"command_execution","command":"/bin/bash -lc 'GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./...'","aggregated_output":"ok  \tprobe\t0.001s\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_8","type":"agent_message","text":"Added `hookcheck.txt` containing `ok` using `apply_patch`. Ran the specified test command once; it passed."}}
+{"type":"turn.completed","usage":{"input_tokens":62332,"cached_input_tokens":30208,"cache_write_input_tokens":0,"output_tokens":280,"reasoning_output_tokens":8}}

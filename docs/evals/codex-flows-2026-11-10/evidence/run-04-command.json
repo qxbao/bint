@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "codex",
+    "--no-daemon",
+    "-a",
+    "never",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--ignore-rules",
+    "-m",
+    "gpt-6.1-sol",
+    "-c",
+    "model_reasoning_effort=\"low\"",
+    "-c",
+    "projects.\"/probe/repo\".trust_level=\"trusted\"",
+    "--cd",
+    "/probe/repo",
+    "--dangerously-bypass-hook-trust",
+    "-"
+  ],
+  "prompt": "Use apply_patch to add hookcheck.txt containing ok, then run GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./... once. Brief response.\n"
+}

@@ -1,0 +1,23 @@
+{
+  "task_id": "01M72Y6VA6NQ42T45QCVDXBF50",
+  "run_id": "01M72Y6VA6GYC2BP83FX5EKDPN",
+  "task_status": "blocked",
+  "reason": "chưa đủ bằng chứng hoàn thành: lệnh kiểm chứng chưa được người xác nhận (bint task approve); tiêu chí 1 chưa đạt",
+  "steps": [
+    {
+      "step": "b-feat",
+      "run_id": "01M72Y6VFFGHBSP34418XSTDVH",
+      "status": "completed",
+      "cost_usd": null,
+      "duration": "30s"
+    }
+  ],
+  "cost_usd": null,
+  "notes": [
+    "lệnh kiểm chứng chưa được người xác nhận (bint task approve)",
+    "mọi thay đổi chạm đường dẫn được bảo vệ cần người duyệt",
+    "codex không báo chi phí: giới hạn max_cost_usd chỉ là chỉ dẫn",
+    "codex không có giới hạn số lượt: max_turns chỉ là chỉ dẫn",
+    "kiểm chứng: lệnh kiểm chứng chưa được người xác nhận; Bint không chạy lệnh do agent đề xuất (bint task approve 01M72Y6VA6NQ42T45QCVDXBF50)"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "01M73CSZFJG6N115QY7TJ85GFV",
+  "run_id": "01M73CSZFJ09XBS8FJ44BKCRN1",
+  "task_status": "failed",
+  "reason": "b-feat: quá workflow.timeout_minutes (1 phút)",
+  "steps": [
+    {
+      "step": "b-feat",
+      "run_id": "01M73CSZH2D5SHKYTM10CSPV5V",
+      "status": "failed",
+      "cost_usd": null,
+      "duration": "1m0s"
+    }
+  ],
+  "cost_usd": null
+}

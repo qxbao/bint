@@ -1,0 +1,14 @@
+[
+  {
+    "tool_use_id": "exec-5ec2f312-e1d8-473b-8579-579b517a59a0",
+    "actual_tool_response": "ok  \tprobe2\t0.002s\n",
+    "hook_exit": 0,
+    "label": "replay real payload against existing transcript after fix"
+  },
+  {
+    "tool_use_id": "exec-cdab86a2-6449-4f6c-bca0-82007f5ca5b6",
+    "actual_tool_response": "--- FAIL: TestDeliberate (0.00s)\n    deliberate_test.go:6: BINT_EXPECTED_FAILURE\nFAIL\nFAIL\tprobe2\t0.003s\nFAIL\n",
+    "hook_exit": 0,
+    "label": "replay real payload against existing transcript after fix"
+  }
+]

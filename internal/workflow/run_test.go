@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,6 +20,42 @@ import (
 	"bint/internal/task"
 	"bint/internal/testutil"
 )
+
+func TestResumeInterruptedPlannerFromRealCodexState(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	ctx := context.Background()
+	tk, _, err := r.NewTask(ctx, NewTaskOptions{Workflow: StepReq, Request: "Plan documenting Add"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile("testdata/codex-interrupted-planner.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observed struct {
+		Status     string `json:"status"`
+		ResumeFrom string `json:"resume_from"`
+	}
+	if err = json.Unmarshal(b, &observed); err != nil {
+		t.Fatal(err)
+	}
+	if observed.Status != task.StatusInterrupted || observed.ResumeFrom != task.StatusCreated {
+		t.Fatal("fixture không phải planner bị Ctrl-C")
+	}
+	_, err = h.tasks.Update(tk.State.ID, time.Now(), func(tk *task.Task) error {
+		tk.State.Status = observed.Status
+		tk.State.ResumeFrom = observed.ResumeFrom
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Run(ctx, RunOptions{Workflow: StepReq, TaskRef: tk.State.ID, Resume: true})
+	if err != nil || res.Status != task.StatusPlanned || strings.Join(h.calls, ",") != "b-req" {
+		t.Fatalf("không tiếp tục được planner: %+v %v calls=%v", res, err, h.calls)
+	}
+}
 
 var stepRe = regexp.MustCompile(`step="([a-z-]+)"`)
 
@@ -231,6 +268,33 @@ func TestProtectedPathBlocksThenResumeWithoutRerunningFeat(t *testing.T) {
 	m, _ := runlog.GetRunMeta(ctx, s.DB, res2.RunID)
 	if m.ParentRunID.String == "" {
 		t.Fatal("lượt tiếp tục phải có parent_run_id")
+	}
+}
+
+func TestApproveUnwrittenPathRerunsFeat(t *testing.T) {
+	h := newHarness(t)
+	// Như Codex đã bị deny thật: bước kết thúc nhưng chưa có diff.
+	h.behave = func(context.Context, string, *Env, string) error { return nil }
+	r := h.runner()
+	ctx := context.Background()
+	res, err := r.Run(ctx, RunOptions{Workflow: StepDo, Request: "Create a migration", Plan: ptr(false), NoReview: true})
+	if err != nil || res.Status != task.StatusBlocked {
+		t.Fatalf("blocked: %+v %v", res, err)
+	}
+	if _, a, err := r.Approve(res.TaskID, "migrations/002.sql"); err != nil || len(a.Paths) != 1 {
+		t.Fatalf("approve: %+v %v", a, err)
+	}
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		tk, _ := h.tasks.Load(id)
+		if !strings.Contains(strings.Join(ApprovedPaths(tk), ","), "migrations/002.sql") {
+			t.Fatal("mất duyệt đường dẫn")
+		}
+		h.write("migrations/002.sql", "SELECT 1;\n")
+		return h.happy(ctx, step, e, id)
+	}
+	res, err = r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true, NoReview: true})
+	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-feat" {
+		t.Fatalf("resume: %+v %v, calls=%v", res, err, h.calls)
 	}
 }
 

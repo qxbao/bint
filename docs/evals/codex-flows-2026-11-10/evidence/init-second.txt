@@ -1,0 +1,24 @@
+Đồng bộ Bint cho /probe/repo
+
+  ✓  .bint/config.yml    đã tồn tại, giữ nguyên
+  ✓  thư mục trạng thái  /state/session-project (schema v8)
+  ✓  skill b-bootstrap   .agents/skills/b-bootstrap/SKILL.md
+  ✓  skill b-do          .agents/skills/b-do/SKILL.md
+  ✓  skill b-feat        .agents/skills/b-feat/SKILL.md
+  ✓  skill b-req         .agents/skills/b-req/SKILL.md
+  ✓  skill b-review      .agents/skills/b-review/SKILL.md
+  ✓  hook codex          /probe/repo/.codex/hooks.json
+  !  hook codex          Codex chỉ chạy hook đã được duyệt: mở codex trong repository và duyệt hook của Bint (/hooks)
+  ✓  MCP codex           .codex/config.toml đã có mục "bint"
+  !  MCP codex           dự án chưa được Codex tin cậy: .codex/config.toml chỉ có hiệu lực sau khi mở codex trong repository và chọn tin cậy
+  ✓  .gitignore          không thay đổi
+  ✓  AGENTS.md           không thay đổi
+
+Bước tiếp theo:
+  1. Xác nhận lệnh kiểm thử: điền eval.test_command trong .bint/config.yml
+  2. Commit .bint/config.yml (và .gitignore) để cả nhóm dùng chung cấu hình
+  3. Kiểm tra môi trường: bint doctor
+  4. Xem lượt chạy đã ghi nhận: bint runs list
+  5. Bootstrap tri thức: chạy /b-bootstrap trong Claude Code (hoặc `bint bootstrap` để xem dữ liệu khảo sát), rồi `bint knowledge review` và `bint bootstrap publish`
+  6. Khung đánh giá (bint eval --help) chỉ cần khi muốn đo trên repository này
+lỗi: khởi tạo xong nhưng có mục cần xử lý (đánh dấu ! hoặc ✗)

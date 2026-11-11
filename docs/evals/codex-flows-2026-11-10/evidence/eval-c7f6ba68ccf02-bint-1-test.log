@@ -1,0 +1,2 @@
+$ sh -c "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./..."
+ok  	evalprobe	0.002s

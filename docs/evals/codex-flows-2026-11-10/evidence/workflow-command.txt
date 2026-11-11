@@ -1,0 +1,12 @@
+/tmp/bint-codex-flows
+run
+b-do
+--harness
+codex
+--plan
+--json
+--allow
+sum.go,sum_test.go
+--criteria
+Double(4) returns 8 and Double(-3) returns -6
+Add Double(n int) int to sum.go returning twice n, with two unit test cases in sum_test.go. Throwaway diagnostic task; skip any non-Bint plugin workflows. Keep the plan short, use Bint task CLI as instructed.

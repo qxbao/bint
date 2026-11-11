@@ -186,11 +186,14 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		info := harness.Describe(ad, cfg, nil)
 		r.add("harness "+h, LevelOK, "%s — cấp %d (%s), xem `bint harness show %s`", where, info.Level, info.LevelTitle, h)
 		if hi, ok := ad.(harness.HookInstaller); ok {
-			r.Checks = append(r.Checks, hookCheck(ad, hi, repo.Toplevel))
+			r.Checks = append(r.Checks, hookCheck(ctx, ad, hi, repo.Toplevel, cfg.Harnesses.Codex.Binary))
 		}
 		if mi, ok := ad.(harness.MCPInstaller); ok && cfg.Context.Interfaces.MCP {
 			if mi.MCPInstalled(repo.Toplevel) {
 				r.add("MCP "+h, LevelOK, "đã đăng ký")
+				if h == codex.HarnessName && !codex.CitationApprovalConfigured(repo.Toplevel) {
+					r.add("MCP codex citation", LevelWarn, "chưa xác minh cite_knowledge được phép chạy với approval policy never; chạy bint init --mcp hoặc đặt [mcp_servers.bint.tools.cite_knowledge] approval_mode = \"approve\" trong .codex/config.toml")
+				}
 			} else {
 				r.add("MCP "+h, LevelInfo, "chưa đăng ký MCP server của Bint (bint init --mcp)")
 			}
@@ -298,7 +301,7 @@ func evolvedChecks(r *DoctorReport, root string) {
 	}
 }
 
-func hookCheck(ad harness.Adapter, hi harness.HookInstaller, root string) Check {
+func hookCheck(ctx context.Context, ad harness.Adapter, hi harness.HookInstaller, root, codexBinary string) Check {
 	name := "hook " + ad.Name()
 	var found []string
 	var paths []string
@@ -310,8 +313,14 @@ func hookCheck(ad harness.Adapter, hi harness.HookInstaller, root string) Check 
 		paths = append(paths, p)
 		if ok, _ := hi.HooksInstalled(p); ok {
 			found = append(found, string(sc))
-			if ad.Name() == codex.HarnessName && !codex.HooksTrusted(p) {
-				return Check{name, LevelWarn, "đã cài ở " + p + " nhưng chưa được duyệt trong Codex (mở codex, /hooks)"}
+			if ad.Name() == codex.HarnessName {
+				trust, err := codex.InspectHookTrust(ctx, codexBinary, root, p)
+				if err != nil {
+					return Check{name, LevelWarn, "đã cài nhưng chưa xác minh trust: " + err.Error()}
+				}
+				if !trust.AllTrusted() {
+					return Check{name, LevelWarn, "đã cài ở " + p + ": " + trust.String() + "; mở codex, /hooks để duyệt định nghĩa hiện hành"}
+				}
 			}
 		}
 	}
