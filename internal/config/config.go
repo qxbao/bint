@@ -52,6 +52,19 @@ type Config struct {
 	Workflow  Workflow  `yaml:"workflow"`
 	Limits    Limits    `yaml:"limits"`
 	Security  Security  `yaml:"security"`
+
+	// contextBase: Context khi KHÔNG có strategy.yml (nil nếu không có strategy được áp).
+	// Đo lường (eval) cần cấu hình gốc để nhánh không-strategy không bị strategy chi phối.
+	contextBase *Context
+}
+
+// BaseContext trả về cấu hình ngữ cảnh chưa trộn strategy.yml (H1): nhánh đo `harness=off`
+// và nhánh base của đề xuất phải chạy với giá trị gốc, chỉ tập strategy của nhánh mới được áp.
+func (c Config) BaseContext() Context {
+	if c.contextBase != nil {
+		return *c.contextBase
+	}
+	return c.Context
 }
 
 type Project struct {
@@ -482,6 +495,8 @@ type Sources struct {
 	Local   string
 	// Strategy: .bint/harness/strategy.yml đã áp (chỉ khi verified); xem mergeStrategy.
 	Strategy string
+	// StrategyProblem: lý do strategy.yml verified bị bỏ qua (hỏng); rỗng nếu không có vấn đề.
+	StrategyProblem string
 }
 
 // ProjectPath trả về đường dẫn .bint/config.yml của repository.
@@ -509,6 +524,20 @@ var ErrNoProjectConfig = errors.New("chưa có .bint/config.yml (chạy `bint in
 // Nếu requireProject là true mà thiếu .bint/config.yml thì trả ErrNoProjectConfig;
 // nếu false thì lớp dự án dùng giá trị mặc định.
 func Load(root string, requireProject bool) (Config, Sources, error) {
+	cfg, src, err := load(root, requireProject, true)
+	if err != nil || src.Strategy == "" {
+		return cfg, src, err
+	}
+	base, _, err := load(root, requireProject, false)
+	if err != nil {
+		return cfg, src, err
+	}
+	b := base.Context
+	cfg.contextBase = &b
+	return cfg, src, nil
+}
+
+func load(root string, requireProject, withStrategy bool) (Config, Sources, error) {
 	cfg := Default()
 	var src Sources
 	if g := GlobalPath(); g != "" {
@@ -532,10 +561,12 @@ func Load(root string, requireProject bool) (Config, Sources, error) {
 	}
 	// Chiến lược ngữ cảnh đã duyệt (H1) nằm giữa lớp dự án và lớp cục bộ: người vẫn ghi đè
 	// được bằng .bint/local.yml.
-	if ok, err = mergeStrategy(&cfg, root); err != nil {
-		return cfg, src, err
-	} else if ok {
-		src.Strategy = StrategyPath(root)
+	if withStrategy {
+		if ok, src.StrategyProblem, err = mergeStrategy(&cfg, root); err != nil {
+			return cfg, src, err
+		} else if ok {
+			src.Strategy = StrategyPath(root)
+		}
 	}
 	l := LocalPath(root)
 	ok, err = mergeFile(&cfg, l)

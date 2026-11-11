@@ -358,9 +358,13 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 	for _, g := range hset.Guardrails() {
 		s.Guardrails = append(s.Guardrails, g.ID)
 	}
+	// Cấu hình gốc, KHÔNG gồm strategy.yml đã duyệt của repository: strategy là một thành phần
+	// của nhánh (chỉ nhánh có nó trong tập mới được áp), nếu không `harness=off` và nhánh base
+	// của đề xuất deprecate/bỏ khoá sẽ chạy y như nhánh có strategy và đối chiếu ra hiệu ứng 0.
+	cc := env.Cfg.BaseContext()
 	ec := ctxengine.EvalConfig{ItemsDir: itemsDir, Root: dir, Log: s.ContextLog, ExcludeEvalCase: c.ID,
-		MaxTokens: env.Cfg.Context.MaxTokens, PathMaxItems: env.Cfg.Context.PathMaxItems, IncludeCandidates: ks.candidates,
-		LessonGlobalK: env.Cfg.Context.Lessons.GlobalK, LessonMaxTokens: env.Cfg.Context.Lessons.MaxTokens, NoMCP: cv.NoMCP}
+		MaxTokens: cc.MaxTokens, PathMaxItems: cc.PathMaxItems, IncludeCandidates: ks.candidates,
+		LessonGlobalK: cc.Lessons.GlobalK, LessonMaxTokens: cc.Lessons.MaxTokens, NoMCP: cv.NoMCP, NoPathHook: cv.NoPathHook}
 	if !files.Empty() {
 		if ec.HarnessDir, err = writeHarnessSet(logDir, dir, files); err != nil {
 			return s, err
@@ -461,7 +465,8 @@ func resolveHarnessSet(ctx context.Context, env Env, origArm string, cv ContextV
 	if leak != nil {
 		var text strings.Builder
 		for _, comp := range set.Files().Components {
-			text.WriteString(comp.Body + "\n" + comp.Message + "\n" + comp.Description + "\n" + string(comp.Source) + "\n")
+			// Mọi trường được render vào AGENTS.md của lượt (RenderGuidance thêm Title, RenderScripts thêm Usage).
+			text.WriteString(comp.Title + "\n" + comp.Usage + "\n" + comp.Body + "\n" + comp.Message + "\n" + comp.Description + "\n" + string(comp.Source) + "\n")
 		}
 		if r := CheckLeak(text.String(), *leak); r.Status == "fail" {
 			return set, fmt.Errorf("%w: thành phần quy trình chứa mã của lời giải (%s)", ErrArmUnavailable, r.Findings[0].Detail)

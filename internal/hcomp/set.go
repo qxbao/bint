@@ -36,29 +36,32 @@ type Set struct {
 }
 
 // Select lọc thư viện theo chế độ. Thành phần trong repository cùng loại và id với một
-// bản dựng sẵn thì thay thế nó; nếu bản đó là deprecated thì bản dựng sẵn bị tắt.
+// bản dựng sẵn thì thay thế nó CHỈ KHI bản đó được chọn (verified, hoặc candidate ở ModeAll);
+// bản deprecated tắt bản dựng sẵn; bản candidate ở ModeOn không có hiệu lực nên không động tới
+// bản dựng sẵn (nếu không, thêm một candidate trùng id sẽ đổi nhánh đo chuẩn).
 func (l *Library) Select(mode Mode) Set {
 	var s Set
-	repo := map[string]Component{}
+	var chosen []Component
+	override := map[string]bool{}
 	if l != nil && mode != ModeOff {
 		for _, c := range l.Components {
-			repo[string(c.Kind)+"/"+c.ID] = c
-		}
-	}
-	for _, b := range Builtins() {
-		if _, over := repo[string(b.Kind)+"/"+b.ID]; !over {
-			s.Components = append(s.Components, b)
-		}
-	}
-	if l != nil && mode != ModeOff {
-		for _, c := range l.Components {
+			key := string(c.Kind) + "/" + c.ID
 			switch {
 			case c.Status == StatusVerified,
 				c.Status == StatusCandidate && mode == ModeAll:
-				s.Components = append(s.Components, c)
+				chosen = append(chosen, c)
+				override[key] = true
+			case c.Status == StatusDeprecated:
+				override[key] = true
 			}
 		}
 	}
+	for _, b := range Builtins() {
+		if !override[string(b.Kind)+"/"+b.ID] {
+			s.Components = append(s.Components, b)
+		}
+	}
+	s.Components = append(s.Components, chosen...)
 	sort.SliceStable(s.Components, func(i, j int) bool {
 		a, b := s.Components[i], s.Components[j]
 		if a.Kind != b.Kind {

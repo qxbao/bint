@@ -93,8 +93,10 @@ func harnessOpps(fails []Failure, min, e int, used map[string]map[string]bool, p
 	return out
 }
 
-// mcpUnused: lượt eval nhánh bint có vết đầy đủ mà không gọi công cụ MCP nào của Bint.
+// mcpUnused: lượt eval nhánh bint có vết đầy đủ mà không gọi công cụ MCP nào của Bint. Lượt của
+// biến thể tắt MCP có chủ đích (`bint@mcp=off`) không tính: MCPCalls luôn 0 ở đó, không phải
+// dấu hiệu guidance kém.
 func mcpUnused(f Failure) bool {
-	base, _, _ := eval.SplitArm(f.Arm)
-	return f.Source == "eval" && base == eval.ArmBint && f.Measured && f.Trace.Available && !f.Trace.Truncated && f.Trace.MCPCalls == 0
+	base, cv, err := eval.SplitArm(f.Arm)
+	return err == nil && !cv.NoMCP && f.Source == "eval" && base == eval.ArmBint && f.Measured && f.Trace.Available && !f.Trace.Truncated && f.Trace.MCPCalls == 0
 }

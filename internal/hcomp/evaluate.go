@@ -59,7 +59,7 @@ type Decision struct {
 	Block bool
 	// Bypass: deny ở stop vượt trần MaxStopDenies.
 	Bypass bool
-	// Reason giải thích khi không thực thi: "unless", "unsupported", "once", "bypass".
+	// Reason giải thích khi không thực thi: "unless", "unsupported", "once", "bypass", "truncated".
 	Reason string
 }
 
@@ -90,6 +90,10 @@ func Evaluate(gs []Component, ev Event, st *State, caps Caps) []Decision {
 			continue
 		}
 		switch {
+		case ev.On == OnStop && st.Truncated:
+			// Trạng thái phiên quá lớn nên không đếm được số lần đã chặn: không chặn nữa
+			// (Bint không bao giờ nhốt agent).
+			d.Reason = "truncated"
 		case ev.On == OnStop && d.Action == ActRemind:
 			if ev.StopHookActive || st.StopBlocks[g.ID] >= 1 {
 				d.Reason = "once"

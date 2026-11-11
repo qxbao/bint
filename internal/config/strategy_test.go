@@ -71,20 +71,44 @@ func TestStrategyLocalStillWins(t *testing.T) {
 	}
 }
 
-func TestStrategyRejectsUnknownKeysAndScopes(t *testing.T) {
+func TestStrategyBrokenVerifiedIsIgnoredWithProblem(t *testing.T) {
 	cases := map[string]string{
 		"khoá lạ trong context": "status: verified\nid: strategy\nscope: global\ncontext:\n  retrieval:\n    lexical: false\n",
 		"khoá lạ ở gốc":         "status: verified\nid: strategy\nscope: global\nbogus: 1\ncontext:\n  max_tokens: 5\n",
 		"khoá lạ trong lessons": "status: verified\nid: strategy\nscope: global\ncontext:\n  lessons:\n    k: 1\n",
 		"scope riêng":           "status: verified\nid: strategy\nscope: domain:src/**\ncontext:\n  max_tokens: 5\n",
 		"giá trị không hợp lệ":  "status: verified\nid: strategy\nscope: global\ncontext:\n  max_tokens: 0\n",
+		"cú pháp hỏng":          "status: verified\nid: [strategy\n",
 	}
+	def := Default()
 	for name, body := range cases {
 		root := strategyRepo(t, body)
-		if _, _, err := Load(root, true); err == nil {
-			t.Errorf("%s: phải báo lỗi", name)
-		} else if !strings.Contains(err.Error(), "strategy.yml") && !strings.Contains(err.Error(), "max_tokens") {
-			t.Errorf("%s: lỗi không nêu nguồn: %v", name, err)
+		cfg, src, err := Load(root, true)
+		if err != nil {
+			t.Errorf("%s: strategy hỏng không được làm hỏng Load: %v", name, err)
+			continue
+		}
+		if src.Strategy != "" || src.StrategyProblem == "" || !strings.Contains(src.StrategyProblem, "strategy.yml") {
+			t.Errorf("%s: phải bỏ qua và nêu lý do: %+v", name, src)
+		}
+		if cfg.Context.MaxTokens != def.Context.MaxTokens {
+			t.Errorf("%s: tệp hỏng không được áp một phần: %+v", name, cfg.Context)
+		}
+	}
+}
+
+func TestStrategyBrokenNotVerifiedDoesNotFailLoad(t *testing.T) {
+	// Candidate/deprecated hỏng (do người hoặc agent ghi) cũng không được làm hỏng mọi lệnh bint.
+	for _, body := range []string{
+		"status: candidate\nbogus: 1\ncontext:\n  nope: 2\n",
+		"status: candidate\nid: [strategy\n",
+		"status: deprecated\nscope: domain:x\ncontext:\n  max_tokens: 0\n",
+		"\tkhông phải yaml: [\n",
+	} {
+		root := strategyRepo(t, body)
+		_, src, err := Load(root, true)
+		if err != nil || src.Strategy != "" {
+			t.Errorf("%q: err=%v src=%+v", body, err, src)
 		}
 	}
 }

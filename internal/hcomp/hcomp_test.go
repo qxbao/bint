@@ -440,3 +440,67 @@ func TestSessionStateConcurrentAppend(t *testing.T) {
 		t.Fatal("thiếu tệp = rỗng")
 	}
 }
+
+// Candidate trùng id với bản dựng sẵn không được làm mất bản dựng sẵn ở ModeOn (nó chưa có
+// hiệu lực); ModeAll thì thay thế; verified luôn thay; deprecated luôn tắt.
+func TestSelectCandidateDoesNotShadowBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "guidance/bint-mcp-tools.md", "---\n"+comp("bint-mcp-tools", "candidate")+"---\nbản candidate\n")
+	lib := LoadDir(dir)
+	bodyOf := func(m Mode) string {
+		var out []string
+		for _, c := range lib.Select(m).Guidance() {
+			out = append(out, c.ID+":"+strings.Fields(c.Body)[0])
+		}
+		return strings.Join(out, ",")
+	}
+	if got := bodyOf(ModeOn); got != "bint-mcp-tools:##" {
+		t.Errorf("on: candidate trùng id phải để nguyên bản dựng sẵn: %s", got)
+	}
+	if got := lib.Select(ModeOn).RenderGuidance(RenderOpts{MCP: true}); got != oldBintToolsNote {
+		t.Errorf("on: mất ghi chú MCP: %q", got)
+	}
+	if got := bodyOf(ModeAll); got != "bint-mcp-tools:bản" {
+		t.Errorf("all: candidate thay bản dựng sẵn: %s", got)
+	}
+	write(t, dir, "guidance/bint-mcp-tools.md", "---\n"+comp("bint-mcp-tools", "verified")+"---\nbản verified\n")
+	lib = LoadDir(dir)
+	if got := bodyOf(ModeOn); got != "bint-mcp-tools:bản" {
+		t.Errorf("verified thay bản dựng sẵn: %s", got)
+	}
+}
+
+// Tệp trạng thái vượt trần: đọc phần đuôi, đánh dấu Truncated, và guardrail deny ở stop không
+// chặn nữa (không đếm được số lần đã chặn → sẽ nhốt agent).
+func TestReadStateOverCapReadsTailAndStopDoesNotBlock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	// Phần đầu: một stop_block đã ghi, rồi lấp đầy quá trần bằng bản ghi lệnh.
+	recs := []Record{{T: RecStopBlock, ID: "g"}}
+	big := strings.Repeat("x", 400)
+	for i := 0; i < maxStateBytes/400+10; i++ {
+		recs = append(recs, Record{T: RecCmd, C: big})
+	}
+	recs = append(recs, Record{T: RecEdit, P: "src/a.go"})
+	if err := Append(path, recs...); err != nil {
+		t.Fatal(err)
+	}
+	st := ReadState(path)
+	if !st.Truncated {
+		t.Fatal("tệp vượt trần phải đánh dấu Truncated")
+	}
+	if len(st.EditedPaths()) != 1 || st.EditedPaths()[0] != "src/a.go" {
+		t.Fatalf("bản ghi cuối (ở đuôi) phải được đọc: %v", st.EditedPaths())
+	}
+	g := gr("g", OnStop, When{Edited: "src/**"}, Unless{Ran: RanTest}, ActDeny)
+	ds := Evaluate([]Component{g}, Event{On: OnStop}, st, Caps{Deny: true, Remind: true})
+	if len(ds) != 1 || ds[0].Block || ds[0].Fired || ds[0].Reason != "truncated" {
+		t.Fatalf("Truncated: không được chặn kết thúc: %+v", ds)
+	}
+	// Đối chứng: tệp nhỏ vẫn chặn.
+	small := filepath.Join(t.TempDir(), "s.jsonl")
+	Append(small, Record{T: RecEdit, P: "src/a.go"})
+	ds = Evaluate([]Component{g}, Event{On: OnStop}, ReadState(small), Caps{Deny: true, Remind: true})
+	if len(ds) != 1 || !ds[0].Block {
+		t.Fatalf("tệp nhỏ phải chặn: %+v", ds)
+	}
+}

@@ -38,6 +38,9 @@ type EvalConfig struct {
 	TestCommands []string `json:"test_commands,omitempty"`
 	// NoMCP: kênh MCP của nhánh tắt (guidance có requires: [mcp] không áp dụng).
 	NoMCP bool `json:"no_mcp,omitempty"`
+	// NoPathHook: kênh chèn tri thức theo đường dẫn của nhánh tắt. Hook vẫn có thể chạy ở Edit
+	// (chỉ để chạy guardrail) nhưng không được chèn tri thức theo đường dẫn.
+	NoPathHook bool `json:"no_path_hook,omitempty"`
 }
 
 // LoadEvalConfig đọc tệp cấu hình.

@@ -40,53 +40,72 @@ type strategyDoc struct {
 }
 
 // mergeStrategy ghi đè tập con context.* bằng strategy.yml NẾU tệp ở trạng thái verified.
-// Tệp candidate/deprecated không có hiệu lực. Khoá lạ trong tệp là lỗi. Trả true khi đã áp.
-func mergeStrategy(cfg *Config, root string) (bool, error) {
+// Tệp candidate/deprecated không có hiệu lực kể cả khi nội dung hỏng. Tệp hỏng (cú pháp, khoá
+// lạ, phạm vi khác global, giá trị không hợp lệ) KHÔNG làm hỏng config.Load — nếu không, một
+// tệp do agent ghi sẽ làm mọi lệnh và hook của Bint lỗi: nó bị bỏ qua và lý do trả về ở
+// problem (giống hcomp.LoadDir: tệp hỏng "không có hiệu lực"). Chỉ lỗi đọc đĩa mới là lỗi.
+func mergeStrategy(cfg *Config, root string) (applied bool, problem string, err error) {
 	path := StrategyPath(root)
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
+		return false, "", nil
 	}
 	if err != nil {
-		return false, err
+		return false, "", err
+	}
+	// Đọc lỏng trước để biết trạng thái: chỉ tệp verified mới bị kiểm nghiêm.
+	var head struct {
+		Status string `yaml:"status"`
+	}
+	if err := yaml.Unmarshal(data, &head); err != nil {
+		return false, fmt.Sprintf("%s: %v", path, err), nil // không biết trạng thái: không có hiệu lực
+	}
+	if head.Status != "verified" {
+		return false, "", nil
 	}
 	var d strategyDoc
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&d); err != nil && !errors.Is(err, io.EOF) {
-		return false, fmt.Errorf("%s: %w", path, err)
-	}
-	if d.Status != "verified" {
-		return false, nil
+		return false, fmt.Sprintf("%s: %v", path, err), nil
 	}
 	if d.Scope != "global" {
-		return false, fmt.Errorf("%s: strategy chỉ có phạm vi global, nhận %q", path, d.Scope)
+		return false, fmt.Sprintf("%s: strategy chỉ có phạm vi global, nhận %q", path, d.Scope), nil
 	}
 	c := d.Context
 	if c == nil {
-		return false, nil
+		return false, "", nil
 	}
+	next := *cfg
 	if c.MaxTokens != nil {
-		cfg.Context.MaxTokens = *c.MaxTokens
+		next.Context.MaxTokens = *c.MaxTokens
 	}
 	if c.PathMaxItems != nil {
-		cfg.Context.PathMaxItems = *c.PathMaxItems
+		next.Context.PathMaxItems = *c.PathMaxItems
 	}
 	if l := c.Lessons; l != nil {
 		if l.GlobalK != nil {
-			cfg.Context.Lessons.GlobalK = *l.GlobalK
+			next.Context.Lessons.GlobalK = *l.GlobalK
 		}
 		if l.MaxTokens != nil {
-			cfg.Context.Lessons.MaxTokens = *l.MaxTokens
+			next.Context.Lessons.MaxTokens = *l.MaxTokens
 		}
 	}
 	if i := c.Interfaces; i != nil {
 		if i.MCP != nil {
-			cfg.Context.Interfaces.MCP = *i.MCP
+			next.Context.Interfaces.MCP = *i.MCP
 		}
 		if i.PathHooks != nil {
-			cfg.Context.Interfaces.PathHooks = *i.PathHooks
+			next.Context.Interfaces.PathHooks = *i.PathHooks
 		}
 	}
-	return true, nil
+	// Giá trị không hợp lệ: bỏ cả tệp thay vì để Validate cuối làm hỏng cấu hình (chỉ khi
+	// cấu hình nền hợp lệ, để không che lỗi của chính config.yml).
+	if cfg.Validate() == nil {
+		if verr := next.Validate(); verr != nil {
+			return false, fmt.Sprintf("%s: %v", path, verr), nil
+		}
+	}
+	*cfg = next
+	return true, "", nil
 }

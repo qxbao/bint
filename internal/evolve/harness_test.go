@@ -227,6 +227,35 @@ func TestHarnessOpportunitiesFromScan(t *testing.T) {
 	}
 }
 
+// [.4] Lượt của biến thể tắt MCP có chủ đích (`bint@mcp=off`) không phải dấu hiệu guidance MCP kém.
+func TestMCPUnusedIgnoresMCPOffVariant(t *testing.T) {
+	mk := func(arm string) Failure {
+		var f Failure
+		f.Source, f.Split, f.Arm, f.Measured = "eval", eval.SplitValidation, arm, true
+		f.Trace.Available = true
+		return f
+	}
+	if !mcpUnused(mk(eval.ArmBint)) || !mcpUnused(mk("bint@harness=all")) {
+		t.Fatal("nhánh bint có MCP mà không gọi phải tính")
+	}
+	for _, arm := range []string{"bint@mcp=off", "bint@mcp=off+harness=on", "bint@path=off+mcp=off"} {
+		if mcpUnused(mk(arm)) {
+			t.Errorf("%s: MCP tắt có chủ đích không được tính là mcp_unused", arm)
+		}
+	}
+	var fails []Failure
+	for i, id := range []string{"a", "b", "c"} {
+		f := mk("bint@mcp=off")
+		f.ID, f.Unit = "ea-"+id, "case-"+string(rune('1'+i))
+		fails = append(fails, f)
+	}
+	for _, o := range harnessOpps(fails, 1, 1, nil, nil) {
+		if o.Key == harnessMCPUnusedKey {
+			t.Fatalf("lượt mcp=off sinh cơ hội mcp_unused: %+v", o)
+		}
+	}
+}
+
 const harnessReplyTwoKinds = `Đề xuất:
 {"proposals":[
  {"op":"create","kind":"guardrail","id":"test-before-stop","reason":"agent kết thúc mà chưa chạy test",

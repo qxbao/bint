@@ -322,7 +322,9 @@ sang `sonnet` (`DefaultRoleModels`, mẫu `Render`, README, `.bint/config.yml`);
   `ask`/`deny`, `remind` bị bỏ, không có `Stop` (sự kiện không có thì không giả lập, mục 13.2). Guidance dựng sẵn `bint-mcp-tools`
   thay `eval.BintToolsNote` (đúng từng byte, giữ bản gốc trong kiểm thử); `AgentsBlock` nối guidance chung `verified` từ tệp trong
   repo; guidance riêng chèn một lần mỗi phiên qua hook theo đường dẫn. `strategy.yml` (chỉ `verified`) ghi đè tập con `context.*` ở
-  `config.Load`, nằm giữa lớp dự án và `local.yml`, từ chối khoá lạ. Lệnh: `bint harness component list|show|add|approve|deprecate`
+  `config.Load`, nằm giữa lớp dự án và `local.yml`; tệp không verified bị bỏ qua dù nội dung hỏng, tệp verified hỏng (khoá lạ, scope khác global, giá trị
+  không hợp lệ, cú pháp) cũng bị bỏ qua và lý do nằm ở `Sources.StrategyProblem` (không làm hỏng `config.Load` của mọi lệnh và hook).
+  `Config.BaseContext()` giữ `context.*` chưa trộn strategy: eval dựng cấu hình của lượt từ đó và chỉ áp strategy của tập nhánh. Lệnh: `bint harness component list|show|add|approve|deprecate`
   (`approve`/`deprecate` qua `requireHuman`; `add` luôn tạo candidate) và `bint harness render`.
 - **H2 — đo được (`internal/eval`):** `Variant.Harness` cấp tập thành phần riêng cho base/candidate; `prepareArm` ghi bản dựng ra
   `logDir/harness` (ngoài thư mục làm việc), chép script `verified` vào `.bint/harness/scripts` của thư mục làm việc, thêm hook
@@ -351,7 +353,7 @@ sang `sonnet` (`DefaultRoleModels`, mẫu `Render`, README, `.bint/config.yml`);
   `internal/eval` (byte-equal ghi chú MCP, `harness=off` = nhánh cũ, base khác candidate, kiểm rò rỉ, hook eval, chạy thật base/candidate
   ghi số liệu); `internal/evolve` (validate/rủi ro, cơ hội, đề xuất với agent giả — đầu vào không có dấu của tập test, thư mục rỗng —, áp dụng
   rồi quay lui, `SelectHarnessCases`, `ComposePair`, `AreaEffect`); `internal/cli` (e2e `harness component`, đề xuất quy trình qua CLI, cycle
-  với cặp chung/riêng); `internal/config` (strategy verified ghi đè, candidate/deprecated không, khoá lạ lỗi).
+  với cặp chung/riêng); `internal/config` (strategy verified ghi đè, candidate/deprecated không, tệp hỏng bị bỏ qua kèm lý do).
 
 Quyết định lệch văn bản kế hoạch (cũng ghi trong phiếu tác vụ):
 - Lệnh thành phần là `bint harness component …` và `bint harness render`, vì `bint harness list|show <tên>` đã là bảng adapter.
@@ -373,6 +375,14 @@ Giới hạn đã biết:
 - Thành phần trong repository được đọc từ cây làm việc hiện tại (không từ commit gốc của tác vụ) và kiểm rò rỉ bằng chuỗi/định danh như skill:
   chặn nội dung nhắc lại đáp án nguyên văn, không chặn diễn đạt lại ý của lời giải.
 - Ghép `bint@harness=all` đo cả tập candidate cùng lúc; muốn tách tác động từng thành phần phải thêm từng cái.
+- `when.edited` (và mốc "sau lần sửa cuối" của `unless.ran`) chỉ tính tệp sửa bằng công cụ sửa tệp của harness (Edit/Write/MultiEdit/
+  NotebookEdit). Tệp đổi qua lệnh shell (`sed -i`, script sinh mã) không vào trạng thái phiên: guardrail test-before-stop không kích hoạt
+  nếu agent chỉ sửa bằng shell. Hook của lượt eval không chụp working tree quanh lệnh shell (chỉ hook phiên thật có ảnh chụp để ghi
+  `file.modified`), nên chưa có cách ghi nhận này ở nhánh đo; không giả lập sự kiện mà harness không cung cấp (mục 13.2).
+- Trạng thái phiên của guardrail đọc tối đa 4 MB cuối của tệp JSONL; quá trần thì `State.Truncated` và guardrail `deny`/`remind` ở `stop`
+  nhường (không chặn nữa, lý do `truncated`) vì không còn đếm được số lần đã chặn.
+- Cơ hội `harness:mcp_unused` loại lượt của biến thể `mcp=off`, nhưng chưa loại được lượt của nhánh `bint` mà strategy của repository tắt
+  `interfaces.mcp` (vết lượt không ghi tập thành phần đã dùng).
 - Đề xuất quy trình chưa hỗ trợ `evolve evaluate --regression`; chỉ `delivery bint`.
 - Cặp chung/riêng chỉ được Compose khi cả hai nửa cùng đạt trong cùng một vòng; nửa duy nhất đạt giữ nguyên, nửa còn chờ bị bác bỏ khi nửa kia được áp dụng.
 

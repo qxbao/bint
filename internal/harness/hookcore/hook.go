@@ -725,6 +725,14 @@ func handleEval(hi Input, d Dialect, cwd, cfgPath string) (Result, error) {
 	if g != nil || len(hset.Guidance()) > 0 {
 		domText = domainGuidanceText(hset, hcomp.SessionPath(logDir, d.Harness, hi.SessionID), rs, hcomp.RenderOpts{MCP: !ec.NoMCP})
 	}
+	if ec.NoPathHook {
+		// Kênh đường dẫn đã tắt (path=off hoặc strategy): hook chỉ còn chạy vì guardrail, không
+		// chèn tri thức theo đường dẫn và không ghi ChannelHookPath (nếu không, số đo bị nhiễm kênh).
+		if out := gout.merge(d, domText, ""); out != "" {
+			return Result{Output: out}, nil
+		}
+		return Result{Skipped: "kênh đường dẫn đã tắt"}, nil
+	}
 	mem := ctxengine.NewSessionMemory(logDir, d.Harness, hi.SessionID)
 	pack, ok := injectPaths(3*time.Second, func() (ctxengine.Pack, error) {
 		items, _, err := knowledge.Store{Dir: ec.ItemsDir}.List()

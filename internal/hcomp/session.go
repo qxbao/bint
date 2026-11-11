@@ -32,7 +32,8 @@ type Record struct {
 	A    string `json:"a,omitempty"`
 }
 
-// maxStateBytes giới hạn lượng trạng thái đọc lại (hook phải nhanh).
+// maxStateBytes giới hạn lượng trạng thái đọc lại (hook phải nhanh). Tệp chỉ nối thêm nên khi
+// vượt trần ta đọc phần ĐUÔI (bản ghi mới nhất) và đánh dấu State.Truncated.
 const maxStateBytes = 4 << 20
 
 // SessionPath trả về tệp trạng thái của một phiên trong thư mục dir (runtime của phiên
@@ -92,7 +93,10 @@ type State struct {
 	Bypassed   map[string]int
 	Guidance   map[string]bool
 	Eligible   map[string]bool
-	seq        int
+	// Truncated: tệp vượt maxStateBytes nên chỉ đọc phần đuôi; số đếm (StopBlocks...) không còn
+	// đáng tin. Guardrail chặn kết thúc phải nhường (Evaluate) để không nhốt agent.
+	Truncated bool
+	seq       int
 }
 
 func newState() *State {
@@ -109,10 +113,19 @@ func ReadState(path string) *State {
 		return st
 	}
 	defer f.Close()
-	r := bufio.NewReader(io.LimitReader(f, maxStateBytes))
+	skipFirst := false
+	if fi, err := f.Stat(); err == nil && fi.Size() > maxStateBytes {
+		if _, err := f.Seek(fi.Size()-maxStateBytes, io.SeekStart); err != nil {
+			return st
+		}
+		st.Truncated, skipFirst = true, true
+	}
+	r := bufio.NewReader(f)
 	for {
 		line, err := r.ReadBytes('\n')
-		if len(line) > 0 {
+		if skipFirst { // dòng đầu của đuôi có thể bị cắt giữa chừng
+			skipFirst = false
+		} else if len(line) > 0 {
 			var rec Record
 			if json.Unmarshal(line, &rec) == nil {
 				st.Apply(rec)
