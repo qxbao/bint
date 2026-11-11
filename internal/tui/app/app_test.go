@@ -110,15 +110,19 @@ func TestTabNavigation(t *testing.T) {
 	if m.Tab() != 6 {
 		t.Fatalf("[ từ tab đầu phải về tab cuối: %d", m.Tab())
 	}
-	press(t, m, "tab")
-	if m.Tab() != 0 {
-		t.Fatalf("tab: %d", m.Tab())
+	press(t, m, "tab") // ở Hệ thống Tab đổi khung (như Tri thức), không đổi tab
+	if m.Tab() != 6 {
+		t.Fatalf("Tab ở Hệ thống đổi khung, không đổi tab: %d", m.Tab())
 	}
-	// Tab chưa có màn hình thật nói rõ giai đoạn và lệnh CLI tương đương; Lượt chạy, Đánh giá và Tiến hoá đã có màn thật.
+	press(t, m, "]")
+	if m.Tab() != 0 {
+		t.Fatalf("]: %d", m.Tab())
+	}
+	// Hệ thống là màn thật (giai đoạn 5a), không còn trang giữ chỗ.
 	press(t, m, "7")
 	out := plain(m.Render())
-	if !strings.Contains(out, "giai đoạn 5") || !strings.Contains(out, "bint doctor") {
-		t.Fatalf("placeholder Hệ thống:\n%s", out)
+	if strings.Contains(out, "giai đoạn 5") || !strings.Contains(out, "Lớp nguồn") || !strings.Contains(out, "Cấu hình") {
+		t.Fatalf("màn Hệ thống:\n%s", out)
 	}
 	press(t, m, "5")
 	if out := plain(m.Render()); strings.Contains(out, "giai đoạn 4") || !strings.Contains(out, "Ứng viên (2)") {

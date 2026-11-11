@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -28,8 +29,8 @@ import (
 	"bint/internal/tui/screens/initplaceholder"
 	knscreen "bint/internal/tui/screens/knowledge"
 	"bint/internal/tui/screens/overview"
-	"bint/internal/tui/screens/placeholder"
 	rnscreen "bint/internal/tui/screens/runs"
+	syscreen "bint/internal/tui/screens/system"
 	tkscreen "bint/internal/tui/screens/tasks"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
@@ -77,6 +78,10 @@ type Options struct {
 	// EvolveLoader/EvolveDetailer thay được trong kiểm thử; nil = nạp thật.
 	EvolveLoader   evscreen.Loader
 	EvolveDetailer evscreen.Detailer
+	// SystemLoad thay các hàm nạp dữ liệu của màn Hệ thống (trường nil = nạp thật); thay được trong kiểm thử.
+	SystemLoad syscreen.Loaders
+	// Getenv thay os.Getenv khi chọn ngôn ngữ sau khi lưu ui.language = auto; nil = os.Getenv.
+	Getenv func(string) string
 	// Agent thay cách dựng agent của từng bước workflow (nil = harness theo cấu hình); tiêm agent giả trong kiểm thử.
 	AgentFactory workflow.AgentFactory
 	// CycleRunner thay cách chạy các bước của `evolve cycle` (nil = trong tiến trình); tiêm runner giả trong kiểm thử.
@@ -109,6 +114,7 @@ type Model struct {
 	rn  *rnscreen.Model
 	ev  *evscreen.Model
 	el  *elscreen.Model
+	sy  *syscreen.Model
 	// screens là các màn hình chuyên biệt theo tab (giao diện chung ui.Screen); mô hình gốc không rẽ nhánh theo màn.
 	screens map[actions.Screen]ui.Screen
 
@@ -168,7 +174,9 @@ func New(ctx context.Context, opts Options) *Model {
 		Gate: m.gate, Jobs: m.jobs})
 	m.el = elscreen.New(elscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.EvalLoader, Detailer: opts.EvalDetailer,
 		Reporter: opts.EvalReporter, Gate: m.gate, Jobs: m.jobs})
-	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk, actions.Runs: m.rn, actions.Eval: m.el, actions.Evolve: m.ev}
+	m.sy = syscreen.New(syscreen.Options{Dir: opts.Dir, Version: opts.Version, ReadOnly: opts.ReadOnly, Load: opts.SystemLoad, Gate: m.gate})
+	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk, actions.Runs: m.rn, actions.Eval: m.el, actions.Evolve: m.ev,
+		actions.System: m.sy}
 	for _, sc := range m.screens {
 		sc.SetEnv(m.th, m.cat)
 	}
@@ -321,12 +329,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.el.Focus(msg.EvalCaseID), m.startTick())
 		case msg.Screen == actions.Evolve && msg.ProposalID != "":
 			return m, tea.Batch(m.ev.Focus(msg.ProposalID), m.startTick())
+		case msg.Screen == actions.System && msg.ComponentID != "":
+			return m, tea.Batch(m.sy.Focus(msg.ComponentKind, msg.ComponentID), m.startTick())
+		case msg.Screen == actions.System && msg.SystemTab != "":
+			return m, tea.Batch(m.sy.OpenTab(msg.SystemTab), m.startTick())
 		}
 		return m, m.ensure()
 	case actions.Targeted:
 		if sc := m.screens[msg.Target()]; sc != nil {
 			return m, tea.Batch(sc.Update(msg), m.tickIfBusy())
 		}
+	case actions.LanguageMsg:
+		m.setLanguage(msg.Lang)
 	case actions.DeniedMsg:
 		return m, tea.Batch(m.toScreenOf(msg.ID, msg), m.tickIfBusy())
 	case actions.RequestMsg:
@@ -613,9 +627,29 @@ func (m *Model) cycleLanguage() {
 	if m.cat.Lang() == i18n.Vietnamese {
 		next = i18n.English
 	}
-	m.cat = i18n.MustLoad(next)
+	m.applyLanguage(next)
+}
+
+// applyLanguage nạp danh mục chuỗi của lang cho mọi màn hình.
+func (m *Model) applyLanguage(lang string) {
+	m.cat = i18n.MustLoad(lang)
 	for _, sc := range m.screens {
 		sc.SetEnv(m.th, m.cat)
+	}
+}
+
+// setLanguage đổi ngôn ngữ ngay trong phiên sau khi ghi ui.language: vi/en dùng thẳng lựa chọn của người dùng,
+// auto thì chọn lại theo BINT_LANG, LC_ALL/LANG (mục 7.1).
+func (m *Model) setLanguage(lang string) {
+	if lang == "" || lang == "auto" {
+		getenv := m.opts.Getenv
+		if getenv == nil {
+			getenv = os.Getenv
+		}
+		lang = i18n.Resolve("", getenv("BINT_LANG"), "auto", getenv("LC_ALL"), getenv("LC_MESSAGES"), getenv("LANG"))
+	}
+	if i18n.Supported(lang) {
+		m.applyLanguage(lang)
 	}
 }
 
@@ -787,10 +821,10 @@ func (m *Model) screenBody(env ui.Env) string {
 		return ini.View(env)
 	case actions.Overview:
 		return m.ov.View(env)
-	case actions.Knowledge, actions.Tasks, actions.Runs, actions.Eval, actions.Evolve:
+	case actions.Knowledge, actions.Tasks, actions.Runs, actions.Eval, actions.Evolve, actions.System:
 		return m.screens[s].View(env)
 	default:
-		return placeholder.View(env, s, m.ov.Data.ForScreen(s))
+		return ""
 	}
 }
 

@@ -31,10 +31,10 @@ const CurrentPhase = 4
 var Data = Coverage{
 	Excluded: map[string]string{
 		"docs":             "lệnh dự kiến (P3 của kế hoạch Bint), chưa được triển khai nên chưa có gì để hiển thị",
-		"hook antigravity": "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (giai đoạn 5)",
-		"hook claude":      "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (giai đoạn 5)",
-		"hook codex":       "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (giai đoạn 5)",
-		"mcp serve":        "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái hiện ở Hệ thống › Harness (giai đoạn 5)",
+		"hook antigravity": "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+		"hook claude":      "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+		"hook codex":       "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+		"mcp serve":        "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái đăng ký MCP hiện ở Hệ thống › Harness (HarnessRuntime), danh sách công cụ ở Hệ thống › MCP",
 		"tui":              "chính là điểm vào của giao diện terminal",
 	},
 	ExcludedFlags: map[string]string{
@@ -47,25 +47,7 @@ var Data = Coverage{
 		"task new --file":           "TUI soạn mô tả trong ô nhiều dòng thay vì đọc từ tệp",
 	},
 	Pending: map[string]int{
-		"harness component add":       5,
-		"harness component approve":   5,
-		"harness component deprecate": 5,
-		"harness component list":      5,
-		"harness component show":      5,
-		"harness list":                5,
-		"harness render":              5,
-		"harness show":                5,
-		"index rebuild":               5,
-		"mcp tools":                   5,
-		"skill check":                 5,
-		"skill diff":                  5,
-		"skill list":                  5,
-		"skill overlay":               5,
-		"skill regress":               5,
-		"skill show":                  5,
-		"skill versions":              5,
-		"sync":                        5,
-		"update":                      5,
+		"update": 5,
 	},
 	PendingFlags: map[string]int{
 		"init --agents-md":   5,
@@ -80,5 +62,5 @@ var Data = Coverage{
 		"init --no-skills":   5,
 		"init --update":      5,
 	},
-	PendingCeiling: 30,
+	PendingCeiling: 12,
 }

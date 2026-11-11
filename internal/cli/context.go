@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/ctxengine"
 	"bint/internal/kindex"
 )
@@ -94,19 +95,11 @@ func newIndexCmd(stdio IO) *cobra.Command {
 tin. Bình thường không cần chạy tay — mọi lệnh truy xuất tự đồng bộ khi tệp đổi.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			k, err := openKnowledge(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			if !k.Paths.Initialized() {
-				return app.ErrNotInitialized
-			}
-			s, err := k.OpenStore(cmd.Context())
-			if err != nil {
-				return err
-			}
-			defer s.Close()
-			res, err := kindex.Rebuild(cmd.Context(), s.DB, k.Store)
+			res, err := app.RebuildIndex(cmd.Context(), dir, app.IndexRebuildDefaults(config.Default()))
 			if err != nil {
 				return err
 			}

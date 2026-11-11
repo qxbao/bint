@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────┐
+│  Config Harness Components  Skills  Index MCP Language Doctor                │
+│ ┌─│Skills (3)│─────────────────────────────────────────────────────────────┐ │
+│ │ ▸ core  b-do                                     aaaa1111  published     │ │
+│ │   core  b-feat                                   bbbb2222  differs       │ │
+│ │   evol… api-guide                                v2        missing       │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter content  s sync  o overlay  d diff  c check ──────────────────────┘ │
+└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘

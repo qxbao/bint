@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
+│  ⟦Config~~~⟧  ⟦Harness~~~⟧  ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ … │
+│ ┌─│⟦Details~~~⟧ · claude│──────────────────────────────────────────1-16/36─┐ │
+│ │ Claude Code (claude)                                                     │ │
+│ │ ⟦Level~~⟧           3 — ⟦+ programmatic execution~~~~~~~~~~⟧             │ │
+│ │ ⟦Binary~~~⟧         /usr/local/bin/claude                                │ │
+│ │ ⟦Version~~~⟧        - (⟦Verified~~~~⟧ Claude Code 2.x)                   │ │
+│ │ ⟦Enabled in config… ⟦yes~~⟧                                              │ │
+│ │ ⟦Skill dir~~~~⟧     .claude/skills                                       │ │
+│ │                                                                          │ │
+│ │ ⟦Hooks and MCP~~~~~~⟧                                                    │ │
+│ │   ✓ ⟦Hooks — installed scopes: project~~~~~~~~~~~⟧                       │ │
+│ │       phạm vi project                                                    │ │
+│ │   ✓ ⟦Bint MCP server registered~~~~~~~~~~~⟧                              │ │
+│ │   ⟦Install/remove hooks and MCP: bint init --hooks / --mcp (phase 5b).~… │ │
+│ │                                                                          │ │
+│ │ ⟦Capabilities~~~~~⟧                                                      │ │
+│ │  ✓ ⟦Skill sync~~~~⟧ .claude/skills/<tên>/SKILL.md                        │ │
+│ │  ✓ ⟦Hidden skills / explicit invocation only~~~~~~~~~~~~~~~~⟧            │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

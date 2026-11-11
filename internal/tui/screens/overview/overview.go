@@ -48,11 +48,15 @@ type Inbox struct {
 	ProposalID string
 	// EvalCaseID: ứng viên đánh giá cần chọn ở màn Đánh giá (chỉ với Target = Eval và dòng của một ứng viên).
 	EvalCaseID string
-	// Commands là lệnh CLI xử lý từng việc của dòng (hiện ở trang giữ chỗ của tab chưa làm).
+	// ComponentID/ComponentKind: thành phần harness candidate cần mở ở màn Hệ thống (dòng của một thành phần).
+	ComponentID, ComponentKind string
+	// SystemTab: thẻ con của màn Hệ thống cần mở (vd. "doctor" cho dòng cảnh báo doctor).
+	SystemTab string
+	// Commands là lệnh CLI xử lý từng việc của dòng.
 	Commands []string
 }
 
-const maxTaskRows, maxProposalRows, maxEvalRows = 5, 5, 5
+const maxTaskRows, maxProposalRows, maxEvalRows, maxComponentRows = 5, 5, 5, 5
 
 // shortID rút ID dài thành 10 ký tự cuối (phần phân biệt của ULID); ID ngắn hơn giữ nguyên.
 func shortID(id string) string {
@@ -86,12 +90,14 @@ func (d Data) Inbox() []Inbox {
 		out = append(out, Inbox{Level: "info", Key: "overview.inbox.knowledge", Count: p.KnowledgeOther, Target: actions.Knowledge,
 			Filter: &knowledge.Filter{Statuses: pend, NoBatch: true}})
 	}
-	if n := len(p.Components); n > 0 {
-		in := Inbox{Level: "info", Key: "overview.inbox.components", Count: n, Target: actions.System}
-		for _, c := range p.Components {
-			in.Commands = append(in.Commands, "bint harness component approve "+c.ID)
+	for i, c := range p.Components {
+		if i == maxComponentRows {
+			out = append(out, Inbox{Level: "info", Key: "overview.inbox.components_more", Count: len(p.Components) - maxComponentRows, Target: actions.System,
+				SystemTab: "components", Commands: []string{"bint harness component list --status candidate"}})
+			break
 		}
-		out = append(out, in)
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.component", Detail: strings.TrimSpace(c.Kind + " " + c.ID), Target: actions.System,
+			ComponentID: c.ID, ComponentKind: c.Kind, Commands: []string{"bint harness component approve " + c.ID}})
 	}
 	for i, t := range p.BlockedTasks {
 		if i == maxTaskRows {
@@ -129,7 +135,7 @@ func (d Data) Inbox() []Inbox {
 			Commands: []string{"bint eval show " + id}})
 	}
 	for _, c := range p.Doctor {
-		in := Inbox{Level: "warn", Key: "overview.inbox.doctor_warn", Detail: c.Name + ": " + c.Detail, Target: actions.System, Commands: []string{"bint doctor"}}
+		in := Inbox{Level: "warn", Key: "overview.inbox.doctor_warn", Detail: c.Name + ": " + c.Detail, Target: actions.System, SystemTab: "doctor", Commands: []string{"bint doctor"}}
 		if c.Level == app.LevelFail {
 			in.Level, in.Key = "fail", "overview.inbox.doctor_fail"
 		}
@@ -141,17 +147,6 @@ func (d Data) Inbox() []Inbox {
 	for _, e := range p.Errors {
 		out = append(out, Inbox{Level: "fail", Key: "overview.inbox.source_error", Detail: e.Source + ": " + e.Err.Error(),
 			Target: sourceTarget[e.Source], Commands: []string{"bint doctor"}})
-	}
-	return out
-}
-
-// ForScreen trả các dòng hộp thư của tab s (trang giữ chỗ liệt kê việc đang chờ ở tab chưa làm).
-func (d Data) ForScreen(s actions.Screen) []Inbox {
-	var out []Inbox
-	for _, in := range d.Inbox() {
-		if in.Target == s {
-			out = append(out, in)
-		}
 	}
 	return out
 }
@@ -216,6 +211,9 @@ type NavMsg struct {
 	TaskID     string
 	ProposalID string
 	EvalCaseID string
+	// ComponentID/ComponentKind là thành phần cần chọn ở màn Hệ thống; SystemTab là thẻ con cần mở.
+	ComponentID, ComponentKind string
+	SystemTab                  string
 }
 
 // Model là trạng thái màn Tổng quan.
@@ -249,7 +247,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "enter":
 			if in := m.Data.Inbox(); m.Cursor < len(in) {
-				nav := NavMsg{Screen: in[m.Cursor].Target, Filter: in[m.Cursor].Filter, TaskID: in[m.Cursor].TaskID, ProposalID: in[m.Cursor].ProposalID, EvalCaseID: in[m.Cursor].EvalCaseID}
+				cur := in[m.Cursor]
+				nav := NavMsg{Screen: cur.Target, Filter: cur.Filter, TaskID: cur.TaskID, ProposalID: cur.ProposalID, EvalCaseID: cur.EvalCaseID,
+					ComponentID: cur.ComponentID, ComponentKind: cur.ComponentKind, SystemTab: cur.SystemTab}
 				return m, func() tea.Msg { return nav }
 			}
 		}

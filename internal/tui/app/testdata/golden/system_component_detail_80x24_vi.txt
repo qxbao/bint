@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
+│  Cấu hình Harness  Thành phần  Skill Chỉ mục MCP Ngôn ngữ Doctor             │
+│ ┌─│Chi tiết · fmt-check│───────────────────────────────────────────1-16/21─┐ │
+│ │ Loại        script                                                       │ │
+│ │ ID          fmt-check                                                    │ │
+│ │ Phạm vi     global                                                       │ │
+│ │ Trạng thái  ◌ candidate                                                  │ │
+│ │ Nguồn       agent                                                        │ │
+│ │ Phiên bản   1                                                            │ │
+│ │ Rủi ro      high                                                         │ │
+│ │ Duyệt bởi   -                                                            │ │
+│ │ Tệp         .bint/harness/scripts/fmt-check.yml                          │ │
+│ │                                                                          │ │
+│ │ Nội dung                                                                 │ │
+│ │ id: fmt-check                                                            │ │
+│ │ description: Kiểm tra định dạng                                          │ │
+│ │                                                                          │ │
+│ │ scripts/fmt-check.sh                                                     │ │
+│ │ Script là mã thực thi: Bint không bao giờ tự chạy nó.                    │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

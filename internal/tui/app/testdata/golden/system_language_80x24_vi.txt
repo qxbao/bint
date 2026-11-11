@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
+│  Cấu hình Harness Thành phần Skill Chỉ mục MCP  Ngôn ngữ  Doctor             │
+│ ┌─│Ngôn ngữ giao diện│─────────────────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │ Đang dùng trong phiên       vi                                           │ │
+│ │ ui.language trong cấu hình  auto                                         │ │
+│ │                                                                          │ │
+│ │  Thứ tự chọn: --lang > BINT_LANG > ui.language > LC_ALL/LANG > vi.       │ │
+│ │                                                                          │ │
+│ │ ▸ ✓ auto  theo BINT_LANG, LC_ALL/LANG; mặc định vi                       │ │
+│ │     vi    tiếng Việt                                                     │ │
+│ │     en    tiếng Anh                                                      │ │
+│ │                                                                          │ │
+│ │  Ghi vào .bint/local.yml (mặc định, chỉ máy này) hoặc .bint/config.yml   │ │
+│ │  (cả nhóm). Chỉ sửa đúng dòng ui.language, giữ nguyên mọi dòng và chú    │ │
+│ │  thích khác. Phím L chỉ đổi trong phiên.                                 │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter chọn  L chỉ phiên ────────────────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

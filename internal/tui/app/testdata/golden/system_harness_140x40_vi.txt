@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor                                                            │
+│ ┌─│Harness│──────────────────────────────────────────────────┐┌─│Chi tiết · claude│────────────────────────────────────────────1-32/35─┐ │
+│ │   HARNESS     BẬT  MÁY   PHIÊN BẢN ĐỐI CHIẾU  CẤP          ││ Claude Code (claude)                                                   │ │
+│ │ ▸ claude      có   có    -         Claude Co… 3            ││ Cấp                 3 — + thực thi theo chương trình                   │ │
+│ │   codex       -    -     -         codex-cli… 3            ││ Chương trình        /usr/local/bin/claude                              │ │
+│ │   antigravity -    -     -         agy 1.5.3  3            ││ Phiên bản           - (Đối chiếu Claude Code 2.x)                      │ │
+│ │                                                            ││ Bật trong cấu hình  có                                                 │ │
+│ │  Bảng khả năng                                             ││ Thư mục skill       .claude/skills                                     │ │
+│ │                                             cla… cod… ant… ││                                                                        │ │
+│ │   Đồng bộ skill                             ✓    ✓    ✓    ││ Hook và MCP                                                            │ │
+│ │   Ẩn skill / chỉ gọi tường minh             ✓    ~    ✗    ││   ✓ Hook — phạm vi đã cài: project                                     │ │
+│ │   MCP server của Bint                       ✓    ~    ✗    ││       phạm vi project                                                  │ │
+│ │   Hook ghi nhận sự kiện                     ✓    ~    ~    ││   ✓ MCP server của Bint đã đăng ký                                     │ │
+│ │   Chèn ngữ cảnh theo đường dẫn              ✓    ~    ✗    ││   Cài/gỡ hook và MCP: bint init --hooks / --mcp (giai đoạn 5b).        │ │
+│ │   Hỏi người khi sửa đường dẫn bảo vệ        ✓    ~    ✓    ││                                                                        │ │
+│ │   Guardrail quy trình                       ✓    ~    ~    ││ Bảng khả năng                                                          │ │
+│ │   Thực thi theo chương trình (bint run)     ✓    ✓    ✓    ││  ✓ Đồng bộ skill .claude/skills/<tên>/SKILL.md                         │ │
+│ │   Giữ bước chỉ đọc                          ✓    ~    ~    ││  ✓ Ẩn skill / chỉ gọi tường minh disable-model-invocation: chỉ chạy    │ │
+│ │   Báo chi phí (áp max_cost_usd)             ✓    ✗    ✗    ││     khi người gọi /b-…                                                 │ │
+│ │   Giới hạn số lượt (max_turns)              ✓    ✗    ✗    ││  ✓ MCP server của Bint .mcp.json cấp dự án (bint init --mcp)           │ │
+│ │   Ghi nhận skill được kích hoạt             ✓    ✗    ✗    ││  ✓ Hook ghi nhận sự kiện SessionStart, SessionEnd, PostToolUse,        │ │
+│ │   ✓ hỗ trợ  ~ một phần  ✗ không                            ││     PostToolUseFailure                                                 │ │
+│ │                                                            ││  ✓ Chèn ngữ cảnh theo đường dẫn PreToolUse trước Read/Edit/Write       │ │
+│ │                                                            ││     (additionalContext)                                                │ │
+│ │                                                            ││  ✓ Hỏi người khi sửa đường dẫn bảo vệ PreToolUse                       │ │
+│ │                                                            ││     permissionDecision=ask                                             │ │
+│ │                                                            ││  ✓ Guardrail quy trình pre_edit/pre_bash: remind (additionalContext),  │ │
+│ │                                                            ││     ask, deny; stop: Stop decision=block (remind một lần, deny tối đa  │ │
+│ │                                                            ││     3 lần)                                                             │ │
+│ │                                                            ││  ✓ Thực thi theo chương trình (bint run) claude -p --output-format     │ │
+│ │                                                            ││     json                                                               │ │
+│ │                                                            ││  ✓ Giữ bước chỉ đọc --disallowedTools Edit,Write,…; Bint kiểm tra cây  │ │
+│ │                                                            ││     làm việc sau bước                                                  │ │
+│ │                                                            ││  ✓ Báo chi phí (áp max_cost_usd) total_cost_usd; --max-budget-usd      │ │
+│ └─ V phiên bản  Enter mở ────────────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────────────────────────────────────────────────────────────────┘

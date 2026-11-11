@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────┐
+│  Config Harness Components Skills  Index  MCP Language Doctor                │
+│ ┌─│Knowledge index│────────────────────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │  The FTS5 index in SQLite is derived from .bint/knowledge/items:         │ │
+│ │  dropping and rebuilding loses nothing. You normally never need this —   │ │
+│ │  every retrieval syncs it when files change.                             │ │
+│ │ ┌─│Rebuild the index?│─────────────────────────────────────────────────┐ │ │
+│ │ │ Drops and rebuilds the FTS5 index from the knowledge files. No       │ │ │
+│ │ │ data is lost; broken files are reported.                             │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Rebuild   [Esc] Cancel                                       │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ b rebuild ──────────────────────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

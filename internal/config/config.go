@@ -543,13 +543,13 @@ var ErrNoProjectConfig = errors.New("chưa có .bint/config.yml (chạy `bint in
 // Nếu requireProject là true mà thiếu .bint/config.yml thì trả ErrNoProjectConfig;
 // nếu false thì lớp dự án dùng giá trị mặc định.
 func Load(root string, requireProject bool) (Config, Sources, error) {
-	cfg, src, err := load(root, requireProject, true, true)
+	cfg, src, err := load(root, requireProject, true, true, nil)
 	if err != nil || src.Strategy == "" {
 		return cfg, src, err
 	}
 	// Cấu hình nền chỉ để lấy Context: không Validate, vì strategy có thể đang che một giá
 	// trị sai của config.yml (lần nạp đầu đã Validate bản cuối).
-	base, _, err := load(root, requireProject, false, false)
+	base, _, err := load(root, requireProject, false, false, nil)
 	if err != nil {
 		return cfg, src, err
 	}
@@ -558,11 +558,11 @@ func Load(root string, requireProject bool) (Config, Sources, error) {
 	return cfg, src, nil
 }
 
-func load(root string, requireProject, withStrategy, validate bool) (Config, Sources, error) {
+func load(root string, requireProject, withStrategy, validate bool, over map[string][]byte) (Config, Sources, error) {
 	cfg := Default()
 	var src Sources
 	if g := GlobalPath(); g != "" {
-		ok, err := mergeFile(&cfg, g)
+		ok, err := mergeFile(&cfg, g, over)
 		if err != nil {
 			return cfg, src, err
 		}
@@ -571,7 +571,7 @@ func load(root string, requireProject, withStrategy, validate bool) (Config, Sou
 		}
 	}
 	p := ProjectPath(root)
-	ok, err := mergeFile(&cfg, p)
+	ok, err := mergeFile(&cfg, p, over)
 	if err != nil {
 		return cfg, src, err
 	}
@@ -590,7 +590,7 @@ func load(root string, requireProject, withStrategy, validate bool) (Config, Sou
 		}
 	}
 	l := LocalPath(root)
-	ok, err = mergeFile(&cfg, l)
+	ok, err = mergeFile(&cfg, l, over)
 	if err != nil {
 		return cfg, src, err
 	}
@@ -616,13 +616,19 @@ func LoadFirst(roots []string, requireProject bool) (Config, Sources, error) {
 	return Load(roots[0], requireProject)
 }
 
-func mergeFile(cfg *Config, path string) (bool, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
+// mergeFile ghép tệp cấu hình path vào cfg; over[path] (nếu có) là nội dung thay cho tệp trên đĩa
+// (kiểm tra bản sửa trước khi ghi, xem ValidateWith).
+func mergeFile(cfg *Config, path string, over map[string][]byte) (bool, error) {
+	data, ok := over[path]
+	if !ok {
+		var err error
+		data, err = os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
 	}
 	if err := Decode(bytes.NewReader(data), cfg); err != nil {
 		return false, fmt.Errorf("%s: %w", path, err)

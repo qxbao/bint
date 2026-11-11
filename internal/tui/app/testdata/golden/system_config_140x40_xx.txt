@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦MCP~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧                       │
+│ ┌─│⟦Key groups~~~~⟧│─────────────────────────⟦schema v1~~~~⟧─┐┌─│⟦Source layers~~~~~~⟧│────────────────────────────────────────────────┐ │
+│ │ ▸ ⟦Source layers~~~~~~⟧                                    ││ ⟦Effective configuration = global → project → strategy → local (late…  │ │
+│ │   project                                                  ││                                                                        │ │
+│ │   state                                                    ││ ○ ⟦global~~~⟧ ⟦absent~~~⟧                                              │ │
+│ │   harnesses                                                ││     /home/u/.config/bint/config.yml                                    │ │
+│ │   roles                                                    ││ ● ⟦project~~~⟧⟦in use~~~⟧                                              │ │
+│ │   context                                                  ││     /work/demo/.bint/config.yml                                        │ │
+│ │   knowledge                                                ││     ⟦editable with e~~~~~~⟧                                            │ │
+│ │   memory                                                   ││ ○ ⟦strategy~~~~⟧⟦absent~~~⟧                                            │ │
+│ │   eval                                                     ││     /work/demo/.bint/harness/strategy.yml                              │ │
+│ │   evolution                                                ││ ○ ⟦local~~⟧   ⟦absent~~~⟧                                              │ │
+│ │   workflow                                                 ││     /work/demo/.bint/local.yml                                         │ │
+│ │   limits                                                   ││     ⟦editable with e~~~~~~⟧                                            │ │
+│ │   security                                                 ││                                                                        │ │
+│ │   ui                                                       ││ ⟦Root:~~⟧ /work/demo                                                   │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ └─ e ⟦edit~~⟧  Enter ⟦open~~⟧ ───────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────────────────────────────┘

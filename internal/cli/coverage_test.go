@@ -36,6 +36,15 @@ var serviceBindings = map[string]any{
 	"runs list": app.RunsListOptions{}, "runs show": app.RunsShowOptions{}, "runs rate": app.RunsRateOptions{}, "runs scan": app.RunsScanOptions{},
 	"events ingest": app.EventsIngestOptions{}, "experience digest": evolvesvc.ExperienceDigestOptions{}, "experience show": evolvesvc.ExperienceShowOptions{},
 
+	"harness list": app.HarnessListOptions{}, "harness show": app.HarnessShowOptions{},
+	"harness component list": app.ComponentListOptions{}, "harness component show": app.ComponentShowOptions{},
+	"harness component add": app.AddComponentOptions{}, "harness component approve": app.ComponentReviewOptions{},
+	"harness component deprecate": app.ComponentReviewOptions{}, "harness render": app.RenderOptions{},
+	"skill list": app.SkillListOptions{}, "skill show": app.SkillShowOptions{}, "skill overlay": app.SkillOverlayOptions{},
+	"skill diff": app.SkillDiffOptions{}, "skill versions": app.SkillVersionsOptions{}, "skill check": evolvesvc.SkillCheckOptions{},
+	"skill regress": evolvesvc.SkillRegressOptions{}, "sync": app.SyncOptions{}, "index rebuild": app.IndexRebuildOptions{},
+	"mcp tools": app.MCPToolsOptions{},
+
 	"evolve scan": evolvesvc.ScanOptions{}, "evolve propose": evolvesvc.ProposeOptions{}, "evolve list": evolvesvc.ListOptions{},
 	"evolve show": evolvesvc.ShowOptions{}, "evolve evaluate": evolvesvc.EvaluateOptions{}, "evolve apply": evolvesvc.ApplyOptions{},
 	"evolve reject": evolvesvc.RejectOptions{}, "evolve rollback": evolvesvc.RollbackOptions{}, "evolve history": evolvesvc.HistoryOptions{},
@@ -327,7 +336,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("thiếu lý do và giai đoạn sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.Excluded["tui"] = ""
-		cov.Pending["sync"] = 9
+		cov.Pending["update"] = 9
 		cov.ExcludedFlags["--json"] = ""
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`Excluded["tui"] thiếu lý do`, "giai đoạn phải từ 1 đến 6", `ExcludedFlags["--json"] thiếu lý do`} {
@@ -349,7 +358,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("PendingFlags sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.PendingFlags["init --nope"] = 5
-		cov.PendingFlags["sync --force"] = 2      // lệnh chưa có hành động/dịch vụ (giai đoạn 5)
+		cov.PendingFlags["update --pull"] = 2     // lệnh chưa có hành động/dịch vụ (giai đoạn 5b)
 		cov.PendingFlags["eval run --budget"] = 4 // cờ đã có trường Options
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`"init --nope" nhưng lệnh không còn cờ này`, "cờ nằm trong Pending của lệnh", "vừa có trường Options vừa nằm trong danh sách"} {
@@ -370,8 +379,8 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	})
 	t.Run("Pending còn mục của giai đoạn đã xong", func(t *testing.T) {
 		cov := clone(actions.Data)
-		cov.Pending["sync"] = actions.CurrentPhase // lệnh của giai đoạn 5 bị đánh dấu xong sớm
-		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["sync"]`) {
+		cov.Pending["update"] = actions.CurrentPhase // lệnh của giai đoạn 5 bị đánh dấu xong sớm
+		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["update"]`) {
 			t.Fatalf("%v", p)
 		}
 		cov = clone(actions.Data)
@@ -419,10 +428,46 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 			t.Fatalf("%v", p)
 		}
 	})
+	t.Run("bỏ thẻ flag của một trường Options mới của hệ thống", func(t *testing.T) {
+		// Ca ngược giai đoạn 5a: bỏ thẻ `flag` của trường Kind của `harness component add` và ép binding/hành động cùng dùng
+		// kiểu không thẻ thì cờ --kind, --file, --template không còn ánh xạ.
+		type noTags struct {
+			ScriptFile string `flag:"script-file"`
+		}
+		var list []actions.Action
+		for _, a := range reg.All() {
+			if a.ID == "system.component_add" {
+				a.Options = noTags{}
+			}
+			list = append(list, a)
+		}
+		b := maps.Clone(serviceBindings)
+		delete(b, "harness component add")
+		p := checkCoverage(NewRoot(IO{}), actions.Data, actions.NewRegistry(list), b, actions.CurrentPhase)
+		for _, want := range []string{"cờ --kind của `bint harness component add`", "cờ --file của `bint harness component add`", "cờ --template của `bint harness component add`"} {
+			if !mentions(p, want) {
+				t.Errorf("thiếu %q trong %v", want, p)
+			}
+		}
+		// Cờ mới của skill diff mà quên trường Options → đỏ.
+		root := NewRoot(IO{})
+		for _, c := range root.Commands() {
+			if c.Name() == "skill" {
+				for _, s := range c.Commands() {
+					if s.Name() == "diff" {
+						s.Flags().Bool("turbo", false, "x")
+					}
+				}
+			}
+		}
+		if p := check(root, actions.Data, serviceBindings, actions.CurrentPhase); !mentions(p, "cờ --turbo của `bint skill diff`") {
+			t.Fatalf("%v", p)
+		}
+	})
 	t.Run("xoá mục khỏi Pending làm đỏ", func(t *testing.T) {
 		cov := clone(actions.Data)
-		delete(cov.Pending, "sync")
-		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint sync` chưa khai báo") {
+		delete(cov.Pending, "update")
+		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint update` chưa khai báo") {
 			t.Fatalf("%v", p)
 		}
 	})

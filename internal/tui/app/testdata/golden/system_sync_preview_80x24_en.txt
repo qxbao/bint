@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────┐
+│  Config Harness Components  Skills  Index MCP Language Doctor                │
+│ ┌─┌─│Sync preview│───────────────────────────────────────────────1-13/15─┐─┐ │
+│ │ │ 2 files will change, 1 conflicts                                     │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ~ .claude/skills/b-do/SKILL.md                                       │ │ │
+│ │ │ ✗ .claude/skills/b-feat/SKILL.md — skill đã bị sửa ngoài Bint        │ │ │
+│ │ │ + .claude/skills/api-guide/SKILL.md                                  │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ --- .claude/skills/b-do/SKILL.md (hiện tại)                          │ │ │
+│ │ │ +++ .claude/skills/b-do/SKILL.md (sau sync)                          │ │ │
+│ │ │ @@ -1,2 +1,2 @@                                                      │ │ │
+│ │ │  tên                                                                 │ │ │
+│ │ │ -cũ                                                                  │ │ │
+│ │ │ +mới                                                                 │ │ │
+│ │ │                                                                      │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Write   [Esc] Cancel                                         │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ └─ Enter content  s sync  o overlay  d diff  c check ──────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

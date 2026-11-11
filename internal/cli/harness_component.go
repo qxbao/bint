@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/hcomp"
 )
 
@@ -17,18 +18,6 @@ func openComponents(cmd *cobra.Command) (*app.ComponentWS, error) {
 		return nil, err
 	}
 	return app.OpenComponents(cmd.Context(), dir)
-}
-
-func parseKind(s string) (hcomp.Kind, error) {
-	if s == "" {
-		return "", nil
-	}
-	for _, k := range hcomp.Kinds {
-		if string(k) == s {
-			return k, nil
-		}
-	}
-	return "", usageError{fmt.Errorf("--kind %q: cần guidance, guardrail, script hoặc strategy", s)}
 }
 
 func newHarnessComponentCmd(stdio IO) *cobra.Command {
@@ -52,32 +41,6 @@ duyệt (approve) và loại bỏ (deprecate) chỉ dành cho người, không c
 	return c
 }
 
-type componentRow struct {
-	Kind    string `json:"kind"`
-	ID      string `json:"id"`
-	Scope   string `json:"scope"`
-	Status  string `json:"status"`
-	Origin  string `json:"origin"`
-	Version int    `json:"version"`
-	Risk    string `json:"risk"`
-	File    string `json:"file"`
-	Detail  string `json:"detail,omitempty"`
-}
-
-func rowOf(c hcomp.Component) componentRow {
-	r := componentRow{Kind: string(c.Kind), ID: c.ID, Scope: c.Scope, Status: c.Status, Origin: c.Origin, Version: c.Version,
-		Risk: hcomp.Risk(c), File: ".bint/harness/" + c.File}
-	switch c.Kind {
-	case hcomp.KindGuardrail:
-		r.Detail = fmt.Sprintf("on=%s action=%s", c.On, c.Action)
-	case hcomp.KindGuidance:
-		r.Detail = c.Title
-	case hcomp.KindScript:
-		r.Detail = c.Description
-	}
-	return r
-}
-
 func newComponentListCmd(stdio IO) *cobra.Command {
 	var asJSON bool
 	var kind, status string
@@ -86,22 +49,22 @@ func newComponentListCmd(stdio IO) *cobra.Command {
 		Short: "Liệt kê thành phần quy trình trong .bint/harness",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			k, err := parseKind(kind)
-			if err != nil {
+			o := app.ComponentListDefaults(config.Default())
+			o.Kind, o.Status = hcomp.Kind(kind), status
+			if err := o.Validate(); err != nil {
 				return err
 			}
 			w, err := openComponents(cmd)
 			if err != nil {
 				return err
 			}
-			var rows []componentRow
-			for _, comp := range w.Lib.Components {
-				if (k == "" || comp.Kind == k) && (status == "" || comp.Status == status) {
-					rows = append(rows, rowOf(comp))
-				}
+			lst, err := app.ListComponents(w, o)
+			if err != nil {
+				return err
 			}
+			rows := lst.Rows
 			if asJSON {
-				return writeJSON(stdio.Out, map[string]any{"components": rows, "problems": problemStrings(w.Lib.Problems)})
+				return writeJSON(stdio.Out, map[string]any{"components": rows, "problems": lst.Problems})
 			}
 			if len(rows) == 0 {
 				fmt.Fprintln(stdio.Out, "Chưa có thành phần nào trong .bint/harness (thêm: bint harness component add --template test-before-stop).")
@@ -113,7 +76,7 @@ func newComponentListCmd(stdio IO) *cobra.Command {
 				}
 				tw.Flush()
 			}
-			for _, p := range w.Lib.Problems {
+			for _, p := range lst.Problems {
 				fmt.Fprintf(stdio.Out, "! bỏ qua %s\n", p)
 			}
 			return nil
@@ -125,14 +88,6 @@ func newComponentListCmd(stdio IO) *cobra.Command {
 	return c
 }
 
-func problemStrings(ps []hcomp.Problem) []string {
-	out := []string{}
-	for _, p := range ps {
-		out = append(out, p.String())
-	}
-	return out
-}
-
 func newComponentShowCmd(stdio IO) *cobra.Command {
 	var asJSON bool
 	var kind string
@@ -141,23 +96,23 @@ func newComponentShowCmd(stdio IO) *cobra.Command {
 		Short: "Chi tiết và nội dung một thành phần",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k, err := parseKind(kind)
-			if err != nil {
+			o := app.ComponentShowOptions{ID: args[0], Kind: hcomp.Kind(kind)}
+			if err := o.Validate(); err != nil {
 				return err
 			}
 			w, err := openComponents(cmd)
 			if err != nil {
 				return err
 			}
-			comp, err := w.Resolve(k, args[0])
+			d, err := app.ShowComponent(w, o)
 			if err != nil {
 				return err
 			}
-			body, _ := hcomp.Marshal(comp)
+			comp, body := d.Component, d.Content
 			if asJSON {
-				return writeJSON(stdio.Out, map[string]any{"component": rowOf(comp), "content": string(body), "script": string(comp.Source)})
+				return writeJSON(stdio.Out, map[string]any{"component": d.Row, "content": d.Content, "script": d.Script})
 			}
-			r := rowOf(comp)
+			r := d.Row
 			fmt.Fprintf(stdio.Out, "%s %s — %s · %s · nguồn %s · phiên bản %d · rủi ro %s\n", r.Kind, r.ID, r.Scope, r.Status, r.Origin, r.Version, r.Risk)
 			if comp.ApprovedBy != "" {
 				fmt.Fprintf(stdio.Out, "duyệt bởi: %s\n", comp.ApprovedBy)
@@ -188,16 +143,9 @@ Script: --file là phần mô tả (.yml); nội dung .sh lấy từ --script-fi
 Script luôn rủi ro cao và luôn chờ người duyệt; Bint không bao giờ tự chạy nó.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			k, err := parseKind(kind)
-			if err != nil {
+			o.Kind = hcomp.Kind(kind)
+			if err := o.Validate(); err != nil {
 				return err
-			}
-			o.Kind = k
-			if o.File == "" && o.Template == "" {
-				return usageError{fmt.Errorf("cần --template hoặc --file")}
-			}
-			if o.File != "" && k == "" {
-				return usageError{fmt.Errorf("--file cần --kind guidance|guardrail|script|strategy")}
 			}
 			w, err := openComponents(cmd)
 			if err != nil {
@@ -226,15 +174,15 @@ func newComponentReviewCmd(stdio IO, use, short, to string) *cobra.Command {
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k, err := parseKind(kind)
-			if err != nil {
+			o := app.ComponentReviewOptions{ID: args[0], Kind: hcomp.Kind(kind)}
+			if err := o.Validate(); err != nil {
 				return err
 			}
 			w, err := openComponents(cmd)
 			if err != nil {
 				return err
 			}
-			comp, err := app.ReviewComponent(cmd.Context(), w, k, args[0], to)
+			comp, err := app.ReviewComponent(cmd.Context(), w, o, to)
 			if err != nil {
 				return err
 			}
@@ -257,15 +205,14 @@ func newHarnessRenderCmd(stdio IO) *cobra.Command {
 		Short: "Xem agent sẽ nhận gì từ thành phần quy trình trên một harness",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			m, err := hcomp.ParseMode(mode)
-			if err != nil {
-				return usageError{err}
-			}
-			o.Mode = m
+			o.Mode = hcomp.Mode(mode)
 			for _, p := range strings.Split(paths, ",") {
 				if p = strings.TrimSpace(p); p != "" {
 					o.Paths = append(o.Paths, p)
 				}
+			}
+			if err := o.Validate(); err != nil {
+				return err
 			}
 			w, err := openComponents(cmd)
 			if err != nil {
@@ -273,7 +220,7 @@ func newHarnessRenderCmd(stdio IO) *cobra.Command {
 			}
 			out, err := app.RenderHarness(w, o)
 			if err != nil {
-				return usageError{err}
+				return err
 			}
 			_, err = fmt.Fprint(stdio.Out, out)
 			return err

@@ -6,11 +6,11 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/app/evolvesvc"
 	"bint/internal/evolve"
 	"bint/internal/skills"
 )
@@ -66,37 +66,23 @@ func newSkillDiffCmd(stdio IO) *cobra.Command {
 		Short: "Bản thay đổi của skill tiến hoá giữa hai phiên bản (mặc định: phiên bản trước → hiện tại)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k, err := openKnowledge(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			ev, err := skills.LoadEvolvedOne(k.Root, args[0])
+			res, err := app.DiffSkill(cmd.Context(), dir, app.SkillDiffOptions{Name: args[0], From: from, To: to})
 			if err != nil {
 				return err
 			}
-			if to == 0 {
-				to = ev.Meta.Version
-			}
-			if from == 0 {
-				from = to - 1
-			}
-			if from < 1 {
-				fmt.Fprintf(stdio.Out, "%s chỉ có phiên bản %d: không có bản thay đổi (dùng `bint skill show %s`).\n", ev.Meta.Name, ev.Meta.Version, ev.Meta.Name)
+			if res.OnlyVersion {
+				fmt.Fprintf(stdio.Out, "%s chỉ có phiên bản %d: không có bản thay đổi (dùng `bint skill show %s`).\n", res.Name, res.Current, res.Name)
 				return nil
 			}
-			a, err := skills.ReadVersion(k.Root, ev.Meta.Name, from)
-			if err != nil {
-				return err
-			}
-			b, err := skills.ReadVersion(k.Root, ev.Meta.Name, to)
-			if err != nil {
-				return err
-			}
-			d := skills.Diff(fmt.Sprintf("%s@v%d", ev.Meta.Name, from), fmt.Sprintf("%s@v%d", ev.Meta.Name, to), string(a), string(b))
-			if d == "" {
-				fmt.Fprintf(stdio.Out, "Phiên bản %d và %d giống nhau.\n", from, to)
+			if res.Same {
+				fmt.Fprintf(stdio.Out, "Phiên bản %d và %d giống nhau.\n", res.From, res.To)
 				return nil
 			}
+			d := res.Diff
 			fmt.Fprint(stdio.Out, d)
 			return nil
 		},
@@ -113,25 +99,25 @@ func newSkillVersionsCmd(stdio IO) *cobra.Command {
 		Short: "Lịch sử phiên bản skill tiến hoá, gắn với harness/mô hình đã kiểm chứng (mục 12.6)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k, err := openKnowledge(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			ev, err := skills.LoadEvolvedOne(k.Root, args[0])
+			meta, err := app.SkillVersions(cmd.Context(), dir, app.SkillVersionsOptions{Name: args[0]})
 			if err != nil {
 				return err
 			}
 			if asJSON {
-				return writeJSON(stdio.Out, ev.Meta)
+				return writeJSON(stdio.Out, meta)
 			}
-			fmt.Fprintf(stdio.Out, "%s — %s, phiên bản hiện tại %d", ev.Meta.Name, ev.Meta.Status, ev.Meta.Version)
-			if ev.Meta.StatusReason != "" {
-				fmt.Fprintf(stdio.Out, " (%s)", ev.Meta.StatusReason)
+			fmt.Fprintf(stdio.Out, "%s — %s, phiên bản hiện tại %d", meta.Name, meta.Status, meta.Version)
+			if meta.StatusReason != "" {
+				fmt.Fprintf(stdio.Out, " (%s)", meta.StatusReason)
 			}
 			fmt.Fprintln(stdio.Out)
 			tw := tabwriter.NewWriter(stdio.Out, 0, 2, 2, ' ', 0)
 			fmt.Fprintln(tw, "PB\tSHA\tĐỀ XUẤT\tHARNESS\tMÔ HÌNH\tKIỂM CHỨNG\tNGƯỜI DUYỆT\tLÚC\tGHI CHÚ")
-			for _, v := range ev.Meta.Versions {
+			for _, v := range meta.Versions {
 				fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%v\t%s\t%s\t%s\n", v.N, v.SHA256, orDash(v.Proposal), orDash(v.Harness), orDash(v.Model),
 					v.Verified, orDash(v.By), fmtTime(v.At), truncate(v.Note, 50))
 			}
@@ -159,48 +145,16 @@ skill trong một đề xuất chưa áp dụng:
 chưa nhận được sự kiện skill.activated nên không đo được kích hoạt thực tế.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
 			e, err := openEvolve(cmd)
 			if err != nil {
 				return err
 			}
 			defer e.Close()
-			list, _, err := skills.LoadEvolved(e.K.Root)
+			res, err := evolvesvc.SkillCheck(cmd.Context(), e, evolvesvc.SkillCheckOptions{Target: args[0]})
 			if err != nil {
 				return err
 			}
-			h, err := evolve.LoadHistory(ctx, e.Store.DB, time.Now(), 10*365*24*time.Hour)
-			if err != nil {
-				return err
-			}
-			files := e.K.Source().Files()
-			var reports []evolve.TriggerReport
-			if strings.HasPrefix(args[0], "ep_") || strings.Contains(args[0], "ep_") {
-				p, err := evolve.GetProposal(ctx, e.Store.DB, args[0])
-				if err != nil {
-					return err
-				}
-				if !p.IsSkill() {
-					return fmt.Errorf("đề xuất %s không phải đề xuất skill", p.ID)
-				}
-				var sup []string
-				for _, r := range p.SupportingRuns {
-					sup = append(sup, r.RunID)
-				}
-				for _, d := range evolve.DraftsOf(p) {
-					reports = append(reports, evolve.CheckTriggerConditions(d.Name, d.Description, d.Triggers, files, sup, h, list))
-				}
-			} else {
-				ev, err := skills.LoadEvolvedOne(e.K.Root, args[0])
-				if err != nil {
-					return err
-				}
-				reports = append(reports, evolve.CheckTriggerConditions(ev.Meta.Name, ev.Doc().Description, ev.Meta.Triggers, files, ev.Meta.Origin.Runs, h, list))
-			}
-			bad := false
-			for _, r := range reports {
-				bad = bad || !r.OK
-			}
+			reports, bad := res.Reports, !res.OK
 			if asJSON {
 				if err := writeJSON(stdio.Out, reports); err != nil {
 					return err
@@ -268,27 +222,16 @@ Kết quả được ghi là lần kiểm tra hồi quy; lệnh này cho biết 
 không còn lợi (regressed) hay chưa kết luận. Bint chỉ báo cáo và gợi ý; không tự gỡ skill.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx := cmd.Context()
 			e, err := openEvolve(cmd)
 			if err != nil {
 				return err
 			}
 			defer e.Close()
-			list, _, err := skills.LoadEvolved(e.K.Root)
+			res, err := evolvesvc.SkillRegress(cmd.Context(), e, evolvesvc.SkillRegressOptions{Model: model})
 			if err != nil {
 				return err
 			}
-			cur := model
-			if cur == "" {
-				cur = evolve.CurrentModel(ctx, e.Store.DB, nil)
-			}
-			sts, err := evolve.ModelStatuses(ctx, e.Store.DB, list, cur)
-			if err != nil {
-				return err
-			}
-			if sts == nil {
-				sts = []evolve.SkillModelStatus{}
-			}
+			cur, sts := res.Model, res.Statuses
 			if asJSON {
 				return writeJSON(stdio.Out, sts)
 			}

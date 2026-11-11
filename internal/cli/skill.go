@@ -1,18 +1,14 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
-	"bint/internal/fsafe"
-	"bint/internal/harness"
-	"bint/internal/skills"
+	"bint/internal/app"
+	"bint/internal/config"
 )
 
 func newSkillCmd(stdio IO) *cobra.Command {
@@ -38,22 +34,6 @@ xuất bản cùng skill gốc. Mỗi phiên bản gắn với mô hình đã ki
 	return c
 }
 
-type skillRow struct {
-	Name      string   `json:"name"`
-	Version   string   `json:"version"`
-	Anchors   []string `json:"anchors"`
-	Overlay   string   `json:"overlay"`
-	Published string   `json:"published"`
-	// Targets: trạng thái theo từng thư mục xuất bản (current | differs | missing).
-	Targets map[string]string `json:"targets,omitempty"`
-	Locked  string            `json:"locked,omitempty"`
-	Problem string            `json:"problem,omitempty"`
-	// Kind: core | evolved. Skill tiến hoá: Status (active | deprecated), Stale (lý do lỗi thời).
-	Kind   string `json:"kind"`
-	Status string `json:"status,omitempty"`
-	Stale  string `json:"stale,omitempty"`
-}
-
 func newSkillListCmd(stdio IO) *cobra.Command {
 	var asJSON bool
 	c := &cobra.Command{
@@ -65,57 +45,11 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			lock, _ := skills.ReadLock(k.Root)
-			targets := harness.SkillTargets(k.Config.Harnesses.Enabled)
-			rows := []skillRow{}
-			for _, core := range skills.Core() {
-				row := skillRow{Name: core.Name, Version: core.Hash(), Overlay: "-", Published: "-", Kind: "core"}
-				if as, err := core.Anchors(); err == nil {
-					for _, a := range as {
-						row.Anchors = append(row.Anchors, a.Name)
-					}
-				}
-				if e, ok := lock.Skills[core.Name]; ok {
-					row.Locked = e.SHA256
-				}
-				composed, ov, err := skills.Composed(k.Root, core)
-				if ov != nil {
-					row.Overlay = fmt.Sprintf("%d khối", len(ov.Patches))
-				}
-				if err != nil {
-					row.Overlay, row.Problem = "xung đột", err.Error()
-				} else if len(targets) > 0 {
-					row.Targets = map[string]string{}
-					var parts []string
-					for _, t := range targets {
-						st, _ := skills.Status(k.Root, t, composed)
-						row.Targets[t.Dir] = st
-						parts = append(parts, t.Dir+":"+st)
-					}
-					row.Published = strings.Join(parts, " ")
-				}
-				rows = append(rows, row)
+			lst, err := app.ListSkills(k, app.SkillListDefaults(config.Default()))
+			if err != nil {
+				return err
 			}
-			evolved, evProblems, _ := skills.LoadEvolved(k.Root)
-			files := k.Source().Files()
-			for _, ev := range evolved {
-				row := skillRow{Name: ev.Meta.Name, Version: fmt.Sprintf("v%d", ev.Meta.Version), Overlay: "-", Published: "-", Kind: "evolved",
-					Status: ev.Meta.Status, Anchors: ev.Meta.Triggers.Paths}
-				if stale, why := ev.Stale(files); stale {
-					row.Stale = why
-				}
-				if ev.Active() && row.Stale == "" && len(targets) > 0 {
-					row.Targets = map[string]string{}
-					var parts []string
-					for _, t := range targets {
-						st, _ := skills.Status(k.Root, t, ev.AsSkill())
-						row.Targets[t.Dir] = st
-						parts = append(parts, t.Dir+":"+st)
-					}
-					row.Published = strings.Join(parts, " ")
-				}
-				rows = append(rows, row)
-			}
+			rows, evProblems := lst.Rows, lst.EvolvedProblems
 			if asJSON {
 				return writeJSON(stdio.Out, rows)
 			}
@@ -151,7 +85,7 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 					fmt.Fprintf(stdio.Out, "✗ %s: %s\n", r.Name, r.Problem)
 				}
 			}
-			for _, o := range skills.OrphanOverlays(k.Root) {
+			for _, o := range lst.Orphans {
 				fmt.Fprintf(stdio.Out, "! %s: không ứng với skill gốc nào\n", o)
 			}
 			return nil
@@ -169,27 +103,17 @@ func newSkillShowCmd(stdio IO) *cobra.Command {
 		Short:   "In skill đã ghép lớp phủ (dùng với harness chưa có adapter); --core để in bản gốc",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, ok := skills.Get(args[0])
-			if !ok {
-				if k, err := openKnowledge(cmd); err == nil {
-					if ev, err := skills.LoadEvolvedOne(k.Root, args[0]); err == nil {
-						_, werr := stdio.Out.Write(ev.Content)
-						return werr
-					}
-				}
-				return fmt.Errorf("không có skill %q (gốc hoặc tiến hoá)", args[0])
+			dir, err := cwd()
+			if err != nil {
+				return err
 			}
-			if !core {
-				if k, err := openKnowledge(cmd); err == nil {
-					c, _, err := skills.Composed(k.Root, s)
-					if err != nil {
-						return err
-					}
-					s = c
-				}
+			sc, err := app.ShowSkill(cmd.Context(), dir, app.SkillShowOptions{Name: args[0], Core: core})
+			if err != nil {
+				return err
 			}
-			_, err := stdio.Out.Write(s.Content)
+			_, err = stdio.Out.Write(sc.Content)
 			return err
+
 		},
 	}
 	c.Flags().BoolVar(&core, "core", false, "in skill gốc, không áp lớp phủ")
@@ -202,30 +126,19 @@ func newSkillOverlayCmd(stdio IO) *cobra.Command {
 		Short: "Tạo tệp lớp phủ mẫu (liệt kê điểm neo) cho một skill gốc",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, ok := skills.Get(args[0])
-			if !ok {
-				return fmt.Errorf("không có skill gốc %q", args[0])
-			}
-			k, err := openKnowledge(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			rel := skills.OverlayPath(s.Name)
-			p := filepath.Join(k.Root, filepath.FromSlash(rel))
-			if _, err := os.Stat(p); err == nil {
-				fmt.Fprintf(stdio.Out, "Đã có %s (không ghi đè). Sửa rồi chạy `bint sync`.\n", rel)
+			res, err := app.CreateOverlay(cmd.Context(), dir, app.SkillOverlayOptions{Name: args[0]})
+			if err != nil {
+				return err
+			}
+			if res.Existed {
+				fmt.Fprintf(stdio.Out, "Đã có %s (không ghi đè). Sửa rồi chạy `bint sync`.\n", res.Path)
 				return nil
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return err
 			}
-			body, err := skills.OverlayTemplate(s)
-			if err != nil {
-				return err
-			}
-			if err := fsafe.WriteAtomic(p, []byte(body), 0o644); err != nil {
-				return err
-			}
-			fmt.Fprintf(stdio.Out, "Đã tạo %s. Bỏ thụt lề khối mẫu để bật, rồi chạy `bint sync`.\n", rel)
+			fmt.Fprintf(stdio.Out, "Đã tạo %s. Bỏ thụt lề khối mẫu để bật, rồi chạy `bint sync`.\n", res.Path)
 			return nil
 		},
 	}
@@ -246,17 +159,16 @@ chỉ giữ name, description). Chạy sau khi sửa lớp phủ hoặc nâng c�
     core.lock cũ cho tới khi lớp phủ được sửa (--force không vượt qua được).`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			k, err := openKnowledge(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			if !k.Paths.Initialized() {
-				return errors.New("chưa `bint init` trên máy này")
-			}
-			n, err := installSkillsCLI(stdio.Out, k, force)
+			si, err := app.Sync(cmd.Context(), dir, Version, app.SyncOptions{Force: force})
 			if err != nil {
 				return err
 			}
+			printSkillInstall(stdio.Out, si)
+			n := si.Conflicts
 			if n > 0 {
 				return withCode(ExitError, fmt.Errorf("%d xung đột cần xử lý", n))
 			}

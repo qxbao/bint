@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
+│  ⟦Config~~~⟧ ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧  ⟦… │
+│ ┌─│⟦Interface language~~~~~~~~⟧│───────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │ ⟦Used in this session~~~~~… xx                                           │ │
+│ │ ⟦ui.language in config~~~~… auto                                         │ │
+│ │                                                                          │ │
+│ │  ⟦Resolution order: --lang > BINT_LANG > ui.language > LC_ALL/LANG >     │ │
+│ │  vi.~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                        │ │
+│ │                                                                          │ │
+│ │ ▸ ✓ auto  ⟦from BINT_LANG, LC_ALL/LANG; defaults to vi~~~~~~~~~~~~~~~~~… │ │
+│ │     vi    ⟦Vietnamese~~~~⟧                                               │ │
+│ │     en    ⟦English~~~⟧                                                   │ │
+│ │                                                                          │ │
+│ │  ⟦Written to .bint/local.yml (default, this machine only) or             │ │
+│ │  .bint/config.yml (the whole team). Only the ui.language line changes;   │ │
+│ │  every other line and comment is kept. The L key changes the session     │ │
+│ │  only.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  │ │
+│ │  ~~~~~~~~~~~~~~~~⟧                                                       │ │
+│ └─ Enter ⟦choose~~~⟧  L ⟦session only~~~~~⟧ ───────────────────────────────┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

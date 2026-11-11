@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor                                                               │
+│ ┌─│Components (3/3)│─────────────────────────1 files skipped─┐┌─│Details · test-before-stop│───────────────────────────────────────────┐ │
+│ │ ▸ ✓ guardrail test-before-stop           verified   low    ││ Kind        guardrail                                                  │ │
+│ │   ◌ guidance  api-style                  candidate  low    ││ ID          test-before-stop                                           │ │
+│ │   ◌ script    fmt-check                  candidate  high   ││ Scope       global                                                     │ │
+│ │                                                            ││ Status      ✓ verified                                                 │ │
+│ │                                                            ││ Origin      human                                                      │ │
+│ │                                                            ││ Version     1                                                          │ │
+│ │                                                            ││ Risk        low                                                        │ │
+│ │                                                            ││ Approved by An                                                         │ │
+│ │                                                            ││ File        .bint/harness/guardrails/test-before-stop.yml              │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││ Content                                                                │ │
+│ │                                                            ││ id: test-before-stop                                                   │ │
+│ │                                                            ││ on: stop                                                               │ │
+│ │                                                            ││ action: remind                                                         │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││ 1 files skipped                                                        │ │
+│ │                                                            ││ ! guidance/hong.md: thiếu tiêu đề                                      │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ └─ n add  a approve  d deprecate  R render  f filter ────────┘└────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────────────────────────────────────┘

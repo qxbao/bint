@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/ctxengine"
 	"bint/internal/mcpserver"
 )
@@ -67,9 +68,11 @@ PostToolUse của Claude Code (bint init --hooks).`,
 		Short: "Liệt kê công cụ MCP",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			srv := mcpserver.New("bint", Version, "")
-			mcpserver.RegisterTools(srv, nil)
-			for _, t := range srv.Tools() {
+			tl, err := app.MCPTools(Version, app.MCPToolsDefaults(config.Default()))
+			if err != nil {
+				return err
+			}
+			for _, t := range tl {
 				fmt.Fprintf(stdio.Out, "%-20s %s\n", t.Name, t.Description)
 			}
 			return nil

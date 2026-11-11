@@ -1,8 +1,9 @@
 # Kế hoạch TUI cho Bint
 
-Trạng thái: **giai đoạn 0, 1, 2, 3 và 4 đã triển khai** (2026-11-11); các giai đoạn 5–6 chưa làm. Kế hoạch đề
-xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
-và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4).
+Trạng thái: **giai đoạn 0, 1, 2, 3 và 4 đã triển khai** (2026-11-11) và **giai đoạn 5a (tab Hệ thống) đã triển khai** (2026-11-12);
+giai đoạn 5 được tách làm hai phiếu — **5b (trình hướng dẫn `init`, Cài đặt repo, nâng cấu hình, `update` + khởi động lại) và giai đoạn 6 chưa làm**.
+Kế hoạch đề xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
+và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4; 12.7: giai đoạn 5a).
 
 ## 1. Mục tiêu
 
@@ -433,7 +434,7 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 | 2 ✅ | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
 | 3 ✅ | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
 | 4 ✅ | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
-| 5 | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
+| 5 | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. Tách làm hai phiếu: **5a ✅** (tab Hệ thống: Cấu hình, Harness, Thành phần, Skill + sync, Chỉ mục, MCP, Ngôn ngữ, Doctor; mục 12.7) và **5b** (trình hướng dẫn `init`/Cài đặt repo và 11 cờ `init`, nâng cấu hình `init --update` qua hộp thư, `update` + khởi động lại). | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
 | 6 | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README. | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
 
 Giai đoạn 1 đem lại giá trị lớn nhất (thay vòng `knowledge review` gõ phím từng mục) nên có
@@ -535,8 +536,8 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
 - **Bảng màu**: giá trị khởi điểm mục 4.2 giữ nguyên, chờ chủ dự án duyệt ảnh. Ở chế độ 16 màu vai trò `fg`
   dùng màu mặc định của terminal thay vì `white` (để đọc được trên cả nền sáng).
 - **Chân phím** xếp phím riêng của màn hình trước, rồi phím toàn cục, cuối cùng các phím ghim (`?`, `q`).
-- **Đổi ngôn ngữ chỉ có hiệu lực trong phiên**: chưa ghi lại `ui.language` vào cấu hình (Hệ thống › Ngôn ngữ
-  thuộc giai đoạn 5). `.bint/config.yml` của chính repository này chưa có khối `ui`: chạy `bint init --update`.
+- **Đổi ngôn ngữ chỉ có hiệu lực trong phiên** (phím `L`): từ giai đoạn 5a, Hệ thống › Ngôn ngữ ghi `ui.language` vào cấu hình (mục 12.7).
+  `.bint/config.yml` của chính repository này chưa có khối `ui`: chạy `bint init --update` hoặc chọn ngôn ngữ ở Hệ thống › Ngôn ngữ (chèn khối `ui`).
 - **Đổi nhỏ về hành vi CLI** (ngoài phạm vi "không đổi" nên ghi rõ): `knowledge review --status <giá trị lạ>`
   nay là lỗi dùng sai (mã 2) thay vì lặng lẽ không khớp mục nào; với `evolve propose/process`, kiểm tra
   chỉ-dành-cho-người chạy sau khi mở workspace (lỗi "chưa init" thắng lỗi "chỉ dành cho người" nếu cả hai đúng).
@@ -558,7 +559,7 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
 - **Chưa có**: chuột, chế độ hẹp đầy đủ, hành động ghi nào trong sổ ngoài "Khởi tạo với mặc định" (nên chế độ
   `--read-only` mới chỉ có cơ chế và ẩn hành động ghi đó), `bubblezone`, `teatest` (golden dùng `View()` của mô
   hình), các màn hình của giai đoạn 2–6 (giai đoạn 1: xem 12.3). Danh sách chưa làm ở
-  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3, 30 sau giai đoạn 4).
+  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3, 30 sau giai đoạn 4, **12 sau giai đoạn 5a**: còn `update` và 11 cờ `init`, tất cả gắn giai đoạn 5 = phiếu 5b; `CurrentPhase` giữ 4 vì giai đoạn 5 chưa xong).
 
 ### 12.3 Giai đoạn 1 (đã xong, 2026-11-11)
 
@@ -918,3 +919,88 @@ go test -race ./internal/tui/app -run 'Milestone|Eval'        # việc nền, c�
 vhs internal/tui/testdata/vhs/eval-wide.tape                  # ảnh màn Đánh giá (cần vhs, ttyd, ffmpeg; xem README cùng thư mục)
 bint tui                                                      # 5 (Đánh giá) → m (khai thác + kiểm chứng) → a (duyệt) → E (ước tính) → r (chạy) → xem thẻ Đợt
 ```
+
+### 12.7 Giai đoạn 5a (đã xong, 2026-11-12)
+
+Giai đoạn 5 được tách làm hai phiếu. **5a** (phiếu này) chỉ làm tab Hệ thống (mục 5.7); **5b** giữ trình hướng dẫn `init` / Hệ thống › Cài đặt repo cùng 11 cờ `init`,
+nâng cấu hình (`init --update`) qua hộp thư và Cấu hình › Nâng mẫu, `update` + khởi động lại — các mục đó **vẫn nằm trong danh sách chưa làm gắn giai đoạn 5**
+(`Pending["update"]` và 11 mục `PendingFlags["init …"]`). Mốc "xong" của 5a: dùng được mọi thẻ của tab Hệ thống mà không gõ lệnh; kiểm bằng `TestSystem*` (`internal/tui/app`,
+dịch vụ thật cho phần sửa cấu hình/ngôn ngữ và trình soạn thảo giả) và các bảng ca của dịch vụ.
+
+**Tầng dịch vụ** (`internal/app`, `internal/app/evolvesvc`): 18 lệnh lá có kiểu `Options` (thẻ `flag`/`arg`/`form`), `Validate()` (trả `UsageError` → mã thoát 2) và `Defaults(cfg)`;
+CLI chỉ còn phân tích cờ, gọi dịch vụ và in như cũ (đầu ra, mã thoát và `--help` không đổi; mọi e2e CLI cũ chạy nguyên, không sửa khẳng định nào).
+- `harness_svc.go`: `ListHarnesses`/`ShowHarness`/`HarnessVersion`, và `HarnessRuntime` (trạng thái hook theo phạm vi đã cài + MCP đã đăng ký + Codex chưa tin cậy của từng harness
+  **đang bật**) tách từ `app.Doctor`: doctor dựng lại các dòng `hook <tên>`, `MCP <tên>`, `MCP codex citation`, `codex trust` từ chính `runtimeOf`, nên màn Harness và doctor không lệch
+  (`Check.Detail` giữ nguyên từng chữ; test so khớp `Doctor` trên repo tạm có/không hook, có/không MCP).
+- `harness_components.go`: `ComponentListOptions/ShowOptions/ReviewOptions`, thẻ `flag` cho `AddComponentOptions` và `RenderOptions`; `Validate()` nhận ràng buộc từ `RunE`;
+  `ListComponents`/`ShowComponent` trả dòng + nội dung (`ComponentRow` chuyển từ CLI); `ReviewComponent(ctx, w, o, to)` vẫn `RequireHuman`.
+- `skills_svc.go`: `ListSkills`, `ShowSkill`, `CreateOverlay` (không bao giờ ghi đè), `DiffSkill`, `SkillVersions`, `Sync`, `PlanSync`; `evolvesvc/skills.go`: `SkillCheck`, `SkillRegress`
+  (CLI giữ mã thoát 1 khi `skill check` không đạt). `index_svc.go`: `RebuildIndex`; `mcp_svc.go`: `MCPTools`.
+- `config_svc.go` + `internal/config/edit.go` (không thêm khoá cấu hình nên `Default()`/`Render` không đổi): `config.ValidateWith(root, layer, data)` chạy đúng `load` của `Load` (toàn cục →
+  dự án → strategy → cục bộ, `KnownFields(true)`, `Validate()`) với nội dung thay cho một lớp (`mergeFile` nhận bảng ghi đè); `config.SetUILanguage` sửa **đúng dòng** `ui.language`
+  (thay token giá trị theo vị trí `yaml.Node`; chèn dòng khi thiếu khoá; chèn khối `ui:` có chú thích khi thiếu khối; tạo mới khi chưa có tệp; giữ CRLF, chú thích, dạng flow `ui: {}`).
+  Dịch vụ: `ConfigView` (cấu hình hiệu lực tách theo khoá cấp một bằng `yaml.Marshal` từng trường + bốn lớp nguồn + cờ worktree phụ), `PrepareConfigEdit` → `CheckConfigEdit` → `SaveConfigEdit`
+  (kiểm lại bằng `ValidateWith`, so băm tệp gốc → `ErrConfigChanged`, sao lưu tệp cũ vào thư mục trạng thái bằng `fsafe.Backup`, ghi nguyên tử), `SetUILanguage`
+  (`UILanguageOptions{Language, Layer}`, mặc định `local`). Ở worktree phụ cả hai đều trả `LinkedWorktreeError{Main}` (mục 7.5).
+
+**Sổ hành động và phủ** (`actions/system.go`, `coverage.go`): 33 hành động `system.*` (18 lệnh + hành động giao diện/phụ: `config_edit/check/save/view`, `language_save`, `harness_runtime/version`, `open_file`,
+`sync_plan`, `doctor`...). `Writes`: `config_edit`, `config_save`, `language_save`, `component_add/approve/deprecate`, `skill_overlay`, `open_file`, `sync`, `index_rebuild`; `HumanOnly`: `component_approve/deprecate`.
+`coverage.go` gỡ 18 lệnh khỏi `Pending` (`PendingCeiling` 30 → **12**, `CurrentPhase` giữ **4**), sửa lý do `Excluded` của `hook *`/`mcp serve`; `serviceBindings` thêm 18 lệnh; các ca ngược của
+`coverage_test.go` đổi mẫu từ `sync` sang `update` và vẫn đỏ đúng chỗ, thêm ca "bỏ thẻ `flag` của `AddComponentOptions`" và "cờ mới của `skill diff` mà quên trường Options".
+
+**Màn Hệ thống** (`internal/tui/screens/system`, `ui.Screen`; thay `screens/placeholder`, đã xoá cùng khoá `placeholder.*`): thẻ con đổi bằng `,`/`.`; ≥ 100 cột (vùng nội dung) hai khung, hẹp một
+khung (`Tab`/`Enter` đổi); nạp lười theo thẻ, dữ liệu cũ vẫn hiện trong lúc nạp lại; Doctor, bảng harness và trạng thái hook/MCP nạp trong `tea.Cmd`; phím riêng của thẻ nằm ở viền dưới khung.
+- **Cấu hình**: hàng đầu là các lớp nguồn (toàn cục/dự án/strategy/cục bộ, đường dẫn, "sửa được"), các hàng sau là 13 nhóm khoá cấp một kèm YAML của nhóm. `e` mở form chọn lớp (`project` = `config.yml`,
+  `local` = `local.yml`) → bản sao tạm → `$EDITOR` (`tea.ExecProcess`) → `CheckConfigEdit`: không đổi → không ghi; không hợp lệ → hộp đỏ nêu lỗi của `Validate()`/giải mã, tệp gốc giữ nguyên, chọn "Sửa lại"
+  (mở lại cùng bản tạm) hoặc "Bỏ" (xoá bản tạm); hợp lệ → hộp diff → Enter ghi (tệp gốc đã đổi trong lúc sửa → từ chối, không ghi đè).
+- **Harness**: bảng (bật, trên máy, phiên bản, đối chiếu, cấp), bảng khả năng ✓ ~ ✗ (tiêu đề cột là 4 chữ đầu tên harness), chi tiết như `harness show` kèm hook (phạm vi đã cài) và MCP (đã đăng ký hay chưa) từ
+  `HarnessRuntime`; `V` lấy phiên bản bằng cách gọi chương trình harness (nền, riêng từng harness).
+- **Thành phần**: danh sách (`f` form lọc loại/trạng thái, `/` lọc chữ, vấn đề tải), chi tiết + nội dung (+ `.sh` kèm cảnh báo "Bint không bao giờ tự chạy"), `n` thêm (mẫu hoặc `--kind` + `--file`; `Validate()` chặn ngay trong
+  form), `a` duyệt / `d` loại bỏ (hộp xác nhận; **duyệt script là hộp đỏ**; `HumanOnly`), `R` render theo harness/chế độ/đường dẫn.
+- **Skill**: danh sách gốc/tiến hoá (loại, phiên bản, trạng thái xuất bản theo thư mục, `core.lock`, lớp phủ, lớp phủ mồ côi, skill tiến hoá hỏng/lỗi thời), `Enter` nội dung đã ghép / `C` bản gốc (`--core`), `o` tạo lớp phủ rồi mở
+  `$EDITOR`, `d` diff, `v` lịch sử phiên bản, `c` check, `g` regress (form, kết quả ở khung chi tiết; `Esc` đóng), `s` **sync**: `PlanSync` → hộp xem trước (trạng thái + diff từng tệp, xung đột) → Enter ghi bằng `Sync`;
+  `F` = `--force` → hộp đỏ nêu kiểm tra bị bỏ qua.
+- **Chỉ mục** (`b` → xác nhận → `RebuildIndex`, báo số mục và tệp hỏng), **MCP** (danh sách công cụ + mô tả), **Ngôn ngữ** (`auto|vi|en` + nơi ghi `local` mặc định hoặc `project`; giao diện đổi ngay sau khi ghi bằng
+  `actions.LanguageMsg`; `auto` chọn theo `BINT_LANG`, `LC_ALL`/`LANG`; phím `L` vẫn chỉ đổi trong phiên), **Doctor** (mọi kiểm tra với mức và chi tiết, `w` chỉ cảnh báo/lỗi, `Ctrl+R` chạy lại).
+- **Hộp thư** (Tổng quan): mỗi thành phần candidate một dòng (`overview.inbox.component`, tối đa 5 rồi "và N thành phần…"), Enter mở Hệ thống › Thành phần tại đúng thành phần (`NavMsg.ComponentID/ComponentKind` → `Focus`);
+  dòng doctor mở thẻ Doctor (`NavMsg.SystemTab`).
+
+**Phủ và kiểm thử**: test dịch vụ (`system_svc_test.go`: `Validate`/`Defaults`, `HarnessRuntime` khớp `Doctor`, `ReviewComponent` với `CLAUDECODE=1` → `ErrAgentForbidden` và `asHuman` → đạt, `PlanSync` không đổi tệp nào và khớp kết quả
+`Sync` (kể cả xung đột và `--force`), `CreateOverlay` không ghi đè, `RebuildIndex` đếm đúng/báo tệp hỏng, `MCPTools`, `ConfigView`, luồng sửa cấu hình: nội dung sai → tệp gốc không đổi, tệp gốc đổi giữa chừng → từ chối, `SetUILanguage` trên tệp có chú thích
+và tệp thiếu khối `ui`, từ chối ở worktree phụ không đổi tệp nào), test `internal/config` (bảng ca `SetUILanguage` gồm chú thích, thiếu khối, flow, CRLF, tệp chưa có; `ValidateWith`: giá trị sai ở lớp dự án, lớp cục bộ đè giá trị sai, khoá lạ),
+test hành động với dịch vụ thật (`actions/system_test.go`: cờ `Writes`/`HumanOnly`, đọc/ghi trên repo tạm, sửa cấu hình với trình soạn thảo giả), e2e CLI mới (`system_e2e_test.go`: `mcp tools` giống từng byte, mã thoát 2 của `harness component add/list/show`,
+`harness render`, `harness show`; `skill check` không đạt → mã 1), test màn hình (`system_screen_test.go`, `system_flows_test.go`: thẻ, lọc, form gửi đúng `Options` + dòng CLI, hộp duyệt thường/đỏ, `HumanOnly` khoá khi phiên agent,
+sync xác nhận "không" thì không ghi, `--force` hộp đỏ, ngôn ngữ đổi ngay, `--read-only` từ chối mọi `Writes` qua phím/bảng lệnh/yêu cầu trực tiếp, worktree phụ, Enter ở hộp thư), golden 80×24 và 140×40 (vi/en/xx, đơn sắc, 21 trạng thái mỗi cỡ;
+thêm mã màu ở bốn chế độ cho Thành phần và Harness) kèm khẳng định không dòng nào vượt chiều rộng và không còn khoá chưa dịch, `i18n_scan_test` (xem dưới), `system-wide.tape`.
+
+**Chỗ lệch so với kế hoạch (người duyệt có thể đổi)**
+
+- **Xem trước sync chạy chính `skills.Install` trên bản sao tạm** (`.bint/skills`, các thư mục skill của harness, manifest) rồi so từng tệp với bản thật, thay vì tự dựng từ `skills.Composed` + `skills.Status` như kế hoạch: kết quả (kể cả xung đột
+  do sửa tay hay lớp phủ) đúng như `Sync` sẽ cho mà không chép lại logic; đổi lại tốn một lần sao chép thư mục nhỏ. `Sync` vẫn tự kiểm lại lúc ghi nên lệch giữa lúc xem và lúc ghi chỉ cho kết quả khác. Ở `--read-only` phím `s`/`F` không mở bản xem trước
+  (sync ghi tệp nên không có gì để xác nhận).
+- **Đổi nhỏ về hành vi CLI**: `harness component add --template … --kind …/--file …` nay là lỗi dùng sai (mã 2); trước đó `--template` lặng lẽ thắng. `--kind`/`--status`/`--mode`/`--harness` sai vẫn mã 2 (nay qua `Validate()`).
+- **Hộp thư đổi hình dạng**: dòng "N thành phần harness chờ duyệt" (`overview.inbox.components`) thay bằng một dòng mỗi thành phần; chỉ số dòng trong ba test hộp thư (`TestInboxLinesAndTargets` và hai test Enter) dịch theo. Golden Tổng quan không đổi (mẫu không có thành phần).
+- **Thẻ Ngôn ngữ và Cấu hình dùng chung một lần nạp** (`ConfigView`); lưu ngôn ngữ từ chối nếu nội dung hiện có của tệp đích đã không hợp lệ ở chỗ khác (`ValidateWith` chạy trên toàn bộ cấu hình ghép lớp).
+- **`HarnessRuntime` chỉ gồm harness đang bật** (như doctor); harness chưa bật hiện "chưa bật trong cấu hình" thay vì trạng thái hook/MCP. Nhãn khả năng và cấp (`sy.cap.*`, `sy.level.*`) dịch qua i18n thay vì dùng chuỗi tiếng Việt của `internal/harness`.
+- **Thanh thẻ con rút gọn ở 80 cột** (bỏ đệm và dấu `·` của thẻ không chọn) để không cắt tên thẻ; bảng khả năng dùng cột 4 ký tự cho mỗi harness.
+- **Mở `$EDITOR`**: `config_edit` và `open_file` khai `Writes = true` (người sửa được tệp); việc ghi cấu hình thật là `config_save`. Sửa cấu hình dùng bản sao tạm nên thoát editor giữa chừng không để lại cấu hình hỏng; không dùng khoá liên tiến trình nên
+  còn một cửa sổ rất nhỏ giữa lúc so băm tệp gốc và lúc ghi nguyên tử (không chép mẫu `evolve.AcquireLock`, xem tri thức k:01M746PTBYPSXDT0WJZS38KPFD).
+- **Ô gợi ý tệp (`suggest=files`) của form thêm thành phần chưa nối** (cần nhập đường dẫn tay); form có gợi ý mờ cho tên mẫu, harness, thành phần và skill. `ErrConfigChanged` hiện với nhãn "chi tiết kỹ thuật" (chưa có khoá dịch riêng).
+- **Doctor chạy hai lần** khi mở thẻ Doctor sau Tổng quan (mỗi nơi gọi `app.Doctor` riêng).
+- **Test khoá i18n**: `keyCallRE` nay bắt cả `m.t("…")`/`m.n("…")` viết thường (k:01M75NXM4Z6S1CS3X7B2M63EBC) và bỏ qua tiền tố ghép động kết thúc bằng `_`; thêm tiền tố động `action.system.`, `sy.tab.`, `sy.cap.`, `sy.level.`, `sy.har.f.`,
+  `sy.comp.f.`, `sy.skill.f.|kind.|pub.|tgt.`, `sy.config.layer.`, `sy.lang.f.|opt.`, `sy.doc.level.`.
+- **Chưa làm** (đúng phạm vi): trình hướng dẫn `init`, Hệ thống › Cài đặt repo và 11 cờ `init`, nâng cấu hình `init --update` qua hộp thư/Cấu hình › Nâng mẫu, `update` + khởi động lại, cài/gỡ hook và MCP từ TUI (5b); sửa cấu hình toàn cục
+  (chỉ là một lớp nguồn); soạn thành phần từ khung trống bằng `$EDITOR`, trình duyệt cây tệp, chuột và chế độ hẹp đầy đủ (giai đoạn 6); ảnh VHS thật và bước CI xuất ảnh (`.github/workflows/**` được bảo vệ).
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app -run 'TestGoldenSystem' -update    # ghi lại golden của màn Hệ thống sau thay đổi giao diện chủ ý (đọc diff trước)
+go test ./internal/tui/... ./internal/app/... ./internal/config/... ./internal/cli/...
+GOOS=windows go vet ./...                                      # cùng go vet ./...; staticcheck cho linux và windows
+vhs internal/tui/testdata/vhs/system-wide.tape                # ảnh màn Hệ thống (cần vhs, ttyd, ffmpeg; xem README cùng thư mục)
+bint tui                                                       # 7 (Hệ thống) → e (sửa cấu hình, $EDITOR thật) → . (thẻ kế) … s (xem trước sync) → ., ., ., Enter (chọn ngôn ngữ)
+```
+
+**Chưa kiểm được tự động**: `$EDITOR` thật (test dùng hàm giả và gửi `ResultMsg` thay cho `tea.ExecProcess`), binary harness thật (phiên bản, trust của Codex), ảnh VHS, cảm nhận thẩm mỹ (thanh thẻ rút gọn, bảng khả năng cột hẹp),
+thời gian của `PlanSync` trên thư mục skill lớn.

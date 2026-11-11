@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────┐
+│  Config Harness Components Skills Index MCP  Language  Doctor                │
+│ ┌─│Write ui.language (auto, vi or en) to .bint/local.yml or .bint/config…│─┐ │
+│ │ ▸ Language*                ( ) auto (●) vi ( ) en                        │ │
+│ │   Write to (local = this … ( ) (empty) (●) local ( ) project             │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │   ⓘ auto: from BINT_LANG, LC_ALL/LANG                                    │ │
+│ │   Equivalent CLI command: bint                                           │ │
+│ │   Enter submit  Tab next field  Ctrl+Y copy command  Esc leave           │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

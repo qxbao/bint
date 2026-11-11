@@ -376,7 +376,7 @@ func TestInboxEnterOnEvalCandidateOpensEvalScreenAtThatCase(t *testing.T) {
 		return d, nil
 	}
 	m := newModel(t, Options{Mode: theme.Mono, EvalLoader: loader}, fullPending(), 140, 40)
-	press(t, m, "j", "j", "j", "j", "j", "j", "j", "enter") // 0,1 lô; 2 còn lại; 3 thành phần; 4 tác vụ; 5 đề xuất; 6,7 ứng viên
+	press(t, m, "j", "j", "j", "j", "j", "j", "j", "j", "enter") // 0,1 lô; 2 còn lại; 3,4 thành phần; 5 tác vụ; 6 đề xuất; 7,8 ứng viên
 	if m.Tab() != 4 || m.el.Tab() != 0 {
 		t.Fatalf("tab = %d, thẻ = %d, muốn 4 và 0", m.Tab(), m.el.Tab())
 	}

@@ -102,21 +102,23 @@ func TestHumanOnlyActionsRefuseAtServiceLayer(t *testing.T) {
 	root, ids := seed(t)
 	env := actions.Env{Dir: root}
 	humanOnly := map[string]any{
-		"knowledge.approve":         app.ApproveOptions{Refs: ids},
-		"knowledge.approve_refresh": app.ApproveOptions{Refs: ids},
-		"knowledge.reject":          app.RejectOptions{Refs: ids, Reason: "x"},
-		"knowledge.deprecate":       app.RejectOptions{Refs: ids, Reason: "x"},
-		"knowledge.approve_batch":   app.BatchOptions{Refs: ids},
-		"knowledge.reject_batch":    app.BatchOptions{Refs: ids, Reason: "x"},
-		"knowledge.verify_apply":    app.VerifyOptions{Apply: true},
-		"knowledge.revalidate":      app.RevalidateOptions{BudgetUSD: 1, AgentCommand: "true"},
-		"tasks.approve":             app.TaskApproveOptions{Ref: "khong-co"},
-		"runs.rate":                 app.RunsRateOptions{Ref: "khong-co", Rating: "good"},
-		"evolve.propose":            evolvesvc.ProposeOptions{NoAgent: true},
-		"evolve.apply":              evolvesvc.ApplyOptions{Ref: "ep_khong_co", Unverified: true, ConfirmRisk: true},
-		"evolve.reject":             evolvesvc.RejectOptions{Ref: "ep_khong_co"},
-		"evolve.rollback":           evolvesvc.RollbackOptions{Ref: "ep_khong_co"},
-		"evolve.process":            evolvesvc.ProcessOptions{},
+		"knowledge.approve":          app.ApproveOptions{Refs: ids},
+		"knowledge.approve_refresh":  app.ApproveOptions{Refs: ids},
+		"knowledge.reject":           app.RejectOptions{Refs: ids, Reason: "x"},
+		"knowledge.deprecate":        app.RejectOptions{Refs: ids, Reason: "x"},
+		"knowledge.approve_batch":    app.BatchOptions{Refs: ids},
+		"knowledge.reject_batch":     app.BatchOptions{Refs: ids, Reason: "x"},
+		"knowledge.verify_apply":     app.VerifyOptions{Apply: true},
+		"knowledge.revalidate":       app.RevalidateOptions{BudgetUSD: 1, AgentCommand: "true"},
+		"tasks.approve":              app.TaskApproveOptions{Ref: "khong-co"},
+		"runs.rate":                  app.RunsRateOptions{Ref: "khong-co", Rating: "good"},
+		"evolve.propose":             evolvesvc.ProposeOptions{NoAgent: true},
+		"evolve.apply":               evolvesvc.ApplyOptions{Ref: "ep_khong_co", Unverified: true, ConfirmRisk: true},
+		"evolve.reject":              evolvesvc.RejectOptions{Ref: "ep_khong_co"},
+		"evolve.rollback":            evolvesvc.RollbackOptions{Ref: "ep_khong_co"},
+		"evolve.process":             evolvesvc.ProcessOptions{},
+		"system.component_approve":   app.ComponentReviewOptions{ID: "khong-co"},
+		"system.component_deprecate": app.ComponentReviewOptions{ID: "khong-co"},
 	}
 	for id, a := range actions.Default().All() {
 		_ = id

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
+│  ⟦Config~~~⟧ ⟦Harness~~~⟧  ⟦Components~~~~⟧  ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ … │
+│ ┌─│⟦Components (3/3)~~~~~~⟧│───────────────────────⟦1 files skipped~~~~~~⟧─┐ │
+│ │   ✓ guardrail test-before-stop                         verified   low    │ │
+│ │   ◌ guidance  api-style                                candidate  low    │ │
+│ │ ┌─│⟦Approve fmt-check?~~~~⟧│───────────────────────────────────────────┐ │ │
+│ │ │ script fmt-check · global · candidate · ⟦risk high~~⟧                │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ⟦A script is executable code: Bint never runs it by                  │ │ │
+│ │ │ itself.~~~~~~~~~~~~~~~~~~~~~~~~⟧                                     │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ id: fmt-check                                                        │ │ │
+│ │ │ description: Kiểm tra định dạng                                      │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] ⟦Approve~~~⟧   [Esc] ⟦Cancel~~~⟧                             │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ n ⟦add~~⟧  a ⟦approve~~~⟧  d ⟦deprecate~~~~⟧  R ⟦render~~~⟧  f ⟦filter…─┘ │
+└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

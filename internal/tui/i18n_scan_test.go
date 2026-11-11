@@ -114,7 +114,8 @@ func TestVietnameseDetectorSanity(t *testing.T) {
 	}
 }
 
-var keyCallRE = regexp.MustCompile(`\b(?:T|N)\("([a-z0-9_.]+)"`)
+// keyCallRE bắt cả T("…")/N("…") viết hoa và m.t("…")/m.n("…") viết thường của các màn hình (k:01M75NXM4Z6S1CS3X7B2M63EBC).
+var keyCallRE = regexp.MustCompile(`\b(?:T|N|t|n)\("([a-z0-9_.]+)"`)
 var keyFieldRE = regexp.MustCompile(`\b(?:LabelKey|TitleKey|Key):\s*"([a-z0-9_.]+)"`)
 
 // Mọi khoá i18n nhắc trong mã (T/N, LabelKey/TitleKey, tab và nav theo ID màn hình) có trong danh
@@ -130,7 +131,7 @@ func TestEveryKeyUsedInCodeExists(t *testing.T) {
 		for _, re := range []*regexp.Regexp{keyCallRE, keyFieldRE} {
 			for _, m := range re.FindAllStringSubmatch(string(b), -1) {
 				k := m[1]
-				if strings.HasSuffix(k, ".") {
+				if strings.HasSuffix(k, ".") || strings.HasSuffix(k, "_") {
 					continue // tiền tố ghép động, kiểm bên dưới
 				}
 				seen[k] = true
@@ -195,7 +196,10 @@ func TestNoUnusedKeys(t *testing.T) {
 		// Màn Đánh giá (giai đoạn 4): hành động, nhãn form (đã có "form."), câu hỏi giữa chừng của eval run/bootstrap (ghép từ
 		// khoá app.ConfirmEval*Key), tên thẻ, trạng thái ứng viên/kiểm chứng/rò rỉ/đặc tả/đợt (ghép từ giá trị dữ liệu), tiêu
 		// đề kết quả việc nền, lý do kiểm chứng ở hộp duyệt.
-		"action.eval.", "prompt.eval.", "eval.tab.", "eval.st.", "eval.vs.", "eval.ls.", "eval.ss.", "eval.bst.", "eval.job.title.", "eval.approve.verify_"}
+		"action.eval.", "prompt.eval.", "eval.tab.", "eval.st.", "eval.vs.", "eval.ls.", "eval.ss.", "eval.bst.", "eval.job.title.", "eval.approve.verify_",
+		// Màn Hệ thống (giai đoạn 5a): hành động, tên thẻ, khả năng/cấp harness, nhãn trường, loại/trạng thái ghép từ giá trị dữ liệu.
+		"action.system.", "sy.tab.", "sy.cap.", "sy.level.", "sy.har.f.", "sy.comp.f.", "sy.skill.f.", "sy.skill.kind.", "sy.skill.pub.",
+		"sy.skill.tgt.", "sy.config.layer.", "sy.lang.f.", "sy.lang.opt.", "sy.doc.level."}
 	for _, k := range vi.Keys() {
 		if k == "app.name" || strings.Contains(code, `"`+k+`"`) {
 			continue

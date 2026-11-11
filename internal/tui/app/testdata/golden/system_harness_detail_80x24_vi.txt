@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
+│  Cấu hình  Harness  Thành phần Skill Chỉ mục MCP Ngôn ngữ Doctor             │
+│ ┌─│Chi tiết · claude│──────────────────────────────────────────────1-16/33─┐ │
+│ │ Claude Code (claude)                                                     │ │
+│ │ Cấp                 3 — + thực thi theo chương trình                     │ │
+│ │ Chương trình        /usr/local/bin/claude                                │ │
+│ │ Phiên bản           - (Đối chiếu Claude Code 2.x)                        │ │
+│ │ Bật trong cấu hình  có                                                   │ │
+│ │ Thư mục skill       .claude/skills                                       │ │
+│ │                                                                          │ │
+│ │ Hook và MCP                                                              │ │
+│ │   ✓ Hook — phạm vi đã cài: project                                       │ │
+│ │       phạm vi project                                                    │ │
+│ │   ✓ MCP server của Bint đã đăng ký                                       │ │
+│ │   Cài/gỡ hook và MCP: bint init --hooks / --mcp (giai đoạn 5b).          │ │
+│ │                                                                          │ │
+│ │ Bảng khả năng                                                            │ │
+│ │  ✓ Đồng bộ skill .claude/skills/<tên>/SKILL.md                           │ │
+│ │  ✓ Ẩn skill / chỉ gọi tường minh disable-model-invocation: chỉ chạy khi  │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

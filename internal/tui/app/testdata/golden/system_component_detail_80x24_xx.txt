@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
+│  ⟦Config~~~⟧ ⟦Harness~~~⟧  ⟦Components~~~~⟧  ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ … │
+│ ┌─│⟦Details~~~⟧ · fmt-check│───────────────────────────────────────1-16/21─┐ │
+│ │ ⟦Kind~~⟧    script                                                       │ │
+│ │ ⟦ID~⟧       fmt-check                                                    │ │
+│ │ ⟦Scope~~⟧   global                                                       │ │
+│ │ ⟦Status~~~⟧ ◌ candidate                                                  │ │
+│ │ ⟦Origin~~~⟧ agent                                                        │ │
+│ │ ⟦Version~~… 1                                                            │ │
+│ │ ⟦Risk~~⟧    high                                                         │ │
+│ │ ⟦Approved … -                                                            │ │
+│ │ ⟦File~~⟧    .bint/harness/scripts/fmt-check.yml                          │ │
+│ │                                                                          │ │
+│ │ ⟦Content~~~⟧                                                             │ │
+│ │ id: fmt-check                                                            │ │
+│ │ description: Kiểm tra định dạng                                          │ │
+│ │                                                                          │ │
+│ │ ⟦scripts/fmt-check.sh~~~~~⟧                                              │ │
+│ │ ⟦A script is executable code: Bint never runs it by itself.~~~~~~~~~~~…  │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

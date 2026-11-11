@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────┐
+│  Config  Harness  Components Skills Index MCP Language Doctor                │
+│ ┌─│Harnesses│──────────────────────────────────────────────────────────────┐ │
+│ │   HARNESS     ON   HOST  VERSION   VERIFIED   LEVEL                      │ │
+│ │ ▸ claude      yes  yes   -         Claude Co… 3                          │ │
+│ │   codex       -    -     -         codex-cli… 3                          │ │
+│ │   antigravity -    -     -         agy 1.5.3  3                          │ │
+│ │                                                                          │ │
+│ │  Capabilities                                                            │ │
+│ │                                                           cla… cod… ant… │ │
+│ │   Skill sync                                              ✓    ✓    ✓    │ │
+│ │   Hidden skills / explicit invocation only                ✓    ~    ✗    │ │
+│ │   Bint MCP server                                         ✓    ~    ✗    │ │
+│ │   Event-recording hooks                                   ✓    ~    ~    │ │
+│ │   Path-based context injection                            ✓    ~    ✗    │ │
+│ │   Ask a human before editing protected paths              ✓    ~    ✓    │ │
+│ │   Workflow guardrails                                     ✓    ~    ~    │ │
+│ │   Programmatic execution (bint run)                       ✓    ✓    ✓    │ │
+│ │   Keep read-only steps read-only                          ✓    ~    ~    │ │
+│ └─ V version  Enter open ──────────────────────────────────────────────────┘ │
+└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘

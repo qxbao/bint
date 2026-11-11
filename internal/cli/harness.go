@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"context"
 	"fmt"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -32,25 +30,6 @@ một lượt: bint run --harness codex …, bint run --role implementer=codex �
 	return c
 }
 
-func harnessConfig(cmd *cobra.Command) config.Config {
-	dir, err := cwd()
-	if err == nil {
-		if ws, err := app.OpenWorkspace(cmd.Context(), dir, false); err == nil {
-			return ws.Config
-		}
-	}
-	return config.Default()
-}
-
-func versionOf(ctx context.Context, cfg config.Config) func(harness.Adapter) string {
-	return func(a harness.Adapter) string {
-		if ex, ok := a.(harness.Executor); ok {
-			return ex.NewAgent(harness.AgentOptions{Config: cfg}).Version(ctx)
-		}
-		return ""
-	}
-}
-
 func newHarnessListCmd(stdio IO) *cobra.Command {
 	var asJSON, noVersion bool
 	c := &cobra.Command{
@@ -58,14 +37,15 @@ func newHarnessListCmd(stdio IO) *cobra.Command {
 		Short: "Liệt kê harness, trạng thái trên máy và bảng khả năng",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg := harnessConfig(cmd)
-			var vf func(harness.Adapter) string
-			if !noVersion {
-				vf = versionOf(cmd.Context(), cfg)
+			dir, err := cwd()
+			if err != nil {
+				return err
 			}
-			var infos []harness.Info
-			for _, a := range harness.All() {
-				infos = append(infos, harness.Describe(a, cfg, vf))
+			o := app.HarnessListDefaults(config.Default())
+			o.NoVersion = noVersion
+			infos, err := app.ListHarnesses(cmd.Context(), dir, o)
+			if err != nil {
+				return err
 			}
 			if asJSON {
 				return writeJSON(stdio.Out, infos)
@@ -127,12 +107,14 @@ func newHarnessShowCmd(stdio IO) *cobra.Command {
 		Short: "Chi tiết bảng khả năng của một harness",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			a, ok := harness.Get(args[0])
-			if !ok {
-				return usageError{fmt.Errorf("harness không hỗ trợ %q (%s)", args[0], strings.Join(harness.Names(), ", "))}
+			dir, err := cwd()
+			if err != nil {
+				return err
 			}
-			cfg := harnessConfig(cmd)
-			in := harness.Describe(a, cfg, versionOf(cmd.Context(), cfg))
+			in, err := app.ShowHarness(cmd.Context(), dir, app.HarnessShowOptions{Name: args[0]})
+			if err != nil {
+				return err
+			}
 			if asJSON {
 				return writeJSON(stdio.Out, in)
 			}

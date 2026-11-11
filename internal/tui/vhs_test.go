@@ -24,7 +24,7 @@ func TestVHSTapesAreWellFormed(t *testing.T) {
 	for _, p := range tapes {
 		have[filepath.Base(p)] = true
 	}
-	for _, want := range []string{"overview.tape", "init.tape", "gallery.tape", "knowledge.tape", "knowledge-wide.tape", "runs-wide.tape", "eval-wide.tape", "evolve-wide.tape"} {
+	for _, want := range []string{"overview.tape", "init.tape", "gallery.tape", "knowledge.tape", "knowledge-wide.tape", "runs-wide.tape", "eval-wide.tape", "evolve-wide.tape", "system-wide.tape"} {
 		if !have[want] {
 			t.Errorf("thiếu kịch bản %s", want)
 		}

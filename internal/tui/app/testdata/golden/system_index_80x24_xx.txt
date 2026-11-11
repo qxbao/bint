@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
+│  ⟦Config~~~⟧ ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧  ⟦Index~~⟧  ⟦MCP~~⟧ … │
+│ ┌─│⟦Knowledge index~~~~~~⟧│────────────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │  ⟦The FTS5 index in SQLite is derived from .bint/knowledge/items:        │ │
+│ │  dropping and rebuilding loses nothing. You normally never need this —   │ │
+│ │  every retrieval syncs it when files                                     │ │
+│ │  change.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  │ │
+│ │  ~~~~~~~~⟧                                                               │ │
+│ │                                                                          │ │
+│ │  ⟦Equivalent command: bint index rebuild~~~~~~~~~~~~~~~~⟧                │ │
+│ │                                                                          │ │
+│ │  ⟦Not rebuilt in this session.~~~~~~~~~~~~⟧                              │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ b ⟦rebuild~~~⟧ ─────────────────────────────────────────────────────────┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

@@ -60,15 +60,59 @@ func (w *ComponentWS) Resolve(kind hcomp.Kind, id string) (hcomp.Component, erro
 	return hcomp.Component{}, fmt.Errorf("id %q có ở nhiều loại (%s): chỉ định --kind", id, strings.Join(kinds, ", "))
 }
 
+// kindChoices là các loại thành phần theo thứ tự hcomp.Kinds (dùng cho thẻ choices của form và thông báo lỗi).
+const kindChoices = "guidance|guardrail|script|strategy"
+
+// checkKind kiểm một giá trị --kind (rỗng = hợp lệ).
+func checkKind(k hcomp.Kind) error {
+	if k == "" {
+		return nil
+	}
+	for _, x := range hcomp.Kinds {
+		if x == k {
+			return nil
+		}
+	}
+	return Usagef("--kind %q: cần guidance, guardrail, script hoặc strategy", string(k))
+}
+
+// ComponentTemplates là tên các mẫu dựng sẵn (nguồn gợi ý của form).
+func ComponentTemplates() []string {
+	var out []string
+	for _, t := range hcomp.Templates() {
+		out = append(out, t.ID)
+	}
+	return out
+}
+
 // AddComponentOptions điều khiển `bint harness component add`.
 type AddComponentOptions struct {
-	Kind hcomp.Kind
+	Kind hcomp.Kind `flag:"kind" form:"choices=guidance|guardrail|script|strategy"`
 	// File: tệp thành phần do người soạn (guidance .md; guardrail/script/strategy .yml).
-	File string
+	File string `flag:"file" form:"suggest=files"`
 	// ScriptFile: nội dung .sh của script (mặc định: tệp cùng tên với File, đuôi .sh, nếu có).
-	ScriptFile string
+	ScriptFile string `flag:"script-file" form:"advanced,suggest=files"`
 	// Template: tên mẫu dựng sẵn (thay cho File).
-	Template string
+	Template string `flag:"template" form:"suggest=component_templates"`
+}
+
+// AddComponentDefaults: không có giá trị mặc định.
+func AddComponentDefaults(config.Config) AddComponentOptions { return AddComponentOptions{} }
+
+// Validate: --template loại trừ --kind + --file; --file cần --kind hợp lệ; phải có một trong hai.
+func (o AddComponentOptions) Validate() error {
+	if err := checkKind(o.Kind); err != nil {
+		return err
+	}
+	switch {
+	case o.Template != "" && (o.File != "" || o.Kind != ""):
+		return Usagef("--template loại trừ --kind và --file")
+	case o.Template == "" && o.File == "":
+		return Usagef("cần --template hoặc --file")
+	case o.File != "" && o.Kind == "":
+		return Usagef("--file cần --kind %s", kindChoices)
+	}
+	return nil
 }
 
 // AddComponent thêm một thành phần ở trạng thái candidate. Origin theo người gọi (agent nếu
@@ -76,6 +120,9 @@ type AddComponentOptions struct {
 // thành phần có hiệu lực, người duyệt bằng `approve`.
 func AddComponent(ctx context.Context, w *ComponentWS, o AddComponentOptions) (hcomp.Component, error) {
 	var c hcomp.Component
+	if err := o.Validate(); err != nil {
+		return c, err
+	}
 	switch {
 	case o.Template != "":
 		t, ok := hcomp.Template(o.Template)
@@ -83,8 +130,6 @@ func AddComponent(ctx context.Context, w *ComponentWS, o AddComponentOptions) (h
 			return c, fmt.Errorf("không có mẫu %q", o.Template)
 		}
 		c = t
-	case o.File == "":
-		return c, errors.New("cần --file <tệp> hoặc --template <tên>")
 	default:
 		data, err := os.ReadFile(o.File)
 		if err != nil {
@@ -147,15 +192,35 @@ func fileExists(p string) bool {
 	return err == nil && fi.Mode().IsRegular()
 }
 
+// ComponentReviewOptions: `bint harness component approve|deprecate <id>`.
+type ComponentReviewOptions struct {
+	ID   string     `arg:"id" form:"required,suggest=components"`
+	Kind hcomp.Kind `flag:"kind" form:"choices=guidance|guardrail|script|strategy"`
+}
+
+// ComponentReviewDefaults: không có giá trị mặc định.
+func ComponentReviewDefaults(config.Config) ComponentReviewOptions { return ComponentReviewOptions{} }
+
+func (o ComponentReviewOptions) Validate() error {
+	if o.ID == "" {
+		return Usagef("cần id của thành phần")
+	}
+	return checkKind(o.Kind)
+}
+
 // ReviewComponent duyệt (candidate → verified) hoặc loại bỏ (→ deprecated) một thành phần.
 // Chỉ người làm được; chạy từ trong phiên agent bị từ chối.
-func ReviewComponent(ctx context.Context, w *ComponentWS, kind hcomp.Kind, id, to string) (hcomp.Component, error) {
+func ReviewComponent(ctx context.Context, w *ComponentWS, o ComponentReviewOptions, to string) (hcomp.Component, error) {
+	kind, id := o.Kind, o.ID
 	op := "bint harness component approve"
 	if to == hcomp.StatusDeprecated {
 		op = "bint harness component deprecate"
 	}
 	var zero hcomp.Component
 	if err := RequireHuman(op); err != nil {
+		return zero, err
+	}
+	if err := o.Validate(); err != nil {
 		return zero, err
 	}
 	c, err := w.Resolve(kind, id)
@@ -206,23 +271,41 @@ func dialectOf(name string) (hookcore.Dialect, bool) {
 
 // RenderOptions điều khiển `bint harness render`.
 type RenderOptions struct {
-	Harness string
-	Mode    hcomp.Mode
+	Harness string     `flag:"harness" form:"choices=claude|codex|antigravity"`
+	Mode    hcomp.Mode `flag:"mode" form:"choices=on|all|off"`
 	// Paths: tệp giả định đang đọc/sửa, để thấy guidance riêng nào được chèn.
-	Paths []string
+	Paths []string `flag:"paths" form:"suggest=files"`
+}
+
+// RenderDefaults: claude, chế độ on (thành phần verified).
+func RenderDefaults(config.Config) RenderOptions {
+	return RenderOptions{Harness: claude.HarnessName, Mode: hcomp.ModeOn}
+}
+
+// Validate: harness có adapter, chế độ hợp lệ (rỗng = mặc định).
+func (o RenderOptions) Validate() error {
+	if o.Harness != "" {
+		if _, ok := dialectOf(o.Harness); !ok {
+			return Usagef("harness không hỗ trợ %q", o.Harness)
+		}
+	}
+	if _, err := hcomp.ParseMode(string(o.Mode)); err != nil {
+		return UsageError{Err: err}
+	}
+	return nil
 }
 
 // RenderHarness mô tả agent sẽ nhận gì từ thành phần quy trình trên một harness: khối chỉ
 // dẫn chung trong AGENTS.md, guidance riêng theo đường dẫn, guardrail (kèm mức hạ theo khả
 // năng của harness) và chiến lược ngữ cảnh đang áp.
 func RenderHarness(w *ComponentWS, o RenderOptions) (string, error) {
+	if err := o.Validate(); err != nil {
+		return "", err
+	}
 	if o.Harness == "" {
 		o.Harness = claude.HarnessName
 	}
-	d, ok := dialectOf(o.Harness)
-	if !ok {
-		return "", fmt.Errorf("harness không hỗ trợ %q", o.Harness)
-	}
+	d, _ := dialectOf(o.Harness)
 	if o.Mode == "" {
 		o.Mode = hcomp.ModeOn
 	}
@@ -305,4 +388,114 @@ func matching(c hcomp.Component, paths []string) []string {
 		}
 	}
 	return out
+}
+
+// ---- list / show ----
+
+// ComponentListOptions: `bint harness component list`.
+type ComponentListOptions struct {
+	Kind   hcomp.Kind `flag:"kind" form:"choices=guidance|guardrail|script|strategy"`
+	Status string     `flag:"status" form:"choices=candidate|verified|deprecated"`
+}
+
+// ComponentListDefaults: không lọc.
+func ComponentListDefaults(config.Config) ComponentListOptions { return ComponentListOptions{} }
+
+func (o ComponentListOptions) Validate() error {
+	if err := checkKind(o.Kind); err != nil {
+		return err
+	}
+	switch o.Status {
+	case "", hcomp.StatusCandidate, hcomp.StatusVerified, hcomp.StatusDeprecated:
+		return nil
+	}
+	return Usagef("--status %q: cần candidate, verified hoặc deprecated", o.Status)
+}
+
+// ComponentRow là một dòng của danh sách thành phần (cũng là dạng JSON của CLI).
+type ComponentRow struct {
+	Kind    string `json:"kind"`
+	ID      string `json:"id"`
+	Scope   string `json:"scope"`
+	Status  string `json:"status"`
+	Origin  string `json:"origin"`
+	Version int    `json:"version"`
+	Risk    string `json:"risk"`
+	File    string `json:"file"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+// RowOfComponent tóm tắt một thành phần thành dòng danh sách.
+func RowOfComponent(c hcomp.Component) ComponentRow {
+	r := ComponentRow{Kind: string(c.Kind), ID: c.ID, Scope: c.Scope, Status: c.Status, Origin: c.Origin, Version: c.Version,
+		Risk: hcomp.Risk(c), File: ".bint/harness/" + c.File}
+	switch c.Kind {
+	case hcomp.KindGuardrail:
+		r.Detail = fmt.Sprintf("on=%s action=%s", c.On, c.Action)
+	case hcomp.KindGuidance:
+		r.Detail = c.Title
+	case hcomp.KindScript:
+		r.Detail = c.Description
+	}
+	return r
+}
+
+// ComponentList là kết quả `harness component list`: các dòng (đã lọc) và lỗi tải (tệp bị bỏ qua).
+type ComponentList struct {
+	Rows     []ComponentRow
+	Problems []string
+}
+
+// ListComponents liệt kê thành phần quy trình, lọc theo loại/trạng thái.
+func ListComponents(w *ComponentWS, o ComponentListOptions) (ComponentList, error) {
+	if err := o.Validate(); err != nil {
+		return ComponentList{}, err
+	}
+	out := ComponentList{Problems: []string{}}
+	for _, c := range w.Lib.Components {
+		if (o.Kind == "" || c.Kind == o.Kind) && (o.Status == "" || c.Status == o.Status) {
+			out.Rows = append(out.Rows, RowOfComponent(c))
+		}
+	}
+	for _, p := range w.Lib.Problems {
+		out.Problems = append(out.Problems, p.String())
+	}
+	return out, nil
+}
+
+// ComponentShowOptions: `bint harness component show <id>`.
+type ComponentShowOptions struct {
+	ID   string     `arg:"id" form:"required,suggest=components"`
+	Kind hcomp.Kind `flag:"kind" form:"choices=guidance|guardrail|script|strategy"`
+}
+
+// ComponentShowDefaults: không có giá trị mặc định.
+func ComponentShowDefaults(config.Config) ComponentShowOptions { return ComponentShowOptions{} }
+
+func (o ComponentShowOptions) Validate() error {
+	if o.ID == "" {
+		return Usagef("cần id của thành phần")
+	}
+	return checkKind(o.Kind)
+}
+
+// ComponentDetail là một thành phần kèm nội dung đã chuỗi hoá (tệp .yml/.md) và nội dung .sh của script.
+type ComponentDetail struct {
+	Component hcomp.Component
+	Row       ComponentRow
+	Content   string
+	Script    string
+}
+
+// ShowComponent trả chi tiết và nội dung một thành phần.
+func ShowComponent(w *ComponentWS, o ComponentShowOptions) (ComponentDetail, error) {
+	if err := o.Validate(); err != nil {
+		return ComponentDetail{}, err
+	}
+	c, err := w.Resolve(o.Kind, o.ID)
+	if err != nil {
+		return ComponentDetail{}, err
+	}
+	body, _ := hcomp.Marshal(c)
+	return ComponentDetail{Component: c, Row: RowOfComponent(c), Content: string(body), Script: string(c.Source)}, nil
 }

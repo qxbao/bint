@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
+│  Cấu hình  Harness  Thành phần Skill Chỉ mục MCP Ngôn ngữ Doctor             │
+│ ┌─│Harness│────────────────────────────────────────────────────────────────┐ │
+│ │   HARNESS     BẬT  MÁY   PHIÊN BẢN ĐỐI CHIẾU  CẤP                        │ │
+│ │ ▸ claude      có   có    -         Claude Co… 3                          │ │
+│ │   codex       -    -     -         codex-cli… 3                          │ │
+│ │   antigravity -    -     -         agy 1.5.3  3                          │ │
+│ │                                                                          │ │
+│ │  Bảng khả năng                                                           │ │
+│ │                                                           cla… cod… ant… │ │
+│ │   Đồng bộ skill                                           ✓    ✓    ✓    │ │
+│ │   Ẩn skill / chỉ gọi tường minh                           ✓    ~    ✗    │ │
+│ │   MCP server của Bint                                     ✓    ~    ✗    │ │
+│ │   Hook ghi nhận sự kiện                                   ✓    ~    ~    │ │
+│ │   Chèn ngữ cảnh theo đường dẫn                            ✓    ~    ✗    │ │
+│ │   Hỏi người khi sửa đường dẫn bảo vệ                      ✓    ~    ✓    │ │
+│ │   Guardrail quy trình                                     ✓    ~    ~    │ │
+│ │   Thực thi theo chương trình (bint run)                   ✓    ✓    ✓    │ │
+│ │   Giữ bước chỉ đọc                                        ✓    ~    ~    │ │
+│ └─ V phiên bản  Enter mở ──────────────────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│␛[1mbint 0.1.0␛[m│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[7m␛[1mHệ thống␛[m␛[m                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│␛[1mHệ thống␛[m│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Cấu hình · Harness ·␛[7m␛[1m Thành phần ␛[m␛[m· Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor                                                            │
+│ ┌─│␛[1mThành phần (3/3)␛[m│─────────────────────────␛[1m1 tệp bị bỏ qua␛[m─┐┌─│␛[1mChi tiết · fmt-check␛[m│─────────────────────────────────────────────────┐ │
+│ │   ✓ guardrail test-before-stop           verified   low    ││ Loại        script                                                     │ │
+│ │   ␛[1m◌␛[m guidance  api-style                  candidate  low    ││ ID          fmt-check                                                  │ │
+│ │ ␛[1m▸ ␛[m␛[7m␛[1m␛[1m◌␛[m script    fmt-check                  candidate  high  ␛[m␛[m ││ Phạm vi     global                                                     │ │
+│ │                                                            ││ Trạng thái  ␛[1m◌␛[m candidate                                                │ │
+│ │                                                            ││ Nguồn       agent                                                      │ │
+│ │                                                            ││ Phiên bản   1                                                          │ │
+│ │                                                            ││ Rủi ro      high                                                       │ │
+│ │                                                            ││ Duyệt bởi   -                                                          │ │
+│ │                                                            ││ Tệp         .bint/harness/scripts/fmt-check.yml                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││ Nội dung                                                               │ │
+│ │                                                            ││ id: fmt-check                                                          │ │
+│ │                                                            ││ description: Kiểm tra định dạng                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││ scripts/fmt-check.sh                                                   │ │
+│ │                                                            ││ ␛[1mScript là mã thực thi: Bint không bao giờ tự chạy nó.␛[m                  │ │
+│ │                                                            ││ #!/bin/sh                                                              │ │
+│ │                                                            ││ gofmt -l .                                                             │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││ 1 tệp bị bỏ qua                                                        │ │
+│ │                                                            ││ ␛[1m! ␛[mguidance/hong.md: thiếu tiêu đề                                      │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ └─ ␛[1mn␛[m thêm  ␛[1ma␛[m duyệt  ␛[1md␛[m loại bỏ  ␛[1mR␛[m render  ␛[1mf␛[m lọc ──────────────┘└────────────────────────────────────────────────────────────────────────┘ │
+└─[␛[1m:␛[m→ Lệnh] [␛[1mL␛[m→ Ngôn ngữ] [␛[1mq␛[m→ Thoát] [␛[1m?␛[m→ Trợ giúp]─────────────────────────────────────────────────────────────────────────────────────────┘

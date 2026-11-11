@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -16,8 +15,6 @@ import (
 	"bint/internal/fsafe"
 	"bint/internal/gitrepo"
 	"bint/internal/harness"
-	"bint/internal/harness/claude"
-	"bint/internal/harness/codex"
 	"bint/internal/knowledge"
 	"bint/internal/runlog"
 	"bint/internal/skills"
@@ -188,20 +185,21 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		}
 		info := harness.Describe(ad, cfg, nil)
 		r.add("harness "+h, LevelOK, "%s — cấp %d (%s), xem `bint harness show %s`", where, info.Level, info.LevelTitle, h)
-		if hi, ok := ad.(harness.HookInstaller); ok {
-			r.Checks = append(r.Checks, hookCheck(ctx, ad, hi, repo.Toplevel, cfg.Harnesses.Codex.Binary))
+		rt := runtimeOf(ctx, ad, cfg, repo.Toplevel)
+		if rt.Hook != nil {
+			r.add("hook "+h, rt.Hook.Level, "%s", rt.Hook.Detail)
 		}
-		if mi, ok := ad.(harness.MCPInstaller); ok && cfg.Context.Interfaces.MCP {
-			if mi.MCPInstalled(repo.Toplevel) {
+		if rt.MCP != nil {
+			if rt.MCP.Registered {
 				r.add("MCP "+h, LevelOK, "đã đăng ký")
-				if h == codex.HarnessName && !codex.CitationApprovalConfigured(repo.Toplevel) {
+				if rt.MCP.CitationUnverified {
 					r.add("MCP codex citation", LevelWarn, "chưa xác minh cite_knowledge được phép chạy với approval policy never; chạy bint init --mcp hoặc đặt [mcp_servers.bint.tools.cite_knowledge] approval_mode = \"approve\" trong .codex/config.toml")
 				}
 			} else {
 				r.add("MCP "+h, LevelInfo, "chưa đăng ký MCP server của Bint (bint init --mcp)")
 			}
 		}
-		if h == codex.HarnessName && !codex.ProjectTrusted(repo.Toplevel) {
+		if rt.CodexUntrusted {
 			r.add("codex trust", LevelInfo, "repository chưa được Codex tin cậy: .codex/config.toml và .codex/hooks.json cấp dự án chưa có hiệu lực")
 		}
 	}
@@ -301,39 +299,6 @@ func evolvedChecks(r *DoctorReport, root string) {
 	}
 	if len(probs) == 0 {
 		r.add("skill tiến hoá", LevelOK, "%d skill (%d đang hoạt động)", len(list), active)
-	}
-}
-
-func hookCheck(ctx context.Context, ad harness.Adapter, hi harness.HookInstaller, root, codexBinary string) Check {
-	name := "hook " + ad.Name()
-	var found []string
-	var paths []string
-	for _, sc := range []claude.Scope{claude.ScopeLocal, claude.ScopeProject, claude.ScopeUser} {
-		p, err := hi.HooksPath(sc, root)
-		if err != nil || slices.Contains(paths, p) {
-			continue
-		}
-		paths = append(paths, p)
-		if ok, _ := hi.HooksInstalled(p); ok {
-			found = append(found, string(sc))
-			if ad.Name() == codex.HarnessName {
-				trust, err := codex.InspectHookTrust(ctx, codexBinary, root, p)
-				if err != nil {
-					return Check{name, LevelWarn, "đã cài nhưng chưa xác minh trust: " + err.Error()}
-				}
-				if !trust.AllTrusted() {
-					return Check{name, LevelWarn, "đã cài ở " + p + ": " + trust.String() + "; mở codex, /hooks để duyệt định nghĩa hiện hành"}
-				}
-			}
-		}
-	}
-	switch len(found) {
-	case 0:
-		return Check{name, LevelWarn, "chưa cài; lượt chạy trực tiếp trong " + ad.Title() + " sẽ không được ghi nhận (bint init --hooks)"}
-	case 1:
-		return Check{name, LevelOK, "phạm vi " + found[0]}
-	default:
-		return Check{name, LevelInfo, "cài ở nhiều phạm vi (" + strings.Join(found, ", ") + "); sự kiện trùng được loại theo event_id"}
 	}
 }
 
