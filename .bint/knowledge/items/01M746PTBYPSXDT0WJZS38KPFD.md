@@ -9,7 +9,7 @@ evidence:
   - path: internal/workflow/isolation.go
     symbol: AcquireWriteLock
     commit: 755b544a90e8
-    fingerprint: symbol:54fa95cb1762baa4
+    fingerprint: symbol:6f33610de480ee6c
   - path: internal/workflow/flock_unix.go
     lines: 11-24
     fingerprint: lines:d6c787e8b926561a
@@ -25,12 +25,12 @@ origin:
     - internal/evolve/apply.go
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-11T02:28:00Z"
+reviewed_at: "2026-11-11T08:31:46Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:24:04Z"
-updated_at: "2026-11-11T02:28:00Z"
-verified_at: "2026-11-11T02:28:00Z"
+updated_at: "2026-11-11T08:31:46Z"
+verified_at: "2026-11-11T08:31:46Z"
 status_reason: người duyệt chấp nhận
 ---
 

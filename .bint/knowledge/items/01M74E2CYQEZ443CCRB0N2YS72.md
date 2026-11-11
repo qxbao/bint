@@ -10,7 +10,7 @@ scope:
 evidence:
   - path: internal/evolve/deferred.go
     lines: 234-238
-    fingerprint: lines:0dae3a71a6f5a83d
+    fingerprint: lines:3a48cf69718090de
   - path: internal/evolve/reflector.go
     lines: 155-160
     fingerprint: lines:a4aa5da6790f1879
@@ -20,11 +20,11 @@ origin:
   commit: 7dd832f666fa77c584f5354e5d1ec02638134543
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-11T06:39:06Z"
+reviewed_at: "2026-11-11T08:33:21Z"
 version: 1
 created_at: "2026-11-11T04:32:44Z"
-updated_at: "2026-11-11T06:39:06Z"
-verified_at: "2026-11-11T06:39:06Z"
+updated_at: "2026-11-11T08:33:21Z"
+verified_at: "2026-11-11T08:33:21Z"
 status_reason: người duyệt chấp nhận
 ---
 

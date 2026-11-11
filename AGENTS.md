@@ -64,4 +64,13 @@ Khi làm việc với `internal/evolve/**`:
   Mọi đường gọi evolve.Propose (kể cả ProcessRequests/deferred) phải truyền Cases và RepoDir. Thiếu chúng thì kiểm rò rỉ của bài học failure_lesson báo 'không tìm thấy tác vụ' sau khi reflector đã chạy: tốn tiền rồi bỏ hết. Kiểm rò rỉ được dựng trước khi gọi reflector để lỗi này không tốn tiền.
 - **EvalCases của bài học lấy từ mọi tác vụ trong prompt, không chỉ bằng chứng** [k:01M74FMJH0K4HXQ6HCB941HJRY]
   Tập tác vụ nguồn (EvalCases) của bài học phải là mọi tác vụ có bản tóm tắt trong prompt của reflector (biến shown từ caseIDsOf(fails)), không lấy từ các lượt reflector nêu làm evidence. Chỉ lấy theo evidence thì tác vụ reflector đã thấy nhưng không nêu sẽ bị chấm lại bằng chính bài học đó, vi phạm mục 12.3 và E3.5 của kế hoạch P8.
+
+Khi làm việc với `internal/harness/hookcore/hook.go`:
+
+- **Không có dấu vết để xác nhận ngoài thực tế rằng việc quên bộ nhớ đã xảy ra** [k:01M74VDJXBG8BF6J1DWB56KW06]
+  Ghi thêm ev.Payload[memory_reset]=true/false (hoặc lỗi cắt ngắn) để kiểm tra bằng spool sau một phiên dài thật.
+
+  Căn cứ: Lỗi của Reset bị bỏ qua (_ =) và sự kiện session.started chỉ ghi payload source; không có trường nào cho biết bộ nhớ đã được xoá hay xoá lỗi. Chưa có bằng chứng tích hợp rằng Claude Code gửi source=compact sau khi nén (chỉ kiểm bằng JSON giả lập), nên nếu sự kiện không đến thì bản sửa lặng lẽ vô tác dụng và không thể phát hiện.
+
+  (Rút ra từ phát hiện review 01M74V1M7F41TFP03TWJQKKYF1.3, tác vụ 01M74V1M7F41TFP03TWJQKKYF1.)
 <!-- bint:end -->

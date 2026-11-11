@@ -16,7 +16,7 @@ evidence:
     lines: 19-31
     fingerprint: lines:a89fd436e83e0814
   - path: internal/cli/commands.go
-    lines: 250-253
+    lines: 267-270
     fingerprint: lines:bca66967c0d90458
 origin:
   kind: agent

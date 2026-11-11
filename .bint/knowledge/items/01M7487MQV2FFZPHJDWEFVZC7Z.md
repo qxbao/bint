@@ -9,7 +9,7 @@ scope:
     - internal/config/template.go
 evidence:
   - path: internal/config/template.go
-    lines: "145"
+    lines: "148"
     fingerprint: lines:1cc300d3b75f00e2
 origin:
   kind: agent

@@ -13,18 +13,18 @@ evidence:
     fingerprint: lines:557eeecd14d6b0b8
   - path: internal/evolve/lesson_check.go
     lines: 116-140
-    fingerprint: lines:7ef3dd9ac5b11754
+    fingerprint: lines:0dee7f8d0f5a3801
 origin:
   kind: agent
   session: f6df3521-2b70-4d5c-8b4b-923b360d080d
   commit: 7dd832f666fa77c584f5354e5d1ec02638134543
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-11T06:36:51Z"
+reviewed_at: "2026-11-11T08:33:21Z"
 version: 1
 created_at: "2026-11-11T04:16:48Z"
-updated_at: "2026-11-11T06:36:51Z"
-verified_at: "2026-11-11T06:36:51Z"
+updated_at: "2026-11-11T08:33:21Z"
+verified_at: "2026-11-11T08:33:21Z"
 status_reason: người duyệt chấp nhận
 ---
 
