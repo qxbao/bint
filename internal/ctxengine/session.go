@@ -90,6 +90,15 @@ func (m SessionMemory) Seen() map[string]bool {
 	return out
 }
 
+// Reset quên các ID đã chèn của phiên (ví dụ khi harness nén ngữ cảnh nên agent không còn
+// thấy chúng). Tệp không tồn tại không phải lỗi; lỗi khác do người gọi quyết định bỏ qua hay không.
+func (m SessionMemory) Reset() error {
+	if err := os.Remove(m.Path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // Add ghi thêm ID.
 func (m SessionMemory) Add(ids []string) error {
 	if len(ids) == 0 {

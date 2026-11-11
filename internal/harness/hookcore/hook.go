@@ -47,6 +47,9 @@ const (
 	EvStop = "stop"
 )
 
+// SourceCompact là nguồn SessionStart sau khi harness nén ngữ cảnh của phiên đang chạy.
+const SourceCompact = "compact"
+
 // Input là dữ liệu hook đã chuẩn hoá.
 type Input struct {
 	SessionID string
@@ -413,6 +416,12 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 	case EvSessionStart:
 		ev.Type = spool.SessionStarted
 		ev.Payload["source"] = hi.Source
+		// Ngữ cảnh vừa bị nén: tri thức đã chèn trước đó không còn trong tầm nhìn của agent, nên
+		// quên bộ nhớ "đã chèn" của phiên để lần đọc sau chèn lại. Lỗi xoá bị bỏ qua (hook không
+		// chặn agent); resume/startup giữ nguyên vì ngữ cảnh không mất.
+		if hi.Source == SourceCompact && hi.SessionID != "" {
+			_ = ctxengine.NewSessionMemory(paths.Runtime, h, hi.SessionID).Reset()
+		}
 		ev.Payload["bint_version"] = env.BintVersion
 		if hi.Model != "" {
 			ev.Payload["model"] = hi.Model
