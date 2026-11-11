@@ -42,6 +42,7 @@ func newInitCmd(stdio IO) *cobra.Command {
 		mcp       bool
 		noMCP     bool
 		update    bool
+		gitMode   string
 	)
 	c := &cobra.Command{
 		Use:   "init",
@@ -55,6 +56,13 @@ mới của mẫu hiện tại (ví dụ harnesses.<h>.models: model theo role) 
 chèn dòng: giá trị, chú thích và định dạng sẵn có giữ nguyên; bản cũ được sao lưu vào
 thư mục trạng thái. Harness đã đặt tay model chung thì khối models được để trống để
 giữ hành vi cũ.
+
+Hiện diện trong Git (--git, lựa chọn được nhớ cho máy này; lần init đầu thì hỏi):
+  track  (mặc định) tệp của Bint được commit cho cả nhóm; tệp riêng của máy vào .gitignore.
+  local  chỉ dùng trên máy này: tệp chưa được theo dõi (.bint/, skill, hook, .mcp.json…)
+         vào khối bint của .git/info/exclude (không commit, chung mọi worktree); tệp đã
+         được theo dõi mà Bint sửa (AGENTS.md, CLAUDE.md…) được đặt skip-worktree;
+         .gitignore không bị đụng. Chuyển lại track: gỡ cả hai.
 
 Không gọi mô hình, không cài phần mềm, không chạy lệnh của dự án.`,
 		Args: cobra.NoArgs,
@@ -75,7 +83,7 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 			}
 			opts := app.InitOptions{
 				Dir: dir, Harnesses: harnesses, HooksScope: sc, AgentsMD: agentsMD, Force: force,
-				BintPath: bintPath(), Version: Version, NoSkills: noSkills, Update: update,
+				BintPath: bintPath(), Version: Version, NoSkills: noSkills, Update: update, GitMode: gitMode,
 			}
 			if mcp {
 				opts.MCP = ptr(true)
@@ -129,6 +137,7 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 	f.BoolVar(&noSkills, "no-skills", false, "không xuất bản skill gốc cho harness (.claude/skills, .agents/skills)")
 	f.BoolVar(&mcp, "mcp", false, "đăng ký MCP server của Bint (Context Engine) cho harness hỗ trợ: .mcp.json (Claude Code), .codex/config.toml (Codex)")
 	f.BoolVar(&noMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi cấu hình harness")
+	f.StringVar(&gitMode, "git", "", "hiện diện trong Git: track (commit cho nhóm) | local (riêng máy: .git/info/exclude + skip-worktree)")
 	f.BoolVar(&update, "update", false, "nâng .bint/config.yml đã có lên mẫu hiện tại: thêm khoá còn thiếu, giữ nguyên giá trị (có sao lưu)")
 	return c
 }
