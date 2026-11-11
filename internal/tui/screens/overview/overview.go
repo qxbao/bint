@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -217,26 +216,24 @@ func (m Model) View(env ui.Env) string {
 	}
 	add("")
 
-	// Doctor rút gọn.
+	// Doctor rút gọn: chỉ số đếm. Mọi cảnh báo/lỗi doctor đã nằm trong hộp thư ở trên (Inbox), nên không
+	// liệt kê lại chi tiết ở đây.
 	add(" " + th.Bold(env.T("overview.doctor.title")) + "  " + m.doctorSummary(th))
-	if m.Data.Doctor != nil {
-		shown := 0
-		for _, c := range m.Data.Doctor.Checks {
-			if c.Level == app.LevelOK || c.Level == app.LevelInfo || shown >= 3 {
-				continue
-			}
-			shown++
-			icon, role := "!", theme.Warn
-			if c.Level == app.LevelFail {
-				icon, role = "✗", theme.Err
-			}
-			add("  " + th.S(role, icon) + " " + text.Truncate(c.Name+": "+c.Detail, max(env.W-6, 8)))
-		}
-	}
 	if len(lines) > env.H {
 		lines = lines[:env.H]
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(centerVertically(lines, env.H), "\n")
+}
+
+// centerVertically đặt khối lines vào giữa chiều cao h khi còn thừa nhiều chỗ (từ minSpare dòng), để
+// cửa sổ cao không dồn hết nội dung lên trên; thừa ít thì giữ sát trên như trước.
+func centerVertically(lines []string, h int) []string {
+	const minSpare = 4
+	spare := h - len(lines)
+	if spare < minSpare {
+		return lines
+	}
+	return append(make([]string, spare/2), lines...)
 }
 
 func (m Model) doctorSummary(th theme.Theme) string {
@@ -264,21 +261,12 @@ func (m Model) infoBox(env ui.Env) []string {
 		return nil
 	}
 	runs := fmt.Sprintf("%d", st.TotalRuns)
-	if st.TotalRuns > 0 {
-		keys := make([]string, 0, len(st.Runs))
-		for k := range st.Runs {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		var parts []string
-		for _, k := range keys {
-			parts = append(parts, fmt.Sprintf("%s=%d", k, st.Runs[k]))
-		}
-		runs += "  " + th.S(theme.Muted, strings.Join(parts, " "))
+	if parts := runParts(env, st.Runs); len(parts) > 0 {
+		runs += "  " + th.S(theme.Muted, strings.Join(parts, " · "))
 	}
 	rows := [][2]string{
-		{env.T("overview.repo"), Tilde(st.Repo)},
-		{env.T("overview.state"), Tilde(st.StateDir)},
+		{env.T("overview.repo"), ""},
+		{env.T("overview.state"), ""},
 		{env.T("overview.harness"), strings.Join(st.Harnesses, ", ")},
 		{env.T("overview.schema"), fmt.Sprintf("v%d", st.Schema)},
 		{env.T("overview.runs"), runs},
@@ -287,6 +275,11 @@ func (m Model) infoBox(env ui.Env) []string {
 	for _, r := range rows {
 		lw = max(lw, text.Width(r[0]))
 	}
+	// Đường dẫn rút gọn (~, bỏ phần đầu bằng …) để hộp không tràn ngang: khung rộng tối đa W-2, trừ
+	// viền + đệm (4) và cột nhãn cùng hai ô đệm.
+	pathW := max(env.W-2-4-lw-2, 12)
+	rows[0][1] = text.Path(st.Repo, pathW)
+	rows[1][1] = text.Path(st.StateDir, pathW)
 	var body []string
 	for _, r := range rows {
 		body = append(body, th.S(theme.Accent, text.Pad(r[0], lw))+"  "+r[1])
@@ -297,10 +290,38 @@ func (m Model) infoBox(env ui.Env) []string {
 	return strings.Split(frame.Box{Title: env.T("overview.info.title"), TitleAt: frame.Left}.Render(th, w, h, strings.Join(body, "\n")), "\n")
 }
 
-// Tilde rút gọn thư mục home thành "~".
-func Tilde(p string) string {
-	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home) {
-		return "~" + strings.TrimPrefix(p, home)
+// runStatusOrder là thứ tự hiển thị các trạng thái lượt chạy đã biết; trạng thái lạ xếp sau, theo tên.
+var runStatusOrder = []string{"completed", "failed", "cancelled", "interrupted", "running"}
+
+// runParts dịch số lượt chạy theo trạng thái thành các cụm ngắn ("55 xong", "5 lỗi"...); bỏ trạng thái
+// có số 0. Tên trạng thái lạ (chưa có trong danh mục) hiện nguyên dạng.
+func runParts(env ui.Env, runs map[string]int) []string {
+	seen := map[string]bool{}
+	var keys []string
+	for _, k := range runStatusOrder {
+		seen[k] = true
+		keys = append(keys, k)
 	}
-	return p
+	var extra []string
+	for k := range runs {
+		if !seen[k] {
+			extra = append(extra, k)
+		}
+	}
+	sort.Strings(extra)
+	keys = append(keys, extra...)
+	var parts []string
+	for _, k := range keys {
+		n := runs[k]
+		if n <= 0 {
+			continue
+		}
+		key := "overview.runstatus." + k
+		if env.Cat.Has(key) {
+			parts = append(parts, env.T(key, map[string]any{"count": n}))
+		} else {
+			parts = append(parts, env.T("overview.runstatus.other", map[string]any{"count": n, "name": k}))
+		}
+	}
+	return parts
 }

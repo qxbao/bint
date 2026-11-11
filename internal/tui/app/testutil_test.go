@@ -19,7 +19,7 @@ func sampleData() overview.Data {
 	return overview.Data{
 		Status: &bintapp.StatusReport{
 			Repo: "/work/demo", RepoID: "7f3a9c", StateDir: "/state/demo-7f3a9c", Schema: 6,
-			Harnesses: []string{"claude", "codex"}, Runs: map[string]int{"done": 38, "failed": 3, "interrupted": 1}, TotalRuns: 42,
+			Harnesses: []string{"claude", "codex"}, Runs: map[string]int{"completed": 33, "failed": 3, "interrupted": 1, "running": 5}, TotalRuns: 42,
 			PendingProposals: 2,
 		},
 		Doctor: &bintapp.DoctorReport{Checks: []bintapp.Check{

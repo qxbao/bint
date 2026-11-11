@@ -5,13 +5,13 @@
 │                                    ␛[1mbint␛[1m.␛[m␛[m                                     │
 │               Ghi nhận, đo lường và tri thức cho coding agent                │
 │                                                                              │
-│              ┌─│␛[1mRepository␛[m│───────────────────────────────────┐              │
-│              │ Thư mục     /work/demo                         │              │
-│              │ Trạng thái  /state/demo-7f3a9c                 │              │
-│              │ Harness     claude, codex                      │              │
-│              │ Schema      v6                                 │              │
-│              │ Lượt chạy   42  done=38 failed=3 interrupted=1 │              │
-│              └────────────────────────────────────────────────┘              │
+│        ┌─│␛[1mRepository␛[m│──────────────────────────────────────────────┐         │
+│        │ Thư mục     /work/demo                                    │         │
+│        │ Trạng thái  /state/demo-7f3a9c                            │         │
+│        │ Harness     claude, codex                                 │         │
+│        │ Schema      v6                                            │         │
+│        │ Lượt chạy   42  33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy │         │
+│        └───────────────────────────────────────────────────────────┘         │
 │                                                                              │
 │  ␛[1mViệc cần bạn␛[m␛[1m (3)␛[m                                                            │
 │ ▸ ◌ ␛[7m␛[1m3 mục tri thức chờ duyệt␛[m␛[m                                      → Tri thức │
@@ -19,6 +19,6 @@
 │   ␛[1m!␛[m Doctor cảnh báo — config: cấu hình theo mẫu cũ: chạy `bint …  → Hệ thống │
 │                                                                              │
 │  ␛[1mDoctor␛[m  ✓ 2  ␛[1m! 1␛[m  ␛[7m✗ 0␛[m                                                       │
-│   ␛[1m!␛[m config: cấu hình theo mẫu cũ: chạy `bint init --update`                  │
+│                                                                              │
 │                                                                              │
 └─[␛[1mr␛[m→ Làm mới] [␛[1m:␛[m→ Lệnh] [␛[1mL␛[m→ Ngôn ngữ] [␛[1mq␛[m→ Thoát] [␛[1m?␛[m→ Trợ giúp]────────────────┘

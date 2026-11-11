@@ -19,6 +19,8 @@ type Model struct {
 	Running  bool
 	Report   *app.InitReport
 	Err      error
+	// LoadErr: khởi tạo xong nhưng nạp lại trạng thái repository thất bại (hiện cảnh báo dưới báo cáo).
+	LoadErr error
 }
 
 // Done cho biết đã khởi tạo xong (có báo cáo, không lỗi cứng).
@@ -47,14 +49,24 @@ func (m Model) View(env ui.Env) string {
 	th := env.Th
 	var lines []string
 	add := func(l ...string) { lines = append(lines, l...) }
-	wrap := func(role theme.Role, s string) {
-		for _, l := range text.Wrap(s, max(env.W-4, 10)) {
-			add("  " + th.S(role, l))
+	// wrap ngắt dòng có thụt lề; bullet: dòng đầu có "• ", dòng gói tiếp thụt treo theo chữ sau "• ".
+	wrapWith := func(role theme.Role, s, first, rest string) {
+		for _, l := range text.WrapHang(s, max(env.W-2, 10), first, rest) {
+			add(th.S(role, l))
 		}
 	}
-	add("", "  "+th.Bold(env.T("init.title")))
+	wrap := func(role theme.Role, s string) { wrapWith(role, s, "  ", "  ") }
+	bullet := func(role theme.Role, s string) { wrapWith(role, s, "  • ", "    ") }
+	titleKey, introKey := "init.title", "init.intro"
+	switch {
+	case m.Err != nil:
+		titleKey, introKey = "init.title.error", "init.intro.error"
+	case m.Report != nil:
+		titleKey, introKey = "init.title.done", "init.intro.done"
+	}
+	add("", "  "+th.Bold(env.T(titleKey)))
 	add("")
-	wrap(theme.Fg, env.T("init.intro", map[string]any{"dir": m.Dir}))
+	wrap(theme.Fg, env.T(introKey, map[string]any{"dir": text.Path(m.Dir, max(env.W-24, 20))}))
 	add("")
 	switch {
 	case m.ReadOnly:
@@ -70,10 +82,13 @@ func (m Model) View(env ui.Env) string {
 		wrap(theme.Muted, env.T("init.error.hint"))
 	case m.Report != nil:
 		add("  " + th.S(theme.OK, "✓ ") + th.Bold(env.T("init.done")))
+		if m.LoadErr != nil {
+			wrap(theme.Warn, env.T("init.reload_failed", map[string]any{"error": text.TildeIn(m.LoadErr.Error())}))
+		}
 		lines = append(lines, m.reportLines(env, len(lines))...)
 	default:
 		for _, k := range []string{"init.does.config", "init.does.state", "init.does.hooks", "init.does.gitignore"} {
-			wrap(theme.Fg, "• "+env.T(k))
+			bullet(theme.Fg, env.T(k))
 		}
 		add("")
 		wrap(theme.Muted, env.T("init.skills_note"))
@@ -94,7 +109,7 @@ func (m Model) reportLines(env ui.Env, used int) []string {
 	var problems, rest []string
 	for _, s := range m.Report.Steps {
 		si := stepIcon[s.Status]
-		l := "   " + th.S(si.role, si.icon) + " " + text.Truncate(s.Name+"  "+th.S(theme.Muted, s.Detail), max(env.W-8, 8))
+		l := "   " + th.S(si.role, si.icon) + " " + stepText(th, text.TildeIn(s.Name), text.TildeIn(s.Detail), max(env.W-8, 8))
 		if s.Status == app.StepWarn || s.Status == app.StepConflict {
 			problems = append(problems, l)
 		} else {
@@ -115,4 +130,17 @@ func (m Model) reportLines(env ui.Env, used int) []string {
 		steps = append(steps[:keep:keep], more)
 	}
 	return append(steps, next...)
+}
+
+// stepText ghép tên và chi tiết của một bước trong w ô. Chi tiết thường là đường dẫn kèm hậu tố
+// ("/…/state (schema v6)"), nên khi thiếu chỗ thì rút phần ĐẦU của chi tiết (giữ đuôi) chứ không cắt đuôi;
+// chỉ khi chỗ cho chi tiết quá nhỏ mới cắt cả dòng như thường.
+func stepText(th theme.Theme, name, detail string, w int) string {
+	if detail == "" {
+		return text.Truncate(name, w)
+	}
+	if room := w - text.Width(name) - 2; text.Width(detail) > room && room >= 8 {
+		detail = text.TruncateHead(detail, room)
+	}
+	return text.Truncate(name+"  "+th.S(theme.Muted, detail), w)
 }

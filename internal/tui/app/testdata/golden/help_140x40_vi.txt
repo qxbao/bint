@@ -17,13 +17,13 @@
 │                           │  1-7  Chuyển nhanh tới một tab                                                   │                           │
 │                           │                                                                                  │                           │
 │                           │                                                                                  │                           │
-│  Việc cần bạn (3)         │                                                                                  │                           │
-│ ▸ ◌ 3 mục tri thức chờ duy│                                                                                  │                → Tri thức │
-│   ◌ 2 đề xuất tiến hoá chờ│                                                                                  │                → Tiến hoá │
-│   ! Doctor cảnh báo — conf│                                                                                  │                → Hệ thống │
 │                           │                                                                                  │                           │
-│  Doctor  ✓ 2  ! 1  ✗ 0    │                                                                                  │                           │
-│   ! config: cấu hình theo │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
 │                           │                                                                                  │                           │
 │                           │                                                                                  │                           │
 │                           │                                                                                  │                           │

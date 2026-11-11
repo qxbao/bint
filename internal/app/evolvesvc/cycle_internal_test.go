@@ -62,7 +62,7 @@ func TestFailedProbe(t *testing.T) {
 
 // processRunner giữ lỗi của đợt (hết hạn mức, hết ngân sách...) cạnh kết quả dở dang để probe
 // quyết định; probe dùng verdict và bỏ lỗi đó như `evolve evaluate --json` cũ (xem
-// TestCycleUsesVerdictOfPartialBatch).
+// TestCycleProbeUsesVerdictOfPartialBatch và TestCycleRegressionUsesVerdictOfPartialBatch).
 func TestCycleEvaluateResultKeepsRunErr(t *testing.T) {
 	partial := &EvaluateResult{RunErr: eval.ErrQuota}
 	res, err := cycleEvaluateResult(partial, nil)

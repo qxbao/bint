@@ -179,7 +179,7 @@ func TestNoUnusedKeys(t *testing.T) {
 	}
 	code := src.String()
 	vi := i18n.MustLoad("vi")
-	dynamicPrefix := []string{"tab.", "action.nav.", "init.does.", "overview.inbox."}
+	dynamicPrefix := []string{"tab.", "action.nav.", "init.does.", "overview.inbox.", "overview.runstatus."}
 	for _, k := range vi.Keys() {
 		if k == "app.name" || strings.Contains(code, `"`+k+`"`) {
 			continue

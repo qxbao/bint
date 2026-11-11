@@ -17,13 +17,13 @@
 │                           │  1-7  Jump to a tab                                                              │                           │
 │                           │                                                                                  │                           │
 │                           │                                                                                  │                           │
-│  Needs you (3)            │                                                                                  │                           │
-│ ▸ ◌ 3 knowledge items awai│                                                                                  │               → Knowledge │
-│   ◌ 2 evolution proposals │                                                                                  │               → Evolution │
-│   ! Doctor warning — confi│                                                                                  │                  → System │
 │                           │                                                                                  │                           │
-│  Doctor  ✓ 2  ! 1  ✗ 0    │                                                                                  │                           │
-│   ! config: cấu hình theo │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
+│                           │                                                                                  │                           │
 │                           │                                                                                  │                           │
 │                           │                                                                                  │                           │
 │                           │                                                                                  │                           │

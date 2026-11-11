@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -360,7 +361,10 @@ func TestInitFlowOnTemporaryRepo(t *testing.T) {
 		t.Fatalf("báo cáo khởi tạo: %+v", m.ini.Report)
 	}
 	held := plain(m.Render())
-	for _, want := range []string{"Đã khởi tạo xong", m.ini.Report.Steps[0].Name, "Tiếp tục"} {
+	if strings.Contains(held, "chưa khởi tạo") || strings.Contains(held, "chưa được khởi tạo") {
+		t.Errorf("sau khi khởi tạo xong không còn được nói 'chưa khởi tạo':\n%s", held)
+	}
+	for _, want := range []string{"Đã khởi tạo Bint", "Bint đã được khởi tạo trong", "Đã khởi tạo xong", m.ini.Report.Steps[0].Name, "Tiếp tục"} {
 		if !strings.Contains(held, want) {
 			t.Errorf("màn báo cáo thiếu %q:\n%s", want, held)
 		}
@@ -540,5 +544,307 @@ func TestLoadingShowsSpinnerAndTickStops(t *testing.T) {
 	// Tick lẻ sau khi hết việc bị bỏ qua, không sinh chuỗi mới.
 	if _, c := m.Update(m.spin.Tick()); c != nil {
 		t.Fatal("tick thừa không được kéo dài chuỗi")
+	}
+}
+
+// Khởi tạo thất bại: tiêu đề và đoạn mở đầu nói lỗi, không còn câu "chưa khởi tạo" như trước khi thử.
+func TestInitErrorScreenSaysFailure(t *testing.T) {
+	m := newModel(t, Options{Mode: theme.Mono}, notInitData(), 100, 30)
+	m.ini = m.ini.Finish(nil, errors.New("ghi cấu hình: từ chối quyền"))
+	out := plain(m.Render())
+	for _, want := range []string{"Khởi tạo Bint không thành công", "Không khởi tạo được Bint trong", "Khởi tạo thất bại.", "từ chối quyền"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("thiếu %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "chưa khởi tạo") {
+		t.Errorf("không được nói 'chưa khởi tạo' khi đã thử và lỗi:\n%s", out)
+	}
+}
+
+// Phát hiện .13: nạp lại sau khi khởi tạo bị lỗi thì lỗi phải hiện ra, và "Tiếp tục" không được đưa về
+// màn chưa khởi tạo để chạy lại init.defaults trên repository đã init.
+func TestReloadFailureAfterInitKeepsRepoInitialized(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n"})
+	testutil.Git(t, root, "config", "user.name", "Rev")
+	testutil.Git(t, root, "config", "user.email", "rev@example.com")
+	calls := 0
+	m := New(context.Background(), Options{Dir: root, Version: "0.1.0", BintPath: "bint", Lang: "vi", Mode: theme.Mono,
+		SpinnerFPS: time.Millisecond,
+		Loader: func(context.Context, string) (overview.Data, error) {
+			calls++
+			if calls == 1 {
+				return notInitData(), nil
+			}
+			return overview.Data{}, errors.New("sqlite: database is locked")
+		}})
+	m.SetSize(100, 30)
+	drive(t, m, m.Init())
+	if m.Screen() != actions.Init {
+		t.Fatalf("lần nạp đầu báo chưa init: %q", m.Screen())
+	}
+	press(t, m, "enter")
+	if calls != 2 || !m.ini.Done() {
+		t.Fatalf("calls=%d done=%v err=%v", calls, m.ini.Done(), m.ini.Err)
+	}
+	held := plain(m.Render())
+	if !strings.Contains(held, "database is locked") || !strings.Contains(held, "Đã khởi tạo xong") {
+		t.Fatalf("màn báo cáo phải nói rõ lỗi nạp lại:\n%s", held)
+	}
+	press(t, m, "enter") // Tiếp tục
+	if m.Screen() == actions.Init {
+		t.Fatal("sau khi khởi tạo thành công không được quay về màn chưa khởi tạo")
+	}
+	if out := plain(m.Render()); !strings.Contains(out, "database is locked") || !strings.Contains(out, "Không đọc được trạng thái") {
+		t.Fatalf("lỗi nạp phải hiện ra ở Tổng quan:\n%s", out)
+	}
+	if _, cmd := m.run("init.defaults"); cmd != nil || m.ini.Running {
+		t.Fatal("không được chạy lại init.defaults trên repository đã init")
+	}
+	for _, it := range m.paletteItems() {
+		if strings.HasPrefix(it.ID, "init.") {
+			t.Fatalf("bảng lệnh không được có %s sau khi đã init", it.ID)
+		}
+	}
+	// Nạp lại thành công thì Tổng quan hiện bình thường.
+	calls = 100
+	m.opts.Loader = func(context.Context, string) (overview.Data, error) { return sampleData(), nil }
+	press(t, m, "r")
+	if m.ov.Err != nil || !strings.Contains(plain(m.Render()), "Việc cần bạn") {
+		t.Fatalf("r phải nạp lại được:\n%s", plain(m.Render()))
+	}
+}
+
+// Phát hiện .14: Ctrl+C đóng bảng trợ giúp như bảng lệnh (không bị nuốt, không thoát).
+func TestCtrlCClosesHelpAndPalette(t *testing.T) {
+	for _, open := range []string{"?", ":"} {
+		m := newModel(t, Options{Mode: theme.Mono}, sampleData(), 100, 30)
+		press(t, m, open)
+		if !m.showHelp && m.pal == nil {
+			t.Fatalf("%s phải mở hộp phủ", open)
+		}
+		_, cmd := m.Update(keyMsg("ctrl+c"))
+		if m.showHelp || m.pal != nil || cmd != nil || m.quitting {
+			t.Fatalf("%s: ctrl+c phải đóng hộp phủ và không thoát (help=%v pal=%v quit=%v)", open, m.showHelp, m.pal != nil, m.quitting)
+		}
+	}
+}
+
+// Hộp phủ (trợ giúp, bảng lệnh) che hẳn nền trong khung nội dung: kết quả không phụ thuộc dữ liệu của
+// màn bên dưới, nên không còn chữ nền bị cắt ngang lộ ra hai bên hộp.
+func TestOverlayHidesBackground(t *testing.T) {
+	other := sampleData()
+	other.Candidates = 99
+	other.Status.Repo, other.Status.StateDir = "/khac/hoan/toan", "/khac/trang-thai"
+	other.Doctor = nil
+	for _, sz := range [][2]int{{80, 24}, {140, 40}} {
+		for _, open := range []string{"?", ":"} {
+			a := newModel(t, Options{Mode: theme.Mono}, sampleData(), sz[0], sz[1])
+			b := newModel(t, Options{Mode: theme.Mono}, other, sz[0], sz[1])
+			press(t, a, open)
+			press(t, b, open)
+			la, lb := lines(a.Render()), lines(b.Render())
+			// Bỏ thanh trên (3 dòng): huy hiệu tab và đường dẫn là của chính thanh trên.
+			if strings.Join(la[3:], "\n") != strings.Join(lb[3:], "\n") {
+				t.Fatalf("%v %s: nền của Tổng quan còn lộ qua hộp phủ:\n%s", sz, open, strings.Join(la, "\n"))
+			}
+		}
+	}
+}
+
+// Cảnh báo doctor chỉ hiện một lần (ở hộp thư); mục Doctor chỉ có số đếm.
+func TestDoctorWarningNotDuplicated(t *testing.T) {
+	for _, sz := range [][2]int{{80, 24}, {140, 40}} {
+		out := plain(newModel(t, Options{Mode: theme.Mono}, sampleData(), sz[0], sz[1]).Render())
+		if n := strings.Count(out, "cấu hình theo mẫu cũ"); n != 1 {
+			t.Errorf("%v: cảnh báo doctor xuất hiện %d lần, muốn 1:\n%s", sz, n, out)
+		}
+		if !strings.Contains(out, "✓ 2  ! 1  ✗ 0") {
+			t.Errorf("%v: mục Doctor phải còn số đếm:\n%s", sz, out)
+		}
+	}
+}
+
+// Cửa sổ cao: nội dung được căn giữa theo chiều dọc thay vì dồn lên trên, chừa chỗ cân đối hai đầu.
+func TestOverviewCentersVerticallyInTallWindow(t *testing.T) {
+	ls := lines(newModel(t, Options{Mode: theme.Mono}, sampleData(), 140, 40).Render())
+	body := ls[4 : len(ls)-1] // trong khung nội dung (bỏ viền trên/dưới)
+	blank := func(l string) bool { return strings.Trim(l, "│ ") == "" }
+	top, bottom := 0, 0
+	for i := 0; i < len(body) && blank(body[i]); i++ {
+		top++
+	}
+	for i := len(body) - 1; i >= 0 && blank(body[i]); i-- {
+		bottom++
+	}
+	if top < 3 || bottom < 3 || top-bottom > 2 || bottom-top > 2 {
+		t.Fatalf("khoảng trống trên=%d dưới=%d không cân đối:\n%s", top, bottom, strings.Join(ls, "\n"))
+	}
+	// Cửa sổ vừa đủ thì vẫn bắt đầu sát trên (không đệm thừa).
+	small := lines(newModel(t, Options{Mode: theme.Mono}, sampleData(), 80, 24).Render())
+	if strings.Trim(small[4], "│ ") == "" && strings.Trim(small[5], "│ ") == "" {
+		t.Fatalf("cửa sổ nhỏ không được đệm đầu:\n%s", strings.Join(small, "\n"))
+	}
+}
+
+// Trạng thái lượt chạy được dịch (vi/en), không còn key=value tiếng Anh.
+func TestRunStatusesTranslated(t *testing.T) {
+	vi := plain(newModel(t, Options{Mode: theme.Mono, Lang: "vi"}, sampleData(), 100, 30).Render())
+	if !strings.Contains(vi, "33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy") || strings.Contains(vi, "completed=") {
+		t.Errorf("vi:\n%s", vi)
+	}
+	en := plain(newModel(t, Options{Mode: theme.Mono, Lang: "en"}, sampleData(), 100, 30).Render())
+	if !strings.Contains(en, "33 done · 3 failed · 1 interrupted · 5 running") {
+		t.Errorf("en:\n%s", en)
+	}
+	// Trạng thái lạ hiện nguyên tên; trạng thái 0 bị bỏ.
+	d := sampleData()
+	d.Status.Runs = map[string]int{"completed": 2, "failed": 0, "paused": 4}
+	if out := plain(newModel(t, Options{Mode: theme.Mono}, d, 100, 30).Render()); !strings.Contains(out, "2 xong · 4 paused") {
+		t.Errorf("trạng thái lạ:\n%s", out)
+	}
+}
+
+// Đường dẫn hiển thị đi qua cùng hàm rút gọn: home thành ~, đường dẫn quá dài bỏ phần đầu bằng …
+func TestPathsShortenedConsistently(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	d := sampleData()
+	d.Status.Repo = home + "/code/demo"
+	d.Status.StateDir = home + "/.local/state/bint/demo-7f3a9c"
+	m := newModel(t, Options{Mode: theme.Mono, Dir: home + "/code/demo"}, d, 100, 30)
+	out := plain(m.Render())
+	if strings.Contains(out, home) {
+		t.Fatalf("còn đường dẫn home chưa rút gọn:\n%s", out)
+	}
+	for _, want := range []string{"~/code/demo", "~/.local/state/bint/demo-7f3a9c"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("thiếu %q:\n%s", want, out)
+		}
+	}
+	// Đường dẫn rất dài: bỏ phần đầu, không tràn khung.
+	long := "/srv/" + strings.Repeat("rat-dai/", 20) + "demo"
+	d.Status.Repo = long
+	n := newModel(t, Options{Mode: theme.Mono, Dir: long}, d, 80, 24)
+	for i, l := range lines(n.Render()) {
+		if w := text.Width(l); w != 80 {
+			t.Fatalf("dòng %d rộng %d: %q", i, w, l)
+		}
+	}
+	if out := plain(n.Render()); !strings.Contains(out, "…") || !strings.Contains(out, "demo") || strings.Contains(out, "/srv/rat-dai") {
+		t.Fatalf("đường dẫn dài phải rút phần đầu bằng …:\n%s", out)
+	}
+}
+
+// Gạch đầu dòng ở màn Khởi tạo: dòng gói tiếp thụt treo theo chữ sau "• "; lệnh trong dấu huyền
+// không bị ngắt (kể cả tại dấu gạch nối của cờ) ở mọi độ rộng và ngôn ngữ.
+func TestInitBulletsHangAndKeepCodeWhole(t *testing.T) {
+	for w := 60; w <= 100; w += 4 {
+		for _, lang := range []string{"vi", "en"} {
+			ls := lines(newModel(t, Options{Mode: theme.Mono, Lang: lang}, notInitData(), w, 30).Render())
+			inBullet := false
+			for _, l := range ls {
+				body := strings.TrimSuffix(strings.TrimPrefix(l, "│"), "│")
+				switch {
+				case strings.HasPrefix(body, "   • "):
+					inBullet = true
+				case strings.HasPrefix(body, "     ") && inBullet && strings.TrimSpace(body) != "":
+					// dòng gói tiếp: thụt đúng 5 ô (2 đệm + "• " + 1) trước chữ
+					if strings.HasPrefix(body, "      ") {
+						t.Errorf("w=%d %s: thụt treo sai: %q", w, lang, body)
+					}
+				default:
+					inBullet = false
+				}
+				if strings.Count(l, "`")%2 != 0 {
+					t.Errorf("w=%d %s: đoạn mã trong dấu huyền bị ngắt: %q", w, lang, l)
+				}
+			}
+		}
+	}
+}
+
+// initFlowModel dựng mô hình ở màn Khởi tạo (repo chưa init) với loader có thể đổi kết quả giữa chừng.
+func initFlowModel(t *testing.T, load *func() (overview.Data, error)) *Model {
+	t.Helper()
+	m := New(context.Background(), Options{Dir: "/work/demo", Version: "0.1.0", Lang: "vi", Mode: theme.Mono, SpinnerFPS: time.Millisecond,
+		Loader: func(context.Context, string) (overview.Data, error) { return (*load)() }})
+	m.SetSize(100, 30)
+	drive(t, m, m.Init())
+	if m.Screen() != actions.Init {
+		t.Fatalf("phải ở màn Khởi tạo, nhận %q", m.Screen())
+	}
+	return m
+}
+
+// initDone chỉ che NotInit khi lần nạp sau init LỖI; lần nạp THÀNH CÔNG vẫn trả NotInit thì hiện lại
+// màn Khởi tạo (không rơi vào Tổng quan trống).
+func TestInitDoneMasksNotInitOnlyOnLoadError(t *testing.T) {
+	load := func() (overview.Data, error) { return notInitData(), nil }
+	m := initFlowModel(t, &load)
+	_, cmd := m.Update(actions.InitDoneMsg{Report: &bintapp.InitReport{}})
+	drive(t, m, cmd)
+	press(t, m, "enter") // init.continue
+	if m.holdInit {
+		t.Fatal("phải thoát chế độ giữ báo cáo sau khi bấm tiếp")
+	}
+	if m.Screen() != actions.Init || !m.needsInit() {
+		t.Fatalf("nạp thành công vẫn NotInit phải hiện lại màn Khởi tạo, nhận %q", m.Screen())
+	}
+
+	if m.initDone {
+		t.Fatal("lần nạp thành công trả NotInit phải xoá initDone")
+	}
+	// Sau đó một lần nạp lỗi không được che NotInit: kết quả đáng tin gần nhất là chưa init.
+	load = func() (overview.Data, error) { return overview.Data{}, errors.New("đĩa lỗi") }
+	press(t, m, "r")
+	if m.ov.Err == nil || !m.needsInit() || m.Screen() != actions.Init {
+		t.Fatalf("nạp lỗi sau khi đã biết chưa init phải vẫn ở màn Khởi tạo: err=%v screen=%q", m.ov.Err, m.Screen())
+	}
+
+	// Lần nạp lỗi: dữ liệu cũ còn NotInit nhưng đã init xong trong phiên → không coi là chưa init.
+	load = func() (overview.Data, error) { return notInitData(), nil }
+	m = initFlowModel(t, &load)
+	load = func() (overview.Data, error) { return overview.Data{}, errors.New("đĩa lỗi") }
+	_, cmd = m.Update(actions.InitDoneMsg{Report: &bintapp.InitReport{}})
+	drive(t, m, cmd)
+	if m.ov.Err == nil || !m.ov.Data.NotInit {
+		t.Fatalf("điều kiện thử: cần Err và dữ liệu cũ NotInit: err=%v data=%+v", m.ov.Err, m.ov.Data)
+	}
+	press(t, m, "enter")
+	if m.needsInit() || m.Screen() == actions.Init {
+		t.Fatalf("nạp lỗi sau init không được đưa về màn Khởi tạo, nhận %q", m.Screen())
+	}
+}
+
+// LoadErr trên báo cáo init không hiện lỗi cũ trong lúc lần nạp sau init chưa xong.
+func TestInitReportIgnoresStaleLoadErrWhileLoading(t *testing.T) {
+	fail := false
+	load := func() (overview.Data, error) {
+		if fail {
+			return overview.Data{}, errors.New("lỗi cũ XYZ")
+		}
+		return notInitData(), nil
+	}
+	m := initFlowModel(t, &load)
+	fail = true
+	press(t, m, "r") // Kiểm tra lại: nạp lỗi, ov.Err đặt, Data giữ NotInit
+	if m.ov.Err == nil {
+		t.Fatal("điều kiện thử: cần ov.Err cũ")
+	}
+	// Khởi tạo xong: bắt đầu nạp lại nhưng chưa nhận kết quả.
+	_, cmd := m.Update(actions.InitDoneMsg{Report: &bintapp.InitReport{}})
+	if !m.ov.Loading || cmd == nil {
+		t.Fatalf("điều kiện thử: phải đang nạp lại (loading=%v)", m.ov.Loading)
+	}
+	if out := plain(m.Render()); strings.Contains(out, "lỗi cũ XYZ") {
+		t.Errorf("đang nạp lại mà còn hiện lỗi cũ:\n%s", out)
+	}
+	// Lần nạp mới lỗi thật thì phải báo.
+	drive(t, m, cmd)
+	if out := plain(m.Render()); !strings.Contains(out, "lỗi cũ XYZ") {
+		t.Errorf("nạp xong mà lỗi thì phải báo lỗi:\n%s", out)
 	}
 }

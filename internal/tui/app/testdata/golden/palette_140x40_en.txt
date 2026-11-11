@@ -17,13 +17,13 @@
 │                               │   Go to Runs                                                           4 │                               │
 │                               │   Go to Evaluation                                                     5 │                               │
 │                               │   Go to Evolution                                                      6 │                               │
-│  Needs you (3)                └──────────────────────────────────────────────────────────────────────────┘                               │
-│ ▸ ◌ 3 knowledge items awaiting review                                                                                        → Knowledge │
-│   ◌ 2 evolution proposals awaiting review                                                                                    → Evolution │
-│   ! Doctor warning — config: cấu hình theo mẫu cũ: chạy `bint init --update`                                                    → System │
+│                               └──────────────────────────────────────────────────────────────────────────┘                               │
 │                                                                                                                                          │
-│  Doctor  ✓ 2  ! 1  ✗ 0                                                                                                                   │
-│   ! config: cấu hình theo mẫu cũ: chạy `bint init --update`                                                                              │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

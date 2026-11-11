@@ -10,11 +10,11 @@
 │   safe.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                        │
 │                                                                              │
 │   • ⟦Creates .bint/config.yml (never overwrites an existing                  │
-│   configuration).~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                               │
+│     configuration).~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                             │
 │   • ⟦Creates a local state directory outside the repository, with its        │
-│   SQLite database.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                         │
+│     SQLite database.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                       │
 │   • ⟦Does not install hooks in the non-interactive setup; add them later     │
-│   with `bint init --hooks`.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧           │
+│     with `bint init --hooks`.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧         │
 │   • ⟦Adds the bint block to .gitignore.~~~~~~~~~~~~~~⟧                       │
 │                                                                              │
 │   ⟦The core harness skills are published as well. No model is called and     │

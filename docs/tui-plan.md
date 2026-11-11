@@ -506,6 +506,14 @@ danh mục), golden `View()` (80×24 và 140×40; vi/en/xx; đơn sắc, và t�
 trang trưng bày ở locale giả không có dòng vượt chiều rộng, điểm vào CLI (`bint` không TTY / trong phiên agent
 in đúng đầu ra của `bint --help`, mã 0; TTY giả gọi TUI).
 
+**Sửa trình bày sau nghiệm thu ảnh (2026-11-11)**: màn Khởi tạo đổi tiêu đề/đoạn mở đầu theo trạng thái
+(chưa init / đã xong / lỗi) và không còn nói "chưa khởi tạo" sau khi init xong; hộp phủ (`?`, `:`) che hẳn nền
+trong khung nội dung; danh sách gạch đầu dòng thụt treo (`text.WrapHang`, đoạn mã trong dấu huyền không bị
+ngắt); Tổng quan căn giữa dọc khi thừa chỗ và mục Doctor chỉ hiện số đếm (chi tiết ở hộp thư); mọi đường dẫn
+hiển thị đi qua `text.Path` (`~` + bỏ phần đầu bằng `…`); trạng thái lượt chạy dịch qua i18n
+(`overview.runstatus.*`). Sau khởi tạo thành công, `app.initDone` giữ repository là đã init kể cả khi lần nạp
+lại lỗi (lỗi hiện ở màn báo cáo và ở Tổng quan); `Ctrl+C` đóng bảng trợ giúp như bảng lệnh.
+
 **Chạy tay**
 
 ```sh

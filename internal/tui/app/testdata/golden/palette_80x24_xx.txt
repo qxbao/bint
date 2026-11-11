@@ -18,7 +18,7 @@
 │ │   ⟦Go to Evaluation~~~~~~~⟧                                            5 │ │
 │ │   ⟦Go to Evolution~~~~~~⟧                                              6 │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
-│  ⟦Doctor~~~⟧  ✓ 2  ! 1  ✗ 0                                                  │
-│   ! config: cấu hình theo mẫu cũ: chạy `bint init --update`                  │
+│                                                                              │
+│                                                                              │
 │                                                                              │
 └─[r→ ⟦Refresh~~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────┘

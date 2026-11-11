@@ -73,6 +73,10 @@ type Model struct {
 	// holdInit: khởi tạo vừa xong; giữ màn Khởi tạo (báo cáo bước, cảnh báo, bước tiếp theo) đến
 	// khi người dùng bấm tiếp, dù Tổng quan đã nạp lại và không còn NotInit.
 	holdInit bool
+	// initDone: khởi tạo trong phiên này đã thành công, nên khi lần nạp lại sau đó LỖI (Tổng quan còn
+	// giữ dữ liệu cũ có NotInit) vẫn không coi là chưa init. Lần nạp THÀNH CÔNG trả NotInit thì tin
+	// kết quả đó (ví dụ .bint/ bị xoá ở nơi khác) và hiện lại màn Khởi tạo.
+	initDone bool
 	// reloadPending: có yêu cầu nạp lại trong lúc đang nạp; nạp thêm một lần khi lần này xong.
 	reloadPending bool
 	// quitAsked: đã nhắc "đang khởi tạo" một lần; nhấn q/Ctrl+C lần nữa thì thoát thật.
@@ -119,7 +123,9 @@ func (m *Model) Screen() actions.Screen {
 	return actions.Screens[m.tab]
 }
 
-func (m *Model) needsInit() bool { return m.ov.Loaded && m.ov.Data.NotInit }
+func (m *Model) needsInit() bool {
+	return m.ov.Loaded && m.ov.Data.NotInit && !(m.initDone && m.ov.Err != nil)
+}
 
 func (m *Model) mode() actions.Mode {
 	return actions.Mode{ReadOnly: m.opts.ReadOnly, Agent: m.opts.Agent}
@@ -182,6 +188,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case overview.LoadedMsg:
 		m.ov, _ = m.ov.Update(msg)
+		if msg.Err == nil && msg.Data.NotInit {
+			m.initDone = false // kết quả đáng tin gần nhất là chưa init: lần nạp lỗi sau đó không được che nó
+		}
 		if m.reloadPending {
 			m.reloadPending = false
 			return m, m.load()
@@ -190,6 +199,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ini = m.ini.Finish(msg.Report, msg.Err)
 		m.quitAsked = false
 		if msg.Err == nil {
+			m.initDone = true
 			m.holdInit = true  // giữ báo cáo đến khi người dùng bấm tiếp (init.continue)
 			return m, m.load() // nạp lại Tổng quan: sau khi khởi tạo sẽ hiện bảng điều khiển
 		}
@@ -221,7 +231,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.paletteKey(msg)
 	case m.showHelp:
 		switch s {
-		case "esc", "?", "q", "enter":
+		case "esc", "ctrl+c", "?", "q", "enter":
 			m.showHelp = false
 		}
 		return m, nil
@@ -439,6 +449,11 @@ func (m *Model) Render() string {
 	mainH := h - 3
 	iw, ih := frame.Inner(w, mainH)
 	body := m.screenBody(env.WithSize(iw, ih))
+	if m.pal != nil || m.showHelp {
+		// Hộp phủ đang mở: che nền trong khung nội dung để chữ của màn bên dưới không lộ (bị cắt ngang)
+		// ở hai bên và dưới hộp.
+		body = ""
+	}
 	main := frame.Box{
 		Title: m.screenTitle(), TitleAt: frame.Left, Focused: true,
 		Top:    m.toastLabel(),
@@ -495,7 +510,11 @@ func (m *Model) toastLabel() string {
 func (m *Model) screenBody(env ui.Env) string {
 	switch s := m.Screen(); s {
 	case actions.Init:
-		return m.ini.View(env)
+		ini := m.ini
+		if m.holdInit && !m.ov.Loading { // đang nạp lại thì ov.Err còn là lỗi của lần trước
+			ini.LoadErr = m.ov.Err // khởi tạo xong mà nạp lại lỗi: nói rõ, đừng im lặng
+		}
+		return ini.View(env)
 	case actions.Overview:
 		return m.ov.View(env)
 	default:
@@ -522,10 +541,10 @@ func (m *Model) header(env ui.Env) string {
 	if m.opts.Agent {
 		flags = append(flags, m.th.S(theme.Warn, "["+m.cat.T("ui.agent_session")+"]"))
 	}
-	bottom := m.th.S(theme.Muted, " "+overview.Tilde(m.opts.Dir)+" ")
+	bottom := m.th.S(theme.Muted, " "+text.Path(m.opts.Dir, max(w/2, 20))+" ")
 	if m.ov.Loaded && m.ov.Data.Status != nil && m.ov.Data.Status.LinkedWorktree {
 		main := m.ov.Data.Status.MainWorktree
-		bottom = m.th.S(theme.Warn, " "+m.cat.T("ui.worktree", i18n.A{"main": overview.Tilde(main)})+" ")
+		bottom = m.th.S(theme.Warn, " "+m.cat.T("ui.worktree", i18n.A{"main": text.Path(main, max(w/2, 20))})+" ")
 	}
 	return frame.Box{
 		Title: "bint " + m.opts.Version, TitleAt: frame.Center, Top: strings.Join(flags, " "),

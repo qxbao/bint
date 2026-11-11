@@ -2,6 +2,13 @@
 │ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦Overview~~~~⟧│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
 │                                                      ██      ██            ██                                                            │
 │                                                      ██                  ██████                                                          │
 │                                                      ████    ██  ████      ██                                                            │
@@ -9,13 +16,13 @@
 │                                                      ████    ██  ██  ██    ████  ██                                                      │
 │                              ⟦Recording, measurement and knowledge for coding agents~~~~~~~~~~~~~~~~~~~~~~⟧                              │
 │                                                                                                                                          │
-│                                           ┌─│⟦Repository~~~~⟧│───────────────────────────────┐                                           │
-│                                           │ ⟦Path~~⟧      /work/demo                         │                                           │
-│                                           │ ⟦State~~⟧     /state/demo-7f3a9c                 │                                           │
-│                                           │ ⟦Harness~~~⟧  claude, codex                      │                                           │
-│                                           │ ⟦Schema~~~⟧   v6                                 │                                           │
-│                                           │ ⟦Runs~~⟧      42  done=38 failed=3 interrupted=1 │                                           │
-│                                           └──────────────────────────────────────────────────┘                                           │
+│                        ┌─│⟦Repository~~~~⟧│─────────────────────────────────────────────────────────────────────┐                        │
+│                        │ ⟦Path~~⟧      /work/demo                                                               │                        │
+│                        │ ⟦State~~⟧     /state/demo-7f3a9c                                                       │                        │
+│                        │ ⟦Harness~~~⟧  claude, codex                                                            │                        │
+│                        │ ⟦Schema~~~⟧   v6                                                                       │                        │
+│                        │ ⟦Runs~~⟧      42  ⟦33 done~~⟧ · ⟦3 failed~~~⟧ · ⟦1 interrupted~~~~~⟧ · ⟦5 running~~~~⟧ │                        │
+│                        └────────────────────────────────────────────────────────────────────────────────────────┘                        │
 │                                                                                                                                          │
 │  ⟦Needs you~~~~⟧ (3)                                                                                                                     │
 │ ▸ ◌ ⟦3 knowledge items awaiting review~~~~~~~~~~~~~⟧                                                                   → ⟦Knowledge~~~~⟧ │
@@ -23,13 +30,6 @@
 │   ! ⟦Doctor warning — config: cấu hình theo mẫu cũ: chạy `bint init --update`~~~~~~~⟧                                      → ⟦System~~~⟧ │
 │                                                                                                                                          │
 │  ⟦Doctor~~~⟧  ✓ 2  ! 1  ✗ 0                                                                                                              │
-│   ! config: cấu hình theo mẫu cũ: chạy `bint init --update`                                                                              │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │
