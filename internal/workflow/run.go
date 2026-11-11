@@ -74,12 +74,15 @@ type StepResult struct {
 
 // Result là kết quả một lượt điều phối.
 type Result struct {
-	TaskID  string       `json:"task_id"`
-	RunID   string       `json:"run_id"`
-	Status  string       `json:"task_status"`
-	Reason  string       `json:"reason,omitempty"`
-	Steps   []StepResult `json:"steps"`
-	CostUSD *float64     `json:"cost_usd"`
+	TaskID string       `json:"task_id"`
+	RunID  string       `json:"run_id"`
+	Status string       `json:"task_status"`
+	Reason string       `json:"reason,omitempty"`
+	Steps  []StepResult `json:"steps"`
+	// CostUSD là tổng chi phí của lượt điều phối, chỉ khi MỌI bước đều báo chi phí; nếu có
+	// bước không báo (vd. Codex) thì null, phần đã biết nằm ở CostPartialUSD.
+	CostUSD        *float64 `json:"cost_usd"`
+	CostPartialUSD *float64 `json:"cost_usd_partial,omitempty"`
 	// Questions: câu hỏi chờ người trả lời (tác vụ blocked).
 	Questions []string `json:"questions,omitempty"`
 	Notes     []string `json:"notes,omitempty"`
@@ -92,6 +95,8 @@ type runState struct {
 	res       *Result
 	spent     float64
 	costKnown bool
+	// costMissing: có bước chạy xong mà harness không báo chi phí.
+	costMissing bool
 	// turns: tổng số lượt agent đã dùng trong lượt điều phối (chỉ tính bước báo num_turns).
 	turns        int64
 	limit        config.PerRunLimits
@@ -477,6 +482,8 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	if res.CostUSD != nil {
 		rs.spent += *res.CostUSD
 		rs.costKnown = true
+	} else {
+		rs.costMissing = true
 	}
 	if res.NumTurns != nil {
 		rs.turns += *res.NumTurns
@@ -737,9 +744,15 @@ func (r *Runner) finish(rs *runState) {
 		}
 	}
 	if rs.costKnown {
-		payload["cost_usd"] = rs.spent
 		c := rs.spent
-		rs.res.CostUSD = &c
+		if rs.costMissing {
+			// Tổng một phần không được trình bày như tổng thật (thiếu = unknown, không phải 0).
+			payload["cost_usd_partial"] = c
+			rs.res.CostPartialUSD = &c
+		} else {
+			payload["cost_usd"] = c
+			rs.res.CostUSD = &c
+		}
 	}
 	r.emitRun(rs.runID, spool.WorkflowFinished, payload)
 	rs.res.Status = st.Status

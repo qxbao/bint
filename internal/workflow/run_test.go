@@ -16,6 +16,7 @@ import (
 	adapters "bint/internal/harness"
 	"bint/internal/knowledge"
 	"bint/internal/runlog"
+	"bint/internal/spool"
 	"bint/internal/store"
 	"bint/internal/task"
 	"bint/internal/testutil"
@@ -105,6 +106,8 @@ type harness struct {
 	behave  func(ctx context.Context, step string, e *Env, taskID string) error
 	limits  []*float64
 	cost    *float64
+	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.
+	costFor func(step string) *float64
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
 	turns      *int64
 	turnLimits []*int
@@ -155,7 +158,11 @@ func (h *harness) runner() *Runner {
 	return &Runner{Env: env, Agent: func(step string, maxCost *float64, maxTurns *int) (eval.Agent, error) {
 		h.limits = append(h.limits, maxCost)
 		h.turnLimits = append(h.turnLimits, maxTurns)
-		return &fakeAgent{h: h, cost: h.cost, turns: h.turns}, nil
+		cost := h.cost
+		if h.costFor != nil {
+			cost = h.costFor(step)
+		}
+		return &fakeAgent{h: h, cost: cost, turns: h.turns}, nil
 	}}
 }
 
@@ -615,5 +622,55 @@ func TestDoneRechecksProtectedPathsFromDiff(t *testing.T) {
 	t3, _ := h.tasks.Load(res.TaskID)
 	if pend, _ := human.UnapprovedChanges(ctx, t3); len(pend) != 0 {
 		t.Fatalf("đã duyệt mà vẫn chặn: %v", pend)
+	}
+}
+
+// Thực tế (Claude lập kế hoạch/review, Codex thực thi): Codex không báo chi phí. Tổng của
+// b-do không được trình bày như tổng thật khi thiếu một bước; chi phí đã biết ghi riêng.
+func TestBDoCostIsNullWhenAStepDoesNotReportCost(t *testing.T) {
+	h := newHarness(t)
+	h.costFor = func(step string) *float64 {
+		if step == StepFeat {
+			return nil
+		}
+		c := 0.3
+		return &c
+	}
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng mới"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.CostUSD != nil {
+		t.Fatalf("tổng một phần bị trình bày như tổng thật: %v", *res.CostUSD)
+	}
+	if res.CostPartialUSD == nil || *res.CostPartialUSD < 0.59 || *res.CostPartialUSD > 0.61 {
+		t.Fatalf("chi phí đã biết: %v", res.CostPartialUSD)
+	}
+	for _, st := range res.Steps {
+		if (st.Step == StepFeat) != (st.CostUSD == nil) {
+			t.Fatalf("chi phí từng bước: %+v", st)
+		}
+	}
+	files, _ := filepath.Glob(filepath.Join(h.spool, "*.jsonl"))
+	seen := false
+	for _, f := range files {
+		evs, err := spool.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ev := range evs {
+			if ev.RunID == res.RunID && ev.Type == spool.WorkflowFinished {
+				seen = true
+				if _, ok := ev.Payload["cost_usd"]; ok {
+					t.Fatalf("workflow.finished của b-do có cost_usd dù thiếu một bước: %v", ev.Payload)
+				}
+				if ev.Payload["cost_usd_partial"] == nil {
+					t.Fatalf("thiếu cost_usd_partial: %v", ev.Payload)
+				}
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("không thấy workflow.finished của b-do")
 	}
 }
