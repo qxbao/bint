@@ -28,6 +28,7 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
 | [Tiến hoá quy trình và bài học từ thất bại](p8-harness-evolution-plan.md) | Kế hoạch E (bài học từ thất bại) và Kế hoạch H (tiến hoá thành phần quy trình); mã E1–E5 và H1–H4 đã xong, phần đo chưa chạy |
 | [Kế hoạch thử nghiệm tiếp theo](p8-next-experiments.md) | Thiết kế thực nghiệm A (tri thức do người viết) và B (model mạnh rút bài học cho model yếu) |
 | [Kế hoạch TUI](tui-plan.md) | Thiết kế giao diện terminal tương tác (chưa triển khai) |
+| [Kế hoạch gateway MCP](mcp-gateway-plan.md) | Gateway MCP dùng chung cho mọi harness, danh mục và quản lý MCP (API/CLI/TUI), cấp MCP theo role, cấp MCP cho các bước `bint run` (bản nháp chờ chốt) |
 
 ## Nghiệm thu và thực nghiệm
 
