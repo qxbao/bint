@@ -127,7 +127,7 @@ func activeLessons(items []*knowledge.Item, area string) []*knowledge.Item {
 	areaScope := knowledge.Scope{Paths: []string{area + "/**"}}
 	var out []*knowledge.Item
 	for _, it := range items {
-		if it.Type != knowledge.TypeLesson || !it.Active() {
+		if !it.LessonFromRuns() || !it.Active() {
 			continue
 		}
 		if area == "" || it.Scope.Global() || scopesOverlap(areaScope, it.Scope) {

@@ -283,10 +283,13 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 		return s, writeAgents(content)
 	case ArmIdeal:
 		// Bộ truy xuất "hoàn hảo": mọi mục đúng được đặt sẵn trong AGENTS.md.
-		e := &ctxengine.Engine{Items: ideal, MaxTokens: 1 << 20, PathMaxItems: len(ideal) + 1, PathIncludeCandidates: true}
+		// Bài học từ thất bại đi qua phần riêng (Pack.Lessons) với ngân sách riêng: đặt lớn để
+		// không rơi mục nào đã được tính là ideal.
+		e := &ctxengine.Engine{Items: ideal, MaxTokens: 1 << 20, PathMaxItems: len(ideal) + 1, PathIncludeCandidates: true,
+			LessonMaxTokens: 1 << 20}
 		p := e.ForPaths(c.SourceFiles, nil)
 		extra := ""
-		if len(p.Entries) > 0 {
+		if len(p.Entries) > 0 || len(p.Lessons) > 0 {
 			extra = "\n## Tri thức liên quan tới phần mã của tác vụ\n\n" + p.Render()
 		}
 		full := append(content, []byte(extra)...)

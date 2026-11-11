@@ -25,10 +25,16 @@ const (
 // truy xuất trong cùng phiên (ví dụ tool_use_id).
 func ContextEvent(harness, session, worktree, channel, key string, p Pack, now time.Time) spool.Event {
 	labels := map[string]any{}
-	ids := make([]any, 0, len(p.Entries))
+	ids := make([]any, 0, len(p.Entries)+len(p.Lessons))
 	for _, e := range p.Entries {
 		ids = append(ids, e.ID)
 		labels[e.ID] = e.Label
+	}
+	// Bài học từ thất bại nằm ngoài Entries: ghi cả chúng để context_usages có ID (experience
+	// show đếm số lần chèn từ đây). Nhãn riêng "lesson" tách khỏi nhãn độ tin cậy của tri thức.
+	for _, e := range p.Lessons {
+		ids = append(ids, e.ID)
+		labels[e.ID] = LabelLesson
 	}
 	payload := map[string]any{"channel": channel, "ids": ids, "labels": labels, "mode": p.Mode}
 	if p.Query != "" {

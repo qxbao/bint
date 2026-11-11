@@ -73,3 +73,23 @@ func TestWriteChangedFilesListsAgentEdits(t *testing.T) {
 		t.Fatalf("files.txt = %q, muốn %q", got, want)
 	}
 }
+
+// Agent không công cụ (reflector): cờ tường minh --tools "" và không cờ --allowedTools/--mcp-config,
+// dù cấu hình eval.agent có allowlist hay yêu cầu có MCP.
+func TestArgsForNoToolsLocksTools(t *testing.T) {
+	a := &ClaudeAgent{Cfg: config.EvalAgent{PermissionMode: "dontAsk", AllowedTools: []string{"Read", "Edit"}}, NoTools: true}
+	args := a.ArgsFor(AgentRequest{MCPConfig: "/x/mcp.json", HasSkills: true})
+	i := slices.Index(args, "--tools")
+	if i < 0 || i+1 >= len(args) || args[i+1] != "" {
+		t.Fatalf("phải có --tools \"\" (tắt hết công cụ): %q", args)
+	}
+	for _, bad := range []string{"--allowedTools", "--mcp-config"} {
+		if slices.Contains(args, bad) {
+			t.Fatalf("không được cấp công cụ qua %s: %q", bad, args)
+		}
+	}
+	// Không NoTools: không có --tools.
+	if plain := (&ClaudeAgent{Cfg: config.EvalAgent{PermissionMode: "dontAsk"}}).ArgsFor(AgentRequest{}); slices.Contains(plain, "--tools") {
+		t.Fatalf("agent thường không được gắn --tools: %q", plain)
+	}
+}

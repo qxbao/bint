@@ -206,3 +206,37 @@ echo '{"type":"result","num_turns":3,"total_cost_usd":0.02}'
 		t.Fatal("ảnh chụp cũ phải được giữ")
 	}
 }
+
+// EvidenceHoldsAt: bài học từ thất bại thuần (không có bằng chứng tệp) được miễn; có bằng chứng
+// tệp (vd. lesson thường được gộp vào bài học) thì vẫn bị đối chiếu fingerprint tại commit gốc.
+func TestEvidenceHoldsAtLessonExemptionOnlyWithoutEvidence(t *testing.T) {
+	ctx := context.Background()
+	root := testutil.NewRepo(t, map[string]string{"lib/a.go": "package lib\n\nfunc A() {}\n"})
+	it := saveItem(t, root, knowledge.TypeLesson, "Lesson có bằng chứng tệp", knowledge.Evidence{Path: "lib/a.go", Lines: "3"})
+	base := commitAll(t, root, "base")
+	c := &Case{ID: "c1", Source: Source{Base: base}}
+	failure := knowledge.Origin{Kind: knowledge.OriginAgent, Provenance: knowledge.ProvenanceFailureLesson, Runs: []string{"ea_1"}}
+
+	// Thuần failure_lesson: không bằng chứng → miễn.
+	pure := &knowledge.Item{Type: knowledge.TypeLesson, Origin: failure}
+	if !EvidenceHoldsAt(ctx, root, c, pure) {
+		t.Fatal("bài học từ thất bại không có bằng chứng tệp phải được miễn")
+	}
+	// Có bằng chứng và còn khớp → đạt.
+	merged := *it
+	merged.Origin = failure
+	if !EvidenceHoldsAt(ctx, root, c, &merged) {
+		t.Fatal("bằng chứng còn khớp phải đạt")
+	}
+	// Có bằng chứng nhưng lệch fingerprint → không được miễn dù provenance failure_lesson.
+	writeFile(t, root, "lib/a.go", "package lib\n\nfunc A() { println() }\n")
+	c2 := &Case{ID: "c2", Source: Source{Base: commitAll(t, root, "đổi a")}}
+	merged.Evidence = []knowledge.Evidence{{Path: "lib/a.go", Lines: "3", Fingerprint: it.Evidence[0].Fingerprint}}
+	if EvidenceHoldsAt(ctx, root, c2, &merged) {
+		t.Fatal("bằng chứng tệp lệch fingerprint không được miễn chỉ vì provenance failure_lesson")
+	}
+	// Không bằng chứng và không phải failure_lesson → loại như trước.
+	if EvidenceHoldsAt(ctx, root, c, &knowledge.Item{Type: knowledge.TypeLesson}) {
+		t.Fatal("mục không bằng chứng, không phải failure_lesson phải bị loại")
+	}
+}

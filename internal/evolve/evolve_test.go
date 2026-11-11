@@ -89,6 +89,17 @@ func (f *fixture) item(t *testing.T, typ, status, title string, paths []string, 
 	return it
 }
 
+// lesson tạo mục bài học do Bint sinh từ lượt thất bại (provenance failure_lesson, có lượt nguồn).
+func (f *fixture) lesson(t *testing.T, status, title string, paths []string) *knowledge.Item {
+	t.Helper()
+	it := f.item(t, knowledge.TypeLesson, status, title, paths)
+	it.Origin = knowledge.Origin{Kind: knowledge.OriginAgent, Provenance: knowledge.ProvenanceFailureLesson, Runs: []string{"ea_src"}}
+	if err := f.k.Store.Save(it); err != nil {
+		t.Fatal(err)
+	}
+	return it
+}
+
 // run thêm một lượt đã kết thúc; label: "good" | "bad" | "" (không có tín hiệu).
 func (f *fixture) run(t *testing.T, id string, ago time.Duration, label string, modified, read, retrieved []string) {
 	t.Helper()

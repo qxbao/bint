@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -106,21 +107,33 @@ func TestEvolveEndToEnd(t *testing.T) {
 		t.Fatalf("scan text: %d\n%s", code, out)
 	}
 
-	// Không agent: chỉ đề xuất xác định.
-	out, code = run(t, root, "", "evolve", "propose", "--no-agent", "--json", ops["unused"])
-	var prop struct {
-		Outcomes []struct {
-			Proposal *struct {
-				ID     string `json:"proposal_id"`
-				Action string
-			}
-			Skipped string
+	// roles.reflector khác claude (chưa khoá được công cụ): chỉ cảnh báo và bỏ cơ hội failure_lesson,
+	// đề xuất xác định vẫn chạy (không làm hỏng cả `bint evolve propose`).
+	cfgPath := filepath.Join(root, ".bint", "config.yml")
+	cfg, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	patched := regexp.MustCompile(`(?m)^(\s*reflector:\s*)\S+`).ReplaceAllString(string(cfg), "${1}codex")
+	if patched == string(cfg) {
+		t.Fatalf("config.yml không có roles.reflector để đặt:\n%s", cfg)
+	}
+	if err := os.WriteFile(cfgPath, []byte(patched), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, code = run(t, root, "", "evolve", "propose", ops["unused"])
+	var dep string
+	for _, f := range strings.Fields(lineWith(out, "+ ep_")) {
+		if strings.HasPrefix(f, "ep_") {
+			dep = f
 		}
 	}
-	if code != 0 || json.Unmarshal([]byte(out), &prop) != nil || len(prop.Outcomes) != 1 || prop.Outcomes[0].Proposal == nil {
-		t.Fatalf("propose: %d\n%s", code, out)
+	if code != 0 || dep == "" || !strings.Contains(out, "không dùng được agent reflector") {
+		t.Fatalf("propose với reflector=codex: %d\n%s", code, out)
 	}
-	dep := prop.Outcomes[0].Proposal.ID
+	if err := os.WriteFile(cfgPath, cfg, 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Agent evolver giả cho điểm nóng thất bại.
 	answer := `{"proposals":[{"type":"warning","title":"Gọi Reset trước Retry","body":"` + "`Retry`" + ` trong internal/core/x.go cần ` + "`Reset`" + ` trước.","paths":["internal/core/**"],"evidence":["internal/core/x.go:3-4"],"expected_benefit":"bớt lượt thất bại"}]}`
@@ -181,4 +194,14 @@ func TestEvolveEndToEnd(t *testing.T) {
 	if out, _ := run(t, root, "", "knowledge", "show", added.ID); strings.Contains(out, "deprecated") {
 		t.Fatalf("rollback không khôi phục:\n%s", out)
 	}
+}
+
+// lineWith trả về dòng đầu tiên của out chứa sub (rỗng nếu không có).
+func lineWith(out, sub string) string {
+	for _, l := range strings.Split(out, "\n") {
+		if strings.Contains(l, sub) {
+			return l
+		}
+	}
+	return ""
 }

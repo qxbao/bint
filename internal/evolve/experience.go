@@ -45,7 +45,7 @@ func DigestRef(ctx context.Context, db *sql.DB, cases []*eval.Case, ref, runtime
 	rep := DigestReport{Ref: ref}
 	if b, err := eval.GetBatch(ctx, db, ref); err == nil {
 		rep.Ref, rep.Kind = b.BatchID, "batch"
-		fails, err := LoadFailures(ctx, db, cases, nil, runtime)
+		fails, err := LoadFailures(ctx, db, cases, nil, runtime, time.Time{})
 		if err != nil {
 			return rep, err
 		}
@@ -108,14 +108,19 @@ type LessonRow struct {
 	Runs       int      `json:"runs"`
 	// Inserted: số lần được chèn trong lượt thật (context_usages).
 	Inserted int `json:"inserted"`
+	// RealSuccess/RealFailure: số lượt thật có bài học được chèn theo nhãn lượt (runs, mục 9.6):
+	// success / failure. Lượt chưa có nhãn đủ mạnh không được tính vào cột nào.
+	RealSuccess int `json:"real_success"`
+	RealFailure int `json:"real_failure"`
 	// EvalPass/EvalFail: lượt đánh giá có bài học được chèn và đạt/trượt (eval_context_usage).
 	EvalPass int `json:"eval_pass"`
 	EvalFail int `json:"eval_fail"`
 }
 
 // ExperienceShow trả về thư viện bài học (mục lesson còn hiệu lực), bài học chung trước,
-// bài học riêng nhóm theo vùng; kèm số liệu sử dụng.
-func ExperienceShow(ctx context.Context, db *sql.DB, items []*knowledge.Item) ([]LessonRow, error) {
+// bài học riêng nhóm theo vùng; kèm số liệu sử dụng. h (có thể nil) là lịch sử lượt thật để đếm
+// đạt/trượt theo nhãn lượt; nil thì hai cột đó là 0.
+func ExperienceShow(ctx context.Context, db *sql.DB, items []*knowledge.Item, h *History) ([]LessonRow, error) {
 	inserted, err := countByItem(ctx, db, `SELECT item_id, COUNT(*) FROM context_usages GROUP BY item_id`)
 	if err != nil {
 		return nil, err
@@ -130,9 +135,27 @@ func ExperienceShow(ctx context.Context, db *sql.DB, items []*knowledge.Item) ([
 	if err != nil {
 		return nil, err
 	}
+	realOK, realBad := map[string]int{}, map[string]int{}
+	if h != nil {
+		for _, r := range h.Runs {
+			seen := map[string]bool{}
+			for _, id := range r.Retrieved {
+				if seen[id] {
+					continue
+				}
+				seen[id] = true
+				switch r.Label {
+				case runlog.LabelSuccess:
+					realOK[id]++
+				case runlog.LabelFailure:
+					realBad[id]++
+				}
+			}
+		}
+	}
 	var rows []LessonRow
 	for _, it := range items {
-		if it.Type != knowledge.TypeLesson || !it.Active() {
+		if !it.LessonFromRuns() || !it.Active() { // cùng định nghĩa với ctxengine.isLesson
 			continue
 		}
 		area := ""
@@ -141,6 +164,7 @@ func ExperienceShow(ctx context.Context, db *sql.DB, items []*knowledge.Item) ([
 		}
 		rows = append(rows, LessonRow{ID: it.ID, Title: it.Title, Status: it.Status, Area: area, Scope: it.Scope.Paths,
 			Provenance: it.Origin.Provenance, Runs: len(it.Origin.Runs), Inserted: inserted[it.ID],
+			RealSuccess: realOK[it.ID], RealFailure: realBad[it.ID],
 			EvalPass: pass[it.ID], EvalFail: fail[it.ID]})
 	}
 	sort.SliceStable(rows, func(i, j int) bool {

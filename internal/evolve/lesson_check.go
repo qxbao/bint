@@ -84,6 +84,8 @@ func CheckLesson(in lessonInput) LessonVerdict {
 			add(LessonScope, "domain %q: %v", glob, err)
 		} else if _, err := path.Match(glob, ""); err != nil {
 			add(LessonScope, "domain %q không phải mẫu glob hợp lệ", glob)
+		} else if why := globOutsideAreas(glob, areasOf(in.Evidence)); why != "" {
+			add(LessonScope, "domain %q %s", glob, why)
 		}
 	}
 
@@ -123,8 +125,13 @@ func CheckLesson(in lessonInput) LessonVerdict {
 		}
 		// Định danh dạng mã của phần thêm mới lời giải không được xuất hiện trong bài học
 		// (CheckLeak chỉ cảnh báo định danh mới; với bài học thì đó là đáp án).
-		if id, ok := identInText(text, eval.SolutionIdentifiers(leak)); ok {
+		if id, ok := identInText(text, solutionTerms(leak)); ok {
 			add(LessonLeak, "nhắc tới định danh của lời giải %q", id)
+			break
+		}
+		// Chuỗi literal của phần thêm mới (thông điệp lỗi, khoá...) cũng là đáp án.
+		if lit, ok := literalInText(text, eval.SolutionLiterals(leak)); ok {
+			add(LessonLeak, "nhắc tới chuỗi literal của lời giải %q", lit)
 			break
 		}
 	}
@@ -136,7 +143,7 @@ func CheckLesson(in lessonInput) LessonVerdict {
 			scope.Paths = []string{glob}
 		}
 		for _, it := range in.Existing {
-			if it.Type != knowledge.TypeLesson || !it.Active() || !scopesOverlap(scope, it.Scope) {
+			if !it.LessonFromRuns() || !it.Active() || !scopesOverlap(scope, it.Scope) {
 				continue
 			}
 			if jaccard(tokens(trigger), tokens(it.Title)) >= lessonDupJaccard {
@@ -146,6 +153,49 @@ func CheckLesson(in lessonInput) LessonVerdict {
 		}
 	}
 	return v
+}
+
+// globOutsideAreas trả về lý do khi glob của bài học riêng không nằm trong vùng mã của nhóm
+// bằng chứng ("" = hợp lệ). Glob khớp toàn repo (không có tiền tố thư mục cố định, như **, *,
+// *.go) bị từ chối: nó lách yêu cầu "≥ 2 vùng" của bài học chung và giới hạn top-k. Tiền tố cố
+// định phải bằng hoặc nằm dưới một vùng của bằng chứng (không rộng hơn vùng).
+func globOutsideAreas(glob string, areas []string) string {
+	prefix := scopeArea([]string{glob})
+	if prefix == "." || prefix == "" {
+		return "khớp toàn repo; phải nằm trong vùng của nhóm thất bại"
+	}
+	for _, a := range areas {
+		if a != "." && (prefix == a || strings.HasPrefix(prefix, a+"/")) {
+			return ""
+		}
+	}
+	return fmt.Sprintf("rộng hơn hoặc ngoài vùng của nhóm thất bại (%s)", strings.Join(areas, ", "))
+}
+
+// solutionTerms gộp định danh dạng mã của phần thêm mới với MỌI định danh mới (kể cả tên một
+// từ như Reset, Flush) trừ tên có trong kiểm thử: với bài học, tên hàm một từ cũng là đáp án.
+func solutionTerms(leak eval.LeakInput) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, id := range append(eval.SolutionIdentifiers(leak), eval.SolutionNewIdentifiers(leak)...) {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// literalInText trả về chuỗi literal đầu tiên xuất hiện trong text (không phân biệt hoa thường,
+// khoảng trắng đã chuẩn hoá).
+func literalInText(text string, lits []string) (string, bool) {
+	norm := strings.ToLower(strings.Join(strings.Fields(text), " "))
+	for _, l := range lits {
+		if strings.Contains(norm, strings.ToLower(l)) {
+			return l, true
+		}
+	}
+	return "", false
 }
 
 // identInText trả về định danh đầu tiên xuất hiện như một từ trong text.

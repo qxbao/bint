@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -116,7 +117,11 @@ func newExperienceShowCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rows, err := evolve.ExperienceShow(cmd.Context(), e.st.DB, items)
+			h, err := evolve.LoadHistory(cmd.Context(), e.st.DB, time.Now(), 10*365*24*time.Hour)
+			if err != nil {
+				return err
+			}
+			rows, err := evolve.ExperienceShow(cmd.Context(), e.st.DB, items, h)
 			if err != nil {
 				return err
 			}
@@ -152,8 +157,8 @@ func printExperience(w io.Writer, rows []evolve.LessonRow) {
 		}
 		fmt.Fprintf(w, "  %s  [%s] %s\n", r.ID, r.Status, r.Title)
 		tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-		fmt.Fprintf(tw, "      \tchèn %d lần (lượt thật)\teval khi có bài học: đạt %d, trượt %d\tlượt bằng chứng %d\n",
-			r.Inserted, r.EvalPass, r.EvalFail, r.Runs)
+		fmt.Fprintf(tw, "      \tchèn %d lần (lượt thật: đạt %d, trượt %d)\teval khi có bài học: đạt %d, trượt %d\tlượt bằng chứng %d\n",
+			r.Inserted, r.RealSuccess, r.RealFailure, r.EvalPass, r.EvalFail, r.Runs)
 		tw.Flush()
 	}
 	fmt.Fprintln(w, strings.TrimSpace(`

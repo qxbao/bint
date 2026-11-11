@@ -11,13 +11,15 @@ import (
 func TestReflectorPromptScopesInputs(t *testing.T) {
 	mkLesson := func(id, status string, paths ...string) *knowledge.Item {
 		return &knowledge.Item{ID: id, Type: knowledge.TypeLesson, Status: status, Title: "Bài " + id,
-			Body: "nội dung " + id, Scope: knowledge.Scope{Paths: paths}}
+			Body: "nội dung " + id, Scope: knowledge.Scope{Paths: paths},
+			Origin: knowledge.Origin{Provenance: knowledge.ProvenanceFailureLesson, Runs: []string{"ea_1"}}}
 	}
 	items := []*knowledge.Item{
-		mkLesson("LG", knowledge.StatusVerified),                       // chung
-		mkLesson("LC", knowledge.StatusVerified, "internal/core/**"),   // cùng vùng
-		mkLesson("LA", knowledge.StatusVerified, "internal/api/**"),    // vùng khác
-		mkLesson("LD", knowledge.StatusDeprecated, "internal/core/**"), // đã bỏ
+		mkLesson("LG", knowledge.StatusVerified),                                                            // chung
+		mkLesson("LC", knowledge.StatusVerified, "internal/core/**"),                                        // cùng vùng
+		mkLesson("LA", knowledge.StatusVerified, "internal/api/**"),                                         // vùng khác
+		mkLesson("LD", knowledge.StatusDeprecated, "internal/core/**"),                                      // đã bỏ
+		{ID: "LH", Type: knowledge.TypeLesson, Status: knowledge.StatusVerified, Title: "lesson của người"}, // không có lượt nguồn
 		{ID: "WN", Type: knowledge.TypeWarning, Status: knowledge.StatusVerified, Title: "không phải bài học"},
 	}
 	got := activeLessons(items, "internal/core")

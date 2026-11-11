@@ -146,14 +146,26 @@ Mã của E1–E5 và kiểm thử không tốn token của E6 đã xong; phần
   không có vết được ghi là "không đo được". Cơ hội `failure_lesson` khi nhóm có ≥ `evolution.trigger.min_similar_runs`
   tác vụ phân biệt.
 - **E2:** vai trò `roles.reflector` và `harnesses.<h>.models.reflector` (mặc định opus với Claude), không công cụ,
-  chạy trong thư mục rỗng; khuôn `scope/trigger/mistake/instead/evidence`; tối đa hai ứng viên (chung, riêng).
+  chạy trong thư mục rỗng; với Claude ràng buộc được ép bằng cờ tường minh `--tools ""` (`ClaudeAgent.NoTools`),
+  không dựa vào mặc định quyền; `roles.reflector` khác `claude` bị từ chối vì harness khác chưa có cơ chế tắt hết
+  công cụ tương đương (sandbox chỉ-đọc vẫn đọc được toàn hệ tệp); khuôn `scope/trigger/mistake/instead/evidence`; tối đa hai ứng viên (chung, riêng).
 - **E3:** `CheckLesson` (`internal/evolve/lesson_check.go`): rò rỉ, tổng quát, riêng, trùng, hình thức, nguồn gốc.
-  Định danh dạng mã của phần thêm mới lời giải chặn bài học (`eval.SolutionIdentifiers`); không kiểm được rò rỉ thì loại.
+  Bài học bị chặn khi chứa dòng mã của lời giải (`CheckLeak`), định danh dạng mã (`eval.SolutionIdentifiers`), MỌI
+  định danh mới của phần thêm mới kể cả tên một từ như `Reset` (`eval.SolutionNewIdentifiers`; chỉ định danh ở vị trí
+  mã, bỏ chú thích và nội dung chuỗi để từ thường như `server`/`timeout` không chặn nhầm; trừ tên có trong kiểm
+  thử), hoặc chuỗi literal đủ dài (≥ 12 ký tự, gồm `"..."`, `'...'` và raw backtick, bỏ literal có trong kiểm
+  thử; `eval.SolutionLiterals`); không kiểm
+  được rò rỉ thì loại. Scope riêng `domain:<glob>` phải nằm trong vùng của nhóm bằng chứng: glob khớp toàn repo
+  (`**`, `*.go`) hoặc rộng hơn vùng bị từ chối.
 - **E4:** mỗi ứng viên qua kiểm tra thành đề xuất L1 `create lesson` (hoặc `update` gộp khi trùng, không định lượng),
   đi qua `bint evolve propose` và `bint evolve cycle`. `SelectCases` không chấm lại trên tác vụ nguồn
   (`ProposeInput.EvalCases`) và ghi lý do khi delivery là `minimal`.
-- **E5:** `bint experience show` (chung trước, riêng theo vùng, số lần chèn và đạt/trượt). Gói ngữ cảnh có
-  `Pack.Lessons` (`internal/ctxengine/lessons.go`): top-k chung (`context.lessons.global_k`, mặc định 3),
+- **E5:** `bint experience show` (chung trước, riêng theo vùng, số lần chèn, đạt/trượt của lượt eval và đạt/trượt
+  theo nhãn lượt thật `real_success`/`real_failure`). Sự kiện `context.retrieved` ghi cả ID bài học (nhãn `lesson`) nên
+  số lần chèn ở lượt thật đếm được. Chỉ mục `failure_lesson` (`Item.LessonFromRuns`) đi qua phần bài học; mục
+  `lesson` do người viết hoặc `--from-review` đi luồng tri thức thường. Cùng định nghĩa này dùng cho thư viện
+  `experience show`, danh sách bài học sẵn có của reflector và kiểm trùng (lesson của người không bị gộp/ghi đè). Nhánh ideal của eval chở cả bài học
+  (ngân sách bài học lớn). Gói ngữ cảnh có `Pack.Lessons` (`internal/ctxengine/lessons.go`): top-k chung (`context.lessons.global_k`, mặc định 3),
   bài học riêng khi khớp, ngân sách riêng `context.lessons.max_tokens` (mặc định 600). Hook không gate theo tri thức
   rỗng nữa: chèn bài học kể cả khi không có mục tri thức nào.
 - **E6 (không tốn token):** digest từ log mẫu (`internal/evolve/testdata/failure`), gom nhóm, chặn rò rỉ,
@@ -164,6 +176,17 @@ Giới hạn đã biết:
 - Phiên thật chỉ ghi lệnh kiểm thử (`test.completed`), nên dấu hiệu "không chạy test" và "lặp lệnh" không đo được
   với lượt thật; chỉ lượt eval có vết đầy đủ.
 - Reflector nhận tối đa 8 bản tóm tắt đầu của nhóm (theo ID).
+- `LoadFailures` chỉ nạp lượt eval trong cửa sổ lịch sử của `Scan` và đọc `agent.log` theo luồng từng dòng
+  (bộ nhớ bị chặn; dòng quá 4 MiB bị bỏ, log quá 256 MiB bị cắt đuôi). Vết thiếu được đánh dấu `Trace.Truncated`
+  và không dùng để suy ra `no_test`. Log vẫn được đọc lúc quét (không hoãn tới lúc dựng digest) vì dấu hiệu hành vi
+  cần vết để nhóm thất bại.
+- Bài học `failure_lesson` không sinh cơ hội `unused` (đề xuất loại bỏ vì không được trích dẫn): chúng là hướng dẫn
+  hành vi, ít khi được trích bằng `[k:id]`, và được đo bằng nhãn lượt thật và kết quả đánh giá (`experience show`).
+- `bint evolve propose` với `roles.reflector` khác `claude` chỉ cảnh báo và bỏ cơ hội `failure_lesson`; các đề xuất
+  xác định và của evolver vẫn chạy.
+  Lượt `timeout` nhưng test đạt không phải thất bại.
+- Rò rỉ bài học là kiểm tra chuỗi/định danh xác định: nó chặn nội dung nhắc lại đáp án nguyên văn, không chặn
+  diễn đạt lại ý của lời giải.
 - Chất lượng bài học do reflector thật viết và hiệu ứng lên tỷ lệ đạt **chưa được kiểm chứng**.
 
 ## Kế hoạch H — Sửa được quy trình, tách chung/riêng

@@ -377,6 +377,12 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 				}
 			}
 		case knowledge.StatusVerified, knowledge.StatusCandidate:
+			// Bài học từ thất bại là hướng dẫn hành vi: hiếm khi được trích bằng [k:id], nên "không
+			// trích dẫn" không phải tín hiệu vô ích. Chúng được đo bằng nhãn lượt thật và kết quả
+			// đánh giá (bint experience show), không qua cơ hội unused.
+			if it.LessonFromRuns() {
+				continue
+			}
 			ret := labeledOf(h.RetrievedRuns[it.ID])
 			if len(ret) >= m && len(h.CitedRuns[it.ID]) == 0 {
 				o := Opportunity{Key: "unused:" + it.ID, Kind: KindUnused, Action: ActionDeprecate, Generator: GenDeterministic,
@@ -394,7 +400,7 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 			Summary: fmt.Sprintf("%s và %s cùng loại %s, phạm vi chồng nhau, tiêu đề gần trùng", a.ID, b.ID, a.Type)}, 0)
 	}
 	// Theo lượt thất bại (E1): tập validation và lượt thật có nhãn failure → bài học chung/riêng.
-	fails, err := LoadFailures(ctx, in.DB, in.Cases, h, in.Runtime)
+	fails, err := LoadFailures(ctx, in.DB, in.Cases, h, in.Runtime, in.Now.Add(-in.Window))
 	if err != nil {
 		return res, err
 	}

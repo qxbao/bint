@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"bint/internal/ctxengine"
 	"bint/internal/knowledge"
 	"bint/internal/testutil"
+	"bint/internal/ulid"
 )
 
 func TestBintAndIdealArms(t *testing.T) {
@@ -154,5 +156,34 @@ func TestSplitArm(t *testing.T) {
 	}
 	if ArmNotImplemented("bint@path=off") != nil || ArmNotImplemented("bint@x=1") == nil {
 		t.Fatal("ArmNotImplemented với biến thể")
+	}
+}
+
+// Nhánh ideal giữ bài học từ thất bại có phạm vi khớp tệp nguồn: mục được tính là ideal phải
+// thật sự được chở vào AGENTS.md (qua phần Pack.Lessons, ngân sách riêng).
+func TestIdealArmKeepsLessons(t *testing.T) {
+	ctx := context.Background()
+	root := testutil.NewRepo(t, map[string]string{"lib/a.go": "package lib\n\nfunc A() {}\n"})
+	lesson := &knowledge.Item{Schema: knowledge.SchemaVersion, ID: ulid.New(), Type: knowledge.TypeLesson,
+		Status: knowledge.StatusVerified, Title: "Khi sửa lib nhớ gọi Reset", Body: "Khi sửa lib nhớ gọi Reset.", ReviewedBy: "r",
+		Version: 1, CreatedAt: knowledge.Now(time.Now()), Scope: knowledge.Scope{Paths: []string{"lib/**"}},
+		Origin: knowledge.Origin{Kind: knowledge.OriginAgent, Provenance: knowledge.ProvenanceFailureLesson, Runs: []string{"ea_1"}}}
+	if err := knowledge.NewStore(root).Save(lesson); err != nil {
+		t.Fatal(err)
+	}
+	base := commitAll(t, root, "knowledge at base")
+	writeFile(t, root, "lib/a.go", "package lib\n\nfunc A() {}\n\nfunc C() {}\n")
+	sol := commitAll(t, root, "solution")
+
+	env := knowledgeEnv(t, root)
+	c := &Case{ID: "c1", Source: Source{Base: base, Commit: sol}, SourceFiles: []string{"lib/a.go"}}
+	dir := t.TempDir()
+	s, err := prepareArm(ctx, env, ArmIdeal, LeakStrict, c, nil, dir, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	agents, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if len(s.Ideal) != 1 || s.Ideal[0] != lesson.ID || !strings.Contains(string(agents), "Khi sửa lib nhớ gọi Reset") {
+		t.Fatalf("bài học ideal phải nằm trong AGENTS.md: %+v\n%s", s, agents)
 	}
 }

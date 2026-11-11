@@ -653,8 +653,8 @@ test không bao giờ là đầu vào), và lượt thật có nhãn thất bạ
 vùng, lặp lệnh, hết lượt/thời gian, bỏ qua tri thức đã chèn), giới hạn ~1.500 token; log cũ không có vết
 được ghi là "không đo được", không đoán. Gom nhóm theo **vùng mã** (bài học riêng) và theo **dấu hiệu** (bài
 học chung); một nhóm sinh cơ hội `failure_lesson` khi có ≥ `evolution.trigger.min_similar_runs` tác vụ phân
-biệt (lượt của cùng một tác vụ chỉ tính một). Agent reflector (`roles.reflector`, không công cụ, chạy trong
-thư mục rỗng) trả khuôn `{"lessons":[{scope, trigger, mistake, instead, evidence}]}`, tối đa một ứng viên
+biệt (lượt của cùng một tác vụ chỉ tính một). Agent reflector (`roles.reflector`, chỉ `claude`, khoá hết công cụ
+bằng `--tools ""`, chạy trong thư mục rỗng) trả khuôn `{"lessons":[{scope, trigger, mistake, instead, evidence}]}`, tối đa một ứng viên
 chung (`global`) và một riêng (`domain:<glob>`). Mỗi ứng viên qua kiểm tra xác định trước khi thành đề xuất
 L1 `create lesson` (candidate, rủi ro thấp): rò rỉ (định danh dạng mã của phần thêm mới lời giải, rà bằng
 `eval.CheckLeak` và `SolutionIdentifiers`; không kiểm được thì loại), tổng quát (chung ≥ 2 vùng mã, riêng ≥ 2

@@ -273,6 +273,11 @@ func evolverAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error)
 // reflectorAgent dựng agent reflector (rút bài học từ thất bại, kế hoạch E2): harness theo
 // roles.reflector, model theo harnesses.<h>.models.reflector (--reflector-model ghi đè). Không
 // có công cụ và chạy trong thư mục rỗng: đầu vào chỉ là bản tóm tắt đã lọc.
+//
+// Ràng buộc "không công cụ" được ép bằng cờ tường minh của Claude Code (--tools ""), vì tập test
+// không bao giờ được là đầu vào của reflector. Harness khác chưa có cơ chế tắt hết công cụ tương
+// đương (sandbox chỉ-đọc vẫn đọc được toàn hệ tệp, gồm định nghĩa tác vụ tập test), nên
+// roles.reflector khác claude bị từ chối thay vì chạy với ràng buộc lỏng hơn.
 func reflectorAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
 	if command != "" {
 		return &eval.CommandAgent{Command: command}, nil
@@ -281,15 +286,16 @@ func reflectorAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, erro
 	if name == "" {
 		name = k.Config.Harnesses.Default
 	}
-	model = harness.RoleModel(k.Config, name, "reflector", model)
-	if name == "claude" || name == "" {
-		cfg := k.Config.Eval.Agent
-		cfg.AllowedTools = nil
-		cfg.PermissionMode = "dontAsk"
-		cfg.ExtraArgs = nil
-		return &eval.ClaudeAgent{Cfg: cfg, Model: model}, nil
+	if name != "claude" && name != "" {
+		return nil, fmt.Errorf("roles.reflector=%q: chỉ harness claude khoá được công cụ của reflector (--tools \"\"); "+
+			"harness %s chưa có cơ chế tắt hết công cụ tương đương nên không dùng được cho reflector", name, name)
 	}
-	return harness.NewAgent(name, harness.AgentOptions{Config: k.Config, ReadOnly: true, Model: model})
+	model = harness.RoleModel(k.Config, "claude", "reflector", model)
+	cfg := k.Config.Eval.Agent
+	cfg.AllowedTools = nil
+	cfg.PermissionMode = "dontAsk"
+	cfg.ExtraArgs = nil
+	return &eval.ClaudeAgent{Cfg: cfg, Model: model, NoTools: true}, nil
 }
 
 func newEvolveProposeCmd(stdio IO) *cobra.Command {
@@ -333,8 +339,11 @@ xác định được (bằng chứng tồn tại, không trùng, độ dài, c�
 				if agent, err = evolverAgent(e.k, model, agentCommand); err != nil {
 					return err
 				}
+				// Reflector không dùng được (vd roles.reflector khác claude) chỉ làm mất cơ hội
+				// failure_lesson; đề xuất xác định và của evolver vẫn chạy (như đường deferred).
 				if reflector, err = reflectorAgent(e.k, reflectorModel, agentCommand); err != nil {
-					return err
+					fmt.Fprintf(stdio.Err, "! không dùng được agent reflector (bỏ qua cơ hội bài học từ thất bại): %v\n", err)
+					reflector = nil
 				}
 			}
 			cases, err := e.cases.Cases()

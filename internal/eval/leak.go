@@ -216,3 +216,107 @@ func SolutionIdentifiers(in LeakInput) []string {
 	sort.Strings(out)
 	return out
 }
+
+// SolutionNewIdentifiers trả về định danh lời giải đưa vào mà trước đó chưa có (NewIdents), kể
+// cả tên một từ như Reset hay Flush (không lọc codeLike), trừ định danh xuất hiện trong phần
+// kiểm thử. Chỉ xét định danh ở VỊ TRÍ MÃ của phần thêm mới (bỏ chú thích và nội dung chuỗi):
+// từ tiếng Anh thường như server, cache, timeout trong chú thích hay thông điệp mới không phải
+// đáp án, còn chuỗi literal đã có SolutionLiterals lo. Dùng cho bài học: tên hàm một từ cũng là
+// đáp án khi nó lộ ra trong nội dung bài học.
+func SolutionNewIdentifiers(in LeakInput) []string {
+	set := map[string]bool{}
+	for _, ln := range in.AddedLines {
+		for _, id := range identRe.FindAllString(codeOnly(ln), -1) {
+			if in.NewIdents[id] && !in.TestIdents[id] {
+				set[id] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for id := range set {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// codeOnly bỏ phần chú thích và nội dung chuỗi literal khỏi một dòng mã, chỉ giữ phần là mã.
+// Nhận biết chú thích dòng (//, #, --, SQL/Lua), khối một dòng (/* */) và dòng tiếp diễn khối
+// (bắt đầu bằng "* "); chuỗi trong "...", '...' hoặc `...` (một dòng). Xấp xỉ theo dòng: không
+// theo dõi chuỗi hay chú thích kéo dài qua nhiều dòng.
+func codeOnly(line string) string {
+	t := strings.TrimSpace(line)
+	for _, p := range []string{"//", "#", "/*", "* ", "*/", "--"} {
+		if strings.HasPrefix(t, p) {
+			return ""
+		}
+	}
+	if t == "*" {
+		return ""
+	}
+	var b strings.Builder
+	rs := []rune(t)
+	for i := 0; i < len(rs); i++ {
+		c := rs[i]
+		switch {
+		case c == '"' || c == '\'' || c == '`':
+			// Bỏ tới dấu đóng cùng loại (bỏ qua ký tự thoát, trừ chuỗi raw).
+			j := i + 1
+			for j < len(rs) && rs[j] != c {
+				if rs[j] == '\\' && c != '`' {
+					j++
+				}
+				j++
+			}
+			i = j
+			b.WriteByte(' ')
+		case c == '/' && i+1 < len(rs) && rs[i+1] == '/':
+			return b.String()
+		case c == '/' && i+1 < len(rs) && rs[i+1] == '*':
+			end := strings.Index(string(rs[i+2:]), "*/")
+			if end < 0 {
+				return b.String()
+			}
+			i += 2 + len([]rune(string(rs[i+2:])[:end])) + 1
+			b.WriteByte(' ')
+		case c == '#' && (i == 0 || rs[i-1] == ' ' || rs[i-1] == '\t'):
+			return b.String()
+		default:
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
+}
+
+// minLiteralLen: chuỗi literal ngắn hơn (sau khi bỏ động từ định dạng) quá dễ trùng chữ thường.
+const minLiteralLen = 12
+
+var (
+	strLitRe  = regexp.MustCompile("\"((?:[^\"\\\\]|\\\\.)*)\"|'((?:[^'\\\\]|\\\\.)*)'|`([^`]*)`")
+	fmtVerbRe = regexp.MustCompile(`%[-+# 0-9.*]*[a-zA-Z%]|\\[nrt"']|\{[^{}]*\}`)
+)
+
+// SolutionLiterals trích nội dung chuỗi literal đủ dài (>= minLiteralLen ký tự) trong phần
+// thêm mới của lời giải, chia theo động từ định dạng (%s, \n, {x}) và chuẩn hoá khoảng trắng.
+// Literal xuất hiện trong phần kiểm thử được thêm bị bỏ: kiểm thử buộc agent phải biết chuỗi
+// đó, nên nó không phải đáp án. Kết quả theo thứ tự chữ cái, không trùng.
+func SolutionLiterals(in LeakInput) []string {
+	tests := strings.Join(in.TestAdded, "\n")
+	seen := map[string]bool{}
+	var out []string
+	for _, ln := range in.AddedLines {
+		for _, m := range strLitRe.FindAllStringSubmatch(ln, -1) {
+			lit := m[1] + m[2] + m[3] // chỉ một nhánh khớp (", ' hoặc backtick)
+			for _, seg := range fmtVerbRe.Split(lit, -1) {
+				seg = normWS(seg)
+				if len([]rune(seg)) < minLiteralLen || seen[seg] || strings.Contains(tests, seg) {
+					continue
+				}
+				seen[seg] = true
+				out = append(out, seg)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}

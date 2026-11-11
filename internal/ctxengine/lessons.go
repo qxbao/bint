@@ -16,8 +16,13 @@ import (
 //   - ForPaths: chỉ bài học RIÊNG khớp đường dẫn, bỏ mục đã chèn trong phiên.
 // Không mở SQLite, không gọi mô hình, không trả lỗi: chỉ đọc Items đã nạp.
 
-// isLesson cho biết mục là bài học từ thất bại (chỉ chèn qua phần bài học).
-func isLesson(it *knowledge.Item) bool { return it.Type == knowledge.TypeLesson }
+// LabelLesson là nhãn ghi vào sự kiện context.retrieved cho mục của phần bài học.
+const LabelLesson = "lesson"
+
+// isLesson cho biết mục là bài học từ thất bại do Bint sinh (provenance failure_lesson, có
+// lượt nguồn): chỉ loại này đi qua phần bài học. Mục type lesson do người viết hoặc sinh từ
+// review đi luồng tri thức thường.
+func isLesson(it *knowledge.Item) bool { return it.LessonFromRuns() }
 
 // rankLessons sắp xếp bài học: điểm cao trước; cùng điểm thì đã xác thực trước ứng viên;
 // rồi mục mới hơn (ID ULID tăng theo thời gian).

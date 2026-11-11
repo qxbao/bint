@@ -86,6 +86,10 @@ type ClaudeAgent struct {
 	Model      string   // ghi đè cfg.Model
 	MaxCostUSD *float64 // limits.per_run.max_cost_usd
 	Bare       bool     // --bare: không nạp CLAUDE.md/bộ nhớ cấp người dùng (cần ANTHROPIC_API_KEY)
+	// NoTools: tắt MỌI công cụ bằng cờ tường minh (--tools ""), không dựa vào mặc định quyền của
+	// Claude Code (Read/Glob/Grep có thể chạy không cần duyệt). Dùng cho agent chỉ suy luận trên
+	// đầu vào đã lọc (reflector): không có công cụ nghĩa là không đọc được tệp nào khác.
+	NoTools bool
 }
 
 // ModelNamer là agent cho biết model được yêu cầu cho lượt chạy ("" = mặc định của harness).
@@ -151,14 +155,16 @@ func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 	if req.HasSkills && !slices.Contains(tools, "Skill") {
 		tools = append(tools, "Skill")
 	}
-	if req.MCPConfig != "" {
+	if req.MCPConfig != "" && !a.NoTools {
 		args = append(args, "--mcp-config", req.MCPConfig)
 		tools = append(tools, BintMCPTools...)
 	}
 	if req.Settings != "" {
 		args = append(args, "--settings", req.Settings)
 	}
-	if len(tools) > 0 {
+	if a.NoTools {
+		args = append(args, "--tools", "")
+	} else if len(tools) > 0 {
 		args = append(args, "--allowedTools", strings.Join(tools, ","))
 	}
 	if a.Cfg.SettingSources != "" {

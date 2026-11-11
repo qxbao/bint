@@ -1,15 +1,19 @@
 package evolve
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"bint/internal/eval"
 	"bint/internal/knowledge"
@@ -90,6 +94,9 @@ type Trace struct {
 	Reads []string
 	// Writes: tệp sửa/ghi (Edit, Write, MultiEdit, NotebookEdit).
 	Writes []string
+	// Truncated: vết thiếu (có dòng quá dài bị bỏ, hoặc log vượt trần maxTraceBytes). Vết thiếu
+	// không đủ để suy ra điều gì từ SỰ VẮNG MẶT của lệnh (vd. no_test).
+	Truncated bool
 }
 
 // testCmdRe khớp lệnh chạy kiểm thử (dấu hiệu "có chạy test").
@@ -98,73 +105,148 @@ var testCmdRe = regexp.MustCompile(`(?i)\b(test|tests|pytest|jest|vitest|rspec)\
 // ParseTrace đọc log stream-json. prefix là tiền tố tuyệt đối của thư mục làm việc (bỏ
 // khỏi đường dẫn để còn đường dẫn tương đối); rỗng = giữ nguyên.
 func ParseTrace(data []byte, prefix string) Trace {
+	return ParseTraceReader(bytes.NewReader(data), prefix)
+}
+
+// Giới hạn đọc vết: mỗi dòng (một sự kiện, tool_result có thể rất lớn) tối đa maxTraceLine byte,
+// dòng dài hơn bị bỏ qua; cả log tối đa maxTraceBytes byte. Vượt giới hạn thì Trace.Truncated.
+var (
+	maxTraceLine  = 4 << 20
+	maxTraceBytes = int64(256 << 20)
+)
+
+// ParseTraceReader đọc log stream-json theo luồng từng dòng: bộ nhớ bị chặn bởi maxTraceLine mà
+// không mất phần cuối của log (lệnh test thường nằm ở cuối).
+func ParseTraceReader(r io.Reader, prefix string) Trace {
 	var t Trace
-	for _, line := range bytes.Split(data, []byte("\n")) {
-		line = bytes.TrimSpace(line)
-		if len(line) == 0 || line[0] != '{' {
-			continue
+	lr := &io.LimitedReader{R: r, N: maxTraceBytes + 1}
+	br := bufio.NewReaderSize(lr, 64<<10)
+	for {
+		line, skipped, err := readLineMax(br, maxTraceLine)
+		if skipped {
+			t.Truncated = true
 		}
-		var ev struct {
-			Type    string `json:"type"`
-			Message struct {
-				Content []struct {
-					Type  string         `json:"type"`
-					Name  string         `json:"name"`
-					Input map[string]any `json:"input"`
-				} `json:"content"`
-			} `json:"message"`
+		if len(line) > 0 {
+			parseTraceLine(&t, line, prefix)
 		}
-		if json.Unmarshal(line, &ev) != nil {
-			continue
+		if err != nil {
+			break
 		}
-		if ev.Type == "assistant" || ev.Type == "system" {
-			t.Available = true
-		}
-		if ev.Type != "assistant" {
-			continue
-		}
-		for _, c := range ev.Message.Content {
-			if c.Type != "tool_use" {
-				continue
-			}
-			switch c.Name {
-			case "Bash":
-				if cmd, ok := c.Input["command"].(string); ok && strings.TrimSpace(cmd) != "" {
-					t.Commands = append(t.Commands, strings.TrimSpace(cmd))
-				}
-			case "Read":
-				if p, ok := c.Input["file_path"].(string); ok {
-					t.Reads = append(t.Reads, relTo(p, prefix))
-				}
-			case "Edit", "Write", "MultiEdit", "NotebookEdit":
-				p, _ := c.Input["file_path"].(string)
-				if p == "" {
-					p, _ = c.Input["notebook_path"].(string)
-				}
-				if p != "" {
-					t.Writes = append(t.Writes, relTo(p, prefix))
-				}
-			}
-		}
+	}
+	if lr.N <= 0 {
+		t.Truncated = true // log lớn hơn maxTraceBytes: phần sau bị bỏ
 	}
 	return t
 }
 
-// relTo bỏ tiền tố thư mục làm việc khỏi đường dẫn tuyệt đối.
+// readLineMax đọc một dòng (bỏ '\n'). Dòng dài hơn max byte bị bỏ hết và trả skipped=true
+// (line rỗng) mà vẫn đọc tới cuối dòng để lần gọi sau bắt đầu ở dòng kế.
+func readLineMax(br *bufio.Reader, max int) (line []byte, skipped bool, err error) {
+	var buf []byte
+	for {
+		chunk, e := br.ReadSlice('\n')
+		if !skipped {
+			if len(buf)+len(chunk) > max {
+				skipped, buf = true, nil
+			} else {
+				buf = append(buf, chunk...)
+			}
+		}
+		if e == bufio.ErrBufferFull {
+			continue
+		}
+		if skipped {
+			return nil, true, e
+		}
+		return bytes.TrimSpace(buf), false, e
+	}
+}
+
+// parseTraceLine gộp một dòng log (đã bỏ khoảng trắng hai đầu) vào vết.
+func parseTraceLine(t *Trace, line []byte, prefix string) {
+	if len(line) == 0 || line[0] != '{' {
+		return
+	}
+	var ev struct {
+		Type    string `json:"type"`
+		Message struct {
+			Content []struct {
+				Type  string         `json:"type"`
+				Name  string         `json:"name"`
+				Input map[string]any `json:"input"`
+			} `json:"content"`
+		} `json:"message"`
+	}
+	if json.Unmarshal(line, &ev) != nil {
+		return
+	}
+	if ev.Type == "assistant" || ev.Type == "system" {
+		t.Available = true
+	}
+	if ev.Type != "assistant" {
+		return
+	}
+	for _, c := range ev.Message.Content {
+		if c.Type != "tool_use" {
+			continue
+		}
+		switch c.Name {
+		case "Bash":
+			if cmd, ok := c.Input["command"].(string); ok && strings.TrimSpace(cmd) != "" {
+				t.Commands = append(t.Commands, strings.TrimSpace(cmd))
+			}
+		case "Read":
+			if p, ok := c.Input["file_path"].(string); ok {
+				t.Reads = append(t.Reads, relTo(p, prefix))
+			}
+		case "Edit", "Write", "MultiEdit", "NotebookEdit":
+			p, _ := c.Input["file_path"].(string)
+			if p == "" {
+				p, _ = c.Input["notebook_path"].(string)
+			}
+			if p != "" {
+				t.Writes = append(t.Writes, relTo(p, prefix))
+			}
+		}
+	}
+}
+
+// relTo bỏ tiền tố thư mục làm việc khỏi đường dẫn tuyệt đối. Chuẩn hoá cả hai phía bằng
+// filepath.ToSlash trước khi so (trên Windows file_path của harness dùng dấu gạch ngược).
 func relTo(p, prefix string) string {
-	if prefix != "" && strings.HasPrefix(p, prefix) {
-		return strings.TrimPrefix(p, prefix)
+	p = filepath.ToSlash(p)
+	if prefix = filepath.ToSlash(prefix); prefix != "" {
+		if !strings.HasSuffix(prefix, "/") {
+			prefix += "/"
+		}
+		if strings.HasPrefix(p, prefix) {
+			return strings.TrimPrefix(p, prefix)
+		}
 	}
 	return p
+}
+
+// workDirOf dựng thư mục làm việc của lượt eval từ thư mục log: log nằm ở
+// <WorkRoot>/logs/<batch>/<key> còn thư mục làm việc là <WorkRoot>/runs/<batch>/<key> (xem
+// eval.runAttempt). Dựng theo cấu trúc, không thay chuỗi "/logs/" (WorkRoot có thể chứa nó).
+func workDirOf(logDir string) string {
+	if logDir == "" {
+		return ""
+	}
+	logDir = filepath.Clean(logDir)
+	key := filepath.Base(logDir)
+	batchDir := filepath.Dir(logDir)
+	logsDir := filepath.Dir(batchDir)
+	if filepath.Base(logsDir) != "logs" {
+		return "" // cấu trúc lạ: không đoán, giữ đường dẫn nguyên
+	}
+	return filepath.Join(filepath.Dir(logsDir), "runs", filepath.Base(batchDir), key)
 }
 
 // readOptional đọc tệp nếu có; ok=false khi không có hoặc không đọc được.
 func readOptional(path string) ([]byte, bool) {
 	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, false
-	}
-	return b, true
+	return b, err == nil
 }
 
 // testFailureLines trích dòng báo test trượt (Go, pytest, Jest, TAP) và đuôi log.
@@ -198,19 +280,23 @@ func testFailureLines(log []byte) (fails, tail []string) {
 // LoadFailures nạp các đơn vị thất bại: lượt đánh giá failed/timeout của tập validation
 // (cả case_split của lượt lẫn split hiện tại của tác vụ phải là validation), và lượt thật
 // có nhãn failure trong h. runtime (có thể rỗng) để đọc phạm vi và mục tiêu của phiếu.
-// Chỉ đọc; không gọi mô hình.
-func LoadFailures(ctx context.Context, db *sql.DB, cases []*eval.Case, h *History, runtime string) ([]Failure, error) {
+// since (không phải zero) là đầu mút cửa sổ lịch sử: chỉ lượt eval bắt đầu từ since mới được nạp
+// (cùng cửa sổ với lượt thật trong h), để mỗi lần quét không đọc log của cả lịch sử.
+// Lượt timeout nhưng test đạt (test_passed=1) đã giải đúng nên không phải thất bại. Chỉ đọc;
+// không gọi mô hình.
+func LoadFailures(ctx context.Context, db *sql.DB, cases []*eval.Case, h *History, runtime string, since time.Time) ([]Failure, error) {
 	var out []Failure
 	byID := map[string]*eval.Case{}
 	for _, c := range cases {
 		byID[c.ID] = c
 	}
 	if db != nil {
-		attempts, err := eval.Attempts(ctx, db, `status IN ('failed','timeout') AND case_split = ?`, eval.SplitValidation)
+		where, args := failedAttemptsWhere("", since)
+		attempts, err := eval.Attempts(ctx, db, where, args...)
 		if err != nil {
 			return nil, err
 		}
-		ctxUse, err := contextUsageOfFailures(ctx, db)
+		ctxUse, err := contextUsageOfFailures(ctx, db, since)
 		if err != nil {
 			return nil, err
 		}
@@ -240,11 +326,24 @@ func LoadFailures(ctx context.Context, db *sql.DB, cases []*eval.Case, h *Histor
 	return out, nil
 }
 
+// failedAttemptsWhere dựng điều kiện chọn lượt eval thất bại của tập validation: failed, hoặc
+// timeout mà test không đạt; từ since trở đi nếu có. alias là tiền tố bảng (vd "r.").
+func failedAttemptsWhere(alias string, since time.Time) (string, []any) {
+	where := fmt.Sprintf(`%[1]sstatus IN ('failed','timeout') AND NOT (%[1]sstatus = 'timeout' AND COALESCE(%[1]stest_passed, 0) = 1) AND %[1]scase_split = ?`, alias)
+	args := []any{eval.SplitValidation}
+	if !since.IsZero() {
+		where += fmt.Sprintf(" AND %sstarted_at >= ?", alias)
+		args = append(args, knowledge.Now(since))
+	}
+	return where, args
+}
+
 // contextUsageOfFailures trả về (đã chèn, đã trích dẫn) theo lượt đánh giá thất bại.
-func contextUsageOfFailures(ctx context.Context, db *sql.DB) (map[string][2]bool, error) {
+func contextUsageOfFailures(ctx context.Context, db *sql.DB, since time.Time) (map[string][2]bool, error) {
+	where, args := failedAttemptsWhere("r.", since)
 	rows, err := db.QueryContext(ctx, `SELECT u.attempt_id, MAX(u.retrieved), MAX(u.cited)
 		FROM eval_context_usage u JOIN evaluation_runs r ON r.attempt_id = u.attempt_id
-		WHERE r.status IN ('failed','timeout') AND r.case_split = ? GROUP BY u.attempt_id`, eval.SplitValidation)
+		WHERE `+where+` GROUP BY u.attempt_id`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -284,12 +383,10 @@ func evalFailure(a eval.AttemptRow, c *eval.Case, ctxUse [2]bool) Failure {
 		}
 	}
 	// Vết và tệp: log do runAttempt ghi. Thư mục làm việc là runs/<batch>/<key> cùng khoá.
-	prefix := ""
-	if a.LogDir != "" {
-		prefix = strings.Replace(filepath.ToSlash(a.LogDir), "/logs/", "/runs/", 1) + "/"
-	}
-	if b, ok := readOptional(filepath.Join(a.LogDir, "agent.log")); ok {
-		f.Trace = ParseTrace(b, prefix)
+	prefix := workDirOf(a.LogDir)
+	if lf, err := os.Open(filepath.Join(a.LogDir, "agent.log")); err == nil {
+		f.Trace = ParseTraceReader(lf, prefix)
+		lf.Close()
 		f.Measured = f.Trace.Available
 	}
 	if b, ok := readOptional(filepath.Join(a.LogDir, eval.FilesListName)); ok {
@@ -332,7 +429,7 @@ func runFailure(r *Run, tasks task.Store, haveRuntime bool) Failure {
 func classifySignals(f *Failure) []string {
 	var sigs []string
 	add := func(s string) { sigs = append(sigs, s) }
-	if f.Measured && !anyMatch(f.Trace.Commands, testCmdRe) {
+	if f.Measured && !f.Trace.Truncated && !anyMatch(f.Trace.Commands, testCmdRe) {
 		add(SigNoTest)
 	}
 	touched := append(append([]string{}, f.Modified...), f.Trace.Writes...)

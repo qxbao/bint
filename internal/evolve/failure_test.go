@@ -57,6 +57,52 @@ func TestParseTraceSample(t *testing.T) {
 	}
 }
 
+// Log vượt giới hạn: phải đọc theo luồng (không mất lệnh test ở cuối), dòng quá dài bị bỏ và vết
+// được đánh dấu Truncated để không suy ra no_test từ vết thiếu.
+func TestParseTraceStreamsLongLogKeepsTail(t *testing.T) {
+	oldLine, oldTotal := maxTraceLine, maxTraceBytes
+	t.Cleanup(func() { maxTraceLine, maxTraceBytes = oldLine, oldTotal })
+	maxTraceLine, maxTraceBytes = 1024, 1<<20
+
+	bash := func(cmd string) string {
+		return `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"` + cmd + `"}}]}}` + "\n"
+	}
+	huge := `{"type":"user","message":{"content":[{"type":"tool_result","content":"` + strings.Repeat("x", 5000) + `"}]}}` + "\n"
+	log := bash("go build ./...") + huge + huge + bash("go test ./...")
+	tr := ParseTrace([]byte(log), "")
+	if !tr.Truncated {
+		t.Fatal("dòng vượt maxTraceLine phải đặt Truncated")
+	}
+	if want := []string{"go build ./...", "go test ./..."}; !reflect.DeepEqual(tr.Commands, want) {
+		t.Fatalf("Commands = %v, muốn %v (lệnh sau dòng quá dài không được mất)", tr.Commands, want)
+	}
+	f := Failure{Source: "eval", Status: "failed", Measured: tr.Available, Trace: tr}
+	if sigs := classifySignals(&f); containsStr(sigs, SigNoTest) {
+		t.Fatalf("có lệnh test ở cuối mà vẫn báo no_test: %v", sigs)
+	}
+
+	// Log vượt trần tổng: vết thiếu thì không được suy ra no_test.
+	maxTraceLine, maxTraceBytes = 1<<20, 2048
+	long := bash("go build ./...") + strings.Repeat(bash("ls"), 100) + bash("go test ./...")
+	tr = ParseTrace([]byte(long), "")
+	if !tr.Truncated {
+		t.Fatal("log vượt maxTraceBytes phải đặt Truncated")
+	}
+	if containsStr(tr.Commands, "go test ./...") {
+		t.Fatalf("lệnh sau trần không được đọc: %v", tr.Commands)
+	}
+	f = Failure{Source: "eval", Status: "failed", Measured: tr.Available, Trace: tr}
+	if sigs := classifySignals(&f); containsStr(sigs, SigNoTest) {
+		t.Fatalf("vết bị cắt mà vẫn suy ra no_test: %v", sigs)
+	}
+	// Log nhỏ, nguyên vẹn không có test: vẫn báo no_test.
+	tr = ParseTrace([]byte(bash("go build ./...")), "")
+	f = Failure{Source: "eval", Status: "failed", Measured: tr.Available, Trace: tr}
+	if tr.Truncated || !containsStr(classifySignals(&f), SigNoTest) {
+		t.Fatalf("log nguyên vẹn không có test phải báo no_test (Truncated=%v)", tr.Truncated)
+	}
+}
+
 func TestClassifySignals(t *testing.T) {
 	f := sampleFailure(t, "ea_1", "t1", "internal/core")
 	want := []string{SigNoTest, SigEditOutside, SigRepeatCmd}
@@ -254,6 +300,47 @@ func TestCheckLessonTable(t *testing.T) {
 			c.Instead = "Gọi computeQuotaBudget trước khi báo xong"
 			return c
 		}(), Evidence: good, Leaks: []eval.LeakInput{{NewIdents: map[string]bool{"computeQuotaBudget": true}}}}, []string{LessonLeak}},
+		{"rò rỉ tên hàm một từ (Reset) bị loại", lessonInput{Cand: func() lessonCandidate {
+			c := lessonCand("global")
+			c.Instead = "Gọi Reset trước khi trả kết quả"
+			return c
+		}(), Evidence: good, Leaks: []eval.LeakInput{{AddedLines: []string{"\ts.Reset()"}, NewIdents: map[string]bool{"Reset": true}}}}, []string{LessonLeak}},
+		{"tên một từ có trong kiểm thử thì không bị loại", lessonInput{Cand: func() lessonCandidate {
+			c := lessonCand("global")
+			c.Instead = "Gọi Reset trước khi trả kết quả"
+			return c
+		}(), Evidence: good, Leaks: []eval.LeakInput{{AddedLines: []string{"\ts.Reset()"}, NewIdents: map[string]bool{"Reset": true}, TestIdents: map[string]bool{"Reset": true}}}}, nil},
+		{"từ thường trong chú thích/chuỗi của lời giải không chặn bài học", lessonInput{Cand: func() lessonCandidate {
+			c := lessonCand("global")
+			c.Mistake = "Không kiểm tra mã lỗi server và timeout trước khi thử lại"
+			return c
+		}(), Evidence: good, Leaks: []eval.LeakInput{{
+			AddedLines: []string{"\t// retry when the server returns 503", `	log.Printf("timeout waiting %d", n)`, "\tretryBusy()"},
+			NewIdents:  map[string]bool{"server": true, "returns": true, "timeout": true, "waiting": true, "retryBusy": true}}}}, nil},
+		{"literal dạng backtick bị loại", lessonInput{Cand: func() lessonCandidate {
+			c := lessonCand("global")
+			c.Instead = "Truy vấn SELECT id FROM quota_ledger WHERE tenant = ? trước khi báo xong"
+			return c
+		}(), Evidence: good, Leaks: []eval.LeakInput{{AddedLines: []string{"\trows, err := db.Query(`SELECT id FROM quota_ledger WHERE tenant = ?`, id)"}}}}, []string{LessonLeak}},
+		{"rò rỉ chuỗi literal bị loại", lessonInput{Cand: func() lessonCandidate {
+			c := lessonCand("global")
+			c.Instead = "Nên trả lỗi quota exceeded for tenant khi vượt hạn mức"
+			return c
+		}(), Evidence: good, Leaks: []eval.LeakInput{{AddedLines: []string{`	return fmt.Errorf("quota exceeded for tenant %s", id)`}}}}, []string{LessonLeak}},
+		{"literal có trong kiểm thử thì không bị loại", lessonInput{Cand: func() lessonCandidate {
+			c := lessonCand("global")
+			c.Instead = "Nên trả lỗi quota exceeded for tenant khi vượt hạn mức"
+			return c
+		}(), Evidence: good, Leaks: []eval.LeakInput{{AddedLines: []string{`	return fmt.Errorf("quota exceeded for tenant %s", id)`},
+			TestAdded: []string{`	want := "quota exceeded for tenant"`}}}}, nil},
+		{"literal quá ngắn không bị loại", lessonInput{Cand: func() lessonCandidate {
+			c := lessonCand("global")
+			c.Instead = "Chạy test của vùng, không in ok ra"
+			return c
+		}(), Evidence: good, Leaks: []eval.LeakInput{{AddedLines: []string{`	return "ok"`}}}}, nil},
+		{"domain:** khớp toàn repo bị loại", lessonInput{Cand: lessonCand("domain:**"), Evidence: []Failure{core1, core3}}, []string{LessonScope}},
+		{"domain:*.go khớp toàn repo bị loại", lessonInput{Cand: lessonCand("domain:*.go"), Evidence: []Failure{core1, core3}}, []string{LessonScope, LessonSpecific}},
+		{"domain rộng hơn vùng của nhóm bị loại", lessonInput{Cand: lessonCand("domain:internal/**"), Evidence: []Failure{core1, core3}}, []string{LessonScope}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -266,10 +353,18 @@ func TestCheckLessonTable(t *testing.T) {
 
 	// Trùng: không phải vi phạm, mà gộp vào mục đã có.
 	existing := &knowledge.Item{ID: "01LESSON", Type: knowledge.TypeLesson, Status: knowledge.StatusVerified,
-		Title: "Khi sửa mã trong vùng có test", Body: "x", Scope: knowledge.Scope{}}
+		Title: "Khi sửa mã trong vùng có test", Body: "x", Scope: knowledge.Scope{},
+		Origin: knowledge.Origin{Provenance: knowledge.ProvenanceFailureLesson, Runs: []string{"ea_1"}}}
 	v := CheckLesson(lessonInput{Cand: lessonCand("global"), Evidence: good, Existing: []*knowledge.Item{existing}})
 	if !v.OK() || v.Duplicate != "01LESSON" {
 		t.Fatalf("trùng phải gộp (không vi phạm, Duplicate=01LESSON): %+v", v)
+	}
+	// Lesson do người viết (không có lượt nguồn) đi luồng tri thức thường: không gộp vào nó.
+	human := *existing
+	human.ID, human.Origin = "01HUMAN", knowledge.Origin{}
+	v = CheckLesson(lessonInput{Cand: lessonCand("global"), Evidence: good, Existing: []*knowledge.Item{&human}})
+	if !v.OK() || v.Duplicate != "" {
+		t.Fatalf("lesson của người không được là đích gộp: %+v", v)
 	}
 }
 

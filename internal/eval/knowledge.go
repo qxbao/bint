@@ -231,13 +231,12 @@ next:
 // tức điều mục nói đã đúng và nhìn thấy được trong mã lúc tác vụ bắt đầu. Không xét
 // nguồn gốc/thời điểm tạo mục (EconomyFilter xét thêm phần đó).
 func EvidenceHoldsAt(ctx context.Context, repoDir string, c *Case, it *knowledge.Item) bool {
-	// Bài học từ thất bại: không có tệp để đối chiếu, nên không có gì có thể lệch khỏi mã
-	// tại commit gốc. Rò rỉ nội dung vẫn được CheckLeak chặn ở nơi gọi.
-	if it.LessonFromRuns() {
-		return true
-	}
 	if len(it.Evidence) == 0 {
-		return false
+		// Bài học từ thất bại thuần (chỉ có các lượt làm bằng chứng): không có tệp để đối chiếu,
+		// nên không có gì lệch khỏi mã tại commit gốc. Rò rỉ nội dung vẫn được CheckLeak chặn ở
+		// nơi gọi. Mục có bằng chứng tệp (vd. lesson thường được gộp vào bài học) thì KHÔNG được
+		// miễn: vẫn đối chiếu fingerprint như mọi mục khác.
+		return it.LessonFromRuns()
 	}
 	return evidenceHolds(ctx, repoDir, c, &knowledge.CommitSource{RepoDir: repoDir, Commit: c.Source.Base}, it)
 }

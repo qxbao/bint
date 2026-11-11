@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"bint/internal/knowledge"
 )
@@ -143,5 +144,37 @@ func TestLessonFromSeveralEvalCasesIsExcludedForEach(t *testing.T) {
 	e.ExcludeEvalCase = "c-val-2"
 	if p, _ := e.ForTask(context.Background(), "chạy test", nil); len(p.Lessons) != 1 {
 		t.Fatalf("tác vụ không phải nguồn thì bài học vẫn được chèn: %v", ids(p.Lessons))
+	}
+}
+
+// Lesson do người viết (không phải failure_lesson) đi luồng tri thức thường: truy xuất theo
+// từ khoá, không bị chuyển sang phần bài học, không phụ thuộc LessonMaxTokens.
+func TestHumanLessonStaysInKnowledgeFlow(t *testing.T) {
+	human := &knowledge.Item{ID: "H01", Type: knowledge.TypeLesson, Status: knowledge.StatusVerified,
+		Title: "Chạy migration trước khi sửa schema", Body: "Chạy migration trước khi sửa schema.",
+		Scope:  knowledge.Scope{Tags: []string{"migration"}},
+		Origin: knowledge.Origin{Kind: knowledge.OriginHuman}}
+	auto := lessonItem("L20", "Chạy test của vùng đã sửa", nil, knowledge.StatusVerified)
+	e := &Engine{Items: []*knowledge.Item{human, auto}, MaxTokens: 6000, LessonGlobalK: 3, LessonMaxTokens: 0}
+	p, err := e.ForTask(context.Background(), "sửa schema cần chạy migration", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(p.Entries); len(got) != 1 || got[0] != "H01" {
+		t.Fatalf("lesson thường phải ở phần tri thức thường: entries=%v lessons=%v", got, ids(p.Lessons))
+	}
+	if len(p.Lessons) != 0 {
+		t.Fatalf("LessonMaxTokens=0 chỉ tắt bài học từ thất bại: %v", ids(p.Lessons))
+	}
+}
+
+// ContextEvent ghi cả ID bài học (nhãn "lesson") để context_usages đếm được lượt chèn.
+func TestContextEventRecordsLessons(t *testing.T) {
+	p := Pack{Mode: "task", Entries: []Entry{{ID: "K1", Label: LabelVerified}}, Lessons: []Entry{{ID: "L1", Label: LabelReference}}}
+	ev := ContextEvent("claude", "s", "/w", ChannelHookTask, "k", p, time.Now())
+	ids, _ := ev.Payload["ids"].([]any)
+	labels, _ := ev.Payload["labels"].(map[string]any)
+	if len(ids) != 2 || ids[1] != "L1" || labels["L1"] != LabelLesson || labels["K1"] != LabelVerified {
+		t.Fatalf("payload = %+v", ev.Payload)
 	}
 }
