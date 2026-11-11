@@ -23,12 +23,21 @@ Go thuần, không cần CGO (SQLite qua `modernc.org/sqlite`, có FTS5), biên 
 ```sh
 bint init --hooks        # khởi tạo; cài hook ghi nhận + skill gốc cho các harness được bật
 bint init --update       # repository init bằng bản cũ: thêm khoá cấu hình mới (giữ giá trị, có sao lưu)
+bint init --git local    # dùng Bint riêng trên máy: tệp của Bint không vào Git (track = commit cho nhóm)
 bint doctor              # kiểm tra môi trường
 bint runs list           # lượt chạy đã ghi nhận (tự nạp spool trước)
 bint runs show <id>      # chi tiết, chấp nhận tiền tố ID
 bint status
 bint events ingest       # nạp spool thủ công
 ```
+
+**Hiện diện trong Git** (`--git`, nhớ theo máy, lần init đầu thì hỏi): `track` (mặc định) để tệp
+của Bint được commit cho cả nhóm, tệp riêng của máy vào khối bint của `.gitignore`. `local` dành cho
+dùng riêng: tệp/thư mục chưa được Git theo dõi (`.bint/`, skill đã xuất bản, hook, `.mcp.json`…) vào
+khối bint của `.git/info/exclude` (không commit, chung mọi worktree); tệp đã được theo dõi mà Bint sửa
+(AGENTS.md, CLAUDE.md…) được đặt `git update-index --skip-worktree` (không dùng `--assume-unchanged`:
+đó chỉ là gợi ý hiệu năng, Git có thể bỏ và ghi đè thay đổi cục bộ); `.gitignore` không bị đụng.
+Upstream đổi một tệp skip-worktree thì `git pull` báo lỗi: chạy `bint init --git track` để gỡ cả hai.
 
 `bint init` chạy lại bao nhiêu lần cũng an toàn:
 
