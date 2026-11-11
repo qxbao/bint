@@ -24,9 +24,17 @@ func TestDeferredFailureLessonProcess(t *testing.T) {
 	ctx := context.Background()
 	cases, scan, h := seedLessonFailures(t, f)
 	rt := f.k.Paths.Runtime
-	added, err := Enqueue(rt, scan, now)
-	if err != nil || len(added) != 1 || added[0].Kind != KindFailureLesson {
-		t.Fatalf("enqueue: %v %+v", err, added)
+	enqueued, err := Enqueue(rt, scan, now)
+	// Cùng lượt thất bại validation cũng sinh cơ hội quy trình (H3, KindHarness): test này chỉ xét
+	// yêu cầu failure_lesson; yêu cầu quy trình không có agent đề xuất thì chờ (Waiting), không xử lý.
+	var added []Request
+	for _, r := range enqueued {
+		if r.Kind == KindFailureLesson {
+			added = append(added, r)
+		}
+	}
+	if err != nil || len(added) != 1 {
+		t.Fatalf("enqueue: %v %+v", err, enqueued)
 	}
 
 	reflector := &fakeReflector{reply: lessonReplyTwoKinds}
@@ -62,8 +70,12 @@ func TestDeferredFailureLessonProcess(t *testing.T) {
 			t.Fatalf("đề xuất %s phải là create lesson: %v %+v", id, err, p)
 		}
 	}
-	if pending, _ := ListRequests(rt, ReqPending); len(pending) != 0 {
-		t.Fatalf("còn yêu cầu chờ: %+v", pending)
+	// Không còn yêu cầu bài học nào chờ; chỉ các yêu cầu quy trình (không có agent đề xuất) còn chờ.
+	pending, _ := ListRequests(rt, ReqPending)
+	for _, r := range pending {
+		if r.Kind != KindHarness {
+			t.Fatalf("còn yêu cầu chờ không phải quy trình: %+v", r)
+		}
 	}
 }
 

@@ -52,6 +52,19 @@ type Config struct {
 	Workflow  Workflow  `yaml:"workflow"`
 	Limits    Limits    `yaml:"limits"`
 	Security  Security  `yaml:"security"`
+
+	// contextBase: Context khi KHÔNG có strategy.yml (nil nếu không có strategy được áp).
+	// Đo lường (eval) cần cấu hình gốc để nhánh không-strategy không bị strategy chi phối.
+	contextBase *Context
+}
+
+// BaseContext trả về cấu hình ngữ cảnh chưa trộn strategy.yml (H1): nhánh đo `harness=off`
+// và nhánh base của đề xuất phải chạy với giá trị gốc, chỉ tập strategy của nhánh mới được áp.
+func (c Config) BaseContext() Context {
+	if c.contextBase != nil {
+		return *c.contextBase
+	}
+	return c.Context
 }
 
 type Project struct {
@@ -391,11 +404,11 @@ type Security struct {
 
 // DefaultRoleModels là model mặc định theo role của từng harness: bước suy luận nặng
 // (lập kế hoạch, review, tiến hoá, rút bài học) dùng model mạnh nhất, bước thực thi dùng
-// model nhanh/rẻ. Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
+// model cân bằng (sonnet; haiku rẻ hơn nhưng yếu hơn ở các bước sửa mã). Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
 func DefaultRoleModels(harness string) RoleModels {
 	switch harness {
 	case "claude":
-		return RoleModels{Planner: "opus", Implementer: "haiku", Reviewer: "opus", Evolver: "opus", Reflector: "opus"}
+		return RoleModels{Planner: "opus", Implementer: "sonnet", Reviewer: "opus", Evolver: "opus", Reflector: "opus"}
 	case "codex":
 		return RoleModels{Planner: "gpt-6-astra", Implementer: "gpt-6-luna", Reviewer: "gpt-6-astra", Evolver: "gpt-6-astra",
 			Reflector: "gpt-6-astra"}
@@ -475,11 +488,23 @@ func Default() Config {
 	}
 }
 
+// Khoảng giá trị của context.path_max_items và context.lessons.global_k. Dùng chung cho
+// Validate và hcomp.checkStrategy để strategy.yml hợp lệ ở hcomp thì cũng hợp lệ ở config.
+const (
+	MinPathMaxItems   = 1
+	MaxPathMaxItems   = 30
+	MaxLessonsGlobalK = 10
+)
+
 // Sources ghi lại các tệp đã được ghép vào cấu hình cuối cùng (rỗng nếu không có).
 type Sources struct {
 	Global  string
 	Project string
 	Local   string
+	// Strategy: .bint/harness/strategy.yml đã áp (chỉ khi verified); xem mergeStrategy.
+	Strategy string
+	// StrategyProblem: lý do strategy.yml verified bị bỏ qua (hỏng); rỗng nếu không có vấn đề.
+	StrategyProblem string
 }
 
 // ProjectPath trả về đường dẫn .bint/config.yml của repository.
@@ -507,6 +532,22 @@ var ErrNoProjectConfig = errors.New("chưa có .bint/config.yml (chạy `bint in
 // Nếu requireProject là true mà thiếu .bint/config.yml thì trả ErrNoProjectConfig;
 // nếu false thì lớp dự án dùng giá trị mặc định.
 func Load(root string, requireProject bool) (Config, Sources, error) {
+	cfg, src, err := load(root, requireProject, true, true)
+	if err != nil || src.Strategy == "" {
+		return cfg, src, err
+	}
+	// Cấu hình nền chỉ để lấy Context: không Validate, vì strategy có thể đang che một giá
+	// trị sai của config.yml (lần nạp đầu đã Validate bản cuối).
+	base, _, err := load(root, requireProject, false, false)
+	if err != nil {
+		return cfg, src, err
+	}
+	b := base.Context
+	cfg.contextBase = &b
+	return cfg, src, nil
+}
+
+func load(root string, requireProject, withStrategy, validate bool) (Config, Sources, error) {
 	cfg := Default()
 	var src Sources
 	if g := GlobalPath(); g != "" {
@@ -528,6 +569,15 @@ func Load(root string, requireProject bool) (Config, Sources, error) {
 	} else if requireProject {
 		return cfg, src, ErrNoProjectConfig
 	}
+	// Chiến lược ngữ cảnh đã duyệt (H1) nằm giữa lớp dự án và lớp cục bộ: người vẫn ghi đè
+	// được bằng .bint/local.yml.
+	if withStrategy {
+		if ok, src.StrategyProblem, err = mergeStrategy(&cfg, root); err != nil {
+			return cfg, src, err
+		} else if ok {
+			src.Strategy = StrategyPath(root)
+		}
+	}
 	l := LocalPath(root)
 	ok, err = mergeFile(&cfg, l)
 	if err != nil {
@@ -536,8 +586,10 @@ func Load(root string, requireProject bool) (Config, Sources, error) {
 	if ok {
 		src.Local = l
 	}
-	if err := cfg.Validate(); err != nil {
-		return cfg, src, err
+	if validate {
+		if err := cfg.Validate(); err != nil {
+			return cfg, src, err
+		}
 	}
 	return cfg, src, nil
 }
@@ -622,14 +674,14 @@ func (c Config) Validate() error {
 	if c.Context.MaxTokens <= 0 {
 		add("context.max_tokens: phải > 0")
 	}
-	if c.Context.PathMaxItems < 1 || c.Context.PathMaxItems > 30 {
-		add("context.path_max_items: phải trong khoảng 1..30")
+	if c.Context.PathMaxItems < MinPathMaxItems || c.Context.PathMaxItems > MaxPathMaxItems {
+		add("context.path_max_items: phải trong khoảng %d..%d", MinPathMaxItems, MaxPathMaxItems)
 	}
 	if c.Context.PathHookTimeoutMS < 100 || c.Context.PathHookTimeoutMS > 10000 {
 		add("context.path_hook_timeout_ms: phải trong khoảng 100..10000")
 	}
-	if c.Context.Lessons.GlobalK < 0 || c.Context.Lessons.GlobalK > 10 {
-		add("context.lessons.global_k: phải trong khoảng 0..10")
+	if c.Context.Lessons.GlobalK < 0 || c.Context.Lessons.GlobalK > MaxLessonsGlobalK {
+		add("context.lessons.global_k: phải trong khoảng 0..%d", MaxLessonsGlobalK)
 	}
 	if c.Context.Lessons.MaxTokens < 0 {
 		add("context.lessons.max_tokens: không được âm")

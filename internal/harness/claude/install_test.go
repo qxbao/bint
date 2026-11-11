@@ -122,3 +122,29 @@ func TestModelNameAndRelPath(t *testing.T) {
 		t.Fatal("dotdot accepted")
 	}
 }
+
+// H1: hook Stop cho guardrail on: stop. Repo đã cài bản cũ (thiếu Stop) được báo là chưa đủ
+// hook cho tới khi chạy lại `bint init`.
+func TestInstallAddsStopHook(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.local.json")
+	if _, err := InstallHooks(p, "bint", t.TempDir(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(p)
+	var s struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(raw, &s); err != nil {
+		t.Fatal(err)
+	}
+	if g := s.Hooks["Stop"]; len(g) != 1 || g[0].Matcher != "" {
+		t.Fatalf("Stop phải có một nhóm không matcher: %+v", s.Hooks["Stop"])
+	}
+	old := `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bint hook claude"}]}]}}`
+	os.WriteFile(p, []byte(old), 0o644)
+	if ok, _ := HooksInstalled(p); ok {
+		t.Fatal("bản cài cũ thiếu Stop không được coi là đủ")
+	}
+}

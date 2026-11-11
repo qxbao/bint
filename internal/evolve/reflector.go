@@ -209,7 +209,32 @@ func lessonProposals(ctx context.Context, in ProposeInput, o Opportunity, items 
 		}
 		props = append(props, p)
 	}
+	pairLessons(o, props)
 	return props, rejected, res.CostUSD, nil
+}
+
+// pairLessons gắn Pair cho hai bài học anh em (một chung, một riêng, cùng được tạo mới) sinh từ cùng
+// một cơ hội (H4): chúng được đối chiếu trên tập tác vụ khác nhau và chỉ một nửa được giữ. Bài
+// học gộp vào mục có sẵn (update) không phải một nửa của cặp.
+func pairLessons(o Opportunity, props []*Proposal) {
+	if len(props) != 2 {
+		return
+	}
+	var global, domain *Proposal
+	for _, p := range props {
+		if len(p.Changes) != 1 || p.Changes[0].Op != ActionCreate || p.Changes[0].Draft == nil {
+			return
+		}
+		if p.Changes[0].Draft.Scope.Global() {
+			global = p
+		} else {
+			domain = p
+		}
+	}
+	if global == nil || domain == nil {
+		return
+	}
+	pairProposals(o.Key, global, domain, domain.Changes[0].Draft.Scope.Paths[0])
 }
 
 // evidenceFor chọn lượt làm bằng chứng cho ứng viên: các ID reflector nêu (nếu thuộc nhóm),

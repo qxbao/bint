@@ -111,6 +111,19 @@ func AutoApplicable(p *Proposal) (bool, string) {
 	if p.Risk != RiskLow {
 		return false, "rủi ro " + p.Risk
 	}
+	if p.IsHarness() {
+		// Chỉ create rủi ro thấp (chỉ dẫn, guardrail remind): thành phần vào ở candidate nên vẫn
+		// chờ người duyệt mới có hiệu lực. update/deprecate đổi thành phần có hiệu lực: cần người.
+		for _, ch := range p.HarnessChanges {
+			if ch.Op != ActionCreate {
+				return false, "thay đổi " + ch.Op + " thành phần quy trình cần người duyệt"
+			}
+		}
+		if len(p.HarnessChanges) == 0 {
+			return false, "không có thay đổi"
+		}
+		return true, ""
+	}
 	if len(p.Changes) == 0 {
 		return false, "không có thay đổi"
 	}
@@ -204,6 +217,9 @@ func Apply(ctx context.Context, o ApplyOptions) (ApplyResult, error) {
 
 	if p.IsSkill() {
 		return applySkill(ctx, o, p, res)
+	}
+	if p.IsHarness() {
+		return applyHarness(ctx, o, p, res)
 	}
 	who := app.GitIdentity(ctx, o.K.Root)
 	if o.Auto {

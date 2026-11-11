@@ -277,5 +277,23 @@ Thứ tự thực hiện trong một vòng:
 hình riêng tại `harnesses.claude.models.reflector` (hoặc tách bước bằng `evolve propose --reflector-model`
 rồi `evolve evaluate --model`). Báo cáo từng vòng được lưu tại `<state>/runtime/evolve/cycles/<id>.json`
 (tách chi phí tạo đề xuất và chi phí Probe, danh sách tự áp dụng, tự quay lui, chờ duyệt và lý do dừng).
-Tiến hoá thành phần quy trình (chỉ dẫn công cụ, guardrail, script hỗ trợ) vẫn là đề xuất tại
+
+### Đề xuất thành phần quy trình (kế hoạch H3–H4)
+
+Ngoài tri thức, bài học và skill, `bint evolve` còn đề xuất thay đổi **thành phần quy trình** (chỉ dẫn
+công cụ, guardrail, script hỗ trợ, chiến lược ngữ cảnh) lưu ở `.bint/harness/`; cách dùng và định dạng
+tệp xem [harness-components.md](harness-components.md).
+
+- **Cơ hội `harness`:** nhóm lượt thất bại validation theo dấu hiệu hành vi (`no_test`/`edit_outside` →
+  guardrail, `repeat_cmd`/`timeout` → chỉ dẫn, `ignored_ctx` → chiến lược; thêm `harness:mcp_unused`).
+- **Đề xuất `target_type: harness`** (create/update/deprecate) do agent theo `roles.evolver` viết, không
+  công cụ, thư mục làm việc rỗng, chỉ claude. Rủi ro do Bint tính: guidance/`remind` thấp; `ask`/strategy
+  trung bình; `deny`/script cao.
+- **Chung và riêng:** mỗi cơ hội cho tối đa hai đề xuất anh em; `bint evolve cycle` giữ một nửa theo
+  `non_inferiority_margin` và không gộp hai bản. `bint evolve evaluate` buộc `--delivery bint` cho đề xuất
+  quy trình.
+- **Áp dụng:** chỉ tự áp dụng `create` rủi ro thấp (khi bật `auto_low_risk`), thành phần vẫn vào ở
+  `candidate` chờ người duyệt (`bint harness component approve`).
+
+Mã và kiểm thử xác định đã xong; phần đo (H5, tốn tiền) **chưa chạy**. Xem
 [Kế hoạch H](p8-harness-evolution-plan.md).

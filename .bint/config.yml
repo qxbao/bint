@@ -20,7 +20,7 @@ harnesses:
   claude:                   # Claude Code: quyền/công cụ đặt ở workflow.agent và eval.agent
     models:
       planner:      "opus"
-      implementer:  "haiku"
+      implementer:  "sonnet"
       reviewer:     "opus"
       evolver:      "opus"
       reflector:    "opus"

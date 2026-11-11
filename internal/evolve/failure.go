@@ -94,6 +94,9 @@ type Trace struct {
 	Reads []string
 	// Writes: tệp sửa/ghi (Edit, Write, MultiEdit, NotebookEdit).
 	Writes []string
+	// MCPCalls: số lần gọi công cụ MCP của Bint (mcp__bint__*). 0 ở nhánh bint có vết đầy đủ nghĩa là
+	// kênh MCP không được dùng (nguồn cơ hội sửa chỉ dẫn quy trình, H3).
+	MCPCalls int
 	// Truncated: vết thiếu (có dòng quá dài có thể chứa lệnh bị bỏ, hoặc log vượt trần
 	// maxTraceBytes). Vết thiếu
 	// không đủ để suy ra điều gì từ SỰ VẮNG MẶT của lệnh (vd. no_test).
@@ -207,6 +210,10 @@ func parseTraceLine(t *Trace, line []byte, prefix string) {
 	}
 	for _, c := range ev.Message.Content {
 		if c.Type != "tool_use" {
+			continue
+		}
+		if strings.HasPrefix(c.Name, "mcp__bint__") {
+			t.MCPCalls++
 			continue
 		}
 		switch c.Name {

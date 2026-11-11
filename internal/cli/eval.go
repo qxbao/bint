@@ -1178,6 +1178,15 @@ func printReport(w io.Writer, rep eval.Report, perCase bool) {
 		}
 		tw.Flush()
 	}
+	if len(rep.Guardrails) > 0 {
+		fmt.Fprintln(w, "\nGuardrail của quy trình (số lượt; mẫu số = lượt có guardrail hiệu lực):")
+		tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
+		fmt.Fprintln(tw, "  NHÁNH\tGUARDRAIL\tLƯỢT\tĐỦ ĐK\tKÍCH HOẠT\tLÀM THEO\tBỊ CHẶN\tVƯỢT TRẦN")
+		for _, g := range rep.Guardrails {
+			fmt.Fprintf(tw, "  %s\t%s\t%d\t%d\t%d (%d lần)\t%d\t%d\t%d\n", g.Arm, g.Guardrail, g.Attempts, g.Eligible, g.Fired, g.FiredCount, g.Followed, g.Blocked, g.Bypass)
+		}
+		tw.Flush()
+	}
 	fmt.Fprintln(w, "\nĐộ tin cậy của phép đo:")
 	if len(rep.Diagnostics) == 0 {
 		fmt.Fprintln(w, "  ✓ không có cảnh báo")

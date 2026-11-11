@@ -526,6 +526,9 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	if err := recordContextUsage(bg, db, row.AttemptID, setup); err != nil {
 		return finish("error", "ghi nhận ngữ cảnh: "+err.Error())
 	}
+	if err := recordGuardrailUsage(bg, db, row.AttemptID, setup); err != nil {
+		return finish("error", "ghi nhận guardrail: "+err.Error())
+	}
 	adur := ar.Duration.Milliseconds()
 	exit := int64(ar.ExitCode)
 	row.AgentDurationMS, row.AgentExitCode = &adur, &exit

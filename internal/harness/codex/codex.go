@@ -112,6 +112,9 @@ var Dialect = hookcore.Dialect{
 	ProtectedPathHelp: approvalHelp,
 	PostToolOutcome:   postToolOutcome,
 	IsTestCommand:     detect.IsExecutedTestCommand,
+	// Guardrail (H1): PreToolUse của Codex chỉ có deny (không hỏi được) và additionalContext;
+	// ask hạ xuống remind. Không có sự kiện Stop tương đương nên guardrail on: stop không chạy.
+	PreToolDecisions: []string{"deny"}, RemindPreTool: true, PreToolDecide: hookcore.ClaudeStylePreToolDecide,
 }
 
 func approvalHelp(paths []string) string {

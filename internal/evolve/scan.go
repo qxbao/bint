@@ -38,6 +38,10 @@ const (
 	// KindFailureLesson: một nhóm (vùng mã hoặc dấu hiệu hành vi) có ≥ min tác vụ thất bại
 	// trên tập validation — rút bài học từ thất bại (kế hoạch E, reflector) → create lesson.
 	KindFailureLesson = "failure_lesson"
+	// KindHarness: thành phần quy trình (chỉ dẫn, guardrail, chiến lược) có thể sửa được để giảm
+	// một dấu hiệu hành vi lặp lại ở lượt thất bại trên tập validation, hoặc kênh MCP không được
+	// gọi (H3) → create/update thành phần trong .bint/harness.
+	KindHarness = "harness"
 )
 
 // Hành động của đề xuất (mục 10.4).
@@ -406,6 +410,9 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 	}
 	res.failures = fails
 	for _, o := range failureLessonOpps(fails, m, e, used, pending) {
+		add(o, 0)
+	}
+	for _, o := range harnessOpps(fails, m, e, used, pending) {
 		add(o, 0)
 	}
 	sort.SliceStable(res.Opportunities, func(i, j int) bool {

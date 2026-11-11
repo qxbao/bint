@@ -1,6 +1,6 @@
 # Trạng thái triển khai và giới hạn hiện tại
 
-Tổng hợp trạng thái mã nguồn tại commit `183ac17` (`main`), kết quả từ các đợt thực nghiệm
+Tổng hợp trạng thái mã nguồn tại commit `0d0ba92` (`main`), kết quả từ các đợt thực nghiệm
 đã lưu ([docs/evals/README.md](evals/README.md)) và các vấn đề còn mở so với
 [đặc tả thiết kế](bint-plan.md).
 
@@ -15,7 +15,7 @@ Tổng hợp trạng thái mã nguồn tại commit `183ac17` (`main`), kết qu
 | **P4 — Workflow** | `b-req`/`b-feat`/`b-review`/`b-do`, hợp đồng artifact v1 (`task lint`, AC↔TSK, câu hỏi mở `Q-N`), độ sâu `standard`/`deep`, lớp phủ skill | Classify dùng heuristic; các cờ ghi đè `--harness`/`--role` trên dòng lệnh chưa lưu vào `state.json` khi `resume` |
 | **P5 — Multi-Harness** | Adapter cấp 3 cho Claude Code, Codex CLI và Antigravity CLI; chọn harness và mô hình theo từng role; khoá ghi `flock`/`LockFileEx`; hậu kiểm bước chỉ đọc | Codex và Antigravity không báo chi phí USD / không có cờ giới hạn lượt; Antigravity chưa có MCP cấp dự án và chưa chèn ngữ cảnh qua hook |
 | **P6/P7 — Tiến hoá L1/L2** | Quét cơ hội, đề xuất bất biến, đối chiếu hồi cứu/tiến cứu bằng Probe tuần tự (dừng sớm O'Brien–Fleming), áp dụng/quay lui, kiểm tra hồi quy khi đổi mô hình, chế độ `deferred` | Còn 5 phát hiện nghiệm thu `P6-01..P6-05` bên dưới; chưa có đề xuất L1/L2 chứng minh cải thiện có ý nghĩa thống kê trên tập `test` độc lập |
-| **P8 — Cycle và bài học (E)** | Vòng `bint evolve cycle` có ngân sách, `bint experience digest`/`show`, cơ hội `failure_lesson`, reflector Claude (`--tools ""`), kiểm tra rò rỉ bài học và ngân sách token riêng | Mã và kiểm thử xác định đã xong; chưa chạy thực nghiệm reflector thật. Kế hoạch H (tiến hoá thành phần quy trình) và [TUI](tui-plan.md) vẫn là đề xuất |
+| **P8 — Cycle, bài học (E) và thành phần quy trình (H)** | Vòng `bint evolve cycle` có ngân sách, `bint experience digest`/`show`, cơ hội `failure_lesson`, reflector Claude (`--tools ""`), kiểm tra rò rỉ bài học và ngân sách token riêng. Kế hoạch H1–H4: `.bint/harness` (guidance, guardrail, script, `strategy.yml`), `bint harness component`/`render`, guardrail thực thi qua hook (kể cả `Stop`), biến thể `bint@harness=…`, bảng `eval_guardrail_usage`, đề xuất `target_type: harness` ([hướng dẫn](harness-components.md)) | Mã và kiểm thử xác định của E và H1–H4 đã xong; chưa chạy thực nghiệm đo (reflector thật, E6, H5). [TUI](tui-plan.md) vẫn là đề xuất |
 
 ## Kết quả thực nghiệm theo giai đoạn
 
@@ -26,7 +26,7 @@ Tổng hợp trạng thái mã nguồn tại commit `183ac17` (`main`), kết qu
 
 ## Phát hiện P6 còn mở trong mã nguồn
 
-Năm phát hiện trong [biên bản nghiệm thu P6](bint-acceptance-p6-dff6570.md) vẫn còn tồn tại tại `183ac17`
+Năm phát hiện trong [biên bản nghiệm thu P6](bint-acceptance-p6-dff6570.md) vẫn còn tồn tại tại `0d0ba92`
 (bộ tái hiện gốc lưu ở [`docs/evals/acceptance-p6-dff6570/`](evals/acceptance-p6-dff6570/)):
 
 | Mã | Mức độ | Mô tả và hướng xử lý |

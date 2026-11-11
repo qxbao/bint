@@ -73,7 +73,7 @@ Trần ngân sách: $20.
 
 1. Agent giải đề yếu hơn nên còn nhiều chỗ để cải thiện. Agent viết đề xuất mạnh hơn nên có thể mang thông tin mới.
 2. Nguồn cơ hội là **lượt thất bại trên tập validation**, không chỉ lịch sử phiên làm việc. Reflector đọc bản tóm tắt của lượt trượt và viết mục `lesson` (đề xuất skill đi qua luồng L2 riêng).
-3. Phạm vi thay đổi gồm bài học từ thất bại và quy trình (skill; chỉ dẫn công cụ thuộc [Kế hoạch H](p8-harness-evolution-plan.md)).
+3. Phạm vi thay đổi gồm bài học từ thất bại và quy trình (skill; chỉ dẫn công cụ thuộc [Kế hoạch H](p8-harness-evolution-plan.md), đã có mã, chưa đo).
 
 **Ràng buộc chống rò rỉ:**
 

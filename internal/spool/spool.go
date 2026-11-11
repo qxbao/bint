@@ -38,6 +38,11 @@ const (
 	// hook mới cung cấp (Claude Code: công cụ Skill); Codex và Antigravity không có, và sự
 	// kiện không được hỗ trợ thì không được tổng hợp giả (mục 13.2).
 	SkillActivated = "skill.activated"
+	// H1: guardrail của quy trình (.bint/harness/guardrails) tác động tới agent. payload:
+	// guardrail (id), outcome (fired | followed | bypass), on, action, requested, blocked.
+	// Chỉ ghi khi guardrail thực sự kích hoạt; ingest lưu như sự kiện thường, không có
+	// hiệu ứng riêng lên lượt chạy.
+	GuardrailTriggered = "guardrail.triggered"
 
 	// P3: Context Engine (mục 9.7). payload.ids là danh sách ID tri thức.
 	ContextRetrieved    = "context.retrieved"

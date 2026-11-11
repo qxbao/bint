@@ -103,6 +103,7 @@ Chi tiết từng thành phần được tách thành các hướng dẫn trong 
 | Workflow (P4), hợp đồng `b-req` và multi-harness (P5) | [docs/workflows.md](docs/workflows.md) |
 | Khung đánh giá, chống rò rỉ và biến thể ngữ cảnh (P1) | [docs/evaluation.md](docs/evaluation.md) |
 | Tiến hoá tri thức L1 (P6), skill L2 (P7), bài học và cycle (P8) | [docs/evolution.md](docs/evolution.md) |
+| Thành phần quy trình của agent: guidance, guardrail, script, strategy (P8-H) | [docs/harness-components.md](docs/harness-components.md) |
 | Trạng thái triển khai, kết quả thực nghiệm và lỗi còn mở | [docs/status.md](docs/status.md) |
 | Phát triển, kiểm thử và CI/CD | [docs/ci-cd.md](docs/ci-cd.md) |
 

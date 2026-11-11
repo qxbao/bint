@@ -26,6 +26,7 @@ import (
 	"bint/internal/ctxengine"
 	"bint/internal/detect"
 	"bint/internal/gitrepo"
+	"bint/internal/hcomp"
 	"bint/internal/knowledge"
 	"bint/internal/pathglob"
 	"bint/internal/spool"
@@ -41,6 +42,9 @@ const (
 	EvPostToolFailure = "post_tool_failure"
 	// EvPrompt: người dùng gửi yêu cầu (UserPromptSubmit); hook chèn ngữ cảnh theo đề bài.
 	EvPrompt = "prompt"
+	// EvStop: agent định kết thúc lượt trả lời (Stop của Claude Code). Chỉ harness có sự kiện
+	// này mới có; harness khác không được giả lập bằng sự kiện khác (mục 13.2).
+	EvStop = "stop"
 )
 
 // Input là dữ liệu hook đã chuẩn hoá.
@@ -63,6 +67,8 @@ type Input struct {
 	Prompt string
 	// TranscriptPath: tệp transcript của phiên (nếu harness cung cấp ở SessionEnd).
 	TranscriptPath string
+	// StopHookActive: phiên đang tiếp tục do một hook stop trước đó (EvStop).
+	StopHookActive bool
 }
 
 // ToolKind phân loại một lần gọi công cụ.
@@ -111,6 +117,16 @@ type Dialect struct {
 	// Usage đọc token của phiên từ transcript (nil nếu harness không hỗ trợ). Giá trị nil
 	// nghĩa là không biết, không phải 0 (mục 9.2).
 	Usage func(transcriptPath string) (in, out *int64)
+	// Khả năng thực thi guardrail (H1). Khác biệt giữa harness nằm ở đây, không rẽ nhánh theo
+	// tên harness: PreToolDecisions là các quyết định quyền PreToolUse hiểu được ("deny",
+	// "ask"); RemindPreTool: PreToolUse chèn được ngữ cảnh nhắc nhở; PreToolDecide dựng đầu ra
+	// với quyết định tường minh (nil = chỉ có PreToolOutput); StopOutput dựng đầu ra chặn kết
+	// thúc phiên (nil = harness không có sự kiện Stop). Guardrail đòi mức cao hơn khả năng thì
+	// bị hạ xuống mức gần nhất được hỗ trợ (hcomp.Caps.Degrade).
+	PreToolDecisions []string
+	RemindPreTool    bool
+	PreToolDecide    func(text, decision, reason string) string
+	StopOutput       func(reason string) string
 }
 
 // Env cho phép kiểm thử thay thế đồng hồ và thư mục hiện tại.
@@ -206,7 +222,62 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		return now.Format(time.RFC3339Nano)
 	}
 
+	// Thành phần quy trình (H1): chỉ thành phần verified của repository có hiệu lực.
+	var hset hcomp.Set
+	hloaded := false
+	harnessSet := func() hcomp.Set {
+		if !hloaded {
+			hloaded = true
+			if cfgSrc.Project != "" {
+				hset = hcomp.Load(filepath.Dir(filepath.Dir(cfgSrc.Project))).Select(hcomp.ModeOn).Files()
+			}
+		}
+		return hset
+	}
+	isTestCmd := func(cmd string) bool {
+		if detect.IsBintInvocation(cmd) {
+			return false
+		}
+		var known []string
+		for _, c := range []*string{cfg.Eval.TestCommand, cfg.Eval.SuggestedTestCommand} {
+			if c != nil {
+				known = append(known, *c)
+			}
+		}
+		isTest := detect.IsTestCommand
+		if d.IsTestCommand != nil {
+			isTest = d.IsTestCommand
+		}
+		return isTest(cmd, known...)
+	}
+	newSessionGuard := func() *guard {
+		note := func(kind string, dec hcomp.Decision, on string) {
+			if kind == NoteEligible {
+				return
+			}
+			ge := ev
+			ge.Type = spool.GuardrailTriggered
+			ge.Payload = map[string]any{"guardrail": dec.ID, "outcome": kind, "on": on, "action": dec.Action,
+				"requested": dec.Requested, "blocked": dec.Block}
+			ge.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), "guardrail", dec.ID, kind, on)
+			spool.Write(paths.Spool, ge)
+		}
+		return newGuard(harnessSet(), hcomp.SessionPath(paths.Runtime, h, hi.SessionID), d, isTestCmd, note)
+	}
+
 	switch hi.Event {
+	case EvStop:
+		if d.StopOutput == nil {
+			return Result{Skipped: "harness không có sự kiện Stop"}, nil
+		}
+		g := newSessionGuard()
+		if g == nil {
+			return Result{Skipped: "không có guardrail"}, nil
+		}
+		if reason := g.stop(hi.StopHookActive); reason != "" {
+			return Result{Output: d.StopOutput(reason)}, nil
+		}
+		return Result{Skipped: "guardrail không chặn kết thúc"}, nil
 	case EvPrompt:
 		if d.PromptOutput == nil || !cfg.Context.Interfaces.PathHooks || cfgSrc.Project == "" || strings.TrimSpace(hi.Prompt) == "" {
 			return Result{Skipped: "không chèn ngữ cảnh theo đề bài"}, nil
@@ -243,6 +314,11 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			defer cancel()
 			if snap, ok := takeSnapshot(sctx, repo.Toplevel, nil); ok {
 				saveSnapshot(paths.Runtime, h, hi.SessionID, hi.ToolUseID, snap)
+			}
+			if g := newSessionGuard(); g != nil {
+				if out := g.pre(hcomp.OnPreBash, nil, info.Command).merge(d, "", ""); out != "" {
+					return Result{Output: out}, nil
+				}
 			}
 			return Result{Skipped: "ảnh chụp trước lệnh shell"}, nil
 		}
@@ -284,10 +360,17 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 				}
 			}
 		}
+		// Guardrail pre_edit (H1): nhắc/hỏi/chặn trước khi sửa; gộp với yêu cầu hỏi ở trên.
+		var gout guardOut
+		if info.Kind == ToolEdit {
+			if g := newSessionGuard(); g != nil {
+				gout = g.pre(hcomp.OnPreEdit, rels, "")
+			}
+		}
 		inject := (info.Kind == ToolRead && d.InjectRead) || (info.Kind == ToolEdit && d.InjectEdit)
 		if !inject || !cfg.Context.Interfaces.PathHooks || cfgSrc.Project == "" {
-			if ask != "" {
-				return Result{Output: d.PreToolOutput("", ask)}, nil
+			if out := gout.merge(d, "", ask); out != "" {
+				return Result{Output: out}, nil
 			}
 			if !inject {
 				return Result{Skipped: "harness không nhận ngữ cảnh chèn cho công cụ này"}, nil
@@ -296,6 +379,9 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		}
 		kroot := filepath.Dir(filepath.Dir(cfgSrc.Project))
 		mem := ctxengine.NewSessionMemory(paths.Runtime, h, hi.SessionID)
+		// Chỉ dẫn riêng (guidance domain:<glob>) khớp tệp: chèn một lần mỗi phiên.
+		domText := domainGuidanceText(harnessSet(), hcomp.SessionPath(paths.Runtime, h, hi.SessionID), rels,
+			hcomp.RenderOpts{MCP: cfg.Context.Interfaces.MCP})
 		pack, ok := injectPaths(time.Duration(cfg.Context.PathHookTimeoutMS)*time.Millisecond, func() (ctxengine.Pack, error) {
 			items, _, err := knowledge.NewStore(kroot).List()
 			if err != nil {
@@ -307,8 +393,8 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			return e.ForPaths(rels, mem.Seen()), nil
 		})
 		if !ok || len(pack.Entries) == 0 && len(pack.Lessons) == 0 {
-			if ask != "" {
-				return Result{Output: d.PreToolOutput("", ask)}, nil
+			if out := gout.merge(d, domText, ask); out != "" {
+				return Result{Output: out}, nil
 			}
 			if !ok {
 				return Result{Skipped: "quá hạn hoặc lỗi khi truy xuất theo đường dẫn"}, nil
@@ -323,7 +409,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		if err != nil {
 			return Result{}, err
 		}
-		return Result{Written: true, SpoolFile: f, Output: d.PreToolOutput(pack.Render(), ask)}, nil
+		return Result{Written: true, SpoolFile: f, Output: gout.merge(d, joinText(pack.Render(), domText), ask)}, nil
 	case EvSessionStart:
 		ev.Type = spool.SessionStarted
 		ev.Payload["source"] = hi.Source
@@ -366,6 +452,21 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		}
 		ev.Payload["tool"] = hi.ToolName
 		ev.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey())
+		// Trạng thái phiên cho guardrail (H1): tệp đã sửa và lệnh đã chạy. Ghi trước các nhánh
+		// bên dưới vì chúng có thể trả về sớm.
+		if info.Kind == ToolEdit || info.Kind == ToolShell {
+			if g := newSessionGuard(); g != nil {
+				var edits []string
+				if info.Kind == ToolEdit && ok {
+					for _, p := range info.Paths {
+						if rel, inside := RelPath(repo.Toplevel, cwd, p); inside {
+							edits = append(edits, rel)
+						}
+					}
+				}
+				g.post(edits, info.Command, info.Kind == ToolShell)
+			}
+		}
 		switch info.Kind {
 		case ToolMCP:
 			if !ok {
@@ -415,20 +516,10 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			return res, nil
 		case ToolShell:
 			shellModified(ctx, ev, paths.Spool, paths.Runtime, repo.Toplevel, hi.ToolUseID, snapTimeout(cfg.Context.PathHookTimeoutMS))
-			var known []string
-			for _, c := range []*string{cfg.Eval.TestCommand, cfg.Eval.SuggestedTestCommand} {
-				if c != nil {
-					known = append(known, *c)
-				}
-			}
 			if detect.IsBintInvocation(info.Command) {
 				return Result{Skipped: "lệnh gọi CLI của Bint, không phải kiểm thử"}, nil
 			}
-			isTest := detect.IsTestCommand
-			if d.IsTestCommand != nil {
-				isTest = d.IsTestCommand
-			}
-			if !isTest(info.Command, known...) {
+			if !isTestCmd(info.Command) {
 				return Result{Skipped: "lệnh shell không phải kiểm thử"}, nil
 			}
 			ev.Type = spool.TestCompleted
@@ -539,34 +630,110 @@ func injectPaths(d time.Duration, f func() (ctxengine.Pack, error)) (ctxengine.P
 	}
 }
 
-// handleEval phục vụ lượt đánh giá nhánh bint: chỉ chèn theo đường dẫn, ghi nhật
-// ký vào tệp của lượt (không có thư mục trạng thái).
+// handleEval phục vụ lượt đánh giá nhánh bint: chèn theo đường dẫn và thực thi guardrail của
+// bản dựng thành phần quy trình (H2); ghi nhật ký vào tệp của lượt (không có thư mục trạng thái).
 func handleEval(hi Input, d Dialect, cwd, cfgPath string) (Result, error) {
 	if hi.Event == EvPrompt {
 		return handleEvalPrompt(hi, d, cfgPath)
 	}
-	if hi.Event != EvPreTool {
-		return Result{Skipped: "chế độ đánh giá: chỉ chèn theo đề bài và đường dẫn"}, nil
-	}
-	info := d.Classify(hi.ToolName, hi.ToolInput)
-	inject := (info.Kind == ToolRead && d.InjectRead) || (info.Kind == ToolEdit && d.InjectEdit)
-	if !inject {
-		return Result{Skipped: "công cụ không đọc/sửa tệp"}, nil
+	switch hi.Event {
+	case EvPreTool, EvPostTool, EvPostToolFailure, EvStop:
+	default:
+		return Result{Skipped: "chế độ đánh giá: chỉ chèn theo đề bài, đường dẫn và guardrail"}, nil
 	}
 	ec, err := ctxengine.LoadEvalConfig(cfgPath)
 	if err != nil {
 		return Result{}, err
 	}
-	var rels []string
-	for _, p := range info.Paths {
-		if rel, inside := RelPath(ec.Root, cwd, p); inside {
-			rels = append(rels, rel)
+	logDir := filepath.Dir(ec.Log)
+	var hset hcomp.Set
+	var g *guard
+	if ec.HarnessDir != "" {
+		hset = hcomp.LoadDir(ec.HarnessDir).Select(hcomp.ModeAll)
+		isTest := func(cmd string) bool {
+			if detect.IsBintInvocation(cmd) {
+				return false
+			}
+			f := detect.IsTestCommand
+			if d.IsTestCommand != nil {
+				f = d.IsTestCommand
+			}
+			return f(cmd, ec.TestCommands...)
 		}
+		note := func(kind string, dec hcomp.Decision, on string) {
+			ctxengine.AppendLog(ec.Log, ctxengine.LogLine{Channel: ctxengine.ChannelGuardrail, Guardrail: dec.ID, Outcome: kind,
+				On: on, Action: dec.Action, Blocked: dec.Block || dec.Action == hcomp.ActAsk || dec.Action == hcomp.ActDeny})
+		}
+		g = newGuard(hset, hcomp.SessionPath(logDir, d.Harness, hi.SessionID), d, isTest, note)
 	}
-	if len(rels) == 0 {
+	rels := func(info ToolInfo) []string {
+		var out []string
+		for _, p := range info.Paths {
+			if rel, inside := RelPath(ec.Root, cwd, p); inside {
+				out = append(out, rel)
+			}
+		}
+		return out
+	}
+
+	switch hi.Event {
+	case EvStop:
+		if g == nil || d.StopOutput == nil {
+			return Result{Skipped: "không có guardrail ở Stop"}, nil
+		}
+		if reason := g.stop(hi.StopHookActive); reason != "" {
+			return Result{Output: d.StopOutput(reason)}, nil
+		}
+		return Result{Skipped: "guardrail không chặn kết thúc"}, nil
+	case EvPostTool, EvPostToolFailure:
+		if g == nil {
+			return Result{Skipped: "không có guardrail"}, nil
+		}
+		info := d.Classify(hi.ToolName, hi.ToolInput)
+		var edits []string
+		if info.Kind == ToolEdit && hi.Event == EvPostTool {
+			edits = rels(info)
+		}
+		if info.Kind == ToolEdit || info.Kind == ToolShell {
+			g.post(edits, info.Command, info.Kind == ToolShell)
+		}
+		return Result{Skipped: "đã ghi trạng thái guardrail"}, nil
+	}
+
+	info := d.Classify(hi.ToolName, hi.ToolInput)
+	if info.Kind == ToolShell {
+		if g != nil {
+			if out := g.pre(hcomp.OnPreBash, nil, info.Command).merge(d, "", ""); out != "" {
+				return Result{Output: out}, nil
+			}
+		}
+		return Result{Skipped: "lệnh shell"}, nil
+	}
+	inject := (info.Kind == ToolRead && d.InjectRead) || (info.Kind == ToolEdit && d.InjectEdit)
+	if !inject {
+		return Result{Skipped: "công cụ không đọc/sửa tệp"}, nil
+	}
+	rs := rels(info)
+	if len(rs) == 0 {
 		return Result{Skipped: "tệp nằm ngoài thư mục làm việc"}, nil
 	}
-	mem := ctxengine.NewSessionMemory(filepath.Dir(ec.Log), d.Harness, hi.SessionID)
+	var gout guardOut
+	if g != nil && info.Kind == ToolEdit {
+		gout = g.pre(hcomp.OnPreEdit, rs, "")
+	}
+	domText := ""
+	if g != nil || len(hset.Guidance()) > 0 {
+		domText = domainGuidanceText(hset, hcomp.SessionPath(logDir, d.Harness, hi.SessionID), rs, hcomp.RenderOpts{MCP: !ec.NoMCP})
+	}
+	if ec.NoPathHook {
+		// Kênh đường dẫn đã tắt (path=off hoặc strategy): hook chỉ còn chạy vì guardrail, không
+		// chèn tri thức theo đường dẫn và không ghi ChannelHookPath (nếu không, số đo bị nhiễm kênh).
+		if out := gout.merge(d, domText, ""); out != "" {
+			return Result{Output: out}, nil
+		}
+		return Result{Skipped: "kênh đường dẫn đã tắt"}, nil
+	}
+	mem := ctxengine.NewSessionMemory(logDir, d.Harness, hi.SessionID)
 	pack, ok := injectPaths(3*time.Second, func() (ctxengine.Pack, error) {
 		items, _, err := knowledge.Store{Dir: ec.ItemsDir}.List()
 		if err != nil {
@@ -575,14 +742,17 @@ func handleEval(hi Input, d Dialect, cwd, cfgPath string) (Result, error) {
 		e := &ctxengine.Engine{Items: items, Src: &knowledge.WorktreeSource{Root: ec.Root}, MaxTokens: ec.MaxTokens,
 			PathMaxItems: ec.PathMaxItems, ExcludeEvalCase: ec.ExcludeEvalCase, PathIncludeCandidates: ec.IncludeCandidates,
 			LessonGlobalK: ec.LessonGlobalK, LessonMaxTokens: ec.LessonMaxTokens}
-		return e.ForPaths(rels, mem.Seen()), nil
+		return e.ForPaths(rs, mem.Seen()), nil
 	})
 	if !ok || len(pack.Entries) == 0 && len(pack.Lessons) == 0 {
+		if out := gout.merge(d, domText, ""); out != "" {
+			return Result{Output: out}, nil
+		}
 		return Result{Skipped: "không có tri thức khớp"}, nil
 	}
 	mem.Add(pack.IDs())
 	ctxengine.AppendLog(ec.Log, ctxengine.PackLog(ctxengine.ChannelHookPath, pack))
-	return Result{Output: d.PreToolOutput(pack.Render(), "")}, nil
+	return Result{Output: gout.merge(d, joinText(pack.Render(), domText), "")}, nil
 }
 
 // handleEvalPrompt chèn gói ngữ cảnh theo đề bài khi agent nhận yêu cầu (nhánh bint):
@@ -703,13 +873,14 @@ type ClaudeStyleInput struct {
 	AgentID        string          `json:"agent_id"`
 	AgentType      string          `json:"agent_type"`
 	TranscriptPath string          `json:"transcript_path"`
+	StopHookActive bool            `json:"stop_hook_active"`
 }
 
 // claudeEvents ánh xạ hook_event_name kiểu Claude Code sang loại chuẩn hoá.
 var claudeEvents = map[string]string{
 	"SessionStart": EvSessionStart, "SessionEnd": EvSessionEnd, "PreToolUse": EvPreTool,
 	"PostToolUse": EvPostTool, "PostToolUseFailure": EvPostToolFailure,
-	"UserPromptSubmit": EvPrompt,
+	"UserPromptSubmit": EvPrompt, "Stop": EvStop,
 }
 
 // NormalizeClaudeStyle chuyển payload kiểu Claude Code về Input.
@@ -720,7 +891,8 @@ func NormalizeClaudeStyle(raw []byte) (Input, error) {
 	}
 	in := Input{SessionID: ci.SessionID, Cwd: ci.Cwd, RawEvent: ci.HookEventName, Event: claudeEvents[ci.HookEventName],
 		Source: ci.Source, Reason: ci.Reason, Model: ModelName(ci.Model), ToolName: ci.ToolName, ToolUseID: ci.ToolUseID,
-		ToolResponse: RawText(ci.ToolResponse), AgentType: ci.AgentType, TranscriptPath: ci.TranscriptPath, Prompt: ci.Prompt}
+		ToolResponse: RawText(ci.ToolResponse), AgentType: ci.AgentType, TranscriptPath: ci.TranscriptPath, Prompt: ci.Prompt,
+		StopHookActive: ci.StopHookActive}
 	if ci.HookEventName != "" && in.Event == "" {
 		in.Event = "other"
 	}

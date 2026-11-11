@@ -64,7 +64,8 @@ thật — cận trên, không phải kết quả của Bint. `bint`/`ideal` c�
 
 **Biến thể ngữ cảnh (`bint@…`).** Nhánh `bint` nhận thêm tham số sau dấu `@` (nối bằng `+` vì
 `--arms` phân cách nhánh bằng dấu phẩy) để bật/tắt từng kênh ngữ cảnh (`task=on|off`, `path=on|off`,
-`mcp=on|off`) hoặc giới hạn ngân sách (`tokens=<N>`, `items=<N>`):
+`mcp=on|off`), chọn tập thành phần quy trình (`harness=off|on|all`) hoặc giới hạn ngân sách
+(`tokens=<N>`, `items=<N>`):
 
 ```sh
 bint eval run --arms 'none,minimal,bint,bint@path=off+tokens=3000+items=3' --budget 20
@@ -72,7 +73,10 @@ bint eval report --baseline minimal --cases
 ```
 
 `task` điều khiển chèn theo đề bài (`UserPromptSubmit`), `path` điều khiển chèn theo đường dẫn
-(`PreToolUse`), `mcp` điều khiển MCP server. Hai nhánh nội bộ `base` và `candidate` chỉ dùng trong
+(`PreToolUse`), `mcp` điều khiển MCP server. `harness=off` chỉ dùng guidance dựng sẵn, `on` (mặc định)
+dùng thành phần `verified` trong `.bint/harness`, `all` thêm cả `candidate` (ví dụ
+`bint eval run --arms bint,bint@harness=all`); báo cáo có thêm bảng số liệu từng guardrail theo nhánh
+(bảng `eval_guardrail_usage`, migration 0009). Xem [harness-components.md](harness-components.md). Hai nhánh nội bộ `base` và `candidate` chỉ dùng trong
 `bint evolve evaluate` ([docs/evolution.md](evolution.md)).
 
 **Chống rò rỉ.** `strict`: nhánh `minimal` chỉ dùng tri thức dựng **tại commit gốc** — ảnh chụp do

@@ -17,6 +17,7 @@ import (
 	"bint/internal/eval"
 	"bint/internal/evolve"
 	"bint/internal/harness"
+	"bint/internal/hcomp"
 	"bint/internal/knowledge"
 	"bint/internal/runlog"
 	"bint/internal/skills"
@@ -279,18 +280,31 @@ func evolverAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error)
 // đương (sandbox chỉ-đọc vẫn đọc được toàn hệ tệp, gồm định nghĩa tác vụ tập test), nên
 // roles.reflector khác claude bị từ chối thay vì chạy với ràng buộc lỏng hơn.
 func reflectorAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
+	return noToolAgent(k, "reflector", k.Config.Roles.Reflector, model, command)
+}
+
+// harnessProposerAgent dựng agent đề xuất thay đổi quy trình (H3): harness theo roles.evolver,
+// model theo harnesses.<h>.models.evolver. Cùng ràng buộc như reflector — không công cụ, thư mục
+// rỗng, chỉ claude — vì tập test không bao giờ được là đầu vào của agent sinh đề xuất, mà định
+// nghĩa tác vụ (gồm tập test) nằm trong .bint/evals/ nên Read/Grep đọc được.
+func harnessProposerAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
+	return noToolAgent(k, "evolver", k.Config.Roles.Evolver, model, command)
+}
+
+// noToolAgent dựng agent Claude Code không có công cụ cho một role (reflector | evolver).
+func noToolAgent(k *app.KnowledgeWS, role, harnessRole, model, command string) (eval.Agent, error) {
 	if command != "" {
 		return &eval.CommandAgent{Command: command}, nil
 	}
-	name := k.Config.Roles.Reflector
+	name := harnessRole
 	if name == "" {
 		name = k.Config.Harnesses.Default
 	}
 	if name != "claude" && name != "" {
-		return nil, fmt.Errorf("roles.reflector=%q: chỉ harness claude khoá được công cụ của reflector (--tools \"\"); "+
-			"harness %s chưa có cơ chế tắt hết công cụ tương đương nên không dùng được cho reflector", name, name)
+		return nil, fmt.Errorf("roles.%s=%q: chỉ harness claude khoá được công cụ của %s (--tools \"\"); "+
+			"harness %s chưa có cơ chế tắt hết công cụ tương đương nên không dùng được cho role này", role, name, role, name)
 	}
-	model = harness.RoleModel(k.Config, "claude", "reflector", model)
+	model = harness.RoleModel(k.Config, "claude", role, model)
 	cfg := k.Config.Eval.Agent
 	cfg.AllowedTools = nil
 	cfg.PermissionMode = "dontAsk"
@@ -334,10 +348,15 @@ xác định được (bằng chứng tồn tại, không trùng, độ dài, c�
 			if err != nil {
 				return err
 			}
-			var agent, reflector eval.Agent
+			var agent, reflector, hproposer eval.Agent
 			if !noAgent {
 				if agent, err = evolverAgent(e.k, model, agentCommand); err != nil {
 					return err
+				}
+				// Như reflector: không dùng được (roles.evolver khác claude) chỉ làm mất cơ hội quy trình.
+				if hproposer, err = harnessProposerAgent(e.k, model, agentCommand); err != nil {
+					fmt.Fprintf(stdio.Err, "! không dùng được agent đề xuất quy trình (bỏ qua cơ hội quy trình): %v\n", err)
+					hproposer = nil
 				}
 				// Reflector không dùng được (vd roles.reflector khác claude) chỉ làm mất cơ hội
 				// failure_lesson; đề xuất xác định và của evolver vẫn chạy (như đường deferred).
@@ -351,7 +370,7 @@ xác định được (bằng chứng tồn tại, không trùng, độ dài, c�
 				return err
 			}
 			rep, err := evolve.Propose(cmd.Context(), evolve.ProposeInput{K: e.k, DB: e.st.DB, Scan: scan, History: h, Refs: args,
-				Max: max, Agent: agent, Reflector: reflector, Cases: cases, RepoDir: e.ws.Repo.Toplevel, BudgetUSD: budget,
+				Max: max, Agent: agent, Reflector: reflector, HarnessProposer: hproposer, Cases: cases, RepoDir: e.ws.Repo.Toplevel, BudgetUSD: budget,
 				Timeout: time.Duration(e.k.Config.Eval.TimeoutMinutes) * time.Minute})
 			if err != nil {
 				return err
@@ -415,6 +434,9 @@ func requireHumanCLI(op string) error {
 func changeIDs(p *evolve.Proposal) []string {
 	if p.IsSkill() {
 		return evolve.SkillChangeNames(p)
+	}
+	if p.IsHarness() {
+		return evolve.HarnessChangeNames(p)
 	}
 	var out []string
 	for _, c := range p.Changes {
@@ -614,8 +636,14 @@ func printProposal(w io.Writer, p *evolve.Proposal, state string, probs []evolve
 	for _, it := range items {
 		byID[it.ID] = it
 	}
+	if p.Pair != nil {
+		fmt.Fprintf(w, "Cặp:         bản %s (anh em %s%s) — đo trên tập khác nhau, chỉ một bản được giữ (không gộp)\n",
+			map[string]string{evolve.PairGlobal: "chung", evolve.PairDomain: "riêng"}[p.Pair.Variant], p.Pair.Sibling,
+			map[bool]string{true: ", vùng " + p.Pair.Area, false: ""}[p.Pair.Area != ""])
+	}
 	fmt.Fprintln(w, "\nThay đổi:")
 	printSkillChanges(w, p, evolved)
+	printHarnessChanges(w, p)
 	for _, ch := range p.Changes {
 		fmt.Fprintf(w, "  [%s] %s", ch.Op, ch.ItemID)
 		if ch.Reason != "" {
@@ -770,6 +798,16 @@ không kém, hoặc futility).`,
 			if delivery != eval.ArmBint && delivery != eval.ArmMinimal {
 				return usageError{fmt.Errorf("--delivery phải là bint | minimal")}
 			}
+			if p.IsHarness() {
+				// Hook, MCP và guardrail chỉ có ở nhánh bint: thành phần quy trình không đo được bằng minimal.
+				if cmd.Flags().Changed("delivery") && delivery != eval.ArmBint {
+					return usageError{fmt.Errorf("đề xuất quy trình chỉ đo được với --delivery bint (guardrail và chỉ dẫn đi qua hook/MCP của nhánh bint)")}
+				}
+				if regression {
+					return usageError{fmt.Errorf("--regression chưa hỗ trợ cho đề xuất quy trình")}
+				}
+				delivery = eval.ArmBint
+			}
 			mode := ev.LeakageMode
 			if leakage != "" {
 				mode = leakage
@@ -779,7 +817,16 @@ không kém, hoặc futility).`,
 			}
 			now := time.Now()
 			var skillBefore, skillAfter evolve.SkillSet
-			if p.IsSkill() {
+			var harnessBefore, harnessAfter hcomp.Set
+			if p.IsHarness() {
+				// Base = tập thành phần đang có hiệu lực; candidate = tập đó sau khi áp đề xuất (thành
+				// phần mới coi như đã duyệt). Cùng tập tri thức, cùng nhánh bint.
+				harnessBefore, harnessAfter, err = evolve.HarnessSets(hcomp.Load(e.k.Root), p)
+				if err != nil {
+					return err
+				}
+				e.env.Variant = evolve.HarnessVariant(p, harnessBefore, harnessAfter)
+			} else if p.IsSkill() {
 				list, _, err := skills.LoadEvolved(e.k.Root)
 				if err != nil {
 					return err
@@ -909,6 +956,8 @@ không kém, hoặc futility).`,
 					for _, c := range pool {
 						impacts = append(impacts, evolve.CaseImpact{CaseID: c.ID, Split: c.Split, Case: c, Affected: true, Reason: "tập đại diện"})
 					}
+				case p.IsHarness():
+					impacts, err = evolve.SelectHarnessCases(ctx, e.env, mode, p, hist, pool, harnessBefore, harnessAfter)
 				case p.IsSkill():
 					impacts, err = evolve.SelectSkillCases(ctx, e.env, mode, p, hist, pool, skillBefore, skillAfter)
 				default:

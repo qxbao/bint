@@ -117,9 +117,14 @@ type Proposal struct {
 	Changes         []Change      `json:"candidate_changes"`
 	// SkillChanges: thay đổi skill của đề xuất L2 (target_type skill); Changes rỗng.
 	SkillChanges []SkillChange `json:"skill_changes,omitempty"`
-	Risk         string        `json:"risk_level"`
-	RiskReasons  []string      `json:"risk_reasons"`
-	Plan         Plan          `json:"evaluation_plan"`
+	// HarnessChanges: thay đổi thành phần quy trình của đề xuất L2 (target_type harness, H3);
+	// Changes và SkillChanges rỗng.
+	HarnessChanges []HarnessChange `json:"harness_changes,omitempty"`
+	// Pair: đề xuất này là một nửa của cặp chung/riêng sinh từ cùng một cơ hội (H4).
+	Pair        *Pair    `json:"pair,omitempty"`
+	Risk        string   `json:"risk_level"`
+	RiskReasons []string `json:"risk_reasons"`
+	Plan        Plan     `json:"evaluation_plan"`
 	// Quantitative: điều kiện tiên quyết (mục 10.6) đạt lúc đề xuất. Nếu không, đề xuất
 	// chỉ là L1 chờ người duyệt và chưa được kiểm chứng định lượng.
 	Quantitative bool     `json:"quantitative"`

@@ -10,7 +10,7 @@ scope:
     - internal/eval/**
 evidence:
   - path: internal/config/config.go
-    lines: 385-389
+    lines: 398-402
     fingerprint: lines:599f9b25a6dff930
   - path: internal/cli/eval.go
     lines: "1009"

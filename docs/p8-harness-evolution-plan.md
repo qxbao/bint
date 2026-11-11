@@ -11,7 +11,7 @@ Ngày: 2026-11-11. Mở rộng P8 theo hai ý học từ các nghiên cứu tố
 
    Mỗi thay đổi thuộc một trong hai loại: **chung** (mọi vùng mã) hoặc **riêng** (một vùng mã).
 
-E tận dụng gần như toàn bộ hạ tầng đã có (mục tri thức loại `lesson`, đề xuất, đối chiếu, hook theo đề bài) và cũng là thành phần "bộ nhớ" của H. Hiện **E1–E5 và kiểm thử xác định của E6 đã triển khai xong** (chờ chạy thực nghiệm có ngân sách); **H1–H5 vẫn là thiết kế đề xuất**.
+E tận dụng gần như toàn bộ hạ tầng đã có (mục tri thức loại `lesson`, đề xuất, đối chiếu, hook theo đề bài) và cũng là thành phần "bộ nhớ" của H. Hiện **E1–E5 và kiểm thử xác định của E6, cùng H1–H4, đã có mã** (kèm kiểm thử không tốn token); phần đo của cả hai kế hoạch (E6, H5) **chưa chạy** vì cần ngân sách được duyệt.
 
 ## Hiện trạng: Bint đang điều khiển được gì
 
@@ -19,11 +19,11 @@ E tận dụng gần như toàn bộ hạ tầng đã có (mục tri thức lo�
 |---|---|---|
 | Tri thức (fact, rule, warning, pattern, decision, lesson) | Có | Có (L1) |
 | Skill | Có (skill tiến hoá) | Có (L2), luôn chờ người duyệt |
-| Bộ nhớ kinh nghiệm từ thất bại | Có (`experience digest`/`show`, reflector, ngữ cảnh bài học) | Có qua `failure_lesson` (L1); chưa đo trên reflector thật |
-| Chỉ dẫn dùng công cụ | Văn bản cố định trong mã (ghi chú MCP) | Chưa |
-| Guardrail | Chỉ có `protected_paths` (hỏi/chặn khi sửa) | Chưa |
-| Script hỗ trợ | Chưa | Chưa |
-| Chiến lược chọn ngữ cảnh | Có tham số và nhánh biến thể `bint@…` | Đo được, chưa đề xuất được |
+| Bộ nhớ kinh nghiệm từ thất bại | Có: loại mục `lesson` và nguồn sinh từ lượt thất bại (kế hoạch E, mã xong, chưa đo) | Có (E, chưa đo) |
+| Chỉ dẫn dùng công cụ | Có: tệp `.bint/harness/guidance`; ghi chú MCP là guidance dựng sẵn (kế hoạch H, mã xong, chưa đo) | Có, qua đề xuất `harness` (chưa đo) |
+| Guardrail | Có: `.bint/harness/guardrails` thực thi qua hook, cùng `protected_paths` (H, mã xong, chưa đo) | Có (chưa đo) |
+| Script hỗ trợ | Có: `.bint/harness/scripts`, luôn chờ người duyệt, Bint không tự chạy (H) | Có, luôn rủi ro cao (chưa đo) |
+| Chiến lược chọn ngữ cảnh | Có: `strategy.yml` ghi đè một phần `context.*`, và nhánh biến thể `bint@…` | Có, qua đề xuất `harness` (chưa đo) |
 
 ---
 
@@ -186,9 +186,9 @@ Giới hạn đã biết:
   diễn đạt lại ý của lời giải.
 - Chất lượng bài học do reflector thật viết và hiệu ứng lên tỷ lệ đạt **chưa được kiểm chứng**.
 
-## Kế hoạch H — Sửa được quy trình, tách chung/riêng (đề xuất, chưa triển khai)
+## Kế hoạch H — Sửa được quy trình, tách chung/riêng (mã H1–H4 đã xong, chưa đo)
 
-> **Lưu ý:** Cấu trúc thư mục `.bint/harness/`, lệnh `bint harness add/approve/render` và loại đề xuất `TargetHarness` ở H1–H5 dưới đây là thiết kế dự kiến, chưa có trong mã nguồn hiện tại.
+> **Lưu ý:** các mục H1–H5 dưới đây là thiết kế gốc. Phần đã cài đặt và chỗ khác thiết kế (ví dụ lệnh thực tế là `bint harness component …` và `bint harness render`) nằm ở mục "Trạng thái thực hiện (mã H1–H4, chưa đo)" bên dưới; hướng dẫn sử dụng xem [docs/harness-components.md](harness-components.md).
 
 ### H1. Đưa thành phần quy trình thành tệp, có phiên bản (không tốn token)
 
@@ -301,13 +301,99 @@ Trần: $40.
 
 ---
 
+### Trạng thái thực hiện (mã H1–H4, chưa đo)
+
+Mã của H1–H4 và kiểm thử không tốn token đã xong; phần đo H5 (đợt `bint eval` so `bint` với
+`bint@harness=all`, `bint evolve cycle` với cơ hội quy trình) **chưa chạy**, chờ duyệt riêng (tốn tiền),
+đo chung với Kế hoạch E. Kèm một thay đổi nhỏ: model mặc định của role implementer trên Claude đổi từ `haiku`
+sang `sonnet` (`DefaultRoleModels`, mẫu `Render`, README, `.bint/config.yml`); repo khác đã ghi `implementer: "haiku"` giữ nguyên.
+
+- **H1 — thành phần thành tệp (`internal/hcomp`):** kiểu `Component` (guidance, guardrail, script, strategy), `Load`/`LoadDir`
+  (tệp hỏng vào `Problems`, không làm hỏng việc nạp), `Check` (trường bắt buộc, `on`/`action`/`scope` hợp lệ, regexp biên dịch
+  được và không khớp chuỗi rỗng, glob hợp lệ), `FindConflict` (trùng/mâu thuẫn guardrail), `Set` lọc theo trạng thái (`off|on|all`),
+  `Risk` (bảng H3), `Save` ghi nguyên tử. `Evaluate` là hàm thuần quyết định guardrail (điều kiện `when`/`unless`, scope domain,
+  hạ mức theo `Caps`, remind một lần, deny ở `stop` tối đa `MaxStopDenies`=3 rồi `bypass`); trạng thái phiên là JSONL nối thêm
+  (`SessionPath`, `Append`, `ReadState`: không khoá, dòng hỏng bị bỏ qua).
+  Hook (`internal/harness/hookcore/guard.go`): sự kiện chuẩn hoá `EvStop`, `Dialect` thêm `PreToolDecisions`, `RemindPreTool`,
+  `PreToolDecide`, `StopOutput` (khác biệt giữa harness nằm trong `Dialect`, không rẽ nhánh theo tên); PreToolUse shell/edit gộp
+  guardrail với ngữ cảnh và đường dẫn bảo vệ; PostToolUse ghi lệnh/tệp của phiên; spool `guardrail.triggered`; năng lực `guardrails`.
+  Claude hỗ trợ đủ remind/ask/deny và `Stop`; Codex: `deny` + `remind`, `ask` hạ xuống `remind`, không có `Stop`; Antigravity:
+  `ask`/`deny`, `remind` bị bỏ, không có `Stop` (sự kiện không có thì không giả lập, mục 13.2). Guidance dựng sẵn `bint-mcp-tools`
+  thay `eval.BintToolsNote` (đúng từng byte, giữ bản gốc trong kiểm thử); `AgentsBlock` nối guidance chung `verified` từ tệp trong
+  repo; guidance riêng chèn một lần mỗi phiên qua hook theo đường dẫn. `strategy.yml` (chỉ `verified`) ghi đè tập con `context.*` ở
+  `config.Load`, nằm giữa lớp dự án và `local.yml`; tệp không verified bị bỏ qua dù nội dung hỏng, tệp verified hỏng (khoá lạ, scope khác global, giá trị
+  không hợp lệ, cú pháp) cũng bị bỏ qua và lý do nằm ở `Sources.StrategyProblem` (không làm hỏng `config.Load` của mọi lệnh và hook).
+  `Config.BaseContext()` giữ `context.*` chưa trộn strategy: eval dựng cấu hình của lượt từ đó và chỉ áp strategy của tập nhánh. Lệnh: `bint harness component list|show|add|approve|deprecate`
+  (`approve`/`deprecate` qua `requireHuman`; `add` luôn tạo candidate) và `bint harness render`.
+- **H2 — đo được (`internal/eval`):** `Variant.Harness` cấp tập thành phần riêng cho base/candidate; `prepareArm` ghi bản dựng ra
+  `logDir/harness` (ngoài thư mục làm việc), chép script `verified` vào `.bint/harness/scripts` của thư mục làm việc, thêm hook
+  `Bash`/`PostToolUse`/`Stop` chỉ khi có guardrail (không có thì `settings.json` y như trước H), kiểm rò rỉ lời giải như skill.
+  Biến thể `bint@harness=off|on|all`. `handleEval` thực thi guardrail từ bản dựng và ghi dòng `guardrail` vào nhật ký; migration `0009`
+  tạo `eval_guardrail_usage`; báo cáo có `Report.Guardrails` (số lượt có guardrail hiệu lực, đủ điều kiện, kích hoạt, làm theo, bị chặn, vượt trần).
+- **H3 — đề xuất (`internal/evolve`):** `TargetHarness`, `HarnessChange`/`HarnessDraft` (create, update, deprecate), `validateHarnessChanges`
+  (thao tác hợp lệ, `hcomp.Check`, phạm vi và điều kiện glob phải khớp tệp có thật qua `pruneScopePaths`, không trùng/mâu thuẫn guardrail
+  sẵn có), `assessHarnessRisk` (bảng H3; sửa/loại bỏ thành phần đã duyệt ≥ trung bình), phiên bản gốc theo băm tệp (`CheckBaseWS`).
+  Cơ hội `KindHarness`: `harness:signal:<dấu hiệu>` cho từng dấu hiệu E1 trên **validation** (`no_test`, `edit_outside` → guardrail;
+  `repeat_cmd`, `timeout` → chỉ dẫn; `ignored_ctx` → chiến lược) và `harness:mcp_unused` (nhánh `bint` có vết đầy đủ mà không gọi MCP;
+  `Trace.MCPCalls`), cùng ngưỡng `min_similar_runs`/`min_new_evidence`. Người đề xuất là agent theo `roles.evolver` + model của nó
+  (`harnessProposerAgent`): **không công cụ, thư mục rỗng, chỉ claude** (như reflector); prompt gồm tóm tắt thất bại validation, thành
+  phần hiện có, thư mục cấp 1–2; `EvalCases` = mọi tác vụ có trong prompt; kiểm rò rỉ dùng chung lõi với `CheckLesson` (`textLeaks`).
+  Đối chiếu: `HarnessVariant`, `SelectHarnessCases`; `evolve evaluate` buộc `--delivery bint`. Áp dụng: `applyHarness` (create → candidate;
+  update giữ `verified`, tăng phiên bản, ghi người áp dụng; deprecate) ghi `FileChange` để `rollback` trả tệp y nguyên; `AutoApplicable`
+  chỉ cho `create` rủi ro thấp.
+- **H4 — chung/riêng:** `Proposal.Pair` (khoá cơ hội, biến thể `global|domain`, ID anh em, vùng) gắn cho cặp đề xuất quy trình và cho cặp bài
+  học E (`pairLessons`, chỉ khi cả hai là `create`). Probe: bản chung đo trên mẫu toàn validation trừ tác vụ nguồn, bản riêng chỉ trên tác vụ
+  khớp vùng (`SelectHarnessCases`). Compose (`composePairs` trong `evolve cycle`, `evolve.ComposePair` thuần): một bản đạt thì giữ bản đó;
+  cả hai đạt thì giữ bản chung nếu hiệu ứng của nó trên tác vụ của vùng (`evolve.AreaEffect`) không kém bản riêng quá
+  `non_inferiority_margin`, ngược lại giữ bản riêng; không đo được thì giữ bản riêng; không bao giờ gộp (nửa không được chọn bị bác bỏ, trừ
+  `--keep-failed`; áp dụng một nửa thì nửa kia bị bác bỏ). `--max` đếm theo cơ hội, trần ngân sách vòng giữ nguyên.
+- **Kiểm thử (không tốn token):** `internal/hcomp` (parse/validate/lọc trạng thái/`Evaluate`/ghi đồng thời); hook thật qua `internal/app`
+  (deny, ask, remind, stop một lần, deny tối đa 3, followed, YAML hỏng không chặn, hạ mức Codex/Antigravity, guidance riêng một lần);
+  `internal/eval` (byte-equal ghi chú MCP, `harness=off` = nhánh cũ, base khác candidate, kiểm rò rỉ, hook eval, chạy thật base/candidate
+  ghi số liệu); `internal/evolve` (validate/rủi ro, cơ hội, đề xuất với agent giả — đầu vào không có dấu của tập test, thư mục rỗng —, áp dụng
+  rồi quay lui, `SelectHarnessCases`, `ComposePair`, `AreaEffect`); `internal/cli` (e2e `harness component`, đề xuất quy trình qua CLI, cycle
+  với cặp chung/riêng); `internal/config` (strategy verified ghi đè, candidate/deprecated không, tệp hỏng bị bỏ qua kèm lý do).
+
+Quyết định lệch văn bản kế hoạch (cũng ghi trong phiếu tác vụ):
+- Lệnh thành phần là `bint harness component …` và `bint harness render`, vì `bint harness list|show <tên>` đã là bảng adapter.
+- Người đề xuất không có Read/Grep/Glob như văn bản H3: định nghĩa tác vụ (gồm tập test) nằm trong `.bint/evals/` nên đọc được; thay vào đó
+  nó nhận bản tóm tắt thất bại đã lọc validation và danh sách thư mục, như reflector.
+- "Tự áp dụng" nghĩa là đưa `create` rủi ro thấp vào hàng chờ ở `candidate`; agent không bao giờ làm một thành phần có hiệu lực.
+- Ghi chú MCP dựng sẵn chỉ dùng ở eval (AGENTS.md thật chưa bao giờ chứa nó); `mcpserver.Instructions` giữ nguyên.
+- `remind` ở `stop` là chặn kết thúc một lần mỗi phiên/guardrail (Claude Code không có `additionalContext` cho `Stop`); `ask` ở `stop` hạ xuống `remind`.
+- Guidance riêng được chèn trong hook (một lần mỗi phiên, theo trạng thái phiên) thay vì trong `ctxengine.Pack`, nên không chiếm ngân sách tri thức/bài học.
+- Hook `Stop` mới làm `HooksInstalled` báo thiếu với repo đã cài bản cũ cho tới khi chạy lại `bint init`.
+
+Giới hạn đã biết:
+- Hành vi thật của Claude Code với `Stop` block (agent có làm tiếp đúng lời nhắc không), hiệu ứng của guardrail lên tỷ lệ đạt và chất lượng
+  đề xuất do model thật viết **chưa được kiểm chứng**: thuộc H5.
+- Guardrail trong lượt eval chỉ nối hook cho Claude; harness khác không được đo (phiên thật của Codex/Antigravity vẫn hạ mức theo khả năng).
+  Codex/Antigravity không có `Stop` nên guardrail `stop` không chạy ở đó.
+- Guardrail đo "đã chạy test sau lần sửa cuối" theo lệnh nhận diện được (`detect.IsTestCommand` + `eval.test_command`); script phức tạp
+  không nhận ra là lệnh test thì guardrail vẫn nhắc.
+- Thành phần trong repository được đọc từ cây làm việc hiện tại (không từ commit gốc của tác vụ) và kiểm rò rỉ bằng chuỗi/định danh như skill:
+  chặn nội dung nhắc lại đáp án nguyên văn, không chặn diễn đạt lại ý của lời giải.
+- Ghép `bint@harness=all` đo cả tập candidate cùng lúc; muốn tách tác động từng thành phần phải thêm từng cái.
+- `when.edited` (và mốc "sau lần sửa cuối" của `unless.ran`) chỉ tính tệp sửa bằng công cụ sửa tệp của harness (Edit/Write/MultiEdit/
+  NotebookEdit). Tệp đổi qua lệnh shell (`sed -i`, script sinh mã) không vào trạng thái phiên: guardrail test-before-stop không kích hoạt
+  nếu agent chỉ sửa bằng shell. Hook của lượt eval không chụp working tree quanh lệnh shell (chỉ hook phiên thật có ảnh chụp để ghi
+  `file.modified`), nên chưa có cách ghi nhận này ở nhánh đo; không giả lập sự kiện mà harness không cung cấp (mục 13.2).
+- Trạng thái phiên của guardrail đọc tối đa 4 MB cuối của tệp JSONL; quá trần thì `State.Truncated` và guardrail `deny`/`remind` ở `stop`
+  nhường (không chặn nữa, lý do `truncated`) vì không còn đếm được số lần đã chặn.
+- Cơ hội `harness:mcp_unused` loại lượt của biến thể `mcp=off`, nhưng chưa loại được lượt của nhánh `bint` mà strategy của repository tắt
+  `interfaces.mcp` (vết lượt không ghi tập thành phần đã dùng).
+- Đề xuất quy trình chưa hỗ trợ `evolve evaluate --regression`; chỉ `delivery bint`.
+- Cặp chung/riêng chỉ được Compose khi cả hai nửa cùng đạt trong cùng một vòng; nửa duy nhất đạt giữ nguyên, nửa còn chờ bị bác bỏ khi nửa kia được áp dụng.
+
+---
+
 ## Thứ tự và tổng chi phí
 
 1. E1–E5 và kiểm thử xác định E6 (không tốn token): **đã hoàn thành**.
 2. E: chạy thực nghiệm đo hiệu quả, trần $30 (cần duyệt trước khi chạy).
-3. H1–H2: viết mã và kiểm thử (không tốn token; có thể làm độc lập với bước 2).
+3. H1–H2: viết mã và kiểm thử (không tốn token): **đã hoàn thành**.
 4. H: đo bước 1, trần $13 (cần duyệt).
-5. H3–H4: viết mã, rồi đo bước 2 của H, trần $25 (cần duyệt).
+5. H3–H4: viết mã (**đã hoàn thành**), rồi đo bước 2 của H, trần $25 (cần duyệt).
 
 Tổng trần cả hai kế hoạch: khoảng $70. Mỗi bước tốn tiền đều cần người dùng duyệt trước.
 

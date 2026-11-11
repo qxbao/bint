@@ -82,6 +82,8 @@ type Report struct {
 	Diagnostics []Diagnostic `json:"diagnostics"`
 	// Gate2 là chẩn đoán theo mục 12.9 khi đợt có nhánh bint/ideal.
 	Gate2 *Gate2Diagnosis `json:"gate2_diagnosis,omitempty"`
+	// Guardrails: số liệu từng guardrail của quy trình theo nhánh (H2); rỗng khi đợt không có.
+	Guardrails []GuardrailStat `json:"guardrails,omitempty"`
 }
 
 // reportSeed cố định để báo cáo tái lập được.
@@ -320,6 +322,9 @@ func BuildReportUpTo(ctx context.Context, db *sql.DB, b Batch, baseline string, 
 		}
 		g := diagnoseGate2(rep, rows, cu)
 		rep.Gate2 = &g
+		if rep.Guardrails, err = batchGuardrails(ctx, db, b.BatchID, maxRepeat); err != nil {
+			return rep, err
+		}
 	}
 	return rep, nil
 }

@@ -41,4 +41,27 @@ Khi làm việc với `**/*_test.go`:
   `app.InAgentSession` coi tiến trình là agent khi có một biến trong `agentEnvVars` (BINT_AGENT, CLAUDECODE, AI_AGENT, CODEX_SANDBOX...); khi đó approve/apply/reject trả `ErrAgentForbidden`.
   `testutil.Isolate` chỉ xoá CLAUDE_CODE_SESSION_ID/BINT_RUN_ID/BINT_TASK_ID/BINT_APPROVED_PATHS, KHÔNG xoá các biến trên. Kiểm thử đóng vai người phải gọi `asHuman(t)` (hoặc đặt rỗng từng biến); nếu không, test qua trên CI nhưng hỏng khi agent chạy `go test`.
   Danh sách biến bị chép tay trong `internal/cli/knowledge_e2e_test.go` và `internal/evolve/evolve_test.go`: thêm biến vào `agentEnvVars` thì sửa cả hai.
+
+Khi làm việc với `internal/config/template.go`:
+
+- **Render ghi mẫu bằng w(format) = fmt.Fprintf: mọi ký tự % trong chú thích của mẫu phải viết %% (bản cũ sinh '%!k(MISSING…** [k:01M7487MQV2FFZPHJDWEFVZC7Z]
+  Render ghi mẫu bằng w(format) = fmt.Fprintf: mọi ký tự % trong chú thích của mẫu phải viết %% (bản cũ sinh '%!k(MISSING)hông' vào config của người dùng; Upgrade có templateFixes để sửa). Thêm dòng chú thích có % thì kiểm bằng TestRenderMatchesDefaults không đủ vì chú thích không được so.
+
+Khi làm việc với `internal/eval/**`:
+
+- **Mục không có bằng chứng bị EconomyFilter loại; bài học từ thất bại được nới** [k:01M74D57FYH0PS3DKV7BHRTCF8]
+  EconomyFilter và EvidenceHoldsAt loại mục không có tệp bằng chứng. Bài học failure_lesson (Origin.Provenance=failure_lesson, Origin.Runs khác rỗng) không có tệp nên được nới qua Item.LessonFromRuns(); mọi mục khác vẫn bị loại.
+
+Khi làm việc với `internal/evolve/**`:
+
+- **CheckLeak chỉ cảnh báo định danh mới; bài học dùng kiểm rò rỉ riêng (định danh mã, định danh mới ở vị trí mã, literal)** [k:01M74D57EZ2HZSQMTB9YP56F3D]
+  CheckLeak xếp định danh mới của lời giải (NewIdents) vào mức warn, chỉ mục solution_code mới là fail. Bài học do reflector soạn không được dùng CheckLeak một mình; evolve.CheckLesson (lesson_check.go) chặn (LessonLeak) khi nội dung bài học chứa:
+  - eval.SolutionIdentifiers: định danh dạng mã (snake/camelCase, có số) của phần thêm mới, trừ tên test;
+  - eval.SolutionNewIdentifiers: MỌI định danh mới ở VỊ TRÍ MÃ (kể cả tên một từ như Reset/Flush), trừ tên test. Từ thường chỉ nằm trong chú thích hoặc nội dung chuỗi (server, cache, timeout...) không bị chặn, vì bài học hay nhắc chúng;
+  - eval.SolutionLiterals: chuỗi literal ≥ 12 ký tự ("...", '...', `...` raw) của phần thêm mới, trừ chuỗi có trong kiểm thử.
+  Thêm ca chặn mới thì sửa TestCheckLessonTable (failure_test.go), kể cả ca chặn nhầm.
+- **Mọi đường gọi evolve.Propose (kể cả ProcessRequests/deferred) phải truyền Cases và RepoDir. Thiếu chúng thì kiểm rò rỉ …** [k:01M74E2CYQEZ443CCRB0N2YS72]
+  Mọi đường gọi evolve.Propose (kể cả ProcessRequests/deferred) phải truyền Cases và RepoDir. Thiếu chúng thì kiểm rò rỉ của bài học failure_lesson báo 'không tìm thấy tác vụ' sau khi reflector đã chạy: tốn tiền rồi bỏ hết. Kiểm rò rỉ được dựng trước khi gọi reflector để lỗi này không tốn tiền.
+- **EvalCases của bài học lấy từ mọi tác vụ trong prompt, không chỉ bằng chứng** [k:01M74FMJH0K4HXQ6HCB941HJRY]
+  Tập tác vụ nguồn (EvalCases) của bài học phải là mọi tác vụ có bản tóm tắt trong prompt của reflector (biến shown từ caseIDsOf(fails)), không lấy từ các lượt reflector nêu làm evidence. Chỉ lấy theo evidence thì tác vụ reflector đã thấy nhưng không nêu sẽ bị chấm lại bằng chính bài học đó, vi phạm mục 12.3 và E3.5 của kế hoạch P8.
 <!-- bint:end -->

@@ -11,6 +11,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/fsafe"
 	"bint/internal/harness/claude"
+	"bint/internal/hcomp"
 	"bint/internal/knowledge"
 	"bint/internal/state"
 )
@@ -22,6 +23,12 @@ func AgentsBlock(root string, cfg config.Config) (string, knowledge.Selection, e
 		return "", knowledge.Selection{}, err
 	}
 	inner, sel := knowledge.RenderAgents(items, knowledge.RenderOptions{MaxItems: cfg.Knowledge.AgentsMDMaxItems})
+	// Chỉ dẫn quy trình CHUNG đã duyệt (H1): guidance verified trong .bint/harness và danh sách
+	// script đã duyệt. Bản dựng sẵn (ghi chú MCP của nhánh eval) không vào AGENTS.md thật;
+	// repository không có thành phần nào thì khối không đổi một byte.
+	if g := hcomp.Load(root).Select(hcomp.ModeOn).Files().RenderGuidance(hcomp.RenderOpts{MCP: cfg.Context.Interfaces.MCP}); g != "" {
+		inner = strings.TrimRight(inner, "\n") + "\n" + g
+	}
 	return inner, sel, nil
 }
 

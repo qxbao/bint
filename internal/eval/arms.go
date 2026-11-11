@@ -15,6 +15,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/ctxengine"
+	"bint/internal/hcomp"
 	"bint/internal/knowledge"
 	"bint/internal/skills"
 )
@@ -58,6 +59,11 @@ type Variant struct {
 	// skill (L2) đối chiếu hai tập skill, cùng một tập tri thức. Trả lỗi bọc
 	// ErrArmUnavailable khi đề xuất không áp dụng được cho tác vụ.
 	Skills func(ctx context.Context, arm string, c *Case, leak *LeakInput) (map[string][]byte, error)
+	// Harness trả về tập thành phần quy trình (chỉ dẫn, guardrail, script, chiến lược) của một
+	// nhánh (ArmBase hoặc ArmCandidate) cho tác vụ c; nil = dùng tập đang hiệu lực của
+	// repository. Đề xuất quy trình (H3) đối chiếu hai tập khác nhau, cùng một tập tri thức, và
+	// bắt buộc Delivery = bint. Trả lỗi bọc ErrArmUnavailable khi đề xuất không áp dụng được.
+	Harness func(ctx context.Context, arm string, c *Case, leak *LeakInput) (hcomp.Set, error)
 }
 
 // DeliveryArm trả về nhánh thực sự quyết định cách đưa ngữ cảnh (base/candidate →
@@ -79,11 +85,14 @@ const (
 var ErrArmUnavailable = errors.New("nhánh không khả dụng")
 
 // ContextVariant là chiến lược chọn/đưa ngữ cảnh của nhánh bint (P8: thử nghiệm chiến lược
-// chọn ngữ cảnh). Viết sau tên nhánh: "bint@task=off+path=off+mcp=off+tokens=3000+items=3" (dấu + vì --arms tách theo dấu phẩy).
+// chọn ngữ cảnh). Viết sau tên nhánh: "bint@task=off+path=off+mcp=off+harness=all+tokens=3000+items=3" (dấu + vì --arms tách theo dấu phẩy).
 // Hai biến thể cùng đợt được so sánh ghép cặp như mọi nhánh.
 type ContextVariant struct {
 	NoTaskHook, NoPathHook, NoMCP bool
 	MaxTokens, PathMaxItems       int
+	// Harness: tập thành phần quy trình của nhánh (hcomp.Mode): off = chỉ bản dựng sẵn (đúng
+	// nhánh bint trước H), on = + thành phần verified (mặc định), all = + cả candidate.
+	Harness hcomp.Mode
 }
 
 // SplitArm tách tên nhánh và biến thể ngữ cảnh. Chỉ nhánh bint nhận biến thể.
@@ -112,6 +121,12 @@ func SplitArm(arm string) (string, ContextVariant, error) {
 			default:
 				v.NoMCP = off
 			}
+		case "harness":
+			m, err := hcomp.ParseMode(val)
+			if err != nil || val == "" {
+				return base, v, fmt.Errorf("biến thể %q: harness chỉ nhận off|on|all", arm)
+			}
+			v.Harness = m
 		case "tokens", "items":
 			n, err := strconv.Atoi(val)
 			if err != nil || n <= 0 {
@@ -123,7 +138,7 @@ func SplitArm(arm string) (string, ContextVariant, error) {
 				v.PathMaxItems = n
 			}
 		default:
-			return base, v, fmt.Errorf("biến thể %q: khoá %q không hỗ trợ (task, path, mcp, tokens, items)", arm, k)
+			return base, v, fmt.Errorf("biến thể %q: khoá %q không hỗ trợ (task, path, mcp, harness, tokens, items)", arm, k)
 		}
 	}
 	return base, v, nil
@@ -171,6 +186,9 @@ type ArmSetup struct {
 	MCPConfig  string
 	Settings   string
 	ContextLog string
+	// Guardrails: ID guardrail có hiệu lực ở lượt (H2), để báo cáo đếm cả guardrail không
+	// bao giờ kích hoạt. HarnessSet: mô tả tập thành phần kèm vân tay (kiểm toán).
+	Guardrails []string
 	// Ideal là tập ID "đúng" của tác vụ (nhánh bint và ideal), để đo độ phủ truy xuất.
 	Ideal []string
 }
@@ -204,6 +222,7 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 	if err != nil {
 		return s, err
 	}
+	origArm := arm
 	writeAgents := func(content []byte) error {
 		if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), content, 0o644); err != nil {
 			return err
@@ -233,6 +252,9 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 		}
 		if d := env.Variant.Delivery; d != ArmMinimal && d != ArmBint {
 			return s, fmt.Errorf("Variant.Delivery phải là minimal hoặc bint, nhận %q", d)
+		}
+		if env.Variant.Harness != nil && env.Variant.Delivery != ArmBint {
+			return s, fmt.Errorf("đề xuất quy trình cần Variant.Delivery = bint (hook và guardrail chỉ có ở nhánh bint), nhận %q", env.Variant.Delivery)
 		}
 	default:
 		return s, ArmNotImplemented(arm)
@@ -318,9 +340,40 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 		}
 	}
 	s.ContextLog = filepath.Join(logDir, "context.jsonl")
+	// Thành phần quy trình của nhánh (H2): chỉ dẫn, guardrail, script, chiến lược.
+	hset, err := resolveHarnessSet(ctx, env, origArm, cv, c, leakIn)
+	if err != nil {
+		return s, err
+	}
+	files := hset.Files()
+	if st := hset.Strategy(); st != nil && st.Context != nil && st.Context.Interfaces != nil {
+		// strategy chỉ TẮT được kênh (giống cờ trong biến thể); không bật lại kênh mà biến thể đã tắt.
+		if i := st.Context.Interfaces; i.MCP != nil && !*i.MCP {
+			cv.NoMCP = true
+		}
+		if i := st.Context.Interfaces; i.PathHooks != nil && !*i.PathHooks {
+			cv.NoPathHook = true
+		}
+	}
+	for _, g := range hset.Guardrails() {
+		s.Guardrails = append(s.Guardrails, g.ID)
+	}
+	// Cấu hình gốc, KHÔNG gồm strategy.yml đã duyệt của repository: strategy là một thành phần
+	// của nhánh (chỉ nhánh có nó trong tập mới được áp), nếu không `harness=off` và nhánh base
+	// của đề xuất deprecate/bỏ khoá sẽ chạy y như nhánh có strategy và đối chiếu ra hiệu ứng 0.
+	cc := env.Cfg.BaseContext()
 	ec := ctxengine.EvalConfig{ItemsDir: itemsDir, Root: dir, Log: s.ContextLog, ExcludeEvalCase: c.ID,
-		MaxTokens: env.Cfg.Context.MaxTokens, PathMaxItems: env.Cfg.Context.PathMaxItems, IncludeCandidates: ks.candidates,
-		LessonGlobalK: env.Cfg.Context.Lessons.GlobalK, LessonMaxTokens: env.Cfg.Context.Lessons.MaxTokens}
+		MaxTokens: cc.MaxTokens, PathMaxItems: cc.PathMaxItems, IncludeCandidates: ks.candidates,
+		LessonGlobalK: cc.Lessons.GlobalK, LessonMaxTokens: cc.Lessons.MaxTokens, NoMCP: cv.NoMCP, NoPathHook: cv.NoPathHook}
+	if !files.Empty() {
+		if ec.HarnessDir, err = writeHarnessSet(logDir, dir, files); err != nil {
+			return s, err
+		}
+		ec.TestCommands = knownTestCommands(env, c)
+	}
+	if st := hset.Strategy(); st != nil && st.Context != nil {
+		applyStrategy(&ec, st.Context)
+	}
 	if cv.MaxTokens > 0 {
 		ec.MaxTokens = cv.MaxTokens
 	}
@@ -348,37 +401,133 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 	s.Settings = filepath.Join(logDir, "settings.json")
 	hook := map[string]any{"type": "command", "command": `"` + filepath.ToSlash(exe) + `" hook claude`, "timeout": 10}
 	hooks := map[string]any{}
+	group := func(matcher string) map[string]any {
+		g := map[string]any{"hooks": []any{hook}}
+		if matcher != "" {
+			g["matcher"] = matcher
+		}
+		return g
+	}
 	if !cv.NoPathHook {
-		hooks["PreToolUse"] = []any{map[string]any{"matcher": "Read|Edit|Write|MultiEdit|NotebookEdit", "hooks": []any{hook}}}
+		hooks["PreToolUse"] = []any{group("Read|Edit|Write|MultiEdit|NotebookEdit")}
 	}
 	if !cv.NoTaskHook {
 		hooks["UserPromptSubmit"] = []any{map[string]any{"hooks": []any{hook}}}
 	}
+	if len(hset.Guardrails()) > 0 {
+		// Guardrail (H2): hook trước lệnh shell và trước khi sửa, theo dõi lệnh/tệp đã sửa sau
+		// mỗi công cụ, và chặn kết thúc. Không có guardrail thì settings y như trước H.
+		pre, _ := hooks["PreToolUse"].([]any)
+		pre = append(pre, group("Bash"))
+		if cv.NoPathHook {
+			pre = append(pre, group("Edit|Write|MultiEdit|NotebookEdit"))
+		}
+		hooks["PreToolUse"] = pre
+		hooks["PostToolUse"] = []any{group("Edit|Write|MultiEdit|NotebookEdit|Bash")}
+		hooks["PostToolUseFailure"] = []any{group("Bash")}
+		hooks["Stop"] = []any{group("")}
+	}
 	if err := writeJSONFile(s.Settings, map[string]any{"hooks": hooks}); err != nil {
 		return s, err
 	}
-	full := content
-	if !cv.NoMCP {
-		full = append(content, []byte(BintToolsNote)...)
-	}
+	// AGENTS.md = tri thức + chỉ dẫn quy trình chung. Với tập chỉ có bản dựng sẵn (bint-mcp-tools)
+	// phần thêm bằng đúng từng byte ghi chú MCP cũ (xem hcomp.MCPToolsNote).
+	full := append(content, []byte(hset.RenderGuidance(hcomp.RenderOpts{MCP: !cv.NoMCP}))...)
 	s.ContextSource = fmt.Sprintf("%s+engine#%s", ks.src, hash12(full))
+	if !files.Empty() {
+		s.ContextSource += "+harness#" + files.Hash()
+	}
 	return s, writeAgents(full)
 }
 
-// BintToolsNote là phần hướng dẫn thêm vào AGENTS.md ở nhánh bint.
-const BintToolsNote = `
-## Công cụ tri thức (Bint)
+// resolveHarnessSet dựng tập thành phần quy trình của một nhánh bint: biến thể đối chiếu
+// đề xuất (base/candidate) tự cấp tập của nó; còn lại lấy từ .bint/harness của repository
+// theo chế độ của biến thể (mặc định on). Thành phần từ tệp được kiểm rò rỉ lời giải như
+// skill: chứa mã của lời giải thì nhánh không khả dụng cho tác vụ đó.
+func resolveHarnessSet(ctx context.Context, env Env, origArm string, cv ContextVariant, c *Case, leak *LeakInput) (hcomp.Set, error) {
+	var set hcomp.Set
+	if (origArm == ArmBase || origArm == ArmCandidate) && env.Variant != nil && env.Variant.Harness != nil {
+		var err error
+		if set, err = env.Variant.Harness(ctx, origArm, c, leak); err != nil {
+			return set, err
+		}
+	} else {
+		root := env.BintRoot
+		if root == "" {
+			root = env.RepoDir
+		}
+		mode := cv.Harness
+		if mode == "" {
+			mode = hcomp.ModeOn
+		}
+		set = hcomp.Load(root).Select(mode)
+	}
+	if leak != nil {
+		var text strings.Builder
+		for _, comp := range set.Files().Components {
+			// Mọi trường được render vào AGENTS.md của lượt (RenderGuidance thêm Title, RenderScripts thêm Usage).
+			text.WriteString(comp.Title + "\n" + comp.Usage + "\n" + comp.Body + "\n" + comp.Message + "\n" + comp.Description + "\n" + string(comp.Source) + "\n")
+		}
+		if r := CheckLeak(text.String(), *leak); r.Status == "fail" {
+			return set, fmt.Errorf("%w: thành phần quy trình chứa mã của lời giải (%s)", ErrArmUnavailable, r.Findings[0].Detail)
+		}
+	}
+	return set, nil
+}
 
-MCP server ` + "`bint`" + ` có tri thức về repository này (quy tắc, điểm dễ sai, hợp đồng hành vi).
-Các công cụ có thể chưa được nạp sẵn: nạp bằng ToolSearch với truy vấn
-"select:mcp__bint__context_for_task,mcp__bint__context_for_paths,mcp__bint__cite_knowledge".
+// writeHarnessSet ghi tập thành phần ra logDir/harness (ngoài thư mục làm việc: agent không
+// sửa được bản mà guardrail đọc) và chép script vào .bint/harness/scripts của thư mục làm
+// việc để agent gọi được. Trả về thư mục bản dựng.
+func writeHarnessSet(logDir, workDir string, files hcomp.Set) (string, error) {
+	dir := filepath.Join(logDir, "harness")
+	for _, comp := range files.Components {
+		if _, err := hcomp.Save(dir, comp); err != nil {
+			return "", err
+		}
+		if comp.Kind == hcomp.KindScript && len(comp.Source) > 0 {
+			p := filepath.Join(workDir, ".bint", hcomp.DirName, "scripts", comp.ID+".sh")
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				return "", err
+			}
+			if err := os.WriteFile(p, comp.Source, 0o755); err != nil {
+				return "", err
+			}
+		}
+	}
+	return dir, nil
+}
 
-1. Đầu tác vụ: gọi mcp__bint__context_for_task với mô tả tác vụ (và các tệp đã biết).
-2. Trước khi sửa một tệp: gọi mcp__bint__context_for_paths với đường dẫn tệp.
-3. Khi áp dụng một mục tri thức: gọi mcp__bint__cite_knowledge với ID của mục.
+func knownTestCommands(env Env, c *Case) []string {
+	var out []string
+	for _, p := range []*string{env.Cfg.Eval.TestCommand, env.Cfg.Eval.SuggestedTestCommand} {
+		if p != nil && strings.TrimSpace(*p) != "" {
+			out = append(out, *p)
+		}
+	}
+	if cmd, err := env.TestCommand(c); err == nil {
+		out = append(out, cmd)
+	}
+	return out
+}
 
-Trước khi đọc/sửa tệp, quy tắc khớp đường dẫn cũng có thể được chèn tự động.
-`
+// applyStrategy áp tập con context.* của strategy.yml của nhánh lên cấu hình ngữ cảnh của lượt.
+// Biến thể dòng lệnh (tokens=, items=) áp sau nên vẫn thắng.
+func applyStrategy(ec *ctxengine.EvalConfig, x *hcomp.StrategyContext) {
+	if x.MaxTokens != nil {
+		ec.MaxTokens = *x.MaxTokens
+	}
+	if x.PathMaxItems != nil {
+		ec.PathMaxItems = *x.PathMaxItems
+	}
+	if l := x.Lessons; l != nil {
+		if l.GlobalK != nil {
+			ec.LessonGlobalK = *l.GlobalK
+		}
+		if l.MaxTokens != nil {
+			ec.LessonMaxTokens = *l.MaxTokens
+		}
+	}
+}
 
 func writeJSONFile(p string, v any) error {
 	b, err := json.MarshalIndent(v, "", "  ")

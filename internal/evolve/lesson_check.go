@@ -113,27 +113,8 @@ func CheckLesson(in lessonInput) LessonVerdict {
 	}
 
 	// Rò rỉ: nội dung không được chứa định danh/mã của lời giải (cùng cơ chế CheckLeak).
-	text := trigger + "\n" + mistake + "\n" + instead
-	for _, leak := range in.Leaks {
-		if r := eval.CheckLeak(text, leak); r.Status == "fail" {
-			detail := "định danh của lời giải"
-			if len(r.Findings) > 0 {
-				detail = r.Findings[0].Detail
-			}
-			add(LessonLeak, "nội dung chứa mã của lời giải (%s)", detail)
-			break
-		}
-		// Định danh dạng mã của phần thêm mới lời giải không được xuất hiện trong bài học
-		// (CheckLeak chỉ cảnh báo định danh mới; với bài học thì đó là đáp án).
-		if id, ok := identInText(text, solutionTerms(leak)); ok {
-			add(LessonLeak, "nhắc tới định danh của lời giải %q", id)
-			break
-		}
-		// Chuỗi literal của phần thêm mới (thông điệp lỗi, khoá...) cũng là đáp án.
-		if lit, ok := literalInText(text, eval.SolutionLiterals(leak)); ok {
-			add(LessonLeak, "nhắc tới chuỗi literal của lời giải %q", lit)
-			break
-		}
+	if msg := textLeaks(trigger+"\n"+mistake+"\n"+instead, in.Leaks); msg != "" {
+		add(LessonLeak, "%s", msg)
 	}
 
 	// Trùng: chỉ xét khi chưa có vi phạm. Trùng → gộp vào mục đã có.
@@ -153,6 +134,30 @@ func CheckLesson(in lessonInput) LessonVerdict {
 		}
 	}
 	return v
+}
+
+// textLeaks kiểm một đoạn văn bản (bài học, thành phần quy trình) với diff lời giải của các tác vụ
+// làm bằng chứng; trả về mô tả vi phạm đầu tiên ("" = không rò rỉ). Lõi dùng chung của CheckLesson
+// và kiểm tra đề xuất quy trình (H3): chứa dòng mã của lời giải (CheckLeak), định danh của phần
+// thêm mới (CheckLeak chỉ cảnh báo định danh mới; với văn bản do agent soạn thì đó là đáp án), hoặc
+// chuỗi literal dài của phần thêm mới.
+func textLeaks(text string, leaks []eval.LeakInput) string {
+	for _, leak := range leaks {
+		if r := eval.CheckLeak(text, leak); r.Status == "fail" {
+			detail := "định danh của lời giải"
+			if len(r.Findings) > 0 {
+				detail = r.Findings[0].Detail
+			}
+			return fmt.Sprintf("nội dung chứa mã của lời giải (%s)", detail)
+		}
+		if id, ok := identInText(text, solutionTerms(leak)); ok {
+			return fmt.Sprintf("nhắc tới định danh của lời giải %q", id)
+		}
+		if lit, ok := literalInText(text, eval.SolutionLiterals(leak)); ok {
+			return fmt.Sprintf("nhắc tới chuỗi literal của lời giải %q", lit)
+		}
+	}
+	return ""
 }
 
 // globOutsideAreas trả về lý do khi glob của bài học riêng không nằm trong vùng mã của nhóm

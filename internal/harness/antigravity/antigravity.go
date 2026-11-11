@@ -87,6 +87,18 @@ func preToolOutput(_ string, ask string) string {
 // Dialect mô tả Antigravity cho hookcore.
 var Dialect = hookcore.Dialect{
 	Harness: HarnessName, Classify: Classify, InjectRead: false, InjectEdit: false, PreToolOutput: preToolOutput,
+	// Guardrail (H1): PreToolUse chỉ trả quyết định (deny/ask) — không chèn được ngữ cảnh nên
+	// remind bị bỏ; không có sự kiện Stop của phiên.
+	PreToolDecisions: []string{"deny", "ask"}, PreToolDecide: preToolDecide,
+}
+
+// preToolDecide dựng quyết định tường minh; text (ngữ cảnh) bị bỏ vì Antigravity không nhận.
+func preToolDecide(_, decision, reason string) string {
+	if decision == "" {
+		return `{"decision":""}`
+	}
+	b, _ := json.Marshal(map[string]string{"decision": decision, "reason": reason})
+	return string(b)
 }
 
 // Payload là dữ liệu hook Antigravity gửi qua stdin.

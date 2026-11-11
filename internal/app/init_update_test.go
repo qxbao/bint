@@ -44,7 +44,7 @@ func TestInitUpdateUpgradesOldConfig(t *testing.T) {
 		t.Fatalf("bước cấu hình: %+v", s)
 	}
 	got := read(t, cfgPath)
-	if !strings.Contains(got, "max_review_rounds: 3") || !strings.Contains(got, `implementer:  "haiku"`) {
+	if !strings.Contains(got, "max_review_rounds: 3") || !strings.Contains(got, `implementer:  "sonnet"`) {
 		t.Fatalf("cấu hình sau khi nâng:\n%s", got)
 	}
 	// Bản cũ được sao lưu, đúng nội dung.

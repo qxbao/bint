@@ -31,13 +31,15 @@ internal/ctxengine/           P3: Context Engine — truy xuất theo tác vụ/
 internal/mcpserver/           P3: MCP server stdio và sáu công cụ
 internal/task/                P4: phiếu tác vụ, bảng chuyển trạng thái, hợp đồng tài liệu v1, kiểm chứng, review
 internal/workflow/            P4/P5: thao tác tác vụ dùng chung, khoá ghi, hậu kiểm chỉ đọc, orchestrator `bint run`
+internal/hcomp/               P8-H: thành phần quy trình (guidance, guardrail, script, strategy): nạp, kiểm tra, đánh giá guardrail, trạng thái phiên
 internal/evolve/              P6/P7/P8: cơ hội, đề xuất L1/L2, Probe tuần tự, áp dụng/quay lui, digest và reflector
 ```
 
 **Luồng ghi nhận:** harness gọi `bint hook claude`, `bint hook codex` hoặc
 `bint hook antigravity <sự kiện>` → hook xác định repository từ `cwd`, ghi một tệp
 `<ulid>.jsonl` vào `spool/` rồi thoát 0 (không mở SQLite, không gọi mô hình, lỗi chỉ được
-ghi vào `hook-errors.log`). Mỗi lệnh đọc (`runs`, `status`) nạp spool vào SQLite trong giao
+ghi vào `hook-errors.log`; trước khi thoát, hook có thể trả quyết định guardrail đọc từ
+`.bint/harness`). Mỗi lệnh đọc (`runs`, `status`) nạp spool vào SQLite trong giao
 dịch; `event_id` tất định (từ `session_id` + `tool_use_id`) nên hook bị gọi trùng không tạo
 bản ghi trùng.
 
@@ -60,7 +62,7 @@ Worktree phụ khi `.bint/` chưa được commit sẽ dùng cấu hình của w
 `interrupted`. Giá trị không đo được để `NULL`, không ghi 0. Trên Claude Code còn có `file.read`
 (tệp agent đọc) và `skill.activated` (khi công cụ Skill chạy); lệnh shell có ảnh chụp cây làm
 việc trước/sau để phát hiện tệp sửa qua shell (trong ngân sách thời gian, bỏ qua tệp bị Git
-ignore). Sự kiện mà harness không cung cấp không bao giờ được tổng hợp giả (mục 13.2).
+ignore). Khi có guardrail kích hoạt, hook ghi thêm `guardrail.triggered`. Sự kiện mà harness không cung cấp không bao giờ được tổng hợp giả (mục 13.2).
 
 ## Nguồn chuẩn và dữ liệu dẫn xuất
 
@@ -70,10 +72,12 @@ ignore). Sự kiện mà harness không cung cấp không bao giờ được t�
 | Mục tri thức | `.bint/knowledge/items/<ulid>.md` | Nguồn chuẩn duy nhất (YAML frontmatter + Markdown, commit được) |
 | Skill gốc | `internal/skills/core/` | Nhúng trong tệp thực thi; bản xuất cho harness theo dõi qua `.bint/skills/core.lock` |
 | Lớp phủ và skill tiến hoá | `.bint/skills/overlays/`, `.bint/skills/evolved/` | Nguồn chuẩn của dự án (commit được) |
+| Thành phần quy trình | `.bint/harness/{guidance,guardrails,scripts}/`, `strategy.yml` | Nguồn chuẩn (commit được); chỉ `verified` có hiệu lực ở phiên thật ([harness-components.md](harness-components.md)) |
 | Tác vụ đánh giá đã duyệt | `.bint/evals/cases/*.yml` | Corpus chuẩn phục vụ đánh giá và tiến hoá (commit được) |
 | Chỉ mục tìm kiếm (`knowledge_index`) | SQLite trong `<state>/` | Dẫn xuất từ `.bint/knowledge/items/`; tự đồng bộ theo chữ ký thư mục hoặc `bint index rebuild` |
 | Lượt chạy, sự kiện, tín hiệu, đề xuất, kiểm toán | SQLite trong `<state>/` (`migrations/*.sql`) | Dữ liệu vận hành cục bộ của máy |
 | Phiếu tác vụ và tài liệu workflow | `<state>/runtime/tasks/<task-id>/` | `task.yml`, `state.json`, `requirement.md`, `plan.md`, `tasks.md`, `review.*`, `logs/` |
+| Theo dõi phiên cho guardrail | `<state>/runtime/harness/` | Tệp JSONL nối thêm (lệnh và tệp đã sửa trong phiên), do hook ghi; không khoá, dòng hỏng bị bỏ qua |
 | Kho đệm, thư mục làm việc và nhật ký đánh giá | `<state>/eval-work/` | Dữ liệu cô lập phục vụ `bint eval` và `bint evolve evaluate` |
 
 ## Điều phối và tương thích nền tảng

@@ -142,6 +142,8 @@ type ProcessInput struct {
 	Agent eval.Agent
 	// Reflector rút bài học cho yêu cầu failure_lesson; nil = các yêu cầu đó chờ.
 	Reflector eval.Agent
+	// HarnessProposer soạn đề xuất quy trình cho yêu cầu KindHarness; nil = các yêu cầu đó chờ.
+	HarnessProposer eval.Agent
 	// Cases và RepoDir: như ProposeInput. Thiếu chúng, yêu cầu failure_lesson bị bỏ TRƯỚC khi gọi
 	// reflector (kiểm rò rỉ không dựng được), nên không tốn tiền.
 	Cases     []*eval.Case
@@ -211,9 +213,18 @@ func ProcessRequests(ctx context.Context, in ProcessInput) (ProcessReport, error
 			continue
 		}
 		needsLesson := o.Kind == KindFailureLesson
-		needsAgent := o.Generator == GenAgent && !needsLesson
+		needsHarness := o.Kind == KindHarness
+		needsAgent := o.Generator == GenAgent && !needsLesson && !needsHarness
 		remaining := in.BudgetUSD - rep.SpentUSD
 		switch {
+		case needsHarness && in.HarnessProposer == nil:
+			r.Note = "cần agent đề xuất quy trình (roles.evolver = claude): chạy `bint evolve process` với harness đã cấu hình"
+			rep.Waiting = append(rep.Waiting, r)
+			continue
+		case needsHarness && in.HarnessProposer.ReportsCost() && remaining <= 0:
+			r.Note = "hết ngân sách deferred cho lần này"
+			rep.Waiting = append(rep.Waiting, r)
+			continue
 		case needsLesson && in.Reflector == nil:
 			r.Note = "cần agent reflector: đặt roles.reflector hoặc chạy `bint evolve process` với harness đã cấu hình"
 			rep.Waiting = append(rep.Waiting, r)
@@ -232,9 +243,10 @@ func ProcessRequests(ctx context.Context, in ProcessInput) (ProcessReport, error
 			continue
 		}
 		pr, err := Propose(ctx, ProposeInput{K: in.K, DB: in.DB, Scan: in.Scan, History: in.History, Refs: []string{o.Key}, Max: 1,
-			Agent:     map[bool]eval.Agent{true: in.Agent, false: nil}[needsAgent],
-			Reflector: map[bool]eval.Agent{true: in.Reflector, false: nil}[needsLesson],
-			Cases:     in.Cases, RepoDir: in.RepoDir,
+			Agent:           map[bool]eval.Agent{true: in.Agent, false: nil}[needsAgent],
+			Reflector:       map[bool]eval.Agent{true: in.Reflector, false: nil}[needsLesson],
+			HarnessProposer: map[bool]eval.Agent{true: in.HarnessProposer, false: nil}[needsHarness],
+			Cases:           in.Cases, RepoDir: in.RepoDir,
 			BudgetUSD: remaining, Timeout: in.Timeout, Now: in.Now})
 		rep.SpentUSD += pr.SpentUSD
 		if err != nil {

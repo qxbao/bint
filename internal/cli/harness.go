@@ -28,7 +28,7 @@ Cấp hỗ trợ: 1 Skill + MCP/CLI · 2 + Hook · 3 + thực thi theo chương 
 Chọn harness cho từng bước workflow bằng roles trong .bint/config.yml, hoặc ghi đè cho
 một lượt: bint run --harness codex …, bint run --role implementer=codex ….`,
 	}
-	c.AddCommand(newHarnessListCmd(stdio), newHarnessShowCmd(stdio))
+	c.AddCommand(newHarnessListCmd(stdio), newHarnessShowCmd(stdio), newHarnessComponentCmd(stdio), newHarnessRenderCmd(stdio))
 	return c
 }
 

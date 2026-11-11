@@ -31,6 +31,16 @@ type EvalConfig struct {
 	// LessonGlobalK và LessonMaxTokens: phần bài học từ thất bại (xem Engine).
 	LessonGlobalK   int `json:"lesson_global_k,omitempty"`
 	LessonMaxTokens int `json:"lesson_max_tokens,omitempty"`
+	// HarnessDir: bản dựng thành phần quy trình của lượt (.bint/harness đã lọc theo nhánh,
+	// nằm ngoài thư mục làm việc). Rỗng = lượt không có guardrail/guidance riêng (H2).
+	HarnessDir string `json:"harness_dir,omitempty"`
+	// TestCommands: lệnh kiểm thử đã biết, để nhận ra lệnh test cho điều kiện unless.ran: test.
+	TestCommands []string `json:"test_commands,omitempty"`
+	// NoMCP: kênh MCP của nhánh tắt (guidance có requires: [mcp] không áp dụng).
+	NoMCP bool `json:"no_mcp,omitempty"`
+	// NoPathHook: kênh chèn tri thức theo đường dẫn của nhánh tắt. Hook vẫn có thể chạy ở Edit
+	// (chỉ để chạy guardrail) nhưng không được chèn tri thức theo đường dẫn.
+	NoPathHook bool `json:"no_path_hook,omitempty"`
 }
 
 // LoadEvalConfig đọc tệp cấu hình.
@@ -74,7 +84,17 @@ type LogLine struct {
 	Channel string   `json:"channel"` // hook:path | mcp:task | mcp:paths | cite | observe
 	IDs     []string `json:"ids"`
 	Labels  []string `json:"labels,omitempty"`
+	// Dòng guardrail (Channel = "guardrail", H2): Guardrail là id; Outcome là eligible | fired |
+	// followed | bypass; On, Action, Blocked mô tả lần kích hoạt.
+	Guardrail string `json:"guardrail,omitempty"`
+	Outcome   string `json:"outcome,omitempty"`
+	On        string `json:"on,omitempty"`
+	Action    string `json:"action,omitempty"`
+	Blocked   bool   `json:"blocked,omitempty"`
 }
+
+// ChannelGuardrail là kênh của dòng nhật ký guardrail.
+const ChannelGuardrail = "guardrail"
 
 // AppendLog ghi nối một dòng nhật ký.
 func AppendLog(path string, l LogLine) error {

@@ -19,6 +19,12 @@ danh sách của lớp trước):
 3. Cấu hình dự án: `.bint/config.yml` (commit để dùng chung trong nhóm).
 4. Cấu hình cục bộ theo máy: `.bint/local.yml` (được `bint init` thêm vào `.gitignore` / `exclude`).
 
+Ngoài ra, tệp `.bint/harness/strategy.yml` ở trạng thái `verified` ghi đè một tập con `context.*`
+(`max_tokens`, `path_max_items`, `lessons.global_k|max_tokens`, `interfaces.mcp|path_hooks`) và được chèn
+**giữa lớp 3 và lớp 4**, nên `.bint/local.yml` vẫn ghi đè được. Tệp `candidate`/`deprecated` không có
+hiệu lực; tệp `verified` bị hỏng bị bỏ qua và `bint doctor` cảnh báo lý do. Xem
+[harness-components.md](harness-components.md).
+
 Bộ đọc YAML bật `KnownFields(true)` nên mọi khoá lạ hoặc gõ sai tên đều báo lỗi ngay khi nạp.
 `bint init` không ghi đè `.bint/config.yml` đã có; khi nâng cấp Bint, chạy `bint init --update`
 (hoặc `bint update`) để chèn các khoá mới kèm chú thích mà vẫn giữ nguyên giá trị hiện tại và sao
@@ -50,7 +56,7 @@ Nếu đặt `state.dir` là đường dẫn tuyệt đối (thường trong `.b
 | Role | Vai trò | Mô hình mặc định (`claude` / `codex` / `antigravity`) |
 |---|---|---|
 | `roles.planner` | Lập kế hoạch (`b-req`) | `opus` / `gpt-6-astra` / `gemini-4-argon-high` |
-| `roles.implementer` | Thực thi (`b-feat`) | `haiku` / `gpt-6-luna` / `gemini-3.8-flash-medium` |
+| `roles.implementer` | Thực thi (`b-feat`) | `sonnet` / `gpt-6-luna` / `gemini-3.8-flash-medium` |
 | `roles.reviewer` | Đánh giá (`b-review`) | `opus` / `gpt-6-astra` / `gemini-4-argon-high` |
 | `roles.evolver` | Soạn đề xuất tiến hoá L1/L2 | `opus` / `gpt-6-astra` / `gemini-4-argon-high` |
 | `roles.reflector` | Rút bài học từ thất bại (kế hoạch E) | `opus` (chỉ hỗ trợ `claude`) |

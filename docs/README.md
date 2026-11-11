@@ -13,6 +13,7 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
 | [Workflow và multi-harness](workflows.md) | `b-req`/`b-feat`/`b-review`/`b-do` (P4), hợp đồng artifact v1, độ sâu lập kế hoạch, lớp phủ skill và adapter đa harness (P5) |
 | [Khung đánh giá](evaluation.md) | Khai thác tác vụ từ Git, đặc tả đề bài, môi trường cô lập, chống rò rỉ, các nhánh đánh giá và biến thể `bint@…` (P1) |
 | [Tiến hoá](evolution.md) | Tiến hoá tri thức L1 (P6), skill L2 (P7), bài học từ thất bại, Probe tuần tự, chế độ deferred và vòng `evolve cycle` (P8) |
+| [Thành phần quy trình](harness-components.md) | `.bint/harness` (chỉ dẫn, guardrail, script, chiến lược ngữ cảnh), lệnh `bint harness component`/`render`, thực thi qua hook, đo trong eval và đề xuất tiến hoá (P8, kế hoạch H) |
 | [Trạng thái và giới hạn](status.md) | Tổng hợp khả năng đã triển khai, kết quả thực nghiệm, phát hiện còn mở và giới hạn vận hành |
 | [Phát triển và CI/CD](ci-cd.md) | Kiểm tra cục bộ trên Linux/Windows/macOS, lưu ý chạy test từ phiên agent và quy trình phát hành |
 
@@ -24,7 +25,7 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
 | [Cổng quyết định 1](gate-1.md) | Giao thức và ngưỡng nghiệm thu bootstrap tối giản (P2), chốt trước khi đo |
 | [Cổng quyết định 2](gate-2.md) | Giao thức và ngưỡng nghiệm thu Context Engine (P3), chốt trước khi đo |
 | [Quyết định fingerprint và outcome](fingerprint-outcome-decisions.md) | Quyết định về sai khác fingerprint đa ngôn ngữ và các tín hiệu kết quả trong đợt đo thực tế |
-| [Tiến hoá quy trình và bài học từ thất bại](p8-harness-evolution-plan.md) | Kế hoạch E (bài học từ thất bại, đã có mã) và Kế hoạch H (tiến hoá thành phần quy trình, đang đề xuất) |
+| [Tiến hoá quy trình và bài học từ thất bại](p8-harness-evolution-plan.md) | Kế hoạch E (bài học từ thất bại) và Kế hoạch H (tiến hoá thành phần quy trình); mã E1–E5 và H1–H4 đã xong, phần đo chưa chạy |
 | [Kế hoạch thử nghiệm tiếp theo](p8-next-experiments.md) | Thiết kế thực nghiệm A (tri thức do người viết) và B (model mạnh rút bài học cho model yếu) |
 | [Kế hoạch TUI](tui-plan.md) | Thiết kế giao diện terminal tương tác (chưa triển khai) |
 
