@@ -385,6 +385,9 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 					known = append(known, *c)
 				}
 			}
+			if detect.IsBintInvocation(info.Command) {
+				return Result{Skipped: "lệnh gọi CLI của Bint, không phải kiểm thử"}, nil
+			}
 			isTest := detect.IsTestCommand
 			if d.IsTestCommand != nil {
 				isTest = d.IsTestCommand

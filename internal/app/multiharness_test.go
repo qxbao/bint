@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"bint/internal/harness/antigravity"
+	"bint/internal/harness/claude"
 	"bint/internal/harness/codex"
 	"bint/internal/harness/hookcore"
 	"bint/internal/runlog"
@@ -364,5 +365,36 @@ func TestCodexAndAntigravityHooks(t *testing.T) {
 	}
 	if ar.Status != "running" || ar.FilesModified != 1 || ar.TestsFailed != 1 || ar.Model.String != "gemini-x" {
 		t.Errorf("antigravity run = %+v", ar)
+	}
+}
+
+// Claude Code 2.1.322 thật: bước b-req (chỉ đọc) ghi tài liệu bằng `bint task write … <<EOF`
+// mà nội dung nhắc `go test ./...`. Đó là CLI của Bint, không phải lần chạy test, nên
+// không được thành test.completed/tín hiệu "tests positive". Lệnh test thật vẫn được ghi.
+func TestClaudeBintCLIWithTestTextIsNotATestRun(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "calc.go": "package p\n"})
+	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"claude"}, Hooks: no()})
+	b, err := os.ReadFile("../harness/claude/testdata/claude-2.1.322/planning-write-command.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "go test") {
+		t.Fatal("fixture phải chứa chữ go test")
+	}
+	cmd := strings.ReplaceAll(string(b), "<BINT>", "/opt/x/bin/bint")
+	post := func(id, command string) claude.HookResult {
+		return runHook(t, hookInput("planning", "PostToolUse", root, map[string]any{
+			"tool_name": "Bash", "tool_use_id": id, "tool_input": map[string]any{"command": command}}))
+	}
+	for _, c := range []string{cmd, "bint task review T - <<'EOF'\nsummary: chạy go test ./... qua\nEOF", `bint task error T "go test ./... lỗi"`} {
+		if r := post("w", c); r.Written {
+			t.Fatalf("lệnh Bint bị ghi thành test: %.60s → %+v", c, r)
+		}
+	}
+	for _, c := range []string{"go test ./...", "cd x && go test ./... | tail -5"} {
+		if r := post("t", c); !r.Written {
+			t.Fatalf("lệnh test thật không được ghi: %q %+v", c, r)
+		}
 	}
 }

@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"path"
 	"regexp"
 	"strings"
 )
@@ -123,6 +124,24 @@ func MatchesTemplate(cmd, tmpl string) bool {
 		}
 	}
 	return false
+}
+
+// IsBintInvocation cho biết lệnh shell gọi chính CLI của Bint (`bint task write …`,
+// `/đường/dẫn/bint task review …`). Đối số và nội dung heredoc của lệnh đó là dữ liệu
+// (tài liệu kế hoạch, review có thể nhắc "go test ./..."), không phải lần chạy test.
+// Chỉ xét phân đoạn đầu: `bint x && go test ./...` cũng bị coi là lệnh Bint (không ghi
+// nhận test), chấp nhận thiếu tín hiệu thay vì ghi nhầm test đã qua từ nội dung tài liệu.
+func IsBintInvocation(cmd string) bool {
+	segs := shellSegments(strings.TrimSpace(cmd))
+	if len(segs) == 0 {
+		return false
+	}
+	seg := stripWrappers(segs[0])
+	if len(seg) == 0 {
+		return false
+	}
+	base := strings.ToLower(path.Base(strings.ReplaceAll(seg[0], `\`, "/")))
+	return base == "bint" || base == "bint.exe"
 }
 
 // IsExecutedTestCommand là lựa chọn bảo thủ cho Codex: chỉ nhận diện ở vị trí
