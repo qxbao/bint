@@ -1,0 +1,104 @@
+{
+ "schema": 1,
+ "id": "01M74AT2NVMZBMRB69MH92H6TH",
+ "status": "done",
+ "workflow": "b-do",
+ "created_at": "2026-11-11T03:35:46Z",
+ "updated_at": "2026-11-11T03:38:56Z",
+ "base": "685f67cec969ee3b0b1428779a29a0d3f132fc30",
+ "branch": "main",
+ "worktree": "<repo>",
+ "reason": "b-do finalize",
+ "classification": {
+  "plan": true,
+  "reason": "người dùng chỉ định"
+ },
+ "history": [
+  {
+   "from": "",
+   "to": "created",
+   "at": "2026-11-11T03:35:46Z",
+   "by": "bint",
+   "reason": "tạo tác vụ"
+  },
+  {
+   "from": "created",
+   "to": "planned",
+   "at": "2026-11-11T03:36:41Z",
+   "by": "agent",
+   "reason": "b-req xong"
+  },
+  {
+   "from": "planned",
+   "to": "in_progress",
+   "at": "2026-11-11T03:36:41Z",
+   "by": "agent",
+   "reason": "b-feat bắt đầu"
+  },
+  {
+   "from": "in_progress",
+   "to": "in_review",
+   "at": "2026-11-11T03:38:16Z",
+   "by": "agent",
+   "reason": "b-feat xong"
+  },
+  {
+   "from": "in_review",
+   "to": "done",
+   "at": "2026-11-11T03:38:56Z",
+   "by": "agent",
+   "reason": "b-do finalize"
+  }
+ ],
+ "criteria": [
+  {
+   "index": 1,
+   "met": true,
+   "evidence": "GOCACHE=/tmp/b-feat-go-cache-01M74AT2NVMZBMRB69MH92H6TH go test ./... qua (ok probe/calc); TestAbsZero, TestAbsNegative, TestAbsPositive trong calc_test.go; Abs trong calc.go.",
+   "by": "agent",
+   "at": "2026-11-11T03:37:56Z"
+  },
+  {
+   "index": 2,
+   "met": true,
+   "evidence": "GOCACHE=/tmp/b-feat-go-cache-01M74AT2NVMZBMRB69MH92H6TH go test ./... qua (ok probe/calc); git diff chỉ thêm Abs và ba test, Add/Negate cùng test hiện có không đổi.",
+   "by": "agent",
+   "at": "2026-11-11T03:37:56Z"
+  }
+ ],
+ "verifications": [
+  {
+   "at": "2026-11-11T03:38:16Z",
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "log": "<state>/runtime/tasks/01M74AT2NVMZBMRB69MH92H6TH/logs/verify-1.log",
+   "worktree": "cf0c2448f1b0d2573ed42246480c2223",
+   "by": "agent",
+   "run_id": "01M74AT2NV1JNJMAVYWYJJR35P"
+  }
+ ],
+ "errors": [
+  {
+   "step": "b-feat",
+   "message": "go test ./... thất bại trước khi chạy test vì cache Go mặc định tại /home/user/.cache/go-build không ghi được (read-only file system); chạy lại với GOCACHE dưới /tmp.",
+   "at": "2026-11-11T03:37:38Z",
+   "by": "agent",
+   "run_id": "01M74AVS021DY0GSBHSH68FF51"
+  }
+ ],
+ "runs": [
+  "01M74AT2NV1JNJMAVYWYJJR35P",
+  "01M74AT2PHFAF3WXNXR650RT8Q",
+  "01M74AVS021DY0GSBHSH68FF51",
+  "01M74AYP02Q32B609063GTRW16"
+ ],
+ "review_rounds": 1,
+ "next_finding": 1,
+ "artifacts": {
+  "plan": "2026-11-11T03:36:29Z",
+  "requirement": "2026-11-11T03:36:24Z",
+  "tasks": "2026-11-11T03:36:32Z"
+ }
+}

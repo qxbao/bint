@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "id": "01M73CSZFCZCY3HBVYWHR9J1PV",
+  "status": "interrupted",
+  "workflow": "b-req",
+  "created_at": "2026-11-10T18:51:25Z",
+  "updated_at": "2026-11-10T18:52:32Z",
+  "base": "865a614b2fe5f1e181cb34664de38446c67f395c",
+  "branch": "master",
+  "worktree": "/probe/repo",
+  "reason": "người dùng huỷ trong bước b-req",
+  "resume_from": "created",
+  "classification": {
+    "plan": true,
+    "reason": "mặc định: cần b-req"
+  },
+  "history": [
+    {
+      "from": "",
+      "to": "created",
+      "at": "2026-11-10T18:51:25Z",
+      "by": "bint",
+      "reason": "tạo tác vụ"
+    },
+    {
+      "from": "created",
+      "to": "interrupted",
+      "at": "2026-11-10T18:51:33Z",
+      "by": "Bint Probe \u003cprobe@example.invalid\u003e",
+      "reason": "người dùng huỷ trong bước b-req"
+    }
+  ],
+  "errors": [
+    {
+      "message": "người dùng huỷ trong bước b-req",
+      "at": "2026-11-10T18:51:33Z",
+      "by": "Bint Probe \u003cprobe@example.invalid\u003e",
+      "run_id": "01M73CSZFCZTVZJD1C9DB72M3C"
+    }
+  ],
+  "runs": [
+    "01M73CSZFCZTVZJD1C9DB72M3C",
+    "01M73CSZH1PR85PM4611GKA7Q6"
+  ],
+  "review_rounds": 0,
+  "next_finding": 0
+}

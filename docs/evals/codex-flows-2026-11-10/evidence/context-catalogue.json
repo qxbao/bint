@@ -1,0 +1,19 @@
+{
+  "agents_md_bytes": 869,
+  "bint_skill_catalogue": {
+    "b-do": true,
+    "b-req": true,
+    "b-feat": true,
+    "b-review": true,
+    "b-bootstrap": true
+  },
+  "agents_marker_in_model_input": true,
+  "diagnostic_executable_in_model_input": true,
+  "catalogue_snippets": [
+    "- b-do: Điều phối toàn bộ một yêu cầu tự nhiên qua chuỗi Classify → b-req → b-feat → b-review → Finalize, gắn mọi đầu ra với một task ID. Dùng khi người dùng chạy /b-do. (file: r5/b-do/SKILL.md)",
+    "- b-req: Phân tích một yêu cầu thay đổi và lập kế hoạch (yêu cầu chức năng, tiêu chí chấp nhận, đầu việc) gắn với phiếu tác vụ Bint. Dùng khi người dùng chạy /b-req hoặc b-do giao bước lập kế hoạch. (file: r5/b-req/SKILL.md)",
+    "- b-feat: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai trực tiếp) theo kế hoạch, chạy kiểm thử, ghi lỗi và đối chiếu tiêu chí chấp nhận. Dùng khi người dùng chạy /b-feat hoặc b-do giao bước thực thi. (file: r5/b-feat/SKILL.md)",
+    "- b-review: Đánh giá một thay đổi (diff, nhánh, commit range hoặc tác vụ Bint) và ghi các phát hiện có cấu trúc — đường dẫn, dòng, mức độ, bằng chứng — vào phiếu tác vụ. Dùng khi người dùng chạy /b-review hoặc b-do giao bước review. (file: r5/b-review/SKILL.md)",
+    "- b-bootstrap: Khảo sát repository và ghi lại một số ít tri thức có căn cứ (quy tắc bất thường, điểm dễ sai) vào .bint/knowledge bằng CLI bint. Dùng khi người dùng yêu cầu bootstrap Bint hoặc chạy /b-bootstrap. (file: r5/b-bootstrap/SKILL.md)"
+  ]
+}

@@ -1,0 +1,4 @@
+Đã cập nhật 01M73CSZFCZCY3HBVYWHR9J1PV: Write a brief requirement, plan and tasks document for documenting Add; the cancellation experiment is finished.
+  Phạm vi:   AGENTS.md
+  Kiểm chứng: GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./...  [đã xác nhận]
+  Autonomy:  ask_on_protected   Rủi ro: low

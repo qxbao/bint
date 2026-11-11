@@ -1,0 +1,7 @@
+ok  	bint/internal/harness	1.621s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	1.164s
+ok  	bint/internal/harness/codex	1.225s
+ok  	bint/internal/harness/hookcore	1.375s
+ok  	bint/internal/app	12.449s
+ok  	bint/internal/eval	58.178s

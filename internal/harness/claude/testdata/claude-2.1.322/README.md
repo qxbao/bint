@@ -1,0 +1,1 @@
+planning-write-command.txt: lệnh Bash của bước b-req (chỉ đọc) trong phiên Claude Code 2.1.322 thật. Dòng đầu là tiền tố lệnh thật lấy từ sự kiện hook đã ghi (đã che đường dẫn binary); phần thân heredoc là requirement.md thật do lệnh đó ghi (toàn văn lệnh gốc không được lưu, hook chỉ giữ 300 ký tự đầu).

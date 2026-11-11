@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"path"
 	"regexp"
 	"strings"
 )
@@ -123,6 +124,93 @@ func MatchesTemplate(cmd, tmpl string) bool {
 		}
 	}
 	return false
+}
+
+// IsBintInvocation cho biết lệnh shell gọi chính CLI của Bint (`bint task write …`,
+// `/đường/dẫn/bint task review …`). Đối số và nội dung heredoc của lệnh đó là dữ liệu
+// (tài liệu kế hoạch, review có thể nhắc "go test ./..."), không phải lần chạy test.
+// Chỉ xét phân đoạn đầu: `bint x && go test ./...` cũng bị coi là lệnh Bint (không ghi
+// nhận test), chấp nhận thiếu tín hiệu thay vì ghi nhầm test đã qua từ nội dung tài liệu.
+func IsBintInvocation(cmd string) bool {
+	segs := shellSegments(strings.TrimSpace(cmd))
+	if len(segs) == 0 {
+		return false
+	}
+	seg := stripWrappers(segs[0])
+	if len(seg) == 0 {
+		return false
+	}
+	base := strings.ToLower(path.Base(strings.ReplaceAll(seg[0], `\`, "/")))
+	return base == "bint" || base == "bint.exe"
+}
+
+// IsExecutedTestCommand là lựa chọn bảo thủ cho Codex: chỉ nhận diện ở vị trí
+// lệnh, không tìm chữ "go test" trong đối số/tài liệu. Không diễn giải heredoc
+// hoặc substitution; script loại đó không được nâng thành bằng chứng test.
+// IsTestCommand cũ giữ nguyên cho các adapter khác.
+func IsExecutedTestCommand(cmd string, configured ...string) bool {
+	cmd = strings.TrimSpace(cmd)
+	if strings.Contains(cmd, "$(") || strings.ContainsRune(cmd, '`') || !singlePlainShellCommand(cmd) {
+		return false
+	}
+	segments := shellSegments(cmd)
+	// Codex chỉ cung cấp exit code của toàn script. Không được gán kết quả
+	// script cho một test có thể đã bị short-circuit, điều kiện hoặc set -e bỏ qua.
+	if len(segments) != 1 {
+		return false
+	}
+	for _, tmpl := range configured {
+		pat := shellSegments(tmpl)
+		if len(pat) == 1 && matchTokens(stripWrappers(pat[0]), stripWrappers(segments[0])) {
+			return true
+		}
+	}
+	for _, seg := range segments {
+		seg = stripWrappers(seg)
+		if len(seg) == 0 || strings.ContainsAny(seg[0], " \t\r\n") {
+			continue
+		}
+		if at := testRunner.FindStringIndex(strings.Join(seg, " ")); at != nil && at[0] == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// Bảo toàn dấu nháy để phân biệt ký tự đối số với toán tử shell. Đặc biệt
+// shellSegments bỏ toán tử cuối nên len(segments)==1 chưa loại được "test &".
+func singlePlainShellCommand(cmd string) bool {
+	var quote byte
+	for i := 0; i < len(cmd); i++ {
+		c := cmd[i]
+		if quote == '\'' {
+			if c == '\'' {
+				quote = 0
+			}
+			continue
+		}
+		if c == '\\' {
+			if i+1 == len(cmd) {
+				return false
+			}
+			i++
+			continue
+		}
+		if quote == '"' {
+			if c == '"' {
+				quote = 0
+			}
+			continue
+		}
+		if c == '\'' || c == '"' {
+			quote = c
+			continue
+		}
+		if strings.ContainsRune(";&|()<>#\r\n", rune(c)) {
+			return false
+		}
+	}
+	return quote == 0
 }
 
 func firstSegment(tmpl string) []string {

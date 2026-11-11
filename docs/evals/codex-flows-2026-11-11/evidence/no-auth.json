@@ -1,0 +1,20 @@
+{
+  "task_id": "01M73CW0VH04V8RTFYDGACFTK2",
+  "run_id": "01M73CW0VH3S31J82HNMVGYJFC",
+  "task_status": "failed",
+  "reason": "b-feat: codex báo lỗi: unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses, cf-ray: a58741aa1e37ffd1-SIN, request id: req_1ddc669c042b4ad7a51bf0c2c39ac707",
+  "steps": [
+    {
+      "step": "b-feat",
+      "run_id": "01M73CW0X37G0J2VQJS1F3V6AE",
+      "status": "failed",
+      "cost_usd": null,
+      "duration": "17s",
+      "error": "codex báo lỗi: unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses, cf-ray: a58741aa1e37ffd1-SIN, request id: req_1ddc669c042b4ad7a51bf0c2c39ac707"
+    }
+  ],
+  "cost_usd": null,
+  "notes": [
+    "chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác"
+  ]
+}

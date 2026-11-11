@@ -1,0 +1,17 @@
+# Phiếu tác vụ Bint (mục 6.7). Sửa được bằng tay hoặc `bint task set`.
+# verify.command chỉ được Bint chạy sau khi người xác nhận (`bint task approve`),
+# trừ khi trùng eval.test_command đã xác nhận trong cấu hình.
+id: 01M74A9A4KNYXFZXK6BETA8T8Z
+goal: Thêm hàm Abs(a int) int vào calc.go (giá trị tuyệt đối) kèm test trong calc_test.go
+verify:
+  command: go test ./...
+  criteria:
+    - Abs(0)==0, Abs(-7)==7, Abs(7)==7 có test riêng
+    - go test ./... qua, không sửa Add/Negate
+scope:
+  allow:
+    - calc.go
+    - calc_test.go
+  deny: []
+constraints: []
+autonomy: ask_on_protected

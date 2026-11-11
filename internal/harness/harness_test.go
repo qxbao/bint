@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -328,6 +329,78 @@ func TestDescribeConfiguredBinaryUsable(t *testing.T) {
 		if got := Available("codex", cfg); got != want {
 			t.Errorf("%s: Available = %v, muốn %v", bin, got, want)
 		}
+	}
+}
+
+// allowRuleCovers mô phỏng quy tắc tiền tố `Bash(<tiền tố>:*)` của Claude Code.
+func allowRuleCovers(rules []string, command string) bool {
+	for _, r := range rules {
+		p, ok := strings.CutPrefix(r, "Bash(")
+		if !ok {
+			continue
+		}
+		p, ok = strings.CutSuffix(p, ":*)")
+		if ok && (command == p || strings.HasPrefix(command, p+" ")) {
+			return true
+		}
+	}
+	return false
+}
+
+// Claude 2.1.322 thật từ chối `<đường dẫn tuyệt đối>/bint ...` khi allowlist chỉ có
+// `Bash(bint:*)` (permission_denials trong fixture): bước chỉ đọc không gọi được Bint.
+func TestClaudeReadonlyAllowsCurrentBintExecutable(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "claude-2.1.322", "permission-denied-absolute-bint.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fx struct {
+		Denials []struct {
+			Input struct {
+				Command string `json:"command"`
+			} `json:"tool_input"`
+		} `json:"permission_denials"`
+	}
+	if err := json.Unmarshal(raw, &fx); err != nil {
+		t.Fatal(err)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	readonly := ClaudeWorkflowArgs(cfg, true, nil).AllowedTools
+	write := ClaudeWorkflowArgs(cfg, false, nil).AllowedTools
+	checked := 0
+	for _, d := range fx.Denials {
+		cmd := strings.ReplaceAll(d.Input.Command, "<BINT>", exe)
+		if strings.Contains(cmd, ";") {
+			continue // lệnh ghép không thuộc phạm vi quy tắc tiền tố
+		}
+		checked++
+		if !allowRuleCovers(readonly, cmd) {
+			t.Errorf("bước chỉ đọc không được phép chạy %q; rule: %v", cmd, readonly)
+		}
+		if allowRuleCovers(write, cmd) {
+			t.Errorf("b-feat không dùng rule Bash(bint:*): %v", write)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("fixture không có lệnh trực tiếp để kiểm tra")
+	}
+	if !slices.Contains(readonly, "Bash(bint:*)") {
+		t.Fatalf("mất rule mặc định Bash(bint:*): %v", readonly)
+	}
+	// Người dùng đã gỡ rule bint khỏi cấu hình thì không tự thêm lại.
+	cfg.Workflow.Agent.ReadonlyTools = []string{"Read", "Glob"}
+	for _, r := range ClaudeWorkflowArgs(cfg, true, nil).AllowedTools {
+		if strings.Contains(r, "bint") {
+			t.Fatalf("tự thêm rule bint dù cấu hình đã gỡ: %s", r)
+		}
+	}
+	// Không sửa slice trong cấu hình gốc.
+	if len(config.Default().Workflow.Agent.ReadonlyTools) != 8 {
+		t.Fatal("cấu hình mặc định bị đổi")
 	}
 }
 

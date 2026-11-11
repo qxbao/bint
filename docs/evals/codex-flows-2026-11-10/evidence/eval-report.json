@@ -1,0 +1,219 @@
+{
+  "batch": {
+    "BatchID": "eb_01M72Y34NDFVVBHXVQ9YFW2N80",
+    "Status": "completed",
+    "Harness": "codex",
+    "HarnessVersion": "0.167.0",
+    "RequestedModel": "gpt-6.1-sol",
+    "BintVersion": "0.1.0-dev",
+    "LeakageMode": "strict",
+    "Arms": [
+      "none",
+      "minimal",
+      "bint"
+    ],
+    "Repeats": 1,
+    "CaseIDs": [
+      "c7f6ba68ccf02"
+    ],
+    "PromptVersion": 1,
+    "Seed": 167,
+    "BudgetUSD": null,
+    "EstimatedUSD": null,
+    "GitHead": "7f6ba68ccf02bc0ea470a9e6b229221998f6d29a",
+    "StartedAt": "2026-11-10T14:34:17Z",
+    "FinishedAt": "2026-11-10T14:36:20Z",
+    "Notes": [
+      "agent chạy với quyền của người dùng, mạng không bị chặn ở tầng hệ điều hành (security.allow_network_in_evals chỉ là chỉ dẫn ở P1)"
+    ]
+  },
+  "arms": [
+    {
+      "arm": "none",
+      "attempts": 1,
+      "graded": 1,
+      "passed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "timeouts": 0,
+      "pass_rate": {
+        "mean": 1,
+        "ci95": null,
+        "n": 1
+      },
+      "agent_seconds": {
+        "mean": 35.984,
+        "ci95": null,
+        "n": 1
+      },
+      "within_case_sd": null,
+      "mixed_cases": 0,
+      "cases_with_repeats": 0,
+      "models": [
+        "gpt-6.1-sol"
+      ]
+    },
+    {
+      "arm": "minimal",
+      "attempts": 1,
+      "graded": 1,
+      "passed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "timeouts": 0,
+      "pass_rate": {
+        "mean": 1,
+        "ci95": null,
+        "n": 1
+      },
+      "agent_seconds": {
+        "mean": 31.287,
+        "ci95": null,
+        "n": 1
+      },
+      "within_case_sd": null,
+      "mixed_cases": 0,
+      "cases_with_repeats": 0,
+      "models": [
+        "gpt-6.1-sol"
+      ]
+    },
+    {
+      "arm": "bint",
+      "attempts": 1,
+      "graded": 1,
+      "passed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "timeouts": 0,
+      "pass_rate": {
+        "mean": 1,
+        "ci95": null,
+        "n": 1
+      },
+      "agent_seconds": {
+        "mean": 33.552,
+        "ci95": null,
+        "n": 1
+      },
+      "within_case_sd": null,
+      "mixed_cases": 0,
+      "cases_with_repeats": 0,
+      "models": [
+        "gpt-6.1-sol"
+      ]
+    }
+  ],
+  "paired": [
+    {
+      "arm": "minimal",
+      "baseline": "none",
+      "pass_rate_diff": {
+        "mean": 0,
+        "ci95": null,
+        "n": 1
+      },
+      "sd_diff": null,
+      "agent_seconds_diff": {
+        "mean": -4.697000000000003,
+        "ci95": null,
+        "n": 1
+      }
+    },
+    {
+      "arm": "bint",
+      "baseline": "none",
+      "pass_rate_diff": {
+        "mean": 0,
+        "ci95": null,
+        "n": 1
+      },
+      "sd_diff": null,
+      "agent_seconds_diff": {
+        "mean": -2.432000000000002,
+        "ci95": null,
+        "n": 1
+      }
+    },
+    {
+      "arm": "bint",
+      "baseline": "minimal",
+      "pass_rate_diff": {
+        "mean": 0,
+        "ci95": null,
+        "n": 1
+      },
+      "sd_diff": null,
+      "agent_seconds_diff": {
+        "mean": 2.2650000000000006,
+        "ci95": null,
+        "n": 1
+      }
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "c7f6ba68ccf02",
+      "split": "validation",
+      "arms": {
+        "bint": {
+          "passed": 1,
+          "graded": 1,
+          "other": 0
+        },
+        "minimal": {
+          "passed": 1,
+          "graded": 1,
+          "other": 0
+        },
+        "none": {
+          "passed": 1,
+          "graded": 1,
+          "other": 0
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "level": "warn",
+      "kind": "ci_unavailable",
+      "detail": "minimal vs none: chỉ 1 tác vụ chấm được ở cả hai nhánh, không tính được khoảng tin cậy"
+    },
+    {
+      "level": "warn",
+      "kind": "ci_unavailable",
+      "detail": "bint vs none: chỉ 1 tác vụ chấm được ở cả hai nhánh, không tính được khoảng tin cậy"
+    },
+    {
+      "level": "warn",
+      "kind": "ci_unavailable",
+      "detail": "bint vs minimal: chỉ 1 tác vụ chấm được ở cả hai nhánh, không tính được khoảng tin cậy"
+    },
+    {
+      "level": "warn",
+      "kind": "no_repeats",
+      "detail": "nhánh none: không tác vụ nào có ≥2 lần lặp chấm được, không đo được độ dao động"
+    },
+    {
+      "level": "warn",
+      "kind": "no_repeats",
+      "detail": "nhánh minimal: không tác vụ nào có ≥2 lần lặp chấm được, không đo được độ dao động"
+    },
+    {
+      "level": "warn",
+      "kind": "no_repeats",
+      "detail": "nhánh bint: không tác vụ nào có ≥2 lần lặp chấm được, không đo được độ dao động"
+    }
+  ],
+  "gate2_diagnosis": {
+    "cause": "measurement",
+    "detail": "đo lường không đủ tin cậy: minimal vs none: chỉ 1 tác vụ chấm được ở cả hai nhánh, không tính được khoảng tin cậy — sửa phép đo, chưa kết luận gì về Bint",
+    "checks": [
+      "độ tin cậy: ci_unavailable"
+    ],
+    "ideal_coverage": 1,
+    "precision": 1,
+    "cited_when_retrieved_in_failures": null
+  }
+}

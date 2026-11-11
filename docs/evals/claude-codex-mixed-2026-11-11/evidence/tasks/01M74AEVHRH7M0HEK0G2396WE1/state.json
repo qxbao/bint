@@ -1,0 +1,105 @@
+{
+ "schema": 1,
+ "id": "01M74AEVHRH7M0HEK0G2396WE1",
+ "status": "failed",
+ "workflow": "b-do",
+ "created_at": "2026-11-11T03:29:38Z",
+ "updated_at": "2026-11-11T03:32:46Z",
+ "base": "e588e16c1c7404e139be9808876344c4dcf75775",
+ "branch": "main",
+ "worktree": "<repo>",
+ "reason": "b-review không ghi kết quả ở lượt này (bint task review)",
+ "resume_from": "in_review",
+ "classification": {
+  "plan": true,
+  "reason": "người dùng chỉ định"
+ },
+ "history": [
+  {
+   "from": "",
+   "to": "created",
+   "at": "2026-11-11T03:29:38Z",
+   "by": "bint",
+   "reason": "tạo tác vụ"
+  },
+  {
+   "from": "created",
+   "to": "planned",
+   "at": "2026-11-11T03:30:23Z",
+   "by": "agent",
+   "reason": "b-req xong"
+  },
+  {
+   "from": "planned",
+   "to": "in_progress",
+   "at": "2026-11-11T03:30:23Z",
+   "by": "agent",
+   "reason": "b-feat bắt đầu"
+  },
+  {
+   "from": "in_progress",
+   "to": "in_review",
+   "at": "2026-11-11T03:31:43Z",
+   "by": "agent",
+   "reason": "b-feat xong"
+  },
+  {
+   "from": "in_review",
+   "to": "failed",
+   "at": "2026-11-11T03:32:46Z",
+   "by": "agent",
+   "reason": "b-review không ghi kết quả ở lượt này (bint task review)"
+  }
+ ],
+ "criteria": [
+  {
+   "index": 1,
+   "met": true,
+   "evidence": "Calc tests include TestAbsZero, TestAbsNegative, TestAbsPositive; go test ./... passed with GOCACHE=/tmp/bint-go-cache",
+   "by": "agent",
+   "at": "2026-11-11T03:31:32Z"
+  },
+  {
+   "index": 2,
+   "met": true,
+   "evidence": "GOCACHE=/tmp/bint-go-cache go test ./... passed; git diff shows only appended code in calc.go and calc_test.go, leaving Add/Negate and existing tests unchanged",
+   "by": "agent",
+   "at": "2026-11-11T03:31:32Z"
+  }
+ ],
+ "verifications": [
+  {
+   "at": "2026-11-11T03:31:43Z",
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "log": "<state>/runtime/tasks/01M74AEVHRH7M0HEK0G2396WE1/logs/verify-1.log",
+   "worktree": "cd6654a20d667504e873709eca85973e",
+   "by": "agent",
+   "run_id": "01M74AEVHRJ9G6RVDY7V0YX325"
+  }
+ ],
+ "errors": [
+  {
+   "step": "b-review",
+   "message": "b-review không ghi kết quả ở lượt này (bint task review)",
+   "at": "2026-11-11T03:32:46Z",
+   "by": "agent",
+   "run_id": "01M74AEVHRJ9G6RVDY7V0YX325"
+  }
+ ],
+ "runs": [
+  "01M74AEVHRJ9G6RVDY7V0YX325",
+  "01M74AEVJNE56Z4NY22E8QPNNB",
+  "01M74AG7A6EM58Y2AEYRA336JE",
+  "01M74AJNSG9KMW5X59ZZPN0W3J"
+ ],
+ "review_rounds": 0,
+ "next_finding": 0,
+ "artifacts": {
+  "plan": "2026-11-11T03:30:10Z",
+  "requirement": "2026-11-11T03:30:03Z",
+  "tasks": "2026-11-11T03:30:13Z"
+ }
+}

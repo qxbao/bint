@@ -1,0 +1,199 @@
+{
+  "source_head": "dff6570896298b7b921fcf124eec8cd26b84530f",
+  "prerequisites": {
+    "quantitative": false,
+    "checks": [
+      {
+        "name": "labeled_runs",
+        "ok": false,
+        "detail": "0 lượt có nhãn trong cửa sổ (cần ≥ 3 trong nhóm tác vụ liên quan; xem từng cơ hội)"
+      },
+      {
+        "name": "evaluation_enabled",
+        "ok": true,
+        "detail": "evolution.evaluation.enabled = true"
+      },
+      {
+        "name": "validation_cases",
+        "ok": false,
+        "detail": "0 tác vụ tập validation đã kiểm chứng (để xác thực ứng viên)"
+      },
+      {
+        "name": "test_cases",
+        "ok": false,
+        "detail": "0 tác vụ tập test đã kiểm chứng; cần ~197 để phát hiện chênh lệch 10 điểm % (độ lệch chuẩn 0.50, giả định thận trọng (chưa đủ dữ liệu))"
+      },
+      {
+        "name": "probe_budget",
+        "ok": false,
+        "detail": "chưa có lịch sử chi phí của harness claude để ước tính vòng Probe"
+      }
+    ],
+    "cases": {},
+    "needed_cases": 197,
+    "estimated_probe_usd": null
+  },
+  "opportunity": {
+    "id": "op-4bf43987",
+    "key": "duplicate:01M72EWWK44WFGJ4Z2T9XFNBNS+01M72EWWMAPCSN6JZ980KY6CB4",
+    "kind": "duplicate",
+    "action": "merge",
+    "generator": "deterministic",
+    "targets": [
+      "01M72EWWK44WFGJ4Z2T9XFNBNS",
+      "01M72EWWMAPCSN6JZ980KY6CB4"
+    ],
+    "supporting_runs": [],
+    "new_evidence": 0,
+    "summary": "01M72EWWK44WFGJ4Z2T9XFNBNS và 01M72EWWMAPCSN6JZ980KY6CB4 cùng loại fact, phạm vi chồng nhau, tiêu đề gần trùng",
+    "ready": true
+  },
+  "proposal_id": "ep_01M72EWWPDFCJVZ2E067DDAKPE",
+  "apply_without_evidence": {
+    "exit": 1,
+    "stdout": "",
+    "stderr": "lỗi: đề xuất ep_01M72EWWPDFCJVZ2E067DDAKPE chưa có kết quả supported, độc lập trên tập test với phiên bản gốc hiện tại; chạy `bint evolve evaluate ep_01M72EWWPDFCJVZ2E067DDAKPE --split test`, hoặc dùng --unverified để áp dụng như đề xuất chưa kiểm chứng (được ghi lại)\n"
+  },
+  "unverified_apply": {
+    "proposal": {
+      "schema": 1,
+      "proposal_id": "ep_01M72EWWPDFCJVZ2E067DDAKPE",
+      "level": "L1",
+      "target_type": "knowledge",
+      "action": "merge",
+      "target_ids": [
+        "01M72EWWK44WFGJ4Z2T9XFNBNS",
+        "01M72EWWMAPCSN6JZ980KY6CB4"
+      ],
+      "base": [
+        {
+          "id": "01M72EWWK44WFGJ4Z2T9XFNBNS",
+          "version": 1,
+          "status": "verified",
+          "sha256": "6be9ec04be7a8c3edaffdd36203472f3a2f8acb8b97df843a7e85a95f65c2850"
+        },
+        {
+          "id": "01M72EWWMAPCSN6JZ980KY6CB4",
+          "version": 1,
+          "status": "verified",
+          "sha256": "d6ea2ece4766e5af14c574c3027a0ea6b9157603b5a72f79eef35886cbd87824"
+        }
+      ],
+      "opportunity": "duplicate:01M72EWWK44WFGJ4Z2T9XFNBNS+01M72EWWMAPCSN6JZ980KY6CB4",
+      "reason": "01M72EWWK44WFGJ4Z2T9XFNBNS và 01M72EWWMAPCSN6JZ980KY6CB4 cùng loại fact, phạm vi chồng nhau, tiêu đề gần trùng",
+      "supporting_runs": [],
+      "expected_benefit": "bớt một mục trùng trong ngữ cảnh; giữ 01M72EWWK44WFGJ4Z2T9XFNBNS",
+      "candidate_changes": [
+        {
+          "op": "update",
+          "item_id": "01M72EWWK44WFGJ4Z2T9XFNBNS",
+          "draft": {
+            "type": "fact",
+            "title": "Database open requires context",
+            "body": "Database operations use an owner-approved context.",
+            "scope": {
+              "paths": [
+                "internal/db/**"
+              ]
+            },
+            "evidence": [
+              "internal/db/db.go:3",
+              "internal/db/db.go:5"
+            ]
+          },
+          "reason": "gộp phạm vi và bằng chứng của 01M72EWWMAPCSN6JZ980KY6CB4"
+        },
+        {
+          "op": "deprecate",
+          "item_id": "01M72EWWMAPCSN6JZ980KY6CB4",
+          "reason": "trùng với 01M72EWWK44WFGJ4Z2T9XFNBNS, đã gộp"
+        }
+      ],
+      "risk_level": "medium",
+      "risk_reasons": [
+        "sửa mục fact đã duyệt (01M72EWWK44WFGJ4Z2T9XFNBNS)",
+        "loại bỏ mục fact đã duyệt (01M72EWWMAPCSN6JZ980KY6CB4)"
+      ],
+      "evaluation_plan": {
+        "kind": "non_inferiority",
+        "metric": "pass_rate",
+        "min_effect": 0.1,
+        "non_inferiority_margin": 0.05,
+        "hypothesis": "gộp mục trùng không làm tỷ lệ đạt giảm quá 5 điểm %",
+        "splits": [
+          "validation",
+          "test"
+        ]
+      },
+      "quantitative": false,
+      "notes": [
+        "chưa được kiểm chứng định lượng: điều kiện tiên quyết chưa đạt (labeled_runs, validation_cases, test_cases, probe_budget); chỉ là đề xuất L1 chờ người duyệt (mục 10.6)"
+      ],
+      "generator": "deterministic",
+      "cost_usd": null,
+      "created_at": "2026-11-10T10:08:43.725Z",
+      "status": "applied",
+      "updated_at": "2026-11-10T10:08:43.725Z"
+    },
+    "adoption_id": "ead_01M72EWWQX52WFGACM6P1SV2AH",
+    "verified": false,
+    "files": [
+      {
+        "path": ".bint/knowledge/items/01M72EWWK44WFGJ4Z2T9XFNBNS.md",
+        "before": "---\nschema: 1\nid: 01M72EWWK44WFGJ4Z2T9XFNBNS\ntype: fact\nstatus: verified\ntitle: Database open requires context\nscope:\n  paths:\n    - internal/db/**\nevidence:\n  - path: internal/db/db.go\n    lines: \"3\"\n    fingerprint: lines:943be965979ec836\norigin:\n  kind: human\n  commit: 1cfc0a48876177daea87e22f8d05f07663d9d4be\nauthor: Acceptance <acceptance@example.test>\nreviewed_by: Acceptance <acceptance@example.test>\nreviewed_at: \"2026-11-10T10:08:43Z\"\nversion: 1\ncreated_at: \"2026-11-10T10:08:43Z\"\nverified_at: \"2026-11-10T10:08:43Z\"\n---\n\nDatabase operations use an owner-approved context.\n",
+        "after": "---\nschema: 1\nid: 01M72EWWK44WFGJ4Z2T9XFNBNS\ntype: fact\nstatus: verified\ntitle: Database open requires context\nscope:\n  paths:\n    - internal/db/**\nevidence:\n  - path: internal/db/db.go\n    lines: \"3\"\n    fingerprint: lines:943be965979ec836\n  - path: internal/db/db.go\n    lines: \"5\"\n    fingerprint: lines:94becda5b0231f9b\norigin:\n  kind: human\n  commit: 1cfc0a48876177daea87e22f8d05f07663d9d4be\nauthor: Acceptance <acceptance@example.test>\nreviewed_by: Acceptance <acceptance@example.test>\nreviewed_at: \"2026-11-10T10:08:43Z\"\nversion: 2\ncreated_at: \"2026-11-10T10:08:43Z\"\nupdated_at: \"2026-11-10T10:08:43Z\"\nverified_at: \"2026-11-10T10:08:43Z\"\nstatus_reason: cập nhật theo đề xuất ep_01M72EWWPDFCJVZ2E067DDAKPE\n---\n\nDatabase operations use an owner-approved context.\n"
+      },
+      {
+        "path": ".bint/knowledge/items/01M72EWWMAPCSN6JZ980KY6CB4.md",
+        "before": "---\nschema: 1\nid: 01M72EWWMAPCSN6JZ980KY6CB4\ntype: fact\nstatus: verified\ntitle: Database open requires a context\nscope:\n  paths:\n    - internal/db/**\nevidence:\n  - path: internal/db/db.go\n    lines: \"3\"\n    fingerprint: lines:943be965979ec836\n  - path: internal/db/db.go\n    lines: \"5\"\n    fingerprint: lines:94becda5b0231f9b\norigin:\n  kind: human\n  commit: 1cfc0a48876177daea87e22f8d05f07663d9d4be\nauthor: Acceptance <acceptance@example.test>\nreviewed_by: Acceptance <acceptance@example.test>\nreviewed_at: \"2026-11-10T10:08:43Z\"\nversion: 1\ncreated_at: \"2026-11-10T10:08:43Z\"\nverified_at: \"2026-11-10T10:08:43Z\"\n---\n\nDatabase operations use an owner-approved context.\n",
+        "after": "---\nschema: 1\nid: 01M72EWWMAPCSN6JZ980KY6CB4\ntype: fact\nstatus: deprecated\ntitle: Database open requires a context\nscope:\n  paths:\n    - internal/db/**\nevidence:\n  - path: internal/db/db.go\n    lines: \"3\"\n    fingerprint: lines:943be965979ec836\n  - path: internal/db/db.go\n    lines: \"5\"\n    fingerprint: lines:94becda5b0231f9b\norigin:\n  kind: human\n  commit: 1cfc0a48876177daea87e22f8d05f07663d9d4be\nauthor: Acceptance <acceptance@example.test>\nreviewed_by: Acceptance <acceptance@example.test>\nreviewed_at: \"2026-11-10T10:08:43Z\"\nversion: 1\ncreated_at: \"2026-11-10T10:08:43Z\"\nupdated_at: \"2026-11-10T10:08:43Z\"\nverified_at: \"2026-11-10T10:08:43Z\"\nstatus_reason: 'đề xuất tiến hoá ep_01M72EWWPDFCJVZ2E067DDAKPE: trùng với 01M72EWWK44WFGJ4Z2T9XFNBNS, đã gộp'\n---\n\nDatabase operations use an owner-approved context.\n"
+      }
+    ],
+    "notes": [
+      "đã áp dụng khi CHƯA được kiểm chứng định lượng; lịch sử ghi rõ điều này",
+      "tệp trong .bint/knowledge/items đã đổi: xem `git diff`, commit để chia sẻ; quay lui bằng `bint evolve rollback ep_01M72EWWPDFCJVZ2E067DDAKPE`"
+    ]
+  },
+  "rollback_restored_exact_files": true,
+  "history": [
+    {
+      "adoption_id": "ead_01M72EWWSZVME5QRCQKHKF0D4J",
+      "proposal_id": "ep_01M72EWWPDFCJVZ2E067DDAKPE",
+      "action": "rollback",
+      "actor": "Acceptance <acceptance@example.test>",
+      "verified": false,
+      "reason": "người dùng quay lui",
+      "created_at": "2026-11-10T10:08:43.839Z",
+      "proposal_action": "merge",
+      "opportunity": "duplicate:01M72EWWK44WFGJ4Z2T9XFNBNS+01M72EWWMAPCSN6JZ980KY6CB4",
+      "items": [
+        "01M72EWWK44WFGJ4Z2T9XFNBNS",
+        "01M72EWWMAPCSN6JZ980KY6CB4"
+      ],
+      "retrieved_since": 0,
+      "cited_since": 0,
+      "generation_cost_usd": null,
+      "probe_cost_usd": null
+    },
+    {
+      "adoption_id": "ead_01M72EWWQX52WFGACM6P1SV2AH",
+      "proposal_id": "ep_01M72EWWPDFCJVZ2E067DDAKPE",
+      "action": "apply",
+      "actor": "Acceptance <acceptance@example.test>",
+      "verified": false,
+      "reason": "người duyệt chấp nhận (chưa kiểm chứng định lượng)",
+      "created_at": "2026-11-10T10:08:43.773Z",
+      "proposal_action": "merge",
+      "opportunity": "duplicate:01M72EWWK44WFGJ4Z2T9XFNBNS+01M72EWWMAPCSN6JZ980KY6CB4",
+      "items": [
+        "01M72EWWK44WFGJ4Z2T9XFNBNS",
+        "01M72EWWMAPCSN6JZ980KY6CB4"
+      ],
+      "retrieved_since": 0,
+      "cited_since": 0,
+      "generation_cost_usd": null,
+      "probe_cost_usd": null
+    }
+  ],
+  "fixture_path": "/tmp/bint-p6-cli-e4v7x618"
+}

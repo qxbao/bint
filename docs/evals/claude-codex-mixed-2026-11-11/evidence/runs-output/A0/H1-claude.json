@@ -1,0 +1,106 @@
+{
+ "duration_api_ms": 7119,
+ "stop_reason": "end_turn",
+ "total_cost_usd": 0.005843330000000001,
+ "usage": {
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 24386,
+  "cache_read_input_tokens": 48103,
+  "output_tokens": 969,
+  "output_tokens_details": {
+   "thinking_tokens": 428
+  },
+  "server_tool_use": {
+   "web_search_requests": 0,
+   "web_fetch_requests": 0
+  },
+  "service_tier": "standard",
+  "cache_creation": {
+   "ephemeral_1h_input_tokens": 24386,
+   "ephemeral_5m_input_tokens": 0
+  },
+  "inference_geo": "global",
+  "iterations": [
+   {
+    "input_tokens": 2,
+    "output_tokens": 579,
+    "cache_read_input_tokens": 24189,
+    "cache_creation_input_tokens": 197,
+    "cache_creation": {
+     "ephemeral_5m_input_tokens": 0,
+     "ephemeral_1h_input_tokens": 197
+    },
+    "type": "message"
+   }
+  ],
+  "speed": "standard",
+  "fallback_credit": null
+ },
+ "modelUsage": {
+  "claude-haiku-5-5": {
+   "inputTokens": 6,
+   "outputTokens": 969,
+   "cacheReadInputTokens": 48103,
+   "cacheCreationInputTokens": 24386,
+   "webSearchRequests": 0,
+   "costUSD": 0.005843330000000001,
+   "contextWindow": 1000000,
+   "maxOutputTokens": 128000,
+   "thinkingTokens": 428,
+   "cacheCreationEphemeral5mInputTokens": 0,
+   "cacheCreationEphemeral1hInputTokens": 24386,
+   "canonicalModel": "claude-haiku-5-5",
+   "provider": "firstParty",
+   "costBasis": "list"
+  }
+ },
+ "permission_denials": [
+  {
+   "tool_name": "Bash",
+   "tool_use_id": "toolu_01NYvQJmz8PUcqzciUaa82E1",
+   "tool_input": {
+    "command": "<BINT> --version",
+    "description": "Show bint version from absolute scratchpad path"
+   }
+  }
+ ],
+ "terminal_reason": "completed",
+ "subagent_stats": {
+  "spawned": 0,
+  "requested": {
+   "background": 0,
+   "foreground": 0,
+   "unset": 0
+  },
+  "started_in_background": 0,
+  "max_depth": 0,
+  "spawned_by_subagents": 0,
+  "completed": 0,
+  "failed": 0,
+  "killed": {
+   "parent": 0,
+   "user": 0,
+   "system": 0
+  },
+  "refused": {
+   "depth_limit": 0,
+   "concurrency_limit": 0,
+   "budget": 0
+  },
+  "by_type": {}
+ },
+ "safety_stops": 0,
+ "is_error": false,
+ "num_turns": 3,
+ "subtype": "success",
+ "api_error_status": null,
+ "result": "**Kết quả:**\n\n1. `bint --version` (PATH): thành công, trả về `bint version 0.1.0-dev`.\n\n2. `<BINT> --version`: **không chạy được**. Lệnh báo `This command requires approval`, tức là bị chặn chờ duyệt quyền, nên chưa có output nào. Theo yêu cầu, tôi không thử cách khác và không chạy lại lệnh này.\n\nNếu bạn muốn kiểm tra binary tuyệt đối, hãy duyệt lệnh đó khi được hỏi, hoặc cho phép quyền chạy binary ở đường dẫn scratchpad rồi bảo tôi chạy lại.",
+ "ttft_ms": 2159,
+ "type": "result",
+ "duration_ms": 8543,
+ "ttft_stream_ms": 1248,
+ "time_to_request_ms": 106,
+ "first_content_frame_ms": 1248,
+ "queued_turn_count": 0,
+ "result_index": 0
+}

@@ -1,0 +1,10 @@
+{
+  "debug_exit": 0,
+  "available_skill_names": [],
+  "user_instruction_canary_present": false,
+  "user_skill_canary_present": false,
+  "auth_logged_in": true,
+  "auth_file_mode": "0o600",
+  "profile_is_source_home": false,
+  "catalogue_rechecked_during_run": true
+}

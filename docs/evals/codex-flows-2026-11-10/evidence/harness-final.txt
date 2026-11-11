@@ -1,0 +1,5 @@
+ok  	bint/internal/harness	0.354s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	(cached)
+ok  	bint/internal/harness/codex	(cached)
+ok  	bint/internal/harness/hookcore	(cached)

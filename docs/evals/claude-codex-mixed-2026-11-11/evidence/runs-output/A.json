@@ -1,0 +1,30 @@
+{
+ "task_id": "01M74AT2NVMZBMRB69MH92H6TH",
+ "run_id": "01M74AT2NV1JNJMAVYWYJJR35P",
+ "task_status": "done",
+ "reason": "b-do finalize",
+ "steps": [
+  {
+   "step": "b-req",
+   "run_id": "01M74AT2PHFAF3WXNXR650RT8Q",
+   "status": "completed",
+   "cost_usd": 0.3171584,
+   "duration": "56s"
+  },
+  {
+   "step": "b-feat",
+   "run_id": "01M74AVS021DY0GSBHSH68FF51",
+   "status": "completed",
+   "cost_usd": null,
+   "duration": "1m35s"
+  },
+  {
+   "step": "b-review",
+   "run_id": "01M74AYP02Q32B609063GTRW16",
+   "status": "completed",
+   "cost_usd": 0.2834478,
+   "duration": "40s"
+  }
+ ],
+ "cost_usd": 0.6006062000000001
+}

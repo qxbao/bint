@@ -1,0 +1,44 @@
+Tác vụ 01M74BFD9EM8XEXRVQRW4EQ3XZ: Làm lần lượt: (1) thêm hàm Sub(a, b int) int vào calc.go kèm TestSub trong calc_test.go; (2) sau đó tạo tệp migrations/002_calc_log.sql chứa đúng một dòng '-- calc log'.
+  Trạng thái: blocked — chưa đủ bằng chứng hoàn thành: tiêu chí 2 chưa đạt
+  Tiếp tục từ: in_review (bint run resume 01M74BFD9EM8XEXRVQRW4EQ3XZ)
+  Workflow:   b-do   base efd685d710 (main)
+  Classify:   người dùng chỉ định
+  Thư mục:    <S>/probe/state/bint/repo-f6c96aad237d/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ
+  Phạm vi:   calc.go, calc_test.go
+  Kiểm chứng: go test ./...  [đã xác nhận]
+  Tiêu chí 1: TestSub qua và go test ./... qua
+  Tiêu chí 2: tệp migrations/002_calc_log.sql tồn tại
+  Autonomy:  ask_on_protected   Rủi ro: high
+! mọi thay đổi chạm đường dẫn được bảo vệ cần người duyệt
+
+Tài liệu:
+  - requirement  <S>/probe/state/bint/repo-f6c96aad237d/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/requirement.md
+  - plan         <S>/probe/state/bint/repo-f6c96aad237d/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/plan.md
+  - tasks        <S>/probe/state/bint/repo-f6c96aad237d/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/tasks.md
+
+Tiêu chí chấp nhận:
+  ✓ 1. TestSub qua và go test ./... qua — GOCACHE=/tmp/bint-ta<key> go test ./... qua (ok probe/calc); TestSub tại calc_test.go:17
+  ✗ 2. tệp migrations/002_calc_log.sql tồn tại — migrations/002_calc_log.sql chưa tạo: đường dẫn thuộc protected migrations/** và nằm ngoài scope.allow (chỉ calc.go, calc_test.go)
+
+Kiểm chứng gần nhất: go test ./... → qua (mã 0)  2026-11-11 10:49
+  log: <S>/probe/state/bint/repo-f6c96aad237d/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/logs/verify-1.log
+
+Review vòng 1 (2026-11-11 10:50): Phần (1) Sub/TestSub đúng, gọn và nằm trong scope; phần (2) migrations/002_calc_log.sql chưa được tạo nên tiêu chí 2 chưa đạt, cần người quyết định vì đường dẫn được bảo vệ và nằm ngoài scope.allow.
+  [01M74BFD9EM8XEXRVQRW4EQ3XZ.1] risk/medium Tiêu chí 2 chưa đạt: migrations/002_calc_log.sql không tồn tại  migrations/002_calc_log.sql
+  [01M74BFD9EM8XEXRVQRW4EQ3XZ.2] suggestion/low TestSub chỉ có một trường hợp  calc_test.go:17-21
+  [01M74BFD9EM8XEXRVQRW4EQ3XZ.3] suggestion/low Chú thích Sub không nêu hành vi tràn số  calc.go:7-8
+  báo cáo: <S>/probe/state/bint/repo-f6c96aad237d/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/review.md
+
+Lỗi / lần thử thất bại:
+  2026-11-11 10:48 [b-feat] go test ./... chưa chạy được do Go cache mặc định /home/user/.cache/go-build chỉ đọc; chạy lại với GOCACHE dưới /tmp
+
+Chưa thể done:
+  - tiêu chí 2 chưa đạt
+
+Lượt chạy: 01M74BFD9E0Q48WZ21D3QZNHZJ 01M74BFDAKDSF545HDRMBEVK1F 01M74BKTHDH18K77JFBRYA7G8X
+
+Lịch sử:
+  2026-11-11 10:47  ∅ → created  (bint) tạo tác vụ
+  2026-11-11 10:47  created → in_progress  (agent) b-feat bắt đầu
+  2026-11-11 10:49  in_progress → in_review  (agent) b-feat xong
+  2026-11-11 10:50  in_review → blocked  (agent) chưa đủ bằng chứng hoàn thành: tiêu chí 2 chưa đạt

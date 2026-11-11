@@ -1,0 +1,6 @@
+{
+  "exit": 1,
+  "sigint_sent": false,
+  "observed_sleep_pids": [],
+  "sleep_pids_running_after_exit": []
+}

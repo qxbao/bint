@@ -6,6 +6,8 @@
 //     công cụ đọc tệp riêng (đọc qua shell) nên chỉ chèn ngữ cảnh trước apply_patch;
 //     additionalContext của PreToolUse được agent nhận (đã thử). Mỗi hook cần được
 //     người dùng duyệt (trust) trong Codex trước khi chạy.
+//     PostToolUse có cả shell fail: exit_code lấy từ transcript cùng tool_use_id;
+//     thiếu bằng chứng thì ghi unknown, không suy thành công từ tên sự kiện.
 //   - MCP: bảng [mcp_servers.bint] trong <repo>/.codex/config.toml — chỉ có hiệu lực
 //     khi dự án được Codex tin cậy (trust_level = "trusted").
 //   - Thực thi: `codex exec --json`, đề bài qua stdin; sandbox workspace-write.
@@ -25,16 +27,18 @@ import (
 
 	"context"
 
+	"bint/internal/detect"
 	"bint/internal/fsafe"
 	"bint/internal/harness/claude"
 	"bint/internal/harness/hookcore"
+	"bint/internal/ulid"
 )
 
 // HarnessName là tên harness trong cấu hình và cơ sở dữ liệu.
 const HarnessName = "codex"
 
-// MCPPrefix: tiền tố tên công cụ MCP của Bint trong payload hook (giả định cùng
-// quy ước với Claude Code; chưa thấy Codex gửi hook cho công cụ MCP).
+// MCPPrefix: tiền tố thật đã bắt từ hook context_for_task/paths/cite_knowledge
+// của Codex 0.167; không suy từ tên tool của Claude Code.
 const MCPPrefix = "mcp__bint__"
 
 var patchFileRe = regexp.MustCompile(`(?m)^\*\*\* (?:Add|Update|Delete) File: (.+?)\s*$|^\*\*\* Move to: (.+?)\s*$`)
@@ -104,7 +108,22 @@ func shellCommand(v any) string {
 // bằng `bint task approve` (BINT_APPROVED_PATHS) rồi chạy lại.
 var Dialect = hookcore.Dialect{
 	Harness: HarnessName, Classify: Classify, InjectRead: false, InjectEdit: true,
-	PreToolOutput: hookcore.ClaudeStylePreToolOutput("deny"),
+	PreToolOutput:     hookcore.ClaudeStylePreToolOutput("deny"),
+	ProtectedPathHelp: approvalHelp,
+	PostToolOutcome:   postToolOutcome,
+	IsTestCommand:     detect.IsExecutedTestCommand,
+}
+
+func approvalHelp(paths []string) string {
+	id := os.Getenv("BINT_TASK_ID")
+	if !ulid.Valid(id) {
+		return ""
+	}
+	cmd := "bint task approve " + id
+	for _, path := range paths {
+		cmd += " --path '" + strings.ReplaceAll(path, "'", "'\\''") + "'"
+	}
+	return " Hook đã chặn trước khi có diff; người dùng chạy `" + cmd + "`, rồi `bint run resume " + id + "`. Agent không được tự duyệt."
 }
 
 // HandleHook đọc dữ liệu hook Codex từ in và xử lý.
@@ -171,12 +190,18 @@ func desiredGroups(cmd string) map[string]map[string]any {
 		}
 		return g
 	}
-	return map[string]map[string]any{
+	groups := map[string]map[string]any{
 		"SessionStart": group(""),
 		"SessionEnd":   group(""),
 		"PreToolUse":   group("apply_patch|Bash|shell|exec_command"),
 		"PostToolUse":  group("apply_patch|Bash|shell|exec_command|mcp__bint__.*"),
 	}
+	// Codex 0.167 giới hạn SessionEnd ở 3 giây; không dùng chung bản đồ h
+	// để giữ timeout của các sự kiện còn lại ở 10 giây.
+	groups["SessionEnd"]["hooks"] = []any{map[string]any{
+		"type": "command", "command": cmd, "timeout": 3,
+	}}
+	return groups
 }
 
 // InstallHooks thêm (hoặc cập nhật) hook của Bint trong hooks.json, giữ nguyên hook khác.
@@ -194,20 +219,11 @@ func HooksInstalled(path string) (bool, error) {
 	return claude.HooksPresent(path, desiredGroups("x"), isBintHook)
 }
 
-// HooksTrusted cho biết người dùng đã duyệt (trust) ít nhất một hook trong tệp path
-// trong Codex (bảng [hooks.state] của ~/.codex/config.toml). Codex lưu băm nội
-// dung: hook đã đổi sau khi duyệt sẽ cần duyệt lại, Bint không kiểm tra được băm.
+// HooksTrusted kiểm tra mọi hook Bint trong file bằng metadata/hash của Codex.
+// Caller có root/binary tuỳ chỉnh nên dùng InspectHookTrust để nhận lý do lỗi.
 func HooksTrusted(path string) bool {
-	h, err := Home()
-	if err != nil {
-		return false
-	}
-	b, err := os.ReadFile(filepath.Join(h, "config.toml"))
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(b), `[hooks.state."`+filepath.ToSlash(path)+`:`) ||
-		strings.Contains(string(b), `[hooks.state."`+path+`:`)
+	r, err := InspectHookTrust(context.Background(), "", filepath.Dir(filepath.Dir(path)), path)
+	return err == nil && r.AllTrusted()
 }
 
 // ProjectTrusted cho biết repository được Codex tin cậy (cần cho .codex/config.toml
@@ -245,6 +261,7 @@ func ConfigPath(repoRoot string) string { return filepath.Join(repoRoot, ".codex
 const MCPServerName = "bint"
 
 var mcpTableRe = regexp.MustCompile(`(?m)^\s*\[mcp_servers\.(?:bint|"bint")\]`)
+var mcpNamespaceRe = regexp.MustCompile(`(?m)^\s*\[mcp_servers\.(?:bint|"bint")(?:\]|\.)`)
 
 // MCPBlock là nội dung khối Bint trong .codex/config.toml.
 func MCPBlock(bintPath string) string {
@@ -254,7 +271,33 @@ func MCPBlock(bintPath string) string {
 	}
 	b, _ := json.Marshal(filepath.ToSlash(cmd))
 	return "# Do Bint quản lý (bint init --mcp): MCP server của Context Engine.\n" +
-		"[mcp_servers.bint]\ncommand = " + string(b) + "\nargs = [\"mcp\", \"serve\"]"
+		"[mcp_servers.bint]\ncommand = " + string(b) + "\nargs = [\"mcp\", \"serve\"]\n\n" +
+		"# Chỉ ghi trích dẫn đã kiểm tra; không tự duyệt tool tạo/sửa tri thức.\n" +
+		"[mcp_servers.bint.tools.cite_knowledge]\napproval_mode = \"approve\""
+}
+
+// CitationApprovalConfigured xác minh khai báo tường minh trong cấu hình dự án.
+// Không suy đoán chính sách kế thừa ở cấp user/managed; doctor báo chưa xác minh
+// nếu người dùng chọn một cách viết TOML khác (ví dụ bảng inline).
+func CitationApprovalConfigured(repoRoot string) bool {
+	b, err := os.ReadFile(ConfigPath(repoRoot))
+	if err != nil {
+		return false
+	}
+	section := false
+	header := regexp.MustCompile(`^\[mcp_servers\.(?:bint|"bint")\.tools\.(?:cite_knowledge|"cite_knowledge")\]\s*(?:#.*)?$`)
+	approved := regexp.MustCompile(`^approval_mode\s*=\s*(?:"approve"|'approve')\s*(?:#.*)?$`)
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "[") {
+			section = header.MatchString(line)
+			continue
+		}
+		if section && approved.MatchString(line) {
+			return true
+		}
+	}
+	return false
 }
 
 // InstallMCP thêm (install = true) hoặc gỡ khối [mcp_servers.bint] trong
@@ -270,8 +313,8 @@ func InstallMCP(repoRoot, bintPath, backupDir string, m *fsafe.Manifest, install
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fsafe.Result{}, err
 	}
-	if mcpTableRe.MatchString(outsideBlock(string(raw))) {
-		return fsafe.Result{Outcome: fsafe.Conflict, Detail: p + " đã có bảng [mcp_servers.bint] ngoài khối bint; gỡ nó hoặc để nguyên (Bint không ghi đè)"}, nil
+	if mcpNamespaceRe.MatchString(outsideBlock(string(raw))) {
+		return fsafe.Result{Outcome: fsafe.Conflict, Detail: p + " đã có bảng của mcp_servers.bint ngoài khối bint (kể cả bảng con tools); giữ nguyên cấu hình thủ công hoặc gỡ phần đó trước khi cài lại (Bint không ghi đè)"}, nil
 	}
 	return fsafe.SyncBlock(req)
 }

@@ -77,7 +77,8 @@ func AcquireWriteLock(tasksDir, root, owner string) (*WriteLock, error) {
 			f.Close() // chủ trước vừa xoá tệp khi trả khoá; mở lại
 			continue
 		}
-		if err := f.Truncate(0); err == nil {
+		err = f.Truncate(0)
+		if err == nil {
 			_, err = f.WriteAt([]byte(content), 0)
 		}
 		if err != nil {

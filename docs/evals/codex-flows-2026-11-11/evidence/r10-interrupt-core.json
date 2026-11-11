@@ -1,0 +1,17 @@
+{
+  "task_id": "01M73CSZFCZCY3HBVYWHR9J1PV",
+  "run_id": "01M73CSZFCZTVZJD1C9DB72M3C",
+  "task_status": "interrupted",
+  "reason": "người dùng huỷ trong bước b-req",
+  "steps": [
+    {
+      "step": "b-req",
+      "run_id": "01M73CSZH1PR85PM4611GKA7Q6",
+      "status": "interrupted",
+      "cost_usd": null,
+      "duration": "8s",
+      "error": "context canceled"
+    }
+  ],
+  "cost_usd": null
+}

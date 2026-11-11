@@ -671,7 +671,8 @@ bint knowledge add --from-review <id>. Báo cáo Markdown: review.md trong thư 
 }
 
 func newTaskApproveCmd(stdio IO) *cobra.Command {
-	return &cobra.Command{
+	var paths []string
+	c := &cobra.Command{
 		Use:   "approve <task-id>",
 		Short: "Người xác nhận lệnh kiểm chứng và duyệt thay đổi đang chờ (đường dẫn bảo vệ/deny)",
 		Long: `Chỉ người dùng (không chạy được từ trong phiên agent):
@@ -689,7 +690,7 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 				_, k := app.InAgentSession()
 				return fmt.Errorf("%w (`bint task approve`; phát hiện biến %s)", app.ErrAgentForbidden, k)
 			}
-			t, a, err := env.Approve(args[0])
+			t, a, err := env.Approve(args[0], paths...)
 			if err != nil {
 				return err
 			}
@@ -709,6 +710,8 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 			return nil
 		},
 	}
+	c.Flags().StringArrayVar(&paths, "path", nil, "duyệt trước một tệp cụ thể khi hook đã chặn trước lúc tạo/sửa (lặp lại được, không dùng glob); resume sẽ chạy lại b-feat")
+	return c
 }
 
 func newTaskTransitionsCmd(stdio IO) *cobra.Command {
