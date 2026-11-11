@@ -1,0 +1,30 @@
+{
+ "task_id": "01M74AEVHRH7M0HEK0G2396WE1",
+ "run_id": "01M74AEVHRJ9G6RVDY7V0YX325",
+ "task_status": "failed",
+ "reason": "b-review không ghi kết quả ở lượt này (bint task review)",
+ "steps": [
+  {
+   "step": "b-req",
+   "run_id": "01M74AEVJNE56Z4NY22E8QPNNB",
+   "status": "completed",
+   "cost_usd": 0.2984882,
+   "duration": "45s"
+  },
+  {
+   "step": "b-feat",
+   "run_id": "01M74AG7A6EM58Y2AEYRA336JE",
+   "status": "completed",
+   "cost_usd": null,
+   "duration": "1m20s"
+  },
+  {
+   "step": "b-review",
+   "run_id": "01M74AJNSG9KMW5X59ZZPN0W3J",
+   "status": "completed",
+   "cost_usd": 0.35084579999999993,
+   "duration": "1m2s"
+  }
+ ],
+ "cost_usd": 0.6493339999999999
+}

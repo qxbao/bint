@@ -1,0 +1,2 @@
+✓ Xác nhận lệnh kiểm chứng: test -f migrations/001.sql
+Tiếp tục: bint run resume 01M72Y6VA6NQ42T45QCVDXBF50

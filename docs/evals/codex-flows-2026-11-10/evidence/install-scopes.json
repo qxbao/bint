@@ -1,0 +1,20 @@
+[
+  {
+    "scope": "local",
+    "init_exit": 1,
+    "idempotent": true,
+    "foreign_hook_kept": true,
+    "uninstall_foreign_only": true,
+    "foreign_config_kept": true,
+    "hook_ignored": true
+  },
+  {
+    "scope": "project",
+    "init_exit": 1,
+    "idempotent": true,
+    "foreign_hook_kept": true,
+    "uninstall_foreign_only": true,
+    "foreign_config_kept": true,
+    "hook_ignored": false
+  }
+]

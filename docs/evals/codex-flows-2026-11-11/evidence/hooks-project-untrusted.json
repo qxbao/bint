@@ -1,0 +1,34 @@
+{
+  "id": 2,
+  "result": {
+    "data": [
+      {
+        "cwd": "/probe/repo",
+        "hooks": [
+          {
+            "key": "/probe/repo/.codex/profile/hooks.json:pre_tool_use:0:0",
+            "eventName": "preToolUse",
+            "handlerType": "command",
+            "command": "printf foreign",
+            "async": false,
+            "matcher": "foreign_tool",
+            "timeoutSec": 600,
+            "statusMessage": null,
+            "additionalContextLimit": null,
+            "sourcePath": "/probe/repo/.codex/profile/hooks.json",
+            "source": "user",
+            "pluginId": null,
+            "environmentId": null,
+            "displayOrder": 0,
+            "enabled": true,
+            "isManaged": false,
+            "currentHash": "sha256:87ffd35bb486d8562cb78482a41e625b66a93fc91508bfb5236731108bbc38f3",
+            "trustStatus": "trusted"
+          }
+        ],
+        "warnings": [],
+        "errors": []
+      }
+    ]
+  }
+}

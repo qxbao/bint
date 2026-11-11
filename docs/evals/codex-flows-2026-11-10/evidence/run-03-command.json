@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "codex",
+    "--no-daemon",
+    "-a",
+    "never",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "-m",
+    "gpt-6.1-sol",
+    "-c",
+    "model_reasoning_effort=\"low\"",
+    "-c",
+    "projects.\"/probe/repo\".trust_level=\"trusted\"",
+    "--cd",
+    "/probe/repo",
+    "--dangerously-bypass-hook-trust",
+    "-"
+  ],
+  "prompt": "Using apply_patch add probe.txt containing ok. Run shell command: GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./... . Reply briefly. No skills needed.\n"
+}

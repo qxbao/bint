@@ -1,0 +1,48 @@
+{
+ "schema": 1,
+ "id": "01M74A9A4KNYXFZXK6BETA8T8Z",
+ "status": "failed",
+ "workflow": "b-do",
+ "created_at": "2026-11-11T03:26:36Z",
+ "updated_at": "2026-11-11T03:26:56Z",
+ "base": "e588e16c1c7404e139be9808876344c4dcf75775",
+ "branch": "main",
+ "worktree": "<repo>",
+ "reason": "b-req không ghi tài liệu nào (requirement/plan/tasks)",
+ "resume_from": "created",
+ "classification": {
+  "plan": true,
+  "reason": "người dùng chỉ định"
+ },
+ "history": [
+  {
+   "from": "",
+   "to": "created",
+   "at": "2026-11-11T03:26:36Z",
+   "by": "bint",
+   "reason": "tạo tác vụ"
+  },
+  {
+   "from": "created",
+   "to": "failed",
+   "at": "2026-11-11T03:26:56Z",
+   "by": "agent",
+   "reason": "b-req không ghi tài liệu nào (requirement/plan/tasks)"
+  }
+ ],
+ "errors": [
+  {
+   "step": "b-req",
+   "message": "b-req không ghi tài liệu nào (requirement/plan/tasks)",
+   "at": "2026-11-11T03:26:56Z",
+   "by": "agent",
+   "run_id": "01M74A9A4K7F60MEYPBCVKTTXD"
+  }
+ ],
+ "runs": [
+  "01M74A9A4K7F60MEYPBCVKTTXD",
+  "01M74A9A5AT9AVDMBGF7XXQBG1"
+ ],
+ "review_rounds": 0,
+ "next_finding": 0
+}

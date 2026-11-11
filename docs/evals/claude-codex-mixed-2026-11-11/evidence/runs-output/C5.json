@@ -1,0 +1,27 @@
+{
+ "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
+ "run_id": "01M74DBC83MTKXKHAN12KA0M9M",
+ "task_status": "done",
+ "reason": "b-do finalize",
+ "steps": [
+  {
+   "step": "b-feat",
+   "run_id": "01M74DBC8HT3PYQR6TKMDR7VGD",
+   "status": "completed",
+   "cost_usd": null,
+   "duration": "1m10s"
+  },
+  {
+   "step": "b-review",
+   "run_id": "01M74DDGXHEPZKGCN8FNA8ME4J",
+   "status": "completed",
+   "cost_usd": 0.3466374,
+   "duration": "59s"
+  }
+ ],
+ "cost_usd": null,
+ "cost_usd_partial": 0.3466374,
+ "notes": [
+  "mọi thay đổi chạm đường dẫn được bảo vệ cần người duyệt"
+ ]
+}

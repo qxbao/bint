@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "codex",
+    "--no-daemon",
+    "-a",
+    "never",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--ignore-rules",
+    "-m",
+    "gpt-6.1-sol",
+    "-c",
+    "model_reasoning_effort=\"low\"",
+    "-c",
+    "projects.\"/probe/repo\".trust_level=\"trusted\"",
+    "--cd",
+    "/probe/repo",
+    "--dangerously-bypass-hook-trust",
+    "-"
+  ],
+  "prompt": "Throwaway diagnostic, skip other skills. Use apply_patch to update hookcheck.txt from ok2 to ok3. Do not query MCP until after the patch. Afterward call Bint cite_knowledge for ID 01M72XFGKDZCCGXKWQXJZ54SKB once. Do not change config. Report any marker injected before the patch and whether citation worked. Brief response.\n"
+}

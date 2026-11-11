@@ -1,0 +1,58 @@
+{
+  "new": [
+    {
+      "Schema": 1,
+      "ID": "c7f6ba68ccf02",
+      "Status": "candidate",
+      "Split": "",
+      "Source": {
+        "Commit": "7f6ba68ccf02bc0ea470a9e6b229221998f6d29a",
+        "Base": "45e89ac8e44fe21d26639b76f7fdca2dde2c5130",
+        "Author": "Bint Probe \u003cprobe@example.invalid\u003e",
+        "Date": "2026-11-10T21:33:51+07:00",
+        "Subject": "Fix Sum to return the arithmetic sum of its two integer arguments, including negative values. Preserve the exported signature."
+      },
+      "Prompt": "Fix Sum to return the arithmetic sum of its two integer arguments, including negative values. Preserve the exported signature.",
+      "OriginalMessage": "Fix Sum to return the arithmetic sum of its two integer arguments, including negative values. Preserve the exported signature.",
+      "TestFiles": [
+        "sum_test.go"
+      ],
+      "SourceFiles": [
+        "sum.go"
+      ],
+      "AuxFiles": null,
+      "Stats": {
+        "Files": 2,
+        "SourceLines": 2,
+        "TestLines": 1
+      },
+      "TestCommand": "",
+      "Leak": {
+        "Status": "pass",
+        "Findings": null
+      },
+      "Spec": {
+        "Status": "pass",
+        "Interface": null,
+        "Findings": null
+      },
+      "Verification": {
+        "Status": "verified",
+        "FailBefore": true,
+        "PassAfter": true,
+        "AfterRuns": 2,
+        "Detail": "",
+        "TestCommand": "GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./...",
+        "VerifiedAt": "2026-11-10T14:33:51Z"
+      },
+      "MinedAt": "2026-11-10T14:33:51Z",
+      "ReviewedBy": "",
+      "ReviewedAt": "",
+      "RejectReason": ""
+    }
+  ],
+  "scanned": 2,
+  "skipped": {
+    "commit gốc (không có commit cha)": 1
+  }
+}

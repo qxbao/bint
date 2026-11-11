@@ -78,12 +78,15 @@ type StepResult struct {
 
 // Result là kết quả một lượt điều phối.
 type Result struct {
-	TaskID  string       `json:"task_id"`
-	RunID   string       `json:"run_id"`
-	Status  string       `json:"task_status"`
-	Reason  string       `json:"reason,omitempty"`
-	Steps   []StepResult `json:"steps"`
-	CostUSD *float64     `json:"cost_usd"`
+	TaskID string       `json:"task_id"`
+	RunID  string       `json:"run_id"`
+	Status string       `json:"task_status"`
+	Reason string       `json:"reason,omitempty"`
+	Steps  []StepResult `json:"steps"`
+	// CostUSD là tổng chi phí của lượt điều phối, chỉ khi MỌI bước đều báo chi phí; nếu có
+	// bước không báo (vd. Codex) thì null, phần đã biết nằm ở CostPartialUSD.
+	CostUSD        *float64 `json:"cost_usd"`
+	CostPartialUSD *float64 `json:"cost_usd_partial,omitempty"`
 	// Questions: câu hỏi chờ người trả lời (tác vụ blocked).
 	Questions []string `json:"questions,omitempty"`
 	Notes     []string `json:"notes,omitempty"`
@@ -98,6 +101,8 @@ type runState struct {
 	res       *Result
 	spent     float64
 	costKnown bool
+	// costMissing: có bước chạy xong mà harness không báo chi phí.
+	costMissing bool
 	// turns: tổng số lượt agent đã dùng trong lượt điều phối (chỉ tính bước báo num_turns).
 	turns        int64
 	limit        config.PerRunLimits
@@ -155,7 +160,14 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if task.Terminal(t.State.Status) {
 			return nil, fmt.Errorf("tác vụ %s đã %s", t.State.ID, t.State.Status)
 		}
-		if o.Workflow == StepReq && !slices.Contains([]string{task.StatusCreated, task.StatusPlanned}, t.State.Status) {
+		planningState := t.State.Status
+		if o.Resume && task.Paused(planningState) {
+			planningState = t.State.ResumeFrom
+			if planningState == "" {
+				planningState = task.StatusCreated
+			}
+		}
+		if o.Workflow == StepReq && !slices.Contains([]string{task.StatusCreated, task.StatusPlanned}, planningState) {
 			return nil, fmt.Errorf("b-req chỉ chạy trên tác vụ created/planned (đang %s)", t.State.Status)
 		}
 		if !o.Resume && task.Paused(t.State.Status) {
@@ -565,6 +577,8 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	if res.CostUSD != nil {
 		rs.spent += *res.CostUSD
 		rs.costKnown = true
+	} else {
+		rs.costMissing = true
 	}
 	if res.NumTurns != nil {
 		rs.turns += *res.NumTurns
@@ -917,9 +931,15 @@ func (r *Runner) finish(rs *runState) {
 		}
 	}
 	if rs.costKnown {
-		payload["cost_usd"] = rs.spent
 		c := rs.spent
-		rs.res.CostUSD = &c
+		if rs.costMissing {
+			// Tổng một phần không được trình bày như tổng thật (thiếu = unknown, không phải 0).
+			payload["cost_usd_partial"] = c
+			rs.res.CostPartialUSD = &c
+		} else {
+			payload["cost_usd"] = c
+			rs.res.CostUSD = &c
+		}
 	}
 	r.emitRun(rs.runID, spool.WorkflowFinished, payload)
 	rs.res.Status = st.Status
@@ -984,6 +1004,19 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 	}
 	switch step {
 	case StepFeat:
+		// Chạy lại sau khi bị chặn: tiêu chí còn unmet mang bằng chứng cũ; agent phải ghi lại.
+		var unmet []string
+		for i, c := range t.Ticket.Verify.Criteria {
+			if st := t.State.CriterionStatus(i + 1); st != nil && !st.Met {
+				unmet = append(unmet, fmt.Sprintf("%d. %s — bằng chứng cũ: %s", i+1, c, truncate(strings.TrimSpace(st.Evidence), 300)))
+			}
+		}
+		if len(unmet) > 0 {
+			fmt.Fprintf(&b, "\nTiêu chí chưa đạt từ lượt trước (bằng chứng cũ có thể đã lỗi thời):\n- %s\n"+
+				"Xử lý phần còn thiếu (đừng làm lại phần đã xong), rồi ghi lại MỌI tiêu chí trên bằng "+
+				"`bint task criteria <id> <số> met|unmet --evidence \"…\"`. Lệnh này không nằm trong các lệnh bị cấm ở trên; "+
+				"không ghi lại thì tác vụ không hoàn tất được.\n", strings.Join(unmet, "\n- "))
+		}
 		if rev, err := t.LoadReview(); err == nil {
 			if last := rev.Last(); last != nil && len(last.Blocking()) > 0 && t.State.Status == task.StatusInProgress {
 				fmt.Fprintf(&b, "\nPhát hiện review vòng %d cần xử lý:\n", last.Round)

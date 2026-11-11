@@ -1,0 +1,8 @@
+{
+  "items_dir": "/state/eval-project/eval-work/logs/eb_01M72Y34NDFVVBHXVQ9YFW2N80/c7f6ba68ccf02-bint-1/knowledge/items",
+  "root": "/state/eval-project/eval-work/runs/eb_01M72Y34NDFVVBHXVQ9YFW2N80/c7f6ba68ccf02-bint-1",
+  "log": "/state/eval-project/eval-work/logs/eb_01M72Y34NDFVVBHXVQ9YFW2N80/c7f6ba68ccf02-bint-1/context.jsonl",
+  "exclude_eval_case": "c7f6ba68ccf02",
+  "max_tokens": 6000,
+  "path_max_items": 5
+}

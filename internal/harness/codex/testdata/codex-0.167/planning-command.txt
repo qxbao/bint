@@ -1,0 +1,29 @@
+/probe/bint task set 01M73C00JVVYRWY2Z7J770TKZV --criteria 'calc.go exports Negate(n int) int returning -n using Go int semantics.' --criteria 'calc_test.go tests Negate(4) == -4 and Negate(-3) == 3; the Go test suite passes.' --allow calc.go --allow calc_test.go
+/probe/bint task write 01M73C00JVVYRWY2Z7J770TKZV requirement - <<'EOF'
+# Requirement
+## Goal and scope
+Add integer negation; source scope is exactly calc.go and calc_test.go.
+## Functional requirements
+Export Negate(n int) int returning -n using Go int semantics.
+## Acceptance criteria
+- [ ] calc.go exports Negate(n int) int returning -n using Go int semantics.
+- [ ] calc_test.go tests Negate(4) == -4 and Negate(-3) == 3; the Go test suite passes.
+## Out of scope
+Other files, API changes, and custom overflow handling. This task stage only writes planning artifacts.
+## Open questions
+None.
+EOF
+/probe/bint task write 01M73C00JVVYRWY2Z7J770TKZV plan - <<'EOF'
+# Plan
+Implement Negate in calc.go with unary minus for direct Go int negation. Add TestNegate in calc_test.go covering 4 → -4 and -3 → 3; preserve TestAdd.
+Risk: minimum int cannot have a positive int counterpart; retain native Go arithmetic semantics.
+Verification after implementation: GOTOOLCHAIN=local GOCACHE=$PWD/.cache/go go test ./... (already confirmed). No tests run during planning.
+EOF
+/probe/bint task write 01M73C00JVVYRWY2Z7J770TKZV tasks - <<'EOF'
+# Tasks
+- [ ] Add Negate in calc.go — done when the exported signature is Negate(n int) int and it returns -n.
+- [ ] Add TestNegate in calc_test.go — done when both required cases are asserted.
+- [ ] Format the two scoped files and run the confirmed verification command — done when tests pass and source changes are confined to calc.go and calc_test.go.
+EOF
+/probe/bint task status 01M73C00JVVYRWY2Z7J770TKZV planned --reason 'Requirement, plan, and tasks documented; source unchanged.'
+git diff --exit-code -- calc.go calc_test.go

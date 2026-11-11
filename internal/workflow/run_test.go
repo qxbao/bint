@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -15,10 +16,47 @@ import (
 	adapters "bint/internal/harness"
 	"bint/internal/knowledge"
 	"bint/internal/runlog"
+	"bint/internal/spool"
 	"bint/internal/store"
 	"bint/internal/task"
 	"bint/internal/testutil"
 )
+
+func TestResumeInterruptedPlannerFromRealCodexState(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	ctx := context.Background()
+	tk, _, err := r.NewTask(ctx, NewTaskOptions{Workflow: StepReq, Request: "Plan documenting Add"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile("testdata/codex-interrupted-planner.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observed struct {
+		Status     string `json:"status"`
+		ResumeFrom string `json:"resume_from"`
+	}
+	if err = json.Unmarshal(b, &observed); err != nil {
+		t.Fatal(err)
+	}
+	if observed.Status != task.StatusInterrupted || observed.ResumeFrom != task.StatusCreated {
+		t.Fatal("fixture không phải planner bị Ctrl-C")
+	}
+	_, err = h.tasks.Update(tk.State.ID, time.Now(), func(tk *task.Task) error {
+		tk.State.Status = observed.Status
+		tk.State.ResumeFrom = observed.ResumeFrom
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Run(ctx, RunOptions{Workflow: StepReq, TaskRef: tk.State.ID, Resume: true})
+	if err != nil || res.Status != task.StatusPlanned || strings.Join(h.calls, ",") != "b-req" {
+		t.Fatalf("không tiếp tục được planner: %+v %v calls=%v", res, err, h.calls)
+	}
+}
 
 var stepRe = regexp.MustCompile(`step="([a-z-]+)"`)
 
@@ -68,6 +106,8 @@ type harness struct {
 	behave  func(ctx context.Context, step string, e *Env, taskID string) error
 	limits  []*float64
 	cost    *float64
+	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.
+	costFor func(step string) *float64
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
 	turns      *int64
 	turnLimits []*int
@@ -141,7 +181,11 @@ func (h *harness) runner() *Runner {
 	return &Runner{Env: env, Agent: func(step string, maxCost *float64, maxTurns *int) (eval.Agent, error) {
 		h.limits = append(h.limits, maxCost)
 		h.turnLimits = append(h.turnLimits, maxTurns)
-		return &fakeAgent{h: h, cost: h.cost, turns: h.turns}, nil
+		cost := h.cost
+		if h.costFor != nil {
+			cost = h.costFor(step)
+		}
+		return &fakeAgent{h: h, cost: cost, turns: h.turns}, nil
 	}}
 }
 
@@ -254,6 +298,33 @@ func TestProtectedPathBlocksThenResumeWithoutRerunningFeat(t *testing.T) {
 	m, _ := runlog.GetRunMeta(ctx, s.DB, res2.RunID)
 	if m.ParentRunID.String == "" {
 		t.Fatal("lượt tiếp tục phải có parent_run_id")
+	}
+}
+
+func TestApproveUnwrittenPathRerunsFeat(t *testing.T) {
+	h := newHarness(t)
+	// Như Codex đã bị deny thật: bước kết thúc nhưng chưa có diff.
+	h.behave = func(context.Context, string, *Env, string) error { return nil }
+	r := h.runner()
+	ctx := context.Background()
+	res, err := r.Run(ctx, RunOptions{Workflow: StepDo, Request: "Create a migration", Plan: ptr(false), NoReview: true})
+	if err != nil || res.Status != task.StatusBlocked {
+		t.Fatalf("blocked: %+v %v", res, err)
+	}
+	if _, a, err := r.Approve(res.TaskID, "migrations/002.sql"); err != nil || len(a.Paths) != 1 {
+		t.Fatalf("approve: %+v %v", a, err)
+	}
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		tk, _ := h.tasks.Load(id)
+		if !strings.Contains(strings.Join(ApprovedPaths(tk), ","), "migrations/002.sql") {
+			t.Fatal("mất duyệt đường dẫn")
+		}
+		h.write("migrations/002.sql", "SELECT 1;\n")
+		return h.happy(ctx, step, e, id)
+	}
+	res, err = r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true, NoReview: true})
+	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-feat" {
+		t.Fatalf("resume: %+v %v, calls=%v", res, err, h.calls)
 	}
 }
 
@@ -574,5 +645,108 @@ func TestDoneRechecksProtectedPathsFromDiff(t *testing.T) {
 	t3, _ := h.tasks.Load(res.TaskID)
 	if pend, _ := human.UnapprovedChanges(ctx, t3); len(pend) != 0 {
 		t.Fatalf("đã duyệt mà vẫn chặn: %v", pend)
+	}
+}
+
+// Thực tế (Claude lập kế hoạch/review, Codex thực thi): Codex không báo chi phí. Tổng của
+// b-do không được trình bày như tổng thật khi thiếu một bước; chi phí đã biết ghi riêng.
+func TestBDoCostIsNullWhenAStepDoesNotReportCost(t *testing.T) {
+	h := newHarness(t)
+	h.costFor = func(step string) *float64 {
+		if step == StepFeat {
+			return nil
+		}
+		c := 0.3
+		return &c
+	}
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng mới"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.CostUSD != nil {
+		t.Fatalf("tổng một phần bị trình bày như tổng thật: %v", *res.CostUSD)
+	}
+	if res.CostPartialUSD == nil || *res.CostPartialUSD < 0.59 || *res.CostPartialUSD > 0.61 {
+		t.Fatalf("chi phí đã biết: %v", res.CostPartialUSD)
+	}
+	for _, st := range res.Steps {
+		if (st.Step == StepFeat) != (st.CostUSD == nil) {
+			t.Fatalf("chi phí từng bước: %+v", st)
+		}
+	}
+	files, _ := filepath.Glob(filepath.Join(h.spool, "*.jsonl"))
+	seen := false
+	for _, f := range files {
+		evs, err := spool.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ev := range evs {
+			if ev.RunID == res.RunID && ev.Type == spool.WorkflowFinished {
+				seen = true
+				if _, ok := ev.Payload["cost_usd"]; ok {
+					t.Fatalf("workflow.finished của b-do có cost_usd dù thiếu một bước: %v", ev.Payload)
+				}
+				if ev.Payload["cost_usd_partial"] == nil {
+					t.Fatalf("thiếu cost_usd_partial: %v", ev.Payload)
+				}
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("không thấy workflow.finished của b-do")
+	}
+}
+
+// Thực tế (C2, Codex thật): sau khi được duyệt và chạy lại b-feat, agent làm xong phần còn
+// thiếu nhưng không ghi lại tiêu chí 2 vì hiểu rộng "không gọi bint task status/approve/verify";
+// tiêu chí giữ bằng chứng cũ "chưa tạo" và task kẹt blocked. Prompt b-feat chạy lại phải nêu
+// tiêu chí còn unmet cùng bằng chứng cũ và nhắc ghi lại bằng `bint task criteria`.
+func TestFeatPromptListsUnmetCriteriaOnRerun(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	calls := 0
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepFeat {
+			calls++
+			h.write("app.txt", "v2\n")
+			h.write("done.txt", "ok\n")
+			if calls == 1 {
+				if _, err := e.CheckCriterion(id, 1, true, "app.txt đã đổi"); err != nil {
+					return err
+				}
+				_, err := e.CheckCriterion(id, 2, false, "tệp mới chưa tạo: cần duyệt")
+				return err
+			}
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	r := h.runner()
+	res, err := r.Run(ctx, RunOptions{Workflow: StepDo, Request: "Đổi app.txt và tạo tệp mới", Plan: ptr(false),
+		Edit: TicketEdit{Criteria: []string{"app.txt đã đổi", "tệp mới tồn tại"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != task.StatusBlocked {
+		t.Fatalf("tiêu chí unmet phải chặn: %+v", res)
+	}
+	first := h.prompts[StepFeat]
+	if strings.Contains(first, "Tiêu chí chưa đạt") {
+		t.Fatalf("lượt đầu chưa có trạng thái tiêu chí:\n%s", first)
+	}
+	if _, err := r.Tasks.Update(res.TaskID, time.Now(), func(tk *task.Task) error { tk.State.ResumeFrom = task.StatusInProgress; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true}); err != nil {
+		t.Fatal(err)
+	}
+	p := h.prompts[StepFeat]
+	for _, want := range []string{"Tiêu chí chưa đạt", "2. tệp mới tồn tại", "tệp mới chưa tạo: cần duyệt", "bint task criteria"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("prompt b-feat chạy lại thiếu %q:\n%s", want, p)
+		}
+	}
+	if strings.Contains(p, "1. app.txt đã đổi") {
+		t.Fatalf("không liệt kê tiêu chí đã đạt:\n%s", p)
 	}
 }

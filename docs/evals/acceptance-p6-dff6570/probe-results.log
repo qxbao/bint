@@ -1,0 +1,18 @@
+=== RUN   TestAcceptanceP6EvolutionLockExclusive
+    acceptance_p6_probes_test.go:25: evolution lock admitted overlapping owners: overlaps=1786 acquisitions=1856
+--- FAIL: TestAcceptanceP6EvolutionLockExclusive (0.34s)
+=== RUN   TestAcceptanceP6RollbackFailurePreservesAppliedState
+    acceptance_p6_probes_test.go:54: failed rollback left partial mutation: changed=[.bint/knowledge/items/01M72EWYNM3Q9TRK66BY7CVR4G.md] proposal_status=applied error=open /tmp/TestAcceptanceP6RollbackFailurePreservesAppliedState3835025968/004/repo/.bint/knowledge/items/01M72EWYNV5NFH59H7F0PBVEXS.md: permission denied
+--- FAIL: TestAcceptanceP6RollbackFailurePreservesAppliedState (0.30s)
+=== RUN   TestAcceptanceP6MergePreservesDistinctFacts
+    acceptance_p6_probes_test.go:71: merge dropped a distinct fact from active knowledge: active="Open requires cancellation context propagation." dropped="Close only after workers have stopped."
+--- FAIL: TestAcceptanceP6MergePreservesDistinctFacts (0.28s)
+=== RUN   TestAcceptanceP6EvolverRejectsDirtyFileMutation
+    acceptance_p6_probes_test.go:91: evolver mutation of already-dirty source accepted; proposal=ep_01M72N8MG0Y5KCSP29KTEM7EJD skipped=""
+--- FAIL: TestAcceptanceP6EvolverRejectsDirtyFileMutation (0.33s)
+=== RUN   TestAcceptanceP6UpdatePreservesExternalInputProvenance
+    acceptance_p6_probes_test.go:112: applied update ignored external draft inputs: status=verified third_party=false stored_inputs=[] draft_inputs=[https://example.invalid/external-guidance] context_label=rule
+--- FAIL: TestAcceptanceP6UpdatePreservesExternalInputProvenance (0.29s)
+FAIL
+FAIL	bint/internal/evolve	1.747s
+FAIL

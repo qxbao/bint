@@ -1,0 +1,15 @@
+{
+  "bundled_skills": false,
+  "copied_user_hooks": false,
+  "copied_user_instructions": false,
+  "copied_user_plugins": false,
+  "isolated": true,
+  "profile_removed": true,
+  "runtime_keys_retained": [
+    "model",
+    "model_provider",
+    "model_providers",
+    "model_reasoning_effort"
+  ],
+  "user_admin_skill_rules": 4
+}

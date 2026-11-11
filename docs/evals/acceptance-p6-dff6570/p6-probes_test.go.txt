@@ -1,0 +1,113 @@
+package evolve
+import (
+ "context"
+ "encoding/json"
+ "path/filepath"
+ "bint/internal/eval"
+ "bint/internal/ctxengine"
+ "fmt"
+ "os"
+ "strings"
+ "sync"
+ "sync/atomic"
+ "testing"
+ "time"
+ "bint/internal/knowledge"
+)
+func TestAcceptanceP6EvolutionLockExclusive(t *testing.T) {
+ root:=t.TempDir();var active,overlap,acquired atomic.Int64;var wg sync.WaitGroup;start:=make(chan struct{})
+ for n:=0;n<40;n++ {wg.Add(1);go func(n int){defer wg.Done();<-start
+  for j:=0;j<60;j++ {l,err:=AcquireLock(root,fmt.Sprint(n));if err!=nil {continue};acquired.Add(1)
+   if active.Add(1)>1 {overlap.Add(1)};time.Sleep(200*time.Microsecond);active.Add(-1);l.Release()
+  }
+ }(n)}
+ close(start);wg.Wait()
+ if overlap.Load()>0 {t.Fatalf("evolution lock admitted overlapping owners: overlaps=%d acquisitions=%d",overlap.Load(),acquired.Load())}
+ t.Logf("acquisitions=%d",acquired.Load())
+}
+func acceptanceP6MergeFixture(t *testing.T)(*fixture,*Proposal) {
+ t.Helper();f:=setup(t)
+ a:=f.item(t,"fact","verified","Database open requires context",[]string{"internal/db/**"},"internal/db/db.go:3")
+ b:=f.item(t,"fact","verified","Database open requires a context",[]string{"internal/db/**"},"internal/db/db.go:3","internal/db/db.go:5")
+ res,h:=f.scan(t);key:="duplicate:"+a.ID+"+"+b.ID
+ op,ok:=byKey(res)[key];if !ok {t.Fatalf("no duplicate opportunity %s",key)}
+ rep,err:=Propose(context.Background(),ProposeInput{K:f.k,DB:f.db,Scan:res,History:h,Refs:[]string{op.ID},Now:now})
+ if err!=nil || len(rep.Outcomes)!=1 || rep.Outcomes[0].Proposal==nil {t.Fatalf("proposal: %+v %v",rep,err)}
+ p:=rep.Outcomes[0].Proposal
+ if len(p.Changes)!=2 {t.Fatalf("need two file changes, got %v",p.Changes)}
+ return f,p
+}
+func TestAcceptanceP6RollbackFailurePreservesAppliedState(t *testing.T) {
+ if os.Geteuid()==0 {t.Skip("permission failure probe requires non-root POSIX user")}
+ f,p:=acceptanceP6MergeFixture(t);ctx:=context.Background()
+ a,err:=Apply(ctx,ApplyOptions{K:f.k,DB:f.db,Ref:p.ID,Unverified:true,ConfirmRisk:true,Now:now})
+ if err!=nil {t.Fatal(err)}
+ before:=map[string]string{}
+ for _,ch:=range a.Files {b,err:=os.ReadFile(f.k.Root+"/"+ch.Path);if err!=nil {t.Fatal(err)};before[ch.Path]=string(b)}
+ locked:=f.k.Root+"/"+a.Files[1].Path
+ if err:=os.Chmod(locked,0400);err!=nil {t.Fatal(err)};defer os.Chmod(locked,0644)
+ _,err=Rollback(ctx,RollbackOptions{K:f.k,DB:f.db,Ref:p.ID,Now:now.Add(time.Minute)})
+ if err==nil {t.Fatal("expected write failure on second rollback file")}
+ var changed []string
+ for _,ch:=range a.Files {b,rerr:=os.ReadFile(f.k.Root+"/"+ch.Path);if rerr!=nil {t.Fatal(rerr)};if string(b)!=before[ch.Path] {changed=append(changed,ch.Path)}}
+ current,_:=GetProposal(ctx,f.db,p.ID)
+ if len(changed)>0 {t.Fatalf("failed rollback left partial mutation: changed=%v proposal_status=%s error=%v",changed,current.Status,err)}
+}
+func TestAcceptanceP6MergePreservesDistinctFacts(t *testing.T) {
+ f:=setup(t)
+ a:=f.item(t,"fact","verified","Database lifecycle requirements",[]string{"internal/db/**"},"internal/db/db.go:3")
+ b:=f.item(t,"fact","verified","Database lifecycle requirements",[]string{"internal/db/**"},"internal/db/db.go:5")
+ a.Body="Open requires cancellation context propagation.";b.Body="Close only after workers have stopped."
+ if err:=f.k.Store.Save(a);err!=nil {t.Fatal(err)};if err:=f.k.Store.Save(b);err!=nil {t.Fatal(err)}
+ res,h:=f.scan(t);op:=byKey(res)["duplicate:"+a.ID+"+"+b.ID]
+ rep,err:=Propose(context.Background(),ProposeInput{K:f.k,DB:f.db,Scan:res,History:h,Refs:[]string{op.ID},Now:now})
+ if err!=nil {t.Fatal(err)};p:=rep.Outcomes[0].Proposal
+ if p==nil {t.Fatalf("no proposal: %+v",rep)}
+ _,err=Apply(context.Background(),ApplyOptions{K:f.k,DB:f.db,Ref:p.ID,Unverified:true,ConfirmRisk:true,Now:now})
+ if err!=nil {t.Fatal(err)}
+ items,_,err:=f.k.Items();if err!=nil {t.Fatal(err)}
+ var active strings.Builder
+ for _,it:=range items {if it.Status!=knowledge.StatusDeprecated {active.WriteString(it.Body)}}
+ if !strings.Contains(active.String(),a.Body) || !strings.Contains(active.String(),b.Body) {t.Fatalf("merge dropped a distinct fact from active knowledge: active=%q dropped=%q",active.String(),b.Body)}
+}
+
+func TestAcceptanceP6EvolverRejectsDirtyFileMutation(t *testing.T) {
+ f:=setup(t)
+ file:=filepath.Join(f.root,"internal/core/x.go")
+ original,err:=os.ReadFile(file);if err!=nil {t.Fatal(err)}
+ if err:=os.WriteFile(file,append(original,[]byte("\n// pre-existing owner edit\n")...),0644);err!=nil {t.Fatal(err)}
+ core:=[]string{"internal/core/x.go"}
+ f.run(t,"R1",5*time.Hour,"good",core,nil,nil);f.run(t,"R2",4*time.Hour,"bad",core,nil,nil);f.run(t,"R3",3*time.Hour,"bad",core,nil,nil)
+ res,h:=f.scan(t);op:=byKey(res)["failure:internal/core"]
+ answer:=`{"proposals":[{"type":"warning","title":"Reset before Retry","body":"Retry requires prior Reset in this module.","paths":["internal/core/**"],"evidence":["internal/core/x.go:3-4#Retry"],"inputs":["internal/core/x.go"],"expected_benefit":"avoid repeated failures","reason":"local source evidence"}]}`
+ out,_:=json.Marshal(map[string]any{"type":"result","result":answer})
+ dir:=t.TempDir();resp:=filepath.Join(dir,"response.json");os.WriteFile(resp,out,0644)
+ script:=filepath.Join(dir,"agent.sh")
+ os.WriteFile(script,[]byte("#!/bin/sh\nprintf '\\n// evolver mutation\\n' >> internal/core/x.go\ncat \"$1\"\n"),0755)
+ agent:=&eval.CommandAgent{Command:fmt.Sprintf("sh %q %q",script,resp)}
+ rep,err:=Propose(context.Background(),ProposeInput{K:f.k,DB:f.db,Scan:res,History:h,Refs:[]string{op.ID},Agent:agent,Now:now})
+ if err!=nil {t.Fatal(err)}
+ b,_:=os.ReadFile(file);if !strings.Contains(string(b),"evolver mutation") {t.Fatal("probe did not mutate file")}
+ if len(rep.Outcomes)>0 && rep.Outcomes[0].Proposal!=nil {t.Fatalf("evolver mutation of already-dirty source accepted; proposal=%s skipped=%q",rep.Outcomes[0].Proposal.ID,rep.Outcomes[0].Skipped)}
+}
+func TestAcceptanceP6UpdatePreservesExternalInputProvenance(t *testing.T) {
+ f:=setup(t);ctx:=context.Background()
+ base:=f.item(t,"rule","stale","Use context for database operations",[]string{"internal/db/**"},"internal/db/db.go:3")
+ f.run(t,"R1",time.Hour,"good",[]string{"internal/db/db.go"},nil,[]string{base.ID})
+ res,h:=f.scan(t);op:=byKey(res)["stale:"+base.ID]
+ answer:=`{"proposals":[{"type":"rule","title":"Use context for database operations","body":"Use cancellation context for database calls.","paths":["internal/db/**"],"evidence":["internal/db/db.go:3#Open"],"inputs":["https://example.invalid/external-guidance"],"expected_benefit":"keep guidance current","reason":"source review"}]}`
+ out,_:=json.Marshal(map[string]any{"type":"result","result":answer})
+ resp:=filepath.Join(t.TempDir(),"response.json");os.WriteFile(resp,out,0644)
+ agent:=&eval.CommandAgent{Command:fmt.Sprintf("cat %q",resp)}
+ rep,err:=Propose(ctx,ProposeInput{K:f.k,DB:f.db,Scan:res,History:h,Refs:[]string{op.ID},Agent:agent,Now:now})
+ if err!=nil || len(rep.Outcomes)!=1 || rep.Outcomes[0].Proposal==nil {t.Fatalf("proposal: %+v %v",rep,err)}
+ proposal:=rep.Outcomes[0].Proposal
+ if len(proposal.Changes[0].Draft.Inputs)!=1 {t.Fatal("external input missing from draft fixture")}
+ _,err=Apply(ctx,ApplyOptions{K:f.k,DB:f.db,Ref:proposal.ID,Unverified:true,ConfirmRisk:true,Now:now})
+ if err!=nil {t.Fatal(err)}
+ updated,err:=knowledge.ReadFile(f.k.Store.PathFor(base.ID));if err!=nil {t.Fatal(err)}
+ engine:=ctxengine.Engine{Items:[]*knowledge.Item{updated},Src:f.k.Source(),MaxTokens:2000}
+ pack:=engine.ForPaths([]string{"internal/db/db.go"},nil)
+ label:="";if len(pack.Entries)>0 {label=pack.Entries[0].Label}
+ if !updated.Origin.ThirdParty {t.Fatalf("applied update ignored external draft inputs: status=%s third_party=%v stored_inputs=%v draft_inputs=%v context_label=%s",updated.Status,updated.Origin.ThirdParty,updated.Origin.Inputs,proposal.Changes[0].Draft.Inputs,label)}
+}

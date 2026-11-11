@@ -18,7 +18,7 @@ func TestDeriveSpecPythonAndGo(t *testing.T) {
 		"pkg/conductor.py": "class Conductor:\n    def run(self):\n        return 0\n",
 		"lib/calc.go":      "package lib\n\nfunc Add(a, b int) int { return a + b }\n",
 	})
-	solution := commit(t, root, "feat: báo cấu hình song song", map[string]string{
+	commit(t, root, "feat: báo cấu hình song song", map[string]string{
 		"pkg/contracts.py": "def old():\n    return 1\n\n\nMAX_FANOUT_DEFAULTS = frozenset((\"builder\", \"qa\"))\n\n\ndef max_fanout_for(\n    project: Path,\n    strict: bool = False,\n) -> dict[str, int]:\n    return {\"builder\": 3}\n",
 		"pkg/conductor.py": "class Conductor:\n    def run(self):\n        return 0\n\n    def announce_parallel(self, cfg) -> str: return \"Cấu hình song song: builder 3\"\n",
 		"lib/calc.go":      "package lib\n\nfunc Add(a, b int) int { return a + b }\n\nfunc MulAll(xs ...int) (int, error) {\n\tp := 1\n\treturn p, nil\n}\n",
@@ -30,7 +30,7 @@ func TestDeriveSpecPythonAndGo(t *testing.T) {
 	// parallel_key_x là khoá dict do lời giải đưa vào (vào khối giao diện dạng khoá dữ liệu);
 	// ghost_name_y chỉ có trong chú thích nên vẫn là khoảng trống đặc tả.
 	writeFiles(t, root, map[string]string{"pkg/keys.py": "KEYS = {\"parallel_key_x\": 1}\n# ghost_name_y chỉ nằm trong chú thích\n"})
-	solution = commit(t, root, "thêm khoá", nil)
+	solution := commit(t, root, "thêm khoá", nil)
 	base := testutil.Git(t, root, "rev-parse", "HEAD~2")
 	c := &Case{
 		Source:      Source{Commit: solution, Base: base},

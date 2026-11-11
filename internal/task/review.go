@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"bint/internal/fsafe"
 )
 
@@ -24,16 +26,16 @@ var (
 // Finding là một phát hiện của b-review.
 type Finding struct {
 	// ID dạng <task-id>.<n>, duy nhất toàn repository.
-	ID       string `json:"id"`
-	Kind     string `json:"kind"`
-	Severity string `json:"severity"`
-	Title    string `json:"title"`
-	Path     string `json:"path,omitempty"`
-	Lines    string `json:"lines,omitempty"`
-	Evidence string `json:"evidence"`
-	Body     string `json:"body,omitempty"`
+	ID       string `json:"id" yaml:"id"`
+	Kind     string `json:"kind" yaml:"kind"`
+	Severity string `json:"severity" yaml:"severity"`
+	Title    string `json:"title" yaml:"title"`
+	Path     string `json:"path,omitempty" yaml:"path"`
+	Lines    string `json:"lines,omitempty" yaml:"lines"`
+	Evidence string `json:"evidence" yaml:"evidence"`
+	Body     string `json:"body,omitempty" yaml:"body"`
 	// Criterion là tiêu chí chấp nhận liên quan (từ 1), nếu có.
-	Criterion int `json:"criterion,omitempty"`
+	Criterion int `json:"criterion,omitempty" yaml:"criterion"`
 }
 
 // Blocking: phát hiện nghiêm trọng (lỗi hoặc rủi ro mức critical/high) — b-do quay
@@ -108,8 +110,23 @@ func (t *Task) LoadReview() (*Review, error) {
 
 // Submission là dữ liệu b-review gửi lên (`bint task review <id> -`).
 type Submission struct {
-	Summary  string    `json:"summary"`
-	Findings []Finding `json:"findings"`
+	Summary  string    `json:"summary" yaml:"summary"`
+	Findings []Finding `json:"findings" yaml:"findings"`
+}
+
+// decodeSubmission đọc JSON (bắt đầu bằng `{`) hoặc YAML block. Claude Code chặn lệnh
+// shell chứa `{"` ("Contains brace with quote character"), nên heredoc JSON không dùng
+// được ở đó; YAML là tập cha của JSON và không cần ngoặc nhọn. JSON giữ nguyên hành vi.
+func decodeSubmission(data []byte) (Submission, error) {
+	var s Submission
+	if t := bytes.TrimSpace(data); len(t) > 0 && t[0] != '{' {
+		dec := yaml.NewDecoder(bytes.NewReader(data))
+		dec.KnownFields(true)
+		return s, dec.Decode(&s)
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	return s, dec.Decode(&s)
 }
 
 var linesRe = regexp.MustCompile(`^[1-9][0-9]*(-[1-9][0-9]*)?$`)
@@ -117,12 +134,10 @@ var linesRe = regexp.MustCompile(`^[1-9][0-9]*(-[1-9][0-9]*)?$`)
 // ParseSubmission đọc và kiểm tra dữ liệu review. root dùng để kiểm tra đường dẫn
 // và vùng dòng có thật (tệp bị xoá trong diff vẫn được chấp nhận nếu không nêu dòng).
 func ParseSubmission(data []byte, root string) (Submission, []string) {
-	var s Submission
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&s); err != nil {
-		return s, []string{"JSON không hợp lệ: " + err.Error() +
-			` (cần {"summary": "...", "findings": [{"kind","severity","title","path","lines","evidence","body"}]})`}
+	s, err := decodeSubmission(data)
+	if err != nil {
+		return s, []string{"JSON/YAML không hợp lệ: " + err.Error() +
+			` (cần {"summary": "...", "findings": [{"kind","severity","title","path","lines","evidence","body"}]}, hoặc cùng cấu trúc dạng YAML block)`}
 	}
 	var errs []string
 	if strings.TrimSpace(s.Summary) == "" {

@@ -1,0 +1,12 @@
+{
+  "task_id": "01M72YXNE5VN2TD2Z6APEYS4SA",
+  "run_id": "01M72YXNE54KFPZT5WPR64W9R5",
+  "task_status": "failed",
+  "reason": "adapter Codex CLI không khả dụng: không tìm thấy chương trình trên máy này (cài đặt, hoặc đặt harnesses.codex.binary, hoặc chọn harness khác bằng --role/--harness)",
+  "steps": [],
+  "cost_usd": null,
+  "notes": [
+    "chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác",
+    "chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành"
+  ]
+}

@@ -1,0 +1,9 @@
+Chạy đúng một lệnh Bash này (không sửa gì), rồi dán nguyên văn thông báo/kết quả công cụ trả về:
+
+<BINT> task review NOSUCHTASK - <<'EOF'
+{"summary": "thử", "findings": []}
+EOF
+
+Sau đó chạy tiếp lệnh thứ hai (một lệnh riêng) và dán nguyên văn kết quả:
+<BINT> task review NOSUCHTASK /dev/null
+Không thử cách khác nếu bị từ chối.

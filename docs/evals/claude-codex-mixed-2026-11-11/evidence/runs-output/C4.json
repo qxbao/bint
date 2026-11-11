@@ -1,0 +1,19 @@
+{
+ "task_id": "01M74C22PYS7WAC7NZJP89RY3W",
+ "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+ "task_status": "in_review",
+ "reason": "b-feat xong",
+ "steps": [
+  {
+   "step": "b-feat",
+   "run_id": "01M74CZ7WR94K6THJGEYCMQ12Q",
+   "status": "completed",
+   "cost_usd": null,
+   "duration": "1m0s"
+  }
+ ],
+ "cost_usd": null,
+ "notes": [
+  "mọi thay đổi chạm đường dẫn được bảo vệ cần người duyệt"
+ ]
+}

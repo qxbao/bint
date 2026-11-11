@@ -1,0 +1,17 @@
+# Phiếu tác vụ Bint (mục 6.7). Sửa được bằng tay hoặc `bint task set`.
+# verify.command chỉ được Bint chạy sau khi người xác nhận (`bint task approve`),
+# trừ khi trùng eval.test_command đã xác nhận trong cấu hình.
+id: 01M74BFD9EM8XEXRVQRW4EQ3XZ
+goal: 'Làm lần lượt: (1) thêm hàm Sub(a, b int) int vào calc.go kèm TestSub trong calc_test.go; (2) sau đó tạo tệp migrations/002_calc_log.sql chứa đúng một dòng ''-- calc log''.'
+verify:
+  command: go test ./...
+  criteria:
+    - TestSub qua và go test ./... qua
+    - tệp migrations/002_calc_log.sql tồn tại
+scope:
+  allow:
+    - calc.go
+    - calc_test.go
+  deny: []
+constraints: []
+autonomy: ask_on_protected

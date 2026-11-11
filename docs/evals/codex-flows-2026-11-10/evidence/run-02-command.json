@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "codex",
+    "--no-daemon",
+    "-a",
+    "never",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "-m",
+    "gpt-6.1-sol",
+    "-c",
+    "model_reasoning_effort=\"low\"",
+    "-c",
+    "projects.\"/probe/repo\".trust_level=\"trusted\"",
+    "--cd",
+    "/probe/repo",
+    "--dangerously-bypass-hook-trust",
+    "-"
+  ],
+  "prompt": "Fix Sum in sum.go using apply_patch, then run go test ./... once using shell. No skills needed. Reply with result.\n"
+}

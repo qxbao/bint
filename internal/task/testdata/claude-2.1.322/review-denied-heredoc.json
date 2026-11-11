@@ -1,0 +1,14 @@
+{
+  "summary": "Thay đổi nhỏ, đúng yêu cầu: Abs đúng với a>=0 và a<0, ba test riêng cho 0/-7/7, chỉ thêm mã vào cuối calc.go và calc_test.go, không chạm Add/Negate; không có lỗi.",
+  "findings": [
+    {
+      "kind": "suggestion",
+      "severity": "low",
+      "title": "Doc comment của Abs chưa nêu hành vi tại math.MinInt",
+      "path": "calc.go",
+      "lines": "10-11",
+      "evidence": "Với a = math.MinInt, -a tràn số bù hai và Abs trả về math.MinInt (âm). requirement.md (dòng 19-25) xếp việc xử lý tràn vào 'Ngoài phạm vi' và chọn giữ hành vi tự nhiên của Go, nên đây không phải lỗi; chỉ là hành vi người gọi không thấy qua doc comment.",
+      "body": "Tùy chọn: thêm một dòng vào doc comment, ví dụ '// Với math.MinInt, kết quả là math.MinInt do tràn số.' Không bắt buộc cho tác vụ này."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "01M73CSZFCZCY3HBVYWHR9J1PV",
+  "run_id": "01M73D041R4EW5J27JWBWBPHTE",
+  "task_status": "planned",
+  "reason": "b-req xong",
+  "steps": [
+    {
+      "step": "b-req",
+      "run_id": "01M73D044W5928F90D04NX9CCS",
+      "status": "completed",
+      "cost_usd": null,
+      "duration": "45s"
+    }
+  ],
+  "cost_usd": null
+}

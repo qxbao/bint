@@ -1,0 +1,4 @@
+2026-11-10T14:24:14.770172Z ERROR codex_core::tools::router: error=Command blocked by PreToolUse hook: Bint: migrations/001.sql thuộc đường dẫn được bảo vệ (limits.protected_paths trong .bint/config.yml); thay đổi cần người dùng duyệt.. Command: *** Begin Patch
+*** Add File: /probe/repo/migrations/001.sql
++SELECT 1
+*** End Patch

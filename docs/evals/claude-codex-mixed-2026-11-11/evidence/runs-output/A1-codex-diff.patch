@@ -1,0 +1,42 @@
+diff --git a/calc.go b/calc.go
+index dcf96ad..b0193ee 100644
+--- a/calc.go
++++ b/calc.go
+@@ -6,3 +6,11 @@ func Add(a, b int) int { return a + b }
+ 
+ // Negate trả về số đối.
+ func Negate(a int) int { return -a }
++
++// Abs trả về giá trị tuyệt đối.
++func Abs(a int) int {
++	if a < 0 {
++		return -a
++	}
++	return a
++}
+diff --git a/calc_test.go b/calc_test.go
+index 4e2697e..8b301aa 100644
+--- a/calc_test.go
++++ b/calc_test.go
+@@ -19,3 +19,21 @@ func TestNegate(t *testing.T) {
+ 		t.Fatalf("Negate(4)=%d", got)
+ 	}
+ }
++
++func TestAbsZero(t *testing.T) {
++	if got := Abs(0); got != 0 {
++		t.Fatalf("Abs(0)=%d", got)
++	}
++}
++
++func TestAbsNegative(t *testing.T) {
++	if got := Abs(-7); got != 7 {
++		t.Fatalf("Abs(-7)=%d", got)
++	}
++}
++
++func TestAbsPositive(t *testing.T) {
++	if got := Abs(7); got != 7 {
++		t.Fatalf("Abs(7)=%d", got)
++	}
++}

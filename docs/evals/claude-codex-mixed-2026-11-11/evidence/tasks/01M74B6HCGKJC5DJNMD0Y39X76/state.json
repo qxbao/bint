@@ -1,0 +1,95 @@
+{
+ "schema": 1,
+ "id": "01M74B6HCGKJC5DJNMD0Y39X76",
+ "status": "done",
+ "workflow": "b-do",
+ "created_at": "2026-11-11T03:42:34Z",
+ "updated_at": "2026-11-11T03:45:25Z",
+ "base": "685f67cec969ee3b0b1428779a29a0d3f132fc30",
+ "branch": "main",
+ "worktree": "<repo>",
+ "reason": "b-do finalize",
+ "classification": {
+  "plan": true,
+  "reason": "người dùng chỉ định"
+ },
+ "history": [
+  {
+   "from": "",
+   "to": "created",
+   "at": "2026-11-11T03:42:34Z",
+   "by": "bint",
+   "reason": "tạo tác vụ"
+  },
+  {
+   "from": "created",
+   "to": "planned",
+   "at": "2026-11-11T03:43:49Z",
+   "by": "agent",
+   "reason": "b-req xong"
+  },
+  {
+   "from": "planned",
+   "to": "in_progress",
+   "at": "2026-11-11T03:43:49Z",
+   "by": "agent",
+   "reason": "b-feat bắt đầu"
+  },
+  {
+   "from": "in_progress",
+   "to": "in_review",
+   "at": "2026-11-11T03:44:20Z",
+   "by": "agent",
+   "reason": "b-feat xong"
+  },
+  {
+   "from": "in_review",
+   "to": "done",
+   "at": "2026-11-11T03:45:25Z",
+   "by": "agent",
+   "reason": "b-do finalize"
+  }
+ ],
+ "criteria": [
+  {
+   "index": 1,
+   "met": true,
+   "evidence": "calc.go:19 Max; test riêng calc_test.go:41 TestMaxSecondLarger (2,9), calc_test.go:47 TestMaxFirstLarger (9,2), calc_test.go:53 TestMaxEqual (4,4); go test -run TestMax -v ./... : 3 passed",
+   "by": "agent",
+   "at": "2026-11-11T03:44:13Z"
+  },
+  {
+   "index": 2,
+   "met": true,
+   "evidence": "go test -count=1 ./... exit 0 (9 test qua); git diff --stat chỉ có dòng thêm (52 insertions, 0 deletions) — Add/Negate/Abs không bị sửa",
+   "by": "agent",
+   "at": "2026-11-11T03:44:13Z"
+  }
+ ],
+ "verifications": [
+  {
+   "at": "2026-11-11T03:44:20Z",
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "log": "<state>/runtime/tasks/01M74B6HCGKJC5DJNMD0Y39X76/logs/verify-1.log",
+   "worktree": "0718e77f71d47e3a515e5f8ac33b92fc",
+   "by": "agent",
+   "run_id": "01M74B6HCG956ARSNNPVHYGDN1"
+  }
+ ],
+ "runs": [
+  "01M74B6HCG956ARSNNPVHYGDN1",
+  "01M74B6HD8KC78VG9SYC443TRA",
+  "01M74B8TC653QCY7H73TYYJ5A4",
+  "01M74B9SEMV9VB5QMCDK7YDP93"
+ ],
+ "review_rounds": 1,
+ "next_finding": 1,
+ "artifacts": {
+  "plan": "2026-11-11T03:43:24Z",
+  "requirement": "2026-11-11T03:43:24Z",
+  "tasks": "2026-11-11T03:43:24Z"
+ }
+}

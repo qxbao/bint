@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -245,5 +246,52 @@ func TestRunnerAliveFromSandboxedChild(t *testing.T) {
 	t.Setenv(EnvRunnerPID, "123")
 	if RunnerAlive(r) {
 		t.Fatal("runner khác không được coi là còn sống")
+	}
+}
+
+// Claude Code 2.1.322 thật chặn heredoc JSON của `bint task review` với lỗi
+// "Contains brace with quote character (expansion obfuscation)" (testdata/claude-2.1.322).
+// Dạng YAML block không có `{"` phải cho cùng kết quả; JSON giữ nguyên hành vi.
+func TestParseSubmissionYAMLBlockEquivalentToClaudeJSON(t *testing.T) {
+	dir := filepath.Join("testdata", "claude-2.1.322")
+	cmd, err := os.ReadFile(filepath.Join(dir, "review-denied-command.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cmd), `{"`) {
+		t.Fatal("fixture lệnh bị Claude Code chặn phải chứa {\"")
+	}
+	jsonData, _ := os.ReadFile(filepath.Join(dir, "review-denied-heredoc.json"))
+	yamlData, err := os.ReadFile(filepath.Join(dir, "review-brace-free.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(yamlData), `{"`) || strings.Contains(string(yamlData), "{") {
+		t.Fatal("dạng YAML không được chứa ngoặc nhọn")
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "calc.go"), []byte(strings.Repeat("x\n", 12)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fromJSON, errs := ParseSubmission(jsonData, root)
+	if len(errs) != 0 {
+		t.Fatalf("JSON thật: %v", errs)
+	}
+	fromYAML, errs := ParseSubmission(yamlData, root)
+	if len(errs) != 0 {
+		t.Fatalf("YAML: %v", errs)
+	}
+	if !reflect.DeepEqual(fromJSON, fromYAML) || len(fromYAML.Findings) != 1 || fromYAML.Findings[0].Lines != "10-11" {
+		t.Fatalf("JSON %+v khác YAML %+v", fromJSON, fromYAML)
+	}
+	// YAML vẫn bị kiểm tra như JSON: trường lạ và dữ liệu thiếu bị từ chối.
+	if _, errs := ParseSubmission([]byte("summary: x\nextra: 1\n"), root); len(errs) != 1 {
+		t.Fatalf("trường lạ: %v", errs)
+	}
+	if _, errs := ParseSubmission([]byte("summary: ok\nfindings:\n  - kind: nit\n    severity: x\n"), root); len(errs) < 3 {
+		t.Fatalf("thiếu kiểm tra: %v", errs)
+	}
+	if _, errs := ParseSubmission([]byte("không phải review\n"), root); len(errs) != 1 {
+		t.Fatalf("rác: %v", errs)
 	}
 }

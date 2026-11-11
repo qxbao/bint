@@ -469,13 +469,35 @@ func (Claude) NewAgent(o AgentOptions) eval.Agent {
 	return &eval.ClaudeAgent{Cfg: ClaudeWorkflowArgs(o.Config, o.ReadOnly, o.MaxTurns), Model: o.Model, MaxCostUSD: o.MaxCost}
 }
 
+// bintToolRule là quy tắc mặc định cho phép bước chỉ đọc gọi Bint qua PATH.
+const bintToolRule = "Bash(bint:*)"
+
+// withBintExecutableRule thêm quy tắc tương đương cho đúng binary đang chạy. Quy tắc
+// tiền tố của Claude Code không khớp `<đường dẫn tuyệt đối>/bint ...`, mà đây lại là
+// cách gọi nên dùng khi bản trên PATH cũ hoặc không có. Chỉ thêm khi người dùng còn
+// giữ quy tắc bint mặc định; không đổi slice cấu hình gốc.
+func withBintExecutableRule(tools []string) []string {
+	out := slices.Clone(tools)
+	if !slices.Contains(tools, bintToolRule) {
+		return out
+	}
+	exe, err := os.Executable()
+	if err != nil || exe == "" {
+		return out
+	}
+	if rule := "Bash(" + exe + ":*)"; !slices.Contains(out, rule) {
+		out = append(out, rule)
+	}
+	return out
+}
+
 // ClaudeWorkflowArgs dựng cấu hình gọi Claude Code cho một bước workflow.
 func ClaudeWorkflowArgs(cfg config.Config, readOnly bool, maxTurns *int) config.EvalAgent {
 	w := cfg.Workflow.Agent
 	a := config.EvalAgent{Model: w.Model, PermissionMode: w.PermissionMode, SettingSources: w.SettingSources,
 		AllowedTools: w.AllowedTools}
 	if readOnly {
-		a.AllowedTools = w.ReadonlyTools
+		a.AllowedTools = withBintExecutableRule(w.ReadonlyTools)
 		a.ExtraArgs = append(a.ExtraArgs, "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit")
 	}
 	if maxTurns != nil {
@@ -499,11 +521,11 @@ func (Codex) SkillTarget() skills.Target { return skills.AgentsTarget }
 func (Codex) Capabilities() []Capability {
 	return []Capability{
 		{CapSkills, Yes, ".agents/skills/<tên>/SKILL.md (dùng chung với Antigravity)"},
-		{CapHiddenSkills, No, "không có cơ chế ẩn; bỏ khoá disable-model-invocation khi xuất bản"},
+		{CapHiddenSkills, Partial, "không ẩn khỏi người dùng; agents/openai.yaml policy.allow_implicit_invocation: false loại khỏi danh sách tự kích hoạt (Codex 0.167); Bint chưa sinh policy này, bỏ disable-model-invocation khi xuất bản"},
 		{CapMCP, Partial, ".codex/config.toml [mcp_servers.bint] — chỉ hiệu lực khi dự án được Codex tin cậy"},
-		{CapHooks, Partial, ".codex/hooks.json: SessionStart, SessionEnd, PreToolUse, PostToolUse; mỗi hook cần được duyệt (trust) trong Codex; không tách lần gọi công cụ thất bại"},
+		{CapHooks, Partial, ".codex/hooks.json: SessionStart/End, Pre/PostToolUse; cần trust từng định nghĩa; kết quả shell lấy từ exit_code của transcript cùng tool_use_id, thiếu thì unknown; script phức tạp không nâng thành tín hiệu test"},
 		{CapPathContext, Partial, "chỉ trước khi sửa (apply_patch); Codex đọc tệp qua shell nên không chèn khi đọc"},
-		{CapProtectedPaths, Partial, "PreToolUse deny kèm lý do (không hỏi được trong codex exec); duyệt bằng bint task approve"},
+		{CapProtectedPaths, Partial, "PreToolUse deny kèm lý do (không hỏi được trong codex exec); duyệt trước tệp chưa có diff bằng bint task approve <id> --path <tệp>, rồi resume"},
 		{CapExecute, Yes, "codex exec --json, đề bài qua stdin"},
 		{CapReadOnly, Partial, "sandbox workspace-write (bint CLI cần ghi thư mục trạng thái); Bint kiểm tra cây làm việc sau bước"},
 		{CapCost, No, "chỉ báo token; max_cost_usd chỉ là chỉ dẫn"},

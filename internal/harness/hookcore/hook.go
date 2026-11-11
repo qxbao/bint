@@ -99,6 +99,12 @@ type Dialect struct {
 	// PreToolOutput dựng đầu ra cho sự kiện trước công cụ: text là ngữ cảnh chèn
 	// (rỗng nếu không có), ask là lý do cần người duyệt (rỗng nếu không cần).
 	PreToolOutput func(text, ask string) string
+	// ProtectedPathHelp bổ sung cách tiếp tục riêng của harness khi cần duyệt.
+	ProtectedPathHelp func(paths []string) string
+	// PostToolOutcome xác minh kết quả riêng của harness. nil giữ nguyên hợp
+	// đồng Claude; known=false ghi test command nhưng không tạo tín hiệu pass/fail.
+	PostToolOutcome func(Input, ToolInfo) (success, known bool)
+	IsTestCommand   func(string, ...string) bool
 	// PromptOutput dựng đầu ra chèn ngữ cảnh cho sự kiện yêu cầu (EvPrompt); nil = harness
 	// không hỗ trợ chèn lúc nhận yêu cầu.
 	PromptOutput func(text string) string
@@ -272,6 +278,9 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			}
 			if len(hit) > 0 {
 				ask = fmt.Sprintf("Bint: %s thuộc đường dẫn được bảo vệ (limits.protected_paths trong .bint/config.yml); thay đổi cần người dùng duyệt.", strings.Join(hit, ", "))
+				if d.ProtectedPathHelp != nil {
+					ask += d.ProtectedPathHelp(hit)
+				}
 			}
 		}
 		inject := (info.Kind == ToolRead && d.InjectRead) || (info.Kind == ToolEdit && d.InjectEdit)
@@ -345,10 +354,16 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		ev.EventID = EventID(h, hi.SessionID, hi.RawEvent, hi.Reason, now.Truncate(time.Second).Format(time.RFC3339))
 	case EvPostTool, EvPostToolFailure:
 		ok := hi.Event == EvPostTool
-		ev.Payload["ok"] = ok
+		known := true
+		info := d.Classify(hi.ToolName, hi.ToolInput)
+		if d.PostToolOutcome != nil {
+			ok, known = d.PostToolOutcome(hi, info)
+		}
+		if known {
+			ev.Payload["ok"] = ok
+		}
 		ev.Payload["tool"] = hi.ToolName
 		ev.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey())
-		info := d.Classify(hi.ToolName, hi.ToolInput)
 		switch info.Kind {
 		case ToolMCP:
 			if !ok {
@@ -404,7 +419,14 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 					known = append(known, *c)
 				}
 			}
-			if !detect.IsTestCommand(info.Command, known...) {
+			if detect.IsBintInvocation(info.Command) {
+				return Result{Skipped: "lệnh gọi CLI của Bint, không phải kiểm thử"}, nil
+			}
+			isTest := detect.IsTestCommand
+			if d.IsTestCommand != nil {
+				isTest = d.IsTestCommand
+			}
+			if !isTest(info.Command, known...) {
 				return Result{Skipped: "lệnh shell không phải kiểm thử"}, nil
 			}
 			ev.Type = spool.TestCompleted

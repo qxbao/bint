@@ -33,3 +33,21 @@ func TestMatchesTemplate(t *testing.T) {
 		}
 	}
 }
+
+func TestIsBintInvocation(t *testing.T) {
+	for cmd, want := range map[string]bool{
+		"bint task write T plan -":                                    true,
+		"/opt/x/bin/bint task review T - <<'EOF'\ngo test ./...\nEOF": true,
+		"FOO=1 bint task error T \"go test ./... lỗi\"":               true,
+		"C:/tools/bint.exe task show T":                               true,
+		"go test ./...":                                               false,
+		"cd x && bint task show T":                                    false,
+		"echo bint":                                                   false,
+		"./mybint test":                                               false,
+		"":                                                            false,
+	} {
+		if got := IsBintInvocation(cmd); got != want {
+			t.Errorf("%q: got %v, muốn %v", cmd, got, want)
+		}
+	}
+}

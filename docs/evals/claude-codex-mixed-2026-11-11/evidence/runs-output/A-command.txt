@@ -1,0 +1,3 @@
+cd <repo>; XDG_STATE_HOME=<state> CODEX_HOME=<codexhome-tam> <BINT> run b-do --plan --harness claude --role implementer=codex --json \
+  --criteria 'Abs(0)==0, Abs(-7)==7, Abs(7)==7 co test rieng' --criteria 'go test ./... qua, khong sua Add/Negate' \
+  "Them ham Abs(a int) int vao calc.go (gia tri tuyet doi) kem test trong calc_test.go"
