@@ -32,9 +32,15 @@ import (
 //  2. Propose: tạo đề xuất cho cơ hội sẵn sàng (agent evolver).
 //  3. Probe: mỗi đề xuất đang chờ đi qua validation rồi test; chỉ kết quả đối chiếu SAU lần
 //     áp dụng gần nhất được tính (nền tri thức đã đổi thì phải đối chiếu lại).
+//     Đề xuất mà lần đối chiếu trên nền hiện tại kết luận not_supported bị tự bác bỏ
+//     (--keep-failed để giữ): nó không còn chặn cơ hội gốc, cơ hội mở lại khi có bằng chứng mới.
 //  4. Compose: trong các đề xuất đã supported độc lập trên test, tự áp dụng tối đa MỘT đề
 //     xuất rủi ro thấp mỗi vòng (evolution.adoption.auto_low_risk); các đề xuất còn lại
 //     được đối chiếu lại trên nền mới ở vòng sau, nên tác động cộng dồn luôn được đo.
+//
+// Thay đổi workflow (đề xuất skill L2: tạo/sửa/gộp/bỏ skill) đi cùng đường Probe như tri
+// thức — đo trên validation rồi test bằng nhánh base/candidate khác nhau ở tập skill — nhưng
+// không bao giờ được tự áp dụng: đạt thì vào danh sách chờ người duyệt.
 
 // CycleStep là một bước của vòng.
 type CycleStep struct {
@@ -60,6 +66,7 @@ type CycleReport struct {
 	AutoApplied       []string    `json:"auto_applied"`
 	RolledBack        []string    `json:"auto_rolled_back"`
 	RollbackSuggested []string    `json:"rollback_suggested"`
+	AutoRejected      []string    `json:"auto_rejected"`
 	StopReason        string      `json:"stop_reason,omitempty"`
 }
 
@@ -72,6 +79,7 @@ type cycleOpts struct {
 	parallel              int
 	model                 string
 	noPropose             bool
+	keepFailed            bool
 	asJSON                bool
 }
 
@@ -125,6 +133,7 @@ vào --budget; hết ngân sách hoặc agent hết hạn mức thì vòng dừn
 	f.IntVarP(&o.parallel, "parallel", "j", 3, "số lượt chạy song song khi đối chiếu")
 	f.StringVar(&o.model, "model", "", "mô hình cho evolver và các lượt đối chiếu")
 	f.BoolVar(&o.noPropose, "no-propose", false, "không tạo đề xuất mới, chỉ xử lý đề xuất đang chờ")
+	f.BoolVar(&o.keepFailed, "keep-failed", false, "không tự bác bỏ đề xuất đã kết luận not_supported")
 	f.BoolVar(&o.asJSON, "json", false, "xuất JSON")
 	return c
 }
@@ -159,7 +168,7 @@ func (r *cycleRunner) run(ctx context.Context, args ...string) ([]byte, error) {
 func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, now func() time.Time) (CycleReport, error) {
 	start := now()
 	rep := CycleReport{ID: "ec_" + ulid.At(start), StartedAt: start.UTC().Format(time.RFC3339), BudgetUSD: o.budget,
-		Steps: []CycleStep{}, Ready: []string{}, AutoApplied: []string{}, RolledBack: []string{}, RollbackSuggested: []string{}}
+		Steps: []CycleStep{}, Ready: []string{}, AutoApplied: []string{}, RolledBack: []string{}, RollbackSuggested: []string{}, AutoRejected: []string{}}
 	defer func() { rep.FinishedAt = now().UTC().Format(time.RFC3339) }()
 	remaining := func() float64 { return o.budget - rep.SpentUSD }
 	logf := func(f string, a ...any) { fmt.Fprintf(r.log, f+"\n", a...) }
@@ -215,6 +224,19 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 		}
 		rep.StopReason = err.Error()
 		return rep, err
+	}
+
+	reject := func(p *evolve.Proposal, ev *evolve.Evaluation) {
+		if o.keepFailed || ev == nil || ev.Verdict != evolve.VerdictNotSupported {
+			return
+		}
+		step := CycleStep{Step: "reject", Target: p.ID, Outcome: "tự bác bỏ: không đạt trên " + ev.Split}
+		if err := evolve.AutoReject(ctx, db, p, ev, now()); err != nil {
+			step.Outcome = "lỗi: " + err.Error()
+		} else {
+			rep.AutoRejected = append(rep.AutoRejected, p.ID)
+		}
+		rep.Steps = append(rep.Steps, step)
 	}
 
 	// 1. Hồi quy của đề xuất đã áp dụng.
@@ -299,7 +321,8 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 		}
 		val, test := latestProbe(evs, eval.SplitValidation, since), latestProbe(evs, eval.SplitTest, since)
 		if val != nil && val.Verdict != evolve.VerdictSupported || test != nil && test.Verdict != evolve.VerdictSupported {
-			continue // đã thua trên nền hiện tại
+			reject(p, failedProbe(val, test)) // đã thua trên nền hiện tại; inconclusive thì giữ
+			continue
 		}
 		for _, split := range []string{eval.SplitValidation, eval.SplitTest} {
 			if (split == eval.SplitValidation && val != nil) || (split == eval.SplitTest && test != nil) {
@@ -318,10 +341,11 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 				}
 				break
 			}
+			evs, _ = evolve.Evaluations(ctx, db, p.ID)
 			if v != evolve.VerdictSupported {
+				reject(p, latestProbe(evs, split, since))
 				break
 			}
-			evs, _ = evolve.Evaluations(ctx, db, p.ID)
 			test = latestProbe(evs, eval.SplitTest, since)
 		}
 		if t := latestProbe(evs, eval.SplitTest, since); t != nil && t.Verdict == evolve.VerdictSupported && t.Independent != nil && *t.Independent {
@@ -333,15 +357,7 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 	sort.SliceStable(ready, func(i, j int) bool { return ready[i].gain > ready[j].gain })
 	applied := false
 	for _, rp := range ready {
-		ok, why := evolve.AutoApplicable(rp.p)
-		if applied || !ok || !cfg.Evolution.Adoption.AutoLowRisk {
-			if !ok {
-				why = "cần người duyệt: " + why
-			} else if !cfg.Evolution.Adoption.AutoLowRisk {
-				why = "cần người duyệt: evolution.adoption.auto_low_risk = false"
-			} else {
-				why = "đối chiếu lại trên nền mới ở vòng sau (đã tự áp dụng một đề xuất trong vòng này)"
-			}
+		if ok, why := composeDecision(rp.p, cfg.Evolution.Adoption.AutoLowRisk, applied); !ok {
 			rep.Ready = append(rep.Ready, rp.p.ID)
 			rep.Steps = append(rep.Steps, CycleStep{Step: "compose", Target: rp.p.ID, Outcome: why})
 			continue
@@ -361,6 +377,34 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 }
 
 var errBudgetLeft = fmt.Errorf("hết ngân sách vòng")
+
+// composeDecision: đề xuất đã supported độc lập trên test có được vòng tự áp dụng không;
+// nếu không, lý do (hiện ở báo cáo vòng).
+func composeDecision(p *evolve.Proposal, autoLowRisk, alreadyApplied bool) (bool, string) {
+	if ok, why := evolve.AutoApplicable(p); !ok {
+		if p.IsSkill() {
+			return false, "thay đổi workflow (skill) đã đạt, cần người duyệt"
+		}
+		return false, "cần người duyệt: " + why
+	}
+	if !autoLowRisk {
+		return false, "cần người duyệt: evolution.adoption.auto_low_risk = false"
+	}
+	if alreadyApplied {
+		return false, "đối chiếu lại trên nền mới ở vòng sau (đã tự áp dụng một đề xuất trong vòng này)"
+	}
+	return true, ""
+}
+
+// failedProbe: lần đối chiếu đã kết luận not_supported (validation trước), nil nếu không có.
+func failedProbe(val, test *evolve.Evaluation) *evolve.Evaluation {
+	for _, ev := range []*evolve.Evaluation{val, test} {
+		if ev != nil && ev.Verdict == evolve.VerdictNotSupported {
+			return ev
+		}
+	}
+	return nil
+}
 
 // activeAdoptions: lần áp dụng còn hiệu lực (đề xuất đang ở trạng thái applied), mỗi đề xuất một.
 func activeAdoptions(ctx context.Context, e *evolveCtx, hs []evolve.HistoryEntry) []evolve.HistoryEntry {
@@ -473,6 +517,9 @@ func printCycle(w io.Writer, r CycleReport) {
 	if len(r.Ready) > 0 {
 		fmt.Fprintf(w, "Chờ người duyệt: %s (bint evolve show/apply)\n", strings.Join(r.Ready, ", "))
 	}
+	if len(r.AutoRejected) > 0 {
+		fmt.Fprintf(w, "Tự bác bỏ (không đạt): %s\n", strings.Join(r.AutoRejected, ", "))
+	}
 	if len(r.RollbackSuggested) > 0 {
 		fmt.Fprintf(w, "Đề xuất quay lui (hồi quy): %s\n", strings.Join(r.RollbackSuggested, ", "))
 	}
@@ -498,6 +545,7 @@ func cycleTotals(runtime string) (int, CycleReport) {
 		sum.ProbeUSD += r.ProbeUSD
 		sum.AutoApplied = append(sum.AutoApplied, r.AutoApplied...)
 		sum.RolledBack = append(sum.RolledBack, r.RolledBack...)
+		sum.AutoRejected = append(sum.AutoRejected, r.AutoRejected...)
 	}
 	return n, sum
 }

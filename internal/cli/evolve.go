@@ -1272,8 +1272,8 @@ func newEvolveHistoryCmd(stdio IO) *cobra.Command {
 			}
 			w := stdio.Out
 			if n, sum := cycleTotals(e.k.Paths.Runtime); n > 0 {
-				fmt.Fprintf(w, "Vòng tự động (bint evolve cycle): %d vòng, đã tiêu $%.2f (tạo ứng viên $%.2f, đối chiếu $%.2f); tự áp dụng %d, tự quay lui %d\n",
-					n, sum.SpentUSD, sum.GenerationUSD, sum.ProbeUSD, len(sum.AutoApplied), len(sum.RolledBack))
+				fmt.Fprintf(w, "Vòng tự động (bint evolve cycle): %d vòng, đã tiêu $%.2f (tạo ứng viên $%.2f, đối chiếu $%.2f); tự áp dụng %d, tự quay lui %d, tự bác bỏ %d\n",
+					n, sum.SpentUSD, sum.GenerationUSD, sum.ProbeUSD, len(sum.AutoApplied), len(sum.RolledBack), len(sum.AutoRejected))
 			}
 			if len(hs) == 0 {
 				fmt.Fprintln(stdio.Out, "Chưa có lần áp dụng nào.")

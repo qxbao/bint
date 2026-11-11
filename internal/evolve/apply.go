@@ -374,6 +374,25 @@ func Reject(ctx context.Context, db *sql.DB, ref, reason string, now time.Time) 
 	return p, SetStatus(ctx, db, p.ID, StatusRejected, reason, now)
 }
 
+// AutoReject: vòng tiến hoá (bint evolve cycle) bác bỏ đề xuất đang chờ khi lần đối chiếu
+// ev của chính đề xuất đó đã kết luận not_supported. Không cần người: bác bỏ không sửa tệp
+// nào, và cơ hội gốc mở lại khi có bằng chứng mới (lượt chưa dùng làm căn cứ). Kết luận
+// inconclusive không bị bác bỏ (chưa đủ bằng chứng theo hướng nào).
+func AutoReject(ctx context.Context, db *sql.DB, p *Proposal, ev *Evaluation, now time.Time) error {
+	if ev == nil || ev.ProposalID != p.ID || ev.Verdict != VerdictNotSupported {
+		return fmt.Errorf("chỉ tự bác bỏ khi lần đối chiếu của chính đề xuất kết luận %s", VerdictNotSupported)
+	}
+	if p.Status != StatusProposed {
+		return fmt.Errorf("đề xuất %s ở trạng thái %s: chỉ bác bỏ được đề xuất đang chờ", p.ID, p.Status)
+	}
+	reason := fmt.Sprintf("%s: không đạt trên %s (%s, đợt %s)", AutoActor, ev.Split, ev.ID, ev.BatchID)
+	if ev.Detail != "" {
+		reason += " — " + ev.Detail
+	}
+	p.Status, p.StatusReason = StatusRejected, reason
+	return SetStatus(ctx, db, p.ID, StatusRejected, reason, now)
+}
+
 // Adoption là một bản ghi áp dụng/quay lui.
 type Adoption struct {
 	ID           string       `json:"adoption_id"`

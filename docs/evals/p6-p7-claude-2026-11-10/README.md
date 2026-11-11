@@ -241,6 +241,8 @@ Thiết kế tuần tự làm đúng vai trò: loại đề xuất không hiệu
 - `bint evolve cycle --budget X` — một vòng Propose–Probe–Compose: kiểm tra hồi quy đề xuất đã áp dụng → tạo đề xuất → đối chiếu validation rồi test → tự áp dụng tối đa một đề xuất mỗi vòng; chỉ tính kết quả đối chiếu sau lần áp dụng gần nhất, nên tác động cộng dồn luôn được đo lại. Chạy thử trên repository B: không có cơ hội mới, $0.
 - Tự áp dụng rủi ro thấp (`evolution.adoption.auto_low_risk`, mặc định tắt): chỉ đề xuất tạo mục mới (vào candidate), rủi ro thấp, supported độc lập trên test; tác nhân `bint-auto`.
 - Hồi quy: đề xuất do `bint-auto` áp dụng thì tự quay lui; do người áp dụng thì đề xuất quay lui.
+- Tự bác bỏ: đề xuất mà lần đối chiếu trên nền hiện tại kết luận `not_supported` bị vòng bác bỏ (lý do ghi `bint-auto: không đạt trên <split>`; `--keep-failed` để giữ). `inconclusive` thì giữ. Trước đây đề xuất thua nằm chờ mãi và chặn cơ hội gốc; giờ cơ hội mở lại khi có lượt mới làm bằng chứng.
+- Thay đổi workflow: đề xuất skill (tạo/sửa/gộp/bỏ skill) đi cùng đường đối chiếu validation → test như tri thức, nhưng không bao giờ được tự áp dụng; đạt thì vào danh sách chờ người duyệt.
 - Thử nghiệm chiến lược chọn ngữ cảnh: nhánh `bint@task=off+path=off+mcp=off+tokens=N+items=N`, so sánh ghép cặp trong cùng đợt.
 - Theo dõi chi phí: mỗi vòng ghi `<runtime>/evolve/cycles/<id>.json`; `bint evolve history` cộng tổng.
 - Thay đổi workflow: đi qua đề xuất skill (L2), được vòng đối chiếu nhưng luôn chờ người duyệt.
