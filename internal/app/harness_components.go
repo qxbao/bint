@@ -22,6 +22,8 @@ type ComponentWS struct {
 	Dir    string
 	Config config.Config
 	Lib    *hcomp.Library
+	// StrategyProblem: lý do strategy.yml verified bị config.Load bỏ qua (rỗng nếu không có).
+	StrategyProblem string
 }
 
 // OpenComponents mở thư viện thành phần của repository chứa dir (cần đã `bint init`).
@@ -31,7 +33,7 @@ func OpenComponents(ctx context.Context, dir string) (*ComponentWS, error) {
 		return nil, err
 	}
 	root := filepath.Dir(filepath.Dir(ws.Sources.Project))
-	return &ComponentWS{Root: root, Dir: hcomp.Dir(root), Config: ws.Config, Lib: hcomp.Load(root)}, nil
+	return &ComponentWS{Root: root, Dir: hcomp.Dir(root), Config: ws.Config, Lib: hcomp.Load(root), StrategyProblem: ws.Sources.StrategyProblem}, nil
 }
 
 // Reload đọc lại thư viện sau khi ghi.
@@ -280,7 +282,10 @@ func RenderHarness(w *ComponentWS, o RenderOptions) (string, error) {
 	}
 
 	b.WriteString("\n── Chiến lược ngữ cảnh ──\n")
-	if s := set.Strategy(); s != nil && s.Status == hcomp.StatusVerified {
+	if w.StrategyProblem != "" {
+		fmt.Fprintf(&b, "CẢNH BÁO: strategy.yml (verified) bị bỏ qua ở phiên thật: %s\n", w.StrategyProblem)
+	}
+	if s := set.Strategy(); s != nil && s.Status == hcomp.StatusVerified && w.StrategyProblem == "" {
 		fmt.Fprintf(&b, "strategy.yml (verified) đang ghi đè context.*: max_tokens=%d path_max_items=%d lessons.global_k=%d lessons.max_tokens=%d mcp=%v path_hooks=%v\n",
 			w.Config.Context.MaxTokens, w.Config.Context.PathMaxItems, w.Config.Context.Lessons.GlobalK,
 			w.Config.Context.Lessons.MaxTokens, w.Config.Context.Interfaces.MCP, w.Config.Context.Interfaces.PathHooks)

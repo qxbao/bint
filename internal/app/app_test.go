@@ -410,6 +410,37 @@ func TestDoctor(t *testing.T) {
 	}
 }
 
+func TestDoctorWarnsOnIgnoredStrategy(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, nil)
+	mustInit(t, InitOptions{Dir: root, Hooks: yes()})
+	body := "id: strategy\nscope: global\nstatus: verified\norigin: human\nversion: 1\ncontext:\n  path_max_items: 40\n"
+	if err := os.MkdirAll(filepath.Join(root, ".bint", "harness"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.StrategyPath(root), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rep := Doctor(context.Background(), root)
+	var found bool
+	for _, c := range rep.Checks {
+		if c.Name == "strategy" && c.Level == LevelWarn && strings.Contains(c.Detail, "path_max_items") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("doctor phải cảnh báo strategy bị bỏ qua: %+v", rep.Checks)
+	}
+	ws, err := OpenComponents(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := RenderHarness(ws, RenderOptions{})
+	if err != nil || !strings.Contains(out, "CẢNH BÁO: strategy.yml") {
+		t.Fatalf("render phải nêu cảnh báo: %v\n%s", err, out)
+	}
+}
+
 func mustWS(t *testing.T, dir string) *Workspace {
 	t.Helper()
 	ws, err := OpenWorkspace(context.Background(), dir, true)

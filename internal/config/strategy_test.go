@@ -112,3 +112,54 @@ func TestStrategyBrokenNotVerifiedDoesNotFailLoad(t *testing.T) {
 		}
 	}
 }
+
+// Strategy mà hcomp chấp nhận thì config.Validate cũng phải chấp nhận (và ngược lại): giá trị
+// ngoài khoảng bị bỏ qua kèm lý do, không áp một phần.
+func TestStrategyOutOfRangeIsIgnoredWithProblem(t *testing.T) {
+	cases := map[string]string{
+		"path_max_items 40": "context:\n  path_max_items: 40\n",
+		"global_k 12":       "context:\n  lessons:\n    global_k: 12\n",
+	}
+	def := Default()
+	for name, ctx := range cases {
+		root := strategyRepo(t, "status: verified\nid: strategy\nscope: global\n"+ctx)
+		cfg, src, err := Load(root, true)
+		if err != nil {
+			t.Errorf("%s: Load không được lỗi: %v", name, err)
+			continue
+		}
+		if src.Strategy != "" || src.StrategyProblem == "" {
+			t.Errorf("%s: phải bỏ qua và nêu lý do: %+v", name, src)
+		}
+		if cfg.Context.PathMaxItems != def.Context.PathMaxItems || cfg.Context.Lessons.GlobalK != def.Context.Lessons.GlobalK {
+			t.Errorf("%s: không được áp một phần: %+v", name, cfg.Context)
+		}
+	}
+}
+
+// config.yml có giá trị sai nhưng strategy verified đã che nó: Load vẫn thành công như trước
+// (lần nạp lấy BaseContext không được Validate).
+func TestStrategyMaskingInvalidProjectValueStillLoads(t *testing.T) {
+	root := strategyRepo(t, "status: verified\nid: strategy\nscope: global\ncontext:\n  path_max_items: 5\n")
+	data, err := os.ReadFile(ProjectPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := strings.Replace(string(data), "path_max_items: 5 ", "path_max_items: 40", 1)
+	if bad == string(data) {
+		t.Fatal("mẫu không có dòng path_max_items: 5")
+	}
+	if err := os.WriteFile(ProjectPath(root), []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, src, err := Load(root, true)
+	if err != nil {
+		t.Fatalf("Load phải thành công khi strategy che giá trị sai: %v", err)
+	}
+	if src.Strategy == "" || cfg.Context.PathMaxItems != 5 {
+		t.Fatalf("strategy phải được áp: %+v %+v", src, cfg.Context)
+	}
+	if cfg.BaseContext().PathMaxItems != 40 {
+		t.Fatalf("BaseContext phải giữ giá trị của config.yml: %+v", cfg.BaseContext())
+	}
+}

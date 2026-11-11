@@ -504,3 +504,24 @@ func TestReadStateOverCapReadsTailAndStopDoesNotBlock(t *testing.T) {
 		t.Fatalf("tệp nhỏ phải chặn: %+v", ds)
 	}
 }
+
+// Khoảng giá trị của strategy phải trùng config.Validate (path_max_items 1..30, global_k 0..10):
+// nếu không eval áp strategy mà phiên thật lặng lẽ bỏ qua.
+func TestLoadStrategyOutOfRangeIsProblem(t *testing.T) {
+	for name, ctx := range map[string]string{
+		"path_max_items 40": "context:\n  path_max_items: 40\n",
+		"global_k 12":       "context:\n  lessons: { global_k: 12 }\n",
+	} {
+		dir := t.TempDir()
+		write(t, dir, "strategy.yml", comp("strategy", "verified")+ctx)
+		lib := LoadDir(dir)
+		if len(lib.Components) != 0 || len(lib.Problems) != 1 {
+			t.Errorf("%s: thành phần=%d vấn đề=%v, muốn 0 thành phần và 1 vấn đề", name, len(lib.Components), lib.Problems)
+		}
+	}
+	dir := t.TempDir()
+	write(t, dir, "strategy.yml", comp("strategy", "verified")+"context:\n  path_max_items: 30\n  lessons: { global_k: 10 }\n")
+	if lib := LoadDir(dir); len(lib.Components) != 1 || len(lib.Problems) != 0 {
+		t.Errorf("biên 30/10 phải hợp lệ: %v", lib.Problems)
+	}
+}

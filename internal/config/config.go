@@ -488,6 +488,14 @@ func Default() Config {
 	}
 }
 
+// Khoảng giá trị của context.path_max_items và context.lessons.global_k. Dùng chung cho
+// Validate và hcomp.checkStrategy để strategy.yml hợp lệ ở hcomp thì cũng hợp lệ ở config.
+const (
+	MinPathMaxItems   = 1
+	MaxPathMaxItems   = 30
+	MaxLessonsGlobalK = 10
+)
+
 // Sources ghi lại các tệp đã được ghép vào cấu hình cuối cùng (rỗng nếu không có).
 type Sources struct {
 	Global  string
@@ -524,11 +532,13 @@ var ErrNoProjectConfig = errors.New("chưa có .bint/config.yml (chạy `bint in
 // Nếu requireProject là true mà thiếu .bint/config.yml thì trả ErrNoProjectConfig;
 // nếu false thì lớp dự án dùng giá trị mặc định.
 func Load(root string, requireProject bool) (Config, Sources, error) {
-	cfg, src, err := load(root, requireProject, true)
+	cfg, src, err := load(root, requireProject, true, true)
 	if err != nil || src.Strategy == "" {
 		return cfg, src, err
 	}
-	base, _, err := load(root, requireProject, false)
+	// Cấu hình nền chỉ để lấy Context: không Validate, vì strategy có thể đang che một giá
+	// trị sai của config.yml (lần nạp đầu đã Validate bản cuối).
+	base, _, err := load(root, requireProject, false, false)
 	if err != nil {
 		return cfg, src, err
 	}
@@ -537,7 +547,7 @@ func Load(root string, requireProject bool) (Config, Sources, error) {
 	return cfg, src, nil
 }
 
-func load(root string, requireProject, withStrategy bool) (Config, Sources, error) {
+func load(root string, requireProject, withStrategy, validate bool) (Config, Sources, error) {
 	cfg := Default()
 	var src Sources
 	if g := GlobalPath(); g != "" {
@@ -576,8 +586,10 @@ func load(root string, requireProject, withStrategy bool) (Config, Sources, erro
 	if ok {
 		src.Local = l
 	}
-	if err := cfg.Validate(); err != nil {
-		return cfg, src, err
+	if validate {
+		if err := cfg.Validate(); err != nil {
+			return cfg, src, err
+		}
 	}
 	return cfg, src, nil
 }
@@ -662,14 +674,14 @@ func (c Config) Validate() error {
 	if c.Context.MaxTokens <= 0 {
 		add("context.max_tokens: phải > 0")
 	}
-	if c.Context.PathMaxItems < 1 || c.Context.PathMaxItems > 30 {
-		add("context.path_max_items: phải trong khoảng 1..30")
+	if c.Context.PathMaxItems < MinPathMaxItems || c.Context.PathMaxItems > MaxPathMaxItems {
+		add("context.path_max_items: phải trong khoảng %d..%d", MinPathMaxItems, MaxPathMaxItems)
 	}
 	if c.Context.PathHookTimeoutMS < 100 || c.Context.PathHookTimeoutMS > 10000 {
 		add("context.path_hook_timeout_ms: phải trong khoảng 100..10000")
 	}
-	if c.Context.Lessons.GlobalK < 0 || c.Context.Lessons.GlobalK > 10 {
-		add("context.lessons.global_k: phải trong khoảng 0..10")
+	if c.Context.Lessons.GlobalK < 0 || c.Context.Lessons.GlobalK > MaxLessonsGlobalK {
+		add("context.lessons.global_k: phải trong khoảng 0..%d", MaxLessonsGlobalK)
 	}
 	if c.Context.Lessons.MaxTokens < 0 {
 		add("context.lessons.max_tokens: không được âm")

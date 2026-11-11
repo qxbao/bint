@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"bint/internal/config"
 )
 
 // Giới hạn độ dài (chống thành phần phình to làm tốn ngữ cảnh).
@@ -142,9 +144,12 @@ func checkStrategy(c Component, add func(string, ...any)) {
 	}
 	pos("max_tokens", x.MaxTokens)
 	pos("path_max_items", x.PathMaxItems)
+	if v := x.PathMaxItems; v != nil && *v > config.MaxPathMaxItems {
+		add("context.path_max_items phải ≤ %d", config.MaxPathMaxItems)
+	}
 	if l := x.Lessons; l != nil {
-		if l.GlobalK != nil && *l.GlobalK < 0 {
-			add("context.lessons.global_k phải ≥ 0")
+		if l.GlobalK != nil && (*l.GlobalK < 0 || *l.GlobalK > config.MaxLessonsGlobalK) {
+			add("context.lessons.global_k phải trong khoảng 0..%d", config.MaxLessonsGlobalK)
 		}
 		if l.MaxTokens != nil && *l.MaxTokens < 0 {
 			add("context.lessons.max_tokens phải ≥ 0")

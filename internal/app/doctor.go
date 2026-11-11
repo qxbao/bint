@@ -110,6 +110,9 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		layers = append(layers, src.Local)
 	}
 	r.add("cấu hình", LevelOK, "hợp lệ, schema v%d (%s)", cfg.Version, strings.Join(layers, " → "))
+	if src.StrategyProblem != "" {
+		r.add("strategy", LevelWarn, "strategy.yml (verified) bị bỏ qua ở phiên thật: %s", src.StrategyProblem)
+	}
 
 	paths, err := state.Resolve(repo, cfg)
 	if err != nil {
