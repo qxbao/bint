@@ -22,6 +22,7 @@ Go thuần, không cần CGO (SQLite qua `modernc.org/sqlite`, có FTS5), biên 
 
 ```sh
 bint init --hooks        # khởi tạo; cài hook ghi nhận + skill gốc cho các harness được bật
+bint init --update       # repository init bằng bản cũ: thêm khoá cấu hình mới (giữ giá trị, có sao lưu)
 bint doctor              # kiểm tra môi trường
 bint runs list           # lượt chạy đã ghi nhận (tự nạp spool trước)
 bint runs show <id>      # chi tiết, chấp nhận tiền tố ID
@@ -371,6 +372,14 @@ Giới hạn đã biết của P3:
 Bốn skill gốc mới — `b-req` (phân tích, lập kế hoạch), `b-feat` (thực thi), `b-review` (đánh giá
 thay đổi), `b-do` (điều phối) — chỉ ở mức tối thiểu cần cho ghi nhận và điều phối (mục 6). Mọi đầu
 ra liên kết bằng **task ID**.
+
+`/b-do` là **orchestrator**: phiên đang chạy chỉ lập phiếu, hỏi người dùng và gọi `bint run`. Mỗi
+bước do một agent riêng chạy, harness theo `roles.<role>`, model theo `harnesses.<harness>.models.<role>`.
+Mặc định của Claude: planner (b-req), reviewer (b-review), evolver dùng `opus`; implementer
+(b-feat) dùng `haiku`. Codex: `gpt-6-astra` / `gpt-6-luna`. Antigravity: `gemini-4-argon-high` /
+`gemini-3.8-flash-medium`. Thứ tự ưu tiên của model: `--model` → `harnesses.<h>.models.<role>` →
+model chung (`workflow.agent.model`, `harnesses.<h>.model`) → mặc định của harness. Kết quả từng
+bước ghi `harness/model` đã dùng.
 
 ```sh
 # Trong Claude Code (skill được xuất bản khi init/sync):
