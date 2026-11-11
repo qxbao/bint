@@ -239,3 +239,61 @@ func TestLintPlanningTaskReadsFiles(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+// Review: dòng câu hỏi sai khuôn không được bỏ qua lặng lẽ (fail-open) vì đó là cổng chặn b-feat.
+func TestLintPlanningMalformedQuestionsNotFailOpen(t *testing.T) {
+	for name, req := range map[string]string{
+		"thiếu dấu hai chấm": goodReq + "- [ ] Q-1 giữ v1?\n",
+		"in đậm":             goodReq + "- [ ] **Q-1**: giữ v1?\n",
+		"không có ID":        goodReq + "- [ ] giữ v1 không?\n",
+	} {
+		d := goodDocs()
+		d["requirement"] = req
+		r := LintPlanningText(goodTicket(), d, true)
+		if !hasCode(r.Errors, "malformed_question") {
+			t.Errorf("%s: phải báo malformed_question, được errors=%s open=%d", name, codes(r.Errors), len(r.OpenQuestions))
+		}
+	}
+	// Dấu * hợp lệ vẫn được tính khi đúng khuôn Q-N.
+	d := goodDocs()
+	d["requirement"] = goodReq + "* [ ] Q-1: giữ v1?\n"
+	if r := LintPlanningText(goodTicket(), d, true); len(r.OpenQuestions) != 1 || r.Blocking() {
+		t.Errorf("`* [ ] Q-1:` đúng khuôn phải là câu hỏi mở: %+v", r)
+	}
+}
+
+func TestLintPlanningSectionNameVariants(t *testing.T) {
+	for _, heading := range []string{"## Câu hỏi mở (cần trả lời)", "## Các câu hỏi mở", "## CÂU HỎI MỞ ##", "   ## Câu hỏi mở"} {
+		d := goodDocs()
+		d["requirement"] = strings.Replace(goodReq, "## Câu hỏi mở", heading, 1) + "- [ ] Q-1: giữ v1?\n"
+		if r := LintPlanningText(goodTicket(), d, true); len(r.OpenQuestions) != 1 {
+			t.Errorf("%q: câu hỏi mở không được nhận ra: %+v", heading, r)
+		}
+	}
+	// `###` Câu hỏi mở nằm trong section khác: báo lỗi thay vì bỏ qua.
+	d := goodDocs()
+	d["requirement"] = strings.Replace(goodReq, "## Câu hỏi mở\n", "### Câu hỏi mở\n- [ ] Q-1: giữ v1?\n", 1)
+	if r := LintPlanningText(goodTicket(), d, true); !hasCode(r.Errors, "misplaced_section") {
+		t.Errorf("### Câu hỏi mở: %s", codes(r.Errors))
+	}
+}
+
+func TestLintPlanningFenceHandling(t *testing.T) {
+	// Fence không đóng nằm trước section Q: lỗi, không lặng lẽ nuốt câu hỏi.
+	d := goodDocs()
+	d["requirement"] = "## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n```\nví dụ\n## Câu hỏi mở\n- [ ] Q-1: giữ v1?\n"
+	if r := LintPlanningText(goodTicket(), d, true); !hasCode(r.Errors, "unclosed_code_fence") {
+		t.Errorf("%s", codes(r.Errors))
+	}
+	d = goodDocs()
+	d["tasks"] = goodTasks + "```\n- [ ] TSK-9 [AC-1]: x — xong khi: y\n"
+	if r := LintPlanningText(goodTicket(), d, true); !hasCode(r.Errors, "unclosed_code_fence") {
+		t.Errorf("tasks: %s", codes(r.Errors))
+	}
+	// Dòng ~~~ trong khối ``` không đóng fence sớm.
+	d = goodDocs()
+	d["requirement"] = "## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n```\n~~~\n- [ ] AC-2: giả trong fence\n```\n"
+	if r := LintPlanningText(goodTicket(), d, true); r.Blocking() {
+		t.Errorf("AC trong fence ``` chứa ~~~ phải bị bỏ qua: %+v", r.Errors)
+	}
+}

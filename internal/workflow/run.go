@@ -178,6 +178,11 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if err := t.ClaimRunner(rs.runID, r.now()); err != nil {
 			return err
 		}
+		// Tác vụ lập bởi workflow b-req nhưng nay do b-do/b-feat/b-review điều phối: `resume` phải đi theo
+		// workflow này, nếu không sẽ báo "b-req chỉ chạy trên created/planned" và không có đường tiếp tục.
+		if t.State.Workflow == StepReq && o.Workflow != StepReq {
+			t.State.Workflow = o.Workflow
+		}
 		t.State.LinkRun(rs.runID)
 		return nil
 	})
@@ -715,7 +720,7 @@ func (r *Runner) stopOnPlanning(rs *runState, rep task.ArtifactReport) bool {
 	rs.res.PlanningIssues = rep.Errors
 	reason := "artifact b-req chưa đạt hợp đồng v1: " + strings.Join(issueLines(rep.Errors), "; ") +
 		" — sửa bằng `bint task write " + rs.t.State.ID + " <requirement|plan|tasks> -`, kiểm bằng `bint task lint " +
-		rs.t.State.ID + "`, rồi `bint run resume " + rs.t.State.ID + "`"
+		rs.t.State.ID + "`, rồi " + r.continueHint(rs)
 	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
 		r.block(rs, reason)
 	} else {
@@ -724,13 +729,40 @@ func (r *Runner) stopOnPlanning(rs *runState, rep task.ArtifactReport) bool {
 	return false
 }
 
+// continueHint là lệnh tiếp tục sau khi người sửa artifact/trả lời câu hỏi. b-do/b-feat chuyển tác vụ
+// sang blocked nên `bint run resume` vào thẳng bước kế tiếp (không chạy lại b-req). Workflow b-req chạy
+// riêng giữ tác vụ ở `planned` và KHÔNG được dùng resume — resume của b-req sẽ gọi lại agent b-req và
+// ghi đè bản người vừa sửa; tiếp tục bằng b-do/b-feat. (Quyết định theo workflow, không theo trạng thái
+// hiện tại, vì lúc dựng lý do tác vụ chưa được chuyển sang blocked.)
+func (r *Runner) continueHint(rs *runState) string {
+	id := rs.t.State.ID
+	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+		return "`bint run resume " + id + "`"
+	}
+	return "`bint run b-do --task " + id + "` (hoặc `bint run b-feat --task " + id + "`; không dùng `resume` vì sẽ chạy lại b-req)"
+}
+
 // preflightFeat lint lại artifact trước mỗi lần gọi agent b-feat trên tác vụ v1 đã qua b-req
 // (planned/in_progress, gồm vòng sửa sau review): bắt artifact bị sửa/xóa sau lúc lập kế hoạch.
-// Tác vụ v1 còn `created` gọi thẳng b-feat không bị chặn; tác vụ cũ (v0) không bị chặn.
+// Tác vụ v1 còn `created` gọi thẳng b-feat bỏ qua b-req: không có artifact để gate nên hạ về v0 — nếu
+// giữ v1 thì lần b-feat thứ hai (resume, vòng sửa sau review) bị chặn oan vì thiếu artifact và không có
+// đường ra. Tác vụ cũ (v0) không bị chặn.
 func (r *Runner) preflightFeat(rs *runState) bool {
 	t := rs.t
-	if t.State.PlanningContractVersion < task.PlanningContractV1 ||
-		(t.State.Status != task.StatusPlanned && t.State.Status != task.StatusInProgress) {
+	if t.State.PlanningContractVersion < task.PlanningContractV1 {
+		return true
+	}
+	switch t.State.Status {
+	case task.StatusCreated:
+		if nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
+			t.State.PlanningContractVersion = 0
+			return nil
+		}); err == nil {
+			rs.t = nt
+		}
+		return true
+	case task.StatusPlanned, task.StatusInProgress, task.StatusInReview:
+	default:
 		return true
 	}
 	rep := task.LintPlanningTask(t, true)
@@ -752,8 +784,8 @@ func (r *Runner) stopOnQuestions(rs *runState, rep task.ArtifactReport) bool {
 	rs.res.Questions = qs
 	id := rs.t.State.ID
 	reason := fmt.Sprintf("còn %d câu hỏi mở trong requirement.md: %s — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng "+
-		"`bint task write %s requirement -`, kiểm bằng `bint task lint %s`, rồi `bint run resume %s`",
-		len(qs), strings.Join(qs, "; "), id, id, id)
+		"`bint task write %s requirement -`, kiểm bằng `bint task lint %s`, rồi %s",
+		len(qs), strings.Join(qs, "; "), id, id, r.continueHint(rs))
 	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
 		r.block(rs, reason)
 	} else {
@@ -915,16 +947,6 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 	fmt.Fprintf(&b, "\n\n---\n\n<bint-task id=%q step=%q run=%q>\n", t.State.ID, step, child)
 	b.WriteString("Bạn đang chạy dưới `bint run` (Bint Core điều phối). Không gọi `bint task status`, `bint task approve` hay `bint task verify` " +
 		"— Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định hoàn thành. Task ID cũng có trong biến BINT_TASK_ID.\n\n")
-	if step == StepReq {
-		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
-		if c := t.State.Classification; c != nil {
-			depth = c.EffectiveDepth()
-			if c.DepthReason != "" {
-				reason = c.DepthReason
-			}
-		}
-		fmt.Fprintf(&b, "Phân tích: %s\nLý do: %s\n(Độ sâu do Bint Core chọn một lần lúc tạo tác vụ; làm theo mục \"Độ sâu phân tích\" của skill.)\n\n", depth, reason)
-	}
 	if step == StepReq {
 		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
 		if c := t.State.Classification; c != nil {

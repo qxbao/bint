@@ -337,7 +337,8 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		// afterStep/preflight.
 		if !o.Orchestrator && t.State.PlanningContractVersion >= task.PlanningContractV1 {
 			toPlanned := to == task.StatusPlanned && t.State.Status != task.StatusPlanned
-			toImpl := to == task.StatusInProgress && t.State.Status == task.StatusPlanned
+			toImpl := to == task.StatusInProgress && (t.State.Status == task.StatusPlanned ||
+				(task.Paused(t.State.Status) && (t.State.ResumeFrom == task.StatusPlanned || t.State.ResumeFrom == task.StatusInProgress)))
 			if toPlanned || toImpl {
 				rep := task.LintPlanningTask(t, true)
 				if rep.Blocking() || (toImpl && len(rep.OpenQuestions) > 0) {

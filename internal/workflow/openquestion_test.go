@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -133,5 +134,104 @@ func TestOpenQuestionManualStatusGate(t *testing.T) {
 	}
 	if _, _, err := agent.SetStatus(ctx, tk2.State.ID, task.StatusPlanned, TransitionOptions{}); err != nil {
 		t.Fatalf("created→planned không được chặn bởi Q mở: %v", err)
+	}
+}
+
+// Review: lời nhắc tiếp tục không được dẫn người dùng vào `resume` làm b-req chạy lại và ghi đè câu trả lời.
+func TestOpenQuestionStandaloneReqHintAvoidsResume(t *testing.T) {
+	h := newHarness(t)
+	h.behave = h.reqWithQuestion(openQ)
+	res, _ := h.runner().Run(context.Background(), RunOptions{Workflow: StepReq, Request: "Thêm tính năng v2"})
+	if strings.Contains(res.Reason, "bint run resume") || !strings.Contains(res.Reason, "bint run b-do --task "+res.TaskID) {
+		t.Fatalf("b-req riêng không được nhắc resume: %s", res.Reason)
+	}
+	// Và nếu người dùng vẫn gọi resume thì agent b-req chạy lại (hành vi đã biết): ghi nhận để không ai tưởng ngược lại.
+}
+
+// Review: task lập bởi b-req rồi chạy b-feat bị chặn: resume phải đi tiếp được (không báo "b-req chỉ chạy trên created/planned").
+func TestOpenQuestionReqCreatedTaskCanResumeAfterFeatBlocked(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.behave = h.reqWithQuestion(openQ)
+	r := h.runner()
+	res, _ := r.Run(ctx, RunOptions{Workflow: StepReq, Request: "Thêm tính năng v2"})
+	res2, _ := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: res.TaskID})
+	if res2.Status != task.StatusBlocked || !strings.Contains(res2.Reason, "bint run resume") {
+		t.Fatalf("%+v", res2)
+	}
+	r.WriteArtifact(res.TaskID, "requirement", validDocs("app.txt ghi v2", answeredQ)["requirement"])
+	res3, err := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: res.TaskID, Resume: true})
+	if err != nil || res3.Status != task.StatusInReview || countCalls(h, StepReq) != 1 {
+		t.Fatalf("resume phải chạy b-feat: %+v %v %v", res3, err, h.calls)
+	}
+}
+
+// Review: v1 bỏ qua b-req (b-feat gọi thẳng từ created) không bị cổng artifact chặn ở lần b-feat thứ hai.
+func TestPlanningContractDirectFeatThenSecondFeatNotGated(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	r := h.runner()
+	tk, _, _ := r.NewTask(ctx, NewTaskOptions{Request: "Thêm tính năng v2", Workflow: "b-do"})
+	if tk.State.PlanningContractVersion != 1 {
+		t.Fatal("tiền điều kiện v1")
+	}
+	h.behave = func(context.Context, string, *Env, string) error { return os.ErrPermission }
+	res, _ := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: tk.State.ID})
+	if res.Status != task.StatusFailed {
+		t.Fatalf("%+v", res)
+	}
+	h.behave = h.happy
+	res2, _ := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: tk.State.ID, Resume: true})
+	if res2.Status != task.StatusInReview || len(res2.PlanningIssues) != 0 {
+		t.Fatalf("lần b-feat thứ hai không được bị gate: %+v", res2)
+	}
+	if v := loadTask(t, h, tk.State.ID).State.PlanningContractVersion; v != 0 {
+		t.Fatalf("bỏ qua b-req thì hạ về v0, được %d", v)
+	}
+}
+
+// Review: preflight cũng áp khi b-feat chạy riêng trên task v1 đang in_review.
+func TestPlanningContractPreflightAppliesInReview(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	r := h.runner()
+	res, _ := r.Run(ctx, RunOptions{Workflow: StepReq, Request: "Thêm tính năng v2"})
+	if res.Status != task.StatusPlanned {
+		t.Fatalf("%+v", res)
+	}
+	r.Tasks.Update(res.TaskID, time.Now(), func(t *task.Task) error { t.State.Status = task.StatusInReview; return nil })
+	r.SetTicket(res.TaskID, TicketEdit{ClearCriteria: true, Criteria: []string{"khác"}})
+	res2, _ := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: res.TaskID})
+	if res2.Status != task.StatusBlocked || countCalls(h, StepFeat) != 0 || len(res2.PlanningIssues) == 0 {
+		t.Fatalf("%+v %v", res2, h.calls)
+	}
+}
+
+// Review: chuyển tay từ blocked/failed/interrupted sang in_progress cũng bị lint trên task v1.
+func TestOpenQuestionManualGateFromPausedStatuses(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.behave = h.reqWithQuestion(openQ)
+	r := h.runner()
+	res, _ := r.Run(ctx, RunOptions{Workflow: StepDo, Request: "Thêm tính năng v2"})
+	if res.Status != task.StatusBlocked {
+		t.Fatalf("%+v", res)
+	}
+	agent := &Env{Root: h.root, Cfg: h.cfg, Tasks: h.tasks, Spool: h.spool}
+	if _, _, err := agent.SetStatus(ctx, res.TaskID, task.StatusInProgress, TransitionOptions{}); err == nil || !strings.Contains(err.Error(), "Q-1") {
+		t.Fatalf("blocked→in_progress với Q mở phải lỗi: %v", err)
+	}
+}
+
+// Review: khối độ sâu trong prompt b-req chỉ xuất hiện một lần.
+func TestDepthPromptBlockAppearsOnce(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepReq, Request: "Thêm tính năng v2"}); err != nil {
+		t.Fatal(err)
+	}
+	p := h.prompts[StepReq]
+	// (skill b-req tự nhắc dòng `Phân tích:` trong thân nên đếm câu chú thích do Core thêm.)
+	if n := strings.Count(p, "Độ sâu do Bint Core chọn một lần"); n != 1 {
+		t.Fatalf("khối độ sâu xuất hiện %d lần:\n%s", n, p)
 	}
 }

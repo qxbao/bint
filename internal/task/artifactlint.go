@@ -36,8 +36,9 @@ type ArtifactReport struct {
 func (r ArtifactReport) Blocking() bool { return len(r.Errors) > 0 }
 
 var (
-	lintHeadingRe  = regexp.MustCompile(`^(#{1,2})\s+(.+?)\s*$`)
-	lintCheckboxRe = regexp.MustCompile(`^\s*-\s+\[([ xX])\]\s+(.*\S)\s*$`)
+	lintHeadingRe  = regexp.MustCompile(`^ {0,3}(#{1,2})\s+(.+?)\s*$`)
+	lintDeepHeadRe = regexp.MustCompile(`^ {0,3}#{3,}\s+(.+?)\s*$`)
+	lintCheckboxRe = regexp.MustCompile(`^\s*[-*+]\s+\[([ xX])\]\s+(.*\S)\s*$`)
 	lintACRe       = regexp.MustCompile(`^AC-(\d+)\s*:\s*(.*)$`)
 	lintTSKRe      = regexp.MustCompile(`^TSK-(\d+)\s*\[([^\]]*)\]\s*:\s*(.*)$`)
 	lintQRe        = regexp.MustCompile(`^Q-(\d+)\s*:\s*(.*)$`)
@@ -75,24 +76,47 @@ func (b *reportBuilder) question(code, detail string) {
 
 func normSpace(s string) string { return strings.Join(strings.Fields(s), " ") }
 
+// sectionKind chuẩn hóa tên heading: secAC/secQ cho hai mục có ý nghĩa, còn lại giữ tên đã hạ chữ thường.
+// Chấp nhận hậu tố mô tả ("Câu hỏi mở (cần trả lời)") và dạng số nhiều ("Các câu hỏi mở").
+func sectionKind(name string) string {
+	n := strings.ToLower(normSpace(strings.TrimRight(name, "# \t")))
+	switch {
+	case strings.HasPrefix(n, secAC):
+		return secAC
+	case strings.HasPrefix(n, secQ), strings.HasPrefix(n, "các "+secQ):
+		return secQ
+	}
+	return n
+}
+
 // scanLines gọi fn cho từng dòng ngoài code fence cùng tên section (heading cấp 1–2 gần nhất).
-func scanLines(text string, fn func(section string, line string)) {
-	section, fenced := "", false
+// Fence đóng bằng đúng loại ký hiệu đã mở (``` hoặc ~~~). Trả về true nếu hết văn bản mà fence vẫn mở:
+// mọi dòng sau đó bị bỏ qua nên nơi gọi phải báo lỗi thay vì lặng lẽ coi như không có câu hỏi.
+func scanLines(text string, fn func(section string, line string)) (unclosedFence bool) {
+	section, marker := "", ""
 	for line := range strings.SplitSeq(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
 		t := strings.TrimSpace(line)
-		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
-			fenced = !fenced
+		if marker != "" {
+			if strings.HasPrefix(t, marker) {
+				marker = ""
+			}
 			continue
 		}
-		if fenced {
+		if strings.HasPrefix(t, "```") {
+			marker = "```"
+			continue
+		}
+		if strings.HasPrefix(t, "~~~") {
+			marker = "~~~"
 			continue
 		}
 		if m := lintHeadingRe.FindStringSubmatch(line); m != nil {
-			section = strings.ToLower(normSpace(m[2]))
+			section = sectionKind(m[2])
 			continue
 		}
 		fn(section, line)
 	}
+	return marker != ""
 }
 
 const (
@@ -187,7 +211,13 @@ func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]e
 func lintRequirement(b *reportBuilder, text string) []acItem {
 	var acs []acItem
 	seenAC, seenQ := map[int]bool{}, map[int]bool{}
-	scanLines(text, func(section, line string) {
+	unclosed := scanLines(text, func(section, line string) {
+		if m := lintDeepHeadRe.FindStringSubmatch(line); m != nil {
+			if k := sectionKind(m[1]); k == secAC || k == secQ {
+				b.err("misplaced_section", artReq, "heading %q phải là `## ` (cấp 2); heading `###` trở xuống nằm trong mục trước nên Bint không đọc được mục này", strings.TrimSpace(line))
+			}
+			return
+		}
 		cb := lintCheckboxRe.FindStringSubmatch(line)
 		if cb == nil {
 			return
@@ -222,6 +252,7 @@ func lintRequirement(b *reportBuilder, text string) []acItem {
 		case secQ:
 			m := lintQRe.FindStringSubmatch(content)
 			if m == nil {
+				b.err("malformed_question", artReq, "dòng %q sai khuôn; dùng `- [ ] Q-1: <câu hỏi>` (hoặc `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>`); dòng sai khuôn không được tính nên không chặn được b-feat", content)
 				return
 			}
 			n, _ := strconv.Atoi(m[1])
@@ -245,6 +276,9 @@ func lintRequirement(b *reportBuilder, text string) []acItem {
 			}
 		}
 	})
+	if unclosed {
+		b.err("unclosed_code_fence", artReq, "có code fence (``` hoặc ~~~) không đóng: mọi dòng phía sau bị bỏ qua, gồm cả tiêu chí và câu hỏi mở")
+	}
 	if len(acs) == 0 {
 		b.err("no_ac", artReq, "không có dòng AC nào dưới `## Tiêu chí chấp nhận`; dùng `- [ ] AC-1: <tiêu chí>`")
 		return acs
@@ -266,7 +300,7 @@ func lintRequirement(b *reportBuilder, text string) []acItem {
 func lintTasks(b *reportBuilder, text string) []tskItem {
 	var tsks []tskItem
 	seen := map[int]bool{}
-	scanLines(text, func(_ string, line string) {
+	unclosed := scanLines(text, func(_ string, line string) {
 		cb := lintCheckboxRe.FindStringSubmatch(line)
 		if cb == nil {
 			return
@@ -319,6 +353,9 @@ func lintTasks(b *reportBuilder, text string) []tskItem {
 		}
 		tsks = append(tsks, tskItem{N: n, Refs: refs})
 	})
+	if unclosed {
+		b.err("unclosed_code_fence", artTasks, "có code fence (``` hoặc ~~~) không đóng: mọi dòng phía sau bị bỏ qua")
+	}
 	if len(tsks) == 0 {
 		b.err("no_tasks", artTasks, "không có dòng TSK nào; dùng `- [ ] TSK-1 [AC-1]: <việc> — xong khi: <điều kiện>`")
 	}
