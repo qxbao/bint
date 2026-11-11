@@ -25,6 +25,7 @@ bint init --hooks        # khởi tạo; cài hook ghi nhận + skill gốc cho 
 bint init --update       # repository init bằng bản cũ: thêm khoá cấu hình mới (giữ giá trị, có sao lưu)
 bint init --git local    # dùng Bint riêng trên máy: tệp của Bint không vào Git (track = commit cho nhóm)
 bint doctor              # kiểm tra môi trường
+bint update [--pull]     # build lại + cài từ thư mục mã nguồn (go install ./cmd/bint); rồi bint init --update
 bint runs list           # lượt chạy đã ghi nhận (tự nạp spool trước)
 bint runs show <id>      # chi tiết, chấp nhận tiền tố ID
 bint status

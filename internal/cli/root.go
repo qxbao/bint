@@ -112,7 +112,7 @@ func NewRoot(stdio IO) *cobra.Command {
 			root.AddCommand(c)
 		}
 	}
-	add("project", newInitCmd(stdio), newDoctorCmd(stdio), newStatusCmd(stdio), newSyncCmd(stdio), newHarnessCmd(stdio))
+	add("project", newInitCmd(stdio), newDoctorCmd(stdio), newStatusCmd(stdio), newSyncCmd(stdio), newHarnessCmd(stdio), newUpdateCmd(stdio))
 	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
 		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newSkillCmd(stdio))
