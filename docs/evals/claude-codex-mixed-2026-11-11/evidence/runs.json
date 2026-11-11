@@ -206,5 +206,21 @@
   "status": "completed",
   "parent_run_id": "01M74C22PY0WGX9C9BN2G1WEPS",
   "started_at": "2026-11-11T03:57:36.892Z"
+ },
+ {
+  "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "workflow": "b-feat",
+  "harness": null,
+  "status": "completed",
+  "parent_run_id": "01M74C22QQZFRTZHYM428HM89P",
+  "started_at": "2026-11-11T04:13:32.423Z"
+ },
+ {
+  "run_id": "01M74CZ7WR94K6THJGEYCMQ12Q",
+  "workflow": "b-feat",
+  "harness": "codex",
+  "status": "completed",
+  "parent_run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "started_at": "2026-11-11T04:13:32.444Z"
  }
 ]

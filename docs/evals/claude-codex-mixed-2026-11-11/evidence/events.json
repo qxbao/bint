@@ -2243,5 +2243,142 @@
    "task_id": "01M74C22PYS7WAC7NZJP89RY3W",
    "verification_status": "passed"
   }
+ },
+ {
+  "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "type": "workflow.started",
+  "source": "bint-run",
+  "payload": {
+   "bint_version": "0.1.0-dev",
+   "git_branch": "main",
+   "git_head": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+   "parent_run_id": "01M74C22QQZFRTZHYM428HM89P",
+   "task_id": "01M74C22PYS7WAC7NZJP89RY3W",
+   "workflow": "b-feat"
+  }
+ },
+ {
+  "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "type": "task.status",
+  "source": "bint-run",
+  "payload": {
+   "forced": false,
+   "reason": "b-feat bắt đầu",
+   "status": "in_progress",
+   "task_id": "01M74C22PYS7WAC7NZJP89RY3W"
+  }
+ },
+ {
+  "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "type": "step.started",
+  "source": "bint-run",
+  "payload": {
+   "name": "b-feat",
+   "status": "running",
+   "step_id": "st_01M74CZ7WR94K6THJGEYCMQ12Q"
+  }
+ },
+ {
+  "run_id": "01M74CZ7WR94K6THJGEYCMQ12Q",
+  "type": "workflow.started",
+  "source": "bint-run",
+  "payload": {
+   "bint_version": "0.1.0-dev",
+   "git_branch": "main",
+   "git_head": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+   "harness": "codex",
+   "parent_run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+   "task_id": "01M74C22PYS7WAC7NZJP89RY3W",
+   "workflow": "b-feat"
+  }
+ },
+ {
+  "run_id": "01M74CZ7WR94K6THJGEYCMQ12Q",
+  "type": "session.started",
+  "source": "hook:codex",
+  "payload": {
+   "bint_version": "0.1.0-dev",
+   "git_branch": "main",
+   "git_head": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+   "linked_worktree": false,
+   "model": "gpt-6-luna",
+   "source": "startup"
+  }
+ },
+ {
+  "run_id": "01M74CZ7WR94K6THJGEYCMQ12Q",
+  "type": "file.modified",
+  "source": "hook:codex",
+  "payload": {
+   "ok": true,
+   "path": ".github/workflows/ci.yml",
+   "tool": "apply_patch"
+  }
+ },
+ {
+  "run_id": "01M74CZ7WR94K6THJGEYCMQ12Q",
+  "type": "session.ended",
+  "source": "hook:codex",
+  "payload": {
+   "reason": "other"
+  }
+ },
+ {
+  "run_id": "01M74CZ7WR94K6THJGEYCMQ12Q",
+  "type": "workflow.finished",
+  "source": "bint-run",
+  "payload": {
+   "end_reason": "",
+   "input_tokens": 119885,
+   "model": "",
+   "output_tokens": 2581,
+   "status": "completed",
+   "task_id": "01M74C22PYS7WAC7NZJP89RY3W"
+  }
+ },
+ {
+  "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "type": "step.finished",
+  "source": "bint-run",
+  "payload": {
+   "name": "b-feat",
+   "status": "completed",
+   "step_id": "st_01M74CZ7WR94K6THJGEYCMQ12Q"
+  }
+ },
+ {
+  "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "type": "task.verified",
+  "source": "bint-run",
+  "payload": {
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "task_id": "01M74C22PYS7WAC7NZJP89RY3W",
+   "timed_out": false
+  }
+ },
+ {
+  "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "type": "task.status",
+  "source": "bint-run",
+  "payload": {
+   "forced": false,
+   "reason": "b-feat xong",
+   "status": "in_review",
+   "task_id": "01M74C22PYS7WAC7NZJP89RY3W"
+  }
+ },
+ {
+  "run_id": "01M74CZ7VKX2YJWTMG8D2670G1",
+  "type": "workflow.finished",
+  "source": "bint-run",
+  "payload": {
+   "end_reason": "task in_review: b-feat xong",
+   "status": "completed",
+   "task_id": "01M74C22PYS7WAC7NZJP89RY3W",
+   "verification_status": "passed"
+  }
  }
 ]

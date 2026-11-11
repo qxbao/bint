@@ -4,8 +4,8 @@
 
 - **A (Claude lập kế hoạch → Codex thực thi → Claude review): đạt thật**, task `done` có bằng chứng verify, sau khi sửa 3 lỗi chặn/sai dữ liệu.
 - **B (Codex lập kế hoạch/review → Claude thực thi): đạt thật** ngay lần chạy đầu trên bản đã sửa.
-- **C (đường dẫn bảo vệ → chặn → người duyệt → resume): đạt một phần.** Hook Bint chặn thật `apply_patch` vào đường dẫn bảo vệ (C3). Người dùng duyệt `--path`, `run resume` chạy lại đúng harness (Codex), chỉ làm phần còn thiếu, không làm lại phần đã xong (C1→C2). **Nhưng task C vẫn `blocked`** vì tiêu chí 2 còn bằng chứng cũ sau resume (phát hiện mở bên dưới). Hai phần C chạy trên hai task khác nhau, chưa có một task đi trọn hook-deny → duyệt → resume → done.
-- **Không kết luận "nghiệm thu hỗn hợp hoàn tất".** Còn lại: xem mục [Còn blocked](#còn-blocked-và-điều-kiện-thủ công).
+- **C (đường dẫn bảo vệ → chặn → người duyệt → chạy tiếp): đạt về cơ chế, chưa đi tới `done`.** Hook Bint chặn thật `apply_patch` vào đường dẫn bảo vệ; người dùng duyệt đúng một tệp bằng `task approve --path`; Codex chạy lại và tạo tệp (C3→C4, cùng một task). Với `b-do`, `run resume` chạy lại đúng harness (Codex) khi áp lại cờ, chỉ làm phần còn thiếu, không làm lại phần đã xong (C1→C2). **Nhưng task của C1/C2 vẫn `blocked`** vì tiêu chí 2 còn bằng chứng cũ sau resume (phát hiện mở 1), và task của C3/C4 là `b-feat` đơn lẻ nên dừng ở `in_review`, không có bước review/finalize. Không task nào đi trọn tới `done` sau khi duyệt.
+- **Các phép thử bắt buộc A, B, C đều đã chạy được với Claude/Codex thật**, nhưng vì C chưa có task nào tới `done` sau duyệt và còn một phát hiện mở ảnh hưởng điều đó, **tôi không kết luận "nghiệm thu hỗn hợp hoàn tất"**. Xem [Còn blocked](#còn-blocked-và-điều-kiện-thủ-công).
 
 Đọc cùng [đợt 2026-11-10](../codex-flows-2026-11-10/README.md) và [đợt 2026-11-11](../codex-flows-2026-11-11/README.md). Đợt này chỉ tập trung phần hỗn hợp, không chạy lại F1–F7.
 
@@ -35,6 +35,7 @@ Nhãn: **[đã kiểm chứng thật]** quan sát trực tiếp ở Claude/Codex
 | **C1** `b-do --no-plan --harness claude --role implementer=codex` (Sub + migration) | `01M74BFD9EM8XEXRVQRW4EQ3XZ` | b-feat `codex` → b-review `claude` | Codex làm phần Go, **tự dừng** trước migration; task `blocked`, tiêu chí 2 `unmet` | [đã kiểm chứng thật] |
 | **C2** người duyệt `--path` rồi `run resume … --harness claude --role implementer=codex` | cùng task C | b-feat `codex` (chỉ tạo migration) → b-review `claude` | Migration tạo, test qua; task **vẫn `blocked`** (tiêu chí 2 chưa được ghi lại) | [đã kiểm chứng thật] |
 | **C3** hook chặn | `01M74C22PYS7WAC7NZJP89RY3W` | b-feat `codex` | Hook Bint chặn `apply_patch` vào `.github/workflows/ci.yml`, không có tệp/diff; Codex báo chặn và dừng | [đã kiểm chứng thật] |
+| **C4** người duyệt `--path .github/workflows/ci.yml` rồi `run b-feat --task … --harness codex` | cùng task C3 | b-feat `codex` (run mới, `parent_run_id` = run b-feat bị chặn) | Hook cho qua đúng tệp đã duyệt, Codex tạo `ci.yml` (1 dòng `name: ci`), sự kiện `file.modified` do `hook:codex` ghi; task `in_review`, `protected_approval` = đúng một tệp. Task đang `in_review` (không paused) nên **dùng `run b-feat --task`, không phải `run resume`** | [đã kiểm chứng thật] |
 
 ### Kiểm tra theo đề bài (A/B/C)
 
@@ -50,7 +51,7 @@ Nhãn: **[đã kiểm chứng thật]** quan sát trực tiếp ở Claude/Codex
 | Không tự duyệt tri thức | `knowledge_index`, `observations`, `knowledge_citations` đều 0 dòng; không mục tri thức nào được tạo | [đã kiểm chứng thật] |
 | Không mất/nhân đôi sự kiện do hai bộ hook | 203 sự kiện / 203 `event_id` khác nhau; mỗi harness chỉ nạp bộ hook của chính nó (Claude không đọc `.codex/hooks.json` và ngược lại) | [đã kiểm chứng thật] cho tập đã quan sát. Mất sự kiện khi hook timeout: không thử ở đợt này |
 | Không có hướng dẫn riêng harness khiến harness kia gọi tool không tồn tại/lặp | Log Codex không có `AskUserQuestion/TodoWrite/Skill tool`; không lỗi "tool not found". Đoạn mới thêm vào skill b-review (YAML) viết trung tính, không nêu tên harness | [đã kiểm chứng thật] (grep log) |
-| Agent không tự vượt cổng duyệt | Người dùng tự chạy `task approve` ở terminal riêng (`protected_approval` ghi lúc `03:54:18Z`, đúng một tệp). Khi agent (tôi) định thử `approve`, **bộ phân loại quyền của Claude Code chặn trước**, nên thông báo `ErrAgentForbidden` của Bint không được quan sát ở phiên này | Cổng của người dùng: [đã kiểm chứng thật]. `ErrAgentForbidden` của Bint: [suy luận từ code + test có sẵn] |
+| Agent không tự vượt cổng duyệt | Người dùng tự chạy `task approve` ở terminal riêng (`protected_approval` ghi lúc `03:54:18Z` cho C và `04:12:59Z` cho C3, mỗi lần đúng một tệp; lần đầu người dùng chạy nhầm bản `bint` cũ trên PATH nên lệnh lỗi `unknown flag: --path`, đã chạy lại bằng binary tuyệt đối). Khi agent (tôi) định thử `approve`, **bộ phân loại quyền của Claude Code chặn trước**, nên thông báo `ErrAgentForbidden` của Bint không được quan sát ở phiên này | Cổng của người dùng: [đã kiểm chứng thật]. `ErrAgentForbidden` của Bint: [suy luận từ code + test có sẵn] |
 
 ## Lỗi tìm thấy và đã sửa (mỗi lỗi một commit, có test hồi quy)
 
@@ -67,17 +68,17 @@ Không sửa gate, ngưỡng, oracle hay test hiện có; không nhân đôi ski
 
 1. **Tiêu chí còn bằng chứng cũ sau resume (C2)** — [đã kiểm chứng thật]. Codex tạo migration và chạy test qua, nhưng không gọi `bint task criteria 2 met` (log: "tôi sẽ không cập nhật trạng thái"), hiểu rộng câu "không gọi `bint task status/approve/verify`" trong prompt. Task ở lại `blocked`; Claude reviewer nhận ra ("bằng chứng tiêu chí 2 đã lỗi thời", finding `.4`). Hướng sửa gợi ý (chưa thử, chưa xác nhận hiệu quả): khi chạy lại b-feat, nêu rõ các tiêu chí còn `unmet` và nhắc ghi lại bằng `bint task criteria`. Đây có thể chỉ là lệch của model; một mẫu chưa đủ để kết luận lỗi mã.
 2. **Role/harness không được lưu theo task** — [suy luận từ code]. Role chỉ đến từ `--harness/--role` của lần chạy (`internal/cli/run.go:117`), `state.json` không lưu. Vì vậy `run resume` **bắt buộc áp lại cờ**; nếu bỏ cờ sẽ rơi về `roles:` trong cấu hình (ở đây là `claude`), tức đổi harness của b-feat âm thầm. Đợt này resume luôn áp lại cờ (C2 đúng). **Chưa chạy resume không cờ bằng Claude/Codex thật** để xác nhận hành vi đổi harness.
-3. **Hook deny không được ghi thành trạng thái** — [đã kiểm chứng thật]. C3 chạy `b-feat` đơn lẻ: Codex bị chặn, không diff, nhưng task sang `in_review` ("b-feat xong"). Đợt trước task `blocked` là nhờ bước finalize của `b-do` (tiêu chí/verify chưa đạt), không phải do chính lần chặn. Sửa cần lưu sự kiện deny (thay đổi thiết kế), nên không làm ở đây.
+3. **Hook deny không được ghi thành trạng thái** — [đã kiểm chứng thật]. C3 chạy `b-feat` đơn lẻ: Codex bị chặn, không diff, nhưng task sang `in_review` ("b-feat xong"). Đợt trước task `blocked` là nhờ bước finalize của `b-do` (tiêu chí/verify chưa đạt), không phải do chính lần chặn. Sau khi duyệt, C4 chạy tiếp được bằng `run b-feat --task` dù không paused. Sửa cần lưu sự kiện deny (thay đổi thiết kế), nên không làm ở đây.
 4. **Nhận diện test của Claude vẫn rộng** — [đã kiểm chứng thật]. B ghi `test.completed ok=true` cho một script nhiều lệnh có `| cut` (hook PostToolUse chỉ báo thành công). Giữ hành vi mặc định Claude theo đề bài; không nâng thành kết luận "mọi test Claude đều đúng".
 5. **Cô lập nhiễu từ cấu hình người dùng** — Claude nạp hook/CLAUDE.md toàn cục (xem trên); có thể ảnh hưởng lệnh agent tự viết. Không đổi mặc định.
 
 ## Số session thật và lý do vượt mục tiêu
 
-**17 phiên model thật** (mục tiêu 8–12): 10 phiên workflow trong A0/A1/A/B (1+3+3+3), 5 phiên C (C1 2, C2 2, C3 1), cộng 2 phiên haiku chẩn đoán (H1, H2) và 1 lần gọi không đầu vào (lỗi trước khi gọi model, không tính). Vượt vì hai lỗi chặn (`fcbe5dd`, `d96cd0c`) buộc chạy lại A hai lần sau khi sửa; A0/A1 giữ lại làm bằng chứng. Chi phí Claude từng bước nằm trong các `*.json` (USD thật); Codex chỉ có token, không có USD, nên **không cộng tổng**.
+**18 phiên model thật** (mục tiêu 8–12): 10 phiên workflow trong A0/A1/A/B (1+3+3+3), 6 phiên C (C1 2, C2 2, C3 1, C4 1), cộng 2 phiên haiku chẩn đoán (H1, H2) và 1 lần gọi không đầu vào (lỗi trước khi gọi model, không tính). Vượt vì hai lỗi chặn (`fcbe5dd`, `d96cd0c`) buộc chạy lại A hai lần sau khi sửa; A0/A1 giữ lại làm bằng chứng. Chi phí Claude từng bước nằm trong các `*.json` (USD thật); Codex chỉ có token, không có USD, nên **không cộng tổng**.
 
 ## Còn blocked và điều kiện thủ công
 
-- **C chưa đi trọn một task** hook-deny → duyệt → resume → done. Cần: (a) tạo lại trạng thái từ task C3 (`bint task approve 01M74C22PYS7WAC7NZJP89RY3W --path .github/workflows/ci.yml` **do người dùng chạy ở terminal thường**, vì phiên agent không được chạy lệnh duyệt), rồi `bint run resume … --harness … --role implementer=codex`; (b) xử lý phát hiện mở 1 để tiêu chí được ghi lại.
+- **C chưa có task nào đi tới `done` sau khi duyệt.** Cần: (a) xử lý phát hiện mở 1 (tiêu chí còn bằng chứng cũ) rồi chạy lại C1/C2 hoặc một task `b-do` mới có đường dẫn bảo vệ, hoặc (b) chạy `b-do` thay vì `b-feat` đơn lẻ cho cùng chuỗi hook chặn → duyệt → chạy tiếp. Lệnh duyệt luôn do **người dùng** chạy ở terminal thường, với binary tuyệt đối và `XDG_STATE_HOME` của repo thử (bản `bint` trên PATH là bản cũ, không có `--path`).
 - **Duyệt qua UI `/hooks`** chưa thao tác (dùng API app-server như đợt trước).
 - **Windows/macOS** không thử; chỉ `GOOS=windows go vet` qua.
 - **Resume không cờ** và **vi phạm readonly cố ý bằng Claude thật**: chưa thử (xem trên).
@@ -101,7 +102,7 @@ Fixture/test hồi quy: `internal/harness/testdata/claude-2.1.322/`, `internal/t
 
 Đường dẫn → `<repo>`, `<state>`, `<BINT>`, `<scratch>`; email, URL, key, tên máy, session/thread ID bị bỏ hoặc che. Không có auth/config/provider values.
 
-- `runs-output/`: lệnh, JSON kết quả và stderr của A0, A1, A, B, C1, C2, C3; `versions.txt`, `doctor.txt`, `init.txt`, trust RPC.
+- `runs-output/`: lệnh, JSON kết quả và stderr của A0, A1, A, B, C1, C2, C3, C4; `versions.txt`, `doctor.txt`, `init.txt`, trust RPC.
 - `tasks/<id>/`: `task.yml`, `state.json`, `requirement/plan/tasks.md`, `review.json/.md` của mọi task.
 - `logs/`: log từng bước (dòng lệnh thật + JSON/JSONL của Claude/Codex).
 - `runs.json`, `events.json`: bảng run và 203 sự kiện (đã bỏ session/transcript/cwd).
