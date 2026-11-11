@@ -631,7 +631,12 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			return r.stopOnPlanning(rs, rep)
 		}
 		if a := r.Assess(rs.t); len(a.Questions) > 0 && strings.TrimSpace(rs.t.Ticket.Verify.Command) == "" {
-			return r.askVerify(rs, a)
+			if !r.askVerify(rs, a) {
+				return false
+			}
+		}
+		if len(rep.OpenQuestions) > 0 {
+			return r.stopOnQuestions(rs, rep)
 		}
 		return rs.opts.Workflow == StepDo
 	case StepFeat:
@@ -732,7 +737,29 @@ func (r *Runner) preflightFeat(rs *runState) bool {
 	if rep.Blocking() {
 		return r.stopOnPlanning(rs, rep)
 	}
+	if len(rep.OpenQuestions) > 0 {
+		return r.stopOnQuestions(rs, rep)
+	}
 	return true
+}
+
+// stopOnQuestions dừng vì requirement.md còn câu hỏi cản trở triển khai. Tác vụ đã ở `planned`;
+// b-do/b-feat chuyển `blocked` (resume về planned rồi vào thẳng b-feat sau khi có câu trả lời, không
+// chạy lại b-req); workflow b-req chạy riêng giữ `planned` vì resume của nó gọi lại agent b-req.
+// Core chỉ kiểm hình thức có câu trả lời, không xác thực nội dung. Luôn trả false.
+func (r *Runner) stopOnQuestions(rs *runState, rep task.ArtifactReport) bool {
+	qs := questionLines(rep.OpenQuestions)
+	rs.res.Questions = qs
+	id := rs.t.State.ID
+	reason := fmt.Sprintf("còn %d câu hỏi mở trong requirement.md: %s — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng "+
+		"`bint task write %s requirement -`, kiểm bằng `bint task lint %s`, rồi `bint run resume %s`",
+		len(qs), strings.Join(qs, "; "), id, id, id)
+	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+		r.block(rs, reason)
+	} else {
+		rs.res.Reason = reason
+	}
+	return false
 }
 
 func passWord(ok bool) string {

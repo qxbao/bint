@@ -176,6 +176,11 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, o workflow.RunOption
 	switch res.Status {
 	case task.StatusBlocked, task.StatusFailed, task.StatusInterrupted:
 		return withCode(ExitError, fmt.Errorf("tác vụ %s: %s", res.TaskID, res.Status))
+	case task.StatusPlanned:
+		// b-req chạy riêng dừng ở planned khi còn lỗi cấu trúc artifact hoặc câu hỏi mở: không phải thành công.
+		if len(res.PlanningIssues) > 0 || len(res.Questions) > 0 {
+			return withCode(ExitError, fmt.Errorf("tác vụ %s: planned nhưng chưa sẵn sàng cho b-feat (bint task lint %s)", res.TaskID, res.TaskID))
+		}
 	}
 	return nil
 }
@@ -201,6 +206,9 @@ func printRunResult(w io.Writer, res *workflow.Result) {
 			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n", s.Step, s.RunID, s.Status, s.Duration, cost)
 		}
 		tw.Flush()
+	}
+	for _, i := range res.PlanningIssues {
+		fmt.Fprintf(w, "✗ %s\n", i)
 	}
 	for _, q := range res.Questions {
 		fmt.Fprintf(w, "? %s\n", q)

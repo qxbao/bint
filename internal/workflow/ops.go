@@ -236,8 +236,23 @@ type PlanningError struct {
 }
 
 func (e *PlanningError) Error() string {
-	return "artifact b-req chưa đạt hợp đồng v1:\n  - " + strings.Join(issueLines(e.Report.Errors), "\n  - ") +
-		"\nSửa rồi kiểm lại bằng `bint task lint " + e.TaskID + "`"
+	var parts []string
+	if len(e.Report.Errors) > 0 {
+		parts = append(parts, "artifact b-req chưa đạt hợp đồng v1:\n  - "+strings.Join(issueLines(e.Report.Errors), "\n  - "))
+	}
+	if len(e.Report.OpenQuestions) > 0 {
+		parts = append(parts, "còn câu hỏi mở trong requirement.md (ghi `— Trả lời:` rồi tiếp tục):\n  - "+
+			strings.Join(questionLines(e.Report.OpenQuestions), "\n  - "))
+	}
+	return strings.Join(parts, "\n") + "\nKiểm lại bằng `bint task lint " + e.TaskID + "`"
+}
+
+func questionLines(is []task.ArtifactIssue) []string {
+	out := make([]string, 0, len(is))
+	for _, i := range is {
+		out = append(out, i.Detail)
+	}
+	return out
 }
 
 func issueLines(is []task.ArtifactIssue) []string {
@@ -317,11 +332,20 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		if !o.Orchestrator && t.OwnedByOther() {
 			return fmt.Errorf("tác vụ đang được `bint run` điều phối (lượt %s): trạng thái do Bint Core chuyển", t.State.Runner.RunID)
 		}
-		// Task v1: chuyển tay sang planned phải qua lint (Runner tự lint ở afterStep/preflight).
-		if to == task.StatusPlanned && !o.Orchestrator && t.State.Status != task.StatusPlanned &&
-			t.State.PlanningContractVersion >= task.PlanningContractV1 {
-			if rep := task.LintPlanningTask(t, true); rep.Blocking() {
-				return &PlanningError{TaskID: t.State.ID, Report: rep}
+		// Task v1: chuyển tay sang planned phải qua lint; planned → in_progress còn bị chặn khi có câu hỏi
+		// mở (created → planned thì không: planned là nơi ghi câu trả lời rồi resume). Runner tự lint ở
+		// afterStep/preflight.
+		if !o.Orchestrator && t.State.PlanningContractVersion >= task.PlanningContractV1 {
+			toPlanned := to == task.StatusPlanned && t.State.Status != task.StatusPlanned
+			toImpl := to == task.StatusInProgress && t.State.Status == task.StatusPlanned
+			if toPlanned || toImpl {
+				rep := task.LintPlanningTask(t, true)
+				if rep.Blocking() || (toImpl && len(rep.OpenQuestions) > 0) {
+					if !toImpl {
+						rep.OpenQuestions = nil
+					}
+					return &PlanningError{TaskID: t.State.ID, Report: rep}
+				}
 			}
 		}
 		if to == task.StatusDone {
