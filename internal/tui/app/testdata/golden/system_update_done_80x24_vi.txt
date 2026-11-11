@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
+│ ‹ Chỉ mục MCP Ngôn ngữ Doctor Cài đặt  Cập nhật            Đã cập nhật Bint  │
+│ ┌─│Cập nhật Bint│──────────────────────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │  Đang chạy    0.1.0 (abc1234)                                            │ │
+│ │  Tệp          /home/u/go/bin/bint                                        │ │
+│ │  Mã nguồn     /home/u/src/bint                                           │ │
+│ │                                                                          │ │
+│ │  ✓ abc1234 → def5678                                                     │ │
+│ │    /home/u/go/bin/bint                                                   │ │
+│ │  ! Bản đang chạy là /usr/local/bin/bint, khác tệp vừa cài; kiểm tra      │ │
+│ │    PATH (which bint) nếu lệnh bint vẫn là bản cũ.                        │ │
+│ │  Chưa khởi động lại: bản đang chạy vẫn là bản cũ.                        │ │
+│ │  Chạy bint init --update hoặc bint sync trong từng repository để xuất    │ │
+│ │  bản skill mới.                                                          │ │
+│ │                                                                          │ │
+│ │  Log go install                                                          │ │
+│ │   go: downloading modernc.org/sqlite v1.34.0                             │ │
+│ │   bint/internal/app                                                      │ │
+│ └─ u Cập nhật  R Khởi động lại ────────────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

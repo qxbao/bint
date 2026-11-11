@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Kn~⟧ │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧             │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Setup~~⟧│──────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   ⟦Bint is set up~~~~~~⟧                                                     │
+│                                                                              │
+│   ⟦Bint has been set up in /work/demo. Here is what was                      │
+│   done.~~~~~~~~~~~~~~~~~~~~⟧                                                 │
+│                                                                              │
+│   ✓ ⟦Setup complete~~~~~~⟧                                                   │
+│    ! hook claude  chưa xác minh trust hook                                   │
+│    + .bint/config.yml  harness: claude                                       │
+│    + thư mục trạng thái  /state/demo-7f3a9c (schema v6)                      │
+│    ~ .gitignore  thêm khối bint                                              │
+│                                                                              │
+│   ⟦Next steps~~~~⟧                                                           │
+│  ▸ 1. Xác nhận lệnh kiểm thử: điền eval.test_command trong .bint/config.…    │
+│    2. Kiểm tra môi trường: bint doctor                                       │
+│    3. Xem lượt chạy đã ghi nhận: bint runs list                              │
+│                                                                              │
+│                                                                              │
+│   Enter ⟦continue~~~~⟧  j/k ⟦pick a step~~~~~⟧                               │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

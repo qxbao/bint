@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────┐
+│ ‹ Components Skills Index MCP Language Doctor  Setup  Update                 │
+│ ┌─│Repo setup│─────────────────────────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │ ┌─│Init preview│───────────────────────────────────────────────────────┐ │ │
+│ │ │ + create  .mcp.json  đăng ký MCP server của Bint cho claude          │ │ │
+│ │ │ + create  .codex/config.toml  đăng ký MCP server của Bint cho codex  │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ · keep  .bint/config.yml  đã tồn tại, giữ nguyên                     │ │ │
+│ │ │ · keep  .claude/settings.json  hook claude: không đổi                │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Equivalent CLI command: bint init --mcp                              │ │ │
+│ │ │ An estimate; the report after running is the exact result.           │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Run init   [Esc] Cancel                                      │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ │  Config template ! old template, missing: harnesses.claude.models, harn… │ │
+│ │                                                                          │ │
+│ │  Re-runs init with a form prefilled from the current state; only what    │ │
+│ └─ e Edit  U Upgrade template ─────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

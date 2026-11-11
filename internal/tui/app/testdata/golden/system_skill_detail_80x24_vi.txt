@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│  Cấu hình Harness Thành phần  Skill  Chỉ mục MCP Ngôn ngữ Doctor             │
+│   Cấu hình Harness Thành phần  Skill  Chỉ mục MCP Ngôn ngữ ›                 │
 │ ┌─│Nội dung b-feat│────────────────────────────────────────────────1-16/83─┐ │
 │ │ ---                                                                      │ │
 │ │ name: b-feat                                                             │ │

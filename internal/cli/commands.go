@@ -17,7 +17,6 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/config"
-	"bint/internal/harness/claude"
 	"bint/internal/state"
 )
 
@@ -31,19 +30,7 @@ var levelIcon = map[app.Level]string{
 }
 
 func newInitCmd(stdio IO) *cobra.Command {
-	var (
-		harnesses []string
-		hooks     bool
-		noHooks   bool
-		scope     string
-		agentsMD  bool
-		force     bool
-		noSkills  bool
-		mcp       bool
-		noMCP     bool
-		update    bool
-		gitMode   string
-	)
+	flags := app.InitDefaults(config.Default())
 	c := &cobra.Command{
 		Use:   "init",
 		Short: "Khởi tạo Bint cho repository (chạy lại an toàn)",
@@ -67,38 +54,19 @@ Hiện diện trong Git (--git, lựa chọn được nhớ cho máy này; lần
 Không gọi mô hình, không cài phần mềm, không chạy lệnh của dự án.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if hooks && noHooks {
-				return usageError{fmt.Errorf("--hooks và --no-hooks loại trừ nhau")}
-			}
-			sc, err := claude.ParseScope(scope)
-			if err != nil {
+			if err := flags.Validate(); err != nil {
 				return usageError{err}
 			}
 			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			if mcp && noMCP {
-				return usageError{fmt.Errorf("--mcp và --no-mcp loại trừ nhau")}
+			opts, err := flags.ToInit(dir, bintPath(), Version)
+			if err != nil {
+				return usageError{err}
 			}
-			opts := app.InitOptions{
-				Dir: dir, Harnesses: harnesses, HooksScope: sc, AgentsMD: agentsMD, Force: force,
-				BintPath: bintPath(), Version: Version, NoSkills: noSkills, Update: update, GitMode: gitMode,
-			}
-			if mcp {
-				opts.MCP = ptr(true)
-			} else if noMCP {
-				opts.MCP = ptr(false)
-			}
-			switch {
-			case hooks:
-				opts.Hooks = ptr(true)
-			case noHooks:
-				opts.Hooks = ptr(false)
-			default:
-				if isTerminal(stdio.In) {
-					opts.Confirm = func(q string) bool { return confirm(stdio, q) }
-				}
+			if opts.Hooks == nil && isTerminal(stdio.In) {
+				opts.Confirm = func(q string) bool { return confirm(stdio, q) }
 			}
 			rep, err := app.Init(cmd.Context(), opts)
 			if err != nil {
@@ -128,17 +96,17 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 		},
 	}
 	f := c.Flags()
-	f.StringSliceVar(&harnesses, "harness", nil, "harness kích hoạt khi tạo cấu hình mới (claude, codex, antigravity)")
-	f.BoolVar(&hooks, "hooks", false, "cài hook ghi nhận lượt chạy mà không hỏi")
-	f.BoolVar(&noHooks, "no-hooks", false, "không cài (hoặc gỡ) hook ghi nhận")
-	f.StringVar(&scope, "hooks-scope", string(claude.ScopeLocal), "nơi cài hook: local | project | user (Claude: .claude/settings[.local].json; Codex: .codex/hooks.json; Antigravity: .agents/hooks.json; local = thêm vào .gitignore)")
-	f.BoolVar(&agentsMD, "agents-md", false, "ghi khối bint (quy tắc đã duyệt) vào AGENTS.md và nhập lại AGENTS.md trong CLAUDE.md")
-	f.BoolVar(&force, "force", false, "ghi đè khối bint hoặc skill gốc đã bị sửa tay (bản cũ được sao lưu)")
-	f.BoolVar(&noSkills, "no-skills", false, "không xuất bản skill gốc cho harness (.claude/skills, .agents/skills)")
-	f.BoolVar(&mcp, "mcp", false, "đăng ký MCP server của Bint (Context Engine) cho harness hỗ trợ: .mcp.json (Claude Code), .codex/config.toml (Codex)")
-	f.BoolVar(&noMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi cấu hình harness")
-	f.StringVar(&gitMode, "git", "", "hiện diện trong Git: track (commit cho nhóm) | local (riêng máy: .git/info/exclude + skip-worktree)")
-	f.BoolVar(&update, "update", false, "nâng .bint/config.yml đã có lên mẫu hiện tại: thêm khoá còn thiếu, giữ nguyên giá trị (có sao lưu)")
+	f.StringSliceVar(&flags.Harnesses, "harness", nil, "harness kích hoạt khi tạo cấu hình mới (claude, codex, antigravity)")
+	f.BoolVar(&flags.Hooks, "hooks", false, "cài hook ghi nhận lượt chạy mà không hỏi")
+	f.BoolVar(&flags.NoHooks, "no-hooks", false, "không cài (hoặc gỡ) hook ghi nhận")
+	f.StringVar(&flags.HooksScope, "hooks-scope", flags.HooksScope, "nơi cài hook: local | project | user (Claude: .claude/settings[.local].json; Codex: .codex/hooks.json; Antigravity: .agents/hooks.json; local = thêm vào .gitignore)")
+	f.BoolVar(&flags.AgentsMD, "agents-md", false, "ghi khối bint (quy tắc đã duyệt) vào AGENTS.md và nhập lại AGENTS.md trong CLAUDE.md")
+	f.BoolVar(&flags.Force, "force", false, "ghi đè khối bint hoặc skill gốc đã bị sửa tay (bản cũ được sao lưu)")
+	f.BoolVar(&flags.NoSkills, "no-skills", false, "không xuất bản skill gốc cho harness (.claude/skills, .agents/skills)")
+	f.BoolVar(&flags.MCP, "mcp", false, "đăng ký MCP server của Bint (Context Engine) cho harness hỗ trợ: .mcp.json (Claude Code), .codex/config.toml (Codex)")
+	f.BoolVar(&flags.NoMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi cấu hình harness")
+	f.StringVar(&flags.GitMode, "git", "", "hiện diện trong Git: track (commit cho nhóm) | local (riêng máy: .git/info/exclude + skip-worktree)")
+	f.BoolVar(&flags.Update, "update", false, "nâng .bint/config.yml đã có lên mẫu hiện tại: thêm khoá còn thiếu, giữ nguyên giá trị (có sao lưu)")
 	return c
 }
 
@@ -344,8 +312,6 @@ func confirm(stdio IO, q string) bool {
 	a := strings.ToLower(strings.TrimSpace(line))
 	return a == "y" || a == "yes" || a == "c" || a == "có"
 }
-
-func ptr[T any](v T) *T { return &v }
 
 func fmtTime(s string) string {
 	if s == "" {

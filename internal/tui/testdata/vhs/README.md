@@ -8,7 +8,7 @@ test (`go test ./internal/tui/...`) chỉ chống thụt lùi bố cục, còn "
 |---|---|---|
 | `overview.tape` | Tổng quan (repo đã init) ở ~80×24: tiếng Việt rồi tiếng Anh, bảng lệnh, trợ giúp, tab chưa làm | `overview-*.png`, `overview.gif` |
 | `overview-wide.tape` | Tổng quan ở ~140×40 (logo điểm ảnh) và chế độ NO_COLOR | `overview-wide-*.png`, `overview-nocolor.png` |
-| `init.tape` | Màn tạm "Khởi tạo với mặc định" (repo chưa init), rồi sau khi khởi tạo | `init-*.png`, `init.gif` |
+| `init.tape` | Trình hướng dẫn khởi tạo nhiều bước (repo chưa init): bước harness, Git, xem trước, báo cáo | `init-*.png`, `init.gif` |
 | `knowledge.tape` | Tri thức ở ~80×24: hộp thư → lô `nguon:lo-thu` → chọn, chi tiết, xác nhận duyệt lô, lọc, form thêm, bảng chuyển trạng thái | `knowledge-*.png`, `knowledge.gif` |
 | `knowledge-wide.tape` | Như trên ở ~140×40 (hai khung danh sách + chi tiết) kèm thẻ Tìm kiếm và Xuất bản AGENTS.md | `knowledge-wide-*.png`, `knowledge-wide.gif` |
 | `runs-wide.tape` | Lượt chạy ở ~140×40: danh sách rỗng, form quét Git, thẻ Bài học và form tóm tắt thất bại | `runs-wide-*.png`, `runs-wide.gif` |

@@ -2,7 +2,7 @@
 │ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦MCP~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧                       │
+│   ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧              │
 │ ┌─│⟦Key groups~~~~⟧│─────────────────────────⟦schema v1~~~~⟧─┐┌─│⟦Source layers~~~~~~⟧│────────────────────────────────────────────────┐ │
 │ │ ▸ ⟦Source layers~~~~~~⟧                                    ││ ⟦Effective configuration = global → project → strategy → local (late…  │ │
 │ │   project                                                  ││                                                                        │ │

@@ -2,7 +2,7 @@
 │ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦MCP~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧                       │
+│  ⟦Config~~~⟧ ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧  ⟦Language~~~~⟧  ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧              │
 │ ┌─│⟦Write ui.language (auto, vi or en) to .bint/local.yml or .bint/config.yml~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧│──────────────────────────┐ │
 │ │ ▸ ⟦Language~~~~⟧*                              ( ) auto (●) vi ( ) en                                                                │ │
 │ │   ⟦Write to (local = this machine, project = … ( ) ⟦(empty)~~~⟧ (●) local ( ) project                                                │ │

@@ -15,6 +15,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"bint/internal/app"
 	"bint/internal/app/evolvesvc"
 	"bint/internal/i18n"
 	"bint/internal/tui/jobs"
@@ -33,7 +34,7 @@ const (
 	Eval      Screen = "eval"
 	Evolve    Screen = "evolve"
 	System    Screen = "system"
-	// Init là màn tạm "Khởi tạo với mặc định" của repository chưa init (không phải một tab).
+	// Init là màn Khởi tạo (trình hướng dẫn init nhiều bước) của repository chưa init (không phải một tab).
 	Init Screen = "init"
 )
 
@@ -53,6 +54,9 @@ type Env struct {
 	Agent workflow.AgentFactory
 	// CycleRunner thay cách chạy các bước của `evolve cycle` (nil = trong tiến trình); tiêm runner giả trong kiểm thử.
 	CycleRunner evolvesvc.CycleRunner
+	// Update thay cách cập nhật Bint của hành động system.update (nil = app.UpdateSelf); tiêm hàm giả trong kiểm thử để không
+	// chạy go install thật.
+	Update func(ctx context.Context, o app.UpdateOptions) (app.UpdateResult, error)
 	// Cat là danh mục chuỗi lúc bắt đầu hành động (dòng log của việc nền được dịch theo nó); nil = ghép khoá.
 	Cat *i18n.Catalog
 }

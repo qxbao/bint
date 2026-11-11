@@ -3,12 +3,15 @@ package actions
 import (
 	"context"
 	"os"
+	"strings"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 
 	"bint/internal/app"
 	"bint/internal/app/evolvesvc"
 	"bint/internal/config"
+	"bint/internal/tui/jobs"
 )
 
 // Hành động của tab Hệ thống (giai đoạn 5a, docs/tui-plan.md mục 5.7): cấu hình, harness và thành phần quy trình,
@@ -39,6 +42,68 @@ type OpenFileOptions struct{ Path string }
 
 // LanguageMsg báo mô hình gốc đổi ngôn ngữ giao diện ngay trong phiên (sau khi ghi ui.language).
 type LanguageMsg struct{ Lang string }
+
+// RestartOptions là yêu cầu khởi động lại bint sau khi cập nhật: Path là tệp vừa cài (app.UpdateResult.Target), exec lại với
+// cùng đối số và môi trường. Hành động system.restart là giao diện thuần, mô hình gốc xử lý.
+type RestartOptions struct{ Path string }
+
+// UpdateOutcome là kết quả hành động system.update: kết quả của app.UpdateSelf kèm toàn bộ log go install (đủ để hiện lại sau
+// khi việc nền đã xong, kể cả khi lỗi).
+type UpdateOutcome struct {
+	Result app.UpdateResult
+	Log    []string
+}
+
+// collectLines tách đầu ra của go install thành dòng, gọi emit cho từng dòng (an toàn khi nhiều goroutine ghi).
+type collectLines struct {
+	mu   sync.Mutex
+	buf  string
+	emit func(string)
+}
+
+func (w *collectLines) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.buf += string(p)
+	for {
+		i := strings.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+		line := strings.TrimRight(w.buf[:i], "\r")
+		w.buf = w.buf[i+1:]
+		w.emit(line)
+	}
+	return len(p), nil
+}
+
+// Flush đẩy phần còn lại (dòng cuối không có xuống dòng).
+func (w *collectLines) Flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.buf != "" {
+		w.emit(strings.TrimRight(w.buf, "\r"))
+		w.buf = ""
+	}
+}
+
+// runUpdate chạy cập nhật Bint (nền): log go install đi từng dòng về khung log; hàm cập nhật tiêm được qua Env.Update.
+func runUpdate(ctx context.Context, env Env, opts any, br *jobs.Bridge) (any, error) {
+	o, _ := opts.(app.UpdateOptions)
+	if err := o.Validate(); err != nil {
+		return UpdateOutcome{}, err
+	}
+	var log []string
+	w := &collectLines{emit: func(l string) { log = append(log, l); br.Log(l) }}
+	o.Out = w
+	fn := env.Update
+	if fn == nil {
+		fn = app.UpdateSelf
+	}
+	r, err := fn(ctx, o)
+	w.Flush()
+	return UpdateOutcome{Result: r, Log: log}, err
+}
 
 // VersionResult là phiên bản harness lấy được.
 type VersionResult struct{ Name, Version string }
@@ -219,6 +284,37 @@ func systemActions() []Action {
 				v, err := app.Sync(ctx, env.Dir, env.Version, opts.(app.SyncOptions))
 				return res("system.sync", opts, v, err)
 			}),
+
+		// Cài đặt repo (giai đoạn 5b): trạng thái init hiện tại, xem trước (chỉ đọc) rồi chạy lại init với phần đã đổi.
+		mk("system.repo_state", "repo_state", "", 0, "", nil, false, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.ReadInitState(ctx, env.Dir)
+				return res("system.repo_state", opts, v, err)
+			}),
+		withForm("system.repo_apply", mk("system.repo_plan", "repo_plan", "e", 1, "", app.InitFlagOptions{}, false, false,
+			doInitPlan("system.repo_plan"))),
+		mk("system.repo_apply", "repo_apply", "", 0, "init", app.InitFlagOptions{}, true, false, doInitRun("system.repo_apply")),
+
+		// Nâng cấu hình theo mẫu hiện tại (bint init --update): xem diff (chỉ đọc) rồi ghi.
+		mk("system.config_upgrade_plan", "config_upgrade_plan", "U", 2, "", nil, false, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.PlanConfigUpgrade(ctx, env.Dir)
+				return res("system.config_upgrade_plan", opts, v, err)
+			}),
+		mk("system.config_upgrade", "config_upgrade", "", 0, "init", nil, true, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.UpgradeConfig(ctx, env.Dir, app.ConfigUpgradeOptions{BintPath: env.BintPath, Version: env.Version})
+				return res("system.config_upgrade", opts, v, err)
+			}),
+
+		// Cập nhật Bint (chạy nền, có log) và khởi động lại.
+		func() Action {
+			a := mk("system.update", "update", "u", 1, "update", app.UpdateOptions{}, true, false, nil)
+			a.Job = runUpdate
+			a.JobInfo = func(any) jobs.Info { return jobs.Info{Kind: jobs.KindAction, Label: "bint update"} }
+			return a
+		}(),
+		mk("system.restart", "restart", "", 0, "", nil, false, false, nil),
 
 		// Chỉ mục, MCP, Doctor.
 		mk("system.index_rebuild", "index_rebuild", "b", 1, "index rebuild", app.IndexRebuildOptions{}, true, false,

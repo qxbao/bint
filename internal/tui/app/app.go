@@ -13,7 +13,9 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
+	bintapp "bint/internal/app"
 	"bint/internal/app/evolvesvc"
+	"bint/internal/detect"
 	"bint/internal/i18n"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/components/confirm"
@@ -26,7 +28,7 @@ import (
 	"bint/internal/tui/jobs"
 	elscreen "bint/internal/tui/screens/eval"
 	evscreen "bint/internal/tui/screens/evolve"
-	"bint/internal/tui/screens/initplaceholder"
+	"bint/internal/tui/screens/initwizard"
 	knscreen "bint/internal/tui/screens/knowledge"
 	"bint/internal/tui/screens/overview"
 	rnscreen "bint/internal/tui/screens/runs"
@@ -92,6 +94,12 @@ type Options struct {
 	TailEvery time.Duration
 	// Editor dựng lệnh mở tệp trong trình soạn thảo (thay được trong kiểm thử); nil = $VISUAL/$EDITOR.
 	Editor func(path string) *exec.Cmd
+	// DetectHarnesses thay cách phát hiện harness trên máy của trình hướng dẫn init (nil = detect.Harnesses); thay được trong kiểm thử.
+	DetectHarnesses func() []detect.Harness
+	// Update thay cách cập nhật Bint của hành động system.update (nil = app.UpdateSelf); tiêm hàm giả trong kiểm thử.
+	Update func(ctx context.Context, o bintapp.UpdateOptions) (bintapp.UpdateResult, error)
+	// CanRestart: nền tảng tự khởi động lại được bằng exec (Unix); Windows chỉ yêu cầu người dùng mở lại bint.
+	CanRestart bool
 	// SpinnerFPS là chu kỳ khung của vòng quay; 0 = mặc định (thay được trong kiểm thử).
 	SpinnerFPS time.Duration
 }
@@ -108,7 +116,7 @@ type Model struct {
 	tab  int
 
 	ov  overview.Model
-	ini initplaceholder.Model
+	wiz *initwizard.Model
 	kn  *knscreen.Model
 	tk  *tkscreen.Model
 	rn  *rnscreen.Model
@@ -128,6 +136,9 @@ type Model struct {
 	// exitDlg là hộp thoại thoát khi còn việc nền; exiting: đã chọn thoát và đang chờ việc kết thúc.
 	exitDlg *confirm.Model
 	exiting bool
+	// restartAsk: hộp thoại đang mở là "khởi động lại" (đường dẫn tệp sẽ exec); restartPath: đã chọn khởi động lại, tui.Run exec
+	// tệp này sau khi Bubble Tea thoát.
+	restartAsk, restartPath string
 
 	spin    spinner.Model
 	ticking bool // đang có chuỗi tick của vòng quay
@@ -163,7 +174,7 @@ func New(ctx context.Context, opts Options) *Model {
 	}
 	m := &Model{opts: opts, reg: opts.Registry, cat: i18n.MustLoad(lang), th: theme.New(opts.Mode), ctx: ctx,
 		spin: spinner.New(spinner.WithSpinner(sp)), jobs: &jobs.Table{}, jobCh: make(chan tea.Msg, 1024),
-		ini: initplaceholder.Model{Dir: opts.Dir, ReadOnly: opts.ReadOnly}}
+		wiz: initwizard.New(initwizard.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Detect: opts.DetectHarnesses})}
 	m.kn = knscreen.New(knscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Agent: opts.Agent,
 		Loader: opts.KnowledgeLoader, Detailer: opts.KnowledgeDetailer, Gate: m.gate})
 	m.tk = tkscreen.New(tkscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.TasksLoader, Detailer: opts.TasksDetailer,
@@ -174,9 +185,10 @@ func New(ctx context.Context, opts Options) *Model {
 		Gate: m.gate, Jobs: m.jobs})
 	m.el = elscreen.New(elscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.EvalLoader, Detailer: opts.EvalDetailer,
 		Reporter: opts.EvalReporter, Gate: m.gate, Jobs: m.jobs})
-	m.sy = syscreen.New(syscreen.Options{Dir: opts.Dir, Version: opts.Version, ReadOnly: opts.ReadOnly, Load: opts.SystemLoad, Gate: m.gate})
+	m.sy = syscreen.New(syscreen.Options{Dir: opts.Dir, Version: opts.Version, ReadOnly: opts.ReadOnly, Load: opts.SystemLoad, Gate: m.gate,
+		Jobs: m.jobs, CanRestart: opts.CanRestart})
 	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk, actions.Runs: m.rn, actions.Eval: m.el, actions.Evolve: m.ev,
-		actions.System: m.sy}
+		actions.System: m.sy, actions.Init: m.wiz}
 	for _, sc := range m.screens {
 		sc.SetEnv(m.th, m.cat)
 	}
@@ -193,6 +205,23 @@ func (m *Model) gate(id string) actions.Availability {
 
 // SetSize đặt kích thước (dùng trong kiểm thử; khi chạy thật kích thước đến qua tea.WindowSizeMsg).
 func (m *Model) SetSize(w, h int) { m.w, m.h = w, h }
+
+// RestartPath trả tệp cần exec lại sau khi thoát (rỗng = thoát bình thường).
+func (m *Model) RestartPath() string { return m.restartPath }
+
+// restart xử lý system.restart: không còn việc nền thì ghi đường dẫn và thoát; còn việc thì hỏi "huỷ an toàn rồi khởi động lại".
+func (m *Model) restart(path string) (tea.Model, tea.Cmd) {
+	if path == "" || !m.opts.CanRestart || m.exiting {
+		return m, nil
+	}
+	if m.jobs.Len() > 0 || m.wiz.Running() {
+		m.restartAsk = path
+		m.openExitDialog()
+		return m, nil
+	}
+	m.restartPath, m.quitting = path, true
+	return m, tea.Quit
+}
 
 // Lang trả ngôn ngữ đang dùng.
 func (m *Model) Lang() string { return m.cat.Lang() }
@@ -218,12 +247,12 @@ func (m *Model) mode() actions.Mode {
 
 func (m *Model) env() actions.Env {
 	return actions.Env{Dir: m.opts.Dir, Version: m.opts.Version, BintPath: m.opts.BintPath, ReadOnly: m.opts.ReadOnly, Editor: m.opts.Editor,
-		Agent: m.opts.AgentFactory, CycleRunner: m.opts.CycleRunner, Cat: m.cat}
+		Agent: m.opts.AgentFactory, CycleRunner: m.opts.CycleRunner, Update: m.opts.Update, Cat: m.cat}
 }
 
 // busy: có việc nền đang chạy (nạp dữ liệu, khởi tạo, việc nền có tham số hoặc việc của một màn hình).
 func (m *Model) busy() bool {
-	if m.ov.Loading || m.ini.Running || m.jobs.Len() > 0 {
+	if m.ov.Loading || m.jobs.Len() > 0 {
 		return true
 	}
 	for _, sc := range m.screens {
@@ -296,6 +325,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spin, cmd = m.spin.Update(msg)
 		return m, cmd
 	case overview.LoadedMsg:
+		msg.Data.Binary, msg.Data.Revision = m.opts.Version, bintapp.SelfRevision()
 		m.ov, _ = m.ov.Update(msg)
 		if msg.Err == nil && msg.Data.NotInit {
 			m.initDone = false // kết quả đáng tin gần nhất là chưa init: lần nạp lỗi sau đó không được che nó
@@ -304,20 +334,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.reloadPending = false
 			return m, m.load()
 		}
-	case actions.InitDoneMsg:
-		m.ini = m.ini.Finish(msg.Report, msg.Err)
-		if j := m.jobs.Running("init.defaults"); j != nil {
-			m.jobs.Remove(j.ID, msg.Err)
+	case initwizard.ContinueMsg:
+		m.holdInit = false
+		m.wiz.Reset()
+		if msg.Nav != nil {
+			return m.Update(*msg.Nav)
 		}
-		if m.exiting && m.jobs.Len() == 0 {
-			m.quitting = true
-			return m, tea.Quit
-		}
-		if msg.Err == nil {
-			m.initDone = true
-			m.holdInit = true  // giữ báo cáo đến khi người dùng bấm tiếp (init.continue)
-			return m, m.load() // nạp lại Tổng quan: sau khi khởi tạo sẽ hiện bảng điều khiển
-		}
+		m.tab = 0
+		return m, nil
+	case initwizard.RecheckMsg:
+		return m, m.load()
 	case overview.NavMsg:
 		m.goTo(msg.Screen)
 		switch {
@@ -331,6 +357,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.ev.Focus(msg.ProposalID), m.startTick())
 		case msg.Screen == actions.System && msg.ComponentID != "":
 			return m, tea.Batch(m.sy.Focus(msg.ComponentKind, msg.ComponentID), m.startTick())
+		case msg.Screen == actions.System && msg.ConfigUpgrade:
+			return m, tea.Batch(m.sy.OpenConfigUpgrade(), m.startTick())
 		case msg.Screen == actions.System && msg.SystemTab != "":
 			return m, tea.Batch(m.sy.OpenTab(msg.SystemTab), m.startTick())
 		}
@@ -358,7 +386,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		id, opts := msg.ID, msg.Opts
 		return m, tea.ExecProcess(msg.Cmd, func(err error) tea.Msg { return actions.ResultMsg{ID: id, Opts: opts, Err: err} })
 	case actions.ResultMsg:
-		return m, m.onResult(msg)
+		if msg.ID == "init.run" && msg.Err == nil {
+			m.initDone = true
+			m.holdInit = true // giữ báo cáo đến khi người dùng bấm tiếp (init.continue)
+		}
+		cmd := m.onResult(msg)
+		if m.exiting && m.jobs.Len() == 0 {
+			m.quitting = true
+			return m, tea.Quit
+		}
+		return m, cmd
 	case jobs.PromptMsg:
 		return m.onPrompt(msg)
 	case jobs.LogMsg:
@@ -415,6 +452,10 @@ func (m *Model) toScreenOf(id string, msg tea.Msg) tea.Cmd {
 // khoá) rồi mới chạy Action.Job (nền, có log và câu hỏi) hoặc Action.Do trong tea.Cmd, với context huỷ được.
 // Sổ là nơi duy nhất quyết định (mục 7.4).
 func (m *Model) request(r actions.RequestMsg) (tea.Model, tea.Cmd) {
+	if r.ID == "system.restart" { // giao diện thuần: mô hình gốc thoát Bubble Tea, tui.Run exec lại sau đó
+		o, _ := r.Opts.(actions.RestartOptions)
+		return m.restart(o.Path)
+	}
 	a, ok := m.reg.ByID(r.ID)
 	if !ok || (a.Do == nil && a.Job == nil) {
 		return m, nil
@@ -432,7 +473,11 @@ func (m *Model) request(r actions.RequestMsg) (tea.Model, tea.Cmd) {
 		return m.startJob(a, r.Opts)
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
-	m.jobs.Add(jobs.Job{Action: r.ID, Kind: jobs.KindAction, Cancel: cancel, Opts: r.Opts})
+	label := ""
+	if a.JobInfo != nil {
+		label = a.JobInfo(r.Opts).Label
+	}
+	m.jobs.Add(jobs.Job{Action: r.ID, Kind: jobs.KindAction, Label: label, Cancel: cancel, Opts: r.Opts})
 	env, do, opts := m.env(), a.Do, r.Opts
 	return m, tea.Batch(func() tea.Msg { return do(ctx, env, opts) }, m.startTick())
 }
@@ -573,7 +618,7 @@ func (m *Model) run(id string) (tea.Model, tea.Cmd) {
 	}
 	switch id {
 	case "app.quit":
-		if m.jobs.Len() > 0 || m.ini.Running {
+		if m.jobs.Len() > 0 || m.wiz.Running() {
 			// Còn việc nền (workflow, kiểm chứng, khởi tạo...): hộp thoại đầy đủ, không thoát ngay kẻo bỏ dở việc.
 			m.openExitDialog()
 			return m, nil
@@ -597,16 +642,7 @@ func (m *Model) run(id string) (tea.Model, tea.Cmd) {
 		return m, m.load()
 	case "init.continue":
 		m.holdInit = false
-		m.ini = initplaceholder.Model{Dir: m.opts.Dir, ReadOnly: m.opts.ReadOnly}
-	case "init.defaults":
-		if m.ini.Running || !ok || a.Run == nil {
-			return m, nil
-		}
-		m.ini.Running, m.ini.Report, m.ini.Err = true, nil, nil
-		ctx, cancel := context.WithCancel(m.ctx)
-		m.jobs.Add(jobs.Job{Action: "init.defaults", Kind: jobs.KindInit, Label: m.cat.T("init.group"), Cancel: cancel})
-		env, run := m.env(), a.Run
-		return m, tea.Batch(func() tea.Msg { return run(ctx, env) }, m.startTick())
+		m.wiz.Reset()
 	default:
 		switch {
 		case strings.HasPrefix(id, "nav."):
@@ -665,10 +701,12 @@ func (m *Model) applicable(a actions.Action) bool {
 		return false
 	}
 	switch a.ID {
-	case "init.defaults":
-		return m.needsInit() && !m.holdInit
+	case "init.run":
+		return m.needsInit() && !m.holdInit && !m.wiz.Running()
+	case "init.plan":
+		return false // bước nội bộ của trình hướng dẫn
 	case "init.continue":
-		return m.holdInit && !m.ov.Loading && !m.ini.Running
+		return m.holdInit && !m.ov.Loading && !m.wiz.Running()
 	}
 	return !m.holdInit
 }
@@ -814,11 +852,12 @@ func (m *Model) toastLabel() string {
 func (m *Model) screenBody(env ui.Env) string {
 	switch s := m.Screen(); s {
 	case actions.Init:
-		ini := m.ini
+		var loadErr error
 		if m.holdInit && !m.ov.Loading { // đang nạp lại thì ov.Err còn là lỗi của lần trước
-			ini.LoadErr = m.ov.Err // khởi tạo xong mà nạp lại lỗi: nói rõ, đừng im lặng
+			loadErr = m.ov.Err // khởi tạo xong mà nạp lại lỗi: nói rõ, đừng im lặng
 		}
-		return ini.View(env)
+		m.wiz.SetLoadErr(loadErr)
+		return m.wiz.View(env)
 	case actions.Overview:
 		return m.ov.View(env)
 	case actions.Knowledge, actions.Tasks, actions.Runs, actions.Eval, actions.Evolve, actions.System:

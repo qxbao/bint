@@ -21,6 +21,8 @@ func TestSystemActionsWritesFlags(t *testing.T) {
 		"system.config_edit": true, "system.config_save": true, "system.language_save": true, "system.component_add": true,
 		"system.component_approve": true, "system.component_deprecate": true, "system.skill_overlay": true, "system.open_file": true,
 		"system.sync": true, "system.index_rebuild": true,
+		// Giai đoạn 5b: chạy lại init, nâng cấu hình và cập nhật Bint đều ghi.
+		"system.repo_apply": true, "system.config_upgrade": true, "system.update": true,
 	}
 	n := 0
 	for _, a := range reg.All() {

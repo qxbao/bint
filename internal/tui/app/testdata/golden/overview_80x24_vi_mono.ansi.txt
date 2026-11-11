@@ -5,13 +5,13 @@
 │                                    ␛[1mbint␛[1m.␛[m␛[m                                     │
 │               Ghi nhận, đo lường và tri thức cho coding agent                │
 │                                                                              │
-│        ┌─│␛[1mRepository␛[m│──────────────────────────────────────────────┐         │
-│        │ Thư mục     /work/demo                                    │         │
-│        │ Trạng thái  /state/demo-7f3a9c                            │         │
-│        │ Harness     claude, codex                                 │         │
-│        │ Schema      v6                                            │         │
-│        │ Lượt chạy   42  33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy │         │
-│        └───────────────────────────────────────────────────────────┘         │
+│       ┌─│␛[1mRepository␛[m│────────────────────────────────────────────────┐        │
+│       │ Thư mục     /work/demo                                      │        │
+│       │ Trạng thái  /state/demo-7f3a9c                              │        │
+│       │ Harness     claude, codex                                   │        │
+│       │ Schema      v6                                              │        │
+│       │ Lượt chạy   42  33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy   │        │
+│       └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại · core.lock chưa có ─┘        │
 │                                                                              │
 │  ␛[1mViệc cần bạn␛[m␛[1m (4)␛[m                                                            │
 │ ▸ ◌ ␛[7m␛[1m2 mục tri thức chờ duyệt thuộc lô nguon:lo-thu␛[m␛[m                → Tri thức │

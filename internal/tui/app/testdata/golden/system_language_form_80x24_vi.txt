@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│  Cấu hình Harness Thành phần Skill Chỉ mục MCP  Ngôn ngữ  Doctor             │
+│ ‹ Skill Chỉ mục MCP  Ngôn ngữ  Doctor Cài đặt Cập nhật                       │
 │ ┌─│Ghi ui.language (auto, vi hoặc en) vào .bint/local.yml hoặc .bint/con…│─┐ │
 │ │ ▸ Ngôn ngữ*                ( ) auto (●) vi ( ) en                        │ │
 │ │   Ghi vào (local = chỉ má… ( ) (để trống) (●) local ( ) project          │ │

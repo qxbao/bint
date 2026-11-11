@@ -2,7 +2,7 @@
 │ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦MCP~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧                       │
+│  ⟦Config~~~⟧ ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ ⟦Language~~~~⟧  ⟦Doctor~~~⟧  ⟦Setup~~⟧ ⟦Update~~~⟧              │
 │ ┌─│⟦Doctor: 1 warnings, 1 failures~~~~~~~~~~~~⟧│─────────────┐┌─│⟦Details~~~⟧ · cấu hình│──────────────────────────────────────────────┐ │
 │ │ ▸ ! cấu hình                                               ││ ! cấu hình  ⟦warning~~~⟧                                               │ │
 │ │   ✗ hook claude                                            ││                                                                        │ │

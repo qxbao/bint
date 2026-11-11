@@ -2,7 +2,7 @@
 │ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor                                                               │
+│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
 │ ┌─│Components (3/3)│─────────────────────────1 files skipped─┐┌─│Details · fmt-check│──────────────────────────────────────────────────┐ │
 │ │   ✓ guardrail test-before-stop           verified   low    ││ Kind        script                                                     │ │
 │ │   ◌ guidance  api-style                  candidate  low    ││ ID          fmt-check                                                  │ │

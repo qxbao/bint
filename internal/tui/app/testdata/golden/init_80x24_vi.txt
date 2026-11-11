@@ -3,22 +3,22 @@
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Khởi tạo│───────────────────────────────────────────────────────────────────┐
 │                                                                              │
-│   Repository này chưa khởi tạo Bint                                          │
+│   Khởi tạo Bint  Bước 1/7 · Harness                                          │
 │                                                                              │
-│   Bint chưa được khởi tạo trong /work/demo. Khởi tạo chỉ tạo cấu hình và     │
-│   trạng thái cục bộ; chạy lại bất cứ lúc nào cũng an toàn.                   │
+│   Bint chưa được khởi tạo trong /work/demo. Trình hướng dẫn hỏi vài lựa      │
+│   chọn rồi cho xem trước các tệp sẽ tạo; chưa ghi gì cho tới khi bạn chạy    │
+│   ở bước xem trước.                                                          │
 │                                                                              │
-│   • Tạo .bint/config.yml (không bao giờ ghi đè cấu hình sẵn có).             │
-│   • Tạo thư mục trạng thái cục bộ ngoài repository cùng cơ sở dữ liệu        │
-│     SQLite.                                                                  │
-│   • Không cài hook khi khởi tạo không hỏi; cài sau bằng                      │
-│     `bint init --hooks`.                                                     │
-│   • Thêm khối bint vào .gitignore.                                           │
+│   Chọn các harness (agent lập trình) Bint sẽ làm việc cùng. Cấu hình mới     │
+│   ghi đúng các harness đã chọn.                                              │
 │                                                                              │
-│   Skill gốc cho harness được xuất bản kèm theo. Không gọi mô hình, không     │
-│   chạy lệnh của dự án.                                                       │
-│                                                                              │
-│   Lệnh CLI tương đương: bint init                                            │
+│ ▸ [x] claude  có trên máy                                                    │
+│   [ ] codex  không thấy trên máy                                             │
+│   [ ] antigravity  không thấy trên máy                                       │
 │                                                                              │
 │                                                                              │
-└─[Enter→ Khởi tạo] [r→ Kiểm tra lại] [:→ Lệnh] [q→ Thoát] [?→ Trợ giúp]───────┘
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   Enter tiếp  Esc lùi  Space chọn  d dùng mặc định                           │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

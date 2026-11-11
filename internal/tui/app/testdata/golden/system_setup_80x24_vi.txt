@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
+│ ‹ Skill Chỉ mục MCP Ngôn ngữ Doctor  Cài đặt  Cập nhật                       │
+│ ┌─│Cài đặt repo│───────────────────────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │  Repository     /work/demo                                               │ │
+│ │                                                                          │ │
+│ │  Harness                                                                 │ │
+│ │   claude       bật                                                       │ │
+│ │     hook project   MCP đã đăng ký                                        │ │
+│ │   codex        bật                                                       │ │
+│ │     hook local+project   MCP chưa                                        │ │
+│ │   antigravity  tắt · không thấy trên máy                                 │ │
+│ │     hook chưa cài   MCP không có                                         │ │
+│ │                                                                          │ │
+│ │  Git            local (riêng máy này)                                    │ │
+│ │  AGENTS.md      chưa có                                                  │ │
+│ │  Mẫu cấu hình   ! mẫu cũ, thiếu: harnesses.claude.models, harnesses.cod… │ │
+│ │                                                                          │ │
+│ │  Chạy lại init với form điền sẵn trạng thái hiện tại; chỉ phần bạn đổi   │ │
+│ └─ e Sửa  U Nâng mẫu ──────────────────────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

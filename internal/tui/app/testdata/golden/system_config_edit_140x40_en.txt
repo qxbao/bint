@@ -2,7 +2,7 @@
 │ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor                                                               │
+│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
 │ ┌─│Edit a configuration layer (config.yml or local.yml) in $EDITOR; checked with Validate() before writing│────────────────────────────┐ │
 │ │ ▸ Layer to edit (project = config.yml, local … (●) project ( ) local                                                                 │ │
 │ │                                                                                                                                      │ │

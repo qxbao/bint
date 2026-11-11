@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│  Cấu hình Harness Thành phần Skill Chỉ mục MCP Ngôn ngữ  Doctor              │
+│ ‹ Skill Chỉ mục MCP Ngôn ngữ  Doctor  Cài đặt Cập nhật                       │
 │ ┌─│Doctor: 1 cảnh báo, 1 lỗi│──────────────────────────────────────────────┐ │
 │ │ ▸ ✓ git                                                                  │ │
 │ │   ! cấu hình                                                             │ │

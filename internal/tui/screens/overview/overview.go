@@ -31,6 +31,17 @@ type Data struct {
 	Candidates int
 	// NotInit: repository chưa `bint init` (hiện màn khởi tạo thay cho bảng điều khiển).
 	NotInit bool
+	// Binary và Revision là bản Bint đang chạy (mô hình gốc điền sau khi nạp: tầng nạp không biết phiên bản binary);
+	// LockVersion là bint_version trong core.lock; ConfigOutdated: cấu hình theo mẫu cũ (ConfigAdded là các khoá còn thiếu).
+	Binary, Revision string
+	LockVersion      string
+	ConfigOutdated   bool
+	ConfigAdded      []string
+}
+
+// LockMismatch: core.lock ghi phiên bản khác binary đang chạy (skill xuất bản bằng bản Bint khác → bint sync).
+func (d Data) LockMismatch() bool {
+	return d.Binary != "" && d.LockVersion != "" && d.LockVersion != d.Binary
 }
 
 // Inbox là một dòng của hộp thư "Việc cần bạn".
@@ -52,6 +63,8 @@ type Inbox struct {
 	ComponentID, ComponentKind string
 	// SystemTab: thẻ con của màn Hệ thống cần mở (vd. "doctor" cho dòng cảnh báo doctor).
 	SystemTab string
+	// ConfigUpgrade: mở thẳng hộp nâng cấu hình (dòng doctor báo cấu hình theo mẫu cũ).
+	ConfigUpgrade bool
 	// Commands là lệnh CLI xử lý từng việc của dòng.
 	Commands []string
 }
@@ -134,6 +147,10 @@ func (d Data) Inbox() []Inbox {
 		out = append(out, Inbox{Level: "info", Key: "overview.inbox.eval", Detail: shortID(id), Target: actions.Eval, EvalCaseID: id,
 			Commands: []string{"bint eval show " + id}})
 	}
+	if d.LockMismatch() {
+		out = append(out, Inbox{Level: "warn", Key: "overview.inbox.version_skew", Detail: d.LockVersion + " ≠ " + d.Binary, Target: actions.System,
+			SystemTab: "skills", Commands: []string{"bint sync"}})
+	}
 	for _, c := range p.Doctor {
 		in := Inbox{Level: "warn", Key: "overview.inbox.doctor_warn", Detail: c.Name + ": " + c.Detail, Target: actions.System, SystemTab: "doctor", Commands: []string{"bint doctor"}}
 		if c.Level == app.LevelFail {
@@ -141,6 +158,9 @@ func (d Data) Inbox() []Inbox {
 		}
 		if strings.Contains(c.Detail, "init --update") {
 			in.Commands = append(in.Commands, "bint init --update")
+		}
+		if c.Name == app.CheckConfigTemplate { // mẫu cũ: Enter mở thẳng hộp nâng cấu hình thay vì thẻ Doctor
+			in.ConfigUpgrade, in.SystemTab = true, ""
 		}
 		out = append(out, in)
 	}
@@ -192,6 +212,9 @@ func load(ctx context.Context, dir string, ingest bool) (Data, error) {
 	}
 	d.Pending, d.Doctor = p, p.DoctorAll
 	d.Candidates = p.KnowledgeTotal()
+	if vs, err := app.VersionInfo(ctx, dir, ""); err == nil {
+		d.LockVersion, d.ConfigOutdated, d.ConfigAdded = vs.LockVersion, vs.ConfigOutdated, vs.ConfigAdded
+	}
 	return d, nil
 }
 
@@ -214,6 +237,8 @@ type NavMsg struct {
 	// ComponentID/ComponentKind là thành phần cần chọn ở màn Hệ thống; SystemTab là thẻ con cần mở.
 	ComponentID, ComponentKind string
 	SystemTab                  string
+	// ConfigUpgrade: mở hộp nâng cấu hình của màn Hệ thống.
+	ConfigUpgrade bool
 }
 
 // Model là trạng thái màn Tổng quan.
@@ -249,7 +274,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if in := m.Data.Inbox(); m.Cursor < len(in) {
 				cur := in[m.Cursor]
 				nav := NavMsg{Screen: cur.Target, Filter: cur.Filter, TaskID: cur.TaskID, ProposalID: cur.ProposalID, EvalCaseID: cur.EvalCaseID,
-					ComponentID: cur.ComponentID, ComponentKind: cur.ComponentKind, SystemTab: cur.SystemTab}
+					ComponentID: cur.ComponentID, ComponentKind: cur.ComponentKind, SystemTab: cur.SystemTab, ConfigUpgrade: cur.ConfigUpgrade}
 				return m, func() tea.Msg { return nav }
 			}
 		}
@@ -400,8 +425,41 @@ func (m Model) infoBox(env ui.Env) []string {
 	}
 	cw := text.MaxWidth(body)
 	w := min(cw+4, max(env.W-2, 20))
+	// Phiên bản binary, mẫu cấu hình và core.lock nằm trên viền dưới của hộp (không thêm dòng: cửa sổ 80×24 còn đủ chỗ cho hộp thư).
+	foot := " " + env.T("overview.version") + " " + m.versionText(th, env) + th.S(theme.Muted, " · ") + m.templateText(th, env) + " "
+	w = min(max(w, text.Width(foot)+4), max(env.W-2, 20))
 	h := len(body) + 2
-	return strings.Split(frame.Box{Title: env.T("overview.info.title"), TitleAt: frame.Left}.Render(th, w, h, strings.Join(body, "\n")), "\n")
+	return strings.Split(frame.Box{Title: env.T("overview.info.title"), TitleAt: frame.Left, Bottom: text.Truncate(foot, w-4), BottomAt: frame.Left}.Render(th, w, h, strings.Join(body, "\n")), "\n")
+}
+
+// versionText: phiên bản binary kèm revision (nếu có).
+func (m Model) versionText(th theme.Theme, env ui.Env) string {
+	d := m.Data
+	v := d.Binary
+	if v == "" {
+		v = env.T("overview.version.unknown")
+	}
+	if d.Revision != "" {
+		v += " " + th.S(theme.Muted, "("+d.Revision+")")
+	}
+	return v
+}
+
+// templateText: mẫu cấu hình (✓ hay cũ) và bint_version của core.lock (cảnh báo khi khác binary).
+func (m Model) templateText(th theme.Theme, env ui.Env) string {
+	d := m.Data
+	tpl := th.S(theme.OK, "✓ "+env.T("overview.template.ok"))
+	if d.ConfigOutdated {
+		tpl = th.S(theme.Warn, "! "+env.T("overview.template.old"))
+	}
+	lock := env.T("overview.lock.none")
+	if d.LockVersion != "" {
+		lock = d.LockVersion
+	}
+	if d.LockMismatch() {
+		lock = th.S(theme.Warn, lock+" ≠ "+d.Binary)
+	}
+	return tpl + th.S(theme.Muted, " · core.lock ") + lock
 }
 
 // runStatusOrder là thứ tự hiển thị các trạng thái lượt chạy đã biết; trạng thái lạ xếp sau, theo tên.

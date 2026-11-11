@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Tổng quan │ TT │ TV │ LC │ ĐG │ TH │ HT                                      │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Khởi tạo│───────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   Khởi tạo Bint  Bước 7/7 · Xem trước                                        │
+│                                                                              │
+│   Các tệp dưới đây sẽ được tạo hoặc sửa. Đây là dự kiến; báo cáo sau khi     │
+│   chạy mới là kết quả chính xác.                                             │
+│                                                                              │
+│   + tạo  .bint/config.yml  harness: claude                                   │
+│   + tạo  /state/demo-7f3a9c  thư mục trạng thái và SQLite (ngoài reposito…   │
+│   + tạo  .claude/skills  6 skill gốc cho claude                              │
+│   + tạo  .claude/settings.local.json  cài hook claude                        │
+│   ~ sửa  .gitignore  thêm khối bint                                          │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   Lệnh CLI tương đương: bint init --harness claude --hooks --git track       │
+│   Dự kiến, không ghi gì cho tới khi bạn bấm Enter.                           │
+│   Enter chạy init  Esc lùi                                                   │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

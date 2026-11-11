@@ -2,7 +2,7 @@
 │ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor                                                               │
+│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
 │ ┌─│Harnesses│────────────────────────────────────────────────┐┌─│Details · claude│─────────────────────────────────────────────1-32/34─┐ │
 │ │   HARNESS     ON   HOST  VERSION   VERIFIED   LEVEL        ││ Claude Code (claude)                                                   │ │
 │ │ ▸ claude      yes  yes   -         Claude Co… 3            ││ Level               3 — + programmatic execution                       │ │

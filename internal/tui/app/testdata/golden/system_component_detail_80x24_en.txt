@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness  Components  Skills Index MCP Language Doctor                │
+│   Config Harness  Components  Skills Index MCP Language ›                    │
 │ ┌─│Details · fmt-check│────────────────────────────────────────────1-16/21─┐ │
 │ │ Kind        script                                                       │ │
 │ │ ID          fmt-check                                                    │ │

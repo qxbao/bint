@@ -3,18 +3,16 @@
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Setup│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                                                                                                                          │
-│   This repository is not set up for Bint yet                                                                                             │
+│   Set up Bint  Step 1/7 · Harnesses                                                                                                      │
 │                                                                                                                                          │
-│   Bint is not initialized in /work/demo. Setup only creates local configuration and state; running it again is always safe.              │
+│   Bint is not set up in /work/demo. This wizard asks a few questions and previews the files it will create; nothing is written until     │
+│   you run it at the preview step.                                                                                                        │
 │                                                                                                                                          │
-│   • Creates .bint/config.yml (never overwrites an existing configuration).                                                               │
-│   • Creates a local state directory outside the repository, with its SQLite database.                                                    │
-│   • Does not install hooks in the non-interactive setup; add them later with `bint init --hooks`.                                        │
-│   • Adds the bint block to .gitignore.                                                                                                   │
+│   Pick the harnesses (coding agents) Bint will work with. The new configuration lists exactly the ones you choose.                       │
 │                                                                                                                                          │
-│   The core harness skills are published as well. No model is called and no project command is run.                                       │
-│                                                                                                                                          │
-│   Equivalent CLI command: bint init                                                                                                      │
+│ ▸ [x] claude  found on this machine                                                                                                      │
+│   [ ] codex  not found on this machine                                                                                                   │
+│   [ ] antigravity  not found on this machine                                                                                             │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │
@@ -37,4 +35,6 @@
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │
-└─[Enter→ Initialize] [r→ Re-check] [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]────────────────────────────────────────────────────────┘
+│                                                                                                                                          │
+│   Enter next  Esc back  Space select  d use defaults                                                                                     │
+└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────────────────────────────────────┘

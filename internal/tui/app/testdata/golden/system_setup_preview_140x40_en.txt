@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
+│ ┌─│Repo setup│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
+│ │                                                                                                                                      │ │
+│ │  Repository     /work/demo                                                                                                           │ │
+│ │                                                                                                                                      │ │
+│ │  Harnesses                                                                                                                           │ │
+│ │   claude       enabled                                                                                                               │ │
+│ │     hook project   MCP registered                                                                                                    │ │
+│ │   codex        enabled                                                                                                               │ │
+│ │     hook local+project   MCP no                                                                                                      │ │
+│ │   antigravity  disabled · not on this machine                                                                                        │ │
+│ │     hook not installed┌─│Init preview│───────────────────────────────────────────────────────────────────────┐                       │ │
+│ │                       │ + create  .mcp.json  đăng ký MCP server của Bint cho claude                          │                       │ │
+│ │  Git            local │ + create  .codex/config.toml  đăng ký MCP server của Bint cho codex                  │                       │ │
+│ │  AGENTS.md      not ye│                                                                                      │                       │ │
+│ │  Config template ! old│ · keep  .bint/config.yml  đã tồn tại, giữ nguyên                                     │                       │ │
+│ │                       │ · keep  .claude/settings.json  hook claude: không đổi                                │                       │ │
+│ │  Re-runs init with a f│                                                                                      │                       │ │
+│ │                       │ Equivalent CLI command: bint init --mcp                                              │                       │ │
+│ │                       │ An estimate; the report after running is the exact result.                           │                       │ │
+│ │                       │                                                                                      │                       │ │
+│ │                       │ [Enter] Run init   [Esc] Cancel                                                      │                       │ │
+│ │                       └──────────────────────────────────────────────────────────────────────────────────────┘                       │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ │                                                                                                                                      │ │
+│ └─ e Edit  U Upgrade template ─────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

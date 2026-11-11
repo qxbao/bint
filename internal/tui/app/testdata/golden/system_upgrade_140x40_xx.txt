@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧              │
+│ ┌─│⟦Key groups~~~~⟧│─────────────────────────⟦schema v1~~~~⟧─┐┌─│⟦Source layers~~~~~~⟧│────────────────────────────────────────────────┐ │
+│ │ ▸ ⟦Source layers~~~~~~⟧                                    ││ ⟦Effective configuration = global → project → strategy → local (late…  │ │
+│ │   project                                                  ││                                                                        │ │
+│ │   state                                                    ││ ○ ⟦global~~~⟧ ⟦absent~~~⟧                                              │ │
+│ │   harnesses                                                ││     /home/u/.config/bint/config.yml                                    │ │
+│ │   roles                                                    ││ ● ⟦project~~~⟧⟦in use~~~⟧                                              │ │
+│ │   context                                                  ││     /work/demo/.bint/config.yml                                        │ │
+│ │   knowledge           ┌─│⟦Upgrade the configuration template~~~~~~~~~~~~~~⟧│─────────────────────────────────┐                       │ │
+│ │   memory              │ /work/demo/.bint/config.yml                                                          │                       │ │
+│ │   eval                │ ⟦Adds keys: harnesses.claude.models~~~~~⟧                                            │                       │ │
+│ │   evolution           │ ! giữ model chung đã đặt tay                                                         │                       │ │
+│ │   workflow            │ ⟦Existing values and comments stay as they are; the old file is backed up to the     │                       │ │
+│ │   limits              │ state directory before writing. The equivalent bint init --update also refreshes     │                       │ │
+│ │   security            │ skills and installed                                                                 │                       │ │
+│ │   ui                  │ hooks.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧  │                       │ │
+│ │                       │                                                                                      │                       │ │
+│ │                       │ --- .bint/config.yml                                                                 │                       │ │
+│ │                       │ +++ .bint/config.yml (mẫu mới)                                                       │                       │ │
+│ │                       │   harnesses:                                                                         │                       │ │
+│ │                       │     claude:                                                                          │                       │ │
+│ │                       │       model: sonnet                                                                  │                       │ │
+│ │                       │ +     models:                                                                        │                       │ │
+│ │                       │ +       planner: opus                                                                │                       │ │
+│ │                       │                                                                                      │                       │ │
+│ │                       │ [Enter] ⟦Upgrade~~~⟧   [Esc] ⟦Keep as is~~~~⟧                                        │                       │ │
+│ │                       └──────────────────────────────────────────────────────────────────────────────────────┘                       │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ └─ e ⟦edit~~⟧  Enter ⟦open~~⟧ ───────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
+└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

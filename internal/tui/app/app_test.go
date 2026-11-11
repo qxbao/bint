@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -11,9 +12,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	bintapp "bint/internal/app"
+	"bint/internal/detect"
 	"bint/internal/testutil"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/jobs"
 	"bint/internal/tui/screens/overview"
 	"bint/internal/tui/theme"
 )
@@ -295,17 +298,21 @@ func TestReadOnlyHidesAndBlocksWrites(t *testing.T) {
 	for _, r := range "khoi tao" {
 		press(t, m, string(r))
 	}
-	if strings.Contains(plain(m.Render()), "Khởi tạo Bint với cấu hình mặc định") {
+	if strings.Contains(plain(m.Render()), "Khởi tạo Bint (trình hướng dẫn") {
 		t.Fatal("bảng lệnh không được liệt kê hành động ghi")
 	}
-	press(t, m, "esc", "enter")
-	if m.ini.Running || m.ini.Report != nil {
-		t.Fatal("Enter không được chạy khởi tạo ở chế độ chỉ đọc")
+	press(t, m, "esc", "enter", "d")
+	if m.wiz.Running() || m.wiz.Report() != nil || m.wiz.Step() != 0 {
+		t.Fatal("chế độ chỉ đọc không được mở trình hướng dẫn hay chạy khởi tạo")
 	}
 	// Chạy thẳng theo ID cũng bị chặn: sổ hành động là nơi duy nhất quyết định.
-	_, cmd := m.run("init.defaults")
-	if cmd != nil || m.ini.Running {
-		t.Fatal("run(init.defaults) phải bị chặn")
+	_, cmd := m.run("init.run")
+	if cmd != nil || m.wiz.Running() || m.wiz.Step() != 0 {
+		t.Fatal("run(init.run) phải bị chặn")
+	}
+	// Yêu cầu init.run/init.plan thẳng tới mô hình gốc cũng bị từ chối (không gọi dịch vụ).
+	if _, cmd := m.Update(actions.RequestMsg{ID: "init.run", Opts: bintapp.InitFlagOptions{}}); cmd != nil && m.jobs.Len() != 0 {
+		t.Fatal("RequestMsg init.run phải bị từ chối ở chế độ chỉ đọc")
 	}
 }
 
@@ -346,61 +353,125 @@ func TestHumanOnlyLockedInAgentSession(t *testing.T) {
 	}
 }
 
-// Repo tạm chưa init: hiện màn tạm; Enter khởi tạo thật (app.Init) rồi nạp Tổng quan.
-func TestInitFlowOnTemporaryRepo(t *testing.T) {
+// fakeDetect là harness "có trên máy" cho trình hướng dẫn (kiểm thử không phụ thuộc máy đang chạy).
+func fakeDetect() []detect.Harness {
+	return []detect.Harness{{Name: "claude", Present: true}, {Name: "codex"}, {Name: "antigravity"}}
+}
+
+// Repo tạm chưa init: TUI mở trình hướng dẫn nhiều bước (không phải màn tạm "mặc định"); đi hết các bước thì app.Init nhận đúng
+// Options đã chọn, báo cáo các bước và "bước tiếp theo" hiện sau khi chạy rồi Tổng quan được nạp lại.
+func TestInitWizardFlowOnTemporaryRepo(t *testing.T) {
 	testutil.Isolate(t)
 	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n"})
 	testutil.Git(t, root, "config", "user.name", "Rev")
 	testutil.Git(t, root, "config", "user.email", "rev@example.com")
-	m := New(context.Background(), Options{Dir: root, Version: "0.1.0", BintPath: "bint", Lang: "vi", Mode: theme.Mono, SpinnerFPS: time.Millisecond})
+	m := New(context.Background(), Options{Dir: root, Version: "0.1.0", BintPath: "bint", Lang: "vi", Mode: theme.Mono, SpinnerFPS: time.Millisecond,
+		DetectHarnesses: fakeDetect})
 	m.SetSize(100, 30)
 	drive(t, m, m.Init())
 
 	if m.Screen() != actions.Init {
-		t.Fatalf("repo chưa init phải hiện màn tạm, nhận %q", m.Screen())
+		t.Fatalf("repo chưa init phải hiện trình hướng dẫn, nhận %q", m.Screen())
 	}
 	out := plain(m.Render())
-	for _, want := range []string{"chưa khởi tạo Bint", "bint init", "Khởi tạo"} {
+	for _, want := range []string{"Khởi tạo Bint", "Bước 1/7", "claude", "có trên máy", "không thấy trên máy", "codex"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("màn tạm thiếu %q:\n%s", want, out)
+			t.Errorf("bước harness thiếu %q:\n%s", want, out)
 		}
 	}
-	press(t, m, "enter")
-	// Khởi tạo xong: Tổng quan đã nạp lại nhưng màn Khởi tạo vẫn giữ báo cáo đến khi bấm tiếp.
+	// Bước 1 harness: chọn thêm codex (j xuống rồi Space); bước 2 hook: giữ Có, chọn phạm vi project; bước 3 MCP: Có.
+	press(t, m, "j", " ", "enter")
+	if out := plain(m.Render()); !strings.Contains(out, "Bước 2/7") || !strings.Contains(out, "Nơi cài hook") {
+		t.Fatalf("bước hook:\n%s", out)
+	}
+	press(t, m, "j", "j", "j", " ", "enter") // con trỏ tới hàng project rồi Space chọn; hook vẫn Có
+	press(t, m, "enter")                     // MCP: mặc định Không, sang AGENTS.md
+	if m.wiz.Step() != 3 {
+		t.Fatalf("phải ở bước AGENTS.md, nhận %d", m.wiz.Step())
+	}
+	press(t, m, "esc") // lùi về MCP, chọn Có
+	if m.wiz.Step() != 2 {
+		t.Fatalf("Esc phải lùi về MCP, nhận %d", m.wiz.Step())
+	}
+	press(t, m, "k", " ", "enter")
+	press(t, m, "enter", "enter") // AGENTS.md: Không; skill: Có → bước Git
+	press(t, m, "j", " ")         // local
+	out = plain(m.Render())
+	for _, want := range []string{"Bước 6/7", "track", "local", ".git/info/exclude"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("bước Git thiếu %q:\n%s", want, out)
+		}
+	}
+	press(t, m, "enter") // sang xem trước
+	out = plain(m.Render())
+	for _, want := range []string{"Bước 7/7", ".bint/config.yml", "bint init --harness", "--git local", "--mcp"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("xem trước thiếu %q:\n%s", want, out)
+		}
+	}
+	if _, err := bintapp.Status(context.Background(), root); err == nil {
+		t.Fatal("xem trước không được khởi tạo gì")
+	}
+	press(t, m, "enter") // chạy
 	if !m.ov.Loaded || m.ov.Data.NotInit || m.ov.Data.Status == nil {
 		t.Fatalf("sau khởi tạo phải nạp lại Tổng quan: %+v", m.ov.Data)
 	}
-	if m.Screen() != actions.Init {
-		t.Fatalf("phải giữ báo cáo khởi tạo đến khi bấm tiếp, nhận %q", m.Screen())
-	}
-	if !m.ini.Done() || len(m.ini.Report.Steps) == 0 {
-		t.Fatalf("báo cáo khởi tạo: %+v", m.ini.Report)
+	if m.Screen() != actions.Init || !m.wiz.Done() || len(m.wiz.Report().Steps) == 0 {
+		t.Fatalf("phải giữ báo cáo đến khi bấm tiếp: screen=%q done=%v", m.Screen(), m.wiz.Done())
 	}
 	held := plain(m.Render())
-	if strings.Contains(held, "chưa khởi tạo") || strings.Contains(held, "chưa được khởi tạo") {
-		t.Errorf("sau khi khởi tạo xong không còn được nói 'chưa khởi tạo':\n%s", held)
-	}
-	for _, want := range []string{"Đã khởi tạo Bint", "Bint đã được khởi tạo trong", "Đã khởi tạo xong", m.ini.Report.Steps[0].Name, "Tiếp tục"} {
+	for _, want := range []string{"Đã khởi tạo Bint", "Đã khởi tạo xong", m.wiz.Report().Steps[0].Name, "Bước tiếp theo", "bint doctor"} {
 		if !strings.Contains(held, want) {
 			t.Errorf("màn báo cáo thiếu %q:\n%s", want, held)
 		}
 	}
-	if m.ini.Report.NextSteps != nil && !strings.Contains(held, "Bước tiếp theo") {
-		t.Errorf("thiếu bước tiếp theo:\n%s", held)
+	// Trạng thái thật khớp lựa chọn: harness, hook ở phạm vi project, MCP đã đăng ký, chế độ Git local đã lưu.
+	st, err := bintapp.ReadInitState(context.Background(), root)
+	if err != nil || st.NotInit {
+		t.Fatalf("trạng thái sau init: %+v %v", st, err)
 	}
-	// Đang giữ báo cáo thì Enter không chạy lại khởi tạo; bảng lệnh không có hành động ghi.
-	if _, cmd := m.run("init.defaults"); cmd != nil || m.ini.Running {
+	if !slices.Equal(st.Enabled, []string{"claude", "codex"}) || !st.HooksOn() || st.HooksScope() != "project" || !st.MCPOn() || st.GitMode != bintapp.GitLocal {
+		t.Fatalf("trạng thái không khớp lựa chọn: %+v", st)
+	}
+	// Đang giữ báo cáo thì không chạy lại init; Enter ở báo cáo (bước đầu tiên là doctor) sang Hệ thống › Doctor.
+	if _, cmd := m.run("init.run"); cmd != nil || m.wiz.Running() {
 		t.Fatal("không được khởi tạo lại khi đang giữ báo cáo")
 	}
-	if st, err := bintapp.Status(context.Background(), root); err != nil || st.Repo == "" {
-		t.Fatalf("repo phải đã init: %v", err)
-	}
 	press(t, m, "enter") // tiếp tục
-	if m.Screen() != actions.Overview {
-		t.Fatalf("bấm tiếp phải sang Tổng quan, nhận %q", m.Screen())
+	if m.Screen() == actions.Init {
+		t.Fatalf("bấm tiếp phải rời trình hướng dẫn, nhận %q", m.Screen())
 	}
-	if out := plain(m.Render()); !strings.Contains(out, "Việc cần bạn") {
-		t.Fatalf("Tổng quan sau khởi tạo:\n%s", out)
+}
+
+// d dùng mặc định và nhảy thẳng tới xem trước; Esc lùi từ xem trước về bước Git; mặc định đúng như `bint init` tối thiểu.
+func TestInitWizardDefaultsAndBack(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
+	m := New(context.Background(), Options{Dir: root, Version: "0.1.0", BintPath: "bint", Lang: "vi", Mode: theme.Mono, SpinnerFPS: time.Millisecond,
+		DetectHarnesses: fakeDetect})
+	m.SetSize(100, 30)
+	drive(t, m, m.Init())
+	press(t, m, "d")
+	out := plain(m.Render())
+	if m.wiz.Step() != 6 || !strings.Contains(out, "Bước 7/7") || !strings.Contains(out, "bint init --harness claude --hooks --git track") {
+		t.Fatalf("d phải tới xem trước với mặc định:\n%s", out)
+	}
+	o := m.wiz.Options()
+	if !o.Hooks || o.NoHooks || o.HooksScope != "local" || o.GitMode != "track" || o.MCP || o.AgentsMD || o.NoSkills || len(o.Harnesses) != 1 || o.Harnesses[0] != "claude" {
+		t.Fatalf("mặc định: %+v", o)
+	}
+	press(t, m, "esc")
+	if m.wiz.Step() != 5 {
+		t.Fatalf("Esc từ xem trước phải về bước Git, nhận %d", m.wiz.Step())
+	}
+	press(t, m, "esc", "esc", "esc", "esc", "esc")
+	if m.wiz.Step() != 0 {
+		t.Fatalf("Esc nhiều lần về bước đầu, nhận %d", m.wiz.Step())
+	}
+	// Không chọn harness nào thì không đi tiếp.
+	press(t, m, " ", "enter")
+	if m.wiz.Step() != 0 || !strings.Contains(plain(m.Render()), "Chọn ít nhất một harness") {
+		t.Fatalf("phải đòi chọn harness:\n%s", plain(m.Render()))
 	}
 }
 
@@ -419,14 +490,14 @@ func TestInitActionsHiddenOutsideInitScreen(t *testing.T) {
 		t.Fatalf("tìm 'khởi tạo' không ra hành động ghi:\n%s", out)
 	}
 	press(t, m, "esc")
-	if _, cmd := m.run("init.defaults"); cmd != nil || m.ini.Running {
-		t.Fatal("run(init.defaults) phải bị từ chối khi repo đã init")
+	if _, cmd := m.run("init.run"); cmd != nil || m.wiz.Running() || m.wiz.Step() != 0 {
+		t.Fatal("run(init.run) phải bị từ chối khi repo đã init")
 	}
 	// Ở tab khác của repo chưa init cũng không chạy được.
 	n := newModel(t, Options{Mode: theme.Mono}, notInitData(), 120, 30)
 	press(t, n, "2")
-	if _, cmd := n.run("init.defaults"); cmd != nil || n.ini.Running {
-		t.Fatal("init.defaults chỉ chạy ở màn Khởi tạo")
+	if _, cmd := n.run("init.run"); cmd != nil || n.wiz.Running() || n.wiz.Step() != 0 {
+		t.Fatal("init.run chỉ chạy ở màn Khởi tạo")
 	}
 	for _, it := range n.paletteItems() {
 		if strings.HasPrefix(it.ID, "init.") {
@@ -437,18 +508,27 @@ func TestInitActionsHiddenOutsideInitScreen(t *testing.T) {
 	press(t, n, "1")
 	found := false
 	for _, it := range n.paletteItems() {
-		found = found || it.ID == "init.defaults"
+		found = found || it.ID == "init.run"
+		if it.ID == "init.plan" {
+			t.Fatal("init.plan là bước nội bộ, không có trong bảng lệnh")
+		}
 	}
 	if !found {
-		t.Fatal("màn Khởi tạo phải có init.defaults trong bảng lệnh")
+		t.Fatal("màn Khởi tạo phải có init.run trong bảng lệnh")
 	}
+}
+
+// startInitJob dựng trạng thái "đang khởi tạo": một việc init.run trong bảng việc nền (như khi RequestMsg init.run đã chạy).
+func startInitJob(m *Model) {
+	_, cancel := context.WithCancel(context.Background())
+	m.jobs.Add(jobs.Job{Action: "init.run", Kind: jobs.KindAction, Label: "bint init", Cancel: cancel})
 }
 
 // q khi đang khởi tạo (việc nền ghi) mở hộp thoại thoát đầy đủ thay cho cơ chế "nhấn lần nữa": "Ở lại" không
 // thoát; "Huỷ việc rồi thoát" chờ khởi tạo kết thúc (hoặc hết hạn giờ) rồi mới thoát.
 func TestQuitDuringInitOpensExitDialog(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, notInitData(), 120, 30)
-	m.ini.Running = true
+	startInitJob(m)
 	_, cmd := m.Update(keyMsg("q"))
 	if cmd != nil || m.quitting || m.exitDlg == nil {
 		t.Fatalf("q khi đang khởi tạo phải mở hộp thoại, không thoát: cmd=%v quit=%v dlg=%v", cmd != nil, m.quitting, m.exitDlg != nil)
@@ -469,7 +549,7 @@ func TestQuitDuringInitOpensExitDialog(t *testing.T) {
 	if cmd == nil || m.quitting || !m.exiting {
 		t.Fatalf("phải chờ việc kết thúc: cmd=%v quit=%v exiting=%v", cmd != nil, m.quitting, m.exiting)
 	}
-	if _, cmd = m.Update(actions.InitDoneMsg{}); cmd == nil || !m.quitting {
+	if _, cmd = m.Update(actions.ResultMsg{ID: "init.run", Value: &bintapp.InitReport{}}); cmd == nil || !m.quitting {
 		t.Fatal("khởi tạo xong khi đang thoát phải thoát")
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
@@ -477,7 +557,7 @@ func TestQuitDuringInitOpensExitDialog(t *testing.T) {
 	}
 	// Quá hạn chờ thì thoát dù việc chưa kết thúc.
 	m2 := newModel(t, Options{Mode: theme.Mono}, notInitData(), 120, 30)
-	m2.ini.Running = true
+	startInitJob(m2)
 	m2.Update(keyMsg("q"))
 	m2.Update(keyMsg("enter")) // không chạy lệnh tick chờ: kiểm thử gửi exitTimeoutMsg trực tiếp
 	if m2.quitting {
@@ -488,7 +568,7 @@ func TestQuitDuringInitOpensExitDialog(t *testing.T) {
 	}
 	// Đang thoát: Ctrl+C lần nữa thoát ngay.
 	m3 := newModel(t, Options{Mode: theme.Mono}, notInitData(), 120, 30)
-	m3.ini.Running = true
+	startInitJob(m3)
 	m3.Update(keyMsg("q"))
 	m3.Update(keyMsg("enter"))
 	if _, cmd := m3.Update(keyMsg("ctrl+c")); cmd == nil || !m3.quitting {
@@ -591,7 +671,7 @@ func TestLoadingShowsSpinnerAndTickStops(t *testing.T) {
 // Khởi tạo thất bại: tiêu đề và đoạn mở đầu nói lỗi, không còn câu "chưa khởi tạo" như trước khi thử.
 func TestInitErrorScreenSaysFailure(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, notInitData(), 100, 30)
-	m.ini = m.ini.Finish(nil, errors.New("ghi cấu hình: từ chối quyền"))
+	m.Update(actions.ResultMsg{ID: "init.run", Err: errors.New("ghi cấu hình: từ chối quyền")})
 	out := plain(m.Render())
 	for _, want := range []string{"Khởi tạo Bint không thành công", "Không khởi tạo được Bint trong", "Khởi tạo thất bại.", "từ chối quyền"} {
 		if !strings.Contains(out, want) {
@@ -604,7 +684,7 @@ func TestInitErrorScreenSaysFailure(t *testing.T) {
 }
 
 // Phát hiện .13: nạp lại sau khi khởi tạo bị lỗi thì lỗi phải hiện ra, và "Tiếp tục" không được đưa về
-// màn chưa khởi tạo để chạy lại init.defaults trên repository đã init.
+// màn chưa khởi tạo để chạy lại init.run trên repository đã init.
 func TestReloadFailureAfterInitKeepsRepoInitialized(t *testing.T) {
 	testutil.Isolate(t)
 	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n"})
@@ -625,9 +705,9 @@ func TestReloadFailureAfterInitKeepsRepoInitialized(t *testing.T) {
 	if m.Screen() != actions.Init {
 		t.Fatalf("lần nạp đầu báo chưa init: %q", m.Screen())
 	}
-	press(t, m, "enter")
-	if calls != 2 || !m.ini.Done() {
-		t.Fatalf("calls=%d done=%v err=%v", calls, m.ini.Done(), m.ini.Err)
+	press(t, m, "d", "enter")
+	if calls != 2 || !m.wiz.Done() {
+		t.Fatalf("calls=%d done=%v", calls, m.wiz.Done())
 	}
 	held := plain(m.Render())
 	if !strings.Contains(held, "database is locked") || !strings.Contains(held, "Đã khởi tạo xong") {
@@ -640,8 +720,8 @@ func TestReloadFailureAfterInitKeepsRepoInitialized(t *testing.T) {
 	if out := plain(m.Render()); !strings.Contains(out, "database is locked") || !strings.Contains(out, "Không đọc được trạng thái") {
 		t.Fatalf("lỗi nạp phải hiện ra ở Tổng quan:\n%s", out)
 	}
-	if _, cmd := m.run("init.defaults"); cmd != nil || m.ini.Running {
-		t.Fatal("không được chạy lại init.defaults trên repository đã init")
+	if _, cmd := m.run("init.run"); cmd != nil || m.wiz.Running() {
+		t.Fatal("không được chạy lại init.run trên repository đã init")
 	}
 	for _, it := range m.paletteItems() {
 		if strings.HasPrefix(it.ID, "init.") {
@@ -825,7 +905,7 @@ func initFlowModel(t *testing.T, load *func() (overview.Data, error)) *Model {
 func TestInitDoneMasksNotInitOnlyOnLoadError(t *testing.T) {
 	load := func() (overview.Data, error) { return notInitData(), nil }
 	m := initFlowModel(t, &load)
-	_, cmd := m.Update(actions.InitDoneMsg{Report: &bintapp.InitReport{}})
+	_, cmd := m.Update(actions.ResultMsg{ID: "init.run", Value: &bintapp.InitReport{}})
 	drive(t, m, cmd)
 	press(t, m, "enter") // init.continue
 	if m.holdInit {
@@ -849,7 +929,7 @@ func TestInitDoneMasksNotInitOnlyOnLoadError(t *testing.T) {
 	load = func() (overview.Data, error) { return notInitData(), nil }
 	m = initFlowModel(t, &load)
 	load = func() (overview.Data, error) { return overview.Data{}, errors.New("đĩa lỗi") }
-	_, cmd = m.Update(actions.InitDoneMsg{Report: &bintapp.InitReport{}})
+	_, cmd = m.Update(actions.ResultMsg{ID: "init.run", Value: &bintapp.InitReport{}})
 	drive(t, m, cmd)
 	if m.ov.Err == nil || !m.ov.Data.NotInit {
 		t.Fatalf("điều kiện thử: cần Err và dữ liệu cũ NotInit: err=%v data=%+v", m.ov.Err, m.ov.Data)
@@ -876,7 +956,7 @@ func TestInitReportIgnoresStaleLoadErrWhileLoading(t *testing.T) {
 		t.Fatal("điều kiện thử: cần ov.Err cũ")
 	}
 	// Khởi tạo xong: bắt đầu nạp lại nhưng chưa nhận kết quả.
-	_, cmd := m.Update(actions.InitDoneMsg{Report: &bintapp.InitReport{}})
+	_, cmd := m.Update(actions.ResultMsg{ID: "init.run", Value: &bintapp.InitReport{}})
 	if !m.ov.Loading || cmd == nil {
 		t.Fatalf("điều kiện thử: phải đang nạp lại (loading=%v)", m.ov.Loading)
 	}

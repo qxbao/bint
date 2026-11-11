@@ -17,6 +17,7 @@ import (
 	"bint/internal/tui/components/input"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/viewer"
+	"bint/internal/tui/jobs"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
@@ -40,6 +41,10 @@ type Options struct {
 	Load Loaders
 	// Gate cho biết hành động có dùng được không theo sổ hành động và chế độ (nil = luôn dùng được).
 	Gate func(id string) actions.Availability
+	// Jobs là bảng việc nền của mô hình gốc (chỉ đọc): thẻ Cập nhật hiện log go install đang chạy (nil = không có log trực tiếp).
+	Jobs *jobs.Table
+	// CanRestart: nền tảng khởi động lại được bằng exec (Unix); Windows chỉ hiện hộp "đóng và mở lại bint".
+	CanRestart bool
 }
 
 type dialog struct {
@@ -81,6 +86,12 @@ type Model struct {
 	skills app.SkillList
 	mcp    []app.MCPTool
 	doctor *app.DoctorReport
+	// Thẻ Cài đặt repo: trạng thái init và giá trị khởi đầu của form đang mở (để so lấy phần đã đổi). Thẻ Cập nhật: thông tin bản
+	// đang chạy và phiên cập nhật gần nhất.
+	setup     app.InitState
+	setupInit app.InitFlagOptions
+	updInfo   UpdateInfo
+	upd       updateState
 	// versions: phiên bản harness đã lấy (V), theo tên; verBusy: tên đang lấy.
 	versions map[string]string
 	verBusy  map[string]bool
@@ -203,6 +214,10 @@ func (m *Model) load(tab int) tea.Cmd {
 			v, err = ld.MCP(ctx, dir, ver)
 		case TabDoctor:
 			v, err = ld.Doctor(ctx, dir)
+		case TabSetup:
+			v, err = ld.Init(ctx, dir)
+		case TabUpdate:
+			v, err = ld.UpdateInfo(ctx, dir, ver)
 		}
 		return LoadedMsg{Tab: tab, Value: v, Err: err}
 	}
@@ -345,8 +360,8 @@ func (m *Model) Capturing() bool { return m.dlg != nil || m.frm != nil || m.text
 // NotList: phím của từng thẻ nằm ở viền dưới của khung (chân phím chung chỉ giữ phím ghim và toàn cục).
 func (m *Model) NotList() bool { return true }
 
-// WantsInterrupt: màn Hệ thống không có việc nền dài để huỷ.
-func (m *Model) WantsInterrupt() bool { return false }
+// WantsInterrupt: đang cập nhật Bint (Esc huỷ việc nền).
+func (m *Model) WantsInterrupt() bool { return m.upd.running }
 
 // Busy: có việc nạp dữ liệu hoặc yêu cầu đang chạy.
 func (m *Model) Busy() bool {
@@ -380,6 +395,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		}
 	case actions.DeniedMsg:
 		m.pending = max(m.pending-1, 0)
+		m.upd.running = false
 		why := m.t(map[bool]string{true: "ui.locked.agent", false: "sy.denied.readonly"}[msg.Locked])
 		m.setToast(why, true)
 		if m.frmBusy && m.frm != nil {
@@ -426,6 +442,10 @@ func (m *Model) onLoaded(msg LoadedMsg) tea.Cmd {
 	case TabDoctor:
 		m.doctor = msg.Value.(*app.DoctorReport)
 		m.rebuildDoctor()
+	case TabSetup:
+		m.setup = msg.Value.(app.InitState)
+	case TabUpdate:
+		m.updInfo = msg.Value.(UpdateInfo)
 	}
 	return next
 }
@@ -577,6 +597,16 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 			return nil
 		}
 		m.showOut(m.t("sy.skill.regress.title"), m.regressLines(msg.Value))
+	case "system.repo_plan":
+		return m.onRepoPlan(msg)
+	case "system.repo_apply":
+		return m.onRepoApply(msg)
+	case "system.config_upgrade_plan":
+		return m.onUpgradePlan(msg)
+	case "system.config_upgrade":
+		return m.onUpgradeDone(msg)
+	case "system.update":
+		return m.onUpdateDone(msg)
 	case "system.sync_plan":
 		return m.onSyncPlan(msg)
 	case "system.sync":
@@ -720,6 +750,9 @@ func (m *Model) Key(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.textKey(msg), true
 	}
 	m.toast = ""
+	if k := msg.String(); m.upd.running && (k == "esc" || k == "ctrl+c") {
+		return func() tea.Msg { return actions.CancelMsg{ID: "system.update"} }, true
+	}
 	switch msg.String() {
 	case ".":
 		return m.setTab((m.tab + 1) % numTabs), true
@@ -826,6 +859,9 @@ func (m *Model) textKey(msg tea.KeyPressMsg) tea.Cmd {
 func (m *Model) tabKey(s string) (tea.Cmd, bool) {
 	switch m.tab {
 	case TabConfig:
+		if s == "U" {
+			return m.cmdConfigUpgrade(), true
+		}
 		if s == "e" {
 			return m.cmdConfigEdit(), true
 		}
@@ -857,6 +893,20 @@ func (m *Model) tabKey(s string) (tea.Cmd, bool) {
 	case TabLanguage:
 		if s == "enter" || s == "s" {
 			return m.cmdLanguage(), true
+		}
+	case TabSetup:
+		switch s {
+		case "e", "enter":
+			return m.cmdSetupEdit(), true
+		case "U":
+			return m.cmdConfigUpgrade(), true
+		}
+	case TabUpdate:
+		switch s {
+		case "u", "enter":
+			return m.cmdUpdate(), true
+		case "R":
+			return m.cmdRestart(), true
 		}
 	case TabDoctor:
 		switch s {
@@ -995,6 +1045,14 @@ func (m *Model) submitForm(v any) tea.Cmd {
 		m.rebuildComponents()
 		return nil
 	}
+	switch o := v.(type) {
+	case app.InitFlagOptions:
+		if m.frmID == "system.repo_apply" {
+			return m.submitSetup(o)
+		}
+	case app.UpdateOptions:
+		return m.submitUpdate(o)
+	}
 	m.frmBusy = true
 	return m.request(m.frmID, v)
 }
@@ -1069,6 +1127,16 @@ func (m *Model) Command(id string) tea.Cmd {
 		return m.setTab(TabMCP)
 	case "system.doctor":
 		return m.setTab(TabDoctor)
+	case "system.repo_state":
+		return m.setTab(TabSetup)
+	case "system.repo_plan", "system.repo_apply":
+		m.tab = TabSetup
+		return tea.Batch(m.ensureTab(TabSetup), m.cmdSetupEdit())
+	case "system.config_upgrade_plan", "system.config_upgrade":
+		return m.OpenConfigUpgrade()
+	case "system.update":
+		m.tab = TabUpdate
+		return tea.Batch(m.ensureTab(TabUpdate), m.cmdUpdate())
 	case "system.doctor_filter":
 		m.tab = TabDoctor
 		m.onlyIssues = !m.onlyIssues

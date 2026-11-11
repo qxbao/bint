@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config  Harness  Components Skills Index MCP Language Doctor                │
+│   Config  Harness  Components Skills Index MCP Language ›                    │
 │ ┌─│Details · claude│───────────────────────────────────────────────1-16/33─┐ │
 │ │ Claude Code (claude)                                                     │ │
 │ │ Level               3 — + programmatic execution                         │ │

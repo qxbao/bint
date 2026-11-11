@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
+│ ‹ ⟦Doctor~~~⟧ ⟦Setup~~⟧  ⟦Update~~~⟧                    ⟦Bint updated~~~~~⟧  │
+│ ┌─│⟦Update Bint~~~~~⟧│─────────────────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │  ⟦Running~~~⟧ 0.1.0 (abc1234)                                            │ │
+│ │  ⟦Binary~~~⟧  /home/u/go/bin/bint                                        │ │
+│ │  ⟦Source~~~⟧  /home/u/src/bint                                           │ │
+│ │                                                                          │ │
+│ │  ✓ ⟦abc1234 → def5678~~⟧                                                 │ │
+│ │    /home/u/go/bin/bint                                                   │ │
+│ │  ! ⟦The running binary is /usr/local/bin/bint, not the file just         │ │
+│ │    installed; check PATH (which bint) if the bint command is still the   │ │
+│ │    old build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧           │ │
+│ │  ⟦Not restarted yet: the running build is still the old one.~~~~~~~~~~~… │ │
+│ │  ⟦Run bint init --update or bint sync in each repository to publish the  │ │
+│ │  new skills.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                           │ │
+│ │                                                                          │ │
+│ │  ⟦go install log~~~~~~⟧                                                  │ │
+│ │   bint/internal/app                                                      │ │
+│ └─ u ⟦Update~~~⟧  R ⟦Restart~~~⟧ ──────────────────────────────────────────┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness Components  Skills  Index MCP Language Doctor                │
+│   Config Harness Components  Skills  Index MCP Language ›                    │
 │ ┌─┌─│Sync --force: overwrite│────────────────────────────────────1-13/18─┐─┐ │
 │ │ │ --force overwrites hand-edited skills (the old copy is backed up);   │ │ │
 │ │ │ it cannot get past overlay anchor conflicts.                         │ │ │

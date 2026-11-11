@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                       │
+│ ┌─│Nhóm khoá│──────────────────────────────────────schema v1─┐┌─│Lớp nguồn│────────────────────────────────────────────────────────────┐ │
+│ │ ▸ Lớp nguồn                                                ││ Cấu hình hiệu lực = toàn cục → dự án → strategy → cục bộ (lớp sau đè…  │ │
+│ │   project                                                  ││                                                                        │ │
+│ │   state                                                    ││ ○ toàn cục    không có                                                 │ │
+│ │   harnesses                                                ││     /home/u/.config/bint/config.yml                                    │ │
+│ │   roles                                                    ││ ● dự án       đang dùng                                                │ │
+│ │   context                                                  ││     /work/demo/.bint/config.yml                                        │ │
+│ │   knowledge           ┌─│Nâng mẫu cấu hình│──────────────────────────────────────────────────────────────────┐                       │ │
+│ │   memory              │ /work/demo/.bint/config.yml                                                          │                       │ │
+│ │   eval                │ Thêm khoá: harnesses.claude.models                                                   │                       │ │
+│ │   evolution           │ ! giữ model chung đã đặt tay                                                         │                       │ │
+│ │   workflow            │ Giá trị và chú thích sẵn có giữ nguyên; bản cũ được sao lưu vào thư mục trạng thái   │                       │ │
+│ │   limits              │ trước khi ghi. Lệnh tương đương bint init --update cũng làm mới skill và hook đã     │                       │ │
+│ │   security            │ cài.                                                                                 │                       │ │
+│ │   ui                  │                                                                                      │                       │ │
+│ │                       │ --- .bint/config.yml                                                                 │                       │ │
+│ │                       │ +++ .bint/config.yml (mẫu mới)                                                       │                       │ │
+│ │                       │   harnesses:                                                                         │                       │ │
+│ │                       │     claude:                                                                          │                       │ │
+│ │                       │       model: sonnet                                                                  │                       │ │
+│ │                       │ +     models:                                                                        │                       │ │
+│ │                       │ +       planner: opus                                                                │                       │ │
+│ │                       │                                                                                      │                       │ │
+│ │                       │ [Enter] Nâng cấp   [Esc] Giữ nguyên                                                  │                       │ │
+│ │                       └──────────────────────────────────────────────────────────────────────────────────────┘                       │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ │                                                            ││                                                                        │ │
+│ └─ e sửa  Enter mở ──────────────────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
+└─[Esc→ Thoát]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

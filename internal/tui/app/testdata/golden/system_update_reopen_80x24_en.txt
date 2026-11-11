@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────┐
+│ ‹ Skills Index MCP Language Doctor Setup  Update               Bint updated  │
+│ ┌─┌─│Reopen bint│────────────────────────────────────────────────────────┐─┐ │
+│ │ │ abc1234 → def5678                                                    │ │ │
+│ │ │ /home/u/go/bin/bint                                                  │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ! The running binary is /usr/local/bin/bint, not the file just       │ │ │
+│ │ │ installed; check PATH (which bint) if the bint command is still the  │ │ │
+│ │ │ old build.                                                           │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ The old binary was renamed to C:\bin\bint.exe.old (safe to delete    │ │ │
+│ │ │ after exiting).                                                      │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Windows cannot restart automatically: close bint and open it again   │ │ │
+│ │ │ to use the new build.                                                │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] OK   [Esc] Close                                             │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                          │ │
+│ └─ u Update  R Restart ────────────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

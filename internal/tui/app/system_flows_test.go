@@ -156,7 +156,7 @@ func TestSystemDoctorShowsAllChecksAndFilters(t *testing.T) {
 		runs.Add(1)
 		return sampleSystemLoaders().Doctor(ctx, dir)
 	}}}, 140, 40)
-	press(t, m, ",") // thẻ cuối: Doctor
+	press(t, m, ",", ",", ",") // lùi qua Cập nhật, Cài đặt tới Doctor
 	out := plain(m.Render())
 	hasAll(t, out, "Doctor: 1 cảnh báo, 1 lỗi", "git", "cấu hình", "hook claude", "tri thức", "Chi tiết · git", "2.47.0")
 	press(t, m, "w")
@@ -238,9 +238,9 @@ func TestSystemReadOnlyDeniesEveryWritingAction(t *testing.T) {
 	m, c := newSysModel(t, Options{ReadOnly: true}, 140, 40)
 	keys := map[int][]string{ // thẻ con → phím ghi
 		syscreen.TabConfig: {"e"}, syscreen.TabComponents: {"n", "a", "d"}, syscreen.TabSkills: {"o", "s", "F"}, syscreen.TabIndex: {"b", "enter"},
-		syscreen.TabLanguage: {"enter"},
+		syscreen.TabLanguage: {"enter"}, syscreen.TabSetup: {"e", "enter", "U"}, syscreen.TabUpdate: {"u", "enter"},
 	}
-	for tab := 0; tab < 8; tab++ {
+	for tab := 0; tab < 10; tab++ {
 		for _, k := range keys[tab] {
 			m.toast = ""
 			press(t, m, k)
@@ -270,7 +270,7 @@ func TestSystemReadOnlyDeniesEveryWritingAction(t *testing.T) {
 		t.Fatalf("bảng lệnh không được hiện hành động ghi ở chế độ chỉ đọc:\n%s", out)
 	}
 	press(t, m, "esc")
-	// Hành động đọc dùng được.
+	// Hành động đọc dùng được (sau vòng 10 thẻ đang ở Cấu hình).
 	press(t, m, ".", ".", "R")
 	if !m.sy.Capturing() {
 		t.Fatal("render là hành động đọc, phải mở được ở chế độ chỉ đọc")

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Tổng quan │ TT │ TV │ LC │ ĐG │ TH │ HT                                      │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Khởi tạo│───────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   Khởi tạo Bint  Bước 2/7 · Hook ghi nhận                                    │
+│                                                                              │
+│   Cài hook để Bint ghi nhận lượt chạy của agent (chỉ ghi vào hàng đợi cục    │
+│   bộ, không gọi mô hình). Hook nằm trong tệp cấu hình của harness.           │
+│                                                                              │
+│ ▸ (•) Có                                                                     │
+│   ( ) Không                                                                  │
+│                                                                              │
+│   Nơi cài hook:                                                              │
+│   (•) local — riêng máy này, tự thêm vào .gitignore                          │
+│   ( ) project — tệp cấu hình của dự án (commit cho cả nhóm)                  │
+│   ( ) user — cấu hình người dùng trong thư mục home                          │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   Enter tiếp  Esc lùi  Space chọn  d dùng mặc định                           │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

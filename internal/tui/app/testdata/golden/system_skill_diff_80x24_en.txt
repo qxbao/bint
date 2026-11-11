@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness Components  Skills  Index MCP Language Doctor                │
+│   Config Harness Components  Skills  Index MCP Language ›                    │
 │ ┌─│Changes of an evolved skill between two versions│───────────────────────┐ │
 │ │ ▸ Evolved skill* api-guide▏                                              │ │
 │ │   From version                                                           │ │

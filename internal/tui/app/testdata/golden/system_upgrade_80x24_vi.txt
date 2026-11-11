@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
+│    Cấu hình  Harness Thành phần Skill Chỉ mục MCP Ngôn ngữ ›                 │
+│ ┌─┌─│Nâng mẫu cấu hình│──────────────────────────────────────────1-13/14─┐─┐ │
+│ │ │ /work/demo/.bint/config.yml                                          │ │ │
+│ │ │ Thêm khoá: harnesses.claude.models                                   │ │ │
+│ │ │ ! giữ model chung đã đặt tay                                         │ │ │
+│ │ │ Giá trị và chú thích sẵn có giữ nguyên; bản cũ được sao lưu vào thư  │ │ │
+│ │ │ mục trạng thái trước khi ghi. Lệnh tương đương bint init --update    │ │ │
+│ │ │ cũng làm mới skill và hook đã cài.                                   │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ --- .bint/config.yml                                                 │ │ │
+│ │ │ +++ .bint/config.yml (mẫu mới)                                       │ │ │
+│ │ │   harnesses:                                                         │ │ │
+│ │ │     claude:                                                          │ │ │
+│ │ │       model: sonnet                                                  │ │ │
+│ │ │ +     models:                                                        │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Nâng cấp   [Esc] Giữ nguyên                                  │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ └─ e sửa  Enter mở ────────────────────────────────────────────────────────┘ │
+└─[Esc→ Thoát]─────────────────────────────────────────────────────────────────┘

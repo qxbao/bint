@@ -69,9 +69,17 @@ func (m *Model) tabBar(env ui.Env) string {
 		}
 		return " " + strings.Join(parts, " ")
 	}
+	// Chừa chỗ cho thông báo: tối thiểu 12 ô, hoặc cả thông báo (tối đa nửa chiều rộng) để đọc đủ.
+	room := 12
+	if m.toast != "" {
+		room = max(room, min(text.Width(m.toast)+4, env.W/2))
+	}
 	bar := build(true)
-	if text.Width(bar) > env.W-12 { // chừa chỗ cho thông báo
+	if text.Width(bar) > env.W-room {
 		bar = build(false)
+	}
+	if text.Width(bar) > env.W-room { // vẫn dài: chỉ hiện cửa sổ các thẻ quanh thẻ đang chọn, "‹ ›" báo còn thẻ ẩn
+		bar = m.windowedBar(th, names, env.W-room)
 	}
 	if m.toast != "" {
 		role := theme.OK
@@ -82,6 +90,51 @@ func (m *Model) tabBar(env ui.Env) string {
 		bar += strings.Repeat(" ", max(env.W-text.Width(bar)-text.Width(toast), 1)) + toast
 	}
 	return text.Fit(bar, env.W)
+}
+
+// windowedBar vẽ thanh thẻ dạng cửa sổ rộng tối đa w: mở rộng dần từ thẻ đang chọn sang hai bên cho tới khi hết chỗ.
+func (m *Model) windowedBar(th theme.Theme, names []string, w int) string {
+	lo, hi := m.tab, m.tab
+	width := func(lo, hi int) int {
+		n := 2 // đệm đầu và cuối của dấu "‹"/"›"
+		for i := lo; i <= hi; i++ {
+			n += text.Width(names[i]) + 1
+			if i == m.tab {
+				n += 2
+			}
+		}
+		return n + 2
+	}
+	for {
+		grew := false
+		if hi+1 < len(names) && width(lo, hi+1) <= w {
+			hi++
+			grew = true
+		}
+		if lo > 0 && width(lo-1, hi) <= w {
+			lo--
+			grew = true
+		}
+		if !grew {
+			break
+		}
+	}
+	var parts []string
+	for i := lo; i <= hi; i++ {
+		if i == m.tab {
+			parts = append(parts, th.Selected(" "+names[i]+" "))
+		} else {
+			parts = append(parts, th.S(theme.Muted, names[i]))
+		}
+	}
+	left, right := " ", ""
+	if lo > 0 {
+		left = th.S(theme.Muted, "‹")
+	}
+	if hi < len(names)-1 {
+		right = " " + th.S(theme.Muted, "›")
+	}
+	return left + " " + strings.Join(parts, " ") + right
 }
 
 func (m *Model) formView(env ui.Env) string {
@@ -155,6 +208,10 @@ func (m *Model) tabBody(env ui.Env) string {
 		return m.mcpView(env)
 	case TabLanguage:
 		return m.languageView(env)
+	case TabSetup:
+		return m.setupView(env)
+	case TabUpdate:
+		return m.updateView(env)
 	default:
 		return m.doctorView(env)
 	}

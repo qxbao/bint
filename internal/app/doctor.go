@@ -33,6 +33,9 @@ const (
 	LevelFail Level = "fail"
 )
 
+// CheckConfigTemplate là tên kiểm tra "cấu hình theo mẫu cũ" của doctor (TUI nhận diện để dẫn tới hộp nâng cấu hình).
+const CheckConfigTemplate = "mẫu cấu hình"
+
 // Check là một kết quả của `bint doctor`.
 type Check struct {
 	Name   string
@@ -107,6 +110,13 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		layers = append(layers, src.Local)
 	}
 	r.add("cấu hình", LevelOK, "hợp lệ, schema v%d (%s)", cfg.Version, strings.Join(layers, " → "))
+	if up, err := readUpgrade(filepath.Dir(filepath.Dir(src.Project))); err == nil && up.Changed() {
+		detail := "theo mẫu cũ, thiếu: " + orDash(config.SummarizeAdded(up.Added))
+		if up.Fixed > 0 {
+			detail += fmt.Sprintf("; %d dòng chú thích hỏng", up.Fixed)
+		}
+		r.add(CheckConfigTemplate, LevelWarn, "%s — chạy `bint init --update` (giữ nguyên giá trị đang có)", detail)
+	}
 	if src.StrategyProblem != "" {
 		r.add("strategy", LevelWarn, "strategy.yml (verified) bị bỏ qua ở phiên thật: %s", src.StrategyProblem)
 	}

@@ -6,19 +6,30 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"bint/internal/app"
+	"bint/internal/tui/jobs"
 )
 
-// InitDoneMsg là kết quả hành động khởi tạo với mặc định.
-type InitDoneMsg struct {
-	Report *app.InitReport
-	Err    error
+// doInitRun chạy app.Init với Options đã chọn (ToInit không gắn Confirm: người gọi luôn đặt Hooks và GitMode tường minh
+// hoặc muốn giữ nguyên, nên không có câu hỏi giữa chừng). Kết quả là *app.InitReport.
+func doInitRun(id string) DoFunc {
+	return func(ctx context.Context, env Env, opts any) tea.Msg {
+		o, _ := opts.(app.InitFlagOptions)
+		io, err := o.ToInit(env.Dir, env.BintPath, env.Version)
+		if err != nil {
+			return res(id, opts, nil, err)
+		}
+		rep, err := app.Init(ctx, io)
+		return res(id, opts, rep, err)
+	}
 }
 
-// runInitDefaults gọi app.Init với tuỳ chọn mặc định, không hỏi (Hooks=nil, Confirm=nil: đúng như
-// `bint init` không tương tác).
-func runInitDefaults(ctx context.Context, env Env) tea.Msg {
-	rep, err := app.Init(ctx, app.InitOptions{Dir: env.Dir, BintPath: env.BintPath, Version: env.Version})
-	return InitDoneMsg{Report: rep, Err: err}
+// doInitPlan xem trước init (chỉ đọc). Kết quả là app.InitPlan.
+func doInitPlan(id string) DoFunc {
+	return func(ctx context.Context, env Env, opts any) tea.Msg {
+		o, _ := opts.(app.InitFlagOptions)
+		pl, err := app.PlanInit(ctx, env.Dir, o)
+		return res(id, opts, pl, err)
+	}
 }
 
 // NavID trả ID hành động chuyển tới màn hình s.
@@ -42,8 +53,12 @@ func Default() *Registry {
 		Action{ID: "overview.refresh", Screen: Overview, Key: "r", Footer: true, Priority: 1, LabelKey: "action.overview.refresh.label",
 			TitleKey: "action.overview.refresh.title", CLIPath: "status"},
 		Action{ID: "overview.doctor", Screen: Overview, TitleKey: "action.overview.doctor.title", CLIPath: "doctor"},
-		Action{ID: "init.defaults", Screen: Init, Key: "Enter", Footer: true, Priority: 1, LabelKey: "action.init.defaults.label",
-			TitleKey: "action.init.defaults.title", CLIPath: "init", Writes: true, Run: runInitDefaults},
+		// Trình hướng dẫn init (giai đoạn 5b): init.plan xem trước (chỉ đọc), init.run chạy app.Init với Options đã chọn.
+		Action{ID: "init.run", Screen: Init, LabelKey: "action.init.run.label", TitleKey: "action.init.run.title", CLIPath: "init",
+			Options: app.InitFlagOptions{}, Writes: true, Do: doInitRun("init.run"),
+			JobInfo: func(any) jobs.Info { return jobs.Info{Kind: jobs.KindInit, Label: "bint init"} }},
+		Action{ID: "init.plan", Screen: Init, FormID: "init.run", LabelKey: "action.init.plan.label", TitleKey: "action.init.plan.title",
+			Options: app.InitFlagOptions{}, Do: doInitPlan("init.plan")},
 		Action{ID: "init.continue", Screen: Init, Key: "Enter", Footer: true, Priority: 1, LabelKey: "action.init.continue.label",
 			TitleKey: "action.init.continue.title"},
 		Action{ID: "init.recheck", Screen: Init, Key: "r", Footer: true, Priority: 2, LabelKey: "action.init.recheck.label",

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Tổng quan │ TT │ TV │ LC │ ĐG │ TH │ HT                                      │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Khởi tạo│───────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   Khởi tạo Bint  Bước 6/7 · Hiện diện trong Git                              │
+│                                                                              │
+│   Tệp của Bint nằm ở đâu trong Git?                                          │
+│                                                                              │
+│   ( ) track — commit cho cả nhóm (mặc định)                                  │
+│ ▸ (•) local — chỉ dùng riêng trên máy này                                    │
+│                                                                              │
+│     Tệp chưa được theo dõi (.bint/, skill, hook, .mcp.json…) vào             │
+│     .git/info/exclude nên không hiện trong git status; tệp đã theo dõi       │
+│     mà Bint sửa (AGENTS.md…) được đặt skip-worktree (pull có thể báo lỗi     │
+│     nếu upstream đổi chúng). Đổi lại sau bằng bint init --git track.         │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   Enter tiếp  Esc lùi  Space chọn  d dùng mặc định                           │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

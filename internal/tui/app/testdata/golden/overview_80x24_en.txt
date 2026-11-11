@@ -11,7 +11,7 @@
 │       │ Harness  claude, codex                                      │        │
 │       │ Schema   v6                                                 │        │
 │       │ Runs     42  33 done · 3 failed · 1 interrupted · 5 running │        │
-│       └─────────────────────────────────────────────────────────────┘        │
+│       └─ Version 0.1.0 · ✓ current template · core.lock none ───────┘        │
 │                                                                              │
 │  Needs you (4)                                                               │
 │ ▸ ◌ 2 knowledge items awaiting review in batch nguon:lo-thu      → Knowledge │

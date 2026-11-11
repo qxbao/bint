@@ -233,6 +233,9 @@ func (m *Model) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) openExitDialog() {
 	c := confirm.Model{Title: m.cat.T("exit.title"), Danger: true, YesLabel: m.cat.T("exit.yes"), NoLabel: m.cat.T("exit.no")}
+	if m.restartAsk != "" {
+		c.Title, c.YesLabel, c.NoLabel = m.cat.T("restart.busy.title"), m.cat.T("restart.busy.yes"), m.cat.T("restart.busy.no")
+	}
 	c.Body = append(c.Body, m.cat.N("exit.body", max(m.jobs.Len(), 1)), "")
 	for _, j := range m.jobs.All() {
 		label := j.Label
@@ -244,7 +247,7 @@ func (m *Model) openExitDialog() {
 			c.Body = append(c.Body, "    "+m.th.S(theme.Muted, m.cat.T("exit.resume", i18n.A{"cmd": j.Resume})))
 		}
 	}
-	if m.jobs.Len() == 0 && m.ini.Running { // khởi tạo chưa vào bảng (kiểm thử dựng trạng thái tay)
+	if m.jobs.Len() == 0 && m.wiz.Running() { // khởi tạo chưa vào bảng (kiểm thử dựng trạng thái tay)
 		c.Body = append(c.Body, "• "+m.th.Bold(m.cat.T("init.group")))
 	}
 	c.Body = append(c.Body, "", m.th.S(theme.Muted, m.cat.T("exit.hint")))
@@ -254,9 +257,10 @@ func (m *Model) openExitDialog() {
 func (m *Model) exitKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.exitDlg.Update(msg) {
 	case confirm.No:
-		m.exitDlg = nil
+		m.exitDlg, m.restartAsk = nil, ""
 	case confirm.Yes:
 		m.exitDlg = nil
+		m.restartPath, m.restartAsk = m.restartAsk, ""
 		m.exiting = true
 		if p := m.prompt; p != nil { // câu hỏi đang chờ: trả "không"
 			p.reply <- jobs.Answer{}
@@ -264,7 +268,7 @@ func (m *Model) exitKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.jobs.CancelAll()
 		m.toast = m.cat.T("exit.stopping")
-		if m.jobs.Len() == 0 && !m.ini.Running {
+		if m.jobs.Len() == 0 && !m.wiz.Running() {
 			m.quitting = true
 			return m, tea.Quit
 		}

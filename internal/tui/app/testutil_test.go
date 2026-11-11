@@ -145,6 +145,9 @@ func newModel(t *testing.T, o Options, data overview.Data, w, h int) *Model {
 		o.Lang = "vi"
 	}
 	o.Loader = func(context.Context, string) (overview.Data, error) { return data, nil }
+	if o.DetectHarnesses == nil {
+		o.DetectHarnesses = fakeDetect // trình hướng dẫn init không phụ thuộc harness có trên máy chạy kiểm thử
+	}
 	o.SystemLoad = withSampleSystem(o.SystemLoad)
 	if o.KnowledgeLoader == nil {
 		o.KnowledgeLoader = func(context.Context, string) (knscreen.Data, error) { return sampleKnowledge(), nil }

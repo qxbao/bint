@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness Components  Skills  Index MCP Language Doctor                │
+│   Config Harness Components  Skills  Index MCP Language ›                    │
 │ ┌─│Content of b-feat│──────────────────────────────────────────────1-16/83─┐ │
 │ │ ---                                                                      │ │
 │ │ name: b-feat                                                             │ │

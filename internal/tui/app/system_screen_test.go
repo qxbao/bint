@@ -45,7 +45,7 @@ func newSysModel(t *testing.T, o Options, w, h int) (*Model, *capt) {
 
 func TestSystemSubTabsSwitchWithCommaAndPeriod(t *testing.T) {
 	m, _ := newSysModel(t, Options{}, 140, 40)
-	names := []string{"Cấu hình", "Harness", "Thành phần", "Skill", "Chỉ mục", "MCP", "Ngôn ngữ", "Doctor"}
+	names := []string{"Cấu hình", "Harness", "Thành phần", "Skill", "Chỉ mục", "MCP", "Ngôn ngữ", "Doctor", "Cài đặt", "Cập nhật"}
 	for i := range names {
 		if m.sy.Tab() != i {
 			t.Fatalf("thẻ %d, muốn %d", m.sy.Tab(), i)
@@ -59,7 +59,7 @@ func TestSystemSubTabsSwitchWithCommaAndPeriod(t *testing.T) {
 		t.Fatalf("`.` ở thẻ cuối phải vòng về đầu: %d", m.sy.Tab())
 	}
 	press(t, m, ",")
-	if m.sy.Tab() != 7 {
+	if m.sy.Tab() != 9 {
 		t.Fatalf("`,` ở thẻ đầu phải về thẻ cuối: %d", m.sy.Tab())
 	}
 }

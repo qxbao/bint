@@ -150,8 +150,7 @@ func TestEveryKeyUsedInCodeExists(t *testing.T) {
 			}
 		}
 	}
-	for _, k := range []string{"init.does.config", "init.does.state", "init.does.hooks", "init.does.gitignore",
-		"overview.inbox.knowledge", "overview.inbox.proposal", "overview.inbox.doctor_fail", "overview.inbox.doctor_warn"} {
+	for _, k := range []string{"overview.inbox.knowledge", "overview.inbox.proposal", "overview.inbox.doctor_fail", "overview.inbox.doctor_warn"} {
 		seen[k] = true
 	}
 	var keys []string
@@ -182,7 +181,9 @@ func TestNoUnusedKeys(t *testing.T) {
 	}
 	code := src.String()
 	vi := i18n.MustLoad("vi")
-	dynamicPrefix := []string{"tab.", "action.nav.", "init.does.", "overview.inbox.", "overview.runstatus.",
+	dynamicPrefix := []string{"tab.", "action.nav.", "overview.inbox.", "overview.runstatus.",
+		// Trình hướng dẫn init (giai đoạn 5b): bước, mô tả từng bước, phạm vi hook, chế độ Git, loại thay đổi (ghép từ giá trị dữ liệu).
+		"wiz.",
 		// Màn Tri thức: khoá ghép từ tên hành động, thẻ phụ, mã finding, chỉ số điều kiện chuyển (có test phủ riêng).
 		"action.knowledge.", "kn.sub.", "kn.survey.", "kn.panel.hint.", "kn.reason.title.", "kn.blocked.", "kn.meta.", "kn.insp.",
 		"finding.", "transition.", "form.",

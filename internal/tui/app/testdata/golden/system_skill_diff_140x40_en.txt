@@ -2,7 +2,7 @@
 │ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor                                                               │
+│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
 │ ┌─│Changes of an evolved skill between two versions│───────────────────────────────────────────────────────────────────────────────────┐ │
 │ │ ▸ Evolved skill* api-guide▏                                                                                                          │ │
 │ │   From version                                                                                                                       │ │

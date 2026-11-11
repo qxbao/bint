@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                               │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Setup~~⟧│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                                                          │
+│   ⟦Set up Bint~~~~~⟧  ⟦Step 7/7 · ⟦Preview~~~⟧~~~~⟧                                                                                      │
+│                                                                                                                                          │
+│   ⟦The files below will be created or changed. This is an estimate; the report after running is the exact                                │
+│   result.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                                                                   │
+│                                                                                                                                          │
+│   + ⟦create~~~⟧  .bint/config.yml  harness: claude                                                                                       │
+│   + ⟦create~~~⟧  /state/demo-7f3a9c  thư mục trạng thái và SQLite (ngoài repository)                                                     │
+│   + ⟦create~~~⟧  .claude/skills  6 skill gốc cho claude                                                                                  │
+│   + ⟦create~~~⟧  .claude/settings.local.json  cài hook claude                                                                            │
+│   ~ ⟦update~~~⟧  .gitignore  thêm khối bint                                                                                              │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint init --harness claude --hooks --git track                                                     │
+│   ⟦An estimate; nothing is written until you press Enter.~~~~~~~~~~~~~~~~~~~~~~⟧                                                         │
+│   Enter ⟦run init~~~~⟧  Esc ⟦back~~⟧                                                                                                     │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────────────────────────────┘

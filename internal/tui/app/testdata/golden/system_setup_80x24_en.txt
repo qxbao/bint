@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│System│─────────────────────────────────────────────────────────────────────┐
+│ ‹ Components Skills Index MCP Language Doctor  Setup  Update                 │
+│ ┌─│Repo setup│─────────────────────────────────────────────────────────────┐ │
+│ │                                                                          │ │
+│ │  Repository     /work/demo                                               │ │
+│ │                                                                          │ │
+│ │  Harnesses                                                               │ │
+│ │   claude       enabled                                                   │ │
+│ │     hook project   MCP registered                                        │ │
+│ │   codex        enabled                                                   │ │
+│ │     hook local+project   MCP no                                          │ │
+│ │   antigravity  disabled · not on this machine                            │ │
+│ │     hook not installed   MCP n/a                                         │ │
+│ │                                                                          │ │
+│ │  Git            local (this machine only)                                │ │
+│ │  AGENTS.md      not yet                                                  │ │
+│ │  Config template ! old template, missing: harnesses.claude.models, harn… │ │
+│ │                                                                          │ │
+│ │  Re-runs init with a form prefilled from the current state; only what    │ │
+│ └─ e Edit  U Upgrade template ─────────────────────────────────────────────┘ │
+└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘

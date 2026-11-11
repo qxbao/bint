@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│  ⟦Config~~~⟧  ⟦Harness~~~⟧  ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ … │
+│   ⟦Config~~~⟧  ⟦Harness~~~⟧  ⟦Components~~~~⟧ ⟦Skills~~~⟧ ›                  │
 │ ┌─│⟦Harnesses~~~~⟧│────────────────────────────────────────────────────────┐ │
 │ │   ⟦HARNESS~~… ⟦ON… ⟦HOS… ⟦VERSION… ⟦VERIFIED… ⟦LEVEL~~⟧                  │ │
 │ │ ▸ claude      ⟦ye… ⟦yes… -         Claude Co… 3                          │ │

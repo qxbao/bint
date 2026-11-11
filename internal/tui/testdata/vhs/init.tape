@@ -1,4 +1,4 @@
-# Màn tạm "Khởi tạo với mặc định" (repository chưa init). Chạy từ thư mục gốc: vhs internal/tui/testdata/vhs/init.tape
+# Trình hướng dẫn khởi tạo nhiều bước (repository chưa init). Chạy từ thư mục gốc: vhs internal/tui/testdata/vhs/init.tape
 
 Output internal/tui/testdata/vhs/out/init.gif
 
@@ -31,7 +31,21 @@ Screenshot internal/tui/testdata/vhs/out/init-en.png
 Type "L"
 Sleep 300ms
 
-# Khởi tạo với mặc định (Enter), rồi xem báo cáo từng bước và bước tiếp theo
+# Đi qua các bước: harness → hook → MCP → AGENTS.md → skill → Git (j + Space chọn "local" để xem giải thích) → xem trước
+Enter
+Enter
+Enter
+Enter
+Enter
+Type "j"
+Type " "
+Sleep 500ms
+Screenshot internal/tui/testdata/vhs/out/init-git.png
+Enter
+Sleep 1s
+Screenshot internal/tui/testdata/vhs/out/init-preview.png
+
+# Chạy init rồi xem báo cáo từng bước và bước tiếp theo
 Enter
 Sleep 4s
 Screenshot internal/tui/testdata/vhs/out/init-done.png

@@ -25,7 +25,7 @@ type Coverage struct {
 }
 
 // CurrentPhase là giai đoạn của kế hoạch TUI đã làm xong (docs/tui-plan.md mục 9).
-const CurrentPhase = 4
+const CurrentPhase = 5
 
 // Data là dữ liệu phủ hiện hành.
 var Data = Coverage{
@@ -46,21 +46,7 @@ var Data = Coverage{
 		"knowledge add --body-file": "TUI soạn nội dung trong ô nhiều dòng thay vì đọc từ tệp",
 		"task new --file":           "TUI soạn mô tả trong ô nhiều dòng thay vì đọc từ tệp",
 	},
-	Pending: map[string]int{
-		"update": 5,
-	},
-	PendingFlags: map[string]int{
-		"init --agents-md":   5,
-		"init --force":       5,
-		"init --git":         5,
-		"init --harness":     5,
-		"init --hooks":       5,
-		"init --hooks-scope": 5,
-		"init --mcp":         5,
-		"init --no-hooks":    5,
-		"init --no-mcp":      5,
-		"init --no-skills":   5,
-		"init --update":      5,
-	},
-	PendingCeiling: 12,
+	Pending:        map[string]int{},
+	PendingFlags:   map[string]int{},
+	PendingCeiling: 0,
 }

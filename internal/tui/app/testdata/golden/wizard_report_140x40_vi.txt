@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                               │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Khởi tạo│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                                                          │
+│   Đã khởi tạo Bint                                                                                                                       │
+│                                                                                                                                          │
+│   Bint đã được khởi tạo trong /work/demo. Dưới đây là những gì đã làm.                                                                   │
+│                                                                                                                                          │
+│   ✓ Đã khởi tạo xong                                                                                                                     │
+│    ! hook claude  chưa xác minh trust hook                                                                                               │
+│    + .bint/config.yml  harness: claude                                                                                                   │
+│    + thư mục trạng thái  /state/demo-7f3a9c (schema v6)                                                                                  │
+│    ~ .gitignore  thêm khối bint                                                                                                          │
+│                                                                                                                                          │
+│   Bước tiếp theo                                                                                                                         │
+│  ▸ 1. Xác nhận lệnh kiểm thử: điền eval.test_command trong .bint/config.yml                                                              │
+│    2. Kiểm tra môi trường: bint doctor                                                                                                   │
+│    3. Xem lượt chạy đã ghi nhận: bint runs list                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│   Enter tiếp tục  j/k chọn bước                                                                                                          │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────────────────────────────────────────────────────────────────┘

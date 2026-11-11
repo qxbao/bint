@@ -2,7 +2,7 @@
 │ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor                                                               │
+│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
 │ ┌─│Skills (3)│───────────────────────────────────────────────┐┌─│Content of b-feat│────────────────────────────────────────────1-32/83─┐ │
 │ │   core  b-do                       aaaa1111  published     ││ ---                                                                    │ │
 │ │ ▸ core  b-feat                     bbbb2222  differs       ││ name: b-feat                                                           │ │

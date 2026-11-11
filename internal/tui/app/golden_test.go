@@ -1,12 +1,15 @@
 package app
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 
 	bintapp "bint/internal/app"
 	"bint/internal/app/evolvesvc"
@@ -224,6 +227,29 @@ func TestGoldenScreens(t *testing.T) {
 						Steps: []bintapp.Step{{Name: "AGENTS.md", Status: bintapp.StepUpdated}}}})
 					return m
 				},
+				// Trình hướng dẫn init (giai đoạn 5b): mỗi bước chính trên repo chưa init.
+				"wizard_hooks": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, notInitData(), sz[0], sz[1])
+					press(t, m, "enter")
+					return m
+				},
+				"wizard_git": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, notInitData(), sz[0], sz[1])
+					press(t, m, "enter", "enter", "enter", "enter", "enter", "j", " ")
+					return m
+				},
+				"wizard_preview": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, notInitData(), sz[0], sz[1])
+					press(t, m, "d")
+					m.Update(actions.ResultMsg{ID: "init.plan", Value: wizardPlan()})
+					return m
+				},
+				"wizard_report": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, notInitData(), sz[0], sz[1])
+					press(t, m, "d")
+					m.Update(actions.ResultMsg{ID: "init.run", Value: wizardReport()})
+					return m
+				},
 				"palette": func() *Model {
 					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
 					press(t, m, ":")
@@ -289,5 +315,76 @@ func TestGoldenRunsEvolveColorModes(t *testing.T) {
 		m = newModel(t, Options{Mode: mode, Lang: "vi"}, sampleData(), 140, 40)
 		press(t, m, "6", ".", "v", "tab")
 		checkGolden(t, fmt.Sprintf("evolve_140x40_vi_%s.ansi.txt", mode), strings.ReplaceAll(m.Render(), "\x1b", "␛")+"\n")
+	}
+}
+
+func wizardPlan() bintapp.InitPlan {
+	return bintapp.InitPlan{FirstInit: true, Items: []bintapp.PlanItem{
+		{Path: ".bint/config.yml", Change: bintapp.PlanCreate, Detail: "harness: claude"},
+		{Path: "/state/demo-7f3a9c", Change: bintapp.PlanCreate, Detail: "thư mục trạng thái và SQLite (ngoài repository)"},
+		{Path: ".claude/skills", Change: bintapp.PlanCreate, Detail: "6 skill gốc cho claude"},
+		{Path: ".claude/settings.local.json", Change: bintapp.PlanCreate, Detail: "cài hook claude"},
+		{Path: ".gitignore", Change: bintapp.PlanUpdate, Detail: "thêm khối bint"},
+	}}
+}
+
+func wizardReport() *bintapp.InitReport {
+	return &bintapp.InitReport{FirstInit: true, StateDir: "/state/demo-7f3a9c", Steps: []bintapp.Step{
+		{Name: ".bint/config.yml", Status: bintapp.StepCreated, Detail: "harness: claude"},
+		{Name: "thư mục trạng thái", Status: bintapp.StepCreated, Detail: "/state/demo-7f3a9c (schema v6)"},
+		{Name: "hook claude", Status: bintapp.StepWarn, Detail: "chưa xác minh trust hook"},
+		{Name: ".gitignore", Status: bintapp.StepUpdated, Detail: "thêm khối bint"},
+	}, NextSteps: []string{"Xác nhận lệnh kiểm thử: điền eval.test_command trong .bint/config.yml", "Kiểm tra môi trường: bint doctor",
+		"Xem lượt chạy đã ghi nhận: bint runs list"}}
+}
+
+// Trình hướng dẫn init ở mọi bước chính, 80×24 và 140×40, vi/en/xx: không dòng nào vượt chiều rộng, không quá chiều cao và không
+// còn khoá i18n chưa dịch.
+func TestWizardScreensFitAndHaveNoUntranslatedKeys(t *testing.T) {
+	for _, sz := range [][2]int{{80, 24}, {140, 40}} {
+		for _, lang := range []string{"vi", "en", "xx"} {
+			mk := func(keys ...string) *Model {
+				m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, notInitData(), sz[0], sz[1])
+				press(t, m, keys...)
+				return m
+			}
+			screens := map[string]*Model{
+				"harness": mk(), "hooks": mk("enter"), "mcp": mk("enter", "enter"), "agents": mk("enter", "enter", "enter"),
+				"skills": mk("enter", "enter", "enter", "enter"), "git": mk("enter", "enter", "enter", "enter", "enter", "j", " "),
+			}
+			prev := mk("d")
+			prev.Update(actions.ResultMsg{ID: "init.plan", Value: wizardPlan()})
+			screens["preview"] = prev
+			planning := mk("d")
+			screens["planning"] = planning
+			failed := mk("d")
+			failed.Update(actions.ResultMsg{ID: "init.plan", Err: errors.New("không đọc được cấu hình")})
+			screens["preview_error"] = failed
+			done := mk("d")
+			done.Update(actions.ResultMsg{ID: "init.run", Value: wizardReport()})
+			screens["report"] = done
+			broke := mk("d")
+			broke.Update(actions.ResultMsg{ID: "init.run", Err: errors.New("ghi cấu hình: từ chối quyền")})
+			screens["error"] = broke
+			ro := newModel(t, Options{Mode: theme.Mono, Lang: lang, ReadOnly: true}, notInitData(), sz[0], sz[1])
+			screens["readonly"] = ro
+			for name, m := range screens {
+				out := plain(m.Render())
+				lines := strings.Split(out, "\n")
+				if len(lines) > sz[1] {
+					t.Errorf("%s %v %s: %d dòng > %d", name, sz, lang, len(lines), sz[1])
+				}
+				for i, l := range lines {
+					if w := ansi.StringWidth(l); w > sz[0] {
+						t.Errorf("%s %v %s: dòng %d rộng %d > %d: %q", name, sz, lang, i, w, sz[0], l)
+					}
+				}
+				for _, bad := range []string{"wiz.", "action.init.", "form.init.", "init.group"} {
+					if strings.Contains(out, bad) {
+						t.Errorf("%s %v %s: còn khoá chưa dịch %q:\n%s", name, sz, lang, bad, out)
+					}
+				}
+			}
+		}
 	}
 }

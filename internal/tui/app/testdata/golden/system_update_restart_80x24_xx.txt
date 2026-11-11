@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
+│ ‹ ⟦Doctor~~~⟧ ⟦Setup~~⟧  ⟦Update~~~⟧                    ⟦Bint updated~~~~~⟧  │
+│ ┌─│⟦Update Bint~~~~~⟧│─────────────────────────────────────────────────────┐ │
+│ │ ┌─│⟦Restart now?~~~~~⟧│────────────────────────────────────────────────┐ │ │
+│ │ │ ⟦abc1234 → def5678~~⟧                                                │ │ │
+│ │ │ /home/u/go/bin/bint                                                  │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ! ⟦The running binary is /usr/local/bin/bint, not the file just      │ │ │
+│ │ │ installed; check PATH (which bint) if the bint command is still the  │ │ │
+│ │ │ old build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧          │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ⟦Restart bint to use the build just installed (same command-line     │ │ │
+│ │ │ arguments). Choose Later and the reminder stays on this tab          │ │ │
+│ │ │ (R).~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧            │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] ⟦Restart~~~⟧   [Esc] ⟦Later~~⟧                               │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ │  ⟦go install log~~~~~~⟧                                                  │ │
+│ │   bint/internal/app                                                      │ │
+│ └─ u ⟦Update~~~⟧  R ⟦Restart~~~⟧ ──────────────────────────────────────────┘ │
+└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

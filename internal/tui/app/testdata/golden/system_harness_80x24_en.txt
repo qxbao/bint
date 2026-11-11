@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config  Harness  Components Skills Index MCP Language Doctor                │
+│   Config  Harness  Components Skills Index MCP Language ›                    │
 │ ┌─│Harnesses│──────────────────────────────────────────────────────────────┐ │
 │ │   HARNESS     ON   HOST  VERSION   VERIFIED   LEVEL                      │ │
 │ │ ▸ claude      yes  yes   -         Claude Co… 3                          │ │

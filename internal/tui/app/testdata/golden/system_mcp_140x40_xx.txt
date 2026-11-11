@@ -2,7 +2,7 @@
 │ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦MCP~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧                       │
+│  ⟦Config~~~⟧ ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧  ⟦MCP~~⟧  ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧              │
 │ ┌─│⟦MCP tools (3)~~~~~⟧│─────────────────────────────────────┐┌─│⟦Details~~~⟧ · context_for_task│──────────────────────────────────────┐ │
 │ │ ▸ context_for_task       Gói ngữ cảnh cho một tác vụ       ││ context_for_task                                                       │ │
 │ │   knowledge_search       Tìm tri thức theo từ khoá         ││                                                                        │ │

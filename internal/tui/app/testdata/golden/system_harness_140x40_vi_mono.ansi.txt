@@ -2,7 +2,7 @@
 │ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[7m␛[1mHệ thống␛[m␛[m                                                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│␛[1mHệ thống␛[m│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Cấu hình ·␛[7m␛[1m Harness ␛[m␛[m· Thành phần · Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor                                                            │
+│   Cấu hình ·␛[7m␛[1m Harness ␛[m␛[m· Thành phần · Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                       │
 │ ┌─│␛[1mHarness␛[m│──────────────────────────────────────────────────┐┌─│␛[1mChi tiết · claude␛[m│────────────────────────────────────────────1-32/35─┐ │
 │ │   HARNESS     BẬT  MÁY   PHIÊN BẢN ĐỐI CHIẾU  CẤP          ││ Claude Code (claude)                                                   │ │
 │ │ ␛[1m▸ ␛[m␛[7m␛[1mclaude      có   có    -         Claude Co… 3           ␛[m␛[m ││ Cấp                 3 — + thực thi theo chương trình                   │ │

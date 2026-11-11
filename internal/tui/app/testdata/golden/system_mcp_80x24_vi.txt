@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│  Cấu hình Harness Thành phần Skill Chỉ mục  MCP  Ngôn ngữ Doctor             │
+│ ‹ Thành phần Skill Chỉ mục  MCP  Ngôn ngữ Doctor Cài đặt ›                   │
 │ ┌─│Công cụ MCP (3)│────────────────────────────────────────────────────────┐ │
 │ │ ▸ context_for_task       Gói ngữ cảnh cho một tác vụ                     │ │
 │ │   knowledge_search       Tìm tri thức theo từ khoá                       │ │

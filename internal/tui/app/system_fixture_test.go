@@ -46,6 +46,8 @@ func sampleSystemLoaders() syscreen.Loaders {
 			return []bintapp.MCPTool{{Name: "context_for_task", Description: "Gói ngữ cảnh cho một tác vụ"}, {Name: "knowledge_search", Description: "Tìm tri thức theo từ khoá"},
 				{Name: "cite_knowledge", Description: "Báo mục tri thức đã áp dụng"}}, nil
 		},
+		Init:       func(context.Context, string) (bintapp.InitState, error) { return sampleInitState(), nil },
+		UpdateInfo: func(context.Context, string, string) (syscreen.UpdateInfo, error) { return sampleUpdateInfo(), nil },
 		Doctor: func(context.Context, string) (*bintapp.DoctorReport, error) {
 			return &bintapp.DoctorReport{Checks: []bintapp.Check{
 				{Name: "git", Level: bintapp.LevelOK, Detail: "2.47.0"},
@@ -117,5 +119,29 @@ func withSampleSystem(l syscreen.Loaders) syscreen.Loaders {
 	if l.Doctor == nil {
 		l.Doctor = s.Doctor
 	}
+	if l.Init == nil {
+		l.Init = s.Init
+	}
+	if l.UpdateInfo == nil {
+		l.UpdateInfo = s.UpdateInfo
+	}
 	return l
+}
+
+// sampleInitState là trạng thái init mẫu: claude bật (hook project, MCP đã đăng ký), codex bật (hook local, chưa MCP), antigravity
+// tắt và không có trên máy; Git local; cấu hình theo mẫu cũ.
+func sampleInitState() bintapp.InitState {
+	return bintapp.InitState{
+		Root: "/work/demo", Main: "/work/demo", Enabled: []string{"claude", "codex"}, GitMode: bintapp.GitLocal, AgentsBlock: false,
+		Harnesses: []bintapp.HarnessInitState{
+			{Name: "claude", Enabled: true, Present: true, HasHooks: true, HasMCP: true, HookScopes: []string{"project"}, MCP: true},
+			{Name: "codex", Enabled: true, Present: true, HasHooks: true, HasMCP: true, HookScopes: []string{"local", "project"}},
+			{Name: "antigravity", Present: false, HasHooks: true},
+		},
+		ConfigOutdated: true, ConfigAdded: []string{"harnesses.claude.models", "harnesses.codex.models"},
+	}
+}
+
+func sampleUpdateInfo() syscreen.UpdateInfo {
+	return syscreen.UpdateInfo{Version: "0.1.0", Revision: "abc1234", Exe: "/home/u/go/bin/bint", Source: "/home/u/src/bint"}
 }

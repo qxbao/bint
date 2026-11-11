@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Overview │ Kn │ Tk │ Rn │ Ev │ Evo │ Sy                                      │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Setup│──────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   Set up Bint  Step 6/7 · Git presence                                       │
+│                                                                              │
+│   Where do Bint's files live in Git?                                         │
+│                                                                              │
+│   ( ) track — committed for the whole team (default)                         │
+│ ▸ (•) local — used on this machine only                                      │
+│                                                                              │
+│     Untracked files (.bint/, skills, hooks, .mcp.json…) go to                │
+│     .git/info/exclude so git status stays clean; tracked files Bint          │
+│     edits (AGENTS.md…) get skip-worktree (a pull may complain if             │
+│     upstream changes them). Switch back later with bint init --git           │
+│     track.                                                                   │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   Enter next  Esc back  Space select  d use defaults                         │
+└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘

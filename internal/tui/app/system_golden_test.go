@@ -67,6 +67,47 @@ func systemScreens(t *testing.T, lang string, w, h int) map[string]func() *Model
 		"system_language_form": func() *Model { return sysAt(t, o, w, h, 6, "j", "enter") },
 		"system_doctor":        func() *Model { return sysAt(t, o, w, h, 7) },
 		"system_doctor_issues": func() *Model { return sysAt(t, o, w, h, 7, "w") },
+		// Giai đoạn 5b: Cài đặt repo (trạng thái, form điền sẵn, hộp xem trước), hộp nâng cấu hình, Cập nhật Bint.
+		"system_setup":      func() *Model { return sysAt(t, o, w, h, 8) },
+		"system_setup_form": func() *Model { return sysAt(t, o, w, h, 8, "e") },
+		"system_setup_preview": func() *Model {
+			m := sysAt(t, o, w, h, 8)
+			m.Update(actions.ResultMsg{ID: "system.repo_plan", Opts: bintapp.InitFlagOptions{MCP: true}, Value: samplePlan()})
+			return m
+		},
+		"system_upgrade": func() *Model {
+			m := sysAt(t, o, w, h, 0)
+			m.Update(actions.ResultMsg{ID: "system.config_upgrade_plan", Value: sampleUpgradePlan()})
+			return m
+		},
+		"system_upgrade_done": func() *Model {
+			m := sysAt(t, o, w, h, 0)
+			m.Update(actions.ResultMsg{ID: "system.config_upgrade", Value: &bintapp.InitReport{Steps: []bintapp.Step{{Name: ".bint/config.yml", Status: bintapp.StepUpdated,
+				Detail: "thêm: harnesses.claude.models (bản cũ: /state/demo-7f3a9c/backups/20261112T080000Z/.bint/config.yml)"}}}})
+			return m
+		},
+		"system_update": func() *Model { return sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9) },
+		"system_update_form": func() *Model {
+			return sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9, "u")
+		},
+		"system_update_restart": func() *Model {
+			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9)
+			m.Update(actions.ResultMsg{ID: "system.update", Value: sampleUpdateOutcome()})
+			return m
+		},
+		"system_update_done": func() *Model {
+			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9)
+			m.Update(actions.ResultMsg{ID: "system.update", Value: sampleUpdateOutcome()})
+			press(t, m, "esc")
+			return m
+		},
+		"system_update_reopen": func() *Model { // Windows: không khởi động lại tự động
+			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang}, w, h, 9)
+			out := sampleUpdateOutcome()
+			out.Result.OldBackup = "C:\\bin\\bint.exe.old"
+			m.Update(actions.ResultMsg{ID: "system.update", Value: out})
+			return m
+		},
 	}
 }
 
@@ -115,3 +156,25 @@ func TestGoldenSystemColorModes(t *testing.T) {
 }
 
 var _ = syscreen.TabConfig
+
+func samplePlan() bintapp.InitPlan {
+	return bintapp.InitPlan{Items: []bintapp.PlanItem{
+		{Path: ".mcp.json", Change: bintapp.PlanCreate, Detail: "đăng ký MCP server của Bint cho claude"},
+		{Path: ".codex/config.toml", Change: bintapp.PlanCreate, Detail: "đăng ký MCP server của Bint cho codex"},
+		{Path: ".bint/config.yml", Change: bintapp.PlanKeep, Detail: "đã tồn tại, giữ nguyên"},
+		{Path: ".claude/settings.json", Change: bintapp.PlanKeep, Detail: "hook claude: không đổi"},
+	}}
+}
+
+func sampleUpgradePlan() bintapp.ConfigUpgradePlan {
+	old := "harnesses:\n  claude:\n    model: sonnet\n"
+	nw := "harnesses:\n  claude:\n    model: sonnet\n    models:\n      planner: opus\n"
+	return bintapp.ConfigUpgradePlan{Path: "/work/demo/.bint/config.yml", Changed: true, Added: []string{"harnesses.claude.models"},
+		Notes: []string{"giữ model chung đã đặt tay"}, Diff: bintapp.UnifiedDiff(".bint/config.yml", ".bint/config.yml (mẫu mới)", old, nw)}
+}
+
+func sampleUpdateOutcome() actions.UpdateOutcome {
+	return actions.UpdateOutcome{Result: bintapp.UpdateResult{Source: "/home/u/src/bint", Target: "/home/u/go/bin/bint", Current: "/usr/local/bin/bint",
+		OldRev: "abc1234", NewRev: "def5678", Mismatch: true},
+		Log: []string{"go: downloading github.com/spf13/cobra v1.9.1", "go: downloading modernc.org/sqlite v1.34.0", "bint/internal/app"}}
+}

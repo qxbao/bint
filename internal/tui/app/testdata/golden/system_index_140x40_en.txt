@@ -2,7 +2,7 @@
 │ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor                                                               │
+│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
 │ ┌─│Knowledge index│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
 │ │                                                                                                                                      │ │
 │ │  The FTS5 index in SQLite is derived from .bint/knowledge/items: dropping and rebuilding loses nothing. You normally never need      │ │

@@ -32,6 +32,8 @@ type Options struct {
 	Gallery bool
 	// Agent: đang trong phiên agent (hành động chỉ-dành-cho-người bị khoá).
 	Agent bool
+	// Args là đối số khi exec lại sau khi cập nhật (nil = os.Args); thay được trong kiểm thử.
+	Args []string
 	// Getenv thay được trong kiểm thử; nil = os.Getenv.
 	Getenv func(string) string
 	In     io.Reader
@@ -83,11 +85,13 @@ func Run(ctx context.Context, o Options) error {
 	mode := DetectMode(getenv, p, dark)
 
 	var model tea.Model
+	var root *tuiapp.Model
 	if o.Gallery {
 		model = gallery.New(gallery.Options{Lang: lang, Mode: mode})
 	} else {
-		model = tuiapp.New(ctx, tuiapp.Options{Dir: o.Dir, Version: o.Version, BintPath: o.BintPath, Lang: lang, Mode: mode,
-			Agent: o.Agent, ReadOnly: o.ReadOnly})
+		root = tuiapp.New(ctx, tuiapp.Options{Dir: o.Dir, Version: o.Version, BintPath: o.BintPath, Lang: lang, Mode: mode,
+			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported})
+		model = root
 	}
 	opts := []tea.ProgramOption{tea.WithContext(ctx)}
 	if o.In != nil {
@@ -96,6 +100,22 @@ func Run(ctx context.Context, o Options) error {
 	if o.Out != nil {
 		opts = append(opts, tea.WithOutput(o.Out))
 	}
-	_, err := tea.NewProgram(model, opts...).Run()
-	return err
+	if _, err := tea.NewProgram(model, opts...).Run(); err != nil {
+		return err
+	}
+	// Cập nhật xong và người dùng chọn khởi động lại: Bubble Tea đã thoát (terminal đã được trả lại) rồi mới exec tệp vừa cài với
+	// cùng đối số và môi trường. Lỗi exec (vd. tệp không còn) trả về để lệnh in ra và thoát mã 1.
+	if root != nil && root.RestartPath() != "" {
+		return relaunch(root.RestartPath(), o)
+	}
+	return nil
+}
+
+// relaunch exec lại tệp path với cùng đối số (Options.Args, mặc định os.Args) và môi trường của tiến trình hiện tại.
+func relaunch(path string, o Options) error {
+	args := o.Args
+	if args == nil {
+		args = os.Args
+	}
+	return restartSelf(path, args, os.Environ())
 }

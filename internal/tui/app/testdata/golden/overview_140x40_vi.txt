@@ -15,13 +15,13 @@
 │                                                      ████    ██  ██  ██    ████  ██                                                      │
 │                                             Ghi nhận, đo lường và tri thức cho coding agent                                              │
 │                                                                                                                                          │
-│                                      ┌─│Repository│──────────────────────────────────────────────┐                                       │
-│                                      │ Thư mục     /work/demo                                    │                                       │
-│                                      │ Trạng thái  /state/demo-7f3a9c                            │                                       │
-│                                      │ Harness     claude, codex                                 │                                       │
-│                                      │ Schema      v6                                            │                                       │
-│                                      │ Lượt chạy   42  33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy │                                       │
-│                                      └───────────────────────────────────────────────────────────┘                                       │
+│                                     ┌─│Repository│────────────────────────────────────────────────┐                                      │
+│                                     │ Thư mục     /work/demo                                      │                                      │
+│                                     │ Trạng thái  /state/demo-7f3a9c                              │                                      │
+│                                     │ Harness     claude, codex                                   │                                      │
+│                                     │ Schema      v6                                              │                                      │
+│                                     │ Lượt chạy   42  33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy   │                                      │
+│                                     └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại · core.lock chưa có ─┘                                      │
 │                                                                                                                                          │
 │  Việc cần bạn (4)                                                                                                                        │
 │ ▸ ◌ 2 mục tri thức chờ duyệt thuộc lô nguon:lo-thu                                                                            → Tri thức │

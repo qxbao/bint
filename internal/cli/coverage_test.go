@@ -44,6 +44,9 @@ var serviceBindings = map[string]any{
 	"skill diff": app.SkillDiffOptions{}, "skill versions": app.SkillVersionsOptions{}, "skill check": evolvesvc.SkillCheckOptions{},
 	"skill regress": evolvesvc.SkillRegressOptions{}, "sync": app.SyncOptions{}, "index rebuild": app.IndexRebuildOptions{},
 	"mcp tools": app.MCPToolsOptions{},
+	// Giai đoạn 5b: init (11 cờ) và update. hasAction chỉ giữ hành động cuối của mỗi CLIPath nên binding bảo đảm phủ cờ không
+	// phụ thuộc thứ tự khai báo của các hành động dùng chung lệnh `init`.
+	"init": app.InitFlagOptions{}, "update": app.UpdateOptions{},
 
 	"evolve scan": evolvesvc.ScanOptions{}, "evolve propose": evolvesvc.ProposeOptions{}, "evolve list": evolvesvc.ListOptions{},
 	"evolve show": evolvesvc.ShowOptions{}, "evolve evaluate": evolvesvc.EvaluateOptions{}, "evolve apply": evolvesvc.ApplyOptions{},
@@ -248,6 +251,16 @@ func clone(c actions.Coverage) actions.Coverage {
 	return c
 }
 
+// withFakeCmd trả cây lệnh có thêm một lệnh lá giả (zebra) kèm cờ --stripe: các ca ngược dùng nó thay cho lệnh thật, vì danh sách
+// chưa làm của giai đoạn 5 đã rỗng (không còn lệnh thật nào ở Pending).
+func withFakeCmd() *cobra.Command {
+	root := NewRoot(IO{})
+	z := &cobra.Command{Use: "zebra", RunE: func(*cobra.Command, []string) error { return nil }}
+	z.Flags().Bool("stripe", false, "cờ giả")
+	root.AddCommand(z)
+	return root
+}
+
 func mentions(problems []string, sub string) bool {
 	for _, p := range problems {
 		if strings.Contains(p, sub) {
@@ -336,9 +349,9 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("thiếu lý do và giai đoạn sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.Excluded["tui"] = ""
-		cov.Pending["update"] = 9
+		cov.Pending["zebra"] = 9
 		cov.ExcludedFlags["--json"] = ""
-		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
+		p := check(withFakeCmd(), cov, serviceBindings, 0)
 		for _, want := range []string{`Excluded["tui"] thiếu lý do`, "giai đoạn phải từ 1 đến 6", `ExcludedFlags["--json"] thiếu lý do`} {
 			if !mentions(p, want) {
 				t.Errorf("thiếu %q trong %v", want, p)
@@ -358,7 +371,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("PendingFlags sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.PendingFlags["init --nope"] = 5
-		cov.PendingFlags["update --pull"] = 2     // lệnh chưa có hành động/dịch vụ (giai đoạn 5b)
+		cov.PendingFlags["tui --lang"] = 2        // lệnh Excluded, chưa có hành động/dịch vụ nên cờ phải nằm trong Pending của lệnh
 		cov.PendingFlags["eval run --budget"] = 4 // cờ đã có trường Options
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`"init --nope" nhưng lệnh không còn cờ này`, "cờ nằm trong Pending của lệnh", "vừa có trường Options vừa nằm trong danh sách"} {
@@ -367,25 +380,57 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 			}
 		}
 	})
+	t.Run("danh sách chưa làm đã rỗng, trần 0, giai đoạn 5", func(t *testing.T) {
+		if n := len(actions.Data.Pending) + len(actions.Data.PendingFlags); n != 0 || actions.Data.PendingCeiling != 0 || actions.CurrentPhase != 5 {
+			t.Fatalf("giai đoạn 5 xong: Pending=%d trần=%d phase=%d", n, actions.Data.PendingCeiling, actions.CurrentPhase)
+		}
+	})
 	t.Run("trần chưa làm và giai đoạn 6", func(t *testing.T) {
+		// Thêm một mục chưa làm giả: vượt trần 0, và giai đoạn 6 đòi danh sách rỗng.
 		cov := clone(actions.Data)
-		cov.PendingCeiling = len(cov.Pending) + len(cov.PendingFlags) - 1
-		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "vượt trần") {
+		cov.Pending["zebra"] = 6
+		if p := check(withFakeCmd(), cov, serviceBindings, 0); !mentions(p, "vượt trần") {
 			t.Fatalf("%v", p)
 		}
-		if p := check(NewRoot(IO{}), actions.Data, serviceBindings, 6); !mentions(p, "giai đoạn 6 đòi danh sách chưa làm rỗng") {
+		cov.PendingCeiling = 1
+		if p := check(withFakeCmd(), cov, serviceBindings, 6); !mentions(p, "giai đoạn 6 đòi danh sách chưa làm rỗng") {
 			t.Fatalf("%v", p)
 		}
 	})
 	t.Run("Pending còn mục của giai đoạn đã xong", func(t *testing.T) {
 		cov := clone(actions.Data)
-		cov.Pending["update"] = actions.CurrentPhase // lệnh của giai đoạn 5 bị đánh dấu xong sớm
-		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["update"]`) {
+		cov.Pending["zebra"] = actions.CurrentPhase // lệnh giả của giai đoạn 5 bị đánh dấu xong sớm
+		if p := check(withFakeCmd(), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["zebra"]`) {
 			t.Fatalf("%v", p)
 		}
 		cov = clone(actions.Data)
 		cov.PendingFlags["init --force"] = actions.CurrentPhase
 		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `PendingFlags["init --force"]`) {
+			t.Fatalf("%v", p)
+		}
+	})
+	t.Run("bỏ thẻ flag của InitFlagOptions làm đỏ các cờ init", func(t *testing.T) {
+		// Ca ngược giai đoạn 5b: kiểu Options của init không còn thẻ `flag` thì cờ --no-hooks (và các cờ khác) mất ánh xạ.
+		type initNoTags struct {
+			Hooks bool `flag:"hooks"`
+		}
+		var list []actions.Action
+		for _, a := range reg.All() {
+			if a.CLIPath == "init" {
+				a.Options = initNoTags{}
+			}
+			list = append(list, a)
+		}
+		b := maps.Clone(serviceBindings)
+		b["init"] = initNoTags{}
+		p := checkCoverage(NewRoot(IO{}), actions.Data, actions.NewRegistry(list), b, actions.CurrentPhase)
+		for _, f := range []string{"no-hooks", "mcp", "no-mcp", "hooks-scope", "agents-md", "force", "no-skills", "git", "update", "harness"} {
+			if !mentions(p, "cờ --"+f+" của `bint init`") {
+				t.Errorf("thiếu cờ --%s trong %v", f, p)
+			}
+		}
+		// Binding đủ thì xanh trở lại.
+		if p := checkCoverage(NewRoot(IO{}), actions.Data, reg, serviceBindings, actions.CurrentPhase); len(p) != 0 {
 			t.Fatalf("%v", p)
 		}
 	})
@@ -464,10 +509,24 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 			t.Fatalf("%v", p)
 		}
 	})
-	t.Run("xoá mục khỏi Pending làm đỏ", func(t *testing.T) {
+	t.Run("bỏ hành động và dịch vụ của update làm đỏ", func(t *testing.T) {
+		// Lệnh `update` đã có hành động system.update; bỏ hành động khỏi sổ và binding thì lệnh không còn nhóm nào.
+		var list []actions.Action
+		for _, a := range reg.All() {
+			if a.ID != "system.update" {
+				list = append(list, a)
+			}
+		}
+		b := maps.Clone(serviceBindings)
+		delete(b, "update")
+		p := checkCoverage(NewRoot(IO{}), actions.Data, actions.NewRegistry(list), b, actions.CurrentPhase)
+		if !mentions(p, "`bint update` chưa khai báo") {
+			t.Fatalf("%v", p)
+		}
+		// Đổi sang mục giả: update nằm trong Pending trong khi có hành động → hai nhóm.
 		cov := clone(actions.Data)
-		delete(cov.Pending, "update")
-		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint update` chưa khai báo") {
+		cov.Pending["update"] = 1
+		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint update` nằm trong nhiều nhóm") {
 			t.Fatalf("%v", p)
 		}
 	})

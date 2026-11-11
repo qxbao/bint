@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                    │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Setup│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                                                          │
+│   Set up Bint  Step 2/7 · Recording hooks                                                                                                │
+│                                                                                                                                          │
+│   Install hooks so Bint records agent runs (written to a local queue only, no model calls). Hooks live in the harness settings files.    │
+│                                                                                                                                          │
+│ ▸ (•) Yes                                                                                                                                │
+│   ( ) No                                                                                                                                 │
+│                                                                                                                                          │
+│   Where to install hooks:                                                                                                                │
+│   (•) local — this machine only, added to .gitignore                                                                                     │
+│   ( ) project — the project settings file (committed for the team)                                                                       │
+│   ( ) user — your user settings in the home directory                                                                                    │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│   Enter next  Esc back  Space select  d use defaults                                                                                     │
+└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────────────────────────────────────┘

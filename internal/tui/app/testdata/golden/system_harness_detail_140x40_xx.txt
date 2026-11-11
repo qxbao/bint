@@ -2,7 +2,7 @@
 │ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦MCP~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧                       │
+│  ⟦Config~~~⟧  ⟦Harness~~~⟧  ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧              │
 │ ┌─│⟦Harnesses~~~~⟧│──────────────────────────────────────────┐┌─│⟦Details~~~⟧ · claude│────────────────────────────────────────1-32/36─┐ │
 │ │   ⟦HARNESS~~… ⟦ON… ⟦HOS… ⟦VERSION… ⟦VERIFIED… ⟦LEVEL~~⟧    ││ Claude Code (claude)                                                   │ │
 │ │ ▸ claude      ⟦ye… ⟦yes… -         Claude Co… 3            ││ ⟦Level~~⟧           3 — ⟦+ programmatic execution~~~~~~~~~~⟧           │ │

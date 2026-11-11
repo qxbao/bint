@@ -31,7 +31,11 @@ xuất bản skill gốc mới.`,
   bint update --source ~/src/bint`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			res, err := app.UpdateSelf(cmd.Context(), app.UpdateOptions{Source: source, Pull: pull, Out: stdio.Err})
+			o := app.UpdateOptions{Source: source, Pull: pull, Out: stdio.Err}
+			if err := o.Validate(); err != nil {
+				return usageError{err}
+			}
+			res, err := app.UpdateSelf(cmd.Context(), o)
 			if res.Source != "" {
 				fmt.Fprintf(stdio.Out, "Mã nguồn: %s\n", res.Source)
 			}

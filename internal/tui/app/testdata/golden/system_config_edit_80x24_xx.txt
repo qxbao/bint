@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ … │
+│    ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ›                  │
 │ ┌─│⟦Edit a configuration layer (config.yml or local.yml) in $EDITOR; che…│─┐ │
 │ │ ▸ ⟦Layer to edit (project… (●) project ( ) local                         │ │
 │ │                                                                          │ │

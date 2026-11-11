@@ -83,9 +83,29 @@ func FindSource(explicit string) (string, error) {
 
 // UpdateOptions là tham số của UpdateSelf.
 type UpdateOptions struct {
-	Source string // rỗng = FindSource
-	Pull   bool   // git pull --ff-only trước khi build
+	Source string `flag:"source" form:"suggest=bint_source"` // rỗng = FindSource
+	Pull   bool   `flag:"pull"`                              // git pull --ff-only trước khi build
 	Out    io.Writer
+}
+
+// UpdateDefaults: thư mục mã nguồn tìm được (nếu có) và không pull.
+func UpdateDefaults() UpdateOptions {
+	o := UpdateOptions{}
+	if src, err := FindSource(""); err == nil {
+		o.Source = src
+	}
+	return o
+}
+
+// Validate kiểm thư mục mã nguồn chỉ định rõ (không rỗng) đúng là mã nguồn Bint; lỗi là UsageError (mã thoát 2).
+func (o UpdateOptions) Validate() error {
+	if o.Source == "" {
+		return nil
+	}
+	if _, err := FindSource(o.Source); err != nil {
+		return UsageError{Err: err}
+	}
+	return nil
 }
 
 // UpdateResult là kết quả UpdateSelf.
@@ -116,7 +136,7 @@ func UpdateSelf(ctx context.Context, opts UpdateOptions) (UpdateResult, error) {
 	if err != nil {
 		return res, fmt.Errorf("không tìm thấy lệnh go trong PATH: %w", err)
 	}
-	res.OldRev = selfRevision()
+	res.OldRev = SelfRevision()
 
 	if opts.Pull {
 		o, err := gitrepo.Run(ctx, src, "pull", "--ff-only")
@@ -198,8 +218,8 @@ func samePath(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
-// selfRevision trả về commit của bản đang chạy (rỗng nếu không có thông tin VCS).
-func selfRevision() string {
+// SelfRevision trả về commit của bản đang chạy (rỗng nếu không có thông tin VCS).
+func SelfRevision() string {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return ""

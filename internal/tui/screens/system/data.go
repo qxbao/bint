@@ -1,5 +1,5 @@
 // Package system là màn Hệ thống (docs/tui-plan.md mục 5.7, giai đoạn 5a): tám thẻ con — Cấu hình, Harness, Thành phần
-// quy trình, Skill, Chỉ mục, MCP, Ngôn ngữ, Doctor. Mọi thao tác đọc gọi tầng dịch vụ (internal/app, evolvesvc); thao
+// quy trình, Skill, Chỉ mục, MCP, Ngôn ngữ, Doctor — và hai thẻ vòng đời của giai đoạn 5b: Cài đặt repo, Cập nhật Bint. Mọi thao tác đọc gọi tầng dịch vụ (internal/app, evolvesvc); thao
 // tác ghi đi qua actions.RequestMsg để mô hình gốc kiểm chế độ chỉ đọc/khoá theo sổ hành động (màn hình không tự kiểm).
 package system
 
@@ -21,11 +21,13 @@ const (
 	TabMCP
 	TabLanguage
 	TabDoctor
+	TabSetup
+	TabUpdate
 	numTabs
 )
 
 // TabNames là tên (khoá i18n sy.tab.<tên>) của các thẻ con theo thứ tự.
-var TabNames = [numTabs]string{"config", "harness", "components", "skills", "index", "mcp", "language", "doctor"}
+var TabNames = [numTabs]string{"config", "harness", "components", "skills", "index", "mcp", "language", "doctor", "setup", "update"}
 
 // TabIndexOf trả chỉ số thẻ theo tên ("" hoặc lạ → -1).
 func TabIndexOf(name string) int {
@@ -59,6 +61,9 @@ type Loaders struct {
 	Skills     func(ctx context.Context, dir string) (app.SkillList, error)
 	MCP        func(ctx context.Context, dir, version string) ([]app.MCPTool, error)
 	Doctor     func(ctx context.Context, dir string) (*app.DoctorReport, error)
+	// Init đọc trạng thái init (thẻ Cài đặt repo); UpdateInfo đọc bản đang chạy và mã nguồn (thẻ Cập nhật Bint).
+	Init       func(ctx context.Context, dir string) (app.InitState, error)
+	UpdateInfo func(ctx context.Context, dir, version string) (UpdateInfo, error)
 }
 
 func (l Loaders) withDefaults() Loaders {
@@ -93,6 +98,12 @@ func (l Loaders) withDefaults() Loaders {
 	}
 	if l.Doctor == nil {
 		l.Doctor = func(ctx context.Context, dir string) (*app.DoctorReport, error) { return app.Doctor(ctx, dir), nil }
+	}
+	if l.Init == nil {
+		l.Init = app.ReadInitState
+	}
+	if l.UpdateInfo == nil {
+		l.UpdateInfo = loadUpdateInfo
 	}
 	return l
 }

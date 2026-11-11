@@ -2,7 +2,7 @@
 │ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor                                                            │
+│   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                       │
 │ ┌─│Chỉ mục tri thức│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
 │ │                                                                                                                                      │ │
 │ │  Chỉ mục FTS5 trong SQLite là dữ liệu dẫn xuất từ .bint/knowledge/items: xoá và dựng lại không mất thông tin. Bình thường không cần  │ │

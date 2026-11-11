@@ -1,9 +1,9 @@
 # Kế hoạch TUI cho Bint
 
-Trạng thái: **giai đoạn 0, 1, 2, 3 và 4 đã triển khai** (2026-11-11) và **giai đoạn 5a (tab Hệ thống) đã triển khai** (2026-11-12);
-giai đoạn 5 được tách làm hai phiếu — **5b (trình hướng dẫn `init`, Cài đặt repo, nâng cấu hình, `update` + khởi động lại) và giai đoạn 6 chưa làm**.
+Trạng thái: **giai đoạn 0, 1, 2, 3, 4 và 5 đã triển khai** (giai đoạn 5 gồm hai phiếu: **5a** — tab Hệ thống — ngày 2026-11-12 và
+**5b** — trình hướng dẫn `init`, Hệ thống › Cài đặt repo, nâng cấu hình, cập nhật Bint + khởi động lại — ngày 2026-11-12); **giai đoạn 6 chưa làm**.
 Kế hoạch đề xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
-và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4; 12.7: giai đoạn 5a).
+và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4; 12.7: giai đoạn 5a; 12.8: giai đoạn 5b).
 
 ## 1. Mục tiêu
 
@@ -434,7 +434,7 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 | 2 ✅ | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
 | 3 ✅ | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
 | 4 ✅ | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
-| 5 | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. Tách làm hai phiếu: **5a ✅** (tab Hệ thống: Cấu hình, Harness, Thành phần, Skill + sync, Chỉ mục, MCP, Ngôn ngữ, Doctor; mục 12.7) và **5b** (trình hướng dẫn `init`/Cài đặt repo và 11 cờ `init`, nâng cấu hình `init --update` qua hộp thư, `update` + khởi động lại). | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
+| 5 ✅ | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. Tách làm hai phiếu: **5a ✅** (tab Hệ thống: Cấu hình, Harness, Thành phần, Skill + sync, Chỉ mục, MCP, Ngôn ngữ, Doctor; mục 12.7) và **5b ✅** (trình hướng dẫn `init`, Cài đặt repo với 11 cờ `init`, nâng cấu hình `init --update` qua hộp thư, `update` + khởi động lại; mục 12.8). | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
 | 6 | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README; thông báo theo phím TUI, đọc đủ thông báo bị cắt, phím thường dùng luôn thấy (xem dưới). | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
 
 Yêu cầu bổ sung cho giai đoạn 6 (chủ dự án, 2026-11-12, khi xem màn Tri thức có mục lỗi bằng chứng):
@@ -558,8 +558,8 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
   --json` nên có đợt (kể cả dừng vì `ErrBudget`/`ErrQuota`) là thoát 0 kèm verdict. `probe` nay dùng verdict
   của phần đã chạy và bỏ lỗi của đợt (chỉ context bị huỷ mới dừng vòng); hết ngân sách vòng thì lần đối chiếu
   kế trả `errBudgetLeft` và vòng dừng êm, mã 0. Có test vòng với runner giả (bước Probe, bước hồi quy).
-- **Màn tạm Khởi tạo** (`internal/tui/app`): hành động `init.*` chỉ có ở màn Khởi tạo (bảng lệnh, chân phím,
-  trợ giúp và `run()` cùng lọc qua `applicable`), `init.defaults` chỉ chạy khi repo còn chưa init. Khởi tạo xong
+- **Màn tạm Khởi tạo** (`internal/tui/app`; **đã thay bằng trình hướng dẫn ở giai đoạn 5b**, mục 12.8 — `init.defaults` và `screens/initplaceholder` không còn): hành động `init.*` chỉ có ở màn Khởi tạo (bảng lệnh, chân phím,
+  trợ giúp và `run()` cùng lọc qua `applicable`), `init.run` chỉ chạy khi repo còn chưa init. Khởi tạo xong
   thì **giữ** báo cáo (bước, cảnh báo, bước tiếp theo; bước cảnh báo/xung đột lên trước, danh sách dài được
   rút gọn để bước tiếp theo luôn hiện) đến khi bấm Enter "Tiếp tục". `q`/`Ctrl+C` khi đang khởi tạo chỉ nhắc;
   nhấn lần nữa mới thoát (hộp thoại đầy đủ để giai đoạn 2).
@@ -569,10 +569,9 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
 - **`bootstrap publish`**: `PublishOptions.Yes` + `Confirm`; ghi thay đổi mà không Yes và không Confirm là
   `UsageError` "cần --yes" (như eval/evolve evaluate); `DryRun` không cần xác nhận.
 - **Đã tách ở giai đoạn 3**: kiểm `InAgentSession` của `runs rate` nay nằm ở dịch vụ (`app.RateRun`, mục 12.5); của `task approve` đã tách ở giai đoạn 2 (mục 12.4).
-- **Chưa có**: chuột, chế độ hẹp đầy đủ, hành động ghi nào trong sổ ngoài "Khởi tạo với mặc định" (nên chế độ
-  `--read-only` mới chỉ có cơ chế và ẩn hành động ghi đó), `bubblezone`, `teatest` (golden dùng `View()` của mô
-  hình), các màn hình của giai đoạn 2–6 (giai đoạn 1: xem 12.3). Danh sách chưa làm ở
-  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3, 30 sau giai đoạn 4, **12 sau giai đoạn 5a**: còn `update` và 11 cờ `init`, tất cả gắn giai đoạn 5 = phiếu 5b; `CurrentPhase` giữ 4 vì giai đoạn 5 chưa xong).
+- **Chưa có**: chuột, chế độ hẹp đầy đủ, `bubblezone`, `teatest` (golden dùng `View()` của mô hình) và hoàn thiện của giai đoạn 6. Danh sách chưa làm ở
+  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3, 30 sau giai đoạn 4, 12 sau giai đoạn 5a, **0 sau giai đoạn 5b**:
+  `Pending` và `PendingFlags` **rỗng**, `CurrentPhase = 5`; giai đoạn 6 giữ test đòi danh sách rỗng).
 
 ### 12.3 Giai đoạn 1 (đã xong, 2026-11-11)
 
@@ -937,7 +936,7 @@ bint tui                                                      # 5 (Đánh giá) 
 
 Giai đoạn 5 được tách làm hai phiếu. **5a** (phiếu này) chỉ làm tab Hệ thống (mục 5.7); **5b** giữ trình hướng dẫn `init` / Hệ thống › Cài đặt repo cùng 11 cờ `init`,
 nâng cấu hình (`init --update`) qua hộp thư và Cấu hình › Nâng mẫu, `update` + khởi động lại — các mục đó **vẫn nằm trong danh sách chưa làm gắn giai đoạn 5**
-(`Pending["update"]` và 11 mục `PendingFlags["init …"]`). Mốc "xong" của 5a: dùng được mọi thẻ của tab Hệ thống mà không gõ lệnh; kiểm bằng `TestSystem*` (`internal/tui/app`,
+(`Pending["update"]` và 11 mục `PendingFlags["init …"]`; đã làm ở mục 12.8). Mốc "xong" của 5a: dùng được mọi thẻ của tab Hệ thống mà không gõ lệnh; kiểm bằng `TestSystem*` (`internal/tui/app`,
 dịch vụ thật cho phần sửa cấu hình/ngôn ngữ và trình soạn thảo giả) và các bảng ca của dịch vụ.
 
 **Tầng dịch vụ** (`internal/app`, `internal/app/evolvesvc`): 18 lệnh lá có kiểu `Options` (thẻ `flag`/`arg`/`form`), `Validate()` (trả `UsageError` → mã thoát 2) và `Defaults(cfg)`;
@@ -995,7 +994,7 @@ thêm mã màu ở bốn chế độ cho Thành phần và Harness) kèm khẳng
 - **Hộp thư đổi hình dạng**: dòng "N thành phần harness chờ duyệt" (`overview.inbox.components`) thay bằng một dòng mỗi thành phần; chỉ số dòng trong ba test hộp thư (`TestInboxLinesAndTargets` và hai test Enter) dịch theo. Golden Tổng quan không đổi (mẫu không có thành phần).
 - **Thẻ Ngôn ngữ và Cấu hình dùng chung một lần nạp** (`ConfigView`); lưu ngôn ngữ từ chối nếu nội dung hiện có của tệp đích đã không hợp lệ ở chỗ khác (`ValidateWith` chạy trên toàn bộ cấu hình ghép lớp).
 - **`HarnessRuntime` chỉ gồm harness đang bật** (như doctor); harness chưa bật hiện "chưa bật trong cấu hình" thay vì trạng thái hook/MCP. Nhãn khả năng và cấp (`sy.cap.*`, `sy.level.*`) dịch qua i18n thay vì dùng chuỗi tiếng Việt của `internal/harness`.
-- **Thanh thẻ con rút gọn ở 80 cột** (bỏ đệm và dấu `·` của thẻ không chọn) để không cắt tên thẻ; bảng khả năng dùng cột 4 ký tự cho mỗi harness.
+- **Thanh thẻ con rút gọn ở 80 cột** (bỏ đệm và dấu `·` của thẻ không chọn) để không cắt tên thẻ (từ 5b có mười thẻ nên thêm dạng cửa sổ, xem 12.8); bảng khả năng dùng cột 4 ký tự cho mỗi harness.
 - **Mở `$EDITOR`**: `config_edit` và `open_file` khai `Writes = true` (người sửa được tệp); việc ghi cấu hình thật là `config_save`. Sửa cấu hình dùng bản sao tạm nên thoát editor giữa chừng không để lại cấu hình hỏng; không dùng khoá liên tiến trình nên
   còn một cửa sổ rất nhỏ giữa lúc so băm tệp gốc và lúc ghi nguyên tử (không chép mẫu `evolve.AcquireLock`, xem tri thức k:01M746PTBYPSXDT0WJZS38KPFD).
 - **Ô gợi ý tệp (`suggest=files`) của form thêm thành phần chưa nối** (cần nhập đường dẫn tay); form có gợi ý mờ cho tên mẫu, harness, thành phần và skill. `ErrConfigChanged` hiện với nhãn "chi tiết kỹ thuật" (chưa có khoá dịch riêng).
@@ -1017,3 +1016,62 @@ bint tui                                                       # 7 (Hệ thống
 
 **Chưa kiểm được tự động**: `$EDITOR` thật (test dùng hàm giả và gửi `ResultMsg` thay cho `tea.ExecProcess`), binary harness thật (phiên bản, trust của Codex), ảnh VHS, cảm nhận thẩm mỹ (thanh thẻ rút gọn, bảng khả năng cột hẹp),
 thời gian của `PlanSync` trên thư mục skill lớn.
+
+### 12.8 Giai đoạn 5b (đã xong, 2026-11-12)
+
+Phiếu thứ hai của giai đoạn 5: phần **vòng đời** (mục 7.6, 5.7 Cài đặt repo, 7.5 worktree). Mốc "xong": repo mới `bint` → trình hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư;
+`update` rồi khởi động lại trong TUI; danh sách chưa làm rỗng. Kiểm bằng `TestInitWizard*`, `TestSetupTab*`, `TestConfigUpgrade*`, `TestUpdate*`, `TestRestart*` (`internal/tui/app`), test dịch vụ (`internal/app/init_svc_test.go`), e2e CLI mới và test phủ.
+
+**Tầng dịch vụ** (`internal/app`)
+- `init_svc.go`: `InitFlagOptions` — một cờ một trường (thẻ `flag`) cho **đủ 11 cờ** `init` (`harness`, `hooks`, `no-hooks`, `hooks-scope`, `agents-md`, `mcp`, `no-mcp`, `force`, `no-skills`, `git`, `update`); `Validate()` trả `UsageError`
+  cho `--hooks`+`--no-hooks`, `--mcp`+`--no-mcp`, `--hooks-scope` sai, `--git` sai, harness lạ; `ToInit` (gọi `Validate`) đổi cặp bool thành `*bool` của `InitOptions`; `InitDefaults`. `bint init` dựng struct này từ cờ rồi gọi `Validate()`/`ToInit`
+  (`Confirm` giữ ở CLI); `app.Init` vẫn tự kiểm `GitMode`/harness cho người gọi khác. Mọi e2e init cũ chạy nguyên, không sửa khẳng định.
+- `ReadInitState` (chỉ đọc): chưa init, harness bật + `detect`, hook theo phạm vi đã cài, MCP, chế độ Git đã lưu, khối `AGENTS.md`/nhập `CLAUDE.md`, cấu hình theo mẫu cũ (`config.Upgrade`), worktree phụ. `InitState.FormDefaults()` điền sẵn form.
+  `PlanInit` (chỉ đọc): danh sách (đường dẫn, tạo/sửa/gỡ/giữ, chi tiết) dựng từ Options + thăm dò rẻ, kèm diff cấu hình khi `--update`. Test chụp băm cả cây repo và thư mục trạng thái trước/sau, bằng nhau (không `store.Open`, không `Ensure`).
+- `PlanConfigUpgrade` (diff khớp `config.Upgrade`, `LinkedWorktreeError` ở worktree phụ), `UpgradeConfig` (`app.Init` với `Update`, nên giống `bint init --update`), `ConfigBackupPath`.
+- `doctor.go`: kiểm tra mức **warn** `CheckConfigTemplate` ("mẫu cấu hình") khi `config.Upgrade(...).Changed()`; hộp thư lấy sẵn nên tự có mục. `version_svc.go`: `VersionInfo` (binary, revision, `bint_version` của `core.lock`, mẫu cũ, `LockMismatch`).
+- `update.go`: `UpdateOptions` có thẻ `source` và `pull` (`Out` không thẻ), `Validate()` (nguồn chỉ định phải là mã nguồn Bint → `UsageError`), `UpdateDefaults()`; `SelfRevision` xuất ra.
+
+**Sổ hành động và phủ**: `init.run`/`init.plan` thay `init.defaults`; `system.repo_state/repo_plan/repo_apply`, `system.config_upgrade_plan/config_upgrade`, `system.update` (việc nền, `Job` + `JobInfo`, log go install tách dòng về khung log, kết quả `UpdateOutcome` kèm cả log), `system.restart`
+(giao diện thuần). `Env.Update` thay hàm cập nhật (kiểm thử không chạy `go install`). `coverage.go`: **`Pending` và `PendingFlags` rỗng, `PendingCeiling = 0`, `CurrentPhase = 5`**; `coverage_test.go` thêm `serviceBindings` cho `init`/`update` và viết lại các ca ngược
+bằng mục giả (lệnh `zebra` trong `Pending`, `tui --lang` cho `PendingFlags` sai, bỏ `system.update` khỏi sổ + binding, bỏ thẻ `flag` của `InitFlagOptions`) — vẫn đỏ đúng chỗ.
+
+**Trình hướng dẫn** (`screens/initwizard`, `ui.Screen`; thay `screens/initplaceholder`): harness (chọn nhiều, đánh dấu có trên máy) → hook + phạm vi → MCP → AGENTS.md → skill → Git `track|local` kèm đoạn giải thích hệ quả → **xem trước** (`init.plan`, dòng CLI tương đương)
+→ chạy (`init.run`) → báo cáo; "bước tiếp theo" chọn được (`j`/`k`), Enter dẫn tới tab tương ứng khi có ánh xạ (`bint doctor` → Hệ thống › Doctor, `bint runs list` → Lượt chạy, `bint knowledge review` → Tri thức), còn lại chỉ rời trình hướng dẫn.
+Phím: Enter tiếp, Esc/`b` lùi, `j`/`k` di chuyển, **Space chọn** (di chuyển không đổi lựa chọn), `d` dùng mặc định và nhảy tới xem trước, `r` nạp lại trạng thái. Luôn đặt `Hooks` và `GitMode` tường minh nên `Confirm` của `app.Init` không được gọi.
+`--read-only`: không mở trình hướng dẫn (hiện lý do và lệnh CLI); `init.run` bị ẩn theo sổ.
+
+**Hệ thống** (từ 8 thành 10 thẻ: thêm **Cài đặt** và **Cập nhật**; tên đầy đủ "Cài đặt repo"/"Cập nhật Bint" là tiêu đề khung)
+- **Cài đặt repo**: trạng thái `InitState` (từng harness: bật, hook + phạm vi, MCP; Git; AGENTS.md; mẫu cấu hình). `e` mở form `InitFlagOptions` điền sẵn; gửi form so với giá trị ban đầu — **không đổi gì thì không chạy init** ("Không có gì thay đổi");
+  có đổi thì `PlanInit` → hộp xem trước (tệp tạo/sửa/gỡ, dòng CLI chỉ chứa cờ đã đổi, ví dụ `bint init --mcp`) → Enter → `app.Init` chỉ nhận phần đã đổi → báo cáo các bước. `--force` có cảnh báo và hộp đỏ; ô `--harness` chỉ để xem (đổi ở thẻ Cấu hình).
+- **Nâng mẫu cấu hình**: phím `U` ở thẻ Cấu hình (và Cài đặt repo) hoặc Enter trên dòng doctor `CheckConfigTemplate` ở hộp thư (`NavMsg.ConfigUpgrade`) → hộp diff khớp `config.Upgrade` (+ ghi chú, nhắc bản sao lưu) → xác nhận ghi, hộp kết quả nêu **đường dẫn bản sao lưu**;
+  từ chối thì tệp giữ nguyên; ở worktree phụ: từ chối kèm `cd <worktree chính> && bint`, không đổi tệp nào.
+- **Cập nhật Bint**: bản đang chạy (version + revision, đường dẫn tệp) và mã nguồn tìm được; `u` mở form `source`/`pull` → việc nền (`Esc` huỷ) → khung log go install theo từng dòng → kết quả `cũ → mới`, tệp vừa cài, `OldBackup`, cảnh báo `Mismatch`.
+  Thành công: Unix hỏi **"Khởi động lại ngay?"** (Enter → thoát Bubble Tea, rồi `tui.Run` exec tệp vừa cài với cùng đối số và môi trường; "Để sau" thì nhắc vẫn ở thẻ, `R` mở lại); Windows chỉ hiện hộp "đóng và mở lại bint" kèm `OldBackup`. Còn việc nền khi khởi động lại → hộp "Huỷ việc rồi khởi động lại / Ở lại".
+  `restart_unix.go` (`//go:build !windows`: `execFn = syscall.Exec` thay được, `RestartSupported = true`) và `restart_windows.go` (`//go:build windows`: `RestartSupported = false`) cùng chữ ký `restartSelf`; `GOOS=windows go vet ./...` và staticcheck cho cả hai nền tảng sạch.
+- **Tổng quan**: phiên bản binary (+ revision), trạng thái mẫu cấu hình và `bint_version` của `core.lock` nằm trên viền dưới hộp thông tin (không thêm dòng); `core.lock` khác phiên bản binary → mục hộp thư `overview.inbox.version_skew`, Enter mở Hệ thống › Skill (`s` sync).
+
+**Chỗ lệch so với kế hoạch (người duyệt có thể đổi)**
+- **Mã thoát 1 → 2** cho lỗi dùng sai của `init` (`--git` sai, `--harness` lạ) và `update --source` không phải mã nguồn Bint: chuyển xuống `Validate()` nên là `UsageError`. Không e2e cũ khẳng định mã 1; e2e mới (`init_update_usage_e2e_test.go`) khẳng định mã 2. Thông báo `--harness` có thêm tiền tố `--harness:`.
+- **Doctor thêm một dòng cảnh báo** cho repo theo mẫu cũ (trước đây chỉ `init` báo); repo do `app.Init` tạo theo mẫu hiện tại không có dòng đó. Repo của chính dự án (chưa có khối `ui`) sẽ thấy dòng này tới khi chạy `bint init --update`.
+- **Xem trước init là kế hoạch tĩnh** từ Options + thăm dò chỉ đọc (không chạy trên bản sao tạm như `PlanSync`): không mô phỏng được mọi hệ quả (skip-worktree, hook phạm vi user, bản sao lưu); hộp ghi rõ "dự kiến", báo cáo sau khi chạy mới chính xác.
+- **Hooks là một cờ chung cho mọi harness** (giới hạn của `InitOptions`): form một ô; điền sẵn "bật" khi mọi harness có hook đều đã cài. Codex dùng chung `.codex/hooks.json` cho phạm vi `local` và `project` nên `InitState` tính hook ở tệp đó cho cả hai phạm vi.
+  Đổi phạm vi mà hook đang bật thì phần gửi đi gồm cả `--hooks` (nếu không, init chỉ báo "chưa có sự đồng ý").
+- **Bước tiếp theo → màn hình** khớp theo chuỗi ("bint doctor", "bint runs list", "bint knowledge review") trong văn bản `NextSteps` của `app.Init` (không có mã/ánh xạ trong dịch vụ).
+- **Phím của trình hướng dẫn**: kế hoạch ghi Enter/→ tiếp và Esc/← lùi; mũi tên trái/phải là phím toàn cục (đổi tab) nên chỉ dùng Enter/Esc/`b`. Di chuyển không tự chọn (Space mới chọn) vì hàng phạm vi hook nằm sau hàng Có/Không.
+- **Thanh thẻ Hệ thống**: mười thẻ không vừa 80 cột nên thêm dạng cửa sổ quanh thẻ đang chọn (`‹ … ›`); khi có thông báo thì dành chỗ cho cả thông báo (tối đa nửa chiều rộng) trước khi rút gọn. Tên thẻ ngắn ("Cài đặt", "Cập nhật") để vừa 100–140 cột.
+- **Exec tệp `Target`** (tệp vừa cài) chứ không phải `os.Executable`: khi `Mismatch` tệp đang chạy không phải bản mới; hộp vẫn cảnh báo PATH.
+- **Phiên bản binary gần như hằng** (`cli.Version = "0.1.0-dev"`): `LockMismatch` chỉ báo khi `bint_version` khác `Version`; lệch nội dung skill sau `update` vẫn do doctor báo theo băm. Revision chỉ để hiện, không ghi vào `core.lock` (`internal/skills/**` ngoài phạm vi).
+- **`q`/thoát khi đang khởi tạo** dùng chung hộp thoát việc nền (nhãn `bint init`); khi hết việc lúc đang thoát, mọi `ResultMsg` (không chỉ khởi tạo) đều kiểm "đã hết việc thì thoát".
+- **`bint task show` báo `docs/tui-plan.md` ngoài phạm vi** dù có trong `scope.allow`: coi là cảnh báo sai (bộ so khớp không nhận đường dẫn literal).
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app -run 'Golden|Wizard' -update      # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước)
+go test ./...
+GOOS=windows go vet ./...                                      # cùng go vet ./...; staticcheck cho linux và windows (cài binary rồi đặt GOOS)
+bint tui                                                       # repo chưa init: trình hướng dẫn; 7 (Hệ thống) → . ×8 (Cài đặt) → e; . (Cập nhật) → u → khởi động lại
+```
+
+**Chưa kiểm được tự động**: `go install` thật (test dùng hàm cập nhật giả), `syscall.Exec` thật (test thay `execFn`; chạy tay: `bint` → 7 → Cập nhật → khởi động lại), hành vi Windows thật (chỉ `go vet`/staticcheck với `GOOS=windows`), ảnh VHS, chạy `init` của Codex với `codex` thật (kiểm trust hook).

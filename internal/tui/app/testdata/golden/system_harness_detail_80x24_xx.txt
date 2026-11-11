@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│  ⟦Config~~~⟧  ⟦Harness~~~⟧  ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ … │
+│   ⟦Config~~~⟧  ⟦Harness~~~⟧  ⟦Components~~~~⟧ ⟦Skills~~~⟧ ›                  │
 │ ┌─│⟦Details~~~⟧ · claude│──────────────────────────────────────────1-16/36─┐ │
 │ │ Claude Code (claude)                                                     │ │
 │ │ ⟦Level~~⟧           3 — ⟦+ programmatic execution~~~~~~~~~~⟧             │ │

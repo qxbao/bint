@@ -2,7 +2,7 @@
 │ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦MCP~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧                       │
+│  ⟦Config~~~⟧ ⟦Harness~~~⟧  ⟦Components~~~~⟧  ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧              │
 │ ┌─│⟦Components (3/3)~~~~~~⟧│─────────⟦1 files skipped~~~~~~⟧─┐┌─│⟦Details~~~⟧ · test-before-stop│──────────────────────────────────────┐ │
 │ │ ▸ ✓ guardrail test-before-stop           verified   low    ││ ⟦Kind~~⟧    guardrail                                                  │ │
 │ │   ◌ guidance  api-style                  candidate  low    ││ ⟦ID~⟧       test-before-stop                                           │ │

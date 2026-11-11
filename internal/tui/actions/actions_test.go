@@ -115,8 +115,8 @@ func TestDefaultRegistryShape(t *testing.T) {
 			t.Errorf("%s phải được ghim ở chân phím", id)
 		}
 	}
-	if a, _ := r.ByID("init.defaults"); !a.Writes || a.CLIPath != "init" || a.Run == nil {
-		t.Errorf("init.defaults phải là hành động ghi có hàm dịch vụ: %+v", a)
+	if a, _ := r.ByID("init.run"); !a.Writes || a.CLIPath != "init" || a.Do == nil || a.Options == nil {
+		t.Errorf("init.run phải là hành động ghi có hàm dịch vụ và Options: %+v", a)
 	}
 	keys := map[string]string{}
 	for _, a := range r.All() {
