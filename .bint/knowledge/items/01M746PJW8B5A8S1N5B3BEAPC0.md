@@ -2,7 +2,7 @@
 schema: 1
 id: 01M746PJW8B5A8S1N5B3BEAPC0
 type: pattern
-status: verified
+status: stale
 title: Thao tác chỉ dành cho người (duyệt/áp dụng/loại bỏ) phải chặn bằng requireHuman / app.InAgentSession
 scope:
   paths:
@@ -36,9 +36,9 @@ reviewed_at: "2026-11-11T02:27:59Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:57Z"
-updated_at: "2026-11-11T02:27:59Z"
+updated_at: "2026-11-11T17:47:13Z"
 verified_at: "2026-11-11T02:27:59Z"
-status_reason: người duyệt chấp nhận
+status_reason: 'bằng chứng thay đổi: bằng chứng internal/app/knowledge.go:34-42 đã thay đổi kể từ khi ghi: nội dung vùng dòng đã thay đổi'
 ---
 
 Lệnh làm thay đổi tri thức/đề xuất đã duyệt (approve, review, reject, deprecate, evolve apply/reject/rollback, knowledge revalidate, verify --apply) gọi `requireHuman("<lệnh>")` ở đầu, trả lỗi bọc `app.ErrAgentForbidden`.

@@ -2,7 +2,7 @@
 schema: 1
 id: 01M75NXM4Z6S1CS3X7B2M63EBC
 type: warning
-status: verified
+status: stale
 title: Khoá i18n gọi bằng m.t("…") (chữ thường) không được test quét khoá bắt
 scope:
   paths:
@@ -20,9 +20,9 @@ reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_at: "2026-11-11T16:25:23Z"
 version: 1
 created_at: "2026-11-11T16:09:11Z"
-updated_at: "2026-11-11T16:25:23Z"
+updated_at: "2026-11-11T17:47:13Z"
 verified_at: "2026-11-11T16:25:23Z"
-status_reason: người duyệt chấp nhận
+status_reason: 'bằng chứng thay đổi: bằng chứng internal/tui/i18n_scan_test.go:117 đã thay đổi kể từ khi ghi: nội dung vùng dòng đã thay đổi'
 ---
 
 TestEveryKeyUsedInCodeExists chỉ bắt T("…") và N("…") viết hoa; các màn hình gọi m.t("…") bằng chữ thường nên khoá thiếu ở vi.yaml/en.yaml KHÔNG làm test đỏ và chỉ lộ ra khi vẽ (chuỗi hiện thành khoá). Khi thêm khoá cho màn hình mới, quét thủ công các khoá gọi bằng m.t(...) rồi đối chiếu locales, hoặc mở rộng keyCallRE.

@@ -10,13 +10,13 @@ evidence:
     lines: "9"
     fingerprint: lines:fa182ee1b85bd6e7
   - path: internal/app/knowledge.go
-    lines: 21-24
+    lines: 27-30
     fingerprint: lines:28670d388976ccc4
   - path: docs/bint-plan.md
-    lines: "1293"
+    lines: "1295"
     fingerprint: lines:f7fdd4b4c2b07a9d
   - path: docs/bint-plan.md
-    lines: "1446"
+    lines: "1448"
     fingerprint: lines:65f3236baa43a167
 origin:
   kind: agent

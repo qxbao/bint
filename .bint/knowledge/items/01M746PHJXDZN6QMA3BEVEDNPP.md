@@ -2,7 +2,7 @@
 schema: 1
 id: 01M746PHJXDZN6QMA3BEVEDNPP
 type: warning
-status: verified
+status: stale
 title: 'go test chạy trong phiên agent có CLAUDECODE=1: kiểm thử thao tác chỉ-dành-cho-người phải xoá biến agent'
 scope:
   paths:
@@ -36,9 +36,9 @@ reviewed_at: "2026-11-11T02:27:50Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:55Z"
-updated_at: "2026-11-11T02:27:50Z"
+updated_at: "2026-11-11T17:47:13Z"
 verified_at: "2026-11-11T02:27:50Z"
-status_reason: người duyệt chấp nhận
+status_reason: 'bằng chứng thay đổi: bằng chứng internal/app/knowledge.go:18-42 đã thay đổi kể từ khi ghi: nội dung vùng dòng đã thay đổi'
 ---
 
 `app.InAgentSession` coi tiến trình là agent khi có một biến trong `agentEnvVars` (BINT_AGENT, CLAUDECODE, AI_AGENT, CODEX_SANDBOX...); khi đó approve/apply/reject trả `ErrAgentForbidden`.
