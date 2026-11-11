@@ -144,8 +144,8 @@ type ProcessInput struct {
 	Reflector eval.Agent
 	// Cases và RepoDir: như ProposeInput. Thiếu chúng, yêu cầu failure_lesson bị bỏ TRƯỚC khi gọi
 	// reflector (kiểm rò rỉ không dựng được), nên không tốn tiền.
-	Cases   []*eval.Case
-	RepoDir string
+	Cases     []*eval.Case
+	RepoDir   string
 	BudgetUSD float64
 	Max       int
 	Timeout   time.Duration
