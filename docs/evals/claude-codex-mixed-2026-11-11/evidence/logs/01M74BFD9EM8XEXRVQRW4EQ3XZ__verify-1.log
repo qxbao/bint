@@ -1,0 +1,2 @@
+$ sh -c "go test ./..."
+ok  	probe/calc	0.001s

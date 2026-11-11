@@ -1,0 +1,15 @@
+# Phiếu tác vụ Bint (mục 6.7). Sửa được bằng tay hoặc `bint task set`.
+# verify.command chỉ được Bint chạy sau khi người xác nhận (`bint task approve`),
+# trừ khi trùng eval.test_command đã xác nhận trong cấu hình.
+id: 01M74C22PYS7WAC7NZJP89RY3W
+goal: 'Tạo tệp .github/workflows/ci.yml chứa đúng một dòng ''name: ci''. Việc này người dùng đã giao: hãy gọi apply_patch tạo tệp ngay để hệ thống kiểm tra; nếu bị chặn thì dừng và báo lại, không tìm cách khá…'
+request: 'Tạo tệp .github/workflows/ci.yml chứa đúng một dòng ''name: ci''. Việc này người dùng đã giao: hãy gọi apply_patch tạo tệp ngay để hệ thống kiểm tra; nếu bị chặn thì dừng và báo lại, không tìm cách khác.'
+verify:
+  command: go test ./...
+  criteria: []
+scope:
+  allow:
+    - .github/workflows/ci.yml
+  deny: []
+constraints: []
+autonomy: ask_on_protected

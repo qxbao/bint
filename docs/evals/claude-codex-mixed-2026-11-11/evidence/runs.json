@@ -1,0 +1,210 @@
+[
+ {
+  "run_id": "01M74A9A4Z1ZZKEAWWT045BSYK",
+  "workflow": "session",
+  "harness": "claude",
+  "status": "running",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:26:36.703Z"
+ },
+ {
+  "run_id": "01M74A9A4K7F60MEYPBCVKTTXD",
+  "workflow": "b-do",
+  "harness": null,
+  "status": "failed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:26:36.711Z"
+ },
+ {
+  "run_id": "01M74A9A5AT9AVDMBGF7XXQBG1",
+  "workflow": "b-req",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": "01M74A9A4K7F60MEYPBCVKTTXD",
+  "started_at": "2026-11-11T03:26:36.716Z"
+ },
+ {
+  "run_id": "01M74ABGQQ249GFN3TBGEKV6C9",
+  "workflow": "session",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:27:48.983Z"
+ },
+ {
+  "run_id": "01M74ABTMSKV67NWTY844R5ZWT",
+  "workflow": "session",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:27:59.129Z"
+ },
+ {
+  "run_id": "01M74AEVHRJ9G6RVDY7V0YX325",
+  "workflow": "b-do",
+  "harness": null,
+  "status": "failed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:29:38.385Z"
+ },
+ {
+  "run_id": "01M74AEVJNE56Z4NY22E8QPNNB",
+  "workflow": "b-req",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": "01M74AEVHRJ9G6RVDY7V0YX325",
+  "started_at": "2026-11-11T03:29:38.392Z"
+ },
+ {
+  "run_id": "01M74AG7A6EM58Y2AEYRA336JE",
+  "workflow": "b-feat",
+  "harness": "codex",
+  "status": "completed",
+  "parent_run_id": "01M74AEVHRJ9G6RVDY7V0YX325",
+  "started_at": "2026-11-11T03:30:23.176Z"
+ },
+ {
+  "run_id": "01M74AJNSG9KMW5X59ZZPN0W3J",
+  "workflow": "b-review",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": "01M74AEVHRJ9G6RVDY7V0YX325",
+  "started_at": "2026-11-11T03:31:43.538Z"
+ },
+ {
+  "run_id": "01M74ANQGPNJN3QTVZSXVMSQ9H",
+  "workflow": "session",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:33:23.606Z"
+ },
+ {
+  "run_id": "01M74AT2NV1JNJMAVYWYJJR35P",
+  "workflow": "b-do",
+  "harness": null,
+  "status": "completed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:35:46.125Z"
+ },
+ {
+  "run_id": "01M74AT2PHFAF3WXNXR650RT8Q",
+  "workflow": "b-req",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": "01M74AT2NV1JNJMAVYWYJJR35P",
+  "started_at": "2026-11-11T03:35:46.131Z"
+ },
+ {
+  "run_id": "01M74AVS021DY0GSBHSH68FF51",
+  "workflow": "b-feat",
+  "harness": "codex",
+  "status": "completed",
+  "parent_run_id": "01M74AT2NV1JNJMAVYWYJJR35P",
+  "started_at": "2026-11-11T03:36:41.733Z"
+ },
+ {
+  "run_id": "01M74AYP02Q32B609063GTRW16",
+  "workflow": "b-review",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": "01M74AT2NV1JNJMAVYWYJJR35P",
+  "started_at": "2026-11-11T03:38:16.964Z"
+ },
+ {
+  "run_id": "01M74B6HCG956ARSNNPVHYGDN1",
+  "workflow": "b-do",
+  "harness": null,
+  "status": "completed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:42:34.404Z"
+ },
+ {
+  "run_id": "01M74B6HD8KC78VG9SYC443TRA",
+  "workflow": "b-req",
+  "harness": "codex",
+  "status": "completed",
+  "parent_run_id": "01M74B6HCG956ARSNNPVHYGDN1",
+  "started_at": "2026-11-11T03:42:34.411Z"
+ },
+ {
+  "run_id": "01M74B8TC653QCY7H73TYYJ5A4",
+  "workflow": "b-feat",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": "01M74B6HCG956ARSNNPVHYGDN1",
+  "started_at": "2026-11-11T03:43:49.131Z"
+ },
+ {
+  "run_id": "01M74B9SEMV9VB5QMCDK7YDP93",
+  "workflow": "b-review",
+  "harness": "codex",
+  "status": "completed",
+  "parent_run_id": "01M74B6HCG956ARSNNPVHYGDN1",
+  "started_at": "2026-11-11T03:44:20.950Z"
+ },
+ {
+  "run_id": "01M74BFD9E0Q48WZ21D3QZNHZJ",
+  "workflow": "b-do",
+  "harness": null,
+  "status": "completed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:47:25.134Z"
+ },
+ {
+  "run_id": "01M74BFDAKDSF545HDRMBEVK1F",
+  "workflow": "b-feat",
+  "harness": "codex",
+  "status": "completed",
+  "parent_run_id": "01M74BFD9E0Q48WZ21D3QZNHZJ",
+  "started_at": "2026-11-11T03:47:25.141Z"
+ },
+ {
+  "run_id": "01M74BKTHDH18K77JFBRYA7G8X",
+  "workflow": "b-review",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": "01M74BFD9E0Q48WZ21D3QZNHZJ",
+  "started_at": "2026-11-11T03:49:49.743Z"
+ },
+ {
+  "run_id": "01M74BX9CJN1Z4NMTF36T20TMY",
+  "workflow": "b-do",
+  "harness": null,
+  "status": "completed",
+  "parent_run_id": "01M74BKTHDH18K77JFBRYA7G8X",
+  "started_at": "2026-11-11T03:54:59.866Z"
+ },
+ {
+  "run_id": "01M74BX9CZSX18DG3X72GHM976",
+  "workflow": "b-feat",
+  "harness": "codex",
+  "status": "completed",
+  "parent_run_id": "01M74BX9CJN1Z4NMTF36T20TMY",
+  "started_at": "2026-11-11T03:54:59.873Z"
+ },
+ {
+  "run_id": "01M74BZKG05Y9S9EVHH457PA90",
+  "workflow": "b-review",
+  "harness": "claude",
+  "status": "completed",
+  "parent_run_id": "01M74BX9CJN1Z4NMTF36T20TMY",
+  "started_at": "2026-11-11T03:56:15.746Z"
+ },
+ {
+  "run_id": "01M74C22PY0WGX9C9BN2G1WEPS",
+  "workflow": "b-feat",
+  "harness": null,
+  "status": "completed",
+  "parent_run_id": null,
+  "started_at": "2026-11-11T03:57:36.882Z"
+ },
+ {
+  "run_id": "01M74C22QQZFRTZHYM428HM89P",
+  "workflow": "b-feat",
+  "harness": "codex",
+  "status": "completed",
+  "parent_run_id": "01M74C22PY0WGX9C9BN2G1WEPS",
+  "started_at": "2026-11-11T03:57:36.892Z"
+ }
+]

@@ -1,0 +1,58 @@
+{
+ "schema": 1,
+ "id": "01M74C22PYS7WAC7NZJP89RY3W",
+ "status": "in_review",
+ "workflow": "b-feat",
+ "created_at": "2026-11-11T03:57:36Z",
+ "updated_at": "2026-11-11T03:58:43Z",
+ "base": "4c1f0bf8a5f535619695e4a0fe234c49e57d1bc5",
+ "branch": "main",
+ "worktree": "<repo>",
+ "reason": "b-feat xong",
+ "classification": {
+  "plan": false,
+  "reason": "người dùng chỉ định"
+ },
+ "history": [
+  {
+   "from": "",
+   "to": "created",
+   "at": "2026-11-11T03:57:36Z",
+   "by": "bint",
+   "reason": "tạo tác vụ"
+  },
+  {
+   "from": "created",
+   "to": "in_progress",
+   "at": "2026-11-11T03:57:36Z",
+   "by": "agent",
+   "reason": "b-feat bắt đầu"
+  },
+  {
+   "from": "in_progress",
+   "to": "in_review",
+   "at": "2026-11-11T03:58:43Z",
+   "by": "agent",
+   "reason": "b-feat xong"
+  }
+ ],
+ "verifications": [
+  {
+   "at": "2026-11-11T03:58:43Z",
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "log": "<state>/runtime/tasks/01M74C22PYS7WAC7NZJP89RY3W/logs/verify-1.log",
+   "worktree": "3eccac6fb0718d25fba6fb15e41af596",
+   "by": "agent",
+   "run_id": "01M74C22PY0WGX9C9BN2G1WEPS"
+  }
+ ],
+ "runs": [
+  "01M74C22PY0WGX9C9BN2G1WEPS",
+  "01M74C22QQZFRTZHYM428HM89P"
+ ],
+ "review_rounds": 0,
+ "next_finding": 0
+}

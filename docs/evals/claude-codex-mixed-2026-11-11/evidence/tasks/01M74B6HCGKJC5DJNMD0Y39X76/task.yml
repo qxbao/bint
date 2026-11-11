@@ -1,0 +1,17 @@
+# Phiếu tác vụ Bint (mục 6.7). Sửa được bằng tay hoặc `bint task set`.
+# verify.command chỉ được Bint chạy sau khi người xác nhận (`bint task approve`),
+# trừ khi trùng eval.test_command đã xác nhận trong cấu hình.
+id: 01M74B6HCGKJC5DJNMD0Y39X76
+goal: Thêm hàm Max(a, b int) int vào calc.go (số lớn hơn) kèm test trong calc_test.go
+verify:
+  command: go test ./...
+  criteria:
+    - Max(2,9)==9 và Max(9,2)==9 và Max(4,4)==4, mỗi ca một test riêng
+    - go test ./... qua, không sửa hàm có sẵn
+scope:
+  allow:
+    - calc.go
+    - calc_test.go
+  deny: []
+constraints: []
+autonomy: ask_on_protected

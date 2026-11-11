@@ -1,0 +1,84 @@
+{
+ "task_id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
+ "rounds": [
+  {
+   "round": 1,
+   "at": "2026-11-11T03:50:20Z",
+   "by": "agent",
+   "run_id": "01M74BKTHDH18K77JFBRYA7G8X",
+   "base": "efd685d710665e3973ad56cca72ac19c8fe19dd6",
+   "summary": "Phần (1) Sub/TestSub đúng, gọn và nằm trong scope; phần (2) migrations/002_calc_log.sql chưa được tạo nên tiêu chí 2 chưa đạt, cần người quyết định vì đường dẫn được bảo vệ và nằm ngoài scope.allow.",
+   "findings": [
+    {
+     "id": "01M74BFD9EM8XEXRVQRW4EQ3XZ.1",
+     "kind": "risk",
+     "severity": "medium",
+     "title": "Tiêu chí 2 chưa đạt: migrations/002_calc_log.sql không tồn tại",
+     "path": "migrations/002_calc_log.sql",
+     "evidence": "git status --short chỉ có calc.go, calc_test.go; ls migrations báo 'No such file or directory'. Goal yêu cầu tạo tệp này nhưng scope.allow chỉ gồm calc.go, calc_test.go và migrations/** là đường dẫn được bảo vệ (autonomy ask_on_protected). Agent dừng lại là đúng chính sách, nhưng phiếu tự mâu thuẫn giữa goal và scope.",
+     "body": "Người duyệt cần quyết định: mở rộng scope.allow thêm migrations/002_calc_log.sql và cho phép ghi đường dẫn được bảo vệ, hoặc bỏ tiêu chí 2 khỏi phiếu. Không nên coi tác vụ là done khi tiêu chí 2 còn ✗."
+    },
+    {
+     "id": "01M74BFD9EM8XEXRVQRW4EQ3XZ.2",
+     "kind": "suggestion",
+     "severity": "low",
+     "title": "TestSub chỉ có một trường hợp",
+     "path": "calc_test.go",
+     "lines": "17-21",
+     "evidence": "TestSub chỉ kiểm Sub(5,3)==2; không có trường hợp kết quả âm (Sub(3,5)), số 0 hay đối số âm, nên không phát hiện được lỗi đảo thứ tự toán hạng kiểu b - a nếu chỉ dựa vào đúng một ca dương... thực tế Sub(5,3) với b-a cho -2 nên ca này vẫn bắt được đảo toán hạng, nhưng chưa phủ biên.",
+     "body": "Cân nhắc chuyển sang bảng kiểm thử gồm (3,5)->-2, (0,0)->0, (-2,-3)->1."
+    },
+    {
+     "id": "01M74BFD9EM8XEXRVQRW4EQ3XZ.3",
+     "kind": "suggestion",
+     "severity": "low",
+     "title": "Chú thích Sub không nêu hành vi tràn số",
+     "path": "calc.go",
+     "lines": "7-8",
+     "evidence": "Sub(math.MinInt, 1) tràn và quay vòng thành math.MaxInt; Abs ở dòng 13 đã ghi rõ hành vi biên với math.MinInt, Sub thì không.",
+     "body": "Thêm một câu vào doc comment, ví dụ: 'Tràn số quay vòng theo ngữ nghĩa int của Go.' để nhất quán với Abs."
+    }
+   ]
+  },
+  {
+   "round": 2,
+   "at": "2026-11-11T03:56:48Z",
+   "by": "agent",
+   "run_id": "01M74BZKG05Y9S9EVHH457PA90",
+   "base": "efd685d710665e3973ad56cca72ac19c8fe19dd6",
+   "summary": "Sub/TestSub đúng và gọn; migrations/002_calc_log.sql đã tồn tại với đúng một dòng '-- calc log' nên cả hai tiêu chí đạt về nội dung, nhưng bằng chứng tiêu chí 2 trong phiếu còn cũ và tệp nằm ngoài scope.allow (đã có người duyệt).",
+   "findings": [
+    {
+     "id": "01M74BFD9EM8XEXRVQRW4EQ3XZ.4",
+     "kind": "risk",
+     "severity": "low",
+     "title": "Bằng chứng tiêu chí 2 trong phiếu đã lỗi thời",
+     "path": "migrations/002_calc_log.sql",
+     "lines": "1",
+     "evidence": "bint task show vẫn ghi '✗ 2. ... migrations/002_calc_log.sql chưa tạo', trong khi git status có '?? migrations/' và tệp chứa đúng '-- calc log' + LF (12 byte, 1 dòng). Mục 'Chưa thể done: tiêu chí 2 chưa đạt' có thể chặn hoàn thành dù tiêu chí thực tế đã đạt.",
+     "body": "Cập nhật bằng chứng tiêu chí 2 (tệp tồn tại, nội dung đúng một dòng) trước khi Bint Core quyết định done."
+    },
+    {
+     "id": "01M74BFD9EM8XEXRVQRW4EQ3XZ.5",
+     "kind": "risk",
+     "severity": "low",
+     "title": "Tệp migrations nằm ngoài scope.allow của phiếu",
+     "path": "migrations/002_calc_log.sql",
+     "lines": "1",
+     "evidence": "scope.allow chỉ gồm calc.go, calc_test.go; migrations/** là đường dẫn được bảo vệ. Phiếu ghi 'Đã duyệt bởi probe: migrations/002_calc_log.sql' nên thay đổi được người duyệt, nhưng scope trong task.yml chưa phản ánh điều đó.",
+     "body": "Không cần sửa mã; nếu muốn hồ sơ nhất quán, người phụ trách có thể bổ sung tệp này vào scope.allow."
+    },
+    {
+     "id": "01M74BFD9EM8XEXRVQRW4EQ3XZ.6",
+     "kind": "suggestion",
+     "severity": "low",
+     "title": "TestSub chỉ có một trường hợp dương",
+     "path": "calc_test.go",
+     "lines": "17-21",
+     "evidence": "TestSub chỉ kiểm Sub(5,3)==2; không có ca kết quả âm (3-5) hay số âm (-2-(-3)).",
+     "body": "Chuyển sang table-driven test với vài ca biên, tương tự các test Add hiện có."
+    }
+   ]
+  }
+ ]
+}

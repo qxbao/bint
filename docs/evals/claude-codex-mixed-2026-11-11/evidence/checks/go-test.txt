@@ -1,0 +1,31 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/app	11.992s
+ok  	bint/internal/cli	16.911s
+ok  	bint/internal/config	0.004s
+ok  	bint/internal/ctxengine	0.024s
+ok  	bint/internal/detect	0.004s
+ok  	bint/internal/eval	13.343s
+ok  	bint/internal/evolve	10.403s
+ok  	bint/internal/fsafe	0.071s
+?   	bint/internal/gitrepo	[no test files]
+ok  	bint/internal/harness	0.110s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	0.027s
+ok  	bint/internal/harness/codex	0.060s
+ok  	bint/internal/harness/hookcore	0.026s
+ok  	bint/internal/inspect	0.045s
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	0.116s
+ok  	bint/internal/knowledge	0.084s
+?   	bint/internal/mcpserver	[no test files]
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/runlog	4.255s
+ok  	bint/internal/skills	2.073s
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	0.010s
+ok  	bint/internal/store	0.555s
+ok  	bint/internal/symbols	0.004s
+ok  	bint/internal/task	0.595s
+?   	bint/internal/testutil	[no test files]
+ok  	bint/internal/ulid	0.003s
+ok  	bint/internal/workflow	14.868s

@@ -1,0 +1,134 @@
+{
+ "schema": 1,
+ "id": "01M74BFD9EM8XEXRVQRW4EQ3XZ",
+ "status": "blocked",
+ "workflow": "b-do",
+ "created_at": "2026-11-11T03:47:25Z",
+ "updated_at": "2026-11-11T03:56:58Z",
+ "base": "efd685d710665e3973ad56cca72ac19c8fe19dd6",
+ "branch": "main",
+ "worktree": "<repo>",
+ "reason": "chưa đủ bằng chứng hoàn thành: tiêu chí 2 chưa đạt",
+ "resume_from": "in_review",
+ "classification": {
+  "plan": false,
+  "reason": "người dùng chỉ định"
+ },
+ "history": [
+  {
+   "from": "",
+   "to": "created",
+   "at": "2026-11-11T03:47:25Z",
+   "by": "bint",
+   "reason": "tạo tác vụ"
+  },
+  {
+   "from": "created",
+   "to": "in_progress",
+   "at": "2026-11-11T03:47:25Z",
+   "by": "agent",
+   "reason": "b-feat bắt đầu"
+  },
+  {
+   "from": "in_progress",
+   "to": "in_review",
+   "at": "2026-11-11T03:49:49Z",
+   "by": "agent",
+   "reason": "b-feat xong"
+  },
+  {
+   "from": "in_review",
+   "to": "blocked",
+   "at": "2026-11-11T03:50:31Z",
+   "by": "agent",
+   "reason": "chưa đủ bằng chứng hoàn thành: tiêu chí 2 chưa đạt"
+  },
+  {
+   "from": "blocked",
+   "to": "in_progress",
+   "at": "2026-11-11T03:54:59Z",
+   "by": "agent",
+   "reason": "tiếp tục (bint run resume)"
+  },
+  {
+   "from": "in_progress",
+   "to": "in_review",
+   "at": "2026-11-11T03:56:15Z",
+   "by": "agent",
+   "reason": "b-feat xong"
+  },
+  {
+   "from": "in_review",
+   "to": "blocked",
+   "at": "2026-11-11T03:56:58Z",
+   "by": "agent",
+   "reason": "chưa đủ bằng chứng hoàn thành: tiêu chí 2 chưa đạt"
+  }
+ ],
+ "criteria": [
+  {
+   "index": 1,
+   "met": true,
+   "evidence": "GOCACHE=/tmp/bint-ta<key> go test ./... qua (ok probe/calc); TestSub tại calc_test.go:17",
+   "by": "agent",
+   "at": "2026-11-11T03:48:50Z"
+  },
+  {
+   "index": 2,
+   "met": false,
+   "evidence": "migrations/002_calc_log.sql chưa tạo: đường dẫn thuộc protected migrations/** và nằm ngoài scope.allow (chỉ calc.go, calc_test.go)",
+   "by": "agent",
+   "at": "2026-11-11T03:48:50Z"
+  }
+ ],
+ "verifications": [
+  {
+   "at": "2026-11-11T03:49:49Z",
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "log": "<state>/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/logs/verify-1.log",
+   "worktree": "3f192087a36e7847e3149df07da2badc",
+   "by": "agent",
+   "run_id": "01M74BFD9E0Q48WZ21D3QZNHZJ"
+  },
+  {
+   "at": "2026-11-11T03:56:15Z",
+   "command": "go test ./...",
+   "confirmed": true,
+   "exit_code": 0,
+   "passed": true,
+   "log": "<state>/runtime/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/logs/verify-2.log",
+   "worktree": "3db00353dcb9a9642db2355c562c7614",
+   "by": "agent",
+   "run_id": "01M74BX9CJN1Z4NMTF36T20TMY"
+  }
+ ],
+ "protected_approval": {
+  "paths": [
+   "migrations/002_calc_log.sql"
+  ],
+  "by": "probe <<email>>",
+  "at": "2026-11-11T03:54:18Z"
+ },
+ "errors": [
+  {
+   "step": "b-feat",
+   "message": "go test ./... chưa chạy được do Go cache mặc định /home/user/.cache/go-build chỉ đọc; chạy lại với GOCACHE dưới /tmp",
+   "at": "2026-11-11T03:48:34Z",
+   "by": "agent",
+   "run_id": "01M74BFDAKDSF545HDRMBEVK1F"
+  }
+ ],
+ "runs": [
+  "01M74BFD9E0Q48WZ21D3QZNHZJ",
+  "01M74BFDAKDSF545HDRMBEVK1F",
+  "01M74BKTHDH18K77JFBRYA7G8X",
+  "01M74BX9CJN1Z4NMTF36T20TMY",
+  "01M74BX9CZSX18DG3X72GHM976",
+  "01M74BZKG05Y9S9EVHH457PA90"
+ ],
+ "review_rounds": 2,
+ "next_finding": 6
+}

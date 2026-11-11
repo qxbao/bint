@@ -1,0 +1,16 @@
+{
+ "task_id": "01M74A9A4KNYXFZXK6BETA8T8Z",
+ "run_id": "01M74A9A4K7F60MEYPBCVKTTXD",
+ "task_status": "failed",
+ "reason": "b-req không ghi tài liệu nào (requirement/plan/tasks)",
+ "steps": [
+  {
+   "step": "b-req",
+   "run_id": "01M74A9A5AT9AVDMBGF7XXQBG1",
+   "status": "completed",
+   "cost_usd": 0.0982869,
+   "duration": "20s"
+  }
+ ],
+ "cost_usd": 0.0982869
+}
