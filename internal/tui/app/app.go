@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"bint/internal/tui/components/tabs"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/screens/initplaceholder"
+	knscreen "bint/internal/tui/screens/knowledge"
 	"bint/internal/tui/screens/overview"
 	"bint/internal/tui/screens/placeholder"
 	"bint/internal/tui/theme"
@@ -49,6 +51,11 @@ type Options struct {
 	Registry *actions.Registry
 	// Loader thay được trong kiểm thử; nil = nạp thật từ repository.
 	Loader func(ctx context.Context, dir string) (overview.Data, error)
+	// KnowledgeLoader/KnowledgeDetailer thay được trong kiểm thử; nil = nạp thật.
+	KnowledgeLoader   knscreen.Loader
+	KnowledgeDetailer knscreen.Detailer
+	// Editor dựng lệnh mở tệp trong trình soạn thảo (thay được trong kiểm thử); nil = $VISUAL/$EDITOR.
+	Editor func(path string) *exec.Cmd
 	// SpinnerFPS là chu kỳ khung của vòng quay; 0 = mặc định (thay được trong kiểm thử).
 	SpinnerFPS time.Duration
 }
@@ -66,6 +73,10 @@ type Model struct {
 
 	ov  overview.Model
 	ini initplaceholder.Model
+	kn  *knscreen.Model
+
+	// jobs là các việc nền đang chạy của hành động có tham số (ID → huỷ context).
+	jobs map[string]context.CancelFunc
 
 	spin    spinner.Model
 	ticking bool // đang có chuỗi tick của vòng quay
@@ -101,9 +112,21 @@ func New(ctx context.Context, opts Options) *Model {
 	if opts.SpinnerFPS > 0 {
 		sp.FPS = opts.SpinnerFPS
 	}
-	return &Model{opts: opts, reg: opts.Registry, cat: i18n.MustLoad(lang), th: theme.New(opts.Mode), ctx: ctx,
-		spin: spinner.New(spinner.WithSpinner(sp)),
-		ini:  initplaceholder.Model{Dir: opts.Dir, ReadOnly: opts.ReadOnly}}
+	m := &Model{opts: opts, reg: opts.Registry, cat: i18n.MustLoad(lang), th: theme.New(opts.Mode), ctx: ctx,
+		spin: spinner.New(spinner.WithSpinner(sp)), jobs: map[string]context.CancelFunc{},
+		ini: initplaceholder.Model{Dir: opts.Dir, ReadOnly: opts.ReadOnly}}
+	m.kn = knscreen.New(knscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Agent: opts.Agent,
+		Loader: opts.KnowledgeLoader, Detailer: opts.KnowledgeDetailer, Gate: m.gate})
+	m.kn.SetEnv(m.th, m.cat)
+	return m
+}
+
+// gate cho biết hành động id dùng được không theo sổ và chế độ hiện tại (cho màn hình báo sớm).
+func (m *Model) gate(id string) actions.Availability {
+	if a, ok := m.reg.ByID(id); ok {
+		return a.Check(m.mode())
+	}
+	return actions.Available
 }
 
 // SetSize đặt kích thước (dùng trong kiểm thử; khi chạy thật kích thước đến qua tea.WindowSizeMsg).
@@ -132,11 +155,21 @@ func (m *Model) mode() actions.Mode {
 }
 
 func (m *Model) env() actions.Env {
-	return actions.Env{Dir: m.opts.Dir, Version: m.opts.Version, BintPath: m.opts.BintPath}
+	return actions.Env{Dir: m.opts.Dir, Version: m.opts.Version, BintPath: m.opts.BintPath, ReadOnly: m.opts.ReadOnly, Editor: m.opts.Editor}
 }
 
-// busy: có việc nền đang chạy (nạp dữ liệu hoặc khởi tạo).
-func (m *Model) busy() bool { return m.ov.Loading || m.ini.Running }
+// busy: có việc nền đang chạy (nạp dữ liệu, khởi tạo, hành động có tham số hoặc việc của màn Tri thức).
+func (m *Model) busy() bool {
+	return m.ov.Loading || m.ini.Running || len(m.jobs) > 0 || m.kn.Busy()
+}
+
+// ensureKnowledge nạp danh sách tri thức lần đầu khi người dùng tới tab Tri thức.
+func (m *Model) ensureKnowledge() tea.Cmd {
+	if m.Screen() != actions.Knowledge || m.kn.Loaded || m.kn.Loading {
+		return nil
+	}
+	return tea.Batch(m.kn.Load(), m.startTick())
+}
 
 // startTick bắt đầu chuỗi tick của vòng quay nếu chưa chạy.
 func (m *Model) startTick() tea.Cmd {
@@ -205,10 +238,67 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case overview.NavMsg:
 		m.goTo(msg.Screen)
+		if msg.Screen == actions.Knowledge && msg.Filter != nil {
+			return m, tea.Batch(m.kn.Focus(*msg.Filter), m.startTick())
+		}
+		return m, m.ensureKnowledge()
+	case knscreen.LoadedMsg, knscreen.DetailMsg, actions.DeniedMsg:
+		return m, tea.Batch(m.kn.Update(msg), m.tickIfBusy())
+	case actions.RequestMsg:
+		return m.request(msg)
+	case actions.CancelMsg:
+		if cancel := m.jobs[msg.ID]; cancel != nil {
+			cancel()
+		}
+	case actions.ExecMsg:
+		id, opts := msg.ID, msg.Opts
+		return m, tea.ExecProcess(msg.Cmd, func(err error) tea.Msg { return actions.ResultMsg{ID: id, Opts: opts, Err: err} })
+	case actions.ResultMsg:
+		if cancel := m.jobs[msg.ID]; cancel != nil {
+			cancel()
+			delete(m.jobs, msg.ID)
+		}
+		cmds := []tea.Cmd{m.kn.Update(msg)}
+		if a, ok := m.reg.ByID(msg.ID); ok && a.Writes && msg.Err == nil {
+			cmds = append(cmds, m.load()) // số việc chờ ở Tổng quan và huy hiệu tab đổi theo thao tác ghi
+		}
+		return m, tea.Batch(append(cmds, m.tickIfBusy())...)
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	}
 	return m, nil
+}
+
+// tickIfBusy bắt đầu chuỗi tick của vòng quay nếu có việc nền.
+func (m *Model) tickIfBusy() tea.Cmd {
+	if m.busy() {
+		return m.startTick()
+	}
+	return nil
+}
+
+// request xử lý yêu cầu chạy hành động có tham số của một màn hình: tra sổ (chế độ chỉ đọc ẩn, phiên agent
+// khoá) rồi mới gọi Action.Do trong tea.Cmd với context huỷ được. Sổ là nơi duy nhất quyết định (mục 7.4).
+func (m *Model) request(r actions.RequestMsg) (tea.Model, tea.Cmd) {
+	a, ok := m.reg.ByID(r.ID)
+	if !ok || a.Do == nil {
+		return m, nil
+	}
+	switch a.Check(m.mode()) {
+	case actions.Hidden:
+		m.kn.Update(actions.DeniedMsg{ID: r.ID})
+		return m, nil
+	case actions.Locked:
+		m.kn.Update(actions.DeniedMsg{ID: r.ID, Locked: true})
+		return m, nil
+	}
+	if _, running := m.jobs[r.ID]; running {
+		return m, nil
+	}
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.jobs[r.ID] = cancel
+	env, do, opts := m.env(), a.Do, r.Opts
+	return m, tea.Batch(func() tea.Msg { return do(ctx, env, opts) }, m.startTick())
 }
 
 func (m *Model) goTo(s actions.Screen) {
@@ -236,6 +326,20 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.Screen() == actions.Knowledge {
+		switch {
+		case m.kn.Capturing():
+			cmd, _ := m.kn.Key(msg)
+			return m, tea.Batch(cmd, m.tickIfBusy())
+		case (s == "ctrl+c" || s == "esc") && m.kn.WantsInterrupt():
+			cmd, _ := m.kn.Key(msg)
+			return m, cmd
+		case !globalKey(s):
+			if cmd, ok := m.kn.Key(msg); ok {
+				return m, tea.Batch(cmd, m.tickIfBusy())
+			}
+		}
+	}
 	switch s {
 	case "ctrl+c", "q":
 		return m.run("app.quit")
@@ -252,8 +356,12 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "1", "2", "3", "4", "5", "6", "7":
 		return m.run(actions.NavID(actions.Screens[int(s[0]-'1')]))
 	}
-	// Phím riêng của màn hình hiện tại: tra sổ hành động theo phím, rồi chuyển cho màn hình.
+	// Phím riêng của màn hình hiện tại: tra sổ hành động theo phím, rồi chuyển cho màn hình. Màn Tri thức
+	// tự xử lý phím của nó ở trên (phân biệt hoa/thường: a ≠ A).
 	for _, a := range m.reg.For(m.Screen(), m.mode()) {
+		if m.Screen() == actions.Knowledge {
+			break
+		}
 		if a.Screen != actions.Global && a.Key != "" && strings.EqualFold(a.Key, s) && m.applicable(a) {
 			return m.run(a.ID)
 		}
@@ -264,6 +372,15 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	return m, nil
+}
+
+// globalKey: phím toàn cục mà màn hình không được chiếm (điều hướng tab, thoát, trợ giúp, bảng lệnh, ngôn ngữ).
+func globalKey(s string) bool {
+	switch s {
+	case "q", "ctrl+c", "?", ":", "ctrl+k", "L", "[", "]", "left", "right", "shift+tab", "1", "2", "3", "4", "5", "6", "7":
+		return true
+	}
+	return false
 }
 
 func (m *Model) paletteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -330,8 +447,10 @@ func (m *Model) run(id string) (tea.Model, tea.Cmd) {
 		m.cycleLanguage()
 	case "app.next_tab":
 		m.tab = (m.tab + 1) % len(actions.Screens)
+		return m, m.ensureKnowledge()
 	case "app.prev_tab":
 		m.tab = (m.tab - 1 + len(actions.Screens)) % len(actions.Screens)
+		return m, m.ensureKnowledge()
 	case "overview.refresh", "overview.doctor", "init.recheck":
 		return m, m.load()
 	case "init.continue":
@@ -345,8 +464,14 @@ func (m *Model) run(id string) (tea.Model, tea.Cmd) {
 		ctx, env, run := m.ctx, m.env(), a.Run
 		return m, tea.Batch(func() tea.Msg { return run(ctx, env) }, m.startTick())
 	default:
-		if strings.HasPrefix(id, "nav.") {
+		switch {
+		case strings.HasPrefix(id, "nav."):
 			m.goTo(actions.Screen(strings.TrimPrefix(id, "nav.")))
+			return m, m.ensureKnowledge()
+		case ok && a.Screen == actions.Knowledge: // chọn từ bảng lệnh: tới màn Tri thức rồi thực hiện
+			m.goTo(actions.Knowledge)
+			cmd := m.kn.Command(id)
+			return m, tea.Batch(cmd, m.ensureKnowledge(), m.tickIfBusy())
 		}
 	}
 	return m, nil
@@ -359,6 +484,7 @@ func (m *Model) cycleLanguage() {
 		next = i18n.English
 	}
 	m.cat = i18n.MustLoad(next)
+	m.kn.SetEnv(m.th, m.cat)
 }
 
 // applicable cho biết hành động có dùng được ở trạng thái hiện tại không, ngoài kiểm tra theo Mode.
@@ -409,10 +535,16 @@ func (m *Model) groupName(s actions.Screen) string {
 // Hints trả các phím của chân phím theo ngữ cảnh hiện tại, chưa lọc theo độ rộng. Thứ tự hiển thị:
 // phím riêng của màn hình, rồi phím toàn cục, cuối cùng các phím ghim (trợ giúp, thoát).
 func (m *Model) Hints() []footer.Hint {
+	if m.Screen() == actions.Knowledge && m.kn.Capturing() {
+		return []footer.Hint{{Key: "Esc", Label: m.cat.T("kn.hint.leave"), Pinned: true}}
+	}
 	var screen, global, pinned []footer.Hint
 	for _, a := range m.reg.For(m.Screen(), m.mode()) {
 		if !a.Footer || a.Check(m.mode()) != actions.Available || !m.applicable(a) {
 			continue
+		}
+		if m.Screen() == actions.Knowledge && m.kn.NotList() && !a.Pinned && a.Screen != actions.Global {
+			continue // thẻ phụ có phím riêng ở viền dưới khung kết quả
 		}
 		h := footer.Hint{Key: a.Key, Label: m.cat.T(a.LabelKey), Priority: a.Priority, Pinned: a.Pinned}
 		switch {
@@ -517,8 +649,10 @@ func (m *Model) screenBody(env ui.Env) string {
 		return ini.View(env)
 	case actions.Overview:
 		return m.ov.View(env)
+	case actions.Knowledge:
+		return m.kn.View(env)
 	default:
-		return placeholder.View(env, s)
+		return placeholder.View(env, s, m.ov.Data.ForScreen(s))
 	}
 }
 

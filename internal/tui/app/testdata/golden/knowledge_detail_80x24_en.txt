@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Knowledge (3) │ Tk │ Rn │ Ev │ Evo │ Sy                                 │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Knowledge│──────────────────────────────────────────────────────────────────┐
+│  ‹  List  1/8 ›                                                              │
+│ ┌─│Details│────────────────────────────────────────────────────────1-16/20─┐ │
+│ │ 01KNOW000002                                                             │ │
+│ │ ◌ warning · candidate · agent ⚑                                          │ │
+│ │ Không gọi sql.Open trực tiếp                                             │ │
+│ │ Scope        internal/db/**                                              │ │
+│ │ Symbols/tags nguon:lo-thu                                                │ │
+│ │ Origin       agent ⚑ (Tester <t@example.com>, 2026-11-11T00:00:00Z)      │ │
+│ │ File         /work/demo/.bint/knowledge/items/01KNOW000002.md            │ │
+│ │                                                                          │ │
+│ │ ── Content ───────────────────────────────────────────────────────────── │ │
+│ │ Nội dung của mục Không gọi sql.Open trực tiếp.                           │ │
+│ │ Dòng thứ hai của nội dung.                                               │ │
+│ │                                                                          │ │
+│ │ ── Evidence ──────────────────────────────────────────────────────────── │ │
+│ │ internal/db/db.go:40-52                                                  │ │
+│ │   │   40  func Open() {                                                  │ │
+│ │   │   41      return nil                                                 │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[a→ Approve] [r→ Reject] [Enter→ Open] [q→ Quit] [?→ Help]───────────────────┘

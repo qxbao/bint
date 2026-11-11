@@ -24,8 +24,10 @@ import (
 // Data là dữ liệu của màn Tổng quan.
 type Data struct {
 	Status *app.StatusReport // nil nếu chưa init
-	Doctor *app.DoctorReport
-	// Candidates là số mục tri thức chờ duyệt (candidate + stale).
+	// Doctor là báo cáo doctor đầy đủ (để đếm); Pending là mọi việc đang chờ người (hộp thư).
+	Doctor  *app.DoctorReport
+	Pending *app.PendingWorkReport
+	// Candidates là số mục tri thức chờ duyệt (candidate + stale): số trên tab Tri thức.
 	Candidates int
 	// NotInit: repository chưa `bint init` (hiện màn khởi tạo thay cho bảng điều khiển).
 	NotInit bool
@@ -38,25 +40,95 @@ type Inbox struct {
 	Count  int
 	Detail string
 	Target actions.Screen
+	// Filter: bộ lọc đặt sẵn ở màn Tri thức (chỉ với Target = Knowledge).
+	Filter *knowledge.Filter
+	// Commands là lệnh CLI xử lý từng việc của dòng (hiện ở trang giữ chỗ của tab chưa làm).
+	Commands []string
 }
 
-// Inbox dựng danh sách việc cần người xử lý từ dữ liệu hiện có.
+const maxTaskRows = 5
+
+// sourceTarget là tab xử lý lỗi đọc của từng nguồn.
+var sourceTarget = map[string]actions.Screen{
+	app.PendingSrcKnowledge: actions.Knowledge, app.PendingSrcComponents: actions.System, app.PendingSrcTasks: actions.Tasks,
+	app.PendingSrcProposals: actions.Evolve, app.PendingSrcEval: actions.Eval, app.PendingSrcDoctor: actions.System,
+}
+
+// Inbox dựng danh sách việc cần người xử lý từ sáu nguồn của mục 4.3.1: tri thức chờ duyệt (một dòng mỗi
+// lô nguon:*, phần còn lại một dòng), thành phần harness candidate, tác vụ blocked, đề xuất tiến hoá,
+// ứng viên đánh giá và cảnh báo/lỗi doctor; nguồn đọc lỗi thành một dòng lỗi riêng.
 func (d Data) Inbox() []Inbox {
+	p := d.Pending
+	if p == nil {
+		return nil
+	}
 	var out []Inbox
-	if d.Candidates > 0 {
-		out = append(out, Inbox{Level: "info", Key: "overview.inbox.knowledge", Count: d.Candidates, Target: actions.Knowledge})
+	pend := []string{knowledge.StatusCandidate, knowledge.StatusStale}
+	for _, b := range p.KnowledgeBatches {
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.batch", Count: b.Count(), Detail: b.Tag, Target: actions.Knowledge,
+			Filter: &knowledge.Filter{Statuses: pend, Batch: b.Tag}})
 	}
-	if d.Status != nil && d.Status.PendingProposals > 0 {
-		out = append(out, Inbox{Level: "info", Key: "overview.inbox.evolve", Count: d.Status.PendingProposals, Target: actions.Evolve})
+	if p.KnowledgeOther > 0 {
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.knowledge", Count: p.KnowledgeOther, Target: actions.Knowledge,
+			Filter: &knowledge.Filter{Statuses: pend, NoBatch: true}})
 	}
-	if d.Doctor != nil {
-		for _, c := range d.Doctor.Checks {
-			switch c.Level {
-			case app.LevelFail:
-				out = append(out, Inbox{Level: "fail", Key: "overview.inbox.doctor_fail", Detail: c.Name + ": " + c.Detail, Target: actions.System})
-			case app.LevelWarn:
-				out = append(out, Inbox{Level: "warn", Key: "overview.inbox.doctor_warn", Detail: c.Name + ": " + c.Detail, Target: actions.System})
-			}
+	if n := len(p.Components); n > 0 {
+		in := Inbox{Level: "info", Key: "overview.inbox.components", Count: n, Target: actions.System}
+		for _, c := range p.Components {
+			in.Commands = append(in.Commands, "bint harness component approve "+c.ID)
+		}
+		out = append(out, in)
+	}
+	for i, t := range p.BlockedTasks {
+		if i == maxTaskRows {
+			out = append(out, Inbox{Level: "info", Key: "overview.inbox.tasks_more", Count: len(p.BlockedTasks) - maxTaskRows, Target: actions.Tasks,
+				Commands: []string{"bint task list"}})
+			break
+		}
+		detail := t.Goal
+		if detail == "" {
+			detail = t.ID
+		}
+		out = append(out, Inbox{Level: "warn", Key: "overview.inbox.task", Detail: detail, Target: actions.Tasks,
+			Commands: []string{"bint task show " + t.ID}})
+	}
+	if n := len(p.Proposals); n > 0 {
+		in := Inbox{Level: "info", Key: "overview.inbox.evolve", Count: n, Target: actions.Evolve}
+		for _, e := range p.Proposals {
+			in.Commands = append(in.Commands, "bint evolve show "+e.ID)
+		}
+		out = append(out, in)
+	}
+	if n := len(p.EvalCandidates); n > 0 {
+		in := Inbox{Level: "info", Key: "overview.inbox.eval", Count: n, Target: actions.Eval}
+		for _, id := range p.EvalCandidates {
+			in.Commands = append(in.Commands, "bint eval show "+id)
+		}
+		out = append(out, in)
+	}
+	for _, c := range p.Doctor {
+		in := Inbox{Level: "warn", Key: "overview.inbox.doctor_warn", Detail: c.Name + ": " + c.Detail, Target: actions.System, Commands: []string{"bint doctor"}}
+		if c.Level == app.LevelFail {
+			in.Level, in.Key = "fail", "overview.inbox.doctor_fail"
+		}
+		if strings.Contains(c.Detail, "init --update") {
+			in.Commands = append(in.Commands, "bint init --update")
+		}
+		out = append(out, in)
+	}
+	for _, e := range p.Errors {
+		out = append(out, Inbox{Level: "fail", Key: "overview.inbox.source_error", Detail: e.Source + ": " + e.Err.Error(),
+			Target: sourceTarget[e.Source], Commands: []string{"bint doctor"}})
+	}
+	return out
+}
+
+// ForScreen trả các dòng hộp thư của tab s (trang giữ chỗ liệt kê việc đang chờ ở tab chưa làm).
+func (d Data) ForScreen(s actions.Screen) []Inbox {
+	var out []Inbox
+	for _, in := range d.Inbox() {
+		if in.Target == s {
+			out = append(out, in)
 		}
 	}
 	return out
@@ -77,7 +149,6 @@ func LoadNoIngest(ctx context.Context, dir string) (Data, error) { return load(c
 
 func load(ctx context.Context, dir string, ingest bool) (Data, error) {
 	var d Data
-	d.Doctor = app.Doctor(ctx, dir)
 	status := app.Status
 	if !ingest {
 		status = app.StatusNoIngest
@@ -86,20 +157,24 @@ func load(ctx context.Context, dir string, ingest bool) (Data, error) {
 	switch {
 	case errors.Is(err, app.ErrNotInitialized):
 		d.NotInit = true
+		d.Doctor = app.Doctor(ctx, dir)
+		return d, nil
+	case err != nil:
+		d.Doctor = app.Doctor(ctx, dir)
+		return d, err
+	}
+	d.Status = st
+	// Hộp thư đọc sáu nguồn, mỗi nguồn lỗi riêng; chỉ lỗi mở repository mới làm hỏng cả lần nạp.
+	p, err := app.PendingWork(ctx, dir)
+	switch {
+	case errors.Is(err, app.ErrNotInitialized):
+		d.NotInit, d.Status = true, nil
 		return d, nil
 	case err != nil:
 		return d, err
 	}
-	d.Status = st
-	if k, err := app.OpenKnowledge(ctx, dir); err == nil {
-		if items, _, err := k.Items(); err == nil {
-			for _, it := range items {
-				if it.Status == knowledge.StatusCandidate || it.Status == knowledge.StatusStale {
-					d.Candidates++
-				}
-			}
-		}
-	}
+	d.Pending, d.Doctor = p, p.DoctorAll
+	d.Candidates = p.KnowledgeTotal()
 	return d, nil
 }
 
@@ -111,8 +186,11 @@ func LoadCmd(ctx context.Context, dir string) tea.Cmd {
 	}
 }
 
-// NavMsg yêu cầu chuyển sang một tab.
-type NavMsg struct{ Screen actions.Screen }
+// NavMsg yêu cầu chuyển sang một tab; Filter (nếu có) là bộ lọc đặt sẵn cho màn Tri thức.
+type NavMsg struct {
+	Screen actions.Screen
+	Filter *knowledge.Filter
+}
 
 // Model là trạng thái màn Tổng quan.
 type Model struct {
@@ -145,8 +223,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "enter":
 			if in := m.Data.Inbox(); m.Cursor < len(in) {
-				t := in[m.Cursor].Target
-				return m, func() tea.Msg { return NavMsg{Screen: t} }
+				nav := NavMsg{Screen: in[m.Cursor].Target, Filter: in[m.Cursor].Filter}
+				return m, func() tea.Msg { return nav }
 			}
 		}
 	}
@@ -185,7 +263,7 @@ func (m Model) View(env ui.Env) string {
 	add(center(m.infoBox(env))...)
 	add("")
 
-	// Hộp thư "Việc cần bạn".
+	// Hộp thư "Việc cần bạn": cửa sổ cuộn quanh dòng đang chọn khi nhiều hơn chỗ trống (còn chỗ cho dòng doctor).
 	inbox := m.Data.Inbox()
 	head := th.Bold(env.T("overview.inbox.title"))
 	if len(inbox) > 0 {
@@ -195,7 +273,14 @@ func (m Model) View(env ui.Env) string {
 	if len(inbox) == 0 {
 		add("  " + th.S(theme.OK, "✓ ") + th.S(theme.Muted, env.T("overview.inbox.empty")))
 	}
-	for i, in := range inbox {
+	room := max(env.H-len(lines)-3, 3) // chừa dòng trống, dòng doctor và một dòng báo "còn n dòng"
+	from := 0
+	if len(inbox) > room {
+		from = max(0, min(m.Cursor-room/2, len(inbox)-room))
+	}
+	to := min(from+room, len(inbox))
+	for i := from; i < to; i++ {
+		in := inbox[i]
 		icon, role := "◌", theme.Accent
 		switch in.Level {
 		case "warn":
@@ -213,6 +298,9 @@ func (m Model) View(env ui.Env) string {
 		} else {
 			add("  " + th.S(role, icon) + " " + body + gap + th.S(theme.Muted, right))
 		}
+	}
+	if len(inbox) > to-from {
+		add("  " + th.S(theme.Muted, env.T("overview.inbox.window", map[string]any{"from": from + 1, "to": to, "total": len(inbox)})))
 	}
 	add("")
 

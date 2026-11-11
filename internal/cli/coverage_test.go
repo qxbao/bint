@@ -194,6 +194,18 @@ func checkCoverage(root *cobra.Command, cov actions.Coverage, reg *actions.Regis
 		}
 	}
 
+	// Giai đoạn đã xong thì không còn mục chưa làm của giai đoạn đó (hay trước đó).
+	for p, ph := range cov.Pending {
+		if ph <= phase {
+			bad("Pending[%q] = %d nhưng giai đoạn %d đã xong: lệnh phải có hành động hoặc nằm trong Excluded", p, ph, phase)
+		}
+	}
+	for key, ph := range cov.PendingFlags {
+		if ph <= phase {
+			bad("PendingFlags[%q] = %d nhưng giai đoạn %d đã xong: cờ phải có trường Options hoặc nằm trong ExcludedCmdFlags", key, ph, phase)
+		}
+	}
+
 	// Danh sách chưa làm chỉ được thu nhỏ; giai đoạn 6 đòi nó rỗng.
 	total := len(cov.Pending) + len(cov.PendingFlags)
 	if total > cov.PendingCeiling {
@@ -294,7 +306,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("lệnh nằm trong hai nhóm", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.Excluded["knowledge add"] = "lý do"
-		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint knowledge add` nằm trong nhiều nhóm") {
+		if p := check(NewRoot(IO{}), cov, serviceBindings, 1); !mentions(p, "`bint knowledge add` nằm trong nhiều nhóm") {
 			t.Fatalf("%v", p)
 		}
 		cov = clone(actions.Data)
@@ -306,7 +318,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("thiếu lý do và giai đoạn sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.Excluded["tui"] = ""
-		cov.Pending["knowledge add"] = 9
+		cov.Pending["task new"] = 9
 		cov.ExcludedFlags["--json"] = ""
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`Excluded["tui"] thiếu lý do`, "giai đoạn phải từ 1 đến 6", `ExcludedFlags["--json"] thiếu lý do`} {
@@ -328,8 +340,8 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("PendingFlags sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.PendingFlags["init --nope"] = 5
-		cov.PendingFlags["knowledge add --title"] = 1 // lệnh chưa có hành động/dịch vụ
-		cov.PendingFlags["eval run --budget"] = 4     // cờ đã có trường Options
+		cov.PendingFlags["task new --goal"] = 2   // lệnh chưa có hành động/dịch vụ
+		cov.PendingFlags["eval run --budget"] = 4 // cờ đã có trường Options
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`"init --nope" nhưng lệnh không còn cờ này`, "cờ nằm trong Pending của lệnh", "vừa có trường Options vừa nằm trong danh sách"} {
 			if !mentions(p, want) {
@@ -344,6 +356,34 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 			t.Fatalf("%v", p)
 		}
 		if p := check(NewRoot(IO{}), actions.Data, serviceBindings, 6); !mentions(p, "giai đoạn 6 đòi danh sách chưa làm rỗng") {
+			t.Fatalf("%v", p)
+		}
+	})
+	t.Run("Pending còn mục của giai đoạn đã xong", func(t *testing.T) {
+		cov := clone(actions.Data)
+		cov.Pending["task new"] = actions.CurrentPhase
+		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["task new"]`) {
+			t.Fatalf("%v", p)
+		}
+		cov = clone(actions.Data)
+		cov.PendingFlags["init --force"] = actions.CurrentPhase
+		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `PendingFlags["init --force"]`) {
+			t.Fatalf("%v", p)
+		}
+	})
+	t.Run("bỏ thẻ flag của một trường AddOptions", func(t *testing.T) {
+		type addNoTags struct {
+			Type string `flag:"type"`
+		}
+		var list []actions.Action
+		for _, a := range reg.All() {
+			if a.ID == "knowledge.add" {
+				a.Options = addNoTags{}
+			}
+			list = append(list, a)
+		}
+		p := checkCoverage(NewRoot(IO{}), actions.Data, actions.NewRegistry(list), serviceBindings, actions.CurrentPhase)
+		if !mentions(p, "cờ --paths của `bint knowledge add`") || !mentions(p, "cờ --evidence của `bint knowledge add`") {
 			t.Fatalf("%v", p)
 		}
 	})

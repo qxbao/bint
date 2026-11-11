@@ -1,8 +1,8 @@
 # Kế hoạch TUI cho Bint
 
-Trạng thái: **giai đoạn 0 đã triển khai** (2026-11-11); các giai đoạn 1–6 chưa làm. Kế hoạch đề
+Trạng thái: **giai đoạn 0 và 1 đã triển khai** (2026-11-11); các giai đoạn 2–6 chưa làm. Kế hoạch đề
 xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
-và những chỗ lệch so với kế hoạch ở mục 12.
+và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1).
 
 ## 1. Mục tiêu
 
@@ -429,7 +429,7 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 | GĐ | Nội dung | Xong khi |
 |---|---|---|
 | 0 ✅ | Tách tầng dịch vụ cho `knowledge review`, `eval`, `evolve` (cycle, apply, report) khỏi `internal/cli`; đưa kiểm tra chỉ-dành-cho-người, ràng buộc cờ (`Options.Validate`), giá trị mặc định (`Defaults`) và lời hỏi `confirm()` xuống `app`. Khung TUI: theme, khung viền tự vẽ, tab, chân phím theo ưu tiên, bảng lệnh, sổ hành động, `internal/i18n` (vi, en) và khoá `ui.language`, test phủ lệnh + cờ với danh sách chưa làm. **Màn Tổng quan mẫu** + trang trưng bày + kịch bản VHS; màn tạm "Khởi tạo với mặc định" cho repo chưa `init`. | CLI chạy lại toàn bộ test không đổi hành vi; `bint` mở khung 7 tab, đổi `vi`/`en` được; chủ dự án duyệt ảnh màn mẫu và chốt bảng màu. |
-| 1 | Tổng quan + hộp thư; Tri thức đầy đủ, gồm duyệt theo lô và lọc theo `nguon:*`. | Duyệt 30 mục từ một lần `/b-knowledge` trong < 1 phút, không gõ lệnh. |
+| 1 ✅ | Tổng quan + hộp thư; Tri thức đầy đủ, gồm duyệt theo lô và lọc theo `nguon:*`. | Duyệt 30 mục từ một lần `/b-knowledge` trong < 1 phút, không gõ lệnh. |
 | 2 | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
 | 3 | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
 | 4 | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
@@ -557,6 +557,88 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
 - **Chưa tách** (ngoài phạm vi AC-6): kiểm `InAgentSession` của `task approve`, `runs rate` còn ở CLI.
 - **Chưa có**: chuột, chế độ hẹp đầy đủ, hành động ghi nào trong sổ ngoài "Khởi tạo với mặc định" (nên chế độ
   `--read-only` mới chỉ có cơ chế và ẩn hành động ghi đó), `bubblezone`, `teatest` (golden dùng `View()` của mô
-  hình), các màn hình của giai đoạn 1–6. Danh sách chưa làm ở `internal/tui/actions/coverage.go`
-  (`PendingCeiling = 96`); giảm trần mỗi khi xoá mục.
+  hình), các màn hình của giai đoạn 2–6 (giai đoạn 1: xem 12.3). Danh sách chưa làm ở
+  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1).
 
+### 12.3 Giai đoạn 1 (đã xong, 2026-11-11)
+
+Mốc "xong": duyệt 30 mục của một lần `/b-knowledge` (cùng nhãn `nguon:<lô>`) không gõ chữ. Kiểm bằng
+`TestMilestoneApproveThirtyItemsFromInbox` (`internal/tui/app`): repo tạm `app.Init` + 30 mục `origin: agent` bên thứ
+ba gắn `nguon:lo-thu` + 1 mục lỗi bằng chứng cùng lô; **3 phím** (Enter trên dòng lô ở hộp thư → `A` → Enter) đưa 30 mục
+thành verified, mục lỗi vẫn candidate. Chạy thật binary dưới pty cũng cho kết quả đó (6 mục). Thời gian "< 1 phút" với
+người thật chưa đo được tự động (test chỉ đo số phím).
+
+**Tầng dịch vụ** (`internal/app`): `knowledge list/show/add/rm/verify/approve/reject/deprecate/search/stats/diff/
+revalidate`, `inspect`, `bootstrap`, `bootstrap skill`, `context` đều có kiểu `Options` (thẻ `flag`, `arg`, `form`),
+`Validate()` và `Defaults(cfg)`; CLI chỉ còn phân tích cờ và in văn bản. Mới: `knowledge.Filter` (bộ lọc thuần dùng chung
+CLI/TUI, gồm nhãn lô `nguon:*` và đường dẫn theo `Scope.MatchScope`), `PlanBatch`/`ReviewBatch` (lô: `RequireHuman` →
+loại mục có finding mức error → `ReviewKnowledge`), `PendingWork` (hộp thư, sáu nguồn, lỗi từng nguồn tách riêng và trả
+luôn báo cáo doctor đầy đủ để Tổng quan không chạy doctor hai lần), `EditorArgv`, `TrackedFiles`. Mọi thao tác chỉ dành
+cho người kiểm `InAgentSession` ở dịch vụ (test gọi thẳng `Action.Do` với `CLAUDECODE=1` nhận `ErrAgentForbidden`).
+
+**Component** (`internal/tui/components`): `input` (ô nhập một/nhiều dòng, gợi ý mờ), `list` (danh sách ảo + tập chọn),
+`viewer` (cuộn, tô diff), `confirm` (xác nhận/nhập lý do), `form` (sinh bằng phản xạ từ `Options`: kiểu, nhóm Nâng cao,
+ẩn, bắt buộc, lựa chọn, gợi ý, `Validate` khi gửi tại đúng ô, dòng lệnh CLI tương đương, `Ctrl+Y` chép). Có trong gallery.
+
+**Sổ hành động**: `Action.Do`, `RequestMsg`/`ResultMsg`/`DeniedMsg`/`ExecMsg`/`CancelMsg`; mô hình gốc tra sổ (`Check`) rồi mới
+gọi `Do` với context huỷ được (`jobs`). `Action.FormID` cho các hành động dùng chung `Options` dùng chung nhãn. `CurrentPhase = 1`,
+`PendingCeiling = 78` (gỡ 19 mục lệnh, thêm `PendingFlags["knowledge add --from-review"] = 2`; `knowledge add --body-file`
+vào `ExcludedCmdFlags`). Test phủ có thêm ca ngược: Pending còn mục của giai đoạn đã xong → đỏ; bỏ thẻ `flag` của
+`AddOptions` → đỏ. Test i18n buộc mọi trường của mọi `Options` có nhãn `form.<ID>.<cờ|đối số>` ở vi và en.
+
+**Màn Tri thức** (`internal/tui/screens/knowledge`): danh sách + chi tiết (≥ 100 cột hai khung; hẹp một khung, `Tab`/`Enter`
+đổi), lọc (`/` chữ, `F` form: trạng thái, loại, nguồn, ⚑, lô `nguon:*`, đường dẫn), duyệt `a`/`f`/`r`/`d`, chọn `x`/`X`, lô
+`A`/`R` (hộp xác nhận nêu số mục và liệt kê mục bị loại), sửa `e` (`tea.ExecProcess`), thêm `n`, xoá `Del`, kiểm tra `v`
+(`--apply` chỉ người), bảng chuyển `T`, làm mới `Ctrl+R`; tám thẻ phụ (`,` `.`): Danh sách, Tìm kiếm, Thống kê (không
+nạp spool ở `--read-only`), Thay đổi, Thẩm định lại (việc nền, xác nhận ngân sách, `Esc` huỷ context), Xuất bản AGENTS.md,
+Khảo sát (`inspect`/`bootstrap`/`bootstrap skill`, `m` đổi), Ngữ cảnh. Chi tiết/bằng chứng nạp lười (kiểm tra chỉ mục đang
+xem); danh sách chỉ vẽ hàng trong vùng nhìn (test 5 000 mục). Lỗi dịch vụ đã biết dịch qua khoá (`err.*`), mã finding
+(`finding.*`) và điều kiện chuyển trạng thái (`transition.<chỉ số>`, test khớp số dòng bảng) dịch; chi tiết khác hiện nguyên
+văn kèm nhãn "chi tiết kỹ thuật".
+
+**Hộp thư** (Tổng quan): một dòng mỗi lô `nguon:*`, một dòng tri thức còn lại, thành phần harness, mỗi tác vụ blocked một
+dòng (tối đa 5), đề xuất, ứng viên đánh giá, từng cảnh báo/lỗi doctor, và một dòng lỗi cho mỗi nguồn đọc hỏng; cuộn quanh dòng
+đang chọn khi nhiều. Enter trên dòng tri thức mở màn Tri thức với bộ lọc chờ duyệt (+ nhãn lô nếu là dòng lô); dòng thuộc tab
+chưa làm mở trang giữ chỗ liệt kê việc đang chờ kèm lệnh CLI (`bint task show <id>`, `bint harness component approve <id>`...).
+
+**Chỗ lệch so với kế hoạch (người duyệt có thể đổi)**
+
+- **Phím**: ở màn Tri thức `Tab` đổi khung (mục 4.3.8), ở Tổng quan vẫn đổi tab; `[` `]` `1-7` luôn đổi tab; `q` `?` `:` `L`
+  `Ctrl+C` không bị màn hình chiếm, trừ khi màn đang nhận chữ (ô lọc, form, hộp thoại, form thẻ phụ): khi đó mọi phím vào ô nhập,
+  `Esc` thoát (đang chạy việc nền của thẻ phụ thì `Esc`/`Ctrl+C` huỷ việc). Làm mới là `Ctrl+R` (`r` là từ chối, như mục 5.2).
+- **Giao diện `Screen`** chưa tách: mô hình gốc giữ trực tiếp màn Tri thức (và Tổng quan/Khởi tạo như cũ); tách khi giai đoạn 2
+  thêm màn thứ hai, lúc đó có nhu cầu chung thật.
+- **Xuất bản AGENTS.md hai bước** (xem trước → `w` → xác nhận). Không có kênh/hộp thoại do dịch vụ gọi ngược (hạ tầng đó thuộc
+  giai đoạn 2); thay vào đó bước ghi truyền `PublishOptions.Confirm` đồng bộ so `req.Detail` với diff đã xem và **không đặt `Yes`**:
+  khác thì dịch vụ không ghi, thẻ hiện cảnh báo kèm diff mới để xem lại rồi `w` lần nữa. `w` bị chặn khi bản xem trước báo không
+  có thay đổi (và sau khi đã ghi). `--force` mở hộp màu đỏ nêu rõ kiểm tra bị bỏ qua.
+- **Ngữ cảnh không ghi nhận lượt truy xuất**: hành động `context` là chỉ-đọc (`Writes=false`) nên đặt `ContextOptions.NoTrack`
+  (bỏ `BINT_SESSION_ID`, không ghi spool/bộ nhớ phiên); ô Session không có trong form TUI.
+- **Lý do từ chối mặc định** là hằng `app.DefaultRejectReason` dùng chung CLI và TUI (ghi vào tệp mục nên không theo ngôn ngữ giao
+  diện); i18n chỉ dùng cho gợi ý mờ của ô nhập.
+- **Chi tiết mục** dựng từ danh sách đã nạp và không gian tri thức mở lúc nạp (`Data.WS` + `DetailOf`), không đọc lại cả kho mỗi lần
+  con trỏ dời. Dòng "… còn N dòng" của trích đoạn bằng chứng là `EvidenceView.More`, mỗi bên tự định dạng theo ngôn ngữ.
+- **Dòng hộp thư "không thuộc lô nào"** mở bộ lọc có `Filter.NoBatch`, nên danh sách và lô lập bằng `A` khớp đúng số ở dòng đó.
+  `PendingWork` báo lỗi nguồn tác vụ cả khi còn tác vụ đọc được (kèm số tệp hỏng).
+- **Bằng chứng/phạm vi**: ô nhập có gợi ý mờ từ tệp được Git theo dõi (`→` hoàn tất), không có trình duyệt cây tệp (giai đoạn 6/sau).
+- **`knowledge add --from-review`** chờ danh sách phát hiện review của màn Tác vụ (giai đoạn 2): `PendingFlags` còn mục này.
+- **Duyệt hàng loạt chặn cả mục stale chỉ lỗi fingerprint** (như CLI bắt `approve --refresh` sau khi xem): duyệt từng mục bằng `f`.
+- **Mục có finding mức cảnh báo** (không phải error) vẫn vào lô duyệt; chỉ mức error bị loại.
+- **Thẩm định lại/Khảo sát/Xuất bản/Ngữ cảnh** chạy qua form của thẻ phụ, kết quả cuộn trong khung dưới; Thống kê và Thay đổi tự chạy
+  khi mở thẻ lần đầu.
+- **Đổi nhỏ về hành vi CLI**: không có (các ca mã thoát 2 của `add`/`reject`/`context` có test mới; `bootstrap` vẫn in phần đã làm
+  trước khi báo lỗi cài skill, kể cả khi chưa có mục tri thức nào: `BootstrapReport.ItemsRead`). Hai ca CLI **cố ý không** gọi
+  `Validate()` để giữ mã thoát cũ (có test `TestKnowledgeLegacyExitCodesKept`): `knowledge revalidate --budget < 0` (agent lệnh
+  vẫn chạy; Claude Code trả `ErrNoBudget`, mã 1) và `knowledge search` chuỗi trắng (in "Không tìm thấy.", mã 0). Form TUI vẫn
+  kiểm tra hai ca này khi nhập.
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app ./internal/tui/gallery -update    # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước)
+vhs internal/tui/testdata/vhs/knowledge.tape                 # 80×24; knowledge-wide.tape cho 140×40
+```
+
+**Chưa kiểm được tự động**: ảnh PNG VHS (môi trường không có `vhs`; `.tape` mới chỉ qua kiểm cú pháp sơ bộ và phần dựng repo ẩn đã
+chạy tay), cảm nhận thẩm mỹ, thời gian thật "< 1 phút" với người, `$EDITOR` thật (test thay bằng hàm giả; `tea.ExecProcess` chưa
+chạy trong test).

@@ -97,16 +97,11 @@ xem lại (mục 15.5); mục của chính bạn bị ẩn trừ khi có --all.`
 			if len(args) == 1 {
 				rng = args[0]
 			}
-			entries, rng, err := app.KnowledgeDiff(cmd.Context(), k, rng)
+			rep, err := app.DiffKnowledge(cmd.Context(), k, app.DiffOptions{Range: rng, All: all})
 			if err != nil {
 				return err
 			}
-			var shown []app.DiffEntry
-			for _, e := range entries {
-				if all || !e.Mine {
-					shown = append(shown, e)
-				}
-			}
+			shown, rng := rep.Entries, rep.Range
 			if asJSON {
 				if shown == nil {
 					shown = []app.DiffEntry{}

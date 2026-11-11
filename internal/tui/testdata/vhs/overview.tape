@@ -52,9 +52,9 @@ Escape
 Sleep 300ms
 
 # Chuyển tab: tab chưa làm nói rõ giai đoạn và lệnh CLI tương đương
-Type "2"
+Type "3"
 Sleep 600ms
-Screenshot internal/tui/testdata/vhs/out/overview-knowledge-placeholder.png
+Screenshot internal/tui/testdata/vhs/out/overview-tasks-placeholder.png
 
 # Thoát
 Type "q"

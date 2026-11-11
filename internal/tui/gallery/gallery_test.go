@@ -44,7 +44,7 @@ func TestNoLineExceedsWidth(t *testing.T) {
 				m := New(Options{Lang: lang, Mode: mode})
 				m.SetSize(sz[0], sz[1])
 				// Duyệt hết các trang cuộn.
-				for page := 0; page < 8; page++ {
+				for page := 0; page < 14; page++ {
 					out := m.Render()
 					ls := strings.Split(out, "\n")
 					if len(ls) != sz[1] {
@@ -121,9 +121,10 @@ func TestKeysCycleModeLanguageAndQuit(t *testing.T) {
 
 func TestShowsEveryComponent(t *testing.T) {
 	m := New(Options{Lang: "en", Mode: theme.Mono})
-	m.SetSize(120, 80)
+	m.SetSize(120, 130)
 	out := ansi.Strip(m.Render())
-	for _, want := range []string{"Role palette", "Tab bar", "Footer by priority", "Frame with a title", "Logo", "Command palette", "██", "│Knowledge│"} {
+	for _, want := range []string{"Role palette", "Tab bar", "Footer by priority", "Frame with a title", "Logo", "Command palette", "██", "│Knowledge│",
+		"Virtual list", "colored diff", "+- **Endpoints need /v1**", "Confirm dialog", "Reject 12 items?", "Form generated from Options", "Equivalent CLI command", "▸ Advanced"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("trang trưng bày thiếu %q", want)
 		}

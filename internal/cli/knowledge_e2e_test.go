@@ -8,13 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"bint/internal/app"
 	"bint/internal/testutil"
 )
 
 // asHuman/asAgent đặt biến môi trường mà Bint dùng để nhận biết phiên agent. Tiến
 // trình kiểm thử có thể đang chạy trong một phiên agent thật nên phải xoá hết.
 func asHuman(t *testing.T) {
-	for _, k := range []string{"BINT_AGENT", "CLAUDECODE", "AI_AGENT", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "GEMINI_CLI"} {
+	for _, k := range app.AgentEnvVars() {
 		t.Setenv(k, "")
 	}
 }
@@ -225,3 +226,82 @@ func needShell(t *testing.T) {
 }
 
 func lookSh() (string, error) { return exec.LookPath("sh") }
+
+// Dùng sai các lệnh tri thức đã tách dịch vụ phải ra mã 2 (kiểm tra trước khi ghi gì).
+func TestKnowledgeUsageErrorsExitTwo(t *testing.T) {
+	testutil.Isolate(t)
+	asHuman(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n"})
+	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
+		t.Fatalf("init: %d\n%s", code, out)
+	}
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"add thiếu nội dung", []string{"knowledge", "add", "--type", "rule"}, "thiếu nội dung"},
+		{"add thiếu type", []string{"knowledge", "add", "nội dung"}, "thiếu --type"},
+		{"add type lạ", []string{"knowledge", "add", "--type", "zzz", "nội dung"}, "--type phải là một trong"},
+		{"reject thiếu reason", []string{"knowledge", "reject", "01ABC"}, "cần --reason"},
+		{"deprecate thiếu reason", []string{"knowledge", "deprecate", "01ABC", "--reason", " "}, "cần --reason"},
+		{"context rỗng", []string{"context"}, "cần mô tả tác vụ hoặc --paths"},
+	}
+	for _, tc := range cases {
+		out, code := run(t, root, "", tc.args...)
+		if code != 2 || !strings.Contains(out, tc.want) {
+			t.Errorf("%s: mã %d, muốn 2\n%s", tc.name, code, out)
+		}
+	}
+}
+
+// Hai ca không đổi mã thoát khi lệnh chuyển sang tầng dịch vụ có Validate (docs/tui-plan.md mục 12.3):
+// `revalidate --budget < 0` vẫn như trước (Claude Code: thiếu ngân sách, mã 1; agent lệnh: vẫn chạy) và
+// `knowledge search` chuỗi trắng vẫn thoát 0 với "Không tìm thấy." — không phải lỗi dùng sai (mã 2).
+func TestKnowledgeLegacyExitCodesKept(t *testing.T) {
+	testutil.Isolate(t)
+	asHuman(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n"})
+	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
+		t.Fatalf("init: %d\n%s", code, out)
+	}
+	out, code := run(t, root, "", "knowledge", "revalidate", "--budget=-1")
+	if code != 1 || !strings.Contains(out, "--budget") {
+		t.Errorf("revalidate --budget=-1 (Claude Code): mã %d, muốn 1 (thiếu ngân sách)\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "knowledge", "revalidate", "--budget=-1", "--agent-command", "true"); code != 0 {
+		t.Errorf("revalidate --budget=-1 --agent-command: mã %d, muốn 0 (không có mục stale)\n%s", code, out)
+	}
+	for _, q := range []string{" ", "   "} {
+		out, code := run(t, root, "", "knowledge", "search", q)
+		if code != 0 || !strings.Contains(out, "Không tìm thấy.") {
+			t.Errorf("search %q: mã %d, muốn 0\n%s", q, code, out)
+		}
+	}
+}
+
+// Lần bootstrap đầu trên repo chưa có mục tri thức (Items nil) mà cài skill lỗi: vẫn in phần khảo sát đã làm
+// và dòng đã lưu inspect.json trước khi báo lỗi (docs/tui-plan.md mục 12.3).
+func TestBootstrapPrintsReportBeforeSkillInstallError(t *testing.T) {
+	testutil.Isolate(t)
+	asHuman(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n"})
+	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
+		t.Fatalf("init: %d\n%s", code, out)
+	}
+	// Cài skill lỗi thật sự (không phải xung đột, vốn không là lỗi): đường dẫn skill bị một tệp chắn.
+	skills := filepath.Join(root, ".claude", "skills")
+	if err := os.RemoveAll(skills); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(skills, []byte("không phải thư mục\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, code := run(t, root, "", "bootstrap")
+	if code == 0 {
+		t.Fatalf("xung đột skill phải trả lỗi:\n%s", out)
+	}
+	if !strings.Contains(out, "Đã lưu dữ liệu khảo sát") {
+		t.Fatalf("phải in phần đã làm trước khi báo lỗi:\n%s", out)
+	}
+}

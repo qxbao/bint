@@ -13,12 +13,12 @@
 │       │ Runs     42  33 done · 3 failed · 1 interrupted · 5 running │        │
 │       └─────────────────────────────────────────────────────────────┘        │
 │                                                                              │
-│  Needs you (3)                                                               │
-│ ▸ ◌ 3 knowledge items awaiting review                            → Knowledge │
+│  Needs you (4)                                                               │
+│ ▸ ◌ 2 knowledge items awaiting review in batch nguon:lo-thu      → Knowledge │
+│   ◌ 1 knowledge item awaiting review (no batch)                  → Knowledge │
 │   ◌ 2 evolution proposals awaiting review                        → Evolution │
 │   ! Doctor warning — config: cấu hình theo mẫu cũ: chạy `bint ini…  → System │
 │                                                                              │
 │  Doctor  ✓ 2  ! 1  ✗ 0                                                       │
-│                                                                              │
 │                                                                              │
 └─[r→ Refresh] [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]─────────────────┘

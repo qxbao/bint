@@ -2,12 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
-	"bint/internal/eval"
 )
 
 func newKnowledgeRevalidateCmd(stdio IO) *cobra.Command {
@@ -35,20 +33,12 @@ Nhận định chỉ là dữ liệu cho người duyệt; trạng thái không 
 			if err != nil {
 				return err
 			}
-			var agent eval.Agent
-			if agentCommand != "" {
-				agent = &eval.CommandAgent{Command: agentCommand}
-			} else {
-				cfg := k.Config.Eval.Agent
-				cfg.AllowedTools = []string{"Read", "Grep", "Glob"}
-				cfg.PermissionMode = "dontAsk"
-				cfg.ExtraArgs = nil
-				agent = &eval.ClaudeAgent{Cfg: cfg, Model: model}
-			}
-			rep, err := app.RevalidateKnowledge(cmd.Context(), k, app.RevalidateOptions{
-				Refs: args, MaxItems: maxItems, BatchSize: batch, BudgetUSD: budget, PriorRunUSD: k.Config.Eval.PriorRunUSD, Agent: agent,
-				Timeout: time.Duration(k.Config.Eval.TimeoutMinutes) * time.Minute,
-			})
+			ro := app.RevalidateDefaults(k.Config)
+			ro.Refs, ro.MaxItems, ro.BatchSize, ro.BudgetUSD = args, maxItems, batch, budget
+			ro.AgentCommand, ro.Model = agentCommand, model
+			// Không gọi ro.Validate(): giữ hành vi cũ cho --budget < 0 (agent lệnh vẫn chạy, Claude Code trả
+			// ErrNoBudget, mã thoát 1). Form TUI vẫn kiểm tra khi nhập.
+			rep, err := app.RevalidateKnowledge(cmd.Context(), k, ro)
 			if err != nil {
 				return err
 			}

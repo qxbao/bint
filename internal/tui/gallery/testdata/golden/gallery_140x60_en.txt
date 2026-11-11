@@ -36,25 +36,25 @@
 │ │   Knowledge › Approve                        humans only │                                                                             │
 │ └──────────────────────────────────────────────────────────┘                                                                             │
 │                                                                                                                                          │
+│ ▌ Virtual list (columns aligned by display width)                                                                                        │
+│ ▸ ● ◌ ⚑ rule     Every endpoint must carry a /v1 version                                                                api/**           │
+│     ✓   pattern  Ắ ề ộ ữ ợ — accented text keeps the columns straight                                                   internal/db/**   │
+│     ⟳   fact     Frame content; accented text: ắ ề ộ ữ ợ                                                                *                │
 │                                                                                                                                          │
+│ ▌ Viewer: colored diff and line excerpt                                                                                                  │
+│   --- a/AGENTS.md                                                                                                                        │
+│   +++ b/AGENTS.md                                                                                                                        │
+│   @@ -3,2 +3,3 @@                                                                                                                        │
+│    ## Conventions                                                                                                                        │
+│   +- **Endpoints need /v1**                                                                                                              │
+│   -- Old rule                                                                                                                            │
+│    kept as is                                                                                                                            │
+│   │   40  func Open() {                                                                                                                  │
+│   │   41      return nil                                                                                                                 │
 │                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
+│ ▌ Confirm dialog with a reason input                                                                                                     │
+│ ┌─│Reject 12 items?│───────────────────────────────────────────┐                                                                         │
+│ │ The items move to deprecated and keep their audit trail.     │                                                                         │
+│ │                                                              │                                                                         │
+│ │ Reason: ▏rejected by reviewer                                │                                                                         │
 └─ color mode: mono · language: en · [m] color  [l] language  [q] Quit─────────────────────────────────────────────────────────────────────┘

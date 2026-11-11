@@ -25,7 +25,7 @@ type Coverage struct {
 }
 
 // CurrentPhase là giai đoạn của kế hoạch TUI đã làm xong (docs/tui-plan.md mục 9).
-const CurrentPhase = 0
+const CurrentPhase = 1
 
 // Data là dữ liệu phủ hiện hành.
 var Data = Coverage{
@@ -42,13 +42,10 @@ var Data = Coverage{
 		"--yes":  "thay bằng hộp xác nhận (callback Confirm của dịch vụ)",
 	},
 	ExcludedCmdFlags: map[string]string{
-		"eval report --cases": "chỉ định dạng đầu ra văn bản (bảng theo từng tác vụ); TUI luôn hiện cả hai",
+		"eval report --cases":       "chỉ định dạng đầu ra văn bản (bảng theo từng tác vụ); TUI luôn hiện cả hai",
+		"knowledge add --body-file": "TUI soạn nội dung trong ô nhiều dòng thay vì đọc từ tệp",
 	},
 	Pending: map[string]int{
-		"bootstrap":                   1,
-		"bootstrap publish":           1,
-		"bootstrap skill":             1,
-		"context":                     1,
 		"eval approve":                4,
 		"eval bootstrap":              4,
 		"eval clean":                  4,
@@ -85,21 +82,6 @@ var Data = Coverage{
 		"harness render":              5,
 		"harness show":                5,
 		"index rebuild":               5,
-		"inspect":                     1,
-		"knowledge add":               1,
-		"knowledge approve":           1,
-		"knowledge deprecate":         1,
-		"knowledge diff":              1,
-		"knowledge list":              1,
-		"knowledge reject":            1,
-		"knowledge revalidate":        1,
-		"knowledge review":            1,
-		"knowledge rm":                1,
-		"knowledge search":            1,
-		"knowledge show":              1,
-		"knowledge stats":             1,
-		"knowledge transitions":       1,
-		"knowledge verify":            1,
 		"mcp tools":                   5,
 		"run":                         2,
 		"run resume":                  2,
@@ -132,17 +114,18 @@ var Data = Coverage{
 		"update":                      5,
 	},
 	PendingFlags: map[string]int{
-		"init --agents-md":   5,
-		"init --force":       5,
-		"init --git":         5,
-		"init --harness":     5,
-		"init --hooks":       5,
-		"init --hooks-scope": 5,
-		"init --mcp":         5,
-		"init --no-hooks":    5,
-		"init --no-mcp":      5,
-		"init --no-skills":   5,
-		"init --update":      5,
+		"knowledge add --from-review": 2, // cần danh sách phát hiện review của màn Tác vụ (giai đoạn 2)
+		"init --agents-md":            5,
+		"init --force":                5,
+		"init --git":                  5,
+		"init --harness":              5,
+		"init --hooks":                5,
+		"init --hooks-scope":          5,
+		"init --mcp":                  5,
+		"init --no-hooks":             5,
+		"init --no-mcp":               5,
+		"init --no-skills":            5,
+		"init --update":               5,
 	},
-	PendingCeiling: 96,
+	PendingCeiling: 78,
 }

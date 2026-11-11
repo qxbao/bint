@@ -115,9 +115,9 @@ func TestTabNavigation(t *testing.T) {
 		t.Fatalf("tab: %d", m.Tab())
 	}
 	// Tab chưa có màn hình thật nói rõ giai đoạn và lệnh CLI tương đương.
-	press(t, m, "2")
+	press(t, m, "3")
 	out := plain(m.Render())
-	if !strings.Contains(out, "giai đoạn 1") || !strings.Contains(out, "bint knowledge review") {
+	if !strings.Contains(out, "giai đoạn 2") || !strings.Contains(out, "bint task new") {
 		t.Fatalf("placeholder Tri thức:\n%s", out)
 	}
 }
@@ -125,11 +125,11 @@ func TestTabNavigation(t *testing.T) {
 // Hộp thư: Enter nhảy thẳng tới chỗ xử lý.
 func TestInboxEnterJumpsToTarget(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, sampleData(), 100, 30)
-	press(t, m, "enter") // dòng đầu: mục tri thức chờ duyệt
+	press(t, m, "enter") // dòng đầu: lô tri thức chờ duyệt
 	if m.Tab() != 1 {
 		t.Fatalf("tab = %d, muốn 1 (Tri thức)", m.Tab())
 	}
-	press(t, m, "1", "j", "enter") // dòng thứ hai: đề xuất tiến hoá
+	press(t, m, "1", "j", "j", "enter") // dòng thứ ba: đề xuất tiến hoá
 	if m.Tab() != 5 {
 		t.Fatalf("tab = %d, muốn 5 (Tiến hoá)", m.Tab())
 	}
@@ -147,7 +147,7 @@ func TestLanguageSwitchChangesView(t *testing.T) {
 	if m.Lang() != "en" || !strings.Contains(en, "Needs you") || !strings.Contains(en, "Overview") || strings.Contains(en, "Việc cần bạn") {
 		t.Fatalf("en (lang=%s):\n%s", m.Lang(), en)
 	}
-	if !strings.Contains(en, "3 knowledge items awaiting review") || !strings.Contains(en, "Quit") {
+	if !strings.Contains(en, "2 knowledge items awaiting review in batch nguon:lo-thu") || !strings.Contains(en, "Quit") {
 		t.Fatalf("en thiếu chuỗi dịch (số nhiều, chân phím):\n%s", en)
 	}
 	press(t, m, "L")

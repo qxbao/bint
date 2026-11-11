@@ -2,26 +2,15 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
 	"bint/internal/ctxengine"
 	"bint/internal/kindex"
-	"bint/internal/spool"
 )
-
-func openContext(cmd *cobra.Command) (*app.ContextWS, error) {
-	dir, err := cwd()
-	if err != nil {
-		return nil, err
-	}
-	return app.OpenContext(cmd.Context(), dir)
-}
 
 func newContextCmd(stdio IO) *cobra.Command {
 	var (
@@ -47,45 +36,19 @@ mục chưa duyệt hoặc có bằng chứng đã đổi được gắn nhãn t
 --session <id> (hoặc biến BINT_SESSION_ID) ghi nhận lần truy xuất vào lượt chạy
 tương ứng; với --paths, mục đã trả về trong phiên đó không được lặp lại.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			task := strings.TrimSpace(strings.Join(args, " "))
-			if task == "" && len(paths) == 0 {
-				return usageError{fmt.Errorf("cần mô tả tác vụ hoặc --paths")}
-			}
-			c, err := openContext(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			defer c.Close()
-			if budget > 0 {
-				c.Engine.MaxTokens = budget
-			}
-			if session == "" {
-				session = os.Getenv("BINT_SESSION_ID")
-			}
-			var mem app.SessionMemory
-			exclude := map[string]bool{}
-			if session != "" && c.K.Paths.Initialized() {
-				mem = app.NewSessionMemory(c.K.Paths.Runtime, "cli", session)
-				if task == "" {
-					exclude = mem.Seen()
-				}
-			}
-			var p ctxengine.Pack
-			if task == "" {
-				p = c.Engine.ForPaths(paths, exclude)
-			} else if p, err = c.Engine.ForTask(cmd.Context(), task, paths); err != nil {
+			res, err := app.ContextPack(cmd.Context(), dir, app.ContextOptions{
+				Task: strings.Join(args, " "), Paths: paths, Budget: budget, Session: session})
+			if err != nil {
 				return err
 			}
-			if session != "" && c.K.Paths.Initialized() {
-				now := time.Now()
-				ev := app.ContextEvent("cli", session, c.K.Repo.Toplevel, app.ChannelCLI, now.Format(time.RFC3339Nano), p, now)
-				if _, err := spool.Write(c.K.Paths.Spool, ev); err != nil {
-					fmt.Fprintln(stdio.Err, "cảnh báo: không ghi nhận được lần truy xuất:", err)
-				}
-				if task == "" {
-					mem.Add(p.IDs())
-				}
+			for _, w := range res.Warnings {
+				fmt.Fprintln(stdio.Err, "cảnh báo:", w)
 			}
+			p := res.Pack
 			if asJSON {
 				if p.Entries == nil {
 					p.Entries = []ctxengine.Entry{}
@@ -172,12 +135,14 @@ func newKnowledgeSearchCmd(stdio IO) *cobra.Command {
 		Short: "Tìm tri thức theo từ khoá (FTS5, không phân biệt dấu)",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := openContext(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			defer c.Close()
-			hits, err := kindex.Search(cmd.Context(), c.Store.DB, strings.Join(args, " "), kindex.SearchOptions{Limit: limit, IncludeDeprecated: all})
+			so := app.SearchOptions{Query: strings.Join(args, " "), Limit: limit, All: all}
+			// Không gọi so.Validate(): giữ hành vi cũ cho truy vấn trắng (không có kết quả, mã thoát 0).
+			// Form TUI vẫn kiểm tra khi nhập.
+			hits, err := app.SearchKnowledge(cmd.Context(), dir, so)
 			if err != nil {
 				return err
 			}
@@ -214,18 +179,11 @@ qua cite_knowledge) của từng mục (mục 9.7). Đây không phải tác đ�
 xác định được bằng đánh giá loại bỏ (bint eval), không suy ra từ số lần sử dụng.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			c, err := openContext(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			defer c.Close()
-			if c.Memory {
-				return app.ErrNotInitialized
-			}
-			if _, err := c.K.Ingest(cmd.Context(), c.Store, time.Now()); err != nil {
-				return err
-			}
-			st, err := app.KnowledgeStats(cmd.Context(), c)
+			st, err := app.StatsKnowledge(cmd.Context(), dir, app.StatsOptions{})
 			if err != nil {
 				return err
 			}

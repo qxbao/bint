@@ -24,7 +24,7 @@ func runInitDefaults(ctx context.Context, env Env) tea.Msg {
 // NavID trả ID hành động chuyển tới màn hình s.
 func NavID(s Screen) string { return "nav." + string(s) }
 
-// Default là sổ hành động của giai đoạn 0. Các giai đoạn sau thêm hành động của từng màn hình vào
+// Default là sổ hành động (giai đoạn 0 và 1). Các giai đoạn sau thêm hành động của từng màn hình vào
 // đây; test phủ lệnh buộc mọi lệnh CLI hoặc có hành động, hoặc nằm trong danh sách loại trừ/chưa làm.
 func Default() *Registry {
 	list := []Action{
@@ -49,5 +49,6 @@ func Default() *Registry {
 		Action{ID: "init.recheck", Screen: Init, Key: "r", Footer: true, Priority: 2, LabelKey: "action.init.recheck.label",
 			TitleKey: "action.init.recheck.title"},
 	)
+	list = append(list, knowledgeActions()...)
 	return NewRegistry(list)
 }

@@ -36,25 +36,25 @@
 │ │   Tri thức › Duyệt                    chỉ dành cho người │                                                                             │
 │ └──────────────────────────────────────────────────────────┘                                                                             │
 │                                                                                                                                          │
+│ ▌ Danh sách ảo (căn cột theo độ rộng chữ có dấu)                                                                                         │
+│ ▸ ● ◌ ⚑ rule     Endpoint phải có phiên bản /v1 cho mọi tuyến                                                           api/**           │
+│     ✓   pattern  Ắ ề ộ ữ ợ — chữ có dấu căn cột thẳng hàng                                                              internal/db/**   │
+│     ⟳   fact     Nội dung khung; chữ có dấu: ắ ề ộ ữ ợ                                                                  *                │
 │                                                                                                                                          │
+│ ▌ Trình xem: diff tô màu và trích đoạn dòng                                                                                              │
+│   --- a/AGENTS.md                                                                                                                        │
+│   +++ b/AGENTS.md                                                                                                                        │
+│   @@ -3,2 +3,3 @@                                                                                                                        │
+│    ## Quy ước                                                                                                                            │
+│   +- **Endpoint phải có /v1**                                                                                                            │
+│   -- Quy tắc cũ                                                                                                                          │
+│    giữ nguyên                                                                                                                            │
+│   │   40  func Open() {                                                                                                                  │
+│   │   41      return nil                                                                                                                 │
 │                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
+│ ▌ Hộp xác nhận có nhập lý do                                                                                                             │
+│ ┌─│Từ chối 12 mục?│────────────────────────────────────────────┐                                                                         │
+│ │ Các mục sẽ chuyển sang deprecated và giữ dấu vết.            │                                                                         │
+│ │                                                              │                                                                         │
+│ │ Lý do: ▏người duyệt từ chối                                  │                                                                         │
 └─ chế độ màu: mono · ngôn ngữ: vi · [m] đổi màu  [l] đổi ngôn ngữ  [q] Thoát──────────────────────────────────────────────────────────────┘

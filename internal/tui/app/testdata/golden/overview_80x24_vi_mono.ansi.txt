@@ -13,12 +13,12 @@
 │        │ Lượt chạy   42  33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy │         │
 │        └───────────────────────────────────────────────────────────┘         │
 │                                                                              │
-│  ␛[1mViệc cần bạn␛[m␛[1m (3)␛[m                                                            │
-│ ▸ ◌ ␛[7m␛[1m3 mục tri thức chờ duyệt␛[m␛[m                                      → Tri thức │
+│  ␛[1mViệc cần bạn␛[m␛[1m (4)␛[m                                                            │
+│ ▸ ◌ ␛[7m␛[1m2 mục tri thức chờ duyệt thuộc lô nguon:lo-thu␛[m␛[m                → Tri thức │
+│   ◌ 1 mục tri thức chờ duyệt (không thuộc lô nào)                 → Tri thức │
 │   ◌ 2 đề xuất tiến hoá chờ duyệt                                  → Tiến hoá │
 │   ␛[1m!␛[m Doctor cảnh báo — config: cấu hình theo mẫu cũ: chạy `bint …  → Hệ thống │
 │                                                                              │
 │  ␛[1mDoctor␛[m  ✓ 2  ␛[1m! 1␛[m  ␛[7m✗ 0␛[m                                                       │
-│                                                                              │
 │                                                                              │
 └─[␛[1mr␛[m→ Làm mới] [␛[1m:␛[m→ Lệnh] [␛[1mL␛[m→ Ngôn ngữ] [␛[1mq␛[m→ Thoát] [␛[1m?␛[m→ Trợ giúp]────────────────┘

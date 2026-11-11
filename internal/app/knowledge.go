@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"bint/internal/config"
 	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
 	"bint/internal/ulid"
@@ -17,6 +18,10 @@ import (
 
 // agentEnvVars là các biến môi trường do harness đặt cho tiến trình con của agent.
 var agentEnvVars = []string{"BINT_AGENT", "CLAUDECODE", "AI_AGENT", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "GEMINI_CLI"}
+
+// AgentEnvVars trả bản sao danh sách biến môi trường do harness đặt cho tiến trình con của agent.
+// Kiểm thử đóng vai người dùng chung danh sách này để khỏi chép tay (thêm biến ở agentEnvVars là đủ).
+func AgentEnvVars() []string { return slices.Clone(agentEnvVars) }
 
 // InAgentSession cho biết Bint đang được gọi từ bên trong phiên agent (theo biến
 // môi trường harness đặt). Đây là lớp phòng vệ bổ sung để agent không tự duyệt tri
@@ -95,23 +100,43 @@ func (k *KnowledgeWS) Items() ([]*knowledge.Item, []knowledge.LoadError, error) 
 	return k.Store.List()
 }
 
-// AddOptions điều khiển `bint knowledge add`.
+// AddOptions điều khiển `bint knowledge add`. Thẻ `flag` là tên cờ CLI; thẻ `arg` là đối số vị trí;
+// thẻ `form` mô tả ô nhập của TUI (required, advanced, hidden, multiline, suggest=files|ids,
+// choices=a|b|c). Trường không có `flag`/`arg` (Now) không thành ô nhập.
 type AddOptions struct {
-	Type       string
-	Title      string
-	Body       string
-	Paths      []string
-	Symbols    []string
-	Tags       []string
-	Domains    []string
-	Evidence   []string // path[:a-b][#symbol][@commit]
-	Inputs     []string
-	Origin     string // "" = tự xác định (agent nếu trong phiên agent, ngược lại human)
-	ThirdParty bool
-	Confidence string
-	RunID      string
-	EvalCase   string
+	Type       string   `flag:"type" form:"required,choices=rule|warning|pattern|fact|decision|lesson"`
+	Title      string   `flag:"title"`
+	Body       string   `arg:"body" form:"required,multiline"`
+	Paths      []string `flag:"paths" form:"suggest=files"`
+	Symbols    []string `flag:"symbols" form:"advanced"`
+	Tags       []string `flag:"tags" form:"advanced"`
+	Domains    []string `flag:"domains" form:"advanced"`
+	Evidence   []string `flag:"evidence" form:"suggest=files"` // path[:a-b][#symbol][@commit]
+	Inputs     []string `flag:"input" form:"advanced"`
+	Origin     string   `flag:"origin" form:"advanced,choices=human|agent"` // "" = tự xác định (agent nếu trong phiên agent, ngược lại human)
+	ThirdParty bool     `flag:"third-party"`
+	Confidence string   `flag:"confidence" form:"advanced,choices=high|medium|low"`
+	RunID      string   `flag:"run-id" form:"advanced"`
+	EvalCase   string   `flag:"eval-case" form:"hidden"`
 	Now        time.Time
+}
+
+// AddDefaults trả giá trị khởi đầu của form thêm mục. CLI không dùng loại mục mặc định (cờ --type
+// bắt buộc); riêng form gợi ý "warning" cho loại hay gặp nhất.
+func AddDefaults(config.Config) AddOptions { return AddOptions{Type: knowledge.TypeWarning} }
+
+// Validate kiểm tra ràng buộc mức giá trị, theo thứ tự của CLI cũ (nội dung rồi loại); lỗi là UsageError.
+func (o AddOptions) Validate() error {
+	if strings.TrimSpace(o.Body) == "" {
+		return Usagef("thiếu nội dung (đối số, '-' cho stdin, hoặc --body-file)")
+	}
+	if o.Type == "" {
+		return Usagef("thiếu --type")
+	}
+	if !slices.Contains(knowledge.Types, o.Type) {
+		return Usagef("--type phải là một trong: %s", strings.Join(knowledge.Types, ", "))
+	}
+	return nil
 }
 
 // AddResult là kết quả thêm mục.

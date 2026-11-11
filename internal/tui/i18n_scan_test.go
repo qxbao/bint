@@ -15,7 +15,9 @@ import (
 	"unicode"
 
 	"bint/internal/i18n"
+	"bint/internal/knowledge"
 	"bint/internal/tui/actions"
+	"bint/internal/tui/components/form"
 )
 
 // vietnameseRune cho biết r là chữ cái tiếng Việt có dấu (hoặc đ/Đ).
@@ -179,7 +181,10 @@ func TestNoUnusedKeys(t *testing.T) {
 	}
 	code := src.String()
 	vi := i18n.MustLoad("vi")
-	dynamicPrefix := []string{"tab.", "action.nav.", "init.does.", "overview.inbox.", "overview.runstatus."}
+	dynamicPrefix := []string{"tab.", "action.nav.", "init.does.", "overview.inbox.", "overview.runstatus.",
+		// Màn Tri thức: khoá ghép từ tên hành động, thẻ phụ, mã finding, chỉ số điều kiện chuyển (có test phủ riêng).
+		"action.knowledge.", "kn.sub.", "kn.survey.", "kn.panel.hint.", "kn.reason.title.", "kn.blocked.", "kn.meta.", "kn.insp.",
+		"finding.", "transition.", "form."}
 	for _, k := range vi.Keys() {
 		if k == "app.name" || strings.Contains(code, `"`+k+`"`) {
 			continue
@@ -190,6 +195,61 @@ func TestNoUnusedKeys(t *testing.T) {
 		}
 		if !dyn {
 			t.Errorf("khoá %q không được dùng trong mã", k)
+		}
+	}
+}
+
+// Mọi trường của mọi Options gắn với hành động có nhãn form theo quy ước khoá form.<ID hành động>.<tên cờ
+// hoặc đối số> ở vi và en (xx sinh từ en); nhãn cũng không thừa so với các trường còn tồn tại.
+func TestFormLabelsCoverEveryOptionsField(t *testing.T) {
+	vi, en := i18n.MustLoad("vi"), i18n.MustLoad("en")
+	want := map[string]bool{}
+	for _, a := range actions.Default().All() {
+		if a.Options == nil {
+			continue
+		}
+		for _, f := range form.Fields(a.Options) {
+			k := form.LabelKey(a.FormNS(), f)
+			want[k] = true
+			if !vi.Has(k) || !en.Has(k) {
+				t.Errorf("hành động %s: thiếu nhãn %q (vi=%v en=%v)", a.ID, k, vi.Has(k), en.Has(k))
+			}
+		}
+	}
+	if len(want) < 40 {
+		t.Fatalf("quét được quá ít nhãn form (%d)", len(want))
+	}
+	for _, k := range vi.Keys() {
+		if strings.HasPrefix(k, "form.knowledge.") || strings.HasPrefix(k, "form.bootstrap.") || strings.HasPrefix(k, "form.inspect.") || strings.HasPrefix(k, "form.context.") {
+			if !want[strings.TrimSuffix(k, ".hint")] {
+				t.Errorf("nhãn form %q không ứng với trường nào của Options", k)
+			}
+		}
+	}
+}
+
+// Mã finding kiểm tra tri thức và điều kiện chuyển trạng thái được dịch đủ, khớp số dòng của bảng chuyển.
+func TestFindingCodesAndTransitionsTranslated(t *testing.T) {
+	vi, en := i18n.MustLoad("vi"), i18n.MustLoad("en")
+	for _, c := range []string{knowledge.CodeSchema, knowledge.CodeEvidence, knowledge.CodeFingerprint, knowledge.CodeSymbol, knowledge.CodeScope,
+		knowledge.CodeExample, knowledge.CodePathRef, knowledge.CodeDuplicate, knowledge.CodeThirdParty, knowledge.CodeOverview,
+		knowledge.CodeLength, knowledge.CodeUnreviewed, knowledge.CodeRelocated} {
+		if k := "finding." + c; !vi.Has(k) || !en.Has(k) {
+			t.Errorf("thiếu khoá %q", k)
+		}
+	}
+	n := 0
+	for _, k := range vi.Keys() {
+		if strings.HasPrefix(k, "transition.") {
+			n++
+		}
+	}
+	if n != len(knowledge.TransitionTable) {
+		t.Fatalf("có %d khoá transition.*, bảng chuyển có %d dòng", n, len(knowledge.TransitionTable))
+	}
+	for i := range knowledge.TransitionTable {
+		if k := "transition." + strconv.Itoa(i); !vi.Has(k) || !en.Has(k) {
+			t.Errorf("thiếu khoá %q", k)
 		}
 	}
 }

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Knowledge (3) │ Tk │ Rn │ Ev │ Evo │ Sy                                 │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Knowledge│──────────────────────────────────────────────────────────────────┐
+│  ‹  List  1/8 ›                                                              │
+│ ┌─│Add a knowledge item (form)│────────────────────────────────────────────┐ │
+│ │ ▸ Type*        ‹ (●) warning ›                                           │ │
+│ │   Title                                                                  │ │
+│ │   Content*                                                               │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │   Scope                                                                  │ │
+│ │   Evidence                                                               │ │
+│ │   Third-party  [ ]                                                       │ │
+│ │   ▸ Advanced                                                             │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │   ⓘ Knowledge type; only humans can approve a rule                       │ │
+│ │   Equivalent CLI command: bint knowledge add                             │ │
+│ │   Enter submit  Tab next field  Ctrl+Y copy command  Esc leave           │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

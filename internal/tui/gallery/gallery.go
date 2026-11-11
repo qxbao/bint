@@ -8,14 +8,22 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
+	"bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/i18n"
+	"bint/internal/tui/components/confirm"
 	"bint/internal/tui/components/footer"
+	"bint/internal/tui/components/form"
 	"bint/internal/tui/components/frame"
+	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/logo"
 	"bint/internal/tui/components/palette"
 	"bint/internal/tui/components/tabs"
+	"bint/internal/tui/components/viewer"
 	"bint/internal/tui/theme"
+	"bint/internal/tui/ui"
 )
 
 // Options chọn trạng thái ban đầu.
@@ -150,6 +158,36 @@ func (m *Model) Render() string {
 		{ID: "b", Title: cat.T("action.approve"), Group: cat.T("tab.knowledge"), Key: "a", Locked: cat.T("ui.locked.agent")},
 	})
 	add(strings.Split(p.View(th, min(iw-2, 60), 6, cat.T("palette.title"), cat.T("palette.empty")), "\n")...)
+
+	section(cat.T("gallery.section.list"))
+	widths := list.Widths(iw-4, 1, []int{1, 1, 1, 8, 0, 14})
+	for i, r := range [][]string{
+		{"●", th.S(theme.Accent, "◌"), "⚑", "rule", cat.T("gallery.sample.rule"), "api/**"},
+		{" ", th.S(theme.OK, "✓"), " ", "pattern", cat.T("gallery.sample.accents"), "internal/db/**"},
+		{" ", th.S(theme.Warn, "⟳"), " ", "fact", cat.T("gallery.frame.body"), "*"},
+	} {
+		line := list.Row(widths, 1, r...)
+		if i == 0 {
+			add("▸ " + th.Selected(ansi.Strip(line)))
+		} else {
+			add("  " + line)
+		}
+	}
+
+	section(cat.T("gallery.section.viewer"))
+	for _, l := range viewer.ColorDiff(th, "--- a/AGENTS.md\n+++ b/AGENTS.md\n@@ -3,2 +3,3 @@\n "+cat.T("gallery.sample.heading")+"\n+- **"+cat.T("gallery.sample.rule_new")+"**\n-- "+cat.T("gallery.sample.rule_old")+"\n "+cat.T("gallery.sample.keep")) {
+		add("  " + l)
+	}
+	add("  "+th.S(theme.Muted, "│ ")+"  40  func Open() {", "  "+th.S(theme.Muted, "│ ")+"  41      return nil")
+
+	section(cat.T("gallery.section.confirm"))
+	dlg := confirm.Model{Title: cat.T("gallery.confirm.title"), Body: []string{cat.T("gallery.confirm.body")}, Danger: true, Input: true,
+		Label: cat.T("kn.reason.label"), Placeholder: cat.T("kn.reject.default_reason"), YesLabel: cat.T("kn.dialog.confirm"), NoLabel: cat.T("kn.dialog.cancel")}
+	add(dlg.View(th, min(iw-2, 64), 12)...)
+
+	section(cat.T("gallery.section.form"))
+	fm := form.New("knowledge.add", "knowledge add", app.AddDefaults(config.Config{}))
+	add(strings.Split(fm.View(ui.Env{Th: th, Cat: cat, W: min(iw-2, 70), H: 16}, 0), "\n")...)
 
 	// Cuộn: cắt phần đang xem, giữ offset trong khoảng hợp lệ.
 	_, ih := frame.Inner(w, h)

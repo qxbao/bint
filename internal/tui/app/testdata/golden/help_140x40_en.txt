@@ -4,29 +4,29 @@
 ┌─│Overview│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                           ┌─│Help│───────────────────────────────────────────────────────────────────────────┐                           │
 │                           │ Overview                                                                         │                           │
-│                           │  r    Refresh the repository status  bint status                                 │                           │
-│                           │       Check the environment (doctor)  bint doctor                                │                           │
+│                           │  r       Refresh the repository status  bint status                              │                           │
+│                           │          Check the environment (doctor)  bint doctor                             │                           │
 │                           │                                                                                  │                           │
 │                           │ Global                                                                           │                           │
-│                           │  q    Quit Bint                                                                  │                           │
-│                           │  ?    Show the full help                                                         │                           │
-│                           │  :    Open the command palette (search every action)                             │                           │
-│                           │  L    Switch interface language (vi ⇄ en)                                        │                           │
-│                           │  ]    Go to the next tab                                                         │                           │
-│                           │  [    Go to the previous tab                                                     │                           │
-│                           │  1-7  Jump to a tab                                                              │                           │
+│                           │  q       Quit Bint                                                               │                           │
+│                           │  ?       Show the full help                                                      │                           │
+│                           │  :       Open the command palette (search every action)                          │                           │
+│                           │  L       Switch interface language (vi ⇄ en)                                     │                           │
+│                           │  ]       Go to the next tab                                                      │                           │
+│                           │  [       Go to the previous tab                                                  │                           │
+│                           │  1-7     Jump to a tab                                                           │                           │
 │                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
-│                           │                                                                                  │                           │
+│                           │ Knowledge                                                                        │                           │
+│                           │  a       Approve the item (candidate/stale → verified); humans only  bint know…  │                           │
+│                           │  f       Approve and refresh the evidence fingerprint (stale item)  bint knowl…  │                           │
+│                           │  r       Reject a pending item (→ deprecated, asks for a reason)  bint knowled…  │                           │
+│                           │  d       Remove an item (→ deprecated, a reason is required)  bint knowledge d…  │                           │
+│                           │  A       Approve in bulk (selected items or the whole filtered list); items wit… │                           │
+│                           │  R       Reject in bulk (selected items or the whole filtered list)              │                           │
+│                           │          Plan a batch review: which items can be written, which are left out     │                           │
+│                           │  e       Edit the item in $EDITOR, then reload                                   │                           │
+│                           │  n       Add a knowledge item (form)  bint knowledge add                         │                           │
+│                           │ … (more; enlarge the window to see everything)                                   │                           │
 │                           └──────────────────────────────────────────────────────────────────────────────────┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"bint/internal/config"
 	"bint/internal/eval"
 	"bint/internal/knowledge"
 	"bint/internal/store"
@@ -32,15 +33,46 @@ type Revalidation struct {
 
 // RevalidateOptions điều khiển `bint knowledge revalidate`.
 type RevalidateOptions struct {
-	Refs      []string
-	MaxItems  int
-	BatchSize int
-	BudgetUSD float64
+	Refs      []string `arg:"id" form:"suggest=ids"`
+	MaxItems  int      `flag:"max-items"`
+	BatchSize int      `flag:"batch" form:"advanced"`
+	BudgetUSD float64  `flag:"budget"`
+	// AgentCommand: lệnh tuỳ chỉnh làm agent (đề bài qua stdin); rỗng = Claude Code theo eval.agent.
+	AgentCommand string `flag:"agent-command" form:"advanced"`
+	// Model: mô hình của Claude Code (mặc định eval.agent.model).
+	Model string `flag:"model" form:"advanced"`
 	// PriorRunUSD: chi phí tiên nghiệm mỗi lô khi chưa đo được lô nào (eval.prior_run_usd); 0 = tắt.
 	PriorRunUSD float64
-	Agent       eval.Agent
-	Timeout     time.Duration
-	Now         time.Time
+	// Agent: nil thì dựng từ AgentCommand/Model và cấu hình.
+	Agent   eval.Agent
+	Timeout time.Duration
+	Now     time.Time
+}
+
+// RevalidateDefaults trả giá trị mặc định (giới hạn mục/lô, chi phí tiên nghiệm và thời hạn theo cấu hình).
+func RevalidateDefaults(cfg config.Config) RevalidateOptions {
+	return RevalidateOptions{MaxItems: 10, BatchSize: 5, PriorRunUSD: cfg.Eval.PriorRunUSD,
+		Timeout: time.Duration(cfg.Eval.TimeoutMinutes) * time.Minute}
+}
+
+// Validate kiểm tra ràng buộc mức giá trị.
+func (o RevalidateOptions) Validate() error {
+	if o.BudgetUSD < 0 {
+		return Usagef("--budget không được âm")
+	}
+	return nil
+}
+
+// buildAgent dựng agent khi người gọi chưa đưa sẵn: lệnh tuỳ chỉnh hoặc Claude Code chỉ-đọc.
+func (o RevalidateOptions) buildAgent(cfg config.Config) eval.Agent {
+	if o.AgentCommand != "" {
+		return &eval.CommandAgent{Command: o.AgentCommand}
+	}
+	ac := cfg.Eval.Agent
+	ac.AllowedTools = []string{"Read", "Grep", "Glob"}
+	ac.PermissionMode = "dontAsk"
+	ac.ExtraArgs = nil
+	return &eval.ClaudeAgent{Cfg: ac, Model: o.Model}
 }
 
 // RevalidateReport là kết quả.
@@ -79,6 +111,9 @@ func RevalidateKnowledge(ctx context.Context, k *KnowledgeWS, opts RevalidateOpt
 	var rep RevalidateReport
 	if err := RequireHuman("bint knowledge revalidate"); err != nil {
 		return rep, err
+	}
+	if opts.Agent == nil {
+		opts.Agent = opts.buildAgent(k.Config)
 	}
 	if opts.BudgetUSD <= 0 && opts.Agent.ReportsCost() {
 		return rep, ErrNoBudget

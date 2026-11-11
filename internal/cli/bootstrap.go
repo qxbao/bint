@@ -1,22 +1,18 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/fsafe"
-	"bint/internal/harness"
 	"bint/internal/inspect"
 	"bint/internal/knowledge"
-	"bint/internal/skills"
 )
 
 func newInspectCmd(stdio IO) *cobra.Command {
@@ -35,11 +31,7 @@ Không chạy lệnh của dự án, không gọi mô hình, không ghi gì vào
 			if err != nil {
 				return err
 			}
-			ws, err := app.OpenWorkspace(cmd.Context(), dir, false)
-			if err != nil {
-				return err
-			}
-			rep, err := inspect.Inspect(cmd.Context(), ws.Repo.Toplevel, inspect.Options{MaxCommits: maxCommits})
+			rep, err := app.Inspect(cmd.Context(), dir, app.InspectOptions{MaxCommits: maxCommits})
 			if err != nil {
 				return err
 			}
@@ -157,24 +149,18 @@ b-bootstrap trong harness:
 --json chỉ in dữ liệu khảo sát (dành cho agent), không ghi gì.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx := cmd.Context()
 			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			k, err := app.OpenKnowledge(ctx, dir)
-			if err != nil {
-				return err
-			}
-			rep, err := inspect.Inspect(ctx, k.Repo.Toplevel, inspect.Options{})
-			if err != nil {
-				return err
-			}
-			items, bad, err := k.Items()
-			if err != nil {
+			rep, err := app.Bootstrap(cmd.Context(), dir, app.BootstrapOptions{NoSkill: noSkill, Force: force, ReadOnly: asJSON, Version: Version})
+			if rep == nil || rep.Inspect == nil {
 				return err
 			}
 			if asJSON {
+				if err != nil {
+					return err
+				}
 				type itemRow struct {
 					ID     string   `json:"id"`
 					Type   string   `json:"type"`
@@ -185,38 +171,35 @@ b-bootstrap trong harness:
 				out := struct {
 					*inspect.Report
 					Knowledge []itemRow `json:"existing_knowledge"`
-				}{Report: rep, Knowledge: []itemRow{}}
-				for _, it := range items {
+				}{Report: rep.Inspect, Knowledge: []itemRow{}}
+				for _, it := range rep.Items {
 					if it.Active() {
 						out.Knowledge = append(out.Knowledge, itemRow{it.ID, it.Type, it.Status, it.Title, it.Scope.Paths})
 					}
 				}
 				return writeJSON(stdio.Out, out)
 			}
-			printInspect(stdio.Out, rep)
-			if k.Paths.Initialized() {
-				p := filepath.Join(k.Paths.Generated, "inspect.json")
-				if data, err := json.MarshalIndent(rep, "", "  "); err == nil {
-					if err := fsafe.WriteAtomic(p, append(data, '\n'), 0o600); err == nil {
-						fmt.Fprintf(stdio.Out, "\nĐã lưu dữ liệu khảo sát: %s\n", p)
-					}
-				}
+			if !rep.ItemsRead && err != nil {
+				return err // không đọc được tri thức: như CLI cũ, chưa in gì
+			}
+			printInspect(stdio.Out, rep.Inspect)
+			if rep.InspectPath != "" {
+				fmt.Fprintf(stdio.Out, "\nĐã lưu dữ liệu khảo sát: %s\n", rep.InspectPath)
 			}
 			fmt.Fprintln(stdio.Out)
 			if !noSkill {
-				if !k.Paths.Initialized() {
+				if !rep.Initialized {
 					fmt.Fprintln(stdio.Out, "! Chưa `bint init` trên máy này: bỏ qua cài skill.")
-				} else if _, err := installSkillsCLI(stdio.Out, k, force); err != nil {
-					return err
+				} else if rep.Skills != nil {
+					printSkillInstall(stdio.Out, *rep.Skills)
 				}
 			}
-			counts := map[string]int{}
-			for _, it := range items {
-				counts[it.Status]++
+			if err != nil {
+				return err
 			}
-			fmt.Fprintf(stdio.Out, "Tri thức hiện có: %d verified, %d candidate, %d stale", counts[knowledge.StatusVerified], counts[knowledge.StatusCandidate], counts[knowledge.StatusStale])
-			if len(bad) > 0 {
-				fmt.Fprintf(stdio.Out, ", %d tệp hỏng", len(bad))
+			fmt.Fprintf(stdio.Out, "Tri thức hiện có: %d verified, %d candidate, %d stale", rep.Counts[knowledge.StatusVerified], rep.Counts[knowledge.StatusCandidate], rep.Counts[knowledge.StatusStale])
+			if rep.Bad > 0 {
+				fmt.Fprintf(stdio.Out, ", %d tệp hỏng", rep.Bad)
 			}
 			fmt.Fprintln(stdio.Out)
 			fmt.Fprintln(stdio.Out, `
@@ -235,30 +218,26 @@ Bước tiếp theo:
 	return c
 }
 
-// installSkillsCLI xuất bản skill gốc (đã ghép lớp phủ); trả về số xung đột.
+// installSkillsCLI xuất bản skill gốc rồi in kết quả; trả về số xung đột (dùng cho `bint sync` và các
+// lệnh skill).
 func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) (int, error) {
-	targets := harness.SkillTargets(k.Config.Harnesses.Enabled)
-	if len(targets) == 0 {
+	si, err := app.InstallSkills(k, Version, force)
+	if err != nil {
+		return 0, err
+	}
+	printSkillInstall(w, si)
+	return si.Conflicts, nil
+}
+
+// printSkillInstall in kết quả cài skill đúng như CLI cũ.
+func printSkillInstall(w io.Writer, si app.SkillInstall) {
+	if si.NoTargets {
 		fmt.Fprintln(w, "! Không harness nào có adapter skill; dùng `bint skill show <tên>` để lấy nội dung.")
-		return 0, nil
+		return
 	}
-	m, err := fsafe.LoadManifest(k.Paths.Manifest)
-	if err != nil {
-		return 0, err
-	}
-	outs, err := skills.Install(skills.InstallOptions{Root: k.Root, Targets: targets, BintVersion: Version, Force: force,
-		BackupDir: k.Paths.Backups, Manifest: m, Now: time.Now(), Files: k.Source().Files()})
-	if err != nil {
-		return 0, err
-	}
-	if err := m.Save(); err != nil {
-		return 0, err
-	}
-	conflicts := 0
-	for _, o := range outs {
+	for _, o := range si.Outcomes {
 		switch o.Result {
 		case fsafe.Conflict:
-			conflicts++
 			fmt.Fprintf(w, "✗ skill %s: %s — %s\n", o.Skill, o.Path, o.Detail)
 		case fsafe.Created:
 			fmt.Fprintf(w, "+ skill %s: %s\n", o.Skill, o.Path)
@@ -270,7 +249,6 @@ func installSkillsCLI(w io.Writer, k *app.KnowledgeWS, force bool) (int, error) 
 			fmt.Fprintf(w, "✓ skill %s: %s\n", o.Skill, o.Path)
 		}
 	}
-	return conflicts, nil
 }
 
 func newBootstrapSkillCmd(stdio IO) *cobra.Command {
@@ -279,20 +257,15 @@ func newBootstrapSkillCmd(stdio IO) *cobra.Command {
 		Short: "In nội dung skill (mặc định b-bootstrap, đã ghép lớp phủ) để dùng với harness chưa có adapter",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			name := "b-bootstrap"
+			o := app.BootstrapSkillDefaults(config.Config{})
 			if len(args) == 1 {
-				name = args[0]
+				o.Name = args[0]
 			}
-			s, ok := skills.Get(name)
-			if !ok {
-				return fmt.Errorf("không có skill gốc %q", name)
+			content, err := app.BootstrapSkill(cmd.Context(), ".", o)
+			if err != nil {
+				return err
 			}
-			if k, err := app.OpenKnowledge(cmd.Context(), "."); err == nil {
-				if c, _, err := skills.Composed(k.Root, s); err == nil {
-					s = c
-				}
-			}
-			_, err := stdio.Out.Write(s.Content)
+			_, err = stdio.Out.Write(content)
 			return err
 		},
 	}

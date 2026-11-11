@@ -6,6 +6,7 @@ package actions
 
 import (
 	"context"
+	"os/exec"
 	"reflect"
 	"slices"
 	"sort"
@@ -38,10 +39,51 @@ type Env struct {
 	Dir      string // thư mục repository
 	Version  string
 	BintPath string // cách gọi bint cho hook
+	// ReadOnly: TUI đang ở chế độ chỉ đọc (vd. thống kê không nạp spool vào cơ sở dữ liệu).
+	ReadOnly bool
+	// Editor dựng lệnh mở một tệp trong trình soạn thảo; nil = theo $VISUAL/$EDITOR (thay được trong kiểm thử).
+	Editor func(path string) *exec.Cmd
 }
 
 // RunFunc chạy một hành động dịch vụ (chạy ngoài vòng Update, trong tea.Cmd) và trả thông điệp kết quả.
 type RunFunc func(ctx context.Context, env Env) tea.Msg
+
+// DoFunc chạy một hành động có tham số: opts là giá trị kiểu Options của hành động (Action.Options).
+// Chạy ngoài vòng Update; trả thường là ResultMsg (hoặc ExecMsg để mô hình gốc chạy tiến trình tương tác).
+type DoFunc func(ctx context.Context, env Env, opts any) tea.Msg
+
+// RequestMsg là yêu cầu của một màn hình chạy hành động ID với tham số Opts. Mô hình gốc tra sổ
+// (Check theo chế độ, applicable) rồi mới gọi Action.Do: sổ là nơi duy nhất quyết định chỉ-đọc/khoá
+// (mục 7.4), màn hình không tự kiểm.
+type RequestMsg struct {
+	ID   string
+	Opts any
+}
+
+// ResultMsg là kết quả của một RequestMsg đã chạy. Value là kết quả của dịch vụ (kiểu tuỳ hành động).
+type ResultMsg struct {
+	ID    string
+	Opts  any
+	Value any
+	Err   error
+}
+
+// DeniedMsg báo yêu cầu bị từ chối vì hành động ẩn (chỉ đọc) hoặc khoá (chỉ dành cho người).
+type DeniedMsg struct {
+	ID     string
+	Locked bool // true: khoá vì phiên agent; false: ẩn vì chế độ chỉ đọc
+}
+
+// ExecMsg yêu cầu mô hình gốc chạy một tiến trình tương tác (vd. $EDITOR) bằng tea.ExecProcess; xong thì
+// gửi ResultMsg{ID, Opts, Err}.
+type ExecMsg struct {
+	ID   string
+	Opts any
+	Cmd  *exec.Cmd
+}
+
+// CancelMsg yêu cầu huỷ việc nền đang chạy của hành động ID (huỷ context đã truyền vào Do).
+type CancelMsg struct{ ID string }
 
 // Action là một hành động của TUI.
 type Action struct {
@@ -64,8 +106,21 @@ type Action struct {
 	// kèm lý do khi TUI mở trong phiên agent).
 	Writes    bool
 	HumanOnly bool
-	// Run là hàm dịch vụ; nil với hành động giao diện thuần do mô hình gốc xử lý theo ID.
+	// FormID là không gian tên nhãn của form (khoá form.<FormID>.<trường>); rỗng = ID. Các hành động dùng chung
+	// một Options (vd. duyệt và duyệt-làm-mới) dùng chung nhãn.
+	FormID string
+	// Run là hàm dịch vụ không tham số; nil với hành động giao diện thuần do mô hình gốc xử lý theo ID.
 	Run RunFunc
+	// Do là hàm dịch vụ có tham số (RequestMsg); nil với hành động chỉ có giao diện hoặc chỉ có Run.
+	Do DoFunc
+}
+
+// FormNS trả không gian tên nhãn của form của hành động.
+func (a Action) FormNS() string {
+	if a.FormID != "" {
+		return a.FormID
+	}
+	return a.ID
 }
 
 // Flags trả tên các cờ CLI (không gồm "--") suy ra từ thẻ `flag` của kiểu Options, kể cả trường nhúng.

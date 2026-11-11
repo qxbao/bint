@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
-	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -105,14 +103,8 @@ hiện; cờ khác ghi đè. Mục do agent đề xuất theo cách này vẫn �
 			case len(args) == 1:
 				o.Body = args[0]
 			}
-			if strings.TrimSpace(o.Body) == "" {
-				return usageError{fmt.Errorf("thiếu nội dung (đối số, '-' cho stdin, hoặc --body-file)")}
-			}
-			if o.Type == "" {
-				return usageError{fmt.Errorf("thiếu --type")}
-			}
-			if !slices.Contains(knowledge.Types, o.Type) {
-				return usageError{fmt.Errorf("--type phải là một trong: %s", strings.Join(knowledge.Types, ", "))}
+			if err := o.Validate(); err != nil {
+				return err
 			}
 			res, err := app.AddKnowledge(cmd.Context(), k, o)
 			if err != nil {
@@ -174,8 +166,8 @@ func printFindings(w io.Writer, fs []knowledge.Finding, indent string) {
 
 func newKnowledgeListCmd(stdio IO) *cobra.Command {
 	var (
-		status, typ []string
-		all, asJSON bool
+		lo     app.KnowledgeListOptions
+		asJSON bool
 	)
 	c := &cobra.Command{
 		Use:   "list",
@@ -186,23 +178,11 @@ func newKnowledgeListCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, bad, err := k.Items()
+			res, err := app.ListKnowledge(cmd.Context(), k, lo)
 			if err != nil {
 				return err
 			}
-			var out []*knowledge.Item
-			for _, it := range items {
-				if len(status) > 0 && !slices.Contains(status, it.Status) {
-					continue
-				}
-				if len(status) == 0 && !all && !it.Active() {
-					continue
-				}
-				if len(typ) > 0 && !slices.Contains(typ, it.Type) {
-					continue
-				}
-				out = append(out, it)
-			}
+			out, bad := res.Items, res.Bad
 			if asJSON {
 				type row struct {
 					*knowledge.Item
@@ -252,15 +232,16 @@ func newKnowledgeListCmd(stdio IO) *cobra.Command {
 		},
 	}
 	f := c.Flags()
-	f.StringSliceVar(&status, "status", nil, "lọc theo trạng thái")
-	f.StringSliceVar(&typ, "type", nil, "lọc theo loại")
-	f.BoolVar(&all, "all", false, "gồm cả mục deprecated")
+	f.StringSliceVar(&lo.Status, "status", nil, "lọc theo trạng thái")
+	f.StringSliceVar(&lo.Type, "type", nil, "lọc theo loại")
+	f.BoolVar(&lo.All, "all", false, "gồm cả mục deprecated")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
 }
 
 // printItem trình bày đầy đủ một mục kèm trích đoạn bằng chứng.
-func printItem(w io.Writer, k *app.KnowledgeWS, it *knowledge.Item) {
+func printItem(w io.Writer, d app.KnowledgeDetail) {
+	it := d.Item
 	fmt.Fprintf(w, "%s  [%s/%s]\n", it.ID, it.Type, it.Status)
 	fmt.Fprintf(w, "Tiêu đề:     %s\n", it.Title)
 	scope := "toàn repository"
@@ -296,44 +277,27 @@ func printItem(w io.Writer, k *app.KnowledgeWS, it *knowledge.Item) {
 	}
 	fmt.Fprintf(w, "Tệp:         %s\n", it.Path)
 	fmt.Fprintf(w, "\n%s\n", indent(it.Body, "  "))
-	if len(it.Evidence) > 0 {
+	if len(d.Evidence) > 0 {
 		fmt.Fprintln(w, "\nBằng chứng:")
-		src := k.Source()
-		for _, e := range it.Evidence {
+		for _, ev := range d.Evidence {
+			e := ev.Evidence
 			extra := ""
 			if e.Commit != "" {
 				extra = " (commit " + short(e.Commit) + ")"
 			}
 			fmt.Fprintf(w, "  %s%s\n", e, extra)
-			b, ok := src.Read(e.Path)
-			if !ok {
+			if ev.Missing {
 				fmt.Fprintln(w, "    (không còn tệp)")
 				continue
 			}
-			for _, l := range excerpt(e, b, 12) {
+			for _, l := range ev.Lines {
 				fmt.Fprintf(w, "    │ %s\n", l)
+			}
+			if ev.More > 0 {
+				fmt.Fprintf(w, "    │       … (%d dòng nữa)\n", ev.More)
 			}
 		}
 	}
-}
-
-func excerpt(e knowledge.Evidence, b []byte, max int) []string {
-	lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
-	from, to, ok, err := e.LineRange()
-	if !ok || err != nil {
-		from, to = 1, len(lines)
-	}
-	if to > len(lines) {
-		to = len(lines)
-	}
-	var out []string
-	for i := from; i <= to && i-from < max; i++ {
-		out = append(out, fmt.Sprintf("%4d  %s", i, lines[i-1]))
-	}
-	if to-from+1 > max {
-		out = append(out, fmt.Sprintf("      … (%d dòng nữa)", to-from+1-max))
-	}
-	return out
 }
 
 func indent(s, pre string) string {
@@ -357,19 +321,15 @@ func newKnowledgeShowCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, _, err := k.Items()
+			d, err := app.ShowKnowledge(cmd.Context(), k, app.KnowledgeShowOptions{Ref: args[0]})
 			if err != nil {
 				return err
 			}
-			it, err := knowledge.Find(items, args[0])
-			if err != nil {
-				return err
-			}
-			r := knowledge.Verifier{Src: k.Source(), All: items}.Verify(it)
+			it, r := d.Item, d.Check
 			if asJSON {
 				return writeJSON(stdio.Out, map[string]any{"item": it, "body": it.Body, "path": it.Path, "findings": nonNilFindings(r.Findings)})
 			}
-			printItem(stdio.Out, k, it)
+			printItem(stdio.Out, d)
 			if len(r.Findings) > 0 {
 				fmt.Fprintln(stdio.Out, "\nKiểm tra:")
 				printFindings(stdio.Out, r.Findings, "  ")
@@ -515,7 +475,7 @@ Mục stale (bằng chứng đã đổi): xem lại bằng ` + "`bint knowledge 
 			if err != nil {
 				return err
 			}
-			outs, err := app.ReviewKnowledge(cmd.Context(), k, app.ReviewAction{Refs: args, To: knowledge.StatusVerified, Reason: note, Refresh: refresh})
+			outs, err := app.ApproveKnowledge(cmd.Context(), k, app.ApproveOptions{Refs: args, Note: note, Refresh: refresh})
 			if err != nil {
 				return err
 			}
@@ -538,14 +498,15 @@ func newKnowledgeRejectCmd(stdio IO, use, short string) *cobra.Command {
 		Short: short + "; chỉ người dùng",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if strings.TrimSpace(reason) == "" {
-				return usageError{fmt.Errorf("cần --reason")}
+			ro := app.RejectOptions{Refs: args, Reason: reason}
+			if err := ro.Validate(); err != nil {
+				return err
 			}
 			k, err := openKnowledge(cmd)
 			if err != nil {
 				return err
 			}
-			outs, err := app.ReviewKnowledge(cmd.Context(), k, app.ReviewAction{Refs: args, To: knowledge.StatusDeprecated, Reason: reason})
+			outs, err := app.RejectKnowledge(cmd.Context(), k, ro)
 			if err != nil {
 				return err
 			}
@@ -645,9 +606,9 @@ kết quả kiểm tra. Mỗi mục nhập một phím rồi Enter:
 						break // mục bị xoá trong lúc sửa
 					}
 					fmt.Fprintf(stdio.Out, "\n━━ %d/%d ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", i+1, len(pending))
-					printItem(stdio.Out, k, it)
-					r := knowledge.Verifier{Src: k.Source(), All: items}.Verify(it)
-					if len(r.Findings) > 0 {
+					d := k.DetailOf(it, items)
+					printItem(stdio.Out, d)
+					if r := d.Check; len(r.Findings) > 0 {
 						fmt.Fprintln(stdio.Out, "\nKiểm tra:")
 						printFindings(stdio.Out, r.Findings, "  ")
 					}
@@ -666,9 +627,9 @@ kết quả kiểm tra. Mỗi mục nhập một phím rồi Enter:
 						}
 						stats["chấp nhận"]++
 					case "r":
-						reason, _ := ask("Lý do từ chối (Enter = \"người duyệt từ chối\"): ")
+						reason, _ := ask("Lý do từ chối (Enter = \"" + app.DefaultRejectReason + "\"): ")
 						if reason == "" {
-							reason = "người duyệt từ chối"
+							reason = app.DefaultRejectReason
 						}
 						outs, err := app.ReviewKnowledge(cmd.Context(), k, app.ReviewAction{Refs: []string{id}, To: knowledge.StatusDeprecated, Reason: reason})
 						if err != nil {
@@ -710,22 +671,11 @@ kết quả kiểm tra. Mỗi mục nhập một phím rồi Enter:
 }
 
 func openEditor(path string, stdio IO) error {
-	ed := os.Getenv("VISUAL")
-	if ed == "" {
-		ed = os.Getenv("EDITOR")
-	}
-	if ed == "" {
-		if runtime.GOOS == "windows" {
-			ed = "notepad"
-		} else {
-			ed = "vi"
-		}
-	}
-	f := strings.Fields(ed)
-	cmd := exec.Command(f[0], append(f[1:], path)...)
+	argv := app.EditorArgv(path)
+	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, stdio.Out, stdio.Err
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("mở trình soạn thảo %q: %w", ed, err)
+		return fmt.Errorf("mở trình soạn thảo %q: %w", strings.Join(argv[:len(argv)-1], " "), err)
 	}
 	return nil
 }

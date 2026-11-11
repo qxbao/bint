@@ -4,20 +4,20 @@
 ┌─│Overview│───────────────────────────────────────────────────────────────────┐
 │ ┌─│Help│───────────────────────────────────────────────────────────────────┐ │
 │ │ Overview                                                                 │ │
-│ │  r    Refresh the repository status  bint status                         │ │
-│ │       Check the environment (doctor)  bint doctor                        │ │
+│ │  r       Refresh the repository status  bint status                      │ │
+│ │          Check the environment (doctor)  bint doctor                     │ │
 │ │                                                                          │ │
 │ │ Global                                                                   │ │
-│ │  q    Quit Bint                                                          │ │
-│ │  ?    Show the full help                                                 │ │
-│ │  :    Open the command palette (search every action)                     │ │
-│ │  L    Switch interface language (vi ⇄ en)                                │ │
-│ │  ]    Go to the next tab                                                 │ │
-│ │  [    Go to the previous tab                                             │ │
-│ │  1-7  Jump to a tab                                                      │ │
+│ │  q       Quit Bint                                                       │ │
+│ │  ?       Show the full help                                              │ │
+│ │  :       Open the command palette (search every action)                  │ │
+│ │  L       Switch interface language (vi ⇄ en)                             │ │
+│ │  ]       Go to the next tab                                              │ │
+│ │  [       Go to the previous tab                                          │ │
+│ │  1-7     Jump to a tab                                                   │ │
 │ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
+│ │ Knowledge                                                                │ │
+│ │ … (more; enlarge the window to see everything)                           │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
 │                                                                              │

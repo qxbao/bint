@@ -35,11 +35,11 @@ func AgentsBlock(root string, cfg config.Config) (string, knowledge.Selection, e
 // PublishOptions điều khiển `bint bootstrap publish`.
 type PublishOptions struct {
 	Dir    string
-	DryRun bool `flag:"dry-run"`
+	DryRun bool `flag:"dry-run" form:"hidden"`
 	Force  bool `flag:"force"`
 	// Yes bỏ qua lời hỏi xác nhận. Không Yes và không Confirm (không ai trả lời được) thì ghi thay
 	// đổi AGENTS.md là lỗi dùng sai, như eval run/bootstrap và evolve evaluate; DryRun thì không cần.
-	Yes bool `flag:"yes"`
+	Yes bool `flag:"yes" form:"hidden"`
 	// Confirm được gọi trước khi ghi thay đổi (Detail = bản thay đổi); trả false thì không ghi và
 	// PublishAgents trả báo cáo với Written=false (không phải lỗi).
 	Confirm ConfirmFunc

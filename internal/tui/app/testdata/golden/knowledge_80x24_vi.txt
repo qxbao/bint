@@ -2,23 +2,23 @@
 │ TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Tri thức│───────────────────────────────────────────────────────────────────┐
-│                                                                              │
-│   Tri thức                                                                   │
-│                                                                              │
-│   Màn hình này sẽ có ở giai đoạn 1 của kế hoạch TUI.                         │
-│                                                                              │
-│   Trong lúc chờ, dùng các lệnh CLI tương đương:                              │
-│     $ bint knowledge list                                                    │
-│     $ bint knowledge review                                                  │
-│     $ bint knowledge search <query>                                          │
-│     $ bint knowledge add                                                     │
-│     $ bint context <task>                                                    │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘
+│  ‹  Danh sách  1/8 ›                                                         │
+│ ┌─│Danh sách (5/6)│───────────────────────────────────mọi mục còn hiệu lực─┐ │
+│ │ ▸   ◌ ⚑ rule     Endpoint phải có /v1                     api/**         │ │
+│ │     ◌ ⚑ warning  Không gọi sql.Open trực tiếp             internal/db/** │ │
+│ │     ✓   pattern  Handler đi qua wrap()                    *              │ │
+│ │     ⟳   fact     Cổng mặc định là 8080                    cmd/**         │ │
+│ │     ◌   lesson   Chạy go vet với GOOS=windows             *              │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[a→ Duyệt] [r→ Từ chối] [A→ Duyệt lô] [Enter→ Mở] [q→ Thoát] [?→ Trợ giúp]───┘

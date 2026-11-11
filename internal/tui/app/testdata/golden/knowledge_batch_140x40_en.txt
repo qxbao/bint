@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Knowledge│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context                                                    │
+│ ┌─│List (5/6)│────────────────────────all active items─┐┌─│Details│────────────────────────────────────────────────────────────────────┐ │
+│ │ ▸   ◌ ⚑ rule     Endpoint phải có /v1 api/**         ││ 01KNOW000001                                                                 │ │
+│ │     ◌ ⚑ warning  Không gọi sql.Open … internal/db/** ││ ◌ rule · candidate · agent ⚑                                                 │ │
+│ │     ✓   pattern  Handler đi qua wrap… *              ││ Endpoint phải có /v1                                                         │ │
+│ │     ⟳   fact     Cổng mặc định là 80… cmd/**         ││ Scope        api/**                                                          │ │
+│ │     ◌   lesson   Chạy go vet với GOO… *              ││ Symbols/tags nguon:lo-thu                                                    │ │
+│ │                                                      ││ Origin       agent ⚑ (Tester <t@example.com>, 2026-11-11T00:00:00Z)          │ │
+│ │                                                      ││ File         /work/demo/.bint/knowledge/items/01KNOW000001.md                │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││ ── Content ───────────────────────────────────────────────────────────────── │ │
+│ │                                                      ││ Nội dung của mục Endpoint phải có /v1.                                       │ │
+│ │                         ┌─│Approve 2 items?│───────────────────────────────────────────────────────────────┐                         │ │
+│ │                         │ 2 items will be written.                                                         │                         │ │
+│ │                         │                                                                                  │──────────────────────── │ │
+│ │                         │ 1 item left out of the batch:                                                    │                         │ │
+│ │                         │   ✗ KNOW000001 Endpoint phải có /v1 — failed checks: Evidence changed since it   │                         │ │
+│ │                         │ was recorded                                                                     │                         │ │
+│ │                         │ Items with check errors cannot be approved in bulk: review the evidence, then    │                         │ │
+│ │                         │ approve them one by one (a, or f to refresh the fingerprint).                    │                         │ │
+│ │                         │                                                                                  │──────────────────────── │ │
+│ │                         │ [Enter] Confirm   [Esc] Cancel                                                   │                         │ │
+│ │                         └──────────────────────────────────────────────────────────────────────────────────┘                         │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││                                                                              │ │
+│ └──────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
