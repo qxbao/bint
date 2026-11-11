@@ -15,6 +15,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"bint/internal/app/evolvesvc"
+	"bint/internal/i18n"
 	"bint/internal/tui/jobs"
 	"bint/internal/workflow"
 )
@@ -49,6 +51,18 @@ type Env struct {
 	Editor func(path string) *exec.Cmd
 	// Agent thay cách dựng agent của từng bước workflow (nil = harness theo cấu hình); tiêm agent giả trong kiểm thử.
 	Agent workflow.AgentFactory
+	// CycleRunner thay cách chạy các bước của `evolve cycle` (nil = trong tiến trình); tiêm runner giả trong kiểm thử.
+	CycleRunner evolvesvc.CycleRunner
+	// Cat là danh mục chuỗi lúc bắt đầu hành động (dòng log của việc nền được dịch theo nó); nil = ghép khoá.
+	Cat *i18n.Catalog
+}
+
+// T tra chuỗi giao diện theo Cat; không có danh mục thì trả khoá (kiểm thử dựng Env tối giản).
+func (e Env) T(key string, a ...i18n.A) string {
+	if e.Cat == nil {
+		return key
+	}
+	return e.Cat.T(key, a...)
 }
 
 // RunFunc chạy một hành động dịch vụ (chạy ngoài vòng Update, trong tea.Cmd) và trả thông điệp kết quả.
@@ -64,6 +78,10 @@ type JobFunc func(ctx context.Context, env Env, opts any, br *jobs.Bridge) (any,
 
 // ErrWorkflowBusy: đã có một việc workflow đang chạy (mỗi lúc một việc, theo khoá ghi worktree của workflow).
 var ErrWorkflowBusy = errors.New("a workflow job is already running")
+
+// ErrEvolveBusy: đã có một việc Tiến hoá nặng đang chạy (propose, evaluate, process, cycle; mỗi lúc một việc trong
+// tiến trình TUI).
+var ErrEvolveBusy = errors.New("an evolution job is already running")
 
 // Targeted là thông điệp nội bộ của một màn hình (kết quả nạp...): mô hình gốc chuyển nó cho đúng màn hình.
 type Targeted interface{ Target() Screen }

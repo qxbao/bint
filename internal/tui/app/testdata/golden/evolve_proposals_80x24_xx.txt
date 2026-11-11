@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evolution~~~~⟧ │ ⟦Sy~⟧          │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evolution~~~~⟧│────────────────────────────────────────────────────────────┐
+│   ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧         │
+│ ┌─│⟦Proposals (6)~~~~~⟧│──────────────────────────────────────⟦pending~~~⟧─┐ │
+│ │ ▸ ◌ 00KNOW proposed update    high   supported -         Thất bại lặp l… │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất bại lặp l… │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất bại lặp l… │ │
+│ │   ◌ 00GUAR proposed create    medium -         -         Thất bại lặp l… │ │
+│ │   ◌ 00SCRI proposed create    high   -         -         Thất bại lặp l… │ │
+│ │   ◌ 00STRA proposed create    medium -         -         Thất bại lặp l… │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ a ⟦apply~~⟧  x ⟦reject~~~⟧  u ⟦roll back~~~~⟧  E ⟦compare~~~⟧  A ⟦all …─┘ │
+└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]───┘

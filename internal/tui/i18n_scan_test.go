@@ -150,7 +150,7 @@ func TestEveryKeyUsedInCodeExists(t *testing.T) {
 		}
 	}
 	for _, k := range []string{"init.does.config", "init.does.state", "init.does.hooks", "init.does.gitignore",
-		"overview.inbox.knowledge", "overview.inbox.evolve", "overview.inbox.doctor_fail", "overview.inbox.doctor_warn"} {
+		"overview.inbox.knowledge", "overview.inbox.proposal", "overview.inbox.doctor_fail", "overview.inbox.doctor_warn"} {
 		seen[k] = true
 	}
 	var keys []string
@@ -187,7 +187,11 @@ func TestNoUnusedKeys(t *testing.T) {
 		"finding.", "transition.", "form.",
 		// Màn Tác vụ: trạng thái, thẻ con, mức độ, loại phát hiện, điều kiện chuyển, nhóm, siêu dữ liệu (ghép từ giá trị dữ liệu);
 		// câu hỏi giữa chừng ghép từ khoá do workflow khai báo (workflow.Q*).
-		"action.tasks.", "tk.status.", "tk.sub.", "tk.sev.", "tk.kind.", "tk.trans.", "tk.group.", "tk.meta.", "prompt.workflow."}
+		"action.tasks.", "tk.status.", "tk.sub.", "tk.sev.", "tk.kind.", "tk.trans.", "tk.group.", "tk.meta.", "prompt.workflow.",
+		// Màn Lượt chạy và Tiến hoá (giai đoạn 3): hành động, thẻ, nhãn trường, nhãn nhóm, câu hỏi giữa chừng của evaluate
+		// (ghép từ khoá evolvesvc.ConfirmEvaluateKey), tên thẻ con, lý do chặn, loại cặp...
+		"action.runs.", "action.evolve.", "prompt.evolve.", "rn.tab.", "rn.label.", "rn.f.", "rn.lf.", "rn.rating.",
+		"ev.tab.", "ev.sub.", "ev.f.", "ev.pair.", "ev.apply.blocked.", "ev.evals.independent.", "ev.job.title."}
 	for _, k := range vi.Keys() {
 		if k == "app.name" || strings.Contains(code, `"`+k+`"`) {
 			continue

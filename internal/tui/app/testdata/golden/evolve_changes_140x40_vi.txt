@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tiến hoá│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Cơ hội · Đề xuất · Lịch sử · Hàng đợi                                                                                                  │
+│ ┌─│Đề xuất (6)│───────────────────────────────────────────đang chờ─┐┌─│Chi tiết · EP0000KNOW│──────────────────────────────────────────┐ │
+│ │ ▸ ◌ 00KNOW proposed update    high   supported -         Thất b… ││  Thông tin · Thay đổi · Đối chiếu                                │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất b… ││ [update] 01KNOW000003 — làm rõ                                   │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất b… ││   Loại       pattern                                             │ │
+│ │   ◌ 00GUAR proposed create    medium -         -         Thất b… ││ - Tiêu đề    Handler đi qua wrap()                               │ │
+│ │   ◌ 00SCRI proposed create    high   -         -         Thất b… ││ + Tiêu đề    Handler đi qua wrap() và log                        │ │
+│ │   ◌ 00STRA proposed create    medium -         -         Thất b… ││   Phạm vi    internal/api/**                                     │ │
+│ │                                                                  ││   Bằng chứng internal/db/db.go:40-52                             │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Nội dung                                                         │ │
+│ │                                                                  ││ --- hiện trạng                                                   │ │
+│ │                                                                  ││ +++ đề xuất                                                      │ │
+│ │                                                                  ││  Nội dung của mục Handler đi qua wrap().                         │ │
+│ │                                                                  ││ -Dòng thứ hai.                                                   │ │
+│ │                                                                  ││ +Dòng thứ hai đã sửa.                                            │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a áp dụng  x bác bỏ  u quay lui  E đối chiếu  A mọi trạng thái ─┘└─ v thẻ con  Enter xem chi tiết ──────────────────────────────────┘ │
+└─[s→ Quét] [p→ Đề xuất] [a→ Áp dụng] [x→ Bác bỏ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────────────────────────────────────────┘

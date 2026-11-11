@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evolution│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Opportunities · Proposals · History · Queue                                                                                            │
+│ ┌─│Proposals (6)│──────────────────────────────────────────pending─┐┌─│Detail · EP0000KNOW│────────────────────────────────────────────┐ │
+│ │ ▸ ◌ 00KNOW proposed update    high   supported -         Thất b… ││  Info · Changes · Comparisons                                    │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất b… ││ Proposal      01EP0000KNOW (proposed)                            │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất b… ││ Action        update 01KNOW000003 — level L1, target knowledge   │ │
+│ │   ◌ 00GUAR proposed create    medium -         -         Thất b… ││ Opportunity   op-demo                                            │ │
+│ │   ◌ 00SCRI proposed create    high   -         -         Thất b… ││ Reason        Thất bại lặp lại ở internal/db                     │ │
+│ │   ◌ 00STRA proposed create    medium -         -         Thất b… ││ Benefit       bớt thất bại lặp lại                               │ │
+│ │                      ┌─│Roll back proposal 01EP0000KNOW│──────────────────────────────────────────────────────┐                      │ │
+│ │                      │ WARNING: 1 file(s) were edited after applying; rolling back will overwrite those edits │                      │ │
+│ │                      │ if you tick the box below.                                                             │ thất bại             │ │
+│ │                      │                                                                                        │en proposed — NOT     │ │
+│ │                      │ Restores files to their state before Rev <rev@example.com> applied it:                 │                      │ │
+│ │                      │   ~ .bint/knowledge/items/01KNOW000003.md  ✗ edited after it was applied               │                      │ │
+│ │                      │       --- current (will be lost)                                                       │                      │ │
+│ │                      │       +++ after rollback                                                               │                      │ │
+│ │                      │       -sau                                                                             │                      │ │
+│ │                      │       -sửa tay                                                                         │                      │ │
+│ │                      │       +trước                                                                           │                      │ │
+│ │                      │   ~ .bint/knowledge/items/01KNOW000004.md                                              │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ ▸ [ ] Overwrite 1 file(s) edited after applying — --force                              │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ Reason: ▏optional; default: user rolled back                                           │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ [Enter] Roll back   [Esc] Cancel                                                       │                      │ │
+│ │                      └────────────────────────────────────────────────────────────────────────────────────────┘                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a apply  x reject  u roll back  E compare  A all states ────────┘└─ v sub-tab  Enter view detail ───────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

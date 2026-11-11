@@ -12,6 +12,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
+	"bint/internal/app/evolvesvc"
 	"bint/internal/i18n"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/components/confirm"
@@ -22,10 +23,12 @@ import (
 	"bint/internal/tui/components/tabs"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/jobs"
+	evscreen "bint/internal/tui/screens/evolve"
 	"bint/internal/tui/screens/initplaceholder"
 	knscreen "bint/internal/tui/screens/knowledge"
 	"bint/internal/tui/screens/overview"
 	"bint/internal/tui/screens/placeholder"
+	rnscreen "bint/internal/tui/screens/runs"
 	tkscreen "bint/internal/tui/screens/tasks"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
@@ -62,8 +65,17 @@ type Options struct {
 	TasksLoader   tkscreen.Loader
 	TasksDetailer tkscreen.Detailer
 	TasksRuns     tkscreen.RunsLoader
+	// RunsLoader/RunsDetailer/RunsLessons thay được trong kiểm thử; nil = nạp thật.
+	RunsLoader   rnscreen.Loader
+	RunsDetailer rnscreen.Detailer
+	RunsLessons  rnscreen.LessonLoader
+	// EvolveLoader/EvolveDetailer thay được trong kiểm thử; nil = nạp thật.
+	EvolveLoader   evscreen.Loader
+	EvolveDetailer evscreen.Detailer
 	// Agent thay cách dựng agent của từng bước workflow (nil = harness theo cấu hình); tiêm agent giả trong kiểm thử.
 	AgentFactory workflow.AgentFactory
+	// CycleRunner thay cách chạy các bước của `evolve cycle` (nil = trong tiến trình); tiêm runner giả trong kiểm thử.
+	CycleRunner evolvesvc.CycleRunner
 	// ExitGrace là thời gian chờ việc nền kết thúc sau khi huỷ lúc thoát; 0 = 15 giây.
 	ExitGrace time.Duration
 	// TailEvery là chu kỳ đọc đuôi log của bước agent đang chạy; 0 = 400 ms.
@@ -89,6 +101,8 @@ type Model struct {
 	ini initplaceholder.Model
 	kn  *knscreen.Model
 	tk  *tkscreen.Model
+	rn  *rnscreen.Model
+	ev  *evscreen.Model
 	// screens là các màn hình chuyên biệt theo tab (giao diện chung ui.Screen); mô hình gốc không rẽ nhánh theo màn.
 	screens map[actions.Screen]ui.Screen
 
@@ -142,7 +156,11 @@ func New(ctx context.Context, opts Options) *Model {
 		Loader: opts.KnowledgeLoader, Detailer: opts.KnowledgeDetailer, Gate: m.gate})
 	m.tk = tkscreen.New(tkscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.TasksLoader, Detailer: opts.TasksDetailer,
 		Runs: opts.TasksRuns, Gate: m.gate, Jobs: m.jobs})
-	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk}
+	m.rn = rnscreen.New(rnscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.RunsLoader, Detailer: opts.RunsDetailer,
+		Lessons: opts.RunsLessons, Gate: m.gate})
+	m.ev = evscreen.New(evscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.EvolveLoader, Detailer: opts.EvolveDetailer,
+		Gate: m.gate, Jobs: m.jobs})
+	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk, actions.Runs: m.rn, actions.Evolve: m.ev}
 	for _, sc := range m.screens {
 		sc.SetEnv(m.th, m.cat)
 	}
@@ -183,7 +201,8 @@ func (m *Model) mode() actions.Mode {
 }
 
 func (m *Model) env() actions.Env {
-	return actions.Env{Dir: m.opts.Dir, Version: m.opts.Version, BintPath: m.opts.BintPath, ReadOnly: m.opts.ReadOnly, Editor: m.opts.Editor, Agent: m.opts.AgentFactory}
+	return actions.Env{Dir: m.opts.Dir, Version: m.opts.Version, BintPath: m.opts.BintPath, ReadOnly: m.opts.ReadOnly, Editor: m.opts.Editor,
+		Agent: m.opts.AgentFactory, CycleRunner: m.opts.CycleRunner, Cat: m.cat}
 }
 
 // busy: có việc nền đang chạy (nạp dữ liệu, khởi tạo, việc nền có tham số hoặc việc của một màn hình).
@@ -290,6 +309,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.kn.Focus(*msg.Filter), m.startTick())
 		case msg.Screen == actions.Tasks && msg.TaskID != "":
 			return m, tea.Batch(m.tk.Focus(msg.TaskID), m.startTick())
+		case msg.Screen == actions.Evolve && msg.ProposalID != "":
+			return m, tea.Batch(m.ev.Focus(msg.ProposalID), m.startTick())
 		}
 		return m, m.ensure()
 	case actions.Targeted:
@@ -749,7 +770,7 @@ func (m *Model) screenBody(env ui.Env) string {
 		return ini.View(env)
 	case actions.Overview:
 		return m.ov.View(env)
-	case actions.Knowledge, actions.Tasks:
+	case actions.Knowledge, actions.Tasks, actions.Runs, actions.Evolve:
 		return m.screens[s].View(env)
 	default:
 		return placeholder.View(env, s, m.ov.Data.ForScreen(s))

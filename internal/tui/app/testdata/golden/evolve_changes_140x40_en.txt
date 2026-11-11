@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evolution│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Opportunities · Proposals · History · Queue                                                                                            │
+│ ┌─│Proposals (6)│──────────────────────────────────────────pending─┐┌─│Detail · EP0000KNOW│────────────────────────────────────────────┐ │
+│ │ ▸ ◌ 00KNOW proposed update    high   supported -         Thất b… ││  Info · Changes · Comparisons                                    │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất b… ││ [update] 01KNOW000003 — làm rõ                                   │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất b… ││   Type       pattern                                             │ │
+│ │   ◌ 00GUAR proposed create    medium -         -         Thất b… ││ - Title      Handler đi qua wrap()                               │ │
+│ │   ◌ 00SCRI proposed create    high   -         -         Thất b… ││ + Title      Handler đi qua wrap() và log                        │ │
+│ │   ◌ 00STRA proposed create    medium -         -         Thất b… ││   Scope      internal/api/**                                     │ │
+│ │                                                                  ││   Evidence   internal/db/db.go:40-52                             │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Content                                                          │ │
+│ │                                                                  ││ --- current                                                      │ │
+│ │                                                                  ││ +++ proposed                                                     │ │
+│ │                                                                  ││  Nội dung của mục Handler đi qua wrap().                         │ │
+│ │                                                                  ││ -Dòng thứ hai.                                                   │ │
+│ │                                                                  ││ +Dòng thứ hai đã sửa.                                            │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a apply  x reject  u roll back  E compare  A all states ────────┘└─ v sub-tab  Enter view detail ───────────────────────────────────┘ │
+└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [q→ Quit] [?→ Help]────────────────────────────────────────────────────────────────────────┘

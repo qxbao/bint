@@ -1,8 +1,8 @@
 # Kế hoạch TUI cho Bint
 
-Trạng thái: **giai đoạn 0, 1 và 2 đã triển khai** (2026-11-11); các giai đoạn 3–6 chưa làm. Kế hoạch đề
+Trạng thái: **giai đoạn 0, 1, 2 và 3 đã triển khai** (2026-11-11); các giai đoạn 4–6 chưa làm. Kế hoạch đề
 xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
-và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2).
+và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3).
 
 ## 1. Mục tiêu
 
@@ -431,7 +431,7 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 | 0 ✅ | Tách tầng dịch vụ cho `knowledge review`, `eval`, `evolve` (cycle, apply, report) khỏi `internal/cli`; đưa kiểm tra chỉ-dành-cho-người, ràng buộc cờ (`Options.Validate`), giá trị mặc định (`Defaults`) và lời hỏi `confirm()` xuống `app`. Khung TUI: theme, khung viền tự vẽ, tab, chân phím theo ưu tiên, bảng lệnh, sổ hành động, `internal/i18n` (vi, en) và khoá `ui.language`, test phủ lệnh + cờ với danh sách chưa làm. **Màn Tổng quan mẫu** + trang trưng bày + kịch bản VHS; màn tạm "Khởi tạo với mặc định" cho repo chưa `init`. | CLI chạy lại toàn bộ test không đổi hành vi; `bint` mở khung 7 tab, đổi `vi`/`en` được; chủ dự án duyệt ảnh màn mẫu và chốt bảng màu. |
 | 1 ✅ | Tổng quan + hộp thư; Tri thức đầy đủ, gồm duyệt theo lô và lọc theo `nguon:*`. | Duyệt 30 mục từ một lần `/b-knowledge` trong < 1 phút, không gõ lệnh. |
 | 2 ✅ | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
-| 3 | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
+| 3 ✅ | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
 | 4 | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
 | 5 | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
 | 6 | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README. | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
@@ -554,11 +554,11 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
   chậm cập nhật lượt chạy mới); mở cơ sở dữ liệu vẫn có thể áp migration nếu schema cũ.
 - **`bootstrap publish`**: `PublishOptions.Yes` + `Confirm`; ghi thay đổi mà không Yes và không Confirm là
   `UsageError` "cần --yes" (như eval/evolve evaluate); `DryRun` không cần xác nhận.
-- **Chưa tách** (ngoài phạm vi AC-6): kiểm `InAgentSession` của `runs rate` còn ở CLI (của `task approve` đã tách ở giai đoạn 2, mục 12.4).
+- **Đã tách ở giai đoạn 3**: kiểm `InAgentSession` của `runs rate` nay nằm ở dịch vụ (`app.RateRun`, mục 12.5); của `task approve` đã tách ở giai đoạn 2 (mục 12.4).
 - **Chưa có**: chuột, chế độ hẹp đầy đủ, hành động ghi nào trong sổ ngoài "Khởi tạo với mặc định" (nên chế độ
   `--read-only` mới chỉ có cơ chế và ẩn hành động ghi đó), `bubblezone`, `teatest` (golden dùng `View()` của mô
   hình), các màn hình của giai đoạn 2–6 (giai đoạn 1: xem 12.3). Danh sách chưa làm ở
-  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2).
+  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3).
 
 ### 12.3 Giai đoạn 1 (đã xong, 2026-11-11)
 
@@ -746,4 +746,98 @@ và 140×40 (vi/en/xx, đơn sắc; từng chế độ màu ở dạng có mã m
 go test ./internal/tui/app ./internal/tui/gallery -update    # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước)
 go test -race ./internal/tui/app -run 'Confirm|Cancel|LiveLog|Exit|Milestone'   # việc nền, câu hỏi, huỷ, thoát
 bint tui                                                      # 3 → n (tạo) → r (chạy b-do); q khi còn việc → hộp thoại thoát
+```
+
+### 12.5 Giai đoạn 3 (đã xong, 2026-11-11)
+
+Mốc "xong": áp dụng và quay lui một đề xuất hoàn toàn trong TUI. Kiểm bằng `TestMilestoneApplyRollbackProposal` (`internal/tui/app`,
+dịch vụ thật, không gọi mô hình): repo tạm có mục tri thức được truy xuất nhưng chưa trích dẫn và spool 3 phiên có nhãn → `4` rồi `I`
+(nạp spool) và `S` (quét Git) → `6` rồi `s` (quét cơ hội) → chọn cơ hội `unused`, `p` (bật "Không dùng agent", việc nền có log) → thẻ Đề xuất
+tự mở tại đề xuất loại bỏ (deprecate) → `a` (hộp đỏ vì chưa kiểm chứng; chọn các ô rồi Enter) → mục thành `deprecated` → `u` (hộp quay lui,
+không xung đột) → mục hết `deprecated`; thẻ Lịch sử ghi cả `apply` và `rollback`. Chưa đo được tự động: ảnh VHS, cảm nhận thẩm mỹ, `propose`/
+`evaluate`/`cycle` với mô hình thật.
+
+**Tầng dịch vụ**: `internal/app/runs_svc.go` — `runs list/show/rate/scan` và `events ingest` có `Options` (thẻ `flag`/`arg`/`form`),
+`Validate()` (trả `UsageError`) và `Defaults(cfg)`; hàm `ListRuns` (kèm nhãn + lý do mỗi lượt), `ShowRun` (lượt, nhãn, tín hiệu, đầu ra, sự kiện),
+`RateRun`, `ScanRuns`, `IngestEvents`; `OpenRuns(ctx, dir, ingest)` thay `openAndIngest` của CLI (mở không nạp spool cho `--read-only`). **`RateRun`
+giữ thứ tự lỗi của CLI cũ**: tham số sai (mã 2) → `RequireHuman` → mở workspace. `internal/app/evolvesvc`: `experience digest/show`
+(`Digest`, `Experience`), `OpenNoIngest`/`OpenIngest` (biến thể mở không nạp spool), thẻ `arg`/`form` cho `Options` đã có (trường `--unverified`,
+`--confirm-risk`, `--force`, `--yes` là `form:"hidden"`: chỉ đặt qua hộp cảnh báo/hộp xác nhận), `PlanApply` (chỉ đọc: trạng thái, phiên bản gốc còn khớp,
+đã kiểm chứng độc lập hay chưa, rủi ro cao + lý do, đề xuất skill/harness, danh sách thay đổi), `PlanRollback` (chỉ đọc: tệp sẽ khôi phục kèm nội dung
+trước/sau/hiện tại và tập xung đột), `RollbackOptions.ExpectConflicts` (tệp xung đột → dấu vân tay sha256 nội dung lúc xem, dựng bằng
+`RollbackPlan.SeenConflicts`; khác `nil` + `Force`: nếu tập xung đột hoặc nội dung một tệp xung đột đã đổi so với lúc xem thì từ chối, không ghi — trường
+không có thẻ `flag` nên CLI không đặt) và `ShowResult.Harness` (thành phần quy trình hiện có để so với đề xuất). Form
+(`components/form`) hỗ trợ thêm `*float64` (ô trống = `nil`, cho `--budget` của `evolve evaluate`) và `uint64` (`--seed`). CLI chỉ còn phân tích cờ,
+gọi dịch vụ và in; cờ lấy giá trị mặc định từ `Defaults(config.Default())`. Đầu ra và mã thoát của mọi e2e cũ giữ nguyên (không sửa khẳng định nào).
+
+**Sổ hành động và phủ**: `actions/runs.go` (`runs.rate/scan/ingest/list/show/lesson_show/lesson_digest` + hành động giao diện) và
+`actions/evolve.go` (`evolve.scan/propose/list/show/evaluate/apply/plan_apply/reject/rollback/plan_rollback/history/queue/process/cycle`).
+`Writes`: rate, runs scan, ingest, propose, evaluate, apply, reject, rollback, process, cycle. `HumanOnly`: rate, propose, apply, reject, rollback, process
+(đúng nơi dịch vụ gọi `RequireHuman`). `propose/evaluate/process/cycle` là `Action.Job` (`jobs.KindEvolve`; mỗi lúc **một** việc loại này trong tiến
+trình TUI, việc thứ hai nhận `ErrEvolveBusy` và chỉ hiện thông báo); cầu `Bridge`: dòng tiến độ, kế hoạch Probe, ước tính chi phí (dịch qua i18n, khoá
+`evolve.log.*`), `Warn`/`Log` (io.Writer) tách dòng gửi `br.Log`, `Confirm` thành hộp thoại (khoá `prompt.evolve.evaluate.confirm.*`) kèm chính các dòng
+chọn tác vụ/kế hoạch/ước tính làm phần chi tiết để người quyết định theo ước tính. `Env` thêm `Cat` (danh mục chuỗi cho log) và `CycleRunner` (tiêm
+runner giả trong kiểm thử). `CurrentPhase = 3`; gỡ 19 lệnh (runs ×4, events ingest, experience ×2, evolve ×12) khỏi `Pending` (`PendingCeiling` 61 → 42);
+`serviceBindings` thêm runs/events/experience; các ca ngược của `coverage_test.go` đổi mẫu từ `runs list` sang `eval list`/`sync` (giai đoạn 4–5) và vẫn đỏ
+đúng chỗ.
+
+**Màn Lượt chạy** (`internal/tui/screens/runs`): danh sách mới trước (`l` đổi `--limit`, `/` lọc, `Ctrl+R` làm mới), chi tiết (trạng thái + lý do kết
+thúc, harness, mô hình, Git, thời gian, nhãn + lý do, tín hiệu, đầu ra, sự kiện cuộn được); ≥ 100 cột hai khung, hẹp một khung (`Tab`/`Enter` đổi). `+`/`-` mở
+hộp nhập ghi chú rồi chấm good/bad (chỉ người); `S` form quét Git (days, revert-days mặc định 30/14 từ `Defaults`); `I` nạp spool. Thẻ **Bài học** (`,`/`.`):
+thư viện bài học (chung trước, riêng nhóm theo vùng; số lần chèn, đạt/trượt) và `d` bản tóm tắt thất bại theo đợt/lượt/`latest` (ở thẻ Danh sách điền sẵn lượt
+đang chọn) kèm nhóm và trạng thái sẵn sàng.
+
+**Màn Tiến hoá** (`internal/tui/screens/evolve`): thẻ **Cơ hội** (kết quả quét không quét Git khi nạp; `s` quét đầy đủ; điều kiện tiên quyết, nhóm tác vụ,
+chi tiết cơ hội; `p` đề xuất cho cơ hội đang chọn), **Đề xuất** (đang chờ; `A` mọi trạng thái; chi tiết có thẻ con `v`: Thông tin / Thay đổi / Đối chiếu), **Lịch sử**
+(`history` + tổng vòng tự động), **Hàng đợi** (`queue`, `A` = `--all`), và **Log** khi có việc nền. Thẻ con Thay đổi: tri thức = diff tiêu đề/phạm vi/bằng chứng/nội
+dung với hiện trạng (`skills.Diff`); skill = diff `SKILL.md`; harness = khung riêng theo loại (guidance: tiêu đề + Markdown; guardrail: on/when/unless/action, lời
+nhắc, rủi ro; script: mô tả, cách dùng, nội dung kèm cảnh báo "Bint không bao giờ tự chạy; chờ người duyệt"; strategy: `strategy.yml`) kèm diff với thành phần hiện
+có cùng loại và ID. Phím: `s p E a x u P C`, `A`, `v`, `Ctrl+R`; Esc/Ctrl+C ở thẻ Log huỷ việc đang chạy.
+
+**Hộp xác nhận**: `a` gọi `evolve.plan_apply` rồi dựng hộp từ `ApplyPlan`: đề xuất không áp dụng được (không ở `proposed` hoặc gốc đã đổi) chỉ có hộp đọc; cần
+`--unverified`/`--confirm-risk` thì hộp **đỏ** có một ô chọn riêng cho từng cờ (mặc định không chọn; `components/confirm` thêm `Checks`: Tab/↑↓ dời, Space/`x` đảo, y/n
+không xác nhận khi có ô chọn) và ô ghi chú; không chọn thì yêu cầu gửi không có cờ và dịch vụ trả lỗi nêu rõ cờ. `u` gọi `evolve.plan_rollback`: có tệp xung đột thì hộp đỏ
+với ô `--force` và diff "hiện tại (sẽ mất) → sau quay lui" của từng tệp xung đột (tối đa 20 dòng mỗi tệp) — chọn thì gửi `Force` kèm `ExpectConflicts`
+(tệp + nội dung đã xem), không chọn thì không `Force`. `a/x/u/E` chỉ thao tác ở thẻ Đề xuất; ở thẻ khác chúng chuyển sang thẻ Đề xuất và nhắc chọn đề xuất. `x` mở hộp bác bỏ có ô lý do. Sau apply/rollback đề xuất skill, hành
+động gọi `app.InstallSkills` và trả kết quả đồng bộ trong `ApplyOutcome`/`RollbackOutcome` (hộp kết quả hiện "đã đồng bộ"/xung đột/lỗi); CLI giữ `syncAfterSkillChange`.
+
+**Tích hợp**: hai màn vào bảng `screens`; `overview.NavMsg.ProposalID` + `evolve.Focus(id)` (nạp lại với mọi trạng thái nếu đề xuất không còn chờ); hộp thư
+nay có **một dòng mỗi đề xuất** (khoá `overview.inbox.proposal`, tối đa 5 rồi "và N đề xuất khác"), Enter mở màn Tiến hoá tại đề xuất đó; `screens/placeholder` bỏ Lượt chạy và
+Tiến hoá. Sau khi `propose` tạo được đề xuất, thẻ Đề xuất tự mở tại đề xuất đầu tiên.
+
+**Phủ và kiểm thử**: test dịch vụ (`Validate` + `Defaults` + `CLAUDECODE=1`/`asHuman` của `RateRun`, `OpenRuns`/`OpenNoIngest` không nạp spool, `PlanApply`: chưa kiểm
+chứng/rủi ro/gốc đã đổi/đã áp dụng, `PlanRollback`: xung đột, `Rollback` với `Force` + `ExpectConflicts` khác tập hoặc khác nội dung → lỗi và tệp không đổi), test CLI (thứ tự lỗi mã 2 trước "chỉ người",
+mặc định cờ lấy từ `Defaults`), test form (`*float64`, `uint64`), test `confirm` (ô chọn), test hành động với dịch vụ thật (đồng bộ skill sau apply/rollback, quét chỉ-đọc ép `NoGit` và
+không nạp spool, các hành động đọc), test màn hình (lọc, thẻ, khung hẹp, form quét/digest gửi đúng `Options` + dòng CLI, bài học nhóm theo vùng, bốn loại harness + tri thức + skill, diff với
+thành phần hiện có, hộp áp dụng/bác bỏ/quay lui, log trực tiếp, một việc nặng mỗi lúc, Esc huỷ, `Confirm` của `evaluate` trả "không"/huỷ khi đang hỏi không treo, `--read-only` từ chối mọi
+`Writes`, `CLAUDECODE=1` khoá `HumanOnly`, Enter ở hộp thư), golden 80×24 và 140×40 (vi/en/xx, đơn sắc; thêm mã màu ở bốn chế độ cho một khung mỗi màn), `i18n_scan_test` (tiền tố động mới
+`action.runs.`, `action.evolve.`, `prompt.evolve.`, `rn.*`, `ev.*`), `.tape` cho hai màn (`runs-wide.tape`, `evolve-wide.tape`).
+
+**Chỗ lệch so với kế hoạch (người duyệt có thể đổi)**
+
+- **Xem trước apply không là tệp đích**: `evolve.Apply` không có dry-run và `internal/evolve/**` bị chặn ghi nên "xem trước" = nội dung đề xuất so với hiện trạng (thẻ Thay đổi) cộng điều kiện từ `PlanApply`;
+  tệp thực sự đã ghi hiện sau khi áp dụng (`ApplyResult.Files`). `Apply` tự kiểm lại mọi điều kiện lúc ghi nên sai lệch giữa lúc xem và lúc ghi chỉ làm thất bại an toàn. Quay lui xem trước được chính xác
+  (bản kiểm toán có Before/After).
+- **`evolve scan` ở `--read-only`** ép bỏ quét Git và không nạp spool (mục 7.4); ở chế độ thường như CLI (nạp spool + quét Git). Khi nạp màn hình luôn quét **không** quét Git (tín hiệu Git đã ghi vẫn dùng);
+  mở cơ sở dữ liệu vẫn có thể áp migration nếu schema cũ (như các màn trước).
+- **Khoá "một việc Tiến hoá" chỉ trong tiến trình TUI** (bảng việc). Không thêm khoá liên tiến trình: apply/rollback dùng khoá có sẵn của `evolve` (`AcquireLock`, mẫu O_EXCL — xem tri thức
+  k:01M746PTBYPSXDT0WJZS38KPFD: không chép mẫu này cho khoá mới); `Rollback` với `ExpectConflicts` vẫn còn một cửa sổ rất nhỏ giữa lúc kiểm tập xung đột và lúc `evolve.Rollback` ghi (kiểm lại nằm ngoài khoá).
+- **Phím**: `+`/`-` chấm good/bad (`g`/`Home` về đầu, `G`/`End` về cuối, như màn Tiến hoá); `Ctrl+R` làm mới, `A` mọi trạng thái, `.`/`,` đổi thẻ (như màn Tác vụ).
+- **Hộp thư đổi hình dạng**: dòng "N đề xuất tiến hoá chờ duyệt" (khoá `overview.inbox.evolve`) thay bằng một dòng mỗi đề xuất (golden Tổng quan đổi đúng một dòng).
+- **Form `evolve evaluate`**: cờ "tường minh" (`RepeatsExplicit`, `DeliveryExplicit`) suy ra khi giá trị khác mặc định theo cấu hình (tương đương "cờ có mặt" của CLI về hiệu lực).
+- **`evolve propose` không bắt buộc ngân sách ở form** (như CLI: chỉ cơ hội cần agent mới cần `--budget`, `evolve.Propose` kiểm theo từng cơ hội); `evolve cycle` bắt buộc (`required`, `Validate`).
+- **Chưa làm** (đúng phạm vi): chạy nhiều việc nặng của Tiến hoá song song, huỷ việc của tiến trình khác, ảnh VHS thật và bước CI xuất ảnh (`.github/workflows/**` được bảo vệ), màn Đánh giá (giai đoạn 4), chuột và chế độ hẹp đầy đủ (giai đoạn 6),
+  6 phát hiện review còn mở của giai đoạn 2 và phát hiện mức thấp của giai đoạn 1 (phiếu riêng; riêng phát hiện TOCTOU của hộp duyệt đã được xử lý cho `rollback --force` bằng `ExpectConflicts`).
+
+**Sửa theo review (vòng 1, sửa trực tiếp)**: phím `a/x/u/E` ở thẻ không phải Đề xuất từng thao tác lên đề xuất ẩn (medium) — nay chuyển thẻ và nhắc
+(`TestEvolveProposalKeysNeedProposalsTab`); `Focus` khi đang nạp không còn chạy hai lần nạp song song (`TestFocusWhileLoadingDoesNotRaceStaleLoad`); `ExpectConflicts`
+so cả nội dung và hộp quay lui hiện phần sẽ mất; bỏ trường `NoIngest` không dùng của `RunsListOptions`/`RunsShowOptions` (nạp spool do `OpenRuns` quyết định); phím chấm đổi
+`g`/`b` → `+`/`-`.
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app ./internal/tui/gallery -update    # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước)
+go test -race ./internal/tui/app -run 'Milestone|Confirm|Cancel|LiveLog|Exit|OneHeavy|Evolve'   # việc nền, câu hỏi, huỷ
+bint tui                                                      # 4 (Lượt chạy) → I (nạp spool) → 6 (Tiến hoá) → s → p → a/u
 ```

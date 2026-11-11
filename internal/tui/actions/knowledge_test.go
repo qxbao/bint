@@ -7,10 +7,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"bint/internal/app"
+	"bint/internal/app/evolvesvc"
 	"bint/internal/knowledge"
 	"bint/internal/testutil"
 	"bint/internal/tui/actions"
+	"bint/internal/tui/jobs"
 )
 
 func asHuman(t *testing.T) {
@@ -56,6 +60,24 @@ func do(t *testing.T, id string, env actions.Env, opts any) actions.ResultMsg {
 	return r
 }
 
+// doAny chạy hành động qua Do, hoặc qua Job (hành động nền như evolve.propose) với một cầu kênh không ai đọc.
+func doAny(t *testing.T, id string, env actions.Env, opts any) actions.ResultMsg {
+	t.Helper()
+	a, ok := actions.Default().ByID(id)
+	if !ok {
+		t.Fatalf("không có hành động %s", id)
+	}
+	if a.Do != nil {
+		return do(t, id, env, opts)
+	}
+	if a.Job == nil {
+		t.Fatalf("hành động %s không có Do lẫn Job", id)
+	}
+	ctx := context.Background()
+	v, err := a.Job(ctx, env, opts, jobs.NewBridge(ctx, 1, make(chan tea.Msg, 64)))
+	return actions.ResultMsg{ID: id, Opts: opts, Value: v, Err: err}
+}
+
 func statuses(t *testing.T, root string) map[string]string {
 	t.Helper()
 	k, err := app.OpenKnowledge(context.Background(), root)
@@ -89,6 +111,12 @@ func TestHumanOnlyActionsRefuseAtServiceLayer(t *testing.T) {
 		"knowledge.verify_apply":    app.VerifyOptions{Apply: true},
 		"knowledge.revalidate":      app.RevalidateOptions{BudgetUSD: 1, AgentCommand: "true"},
 		"tasks.approve":             app.TaskApproveOptions{Ref: "khong-co"},
+		"runs.rate":                 app.RunsRateOptions{Ref: "khong-co", Rating: "good"},
+		"evolve.propose":            evolvesvc.ProposeOptions{NoAgent: true},
+		"evolve.apply":              evolvesvc.ApplyOptions{Ref: "ep_khong_co", Unverified: true, ConfirmRisk: true},
+		"evolve.reject":             evolvesvc.RejectOptions{Ref: "ep_khong_co"},
+		"evolve.rollback":           evolvesvc.RollbackOptions{Ref: "ep_khong_co"},
+		"evolve.process":            evolvesvc.ProcessOptions{},
 	}
 	for id, a := range actions.Default().All() {
 		_ = id
@@ -100,7 +128,7 @@ func TestHumanOnlyActionsRefuseAtServiceLayer(t *testing.T) {
 	}
 	t.Setenv("CLAUDECODE", "1")
 	for id, opts := range humanOnly {
-		if r := do(t, id, env, opts); !errors.Is(r.Err, app.ErrAgentForbidden) {
+		if r := doAny(t, id, env, opts); !errors.Is(r.Err, app.ErrAgentForbidden) {
 			t.Errorf("%s trong phiên agent: %v, muốn lỗi bọc ErrAgentForbidden", id, r.Err)
 		}
 	}

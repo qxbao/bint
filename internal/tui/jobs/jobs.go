@@ -27,6 +27,9 @@ const (
 	KindAction = "action"
 	// KindInit: khởi tạo repository.
 	KindInit = "init"
+	// KindEvolve: việc nặng của màn Tiến hoá (propose, evaluate, process, cycle; có thể gọi mô hình và tốn tiền);
+	// mỗi lúc một việc loại này trong tiến trình TUI.
+	KindEvolve = "evolve"
 )
 
 // PromptKind phân biệt câu hỏi có/không và câu hỏi trả lời tự do.
@@ -240,7 +243,7 @@ func (t *Table) Remove(id int, err error) {
 		if j.ID == id {
 			t.list = append(t.list[:i], t.list[i+1:]...)
 			j.Ended, j.Err, j.tail = time.Now(), err, nil
-			if j.Kind != KindWorkflow && j.Kind != KindVerify {
+			if j.Kind != KindWorkflow && j.Kind != KindVerify && j.Kind != KindEvolve {
 				return // việc thường không giữ lại log
 			}
 			t.done = append(t.done, j)
@@ -256,6 +259,16 @@ func (t *Table) Remove(id int, err error) {
 func (t *Table) Last(taskID string) *Job {
 	for i := len(t.done) - 1; i >= 0; i-- {
 		if t.done[i].TaskID == taskID {
+			return t.done[i]
+		}
+	}
+	return nil
+}
+
+// LastOfKind trả việc đã xong gần nhất cùng loại (nil nếu không có): màn Tiến hoá xem lại log việc vừa xong.
+func (t *Table) LastOfKind(kind string) *Job {
+	for i := len(t.done) - 1; i >= 0; i-- {
+		if t.done[i].Kind == kind {
 			return t.done[i]
 		}
 	}

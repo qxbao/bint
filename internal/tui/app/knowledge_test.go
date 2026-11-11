@@ -55,7 +55,7 @@ func TestInboxLinesAndTargets(t *testing.T) {
 	}
 	wants := []want{
 		{"overview.inbox.batch", actions.Knowledge}, {"overview.inbox.batch", actions.Knowledge}, {"overview.inbox.knowledge", actions.Knowledge},
-		{"overview.inbox.components", actions.System}, {"overview.inbox.task", actions.Tasks}, {"overview.inbox.evolve", actions.Evolve},
+		{"overview.inbox.components", actions.System}, {"overview.inbox.task", actions.Tasks}, {"overview.inbox.proposal", actions.Evolve},
 		{"overview.inbox.eval", actions.Eval}, {"overview.inbox.doctor_warn", actions.System}, {"overview.inbox.doctor_fail", actions.System},
 		{"overview.inbox.source_error", actions.Evolve},
 	}
@@ -91,7 +91,7 @@ func TestInboxLinesAndTargets(t *testing.T) {
 	// Nguồn lỗi không làm mất nguồn khác: đủ dòng của năm nguồn còn lại ở trên.
 	out := plain(newModel(t, Options{Mode: theme.Mono}, d, 140, 40).Render())
 	for _, want := range []string{"5 mục tri thức chờ duyệt thuộc lô nguon:lo-thu", "3 mục tri thức chờ duyệt (không thuộc lô nào)", "2 thành phần harness chờ duyệt",
-		"Tác vụ bị chặn — Thêm cột email", "1 đề xuất tiến hoá chờ duyệt", "2 ứng viên đánh giá chờ duyệt", "Doctor cảnh báo", "Doctor báo lỗi", "Không đọc được nguồn việc"} {
+		"Tác vụ bị chặn — Thêm cột email", "Đề xuất tiến hoá chờ duyệt — create 01PROP1", "2 ứng viên đánh giá chờ duyệt", "Doctor cảnh báo", "Doctor báo lỗi", "Không đọc được nguồn việc"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("thiếu %q:\n%s", want, out)
 		}

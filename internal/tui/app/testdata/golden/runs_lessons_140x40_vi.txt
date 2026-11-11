@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Lượt chạy│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Danh sách · Bài học                                                                                                                    │
+│ ┌─│Thư viện bài học (2)│───────────────────────────────────────────┐┌─│Chi tiết · tóm tắt thất bại│────────────────────────────────────┐ │
+│ │  Chung (mọi vùng mã)                                             ││ Gọi Reset trước Retry                                            │ │
+│ │ ▸ [verified] Gọi Reset trước Retry  chèn 7 · eval đạt 5/trượt 2  ││                                                                  │ │
+│ │  Riêng — internal/db/**                                          ││ ID                  01LESS000001                                 │ │
+│ │   [candidate] Đóng kết nối sau truy vấn  chèn 1 · eval đạt 0/tr… ││ Trạng thái          verified                                     │ │
+│ │                                                                  ││ Vùng                Chung (mọi vùng mã)                          │ │
+│ │                                                                  ││ Nguồn gốc           failure_lesson                               │ │
+│ │                                                                  ││ Số lần chèn         7                                            │ │
+│ │                                                                  ││ Lượt thật           đạt 4, trượt 1 (lượt thật)                   │ │
+│ │                                                                  ││ Eval khi có bài học đạt 5, trượt 2                               │ │
+│ │                                                                  ││ Lượt bằng chứng     3                                            │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Bản tóm tắt thất bại                                             │ │
+│ │                                                                  ││   Đợt eb_01BATCH: 2 lượt thất bại trên tập validation            │ │
+│ │                                                                  ││   bỏ qua 1 lượt không thuộc tập validation (tập test không bao   │ │
+│ │                                                                  ││   giờ là đầu vào của agent sinh bài học)                         │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││   Tác vụ case-1 thất bại ở internal/db                           │ │
+│ │                                                                  ││     tín hiệu: test_failed                                        │ │
+│ │                                                                  ││   (~42 token)                                                    │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││   Tác vụ case-2 thất bại ở internal/db                           │ │
+│ │                                                                  ││   (~30 token)                                                    │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││   Nhóm thất bại (cần ≥ 2 tác vụ phân biệt để rút bài học):       │ │
+│ │                                                                  ││   - internal/db — 2 tác vụ [sẵn sàng: bint evolve propose rút    │ │
+│ │                                                                  ││     bài học]                                                     │ │
+│ │                                                                  ││   - internal/api — 1 tác vụ [chưa: cần ≥ 2 tác vụ phân biệt]     │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ d tóm tắt thất bại ─────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────────┘ │
+└─[+/-→ Chấm] [S→ Quét Git] [I→ Nạp spool] [:→ Lệnh] [q→ Thoát] [?→ Trợ giúp]──────────────────────────────────────────────────────────────┘

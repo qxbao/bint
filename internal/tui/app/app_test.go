@@ -114,11 +114,19 @@ func TestTabNavigation(t *testing.T) {
 	if m.Tab() != 0 {
 		t.Fatalf("tab: %d", m.Tab())
 	}
-	// Tab chưa có màn hình thật nói rõ giai đoạn và lệnh CLI tương đương.
-	press(t, m, "4")
+	// Tab chưa có màn hình thật nói rõ giai đoạn và lệnh CLI tương đương; Lượt chạy và Tiến hoá đã có màn thật.
+	press(t, m, "5")
 	out := plain(m.Render())
-	if !strings.Contains(out, "giai đoạn 3") || !strings.Contains(out, "bint runs list") {
-		t.Fatalf("placeholder Lượt chạy:\n%s", out)
+	if !strings.Contains(out, "giai đoạn 4") || !strings.Contains(out, "bint eval mine") {
+		t.Fatalf("placeholder Đánh giá:\n%s", out)
+	}
+	press(t, m, "4")
+	if out := plain(m.Render()); strings.Contains(out, "giai đoạn 3") || !strings.Contains(out, "Lượt chạy 3/3") {
+		t.Fatalf("Lượt chạy không còn là trang giữ chỗ:\n%s", out)
+	}
+	press(t, m, "6")
+	if out := plain(m.Render()); strings.Contains(out, "giai đoạn 3") || !strings.Contains(out, "Cơ hội (2)") {
+		t.Fatalf("Tiến hoá không còn là trang giữ chỗ:\n%s", out)
 	}
 }
 

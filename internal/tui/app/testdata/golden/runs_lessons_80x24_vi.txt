@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ Lượt chạy │ ĐG │ TH │ HT                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Lượt chạy│──────────────────────────────────────────────────────────────────┐
+│   Danh sách · Bài học                                                        │
+│ ┌─│Chi tiết · tóm tắt thất bại│────────────────────────────────────1-16/26─┐ │
+│ │ Gọi Reset trước Retry                                                    │ │
+│ │                                                                          │ │
+│ │ ID                  01LESS000001                                         │ │
+│ │ Trạng thái          verified                                             │ │
+│ │ Vùng                Chung (mọi vùng mã)                                  │ │
+│ │ Nguồn gốc           failure_lesson                                       │ │
+│ │ Số lần chèn         7                                                    │ │
+│ │ Lượt thật           đạt 4, trượt 1 (lượt thật)                           │ │
+│ │ Eval khi có bài học đạt 5, trượt 2                                       │ │
+│ │ Lượt bằng chứng     3                                                    │ │
+│ │                                                                          │ │
+│ │ Bản tóm tắt thất bại                                                     │ │
+│ │   Đợt eb_01BATCH: 2 lượt thất bại trên tập validation                    │ │
+│ │   bỏ qua 1 lượt không thuộc tập validation (tập test không bao giờ là    │ │
+│ │   đầu vào của agent sinh bài học)                                        │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[+/-→ Chấm] [S→ Quét Git] [I→ Nạp spool] [q→ Thoát] [?→ Trợ giúp]────────────┘

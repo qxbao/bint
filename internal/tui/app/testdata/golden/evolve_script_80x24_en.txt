@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evolution │ Sy                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evolution│──────────────────────────────────────────────────────────────────┐
+│   Opportunities · Proposals · History · Queue                                │
+│ ┌─│Detail · EP0000SCRI│────────────────────────────────────────────────────┐ │
+│ │  Info · Changes · Comparisons                                            │ │
+│ │ [create] script kiem-tra-nhanh                                           │ │
+│ │ Scope         global · risk high                                         │ │
+│ │ Description   Kiểm tra nhanh                                             │ │
+│ │ Usage         bash kiem-tra-nhanh.sh                                     │ │
+│ │                                                                          │ │
+│ │ ⚠ Bint never runs this script by itself; it always waits for a human to… │ │
+│ │ Script (content)                                                         │ │
+│ │   #!/bin/sh                                                              │ │
+│ │   go vet ./...                                                           │ │
+│ │                                                                          │ │
+│ │ Change versus the current state                                          │ │
+│ │   New component: nothing current to compare with.                        │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ v sub-tab  Enter view detail ───────────────────────────────────────────┘ │
+└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [q→ Quit] [?→ Help]────────────┘

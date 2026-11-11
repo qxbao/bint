@@ -21,9 +21,7 @@ type Info struct {
 
 // Tabs là thông tin các tab giữ chỗ (khớp giai đoạn trong docs/tui-plan.md mục 9).
 var Tabs = map[actions.Screen]Info{
-	actions.Runs:   {Phase: 3, Commands: []string{"bint runs list", "bint runs show <id>", "bint runs rate <id>", "bint experience digest <batch>"}},
 	actions.Eval:   {Phase: 4, Commands: []string{"bint eval mine", "bint eval approve <id>", "bint eval estimate", "bint eval run", "bint eval report"}},
-	actions.Evolve: {Phase: 3, Commands: []string{"bint evolve scan", "bint evolve propose", "bint evolve evaluate <id>", "bint evolve apply <id>", "bint evolve rollback <id>"}},
 	actions.System: {Phase: 5, Commands: []string{"bint doctor", "bint init --update", "bint sync", "bint harness list", "bint update"}},
 }
 

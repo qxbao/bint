@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tiến hoá│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Cơ hội · Đề xuất · Lịch sử · Hàng đợi                                                                                                  │
+│ ┌─│Đề xuất (6)│───────────────────────────────────────────đang chờ─┐┌─│Chi tiết · EP0000KNOW│──────────────────────────────────────────┐ │
+│ │ ▸ ◌ 00KNOW proposed update    high   supported -         Thất b… ││  Thông tin · Thay đổi · Đối chiếu                                │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất b… ││ Đề xuất       01EP0000KNOW (proposed)                            │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất b… ││ Hành động     update 01KNOW000003 — cấp L1, đối tượng knowledge  │ │
+│ │   ◌ 00GUAR proposed create    medium -         -         Thất b… ││ Cơ hội        op-demo                                            │ │
+│ │   ◌ 00SCRI proposed create    high   -         -         Thất b… ││ Lý do         Thất bại lặp lại ở internal/db                     │ │
+│ │   ◌ 00STRA proposed create    medium -         -         Thất b… ││ Lợi ích       bớt thất bại lặp lại                               │ │
+│ │                      ┌─│Quay lui đề xuất 01EP0000KNOW│────────────────────────────────────────────────────────┐                      │ │
+│ │                      │ CẢNH BÁO: 1 tệp đã bị sửa sau khi áp dụng; quay lui sẽ ghi đè các sửa đổi đó nếu bạn   │                      │ │
+│ │                      │ chọn ô bên dưới.                                                                       │ thất bại             │ │
+│ │                      │                                                                                        │ lúc đề xuất — CHƯA   │ │
+│ │                      │ Khôi phục các tệp về trước lần áp dụng của Rev <rev@example.com>:                      │                      │ │
+│ │                      │   ~ .bint/knowledge/items/01KNOW000003.md  ✗ đã bị sửa sau khi áp dụng                 │                      │ │
+│ │                      │       --- hiện tại (sẽ mất)                                                            │                      │ │
+│ │                      │       +++ sau quay lui                                                                 │                      │ │
+│ │                      │       -sau                                                                             │                      │ │
+│ │                      │       -sửa tay                                                                         │                      │ │
+│ │                      │       +trước                                                                           │                      │ │
+│ │                      │   ~ .bint/knowledge/items/01KNOW000004.md                                              │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ ▸ [ ] Ghi đè 1 tệp đã bị sửa sau khi áp dụng — --force                                 │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ Lý do: ▏tuỳ chọn; mặc định: người dùng quay lui                                        │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ [Enter] Quay lui   [Esc] Huỷ                                                           │                      │ │
+│ │                      └────────────────────────────────────────────────────────────────────────────────────────┘                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a áp dụng  x bác bỏ  u quay lui  E đối chiếu  A mọi trạng thái ─┘└─ v thẻ con  Enter xem chi tiết ──────────────────────────────────┘ │
+└─[Esc→ Thoát]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

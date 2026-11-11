@@ -80,3 +80,40 @@ func TestConfirmViewFitsAndScrolls(t *testing.T) {
 		t.Fatal("phải cuộn được nội dung dài")
 	}
 }
+
+// Ô chọn (hộp cảnh báo): mặc định không chọn, Space/x đảo ô đang trỏ, Tab dời ô và ô nhập, y/n không xác nhận.
+func TestConfirmChecks(t *testing.T) {
+	m := Model{Title: "Áp dụng", Danger: true, Checks: []string{"Bỏ qua kiểm chứng", "Chấp nhận rủi ro"}, Input: true, Label: "Ghi chú",
+		YesLabel: "Áp dụng", NoLabel: "Huỷ"}
+	if m.Checked(0) || m.Checked(1) {
+		t.Fatal("mặc định không chọn")
+	}
+	if m.Update(key("y")) != Pending || m.Update(key("n")) != Pending {
+		t.Fatal("có ô chọn thì y/n không xác nhận hay từ chối")
+	}
+	m.Update(key("x"))
+	if !m.Checked(0) || m.Checked(1) {
+		t.Fatalf("x đảo ô đầu: %v", m.On)
+	}
+	m.Update(key("tab"))
+	m.Update(key(" "))
+	if !m.Checked(1) {
+		t.Fatalf("Space đảo ô thứ hai: %v", m.On)
+	}
+	m.Update(key("x")) // đảo lại ô hai
+	if m.Checked(1) {
+		t.Fatal("x đảo lại")
+	}
+	m.Update(key("tab")) // tới ô nhập: chữ vào ô, không đảo ô chọn
+	m.Update(key("x"))
+	if m.Value() != "x" || m.Checked(0) != true {
+		t.Fatalf("ô nhập nhận chữ: %q %v", m.Value(), m.On)
+	}
+	out := strings.Join(m.View(theme.New(theme.Mono), 60, 20), "\n")
+	if !strings.Contains(out, "[x] Bỏ qua kiểm chứng") || !strings.Contains(out, "[ ] Chấp nhận rủi ro") {
+		t.Fatalf("view:\n%s", out)
+	}
+	if m.Update(key("enter")) != Yes || m.Update(key("esc")) != No {
+		t.Fatal("Enter/Esc")
+	}
+}

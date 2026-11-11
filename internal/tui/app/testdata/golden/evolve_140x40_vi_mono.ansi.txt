@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│␛[1mbint 0.1.0␛[m│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ ␛[7m␛[1mTiến hoá␛[m␛[m │ Hệ thống                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│␛[1mTiến hoá␛[m│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Cơ hội ·␛[7m␛[1m Đề xuất ␛[m␛[m· Lịch sử · Hàng đợi                                                                                                  │
+│ ┌─│␛[1mĐề xuất (6)␛[m│───────────────────────────────────────────␛[1mđang chờ␛[m─┐┌─│␛[1mChi tiết · EP0000KNOW␛[m│──────────────────────────────────────────┐ │
+│ │ ␛[1m▸ ␛[m␛[7m␛[1m◌ 00KNOW proposed update    ␛[7mhigh␛[m   supported -         Thất b…␛[m␛[m ││  Thông tin ·␛[7m␛[1m Thay đổi ␛[m␛[m· Đối chiếu                                │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất b… ││ ␛[1m[update] 01KNOW000003 — làm rõ␛[m                                   │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất b… ││   Loại       pattern                                             │ │
+│ │   ◌ 00GUAR proposed create    medium -         -         Thất b… ││ ␛[7m- ␛[mTiêu đề    Handler đi qua wrap()                               │ │
+│ │   ◌ 00SCRI proposed create    ␛[7mhigh␛[m   -         -         Thất b… ││ + Tiêu đề    Handler đi qua wrap() và log                        │ │
+│ │   ◌ 00STRA proposed create    medium -         -         Thất b… ││   Phạm vi    internal/api/**                                     │ │
+│ │                                                                  ││   Bằng chứng internal/db/db.go:40-52                             │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Nội dung                                                         │ │
+│ │                                                                  ││ ␛[1m--- hiện trạng␛[m                                                   │ │
+│ │                                                                  ││ ␛[1m+++ đề xuất␛[m                                                      │ │
+│ │                                                                  ││  Nội dung của mục Handler đi qua wrap().                         │ │
+│ │                                                                  ││ ␛[7m-Dòng thứ hai.␛[m                                                   │ │
+│ │                                                                  ││ +Dòng thứ hai đã sửa.                                            │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ ␛[1ma␛[m áp dụng  ␛[1mx␛[m bác bỏ  ␛[1mu␛[m quay lui  ␛[1mE␛[m đối chiếu  ␛[1mA␛[m mọi trạng thái ─┘└─ ␛[1mv␛[m thẻ con  ␛[1mEnter␛[m xem chi tiết ──────────────────────────────────┘ │
+└─[␛[1ms␛[m→ Quét] [␛[1mp␛[m→ Đề xuất] [␛[1ma␛[m→ Áp dụng] [␛[1mx␛[m→ Bác bỏ] [␛[1mq␛[m→ Thoát] [␛[1m?␛[m→ Trợ giúp]─────────────────────────────────────────────────────────────────┘

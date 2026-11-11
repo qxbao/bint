@@ -13,8 +13,10 @@ import (
 	bintapp "bint/internal/app"
 	"bint/internal/knowledge"
 	"bint/internal/task"
+	evscreen "bint/internal/tui/screens/evolve"
 	knscreen "bint/internal/tui/screens/knowledge"
 	"bint/internal/tui/screens/overview"
+	rnscreen "bint/internal/tui/screens/runs"
 	tkscreen "bint/internal/tui/screens/tasks"
 	"bint/internal/tui/theme"
 )
@@ -38,7 +40,7 @@ func sampleData() overview.Data {
 		Pending: &bintapp.PendingWorkReport{
 			KnowledgeBatches: []bintapp.PendingBatch{{Tag: "nguon:lo-thu", Candidate: 2}},
 			KnowledgeOther:   1,
-			Proposals:        []bintapp.PendingProposal{{ID: "01PROP1", Action: "create"}, {ID: "01PROP2", Action: "update"}},
+			Proposals:        []bintapp.PendingProposal{{ID: "01EP0000KNOW", Action: "update"}},
 			Doctor:           []bintapp.Check{{Name: "config", Level: bintapp.LevelWarn, Detail: "cấu hình theo mẫu cũ: chạy `bint init --update`"}},
 		},
 		Candidates: 3,
@@ -159,6 +161,21 @@ func newModel(t *testing.T, o Options, data overview.Data, w, h int) *Model {
 		o.TasksRuns = func(context.Context, string, string, bool) (bintapp.TaskRunsResult, error) {
 			return bintapp.TaskRunsResult{Runs: []bintapp.TaskRunRow{{RunID: "01RUN000001", Workflow: "b-do", Status: "completed", Duration: "12s"}}}, nil
 		}
+	}
+	if o.RunsLoader == nil {
+		o.RunsLoader = func(context.Context, string, int, bool) (rnscreen.Data, error) { return sampleRuns(), nil }
+	}
+	if o.RunsDetailer == nil {
+		o.RunsDetailer = sampleRunDetail
+	}
+	if o.RunsLessons == nil {
+		o.RunsLessons = sampleLessons
+	}
+	if o.EvolveLoader == nil {
+		o.EvolveLoader = func(context.Context, string, evscreen.Query, bool) (evscreen.Data, error) { return sampleEvolve(), nil }
+	}
+	if o.EvolveDetailer == nil {
+		o.EvolveDetailer = sampleEvolveDetail
 	}
 	o.SpinnerFPS = time.Millisecond
 	m := New(context.Background(), o)

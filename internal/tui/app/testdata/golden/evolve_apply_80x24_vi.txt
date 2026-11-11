@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ Tiến hoá │ HT                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tiến hoá│───────────────────────────────────────────────────────────────────┐
+│   Cơ hội · Đề xuất · Lịch sử · Hàng đợi                                      │
+│ ┌─┌─│Áp dụng đề xuất 01EP0000KNOW│────────────────────────────────1-7/13─┐─┐ │
+│ │ │ CẢNH BÁO: áp dụng sẽ bỏ qua kiểm tra bên dưới nếu bạn chọn ô tương   │ │ │
+│ │ │ ứng.                                                                 │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Hành động: update — update:01KNOW000003                              │ │ │
+│ │ │ Rủi ro: high sửa mục đã duyệt                                        │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ✓ Phiên bản gốc còn khớp.                                            │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ▸ [ ] Bỏ qua kiểm chứng: áp dụng dù CHƯA có kết quả supported độc    │ │ │
+│ │ │       lập trên test (ghi vào lịch sử) — --unverified                 │ │ │
+│ │ │   [ ] Chấp nhận rủi ro cao (sửa mục đã duyệt) — --confirm-risk       │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Lý do: ▏tuỳ chọn; ghi vào lịch sử                                    │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Áp dụng   [Esc] Huỷ                                          │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ └─ a áp dụng  x bác bỏ  u quay lui  E đối chiếu  A mọi trạng thái ─────────┘ │
+└─[Esc→ Thoát]─────────────────────────────────────────────────────────────────┘

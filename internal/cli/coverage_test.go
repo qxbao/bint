@@ -33,6 +33,9 @@ var serviceBindings = map[string]any{
 	"eval reject": app.EvalRejectOptions{}, "eval estimate": app.EvalEstimateOptions{}, "eval run": app.EvalRunOptions{},
 	"eval report": app.EvalReportOptions{}, "eval bootstrap": app.EvalBootstrapOptions{}, "eval clean": app.EvalCleanOptions{},
 
+	"runs list": app.RunsListOptions{}, "runs show": app.RunsShowOptions{}, "runs rate": app.RunsRateOptions{}, "runs scan": app.RunsScanOptions{},
+	"events ingest": app.EventsIngestOptions{}, "experience digest": evolvesvc.ExperienceDigestOptions{}, "experience show": evolvesvc.ExperienceShowOptions{},
+
 	"evolve scan": evolvesvc.ScanOptions{}, "evolve propose": evolvesvc.ProposeOptions{}, "evolve list": evolvesvc.ListOptions{},
 	"evolve show": evolvesvc.ShowOptions{}, "evolve evaluate": evolvesvc.EvaluateOptions{}, "evolve apply": evolvesvc.ApplyOptions{},
 	"evolve reject": evolvesvc.RejectOptions{}, "evolve rollback": evolvesvc.RollbackOptions{}, "evolve history": evolvesvc.HistoryOptions{},
@@ -324,7 +327,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("thiếu lý do và giai đoạn sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.Excluded["tui"] = ""
-		cov.Pending["runs list"] = 9
+		cov.Pending["eval list"] = 9
 		cov.ExcludedFlags["--json"] = ""
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`Excluded["tui"] thiếu lý do`, "giai đoạn phải từ 1 đến 6", `ExcludedFlags["--json"] thiếu lý do`} {
@@ -346,7 +349,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("PendingFlags sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.PendingFlags["init --nope"] = 5
-		cov.PendingFlags["runs list --limit"] = 2 // lệnh chưa có hành động/dịch vụ
+		cov.PendingFlags["sync --force"] = 2      // lệnh chưa có hành động/dịch vụ (giai đoạn 5)
 		cov.PendingFlags["eval run --budget"] = 4 // cờ đã có trường Options
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`"init --nope" nhưng lệnh không còn cờ này`, "cờ nằm trong Pending của lệnh", "vừa có trường Options vừa nằm trong danh sách"} {
@@ -367,8 +370,8 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	})
 	t.Run("Pending còn mục của giai đoạn đã xong", func(t *testing.T) {
 		cov := clone(actions.Data)
-		cov.Pending["runs list"] = actions.CurrentPhase
-		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["runs list"]`) {
+		cov.Pending["eval list"] = actions.CurrentPhase
+		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["eval list"]`) {
 			t.Fatalf("%v", p)
 		}
 		cov = clone(actions.Data)
@@ -418,8 +421,8 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	})
 	t.Run("xoá mục khỏi Pending làm đỏ", func(t *testing.T) {
 		cov := clone(actions.Data)
-		delete(cov.Pending, "runs list")
-		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint runs list` chưa khai báo") {
+		delete(cov.Pending, "sync")
+		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint sync` chưa khai báo") {
 			t.Fatalf("%v", p)
 		}
 	})

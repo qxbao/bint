@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ Tiến hoá │ HT                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tiến hoá│───────────────────────────────────────────────────────────────────┐
+│   Cơ hội · Đề xuất · Lịch sử · Hàng đợi                                      │
+│ ┌─│Chi tiết · EP0000SCRI│──────────────────────────────────────────────────┐ │
+│ │  Thông tin · Thay đổi · Đối chiếu                                        │ │
+│ │ [create] script kiem-tra-nhanh                                           │ │
+│ │ Phạm vi       global · rủi ro high                                       │ │
+│ │ Mô tả         Kiểm tra nhanh                                             │ │
+│ │ Cách dùng     bash kiem-tra-nhanh.sh                                     │ │
+│ │                                                                          │ │
+│ │ ⚠ Bint không bao giờ tự chạy script này; luôn chờ người duyệt.           │ │
+│ │ Script (nội dung)                                                        │ │
+│ │   #!/bin/sh                                                              │ │
+│ │   go vet ./...                                                           │ │
+│ │                                                                          │ │
+│ │ Thay đổi so với hiện trạng                                               │ │
+│ │   Thành phần mới: chưa có bản hiện tại để so sánh.                       │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ v thẻ con  Enter xem chi tiết ──────────────────────────────────────────┘ │
+└─[s→ Quét] [p→ Đề xuất] [a→ Áp dụng] [x→ Bác bỏ] [q→ Thoát] [?→ Trợ giúp]─────┘

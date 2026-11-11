@@ -88,7 +88,7 @@ func Queue(e *Workspace, opts QueueOptions) (*QueueResult, error) {
 // ProcessOptions: `bint evolve process`.
 type ProcessOptions struct {
 	BudgetUSD float64 `flag:"budget"`
-	Max       int     `flag:"max"`
+	Max       int     `flag:"max" form:"advanced"`
 	// Warn nhận cảnh báo khi một agent không dùng được; nil = bỏ.
 	Warn io.Writer
 }

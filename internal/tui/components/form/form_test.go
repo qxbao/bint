@@ -287,3 +287,46 @@ func TestCLIForTaskAndRunOptions(t *testing.T) {
 		t.Fatalf("task status:\n got  %s\n want %s", got, want)
 	}
 }
+
+type ptrOpts struct {
+	Budget *float64 `flag:"budget"`
+	Seed   uint64   `flag:"seed"`
+}
+
+// Trường *float64 (rỗng = nil) và uint64 được form hỗ trợ; dòng CLI tương đương cũng đúng.
+func TestPointerFloatAndUintFields(t *testing.T) {
+	fs := Fields(ptrOpts{})
+	if len(fs) != 2 || fs[0].Kind != Float || fs[1].Kind != Int {
+		t.Fatalf("kiểu ô: %+v", fs)
+	}
+	m := New("x", "demo cmd", ptrOpts{})
+	v, err := m.Build()
+	if err != nil || v.(ptrOpts).Budget != nil || v.(ptrOpts).Seed != 0 {
+		t.Fatalf("ô trống phải là nil/0: %v %+v", err, v)
+	}
+	typeText(&m, "2,5")
+	m.Update(k("tab"))
+	typeText(&m, "18446744073709551615")
+	v, err = m.Build()
+	o := v.(ptrOpts)
+	if err != nil || o.Budget == nil || *o.Budget != 2.5 || o.Seed != 18446744073709551615 {
+		t.Fatalf("giá trị: %v %+v", err, o)
+	}
+	if got := m.CLI(); got != "bint demo cmd --budget 2.5 --seed 18446744073709551615" {
+		t.Fatalf("CLI: %q", got)
+	}
+	b := 3.0
+	m2 := New("x", "demo cmd", ptrOpts{Budget: &b})
+	if v, err := m2.Build(); err != nil || v.(ptrOpts).Budget == nil || *v.(ptrOpts).Budget != 3 {
+		t.Fatalf("giá trị khởi đầu giữ lại: %v %+v", err, v)
+	}
+	if got := m2.CLI(); got != "bint demo cmd" {
+		t.Fatalf("không đổi thì không có cờ: %q", got)
+	}
+	m3 := New("x", "demo cmd", ptrOpts{})
+	m3.Update(k("tab"))
+	typeText(&m3, "-1")
+	if _, err := m3.Build(); err == nil {
+		t.Fatal("uint64 không nhận số âm")
+	}
+}

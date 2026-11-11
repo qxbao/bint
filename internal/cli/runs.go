@@ -4,40 +4,24 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/runlog"
-	"bint/internal/spool"
-	"bint/internal/store"
-	"bint/internal/ulid"
 )
 
-// openAndIngest mở workspace đã khởi tạo, mở cơ sở dữ liệu và nạp spool trước
-// khi đọc, để kết quả luôn gồm các sự kiện mới nhất.
-func openAndIngest(cmd *cobra.Command) (*app.Workspace, *store.Store, runlog.IngestResult, error) {
+// openRuns mở không gian lượt chạy ở thư mục hiện tại và nạp spool trước khi đọc, để kết quả luôn gồm các
+// sự kiện mới nhất.
+func openRuns(cmd *cobra.Command) (*app.RunsWS, error) {
 	dir, err := cwd()
 	if err != nil {
-		return nil, nil, runlog.IngestResult{}, err
+		return nil, err
 	}
-	ws, err := app.OpenWorkspace(cmd.Context(), dir, true)
-	if err != nil {
-		return nil, nil, runlog.IngestResult{}, err
-	}
-	s, err := ws.OpenStore(cmd.Context())
-	if err != nil {
-		return nil, nil, runlog.IngestResult{}, err
-	}
-	res, err := ws.Ingest(cmd.Context(), s, time.Now())
-	if err != nil {
-		s.Close()
-		return nil, nil, res, err
-	}
-	return ws, s, res, nil
+	return app.OpenRuns(cmd.Context(), dir, true)
 }
 
 type runJSON struct {
@@ -101,51 +85,47 @@ func orDash(s string) string {
 func newRunsCmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{Use: "runs", Short: "Lịch sử lượt chạy đã ghi nhận"}
 
-	var limit int
 	var asJSON bool
+	lo := app.RunsListDefaults(config.Default())
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "Liệt kê lượt chạy, mới nhất trước",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, s, _, err := openAndIngest(cmd)
+			r, err := openRuns(cmd)
 			if err != nil {
 				return err
 			}
-			defer s.Close()
-			runs, err := runlog.ListRuns(cmd.Context(), s.DB, limit)
+			defer r.Close()
+			rows, err := app.ListRuns(cmd.Context(), r, lo)
 			if err != nil {
 				return err
 			}
 			if asJSON {
-				out := make([]runJSON, 0, len(runs))
-				for _, r := range runs {
-					out = append(out, toJSON(r))
+				out := make([]runJSON, 0, len(rows))
+				for _, row := range rows {
+					out = append(out, toJSON(row.Run))
 				}
 				enc := json.NewEncoder(stdio.Out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(out)
 			}
-			if len(runs) == 0 {
+			if len(rows) == 0 {
 				fmt.Fprintln(stdio.Out, "Chưa có lượt chạy nào được ghi nhận.")
 				return nil
 			}
 			tw := tabwriter.NewWriter(stdio.Out, 0, 2, 2, ' ', 0)
 			fmt.Fprintln(tw, "RUN ID\tHARNESS\tTRẠNG THÁI\tBẮT ĐẦU\tTHỜI LƯỢNG\tTỆP SỬA\tTEST OK/LỖI\tNHÃN\tNHÁNH")
-			for _, r := range runs {
-				sigs, err := runlog.RunSignals(cmd.Context(), s.DB, r.RunID)
-				if err != nil {
-					return err
-				}
-				label, _ := runlog.Label(sigs)
+			for _, row := range rows {
+				run := row.Run
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\t%d/%d\t%s\t%s\n",
-					r.RunID, orDash(r.Harness.String), r.Status, fmtTime(r.StartedAt.String), fmtDuration(r),
-					r.FilesModified, r.TestsOK, r.TestsFailed, label, orDash(r.GitBranch.String))
+					run.RunID, orDash(run.Harness.String), run.Status, fmtTime(run.StartedAt.String), fmtDuration(run),
+					run.FilesModified, run.TestsOK, run.TestsFailed, row.Label, orDash(run.GitBranch.String))
 			}
 			return tw.Flush()
 		},
 	}
-	list.Flags().IntVarP(&limit, "limit", "n", 20, "số lượt tối đa")
+	list.Flags().IntVarP(&lo.Limit, "limit", "n", lo.Limit, "số lượt tối đa")
 	list.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 
 	var showJSON bool
@@ -154,29 +134,16 @@ func newRunsCmd(stdio IO) *cobra.Command {
 		Short: "Chi tiết một lượt chạy (chấp nhận tiền tố ID)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			_, s, _, err := openAndIngest(cmd)
+			r, err := openRuns(cmd)
 			if err != nil {
 				return err
 			}
-			defer s.Close()
-			r, err := runlog.GetRun(ctx, s.DB, args[0])
+			defer r.Close()
+			d, err := app.ShowRun(cmd.Context(), r, app.RunsShowOptions{Ref: args[0]})
 			if err != nil {
 				return err
 			}
-			events, err := runlog.RunEvents(ctx, s.DB, r.RunID)
-			if err != nil {
-				return err
-			}
-			arts, err := runlog.RunArtifacts(ctx, s.DB, r.RunID)
-			if err != nil {
-				return err
-			}
-			sigs, err := runlog.RunSignals(ctx, s.DB, r.RunID)
-			if err != nil {
-				return err
-			}
-			label, why := runlog.Label(sigs)
+			run, events, arts, sigs, label, why := d.Run, d.Events, d.Artifacts, d.Signals, d.Label, d.Reason
 			if showJSON {
 				type ev struct {
 					EventID   string          `json:"event_id"`
@@ -197,7 +164,7 @@ func newRunsCmd(stdio IO) *cobra.Command {
 					Signals     []runlog.Signal `json:"signals"`
 					Events      []ev            `json:"events"`
 					Artifacts   []art           `json:"artifacts"`
-				}{Run: toJSON(r), Label: label, LabelReason: why, Signals: sigs, Events: []ev{}, Artifacts: []art{}}
+				}{Run: toJSON(run), Label: label, LabelReason: why, Signals: sigs, Events: []ev{}, Artifacts: []art{}}
 				if out.Signals == nil {
 					out.Signals = []runlog.Signal{}
 				}
@@ -212,17 +179,17 @@ func newRunsCmd(stdio IO) *cobra.Command {
 				return enc.Encode(out)
 			}
 			w := stdio.Out
-			fmt.Fprintf(w, "Run:          %s\n", r.RunID)
-			fmt.Fprintf(w, "Trạng thái:   %s", r.Status)
-			if r.EndReason.Valid {
-				fmt.Fprintf(w, " (%s)", r.EndReason.String)
+			fmt.Fprintf(w, "Run:          %s\n", run.RunID)
+			fmt.Fprintf(w, "Trạng thái:   %s", run.Status)
+			if run.EndReason.Valid {
+				fmt.Fprintf(w, " (%s)", run.EndReason.String)
 			}
 			fmt.Fprintln(w)
-			fmt.Fprintf(w, "Harness:      %s  phiên %s\n", orDash(r.Harness.String), orDash(r.SessionID.String))
-			fmt.Fprintf(w, "Mô hình:      %s\n", orDash(r.Model.String))
-			fmt.Fprintf(w, "Git:          %s @ %s\n", orDash(r.GitBranch.String), orDash(r.GitBaseCommit.String))
-			fmt.Fprintf(w, "Worktree:     %s\n", orDash(r.Worktree.String))
-			fmt.Fprintf(w, "Thời gian:    %s → %s (%s)\n", fmtTime(r.StartedAt.String), fmtTime(r.FinishedAt.String), fmtDuration(r))
+			fmt.Fprintf(w, "Harness:      %s  phiên %s\n", orDash(run.Harness.String), orDash(run.SessionID.String))
+			fmt.Fprintf(w, "Mô hình:      %s\n", orDash(run.Model.String))
+			fmt.Fprintf(w, "Git:          %s @ %s\n", orDash(run.GitBranch.String), orDash(run.GitBaseCommit.String))
+			fmt.Fprintf(w, "Worktree:     %s\n", orDash(run.Worktree.String))
+			fmt.Fprintf(w, "Thời gian:    %s → %s (%s)\n", fmtTime(run.StartedAt.String), fmtTime(run.FinishedAt.String), fmtDuration(run))
 			fmt.Fprintf(w, "Nhãn:         %s (%s)\n", label, why)
 			if len(sigs) > 0 {
 				fmt.Fprintln(w, "\nTín hiệu kết quả:")
@@ -253,7 +220,7 @@ func newRunsCmd(stdio IO) *cobra.Command {
 }
 
 func newRunsRateCmd(stdio IO) *cobra.Command {
-	var note string
+	o := app.RunsRateDefaults(config.Default())
 	c := &cobra.Command{
 		Use:   "rate <run-id> good|bad",
 		Short: "Chấm kết quả một lượt chạy (tín hiệu mạnh, mục 9.6)",
@@ -261,42 +228,25 @@ func newRunsRateCmd(stdio IO) *cobra.Command {
 ghi đè lần trước. Không chạy được từ trong phiên agent (agent không tự chấm mình).`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			rating := strings.ToLower(args[1])
-			if rating != "good" && rating != "bad" {
-				return usageError{fmt.Errorf("điểm phải là good hoặc bad")}
-			}
-			if in, k := app.InAgentSession(); in {
-				return fmt.Errorf("%w (`bint runs rate`; phát hiện biến %s)", app.ErrAgentForbidden, k)
-			}
-			ws, s, _, err := openAndIngest(cmd)
+			o.Ref, o.Rating = args[0], args[1]
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			defer s.Close()
-			r, err := runlog.GetRun(cmd.Context(), s.DB, args[0])
+			res, err := app.RateRun(cmd.Context(), dir, o)
 			if err != nil {
 				return err
 			}
-			now := time.Now()
-			ev := spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "ev_rate_" + ulid.New(), Type: spool.RunRated,
-				Source: "cli", Timestamp: now.UTC(), RunID: r.RunID,
-				Payload: map[string]any{"rating": rating, "note": note, "by": app.GitIdentity(cmd.Context(), ws.Repo.Toplevel)}}
-			if _, err := spool.Write(ws.Paths.Spool, ev); err != nil {
-				return err
-			}
-			if _, err := ws.Ingest(cmd.Context(), s, now); err != nil {
-				return err
-			}
-			fmt.Fprintf(stdio.Out, "Đã chấm %s: %s\n", r.RunID, rating)
+			fmt.Fprintf(stdio.Out, "Đã chấm %s: %s\n", res.RunID, res.Rating)
 			return nil
 		},
 	}
-	c.Flags().StringVarP(&note, "note", "m", "", "ghi chú")
+	c.Flags().StringVarP(&o.Note, "note", "m", "", "ghi chú")
 	return c
 }
 
 func newRunsScanCmd(stdio IO) *cobra.Command {
-	var days, revertDays int
+	o := app.RunsScanDefaults(config.Default())
 	c := &cobra.Command{
 		Use:   "scan",
 		Short: "Quét lịch sử Git: gắn commit với lượt chạy, phát hiện thay đổi bị hoàn tác",
@@ -308,13 +258,12 @@ Gắn commit với lượt theo thời gian và tệp là gần đúng. Tín hi�
 nhãn; lượt chỉ có tín hiệu yếu là unlabeled.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ws, s, _, err := openAndIngest(cmd)
+			r, err := openRuns(cmd)
 			if err != nil {
 				return err
 			}
-			defer s.Close()
-			res, err := runlog.ScanGit(cmd.Context(), s.DB, ws.Repo.Toplevel, runlog.ScanOptions{
-				Lookback: time.Duration(days) * 24 * time.Hour, RevertDays: revertDays})
+			defer r.Close()
+			res, err := app.ScanRuns(cmd.Context(), r, o)
 			if err != nil {
 				return err
 			}
@@ -322,7 +271,7 @@ nhãn; lượt chỉ có tín hiệu yếu là unlabeled.`,
 			return nil
 		},
 	}
-	c.Flags().IntVar(&days, "days", 30, "xét lượt chạy trong N ngày gần nhất")
-	c.Flags().IntVar(&revertDays, "revert-days", 14, "hoàn tác trong N ngày sau commit được tính")
+	c.Flags().IntVar(&o.Days, "days", o.Days, "xét lượt chạy trong N ngày gần nhất")
+	c.Flags().IntVar(&o.RevertDays, "revert-days", o.RevertDays, "hoàn tác trong N ngày sau commit được tính")
 	return c
 }

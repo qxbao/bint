@@ -54,9 +54,12 @@ func (m *Model) startJob(a actions.Action, opts any) (tea.Model, tea.Cmd) {
 	if a.JobInfo != nil {
 		info = a.JobInfo(opts)
 	}
-	if info.Kind == jobs.KindWorkflow && m.jobs.OfKind(jobs.KindWorkflow) != nil {
-		id := a.ID
-		return m, func() tea.Msg { return actions.ResultMsg{ID: id, Opts: opts, Err: actions.ErrWorkflowBusy} }
+	// Mỗi lúc một việc workflow, và một việc nặng của Tiến hoá.
+	for kind, busy := range map[string]error{jobs.KindWorkflow: actions.ErrWorkflowBusy, jobs.KindEvolve: actions.ErrEvolveBusy} {
+		if info.Kind == kind && m.jobs.OfKind(kind) != nil {
+			id := a.ID
+			return m, func() tea.Msg { return actions.ResultMsg{ID: id, Opts: opts, Err: busy} }
+		}
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	j := m.jobs.Add(jobs.Job{Action: a.ID, Kind: info.Kind, Label: info.Label, TaskID: info.TaskID, Resume: info.Resume, Cancel: cancel, Opts: opts})

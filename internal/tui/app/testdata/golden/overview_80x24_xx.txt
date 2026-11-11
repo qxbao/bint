@@ -16,7 +16,7 @@
 │  ⟦Needs you~~~~⟧ (4)                                                         │
 │ ▸ ◌ ⟦2 knowledge items awaiting review in batch nguon:lo…  → ⟦Knowledge~~~~⟧ │
 │   ◌ ⟦1 knowledge item awaiting review (no batch)~~~~~~~~…  → ⟦Knowledge~~~~⟧ │
-│   ◌ ⟦2 evolution proposals awaiting review~~~~~~~~~~~~~~…  → ⟦Evolution~~~~⟧ │
+│   ◌ ⟦Evolution proposal awaiting review — update EP0000K…  → ⟦Evolution~~~~⟧ │
 │   ! ⟦Doctor warning — config: cấu hình theo mẫu cũ: chạy `bi…  → ⟦System~~~⟧ │
 │                                                                              │
 │  ⟦Doctor~~~⟧  ✓ 2  ! 1  ✗ 0                                                  │

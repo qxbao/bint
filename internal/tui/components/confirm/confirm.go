@@ -39,11 +39,32 @@ type Model struct {
 	RequiredMsg string
 	// YesLabel/NoLabel là nhãn hai nút (đã qua i18n).
 	YesLabel, NoLabel string
+	// Checks là các ô chọn (nhãn đã qua i18n), mặc định không chọn: hộp cảnh báo cho điều kiện bị bỏ qua (kiểm chứng,
+	// rủi ro, xung đột tệp...) — mỗi ô một cờ, người chọn thì cờ mới được đặt. Có ô chọn thì y/n không xác nhận/từ
+	// chối nữa (tránh bấm nhầm); Tab/↑↓ dời giữa các ô và ô nhập, Space hoặc x đảo ô.
+	Checks []string
+	On     []bool
 
 	In      input.Model
 	Scroll  viewer.Model
 	showErr bool
+	focus   int // 0..len(Checks)-1: ô chọn; len(Checks): ô nhập (khi có)
 }
+
+// Checked cho biết ô chọn i đang được chọn.
+func (m Model) Checked(i int) bool { return i >= 0 && i < len(m.On) && m.On[i] }
+
+// slots là số đích tiêu điểm: các ô chọn và ô nhập.
+func (m Model) slots() int {
+	n := len(m.Checks)
+	if m.Input {
+		n++
+	}
+	return n
+}
+
+// onInput: tiêu điểm đang ở ô nhập (hoặc hộp không có ô chọn).
+func (m Model) onInput() bool { return m.Input && m.focus >= len(m.Checks) }
 
 // Value là chữ đã nhập (đã cắt khoảng trắng đầu/cuối).
 func (m Model) Value() string { return strings.TrimSpace(m.In.Text) }
@@ -67,10 +88,33 @@ func (m *Model) Update(msg tea.KeyPressMsg) Result {
 		m.Scroll.Page(-1)
 		return Pending
 	}
+	if len(m.Checks) > 0 {
+		if len(m.On) < len(m.Checks) {
+			m.On = append(m.On, make([]bool, len(m.Checks)-len(m.On))...)
+		}
+		switch s := msg.String(); s {
+		case "tab", "down":
+			m.focus = (m.focus + 1) % m.slots()
+			return Pending
+		case "shift+tab", "up":
+			m.focus = (m.focus + m.slots() - 1) % m.slots()
+			return Pending
+		}
+		if !m.onInput() {
+			switch msg.String() {
+			case " ", "space", "x":
+				m.On[m.focus] = !m.On[m.focus]
+			}
+			return Pending
+		}
+	}
 	if m.Input {
 		m.showErr = false
 		m.In.Update(msg)
 		return Pending
+	}
+	if len(m.Checks) > 0 {
+		return Pending // có ô chọn: y/n không xác nhận hay từ chối
 	}
 	switch msg.String() {
 	case "y", "Y":
@@ -89,8 +133,31 @@ func (m *Model) Update(msg tea.KeyPressMsg) Result {
 func (m *Model) View(th theme.Theme, w, h int) []string {
 	iw := max(w-4, 10)
 	var extra []string
+	if len(m.On) < len(m.Checks) {
+		m.On = append(m.On, make([]bool, len(m.Checks)-len(m.On))...)
+	}
+	for i, c := range m.Checks {
+		box := "[ ]"
+		if m.On[i] {
+			box = "[x]"
+		}
+		if i == 0 {
+			extra = append(extra, "")
+		}
+		for j, l := range text.WrapHang(box+" "+c, max(iw-2, 8), "", "    ") {
+			switch {
+			case m.focus == i && j == 0:
+				l = th.S(theme.Key, "▸ ") + th.Selected(l)
+			case m.focus == i:
+				l = "  " + th.Selected(l)
+			default:
+				l = "  " + l
+			}
+			extra = append(extra, l)
+		}
+	}
 	if m.Input {
-		line := m.In.Line(th, max(iw-text.Width(m.Label)-2, 4), true)
+		line := m.In.Line(th, max(iw-text.Width(m.Label)-2, 4), m.onInput())
 		if m.In.Text == "" && m.Placeholder != "" {
 			line = text.Pad(input.Cursor+th.S(theme.Muted, text.Truncate(m.Placeholder, max(iw-text.Width(m.Label)-4, 1))), max(iw-text.Width(m.Label)-2, 4))
 		}

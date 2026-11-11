@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/harness/claude"
 	"bint/internal/state"
 )
@@ -237,11 +238,15 @@ func newEventsCmd(stdio IO) *cobra.Command {
 		Short: "Nạp sự kiện từ spool vào cơ sở dữ liệu (loại trùng theo event_id)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, s, res, err := openAndIngest(cmd)
+			r, err := openRuns(cmd)
 			if err != nil {
 				return err
 			}
-			defer s.Close()
+			defer r.Close()
+			res, err := app.IngestEvents(cmd.Context(), r, app.EventsIngestDefaults(config.Default()))
+			if err != nil {
+				return err
+			}
 			fmt.Fprintf(stdio.Out, "Đã nạp %d tệp: %d sự kiện mới, %d trùng, %d tệp hỏng, %d để lần sau; %d lượt chạy chuyển interrupted\n",
 				res.Files, res.Events, res.Duplicates, res.Rejected, res.Skipped, res.Interrupted)
 			return nil

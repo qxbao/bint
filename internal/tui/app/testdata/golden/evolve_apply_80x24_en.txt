@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evolution │ Sy                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evolution│──────────────────────────────────────────────────────────────────┐
+│   Opportunities · Proposals · History · Queue                                │
+│ ┌─┌─│Apply proposal 01EP0000KNOW│─────────────────────────────────1-7/13─┐─┐ │
+│ │ │ WARNING: applying will skip the checks below if you tick the         │ │ │
+│ │ │ matching box.                                                        │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Action: update — update:01KNOW000003                                 │ │ │
+│ │ │ Risk: high sửa mục đã duyệt                                          │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ✓ The base version still matches.                                    │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ▸ [ ] Skip verification: apply even though there is NO supported     │ │ │
+│ │ │       independent test result (recorded in history) — --unverified   │ │ │
+│ │ │   [ ] Accept the high risk (sửa mục đã duyệt) — --confirm-risk       │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Reason: ▏optional; recorded in history                               │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Apply   [Esc] Cancel                                         │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ └─ a apply  x reject  u roll back  E compare  A all states ────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

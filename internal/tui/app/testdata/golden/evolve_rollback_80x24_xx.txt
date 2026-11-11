@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evolution~~~~⟧ │ ⟦Sy~⟧          │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evolution~~~~⟧│────────────────────────────────────────────────────────────┐
+│   ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧         │
+│ ┌─┌─│⟦Roll back proposal 01EP0000KNOW~~~~~~~~⟧│───────────────────1-8/14─┐─┐ │
+│ │ │ ⟦WARNING: 1 file(s) were edited after applying; rolling back will    │ │ │
+│ │ │ overwrite those edits if you tick the box                            │ │ │
+│ │ │ below.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                 │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ⟦Restores files to their state before Rev <rev@example.com> applied  │ │ │
+│ │ │ it:~~~~~~~~~~~~~~~~~~~~⟧                                             │ │ │
+│ │ │   ~ .bint/knowledge/items/01KNOW000003.md  ✗ ⟦edited after it was    │ │ │
+│ │ │ applied~~~~~~~~~~~⟧                                                  │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ▸ [ ] ⟦Overwrite 1 file(s) edited after applying —                   │ │ │
+│ │ │       --force~~~~~~~~~~~~~~~~~~~~⟧                                   │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ ⟦Reason~~~⟧: ▏⟦optional; default: user rolled back~~~~~~~~~~~~~~⟧    │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] ⟦Roll back~~~~⟧   [Esc] ⟦Cancel~~~⟧                          │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ └─ a ⟦apply~~⟧  x ⟦reject~~~⟧  u ⟦roll back~~~~⟧  E ⟦compare~~~⟧  A ⟦all …─┘ │
+└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

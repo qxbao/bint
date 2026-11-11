@@ -105,13 +105,13 @@ func (r processRunner) Propose(ctx context.Context, opts ProposeOptions) (*Propo
 
 // CycleOptions: `bint evolve cycle`.
 type CycleOptions struct {
-	BudgetUSD     float64 `flag:"budget"`
+	BudgetUSD     float64 `flag:"budget" form:"required"`
 	ProposeBudget float64 `flag:"propose-budget"`
 	MaxProposals  int     `flag:"max"`
-	Parallel      int     `flag:"parallel"`
-	Model         string  `flag:"model"`
+	Parallel      int     `flag:"parallel" form:"advanced"`
+	Model         string  `flag:"model" form:"advanced"`
 	NoPropose     bool    `flag:"no-propose"`
-	KeepFailed    bool    `flag:"keep-failed"`
+	KeepFailed    bool    `flag:"keep-failed" form:"advanced"`
 	BintVersion   string
 	// Log nhận các dòng tiến độ của vòng; nil = bỏ.
 	Log io.Writer

@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evolution~~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧                                                                     │
+│ ┌─│⟦Proposals (6)~~~~~⟧│──────────────────────────────⟦pending~~~⟧─┐┌─│⟦Detail~~~⟧ · EP0000KNOW│───────────────────────────────────────┐ │
+│ │ ▸ ◌ 00KNOW proposed update    high   supported -         Thất b… ││  ⟦Info~~⟧ · ⟦Changes~~~⟧ · ⟦Comparisons~~~~~⟧                    │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất b… ││ ⟦Proposal~~~… 01EP0000KNOW (proposed)                            │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất b… ││ ⟦Action~~~⟧   update 01KNOW000003 — ⟦level L1, target            │ │
+│ │   ◌ 00GUAR proposed create    medium -         -         Thất b… ││               knowledge~~~~~~⟧                                   │ │
+│ │   ◌ 00SCRI proposed create    high   -         -         Thất b… ││ ⟦Opportunity… op-demo                                            │ │
+│ │   ◌ 00STRA proposed create    medium -         -         Thất b… ││ ⟦Reason~~~⟧   Thất bại lặp lại ở internal/db                     │ │
+│ │                                                                  ││ ⟦Benefit~~~⟧  bớt thất bại lặp lại                               │ │
+│ │                                                                  ││ ⟦Risk~~⟧      high sửa mục đã duyệt                              │ │
+│ │                                                                  ││ ⟦Made by~~~⟧  agent:fake, 2026-11-11 10:00                       │ │
+│ │                                                                  ││ ⟦Plan~~⟧      superiority · pass_rate — bớt thất bại             │ │
+│ │                                                                  ││ ⟦Verificatio… ⟦prerequisites were not met when proposed — NOT    │ │
+│ │                                                                  ││               verified                                           │ │
+│ │                                                                  ││               quantitatively~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧        │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Evidence (1 labeled runs)~~~~~~~~~~⟧                            │ │
+│ │                                                                  ││ 1RUN000002(failure)                                              │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a ⟦apply~~⟧  x ⟦reject~~~⟧  u ⟦roll back~~~~⟧  E ⟦compare~~~⟧ …─┘└─ v ⟦sub-tab~~~⟧  Enter ⟦view detail~~~~~⟧ ───────────────────────┘ │
+└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [x→ ⟦Reject~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────┘

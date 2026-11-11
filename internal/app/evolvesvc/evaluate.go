@@ -22,30 +22,30 @@ const ConfirmEvaluateKey = "evolve.evaluate.confirm"
 
 // EvaluateOptions: `bint evolve evaluate <id>`.
 type EvaluateOptions struct {
-	ID    string
-	Split string `flag:"split"`
+	ID    string `arg:"id" form:"required,suggest=proposals"`
+	Split string `flag:"split" form:"choices=validation|test"`
 	// Repeats > 0 cố định số lần lặp mỗi nhánh; 0 = do bộ lập kế hoạch Probe chọn.
 	// RepeatsExplicit: người dùng chỉ định (khi đó phải >= 1).
-	Repeats         int `flag:"repeats"`
+	Repeats         int `flag:"repeats" form:"advanced"`
 	RepeatsExplicit bool
-	Force           bool     `flag:"force"`
+	Force           bool     `flag:"force" form:"advanced"`
 	BudgetUSD       *float64 `flag:"budget"`
-	Limit           int      `flag:"limit"`
-	Yes             bool     `flag:"yes"`
-	Harness         string   `flag:"harness"`
-	AgentCommand    string   `flag:"agent-command"`
-	Model           string   `flag:"model"`
-	LeakageMode     string   `flag:"leakage-mode"`
-	Delivery        string   `flag:"delivery"`
+	Limit           int      `flag:"limit" form:"advanced"`
+	Yes             bool     `flag:"yes" form:"hidden"`
+	Harness         string   `flag:"harness" form:"advanced,suggest=harnesses"`
+	AgentCommand    string   `flag:"agent-command" form:"advanced"`
+	Model           string   `flag:"model" form:"advanced"`
+	LeakageMode     string   `flag:"leakage-mode" form:"advanced,choices=strict|economy"`
+	Delivery        string   `flag:"delivery" form:"advanced,choices=bint|minimal"`
 	// DeliveryExplicit: người dùng chỉ định cách đưa tri thức (đề xuất quy trình chỉ chấp nhận bint).
 	DeliveryExplicit bool
-	Parallel         int    `flag:"parallel"`
-	Seed             uint64 `flag:"seed"`
-	KeepWorkdirs     bool   `flag:"keep-workdirs"`
-	Bare             bool   `flag:"bare"`
-	Resume           string `flag:"resume"`
-	Regression       bool   `flag:"regression"`
-	Prospective      bool   `flag:"prospective"`
+	Parallel         int    `flag:"parallel" form:"advanced"`
+	Seed             uint64 `flag:"seed" form:"advanced"`
+	KeepWorkdirs     bool   `flag:"keep-workdirs" form:"advanced"`
+	Bare             bool   `flag:"bare" form:"advanced"`
+	Resume           string `flag:"resume" form:"advanced"`
+	Regression       bool   `flag:"regression" form:"advanced"`
+	Prospective      bool   `flag:"prospective" form:"advanced"`
 	BintVersion      string
 
 	// Confirm hỏi "Bắt đầu đối chiếu?" (nil và không Yes: lỗi dùng sai).

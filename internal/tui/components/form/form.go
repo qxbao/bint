@@ -44,7 +44,9 @@ type Field struct {
 	Multiline bool
 	Suggest   string
 	Choices   []string
-	index     int // chỉ số trường trong struct
+	index     int  // chỉ số trường trong struct
+	ptr       bool // trường *float64: ô trống = nil
+	unsigned  bool // trường uint64
 }
 
 // LabelKey là khoá i18n của nhãn ô.
@@ -111,8 +113,15 @@ func fields(opts any, withHidden bool) []Field {
 			f.Kind = Bool
 		case reflect.Int:
 			f.Kind = Int
+		case reflect.Uint64:
+			f.Kind, f.unsigned = Int, true
 		case reflect.Float64:
 			f.Kind = Float
+		case reflect.Pointer:
+			if sf.Type.Elem().Kind() != reflect.Float64 {
+				continue
+			}
+			f.Kind, f.ptr = Float, true
 		default:
 			continue
 		}
@@ -183,11 +192,19 @@ func New(actionID, cliPath string, defaults any) Model {
 		case Bool:
 			m.bools[i] = fv.Bool()
 		case Int:
-			if n := fv.Int(); n != 0 {
+			if f.unsigned {
+				if n := fv.Uint(); n != 0 {
+					m.inputs[i] = input.New(strconv.FormatUint(n, 10))
+				}
+			} else if n := fv.Int(); n != 0 {
 				m.inputs[i] = input.New(strconv.FormatInt(n, 10))
 			}
 		case Float:
-			if x := fv.Float(); x != 0 {
+			if f.ptr {
+				if !fv.IsNil() {
+					m.inputs[i] = input.New(strconv.FormatFloat(fv.Elem().Float(), 'f', -1, 64))
+				}
+			} else if x := fv.Float(); x != 0 {
 				m.inputs[i] = input.New(strconv.FormatFloat(x, 'f', -1, 64))
 			}
 		case Choice:
@@ -397,7 +414,17 @@ func (m *Model) Build() (any, error) {
 			fv.SetBool(m.bools[i])
 		case Int:
 			if val == "" {
-				fv.SetInt(0)
+				fv.SetZero()
+				break
+			}
+			if f.unsigned {
+				n, err := strconv.ParseUint(val, 10, 64)
+				if err != nil {
+					m.FieldErr[i] = "number"
+					bad = ErrNumber
+					continue
+				}
+				fv.SetUint(n)
 				break
 			}
 			n, err := strconv.ParseInt(val, 10, 64)
@@ -409,7 +436,7 @@ func (m *Model) Build() (any, error) {
 			fv.SetInt(n)
 		case Float:
 			if val == "" {
-				fv.SetFloat(0)
+				fv.SetZero() // 0 hoặc nil (trường con trỏ: chưa đặt)
 				break
 			}
 			x, err := strconv.ParseFloat(strings.ReplaceAll(val, ",", "."), 64)
@@ -418,7 +445,13 @@ func (m *Model) Build() (any, error) {
 				bad = ErrNumber
 				continue
 			}
-			fv.SetFloat(x)
+			if f.ptr {
+				p := reflect.New(fv.Type().Elem())
+				p.Elem().SetFloat(x)
+				fv.Set(p)
+			} else {
+				fv.SetFloat(x)
+			}
 		case Choice:
 			v := ""
 			if c := m.choice[i]; c > 0 {
@@ -528,9 +561,20 @@ func CLIFor(cliPath string, def, v any) string {
 			var s string
 			switch f.Kind {
 			case Int:
-				s = strconv.FormatInt(fv.Int(), 10)
+				if f.unsigned {
+					s = strconv.FormatUint(fv.Uint(), 10)
+				} else {
+					s = strconv.FormatInt(fv.Int(), 10)
+				}
 			case Float:
-				s = strconv.FormatFloat(fv.Float(), 'f', -1, 64)
+				switch {
+				case f.ptr && fv.IsNil():
+					s = ""
+				case f.ptr:
+					s = strconv.FormatFloat(fv.Elem().Float(), 'f', -1, 64)
+				default:
+					s = strconv.FormatFloat(fv.Float(), 'f', -1, 64)
+				}
 			default:
 				s = fv.String()
 			}

@@ -25,7 +25,16 @@ type Workspace struct {
 
 // Open mở không gian tiến hoá: cần repository đã `bint init` (cơ sở dữ liệu trạng thái). Nạp
 // spool trước để số liệu gồm cả sự kiện mới nhất. Người gọi phải Close.
-func Open(ctx context.Context, dir string) (*Workspace, error) {
+func Open(ctx context.Context, dir string) (*Workspace, error) { return OpenIngest(ctx, dir, true) }
+
+// OpenNoIngest như Open nhưng không nạp spool vào cơ sở dữ liệu: cho chế độ chỉ đọc của TUI (mục 7.4). Mở cơ sở
+// dữ liệu vẫn có thể áp migration nếu schema cũ.
+func OpenNoIngest(ctx context.Context, dir string) (*Workspace, error) {
+	return OpenIngest(ctx, dir, false)
+}
+
+// OpenIngest mở không gian tiến hoá; ingest quyết định có nạp spool trước hay không.
+func OpenIngest(ctx context.Context, dir string, ingest bool) (*Workspace, error) {
 	e, err := app.OpenEval(ctx, dir, true)
 	if err != nil {
 		return nil, err
@@ -35,9 +44,11 @@ func Open(ctx context.Context, dir string) (*Workspace, error) {
 		e.Close()
 		return nil, err
 	}
-	if _, err := e.WS.Ingest(ctx, e.Store, time.Now()); err != nil {
-		e.Close()
-		return nil, err
+	if ingest {
+		if _, err := e.WS.Ingest(ctx, e.Store, time.Now()); err != nil {
+			e.Close()
+			return nil, err
+		}
 	}
 	return &Workspace{EvalWorkspace: e, K: k}, nil
 }

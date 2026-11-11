@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Runs │ Ev │ Evo │ Sy                                      │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Runs│───────────────────────────────────────────────────────────────────────┐
+│   List · Lessons                                                             │
+│ ┌─│Detail · 1RUN000002│────────────────────────────────────────────1-16/19─┐ │
+│ │ Run         01RUN000002                                                  │ │
+│ │ Status      failed (exit)                                                │ │
+│ │ Harness     codex  session -                                             │ │
+│ │ Model       claude-opus-5-5                                              │ │
+│ │ Git         main @ 46e924d                                               │ │
+│ │ Worktree    -                                                            │ │
+│ │ Time        2026-11-11 09:00 → 2026-11-11 09:00 (2m5s)                   │ │
+│ │ Label       ✗ failure                                                    │ │
+│ │             người dùng chấm bad                                          │ │
+│ │                                                                          │ │
+│ │ Outcome signals (1)                                                      │ │
+│ │   - rating strong human ghi chú của người chấm                           │ │
+│ │                                                                          │ │
+│ │ Outputs (1)                                                              │ │
+│ │   file.modified  internal/db/db.go (×2)                                  │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[+/-→ Rate] [S→ Scan Git] [I→ Ingest spool] [q→ Quit] [?→ Help]──────────────┘

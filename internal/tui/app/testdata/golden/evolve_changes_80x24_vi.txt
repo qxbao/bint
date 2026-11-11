@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ Tiến hoá │ HT                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tiến hoá│───────────────────────────────────────────────────────────────────┐
+│   Cơ hội · Đề xuất · Lịch sử · Hàng đợi                                      │
+│ ┌─│Chi tiết · EP0000KNOW│──────────────────────────────────────────────────┐ │
+│ │  Thông tin · Thay đổi · Đối chiếu                                        │ │
+│ │ [update] 01KNOW000003 — làm rõ                                           │ │
+│ │   Loại       pattern                                                     │ │
+│ │ - Tiêu đề    Handler đi qua wrap()                                       │ │
+│ │ + Tiêu đề    Handler đi qua wrap() và log                                │ │
+│ │   Phạm vi    internal/api/**                                             │ │
+│ │   Bằng chứng internal/db/db.go:40-52                                     │ │
+│ │                                                                          │ │
+│ │ Nội dung                                                                 │ │
+│ │ --- hiện trạng                                                           │ │
+│ │ +++ đề xuất                                                              │ │
+│ │  Nội dung của mục Handler đi qua wrap().                                 │ │
+│ │ -Dòng thứ hai.                                                           │ │
+│ │ +Dòng thứ hai đã sửa.                                                    │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ v thẻ con  Enter xem chi tiết ──────────────────────────────────────────┘ │
+└─[s→ Quét] [p→ Đề xuất] [a→ Áp dụng] [x→ Bác bỏ] [q→ Thoát] [?→ Trợ giúp]─────┘

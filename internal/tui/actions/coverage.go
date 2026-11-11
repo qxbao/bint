@@ -25,7 +25,7 @@ type Coverage struct {
 }
 
 // CurrentPhase là giai đoạn của kế hoạch TUI đã làm xong (docs/tui-plan.md mục 9).
-const CurrentPhase = 2
+const CurrentPhase = 3
 
 // Data là dữ liệu phủ hiện hành.
 var Data = Coverage{
@@ -59,21 +59,6 @@ var Data = Coverage{
 		"eval show":                   4,
 		"eval spec":                   4,
 		"eval verify":                 4,
-		"events ingest":               3,
-		"evolve apply":                3,
-		"evolve cycle":                3,
-		"evolve evaluate":             3,
-		"evolve history":              3,
-		"evolve list":                 3,
-		"evolve process":              3,
-		"evolve propose":              3,
-		"evolve queue":                3,
-		"evolve reject":               3,
-		"evolve rollback":             3,
-		"evolve scan":                 3,
-		"evolve show":                 3,
-		"experience digest":           3,
-		"experience show":             3,
 		"harness component add":       5,
 		"harness component approve":   5,
 		"harness component deprecate": 5,
@@ -84,10 +69,6 @@ var Data = Coverage{
 		"harness show":                5,
 		"index rebuild":               5,
 		"mcp tools":                   5,
-		"runs list":                   3,
-		"runs rate":                   3,
-		"runs scan":                   3,
-		"runs show":                   3,
 		"skill check":                 5,
 		"skill diff":                  5,
 		"skill list":                  5,
@@ -111,5 +92,5 @@ var Data = Coverage{
 		"init --no-skills":   5,
 		"init --update":      5,
 	},
-	PendingCeiling: 61,
+	PendingCeiling: 42,
 }

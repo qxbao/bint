@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"time"
 
 	"bint/internal/app"
 	"bint/internal/config"
 	"bint/internal/eval"
 	"bint/internal/evolve"
+	"bint/internal/hcomp"
 	"bint/internal/knowledge"
 	"bint/internal/skills"
 )
@@ -40,14 +43,14 @@ func Scan(ctx context.Context, e *Workspace, opts ScanOptions) (evolve.ScanResul
 
 // ProposeOptions: `bint evolve propose [op-id|khoá...]`.
 type ProposeOptions struct {
-	Refs           []string
-	BudgetUSD      float64 `flag:"budget"`
-	Max            int     `flag:"max"`
-	Days           int     `flag:"days"`
-	AgentCommand   string  `flag:"agent-command"`
-	Model          string  `flag:"model"`
-	ReflectorModel string  `flag:"reflector-model"`
-	NoAgent        bool    `flag:"no-agent"`
+	Refs           []string `arg:"refs" form:"suggest=opportunities"`
+	BudgetUSD      float64  `flag:"budget"`
+	Max            int      `flag:"max" form:"advanced"`
+	Days           int      `flag:"days" form:"advanced"`
+	AgentCommand   string   `flag:"agent-command" form:"advanced"`
+	Model          string   `flag:"model" form:"advanced"`
+	ReflectorModel string   `flag:"reflector-model" form:"advanced"`
+	NoAgent        bool     `flag:"no-agent"`
 	// Warn nhận cảnh báo khi một agent phụ không dùng được (bỏ qua cơ hội tương ứng); nil = bỏ.
 	Warn io.Writer
 }
@@ -155,7 +158,9 @@ func List(ctx context.Context, e *Workspace, opts ListOptions) ([]ListRow, error
 // ---- show ----
 
 // ShowOptions: `bint evolve show <id>`.
-type ShowOptions struct{ ID string }
+type ShowOptions struct {
+	ID string `arg:"id" form:"required,suggest=proposals"`
+}
 
 func ShowDefaults(config.Config) ShowOptions { return ShowOptions{} }
 
@@ -178,6 +183,8 @@ type ShowResult struct {
 	Items   []*knowledge.Item
 	Evolved []*skills.Evolved
 	Cases   map[string]*eval.Case
+	// Harness: thành phần quy trình hiện có (.bint/harness) để so với đề xuất loại harness (lỗi đọc bị bỏ qua).
+	Harness []hcomp.Component
 }
 
 // Show đọc chi tiết đề xuất: thay đổi, phiên bản gốc, căn cứ, kế hoạch và kết quả đối chiếu.
@@ -206,6 +213,7 @@ func Show(ctx context.Context, e *Workspace, opts ShowOptions) (*ShowResult, err
 		LabelDrift: evolve.LabelDrift(p, h), Cases: e.CaseMap()}
 	res.Items, _, _ = e.K.Items()
 	res.Evolved, _, _ = skills.LoadEvolved(e.K.Root)
+	res.Harness = hcomp.Load(e.K.Root).Components
 	return res, nil
 }
 
@@ -213,9 +221,9 @@ func Show(ctx context.Context, e *Workspace, opts ShowOptions) (*ShowResult, err
 
 // ApplyOptions: `bint evolve apply <id>`.
 type ApplyOptions struct {
-	Ref         string
-	Unverified  bool   `flag:"unverified"`
-	ConfirmRisk bool   `flag:"confirm-risk"`
+	Ref         string `arg:"id" form:"required,suggest=proposals"`
+	Unverified  bool   `flag:"unverified" form:"hidden"`
+	ConfirmRisk bool   `flag:"confirm-risk" form:"hidden"`
 	Reason      string `flag:"reason"`
 }
 
@@ -240,7 +248,7 @@ func Apply(ctx context.Context, e *Workspace, opts ApplyOptions) (evolve.ApplyRe
 
 // RejectOptions: `bint evolve reject <id>`.
 type RejectOptions struct {
-	Ref    string
+	Ref    string `arg:"id" form:"required,suggest=proposals"`
 	Reason string `flag:"reason"`
 }
 
@@ -263,9 +271,13 @@ func Reject(ctx context.Context, e *Workspace, opts RejectOptions) (*evolve.Prop
 
 // RollbackOptions: `bint evolve rollback <id>`.
 type RollbackOptions struct {
-	Ref    string
-	Force  bool   `flag:"force"`
+	Ref    string `arg:"id" form:"required,suggest=proposals"`
+	Force  bool   `flag:"force" form:"hidden"`
 	Reason string `flag:"reason"`
+	// ExpectConflicts (không phải cờ): tệp xung đột người đã xem khi bật Force (TUI), kèm dấu vân tay nội dung lúc
+	// xem (RollbackPlan.SeenConflicts, ContentHash). Khác nil: nếu tập xung đột hoặc nội dung một tệp xung đột đã đổi
+	// thì từ chối và không ghi gì (người chỉ đồng ý ghi đè đúng nội dung đã xem). CLI không đặt.
+	ExpectConflicts map[string]string
 }
 
 func RollbackDefaults(config.Config) RollbackOptions { return RollbackOptions{} }
@@ -281,6 +293,22 @@ func (o RollbackOptions) Validate() error {
 func Rollback(ctx context.Context, e *Workspace, opts RollbackOptions) (evolve.RollbackResult, error) {
 	if err := opts.Validate(); err != nil {
 		return evolve.RollbackResult{}, err
+	}
+	if opts.Force && opts.ExpectConflicts != nil {
+		// Người đã xem một tập tệp xung đột và đồng ý ghi đè đúng tập đó: nếu tệp đã đổi giữa lúc xem và lúc xác
+		// nhận thì từ chối, không ghi gì (người phải xem lại).
+		if err := app.RequireHuman("bint evolve rollback"); err != nil {
+			return evolve.RollbackResult{}, err
+		}
+		plan, err := PlanRollback(ctx, e, opts)
+		if err != nil {
+			return evolve.RollbackResult{}, err
+		}
+		if !sameConflicts(plan, opts.ExpectConflicts) {
+			seen := slices.Sorted(maps.Keys(opts.ExpectConflicts))
+			return evolve.RollbackResult{}, fmt.Errorf("tệp xung đột đã thay đổi so với bản đã xem (đã xem: %s; hiện tại: %s): xem lại rồi quay lui lần nữa",
+				listOrNone(seen), listOrNone(plan.Conflicts))
+		}
 	}
 	return evolve.Rollback(ctx, evolve.RollbackOptions{K: e.K, DB: e.Store.DB, Ref: opts.Ref, Force: opts.Force, Reason: opts.Reason})
 }

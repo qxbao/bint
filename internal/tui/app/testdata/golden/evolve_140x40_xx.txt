@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evolution~~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧                                                                     │
+│ ┌─│⟦Opportunities (2)~~~~~~~⟧│─────────────────────────────────────┐┌─│⟦Prerequisites · opportunity~~~~~~~~~~~⟧│───────────────────────┐ │
+│ │ ▸ ● op-3f9a… failure_hotspot  create    internal/db bị sửa ở 3 … ││ ⟦Scan data~~~~⟧                                                  │ │
+│ │   ◌ op-7e1d… unused           deprecate Mục 01KNOW000003 truy x… ││   ⟦Since 2026-10-12: 12 runs (9 labeled, 6 with file-read data)… │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Prerequisites (section 10.6)~~~~~~~~~~~~⟧                       │ │
+│ │                                                                  ││ ✗ tác vụ đánh giá 0 tác vụ đã duyệt (cần ≥ 20)                   │ │
+│ │                                                                  ││ ✓ lượt có nhãn 9                                                 │ │
+│ │                                                                  ││   → ⟦not enough data: only L1 proposals awaiting review, NOT     │ │
+│ │                                                                  ││     verified quantitatively.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧    │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Task groups (by code area)~~~~~~~~~~~⟧                          │ │
+│ │                                                                  ││   internal/db ⟦6 runs, 5 labeled, pass/fail 2/3~~~~~~~~~~~~⟧     │ │
+│ │                                                                  ││     b-do=4 b-feat=2                                              │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ ⟦Opportunity op-3f9a2c1b~~~~~⟧                                   │ │
+│ │                                                                  ││ L1 failure_hotspot → create [agent] ⟦ready~~⟧                    │ │
+│ │                                                                  ││ internal/db bị sửa ở 3 lượt thất bại                             │ │
+│ │                                                                  ││     ⟦internal/db/db.go (3 runs, 3 failures)~~~~~~~~⟧             │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ s ⟦scan~~⟧  p ⟦propose~~~⟧ ─────────────────────────────────────┘└──────────────────────────────────────────────────────────────────┘ │
+└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [x→ ⟦Reject~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────┘

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evolution~~~~⟧ │ ⟦Sy~⟧          │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evolution~~~~⟧│────────────────────────────────────────────────────────────┐
+│   ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧         │
+│ ┌─│⟦Detail~~~⟧ · EP0000KNOW│───────────────────────────────────────────────┐ │
+│ │  ⟦Info~~⟧ · ⟦Changes~~~⟧ · ⟦Comparisons~~~~~⟧                            │ │
+│ │ [update] 01KNOW000003 — làm rõ                                           │ │
+│ │   ⟦Type~~⟧   pattern                                                     │ │
+│ │ - ⟦Title~~⟧  Handler đi qua wrap()                                       │ │
+│ │ + ⟦Title~~⟧  Handler đi qua wrap() và log                                │ │
+│ │   ⟦Scope~~⟧  internal/api/**                                             │ │
+│ │   ⟦Evidence~~~~⟧internal/db/db.go:40-52                                  │ │
+│ │                                                                          │ │
+│ │ ⟦Content~~~⟧                                                             │ │
+│ │ --- ⟦current~~~⟧                                                         │ │
+│ │ +++ ⟦proposed~~~~⟧                                                       │ │
+│ │  Nội dung của mục Handler đi qua wrap().                                 │ │
+│ │ -Dòng thứ hai.                                                           │ │
+│ │ +Dòng thứ hai đã sửa.                                                    │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ v ⟦sub-tab~~~⟧  Enter ⟦view detail~~~~~⟧ ───────────────────────────────┘ │
+└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]───┘

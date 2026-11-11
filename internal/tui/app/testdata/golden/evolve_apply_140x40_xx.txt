@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦Evolution~~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧                                                                     │
+│ ┌─│⟦Proposals (6)~~~~~⟧│──────────────────────────────⟦pending~~~⟧─┐┌─│⟦Detail~~~⟧ · EP0000KNOW│───────────────────────────────────────┐ │
+│ │ ▸ ◌ 00KNOW proposed update    high   supported -         Thất b… ││  ⟦Info~~⟧ · ⟦Changes~~~⟧ · ⟦Comparisons~~~~~⟧                    │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất b… ││ ⟦Proposal~~~… 01EP0000KNOW (proposed)                            │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất b… ││ ⟦Action~~~⟧   update 01KNOW000003 — ⟦level L1, target            │ │
+│ │   ◌ 00GUAR proposed c┌─│⟦Apply proposal 01EP0000KNOW~~~~~~⟧│──────────────────────────────────────────────────┐                      │ │
+│ │   ◌ 00SCRI proposed c│ ⟦WARNING: applying will skip the checks below if you tick the matching                 │                      │ │
+│ │   ◌ 00STRA proposed c│ box.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                                    │b                     │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ ⟦Action: update — update:01KNOW000003~~~~~⟧                                            │                      │ │
+│ │                      │ ⟦Risk: high sửa mục đã duyệt~~~⟧                                                       │                      │ │
+│ │                      │                                                                                        │ thất bại             │ │
+│ │                      │ ✓ ⟦The base version still matches.~~~~~~~~~~~~~⟧                                       │hen proposed — NOT    │ │
+│ │                      │ ✗ ⟦NO supported, independent result on the test split for the current base             │                      │ │
+│ │                      │ version.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                              │~~~~~~~~~~~~~⟧        │ │
+│ │                      │ ✗ ⟦HIGH risk: needs explicit acceptance.~~~~~~~~~~~~~~~⟧                               │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ ⟦Preview: the proposed content versus the current state is on the Changes tab; the     │                      │ │
+│ │                      │ files actually written are shown after                                                 │                      │ │
+│ │                      │ applying.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                         │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ ▸ [ ] ⟦Skip verification: apply even though there is NO supported independent test     │                      │ │
+│ │                      │       result (recorded in history) —                                                   │                      │ │
+│ │                      │       --unverified~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                    │                      │ │
+│ │                      │   [ ] ⟦Accept the high risk (sửa mục đã duyệt) — --confirm-risk~~~~~~~~~~~~~~~~⟧       │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ ⟦Reason~~~⟧: ▏⟦optional; recorded in history~~~~~~~~~~~~⟧                              │                      │ │
+│ │                      │                                                                                        │                      │ │
+│ │                      │ [Enter] ⟦Apply~~⟧   [Esc] ⟦Cancel~~~⟧                                                  │                      │ │
+│ │                      └────────────────────────────────────────────────────────────────────────────────────────┘                      │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a ⟦apply~~⟧  x ⟦reject~~~⟧  u ⟦roll back~~~~⟧  E ⟦compare~~~⟧ …─┘└─ v ⟦sub-tab~~~⟧  Enter ⟦view detail~~~~~⟧ ───────────────────────┘ │
+└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

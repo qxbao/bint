@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evolution │ Sy                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Evolution│──────────────────────────────────────────────────────────────────┐
+│   Opportunities · Proposals · History · Queue                                │
+│ ┌─│Apply / rollback history│───────────────────────────────────────────────┐ │
+│ │ 2026-11-10 10:00 apply EP0000KNOW update (01KNOW000003) Rev              │ │
+│ │     <rev@example.com> verified=false                                     │ │
+│ │     đã xem                                                               │ │
+│ │     since applied: retrieved in 4 runs, cited in 1 runs (a hint only; …  │ │
+│ │     evolution cost: generation -, comparison -                           │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [q→ Quit] [?→ Help]────────────┘

@@ -5,10 +5,10 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 
+	"bint/internal/app/evolvesvc"
 	"bint/internal/evolve"
 )
 
@@ -44,21 +44,11 @@ func newExperienceDigestCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			defer e.Close()
-			cases, err := e.Cases.Cases()
+			res, err := evolvesvc.Digest(cmd.Context(), e, evolvesvc.ExperienceDigestOptions{Ref: args[0]})
 			if err != nil {
 				return err
 			}
-			items, _, err := e.K.Items()
-			if err != nil {
-				return err
-			}
-			tr := e.K.Config.Evolution.Trigger
-			minUnits, minNew := max(tr.MinSimilarRuns, 1), max(tr.MinNewEvidence, 1)
-			rep, err := evolve.DigestRef(cmd.Context(), e.Store.DB, cases, args[0], e.K.Paths.Runtime, minUnits, minNew,
-				evolve.LessonIDs(items))
-			if err != nil {
-				return err
-			}
+			rep, minUnits := res.Report, res.MinUnits
 			if asJSON {
 				if rep.Digests == nil {
 					rep.Digests = []evolve.Digest{}
@@ -118,15 +108,7 @@ func newExperienceShowCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			defer e.Close()
-			items, _, err := e.K.Items()
-			if err != nil {
-				return err
-			}
-			h, err := evolve.LoadHistory(cmd.Context(), e.Store.DB, time.Now(), 10*365*24*time.Hour)
-			if err != nil {
-				return err
-			}
-			rows, err := evolve.ExperienceShow(cmd.Context(), e.Store.DB, items, h)
+			rows, err := evolvesvc.Experience(cmd.Context(), e, evolvesvc.ExperienceShowOptions{})
 			if err != nil {
 				return err
 			}

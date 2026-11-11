@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	bintapp "bint/internal/app"
+	"bint/internal/app/evolvesvc"
 	"bint/internal/knowledge"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/theme"
@@ -106,6 +107,74 @@ func TestGoldenScreens(t *testing.T) {
 						Paths: []string{"migrations/002.sql"}, Resumable: true}})
 					return m
 				},
+				"runs": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "4")
+					return m
+				},
+				"runs_detail": func() *Model { // chi tiết lượt thất bại: nhãn, tín hiệu, đầu ra, sự kiện (hẹp: một khung)
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "4", "j", "enter")
+					return m
+				},
+				"runs_rate": func() *Model { // hộp chấm có ghi chú
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "4", "-")
+					return m
+				},
+				"runs_scan": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "4", "S")
+					return m
+				},
+				"runs_lessons": func() *Model { // thẻ Bài học: thư viện nhóm theo vùng + bản tóm tắt thất bại
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "4", ".")
+					m.Update(actions.ResultMsg{ID: "runs.lesson_digest", Opts: evolvesvc.ExperienceDigestOptions{Ref: "latest"}, Value: sampleDigest()})
+					return m
+				},
+				"evolve": func() *Model { // thẻ Cơ hội
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "6")
+					return m
+				},
+				"evolve_proposals": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "6", ".")
+					return m
+				},
+				"evolve_changes": func() *Model { // diff nội dung tri thức với hiện trạng
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "6", ".", "v", "enter")
+					return m
+				},
+				"evolve_script": func() *Model { // khung đề xuất script kèm cảnh báo không tự chạy
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "6", ".", "j", "j", "j", "j", "v", "enter")
+					return m
+				},
+				"evolve_apply": func() *Model { // hộp đỏ áp dụng chưa kiểm chứng và rủi ro cao
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "6", ".")
+					m.Update(actions.ResultMsg{ID: "evolve.plan_apply", Value: samplePlanApply(m.ev.Cursor().Proposal)})
+					return m
+				},
+				"evolve_rollback": func() *Model { // hộp quay lui có tệp xung đột
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "6", ".")
+					m.Update(actions.ResultMsg{ID: "evolve.plan_rollback", Value: samplePlanRollback(m.ev.Cursor().Proposal)})
+					return m
+				},
+				"evolve_history": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "6", ".", ".")
+					return m
+				},
+				"evolve_queue": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "6", ".", ".", ".")
+					return m
+				},
 				"knowledge_publish": func() *Model {
 					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
 					press(t, m, "2")
@@ -159,5 +228,17 @@ func TestGoldenTasksColorModes(t *testing.T) {
 		press(t, m, "3", ".", ".", ".", ".", "tab")
 		out := strings.ReplaceAll(m.Render(), "\x1b", "␛")
 		checkGolden(t, fmt.Sprintf("tasks_140x40_vi_%s.ansi.txt", mode), out+"\n")
+	}
+}
+
+// Ảnh chụp có mã màu của màn Lượt chạy (khung chi tiết lượt thất bại) và Tiến hoá (diff nội dung) ở từng chế độ màu.
+func TestGoldenRunsEvolveColorModes(t *testing.T) {
+	for _, mode := range allModes() {
+		m := newModel(t, Options{Mode: mode, Lang: "vi"}, sampleData(), 140, 40)
+		press(t, m, "4", "j")
+		checkGolden(t, fmt.Sprintf("runs_140x40_vi_%s.ansi.txt", mode), strings.ReplaceAll(m.Render(), "\x1b", "␛")+"\n")
+		m = newModel(t, Options{Mode: mode, Lang: "vi"}, sampleData(), 140, 40)
+		press(t, m, "6", ".", "v", "tab")
+		checkGolden(t, fmt.Sprintf("evolve_140x40_vi_%s.ansi.txt", mode), strings.ReplaceAll(m.Render(), "\x1b", "␛")+"\n")
 	}
 }

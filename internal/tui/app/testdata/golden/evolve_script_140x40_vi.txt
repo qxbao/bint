@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tiến hoá│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Cơ hội · Đề xuất · Lịch sử · Hàng đợi                                                                                                  │
+│ ┌─│Đề xuất (6)│───────────────────────────────────────────đang chờ─┐┌─│Chi tiết · EP0000SCRI│──────────────────────────────────────────┐ │
+│ │   ◌ 00KNOW proposed update    high   supported -         Thất b… ││  Thông tin · Thay đổi · Đối chiếu                                │ │
+│ │   ◌ 00SKIL proposed create    low    -         -         Thất b… ││ [create] script kiem-tra-nhanh                                   │ │
+│ │   ◌ 00GUID proposed create    medium -         -         Thất b… ││ Phạm vi       global · rủi ro high                               │ │
+│ │   ◌ 00GUAR proposed create    medium -         -         Thất b… ││ Mô tả         Kiểm tra nhanh                                     │ │
+│ │ ▸ ◌ 00SCRI proposed create    high   -         -         Thất b… ││ Cách dùng     bash kiem-tra-nhanh.sh                             │ │
+│ │   ◌ 00STRA proposed create    medium -         -         Thất b… ││                                                                  │ │
+│ │                                                                  ││ ⚠ Bint không bao giờ tự chạy script này; luôn chờ người duyệt.   │ │
+│ │                                                                  ││ Script (nội dung)                                                │ │
+│ │                                                                  ││   #!/bin/sh                                                      │ │
+│ │                                                                  ││   go vet ./...                                                   │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││ Thay đổi so với hiện trạng                                       │ │
+│ │                                                                  ││   Thành phần mới: chưa có bản hiện tại để so sánh.               │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ │                                                                  ││                                                                  │ │
+│ └─ a áp dụng  x bác bỏ  u quay lui  E đối chiếu  A mọi trạng thái ─┘└─ v thẻ con  Enter xem chi tiết ──────────────────────────────────┘ │
+└─[s→ Quét] [p→ Đề xuất] [a→ Áp dụng] [x→ Bác bỏ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────────────────────────────────────────┘

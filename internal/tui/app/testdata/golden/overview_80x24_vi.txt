@@ -16,7 +16,7 @@
 │  Việc cần bạn (4)                                                            │
 │ ▸ ◌ 2 mục tri thức chờ duyệt thuộc lô nguon:lo-thu                → Tri thức │
 │   ◌ 1 mục tri thức chờ duyệt (không thuộc lô nào)                 → Tri thức │
-│   ◌ 2 đề xuất tiến hoá chờ duyệt                                  → Tiến hoá │
+│   ◌ Đề xuất tiến hoá chờ duyệt — update EP0000KNOW                → Tiến hoá │
 │   ! Doctor cảnh báo — config: cấu hình theo mẫu cũ: chạy `bint …  → Hệ thống │
 │                                                                              │
 │  Doctor  ✓ 2  ! 1  ✗ 0                                                       │
