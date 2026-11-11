@@ -62,9 +62,10 @@ type CodexAgent struct {
 	ExtraArgs []string
 }
 
-func (a *CodexAgent) Name() string        { return "codex" }
-func (a *CodexAgent) ReportsCost() bool   { return false }
-func (a *CodexAgent) EnforcesTurns() bool { return false }
+func (a *CodexAgent) Name() string           { return "codex" }
+func (a *CodexAgent) RequestedModel() string { return a.Model }
+func (a *CodexAgent) ReportsCost() bool      { return false }
+func (a *CodexAgent) EnforcesTurns() bool    { return false }
 func (a *CodexAgent) ReadOnlyMode() string {
 	return "sandbox workspace-write + Bint kiểm tra cây làm việc"
 }
@@ -264,6 +265,7 @@ type AgyAgent struct {
 const MaxPromptBytes = 120 << 10
 
 func (a *AgyAgent) Name() string                       { return "antigravity" }
+func (a *AgyAgent) RequestedModel() string             { return a.Model }
 func (a *AgyAgent) ReportsCost() bool                  { return false }
 func (a *AgyAgent) EnforcesTurns() bool                { return false }
 func (a *AgyAgent) ReadOnlyMode() string               { return "--mode plan + Bint kiểm tra cây làm việc" }

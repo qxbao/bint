@@ -64,7 +64,9 @@ func RegisterTools(s *Server, b Backend) {
 		if ids == nil {
 			ids = []string{}
 		}
-		return Result{Text: text, Structured: map[string]any{"ids": ids, "count": len(ids)}}
+		// Một số harness (Claude Code) chỉ đưa structuredContent cho mô hình khi có trường này,
+		// bỏ qua content: nội dung tri thức phải nằm trong structuredContent, không chỉ ID.
+		return Result{Text: text, Structured: map[string]any{"context": text, "ids": ids, "count": len(ids)}}
 	}
 	s.Register(Tool{
 		Name:        "context_for_task",

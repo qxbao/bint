@@ -93,6 +93,33 @@ type ApplyOptions struct {
 	// Cases: tác vụ đánh giá hiện có, để ghi lần đối chiếu làm căn cứ là tiến cứu hay hồi cứu.
 	Cases map[string]*eval.Case
 	Now   time.Time
+	// Auto: áp dụng tự động bởi vòng tiến hoá (P8, `bint evolve cycle`). Chỉ cho phép khi
+	// evolution.adoption.auto_low_risk bật, đề xuất rủi ro thấp, chỉ tạo mục mới (mục vào
+	// trạng thái candidate, vẫn chờ người duyệt) và đã supported độc lập trên tập test.
+	Auto bool
+}
+
+// AutoActor là tác nhân ghi trong bản kiểm toán khi vòng tiến hoá tự áp dụng/quay lui.
+const AutoActor = "bint-auto"
+
+// AutoApplicable cho biết đề xuất có thuộc loại được tự áp dụng hay không (bỏ qua điều
+// kiện kiểm chứng, được kiểm riêng); lý do khi không.
+func AutoApplicable(p *Proposal) (bool, string) {
+	if p.IsSkill() {
+		return false, "đề xuất skill cần người duyệt"
+	}
+	if p.Risk != RiskLow {
+		return false, "rủi ro " + p.Risk
+	}
+	if len(p.Changes) == 0 {
+		return false, "không có thay đổi"
+	}
+	for _, ch := range p.Changes {
+		if ch.Op != ActionCreate {
+			return false, "thay đổi " + ch.Op + " mục có sẵn cần người duyệt"
+		}
+	}
+	return true, ""
 }
 
 // ApplyResult là kết quả áp dụng.
@@ -124,8 +151,12 @@ func readOpt(p string) (*string, error) {
 // Apply áp dụng đề xuất sau khi người duyệt (chế độ propose, mục 11.5).
 func Apply(ctx context.Context, o ApplyOptions) (ApplyResult, error) {
 	var res ApplyResult
-	if err := requireHuman("bint evolve apply"); err != nil {
-		return res, err
+	if !o.Auto {
+		if err := requireHuman("bint evolve apply"); err != nil {
+			return res, err
+		}
+	} else if !o.K.Config.Evolution.Adoption.AutoLowRisk {
+		return res, fmt.Errorf("tự áp dụng bị tắt (evolution.adoption.auto_low_risk = false)")
 	}
 	if o.Now.IsZero() {
 		o.Now = time.Now()
@@ -156,6 +187,12 @@ func Apply(ctx context.Context, o ApplyOptions) (ApplyResult, error) {
 	if err != nil {
 		return res, err
 	}
+	if o.Auto {
+		if ok, why := AutoApplicable(p); !ok {
+			return res, fmt.Errorf("đề xuất %s không được tự áp dụng: %s", p.ID, why)
+		}
+		o.Unverified, o.ConfirmRisk = false, false
+	}
 	if e, ok := VerifiedBy(evs, p); ok {
 		res.Verified, res.Evaluation = true, &e
 	} else if !o.Unverified {
@@ -169,6 +206,9 @@ func Apply(ctx context.Context, o ApplyOptions) (ApplyResult, error) {
 		return applySkill(ctx, o, p, res)
 	}
 	who := app.GitIdentity(ctx, o.K.Root)
+	if o.Auto {
+		who = AutoActor
+	}
 	items, _, err := o.K.Items()
 	if err != nil {
 		return res, err
@@ -334,6 +374,25 @@ func Reject(ctx context.Context, db *sql.DB, ref, reason string, now time.Time) 
 	return p, SetStatus(ctx, db, p.ID, StatusRejected, reason, now)
 }
 
+// AutoReject: vòng tiến hoá (bint evolve cycle) bác bỏ đề xuất đang chờ khi lần đối chiếu
+// ev của chính đề xuất đó đã kết luận not_supported. Không cần người: bác bỏ không sửa tệp
+// nào, và cơ hội gốc mở lại khi có bằng chứng mới (lượt chưa dùng làm căn cứ). Kết luận
+// inconclusive không bị bác bỏ (chưa đủ bằng chứng theo hướng nào).
+func AutoReject(ctx context.Context, db *sql.DB, p *Proposal, ev *Evaluation, now time.Time) error {
+	if ev == nil || ev.ProposalID != p.ID || ev.Verdict != VerdictNotSupported {
+		return fmt.Errorf("chỉ tự bác bỏ khi lần đối chiếu của chính đề xuất kết luận %s", VerdictNotSupported)
+	}
+	if p.Status != StatusProposed {
+		return fmt.Errorf("đề xuất %s ở trạng thái %s: chỉ bác bỏ được đề xuất đang chờ", p.ID, p.Status)
+	}
+	reason := fmt.Sprintf("%s: không đạt trên %s (%s, đợt %s)", AutoActor, ev.Split, ev.ID, ev.BatchID)
+	if ev.Detail != "" {
+		reason += " — " + ev.Detail
+	}
+	p.Status, p.StatusReason = StatusRejected, reason
+	return SetStatus(ctx, db, p.ID, StatusRejected, reason, now)
+}
+
 // Adoption là một bản ghi áp dụng/quay lui.
 type Adoption struct {
 	ID           string       `json:"adoption_id"`
@@ -387,6 +446,9 @@ type RollbackOptions struct {
 	Force  bool // ghi đè cả khi tệp đã bị sửa sau khi áp dụng
 	Reason string
 	Now    time.Time
+	// Auto: vòng tiến hoá tự quay lui khi phát hiện hồi quy; chỉ với đề xuất do chính
+	// vòng tiến hoá tự áp dụng (tác nhân AutoActor).
+	Auto bool
 }
 
 // RollbackResult là kết quả quay lui.
@@ -399,8 +461,10 @@ type RollbackResult struct {
 // Rollback khôi phục các tệp tri thức về trạng thái trước lần áp dụng đề xuất.
 func Rollback(ctx context.Context, o RollbackOptions) (RollbackResult, error) {
 	var res RollbackResult
-	if err := requireHuman("bint evolve rollback"); err != nil {
-		return res, err
+	if !o.Auto {
+		if err := requireHuman("bint evolve rollback"); err != nil {
+			return res, err
+		}
 	}
 	if o.Now.IsZero() {
 		o.Now = time.Now()
@@ -432,6 +496,9 @@ func Rollback(ctx context.Context, o RollbackOptions) (RollbackResult, error) {
 	if applied == nil {
 		return res, fmt.Errorf("không có bản ghi áp dụng của %s", p.ID)
 	}
+	if o.Auto && applied.Actor != AutoActor {
+		return res, fmt.Errorf("đề xuất %s do %s áp dụng: chỉ người dùng được quay lui", p.ID, applied.Actor)
+	}
 	var conflicts []string
 	for _, f := range applied.Files {
 		cur, err := readOpt(filepath.Join(o.K.Root, filepath.FromSlash(f.Path)))
@@ -462,6 +529,9 @@ func Rollback(ctx context.Context, o RollbackOptions) (RollbackResult, error) {
 		res.Files = append(res.Files, FileChange{Path: f.Path, Before: cur, After: f.Before})
 	}
 	who := app.GitIdentity(ctx, o.K.Root)
+	if o.Auto {
+		who = AutoActor
+	}
 	reason := strings.TrimSpace(o.Reason)
 	if reason == "" {
 		reason = "người dùng quay lui"
@@ -615,6 +685,9 @@ func CurrentModel(ctx context.Context, db *sql.DB, configured *string) string {
 func finishApply(ctx context.Context, o ApplyOptions, p *Proposal, resp *ApplyResult, reason string, restore func()) error {
 	res := *resp
 	who := app.GitIdentity(ctx, o.K.Root)
+	if o.Auto {
+		who = AutoActor
+	}
 	var err error
 	res.AdoptionID = "ead_" + ulid.At(o.Now)
 	if reason == "" {

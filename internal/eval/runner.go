@@ -116,6 +116,15 @@ const StatusStoppedEarly = "stopped_early"
 // StoppedEarlyNote là tiền tố ghi chú của đợt dừng sớm theo kế hoạch tuần tự.
 const StoppedEarlyNote = "dừng sớm theo kế hoạch tuần tự: "
 
+// InfraErrorPrefix mở đầu lỗi của lượt hỏng vì hạ tầng; tiếp tục đợt (--resume) chạy lại các lượt này.
+const InfraErrorPrefix = "lỗi hạ tầng: "
+
+// QuotaStopNote là tiền tố ghi chú của đợt dừng vì agent hết hạn mức sử dụng.
+const QuotaStopNote = "dừng vì hết hạn mức: "
+
+// ErrQuota: agent hết hạn mức sử dụng giữa đợt.
+var ErrQuota = errors.New("agent hết hạn mức sử dụng")
+
 // ErrBudget: ngân sách không đủ.
 var ErrBudget = errors.New("vượt ngân sách")
 
@@ -179,7 +188,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 			return res, err
 		}
 		for _, r := range rows {
-			if r.Status != "running" {
+			if r.Status != "running" && !(r.Status == "error" && strings.HasPrefix(r.Error, InfraErrorPrefix)) {
 				done[fmt.Sprintf("%s-%s-%d", r.CaseID, r.Arm, r.Repeat)] = true
 			}
 		}
@@ -256,6 +265,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	var (
 		mu         sync.Mutex
 		budgetHit  bool
+		quotaHit   bool
 		stopReason string
 		inflight   int
 		wg         sync.WaitGroup
@@ -307,7 +317,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	tryStart := func() bool {
 		mu.Lock()
 		defer mu.Unlock()
-		if budgetHit || lookStopped {
+		if budgetHit || lookStopped || quotaHit {
 			return false
 		}
 		if b := opts.BudgetUSD; b != nil {
@@ -355,6 +365,10 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 			if row.Status == "skipped" {
 				res.Skipped++
 			}
+			if row.quota && !quotaHit {
+				quotaHit = true
+				stopReason = strings.TrimPrefix(row.Error, InfraErrorPrefix)
+			}
 			n := finishedCt
 			mu.Unlock()
 			if opts.Progress != nil {
@@ -369,7 +383,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	}
 	for _, a := range todo {
 		mu.Lock()
-		stop := budgetHit || lookStopped
+		stop := budgetHit || lookStopped || quotaHit
 		mu.Unlock()
 		if ctx.Err() != nil || stop {
 			break
@@ -392,6 +406,9 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	case lookStopped && finishedCt < res.Total:
 		// Dừng theo kế hoạch tuần tự (không phải lỗi); ưu tiên hơn hết ngân sách vì đã đủ bằng chứng.
 		status, res.StopReason = StatusStoppedEarly, lookReason
+	case quotaHit:
+		status = "interrupted"
+		batch.Notes = append(batch.Notes, QuotaStopNote+stopReason)
 	case budgetHit:
 		status = "budget_exhausted"
 	}
@@ -409,6 +426,10 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	if status == "budget_exhausted" {
 		return res, fmt.Errorf("%w: đã tiêu $%.2f / $%.2f (%s); chạy tiếp bằng `bint eval run --resume %s --budget <mới>`",
 			ErrBudget, spent, *opts.BudgetUSD, stopReason, batch.BatchID)
+	}
+	if status == "interrupted" {
+		return res, fmt.Errorf("%w (%s); đợi hạn mức đặt lại rồi chạy tiếp bằng `bint eval run --resume %s`",
+			ErrQuota, stopReason, batch.BatchID)
 	}
 	return res, ctx.Err()
 }
@@ -512,6 +533,11 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	row.SkillsActivated = ar.SkillsActivated
 	if ctx.Err() != nil {
 		return finish("error", "bị huỷ trong khi agent chạy")
+	}
+	if ar.Infra != "" {
+		// Không chấm: lượt hỏng vì hạ tầng không nói gì về nhánh, chấm sẽ ghi nhầm thành trượt.
+		row.quota = ar.QuotaHit
+		return finish("error", InfraErrorPrefix+ar.Infra)
 	}
 
 	cls := NewClassifier(env.Cfg.Eval.Mine)

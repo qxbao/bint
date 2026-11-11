@@ -1607,13 +1607,13 @@ Công việc:
 
 Công việc:
 
-- [ ] Triển khai Propose–Probe–Compose.
-- [ ] Chạy ứng viên trong môi trường cô lập.
-- [ ] Thử nghiệm chiến lược chọn ngữ cảnh.
-- [ ] Thử nghiệm thay đổi workflow.
-- [ ] Theo dõi chi phí tiến hoá.
-- [ ] Tự áp dụng cải tiến rủi ro thấp.
-- [ ] Phát hiện hồi quy và tự đề xuất quay lui.
+- [x] Triển khai Propose–Probe–Compose (`bint evolve cycle`).
+- [x] Chạy ứng viên trong môi trường cô lập.
+- [x] Thử nghiệm chiến lược chọn ngữ cảnh (nhánh `bint@…`).
+- [x] Thử nghiệm thay đổi workflow (đề xuất skill L2 được `bint evolve cycle` đối chiếu như tri thức; đạt thì luôn chờ người duyệt).
+- [x] Theo dõi chi phí tiến hoá.
+- [x] Tự áp dụng cải tiến rủi ro thấp (`evolution.adoption.auto_low_risk`).
+- [x] Phát hiện hồi quy và tự đề xuất quay lui.
 
 **Nghiệm thu:** Hệ thống có thể cải thiện hiệu quả trên tập tác vụ mới, không chỉ những ví dụ đã dùng để đề xuất cải tiến, trong khi vẫn bảo đảm các điều kiện chất lượng và an toàn.
 

@@ -403,3 +403,34 @@ func TestClaudeReadonlyAllowsCurrentBintExecutable(t *testing.T) {
 		t.Fatal("cấu hình mặc định bị đổi")
 	}
 }
+
+func TestRoleModel(t *testing.T) {
+	cfg := config.Default()
+	cases := []struct{ h, role, cli, want string }{
+		{"claude", "planner", "", "opus"},
+		{"claude", "implementer", "", "haiku"},
+		{"claude", "reviewer", "", "opus"},
+		{"claude", "evolver", "", "opus"},
+		{"codex", "implementer", "", "gpt-6-luna"},
+		{"antigravity", "planner", "", "gemini-4-argon-high"},
+		{"claude", "implementer", "sonnet", "sonnet"},
+		{"claude", "", "", ""},
+	}
+	for _, c := range cases {
+		if got := RoleModel(cfg, c.h, c.role, c.cli); got != c.want {
+			t.Errorf("RoleModel(%s, %s, %q) = %q, muốn %q", c.h, c.role, c.cli, got, c.want)
+		}
+	}
+	// Bước b-feat qua adapter Claude: model của implementer, ghi đè workflow.agent.model.
+	generic := "sonnet"
+	cfg.Workflow.Agent.Model = &generic
+	ag := Claude{}.NewAgent(AgentOptions{Config: cfg, Step: "b-feat", Model: RoleModel(cfg, "claude", StepRole("b-feat"), "")})
+	if got := ag.(*eval.ClaudeAgent).RequestedModel(); got != "haiku" {
+		t.Fatalf("model b-feat = %q", got)
+	}
+	cfg.Harnesses.Claude.Models.Implementer = ""
+	ag = Claude{}.NewAgent(AgentOptions{Config: cfg, Step: "b-feat", Model: RoleModel(cfg, "claude", StepRole("b-feat"), "")})
+	if got := ag.(*eval.ClaudeAgent).RequestedModel(); got != "sonnet" {
+		t.Fatalf("models.implementer rỗng phải dùng workflow.agent.model: %q", got)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -73,13 +74,7 @@ var (
 // Classify quyết định có cần b-req không (mục 6.4: bỏ qua bước không cần thiết).
 // Heuristic xác định được, chỉ là đề xuất; người dùng ghi đè bằng --plan/--no-plan.
 func Classify(request string) Classification {
-	words := len(strings.Fields(request))
-	lines := 0
-	for _, l := range strings.Split(strings.TrimSpace(request), "\n") {
-		if strings.TrimSpace(l) != "" {
-			lines++
-		}
-	}
+	lines, words := requestSize(request)
 	switch {
 	case smallWords.MatchString(request) && words <= 25:
 		return Classification{Plan: false, Reason: "việc nhỏ (chính tả/đổi tên/định dạng): bỏ b-req"}
@@ -91,6 +86,64 @@ func Classify(request string) Classification {
 		return Classification{Plan: false, Reason: "yêu cầu ngắn, rõ: bỏ b-req"}
 	}
 	return Classification{Plan: true, Reason: "mặc định: cần b-req"}
+}
+
+// requestSize đếm số dòng không trống và số từ của mô tả; dùng chung cho Classify và
+// ChoosePlanningDepth để hai ngưỡng không lệch cách đếm.
+func requestSize(request string) (lines, words int) {
+	words = len(strings.Fields(request))
+	for l := range strings.SplitSeq(strings.TrimSpace(request), "\n") {
+		if strings.TrimSpace(l) != "" {
+			lines++
+		}
+	}
+	return lines, words
+}
+
+// Độ sâu phân tích của b-req.
+const (
+	DepthAuto     = "auto"
+	DepthStandard = "standard"
+	DepthDeep     = "deep"
+)
+
+// Lý do chọn độ sâu (Classification.DepthReason).
+const (
+	DepthReasonProtected = "protected_paths"
+	DepthReasonComplex   = "complex_request"
+	DepthReasonDefault   = "default"
+	DepthReasonUser      = "user_override"
+)
+
+// Ngưỡng deep cố ý cao hơn ngưỡng Plan của Classify (>=3 dòng / >60 từ): mô tả 3–4 dòng hay
+// 61–100 từ vẫn chạy b-req ở mức standard. Đổi ngưỡng cần quyết định riêng dựa trên dữ liệu pilot.
+const (
+	DeepMinLines = 5
+	DeepMinWords = 101
+)
+
+// ChoosePlanningDepth chọn độ sâu cho b-req (chỉ gọi khi Plan=true): deep khi phạm vi chạm
+// đường dẫn bảo vệ (Assess.Risk=high) hoặc yêu cầu dài/nhiều ý; ngược lại standard. Không đổi
+// Assessment.Risk vì độ dài mô tả.
+func ChoosePlanningDepth(request string, a Assessment) (depth, reason string) {
+	if a.Risk == "high" {
+		return DepthDeep, DepthReasonProtected
+	}
+	if lines, words := requestSize(request); lines >= DeepMinLines || words >= DeepMinWords {
+		return DepthDeep, DepthReasonComplex
+	}
+	return DepthStandard, DepthReasonDefault
+}
+
+// NormalizeDepth chuẩn hóa giá trị --depth: ""/auto → "" (tự chọn), standard|deep giữ nguyên.
+func NormalizeDepth(s string) (string, error) {
+	switch v := strings.ToLower(strings.TrimSpace(s)); v {
+	case "", DepthAuto:
+		return "", nil
+	case DepthStandard, DepthDeep:
+		return v, nil
+	}
+	return "", fmt.Errorf("--depth: giá trị %q không hợp lệ (auto | standard | deep)", s)
 }
 
 // Assessment là đánh giá rủi ro của phiếu.

@@ -1,0 +1,39 @@
+# Do Bint quản lý: phiên bản skill gốc đang dùng (mục 6.6). Không sửa tay;
+# tuỳ biến theo dự án đặt trong .bint/skills/overlays/ rồi chạy `bint sync`.
+bint_version: 0.1.0-dev
+skills:
+  b-bootstrap:
+    sha256: 4ce0e1d98454a778
+    published:
+      - .agents/skills/b-bootstrap/SKILL.md
+      - .claude/skills/b-bootstrap/SKILL.md
+    variants:
+      agents: a9fa9899d0d8addc
+  b-do:
+    sha256: fa697cd069e09a0f
+    published:
+      - .agents/skills/b-do/SKILL.md
+      - .claude/skills/b-do/SKILL.md
+    variants:
+      agents: 726067a6979cfb40
+  b-feat:
+    sha256: 5c78edc02a19bd94
+    published:
+      - .agents/skills/b-feat/SKILL.md
+      - .claude/skills/b-feat/SKILL.md
+    variants:
+      agents: 838843ac7eb618cd
+  b-req:
+    sha256: d0d7c8bbc1b223d7
+    published:
+      - .agents/skills/b-req/SKILL.md
+      - .claude/skills/b-req/SKILL.md
+    variants:
+      agents: dd71d8431dc9004b
+  b-review:
+    sha256: 83361fb457065d28
+    published:
+      - .agents/skills/b-review/SKILL.md
+      - .claude/skills/b-review/SKILL.md
+    variants:
+      agents: 048ee94086ce3622

@@ -22,6 +22,7 @@ const (
 	evPostToolUse        = "PostToolUse"
 	evPostToolUseFailure = "PostToolUseFailure"
 	evPreToolUse         = "PreToolUse"
+	evUserPromptSubmit   = "UserPromptSubmit"
 )
 
 // MCPPrefix là tiền tố tên công cụ MCP của Bint trong Claude Code (server "bint").
@@ -73,6 +74,7 @@ func nonEmpty(p string) []string {
 var Dialect = hookcore.Dialect{
 	Harness: HarnessName, Classify: Classify, InjectRead: true, InjectEdit: true,
 	PreToolOutput: hookcore.ClaudeStylePreToolOutput("ask"),
+	PromptOutput:  hookcore.ClaudeStylePromptOutput,
 	Usage:         TranscriptUsage,
 }
 

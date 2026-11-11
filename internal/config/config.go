@@ -68,10 +68,57 @@ type Harnesses struct {
 	Enabled []string `yaml:"enabled"`
 	Default string   `yaml:"default"`
 	// Tham số gọi harness khi Bint điều phối (bint run, bint eval). Claude Code dùng
-	// workflow.agent / eval.agent (có quyền theo công cụ); Codex và Antigravity dùng
-	// các khoá dưới đây.
-	Codex       HarnessAgent `yaml:"codex"`
-	Antigravity HarnessAgent `yaml:"antigravity"`
+	// workflow.agent / eval.agent (có quyền theo công cụ) và chỉ khai model theo role ở
+	// đây; Codex và Antigravity dùng các khoá dưới đây.
+	Claude      ClaudeHarness `yaml:"claude"`
+	Codex       HarnessAgent  `yaml:"codex"`
+	Antigravity HarnessAgent  `yaml:"antigravity"`
+}
+
+// RoleNames là các role của workflow (thứ tự hiển thị).
+var RoleNames = []string{"planner", "implementer", "reviewer", "evolver"}
+
+// RoleModels là model của từng role khi role đó chạy trên một harness. Rỗng = dùng
+// model chung của harness (workflow.agent.model với Claude, harnesses.<h>.model với
+// Codex/Antigravity), rồi mặc định của harness.
+type RoleModels struct {
+	Planner     string `yaml:"planner"`
+	Implementer string `yaml:"implementer"`
+	Reviewer    string `yaml:"reviewer"`
+	Evolver     string `yaml:"evolver"`
+}
+
+// For trả về model của role ("" nếu không đặt hoặc role lạ).
+func (m RoleModels) For(role string) string {
+	switch role {
+	case "planner":
+		return m.Planner
+	case "implementer":
+		return m.Implementer
+	case "reviewer":
+		return m.Reviewer
+	case "evolver":
+		return m.Evolver
+	}
+	return ""
+}
+
+// ClaudeHarness là phần cấu hình riêng của Claude Code dưới harnesses.claude.
+type ClaudeHarness struct {
+	Models RoleModels `yaml:"models"`
+}
+
+// Models trả về bảng model theo role của harness name.
+func (h Harnesses) Models(name string) RoleModels {
+	switch name {
+	case "claude":
+		return h.Claude.Models
+	case "codex":
+		return h.Codex.Models
+	case "antigravity":
+		return h.Antigravity.Models
+	}
+	return RoleModels{}
 }
 
 // HarnessAgent là tham số gọi một harness không phải Claude Code.
@@ -81,6 +128,8 @@ type HarnessAgent struct {
 	// Model: null = mặc định của harness.
 	Model     *string  `yaml:"model"`
 	ExtraArgs []string `yaml:"extra_args"`
+	// Models: model theo role (ưu tiên hơn Model).
+	Models RoleModels `yaml:"models"`
 }
 
 // Agent trả về tham số của harness h (rỗng với claude).
@@ -323,6 +372,22 @@ type Security struct {
 	RequireApprovalForCommands bool `yaml:"require_approval_for_commands"`
 }
 
+// DefaultRoleModels là model mặc định theo role của từng harness: bước suy luận nặng
+// (lập kế hoạch, review, tiến hoá) dùng model mạnh nhất, bước thực thi dùng model
+// nhanh/rẻ. Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
+func DefaultRoleModels(harness string) RoleModels {
+	switch harness {
+	case "claude":
+		return RoleModels{Planner: "opus", Implementer: "haiku", Reviewer: "opus", Evolver: "opus"}
+	case "codex":
+		return RoleModels{Planner: "gpt-6-astra", Implementer: "gpt-6-luna", Reviewer: "gpt-6-astra", Evolver: "gpt-6-astra"}
+	case "antigravity":
+		return RoleModels{Planner: "gemini-4-argon-high", Implementer: "gemini-3.8-flash-medium",
+			Reviewer: "gemini-4-argon-high", Evolver: "gemini-4-argon-high"}
+	}
+	return RoleModels{}
+}
+
 // Default trả về cấu hình mặc định của Bint.
 func Default() Config {
 	return Config{
@@ -332,8 +397,9 @@ func Default() Config {
 		Harnesses: Harnesses{
 			Enabled:     []string{"claude"},
 			Default:     "claude",
-			Codex:       HarnessAgent{ExtraArgs: []string{}},
-			Antigravity: HarnessAgent{ExtraArgs: []string{}},
+			Claude:      ClaudeHarness{Models: DefaultRoleModels("claude")},
+			Codex:       HarnessAgent{ExtraArgs: []string{}, Models: DefaultRoleModels("codex")},
+			Antigravity: HarnessAgent{ExtraArgs: []string{}, Models: DefaultRoleModels("antigravity")},
 		},
 		Roles: Roles{Planner: "claude", Implementer: "claude", Reviewer: "claude", Evolver: "claude"},
 		Context: Context{
@@ -524,6 +590,14 @@ func (c Config) Validate() error {
 	for _, r := range roles {
 		if r.v != "" && !slices.Contains(KnownHarnesses, r.v) {
 			add("roles.%s: harness không hỗ trợ %q", r.name, r.v)
+		}
+	}
+	for _, h := range KnownHarnesses {
+		m := c.Harnesses.Models(h)
+		for _, role := range RoleNames {
+			if v := m.For(role); v != strings.TrimSpace(v) || strings.ContainsAny(v, " \t\n") {
+				add("harnesses.%s.models.%s: tên model không được chứa khoảng trắng (%q)", h, role, v)
+			}
 		}
 	}
 	if c.Context.MaxTokens <= 0 {

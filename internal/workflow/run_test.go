@@ -138,17 +138,40 @@ func (h *harness) write(name, body string) {
 func (h *harness) happy(_ context.Context, step string, e *Env, id string) error {
 	switch step {
 	case StepReq:
-		for _, n := range task.ArtifactNames() {
-			if _, _, err := e.WriteArtifact(id, n, "# "+n+"\n"); err != nil {
-				return err
-			}
-		}
+		return h.writePlan(e, id, nil)
 	case StepFeat:
 		h.write("app.txt", "v2\n")
 		h.write("done.txt", "ok\n")
 	case StepReview:
 		_, _, err := e.SubmitReview(id, []byte(`{"summary":"ổn","findings":[{"kind":"suggestion","severity":"low","title":"đặt tên","path":"app.txt","lines":"1","evidence":"tên chưa rõ"}]}`))
 		return err
+	}
+	return nil
+}
+
+// validDocs là bộ artifact hợp đồng v1 hợp lệ cho một tiêu chí; extra nối vào requirement.md.
+func validDocs(criterion, extra string) map[string]string {
+	return map[string]string{
+		"requirement": "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + criterion + "\n## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n" + extra,
+		"plan":        "# Kế hoạch\nSửa app.txt\n",
+		"tasks":       "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: " + criterion + "\n",
+	}
+}
+
+// writePlan mô phỏng agent b-req: lưu tiêu chí vào phiếu rồi ghi ba artifact khớp nó.
+// skip là tên artifact bỏ qua.
+func (h *harness) writePlan(e *Env, id string, skip map[string]bool) error {
+	const crit = "app.txt ghi v2"
+	if _, _, err := e.SetTicket(id, TicketEdit{ClearCriteria: true, Criteria: []string{crit}}); err != nil {
+		return err
+	}
+	for n, body := range validDocs(crit, "") {
+		if skip[n] {
+			continue
+		}
+		if _, _, err := e.WriteArtifact(id, n, body); err != nil {
+			return err
+		}
 	}
 	return nil
 }

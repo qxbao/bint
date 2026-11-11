@@ -13,6 +13,9 @@ type InitParams struct {
 	DefaultHarness        string
 	SuggestedTestCommand  string
 	SuggestedSetupCommand string
+	// KeepGenericModel: harness → khoá model chung đã đặt tay; khối models của harness đó
+	// được để trống (chỉ dùng khi nâng cấu hình cũ, Upgrade).
+	KeepGenericModel map[string]string
 }
 
 // Render sinh nội dung .bint/config.yml có chú thích. Kết quả luôn giải mã được
@@ -38,17 +41,26 @@ func Render(p InitParams) string {
 		w("    - %s\n", e)
 	}
 	w("  default: %s\n", h)
+	w("  # models: model của từng role khi role chạy trên harness đó (bint run, /b-do, bint evolve).\n")
+	w("  # Ưu tiên: --model > harnesses.<h>.models.<role> > model chung > mặc định của harness; \"\" = bỏ qua.\n")
+	w("  claude:                   # Claude Code: quyền/công cụ đặt ở workflow.agent và eval.agent\n")
+	writeModels(&b, p, "claude")
 	w(`  codex:                    # bint run / bint eval với Codex (codex exec --json, sandbox workspace-write)
     binary: ""              # rỗng = tìm trong PATH
-    model: null
+    model: null             # model chung khi role không đặt model riêng
     extra_args: []
-  antigravity:              # bint run / bint eval với Antigravity CLI (agy -p --output-format json)
+`)
+	writeModels(&b, p, "codex")
+	w(`  antigravity:              # bint run / bint eval với Antigravity CLI (agy -p --output-format json)
     binary: ""
     model: null
     extra_args: []          # ví dụ ["--sandbox"]; Bint không tự thêm --dangerously-skip-permissions
 `)
+	writeModels(&b, p, "antigravity")
 	w("\n")
-	w("roles:\n  planner: %s\n  implementer: %s\n  reviewer: %s\n  evolver: %s\n\n", h, h, h, h)
+	w("roles:                      # harness chạy mỗi role; model lấy từ harnesses.<harness>.models.<role>\n")
+	w("  planner: %s     # b-req\n  implementer: %s # b-feat\n  reviewer: %s    # b-review\n  evolver: %s     # bint evolve propose\n\n",
+		pad(h, 11), pad(h, 11), pad(h, 11), pad(h, 11))
 	w(`context:
   max_tokens: 6000
   interfaces:
@@ -130,7 +142,7 @@ evolution:
     enabled: true
     max_candidates: 2       # số đề xuất tối đa mỗi lần bint evolve propose
     metric: pass_rate       # thước đo chính chọn trước: pass_rate | cost_usd | turns
-    min_effect: 0.15        # mức cải thiện tỷ lệ đạt muốn phát hiện (ước tính cỡ mẫu); +10 điểm % không phát hiện được với tác vụ của một repository
+    min_effect: 0.15        # mức cải thiện tỷ lệ đạt muốn phát hiện (ước tính cỡ mẫu); +10 điểm %% không phát hiện được với tác vụ của một repository
     non_inferiority_margin: 0.10   # tỷ lệ đạt được phép giảm tối đa khi loại bỏ tri thức
     repeats: 0              # số lần lặp mỗi nhánh; 0 = bộ lập kế hoạch Probe chọn R (1..max_repeats), > 0 = cố định R
     max_repeats: 8          # R tối đa mà bộ lập kế hoạch được chọn
@@ -139,7 +151,7 @@ evolution:
     delivery: bint          # cách đưa tri thức ở cả hai nhánh: bint | minimal
     leakage_mode: economy   # strict | economy (mục 12.3)
   adoption:
-    auto_low_risk: false
+    auto_low_risk: false    # bint evolve cycle tự áp dụng đề xuất rủi ro thấp chỉ tạo mục mới (candidate) đã supported độc lập trên test
     bind_to_model_version: true
 
 workflow:                   # workflow gốc do Bint điều phối (bint run)
@@ -169,6 +181,26 @@ security:
   require_approval_for_commands: true
 `)
 	return b.String()
+}
+
+// writeModels ghi khối "models:" (thụt 4) cho một harness.
+func writeModels(b *strings.Builder, p InitParams, harness string) {
+	b.WriteString("    models:\n")
+	m, comment := DefaultRoleModels(harness), ""
+	if g := p.KeepGenericModel[harness]; g != "" {
+		m, comment = RoleModels{}, "   # trống = "+g
+	}
+	for _, role := range RoleNames {
+		fmt.Fprintf(b, "      %s %s%s\n", pad(role+":", 13), quote(m.For(role)), comment)
+	}
+}
+
+// pad thêm khoảng trắng bên phải cho thẳng cột chú thích.
+func pad(s string, n int) string {
+	if len(s) >= n {
+		return s
+	}
+	return s + strings.Repeat(" ", n-len(s))
 }
 
 // quote trả về chuỗi YAML an toàn (dạng JSON string, hợp lệ trong YAML).

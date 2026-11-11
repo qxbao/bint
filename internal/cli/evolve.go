@@ -66,6 +66,7 @@ người duyệt quyết định; không thay đổi nào được tự áp dụ
   bint evolve rollback <id>         quay lui
   bint evolve history               lịch sử áp dụng, đối chiếu mô hình, chi phí tiến hoá
   bint evolve queue | process       yêu cầu tiến hoá đã đánh dấu / xử lý ngay (chế độ deferred)
+  bint evolve cycle --budget <USD>  một vòng tự động Propose–Probe–Compose (P8)
 
 Cấp độ: L1 tiến hoá tri thức (P6); L2 tiến hoá skill chuyên biệt (P7): tạo skill từ quy trình
 được xác nhận hiệu quả nhiều lần, hợp nhất skill trùng, loại bỏ skill lỗi thời. Skill gốc bất
@@ -73,7 +74,7 @@ biến, không bao giờ là đối tượng của đề xuất (xem bint skill)
 	}
 	c.AddCommand(newEvolveScanCmd(stdio), newEvolveProposeCmd(stdio), newEvolveListCmd(stdio), newEvolveShowCmd(stdio),
 		newEvolveEvaluateCmd(stdio), newEvolveApplyCmd(stdio), newEvolveRejectCmd(stdio), newEvolveRollbackCmd(stdio),
-		newEvolveHistoryCmd(stdio), newEvolveQueueCmd(stdio), newEvolveProcessCmd(stdio))
+		newEvolveHistoryCmd(stdio), newEvolveQueueCmd(stdio), newEvolveProcessCmd(stdio), newEvolveCycleCmd(stdio))
 	return c
 }
 
@@ -247,13 +248,18 @@ func fmtOptF(v *float64, f string) string {
 	return fmt.Sprintf(f, *v)
 }
 
-// evolverAgent dựng agent evolver: roles.evolver, chỉ được đọc.
+// evolverAgent dựng agent evolver: harness theo roles.evolver, model theo
+// harnesses.<h>.models.evolver (--model ghi đè), chỉ được đọc.
 func evolverAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
 	if command != "" {
 		return &eval.CommandAgent{Command: command}, nil
 	}
 	name := k.Config.Roles.Evolver
-	if name == "claude" {
+	if name == "" {
+		name = k.Config.Harnesses.Default
+	}
+	model = harness.RoleModel(k.Config, name, "evolver", model)
+	if name == "claude" || name == "" {
 		cfg := k.Config.Eval.Agent
 		cfg.AllowedTools = []string{"Read", "Grep", "Glob"}
 		cfg.PermissionMode = "dontAsk"
@@ -1046,7 +1052,7 @@ không kém, hoặc futility).`,
 			for _, n := range v.Notes {
 				fmt.Fprintf(w, "  lưu ý: %s\n", n)
 			}
-			if res.Status == "cancelled" || errors.Is(runErr, eval.ErrBudget) {
+			if res.Status == "cancelled" || errors.Is(runErr, eval.ErrBudget) || errors.Is(runErr, eval.ErrQuota) {
 				fmt.Fprintf(w, "Chạy tiếp: bint evolve evaluate %s --resume %s\n", p.ID, res.BatchID)
 			}
 			if errors.Is(runErr, context.Canceled) {
@@ -1269,11 +1275,15 @@ func newEvolveHistoryCmd(stdio IO) *cobra.Command {
 			if asJSON {
 				return writeJSON(stdio.Out, nonNilSlice(hs))
 			}
+			w := stdio.Out
+			if n, sum := cycleTotals(e.k.Paths.Runtime); n > 0 {
+				fmt.Fprintf(w, "Vòng tự động (bint evolve cycle): %d vòng, đã tiêu $%.2f (tạo ứng viên $%.2f, đối chiếu $%.2f); tự áp dụng %d, tự quay lui %d, tự bác bỏ %d\n",
+					n, sum.SpentUSD, sum.GenerationUSD, sum.ProbeUSD, len(sum.AutoApplied), len(sum.RolledBack), len(sum.AutoRejected))
+			}
 			if len(hs) == 0 {
 				fmt.Fprintln(stdio.Out, "Chưa có lần áp dụng nào.")
 				return nil
 			}
-			w := stdio.Out
 			for _, h := range hs {
 				kind := ""
 				if h.EvidenceKind != "" {

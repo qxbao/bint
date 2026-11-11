@@ -103,7 +103,8 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 	}
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
-		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio))
+		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
+		newTaskLintCmd(stdio))
 	return c
 }
 
@@ -115,6 +116,7 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		noPlan   bool
 		asJSON   bool
 		fromFile string
+		depth    string
 	)
 	c := &cobra.Command{
 		Use:   "new [mô tả | -]",
@@ -156,6 +158,9 @@ ro cao (chạm đường dẫn bảo vệ mà không có cách kiểm chứng).`
 			if plan || noPlan {
 				o.Plan = ptr(plan)
 			}
+			if o.Depth, err = depthOption(cmd, depth, noPlan, wfOrDefault(wf)); err != nil {
+				return err
+			}
 			if o.Edit.Autonomy != nil && *o.Edit.Autonomy == task.AutonomyAuto && !env.Human {
 				return fmt.Errorf("%w: chỉ người mới đặt được autonomy: auto", workflow.ErrAgent)
 			}
@@ -173,6 +178,7 @@ ro cao (chạm đường dẫn bảo vệ mà không có cách kiểm chứng).`
 			fmt.Fprintf(w, "  Thư mục:   %s\n", t.Dir)
 			if c := t.State.Classification; c != nil {
 				fmt.Fprintf(w, "  Classify:  %s\n", c.Reason)
+				printDepthLine(w, "  Phân tích: ", c)
 			}
 			printTicketBrief(w, env, t, a)
 			return nil
@@ -182,6 +188,7 @@ ro cao (chạm đường dẫn bảo vệ mà không có cách kiểm chứng).`
 	c.Flags().StringVar(&wf, "workflow", "b-do", "workflow tạo tác vụ (b-do | b-req | b-feat | b-review)")
 	c.Flags().BoolVar(&plan, "plan", false, "luôn qua b-req")
 	c.Flags().BoolVar(&noPlan, "no-plan", false, "bỏ qua b-req")
+	c.Flags().StringVar(&depth, "depth", "auto", depthFlagHelp)
 	c.Flags().StringVar(&fromFile, "file", "", "đọc mô tả từ tệp")
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
@@ -316,7 +323,7 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 						arts[n] = t.ArtifactPath(n)
 					}
 				}
-				return writeJSON(stdio.Out, map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "assessment": a,
+				return writeJSON(stdio.Out, map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
 					"verify_confirmed": env.VerifyConfirmed(t), "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers)})
 			}
 			printTask(stdio.Out, env, t, a, rev, blockers)
@@ -355,6 +362,7 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 	fmt.Fprintln(w)
 	if c := st.Classification; c != nil {
 		fmt.Fprintf(w, "  Classify:   %s\n", c.Reason)
+		printDepthLine(w, "  Phân tích:  ", c)
 	}
 	fmt.Fprintf(w, "  Thư mục:    %s\n", t.Dir)
 	printTicketBrief(w, env, t, a)
@@ -720,4 +728,106 @@ func newTaskTransitionsCmd(stdio IO) *cobra.Command {
 			return tw.Flush()
 		},
 	}
+}
+
+func newTaskLintCmd(stdio IO) *cobra.Command {
+	var strict, asJSON bool
+	c := &cobra.Command{
+		Use:   "lint <task-id>",
+		Short: "Kiểm ba tài liệu của b-req (requirement/plan/tasks) theo hợp đồng artifact v1",
+		Long: `Kiểm requirement.md, plan.md, tasks.md của tác vụ: đủ tệp không rỗng, AC-N liên tục và khớp từng
+tiêu chí trong task.yml, TSK-N có tham chiếu AC và "xong khi:", mọi AC được TSK bao phủ, và liệt kê
+câu hỏi mở (## Câu hỏi mở). Không sửa gì và không ghi state.
+
+Task theo hợp đồng v1 (planning_contract_version: 1) luôn kiểm nghiêm ngặt; task cũ chỉ cảnh báo
+trừ khi có --strict (chủ động nâng cấp). Mã thoát: 1 khi có lỗi hoặc câu hỏi mở, 0 khi chỉ có cảnh báo.
+
+Câu hỏi mở: ghi câu trả lời dạng "- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>" bằng
+bint task write <id> requirement -, rồi bint run resume <id>.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			env, _, err := openWorkflow(cmd)
+			if err != nil {
+				return err
+			}
+			t, err := env.Tasks.Load(args[0])
+			if err != nil {
+				return err
+			}
+			v1 := t.State.PlanningContractVersion >= task.PlanningContractV1
+			rep := task.LintPlanningTask(t, strict || v1)
+			if asJSON {
+				if err := writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "contract_version": t.State.PlanningContractVersion,
+					"errors": rep.Errors, "warnings": rep.Warnings, "open_questions": rep.OpenQuestions}); err != nil {
+					return err
+				}
+			} else {
+				w := stdio.Out
+				for _, i := range rep.Errors {
+					fmt.Fprintf(w, "✗ [%s] %s: %s\n", i.Code, i.Artifact, i.Detail)
+				}
+				for _, i := range rep.Warnings {
+					fmt.Fprintf(w, "! [%s] %s: %s\n", i.Code, i.Artifact, i.Detail)
+				}
+				for _, i := range rep.OpenQuestions {
+					fmt.Fprintf(w, "? [%s] %s: %s\n", i.Code, i.Artifact, i.Detail)
+				}
+				if len(rep.Errors)+len(rep.Warnings)+len(rep.OpenQuestions) == 0 {
+					fmt.Fprintf(w, "✓ %s: artifact đạt hợp đồng v1\n", t.State.ID)
+				} else if len(rep.OpenQuestions) > 0 {
+					fmt.Fprintf(w, "Ghi câu trả lời vào requirement.md (— Trả lời: …) rồi bint run resume %s\n", t.State.ID)
+				}
+			}
+			if rep.Blocking() || len(rep.OpenQuestions) > 0 {
+				return withCode(ExitError, fmt.Errorf("tác vụ %s: %d lỗi, %d câu hỏi mở", t.State.ID, len(rep.Errors), len(rep.OpenQuestions)))
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&strict, "strict", false, "áp hợp đồng v1 lên task cũ (không ghi state)")
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}
+
+const depthFlagHelp = "độ sâu phân tích của b-req: auto | standard | deep (chỉ b-do/b-req; standard|deep hàm ý có b-req)"
+
+func wfOrDefault(wf string) string {
+	if wf == "" {
+		return workflow.StepDo
+	}
+	return wf
+}
+
+// depthOption kiểm cờ --depth. Chỉ xét xung đột khi người dùng đặt tường minh; `auto` không đổi
+// nghĩa --plan/--no-plan. Trả "" khi tự chọn.
+func depthOption(cmd *cobra.Command, value string, noPlan bool, wf string) (string, error) {
+	if !cmd.Flags().Changed("depth") {
+		return "", nil
+	}
+	d, err := task.NormalizeDepth(value)
+	if err != nil {
+		return "", usageError{err}
+	}
+	if d == "" {
+		return "", nil
+	}
+	if noPlan {
+		return "", usageError{errors.New("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")}
+	}
+	if wf != workflow.StepDo && wf != workflow.StepReq {
+		return "", usageError{fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", wf)}
+	}
+	return d, nil
+}
+
+// printDepthLine in độ sâu phân tích của b-req (chỉ khi tác vụ có b-req).
+func printDepthLine(w io.Writer, prefix string, c *task.Classification) {
+	if !c.Plan {
+		return
+	}
+	reason := c.DepthReason
+	if reason == "" {
+		reason = "mặc định (tác vụ chưa ghi độ sâu)"
+	}
+	fmt.Fprintf(w, "%s%s (%s)\n", prefix, c.EffectiveDepth(), reason)
 }

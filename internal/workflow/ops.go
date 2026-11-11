@@ -103,6 +103,8 @@ type NewTaskOptions struct {
 	Edit     TicketEdit
 	// Plan ghi đè kết quả Classify (nil = theo heuristic).
 	Plan *bool
+	// Depth: ""/auto = tự chọn; standard|deep = người dùng chỉ định (hàm ý có b-req; chỉ b-do/b-req).
+	Depth string
 }
 
 // NewTask lập phiếu tác vụ từ mô tả tự do (bước Classify).
@@ -116,15 +118,50 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	if err := o.Edit.apply(&t); err != nil {
 		return nil, task.Assessment{}, err
 	}
+	if o.Workflow == "" {
+		o.Workflow = "b-do"
+	}
+	depth, err := task.NormalizeDepth(o.Depth)
+	if err != nil {
+		return nil, task.Assessment{}, err
+	}
+	planning := o.Workflow == "b-do" || o.Workflow == "b-req"
+	if depth != "" {
+		if !planning {
+			return nil, task.Assessment{}, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
+		}
+		if o.Plan != nil && !*o.Plan {
+			return nil, task.Assessment{}, errors.New("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")
+		}
+	}
 	cls := task.Classify(o.Request)
 	if o.Plan != nil {
 		cls = task.Classification{Plan: *o.Plan, Reason: "người dùng chỉ định"}
 	}
-	if o.Workflow == "" {
-		o.Workflow = "b-do"
+	// Độ sâu là quyết định riêng với rủi ro quyền ghi: chỉ dùng Assess để biết có chạm đường dẫn bảo vệ.
+	// Chưa có Task nên gọi thẳng task.Assess trên phiếu.
+	assess := task.Assess(t, e.Cfg.Limits.ProtectedPaths, e.commandConfirmed(t.Verify.Command))
+	switch {
+	case depth != "":
+		cls.Plan = true
+		if o.Plan == nil {
+			cls.Reason = "người dùng chỉ định độ sâu " + depth
+		}
+	case planning && o.Plan == nil && !cls.Plan && assess.Risk == "high":
+		cls = task.Classification{Plan: true, Reason: "chạm đường dẫn được bảo vệ (" + strings.Join(assess.Protected, ", ") + "): cần b-req"}
+	}
+	if planning && cls.Plan {
+		if depth != "" {
+			cls.Depth, cls.DepthReason = depth, task.DepthReasonUser
+		} else {
+			cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(o.Request, assess)
+		}
 	}
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
+	if o.Workflow == "b-req" || (o.Workflow == "b-do" && cls.Plan) {
+		st.PlanningContractVersion = task.PlanningContractV1
+	}
 	if e.RunID != "" {
 		st.LinkRun(e.RunID)
 	}
@@ -184,6 +221,48 @@ func appendUnique(xs []string, add ...string) []string {
 		}
 	}
 	return xs
+}
+
+// ensurePlanningContract nâng task lên hợp đồng artifact v1 (không bao giờ hạ). Dùng chung
+// cho mọi chỗ Plan chuyển false→true hoặc b-req được chọn chạy.
+func ensurePlanningContract(t *task.Task) {
+	if t.State.PlanningContractVersion < task.PlanningContractV1 {
+		t.State.PlanningContractVersion = task.PlanningContractV1
+	}
+}
+
+// PlanningError: artifact b-req chưa đạt hợp đồng v1.
+type PlanningError struct {
+	TaskID string
+	Report task.ArtifactReport
+}
+
+func (e *PlanningError) Error() string {
+	var parts []string
+	if len(e.Report.Errors) > 0 {
+		parts = append(parts, "artifact b-req chưa đạt hợp đồng v1:\n  - "+strings.Join(issueLines(e.Report.Errors), "\n  - "))
+	}
+	if len(e.Report.OpenQuestions) > 0 {
+		parts = append(parts, "còn câu hỏi mở trong requirement.md (ghi `— Trả lời:` rồi tiếp tục):\n  - "+
+			strings.Join(questionLines(e.Report.OpenQuestions), "\n  - "))
+	}
+	return strings.Join(parts, "\n") + "\nKiểm lại bằng `bint task lint " + e.TaskID + "`"
+}
+
+func questionLines(is []task.ArtifactIssue) []string {
+	out := make([]string, 0, len(is))
+	for _, i := range is {
+		out = append(out, i.Detail)
+	}
+	return out
+}
+
+func issueLines(is []task.ArtifactIssue) []string {
+	out := make([]string, 0, len(is))
+	for _, i := range is {
+		out = append(out, i.String())
+	}
+	return out
 }
 
 // ErrAgent: thao tác chỉ dành cho người.
@@ -254,6 +333,23 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
 		if !o.Orchestrator && t.OwnedByOther() {
 			return fmt.Errorf("tác vụ đang được `bint run` điều phối (lượt %s): trạng thái do Bint Core chuyển", t.State.Runner.RunID)
+		}
+		// Task v1: chuyển tay sang planned phải qua lint; planned → in_progress còn bị chặn khi có câu hỏi
+		// mở (created → planned thì không: planned là nơi ghi câu trả lời rồi resume). Runner tự lint ở
+		// afterStep/preflight.
+		if !o.Orchestrator && t.State.PlanningContractVersion >= task.PlanningContractV1 {
+			toPlanned := to == task.StatusPlanned && t.State.Status != task.StatusPlanned
+			toImpl := to == task.StatusInProgress && (t.State.Status == task.StatusPlanned ||
+				(task.Paused(t.State.Status) && (t.State.ResumeFrom == task.StatusPlanned || t.State.ResumeFrom == task.StatusInProgress)))
+			if toPlanned || toImpl {
+				rep := task.LintPlanningTask(t, true)
+				if rep.Blocking() || (toImpl && len(rep.OpenQuestions) > 0) {
+					if !toImpl {
+						rep.OpenQuestions = nil
+					}
+					return &PlanningError{TaskID: t.State.ID, Report: rep}
+				}
+			}
 		}
 		if to == task.StatusDone {
 			blockers = task.DoneBlockers(t, task.DoneInput{Worktree: fp, VerifyConfirmed: e.VerifyConfirmed(t)})
@@ -327,11 +423,18 @@ func (e *Env) VerifyConfirmed(t *task.Task) bool {
 	if cmd == "" {
 		return false
 	}
-	if tc := e.Cfg.Eval.TestCommand; tc != nil && strings.TrimSpace(*tc) == cmd {
+	if e.commandConfirmed(cmd) {
 		return true
 	}
 	a := t.State.VerifyApproval
 	return a != nil && a.Command == cmd
+}
+
+// commandConfirmed: lệnh trùng eval.test_command đã xác nhận trong cấu hình.
+func (e *Env) commandConfirmed(cmd string) bool {
+	cmd = strings.TrimSpace(cmd)
+	tc := e.Cfg.Eval.TestCommand
+	return cmd != "" && tc != nil && strings.TrimSpace(*tc) == cmd
 }
 
 // VerifyResult là kết quả kiểm chứng.

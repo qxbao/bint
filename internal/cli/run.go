@@ -22,6 +22,7 @@ import (
 
 type runFlags struct {
 	taskRef      string
+	depth        string
 	plan, noPlan bool
 	noReview     bool
 	agentCommand string
@@ -44,6 +45,12 @@ task ID) và áp giới hạn vận hành ở tầng chương trình (mục 5):
   b-do      Classify → b-req (nếu cần) → b-feat → b-review → Finalize
   b-req     chỉ lập kế hoạch      b-feat   chỉ thực thi      b-review   chỉ review
 
+Độ sâu của b-req (--depth auto|standard|deep, chỉ b-do/b-req): auto chọn một lần lúc tạo tác vụ —
+deep khi phạm vi chạm đường dẫn bảo vệ hoặc yêu cầu dài/nhiều ý (không đổi mức rủi ro quyền ghi),
+còn lại standard. --depth standard|deep là ghi đè của người dùng, hàm ý có b-req và không đi cùng
+--no-plan; chỉ nhận khi tác vụ còn created (hoặc b-req --task trên tác vụ planned để lập lại).
+b-req còn câu hỏi mở (## Câu hỏi mở) thì b-feat bị chặn cho tới khi ghi câu trả lời.
+
 Giới hạn:
   - limits.workflows.<wf>.max_cost_usd / max_turns (mặc định limits.per_run); với b-do là
     tổng của mọi bước. Agent không báo chi phí thì giới hạn chi phí chỉ là chỉ dẫn.
@@ -59,6 +66,7 @@ Mã thoát: 0 nếu workflow kết thúc bình thường (done, hoặc bước �
 blocked / failed / interrupted.`,
 		Example: `  bint run b-do "Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db"
   bint run b-req --task 01J…   # chỉ lập kế hoạch cho tác vụ có sẵn
+  bint run b-do --depth deep "Đổi cách tính phí trong internal/billing"   # phân tích sâu hơn ở b-req
   bint run b-do --agent-command ./my-agent.sh "…"
   bint run b-do --role implementer=codex "…"   # b-feat bằng Codex, các bước khác theo roles
   bint run b-review --harness antigravity --task 01J…`,
@@ -75,6 +83,11 @@ blocked / failed / interrupted.`,
 			if rf.plan || rf.noPlan {
 				o.Plan = ptr(rf.plan)
 			}
+			depth, err := depthOption(cmd, rf.depth, rf.noPlan, args[0])
+			if err != nil {
+				return err
+			}
+			o.Depth = depth
 			return runWorkflow(cmd, stdio, rf, o)
 		},
 	}
@@ -87,7 +100,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 	f := c.Flags()
 	f.BoolVar(&rf.noReview, "no-review", false, "bỏ bước b-review (b-do)")
 	f.StringVar(&rf.agentCommand, "agent-command", "", "lệnh tác nhân tuỳ chỉnh cho mọi bước (đề bài qua stdin và $BINT_EVAL_PROMPT_FILE)")
-	f.StringVar(&rf.model, "model", "", "mô hình (ghi đè workflow.agent.model / harnesses.<h>.model)")
+	f.StringVar(&rf.model, "model", "", "mô hình cho mọi bước (ghi đè harnesses.<h>.models.<role>, workflow.agent.model, harnesses.<h>.model)")
 	f.StringVar(&rf.harness, "harness", "", "harness cho mọi bước của lượt này (claude | codex | antigravity; phải có trong harnesses.enabled)")
 	f.StringArrayVar(&rf.roles, "role", nil, "harness cho một role, dạng role=harness (planner|implementer|reviewer hoặc b-req|b-feat|b-review); lặp lại được")
 	f.BoolVar(&rf.asJSON, "json", false, "in kết quả dạng JSON")
@@ -95,6 +108,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 		f.StringVar(&rf.taskRef, "task", "", "chạy trên tác vụ có sẵn")
 		f.BoolVar(&rf.plan, "plan", false, "luôn qua b-req")
 		f.BoolVar(&rf.noPlan, "no-plan", false, "bỏ qua b-req")
+		f.StringVar(&rf.depth, "depth", "auto", depthFlagHelp)
 		addEditFlags(c, &rf.ef, false)
 	}
 }
@@ -162,6 +176,11 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, o workflow.RunOption
 	switch res.Status {
 	case task.StatusBlocked, task.StatusFailed, task.StatusInterrupted:
 		return withCode(ExitError, fmt.Errorf("tác vụ %s: %s", res.TaskID, res.Status))
+	case task.StatusPlanned:
+		// b-req chạy riêng dừng ở planned khi còn lỗi cấu trúc artifact hoặc câu hỏi mở: không phải thành công.
+		if len(res.PlanningIssues) > 0 || len(res.Questions) > 0 {
+			return withCode(ExitError, fmt.Errorf("tác vụ %s: planned nhưng chưa sẵn sàng cho b-feat (bint task lint %s)", res.TaskID, res.TaskID))
+		}
 	}
 	return nil
 }
@@ -178,15 +197,25 @@ func printRunResult(w io.Writer, res *workflow.Result) {
 	fmt.Fprintln(w)
 	if len(res.Steps) > 0 {
 		tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-		fmt.Fprintln(tw, "  BƯỚC\tLƯỢT\tKẾT QUẢ\tTHỜI GIAN\tCHI PHÍ")
+		fmt.Fprintln(tw, "  BƯỚC\tAGENT\tLƯỢT\tKẾT QUẢ\tTHỜI GIAN\tCHI PHÍ")
 		for _, s := range res.Steps {
 			cost := "-"
 			if s.CostUSD != nil {
 				cost = fmt.Sprintf("%.4f", *s.CostUSD)
 			}
-			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n", s.Step, s.RunID, s.Status, s.Duration, cost)
+			who := s.Harness
+			if who == "" {
+				who = "-"
+			}
+			if s.Model != "" {
+				who += "/" + s.Model
+			}
+			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", s.Step, who, s.RunID, s.Status, s.Duration, cost)
 		}
 		tw.Flush()
+	}
+	for _, i := range res.PlanningIssues {
+		fmt.Fprintf(w, "✗ %s\n", i)
 	}
 	for _, q := range res.Questions {
 		fmt.Fprintf(w, "? %s\n", q)

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -57,6 +59,11 @@ type AgentResult struct {
 	// SkillsActivated: tên skill agent đã gọi qua công cụ Skill (không trùng, theo thứ tự
 	// xuất hiện). Chỉ harness báo tool_use mới điền; nil = không đo được, không phải 0.
 	SkillsActivated []string
+	// Infra khác rỗng: lượt hỏng vì hạ tầng (hết hạn mức, API lỗi) chứ không phải vì
+	// agent làm sai; không được chấm như một lượt trượt. Giá trị là lý do ngắn.
+	Infra string
+	// QuotaHit: hết hạn mức sử dụng/rate limit; các lượt sau cũng sẽ hỏng nên đợt phải dừng.
+	QuotaHit bool
 }
 
 // Agent chạy một tác vụ trong thư mục làm việc (adapter cấp 3: thực thi theo chương trình).
@@ -77,7 +84,20 @@ type ClaudeAgent struct {
 	Bare       bool     // --bare: không nạp CLAUDE.md/bộ nhớ cấp người dùng (cần ANTHROPIC_API_KEY)
 }
 
-func (a *ClaudeAgent) Name() string      { return "claude" }
+// ModelNamer là agent cho biết model được yêu cầu cho lượt chạy ("" = mặc định của harness).
+type ModelNamer interface {
+	RequestedModel() string
+}
+
+func (a *ClaudeAgent) Name() string { return "claude" }
+
+// RequestedModel: Model ghi đè, không có thì cfg.Model.
+func (a *ClaudeAgent) RequestedModel() string {
+	if a.Model == "" && a.Cfg.Model != nil {
+		return *a.Cfg.Model
+	}
+	return a.Model
+}
 func (a *ClaudeAgent) ReportsCost() bool { return true }
 func (a *ClaudeAgent) ReadOnlyMode() string {
 	return "--disallowedTools Edit,Write,… + Bint kiểm tra cây làm việc"
@@ -194,6 +214,8 @@ func parseClaudeJSON(out []byte, res *AgentResult) {
 		Usage        *usage              `json:"usage"`
 		ModelUsage   map[string]modelUse `json:"modelUsage"`
 		Result       string              `json:"result"`
+		APIStatus    int                 `json:"api_error_status"`
+		Terminal     string              `json:"terminal_reason"`
 	}
 	found := false
 	for _, cand := range jsonCandidates(out) {
@@ -238,6 +260,25 @@ func parseClaudeJSON(out []byte, res *AgentResult) {
 	if r.IsError && res.Error == "" {
 		res.Error = "agent báo lỗi: " + r.Subtype + " " + truncate(r.Result, 200)
 	}
+	if r.IsError {
+		res.Infra, res.QuotaHit = classifyInfra(r.APIStatus, r.Terminal, r.Result)
+	}
+}
+
+// quotaRe khớp thông báo hết hạn mức của Claude Code ("You've hit your 5-hour limit",
+// "usage limit reached", ...).
+var quotaRe = regexp.MustCompile(`(?i)hit your .{0,40}limit|usage limit|rate limit|quota`)
+
+// classifyInfra phân loại lỗi agent báo: hạn mức (429 hoặc thông báo hết hạn mức) và lỗi
+// API phía máy chủ là lỗi hạ tầng. Trả về lý do rỗng nếu là lỗi bình thường của agent.
+func classifyInfra(apiStatus int, terminal, result string) (string, bool) {
+	switch {
+	case apiStatus == 429 || quotaRe.MatchString(result):
+		return "hết hạn mức sử dụng: " + truncate(strings.TrimSpace(result), 160), true
+	case apiStatus >= 500 || terminal == "api_error":
+		return fmt.Sprintf("lỗi API (mã %d): %s", apiStatus, truncate(strings.TrimSpace(result), 160)), false
+	}
+	return "", false
 }
 
 // parseClaudeSkills đọc đầu ra `--output-format stream-json`: mỗi dòng type=assistant có

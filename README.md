@@ -22,12 +22,22 @@ Go thuần, không cần CGO (SQLite qua `modernc.org/sqlite`, có FTS5), biên 
 
 ```sh
 bint init --hooks        # khởi tạo; cài hook ghi nhận + skill gốc cho các harness được bật
+bint init --update       # repository init bằng bản cũ: thêm khoá cấu hình mới (giữ giá trị, có sao lưu)
+bint init --git local    # dùng Bint riêng trên máy: tệp của Bint không vào Git (track = commit cho nhóm)
 bint doctor              # kiểm tra môi trường
 bint runs list           # lượt chạy đã ghi nhận (tự nạp spool trước)
 bint runs show <id>      # chi tiết, chấp nhận tiền tố ID
 bint status
 bint events ingest       # nạp spool thủ công
 ```
+
+**Hiện diện trong Git** (`--git`, nhớ theo máy, lần init đầu thì hỏi): `track` (mặc định) để tệp
+của Bint được commit cho cả nhóm, tệp riêng của máy vào khối bint của `.gitignore`. `local` dành cho
+dùng riêng: tệp/thư mục chưa được Git theo dõi (`.bint/`, skill đã xuất bản, hook, `.mcp.json`…) vào
+khối bint của `.git/info/exclude` (không commit, chung mọi worktree); tệp đã được theo dõi mà Bint sửa
+(AGENTS.md, CLAUDE.md…) được đặt `git update-index --skip-worktree` (không dùng `--assume-unchanged`:
+đó chỉ là gợi ý hiệu năng, Git có thể bỏ và ghi đè thay đổi cục bộ); `.gitignore` không bị đụng.
+Upstream đổi một tệp skip-worktree thì `git pull` báo lỗi: chạy `bint init --git track` để gỡ cả hai.
 
 `bint init` chạy lại bao nhiêu lần cũng an toàn:
 
@@ -372,6 +382,14 @@ Bốn skill gốc mới — `b-req` (phân tích, lập kế hoạch), `b-feat` 
 thay đổi), `b-do` (điều phối) — chỉ ở mức tối thiểu cần cho ghi nhận và điều phối (mục 6). Mọi đầu
 ra liên kết bằng **task ID**.
 
+`/b-do` là **orchestrator**: phiên đang chạy chỉ lập phiếu, hỏi người dùng và gọi `bint run`. Mỗi
+bước do một agent riêng chạy, harness theo `roles.<role>`, model theo `harnesses.<harness>.models.<role>`.
+Mặc định của Claude: planner (b-req), reviewer (b-review), evolver dùng `opus`; implementer
+(b-feat) dùng `haiku`. Codex: `gpt-6-astra` / `gpt-6-luna`. Antigravity: `gemini-4-argon-high` /
+`gemini-3.8-flash-medium`. Thứ tự ưu tiên của model: `--model` → `harnesses.<h>.models.<role>` →
+model chung (`workflow.agent.model`, `harnesses.<h>.model`) → mặc định của harness. Kết quả từng
+bước ghi `harness/model` đã dùng.
+
 ```sh
 # Trong Claude Code (skill được xuất bản khi init/sync):
 /b-do Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db
@@ -379,12 +397,14 @@ ra liên kết bằng **task ID**.
 # Hoặc Bint Core điều phối theo chương trình (adapter cấp 3, giới hạn áp ở tầng chương trình):
 bint run b-do "Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db"
 bint run b-req|b-feat|b-review --task <id>      # một bước trên tác vụ có sẵn
+bint run b-do --depth deep "<mô tả>"            # b-req phân tích sâu (auto | standard | deep)
 bint run status <task-id|run-id>                # tác vụ + các lượt chạy (cha b-do, con từng bước)
 bint run resume <task-id>                       # tiếp tục tác vụ blocked / interrupted / failed
 
 bint task new "<mô tả tự do>"                   # Classify: lập phiếu tác vụ (mục 6.7)
 bint task list | show <id> | set <id> … | transitions
 bint task write <id> requirement|plan|tasks -   # tài liệu (agent ghi qua stdin)
+bint task lint <id> [--strict] [--json]         # kiểm ba tài liệu b-req theo hợp đồng v1 (AC↔TSK, câu hỏi mở)
 bint task verify <id>                           # chạy lệnh kiểm chứng (chỉ khi người đã xác nhận)
 bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí chấp nhận
 bint task error <id> --step b-feat "…"          # ghi lỗi / lần thử thất bại
@@ -404,6 +424,34 @@ lỗi, lượt chạy), `requirement.md`, `plan.md`, `tasks.md`, `review.json`/`
 Classify xác định được: mục tiêu = dòng đầu mô tả; `scope.allow` = đường dẫn nêu trong mô tả mà có
 thật; `verify.command` = `eval.test_command` đã xác nhận; đề xuất bỏ b-req cho việc nhỏ (heuristic,
 `--plan`/`--no-plan` ghi đè). Chỉ hỏi lại khi tác vụ chạm đường dẫn bảo vệ mà không có cách kiểm chứng.
+
+**Hợp đồng artifact của b-req (v1).** Đầu ra của `b-req` có khuôn kiểm được bằng máy:
+`requirement.md` có `- [ ] AC-N: …` dưới `## Tiêu chí chấp nhận` (khớp từng tiêu chí trong `task.yml`),
+`tasks.md` có `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`, `plan.md` không rỗng; mọi AC phải
+được TSK bao phủ. Tác vụ mới qua `b-req` mang `planning_contract_version: 1`: sai khuôn thì `bint run`
+dừng **trước** `b-feat` (`blocked`, trạng thái trước đó là `planned`; sửa bằng `bint task write`, kiểm
+bằng `bint task lint <id>`, rồi `bint run resume` — không chạy lại `b-req`) và kiểm lại trước mỗi lần
+gọi `b-feat` để bắt tài liệu bị sửa sau đó. Tác vụ cũ và `--no-plan` giữ đường chạy cũ;
+`bint task lint --strict` áp hợp đồng lên tác vụ cũ để người dùng chủ động nâng cấp. Core chỉ kiểm
+cấu trúc, không đánh giá nội dung (việc của `b-review` và người dùng). Chạy lại `b-req` trên tác vụ đã
+có tiêu chí cần `bint task set --clear-criteria` (`--criteria` chỉ nối thêm).
+
+**Độ sâu của b-req.** `Classification.Plan` quyết định *có* chạy `b-req` không; `Classification.Depth`
+(`standard`|`deep`, kèm `depth_reason`) quyết định *phân tích kỹ đến đâu*, vẫn cùng một skill và cùng
+ba artifact. Với `--depth auto` (mặc định), Bint chọn **một lần** lúc tạo tác vụ: `deep` khi phạm vi chạm
+`limits.protected_paths` (`protected_paths`) hoặc yêu cầu từ 5 dòng không trống / hơn 100 từ
+(`complex_request`); còn lại `standard`. Rủi ro cao tự bật `b-req` trừ khi có `--no-plan`; mô tả dài
+**không** nâng `Assessment.Risk`. `deep` thêm vào `plan.md` các mục giả định/mâu thuẫn, lựa chọn và lý
+do, vùng ảnh hưởng, rủi ro/rollback, chiến lược kiểm thử, checklist AC↔TSK. `--depth standard|deep` là
+ghi đè của người dùng: hàm ý có `b-req`, lỗi nếu đi cùng `--no-plan` hoặc workflow `b-feat`/`b-review`,
+và chỉ nhận khi tác vụ còn `created` (hoặc `bint run b-req --task <id> --depth …` để lập kế hoạch lại
+trên tác vụ `planned`). `resume` luôn dùng độ sâu đã lưu; tác vụ cũ không có `depth` được hiểu là `standard`.
+
+```sh
+bint run b-do "Đổi tên cột email trong migrations/…"       # chạm đường dẫn bảo vệ → b-req, depth deep
+bint run b-do --no-plan "Đổi tên biến trong internal/x"    # việc nhỏ: bỏ b-req (người dùng chọn)
+bint task new --depth deep "Thiết kế lại luồng thanh toán" # phân tích sâu theo yêu cầu
+```
 
 **Trạng thái:** `created → planned → in_progress → in_review → done`; `blocked`, `interrupted`,
 `failed` nhớ trạng thái trước để tiếp tục; `cancelled` kết thúc. **done cần bằng chứng**: lệnh kiểm

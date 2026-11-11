@@ -56,6 +56,8 @@ type RunOptions struct {
 	Request  string
 	TaskRef  string
 	Plan     *bool
+	// Depth: ""/auto = tự chọn (hoặc giữ độ sâu đã lưu); standard|deep = người dùng chỉ định.
+	Depth    string
 	NoReview bool
 	Edit     TicketEdit
 	// Resume: tiếp tục tác vụ đang blocked/interrupted/failed.
@@ -66,6 +68,8 @@ type RunOptions struct {
 type StepResult struct {
 	Step     string   `json:"step"`
 	RunID    string   `json:"run_id"`
+	Harness  string   `json:"harness,omitempty"`
+	Model    string   `json:"model,omitempty"`
 	Status   string   `json:"status"` // completed | failed | interrupted
 	CostUSD  *float64 `json:"cost_usd"`
 	Duration string   `json:"duration"`
@@ -86,6 +90,8 @@ type Result struct {
 	// Questions: câu hỏi chờ người trả lời (tác vụ blocked).
 	Questions []string `json:"questions,omitempty"`
 	Notes     []string `json:"notes,omitempty"`
+	// PlanningIssues: lỗi cấu trúc artifact b-req (hợp đồng v1) khiến tác vụ dừng.
+	PlanningIssues []task.ArtifactIssue `json:"planning_issues,omitempty"`
 }
 
 type runState struct {
@@ -132,7 +138,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		saved := r.RunID
 		r.RunID = ""
-		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan})
+		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth})
 		r.RunID = saved
 		if err != nil {
 			return nil, err
@@ -141,6 +147,9 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		r.logf("Tác vụ %s: %s", t.State.ID, t.Ticket.Goal)
 		if c := t.State.Classification; c != nil && o.Workflow == StepDo {
 			r.logf("Classify: %s", c.Reason)
+			if c.Plan && c.Depth != "" {
+				r.logf("Phân tích b-req: %s (%s)", c.Depth, c.DepthReason)
+			}
 		}
 	} else {
 		t, err := r.Tasks.Load(o.TaskRef)
@@ -164,14 +173,10 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if !o.Resume && task.Paused(t.State.Status) {
 			return nil, fmt.Errorf("tác vụ %s đang %s (%s): dùng `bint run resume %s`", t.State.ID, t.State.Status, t.State.Reason, t.State.ID)
 		}
-		if o.Plan != nil {
-			t, _ = r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
-				t.State.Classification = &task.Classification{Plan: *o.Plan, Reason: "người dùng chỉ định"}
-				return nil
-			})
+		if t, err = r.applyOverrides(t, o); err != nil {
+			return nil, err
 		}
 		if hasEdit(o.Edit) {
-			var err error
 			if t, _, err = r.SetTicket(t.State.ID, o.Edit); err != nil {
 				return nil, err
 			}
@@ -186,6 +191,11 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		if err := t.ClaimRunner(rs.runID, r.now()); err != nil {
 			return err
+		}
+		// Tác vụ lập bởi workflow b-req nhưng nay do b-do/b-feat/b-review điều phối: `resume` phải đi theo
+		// workflow này, nếu không sẽ báo "b-req chỉ chạy trên created/planned" và không có đường tiếp tục.
+		if t.State.Workflow == StepReq && o.Workflow != StepReq {
+			t.State.Workflow = o.Workflow
 		}
 		t.State.LinkRun(rs.runID)
 		return nil
@@ -242,6 +252,76 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 	}
 	return rs.res, nil
+}
+
+// applyOverrides áp --plan/--no-plan/--depth lên tác vụ có sẵn và nâng/hạ hợp đồng artifact.
+//   - --depth tường minh chỉ nhận khi tác vụ `created`, hoặc khi `b-req --task` chạy lại trên `planned`;
+//     từ in_progress trở đi trả lỗi thay vì lặng lẽ đổi độ sâu giữa lượt. Hàm ý Plan=true.
+//   - Độ sâu đã lưu được giữ nguyên; chỉ tính lại khi người dùng đổi Plan lúc tác vụ còn `created`.
+//   - Phiên bản hợp đồng chỉ hạ về 0 khi tác vụ còn `created` (chưa có artifact để mất).
+func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) {
+	depth, err := task.NormalizeDepth(o.Depth)
+	if err != nil {
+		return t, err
+	}
+	explicit := depth != ""
+	if explicit {
+		if o.Workflow != StepDo && o.Workflow != StepReq {
+			return t, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
+		}
+		if o.Plan != nil && !*o.Plan {
+			return t, errors.New("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")
+		}
+		if st := t.State.Status; st != task.StatusCreated && !(o.Workflow == StepReq && st == task.StatusPlanned) {
+			return t, fmt.Errorf("không đổi được độ sâu phân tích khi tác vụ đang %s: --depth chỉ nhận khi tác vụ còn created, "+
+				"hoặc để lập kế hoạch lại bằng `bint run b-req --task %s --depth %s` trên tác vụ planned", st, t.State.ID, depth)
+		}
+	}
+	if !explicit && o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) {
+		return t, nil
+	}
+	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
+		created := t.State.Status == task.StatusCreated
+		cls := task.Classification{Plan: true, Reason: "mặc định"}
+		if t.State.Classification != nil {
+			cls = *t.State.Classification
+		}
+		if o.Plan != nil {
+			cls.Plan, cls.Reason = *o.Plan, "người dùng chỉ định"
+		}
+		switch {
+		case explicit:
+			cls.Plan = true
+			if o.Plan == nil {
+				cls.Reason = "người dùng chỉ định độ sâu " + depth
+			}
+			cls.Depth, cls.DepthReason = depth, task.DepthReasonUser
+		case o.Plan != nil && created && !cls.Plan:
+			cls.Depth, cls.DepthReason = "", ""
+		case o.Plan != nil && created && cls.Depth == "":
+			req := strings.TrimSpace(t.Ticket.Request)
+			if req == "" {
+				req = t.Ticket.Goal
+			}
+			cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(req, r.Assess(t))
+		}
+		t.State.Classification = &cls
+		if created && (o.Workflow == StepDo || o.Workflow == StepReq) && (o.Plan != nil || explicit) {
+			if cls.Plan {
+				ensurePlanningContract(t)
+			} else {
+				t.State.PlanningContractVersion = 0
+			}
+		}
+		if o.Workflow == StepReq && created {
+			ensurePlanningContract(t)
+		}
+		return nil
+	})
+	if err != nil {
+		return t, err
+	}
+	return nt, nil
 }
 
 func hasEdit(e TicketEdit) bool {
@@ -368,6 +448,9 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	// Chuyển trạng thái trước bước.
 	switch step {
 	case StepFeat:
+		if !r.preflightFeat(rs) {
+			return false
+		}
 		if rs.t.Ticket.Autonomy == task.AutonomyAskAlways {
 			q := fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép b-feat sửa mã trong %s?", rs.t.State.ID, r.Root)
 			if r.Confirm == nil || !r.Confirm(q) {
@@ -447,17 +530,25 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		defer lock.Release()
 	}
 
+	reqModel := ""
+	if mn, ok := agent.(eval.ModelNamer); ok {
+		reqModel = mn.RequestedModel()
+	}
+	who := agent.Name()
+	if reqModel != "" {
+		who += " · " + reqModel
+	}
 	child := ulid.New()
 	stepID := "st_" + child
 	rs.ran[step]++
 	r.emitRun(rs.runID, spool.StepStarted, map[string]any{"step_id": stepID, "name": step, "status": "running"})
-	r.emitRun(child, spool.WorkflowStarted, map[string]any{"workflow": step, "parent_run_id": rs.runID, "harness": agent.Name(),
+	r.emitRun(child, spool.WorkflowStarted, map[string]any{"workflow": step, "parent_run_id": rs.runID, "harness": agent.Name(), "model": reqModel,
 		"bint_version": r.Version, "git_head": gitrepo.HeadCommit(ctx, r.Root), "git_branch": gitrepo.Branch(ctx, r.Root),
 		"task_id": rs.t.State.ID})
 	r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LinkRun(child); return nil })
 
 	prompt := r.prompt(ctx, rs, step, child)
-	r.logf("▶ %s (lượt %s)…", step, child)
+	r.logf("▶ %s [%s] (lượt %s)…", step, who, child)
 	env := []string{EnvRunID + "=" + child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
 		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
@@ -478,7 +569,11 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		}
 	}
 
-	sr := StepResult{Step: step, RunID: child, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error}
+	model := res.Model
+	if model == "" {
+		model = reqModel
+	}
+	sr := StepResult{Step: step, RunID: child, Harness: agent.Name(), Model: model, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error}
 	if res.CostUSD != nil {
 		rs.spent += *res.CostUSD
 		rs.costKnown = true
@@ -545,25 +640,36 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool {
 	switch step {
 	case StepReq:
-		var missing []string
+		missing := 0
 		for _, n := range task.ArtifactNames() {
 			if _, err := os.Stat(rs.t.ArtifactPath(n)); err != nil {
-				missing = append(missing, task.Artifacts[n])
+				missing++
 			}
 		}
-		if len(missing) == len(task.ArtifactNames()) {
+		if missing == len(task.ArtifactNames()) {
 			r.fail(rs, step, "b-req không ghi tài liệu nào (requirement/plan/tasks)")
 			return false
 		}
-		if len(missing) > 0 {
-			rs.res.Notes = append(rs.res.Notes, "b-req thiếu: "+strings.Join(missing, ", "))
+		// Agent đã kết thúc: từ đây tác vụ theo hợp đồng v1 (task cũ chạy lại b-req được nâng ở đây,
+		// không nâng sớm để agent lỗi giữa chừng không biến task cũ thành v1).
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { ensurePlanningContract(t); return nil }); err == nil {
+			rs.t = t
 		}
+		rep := task.LintPlanningTask(rs.t, true)
 		if err := r.transition(rs, task.StatusPlanned, "b-req xong"); err != nil {
 			r.fail(rs, step, err.Error())
 			return false
 		}
+		if rep.Blocking() {
+			return r.stopOnPlanning(rs, rep)
+		}
 		if a := r.Assess(rs.t); len(a.Questions) > 0 && strings.TrimSpace(rs.t.Ticket.Verify.Command) == "" {
-			return r.askVerify(rs, a)
+			if !r.askVerify(rs, a) {
+				return false
+			}
+		}
+		if len(rep.OpenQuestions) > 0 {
+			return r.stopOnQuestions(rs, rep)
 		}
 		return rs.opts.Workflow == StepDo
 	case StepFeat:
@@ -631,6 +737,87 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		r.block(rs, fmt.Sprintf("còn %d phát hiện nghiêm trọng sau %d vòng review (workflow.max_review_rounds = %d): cần người xem review.md",
 			len(blocking), last.Round, r.Cfg.Workflow.MaxReviewRounds))
 		return false
+	}
+	return false
+}
+
+// stopOnPlanning dừng workflow vì artifact b-req lỗi cấu trúc. Tác vụ đã ở `planned`: b-do chuyển
+// `blocked` (resume về planned, không chạy lại b-req); workflow b-req chạy riêng giữ `planned` vì
+// resume của nó sẽ gọi lại agent b-req và ghi đè bản người vừa sửa. Luôn trả false.
+func (r *Runner) stopOnPlanning(rs *runState, rep task.ArtifactReport) bool {
+	rs.res.PlanningIssues = rep.Errors
+	reason := "artifact b-req chưa đạt hợp đồng v1: " + strings.Join(issueLines(rep.Errors), "; ") +
+		" — sửa bằng `bint task write " + rs.t.State.ID + " <requirement|plan|tasks> -`, kiểm bằng `bint task lint " +
+		rs.t.State.ID + "`, rồi " + r.continueHint(rs)
+	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+		r.block(rs, reason)
+	} else {
+		rs.res.Reason = reason
+	}
+	return false
+}
+
+// continueHint là lệnh tiếp tục sau khi người sửa artifact/trả lời câu hỏi. b-do/b-feat chuyển tác vụ
+// sang blocked nên `bint run resume` vào thẳng bước kế tiếp (không chạy lại b-req). Workflow b-req chạy
+// riêng giữ tác vụ ở `planned` và KHÔNG được dùng resume — resume của b-req sẽ gọi lại agent b-req và
+// ghi đè bản người vừa sửa; tiếp tục bằng b-do/b-feat. (Quyết định theo workflow, không theo trạng thái
+// hiện tại, vì lúc dựng lý do tác vụ chưa được chuyển sang blocked.)
+func (r *Runner) continueHint(rs *runState) string {
+	id := rs.t.State.ID
+	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+		return "`bint run resume " + id + "`"
+	}
+	return "`bint run b-do --task " + id + "` (hoặc `bint run b-feat --task " + id + "`; không dùng `resume` vì sẽ chạy lại b-req)"
+}
+
+// preflightFeat lint lại artifact trước mỗi lần gọi agent b-feat trên tác vụ v1 đã qua b-req
+// (planned/in_progress, gồm vòng sửa sau review): bắt artifact bị sửa/xóa sau lúc lập kế hoạch.
+// Tác vụ v1 còn `created` gọi thẳng b-feat bỏ qua b-req: không có artifact để gate nên hạ về v0 — nếu
+// giữ v1 thì lần b-feat thứ hai (resume, vòng sửa sau review) bị chặn oan vì thiếu artifact và không có
+// đường ra. Tác vụ cũ (v0) không bị chặn.
+func (r *Runner) preflightFeat(rs *runState) bool {
+	t := rs.t
+	if t.State.PlanningContractVersion < task.PlanningContractV1 {
+		return true
+	}
+	switch t.State.Status {
+	case task.StatusCreated:
+		if nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
+			t.State.PlanningContractVersion = 0
+			return nil
+		}); err == nil {
+			rs.t = nt
+		}
+		return true
+	case task.StatusPlanned, task.StatusInProgress, task.StatusInReview:
+	default:
+		return true
+	}
+	rep := task.LintPlanningTask(t, true)
+	if rep.Blocking() {
+		return r.stopOnPlanning(rs, rep)
+	}
+	if len(rep.OpenQuestions) > 0 {
+		return r.stopOnQuestions(rs, rep)
+	}
+	return true
+}
+
+// stopOnQuestions dừng vì requirement.md còn câu hỏi cản trở triển khai. Tác vụ đã ở `planned`;
+// b-do/b-feat chuyển `blocked` (resume về planned rồi vào thẳng b-feat sau khi có câu trả lời, không
+// chạy lại b-req); workflow b-req chạy riêng giữ `planned` vì resume của nó gọi lại agent b-req.
+// Core chỉ kiểm hình thức có câu trả lời, không xác thực nội dung. Luôn trả false.
+func (r *Runner) stopOnQuestions(rs *runState, rep task.ArtifactReport) bool {
+	qs := questionLines(rep.OpenQuestions)
+	rs.res.Questions = qs
+	id := rs.t.State.ID
+	reason := fmt.Sprintf("còn %d câu hỏi mở trong requirement.md: %s — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng "+
+		"`bint task write %s requirement -`, kiểm bằng `bint task lint %s`, rồi %s",
+		len(qs), strings.Join(qs, "; "), id, id, r.continueHint(rs))
+	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+		r.block(rs, reason)
+	} else {
+		rs.res.Reason = reason
 	}
 	return false
 }
@@ -794,6 +981,16 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 	fmt.Fprintf(&b, "\n\n---\n\n<bint-task id=%q step=%q run=%q>\n", t.State.ID, step, child)
 	b.WriteString("Bạn đang chạy dưới `bint run` (Bint Core điều phối). Không gọi `bint task status`, `bint task approve` hay `bint task verify` " +
 		"— Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định hoàn thành. Task ID cũng có trong biến BINT_TASK_ID.\n\n")
+	if step == StepReq {
+		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
+		if c := t.State.Classification; c != nil {
+			depth = c.EffectiveDepth()
+			if c.DepthReason != "" {
+				reason = c.DepthReason
+			}
+		}
+		fmt.Fprintf(&b, "Phân tích: %s\nLý do: %s\n(Độ sâu do Bint Core chọn một lần lúc tạo tác vụ; làm theo mục \"Độ sâu phân tích\" của skill.)\n\n", depth, reason)
+	}
 	ticket, _ := yaml.Marshal(t.Ticket)
 	fmt.Fprintf(&b, "Phiếu tác vụ (task.yml):\n```yaml\n%s```\n", ticket)
 	for _, n := range task.ArtifactNames() {

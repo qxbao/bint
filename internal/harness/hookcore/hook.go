@@ -39,6 +39,8 @@ const (
 	EvPreTool         = "pre_tool"
 	EvPostTool        = "post_tool"
 	EvPostToolFailure = "post_tool_failure"
+	// EvPrompt: người dùng gửi yêu cầu (UserPromptSubmit); hook chèn ngữ cảnh theo đề bài.
+	EvPrompt = "prompt"
 )
 
 // Input là dữ liệu hook đã chuẩn hoá.
@@ -57,6 +59,8 @@ type Input struct {
 	ToolUseID    string
 	ToolResponse string
 	AgentType    string
+	// Prompt: nội dung yêu cầu (EvPrompt).
+	Prompt string
 	// TranscriptPath: tệp transcript của phiên (nếu harness cung cấp ở SessionEnd).
 	TranscriptPath string
 }
@@ -101,6 +105,9 @@ type Dialect struct {
 	// đồng Claude; known=false ghi test command nhưng không tạo tín hiệu pass/fail.
 	PostToolOutcome func(Input, ToolInfo) (success, known bool)
 	IsTestCommand   func(string, ...string) bool
+	// PromptOutput dựng đầu ra chèn ngữ cảnh cho sự kiện yêu cầu (EvPrompt); nil = harness
+	// không hỗ trợ chèn lúc nhận yêu cầu.
+	PromptOutput func(text string) string
 	// Usage đọc token của phiên từ transcript (nil nếu harness không hỗ trợ). Giá trị nil
 	// nghĩa là không biết, không phải 0 (mục 9.2).
 	Usage func(transcriptPath string) (in, out *int64)
@@ -200,6 +207,33 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 	}
 
 	switch hi.Event {
+	case EvPrompt:
+		if d.PromptOutput == nil || !cfg.Context.Interfaces.PathHooks || cfgSrc.Project == "" || strings.TrimSpace(hi.Prompt) == "" {
+			return Result{Skipped: "không chèn ngữ cảnh theo đề bài"}, nil
+		}
+		kroot := filepath.Dir(filepath.Dir(cfgSrc.Project))
+		mem := ctxengine.NewSessionMemory(paths.Runtime, h, hi.SessionID)
+		pack, ok := injectPaths(time.Duration(cfg.Context.PathHookTimeoutMS)*time.Millisecond, func() (ctxengine.Pack, error) {
+			items, _, err := knowledge.NewStore(kroot).List()
+			if err != nil {
+				return ctxengine.Pack{}, err
+			}
+			e := &ctxengine.Engine{Items: items, Src: &knowledge.WorktreeSource{Root: kroot},
+				MaxTokens: cfg.Context.MaxTokens, PathMaxItems: cfg.Context.PathMaxItems}
+			return e.ForTask(ctx, hi.Prompt, nil)
+		})
+		if !ok || len(pack.Entries) == 0 {
+			return Result{Skipped: "không có tri thức khớp đề bài"}, nil
+		}
+		mem.Add(pack.IDs())
+		cev := ctxengine.ContextEvent(h, hi.SessionID, repo.Toplevel, ctxengine.ChannelHookTask, toolKey(), pack, now)
+		cev.Source = "hook:" + h
+		cev.RunID = ev.RunID
+		f, err := spool.Write(paths.Spool, cev)
+		if err != nil {
+			return Result{}, err
+		}
+		return Result{Written: true, SpoolFile: f, Output: d.PromptOutput(pack.Render())}, nil
 	case EvPreTool:
 		info := d.Classify(hi.ToolName, hi.ToolInput)
 		if info.Kind == ToolShell {
@@ -506,8 +540,11 @@ func injectPaths(d time.Duration, f func() (ctxengine.Pack, error)) (ctxengine.P
 // handleEval phục vụ lượt đánh giá nhánh bint: chỉ chèn theo đường dẫn, ghi nhật
 // ký vào tệp của lượt (không có thư mục trạng thái).
 func handleEval(hi Input, d Dialect, cwd, cfgPath string) (Result, error) {
+	if hi.Event == EvPrompt {
+		return handleEvalPrompt(hi, d, cfgPath)
+	}
 	if hi.Event != EvPreTool {
-		return Result{Skipped: "chế độ đánh giá: chỉ chèn theo đường dẫn"}, nil
+		return Result{Skipped: "chế độ đánh giá: chỉ chèn theo đề bài và đường dẫn"}, nil
 	}
 	info := d.Classify(hi.ToolName, hi.ToolInput)
 	inject := (info.Kind == ToolRead && d.InjectRead) || (info.Kind == ToolEdit && d.InjectEdit)
@@ -543,6 +580,41 @@ func handleEval(hi Input, d Dialect, cwd, cfgPath string) (Result, error) {
 	mem.Add(pack.IDs())
 	ctxengine.AppendLog(ec.Log, ctxengine.PackLog(ctxengine.ChannelHookPath, pack))
 	return Result{Output: d.PreToolOutput(pack.Render(), "")}, nil
+}
+
+// handleEvalPrompt chèn gói ngữ cảnh theo đề bài khi agent nhận yêu cầu (nhánh bint):
+// agent không phải tự gọi context_for_task mới nhận được tri thức.
+func handleEvalPrompt(hi Input, d Dialect, cfgPath string) (Result, error) {
+	if d.PromptOutput == nil || strings.TrimSpace(hi.Prompt) == "" {
+		return Result{Skipped: "không chèn ngữ cảnh theo đề bài"}, nil
+	}
+	ec, err := ctxengine.LoadEvalConfig(cfgPath)
+	if err != nil {
+		return Result{}, err
+	}
+	mem := ctxengine.NewSessionMemory(filepath.Dir(ec.Log), d.Harness, hi.SessionID)
+	pack, ok := injectPaths(5*time.Second, func() (ctxengine.Pack, error) {
+		// Cùng engine với MCP server của lượt (context_for_task), để hai kênh trả cùng kết quả.
+		e, closeFn, err := ec.Engine(context.Background())
+		if err != nil {
+			return ctxengine.Pack{}, err
+		}
+		defer closeFn()
+		return e.ForTask(context.Background(), hi.Prompt, nil)
+	})
+	if !ok || len(pack.Entries) == 0 {
+		return Result{Skipped: "không có tri thức khớp đề bài"}, nil
+	}
+	mem.Add(pack.IDs())
+	ctxengine.AppendLog(ec.Log, ctxengine.PackLog(ctxengine.ChannelHookTask, pack))
+	return Result{Output: d.PromptOutput(pack.Render())}, nil
+}
+
+// ClaudeStylePromptOutput dựng JSON hookSpecificOutput cho UserPromptSubmit.
+func ClaudeStylePromptOutput(text string) string {
+	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]any{
+		"hookEventName": "UserPromptSubmit", "additionalContext": text}})
+	return string(b)
 }
 
 // EventID dựng event_id ổn định từ tên harness và các phần định danh.
@@ -617,6 +689,7 @@ type ClaudeStyleInput struct {
 	SessionID      string          `json:"session_id"`
 	Cwd            string          `json:"cwd"`
 	HookEventName  string          `json:"hook_event_name"`
+	Prompt         string          `json:"prompt"`
 	Source         string          `json:"source"`
 	Reason         string          `json:"reason"`
 	Model          json.RawMessage `json:"model"`
@@ -633,6 +706,7 @@ type ClaudeStyleInput struct {
 var claudeEvents = map[string]string{
 	"SessionStart": EvSessionStart, "SessionEnd": EvSessionEnd, "PreToolUse": EvPreTool,
 	"PostToolUse": EvPostTool, "PostToolUseFailure": EvPostToolFailure,
+	"UserPromptSubmit": EvPrompt,
 }
 
 // NormalizeClaudeStyle chuyển payload kiểu Claude Code về Input.
@@ -643,7 +717,7 @@ func NormalizeClaudeStyle(raw []byte) (Input, error) {
 	}
 	in := Input{SessionID: ci.SessionID, Cwd: ci.Cwd, RawEvent: ci.HookEventName, Event: claudeEvents[ci.HookEventName],
 		Source: ci.Source, Reason: ci.Reason, Model: ModelName(ci.Model), ToolName: ci.ToolName, ToolUseID: ci.ToolUseID,
-		ToolResponse: RawText(ci.ToolResponse), AgentType: ci.AgentType, TranscriptPath: ci.TranscriptPath}
+		ToolResponse: RawText(ci.ToolResponse), AgentType: ci.AgentType, TranscriptPath: ci.TranscriptPath, Prompt: ci.Prompt}
 	if ci.HookEventName != "" && in.Event == "" {
 		in.Event = "other"
 	}

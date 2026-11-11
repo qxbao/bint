@@ -38,8 +38,14 @@ type InitOptions struct {
 	Version string
 	// NoSkills: không xuất bản skill gốc.
 	NoSkills bool
-	Confirm  func(question string) bool
-	Now      func() time.Time
+	// GitMode: track | local (xem GitTrack, GitLocal); "" = giữ lựa chọn đã lưu của
+	// máy này, lần init đầu có Confirm thì hỏi, còn lại track.
+	GitMode string
+	// Update: nâng .bint/config.yml đã có lên mẫu hiện tại (thêm khoá còn thiếu kèm
+	// chú thích, giữ nguyên mọi giá trị và chú thích sẵn có; bản cũ được sao lưu).
+	Update  bool
+	Confirm func(question string) bool
+	Now     func() time.Time
 }
 
 // StepStatus là trạng thái một bước khởi tạo.
@@ -63,12 +69,14 @@ type Step struct {
 
 // InitReport là kết quả `bint init`.
 type InitReport struct {
-	Repo       gitrepo.Repo
-	StateDir   string
-	FirstInit  bool
-	Harnesses  []string
-	Steps      []Step
-	NextSteps  []string
+	Repo      gitrepo.Repo
+	StateDir  string
+	FirstInit bool
+	Harnesses []string
+	Steps     []Step
+	NextSteps []string
+	// GitMode: chế độ hiện diện trong Git đang áp (track | local).
+	GitMode    string
 	HasProblem bool
 }
 
@@ -99,6 +107,9 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 	rep.Repo = repo
 	root := repo.Toplevel
 
+	if opts.GitMode != "" && !slices.Contains(GitModes, opts.GitMode) {
+		return nil, fmt.Errorf("--git: phải là %s (nhận %q)", strings.Join(GitModes, " | "), opts.GitMode)
+	}
 	for _, h := range opts.Harnesses {
 		if !slices.Contains(config.KnownHarnesses, h) {
 			return nil, fmt.Errorf("harness không hỗ trợ %q (hỗ trợ: %s)", h, strings.Join(config.KnownHarnesses, ", "))
@@ -192,6 +203,17 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 	} else {
 		rep.add("thư mục trạng thái", StepCreated, "%s (schema v%d)", paths.Root, v)
 	}
+	if cfgExists {
+		update := opts.Update
+		if update && cfgRoot != root {
+			// Không sửa tệp của worktree khác từ đây.
+			rep.add(".bint/config.yml", StepSkipped, "--update: cấu hình nằm ở worktree chính %s — chạy `bint init --update` ở đó", cfgRoot)
+			update = false
+		}
+		if cfg, err = upgradeConfig(rep, update, cfgRoot, cfgPath, paths.Backups, cfg, now); err != nil {
+			return nil, err
+		}
+	}
 	manifest, err := fsafe.LoadManifest(paths.Manifest)
 	if err != nil {
 		return nil, err
@@ -204,8 +226,24 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		}
 	}
 
+	// Chế độ hiện diện trong Git: cờ → lựa chọn đã lưu → hỏi ở lần init đầu → track.
+	prevGit := LoadGitMode(paths)
+	gitMode := opts.GitMode
+	if gitMode == "" {
+		gitMode = prevGit
+	}
+	if gitMode == "" {
+		gitMode = GitTrack
+		if rep.FirstInit && opts.Confirm != nil &&
+			opts.Confirm("Chỉ dùng Bint riêng trên máy này, không đưa tệp của Bint vào Git (.git/info/exclude)?") {
+			gitMode = GitLocal
+		}
+	}
+	rep.GitMode = gitMode
+
 	// 6. Hook ghi nhận và MCP server cho từng harness được bật (theo adapter).
 	gitignore := []string{".bint/local.yml"}
+	var hookFiles []string // tệp hook nằm trong repository (mọi phạm vi)
 	for _, h := range cfg.Harnesses.Enabled {
 		ad, ok := harness.Get(h)
 		if !ok {
@@ -220,9 +258,12 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		if err != nil {
 			return nil, err
 		}
-		if installed && opts.HooksScope == claude.ScopeLocal {
+		if installed {
 			if rel, err := filepath.Rel(root, path); err == nil && !strings.HasPrefix(rel, "..") {
-				gitignore = append(gitignore, filepath.ToSlash(rel))
+				hookFiles = append(hookFiles, filepath.ToSlash(rel))
+				if opts.HooksScope == claude.ScopeLocal {
+					gitignore = append(gitignore, filepath.ToSlash(rel))
+				}
 			}
 		}
 	}
@@ -264,15 +305,18 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		}
 	}
 
-	// 7. .gitignore: chỉ thêm khối, không xoá cấu hình sẵn có.
-	r, err := fsafe.SyncBlock(fsafe.BlockSync{
-		Path: filepath.Join(root, ".gitignore"), RelName: ".gitignore", Markers: fsafe.HashMarkers,
-		Inner: strings.Join(gitignore, "\n"), Force: opts.Force, BackupDir: paths.Backups, Manifest: manifest, Now: now,
-	})
-	if err != nil {
-		return nil, err
+	// 7. .gitignore: chỉ thêm khối, không xoá cấu hình sẵn có. Chế độ local không đụng
+	// .gitignore (thường được commit); tệp riêng của máy đi vào .git/info/exclude.
+	if gitMode == GitTrack {
+		r, err := fsafe.SyncBlock(fsafe.BlockSync{
+			Path: filepath.Join(root, ".gitignore"), RelName: ".gitignore", Markers: fsafe.HashMarkers,
+			Inner: strings.Join(gitignore, "\n"), Force: opts.Force, BackupDir: paths.Backups, Manifest: manifest, Now: now,
+		})
+		if err != nil {
+			return nil, err
+		}
+		rep.addSync(".gitignore", r)
 	}
-	rep.addSync(".gitignore", r)
 
 	// Tài liệu cấp repository (tuỳ chọn ở P0).
 	if opts.AgentsMD {
@@ -285,6 +329,11 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		}
 	}
 
+	// 8. Hiện diện trong Git (sau mọi bước ghi tệp để bao được tệp vừa tạo).
+	if err := applyGitMode(ctx, rep, gitMode, prevGit, root, bintPaths(root, cfg.Harnesses.Enabled, hookFiles), paths, manifest, opts.Force, now); err != nil {
+		return nil, err
+	}
+
 	if err := manifest.Save(); err != nil {
 		return nil, err
 	}
@@ -293,12 +342,16 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 	if cfg.Eval.TestCommand == nil {
 		rep.NextSteps = append(rep.NextSteps, "Xác nhận lệnh kiểm thử: điền eval.test_command trong .bint/config.yml")
 	}
+	if gitMode == GitTrack {
+		rep.NextSteps = append(rep.NextSteps, "Commit .bint/config.yml (và .gitignore) để cả nhóm dùng chung cấu hình")
+	} else {
+		rep.NextSteps = append(rep.NextSteps, "Bint đang ở chế độ riêng máy (--git local): tệp của Bint không hiện trong git status; muốn chia sẻ cho nhóm thì chạy bint init --git track")
+	}
 	bootstrapSkill := "/b-bootstrap trong Claude Code"
 	if cfg.Harnesses.Default == codex.HarnessName {
 		bootstrapSkill = "$b-bootstrap trong Codex"
 	}
 	rep.NextSteps = append(rep.NextSteps,
-		"Commit .bint/config.yml (và .gitignore) để cả nhóm dùng chung cấu hình",
 		"Kiểm tra môi trường: bint doctor",
 		"Xem lượt chạy đã ghi nhận: bint runs list",
 		"Bootstrap tri thức: chạy "+bootstrapSkill+" (hoặc `bint bootstrap` để xem dữ liệu khảo sát), rồi `bint knowledge review` và `bint bootstrap publish`",
@@ -440,6 +493,95 @@ func hasImportLine(content, imp string) bool {
 		}
 	}
 	return false
+}
+
+// applyGitMode áp chế độ --git và lưu lựa chọn. local: khối exclude + skip-worktree
+// (chạy lại mỗi lần init để bao tệp mới); track sau local: gỡ cả hai.
+func applyGitMode(ctx context.Context, rep *InitReport, mode, prev, root string, bp []string, paths state.Paths, m *fsafe.Manifest, force bool, now time.Time) error {
+	const name = "git"
+	switch {
+	case mode == GitLocal:
+		v, err := applyGitLocal(ctx, root, bp, paths, m, force, now)
+		if err != nil {
+			return err
+		}
+		if v.Exclude.Outcome == fsafe.Conflict {
+			rep.add(name, StepConflict, "%s: %s", v.ExcludePath, v.Exclude.Detail)
+		} else {
+			rep.add(name, StepOK, "chế độ local: %d mục trong %s", len(v.Patterns), v.ExcludePath)
+		}
+		if len(v.SkipWorktree) > 0 {
+			rep.add(name, StepOK, "skip-worktree cho tệp đã được theo dõi: %s (thay đổi upstream của các tệp này sẽ làm pull báo lỗi; gỡ bằng bint init --git track)",
+				strings.Join(v.SkipWorktree, ", "))
+		}
+	case prev == GitLocal:
+		v, err := revertGitLocal(ctx, root, bp, paths, m, force, now)
+		if err != nil {
+			return err
+		}
+		detail := "chế độ track: đã gỡ khối bint khỏi " + v.ExcludePath
+		if len(v.SkipWorktree) > 0 {
+			detail += "; bỏ skip-worktree: " + strings.Join(v.SkipWorktree, ", ")
+		}
+		rep.add(name, StepUpdated, "%s — tệp của Bint giờ hiện trong git status", detail)
+	}
+	if mode != prev {
+		return saveGitMode(paths, mode)
+	}
+	return nil
+}
+
+// upgradeConfig so cấu hình đã có với mẫu hiện tại. update = false: chỉ báo khoá còn
+// thiếu (không ghi gì); update = true: sao lưu rồi ghi bản đã nâng và nạp lại cấu hình.
+func upgradeConfig(rep *InitReport, update bool, cfgRoot, cfgPath, backups string, cfg config.Config, now time.Time) (config.Config, error) {
+	const name = ".bint/config.yml"
+	old, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return cfg, err
+	}
+	up, err := config.Upgrade(old)
+	if err != nil {
+		return cfg, fmt.Errorf("nâng %s: %w", cfgPath, err)
+	}
+	if !up.Changed() {
+		if update {
+			rep.add(name, StepOK, "đã theo mẫu hiện tại, không có khoá nào cần thêm")
+		}
+		return cfg, nil
+	}
+	if !update {
+		rep.add(name, StepSkipped, "theo mẫu cũ, thiếu: %s — chạy `bint init --update` để thêm (giữ nguyên giá trị đang có)",
+			orDash(config.SummarizeAdded(up.Added)))
+		rep.NextSteps = append(rep.NextSteps, "Nâng cấu hình lên mẫu mới (model theo role…): bint init --update")
+		return cfg, nil
+	}
+	bak, err := fsafe.Backup(cfgPath, backups, name, now)
+	if err != nil {
+		return cfg, err
+	}
+	if err := fsafe.WriteAtomic(cfgPath, up.Content, 0o644); err != nil {
+		return cfg, err
+	}
+	detail := "thêm: " + orDash(config.SummarizeAdded(up.Added))
+	if up.Fixed > 0 {
+		detail += fmt.Sprintf("; sửa %d dòng chú thích hỏng", up.Fixed)
+	}
+	rep.add(name, StepUpdated, "%s (bản cũ: %s)", detail, bak)
+	for _, n := range up.Notes {
+		rep.add(name, StepSkipped, "%s", n)
+	}
+	cfg, _, err = config.Load(cfgRoot, true)
+	if err != nil {
+		return cfg, fmt.Errorf("nạp lại cấu hình sau khi nâng: %w", err)
+	}
+	return cfg, nil
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }
 
 // writeNew tạo tệp mới, thất bại nếu tệp đã tồn tại (không ghi đè).

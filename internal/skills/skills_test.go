@@ -59,3 +59,42 @@ func TestInstallNeverOverwritesEdits(t *testing.T) {
 		t.Fatalf("bản khớp core.lock phải được nâng cấp: %+v", outs)
 	}
 }
+
+// Overlay cũ gắn vào anchor; sửa khuôn b-req không được làm mất chúng.
+func TestCoreSkillBReqKeepsAnchorsAndContract(t *testing.T) {
+	s, ok := Get("b-req")
+	if !ok {
+		t.Fatal("thiếu b-req")
+	}
+	for _, want := range []string{
+		"<!-- bint:anchor project-rules -->", "<!-- bint:anchor-end project-rules -->",
+		"<!-- bint:anchor plan-template -->", "<!-- bint:anchor-end plan-template -->",
+		"AC-1:", "TSK-1 [AC-1]", "xong khi:", "--clear-criteria", "bint task lint",
+	} {
+		if !strings.Contains(s.Body(), want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+}
+
+// Một skill b-req cho cả hai mức; b-do chuyển giao độ sâu và giữ anchor routing.
+func TestCoreSkillsDepthGuidance(t *testing.T) {
+	req, _ := Get("b-req")
+	for _, want := range []string{"## Độ sâu phân tích", "standard", "deep", "Giả định và mâu thuẫn", "Lựa chọn và lý do",
+		"Vùng ảnh hưởng", "Rủi ro và rollback", "Chiến lược kiểm thử", "Checklist nhất quán", "classification.depth"} {
+		if !strings.Contains(req.Body(), want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+	do, _ := Get("b-do")
+	for _, want := range []string{"<!-- bint:anchor routing -->", "<!-- bint:anchor-end routing -->", "classification.depth", "--depth deep"} {
+		if !strings.Contains(do.Body(), want) {
+			t.Errorf("b-do thiếu %q", want)
+		}
+	}
+	for _, n := range []string{"b-req", "b-do"} {
+		if _, ok := Get(n + "-deep"); ok {
+			t.Errorf("không được thêm skill %s-deep", n)
+		}
+	}
+}

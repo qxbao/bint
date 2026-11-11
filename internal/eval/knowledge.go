@@ -42,8 +42,11 @@ type SnapshotMeta struct {
 	Error          string   `json:"error,omitempty"`
 	Items          int      `json:"items"`
 	SkillSHA       string   `json:"skill_sha"`
-	BintVersion    string   `json:"bint_version"`
-	Log            string   `json:"log"`
+	// Focus: vùng mã hoạt động nhiều nhất (theo lịch sử tới base) được gợi ý cho
+	// bootstrap ưu tiên; rỗng = ảnh chụp dựng trước khi có gợi ý này.
+	Focus       []string `json:"focus,omitempty"`
+	BintVersion string   `json:"bint_version"`
+	Log         string   `json:"log"`
 }
 
 // ReadSnapshot đọc ảnh chụp của commit gốc; ok=false nếu chưa có.

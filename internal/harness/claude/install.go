@@ -97,6 +97,7 @@ func desiredGroups(cmd string) map[string]map[string]any {
 		evPostToolUse:        group(toolMatcher),
 		evPostToolUseFailure: group(toolMatcher),
 		evPreToolUse:         group(pathMatcher),
+		evUserPromptSubmit:   group(""),
 	}
 }
 

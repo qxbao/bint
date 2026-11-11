@@ -16,9 +16,9 @@ const agentScript = `set -e
 P="$(cat "$BINT_EVAL_PROMPT_FILE")"
 case "$P" in
 *'step="b-req"'*)
-  printf '# Yêu cầu\n- [ ] app.txt ghi v2\n' | "$BINT" task write "$BINT_TASK_ID" requirement -
+  printf '# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n' | "$BINT" task write "$BINT_TASK_ID" requirement -
   printf '# Kế hoạch\nSửa app.txt\n' | "$BINT" task write "$BINT_TASK_ID" plan -
-  printf -- '- [ ] sửa app.txt — xong khi: chứa v2\n' | "$BINT" task write "$BINT_TASK_ID" tasks -
+  printf -- '- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n' | "$BINT" task write "$BINT_TASK_ID" tasks -
   ;;
 *'step="b-feat"'*)
   echo v2 > app.txt
