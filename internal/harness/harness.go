@@ -459,13 +459,35 @@ func (Claude) NewAgent(o AgentOptions) eval.Agent {
 	return &eval.ClaudeAgent{Cfg: ClaudeWorkflowArgs(o.Config, o.ReadOnly, o.MaxTurns), Model: o.Model, MaxCostUSD: o.MaxCost}
 }
 
+// bintToolRule là quy tắc mặc định cho phép bước chỉ đọc gọi Bint qua PATH.
+const bintToolRule = "Bash(bint:*)"
+
+// withBintExecutableRule thêm quy tắc tương đương cho đúng binary đang chạy. Quy tắc
+// tiền tố của Claude Code không khớp `<đường dẫn tuyệt đối>/bint ...`, mà đây lại là
+// cách gọi nên dùng khi bản trên PATH cũ hoặc không có. Chỉ thêm khi người dùng còn
+// giữ quy tắc bint mặc định; không đổi slice cấu hình gốc.
+func withBintExecutableRule(tools []string) []string {
+	out := slices.Clone(tools)
+	if !slices.Contains(tools, bintToolRule) {
+		return out
+	}
+	exe, err := os.Executable()
+	if err != nil || exe == "" {
+		return out
+	}
+	if rule := "Bash(" + exe + ":*)"; !slices.Contains(out, rule) {
+		out = append(out, rule)
+	}
+	return out
+}
+
 // ClaudeWorkflowArgs dựng cấu hình gọi Claude Code cho một bước workflow.
 func ClaudeWorkflowArgs(cfg config.Config, readOnly bool, maxTurns *int) config.EvalAgent {
 	w := cfg.Workflow.Agent
 	a := config.EvalAgent{Model: w.Model, PermissionMode: w.PermissionMode, SettingSources: w.SettingSources,
 		AllowedTools: w.AllowedTools}
 	if readOnly {
-		a.AllowedTools = w.ReadonlyTools
+		a.AllowedTools = withBintExecutableRule(w.ReadonlyTools)
 		a.ExtraArgs = append(a.ExtraArgs, "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit")
 	}
 	if maxTurns != nil {
