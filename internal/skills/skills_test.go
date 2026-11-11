@@ -98,3 +98,23 @@ func TestCoreSkillsDepthGuidance(t *testing.T) {
 		}
 	}
 }
+
+// b-knowledge giao việc nhập liệu cho agent nhưng không bao giờ thay người duyệt.
+func TestCoreSkillBKnowledgeContract(t *testing.T) {
+	s, ok := Get("b-knowledge")
+	if !ok {
+		t.Fatal("thiếu b-knowledge")
+	}
+	if !strings.Contains(string(s.Content), "disable-model-invocation: true") {
+		t.Error("b-knowledge chỉ do người gọi")
+	}
+	for _, want := range []string{
+		"bint knowledge add", "--tags nguon:", "--evidence", "--third-party", "bint knowledge verify",
+		"không bao giờ** chạy `bint knowledge approve`",
+		"<!-- bint:anchor ingest-focus -->", "<!-- bint:anchor-end ingest-focus -->",
+	} {
+		if !strings.Contains(s.Body(), want) {
+			t.Errorf("b-knowledge thiếu %q", want)
+		}
+	}
+}

@@ -211,7 +211,7 @@ repository/
 
 Các thư mục adapter chỉ được tạo khi harness tương ứng được kích hoạt.
 
-Skill gốc (b-bootstrap, b-req, b-feat, b-review, b-do) đi kèm tệp thực thi Bint và không được sửa trực tiếp trong repository. `core.lock` ghi phiên bản đang dùng; phần tuỳ biến nằm trong `overlays/` (xem mục 6.6).
+Skill gốc (b-bootstrap, b-knowledge, b-req, b-feat, b-review, b-do) đi kèm tệp thực thi Bint và không được sửa trực tiếp trong repository. `core.lock` ghi phiên bản đang dùng; phần tuỳ biến nằm trong `overlays/` (xem mục 6.6).
 
 Không tạo mặc định CODEBASE.md, DOMAIN.md, PATTERNS.md, QUIRKS.md ở thư mục gốc. Khi cần tài liệu cho người đọc, `bint docs render` sinh chúng vào thư mục trạng thái hoặc một đường dẫn do người dùng chỉ định (xem mục 8.5).
 

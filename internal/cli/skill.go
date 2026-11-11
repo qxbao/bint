@@ -19,7 +19,7 @@ func newSkillCmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "skill",
 		Short: "Skill gốc và lớp phủ theo dự án",
-		Long: `Skill gốc (b-bootstrap, b-req, b-feat, b-review, b-do) đi kèm tệp thực thi Bint và không
+		Long: `Skill gốc (b-bootstrap, b-knowledge, b-req, b-feat, b-review, b-do) đi kèm tệp thực thi Bint và không
 được sửa trực tiếp trong repository (mục 6.6). Tuỳ biến theo dự án đặt trong lớp phủ
 .bint/skills/overlays/<skill>.md, chỉ tại các điểm neo skill gốc khai báo. ` + "`bint sync`" + `
 ghép skill gốc với lớp phủ và xuất bản cho harness; core.lock ghi phiên bản đang dùng.

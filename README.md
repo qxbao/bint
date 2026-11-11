@@ -247,6 +247,7 @@ không tự đoán được (mục 4.2) — không sinh tổng quan kiến trúc
 ```sh
 bint bootstrap                  # static discovery + cài/cập nhật skill b-bootstrap
 /b-bootstrap                    # trong Claude Code: agent điều tra, ghi mục candidate
+/b-knowledge docs/guidelines/   # agent đọc tài liệu (MD, PDF) và ghi mục candidate gắn nhãn nguon:<lô>
 bint knowledge review           # người duyệt từng mục: a/r/e/f/s/q
 bint bootstrap publish          # xem trước rồi đưa quy tắc đã duyệt vào AGENTS.md
 
