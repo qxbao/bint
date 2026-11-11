@@ -94,7 +94,8 @@ type Trace struct {
 	Reads []string
 	// Writes: tệp sửa/ghi (Edit, Write, MultiEdit, NotebookEdit).
 	Writes []string
-	// Truncated: vết thiếu (có dòng quá dài bị bỏ, hoặc log vượt trần maxTraceBytes). Vết thiếu
+	// Truncated: vết thiếu (có dòng quá dài có thể chứa lệnh bị bỏ, hoặc log vượt trần
+	// maxTraceBytes). Vết thiếu
 	// không đủ để suy ra điều gì từ SỰ VẮNG MẶT của lệnh (vd. no_test).
 	Truncated bool
 }
@@ -109,7 +110,8 @@ func ParseTrace(data []byte, prefix string) Trace {
 }
 
 // Giới hạn đọc vết: mỗi dòng (một sự kiện, tool_result có thể rất lớn) tối đa maxTraceLine byte,
-// dòng dài hơn bị bỏ qua; cả log tối đa maxTraceBytes byte. Vượt giới hạn thì Trace.Truncated.
+// dòng dài hơn bị bỏ qua (Trace.Truncated khi dòng đó có thể chứa lệnh, xem
+// skippedMayHoldToolUse); cả log tối đa maxTraceBytes byte, vượt thì Trace.Truncated.
 var (
 	maxTraceLine  = 4 << 20
 	maxTraceBytes = int64(256 << 20)
@@ -122,8 +124,8 @@ func ParseTraceReader(r io.Reader, prefix string) Trace {
 	lr := &io.LimitedReader{R: r, N: maxTraceBytes + 1}
 	br := bufio.NewReaderSize(lr, 64<<10)
 	for {
-		line, skipped, err := readLineMax(br, maxTraceLine)
-		if skipped {
+		line, skipped, head, err := readLineMax(br, maxTraceLine)
+		if skipped && skippedMayHoldToolUse(head) {
 			t.Truncated = true
 		}
 		if len(line) > 0 {
@@ -139,14 +141,31 @@ func ParseTraceReader(r io.Reader, prefix string) Trace {
 	return t
 }
 
+// skippedHeadLen: số byte đầu của dòng bị bỏ được giữ lại để nhận ra loại sự kiện.
+const skippedHeadLen = 256
+
+// eventTypeRe lấy giá trị "type" đứng đầu một sự kiện stream-json.
+var eventTypeRe = regexp.MustCompile(`^\s*\{\s*"type"\s*:\s*"([^"]*)"`)
+
+// skippedMayHoldToolUse: dòng quá dài bị bỏ có thể chứa tool_use (sự kiện assistant) không. Dòng
+// khổng lồ thường là user/tool_result (đọc tệp lớn, đầu ra dài) và không chứa lệnh nào, nên khi
+// đầu dòng cho thấy rõ loại sự kiện khác thì vết vẫn đủ; không nhận ra được thì coi là có thể.
+func skippedMayHoldToolUse(head []byte) bool {
+	m := eventTypeRe.FindSubmatch(head)
+	return m == nil || string(m[1]) == "assistant"
+}
+
 // readLineMax đọc một dòng (bỏ '\n'). Dòng dài hơn max byte bị bỏ hết và trả skipped=true
-// (line rỗng) mà vẫn đọc tới cuối dòng để lần gọi sau bắt đầu ở dòng kế.
-func readLineMax(br *bufio.Reader, max int) (line []byte, skipped bool, err error) {
+// (line rỗng) cùng head là tối đa skippedHeadLen byte đầu của dòng, mà vẫn đọc tới cuối dòng để
+// lần gọi sau bắt đầu ở dòng kế.
+func readLineMax(br *bufio.Reader, max int) (line []byte, skipped bool, head []byte, err error) {
 	var buf []byte
 	for {
 		chunk, e := br.ReadSlice('\n')
 		if !skipped {
 			if len(buf)+len(chunk) > max {
+				h := append(buf, chunk...)
+				head = append([]byte(nil), h[:min(len(h), skippedHeadLen)]...)
 				skipped, buf = true, nil
 			} else {
 				buf = append(buf, chunk...)
@@ -156,9 +175,9 @@ func readLineMax(br *bufio.Reader, max int) (line []byte, skipped bool, err erro
 			continue
 		}
 		if skipped {
-			return nil, true, e
+			return nil, true, head, e
 		}
-		return bytes.TrimSpace(buf), false, e
+		return bytes.TrimSpace(buf), false, nil, e
 	}
 }
 
@@ -282,9 +301,11 @@ func testFailureLines(log []byte) (fails, tail []string) {
 // có nhãn failure trong h. runtime (có thể rỗng) để đọc phạm vi và mục tiêu của phiếu.
 // since (không phải zero) là đầu mút cửa sổ lịch sử: chỉ lượt eval bắt đầu từ since mới được nạp
 // (cùng cửa sổ với lượt thật trong h), để mỗi lần quét không đọc log của cả lịch sử.
-// Lượt timeout nhưng test đạt (test_passed=1) đã giải đúng nên không phải thất bại. Chỉ đọc;
+// Lượt timeout nhưng test đạt (test_passed=1) đã giải đúng nên không phải thất bại. lessons là
+// tập ID bài học từ thất bại (LessonIDs): không tính vào "đã chèn tri thức" của dấu hiệu
+// ignored_ctx, vì bài học chung được chèn ở mọi đề bài và hiếm khi được trích dẫn. Chỉ đọc;
 // không gọi mô hình.
-func LoadFailures(ctx context.Context, db *sql.DB, cases []*eval.Case, h *History, runtime string, since time.Time) ([]Failure, error) {
+func LoadFailures(ctx context.Context, db *sql.DB, cases []*eval.Case, h *History, runtime string, since time.Time, lessons map[string]bool) ([]Failure, error) {
 	var out []Failure
 	byID := map[string]*eval.Case{}
 	for _, c := range cases {
@@ -296,7 +317,7 @@ func LoadFailures(ctx context.Context, db *sql.DB, cases []*eval.Case, h *Histor
 		if err != nil {
 			return nil, err
 		}
-		ctxUse, err := contextUsageOfFailures(ctx, db, since)
+		ctxUse, err := contextUsageOfFailures(ctx, db, since, lessons)
 		if err != nil {
 			return nil, err
 		}
@@ -314,7 +335,7 @@ func LoadFailures(ctx context.Context, db *sql.DB, cases []*eval.Case, h *Histor
 			if r.Label != runlog.LabelFailure {
 				continue
 			}
-			out = append(out, runFailure(r, tasks, runtime != ""))
+			out = append(out, runFailure(r, tasks, runtime != "", lessons))
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -338,26 +359,53 @@ func failedAttemptsWhere(alias string, since time.Time) (string, []any) {
 	return where, args
 }
 
-// contextUsageOfFailures trả về (đã chèn, đã trích dẫn) theo lượt đánh giá thất bại.
-func contextUsageOfFailures(ctx context.Context, db *sql.DB, since time.Time) (map[string][2]bool, error) {
+// contextUsageOfFailures trả về (đã chèn, đã trích dẫn) theo lượt đánh giá thất bại, không tính
+// các mục trong lessons.
+func contextUsageOfFailures(ctx context.Context, db *sql.DB, since time.Time, lessons map[string]bool) (map[string][2]bool, error) {
 	where, args := failedAttemptsWhere("r.", since)
-	rows, err := db.QueryContext(ctx, `SELECT u.attempt_id, MAX(u.retrieved), MAX(u.cited)
+	rows, err := db.QueryContext(ctx, `SELECT u.attempt_id, u.item_id, u.retrieved, u.cited
 		FROM eval_context_usage u JOIN evaluation_runs r ON r.attempt_id = u.attempt_id
-		WHERE `+where+` GROUP BY u.attempt_id`, args...)
+		WHERE `+where, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := map[string][2]bool{}
 	for rows.Next() {
-		var id string
+		var id, item string
 		var ret, cited int
-		if err := rows.Scan(&id, &ret, &cited); err != nil {
+		if err := rows.Scan(&id, &item, &ret, &cited); err != nil {
 			return nil, err
 		}
-		out[id] = [2]bool{ret > 0, cited > 0}
+		if lessons[item] {
+			continue
+		}
+		u := out[id]
+		out[id] = [2]bool{u[0] || ret > 0, u[1] || cited > 0}
 	}
 	return out, rows.Err()
+}
+
+// LessonIDs trả về tập ID của bài học từ thất bại (LessonFromRuns) trong items.
+func LessonIDs(items []*knowledge.Item) map[string]bool {
+	out := map[string]bool{}
+	for _, it := range items {
+		if it.LessonFromRuns() {
+			out[it.ID] = true
+		}
+	}
+	return out
+}
+
+// countNonLesson đếm ID không thuộc lessons.
+func countNonLesson(ids []string, lessons map[string]bool) int {
+	n := 0
+	for _, id := range ids {
+		if !lessons[id] {
+			n++
+		}
+	}
+	return n
 }
 
 // evalFailure dựng đơn vị thất bại từ một lượt đánh giá.
@@ -403,15 +451,16 @@ func evalFailure(a eval.AttemptRow, c *eval.Case, ctxUse [2]bool) Failure {
 	return f
 }
 
-// runFailure dựng đơn vị thất bại từ lượt thật. Phạm vi lấy từ phiếu nếu đọc được.
-func runFailure(r *Run, tasks task.Store, haveRuntime bool) Failure {
+// runFailure dựng đơn vị thất bại từ lượt thật. Phạm vi lấy từ phiếu nếu đọc được. Bài học
+// (lessons) không tính vào đã chèn/đã trích dẫn (xem LoadFailures).
+func runFailure(r *Run, tasks task.Store, haveRuntime bool, lessons map[string]bool) Failure {
 	unit := r.TaskID
 	if unit == "" {
 		unit = r.ID
 	}
 	f := Failure{Source: "run", ID: r.ID, Unit: unit, Status: "failed", Area: r.Module,
 		Modified: append([]string{}, r.Modified...), Read: append([]string{}, r.Read...),
-		Retrieved: len(r.Retrieved) > 0, Cited: len(r.Cited) > 0, StartedAt: r.StartedAt}
+		Retrieved: countNonLesson(r.Retrieved, lessons) > 0, Cited: countNonLesson(r.Cited, lessons) > 0, StartedAt: r.StartedAt}
 	if haveRuntime && r.TaskID != "" {
 		if t, err := tasks.Load(r.TaskID); err == nil {
 			f.Prompt = t.Ticket.Goal

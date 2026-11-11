@@ -183,7 +183,7 @@ func TestLessonProposalEndToEnd(t *testing.T) {
 	}
 
 	// Bản tóm tắt của đợt: chỉ lượt validation, lượt tập test bị bỏ qua có ghi nhận.
-	rep, err := DigestRef(ctx, f.db, cases, "eb-1", f.k.Paths.Runtime, 3, 2)
+	rep, err := DigestRef(ctx, f.db, cases, "eb-1", f.k.Paths.Runtime, 3, 2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -57,8 +57,9 @@ func TestParseTraceSample(t *testing.T) {
 	}
 }
 
-// Log vượt giới hạn: phải đọc theo luồng (không mất lệnh test ở cuối), dòng quá dài bị bỏ và vết
-// được đánh dấu Truncated để không suy ra no_test từ vết thiếu.
+// Log vượt giới hạn: phải đọc theo luồng (không mất lệnh test ở cuối), dòng quá dài bị bỏ. Vết
+// chỉ bị đánh dấu Truncated (để không suy ra no_test từ vết thiếu) khi dòng bị bỏ có thể chứa
+// lệnh (sự kiện assistant hoặc không nhận ra loại), hoặc khi log vượt trần tổng.
 func TestParseTraceStreamsLongLogKeepsTail(t *testing.T) {
 	oldLine, oldTotal := maxTraceLine, maxTraceBytes
 	t.Cleanup(func() { maxTraceLine, maxTraceBytes = oldLine, oldTotal })
@@ -70,8 +71,8 @@ func TestParseTraceStreamsLongLogKeepsTail(t *testing.T) {
 	huge := `{"type":"user","message":{"content":[{"type":"tool_result","content":"` + strings.Repeat("x", 5000) + `"}]}}` + "\n"
 	log := bash("go build ./...") + huge + huge + bash("go test ./...")
 	tr := ParseTrace([]byte(log), "")
-	if !tr.Truncated {
-		t.Fatal("dòng vượt maxTraceLine phải đặt Truncated")
+	if tr.Truncated {
+		t.Fatal("dòng user/tool_result quá dài không chứa lệnh: vết vẫn đủ, không được đặt Truncated")
 	}
 	if want := []string{"go build ./...", "go test ./..."}; !reflect.DeepEqual(tr.Commands, want) {
 		t.Fatalf("Commands = %v, muốn %v (lệnh sau dòng quá dài không được mất)", tr.Commands, want)
@@ -79,6 +80,23 @@ func TestParseTraceStreamsLongLogKeepsTail(t *testing.T) {
 	f := Failure{Source: "eval", Status: "failed", Measured: tr.Available, Trace: tr}
 	if sigs := classifySignals(&f); containsStr(sigs, SigNoTest) {
 		t.Fatalf("có lệnh test ở cuối mà vẫn báo no_test: %v", sigs)
+	}
+	// Chỉ có tool_result khổng lồ, không lệnh test: vết đủ nên vẫn báo no_test.
+	tr = ParseTrace([]byte(bash("go build ./...")+huge), "")
+	f = Failure{Source: "eval", Status: "failed", Measured: tr.Available, Trace: tr}
+	if tr.Truncated || !containsStr(classifySignals(&f), SigNoTest) {
+		t.Fatalf("tool_result quá dài không được tắt no_test (Truncated=%v)", tr.Truncated)
+	}
+	// Dòng assistant quá dài có thể chứa lệnh test: vết thiếu, không suy ra no_test.
+	hugeAsst := `{"type":"assistant","message":{"content":[{"type":"text","text":"` + strings.Repeat("y", 5000) + `"}]}}` + "\n"
+	tr = ParseTrace([]byte(bash("go build ./...")+hugeAsst), "")
+	f = Failure{Source: "eval", Status: "failed", Measured: tr.Available, Trace: tr}
+	if !tr.Truncated || containsStr(classifySignals(&f), SigNoTest) {
+		t.Fatalf("dòng assistant quá dài phải đặt Truncated và tắt no_test (Truncated=%v)", tr.Truncated)
+	}
+	// Dòng quá dài không nhận ra loại sự kiện: coi như có thể chứa lệnh.
+	if tr = ParseTrace([]byte(strings.Repeat("z", 5000)+"\n"), ""); !tr.Truncated {
+		t.Fatal("dòng quá dài không nhận ra loại phải đặt Truncated")
 	}
 
 	// Log vượt trần tổng: vết thiếu thì không được suy ra no_test.
@@ -341,6 +359,7 @@ func TestCheckLessonTable(t *testing.T) {
 		{"domain:** khớp toàn repo bị loại", lessonInput{Cand: lessonCand("domain:**"), Evidence: []Failure{core1, core3}}, []string{LessonScope}},
 		{"domain:*.go khớp toàn repo bị loại", lessonInput{Cand: lessonCand("domain:*.go"), Evidence: []Failure{core1, core3}}, []string{LessonScope, LessonSpecific}},
 		{"domain rộng hơn vùng của nhóm bị loại", lessonInput{Cand: lessonCand("domain:internal/**"), Evidence: []Failure{core1, core3}}, []string{LessonScope}},
+		{"glob cắt giữa tên thư mục khớp thư mục anh em bị loại", lessonInput{Cand: lessonCand("domain:internal/core*/**"), Evidence: []Failure{core1, core3}}, []string{LessonScope}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

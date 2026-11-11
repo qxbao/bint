@@ -400,7 +400,7 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 			Summary: fmt.Sprintf("%s và %s cùng loại %s, phạm vi chồng nhau, tiêu đề gần trùng", a.ID, b.ID, a.Type)}, 0)
 	}
 	// Theo lượt thất bại (E1): tập validation và lượt thật có nhãn failure → bài học chung/riêng.
-	fails, err := LoadFailures(ctx, in.DB, in.Cases, h, in.Runtime, in.Now.Add(-in.Window))
+	fails, err := LoadFailures(ctx, in.DB, in.Cases, h, in.Runtime, in.Now.Add(-in.Window), LessonIDs(in.Items))
 	if err != nil {
 		return res, err
 	}

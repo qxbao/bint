@@ -160,7 +160,7 @@ func CheckLesson(in lessonInput) LessonVerdict {
 // *.go) bị từ chối: nó lách yêu cầu "≥ 2 vùng" của bài học chung và giới hạn top-k. Tiền tố cố
 // định phải bằng hoặc nằm dưới một vùng của bằng chứng (không rộng hơn vùng).
 func globOutsideAreas(glob string, areas []string) string {
-	prefix := scopeArea([]string{glob})
+	prefix := globDirPrefix(glob)
 	if prefix == "." || prefix == "" {
 		return "khớp toàn repo; phải nằm trong vùng của nhóm thất bại"
 	}
@@ -170,6 +170,28 @@ func globOutsideAreas(glob string, areas []string) string {
 		}
 	}
 	return fmt.Sprintf("rộng hơn hoặc ngoài vùng của nhóm thất bại (%s)", strings.Join(areas, ", "))
+}
+
+// globDirPrefix trả về tiền tố thư mục cố định của glob, cắt ở ranh giới thư mục: ký tự đại diện
+// đứng giữa một tên (vd internal/evolve*/**) khớp cả thư mục anh em (internal/evolve2, …), nên
+// tiền tố lùi về thư mục cha (internal). Glob không có ký tự đại diện giữ nguyên.
+func globDirPrefix(glob string) string {
+	p := glob
+	if i := strings.IndexAny(p, "*?["); i >= 0 {
+		p = p[:i]
+		if !strings.HasSuffix(p, "/") {
+			if j := strings.LastIndex(p, "/"); j >= 0 {
+				p = p[:j+1]
+			} else {
+				p = ""
+			}
+		}
+	}
+	p = strings.TrimSuffix(p, "/")
+	if p == "" {
+		return "."
+	}
+	return p
 }
 
 // solutionTerms gộp định danh dạng mã của phần thêm mới với MỌI định danh mới (kể cả tên một

@@ -41,11 +41,12 @@ var errNotBatchOrRun = errors.New("không tìm thấy đợt đánh giá hoặc 
 
 // DigestRef dựng bản tóm tắt thất bại cho một đợt đánh giá (ref là ID đợt, tiền tố, hoặc
 // "latest") hoặc một lượt chạy thật. minUnits/minNew là ngưỡng nhóm (evolution.trigger).
-func DigestRef(ctx context.Context, db *sql.DB, cases []*eval.Case, ref, runtime string, minUnits, minNew int) (DigestReport, error) {
+// lessons: tập ID bài học từ thất bại (LessonIDs), không tính vào dấu hiệu ignored_ctx.
+func DigestRef(ctx context.Context, db *sql.DB, cases []*eval.Case, ref, runtime string, minUnits, minNew int, lessons map[string]bool) (DigestReport, error) {
 	rep := DigestReport{Ref: ref}
 	if b, err := eval.GetBatch(ctx, db, ref); err == nil {
 		rep.Ref, rep.Kind = b.BatchID, "batch"
-		fails, err := LoadFailures(ctx, db, cases, nil, runtime, time.Time{})
+		fails, err := LoadFailures(ctx, db, cases, nil, runtime, time.Time{}, lessons)
 		if err != nil {
 			return rep, err
 		}
@@ -78,14 +79,14 @@ func DigestRef(ctx context.Context, db *sql.DB, cases []*eval.Case, ref, runtime
 		return rep, errNotBatchOrRun
 	}
 	rep.Ref, rep.Kind = r.ID, "run"
-	rep.Digests = []Digest{BuildDigest(RunFailure(r, runtime))}
+	rep.Digests = []Digest{BuildDigest(RunFailure(r, runtime, lessons))}
 	return rep, nil
 }
 
 // RunFailure dựng đơn vị thất bại từ một lượt thật (phạm vi và mục tiêu đọc từ phiếu nếu có
 // runtime). Dùng cho `bint experience digest <run>`.
-func RunFailure(r *Run, runtime string) Failure {
-	return runFailure(r, task.NewStore(runtime), runtime != "")
+func RunFailure(r *Run, runtime string, lessons map[string]bool) Failure {
+	return runFailure(r, task.NewStore(runtime), runtime != "", lessons)
 }
 
 // nonValidationFailures đếm lượt thất bại của đợt không thuộc tập validation (bị bỏ qua).

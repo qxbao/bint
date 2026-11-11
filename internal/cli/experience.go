@@ -48,9 +48,14 @@ func newExperienceDigestCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			items, _, err := e.k.Items()
+			if err != nil {
+				return err
+			}
 			tr := e.k.Config.Evolution.Trigger
 			minUnits, minNew := max(tr.MinSimilarRuns, 1), max(tr.MinNewEvidence, 1)
-			rep, err := evolve.DigestRef(cmd.Context(), e.st.DB, cases, args[0], e.k.Paths.Runtime, minUnits, minNew)
+			rep, err := evolve.DigestRef(cmd.Context(), e.st.DB, cases, args[0], e.k.Paths.Runtime, minUnits, minNew,
+				evolve.LessonIDs(items))
 			if err != nil {
 				return err
 			}
