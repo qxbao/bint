@@ -674,3 +674,56 @@ func TestBDoCostIsNullWhenAStepDoesNotReportCost(t *testing.T) {
 		t.Fatal("không thấy workflow.finished của b-do")
 	}
 }
+
+// Thực tế (C2, Codex thật): sau khi được duyệt và chạy lại b-feat, agent làm xong phần còn
+// thiếu nhưng không ghi lại tiêu chí 2 vì hiểu rộng "không gọi bint task status/approve/verify";
+// tiêu chí giữ bằng chứng cũ "chưa tạo" và task kẹt blocked. Prompt b-feat chạy lại phải nêu
+// tiêu chí còn unmet cùng bằng chứng cũ và nhắc ghi lại bằng `bint task criteria`.
+func TestFeatPromptListsUnmetCriteriaOnRerun(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	calls := 0
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepFeat {
+			calls++
+			h.write("app.txt", "v2\n")
+			h.write("done.txt", "ok\n")
+			if calls == 1 {
+				if _, err := e.CheckCriterion(id, 1, true, "app.txt đã đổi"); err != nil {
+					return err
+				}
+				_, err := e.CheckCriterion(id, 2, false, "tệp mới chưa tạo: cần duyệt")
+				return err
+			}
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	r := h.runner()
+	res, err := r.Run(ctx, RunOptions{Workflow: StepDo, Request: "Đổi app.txt và tạo tệp mới", Plan: ptr(false),
+		Edit: TicketEdit{Criteria: []string{"app.txt đã đổi", "tệp mới tồn tại"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != task.StatusBlocked {
+		t.Fatalf("tiêu chí unmet phải chặn: %+v", res)
+	}
+	first := h.prompts[StepFeat]
+	if strings.Contains(first, "Tiêu chí chưa đạt") {
+		t.Fatalf("lượt đầu chưa có trạng thái tiêu chí:\n%s", first)
+	}
+	if _, err := r.Tasks.Update(res.TaskID, time.Now(), func(tk *task.Task) error { tk.State.ResumeFrom = task.StatusInProgress; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true}); err != nil {
+		t.Fatal(err)
+	}
+	p := h.prompts[StepFeat]
+	for _, want := range []string{"Tiêu chí chưa đạt", "2. tệp mới tồn tại", "tệp mới chưa tạo: cần duyệt", "bint task criteria"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("prompt b-feat chạy lại thiếu %q:\n%s", want, p)
+		}
+	}
+	if strings.Contains(p, "1. app.txt đã đổi") {
+		t.Fatalf("không liệt kê tiêu chí đã đạt:\n%s", p)
+	}
+}

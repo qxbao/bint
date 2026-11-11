@@ -807,6 +807,19 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 	}
 	switch step {
 	case StepFeat:
+		// Chạy lại sau khi bị chặn: tiêu chí còn unmet mang bằng chứng cũ; agent phải ghi lại.
+		var unmet []string
+		for i, c := range t.Ticket.Verify.Criteria {
+			if st := t.State.CriterionStatus(i + 1); st != nil && !st.Met {
+				unmet = append(unmet, fmt.Sprintf("%d. %s — bằng chứng cũ: %s", i+1, c, truncate(strings.TrimSpace(st.Evidence), 300)))
+			}
+		}
+		if len(unmet) > 0 {
+			fmt.Fprintf(&b, "\nTiêu chí chưa đạt từ lượt trước (bằng chứng cũ có thể đã lỗi thời):\n- %s\n"+
+				"Xử lý phần còn thiếu (đừng làm lại phần đã xong), rồi ghi lại MỌI tiêu chí trên bằng "+
+				"`bint task criteria <id> <số> met|unmet --evidence \"…\"`. Lệnh này không nằm trong các lệnh bị cấm ở trên; "+
+				"không ghi lại thì tác vụ không hoàn tất được.\n", strings.Join(unmet, "\n- "))
+		}
 		if rev, err := t.LoadReview(); err == nil {
 			if last := rev.Last(); last != nil && len(last.Blocking()) > 0 && t.State.Status == task.StatusInProgress {
 				fmt.Fprintf(&b, "\nPhát hiện review vòng %d cần xử lý:\n", last.Round)
