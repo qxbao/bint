@@ -38,8 +38,11 @@ type InitOptions struct {
 	Version string
 	// NoSkills: không xuất bản skill gốc.
 	NoSkills bool
-	Confirm  func(question string) bool
-	Now      func() time.Time
+	// Update: nâng .bint/config.yml đã có lên mẫu hiện tại (thêm khoá còn thiếu kèm
+	// chú thích, giữ nguyên mọi giá trị và chú thích sẵn có; bản cũ được sao lưu).
+	Update  bool
+	Confirm func(question string) bool
+	Now     func() time.Time
 }
 
 // StepStatus là trạng thái một bước khởi tạo.
@@ -191,6 +194,17 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		rep.add("thư mục trạng thái", StepOK, "%s (schema v%d)", paths.Root, v)
 	} else {
 		rep.add("thư mục trạng thái", StepCreated, "%s (schema v%d)", paths.Root, v)
+	}
+	if cfgExists {
+		update := opts.Update
+		if update && cfgRoot != root {
+			// Không sửa tệp của worktree khác từ đây.
+			rep.add(".bint/config.yml", StepSkipped, "--update: cấu hình nằm ở worktree chính %s — chạy `bint init --update` ở đó", cfgRoot)
+			update = false
+		}
+		if cfg, err = upgradeConfig(rep, update, cfgRoot, cfgPath, paths.Backups, cfg, now); err != nil {
+			return nil, err
+		}
 	}
 	manifest, err := fsafe.LoadManifest(paths.Manifest)
 	if err != nil {
@@ -431,6 +445,59 @@ func hasImportLine(content, imp string) bool {
 		}
 	}
 	return false
+}
+
+// upgradeConfig so cấu hình đã có với mẫu hiện tại. update = false: chỉ báo khoá còn
+// thiếu (không ghi gì); update = true: sao lưu rồi ghi bản đã nâng và nạp lại cấu hình.
+func upgradeConfig(rep *InitReport, update bool, cfgRoot, cfgPath, backups string, cfg config.Config, now time.Time) (config.Config, error) {
+	const name = ".bint/config.yml"
+	old, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return cfg, err
+	}
+	up, err := config.Upgrade(old)
+	if err != nil {
+		return cfg, fmt.Errorf("nâng %s: %w", cfgPath, err)
+	}
+	if !up.Changed() {
+		if update {
+			rep.add(name, StepOK, "đã theo mẫu hiện tại, không có khoá nào cần thêm")
+		}
+		return cfg, nil
+	}
+	if !update {
+		rep.add(name, StepSkipped, "theo mẫu cũ, thiếu: %s — chạy `bint init --update` để thêm (giữ nguyên giá trị đang có)",
+			orDash(config.SummarizeAdded(up.Added)))
+		rep.NextSteps = append(rep.NextSteps, "Nâng cấu hình lên mẫu mới (model theo role…): bint init --update")
+		return cfg, nil
+	}
+	bak, err := fsafe.Backup(cfgPath, backups, name, now)
+	if err != nil {
+		return cfg, err
+	}
+	if err := fsafe.WriteAtomic(cfgPath, up.Content, 0o644); err != nil {
+		return cfg, err
+	}
+	detail := "thêm: " + orDash(config.SummarizeAdded(up.Added))
+	if up.Fixed > 0 {
+		detail += fmt.Sprintf("; sửa %d dòng chú thích hỏng", up.Fixed)
+	}
+	rep.add(name, StepUpdated, "%s (bản cũ: %s)", detail, bak)
+	for _, n := range up.Notes {
+		rep.add(name, StepSkipped, "%s", n)
+	}
+	cfg, _, err = config.Load(cfgRoot, true)
+	if err != nil {
+		return cfg, fmt.Errorf("nạp lại cấu hình sau khi nâng: %w", err)
+	}
+	return cfg, nil
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }
 
 // writeNew tạo tệp mới, thất bại nếu tệp đã tồn tại (không ghi đè).

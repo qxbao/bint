@@ -41,6 +41,7 @@ func newInitCmd(stdio IO) *cobra.Command {
 		noSkills  bool
 		mcp       bool
 		noMCP     bool
+		update    bool
 	)
 	c := &cobra.Command{
 		Use:   "init",
@@ -48,6 +49,12 @@ func newInitCmd(stdio IO) *cobra.Command {
 		Long: `Khởi tạo Bint: tạo .bint/config.yml (không bao giờ ghi đè), thư mục trạng thái
 cục bộ ngoài repository (dùng chung cho mọi worktree) cùng SQLite, cài hook ghi
 nhận lượt chạy nếu được đồng ý, và thêm khối bint vào .gitignore.
+
+Repository đã init bằng bản Bint cũ: ` + "`bint init --update`" + ` thêm vào .bint/config.yml các khoá
+mới của mẫu hiện tại (ví dụ harnesses.<h>.models: model theo role) kèm chú thích. Chỉ
+chèn dòng: giá trị, chú thích và định dạng sẵn có giữ nguyên; bản cũ được sao lưu vào
+thư mục trạng thái. Harness đã đặt tay model chung thì khối models được để trống để
+giữ hành vi cũ.
 
 Không gọi mô hình, không cài phần mềm, không chạy lệnh của dự án.`,
 		Args: cobra.NoArgs,
@@ -68,7 +75,7 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 			}
 			opts := app.InitOptions{
 				Dir: dir, Harnesses: harnesses, HooksScope: sc, AgentsMD: agentsMD, Force: force,
-				BintPath: bintPath(), Version: Version, NoSkills: noSkills,
+				BintPath: bintPath(), Version: Version, NoSkills: noSkills, Update: update,
 			}
 			if mcp {
 				opts.MCP = ptr(true)
@@ -122,6 +129,7 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 	f.BoolVar(&noSkills, "no-skills", false, "không xuất bản skill gốc cho harness (.claude/skills, .agents/skills)")
 	f.BoolVar(&mcp, "mcp", false, "đăng ký MCP server của Bint (Context Engine) cho harness hỗ trợ: .mcp.json (Claude Code), .codex/config.toml (Codex)")
 	f.BoolVar(&noMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi cấu hình harness")
+	f.BoolVar(&update, "update", false, "nâng .bint/config.yml đã có lên mẫu hiện tại: thêm khoá còn thiếu, giữ nguyên giá trị (có sao lưu)")
 	return c
 }
 
