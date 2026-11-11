@@ -84,7 +84,20 @@ type ClaudeAgent struct {
 	Bare       bool     // --bare: không nạp CLAUDE.md/bộ nhớ cấp người dùng (cần ANTHROPIC_API_KEY)
 }
 
-func (a *ClaudeAgent) Name() string      { return "claude" }
+// ModelNamer là agent cho biết model được yêu cầu cho lượt chạy ("" = mặc định của harness).
+type ModelNamer interface {
+	RequestedModel() string
+}
+
+func (a *ClaudeAgent) Name() string { return "claude" }
+
+// RequestedModel: Model ghi đè, không có thì cfg.Model.
+func (a *ClaudeAgent) RequestedModel() string {
+	if a.Model == "" && a.Cfg.Model != nil {
+		return *a.Cfg.Model
+	}
+	return a.Model
+}
 func (a *ClaudeAgent) ReportsCost() bool { return true }
 func (a *ClaudeAgent) ReadOnlyMode() string {
 	return "--disallowedTools Edit,Write,… + Bint kiểm tra cây làm việc"

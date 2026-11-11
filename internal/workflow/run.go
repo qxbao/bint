@@ -68,6 +68,8 @@ type RunOptions struct {
 type StepResult struct {
 	Step     string   `json:"step"`
 	RunID    string   `json:"run_id"`
+	Harness  string   `json:"harness,omitempty"`
+	Model    string   `json:"model,omitempty"`
 	Status   string   `json:"status"` // completed | failed | interrupted
 	CostUSD  *float64 `json:"cost_usd"`
 	Duration string   `json:"duration"`
@@ -516,17 +518,25 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		defer lock.Release()
 	}
 
+	reqModel := ""
+	if mn, ok := agent.(eval.ModelNamer); ok {
+		reqModel = mn.RequestedModel()
+	}
+	who := agent.Name()
+	if reqModel != "" {
+		who += " · " + reqModel
+	}
 	child := ulid.New()
 	stepID := "st_" + child
 	rs.ran[step]++
 	r.emitRun(rs.runID, spool.StepStarted, map[string]any{"step_id": stepID, "name": step, "status": "running"})
-	r.emitRun(child, spool.WorkflowStarted, map[string]any{"workflow": step, "parent_run_id": rs.runID, "harness": agent.Name(),
+	r.emitRun(child, spool.WorkflowStarted, map[string]any{"workflow": step, "parent_run_id": rs.runID, "harness": agent.Name(), "model": reqModel,
 		"bint_version": r.Version, "git_head": gitrepo.HeadCommit(ctx, r.Root), "git_branch": gitrepo.Branch(ctx, r.Root),
 		"task_id": rs.t.State.ID})
 	r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LinkRun(child); return nil })
 
 	prompt := r.prompt(ctx, rs, step, child)
-	r.logf("▶ %s (lượt %s)…", step, child)
+	r.logf("▶ %s [%s] (lượt %s)…", step, who, child)
 	env := []string{EnvRunID + "=" + child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
 		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
@@ -547,7 +557,11 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		}
 	}
 
-	sr := StepResult{Step: step, RunID: child, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error}
+	model := res.Model
+	if model == "" {
+		model = reqModel
+	}
+	sr := StepResult{Step: step, RunID: child, Harness: agent.Name(), Model: model, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error}
 	if res.CostUSD != nil {
 		rs.spent += *res.CostUSD
 		rs.costKnown = true

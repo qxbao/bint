@@ -100,7 +100,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 	f := c.Flags()
 	f.BoolVar(&rf.noReview, "no-review", false, "bỏ bước b-review (b-do)")
 	f.StringVar(&rf.agentCommand, "agent-command", "", "lệnh tác nhân tuỳ chỉnh cho mọi bước (đề bài qua stdin và $BINT_EVAL_PROMPT_FILE)")
-	f.StringVar(&rf.model, "model", "", "mô hình (ghi đè workflow.agent.model / harnesses.<h>.model)")
+	f.StringVar(&rf.model, "model", "", "mô hình cho mọi bước (ghi đè harnesses.<h>.models.<role>, workflow.agent.model, harnesses.<h>.model)")
 	f.StringVar(&rf.harness, "harness", "", "harness cho mọi bước của lượt này (claude | codex | antigravity; phải có trong harnesses.enabled)")
 	f.StringArrayVar(&rf.roles, "role", nil, "harness cho một role, dạng role=harness (planner|implementer|reviewer hoặc b-req|b-feat|b-review); lặp lại được")
 	f.BoolVar(&rf.asJSON, "json", false, "in kết quả dạng JSON")
@@ -197,13 +197,20 @@ func printRunResult(w io.Writer, res *workflow.Result) {
 	fmt.Fprintln(w)
 	if len(res.Steps) > 0 {
 		tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-		fmt.Fprintln(tw, "  BƯỚC\tLƯỢT\tKẾT QUẢ\tTHỜI GIAN\tCHI PHÍ")
+		fmt.Fprintln(tw, "  BƯỚC\tAGENT\tLƯỢT\tKẾT QUẢ\tTHỜI GIAN\tCHI PHÍ")
 		for _, s := range res.Steps {
 			cost := "-"
 			if s.CostUSD != nil {
 				cost = fmt.Sprintf("%.4f", *s.CostUSD)
 			}
-			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n", s.Step, s.RunID, s.Status, s.Duration, cost)
+			who := s.Harness
+			if who == "" {
+				who = "-"
+			}
+			if s.Model != "" {
+				who += "/" + s.Model
+			}
+			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", s.Step, who, s.RunID, s.Status, s.Duration, cost)
 		}
 		tw.Flush()
 	}

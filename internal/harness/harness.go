@@ -360,6 +360,16 @@ func ForStep(cfg config.Config, sel Selection, step string) (string, string, err
 	return h, src, nil
 }
 
+// RoleModel chọn model cho role chạy trên harness h: cli (--model) nếu có, rồi
+// harnesses.<h>.models.<role>; "" = để adapter dùng model chung của harness
+// (workflow.agent.model / harnesses.<h>.model) hoặc mặc định của harness.
+func RoleModel(cfg config.Config, h, role, cli string) string {
+	if cli != "" {
+		return cli
+	}
+	return cfg.Harnesses.Models(h).For(role)
+}
+
 // NewAgent tạo agent thực thi cho harness name. Lỗi rõ ràng khi adapter không thực
 // thi được hoặc chương trình không có trên máy (mục 17: hành vi khi adapter không khả dụng).
 func NewAgent(name string, o AgentOptions) (eval.Agent, error) {

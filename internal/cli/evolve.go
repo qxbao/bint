@@ -248,13 +248,18 @@ func fmtOptF(v *float64, f string) string {
 	return fmt.Sprintf(f, *v)
 }
 
-// evolverAgent dựng agent evolver: roles.evolver, chỉ được đọc.
+// evolverAgent dựng agent evolver: harness theo roles.evolver, model theo
+// harnesses.<h>.models.evolver (--model ghi đè), chỉ được đọc.
 func evolverAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
 	if command != "" {
 		return &eval.CommandAgent{Command: command}, nil
 	}
 	name := k.Config.Roles.Evolver
-	if name == "claude" {
+	if name == "" {
+		name = k.Config.Harnesses.Default
+	}
+	model = harness.RoleModel(k.Config, name, "evolver", model)
+	if name == "claude" || name == "" {
 		cfg := k.Config.Eval.Agent
 		cfg.AllowedTools = []string{"Read", "Grep", "Glob"}
 		cfg.PermissionMode = "dontAsk"
