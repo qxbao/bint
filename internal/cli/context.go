@@ -92,7 +92,7 @@ tương ứng; với --paths, mục đã trả về trong phiên đó không đ�
 				}
 				return writeJSON(stdio.Out, map[string]any{"pack": p, "text": p.Render()})
 			}
-			if len(p.Entries) == 0 {
+			if len(p.Entries) == 0 && len(p.Lessons) == 0 {
 				fmt.Fprintln(stdio.Out, "Không có tri thức liên quan.")
 			} else {
 				fmt.Fprint(stdio.Out, p.Render())

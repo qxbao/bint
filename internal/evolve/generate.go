@@ -36,6 +36,12 @@ type ProposeInput struct {
 	BudgetUSD float64
 	Timeout   time.Duration
 	Now       time.Time
+	// Reflector rút bài học từ thất bại (cơ hội failure_lesson, kế hoạch E2); nil = bỏ qua.
+	Reflector eval.Agent
+	// Cases và RepoDir: tác vụ đánh giá (nguồn của bài học) và repository để kiểm rò rỉ
+	// (RepoDir rỗng = gốc tri thức).
+	Cases   []*eval.Case
+	RepoDir string
 }
 
 // ProposeOutcome là kết quả cho một cơ hội.
@@ -85,11 +91,13 @@ func Propose(ctx context.Context, in ProposeInput) (ProposeReport, error) {
 			chosen = append(chosen, o)
 		}
 	}
-	needAgent := false
+	needAgent, needLesson := false, false
 	for _, o := range chosen {
-		needAgent = needAgent || o.Generator == GenAgent
+		needAgent = needAgent || (o.Generator == GenAgent && o.Kind != KindFailureLesson)
+		needLesson = needLesson || (o.Kind == KindFailureLesson && o.Ready)
 	}
-	if needAgent && in.Agent != nil && in.Agent.ReportsCost() && in.BudgetUSD <= 0 {
+	if (needAgent && in.Agent != nil && in.Agent.ReportsCost() && in.BudgetUSD <= 0) ||
+		(needLesson && in.Reflector != nil && in.Reflector.ReportsCost() && in.BudgetUSD <= 0) {
 		return rep, ErrNoBudget
 	}
 	items, _, err := in.K.Items()
@@ -97,6 +105,15 @@ func Propose(ctx context.Context, in ProposeInput) (ProposeReport, error) {
 		return rep, err
 	}
 	for _, o := range chosen {
+		if o.Kind == KindFailureLesson && o.Ready {
+			// Một cơ hội bài học có thể cho nhiều đề xuất (mỗi ứng viên qua kiểm tra một đề xuất).
+			outs, err := proposeLessons(ctx, in, o, items, &rep)
+			if err != nil {
+				return rep, err
+			}
+			rep.Outcomes = append(rep.Outcomes, outs...)
+			continue
+		}
 		out := ProposeOutcome{Opportunity: o.ID}
 		switch {
 		case !o.Ready:
@@ -328,6 +345,14 @@ func DraftItem(d *Draft, id string, base *knowledge.Item, src knowledge.Source, 
 				e.Fingerprint = fp
 			}
 		}
+	}
+	// Bài học từ thất bại: nguồn gốc do Bint đặt (hợp với bản đang có khi là bản sửa gộp).
+	if d.Lesson != nil {
+		if it.Origin.Provenance == "" {
+			it.Origin.Provenance = d.Lesson.Provenance
+		}
+		it.Origin.Runs = union(it.Origin.Runs, d.Lesson.Runs)
+		it.Origin.EvalCases = union(it.Origin.EvalCases, d.Lesson.EvalCases)
 	}
 	// Đầu vào bên thứ ba được gắn cờ tự động (mục 15.5): mục không bao giờ được chèn
 	// như quy tắc bắt buộc cho tới khi người duyệt.

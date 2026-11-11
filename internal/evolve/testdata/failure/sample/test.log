@@ -1,0 +1,5 @@
+=== RUN   TestRetry
+--- FAIL: TestRetry (0.00s)
+    x_test.go:12: want 2, got 1
+FAIL
+FAIL	demo/internal/core	0.013s

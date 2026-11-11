@@ -136,6 +136,36 @@ Trần: $30.
 
 ---
 
+### Trạng thái thực hiện (mã E1–E6, chưa đo)
+
+Mã của E1–E5 và kiểm thử không tốn token của E6 đã xong; phần đo (đợt validation, reflector thật,
+`evolve cycle` thật) **chưa chạy**, chờ đo chung với Kế hoạch H.
+
+- **E1:** `bint experience digest <đợt|lượt>` (`internal/evolve/failure*.go`). Lượt eval ghi vết công cụ
+  (stream-json trong `agent.log`) và `files.txt` trước khi áp tệp kiểm thử ẩn (`internal/eval`). Log cũ
+  không có vết được ghi là "không đo được". Cơ hội `failure_lesson` khi nhóm có ≥ `evolution.trigger.min_similar_runs`
+  tác vụ phân biệt.
+- **E2:** vai trò `roles.reflector` và `harnesses.<h>.models.reflector` (mặc định opus với Claude), không công cụ,
+  chạy trong thư mục rỗng; khuôn `scope/trigger/mistake/instead/evidence`; tối đa hai ứng viên (chung, riêng).
+- **E3:** `CheckLesson` (`internal/evolve/lesson_check.go`): rò rỉ, tổng quát, riêng, trùng, hình thức, nguồn gốc.
+  Định danh dạng mã của phần thêm mới lời giải chặn bài học (`eval.SolutionIdentifiers`); không kiểm được rò rỉ thì loại.
+- **E4:** mỗi ứng viên qua kiểm tra thành đề xuất L1 `create lesson` (hoặc `update` gộp khi trùng, không định lượng),
+  đi qua `bint evolve propose` và `bint evolve cycle`. `SelectCases` không chấm lại trên tác vụ nguồn
+  (`ProposeInput.EvalCases`) và ghi lý do khi delivery là `minimal`.
+- **E5:** `bint experience show` (chung trước, riêng theo vùng, số lần chèn và đạt/trượt). Gói ngữ cảnh có
+  `Pack.Lessons` (`internal/ctxengine/lessons.go`): top-k chung (`context.lessons.global_k`, mặc định 3),
+  bài học riêng khi khớp, ngân sách riêng `context.lessons.max_tokens` (mặc định 600). Hook không gate theo tri thức
+  rỗng nữa: chèn bài học kể cả khi không có mục tri thức nào.
+- **E6 (không tốn token):** digest từ log mẫu (`internal/evolve/testdata/failure`), gom nhóm, chặn rò rỉ,
+  và E2E với agent giả (`lesson_e2e_test.go`): đầu vào reflector không chứa chuỗi đánh dấu của tập test,
+  không có lượt tập test, làm việc trong thư mục rỗng.
+
+Giới hạn đã biết:
+- Phiên thật chỉ ghi lệnh kiểm thử (`test.completed`), nên dấu hiệu "không chạy test" và "lặp lệnh" không đo được
+  với lượt thật; chỉ lượt eval có vết đầy đủ.
+- Reflector nhận tối đa 8 bản tóm tắt đầu của nhóm (theo ID).
+- Chất lượng bài học do reflector thật viết và hiệu ứng lên tỷ lệ đạt **chưa được kiểm chứng**.
+
 ## Kế hoạch H — Sửa được quy trình, tách chung/riêng
 
 ### H1. Đưa thành phần quy trình thành tệp, có phiên bản (không tốn token)

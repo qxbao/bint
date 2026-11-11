@@ -28,6 +28,9 @@ type EvalConfig struct {
 	// IncludeCandidates: tập tri thức gồm mục chưa duyệt (ảnh chụp bootstrap); chèn
 	// theo đường dẫn cũng trả chúng (nhãn tham khảo) để cùng tập với nhánh minimal.
 	IncludeCandidates bool `json:"include_candidates,omitempty"`
+	// LessonGlobalK và LessonMaxTokens: phần bài học từ thất bại (xem Engine).
+	LessonGlobalK   int `json:"lesson_global_k,omitempty"`
+	LessonMaxTokens int `json:"lesson_max_tokens,omitempty"`
 }
 
 // LoadEvalConfig đọc tệp cấu hình.
@@ -60,7 +63,8 @@ func (c EvalConfig) Engine(ctx context.Context) (*Engine, func(), error) {
 		return nil, nil, err
 	}
 	e := &Engine{Items: items, Src: &knowledge.WorktreeSource{Root: c.Root}, DB: s.DB, MaxTokens: c.MaxTokens,
-		PathMaxItems: c.PathMaxItems, ExcludeEvalCase: c.ExcludeEvalCase, PathIncludeCandidates: c.IncludeCandidates}
+		PathMaxItems: c.PathMaxItems, ExcludeEvalCase: c.ExcludeEvalCase, PathIncludeCandidates: c.IncludeCandidates,
+		LessonGlobalK: c.LessonGlobalK, LessonMaxTokens: c.LessonMaxTokens}
 	return e, func() { s.Close() }, nil
 }
 

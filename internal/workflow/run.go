@@ -1011,7 +1011,7 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 	}
 	b.WriteString("</bint-task>\n")
 	if r.Context != nil {
-		if pack, err := r.Context(ctx, t.Ticket.Goal+"\n"+t.Ticket.Request, t.Ticket.Scope.Allow); err == nil && len(pack.Entries) > 0 {
+		if pack, err := r.Context(ctx, t.Ticket.Goal+"\n"+t.Ticket.Request, t.Ticket.Scope.Allow); err == nil && (len(pack.Entries) > 0 || len(pack.Lessons) > 0) {
 			b.WriteString("\n" + pack.Render() + "\n")
 			ev := ContextEventFor(child, r.Root, "workflow:"+step, pack, r.now())
 			spool.Write(r.Spool, ev)

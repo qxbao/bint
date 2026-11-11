@@ -40,6 +40,10 @@ type AgentRequest struct {
 	// HasSkills: thư mục làm việc có tập skill cấp dự án (.claude/skills). Khi đó harness
 	// Claude được cấp công cụ Skill và đầu ra được phân tích để biết skill nào được gọi.
 	HasSkills bool
+	// Trace: ghi vết công cụ của lượt (stream-json kèm --verbose) vào LogPath, để bản tóm
+	// tắt thất bại (bint experience digest) đọc được chuỗi lệnh và tệp đã đọc/sửa. Log
+	// kiểu cũ (một đối tượng JSON) vẫn được đọc chi phí như trước; chỉ thiếu vết.
+	Trace bool
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
@@ -137,14 +141,15 @@ func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 	args := []string{"-p", "--output-format", "json", "--no-session-persistence", "--strict-mcp-config",
 		"--permission-mode", a.Cfg.PermissionMode}
 	tools := append([]string{}, a.Cfg.AllowedTools...)
-	if req.HasSkills {
-		// Cần tool_use để biết skill có được gọi không: stream-json (kèm --verbose) vẫn kết
-		// thúc bằng dòng type=result cùng trường với json nên phần đọc chi phí không đổi.
+	if req.HasSkills || req.Trace {
+		// Cần tool_use để biết skill có được gọi không (và để bản tóm tắt thất bại đọc được
+		// vết): stream-json (kèm --verbose) vẫn kết thúc bằng dòng type=result cùng trường với
+		// json nên phần đọc chi phí không đổi.
 		args[2] = "stream-json"
 		args = append(args, "--verbose")
-		if !slices.Contains(tools, "Skill") {
-			tools = append(tools, "Skill")
-		}
+	}
+	if req.HasSkills && !slices.Contains(tools, "Skill") {
+		tools = append(tools, "Skill")
 	}
 	if req.MCPConfig != "" {
 		args = append(args, "--mcp-config", req.MCPConfig)

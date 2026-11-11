@@ -114,7 +114,7 @@ func knowledgeFor(ctx context.Context, env Env, mode string, c *Case, leakIn *Le
 	notFromCase := func(items []*knowledge.Item) []*knowledge.Item {
 		var out []*knowledge.Item
 		for _, it := range items {
-			if it.Origin.EvalCase != c.ID {
+			if !it.Origin.FromEvalCase(c.ID) {
 				out = append(out, it)
 			}
 		}
@@ -198,7 +198,9 @@ func EconomyFilter(ctx context.Context, repoDir string, c *Case, items []*knowle
 	var out []*knowledge.Item
 next:
 	for _, it := range items {
-		if !it.Active() || len(it.Evidence) == 0 {
+		if !it.Active() || (len(it.Evidence) == 0 && !it.LessonFromRuns()) {
+			// Bài học từ thất bại không có tệp làm bằng chứng (bằng chứng là các lượt): vẫn
+			// đi tiếp tới kiểm tra nguồn gốc như mọi mục khác.
 			continue
 		}
 		// Nguồn gốc: mục phải chứng minh được tạo tại/trước commit gốc. Không chứng
@@ -229,6 +231,11 @@ next:
 // tức điều mục nói đã đúng và nhìn thấy được trong mã lúc tác vụ bắt đầu. Không xét
 // nguồn gốc/thời điểm tạo mục (EconomyFilter xét thêm phần đó).
 func EvidenceHoldsAt(ctx context.Context, repoDir string, c *Case, it *knowledge.Item) bool {
+	// Bài học từ thất bại: không có tệp để đối chiếu, nên không có gì có thể lệch khỏi mã
+	// tại commit gốc. Rò rỉ nội dung vẫn được CheckLeak chặn ở nơi gọi.
+	if it.LessonFromRuns() {
+		return true
+	}
 	if len(it.Evidence) == 0 {
 		return false
 	}

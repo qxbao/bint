@@ -57,7 +57,8 @@ func OpenContext(ctx context.Context, dir string) (*ContextWS, error) {
 		c.Store, c.Memory = s, true
 	}
 	cfg := k.Config.Context
-	c.Engine = &ctxengine.Engine{Items: items, Src: k.Source(), DB: c.Store.DB, MaxTokens: cfg.MaxTokens, PathMaxItems: cfg.PathMaxItems}
+	c.Engine = &ctxengine.Engine{Items: items, Src: k.Source(), DB: c.Store.DB, MaxTokens: cfg.MaxTokens, PathMaxItems: cfg.PathMaxItems,
+		LessonGlobalK: cfg.Lessons.GlobalK, LessonMaxTokens: cfg.Lessons.MaxTokens}
 	return c, nil
 }
 

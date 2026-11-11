@@ -1,0 +1,181 @@
+package evolve
+
+import (
+	"fmt"
+	"path"
+	"regexp"
+	"strings"
+
+	"bint/internal/eval"
+	"bint/internal/knowledge"
+)
+
+// Mã vi phạm của ứng viên bài học (kiểm tra xác định E3). Không gọi mô hình.
+const (
+	LessonLeak     = "leak"     // chứa định danh/mã của lời giải của tác vụ làm bằng chứng
+	LessonGeneral  = "general"  // bài học chung: bằng chứng chưa đủ ≥ 2 vùng mã
+	LessonSpecific = "specific" // bài học riêng: chưa đủ ≥ 2 lượt thất bại trong vùng
+	LessonForm     = "form"     // thiếu trigger/mistake/instead, hoặc quá lượng từ
+	LessonOrigin   = "origin"   // nguồn gốc: không có lượt, hoặc lượt không thuộc validation
+	LessonScope    = "scope"    // phạm vi không phải global hoặc domain:<glob> hợp lệ
+)
+
+// lessonMaxWords là tổng số từ tối đa của trigger + mistake + instead (~80 từ).
+const lessonMaxWords = 80
+
+// lessonDupJaccard: ngưỡng trùng theo tình huống (cùng ngưỡng với trùng tri thức).
+const lessonDupJaccard = 0.6
+
+// LessonFinding là một vi phạm của ứng viên bài học.
+type LessonFinding struct {
+	Code   string `json:"code"`
+	Detail string `json:"detail"`
+}
+
+// lessonInput là ứng viên cùng bối cảnh để kiểm tra xác định.
+type lessonInput struct {
+	Cand lessonCandidate
+	// Evidence: lượt thất bại làm bằng chứng (đã chọn trong nhóm).
+	Evidence []Failure
+	// Leaks: đầu vào kiểm rò rỉ của các tác vụ đánh giá làm bằng chứng (diff lời giải).
+	Leaks []eval.LeakInput
+	// Existing: tri thức hiện có (tìm mục bài học trùng).
+	Existing []*knowledge.Item
+}
+
+// LessonVerdict là kết quả kiểm tra: Findings rỗng = đạt. Duplicate khác rỗng = trùng với
+// mục bài học sẵn có, nên đề xuất gộp vào mục đó thay vì tạo mới (E3.3).
+type LessonVerdict struct {
+	Findings  []LessonFinding `json:"findings,omitempty"`
+	Duplicate string          `json:"duplicate,omitempty"`
+}
+
+// OK cho biết ứng viên không vi phạm điều nào.
+func (v LessonVerdict) OK() bool { return len(v.Findings) == 0 }
+
+// CheckLesson kiểm tra xác định một ứng viên bài học theo E3: rò rỉ, tổng quát/riêng,
+// trùng, hình thức, nguồn gốc. Rò rỉ được kiểm trước và fail đóng: không kiểm được thì
+// nơi gọi phải loại ứng viên, không bỏ qua.
+func CheckLesson(in lessonInput) LessonVerdict {
+	var v LessonVerdict
+	add := func(code, format string, a ...any) {
+		v.Findings = append(v.Findings, LessonFinding{Code: code, Detail: fmt.Sprintf(format, a...)})
+	}
+	c := in.Cand
+	trigger := strings.TrimSpace(c.Trigger)
+	mistake := strings.TrimSpace(c.Mistake)
+	instead := strings.TrimSpace(c.Instead)
+
+	// Hình thức: đủ ba trường và không quá lượng từ.
+	if trigger == "" || mistake == "" || instead == "" {
+		add(LessonForm, "thiếu trigger, mistake hoặc instead")
+	}
+	if words := len(strings.Fields(trigger + " " + mistake + " " + instead)); words > lessonMaxWords {
+		add(LessonForm, "%d từ, quá %d", words, lessonMaxWords)
+	}
+
+	// Phạm vi: global, hoặc domain:<glob> với glob hợp lệ.
+	global, glob, ok := parseLessonScope(c.Scope)
+	switch {
+	case !ok:
+		add(LessonScope, "scope %q phải là global hoặc domain:<glob>", c.Scope)
+	case !global:
+		if err := knowledge.ValidRelPath(strings.TrimSuffix(glob, "/")); err != nil {
+			add(LessonScope, "domain %q: %v", glob, err)
+		} else if _, err := path.Match(glob, ""); err != nil {
+			add(LessonScope, "domain %q không phải mẫu glob hợp lệ", glob)
+		}
+	}
+
+	// Nguồn gốc: có lượt làm bằng chứng, và mọi lượt eval thuộc tập validation (tập test
+	// không bao giờ là đầu vào của reflector).
+	if len(in.Evidence) == 0 {
+		add(LessonOrigin, "không có lượt bằng chứng")
+	}
+	for _, f := range in.Evidence {
+		if f.Source == "eval" && f.Split != eval.SplitValidation {
+			add(LessonOrigin, "lượt %s thuộc tập %q, không phải validation", f.ID, f.Split)
+		}
+	}
+
+	// Tổng quát (chung: ≥ 2 vùng mã) hoặc riêng (≥ 2 lượt thất bại trong đúng vùng).
+	switch {
+	case global:
+		if n := len(areasOf(in.Evidence)); n < 2 {
+			add(LessonGeneral, "bằng chứng từ %d vùng mã (cần ≥ 2 để là bài học chung)", n)
+		}
+	case ok:
+		if n := len(lessonAreaFailures(in.Evidence, glob)); n < 2 {
+			add(LessonSpecific, "%d lượt thất bại trong phạm vi %s (cần ≥ 2 để là bài học riêng)", n, glob)
+		}
+	}
+
+	// Rò rỉ: nội dung không được chứa định danh/mã của lời giải (cùng cơ chế CheckLeak).
+	text := trigger + "\n" + mistake + "\n" + instead
+	for _, leak := range in.Leaks {
+		if r := eval.CheckLeak(text, leak); r.Status == "fail" {
+			detail := "định danh của lời giải"
+			if len(r.Findings) > 0 {
+				detail = r.Findings[0].Detail
+			}
+			add(LessonLeak, "nội dung chứa mã của lời giải (%s)", detail)
+			break
+		}
+		// Định danh dạng mã của phần thêm mới lời giải không được xuất hiện trong bài học
+		// (CheckLeak chỉ cảnh báo định danh mới; với bài học thì đó là đáp án).
+		if id, ok := identInText(text, eval.SolutionIdentifiers(leak)); ok {
+			add(LessonLeak, "nhắc tới định danh của lời giải %q", id)
+			break
+		}
+	}
+
+	// Trùng: chỉ xét khi chưa có vi phạm. Trùng → gộp vào mục đã có.
+	if v.OK() {
+		scope := knowledge.Scope{}
+		if ok && !global {
+			scope.Paths = []string{glob}
+		}
+		for _, it := range in.Existing {
+			if it.Type != knowledge.TypeLesson || !it.Active() || !scopesOverlap(scope, it.Scope) {
+				continue
+			}
+			if jaccard(tokens(trigger), tokens(it.Title)) >= lessonDupJaccard {
+				v.Duplicate = it.ID
+				break
+			}
+		}
+	}
+	return v
+}
+
+// identInText trả về định danh đầu tiên xuất hiện như một từ trong text.
+func identInText(text string, ids []string) (string, bool) {
+	for _, id := range ids {
+		if regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(id) + `($|[^A-Za-z0-9_])`).MatchString(text) {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+// parseLessonScope đọc scope của ứng viên: "global" hoặc "domain:<glob>".
+func parseLessonScope(s string) (global bool, glob string, ok bool) {
+	s = strings.TrimSpace(s)
+	if s == "global" {
+		return true, "", true
+	}
+	if g, found := strings.CutPrefix(s, "domain:"); found {
+		g = strings.TrimSpace(g)
+		return false, g, g != ""
+	}
+	return false, "", false
+}
+
+// describeFindings ghép các vi phạm thành một dòng (cho thông báo và danh sách bị loại).
+func describeFindings(fs []LessonFinding) string {
+	var parts []string
+	for _, f := range fs {
+		parts = append(parts, f.Code+": "+f.Detail)
+	}
+	return strings.Join(parts, "; ")
+}

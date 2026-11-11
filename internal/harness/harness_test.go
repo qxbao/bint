@@ -338,6 +338,7 @@ func TestRoleModel(t *testing.T) {
 		{"claude", "implementer", "", "haiku"},
 		{"claude", "reviewer", "", "opus"},
 		{"claude", "evolver", "", "opus"},
+		{"claude", "reflector", "", "opus"},
 		{"codex", "implementer", "", "gpt-6-luna"},
 		{"antigravity", "planner", "", "gemini-4-argon-high"},
 		{"claude", "implementer", "sonnet", "sonnet"},

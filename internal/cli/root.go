@@ -118,7 +118,7 @@ func NewRoot(stdio IO) *cobra.Command {
 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newSkillCmd(stdio))
 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
 	add("eval", newEvalCmd(stdio))
-	add("evolve", newEvolveCmd(stdio))
+	add("evolve", newEvolveCmd(stdio), newExperienceCmd(stdio))
 	add("planned", plannedCommands()...)
 	root.AddCommand(newHookCmd(stdio))
 	return root

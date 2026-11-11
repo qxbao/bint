@@ -48,6 +48,17 @@ type Draft struct {
 	Evidence []string        `json:"evidence"` // path[:a-b][#symbol][@commit]
 	// Inputs: tệp agent đã đọc khi soạn (nguồn gốc, mục 15.5).
 	Inputs []string `json:"inputs,omitempty"`
+	// Lesson: siêu dữ liệu bài học từ thất bại (kế hoạch E). Do Bint đặt sau khi kiểm tra
+	// (reflector.go), không đến từ JSON của agent.
+	Lesson *LessonMeta `json:"lesson,omitempty"`
+}
+
+// LessonMeta là nguồn gốc của bài học rút từ lượt thất bại: provenance, các lượt làm bằng
+// chứng và các tác vụ đánh giá nguồn (không được dùng khi chấm lại chính chúng).
+type LessonMeta struct {
+	Provenance string   `json:"provenance"`
+	Runs       []string `json:"runs"`
+	EvalCases  []string `json:"eval_cases,omitempty"`
 }
 
 // Change là một thay đổi trong đề xuất.
@@ -88,12 +99,16 @@ type Plan struct {
 
 // Proposal là một đề xuất tiến hoá (mục 10.4).
 type Proposal struct {
-	Schema          int           `json:"schema"`
-	ID              string        `json:"proposal_id"`
-	Level           string        `json:"level"`
-	TargetType      string        `json:"target_type"`
-	Action          string        `json:"action"`
-	TargetIDs       []string      `json:"target_ids"`
+	Schema     int      `json:"schema"`
+	ID         string   `json:"proposal_id"`
+	Level      string   `json:"level"`
+	TargetType string   `json:"target_type"`
+	Action     string   `json:"action"`
+	TargetIDs  []string `json:"target_ids"`
+	// EvalCases: tác vụ đánh giá là nguồn của đề xuất (bài học từ thất bại), gồm mọi tác vụ có
+	// bản tóm tắt trong prompt của reflector chứ không chỉ các lượt làm bằng chứng; SelectCases
+	// không chấm lại đề xuất trên các tác vụ này (mục 12.3).
+	EvalCases       []string      `json:"eval_cases,omitempty"`
 	Base            []BaseVersion `json:"base"`
 	Opportunity     string        `json:"opportunity"`
 	Reason          string        `json:"reason"`
@@ -445,6 +460,16 @@ func LabelDrift(p *Proposal, h *History) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// IsLesson cho biết đề xuất có thay đổi là bài học từ thất bại (có siêu dữ liệu Lesson).
+func (p *Proposal) IsLesson() bool {
+	for _, c := range p.Changes {
+		if c.Draft != nil && c.Draft.Lesson != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func nullF(p *float64) any {

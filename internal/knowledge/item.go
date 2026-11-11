@@ -128,6 +128,32 @@ type Origin struct {
 	// EvalCase: mục (thường là lesson) rút ra từ tác vụ đánh giá này; không bao giờ
 	// được dùng khi chấm lại chính tác vụ đó (mục 12.3).
 	EvalCase string `yaml:"eval_case,omitempty" json:"eval_case,omitempty"`
+	// EvalCases: mọi tác vụ đánh giá mà mục rút ra từ đó (bài học gom nhiều tác vụ). Dùng
+	// FromEvalCase để kiểm tra; EvalCase giữ cho mục cũ chỉ có một tác vụ.
+	EvalCases []string `yaml:"eval_cases,omitempty" json:"eval_cases,omitempty"`
+	// Provenance: cách mục được sinh ra khi không có bằng chứng tệp (hiện chỉ
+	// ProvenanceFailureLesson: bài học rút từ các lượt thất bại, bằng chứng là Runs).
+	Provenance string `yaml:"provenance,omitempty" json:"provenance,omitempty"`
+	// Runs: lượt chạy làm bằng chứng cho mục có Provenance (các lượt thất bại trong nhóm).
+	Runs []string `yaml:"runs,omitempty" json:"runs,omitempty"`
+}
+
+// ProvenanceFailureLesson là nguồn của bài học rút từ lượt thất bại (kế hoạch E).
+const ProvenanceFailureLesson = "failure_lesson"
+
+// FromEvalCase cho biết mục rút ra từ tác vụ đánh giá id (một trong EvalCase/EvalCases).
+// Mục như vậy không bao giờ được dùng khi chấm lại chính tác vụ đó (mục 12.3).
+func (o Origin) FromEvalCase(id string) bool {
+	if id == "" {
+		return false
+	}
+	return o.EvalCase == id || slices.Contains(o.EvalCases, id)
+}
+
+// LessonFromRuns cho biết mục là bài học sinh từ lượt thất bại: không cần bằng chứng tệp,
+// bằng chứng là danh sách lượt (Runs) của chính nó.
+func (it *Item) LessonFromRuns() bool {
+	return it.Type == TypeLesson && it.Origin.Provenance == ProvenanceFailureLesson && len(it.Origin.Runs) > 0
 }
 
 // LineRange trả về vùng dòng [from, to] của bằng chứng; ok=false nếu không có.
@@ -257,7 +283,14 @@ func (it *Item) Validate() []string {
 			add("evidence[%d]: %v", i, err)
 		}
 	}
-	if it.Origin.Kind == OriginAgent && len(it.Evidence) == 0 {
+	if it.Origin.Provenance != "" && it.Origin.Provenance != ProvenanceFailureLesson {
+		add("origin.provenance: %q không hợp lệ (%s)", it.Origin.Provenance, ProvenanceFailureLesson)
+	}
+	if it.Origin.Provenance != "" && !it.LessonFromRuns() {
+		add("origin.provenance: chỉ dùng cho mục lesson có origin.runs")
+	}
+	// Bài học từ thất bại không có bằng chứng tệp: bằng chứng là các lượt (origin.runs).
+	if it.Origin.Kind == OriginAgent && len(it.Evidence) == 0 && !it.LessonFromRuns() {
 		add("evidence: mục do agent tạo phải có ít nhất một bằng chứng")
 	}
 	if it.Status == StatusVerified && it.Type == TypeRule && it.ReviewedBy == "" && it.Origin.Kind != OriginHuman {

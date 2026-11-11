@@ -59,8 +59,8 @@ func Render(p InitParams) string {
 	writeModels(&b, p, "antigravity")
 	w("\n")
 	w("roles:                      # harness chạy mỗi role; model lấy từ harnesses.<harness>.models.<role>\n")
-	w("  planner: %s     # b-req\n  implementer: %s # b-feat\n  reviewer: %s    # b-review\n  evolver: %s     # bint evolve propose\n\n",
-		pad(h, 11), pad(h, 11), pad(h, 11), pad(h, 11))
+	w("  planner: %s     # b-req\n  implementer: %s # b-feat\n  reviewer: %s    # b-review\n  evolver: %s     # bint evolve propose\n  reflector: %s   # bint evolve propose (bài học từ thất bại)\n\n",
+		pad(h, 11), pad(h, 11), pad(h, 11), pad(h, 11), pad(h, 11))
 	w(`context:
   max_tokens: 6000
   interfaces:
@@ -76,6 +76,9 @@ func Render(p InitParams) string {
     fingerprint: symbol     # symbol | hunk | file
   path_max_items: 5         # số mục tối đa chèn cho một tệp (hook theo đường dẫn)
   path_hook_timeout_ms: 1500   # hook quá hạn thì bỏ qua, không chặn agent
+  lessons:                  # bài học từ thất bại (bint experience show)
+    global_k: 3             # số bài học chung luôn chèn mỗi lượt (0 = không chèn)
+    max_tokens: 600         # ngân sách token của phần bài học, tách khỏi tri thức (0 = tắt)
 
 knowledge:
   require_human_approval_for: [rule]   # luôn chứa rule: chỉ người mới duyệt được quy tắc bắt buộc

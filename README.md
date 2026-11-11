@@ -331,6 +331,13 @@ trong phiên. Nhãn: **quy tắc bắt buộc** chỉ khi `rule` đã duyệt, k
 chứng còn khớp; mục chưa duyệt hoặc bằng chứng đã đổi thành **tham khảo** kèm cảnh báo. Mọi đầu ra
 nằm trong khung `<bint-context>` "dữ liệu tham khảo", kèm `[k:<id>]` và nguồn gốc (mục 15.5).
 
+**Bài học từ thất bại** (kế hoạch E, `bint experience`) nằm trong phần riêng của gói ngữ cảnh, với ngân
+sách token riêng `context.lessons.max_tokens` (mặc định 600; 0 = tắt), không chiếm chỗ của tri thức. Theo
+đề bài: luôn chèn tối đa `context.lessons.global_k` (mặc định 3) bài học **chung**, xếp theo số từ khoá
+trùng với đề bài; bài học **riêng** chỉ khi phạm vi khớp đường dẫn hoặc miền/thẻ trong đề bài. Theo đường
+dẫn (hook khi sửa tệp): chỉ bài học riêng khớp, không lặp mục đã chèn trong phiên. Hook không mở SQLite:
+xếp hạng chỉ dựa trên từ khoá, nhãn và ID.
+
 **Hook** (Claude Code). `PreToolUse` cho `Read|Edit|Write|MultiEdit|NotebookEdit`: trả
 `hookSpecificOutput.additionalContext`; quá `context.path_hook_timeout_ms` (1500) thì bỏ qua, không
 chặn agent; tắt bằng `context.interfaces.path_hooks: false`. `PostToolUse` cho `mcp__bint__.*` ghi
@@ -385,8 +392,8 @@ ra liên kết bằng **task ID**.
 
 `/b-do` là **orchestrator**: phiên đang chạy chỉ lập phiếu, hỏi người dùng và gọi `bint run`. Mỗi
 bước do một agent riêng chạy, harness theo `roles.<role>`, model theo `harnesses.<harness>.models.<role>`.
-Mặc định của Claude: planner (b-req), reviewer (b-review), evolver dùng `opus`; implementer
-(b-feat) dùng `haiku`. Codex: `gpt-6-astra` / `gpt-6-luna`. Antigravity: `gemini-4-argon-high` /
+Mặc định của Claude: planner (b-req), reviewer (b-review), evolver và reflector (bài học từ thất bại)
+dùng `opus`; implementer (b-feat) dùng `haiku`. Codex: `gpt-6-astra` / `gpt-6-luna`. Antigravity: `gemini-4-argon-high` /
 `gemini-3.8-flash-medium`. Thứ tự ưu tiên của model: `--model` → `harnesses.<h>.models.<role>` →
 model chung (`workflow.agent.model`, `harnesses.<h>.model`) → mặc định của harness. Kết quả từng
 bước ghi `harness/model` đã dùng.
@@ -596,6 +603,9 @@ Không thay đổi nào được tự áp dụng (`evolution.mode: auto` thuộc
 bint evolve scan                         # cơ hội + điều kiện tiên quyết (không gọi mô hình)
 bint evolve propose --no-agent           # đề xuất xác định: loại bỏ, gộp mục trùng
 bint evolve propose op-1a2b3c4d --budget 1   # cơ hội tạo/sửa tri thức: agent evolver soạn
+bint evolve propose op-… --budget 1 --reflector-model <m>   # cơ hội failure_lesson: agent reflector rút bài học
+bint experience digest <đợt|lượt>        # bản tóm tắt thất bại xác định (~1.500 token) và nhóm thất bại
+bint experience show                     # thư viện bài học: chung trước, riêng theo vùng; số lần chèn, đạt/trượt
 bint evolve show ep_…                    # thay đổi, phiên bản gốc, căn cứ, kế hoạch, kết quả
 bint evolve evaluate ep_… --split validation --budget 5 --yes
 bint evolve evaluate ep_… --split test --budget 10 --yes
@@ -637,6 +647,22 @@ làm căn cứ kèm nhãn lúc đó, thay đổi (chỉ nội dung: loại, tiê
 đặt được trạng thái, người duyệt, nguồn gốc hay cờ bên thứ ba), **rủi ro do Bint tính** (sửa/loại bỏ
 rule/warning đã duyệt = cao), **kế hoạch đánh giá chốt trước** (`superiority` trên
 `evolution.evaluation.metric`, hoặc `non_inferiority` với `non_inferiority_margin` cho loại bỏ/gộp).
+**Bài học từ thất bại** (kế hoạch E). Nguồn: lượt thử trượt của đợt đánh giá trên tập **validation** (tập
+test không bao giờ là đầu vào), và lượt thật có nhãn thất bại. `bint experience digest` dựng bản tóm tắt xác
+định (đề bài, chuỗi lệnh gộp lặp, tệp đọc/sửa, test trượt và đuôi log, dấu hiệu: không chạy test, sửa ngoài
+vùng, lặp lệnh, hết lượt/thời gian, bỏ qua tri thức đã chèn), giới hạn ~1.500 token; log cũ không có vết
+được ghi là "không đo được", không đoán. Gom nhóm theo **vùng mã** (bài học riêng) và theo **dấu hiệu** (bài
+học chung); một nhóm sinh cơ hội `failure_lesson` khi có ≥ `evolution.trigger.min_similar_runs` tác vụ phân
+biệt (lượt của cùng một tác vụ chỉ tính một). Agent reflector (`roles.reflector`, không công cụ, chạy trong
+thư mục rỗng) trả khuôn `{"lessons":[{scope, trigger, mistake, instead, evidence}]}`, tối đa một ứng viên
+chung (`global`) và một riêng (`domain:<glob>`). Mỗi ứng viên qua kiểm tra xác định trước khi thành đề xuất
+L1 `create lesson` (candidate, rủi ro thấp): rò rỉ (định danh dạng mã của phần thêm mới lời giải, rà bằng
+`eval.CheckLeak` và `SolutionIdentifiers`; không kiểm được thì loại), tổng quát (chung ≥ 2 vùng mã, riêng ≥ 2
+lượt trong vùng), trùng (gộp vào mục đã có bằng `update`, không đánh giá định lượng), hình thức (đủ trigger,
+mistake, instead; ≤ 80 từ), nguồn gốc (lượt thuộc validation). Tác vụ nguồn của bài học không được chấm lại
+trên chính nó; delivery `minimal` không chở bài học nên đề xuất không đo được. Bài học đi qua
+`bint evolve cycle` như đề xuất khác.
+
 Agent evolver (`roles.evolver`, chỉ Read/Grep/Glob, dữ liệu đóng khung là dữ liệu không đáng tin) trả
 JSON; mỗi ứng viên phải qua kiểm tra xác định được như `bint knowledge add` (bằng chứng tồn tại, không
 trùng, độ dài, cờ bên thứ ba tự gắn) — không qua thì bị loại kèm lý do. Agent sửa cây làm việc → bỏ kết quả.

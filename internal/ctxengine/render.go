@@ -22,6 +22,9 @@ var sections = []struct{ label, title string }{
 	{LabelReference, "Tham khảo — chưa duyệt hoặc có thể lỗi thời (kiểm tra lại trước khi dựa vào)"},
 }
 
+// lessonsTitle là tiêu đề phần bài học từ thất bại trong gói ngữ cảnh.
+const lessonsTitle = "Bài học từ thất bại (kiểm tra lại trước khi dựa vào)"
+
 // MaxBodyLines cắt nội dung mỗi mục khi trình bày.
 const MaxBodyLines = 12
 
@@ -77,7 +80,7 @@ func renderEntry(e Entry) string {
 // Render trình bày gói ngữ cảnh dạng Markdown trong khung dữ liệu tham khảo.
 // Gói rỗng trả về chuỗi rỗng (hook không chèn gì).
 func (p Pack) Render() string {
-	if len(p.Entries) == 0 {
+	if len(p.Entries) == 0 && len(p.Lessons) == 0 {
 		return ""
 	}
 	var b strings.Builder
@@ -100,6 +103,12 @@ func (p Pack) Render() string {
 				fmt.Fprintf(&b, "\n## %s\n\n", s.title)
 				first = false
 			}
+			b.WriteString(renderEntry(e))
+		}
+	}
+	if len(p.Lessons) > 0 {
+		fmt.Fprintf(&b, "\n## %s\n\n", lessonsTitle)
+		for _, e := range p.Lessons {
 			b.WriteString(renderEntry(e))
 		}
 	}

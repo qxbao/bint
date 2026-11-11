@@ -139,7 +139,13 @@ type ProcessInput struct {
 	Scan    ScanResult
 	History *History
 	// Agent soạn nội dung cho yêu cầu cần mô hình; nil = chỉ xử lý yêu cầu xác định.
-	Agent     eval.Agent
+	Agent eval.Agent
+	// Reflector rút bài học cho yêu cầu failure_lesson; nil = các yêu cầu đó chờ.
+	Reflector eval.Agent
+	// Cases và RepoDir: như ProposeInput. Thiếu chúng, yêu cầu failure_lesson bị bỏ TRƯỚC khi gọi
+	// reflector (kiểm rò rỉ không dựng được), nên không tốn tiền.
+	Cases   []*eval.Case
+	RepoDir string
 	BudgetUSD float64
 	Max       int
 	Timeout   time.Duration
@@ -204,9 +210,18 @@ func ProcessRequests(ctx context.Context, in ProcessInput) (ProcessReport, error
 			}
 			continue
 		}
-		needsAgent := o.Generator == GenAgent
+		needsLesson := o.Kind == KindFailureLesson
+		needsAgent := o.Generator == GenAgent && !needsLesson
 		remaining := in.BudgetUSD - rep.SpentUSD
 		switch {
+		case needsLesson && in.Reflector == nil:
+			r.Note = "cần agent reflector: đặt roles.reflector hoặc chạy `bint evolve process` với harness đã cấu hình"
+			rep.Waiting = append(rep.Waiting, r)
+			continue
+		case needsLesson && in.Reflector.ReportsCost() && remaining <= 0:
+			r.Note = "hết ngân sách deferred cho lần này"
+			rep.Waiting = append(rep.Waiting, r)
+			continue
 		case needsAgent && in.Agent == nil:
 			r.Note = "cần agent evolver: đặt evolution.deferred.budget_usd hoặc chạy `bint evolve process --budget <USD>`"
 			rep.Waiting = append(rep.Waiting, r)
@@ -217,14 +232,29 @@ func ProcessRequests(ctx context.Context, in ProcessInput) (ProcessReport, error
 			continue
 		}
 		pr, err := Propose(ctx, ProposeInput{K: in.K, DB: in.DB, Scan: in.Scan, History: in.History, Refs: []string{o.Key}, Max: 1,
-			Agent: map[bool]eval.Agent{true: in.Agent, false: nil}[needsAgent], BudgetUSD: remaining, Timeout: in.Timeout, Now: in.Now})
+			Agent:     map[bool]eval.Agent{true: in.Agent, false: nil}[needsAgent],
+			Reflector: map[bool]eval.Agent{true: in.Reflector, false: nil}[needsLesson],
+			Cases:     in.Cases, RepoDir: in.RepoDir,
+			BudgetUSD: remaining, Timeout: in.Timeout, Now: in.Now})
 		rep.SpentUSD += pr.SpentUSD
 		if err != nil {
 			return rep, err
 		}
+		// Một cơ hội bài học có thể cho nhiều đề xuất (chung + riêng): mọi đề xuất đã lưu đều là
+		// kết quả của yêu cầu, đề xuất đầu là ProposalID, các đề xuất còn lại ghi vào ghi chú.
+		var made []string
+		for _, oc := range pr.Outcomes {
+			if oc.Proposal != nil {
+				made = append(made, oc.Proposal.ID)
+			}
+		}
 		switch {
-		case len(pr.Outcomes) == 1 && pr.Outcomes[0].Proposal != nil:
-			if err := finish(r, ReqDone, "", pr.Outcomes[0].Proposal.ID); err != nil {
+		case len(made) > 0:
+			note := ""
+			if len(made) > 1 {
+				note = "đề xuất thêm: " + strings.Join(made[1:], ", ")
+			}
+			if err := finish(r, ReqDone, note, made[0]); err != nil {
 				return rep, err
 			}
 		default:

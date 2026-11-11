@@ -45,6 +45,11 @@ type Engine struct {
 	// cho truy xuất theo tác vụ; tắt cho chèn theo đường dẫn trừ khi đặt.
 	PathIncludeCandidates bool
 
+	// LessonGlobalK: số bài học chung luôn chèn mỗi lượt truy xuất theo đề bài (0 = không chèn).
+	LessonGlobalK int
+	// LessonMaxTokens: ngân sách token của phần bài học, tách khỏi ngân sách tri thức (0 = tắt).
+	LessonMaxTokens int
+
 	byID map[string]*knowledge.Item
 }
 
@@ -86,13 +91,19 @@ type Pack struct {
 	Tokens    int        `json:"tokens_estimate"`
 	Budget    int        `json:"budget_tokens"`
 	Truncated bool       `json:"truncated"`
+	// Lessons: bài học từ thất bại đã chọn (phần riêng, ngân sách riêng; lessons.go).
+	Lessons      []Entry `json:"lessons,omitempty"`
+	LessonBudget int     `json:"lesson_budget_tokens,omitempty"`
 }
 
 // IDs trả về ID các mục trong gói.
 func (p Pack) IDs() []string {
-	out := make([]string, len(p.Entries))
-	for i, e := range p.Entries {
-		out[i] = e.ID
+	out := make([]string, 0, len(p.Entries)+len(p.Lessons))
+	for _, e := range p.Entries {
+		out = append(out, e.ID)
+	}
+	for _, e := range p.Lessons {
+		out = append(out, e.ID)
 	}
 	return out
 }
@@ -117,7 +128,7 @@ func (e *Engine) eligible(it *knowledge.Item) (bool, string) {
 		return false, "deprecated"
 	case it.Origin.ThirdParty && it.Status != knowledge.StatusVerified:
 		return false, "đầu vào bên thứ ba, chưa duyệt"
-	case e.ExcludeEvalCase != "" && it.Origin.EvalCase == e.ExcludeEvalCase:
+	case e.ExcludeEvalCase != "" && it.Origin.FromEvalCase(e.ExcludeEvalCase):
 		return false, "rút ra từ chính tác vụ đánh giá"
 	}
 	return true, ""
@@ -223,7 +234,7 @@ func (e *Engine) ForPaths(paths []string, exclude map[string]bool) Pack {
 	}
 	var cands []Entry
 	for _, it := range e.Items {
-		if ok, _ := e.eligible(it); !ok || it.Scope.Global() {
+		if ok, _ := e.eligible(it); !ok || it.Scope.Global() || isLesson(it) {
 			continue
 		}
 		if it.Status == knowledge.StatusCandidate && !e.PathIncludeCandidates {
@@ -249,6 +260,8 @@ func (e *Engine) ForPaths(paths []string, exclude map[string]bool) Pack {
 	sortEntries(cands)
 	// Đường dẫn: chỉ rule/warning (kể cả bản tham khảo của chúng) và mục đã xác thực.
 	p.Entries, p.Omitted = e.pack(cands, limit, p.Omitted)
+	p.Lessons, p.Omitted = e.pathLessons(p.Paths, exclude, p.Omitted)
+	p.LessonBudget = e.LessonMaxTokens
 	p.Tokens = estimateTokens(p.Render())
 	return p
 }
@@ -384,6 +397,9 @@ func (e *Engine) ForTask(ctx context.Context, desc string, hintPaths []string) (
 		if it == nil {
 			continue // chỉ mục cũ hơn tệp
 		}
+		if isLesson(it) {
+			continue // bài học đi qua phần riêng (taskLessons)
+		}
 		if ok, why := e.eligible(it); !ok {
 			if why != "deprecated" {
 				p.Omitted = append(p.Omitted, Omission{id, why})
@@ -401,6 +417,8 @@ func (e *Engine) ForTask(ctx context.Context, desc string, hintPaths []string) (
 	}
 	sortEntries(cands)
 	p.Entries, p.Omitted = e.pack(cands, 0, p.Omitted)
+	p.Lessons, p.Omitted = e.taskLessons(terms, p.Paths, p.Omitted)
+	p.LessonBudget = e.LessonMaxTokens
 	p.Tokens = estimateTokens(p.Render())
 	return p, nil
 }

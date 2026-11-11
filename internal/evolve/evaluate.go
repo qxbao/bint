@@ -137,6 +137,18 @@ func SelectCases(ctx context.Context, env eval.Env, mode string, p *Proposal, h 
 	var out []CaseImpact
 	for _, c := range cases {
 		ci := CaseImpact{CaseID: c.ID, Split: c.Split, Case: c}
+		// Tác vụ là nguồn của bài học: không chấm lại đề xuất trên chính nó (mục 12.3).
+		if slices.Contains(p.EvalCases, c.ID) {
+			ci.Reason = "tác vụ là nguồn của bài học: không chấm lại trên chính nó"
+			out = append(out, ci)
+			continue
+		}
+		// Bài học không nằm trong AGENTS.md nên nhánh minimal không chở nó: không đo được.
+		if p.IsLesson() && env.Variant != nil && env.Variant.Delivery == "minimal" {
+			ci.Reason = "bài học không được chở trong AGENTS.md (delivery minimal): không đo được"
+			out = append(out, ci)
+			continue
+		}
 		if h != nil {
 			if why := DerivedFrom(p, h, c); why != "" {
 				ci.Reason = why

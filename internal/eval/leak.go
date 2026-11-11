@@ -195,3 +195,24 @@ func truncate(s string, n int) string {
 	}
 	return string(r[:n]) + "…"
 }
+
+// SolutionIdentifiers trả về định danh dạng mã (codeLike) của phần thêm mới lời giải, theo thứ
+// tự chữ cái. Định danh xuất hiện trong phần kiểm thử (TestIdents) bị bỏ: tên test vốn thấy
+// được trong nhật ký và không phải đáp án. Dùng để chặn bài học nhắc tới đáp án (kế hoạch E3).
+func SolutionIdentifiers(in LeakInput) []string {
+	set := map[string]bool{}
+	for _, ln := range in.AddedLines {
+		idents(ln, set)
+	}
+	for id := range in.NewIdents {
+		set[id] = true
+	}
+	var out []string
+	for id := range set {
+		if codeLike(id) && !in.TestIdents[id] {
+			out = append(out, id)
+		}
+	}
+	sort.Strings(out)
+	return out
+}

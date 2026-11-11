@@ -35,6 +35,9 @@ const (
 	KindUnused = "unused"
 	// KindDuplicate: hai mục cùng loại, phạm vi chồng nhau, tiêu đề gần trùng.
 	KindDuplicate = "duplicate"
+	// KindFailureLesson: một nhóm (vùng mã hoặc dấu hiệu hành vi) có ≥ min tác vụ thất bại
+	// trên tập validation — rút bài học từ thất bại (kế hoạch E, reflector) → create lesson.
+	KindFailureLesson = "failure_lesson"
 )
 
 // Hành động của đề xuất (mục 10.4).
@@ -126,6 +129,8 @@ type ScanResult struct {
 	Groups        []Group       `json:"groups"`
 	Opportunities []Opportunity `json:"opportunities"`
 	Prerequisites Prerequisites `json:"prerequisites"`
+	// failures: đơn vị thất bại đã nạp (dùng để rút bài học khi propose; không ghi JSON).
+	failures []Failure
 }
 
 // ScanInput gom đầu vào của Scan.
@@ -141,6 +146,9 @@ type ScanInput struct {
 	// L2 (nil = không quét skill).
 	Evolved []*skills.Evolved
 	Files   []string
+	// Runtime: thư mục trạng thái runtime (đọc phạm vi và mục tiêu của phiếu cho lượt thật
+	// thất bại); rỗng = không đọc phiếu.
+	Runtime string
 }
 
 // DefaultWindow là cửa sổ lịch sử mặc định khi memory.retention_days không đặt.
@@ -384,6 +392,15 @@ func Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 		add(Opportunity{Key: "duplicate:" + a.ID + "+" + b.ID, Kind: KindDuplicate, Action: ActionMerge, Generator: GenDeterministic,
 			Targets: []string{a.ID, b.ID}, Ready: true, SupportingRuns: []string{},
 			Summary: fmt.Sprintf("%s và %s cùng loại %s, phạm vi chồng nhau, tiêu đề gần trùng", a.ID, b.ID, a.Type)}, 0)
+	}
+	// Theo lượt thất bại (E1): tập validation và lượt thật có nhãn failure → bài học chung/riêng.
+	fails, err := LoadFailures(ctx, in.DB, in.Cases, h, in.Runtime)
+	if err != nil {
+		return res, err
+	}
+	res.failures = fails
+	for _, o := range failureLessonOpps(fails, m, e, used, pending) {
+		add(o, 0)
 	}
 	sort.SliceStable(res.Opportunities, func(i, j int) bool {
 		a, b := res.Opportunities[i], res.Opportunities[j]

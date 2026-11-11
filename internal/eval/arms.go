@@ -316,7 +316,8 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 	}
 	s.ContextLog = filepath.Join(logDir, "context.jsonl")
 	ec := ctxengine.EvalConfig{ItemsDir: itemsDir, Root: dir, Log: s.ContextLog, ExcludeEvalCase: c.ID,
-		MaxTokens: env.Cfg.Context.MaxTokens, PathMaxItems: env.Cfg.Context.PathMaxItems, IncludeCandidates: ks.candidates}
+		MaxTokens: env.Cfg.Context.MaxTokens, PathMaxItems: env.Cfg.Context.PathMaxItems, IncludeCandidates: ks.candidates,
+		LessonGlobalK: env.Cfg.Context.Lessons.GlobalK, LessonMaxTokens: env.Cfg.Context.Lessons.MaxTokens}
 	if cv.MaxTokens > 0 {
 		ec.MaxTokens = cv.MaxTokens
 	}
@@ -389,7 +390,7 @@ func writeJSONFile(p string, v any) error {
 func idealItems(items []*knowledge.Item, c *Case, candidates bool) []*knowledge.Item {
 	var out []*knowledge.Item
 	for _, it := range items {
-		if !it.Active() || it.Scope.Global() || it.Origin.EvalCase == c.ID {
+		if !it.Active() || it.Scope.Global() || it.Origin.FromEvalCase(c.ID) {
 			continue
 		}
 		if it.Status == knowledge.StatusCandidate && !candidates {

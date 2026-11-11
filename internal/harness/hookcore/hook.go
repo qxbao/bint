@@ -213,10 +213,11 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 				return ctxengine.Pack{}, err
 			}
 			e := &ctxengine.Engine{Items: items, Src: &knowledge.WorktreeSource{Root: kroot},
-				MaxTokens: cfg.Context.MaxTokens, PathMaxItems: cfg.Context.PathMaxItems}
+				MaxTokens: cfg.Context.MaxTokens, PathMaxItems: cfg.Context.PathMaxItems,
+				LessonGlobalK: cfg.Context.Lessons.GlobalK, LessonMaxTokens: cfg.Context.Lessons.MaxTokens}
 			return e.ForTask(ctx, hi.Prompt, nil)
 		})
-		if !ok || len(pack.Entries) == 0 {
+		if !ok || len(pack.Entries) == 0 && len(pack.Lessons) == 0 {
 			return Result{Skipped: "không có tri thức khớp đề bài"}, nil
 		}
 		mem.Add(pack.IDs())
@@ -292,10 +293,11 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 				return ctxengine.Pack{}, err
 			}
 			e := &ctxengine.Engine{Items: items, Src: &knowledge.WorktreeSource{Root: kroot},
-				MaxTokens: cfg.Context.MaxTokens, PathMaxItems: cfg.Context.PathMaxItems}
+				MaxTokens: cfg.Context.MaxTokens, PathMaxItems: cfg.Context.PathMaxItems,
+				LessonGlobalK: cfg.Context.Lessons.GlobalK, LessonMaxTokens: cfg.Context.Lessons.MaxTokens}
 			return e.ForPaths(rels, mem.Seen()), nil
 		})
-		if !ok || len(pack.Entries) == 0 {
+		if !ok || len(pack.Entries) == 0 && len(pack.Lessons) == 0 {
 			if ask != "" {
 				return Result{Output: d.PreToolOutput("", ask)}, nil
 			}
@@ -549,10 +551,11 @@ func handleEval(hi Input, d Dialect, cwd, cfgPath string) (Result, error) {
 			return ctxengine.Pack{}, err
 		}
 		e := &ctxengine.Engine{Items: items, Src: &knowledge.WorktreeSource{Root: ec.Root}, MaxTokens: ec.MaxTokens,
-			PathMaxItems: ec.PathMaxItems, ExcludeEvalCase: ec.ExcludeEvalCase, PathIncludeCandidates: ec.IncludeCandidates}
+			PathMaxItems: ec.PathMaxItems, ExcludeEvalCase: ec.ExcludeEvalCase, PathIncludeCandidates: ec.IncludeCandidates,
+			LessonGlobalK: ec.LessonGlobalK, LessonMaxTokens: ec.LessonMaxTokens}
 		return e.ForPaths(rels, mem.Seen()), nil
 	})
-	if !ok || len(pack.Entries) == 0 {
+	if !ok || len(pack.Entries) == 0 && len(pack.Lessons) == 0 {
 		return Result{Skipped: "không có tri thức khớp"}, nil
 	}
 	mem.Add(pack.IDs())
@@ -580,7 +583,7 @@ func handleEvalPrompt(hi Input, d Dialect, cfgPath string) (Result, error) {
 		defer closeFn()
 		return e.ForTask(context.Background(), hi.Prompt, nil)
 	})
-	if !ok || len(pack.Entries) == 0 {
+	if !ok || len(pack.Entries) == 0 && len(pack.Lessons) == 0 {
 		return Result{Skipped: "không có tri thức khớp đề bài"}, nil
 	}
 	mem.Add(pack.IDs())

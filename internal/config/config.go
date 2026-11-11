@@ -76,7 +76,7 @@ type Harnesses struct {
 }
 
 // RoleNames là các role của workflow (thứ tự hiển thị).
-var RoleNames = []string{"planner", "implementer", "reviewer", "evolver"}
+var RoleNames = []string{"planner", "implementer", "reviewer", "evolver", "reflector"}
 
 // RoleModels là model của từng role khi role đó chạy trên một harness. Rỗng = dùng
 // model chung của harness (workflow.agent.model với Claude, harnesses.<h>.model với
@@ -86,6 +86,9 @@ type RoleModels struct {
 	Implementer string `yaml:"implementer"`
 	Reviewer    string `yaml:"reviewer"`
 	Evolver     string `yaml:"evolver"`
+	// Reflector rút bài học từ thất bại (bint evolve propose, mục E2); tách khỏi evolver
+	// vì nó chỉ đọc bản tóm tắt và nên dùng model mạnh nhất.
+	Reflector string `yaml:"reflector"`
 }
 
 // For trả về model của role ("" nếu không đặt hoặc role lạ).
@@ -99,6 +102,8 @@ func (m RoleModels) For(role string) string {
 		return m.Reviewer
 	case "evolver":
 		return m.Evolver
+	case "reflector":
+		return m.Reflector
 	}
 	return ""
 }
@@ -148,6 +153,7 @@ type Roles struct {
 	Implementer string `yaml:"implementer"`
 	Reviewer    string `yaml:"reviewer"`
 	Evolver     string `yaml:"evolver"`
+	Reflector   string `yaml:"reflector"`
 }
 
 type Context struct {
@@ -159,6 +165,17 @@ type Context struct {
 	PathMaxItems int `yaml:"path_max_items"`
 	// PathHookTimeoutMS: hook chèn theo đường dẫn quá hạn thì bỏ qua, không chặn agent.
 	PathHookTimeoutMS int `yaml:"path_hook_timeout_ms"`
+	// Lessons: thư viện bài học từ thất bại (mục E5), có ngân sách token riêng.
+	Lessons Lessons `yaml:"lessons"`
+}
+
+// Lessons cấu hình cách chèn bài học từ thất bại vào ngữ cảnh.
+type Lessons struct {
+	// GlobalK: số bài học chung (scope global) luôn được chèn mỗi lượt; 0 = không chèn.
+	GlobalK int `yaml:"global_k"`
+	// MaxTokens: ngân sách token của toàn bộ phần bài học, tách khỏi ngân sách tri thức;
+	// 0 = tắt phần bài học.
+	MaxTokens int `yaml:"max_tokens"`
 }
 
 type ContextInterface struct {
@@ -373,17 +390,18 @@ type Security struct {
 }
 
 // DefaultRoleModels là model mặc định theo role của từng harness: bước suy luận nặng
-// (lập kế hoạch, review, tiến hoá) dùng model mạnh nhất, bước thực thi dùng model
-// nhanh/rẻ. Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
+// (lập kế hoạch, review, tiến hoá, rút bài học) dùng model mạnh nhất, bước thực thi dùng
+// model nhanh/rẻ. Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
 func DefaultRoleModels(harness string) RoleModels {
 	switch harness {
 	case "claude":
-		return RoleModels{Planner: "opus", Implementer: "haiku", Reviewer: "opus", Evolver: "opus"}
+		return RoleModels{Planner: "opus", Implementer: "haiku", Reviewer: "opus", Evolver: "opus", Reflector: "opus"}
 	case "codex":
-		return RoleModels{Planner: "gpt-6-astra", Implementer: "gpt-6-luna", Reviewer: "gpt-6-astra", Evolver: "gpt-6-astra"}
+		return RoleModels{Planner: "gpt-6-astra", Implementer: "gpt-6-luna", Reviewer: "gpt-6-astra", Evolver: "gpt-6-astra",
+			Reflector: "gpt-6-astra"}
 	case "antigravity":
 		return RoleModels{Planner: "gemini-4-argon-high", Implementer: "gemini-3.8-flash-medium",
-			Reviewer: "gemini-4-argon-high", Evolver: "gemini-4-argon-high"}
+			Reviewer: "gemini-4-argon-high", Evolver: "gemini-4-argon-high", Reflector: "gemini-4-argon-high"}
 	}
 	return RoleModels{}
 }
@@ -401,7 +419,7 @@ func Default() Config {
 			Codex:       HarnessAgent{ExtraArgs: []string{}, Models: DefaultRoleModels("codex")},
 			Antigravity: HarnessAgent{ExtraArgs: []string{}, Models: DefaultRoleModels("antigravity")},
 		},
-		Roles: Roles{Planner: "claude", Implementer: "claude", Reviewer: "claude", Evolver: "claude"},
+		Roles: Roles{Planner: "claude", Implementer: "claude", Reviewer: "claude", Evolver: "claude", Reflector: "claude"},
 		Context: Context{
 			MaxTokens:         6000,
 			Interfaces:        ContextInterface{MCP: true, PathHooks: true, CLI: true},
@@ -409,6 +427,7 @@ func Default() Config {
 			Freshness:         Freshness{VerifyChangedSources: true, Fingerprint: "symbol"},
 			PathMaxItems:      5,
 			PathHookTimeoutMS: 1500,
+			Lessons:           Lessons{GlobalK: 3, MaxTokens: 600},
 		},
 		Knowledge: Knowledge{RequireHumanApprovalFor: []string{"rule"}, AgentsMDMaxItems: 15, StaleDeprecateDays: 30},
 		Memory:    Memory{Enabled: true, Scope: "project", RetentionDays: 90},
@@ -585,7 +604,7 @@ func (c Config) Validate() error {
 	}
 	roles := []struct{ name, v string }{
 		{"planner", c.Roles.Planner}, {"implementer", c.Roles.Implementer},
-		{"reviewer", c.Roles.Reviewer}, {"evolver", c.Roles.Evolver},
+		{"reviewer", c.Roles.Reviewer}, {"evolver", c.Roles.Evolver}, {"reflector", c.Roles.Reflector},
 	}
 	for _, r := range roles {
 		if r.v != "" && !slices.Contains(KnownHarnesses, r.v) {
@@ -608,6 +627,12 @@ func (c Config) Validate() error {
 	}
 	if c.Context.PathHookTimeoutMS < 100 || c.Context.PathHookTimeoutMS > 10000 {
 		add("context.path_hook_timeout_ms: phải trong khoảng 100..10000")
+	}
+	if c.Context.Lessons.GlobalK < 0 || c.Context.Lessons.GlobalK > 10 {
+		add("context.lessons.global_k: phải trong khoảng 0..10")
+	}
+	if c.Context.Lessons.MaxTokens < 0 {
+		add("context.lessons.max_tokens: không được âm")
 	}
 	if c.Knowledge.StaleDeprecateDays < 1 {
 		add("knowledge.stale_deprecate_days: phải >= 1")

@@ -519,7 +519,7 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	// Nhánh có tập skill (.claude/skills do prepareArm đặt vào): cấp công cụ Skill và đo kích hoạt.
 	_, skErr := os.Stat(filepath.Join(work, ".claude", "skills"))
 	ar := opts.Agent.Run(ctx, AgentRequest{
-		Dir: work, HasSkills: skErr == nil, Prompt: AgentPrompt(a.Case.Prompt), Timeout: env.timeout(),
+		Dir: work, HasSkills: skErr == nil, Trace: true, Prompt: AgentPrompt(a.Case.Prompt), Timeout: env.timeout(),
 		LogPath: filepath.Join(logDir, "agent.log"), CaseID: a.Case.ID, Arm: a.Arm,
 		MCPConfig: setup.MCPConfig, Settings: setup.Settings, Env: evalContextEnv(setup),
 	})
@@ -541,6 +541,10 @@ func runAttempt(ctx context.Context, env Env, db *sql.DB, b Batch, opts RunOptio
 	}
 
 	cls := NewClassifier(env.Cfg.Eval.Mine)
+	// Danh sách tệp agent đã sửa, ghi trước khi áp tệp kiểm thử ẩn (bản tóm tắt thất bại dùng).
+	if err := writeChangedFiles(ctx, work, prep, logDir); err != nil {
+		return finish("error", "ghi danh sách tệp đã sửa: "+err.Error())
+	}
 	files, lines, touched, err := changeStats(ctx, work, prep, cls)
 	if err != nil {
 		return finish("error", "đo thay đổi: "+err.Error())

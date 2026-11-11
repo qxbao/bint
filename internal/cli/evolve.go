@@ -107,7 +107,7 @@ func (e *evolveCtx) scan(ctx context.Context, days int, gitScan bool) (evolve.Sc
 		return evolve.ScanResult{}, nil, err
 	}
 	in := evolve.ScanInput{DB: e.st.DB, Cfg: e.k.Config, Items: items, Cases: cases, Now: now, Window: window,
-		Evolved: evolved, Files: e.k.Source().Files()}
+		Evolved: evolved, Files: e.k.Source().Files(), Runtime: e.k.Paths.Runtime}
 	if in.Window == 0 {
 		in.Window = evolve.DefaultWindow
 		if d := e.k.Config.Memory.RetentionDays; d > 0 {
@@ -154,7 +154,8 @@ Cơ hội:
   stale_used        mục stale vẫn được truy xuất / agent nhận định đã sai → update
   stale_expired     mục stale quá knowledge.stale_deprecate_days → deprecate
   unused            truy xuất nhiều, chưa từng được trích dẫn → deprecate (đánh giá loại bỏ quyết định)
-  duplicate         mục trùng (cùng loại, phạm vi chồng, tiêu đề gần trùng) → merge`,
+  duplicate         mục trùng (cùng loại, phạm vi chồng, tiêu đề gần trùng) → merge
+  failure_lesson    nhóm ≥ min_similar_runs tác vụ thất bại (tập validation) cùng vùng/dấu hiệu → create lesson (reflector)`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			e, err := openEvolve(cmd)
@@ -269,15 +270,38 @@ func evolverAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error)
 	return harness.NewAgent(name, harness.AgentOptions{Config: k.Config, ReadOnly: true, Model: model})
 }
 
+// reflectorAgent dựng agent reflector (rút bài học từ thất bại, kế hoạch E2): harness theo
+// roles.reflector, model theo harnesses.<h>.models.reflector (--reflector-model ghi đè). Không
+// có công cụ và chạy trong thư mục rỗng: đầu vào chỉ là bản tóm tắt đã lọc.
+func reflectorAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
+	if command != "" {
+		return &eval.CommandAgent{Command: command}, nil
+	}
+	name := k.Config.Roles.Reflector
+	if name == "" {
+		name = k.Config.Harnesses.Default
+	}
+	model = harness.RoleModel(k.Config, name, "reflector", model)
+	if name == "claude" || name == "" {
+		cfg := k.Config.Eval.Agent
+		cfg.AllowedTools = nil
+		cfg.PermissionMode = "dontAsk"
+		cfg.ExtraArgs = nil
+		return &eval.ClaudeAgent{Cfg: cfg, Model: model}, nil
+	}
+	return harness.NewAgent(name, harness.AgentOptions{Config: k.Config, ReadOnly: true, Model: model})
+}
+
 func newEvolveProposeCmd(stdio IO) *cobra.Command {
 	var (
-		budget       float64
-		max          int
-		days         int
-		agentCommand string
-		model        string
-		noAgent      bool
-		asJSON       bool
+		budget         float64
+		max            int
+		days           int
+		agentCommand   string
+		model          string
+		reflectorModel string
+		noAgent        bool
+		asJSON         bool
 	)
 	c := &cobra.Command{
 		Use:   "propose [op-id|khoá...]",
@@ -304,14 +328,22 @@ xác định được (bằng chứng tồn tại, không trùng, độ dài, c�
 			if err != nil {
 				return err
 			}
-			var agent eval.Agent
+			var agent, reflector eval.Agent
 			if !noAgent {
 				if agent, err = evolverAgent(e.k, model, agentCommand); err != nil {
 					return err
 				}
+				if reflector, err = reflectorAgent(e.k, reflectorModel, agentCommand); err != nil {
+					return err
+				}
+			}
+			cases, err := e.cases.Cases()
+			if err != nil {
+				return err
 			}
 			rep, err := evolve.Propose(cmd.Context(), evolve.ProposeInput{K: e.k, DB: e.st.DB, Scan: scan, History: h, Refs: args,
-				Max: max, Agent: agent, BudgetUSD: budget, Timeout: time.Duration(e.k.Config.Eval.TimeoutMinutes) * time.Minute})
+				Max: max, Agent: agent, Reflector: reflector, Cases: cases, RepoDir: e.ws.Repo.Toplevel, BudgetUSD: budget,
+				Timeout: time.Duration(e.k.Config.Eval.TimeoutMinutes) * time.Minute})
 			if err != nil {
 				return err
 			}
@@ -358,6 +390,7 @@ xác định được (bằng chứng tồn tại, không trùng, độ dài, c�
 	f.IntVar(&days, "days", 0, "cửa sổ lịch sử (ngày)")
 	f.StringVar(&agentCommand, "agent-command", "", "dùng lệnh tuỳ chỉnh làm agent evolver (đề bài qua stdin)")
 	f.StringVar(&model, "model", "", "mô hình cho agent evolver")
+	f.StringVar(&reflectorModel, "reflector-model", "", "mô hình cho agent reflector (rút bài học từ thất bại)")
 	f.BoolVar(&noAgent, "no-agent", false, "chỉ tạo đề xuất xác định (không gọi mô hình)")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -187,6 +188,33 @@ func changeStats(ctx context.Context, dir, prep string, cls Classifier) (files, 
 		}
 	}
 	return
+}
+
+// FilesListName là tệp trong thư mục log của lượt: danh sách tệp agent đã sửa (một tệp một
+// dòng, sắp xếp), không gồm tệp kiểm thử ẩn vì được ghi trước khi áp chúng.
+const FilesListName = "files.txt"
+
+// writeChangedFiles ghi FilesListName vào logDir: các tệp khác với commit chuẩn bị prep.
+func writeChangedFiles(ctx context.Context, dir, prep, logDir string) error {
+	if _, err := git(ctx, dir, "add", "-A"); err != nil {
+		return err
+	}
+	out, err := git(ctx, dir, "diff", "--cached", "--no-renames", "--name-only", "-z", prep)
+	if err != nil {
+		return err
+	}
+	var names []string
+	for _, n := range strings.Split(string(out), "\x00") {
+		if n != "" {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	body := ""
+	if len(names) > 0 {
+		body = strings.Join(names, "\n") + "\n"
+	}
+	return os.WriteFile(filepath.Join(logDir, FilesListName), []byte(body), 0o600)
 }
 
 func atoiSafe(s string) (int, bool) {
