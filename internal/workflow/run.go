@@ -83,6 +83,8 @@ type Result struct {
 	// Questions: câu hỏi chờ người trả lời (tác vụ blocked).
 	Questions []string `json:"questions,omitempty"`
 	Notes     []string `json:"notes,omitempty"`
+	// PlanningIssues: lỗi cấu trúc artifact b-req (hợp đồng v1) khiến tác vụ dừng.
+	PlanningIssues []task.ArtifactIssue `json:"planning_issues,omitempty"`
 }
 
 type runState struct {
@@ -152,14 +154,10 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if !o.Resume && task.Paused(t.State.Status) {
 			return nil, fmt.Errorf("tác vụ %s đang %s (%s): dùng `bint run resume %s`", t.State.ID, t.State.Status, t.State.Reason, t.State.ID)
 		}
-		if o.Plan != nil {
-			t, _ = r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
-				t.State.Classification = &task.Classification{Plan: *o.Plan, Reason: "người dùng chỉ định"}
-				return nil
-			})
+		if t, err = r.applyOverrides(t, o); err != nil {
+			return nil, err
 		}
 		if hasEdit(o.Edit) {
-			var err error
 			if t, _, err = r.SetTicket(t.State.ID, o.Edit); err != nil {
 				return nil, err
 			}
@@ -230,6 +228,35 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 	}
 	return rs.res, nil
+}
+
+// applyOverrides áp --plan/--no-plan lên tác vụ có sẵn và nâng/hạ hợp đồng artifact.
+// Phiên bản hợp đồng chỉ hạ về 0 khi tác vụ còn `created` (chưa có artifact để mất).
+func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) {
+	if o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) {
+		return t, nil
+	}
+	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
+		created := t.State.Status == task.StatusCreated
+		if o.Plan != nil {
+			t.State.Classification = &task.Classification{Plan: *o.Plan, Reason: "người dùng chỉ định"}
+			if created && (o.Workflow == StepDo || o.Workflow == StepReq) {
+				if *o.Plan {
+					ensurePlanningContract(t)
+				} else {
+					t.State.PlanningContractVersion = 0
+				}
+			}
+		}
+		if o.Workflow == StepReq && created {
+			ensurePlanningContract(t)
+		}
+		return nil
+	})
+	if err != nil {
+		return t, err
+	}
+	return nt, nil
 }
 
 func hasEdit(e TicketEdit) bool {
@@ -356,6 +383,9 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	// Chuyển trạng thái trước bước.
 	switch step {
 	case StepFeat:
+		if !r.preflightFeat(rs) {
+			return false
+		}
 		if rs.t.Ticket.Autonomy == task.AutonomyAskAlways {
 			q := fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép b-feat sửa mã trong %s?", rs.t.State.ID, r.Root)
 			if r.Confirm == nil || !r.Confirm(q) {
@@ -531,22 +561,28 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool {
 	switch step {
 	case StepReq:
-		var missing []string
+		missing := 0
 		for _, n := range task.ArtifactNames() {
 			if _, err := os.Stat(rs.t.ArtifactPath(n)); err != nil {
-				missing = append(missing, task.Artifacts[n])
+				missing++
 			}
 		}
-		if len(missing) == len(task.ArtifactNames()) {
+		if missing == len(task.ArtifactNames()) {
 			r.fail(rs, step, "b-req không ghi tài liệu nào (requirement/plan/tasks)")
 			return false
 		}
-		if len(missing) > 0 {
-			rs.res.Notes = append(rs.res.Notes, "b-req thiếu: "+strings.Join(missing, ", "))
+		// Agent đã kết thúc: từ đây tác vụ theo hợp đồng v1 (task cũ chạy lại b-req được nâng ở đây,
+		// không nâng sớm để agent lỗi giữa chừng không biến task cũ thành v1).
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { ensurePlanningContract(t); return nil }); err == nil {
+			rs.t = t
 		}
+		rep := task.LintPlanningTask(rs.t, true)
 		if err := r.transition(rs, task.StatusPlanned, "b-req xong"); err != nil {
 			r.fail(rs, step, err.Error())
 			return false
+		}
+		if rep.Blocking() {
+			return r.stopOnPlanning(rs, rep)
 		}
 		if a := r.Assess(rs.t); len(a.Questions) > 0 && strings.TrimSpace(rs.t.Ticket.Verify.Command) == "" {
 			return r.askVerify(rs, a)
@@ -619,6 +655,38 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		return false
 	}
 	return false
+}
+
+// stopOnPlanning dừng workflow vì artifact b-req lỗi cấu trúc. Tác vụ đã ở `planned`: b-do chuyển
+// `blocked` (resume về planned, không chạy lại b-req); workflow b-req chạy riêng giữ `planned` vì
+// resume của nó sẽ gọi lại agent b-req và ghi đè bản người vừa sửa. Luôn trả false.
+func (r *Runner) stopOnPlanning(rs *runState, rep task.ArtifactReport) bool {
+	rs.res.PlanningIssues = rep.Errors
+	reason := "artifact b-req chưa đạt hợp đồng v1: " + strings.Join(issueLines(rep.Errors), "; ") +
+		" — sửa bằng `bint task write " + rs.t.State.ID + " <requirement|plan|tasks> -`, kiểm bằng `bint task lint " +
+		rs.t.State.ID + "`, rồi `bint run resume " + rs.t.State.ID + "`"
+	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+		r.block(rs, reason)
+	} else {
+		rs.res.Reason = reason
+	}
+	return false
+}
+
+// preflightFeat lint lại artifact trước mỗi lần gọi agent b-feat trên tác vụ v1 đã qua b-req
+// (planned/in_progress, gồm vòng sửa sau review): bắt artifact bị sửa/xóa sau lúc lập kế hoạch.
+// Tác vụ v1 còn `created` gọi thẳng b-feat không bị chặn; tác vụ cũ (v0) không bị chặn.
+func (r *Runner) preflightFeat(rs *runState) bool {
+	t := rs.t
+	if t.State.PlanningContractVersion < task.PlanningContractV1 ||
+		(t.State.Status != task.StatusPlanned && t.State.Status != task.StatusInProgress) {
+		return true
+	}
+	rep := task.LintPlanningTask(t, true)
+	if rep.Blocking() {
+		return r.stopOnPlanning(rs, rep)
+	}
+	return true
 }
 
 func passWord(ok bool) string {

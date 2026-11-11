@@ -123,6 +123,9 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	}
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
+	if o.Workflow == "b-req" || (o.Workflow == "b-do" && cls.Plan) {
+		st.PlanningContractVersion = task.PlanningContractV1
+	}
 	if e.RunID != "" {
 		st.LinkRun(e.RunID)
 	}
@@ -182,6 +185,33 @@ func appendUnique(xs []string, add ...string) []string {
 		}
 	}
 	return xs
+}
+
+// ensurePlanningContract nâng task lên hợp đồng artifact v1 (không bao giờ hạ). Dùng chung
+// cho mọi chỗ Plan chuyển false→true hoặc b-req được chọn chạy.
+func ensurePlanningContract(t *task.Task) {
+	if t.State.PlanningContractVersion < task.PlanningContractV1 {
+		t.State.PlanningContractVersion = task.PlanningContractV1
+	}
+}
+
+// PlanningError: artifact b-req chưa đạt hợp đồng v1.
+type PlanningError struct {
+	TaskID string
+	Report task.ArtifactReport
+}
+
+func (e *PlanningError) Error() string {
+	return "artifact b-req chưa đạt hợp đồng v1:\n  - " + strings.Join(issueLines(e.Report.Errors), "\n  - ") +
+		"\nSửa rồi kiểm lại bằng `bint task lint " + e.TaskID + "`"
+}
+
+func issueLines(is []task.ArtifactIssue) []string {
+	out := make([]string, 0, len(is))
+	for _, i := range is {
+		out = append(out, i.String())
+	}
+	return out
 }
 
 // ErrAgent: thao tác chỉ dành cho người.
@@ -252,6 +282,13 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
 		if !o.Orchestrator && t.OwnedByOther() {
 			return fmt.Errorf("tác vụ đang được `bint run` điều phối (lượt %s): trạng thái do Bint Core chuyển", t.State.Runner.RunID)
+		}
+		// Task v1: chuyển tay sang planned phải qua lint (Runner tự lint ở afterStep/preflight).
+		if to == task.StatusPlanned && !o.Orchestrator && t.State.Status != task.StatusPlanned &&
+			t.State.PlanningContractVersion >= task.PlanningContractV1 {
+			if rep := task.LintPlanningTask(t, true); rep.Blocking() {
+				return &PlanningError{TaskID: t.State.ID, Report: rep}
+			}
 		}
 		if to == task.StatusDone {
 			blockers = task.DoneBlockers(t, task.DoneInput{Worktree: fp, VerifyConfirmed: e.VerifyConfirmed(t)})
