@@ -435,7 +435,20 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 | 3 ✅ | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
 | 4 ✅ | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
 | 5 | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. Tách làm hai phiếu: **5a ✅** (tab Hệ thống: Cấu hình, Harness, Thành phần, Skill + sync, Chỉ mục, MCP, Ngôn ngữ, Doctor; mục 12.7) và **5b** (trình hướng dẫn `init`/Cài đặt repo và 11 cờ `init`, nâng cấu hình `init --update` qua hộp thư, `update` + khởi động lại). | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
-| 6 | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README. | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
+| 6 | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README; thông báo theo phím TUI, đọc đủ thông báo bị cắt, phím thường dùng luôn thấy (xem dưới). | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
+
+Yêu cầu bổ sung cho giai đoạn 6 (chủ dự án, 2026-11-12, khi xem màn Tri thức có mục lỗi bằng chứng):
+
+- **Thông báo nói theo TUI, không theo CLI**: lỗi và gợi ý của tầng dịch vụ hiện nhắc lệnh CLI (ví dụ
+  lỗi duyệt "xem lại (`bint knowledge show …`) rồi…", kiểm tra bằng chứng "`bint knowledge verify --apply`
+  cập nhật vùng"). Trong TUI phải chỉ đúng phím/hành động tương ứng (`v` + ô apply, `e`, `f`…). Có khoảng
+  145 chuỗi chứa `bint <lệnh>` trong `internal/app`, `knowledge`, `task`, `workflow`, `eval`, `evolve` (không
+  phải chuỗi nào cũng hiện lên TUI): rà hết ở mọi màn, không chỉ Tri thức. CLI giữ nguyên chữ hiện tại.
+- **Thông báo bị cắt vẫn đọc được đủ**: thông báo trên thanh trạng thái, ô chi tiết hay hàng danh sách bị
+  rút gọn bằng `…` phải có cách xem bản đầy đủ (mở hộp/khung chi tiết, cuộn, hoặc xuống dòng); không được
+  mất nội dung lỗi.
+- **Phím thường dùng luôn thấy, hoặc dùng được bằng chuột**: chân phím không được đẩy mất phím hay dùng khi
+  cửa sổ hẹp; bấm chuột vào phím ở chân, thẻ và hàng thực hiện đúng hành động.
 
 Giai đoạn 1 đem lại giá trị lớn nhất (thay vòng `knowledge review` gõ phím từng mục) nên có
 thể phát hành riêng trước khi xong các giai đoạn sau.
