@@ -59,6 +59,8 @@ func addEditFlags(c *cobra.Command, e *editFlags, withClear bool) {
 	if withClear {
 		f.BoolVar(&e.clearCriteria, "clear-criteria", false, "xoá tiêu chí cũ trước khi thêm")
 		f.BoolVar(&e.clearScope, "clear-scope", false, "xoá phạm vi cũ trước khi thêm")
+	} else {
+		f.BoolVar(&e.clearScope, "clear-scope", false, "bỏ phạm vi Bint tự đoán từ đường dẫn trong mô tả; chỉ dùng --allow/--deny")
 	}
 }
 
@@ -124,7 +126,12 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		Long: `Lập phiếu tác vụ từ mô tả tự do: mục tiêu, phạm vi (đường dẫn nêu trong mô tả mà có
 thật), lệnh kiểm chứng (eval.test_command đã xác nhận, nếu có), đề xuất có cần b-req
 không, và đánh giá rủi ro. Bint chỉ hỏi lại khi thiếu trường quan trọng cho tác vụ rủi
-ro cao (chạm đường dẫn bảo vệ mà không có cách kiểm chứng).`,
+ro cao (chạm đường dẫn bảo vệ mà không có cách kiểm chứng).
+
+Tệp tài liệu (.md, .txt…) mà mô tả coi là kế hoạch/đặc tả cần làm theo ("thực hiện plan
+docs/x.md") được ghi vào references thay vì scope.allow. Đề xuất b-req chỉ là heuristic:
+orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và sửa phạm vi bằng
+--clear-scope --allow. Agent không bỏ được b-req (--no-plan) khi tác vụ chạm đường dẫn bảo vệ.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if plan && noPlan {
@@ -204,6 +211,9 @@ func printTicketBrief(w io.Writer, env *workflow.Env, t *task.Task, a task.Asses
 		scope += "  deny: " + strings.Join(tk.Scope.Deny, ", ")
 	}
 	fmt.Fprintf(w, "  Phạm vi:   %s\n", scope)
+	if len(tk.References) > 0 {
+		fmt.Fprintf(w, "  Tài liệu:  %s\n", strings.Join(tk.References, ", "))
+	}
 	v := "(chưa có)"
 	if tk.Verify.Command != "" {
 		v = tk.Verify.Command

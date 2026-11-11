@@ -36,6 +36,45 @@ func TestFromRequestAndClassify(t *testing.T) {
 	}
 }
 
+func TestClassifyVietnameseAndPlanWords(t *testing.T) {
+	for req, plan := range map[string]bool{
+		"Thực hiện plan docs/tui-plan.md":                      true,
+		"Triển khai kế hoạch mới":                              true,
+		"implementation of the roadmap":                        true,
+		"đổi tên hàm Foo thành Bar\nở cả hai gói\nvà kiểm thử": false, // smallWords bắt đầu bằng chữ có dấu
+		"Sửa lỗi chính tả\ntrong README\nvà docs":              false, // smallWords kết thúc bằng chữ có dấu
+		"Sửa lỗi nil trong handler":                            false,
+		"planner chạy chậm":                                    false, // "plan" phải là từ trọn vẹn
+	} {
+		if c := Classify(req); c.Plan != plan {
+			t.Errorf("%q: plan=%v (%s), muốn %v", req, c.Plan, c.Reason, plan)
+		}
+	}
+	if c := Classify("Làm tiếp", "docs/p.md"); !c.Plan {
+		t.Fatalf("có tài liệu đầu vào thì cần b-req: %+v", c)
+	}
+}
+
+func TestFromRequestReferences(t *testing.T) {
+	root := testutil.NewRepo(t, map[string]string{"docs/tui-plan.md": "x\n", "docs/guide.md": "x\n", "internal/db/db.go": "package db\n"})
+	tk := FromRequest(root, "Thực hiện plan @docs/tui-plan.md cho internal/db", "")
+	if !slices.Equal(tk.References, []string{"docs/tui-plan.md"}) || !slices.Equal(tk.Scope.Allow, []string{"internal/db/**"}) {
+		t.Fatalf("refs %v scope %v", tk.References, tk.Scope.Allow)
+	}
+	// Sửa chính tài liệu (việc nhỏ hoặc không có từ kế hoạch): tài liệu là phạm vi sửa.
+	for _, req := range []string{"Sửa chính tả trong docs/guide.md", "Cập nhật docs/guide.md mục cài đặt"} {
+		tk = FromRequest(root, req, "")
+		if len(tk.References) != 0 || !slices.Equal(tk.Scope.Allow, []string{"docs/guide.md"}) {
+			t.Fatalf("%q: refs %v scope %v", req, tk.References, tk.Scope.Allow)
+		}
+	}
+	// Tài liệu đầu vào nằm trong đường dẫn bảo vệ không làm tác vụ thành rủi ro cao.
+	tk = FromRequest(root, "Thực hiện plan docs/tui-plan.md", "")
+	if a := Assess(tk, []string{"docs/**"}, false); a.Risk != "low" {
+		t.Fatalf("%+v", a)
+	}
+}
+
 func TestAssess(t *testing.T) {
 	prot := []string{"migrations/**", ".github/workflows/**"}
 	a := Assess(Ticket{Goal: "Thêm cột email", Scope: Scope{Allow: []string{"migrations/**", "internal/db/**"}}}, prot, false)

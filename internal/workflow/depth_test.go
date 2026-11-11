@@ -2,6 +2,8 @@ package workflow
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +41,64 @@ func TestDepthSelectionProtectedPathsPromotesPlan(t *testing.T) {
 	c = tk.State.Classification
 	if c.Plan || c.Depth != "" || c.DepthReason != "" || tk.State.PlanningContractVersion != 0 {
 		t.Fatalf("--no-plan phải được tôn trọng: %+v", c)
+	}
+}
+
+// Orchestrator (agent) được tự quyết b-req, trừ việc bỏ b-req khi chạm đường dẫn bảo vệ.
+func TestAgentNoPlanOnProtectedKeepsPlan(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	r.Human = false
+	req := "rename cột trong migrations/001.sql"
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: req, Workflow: "b-do", Plan: ptr(false)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := tk.State.Classification
+	if !c.Plan || c.Depth != task.DepthDeep || !strings.Contains(c.Reason, "agent không bỏ được b-req") || tk.State.PlanningContractVersion != 1 {
+		t.Fatalf("agent --no-plan trên đường dẫn bảo vệ: %+v v=%d", c, tk.State.PlanningContractVersion)
+	}
+	// Không chạm đường dẫn bảo vệ: quyết định của orchestrator được tôn trọng, ghi rõ ai chỉ định.
+	tk, _, _ = r.NewTask(context.Background(), NewTaskOptions{Request: "Thêm tính năng v2", Workflow: "b-do", Plan: ptr(false)})
+	if c := tk.State.Classification; c.Plan || c.Reason != "orchestrator chỉ định" {
+		t.Fatalf("%+v", c)
+	}
+	// Agent hạ qua `bint run --task … --no-plan` trên tác vụ created cũng bị giữ b-req.
+	h.behave = func(context.Context, string, *Env, string) error { return nil }
+	tk, _ = newTaskWith(t, h, NewTaskOptions{Request: req, Workflow: "b-do", Edit: TicketEdit{VerifyCommand: ptr("true")}})
+	r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(false)})
+	if c := loadTask(t, h, tk.State.ID).State.Classification; !c.Plan {
+		t.Fatalf("run --no-plan của agent: %+v", c)
+	}
+	if countCalls(h, StepReq) != 1 {
+		t.Fatalf("b-req phải chạy: %v", h.calls)
+	}
+}
+
+// Mô tả ngắn trỏ tới một tài liệu kế hoạch: cần b-req, tài liệu không vào phạm vi sửa.
+func TestNewTaskReferencedPlanDoc(t *testing.T) {
+	h := newHarness(t)
+	if err := os.MkdirAll(filepath.Join(h.root, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(h.root, "docs", "tui-plan.md"), []byte("# Kế hoạch\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tk, a := newTaskWith(t, h, NewTaskOptions{Request: "Thực hiện plan @docs/tui-plan.md", Workflow: "b-do"})
+	if c := tk.State.Classification; !c.Plan || !strings.Contains(c.Reason, "docs/tui-plan.md") {
+		t.Fatalf("%+v", c)
+	}
+	if len(tk.Ticket.Scope.Allow) != 0 || len(tk.Ticket.References) != 1 || tk.Ticket.References[0] != "docs/tui-plan.md" {
+		t.Fatalf("scope %v refs %v", tk.Ticket.Scope.Allow, tk.Ticket.References)
+	}
+	if !strings.Contains(strings.Join(a.Notes, "\n"), "tài liệu đầu vào docs/tui-plan.md") {
+		t.Fatalf("notes: %v", a.Notes)
+	}
+	// --clear-scope bỏ phạm vi tự đoán, chỉ giữ --allow.
+	tk, _ = newTaskWith(t, h, NewTaskOptions{Request: "Sửa lỗi trong app.txt", Workflow: "b-do",
+		Edit: TicketEdit{ClearScope: true, Allow: []string{"internal/**"}}})
+	if got := tk.Ticket.Scope.Allow; len(got) != 1 || got[0] != "internal/**" {
+		t.Fatalf("clear-scope: %v", got)
 	}
 }
 

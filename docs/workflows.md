@@ -63,8 +63,14 @@ nhận lệnh cũ hết hiệu lực.
 
 **Classify** xác định được (heuristic, chưa gọi mô hình): mục tiêu = dòng đầu mô tả; `scope.allow` =
 đường dẫn và mẫu glob nêu trong mô tả mà tồn tại; `verify.command` = `eval.test_command` đã xác nhận;
-đề xuất bỏ `b-req` cho việc nhỏ/ngắn gọn (`--plan`/`--no-plan` ghi đè). Khi phạm vi chạm đường dẫn bảo
-vệ (`Assessment.Risk=high`), tự động bật `b-req` trừ khi có `--no-plan`.
+đề xuất bỏ `b-req` cho việc nhỏ/ngắn gọn. Tệp tài liệu (`.md`, `.txt`…) mà mô tả coi là kế hoạch/đặc tả
+cần làm theo ("thực hiện plan docs/x.md") vào `references` thay vì `scope.allow` và kéo theo `b-req`.
+`task new` có `--clear-scope` để bỏ phạm vi tự đoán, chỉ giữ `--allow`/`--deny`.
+
+Heuristic chỉ là gợi ý: trong `/b-do`, orchestrator tự đánh giá yêu cầu (đọc cả tài liệu được nêu) và
+truyền `--plan`/`--no-plan`/`--depth` tường minh. Khi phạm vi chạm đường dẫn bảo vệ
+(`Assessment.Risk=high`), Bint tự bật `b-req`; chỉ **người** bỏ được bằng `--no-plan`, còn `--no-plan`
+từ phiên agent bị bỏ qua và lý do ghi vào `classification.reason`.
 
 **Hợp đồng artifact của `b-req` (v1).** Đầu ra của `b-req` có khuôn kiểm được bằng máy:
 - `requirement.md`: dưới `## Tiêu chí chấp nhận` có các dòng `- [ ] AC-N: …` đánh số liên tục từ 1,
@@ -265,7 +271,8 @@ nhiều agent song song) chưa có.
 
 Giới hạn đã biết của P4–P5:
 
-- Classify bằng heuristic từ khoá; chưa có agent phân loại.
+- Classify của `bint task new` là heuristic từ khoá; phân loại bằng mô hình do orchestrator của `/b-do`
+  đảm nhận (truyền `--plan`/`--no-plan`/`--depth`), `bint run` gọi trực tiếp thì vẫn theo heuristic.
 - Chưa tự động tạo worktree riêng cho từng bước ghi; chưa xuất tài liệu sang `docs/spec/<feature>/`.
 - Ghi đè `--harness`/`--role` chưa lưu vào `state.json` của tác vụ nên cần truyền lại khi `resume`.
 - Hook `deny` của Codex chặn thao tác sửa tệp nhưng chưa tự chuyển tác vụ sang `blocked`.

@@ -287,13 +287,17 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) 
 			cls = *t.State.Classification
 		}
 		if o.Plan != nil {
-			cls.Plan, cls.Reason = *o.Plan, "người dùng chỉ định"
+			cls.Plan, cls.Reason = *o.Plan, r.chooser()+" chỉ định"
+			if a := r.Assess(t); !cls.Plan && !r.Human && created && a.Risk == "high" &&
+				(o.Workflow == StepDo || o.Workflow == StepReq) {
+				cls = protectedPlan(a.Protected, true)
+			}
 		}
 		switch {
 		case explicit:
 			cls.Plan = true
 			if o.Plan == nil {
-				cls.Reason = "người dùng chỉ định độ sâu " + depth
+				cls.Reason = r.chooser() + " chỉ định độ sâu " + depth
 			}
 			cls.Depth, cls.DepthReason = depth, task.DepthReasonUser
 		case o.Plan != nil && created && !cls.Plan:

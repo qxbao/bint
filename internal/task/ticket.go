@@ -43,6 +43,7 @@ func FromRequest(root, request, confirmedTestCommand string) Ticket {
 		t.Request = ""
 	}
 	seen := map[string]bool{}
+	docInput := refDocWords.MatchString(request) && !smallWords.MatchString(request)
 	for _, m := range pathHintRe.FindAllString(request, -1) {
 		p := strings.TrimSuffix(strings.TrimPrefix(strings.TrimRight(m, ".,:;)"), "./"), "/")
 		if p == "" || strings.HasPrefix(p, "../") || seen[p] {
@@ -59,6 +60,10 @@ func FromRequest(root, request, confirmedTestCommand string) Ticket {
 		}
 		if fi.IsDir() {
 			p += "/**"
+		} else if docInput && isDocFile(p) {
+			// "Thực hiện plan docs/x.md": tài liệu là đầu vào, không phải nơi sửa.
+			t.References = append(t.References, p)
+			continue
 		}
 		t.Scope.Allow = append(t.Scope.Allow, p)
 	}
@@ -66,18 +71,38 @@ func FromRequest(root, request, confirmedTestCommand string) Ticket {
 	return t
 }
 
+// isDocFile: tệp tài liệu văn bản (kế hoạch, đặc tả) có thể là đầu vào của tác vụ.
+func isDocFile(p string) bool {
+	switch strings.ToLower(path.Ext(p)) {
+	case ".md", ".markdown", ".txt", ".rst", ".adoc":
+		return true
+	}
+	return false
+}
+
+// wordsRe khớp một trong các cụm từ như một từ trọn vẹn. Không dùng \b vì \b của Go chỉ
+// hiểu ASCII: cụm bắt đầu/kết thúc bằng chữ có dấu ("đổi tên", "chính tả") sẽ không bao giờ khớp.
+func wordsRe(alts string) *regexp.Regexp {
+	return regexp.MustCompile(`(?i)(?:^|[^\p{L}\p{N}_])(?:` + alts + `)(?:$|[^\p{L}\p{N}_])`)
+}
+
 var (
-	planWords  = regexp.MustCompile(`(?i)\b(feature|implement|design|refactor|migrat\w*|api|endpoint|schema|tính năng|thiết kế|tái cấu trúc|kiến trúc|luồng|nghiệp vụ)\b`)
-	smallWords = regexp.MustCompile(`(?i)\b(typo|chính tả|rename|đổi tên|bump|comment|chú thích|format|lint|fix typo)\b`)
+	planWords  = wordsRe(`feature|implement\w*|design|refactor|migrat\w*|api|endpoint|schema|plan|roadmap|tính năng|thiết kế|tái cấu trúc|kiến trúc|luồng|nghiệp vụ|kế hoạch|triển khai|thực hiện`)
+	smallWords = wordsRe(`typo|chính tả|rename|đổi tên|bump|comment|chú thích|format|lint|fix typo`)
+	// refDocWords: mô tả coi tệp tài liệu nêu trong nó là kế hoạch/đặc tả cần làm theo.
+	refDocWords = wordsRe(`plan|roadmap|spec|specification|kế hoạch|đặc tả|làm theo|implement\w*|thực hiện|triển khai`)
 )
 
 // Classify quyết định có cần b-req không (mục 6.4: bỏ qua bước không cần thiết).
-// Heuristic xác định được, chỉ là đề xuất; người dùng ghi đè bằng --plan/--no-plan.
-func Classify(request string) Classification {
+// Heuristic xác định được, chỉ là đề xuất: orchestrator hoặc người ghi đè bằng --plan/--no-plan.
+// refs là tài liệu đầu vào (Ticket.References): mô tả ngắn trỏ tới một kế hoạch vẫn là việc lớn.
+func Classify(request string, refs ...string) Classification {
 	lines, words := requestSize(request)
 	switch {
 	case smallWords.MatchString(request) && words <= 25:
 		return Classification{Plan: false, Reason: "việc nhỏ (chính tả/đổi tên/định dạng): bỏ b-req"}
+	case len(refs) > 0:
+		return Classification{Plan: true, Reason: "làm theo tài liệu " + strings.Join(refs, ", ") + ": cần b-req"}
 	case lines >= 3 || words > 60:
 		return Classification{Plan: true, Reason: "mô tả dài hoặc nhiều ý: cần b-req"}
 	case planWords.MatchString(request):
@@ -190,6 +215,9 @@ func Assess(t Ticket, protected []string, verifyConfirmed bool) Assessment {
 		}
 		for _, raw := range pathHintRe.FindAllString(text, -1) {
 			m := strings.TrimSuffix(strings.TrimPrefix(raw, "./"), "/")
+			if slices.Contains(t.References, strings.TrimRight(m, ".,:;)")) {
+				continue // tài liệu đầu vào chỉ được đọc
+			}
 			if pathglob.Compile(p).Match(m) || (strings.Contains(raw, "/") && overlaps(m, p)) {
 				hit = true
 			}
@@ -203,6 +231,9 @@ func Assess(t Ticket, protected []string, verifyConfirmed bool) Assessment {
 	}
 	if len(t.Scope.Allow) == 0 {
 		a.Notes = append(a.Notes, "chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác")
+	}
+	if len(t.References) > 0 {
+		a.Notes = append(a.Notes, "tài liệu đầu vào "+strings.Join(t.References, ", ")+" không nằm trong phạm vi sửa; cần sửa chính tài liệu thì thêm --allow")
 	}
 	cmd := strings.TrimSpace(t.Verify.Command)
 	if a.Risk == "high" {

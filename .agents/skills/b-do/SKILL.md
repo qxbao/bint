@@ -30,23 +30,46 @@ làm thay.
 
 ## Bước 1 — Classify
 
-Luôn lập phiếu tác vụ, kể cả với việc nhỏ:
+**Bạn quyết định đường đi, trước khi lập phiếu.** Phân loại của Bint chỉ là heuristic từ khoá trên
+câu chữ (ví dụ "Thực hiện plan @docs/x.md" chỉ có vài từ nên dễ bị coi là việc nhỏ), không thay được
+phán đoán của bạn.
+
+1. Đọc yêu cầu và **mọi tài liệu nó trỏ tới** (kế hoạch, đặc tả, ticket): xem lướt độ lớn, số giai
+   đoạn, gói/tệp bị chạm. Đừng sửa gì.
+2. Chọn đường đi:
+   - việc nhỏ, rõ ràng (sửa chính tả, đổi tên, sửa lỗi đã chỉ rõ chỗ): `--no-plan`;
+   - việc vừa (một tính năng/sửa lỗi gói gọn trong vài tệp): `--plan` (độ sâu `standard`);
+   - việc lớn hoặc nhiều rủi ro (refactor xuyên gói, đổi kiến trúc, kế hoạch nhiều giai đoạn, đổi dữ
+     liệu/định dạng lưu trữ): `--depth deep`.
+   - Kế hoạch có nhiều giai đoạn độc lập: **đề nghị người dùng tách mỗi giai đoạn một phiếu** (ví dụ
+     "Thực hiện giai đoạn 0 của docs/x.md") trước khi lập phiếu. Một phiếu cho cả kế hoạch lớn dễ
+     vượt `limits` và khó review.
+   - Chưa chắc giữa hai mức thì chọn mức cao hơn. Chỉ hỏi người dùng khi lựa chọn thay đổi đáng kể
+     chi phí hoặc phạm vi.
+3. Xác định phạm vi được sửa (`--allow`, glob) từ nội dung tài liệu, không từ tên tài liệu. Tài liệu
+   chỉ là đầu vào thì không đưa vào phạm vi. Bint tự đoán phạm vi từ đường dẫn trong mô tả; muốn
+   bỏ phần đoán đó thì thêm `--clear-scope`.
+4. Lập phiếu một lần, với quyết định tường minh:
 
 ```sh
-bint task new "<yêu cầu nguyên văn>" --workflow b-do --json
+bint task new "<yêu cầu nguyên văn>" --workflow b-do --plan|--no-plan [--depth deep] \
+  [--clear-scope --allow '<glob>' …] --json
 ```
 
-Kết quả gồm `classification` (Bint đề xuất có cần b-req không: `plan`; nếu có thì mức phân tích
-`depth` = `standard`|`deep` và `depth_reason`) và `questions`. Nếu có câu hỏi, hỏi người dùng rồi
-cập nhật phiếu (`bint task set <id> --verify-command … --criteria …`) trước khi chạy.
+Kết quả gồm `ticket` (gồm `references`: tài liệu đầu vào Bint nhận ra), `classification` (`plan`,
+`reason`, `depth`, `depth_reason`) và `assessment` (`risk`, `questions`, `notes`). Kiểm tra
+`classification.plan` và `classification.depth` khớp quyết định của bạn (Bint có thể nâng vì đường dẫn
+bảo vệ, xem dưới). Nếu có câu hỏi, hỏi người dùng rồi cập nhật phiếu
+(`bint task set <id> --verify-command … --criteria …`) trước khi chạy.
 
-Chọn đường đi:
+**Phiếu lập sai thì sửa, đừng huỷ để lập lại**: đổi đường đi bằng `bint run b-do --task <id> --plan`
+/ `--no-plan` / `--depth deep` (khi tác vụ còn `created`); đổi phạm vi bằng
+`bint task set <id> --clear-scope --allow '…'`.
 
-- việc nhỏ, rõ ràng (sửa chính tả, đổi tên, sửa lỗi đã chỉ rõ chỗ): bỏ b-req bằng `--no-plan` khi
-  chạy. Ngoại lệ: `classification.plan` là `true` vì phạm vi chạm đường dẫn được bảo vệ
-  (`depth_reason: protected_paths`) thì **không** bỏ b-req, trừ khi người dùng đã nói rõ bỏ qua;
-- còn lại: giữ b-req ở mức `classification.depth` (không có thì `standard`). Người dùng muốn phân
-  tích sâu hơn thì lập phiếu bằng `bint task new … --depth deep`. Độ sâu không tự đổi giữa lượt.
+Đường dẫn được bảo vệ: phạm vi chạm `limits.protected_paths` thì Bint luôn giữ b-req
+(`depth_reason: protected_paths`). `--no-plan` từ phiên này bị bỏ qua (`reason` ghi rõ); người dùng
+muốn bỏ b-req thì tự chạy `bint run b-do --task <id> --no-plan` trong terminal. Độ sâu không tự đổi
+giữa lượt.
 
 <!-- bint:anchor routing -->
 <!-- bint:anchor-end routing -->
@@ -54,7 +77,7 @@ Chọn đường đi:
 ## Bước 2 — Giao việc cho các agent
 
 ```sh
-bint run b-do --task <id> --json            # thêm --no-plan nếu bỏ b-req
+bint run b-do --task <id> --json            # đường đi đã chốt ở phiếu, không cần lặp lại cờ
 ```
 
 - Lệnh chạy lâu: mỗi bước tới `workflow.timeout_minutes`. Chạy **nền** nếu harness cho phép (rồi

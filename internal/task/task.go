@@ -67,9 +67,12 @@ type Ticket struct {
 	// Goal là mục tiêu một dòng.
 	Goal string `yaml:"goal"`
 	// Request là mô tả tự do gốc của người dùng.
-	Request     string   `yaml:"request,omitempty"`
-	Verify      Verify   `yaml:"verify"`
-	Scope       Scope    `yaml:"scope"`
+	Request string `yaml:"request,omitempty"`
+	Verify  Verify `yaml:"verify"`
+	Scope   Scope  `yaml:"scope"`
+	// References là tài liệu đầu vào (kế hoạch, đặc tả) mà mô tả trỏ tới: agent đọc để làm theo,
+	// không phải nơi được sửa nên không nằm trong scope.allow.
+	References  []string `yaml:"references,omitempty"`
 	Constraints []string `yaml:"constraints"`
 	Autonomy    string   `yaml:"autonomy"`
 }

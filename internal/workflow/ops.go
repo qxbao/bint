@@ -134,9 +134,9 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 			return nil, task.Assessment{}, errors.New("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")
 		}
 	}
-	cls := task.Classify(o.Request)
+	cls := task.Classify(o.Request, t.References...)
 	if o.Plan != nil {
-		cls = task.Classification{Plan: *o.Plan, Reason: "người dùng chỉ định"}
+		cls = task.Classification{Plan: *o.Plan, Reason: e.chooser() + " chỉ định"}
 	}
 	// Độ sâu là quyết định riêng với rủi ro quyền ghi: chỉ dùng Assess để biết có chạm đường dẫn bảo vệ.
 	// Chưa có Task nên gọi thẳng task.Assess trên phiếu.
@@ -145,10 +145,10 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	case depth != "":
 		cls.Plan = true
 		if o.Plan == nil {
-			cls.Reason = "người dùng chỉ định độ sâu " + depth
+			cls.Reason = e.chooser() + " chỉ định độ sâu " + depth
 		}
-	case planning && o.Plan == nil && !cls.Plan && assess.Risk == "high":
-		cls = task.Classification{Plan: true, Reason: "chạm đường dẫn được bảo vệ (" + strings.Join(assess.Protected, ", ") + "): cần b-req"}
+	case planning && !cls.Plan && assess.Risk == "high" && (o.Plan == nil || !e.Human):
+		cls = protectedPlan(assess.Protected, o.Plan != nil)
 	}
 	if planning && cls.Plan {
 		if depth != "" {
@@ -171,6 +171,25 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	}
 	e.emit(tk, spool.TaskLinked, map[string]any{"workflow": o.Workflow})
 	return tk, e.Assess(tk), nil
+}
+
+// chooser là bên ghi đè Classify: agent (orchestrator) được nâng/hạ b-req theo phán đoán của
+// mình, trừ việc bỏ b-req trên tác vụ chạm đường dẫn bảo vệ (protectedPlan).
+func (e *Env) chooser() string {
+	if e.Human {
+		return "người dùng"
+	}
+	return "orchestrator"
+}
+
+// protectedPlan giữ b-req cho tác vụ chạm đường dẫn bảo vệ. refused: agent đã xin --no-plan;
+// chỉ người bỏ được b-req trong trường hợp này.
+func protectedPlan(protected []string, refused bool) task.Classification {
+	reason := "chạm đường dẫn được bảo vệ (" + strings.Join(protected, ", ") + "): cần b-req"
+	if refused {
+		reason += "; agent không bỏ được b-req ở đây, người dùng tự chạy với --no-plan nếu muốn"
+	}
+	return task.Classification{Plan: true, Reason: reason}
 }
 
 // Assess đánh giá rủi ro của tác vụ.
