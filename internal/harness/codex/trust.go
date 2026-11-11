@@ -65,13 +65,13 @@ func InspectHookTrust(ctx context.Context, binary, root, path string) (HookTrust
 				} `json:"error"`
 			}
 			if err := dec.Decode(&response); err != nil {
-				return fmt.Errorf("Codex hooks/list: %w", err)
+				return fmt.Errorf("hooks/list của Codex: %w", err)
 			}
 			if response.ID != id {
 				continue
 			}
 			if response.Error != nil {
-				return fmt.Errorf("Codex hooks/list: %s", response.Error.Message)
+				return fmt.Errorf("hooks/list của Codex: %s", response.Error.Message)
 			}
 			if dst == nil {
 				return nil
@@ -113,7 +113,7 @@ func InspectHookTrust(ctx context.Context, binary, root, path string) (HookTrust
 	}
 	for _, row := range result.Data {
 		if len(row.Errors) > 0 {
-			return report, fmt.Errorf("Codex không nạp đủ hook: %s", row.Errors[0].Message)
+			return report, fmt.Errorf("hook không được Codex nạp đủ: %s", row.Errors[0].Message)
 		}
 		for _, h := range row.Hooks {
 			if filepath.Clean(h.SourcePath) != filepath.Clean(want) || !isBintHook(h.Command) {
@@ -134,7 +134,7 @@ func InspectHookTrust(ctx context.Context, binary, root, path string) (HookTrust
 		}
 	}
 	if report.Total == 0 {
-		return report, fmt.Errorf("Codex chưa nạp hook Bint tại %s (kiểm tra project trust và /hooks)", path)
+		return report, fmt.Errorf("hook Bint tại %s chưa được Codex nạp (kiểm tra project trust và /hooks)", path)
 	}
 	return report, nil
 }

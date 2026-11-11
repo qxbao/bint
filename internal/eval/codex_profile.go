@@ -40,7 +40,7 @@ func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), err
 	}
 	auth, err := os.ReadFile(filepath.Join(source, "auth.json"))
 	if err != nil {
-		return nil, nil, fmt.Errorf("Codex eval cô lập cần auth.json dạng tệp của profile đã đăng nhập; không lấy được thông tin đăng nhập (%w)", err)
+		return nil, nil, fmt.Errorf("eval cô lập Codex cần auth.json dạng tệp của profile đã đăng nhập; không lấy được thông tin đăng nhập (%w)", err)
 	}
 	if err = os.WriteFile(filepath.Join(profile, "auth.json"), auth, 0o600); err != nil {
 		return nil, nil, err
