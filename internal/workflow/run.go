@@ -56,6 +56,8 @@ type RunOptions struct {
 	Request  string
 	TaskRef  string
 	Plan     *bool
+	// Depth: ""/auto = tự chọn (hoặc giữ độ sâu đã lưu); standard|deep = người dùng chỉ định.
+	Depth    string
 	NoReview bool
 	Edit     TicketEdit
 	// Resume: tiếp tục tác vụ đang blocked/interrupted/failed.
@@ -129,7 +131,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		saved := r.RunID
 		r.RunID = ""
-		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan})
+		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth})
 		r.RunID = saved
 		if err != nil {
 			return nil, err
@@ -138,6 +140,9 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		r.logf("Tác vụ %s: %s", t.State.ID, t.Ticket.Goal)
 		if c := t.State.Classification; c != nil && o.Workflow == StepDo {
 			r.logf("Classify: %s", c.Reason)
+			if c.Plan && c.Depth != "" {
+				r.logf("Phân tích b-req: %s (%s)", c.Depth, c.DepthReason)
+			}
 		}
 	} else {
 		t, err := r.Tasks.Load(o.TaskRef)
@@ -230,22 +235,63 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	return rs.res, nil
 }
 
-// applyOverrides áp --plan/--no-plan lên tác vụ có sẵn và nâng/hạ hợp đồng artifact.
-// Phiên bản hợp đồng chỉ hạ về 0 khi tác vụ còn `created` (chưa có artifact để mất).
+// applyOverrides áp --plan/--no-plan/--depth lên tác vụ có sẵn và nâng/hạ hợp đồng artifact.
+//   - --depth tường minh chỉ nhận khi tác vụ `created`, hoặc khi `b-req --task` chạy lại trên `planned`;
+//     từ in_progress trở đi trả lỗi thay vì lặng lẽ đổi độ sâu giữa lượt. Hàm ý Plan=true.
+//   - Độ sâu đã lưu được giữ nguyên; chỉ tính lại khi người dùng đổi Plan lúc tác vụ còn `created`.
+//   - Phiên bản hợp đồng chỉ hạ về 0 khi tác vụ còn `created` (chưa có artifact để mất).
 func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) {
-	if o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) {
+	depth, err := task.NormalizeDepth(o.Depth)
+	if err != nil {
+		return t, err
+	}
+	explicit := depth != ""
+	if explicit {
+		if o.Workflow != StepDo && o.Workflow != StepReq {
+			return t, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
+		}
+		if o.Plan != nil && !*o.Plan {
+			return t, errors.New("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")
+		}
+		if st := t.State.Status; st != task.StatusCreated && !(o.Workflow == StepReq && st == task.StatusPlanned) {
+			return t, fmt.Errorf("không đổi được độ sâu phân tích khi tác vụ đang %s: --depth chỉ nhận khi tác vụ còn created, "+
+				"hoặc để lập kế hoạch lại bằng `bint run b-req --task %s --depth %s` trên tác vụ planned", st, t.State.ID, depth)
+		}
+	}
+	if !explicit && o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) {
 		return t, nil
 	}
 	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
 		created := t.State.Status == task.StatusCreated
+		cls := task.Classification{Plan: true, Reason: "mặc định"}
+		if t.State.Classification != nil {
+			cls = *t.State.Classification
+		}
 		if o.Plan != nil {
-			t.State.Classification = &task.Classification{Plan: *o.Plan, Reason: "người dùng chỉ định"}
-			if created && (o.Workflow == StepDo || o.Workflow == StepReq) {
-				if *o.Plan {
-					ensurePlanningContract(t)
-				} else {
-					t.State.PlanningContractVersion = 0
-				}
+			cls.Plan, cls.Reason = *o.Plan, "người dùng chỉ định"
+		}
+		switch {
+		case explicit:
+			cls.Plan = true
+			if o.Plan == nil {
+				cls.Reason = "người dùng chỉ định độ sâu " + depth
+			}
+			cls.Depth, cls.DepthReason = depth, task.DepthReasonUser
+		case o.Plan != nil && created && !cls.Plan:
+			cls.Depth, cls.DepthReason = "", ""
+		case o.Plan != nil && created && cls.Depth == "":
+			req := strings.TrimSpace(t.Ticket.Request)
+			if req == "" {
+				req = t.Ticket.Goal
+			}
+			cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(req, r.Assess(t))
+		}
+		t.State.Classification = &cls
+		if created && (o.Workflow == StepDo || o.Workflow == StepReq) && (o.Plan != nil || explicit) {
+			if cls.Plan {
+				ensurePlanningContract(t)
+			} else {
+				t.State.PlanningContractVersion = 0
 			}
 		}
 		if o.Workflow == StepReq && created {
@@ -842,6 +888,26 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 	fmt.Fprintf(&b, "\n\n---\n\n<bint-task id=%q step=%q run=%q>\n", t.State.ID, step, child)
 	b.WriteString("Bạn đang chạy dưới `bint run` (Bint Core điều phối). Không gọi `bint task status`, `bint task approve` hay `bint task verify` " +
 		"— Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định hoàn thành. Task ID cũng có trong biến BINT_TASK_ID.\n\n")
+	if step == StepReq {
+		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
+		if c := t.State.Classification; c != nil {
+			depth = c.EffectiveDepth()
+			if c.DepthReason != "" {
+				reason = c.DepthReason
+			}
+		}
+		fmt.Fprintf(&b, "Phân tích: %s\nLý do: %s\n(Độ sâu do Bint Core chọn một lần lúc tạo tác vụ; làm theo mục \"Độ sâu phân tích\" của skill.)\n\n", depth, reason)
+	}
+	if step == StepReq {
+		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
+		if c := t.State.Classification; c != nil {
+			depth = c.EffectiveDepth()
+			if c.DepthReason != "" {
+				reason = c.DepthReason
+			}
+		}
+		fmt.Fprintf(&b, "Phân tích: %s\nLý do: %s\n(Độ sâu do Bint Core chọn một lần lúc tạo tác vụ; làm theo mục \"Độ sâu phân tích\" của skill.)\n\n", depth, reason)
+	}
 	ticket, _ := yaml.Marshal(t.Ticket)
 	fmt.Fprintf(&b, "Phiếu tác vụ (task.yml):\n```yaml\n%s```\n", ticket)
 	for _, n := range task.ArtifactNames() {

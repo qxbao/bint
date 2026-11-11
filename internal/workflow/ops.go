@@ -101,6 +101,8 @@ type NewTaskOptions struct {
 	Edit     TicketEdit
 	// Plan ghi đè kết quả Classify (nil = theo heuristic).
 	Plan *bool
+	// Depth: ""/auto = tự chọn; standard|deep = người dùng chỉ định (hàm ý có b-req; chỉ b-do/b-req).
+	Depth string
 }
 
 // NewTask lập phiếu tác vụ từ mô tả tự do (bước Classify).
@@ -114,12 +116,44 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	if err := o.Edit.apply(&t); err != nil {
 		return nil, task.Assessment{}, err
 	}
+	if o.Workflow == "" {
+		o.Workflow = "b-do"
+	}
+	depth, err := task.NormalizeDepth(o.Depth)
+	if err != nil {
+		return nil, task.Assessment{}, err
+	}
+	planning := o.Workflow == "b-do" || o.Workflow == "b-req"
+	if depth != "" {
+		if !planning {
+			return nil, task.Assessment{}, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
+		}
+		if o.Plan != nil && !*o.Plan {
+			return nil, task.Assessment{}, errors.New("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")
+		}
+	}
 	cls := task.Classify(o.Request)
 	if o.Plan != nil {
 		cls = task.Classification{Plan: *o.Plan, Reason: "người dùng chỉ định"}
 	}
-	if o.Workflow == "" {
-		o.Workflow = "b-do"
+	// Độ sâu là quyết định riêng với rủi ro quyền ghi: chỉ dùng Assess để biết có chạm đường dẫn bảo vệ.
+	// Chưa có Task nên gọi thẳng task.Assess trên phiếu.
+	assess := task.Assess(t, e.Cfg.Limits.ProtectedPaths, e.commandConfirmed(t.Verify.Command))
+	switch {
+	case depth != "":
+		cls.Plan = true
+		if o.Plan == nil {
+			cls.Reason = "người dùng chỉ định độ sâu " + depth
+		}
+	case planning && o.Plan == nil && !cls.Plan && assess.Risk == "high":
+		cls = task.Classification{Plan: true, Reason: "chạm đường dẫn được bảo vệ (" + strings.Join(assess.Protected, ", ") + "): cần b-req"}
+	}
+	if planning && cls.Plan {
+		if depth != "" {
+			cls.Depth, cls.DepthReason = depth, task.DepthReasonUser
+		} else {
+			cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(o.Request, assess)
+		}
 	}
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
@@ -362,11 +396,18 @@ func (e *Env) VerifyConfirmed(t *task.Task) bool {
 	if cmd == "" {
 		return false
 	}
-	if tc := e.Cfg.Eval.TestCommand; tc != nil && strings.TrimSpace(*tc) == cmd {
+	if e.commandConfirmed(cmd) {
 		return true
 	}
 	a := t.State.VerifyApproval
 	return a != nil && a.Command == cmd
+}
+
+// commandConfirmed: lệnh trùng eval.test_command đã xác nhận trong cấu hình.
+func (e *Env) commandConfirmed(cmd string) bool {
+	cmd = strings.TrimSpace(cmd)
+	tc := e.Cfg.Eval.TestCommand
+	return cmd != "" && tc != nil && strings.TrimSpace(*tc) == cmd
 }
 
 // VerifyResult là kết quả kiểm chứng.

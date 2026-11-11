@@ -160,6 +160,19 @@ type Transition struct {
 type Classification struct {
 	Plan   bool   `json:"plan"`
 	Reason string `json:"reason"`
+	// Depth là độ sâu phân tích của b-req (DepthStandard | DepthDeep); chỉ có nghĩa khi Plan=true và
+	// được chọn một lần lúc tạo tác vụ. Rỗng (state cũ, hoặc Plan=false) được hiểu là standard.
+	Depth string `json:"depth,omitempty"`
+	// DepthReason: protected_paths | complex_request | default | user_override.
+	DepthReason string `json:"depth_reason,omitempty"`
+}
+
+// EffectiveDepth trả về độ sâu đang có hiệu lực (standard khi chưa lưu).
+func (c Classification) EffectiveDepth() string {
+	if c.Depth == DepthDeep {
+		return DepthDeep
+	}
+	return DepthStandard
 }
 
 // CriterionCheck là kết quả đối chiếu một tiêu chí chấp nhận (agent tự đánh giá).
