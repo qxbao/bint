@@ -1,7 +1,8 @@
 # Kế hoạch TUI cho Bint
 
-Trạng thái: đề xuất (2026-11-11), đã rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí
-thẩm mỹ). Chưa bắt đầu triển khai.
+Trạng thái: **giai đoạn 0 đã triển khai** (2026-11-11); các giai đoạn 1–6 chưa làm. Kế hoạch đề
+xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
+và những chỗ lệch so với kế hoạch ở mục 12.
 
 ## 1. Mục tiêu
 
@@ -53,6 +54,13 @@ textarea, spinner, progress, help. Chạy được trên Windows, phù hợp yê
 
 Ghim phiên bản ổn định mới nhất tại thời điểm bắt đầu (cân nhắc v2 nếu đã ổn định) và
 kiểm tra `go vet`/`staticcheck` với `GOOS=windows` ngay ở giai đoạn 0.
+
+**Đã ghim (giai đoạn 0)**: dòng v2 — `charm.land/bubbletea/v2 v2.0.9`, `charm.land/lipgloss/v2 v2.0.6`,
+`charm.land/bubbles/v2 v2.2.1` — cùng `golang.org/x/text v0.41.0` (chuẩn hoá NFC) và
+`golang.org/x/term v0.45.0` (`term.IsTerminal`). Chọn bản v2 mới nhất còn khai `go 1.25.x`: bubbletea
+v2.0.10+ và lipgloss v2.1.0 đòi Go 1.26, còn `x/text` ≥ v0.42 và `x/term` ≥ v0.46 cũng vậy; nâng Go
+kéo theo staticcheck ghim trong `.github/workflows/ci.yml` (đường dẫn được bảo vệ). Chỉ thị `go`
+trong `go.mod` giữ 1.25.1. Khi nâng Go, nâng cả các phụ thuộc này.
 
 Những thứ phải tự làm hoặc thêm thư viện nhỏ (kiểm tra lại với phiên bản được ghim):
 
@@ -275,10 +283,15 @@ cmd/bint ──► internal/cli  (cobra, in văn bản / JSON)      ┐
 - **Điểm vào** (đã chốt): `bint` không đối số mở TUI. Chưa `init` thì vào thẳng trình hướng
   dẫn khởi tạo. Hai trường hợp vẫn in trợ giúp như hiện nay: không có TTY (đường ống, CI) và
   đang trong phiên agent (agent không điều khiển được TUI). `bint tui` mở TUI tường minh;
-  `bint --help` luôn in trợ giúp.
+  `bint --help` luôn in trợ giúp. **Cách làm**: chặn ở `cli.Execute` (không thêm `RunE` cho lệnh gốc,
+  vì `RunE` làm gốc thành runnable và cobra đổi phần `Usage:` của `bint --help`); kiểm TTY bằng
+  `term.IsTerminal` chứ không dùng `ModeCharDevice` (`/dev/null` và `NUL` cũng là thiết bị ký tự).
 - **Tầng dịch vụ**: mọi hành động TUI gọi hàm trong `internal/app` trả về struct, không gọi
   `cobra`, không phân tích văn bản đầu ra, không chạy tiến trình `bint` con. CLI cũng chuyển
-  sang gọi cùng hàm (CLI chỉ còn phân tích cờ và định dạng).
+  sang gọi cùng hàm (CLI chỉ còn phân tích cờ và định dạng). Dịch vụ của nhóm `evolve` nằm ở gói con
+  `internal/app/evolvesvc` (gói `evolve` import `app` nên không thể đặt dịch vụ ngay trong `app`).
+  Dịch vụ dùng chung: `app.RequireHuman`, `app.UsageError`/`app.IsUsage` (CLI ánh xạ sang mã thoát 2),
+  `app.ConfirmRequest`/`ConfirmFunc` (lời hỏi giữa chừng: CLI in `Text`, TUI dịch theo `Key`).
 - **Sổ hành động** (`internal/tui/actions`): mỗi hành động khai báo tên, màn hình, phím, độ
   ưu tiên ở chân phím, kiểu `Options` của tham số, hàm dịch vụ, đường dẫn lệnh CLI tương
   đương, cờ `Writes` và có phải thao tác chỉ dành cho người không. Bảng lệnh, viền dưới và
@@ -415,7 +428,7 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 
 | GĐ | Nội dung | Xong khi |
 |---|---|---|
-| 0 | Tách tầng dịch vụ cho `knowledge review`, `eval`, `evolve` (cycle, apply, report) khỏi `internal/cli`; đưa kiểm tra chỉ-dành-cho-người, ràng buộc cờ (`Options.Validate`), giá trị mặc định (`Defaults`) và lời hỏi `confirm()` xuống `app`. Khung TUI: theme, khung viền tự vẽ, tab, chân phím theo ưu tiên, bảng lệnh, sổ hành động, `internal/i18n` (vi, en) và khoá `ui.language`, test phủ lệnh + cờ với danh sách chưa làm. **Màn Tổng quan mẫu** + trang trưng bày + kịch bản VHS; màn tạm "Khởi tạo với mặc định" cho repo chưa `init`. | CLI chạy lại toàn bộ test không đổi hành vi; `bint` mở khung 7 tab, đổi `vi`/`en` được; chủ dự án duyệt ảnh màn mẫu và chốt bảng màu. |
+| 0 ✅ | Tách tầng dịch vụ cho `knowledge review`, `eval`, `evolve` (cycle, apply, report) khỏi `internal/cli`; đưa kiểm tra chỉ-dành-cho-người, ràng buộc cờ (`Options.Validate`), giá trị mặc định (`Defaults`) và lời hỏi `confirm()` xuống `app`. Khung TUI: theme, khung viền tự vẽ, tab, chân phím theo ưu tiên, bảng lệnh, sổ hành động, `internal/i18n` (vi, en) và khoá `ui.language`, test phủ lệnh + cờ với danh sách chưa làm. **Màn Tổng quan mẫu** + trang trưng bày + kịch bản VHS; màn tạm "Khởi tạo với mặc định" cho repo chưa `init`. | CLI chạy lại toàn bộ test không đổi hành vi; `bint` mở khung 7 tab, đổi `vi`/`en` được; chủ dự án duyệt ảnh màn mẫu và chốt bảng màu. |
 | 1 | Tổng quan + hộp thư; Tri thức đầy đủ, gồm duyệt theo lô và lọc theo `nguon:*`. | Duyệt 30 mục từ một lần `/b-knowledge` trong < 1 phút, không gõ lệnh. |
 | 2 | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
 | 3 | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
@@ -452,3 +465,90 @@ thể phát hành riêng trước khi xong các giai đoạn sau.
 (mục 4.4).
 
 Không còn câu hỏi mở.
+
+## 12. Tiến độ triển khai
+
+### 12.1 Giai đoạn 0 (đã xong, 2026-11-11)
+
+**Tầng dịch vụ** (`internal/app`, `internal/app/evolvesvc`): `knowledge review` (`app.ReviewQueue`),
+`bootstrap publish` (`PublishOptions.Confirm`), mọi lệnh lá `eval` (`Eval<X>Options`, `OpenEval`) và
+`evolve` (`evolvesvc.<X>Options`, `evolvesvc.Open`) đã tách khỏi `internal/cli`; `app.Status` tách từ
+`bint status`. Mỗi lệnh có kiểu `Options` (thẻ `flag:"tên-cờ"`), `Validate()` (ràng buộc mức giá trị,
+trả `app.UsageError` → mã thoát 2) và `Defaults(cfg)` (giá trị theo cấu hình; CLI dựng `Defaults` rồi
+chỉ ghi đè cờ có `Changed`, nên giá trị mặc định của cờ cobra và `--help` không đổi). Lời hỏi xác nhận
+của `eval run`, `eval bootstrap`, `evolve evaluate`, `bootstrap publish` là callback `Confirm` trong
+`Options` (không `Confirm` và không `Yes` → `UsageError` "cần --yes khi chạy không tương tác"); tiến độ
+đi qua callback có kiểu (`OnEstimate`, `OnNotes`, `Progress`, `OnSelect`, `OnStep`...) để CLI in đúng
+thứ tự cũ. Kiểm tra chỉ-dành-cho-người nằm ở dịch vụ (`app.RequireHuman` cho review/propose/process;
+`evolve.Apply/Reject/Rollback` tự kiểm). `evolve cycle` chạy **trong tiến trình** qua giao diện
+`evolvesvc.CycleRunner` (`Evaluate`, `Propose`); `internal/cli` không còn `os.Executable`/`exec` trong
+mã evolve; lệnh con `bint ... --json` cũ và `lastJSON` đã bỏ. Test hộp trắng của cycle, của agent
+reflector và của kiểm chứng đã chuyển theo mã (giữ khẳng định).
+
+**Cấu hình và i18n**: khoá `ui.language` (`auto|vi|en`, mặc định `auto`) đủ struct, `Default()`,
+`Validate()`, mẫu `Render` (`config.Upgrade` chèn được vào cấu hình cũ). `internal/i18n`: danh mục YAML
+nhúng (`locales/vi.yaml`, `locales/en.yaml`), khoá có chấm, tham số `{x}`, số nhiều `one/other`, NFC,
+locale giả `xx` (kéo dài ~40%) sinh bằng mã, `Resolve` theo `--lang` > `BINT_LANG` > `ui.language` >
+`LC_ALL`/`LANG` > `vi`.
+
+**Khung TUI** (`internal/tui`): `theme` (vai trò màu; tối/sáng/16 màu/đơn sắc), `components/{frame,tabs,
+footer,palette,help,logo,text}`, `actions` (sổ hành động + dữ liệu phủ), `screens/{overview,
+initplaceholder,placeholder}`, `app` (mô hình gốc, vòng quay của Bubbles `spinner`), `gallery`, `tui.Run`.
+Phím: `1-7`/`[`/`]`/`Tab` đổi tab, `:` hoặc `Ctrl+K` bảng lệnh, `?` trợ giúp, `L` đổi ngôn ngữ (vi ⇄ en,
+ngay trong phiên), `r` làm mới, `q`/`Ctrl+C` thoát. Điểm vào: `bint` không đối số (TTY, ngoài phiên agent),
+`bint tui [--lang] [--read-only]` và `bint tui --gallery` (cờ ẩn).
+
+**Kiểm thử mới**: `Validate`/`Defaults`/`Confirm`/chỉ-dành-cho-người của dịch vụ (cả khi `go test` chạy trong
+phiên agent), `cycle` với agent giả chạy `evolve.Propose` và `Evaluate` thật, phủ lệnh + phủ cờ
+(`internal/cli/coverage_test.go`, có ca ngược: thêm lệnh/cờ không khai báo làm test đỏ), danh mục i18n
+(khoá/tham số khớp giữa locale, quét literal tiếng Việt trong `internal/tui`, mọi khoá dùng trong mã có trong
+danh mục), golden `View()` (80×24 và 140×40; vi/en/xx; đơn sắc, và từng chế độ màu ở dạng có mã màu),
+trang trưng bày ở locale giả không có dòng vượt chiều rộng, điểm vào CLI (`bint` không TTY / trong phiên agent
+in đúng đầu ra của `bint --help`, mã 0; TTY giả gọi TUI).
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app ./internal/tui/gallery -update     # ghi lại golden sau thay đổi giao diện chủ ý
+bint tui --gallery                                            # duyệt component (m: màu, l: ngôn ngữ, j/k: cuộn)
+vhs internal/tui/testdata/vhs/overview.tape                   # ảnh PNG/GIF vào internal/tui/testdata/vhs/out/
+```
+
+Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init`, `gallery`.
+
+### 12.2 Chỗ lệch so với kế hoạch và việc còn lại
+
+- **VHS chưa chạy thử**: môi trường làm việc không có `vhs`/`ttyd`. Các `.tape` được kiểm cú pháp sơ bộ bằng
+  test (`internal/tui/vhs_test.go`) nhưng chưa xuất ảnh thật; chủ dự án cần chạy và chỉnh kích thước cửa sổ nếu
+  số cột/dòng lệch 80×24 / 140×40. CI **chưa** xuất ảnh làm artifact vì `.github/workflows/**` là đường dẫn
+  được bảo vệ (thêm bước VHS cần người duyệt riêng).
+- **Logo**: bản điểm ảnh dùng ký tự khối đầy `██` (mỗi điểm 2 cột × 1 dòng, 5 dòng) ở vùng ≥ 100×30; bản nửa
+  khối 3 dòng thử trước đó quá khó đọc nên bỏ. Dưới ngưỡng chỉ hiện chữ "bint." đậm, như kế hoạch.
+- **Bảng màu**: giá trị khởi điểm mục 4.2 giữ nguyên, chờ chủ dự án duyệt ảnh. Ở chế độ 16 màu vai trò `fg`
+  dùng màu mặc định của terminal thay vì `white` (để đọc được trên cả nền sáng).
+- **Chân phím** xếp phím riêng của màn hình trước, rồi phím toàn cục, cuối cùng các phím ghim (`?`, `q`).
+- **Đổi ngôn ngữ chỉ có hiệu lực trong phiên**: chưa ghi lại `ui.language` vào cấu hình (Hệ thống › Ngôn ngữ
+  thuộc giai đoạn 5). `.bint/config.yml` của chính repository này chưa có khối `ui`: chạy `bint init --update`.
+- **Đổi nhỏ về hành vi CLI** (ngoài phạm vi "không đổi" nên ghi rõ): `knowledge review --status <giá trị lạ>`
+  nay là lỗi dùng sai (mã 2) thay vì lặng lẽ không khớp mục nào; với `evolve propose/process`, kiểm tra
+  chỉ-dành-cho-người chạy sau khi mở workspace (lỗi "chưa init" thắng lỗi "chỉ dành cho người" nếu cả hai đúng).
+- **`evolve cycle` trong tiến trình giữ hành vi cũ khi đợt đối chiếu chạy dở**: bản cũ chạy `evolve evaluate
+  --json` nên có đợt (kể cả dừng vì `ErrBudget`/`ErrQuota`) là thoát 0 kèm verdict. `probe` nay dùng verdict
+  của phần đã chạy và bỏ lỗi của đợt (chỉ context bị huỷ mới dừng vòng); hết ngân sách vòng thì lần đối chiếu
+  kế trả `errBudgetLeft` và vòng dừng êm, mã 0. Có test vòng với runner giả (bước Probe, bước hồi quy).
+- **Màn tạm Khởi tạo** (`internal/tui/app`): hành động `init.*` chỉ có ở màn Khởi tạo (bảng lệnh, chân phím,
+  trợ giúp và `run()` cùng lọc qua `applicable`), `init.defaults` chỉ chạy khi repo còn chưa init. Khởi tạo xong
+  thì **giữ** báo cáo (bước, cảnh báo, bước tiếp theo; bước cảnh báo/xung đột lên trước, danh sách dài được
+  rút gọn để bước tiếp theo luôn hiện) đến khi bấm Enter "Tiếp tục". `q`/`Ctrl+C` khi đang khởi tạo chỉ nhắc;
+  nhấn lần nữa mới thoát (hộp thoại đầy đủ để giai đoạn 2).
+- **Nạp Tổng quan**: không chạy song song (yêu cầu thêm trong lúc đang nạp gộp thành đúng một lần nạp lại).
+  Ở `--read-only` dùng `app.StatusNoIngest` nên không nạp spool vào SQLite (Tổng quan ở chế độ chỉ đọc có thể
+  chậm cập nhật lượt chạy mới); mở cơ sở dữ liệu vẫn có thể áp migration nếu schema cũ.
+- **`bootstrap publish`**: `PublishOptions.Yes` + `Confirm`; ghi thay đổi mà không Yes và không Confirm là
+  `UsageError` "cần --yes" (như eval/evolve evaluate); `DryRun` không cần xác nhận.
+- **Chưa tách** (ngoài phạm vi AC-6): kiểm `InAgentSession` của `task approve`, `runs rate` còn ở CLI.
+- **Chưa có**: chuột, chế độ hẹp đầy đủ, hành động ghi nào trong sổ ngoài "Khởi tạo với mặc định" (nên chế độ
+  `--read-only` mới chỉ có cơ chế và ẩn hành động ghi đó), `bubblezone`, `teatest` (golden dùng `View()` của mô
+  hình), các màn hình của giai đoạn 1–6. Danh sách chưa làm ở `internal/tui/actions/coverage.go`
+  (`PendingCeiling = 96`); giảm trần mỗi khi xoá mục.
+

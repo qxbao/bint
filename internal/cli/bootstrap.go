@@ -316,16 +316,16 @@ Luôn in bản thay đổi trước; hỏi xác nhận khi chạy trong terminal
 			if err != nil {
 				return err
 			}
-			opts := app.PublishOptions{Dir: dir, DryRun: dryRun, Force: force}
+			opts := app.PublishOptions{Dir: dir, DryRun: dryRun, Force: force, Yes: yes}
 			shown := false
 			if !yes && !dryRun {
 				if !isTerminal(stdio.In) {
 					opts.DryRun = true
 				} else {
-					opts.Confirm = func(diff string) bool {
-						fmt.Fprintln(stdio.Out, diff)
+					opts.Confirm = func(req app.ConfirmRequest) bool {
+						fmt.Fprintln(stdio.Out, req.Detail)
 						shown = true
-						return confirm(stdio, "Ghi thay đổi này vào AGENTS.md?")
+						return confirm(stdio, req.Text)
 					}
 				}
 			}

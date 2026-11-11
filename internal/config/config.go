@@ -52,6 +52,7 @@ type Config struct {
 	Workflow  Workflow  `yaml:"workflow"`
 	Limits    Limits    `yaml:"limits"`
 	Security  Security  `yaml:"security"`
+	UI        UI        `yaml:"ui"`
 
 	// contextBase: Context khi KHÔNG có strategy.yml (nil nếu không có strategy được áp).
 	// Đo lường (eval) cần cấu hình gốc để nhánh không-strategy không bị strategy chi phối.
@@ -402,6 +403,15 @@ type Security struct {
 	RequireApprovalForCommands bool `yaml:"require_approval_for_commands"`
 }
 
+// UILanguages là các giá trị hợp lệ của ui.language. "auto": theo BINT_LANG, rồi LC_ALL/LANG
+// của hệ thống, cuối cùng tiếng Việt.
+var UILanguages = []string{"auto", "vi", "en"}
+
+// UI là cấu hình giao diện (TUI).
+type UI struct {
+	Language string `yaml:"language"`
+}
+
 // DefaultRoleModels là model mặc định theo role của từng harness: bước suy luận nặng
 // (lập kế hoạch, review, tiến hoá, rút bài học) dùng model mạnh nhất, bước thực thi dùng
 // model cân bằng (sonnet; haiku rẻ hơn nhưng yếu hơn ở các bước sửa mã). Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
@@ -485,6 +495,7 @@ func Default() Config {
 		},
 		Limits:   Limits{Workflows: map[string]PerRunLimits{}, ProtectedPaths: []string{"migrations/**", ".github/workflows/**"}},
 		Security: Security{RequireApprovalForCommands: true},
+		UI:       UI{Language: "auto"},
 	}
 }
 
@@ -819,6 +830,9 @@ func (c Config) Validate() error {
 		if !slices.Contains([]string{"strict", "economy"}, ev.LeakageMode) {
 			add("evolution.evaluation.leakage_mode: phải là strict | economy")
 		}
+	}
+	if !slices.Contains(UILanguages, c.UI.Language) {
+		add("ui.language: phải là %s, nhận %q", strings.Join(UILanguages, " | "), c.UI.Language)
 	}
 	if len(errs) > 0 {
 		slices.Sort(errs)

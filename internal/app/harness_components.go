@@ -155,7 +155,7 @@ func ReviewComponent(ctx context.Context, w *ComponentWS, kind hcomp.Kind, id, t
 		op = "bint harness component deprecate"
 	}
 	var zero hcomp.Component
-	if err := requireHuman(op); err != nil {
+	if err := RequireHuman(op); err != nil {
 		return zero, err
 	}
 	c, err := w.Resolve(kind, id)

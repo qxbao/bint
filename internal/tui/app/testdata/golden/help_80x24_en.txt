@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Overview │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ Sy                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Overview│───────────────────────────────────────────────────────────────────┐
+│ ┌─│Help│───────────────────────────────────────────────────────────────────┐ │
+│ │ Overview                                                                 │ │
+│ │  r    Refresh the repository status  bint status                         │ │
+│ │       Check the environment (doctor)  bint doctor                        │ │
+│ │                                                                          │ │
+│ │ Global                                                                   │ │
+│ │  q    Quit Bint                                                          │ │
+│ │  ?    Show the full help                                                 │ │
+│ │  :    Open the command palette (search every action)                     │ │
+│ │  L    Switch interface language (vi ⇄ en)                                │ │
+│ │  ]    Go to the next tab                                                 │ │
+│ │  [    Go to the previous tab                                             │ │
+│ │  1-7  Jump to a tab                                                      │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+│   ! config: cấu hình theo mẫu cũ: chạy `bint init --update`                  │
+│                                                                              │
+└─[r→ Refresh] [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]─────────────────┘

@@ -48,6 +48,15 @@ type IO struct {
 
 // Execute chạy CLI và trả về mã thoát.
 func Execute(ctx context.Context, args []string, stdio IO) int {
+	// `bint` không đối số mở TUI khi có terminal và ngoài phiên agent. Chặn ở đây thay vì thêm RunE
+	// cho lệnh gốc: RunE làm gốc thành runnable và cobra sẽ đổi phần Usage của `bint --help`.
+	if len(args) == 0 && shouldOpenTUI(stdio) {
+		if err := openTUI(ctx, stdio, tuiRequest{}); err != nil {
+			fmt.Fprintln(stdio.Err, "lỗi:", err)
+			return ExitError
+		}
+		return ExitOK
+	}
 	root := NewRoot(stdio)
 	root.SetArgs(args)
 	err := root.ExecuteContext(ctx)
@@ -71,7 +80,7 @@ type usageError struct{ error }
 
 func isUsageError(err error) bool {
 	var u usageError
-	if errors.As(err, &u) {
+	if errors.As(err, &u) || app.IsUsage(err) {
 		return true
 	}
 	// Lỗi cú pháp do cobra sinh ra (lệnh lạ, sai số đối số).
@@ -112,7 +121,8 @@ func NewRoot(stdio IO) *cobra.Command {
 			root.AddCommand(c)
 		}
 	}
-	add("project", newInitCmd(stdio), newDoctorCmd(stdio), newStatusCmd(stdio), newSyncCmd(stdio), newHarnessCmd(stdio), newUpdateCmd(stdio))
+	add("project", newInitCmd(stdio), newDoctorCmd(stdio), newStatusCmd(stdio), newSyncCmd(stdio), newHarnessCmd(stdio), newUpdateCmd(stdio),
+		newTUICmd(stdio))
 	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
 		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newSkillCmd(stdio))

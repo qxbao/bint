@@ -1,9 +1,11 @@
-package cli
+package evolvesvc
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"bint/internal/eval"
 	"bint/internal/evolve"
 )
 
@@ -23,15 +25,6 @@ func TestLatestProbe(t *testing.T) {
 	}
 	if e := latestProbe(evs, "test", "2026-01-03T12:00:00Z"); e == nil || e.ID != "d" {
 		t.Fatalf("%+v", e)
-	}
-}
-
-func TestLastJSON(t *testing.T) {
-	if got := string(lastJSON([]byte("tiến độ...\n[1/2] x\n{\"a\":1}\n"))); got != `{"a":1}` {
-		t.Fatalf("%q", got)
-	}
-	if got := string(lastJSON([]byte("{\"a\":1}"))); got != `{"a":1}` {
-		t.Fatalf("%q", got)
 	}
 }
 
@@ -64,5 +57,23 @@ func TestFailedProbe(t *testing.T) {
 	}
 	if e := failedProbe(sup, ns); e != ns {
 		t.Fatalf("%+v", e)
+	}
+}
+
+// processRunner giữ lỗi của đợt (hết hạn mức, hết ngân sách...) cạnh kết quả dở dang để probe
+// quyết định; probe dùng verdict và bỏ lỗi đó như `evolve evaluate --json` cũ (xem
+// TestCycleUsesVerdictOfPartialBatch).
+func TestCycleEvaluateResultKeepsRunErr(t *testing.T) {
+	partial := &EvaluateResult{RunErr: eval.ErrQuota}
+	res, err := cycleEvaluateResult(partial, nil)
+	if res != partial || !errors.Is(err, eval.ErrQuota) {
+		t.Fatalf("res=%v err=%v", res, err)
+	}
+	if res, err := cycleEvaluateResult(&EvaluateResult{}, nil); res == nil || err != nil {
+		t.Fatalf("đợt sạch: res=%v err=%v", res, err)
+	}
+	boom := errors.New("boom")
+	if res, err := cycleEvaluateResult(nil, boom); res != nil || err != boom {
+		t.Fatalf("không chạy được: res=%v err=%v", res, err)
 	}
 }

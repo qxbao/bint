@@ -1,0 +1,24 @@
+┌────────────────────────────│Trưng bày component│─────────────────────────────┐
+│                                                                              │
+│ ▌ Bảng màu theo vai trò và ký hiệu trạng thái                                │
+│   fg  muted  accent  key  ✓ ok  ! warn  ✗ err                                │
+│   ✓ verified  ◌ candidate  ⟳ stale  ✗ deprecated                             │
+│                                                                              │
+│ ▌ Thanh tab (đầy đủ và rút gọn)                                              │
+│   TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT                                 │
+│   TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT                                 │
+│                                                                              │
+│ ▌ Chân phím theo độ ưu tiên (rộng, vừa, hẹp)                                 │
+│   [Enter→ Mở] [a→ Duyệt] [/→ Tìm] [:→ Lệnh] [?→ Trợ giúp] [q→ Thoát]         │
+│   [Enter→ Mở] [a→ Duyệt] [/→ Tìm] [?→ Trợ giúp] [q→ Thoát]                   │
+│   [?→ Trợ giúp] [q→ Thoát]                                                   │
+│                                                                              │
+│ ▌ Khung có tiêu đề trên viền                                                 │
+│ ┌─│Tri thức│───────────────────────────────────────────phụ─┐                 │
+│ │ Nội dung khung; chữ có dấu: ắ ề ộ ữ ợ                    │                 │
+│ │                                                          │                 │
+│ │                                                          │                 │
+│ └─[Enter→ Mở] [?→ Trợ giúp] [q→ Thoát]─────────────────────┘                 │
+│                                                                              │
+│ ▌ Logo                                                                       │
+└─ chế độ màu: mono · ngôn ngữ: vi · [m] đổi màu  [l] đổi ngôn ngữ  [q] Thoát──┘

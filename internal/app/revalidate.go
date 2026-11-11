@@ -77,7 +77,7 @@ var ErrNoBudget = errors.New("cần --budget (USD) cho thao tác gọi agent")
 // xác thực lại bằng `bint knowledge verify --apply`, không tốn agent.
 func RevalidateKnowledge(ctx context.Context, k *KnowledgeWS, opts RevalidateOptions) (RevalidateReport, error) {
 	var rep RevalidateReport
-	if err := requireHuman("bint knowledge revalidate"); err != nil {
+	if err := RequireHuman("bint knowledge revalidate"); err != nil {
 		return rep, err
 	}
 	if opts.BudgetUSD <= 0 && opts.Agent.ReportsCost() {

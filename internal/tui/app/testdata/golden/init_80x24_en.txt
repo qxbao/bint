@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Overview │ Kn │ Tk │ Rn │ Ev │ Evo │ Sy                                      │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Setup│──────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   This repository is not set up for Bint yet                                 │
+│                                                                              │
+│   Bint is not initialized in /work/demo. Setup only creates local            │
+│   configuration and state; running it again is always safe.                  │
+│                                                                              │
+│   • Creates .bint/config.yml (never overwrites an existing configuration).   │
+│   • Creates a local state directory outside the repository, with its         │
+│   SQLite database.                                                           │
+│   • Does not install hooks in the non-interactive setup; add them later      │
+│   with `bint init --hooks`.                                                  │
+│   • Adds the bint block to .gitignore.                                       │
+│                                                                              │
+│   The core harness skills are published as well. No model is called and no   │
+│   project command is run.                                                    │
+│                                                                              │
+│   Equivalent CLI command: bint init                                          │
+│                                                                              │
+│                                                                              │
+└─[Enter→ Initialize] [r→ Re-check] [:→ Commands] [q→ Quit] [?→ Help]──────────┘

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -159,5 +160,35 @@ func TestSummarizeAdded(t *testing.T) {
 	got := SummarizeAdded([]string{"harnesses.claude", "harnesses.claude.models", "harnesses.codex.models"})
 	if got != "harnesses.claude, harnesses.codex.models" {
 		t.Fatal(got)
+	}
+}
+
+// Cấu hình cũ chưa có khối ui: Upgrade chèn ui.language (giữ mọi dòng cũ), nạp lại được và hợp lệ.
+func TestUpgradeAddsUILanguage(t *testing.T) {
+	old := Render(InitParams{ProjectName: "demo"})
+	i := strings.Index(old, "\nui:\n")
+	if i < 0 {
+		t.Fatalf("mẫu thiếu khối ui:\n%s", old)
+	}
+	old = old[:i+1] // cấu hình do bản trước khi có ui sinh ra
+	res, err := Upgrade([]byte(old))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Changed() || !slices.Contains(res.Added, "ui") && !slices.Contains(res.Added, "ui.language") {
+		t.Fatalf("Added = %v", res.Added)
+	}
+	got := string(res.Content)
+	if !strings.Contains(got, "ui:\n  language: auto") || !strings.HasPrefix(got, strings.TrimRight(old, "\n")) {
+		t.Fatalf("khối ui chèn sai hoặc làm mất dòng cũ:\n%s", got)
+	}
+	cfg := Default()
+	if err := Decode(strings.NewReader(got), &cfg); err != nil || cfg.Validate() != nil || cfg.UI.Language != "auto" {
+		t.Fatalf("nạp lại: %v %+v", err, cfg.UI)
+	}
+	// Người dùng đã đặt ui.language: giữ nguyên giá trị.
+	mine, err := Upgrade([]byte(old + "\nui:\n  language: en\n"))
+	if err != nil || strings.Contains(strings.Join(mine.Added, ","), "ui") {
+		t.Fatalf("không được chèn lại: %v %v", err, mine.Added)
 	}
 }

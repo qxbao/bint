@@ -165,18 +165,18 @@ chưa nhận được sự kiện skill.activated nên không đo được kích
 				return err
 			}
 			defer e.Close()
-			list, _, err := skills.LoadEvolved(e.k.Root)
+			list, _, err := skills.LoadEvolved(e.K.Root)
 			if err != nil {
 				return err
 			}
-			h, err := evolve.LoadHistory(ctx, e.st.DB, time.Now(), 10*365*24*time.Hour)
+			h, err := evolve.LoadHistory(ctx, e.Store.DB, time.Now(), 10*365*24*time.Hour)
 			if err != nil {
 				return err
 			}
-			files := e.k.Source().Files()
+			files := e.K.Source().Files()
 			var reports []evolve.TriggerReport
 			if strings.HasPrefix(args[0], "ep_") || strings.Contains(args[0], "ep_") {
-				p, err := evolve.GetProposal(ctx, e.st.DB, args[0])
+				p, err := evolve.GetProposal(ctx, e.Store.DB, args[0])
 				if err != nil {
 					return err
 				}
@@ -191,7 +191,7 @@ chưa nhận được sự kiện skill.activated nên không đo được kích
 					reports = append(reports, evolve.CheckTriggerConditions(d.Name, d.Description, d.Triggers, files, sup, h, list))
 				}
 			} else {
-				ev, err := skills.LoadEvolvedOne(e.k.Root, args[0])
+				ev, err := skills.LoadEvolvedOne(e.K.Root, args[0])
 				if err != nil {
 					return err
 				}
@@ -274,15 +274,15 @@ không còn lợi (regressed) hay chưa kết luận. Bint chỉ báo cáo và g
 				return err
 			}
 			defer e.Close()
-			list, _, err := skills.LoadEvolved(e.k.Root)
+			list, _, err := skills.LoadEvolved(e.K.Root)
 			if err != nil {
 				return err
 			}
 			cur := model
 			if cur == "" {
-				cur = evolve.CurrentModel(ctx, e.st.DB, nil)
+				cur = evolve.CurrentModel(ctx, e.Store.DB, nil)
 			}
-			sts, err := evolve.ModelStatuses(ctx, e.st.DB, list, cur)
+			sts, err := evolve.ModelStatuses(ctx, e.Store.DB, list, cur)
 			if err != nil {
 				return err
 			}

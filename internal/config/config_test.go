@@ -122,3 +122,29 @@ func TestLoadLayers(t *testing.T) {
 		t.Fatalf("sources = %+v", src)
 	}
 }
+
+// ui.language: mặc định auto, chỉ nhận auto | vi | en.
+func TestUILanguage(t *testing.T) {
+	if got := Default().UI.Language; got != "auto" {
+		t.Fatalf("mặc định = %q", got)
+	}
+	for _, ok := range UILanguages {
+		c := Default()
+		c.UI.Language = ok
+		if err := c.Validate(); err != nil {
+			t.Errorf("%s: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"fr", "", "VI"} {
+		c := Default()
+		c.UI.Language = bad
+		err := c.Validate()
+		if err == nil || !strings.Contains(err.Error(), "ui.language") {
+			t.Errorf("%q phải bị từ chối: %v", bad, err)
+		}
+	}
+	cfg := Default()
+	if err := Decode(strings.NewReader("version: 1\nui:\n  language: en\n"), &cfg); err != nil || cfg.UI.Language != "en" {
+		t.Fatalf("nạp ui.language: %v %+v", err, cfg.UI)
+	}
+}

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Tổng quan │ TT (3) │ TV │ LC │ ĐG │ TH │ HT                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tổng quan│──────────────────────────────────────────────────────────────────┐
+│ ┌─│Trợ giúp│───────────────────────────────────────────────────────────────┐ │
+│ │ Tổng quan                                                                │ │
+│ │  r    Làm mới trạng thái repository  bint status                         │ │
+│ │       Kiểm tra môi trường (doctor)  bint doctor                          │ │
+│ │                                                                          │ │
+│ │ Toàn cục                                                                 │ │
+│ │  q    Thoát Bint                                                         │ │
+│ │  ?    Mở bảng trợ giúp đầy đủ                                            │ │
+│ │  :    Mở bảng lệnh (tìm mọi hành động)                                   │ │
+│ │  L    Đổi ngôn ngữ giao diện (vi ⇄ en)                                   │ │
+│ │  ]    Chuyển tới tab kế tiếp                                             │ │
+│ │  [    Chuyển về tab trước                                                │ │
+│ │  1-7  Chuyển nhanh tới một tab                                           │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+│   ! config: cấu hình theo mẫu cũ: chạy `bint init --update`                  │
+│                                                                              │
+└─[r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]────────────────┘

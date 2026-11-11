@@ -1,9 +1,8 @@
-package cli
+package evolvesvc
 
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +20,7 @@ import (
 
 // pairCycle dựng vòng với một cặp chung/riêng cùng đã đạt validation và test (độc lập). Hiệu ứng
 // của hai bản trên tác vụ vùng core do đợt test của từng bản quyết định.
-func pairCycle(t *testing.T, globalCore, domainCore float64) (*evolveCtx, CycleReport, map[string]*evolve.Proposal) {
+func pairCycle(t *testing.T, globalCore, domainCore float64) (*Workspace, CycleReport, map[string]*evolve.Proposal) {
 	t.Helper()
 	testutil.Isolate(t)
 	ctx := context.Background()
@@ -50,7 +49,7 @@ func pairCycle(t *testing.T, globalCore, domainCore float64) (*evolveCtx, CycleR
 			t.Fatal(err)
 		}
 	}
-	e := &evolveCtx{evalCtx: &evalCtx{st: st, cases: eval.Store{CasesDir: casesDir}}, k: k}
+	e := &Workspace{EvalWorkspace: &app.EvalWorkspace{WS: k.Workspace, Store: st, Cases: eval.Store{CasesDir: casesDir}}, K: k}
 	nowT := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
 	stamp := nowT.Add(-time.Hour).Format("2006-01-02T15:04:05.000Z")
 
@@ -109,12 +108,10 @@ func pairCycle(t *testing.T, globalCore, domainCore float64) (*evolveCtx, CycleR
 		}
 	}
 
-	var calls []string
-	r := &cycleRunner{log: io.Discard, call: func(_ context.Context, args ...string) ([]byte, error) {
-		calls = append(calls, strings.Join(args, " "))
-		return []byte(`{}`), nil
-	}}
-	rep, err := runCycle(ctx, e, r, cycleOpts{budget: 10, proposeBudget: 1, maxProposals: 2, parallel: 1, noPropose: true}, func() time.Time { return nowT })
+	r := &fakeRunner{}
+	rep, err := runCycle(ctx, e, CycleOptions{BudgetUSD: 10, ProposeBudget: 1, MaxProposals: 2, Parallel: 1, NoPropose: true, Runner: r},
+		func() time.Time { return nowT })
+	calls := r.calls
 	if err != nil {
 		t.Fatalf("runCycle: %v", err)
 	}

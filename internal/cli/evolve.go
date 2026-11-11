@@ -5,51 +5,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand/v2"
-	"slices"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/app/evolvesvc"
 	"bint/internal/eval"
 	"bint/internal/evolve"
-	"bint/internal/harness"
-	"bint/internal/hcomp"
 	"bint/internal/knowledge"
-	"bint/internal/runlog"
 	"bint/internal/skills"
 )
 
-type evolveCtx struct {
-	*evalCtx
-	k *app.KnowledgeWS
-}
-
-// openEvolve mở không gian tiến hoá: cần repository đã `bint init` (cơ sở dữ liệu
-// trạng thái). Nạp spool trước để số liệu gồm cả sự kiện mới nhất.
-func openEvolve(cmd *cobra.Command) (*evolveCtx, error) {
-	e, err := openEval(cmd, true)
-	if err != nil {
-		return nil, err
-	}
+// openEvolve mở không gian tiến hoá ở thư mục hiện tại: cần repository đã `bint init` (cơ sở
+// dữ liệu trạng thái); nạp spool trước để số liệu gồm cả sự kiện mới nhất.
+func openEvolve(cmd *cobra.Command) (*evolvesvc.Workspace, error) {
 	dir, err := cwd()
 	if err != nil {
-		e.Close()
 		return nil, err
 	}
-	k, err := app.OpenKnowledge(cmd.Context(), dir)
-	if err != nil {
-		e.Close()
-		return nil, err
-	}
-	if _, err := e.ws.Ingest(cmd.Context(), e.st, time.Now()); err != nil {
-		e.Close()
-		return nil, err
-	}
-	return &evolveCtx{evalCtx: e, k: k}, nil
+	return evolvesvc.Open(cmd.Context(), dir)
 }
 
 func newEvolveCmd(stdio IO) *cobra.Command {
@@ -77,62 +53,6 @@ biến, không bao giờ là đối tượng của đề xuất (xem bint skill)
 		newEvolveEvaluateCmd(stdio), newEvolveApplyCmd(stdio), newEvolveRejectCmd(stdio), newEvolveRollbackCmd(stdio),
 		newEvolveHistoryCmd(stdio), newEvolveQueueCmd(stdio), newEvolveProcessCmd(stdio), newEvolveCycleCmd(stdio))
 	return c
-}
-
-func (e *evolveCtx) scan(ctx context.Context, days int, gitScan bool) (evolve.ScanResult, *evolve.History, error) {
-	now := time.Now()
-	window := time.Duration(days) * 24 * time.Hour
-	if days <= 0 {
-		window = 0
-	}
-	if gitScan {
-		// Tín hiệu đến muộn (commit, hoàn tác) cập nhật lại nhãn trước khi phân tích (mục 9.6).
-		lb := window
-		if lb == 0 {
-			lb = evolve.DefaultWindow
-		}
-		if _, err := runlog.ScanGit(ctx, e.st.DB, e.ws.Repo.Toplevel, runlog.ScanOptions{Lookback: lb}); err != nil {
-			return evolve.ScanResult{}, nil, fmt.Errorf("quét lịch sử Git: %w", err)
-		}
-	}
-	items, _, err := e.k.Items()
-	if err != nil {
-		return evolve.ScanResult{}, nil, err
-	}
-	cases, err := e.cases.Cases()
-	if err != nil {
-		return evolve.ScanResult{}, nil, err
-	}
-	evolved, _, err := skills.LoadEvolved(e.k.Root)
-	if err != nil {
-		return evolve.ScanResult{}, nil, err
-	}
-	in := evolve.ScanInput{DB: e.st.DB, Cfg: e.k.Config, Items: items, Cases: cases, Now: now, Window: window,
-		Evolved: evolved, Files: e.k.Source().Files(), Runtime: e.k.Paths.Runtime}
-	if in.Window == 0 {
-		in.Window = evolve.DefaultWindow
-		if d := e.k.Config.Memory.RetentionDays; d > 0 {
-			in.Window = time.Duration(d) * 24 * time.Hour
-		}
-	}
-	h, err := evolve.LoadHistory(ctx, e.st.DB, now, in.Window)
-	if err != nil {
-		return evolve.ScanResult{}, nil, err
-	}
-	in.History = h
-	res, err := evolve.Scan(ctx, in)
-	return res, h, err
-}
-
-// caseMap trả về tác vụ đánh giá đã duyệt theo ID (rỗng nếu không đọc được).
-func (e *evolveCtx) caseMap() map[string]*eval.Case {
-	m := map[string]*eval.Case{}
-	if cs, err := e.cases.Cases(); err == nil {
-		for _, c := range cs {
-			m[c.ID] = c
-		}
-	}
-	return m
 }
 
 func newEvolveScanCmd(stdio IO) *cobra.Command {
@@ -164,7 +84,7 @@ Cơ hội:
 				return err
 			}
 			defer e.Close()
-			res, _, err := e.scan(cmd.Context(), days, !noGit)
+			res, err := evolvesvc.Scan(cmd.Context(), e, evolvesvc.ScanOptions{Days: days, NoGit: noGit})
 			if err != nil {
 				return err
 			}
@@ -250,68 +170,6 @@ func fmtOptF(v *float64, f string) string {
 	return fmt.Sprintf(f, *v)
 }
 
-// evolverAgent dựng agent evolver: harness theo roles.evolver, model theo
-// harnesses.<h>.models.evolver (--model ghi đè), chỉ được đọc.
-func evolverAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
-	if command != "" {
-		return &eval.CommandAgent{Command: command}, nil
-	}
-	name := k.Config.Roles.Evolver
-	if name == "" {
-		name = k.Config.Harnesses.Default
-	}
-	model = harness.RoleModel(k.Config, name, "evolver", model)
-	if name == "claude" || name == "" {
-		cfg := k.Config.Eval.Agent
-		cfg.AllowedTools = []string{"Read", "Grep", "Glob"}
-		cfg.PermissionMode = "dontAsk"
-		cfg.ExtraArgs = nil
-		return &eval.ClaudeAgent{Cfg: cfg, Model: model}, nil
-	}
-	return harness.NewAgent(name, harness.AgentOptions{Config: k.Config, ReadOnly: true, Model: model})
-}
-
-// reflectorAgent dựng agent reflector (rút bài học từ thất bại, kế hoạch E2): harness theo
-// roles.reflector, model theo harnesses.<h>.models.reflector (--reflector-model ghi đè). Không
-// có công cụ và chạy trong thư mục rỗng: đầu vào chỉ là bản tóm tắt đã lọc.
-//
-// Ràng buộc "không công cụ" được ép bằng cờ tường minh của Claude Code (--tools ""), vì tập test
-// không bao giờ được là đầu vào của reflector. Harness khác chưa có cơ chế tắt hết công cụ tương
-// đương (sandbox chỉ-đọc vẫn đọc được toàn hệ tệp, gồm định nghĩa tác vụ tập test), nên
-// roles.reflector khác claude bị từ chối thay vì chạy với ràng buộc lỏng hơn.
-func reflectorAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
-	return noToolAgent(k, "reflector", k.Config.Roles.Reflector, model, command)
-}
-
-// harnessProposerAgent dựng agent đề xuất thay đổi quy trình (H3): harness theo roles.evolver,
-// model theo harnesses.<h>.models.evolver. Cùng ràng buộc như reflector — không công cụ, thư mục
-// rỗng, chỉ claude — vì tập test không bao giờ được là đầu vào của agent sinh đề xuất, mà định
-// nghĩa tác vụ (gồm tập test) nằm trong .bint/evals/ nên Read/Grep đọc được.
-func harnessProposerAgent(k *app.KnowledgeWS, model, command string) (eval.Agent, error) {
-	return noToolAgent(k, "evolver", k.Config.Roles.Evolver, model, command)
-}
-
-// noToolAgent dựng agent Claude Code không có công cụ cho một role (reflector | evolver).
-func noToolAgent(k *app.KnowledgeWS, role, harnessRole, model, command string) (eval.Agent, error) {
-	if command != "" {
-		return &eval.CommandAgent{Command: command}, nil
-	}
-	name := harnessRole
-	if name == "" {
-		name = k.Config.Harnesses.Default
-	}
-	if name != "claude" && name != "" {
-		return nil, fmt.Errorf("roles.%s=%q: chỉ harness claude khoá được công cụ của %s (--tools \"\"); "+
-			"harness %s chưa có cơ chế tắt hết công cụ tương đương nên không dùng được cho role này", role, name, role, name)
-	}
-	model = harness.RoleModel(k.Config, "claude", role, model)
-	cfg := k.Config.Eval.Agent
-	cfg.AllowedTools = nil
-	cfg.PermissionMode = "dontAsk"
-	cfg.ExtraArgs = nil
-	return &eval.ClaudeAgent{Cfg: cfg, Model: model, NoTools: true}, nil
-}
-
 func newEvolveProposeCmd(stdio IO) *cobra.Command {
 	var (
 		budget         float64
@@ -336,45 +194,17 @@ Loại bỏ và gộp mục trùng được dựng xác định, không gọi m�
 agent evolver (roles.evolver, chỉ Read/Grep/Glob); đầu ra của agent phải qua kiểm tra
 xác định được (bằng chứng tồn tại, không trùng, độ dài, cờ bên thứ ba) mới thành đề xuất.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireHumanCLI("bint evolve propose"); err != nil {
-				return err
-			}
 			e, err := openEvolve(cmd)
 			if err != nil {
 				return err
 			}
 			defer e.Close()
-			scan, h, err := e.scan(cmd.Context(), days, true)
+			res, err := evolvesvc.Propose(cmd.Context(), e, evolvesvc.ProposeOptions{Refs: args, BudgetUSD: budget, Max: max,
+				Days: days, AgentCommand: agentCommand, Model: model, ReflectorModel: reflectorModel, NoAgent: noAgent, Warn: stdio.Err})
 			if err != nil {
 				return err
 			}
-			var agent, reflector, hproposer eval.Agent
-			if !noAgent {
-				if agent, err = evolverAgent(e.k, model, agentCommand); err != nil {
-					return err
-				}
-				// Như reflector: không dùng được (roles.evolver khác claude) chỉ làm mất cơ hội quy trình.
-				if hproposer, err = harnessProposerAgent(e.k, model, agentCommand); err != nil {
-					fmt.Fprintf(stdio.Err, "! không dùng được agent đề xuất quy trình (bỏ qua cơ hội quy trình): %v\n", err)
-					hproposer = nil
-				}
-				// Reflector không dùng được (vd roles.reflector khác claude) chỉ làm mất cơ hội
-				// failure_lesson; đề xuất xác định và của evolver vẫn chạy (như đường deferred).
-				if reflector, err = reflectorAgent(e.k, reflectorModel, agentCommand); err != nil {
-					fmt.Fprintf(stdio.Err, "! không dùng được agent reflector (bỏ qua cơ hội bài học từ thất bại): %v\n", err)
-					reflector = nil
-				}
-			}
-			cases, err := e.cases.Cases()
-			if err != nil {
-				return err
-			}
-			rep, err := evolve.Propose(cmd.Context(), evolve.ProposeInput{K: e.k, DB: e.st.DB, Scan: scan, History: h, Refs: args,
-				Max: max, Agent: agent, Reflector: reflector, HarnessProposer: hproposer, Cases: cases, RepoDir: e.ws.Repo.Toplevel, BudgetUSD: budget,
-				Timeout: time.Duration(e.k.Config.Eval.TimeoutMinutes) * time.Minute})
-			if err != nil {
-				return err
-			}
+			rep, scan := res.ProposeReport, res.Scan
 			if asJSON {
 				if rep.Outcomes == nil {
 					rep.Outcomes = []evolve.ProposeOutcome{}
@@ -424,13 +254,6 @@ xác định được (bằng chứng tồn tại, không trùng, độ dài, c�
 	return c
 }
 
-func requireHumanCLI(op string) error {
-	if in, k := app.InAgentSession(); in {
-		return fmt.Errorf("%w (`%s`; phát hiện biến %s)", app.ErrAgentForbidden, op, k)
-	}
-	return nil
-}
-
 func changeIDs(p *evolve.Proposal) []string {
 	if p.IsSkill() {
 		return evolve.SkillChangeNames(p)
@@ -443,18 +266,6 @@ func changeIDs(p *evolve.Proposal) []string {
 		out = append(out, c.Op+":"+c.ItemID)
 	}
 	return out
-}
-
-// proposalState mô tả trạng thái hiển thị: đề xuất chờ có phiên bản gốc đã đổi là "outdated".
-func proposalState(e *evolveCtx, p *evolve.Proposal) (string, []evolve.BaseProblem) {
-	if p.Status != evolve.StatusProposed {
-		return p.Status, nil
-	}
-	probs, err := p.CheckBaseWS(e.k)
-	if err != nil || len(probs) > 0 {
-		return "outdated", probs
-	}
-	return p.Status, nil
 }
 
 func latestVerdict(evs []evolve.Evaluation, split string) string {
@@ -485,11 +296,7 @@ func newEvolveListCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			defer e.Close()
-			var statuses []string
-			if !all {
-				statuses = []string{evolve.StatusProposed}
-			}
-			ps, err := evolve.ListProposals(cmd.Context(), e.st.DB, statuses...)
+			rows, err := evolvesvc.List(cmd.Context(), e, evolvesvc.ListOptions{All: all})
 			if err != nil {
 				return err
 			}
@@ -499,26 +306,21 @@ func newEvolveListCmd(stdio IO) *cobra.Command {
 					State string `json:"state"`
 				}
 				out := []row{}
-				for _, p := range ps {
-					st, _ := proposalState(e, p)
-					out = append(out, row{p, st})
+				for _, r := range rows {
+					out = append(out, row{r.Proposal, r.State})
 				}
 				return writeJSON(stdio.Out, out)
 			}
-			if len(ps) == 0 {
+			if len(rows) == 0 {
 				fmt.Fprintln(stdio.Out, "Không có đề xuất nào (`bint evolve scan`, `bint evolve propose`).")
 				return nil
 			}
 			tw := tabwriter.NewWriter(stdio.Out, 0, 2, 2, ' ', 0)
 			fmt.Fprintln(tw, "ID\tTRẠNG THÁI\tHÀNH ĐỘNG\tRỦI RO\tVALIDATION\tTEST\tTẠO LÚC\tLÝ DO")
-			for _, p := range ps {
-				st, _ := proposalState(e, p)
-				evs, err := evolve.Evaluations(cmd.Context(), e.st.DB, p.ID)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.ID, st, p.Action, p.Risk,
-					latestVerdict(evs, eval.SplitValidation), latestVerdict(evs, eval.SplitTest), fmtTime(p.CreatedAt), truncate(p.Reason, 70))
+			for _, r := range rows {
+				p := r.Proposal
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.ID, r.State, p.Action, p.Risk,
+					latestVerdict(r.Evaluations, eval.SplitValidation), latestVerdict(r.Evaluations, eval.SplitTest), fmtTime(p.CreatedAt), truncate(p.Reason, 70))
 			}
 			tw.Flush()
 			fmt.Fprintln(stdio.Out, "(* = kết quả trên test không độc lập; outdated = phiên bản gốc đã đổi)")
@@ -537,37 +339,20 @@ func newEvolveShowCmd(stdio IO) *cobra.Command {
 		Short: "Chi tiết đề xuất: thay đổi, phiên bản gốc, căn cứ, kế hoạch và kết quả đối chiếu",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
 			e, err := openEvolve(cmd)
 			if err != nil {
 				return err
 			}
 			defer e.Close()
-			p, err := evolve.GetProposal(ctx, e.st.DB, args[0])
+			r, err := evolvesvc.Show(cmd.Context(), e, evolvesvc.ShowOptions{ID: args[0]})
 			if err != nil {
 				return err
 			}
-			st, probs := proposalState(e, p)
-			evs, err := evolve.Evaluations(ctx, e.st.DB, p.ID)
-			if err != nil {
-				return err
-			}
-			ads, err := evolve.Adoptions(ctx, e.st.DB, p.ID)
-			if err != nil {
-				return err
-			}
-			h, err := evolve.LoadHistory(ctx, e.st.DB, time.Now(), 365*24*time.Hour)
-			if err != nil {
-				return err
-			}
-			drift := evolve.LabelDrift(p, h)
 			if asJSON {
-				return writeJSON(stdio.Out, map[string]any{"proposal": p, "state": st, "base_problems": nonNilSlice(probs),
-					"evaluations": nonNilSlice(evs), "adoptions": nonNilSlice(ads), "label_drift": nonNilSlice(drift)})
+				return writeJSON(stdio.Out, map[string]any{"proposal": r.Proposal, "state": r.State, "base_problems": nonNilSlice(r.BaseProblems),
+					"evaluations": nonNilSlice(r.Evaluations), "adoptions": nonNilSlice(r.Adoptions), "label_drift": nonNilSlice(r.LabelDrift)})
 			}
-			items, _, _ := e.k.Items()
-			evolved, _, _ := skills.LoadEvolved(e.k.Root)
-			printProposal(stdio.Out, p, st, probs, evs, ads, drift, items, evolved, e.caseMap())
+			printProposal(stdio.Out, r.Proposal, r.State, r.BaseProblems, r.Evaluations, r.Adoptions, r.LabelDrift, r.Items, r.Evolved, r.Cases)
 			return nil
 		},
 	}
@@ -770,381 +555,77 @@ không kém, hoặc futility).`,
 				return err
 			}
 			defer e.Close()
-			cfg := e.k.Config
-			ev := cfg.Evolution.Evaluation
 			w := stdio.Out
-			if !ev.Enabled {
-				return fmt.Errorf("evolution.evaluation.enabled = false")
+			opts := evolvesvc.EvaluateDefaults(e.K.Config)
+			opts.ID = args[0]
+			if cmd.Flags().Changed("split") {
+				opts.Split = split
 			}
-			p, err := evolve.GetProposal(ctx, e.st.DB, args[0])
-			if err != nil {
-				return err
+			if cmd.Flags().Changed("repeats") {
+				opts.Repeats, opts.RepeatsExplicit = repeats, true
 			}
-			if regression {
-				if p.Status != evolve.StatusApplied {
-					return usageError{fmt.Errorf("--regression chỉ dùng cho đề xuất đã áp dụng (đề xuất %s: %s)", p.ID, p.Status)}
-				}
-			} else {
-				if p.Status != evolve.StatusProposed {
-					return fmt.Errorf("đề xuất %s ở trạng thái %s: chỉ đối chiếu đề xuất đang chờ", p.ID, p.Status)
-				}
-				if st, probs := proposalState(e, p); st == "outdated" {
-					return fmt.Errorf("đề xuất %s không còn hợp lệ: %s: %s", p.ID, probs[0].ID, probs[0].Detail)
-				}
-			}
-			if delivery == "" {
-				delivery = ev.Delivery
-			}
-			if delivery != eval.ArmBint && delivery != eval.ArmMinimal {
-				return usageError{fmt.Errorf("--delivery phải là bint | minimal")}
-			}
-			if p.IsHarness() {
-				// Hook, MCP và guardrail chỉ có ở nhánh bint: thành phần quy trình không đo được bằng minimal.
-				if cmd.Flags().Changed("delivery") && delivery != eval.ArmBint {
-					return usageError{fmt.Errorf("đề xuất quy trình chỉ đo được với --delivery bint (guardrail và chỉ dẫn đi qua hook/MCP của nhánh bint)")}
-				}
-				if regression {
-					return usageError{fmt.Errorf("--regression chưa hỗ trợ cho đề xuất quy trình")}
-				}
-				delivery = eval.ArmBint
-			}
-			mode := ev.LeakageMode
-			if leakage != "" {
-				mode = leakage
-			}
-			if mode != eval.LeakStrict && mode != eval.LeakEconomy {
-				return usageError{fmt.Errorf("--leakage-mode phải là strict | economy")}
-			}
-			now := time.Now()
-			var skillBefore, skillAfter evolve.SkillSet
-			var harnessBefore, harnessAfter hcomp.Set
-			if p.IsHarness() {
-				// Base = tập thành phần đang có hiệu lực; candidate = tập đó sau khi áp đề xuất (thành
-				// phần mới coi như đã duyệt). Cùng tập tri thức, cùng nhánh bint.
-				harnessBefore, harnessAfter, err = evolve.HarnessSets(hcomp.Load(e.k.Root), p)
-				if err != nil {
-					return err
-				}
-				e.env.Variant = evolve.HarnessVariant(p, harnessBefore, harnessAfter)
-			} else if p.IsSkill() {
-				list, _, err := skills.LoadEvolved(e.k.Root)
-				if err != nil {
-					return err
-				}
-				if regression {
-					// Skill đã áp dụng: base = trước đề xuất (dựng lại), candidate = hiện tại.
-					if skillBefore, err = evolve.ReverseSet(e.k.Root, p, list); err != nil {
-						return err
-					}
-					skillAfter = evolve.CurrentSet(list)
-				} else {
-					skillBefore = evolve.CurrentSet(list)
-					if skillAfter, err = evolve.ApplyToSet(p, skillBefore, e.k.Source(), cfg.Context.Freshness.Fingerprint); err != nil {
-						return err
-					}
-				}
-				e.env.Variant = evolve.SkillVariant(p, delivery, e.ws.Repo.Toplevel, skillBefore, skillAfter)
-			} else if regression {
-				// Tri thức đã áp dụng: base = tập trước đề xuất (dựng lại từ bản ghi kiểm toán).
-				bi, err := evolve.BeforeItems(ctx, e.st.DB, p)
-				if err != nil {
-					return err
-				}
-				cur, _, err := e.k.Items()
-				if err != nil {
-					return err
-				}
-				touchedNow := map[string]*knowledge.Item{}
-				for _, it := range cur {
-					if _, ok := bi[it.ID]; ok {
-						touchedNow[it.ID] = it
-					}
-				}
-				e.env.Variant = evolve.RegressionVariant(p, delivery, e.ws.Repo.Toplevel, bi, touchedNow)
-			} else {
-				e.env.Variant = evolve.Variant(p, delivery, e.ws.Repo.Toplevel, e.k.Source(), cfg.Context.Freshness.Fingerprint, now)
-			}
-
-			var agent eval.Agent
-			if agentCommand != "" {
-				agent = &eval.CommandAgent{Command: agentCommand}
-			} else {
-				h := harnessName
-				if h == "" {
-					h = cfg.Eval.Harness
-				}
-				if agent, err = harness.NewAgent(h, harness.AgentOptions{Config: cfg, Eval: true, Model: model,
-					MaxCost: cfg.Limits.PerRun.MaxCostUSD, Bare: bare}); err != nil {
-					return err
-				}
-			}
-			opts := eval.RunOptions{Agent: agent, RequestedModel: model, Parallel: parallel, Seed: seed, KeepWorkdirs: keep,
-				BintVersion: Version, ResumeBatch: resume, PriorRunUSD: cfg.Eval.PriorRunUSD, RepeatMajor: true}
-			curBatch := resume // đợt đang chạy, cho callback Look
 			if cmd.Flags().Changed("budget") {
 				opts.BudgetUSD = &budget
-			} else if ev.BudgetUSD != nil {
-				opts.BudgetUSD = ev.BudgetUSD
 			}
-			allCases, err := e.cases.Cases()
-			if err != nil {
-				return err
+			if cmd.Flags().Changed("delivery") {
+				opts.Delivery, opts.DeliveryExplicit = delivery, true
 			}
-			current := map[string]*eval.Case{}
-			for _, c := range allCases {
-				current[c.ID] = c
+			if harnessName != "" {
+				opts.Harness = harnessName
 			}
-			var record evolve.Evaluation
-			if resume != "" {
-				record, err = evolve.EvaluationByBatch(ctx, e.st.DB, resume)
-				if err != nil {
-					return fmt.Errorf("đợt %s không thuộc lần đối chiếu đề xuất nào: %w", resume, err)
-				}
-				if record.ProposalID != p.ID || record.BaseKey != p.BaseKey() {
-					return fmt.Errorf("đợt %s thuộc đề xuất/phiên bản gốc khác", resume)
-				}
-				e.env.Variant.Delivery = record.Delivery
-				opts.Cases = allCases
-			} else {
-				if !regression && split != eval.SplitValidation && split != eval.SplitTest {
-					return usageError{fmt.Errorf("--split phải là validation | test (tập build dùng để xây đề xuất, mục 12.2)")}
-				}
-				candidates := filterSplit(allCases, split)
-				if regression {
-					// Tập nhỏ đại diện: chính các tác vụ đã làm căn cứ áp dụng đề xuất (mục 12.6).
-					ids, err := evolve.OriginalCases(ctx, e.st.DB, p)
-					if err != nil {
-						return err
-					}
-					if len(ids) == 0 {
-						return fmt.Errorf("đề xuất %s không có lần đối chiếu supported nào để lấy tập đại diện", p.ID)
-					}
-					candidates = nil
-					for _, c := range allCases {
-						if slices.Contains(ids, c.ID) {
-							candidates = append(candidates, c)
-						}
-					}
-					if limit == 0 {
-						limit = 5
-					}
-				}
-				var pool []*eval.Case
-				unverified, older := 0, 0
-				for _, c := range candidates {
-					if !c.Verified() {
-						unverified++
-						continue
-					}
-					if prospective && !evolve.Prospective(p, []string{c.ID}, map[string]*eval.Case{c.ID: c}) {
-						older++
-						continue
-					}
-					pool = append(pool, c)
-				}
-				if prospective {
-					fmt.Fprintf(w, "Tiến cứu: bỏ %d tác vụ có commit trước khi đề xuất được tạo\n", older)
-				}
-				// Mọi lượt căn cứ của đề xuất, kể cả ngoài cửa sổ phân tích.
-				hist, err := evolve.LoadHistory(ctx, e.st.DB, now, 10*365*24*time.Hour)
-				if err != nil {
-					return err
-				}
-				var impacts []evolve.CaseImpact
-				switch {
-				case regression:
-					for _, c := range pool {
-						impacts = append(impacts, evolve.CaseImpact{CaseID: c.ID, Split: c.Split, Case: c, Affected: true, Reason: "tập đại diện"})
-					}
-				case p.IsHarness():
-					impacts, err = evolve.SelectHarnessCases(ctx, e.env, mode, p, hist, pool, harnessBefore, harnessAfter)
-				case p.IsSkill():
-					impacts, err = evolve.SelectSkillCases(ctx, e.env, mode, p, hist, pool, skillBefore, skillAfter)
-				default:
-					impacts, err = evolve.SelectCases(ctx, e.env, mode, p, hist, pool)
-				}
-				if err != nil {
-					return err
-				}
-				var chosen []*eval.Case
-				reasons := map[string]int{}
-				for _, ci := range impacts {
-					if ci.Affected {
-						chosen = append(chosen, ci.Case)
-					} else {
-						reasons[firstClause(ci.Reason)]++
-					}
-				}
-				slices.SortFunc(chosen, func(a, b *eval.Case) int { return strings.Compare(a.ID, b.ID) })
-				if limit > 0 && len(chosen) > limit {
-					chosen = chosen[:limit]
+			if leakage != "" {
+				opts.LeakageMode = leakage
+			}
+			opts.Force, opts.Limit, opts.Yes, opts.AgentCommand, opts.Model = force, limit, yes, agentCommand, model
+			opts.Parallel, opts.Seed, opts.KeepWorkdirs, opts.Bare = parallel, seed, keep, bare
+			opts.Resume, opts.Regression, opts.Prospective, opts.BintVersion = resume, regression, prospective, Version
+			if isTerminal(stdio.In) {
+				opts.Confirm = func(req app.ConfirmRequest) bool { return confirm(stdio, req.Text) }
+			}
+			opts.OnSelect = func(s evolvesvc.EvaluateSelection) {
+				if s.Prospective {
+					fmt.Fprintf(w, "Tiến cứu: bỏ %d tác vụ có commit trước khi đề xuất được tạo\n", s.Older)
 				}
 				fmt.Fprintf(w, "Tập %s: %d tác vụ đã kiểm chứng (%d chưa kiểm chứng bị bỏ), %d chịu ảnh hưởng của %s\n",
-					split, len(pool), unverified, len(chosen), p.ID)
-				for _, r := range sortedMapKeys(reasons) {
-					fmt.Fprintf(w, "  bỏ %d: %s\n", reasons[r], r)
-				}
-				if len(chosen) == 0 {
-					return fmt.Errorf("không tác vụ nào thuộc tập %s chịu ảnh hưởng của đề xuất; đề xuất không kiểm chứng định lượng được trên tập này", split)
-				}
-				if seed == 0 {
-					seed = uint64(now.UnixNano())
-				}
-				// R cố định bởi --repeats hoặc evolution.evaluation.repeats > 0; ngược lại do PlanProbe chọn.
-				fixed := 0
-				switch {
-				case cmd.Flags().Changed("repeats"):
-					if repeats < 1 {
-						return usageError{fmt.Errorf("--repeats phải >= 1")}
-					}
-					fixed = repeats
-				case ev.Repeats > 0:
-					fixed = ev.Repeats
-				}
-				sequential := !regression && evolve.Sequential(p.Plan)
-				var seqNote string
-				if regression {
-					// Tập đại diện nhỏ (không nhằm phát hiện hiệu ứng): giữ cách cũ, không lập kế hoạch.
-					if repeats = fixed; repeats < 1 {
-						repeats = max(cfg.Eval.Repeats, 1)
-					}
-				} else {
-					effect := p.Plan.MinEffect
-					if p.Plan.Kind == "non_inferiority" {
-						effect = p.Plan.Margin
-					}
-					vm, err := eval.HistoricalVariance(ctx, e.st.DB, agent.Name(), ev.EffectSD)
-					if err != nil {
-						return err
-					}
-					in := eval.PlanInput{Available: len(chosen), Effect: effect, SigmaB: vm.SigmaB, SigmaBMeasured: vm.SigmaMeasured, W: vm.W, MaxRepeats: ev.MaxRepeats, FixedRepeats: fixed}
-					if avg, n, err := eval.HistoricalCost(ctx, e.st.DB, agent.Name(), model); err != nil {
-						return err
-					} else if n > 0 {
-						in.CostPerRun = avg
-					}
-					pp := eval.PlanProbe(in)
-					printProbePlan(w, pp, vm, in, sequential)
-					if !pp.Feasible && !force {
-						return withCode(ExitError, fmt.Errorf("kế hoạch không khả thi: với %d tác vụ và tối đa %d lần lặp chỉ phát hiện được chênh lệch từ %.1f điểm %% (cần %.1f); thêm tác vụ, nâng evolution.evaluation.min_effect/non_inferiority_margin, hoặc dùng --force để chạy vẫn",
-							len(chosen), pp.Repeats, 100*pp.MinDetectable, 100*effect))
-					}
-					repeats = pp.Repeats
-					if pp.Feasible && pp.Cases < len(chosen) {
-						// Chỉ chạy đủ số tác vụ cần: chọn ngẫu nhiên theo hạt giống để không thiên về ID.
-						rng := rand.New(rand.NewPCG(seed, 0x70726f62))
-						rng.Shuffle(len(chosen), func(i, j int) { chosen[i], chosen[j] = chosen[j], chosen[i] })
-						chosen = chosen[:pp.Cases]
-						slices.SortFunc(chosen, func(a, b *eval.Case) int { return strings.Compare(a.ID, b.ID) })
-					}
-					seqNote = fmt.Sprintf("%d tác vụ × %d lần lặp × 2 nhánh, tối đa %d lượt, %d điểm nhìn ở lần lặp %v",
-						len(chosen), repeats, len(chosen)*2*repeats, len(evolve.SeqLooks(repeats)), evolve.SeqLooks(repeats))
-				}
-				arms := []string{eval.ArmBase, eval.ArmCandidate}
-				opts.Cases, opts.Arms, opts.Repeats, opts.LeakageMode, opts.Seed = chosen, arms, repeats, mode, seed
-				opts.Notes = append(runNotes(chosen, mode, agent, bare), fmt.Sprintf("đối chiếu đề xuất %s (%s), cách đưa tri thức: %s, tập %s", p.ID, p.Action, delivery, split))
-				if sequential {
-					opts.Notes = append(opts.Notes, evolve.SeqNotePrefix+seqNote)
-				}
-				est, err := eval.EstimateRun(ctx, e.st.DB, eval.EstimateInput{Cases: len(chosen), Arms: arms, Repeats: repeats,
-					Harness: agent.Name(), Model: model, Effect: p.Plan.MinEffect, EffectSD: ev.EffectSD})
-				if err != nil {
-					return err
-				}
-				printEstimate(w, est, arms, repeats, opts.BudgetUSD)
-				opts.EstimatedUSD = est.TotalCost
-				if agent.ReportsCost() {
-					if opts.BudgetUSD == nil {
-						return usageError{fmt.Errorf("cần ngân sách: --budget <USD> hoặc evolution.evaluation.budget_usd (mục 11.2: duyệt ngân sách trước khi chạy)")}
-					}
-					if est.TotalCost != nil && *est.TotalCost > *opts.BudgetUSD {
-						return withCode(ExitError, fmt.Errorf("%w: ước tính $%.2f > ngân sách $%.2f", eval.ErrBudget, *est.TotalCost, *opts.BudgetUSD))
-					}
-				}
-				record = evolve.Evaluation{ProposalID: p.ID, Split: split, BaseKey: p.BaseKey(), Delivery: delivery, CreatedAt: nowISO(now)}
-				if regression {
-					record.Kind, record.Split = evolve.EvalRegression, ""
-					opts.Notes = append(opts.Notes, "kiểm tra hồi quy mô hình (mục 12.6): kết quả không dùng làm căn cứ áp dụng")
-				}
-				for _, c := range chosen {
-					record.CaseIDs = append(record.CaseIDs, c.ID)
-				}
-				opts.OnBatch = func(id string) error {
-					curBatch = id
-					record.BatchID = id
-					return evolve.RecordEvaluation(ctx, e.st.DB, &record)
+					s.Split, s.Pool, s.Unverified, s.Chosen, s.ProposalID)
+				for _, r := range sortedMapKeys(s.Dropped) {
+					fmt.Fprintf(w, "  bỏ %d: %s\n", s.Dropped[r], r)
 				}
 			}
-			if !yes {
-				if !isTerminal(stdio.In) {
-					return usageError{fmt.Errorf("cần --yes khi chạy không tương tác")}
-				}
-				if !confirm(stdio, "Bắt đầu đối chiếu?") {
-					return fmt.Errorf("đã huỷ")
-				}
+			opts.OnPlan = func(pp eval.ProbePlan, vm eval.VarModel, in eval.PlanInput, sequential bool) {
+				printProbePlan(w, pp, vm, in, sequential)
 			}
-			opts.Progress = func(r eval.AttemptRow, n, total int) {
-				if !asJSON {
+			opts.OnEstimate = func(est eval.Estimate, arms []string, reps int, bud *float64) {
+				printEstimate(w, est, arms, reps, bud)
+			}
+			if !asJSON {
+				opts.Progress = func(r eval.AttemptRow, n, total int) {
 					fmt.Fprintf(w, "[%d/%d] %s %-9s #%d  %-8s%s\n", n, total, r.CaseID, r.Arm, r.Repeat, r.Status, attemptExtras(r))
 				}
 			}
-			// Điểm nhìn chỉ cho đợt tuần tự: đợt mới (đánh dấu ở ghi chú) hoặc đợt tiếp tục có đánh dấu đó.
-			if !regression && evolve.Sequential(p.Plan) && record.Kind != evolve.EvalRegression {
-				resumed := false
-				if resume != "" {
-					if b, err := eval.GetBatch(ctx, e.st.DB, resume); err == nil {
-						resumed = evolve.IsSequential(b)
-					}
-				}
-				if resume == "" || resumed {
-					opts.Look = evolve.NewLook(ctx, e.st.DB, p.Plan, func() string { return curBatch }, current)
-				}
-			}
-			res, runErr := eval.Run(ctx, e.env, e.st.DB, opts)
-			if res.BatchID == "" {
-				return runErr
-			}
-			if record.ID == "" {
-				// Tiếp tục: bản ghi đã có từ lần đầu.
-				if record, err = evolve.EvaluationByBatch(ctx, e.st.DB, res.BatchID); err != nil {
-					return err
-				}
-			}
-			v, rep, err := evolve.Finalize(context.WithoutCancel(ctx), e.st.DB, p, record, current)
+			res, err := evolvesvc.Evaluate(ctx, e, opts)
 			if err != nil {
 				return err
 			}
-			// Kích hoạt skill thực tế trong các lượt đối chiếu (đọc từ đầu ra của agent, không qua hook).
-			var activation []evolve.SkillActivation
-			if len(p.SkillChanges) > 0 {
-				var names []string
-				for _, c := range p.SkillChanges {
-					if c.Op == evolve.ActionCreate || c.Op == evolve.ActionUpdate {
-						names = append(names, c.Name)
-					}
-				}
-				if rows, aerr := eval.Attempts(ctx, e.st.DB, "batch_id = ?", res.BatchID); aerr == nil {
-					activation = evolve.ProbeActivation(rows, names)
-				}
-			}
+			p, record, v, rep, runErr := res.Proposal, res.Record, res.Verdict, res.Report, res.RunErr
 			if asJSON {
-				return writeJSON(w, map[string]any{"evaluation_id": record.ID, "batch_id": res.BatchID, "status": res.Status,
-					"verdict": v, "report": rep, "skill_activation": activation})
+				return writeJSON(w, map[string]any{"evaluation_id": record.ID, "batch_id": res.Run.BatchID, "status": res.Run.Status,
+					"verdict": v, "report": rep, "skill_activation": res.Activation})
 			}
-			fmt.Fprintf(w, "\nĐợt %s: %s, %d/%d lượt\n", res.BatchID, res.Status, res.Done, res.Total)
-			if res.Status == eval.StatusStoppedEarly {
-				fmt.Fprintf(w, "Dừng sớm: %s\n", res.StopReason)
+			fmt.Fprintf(w, "\nĐợt %s: %s, %d/%d lượt\n", res.Run.BatchID, res.Run.Status, res.Run.Done, res.Run.Total)
+			if res.Run.Status == eval.StatusStoppedEarly {
+				fmt.Fprintf(w, "Dừng sớm: %s\n", res.Run.StopReason)
 			}
 			printReport(w, rep, false)
-			for _, a := range activation {
+			for _, a := range res.Activation {
 				fmt.Fprintf(w, "  skill %s, nhánh %s: được gọi ở %d/%d lượt đo được\n", a.Skill, a.Arm, a.Activated, a.Measured)
 			}
 			fmt.Fprintf(w, "\nKết luận (%s, tập %s): %s — %s\n", p.Plan.Kind, orDash(record.Split), v.Verdict, v.Detail)
 			for _, n := range v.Notes {
 				fmt.Fprintf(w, "  lưu ý: %s\n", n)
 			}
-			if res.Status == "cancelled" || errors.Is(runErr, eval.ErrBudget) || errors.Is(runErr, eval.ErrQuota) {
-				fmt.Fprintf(w, "Chạy tiếp: bint evolve evaluate %s --resume %s\n", p.ID, res.BatchID)
+			if res.Run.Status == "cancelled" || errors.Is(runErr, eval.ErrBudget) || errors.Is(runErr, eval.ErrQuota) {
+				fmt.Fprintf(w, "Chạy tiếp: bint evolve evaluate %s --resume %s\n", p.ID, res.Run.BatchID)
 			}
 			if errors.Is(runErr, context.Canceled) {
 				return withCode(ExitError, fmt.Errorf("đã dừng theo yêu cầu"))
@@ -1203,16 +684,6 @@ func printProbePlan(w io.Writer, pp eval.ProbePlan, vm eval.VarModel, in eval.Pl
 	}
 }
 
-func firstClause(s string) string {
-	// Gom lý do theo phần trước dấu ":" thứ hai để không liệt kê từng mục.
-	if i := strings.Index(s, " ("); i > 0 {
-		s = s[:i]
-	}
-	return truncate(s, 110)
-}
-
-func nowISO(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z") }
-
 func newEvolveApplyCmd(stdio IO) *cobra.Command {
 	var (
 		unverified  bool
@@ -1241,8 +712,8 @@ bản được ghi kèm harness/mô hình đã kiểm chứng (mục 12.6).`,
 				return err
 			}
 			defer e.Close()
-			res, err := evolve.Apply(cmd.Context(), evolve.ApplyOptions{K: e.k, DB: e.st.DB, Ref: args[0],
-				Unverified: unverified, ConfirmRisk: confirmRisk, Reason: reason, Cases: e.caseMap()})
+			res, err := evolvesvc.Apply(cmd.Context(), e, evolvesvc.ApplyOptions{Ref: args[0],
+				Unverified: unverified, ConfirmRisk: confirmRisk, Reason: reason})
 			if err != nil {
 				return err
 			}
@@ -1251,7 +722,7 @@ bản được ghi kèm harness/mô hình đã kiểm chứng (mục 12.6).`,
 			}
 			w := stdio.Out
 			if res.Proposal != nil && res.Proposal.IsSkill() {
-				defer syncAfterSkillChange(w, e.k)
+				defer syncAfterSkillChange(w, e.K)
 			}
 			kind := ""
 			if res.EvidenceKind != "" {
@@ -1293,7 +764,7 @@ func newEvolveRejectCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			defer e.Close()
-			p, err := evolve.Reject(cmd.Context(), e.st.DB, args[0], reason, time.Now())
+			p, err := evolvesvc.Reject(cmd.Context(), e, evolvesvc.RejectOptions{Ref: args[0], Reason: reason})
 			if err != nil {
 				return err
 			}
@@ -1320,13 +791,13 @@ func newEvolveRollbackCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			defer e.Close()
-			res, err := evolve.Rollback(cmd.Context(), evolve.RollbackOptions{K: e.k, DB: e.st.DB, Ref: args[0], Force: force, Reason: reason})
+			res, err := evolvesvc.Rollback(cmd.Context(), e, evolvesvc.RollbackOptions{Ref: args[0], Force: force, Reason: reason})
 			if err != nil {
 				return err
 			}
 			fmt.Fprintf(stdio.Out, "Đã quay lui %s (bản ghi %s)\n", res.Proposal.ID, res.AdoptionID)
 			if res.Proposal.IsSkill() {
-				defer syncAfterSkillChange(stdio.Out, e.k)
+				defer syncAfterSkillChange(stdio.Out, e.K)
 			}
 			for _, f := range res.Files {
 				op := "~"
@@ -1352,22 +823,21 @@ func newEvolveHistoryCmd(stdio IO) *cobra.Command {
 		Short: "Lịch sử áp dụng/quay lui: kiểm chứng, mô hình, theo dõi sau áp dụng, chi phí tiến hoá",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx := cmd.Context()
 			e, err := openEvolve(cmd)
 			if err != nil {
 				return err
 			}
 			defer e.Close()
-			cur := evolve.CurrentModel(ctx, e.st.DB, e.k.Config.Eval.Agent.Model)
-			hs, err := evolve.HistoryOf(ctx, e.st.DB, cur, e.k.Config.Evolution.Adoption.BindToModelVersion, e.caseMap())
+			res, err := evolvesvc.History(cmd.Context(), e, evolvesvc.HistoryOptions{})
 			if err != nil {
 				return err
 			}
+			hs := res.Entries
 			if asJSON {
 				return writeJSON(stdio.Out, nonNilSlice(hs))
 			}
 			w := stdio.Out
-			if n, sum := cycleTotals(e.k.Paths.Runtime); n > 0 {
+			if n, sum := res.Cycles, res.CycleTotals; n > 0 {
 				fmt.Fprintf(w, "Vòng tự động (bint evolve cycle): %d vòng, đã tiêu $%.2f (tạo ứng viên $%.2f, đối chiếu $%.2f); tự áp dụng %d, tự quay lui %d, tự bác bỏ %d\n",
 					n, sum.SpentUSD, sum.GenerationUSD, sum.ProbeUSD, len(sum.AutoApplied), len(sum.RolledBack), len(sum.AutoRejected))
 			}

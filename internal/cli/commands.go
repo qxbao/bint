@@ -17,7 +17,6 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/harness/claude"
-	"bint/internal/runlog"
 	"bint/internal/state"
 )
 
@@ -184,50 +183,47 @@ func newStatusCmd(stdio IO) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			ws, s, res, err := openAndIngest(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			defer s.Close()
-			counts, err := runlog.StatusCounts(ctx, s.DB)
+			rep, err := app.Status(ctx, dir)
 			if err != nil {
 				return err
 			}
-			v, _ := s.Version(ctx)
 			w := stdio.Out
-			fmt.Fprintf(w, "Repository:     %s\n", ws.Repo.Toplevel)
-			fmt.Fprintf(w, "Repo ID:        %s\n", ws.Paths.RepoID)
-			fmt.Fprintf(w, "Trạng thái:     %s\n", ws.Paths.Root)
-			fmt.Fprintf(w, "Schema:         v%d\n", v)
-			fmt.Fprintf(w, "Harness:        %s\n", strings.Join(ws.Config.Harnesses.Enabled, ", "))
-			total := 0
+			fmt.Fprintf(w, "Repository:     %s\n", rep.Repo)
+			fmt.Fprintf(w, "Repo ID:        %s\n", rep.RepoID)
+			fmt.Fprintf(w, "Trạng thái:     %s\n", rep.StateDir)
+			fmt.Fprintf(w, "Schema:         v%d\n", rep.Schema)
+			fmt.Fprintf(w, "Harness:        %s\n", strings.Join(rep.Harnesses, ", "))
 			var parts []string
-			keys := make([]string, 0, len(counts))
-			for k := range counts {
+			keys := make([]string, 0, len(rep.Runs))
+			for k := range rep.Runs {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
 			for _, k := range keys {
-				total += counts[k]
-				parts = append(parts, fmt.Sprintf("%s=%d", k, counts[k]))
+				parts = append(parts, fmt.Sprintf("%s=%d", k, rep.Runs[k]))
 			}
-			fmt.Fprintf(w, "Lượt chạy:      %d %s\n", total, strings.Join(parts, " "))
+			fmt.Fprintf(w, "Lượt chạy:      %d %s\n", rep.TotalRuns, strings.Join(parts, " "))
 			// Chế độ deferred (mục 13.4): lần gọi CLI này là "lần gọi phù hợp tiếp theo" để xử lý yêu cầu tiến hoá.
-			if ev := ws.Config.Evolution; ev.Enabled && ev.Execution == "deferred" {
+			pending := rep.PendingProposals
+			if ev := rep.Config.Evolution; ev.Enabled && ev.Execution == "deferred" {
 				deferredTick(cmd, w, func() (bool, float64) {
 					b := 0.0
 					if ev.Deferred.BudgetUSD != nil {
 						b = *ev.Deferred.BudgetUSD
 					}
 					return true, b
-				}, res.Events)
+				}, rep.Ingest.Events)
+				pending = app.PendingProposals(ctx, dir) // bước hoãn có thể vừa tạo đề xuất mới
 			}
-			var pending int
-			if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM evolution_proposals WHERE status = 'proposed'`).Scan(&pending); err == nil && pending > 0 {
+			if pending > 0 {
 				fmt.Fprintf(w, "Tiến hoá:       %d đề xuất chờ duyệt (bint evolve list)\n", pending)
 			}
-			if res.Events > 0 || res.Interrupted > 0 {
-				fmt.Fprintf(w, "Vừa nạp:        %d sự kiện, %d lượt chuyển interrupted\n", res.Events, res.Interrupted)
+			if rep.Ingest.Events > 0 || rep.Ingest.Interrupted > 0 {
+				fmt.Fprintf(w, "Vừa nạp:        %d sự kiện, %d lượt chuyển interrupted\n", rep.Ingest.Events, rep.Ingest.Interrupted)
 			}
 			return nil
 		},

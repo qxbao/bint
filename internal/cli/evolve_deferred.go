@@ -4,50 +4,13 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
-	"bint/internal/eval"
+	"bint/internal/app/evolvesvc"
 	"bint/internal/evolve"
 )
-
-// processDeferred đánh dấu yêu cầu cho cơ hội mới đủ điều kiện rồi xử lý hàng đợi (mục 13.3).
-// budget > 0: dùng agent evolver cho yêu cầu cần mô hình; ngược lại chỉ yêu cầu xác định.
-func processDeferred(cmd *cobra.Command, e *evolveCtx, w io.Writer, budget float64, max int, asJSON bool) (evolve.ProcessReport, []evolve.Request, error) {
-	ctx := cmd.Context()
-	scan, h, err := e.scan(ctx, 0, true)
-	if err != nil {
-		return evolve.ProcessReport{}, nil, err
-	}
-	now := time.Now()
-	added, err := evolve.Enqueue(e.k.Paths.Runtime, scan, now)
-	if err != nil {
-		return evolve.ProcessReport{}, nil, err
-	}
-	var agent, reflector, hproposer eval.Agent
-	if budget > 0 {
-		if agent, err = evolverAgent(e.k, "", ""); err != nil {
-			fmt.Fprintf(w, "! không dùng được agent evolver: %v\n", err)
-		}
-		if reflector, err = reflectorAgent(e.k, "", ""); err != nil {
-			fmt.Fprintf(w, "! không dùng được agent reflector: %v\n", err)
-		}
-		if hproposer, err = harnessProposerAgent(e.k, "", ""); err != nil {
-			fmt.Fprintf(w, "! không dùng được agent đề xuất quy trình: %v\n", err)
-		}
-	}
-	// Tác vụ đánh giá và repository để kiểm rò rỉ cho bài học (như `bint evolve propose`).
-	cases, err := e.cases.Cases()
-	if err != nil {
-		return evolve.ProcessReport{}, nil, err
-	}
-	rep, err := evolve.ProcessRequests(ctx, evolve.ProcessInput{K: e.k, DB: e.st.DB, Scan: scan, History: h, Agent: agent,
-		Reflector: reflector, HarnessProposer: hproposer, Cases: cases, RepoDir: e.ws.Repo.Toplevel, BudgetUSD: budget, Max: max,
-		Timeout: time.Duration(e.k.Config.Eval.TimeoutMinutes) * time.Minute, Now: now})
-	return rep, added, err
-}
 
 func printDeferred(w io.Writer, rep evolve.ProcessReport, added []evolve.Request, indent string) {
 	if len(added) > 0 {
@@ -90,11 +53,11 @@ func deferredTick(cmd *cobra.Command, w io.Writer, cfgEvo func() (bool, float64)
 		return
 	}
 	defer e.Close()
-	waiting, _ := evolve.ListRequests(e.k.Paths.Runtime, evolve.ReqPending)
+	waiting, _ := evolve.ListRequests(e.K.Paths.Runtime, evolve.ReqPending)
 	if newEvents == 0 && len(waiting) == 0 {
 		return
 	}
-	rep, added, err := processDeferred(cmd, e, w, budget, 0, false)
+	rep, added, err := evolvesvc.ProcessDeferred(cmd.Context(), e, w, budget, 0)
 	if err != nil {
 		fmt.Fprintf(w, "Tiến hoá hoãn:  ! %v\n", err)
 		return
@@ -120,14 +83,11 @@ func newEvolveQueueCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			defer e.Close()
-			var st []string
-			if !all {
-				st = []string{evolve.ReqPending}
-			}
-			rs, err := evolve.ListRequests(e.k.Paths.Runtime, st...)
+			res, err := evolvesvc.Queue(e, evolvesvc.QueueOptions{All: all})
 			if err != nil {
 				return err
 			}
+			rs := res.Requests
 			if asJSON {
 				if rs == nil {
 					rs = []evolve.Request{}
@@ -135,7 +95,7 @@ func newEvolveQueueCmd(stdio IO) *cobra.Command {
 				return writeJSON(stdio.Out, rs)
 			}
 			if len(rs) == 0 {
-				fmt.Fprintf(stdio.Out, "Không có yêu cầu nào (evolution.execution = %s).\n", e.k.Config.Evolution.Execution)
+				fmt.Fprintf(stdio.Out, "Không có yêu cầu nào (evolution.execution = %s).\n", res.Execution)
 				return nil
 			}
 			tw := tabwriter.NewWriter(stdio.Out, 0, 2, 2, ' ', 0)
@@ -168,21 +128,16 @@ Với evolution.execution: deferred, bint status tự chạy bước này khi c�
 evolution.deferred.budget_usd, null = chỉ yêu cầu không cần mô hình).`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := requireHumanCLI("bint evolve process"); err != nil {
-				return err
-			}
 			e, err := openEvolve(cmd)
 			if err != nil {
 				return err
 			}
 			defer e.Close()
-			if !e.k.Config.Evolution.Enabled {
-				return fmt.Errorf("evolution.enabled = false trong cấu hình")
-			}
-			rep, added, err := processDeferred(cmd, e, stdio.Out, budget, max, asJSON)
+			res, err := evolvesvc.Process(cmd.Context(), e, evolvesvc.ProcessOptions{BudgetUSD: budget, Max: max, Warn: stdio.Out})
 			if err != nil {
 				return err
 			}
+			rep, added := res.Report, res.Added
 			if asJSON {
 				return writeJSON(stdio.Out, map[string]any{"added": nonNilSlice(added), "report": rep})
 			}

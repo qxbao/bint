@@ -1,8 +1,7 @@
-package cli
+package evolvesvc
 
 import (
 	"context"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -36,7 +35,7 @@ func TestCycleProposesAndProbesLesson(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	e := &evolveCtx{evalCtx: &evalCtx{st: st, cases: eval.Store{}}, k: k}
+	e := &Workspace{EvalWorkspace: &app.EvalWorkspace{WS: k.Workspace, Store: st, Cases: eval.Store{}}, K: k}
 
 	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
 	p := &evolve.Proposal{Schema: evolve.ProposalSchema, ID: "ep_lesson1", Level: "L1", TargetType: "knowledge",
@@ -50,18 +49,17 @@ func TestCycleProposesAndProbesLesson(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var calls []string
-	r := &cycleRunner{log: io.Discard, call: func(_ context.Context, args ...string) ([]byte, error) {
-		calls = append(calls, strings.Join(args, " "))
-		switch args[1] {
-		case "propose":
-			return []byte(`{"outcomes":[{"opportunity":"op-x","proposal":{"proposal_id":"ep_lesson1"}}],"spent_usd":0}`), nil
-		case "evaluate":
-			return []byte(`{"batch_id":"","verdict":{"verdict":"inconclusive"}}`), nil
-		}
-		return []byte(`{}`), nil
-	}}
-	rep, err := runCycle(ctx, e, r, cycleOpts{budget: 10, proposeBudget: 1, maxProposals: 2, parallel: 1}, func() time.Time { return now })
+	r := &fakeRunner{
+		propose: func(ProposeOptions) (*ProposeResult, error) {
+			return &ProposeResult{ProposeReport: evolve.ProposeReport{Outcomes: []evolve.ProposeOutcome{
+				{Opportunity: "op-x", Proposal: &evolve.Proposal{ID: "ep_lesson1"}}}}}, nil
+		},
+		evaluate: func(EvaluateOptions) (*EvaluateResult, error) {
+			return &EvaluateResult{Verdict: evolve.Verdict{Verdict: "inconclusive"}}, nil
+		},
+	}
+	rep, err := runCycle(ctx, e, CycleOptions{BudgetUSD: 10, ProposeBudget: 1, MaxProposals: 2, Parallel: 1, Runner: r}, func() time.Time { return now })
+	calls := r.calls
 	if err != nil {
 		t.Fatalf("runCycle: %v", err)
 	}

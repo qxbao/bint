@@ -34,7 +34,9 @@ func InAgentSession() (bool, string) {
 // ErrAgentForbidden: thao tác chỉ dành cho người.
 var ErrAgentForbidden = errors.New("thao tác này chỉ dành cho người dùng, không chạy được từ trong phiên agent")
 
-func requireHuman(op string) error {
+// RequireHuman trả lỗi bọc ErrAgentForbidden khi đang trong phiên agent. Mọi thao tác chỉ
+// dành cho người ở tầng dịch vụ gọi nó ở đầu, để CLI và TUI dùng chung một kiểm tra.
+func RequireHuman(op string) error {
 	if in, k := InAgentSession(); in {
 		return fmt.Errorf("%w (`%s`; phát hiện biến %s)", ErrAgentForbidden, op, k)
 	}
@@ -261,7 +263,7 @@ type AppliedTransition struct {
 func VerifyKnowledge(ctx context.Context, k *KnowledgeWS, refs []string, apply bool, now time.Time) (VerifyReport, error) {
 	rep := VerifyReport{Items: map[string]*knowledge.Item{}}
 	if apply {
-		if err := requireHuman("bint knowledge verify --apply"); err != nil {
+		if err := RequireHuman("bint knowledge verify --apply"); err != nil {
 			return rep, err
 		}
 	}
@@ -402,7 +404,7 @@ type ReviewOutcome struct {
 // agent bị từ chối.
 func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]ReviewOutcome, error) {
 	op := map[string]string{knowledge.StatusVerified: "bint knowledge approve", knowledge.StatusDeprecated: "bint knowledge reject/deprecate"}[act.To]
-	if err := requireHuman(op); err != nil {
+	if err := RequireHuman(op); err != nil {
 		return nil, err
 	}
 	if act.Now.IsZero() {

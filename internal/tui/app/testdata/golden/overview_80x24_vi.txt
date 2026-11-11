@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Tổng quan │ TT (3) │ TV │ LC │ ĐG │ TH │ HT                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tổng quan│──────────────────────────────────────────────────────────────────┐
+│                                    bint.                                     │
+│               Ghi nhận, đo lường và tri thức cho coding agent                │
+│                                                                              │
+│              ┌─│Repository│───────────────────────────────────┐              │
+│              │ Thư mục     /work/demo                         │              │
+│              │ Trạng thái  /state/demo-7f3a9c                 │              │
+│              │ Harness     claude, codex                      │              │
+│              │ Schema      v6                                 │              │
+│              │ Lượt chạy   42  done=38 failed=3 interrupted=1 │              │
+│              └────────────────────────────────────────────────┘              │
+│                                                                              │
+│  Việc cần bạn (3)                                                            │
+│ ▸ ◌ 3 mục tri thức chờ duyệt                                      → Tri thức │
+│   ◌ 2 đề xuất tiến hoá chờ duyệt                                  → Tiến hoá │
+│   ! Doctor cảnh báo — config: cấu hình theo mẫu cũ: chạy `bint …  → Hệ thống │
+│                                                                              │
+│  Doctor  ✓ 2  ! 1  ✗ 0                                                       │
+│   ! config: cấu hình theo mẫu cũ: chạy `bint init --update`                  │
+│                                                                              │
+└─[r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]────────────────┘

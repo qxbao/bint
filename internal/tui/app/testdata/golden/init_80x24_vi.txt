@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Tổng quan │ TT │ TV │ LC │ ĐG │ TH │ HT                                      │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Khởi tạo│───────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   Repository này chưa khởi tạo Bint                                          │
+│                                                                              │
+│   Bint chưa được khởi tạo trong /work/demo. Khởi tạo chỉ tạo cấu hình và     │
+│   trạng thái cục bộ; chạy lại bất cứ lúc nào cũng an toàn.                   │
+│                                                                              │
+│   • Tạo .bint/config.yml (không bao giờ ghi đè cấu hình sẵn có).             │
+│   • Tạo thư mục trạng thái cục bộ ngoài repository cùng cơ sở dữ liệu        │
+│   SQLite.                                                                    │
+│   • Không cài hook khi khởi tạo không hỏi; cài sau bằng `bint init --        │
+│   hooks`.                                                                    │
+│   • Thêm khối bint vào .gitignore.                                           │
+│                                                                              │
+│   Skill gốc cho harness được xuất bản kèm theo. Không gọi mô hình, không     │
+│   chạy lệnh của dự án.                                                       │
+│                                                                              │
+│   Lệnh CLI tương đương: bint init                                            │
+│                                                                              │
+│                                                                              │
+└─[Enter→ Khởi tạo] [r→ Kiểm tra lại] [:→ Lệnh] [q→ Thoát] [?→ Trợ giúp]───────┘

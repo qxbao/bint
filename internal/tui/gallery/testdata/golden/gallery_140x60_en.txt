@@ -1,0 +1,60 @@
+┌───────────────────────────────────────────────────────────│Component gallery│────────────────────────────────────────────────────────────┐
+│                                                                                                                                          │
+│ ▌ Role palette and status symbols                                                                                                        │
+│   fg  muted  accent  key  ✓ ok  ! warn  ✗ err                                                                                            │
+│   ✓ verified  ◌ candidate  ⟳ stale  ✗ deprecated                                                                                         │
+│                                                                                                                                          │
+│ ▌ Tab bar (full and compact)                                                                                                             │
+│   Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                              │
+│   Ov │ Knowledge (3) │ Tk │ Rn │ Ev │ Evo │ Sy                                                                                           │
+│                                                                                                                                          │
+│ ▌ Footer by priority (wide, medium, narrow)                                                                                              │
+│   [Enter→ Open] [a→ Approve] [/→ Search] [:→ Commands] [?→ Help] [q→ Quit]                                                               │
+│   [Enter→ Open] [a→ Approve] [/→ Search] [?→ Help] [q→ Quit]                                                                             │
+│   [Enter→ Open] [?→ Help] [q→ Quit]                                                                                                      │
+│                                                                                                                                          │
+│ ▌ Frame with a title on the border                                                                                                       │
+│ ┌─│Knowledge│─────────────────────────────────────────side─┐                                                                             │
+│ │ Frame content; accented text: ắ ề ộ ữ ợ                  │                                                                             │
+│ │                                                          │                                                                             │
+│ │                                                          │                                                                             │
+│ └─[Enter→ Open] [?→ Help] [q→ Quit]────────────────────────┘                                                                             │
+│                                                                                                                                          │
+│ ▌ Logo                                                                                                                                   │
+│   ██      ██            ██                                                                                                               │
+│   ██                  ██████                                                                                                             │
+│   ████    ██  ████      ██                                                                                                               │
+│   ██  ██  ██  ██  ██    ██                                                                                                               │
+│   ████    ██  ██  ██    ████  ██                                                                                                         │
+│   bint.                                                                                                                                  │
+│                                                                                                                                          │
+│ ▌ Command palette                                                                                                                        │
+│ ┌─│Command palette│────────────────────────────────────────┐                                                                             │
+│ │ : ▏                                                      │                                                                             │
+│ │                                                          │                                                                             │
+│ │ ▸ Knowledge › Open                                 Enter │                                                                             │
+│ │   Knowledge › Approve                        humans only │                                                                             │
+│ └──────────────────────────────────────────────────────────┘                                                                             │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+└─ color mode: mono · language: en · [m] color  [l] language  [q] Quit─────────────────────────────────────────────────────────────────────┘

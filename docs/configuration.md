@@ -191,3 +191,12 @@ khi bạn chép sang `eval.test_command`.
 - `security.allow_external_agents` (`false`) và `security.allow_network_in_evals` (`false`): hiện là
   khoá khai báo trong schema, **chưa có lớp chặn tiến trình hoặc cô lập mạng ở tầng hệ điều hành**;
   quyền thực tế của agent phụ thuộc vào cấu hình sandbox của từng harness.
+
+## Giao diện (`ui`)
+
+- `ui.language` (mặc định `"auto"`): ngôn ngữ giao diện TUI, `auto` | `vi` | `en`. Thứ tự ưu tiên khi
+  chọn: cờ `--lang` của `bint tui` > biến `BINT_LANG` > `ui.language` > `LC_ALL`/`LANG` > `vi`. Giá trị
+  `auto` bỏ qua bước cấu hình, chuyển sang `LC_ALL`/`LANG` rồi tiếng Việt. Trong TUI, phím `L` đổi
+  ngôn ngữ ngay trong phiên (không cần khởi động lại) nhưng **chưa lưu** vào cấu hình; màn Hệ thống ›
+  Ngôn ngữ để lưu `ui.language` thuộc giai đoạn 5 của kế hoạch TUI. Repository có cấu hình cũ chưa có khối `ui`
+  được thêm bằng `bint init --update`.

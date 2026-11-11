@@ -182,6 +182,9 @@ security:
   allow_external_agents: false
   allow_network_in_evals: false
   require_approval_for_commands: true
+
+ui:
+  language: auto            # giao diện TUI: auto | vi | en (auto: theo BINT_LANG, LANG; mặc định vi)
 `)
 	return b.String()
 }

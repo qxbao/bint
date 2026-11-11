@@ -1,4 +1,4 @@
-package cli
+package app
 
 import (
 	"testing"
@@ -7,13 +7,13 @@ import (
 )
 
 func TestManualRejectReasonKhongGiaLoaiTuDong(t *testing.T) {
-	c := &eval.Case{Status: eval.StatusRejected, RejectReason: manualRejectReason("kiểm chứng: x"),
+	c := &eval.Case{Status: eval.StatusRejected, RejectReason: ManualRejectReason("kiểm chứng: x"),
 		Verification: &eval.Verification{Status: "verified"}}
-	settleVerification(c)
+	SettleVerification(c)
 	if c.Status != eval.StatusRejected {
 		t.Errorf("loại thủ công bị khôi phục: %s %q", c.Status, c.RejectReason)
 	}
-	if got := manualRejectReason("lý do khác"); got != "lý do khác" {
+	if got := ManualRejectReason("lý do khác"); got != "lý do khác" {
 		t.Errorf("%q", got)
 	}
 }
@@ -38,7 +38,7 @@ func TestSettleVerificationKiemChungLai(t *testing.T) {
 	}
 	for _, tc := range cases {
 		c := &eval.Case{Status: tc.status, RejectReason: tc.reason, Verification: tc.v}
-		settleVerification(c)
+		SettleVerification(c)
 		if c.Status != tc.wantStatus || c.RejectReason != tc.wantReason {
 			t.Errorf("%s: %s %q", tc.name, c.Status, c.RejectReason)
 		}

@@ -597,7 +597,7 @@ func newKnowledgeTransitionsCmd(stdio IO) *cobra.Command {
 }
 
 func newKnowledgeReviewCmd(stdio IO) *cobra.Command {
-	var statuses []string
+	statuses := app.ReviewQueueDefaults().Statuses
 	c := &cobra.Command{
 		Use:   "review",
 		Short: "Duyệt theo lô các mục chờ (candidate, stale); chỉ người dùng",
@@ -610,23 +610,15 @@ kết quả kiểm tra. Mỗi mục nhập một phím rồi Enter:
   q  dừng`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if in, k := app.InAgentSession(); in {
-				return fmt.Errorf("%w (`bint knowledge review`; phát hiện biến %s)", app.ErrAgentForbidden, k)
-			}
-			k, err := openKnowledge(cmd)
+			dir, err := cwd()
 			if err != nil {
 				return err
 			}
-			items, _, err := k.Items()
+			rs, err := app.ReviewQueue(cmd.Context(), dir, app.ReviewQueueOptions{Statuses: statuses})
 			if err != nil {
 				return err
 			}
-			var pending []string
-			for _, it := range items {
-				if slices.Contains(statuses, it.Status) {
-					pending = append(pending, it.ID)
-				}
-			}
+			k, pending := rs.K, rs.Pending
 			if len(pending) == 0 {
 				fmt.Fprintln(stdio.Out, "Không có mục chờ duyệt.")
 				return nil
@@ -713,7 +705,7 @@ kết quả kiểm tra. Mỗi mục nhập một phím rồi Enter:
 			return nil
 		},
 	}
-	c.Flags().StringSliceVar(&statuses, "status", []string{knowledge.StatusCandidate, knowledge.StatusStale}, "trạng thái cần duyệt")
+	c.Flags().StringSliceVar(&statuses, "status", app.ReviewQueueDefaults().Statuses, "trạng thái cần duyệt")
 	return c
 }
 

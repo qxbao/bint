@@ -44,17 +44,17 @@ func newExperienceDigestCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			defer e.Close()
-			cases, err := e.cases.Cases()
+			cases, err := e.Cases.Cases()
 			if err != nil {
 				return err
 			}
-			items, _, err := e.k.Items()
+			items, _, err := e.K.Items()
 			if err != nil {
 				return err
 			}
-			tr := e.k.Config.Evolution.Trigger
+			tr := e.K.Config.Evolution.Trigger
 			minUnits, minNew := max(tr.MinSimilarRuns, 1), max(tr.MinNewEvidence, 1)
-			rep, err := evolve.DigestRef(cmd.Context(), e.st.DB, cases, args[0], e.k.Paths.Runtime, minUnits, minNew,
+			rep, err := evolve.DigestRef(cmd.Context(), e.Store.DB, cases, args[0], e.K.Paths.Runtime, minUnits, minNew,
 				evolve.LessonIDs(items))
 			if err != nil {
 				return err
@@ -118,15 +118,15 @@ func newExperienceShowCmd(stdio IO) *cobra.Command {
 				return err
 			}
 			defer e.Close()
-			items, _, err := e.k.Items()
+			items, _, err := e.K.Items()
 			if err != nil {
 				return err
 			}
-			h, err := evolve.LoadHistory(cmd.Context(), e.st.DB, time.Now(), 10*365*24*time.Hour)
+			h, err := evolve.LoadHistory(cmd.Context(), e.Store.DB, time.Now(), 10*365*24*time.Hour)
 			if err != nil {
 				return err
 			}
-			rows, err := evolve.ExperienceShow(cmd.Context(), e.st.DB, items, h)
+			rows, err := evolve.ExperienceShow(cmd.Context(), e.Store.DB, items, h)
 			if err != nil {
 				return err
 			}

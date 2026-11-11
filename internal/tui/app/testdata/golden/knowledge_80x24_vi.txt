@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│Tri thức│───────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   Tri thức                                                                   │
+│                                                                              │
+│   Màn hình này sẽ có ở giai đoạn 1 của kế hoạch TUI.                         │
+│                                                                              │
+│   Trong lúc chờ, dùng các lệnh CLI tương đương:                              │
+│     $ bint knowledge list                                                    │
+│     $ bint knowledge review                                                  │
+│     $ bint knowledge search <query>                                          │
+│     $ bint knowledge add                                                     │
+│     $ bint context <task>                                                    │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

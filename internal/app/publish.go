@@ -35,12 +35,32 @@ func AgentsBlock(root string, cfg config.Config) (string, knowledge.Selection, e
 // PublishOptions điều khiển `bint bootstrap publish`.
 type PublishOptions struct {
 	Dir    string
-	DryRun bool
-	Force  bool
-	// Confirm được gọi với bản thay đổi trước khi ghi; nil = ghi luôn.
-	Confirm func(diff string) bool
+	DryRun bool `flag:"dry-run"`
+	Force  bool `flag:"force"`
+	// Yes bỏ qua lời hỏi xác nhận. Không Yes và không Confirm (không ai trả lời được) thì ghi thay
+	// đổi AGENTS.md là lỗi dùng sai, như eval run/bootstrap và evolve evaluate; DryRun thì không cần.
+	Yes bool `flag:"yes"`
+	// Confirm được gọi trước khi ghi thay đổi (Detail = bản thay đổi); trả false thì không ghi và
+	// PublishAgents trả báo cáo với Written=false (không phải lỗi).
+	Confirm ConfirmFunc
 	Now     time.Time
 }
+
+// Validate kiểm tra ràng buộc mức giá trị của tuỳ chọn xuất bản.
+func (o PublishOptions) Validate() error {
+	if o.Dir == "" {
+		return Usagef("thiếu thư mục repository")
+	}
+	return nil
+}
+
+// PublishDefaults trả tuỳ chọn mặc định (cấu hình hiện chưa ảnh hưởng tới xuất bản).
+func PublishDefaults(_ config.Config, dir string) PublishOptions {
+	return PublishOptions{Dir: dir}
+}
+
+// ConfirmPublishKey là khoá i18n của lời hỏi xác nhận xuất bản.
+const ConfirmPublishKey = "bootstrap.publish.confirm"
 
 // PublishReport là kết quả xuất bản.
 type PublishReport struct {
@@ -55,6 +75,9 @@ type PublishReport struct {
 // CLAUDE.md khi harness claude được bật) từ các quy tắc đã duyệt. Luôn tạo bản
 // thay đổi để xem trước; nội dung ngoài khối không bị chạm tới (mục 4.2 bước 6).
 func PublishAgents(ctx context.Context, opts PublishOptions) (*PublishReport, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	if opts.Now.IsZero() {
 		opts.Now = time.Now()
 	}
@@ -82,8 +105,13 @@ func PublishAgents(ctx context.Context, opts PublishOptions) (*PublishReport, er
 	if opts.DryRun || (!rep.Changed && old != nil && claudeImportOK(root, ws.Config)) {
 		return rep, nil
 	}
-	if opts.Confirm != nil && rep.Changed && !opts.Confirm(rep.Diff) {
-		return rep, nil
+	if rep.Changed && !opts.Yes {
+		if opts.Confirm == nil {
+			return nil, errNeedYes()
+		}
+		if !opts.Confirm(ConfirmRequest{Key: ConfirmPublishKey, Text: "Ghi thay đổi này vào AGENTS.md?", Detail: rep.Diff}) {
+			return rep, nil
+		}
 	}
 	manifest, err := fsafe.LoadManifest(ws.Paths.Manifest)
 	if err != nil {

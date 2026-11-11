@@ -1,4 +1,4 @@
-package cli
+package evolvesvc
 
 import (
 	"slices"
@@ -16,7 +16,7 @@ func TestReflectorAgentLocksTools(t *testing.T) {
 	cfg.Eval.Agent.AllowedTools = []string{"Read", "Bash"}
 	k := &app.KnowledgeWS{Workspace: &app.Workspace{Config: cfg}}
 	k.Config.Roles.Reflector = "claude"
-	ag, err := reflectorAgent(k, "", "")
+	ag, err := ReflectorAgent(k, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,11 +30,11 @@ func TestReflectorAgentLocksTools(t *testing.T) {
 	}
 
 	k.Config.Roles.Reflector = "codex"
-	if _, err := reflectorAgent(k, "", ""); err == nil || !strings.Contains(err.Error(), "roles.reflector") {
+	if _, err := ReflectorAgent(k, "", ""); err == nil || !strings.Contains(err.Error(), "roles.reflector") {
 		t.Fatalf("harness khác claude phải bị từ chối: %v", err)
 	}
 	// Lệnh tuỳ chọn (kiểm thử) không qua harness.
-	if _, err := reflectorAgent(k, "", "echo"); err != nil {
+	if _, err := ReflectorAgent(k, "", "echo"); err != nil {
 		t.Fatal(err)
 	}
 }
