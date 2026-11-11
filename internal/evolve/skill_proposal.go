@@ -66,6 +66,9 @@ func SkillBaseOf(root string, targets []*skills.Evolved) ([]BaseVersion, error) 
 
 // CheckBaseWS so phiên bản gốc với tệp hiện tại cho cả đề xuất tri thức lẫn skill.
 func (p *Proposal) CheckBaseWS(k *app.KnowledgeWS) ([]BaseProblem, error) {
+	if p.IsHarness() {
+		return p.checkHarnessBase(k)
+	}
 	if !p.IsSkill() {
 		return p.CheckBase(k.Store)
 	}

@@ -408,13 +408,13 @@ func TestRoleModel(t *testing.T) {
 	cfg := config.Default()
 	cases := []struct{ h, role, cli, want string }{
 		{"claude", "planner", "", "opus"},
-		{"claude", "implementer", "", "haiku"},
+		{"claude", "implementer", "", "sonnet"},
 		{"claude", "reviewer", "", "opus"},
 		{"claude", "evolver", "", "opus"},
 		{"claude", "reflector", "", "opus"},
 		{"codex", "implementer", "", "gpt-6-luna"},
 		{"antigravity", "planner", "", "gemini-4-argon-high"},
-		{"claude", "implementer", "sonnet", "sonnet"},
+		{"claude", "implementer", "haiku", "haiku"},
 		{"claude", "", "", ""},
 	}
 	for _, c := range cases {
@@ -423,15 +423,15 @@ func TestRoleModel(t *testing.T) {
 		}
 	}
 	// Bước b-feat qua adapter Claude: model của implementer, ghi đè workflow.agent.model.
-	generic := "sonnet"
+	generic := "haiku"
 	cfg.Workflow.Agent.Model = &generic
 	ag := Claude{}.NewAgent(AgentOptions{Config: cfg, Step: "b-feat", Model: RoleModel(cfg, "claude", StepRole("b-feat"), "")})
-	if got := ag.(*eval.ClaudeAgent).RequestedModel(); got != "haiku" {
+	if got := ag.(*eval.ClaudeAgent).RequestedModel(); got != "sonnet" {
 		t.Fatalf("model b-feat = %q", got)
 	}
 	cfg.Harnesses.Claude.Models.Implementer = ""
 	ag = Claude{}.NewAgent(AgentOptions{Config: cfg, Step: "b-feat", Model: RoleModel(cfg, "claude", StepRole("b-feat"), "")})
-	if got := ag.(*eval.ClaudeAgent).RequestedModel(); got != "sonnet" {
+	if got := ag.(*eval.ClaudeAgent).RequestedModel(); got != "haiku" {
 		t.Fatalf("models.implementer rỗng phải dùng workflow.agent.model: %q", got)
 	}
 }

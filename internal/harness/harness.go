@@ -44,6 +44,7 @@ const (
 	CapHooks          = "hooks"
 	CapPathContext    = "path_context"
 	CapProtectedPaths = "protected_paths"
+	CapGuardrails     = "guardrails"
 	CapExecute        = "execute"
 	CapReadOnly       = "readonly"
 	CapCost           = "cost"
@@ -59,6 +60,7 @@ var AllCapabilities = []struct{ Key, Title string }{
 	{CapHooks, "Hook ghi nhận sự kiện"},
 	{CapPathContext, "Chèn ngữ cảnh theo đường dẫn"},
 	{CapProtectedPaths, "Hỏi người khi sửa đường dẫn bảo vệ"},
+	{CapGuardrails, "Guardrail quy trình (.bint/harness/guardrails)"},
 	{CapExecute, "Thực thi theo chương trình (bint run)"},
 	{CapReadOnly, "Giữ bước chỉ đọc"},
 	{CapCost, "Báo chi phí (áp max_cost_usd)"},
@@ -433,6 +435,7 @@ func (Claude) Capabilities() []Capability {
 		{CapHooks, Yes, "SessionStart, SessionEnd, PostToolUse, PostToolUseFailure"},
 		{CapPathContext, Yes, "PreToolUse trước Read/Edit/Write (additionalContext)"},
 		{CapProtectedPaths, Yes, "PreToolUse permissionDecision=ask"},
+		{CapGuardrails, Yes, "pre_edit/pre_bash: remind (additionalContext), ask, deny; stop: Stop decision=block (remind một lần, deny tối đa 3 lần)"},
 		{CapExecute, Yes, "claude -p --output-format json"},
 		{CapReadOnly, Yes, "--disallowedTools Edit,Write,…; Bint kiểm tra cây làm việc sau bước"},
 		{CapCost, Yes, "total_cost_usd; --max-budget-usd"},
@@ -452,7 +455,7 @@ func (Claude) UninstallHooks(path, backupDir string, now time.Time) (claude.Inst
 }
 func (Claude) HooksInstalled(path string) (bool, error) { return claude.HooksInstalled(path) }
 func (Claude) HookEvents() string {
-	return "SessionStart, SessionEnd, PreToolUse, PostToolUse, PostToolUseFailure"
+	return "SessionStart, SessionEnd, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop"
 }
 
 func (Claude) InstallMCP(req MCPRequest) (MCPResult, error) {
@@ -526,6 +529,7 @@ func (Codex) Capabilities() []Capability {
 		{CapHooks, Partial, ".codex/hooks.json: SessionStart/End, Pre/PostToolUse; cần trust từng định nghĩa; kết quả shell lấy từ exit_code của transcript cùng tool_use_id, thiếu thì unknown; script phức tạp không nâng thành tín hiệu test"},
 		{CapPathContext, Partial, "chỉ trước khi sửa (apply_patch); Codex đọc tệp qua shell nên không chèn khi đọc"},
 		{CapProtectedPaths, Partial, "PreToolUse deny kèm lý do (không hỏi được trong codex exec); duyệt trước tệp chưa có diff bằng bint task approve <id> --path <tệp>, rồi resume"},
+		{CapGuardrails, Partial, "pre_edit/pre_bash: deny và remind (additionalContext); ask hạ xuống remind; không có sự kiện Stop nên guardrail stop không chạy"},
 		{CapExecute, Yes, "codex exec --json, đề bài qua stdin"},
 		{CapReadOnly, Partial, "sandbox workspace-write (bint CLI cần ghi thư mục trạng thái); Bint kiểm tra cây làm việc sau bước"},
 		{CapCost, No, "chỉ báo token; max_cost_usd chỉ là chỉ dẫn"},
@@ -585,6 +589,7 @@ func (Antigravity) Capabilities() []Capability {
 		{CapHooks, Partial, ".agents/hooks.json: SessionStart, PreToolUse, PostToolUse; không có sự kiện kết thúc phiên; tên công cụ theo tài liệu, chưa đo trực tiếp"},
 		{CapPathContext, No, "PreToolUse chỉ trả quyết định (allow/deny/ask), không chèn được ngữ cảnh"},
 		{CapProtectedPaths, Yes, "PreToolUse decision=ask"},
+		{CapGuardrails, Partial, "pre_edit/pre_bash: ask và deny; remind bị bỏ (PreToolUse không chèn được ngữ cảnh); không có sự kiện Stop"},
 		{CapExecute, Yes, "agy --print --output-format json"},
 		{CapReadOnly, Partial, "--mode plan; Bint kiểm tra cây làm việc sau bước"},
 		{CapCost, No, "chỉ báo token; max_cost_usd chỉ là chỉ dẫn"},

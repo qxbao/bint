@@ -394,7 +394,7 @@ ra liên kết bằng **task ID**.
 `/b-do` là **orchestrator**: phiên đang chạy chỉ lập phiếu, hỏi người dùng và gọi `bint run`. Mỗi
 bước do một agent riêng chạy, harness theo `roles.<role>`, model theo `harnesses.<harness>.models.<role>`.
 Mặc định của Claude: planner (b-req), reviewer (b-review), evolver và reflector (bài học từ thất bại)
-dùng `opus`; implementer (b-feat) dùng `haiku`. Codex: `gpt-6-astra` / `gpt-6-luna`. Antigravity: `gemini-4-argon-high` /
+dùng `opus`; implementer (b-feat) dùng `sonnet`. Codex: `gpt-6-astra` / `gpt-6-luna`. Antigravity: `gemini-4-argon-high` /
 `gemini-3.8-flash-medium`. Thứ tự ưu tiên của model: `--model` → `harnesses.<h>.models.<role>` →
 model chung (`workflow.agent.model`, `harnesses.<h>.model`) → mặc định của harness. Kết quả từng
 bước ghi `harness/model` đã dùng.
@@ -544,8 +544,9 @@ bint eval run --harness codex …                   # đo trên harness khác (n
 | Skill | `.claude/skills` | `.agents/skills` | `.agents/skills` (dùng chung với Codex) |
 | Ẩn skill / chỉ gọi tường minh | ✓ (`disable-model-invocation`) | không ẩn khỏi người; `agents/openai.yaml` có `policy.allow_implicit_invocation: false` (Bint chưa sinh policy này) | ✗ |
 | MCP server của Bint | `.mcp.json` | `.codex/config.toml` — cần dự án được Codex tin cậy; riêng `cite_knowledge` được đặt `approval_mode = "approve"` | ✗ (chỉ cấp người dùng; dùng CLI `bint`) |
-| Hook ghi nhận | SessionStart/End, PostToolUse(+Failure) | `.codex/hooks.json`: SessionStart/End, PreToolUse, PostToolUse — mỗi hook cần được duyệt trong Codex | `.agents/hooks.json`: SessionStart, PreToolUse, PostToolUse — không có kết thúc phiên |
+| Hook ghi nhận | SessionStart/End, PreToolUse, PostToolUse(+Failure), UserPromptSubmit, Stop | `.codex/hooks.json`: SessionStart/End, PreToolUse, PostToolUse — mỗi hook cần được duyệt trong Codex | `.agents/hooks.json`: SessionStart, PreToolUse, PostToolUse — không có kết thúc phiên |
 | Chèn ngữ cảnh theo đường dẫn | trước Read/Edit/Write | chỉ trước `apply_patch` | ✗ (PreToolUse chỉ trả quyết định) |
+| Guardrail quy trình (`.bint/harness`) | `remind`, `ask`, `deny` trước lệnh/sửa; `Stop` chặn kết thúc (remind một lần, deny tối đa 3 lần) | `deny` và `remind` trước lệnh/sửa; `ask` hạ xuống `remind`; không có `Stop` | `ask`/`deny` trước lệnh/sửa; `remind` bị bỏ (không chèn được ngữ cảnh); không có `Stop` |
 | Đường dẫn bảo vệ | hỏi (`ask`) | chặn (`deny`); khi chưa có diff: `task approve <id> --path <tệp>` rồi `run resume <id>` | hỏi (`ask`) |
 | Thực thi (`bint run`) | `claude -p` | `codex exec --json` (stdin) | `agy --print=… --output-format json` |
 | Bước chỉ đọc | cấm công cụ sửa tệp | sandbox `workspace-write` | `--mode plan` |
@@ -619,6 +620,68 @@ thì báo không hỗ trợ đăng nhập cô lập tự động; không fallbac
 [Nghiệm thu tiếp ngày 2026-11-11](docs/evals/codex-flows-2026-11-11/README.md) có thêm 15 session
 thật: đủ 5 skill, fail-open hook, readonly hậu kiểm, timeout, Ctrl-C/resume và eval strict 3/3.
 Flow Claude↔Codex còn blocked vì Claude chưa đăng nhập, theo quyết định của người dùng.
+
+## Thành phần quy trình của agent (P8 — kế hoạch H)
+
+Ngoài tri thức và skill, Bint quản lý **thành phần quy trình** — chỉ dẫn dùng công cụ, guardrail, script
+hỗ trợ, chiến lược chọn ngữ cảnh — như tệp có phiên bản trong `.bint/harness/` (commit được, như tri thức):
+
+```
+.bint/harness/
+  guidance/<id>.md      chỉ dẫn (frontmatter YAML + Markdown); guidance chung vào khối Bint của AGENTS.md,
+                        guidance riêng (scope domain:<glob>) được chèn qua hook một lần mỗi phiên khi đường dẫn khớp
+  guardrails/<id>.yml   luật: on (pre_edit | pre_bash | stop) · when · unless · action (remind | ask | deny) · message
+  scripts/<id>.sh       script hỗ trợ + <id>.yml mô tả; chỉ được liệt kê trong chỉ dẫn, Bint KHÔNG BAO GIỜ tự chạy
+  strategy.yml          ghi đè tập con context.* (max_tokens, path_max_items, lessons, interfaces.mcp|path_hooks)
+```
+
+Mỗi thành phần có `id`, `scope` (`global` | `domain:<glob>`), `status` (`candidate` → `verified` →
+`deprecated`), `origin` (`human` | `agent`), `version`. **Chỉ `verified` có hiệu lực ở phiên thật.**
+
+```sh
+bint harness component add --template test-before-stop     # luôn vào ở candidate (origin=agent nếu gọi từ agent)
+bint harness component add --kind guardrail --file g.yml   # (script: thêm --script-file hoặc g.sh cùng tên)
+bint harness component list | show <id>
+bint harness component approve <id>        # chỉ người; ghi người duyệt. deprecate: tương tự
+bint harness render [--harness codex] [--paths a.go,b.go]   # agent sẽ nhận gì; guardrail bị hạ mức thế nào
+```
+
+(`bint harness list|show <tên>` vẫn là bảng adapter.) Ví dụ guardrail:
+
+```yaml
+id: test-before-stop
+scope: global
+status: candidate
+origin: human
+version: 1
+on: stop
+when: { edited: "src/**" }   # glob tệp đã sửa trong phiên (paths: tệp của lần sửa; command: regexp lệnh)
+unless: { ran: test }        # đã chạy lệnh kiểm thử SAU lần sửa cuối (hoặc regexp lệnh)
+action: remind
+message: "Chưa chạy test cho phần đã sửa; chạy test trước khi kết thúc."
+```
+
+**Thực thi:** hook (không mở SQLite, không gọi mô hình, không bao giờ trả lỗi) đọc luật từ
+`.bint/harness`, theo dõi lệnh và tệp đã sửa của phiên trong tệp JSONL nối thêm ở `runtime/harness/`, và
+ghi `guardrail.triggered` vào spool. `remind` chèn ngữ cảnh (ở `stop`: chặn kết thúc **một lần** mỗi phiên);
+`deny` ở `stop` chặn tối đa 3 lần rồi cho qua (`bypass`) — Bint không nhốt agent. Harness không hỗ trợ một mức
+thì hành động bị hạ theo thứ tự deny → ask → remind → bỏ (xem bảng năng lực ở trên). **Hook `Stop` mới:** repo
+đã cài hook bản cũ cần chạy lại `bint init` (`bint doctor` báo thiếu hook cho tới lúc đó).
+
+**Đo trong eval:** nhánh `bint` dùng tập thành phần đang hiệu lực; guidance dựng sẵn `bint-mcp-tools`
+thay đoạn ghi chú MCP cũ **đúng từng byte** (repo không có `.bint/harness` thì nhánh `bint` y hệt trước).
+Biến thể `bint@harness=off` (chỉ bản dựng sẵn) | `on` (mặc định: verified) | `all` (thêm candidate), ví dụ
+`bint eval run --arms bint,bint@harness=all`. Báo cáo có bảng số liệu từng guardrail theo nhánh: số lượt có
+guardrail hiệu lực, đủ điều kiện, kích hoạt, làm theo, bị chặn, vượt trần (bảng `eval_guardrail_usage`, migration 0009).
+
+**Tiến hoá:** cơ hội `harness` (nhóm lượt thất bại validation theo dấu hiệu hành vi: `no_test`/`edit_outside` →
+guardrail, `repeat_cmd`/`timeout` → chỉ dẫn, `ignored_ctx` → chiến lược; và `harness:mcp_unused`) sinh đề xuất
+`target_type: harness` (create/update/deprecate) do agent theo `roles.evolver` viết — **không công cụ, thư mục
+rỗng, chỉ claude**; rủi ro do Bint tính (guidance/`remind` thấp; `ask`/strategy trung bình; `deny`/script cao).
+Mỗi cơ hội cho tối đa **hai đề xuất anh em, chung và riêng**: bản chung đo trên mẫu toàn validation, bản riêng chỉ
+trên tác vụ khớp vùng; `bint evolve cycle` giữ một nửa theo `non_inferiority_margin` và **không bao giờ gộp** hai
+bản. `bint evolve evaluate` buộc `--delivery bint` cho đề xuất quy trình. Tự áp dụng chỉ với `create` rủi ro thấp,
+và thành phần vẫn vào ở `candidate` chờ người duyệt. Phần đo (tốn tiền) chưa chạy: xem `docs/p8-harness-evolution-plan.md`.
 
 ## Tiến hoá tri thức — L1 (P6)
 

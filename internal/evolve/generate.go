@@ -42,6 +42,9 @@ type ProposeInput struct {
 	// (RepoDir rỗng = gốc tri thức).
 	Cases   []*eval.Case
 	RepoDir string
+	// HarnessProposer soạn thay đổi thành phần quy trình (cơ hội KindHarness, H3): agent theo
+	// roles.evolver, không công cụ, chạy trong thư mục rỗng (như Reflector); nil = bỏ qua.
+	HarnessProposer eval.Agent
 }
 
 // ProposeOutcome là kết quả cho một cơ hội.
@@ -91,13 +94,15 @@ func Propose(ctx context.Context, in ProposeInput) (ProposeReport, error) {
 			chosen = append(chosen, o)
 		}
 	}
-	needAgent, needLesson := false, false
+	needAgent, needLesson, needHarness := false, false, false
 	for _, o := range chosen {
-		needAgent = needAgent || (o.Generator == GenAgent && o.Kind != KindFailureLesson)
+		needAgent = needAgent || (o.Generator == GenAgent && o.Kind != KindFailureLesson && o.Kind != KindHarness)
 		needLesson = needLesson || (o.Kind == KindFailureLesson && o.Ready)
+		needHarness = needHarness || (o.Kind == KindHarness && o.Ready)
 	}
 	if (needAgent && in.Agent != nil && in.Agent.ReportsCost() && in.BudgetUSD <= 0) ||
-		(needLesson && in.Reflector != nil && in.Reflector.ReportsCost() && in.BudgetUSD <= 0) {
+		(needLesson && in.Reflector != nil && in.Reflector.ReportsCost() && in.BudgetUSD <= 0) ||
+		(needHarness && in.HarnessProposer != nil && in.HarnessProposer.ReportsCost() && in.BudgetUSD <= 0) {
 		return rep, ErrNoBudget
 	}
 	items, _, err := in.K.Items()
@@ -108,6 +113,15 @@ func Propose(ctx context.Context, in ProposeInput) (ProposeReport, error) {
 		if o.Kind == KindFailureLesson && o.Ready {
 			// Một cơ hội bài học có thể cho nhiều đề xuất (mỗi ứng viên qua kiểm tra một đề xuất).
 			outs, err := proposeLessons(ctx, in, o, items, &rep)
+			if err != nil {
+				return rep, err
+			}
+			rep.Outcomes = append(rep.Outcomes, outs...)
+			continue
+		}
+		if o.Kind == KindHarness && o.Ready {
+			// Một cơ hội quy trình có thể cho hai đề xuất anh em (chung + riêng).
+			outs, err := proposeHarness(ctx, in, o, &rep)
 			if err != nil {
 				return rep, err
 			}

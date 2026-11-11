@@ -26,13 +26,16 @@ func processDeferred(cmd *cobra.Command, e *evolveCtx, w io.Writer, budget float
 	if err != nil {
 		return evolve.ProcessReport{}, nil, err
 	}
-	var agent, reflector eval.Agent
+	var agent, reflector, hproposer eval.Agent
 	if budget > 0 {
 		if agent, err = evolverAgent(e.k, "", ""); err != nil {
 			fmt.Fprintf(w, "! không dùng được agent evolver: %v\n", err)
 		}
 		if reflector, err = reflectorAgent(e.k, "", ""); err != nil {
 			fmt.Fprintf(w, "! không dùng được agent reflector: %v\n", err)
+		}
+		if hproposer, err = harnessProposerAgent(e.k, "", ""); err != nil {
+			fmt.Fprintf(w, "! không dùng được agent đề xuất quy trình: %v\n", err)
 		}
 	}
 	// Tác vụ đánh giá và repository để kiểm rò rỉ cho bài học (như `bint evolve propose`).
@@ -41,7 +44,7 @@ func processDeferred(cmd *cobra.Command, e *evolveCtx, w io.Writer, budget float
 		return evolve.ProcessReport{}, nil, err
 	}
 	rep, err := evolve.ProcessRequests(ctx, evolve.ProcessInput{K: e.k, DB: e.st.DB, Scan: scan, History: h, Agent: agent,
-		Reflector: reflector, Cases: cases, RepoDir: e.ws.Repo.Toplevel, BudgetUSD: budget, Max: max,
+		Reflector: reflector, HarnessProposer: hproposer, Cases: cases, RepoDir: e.ws.Repo.Toplevel, BudgetUSD: budget, Max: max,
 		Timeout: time.Duration(e.k.Config.Eval.TimeoutMinutes) * time.Minute, Now: now})
 	return rep, added, err
 }

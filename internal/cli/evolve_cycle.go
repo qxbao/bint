@@ -302,16 +302,16 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 	if err != nil {
 		return rep, err
 	}
-	type readyP struct {
-		p    *evolve.Proposal
-		gain float64
-	}
-	var ready []readyP
+	var ready []cycleReady
 	probed := 0
+	// --max đếm theo cơ hội: hai đề xuất anh em (chung/riêng) của cùng một cơ hội dùng chung một suất,
+	// nên ngân sách vòng giữ nguyên trần dù mỗi cơ hội có thể cho hai ứng viên (H4).
+	opps := map[string]bool{}
 	for _, p := range ps {
 		if !p.Quantitative {
 			continue
 		}
+
 		if st, _ := proposalState(e, p); st != evolve.StatusProposed {
 			continue
 		}
@@ -328,9 +328,13 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 			if (split == eval.SplitValidation && val != nil) || (split == eval.SplitTest && test != nil) {
 				continue
 			}
-			if probed >= o.maxProposals*2 {
+			if probed >= max(o.maxProposals, 1)*4 { // 2 tập × tối đa 2 đề xuất mỗi cơ hội
 				break
 			}
+			if !opps[p.Opportunity] && len(opps) >= max(o.maxProposals, 1) {
+				break // quá số cơ hội tối đa của vòng
+			}
+			opps[p.Opportunity] = true
 			probed++
 			v, err := probe(p.ID, split)
 			if err != nil {
@@ -349,11 +353,14 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 			test = latestProbe(evs, eval.SplitTest, since)
 		}
 		if t := latestProbe(evs, eval.SplitTest, since); t != nil && t.Verdict == evolve.VerdictSupported && t.Independent != nil && *t.Independent {
-			ready = append(ready, readyP{p, probeGain(ctx, db, t.BatchID)})
+			ready = append(ready, cycleReady{p: p, gain: probeGain(ctx, db, t.BatchID), testBatch: t.BatchID})
 		}
 	}
 
-	// 4. Compose: tự áp dụng tối đa một đề xuất (lợi ích lớn nhất trước).
+	// 4a. Compose theo cặp chung/riêng (H4): trong mỗi cặp cùng đạt trên test chỉ giữ một bản.
+	ready = composePairs(ctx, e, ready, cfg.Evolution.Evaluation.NonInferiorityMargin, o.keepFailed, now, &rep)
+
+	// 4b. Compose: tự áp dụng tối đa một đề xuất (lợi ích lớn nhất trước).
 	sort.SliceStable(ready, func(i, j int) bool { return ready[i].gain > ready[j].gain })
 	applied := false
 	for _, rp := range ready {
@@ -372,11 +379,97 @@ func runCycle(ctx context.Context, e *evolveCtx, r *cycleRunner, o cycleOpts, no
 		applied = true
 		rep.AutoApplied = append(rep.AutoApplied, rp.p.ID)
 		rep.Steps = append(rep.Steps, CycleStep{Step: "compose", Target: rp.p.ID, Outcome: "đã tự áp dụng, bản ghi " + res.AdoptionID})
+		rejectSiblingOf(ctx, e, rp.p, o.keepFailed, now, &rep)
 	}
 	return rep, nil
 }
 
 var errBudgetLeft = fmt.Errorf("hết ngân sách vòng")
+
+// cycleReady là đề xuất đã supported độc lập trên test trong vòng, kèm đợt test để tính hiệu ứng.
+type cycleReady struct {
+	p         *evolve.Proposal
+	gain      float64
+	testBatch string
+}
+
+// composePairs áp quy tắc compose của H4 lên các đề xuất đã đạt: với mỗi cặp chung/riêng mà CẢ HAI
+// nửa cùng đạt trên test, giữ một nửa theo evolve.ComposePair và bác bỏ nửa kia (trừ keepFailed).
+// Nửa duy nhất đạt giữ nguyên. Không bao giờ gộp hai bản: bản gộp phải là đề xuất mới và đối chiếu
+// lại. Hiệu ứng của mỗi bản tính trên tác vụ thuộc vùng của bản riêng, từ chính đợt test của nó.
+func composePairs(ctx context.Context, e *evolveCtx, ready []cycleReady, margin float64, keepFailed bool, now func() time.Time, rep *CycleReport) []cycleReady {
+	byKey := map[string]map[string]int{} // khoá cặp → biến thể → chỉ số trong ready
+	for i, r := range ready {
+		if r.p.Pair == nil {
+			continue
+		}
+		if byKey[r.p.Pair.Key] == nil {
+			byKey[r.p.Pair.Key] = map[string]int{}
+		}
+		byKey[r.p.Pair.Key][r.p.Pair.Variant] = i
+	}
+	drop := map[int]bool{}
+	cases := e.caseMap()
+	keys := make([]string, 0, len(byKey))
+	for k := range byKey {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		gi, hasG := byKey[key][evolve.PairGlobal]
+		di, hasD := byKey[key][evolve.PairDomain]
+		if !hasG || !hasD {
+			continue
+		}
+		g, d := ready[gi], ready[di]
+		area := evolve.PairAreaOf(d.p)
+		gEff, _ := evolve.AreaEffect(ctx, e.st.DB, g.testBatch, area, cases)
+		dEff, _ := evolve.AreaEffect(ctx, e.st.DB, d.testBatch, area, cases)
+		keep, why := evolve.ComposePair(evolve.PairProbe{Supported: true, AreaEffect: gEff}, evolve.PairProbe{Supported: true, AreaEffect: dEff}, margin)
+		kept, lost := g, d
+		if keep == evolve.PairDomain {
+			kept, lost = d, g
+		}
+		rep.Steps = append(rep.Steps, CycleStep{Step: "compose-pair", Target: kept.p.ID, Outcome: fmt.Sprintf("giữ bản %s, bỏ %s: %s", keep, lost.p.ID, why)})
+		if !keepFailed {
+			if err := evolve.RejectSibling(ctx, e.st.DB, lost.p, kept.p.ID, why, now()); err != nil {
+				rep.Steps = append(rep.Steps, CycleStep{Step: "compose-pair", Target: lost.p.ID, Outcome: "lỗi: " + err.Error()})
+			} else {
+				rep.AutoRejected = append(rep.AutoRejected, lost.p.ID)
+			}
+		}
+		lostIdx := di
+		if keep == evolve.PairDomain {
+			lostIdx = gi
+		}
+		drop[lostIdx] = true
+	}
+	var out []cycleReady
+	for i, r := range ready {
+		if !drop[i] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// rejectSiblingOf bác bỏ nửa cặp còn chờ sau khi một nửa đã được áp dụng: hai bản không bao giờ
+// được áp dụng cùng nhau mà chưa đo bản gộp (đề xuất gộp phải là đề xuất mới).
+func rejectSiblingOf(ctx context.Context, e *evolveCtx, p *evolve.Proposal, keepFailed bool, now func() time.Time, rep *CycleReport) {
+	if p.Pair == nil || keepFailed {
+		return
+	}
+	sib, err := evolve.GetProposal(ctx, e.st.DB, p.Pair.Sibling)
+	if err != nil || sib.Status != evolve.StatusProposed {
+		return
+	}
+	if err := evolve.RejectSibling(ctx, e.st.DB, sib, p.ID, "đã áp dụng bản anh em", now()); err != nil {
+		rep.Steps = append(rep.Steps, CycleStep{Step: "compose-pair", Target: sib.ID, Outcome: "lỗi: " + err.Error()})
+		return
+	}
+	rep.AutoRejected = append(rep.AutoRejected, sib.ID)
+	rep.Steps = append(rep.Steps, CycleStep{Step: "compose-pair", Target: sib.ID, Outcome: "bác bỏ: bản anh em " + p.ID + " đã được áp dụng"})
+}
 
 // composeDecision: đề xuất đã supported độc lập trên test có được vòng tự áp dụng không;
 // nếu không, lý do (hiện ở báo cáo vòng).

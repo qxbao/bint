@@ -23,6 +23,7 @@ const (
 	evPostToolUseFailure = "PostToolUseFailure"
 	evPreToolUse         = "PreToolUse"
 	evUserPromptSubmit   = "UserPromptSubmit"
+	evStop               = "Stop"
 )
 
 // MCPPrefix là tiền tố tên công cụ MCP của Bint trong Claude Code (server "bint").
@@ -76,6 +77,9 @@ var Dialect = hookcore.Dialect{
 	PreToolOutput: hookcore.ClaudeStylePreToolOutput("ask"),
 	PromptOutput:  hookcore.ClaudeStylePromptOutput,
 	Usage:         TranscriptUsage,
+	// Guardrail (H1): Claude Code hỗ trợ đủ remind (additionalContext), ask, deny và chặn Stop.
+	PreToolDecisions: []string{"deny", "ask"}, RemindPreTool: true,
+	PreToolDecide: hookcore.ClaudeStylePreToolDecide, StopOutput: hookcore.ClaudeStyleStopOutput,
 }
 
 // HookEnv / HookResult giữ tên cũ cho mã gọi.

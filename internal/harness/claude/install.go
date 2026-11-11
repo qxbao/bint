@@ -98,6 +98,8 @@ func desiredGroups(cmd string) map[string]map[string]any {
 		evPostToolUseFailure: group(toolMatcher),
 		evPreToolUse:         group(pathMatcher),
 		evUserPromptSubmit:   group(""),
+		// Stop: guardrail on: stop (H1). Hook thoát ngay nếu repository không có guardrail.
+		evStop: group(""),
 	}
 }
 

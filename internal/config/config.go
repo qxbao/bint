@@ -391,11 +391,11 @@ type Security struct {
 
 // DefaultRoleModels là model mặc định theo role của từng harness: bước suy luận nặng
 // (lập kế hoạch, review, tiến hoá, rút bài học) dùng model mạnh nhất, bước thực thi dùng
-// model nhanh/rẻ. Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
+// model cân bằng (sonnet; haiku rẻ hơn nhưng yếu hơn ở các bước sửa mã). Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
 func DefaultRoleModels(harness string) RoleModels {
 	switch harness {
 	case "claude":
-		return RoleModels{Planner: "opus", Implementer: "haiku", Reviewer: "opus", Evolver: "opus", Reflector: "opus"}
+		return RoleModels{Planner: "opus", Implementer: "sonnet", Reviewer: "opus", Evolver: "opus", Reflector: "opus"}
 	case "codex":
 		return RoleModels{Planner: "gpt-6-astra", Implementer: "gpt-6-luna", Reviewer: "gpt-6-astra", Evolver: "gpt-6-astra",
 			Reflector: "gpt-6-astra"}
@@ -480,6 +480,8 @@ type Sources struct {
 	Global  string
 	Project string
 	Local   string
+	// Strategy: .bint/harness/strategy.yml đã áp (chỉ khi verified); xem mergeStrategy.
+	Strategy string
 }
 
 // ProjectPath trả về đường dẫn .bint/config.yml của repository.
@@ -527,6 +529,13 @@ func Load(root string, requireProject bool) (Config, Sources, error) {
 		src.Project = p
 	} else if requireProject {
 		return cfg, src, ErrNoProjectConfig
+	}
+	// Chiến lược ngữ cảnh đã duyệt (H1) nằm giữa lớp dự án và lớp cục bộ: người vẫn ghi đè
+	// được bằng .bint/local.yml.
+	if ok, err = mergeStrategy(&cfg, root); err != nil {
+		return cfg, src, err
+	} else if ok {
+		src.Strategy = StrategyPath(root)
 	}
 	l := LocalPath(root)
 	ok, err = mergeFile(&cfg, l)
