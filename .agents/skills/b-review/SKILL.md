@@ -73,7 +73,25 @@ bint task review <id> - <<'EOF'
 EOF
 ```
 
-Không có phát hiện thì ghi `"findings": []` kèm `summary`. Bint ghi nhận "không phát hiện
+Nếu shell từ chối lệnh trên vì dấu `{` đi kèm `"` (thông báo như `Contains brace with
+quote character`), ghi cùng nội dung dạng YAML block — không có ngoặc nhọn, `bint task
+review` nhận cả hai dạng (đặt giá trị chứa dấu `:` trong dấu nháy):
+
+```sh
+bint task review <id> - <<'EOF'
+summary: Một câu về chất lượng thay đổi
+findings:
+  - kind: bug
+    severity: high
+    title: Không đóng rows khi lỗi
+    path: internal/db/q.go
+    lines: "40-52"
+    evidence: "rows.Close() chỉ gọi ở nhánh thành công; lỗi ở dòng 45 làm rò kết nối"
+    body: Dùng defer rows.Close() ngay sau QueryContext.
+EOF
+```
+
+Không có phát hiện thì ghi `"findings": []` (YAML: `findings: []`) kèm `summary`. Bint ghi nhận "không phát hiện
 vấn đề nghiêm trọng", nhưng đó **không** phải bằng chứng thay đổi an toàn — nói rõ phần
 bạn chưa kiểm tra được.
 

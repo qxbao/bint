@@ -23,6 +23,7 @@ harnesses:
       implementer:  "haiku"
       reviewer:     "opus"
       evolver:      "opus"
+      reflector:    "opus"
   codex:                    # bint run / bint eval với Codex (codex exec --json, sandbox workspace-write)
     binary: ""              # rỗng = tìm trong PATH
     model: null
@@ -32,6 +33,7 @@ harnesses:
       implementer:  "gpt-6-luna"
       reviewer:     "gpt-6-astra"
       evolver:      "gpt-6-astra"
+      reflector:    "gpt-6-astra"
   antigravity:              # bint run / bint eval với Antigravity CLI (agy -p --output-format json)
     binary: ""
     model: null
@@ -41,12 +43,14 @@ harnesses:
       implementer:  "gemini-3.8-flash-medium"
       reviewer:     "gemini-4-argon-high"
       evolver:      "gemini-4-argon-high"
+      reflector:    "gemini-4-argon-high"
 
 roles:
   planner: claude
   implementer: claude
   reviewer: claude
   evolver: claude
+  reflector: claude        # bint evolve propose (bài học từ thất bại)
 
 context:
   max_tokens: 6000
@@ -63,6 +67,9 @@ context:
     fingerprint: symbol     # symbol | hunk | file
   path_max_items: 5         # số mục tối đa chèn cho một tệp (hook theo đường dẫn)
   path_hook_timeout_ms: 1500   # hook quá hạn thì bỏ qua, không chặn agent
+  lessons:                  # bài học từ thất bại (bint experience show)
+    global_k: 3             # số bài học chung luôn chèn mỗi lượt (0 = không chèn)
+    max_tokens: 600         # ngân sách token của phần bài học, tách khỏi tri thức (0 = tắt)
 
 knowledge:
   require_human_approval_for: [rule]   # luôn chứa rule: chỉ người mới duyệt được quy tắc bắt buộc
