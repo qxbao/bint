@@ -2,3 +2,10 @@
 /bint.exe
 /dist/
 *.test
+
+# bint:begin
+.bint/local.yml
+.claude/settings.local.json
+.codex/hooks.json
+.agents/hooks.json
+# bint:end

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "bint": {
+      "args": [
+        "mcp",
+        "serve"
+      ],
+      "command": "bint"
+    }
+  }
+}

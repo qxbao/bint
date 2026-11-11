@@ -1,0 +1,6 @@
+# bint:begin
+# Do Bint quản lý (bint init --mcp): MCP server của Context Engine.
+[mcp_servers.bint]
+command = "bint"
+args = ["mcp", "serve"]
+# bint:end
