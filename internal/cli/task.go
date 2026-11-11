@@ -13,29 +13,18 @@ import (
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/task"
 	"bint/internal/workflow"
 )
 
-// openWorkflow mở môi trường thao tác tác vụ (cần `bint init` trên máy này).
-func openWorkflow(cmd *cobra.Command) (*workflow.Env, *app.KnowledgeWS, error) {
-	k, err := openKnowledge(cmd)
+// openTasks mở môi trường thao tác tác vụ (cần `bint init` trên máy này).
+func openTasks(cmd *cobra.Command) (*app.TaskWS, error) {
+	dir, err := cwd()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	if !k.Paths.Initialized() {
-		return nil, nil, app.ErrNotInitialized
-	}
-	inAgent, _ := app.InAgentSession()
-	env := &workflow.Env{
-		Root: k.Repo.Toplevel, ConfigRoot: k.Root, Cfg: k.Config, Tasks: task.NewStore(k.Paths.Runtime),
-		Spool: k.Paths.Spool, Version: Version, Human: !inAgent, Actor: "agent",
-		RunID: strings.TrimSpace(os.Getenv(workflow.EnvRunID)), Now: time.Now,
-	}
-	if env.Human {
-		env.Actor = app.GitIdentity(cmd.Context(), k.Repo.Toplevel)
-	}
-	return env, k, nil
+	return app.OpenTasks(cmd.Context(), dir, Version)
 }
 
 // editFlags là các cờ sửa phiếu tác vụ dùng chung cho task new/set và run.
@@ -64,20 +53,10 @@ func addEditFlags(c *cobra.Command, e *editFlags, withClear bool) {
 	}
 }
 
-func (e *editFlags) edit(c *cobra.Command) workflow.TicketEdit {
+// changed cho biết cờ nào của phiếu được đặt tường minh (kể cả giá trị rỗng, vd. xoá lệnh kiểm chứng).
+func (e *editFlags) changed(c *cobra.Command) (goal, verify, autonomy bool) {
 	f := c.Flags()
-	ed := workflow.TicketEdit{Criteria: e.criteria, Allow: e.allow, Deny: e.deny, Constraints: e.constraints,
-		ClearCriteria: e.clearCriteria, ClearScope: e.clearScope}
-	if f.Changed("goal") {
-		ed.Goal = &e.goal
-	}
-	if f.Changed("verify-command") {
-		ed.VerifyCommand = &e.verify
-	}
-	if f.Changed("autonomy") {
-		ed.Autonomy = &e.autonomy
-	}
-	return ed
+	return f.Changed("goal"), f.Changed("verify-command"), f.Changed("autonomy")
 }
 
 func readInput(stdio IO, args []string, i int) (string, error) {
@@ -134,13 +113,6 @@ orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và
 --clear-scope --allow. Agent không bỏ được b-req (--no-plan) khi tác vụ chạm đường dẫn bảo vệ.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if plan && noPlan {
-				return usageError{errors.New("--plan và --no-plan loại trừ nhau")}
-			}
-			env, _, err := openWorkflow(cmd)
-			if err != nil {
-				return err
-			}
 			req := ""
 			switch {
 			case fromFile != "":
@@ -158,27 +130,27 @@ orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và
 			case len(args) == 1:
 				req = args[0]
 			}
-			if strings.TrimSpace(req) == "" {
-				return usageError{errors.New("thiếu mô tả tác vụ")}
-			}
-			o := workflow.NewTaskOptions{Request: req, Workflow: wf, Edit: ef.edit(cmd)}
-			if plan || noPlan {
-				o.Plan = ptr(plan)
-			}
-			if o.Depth, err = depthOption(cmd, depth, noPlan, wfOrDefault(wf)); err != nil {
+			o := app.TaskNewDefaults(config.Default())
+			o.Request, o.Workflow, o.Plan, o.NoPlan, o.Depth = req, wf, plan, noPlan, depth
+			o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = ef.goal, ef.verify, ef.autonomy, ef.criteria, ef.allow, ef.deny
+			o.Constraints, o.ClearScope = ef.constraints, ef.clearScope
+			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
+			if err := o.Validate(); err != nil { // lỗi dùng sai (mã 2) thắng lỗi "chưa init", như trước
 				return err
 			}
-			if o.Edit.Autonomy != nil && *o.Edit.Autonomy == task.AutonomyAuto && !env.Human {
-				return fmt.Errorf("%w: chỉ người mới đặt được autonomy: auto", workflow.ErrAgent)
-			}
-			t, a, err := env.NewTask(cmd.Context(), o)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
+			created, err := app.NewTask(cmd.Context(), ws, o)
+			if err != nil {
+				return err
+			}
+			env, t, a := ws.Env, created.Task, created.Assessment
 			if asJSON {
 				return writeJSON(stdio.Out, map[string]any{"id": t.State.ID, "dir": t.Dir, "status": t.State.Status,
 					"ticket": t.Ticket, "classification": t.State.Classification, "assessment": a,
-					"verify_confirmed": env.VerifyConfirmed(t)})
+					"verify_confirmed": created.VerifyConfirmed})
 			}
 			w := stdio.Out
 			fmt.Fprintf(w, "Tác vụ %s: %s\n", t.State.ID, t.Ticket.Goal)
@@ -243,11 +215,15 @@ func newTaskListCmd(stdio IO) *cobra.Command {
 		Short: "Liệt kê tác vụ (mặc định: chưa kết thúc)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			ts, bad := env.Tasks.List()
+			list, err := app.ListTasks(cmd.Context(), ws, app.TaskListOptions{All: all})
+			if err != nil {
+				return err
+			}
+			bad := list.Bad
 			type row struct {
 				ID       string `json:"id"`
 				Status   string `json:"status"`
@@ -257,11 +233,7 @@ func newTaskListCmd(stdio IO) *cobra.Command {
 				Reason   string `json:"reason,omitempty"`
 			}
 			rows := []row{}
-			for _, t := range ts {
-				t = env.Reconcile(t)
-				if !all && task.Terminal(t.State.Status) {
-					continue
-				}
+			for _, t := range list.Tasks {
 				rows = append(rows, row{t.State.ID, t.State.Status, t.State.Workflow, t.State.UpdatedAt, t.Ticket.Goal, t.State.Reason})
 			}
 			if asJSON {
@@ -310,33 +282,26 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 		Short: "Chi tiết tác vụ: phiếu, trạng thái, tài liệu, kiểm chứng, tiêu chí, review",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			t, err := env.Tasks.Load(args[0])
+			d, err := app.ShowTask(cmd.Context(), ws, app.TaskShowOptions{Ref: args[0]})
 			if err != nil {
 				return err
 			}
-			t = env.Reconcile(t)
-			a := env.Assess(t)
-			rev, err := t.LoadReview()
-			if err != nil {
-				return err
-			}
-			blockers := task.DoneBlockers(t, task.DoneInput{Worktree: task.WorktreeFingerprint(cmd.Context(), env.Root),
-				VerifyConfirmed: env.VerifyConfirmed(t)})
+			t, a, rev, blockers := d.Task, d.Assessment, d.Review, d.Blockers
 			if asJSON {
 				arts := map[string]string{}
-				for _, n := range task.ArtifactNames() {
-					if _, err := os.Stat(t.ArtifactPath(n)); err == nil {
-						arts[n] = t.ArtifactPath(n)
+				for _, x := range d.Artifacts {
+					if x.Exists {
+						arts[x.Name] = x.Path
 					}
 				}
 				return writeJSON(stdio.Out, map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
-					"verify_confirmed": env.VerifyConfirmed(t), "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers)})
+					"verify_confirmed": d.VerifyConfirmed, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers)})
 			}
-			printTask(stdio.Out, env, t, a, rev, blockers)
+			printTask(stdio.Out, ws.Env, t, a, rev, blockers)
 			return nil
 		},
 	}
@@ -479,16 +444,21 @@ func newTaskSetCmd(stdio IO) *cobra.Command {
 không còn hiệu lực. Agent không đặt được autonomy: auto.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			t, a, err := env.SetTicket(args[0], ef.edit(cmd))
+			o := app.TaskSetDefaults(ws.K.Config)
+			o.Ref, o.Goal, o.VerifyCommand, o.Autonomy = args[0], ef.goal, ef.verify, ef.autonomy
+			o.Criteria, o.Allow, o.Deny, o.Constraints = ef.criteria, ef.allow, ef.deny, ef.constraints
+			o.ClearCriteria, o.ClearScope = ef.clearCriteria, ef.clearScope
+			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
+			u, err := app.SetTask(cmd.Context(), ws, o)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(stdio.Out, "Đã cập nhật %s: %s\n", t.State.ID, t.Ticket.Goal)
-			printTicketBrief(stdio.Out, env, t, a)
+			fmt.Fprintf(stdio.Out, "Đã cập nhật %s: %s\n", u.Task.State.ID, u.Task.Ticket.Goal)
+			printTicketBrief(stdio.Out, ws.Env, u.Task, u.Assessment)
 			return nil
 		},
 	}
@@ -502,7 +472,7 @@ func newTaskWriteCmd(stdio IO) *cobra.Command {
 		Short: "Ghi tài liệu của tác vụ (nội dung từ tệp hoặc stdin)",
 		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
@@ -510,7 +480,7 @@ func newTaskWriteCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, p, err := env.WriteArtifact(args[0], args[1], body)
+			p, err := app.WriteTaskArtifact(cmd.Context(), ws, app.TaskWriteOptions{Ref: args[0], Name: args[1], Content: body})
 			if err != nil {
 				return err
 			}
@@ -535,17 +505,17 @@ Chỉ người mới --force được khi thiếu bằng chứng (lý do đượ
 Tác vụ đang được ` + "`bint run`" + ` điều phối thì trạng thái do Bint Core chuyển.`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			t, blockers, err := env.SetStatus(cmd.Context(), args[0], args[1], workflow.TransitionOptions{Reason: reason, Force: force})
+			r, err := app.SetTaskStatus(cmd.Context(), ws, app.TaskStatusOptions{Ref: args[0], To: args[1], Reason: reason, Force: force})
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(stdio.Out, "%s → %s\n", t.State.ID, t.State.Status)
-			if force && len(blockers) > 0 {
-				fmt.Fprintf(stdio.Out, "! xác nhận dù thiếu bằng chứng: %s\n", strings.Join(blockers, "; "))
+			fmt.Fprintf(stdio.Out, "%s → %s\n", r.Task.State.ID, r.Task.State.Status)
+			if force && len(r.Blockers) > 0 {
+				fmt.Fprintf(stdio.Out, "! xác nhận dù thiếu bằng chứng: %s\n", strings.Join(r.Blockers, "; "))
 			}
 			return nil
 		},
@@ -565,14 +535,15 @@ log trong thư mục tác vụ. Kết quả là tín hiệu kết quả mạnh c
 agent đề xuất chưa được người xác nhận thì không được chạy (security.require_approval_for_commands).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			t, res, err := env.Verify(cmd.Context(), args[0])
+			vr, err := app.VerifyTask(cmd.Context(), ws, app.TaskVerifyOptions{Ref: args[0]})
 			if err != nil {
 				return err
 			}
+			t, res := vr.Task, vr.Result
 			if asJSON {
 				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "skipped": res.Skipped, "verification": res.Verification})
 			}
@@ -604,14 +575,14 @@ func newTaskCriteriaCmd(stdio IO) *cobra.Command {
 				return usageError{fmt.Errorf("số tiêu chí không hợp lệ %q", args[1])}
 			}
 			v := strings.ToLower(args[2])
-			if v != "met" && v != "unmet" {
-				return usageError{errors.New("kết quả phải là met hoặc unmet")}
+			if err := (app.TaskCriteriaOptions{Index: n, Result: v}).Validate(); err != nil {
+				return err
 			}
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			t, err := env.CheckCriterion(args[0], n, v == "met", evidence)
+			t, err := app.CheckTaskCriterion(cmd.Context(), ws, app.TaskCriteriaOptions{Ref: args[0], Index: n, Result: v, Evidence: evidence})
 			if err != nil {
 				return err
 			}
@@ -630,11 +601,11 @@ func newTaskErrorCmd(stdio IO) *cobra.Command {
 		Short: "Ghi một lỗi hoặc lần thử sửa thất bại",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			if _, err := env.RecordError(args[0], step, args[1]); err != nil {
+			if _, err := app.RecordTaskError(cmd.Context(), ws, app.TaskErrorOptions{Ref: args[0], Message: args[1], Step: step}); err != nil {
 				return err
 			}
 			fmt.Fprintln(stdio.Out, "Đã ghi.")
@@ -659,7 +630,7 @@ Mỗi phát hiện được gán ID <task-id>.<n>; chuyển thành tri thức b�
 bint knowledge add --from-review <id>. Báo cáo Markdown: review.md trong thư mục tác vụ.`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
@@ -667,10 +638,11 @@ bint knowledge add --from-review <id>. Báo cáo Markdown: review.md trong thư 
 			if err != nil {
 				return err
 			}
-			t, r, err := env.SubmitReview(args[0], []byte(body))
+			rv, err := app.SubmitTaskReview(cmd.Context(), ws, app.TaskReviewOptions{Ref: args[0], JSON: body})
 			if err != nil {
 				return err
 			}
+			t, r := rv.Task, rv.Round
 			fmt.Fprintf(stdio.Out, "Review vòng %d của %s: %d phát hiện, %d nghiêm trọng\n", r.Round, t.State.ID, len(r.Findings), len(r.Blocking()))
 			for _, f := range r.Findings {
 				fmt.Fprintf(stdio.Out, "  [%s] %s/%s %s\n", f.ID, f.Kind, f.Severity, f.Title)
@@ -692,15 +664,11 @@ func newTaskApproveCmd(stdio IO) *cobra.Command {
 Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem diff trước khi duyệt.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			if !env.Human {
-				_, k := app.InAgentSession()
-				return fmt.Errorf("%w (`bint task approve`; phát hiện biến %s)", app.ErrAgentForbidden, k)
-			}
-			t, a, err := env.Approve(args[0], paths...)
+			t, a, err := app.ApproveTask(cmd.Context(), ws, app.TaskApproveOptions{Ref: args[0], Paths: paths})
 			if err != nil {
 				return err
 			}
@@ -732,7 +700,7 @@ func newTaskTransitionsCmd(stdio IO) *cobra.Command {
 		RunE: func(*cobra.Command, []string) error {
 			tw := tabwriter.NewWriter(stdio.Out, 0, 2, 2, ' ', 0)
 			fmt.Fprintln(tw, "TỪ\tSANG\tĐIỀU KIỆN")
-			for _, r := range task.TransitionTable() {
+			for _, r := range app.TaskTransitions() {
 				fmt.Fprintf(tw, "%s\t%s\t%s\n", r.From, r.To, r.Note)
 			}
 			return tw.Flush()
@@ -756,16 +724,15 @@ Câu hỏi mở: ghi câu trả lời dạng "- [x] Q-1: <câu hỏi> — Trả 
 bint task write <id> requirement -, rồi bint run resume <id>.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			t, err := env.Tasks.Load(args[0])
+			lr, err := app.LintTask(cmd.Context(), ws, app.TaskLintOptions{Ref: args[0], Strict: strict})
 			if err != nil {
 				return err
 			}
-			v1 := t.State.PlanningContractVersion >= task.PlanningContractV1
-			rep := task.LintPlanningTask(t, strict || v1)
+			t, rep := lr.Task, lr.Report
 			if asJSON {
 				if err := writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "contract_version": t.State.PlanningContractVersion,
 					"errors": rep.Errors, "warnings": rep.Warnings, "open_questions": rep.OpenQuestions}); err != nil {
@@ -799,36 +766,7 @@ bint task write <id> requirement -, rồi bint run resume <id>.`,
 	return c
 }
 
-const depthFlagHelp = "độ sâu phân tích của b-req: auto | standard | deep (chỉ b-do/b-req; standard|deep hàm ý có b-req)"
-
-func wfOrDefault(wf string) string {
-	if wf == "" {
-		return workflow.StepDo
-	}
-	return wf
-}
-
-// depthOption kiểm cờ --depth. Chỉ xét xung đột khi người dùng đặt tường minh; `auto` không đổi
-// nghĩa --plan/--no-plan. Trả "" khi tự chọn.
-func depthOption(cmd *cobra.Command, value string, noPlan bool, wf string) (string, error) {
-	if !cmd.Flags().Changed("depth") {
-		return "", nil
-	}
-	d, err := task.NormalizeDepth(value)
-	if err != nil {
-		return "", usageError{err}
-	}
-	if d == "" {
-		return "", nil
-	}
-	if noPlan {
-		return "", usageError{errors.New("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")}
-	}
-	if wf != workflow.StepDo && wf != workflow.StepReq {
-		return "", usageError{fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", wf)}
-	}
-	return d, nil
-}
+const depthFlagHelp = app.DepthFlagHelp
 
 // printDepthLine in độ sâu phân tích của b-req (chỉ khi tác vụ có b-req).
 func printDepthLine(w io.Writer, prefix string, c *task.Classification) {

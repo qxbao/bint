@@ -52,9 +52,9 @@
 │   │   40  func Open() {                                                                                                                  │
 │   │   41      return nil                                                                                                                 │
 │                                                                                                                                          │
-│ ▌ Confirm dialog with a reason input                                                                                                     │
-│ ┌─│Reject 12 items?│───────────────────────────────────────────┐                                                                         │
-│ │ The items move to deprecated and keep their audit trail.     │                                                                         │
-│ │                                                              │                                                                         │
-│ │ Reason: ▏rejected by reviewer                                │                                                                         │
+│ ▌ Markdown viewer (headings, lists, checkboxes, code blocks, accented text)                                                              │
+│   Requirement                                                                                                                            │
+│   ───────────                                                                                                                            │
+│                                                                                                                                          │
+│   Acceptance criteria                                                                                                                    │
 └─ color mode: mono · language: en · [m] color  [l] language  [q] Quit─────────────────────────────────────────────────────────────────────┘

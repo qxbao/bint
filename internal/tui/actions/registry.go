@@ -50,5 +50,6 @@ func Default() *Registry {
 			TitleKey: "action.init.recheck.title"},
 	)
 	list = append(list, knowledgeActions()...)
+	list = append(list, taskActions()...)
 	return NewRegistry(list)
 }

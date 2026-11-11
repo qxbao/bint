@@ -25,7 +25,7 @@ type Coverage struct {
 }
 
 // CurrentPhase là giai đoạn của kế hoạch TUI đã làm xong (docs/tui-plan.md mục 9).
-const CurrentPhase = 1
+const CurrentPhase = 2
 
 // Data là dữ liệu phủ hiện hành.
 var Data = Coverage{
@@ -44,6 +44,7 @@ var Data = Coverage{
 	ExcludedCmdFlags: map[string]string{
 		"eval report --cases":       "chỉ định dạng đầu ra văn bản (bảng theo từng tác vụ); TUI luôn hiện cả hai",
 		"knowledge add --body-file": "TUI soạn nội dung trong ô nhiều dòng thay vì đọc từ tệp",
+		"task new --file":           "TUI soạn mô tả trong ô nhiều dòng thay vì đọc từ tệp",
 	},
 	Pending: map[string]int{
 		"eval approve":                4,
@@ -83,9 +84,6 @@ var Data = Coverage{
 		"harness show":                5,
 		"index rebuild":               5,
 		"mcp tools":                   5,
-		"run":                         2,
-		"run resume":                  2,
-		"run status":                  2,
 		"runs list":                   3,
 		"runs rate":                   3,
 		"runs scan":                   3,
@@ -98,34 +96,20 @@ var Data = Coverage{
 		"skill show":                  5,
 		"skill versions":              5,
 		"sync":                        5,
-		"task approve":                2,
-		"task criteria":               2,
-		"task error":                  2,
-		"task lint":                   2,
-		"task list":                   2,
-		"task new":                    2,
-		"task review":                 2,
-		"task set":                    2,
-		"task show":                   2,
-		"task status":                 2,
-		"task transitions":            2,
-		"task verify":                 2,
-		"task write":                  2,
 		"update":                      5,
 	},
 	PendingFlags: map[string]int{
-		"knowledge add --from-review": 2, // cần danh sách phát hiện review của màn Tác vụ (giai đoạn 2)
-		"init --agents-md":            5,
-		"init --force":                5,
-		"init --git":                  5,
-		"init --harness":              5,
-		"init --hooks":                5,
-		"init --hooks-scope":          5,
-		"init --mcp":                  5,
-		"init --no-hooks":             5,
-		"init --no-mcp":               5,
-		"init --no-skills":            5,
-		"init --update":               5,
+		"init --agents-md":   5,
+		"init --force":       5,
+		"init --git":         5,
+		"init --harness":     5,
+		"init --hooks":       5,
+		"init --hooks-scope": 5,
+		"init --mcp":         5,
+		"init --no-hooks":    5,
+		"init --no-mcp":      5,
+		"init --no-skills":   5,
+		"init --update":      5,
 	},
-	PendingCeiling: 78,
+	PendingCeiling: 61,
 }

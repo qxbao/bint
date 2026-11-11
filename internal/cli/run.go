@@ -2,20 +2,16 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
-	"bint/internal/ctxengine"
-	"bint/internal/harness"
-	"bint/internal/runlog"
+	"bint/internal/config"
 	"bint/internal/task"
 	"bint/internal/workflow"
 )
@@ -75,20 +71,13 @@ blocked / failed / interrupted.`,
 			if len(args) == 0 {
 				return usageError{errors.New("thiếu workflow (b-do | b-req | b-feat | b-review)")}
 			}
-			o := workflow.RunOptions{Workflow: args[0], Request: strings.Join(args[1:], " "), TaskRef: rf.taskRef,
-				NoReview: rf.noReview, Edit: rf.ef.edit(cmd)}
-			if rf.plan && rf.noPlan {
-				return usageError{errors.New("--plan và --no-plan loại trừ nhau")}
-			}
-			if rf.plan || rf.noPlan {
-				o.Plan = ptr(rf.plan)
-			}
-			depth, err := depthOption(cmd, rf.depth, rf.noPlan, args[0])
-			if err != nil {
-				return err
-			}
-			o.Depth = depth
-			return runWorkflow(cmd, stdio, rf, o)
+			return runWorkflow(cmd, stdio, rf, func(o *app.RunWorkflowOptions) {
+				o.Workflow, o.Request, o.Task, o.NoReview = args[0], strings.Join(args[1:], " "), rf.taskRef, rf.noReview
+				o.Plan, o.NoPlan, o.Depth = rf.plan, rf.noPlan, rf.depth
+				o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = rf.ef.goal, rf.ef.verify, rf.ef.autonomy, rf.ef.criteria, rf.ef.allow, rf.ef.deny
+				o.Constraints, o.ClearScope = rf.ef.constraints, rf.ef.clearScope
+				o.GoalSet, o.VerifyCommandSet, o.AutonomySet = rf.ef.changed(cmd)
+			}, nil)
 		},
 	}
 	addRunFlags(c, &rf, true)
@@ -113,58 +102,56 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 	}
 }
 
-func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, o workflow.RunOptions) error {
+// runWorkflow chạy `bint run` hoặc `bint run resume` qua dịch vụ: fillRun điền Options của `run`; resume != nil
+// thì tiếp tục tác vụ đó. Dùng chung phần chọn harness, câu hỏi tương tác, in kết quả và mã thoát.
+func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.RunWorkflowOptions), resume *string) error {
 	ctx := cmd.Context()
-	env, k, err := openWorkflow(cmd)
+	// Điền Options và kiểm tra trước khi mở workspace: lỗi dùng sai (mã 2) thắng lỗi "chưa init", như trước.
+	var (
+		ro app.RunResumeOptions
+		o  app.RunWorkflowOptions
+	)
+	if resume != nil {
+		ro = app.RunResumeDefaults(config.Default())
+		ro.Ref, ro.NoReview, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.harness, rf.roles, rf.model, rf.agentCommand
+		if err := ro.Validate(); err != nil {
+			return err
+		}
+	} else {
+		o = app.RunWorkflowDefaults(config.Default())
+		fillRun(&o)
+		o.Harness, o.Roles, o.Model, o.AgentCommand = rf.harness, rf.roles, rf.model, rf.agentCommand
+		if err := o.Validate(); err != nil {
+			return err
+		}
+	}
+	ws, err := openTasks(cmd)
 	if err != nil {
 		return err
 	}
-	if env.RunID != "" {
-		return fmt.Errorf("không chạy `bint run` lồng trong một bước workflow khác (BINT_RUN_ID=%s)", env.RunID)
-	}
-	sel := harness.Selection{All: rf.harness}
-	if rf.harness != "" {
-		if _, ok := harness.Get(rf.harness); !ok {
-			return usageError{fmt.Errorf("--harness: harness không hỗ trợ %q (%s)", rf.harness, strings.Join(harness.Names(), ", "))}
-		}
-	}
-	if sel.Roles, err = harness.ParseRoleOverrides(rf.roles); err != nil {
-		return usageError{err}
-	}
-	if rf.agentCommand != "" && (rf.harness != "" || len(rf.roles) > 0) {
-		return usageError{errors.New("--agent-command không đi cùng --harness/--role")}
-	}
-	r := &workflow.Runner{Env: env, Agent: workflow.HarnessAgents(k.Config, rf.agentCommand, rf.model, sel)}
+	cb := app.RunCallbacks{}
 	if !rf.asJSON {
-		r.Logf = func(format string, a ...any) { fmt.Fprintf(stdio.Out, format+"\n", a...) }
+		cb.Log = func(line string) { fmt.Fprintln(stdio.Out, line) }
 	}
 	// Chỉ hỏi người khi có terminal và không chạy trong phiên agent.
-	if env.Human && isTerminal(stdio.In) {
-		r.Confirm = func(q string) bool { return confirm(stdio, q) }
-		r.Ask = func(q string) string {
-			fmt.Fprintf(stdio.Out, "%s\n> ", q)
+	if ws.Human && isTerminal(stdio.In) {
+		cb.Confirm = func(q workflow.Question) bool { return confirm(stdio, q.Text) }
+		cb.Ask = func(q workflow.Question) string {
+			fmt.Fprintf(stdio.Out, "%s\n> ", q.Text)
 			line, _ := bufio.NewReader(stdio.In).ReadString('\n')
 			return strings.TrimSpace(line)
 		}
 	}
-	if k.Config.Context.Interfaces.CLI {
-		r.Context = func(ctx context.Context, goal string, paths []string) (ctxengine.Pack, error) {
-			c, err := app.OpenContext(ctx, k.Root)
-			if err != nil {
-				return ctxengine.Pack{}, err
-			}
-			defer c.Close()
-			return c.Engine.ForTask(ctx, goal, paths)
-		}
+	var res *workflow.Result
+	if resume != nil {
+		ro.RunCallbacks = cb
+		res, err = app.ResumeWorkflow(ctx, ws, ro)
+	} else {
+		o.RunCallbacks = cb
+		res, err = app.RunWorkflow(ctx, ws, o)
 	}
-	res, err := r.Run(ctx, o)
 	if err != nil {
 		return err
-	}
-	// Nạp sự kiện ngay để `bint runs` thấy lượt vừa chạy.
-	if s, err := k.OpenStore(context.Background()); err == nil {
-		k.Ingest(context.Background(), s, time.Now())
-		s.Close()
 	}
 	if rf.asJSON {
 		if err := writeJSON(stdio.Out, res); err != nil {
@@ -235,25 +222,7 @@ func newRunResumeCmd(stdio IO) *cobra.Command {
 parent_run_id là lượt trước. Thay đổi đang chờ duyệt phải được duyệt trước (bint task approve).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, _, err := openWorkflow(cmd)
-			if err != nil {
-				return err
-			}
-			t, err := env.Tasks.Load(args[0])
-			if err != nil {
-				return err
-			}
-			t = env.Reconcile(t)
-			if len(t.State.PendingPaths) > 0 {
-				return fmt.Errorf("tác vụ %s có thay đổi chờ người duyệt: %s (bint task approve %s)", t.State.ID,
-					strings.Join(t.State.PendingPaths, ", "), t.State.ID)
-			}
-			wf := t.State.Workflow
-			if wf == "" {
-				wf = workflow.StepDo
-			}
-			o := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: rf.noReview}
-			return runWorkflow(cmd, stdio, rf, o)
+			return runWorkflow(cmd, stdio, rf, nil, &args[0])
 		},
 	}
 	addRunFlags(c, &rf, false)
@@ -267,57 +236,15 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 		Short: "Trạng thái tác vụ và các lượt chạy gắn với nó",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			env, _, err := openWorkflow(cmd)
+			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			_, s, _, err := openAndIngest(cmd)
+			tr, err := app.TaskRuns(cmd.Context(), ws, app.TaskRunsOptions{Ref: args[0]})
 			if err != nil {
 				return err
 			}
-			defer s.Close()
-			t, terr := env.Tasks.Load(args[0])
-			if terr != nil {
-				r, err := runlog.GetRun(ctx, s.DB, args[0])
-				if err != nil {
-					return fmt.Errorf("không tìm thấy tác vụ hay lượt chạy %s", args[0])
-				}
-				m, err := runlog.GetRunMeta(ctx, s.DB, r.RunID)
-				if err != nil || !m.TaskID.Valid {
-					return fmt.Errorf("lượt %s không gắn với tác vụ nào (bint runs show %s)", r.RunID, r.RunID)
-				}
-				if t, err = env.Tasks.Load(m.TaskID.String); err != nil {
-					return err
-				}
-			}
-			t = env.Reconcile(t)
-			runs, err := runlog.RunsForTask(ctx, s.DB, t.State.ID)
-			if err != nil {
-				return err
-			}
-			type runRow struct {
-				RunID    string   `json:"run_id"`
-				Workflow string   `json:"workflow"`
-				Parent   string   `json:"parent_run_id,omitempty"`
-				Status   string   `json:"status"`
-				Started  string   `json:"started_at"`
-				Duration string   `json:"duration"`
-				CostUSD  *float64 `json:"cost_usd"`
-				Verify   string   `json:"verification_status,omitempty"`
-				Reason   string   `json:"end_reason,omitempty"`
-			}
-			rows := []runRow{}
-			for _, r := range runs {
-				m, _ := runlog.GetRunMeta(ctx, s.DB, r.RunID)
-				row := runRow{RunID: r.RunID, Workflow: r.Workflow.String, Parent: m.ParentRunID.String, Status: r.Status,
-					Started: r.StartedAt.String, Duration: fmtDuration(r), Verify: m.VerificationStatus.String, Reason: r.EndReason.String}
-				if m.CostUSD.Valid {
-					c := m.CostUSD.Float64
-					row.CostUSD = &c
-				}
-				rows = append(rows, row)
-			}
+			t, rows := tr.Task, tr.Runs
 			if asJSON {
 				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "status": t.State.Status, "reason": t.State.Reason,
 					"resume_from": t.State.ResumeFrom, "runs": rows})

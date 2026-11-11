@@ -35,19 +35,47 @@ const (
 // AgentFactory tạo agent cho một bước với giới hạn chi phí/lượt (nil = không giới hạn).
 type AgentFactory func(step string, maxCostUSD *float64, maxTurns *int) (eval.Agent, error)
 
+// Khoá của các câu hỏi giữa chừng (Question.Key). TUI dịch theo khoá; CLI in Text.
+const (
+	QAskVerifyCommand = "workflow.ask.verify_command" // Params: question
+	QConfirmFeat      = "workflow.confirm.feat"       // Params: task, root
+	QConfirmScope     = "workflow.confirm.scope"      // Paths: tệp cần duyệt
+)
+
+// Question là một câu hỏi giữa chừng của Runner. Text là câu hỏi tiếng Việt đầy đủ (CLI in nguyên văn);
+// Key và Params để giao diện dịch theo ngôn ngữ; Paths là danh sách tệp đi kèm (nếu có).
+type Question struct {
+	Key    string
+	Text   string
+	Params map[string]any
+	Paths  []string
+}
+
 // Runner điều phối workflow theo chương trình (adapter cấp 3, mục 7).
 type Runner struct {
 	*Env
 	Agent AgentFactory
 	// Confirm hỏi người dùng có/không (nil = không tương tác: những gì cần người
 	// duyệt sẽ làm tác vụ chuyển blocked).
-	Confirm func(question string) bool
+	Confirm func(Question) bool
 	// Ask hỏi người dùng một câu trả lời tự do (nil = không tương tác).
-	Ask func(question string) string
+	Ask func(Question) string
+	// OnStep báo bước agent bắt đầu/kết thúc (nil = bỏ qua); chạy trong goroutine của Runner.
+	OnStep func(StepEvent)
 	// Context dựng gói ngữ cảnh cho mục tiêu (nil = không chèn).
 	Context func(ctx context.Context, goal string, paths []string) (ctxengine.Pack, error)
 	// Logf in tiến trình cho người dùng.
 	Logf func(format string, a ...any)
+}
+
+// StepEvent báo một bước agent của lượt điều phối. Log là đường dẫn log của bước (ghi dần khi agent chạy).
+type StepEvent struct {
+	TaskID string
+	Step   string
+	RunID  string // lượt con của bước
+	Log    string
+	Done   bool   // false: vừa bắt đầu; true: vừa kết thúc
+	Status string // chỉ khi Done: completed | failed | interrupted
 }
 
 // RunOptions điều khiển một lượt điều phối.
@@ -407,7 +435,8 @@ func (r *Runner) askVerify(rs *runState, a task.Assessment) bool {
 		r.block(rs, strings.Join(a.Questions, " ")+" — trả lời: bint task set "+rs.t.State.ID+" --verify-command '…' rồi bint run resume "+rs.t.State.ID)
 		return false
 	}
-	ans := strings.TrimSpace(r.Ask(a.Questions[0] + " (bỏ trống để tiếp tục không có lệnh kiểm chứng)"))
+	ans := strings.TrimSpace(r.Ask(Question{Key: QAskVerifyCommand, Params: map[string]any{"question": a.Questions[0]},
+		Text: a.Questions[0] + " (bỏ trống để tiếp tục không có lệnh kiểm chứng)"}))
 	if ans == "" {
 		rs.res.Notes = append(rs.res.Notes, "người dùng chọn tiếp tục không có lệnh kiểm chứng")
 		return true
@@ -456,7 +485,8 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 			return false
 		}
 		if rs.t.Ticket.Autonomy == task.AutonomyAskAlways {
-			q := fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép b-feat sửa mã trong %s?", rs.t.State.ID, r.Root)
+			q := Question{Key: QConfirmFeat, Params: map[string]any{"task": rs.t.State.ID, "root": r.Root},
+				Text: fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép b-feat sửa mã trong %s?", rs.t.State.ID, r.Root)}
 			if r.Confirm == nil || !r.Confirm(q) {
 				r.block(rs, "autonomy ask_always: chờ người cho phép bước b-feat (bint run resume "+rs.t.State.ID+")")
 				return false
@@ -552,13 +582,17 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LinkRun(child); return nil })
 
 	prompt := r.prompt(ctx, rs, step, child)
+	stepLog := rs.t.LogPath(step + "-" + child + ".log")
 	r.logf("▶ %s [%s] (lượt %s)…", step, who, child)
+	if r.OnStep != nil {
+		r.OnStep(StepEvent{TaskID: rs.t.State.ID, Step: step, RunID: child, Log: stepLog})
+	}
 	env := []string{EnvRunID + "=" + child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
 		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
 	res := agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt,
 		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
-		LogPath: rs.t.LogPath(step + "-" + child + ".log"), Env: env, ReadOnly: readOnly, WritableDirs: r.stateDirs()})
+		LogPath: stepLog, Env: env, ReadOnly: readOnly, WritableDirs: r.stateDirs()})
 	if readOnly && ctx.Err() == nil {
 		after, err := WorktreeSnapshot(ctx, r.Root)
 		switch {
@@ -600,6 +634,9 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		}
 	}
 	sr.Status = status
+	if r.OnStep != nil {
+		r.OnStep(StepEvent{TaskID: rs.t.State.ID, Step: step, RunID: child, Log: stepLog, Done: true, Status: status})
+	}
 	payload := map[string]any{"status": status, "end_reason": endReason, "model": res.Model,
 		"result_summary": truncate(strings.TrimSpace(res.Text), 500), "task_id": rs.t.State.ID}
 	if res.CostUSD != nil {
@@ -863,7 +900,8 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 	if len(need) == 0 {
 		return true
 	}
-	q := fmt.Sprintf("b-feat đã sửa tệp cần duyệt (đường dẫn bảo vệ / deny / ngoài phạm vi):\n  %s\nDuyệt các thay đổi này?", strings.Join(need, "\n  "))
+	q := Question{Key: QConfirmScope, Paths: slices.Clone(need),
+		Text: fmt.Sprintf("b-feat đã sửa tệp cần duyệt (đường dẫn bảo vệ / deny / ngoài phạm vi):\n  %s\nDuyệt các thay đổi này?", strings.Join(need, "\n  "))}
 	if r.Confirm != nil && r.Confirm(q) {
 		t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 			prev := ApprovedPaths(t)

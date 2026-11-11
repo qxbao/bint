@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -430,4 +431,22 @@ func EditorArgv(path string) []string {
 		}
 	}
 	return append(strings.Fields(ed), path)
+}
+
+// EditorArgvAt như EditorArgv nhưng mở tệp tại dòng line (> 0) khi trình soạn thảo có cú pháp đó: `+N` cho vi, vim,
+// nvim, nano, emacs, micro; `tệp:N` cho hx/helix. Trình soạn thảo khác chỉ mở tệp.
+func EditorArgvAt(path string, line int) []string {
+	argv := EditorArgv(path)
+	if line <= 0 {
+		return argv
+	}
+	name := strings.ToLower(strings.TrimSuffix(filepath.Base(argv[0]), ".exe"))
+	switch name {
+	case "vi", "vim", "nvim", "view", "gvim", "nano", "emacs", "micro":
+		last := len(argv) - 1
+		return append(append(append([]string{}, argv[:last]...), fmt.Sprintf("+%d", line)), argv[last])
+	case "hx", "helix":
+		argv[len(argv)-1] = fmt.Sprintf("%s:%d", path, line)
+	}
+	return argv
 }

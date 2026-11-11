@@ -14,7 +14,6 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/knowledge"
-	"bint/internal/task"
 )
 
 var findingIcon = map[string]string{knowledge.LevelError: "✗", knowledge.LevelWarn: "!"}
@@ -50,10 +49,9 @@ Chỉ người mới duyệt được quy tắc bắt buộc (rule).`,
 
 func newKnowledgeAddCmd(stdio IO) *cobra.Command {
 	var (
-		o          app.AddOptions
-		bodyFile   string
-		asJSON     bool
-		fromReview string
+		o        app.AddOptions
+		bodyFile string
+		asJSON   bool
 	)
 	c := &cobra.Command{
 		Use:   "add [nội dung | -]",
@@ -82,8 +80,8 @@ hiện; cờ khác ghi đè. Mục do agent đề xuất theo cách này vẫn �
 			if err != nil {
 				return err
 			}
-			if fromReview != "" {
-				if err := fillFromReview(cmd, &o, fromReview); err != nil {
+			if o.FromReview != "" {
+				if err := o.FillFromReview(k); err != nil { // trước Validate: --type không bắt buộc khi có phát hiện
 					return err
 				}
 			}
@@ -146,7 +144,7 @@ hiện; cờ khác ghi đè. Mục do agent đề xuất theo cách này vẫn �
 	f.StringVar(&o.EvalCase, "eval-case", "", "tác vụ đánh giá mà mục này rút ra từ đó")
 	f.StringVar(&bodyFile, "body-file", "", "đọc nội dung từ tệp")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")
-	f.StringVar(&fromReview, "from-review", "", "chuyển phát hiện review <task-id>.<n> thành mục warning/lesson")
+	f.StringVar(&o.FromReview, "from-review", "", "chuyển phát hiện review <task-id>.<n> thành mục warning/lesson")
 	f.MarkHidden("eval-case")
 	return c
 }
@@ -685,64 +683,4 @@ func nonNilStrings(s []string) []string {
 		return []string{}
 	}
 	return s
-}
-
-// fillFromReview điền AddOptions từ một phát hiện review (mục 6.3). Giá trị người
-// dùng đã đặt bằng cờ được giữ.
-func fillFromReview(cmd *cobra.Command, o *app.AddOptions, id string) error {
-	taskRef, ok := task.SplitFindingID(id)
-	if !ok {
-		return usageError{fmt.Errorf("ID phát hiện %q không hợp lệ (dạng <task-id>.<n>)", id)}
-	}
-	env, _, err := openWorkflow(cmd)
-	if err != nil {
-		return err
-	}
-	t, err := env.Tasks.Load(taskRef)
-	if err != nil {
-		return err
-	}
-	rev, err := t.LoadReview()
-	if err != nil {
-		return err
-	}
-	_, n, _ := strings.Cut(id, ".")
-	f, round := rev.Find(t.State.ID + "." + n)
-	if f == nil {
-		return fmt.Errorf("không tìm thấy phát hiện %s", id)
-	}
-	if o.Type == "" {
-		o.Type = knowledge.TypeWarning
-	}
-	if o.Type != knowledge.TypeWarning && o.Type != knowledge.TypeLesson {
-		return usageError{fmt.Errorf("--from-review chỉ tạo mục warning hoặc lesson")}
-	}
-	if o.Title == "" {
-		o.Title = f.Title
-	}
-	if strings.TrimSpace(o.Body) == "" {
-		body := strings.TrimSpace(f.Body)
-		if body == "" {
-			body = f.Title
-		}
-		o.Body = body + "\n\nCăn cứ: " + f.Evidence + "\n\n(Rút ra từ phát hiện review " + f.ID + ", tác vụ " + t.State.ID + ".)"
-	}
-	if len(o.Paths) == 0 && f.Path != "" {
-		o.Paths = []string{f.Path}
-	}
-	if len(o.Evidence) == 0 && f.Path != "" {
-		spec := f.Path
-		if f.Lines != "" {
-			spec += ":" + f.Lines
-		}
-		o.Evidence = []string{spec}
-	}
-	if f.Path != "" {
-		o.Inputs = append(o.Inputs, f.Path)
-	}
-	o.Tags = append(o.Tags, "review")
-	if o.RunID == "" && round != nil {
-		o.RunID = round.RunID
-	}
-	return nil
 }

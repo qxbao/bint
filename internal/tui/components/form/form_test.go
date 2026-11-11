@@ -58,7 +58,7 @@ func names(fs []Field) string {
 // Trường sinh đúng kiểu, nhóm Nâng cao, ẩn, bắt buộc, lựa chọn từ thẻ của Options.
 func TestFieldsFromOptions(t *testing.T) {
 	fs := Fields(app.AddOptions{})
-	if got := names(fs); got != "type,title,body,paths,symbols,tags,domains,evidence,input,origin,third-party,confidence,run-id" {
+	if got := names(fs); got != "type,title,body,paths,symbols,tags,domains,evidence,input,origin,third-party,confidence,run-id,from-review" {
 		t.Fatalf("AddOptions: %s (eval-case phải ẩn, Now không có thẻ)", got)
 	}
 	by := map[string]Field{}
@@ -192,7 +192,7 @@ func TestAdvancedGroupCollapsedByDefault(t *testing.T) {
 		t.Fatalf("%d hàng", collapsed)
 	}
 	m.Update(k("ctrl+o"))
-	if shown() != 13+1 {
+	if shown() != 14+1 {
 		t.Fatalf("%d hàng sau khi mở nhóm Nâng cao", shown())
 	}
 	m.Update(k("ctrl+o"))
@@ -247,5 +247,43 @@ func TestViewFitsAndShowsCLI(t *testing.T) {
 				t.Fatalf("%s: thiếu dòng lệnh CLI hoặc dấu bắt buộc:\n%s", lang, out)
 			}
 		}
+	}
+}
+
+// Dòng CLI tương đương của run/task khớp cờ thật: tên cờ lấy từ thẻ `flag`, đối số vị trí theo thứ tự khai báo, cờ
+// nhiều giá trị lặp lại cờ, giá trị có ký tự đặc biệt được đặt trong dấu nháy.
+func TestCLIForTaskAndRunOptions(t *testing.T) {
+	cfg := config.Default()
+	def := app.RunWorkflowDefaults(cfg)
+	o := def
+	o.Workflow, o.Request, o.Task = "b-review", "Xem lại", "01ABC"
+	o.Harness, o.Roles, o.Model, o.NoReview, o.NoPlan, o.Depth = "codex", []string{"implementer=codex", "planner=claude"}, "gpt x", true, true, "auto"
+	o.Allow, o.Criteria = []string{"internal/**"}, []string{"AC một"}
+	got := CLIFor("run", def, o)
+	// Cờ theo thứ tự khai báo trường của Options.
+	want := "bint run --task 01ABC --criteria 'AC một' --allow 'internal/**' --no-plan --no-review --harness codex --role implementer=codex --role planner=claude --model 'gpt x' b-review 'Xem lại'"
+	if got != want {
+		t.Fatalf("run:\n got  %s\n want %s", got, want)
+	}
+
+	rd := app.RunResumeDefaults(cfg)
+	ro := rd
+	ro.Ref, ro.NoReview, ro.AgentCommand = "01XYZ", true, "sh agent.sh"
+	if got, want := CLIFor("run resume", rd, ro), "bint run resume --no-review --agent-command 'sh agent.sh' 01XYZ"; got != want {
+		t.Fatalf("resume:\n got  %s\n want %s", got, want)
+	}
+
+	nd := app.TaskNewDefaults(cfg)
+	no := nd
+	no.Request, no.VerifyCommand, no.Plan, no.Depth, no.Deny = "Làm X", "go test ./...", true, "deep", []string{"go.mod"}
+	if got, want := CLIFor("task new", nd, no), "bint task new --verify-command 'go test ./...' --deny go.mod --plan --depth deep 'Làm X'"; got != want {
+		t.Fatalf("task new:\n got  %s\n want %s", got, want)
+	}
+
+	sd := app.TaskStatusDefaults(cfg)
+	so := sd
+	so.Ref, so.To, so.Force, so.Reason = "01ABC", "done", true, "đã xem"
+	if got, want := CLIFor("task status", sd, so), "bint task status --reason 'đã xem' --force 01ABC done"; got != want {
+		t.Fatalf("task status:\n got  %s\n want %s", got, want)
 	}
 }

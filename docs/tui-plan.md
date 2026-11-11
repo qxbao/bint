@@ -1,8 +1,8 @@
 # Kế hoạch TUI cho Bint
 
-Trạng thái: **giai đoạn 0 và 1 đã triển khai** (2026-11-11); các giai đoạn 2–6 chưa làm. Kế hoạch đề
+Trạng thái: **giai đoạn 0, 1 và 2 đã triển khai** (2026-11-11); các giai đoạn 3–6 chưa làm. Kế hoạch đề
 xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
-và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1).
+và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2).
 
 ## 1. Mục tiêu
 
@@ -430,7 +430,7 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 |---|---|---|
 | 0 ✅ | Tách tầng dịch vụ cho `knowledge review`, `eval`, `evolve` (cycle, apply, report) khỏi `internal/cli`; đưa kiểm tra chỉ-dành-cho-người, ràng buộc cờ (`Options.Validate`), giá trị mặc định (`Defaults`) và lời hỏi `confirm()` xuống `app`. Khung TUI: theme, khung viền tự vẽ, tab, chân phím theo ưu tiên, bảng lệnh, sổ hành động, `internal/i18n` (vi, en) và khoá `ui.language`, test phủ lệnh + cờ với danh sách chưa làm. **Màn Tổng quan mẫu** + trang trưng bày + kịch bản VHS; màn tạm "Khởi tạo với mặc định" cho repo chưa `init`. | CLI chạy lại toàn bộ test không đổi hành vi; `bint` mở khung 7 tab, đổi `vi`/`en` được; chủ dự án duyệt ảnh màn mẫu và chốt bảng màu. |
 | 1 ✅ | Tổng quan + hộp thư; Tri thức đầy đủ, gồm duyệt theo lô và lọc theo `nguon:*`. | Duyệt 30 mục từ một lần `/b-knowledge` trong < 1 phút, không gõ lệnh. |
-| 2 | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
+| 2 ✅ | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
 | 3 | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
 | 4 | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
 | 5 | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
@@ -554,11 +554,11 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
   chậm cập nhật lượt chạy mới); mở cơ sở dữ liệu vẫn có thể áp migration nếu schema cũ.
 - **`bootstrap publish`**: `PublishOptions.Yes` + `Confirm`; ghi thay đổi mà không Yes và không Confirm là
   `UsageError` "cần --yes" (như eval/evolve evaluate); `DryRun` không cần xác nhận.
-- **Chưa tách** (ngoài phạm vi AC-6): kiểm `InAgentSession` của `task approve`, `runs rate` còn ở CLI.
+- **Chưa tách** (ngoài phạm vi AC-6): kiểm `InAgentSession` của `runs rate` còn ở CLI (của `task approve` đã tách ở giai đoạn 2, mục 12.4).
 - **Chưa có**: chuột, chế độ hẹp đầy đủ, hành động ghi nào trong sổ ngoài "Khởi tạo với mặc định" (nên chế độ
   `--read-only` mới chỉ có cơ chế và ẩn hành động ghi đó), `bubblezone`, `teatest` (golden dùng `View()` của mô
   hình), các màn hình của giai đoạn 2–6 (giai đoạn 1: xem 12.3). Danh sách chưa làm ở
-  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1).
+  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2).
 
 ### 12.3 Giai đoạn 1 (đã xong, 2026-11-11)
 
@@ -606,8 +606,7 @@ chưa làm mở trang giữ chỗ liệt kê việc đang chờ kèm lệnh CLI 
 - **Phím**: ở màn Tri thức `Tab` đổi khung (mục 4.3.8), ở Tổng quan vẫn đổi tab; `[` `]` `1-7` luôn đổi tab; `q` `?` `:` `L`
   `Ctrl+C` không bị màn hình chiếm, trừ khi màn đang nhận chữ (ô lọc, form, hộp thoại, form thẻ phụ): khi đó mọi phím vào ô nhập,
   `Esc` thoát (đang chạy việc nền của thẻ phụ thì `Esc`/`Ctrl+C` huỷ việc). Làm mới là `Ctrl+R` (`r` là từ chối, như mục 5.2).
-- **Giao diện `Screen`** chưa tách: mô hình gốc giữ trực tiếp màn Tri thức (và Tổng quan/Khởi tạo như cũ); tách khi giai đoạn 2
-  thêm màn thứ hai, lúc đó có nhu cầu chung thật.
+- **Giao diện `Screen`**: lúc đó chưa tách; đã tách ở giai đoạn 2 khi có màn thứ hai (`ui.Screen`, mục 12.4).
 - **Xuất bản AGENTS.md hai bước** (xem trước → `w` → xác nhận). Không có kênh/hộp thoại do dịch vụ gọi ngược (hạ tầng đó thuộc
   giai đoạn 2); thay vào đó bước ghi truyền `PublishOptions.Confirm` đồng bộ so `req.Detail` với diff đã xem và **không đặt `Yes`**:
   khác thì dịch vụ không ghi, thẻ hiện cảnh báo kèm diff mới để xem lại rồi `w` lần nữa. `w` bị chặn khi bản xem trước báo không
@@ -621,7 +620,7 @@ chưa làm mở trang giữ chỗ liệt kê việc đang chờ kèm lệnh CLI 
 - **Dòng hộp thư "không thuộc lô nào"** mở bộ lọc có `Filter.NoBatch`, nên danh sách và lô lập bằng `A` khớp đúng số ở dòng đó.
   `PendingWork` báo lỗi nguồn tác vụ cả khi còn tác vụ đọc được (kèm số tệp hỏng).
 - **Bằng chứng/phạm vi**: ô nhập có gợi ý mờ từ tệp được Git theo dõi (`→` hoàn tất), không có trình duyệt cây tệp (giai đoạn 6/sau).
-- **`knowledge add --from-review`** chờ danh sách phát hiện review của màn Tác vụ (giai đoạn 2): `PendingFlags` còn mục này.
+- **`knowledge add --from-review`**: lúc đó chờ danh sách phát hiện review của màn Tác vụ; đã làm ở giai đoạn 2 (mục 12.4).
 - **Duyệt hàng loạt chặn cả mục stale chỉ lỗi fingerprint** (như CLI bắt `approve --refresh` sau khi xem): duyệt từng mục bằng `f`.
 - **Mục có finding mức cảnh báo** (không phải error) vẫn vào lô duyệt; chỉ mức error bị loại.
 - **Thẩm định lại/Khảo sát/Xuất bản/Ngữ cảnh** chạy qua form của thẻ phụ, kết quả cuộn trong khung dưới; Thống kê và Thay đổi tự chạy
@@ -642,3 +641,109 @@ vhs internal/tui/testdata/vhs/knowledge.tape                 # 80×24; knowledge
 **Chưa kiểm được tự động**: ảnh PNG VHS (môi trường không có `vhs`; `.tape` mới chỉ qua kiểm cú pháp sơ bộ và phần dựng repo ẩn đã
 chạy tay), cảm nhận thẩm mỹ, thời gian thật "< 1 phút" với người, `$EDITOR` thật (test thay bằng hàm giả; `tea.ExecProcess` chưa
 chạy trong test).
+
+### 12.4 Giai đoạn 2 (đã xong, 2026-11-11)
+
+Mốc "xong": từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. Kiểm bằng `TestMilestoneTaskToDone`
+(`internal/tui/app`): repo tạm `app.Init` + agent giả tiêm qua `Options.AgentFactory` (b-req ghi ba tài liệu hợp lệ, b-feat
+sửa `app.txt`, b-review ghi một vòng không có phát hiện chặn). Kịch bản: form `n` (mô tả, lệnh kiểm chứng `git --version`,
+bật "Luôn qua b-req") → `r` (chạy `b-do`, việc nền) → tác vụ **blocked** vì lệnh kiểm chứng chưa được người xác nhận →
+`a` (hộp duyệt nêu đúng lệnh; chưa ghi gì tới khi đồng ý) → `v` (kiểm chứng, việc nền) → `c` (tiếp tục) → `done`; thẻ Review
+hiện vòng 2/2 của b-review. Chưa đo được tự động: ảnh VHS, `$EDITOR` thật, log của agent thật (claude/codex).
+
+**Tầng dịch vụ** (`internal/app`): `task_svc.go` và `run_svc.go`. Mỗi lệnh `task new/list/show/set/write/status/verify/criteria/
+error/review/lint/approve/transitions` và `run`, `run resume`, `run status` có kiểu `Options` (thẻ `flag`/`arg`/`form`),
+`Validate()` (trả `UsageError` → mã thoát 2) và `Defaults(cfg)`; `OpenTasks` thay `openWorkflow` của CLI. Hàm mới:
+`NewTask`, `ListTasks`, `ShowTask` (phiếu + đánh giá + review + điều chặn done + tài liệu + kết quả lint), `SetTask`,
+`WriteTaskArtifact`, `SetTaskStatus`, `VerifyTask`, `CheckTaskCriterion`, `RecordTaskError`, `SubmitTaskReview`, `LintTask`,
+`PlanTaskApprove` (**chỉ đọc**: lệnh kiểm chứng sẽ được xác nhận + đường dẫn chờ duyệt/chưa duyệt/`--path`, không ghi
+`state.json`), `ApproveTask`, `TaskRuns` (`NoIngest` cho `--read-only`), `RunWorkflow`, `ResumeWorkflow`. `RunCallbacks`
+(`Confirm`, `Ask`, `Log`, `OnStep`, `Agent` để tiêm agent giả) nhúng vào Options của `run`/`run resume`; trong phiên agent
+`Confirm`/`Ask` không được cài nên Runner không tương tác như trước. Chỉ-dành-cho-người nằm ở dịch vụ: `ApproveTask`,
+`SetTaskStatus{Force}` và đặt `autonomy: auto` (ở `NewTask`, `SetTask`, `RunWorkflow`) gọi `RequireHuman` (lỗi bọc
+`ErrAgentForbidden`). `knowledge add --from-review` chuyển vào `AddOptions.FromReview` + `FillFromReview` (giữ giá trị đã
+đặt, gọi lại không nhân đôi nhãn/đầu vào; `AddKnowledge` tự áp). CLI chỉ còn phân tích cờ, gọi dịch vụ và in như cũ.
+`workflow.Runner.Confirm/Ask` nhận `workflow.Question{Key, Text, Params, Paths}` (khoá `QAskVerifyCommand`, `QConfirmFeat`,
+`QConfirmScope`): CLI in `Text` nên đầu ra không đổi, TUI dịch theo khoá. Thêm `Runner.OnStep` (`StepEvent`: tác vụ, bước,
+lượt con, đường dẫn log, bắt đầu/kết thúc).
+
+**Việc nền** (`internal/tui/jobs`, `internal/tui/app/jobs.go`): bảng việc (`jobs.Table`: hành động, loại, nhãn, tác vụ, lệnh
+tiếp tục, log) và cầu `Bridge` dựng `Confirm`/`Ask`/`Log`/`OnStep` gửi `PromptMsg`/`LogMsg`/`StepMsg`/`DoneMsg` qua một
+kênh có đệm; một `jobs.Wait` đọc từng thông điệp và đăng ký lại (không đăng ký khi đang hiện câu hỏi, nên thông điệp sau chờ
+trong kênh). `Reply` có đệm 1 và hàm hỏi `select` với `ctx.Done()`: huỷ khi câu hỏi còn chờ thì trả "không"/rỗng ngay.
+Sổ hành động có `Action.Job` (chạy nền, có cầu) cạnh `Action.Do` (đồng bộ); mỗi lúc **một** việc workflow (`ErrWorkflowBusy`),
+việc kiểm chứng và việc thường chạy song song. Log trực tiếp: `eval.runProcess` ghi `LogPath` dần (đã kiểm: `MultiWriter`
+vào tệp mở `O_APPEND`, không đệm tới cuối), `Job.ReadTail` đọc phần mới mỗi `TailEvery` (400 ms) và chỉ đọc thêm các dòng
+đã hoàn chỉnh; `components/logview` hiện dòng `Runner.Logf` ở trên và đuôi log bước đang chạy ở dưới, tự cuộn tới dòng mới
+trừ khi người dùng cuộn lên. Xong thì toast ở mọi màn hình (kết quả `blocked/failed/interrupted` ghi rõ "cần bạn"), danh
+sách tác vụ và chi tiết nạp lại, thanh trên hiện số việc nền. **Thoát** khi còn việc (kể cả khởi tạo): hộp thoại liệt kê
+việc kèm `bint run resume <id>`; "Ở lại" không làm gì, "Huỷ việc rồi thoát" huỷ mọi context rồi chỉ `tea.Quit` sau khi việc
+báo xong hoặc hết `ExitGrace` (15 giây); `Ctrl+C` lần nữa thoát ngay. Thay cơ chế "nhấn lần nữa" của màn Khởi tạo.
+
+**Giao diện `Screen`** (`ui.Screen`: `SetEnv/Ensure/Update/Key/Capturing/WantsInterrupt/Busy/NotList/Command/View`): mô hình
+gốc giữ bảng `screens` theo tab (Tri thức, Tác vụ), thông điệp nội bộ của màn hình đi theo `actions.Targeted`, kết quả và từ
+chối theo màn hình khai trong sổ; mô hình gốc không còn rẽ nhánh theo từng màn.
+
+**Màn Tác vụ** (`internal/tui/screens/tasks`): danh sách xếp theo nhóm trạng thái (Chờ bạn = blocked/interrupted/failed
+lên đầu, Đang làm, Sắp làm, Đã xong; trong nhóm mới cập nhật trước), `A` bật/tắt hiện done+cancelled (như `task list --all`),
+`/` lọc chữ, `Ctrl+R` làm mới; ≥ 100 cột hai khung, hẹp một khung (`Tab`/`Enter` đổi). Thẻ con `,` `.`: **Phiếu** (mục tiêu,
+phạm vi, tham chiếu, autonomy, phân loại/độ sâu, rủi ro, câu hỏi/ghi chú của đánh giá, chờ duyệt, điều chặn done, yêu cầu
+gốc, lịch sử), **Tài liệu** (requirement/plan/tasks dạng Markdown, `d` đổi tài liệu, kèm kết quả lint), **Tiêu chí**,
+**Kiểm chứng** (lệnh, đã xác nhận chưa, các lần chạy, đuôi log lần cuối), **Review** (xếp critical → low; `j/k` chọn phát
+hiện, `Enter` mở trích đoạn `path:lines` kèm 3 dòng ngữ cảnh — chỉ đọc nên dùng được ở `--read-only`, `e` mở `$EDITOR`
+tại dòng đầu của `lines` với `+N`, `K` chuyển thành tri thức), **Lỗi**, **Lượt chạy** (`app.TaskRuns`), và **Log** khi tác
+vụ có việc nền (đang chạy hoặc vừa xong; `Esc`/`Ctrl+C` huỷ việc). Hành động: `n` tạo tác vụ, `r` chạy workflow
+(`b-do/b-req/b-feat/b-review`, `--harness`, `--role`, `--model`, `--no-review`, độ sâu, `--plan/--no-plan`; trên tác vụ đang
+chọn hoặc từ mô tả mới), `c` tiếp tục, `a` duyệt (hộp xác nhận dựng từ `PlanTaskApprove`; hộp đỏ khi có đường dẫn bảo vệ), `s`
+đổi trạng thái (form chỉ đưa trạng thái đích hợp lệ theo `task.TransitionsFrom`; `--force` mở hộp đỏ cảnh báo kèm điều còn
+thiếu), `T` bảng chuyển, `v` kiểm chứng (việc nền), `l` kiểm tài liệu, `e` sửa phiếu / sửa tài liệu / mở tệp tuỳ thẻ, `i`
+ghi lỗi, `m` đối chiếu tiêu chí, `w` ghi vòng review (mẫu JSON trong `$EDITOR`), `K` chuyển phát hiện thành tri thức. Mọi hành
+động có trong bảng lệnh; form chân có dòng CLI tương đương. Hộp thư (Tổng quan): Enter trên dòng tác vụ blocked mở thẳng
+màn Tác vụ tại tác vụ đó.
+
+**Phủ và kiểm thử**: `CurrentPhase = 2`; gỡ 16 lệnh `task *`/`run *` và `PendingFlags["knowledge add --from-review"]` khỏi
+danh sách chưa làm (`PendingCeiling` 78 → 61); `ExcludedCmdFlags["task new --file"]` (TUI soạn mô tả trong ô nhiều dòng); thêm
+`serviceBindings` cho task/run và ca ngược "bỏ thẻ `flag` một trường Options của run" làm test đỏ. Test mới: bảng ca `Validate`,
+chỉ-dành-cho-người (`CLAUDECODE=1` và `asHuman`), `PlanTaskApprove` không đổi `state.json`, `FromReview` (người, agent, ID sai,
+gọi lại), mã thoát 2 của CLI (kể cả khi repo chưa init), khoá câu hỏi của workflow, `OnStep`, markdown/logview (độ rộng chữ có dấu),
+màn Tác vụ (nhóm, lọc, thẻ con, trích đoạn đúng dòng, `K`, từng form gửi đúng Options + dòng CLI), cầu hỏi với dịch vụ thật
+("không" thì không có `ProtectedApproval`/`VerifyApproval` mới; huỷ khi đang chờ kết thúc trong hạn giờ; chạy `go test -race`),
+log trực tiếp thấy dòng mới trước khi bước kết thúc, `Esc` huỷ → `interrupted`, hộp thoại thoát, mọi hành động `Writes` bị từ
+chối ở `--read-only` qua phím/bảng lệnh/yêu cầu trực tiếp, `HumanOnly` bị khoá khi `CLAUDECODE=1`, golden màn Tác vụ 80×24
+và 140×40 (vi/en/xx, đơn sắc; từng chế độ màu ở dạng có mã màu), trang trưng bày có markdown/logview.
+
+**Chỗ lệch so với kế hoạch (người duyệt có thể đổi)**
+
+- **`K` tạo mục `candidate`, origin `agent`**: form Thêm tri thức điền sẵn `Origin: agent` (trường nâng cao, đổi được) vì nội dung
+  do b-review viết chứ không phải người đã kiểm; `bint knowledge add --from-review` ở CLI vẫn theo người dùng (người → `verified`,
+  agent → `candidate`). Người vào màn Tri thức duyệt như mục khác.
+- **"Enter tới tệp:dòng" là mở trích đoạn trong TUI** (chỉ đọc); `e` mới mở `$EDITOR` (`+N` cho vi/vim/nvim/nano/emacs/micro,
+  `tệp:N` cho hx/helix, trình khác chỉ mở tệp). Ghi vòng review bằng mẫu JSON trong `$EDITOR`; sửa tài liệu qua tệp tạm rồi
+  `task write` (không ghi thẳng vào tệp tác vụ) và bỏ qua nếu nội dung không đổi.
+- **Markdown tự viết** (tiêu đề, danh sách, ô kiểm, khối mã, trích dẫn, đường kẻ, chữ đậm và mã nội dòng); không bảng/ảnh/liên kết
+  và không thêm phụ thuộc vào `go.mod`.
+- **Kiểm chứng không tự chạy khi duyệt**: `a` chỉ xác nhận lệnh; sau đó phải `v` (hoặc để Runner chạy khi lệnh đã xác nhận ngay
+  sau b-feat) trước `c`, vì tiếp tục từ `blocked` chạy lại b-review chứ không chạy lại kiểm chứng. Mốc `TestMilestoneTaskToDone`
+  đi đúng chuỗi này.
+- **`Confirm` trả không với `checkScope`** vẫn ghi `PendingPaths` và chuyển blocked (hành vi có sẵn của CLI); điều "không ghi" là
+  không có `ProtectedApproval`/`VerifyApproval` mới (có test). Dịch vụ dùng `ConfirmOrFail` thì không ghi gì.
+- **`--read-only`**: danh sách/chi tiết không đối chiếu lại tiến trình điều phối đã chết (`NoReconcile`) và thẻ Lượt chạy không nạp
+  spool (`NoIngest`); mở cơ sở dữ liệu vẫn có thể áp migration nếu schema cũ (như Tổng quan).
+- **Việc chạy từ mô tả mới** chưa biết tác vụ cho tới bước đầu tiên: log của nó hiện ở thẻ Log của tác vụ đang chọn, `Job.TaskID`
+  được điền khi nhận `StepMsg` đầu, và con trỏ nhảy tới tác vụ vừa lập khi việc xong.
+- **Phím**: `Ctrl+R` làm mới (như Tri thức; mục 4.3.8 dùng `r`), `A` hiện cả xong/huỷ, `.`/`,` đổi thẻ con; `q ? : L [ ] 1-7` vẫn là
+  phím toàn cục trừ khi màn đang nhận chữ (ô lọc, form, hộp thoại).
+- **Đổi nhỏ về hành vi CLI**: thông báo lỗi của "đặt `autonomy: auto` trong phiên agent" nay bọc `app.ErrAgentForbidden` (kèm tên biến
+  agent) thay vì `workflow.ErrAgent`; mã thoát vẫn 1. Lỗi dùng sai vẫn được kiểm trước khi mở workspace nên mã 2 thắng mã 4. Đầu ra
+  và mã thoát của mọi e2e cũ giữ nguyên (không sửa khẳng định nào).
+- **Chưa làm** (đúng phạm vi): chạy nhiều workflow song song trong một phiên TUI, huỷ việc của tiến trình khác, trình duyệt cây tệp,
+  tô cú pháp trích đoạn, ảnh VHS và bước CI xuất ảnh (`.github/workflows/**` được bảo vệ), chuột và chế độ hẹp đầy đủ (giai đoạn 6).
+  Mục tri thức k:01M746PHJXDZN6QMA3BEVEDNPP và các phát hiện mức thấp của giai đoạn 1 (12.3) vẫn còn mở.
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app ./internal/tui/gallery -update    # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước)
+go test -race ./internal/tui/app -run 'Confirm|Cancel|LiveLog|Exit|Milestone'   # việc nền, câu hỏi, huỷ, thoát
+bint tui                                                      # 3 → n (tạo) → r (chạy b-do); q khi còn việc → hộp thoại thoát
+```

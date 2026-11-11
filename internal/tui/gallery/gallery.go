@@ -19,6 +19,8 @@ import (
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/logo"
+	"bint/internal/tui/components/logview"
+	"bint/internal/tui/components/markdown"
 	"bint/internal/tui/components/palette"
 	"bint/internal/tui/components/tabs"
 	"bint/internal/tui/components/viewer"
@@ -179,6 +181,18 @@ func (m *Model) Render() string {
 		add("  " + l)
 	}
 	add("  "+th.S(theme.Muted, "│ ")+"  40  func Open() {", "  "+th.S(theme.Muted, "│ ")+"  41      return nil")
+
+	section(cat.T("gallery.section.markdown"))
+	for _, l := range markdown.Render(th, cat.T("gallery.sample.markdown"), min(iw-4, 70)) {
+		add("  " + l)
+	}
+
+	section(cat.T("gallery.section.logview"))
+	lv := logview.New()
+	add(strings.Split(lv.Render(th, []logview.Section{
+		{Title: cat.T("gallery.sample.log_orchestrator"), Lines: []string{"▶ b-feat [claude] (…)", "✓ b-feat 12s"}},
+		{Title: cat.T("gallery.sample.log_step"), Lines: []string{"{\"type\":\"assistant\"…}", cat.T("gallery.sample.log_line")}},
+	}, min(iw-2, 64), 6), "\n")...)
 
 	section(cat.T("gallery.section.confirm"))
 	dlg := confirm.Model{Title: cat.T("gallery.confirm.title"), Body: []string{cat.T("gallery.confirm.body")}, Danger: true, Input: true,

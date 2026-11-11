@@ -88,6 +88,7 @@ func TestHumanOnlyActionsRefuseAtServiceLayer(t *testing.T) {
 		"knowledge.reject_batch":    app.BatchOptions{Refs: ids, Reason: "x"},
 		"knowledge.verify_apply":    app.VerifyOptions{Apply: true},
 		"knowledge.revalidate":      app.RevalidateOptions{BudgetUSD: 1, AgentCommand: "true"},
+		"tasks.approve":             app.TaskApproveOptions{Ref: "khong-co"},
 	}
 	for id, a := range actions.Default().All() {
 		_ = id

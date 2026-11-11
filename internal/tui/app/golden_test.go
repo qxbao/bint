@@ -74,6 +74,38 @@ func TestGoldenScreens(t *testing.T) {
 					press(t, m, "2", "n")
 					return m
 				},
+				"tasks": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "3")
+					return m
+				},
+				"tasks_detail": func() *Model { // thẻ Phiếu ở khung chi tiết (hẹp: một khung)
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "3", "enter")
+					return m
+				},
+				"tasks_docs": func() *Model { // thẻ Tài liệu: Markdown + kết quả lint
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "3", ".", "tab")
+					return m
+				},
+				"tasks_review": func() *Model { // thẻ Review: phát hiện xếp critical → low
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "3", ".", ".", ".", ".", "tab")
+					return m
+				},
+				"tasks_new": func() *Model {
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "3", "n")
+					return m
+				},
+				"tasks_approve": func() *Model { // hộp duyệt dựng từ kế hoạch chỉ đọc
+					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
+					press(t, m, "3")
+					m.Update(actions.ResultMsg{ID: "tasks.plan_approve", Value: bintapp.ApprovePlan{Task: m.tk.Cursor(), VerifyCommand: "go test ./...",
+						Paths: []string{"migrations/002.sql"}, Resumable: true}})
+					return m
+				},
 				"knowledge_publish": func() *Model {
 					m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), sz[0], sz[1])
 					press(t, m, "2")
@@ -117,5 +149,15 @@ func TestGoldenKnowledgeColorModes(t *testing.T) {
 		press(t, m, "2", "x", "j")
 		out := strings.ReplaceAll(m.Render(), "\x1b", "␛")
 		checkGolden(t, fmt.Sprintf("knowledge_140x40_vi_%s.ansi.txt", mode), out+"\n")
+	}
+}
+
+// Ảnh chụp có mã màu của màn Tác vụ (danh sách rộng với chi tiết ở thẻ Review) ở từng chế độ màu.
+func TestGoldenTasksColorModes(t *testing.T) {
+	for _, mode := range allModes() {
+		m := newModel(t, Options{Mode: mode, Lang: "vi"}, sampleData(), 140, 40)
+		press(t, m, "3", ".", ".", ".", ".", "tab")
+		out := strings.ReplaceAll(m.Render(), "\x1b", "␛")
+		checkGolden(t, fmt.Sprintf("tasks_140x40_vi_%s.ansi.txt", mode), out+"\n")
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	"bint/internal/app"
 	kn "bint/internal/knowledge"
+	"bint/internal/tui/actions"
 )
 
 // Data là dữ liệu của danh sách.
@@ -44,12 +45,18 @@ type LoadedMsg struct {
 	Err  error
 }
 
+// Target cho mô hình gốc biết thông điệp thuộc màn Tri thức.
+func (LoadedMsg) Target() actions.Screen { return actions.Knowledge }
+
 // DetailMsg là kết quả nạp chi tiết một mục.
 type DetailMsg struct {
 	ID     string
 	Detail app.KnowledgeDetail
 	Err    error
 }
+
+// Target cho mô hình gốc biết thông điệp thuộc màn Tri thức.
+func (DetailMsg) Target() actions.Screen { return actions.Knowledge }
 
 // maxSuggestFiles giới hạn số tệp gợi ý để bộ nhớ và thời gian nạp không phình theo repository lớn.
 const maxSuggestFiles = 20000

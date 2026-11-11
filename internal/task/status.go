@@ -52,6 +52,9 @@ var transitions = map[string][]string{
 // CanTransition cho biết bảng chuyển trạng thái có cho phép from → to không.
 func CanTransition(from, to string) bool { return slices.Contains(transitions[from], to) }
 
+// TransitionsFrom trả các trạng thái đích hợp lệ từ from theo bảng chuyển (cho form đổi trạng thái).
+func TransitionsFrom(from string) []string { return slices.Clone(transitions[from]) }
+
 // TransitionRow là một dòng của bảng chuyển trạng thái (cho `bint task transitions`).
 type TransitionRow struct{ From, To, Note string }
 

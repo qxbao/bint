@@ -184,7 +184,10 @@ func TestNoUnusedKeys(t *testing.T) {
 	dynamicPrefix := []string{"tab.", "action.nav.", "init.does.", "overview.inbox.", "overview.runstatus.",
 		// Màn Tri thức: khoá ghép từ tên hành động, thẻ phụ, mã finding, chỉ số điều kiện chuyển (có test phủ riêng).
 		"action.knowledge.", "kn.sub.", "kn.survey.", "kn.panel.hint.", "kn.reason.title.", "kn.blocked.", "kn.meta.", "kn.insp.",
-		"finding.", "transition.", "form."}
+		"finding.", "transition.", "form.",
+		// Màn Tác vụ: trạng thái, thẻ con, mức độ, loại phát hiện, điều kiện chuyển, nhóm, siêu dữ liệu (ghép từ giá trị dữ liệu);
+		// câu hỏi giữa chừng ghép từ khoá do workflow khai báo (workflow.Q*).
+		"action.tasks.", "tk.status.", "tk.sub.", "tk.sev.", "tk.kind.", "tk.trans.", "tk.group.", "tk.meta.", "prompt.workflow."}
 	for _, k := range vi.Keys() {
 		if k == "app.name" || strings.Contains(code, `"`+k+`"`) {
 			continue

@@ -254,6 +254,27 @@ func (m *Model) rows() []row {
 // SetSuggestions đặt danh sách gợi ý cho nguồn name (files, ids); phải gọi qua hàm này để các ô đã dựng thấy.
 func (m *Model) SetSuggestions(name string, list []string) { m.Suggestions[name] = list }
 
+// SetChoices thay danh sách lựa chọn của ô name (vd. chỉ các trạng thái đích hợp lệ theo bảng chuyển). Lựa chọn
+// hiện tại được giữ nếu còn trong danh sách mới, không thì bỏ chọn.
+func (m *Model) SetChoices(name string, list []string) {
+	for i, f := range m.Fields {
+		if f.Name != name || f.Kind != Choice {
+			continue
+		}
+		cur := ""
+		if c := m.choice[i]; c > 0 && c <= len(f.Choices) {
+			cur = f.Choices[c-1]
+		}
+		m.Fields[i].Choices = append([]string(nil), list...)
+		m.choice[i] = 0
+		for j, c := range list {
+			if c == cur {
+				m.choice[i] = j + 1
+			}
+		}
+	}
+}
+
 // Capturing luôn đúng: khi biểu mẫu mở, mọi phím chữ thuộc về ô nhập.
 func (m *Model) Capturing() bool { return true }
 

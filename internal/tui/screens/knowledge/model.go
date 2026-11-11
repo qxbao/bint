@@ -141,6 +141,14 @@ func (m *Model) allowed(id string) bool {
 
 func (m *Model) t(key string, a ...i18n.A) string { return m.cat.T(key, a...) }
 
+// Ensure nạp danh sách lần đầu (ui.Screen).
+func (m *Model) Ensure() tea.Cmd {
+	if m.Loaded || m.Loading {
+		return nil
+	}
+	return m.Load()
+}
+
 // Load nạp lại danh sách (không chạy song song: đang nạp thì bỏ qua).
 func (m *Model) Load() tea.Cmd {
 	if m.Loading {

@@ -13,6 +13,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
+	"bint/internal/task"
 	"bint/internal/ulid"
 )
 
@@ -118,6 +119,9 @@ type AddOptions struct {
 	Confidence string   `flag:"confidence" form:"advanced,choices=high|medium|low"`
 	RunID      string   `flag:"run-id" form:"advanced"`
 	EvalCase   string   `flag:"eval-case" form:"hidden"`
+	// FromReview là ID phát hiện của b-review (<task-id>.<n>): tiêu đề, nội dung, phạm vi và bằng chứng điền sẵn
+	// từ phát hiện, giá trị đã đặt được giữ (FillFromReview; AddKnowledge tự áp nếu chưa).
+	FromReview string `flag:"from-review" form:"advanced,suggest=findings"`
 	Now        time.Time
 }
 
@@ -135,6 +139,66 @@ func (o AddOptions) Validate() error {
 	}
 	if !slices.Contains(knowledge.Types, o.Type) {
 		return Usagef("--type phải là một trong: %s", strings.Join(knowledge.Types, ", "))
+	}
+	return nil
+}
+
+// FillFromReview điền AddOptions từ một phát hiện review (mục 6.3). Giá trị người dùng đã đặt được giữ; gọi lại
+// nhiều lần cho cùng phát hiện không nhân đôi nhãn/đầu vào. Cho phép --type vắng (mặc định warning), nên phải
+// áp trước Validate.
+func (o *AddOptions) FillFromReview(k *KnowledgeWS) error {
+	id := o.FromReview
+	taskRef, ok := task.SplitFindingID(id)
+	if !ok {
+		return Usagef("ID phát hiện %q không hợp lệ (dạng <task-id>.<n>)", id)
+	}
+	t, err := task.NewStore(k.Paths.Runtime).Load(taskRef)
+	if err != nil {
+		return err
+	}
+	rev, err := t.LoadReview()
+	if err != nil {
+		return err
+	}
+	_, n, _ := strings.Cut(id, ".")
+	f, round := rev.Find(t.State.ID + "." + n)
+	if f == nil {
+		return fmt.Errorf("không tìm thấy phát hiện %s", id)
+	}
+	if o.Type == "" {
+		o.Type = knowledge.TypeWarning
+	}
+	if o.Type != knowledge.TypeWarning && o.Type != knowledge.TypeLesson {
+		return Usagef("--from-review chỉ tạo mục warning hoặc lesson")
+	}
+	if o.Title == "" {
+		o.Title = f.Title
+	}
+	if strings.TrimSpace(o.Body) == "" {
+		body := strings.TrimSpace(f.Body)
+		if body == "" {
+			body = f.Title
+		}
+		o.Body = body + "\n\nCăn cứ: " + f.Evidence + "\n\n(Rút ra từ phát hiện review " + f.ID + ", tác vụ " + t.State.ID + ".)"
+	}
+	if len(o.Paths) == 0 && f.Path != "" {
+		o.Paths = []string{f.Path}
+	}
+	if len(o.Evidence) == 0 && f.Path != "" {
+		spec := f.Path
+		if f.Lines != "" {
+			spec += ":" + f.Lines
+		}
+		o.Evidence = []string{spec}
+	}
+	if f.Path != "" && !slices.Contains(o.Inputs, f.Path) {
+		o.Inputs = append(o.Inputs, f.Path)
+	}
+	if !slices.Contains(o.Tags, "review") {
+		o.Tags = append(o.Tags, "review")
+	}
+	if o.RunID == "" && round != nil {
+		o.RunID = round.RunID
 	}
 	return nil
 }
@@ -166,6 +230,11 @@ func ParseEvidenceSpec(spec string) (knowledge.Evidence, error) {
 // Mục không qua kiểm tra xác định được thì không được ghi.
 func AddKnowledge(ctx context.Context, k *KnowledgeWS, opts AddOptions) (AddResult, error) {
 	var res AddResult
+	if opts.FromReview != "" {
+		if err := opts.FillFromReview(k); err != nil {
+			return res, err
+		}
+	}
 	if opts.Now.IsZero() {
 		opts.Now = time.Now()
 	}

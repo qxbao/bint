@@ -115,10 +115,10 @@ func TestTabNavigation(t *testing.T) {
 		t.Fatalf("tab: %d", m.Tab())
 	}
 	// Tab chưa có màn hình thật nói rõ giai đoạn và lệnh CLI tương đương.
-	press(t, m, "3")
+	press(t, m, "4")
 	out := plain(m.Render())
-	if !strings.Contains(out, "giai đoạn 2") || !strings.Contains(out, "bint task new") {
-		t.Fatalf("placeholder Tri thức:\n%s", out)
+	if !strings.Contains(out, "giai đoạn 3") || !strings.Contains(out, "bint runs list") {
+		t.Fatalf("placeholder Lượt chạy:\n%s", out)
 	}
 }
 
@@ -428,34 +428,59 @@ func TestInitActionsHiddenOutsideInitScreen(t *testing.T) {
 	}
 }
 
-// q khi đang khởi tạo (việc nền ghi) không thoát ngay; nhấn lần nữa mới thoát.
-func TestQuitDuringInitAsksFirst(t *testing.T) {
+// q khi đang khởi tạo (việc nền ghi) mở hộp thoại thoát đầy đủ thay cho cơ chế "nhấn lần nữa": "Ở lại" không
+// thoát; "Huỷ việc rồi thoát" chờ khởi tạo kết thúc (hoặc hết hạn giờ) rồi mới thoát.
+func TestQuitDuringInitOpensExitDialog(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, notInitData(), 120, 30)
 	m.ini.Running = true
 	_, cmd := m.Update(keyMsg("q"))
-	if cmd != nil || m.quitting {
-		t.Fatal("q khi đang khởi tạo không được thoát ngay")
+	if cmd != nil || m.quitting || m.exitDlg == nil {
+		t.Fatalf("q khi đang khởi tạo phải mở hộp thoại, không thoát: cmd=%v quit=%v dlg=%v", cmd != nil, m.quitting, m.exitDlg != nil)
 	}
-	if !strings.Contains(plain(m.Render()), "Đang khởi tạo") || m.toast == "" {
-		t.Fatalf("phải nhắc đang khởi tạo: %q", m.toast)
+	out := plain(m.Render())
+	for _, want := range []string{"Còn việc đang chạy", "Khởi tạo", "Huỷ việc rồi thoát", "Ở lại"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("hộp thoại thiếu %q:\n%s", want, out)
+		}
 	}
-	_, cmd = m.Update(keyMsg("ctrl+c"))
-	if cmd == nil || !m.quitting {
-		t.Fatal("nhấn lần nữa phải thoát")
+	// "Ở lại": đóng hộp, không thoát.
+	if _, cmd := m.Update(keyMsg("esc")); cmd != nil || m.exitDlg != nil || m.quitting || m.exiting {
+		t.Fatal("Ở lại không được thoát")
+	}
+	// "Huỷ việc rồi thoát": chưa thoát cho tới khi khởi tạo báo xong.
+	press(t, m, "q")
+	_, cmd = m.Update(keyMsg("enter"))
+	if cmd == nil || m.quitting || !m.exiting {
+		t.Fatalf("phải chờ việc kết thúc: cmd=%v quit=%v exiting=%v", cmd != nil, m.quitting, m.exiting)
+	}
+	if _, cmd = m.Update(actions.InitDoneMsg{}); cmd == nil || !m.quitting {
+		t.Fatal("khởi tạo xong khi đang thoát phải thoát")
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
 		t.Fatal("phải trả tea.Quit")
 	}
-	// Phím khác xen giữa thì lần nhắc bắt đầu lại.
+	// Quá hạn chờ thì thoát dù việc chưa kết thúc.
 	m2 := newModel(t, Options{Mode: theme.Mono}, notInitData(), 120, 30)
 	m2.ini.Running = true
-	press(t, m2, "q", "?", "esc", "q")
+	m2.Update(keyMsg("q"))
+	m2.Update(keyMsg("enter")) // không chạy lệnh tick chờ: kiểm thử gửi exitTimeoutMsg trực tiếp
 	if m2.quitting {
-		t.Fatal("phím khác xen giữa phải đặt lại lần nhắc")
+		t.Fatal("chưa hết hạn thì chưa thoát")
+	}
+	if _, cmd := m2.Update(exitTimeoutMsg{}); cmd == nil || !m2.quitting {
+		t.Fatal("hết hạn phải thoát")
+	}
+	// Đang thoát: Ctrl+C lần nữa thoát ngay.
+	m3 := newModel(t, Options{Mode: theme.Mono}, notInitData(), 120, 30)
+	m3.ini.Running = true
+	m3.Update(keyMsg("q"))
+	m3.Update(keyMsg("enter"))
+	if _, cmd := m3.Update(keyMsg("ctrl+c")); cmd == nil || !m3.quitting {
+		t.Fatal("Ctrl+C khi đang chờ phải thoát ngay")
 	}
 	// Không có việc nền thì thoát ngay.
-	m3 := newModel(t, Options{Mode: theme.Mono}, sampleData(), 120, 30)
-	if _, cmd := m3.Update(keyMsg("q")); cmd == nil || !m3.quitting {
+	m4 := newModel(t, Options{Mode: theme.Mono}, sampleData(), 120, 30)
+	if _, cmd := m4.Update(keyMsg("q")); cmd == nil || !m4.quitting {
 		t.Fatal("không có việc nền thì q thoát ngay")
 	}
 }

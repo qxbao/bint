@@ -114,15 +114,20 @@ func TestInboxEnterOnBatchSetsKnowledgeFilter(t *testing.T) {
 	}
 }
 
-func TestInboxEnterOnBlockedTaskShowsCLIInPlaceholder(t *testing.T) {
+// Enter trên dòng tác vụ bị chặn của hộp thư mở thẳng màn Tác vụ tại tác vụ đó; các dòng tab chưa làm vẫn mở trang
+// giữ chỗ kèm lệnh CLI.
+func TestInboxEnterOnBlockedTaskOpensTasksScreenAtThatTask(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, fullPending(), 140, 40)
 	press(t, m, "j", "j", "j", "j", "enter") // 0,1 lô; 2 còn lại; 3 thành phần; 4 tác vụ
 	if m.Tab() != 2 {
 		t.Fatalf("tab = %d, muốn 2 (Tác vụ)", m.Tab())
 	}
+	if c := m.tk.Cursor(); c == nil || c.State.ID != "01TASK1" {
+		t.Fatalf("con trỏ phải ở tác vụ của dòng hộp thư: %+v", c)
+	}
 	out := plain(m.Render())
-	if !strings.Contains(out, "bint task show 01TASK1") || !strings.Contains(out, "Thêm cột email") || !strings.Contains(out, "Việc đang chờ bạn ở tab này") {
-		t.Fatalf("trang giữ chỗ phải liệt kê việc đang chờ kèm lệnh:\n%s", out)
+	if !strings.Contains(out, "Thêm cột email") || !strings.Contains(out, "Chi tiết") {
+		t.Fatalf("màn Tác vụ phải hiện tác vụ đó:\n%s", out)
 	}
 	press(t, m, "1", "j", "j", "j", "enter") // thành phần harness → Hệ thống
 	if m.Tab() != 6 {
@@ -334,8 +339,8 @@ func TestCancelRevalidateCancelsBackgroundContext(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("Do chưa được gọi")
 	}
-	if len(m.jobs) != 1 {
-		t.Fatalf("việc nền phải được ghi nhận: %d", len(m.jobs))
+	if m.jobs.Len() != 1 {
+		t.Fatalf("việc nền phải được ghi nhận: %d", m.jobs.Len())
 	}
 	m.Update(actions.CancelMsg{ID: "knowledge.revalidate"})
 	select {
@@ -349,7 +354,7 @@ func TestCancelRevalidateCancelsBackgroundContext(t *testing.T) {
 			break
 		}
 	}
-	if len(m.jobs) != 0 {
+	if m.jobs.Len() != 0 {
 		t.Fatal("kết quả về thì xoá việc nền")
 	}
 }

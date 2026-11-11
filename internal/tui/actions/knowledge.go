@@ -50,6 +50,8 @@ func (o FilterOptions) Filter() knowledge.Filter {
 type EditOptions struct {
 	ID   string
 	Path string
+	// Line > 0: mở tại dòng đó nếu trình soạn thảo hỗ trợ (+N).
+	Line int
 }
 
 // MarkOptions chọn thẻ phụ/chế độ giao diện thuần (không có thẻ flag/arg: không thành ô form).
@@ -76,16 +78,18 @@ func withK(id string, f func(ctx context.Context, k *app.KnowledgeWS, opts any) 
 	}
 }
 
+// editorCmd dựng lệnh mở path trong trình soạn thảo (tại dòng line nếu hỗ trợ); env.Editor thay được trong kiểm thử.
+func editorCmd(ctx context.Context, env Env, path string, line int) *exec.Cmd {
+	if env.Editor != nil {
+		return env.Editor(path)
+	}
+	argv := app.EditorArgvAt(path, line)
+	return exec.CommandContext(ctx, argv[0], argv[1:]...)
+}
+
 func doEdit(ctx context.Context, env Env, opts any) tea.Msg {
 	o := opts.(EditOptions)
-	var cmd *exec.Cmd
-	if env.Editor != nil {
-		cmd = env.Editor(o.Path)
-	} else {
-		argv := app.EditorArgv(o.Path)
-		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
-	}
-	return ExecMsg{ID: "knowledge.edit", Opts: o, Cmd: cmd}
+	return ExecMsg{ID: "knowledge.edit", Opts: o, Cmd: editorCmd(ctx, env, o.Path, o.Line)}
 }
 
 func doPublish(id string, dry bool) DoFunc {

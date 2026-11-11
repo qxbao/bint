@@ -22,6 +22,12 @@ var serviceBindings = map[string]any{
 	"knowledge review":  app.ReviewQueueOptions{},
 	"bootstrap publish": app.PublishOptions{},
 
+	"task new": app.TaskNewOptions{}, "task list": app.TaskListOptions{}, "task show": app.TaskShowOptions{}, "task set": app.TaskSetOptions{},
+	"task write": app.TaskWriteOptions{}, "task status": app.TaskStatusOptions{}, "task verify": app.TaskVerifyOptions{},
+	"task criteria": app.TaskCriteriaOptions{}, "task error": app.TaskErrorOptions{}, "task review": app.TaskReviewOptions{},
+	"task lint": app.TaskLintOptions{}, "task approve": app.TaskApproveOptions{},
+	"run": app.RunWorkflowOptions{}, "run resume": app.RunResumeOptions{}, "run status": app.TaskRunsOptions{},
+
 	"eval mine": app.EvalMineOptions{}, "eval verify": app.EvalVerifyOptions{}, "eval list": app.EvalListOptions{},
 	"eval show": app.EvalShowOptions{}, "eval spec": app.EvalSpecOptions{}, "eval approve": app.EvalApproveOptions{},
 	"eval reject": app.EvalRejectOptions{}, "eval estimate": app.EvalEstimateOptions{}, "eval run": app.EvalRunOptions{},
@@ -318,7 +324,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("thiếu lý do và giai đoạn sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.Excluded["tui"] = ""
-		cov.Pending["task new"] = 9
+		cov.Pending["runs list"] = 9
 		cov.ExcludedFlags["--json"] = ""
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`Excluded["tui"] thiếu lý do`, "giai đoạn phải từ 1 đến 6", `ExcludedFlags["--json"] thiếu lý do`} {
@@ -340,7 +346,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	t.Run("PendingFlags sai", func(t *testing.T) {
 		cov := clone(actions.Data)
 		cov.PendingFlags["init --nope"] = 5
-		cov.PendingFlags["task new --goal"] = 2   // lệnh chưa có hành động/dịch vụ
+		cov.PendingFlags["runs list --limit"] = 2 // lệnh chưa có hành động/dịch vụ
 		cov.PendingFlags["eval run --budget"] = 4 // cờ đã có trường Options
 		p := check(NewRoot(IO{}), cov, serviceBindings, 0)
 		for _, want := range []string{`"init --nope" nhưng lệnh không còn cờ này`, "cờ nằm trong Pending của lệnh", "vừa có trường Options vừa nằm trong danh sách"} {
@@ -361,8 +367,8 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	})
 	t.Run("Pending còn mục của giai đoạn đã xong", func(t *testing.T) {
 		cov := clone(actions.Data)
-		cov.Pending["task new"] = actions.CurrentPhase
-		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["task new"]`) {
+		cov.Pending["runs list"] = actions.CurrentPhase
+		if p := check(NewRoot(IO{}), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["runs list"]`) {
 			t.Fatalf("%v", p)
 		}
 		cov = clone(actions.Data)
@@ -377,7 +383,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 		}
 		var list []actions.Action
 		for _, a := range reg.All() {
-			if a.ID == "knowledge.add" {
+			if a.ID == "knowledge.add" || a.ID == "tasks.add_knowledge" { // hai hành động cùng lệnh `knowledge add`
 				a.Options = addNoTags{}
 			}
 			list = append(list, a)
@@ -387,10 +393,33 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 			t.Fatalf("%v", p)
 		}
 	})
+	t.Run("bỏ thẻ flag của một trường Options của run", func(t *testing.T) {
+		// Ca ngược giai đoạn 2: bỏ thẻ `flag` của trường Harness thì cờ --harness của `bint run` không còn ánh xạ.
+		type runNoHarness struct {
+			Model string `flag:"model"`
+		}
+		var list []actions.Action
+		for _, a := range reg.All() {
+			if a.ID == "tasks.run" {
+				a.Options = runNoHarness{}
+			}
+			list = append(list, a)
+		}
+		b := maps.Clone(serviceBindings)
+		delete(b, "run")
+		p := checkCoverage(NewRoot(IO{}), actions.Data, actions.NewRegistry(list), b, actions.CurrentPhase)
+		if !mentions(p, "cờ --harness của `bint run`") || !mentions(p, "cờ --no-review của `bint run`") {
+			t.Fatalf("%v", p)
+		}
+		// Có binding đủ thì xanh trở lại.
+		if p := checkCoverage(NewRoot(IO{}), actions.Data, reg, serviceBindings, actions.CurrentPhase); len(p) != 0 {
+			t.Fatalf("%v", p)
+		}
+	})
 	t.Run("xoá mục khỏi Pending làm đỏ", func(t *testing.T) {
 		cov := clone(actions.Data)
-		delete(cov.Pending, "task new")
-		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint task new` chưa khai báo") {
+		delete(cov.Pending, "runs list")
+		if p := check(NewRoot(IO{}), cov, serviceBindings, 0); !mentions(p, "`bint runs list` chưa khai báo") {
 			t.Fatalf("%v", p)
 		}
 	})

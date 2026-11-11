@@ -52,9 +52,9 @@
 │   │   40  func Open() {                                                                                                                  │
 │   │   41      return nil                                                                                                                 │
 │                                                                                                                                          │
-│ ▌ Hộp xác nhận có nhập lý do                                                                                                             │
-│ ┌─│Từ chối 12 mục?│────────────────────────────────────────────┐                                                                         │
-│ │ Các mục sẽ chuyển sang deprecated và giữ dấu vết.            │                                                                         │
-│ │                                                              │                                                                         │
-│ │ Lý do: ▏người duyệt từ chối                                  │                                                                         │
+│ ▌ Trình xem Markdown (tiêu đề, danh sách, ô kiểm, khối mã, chữ có dấu)                                                                   │
+│   Yêu cầu                                                                                                                                │
+│   ───────                                                                                                                                │
+│                                                                                                                                          │
+│   Tiêu chí chấp nhận                                                                                                                     │
 └─ chế độ màu: mono · ngôn ngữ: vi · [m] đổi màu  [l] đổi ngôn ngữ  [q] Thoát──────────────────────────────────────────────────────────────┘

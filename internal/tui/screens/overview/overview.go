@@ -42,6 +42,8 @@ type Inbox struct {
 	Target actions.Screen
 	// Filter: bộ lọc đặt sẵn ở màn Tri thức (chỉ với Target = Knowledge).
 	Filter *knowledge.Filter
+	// TaskID: tác vụ cần chọn ở màn Tác vụ (chỉ với Target = Tasks và dòng của một tác vụ).
+	TaskID string
 	// Commands là lệnh CLI xử lý từng việc của dòng (hiện ở trang giữ chỗ của tab chưa làm).
 	Commands []string
 }
@@ -89,7 +91,7 @@ func (d Data) Inbox() []Inbox {
 		if detail == "" {
 			detail = t.ID
 		}
-		out = append(out, Inbox{Level: "warn", Key: "overview.inbox.task", Detail: detail, Target: actions.Tasks,
+		out = append(out, Inbox{Level: "warn", Key: "overview.inbox.task", Detail: detail, Target: actions.Tasks, TaskID: t.ID,
 			Commands: []string{"bint task show " + t.ID}})
 	}
 	if n := len(p.Proposals); n > 0 {
@@ -186,10 +188,12 @@ func LoadCmd(ctx context.Context, dir string) tea.Cmd {
 	}
 }
 
-// NavMsg yêu cầu chuyển sang một tab; Filter (nếu có) là bộ lọc đặt sẵn cho màn Tri thức.
+// NavMsg yêu cầu chuyển sang một tab; Filter (nếu có) là bộ lọc đặt sẵn cho màn Tri thức, TaskID là tác vụ cần
+// chọn ở màn Tác vụ.
 type NavMsg struct {
 	Screen actions.Screen
 	Filter *knowledge.Filter
+	TaskID string
 }
 
 // Model là trạng thái màn Tổng quan.
@@ -223,7 +227,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "enter":
 			if in := m.Data.Inbox(); m.Cursor < len(in) {
-				nav := NavMsg{Screen: in[m.Cursor].Target, Filter: in[m.Cursor].Filter}
+				nav := NavMsg{Screen: in[m.Cursor].Target, Filter: in[m.Cursor].Filter, TaskID: in[m.Cursor].TaskID}
 				return m, func() tea.Msg { return nav }
 			}
 		}

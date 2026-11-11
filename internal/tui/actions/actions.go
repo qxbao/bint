@@ -6,6 +6,7 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"os/exec"
 	"reflect"
 	"slices"
@@ -13,6 +14,9 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
+	"bint/internal/tui/jobs"
+	"bint/internal/workflow"
 )
 
 // Screen là màn hình (tab) chứa hành động; rỗng = toàn cục.
@@ -43,6 +47,8 @@ type Env struct {
 	ReadOnly bool
 	// Editor dựng lệnh mở một tệp trong trình soạn thảo; nil = theo $VISUAL/$EDITOR (thay được trong kiểm thử).
 	Editor func(path string) *exec.Cmd
+	// Agent thay cách dựng agent của từng bước workflow (nil = harness theo cấu hình); tiêm agent giả trong kiểm thử.
+	Agent workflow.AgentFactory
 }
 
 // RunFunc chạy một hành động dịch vụ (chạy ngoài vòng Update, trong tea.Cmd) và trả thông điệp kết quả.
@@ -51,6 +57,16 @@ type RunFunc func(ctx context.Context, env Env) tea.Msg
 // DoFunc chạy một hành động có tham số: opts là giá trị kiểu Options của hành động (Action.Options).
 // Chạy ngoài vòng Update; trả thường là ResultMsg (hoặc ExecMsg để mô hình gốc chạy tiến trình tương tác).
 type DoFunc func(ctx context.Context, env Env, opts any) tea.Msg
+
+// JobFunc chạy một hành động nền (trong goroutine riêng): br gửi log, bước và câu hỏi giữa chừng về vòng Update.
+// Trả giá trị kết quả (thành ResultMsg.Value) hoặc lỗi; huỷ ctx thì dịch vụ dừng và trả sớm.
+type JobFunc func(ctx context.Context, env Env, opts any, br *jobs.Bridge) (any, error)
+
+// ErrWorkflowBusy: đã có một việc workflow đang chạy (mỗi lúc một việc, theo khoá ghi worktree của workflow).
+var ErrWorkflowBusy = errors.New("a workflow job is already running")
+
+// Targeted là thông điệp nội bộ của một màn hình (kết quả nạp...): mô hình gốc chuyển nó cho đúng màn hình.
+type Targeted interface{ Target() Screen }
 
 // RequestMsg là yêu cầu của một màn hình chạy hành động ID với tham số Opts. Mô hình gốc tra sổ
 // (Check theo chế độ, applicable) rồi mới gọi Action.Do: sổ là nơi duy nhất quyết định chỉ-đọc/khoá
@@ -113,6 +129,10 @@ type Action struct {
 	Run RunFunc
 	// Do là hàm dịch vụ có tham số (RequestMsg); nil với hành động chỉ có giao diện hoặc chỉ có Run.
 	Do DoFunc
+	// Job là hàm dịch vụ chạy nền có log và câu hỏi giữa chừng (ưu tiên hơn Do khi cả hai có); JobInfo mô tả việc
+	// cho bảng việc nền và hộp thoại thoát (nil = việc loại action, không nhãn).
+	Job     JobFunc
+	JobInfo func(opts any) jobs.Info
 }
 
 // FormNS trả không gian tên nhãn của form của hành động.
