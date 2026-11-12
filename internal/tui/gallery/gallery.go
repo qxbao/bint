@@ -212,7 +212,7 @@ func (m *Model) Render() string {
 
 	section(cat.T("gallery.section.form"))
 	fm := form.New("knowledge.add", "knowledge add", app.AddDefaults(config.Config{}))
-	add(strings.Split(fm.View(ui.Env{Th: th, Cat: cat, W: min(iw-2, 70), H: 16}, 0), "\n")...)
+	add(strings.Split(fm.View(ui.Env{Th: th, Cat: cat, RW: ui.Rewriter{Cat: cat}, W: min(iw-2, 70), H: 16}, 0), "\n")...)
 
 	// Cuộn: cắt phần đang xem, giữ offset trong khoảng hợp lệ.
 	_, ih := frame.Inner(w, h)

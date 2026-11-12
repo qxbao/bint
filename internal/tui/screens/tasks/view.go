@@ -6,6 +6,7 @@ import (
 
 	"bint/internal/i18n"
 	"bint/internal/task"
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/logview"
@@ -45,7 +46,7 @@ func (m *Model) View(env ui.Env) string {
 	th := env.Th
 	switch {
 	case m.Err != nil && !m.Loaded:
-		return strings.Join([]string{"", th.S(theme.Err, "✗ ") + m.t("tk.error"), "  " + text.Truncate(ui.ErrText(m.cat, m.Err), max(env.W-4, 10)),
+		return strings.Join([]string{"", th.S(theme.Err, "✗ ") + m.t("tk.error"), strings.Join(text.WrapHang(ui.ErrText(m.rw, m.Err), max(env.W-4, 10), "  ", "  "), "\n"),
 			"", th.S(theme.Muted, m.t("tk.error.hint"))}, "\n")
 	case !m.Loaded:
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))
@@ -99,18 +100,23 @@ func (m *Model) tabBar(env ui.Env) string {
 		var parts []string
 		for i, n := range names {
 			if i == cur {
-				parts = append(parts, th.Selected(" "+n+" "))
+				parts = append(parts, ui.MarkSub(vs[i], th.Selected(" "+n+" ")))
 			} else {
-				parts = append(parts, th.S(theme.Muted, " "+n+" "))
+				parts = append(parts, ui.MarkSub(vs[i], th.S(theme.Muted, " "+n+" ")))
 			}
 		}
 		bar = " " + strings.Join(parts, th.S(theme.Muted, "·"))
 	} else {
-		bar = " " + th.S(theme.Muted, "‹ ") + th.Selected(" "+names[cur]+" ") + th.S(theme.Muted, fmt.Sprintf(" %d/%d ›", cur+1, len(vs)))
+		bar = " " + ui.MarkSub(vs[(cur+len(vs)-1)%len(vs)], th.S(theme.Muted, "‹ ")) + th.Selected(" "+names[cur]+" ") +
+			ui.MarkSub(vs[(cur+1)%len(vs)], th.S(theme.Muted, fmt.Sprintf(" %d/%d ›", cur+1, len(vs))))
 	}
 	if toast != "" {
 		room := env.W - text.Width(bar) - 1
-		toast = text.Truncate(toast, max(room, 0))
+		if m.toast != "" {
+			toast = ui.ToastLabel(th, m.toast, m.toastErr, max(room, 0))
+		} else {
+			toast = text.Truncate(toast, max(room, 0))
+		}
 		bar += strings.Repeat(" ", max(env.W-text.Width(bar)-text.Width(toast), 1)) + toast
 	}
 	return text.Fit(bar, env.W)
@@ -216,7 +222,7 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 			return "  " + line
 		})
 	}
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneList, Top: chips}.Render(th, w, h, body)
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList, Top: chips}.Render(th, w, h, body)
 }
 
 func (m *Model) statusName(s string) string {
@@ -258,7 +264,7 @@ func (m *Model) detailBox(env ui.Env, w, h int) string {
 			m.detail.Reset()
 		}
 		lines, sel := m.tabLines(env, t, max(iw-1, 10))
-		m.detail.SetLines(lines)
+		m.detail.SetWrapped(lines, max(iw-1, 10))
 		if sel >= 0 { // giữ dòng được chọn (phát hiện review) trong vùng nhìn
 			if sel < m.detail.Top {
 				m.detail.Top = sel
@@ -269,39 +275,37 @@ func (m *Model) detailBox(env ui.Env, w, h int) string {
 		content = m.detail.Render(iw, ih)
 		top = th.S(theme.Muted, m.detail.Position())
 	}
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneDetail, Top: top,
-		Bottom: m.detailFooter(env, t), BottomAt: frame.Left}.Render(th, w, h, content)
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "detail", Focused: m.pane == paneDetail, Top: top,
+		BottomHints: m.detailFooter(env, t), BottomAt: frame.Left}.Render(th, w, h, content)
 }
 
 // detailFooter là các phím riêng của thẻ con hiện tại ở viền dưới khung chi tiết.
-func (m *Model) detailFooter(env ui.Env, t *task.Task) string {
+func (m *Model) detailFooter(env ui.Env, t *task.Task) []footer.Hint {
 	if t == nil {
-		return ""
+		return nil
 	}
-	th := env.Th
-	var hints []string
-	k := func(key, label string) { hints = append(hints, th.S(theme.Key, key)+" "+th.S(theme.Muted, label)) }
+	var hints []footer.Hint
+	k := func(key, label, action string) {
+		hints = append(hints, footer.Hint{Key: key, Label: label, Priority: len(hints) + 1, ActionID: action})
+	}
 	switch m.sub {
 	case subDocs:
-		k("d", m.t("tk.hint.doc"))
-		k("e", m.t("tk.hint.edit_doc"))
+		k("d", m.t("tk.hint.doc"), "")
+		k("e", m.t("tk.hint.edit_doc"), "tasks.edit_doc")
 	case subReview:
-		k("j/k", m.t("tk.hint.finding"))
-		k("Enter", m.t("tk.hint.excerpt"))
-		k("e", m.t("tk.hint.open_editor"))
-		k("K", m.t("tk.hint.knowledge"))
-		k("w", m.t("tk.hint.review_edit"))
+		k("j/k", m.t("tk.hint.finding"), "")
+		k("Enter", m.t("tk.hint.excerpt"), "")
+		k("e", m.t("tk.hint.open_editor"), "tasks.open_file")
+		k("K", m.t("tk.hint.knowledge"), "tasks.add_knowledge")
+		k("w", m.t("tk.hint.review_edit"), "tasks.review_edit")
 	case subCriteria:
-		k("m", m.t("tk.hint.criteria"))
+		k("m", m.t("tk.hint.criteria"), "tasks.criteria")
 	case subErrors:
-		k("i", m.t("tk.hint.error"))
+		k("i", m.t("tk.hint.error"), "tasks.error")
 	case subVerify:
-		k("v", m.t("tk.hint.verify"))
+		k("v", m.t("tk.hint.verify"), "tasks.verify")
 	}
-	if len(hints) == 0 {
-		return ""
-	}
-	return " " + strings.Join(hints, "  ") + " "
+	return env.AllowedHints(hints)
 }
 
 // logBody vẽ thẻ Log: dòng của orchestrator ở trên, đuôi log của bước agent đang chạy ở dưới.
@@ -318,7 +322,7 @@ func (m *Model) logBody(env ui.Env, t *task.Task, w, h int) string {
 	if !j.Ended.IsZero() {
 		state = m.t("tk.log.finished", i18n.A{"label": j.Label})
 		if j.Err != nil {
-			state += " — " + ui.ErrText(m.cat, j.Err)
+			state += " — " + ui.ErrText(m.rw, j.Err)
 		}
 	}
 	secs := []logview.Section{{Title: state, Lines: j.Log.Lines}}

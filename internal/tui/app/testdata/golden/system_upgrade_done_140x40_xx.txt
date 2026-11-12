@@ -4,17 +4,17 @@
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │   ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧              │
 │ ┌─│⟦Key groups~~~~⟧│─────────────────────────⟦schema v1~~~~⟧─┐┌─│⟦Source layers~~~~~~⟧│────────────────────────────────────────────────┐ │
-│ │ ▸ ⟦Source layers~~~~~~⟧                                    ││ ⟦Effective configuration = global → project → strategy → local (late…  │ │
-│ │   project                                                  ││                                                                        │ │
-│ │   state                                                    ││ ○ ⟦global~~~⟧ ⟦absent~~~⟧                                              │ │
-│ │   harnesses                                                ││     /home/u/.config/bint/config.yml                                    │ │
-│ │   roles                                                    ││ ● ⟦project~~~⟧⟦in use~~~⟧                                              │ │
-│ │   context                                                  ││     /work/demo/.bint/config.yml                                        │ │
-│ │   knowledge                                                ││     ⟦editable with e~~~~~~⟧                                            │ │
-│ │   memory                                                   ││ ○ ⟦strategy~~~~⟧⟦absent~~~⟧                                            │ │
-│ │   eval                                                     ││     /work/demo/.bint/harness/strategy.yml                              │ │
-│ │   evolution                                                ││ ○ ⟦local~~⟧   ⟦absent~~~⟧                                              │ │
-│ │   workflow                                                 ││     /work/demo/.bint/local.yml                                         │ │
+│ │ ▸ ⟦Source layers~~~~~~⟧                                    ││ ⟦Effective configuration = global → project → strategy → local (later  │ │
+│ │   project                                                  ││   layers override earlier                                              │ │
+│ │   state                                                    ││   ones).~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                      │ │
+│ │   harnesses                                                ││                                                                        │ │
+│ │   roles                                                    ││ ○ ⟦global~~~⟧ ⟦absent~~~⟧                                              │ │
+│ │   context                                                  ││     /home/u/.config/bint/config.yml                                    │ │
+│ │   knowledge                                                ││ ● ⟦project~~~⟧⟦in use~~~⟧                                              │ │
+│ │   memory                                                   ││     /work/demo/.bint/config.yml                                        │ │
+│ │   eval                                                     ││     ⟦editable with e~~~~~~⟧                                            │ │
+│ │   evolution                                                ││ ○ ⟦strategy~~~~⟧⟦absent~~~⟧                                            │ │
+│ │   workflow                                                 ││     /work/demo/.bint/harness/strategy.yml                              │ │
 │ │   limits              ┌─│⟦Configuration upgraded~~~~~~~~~⟧│──────────────────────────────────────────────────┐                       │ │
 │ │   security            │ ⟦The configuration now follows the current template.~~~~~~~~~~~~~~~~~~~~~⟧           │                       │ │
 │ │   ui                  │                                                                                      │                       │ │

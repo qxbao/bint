@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Skills~~~⟧  ⟦Index~~⟧  ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ›               │
+│ ‹ ⟦Components~~~~⟧ ⟦Skills~~~⟧  ⟦Index~~⟧  ⟦MCP~~⟧ ⟦Language~~~~⟧ ›          │
 │ ┌─│⟦Knowledge index~~~~~~⟧│────────────────────────────────────────────────┐ │
 │ │                                                                          │ │
 │ │  ⟦The FTS5 index in SQLite is derived from .bint/knowledge/items:        │ │

@@ -22,7 +22,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	switch msg.ID {
 	case "evolve.plan_apply":
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		if pl, ok := msg.Value.(*evolvesvc.ApplyPlan); ok && pl != nil {
@@ -30,7 +30,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		}
 	case "evolve.plan_rollback":
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		if pl, ok := msg.Value.(*evolvesvc.RollbackPlan); ok && pl != nil {
@@ -38,7 +38,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		}
 	case "evolve.apply":
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		out, ok := msg.Value.(actions.ApplyOutcome)
@@ -50,7 +50,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		return m.refreshAfterChange(out.Result.Proposal.ID)
 	case "evolve.rollback":
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		out, ok := msg.Value.(actions.RollbackOutcome)
@@ -62,7 +62,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		return m.refreshAfterChange(out.Result.Proposal.ID)
 	case "evolve.reject":
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		p, ok := msg.Value.(*evolve.Proposal)
@@ -74,7 +74,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	case "evolve.scan":
 		m.frm, m.frmBusy = nil, false
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		out, ok := msg.Value.(actions.ScanOutcome)
@@ -160,7 +160,7 @@ func (m *Model) applyResultLines(out actions.ApplyOutcome) []string {
 		lines = append(lines, "  "+fileOp(f.Before, f.After)+" "+f.Path)
 	}
 	for _, n := range r.Notes {
-		lines = append(lines, "", m.t("ev.note", i18n.A{"note": n}))
+		lines = append(lines, "", m.t("ev.note", i18n.A{"note": m.cli(n)}))
 	}
 	return append(lines, m.syncLines(out.Sync)...)
 }
@@ -241,7 +241,7 @@ func (m *Model) rollbackDialog(pl *evolvesvc.RollbackPlan) {
 
 func (m *Model) onJobResult(msg actions.ResultMsg) tea.Cmd {
 	if errors.Is(msg.Err, actions.ErrEvolveBusy) {
-		m.setToast(ui.ErrText(m.cat, msg.Err), true) // việc thứ hai bị từ chối: chỉ báo, việc đang chạy không đổi
+		m.setToast(ui.ErrText(m.rw, msg.Err), true) // việc thứ hai bị từ chối: chỉ báo, việc đang chạy không đổi
 		return nil
 	}
 	var lines []string
@@ -263,8 +263,8 @@ func (m *Model) onJobResult(msg actions.ResultMsg) tea.Cmd {
 		lines = m.cycleLines(v)
 	}
 	if msg.Err != nil {
-		lines = append(lines, "", m.th.S(theme.Err, "✗ ")+ui.ErrText(m.cat, msg.Err))
-		m.setToast(ui.ErrText(m.cat, msg.Err), true)
+		lines = append(lines, "", m.th.S(theme.Err, "✗ ")+ui.ErrText(m.rw, msg.Err))
+		m.setToast(ui.ErrText(m.rw, msg.Err), true)
 	}
 	if len(lines) > 0 {
 		m.openInfo(title, lines)
@@ -282,10 +282,10 @@ func (m *Model) proposeLines(r *evolvesvc.ProposeResult) []string {
 		if p := o.Proposal; p != nil {
 			out = append(out, m.t("ev.res.propose.made", i18n.A{"id": p.ID, "action": p.Action, "changes": strings.Join(evolvesvc.ChangeNames(p), ","), "risk": p.Risk, "op": o.Opportunity}))
 		} else {
-			out = append(out, m.t("ev.res.propose.skipped", i18n.A{"op": o.Opportunity, "why": o.Skipped}))
+			out = append(out, m.t("ev.res.propose.skipped", i18n.A{"op": o.Opportunity, "why": m.cli(o.Skipped)}))
 		}
 		for _, rj := range o.Rejected {
-			out = append(out, "    ✗ "+rj)
+			out = append(out, "    ✗ "+m.cli(rj))
 		}
 	}
 	if r.SpentUSD > 0 {
@@ -297,13 +297,13 @@ func (m *Model) proposeLines(r *evolvesvc.ProposeResult) []string {
 func (m *Model) evaluateLines(r *evolvesvc.EvaluateResult) []string {
 	out := []string{
 		m.t("ev.res.eval.batch", i18n.A{"batch": r.Run.BatchID, "status": r.Run.Status, "done": r.Run.Done, "total": r.Run.Total}),
-		m.t("ev.res.eval.verdict", i18n.A{"kind": r.Proposal.Plan.Kind, "split": r.Record.Split, "verdict": r.Verdict.Verdict, "detail": r.Verdict.Detail}),
+		m.t("ev.res.eval.verdict", i18n.A{"kind": r.Proposal.Plan.Kind, "split": r.Record.Split, "verdict": r.Verdict.Verdict, "detail": m.cli(r.Verdict.Detail)}),
 	}
 	if r.Run.StopReason != "" {
-		out = append(out, m.t("ev.res.eval.stop", i18n.A{"why": r.Run.StopReason}))
+		out = append(out, m.t("ev.res.eval.stop", i18n.A{"why": m.cli(r.Run.StopReason)}))
 	}
 	for _, n := range r.Verdict.Notes {
-		out = append(out, m.t("ev.note", i18n.A{"note": n}))
+		out = append(out, m.t("ev.note", i18n.A{"note": m.cli(n)}))
 	}
 	return out
 }
@@ -312,7 +312,7 @@ func (m *Model) processLines(r *evolvesvc.ProcessResult) []string {
 	out := []string{m.t("ev.res.process", i18n.A{"added": len(r.Added), "processed": len(r.Report.Processed), "waiting": len(r.Report.Waiting),
 		"usd": fmt.Sprintf("%.2f", r.Report.SpentUSD)})}
 	if r.Report.Locked != "" {
-		out = append(out, m.th.S(theme.Warn, m.t("ev.res.locked", i18n.A{"why": r.Report.Locked})))
+		out = append(out, m.th.S(theme.Warn, m.t("ev.res.locked", i18n.A{"why": m.cli(r.Report.Locked)})))
 	}
 	for _, q := range r.Report.Processed {
 		line := fmt.Sprintf("  %s  %s", q.ID, q.Status)
@@ -328,7 +328,7 @@ func (m *Model) cycleLines(r evolvesvc.CycleReport) []string {
 	out := []string{m.t("ev.res.cycle", i18n.A{"id": r.ID, "spent": fmt.Sprintf("%.2f", r.SpentUSD), "budget": fmt.Sprintf("%.2f", r.BudgetUSD),
 		"gen": fmt.Sprintf("%.2f", r.GenerationUSD), "probe": fmt.Sprintf("%.2f", r.ProbeUSD)})}
 	for _, s := range r.Steps {
-		out = append(out, fmt.Sprintf("  %-11s %-24s %s", s.Step, s.Target, s.Outcome))
+		out = append(out, fmt.Sprintf("  %-11s %-24s %s", s.Step, s.Target, m.cli(s.Outcome)))
 	}
 	list := func(key string, ids []string) {
 		if len(ids) > 0 {
@@ -340,7 +340,7 @@ func (m *Model) cycleLines(r evolvesvc.CycleReport) []string {
 	list("ev.res.cycle.rejected", r.AutoRejected)
 	list("ev.res.cycle.rollback", r.RollbackSuggested)
 	if r.StopReason != "" {
-		out = append(out, m.t("ev.res.cycle.stop", i18n.A{"why": r.StopReason}))
+		out = append(out, m.t("ev.res.cycle.stop", i18n.A{"why": m.cli(r.StopReason)}))
 	}
 	return out
 }

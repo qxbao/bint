@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│   Config  Harness  Components Skills Index MCP Language ›                    │
+│  Config  Harness  Components Skills Index MCP Language Doctor Setup Update   │
 │ ┌─│Harnesses│──────────────────────────────────────────────────────────────┐ │
 │ │   HARNESS     ON   HOST  VERSION   VERIFIED   LEVEL                      │ │
 │ │ ▸ claude      yes  yes   -         Claude Co… 3                          │ │
@@ -18,7 +18,7 @@
 │ │   Path-based context injection                            ✓    ~    ✗    │ │
 │ │   Ask a human before editing protected paths              ✓    ~    ✓    │ │
 │ │   Workflow guardrails                                     ✓    ~    ~    │ │
-│ │   Programmatic execution (bint run)                       ✓    ✓    ✓    │ │
+│ │   Programmatic execution (task runs)                      ✓    ✓    ✓    │ │
 │ │   Keep read-only steps read-only                          ✓    ~    ~    │ │
 │ └─ V version  Enter open ──────────────────────────────────────────────────┘ │
 └─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘

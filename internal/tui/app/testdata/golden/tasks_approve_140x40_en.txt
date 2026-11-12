@@ -3,7 +3,7 @@
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Tasks│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │   Ticket · Documents · Criteria · Verify · Review · Errors · Runs                                                                        │
-│ ┌─│Tasks (4/6)│──────────────────────────────no filter─┐┌─│Details · 01TASK1│──────────────────────────────────────────────────────────┐ │
+│ ┌─│Tasks (4/6)│──────────────────────────────no filter─┐┌─│Details · 01TASK1│──────────────────────────────────────────────────1-32/34─┐ │
 │ │  Waiting for you (2)                                 ││ 01TASK1                                                                      │ │
 │ │ ▸ ! blocked     1TASK1 Thêm cột email                ││ ! blocked — thay đổi cần người duyệt: migrations/002.sql                     │ │
 │ │   ✗ failed      1TASK2 Đổi cách tính phí             ││ Thêm cột email                                                               │ │
@@ -12,29 +12,29 @@
 │ │  Up next (1)                                         ││ Autonomy     ask_on_protected                                                │ │
 │ │   ◌ planned     1TASK5 Viết tài liệu cài đặt         ││ Updated      2026-11-11 10:00                                                │ │
 │ │                         ┌─│Approve task│───────────────────────────────────────────────────────────────────┐                         │ │
-│ │                         │ 01TASK1 Thêm cột email                                                           │──────────────────────── │ │
-│ │                         │                                                                                  │                         │ │
+│ │                         │ 01TASK1 Thêm cột email                                                           │                         │ │
+│ │                         │                                                                                  │─────────────────        │ │
 │ │                         │ Will confirm the verify command (Bint may then run it):                          │                         │ │
 │ │                         │   go test ./...                                                                  │                         │ │
-│ │                         │   Only confirm it if you trust this command.                                     │──────────────────────── │ │
+│ │                         │   Only confirm it if you trust this command.                                     │                         │ │
 │ │                         │                                                                                  │                         │ │
-│ │                         │ Will approve 1 path touching protected/deny/out-of-scope areas:                  │                         │ │
+│ │                         │ Will approve 1 path touching protected/deny/out-of-scope areas:                  │──────                   │ │
 │ │                         │   migrations/002.sql                                                             │                         │ │
-│ │                         │   Review the diff before approving.                                              │──────────────────────── │ │
+│ │                         │   Review the diff before approving.                                              │                         │ │
 │ │                         │                                                                                  │                         │ │
-│ │                         │ Then continue with bint run resume 01TASK1 (key c).                              │                         │ │
-│ │                         │                                                                                  │                         │ │
-│ │                         │ Also approve files (optional, comma-separated): ▏                                │──────────────────────── │ │
+│ │                         │ Then continue with key c in Tasks 01TASK1.                                       │                         │ │
+│ │                         │                                                                                  │────────────             │ │
+│ │                         │ Also approve files (optional, comma-separated): ▏                                │                         │ │
 │ │                         │                                                                                  │                         │ │
 │ │                         │ [Enter] Approve   [Esc] Cancel                                                   │                         │ │
-│ │                         └──────────────────────────────────────────────────────────────────────────────────┘──────────────────────── │ │
+│ │                         └──────────────────────────────────────────────────────────────────────────────────┘                         │ │
+│ │                                                      ││   ────────────────────────────────────────────────────────────               │ │
+│ │                                                      ││ - chưa có bằng chứng                                                         │ │
+│ │                                                      ││                                                                              │ │
+│ │                                                      ││ ── Original request                                                          │ │
+│ │                                                      ││   ────────────────────────────────────────────────────────                   │ │
 │ │                                                      ││ Yêu cầu gốc: Thêm cột email                                                  │ │
 │ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── History ───────────────────────────────────────────────────────────────── │ │
-│ │                                                      ││ 2026-11-11 10:00  ∅ → created (human)                                        │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
+│ │                                                      ││ ── History                                                                   │ │
 │ └──────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘ │
 └─[Esc→ Leave]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

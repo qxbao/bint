@@ -3,7 +3,7 @@
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦Runs~~⟧│───────────────────────────────────────────────────────────────────┐
 │   ⟦List~~⟧ · ⟦Lessons~~~⟧                                                    │
-│ ┌─│⟦Detail · failure digest~~~~~~~~~~⟧│────────────────────────────1-16/28─┐ │
+│ ┌─│⟦Detail · failure digest~~~~~~~~~~⟧│────────────────────────────1-16/30─┐ │
 │ │ Gọi Reset trước Retry                                                    │ │
 │ │                                                                          │ │
 │ │ ⟦ID~⟧               01LESS000001                                         │ │
@@ -16,9 +16,9 @@
 │ │ ⟦Evidence runs~~~~… 3                                                    │ │
 │ │                                                                          │ │
 │ │ ⟦Failure digest~~~~~~⟧                                                   │ │
-│ │   ⟦Batch eb_01BATCH: 2 failed runs on the validation split~~~~~~~~~~~~~… │ │
+│ │ ⟦Batch eb_01BATCH: 2 failed runs on the validation                       │ │
+│ │     split~~~~~~~~~~~~~~~~~~⟧                                             │ │
 │ │   ⟦skipped 1 runs outside the validation split (the test split is never  │ │
 │ │   input to the lesson-writing                                            │ │
-│ │   agent)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                       │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[+/-→ ⟦Rate~~⟧] [S→ ⟦Scan Git~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────┘
+└─[+/-→ ⟦Rat…] [S→ ⟦Scan] [I→ ⟦Ing…] [:→ ⟦Com…] [q→ ⟦Qui…] [?→ ⟦Hel…]──────────┘

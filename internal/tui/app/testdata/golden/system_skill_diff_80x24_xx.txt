@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦MCP~~⟧ ›                         │
+│ ‹ ⟦Harness~~~⟧ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦MCP~~⟧ ›            │
 │ ┌─│⟦Changes of an evolved skill between two versions~~~~~~~~~~~~~~~~~~~~⟧│─┐ │
 │ │ ▸ ⟦Evolved skill~~~~~~⟧* api-guide▏                                      │ │
 │ │   ⟦From version~~~~~⟧                                                    │ │

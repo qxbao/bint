@@ -11,8 +11,12 @@ import (
 	"bint/internal/tui/components/input"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/components/viewer"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 )
+
+// ModalZone là id vùng phủ cả hộp thoại: mô hình gốc coi mọi bấm ngoài các vùng này là bấm ngoài hộp.
+const ModalZone = "dlg"
 
 // Result là kết quả xử lý một phím.
 type Result int
@@ -44,6 +48,8 @@ type Model struct {
 	// chối nữa (tránh bấm nhầm); Tab/↑↓ dời giữa các ô và ô nhập, Space hoặc x đảo ô.
 	Checks []string
 	On     []bool
+	// Single: hộp chỉ để đọc (một nút đóng, Enter/Esc đều đóng); YesLabel là nhãn nút.
+	Single bool
 
 	In      input.Model
 	Scroll  viewer.Model
@@ -166,9 +172,15 @@ func (m *Model) View(th theme.Theme, w, h int) []string {
 			extra = append(extra, th.S(theme.Err, "✗ "+m.RequiredMsg))
 		}
 	}
-	buttons := th.S(theme.Key, "[Enter]") + " " + m.YesLabel + "   " + th.S(theme.Key, "[Esc]") + " " + m.NoLabel
+	yesRole := theme.Key
 	if m.Danger {
-		buttons = th.S(theme.Err, "[Enter]") + " " + m.YesLabel + "   " + th.S(theme.Key, "[Esc]") + " " + m.NoLabel
+		yesRole = theme.Err
+	}
+	// Nút bấm được bằng chuột: [Enter] là xác nhận, [Esc] là huỷ (cùng việc với nhấn phím).
+	yes := zone.Mark("key:enter", th.S(yesRole, "[Enter]")+" "+m.YesLabel)
+	buttons := yes + "   " + zone.Mark("key:esc", th.S(theme.Key, "[Esc]")+" "+m.NoLabel)
+	if m.Single {
+		buttons = zone.Mark("key:esc", th.S(theme.Key, "[Esc]")+" "+m.YesLabel)
 	}
 	chrome := len(extra) + 2 // dòng trống + nút
 	room := max(h-2-chrome, 1)
@@ -185,6 +197,10 @@ func (m *Model) View(th theme.Theme, w, h int) []string {
 	}
 	lines := append(append(append([]string{}, body...), extra...), "", buttons)
 	role := theme.Key
-	return strings.Split(frame.Box{Title: m.Title, TitleAt: frame.Left, Focused: true, Top: th.S(role, m.Scroll.Position())}.
+	box := strings.Split(frame.Box{Title: m.Title, TitleAt: frame.Left, Focused: true, Top: th.S(role, m.Scroll.Position())}.
 		Render(th, w, len(lines)+2, strings.Join(lines, "\n")), "\n")
+	for i := range box {
+		box[i] = zone.Mark(ModalZone, box[i]) // vùng của hộp: bấm ngoài hộp không tác động màn bên dưới
+	}
+	return box
 }

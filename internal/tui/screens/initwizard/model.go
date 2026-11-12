@@ -15,6 +15,7 @@ import (
 	"bint/internal/tui/actions"
 	"bint/internal/tui/screens/overview"
 	"bint/internal/tui/theme"
+	"bint/internal/tui/ui"
 )
 
 // Các bước hỏi (bước xem trước là bước cuối trước khi chạy).
@@ -53,6 +54,7 @@ type Model struct {
 	o   Options
 	th  theme.Theme
 	cat *i18n.Catalog
+	rw  ui.Rewriter
 
 	detected []detect.Harness
 	sel      []bool // harness được chọn, theo detected
@@ -152,7 +154,7 @@ func (m *Model) Options() app.InitFlagOptions {
 // ---- ui.Screen ----
 
 // SetEnv đặt bảng màu và danh mục chuỗi.
-func (m *Model) SetEnv(th theme.Theme, cat *i18n.Catalog) { m.th, m.cat = th, cat }
+func (m *Model) SetEnv(th theme.Theme, rw ui.Rewriter) { m.th, m.rw, m.cat = th, rw, rw.Cat }
 
 func (m *Model) t(key string, a ...i18n.A) string { return m.cat.T(key, a...) }
 
@@ -437,3 +439,6 @@ func NavFor(step string) *overview.NavMsg {
 	}
 	return nil
 }
+
+// cli viết lại đoạn nhắc lệnh CLI trong thông điệp của tầng dịch vụ thành phím/hành động TUI (ui.Rewrite).
+func (m *Model) cli(s string) string { return m.rw.Rewrite(s) }

@@ -14,7 +14,7 @@
 │ │  Bản cũ được đổi tên thành C:\bin\bint.exe.old (xoá được sau khi thoát).                                                             │ │
 │ │  ! Bản đang chạy là /usr/local/bin/bint, khác tệp vừa cài; kiểm tra PATH (which bint) nếu lệnh bint vẫn là bản cũ.                   │ │
 │ │  Chưa khởi động lại: b┌─│Mở lại bint│────────────────────────────────────────────────────────────────────────┐                       │ │
-│ │  Chạy bint init --upda│ abc1234 → def5678                                                                    │                       │ │
+│ │  Ở từng repository, nh│ abc1234 → def5678                                                                    │                       │ │
 │ │                       │ /home/u/go/bin/bint                                                                  │                       │ │
 │ │  Log go install       │                                                                                      │                       │ │
 │ │   go: downloading gith│ ! Bản đang chạy là /usr/local/bin/bint, khác tệp vừa cài; kiểm tra PATH (which bint) │                       │ │

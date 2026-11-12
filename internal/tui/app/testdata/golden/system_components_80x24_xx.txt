@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Harness~~~⟧  ⟦Components~~~~⟧  ⟦Skills~~~⟧ ⟦Index~~⟧ ›                    │
+│   ⟦Config~~~⟧ ⟦Harness~~~⟧  ⟦Components~~~~⟧  ⟦Skills~~~⟧ ⟦Index~~⟧ ›        │
 │ ┌─│⟦Components (3/3)~~~~~~⟧│───────────────────────⟦1 files skipped~~~~~~⟧─┐ │
 │ │ ▸ ✓ guardrail test-before-stop                         verified   low    │ │
 │ │   ◌ guidance  api-style                                candidate  low    │ │
@@ -20,5 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ └─ n ⟦add~~⟧  a ⟦approve~~~⟧  d ⟦deprecate~~~~⟧  R ⟦render~~~⟧  f ⟦filter…─┘ │
+│ └─ n ⟦add~~⟧  a ⟦approve~…  d ⟦deprecat…  R ⟦render~~…  f ⟦filter~~… ──────┘ │
 └─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

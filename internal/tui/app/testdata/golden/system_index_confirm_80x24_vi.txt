@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│ ‹ Harness Thành phần Skill  Chỉ mục  MCP Ngôn ngữ Doctor ›                   │
+│ ‹ Harness Thành phần Skill  Chỉ mục  MCP Ngôn ngữ Doctor Cài đặt ›           │
 │ ┌─│Chỉ mục tri thức│───────────────────────────────────────────────────────┐ │
 │ │                                                                          │ │
 │ │  Chỉ mục FTS5 trong SQLite là dữ liệu dẫn xuất từ                        │ │

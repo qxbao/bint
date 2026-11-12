@@ -3,7 +3,7 @@
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │  ⟦Config~~~⟧  ⟦Harness~~~⟧  ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧              │
-│ ┌─│⟦Harnesses~~~~⟧│──────────────────────────────────────────┐┌─│⟦Details~~~⟧ · claude│────────────────────────────────────────1-32/36─┐ │
+│ ┌─│⟦Harnesses~~~~⟧│──────────────────────────────────────────┐┌─│⟦Details~~~⟧ · claude│────────────────────────────────────────1-32/38─┐ │
 │ │   ⟦HARNESS~~… ⟦ON… ⟦HOS… ⟦VERSION… ⟦VERIFIED… ⟦LEVEL~~⟧    ││ Claude Code (claude)                                                   │ │
 │ │ ▸ claude      ⟦ye… ⟦yes… -         Claude Co… 3            ││ ⟦Level~~⟧           3 — ⟦+ programmatic execution~~~~~~~~~~⟧           │ │
 │ │   codex       -    -     -         codex-cli… 3            ││ ⟦Binary~~~⟧         /usr/local/bin/claude                              │ │
@@ -15,15 +15,17 @@
 │ │   ⟦Hidden skills / explicit invocation onl… ✓    ~    ✗    ││   ✓ ⟦Hooks — installed scopes: project~~~~~~~~~~~⟧                     │ │
 │ │   ⟦Bint MCP server~~~~~~⟧                   ✓    ~    ✗    ││       phạm vi project                                                  │ │
 │ │   ⟦Event-recording hooks~~~~~~~~~⟧          ✓    ~    ~    ││   ✓ ⟦Bint MCP server registered~~~~~~~~~~~⟧                            │ │
-│ │   ⟦Path-based context injection~~~~~~~~~~~… ✓    ~    ✗    ││   ⟦Install/remove hooks and MCP: bint init --hooks / --mcp (phase 5b)… │ │
-│ │   ⟦Ask a human before editing protected pa… ✓    ~    ✓    ││                                                                        │ │
-│ │   ⟦Workflow guardrails~~~~~~~~⟧             ✓    ~    ~    ││ ⟦Capabilities~~~~~⟧                                                    │ │
-│ │   ⟦Programmatic execution (bint run)~~~~~~… ✓    ✓    ✓    ││  ✓ ⟦Skill sync~~~~⟧ .claude/skills/<tên>/SKILL.md                      │ │
-│ │   ⟦Keep read-only steps read-only~~~~~~~~~… ✓    ~    ~    ││  ✓ ⟦Hidden skills / explicit invocation only~~~~~~~~~~~~~~~~⟧          │ │
-│ │   ⟦Cost reporting (max_cost_usd)~~~~~~~~~~… ✓    ✗    ✗    ││     disable-model-invocation: chỉ chạy khi người gọi /b-…              │ │
-│ │   ⟦Turn limit (max_turns)~~~~~~~~~⟧         ✓    ✗    ✗    ││  ✓ ⟦Bint MCP server~~~~~~⟧ .mcp.json cấp dự án (bint init --mcp)       │ │
-│ │   ⟦Skill activation events~~~~~~~~~~⟧       ✓    ✗    ✗    ││  ✓ ⟦Event-recording hooks~~~~~~~~~⟧ SessionStart, SessionEnd,          │ │
-│ │   ⟦✓ supported  ~ partial  ✗ no~~~~~~~~~~~~⟧               ││     PostToolUse, PostToolUseFailure                                    │ │
+│ │   ⟦Path-based context injection~~~~~~~~~~~… ✓    ~    ✗    ││ ⟦Install/remove hooks and MCP: System › Setup (key                     │ │
+│ │   ⟦Ask a human before editing protected pa… ✓    ~    ✓    ││     e).~~~~~~~~~~~~~~~~~~~~~~⟧                                         │ │
+│ │   ⟦Workflow guardrails~~~~~~~~⟧             ✓    ~    ~    ││                                                                        │ │
+│ │   ⟦Programmatic execution (task runs)~~~~~… ✓    ✓    ✓    ││ ⟦Capabilities~~~~~⟧                                                    │ │
+│ │   ⟦Keep read-only steps read-only~~~~~~~~~… ✓    ~    ~    ││  ✓ ⟦Skill sync~~~~⟧ .claude/skills/<tên>/SKILL.md                      │ │
+│ │   ⟦Cost reporting (max_cost_usd)~~~~~~~~~~… ✓    ✗    ✗    ││  ✓ ⟦Hidden skills / explicit invocation only~~~~~~~~~~~~~~~~⟧          │ │
+│ │   ⟦Turn limit (max_turns)~~~~~~~~~⟧         ✓    ✗    ✗    ││     disable-model-invocation: chỉ chạy khi người gọi /b-…              │ │
+│ │   ⟦Skill activation events~~~~~~~~~~⟧       ✓    ✗    ✗    ││  ✓ ⟦Bint MCP server~~~~~~⟧ .mcp.json cấp dự án (⟦key e in ⟦System~~~⟧  │ │
+│ │   ⟦✓ supported  ~ partial  ✗ no~~~~~~~~~~~~⟧               ││     › ⟦Setup~~⟧~~~~⟧⟦ [field ⟦Register MCP~~~~~⟧]~~~~⟧)                │ │
+│ │                                                            ││  ✓ ⟦Event-recording hooks~~~~~~~~~⟧ SessionStart, SessionEnd,          │ │
+│ │                                                            ││     PostToolUse, PostToolUseFailure                                    │ │
 │ │                                                            ││  ✓ ⟦Path-based context injection~~~~~~~~~~~~⟧ PreToolUse trước         │ │
 │ │                                                            ││     Read/Edit/Write (additionalContext)                                │ │
 │ │                                                            ││  ✓ ⟦Ask a human before editing protected paths~~~~~~~~~~~~~~~~~⟧       │ │
@@ -31,10 +33,8 @@
 │ │                                                            ││  ✓ ⟦Workflow guardrails~~~~~~~~⟧ pre_edit/pre_bash: remind             │ │
 │ │                                                            ││     (additionalContext), ask, deny; stop: Stop decision=block (remind  │ │
 │ │                                                            ││     một lần, deny tối đa 3 lần)                                        │ │
-│ │                                                            ││  ✓ ⟦Programmatic execution (bint run)~~~~~~~~~~~~~~⟧ claude -p         │ │
+│ │                                                            ││  ✓ ⟦Programmatic execution (task runs)~~~~~~~~~~~~~~⟧ claude -p        │ │
 │ │                                                            ││     --output-format json                                               │ │
 │ │                                                            ││  ✓ ⟦Keep read-only steps read-only~~~~~~~~~~~~⟧ --disallowedTools      │ │
-│ │                                                            ││     Edit,Write,…; Bint kiểm tra cây làm việc sau bước                  │ │
-│ │                                                            ││  ✓ ⟦Cost reporting (max_cost_usd)~~~~~~~~~~~~⟧ total_cost_usd;         │ │
 │ └─ V ⟦version~~~⟧  Enter ⟦open~~⟧ ───────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
 └─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────────────────────────────┘

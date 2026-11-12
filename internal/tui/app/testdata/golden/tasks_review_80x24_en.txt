@@ -3,22 +3,22 @@
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Tasks│──────────────────────────────────────────────────────────────────────┐
 │   Ticket · Documents · Criteria · Verify · Review · Errors · Runs            │
-│ ┌─│Details · 01TASK1│──────────────────────────────────────────────────────┐ │
+│ ┌─│Details · 01TASK1│──────────────────────────────────────────────1-16/17─┐ │
 │ │ Round 1/1 · 2026-11-11 09:30 · agent                                     │ │
 │ │ Hai điểm cần sửa                                                         │ │
 │ │                                                                          │ │
-│ │ ── 3 findings ────────────────────────────────────────────────────────── │ │
+│ │ ── 3 findings                                                            │ │
+│ │   ──────────────────────────────────────────────────────────             │ │
 │ │ ▸ [critical]  Không đóng kết nối  internal/db/db.go:4-5                  │ │
 │ │   [medium]    Khoá ghi quá rộng  README.md:1                             │ │
 │ │   [low]       Đặt tên biến rõ hơn  internal/db/db.go:3                   │ │
 │ │                                                                          │ │
-│ │ ── 01TASK1.2 ─────────────────────────────────────────────────────────── │ │
+│ │ ── 01TASK1.2                                                             │ │
+│ │   ───────────────────────────────────────────────────────────            │ │
 │ │ bug · critical                                                           │ │
 │ │ Không đóng kết nối                                                       │ │
 │ │ internal/db/db.go:4-5                                                    │ │
 │ │ Evidence     thiếu Close                                                 │ │
 │ │                                                                          │ │
-│ │ Gọi Close() trong defer.                                                 │ │
-│ │                                                                          │ │
-│ └─ j/k Finding  Enter View file  e Open editor  K → Knowledge  w Add revi…─┘ │
-└─[r→ Run] [c→ Resume] [a→ Approve] [Enter→ Open] [q→ Quit] [?→ Help]──────────┘
+│ └─ j/k Finding  Enter View file  e Open  K →  w Add review ────────────────┘ │
+└─[r→ Run] [c→ Re…] [a→ Ap…] [Enter→ Op…] [:→ Co…] [q→ Qu…] [?→ He…]───────────┘

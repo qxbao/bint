@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│ ‹ Components Skills Index  MCP  Language Doctor Setup Update                 │
+│  Config Harness Components Skills Index  MCP  Language Doctor Setup Update   │
 │ ┌─│MCP tools (3)│──────────────────────────────────────────────────────────┐ │
 │ │ ▸ context_for_task       Gói ngữ cảnh cho một tác vụ                     │ │
 │ │   knowledge_search       Tìm tri thức theo từ khoá                       │ │

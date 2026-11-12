@@ -21,4 +21,4 @@
 │ │       timeouts 0                                                         │ │
 │ │       cost -, time - s, agent turns -; variation sd 0.35, 1/2 cases      │ │
 │ └─ b baseline  Enter switch pane ──────────────────────────────────────────┘ │
-└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────┘
+└─[m→ Mine] [a→ Appr…] [x→ Reje…] [r→ Run] [:→ Comm…] [q→ Quit] [?→ Help]──────┘

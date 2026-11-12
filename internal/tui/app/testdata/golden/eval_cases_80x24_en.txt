@@ -21,4 +21,4 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ └─ r run  E estimate  t split  p spec ─────────────────────────────────────┘ │
-└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────┘
+└─[m→ Mine] [a→ Appr…] [x→ Reje…] [r→ Run] [:→ Comm…] [q→ Quit] [?→ Help]──────┘

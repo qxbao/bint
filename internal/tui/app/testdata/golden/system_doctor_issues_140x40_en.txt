@@ -6,7 +6,7 @@
 │ ┌─│Doctor: 1 warnings, 1 failures│───────────────issues only─┐┌─│Details · cấu hình│───────────────────────────────────────────────────┐ │
 │ │ ▸ ! cấu hình                                               ││ ! cấu hình  warning                                                    │ │
 │ │   ✗ hook claude                                            ││                                                                        │ │
-│ │                                                            ││ cấu hình theo mẫu cũ: chạy `bint init --update`                        │ │
+│ │                                                            ││ cấu hình theo mẫu cũ: press U in System › Config                       │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │

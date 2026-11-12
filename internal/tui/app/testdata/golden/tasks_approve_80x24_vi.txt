@@ -14,7 +14,7 @@
 │ │ │   migrations/002.sql                                                 │ │ │
 │ │ │   Hãy xem diff trước khi duyệt.                                      │ │ │
 │ │ │                                                                      │ │ │
-│ │ │ Sau đó tiếp tục bằng bint run resume 01TASK1 (phím c).               │ │ │
+│ │ │ Sau đó tiếp tục bằng phím c ở Tác vụ 01TASK1.                        │ │ │
 │ │ │                                                                      │ │ │
 │ │ │ Duyệt thêm tệp (tuỳ chọn, cách nhau bằng dấu phẩy): ▏                │ │ │
 │ │ │                                                                      │ │ │

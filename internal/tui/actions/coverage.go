@@ -25,7 +25,7 @@ type Coverage struct {
 }
 
 // CurrentPhase là giai đoạn của kế hoạch TUI đã làm xong (docs/tui-plan.md mục 9).
-const CurrentPhase = 5
+const CurrentPhase = 6
 
 // Data là dữ liệu phủ hiện hành.
 var Data = Coverage{

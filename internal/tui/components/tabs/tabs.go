@@ -4,9 +4,11 @@ package tabs
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 )
 
@@ -15,6 +17,19 @@ type Item struct {
 	Label string // nhãn đầy đủ
 	Short string // nhãn rút gọn khi màn hình hẹp
 	Badge int    // số việc chờ người; 0 = không hiện
+}
+
+// ZoneID là id vùng bấm của tab i ("tab:<i>").
+func ZoneID(i int) string { return "tab:" + strconv.Itoa(i) }
+
+// ParseZone trả chỉ số tab của id vùng "tab:<i>".
+func ParseZone(id string) (int, bool) {
+	rest, ok := strings.CutPrefix(id, "tab:")
+	if !ok {
+		return 0, false
+	}
+	i, err := strconv.Atoi(rest)
+	return i, err == nil && i >= 0
 }
 
 // Render vẽ thanh tab trong tối đa width ô. compact: tab chưa chọn dùng nhãn rút gọn, chỉ tab đang
@@ -38,7 +53,7 @@ func Render(th theme.Theme, width int, items []Item, selected int, compact bool)
 			if it.Badge > 0 {
 				s += th.S(theme.Key, fmt.Sprintf(" (%d)", it.Badge))
 			}
-			parts[i] = s
+			parts[i] = zone.Mark(ZoneID(i), s)
 		}
 		return strings.Join(parts, sep)
 	}

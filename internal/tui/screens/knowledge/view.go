@@ -8,6 +8,7 @@ import (
 
 	"bint/internal/i18n"
 	kn "bint/internal/knowledge"
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/text"
@@ -34,7 +35,7 @@ func (m *Model) View(env ui.Env) string {
 	th := env.Th
 	switch {
 	case m.Err != nil && !m.Loaded:
-		return strings.Join([]string{"", th.S(theme.Err, "✗ ") + m.t("kn.error"), "  " + text.Truncate(ui.ErrText(m.cat, m.Err), max(env.W-4, 10)),
+		return strings.Join([]string{"", th.S(theme.Err, "✗ ") + m.t("kn.error"), strings.Join(text.WrapHang(ui.ErrText(m.rw, m.Err), max(env.W-4, 10), "  ", "  "), "\n"),
 			"", th.S(theme.Muted, m.t("kn.error.hint"))}, "\n")
 	case !m.Loaded:
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))
@@ -88,18 +89,23 @@ func (m *Model) tabBar(env ui.Env) string {
 		var parts []string
 		for i, n := range names {
 			if i == m.sub {
-				parts = append(parts, th.Selected(" "+n+" "))
+				parts = append(parts, ui.MarkSub(i, th.Selected(" "+n+" ")))
 			} else {
-				parts = append(parts, th.S(theme.Muted, " "+n+" "))
+				parts = append(parts, ui.MarkSub(i, th.S(theme.Muted, " "+n+" ")))
 			}
 		}
 		bar = " " + strings.Join(parts, th.S(theme.Muted, "·"))
 	} else {
-		bar = " " + th.S(theme.Muted, "‹ ") + th.Selected(" "+names[m.sub]+" ") + th.S(theme.Muted, fmt.Sprintf(" %d/%d ›", m.sub+1, numSubs))
+		bar = " " + ui.MarkSub((m.sub+numSubs-1)%numSubs, th.S(theme.Muted, "‹ ")) + th.Selected(" "+names[m.sub]+" ") +
+			ui.MarkSub((m.sub+1)%numSubs, th.S(theme.Muted, fmt.Sprintf(" %d/%d ›", m.sub+1, numSubs)))
 	}
 	if toast != "" {
 		room := env.W - text.Width(bar) - 1
-		toast = text.Truncate(toast, max(room, 0))
+		if m.toast != "" {
+			toast = ui.ToastLabel(th, m.toast, m.toastErr, max(room, 0))
+		} else {
+			toast = text.Truncate(toast, max(room, 0))
+		}
 		bar += strings.Repeat(" ", max(env.W-text.Width(bar)-text.Width(toast), 1)) + toast
 	}
 	return text.Fit(bar, env.W)
@@ -225,7 +231,7 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 			return "  " + line
 		})
 	}
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneList, Top: chips}.Render(th, w, h, body)
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList, Top: chips}.Render(th, w, h, body)
 }
 
 // stripColor bỏ mã màu để dòng được chọn chỉ mang kiểu "được chọn" (không lẫn màu của từng cột).
@@ -251,8 +257,8 @@ func (m *Model) detailBox(env ui.Env, w, h int) string {
 		}
 		lines = m.detailLines(env, it, max(iw-1, 10))
 	}
-	m.detail.SetLines(lines)
-	return frame.Box{Title: m.t("kn.detail.title"), TitleAt: frame.Left, Focused: m.pane == paneDetail,
+	m.detail.SetWrapped(lines, max(iw-1, 10))
+	return frame.Box{Title: m.t("kn.detail.title"), TitleAt: frame.Left, Pane: "detail", Focused: m.pane == paneDetail,
 		Top: th.S(theme.Muted, m.detail.Position())}.Render(th, w, h, m.detail.Render(iw, ih))
 }
 
@@ -326,13 +332,13 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 		if e.Commit != "" {
 			extra = " (commit " + short(e.Commit) + ")"
 		}
-		add(th.S(theme.Accent, text.Truncate(e.String()+extra, w)))
+		add(th.S(theme.Accent, e.String()+extra))
 		switch {
 		case have && i < len(d.Evidence) && d.Evidence[i].Missing:
 			add(th.S(theme.Err, "    "+m.t("kn.evidence.missing")))
 		case have && i < len(d.Evidence):
 			for _, x := range d.Evidence[i].Lines {
-				add(th.S(theme.Muted, "  │ ") + text.Truncate(x, max(w-4, 4)))
+				add(th.S(theme.Muted, "  │ ") + x)
 			}
 			if n := d.Evidence[i].More; n > 0 {
 				add(th.S(theme.Muted, "  │       "+m.t("kn.evidence.more", i18n.A{"count": n})))
@@ -345,7 +351,7 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 	add("", m.section(env, m.t("kn.section.check"), w))
 	switch {
 	case derr != nil:
-		add(th.S(theme.Err, "✗ ") + text.Truncate(ui.ErrText(m.cat, derr), w-2))
+		add(ui.ErrBlock(th, ui.ErrText(m.rw, derr), w, "")...)
 	case !have:
 		add(th.S(theme.Muted, m.t("ui.loading")))
 	case len(d.Check.Findings) == 0:
@@ -368,8 +374,8 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 				icon, r = "✗", theme.Err
 			}
 			pre := th.S(r, icon) + " " + m.findingLabel(f)
-			add(text.Truncate(pre, w))
-			for _, s := range text.Wrap(f.Detail, max(w-4, 8)) {
+			add(pre)
+			for _, s := range text.Wrap(m.cli(f.Detail), max(w-4, 8)) {
 				add("    " + th.S(theme.Muted, s))
 			}
 		}
@@ -406,18 +412,18 @@ func (m *Model) panelView(env ui.Env) string {
 	case p.running:
 		body = "\n " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("kn.running")) + "  " + th.S(theme.Key, "Esc") + " " + th.S(theme.Muted, m.t("kn.cancel"))
 	case p.err != nil:
-		body = "\n " + th.S(theme.Err, "✗ ") + text.Truncate(ui.ErrText(m.cat, p.err), max(iw-3, 8))
+		body = "\n" + strings.Join(ui.ErrBlock(th, ui.ErrText(m.rw, p.err), max(iw-1, 8), " "), "\n")
 	case !p.ran && p.lines == nil:
 		body = "\n " + th.S(theme.Muted, m.t("kn.panel.hint."+subNames[m.sub]))
 	default:
-		p.view.SetLines(p.lines)
+		p.view.SetWrapped(p.lines, max(iw-1, 10))
 		body = p.view.Render(iw, ih)
 	}
 	top := ""
 	if pos := p.view.Position(); pos != "" && !p.running {
 		top = th.S(theme.Muted, pos)
 	}
-	resBox := frame.Box{Title: title, TitleAt: frame.Left, Focused: !p.inForm, Top: top, Bottom: m.panelFooter(env, p), BottomAt: frame.Left}.Render(th, w, rh, body)
+	resBox := frame.Box{Title: title, TitleAt: frame.Left, Pane: "view", Focused: !p.inForm, Top: top, BottomHints: m.panelFooter(env, p), BottomAt: frame.Left}.Render(th, w, rh, body)
 	if formBox == "" {
 		return resBox
 	}
@@ -425,31 +431,32 @@ func (m *Model) panelView(env ui.Env) string {
 }
 
 // panelFooter là các phím của thẻ phụ ở viền dưới khung kết quả.
-func (m *Model) panelFooter(env ui.Env, p *panel) string {
-	th := env.Th
-	var hints []string
-	k := func(key, label string) { hints = append(hints, th.S(theme.Key, key)+" "+th.S(theme.Muted, label)) }
+func (m *Model) panelFooter(env ui.Env, p *panel) []footer.Hint {
+	var hints []footer.Hint
+	k := func(key, label, action string) {
+		hints = append(hints, footer.Hint{Key: key, Label: label, Priority: len(hints) + 1, ActionID: action})
+	}
 	switch {
 	case p.running:
-		k("Esc", m.t("kn.cancel"))
+		k("Esc", m.t("kn.cancel"), "")
 	case p.inForm:
-		k("Enter", m.t("form.hint.submit"))
-		k("Esc", m.t("kn.hint.leave"))
+		k("Enter", m.t("form.hint.submit"), "")
+		k("Esc", m.t("kn.hint.leave"), "")
 	default:
 		if p.form != nil {
-			k("Enter", m.t("kn.hint.edit_form"))
+			k("Enter", m.t("kn.hint.edit_form"), "")
 		} else {
-			k("r", m.t("kn.hint.rerun"))
+			k("r", m.t("kn.hint.rerun"), p.action)
 		}
 		if m.sub == subPublish {
-			k("w", m.t("kn.publish.write"))
+			k("w", m.t("kn.publish.write"), "bootstrap.publish")
 		}
 		if m.sub == subSurvey {
-			k("m", m.t("kn.hint.mode"))
+			k("m", m.t("kn.hint.mode"), "")
 		}
-		k("j/k", m.t("kn.hint.scroll"))
-		k(", .", m.t("kn.hint.sub"))
-		k("Esc", m.t("kn.hint.back"))
+		k("j/k", m.t("kn.hint.scroll"), "")
+		k(", .", m.t("kn.hint.sub"), "")
+		k("Esc", m.t("kn.hint.back"), "")
 	}
-	return " " + strings.Join(hints, "  ") + " "
+	return env.AllowedHints(hints)
 }

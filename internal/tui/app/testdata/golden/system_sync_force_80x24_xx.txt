@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦MCP~~⟧ ›                         │
+│ ‹ ⟦Harness~~~⟧ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦MCP~~⟧ ›            │
 │ ┌─┌─│⟦Sync --force: overwrite~~~~~~~~~~⟧│────────────────────────1-13/19─┐─┐ │
 │ │ │ ⟦--force overwrites hand-edited skills (the old copy is backed up);  │ │ │
 │ │ │ it cannot get past overlay anchor                                    │ │ │
@@ -20,5 +20,5 @@
 │ │ │                                                                      │ │ │
 │ │ │ [Enter] ⟦Write~~⟧   [Esc] ⟦Cancel~~~⟧                                │ │ │
 │ │ └──────────────────────────────────────────────────────────────────────┘ │ │
-│ └─ Enter ⟦content~~~⟧  s ⟦sync~~⟧  o ⟦overlay~~~⟧  d ⟦diff~~⟧  c ⟦check~~…─┘ │
+│ └─ Enter ⟦content~…  s ⟦sync~~⟧  o ⟦overlay~…  d ⟦diff~~⟧  c ⟦check~~⟧ ────┘ │
 └─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

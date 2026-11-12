@@ -2,8 +2,8 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│   Cấu hình  Harness  Thành phần Skill Chỉ mục MCP Ngôn ngữ ›                 │
-│ ┌─│Chi tiết · claude│──────────────────────────────────────────────1-16/33─┐ │
+│   Cấu hình  Harness  Thành phần Skill Chỉ mục MCP Ngôn ngữ Doctor ›          │
+│ ┌─│Chi tiết · claude│──────────────────────────────────────────────1-16/35─┐ │
 │ │ Claude Code (claude)                                                     │ │
 │ │ Cấp                 3 — + thực thi theo chương trình                     │ │
 │ │ Chương trình        /usr/local/bin/claude                                │ │
@@ -15,7 +15,7 @@
 │ │   ✓ Hook — phạm vi đã cài: project                                       │ │
 │ │       phạm vi project                                                    │ │
 │ │   ✓ MCP server của Bint đã đăng ký                                       │ │
-│ │   Cài/gỡ hook và MCP: bint init --hooks / --mcp (giai đoạn 5b).          │ │
+│ │   Cài/gỡ hook và MCP: Hệ thống › Cài đặt (phím e).                       │ │
 │ │                                                                          │ │
 │ │ Bảng khả năng                                                            │ │
 │ │  ✓ Đồng bộ skill .claude/skills/<tên>/SKILL.md                           │ │

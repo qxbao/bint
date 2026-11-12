@@ -36,5 +36,5 @@
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
-│ └─ a ⟦apply~~⟧  x ⟦reject~~~⟧  u ⟦roll back~~~~⟧  E ⟦compare~~~⟧ …─┘└─ v ⟦sub-tab~~~⟧  Enter ⟦view detail~~~~~⟧ ───────────────────────┘ │
-└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [x→ ⟦Reject~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────┘
+│ └─ a ⟦apply~~⟧  x ⟦reject~~…  u ⟦roll  E ⟦compare~…  A ⟦all ───────┘└─ v ⟦sub-tab~~~⟧  Enter ⟦view detail~~~~~⟧ ───────────────────────┘ │
+└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [x→ ⟦Reject~~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────┘

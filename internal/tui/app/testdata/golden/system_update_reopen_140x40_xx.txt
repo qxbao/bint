@@ -15,13 +15,13 @@
 │ │  ! ⟦The running binary│ ⟦abc1234 → def5678~~⟧                                                                │t command is still     │ │
 │ │    the old build.~~~~~│ /home/u/go/bin/bint                                                                  │                       │ │
 │ │  ⟦Not restarted yet: t│                                                                                      │                       │ │
-│ │  ⟦Run bint init --upda│ ! ⟦The running binary is /usr/local/bin/bint, not the file just installed; check     │~~~~~~⟧                │ │
-│ │                       │ PATH (which bint) if the bint command is still the old                               │                       │ │
-│ │  ⟦go install log~~~~~~│ build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                              │                       │ │
-│ │   go: downloading gith│                                                                                      │                       │ │
-│ │   go: downloading mode│ ⟦The old binary was renamed to C:\bin\bint.exe.old (safe to delete after             │                       │ │
-│ │   bint/internal/app   │ exiting).~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                                  │                       │ │
-│ │                       │                                                                                      │                       │ │
+│ │  ⟦In each repository, │ ! ⟦The running binary is /usr/local/bin/bint, not the file just installed; check     │                       │ │
+│ │  skills.~~~~~~~~~~~~~~│ PATH (which bint) if the bint command is still the old                               │                       │ │
+│ │                       │ build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                              │                       │ │
+│ │  ⟦go install log~~~~~~│                                                                                      │                       │ │
+│ │   go: downloading gith│ ⟦The old binary was renamed to C:\bin\bint.exe.old (safe to delete after             │                       │ │
+│ │   go: downloading mode│ exiting).~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                                  │                       │ │
+│ │   bint/internal/app   │                                                                                      │                       │ │
 │ │                       │ ⟦Windows cannot restart automatically: close bint and open it again to use the new   │                       │ │
 │ │                       │ build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                          │                       │ │
 │ │                       │                                                                                      │                       │ │

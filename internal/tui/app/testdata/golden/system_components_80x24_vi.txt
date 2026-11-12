@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│   Cấu hình Harness  Thành phần  Skill Chỉ mục MCP Ngôn ngữ ›                 │
+│   Cấu hình Harness  Thành phần  Skill Chỉ mục MCP Ngôn ngữ Doctor ›          │
 │ ┌─│Thành phần (3/3)│───────────────────────────────────────1 tệp bị bỏ qua─┐ │
 │ │ ▸ ✓ guardrail test-before-stop                         verified   low    │ │
 │ │   ◌ guidance  api-style                                candidate  low    │ │

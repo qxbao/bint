@@ -37,4 +37,4 @@
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ └─ a apply  x reject  u roll back  E compare  A all states ────────┘└─ v sub-tab  Enter view detail ───────────────────────────────────┘ │
-└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [q→ Quit] [?→ Help]────────────────────────────────────────────────────────────────────────┘
+└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [:→ Commands] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────┘

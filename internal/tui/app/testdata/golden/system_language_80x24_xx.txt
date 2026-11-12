@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Index~~⟧ ⟦MCP~~⟧  ⟦Language~~~~⟧  ⟦Doctor~~~⟧ ⟦Setup~~⟧ ›                 │
+│ ‹ ⟦Index~~⟧ ⟦MCP~~⟧  ⟦Language~~~~⟧  ⟦Doctor~~~⟧ ⟦Setup~~⟧ ⟦Update~~~⟧       │
 │ ┌─│⟦Interface language~~~~~~~~⟧│───────────────────────────────────────────┐ │
 │ │                                                                          │ │
 │ │ ⟦Used in this session~~~~~… xx                                           │ │
@@ -11,7 +11,7 @@
 │ │  ⟦Resolution order: --lang > BINT_LANG > ui.language > LC_ALL/LANG >     │ │
 │ │  vi.~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                        │ │
 │ │                                                                          │ │
-│ │ ▸ ✓ auto  ⟦from BINT_LANG, LC_ALL/LANG; defaults to vi~~~~~~~~~~~~~~~~~… │ │
+│ │ ▸ ✓ auto ⟦from BINT_LANG, LC_ALL/LANG; defaults to vi~~~~~~~~~~~~~~~~~~⟧ │ │
 │ │     vi    ⟦Vietnamese~~~~⟧                                               │ │
 │ │     en    ⟦English~~~⟧                                                   │ │
 │ │                                                                          │ │

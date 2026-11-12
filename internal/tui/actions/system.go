@@ -26,13 +26,11 @@ type ConfigEditOptions struct {
 // ConfigEditState là phiên sửa cấu hình đang mở trong $EDITOR (mang qua ExecMsg → ResultMsg).
 type ConfigEditState struct{ Edit app.ConfigEdit }
 
-// ConfigApplyArgs là tham số của kiểm tra (system.config_check) và ghi (system.config_save) bản đã sửa.
+// ConfigApplyArgs là tham số của kiểm tra (system.config_check), ghi (system.config_save) bản đã sửa và đặt lại mốc
+// (system.config_rebase; Data không dùng).
 type ConfigApplyArgs struct {
 	Edit app.ConfigEdit
 	Data []byte
-	// Rebase: đặt lại mốc theo tệp gốc hiện tại trước khi kiểm (sửa lại sau khi ghi bị từ chối vì tệp gốc đổi).
-	// Kết quả (ResultMsg.Opts) mang phiên sửa đã đặt lại mốc, Rebase=false.
-	Rebase bool
 }
 
 // HarnessVersionOptions: lấy phiên bản của một harness (gọi chương trình harness).
@@ -175,15 +173,16 @@ func systemActions() []Action {
 		mk("system.config_check", "config_check", "", 0, "", nil, false, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				a := opts.(ConfigApplyArgs)
-				if a.Rebase {
-					e, err := app.RebaseConfigEdit(ctx, env.Dir, a.Edit)
-					if err != nil {
-						return res("system.config_check", opts, nil, err)
-					}
-					a.Edit, a.Rebase = e, false
-				}
 				c, err := app.CheckConfigEdit(ctx, env.Dir, a.Edit, a.Data)
 				return res("system.config_check", a, c, err)
+			}),
+		// Đặt lại mốc sau ErrConfigChanged: gộp ba chiều thay đổi của người dùng lên tệp gốc mới (chỉ ghi bản tạm, không đụng tệp gốc).
+		mk("system.config_rebase", "config_rebase", "", 0, "", nil, false, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				a := opts.(ConfigApplyArgs)
+				e, rb, err := app.RebaseConfigEdit(ctx, env.Dir, a.Edit)
+				a.Edit = e
+				return res("system.config_rebase", a, rb, err)
 			}),
 		mk("system.config_save", "config_save", "", 0, "", nil, true, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
@@ -327,7 +326,7 @@ func systemActions() []Action {
 		func() Action {
 			a := mk("system.update", "update", "u", 1, "update", app.UpdateOptions{}, true, false, nil)
 			a.Job = runUpdate
-			a.JobInfo = func(any) jobs.Info { return jobs.Info{Kind: jobs.KindAction, Label: "bint update"} }
+			a.JobInfo = func(any) jobs.Info { return jobs.Info{Kind: jobs.KindAction, Label: "update"} }
 			return a
 		}(),
 		mk("system.restart", "restart", "", 0, "", nil, false, false, nil),

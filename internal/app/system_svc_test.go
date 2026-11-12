@@ -605,42 +605,165 @@ func TestDiffSkillAndVersionsOfEvolvedSkill(t *testing.T) {
 	}
 }
 
-// 5a.1: sau ErrConfigChanged, RebaseConfigEdit đặt mốc theo tệp gốc mới (bản tạm và Seed giữ nguyên) nên lần ghi
-// lại thành công và diff tính theo nội dung mới; thay đổi xảy ra SAU mốc mới vẫn bị từ chối.
-func TestRebaseConfigEdit(t *testing.T) {
+// 6a.1 (01M75YH2JGR9AD685VH886WE33.5): sau ErrConfigChanged, RebaseConfigEdit gộp ba chiều thay đổi của người dùng lên
+// tệp gốc mới: không hoàn tác thay đổi của người khác; xung đột thì bản tạm mang dấu và Check từ chối; tệp gốc bị xoá thì
+// giữ bản của người dùng làm tệp mới.
+func TestRebaseConfigEditMergesThreeWay(t *testing.T) {
+	cases := []struct {
+		name      string
+		other     func(orig string) (string, bool) // nội dung tệp gốc mới (bool=false: xoá tệp)
+		wantMerge bool
+		conflicts int
+	}{
+		{"không xung đột", func(o string) (string, bool) { return o + "# người khác thêm\n", true }, true, 0},
+		{"xung đột", func(o string) (string, bool) { return strings.Replace(o, "language: auto", "language: vi", 1), true }, true, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := sysRepo(t, InitOptions{})
+			ctx := context.Background()
+			proj := config.ProjectPath(root)
+			orig, _ := os.ReadFile(proj)
+			e, err := PrepareConfigEdit(ctx, root, config.LayerProject)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(e.TempPath)
+			mine := strings.Replace(string(orig), "language: auto", "language: en", 1)
+			if mine == string(orig) {
+				t.Fatal("mẫu cấu hình phải có language: auto")
+			}
+			os.WriteFile(e.TempPath, []byte(mine), 0o600)
+			other, exists := tc.other(string(orig))
+			if exists {
+				os.WriteFile(proj, []byte(other), 0o644)
+			} else {
+				os.Remove(proj)
+			}
+			if _, err := SaveConfigEdit(ctx, root, e, []byte(mine)); !errors.Is(err, ErrConfigChanged) {
+				t.Fatalf("phải từ chối: %v", err)
+			}
+			e2, rb, err := RebaseConfigEdit(ctx, root, e)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rb.Merged != tc.wantMerge || rb.Conflicts != tc.conflicts {
+				t.Fatalf("kết quả gộp %+v", rb)
+			}
+			temp, _ := os.ReadFile(e2.TempPath)
+			switch tc.name {
+			case "không xung đột":
+				want := strings.Replace(other, "language: auto", "language: en", 1)
+				if string(temp) != want {
+					t.Fatalf("bản tạm phải là bản đã gộp:\n%s", temp)
+				}
+				if string(e2.Seed) != other || string(e2.Original) != other || e2.BaseHash == e.BaseHash {
+					t.Fatalf("mốc mới sai: %+v", e2)
+				}
+				c, err := CheckConfigEdit(ctx, root, e2, temp)
+				if err != nil || !c.Changed || !c.Valid || strings.Contains(c.Diff, "-# người khác") || !strings.Contains(c.Diff, "+  language: en") {
+					t.Fatalf("diff chỉ còn thay đổi của người dùng: %v %+v", err, c)
+				}
+				if _, err := SaveConfigEdit(ctx, root, e2, temp); err != nil {
+					t.Fatalf("ghi sau gộp: %v", err)
+				}
+				if b, _ := os.ReadFile(proj); string(b) != want {
+					t.Fatalf("tệp gốc phải có cả hai thay đổi:\n%s", b)
+				}
+			case "xung đột":
+				if !strings.Contains(string(temp), ConflictMine) || !strings.Contains(string(temp), ConflictTheirs) {
+					t.Fatalf("bản tạm phải mang dấu xung đột:\n%s", temp)
+				}
+				c, err := CheckConfigEdit(ctx, root, e2, temp)
+				if err != nil || c.Valid || !strings.Contains(c.Err, "xung đột") {
+					t.Fatalf("còn dấu xung đột phải bị từ chối: %v %+v", err, c)
+				}
+				resolved := strings.Replace(other, "language: vi", "language: en", 1)
+				if c, _ := CheckConfigEdit(ctx, root, e2, []byte(resolved)); !c.Valid || !c.Changed {
+					t.Fatalf("gộp tay xong phải hợp lệ: %+v", c)
+				}
+			}
+		})
+	}
+}
+
+// Tệp gốc bị xoá sau khi mở (lớp local): gộp giữ bản của người dùng làm tệp mới, ghi tạo lại tệp.
+func TestRebaseConfigEditOriginalDeleted(t *testing.T) {
 	root := sysRepo(t, InitOptions{})
 	ctx := context.Background()
-	proj := config.ProjectPath(root)
-	orig, _ := os.ReadFile(proj)
-	e, err := PrepareConfigEdit(ctx, root, config.LayerProject)
+	local := config.LocalPath(root)
+	os.WriteFile(local, []byte("ui:\n  language: vi\n"), 0o644)
+	e, err := PrepareConfigEdit(ctx, root, config.LayerLocal)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(e.TempPath)
-	other := append(append([]byte{}, orig...), []byte("# người khác\n")...)
-	os.WriteFile(proj, other, 0o644)
-	mine := []byte(strings.Replace(string(other), "language: auto", "language: en", 1))
-	if _, err := SaveConfigEdit(ctx, root, e, mine); !errors.Is(err, ErrConfigChanged) {
+	mine := "ui:\n  language: en\n"
+	os.WriteFile(e.TempPath, []byte(mine), 0o600)
+	os.Remove(local)
+	if _, err := SaveConfigEdit(ctx, root, e, []byte(mine)); !errors.Is(err, ErrConfigChanged) {
 		t.Fatalf("phải từ chối: %v", err)
 	}
-	e2, err := RebaseConfigEdit(ctx, root, e)
+	e2, rb, err := RebaseConfigEdit(ctx, root, e)
+	if err != nil || rb.Conflicts != 0 {
+		t.Fatalf("%v %+v", err, rb)
+	}
+	temp, _ := os.ReadFile(e2.TempPath)
+	if string(temp) != mine || e2.Existed || e2.Original != nil {
+		t.Fatalf("giữ bản của người dùng: existed=%v %q", e2.Existed, temp)
+	}
+	if c, err := CheckConfigEdit(ctx, root, e2, temp); err != nil || !c.Valid || !c.Changed {
+		t.Fatalf("%v %+v", err, c)
+	}
+	if _, err := SaveConfigEdit(ctx, root, e2, temp); err != nil {
+		t.Fatalf("ghi lại tệp đã bị xoá: %v", err)
+	}
+	if b, _ := os.ReadFile(local); string(b) != mine {
+		t.Fatalf("tệp mới phải là bản của người dùng:\n%s", b)
+	}
+}
+
+// Lỗi lúc gộp (không đọc được bản tạm) trả lỗi và không đụng tới bản tạm hay tệp gốc.
+func TestRebaseConfigEditErrorKeepsTemp(t *testing.T) {
+	root := sysRepo(t, InitOptions{})
+	ctx := context.Background()
+	e, err := PrepareConfigEdit(ctx, root, config.LayerProject)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e2.TempPath != e.TempPath || string(e2.Seed) != string(e.Seed) || string(e2.Original) != string(other) || e2.BaseHash == e.BaseHash {
-		t.Fatalf("rebase sai: %+v", e2)
+	os.Remove(e.TempPath)
+	if _, _, err := RebaseConfigEdit(ctx, root, e); err == nil {
+		t.Fatal("thiếu bản tạm phải lỗi")
 	}
-	c, err := CheckConfigEdit(ctx, root, e2, mine)
-	if err != nil || !c.Valid || strings.Contains(c.Diff, "-# người khác") || !strings.Contains(c.Diff, "+  language: en") {
-		t.Fatalf("diff phải theo tệp mới: %v %+v", err, c)
+	os.WriteFile(e.TempPath, []byte("x: 1\n"), 0o600)
+	defer os.Remove(e.TempPath)
+	if _, _, err := RebaseConfigEdit(ctx, t.TempDir(), e); err == nil {
+		t.Fatal("thư mục chưa init phải lỗi")
 	}
-	os.WriteFile(proj, append(other, '#', '\n'), 0o644) // đổi tiếp sau mốc mới
-	if _, err := SaveConfigEdit(ctx, root, e2, mine); !errors.Is(err, ErrConfigChanged) {
-		t.Fatalf("đổi sau mốc mới vẫn phải bị từ chối: %v", err)
+	if b, _ := os.ReadFile(e.TempPath); string(b) != "x: 1\n" {
+		t.Fatalf("bản tạm phải còn nguyên: %q", b)
 	}
-	e3, _ := RebaseConfigEdit(ctx, root, e2)
-	if _, err := SaveConfigEdit(ctx, root, e3, mine); err != nil {
-		t.Fatalf("ghi sau rebase: %v", err)
+}
+
+func TestMerge3(t *testing.T) {
+	cases := []struct {
+		name, base, ours, theirs, want string
+		conflicts                      int
+	}{
+		{"cả hai thêm ở chỗ khác nhau", "a\nb\nc\n", "a\nB\nc\n", "a\nb\nc\nd\n", "a\nB\nc\nd\n", 0},
+		{"giống nhau", "a\nb\n", "a\nX\n", "a\nX\n", "a\nX\n", 0},
+		{"chỉ bên kia đổi", "a\nb\n", "a\nb\n", "a\nZ\n", "a\nZ\n", 0},
+		{"không có xuống dòng cuối", "a\nb", "a\nB", "a\nb\nc", "a\n" + ConflictMine + "\nB\n" + ConflictSep + "\nb\nc\n" + ConflictTheirs + "\n", 1},
+		{"rỗng", "", "x\n", "", "x\n", 0},
+	}
+	for _, tc := range cases {
+		got, n := Merge3(tc.base, tc.ours, tc.theirs)
+		if got != tc.want || n != tc.conflicts {
+			t.Errorf("%s: got %q (%d xung đột), muốn %q (%d)", tc.name, got, n, tc.want, tc.conflicts)
+		}
+	}
+	if !HasConflictMarkers([]byte("x\n"+ConflictMine+"\n"+ConflictSep+"\n"+ConflictTheirs+"\n")) || HasConflictMarkers([]byte("=======\n")) {
+		t.Error("HasConflictMarkers sai")
 	}
 }
 

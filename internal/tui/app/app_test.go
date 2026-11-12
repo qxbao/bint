@@ -420,7 +420,7 @@ func TestInitWizardFlowOnTemporaryRepo(t *testing.T) {
 		t.Fatalf("phải giữ báo cáo đến khi bấm tiếp: screen=%q done=%v", m.Screen(), m.wiz.Done())
 	}
 	held := plain(m.Render())
-	for _, want := range []string{"Đã khởi tạo Bint", "Đã khởi tạo xong", m.wiz.Report().Steps[0].Name, "Bước tiếp theo", "bint doctor"} {
+	for _, want := range []string{"Đã khởi tạo Bint", "Đã khởi tạo xong", m.wiz.Report().Steps[0].Name, "Bước tiếp theo", "Kiểm tra môi trường: thẻ Hệ thống › Doctor"} {
 		if !strings.Contains(held, want) {
 			t.Errorf("màn báo cáo thiếu %q:\n%s", want, held)
 		}

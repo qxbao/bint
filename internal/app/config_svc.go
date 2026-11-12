@@ -166,24 +166,60 @@ func PrepareConfigEdit(ctx context.Context, dir string, layer config.Layer) (Con
 	return e, nil
 }
 
-// RebaseConfigEdit đặt lại mốc của phiên sửa theo tệp thật HIỆN TẠI (Original, Existed, BaseHash), giữ nguyên bản
-// tạm và Seed. Dùng khi ghi bị từ chối vì tệp gốc đã đổi và người dùng chọn sửa lại: lần kiểm kế tiếp lập diff
-// theo nội dung mới, lần ghi sau so băm với mốc mới (vẫn không đè thay đổi xảy ra sau mốc này).
-func RebaseConfigEdit(ctx context.Context, dir string, e ConfigEdit) (ConfigEdit, error) {
+// ConfigRebase là kết quả đặt lại mốc của phiên sửa.
+type ConfigRebase struct {
+	// Merged: bản tạm đã được ghi lại bằng nội dung gộp (thay đổi của người dùng đặt trên tệp gốc mới).
+	Merged bool
+	// Conflicts là số khối xung đột trong bản tạm (có dấu ConflictMine/ConflictSep/ConflictTheirs).
+	Conflicts int
+}
+
+// RebaseConfigEdit đặt lại mốc của phiên sửa theo tệp thật HIỆN TẠI sau khi ghi bị từ chối vì tệp gốc đã đổi
+// (ErrConfigChanged). Thay đổi của người dùng (bản tạm so với Seed) được gộp ba chiều theo dòng lên tệp gốc mới
+// (Merge3: mốc = Seed, bản của bạn = bản tạm, bản mới = tệp thật) và ghi lại vào bản tạm, nên ghi tiếp không hoàn
+// tác thay đổi của người khác. Không xung đột thì bản tạm là nội dung đã gộp; có xung đột thì bản tạm mang dấu
+// xung đột và CheckConfigEdit từ chối nó đến khi người dùng gỡ hết dấu. Seed/Original/BaseHash theo tệp mới nên
+// diff xác nhận chỉ còn thay đổi của người dùng. Tệp gốc đã bị xoá thì giữ nguyên bản của người dùng làm nội dung
+// tệp mới. Mọi lỗi (không đọc được bản tạm hoặc tệp gốc) trả về với bản tạm còn nguyên.
+func RebaseConfigEdit(ctx context.Context, dir string, e ConfigEdit) (ConfigEdit, ConfigRebase, error) {
+	var res ConfigRebase
 	if _, _, err := configCtx(ctx, dir); err != nil {
-		return e, err
+		return e, res, err
 	}
-	data, err := os.ReadFile(e.Path)
+	cur, err := os.ReadFile(e.Path)
+	existed := true
 	switch {
 	case err == nil:
-		e.Existed, e.Original = true, data
 	case errors.Is(err, os.ErrNotExist):
-		e.Existed, e.Original = false, nil
+		cur, existed = nil, false
 	default:
-		return e, err
+		return e, res, err
 	}
+	ours, err := os.ReadFile(e.TempPath)
+	if err != nil {
+		return e, res, err
+	}
+	seed := []byte(nil)
+	if !existed && e.Layer == config.LayerLocal {
+		seed = []byte(newLocalSeed) // tệp mới: bản tạm khởi đầu bằng đoạn hướng dẫn như PrepareConfigEdit
+	} else if existed {
+		seed = cur
+	}
+	merged := string(ours)
+	if existed {
+		var n int
+		merged, n = Merge3(string(e.Seed), string(ours), string(cur))
+		res.Conflicts = n
+	}
+	if merged != string(ours) {
+		if err := fsafe.WriteAtomic(e.TempPath, []byte(merged), 0o600); err != nil {
+			return e, res, err
+		}
+		res.Merged = true
+	}
+	e.Existed, e.Original, e.Seed = existed, cur, seed
 	e.BaseHash = hashBytes(e.Original)
-	return e, nil
+	return e, res, nil
 }
 
 // ConfigCheck là kết quả kiểm tra bản đã sửa.
@@ -206,6 +242,11 @@ func CheckConfigEdit(ctx context.Context, dir string, e ConfigEdit, edited []byt
 	c := ConfigCheck{Changed: !bytes.Equal(edited, e.Seed)}
 	if !c.Changed {
 		c.Valid = true
+		return c, nil
+	}
+	if HasConflictMarkers(edited) {
+		c.Err = "còn dấu xung đột (" + ConflictMine + " … " + ConflictTheirs + "): gộp tay rồi xoá các dòng dấu"
+		c.Diff = skills.Diff(e.Path+" (hiện tại)", e.Path+" (sau khi sửa)", string(e.Original), string(edited))
 		return c, nil
 	}
 	if _, err := config.ValidateWith(root, e.Layer, edited); err != nil {

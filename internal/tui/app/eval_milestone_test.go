@@ -259,7 +259,7 @@ func TestEvalRunEscCancelsBatchAndShowsResumeCommand(t *testing.T) {
 	if len(bs) != 1 || bs[0].Status != "cancelled" {
 		t.Fatalf("đợt phải cancelled: %+v", bs)
 	}
-	hasAll(t, f.screen(), "Kết quả chạy đợt", "đã huỷ", "Chạy tiếp bằng: bint eval run --resume "+bs[0].BatchID)
+	hasAll(t, f.screen(), "Kết quả chạy đợt", "đã huỷ", "Chạy tiếp bằng: phím R ở Đánh giá")
 	f.press("esc")
-	hasAll(t, f.screen(), "Chạy tiếp", "bint eval run --resume "+bs[0].BatchID)
+	hasAll(t, f.screen(), "Chạy tiếp", "phím R ở Đánh giá")
 }

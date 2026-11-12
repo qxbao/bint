@@ -62,7 +62,7 @@ func newHarness(t *testing.T, items []*kn.Item, o Options) *harness {
 		return app.KnowledgeDetail{}, errors.New("không có")
 	}
 	h := &harness{t: t, m: New(o), cat: i18n.MustLoad("vi"), th: theme.New(theme.Mono)}
-	h.m.SetEnv(h.th, h.cat)
+	h.m.SetEnv(h.th, ui.Rewriter{Cat: h.cat})
 	h.run(h.m.Load())
 	return h
 }
@@ -568,7 +568,7 @@ func TestEveryViewFitsEverywhere(t *testing.T) {
 			for _, sz := range [][2]int{{60, 20}, {80, 24}, {100, 30}, {140, 40}} {
 				h := newHarness(t, sample(), Options{})
 				h.cat, h.th = i18n.MustLoad(lang), theme.New(mode)
-				h.m.SetEnv(h.th, h.cat)
+				h.m.SetEnv(h.th, ui.Rewriter{Cat: h.cat})
 				for sub := 0; sub < numSubs; sub++ {
 					h.m.sub = sub
 					checkFits(t, fmt.Sprintf("%s/%s/%v/sub%d", lang, mode, sz, sub), h.m.View(h.env(sz[0], sz[1]-5)), sz[0], sz[1]-5)

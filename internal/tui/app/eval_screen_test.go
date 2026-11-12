@@ -275,9 +275,9 @@ func TestEvalRunJobGridCancelAndResumeLine(t *testing.T) {
 	if !d.until(func() bool { return m.jobs.Len() == 0 }) {
 		t.Fatal("huỷ phải kết thúc việc")
 	}
-	hasAll(t, plain(m.Render()), "Kết quả chạy đợt", "Đợt eb_x: đã huỷ, 2/8 lượt", "Chạy tiếp bằng: bint eval run --resume eb_x")
+	hasAll(t, plain(m.Render()), "Kết quả chạy đợt", "Đợt eb_x: đã huỷ, 2/8 lượt", "Chạy tiếp bằng: phím R ở Đánh giá")
 	d.press("esc") // đóng hộp
-	hasAll(t, plain(m.Render()), "Chạy tiếp", "bint eval run --resume eb_x")
+	hasAll(t, plain(m.Render()), "Chạy tiếp", "phím R ở Đánh giá")
 }
 
 // Đợt xong: toast và thẻ Đợt mở báo cáo của đợt vừa chạy.
@@ -364,6 +364,30 @@ func TestEvalResumeFromBatchesTab(t *testing.T) {
 	if m.el.Tab() != 3 {
 		t.Fatalf("phải chuyển sang thẻ Log: %d", m.el.Tab())
 	}
+	close(c.release["eval.resume"])
+	d.until(func() bool { return m.jobs.Len() == 0 })
+}
+
+// .6/.11: hộp thoát khi còn việc Đánh giá chạy tiếp hiện NGUYÊN lệnh CLI tiếp tục kèm mã đợt đầy đủ (người dùng đang rời TUI), không
+// viết lại thành "phím R ở Đánh giá" (mất mã đợt).
+func TestExitDialogKeepsFullEvalResumeCommand(t *testing.T) {
+	m, c := newCapModel(t, Options{}, "eval.resume")
+	d := newDrv(t, m)
+	d.press("5", ".", ".", "j", "k", "R", "ctrl+s")
+	if !d.until(func() bool { return c.count("eval.resume") == 1 && m.jobs.Len() == 1 }) {
+		t.Fatalf("phải có việc chạy tiếp đang chạy:\n%s", plain(m.Render()))
+	}
+	const want = "bint eval run --resume eb_01EVALSTOP0000000000000002"
+	if j := jobOf(t, m); j.Resume != want {
+		t.Fatalf("Resume của việc: %q, muốn %q", j.Resume, want)
+	}
+	d.press("q")
+	out := plain(m.Render())
+	hasAll(t, out, "Còn việc đang chạy", "Tiếp tục sau bằng: "+want)
+	if strings.Contains(out, "phím R ở Đánh giá") {
+		t.Errorf("hộp thoát không được viết lại lệnh tiếp tục:\n%s", out)
+	}
+	d.press("esc")
 	close(c.release["eval.resume"])
 	d.until(func() bool { return m.jobs.Len() == 0 })
 }

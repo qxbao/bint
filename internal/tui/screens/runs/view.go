@@ -9,6 +9,7 @@ import (
 	"bint/internal/evolve"
 	"bint/internal/i18n"
 	"bint/internal/runlog"
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/text"
@@ -34,7 +35,7 @@ func (m *Model) View(env ui.Env) string {
 	th := env.Th
 	switch {
 	case m.Err != nil && !m.Loaded:
-		return strings.Join([]string{"", th.S(theme.Err, "✗ ") + m.t("rn.error"), "  " + text.Truncate(ui.ErrText(m.cat, m.Err), max(env.W-4, 10)),
+		return strings.Join([]string{"", th.S(theme.Err, "✗ ") + m.t("rn.error"), strings.Join(text.WrapHang(ui.ErrText(m.rw, m.Err), max(env.W-4, 10), "  ", "  "), "\n"),
 			"", th.S(theme.Muted, m.t("rn.error.hint"))}, "\n")
 	case !m.Loaded:
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))
@@ -64,22 +65,18 @@ func (m *Model) View(env ui.Env) string {
 
 func (m *Model) tabBar(env ui.Env) string {
 	th := env.Th
-	var parts []string
+	ids := make([]int, numTabs)
+	names := make([]string, numTabs)
 	for i := 0; i < numTabs; i++ {
-		n := " " + m.t("rn.tab."+tabNames[i]) + " "
-		if i == m.tab {
-			parts = append(parts, th.Selected(n))
-		} else {
-			parts = append(parts, th.S(theme.Muted, n))
-		}
+		ids[i], names[i] = i, m.t("rn.tab."+tabNames[i])
 	}
-	bar := " " + strings.Join(parts, th.S(theme.Muted, "·"))
+	sel := m.tab
+	bar := ui.SubBar(th, names, ids, sel, env.W-1)
 	if m.toast != "" {
-		role := theme.OK
-		if m.toastErr {
-			role = theme.Warn
+		if need := min(text.Width(m.toast)+4, env.W/2); env.W-text.Width(bar)-1 < need {
+			bar = ui.SubBar(th, names, ids, sel, env.W-1-need) // chừa chỗ cho thông báo thay vì bắt thông báo bị cắt
 		}
-		toast := text.Truncate(th.S(role, " "+m.toast+" "), max(env.W-text.Width(bar)-1, 0))
+		toast := ui.ToastLabel(th, m.toast, m.toastErr, max(env.W-text.Width(bar)-1, 0))
 		bar += strings.Repeat(" ", max(env.W-text.Width(bar)-text.Width(toast), 1)) + toast
 	}
 	return text.Fit(bar, env.W)
@@ -155,19 +152,20 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 			return "  " + line
 		})
 	}
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneList, Top: chips,
-		Bottom: m.listFooter(env), BottomAt: frame.Left}.Render(th, w, h, body)
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList, Top: chips,
+		BottomHints: m.listFooter(env), BottomAt: frame.Left}.Render(th, w, h, body)
 }
 
-func (m *Model) listFooter(env ui.Env) string {
-	th := env.Th
-	var hints []string
-	k := func(key, label string) { hints = append(hints, th.S(theme.Key, key)+" "+th.S(theme.Muted, label)) }
-	k("+/-", m.t("rn.hint.rate"))
-	k("S", m.t("rn.hint.scan"))
-	k("I", m.t("rn.hint.ingest"))
-	k("d", m.t("rn.hint.digest"))
-	return " " + strings.Join(hints, "  ") + " "
+func (m *Model) listFooter(env ui.Env) []footer.Hint {
+	var hints []footer.Hint
+	k := func(key, label, action string) {
+		hints = append(hints, footer.Hint{Key: key, Label: label, Priority: len(hints) + 1, ActionID: action})
+	}
+	k("+/-", m.t("rn.hint.rate"), "runs.rate")
+	k("S", m.t("rn.hint.scan"), "runs.scan")
+	k("I", m.t("rn.hint.ingest"), "runs.ingest")
+	k("d", m.t("rn.hint.digest"), "runs.lesson_digest")
+	return env.AllowedHints(hints)
 }
 
 func (m *Model) labelName(label string) string {
@@ -192,7 +190,7 @@ func (m *Model) detailBox(env ui.Env, w, h int) string {
 		d, ok := m.cache[id]
 		switch {
 		case m.cacheErr[id] != nil:
-			content = "\n " + th.S(theme.Err, "✗ ") + text.Truncate(ui.ErrText(m.cat, m.cacheErr[id]), max(iw-4, 10))
+			content = "\n" + strings.Join(ui.ErrBlock(th, ui.ErrText(m.rw, m.cacheErr[id]), max(iw-1, 10), " "), "\n")
 		case !ok:
 			content = "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))
 		default:
@@ -201,12 +199,12 @@ func (m *Model) detailBox(env ui.Env, w, h int) string {
 				m.detailKey = id
 				m.detail.Reset()
 			}
-			m.detail.SetLines(m.detailLines(env, d, max(iw-1, 10)))
+			m.detail.SetWrapped(m.detailLines(env, d, max(iw-1, 10)), max(iw-1, 10))
 			content = m.detail.Render(iw, ih)
 			top = th.S(theme.Muted, m.detail.Position())
 		}
 	}
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneDetail, Top: top}.Render(th, w, h, content)
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "detail", Focused: m.pane == paneDetail, Top: top}.Render(th, w, h, content)
 }
 
 func fmtDuration(r runlog.Run) string {
@@ -253,11 +251,11 @@ func (m *Model) detailLines(env ui.Env, d *app.RunDetail, w int) []string {
 		out = append(out, "  "+th.S(theme.Muted, m.t("rn.none")))
 	}
 	for _, a := range d.Artifacts {
-		out = append(out, text.Truncate(fmt.Sprintf("  %s %s (×%d)", text.Pad(a.Kind, 14), a.Path, a.Count), w))
+		out = append(out, fmt.Sprintf("  %s %s (×%d)", text.Pad(a.Kind, 14), a.Path, a.Count))
 	}
 	out = append(out, "", th.S(theme.Accent, m.t("rn.sec.events", i18n.A{"count": len(d.Events)})))
 	for _, e := range d.Events {
-		out = append(out, text.Truncate(fmt.Sprintf("  %s  %s %s", shared.Time(e.Timestamp), text.Pad(e.Type, 16), e.Payload), w))
+		out = append(out, fmt.Sprintf("  %s  %s %s", shared.Time(e.Timestamp), text.Pad(e.Type, 16), e.Payload))
 	}
 	return out
 }
@@ -268,7 +266,7 @@ func (m *Model) lessonsView(env ui.Env) string {
 	th := env.Th
 	switch {
 	case m.lessonsErr != nil && !m.lessonsLoaded:
-		return "\n " + th.S(theme.Err, "✗ ") + text.Truncate(ui.ErrText(m.cat, m.lessonsErr), max(env.W-4, 10))
+		return "\n" + strings.Join(ui.ErrBlock(th, ui.ErrText(m.rw, m.lessonsErr), max(env.W-4, 10), " "), "\n")
 	case !m.lessonsLoaded:
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))
 	}
@@ -339,8 +337,8 @@ func (m *Model) lessonListBox(env ui.Env, w, h int) string {
 			return "  " + line
 		})
 	}
-	return frame.Box{Title: m.t("rn.lesson.title", i18n.A{"count": len(m.lessons)}), TitleAt: frame.Left, Focused: m.pane == paneList,
-		Bottom: " " + th.S(theme.Key, "d") + " " + th.S(theme.Muted, m.t("rn.hint.digest")) + " ", BottomAt: frame.Left}.Render(th, w, h, body)
+	return frame.Box{Title: m.t("rn.lesson.title", i18n.A{"count": len(m.lessons)}), TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList,
+		BottomHints: env.AllowedHints([]footer.Hint{{Key: "d", Label: m.t("rn.hint.digest"), Priority: 1, ActionID: "runs.lesson_digest"}}), BottomAt: frame.Left}.Render(th, w, h, body)
 }
 
 // lessonAt trả bài học dưới con trỏ ở thẻ Bài học (nil nếu đang ở tiêu đề nhóm hoặc trống).
@@ -380,8 +378,8 @@ func (m *Model) lessonDetailBox(env ui.Env, w, h int) string {
 	lines = append(lines, "", th.S(theme.Accent, m.t("rn.digest.title")))
 	lines = append(lines, m.digestLines(env, iw-1)...)
 	m.detail.H = ih
-	m.detail.SetLines(lines)
-	return frame.Box{Title: m.t("rn.digest.box"), TitleAt: frame.Left, Focused: m.pane == paneDetail, Top: th.S(theme.Muted, m.detail.Position())}.
+	m.detail.SetWrapped(lines, max(iw-1, 10))
+	return frame.Box{Title: m.t("rn.digest.box"), TitleAt: frame.Left, Pane: "detail", Focused: m.pane == paneDetail, Top: th.S(theme.Muted, m.detail.Position())}.
 		Render(th, w, h, m.detail.Render(iw, ih))
 }
 
@@ -392,7 +390,7 @@ func (m *Model) digestLines(env ui.Env, w int) []string {
 	case m.digestBusy:
 		return []string{"  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))}
 	case m.digestErr != nil:
-		return text.WrapHang(th.S(theme.Err, "✗ ")+ui.ErrText(m.cat, m.digestErr), w, "  ", "    ")
+		return text.WrapHang(th.S(theme.Err, "✗ ")+ui.ErrText(m.rw, m.digestErr), w, "  ", "    ")
 	case m.digest == nil:
 		return []string{"  " + th.S(theme.Muted, m.t("rn.digest.hint"))}
 	}
@@ -412,7 +410,7 @@ func (m *Model) digestLines(env ui.Env, w int) []string {
 	for _, d := range rep.Digests {
 		out = append(out, "")
 		for _, l := range strings.Split(strings.TrimRight(d.Text, "\n"), "\n") {
-			out = append(out, text.Truncate("  "+l, w))
+			out = append(out, "  "+l)
 		}
 		out = append(out, "  "+th.S(theme.Muted, m.t("rn.digest.tokens", i18n.A{"tokens": d.Tokens})))
 	}
@@ -427,4 +425,13 @@ func (m *Model) digestLines(env ui.Env, w int) []string {
 		}
 	}
 	return out
+}
+
+// LessonCursor trả bài học dưới con trỏ ở thẻ Bài học (nil nếu con trỏ không ở hàng bài học, ví dụ tiêu đề nhóm).
+func (m *Model) LessonCursor() *evolve.LessonRow {
+	rows := m.lessonRows()
+	if m.llst.Cursor < 0 || m.llst.Cursor >= len(rows) {
+		return nil
+	}
+	return rows[m.llst.Cursor].row
 }

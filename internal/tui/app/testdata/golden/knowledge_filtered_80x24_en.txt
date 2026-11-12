@@ -21,4 +21,4 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[a→ Approve] [r→ Reject] [Enter→ Open] [q→ Quit] [?→ Help]───────────────────┘
+└─[a→ Approve] [r→ Reject] [Enter→ Open] [:→ Commands] [q→ Quit] [?→ Help]─────┘

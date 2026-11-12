@@ -7,10 +7,11 @@
 │ │  Chờ bạn (2)                                         ││  •requirement  •plan  •tasks                                                 │ │
 │ │ ▸ ! bị chặn     1TASK1 Thêm cột email                ││ ! [ac_gap] tasks.md: AC-2 chưa có TSK                                        │ │
 │ │   ✗ thất bại    1TASK2 Đổi cách tính phí             ││                                                                              │ │
-│ │  Đang làm (1)                                        ││ ── requirement.md ────────────────────────────────────────────────────────── │ │
-│ │   ▶ đang làm    1TASK4 Thêm màn Tác vụ               ││ Yêu cầu                                                                      │ │
-│ │  Sắp làm (1)                                         ││ ───────                                                                      │ │
-│ │   ◌ sẵn sàng    1TASK5 Viết tài liệu cài đặt         ││                                                                              │ │
+│ │  Đang làm (1)                                        ││ ── requirement.md                                                            │ │
+│ │   ▶ đang làm    1TASK4 Thêm màn Tác vụ               ││   ──────────────────────────────────────────────────────────                 │ │
+│ │  Sắp làm (1)                                         ││ Yêu cầu                                                                      │ │
+│ │   ◌ sẵn sàng    1TASK5 Viết tài liệu cài đặt         ││ ───────                                                                      │ │
+│ │                                                      ││                                                                              │ │
 │ │                                                      ││ Tiêu chí chấp nhận                                                           │ │
 │ │                                                      ││ ──────────────────                                                           │ │
 │ │                                                      ││ [ ] AC-1: Danh sách theo trạng thái                                          │ │
@@ -35,6 +36,5 @@
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
 │ └──────────────────────────────────────────────────────┘└─ d Tài liệu kế  e Sửa ───────────────────────────────────────────────────────┘ │
-└─[r→ Chạy] [c→ Tiếp tục] [a→ Duyệt] [Enter→ Mở] [q→ Thoát] [?→ Trợ giúp]──────────────────────────────────────────────────────────────────┘
+└─[r→ Chạy] [c→ Tiếp tục] [a→ Duyệt] [Enter→ Mở] [:→ Lệnh] [q→ Thoát] [?→ Trợ giúp]────────────────────────────────────────────────────────┘

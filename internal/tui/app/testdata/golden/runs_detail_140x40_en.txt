@@ -21,8 +21,8 @@
 │ │                                                                  ││   file.modified  internal/db/db.go (×2)                          │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││ Events (2)                                                       │ │
-│ │                                                                  ││   2026-11-11 08:00  session.started  {"model":"claude-opus-5-5…  │ │
-│ │                                                                  ││   2026-11-11 08:01  file.modified    {"path":"internal/db/db.g…  │ │
+│ │                                                                  ││ 2026-11-11 08:00 session.started {"model":"claude-opus-5-5"}     │ │
+│ │                                                                  ││ 2026-11-11 08:01 file.modified {"path":"internal/db/db.go"}      │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
@@ -36,5 +36,5 @@
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
-│ └─ +/- rate good/bad  S scan Git  I ingest spool  d failure diges…─┘└──────────────────────────────────────────────────────────────────┘ │
+│ └─ +/- rate  S scan Git  I ingest  d failure ──────────────────────┘└──────────────────────────────────────────────────────────────────┘ │
 └─[+/-→ Rate] [S→ Scan Git] [I→ Ingest spool] [:→ Commands] [q→ Quit] [?→ Help]────────────────────────────────────────────────────────────┘

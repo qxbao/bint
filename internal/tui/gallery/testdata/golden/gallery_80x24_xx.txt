@@ -9,16 +9,16 @@
 │   ⟦Ov~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧      │
 │                                                                              │
 │ ▌ ⟦Footer by priority (wide, medium, narrow)~~~~~~~~~~~~~~~~~⟧               │
-│   [Enter→ ⟦Open~~⟧] [a→ ⟦Approve~~~⟧] [?→ ⟦Help~~⟧] [q→ ⟦Quit~~⟧]            │
-│   [Enter→ ⟦Open~~⟧] [?→ ⟦Help~~⟧] [q→ ⟦Quit~~⟧]                              │
-│   [?→ ⟦Help~~⟧] [q→ ⟦Quit~~⟧]                                                │
+│   [Enter→ ⟦Ope…] [a→ ⟦App…] [/→ ⟦Sea…] [:→ ⟦Com…] [?→ ⟦Hel…] [q→ ⟦Qui…]      │
+│   [Enter→ ⟦O…] [a→ ⟦A…] [/→ ⟦S…] [:→ ⟦C…] [?→ ⟦H…] [q→ ⟦Q…]                  │
+│   [Enter] [a] [/] [:] [?] [q]                                                │
 │                                                                              │
 │ ▌ ⟦Frame with a title on the border~~~~~~~~~~~~~⟧                            │
 │ ┌─│⟦Knowledge~~~~⟧│───────────────────────────────⟦side~~⟧─┐                 │
 │ │ ⟦Frame content; accented text: ắ ề ộ ữ ợ~~~~~~~~~~~~~~~… │                 │
 │ │                                                          │                 │
 │ │                                                          │                 │
-│ └─[?→ ⟦Help~~⟧] [q→ ⟦Quit~~⟧]──────────────────────────────┘                 │
+│ └─[Enter] [a] [/] [:] [?] [q]──────────────────────────────┘                 │
 │                                                                              │
 │ ▌ ⟦Logo~~⟧                                                                   │
 └─ ⟦color mode~~~~⟧: mono · ⟦language~~~~⟧: xx · [m] ⟦color~~⟧  [l] ⟦language…─┘

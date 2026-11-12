@@ -6,6 +6,7 @@ package palette
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -13,6 +14,7 @@ import (
 
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 )
 
@@ -186,6 +188,26 @@ func ScoreItem(query string, it Item) (int, bool) {
 	return best, found
 }
 
+// RowZone là id vùng bấm của dòng i trong danh sách đã khớp ("pal:<i>").
+func RowZone(i int) string { return "pal:" + strconv.Itoa(i) }
+
+// ParseRowZone trả chỉ số dòng của id vùng "pal:<i>".
+func ParseRowZone(id string) (int, bool) {
+	rest, ok := strings.CutPrefix(id, "pal:")
+	if !ok {
+		return 0, false
+	}
+	i, err := strconv.Atoi(rest)
+	return i, err == nil && i >= 0
+}
+
+// SetCursor đặt con trỏ ở dòng i (nếu hợp lệ).
+func (m *Model) SetCursor(i int) {
+	if i >= 0 && i < len(m.matches) {
+		m.Cursor = i
+	}
+}
+
 // View vẽ bảng lệnh trong khung rộng w, cao h. title là tiêu đề khung; empty là chuỗi khi không khớp.
 func (m Model) View(th theme.Theme, w, h int, title, empty string) string {
 	iw, ih := frame.Inner(w, h)
@@ -231,7 +253,7 @@ func (m Model) View(th theme.Theme, w, h int, title, empty string) string {
 		if selected {
 			marker = th.S(theme.Accent, "▸ ")
 		}
-		lines = append(lines, marker+left+gap+th.S(role, right))
+		lines = append(lines, zone.Mark(RowZone(i), marker+left+gap+th.S(role, right)))
 	}
 	return frame.Box{Title: title, TitleAt: frame.Left, Focused: true}.Render(th, w, h, strings.Join(lines, "\n"))
 }

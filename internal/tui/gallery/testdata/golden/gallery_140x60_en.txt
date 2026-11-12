@@ -10,15 +10,15 @@
 │                                                                                                                                          │
 │ ▌ Footer by priority (wide, medium, narrow)                                                                                              │
 │   [Enter→ Open] [a→ Approve] [/→ Search] [:→ Commands] [?→ Help] [q→ Quit]                                                               │
-│   [Enter→ Open] [a→ Approve] [/→ Search] [?→ Help] [q→ Quit]                                                                             │
-│   [Enter→ Open] [?→ Help] [q→ Quit]                                                                                                      │
+│   [Enter→ Op…] [a→ Ap…] [/→ Se…] [:→ Co…] [?→ He…] [q→ Qu…]                                                                              │
+│   [Enter] [a] [/] [:] [?] [q]                                                                                                            │
 │                                                                                                                                          │
 │ ▌ Frame with a title on the border                                                                                                       │
 │ ┌─│Knowledge│─────────────────────────────────────────side─┐                                                                             │
 │ │ Frame content; accented text: ắ ề ộ ữ ợ                  │                                                                             │
 │ │                                                          │                                                                             │
 │ │                                                          │                                                                             │
-│ └─[Enter→ Open] [?→ Help] [q→ Quit]────────────────────────┘                                                                             │
+│ └─[Enter] [a] [/] [:] [?] [q]──────────────────────────────┘                                                                             │
 │                                                                                                                                          │
 │ ▌ Logo                                                                                                                                   │
 │   ██      ██            ██                                                                                                               │

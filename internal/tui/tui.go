@@ -6,7 +6,6 @@ import (
 	"context"
 	"io"
 	"os"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -48,7 +47,7 @@ func ResolveLang(flag, cfgLang string, getenv func(string) string) string {
 // DetectMode chọn chế độ màu: NO_COLOR hoặc terminal không màu → đơn sắc; terminal 16 màu → ANSI16;
 // ngược lại theo nền terminal.
 func DetectMode(getenv func(string) string, p colorprofile.Profile, darkBackground bool) theme.Mode {
-	noColor := strings.TrimSpace(getenv("NO_COLOR")) != "" || p <= colorprofile.ASCII
+	noColor := getenv("NO_COLOR") != "" || p <= colorprofile.ASCII // no-color.org: biến có mặt và khác rỗng (kể cả "0" hay khoảng trắng)
 	return theme.Detect(noColor, p == colorprofile.ANSI, darkBackground)
 }
 

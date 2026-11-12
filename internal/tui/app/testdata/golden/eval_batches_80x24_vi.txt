@@ -21,4 +21,4 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ └─ r chạy  R chạy tiếp  b mốc  B dựng tri thức  C dọn ─────────────────────┘ │
-└─[m→ Khai thác] [a→ Duyệt] [x→ Loại] [r→ Chạy đợt] [q→ Thoát] [?→ Trợ giúp]───┘
+└─[m→ Khai] [a→ Duyệt] [x→ Loại] [r→ Chạy] [:→ Lệnh] [q→ Thoát] [?→ Trợ]───────┘

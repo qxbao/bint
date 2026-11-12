@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│ ‹ Components Skills Index MCP Language Doctor Setup  Update                  │
+│  Config Harness Components Skills Index MCP Language Doctor Setup  Update    │
 │ ┌─│Update Bint│────────────────────────────────────────────────────────────┐ │
 │ │                                                                          │ │
 │ │  Running      0.1.0 (abc1234)                                            │ │

@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy                                │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Evaluation│─────────────────────────────────────────────────────────────────┐
-│   Candidates · Cases · Batches · ⠋Log                                        │
+│   Candidates · Cases · Batches · ⠋ Log                                       │
 │ ┌─│Log│──────────────────────────────────────────────────Esc cancel safely─┐ │
 │ │ ── Progress by cell (case × arm × repeat) ────────────────────────────── │ │
 │ │ 3/8 runs done                                                            │ │
@@ -21,4 +21,4 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────┘
+└─[m→ Mine] [a→ Appr…] [x→ Reje…] [r→ Run] [:→ Comm…] [q→ Quit] [?→ Help]──────┘

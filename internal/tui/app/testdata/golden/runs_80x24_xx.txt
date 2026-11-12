@@ -20,5 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ └─ +/- ⟦rate good/bad~~~~~~⟧  S ⟦scan Git~~~~⟧  I ⟦ingest spool~~~~~⟧  d …─┘ │
-└─[+/-→ ⟦Rate~~⟧] [S→ ⟦Scan Git~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────┘
+│ └─ +/- ⟦rate  S ⟦scan  I ⟦ingest  d ⟦failure ──────────────────────────────┘ │
+└─[+/-→ ⟦Rat…] [S→ ⟦Scan] [I→ ⟦Ing…] [:→ ⟦Com…] [q→ ⟦Qui…] [?→ ⟦Hel…]──────────┘

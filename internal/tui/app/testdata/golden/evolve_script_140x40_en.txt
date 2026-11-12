@@ -10,7 +10,8 @@
 │ │   ◌ 00GUAR proposed create    medium -         -         Thất b… ││ Description   Kiểm tra nhanh                                     │ │
 │ │ ▸ ◌ 00SCRI proposed create    high   -         -         Thất b… ││ Usage         bash kiem-tra-nhanh.sh                             │ │
 │ │   ◌ 00STRA proposed create    medium -         -         Thất b… ││                                                                  │ │
-│ │                                                                  ││ ⚠ Bint never runs this script by itself; it always waits for a … │ │
+│ │                                                                  ││ ⚠ Bint never runs this script by itself; it always waits for a   │ │
+│ │                                                                  ││   human to approve.                                              │ │
 │ │                                                                  ││ Script (content)                                                 │ │
 │ │                                                                  ││   #!/bin/sh                                                      │ │
 │ │                                                                  ││   go vet ./...                                                   │ │
@@ -35,6 +36,5 @@
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
-│ │                                                                  ││                                                                  │ │
 │ └─ a apply  x reject  u roll back  E compare  A all states ────────┘└─ v sub-tab  Enter view detail ───────────────────────────────────┘ │
-└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [q→ Quit] [?→ Help]────────────────────────────────────────────────────────────────────────┘
+└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [:→ Commands] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────┘

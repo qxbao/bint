@@ -4,9 +4,11 @@
 package list
 
 import (
+	"strconv"
 	"strings"
 
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 )
 
 // Model là trạng thái cuộn của danh sách N hàng.
@@ -66,12 +68,25 @@ func (m *Model) Render(w, h int, row func(i int, cursor bool) string) string {
 	from, to := m.Visible(h)
 	out := make([]string, 0, h)
 	for i := from; i < to; i++ {
-		out = append(out, text.Fit(row(i, i == m.Cursor), w))
+		out = append(out, zone.Mark(RowZone(i), text.Fit(row(i, i == m.Cursor), w)))
 	}
 	for len(out) < h {
 		out = append(out, strings.Repeat(" ", w))
 	}
 	return strings.Join(out, "\n")
+}
+
+// RowZone là id vùng bấm của hàng i ("r:<i>"); màn hình đổi id này về chỉ số hàng khi nhận chuột.
+func RowZone(i int) string { return "r:" + strconv.Itoa(i) }
+
+// ParseRowZone trả chỉ số hàng của id vùng "r:<i>".
+func ParseRowZone(id string) (int, bool) {
+	rest, ok := strings.CutPrefix(id, "r:")
+	if !ok {
+		return 0, false
+	}
+	i, err := strconv.Atoi(rest)
+	return i, err == nil && i >= 0
 }
 
 // Selection là tập ID được chọn.

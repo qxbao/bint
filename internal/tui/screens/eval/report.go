@@ -132,7 +132,7 @@ func (m *Model) reportLines(th theme.Theme, rep *eval.Report, w int) []string {
 		if d.Level == "warn" {
 			icon = th.S(theme.Warn, "!")
 		}
-		lines = append(lines, text.WrapHang(icon+" "+d.Detail, w, "  ", "    ")...)
+		lines = append(lines, text.WrapHang(icon+" "+m.cli(d.Detail), w, "  ", "    ")...)
 	}
 
 	if g := rep.Gate2; g != nil {
@@ -140,7 +140,7 @@ func (m *Model) reportLines(th theme.Theme, rep *eval.Report, w int) []string {
 		for _, c := range g.Checks {
 			lines = append(lines, text.WrapHang("· "+c, w, "  ", "    ")...)
 		}
-		lines = append(lines, text.WrapHang("→ "+g.Cause+": "+g.Detail, w, "  ", "    ")...)
+		lines = append(lines, text.WrapHang("→ "+g.Cause+": "+m.cli(g.Detail), w, "  ", "    ")...)
 		for _, a := range rep.Arms {
 			if a.Arm == eval.ArmIdeal {
 				lines = append(lines, text.WrapHang(th.S(theme.Muted, m.t("eval.rep.gate2.ideal")), w, "  ", "    ")...)

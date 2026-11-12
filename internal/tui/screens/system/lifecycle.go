@@ -106,7 +106,7 @@ func (m *Model) openSetup(waitLoad bool) tea.Cmd {
 		return nil
 	case s.Err != nil:
 		m.setupPending = false
-		m.setToast(m.t("sy.setup.loaderr", i18n.A{"err": ui.ErrText(m.cat, s.Err)}), true)
+		m.setToast(m.t("sy.setup.loaderr", i18n.A{"err": ui.ErrText(m.rw, s.Err)}), true)
 		return nil
 	}
 	m.setupPending = false
@@ -138,8 +138,9 @@ func (m *Model) submitSetup(v app.InitFlagOptions) tea.Cmd {
 	return m.request("system.repo_plan", m.setupSteps[0])
 }
 
+// resetSetupRun xoá trạng thái một lần chạy nhiều bước (kể cả cờ "có vấn đề"), gọi ở mọi đường kết thúc: xong, lỗi, yêu cầu trực tiếp.
 func (m *Model) resetSetupRun() {
-	m.setupSteps, m.setupPlans, m.setupIdx, m.setupRep = nil, nil, 0, nil
+	m.setupSteps, m.setupPlans, m.setupIdx, m.setupRep, m.setupProblem = nil, nil, 0, nil, false
 }
 
 // onRepoPlan nhận kế hoạch của một bước; còn bước thì xin tiếp, hết thì hiện hộp xem trước gồm từng bước kèm dòng CLI tương đương.
@@ -195,7 +196,7 @@ func (m *Model) planLines(pl app.InitPlan) []string {
 		ci := icon[it.Change]
 		line := ci.s + " " + m.t("wiz.change."+string(it.Change)) + "  " + text.TildeIn(it.Path)
 		if it.Detail != "" {
-			line += "  " + m.th.S(theme.Muted, text.TildeIn(it.Detail))
+			line += "  " + m.th.S(theme.Muted, m.cli(text.TildeIn(it.Detail)))
 		}
 		line = m.th.S(ci.role, ci.s) + line[len(ci.s):]
 		if it.Change == app.PlanKeep {
@@ -217,14 +218,24 @@ func (m *Model) planLines(pl app.InitPlan) []string {
 // onRepoApply nhận báo cáo của một bước; chạy bước kế tiếp (dừng ở lỗi đầu tiên), hết bước thì hiện báo cáo gộp và nạp lại thẻ.
 func (m *Model) onRepoApply(msg actions.ResultMsg) tea.Cmd {
 	o, _ := msg.Opts.(app.InitFlagOptions)
-	if m.setupIdx >= len(m.setupSteps) || !reflect.DeepEqual(m.setupSteps[m.setupIdx], o) {
-		m.setupSteps, m.setupIdx, m.setupRep = []app.InitFlagOptions{o}, 0, nil
+	if m.setupIdx >= len(m.setupSteps) || !reflect.DeepEqual(m.setupSteps[m.setupIdx], o) { // yêu cầu trực tiếp, không qua form
+		m.resetSetupRun()
+		m.setupSteps = []app.InitFlagOptions{o}
 	}
 	steps, idx := m.setupSteps, m.setupIdx
 	if msg.Err != nil {
+		// Bước sau lỗi: giữ báo cáo các bước đã xong (ví dụ hook đã gỡ ở phạm vi cũ) kèm dòng lỗi "Bước i/n", để người dùng thấy
+		// trạng thái đã đổi tới đâu; thẻ nạp lại vì các bước trước có thể đã đổi trạng thái.
+		errText := ui.ErrText(m.rw, msg.Err)
+		line := m.th.S(theme.Err, "✗ ") + errText
+		if len(steps) > 1 {
+			line = m.th.S(theme.Err, "✗ "+m.t("sy.setup.step.failed", i18n.A{"n": idx + 1, "total": len(steps)})+": ") + errText
+		}
+		lines := append(append([]string(nil), m.setupRep...), line)
+		m.showOut(m.t("sy.setup.failed.title"), lines)
+		m.setToast(m.t("sy.setup.failed", i18n.A{"n": idx + 1, "total": len(steps), "err": errText}), true)
 		m.resetSetupRun()
-		m.fail(msg.Err)
-		return tea.Batch(m.reload(TabSetup), m.reload(TabConfig)) // bước trước có thể đã đổi trạng thái
+		return tea.Batch(m.reload(TabSetup), m.reload(TabConfig))
 	}
 	rep, _ := msg.Value.(*app.InitReport)
 	if rep != nil {
@@ -239,17 +250,13 @@ func (m *Model) onRepoApply(msg actions.ResultMsg) tea.Cmd {
 	}
 	problem := m.setupProblem
 	m.showOut(m.t("sy.setup.applied.title"), m.setupRep)
-	m.setToast(m.t("sy.setup.applied", i18n.A{"problem": boolInt(problem)}), problem)
-	m.resetSetupRun()
-	m.setupProblem = false
-	return tea.Batch(m.reload(TabSetup), m.reload(TabConfig))
-}
-
-func boolInt(b bool) int {
-	if b {
-		return 1
+	if problem {
+		m.setToast(m.t("sy.setup.applied.problem"), true)
+	} else {
+		m.setToast(m.t("sy.setup.applied"), false)
 	}
-	return 0
+	m.resetSetupRun()
+	return tea.Batch(m.reload(TabSetup), m.reload(TabConfig))
 }
 
 // reportLines dựng báo cáo các bước của app.InitReport (dùng cho khung kết quả).
@@ -267,14 +274,14 @@ func (m *Model) reportLines(rep *app.InitReport) []string {
 		ci := icon[s.Status]
 		l := m.th.S(ci.role, ci.s) + " " + text.TildeIn(s.Name)
 		if s.Detail != "" {
-			l += "  " + m.th.S(theme.Muted, text.TildeIn(s.Detail))
+			l += "  " + m.th.S(theme.Muted, m.cli(text.TildeIn(s.Detail)))
 		}
 		out = append(out, l)
 	}
 	if len(rep.NextSteps) > 0 {
 		out = append(out, "", m.th.Bold(m.t("wiz.next")))
 		for i, s := range rep.NextSteps {
-			out = append(out, string(rune('1'+i))+". "+s)
+			out = append(out, string(rune('1'+i))+". "+m.cli(s))
 		}
 	}
 	return out
@@ -303,7 +310,7 @@ func (m *Model) onUpgradePlan(msg actions.ResultMsg) tea.Cmd {
 	if msg.Err != nil {
 		var le app.LinkedWorktreeError
 		if errors.As(msg.Err, &le) { // worktree phụ: không đổi tệp nào, nói rõ chỗ phải làm (mục 7.5)
-			m.infoBox(m.t("sy.upgrade.worktree.title"), append(wrapText(ui.ErrText(m.cat, msg.Err), 72), "", m.th.S(theme.Accent, "cd "+le.Main+" && bint")))
+			m.infoBox(m.t("sy.upgrade.worktree.title"), append(wrapText(ui.ErrText(m.rw, msg.Err), 72), "", m.th.S(theme.Accent, "cd "+le.Main+" && bint")))
 			return nil
 		}
 		m.fail(msg.Err)
@@ -319,7 +326,7 @@ func (m *Model) onUpgradePlan(msg actions.ResultMsg) tea.Cmd {
 		body = append(body, m.t("sy.upgrade.fixed", i18n.A{"count": pl.Fixed}))
 	}
 	for _, n := range pl.Notes {
-		body = append(body, m.th.S(theme.Warn, "! "+n))
+		body = append(body, m.th.S(theme.Warn, "! "+m.cli(n)))
 	}
 	// Lưu ý sao lưu đứng trước diff: diff dài sẽ cuộn, còn dòng này phải đọc được ngay.
 	body = append(body, m.th.S(theme.Muted, m.t("sy.upgrade.backup_note")), "")

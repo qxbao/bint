@@ -14,8 +14,8 @@
 │ │  ! Bản đang chạy là /usr/local/bin/bint, khác tệp vừa cài; kiểm tra      │ │
 │ │    PATH (which bint) nếu lệnh bint vẫn là bản cũ.                        │ │
 │ │  Chưa khởi động lại: bản đang chạy vẫn là bản cũ.                        │ │
-│ │  Chạy bint init --update hoặc bint sync trong từng repository để xuất    │ │
-│ │  bản skill mới.                                                          │ │
+│ │  Ở từng repository, nhấn U ở Hệ thống › Cấu hình hoặc s ở Hệ thống ›     │ │
+│ │  Skill để xuất bản skill mới.                                            │ │
 │ │                                                                          │ │
 │ │  Log go install                                                          │ │
 │ │   go: downloading modernc.org/sqlite v1.34.0                             │ │

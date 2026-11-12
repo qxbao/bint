@@ -8,8 +8,8 @@
 │ │   knowledge_search       Tìm tri thức theo từ khoá         ││                                                                        │ │
 │ │   cite_knowledge         Báo mục tri thức đã áp dụng       ││ Gói ngữ cảnh cho một tác vụ                                            │ │
 │ │                                                            ││                                                                        │ │
-│ │                                                            ││ Tools exposed to agents through `bint mcp serve` (stdio). Per-harnes…  │ │
-│ │                                                            ││                                                                        │ │
+│ │                                                            ││ Tools exposed to agents through `bint mcp serve` (stdio). Per-harness  │ │
+│ │                                                            ││   registration: Harness tab.                                           │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │

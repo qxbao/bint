@@ -4,6 +4,8 @@ package viewer
 import (
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/theme"
 )
@@ -30,6 +32,22 @@ func (m *Model) SetLines(l []string) {
 		}
 	}
 	m.clamp()
+}
+
+// SetWrapped như SetLines nhưng ngắt dòng dài hơn w ô thay vì để bị cắt khi vẽ: dòng tiếp thụt theo dòng gốc cộng 2 ô (giữ nguyên mã màu).
+func (m *Model) SetWrapped(l []string, w int) {
+	out := make([]string, 0, len(l))
+	for _, s := range l {
+		s = strings.ReplaceAll(s, "\t", "    ")
+		if w <= 0 || text.Width(s) <= w {
+			out = append(out, s)
+			continue
+		}
+		plain := ansi.Strip(s)
+		hang := strings.Repeat(" ", len(plain)-len(strings.TrimLeft(plain, " "))+2)
+		out = append(out, text.WrapHang(s, w, "", hang)...)
+	}
+	m.SetLines(out)
 }
 
 // SetText đặt nội dung từ chuỗi nhiều dòng (không ngắt dòng; người gọi tự bọc theo độ rộng).

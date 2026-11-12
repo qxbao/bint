@@ -21,4 +21,4 @@
 │ │   · not verified yet (press v)                                           │ │
 │ │                                                                          │ │
 │ └─ e edit  Enter switch pane ──────────────────────────────────────────────┘ │
-└─[m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [q→ Quit] [?→ Help]──────────────┘
+└─[m→ Mine] [a→ Appr…] [x→ Reje…] [r→ Run] [:→ Comm…] [q→ Quit] [?→ Help]──────┘

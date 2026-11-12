@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│ ‹ Skill Chỉ mục MCP Ngôn ngữ Doctor  Cài đặt  Cập nhật                       │
+│ ‹ Thành phần Skill Chỉ mục MCP Ngôn ngữ Doctor  Cài đặt  Cập nhật            │
 │ ┌─│Cài đặt repo│───────────────────────────────────────────────────────────┐ │
 │ │                                                                          │ │
 │ │ ┌─│Xem trước init│─────────────────────────────────────────────────────┐ │ │
@@ -17,8 +17,8 @@
 │ │ │                                                                      │ │ │
 │ │ │ [Enter] Chạy init   [Esc] Huỷ                                        │ │ │
 │ │ └──────────────────────────────────────────────────────────────────────┘ │ │
-│ │  Mẫu cấu hình   ! mẫu cũ, thiếu: harnesses.claude.models, harnesses.cod… │ │
+│ │ Mẫu cấu hình ! mẫu cũ, thiếu: harnesses.claude.models,                   │ │
+│ │    harnesses.codex.models                                                │ │
 │ │                                                                          │ │
-│ │  Chạy lại init với form điền sẵn trạng thái hiện tại; chỉ phần bạn đổi   │ │
 │ └─ e Sửa  U Nâng mẫu ──────────────────────────────────────────────────────┘ │
 └─[Esc→ Thoát]─────────────────────────────────────────────────────────────────┘

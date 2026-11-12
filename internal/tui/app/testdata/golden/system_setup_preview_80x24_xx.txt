@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧  ⟦Setup~~⟧  ⟦Update~~~⟧                 │
+│ ‹ ⟦Index~~⟧ ⟦MCP~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧  ⟦Setup~~⟧  ⟦Update~~~⟧       │
 │ ┌─│⟦Repo setup~~~~⟧│───────────────────────────────────────────────────────┐ │
 │ │ ┌─│⟦Init preview~~~~~⟧│────────────────────────────────────────────────┐ │ │
 │ │ │ + ⟦create~~~⟧  .mcp.json  đăng ký MCP server của Bint cho claude     │ │ │
@@ -18,7 +18,7 @@
 │ │ │                                                                      │ │ │
 │ │ │ [Enter] ⟦Run init~~~~⟧   [Esc] ⟦Cancel~~~⟧                           │ │ │
 │ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ │    harnesses.claude.models, harnesses.codex.models~~~~~~~~~~⟧            │ │
 │ │                                                                          │ │
-│ │  ⟦Re-runs init with a form prefilled from the current state; only what   │ │
 │ └─ e ⟦Edit~~⟧  U ⟦Upgrade template~~~~~~~⟧ ────────────────────────────────┘ │
 └─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

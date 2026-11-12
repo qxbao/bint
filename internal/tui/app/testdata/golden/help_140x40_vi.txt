@@ -4,6 +4,8 @@
 ┌─│Tổng quan│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                           ┌─│Trợ giúp│───────────────────────────────────────────────────────────────────────┐                           │
 │                           │ Tổng quan                                                                        │                           │
+│                           │  Tổng quan: tình trạng repository và hộp thư “Việc cần bạn” (mục chờ duyệt,      │                           │
+│                           │  cảnh báo doctor). Enter ở một dòng mở màn xử lý nó.                             │                           │
 │                           │  r       Làm mới trạng thái repository  bint status                              │                           │
 │                           │          Kiểm tra môi trường (doctor)  bint doctor                               │                           │
 │                           │                                                                                  │                           │
@@ -12,6 +14,8 @@
 │                           │  ?       Mở bảng trợ giúp đầy đủ                                                 │                           │
 │                           │  :       Mở bảng lệnh (tìm mọi hành động)                                        │                           │
 │                           │  L       Đổi ngôn ngữ giao diện (vi ⇄ en)                                        │                           │
+│                           │  !       Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi màn hình     │                           │
+│                           │          Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân trang)      │                           │
 │                           │  ]       Chuyển tới tab kế tiếp                                                  │                           │
 │                           │  [       Chuyển về tab trước                                                     │                           │
 │                           │  1-7     Chuyển nhanh tới một tab                                                │                           │
@@ -23,11 +27,7 @@
 │                           │  d       Loại bỏ một mục (→ deprecated, cần lý do)  bint knowledge deprecate     │                           │
 │                           │  A       Duyệt hàng loạt (mục được chọn hoặc cả danh sách đang lọc); mục có lỗi… │                           │
 │                           │  R       Từ chối hàng loạt (mục được chọn hoặc cả danh sách đang lọc)            │                           │
-│                           │          Lập kế hoạch duyệt lô: mục nào ghi được, mục nào bị loại                │                           │
-│                           │  e       Sửa mục trong $EDITOR rồi đọc lại                                       │                           │
-│                           │  n       Thêm một mục tri thức (form)  bint knowledge add                        │                           │
-│                           │ … (còn nữa; phóng to cửa sổ để xem hết)                                          │                           │
-│                           └──────────────────────────────────────────────────────────────────────────────────┘                           │
+│                           └───────────────────────────────────────────────────────────────────────1–24/175 ↕─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

@@ -14,7 +14,7 @@
 │ │ │   migrations/002.sql                                                 │ │ │
 │ │ │   Review the diff before approving.                                  │ │ │
 │ │ │                                                                      │ │ │
-│ │ │ Then continue with bint run resume 01TASK1 (key c).                  │ │ │
+│ │ │ Then continue with key c in Tasks 01TASK1.                           │ │ │
 │ │ │                                                                      │ │ │
 │ │ │ Also approve files (optional, comma-separated): ▏                    │ │ │
 │ │ │                                                                      │ │ │

@@ -19,6 +19,7 @@ import (
 	"bint/internal/tui/components/viewer"
 	"bint/internal/tui/jobs"
 	"bint/internal/tui/theme"
+	"bint/internal/tui/ui"
 )
 
 // WideW: từ chiều rộng này danh sách và chi tiết hiện cạnh nhau; hẹp hơn thì một khung (Tab/Enter đổi).
@@ -74,6 +75,7 @@ type reportEntry struct {
 type Model struct {
 	o   Options
 	cat *i18n.Catalog
+	rw  ui.Rewriter
 	th  theme.Theme
 
 	Data        Data
@@ -143,7 +145,7 @@ func New(o Options) *Model {
 }
 
 // SetEnv đặt danh mục chuỗi và bảng màu (gọi lại khi đổi ngôn ngữ).
-func (m *Model) SetEnv(th theme.Theme, cat *i18n.Catalog) { m.th, m.cat = th, cat }
+func (m *Model) SetEnv(th theme.Theme, rw ui.Rewriter) { m.th, m.rw, m.cat = th, rw, rw.Cat }
 
 func (m *Model) t(key string, a ...i18n.A) string { return m.cat.T(key, a...) }
 
@@ -1003,3 +1005,6 @@ func (m *Model) Command(id string) tea.Cmd {
 	}
 	return nil
 }
+
+// cli viết lại đoạn nhắc lệnh CLI trong thông điệp của tầng dịch vụ thành phím/hành động TUI (ui.Rewrite).
+func (m *Model) cli(s string) string { return m.rw.Rewrite(s) }

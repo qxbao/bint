@@ -11,6 +11,7 @@ import (
 	kn "bint/internal/knowledge"
 	"bint/internal/testutil"
 	"bint/internal/tui/actions"
+	"bint/internal/tui/ui"
 )
 
 // newRealRepo dựng repository thật có một mục tri thức kèm bằng chứng.
@@ -86,7 +87,7 @@ func TestDefaultRejectReasonIgnoresLocale(t *testing.T) {
 	for _, loc := range []string{"vi", "en"} {
 		h := newHarness(t, sample(), Options{})
 		h.cat = i18n.MustLoad(loc)
-		h.m.SetEnv(h.th, h.cat)
+		h.m.SetEnv(h.th, ui.Rewriter{Cat: h.cat})
 		h.key("r")
 		h.key("enter")
 		r := h.lastReq()
@@ -128,7 +129,7 @@ func TestEvidenceMoreFormattedByLocale(t *testing.T) {
 	items := sample()
 	h := newHarness(t, items, Options{})
 	h.cat = i18n.MustLoad("en")
-	h.m.SetEnv(h.th, h.cat)
+	h.m.SetEnv(h.th, ui.Rewriter{Cat: h.cat})
 	h.m.cache[items[0].ID] = app.KnowledgeDetail{Item: items[0], Check: kn.Result{ID: items[0].ID},
 		Evidence: []app.EvidenceView{{Evidence: items[0].Evidence[0], Lines: []string{"   1  package a"}, More: 7}}}
 	out := h.view(120, 40)

@@ -469,7 +469,7 @@ func TestUpdateTabShowsLiveLogAndEscCancels(t *testing.T) {
 	if f.m.exitDlg == nil {
 		t.Fatal("còn việc cập nhật: phải mở hộp thoát")
 	}
-	hasAll(t, f.screen(), "bint update")
+	hasAll(t, f.screen(), "update")
 	f.press("esc") // Ở lại
 	// Esc huỷ việc nền.
 	f.pump(func() bool { return f.m.jobs.Len() == 0 && !strings.Contains(f.screen(), "Đang build") }, func() tea.Msg {

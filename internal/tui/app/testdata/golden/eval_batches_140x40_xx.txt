@@ -36,5 +36,5 @@
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
-│ └─ r ⟦run~~⟧  R ⟦resume~~~⟧  b ⟦baseline~~~~⟧  B ⟦bootstrap~~~~⟧ …─┘└─ b ⟦baseline~~~~⟧  Enter ⟦switch pane~~~~~⟧ ─────────────────────┘ │
-└─[m→ ⟦Mine~~⟧] [a→ ⟦Approve~~~⟧] [x→ ⟦Reject~~~⟧] [r→ ⟦Run~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────────────────────────────┘
+│ └─ r ⟦run~~⟧  R ⟦resum…  b ⟦basel…  B ⟦boots…  C ⟦clean… ──────────┘└─ b ⟦baseline~~~~⟧  Enter ⟦switch pane~~~~~⟧ ─────────────────────┘ │
+└─[m→ ⟦Mine~~⟧] [a→ ⟦Approve~~~⟧] [x→ ⟦Reject~~~⟧] [r→ ⟦Run~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────────┘

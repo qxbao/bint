@@ -252,7 +252,7 @@ func clone(c actions.Coverage) actions.Coverage {
 }
 
 // withFakeCmd trả cây lệnh có thêm một lệnh lá giả (zebra) kèm cờ --stripe: các ca ngược dùng nó thay cho lệnh thật, vì danh sách
-// chưa làm của giai đoạn 5 đã rỗng (không còn lệnh thật nào ở Pending).
+// chưa làm của giai đoạn 6 đã rỗng (không còn lệnh thật nào ở Pending).
 func withFakeCmd() *cobra.Command {
 	root := NewRoot(IO{})
 	z := &cobra.Command{Use: "zebra", RunE: func(*cobra.Command, []string) error { return nil }}
@@ -380,9 +380,9 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 			}
 		}
 	})
-	t.Run("danh sách chưa làm đã rỗng, trần 0, giai đoạn 5", func(t *testing.T) {
-		if n := len(actions.Data.Pending) + len(actions.Data.PendingFlags); n != 0 || actions.Data.PendingCeiling != 0 || actions.CurrentPhase != 5 {
-			t.Fatalf("giai đoạn 5 xong: Pending=%d trần=%d phase=%d", n, actions.Data.PendingCeiling, actions.CurrentPhase)
+	t.Run("danh sách chưa làm đã rỗng, trần 0, giai đoạn 6", func(t *testing.T) {
+		if n := len(actions.Data.Pending) + len(actions.Data.PendingFlags); n != 0 || actions.Data.PendingCeiling != 0 || actions.CurrentPhase != 6 {
+			t.Fatalf("giai đoạn 6 xong: Pending=%d trần=%d phase=%d", n, actions.Data.PendingCeiling, actions.CurrentPhase)
 		}
 	})
 	t.Run("trần chưa làm và giai đoạn 6", func(t *testing.T) {
@@ -399,7 +399,7 @@ func TestCoverageCheckerCatchesGaps(t *testing.T) {
 	})
 	t.Run("Pending còn mục của giai đoạn đã xong", func(t *testing.T) {
 		cov := clone(actions.Data)
-		cov.Pending["zebra"] = actions.CurrentPhase // lệnh giả của giai đoạn 5 bị đánh dấu xong sớm
+		cov.Pending["zebra"] = actions.CurrentPhase // lệnh giả của giai đoạn đã xong còn nằm ở Pending
 		if p := check(withFakeCmd(), cov, serviceBindings, actions.CurrentPhase); !mentions(p, `Pending["zebra"]`) {
 			t.Fatalf("%v", p)
 		}

@@ -2,14 +2,14 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│    Cấu hình  Harness Thành phần Skill Chỉ mục MCP Ngôn ngữ ›                 │
+│    Cấu hình  Harness Thành phần Skill Chỉ mục MCP Ngôn ngữ Doctor ›          │
 │ ┌─┌─│Nâng mẫu cấu hình│──────────────────────────────────────────1-13/14─┐─┐ │
 │ │ │ /work/demo/.bint/config.yml                                          │ │ │
 │ │ │ Thêm khoá: harnesses.claude.models                                   │ │ │
 │ │ │ ! giữ model chung đã đặt tay                                         │ │ │
 │ │ │ Giá trị và chú thích sẵn có giữ nguyên; bản cũ được sao lưu vào thư  │ │ │
-│ │ │ mục trạng thái trước khi ghi. Lệnh tương đương bint init --update    │ │ │
-│ │ │ cũng làm mới skill và hook đã cài.                                   │ │ │
+│ │ │ mục trạng thái trước khi ghi. Nâng cấu hình ở Cài đặt (e) cũng làm   │ │ │
+│ │ │ mới skill và hook đã cài.                                            │ │ │
 │ │ │                                                                      │ │ │
 │ │ │ --- .bint/config.yml                                                 │ │ │
 │ │ │ +++ .bint/config.yml (mẫu mới)                                       │ │ │

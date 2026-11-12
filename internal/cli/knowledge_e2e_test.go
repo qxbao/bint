@@ -305,3 +305,35 @@ func TestBootstrapPrintsReportBeforeSkillInstallError(t *testing.T) {
 		t.Fatalf("phải in phần đã làm trước khi báo lỗi:\n%s", out)
 	}
 }
+
+// CLI giữ nguyên chữ nhắc lệnh: lỗi duyệt mục có bằng chứng đã đổi vẫn in `bint knowledge show …` và
+// `bint knowledge approve --refresh …` (chỉ TUI viết lại thành phím, docs/tui-plan.md mục 9).
+func TestApproveChangedEvidenceKeepsCLIWording(t *testing.T) {
+	testutil.Isolate(t)
+	asHuman(t)
+	root := testutil.NewRepo(t, map[string]string{
+		"go.mod":   "module demo\n",
+		"Makefile": "gen:\n\tsqlc generate\n\ntest:\n\tgo test ./...\n",
+	})
+	testutil.Git(t, root, "config", "user.name", "Rev")
+	testutil.Git(t, root, "config", "user.email", "rev@example.com")
+	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
+		t.Fatalf("init: %d\n%s", code, out)
+	}
+	asAgent(t)
+	out, code := run(t, root, "Chạy make gen trước khi commit.\n", "knowledge", "add", "--type", "warning", "--title", "Chạy make gen",
+		"--paths", "Makefile", "--evidence", "Makefile:1-2", "--input", "Makefile", "--json", "-")
+	var added struct {
+		Saved bool   `json:"saved"`
+		ID    string `json:"id"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &added) != nil || !added.Saved {
+		t.Fatalf("agent add: %d\n%s", code, out)
+	}
+	asHuman(t)
+	os.WriteFile(filepath.Join(root, "Makefile"), []byte("gen:\n\tsqlc generate --strict\n\ntest:\n\tgo test ./...\n"), 0o644)
+	out, code = run(t, root, "", "knowledge", "approve", added.ID)
+	if code == 0 || !strings.Contains(out, "`bint knowledge show "+added.ID+"`") || !strings.Contains(out, "`bint knowledge approve --refresh "+added.ID+"`") {
+		t.Fatalf("lỗi duyệt phải giữ nguyên lệnh CLI: %d\n%s", code, out)
+	}
+}

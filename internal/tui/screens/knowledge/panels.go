@@ -296,7 +296,7 @@ func (m *Model) panelResult(p *panel, r actions.ResultMsg) tea.Cmd {
 		icon := map[string]string{"valid": th.S(theme.OK, "✓"), "outdated": th.S(theme.Err, "✗"), "unsure": th.S(theme.Warn, "?")}
 		for _, rv := range v.Results {
 			if rv.Blocked != "" {
-				add(th.S(theme.Warn, "! ") + short(rv.ID) + " " + m.t("kn.revalidate.blocked") + ": " + rv.Blocked)
+				add(th.S(theme.Warn, "! ") + short(rv.ID) + " " + m.t("kn.revalidate.blocked") + ": " + m.cli(rv.Blocked))
 				continue
 			}
 			add(icon[rv.Verdict] + " " + short(rv.ID) + "  " + rv.Verdict + " — " + rv.Reason)
@@ -345,10 +345,10 @@ func (m *Model) publishLines(p *panel, r actions.ResultMsg, rep app.PublishRepor
 	sel := rep.Selection
 	l = append(l, th.Bold(m.t("kn.publish.block", i18n.A{"rules": len(sel.Rules), "warnings": len(sel.Warnings)})))
 	for _, o := range sel.Omitted {
-		l = append(l, th.S(theme.Muted, "  - "+m.t("kn.publish.omitted", i18n.A{"id": short(o.ID), "reason": o.Reason})))
+		l = append(l, th.S(theme.Muted, "  - "+m.t("kn.publish.omitted", i18n.A{"id": short(o.ID), "reason": m.cli(o.Reason)})))
 	}
 	for _, s := range rep.Steps {
-		l = append(l, "  "+stepIcon(s.Status)+" "+s.Name+" "+s.Detail)
+		l = append(l, "  "+stepIcon(s.Status)+" "+s.Name+" "+m.cli(s.Detail))
 	}
 	switch {
 	case real && rep.Written:
@@ -435,7 +435,7 @@ func (m *Model) inspectLines(r *inspect.Report) []string {
 		l = append(l, row("hotspots", strings.Join(h, ", ")))
 	}
 	for _, n := range r.Notes {
-		l = append(l, th.S(theme.Warn, "! "+n))
+		l = append(l, th.S(theme.Warn, "! "+m.cli(n)))
 	}
 	return l
 }
@@ -485,10 +485,10 @@ func (m *Model) contextLines(res app.ContextResult) []string {
 		l = append(l, th.S(theme.OK, "+ ")+short(e.ID)+" ["+e.Label+"] "+fmt.Sprintf("%.2f", e.Score)+" "+th.S(theme.Muted, strings.Join(e.Reasons, " ")))
 	}
 	for _, o := range p.Omitted {
-		l = append(l, th.S(theme.Warn, "- ")+short(o.ID)+": "+th.S(theme.Muted, o.Reason))
+		l = append(l, th.S(theme.Warn, "- ")+short(o.ID)+": "+th.S(theme.Muted, m.cli(o.Reason)))
 	}
 	for _, w := range res.Warnings {
-		l = append(l, th.S(theme.Warn, "! "+w))
+		l = append(l, th.S(theme.Warn, "! "+m.cli(w)))
 	}
 	l = append(l, "", th.S(theme.Accent, "── "+m.t("kn.ctx.pack")+" ──"))
 	if len(p.Entries) == 0 && len(p.Lessons) == 0 {

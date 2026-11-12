@@ -90,6 +90,59 @@ Trong phiên tương tác của harness có hỗ trợ skill, gọi `/b-bootstra
 `/b-req`, `/b-feat`, `/b-review`, `/b-do`. Mọi mục tri thức do agent tạo đều ở trạng thái
 `candidate` chờ người duyệt; với Codex cần duyệt hook trong `/hooks` (kiểm tra bằng `bint doctor`).
 
+## Giao diện terminal (TUI)
+
+Bint có giao diện terminal để xem và duyệt thay cho việc gõ lệnh: tri thức chờ duyệt, tác vụ, lượt chạy,
+đánh giá, tiến hoá và cấu hình. Kế hoạch thiết kế và quyết định chi tiết: [docs/tui-plan.md](docs/tui-plan.md).
+
+**Mở**
+
+```sh
+bint                     # không đối số: mở TUI nếu có terminal tương tác; ngược lại in trợ giúp như mọi lệnh CLI
+bint tui                 # mở tường minh (lỗi nếu stdin/stdout không phải terminal)
+bint tui --lang en       # ngôn ngữ giao diện vi | en
+bint tui --read-only     # chỉ xem: ẩn mọi hành động ghi
+```
+
+`bint` không đối số in trợ giúp (thay vì mở TUI) khi stdin hoặc stdout không phải terminal (đường ống, CI,
+chuyển hướng) hoặc khi chạy trong phiên agent; agent không điều khiển được TUI. Gõ `bint tui` trong phiên
+agent vẫn mở được, nhưng các thao tác chỉ dành cho người (duyệt, áp dụng, loại bỏ) bị khoá kèm lý do.
+
+**Bảy tab**: Tổng quan, Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá, Hệ thống. Mỗi tab có thẻ phụ riêng
+(chọn bằng bàn phím hoặc chuột); phím của thẻ đang xem hiện ở viền dưới khung. Repository chưa `bint init`
+thì TUI mở trình hướng dẫn khởi tạo.
+
+**Phím toàn cục**
+
+| Phím | Việc |
+|---|---|
+| `1`-`7` | chuyển thẳng tới tab (`1` Tổng quan … `7` Hệ thống) |
+| `[` `]` | tab trước / sau |
+| `:` hoặc `Ctrl+K` | bảng lệnh: tìm mờ trên mọi hành động của mọi màn, kể cả hành động không có phím |
+| `?` | trợ giúp theo ngữ cảnh: giới thiệu thẻ đang xem, phím của thẻ, phím toàn cục, các màn khác (cuộn bằng `j`/`k`, `PgUp`/`PgDn`, bánh xe) |
+| `!` | hộp Thông báo: nguyên văn thông báo hiện tại và 50 thông báo gần nhất (thông báo bị cắt bằng `…` luôn đọc đủ ở đây) |
+| `L` | đổi ngôn ngữ trong phiên (vi ⇄ en) |
+| `r` | làm mới ở Tổng quan (các màn khác: `Ctrl+R`) |
+| `q` | thoát (còn việc nền thì hỏi: huỷ an toàn rồi thoát, hoặc ở lại) |
+
+**Chuột** bật mặc định: bấm tab, thẻ phụ, hàng danh sách (bấm lại hàng đang chọn = `Enter`), phím ở chân phím
+và nút của hộp thoại; bánh xe cuộn khung dưới con trỏ. Mọi thứ vẫn dùng được chỉ bằng bàn phím. Tắt/bật trong
+phiên: bảng lệnh (`:`) → "Bật/tắt chuột".
+
+**Chế độ chỉ đọc** (`--read-only`): mọi hành động ghi tệp, ghi cơ sở dữ liệu hoặc mở trình soạn thảo bị ẩn khỏi
+chân phím, bảng lệnh và trợ giúp, và bị từ chối nếu vẫn được yêu cầu. Đây là chế độ tiện dụng để xem an toàn,
+không phải ranh giới bảo mật (ranh giới là review Git và việc chặn thao tác chỉ dành cho người).
+
+**Màu và NO_COLOR**: đặt `NO_COLOR` (bất kỳ giá trị khác rỗng) hoặc dùng terminal không màu thì TUI chuyển sang
+chế độ đơn sắc: không dùng màu nào; khung đang chọn đảo màu tiêu đề, thông báo lỗi có dấu `✗`, hành động bị khoá
+ghi rõ bằng chữ. Terminal 16 màu dùng bảng màu riêng; còn lại theo nền sáng/tối của terminal.
+
+**Ngôn ngữ**: `--lang` > biến `BINT_LANG` > khoá `ui.language` trong cấu hình > `LC_ALL`/`LANG` > tiếng Việt.
+Phím `L` đổi tạm trong phiên; Hệ thống › Ngôn ngữ lưu vào cấu hình (chọn lớp dự án hoặc riêng máy).
+
+Thông điệp của tầng dịch vụ nhắc lệnh CLI (ví dụ "chạy `bint sync`") được TUI hiển thị bằng phím hoặc hành
+động tương ứng của TUI; CLI giữ nguyên chữ.
+
 ## Tài liệu
 
 Chi tiết từng thành phần được tách thành các hướng dẫn trong [docs/](docs/README.md):

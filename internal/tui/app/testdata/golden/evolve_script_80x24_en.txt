@@ -10,7 +10,8 @@
 │ │ Description   Kiểm tra nhanh                                             │ │
 │ │ Usage         bash kiem-tra-nhanh.sh                                     │ │
 │ │                                                                          │ │
-│ │ ⚠ Bint never runs this script by itself; it always waits for a human to… │ │
+│ │ ⚠ Bint never runs this script by itself; it always waits for a human to  │ │
+│ │   approve.                                                               │ │
 │ │ Script (content)                                                         │ │
 │ │   #!/bin/sh                                                              │ │
 │ │   go vet ./...                                                           │ │
@@ -19,6 +20,5 @@
 │ │   New component: nothing current to compare with.                        │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ │                                                                          │ │
 │ └─ v sub-tab  Enter view detail ───────────────────────────────────────────┘ │
-└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [q→ Quit] [?→ Help]────────────┘
+└─[s→ Scan] [p→ Prop…] [a→ Apply] [x→ Reje…] [:→ Comm…] [q→ Quit] [?→ Help]────┘

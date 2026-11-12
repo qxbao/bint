@@ -15,8 +15,8 @@
 │                                                                                                                                          │
 │   ⟦Next steps~~~~⟧                                                                                                                       │
 │  ▸ 1. Xác nhận lệnh kiểm thử: điền eval.test_command trong .bint/config.yml                                                              │
-│    2. Kiểm tra môi trường: bint doctor                                                                                                   │
-│    3. Xem lượt chạy đã ghi nhận: bint runs list                                                                                          │
+│    2. Kiểm tra môi trường: ⟦the ⟦System~~~⟧ › ⟦Doctor~~~⟧ tab~~~~⟧                                                                       │
+│    3. Xem lượt chạy đã ghi nhận: ⟦key l in ⟦Runs~~⟧~~~~⟧                                                                                 │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

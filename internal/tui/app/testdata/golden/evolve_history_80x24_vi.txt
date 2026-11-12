@@ -7,7 +7,8 @@
 │ │ 2026-11-10 10:00 apply EP0000KNOW update (01KNOW000003) Rev              │ │
 │ │     <rev@example.com> kiểm chứng=false                                   │ │
 │ │     đã xem                                                               │ │
-│ │     sau áp dụng: truy xuất 4 lượt, trích dẫn 1 lượt (chỉ là gợi ý; tác…  │ │
+│ │     sau áp dụng: truy xuất 4 lượt, trích dẫn 1 lượt (chỉ là gợi ý; tác   │ │
+│ │     động cần đánh giá loại bỏ)                                           │ │
 │ │     chi phí tiến hoá: tạo ứng viên -, đối chiếu -                        │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
@@ -19,6 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ │                                                                          │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[s→ Quét] [p→ Đề xuất] [a→ Áp dụng] [x→ Bác bỏ] [q→ Thoát] [?→ Trợ giúp]─────┘
+└─[s→ Quét] [p→ Đề] [a→ Áp] [x→ Bác] [:→ Lệnh] [q→ Thoát] [?→ Trợ]─────────────┘

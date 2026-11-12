@@ -573,3 +573,77 @@ func newModelData(t *testing.T, m *Model, d overview.Data) *Model {
 	o := m.opts
 	return newModel(t, o, d, 140, 40)
 }
+
+// Review 6b .7: kết quả vòng tiến hoá (Outcome, StopReason, Locked, lý do bỏ qua/loại) và lý do ở thẻ Lịch sử là thông điệp của tầng
+// dịch vụ nên đi qua hàm viết lại: không còn lệnh "bint evolve ...", có tham chiếu TUI của Tiến hoá.
+func TestEvolveServiceMessagesGoThroughRewriter(t *testing.T) {
+	const ulid = "01M76KN3M9BZCNMHKN4KNP1639"
+	m, c := newCapModel(t, Options{EvolveLoader: func(context.Context, string, evscreen.Query, bool) (evscreen.Data, error) {
+		d := sampleEvolve()
+		d.History.Entries[0].Reason = "tự áp dụng rủi ro thấp (bint evolve cycle ec_" + ulid + ")"
+		d.History.Entries[0].ModelStatus = "chưa kiểm: chạy `bint evolve evaluate " + ulid + " --split test`"
+		d.Queue.Requests[0].Note = "xem bint evolve show ep_" + ulid
+		return d, nil
+	}}, "evolve.cycle", "evolve.process", "evolve.propose")
+
+	// Lịch sử: lý do tự áp dụng.
+	press(t, m, "6", ".", ".")
+	hist := plain(m.Render())
+	if strings.Contains(hist, "bint evolve") {
+		t.Errorf("thẻ Lịch sử còn lệnh CLI:\n%s", hist)
+	}
+	hasAll(t, hist, "tự áp dụng rủi ro thấp (phím C ở Tiến hoá", "nhấn E ở Tiến hoá")
+	if strings.Contains(hist, "ec_"+ulid) {
+		t.Errorf("mã vòng không được sót sau tham chiếu:\n%s", hist)
+	}
+	press(t, m, ".")
+	if q := plain(m.Render()); strings.Contains(q, "bint evolve") {
+		t.Errorf("thẻ Hàng đợi còn lệnh CLI:\n%s", q)
+	}
+
+	// Hộp kết quả của evolve.cycle có bước rollback.
+	c.values["evolve.cycle"] = evolvesvc.CycleReport{ID: "ec_" + ulid, BudgetUSD: 5, Steps: []evolvesvc.CycleStep{
+		{Step: "rollback", Target: "ep_" + ulid, Outcome: "đề xuất quay lui (người áp dụng): bint evolve rollback ep_" + ulid},
+		{Step: "apply", Target: "ep_2", Outcome: "không tự áp dụng được: chạy `bint evolve evaluate ep_2 --split test`, hoặc dùng --unverified"},
+	}, RollbackSuggested: []string{"ep_" + ulid}, StopReason: "hết ngân sách (bint evolve cycle --budget 10)"}
+	d := newDrv(t, m)
+	d.press("C")
+	d.typeText("5")
+	d.press("ctrl+s")
+	if !d.until(func() bool { return m.jobs.Len() == 1 }) {
+		t.Fatal("cycle phải chạy nền")
+	}
+	close(c.release["evolve.cycle"])
+	if !d.until(func() bool { return m.jobs.Len() == 0 && strings.Contains(plain(m.Render()), "đề xuất quay lui") }) {
+		t.Fatalf("hộp kết quả phải hiện:\n%s", plain(m.Render()))
+	}
+	out := plain(m.Render())
+	if strings.Contains(out, "bint evolve") {
+		t.Errorf("hộp kết quả còn lệnh CLI:\n%s", out)
+	}
+	if strings.Contains(out, "--unverified") {
+		t.Errorf("hộp kết quả còn cờ rời:\n%s", out)
+	}
+	hasAll(t, out, "đề xuất quay lui (người áp dụng): phím u ở", "nhấn E ở", "hết ngân sách (phím C ở")
+}
+
+// Khoá của vòng đang chạy (Locked của evolve.process) và lý do bỏ qua/loại của evolve.propose cũng đi qua hàm viết lại.
+func TestEvolveProcessLockedAndProposeSkippedRewritten(t *testing.T) {
+	m, c := newCapModel(t, Options{}, "evolve.process", "evolve.propose")
+	c.values["evolve.process"] = &evolvesvc.ProcessResult{Report: evolve.ProcessReport{Locked: "vòng khác đang chạy (bint evolve cycle ec_1); thử lại sau"}}
+	d := newDrv(t, m)
+	d.press("6", "P")
+	d.press("ctrl+s")
+	if !d.until(func() bool { return m.jobs.Len() == 1 }) {
+		t.Fatalf("process phải chạy nền:\n%s", plain(m.Render()))
+	}
+	close(c.release["evolve.process"])
+	if !d.until(func() bool {
+		return m.jobs.Len() == 0 && strings.Contains(plain(m.Render()), "vòng khác đang chạy")
+	}) {
+		t.Fatalf("hộp kết quả phải hiện:\n%s", plain(m.Render()))
+	}
+	if out := plain(m.Render()); strings.Contains(out, "bint evolve") {
+		t.Errorf("Locked còn lệnh CLI:\n%s", out)
+	}
+}

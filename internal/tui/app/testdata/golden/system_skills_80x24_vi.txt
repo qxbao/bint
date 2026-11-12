@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│   Cấu hình Harness Thành phần  Skill  Chỉ mục MCP Ngôn ngữ ›                 │
+│   Cấu hình Harness Thành phần  Skill  Chỉ mục MCP Ngôn ngữ Doctor ›          │
 │ ┌─│Skill (3)│──────────────────────────────────────────────────────────────┐ │
 │ │ ▸ gốc   b-do                                     aaaa1111  đã xuất bản   │ │
 │ │   gốc   b-feat                                   bbbb2222  khác bản Bint │ │

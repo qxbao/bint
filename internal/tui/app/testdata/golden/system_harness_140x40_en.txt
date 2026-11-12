@@ -3,7 +3,7 @@
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
-│ ┌─│Harnesses│────────────────────────────────────────────────┐┌─│Details · claude│─────────────────────────────────────────────1-32/34─┐ │
+│ ┌─│Harnesses│────────────────────────────────────────────────┐┌─│Details · claude│─────────────────────────────────────────────1-32/35─┐ │
 │ │   HARNESS     ON   HOST  VERSION   VERIFIED   LEVEL        ││ Claude Code (claude)                                                   │ │
 │ │ ▸ claude      yes  yes   -         Claude Co… 3            ││ Level               3 — + programmatic execution                       │ │
 │ │   codex       -    -     -         codex-cli… 3            ││ Binary              /usr/local/bin/claude                              │ │
@@ -15,15 +15,16 @@
 │ │   Hidden skills / explicit invocation only  ✓    ~    ✗    ││   ✓ Hooks — installed scopes: project                                  │ │
 │ │   Bint MCP server                           ✓    ~    ✗    ││       phạm vi project                                                  │ │
 │ │   Event-recording hooks                     ✓    ~    ~    ││   ✓ Bint MCP server registered                                         │ │
-│ │   Path-based context injection              ✓    ~    ✗    ││   Install/remove hooks and MCP: bint init --hooks / --mcp (phase 5b).  │ │
+│ │   Path-based context injection              ✓    ~    ✗    ││   Install/remove hooks and MCP: System › Setup (key e).                │ │
 │ │   Ask a human before editing protected pat… ✓    ~    ✓    ││                                                                        │ │
 │ │   Workflow guardrails                       ✓    ~    ~    ││ Capabilities                                                           │ │
-│ │   Programmatic execution (bint run)         ✓    ✓    ✓    ││  ✓ Skill sync .claude/skills/<tên>/SKILL.md                            │ │
+│ │   Programmatic execution (task runs)        ✓    ✓    ✓    ││  ✓ Skill sync .claude/skills/<tên>/SKILL.md                            │ │
 │ │   Keep read-only steps read-only            ✓    ~    ~    ││  ✓ Hidden skills / explicit invocation only disable-model-invocation:  │ │
 │ │   Cost reporting (max_cost_usd)             ✓    ✗    ✗    ││     chỉ chạy khi người gọi /b-…                                        │ │
-│ │   Turn limit (max_turns)                    ✓    ✗    ✗    ││  ✓ Bint MCP server .mcp.json cấp dự án (bint init --mcp)               │ │
-│ │   Skill activation events                   ✓    ✗    ✗    ││  ✓ Event-recording hooks SessionStart, SessionEnd, PostToolUse,        │ │
-│ │   ✓ supported  ~ partial  ✗ no                             ││     PostToolUseFailure                                                 │ │
+│ │   Turn limit (max_turns)                    ✓    ✗    ✗    ││  ✓ Bint MCP server .mcp.json cấp dự án (key e in System › Setup        │ │
+│ │   Skill activation events                   ✓    ✗    ✗    ││     [field Register MCP])                                              │ │
+│ │   ✓ supported  ~ partial  ✗ no                             ││  ✓ Event-recording hooks SessionStart, SessionEnd, PostToolUse,        │ │
+│ │                                                            ││     PostToolUseFailure                                                 │ │
 │ │                                                            ││  ✓ Path-based context injection PreToolUse trước Read/Edit/Write       │ │
 │ │                                                            ││     (additionalContext)                                                │ │
 │ │                                                            ││  ✓ Ask a human before editing protected paths PreToolUse               │ │
@@ -31,10 +32,9 @@
 │ │                                                            ││  ✓ Workflow guardrails pre_edit/pre_bash: remind (additionalContext),  │ │
 │ │                                                            ││     ask, deny; stop: Stop decision=block (remind một lần, deny tối đa  │ │
 │ │                                                            ││     3 lần)                                                             │ │
-│ │                                                            ││  ✓ Programmatic execution (bint run) claude -p --output-format json    │ │
+│ │                                                            ││  ✓ Programmatic execution (task runs) claude -p --output-format json   │ │
 │ │                                                            ││  ✓ Keep read-only steps read-only --disallowedTools Edit,Write,…;      │ │
 │ │                                                            ││     Bint kiểm tra cây làm việc sau bước                                │ │
 │ │                                                            ││  ✓ Cost reporting (max_cost_usd) total_cost_usd; --max-budget-usd      │ │
-│ │                                                            ││  ✓ Turn limit (max_turns) --max-turns                                  │ │
 │ └─ V version  Enter open ────────────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
 └─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────────────────────────────────────┘

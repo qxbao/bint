@@ -7,12 +7,14 @@
 │ │  ⟦Waiting for you (2)~~~~~~~~⟧                       ││ ⟦Round 1/1 · 2026-11-11 09:30 · agent~~~~~~⟧                                 │ │
 │ │ ▸ ! ⟦blocked~~… 1TASK1 Thêm cột email                ││ Hai điểm cần sửa                                                             │ │
 │ │   ✗ ⟦failed~~~⟧ 1TASK2 Đổi cách tính phí             ││                                                                              │ │
-│ │  ⟦In progress (1)~~~~~~⟧                             ││ ── ⟦3 findings~~~~⟧ ──────────────────────────────────────────────────────── │ │
-│ │   ▶ ⟦in progre… 1TASK4 Thêm màn Tác vụ               ││ ▸ [⟦critical~~~~⟧] Không đóng kết nối  internal/db/db.go:4-5                 │ │
-│ │  ⟦Up next (1)~~~~⟧                                   ││   [⟦medium~~~⟧] Khoá ghi quá rộng  README.md:1                               │ │
-│ │   ◌ ⟦planned~~… 1TASK5 Viết tài liệu cài đặt         ││   [⟦low~~⟧]   Đặt tên biến rõ hơn  internal/db/db.go:3                       │ │
+│ │  ⟦In progress (1)~~~~~~⟧                             ││ ── ⟦3 findings~~~~⟧                                                          │ │
+│ │   ▶ ⟦in progre… 1TASK4 Thêm màn Tác vụ               ││   ────────────────────────────────────────────────────────                   │ │
+│ │  ⟦Up next (1)~~~~⟧                                   ││ ▸ [⟦critical~~~~⟧] Không đóng kết nối  internal/db/db.go:4-5                 │ │
+│ │   ◌ ⟦planned~~… 1TASK5 Viết tài liệu cài đặt         ││   [⟦medium~~~⟧] Khoá ghi quá rộng  README.md:1                               │ │
+│ │                                                      ││   [⟦low~~⟧]   Đặt tên biến rõ hơn  internal/db/db.go:3                       │ │
 │ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── 01TASK1.2 ─────────────────────────────────────────────────────────────── │ │
+│ │                                                      ││ ── 01TASK1.2                                                                 │ │
+│ │                                                      ││   ───────────────────────────────────────────────────────────────            │ │
 │ │                                                      ││ ⟦bug~~⟧ · ⟦critical~~~~⟧                                                     │ │
 │ │                                                      ││ Không đóng kết nối                                                           │ │
 │ │                                                      ││ internal/db/db.go:4-5                                                        │ │
@@ -34,7 +36,5 @@
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ └──────────────────────────────────────────────────────┘└─ j/k ⟦Finding~~~⟧  Enter ⟦View file~~~~⟧  e ⟦Open editor~~~~~⟧  K ⟦→ Knowle…─┘ │
-└─[r→ ⟦Run~~⟧] [c→ ⟦Resume~~~⟧] [a→ ⟦Approve~~~⟧] [Enter→ ⟦Open~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────────────────────────┘
+│ └──────────────────────────────────────────────────────┘└─ j/k ⟦Finding~…  Enter ⟦View  e ⟦Open  K ⟦→  w ⟦Add ─────────────────────────┘ │
+└─[r→ ⟦Run~~⟧] [c→ ⟦Resume~~~⟧] [a→ ⟦Approve~~~⟧] [Enter→ ⟦Open~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────┘

@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│   Config Harness  Components  Skills Index MCP Language ›                    │
+│  Config Harness  Components  Skills Index MCP Language Doctor Setup Update   │
 │ ┌─│Components (3/3)│───────────────────────────────────────1 files skipped─┐ │
 │ │ ▸ ✓ guardrail test-before-stop                         verified   low    │ │
 │ │   ◌ guidance  api-style                                candidate  low    │ │

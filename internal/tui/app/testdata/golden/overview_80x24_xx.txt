@@ -2,23 +2,23 @@
 │ ⟦Overview~~~~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧         │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦Overview~~~~⟧│─────────────────────────────────────────────────────────────┐
-│                                    bint.                                     │
-│ ⟦Recording, measurement and knowledge for coding agents~~~~~~~~~~~~~~~~~~~~… │
-│                                                                              │
-│  ┌─│⟦Repository~~~~⟧│─────────────────────────────────────────────────────┐  │
-│  │ ⟦Path~~⟧      /work/demo                                               │  │
-│  │ ⟦State~~⟧     /state/demo-7f3a9c                                       │  │
-│  │ ⟦Harness~~~⟧  claude, codex                                            │  │
-│  │ ⟦Schema~~~⟧   v6                                                       │  │
-│  │ ⟦Runs~~⟧      42  ⟦33 done~~⟧ · ⟦3 failed~~~⟧ · ⟦1 interrupted~~~~~⟧ … │  │
-│  └─ ⟦Version~~~⟧ 0.1.0 · ✓ ⟦current template~~~~~~~⟧ · core.lock ⟦none~~…─┘  │
+│  ┌─│⟦Repository~~~~⟧│────────────────────────────────────────────────────┐   │
+│  │ ⟦Path~~⟧      /work/demo                                              │   │
+│  │ ⟦State~~⟧     /state/demo-7f3a9c                                      │   │
+│  │ ⟦Harness~~~⟧  claude, codex                                           │   │
+│  │ ⟦Schema~~~⟧   v6                                                      │   │
+│  │ ⟦Runs~~⟧      42 ⟦33 done~~⟧ · ⟦3 failed~~~⟧ · ⟦1 interrupted~~~~~⟧ · │   │
+│  │               ⟦5 running~~~~⟧                                         │   │
+│  │ core.lock  ⟦none~~⟧                                                   │   │
+│  └─ ⟦Version~~~⟧ 0.1.0 · ✓ ⟦current template~~~~~~~⟧ ────────────────────┘   │
 │                                                                              │
 │  ⟦Needs you~~~~⟧ (4)                                                         │
 │ ▸ ◌ ⟦2 knowledge items awaiting review in batch nguon:lo…  → ⟦Knowledge~~~~⟧ │
 │   ◌ ⟦1 knowledge item awaiting review (no batch)~~~~~~~~…  → ⟦Knowledge~~~~⟧ │
 │   ◌ ⟦Evolution proposal awaiting review — update EP0000K…  → ⟦Evolution~~~~⟧ │
-│   ! ⟦Doctor warning — config: cấu hình theo mẫu cũ: chạy `bi…  → ⟦System~~~⟧ │
+│     ⟦2 knowledge items awaiting review in batch nguon:lo-                    │
+│     thu~~~~~~~~~~~~~~~~~⟧                                                    │
+│   ⟦… rows 1-3 of 4~~~~~⟧                                                     │
 │                                                                              │
 │  ⟦Doctor~~~⟧  ✓ 2  ! 1  ✗ 0                                                  │
-│                                                                              │
-└─[r→ ⟦Refresh~~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────┘
+└─[r→ ⟦Refre…] [:→ ⟦Comma…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]─────────────┘

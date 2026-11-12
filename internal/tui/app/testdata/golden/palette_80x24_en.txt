@@ -9,14 +9,14 @@
 │ │   Show the full help                                                   ? │ │
 │ │   Open the command palette (search every action)                       : │ │
 │ │   Switch interface language (vi ⇄ en)                                  L │ │
+│ │   Read the current notice in full plus the last 50 notices from every… ! │ │
+│ │   Turn the mouse on/off for this session (scroll, click tabs, rows, fo…  │ │
 │ │   Go to the next tab                                                   ] │ │
 │ │   Go to the previous tab                                               [ │ │
 │ │   Go to Overview                                                       1 │ │
 │ │   Go to Knowledge                                                      2 │ │
 │ │   Go to Tasks                                                          3 │ │
 │ │   Go to Runs                                                           4 │ │
-│ │   Go to Evaluation                                                     5 │ │
-│ │   Go to Evolution                                                      6 │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
 │                                                                              │

@@ -2,7 +2,7 @@
 │ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧            │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦MCP~~⟧ ›                         │
+│ ‹ ⟦Harness~~~⟧ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦MCP~~⟧ ›            │
 │ ┌─│⟦Skills (3)~~~~⟧│───────────────────────────────────────────────────────┐ │
 │ │ ▸ ⟦cor… b-do                                     aaaa1111  ⟦published~~… │ │
 │ │   ⟦cor… b-feat                                   bbbb2222  ⟦differs~~~⟧  │ │
@@ -20,5 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ └─ Enter ⟦content~~~⟧  s ⟦sync~~⟧  o ⟦overlay~~~⟧  d ⟦diff~~⟧  c ⟦check~~…─┘ │
+│ └─ Enter ⟦content~…  s ⟦sync~~⟧  o ⟦overlay~…  d ⟦diff~~⟧  c ⟦check~~⟧ ────┘ │
 └─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

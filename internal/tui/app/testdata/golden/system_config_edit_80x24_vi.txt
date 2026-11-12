@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│    Cấu hình  Harness Thành phần Skill Chỉ mục MCP Ngôn ngữ ›                 │
+│    Cấu hình  Harness Thành phần Skill Chỉ mục MCP Ngôn ngữ Doctor ›          │
 │ ┌─│Sửa một lớp cấu hình (config.yml hoặc local.yml) trong $EDITOR; kiểm …│─┐ │
 │ │ ▸ Lớp cần sửa (project = … (●) project ( ) local                         │ │
 │ │                                                                          │ │

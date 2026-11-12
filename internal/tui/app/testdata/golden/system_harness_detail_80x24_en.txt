@@ -2,8 +2,8 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│   Config  Harness  Components Skills Index MCP Language ›                    │
-│ ┌─│Details · claude│───────────────────────────────────────────────1-16/33─┐ │
+│  Config  Harness  Components Skills Index MCP Language Doctor Setup Update   │
+│ ┌─│Details · claude│───────────────────────────────────────────────1-16/34─┐ │
 │ │ Claude Code (claude)                                                     │ │
 │ │ Level               3 — + programmatic execution                         │ │
 │ │ Binary              /usr/local/bin/claude                                │ │
@@ -15,7 +15,7 @@
 │ │   ✓ Hooks — installed scopes: project                                    │ │
 │ │       phạm vi project                                                    │ │
 │ │   ✓ Bint MCP server registered                                           │ │
-│ │   Install/remove hooks and MCP: bint init --hooks / --mcp (phase 5b).    │ │
+│ │   Install/remove hooks and MCP: System › Setup (key e).                  │ │
 │ │                                                                          │ │
 │ │ Capabilities                                                             │ │
 │ │  ✓ Skill sync .claude/skills/<tên>/SKILL.md                              │ │

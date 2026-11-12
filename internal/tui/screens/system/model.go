@@ -70,6 +70,7 @@ type outPane struct {
 type Model struct {
 	o   Options
 	cat *i18n.Catalog
+	rw  ui.Rewriter
 	th  theme.Theme
 	ld  Loaders
 
@@ -127,8 +128,6 @@ type Model struct {
 	idxRes *app.IndexRebuildResult
 	// Sửa cấu hình: phiên đang mở ($EDITOR) hoặc đang chờ xác nhận.
 	edit *app.ConfigEdit
-	// rebase: lần kiểm kế tiếp phải đặt lại mốc theo tệp gốc hiện tại (sửa lại sau ErrConfigChanged).
-	rebase bool
 
 	dlg      *dialog
 	frm      *form.Model
@@ -147,7 +146,7 @@ func New(o Options) *Model {
 }
 
 // SetEnv đặt danh mục chuỗi và bảng màu (gọi lại khi đổi ngôn ngữ).
-func (m *Model) SetEnv(th theme.Theme, cat *i18n.Catalog) { m.th, m.cat = th, cat }
+func (m *Model) SetEnv(th theme.Theme, rw ui.Rewriter) { m.th, m.rw, m.cat = th, rw, rw.Cat }
 
 func (m *Model) t(key string, a ...i18n.A) string { return m.cat.T(key, a...) }
 
@@ -476,8 +475,13 @@ func (m *Model) onLoaded(msg LoadedMsg) tea.Cmd {
 		m.rebuildDoctor()
 	case TabSetup:
 		m.setup = msg.Value.(app.InitState)
-		if m.setupPending && m.frm == nil && m.dlg == nil {
-			return tea.Batch(next, m.openSetup(false))
+		if m.setupPending {
+			if m.frm == nil && m.dlg == nil {
+				return tea.Batch(next, m.openSetup(false))
+			}
+			// Đang có hộp hoặc form khác: bỏ yêu cầu mở form đang chờ (kẻo form bật lên ở lần nạp lại sau, ví dụ Ctrl+R), báo bằng toast.
+			m.setupPending = false
+			m.setToast(m.t("sy.setup.dropped"), false)
 		}
 	case TabUpdate:
 		m.updInfo = msg.Value.(UpdateInfo)
@@ -503,7 +507,7 @@ func (m *Model) finishForm(id string) bool {
 	return false
 }
 
-func (m *Model) fail(err error) { m.setToast(ui.ErrText(m.cat, err), true) }
+func (m *Model) fail(err error) { m.setToast(ui.ErrText(m.rw, err), true) }
 
 func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	switch msg.ID {
@@ -519,6 +523,8 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		}
 	case "system.config_check":
 		return m.onConfigChecked(msg)
+	case "system.config_rebase":
+		return m.onConfigRebased(msg)
 	case "system.config_save":
 		m.dlg = nil
 		if msg.Err != nil {
@@ -708,49 +714,69 @@ func (m *Model) afterEditor(err error) tea.Cmd {
 		m.fail(rerr)
 		return nil
 	}
-	rebase := m.rebase
-	m.rebase = false
-	return m.request("system.config_check", actions.ConfigApplyArgs{Edit: *e, Data: data, Rebase: rebase})
+	return m.request("system.config_check", actions.ConfigApplyArgs{Edit: *e, Data: data})
 }
 
 // onConfigSaveRejected: ghi bị từ chối (tệp gốc đã đổi hoặc Validate lỗi lúc ghi). Bản tạm còn nguyên; hộp cho
-// sửa lại (sau ErrConfigChanged thì kiểm và diff theo tệp gốc mới) hoặc bỏ (xoá bản tạm).
+// sửa lại (sau ErrConfigChanged thì gộp ba chiều lên tệp gốc mới rồi mở lại) hoặc bỏ (xoá bản tạm).
 func (m *Model) onConfigSaveRejected(msg actions.ResultMsg) tea.Cmd {
 	a, _ := msg.Opts.(actions.ConfigApplyArgs)
-	e := a.Edit
+	return m.showConfigRejected(a.Edit, msg.Err, errors.Is(msg.Err, app.ErrConfigChanged))
+}
+
+// showConfigRejected mở hộp "Sửa lại / Bỏ" cho một lần ghi, kiểm hoặc gộp bị lỗi; bản tạm luôn còn nguyên tới khi Bỏ.
+// rebase: Sửa lại phải gộp lên tệp gốc mới trước khi mở trình soạn thảo (cũng là cách thử lại khi chính lần gộp lỗi).
+func (m *Model) showConfigRejected(e app.ConfigEdit, err error, rebase bool) tea.Cmd {
 	m.edit = &e
-	changed := errors.Is(msg.Err, app.ErrConfigChanged)
-	body := append([]string{m.th.S(theme.Err, m.t("sy.config.rejected"))}, wrapText(ui.ErrText(m.cat, msg.Err), 72)...)
+	body := append([]string{m.th.S(theme.Err, m.t("sy.config.rejected"))}, wrapText(ui.ErrText(m.rw, err), 72)...)
 	body = append(body, "", m.th.S(theme.Muted, m.t("sy.config.rejected.kept", i18n.A{"path": e.TempPath})))
 	m.dlg = &dialog{c: confirm.Model{Title: m.t("sy.config.rejected.title"), Body: body, Danger: true,
 		YesLabel: m.t("sy.config.reedit"), NoLabel: m.t("sy.config.discard")},
 		onYes: func(string) tea.Cmd {
-			m.rebase = changed
+			if rebase {
+				return m.request("system.config_rebase", actions.ConfigApplyArgs{Edit: e})
+			}
 			return m.request("system.open_file", actions.OpenFileOptions{Path: e.TempPath})
 		},
 		onNo: func() tea.Cmd {
 			os.Remove(e.TempPath)
-			m.edit, m.rebase = nil, false
+			m.edit = nil
 			m.setToast(m.t("sy.config.discarded"), false)
 			return nil
 		}}
 	return nil
 }
 
+// onConfigRebased nhận kết quả gộp: thành công thì mở lại bản tạm (đã gộp, hoặc mang dấu xung đột) trong trình soạn thảo;
+// lỗi thì bản tạm còn nguyên và hộp Sửa lại/Bỏ mở lại kèm lỗi.
+func (m *Model) onConfigRebased(msg actions.ResultMsg) tea.Cmd {
+	a, _ := msg.Opts.(actions.ConfigApplyArgs)
+	if msg.Err != nil {
+		return m.showConfigRejected(a.Edit, msg.Err, true)
+	}
+	rb, ok := msg.Value.(app.ConfigRebase)
+	if !ok { // không có kết quả gộp thì không chuỗi hoá yêu cầu mở tệp (xem TestReadOnlyAndAgentNeverReachDo)
+		return nil
+	}
+	e := a.Edit
+	m.edit = &e
+	switch {
+	case rb.Conflicts > 0:
+		m.setToast(m.t("sy.config.rebase.conflict", i18n.A{"count": rb.Conflicts}), true)
+	case rb.Merged:
+		m.setToast(m.t("sy.config.rebase.merged"), false)
+	}
+	return m.request("system.open_file", actions.OpenFileOptions{Path: e.TempPath})
+}
+
 func (m *Model) onConfigChecked(msg actions.ResultMsg) tea.Cmd {
 	a, _ := msg.Opts.(actions.ConfigApplyArgs)
-	if m.edit != nil && a.Edit.TempPath == m.edit.TempPath { // phiên đã đặt lại mốc (sửa lại sau khi tệp gốc đổi)
-		e := a.Edit
-		m.edit = &e
-	}
 	drop := func() {
 		os.Remove(a.Edit.TempPath)
 		m.edit = nil
 	}
-	if msg.Err != nil {
-		drop()
-		m.fail(msg.Err)
-		return nil
+	if msg.Err != nil { // kiểm lỗi (không phải nội dung sai): giữ bản tạm, cho sửa lại hoặc bỏ như khi ghi bị từ chối
+		return m.showConfigRejected(a.Edit, msg.Err, false)
 	}
 	c, _ := msg.Value.(app.ConfigCheck)
 	switch {
@@ -1139,7 +1165,7 @@ func (m *Model) Command(id string) tea.Cmd {
 		if m.tab == TabComponents {
 			m.textIn, m.textOld = true, m.filter
 		}
-	case "system.config_edit", "system.config_check", "system.config_save", "system.config_view":
+	case "system.config_edit", "system.config_check", "system.config_rebase", "system.config_save", "system.config_view":
 		m.tab = TabConfig
 		if id == "system.config_edit" {
 			return tea.Batch(m.ensureTab(TabConfig), m.cmdConfigEdit())
@@ -1213,3 +1239,6 @@ func (m *Model) Command(id string) tea.Cmd {
 	}
 	return nil
 }
+
+// cli viết lại đoạn nhắc lệnh CLI trong thông điệp của tầng dịch vụ thành phím/hành động TUI (ui.Rewrite).
+func (m *Model) cli(s string) string { return m.rw.Rewrite(s) }

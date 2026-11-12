@@ -21,4 +21,4 @@
 │ │   file.modified  internal/db/db.go (×2)                                  │ │
 │ │                                                                          │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[+/-→ Rate] [S→ Scan Git] [I→ Ingest spool] [q→ Quit] [?→ Help]──────────────┘
+└─[+/-→ Rate] [S→ Scan Git] [I→ Ingest] [:→ Commands] [q→ Quit] [?→ Help]──────┘

@@ -4,21 +4,21 @@
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                       │
 │ ┌─│Nhóm khoá│──────────────────────────────────────schema v1─┐┌─│Lớp nguồn│────────────────────────────────────────────────────────────┐ │
-│ │ ▸ Lớp nguồn                                                ││ Cấu hình hiệu lực = toàn cục → dự án → strategy → cục bộ (lớp sau đè…  │ │
-│ │   project                                                  ││                                                                        │ │
-│ │   state                                                    ││ ○ toàn cục    không có                                                 │ │
-│ │   harnesses                                                ││     /home/u/.config/bint/config.yml                                    │ │
-│ │   roles                                                    ││ ● dự án       đang dùng                                                │ │
-│ │   context                                                  ││     /work/demo/.bint/config.yml                                        │ │
-│ │   knowledge                                                ││     sửa được bằng e                                                    │ │
-│ │   memory                                                   ││ ○ strategy    không có                                                 │ │
-│ │   eval                                                     ││     /work/demo/.bint/harness/strategy.yml                              │ │
-│ │   evolution                                                ││ ○ cục bộ      không có                                                 │ │
-│ │   workflow                                                 ││     /work/demo/.bint/local.yml                                         │ │
-│ │   limits                                                   ││     sửa được bằng e                                                    │ │
-│ │   security                                                 ││                                                                        │ │
-│ │   ui                                                       ││ Thư mục gốc: /work/demo                                                │ │
-│ │                                                            ││                                                                        │ │
+│ │ ▸ Lớp nguồn                                                ││ Cấu hình hiệu lực = toàn cục → dự án → strategy → cục bộ (lớp sau đè   │ │
+│ │   project                                                  ││   lớp trước).                                                          │ │
+│ │   state                                                    ││                                                                        │ │
+│ │   harnesses                                                ││ ○ toàn cục    không có                                                 │ │
+│ │   roles                                                    ││     /home/u/.config/bint/config.yml                                    │ │
+│ │   context                                                  ││ ● dự án       đang dùng                                                │ │
+│ │   knowledge                                                ││     /work/demo/.bint/config.yml                                        │ │
+│ │   memory                                                   ││     sửa được bằng e                                                    │ │
+│ │   eval                                                     ││ ○ strategy    không có                                                 │ │
+│ │   evolution                                                ││     /work/demo/.bint/harness/strategy.yml                              │ │
+│ │   workflow                                                 ││ ○ cục bộ      không có                                                 │ │
+│ │   limits                                                   ││     /work/demo/.bint/local.yml                                         │ │
+│ │   security                                                 ││     sửa được bằng e                                                    │ │
+│ │   ui                                                       ││                                                                        │ │
+│ │                                                            ││ Thư mục gốc: /work/demo                                                │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │

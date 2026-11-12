@@ -36,5 +36,5 @@
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
-│ └─ a ⟦approve~~~⟧  x ⟦reject~~~⟧  m ⟦mine~~⟧  v ⟦verify~~~⟧  A ⟦a…─┘└─ e ⟦edit~~⟧  Enter ⟦switch pane~~~~~⟧ ───────────────────────────┘ │
-└─[m→ ⟦Mine~~⟧] [a→ ⟦Approve~~~⟧] [x→ ⟦Reject~~~⟧] [r→ ⟦Run~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────────────────────────────┘
+│ └─ a ⟦appro…  x ⟦rejec…  m ⟦mine~…  v ⟦verif…  A ⟦all~~⟧ ──────────┘└─ e ⟦edit~~⟧  Enter ⟦switch pane~~~~~⟧ ───────────────────────────┘ │
+└─[m→ ⟦Mine~~⟧] [a→ ⟦Approve~~~⟧] [x→ ⟦Reject~~~⟧] [r→ ⟦Run~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────────┘

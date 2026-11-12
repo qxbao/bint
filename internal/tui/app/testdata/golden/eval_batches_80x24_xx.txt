@@ -20,5 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ └─ r ⟦run~~⟧  R ⟦resume~~~⟧  b ⟦baseline~~~~⟧  B ⟦bootstrap~~~~⟧  C ⟦clea…─┘ │
-└─[m→ ⟦Mine~~⟧] [a→ ⟦Approve~~~⟧] [r→ ⟦Run~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]─────┘
+│ └─ r ⟦run~~⟧  R ⟦resume~~…  b ⟦baseline…  B ⟦bootstra…  C ⟦clean~~⟧ ───────┘ │
+└─[m→ ⟦M…] [a→ ⟦A…] [x→ ⟦R…] [r→ ⟦R…] [:→ ⟦C…] [q→ ⟦Q…] [?→ ⟦H…]───────────────┘

@@ -67,6 +67,9 @@ func TestNoVietnameseLiteralsInTUICode(t *testing.T) {
 		if f == filepath.Join("actions", "coverage.go") {
 			continue // dữ liệu của test phủ lệnh (lý do loại trừ cho nhà phát triển), không hiện cho người dùng
 		}
+		if f == filepath.Join("ui", "cliref_vi.go") {
+			continue // mẫu nhận dạng chữ của tầng dịch vụ (so khớp, không hiện cho người dùng)
+		}
 		node, err := parser.ParseFile(fset, f, nil, 0) // 0: bỏ chú thích
 		if err != nil {
 			t.Fatal(err)
@@ -181,7 +184,7 @@ func TestNoUnusedKeys(t *testing.T) {
 	}
 	code := src.String()
 	vi := i18n.MustLoad("vi")
-	dynamicPrefix := []string{"tab.", "action.nav.", "overview.inbox.", "overview.runstatus.",
+	dynamicPrefix := []string{"cliref.", "help.ctx.", "tab.", "action.nav.", "overview.inbox.", "overview.runstatus.",
 		// Trình hướng dẫn init (giai đoạn 5b): bước, mô tả từng bước, phạm vi hook, chế độ Git, loại thay đổi (ghép từ giá trị dữ liệu).
 		"wiz.",
 		// Màn Tri thức: khoá ghép từ tên hành động, thẻ phụ, mã finding, chỉ số điều kiện chuyển (có test phủ riêng).

@@ -110,7 +110,7 @@ func (m *Model) onJobDone(msg jobs.DoneMsg) (tea.Model, tea.Cmd) {
 		m.prompt = nil
 	}
 	cmds := []tea.Cmd{m.onResult(actions.ResultMsg{ID: j.Action, Opts: j.Opts, Value: msg.Value, Err: msg.Err})}
-	m.toast = m.doneToast(j, msg)
+	m.setToast(m.doneToast(j, msg))
 	if m.exiting && m.jobs.Len() == 0 {
 		m.quitting = true
 		return m, tea.Quit
@@ -140,24 +140,25 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// doneToast là thông báo khi một việc nền kết thúc (hiện ở mọi màn hình).
-func (m *Model) doneToast(j *jobs.Job, msg jobs.DoneMsg) string {
+// doneToast là thông báo khi một việc nền kết thúc (hiện ở mọi màn hình) và cờ lỗi của nó: lỗi khi việc kết thúc với lỗi hoặc quy trình dừng ở
+// blocked/failed/interrupted (cần người xử lý); thành công thì là thông báo thường.
+func (m *Model) doneToast(j *jobs.Job, msg jobs.DoneMsg) (string, bool) {
 	label := j.Label
 	if label == "" {
 		label = j.Action
 	}
 	switch {
 	case msg.Err != nil:
-		return m.cat.T("job.done.err", i18n.A{"label": label, "error": ui.ErrText(m.cat, msg.Err)})
+		return m.cat.T("job.done.err", i18n.A{"label": label, "error": ui.ErrText(m.rw(), msg.Err)}), true
 	}
 	if res, ok := msg.Value.(*workflow.Result); ok && res != nil {
 		switch res.Status {
 		case task.StatusBlocked, task.StatusFailed, task.StatusInterrupted:
-			return m.cat.T("job.done.attention", i18n.A{"label": label, "status": res.Status})
+			return m.cat.T("job.done.attention", i18n.A{"label": label, "status": res.Status}), true
 		}
-		return m.cat.T("job.done.status", i18n.A{"label": label, "status": res.Status})
+		return m.cat.T("job.done.status", i18n.A{"label": label, "status": res.Status}), false
 	}
-	return m.cat.T("job.done.ok", i18n.A{"label": label})
+	return m.cat.T("job.done.ok", i18n.A{"label": label}), false
 }
 
 // ---- câu hỏi giữa chừng ----
@@ -188,7 +189,7 @@ func (m *Model) promptDialog(j *jobs.Job, p jobs.Prompt) confirm.Model {
 	if args == nil {
 		args = i18n.A{}
 	}
-	title, body := m.cat.T("prompt.title"), strings.Split(strings.TrimSpace(p.Text), "\n")
+	title, body := m.cat.T("prompt.title"), strings.Split(m.rw().Rewrite(strings.TrimSpace(p.Text)), "\n")
 	if k := "prompt." + p.Key; p.Key != "" && m.cat.Has(k+".title") {
 		title, body = m.cat.T(k+".title", args), strings.Split(m.cat.T(k+".body", args), "\n")
 	}
@@ -244,6 +245,8 @@ func (m *Model) openExitDialog() {
 		}
 		c.Body = append(c.Body, "• "+m.th.Bold(label))
 		if j.Resume != "" {
+			// Nguyên văn lệnh CLI (kèm mã tác vụ/đợt đầy đủ), không qua Rewriter: người dùng sắp rời TUI, tham chiếu phím TUI sẽ vô dụng
+			// và hàm viết lại bỏ mất ID. j.Resume do chính TUI dựng (actions), không phải thông điệp của tầng dịch vụ.
 			c.Body = append(c.Body, "    "+m.th.S(theme.Muted, m.cat.T("exit.resume", i18n.A{"cmd": j.Resume})))
 		}
 	}
@@ -267,7 +270,7 @@ func (m *Model) exitKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.prompt = nil
 		}
 		m.jobs.CancelAll()
-		m.toast = m.cat.T("exit.stopping")
+		m.setToast(m.cat.T("exit.stopping"), false)
 		if m.jobs.Len() == 0 && !m.wiz.Running() {
 			m.quitting = true
 			return m, tea.Quit

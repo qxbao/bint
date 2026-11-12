@@ -13,7 +13,8 @@ import (
 // ErrText dịch một lỗi của tầng dịch vụ để hiện cho người dùng: lỗi đã biết (chỉ dành cho người, chưa
 // khởi tạo, chuyển trạng thái, thiếu ngân sách, huỷ) có khoá i18n riêng; lỗi khác hiện nguyên văn kèm
 // nhãn "chi tiết kỹ thuật" (docs/tui-plan.md mục 7.1).
-func ErrText(cat *i18n.Catalog, err error) string {
+func ErrText(rw Rewriter, err error) string {
+	cat := rw.Cat
 	switch {
 	case err == nil:
 		return ""
@@ -22,7 +23,7 @@ func ErrText(cat *i18n.Catalog, err error) string {
 	case errors.Is(err, app.ErrNotInitialized):
 		return cat.T("err.not_initialized")
 	case errors.Is(err, knowledge.ErrTransition):
-		return cat.T("err.transition", i18n.A{"detail": err.Error()})
+		return cat.T("err.transition", i18n.A{"detail": rw.Rewrite(err.Error())})
 	case errors.Is(err, app.ErrNoBudget):
 		return cat.T("err.no_budget")
 	case errors.Is(err, actions.ErrWorkflowBusy):
@@ -34,11 +35,12 @@ func ErrText(cat *i18n.Catalog, err error) string {
 	case errors.Is(err, app.ErrCancelled), errors.Is(err, context.Canceled):
 		return cat.T("err.cancelled")
 	}
-	return cat.T("err.technical", i18n.A{"detail": err.Error()})
+	return cat.T("err.technical", i18n.A{"detail": rw.Rewrite(err.Error())})
 }
 
 // FindingText dịch mã của một finding kiểm tra tri thức; chi tiết đi kèm nguyên văn (kỹ thuật).
-func FindingText(cat *i18n.Catalog, f knowledge.Finding) string {
+func FindingText(rw Rewriter, f knowledge.Finding) string {
+	cat := rw.Cat
 	label := f.Code
 	if k := "finding." + f.Code; cat.Has(k) {
 		label = cat.T(k)
@@ -46,5 +48,5 @@ func FindingText(cat *i18n.Catalog, f knowledge.Finding) string {
 	if f.Detail == "" {
 		return label
 	}
-	return label + " — " + f.Detail
+	return label + " — " + rw.Rewrite(f.Detail)
 }

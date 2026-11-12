@@ -341,7 +341,7 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 			if m.frm != nil {
 				var parts []string
 				for _, f := range ar.Check.Findings {
-					parts = append(parts, f.Code+": "+f.Detail)
+					parts = append(parts, f.Code+": "+m.cli(f.Detail))
 				}
 				m.frm.Err = m.t("tk.knowledge.failed") + " " + strings.Join(parts, "; ")
 			}
@@ -361,11 +361,11 @@ var doneKey = map[string]string{"tasks.set": "tk.set.done", "tasks.write": "tk.w
 func (m *Model) onError(r actions.ResultMsg) tea.Cmd {
 	if m.frm != nil && m.frmID == r.ID {
 		m.frmBusy = false
-		m.frm.Err = ui.ErrText(m.cat, r.Err)
+		m.frm.Err = ui.ErrText(m.rw, r.Err)
 		return nil
 	}
 	m.frmBusy = false
-	m.setToast(ui.ErrText(m.cat, r.Err), true)
+	m.setToast(ui.ErrText(m.rw, r.Err), true)
 	m.invalidate()
 	return tea.Batch(m.Load(), m.wantDetail())
 }
@@ -378,12 +378,12 @@ func (m *Model) afterEditor(r actions.ResultMsg) tea.Cmd {
 	}
 	defer os.Remove(o.Path)
 	if r.Err != nil {
-		m.setToast(ui.ErrText(m.cat, r.Err), true)
+		m.setToast(ui.ErrText(m.rw, r.Err), true)
 		return nil
 	}
 	b, err := os.ReadFile(o.Path)
 	if err != nil {
-		m.setToast(ui.ErrText(m.cat, err), true)
+		m.setToast(ui.ErrText(m.rw, err), true)
 		return nil
 	}
 	content := string(b)
@@ -420,7 +420,7 @@ func (m *Model) confirmApprove(p app.ApprovePlan) {
 		c.Body = append(c.Body, m.th.S(theme.Muted, "  "+m.t("tk.approve.paths_hint")))
 	}
 	if p.Resumable {
-		c.Body = append(c.Body, "", m.th.S(theme.Muted, m.t("tk.approve.resume", i18n.A{"cmd": "bint run resume " + p.Task.State.ID})))
+		c.Body = append(c.Body, "", m.th.S(theme.Muted, m.t("tk.approve.resume", i18n.A{"cmd": m.cli("bint run resume " + p.Task.State.ID)})))
 	}
 	c.Input, c.Label = true, m.t("tk.approve.extra")
 	ref := p.Task.State.ID
@@ -440,18 +440,18 @@ func (m *Model) showLint(lr app.TaskLinted) {
 	var body []string
 	rep := lr.Report
 	for _, i := range rep.Errors {
-		body = append(body, m.th.S(theme.Err, "✗ ")+"["+i.Code+"] "+i.Artifact+": "+i.Detail)
+		body = append(body, m.th.S(theme.Err, "✗ ")+"["+i.Code+"] "+i.Artifact+": "+m.cli(i.Detail))
 	}
 	for _, i := range rep.Warnings {
-		body = append(body, m.th.S(theme.Warn, "! ")+"["+i.Code+"] "+i.Artifact+": "+i.Detail)
+		body = append(body, m.th.S(theme.Warn, "! ")+"["+i.Code+"] "+i.Artifact+": "+m.cli(i.Detail))
 	}
 	for _, i := range rep.OpenQuestions {
-		body = append(body, m.th.S(theme.Accent, "? ")+"["+i.Code+"] "+i.Artifact+": "+i.Detail)
+		body = append(body, m.th.S(theme.Accent, "? ")+"["+i.Code+"] "+i.Artifact+": "+m.cli(i.Detail))
 	}
 	if len(body) == 0 {
 		body = append(body, m.th.S(theme.OK, "✓ ")+m.t("tk.lint.ok"))
 	} else if len(rep.OpenQuestions) > 0 {
-		body = append(body, "", m.th.S(theme.Muted, m.t("tk.lint.answer", i18n.A{"cmd": "bint run resume " + lr.Task.State.ID})))
+		body = append(body, "", m.th.S(theme.Muted, m.t("tk.lint.answer", i18n.A{"cmd": m.cli("bint run resume " + lr.Task.State.ID)})))
 	}
 	m.openInfo(m.t("tk.lint.title", i18n.A{"id": short(lr.Task.State.ID)}), body)
 }

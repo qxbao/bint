@@ -37,7 +37,7 @@ func (m *Model) infoLines(env ui.Env, d *evolvesvc.ShowResult, w int) []string {
 	out = append(out, m.kv(th, w, "opportunity", p.Opportunity)...)
 	out = append(out, m.kv(th, w, "reason", p.Reason)...)
 	if p.ExpectedBenefit != "" {
-		out = append(out, m.kv(th, w, "benefit", p.ExpectedBenefit)...)
+		out = append(out, m.kv(th, w, "benefit", m.cli(p.ExpectedBenefit))...)
 	}
 	risk := p.Risk
 	if len(p.RiskReasons) > 0 {
@@ -62,7 +62,7 @@ func (m *Model) infoLines(env ui.Env, d *evolvesvc.ShowResult, w int) []string {
 		out = append(out, m.kv(th, w, "verify", th.S(theme.Warn, m.t("ev.not_quantitative")))...)
 	}
 	for _, n := range p.Notes {
-		out = append(out, m.kv(th, w, "note", n)...)
+		out = append(out, m.kv(th, w, "note", m.cli(n))...)
 	}
 	if p.Pair != nil {
 		area := ""
@@ -74,11 +74,11 @@ func (m *Model) infoLines(env ui.Env, d *evolvesvc.ShowResult, w int) []string {
 	if len(p.Base) > 0 {
 		out = append(out, "", th.S(theme.Accent, m.t("ev.sec.base")))
 		for _, b := range p.Base {
-			out = append(out, text.Truncate(fmt.Sprintf("  %s v%d %s sha256:%s", b.ID, b.Version, b.Status, b.SHA[:min(12, len(b.SHA))]), w))
+			out = append(out, fmt.Sprintf("  %s v%d %s sha256:%s", b.ID, b.Version, b.Status, b.SHA[:min(12, len(b.SHA))]))
 		}
 	}
 	for _, b := range d.BaseProblems {
-		out = append(out, text.WrapHang(th.S(theme.Err, "  ✗ ")+m.t("ev.base_problem", i18n.A{"id": b.ID, "detail": b.Detail}), w, "", "    ")...)
+		out = append(out, text.WrapHang(th.S(theme.Err, "  ✗ ")+m.t("ev.base_problem", i18n.A{"id": b.ID, "detail": m.cli(b.Detail)}), w, "", "    ")...)
 	}
 	out = append(out, "", th.S(theme.Accent, m.t("ev.sec.support", i18n.A{"count": len(p.SupportingRuns)})))
 	var runs []string
@@ -101,7 +101,7 @@ func (m *Model) infoLines(env ui.Env, d *evolvesvc.ShowResult, w int) []string {
 			out = append(out, text.WrapHang(fmt.Sprintf("  %s  %s  %s  %s  %s", a.ID, a.Action, shared.Time(a.CreatedAt), a.Actor,
 				m.t("ev.adoption.verified", i18n.A{"v": fmt.Sprint(a.Verified)})), w, "", "    ")...)
 			if a.Reason != "" {
-				out = append(out, text.Truncate("    "+a.Reason, w))
+				out = append(out, "    "+a.Reason)
 			}
 		}
 	}
@@ -142,7 +142,7 @@ func (m *Model) evalLines(env ui.Env, d *evolvesvc.ShowResult, w int) []string {
 		out = append(out, text.WrapHang(fmt.Sprintf("%s  %s  %s, %s%s, %s → %s%s%s", e.ID, shared.Short(e.BatchID), shared.Dash(e.Split),
 			m.t("ev.evals.cases", i18n.A{"count": len(e.CaseIDs)}), kind, e.Delivery, th.S(role, shared.Dash(e.Verdict)), ind, stale), w, "", "  ")...)
 		if e.Detail != "" {
-			out = append(out, text.WrapHang(th.S(theme.Muted, e.Detail), w, "    ", "    ")...)
+			out = append(out, text.WrapHang(th.S(theme.Muted, m.cli(e.Detail)), w, "    ", "    ")...)
 		}
 	}
 	return out
@@ -228,12 +228,12 @@ func (m *Model) knowledgeLines(env ui.Env, d *evolvesvc.ShowResult, w int) []str
 		field := func(name, old, val string) {
 			switch {
 			case cur == nil:
-				out = append(out, th.S(theme.OK, "+ ")+text.Truncate(text.Pad(m.t("ev.f."+name), 11)+val, max(w-2, 8)))
+				out = append(out, th.S(theme.OK, "+ ")+text.Pad(m.t("ev.f."+name), 11)+val)
 			case old != val:
-				out = append(out, th.S(theme.Err, "- ")+text.Truncate(text.Pad(m.t("ev.f."+name), 11)+old, max(w-2, 8)),
-					th.S(theme.OK, "+ ")+text.Truncate(text.Pad(m.t("ev.f."+name), 11)+val, max(w-2, 8)))
+				out = append(out, th.S(theme.Err, "- ")+text.Pad(m.t("ev.f."+name), 11)+old,
+					th.S(theme.OK, "+ ")+text.Pad(m.t("ev.f."+name), 11)+val)
 			default:
-				out = append(out, "  "+text.Truncate(text.Pad(m.t("ev.f."+name), 11)+val, max(w-2, 8)))
+				out = append(out, "  "+text.Pad(m.t("ev.f."+name), 11)+val)
 			}
 		}
 		var oldType, oldTitle, oldPaths, oldEv, oldBody string
@@ -362,13 +362,13 @@ func (m *Model) harnessLines(env ui.Env, d *evolvesvc.ShowResult, w int) []strin
 			out = append(out, m.kv(th, w, "usage", dr.Usage)...)
 			out = append(out, "", th.S(theme.Warn, "⚠ "+m.t("ev.script.warn")), th.S(theme.Accent, m.t("ev.sec.script")))
 			for _, l := range strings.Split(strings.TrimRight(dr.Script, "\n"), "\n") {
-				out = append(out, text.Truncate("  "+l, w))
+				out = append(out, "  "+l)
 			}
 		case hcomp.KindStrategy:
 			out = append(out, "", th.S(theme.Accent, "strategy.yml"))
 			if b, err := hcomp.Marshal(c); err == nil {
 				for _, l := range strings.Split(strings.TrimRight(string(b), "\n"), "\n") {
-					out = append(out, text.Truncate("  "+l, w))
+					out = append(out, "  "+l)
 				}
 			}
 		}

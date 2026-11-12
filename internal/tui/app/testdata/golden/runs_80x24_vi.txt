@@ -21,4 +21,4 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ └─ +/- chấm tốt/xấu  S quét Git  I nạp spool  d tóm tắt thất bại ──────────┘ │
-└─[+/-→ Chấm] [S→ Quét Git] [I→ Nạp spool] [q→ Thoát] [?→ Trợ giúp]────────────┘
+└─[+/-→ Chấm] [S→ Quét] [I→ Nạp] [:→ Lệnh] [q→ Thoát] [?→ Trợ]─────────────────┘

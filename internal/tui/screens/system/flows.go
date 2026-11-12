@@ -263,10 +263,10 @@ func (m *Model) checkLines(v any) []string {
 			out = append(out, "    "+m.t("sy.skill.check.overlap", i18n.A{"skill": o}))
 		}
 		for _, p := range r.Problems {
-			out = append(out, "    "+m.th.S(theme.Err, "✗ ")+p)
+			out = append(out, "    "+m.th.S(theme.Err, "✗ ")+m.cli(p))
 		}
 		for _, n := range r.Notes {
-			out = append(out, "    · "+n)
+			out = append(out, "    · "+m.cli(n))
 		}
 		out = append(out, "")
 	}
@@ -286,7 +286,7 @@ func (m *Model) regressLines(v any) []string {
 	}
 	for _, s := range res.Statuses {
 		out = append(out, fmt.Sprintf("%s v%d  %s  %s", s.Skill, s.Version, s.Status, shared.Dash(s.Verified)))
-		out = append(out, text.WrapHang(s.Detail, 72, "    ", "    ")...)
+		out = append(out, text.WrapHang(m.cli(s.Detail), 72, "    ", "    ")...)
 	}
 	return out
 }
@@ -312,7 +312,7 @@ func (m *Model) syncPlanLines(p app.SyncPlan) []string {
 		g, role := outcomeGlyph(f.Result)
 		line := m.th.S(role, g) + " " + f.Path
 		if f.Detail != "" {
-			line += " — " + f.Detail
+			line += " — " + m.cli(f.Detail)
 		}
 		out = append(out, line)
 	}
@@ -342,7 +342,7 @@ func (m *Model) syncResultLines(si app.SkillInstall) []string {
 		g, role := outcomeGlyph(o.Result)
 		line := m.th.S(role, g) + " " + o.Skill + ": " + o.Path
 		if o.Detail != "" {
-			line += " — " + o.Detail
+			line += " — " + m.cli(o.Detail)
 		}
 		out = append(out, line)
 	}

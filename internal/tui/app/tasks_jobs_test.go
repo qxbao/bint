@@ -172,7 +172,7 @@ func TestEscOnLogCancelsJobAndInterruptsTask(t *testing.T) {
 	if tk.State.Status != task.StatusInterrupted {
 		t.Fatalf("huỷ phải đưa tác vụ về interrupted: %s (%s)", tk.State.Status, tk.State.Reason)
 	}
-	if !strings.Contains(plain(f.m.Render()), "bint run resume") && !strings.Contains(f.m.toast, "interrupted") {
+	if !strings.Contains(plain(f.m.Render()), "phím c ở Tác vụ") && !strings.Contains(f.m.toast, "interrupted") {
 		t.Logf("toast: %q", f.m.toast)
 	}
 }
@@ -207,7 +207,15 @@ func TestExitDialogWithRunningWorkflow(t *testing.T) {
 	}
 	f.press("q")
 	out := plain(f.m.Render())
-	for _, want := range []string{"Còn việc đang chạy", "b-do · ", "bint run resume " + id, "Huỷ việc rồi thoát", "Ở lại"} {
+	// .6/.11: hộp thoát hiện nguyên lệnh CLI tiếp tục kèm MÃ TÁC VỤ ĐẦY ĐỦ (người dùng đang rời TUI), không phải tham chiếu phím TUI.
+	wantResume := "bint run resume " + id
+	if js := f.m.jobs.All(); len(js) != 1 || js[0].Resume != wantResume {
+		t.Fatalf("việc nền phải mang Resume %q, có %+v", wantResume, js)
+	}
+	if strings.Contains(out, "phím c ở Tác vụ") {
+		t.Errorf("hộp thoát không được viết lại lệnh tiếp tục thành phím TUI:\n%s", out)
+	}
+	for _, want := range []string{"Còn việc đang chạy", "b-do · ", "Tiếp tục sau bằng: " + wantResume, "Huỷ việc rồi thoát", "Ở lại"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("hộp thoại thoát thiếu %q:\n%s", want, out)
 		}

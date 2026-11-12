@@ -14,7 +14,7 @@
 │ │  ! The running binary is /usr/local/bin/bint, not the file just installed; check PATH (which bint) if the bint command is still      │ │
 │ │    the old build.                                                                                                                    │ │
 │ │  Not restarted yet: th┌─│Restart now?│───────────────────────────────────────────────────────────────────────┐                       │ │
-│ │  Run bint init --updat│ abc1234 → def5678                                                                    │                       │ │
+│ │  In each repository, p│ abc1234 → def5678                                                                    │                       │ │
 │ │                       │ /home/u/go/bin/bint                                                                  │                       │ │
 │ │  go install log       │                                                                                      │                       │ │
 │ │   go: downloading gith│ ! The running binary is /usr/local/bin/bint, not the file just installed; check PATH │                       │ │

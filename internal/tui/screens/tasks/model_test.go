@@ -95,7 +95,7 @@ func newRig(t *testing.T, o tasks.Options) *rig {
 		return actions.Available
 	}
 	r.m = tasks.New(o)
-	r.m.SetEnv(theme.New(theme.Mono), i18n.MustLoad("vi"))
+	r.m.SetEnv(theme.New(theme.Mono), ui.Rewriter{Cat: i18n.MustLoad("vi")})
 	r.feed(r.m.Ensure())
 	return r
 }
@@ -543,7 +543,7 @@ func TestEnsureLoadsOnce(t *testing.T) {
 	calls := 0
 	o := tasks.Options{Loader: func(context.Context, string, bool) (tasks.Data, error) { calls++; return tasks.Data{}, nil }}
 	m := tasks.New(o)
-	m.SetEnv(theme.New(theme.Mono), i18n.MustLoad("vi"))
+	m.SetEnv(theme.New(theme.Mono), ui.Rewriter{Cat: i18n.MustLoad("vi")})
 	cmd := m.Ensure()
 	if cmd == nil || m.Ensure() != nil {
 		t.Fatal("đang nạp thì Ensure không nạp thêm")

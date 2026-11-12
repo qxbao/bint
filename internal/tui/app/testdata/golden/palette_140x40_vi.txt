@@ -9,14 +9,14 @@
 │                               │   Mở bảng trợ giúp đầy đủ                                              ? │                               │
 │                               │   Mở bảng lệnh (tìm mọi hành động)                                     : │                               │
 │                               │   Đổi ngôn ngữ giao diện (vi ⇄ en)                                     L │                               │
+│                               │   Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi màn hình  ! │                               │
+│                               │   Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân trang)     │                               │
 │                               │   Chuyển tới tab kế tiếp                                               ] │                               │
 │                               │   Chuyển về tab trước                                                  [ │                               │
 │                               │   Chuyển tới Tổng quan                                                 1 │                               │
 │                               │   Chuyển tới Tri thức                                                  2 │                               │
 │                               │   Chuyển tới Tác vụ                                                    3 │                               │
 │                               │   Chuyển tới Lượt chạy                                                 4 │                               │
-│                               │   Chuyển tới Đánh giá                                                  5 │                               │
-│                               │   Chuyển tới Tiến hoá                                                  6 │                               │
 │                               └──────────────────────────────────────────────────────────────────────────┘                               │
 │                                                                                                                                          │
 │                                                                                                                                          │

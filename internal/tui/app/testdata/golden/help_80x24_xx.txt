@@ -4,6 +4,9 @@
 ┌─│⟦Overview~~~~⟧│─────────────────────────────────────────────────────────────┐
 │ ┌─│⟦Help~~⟧│───────────────────────────────────────────────────────────────┐ │
 │ │ ⟦Overview~~~~⟧                                                           │ │
+│ │  ⟦Overview: repository status and the “Needs you” inbox (items awaiting  │ │
+│ │  review, doctor warnings). Enter on a row opens the screen that handles  │ │
+│ │  it.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧          │ │
 │ │  r       ⟦Refresh the repository status~~~~~~~~~~~~⟧  bint status        │ │
 │ │          ⟦Check the environment (doctor)~~~~~~~~~~~~⟧  bint doctor       │ │
 │ │                                                                          │ │
@@ -12,13 +15,10 @@
 │ │  ?       ⟦Show the full help~~~~~~~~⟧                                    │ │
 │ │  :       ⟦Open the command palette (search every action)~~~~~~~~~~~~~~~… │ │
 │ │  L       ⟦Switch interface language (vi ⇄ en)~~~~~~~~~~~~~~⟧             │ │
+│ │  !       ⟦Read the current notice in full plus the last 50 notices from… │ │
+│ │          ⟦Turn the mouse on/off for this session (scroll, click tabs, r… │ │
 │ │  ]       ⟦Go to the next tab~~~~~~~~⟧                                    │ │
-│ │  [       ⟦Go to the previous tab~~~~~~~~~⟧                               │ │
-│ │  1-7     ⟦Jump to a tab~~~~~~⟧                                           │ │
-│ │                                                                          │ │
-│ │ ⟦Knowledge~~~~⟧                                                          │ │
-│ │ ⟦… (more; enlarge the window to see everything)~~~~~~~~~~~~~~~~~~~⟧      │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
+│ └───────────────────────────────────────────────────────────⟦1–15/176 ↕~~⟧─┘ │
 │                                                                              │
 │                                                                              │
-└─[r→ ⟦Refresh~~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────┘
+└─[r→ ⟦Refre…] [:→ ⟦Comma…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]─────────────┘

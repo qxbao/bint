@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│ ‹ Components Skills Index MCP Language Doctor  Setup  Update                 │
+│  Config Harness Components Skills Index MCP Language Doctor  Setup  Update   │
 │ ┌─│Repo setup│─────────────────────────────────────────────────────────────┐ │
 │ │                                                                          │ │
 │ │  Repository     /work/demo                                               │ │
@@ -17,8 +17,8 @@
 │ │                                                                          │ │
 │ │  Git            local (this machine only)                                │ │
 │ │  AGENTS.md      not yet                                                  │ │
-│ │  Config template ! old template, missing: harnesses.claude.models, harn… │ │
+│ │ Config template ! old template, missing: harnesses.claude.models,        │ │
+│ │    harnesses.codex.models                                                │ │
 │ │                                                                          │ │
-│ │  Re-runs init with a form prefilled from the current state; only what    │ │
 │ └─ e Edit  U Upgrade template ─────────────────────────────────────────────┘ │
 └─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘

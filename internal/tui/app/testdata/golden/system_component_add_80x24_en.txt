@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│   Config Harness  Components  Skills Index MCP Language ›                    │
+│  Config Harness  Components  Skills Index MCP Language Doctor Setup Update   │
 │ ┌─│Add a workflow component as a candidate (from a template or a file)│────┐ │
 │ │ ▸ Kind               ‹ (●) (empty) ›                                     │ │
 │ │   Component file                                                         │ │

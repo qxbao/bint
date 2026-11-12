@@ -6,7 +6,7 @@
 │ ┌─│Doctor: 1 cảnh báo, 1 lỗi│───────────────chỉ cảnh báo/lỗi─┐┌─│Chi tiết · cấu hình│──────────────────────────────────────────────────┐ │
 │ │ ▸ ! cấu hình                                               ││ ! cấu hình  cảnh báo                                                   │ │
 │ │   ✗ hook claude                                            ││                                                                        │ │
-│ │                                                            ││ cấu hình theo mẫu cũ: chạy `bint init --update`                        │ │
+│ │                                                            ││ cấu hình theo mẫu cũ: nhấn U ở Hệ thống › Cấu hình                     │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │

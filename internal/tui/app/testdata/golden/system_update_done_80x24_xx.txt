@@ -14,11 +14,11 @@
 │ │  ! ⟦The running binary is /usr/local/bin/bint, not the file just         │ │
 │ │    installed; check PATH (which bint) if the bint command is still the   │ │
 │ │    old build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧           │ │
-│ │  ⟦Not restarted yet: the running build is still the old one.~~~~~~~~~~~… │ │
-│ │  ⟦Run bint init --update or bint sync in each repository to publish the  │ │
-│ │  new skills.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                           │ │
+│ │ ⟦Not restarted yet: the running build is still the old                   │ │
+│ │    one.~~~~~~~~~~~~~~~~~~~~~~~~⟧                                         │ │
+│ │  ⟦In each repository, press U in System › Config or s in System ›        │ │
+│ │  Skills to publish the new                                               │ │
+│ │  skills.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                         │ │
 │ │                                                                          │ │
-│ │  ⟦go install log~~~~~~⟧                                                  │ │
-│ │   bint/internal/app                                                      │ │
 │ └─ u ⟦Update~~~⟧  R ⟦Restart~~~⟧ ──────────────────────────────────────────┘ │
 └─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

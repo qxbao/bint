@@ -68,6 +68,7 @@ type dialog struct {
 type Model struct {
 	o   Options
 	cat *i18n.Catalog
+	rw  ui.Rewriter
 	th  theme.Theme
 
 	Data    Data
@@ -121,7 +122,7 @@ func New(o Options) *Model {
 }
 
 // SetEnv đặt danh mục chuỗi và bảng màu (gọi lại khi đổi ngôn ngữ).
-func (m *Model) SetEnv(th theme.Theme, cat *i18n.Catalog) { m.th, m.cat = th, cat }
+func (m *Model) SetEnv(th theme.Theme, rw ui.Rewriter) { m.th, m.rw, m.cat = th, rw, rw.Cat }
 
 // allowed kiểm sổ hành động cho id; không được thì báo bằng thông báo ngắn.
 func (m *Model) allowed(id string) bool {
@@ -713,10 +714,10 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 	}
 	if r.Err != nil {
 		if m.frm != nil && (r.ID == m.frmID) {
-			m.frm.Err = ui.ErrText(m.cat, r.Err)
+			m.frm.Err = ui.ErrText(m.rw, r.Err)
 			return nil
 		}
-		m.setToast(ui.ErrText(m.cat, r.Err), true)
+		m.setToast(ui.ErrText(m.rw, r.Err), true)
 		return m.Load()
 	}
 	switch r.ID {
@@ -755,7 +756,7 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 		}
 		if !ar.Saved || ar.Item == nil {
 			if m.frm != nil {
-				m.frm.Err = m.t("kn.add.failed") + " " + strings.Join(findingLines(m.cat, ar.Check.Findings), "; ")
+				m.frm.Err = m.t("kn.add.failed") + " " + strings.Join(findingLines(m.rw, ar.Check.Findings), "; ")
 			}
 			return nil
 		}
@@ -783,9 +784,9 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 func (m *Model) afterOutcomes(outs []app.ReviewOutcome) tea.Cmd {
 	for _, o := range outs {
 		if o.Err != nil {
-			msg := ui.ErrText(m.cat, o.Err)
+			msg := ui.ErrText(m.rw, o.Err)
 			if o.Check != nil && len(o.Check.Findings) > 0 {
-				msg += " · " + strings.Join(findingLines(m.cat, o.Check.Findings), "; ")
+				msg += " · " + strings.Join(findingLines(m.rw, o.Check.Findings), "; ")
 			}
 			m.setToast(msg, true)
 			return m.Load()
@@ -877,7 +878,7 @@ func (m *Model) showVerify(rep app.VerifyReport, applied bool) {
 		}
 		body = append(body, m.th.S(role, icon)+" "+short(r.ID)+" "+title)
 		for _, f := range r.Findings {
-			body = append(body, "    "+m.th.S(theme.Muted, findingIcon(f.Level))+" "+m.findingLabel(f)+" — "+f.Detail)
+			body = append(body, "    "+m.th.S(theme.Muted, findingIcon(f.Level))+" "+m.findingLabel(f)+" — "+m.cli(f.Detail))
 		}
 	}
 	for _, t := range rep.Transitions {
@@ -911,10 +912,10 @@ func (m *Model) findingLabel(f kn.Finding) string {
 }
 
 // findingLines là các finding thành chuỗi ngắn "nhãn — chi tiết".
-func findingLines(cat *i18n.Catalog, fs []kn.Finding) []string {
+func findingLines(rw ui.Rewriter, fs []kn.Finding) []string {
 	var out []string
 	for _, f := range fs {
-		out = append(out, ui.FindingText(cat, f))
+		out = append(out, ui.FindingText(rw, f))
 	}
 	return out
 }
@@ -985,3 +986,6 @@ func keyMsgOf(s string) tea.KeyPressMsg {
 	r := []rune(s)
 	return tea.KeyPressMsg{Code: r[0], Text: s}
 }
+
+// cli viết lại đoạn nhắc lệnh CLI trong thông điệp của tầng dịch vụ thành phím/hành động TUI (ui.Rewrite).
+func (m *Model) cli(s string) string { return m.rw.Rewrite(s) }

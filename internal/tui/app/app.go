@@ -27,6 +27,7 @@ import (
 	"bint/internal/tui/components/palette"
 	"bint/internal/tui/components/tabs"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/jobs"
 	elscreen "bint/internal/tui/screens/eval"
 	evscreen "bint/internal/tui/screens/evolve"
@@ -159,8 +160,15 @@ type Model struct {
 
 	pal      *palette.Model
 	showHelp bool
+	helpTop  int // dòng đầu đang xem của hộp trợ giúp (cuộn)
 	toast    string
+	toastErr bool // toast của mô hình gốc là lỗi/cảnh báo (false: thông báo thường, ví dụ app.mouse)
 	quitting bool
+
+	// Chuột (mouse.go): vùng bấm của lần vẽ gần nhất, tắt/bật trong phiên, lịch sử thông báo và hộp Thông báo đang mở.
+	zones    []zone.Zone
+	mouseOff bool
+	notes    notices
 }
 
 // New dựng mô hình. ctx là ngữ cảnh của các việc nền.
@@ -194,12 +202,15 @@ func New(ctx context.Context, opts Options) *Model {
 	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk, actions.Runs: m.rn, actions.Eval: m.el, actions.Evolve: m.ev,
 		actions.System: m.sy, actions.Init: m.wiz}
 	for _, sc := range m.screens {
-		sc.SetEnv(m.th, m.cat)
+		sc.SetEnv(m.th, m.rw())
 	}
 	return m
 }
 
 // gate cho biết hành động id dùng được không theo sổ và chế độ hiện tại (cho màn hình báo sớm).
+// actionAllowed cho biết hành động id dùng được ở chế độ hiện tại (ui.Env.Allowed: chân phím trong khung tra sổ qua đây).
+func (m *Model) actionAllowed(id string) bool { return m.gate(id) == actions.Available }
+
 func (m *Model) gate(id string) actions.Availability {
 	if a, ok := m.reg.ByID(id); ok {
 		return a.Check(m.mode())
@@ -317,7 +328,17 @@ func (m *Model) Init() tea.Cmd { return m.load() }
 
 // Update xử lý thông điệp.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	mm, cmd := m.update(msg)
+	m.harvestNotices()
+	return mm, cmd
+}
+
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.MouseClickMsg:
+		return m.click(tea.Mouse(msg))
+	case tea.MouseWheelMsg:
+		return m.wheel(tea.Mouse(msg))
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 	case spinner.TickMsg:
@@ -497,8 +518,12 @@ func (m *Model) goTo(s actions.Screen) {
 
 func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := msg.String()
-	m.toast = ""
+	if s != "!" { // "!" mở hộp Thông báo: giữ thông báo hiện tại để hộp ghi nhận đủ
+		m.setToast("", false)
+	}
 	switch {
+	case m.notes.dlg != nil:
+		return m.notesKey(msg)
 	case m.exiting:
 		if s == "ctrl+c" { // đã chọn thoát và đang chờ việc kết thúc: Ctrl+C lần nữa thoát ngay
 			m.quitting = true
@@ -512,11 +537,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case m.pal != nil:
 		return m.paletteKey(msg)
 	case m.showHelp:
-		switch s {
-		case "esc", "ctrl+c", "?", "q", "enter":
-			m.showHelp = false
-		}
-		return m, nil
+		return m.helpKey(s)
 	}
 	if sc := m.screens[m.Screen()]; sc != nil {
 		switch {
@@ -541,6 +562,8 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.run("app.palette")
 	case "L":
 		return m.run("app.language")
+	case "!":
+		return m.run("app.notifications")
 	case "]", "tab", "right":
 		return m.run("app.next_tab")
 	case "[", "shift+tab", "left":
@@ -569,7 +592,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // globalKey: phím toàn cục mà màn hình không được chiếm (điều hướng tab, thoát, trợ giúp, bảng lệnh, ngôn ngữ).
 func globalKey(s string) bool {
 	switch s {
-	case "q", "ctrl+c", "?", ":", "ctrl+k", "L", "[", "]", "left", "right", "shift+tab", "1", "2", "3", "4", "5", "6", "7":
+	case "q", "ctrl+c", "?", ":", "ctrl+k", "L", "!", "[", "]", "left", "right", "shift+tab", "1", "2", "3", "4", "5", "6", "7":
 		return true
 	}
 	return false
@@ -584,7 +607,7 @@ func (m *Model) paletteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.pal = nil
 		if ok {
 			if it.Locked != "" {
-				m.toast = it.Locked
+				m.setToast(it.Locked, true)
 				return m, nil
 			}
 			return m.run(it.ID)
@@ -613,7 +636,7 @@ func (m *Model) run(id string) (tea.Model, tea.Cmd) {
 		case actions.Hidden:
 			return m, nil
 		case actions.Locked:
-			m.toast = m.cat.T("ui.locked.agent")
+			m.setToast(m.cat.T("ui.locked.agent"), true)
 			return m, nil
 		}
 	}
@@ -630,12 +653,21 @@ func (m *Model) run(id string) (tea.Model, tea.Cmd) {
 		m.quitting = true
 		return m, tea.Quit
 	case "app.help":
-		m.showHelp = true
+		m.showHelp, m.helpTop = true, 0
 	case "app.palette":
 		p := palette.New(m.paletteItems())
 		m.pal = &p
 	case "app.language":
 		m.cycleLanguage()
+	case "app.mouse":
+		m.mouseOff = !m.mouseOff
+		if m.mouseOff {
+			m.setToast(m.cat.T("ui.mouse.off"), false)
+		} else {
+			m.setToast(m.cat.T("ui.mouse.on"), false)
+		}
+	case "app.notifications":
+		m.openNotices()
 	case "app.next_tab":
 		m.tab = (m.tab + 1) % len(actions.Screens)
 		return m, m.ensure()
@@ -670,11 +702,20 @@ func (m *Model) cycleLanguage() {
 	m.applyLanguage(next)
 }
 
+// rw dựng bộ viết lại thông điệp của mô hình: danh mục chuỗi hiện tại, sổ hành động và chế độ chỉ đọc của chính mô hình này.
+func (m *Model) rw() ui.Rewriter {
+	return ui.Rewriter{Cat: m.cat, Reg: m.reg, ReadOnly: m.opts.ReadOnly}
+}
+
+// setToast là chỗ DUY NHẤT gán toast của mô hình gốc: văn bản và cờ lỗi đi cùng nhau để một toast không thừa hưởng cờ của toast
+// trước (xoá = setToast("", false)). Test quét nguồn (TestToastOnlyAssignedInSetToast) không cho gán m.toast ở nơi khác.
+func (m *Model) setToast(text string, isErr bool) { m.toast, m.toastErr = text, isErr }
+
 // applyLanguage nạp danh mục chuỗi của lang cho mọi màn hình.
 func (m *Model) applyLanguage(lang string) {
 	m.cat = i18n.MustLoad(lang)
 	for _, sc := range m.screens {
-		sc.SetEnv(m.th, m.cat)
+		sc.SetEnv(m.th, m.rw())
 	}
 }
 
@@ -709,7 +750,7 @@ func (m *Model) setLanguage(msg actions.LanguageMsg) {
 		src = filepath.ToSlash(filepath.Join(config.DirName, config.LocalFileName))
 	}
 	if src != "" {
-		m.toast = m.cat.T("sy.lang.shadowed", i18n.A{"chosen": msg.Chosen, "used": lang, "source": src})
+		m.setToast(m.cat.T("sy.lang.shadowed", i18n.A{"chosen": msg.Chosen, "used": lang, "source": src}), true)
 	}
 }
 
@@ -795,11 +836,29 @@ func (m *Model) Hints() []footer.Hint {
 func (m *Model) View() tea.View {
 	v := tea.NewView(m.Render())
 	v.AltScreen = true
+	if !m.mouseOff {
+		v.MouseMode = tea.MouseModeCellMotion // chuột bật mặc định (mục 4.3.7); app.mouse tắt/bật trong phiên
+	}
 	return v
 }
 
-// Render trả nội dung đã vẽ (mỗi dòng rộng đúng m.w ô khi đủ chỗ).
+// Render trả nội dung đã vẽ (mỗi dòng rộng đúng m.w ô khi đủ chỗ). Vẽ xong gỡ mọi dấu vùng chuột khỏi đầu ra và giữ danh
+// sách vùng cho sự kiện chuột kế tiếp (zone.Scan).
 func (m *Model) Render() string {
+	zone.Begin()
+	raw := m.render()
+	zone.End()
+	out, zs := zone.Scan(raw)
+	m.zones = m.filterModal(zs)
+	return m.th.NoColor(out) // NO_COLOR: nội dung ngoài (log, tệp, diff) mang màu riêng cũng bị bỏ màu
+}
+
+// newEnv dựng ngữ cảnh vẽ cho vùng w × h.
+func (m *Model) newEnv(w, h int) ui.Env {
+	return ui.Env{Th: m.th, Cat: m.cat, RW: m.rw(), W: w, H: h, Spin: m.spin.View(), Allowed: m.actionAllowed}
+}
+
+func (m *Model) render() string {
 	w, h := m.w, m.h
 	if w <= 0 || h <= 0 {
 		return ""
@@ -807,13 +866,13 @@ func (m *Model) Render() string {
 	if w < MinW || h < MinH {
 		return m.tooSmall(w, h)
 	}
-	env := ui.Env{Th: m.th, Cat: m.cat, W: w, H: h, Spin: m.spin.View()}
+	env := m.newEnv(w, h)
 
 	header := m.header(env)
 	mainH := h - 3
 	iw, ih := frame.Inner(w, mainH)
 	body := m.screenBody(env.WithSize(iw, ih))
-	if m.pal != nil || m.showHelp {
+	if m.pal != nil || m.showHelp || m.notes.dlg != nil {
 		// Hộp phủ đang mở: che nền trong khung nội dung để chữ của màn bên dưới không lộ (bị cắt ngang)
 		// ở hai bên và dưới hộp.
 		body = ""
@@ -826,14 +885,18 @@ func (m *Model) Render() string {
 	lines := strings.Split(header+"\n"+main, "\n")
 
 	switch {
+	case m.notes.dlg != nil:
+		bw, bh := min(w-4, 90), min(h-4, 26)
+		box := m.notes.dlg.View(m.th, bw, bh)
+		lines = text.Overlay(lines, box, (w-bw)/2, max((h-len(box))/2, 1))
 	case m.pal != nil:
 		bw, bh := min(w-4, 76), min(h-6, 16)
 		box := strings.Split(m.pal.View(m.th, bw, bh, m.cat.T("palette.title"), m.cat.T("palette.empty")), "\n")
-		lines = text.Overlay(lines, box, (w-bw)/2, 4)
+		lines = text.Overlay(lines, markModal(box), (w-bw)/2, 4)
 	case m.showHelp:
-		bw, bh := min(w-4, 84), min(h-7, 26)
-		box := strings.Split(help.Render(m.th, bw, bh, m.cat.T("help.title"), m.helpGroups(), m.cat.T("help.more")), "\n")
-		lines = text.Overlay(lines, box, (w-bw)/2, 4)
+		bw, bh := m.helpSize()
+		box := strings.Split(help.Render(m.th, bw, bh, m.cat.T("help.title"), m.helpGroups(), m.helpTop, m.helpPos), "\n")
+		lines = text.Overlay(lines, markModal(box), (w-bw)/2, 4)
 	default:
 		lines, _ = m.overlayDialog(lines, w, h)
 	}
@@ -866,11 +929,14 @@ func (m *Model) screenTitle() string {
 	return m.cat.T("tab." + string(actions.Screens[m.tab]))
 }
 
+// toastLabel dựng thông báo ở viền trên khung chính. Dài quá chỗ (rộng khung trừ tiêu đề) thì rút gọn bằng "…" kèm "[!]": phím ! hoặc
+// bấm vào đó mở hộp Thông báo hiện đủ nội dung.
 func (m *Model) toastLabel() string {
 	if m.toast == "" {
 		return ""
 	}
-	return m.th.S(theme.Warn, " "+m.toast+" ")
+	room := m.w - 4 - (text.Width(m.screenTitle()) + 2) - 1
+	return ui.ToastLabel(m.th, m.rw().Rewrite(m.toast), m.toastErr, room)
 }
 
 func (m *Model) screenBody(env ui.Env) string {
@@ -962,9 +1028,17 @@ func (m *Model) helpGroups() []help.Group {
 		}
 		g.Rows = append(g.Rows, row)
 	}
-	// Nhóm của màn hình đang xem đứng đầu, rồi toàn cục, rồi các màn hình khác.
+	// Ngữ cảnh hiện tại (thẻ phụ, giới thiệu, phím của thẻ) đứng đầu, rồi nhóm của màn hình đang xem, rồi toàn cục, rồi các màn hình khác.
 	var groups []help.Group
 	cur := m.Screen()
+	if g, ok := m.helpContext(); ok {
+		if sg := byScreen[cur]; sg != nil && sg.Title == g.Title {
+			// Màn không có thẻ phụ (Tổng quan, Khởi tạo): ngữ cảnh và hành động của màn là một nhóm, không lặp tiêu đề.
+			g.Rows = append(g.Rows, sg.Rows...)
+			delete(byScreen, cur)
+		}
+		groups = append(groups, g)
+	}
 	if g := byScreen[cur]; g != nil {
 		groups = append(groups, *g)
 	}

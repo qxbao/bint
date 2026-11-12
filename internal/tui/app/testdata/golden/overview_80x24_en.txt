@@ -5,19 +5,19 @@
 │                                    bint.                                     │
 │            Recording, measurement and knowledge for coding agents            │
 │                                                                              │
-│       ┌─│Repository│────────────────────────────────────────────────┐        │
-│       │ Path     /work/demo                                         │        │
-│       │ State    /state/demo-7f3a9c                                 │        │
-│       │ Harness  claude, codex                                      │        │
-│       │ Schema   v6                                                 │        │
-│       │ Runs     42  33 done · 3 failed · 1 interrupted · 5 running │        │
-│       └─ Version 0.1.0 · ✓ current template · core.lock none ───────┘        │
+│        ┌─│Repository│───────────────────────────────────────────────┐        │
+│        │ Path     /work/demo                                        │        │
+│        │ State    /state/demo-7f3a9c                                │        │
+│        │ Harness  claude, codex                                     │        │
+│        │ Schema   v6                                                │        │
+│        │ Runs     42 33 done · 3 failed · 1 interrupted · 5 running │        │
+│        └─ Version 0.1.0 · ✓ current template · core.lock none ──────┘        │
 │                                                                              │
 │  Needs you (4)                                                               │
 │ ▸ ◌ 2 knowledge items awaiting review in batch nguon:lo-thu      → Knowledge │
 │   ◌ 1 knowledge item awaiting review (no batch)                  → Knowledge │
 │   ◌ Evolution proposal awaiting review — update EP0000KNOW       → Evolution │
-│   ! Doctor warning — config: cấu hình theo mẫu cũ: chạy `bint ini…  → System │
+│   ! Doctor warning — config: cấu hình theo mẫu cũ: press U in Sys…  → System │
 │                                                                              │
 │  Doctor  ✓ 2  ! 1  ✗ 0                                                       │
 │                                                                              │

@@ -5,7 +5,8 @@
 │   ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧                                                                     │
 │ ┌─│⟦Opportunities (2)~~~~~~~⟧│─────────────────────────────────────┐┌─│⟦Prerequisites · opportunity~~~~~~~~~~~⟧│───────────────────────┐ │
 │ │ ▸ ● op-3f9a… failure_hotspot  create    internal/db bị sửa ở 3 … ││ ⟦Scan data~~~~⟧                                                  │ │
-│ │   ◌ op-7e1d… unused           deprecate Mục 01KNOW000003 truy x… ││   ⟦Since 2026-10-12: 12 runs (9 labeled, 6 with file-read data)… │ │
+│ │   ◌ op-7e1d… unused           deprecate Mục 01KNOW000003 truy x… ││ ⟦Since 2026-10-12: 12 runs (9 labeled, 6 with file-read          │ │
+│ │                                                                  ││     data)~~~~~~~~~~~~~~~~~~~⟧                                    │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││ ⟦Prerequisites (section 10.6)~~~~~~~~~~~~⟧                       │ │
 │ │                                                                  ││ ✗ tác vụ đánh giá 0 tác vụ đã duyệt (cần ≥ 20)                   │ │
@@ -35,6 +36,5 @@
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
-│ │                                                                  ││                                                                  │ │
 │ └─ s ⟦scan~~⟧  p ⟦propose~~~⟧ ─────────────────────────────────────┘└──────────────────────────────────────────────────────────────────┘ │
-└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [x→ ⟦Reject~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────┘
+└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [x→ ⟦Reject~~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────┘

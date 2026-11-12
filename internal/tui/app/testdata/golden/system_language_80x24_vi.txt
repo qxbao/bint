@@ -2,7 +2,7 @@
 │ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│ ‹ Skill Chỉ mục MCP  Ngôn ngữ  Doctor Cài đặt Cập nhật                       │
+│ ‹ Thành phần Skill Chỉ mục MCP  Ngôn ngữ  Doctor Cài đặt Cập nhật            │
 │ ┌─│Ngôn ngữ giao diện│─────────────────────────────────────────────────────┐ │
 │ │                                                                          │ │
 │ │ Đang dùng trong phiên       vi                                           │ │

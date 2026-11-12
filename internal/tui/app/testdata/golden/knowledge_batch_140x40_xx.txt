@@ -12,21 +12,21 @@
 │ │                                                      ││ ⟦Origin~~~⟧  agent ⚑ (Tester <t@example.com>, 2026-11-11T00:00:00Z)          │ │
 │ │                                                      ││ ⟦File~~⟧     /work/demo/.bint/knowledge/items/01KNOW000001.md                │ │
 │ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── ⟦Content~~~⟧ ──────────────────────────────────────────────────────────── │ │
-│ │                         ┌─│⟦Approve 2 items?~~~~~~⟧│───────────────────────────────────────────────────────┐                         │ │
+│ │                                                      ││ ── ⟦Content~~~⟧                                                              │ │
+│ │                         ┌─│⟦Approve 2 items?~~~~~~⟧│───────────────────────────────────────────────────────┐──────────               │ │
 │ │                         │ ⟦2 items will be written.~~~~~~~~~~⟧                                             │                         │ │
 │ │                         │                                                                                  │                         │ │
-│ │                         │ ⟦1 item left out of the batch:~~~~~~~~~~~~⟧                                      │──────────────────────── │ │
+│ │                         │ ⟦1 item left out of the batch:~~~~~~~~~~~~⟧                                      │                         │ │
 │ │                         │   ✗ KNOW000001 Endpoint phải có /v1 — ⟦failed checks~~~~~~⟧: ⟦Evidence changed   │                         │ │
-│ │                         │ since it was recorded~~~~~~~~~~~~~~~~⟧                                           │                         │ │
+│ │                         │ since it was recorded~~~~~~~~~~~~~~~~⟧                                           │────────                 │ │
 │ │                         │ ⟦Items with check errors cannot be approved in bulk: review the evidence, then   │                         │ │
 │ │                         │ approve them one by one (a, or f to refresh the                                  │                         │ │
 │ │                         │ fingerprint).~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧           │                         │ │
-│ │                         │                                                                                  │──────────────────────── │ │
+│ │                         │                                                                                  │                         │ │
 │ │                         │ [Enter] ⟦Confirm~~~⟧   [Esc] ⟦Cancel~~~⟧                                         │                         │ │
 │ │                         └──────────────────────────────────────────────────────────────────────────────────┘                         │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
+│ │                                                      ││   ─────────────────────────────────────────────────────────────              │ │
+│ │                                                      ││ ✓ ⟦0 errors~~~~⟧                                                             │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │

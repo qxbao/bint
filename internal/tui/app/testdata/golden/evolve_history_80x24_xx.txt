@@ -7,7 +7,9 @@
 │ │ 2026-11-10 10:00 apply EP0000KNOW update (01KNOW000003) Rev              │ │
 │ │     <rev@example.com> ⟦verified=false~~~~⟧                               │ │
 │ │     đã xem                                                               │ │
-│ │     ⟦since applied: retrieved in 4 runs, cited in 1 runs (a hint only;…  │ │
+│ │     ⟦since applied: retrieved in 4 runs, cited in 1 runs (a hint only;   │ │
+│ │     impact needs a removal                                               │ │
+│ │     evaluation)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                 │ │
 │ │     ⟦evolution cost: generation -, comparison -~~~~~~~~~~~~~~~~⟧         │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
@@ -18,7 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]───┘
+└─[s→ ⟦S…] [p→ ⟦P…] [a→ ⟦A…] [x→ ⟦R…] [:→ ⟦C…] [q→ ⟦Q…] [?→ ⟦H…]───────────────┘

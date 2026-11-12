@@ -15,8 +15,10 @@ import (
 	"bint/internal/knowledge"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/components/frame"
+	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/logo"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
@@ -289,12 +291,25 @@ func (m Model) View(env ui.Env) string {
 	case m.Err != nil:
 		return strings.Join([]string{
 			"", th.S(theme.Err, "✗ ") + env.T("overview.error"),
-			"  " + text.Truncate(m.Err.Error(), max(env.W-4, 10)),
+			strings.Join(text.WrapHang(m.Err.Error(), max(env.W-4, 10), "  ", "  "), "\n"),
 			"", th.S(theme.Muted, env.T("overview.error.hint")),
 		}, "\n")
 	case !m.Loaded:
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, env.T("ui.loading"))
 	}
+	out := m.body(env, true)
+	if len(out) > env.H { // thiếu chỗ (cửa sổ thấp): bỏ chữ "bint." và khẩu hiệu trang trí để nhường chỗ cho thông tin và hộp thư
+		out = m.body(env, false)
+	}
+	if len(out) > env.H {
+		out = out[:env.H]
+	}
+	return strings.Join(centerVertically(out, env.H), "\n")
+}
+
+// body dựng các dòng của màn Tổng quan; decor = có chữ "bint." (hoặc logo) và khẩu hiệu ở đầu.
+func (m Model) body(env ui.Env, decor bool) []string {
+	th := env.Th
 	var lines []string
 	add := func(l ...string) { lines = append(lines, l...) }
 	center := func(l []string) []string {
@@ -306,9 +321,11 @@ func (m Model) View(env ui.Env) string {
 	}
 
 	// Logo (nếu đủ chỗ) và khẩu hiệu.
-	add(center(logo.Render(th, logo.Fits(env.W+4, env.H+5)))...)
-	add(text.Center(th.S(theme.Muted, env.T("app.tagline")), env.W))
-	add("")
+	if decor {
+		add(center(logo.Render(th, logo.Fits(env.W+4, env.H+5)))...)
+		add(text.Center(th.S(theme.Muted, env.T("app.tagline")), env.W))
+		add("")
+	}
 
 	// Hộp thông tin đặt giữa, rộng theo nội dung.
 	add(center(m.infoBox(env))...)
@@ -324,7 +341,19 @@ func (m Model) View(env ui.Env) string {
 	if len(inbox) == 0 {
 		add("  " + th.S(theme.OK, "✓ ") + th.S(theme.Muted, env.T("overview.inbox.empty")))
 	}
-	room := max(env.H-len(lines)-3, 3) // chừa dòng trống, dòng doctor và một dòng báo "còn n dòng"
+	// Hàng đang chọn bị rút gọn (có …) thì hiện nguyên văn ngắt dòng ngay dưới danh sách (tối đa 3 dòng), để không mất nội dung.
+	var fullLines []string
+	if m.Cursor < len(inbox) {
+		in := inbox[m.Cursor]
+		b := env.N(in.Key, in.Count, map[string]any{"detail": env.Rewriter().Rewrite(in.Detail)})
+		if text.Width(b) > max(env.W-4-text.Width("→ "+env.T("tab."+string(in.Target)))-2, 8) {
+			fullLines = text.Wrap(b, max(env.W-6, 10))
+			if len(fullLines) > 3 {
+				fullLines = append(fullLines[:2], text.Truncate(fullLines[2]+"…", max(env.W-6, 10)))
+			}
+		}
+	}
+	room := max(env.H-len(lines)-3-len(fullLines), map[bool]int{true: 3, false: 2}[decor]) // chừa dòng trống, dòng doctor, một dòng báo "còn n dòng" và nguyên văn hàng đang chọn
 	from := 0
 	if len(inbox) > room {
 		from = max(0, min(m.Cursor-room/2, len(inbox)-room))
@@ -339,16 +368,20 @@ func (m Model) View(env ui.Env) string {
 		case "fail":
 			icon, role = "✗", theme.Err
 		}
-		body := env.N(in.Key, in.Count, map[string]any{"detail": in.Detail})
+		body := env.N(in.Key, in.Count, map[string]any{"detail": env.Rewriter().Rewrite(in.Detail)})
 		right := "→ " + env.T("tab."+string(in.Target))
 		avail := env.W - 4 - text.Width(right) - 2
 		body = text.Truncate(body, max(avail, 8))
 		gap := strings.Repeat(" ", max(env.W-4-text.Width(body)-text.Width(right), 1))
+		row := "  " + th.S(role, icon) + " " + body + gap + th.S(theme.Muted, right)
 		if i == m.Cursor {
-			add("▸ " + th.S(role, icon) + " " + th.Selected(body) + gap + th.S(theme.Muted, right))
-		} else {
-			add("  " + th.S(role, icon) + " " + body + gap + th.S(theme.Muted, right))
+			row = "▸ " + th.S(role, icon) + " " + th.Selected(body) + gap + th.S(theme.Muted, right)
 		}
+		// Hàng bấm được (cả dòng) và nằm trong khung "inbox" để bánh xe cuộn đúng hộp thư.
+		add(zone.Mark("p:inbox", zone.Mark(list.RowZone(i), text.Pad(row, env.W))))
+	}
+	for _, l := range fullLines {
+		add("    " + th.S(theme.Muted, l))
 	}
 	if len(inbox) > to-from {
 		add("  " + th.S(theme.Muted, env.T("overview.inbox.window", map[string]any{"from": from + 1, "to": to, "total": len(inbox)})))
@@ -358,10 +391,7 @@ func (m Model) View(env ui.Env) string {
 	// Doctor rút gọn: chỉ số đếm. Mọi cảnh báo/lỗi doctor đã nằm trong hộp thư ở trên (Inbox), nên không
 	// liệt kê lại chi tiết ở đây.
 	add(" " + th.Bold(env.T("overview.doctor.title")) + "  " + m.doctorSummary(th))
-	if len(lines) > env.H {
-		lines = lines[:env.H]
-	}
-	return strings.Join(centerVertically(lines, env.H), "\n")
+	return lines
 }
 
 // centerVertically đặt khối lines vào giữa chiều cao h khi còn thừa nhiều chỗ (từ minSpare dòng), để
@@ -419,17 +449,51 @@ func (m Model) infoBox(env ui.Env) []string {
 	pathW := max(env.W-2-4-lw-2, 12)
 	rows[0][1] = text.Path(st.Repo, pathW)
 	rows[1][1] = text.Path(st.StateDir, pathW)
+	// Giá trị dài (như thống kê lượt chạy) ngắt dòng thay vì bị cắt: dòng tiếp thụt theo cột giá trị.
+	vw := max(env.W-2-4-lw-2, 12)
 	var body []string
 	for _, r := range rows {
-		body = append(body, th.S(theme.Accent, text.Pad(r[0], lw))+"  "+r[1])
+		vals := text.WrapHang(r[1], vw, "", "")
+		if len(vals) == 0 {
+			vals = []string{""}
+		}
+		for i, v := range vals {
+			label := strings.Repeat(" ", lw)
+			if i == 0 {
+				label = th.S(theme.Accent, text.Pad(r[0], lw))
+			}
+			body = append(body, label+"  "+v)
+		}
+	}
+	// Phiên bản binary, mẫu cấu hình và core.lock nằm trên viền dưới của hộp (không thêm dòng khi vừa: cửa sổ 80×24 còn đủ chỗ cho hộp
+	// thư). Không vừa thì phần thừa chuyển thành dòng trong hộp (core.lock trước, rồi mẫu cấu hình, rồi phiên bản) thay vì bị cắt.
+	ver, tpl, lock := m.versionText(th, env), m.templateOnly(th, env), m.lockText(th, env)
+	room := max(env.W-2, 20) - 4
+	mk := func(parts ...string) string {
+		if len(parts) == 0 {
+			return ""
+		}
+		return " " + strings.Join(parts, th.S(theme.Muted, " · ")) + " "
+	}
+	verSeg, tplSeg, lockSeg := env.T("overview.version")+" "+ver, tpl, th.S(theme.Muted, "core.lock ")+lock
+	foot := mk(verSeg, tplSeg, lockSeg)
+	switch {
+	case text.Width(foot) <= room:
+	case text.Width(mk(verSeg, tplSeg)) <= room:
+		foot = mk(verSeg, tplSeg)
+		body = append(body, th.S(theme.Accent, "core.lock")+"  "+lock)
+	case text.Width(mk(verSeg)) <= room:
+		foot = mk(verSeg)
+		body = append(body, th.S(theme.Accent, env.T("overview.template.label"))+"  "+tpl, th.S(theme.Accent, "core.lock")+"  "+lock)
+	default:
+		foot = ""
+		body = append(body, th.S(theme.Accent, env.T("overview.version"))+"  "+ver, th.S(theme.Accent, env.T("overview.template.label"))+"  "+tpl,
+			th.S(theme.Accent, "core.lock")+"  "+lock)
 	}
 	cw := text.MaxWidth(body)
-	w := min(cw+4, max(env.W-2, 20))
-	// Phiên bản binary, mẫu cấu hình và core.lock nằm trên viền dưới của hộp (không thêm dòng: cửa sổ 80×24 còn đủ chỗ cho hộp thư).
-	foot := " " + env.T("overview.version") + " " + m.versionText(th, env) + th.S(theme.Muted, " · ") + m.templateText(th, env) + " "
-	w = min(max(w, text.Width(foot)+4), max(env.W-2, 20))
+	w := min(max(cw+4, text.Width(foot)+4), max(env.W-2, 20))
 	h := len(body) + 2
-	return strings.Split(frame.Box{Title: env.T("overview.info.title"), TitleAt: frame.Left, Bottom: text.Truncate(foot, w-4), BottomAt: frame.Left}.Render(th, w, h, strings.Join(body, "\n")), "\n")
+	return strings.Split(frame.Box{Title: env.T("overview.info.title"), TitleAt: frame.Left, Bottom: foot, BottomAt: frame.Left}.Render(th, w, h, strings.Join(body, "\n")), "\n")
 }
 
 // versionText: phiên bản binary kèm revision (nếu có).
@@ -445,13 +509,17 @@ func (m Model) versionText(th theme.Theme, env ui.Env) string {
 	return v
 }
 
-// templateText: mẫu cấu hình (✓ hay cũ) và bint_version của core.lock (cảnh báo khi khác binary).
-func (m Model) templateText(th theme.Theme, env ui.Env) string {
-	d := m.Data
-	tpl := th.S(theme.OK, "✓ "+env.T("overview.template.ok"))
-	if d.ConfigOutdated {
-		tpl = th.S(theme.Warn, "! "+env.T("overview.template.old"))
+// templateOnly: mẫu cấu hình (✓ hay cũ).
+func (m Model) templateOnly(th theme.Theme, env ui.Env) string {
+	if m.Data.ConfigOutdated {
+		return th.S(theme.Warn, "! "+env.T("overview.template.old"))
 	}
+	return th.S(theme.OK, "✓ "+env.T("overview.template.ok"))
+}
+
+// lockText: bint_version của core.lock (cảnh báo khi khác binary).
+func (m Model) lockText(th theme.Theme, env ui.Env) string {
+	d := m.Data
 	lock := env.T("overview.lock.none")
 	if d.LockVersion != "" {
 		lock = d.LockVersion
@@ -459,7 +527,7 @@ func (m Model) templateText(th theme.Theme, env ui.Env) string {
 	if d.LockMismatch() {
 		lock = th.S(theme.Warn, lock+" ≠ "+d.Binary)
 	}
-	return tpl + th.S(theme.Muted, " · core.lock ") + lock
+	return lock
 }
 
 // runStatusOrder là thứ tự hiển thị các trạng thái lượt chạy đã biết; trạng thái lạ xếp sau, theo tên.

@@ -1,7 +1,7 @@
 ┌─────────────────────────────────│␛[1mbint 0.1.0␛[m│─────────────────────────────────┐
 │ ␛[7m␛[1mTổng quan␛[m␛[m │ TT␛[1m (3)␛[m │ TV │ LC │ ĐG │ TH │ HT                                  │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│␛[1mTổng quan␛[m│──────────────────────────────────────────────────────────────────┐
+┌─│␛[7m␛[1mTổng quan␛[m␛[m│──────────────────────────────────────────────────────────────────┐
 │                                    ␛[1mbint␛[1m.␛[m␛[m                                     │
 │               Ghi nhận, đo lường và tri thức cho coding agent                │
 │                                                                              │
@@ -10,14 +10,14 @@
 │       │ Trạng thái  /state/demo-7f3a9c                              │        │
 │       │ Harness     claude, codex                                   │        │
 │       │ Schema      v6                                              │        │
-│       │ Lượt chạy   42  33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy   │        │
+│       │ Lượt chạy   42 33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy    │        │
 │       └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại · core.lock chưa có ─┘        │
 │                                                                              │
 │  ␛[1mViệc cần bạn␛[m␛[1m (4)␛[m                                                            │
 │ ▸ ◌ ␛[7m␛[1m2 mục tri thức chờ duyệt thuộc lô nguon:lo-thu␛[m␛[m                → Tri thức │
 │   ◌ 1 mục tri thức chờ duyệt (không thuộc lô nào)                 → Tri thức │
 │   ◌ Đề xuất tiến hoá chờ duyệt — update EP0000KNOW                → Tiến hoá │
-│   ␛[1m!␛[m Doctor cảnh báo — config: cấu hình theo mẫu cũ: chạy `bint …  → Hệ thống │
+│   ␛[1m!␛[m Doctor cảnh báo — config: cấu hình theo mẫu cũ: nhấn U ở Hệ…  → Hệ thống │
 │                                                                              │
 │  ␛[1mDoctor␛[m  ✓ 2  ␛[1m! 1␛[m  ␛[7m✗ 0␛[m                                                       │
 │                                                                              │

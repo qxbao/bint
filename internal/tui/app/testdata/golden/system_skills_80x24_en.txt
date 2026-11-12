@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│   Config Harness Components  Skills  Index MCP Language ›                    │
+│  Config Harness Components  Skills  Index MCP Language Doctor Setup Update   │
 │ ┌─│Skills (3)│─────────────────────────────────────────────────────────────┐ │
 │ │ ▸ core  b-do                                     aaaa1111  published     │ │
 │ │   core  b-feat                                   bbbb2222  differs       │ │

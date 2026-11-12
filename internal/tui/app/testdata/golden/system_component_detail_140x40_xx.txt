@@ -19,7 +19,8 @@
 │ │                                                            ││ description: Kiểm tra định dạng                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││ ⟦scripts/fmt-check.sh~~~~~⟧                                            │ │
-│ │                                                            ││ ⟦A script is executable code: Bint never runs it by itself.~~~~~~~~~…  │ │
+│ │                                                            ││ ⟦A script is executable code: Bint never runs it by                    │ │
+│ │                                                            ││   itself.~~~~~~~~~~~~~~~~~~~~~~~~⟧                                     │ │
 │ │                                                            ││ #!/bin/sh                                                              │ │
 │ │                                                            ││ gofmt -l .                                                             │ │
 │ │                                                            ││                                                                        │ │
@@ -35,6 +36,5 @@
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ └─ n ⟦add~~⟧  a ⟦approve~~~⟧  d ⟦deprecate~~~~⟧  R ⟦render~…─┘└────────────────────────────────────────────────────────────────────────┘ │
+│ └─ n ⟦add~~⟧  a ⟦appro…  d ⟦depre…  R ⟦rende…  f ⟦filte… ────┘└────────────────────────────────────────────────────────────────────────┘ │
 └─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────────────────────────────┘

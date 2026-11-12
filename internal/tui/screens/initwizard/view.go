@@ -6,6 +6,7 @@ import (
 	"bint/internal/app"
 	"bint/internal/config"
 	"bint/internal/i18n"
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/form"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/theme"
@@ -62,7 +63,7 @@ func (m *Model) View(env ui.Env) string {
 		body, foot = m.previewView(env)
 	} else {
 		body = m.askView(env)
-		foot = []string{"  " + m.hints(th, "wiz.hint.next", "Enter", "wiz.hint.back", "Esc", "wiz.hint.toggle", "Space", "wiz.hint.default", "d")}
+		foot = []string{"  " + m.hints(th, env.W-4, "wiz.hint.next", "Enter", "wiz.hint.back", "Esc", "wiz.hint.toggle", "Space", "wiz.hint.default", "d")}
 	}
 	room := env.H - len(head) - len(foot)
 	if len(body) > room {
@@ -85,13 +86,13 @@ func fit(lines []string, h int) string {
 	return strings.Join(lines, "\n")
 }
 
-// hints dựng dòng gợi ý phím từ các cặp (khoá nhãn, phím).
-func (m *Model) hints(th theme.Theme, pairs ...string) string {
-	var out []string
+// hints dựng dòng gợi ý phím từ các cặp (khoá nhãn, phím), vừa maxW ô (rút nhãn trước khi bỏ phím) và bấm được bằng chuột.
+func (m *Model) hints(th theme.Theme, maxW int, pairs ...string) string {
+	var hs []footer.Hint
 	for i := 0; i+1 < len(pairs); i += 2 {
-		out = append(out, th.S(theme.Key, pairs[i+1])+" "+th.S(theme.Muted, m.t(pairs[i])))
+		hs = append(hs, footer.Hint{Key: pairs[i+1], Label: m.t(pairs[i]), Priority: len(hs) + 1})
 	}
-	return strings.Join(out, "  ")
+	return strings.TrimSuffix(strings.TrimPrefix(footer.Inline(th, hs, maxW), " "), " ")
 }
 
 // askView vẽ mô tả và các hàng của bước hỏi.
@@ -154,7 +155,7 @@ func (m *Model) previewView(env ui.Env) (body, foot []string) {
 		body = append(body, "  "+th.S(theme.Accent, env.Spin)+" "+th.S(theme.Muted, m.t("wiz.preview.planning")))
 	case m.planErr != nil:
 		body = append(body, "  "+th.S(theme.Err, "✗ ")+m.t("wiz.preview.error"))
-		for _, l := range text.WrapHang(ui.ErrText(m.cat, m.planErr), max(env.W-4, 10), "    ", "    ") {
+		for _, l := range text.WrapHang(ui.ErrText(m.rw, m.planErr), max(env.W-4, 10), "    ", "    ") {
 			body = append(body, th.S(theme.Err, l))
 		}
 	case m.plan != nil:
@@ -174,7 +175,7 @@ func (m *Model) previewView(env ui.Env) (body, foot []string) {
 		for _, it := range append(changes, keeps...) {
 			ci := changeIcon[it.Change]
 			path := text.TildeIn(it.Path)
-			detail := text.TildeIn(it.Detail)
+			detail := m.cli(text.TildeIn(it.Detail))
 			line := "  " + th.S(ci.role, ci.icon) + " " + m.t("wiz.change."+string(it.Change)) + "  " + path
 			if w := text.Width(line); detail != "" && w+2 < env.W-8 {
 				line += "  " + th.S(theme.Muted, text.Truncate(detail, env.W-w-4))

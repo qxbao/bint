@@ -23,7 +23,7 @@ func fake() []detect.Harness {
 
 func newWiz(ro bool) *Model {
 	m := New(Options{Dir: "/work/demo", ReadOnly: ro, Detect: fake})
-	m.SetEnv(theme.New(theme.Mono), i18n.MustLoad("vi"))
+	m.SetEnv(theme.New(theme.Mono), ui.Rewriter{Cat: i18n.MustLoad("vi")})
 	return m
 }
 

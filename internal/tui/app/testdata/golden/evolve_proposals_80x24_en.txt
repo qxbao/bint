@@ -21,4 +21,4 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ └─ a apply  x reject  u roll back  E compare  A all states ────────────────┘ │
-└─[s→ Scan] [p→ Propose] [a→ Apply] [x→ Reject] [q→ Quit] [?→ Help]────────────┘
+└─[s→ Scan] [p→ Prop…] [a→ Apply] [x→ Reje…] [:→ Comm…] [q→ Quit] [?→ Help]────┘

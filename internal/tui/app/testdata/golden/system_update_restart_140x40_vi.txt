@@ -13,7 +13,7 @@
 │ │    /home/u/go/bin/bint                                                                                                               │ │
 │ │  ! Bản đang chạy là /usr/local/bin/bint, khác tệp vừa cài; kiểm tra PATH (which bint) nếu lệnh bint vẫn là bản cũ.                   │ │
 │ │  Chưa khởi động lại: bản đang chạy vẫn là bản cũ.                                                                                    │ │
-│ │  Chạy bint init --upda┌─│Khởi động lại ngay?│────────────────────────────────────────────────────────────────┐                       │ │
+│ │  Ở từng repository, nh┌─│Khởi động lại ngay?│────────────────────────────────────────────────────────────────┐                       │ │
 │ │                       │ abc1234 → def5678                                                                    │                       │ │
 │ │  Log go install       │ /home/u/go/bin/bint                                                                  │                       │ │
 │ │   go: downloading gith│                                                                                      │                       │ │

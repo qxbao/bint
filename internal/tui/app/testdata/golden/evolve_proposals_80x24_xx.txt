@@ -20,5 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ └─ a ⟦apply~~⟧  x ⟦reject~~~⟧  u ⟦roll back~~~~⟧  E ⟦compare~~~⟧  A ⟦all …─┘ │
-└─[s→ ⟦Scan~~⟧] [p→ ⟦Propose~~~⟧] [a→ ⟦Apply~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]───┘
+│ └─ a ⟦apply~~⟧  x ⟦reject~~…  u ⟦roll  E ⟦compare~…  A ⟦all ───────────────┘ │
+└─[s→ ⟦S…] [p→ ⟦P…] [a→ ⟦A…] [x→ ⟦R…] [:→ ⟦C…] [q→ ⟦Q…] [?→ ⟦H…]───────────────┘

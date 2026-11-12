@@ -74,7 +74,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	case "eval.approve":
 		outs, _ := msg.Value.([]app.EvalApproveOutcome)
 		if msg.Err != nil && len(outs) == 0 {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		if lines := m.approveLines(outs, msg.Err); len(lines) > 0 {
@@ -84,7 +84,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	case "eval.reject":
 		done, _ := msg.Value.([]string)
 		if msg.Err != nil && len(done) == 0 {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		m.setToast(m.t("eval.rejected.toast", i18n.A{"count": len(done)}), msg.Err != nil)
@@ -92,7 +92,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	case "eval.spec":
 		m.frm, m.frmBusy = nil, false
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		if r, ok := msg.Value.(*app.EvalSpecResult); ok && r != nil {
@@ -102,7 +102,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	case "eval.estimate":
 		m.frm, m.frmBusy = nil, false
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		if r, ok := msg.Value.(*app.EvalEstimateResult); ok && r != nil {
@@ -110,7 +110,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		}
 	case "eval.clean":
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		if r, ok := msg.Value.(app.EvalCleanResult); ok {
@@ -118,7 +118,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		}
 	case "eval.open_file":
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 		}
 		return m.refresh()
 	case "eval.mine", "eval.verify", "eval.run", "eval.resume", "eval.bootstrap":
@@ -229,7 +229,7 @@ func (m *Model) approveLines(outs []app.EvalApproveOutcome, err error) []string 
 	for _, o := range outs {
 		switch {
 		case o.Problem != "":
-			lines = append(lines, m.th.S(theme.Err, "✗ ")+o.Problem)
+			lines = append(lines, m.th.S(theme.Err, "✗ ")+m.cli(o.Problem))
 		case o.Already:
 			lines = append(lines, m.th.S(theme.Muted, "· ")+m.t("eval.approve.already", i18n.A{"id": o.ID}))
 		default:
@@ -237,7 +237,7 @@ func (m *Model) approveLines(outs []app.EvalApproveOutcome, err error) []string 
 		}
 	}
 	if err != nil {
-		lines = append(lines, "", m.th.S(theme.Err, "✗ ")+ui.ErrText(m.cat, err))
+		lines = append(lines, "", m.th.S(theme.Err, "✗ ")+ui.ErrText(m.rw, err))
 	}
 	return lines
 }
@@ -315,7 +315,7 @@ func (m *Model) estimateLines(r *app.EvalEstimateResult) []string {
 func (m *Model) onJobResult(msg actions.ResultMsg) tea.Cmd {
 	m.frm, m.frmBusy = nil, false
 	if errors.Is(msg.Err, actions.ErrEvalBusy) {
-		m.setToast(ui.ErrText(m.cat, msg.Err), true) // việc thứ hai bị từ chối: chỉ báo, việc đang chạy không đổi
+		m.setToast(ui.ErrText(m.rw, msg.Err), true) // việc thứ hai bị từ chối: chỉ báo, việc đang chạy không đổi
 		return nil
 	}
 	var lines []string
@@ -357,11 +357,11 @@ func (m *Model) onJobResult(msg actions.ResultMsg) tea.Cmd {
 			m.setToast(m.t("eval.job.declined"), false) // trả "không" ở hộp xác nhận: không có gì chạy
 			return m.refresh()
 		}
-		lines = append(lines, "", m.th.S(theme.Err, "✗ ")+ui.ErrText(m.cat, msg.Err))
-		m.setToast(ui.ErrText(m.cat, msg.Err), true)
+		lines = append(lines, "", m.th.S(theme.Err, "✗ ")+ui.ErrText(m.rw, msg.Err))
+		m.setToast(ui.ErrText(m.rw, msg.Err), true)
 	}
 	if m.run != nil && m.run.resume != "" {
-		lines = append(lines, "", m.t("eval.res.resume", i18n.A{"cmd": m.run.resume}))
+		lines = append(lines, "", m.t("eval.res.resume", i18n.A{"cmd": m.cli(m.run.resume)}))
 	}
 	if len(lines) > 0 {
 		m.openInfo(title, lines)

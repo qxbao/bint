@@ -5,6 +5,7 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/i18n"
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/theme"
@@ -12,7 +13,7 @@ import (
 )
 
 // singlePane vẽ khung một ngăn của thẻ (Cài đặt repo, Cập nhật): kết quả hành động (out) thay nội dung khi có.
-func (m *Model) singlePane(env ui.Env, title string, lines []string, hints string) string {
+func (m *Model) singlePane(env ui.Env, title string, lines []string, hints []footer.Hint) string {
 	th := env.Th
 	if m.out != nil {
 		iw, _ := frame.Inner(env.W, env.H)
@@ -23,7 +24,7 @@ func (m *Model) singlePane(env ui.Env, title string, lines []string, hints strin
 	if len(lines) > ih {
 		lines = lines[:ih]
 	}
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: true, Bottom: hints, BottomAt: frame.Left}.Render(th, env.W, env.H, strings.Join(lines, "\n"))
+	return frame.Box{Title: title, TitleAt: frame.Left, Focused: true, BottomHints: env.AllowedHints(hints), BottomAt: frame.Left}.Render(th, env.W, env.H, strings.Join(lines, "\n"))
 }
 
 // kv dựng dòng "nhãn: giá trị" với nhãn căn đều.
@@ -37,9 +38,9 @@ func (m *Model) setupView(env ui.Env) string {
 	th := env.Th
 	iw, _ := frame.Inner(env.W, env.H)
 	st := m.setup
-	hints := hintsLine(th, [2]string{"e", m.t("sy.setup.hint.edit")}, [2]string{"U", m.t("sy.setup.hint.upgrade")})
+	hints := m.hintsLine([2]string{"e", m.t("sy.setup.hint.edit")}, [2]string{"U", m.t("sy.setup.hint.upgrade")})
 	if st.NotInit {
-		return m.singlePane(env, m.t("sy.setup.title"), []string{"", " " + th.S(theme.Warn, m.t("sy.setup.notinit"))}, "")
+		return m.singlePane(env, m.t("sy.setup.title"), []string{"", " " + th.S(theme.Warn, m.t("sy.setup.notinit"))}, nil)
 	}
 	lw := 14
 	out := []string{""}
@@ -105,12 +106,12 @@ func (m *Model) updateView(env ui.Env) string {
 	th := env.Th
 	iw, ih := frame.Inner(env.W, env.H)
 	lw := 12
-	hints := hintsLine(th, [2]string{"u", m.t("sy.update.hint.update")})
+	hints := m.hintsLine([2]string{"u", m.t("sy.update.hint.update")})
 	if m.upd.done && m.upd.err == nil && m.upd.out.Result.Target != "" {
-		hints = hintsLine(th, [2]string{"u", m.t("sy.update.hint.update")}, [2]string{"R", m.t("sy.update.hint.restart")})
+		hints = m.hintsLine([2]string{"u", m.t("sy.update.hint.update")}, [2]string{"R", m.t("sy.update.hint.restart")})
 	}
 	if m.upd.running {
-		hints = hintsLine(th, [2]string{"Esc", m.t("sy.update.hint.cancel")})
+		hints = m.hintsLine([2]string{"Esc", m.t("sy.update.hint.cancel")})
 	}
 	info := m.updInfo
 	ver := info.Version
@@ -171,7 +172,7 @@ func (m *Model) updateResultLines(th theme.Theme, iw, room int) []string {
 	}
 	if err != nil {
 		out = append(out, " "+th.S(theme.Err, "✗ ")+m.t("sy.update.failed"))
-		for _, l := range wrapText(ui.ErrText(m.cat, err), max(iw-4, 10)) {
+		for _, l := range wrapText(ui.ErrText(m.rw, err), max(iw-4, 10)) {
 			out = append(out, "   "+th.S(theme.Err, l))
 		}
 	} else {

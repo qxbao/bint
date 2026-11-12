@@ -74,7 +74,7 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	glyph, role := statusGlyph(st.Status)
 	head := th.S(role, glyph) + " " + m.statusName(st.Status)
 	if st.Reason != "" {
-		head += th.S(theme.Muted, " — "+st.Reason)
+		head += th.S(theme.Muted, " — "+m.cli(st.Reason))
 	}
 	add(th.S(theme.Muted, st.ID), head)
 	for _, s := range text.Wrap(tk.Goal, w) {
@@ -101,7 +101,7 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	}
 	add(m.kv(env, "autonomy", tk.Autonomy, w)...)
 	if st.ResumeFrom != "" {
-		add(m.kv(env, "resume", st.ResumeFrom+" (bint run resume "+st.ID+")", w)...)
+		add(m.kv(env, "resume", st.ResumeFrom+" ("+m.cli("bint run resume "+st.ID)+")", w)...)
 	}
 	if st.Runner != nil {
 		add(m.kv(env, "runner", fmt.Sprintf("pid %d · %s", st.Runner.PID, st.Runner.RunID), w)...)
@@ -119,7 +119,7 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	if len(st.PendingPaths) > 0 {
 		add("", m.section(env, m.t("tk.section.pending"), w))
 		for _, p := range st.PendingPaths {
-			add(th.S(theme.Warn, "  "+text.Truncate(p, w-2)))
+			add(th.S(theme.Warn, "  "+p))
 		}
 		add(th.S(theme.Muted, m.t("tk.pending.hint")))
 	}
@@ -129,7 +129,7 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	add("", m.section(env, m.t("tk.section.assess"), w))
 	switch {
 	case derr != nil:
-		add(th.S(theme.Err, "✗ ") + text.Truncate(ui.ErrText(m.cat, derr), w-2))
+		add(ui.ErrBlock(th, ui.ErrText(m.rw, derr), w, "")...)
 	case !have:
 		add(th.S(theme.Muted, m.t("ui.loading")))
 	default:
@@ -146,14 +146,14 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 			}
 		}
 		for _, n := range a.Notes {
-			for _, s := range text.WrapHang(n, w, th.S(theme.Warn, "! "), "  ") {
+			for _, s := range text.WrapHang(m.cli(n), w, th.S(theme.Warn, "! "), "  ") {
 				add(s)
 			}
 		}
 		if len(d.Blockers) > 0 && !task.Terminal(st.Status) {
 			add("", m.section(env, m.t("tk.section.blockers"), w))
 			for _, b := range d.Blockers {
-				for _, s := range text.WrapHang(b, w, th.S(theme.Warn, "- "), "  ") {
+				for _, s := range text.WrapHang(m.cli(b), w, th.S(theme.Warn, "- "), "  ") {
 					add(s)
 				}
 			}
@@ -173,7 +173,7 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 			if from == "" {
 				from = "∅"
 			}
-			add(text.Truncate(th.S(theme.Muted, fmtAt(h.At)+"  ")+from+" → "+h.To+th.S(theme.Muted, " ("+h.By+") "+h.Reason), w))
+			add(th.S(theme.Muted, fmtAt(h.At)+"  ") + from + " → " + h.To + th.S(theme.Muted, " ("+h.By+") "+m.cli(h.Reason)))
 		}
 	}
 	return l
@@ -208,7 +208,7 @@ func (m *Model) docsLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	add(strings.Join(tabs, ""))
 	switch {
 	case derr != nil:
-		add("", th.S(theme.Err, "✗ ")+text.Truncate(ui.ErrText(m.cat, derr), w-2))
+		add(append([]string{""}, ui.ErrBlock(th, ui.ErrText(m.rw, derr), w, "")...)...)
 		return l
 	case !have:
 		add("", th.S(theme.Muted, m.t("ui.loading")))
@@ -221,13 +221,13 @@ func (m *Model) docsLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 			add(th.S(theme.OK, "✓ ") + m.t("tk.lint.ok"))
 		}
 		for _, i := range rep.Errors {
-			add(text.Truncate(th.S(theme.Err, "✗ ")+"["+i.Code+"] "+i.Artifact+": "+i.Detail, w))
+			add(ui.ErrBlock(th, "["+i.Code+"] "+i.Artifact+": "+m.cli(i.Detail), w, "")...)
 		}
 		for _, i := range rep.Warnings {
-			add(text.Truncate(th.S(theme.Warn, "! ")+"["+i.Code+"] "+i.Artifact+": "+i.Detail, w))
+			add(th.S(theme.Warn, "! ") + "[" + i.Code + "] " + i.Artifact + ": " + m.cli(i.Detail))
 		}
 		for _, i := range rep.OpenQuestions {
-			add(text.Truncate(th.S(theme.Accent, "? ")+"["+i.Code+"] "+i.Artifact+": "+i.Detail, w))
+			add(th.S(theme.Accent, "? ") + "[" + i.Code + "] " + i.Artifact + ": " + m.cli(i.Detail))
 		}
 	}
 	add("", m.section(env, docNames[m.doc]+".md", w))
@@ -315,7 +315,7 @@ func (m *Model) verifyLines(env ui.Env, t *task.Task, w int) []string {
 		if !v.Confirmed {
 			line += th.S(theme.Muted, " · "+m.t("tk.verify.unconfirmed"))
 		}
-		add(text.Truncate(line, w))
+		add(line)
 		if v.Log != "" {
 			add(th.S(theme.Muted, "  "+text.Path(v.Log, max(w-4, 10))))
 		}
@@ -329,7 +329,7 @@ func (m *Model) verifyLines(env ui.Env, t *task.Task, w int) []string {
 			}
 			add("", m.section(env, m.t("tk.section.verify_log"), w))
 			for _, x := range ls {
-				add(th.S(theme.Muted, "│ ") + text.Truncate(strings.ReplaceAll(x, "\t", "    "), max(w-2, 4)))
+				add(th.S(theme.Muted, "│ ") + strings.ReplaceAll(x, "\t", "    "))
 			}
 		}
 	}
@@ -344,7 +344,7 @@ func (m *Model) reviewLines(env ui.Env, t *task.Task, d Detail, have bool, derr 
 	add := func(s ...string) { l = append(l, s...) }
 	switch {
 	case derr != nil:
-		return []string{"", th.S(theme.Err, "✗ ") + text.Truncate(ui.ErrText(m.cat, derr), w-2)}, -1
+		return append([]string{""}, ui.ErrBlock(th, ui.ErrText(m.rw, derr), w, "")...), -1
 	case !have:
 		return []string{"", " " + th.S(theme.Muted, m.t("ui.loading"))}, -1
 	case d.Review == nil || d.Review.Last() == nil:
@@ -388,7 +388,7 @@ func (m *Model) reviewLines(env ui.Env, t *task.Task, d Detail, have bool, derr 
 		} else {
 			line = "  " + line
 		}
-		add(text.Truncate(line, w))
+		add(line)
 	}
 	if len(fs) > 0 {
 		f := fs[m.find]
@@ -402,7 +402,7 @@ func (m *Model) reviewLines(env ui.Env, t *task.Task, d Detail, have bool, derr 
 			if f.Lines != "" {
 				loc += ":" + f.Lines
 			}
-			add(th.S(theme.Accent, text.Truncate(loc, w)))
+			add(th.S(theme.Accent, loc))
 		}
 		if f.Evidence != "" {
 			add(m.kv(env, "evidence", f.Evidence, w)...)
@@ -447,7 +447,7 @@ func (m *Model) errorLines(env ui.Env, t *task.Task, w int) []string {
 		if e.Step != "" {
 			head += " · " + e.Step
 		}
-		l = append(l, th.S(theme.Accent, text.Truncate(head+" · "+e.By, w)))
+		l = append(l, th.S(theme.Accent, head+" · "+e.By))
 		for _, s := range text.Wrap(e.Message, w-2) {
 			l = append(l, "  "+s)
 		}
@@ -462,7 +462,7 @@ func (m *Model) runsLines(env ui.Env, t *task.Task, w int) []string {
 	th := env.Th
 	id := t.State.ID
 	if err := m.runsErr[id]; err != nil {
-		return []string{"", th.S(theme.Err, "✗ ") + text.Truncate(ui.ErrText(m.cat, err), w-2)}
+		return append([]string{""}, ui.ErrBlock(th, ui.ErrText(m.rw, err), w, "")...)
 	}
 	r, ok := m.runs[id]
 	if !ok {
@@ -492,11 +492,11 @@ func (m *Model) runsLines(env ui.Env, t *task.Task, w int) []string {
 		}
 		l = append(l, text.Truncate(th.S(theme.Muted, short(x.RunID))+" "+th.S(role, text.Pad(x.Status, 11))+" "+text.Pad(wf, 9)+" "+text.Pad(x.Duration, 7)+" "+cost, w))
 		if x.Reason != "" {
-			l = append(l, th.S(theme.Muted, "    "+text.Truncate(x.Reason, w-4)))
+			l = append(l, th.S(theme.Muted, "    "+m.cli(x.Reason)))
 		}
 	}
 	if task.Paused(t.State.Status) {
-		l = append(l, "", th.S(theme.Muted, m.t("tk.runs.resume", i18n.A{"cmd": "bint run resume " + id})))
+		l = append(l, "", th.S(theme.Muted, m.t("tk.runs.resume", i18n.A{"cmd": m.cli("bint run resume " + id)})))
 	}
 	return l
 }

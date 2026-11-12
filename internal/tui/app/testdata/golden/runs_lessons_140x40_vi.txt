@@ -28,8 +28,8 @@
 │ │                                                                  ││   (~30 token)                                                    │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││   Nhóm thất bại (cần ≥ 2 tác vụ phân biệt để rút bài học):       │ │
-│ │                                                                  ││   - internal/db — 2 tác vụ [sẵn sàng: bint evolve propose rút    │ │
-│ │                                                                  ││     bài học]                                                     │ │
+│ │                                                                  ││   - internal/db — 2 tác vụ [sẵn sàng: phím p ở Tiến hoá rút bài  │ │
+│ │                                                                  ││     học]                                                         │ │
 │ │                                                                  ││   - internal/api — 1 tác vụ [chưa: cần ≥ 2 tác vụ phân biệt]     │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │

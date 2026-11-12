@@ -9,6 +9,7 @@ import (
 	"bint/internal/harness"
 	"bint/internal/hcomp"
 	"bint/internal/i18n"
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/text"
@@ -47,94 +48,19 @@ func (m *Model) View(env ui.Env) string {
 func (m *Model) tabBar(env ui.Env) string {
 	th := env.Th
 	names := make([]string, numTabs)
+	ids := make([]int, numTabs)
 	for i := range names {
-		names[i] = m.t("sy.tab." + TabNames[i])
+		names[i], ids[i] = m.t("sy.tab."+TabNames[i]), i
 	}
-	// Dạng đầy đủ " Tên " cách nhau bằng "·"; hẹp hơn thì chỉ thẻ đang chọn có đệm, các thẻ khác cách nhau một dấu cách,
-	// để thanh luôn vừa ở 80 cột mà không cắt tên.
-	build := func(full bool) string {
-		var parts []string
-		for i, n := range names {
-			switch {
-			case i == m.tab:
-				parts = append(parts, th.Selected(" "+n+" "))
-			case full:
-				parts = append(parts, th.S(theme.Muted, " "+n+" "))
-			default:
-				parts = append(parts, th.S(theme.Muted, n))
-			}
-		}
-		if full {
-			return " " + strings.Join(parts, th.S(theme.Muted, "·"))
-		}
-		return " " + strings.Join(parts, " ")
-	}
-	// Chừa chỗ cho thông báo: tối thiểu 12 ô, hoặc cả thông báo (tối đa nửa chiều rộng) để đọc đủ.
-	room := 12
+	bar := ui.SubBar(th, names, ids, m.tab, env.W-1)
 	if m.toast != "" {
-		room = max(room, min(text.Width(m.toast)+4, env.W/2))
-	}
-	bar := build(true)
-	if text.Width(bar) > env.W-room {
-		bar = build(false)
-	}
-	if text.Width(bar) > env.W-room { // vẫn dài: chỉ hiện cửa sổ các thẻ quanh thẻ đang chọn, "‹ ›" báo còn thẻ ẩn
-		bar = m.windowedBar(th, names, env.W-room)
-	}
-	if m.toast != "" {
-		role := theme.OK
-		if m.toastErr {
-			role = theme.Warn
+		if need := min(text.Width(m.toast)+4, env.W/2); env.W-text.Width(bar)-1 < need {
+			bar = ui.SubBar(th, names, ids, m.tab, env.W-1-need) // chừa chỗ cho thông báo thay vì bắt thông báo bị cắt
 		}
-		toast := text.Truncate(th.S(role, " "+m.toast+" "), max(env.W-text.Width(bar)-1, 0))
+		toast := ui.ToastLabel(th, m.toast, m.toastErr, max(env.W-text.Width(bar)-1, 0))
 		bar += strings.Repeat(" ", max(env.W-text.Width(bar)-text.Width(toast), 1)) + toast
 	}
 	return text.Fit(bar, env.W)
-}
-
-// windowedBar vẽ thanh thẻ dạng cửa sổ rộng tối đa w: mở rộng dần từ thẻ đang chọn sang hai bên cho tới khi hết chỗ.
-func (m *Model) windowedBar(th theme.Theme, names []string, w int) string {
-	lo, hi := m.tab, m.tab
-	width := func(lo, hi int) int {
-		n := 2 // đệm đầu và cuối của dấu "‹"/"›"
-		for i := lo; i <= hi; i++ {
-			n += text.Width(names[i]) + 1
-			if i == m.tab {
-				n += 2
-			}
-		}
-		return n + 2
-	}
-	for {
-		grew := false
-		if hi+1 < len(names) && width(lo, hi+1) <= w {
-			hi++
-			grew = true
-		}
-		if lo > 0 && width(lo-1, hi) <= w {
-			lo--
-			grew = true
-		}
-		if !grew {
-			break
-		}
-	}
-	var parts []string
-	for i := lo; i <= hi; i++ {
-		if i == m.tab {
-			parts = append(parts, th.Selected(" "+names[i]+" "))
-		} else {
-			parts = append(parts, th.S(theme.Muted, names[i]))
-		}
-	}
-	left, right := " ", ""
-	if lo > 0 {
-		left = th.S(theme.Muted, "‹")
-	}
-	if hi < len(names)-1 {
-		right = " " + th.S(theme.Muted, "›")
-	}
-	return left + " " + strings.Join(parts, " ") + right
 }
 
 func (m *Model) formView(env ui.Env) string {
@@ -164,12 +90,26 @@ func (m *Model) split(env ui.Env, left, right func(w int) string) string {
 	return left(w)
 }
 
-func hintsLine(th theme.Theme, pairs ...[2]string) string {
-	var hints []string
-	for _, p := range pairs {
-		hints = append(hints, th.S(theme.Key, p[0])+" "+th.S(theme.Muted, p[1]))
+// hintAction ánh xạ (thẻ, phím) của chân phím trong khung sang hành động trong sổ ("" = phím giao diện thuần). Phím của hành động Writes
+// bị bỏ ở chế độ chỉ đọc qua ui.Env.AllowedHints; màn hình không tự kiểm ReadOnly.
+var hintAction = map[int]map[string]string{
+	TabConfig:     {"e": "system.config_edit", "U": "system.config_upgrade_plan"},
+	TabComponents: {"n": "system.component_add", "a": "system.component_approve", "d": "system.component_deprecate", "R": "system.render"},
+	TabSkills:     {"o": "system.skill_overlay", "d": "system.skill_diff", "v": "system.skill_versions", "c": "system.skill_check", "g": "system.skill_regress", "s": "system.sync_plan"},
+	TabIndex:      {"b": "system.index_rebuild"},
+	TabLanguage:   {"Enter": "system.language_save"},
+	TabSetup:      {"e": "system.repo_plan", "U": "system.config_upgrade_plan"},
+	TabUpdate:     {"u": "system.update"},
+	TabHarness:    {"V": "system.harness_version"},
+}
+
+// hintsLine dựng chân phím trong khung của thẻ hiện tại từ các cặp {phím, nhãn đã dịch}.
+func (m *Model) hintsLine(pairs ...[2]string) []footer.Hint {
+	out := make([]footer.Hint, len(pairs))
+	for i, p := range pairs {
+		out[i] = footer.Hint{Key: p[0], Label: p[1], Priority: i + 1, ActionID: hintAction[m.tab][p[0]]}
 	}
-	return " " + strings.Join(hints, "  ") + " "
+	return out
 }
 
 // stateBody trả nội dung thay thế khi thẻ chưa có dữ liệu (đang nạp hoặc lỗi); ok = đã có dữ liệu để vẽ.
@@ -177,7 +117,7 @@ func (m *Model) stateBody(env ui.Env, s slot, hintKey string) (string, bool) {
 	th := env.Th
 	switch {
 	case s.Err != nil && !s.Loaded:
-		return strings.Join([]string{"", " " + th.S(theme.Err, "✗ ") + m.t("sy.error"), "   " + text.Truncate(ui.ErrText(m.cat, s.Err), max(env.W-6, 10)),
+		return strings.Join([]string{"", " " + th.S(theme.Err, "✗ ") + m.t("sy.error"), strings.Join(text.WrapHang(ui.ErrText(m.rw, s.Err), max(env.W-6, 10), "   ", "   "), "\n"),
 			"", " " + th.S(theme.Muted, m.t(hintKey))}, "\n"), false
 	case !s.Loaded:
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading")), false
@@ -218,8 +158,8 @@ func (m *Model) tabBody(env ui.Env) string {
 }
 
 // listBox vẽ khung danh sách của thẻ hiện tại.
-func (m *Model) listBox(env ui.Env, w, h int, title, top, hints, body string) string {
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneList, Top: top, Bottom: hints, BottomAt: frame.Left}.Render(env.Th, w, h, body)
+func (m *Model) listBox(env ui.Env, w, h int, title, top string, hints []footer.Hint, body string) string {
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList, Top: top, BottomHints: env.AllowedHints(hints), BottomAt: frame.Left}.Render(env.Th, w, h, body)
 }
 
 // detailBox vẽ khung chi tiết cuộn được từ các dòng đã dựng.
@@ -227,10 +167,10 @@ func (m *Model) detailBox(env ui.Env, w, h int, title string, lines []string) st
 	th := env.Th
 	iw, ih := frame.Inner(w, h)
 	m.det.H = ih
-	m.det.SetLines(lines)
+	m.det.SetWrapped(lines, max(iw-1, 10))
 	content := m.det.Render(iw, ih)
 	top := th.S(theme.Muted, m.det.Position())
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneDetail, Top: top}.Render(th, w, h, content)
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "detail", Focused: m.pane == paneDetail, Top: top}.Render(th, w, h, content)
 }
 
 // detailOr trả khung chi tiết: kết quả hành động (out) nếu có, ngược lại các dòng chi tiết mặc định.
@@ -242,10 +182,15 @@ func (m *Model) detailOr(env ui.Env, w, h int, title string, lines func(iw int) 
 	return m.detailBox(env, w, h, title, fitLines(lines(max(iw-1, 10)), max(iw-1, 10)))
 }
 
+// fitLines ngắt dòng dài theo độ rộng w thay vì cắt bằng …: dòng tiếp thụt theo dòng gốc cộng 2 ô.
 func fitLines(ls []string, w int) []string {
-	out := make([]string, len(ls))
-	for i, l := range ls {
-		out[i] = text.Truncate(l, w)
+	out := make([]string, 0, len(ls))
+	for _, l := range ls {
+		if text.Width(l) <= w {
+			out = append(out, l)
+			continue
+		}
+		out = append(out, text.WrapHang(l, w, "", strings.Repeat(" ", len(l)-len(strings.TrimLeft(l, " "))+2))...)
 	}
 	return out
 }
@@ -276,7 +221,7 @@ func (m *Model) configList(env ui.Env, w, h int) string {
 		return m.cursorMarker(th, name, cursor)
 	})
 	top := th.S(theme.Muted, m.t("sy.config.schema", i18n.A{"version": m.cfg.Version}))
-	return m.listBox(env, w, h, m.t("sy.config.title"), top, hintsLine(th, [2]string{"e", m.t("sy.hint.edit")}, [2]string{"Enter", m.t("sy.hint.open")}), body)
+	return m.listBox(env, w, h, m.t("sy.config.title"), top, m.hintsLine([2]string{"e", m.t("sy.hint.edit")}, [2]string{"Enter", m.t("sy.hint.open")}), body)
 }
 
 func (m *Model) configDetail(env ui.Env, w, h int) string {
@@ -381,7 +326,7 @@ func (m *Model) harnessList(env ui.Env, w, h int) string {
 	for len(lines) < ih {
 		lines = append(lines, "")
 	}
-	hints := hintsLine(th, [2]string{"V", m.t("sy.hint.version")}, [2]string{"Enter", m.t("sy.hint.open")})
+	hints := m.hintsLine([2]string{"V", m.t("sy.hint.version")}, [2]string{"Enter", m.t("sy.hint.open")})
 	return m.listBox(env, w, h, m.t("sy.har.title"), "", hints, strings.Join(lines[:min(len(lines), ih)], "\n"))
 }
 
@@ -454,7 +399,7 @@ func (m *Model) harnessLines(env ui.Env, in harness.Info, w int) []string {
 	case m.rtSl.Loading && !m.rtSl.Loaded:
 		out = append(out, "  "+th.S(theme.Accent, env.Spin)+" "+th.S(theme.Muted, m.t("ui.loading")))
 	case m.rtSl.Err != nil:
-		out = append(out, "  "+th.S(theme.Err, "✗ ")+ui.ErrText(m.cat, m.rtSl.Err))
+		out = append(out, "  "+th.S(theme.Err, "✗ ")+ui.ErrText(m.rw, m.rtSl.Err))
 	default:
 		if st := m.runtimeOf(in.Name); st == nil {
 			out = append(out, "  "+th.S(theme.Muted, m.t("sy.har.runtime.off")))
@@ -466,7 +411,7 @@ func (m *Model) harnessLines(env ui.Env, in harness.Info, w int) []string {
 	for _, ck := range harness.AllCapabilities {
 		cp := capOf(in, ck.Key)
 		role := map[harness.Support]theme.Role{harness.Yes: theme.OK, harness.Partial: theme.Warn, harness.No: theme.Muted}[cp.Support]
-		out = append(out, text.WrapHang(th.S(role, supportIcon[cp.Support])+" "+m.capTitle(ck.Key, ck.Title)+"  "+th.S(theme.Muted, cp.Detail), w, " ", "    ")...)
+		out = append(out, text.WrapHang(th.S(role, supportIcon[cp.Support])+" "+m.capTitle(ck.Key, ck.Title)+"  "+th.S(theme.Muted, m.cli(cp.Detail)), w, " ", "    ")...)
 	}
 	return out
 }
@@ -501,7 +446,7 @@ func (m *Model) runtimeLines(th theme.Theme, st *app.HarnessStatus, w int) []str
 			scopes = strings.Join(st.Hook.Scopes, ", ")
 		}
 		out = append(out, text.WrapHang(th.S(role, g)+" "+m.t("sy.har.hook", i18n.A{"scopes": scopes}), w, "  ", "      ")...)
-		out = append(out, text.WrapHang(th.S(theme.Muted, st.Hook.Detail), w, "      ", "      ")...)
+		out = append(out, text.WrapHang(th.S(theme.Muted, m.cli(st.Hook.Detail)), w, "      ", "      ")...)
 	} else {
 		out = append(out, "  "+th.S(theme.Muted, m.t("sy.har.hook.na")))
 	}
@@ -579,7 +524,7 @@ func (m *Model) componentsList(env ui.Env, w, h int) string {
 			return m.cursorMarker(th, line, cursor)
 		})
 	}
-	hints := hintsLine(th, [2]string{"n", m.t("sy.hint.add")}, [2]string{"a", m.t("sy.hint.approve")}, [2]string{"d", m.t("sy.hint.deprecate")},
+	hints := m.hintsLine([2]string{"n", m.t("sy.hint.add")}, [2]string{"a", m.t("sy.hint.approve")}, [2]string{"d", m.t("sy.hint.deprecate")},
 		[2]string{"R", m.t("sy.hint.render")}, [2]string{"f", m.t("sy.hint.filter")})
 	return m.listBox(env, w, h, title, top, hints, body)
 }
@@ -620,7 +565,7 @@ func (m *Model) componentsDetail(env ui.Env, w, h int) string {
 		if len(m.comps.Problems) > 0 {
 			out = append(out, "", th.S(theme.Accent, m.t("sy.comp.problems", i18n.A{"count": len(m.comps.Problems)})))
 			for _, p := range m.comps.Problems {
-				out = append(out, text.WrapHang(th.S(theme.Warn, "! ")+p, iw, "", "  ")...)
+				out = append(out, text.WrapHang(th.S(theme.Warn, "! ")+m.cli(p), iw, "", "  ")...)
 			}
 		}
 		return out
@@ -655,7 +600,7 @@ func (m *Model) skillsList(env ui.Env, w, h int) string {
 	if m.coreView {
 		top = th.S(theme.Key, m.t("sy.skill.coremode"))
 	}
-	hints := hintsLine(th, [2]string{"Enter", m.t("sy.hint.content")}, [2]string{"s", m.t("sy.hint.sync")}, [2]string{"o", m.t("sy.hint.overlay")},
+	hints := m.hintsLine([2]string{"Enter", m.t("sy.hint.content")}, [2]string{"s", m.t("sy.hint.sync")}, [2]string{"o", m.t("sy.hint.overlay")},
 		[2]string{"d", m.t("sy.hint.diff")}, [2]string{"c", m.t("sy.hint.check")})
 	return m.listBox(env, w, h, title, top, hints, body)
 }
@@ -737,7 +682,7 @@ func (m *Model) skillsDetail(env ui.Env, w, h int) string {
 				out = append(out, "", th.S(theme.Warn, "! ")+m.t("sy.skill.stale_why", i18n.A{"why": r.Stale}))
 			}
 			if r.Problem != "" {
-				out = append(out, "", th.S(theme.Err, "✗ ")+r.Problem)
+				out = append(out, "", th.S(theme.Err, "✗ ")+m.cli(r.Problem))
 			}
 		}
 		for _, p := range m.skills.EvolvedProblems {
@@ -782,8 +727,8 @@ func (m *Model) indexView(env ui.Env) string {
 	} else {
 		out = append(out, " "+th.S(theme.Muted, m.t("sy.index.never")))
 	}
-	hints := hintsLine(th, [2]string{"b", m.t("sy.hint.rebuild")})
-	return frame.Box{Title: m.t("sy.index.title"), TitleAt: frame.Left, Focused: true, Bottom: hints, BottomAt: frame.Left}.
+	hints := m.hintsLine([2]string{"b", m.t("sy.hint.rebuild")})
+	return frame.Box{Title: m.t("sy.index.title"), TitleAt: frame.Left, Focused: true, BottomHints: env.AllowedHints(hints), BottomAt: frame.Left}.
 		Render(th, env.W, env.H, strings.Join(fitLines(out, iw)[:min(len(out), ih)], "\n"))
 }
 
@@ -802,7 +747,7 @@ func (m *Model) mcpList(env ui.Env, w, h int) string {
 		t := m.mcp[i]
 		return m.cursorMarker(th, text.Pad(t.Name, 22)+" "+th.S(theme.Muted, t.Description), cursor)
 	})
-	return m.listBox(env, w, h, m.t("sy.mcp.title", i18n.A{"count": len(m.mcp)}), "", hintsLine(th, [2]string{"Enter", m.t("sy.hint.open")}), body)
+	return m.listBox(env, w, h, m.t("sy.mcp.title", i18n.A{"count": len(m.mcp)}), "", m.hintsLine([2]string{"Enter", m.t("sy.hint.open")}), body)
 }
 
 func (m *Model) mcpDetail(env ui.Env, w, h int) string {
@@ -854,8 +799,8 @@ func (m *Model) languageView(env ui.Env) string {
 	case m.cfg.LinkedWorktree:
 		out = append(out, "", " "+th.S(theme.Warn, m.t("sy.linked", i18n.A{"main": text.Tilde(m.cfg.Main)})))
 	}
-	hints := hintsLine(th, [2]string{"Enter", m.t("sy.hint.choose")}, [2]string{"L", m.t("sy.hint.session")})
-	return frame.Box{Title: m.t("sy.lang.title"), TitleAt: frame.Left, Focused: true, Bottom: hints, BottomAt: frame.Left}.
+	hints := m.hintsLine([2]string{"Enter", m.t("sy.hint.choose")}, [2]string{"L", m.t("sy.hint.session")})
+	return frame.Box{Title: m.t("sy.lang.title"), TitleAt: frame.Left, Focused: true, BottomHints: env.AllowedHints(hints), BottomAt: frame.Left}.
 		Render(th, env.W, env.H, strings.Join(fitLines(out, iw)[:min(len(out), ih)], "\n"))
 }
 
@@ -886,7 +831,7 @@ func (m *Model) doctorList(env ui.Env, w, h int) string {
 			return m.cursorMarker(th, th.S(role, g)+" "+c.Name, cursor)
 		})
 	}
-	hints := hintsLine(th, [2]string{"w", m.t("sy.hint.issues")}, [2]string{"Ctrl+R", m.t("sy.hint.refresh")}, [2]string{"Enter", m.t("sy.hint.open")})
+	hints := m.hintsLine([2]string{"w", m.t("sy.hint.issues")}, [2]string{"Ctrl+R", m.t("sy.hint.refresh")}, [2]string{"Enter", m.t("sy.hint.open")})
 	return m.listBox(env, w, h, title, top, hints, body)
 }
 
@@ -901,7 +846,7 @@ func (m *Model) doctorDetail(env ui.Env, w, h int) string {
 		g, role := levelRole(ck.Level)
 		title += " · " + ck.Name
 		out = append(out, th.S(role, g)+" "+th.S(theme.Accent, ck.Name)+"  "+th.S(theme.Muted, m.t("sy.doc.level."+string(ck.Level))), "")
-		out = append(out, text.Wrap(ck.Detail, max(iw-1, 10))...)
+		out = append(out, text.Wrap(m.cli(ck.Detail), max(iw-1, 10))...)
 	} else {
 		out = []string{"", " " + th.S(theme.Muted, m.t("sy.doc.none"))}
 	}

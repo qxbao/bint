@@ -2,7 +2,7 @@
 │ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│ ‹ Harness Components Skills  Index  MCP Language Doctor Setup ›              │
+│  Config Harness Components Skills  Index  MCP Language Doctor Setup Update   │
 │ ┌─│Knowledge index│────────────────────────────────────────────────────────┐ │
 │ │                                                                          │ │
 │ │  The FTS5 index in SQLite is derived from .bint/knowledge/items:         │ │

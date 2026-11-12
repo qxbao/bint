@@ -8,6 +8,7 @@ import (
 	"bint/internal/eval"
 	"bint/internal/i18n"
 	"bint/internal/tui/actions"
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/input"
 	"bint/internal/tui/components/list"
@@ -25,7 +26,7 @@ func (m *Model) View(env ui.Env) string {
 	th := env.Th
 	switch {
 	case m.Err != nil && !m.Loaded:
-		return strings.Join([]string{"", th.S(theme.Err, "✗ ") + m.t("eval.error"), "  " + text.Truncate(ui.ErrText(m.cat, m.Err), max(env.W-4, 10)),
+		return strings.Join([]string{"", th.S(theme.Err, "✗ ") + m.t("eval.error"), strings.Join(text.WrapHang(ui.ErrText(m.rw, m.Err), max(env.W-4, 10), "  ", "  "), "\n"),
 			"", th.S(theme.Muted, m.t("eval.error.hint"))}, "\n")
 	case !m.Loaded:
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))
@@ -59,25 +60,24 @@ func (m *Model) View(env ui.Env) string {
 
 func (m *Model) tabBar(env ui.Env) string {
 	th := env.Th
-	var parts []string
-	for _, i := range m.visibleTabs() {
-		n := " " + m.t("eval.tab."+tabNames[i]) + " "
+	ids := m.visibleTabs()
+	names := make([]string, len(ids))
+	sel := 0
+	for k, i := range ids {
+		names[k] = m.t("eval.tab." + tabNames[i])
 		if i == tabLog && m.job() != nil {
-			n = " " + env.Spin + n[1:]
+			names[k] = env.Spin + " " + names[k]
 		}
 		if i == m.tab {
-			parts = append(parts, th.Selected(n))
-		} else {
-			parts = append(parts, th.S(theme.Muted, n))
+			sel = k
 		}
 	}
-	bar := " " + strings.Join(parts, th.S(theme.Muted, "·"))
+	bar := ui.SubBar(th, names, ids, sel, env.W-1)
 	if m.toast != "" {
-		role := theme.OK
-		if m.toastErr {
-			role = theme.Warn
+		if need := min(text.Width(m.toast)+4, env.W/2); env.W-text.Width(bar)-1 < need {
+			bar = ui.SubBar(th, names, ids, sel, env.W-1-need) // chừa chỗ cho thông báo thay vì bắt thông báo bị cắt
 		}
-		toast := text.Truncate(th.S(role, " "+m.toast+" "), max(env.W-text.Width(bar)-1, 0))
+		toast := ui.ToastLabel(th, m.toast, m.toastErr, max(env.W-text.Width(bar)-1, 0))
 		bar += strings.Repeat(" ", max(env.W-text.Width(bar)-text.Width(toast), 1)) + toast
 	}
 	return text.Fit(bar, env.W)
@@ -110,13 +110,15 @@ func (m *Model) split(env ui.Env, left, right func(w int) string) string {
 	return left(w)
 }
 
-func (m *Model) hints(env ui.Env, hs [][2]string) string {
-	th := env.Th
-	var parts []string
-	for _, h := range hs {
-		parts = append(parts, th.S(theme.Key, h[0])+" "+th.S(theme.Muted, m.t(h[1])))
+// hints dựng chân phím của khung (kiểu Plain, tự rút theo độ rộng khung và bấm được bằng chuột).
+// hints dựng chân phím trong khung từ các bộ {phím, khoá nhãn, ID hành động ("" = phím giao diện thuần)} và bỏ phím mà sổ không cho dùng
+// (chỉ đọc, phiên agent) qua env.Allowed.
+func (m *Model) hints(env ui.Env, hs [][3]string) []footer.Hint {
+	out := make([]footer.Hint, len(hs))
+	for i, h := range hs {
+		out[i] = footer.Hint{Key: h[0], Label: m.t(h[1]), Priority: i + 1, ActionID: h[2]}
 	}
-	return " " + strings.Join(parts, "  ") + " "
+	return env.AllowedHints(out)
 }
 
 // filterChip là nhãn trạng thái lọc ở viền trên của khung danh sách: ô lọc đang nhập, hoặc bộ lọc đang áp dụng.
@@ -205,8 +207,8 @@ func (m *Model) candListBox(env ui.Env, w, h int) string {
 	if m.all {
 		chip = m.t("eval.filter.all")
 	}
-	return frame.Box{Title: m.t("eval.cands.title", i18n.A{"count": len(m.cidx)}), TitleAt: frame.Left, Focused: m.pane == paneList, Top: m.filterChip(th, chip),
-		Bottom: m.hints(env, [][2]string{{"a", "eval.hint.approve"}, {"x", "eval.hint.reject"}, {"m", "eval.hint.mine"}, {"v", "eval.hint.verify"}, {"A", "eval.hint.all"}}), BottomAt: frame.Left}.
+	return frame.Box{Title: m.t("eval.cands.title", i18n.A{"count": len(m.cidx)}), TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList, Top: m.filterChip(th, chip),
+		BottomHints: m.hints(env, [][3]string{{"a", "eval.hint.approve", "eval.approve"}, {"x", "eval.hint.reject", "eval.reject"}, {"m", "eval.hint.mine", "eval.mine"}, {"v", "eval.hint.verify", "eval.verify"}, {"A", "eval.hint.all", "eval.list"}}), BottomAt: frame.Left}.
 		Render(th, w, h, body)
 }
 
@@ -232,8 +234,8 @@ func (m *Model) caseListBox(env ui.Env, w, h int) string {
 	if s := splits[m.splitAt]; s != "" {
 		split = m.t("eval.split.one", i18n.A{"split": s})
 	}
-	return frame.Box{Title: m.t("eval.cases.title", i18n.A{"count": len(m.kidx)}), TitleAt: frame.Left, Focused: m.pane == paneList, Top: m.filterChip(th, split),
-		Bottom: m.hints(env, [][2]string{{"r", "eval.hint.run"}, {"E", "eval.hint.estimate"}, {"t", "eval.hint.split"}, {"p", "eval.hint.spec"}}), BottomAt: frame.Left}.
+	return frame.Box{Title: m.t("eval.cases.title", i18n.A{"count": len(m.kidx)}), TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList, Top: m.filterChip(th, split),
+		BottomHints: m.hints(env, [][3]string{{"r", "eval.hint.run", "eval.run"}, {"E", "eval.hint.estimate", "eval.estimate"}, {"t", "eval.hint.split", "eval.split"}, {"p", "eval.hint.spec", "eval.spec"}}), BottomAt: frame.Left}.
 		Render(th, w, h, body)
 }
 
@@ -267,12 +269,12 @@ func (m *Model) caseDetailBox(env ui.Env, w, h int) string {
 		if d := m.cache[c.ID]; d != nil {
 			cmdErr = d.TestCommandErr
 		}
-		m.detail.SetLines(m.caseLines(env, full, cmd, cmdErr, path, max(iw-1, 10)))
+		m.detail.SetWrapped(m.caseLines(env, full, cmd, cmdErr, path, max(iw-1, 10)), max(iw-1, 10))
 		content = m.detail.Render(iw, ih)
 		top = th.S(theme.Muted, m.detail.Position())
 	}
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneDetail, Top: top,
-		Bottom: m.hints(env, [][2]string{{"e", "eval.hint.edit"}, {"Enter", "eval.hint.focus"}}), BottomAt: frame.Left}.Render(th, w, h, content)
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "detail", Focused: m.pane == paneDetail, Top: top,
+		BottomHints: m.hints(env, [][3]string{{"e", "eval.hint.edit", "eval.open_file"}, {"Enter", "eval.hint.focus", ""}}), BottomAt: frame.Left}.Render(th, w, h, content)
 }
 
 // caseLines dựng chi tiết ứng viên/tác vụ: đề bài, nguồn commit, kiểm chứng, rò rỉ, đặc tả, lý do loại, lệnh chấm.
@@ -317,7 +319,7 @@ func (m *Model) caseLines(env ui.Env, c *eval.Case, cmd string, cmdErr error, pa
 		lines = append(lines, "  "+th.S(role, glyph)+" "+m.tr("eval.vs.", v.Status))
 		lines = append(lines, text.WrapHang(m.t("eval.d.verify.detail", i18n.A{"before": yesNo(m, v.FailBefore), "after": yesNo(m, v.PassAfter), "runs": v.AfterRuns, "at": shared.Dash(v.VerifiedAt)}), lw, "    ", "    ")...)
 		if v.Detail != "" {
-			lines = append(lines, text.WrapHang(v.Detail, lw, "    ", "    ")...)
+			lines = append(lines, text.WrapHang(m.cli(v.Detail), lw, "    ", "    ")...)
 		}
 	}
 
@@ -325,7 +327,7 @@ func (m *Model) caseLines(env ui.Env, c *eval.Case, cmd string, cmdErr error, pa
 	glyph, role = leakGlyph(c.Leak)
 	lines = append(lines, "  "+th.S(role, glyph)+" "+m.tr("eval.ls.", c.Leak.Status))
 	for _, f := range c.Leak.Findings {
-		lines = append(lines, text.WrapHang(fmt.Sprintf("[%s] %s: %s", f.Severity, f.Kind, f.Detail), lw, "    ", "      ")...)
+		lines = append(lines, text.WrapHang(fmt.Sprintf("[%s] %s: %s", f.Severity, f.Kind, m.cli(f.Detail)), lw, "    ", "      ")...)
 	}
 
 	add("eval.d.spec")
@@ -335,7 +337,7 @@ func (m *Model) caseLines(env ui.Env, c *eval.Case, cmd string, cmdErr error, pa
 		glyph, role = specGlyph(c.Spec)
 		lines = append(lines, "  "+th.S(role, glyph)+" "+m.tr("eval.ss.", c.Spec.Status))
 		for _, f := range c.Spec.Findings {
-			lines = append(lines, text.WrapHang(fmt.Sprintf("%s: %s", f.Kind, f.Detail), lw, "    ", "      ")...)
+			lines = append(lines, text.WrapHang(fmt.Sprintf("%s: %s", f.Kind, m.cli(f.Detail)), lw, "    ", "      ")...)
 		}
 		for _, h := range c.Spec.Interface {
 			lines = append(lines, text.WrapHang(h.Signature, lw, "    ", "      ")...)
@@ -345,7 +347,7 @@ func (m *Model) caseLines(env ui.Env, c *eval.Case, cmd string, cmdErr error, pa
 	add("eval.d.test")
 	switch {
 	case cmdErr != nil:
-		lines = append(lines, text.WrapHang(th.S(theme.Warn, "! ")+ui.ErrText(m.cat, cmdErr), lw, "  ", "    ")...)
+		lines = append(lines, text.WrapHang(th.S(theme.Warn, "! ")+ui.ErrText(m.rw, cmdErr), lw, "  ", "    ")...)
 	case cmd != "":
 		lines = append(lines, text.WrapHang(cmd, lw, "  ", "    ")...)
 	case c.TestCommand != "":
@@ -401,8 +403,8 @@ func (m *Model) batchListBox(env ui.Env, w, h int) string {
 			return "  " + line
 		})
 	}
-	return frame.Box{Title: m.t("eval.batches.title", i18n.A{"count": len(m.bidx)}), TitleAt: frame.Left, Focused: m.pane == paneList, Top: m.filterChip(th, ""),
-		Bottom: m.hints(env, [][2]string{{"r", "eval.hint.run"}, {"R", "eval.hint.resume"}, {"b", "eval.hint.baseline"}, {"B", "eval.hint.bootstrap"}, {"C", "eval.hint.clean"}}), BottomAt: frame.Left}.
+	return frame.Box{Title: m.t("eval.batches.title", i18n.A{"count": len(m.bidx)}), TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList, Top: m.filterChip(th, ""),
+		BottomHints: m.hints(env, [][3]string{{"r", "eval.hint.run", "eval.run"}, {"R", "eval.hint.resume", "eval.resume"}, {"b", "eval.hint.baseline", "eval.baseline"}, {"B", "eval.hint.bootstrap", "eval.bootstrap"}, {"C", "eval.hint.clean", "eval.clean"}}), BottomAt: frame.Left}.
 		Render(th, w, h, body)
 }
 
@@ -421,7 +423,7 @@ func (m *Model) batchDetailBox(env ui.Env, w, h int) string {
 		e, ok := m.reports[key]
 		switch {
 		case ok && e.err != nil:
-			content = "\n " + th.S(theme.Err, "✗ ") + text.Truncate(ui.ErrText(m.cat, e.err), max(iw-4, 10))
+			content = "\n" + strings.Join(ui.ErrBlock(th, ui.ErrText(m.rw, e.err), max(iw-1, 10), " "), "\n")
 		case !ok || e.rep == nil:
 			content = "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))
 		default:
@@ -430,13 +432,13 @@ func (m *Model) batchDetailBox(env ui.Env, w, h int) string {
 				m.detailKey = key
 				m.detail.Reset()
 			}
-			m.detail.SetLines(m.reportLines(th, e.rep, max(iw-1, 10)))
+			m.detail.SetWrapped(m.reportLines(th, e.rep, max(iw-1, 10)), max(iw-1, 10))
 			content = m.detail.Render(iw, ih)
 			top = th.S(theme.Muted, m.detail.Position())
 		}
 	}
-	return frame.Box{Title: title, TitleAt: frame.Left, Focused: m.pane == paneDetail, Top: top,
-		Bottom: m.hints(env, [][2]string{{"b", "eval.hint.baseline"}, {"Enter", "eval.hint.focus"}}), BottomAt: frame.Left}.Render(th, w, h, content)
+	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "detail", Focused: m.pane == paneDetail, Top: top,
+		BottomHints: m.hints(env, [][3]string{{"b", "eval.hint.baseline", "eval.baseline"}, {"Enter", "eval.hint.focus", ""}}), BottomAt: frame.Left}.Render(th, w, h, content)
 }
 
 // ---- thẻ Log ----
@@ -519,14 +521,14 @@ func (m *Model) logBox(env ui.Env, w, h int) string {
 	if !j.Ended.IsZero() {
 		state = m.t("eval.log.finished", i18n.A{"label": j.Label})
 		if j.Err != nil {
-			state += " — " + ui.ErrText(m.cat, j.Err)
+			state += " — " + ui.ErrText(m.rw, j.Err)
 		}
 		top = ""
 	}
 	var secs []logview.Section
 	if r := m.run; r != nil {
 		if r.resume != "" {
-			secs = append(secs, logview.Section{Title: m.t("eval.log.resume_title"), Lines: []string{r.resume}})
+			secs = append(secs, logview.Section{Title: m.t("eval.log.resume_title"), Lines: []string{m.cli(r.resume)}})
 		}
 		grid := m.gridLines(th, r, max(iw-2, 10))
 		if r.plan == nil {
@@ -538,5 +540,5 @@ func (m *Model) logBox(env ui.Env, w, h int) string {
 	}
 	secs = append(secs, logview.Section{Title: state, Lines: j.Log.Lines})
 	m.logTotal, m.logH = logview.Total(secs), ih
-	return frame.Box{Title: m.t("eval.log.title"), TitleAt: frame.Left, Focused: true, Top: top}.Render(th, w, h, m.log.Render(th, secs, iw, ih))
+	return frame.Box{Title: m.t("eval.log.title"), TitleAt: frame.Left, Pane: "view", Focused: true, Top: top}.Render(th, w, h, m.log.Render(th, secs, iw, ih))
 }

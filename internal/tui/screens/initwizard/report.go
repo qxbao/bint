@@ -39,7 +39,7 @@ func (m *Model) doneView(env ui.Env) string {
 		add("", "  "+th.Bold(m.t("wiz.title.error")), "")
 		wrap(theme.Fg, m.t("wiz.intro.error", i18n.A{"dir": dir}))
 		add("", "  "+th.S(theme.Err, "✗ ")+m.t("wiz.error"))
-		wrap(theme.Err, text.TildeIn(ui.ErrText(m.cat, m.err)))
+		wrap(theme.Err, text.TildeIn(ui.ErrText(m.rw, m.err)))
 		add("")
 		wrap(theme.Muted, m.t("wiz.error.hint"))
 	default:
@@ -52,7 +52,7 @@ func (m *Model) doneView(env ui.Env) string {
 		}
 		lines = append(lines, m.reportLines(env, len(lines)+1)...)
 	}
-	foot := m.doneHints(th)
+	foot := m.doneHints(th, env.W-4)
 	for len(lines) < env.H-1 {
 		lines = append(lines, "")
 	}
@@ -62,11 +62,11 @@ func (m *Model) doneView(env ui.Env) string {
 	return fit(append(lines, foot), env.H)
 }
 
-func (m *Model) doneHints(th theme.Theme) string {
+func (m *Model) doneHints(th theme.Theme, maxW int) string {
 	if m.err != nil || m.report == nil {
-		return "  " + m.hints(th, "wiz.hint.back", "Esc", "wiz.hint.recheck", "r")
+		return "  " + m.hints(th, maxW, "wiz.hint.back", "Esc", "wiz.hint.recheck", "r")
 	}
-	return "  " + m.hints(th, "wiz.hint.continue", "Enter", "wiz.hint.pick", "j/k")
+	return "  " + m.hints(th, maxW, "wiz.hint.continue", "Enter", "wiz.hint.pick", "j/k")
 }
 
 // reportLines vẽ các bước và "bước tiếp theo" của báo cáo vào phần còn lại của màn hình (used là số dòng đã vẽ, gồm dòng gợi ý
@@ -77,7 +77,7 @@ func (m *Model) reportLines(env ui.Env, used int) []string {
 	var problems, rest []string
 	for _, s := range m.report.Steps {
 		si := stepIcon[s.Status]
-		l := "   " + th.S(si.role, si.icon) + " " + stepText(th, text.TildeIn(s.Name), text.TildeIn(s.Detail), max(env.W-8, 8))
+		l := "   " + th.S(si.role, si.icon) + " " + stepText(th, text.TildeIn(s.Name), m.cli(text.TildeIn(s.Detail)), max(env.W-8, 8))
 		if s.Status == app.StepWarn || s.Status == app.StepConflict {
 			problems = append(problems, l)
 		} else {
@@ -90,7 +90,7 @@ func (m *Model) reportLines(env ui.Env, used int) []string {
 		next = append(next, "", "  "+th.Bold(m.t("wiz.next")))
 		for i, s := range m.report.NextSteps {
 			marker, num := "   ", th.S(theme.Key, string(rune('1'+i))+".")
-			body := text.Truncate(s, max(env.W-9, 8))
+			body := text.Truncate(m.cli(s), max(env.W-9, 8))
 			if i == m.next {
 				marker, body = " "+th.S(theme.Key, "▸")+" ", th.Selected(body)
 			}

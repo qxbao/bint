@@ -157,7 +157,7 @@ func taskActions() []Action {
 			withK("tasks.add_knowledge", func(ctx context.Context, k *app.KnowledgeWS, o any) (any, error) {
 				return app.AddKnowledge(ctx, k, o.(app.AddOptions))
 			})),
-		mk("tasks.open_file", "open_file", "", false, 0, "", EditOptions{}, false, false,
+		mk("tasks.open_file", "open_file", "", false, 0, "", EditOptions{}, true, false,
 			func(ctx context.Context, env Env, o any) tea.Msg {
 				eo := o.(EditOptions)
 				return ExecMsg{ID: "tasks.open_file", Opts: eo, Cmd: editorCmd(ctx, env, eo.Path, eo.Line)}

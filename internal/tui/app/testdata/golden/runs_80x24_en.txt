@@ -21,4 +21,4 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ └─ +/- rate good/bad  S scan Git  I ingest spool  d failure digest ────────┘ │
-└─[+/-→ Rate] [S→ Scan Git] [I→ Ingest spool] [q→ Quit] [?→ Help]──────────────┘
+└─[+/-→ Rate] [S→ Scan Git] [I→ Ingest] [:→ Commands] [q→ Quit] [?→ Help]──────┘

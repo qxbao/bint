@@ -1,9 +1,10 @@
 # Kế hoạch TUI cho Bint
 
-Trạng thái: **giai đoạn 0, 1, 2, 3, 4 và 5 đã triển khai** (giai đoạn 5 gồm hai phiếu: **5a** — tab Hệ thống — ngày 2026-11-12 và
-**5b** — trình hướng dẫn `init`, Hệ thống › Cài đặt repo, nâng cấu hình, cập nhật Bint + khởi động lại — ngày 2026-11-12); **giai đoạn 6 chưa làm**.
+Trạng thái: **giai đoạn 0, 1, 2, 3, 4, 5 và 6 đã triển khai** (giai đoạn 5 gồm hai phiếu: **5a** — tab Hệ thống — ngày 2026-11-12 và
+**5b** — trình hướng dẫn `init`, Hệ thống › Cài đặt repo, nâng cấu hình, cập nhật Bint + khởi động lại — ngày 2026-11-12; giai đoạn 6 gồm hai phiếu: **6a** — chuột, chế độ hẹp, chân phím, đọc đủ thông báo bị cắt — và
+**6b** — thông điệp theo phím TUI, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README, chốt giai đoạn — cùng ngày 2026-11-12); còn lại là thử với người dùng thật và ảnh VHS (mục 12.10).
 Kế hoạch đề xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
-và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4; 12.7: giai đoạn 5a; 12.8: giai đoạn 5b).
+và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4; 12.7: giai đoạn 5a; 12.8: giai đoạn 5b; 12.9: giai đoạn 6a; 12.10: giai đoạn 6b).
 
 ## 1. Mục tiêu
 
@@ -371,6 +372,8 @@ cmd/bint ──► internal/cli  (cobra, in văn bản / JSON)      ┐
   ranh giới bảo mật: người có quyền ghi repo vẫn chạy CLI được.
 - Kiểm thử: với mọi hành động có `Writes = true`, khẳng định không gọi được ở chế độ chỉ đọc,
   kể cả qua phím tắt và bảng lệnh.
+- Chân phím trong khung của các màn tra sổ qua `ui.Env.Allowed` (`footer.Hint.ActionID`, `Env.AllowedHints`); màn hình không tự kiểm `ReadOnly`. Bảng kiểm `TestWritesAudit`
+  buộc mọi hành động ghi tệp, ghi CSDL hoặc mở trình soạn thảo có `Writes = true` (mục 12.10).
 
 ### 7.5 Worktree
 
@@ -435,7 +438,7 @@ TUI ở đó nếu được (hoặc chép lệnh `cd … && bint`).
 | 3 ✅ | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
 | 4 ✅ | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
 | 5 ✅ | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. Tách làm hai phiếu: **5a ✅** (tab Hệ thống: Cấu hình, Harness, Thành phần, Skill + sync, Chỉ mục, MCP, Ngôn ngữ, Doctor; mục 12.7) và **5b ✅** (trình hướng dẫn `init`, Cài đặt repo với 11 cờ `init`, nâng cấu hình `init --update` qua hộp thư, `update` + khởi động lại; mục 12.8). | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
-| 6 | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README; thông báo theo phím TUI, đọc đủ thông báo bị cắt, phím thường dùng luôn thấy (xem dưới). | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
+| 6 ✅ | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README; thông báo theo phím TUI, đọc đủ thông báo bị cắt, phím thường dùng luôn thấy (xem dưới). Tách làm hai phiếu: **6a ✅** (tương tác: sửa 5 phát hiện review của 5a/5b, chuột, chế độ hẹp đầy đủ, chân phím không đẩy mất phím, đọc đủ thông báo/ô chi tiết; mục 12.9) và **6b ✅** (viết lại thông báo nhắc lệnh CLI thành phím TUI, `NO_COLOR` đầy đủ, chế độ chỉ đọc theo mục 7.4, trợ giúp theo ngữ cảnh, README, `CurrentPhase = 6`; mục 12.10). | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
 
 Yêu cầu bổ sung cho giai đoạn 6 (chủ dự án, 2026-11-12, khi xem màn Tri thức có mục lỗi bằng chứng):
 
@@ -548,7 +551,7 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
   khối 3 dòng thử trước đó quá khó đọc nên bỏ. Dưới ngưỡng chỉ hiện chữ "bint." đậm, như kế hoạch.
 - **Bảng màu**: giá trị khởi điểm mục 4.2 giữ nguyên, chờ chủ dự án duyệt ảnh. Ở chế độ 16 màu vai trò `fg`
   dùng màu mặc định của terminal thay vì `white` (để đọc được trên cả nền sáng).
-- **Chân phím** xếp phím riêng của màn hình trước, rồi phím toàn cục, cuối cùng các phím ghim (`?`, `q`).
+- **Chân phím** xếp phím riêng của màn hình trước, rồi phím toàn cục, cuối cùng các phím ghim (`?`, `q`). Từ 6a: thiếu chỗ thì rút nhãn trước khi bỏ phím (mục 12.9).
 - **Đổi ngôn ngữ chỉ có hiệu lực trong phiên** (phím `L`): từ giai đoạn 5a, Hệ thống › Ngôn ngữ ghi `ui.language` vào cấu hình (mục 12.7).
   `.bint/config.yml` của chính repository này chưa có khối `ui`: chạy `bint init --update` hoặc chọn ngôn ngữ ở Hệ thống › Ngôn ngữ (chèn khối `ui`).
 - **Đổi nhỏ về hành vi CLI** (ngoài phạm vi "không đổi" nên ghi rõ): `knowledge review --status <giá trị lạ>`
@@ -569,9 +572,9 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
 - **`bootstrap publish`**: `PublishOptions.Yes` + `Confirm`; ghi thay đổi mà không Yes và không Confirm là
   `UsageError` "cần --yes" (như eval/evolve evaluate); `DryRun` không cần xác nhận.
 - **Đã tách ở giai đoạn 3**: kiểm `InAgentSession` của `runs rate` nay nằm ở dịch vụ (`app.RateRun`, mục 12.5); của `task approve` đã tách ở giai đoạn 2 (mục 12.4).
-- **Chưa có**: chuột, chế độ hẹp đầy đủ, `bubblezone`, `teatest` (golden dùng `View()` của mô hình) và hoàn thiện của giai đoạn 6. Danh sách chưa làm ở
+- **Chưa có**: `teatest` (golden dùng `View()` của mô hình); thử với 2–3 người không quen CLI và xuất ảnh VHS thật (mục 12.10). **Chuột và chế độ hẹp có từ 6a** (mục 12.9) và **thông báo theo phím TUI, `NO_COLOR`, chế độ chỉ đọc đầy đủ, trợ giúp theo ngữ cảnh, README có từ 6b** (mục 12.10); không dùng `bubblezone` mà tự đánh dấu vùng bấm bằng gói `components/zone` (lý do ở 12.9). Danh sách chưa làm ở
   `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3, 30 sau giai đoạn 4, 12 sau giai đoạn 5a, **0 sau giai đoạn 5b**:
-  `Pending` và `PendingFlags` **rỗng**, `CurrentPhase = 5`; giai đoạn 6 giữ test đòi danh sách rỗng).
+  `Pending` và `PendingFlags` **rỗng**, **`CurrentPhase = 6` từ 6b** (test đòi danh sách rỗng ở giai đoạn 6 nay chạy thật).
 
 ### 12.3 Giai đoạn 1 (đã xong, 2026-11-11)
 
@@ -1091,3 +1094,181 @@ bint tui                                                       # repo chưa init
 - **.3** (`PlanSync` không tính `core.lock`): cùng sửa với 5a.4 ở trên (`TestPlanSyncCountsCoreLock`, `TestInboxVersionSkewSyncClearsItem`).
 - **.4** (`ConfigBackupPath` cắt chuỗi tiếng Việt): `InitReport.ConfigBackup` do `upgradeConfig` điền; `ConfigBackupPath` và hộp nâng cấu hình dùng trường đó (Detail của bước giữ nguyên chữ cho CLI). Test: `TestConfigBackupPathUsesStructuredField`, `TestDoctorAndStateReportOldConfigTemplate` (có kiểm `rep.ConfigBackup`), `TestConfigUpgradeDialog` (hộp hiện đường dẫn thật), golden `system_upgrade_done` (dựng báo cáo bằng trường mới).
 - **.5** (diff có sửa `.bint/knowledge/items/*` ngoài phạm vi): không phải thay đổi của phiếu này; tệp tri thức do Bint tự xác thực lại (`knowledge verify --apply`, commit a719979). Phiếu sửa này không đụng `.bint/knowledge/**`; mục mới chưa theo dõi `01M75SJEVVEJHAYFKFJ8G1T1E1.md` để người duyệt quyết định riêng.
+
+### 12.9 Giai đoạn 6a (đã xong, 2026-11-12)
+
+Phiếu thứ nhất của giai đoạn 6 (6a = tương tác; 6b = thông điệp và hoàn tất): sửa các phát hiện review còn mở của 5a/5b, **chuột** (mục 4.3.7), **chế độ hẹp** đầy đủ (mục 4.1), chân phím không đẩy mất phím thường dùng và đọc đủ mọi thông báo/ô chi tiết bị cắt
+(yêu cầu bổ sung ở mục 9). Kiểm bằng `TestMouse*`, `TestNotices*`, `TestNarrowScan`, `TestGoldenNarrow`, `TestDetailShowsFull*`, `TestTruncatedListColumnsHaveFullView` (`internal/tui/app`), test `footer`, `zone`, `TestRebaseConfigEdit*`/`TestMerge3` (`internal/app`).
+
+**Sửa sau review** (phiếu 01M75YH2JGR9AD685VH886WE33; mã `.n` là phát hiện thứ n của phiếu đó)
+- **.5 (sửa lại sau `ErrConfigChanged` hoàn tác thay đổi của người khác)**: `app.RebaseConfigEdit` nay gộp **ba chiều theo dòng** (`app.Merge3`: mốc = `Seed`, bản của bạn = bản tạm, bản mới = tệp gốc hiện tại) rồi ghi lại bản tạm; `Seed/Original/BaseHash` theo tệp mới nên diff xác nhận chỉ còn thay đổi của người dùng.
+  Hai bên sửa đoạn không chồng nhau (kể cả liền kề: một bên sửa dòng cuối khối, bên kia thêm dòng ngay sau) thì tự gộp; chồng nhau thì bản tạm mang khối `<<<<<<< bint: bản sửa của bạn … ======= … >>>>>>> bint: tệp gốc mới`, trình soạn thảo mở lại và `CheckConfigEdit` từ chối nội dung còn dấu (`HasConflictMarkers`).
+  Tệp gốc bị xoá thì giữ bản của người dùng làm tệp mới (lớp `local`; xoá `config.yml` thì repo coi như chưa init nên gộp báo lỗi và bản tạm còn nguyên). Hành động `system.config_rebase` (chỉ ghi bản tạm) chạy **trước** khi mở lại trình soạn thảo; `config_check` không còn cờ `Rebase`.
+  Test: `TestRebaseConfigEditMergesThreeWay` (không xung đột, xung đột), `TestRebaseConfigEditOriginalDeleted`, `TestRebaseConfigEditErrorKeepsTemp`, `TestMerge3` (`internal/app`); `TestSystemConfigEditRebaseKeepsOthersChange` (người khác thêm dòng sau khi mở, người dùng sửa khoá khác, Sửa lại rồi xác nhận → tệp có cả hai), `TestSystemConfigEditRebaseConflictMarkers` (`internal/tui/app`).
+- **.3 (đặt lại mốc lỗi vẫn xoá bản tạm qua `drop()`)**: gộp lỗi (không đọc được bản tạm/tệp gốc, `configCtx` lỗi) và kiểm lỗi mở lại hộp **Sửa lại / Bỏ** kèm lỗi (`showConfigRejected`); bản tạm chỉ bị xoá khi ghi thành công hoặc Bỏ. Sửa lại sau lỗi gộp thử gộp lần nữa. Test: `TestSystemConfigEditRebaseErrorKeepsTempUntilDiscard`.
+- **.1 + .2 (Cài đặt repo nhiều bước)**: `resetSetupRun` xoá luôn `setupProblem` và được gọi ở mọi đường kết thúc (xong, lỗi, yêu cầu trực tiếp); lỗi ở bước sau thì khung kết quả (`sy.setup.failed.title`) hiện báo cáo các bước đã xong kèm dòng `✗ Bước i/n lỗi: …` và toast; bước đã chạy không bị mất. Lần chạy có cảnh báo dùng `sy.setup.applied.problem` (chữ khác hẳn lần sạch).
+  Test: `TestSetupMultiStepFailureKeepsReportAndClearsProblem`.
+- **.4 (`setupPending` treo)**: thẻ Cài đặt repo nạp xong khi đang có hộp/form thì bỏ yêu cầu mở form đang chờ kèm toast `sy.setup.dropped`; Ctrl+R sau đó không tự mở form. Test: `TestSetupPendingDroppedWhenFormOpen`.
+
+**Chuột** (bật mặc định: `View.MouseMode = MouseModeCellMotion`; hành động `app.mouse` trong bảng lệnh tắt/bật trong phiên, toast báo; mọi thứ vẫn dùng được chỉ bằng bàn phím)
+- **Cách làm**: không dùng `bubblezone` (thêm phụ thuộc, và dấu của nó chèn ký tự vào chuỗi) mà gói `internal/tui/components/zone`: component/màn hình bọc phần tử bấm được bằng `zone.Mark(id, s)` — chuỗi APC `ESC _ Zs;<id> ESC \ … ESC _ Ze ESC \` rộng 0 ô nên mọi phép đo/cắt/đệm/`Overlay` giữ nguyên.
+  `Model.Render()` bật `zone.Begin()`, vẽ, `zone.Scan` **gỡ mọi dấu** (đầu ra không còn dấu; golden không đổi vì chuột) và giữ danh sách vùng `[]zone.Zone{ID, X0, X1, Y}`. Sự kiện chuột vẽ lại một lần để vùng khớp trạng thái rồi tra vùng hẹp nhất dưới con trỏ. `zone.Mark` chỉ có tác dụng khi mô hình gốc đang vẽ nên gallery và test component không thấy dấu.
+- **Vùng**: `tab:<i>` (thanh tab; cả tab rút gọn), `key:<phím>` (mọi phím ở chân phím khung ngoài và khung trong, nút `[Enter]`/`[Esc]` của hộp thoại, dấu `[!]`: như nhấn phím đó, qua `footer.KeyMsg`), `r:<i>` (hàng của mọi `list.Model` và hộp thư Tổng quan), `t:<i>` (thẻ phụ của Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá, Hệ thống; cả `‹ ›`),
+  `p:<khung>` (khung danh sách/chi tiết/kết quả: bấm = focus, lăn bánh xe = cuộn), `pal:<i>` (dòng bảng lệnh), `dlg` (hộp thoại). Màn hình nhận chuột qua giao diện tuỳ chọn `ui.Pointer` (`Click(id)`, `Wheel(pane, dy)`; `pointer.go` của từng màn).
+- **Hành vi**: bấm hàng dời con trỏ (kèm nạp chi tiết như phím `j/k`); bấm lại hàng đang chọn = Enter; bánh xe 3 dòng/nấc: trên khung danh sách dời con trỏ, trên khung chi tiết/kết quả cuộn nội dung, trên hộp thư Tổng quan dời con trỏ, trên hộp thoại/bảng lệnh cuộn nội dung của hộp.
+  Khi có hộp thoại hoặc bảng phủ (vùng `dlg`) chỉ giữ vùng nằm trong khung chữ nhật của hộp (`filterModal`): bấm ngoài hộp không tác động màn bên dưới. Hộp thoại, form và ô lọc của màn hình chặn bấm hàng/thẻ; ô nhập của thẻ phụ Tri thức không chặn (bấm thẻ phụ khác là rời nó). Bấm `[!]` mở hộp Thông báo kể cả khi một ô nhập đang nhận phím.
+- **Test**: `TestMouseOnByDefaultNoMarkersAndToggle` (MouseMode, Render/View không còn dấu, `app.mouse` bật/tắt, chuột tắt thì bấm không làm gì), `TestMouseClickTabs`, `TestMouseOverviewInbox`, `TestMouseKnowledge`, `TestMouseTasks`, `TestMouseSystem` (toạ độ lấy từ chính bản vẽ), `TestMouseFooterHintsEqualKeys` (bấm = nhấn: so bản vẽ hai mô hình),
+  `TestMouseDialogButtonsAndOutsideClicks` (hộp thoát, hộp của màn hình, bảng lệnh, trợ giúp), `TestMouseNoticeMarkWhileFormCaptures`; `zone_test.go`, `footer_test.go`.
+
+**Chân phím** (`components/footer`)
+- `footer.Fit` rút nhãn **trước** khi bỏ phím: nhãn đầy đủ → cắt theo từ còn 10/7/5/3 ô → chỉ còn phím; chỉ khi chỉ-còn-phím vẫn tràn mới bỏ phím ưu tiên thấp (thứ tự bỏ: phím thường theo `Priority` giảm dần, rồi phím bắt buộc, ghim cuối). Phím ghim và `Priority ≤ footer.MustPriority (2)` không bị giới hạn `MaxHints`; `:` đổi từ ưu tiên 3 sang 2 nên luôn hiện cùng `?` và `q`.
+- Chân phím trong khung (các màn từng tự ghép chuỗi rồi bị `frame` cắt giữa phím) nay là `frame.Box.BottomHints []footer.Hint` (kiểu Plain `phím nhãn  phím nhãn`): tự chọn/rút theo độ rộng khung và bấm được. Trình hướng dẫn init dùng cùng `footer.Inline`.
+- Test: `TestFitShortensLabelsBeforeDroppingKeys`, `TestFitDropsLowestPriorityOnlyWhenKeysOnlyOverflow`, `TestFitKeepsMustHintsBeyondMax`, `TestInlineNeverOverflowsOrCutsKey`; `TestNarrowScan` kiểm chân phím ngoài của **mọi** kịch bản ảnh chụp ở 60×20 và 80×24 (vi, en, xx): có `?`, `q`, `:` và mọi phím ưu tiên ≤ 2 của ngữ cảnh, không dòng viền nào bị cắt (`…─`, `…┘`).
+
+**Đọc đủ thông báo và nội dung bị cắt**
+- Toast (khung chính và thanh thẻ phụ của mọi màn) dài quá chỗ thì rút gọn bằng `…` kèm dấu `[!]` (`ui.ToastLabel`); toast của khung chính không còn bị bỏ khỏi viền trên (trước đây `frame` bỏ cả nhãn phụ khi không vừa; nay rút gọn). Phím **`!`** (toàn cục như `?`) hoặc bấm vào `[!]` mở hộp **Thông báo** (`app.notifications`): nguyên văn thông báo hiện tại (ngắt dòng, cuộn được) và tối đa **50** thông báo gần nhất của mọi màn trong phiên (`harvestNotices` thu toast của mô hình gốc và của màn hình qua `ui.Toaster` sau mỗi `Update`).
+- Chi tiết: lỗi nạp (danh sách và chi tiết, mọi màn) dùng `ui.ErrBlock` (ngắt dòng, thụt treo) thay vì `Truncate`; mọi viewer chi tiết/kết quả dùng `viewer.SetWrapped` (dòng dài ngắt theo từ, giữ mã màu) và các hàm dựng chi tiết (Tác vụ, Lượt chạy, Tri thức, Tiến hoá) bỏ `text.Truncate` ở giá trị; `system.fitLines` ngắt dòng; Tổng quan: giá trị dài của hộp thông tin ngắt dòng, hàng hộp thư đang chọn bị rút gọn thì hiện nguyên văn (tối đa 3 dòng) ngay dưới danh sách.
+- **Bảng kiểm** các danh sách có cột bị cắt và nơi đọc đủ (`TestTruncatedListColumnsHaveFullView`, 80×24): Tổng quan hộp thư → dòng nguyên văn dưới danh sách; Tri thức (tiêu đề), Tác vụ (mục tiêu), Lượt chạy (nhãn/lý do), Đánh giá (tiêu đề ứng viên), Tiến hoá (tóm tắt cơ hội, lý do đề xuất), Hệ thống › Harness (mô tả) → khung chi tiết (Enter, cuộn được). Thêm danh sách mới có cột bị cắt mà không có chỗ đọc đủ thì thêm một dòng vào bảng này.
+- Test: `TestNoticesFullTextOfRootAndScreenToasts` (toast 300 ký tự ở 80×24 của mô hình gốc, của màn Hệ thống, bấm `[!]`, giới hạn 50), `TestDetailShowsFullLongTitlesAndErrors` (tiêu đề và lỗi 300 ký tự, Tri thức/Tác vụ/Lượt chạy/Hệ thống, cuộn bằng `pgdown`).
+
+**Chế độ hẹp** (60×20 và 80×24)
+- `ui.SubBar` dùng chung cho thanh thẻ phụ của Lượt chạy, Đánh giá, Tiến hoá: đầy đủ → chỉ thẻ chọn có đệm → cửa sổ quanh thẻ chọn kèm `‹ ›`; **tên thẻ đang chọn luôn hiện đủ** (`ui.SubTabber` cho test). `frame` đẩy tiêu đề căn giữa sang trái khi nhãn phụ không vừa (trước đây viền trên của khung ngoài tràn 4 ô ở 60×20 khi có việc nền).
+- Tổng quan: bỏ chữ `bint.` và khẩu hiệu khi thấp, phiên bản/mẫu cấu hình/`core.lock` chuyển thành dòng trong hộp khi viền dưới không đủ chỗ (không còn bị cắt).
+- Golden mới `*_60x20_vi.txt` cho Tổng quan, Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá, Hệ thống (`TestGoldenNarrow`). `TestNarrowScan` quét **mọi** kịch bản golden (màn hình chính và Hệ thống) ở 60×20 và 80×24, vi/en/xx: mọi dòng rộng đúng W và đủ H dòng, tên thẻ phụ đang chọn hiện đủ, không còn khoá i18n thô (chuỗi trùng một khoá của danh mục), viền không bị cắt.
+  Golden 80×24 đổi theo (chân phím rút nhãn thay vì bỏ phím; `:` luôn hiện).
+
+**Chạy đỏ trước khi sửa** (kiểm trên cây `HEAD` bằng worktree tạm, chỉ chép tệp test): `TestSystemConfigEditRebaseKeepsOthersChange` ("bản tạm phải mang cả hai thay đổi"), `TestSystemConfigEditRebaseConflictMarkers` ("bản tạm phải mang dấu xung đột"), `TestSystemConfigEditRebaseErrorKeepsTempUntilDiscard` ("gộp lỗi thì không mở trình soạn thảo: 2"), `TestSetupMultiStepFailureKeepsReportAndClearsProblem` (thiếu "Cài đặt repo: dừng ở bước lỗi", "Bước 1/2"),
+`TestSetupPendingDroppedWhenFormOpen` (hết hạn chờ: không có toast bỏ yêu cầu), `TestDetailShowsFullLongTitlesAndErrors` (lỗi nạp danh sách/chi tiết của Tri thức, Tác vụ, Lượt chạy và lỗi thẻ Hệ thống: thiếu 34–35/43 từ). Test của dịch vụ (`TestRebaseConfigEdit*`) đỏ ở bước biên dịch (hàm mới).
+
+**Chỗ lệch so với kế hoạch / giới hạn (người duyệt có thể đổi)**
+- **Không dùng `bubblezone`** (mục 3 nêu làm ứng viên): tự viết gói `zone` nhỏ (APC, không phụ thuộc mới; `go.mod` không đổi). Cờ bật `zone.Begin/End` là biến toàn cục, an toàn vì Bubble Tea vẽ trong một goroutine; đổi sang `ui.Env` nếu sau này vẽ song song.
+- **Bánh xe trên danh sách dời con trỏ** (3 hàng/nấc) thay vì cuộn vùng nhìn giữ nguyên con trỏ: đơn giản và nạp chi tiết theo con trỏ như phím `j/k`; trợ giúp (`?`) vẫn không cuộn được (chỉ cắt cuối kèm "còn nữa"; thuộc "trợ giúp theo ngữ cảnh" của 6b — **đã làm ở 6b**, mục 12.10: cuộn được kèm vị trí cuộn).
+- **Chân phím rất hẹp chỉ còn phím**: ở 60 cột chân phím khung ngoài thường là `[a] [r] [Enter] [:] [q] [?]` (không nhãn) vì phải giữ mọi phím ưu tiên ≤ 2; nhãn nằm ở chân phím trong khung. Locale giả `xx` cho thấy nhãn rút còn 3–5 ô ở khung trong hẹp.
+- **60×20 quá thấp cho Tổng quan** khi hộp thông tin dài thêm dòng: dòng đếm Doctor có thể bị cắt ở cuối (các cảnh báo/lỗi vẫn nằm trong hộp thư).
+- **Giá trị cột danh sách vẫn rút gọn bằng `…`** (kế hoạch hẹn "có cách xem bản đầy đủ", không hẹn bỏ `…`): bản đầy đủ ở khung chi tiết (Enter), bảng kiểm ở trên.
+- **Chưa kiểm được tự động**: sự kiện chuột thật từ terminal (test gửi `tea.MouseClickMsg`/`MouseWheelMsg` dựng sẵn; chế độ `CellMotion` do Bubble Tea bật), hành vi Windows thật (chỉ `go vet`/staticcheck với `GOOS=windows`), ảnh VHS, thử với người dùng không quen CLI.
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app -run 'Golden|Narrow' -update      # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước)
+go test ./...                                                 # cần ≥ ~1 GB trống ở /tmp (test eval kiểm dung lượng đĩa)
+GOOS=windows go vet ./...                                     # cùng go vet ./...; staticcheck cho linux và windows
+bint tui                                                      # chuột: bấm tab/hàng/phím ở chân trang, lăn bánh xe; `!` đọc đủ thông báo; bảng lệnh › Chuột bật/tắt
+```
+
+### 12.10 Giai đoạn 6b (đã xong, 2026-11-12)
+
+Phiếu cuối của giai đoạn 6 (6a = tương tác; 6b = thông điệp và hoàn tất): sửa 4 phát hiện review của 6a, **thông điệp của tầng dịch vụ nhắc phím TUI thay vì lệnh CLI** (yêu cầu bổ sung ở mục 9),
+`NO_COLOR` đầy đủ, chế độ chỉ đọc theo mục 7.4, trợ giúp theo ngữ cảnh, README, và chốt giai đoạn (`actions.CurrentPhase = 6`). Làm tiếp trên cây làm việc còn chưa commit của 6a.
+
+**Sửa sau review của 6a** (phiếu 01M764SBMNG91M0998BX0AWKN0; mã `.n` là phát hiện thứ n)
+- **.1 (medium, chuột ở Lượt chạy › Bài học đặt con trỏ lên tiêu đề nhóm)**: `runs.Click` bỏ qua hàng tiêu đề nhóm (`rows[i].row == nil`), chọn bài học khác thì đặt lại khung chi tiết như `moveLesson`; `runs.Wheel("list")` ở thẻ Bài học gọi `moveLesson` (bỏ qua tiêu đề, đặt lại chi tiết)
+  thay vì `cur().Move`. Thêm `Model.LessonCursor()` cho test. Test: `TestMouseRunsLessonsSkipGroupHeaders`.
+- **.2 (test nút Bỏ xoá bản tạm)**: tách `rebaseErrorSetup`; `TestSystemConfigEditRebaseErrorKeepsTempAndRetries` (bản tạm còn sau lỗi gộp, thử lại được) và `TestSystemConfigEditRebaseErrorDiscardDeletesTemp` (nhấn **Bỏ** ngay ở hộp Sửa lại/Bỏ
+  sau lỗi → bản tạm bị xoá, không mở lại trình soạn thảo); bỏ import `tea` thừa và `var _ = tea.Quit`.
+- **.3 (toast của mô hình gốc luôn là lỗi trong hộp Thông báo)**: `Model.toastErr` đặt cùng `m.toast` (lỗi/khoá/ngôn ngữ bị che = true; `app.mouse` bật/tắt = false), dùng ở `toastLabel`, `harvestNotices`, `currentNotice`. Test: `TestRootToastErrFlag`.
+- **.4 (`windowedBar` trùng `ui.SubBar`)**: thanh thẻ phụ của Hệ thống dùng `ui.SubBar` (mười thẻ, id = chỉ số), `windowedBar` và `build` riêng bị xoá. **Golden Hệ thống đổi có giải thích**: `SubBar` đo vừa khít hơn nên ở 80×24 hiện được nhiều thẻ hơn trước khi rút
+  về cửa sổ (ví dụ `… Ngôn ngữ Doctor ›` thay vì `… Ngôn ngữ ›`), và `‹` ở bản `xx` biến mất vì thẻ đầu đã nằm trong cửa sổ. Tên thẻ đang chọn vẫn luôn hiện đủ (`TestNarrowScan`).
+- **.5** (tệp tri thức chưa theo dõi nằm ngoài `scope.allow`): không làm gì trong mã; các tệp `.bint/knowledge/items/*.md` vẫn là tri thức chờ người duyệt/commit.
+
+**Thông điệp theo phím TUI** (yêu cầu bổ sung ở mục 9)
+- **Cách làm (hướng 2: viết lại ở tầng hiển thị)**: một phương thức duy nhất `Rewrite(s)` của `ui.Rewriter{Cat, Reg, ReadOnly}` (`internal/tui/ui/cliref.go`; mỗi mô hình gốc giữ một bản của riêng nó và truyền qua `ui.Env.RW` cho mọi màn hình, không có trạng thái toàn cục của gói) tìm đoạn "`bint` + đường lệnh + đối số/cờ" (có hoặc không dấu huyền, nằm trong ngoặc, `reject/deprecate`, `` `bint knowledge reject` / `deprecate` ``), tra
+  bảng ánh xạ `cliRefs` (`internal/tui/actions/cliref.go`: đường lệnh + cờ bắt buộc → hành động trong sổ + thẻ phụ nơi phím dùng được, vì phím trong sổ chỉ có nghĩa ở một thẻ phụ của màn) rồi thay bằng tham chiếu đã dịch theo vi/en:
+  `nhấn U ở Hệ thống › Cấu hình` / `press U in System › Config` (động từ "chạy/dùng/chạy lại `bint …`" được gộp vào tham chiếu), dạng danh từ `phím a ở Tác vụ`, mục bảng lệnh `bảng lệnh (:) › …` cho hành động không có phím, `thẻ Hệ thống › Doctor` cho lệnh
+  chỉ là một thẻ, và `[ô Áp dụng]` / `[ô Làm mới]` / `[ô Độ sâu b-req]` cho cờ có ô form (`verify --apply`, `init --mcp`, `run b-req --task --depth`…; nhãn lấy từ `form.<ID>.<cờ>`, cờ nhận giá trị suy từ kiểu `Options`). Cụm dùng "bint run" như danh từ
+  ("`bint run` điều phối", "tiến trình bint run", "chạy `bint run` lồng", "bint run bị huỷ", "chưa `bint init` trên máy") có bảng cụm riêng (`ui/cliref_vi.go`, dữ liệu nhận dạng chữ của tầng dịch vụ nên được test quét chuỗi tiếng Việt bỏ qua).
+  Đường lệnh không có hành động trong sổ (`bint hook`, `bint mcp serve`, `bint knowledge import`) và chữ "bint" không kèm lệnh được giữ nguyên. Ở chỉ đọc, tham chiếu tới hành động ghi thêm "(không dùng được ở chế độ chỉ đọc)" (`Rewriter.ReadOnly` của mô hình đó; lệnh mang cờ ghi như `knowledge verify --apply` cũng có ghi chú vì phần chạy theo cờ là hành động ghi, qua `CLITarget.WriteID`).
+  **Không đổi mã dịch vụ**: CLI chắc chắn giữ chữ; hàm viết lại cũng phủ chuỗi đã lưu (lý do `blocked` trong `task.yml`).
+- **Điểm hiển thị đã nối**: `ui.ErrText` (cả `err.transition` và `err.technical`), `ui.FindingText`; Tri thức (finding, kết quả xác minh, lý do bị loại khi xuất bản, bước và ghi chú của xuất bản, cảnh báo ngữ cảnh); Tác vụ (lý do hiện tại và lịch sử, điều kiện chưa thể done ở thẻ Phiếu và hộp ép trạng thái, lỗi lint, lý do của lượt chạy, dòng "Tiếp tục từ", gợi ý tiếp tục); Lượt chạy; Đánh giá (kiểm chứng, rò rỉ, đặc tả,
+  chẩn đoán báo cáo, cổng 2, vấn đề khi duyệt, lệnh chạy tiếp ở thẻ Log); Tiến hoá (điều kiện tiên quyết, lợi ích, ghi chú, kết quả đối chiếu, đề xuất bị bỏ qua, dừng); Hệ thống (doctor, khả năng/hook của harness, vấn đề thành phần/skill, kiểm skill, xuất bản, bước và ghi chú của Cài đặt repo và nâng cấu hình);
+  trình hướng dẫn `init` và báo cáo (bước, bước tiếp theo — `NavFor` vẫn nhận dạng theo chữ gốc để Enter mở đúng màn); hộp thư Tổng quan (doctor); hộp Thông báo, toast ở viền trên và câu hỏi giữa chừng của việc nền (`ui.Rewrite` idempotent nên viết lại lần hai vô hại); hộp thoát khi còn việc nền thì in **nguyên** lệnh CLI tiếp tục (`j.Resume`, kèm mã tác vụ hoặc mã đợt đầy đủ, không qua hàm viết lại vì người dùng đang rời TUI để dán lệnh vào terminal).
+  **Không viết lại**: diff, Markdown, log của agent, nội dung tệp (test `TestCLIRefLeavesFileContentAlone`: diff xuất bản AGENTS.md vẫn còn `` `bint knowledge add …` ``).
+- **Chuỗi của chính danh mục TUI** cũng nhắc lệnh (gợi ý lỗi "chạy `bint doctor`", `err.not_initialized`, `kn.boot.not_init`, `rn.lesson.empty`, `ev.sync.*`, `overview.inbox.version_skew`, `sy.update.skills_hint`, `sy.har.cli` …): sửa trực tiếp ở `vi.yaml`/`en.yaml`
+  thành phím/màn TUI; chỉ giữ dòng "Lệnh CLI tương đương" của form, cột CLI của trợ giúp, `sy.index.cli`, `sy.mcp.note` (`bint mcp serve` không có hành động) và hai thông báo hướng dẫn mở terminal ngoài (`bint init` khi chỉ đọc hoặc khi trình hướng dẫn lỗi). Nhãn việc nền `bint init`/`bint update` đổi thành `init`/`update`;
+  lệnh tiếp tục của việc nền (`bint run resume <id>`, `bint eval run --resume <id>`) là chuỗi CLI nguyên văn ở hộp thoát, còn ở các chỗ khác trong TUI đi qua `Rewriter.Rewrite`.
+- **Con số thật**: kiểm kê bằng `go/ast` thấy **245 literal chuỗi** nhắc `bint <chữ thường>` hoặc mang token `--cờ` đứng rời (kể cả khi không có chữ "bint"; literal chỉ là một token argv của lệnh ngoài như `--name-only` hoặc `--format=%H` bị bỏ qua theo cấu trúc) trong `internal/app` (gồm `evolvesvc`), `knowledge`, `task`, `workflow`, `eval`, `evolve` (không tính chú thích và tệp `_test`); **175** bị hàm viết lại đổi và **69 mục loại trừ có lý do**: 14 mục riêng (lỗi `bint hook`, `bint mcp serve`, `knowledge import`, hướng dẫn sửa cấu hình Codex bằng tay, 2 prompt gửi agent, khối AGENTS.md, chú thích tệp sinh ra; hai nhóm sau hàm viết lại đổi được nhưng TUI không bao giờ đưa nội dung tệp/prompt qua nó) và 55 mục theo nhóm lý do trong `cliref_inventory_test.go`: 44 lỗi kiểm tra đối số (`rUsage`, xem chỗ lệch), 6 cờ của công cụ ngoài (git, claude, codex), 1 mẫu biểu thức chính quy, 1 mảnh chuỗi nối, 2 lỗi chỉ trả cho phiên agent, 1 lỗi chỉ có ở chế độ không tương tác. `go test ./internal/cli -run TestServiceMessageCLIInventory -v` in bản trước/sau của từng literal bị đổi để người duyệt đọc.
+- **Test**: `TestRewriteTable` (`internal/tui/ui`: dấu huyền, ngoặc, ID, cờ đặc thù, nhiều lệnh một câu, lệnh anh em, lệnh ngoài sổ, "bint" không kèm lệnh, đường dẫn chứa `bint`, en); `TestServiceMessageCLIInventory` và `TestServiceMessageCLIInventoryCatchesGaps` (`internal/cli`: ca ngược —
+  literal nhắc lệnh mà bảng không phủ thì đỏ, loại trừ thiếu lý do hoặc thừa thì đỏ); `TestApproveChangedEvidenceKeepsCLIWording` (CLI: lỗi duyệt mục có bằng chứng đã đổi vẫn in `` `bint knowledge show …` `` và `` `bint knowledge approve --refresh …` ``; toàn bộ test CLI cũ xanh không sửa khẳng định);
+  đầu-cuối theo màn trong `internal/tui/app/cliref_screens_test.go`: `TestCLIRefKnowledgeScreen` (thông điệp thật của `ReviewKnowledge` và finding `relocated` thật từ `Verify` trên repo tạm), `TestCLIRefTasksScreen` (điều kiện chưa thể done thật, lỗi `SetTaskStatus` thật, lý do blocked đúng mẫu `askVerify`),
+  `TestCLIRefOverviewAndSystemDoctor` (doctor thật: cấu hình mẫu cũ và skill bị sửa tay → `init --update` và `sync` ở hộp thư và Hệ thống › Doctor), `TestCLIRefRunsEvalEvolveScreens` (chuỗi lấy đúng từ nguồn dịch vụ, có kiểm còn trong nguồn), `TestCLIRefLeavesFileContentAlone`.
+  Mỗi test khẳng định bản vẽ và hộp Thông báo không còn "bint `<lệnh>`" ngoài dòng "Lệnh CLI tương đương" của form và cột CLI của trợ giúp, và có phím/hành động TUI tương ứng.
+
+**NO_COLOR đầy đủ**
+- `tui.DetectMode`: `NO_COLOR` khác rỗng → Mono ở **mọi** color profile (trước đây `TrimSpace` coi khoảng trắng là chưa đặt; nay đúng no-color.org). `TestDetectModeNoColor`.
+- Ở Mono không thông tin nào chỉ dựa vào màu: khung đang focus đảo màu tiêu đề (`theme.Selected` = đậm + đảo, kiểu chữ chứ không phải màu; bản vẽ thuần chữ không đổi nên golden `.txt` không đổi vì việc này); toast lỗi có dấu `✗ ` khác toast thường; hành động bị khoá có lý do bằng chữ ở bảng lệnh và trợ giúp.
+- `theme.Theme.NoColor` bỏ mã màu SGR (30–38, 40–48, 90–97, 100–107, dạng `38;5;n`/`38;2;r;g;b`) nhưng giữ đậm/mờ/gạch chân/đảo màu và mã đặt lại; `Model.Render()` gọi nó ở Mono nên nội dung ngoài (log của agent, trích đoạn tệp, diff) mang màu riêng cũng bị bỏ màu.
+- Test: `TestNoColorStripsOnlyColors` (theme), `TestMonoRenderHasNoColorCodes` (`Render()` của **mọi** kịch bản golden màn chính và Hệ thống ở 60×20, 80×24, 140×40, vi/en/xx không có mã màu), `TestMonoStripsExternalContentColor` (có đối chứng ở Dark), `TestMonoNothingReliesOnColorAlone` (focus, toast, khoá).
+- Sửa phát hiện review vòng 1 (01M769D0Y45T2Y178ZC5GHD5QW.1): `NoColor` từng xoá cả `ESC[m` (đặt lại không tham số do lipgloss/git phát) nên đậm/đảo màu tràn sang phần sau màn hình ở Mono; nay giữ nguyên chuỗi không tham số. Test: ca `ESC[m` trong `TestNoColorStripsOnlyColors` và `TestMonoRenderDoesNotLeakAttributes` (mô phỏng trạng thái SGR, không kiểu nào còn bật ở cuối `Render()` của mọi kịch bản; đỏ trên mã cũ). Golden `*_mono.ansi.txt` ghi lại, nay có lại các `␛[m`.
+
+**Chế độ chỉ đọc theo mục 7.4**
+- `ui.Env.Allowed(id)` (mô hình gốc dựng từ sổ: `Check(mode) == Available`), `footer.Hint.ActionID` (rỗng = phím giao diện thuần) và `Env.AllowedHints` lọc chân phím trong khung; **màn hình không tự kiểm ReadOnly**. Đã gắn `ActionID` cho Tri thức (`panelFooter`), Tác vụ (`detailFooter`), Lượt chạy, Đánh giá, Tiến hoá (bộ ba
+  `{phím, khoá nhãn, ID}`) và Hệ thống (`hintAction[thẻ][phím]`, `Model.hintsLine`).
+- **Phát hiện khi đọc mã**: `tasks.open_file` mở trình soạn thảo nhưng `Writes = false` (khác `eval.open_file`, `knowledge.edit`, `system.open_file`) → sửa thành `true`. Chân phím trong khung của 6 màn dựng cứng phím ghi (không lọc theo chỉ đọc) → nay lọc.
+- Test: `TestWritesAudit` (`internal/tui/actions`: bảng kiểm **mọi** hành động ghi tệp/CSDL/mở trình soạn thảo có `Writes = true`, mọi hành động còn lại `false`, hành động mới chưa phân loại thì đỏ); `TestReadOnlyNeverRunsWritesAnyPath` (hành động Writes khai báo bằng `Do`, `Run` hay `Job` — hàm giả đếm — không chạy được qua `RequestMsg`,
+  bảng lệnh, phím tắt ở mọi (màn, thẻ phụ) và bấm chuột vào mọi phím hiện ra ở chân phím; bảng lệnh không liệt kê chúng); `TestInnerFooterHidesWritesInReadOnly` (Đánh giá, Tiến hoá, Lượt chạy, Tác vụ, Hệ thống: phím ghi có ở chế độ thường và mất ở chỉ đọc, phím đọc còn).
+  Test cũ `TestReadOnlyAndAgentNeverReachDo` giữ nguyên (chỉ duyệt `Do`); việc nền (`Job`) có test chỉ đọc/`HumanOnly` riêng ở trên.
+
+**Trợ giúp theo ngữ cảnh** (`?`)
+- Hộp mở có tiêu đề **màn › thẻ phụ**, đoạn giới thiệu ngắn của thẻ (khoá `help.ctx.<màn>[.<thẻ>]`, 39 khoá ở vi và en), **nhóm phím của ngữ cảnh** (chân phím trong khung của thẻ phụ), rồi nhóm hành động của màn, phím toàn cục, các màn khác. Phím của ngữ cảnh **không khai báo lần hai**: `ui.Env.Collect` thu mọi chân phím trong khung (đã lọc theo chỉ đọc)
+  mà màn hình dựng khi vẽ; màn hình chỉ thêm `ui.Helper.HelpTab()` (mã thẻ phụ). Màn không có thẻ phụ (Tổng quan, Khởi tạo) gộp ngữ cảnh và hành động thành một nhóm.
+- `components/help` viết lại: `Layout`, `Window`, `Render(…, top, pos)`; cuộn bằng `j`/`k`/mũi tên, `PgUp`/`PgDn`/`Space`, `Home`/`End`, **bánh xe chuột** (qua khung `dlg`), và viền dưới hiện **vị trí cuộn** `từ–đến/tổng ↕` thay vì cắt im lặng; khoá `help.more` bỏ.
+- Test: `TestHelpContextEveryScreenAndSubTab` (đi qua từng thẻ phụ của sáu màn bằng chuột ở chế độ thường và chỉ đọc: tiêu đề màn › thẻ, giới thiệu, đủ phím của chân phím trong khung, thứ tự nhóm, không có tiêu đề hành động Writes ở chỉ đọc; thẻ Log chỉ hiện khi có việc nền nên được bỏ qua), `TestHelpContextReadOnlyDropsWriteKeys`,
+  `TestHelpScrollKeysAndWheel` (j/k, PgUp/PgDn, bánh xe, End → thấy dòng cuối, vị trí cuộn); golden `help_80x24_vi` và 140×40 ghi lại.
+
+**README**: mục "Giao diện terminal (TUI)" (cách mở, khi nào `bint` in trợ giúp thay vì mở TUI, bảy tab, phím toàn cục, chuột và cách bật tắt, chế độ chỉ đọc, `NO_COLOR`, ngôn ngữ, liên kết tài liệu này). `TestREADMEDocumentsTUIGlobalKeys` đối chiếu mọi phím của hành động toàn cục có `Key` trong sổ với mục đó.
+
+**Chốt giai đoạn 6**: `actions.CurrentPhase = 6`; `Pending`/`PendingFlags` rỗng, `PendingCeiling = 0`; subtest của `internal/cli/coverage_test.go` đổi sang giai đoạn 6; `TestCommandAndFlagCoverage` xanh. Golden: ghi lại bằng `-update` hai lần liền không đổi tệp nào; `go test ./internal/tui/... -count=2` xanh.
+
+**Sửa sau review của 6b** (phiếu 01M76KN3M9BZCNMHKN4KNP1639; mã `.n` là phát hiện 01M769D0Y45T2Y178ZC5GHD5QW.n)
+- **.2/.8 (toast kết thúc việc nền)**: mọi chỗ gán toast của mô hình gốc đi qua `Model.setToast(text, isErr)` (đặt chữ và cờ lỗi cùng lúc, xoá toast cũng xoá cờ); `doneToast` trả (chữ, lỗi): việc nền lỗi hoặc dừng ở blocked/failed/interrupted là toast lỗi, việc thành công là toast thường kể cả ngay sau toast lỗi, `exit.stopping` là toast thường.
+  Test: `TestBackgroundJobDoneToastErrFlag`, `TestBackgroundJobDoneSuccessAfterErrorToast`, `TestExitStoppingToastIsPlainAndClearResetsFlag`, `TestToastOnlyAssignedInSetToast` (quét `go/ast`, có ca ngược).
+- **.3 (cờ ghi ở chỉ đọc)**: `knowledge verify --apply` vẫn chỉ phím v ở Tri thức kèm ô Áp dụng; ở chỉ đọc thêm ghi chú vì phần áp dụng chạy `knowledge.verify_apply` (`Writes`), ở chế độ thường không có. Test: `TestRewriteWriteFlagReadOnlyNote`.
+- **.4/.10 (không còn trạng thái toàn cục)**: hàm đặt chế độ chỉ đọc toàn cục của gói `ui`, biến `readOnly` và `cliReg` bị xoá; `ui.Rewriter{Cat, Reg, ReadOnly}` là của từng mô hình gốc (`Options.Registry`, `Options.ReadOnly`), truyền qua `ui.Env.RW` tới mọi màn hình, Tổng quan, `ErrText`, `FindingText`.
+  Test: `TestTwoModelsKeepTheirOwnReadOnlyNote` (hai mô hình khác `ReadOnly` trong cùng tiến trình, cả hai thứ tự dựng), `TestModelWithCustomRegistryRewritesByItsKeys`, `TestRewriterSurvivesLanguageChange`.
+- **.5/.9 (test trợ giúp và chân phím chặt hơn)**: `TestHelpContextEveryScreenAndSubTab` lấy phím và nhãn từ chân phím trong khung đã vẽ trước khi nhấn `?` (không lấy từ `helpContext`) và khẳng định từng cặp có trong nhóm ngữ cảnh; ở chỉ đọc khẳng định theo `ActionID` của hint rằng không phím nào của hành động `Writes` nằm trong nhóm.
+  `TestInnerFooterHidesWritesInReadOnly` sinh ca từ `subStates()` cho mọi màn và thẻ phụ thay vì bảng tay, có ngưỡng tối thiểu số phím ghi được kiểm. Ca ngược: `TestFooterAssertHelpersCatchGaps`, `TestInnerFooterAssertionCatchesLeakAndLoss` (đỏ khi thiếu phím hoặc lọt phím ghi).
+- **.6/.11 (hộp thoát)**: lệnh tiếp tục (`j.Resume`, kèm mã tác vụ hoặc mã đợt đầy đủ) sau "Tiếp tục sau bằng" in nguyên văn, không qua hàm viết lại. Test: `TestExitDialogWithRunningWorkflow` (`bint run resume <ULID>`), `TestExitDialogKeepsFullEvalResumeCommand` (`bint eval run --resume eb_…`).
+- **.7 (kết quả vòng tiến hoá và lý do trong Lịch sử)**: `Outcome`/`StopReason` của `evolve.cycle`, `Locked` của `evolve.process`, lý do bỏ qua và loại của `evolve.propose` và `Reason` ở thẻ Lịch sử đi qua hàm viết lại của mô hình. Test: `TestEvolveServiceMessagesGoThroughRewriter`, `TestEvolveProcessLockedAndProposeSkippedRewritten`.
+- **.12 (mã có tiền tố và cờ rời)**: mã tiền tố chữ thường + gạch dưới (`ep_`, `eb_`, `ea_`, `ec_`, `er_`, `ee_`, `ead_`) là đối số của lệnh nên không sót sau tham chiếu; cờ rời `--unverified`, `--confirm-risk`, `--force`, `(--git local)`, `--update:` được thay bằng cụm TUI (khoá `cliref.flag.*` ở vi và en) kể cả khi chuỗi không có chữ "bint";
+  cờ trong lỗi ngoài (`git: use --force …`) không đổi. Test: `TestRewritePrefixedIDsAndLooseFlags`, `TestPhraseKeysExistInBothLanguages` (`internal/tui/ui`), `TestServiceMessageCLIInventory` và `TestServiceMessageCLIInventoryCatchesGaps` (`internal/cli`).
+
+**Sửa sau review vòng 1 của phiếu 01M76KN3M9BZCNMHKN4KNP1639** (mã `.n` là phát hiện 01M76KN3M9BZCNMHKN4KNP1639.n; sửa ở phiếu 01M76NWG57TVW63NE4J1MMHQFQ)
+- **.1 (mục này)**: ghi phần sửa `.2`–`.12` của phiếu 01M769D0… ở đoạn trên; sửa các câu lỗi thời (`ui.Rewrite(cat, s)` → `Rewriter.Rewrite`, bỏ hàm đặt chỉ đọc toàn cục ở mô tả và ở mục lệch, lệnh tiếp tục ở hộp thoát in nguyên văn thay vì đi qua hàm viết lại); không còn chỗ nào nhắc trạng thái chỉ đọc toàn cục của gói `ui`.
+- **.2 (cờ rời trong luồng TUI)**: thêm cụm viết lại `cliref.flag.*` (vi và en, không còn token `--`) cho: `dùng --force nếu vẫn muốn duyệt` và `hoặc dùng --force` (duyệt ứng viên, chỉ tới ô "Vẫn duyệt dù …" của hộp duyệt), `hoặc dùng --force để chạy vẫn` (đánh giá đề xuất, ô "Chạy dù không khả thi"; đứng trước cụm ngắn hơn),
+  `dùng --force để ghi đè` (quay lui, ô ghi đè của hộp quay lui), `bỏ --no-agent` (ba nơi: `generate.go`, `harness_propose.go`, `reflector.go`; ô "Không dùng agent") và `tăng --budget` (ô "Ngân sách ($)" của form chạy). Test bảng ở `internal/tui/ui` (`TestRewriteLooseFlagsOfServiceFlows`) dùng chuỗi đọc nguyên văn từ nguồn dịch vụ (`srcFrag` báo khi chuỗi đổi);
+  đầu-cuối ở `internal/tui/app` (`TestCLIRefLooseFlagsInServiceFlows`): hộp kết quả duyệt ứng viên, hộp kết quả đề xuất và lỗi quay lui (hộp Thông báo và màn hình) vẽ ra không còn `--force`/`--no-agent`.
+- **.3 (kiểm kê bắt được cờ rời mới)**: bỏ `knownLooseFlagRE`; `inventoried` nhận mọi literal nhắc `bint <lệnh>` hoặc có token `--cờ` đứng rời, trừ literal chỉ là một token argv của lệnh ngoài (`^--?x(=…)?$`). Quét thật ra 62 literal còn cờ rời: 20 hướng dẫn hành động được viết lại thêm
+  (ngân sách `--budget <USD>`/`(USD)`/`> 0`, `giảm --limit/--repeats/--arms`, `dùng --bare`, `thêm --approved`, `--source`, `--hooks`, `--allow`, `--no-plan`, `--arms`, `--task <id>`, `--delivery bint`, `--prospective`, `cần --reason`/`--evidence`, `thiếu --type`, `chỉ định --kind`, `--paths`) và 55 loại trừ theo nhóm lý do.
+  Ca ngược: `dùng --frobnicate nếu muốn` (không có "bint", không thuộc cụm nào) làm `checkInventory` báo "cờ CLI rời"; `inventoried` loại `--name-only`, `--format=%H`.
+- **.4 (`posRE`)**: đối số mã dạng tiền tố + gạch dưới cần ít nhất một chữ số ở phần sau (`[a-z]{1,4}_[0-9A-Za-z]*[0-9][0-9A-Za-z]*`), nên `bint task show task_id`, `key_name`, `item_x` giữ nguyên chữ sau lệnh, còn `ep_<ULID>`, `eb_123`, `ea_1`, `ead_<ULID>`, `ee_7` vẫn được nuốt. Test: `TestRewritePositionalIDNeedsDigit`.
+- **Chỗ lệch còn lại**: 44 literal lỗi kiểm tra đối số (`--repeats phải >= 1`, `--plan và --no-plan loại trừ nhau`, `--git: phải là …`, …) chưa có cụm TUI riêng: form TUI dựng từ cờ của lệnh nên tên cờ trùng tên ô và ô chọn/số/công tắc đã ngăn phần lớn giá trị sai, nhưng nếu vẫn lọt thì người dùng thấy tên cờ nguyên văn.
+  Nhóm này nằm trong `rUsage` của `internal/cli/cliref_inventory_test.go`; thêm literal mới cùng loại phải thêm vào đó kèm lý do hoặc viết lại bằng cụm `cliref.flag.*`.
+- Golden không đổi (không chạy `-update`).
+
+**Chạy đỏ trước khi sửa**
+(kiểm bằng cách vô hiệu hoá chính thay đổi trong cây làm việc rồi chạy test, vì cây `HEAD` không có thay đổi của 6a; sau khi ghi kết quả đã hoàn nguyên)
+- Sửa .1: `TestMouseRunsLessonsSkipGroupHeaders` đỏ trên mã trước khi sửa: "bấm tiêu đề nhóm đặt con trỏ lên tiêu đề".
+- Sửa .3: `TestRootToastErrFlag` không biên dịch được trên mã cũ (chưa có `toastErr`); logic cũ luôn trả "lỗi" cho toast của mô hình gốc.
+- Chỉ đọc: gỡ `Env.Allowed` thì `TestInnerFooterHidesWritesInReadOnly` đỏ ("Đánh giá › Ứng viên: chế độ chỉ đọc không được còn phím ghi "a" ở chân phím trong khung") và `TestHelpContextReadOnlyDropsWriteKeys` đỏ ("phím ghi "a": thường=true chỉ đọc=true"); `tasks.open_file` có `Writes = false` thì `TestWritesAudit` đỏ ("tasks.open_file: Writes = false, bảng kiểm muốn true").
+- NO_COLOR: bỏ đảo màu tiêu đề khung focus thì `TestMonoNothingReliesOnColorAlone` đỏ ("khung đang focus phải khác khung thường ở Mono").
+- Review vòng 1 của phiếu 01M76KN3… (kiểm bằng cách gỡ tạm chính thay đổi rồi hoàn nguyên): `.4` — `TestRewritePositionalIDNeedsDigit` đỏ ("\"task_id\" bị nuốt vào tham chiếu: phím Enter ở Tác vụ", cả vi và en, cả `key_name` và `item_x`); `.2` — gỡ cụm `cliref.flag.force_*`/`no_agent`/`budget` thì `TestRewriteLooseFlagsOfServiceFlows` đỏ (22 dòng lỗi) và `TestCLIRefLooseFlagsInServiceFlows` đỏ ("duyệt ứng viên: còn token cờ --force", "kết quả đề xuất: còn token cờ --no-agent", "lỗi quay lui (hộp Thông báo): còn token cờ --force");
+  `.3` — thay `inventoried` bằng bộ lọc cũ (chỉ cụm đã biết) thì `TestServiceMessageCLIInventoryCatchesGaps` đỏ ("literal chỉ có cờ rời mới phải vào phạm vi kiểm kê").
+- Thông điệp theo phím TUI: trước khi nối `Rewriter.Rewrite` vào dòng "Tiếp tục từ … (bint run resume …)" của Tác vụ, `TestCLIRefTasksScreen` đỏ ("lý do blocked: còn lệnh CLI trên màn hình/hộp Thông báo").
+
+**Chỗ lệch so với kế hoạch / giới hạn (người duyệt có thể đổi)**
+- **Viết lại ở tầng hiển thị thay vì mã lỗi có cấu trúc** (mục 7.1 hẹn mã lỗi cho từng chuỗi): đổi hàng trăm điểm sinh lỗi ở sáu gói là rủi ro làm lệch chữ CLI và không phủ chuỗi đã lưu; bù lại ngữ pháp đôi chỗ gượng ("nhấn e ở Hệ thống › Cài đặt [ô Đăng ký MCP]" sau "chưa đăng ký MCP server của Bint (…)"). Chuỗi dịch vụ vẫn là
+  tiếng Việt kể cả khi giao diện `en` (chưa dịch ở tầng dịch vụ): chỉ phần tham chiếu TUI được dịch.
+- **Tham chiếu theo thẻ phụ do bảng `cliRefs` ghi tay** (phím trong sổ chỉ có nghĩa ở một thẻ phụ): thêm lệnh CLI mới có hành động mà quên bảng thì `TestServiceMessageCLIInventory` đỏ nếu có literal nhắc lệnh đó; nếu chỉ thêm hành động mà không có thông điệp nào nhắc thì không có gì đỏ (và không cần).
+- **Khung focus ở Mono khác nhau bằng kiểu chữ (đảo màu tiêu đề)**, không bằng ký tự: bản vẽ thuần chữ giống nhau nên golden `.txt` không đổi; nếu terminal không hiển thị đảo màu thì không thấy khác (chọn thế để không đổi hàng trăm golden và viền).
+- **Test trợ giúp bỏ qua thẻ Log** (Tác vụ, Đánh giá, Tiến hoá: thẻ chỉ hiện khi có việc nền); trợ giúp của thẻ Log dùng chung đường mã với các thẻ khác.
+- **`!` và hộp Thông báo** nhận văn bản đã viết lại (một lần ở `harvestNotices`/`currentNotice`); toast của màn hình không có cờ riêng cho hộp ngoài `isErr` của `ui.Toaster`.
+- **Chưa kiểm được tự động**: terminal thật với `NO_COLOR`, Windows thật (chỉ `go vet`/staticcheck `GOOS=windows`), thử với 2–3 người không quen CLI (tiêu chí nghiệm thu mục 9), ảnh VHS (`vhs`/`ttyd` không có ở môi trường làm việc; `.github/workflows/**` được bảo vệ).
+
+**Chạy tay**
+
+```sh
+go test ./internal/tui/app -run 'Golden|Narrow|Help' -update   # ghi lại golden sau thay đổi giao diện chủ ý (đọc diff trước); chạy hai lần không đổi tệp nào
+go test ./internal/cli -run 'Inventory' -v                      # in bản trước/sau của từng literal nhắc lệnh bint bị viết lại
+NO_COLOR=1 bint tui                                             # chế độ đơn sắc; thử `bint tui --read-only` và phím ? ở từng thẻ phụ
+```

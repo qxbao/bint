@@ -41,8 +41,10 @@ func Default() *Registry {
 	list := []Action{
 		{ID: "app.quit", Key: "q", Footer: true, Priority: 0, Pinned: true, LabelKey: "action.app.quit.label", TitleKey: "action.app.quit.title"},
 		{ID: "app.help", Key: "?", Footer: true, Priority: 0, Pinned: true, LabelKey: "action.app.help.label", TitleKey: "action.app.help.title"},
-		{ID: "app.palette", Key: ":", Footer: true, Priority: 3, LabelKey: "action.app.palette.label", TitleKey: "action.app.palette.title"},
+		{ID: "app.palette", Key: ":", Footer: true, Priority: 2, LabelKey: "action.app.palette.label", TitleKey: "action.app.palette.title"},
 		{ID: "app.language", Key: "L", Footer: true, Priority: 6, LabelKey: "action.app.language.label", TitleKey: "action.app.language.title"},
+		{ID: "app.notifications", Key: "!", LabelKey: "action.app.notifications.label", TitleKey: "action.app.notifications.title"},
+		{ID: "app.mouse", LabelKey: "action.app.mouse.label", TitleKey: "action.app.mouse.title"},
 		{ID: "app.next_tab", Key: "]", TitleKey: "action.app.next_tab.title"},
 		{ID: "app.prev_tab", Key: "[", TitleKey: "action.app.prev_tab.title"},
 	}
@@ -56,7 +58,7 @@ func Default() *Registry {
 		// Trình hướng dẫn init (giai đoạn 5b): init.plan xem trước (chỉ đọc), init.run chạy app.Init với Options đã chọn.
 		Action{ID: "init.run", Screen: Init, LabelKey: "action.init.run.label", TitleKey: "action.init.run.title", CLIPath: "init",
 			Options: app.InitFlagOptions{}, Writes: true, Do: doInitRun("init.run"),
-			JobInfo: func(any) jobs.Info { return jobs.Info{Kind: jobs.KindInit, Label: "bint init"} }},
+			JobInfo: func(any) jobs.Info { return jobs.Info{Kind: jobs.KindInit, Label: "init"} }},
 		Action{ID: "init.plan", Screen: Init, FormID: "init.run", LabelKey: "action.init.plan.label", TitleKey: "action.init.plan.title",
 			Options: app.InitFlagOptions{}, Do: doInitPlan("init.plan")},
 		Action{ID: "init.continue", Screen: Init, Key: "Enter", Footer: true, Priority: 1, LabelKey: "action.init.continue.label",

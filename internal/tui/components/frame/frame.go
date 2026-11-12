@@ -11,7 +11,9 @@ package frame
 import (
 	"strings"
 
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 )
 
@@ -34,6 +36,11 @@ type Box struct {
 	// Bottom là nhãn đã tô màu trên viền dưới (thường là chân phím).
 	Bottom   string
 	BottomAt Align
+	// BottomHints là chân phím kiểu Plain tự chọn theo độ rộng khung (rút nhãn, rồi bỏ phím ưu tiên thấp) khi Bottom rỗng:
+	// không bao giờ bị cắt giữa một phím, và mỗi phím bấm được bằng chuột.
+	BottomHints []footer.Hint
+	// Pane đặt tên khung cho chuột: mọi dòng của khung (kể cả viền) mang vùng "p:<Pane>", để bánh xe cuộn đúng khung dưới con trỏ.
+	Pane string
 	// Focused: viền dùng màu accent thay vì muted.
 	Focused bool
 }
@@ -53,6 +60,10 @@ func (b Box) Render(th theme.Theme, w, h int, body string) string {
 	}
 	bs := func(s string) string { return th.S(role, s) }
 
+	bottom := b.Bottom
+	if bottom == "" && len(b.BottomHints) > 0 {
+		bottom = footer.Inline(th, b.BottomHints, max(w-4, 0))
+	}
 	var out []string
 	out = append(out, b.edge(th, bs, w, "┌", "┐", b.titleLabel(th), b.TitleAt, b.Top))
 	iw, ih := Inner(w, h)
@@ -64,14 +75,23 @@ func (b Box) Render(th theme.Theme, w, h int, body string) string {
 		}
 		out = append(out, bs("│")+" "+text.Fit(line, iw)+" "+bs("│"))
 	}
-	out = append(out, b.edge(th, bs, w, "└", "┘", b.Bottom, b.BottomAt, ""))
+	out = append(out, b.edge(th, bs, w, "└", "┘", bottom, b.BottomAt, ""))
+	if b.Pane != "" {
+		for i := range out {
+			out[i] = zone.Mark("p:"+b.Pane, out[i])
+		}
+	}
 	return strings.Join(out, "\n")
 }
 
-// titleLabel dựng │Tiêu đề│ (viền do khung tô, chữ đậm).
+// titleLabel dựng │Tiêu đề│ (viền do khung tô, chữ đậm; khung focus ở chế độ đơn sắc đảo màu).
 func (b Box) titleLabel(th theme.Theme) string {
 	if b.Title == "" {
 		return ""
+	}
+	if b.Focused && !th.Colored() {
+		// NO_COLOR: màu viền không còn phân biệt khung đang focus; tiêu đề đậm + đảo màu thay cho nó (kiểu chữ, không phải màu).
+		return "\x00" + th.Selected(text.NFC(b.Title)) + "\x00"
 	}
 	return "\x00" + th.Bold(text.NFC(b.Title)) + "\x00"
 }
@@ -101,8 +121,13 @@ func (b Box) edge(th theme.Theme, bs func(string) string, w int, l, r, label str
 	}
 	ls, lw := seg(label)
 	os, ow := seg(other)
-	if os != "" && lw+ow+1 > avail { // hết chỗ cho nhãn phụ
-		os, ow = "", 0
+	if os != "" && lw+ow+1 > avail { // thiếu chỗ cho nhãn phụ: rút gọn (có …) thay vì bỏ mất; không còn chỗ tối thiểu mới bỏ
+		if room := avail - lw - 1; room >= 8 {
+			os = text.Truncate(os, room)
+			ow = text.Width(os)
+		} else {
+			os, ow = "", 0
+		}
 	}
 	dash := func(n int) string { return bs(strings.Repeat("─", max(n, 0))) }
 
@@ -117,6 +142,9 @@ func (b Box) edge(th theme.Theme, bs func(string) string, w int, l, r, label str
 		start = margin
 	}
 	start = max(min(start, inner-lw), 0)
+	if os != "" && align != Right { // tiêu đề căn giữa/trái đẩy sang trái đủ chỗ cho nhãn phụ thay vì làm dòng tràn
+		start = max(min(start, inner-margin-ow-1-lw), margin)
+	}
 
 	var sb strings.Builder
 	sb.WriteString(bs(l))

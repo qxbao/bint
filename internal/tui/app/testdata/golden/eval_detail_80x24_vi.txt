@@ -21,4 +21,4 @@
 │ │   · chưa kiểm chứng (bấm v)                                              │ │
 │ │                                                                          │ │
 │ └─ e sửa  Enter đổi khung ─────────────────────────────────────────────────┘ │
-└─[m→ Khai thác] [a→ Duyệt] [x→ Loại] [r→ Chạy đợt] [q→ Thoát] [?→ Trợ giúp]───┘
+└─[m→ Khai] [a→ Duyệt] [x→ Loại] [r→ Chạy] [:→ Lệnh] [q→ Thoát] [?→ Trợ]───────┘

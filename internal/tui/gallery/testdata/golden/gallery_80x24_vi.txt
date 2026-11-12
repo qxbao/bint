@@ -10,15 +10,15 @@
 │                                                                              │
 │ ▌ Chân phím theo độ ưu tiên (rộng, vừa, hẹp)                                 │
 │   [Enter→ Mở] [a→ Duyệt] [/→ Tìm] [:→ Lệnh] [?→ Trợ giúp] [q→ Thoát]         │
-│   [Enter→ Mở] [a→ Duyệt] [/→ Tìm] [?→ Trợ giúp] [q→ Thoát]                   │
-│   [?→ Trợ giúp] [q→ Thoát]                                                   │
+│   [Enter→ Mở] [a→ Du…] [/→ Tìm] [:→ Lệ…] [?→ Trợ] [q→ Th…]                   │
+│   [Enter] [a] [/] [:] [?] [q]                                                │
 │                                                                              │
 │ ▌ Khung có tiêu đề trên viền                                                 │
 │ ┌─│Tri thức│───────────────────────────────────────────phụ─┐                 │
 │ │ Nội dung khung; chữ có dấu: ắ ề ộ ữ ợ                    │                 │
 │ │                                                          │                 │
 │ │                                                          │                 │
-│ └─[Enter→ Mở] [?→ Trợ giúp] [q→ Thoát]─────────────────────┘                 │
+│ └─[Enter] [a] [/] [:] [?] [q]──────────────────────────────┘                 │
 │                                                                              │
 │ ▌ Logo                                                                       │
 └─ chế độ màu: mono · ngôn ngữ: vi · [m] đổi màu  [l] đổi ngôn ngữ  [q] Thoát──┘

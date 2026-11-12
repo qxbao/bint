@@ -61,6 +61,7 @@ type dialog struct {
 type Model struct {
 	o   Options
 	cat *i18n.Catalog
+	rw  ui.Rewriter
 	th  theme.Theme
 
 	Data        Data
@@ -121,7 +122,7 @@ func New(o Options) *Model {
 }
 
 // SetEnv đặt danh mục chuỗi và bảng màu (gọi lại khi đổi ngôn ngữ).
-func (m *Model) SetEnv(th theme.Theme, cat *i18n.Catalog) { m.th, m.cat = th, cat }
+func (m *Model) SetEnv(th theme.Theme, rw ui.Rewriter) { m.th, m.rw, m.cat = th, rw, rw.Cat }
 
 func (m *Model) t(key string, a ...i18n.A) string { return m.cat.T(key, a...) }
 
@@ -334,7 +335,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	case "runs.rate":
 		m.frm, m.frmBusy = nil, false
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		r, _ := msg.Value.(app.RateResult)
@@ -344,7 +345,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 	case "runs.scan":
 		m.frm, m.frmBusy = nil, false
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		r, _ := msg.Value.(scanResult)
@@ -353,7 +354,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		return tea.Batch(m.Load(), m.wantDetail())
 	case "runs.ingest":
 		if msg.Err != nil {
-			m.setToast(ui.ErrText(m.cat, msg.Err), true)
+			m.setToast(ui.ErrText(m.rw, msg.Err), true)
 			return nil
 		}
 		r, _ := msg.Value.(ingestResult)

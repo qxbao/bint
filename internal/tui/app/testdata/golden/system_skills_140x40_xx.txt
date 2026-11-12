@@ -13,7 +13,8 @@
 │ │                                                            ││ ⟦Published per directory~~~~~~~~~~⟧                                    │ │
 │ │                                                            ││   ✓ .claude/skills  ⟦matches~~~⟧                                       │ │
 │ │                                                            ││                                                                        │ │
-│ │                                                            ││ ! ⟦Overlay .bint/skills/overlays/cu.md matches no core skill.~~~~~~~…  │ │
+│ │                                                            ││ ! ⟦Overlay .bint/skills/overlays/cu.md matches no core                 │ │
+│ │                                                            ││   skill.~~~~~~~~~~~~~⟧                                                 │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
@@ -35,6 +36,5 @@
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ └─ Enter ⟦content~~~⟧  s ⟦sync~~⟧  o ⟦overlay~~~⟧  d ⟦diff~…─┘└────────────────────────────────────────────────────────────────────────┘ │
+│ └─ Enter ⟦con…  s ⟦syn…  o ⟦ove…  d ⟦dif…  c ⟦che… ──────────┘└────────────────────────────────────────────────────────────────────────┘ │
 └─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────────────────────────────┘
