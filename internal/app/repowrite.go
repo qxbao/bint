@@ -10,9 +10,9 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/fsafe"
+	"bint/internal/harness"
 	"bint/internal/hcomp"
 	"bint/internal/knowledge"
-	"bint/internal/harness"
 	"bint/internal/skills"
 	"bint/internal/state"
 	"bint/internal/workflow"

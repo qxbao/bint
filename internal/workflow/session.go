@@ -515,7 +515,7 @@ func (r *Runner) grantPending(rs *runState, sr *stepRun, ps *task.PendingStep) e
 			rs.t = nt
 			return nil
 		}
-		releaseLease(r.Tasks.Dir, r.Root, id, ps.RunID)
+		releaseLease(r.Tasks.Dir, r.Root, id, ps.RunID, false)
 	}
 	sr.release()
 	return err
@@ -559,7 +559,7 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 			}
 			return nil
 		})
-		releaseLease(r.Tasks.Dir, root, id, ps.RunID)
+		releaseLease(r.Tasks.Dir, root, id, ps.RunID, false)
 	}
 	res := eval.AgentResult{Duration: max(leaseNow().Sub(started), 0), TimedOut: a.timedOut, Model: ps.Model}
 	switch {
@@ -701,6 +701,21 @@ func (r *Runner) Abort(ctx context.Context, taskRef, reason string) (*SessionAct
 	return a, nil
 }
 
+// otherPendingOnRoot liệt kê tác vụ khác chưa kết thúc trên cùng cây làm việc còn bước dở của driver session (tức có thể
+// đang giữ hợp đồng thuê trong tệp khoá của cây này).
+func (e *Env) otherPendingOnRoot(id, root string) []string {
+	all, _ := e.Tasks.List()
+	var out []string
+	for _, o := range all {
+		if o.State.ID == id || task.Terminal(o.State.Status) || o.State.PendingStep == nil || o.State.Worktree == "" ||
+			!samePath(o.State.Worktree, root) {
+			continue
+		}
+		out = append(out, o.State.ID)
+	}
+	return out
+}
+
 // discardPending gỡ bước đang dở của tác vụ (nếu có): ghi nhận tệp b-feat đã đổi, đóng lượt con, xoá PendingStep và hợp
 // đồng thuê. Trả ghi chú. Dùng khi abort và khi huỷ tác vụ.
 func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string) []string {
@@ -714,7 +729,13 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 			if err != nil && errors.Is(err, errLeaseUnreadable) {
 				// Tệp hợp đồng thuê hỏng chặn khoá, còn abort chính là đường người chủ động khôi phục: gỡ tệp hỏng (releaseLease
 				// theo tác vụ xoá nó) rồi lấy khoá lại để ghi Touched. Khoá bận vì chủ khác thì không vào nhánh này.
-				if rerr := releaseLease(r.Tasks.Dir, r.Root, id, ""); rerr == nil {
+				// Gỡ tệp hỏng xoá hợp đồng của MỌI tác vụ trên cùng gốc: chỉ làm khi không tác vụ nào khác ở đó còn bước dở
+				// (driver session), nếu không tác vụ kia mất hợp đồng và tệp nó sửa bị ghi nhầm vào Touched của tác vụ này.
+				if others := r.otherPendingOnRoot(id, r.Root); len(others) > 0 {
+					notes = append(notes, "tệp hợp đồng thuê khoá hỏng nhưng tác vụ khác trên cùng cây còn bước dở ("+
+						strings.Join(others, ", ")+"): không gỡ tệp; ghi nhận tệp b-feat đã sửa bị bỏ qua. Người xử lý: kiểm tệp "+
+						leaseFilePath(lockPath(r.Tasks.Dir, r.Root))+" rồi abort các tác vụ đó hoặc xoá tệp")
+				} else if rerr := releaseLease(r.Tasks.Dir, r.Root, id, "", true); rerr == nil {
 					notes = append(notes, "đã xoá tệp hợp đồng thuê khoá hỏng để ghi nhận tệp b-feat đã sửa")
 					l, err = AcquireLock(r.Tasks.Dir, r.Root, id+" "+ps.Step, LockExclusive)
 				}
@@ -738,7 +759,7 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 		}
 	}
 	// Hợp đồng của tác vụ bị xoá kể cả khi phiếu không còn bước dở (trạng thái hỏng): không để khoá kẹt tới hết hạn.
-	if err := releaseLease(r.Tasks.Dir, r.Root, id, ""); err != nil {
+	if err := releaseLease(r.Tasks.Dir, r.Root, id, "", len(r.otherPendingOnRoot(id, r.Root)) == 0); err != nil {
 		notes = append(notes, "không xoá được hợp đồng thuê khoá: "+err.Error())
 	}
 	return notes
@@ -755,7 +776,7 @@ func (e *Env) discardPendingForCancel(t *task.Task) {
 		e.emitRun(ps.RunID, spool.WorkflowFinished, map[string]any{"status": "interrupted", "end_reason": "tác vụ bị huỷ", "task_id": t.State.ID})
 		e.Tasks.Update(t.State.ID, e.now(), func(t *task.Task) error { t.State.PendingStep = nil; return nil })
 	}
-	releaseLease(e.Tasks.Dir, root, t.State.ID, "")
+	releaseLease(e.Tasks.Dir, root, t.State.ID, "", len(e.otherPendingOnRoot(t.State.ID, root)) == 0)
 }
 
 // emitRun ghi sự kiện của một lượt chạy do Bint cấp (Runner có bản gắn nhật ký lỗi ghi).

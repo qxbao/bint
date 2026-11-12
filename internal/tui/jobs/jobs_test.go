@@ -18,7 +18,9 @@ func TestBridgeCancelWhileAskingReturnsImmediately(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	br := NewBridge(ctx, 1, out)
 	done := make(chan [2]any, 1)
-	go func() { done <- [2]any{br.ConfirmQuestion(workflow.Question{Key: "k"}), br.AskQuestion(workflow.Question{Key: "k"})} }()
+	go func() {
+		done <- [2]any{br.ConfirmQuestion(workflow.Question{Key: "k"}), br.AskQuestion(workflow.Question{Key: "k"})}
+	}()
 	time.AfterFunc(20*time.Millisecond, cancel)
 	select {
 	case r := <-done:

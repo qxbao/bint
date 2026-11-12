@@ -5,8 +5,6 @@ import (
 	"path"
 	"regexp"
 	"strings"
-
-	"bint/internal/detect"
 )
 
 // Guardrail chỉ đọc dựng sẵn cho subagent của driver session (docs/isolation-subagent-plan.md mục 6.4a).
@@ -64,8 +62,13 @@ func snippet(cmd string) string {
 }
 
 var (
-	// heredoc ở dòng đầu: <<EOF, <<'EOF', <<"EOF", <<-EOF. Nhóm 1: dấu gạch, 2: dấu nháy, 3: từ khoá kết thúc.
-	heredocRe = regexp.MustCompile(`<<(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)['"]?`)
+	// heredoc ở dòng đầu: <<EOF, <<'EOF', <<"EOF", <<-EOF. Delimiter phải là MỘT từ trọn vẹn: không nháy, hoặc nháy đơn/kép
+	// khớp hai đầu, theo sau là khoảng trắng hoặc hết dòng. Nháy một phần (E'OF') hay lệch ('EOF") không khớp: shell bỏ nháy
+	// trên cả từ nên delimiter thật khác với từ checker đọc được (review G3b .1). Nhóm 1: dấu gạch; 2/3/4: từ khoá trong nháy
+	// đơn / nháy kép / không nháy.
+	heredocRe = regexp.MustCompile(`<<(-?)[ \t]*(?:'([A-Za-z_][A-Za-z0-9_]*)'|"([A-Za-z_][A-Za-z0-9_]*)"|([A-Za-z_][A-Za-z0-9_]*))(?:[ \t]|$)`)
+	// Dấu hiệu heredoc bất kỳ (kể cả dạng heredocRe không nhận): còn sót sau khi bỏ token hợp lệ ⇒ chặn.
+	heredocAnyRe = regexp.MustCompile(`<<`)
 	// Chuyển hướng vô hại được phép: 2>&1, >/dev/null, 2>/dev/null.
 	harmlessRedirectRe = regexp.MustCompile(`\s*(?:\d?>\s*/dev/null|2>&1)`)
 	// Tiền tố `cd MỘT_TOKEN && ` (prompt của bước chạy trên worktree riêng bắt buộc nó).
@@ -85,10 +88,23 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 		if m == nil {
 			return false, "nhiều dòng lệnh"
 		}
-		delim := first[m[6]:m[7]]
-		quoted := first[m[4]:m[5]] != ""
+		var delim string
+		quoted := true
+		switch {
+		case m[4] >= 0:
+			delim = first[m[4]:m[5]]
+		case m[6] >= 0:
+			delim = first[m[6]:m[7]]
+		default:
+			delim, quoted = first[m[8]:m[9]], false
+		}
 		dash := first[m[2]:m[3]] != ""
-		first = first[:m[0]] + first[m[1]:] // bỏ token heredoc, còn lại là lệnh thật
+		first = first[:m[0]] + " " + first[m[1]:] // bỏ token heredoc, còn lại là lệnh thật
+		// Phần còn lại của dòng mở heredoc không được có nháy hay gạch chéo ngược: chuỗi nháy chưa đóng kéo sang dòng sau,
+		// `\` cuối dòng nối dòng, cả hai đều đưa nội dung "thân heredoc" thành lệnh thật (review G3b .1).
+		if strings.ContainsAny(first, `'"\`) {
+			return false, "dòng mở heredoc có dấu nháy hoặc \\"
+		}
 		lines := strings.Split(body, "\n")
 		end := -1
 		for i, l := range lines {
@@ -117,7 +133,7 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 				}
 			}
 		}
-		if heredocRe.MatchString(first) {
+		if heredocAnyRe.MatchString(first) {
 			return false, "nhiều heredoc"
 		}
 	}
@@ -165,7 +181,10 @@ func matchesReadonlyRules(toks []string, cmd string, rules []string) bool {
 			if len(prefix) == 0 {
 				return true
 			}
-			if len(prefix) == 1 && prefix[0] == "bint" && detect.IsBintInvocation(cmd) {
+			// bint theo đường dẫn tuyệt đối: token ĐẦU phải là bint. Không dùng detect.IsBintInvocation vì nó bỏ qua gán biến
+			// môi trường và wrapper (env, timeout…) đứng trước: `GIT_CONFIG_…=… bint task diff` điều khiển được git bên trong
+			// bint (review G3b .3).
+			if len(prefix) == 1 && prefix[0] == "bint" && isBintExecutable(toks[0]) {
 				return true
 			}
 			if hasTokenPrefix(toks, prefix) {
@@ -178,6 +197,14 @@ func matchesReadonlyRules(toks []string, cmd string, rules []string) bool {
 		}
 	}
 	return false
+}
+
+// isBintExecutable: token là chương trình bint (tên trần hoặc đường dẫn, kể cả bint.exe và đường dẫn kiểu Windows).
+func isBintExecutable(tok string) bool {
+	if i := strings.LastIndexAny(tok, `/\`); i >= 0 {
+		tok = tok[i+1:]
+	}
+	return tok == "bint" || strings.EqualFold(tok, "bint.exe")
 }
 
 func hasTokenPrefix(toks, prefix []string) bool {

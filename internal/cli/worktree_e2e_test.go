@@ -159,7 +159,8 @@ touch "$MARKS/b-started"
 	deadline := time.Now().Add(60 * time.Second)
 	for showTask(t, root, a.ID).State.Status != "done" {
 		if time.Now().After(deadline) {
-			st := showTask(t, root, a.ID).State; t.Fatalf("A không tới done: %s %s", st.Status, st.Reason)
+			st := showTask(t, root, a.ID).State
+			t.Fatalf("A không tới done: %s %s", st.Status, st.Reason)
 		}
 		time.Sleep(200 * time.Millisecond)
 	}

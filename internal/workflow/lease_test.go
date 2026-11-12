@@ -43,7 +43,7 @@ func TestLeaseBlocksOtherTaskByModeTable(t *testing.T) {
 			if err := grantLease(tasksDir, root, newLease(a, "b-feat", c.hold, until)); err != nil {
 				t.Fatal(err)
 			}
-			defer releaseLease(tasksDir, root, a, "")
+			defer releaseLease(tasksDir, root, a, "", true)
 			owner := b + " b-feat"
 			if c.holderIsSelf {
 				owner = a + " b-feat"
@@ -147,13 +147,13 @@ func TestGrantAndReleaseLease(t *testing.T) {
 	if got, err := activeLeases(lockPath(tasksDir, root), time.Now()); err != nil || len(got) != 1 || got[0].Step != "b-review" {
 		t.Fatalf("hợp đồng: %+v", got)
 	}
-	if err := releaseLease(tasksDir, root, a, "lượt-khác"); err != nil {
+	if err := releaseLease(tasksDir, root, a, "lượt-khác", false); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := activeLeases(lockPath(tasksDir, root), time.Now()); err != nil || len(got) != 1 {
 		t.Fatalf("release sai lượt không được xoá: %+v", got)
 	}
-	if err := releaseLease(tasksDir, root, a, ea2.RunID); err != nil {
+	if err := releaseLease(tasksDir, root, a, ea2.RunID, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(leaseFilePath(lockPath(tasksDir, root))); !errors.Is(err, os.ErrNotExist) {
@@ -269,7 +269,7 @@ func TestCorruptLeaseFileHoldsLock(t *testing.T) {
 	if err := grantLease(tasksDir, root, newLease(a, "b-feat", LockExclusive, time.Now().Add(time.Hour))); err == nil {
 		t.Fatal("grantLease phải từ chối khi tệp hỏng")
 	}
-	if err := releaseLease(tasksDir, root, a, "lượt-x"); err == nil {
+	if err := releaseLease(tasksDir, root, a, "lượt-x", false); err == nil {
 		t.Fatal("releaseLease theo lượt phải báo lỗi khi tệp hỏng")
 	}
 	if b, err := os.ReadFile(leaseFilePath(lockFile)); err != nil || string(b) != "{hỏng" {
@@ -279,8 +279,15 @@ func TestCorruptLeaseFileHoldsLock(t *testing.T) {
 	if got := ActiveSteps(tasksDir, root); len(got) != 0 {
 		t.Fatalf("ActiveSteps: %+v", got)
 	}
-	// Đường khôi phục của người (abort/huỷ: runID rỗng) xoá tệp hỏng; từ đó cấp khoá lại được.
-	if err := releaseLease(tasksDir, root, a, ""); err != nil {
+	// Gỡ cả tác vụ mà người gọi chưa xác nhận an toàn (wipeCorrupt=false): báo lỗi, để nguyên tệp hỏng (review G3b .4).
+	if err := releaseLease(tasksDir, root, a, "", false); err == nil {
+		t.Fatal("releaseLease không wipeCorrupt phải báo lỗi khi tệp hỏng")
+	}
+	if b, err := os.ReadFile(leaseFilePath(lockFile)); err != nil || string(b) != "{hỏng" {
+		t.Fatalf("tệp hỏng bị đổi khi không wipeCorrupt: %q %v", b, err)
+	}
+	// Đường khôi phục của người (abort/huỷ: runID rỗng, không tác vụ khác còn bước dở) xoá tệp hỏng; từ đó cấp khoá lại được.
+	if err := releaseLease(tasksDir, root, a, "", true); err != nil {
 		t.Fatal(err)
 	}
 	l, err := AcquireLock(tasksDir, root, b+" b-feat", LockExclusive)

@@ -248,15 +248,16 @@ func grantLease(tasksDir, root string, e leaseEntry) error {
 
 // releaseLease xoá hợp đồng của tác vụ (theo lượt nếu runID khác rỗng) và dọn hợp đồng hết hạn. Tệp hợp đồng hỏng:
 // đóng một lượt (runID khác rỗng) trả lỗi và để nguyên tệp (khoá vẫn bị giữ); gỡ hợp đồng của cả tác vụ (runID rỗng,
-// tức abort/huỷ — đường người chủ động khôi phục) thì xoá tệp hỏng.
-func releaseLease(tasksDir, root, taskID, runID string) error {
+// tức abort/huỷ — đường người chủ động khôi phục) chỉ xoá tệp hỏng khi wipeCorrupt: người gọi đã kiểm không tác vụ nào
+// khác trên cùng cây còn bước dở (xoá tệp là xoá hợp đồng của mọi tác vụ ở đó); không thì trả lỗi và để nguyên tệp.
+func releaseLease(tasksDir, root, taskID, runID string, wipeCorrupt bool) error {
 	lockFile := lockPath(tasksDir, root)
 	return withLeaseMutex(lockFile, func() error {
 		now := leaseNow()
 		var keep []leaseEntry
 		es, err := readLeases(lockFile)
 		if err != nil {
-			if runID != "" {
+			if runID != "" || !wipeCorrupt {
 				return err
 			}
 			return writeLeases(lockFile, nil)

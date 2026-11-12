@@ -1054,3 +1054,21 @@ cộng dồn và `next` blocked, `next` khớp định nghĩa subagent), `config
 
 **Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 1387 test qua (66 gói), 0 lỗi; `go vet ./...` và `GOOS=windows go vet ./...` sạch; `staticcheck ./...` và
 `GOOS=windows staticcheck ./...` sạch; `go test -race -count=1` cho `runlog`, `harness/...`, `skills` và `workflow` (`Session|Lease`) qua; `bint doctor` không báo skill hay subagent lệch.
+
+### 12.13. Sửa phát hiện review của G3b (.1–.4), 2026-11-12, tác vụ 01M77J7TBB8X77CZ3HX3ZCW5WR
+
+Người dùng yêu cầu orchestrator sửa trực tiếp (không qua b-feat).
+
+- **.1 vượt guardrail chỉ đọc bằng heredoc** — `heredocRe` (`internal/harness/hookcore/readonly.go`) chỉ nhận delimiter là một
+  từ trọn vẹn: không nháy, hoặc `'W'`/`"W"` nháy khớp, theo sau là khoảng trắng hoặc hết dòng. Nháy một phần (`E'OF'`), nháy
+  lệch (`'EOF"`), delimiter dính ký tự (`<<EOF;…`) không khớp ⇒ "nhiều dòng lệnh" ⇒ deny. Phần còn lại của dòng mở heredoc
+  có `'`, `"` hoặc `\` ⇒ deny (nháy chưa đóng kéo sang dòng sau, `\` nối dòng). Còn dấu `<<` khác ⇒ deny. Ca trong
+  `TestReadonlyShellAllowed`.
+- **.3 gán biến trước bint** — `Bash(bint:*)` chỉ khớp khi token đầu là chương trình bint (`isBintExecutable`: tên trần, đường
+  dẫn `/` hoặc `\`, `bint.exe`), không dùng `detect.IsBintInvocation` (bỏ qua `NAME=value`/`env`/`timeout`…).
+- **.4 abort xoá hợp đồng của tác vụ khác** — `releaseLease(…, wipeCorrupt)`: gỡ cả tác vụ (runID rỗng) gặp tệp hợp đồng hỏng
+  chỉ xoá tệp khi người gọi đã kiểm `Env.otherPendingOnRoot` rỗng (không tác vụ nào khác trên cùng cây còn bước dở);
+  không thì trả lỗi, để nguyên tệp, abort ghi chú tác vụ đang giữ và bỏ qua ghi nhận Touched. Áp cho abort và huỷ. Test:
+  `TestSessionAbortCorruptLeaseKeepsOtherTasksLease`, nhánh `wipeCorrupt=false` trong test tệp hợp đồng hỏng của `lease_test.go`.
+- **.2 gofmt** — `gofmt -w` các tệp lệch, kể cả `repowrite.go`, `worktree_e2e_test.go` (G1/G2), `task_svc_test.go`,
+  `jobs/jobs_test.go` (có từ trước): `gofmt -l .` rỗng.

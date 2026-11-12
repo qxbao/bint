@@ -376,6 +376,43 @@ func TestSessionAbortWithCorruptLeaseFileStillRecordsTouched(t *testing.T) {
 	}
 }
 
+// Review G3b .4: tác vụ khác trên cùng cây còn bước dở ⇒ abort KHÔNG gỡ tệp hợp đồng hỏng (gỡ là xoá hợp đồng của tác
+// vụ kia và quy tệp nó sửa vào Touched của tác vụ này); chỉ ghi chú cho người.
+func TestSessionAbortCorruptLeaseKeepsOtherTasksLease(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	ctx := context.Background()
+	a := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	b := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	if a1, err := r.Next(ctx, NextOptions{TaskRef: a.State.ID}); err != nil || a1.Action != ActionAgent || a1.Step != StepFeat {
+		t.Fatal(a1, err)
+	}
+	// B có bước dở trên cùng cây (dựng thẳng trong phiếu: hợp đồng của A độc quyền nên next của B sẽ phải chờ).
+	if _, err := h.tasks.Update(b.State.ID, time.Now(), func(t *task.Task) error {
+		t.State.PendingStep = &task.PendingStep{RunID: "run-b", Step: StepReq, Mode: "shared"}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h.write("app.txt", "tệp B đang sửa\n")
+	if err := os.WriteFile(h.leaseFile(a.State.ID), []byte("{hỏng"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Abort(ctx, a.State.ID, "orchestrator chết")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(h.leaseFile(a.State.ID)); err != nil || string(b) != "{hỏng" {
+		t.Fatalf("tệp hợp đồng hỏng không được gỡ khi tác vụ khác còn bước dở: %q %v", b, err)
+	}
+	if got := loadTask(t, h, a.State.ID); slices.Contains(got.State.Touched, "app.txt") {
+		t.Fatalf("tệp của tác vụ khác bị ghi vào Touched: %v", got.State.Touched)
+	}
+	if notes := strings.Join(res.Notes, "\n"); !strings.Contains(notes, b.State.ID) || !strings.Contains(notes, "không gỡ tệp") {
+		t.Fatalf("ghi chú phải nêu tác vụ còn bước dở: %v", res.Notes)
+	}
+}
+
 // Role gán harness khác Claude ⇒ next trả action process kèm lệnh bint run của đúng bước; các bước khác vẫn bằng
 // subagent; next đi tiếp sau bước chạy bằng tiến trình, không review lặp.
 func TestSessionProcessActionForOtherHarness(t *testing.T) {
