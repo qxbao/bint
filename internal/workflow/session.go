@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"bint/internal/eval"
 	adapters "bint/internal/harness"
+	"bint/internal/harness/hookcore"
 	"bint/internal/spool"
 	"bint/internal/task"
 	"bint/internal/ulid"
@@ -513,12 +515,42 @@ func (r *Runner) grantPending(rs *runState, sr *stepRun, ps *task.PendingStep) e
 		nt, err = r.Tasks.Update(id, r.now(), func(t *task.Task) error { t.State.PendingStep = ps; return nil })
 		if err == nil {
 			rs.t = nt
+			r.writeSessionStep(rs, ps)
 			return nil
 		}
 		releaseLease(r.Tasks.Dir, r.Root, id, ps.RunID, false)
 	}
+	removeSessionStep(r.Tasks.Dir, ps.RunID)
 	sr.release()
 	return err
+}
+
+// sessionStepGrace: tệp session-steps quá hạn lâu hơn mức này (phiên chết giữa bước) bị dọn ở lần mở bước kế tiếp.
+const sessionStepGrace = 24 * time.Hour
+
+// writeSessionStep ghi runtime/session-steps/<run_id>.json cho hook (guardrail bint-worktree, mục 12.14): worktree của bước và
+// việc tác vụ có chạy trong worktree riêng không. Ghi cho MỌI bước subagent (cả shared) để hook phân biệt "tác vụ shared" với
+// "không ánh xạ được". Lỗi chỉ ghi chú, không làm hỏng bước: không có tệp thì guardrail rơi về fail-closed có giới hạn.
+func (r *Runner) writeSessionStep(rs *runState, ps *task.PendingStep) {
+	runtimeDir := filepath.Dir(r.Tasks.Dir)
+	hookcore.PruneSessionSteps(runtimeDir, leaseNow(), sessionStepGrace)
+	wt, err := filepath.Abs(r.Root)
+	if err != nil {
+		wt = r.Root
+	}
+	err = hookcore.WriteSessionStep(runtimeDir, hookcore.SessionStepRecord{RunID: ps.RunID, TaskID: rs.t.State.ID, Step: ps.Step,
+		Subagent: ps.Subagent, Worktree: wt, Isolated: rs.t.State.Origin != "", Until: ps.LeaseUntil})
+	if err != nil {
+		rs.res.Notes = append(rs.res.Notes, "không ghi được tệp ánh xạ worktree cho hook ("+err.Error()+"): rào chắn đường dẫn rơi về chính sách fail-closed")
+	}
+}
+
+// removeSessionStep gỡ tệp session-steps của bước (nơi nào bước dở bị gỡ thì gọi nơi đó). Lỗi bị bỏ qua: tệp mồ côi chỉ còn
+// tác dụng tới hết hạn thuê.
+func removeSessionStep(tasksDir, runID string) {
+	if runID != "" {
+		hookcore.RemoveSessionStep(filepath.Dir(tasksDir), runID)
+	}
 }
 
 // closeArgs là thông tin đóng một bước dở.
@@ -560,6 +592,7 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 			return nil
 		})
 		releaseLease(r.Tasks.Dir, root, id, ps.RunID, false)
+		removeSessionStep(r.Tasks.Dir, ps.RunID)
 	}
 	res := eval.AgentResult{Duration: max(leaseNow().Sub(started), 0), TimedOut: a.timedOut, Model: ps.Model}
 	switch {
@@ -757,6 +790,7 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 		if t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error { t.State.PendingStep = nil; return nil }); err == nil {
 			rs.t = t
 		}
+		removeSessionStep(r.Tasks.Dir, ps.RunID)
 	}
 	// Hợp đồng của tác vụ bị xoá kể cả khi phiếu không còn bước dở (trạng thái hỏng): không để khoá kẹt tới hết hạn.
 	if err := releaseLease(r.Tasks.Dir, r.Root, id, "", len(r.otherPendingOnRoot(id, r.Root)) == 0); err != nil {
@@ -775,6 +809,7 @@ func (e *Env) discardPendingForCancel(t *task.Task) {
 	if ps := t.State.PendingStep; ps != nil {
 		e.emitRun(ps.RunID, spool.WorkflowFinished, map[string]any{"status": "interrupted", "end_reason": "tác vụ bị huỷ", "task_id": t.State.ID})
 		e.Tasks.Update(t.State.ID, e.now(), func(t *task.Task) error { t.State.PendingStep = nil; return nil })
+		removeSessionStep(e.Tasks.Dir, ps.RunID)
 	}
 	releaseLease(e.Tasks.Dir, root, t.State.ID, "", len(e.otherPendingOnRoot(t.State.ID, root)) == 0)
 }

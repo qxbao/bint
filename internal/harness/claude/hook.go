@@ -84,6 +84,8 @@ var Dialect = hookcore.Dialect{
 	// Claude Code gửi agent_type cho công cụ của subagent và áp deny của PreToolUse cho subagent (spike S3): guardrail
 	// chỉ đọc dựng sẵn cho bint-planner/bint-reviewer có hiệu lực.
 	SubagentReadonly: true,
+	// Dòng đầu transcript của subagent chứa prompt (có run_id): ánh xạ agent_id ⇒ worktree cho guardrail bint-worktree.
+	SubagentPrompt: SubagentPrompt,
 }
 
 // HookEnv / HookResult giữ tên cũ cho mã gọi.

@@ -57,6 +57,14 @@ Codex, Antigravity: không). Hook cài thêm `SubagentStop` (ghi `subagent.stopp
 `runtime/subagents/<agent_id>.json`) để tính chi phí subagent; repo cài hook bản cũ chạy lại `bint init`. Chi tiết khớp lệnh và giới
 hạn: [workflows.md](workflows.md#driver-session).
 
+**Guardrail dựng sẵn `bint-worktree` (driver session, G4).** Guardrail dựng sẵn thứ hai, cũng không cần khai báo: `PreToolUse` của
+subagent `bint-implementer` thuộc bước của tác vụ `worktree` trả `deny` cho Edit/Write/MultiEdit/NotebookEdit có đường dẫn ngoài
+worktree và cho lệnh Bash không bắt đầu bằng `cd <worktree> &&`, kèm lý do và `guardrail.triggered` (`guardrail: bint-worktree`,
+`outcome: fired|unmapped`). Hook ánh xạ `agent_id` ⇒ worktree bằng dòng đầu transcript của subagent (`hookcore.Dialect.SubagentPrompt`;
+Claude: có; Codex, Antigravity: không, guardrail không áp) và tệp `runtime/session-steps/<run_id>.json` do `bint run next` ghi; hook
+chỉ đọc tệp. Không ánh xạ được thì fail-closed có giới hạn (chỉ khi còn bước worktree đang chạy). Chi tiết:
+[isolation-subagent-plan.md](isolation-subagent-plan.md) mục 12.14.
+
 **Đo trong eval:** nhánh `bint` dùng tập thành phần đang hiệu lực; guidance dựng sẵn `bint-mcp-tools`
 thay đoạn ghi chú MCP cũ **đúng từng byte** (repo không có `.bint/harness` thì nhánh `bint` y hệt trước).
 Biến thể `bint@harness=off` (chỉ bản dựng sẵn) | `on` (mặc định: verified) | `all` (thêm candidate), ví dụ

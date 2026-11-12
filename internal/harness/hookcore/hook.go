@@ -139,6 +139,10 @@ type Dialect struct {
 	SubagentReadonly bool
 	PreToolDecide    func(text, decision, reason string) string
 	StopOutput       func(reason string) string
+	// SubagentPrompt trả prompt đầu tiên của subagent đang gọi công cụ (message user đầu transcript của nó). Cách tìm và đọc
+	// nó là khác biệt theo harness; nil = harness không hỗ trợ và guardrail đường dẫn worktree (worktree_guard.go) không áp,
+	// kể cả chính sách fail-closed. Không đọc được thì trả ok=false (hook không lỗi, không chờ).
+	SubagentPrompt func(Input) (prompt string, ok bool)
 }
 
 // Env cho phép kiểm thử thay thế đồng hồ và thư mục hiện tại.
@@ -357,6 +361,46 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 				ge.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), "guardrail", GuardrailReadonly, "fired", on)
 				f, _ := spool.Write(paths.Spool, ge) // lỗi ghi spool không được làm mất quyết định deny
 				return Result{Written: f != "", SpoolFile: f, Output: d.PreToolDecide("", hcomp.ActDeny, reason)}, nil
+			}
+		}
+		// Guardrail đường dẫn worktree cho bint-implementer của driver session (mục 7): trước bộ lọc "tệp ngoài repository"
+		// vì worktree của tác vụ nằm ngoài cây gốc.
+		if d.SubagentPrompt != nil && d.PreToolDecide != nil && hi.AgentType == SubagentImplementer &&
+			(info.Kind == ToolEdit || info.Kind == ToolShell) {
+			chk := worktreeCheck{AgentType: hi.AgentType, Tool: hi.ToolName, Info: info, Cwd: cwd}
+			if prompt, ok := d.SubagentPrompt(hi); ok {
+				if tid, _, run, ok := PromptTaskHeader(prompt); ok {
+					if rec, ok := ReadSessionStep(paths.Runtime, run); ok && rec.TaskID == tid {
+						chk.Step = &rec
+					}
+				}
+			}
+			if chk.Step == nil {
+				chk.Live = LiveIsolatedSteps(paths.Runtime, now)
+			}
+			if v := worktreeDecision(chk); v.Deny {
+				on := hcomp.OnPreBash
+				if info.Kind == ToolEdit {
+					on = hcomp.OnPreEdit
+				}
+				ge := ev
+				ge.Type = spool.GuardrailTriggered
+				ge.Payload = map[string]any{"guardrail": GuardrailWorktree, "outcome": v.Outcome, "on": on, "action": hcomp.ActDeny,
+					"requested": hcomp.ActDeny, "blocked": true, "agent_type": hi.AgentType, "tool": hi.ToolName}
+				if hi.AgentID != "" {
+					ge.Payload["agent_id"] = hi.AgentID
+				}
+				if info.Kind == ToolShell {
+					ge.Payload["command"] = detect.Redact(info.Command, 300)
+				} else if len(info.Paths) > 0 {
+					ge.Payload["paths"] = info.Paths
+				}
+				if chk.Step != nil {
+					ge.Payload["task_id"], ge.Payload["run_id"], ge.Payload["worktree"] = chk.Step.TaskID, chk.Step.RunID, chk.Step.Worktree
+				}
+				ge.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), "guardrail", GuardrailWorktree, v.Outcome, on)
+				f, _ := spool.Write(paths.Spool, ge) // lỗi ghi spool không được làm mất quyết định deny
+				return Result{Written: f != "", SpoolFile: f, Output: d.PreToolDecide("", hcomp.ActDeny, v.Reason)}, nil
 			}
 		}
 		if info.Kind == ToolShell {

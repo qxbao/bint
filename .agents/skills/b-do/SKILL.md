@@ -162,11 +162,38 @@ bint run complete <id> --run <run_id> --agent-id <agentId> --json
    - Gọi `bint run next` lại khi bước còn hạn trả đúng bước cũ (cùng `run_id`), an toàn. Phiên này chết giữa
      bước: người dùng chạy `bint run abort <id>` rồi `bint run next <id> --resume`.
 
-3. Tác vụ `worktree`: subagent chạy ở thư mục của phiên chứ không ở worktree; `prompt` đã dặn `cd <worktree>`
-   cho mọi lệnh và dùng đường dẫn tuyệt đối. Rào chắn đường dẫn bằng hook chưa có, nên khi chưa có lý do hãy
-   ưu tiên `--shared` cho driver session.
+3. Tác vụ `worktree`: subagent chạy ở thư mục của phiên chứ không ở worktree; `prompt` đã dặn `cd <worktree> && …`
+   cho mọi lệnh Bash và dùng đường dẫn tuyệt đối. Hook của Bint chặn (`deny`) Edit/Write/NotebookEdit có đường dẫn
+   ngoài worktree của bước và lệnh Bash không bắt đầu bằng `cd <worktree> &&` của subagent `bint-implementer`. Bị
+   chặn thì đó là thiết kế: subagent sửa lại đường dẫn/lệnh, đừng tìm đường vòng và đừng chạy lại tay bằng cây gốc.
+   Hook xác định worktree từ dòng đầu của prompt subagent (khối `<bint-task …>`), nên **giữ `prompt` nguyên văn**.
+   Giới hạn đã biết: lệnh `cd <worktree> && … > /đường/dẫn/khác` không bị chặn.
 4. Bước `b-req`/`b-review` là **chỉ đọc**: hook của Bint chặn lệnh Bash không phải lệnh đọc và công cụ sửa tệp
    của hai subagent đó. Bị chặn thì đó là thiết kế, đừng tìm đường vòng.
+
+### Chạy song song nhiều việc bằng subagent
+
+Người dùng giao **nhiều việc độc lập** cùng lúc ("làm song song A và B"): mỗi việc **một phiếu riêng**, tất cả
+`--worktree` (cây gốc dùng chung thì các việc giẫm lên nhau):
+
+```sh
+bint task new "<việc A>" --workflow b-do --driver session --worktree … --json     # id A
+bint task new "<việc B>" --workflow b-do --driver session --worktree … --json     # id B
+```
+
+Rồi chạy xen kẽ, không chờ tuần tự:
+
+1. `bint run next <A> --json --no-wait` và `bint run next <B> --json --no-wait`; với mỗi `action: "agent"` gọi công cụ
+   **Agent** với `run_in_background: true` (prompt nguyên văn như điểm 2). Ghi nhớ `agentId` và `run_id` của từng phiếu.
+2. Khi một Agent nền báo xong thì `bint run complete <id> --run <run_id> --agent-id <agentId> --json` **của phiếu đó**, rồi
+   `bint run next <id> --json --no-wait` của chính phiếu đó để lấy bước kế (vòng next → Agent → complete). Các phiếu khác vẫn
+   chạy: không dừng chúng để chờ.
+3. Mỗi tác vụ tự `land` ở bước Finalize và tự `done`. Tác vụ land sau mà đụng thay đổi của tác vụ land trước thì **chỉ tác vụ đó**
+   `blocked` (`xung đột khi đưa về: <tệp>`, cây gốc không bị đụng): xử lý như Bước 3, các tác vụ khác không bị ảnh hưởng. Không
+   gộp tay, không tự sửa cây gốc.
+4. Không đưa hai việc sửa cùng tệp vào một đợt song song nếu tránh được; báo người dùng việc nào blocked vì xung đột.
+5. Subagent bị hook chặn vì đường dẫn thì báo kết quả (Agent trả về) cho bạn: không "sửa hộ" ở cây gốc; chạy lại bước bằng
+   `bint run abort <id>` rồi `bint run next <id> --resume` khi cần.
 
 Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task approve`, không `bint task done --force`.
 

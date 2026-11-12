@@ -1421,7 +1421,9 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		if session {
 			// Công cụ Agent không nhận thư mục làm việc: subagent bắt đầu ở thư mục của phiên cha.
 			fmt.Fprintf(&b, "Bạn đang đứng ở thư mục của phiên cha, KHÔNG phải worktree: mọi lệnh Bash phải bắt đầu bằng `cd %s && …`, "+
-				"và Read/Edit/Write phải dùng đường dẫn tuyệt đối dưới %s.\n", r.Root, r.Root)
+				"và Read/Edit/Write phải dùng đường dẫn tuyệt đối dưới %s. Hook của Bint chặn (deny) Edit/Write/NotebookEdit có đường dẫn "+
+				"ngoài thư mục đó và lệnh Bash không bắt đầu bằng `cd %s && …`; bị chặn thì sửa lại đường dẫn hoặc lệnh, đừng thử vòng qua.\n",
+				r.Root, r.Root, r.Root)
 		}
 		b.WriteString("\n")
 	}

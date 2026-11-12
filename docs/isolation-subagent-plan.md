@@ -361,13 +361,13 @@ Subagent không có biến môi trường riêng (`BINT_RUN_ID`, `BINT_TASK_ID`,
 - `/b-do Dùng subagent làm song song: (1) …, (2) …` ⇒ orchestrator lập mỗi việc một phiếu
   `--driver session --worktree`, chạy các vòng `next → Agent → complete` xen kẽ, các Agent chạy nền.
 - **Cwd của subagent.** Công cụ Agent không nhận cwd: subagent chạy ở cwd của phiên cha (cây gốc). Prompt
-  của `next` yêu cầu `cd <worktree>` ở mọi lệnh Bash và đường dẫn tuyệt đối cho Read/Edit. Rào chắn kèm
-  theo là một guardrail dựng sẵn: hook (đã biết `agent_id` ⇒ worktree qua tệp ánh xạ trong
-  `runtime/`, ghi khi thấy lệnh `attach`) trả `deny` cho Edit/Write có đường dẫn ngoài worktree của lượt.
-  Hook chỉ đọc tệp và trả quyết định, không lỗi, không SQLite, đúng cơ chế guardrail hiện có. Khác biệt
-  theo harness đặt trong `hookcore.Dialect`.
-- Guardrail chỉ đọc cho reviewer/planner đã làm ở G3 (mục 6.4a, S1 xác nhận lỗ hổng); G4 chỉ thêm rào chắn đường dẫn
-  worktree ở trên, dùng chung cơ chế.
+  của `next` yêu cầu `cd <worktree>` ở mọi lệnh Bash và đường dẫn tuyệt đối cho Read/Edit/Write. Rào chắn kèm
+  theo là một guardrail dựng sẵn `bint-worktree`: hook trả `deny` cho Edit/Write/MultiEdit/NotebookEdit có đường dẫn
+  ngoài worktree của bước và cho lệnh Bash không bắt đầu bằng `cd <worktree> &&`. Hook biết `agent_id` ⇒ worktree
+  **không qua lệnh `attach`** (G3 đã bỏ nó, ghép bằng `complete --agent-id` là quá muộn lúc subagent đang chạy): `next`
+  ghi tệp `runtime/session-steps/<run_id>.json` khi mở bước, hook đọc dòng đầu transcript của subagent (chứa prompt, có
+  `run_id`) để tra tệp (mục 12.14). Hook chỉ đọc tệp và trả quyết định, không lỗi, không SQLite, đúng cơ chế guardrail
+  hiện có. Khác biệt theo harness đặt trong `hookcore.Dialect` (`SubagentPrompt`).
 - Đưa về: mỗi tác vụ tự `land` ở finalize; tác vụ sau xung đột với tác vụ trước ⇒ `blocked` riêng tác
   vụ đó.
 - Nghiệm thu: hai tác vụ song song bằng subagent tới `done`, cây gốc có đủ thay đổi; subagent cố sửa tệp
@@ -1072,3 +1072,71 @@ Người dùng yêu cầu orchestrator sửa trực tiếp (không qua b-feat).
   `TestSessionAbortCorruptLeaseKeepsOtherTasksLease`, nhánh `wipeCorrupt=false` trong test tệp hợp đồng hỏng của `lease_test.go`.
 - **.2 gofmt** — `gofmt -w` các tệp lệch, kể cả `repowrite.go`, `worktree_e2e_test.go` (G1/G2), `task_svc_test.go`,
   `jobs/jobs_test.go` (có từ trước): `gofmt -l .` rỗng.
+
+### 12.14. G4 mục 7 — song song bằng subagent, guardrail đường dẫn worktree, 2026-11-12, tác vụ 01M77NN59CBFEG4TPYSW0KPKAS
+
+**Đã làm.**
+
+- **Ánh xạ `agent_id` ⇒ worktree, thay cho `attach`.** Mục 7 cũ để hook biết ánh xạ "khi thấy lệnh `attach`", nhưng G3 (6.5) đã
+  bỏ `attach`; ghép bằng `complete --agent-id` xảy ra sau khi subagent kết thúc nên quá muộn cho guardrail. Cơ chế mới gồm hai
+  nửa nối nhau bằng `run_id` (do Bint sinh, nằm trong prompt), không bằng suy đoán thời điểm:
+  1. `bint run next`, khi mở bước subagent (mọi bước, cả `shared`), ghi `runtime/session-steps/<run_id>.json`
+     (`hookcore.SessionStepRecord`: `run_id`, `task_id`, `step`, `subagent`, `worktree` tuyệt đối, `isolated`, `until`). Tệp bị
+     gỡ ở mọi nơi bước dở bị gỡ: `complete`/đóng bước hết hạn (`closePending.onEnd`), `abort` (`discardPending`), huỷ tác vụ
+     (`discardPendingForCancel`), lỗi `grantPending`; `next` dọn tệp quá `until` hơn 24 giờ. `runtime/` dùng chung giữa cây gốc
+     và worktree (`state.Resolve` lấy `RepoID(CommonDir)`) nên hook chạy ở đâu cũng thấy cùng thư mục.
+  2. Hook (`PreToolUse` có `agent_type = bint-implementer`, công cụ sửa tệp hoặc Bash) gọi `Dialect.SubagentPrompt`, lấy khối
+     `<bint-task id=… step=… run=…>` **đầu tiên** trong prompt (thân skill đứng trước khối, phiếu đứng sau nên nội dung phiếu
+     không chen lên trước được) rồi tra tệp `session-steps/<run>.json` (phải khớp `task_id`). Bản Claude
+     (`internal/harness/claude/subagent_prompt.go`) đọc **một dòng** (trần 4 MiB) của
+     `<dirname(transcript_path)>/<session_id>/subagents/agent-<agent_id>.jsonl`, chấp nhận `content` là chuỗi hoặc mảng
+     `{type:text}`, bắt `agentId` của dòng (nếu có) phải bằng `agent_id`, và từ chối `session_id`/`agent_id` có ký tự đường dẫn.
+     Harness không có `SubagentPrompt` (Codex, Antigravity) thì guardrail không áp, kể cả fail-closed.
+- **Quyết định (`worktreeDecision`, hàm thuần).** `agent_type` khác `bint-implementer` (kể cả rỗng) ⇒ không can thiệp. Ánh xạ
+  được: tác vụ `shared` ⇒ không can thiệp; `isolated` ⇒ Edit/Write/MultiEdit/NotebookEdit có đường dẫn (tuyệt đối theo `cwd` của
+  hook, giải symlink của thư mục tổ tiên, so theo thành phần nên `/wt2` không nằm trong `/wt`) ngoài worktree ⇒ `deny`; Bash
+  phải bắt đầu bằng `cd <thư mục trong worktree> &&` (đích tương đối tính theo `cwd`), hoặc không có tiền tố `cd` mà `cwd` đã nằm
+  trong worktree. Có `cd` ra ngoài worktree thì `deny` dù `cwd` ở trong (chặt hơn bản đặc tả một chút). Mỗi lần chặn ghi
+  `guardrail.triggered` (`guardrail: bint-worktree`, `outcome: fired|unmapped`, `on`, `agent_id`, `agent_type`, `tool`, `paths`
+  hoặc `command` đã che, `task_id`/`run_id`/`worktree` khi ánh xạ được); lỗi ghi spool không làm mất `deny`. Guardrail chạy ngay
+  sau `bint-readonly` và **trước** bộ lọc "tệp ngoài repository" (worktree nằm ngoài cây gốc).
+- **Khi không ánh xạ được: fail-closed có giới hạn (outcome `unmapped`).** Không đọc được transcript, không có khối `bint-task`,
+  hoặc không có tệp tương ứng/`task_id` lệch. Chỉ áp khi đang có ít nhất một bước `isolated` còn hạn: Edit/Write chỉ được vào
+  một worktree đang chạy, Bash phải `cd` vào worktree đang chạy (hoặc `cwd` đã ở đó); còn lại `deny`. Không có bước worktree
+  session nào còn hạn ⇒ không can thiệp. **Lý do:** đường dẫn transcript là định dạng không công bố. Fail-open thuần để
+  subagent quên `cd` sửa cây gốc, đúng rủi ro G4 cần chặn; fail-closed toàn phần (deny mọi thứ) làm hỏng cả G4 nếu Claude Code
+  đổi bố cục transcript, và chặn người không dùng G4. Bản giới hạn giữ được cây gốc, các tác vụ worktree vẫn chạy được, chỉ mất
+  phân biệt chéo giữa các worktree; sự kiện `unmapped` làm lộ việc transcript đổi định dạng. Cái giá: tác vụ `shared` chạy cùng
+  lúc với một tác vụ worktree mà không ánh xạ được cũng có thể bị chặn nhầm; lý do deny hướng dẫn dùng `cd`/đường dẫn tuyệt đối,
+  còn người có thể `bint run abort` tác vụ worktree.
+- **Prompt.** `run.go` đã có câu "mọi lệnh Bash phải bắt đầu bằng `cd <worktree> && …`, Read/Edit/Write dùng đường dẫn tuyệt
+  đối"; G4 thêm câu cho biết hook sẽ chặn và hướng dẫn xử lý. Tác vụ `shared` không có câu này.
+- **Skill b-do** (Bước 2b): mục "Chạy song song nhiều việc bằng subagent" (mỗi việc một phiếu `--driver session --worktree`, Agent
+  chạy nền, vòng `next → Agent → complete` xen kẽ từng phiếu, mỗi tác vụ tự land, xung đột ⇒ `blocked` riêng); điểm 3 thay câu
+  "Rào chắn đường dẫn bằng hook chưa có". Đã `bint sync`: `.claude/skills/b-do`, `.agents/skills/b-do`, `core.lock`.
+- `state.NormalizeWritePath` (chuyển từ `workflow`, `workflow.NormalizeWritePath` giữ lại làm vỏ) để hookcore dùng chung mà
+  không tạo vòng import.
+
+**Kiểm thử.** `hookcore/worktree_guard_test.go` (bảng quyết định có ánh xạ và không ánh xạ, `/wt` vs `/wt2`, `..`, symlink, khối
+`bint-task` đầu tiên thắng, vòng đời tệp `session-steps`), `claude/subagent_prompt_test.go` (bố cục đường dẫn, content chuỗi/mảng,
+thiếu tệp, JSON hỏng, `agentId` lệch, `session_id` có `../`, dòng quá trần), `app/worktree_guard_hook_test.go` (hook thật với
+transcript giả theo bố cục thật: deny kèm `guardrail.triggered`, trong worktree/shared/agent_type khác không can thiệp, unmapped
+fail-closed có giới hạn, Dialect không hỗ trợ, không SQLite), `workflow/session_guard_test.go` (tệp ánh xạ ghi/gỡ ở
+`complete`/`abort`/huỷ/hết hạn, prompt, hai tác vụ worktree xen kẽ tới `done` và kịch bản xung đột chỉ `blocked` tác vụ land sau).
+
+**Giới hạn đã biết.**
+
+- Lệnh Bash `cd <worktree> && … > /đường/dẫn/khác` không bị chặn (không phân tích shell đầy đủ, S1); chỉ ép `cd` vào worktree.
+  `land` chỉ đưa diff của worktree nên chỉ thay đổi trực tiếp vào cây gốc mới lọt.
+- Subagent khác loại (`general-purpose`) nhận prompt của Bint không bị chặn; `bint-planner`/`bint-reviewer` đã chặn mọi Edit/Write ở
+  mục 6.4a.
+- Không có khoá cấu hình để tắt guardrail; không kiểm chéo `complete --agent-id` với ánh xạ.
+
+**Chưa kiểm được (việc của người, chạy thật bằng Claude Code).**
+
+- Dòng đầu transcript của subagent đã được ghi **trước** lần gọi công cụ đầu tiên của nó chưa? Chưa kiểm thật; sai thì mọi lần
+  sửa của subagent rơi vào `unmapped` (vẫn an toàn: chặn nhầm ra cây gốc, cho phép worktree đang chạy, sự kiện `unmapped` lộ ra).
+  Lối ra nếu bố cục transcript đổi hoặc dòng đầu không kịp có: phương án `bint run attach` (subagent chạy lệnh ở lượt đầu) làm
+  thành phiếu sau.
+- `deny` của hook trên subagent chạy nền (`run_in_background`) và dưới `bypassPermissions` (cùng lý do S1/S3).
+- Hai việc song song thật bằng Agent nền với `claude` thật: thứ tự hoàn thành, `agentId` trả về, xung đột `blocked` riêng.

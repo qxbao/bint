@@ -436,6 +436,16 @@ nhiều agent song song) chưa có.
       đọc, và `git … --output=…` bị chặn. Agent khác (`bint-implementer`, `general-purpose`, phiên chính) không bị can thiệp.
       Harness không có `agent_type`/deny cho subagent thì `Dialect.SubagentReadonly=false` (Codex, Antigravity). Lớp kiểm sau
       vẫn là ảnh chụp trước/sau của bước chỉ đọc. Hook cũ cần chạy lại `bint init` để có hook `SubagentStop`.
+    - **Guardrail đường dẫn worktree `bint-worktree` (hook, mục 7 / 12.14).** Subagent chạy ở cwd của phiên cha (cây gốc), nên với
+      tác vụ `worktree` hook `PreToolUse` chặn (`deny`) công cụ sửa tệp của `bint-implementer` có đường dẫn ngoài worktree của bước và
+      lệnh Bash không bắt đầu bằng `cd <worktree> &&` (hoặc `cwd` không nằm trong worktree); tác vụ `shared`, `agent_type` khác và
+      công cụ đọc không bị can thiệp. `bint run next` ghi `runtime/session-steps/<run_id>.json` (worktree, `isolated`, hạn thuê) cho
+      mỗi bước; hook đọc dòng đầu transcript của subagent (prompt, khối `<bint-task … run=…>`) để tra tệp, không cần `attach`. Không
+      ánh xạ được (transcript đổi bố cục…) thì fail-closed có giới hạn: chỉ khi còn bước worktree đang chạy, Edit chỉ được vào một
+      worktree đang chạy và Bash phải `cd` vào đó; sự kiện `guardrail.triggered` ghi `outcome: unmapped`. Giới hạn: lệnh
+      `cd <worktree> && … > /đường/dẫn/khác` không bị chặn. **Chạy song song:** mỗi việc một phiếu `--driver session --worktree`,
+      Agent chạy nền, vòng `next → Agent → complete` xen kẽ; mỗi tác vụ tự `land` ở finalize, tác vụ land sau xung đột thì chỉ nó
+      `blocked`.
     - **Ghép sự kiện theo `agent_id` (mục 6.5).** Hook ghi `agent_id` vào payload mọi sự kiện của subagent;
       `bint run complete --agent-id X` ghi `agent_id` vào `workflow.finished` của lượt con. Lúc nạp spool, sự kiện hook cùng
       `agent_id` được gắn vào lượt con — cả khi hook tới sau (`resolveRun` tra ánh xạ) lẫn khi đã nạp trước (`bint task …` của

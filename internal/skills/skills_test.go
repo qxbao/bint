@@ -182,6 +182,16 @@ func TestBDoDriverSessionBranch(t *testing.T) {
 			t.Errorf("b-do thiếu %q", want)
 		}
 	}
+	// G4: chạy song song bằng subagent, rào chắn đường dẫn worktree bằng hook (không còn câu "chưa có").
+	for _, want := range []string{"Chạy song song nhiều việc bằng subagent", "`--worktree`", "run_in_background: true", "một phiếu riêng",
+		"chỉ tác vụ đó", "`blocked`", "bint-implementer", "cd <worktree> &&"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("b-do thiếu hướng dẫn chạy song song %q", want)
+		}
+	}
+	if strings.Contains(body, "Rào chắn đường dẫn bằng hook chưa có") {
+		t.Error("b-do còn câu cũ 'Rào chắn đường dẫn bằng hook chưa có'")
+	}
 	if !strings.Contains(string(b.Content), "dùng subagent") {
 		t.Error("description phải nhắc kích hoạt bằng 'dùng subagent'")
 	}
