@@ -186,6 +186,9 @@ func TestRestrictedRPCFixtureProcess(t *testing.T) {
 			}
 			enc.Encode(map[string]any{"id": r.ID, "result": map[string]any{}})
 			if os.Getenv("BINT_RESTRICTED_BLOCK") == "1" && !isProbe {
+				if err := os.WriteFile(os.Getenv("BINT_RESTRICTED_BLOCK_FILE"), []byte("blocked"), 0o600); err != nil {
+					os.Exit(2)
+				}
 				time.Sleep(time.Minute)
 				os.Exit(0)
 			}
@@ -212,6 +215,7 @@ func TestRestrictedRPCProfileCleanupAndRejectsUnknownTools(t *testing.T) {
 			os.WriteFile(filepath.Join(source, "auth.json"), auth, 0o600)
 			os.WriteFile(filepath.Join(source, "config.toml"), []byte("model='fixture-model'\n"), 0o600)
 			pathfile := filepath.Join(t.TempDir(), "profile-path")
+			blockfile := filepath.Join(t.TempDir(), "blocked-turn")
 			t.Setenv("BINT_RESTRICTED_RPC_FIXTURE", "1")
 			t.Setenv("BINT_RESTRICTED_PATH_FILE", pathfile)
 			if mode == "unsafe-surface" {
@@ -222,15 +226,14 @@ func TestRestrictedRPCProfileCleanupAndRejectsUnknownTools(t *testing.T) {
 			}
 			if mode == "timeout" {
 				t.Setenv("BINT_RESTRICTED_BLOCK", "1")
+				t.Setenv("BINT_RESTRICTED_BLOCK_FILE", blockfile)
 			}
 			exe, _ := os.Executable()
 			bin := filepath.Join(t.TempDir(), "codex")
 			os.WriteFile(bin, []byte("#!/bin/sh\nexec '"+strings.ReplaceAll(exe, "'", "'\\''")+"' -test.run=TestRestrictedRPCFixtureProcess -- \"$@\"\n"), 0o755)
-			timeout := 10 * time.Second
-			if mode == "timeout" {
-				timeout = time.Second
-			}
-			res := (&CodexRestrictedAgent{Binary: bin, Model: "fixture-model"}).Run(context.Background(), AgentRequest{Dir: t.TempDir(), Prompt: "filtered input", Timeout: timeout})
+			// The budget includes catalog discovery and the isolation probe. A
+			// race-instrumented catalog subprocess alone sleeps 1s on exit.
+			res := (&CodexRestrictedAgent{Binary: bin, Model: "fixture-model"}).Run(context.Background(), AgentRequest{Dir: t.TempDir(), Prompt: "filtered input", Timeout: 10 * time.Second})
 			if mode == "success" {
 				if res.Error != "" || res.Text != "OK" || res.ExitCode != 0 {
 					t.Fatalf("%+v", res)
@@ -238,8 +241,13 @@ func TestRestrictedRPCProfileCleanupAndRejectsUnknownTools(t *testing.T) {
 			} else if res.Error == "" || res.Text != "" || res.ExitCode == 0 {
 				t.Fatalf("must fail closed: %+v", res)
 			}
-			if mode == "timeout" && !res.TimedOut {
-				t.Fatalf("not timed out: %+v", res)
+			if mode == "timeout" {
+				if !res.TimedOut {
+					t.Fatalf("not timed out: %+v", res)
+				}
+				if _, err := os.Stat(blockfile); err != nil {
+					t.Fatalf("timed out before reaching the blocked RPC turn: %v; result: %+v", err, res)
+				}
 			}
 			profile, _ := os.ReadFile(pathfile)
 			if len(profile) == 0 {
