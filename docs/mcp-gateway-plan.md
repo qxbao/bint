@@ -1,6 +1,6 @@
 # Kế hoạch: gateway MCP dùng chung và cấp MCP theo role
 
-Trạng thái: **đã chốt hướng** (2026-11-12). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3 đã làm (2026-11-13, xem "Trạng thái M3" ở §7); M4 đã làm (2026-11-13, xem "Trạng thái M4" ở §8); M5 chưa.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
+Trạng thái: **đã chốt hướng** (2026-11-12). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3 đã làm (2026-11-13, xem "Trạng thái M3" ở §7); M4 đã làm (2026-11-13, xem "Trạng thái M4" ở §8); M5: đã đo bộ nhớ (2026-11-13, xem "Trạng thái M5" ở §11), chưa đo chất lượng.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
 các bước `bint run`, sửa ngay được), M1 (danh mục, cấu hình hai tầng, API/CLI quản lý), M2 (daemon
 gateway), M3 (cửa vào gộp và cấp quyền theo role), M4 (màn TUI), M5 (đo).
 Quyết định ở §3, kết quả xác minh ở §10. Chỉ còn S3 (harness xử lý thế nào khi chính shim chết), chưa kiểm
@@ -417,7 +417,8 @@ Màn mới `mcp` (sau `system` trong `actions.Screens`), mọi action có `CLIPa
   `mcp.add`, `mcp.remove`, `mcp.gateway_start`, `mcp.gateway_stop`); hành động giao diện thuần (`mcp.filter`, `mcp.refresh`,
   `mcp.next_view`, `mcp.prev_view`, `mcp.config_edit`) không có. Trong nhóm `mcp` chỉ còn `mcp serve` ở `Excluded` của test phủ lệnh.
 - **Trạng thái service:** hàm thuần `screens/mcp.State(st, gateway, check, worktree)` theo đúng thứ tự ưu tiên: chưa đăng ký → (check fail, hoặc
-  phân vùng `Limited`, hoặc phân vùng không chạy mà còn `LastError`) lỗi → (check degraded) degraded → (có phân vùng đang chạy; ưu tiên phân vùng của
+  phân vùng `Limited`, hoặc phân vùng không chạy mà còn `LastError` khi không phân vùng nào của service đang chạy; gateway xoá `LastError` khi
+  khởi động lại thành công) lỗi → (check degraded) degraded → (có phân vùng đang chạy; ưu tiên phân vùng của
   worktree hiện tại, `+N` khi còn phân vùng khác) đang chạy → đã đăng ký. Danh sách không tự check nên degraded/lỗi do check chỉ có sau khi người dùng
   chạy check hoặc thêm service; kết quả check sống trong phiên.
 - **Quyền thao tác:** `add`, `remove`, `index`, `gateway restart`, `gateway stop` là `Writes` + `HumanOnly` (khoá trong phiên agent, ẩn ở chế độ chỉ đọc);
@@ -470,6 +471,34 @@ Màn mới `mcp` (sau `system` trong `actions.Screens`), mọi action có `CLIPa
   codegraph, mức tiết kiệm dự kiến là (số phiên − 1) × ~170 MB mỗi worktree.
 - Chất lượng: nhánh eval có/không `grants` cho b-req/b-review trên tác vụ có đổi API (specmatic) và tác
   vụ cần định vị mã (codegraph); chỉ đưa `grants` vào mẫu mặc định khi có cải thiện.
+
+### Trạng thái M5 (bộ nhớ đã đo 2026-11-13; chất lượng chưa)
+
+**Bộ nhớ.** Đo trên Linux, codegraph 1.6.2 (`npm i @colbymchenry/codegraph@1.6.2`), bản sao repo Bint ở commit 38a1a9d đã `codegraph init`,
+môi trường cô lập (`HOME`, `BINT_CONFIG_HOME`, `BINT_STATE_DIR` tạm; `mcp.yml` đăng ký codegraph; `mcp.services: {codegraph: {}}`,
+`grants: {interactive: [codegraph.explore, codegraph.query]}`). Mỗi "phiên" là một client MCP giả lập harness: `initialize`, `tools/list`, một lời
+gọi `explore` (~25 nghìn ký tự). Đo PSS (`/proc/<pid>/smaps_rollup`, chia đều trang dùng chung) của mọi tiến trình MCP sau 5 giây; tiến trình
+của harness (Claude/Codex) như nhau ở hai bên nên không tính.
+
+- *Toàn cục* (cách hiện nay): mỗi phiên một `bint mcp serve` (`BINT_MCP_NO_GATEWAY=1`) và một `codegraph serve --mcp`; codegraph tự dùng chung
+  một daemon theo project.
+- *Gateway*: mỗi phiên một shim `bint mcp serve`; daemon gateway giữ một upstream codegraph cho worktree.
+
+| Phiên | Toàn cục (MB) | Gateway (MB) | Chênh |
+|---|---|---|---|
+| 1 | 360 | 381 | +21 (daemon gateway ~15 MB, shim) |
+| 4 | 654 | 491 | −163 (−25 %) |
+| 6 | 750 | 511 | −239 (−32 %) |
+
+Mỗi phiên thêm tốn ~78 MB PSS ở cách toàn cục (client codegraph: shim npm ~9, Node ~40–50, watchdog ~11; `bint mcp serve` ~9) và ~26 MB ở gateway
+(shim ~10 MB và phần tăng của daemon codegraph khi có thêm lời gọi). Mức tiết kiệm thật là ~50 MB PSS mỗi phiên thêm trên cùng worktree, thấp hơn
+con số ~170 MB của §5.5/S1 vì số đó là RSS (trang của Node dùng chung giữa các client bị tính lặp). `initialize` của shim ≤ 0,1 s khi daemon đã
+chạy; mọi lời gọi qua gateway thành công.
+
+**Chưa làm:**
+- Đo trên Windows (Job Object) và với nhiều worktree (mỗi worktree một phân vùng codegraph).
+- **Chất lượng:** nhánh eval có/không `grants` cho b-req/b-review (codegraph trên tác vụ cần định vị mã, specmatic trên tác vụ đổi API). Cần
+  service đăng ký thật trên máy (`bint mcp add`, chỉ người) và ngân sách eval; vì vậy mẫu cấu hình mặc định vẫn để `grants: {}`.
 
 Liên quan [isolation-subagent-plan.md](isolation-subagent-plan.md): G3 (subagent trong phiên) dùng chung
 kết nối MCP của phiên cha, nên quyền theo role của subagent phải đặt ở định nghĩa subagent (danh sách tool
