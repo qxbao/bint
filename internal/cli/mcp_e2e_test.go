@@ -264,3 +264,16 @@ func TestMCPServeGatewayOptOuts(t *testing.T) {
 		t.Errorf("đối chứng: shim phải khởi động daemon: %v", err)
 	}
 }
+
+// Mục MCP cấp người dùng (Antigravity) áp cho mọi workspace: ngoài repo Git hay repo chưa init Bint, serve không thoát
+// lỗi mà phục vụ server rỗng kèm lời giải thích.
+func TestMCPServeOutsideBintWorkspace(t *testing.T) {
+	plain := t.TempDir() // không phải repo Git
+	names, instr := serveToolNames(t, plain)
+	if len(names) != 0 {
+		t.Errorf("ngoài repo Bint không được có tool: %v", names)
+	}
+	if !strings.Contains(instr, "bint init") {
+		t.Errorf("instructions phải giải thích và chỉ cách khởi tạo: %q", instr)
+	}
+}

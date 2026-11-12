@@ -296,7 +296,9 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
 - **Antigravity**: chỉ có MCP cấp người dùng, Bint không cấp cho từng bước; skill dặn dùng CLI. Bước `agy` nhận mọi
   MCP người dùng đã cấu hình. `bint init --mcp-user` ghi mục `bint` (`bint mcp serve`) vào
   `~/.gemini/config/mcp_config.json` (khoá `mcpServers`, giữ server khác, sao lưu bản cũ, chạy lại không đổi); role lấy theo
-  env như trên (ngoài `bint run` là `interactive`).
+  env như trên (ngoài `bint run` là `interactive`). Mục này áp cho **mọi workspace** của Antigravity: ở thư mục không phải
+  repository đã khởi tạo Bint, `bint mcp serve` phục vụ server rỗng (không tool, `instructions` giải thích) thay vì thoát lỗi.
+  Chưa kiểm agy khởi động MCP cấp người dùng với cwd là workspace (nghiệm thu thật).
 - **Lượt đánh giá** (`bint eval run`) không đổi: nhánh `bint` có cấu hình MCP riêng (`--eval-config`) và Codex chạy
   trong profile đã cô lập; không chạm gateway.
 - Skill `b-req`, `b-feat`, `b-review` ưu tiên công cụ MCP `context_for_task`/`context_for_paths` khi có, và báo trích

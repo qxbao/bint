@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"bint/internal/app"
 	"bint/internal/config"
 	"bint/internal/ctxengine"
+	"bint/internal/gitrepo"
 	"bint/internal/mcpserver"
 )
 
@@ -58,7 +60,13 @@ interactive. Đặt BINT_MCP_NO_GATEWAY=1 để chỉ còn tool của Bint.`,
 				}
 				// Kiểm tra sớm để lỗi cấu hình hiện ra ngay khi harness khởi động server.
 				if _, err := app.OpenKnowledge(ctx, dir); err != nil {
-					return err
+					if !notBintWorkspace(err) {
+						return err
+					}
+					// Mục MCP cấp người dùng (Antigravity, init --mcp-user) áp cho mọi workspace: ngoài repo Bint thì
+					// phục vụ server rỗng kèm lời giải thích, không thoát lỗi (harness sẽ báo server hỏng ở mọi nơi).
+					empty := mcpserver.New("bint", Version, notBintInstructions(dir, err))
+					return empty.Serve(ctx, stdio.In, stdio.Out)
 				}
 				b := &app.RepoBackend{Dir: dir}
 				defer b.Close()
@@ -159,4 +167,13 @@ xem lại (mục 15.5); mục của chính bạn bị ẩn trừ khi có --all.`
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	c.Flags().BoolVar(&all, "all", false, "gồm cả mục do chính bạn commit")
 	return c
+}
+
+// notBintWorkspace: thư mục không phải repo Git, hoặc repo chưa khởi tạo Bint (không phải lỗi cấu hình của repo Bint).
+func notBintWorkspace(err error) bool {
+	return errors.Is(err, gitrepo.ErrNotRepo) || errors.Is(err, app.ErrNotInitialized) || errors.Is(err, config.ErrNoProjectConfig)
+}
+
+func notBintInstructions(dir string, err error) string {
+	return "Thư mục " + dir + " không phải repository đã khởi tạo Bint (" + err.Error() + "), nên server bint không có công cụ nào ở đây. Chạy `bint init` trong repository để dùng tri thức dự án và MCP qua Bint."
 }
