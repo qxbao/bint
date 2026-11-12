@@ -116,6 +116,8 @@ type Dialect struct {
 	PreToolOutput func(text, ask string) string
 	// ProtectedPathHelp bổ sung cách tiếp tục riêng của harness khi cần duyệt.
 	ProtectedPathHelp func(paths []string) string
+	// ProtectedPathDeny cho biết ask đường dẫn bảo vệ được harness chuyển thành deny.
+	ProtectedPathDeny bool
 	// PostToolOutcome xác minh kết quả riêng của harness. nil giữ nguyên hợp
 	// đồng Claude; known=false ghi test command nhưng không tạo tín hiệu pass/fail.
 	PostToolOutcome func(Input, ToolInfo) (success, known bool)
@@ -411,7 +413,11 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 				saveSnapshot(paths.Runtime, h, hi.SessionID, hi.ToolUseID, snap)
 			}
 			if g := newSessionGuard(); g != nil {
-				if out := g.pre(hcomp.OnPreBash, nil, info.Command).merge(d, "", ""); out != "" {
+				gout := g.pre(hcomp.OnPreBash, nil, info.Command)
+				if out := gout.merge(d, "", ""); out != "" {
+					if gout.Deny != "" && d.PreToolDecide != nil && containsDecision(d.PreToolDecisions, "deny") {
+						recordDenied(paths.Spool, ev, h, hi, toolKey(), nil, nil, gout.Deny)
+					}
 					return Result{Output: out}, nil
 				}
 			}
@@ -441,17 +447,17 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		// Giới hạn vận hành (mục 5): sửa đường dẫn được bảo vệ cần người duyệt. Hook chỉ
 		// yêu cầu harness hỏi người dùng, không tự quyết.
 		ask := ""
+		var protectedHits []string
 		if info.Kind == ToolEdit && cfgSrc.Project != "" {
-			var hit []string
 			for _, rel := range rels {
 				if pathglob.MatchAny(cfg.Limits.ProtectedPaths, rel) && !approvedPath(rel) {
-					hit = append(hit, rel)
+					protectedHits = append(protectedHits, rel)
 				}
 			}
-			if len(hit) > 0 {
-				ask = fmt.Sprintf("Bint: %s thuộc đường dẫn được bảo vệ (limits.protected_paths trong .bint/config.yml); thay đổi cần người dùng duyệt.", strings.Join(hit, ", "))
+			if len(protectedHits) > 0 {
+				ask = fmt.Sprintf("Bint: %s thuộc đường dẫn được bảo vệ (limits.protected_paths trong .bint/config.yml); thay đổi cần người dùng duyệt.", strings.Join(protectedHits, ", "))
 				if d.ProtectedPathHelp != nil {
-					ask += d.ProtectedPathHelp(hit)
+					ask += d.ProtectedPathHelp(protectedHits)
 				}
 			}
 		}
@@ -462,9 +468,18 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 				gout = g.pre(hcomp.OnPreEdit, rels, "")
 			}
 		}
+		denyProtected := len(protectedHits) > 0 && d.ProtectedPathDeny
+		denyGuardrail := gout.Deny != "" && d.PreToolDecide != nil && containsDecision(d.PreToolDecisions, "deny")
+		recordDenial := func(output string) {
+			if output != "" && (denyProtected || denyGuardrail) {
+				reason := strings.TrimSpace(strings.Join([]string{gout.Deny, ask}, " "))
+				recordDenied(paths.Spool, ev, h, hi, toolKey(), rels, protectedHits, reason)
+			}
+		}
 		inject := (info.Kind == ToolRead && d.InjectRead) || (info.Kind == ToolEdit && d.InjectEdit)
 		if !inject || !cfg.Context.Interfaces.PathHooks || cfgSrc.Project == "" {
 			if out := gout.merge(d, "", ask); out != "" {
+				recordDenial(out)
 				return Result{Output: out}, nil
 			}
 			if !inject {
@@ -489,6 +504,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		})
 		if !ok || len(pack.Entries) == 0 && len(pack.Lessons) == 0 {
 			if out := gout.merge(d, domText, ask); out != "" {
+				recordDenial(out)
 				return Result{Output: out}, nil
 			}
 			if !ok {
@@ -504,7 +520,9 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		if err != nil {
 			return Result{}, err
 		}
-		return Result{Written: true, SpoolFile: f, Output: gout.merge(d, joinText(pack.Render(), domText), ask)}, nil
+		out := gout.merge(d, joinText(pack.Render(), domText), ask)
+		recordDenial(out)
+		return Result{Written: true, SpoolFile: f, Output: out}, nil
 	case EvSessionStart:
 		ev.Type = spool.SessionStarted
 		ev.Payload["source"] = hi.Source
@@ -641,6 +659,28 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		return Result{}, err
 	}
 	return Result{Written: true, SpoolFile: f}, nil
+}
+
+func containsDecision(decisions []string, want string) bool {
+	for _, decision := range decisions {
+		if decision == want {
+			return true
+		}
+	}
+	return false
+}
+
+func recordDenied(dir string, base spool.Event, harness string, hi Input, toolKey string, paths, protectedPaths []string, reason string) {
+	if dir == "" || base.RunID == "" {
+		return
+	}
+	ev := base
+	ev.Type = spool.ToolDenied
+	ev.EventID = EventID(harness, hi.SessionID, hi.RawEvent, toolKey, "deny")
+	ev.Payload = map[string]any{"paths": paths, "protected_paths": protectedPaths, "tool": hi.ToolName,
+		"tool_use_id": hi.ToolUseID, "reason": reason}
+	// A recording failure must not change the hook's fail-open behavior.
+	_ = spool.WriteDenial(dir, ev)
 }
 
 // mcpEvent điền sự kiện cho lần gọi công cụ MCP của Bint (mục 9.7): truy xuất,

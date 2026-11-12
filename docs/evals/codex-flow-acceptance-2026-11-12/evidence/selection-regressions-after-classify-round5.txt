@@ -1,0 +1,24 @@
+--- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides (0.27s)
+    --- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides/protected-no-plan (0.14s)
+        run_selection_test.go:175: first step = b-feat, want b-req
+        run_selection_test.go:192: planner was selected before planning overrides: {Harness: Model:}
+--- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides (0.28s)
+    --- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides/protected-no-plan (0.14s)
+        run_selection_test.go:175: first step = b-feat, want b-req
+        run_selection_test.go:192: planner was selected before planning overrides: {Harness: Model:}
+--- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides (0.45s)
+    --- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides/protected-no-plan (0.27s)
+        run_selection_test.go:175: first step = b-feat, want b-req
+        run_selection_test.go:192: planner was selected before planning overrides: {Harness: Model:}
+--- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides (0.28s)
+    --- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides/protected-no-plan (0.13s)
+        run_selection_test.go:175: first step = b-feat, want b-req
+        run_selection_test.go:192: planner was selected before planning overrides: {Harness: Model:}
+--- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides (0.26s)
+    --- FAIL: TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides/protected-no-plan (0.13s)
+        run_selection_test.go:175: first step = b-feat, want b-req
+        run_selection_test.go:192: planner was selected before planning overrides: {Harness: Model:}
+FAIL
+FAIL	bint/internal/app	6.829s
+ok  	bint/internal/workflow	0.220s
+FAIL

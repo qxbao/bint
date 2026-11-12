@@ -1,0 +1,6 @@
+--- FAIL: TestRestrictedCodexToolSurface (0.00s)
+    --- FAIL: TestRestrictedCodexToolSurface/unknown_top_surface (0.00s)
+        codex_restricted_test.go:41: ok=false err=<nil>
+FAIL
+FAIL	bint/internal/eval	0.005s
+FAIL

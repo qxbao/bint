@@ -1,0 +1,21 @@
+  ✓  git                 2.43.0
+  ✓  repository          /tmp/bint-codex-accept-track.adO7oA (worktree chính)
+  ✓  sqlite fts5         khả dụng (modernc.org/sqlite, không cần CGO)
+  ✓  cấu hình            hợp lệ, schema v1 (/tmp/bint-codex-accept-track.adO7oA/.bint/config.yml)
+  ✓  thư mục trạng thái  /tmp/bint-codex-xdg-track.bEsebP/bint/bint-codex-accept-track.adO7oA-35cf9ce43c6a (dùng chung cho mọi worktree)
+  ✓  cơ sở dữ liệu       schema v9/9, journal=wal
+  ✓  spool               0 tệp chờ nạp
+  ✓  harness codex       /home/DUCLH/.local/bin/codex — cấp 3 (Programmatic Execution), xem `bint harness show codex`
+  !  hook codex          đã cài nhưng chưa xác minh trust: hooks/list của Codex: EOF
+  ✓  MCP codex           đã đăng ký
+  i  codex trust         repository chưa được Codex tin cậy: .codex/config.toml và .codex/hooks.json cấp dự án chưa có hiệu lực
+  ✓  .gitignore          có khối bint
+  i  lệnh kiểm thử       eval.test_command chưa được xác nhận
+  ✓  tri thức            0 mục: 0 verified, 0 candidate, 0 stale
+  ✓  skill b-bootstrap   .agents/skills/b-bootstrap/SKILL.md
+  ✓  skill b-do          .agents/skills/b-do/SKILL.md
+  ✓  skill b-feat        .agents/skills/b-feat/SKILL.md
+  ✓  skill b-knowledge   .agents/skills/b-knowledge/SKILL.md
+  ✓  skill b-req         .agents/skills/b-req/SKILL.md
+  ✓  skill b-review      .agents/skills/b-review/SKILL.md
+doctor exit=0

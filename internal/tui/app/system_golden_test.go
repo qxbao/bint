@@ -118,6 +118,9 @@ func TestGoldenSystemScreens(t *testing.T) {
 		for _, lang := range []string{"vi", "en", "xx"} {
 			for name, build := range systemScreens(t, lang, sz[0], sz[1]) {
 				out := plain(build().Render())
+				if source, err := bintapp.FindSource(""); err == nil {
+					out = canonicalizeSourcePath(out, source, sz[0])
+				}
 				for i, l := range strings.Split(out, "\n") {
 					if w := ansi.StringWidth(l); w > sz[0] {
 						t.Errorf("%s %dx%d %s: dòng %d rộng %d > %d: %q", name, sz[0], sz[1], lang, i, w, sz[0], l)
@@ -130,6 +133,33 @@ func TestGoldenSystemScreens(t *testing.T) {
 			}
 		}
 	}
+}
+
+func canonicalizeSourcePath(out, source string, width int) string {
+	if source == "" {
+		return out
+	}
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
+		at := strings.Index(line, source)
+		if at < 0 {
+			continue
+		}
+		prefix := line[:at]
+		rest := line[at+len(source):]
+		cursor := strings.Index(rest, "▏")
+		if cursor < 0 {
+			continue
+		}
+		placeholder := "/src/bint"
+		fixed := prefix + placeholder + rest[:cursor+len("▏")] + "│ │"
+		spaces := width - ansi.StringWidth(fixed)
+		if spaces < 0 {
+			continue
+		}
+		lines[i] = prefix + placeholder + rest[:cursor+len("▏")] + strings.Repeat(" ", spaces) + "│ │"
+	}
+	return strings.Join(lines, "\n")
 }
 
 // Không chuỗi nào ở locale giả hay vi/en còn là khoá chưa dịch (dạng "sy.x.y" hay "action.system.…"): mọi thẻ và trạng thái.

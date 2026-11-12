@@ -1,0 +1,7 @@
+✓ skill b-bootstrap: .agents/skills/b-bootstrap/SKILL.md
+✓ skill b-do: .agents/skills/b-do/SKILL.md
+✓ skill b-feat: .agents/skills/b-feat/SKILL.md
+✓ skill b-knowledge: .agents/skills/b-knowledge/SKILL.md
+✓ skill b-req: .agents/skills/b-req/SKILL.md
+✓ skill b-review: .agents/skills/b-review/SKILL.md
+sync exit=0

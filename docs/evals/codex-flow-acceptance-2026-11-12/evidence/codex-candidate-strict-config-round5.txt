@@ -1,0 +1,4 @@
+CLI codex-cli 0.167.2; isolated profile; flags from codex-no-tools-candidate-round5.toml
+exit=0
+{"appServerVersion":"0.167.2","configRequirements":{"supportsIndependentSpeedModes":true,"requirements":null}}
+WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir "/tmp" (codex_home: AbsolutePathBuf("<fixture>/home"))

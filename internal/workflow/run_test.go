@@ -6,7 +6,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -59,6 +61,98 @@ func TestResumeInterruptedPlannerFromRealCodexState(t *testing.T) {
 	}
 }
 
+func TestHookDenialIsBoundToChildRunAndCarriesProtectedPath(t *testing.T) {
+	dir := t.TempDir()
+	other := spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "other", Type: spool.ToolDenied,
+		Source: "hook:codex", Timestamp: time.Now().UTC(), RunID: "other-run", Payload: map[string]any{"protected_paths": []any{"migrations/001.sql"}}}
+	current := spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "current", Type: spool.ToolDenied,
+		Source: "hook:codex", Timestamp: time.Now().UTC(), RunID: "child-run", Payload: map[string]any{
+			"protected_paths": []any{"migrations/001.sql"}, "reason": "protected path denied"}}
+	if err := spool.WriteDenial(dir, other); err != nil {
+		t.Fatal(err)
+	}
+	if err := spool.WriteDenial(dir, current); err != nil {
+		t.Fatal(err)
+	}
+	reason, paths, denied := hookDenial(dir, "child-run")
+	if !denied || reason != "protected path denied" || len(paths) != 1 || paths[0] != "migrations/001.sql" {
+		t.Fatalf("denial not recovered: %q %v %v", reason, paths, denied)
+	}
+	if remaining, err := spool.Denials(dir, "child-run"); err != nil || len(remaining) != 0 {
+		t.Fatalf("processed child denial journal was not cleared: %d events, %v", len(remaining), err)
+	}
+	if _, _, denied = hookDenial(dir, "other-child"); denied {
+		t.Fatal("denial from another child run leaked into this workflow")
+	}
+}
+
+func TestHookDenialSurvivesConcurrentSpoolIngest(t *testing.T) {
+	h := newHarness(t)
+	ev := spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "denial-during-ingest", Type: spool.ToolDenied,
+		Source: "hook:codex", Timestamp: time.Now().UTC(), RunID: "child-run", Payload: map[string]any{
+			"protected_paths": []any{"migrations/001.sql"}, "reason": "protected path denied"}}
+	if err := spool.WriteDenial(h.spool, ev); err != nil {
+		t.Fatal(err)
+	}
+	h.ingest()
+	reason, paths, denied := hookDenial(h.spool, "child-run")
+	if !denied || reason != "protected path denied" || !slices.Equal(paths, []string{"migrations/001.sql"}) {
+		t.Fatalf("ingest consumed active child denial: %q %v %v", reason, paths, denied)
+	}
+}
+
+func TestRunPersistsEffectiveAgentChoicesInTaskState(t *testing.T) {
+	h := newHarness(t)
+	choices := map[string]task.AgentChoice{
+		"planner":     {Harness: "codex", Model: "planner-model"},
+		"implementer": {Harness: "codex", Model: "implementer-model"},
+		"reviewer":    {Harness: "codex", Model: "reviewer-model"},
+	}
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Update app.txt", Plan: ptr(false), NoReview: true,
+		AgentChoices: choices})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tk, err := h.tasks.Load(res.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(tk.State.AgentChoices, choices) {
+		t.Fatalf("saved choices = %#v, want %#v", tk.State.AgentChoices, choices)
+	}
+}
+
+func TestBusyRunnerDoesNotPersistRejectedAgentChoices(t *testing.T) {
+	h := newHarness(t)
+	old := map[string]task.AgentChoice{"implementer": {Harness: "claude", Model: "old-model"}}
+	r := h.runner()
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Update app.txt", Workflow: StepFeat})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.tasks.Update(tk.State.ID, time.Now(), func(tk *task.Task) error {
+		tk.State.AgentChoices = old
+		tk.State.Runner = &task.Runner{PID: 1, Host: "another-host", RunID: "active"}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.Run(context.Background(), RunOptions{Workflow: StepFeat, TaskRef: tk.State.ID,
+		AgentChoices: map[string]task.AgentChoice{"implementer": {Harness: "codex", Model: "rejected-model"}}})
+	var busy *task.BusyError
+	if !errors.As(err, &busy) {
+		t.Fatalf("expected busy runner error, got %v", err)
+	}
+	got, err := h.tasks.Load(tk.State.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.State.AgentChoices, old) {
+		t.Fatalf("rejected run changed saved choices: %+v", got.State.AgentChoices)
+	}
+}
+
 var stepRe = regexp.MustCompile(`step="([a-z-]+)"`)
 
 // fakeAgent mô phỏng agent: đọc bước từ đề bài, gọi thao tác tác vụ như khi chạy
@@ -90,7 +184,21 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 	// Root = thư mục chạy thật của bước (cây gốc, hoặc worktree riêng của tác vụ).
 	agentEnv := &Env{Root: req.Dir, Cfg: a.h.cfg, Tasks: a.h.tasks, Spool: a.h.spool, Actor: "agent", RunID: envs[EnvRunID]}
 	res := eval.AgentResult{CostUSD: a.cost, NumTurns: a.turns, Duration: time.Millisecond, Model: "fake-model"}
-	if err := a.h.behave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
+	a.h.mu.Lock()
+	var paths []string
+	if step == StepFeat && len(a.h.denyNext) > 0 {
+		paths = append([]string{}, a.h.denyNext...)
+		a.h.denyNext = nil
+	}
+	a.h.mu.Unlock()
+	if len(paths) > 0 {
+		err := spool.WriteDenial(a.h.spool, spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "test-denial-" + envs[EnvRunID],
+			Type: spool.ToolDenied, Source: "hook:codex", Timestamp: time.Now().UTC(), RunID: envs[EnvRunID],
+			Payload: map[string]any{"paths": paths, "protected_paths": paths, "reason": "Codex bị hook chặn: " + strings.Join(paths, ", ")}})
+		if err != nil {
+			res.ExitCode, res.Error = 1, err.Error()
+		}
+	} else if err := a.h.behave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
 		res.ExitCode, res.Error = 1, err.Error()
 	}
 	if ctx.Err() != nil {
@@ -101,19 +209,20 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 
 type harness struct {
 	// mu bảo vệ calls/prompts/limits khi nhiều Runner chạy đồng thời trên cùng harness.
-	mu      sync.Mutex
-	t       *testing.T
-	root    string
-	cfg     config.Config
-	tasks   task.Store
-	spool   string
-	db      string
-	calls   []string
-	dirs    []string // Dir của từng lần gọi agent
-	prompts map[string]string
-	behave  func(ctx context.Context, step string, e *Env, taskID string) error
-	limits  []*float64
-	cost    *float64
+	mu       sync.Mutex
+	t        *testing.T
+	root     string
+	cfg      config.Config
+	tasks    task.Store
+	spool    string
+	db       string
+	calls    []string
+	dirs     []string // Dir của từng lần gọi agent
+	prompts  map[string]string
+	behave   func(ctx context.Context, step string, e *Env, taskID string) error
+	limits   []*float64
+	cost     *float64
+	denyNext []string
 	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.
 	costFor func(step string) *float64
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
@@ -337,6 +446,35 @@ func TestApproveUnwrittenPathRerunsFeat(t *testing.T) {
 	res, err = r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true, NoReview: true})
 	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-feat" {
 		t.Fatalf("resume: %+v %v, calls=%v", res, err, h.calls)
+	}
+}
+
+func TestCodexHookDenyBlocksBeforeDiffThenApprovalResumes(t *testing.T) {
+	h := newHarness(t)
+	h.denyNext = []string{"migrations/002.sql"}
+	r := h.runner()
+	ctx := context.Background()
+	res, err := r.Run(ctx, RunOptions{Workflow: StepDo, Request: "Create a migration", Plan: ptr(false), NoReview: true})
+	if err != nil || res.Status != task.StatusBlocked {
+		t.Fatalf("deny must block: %+v %v", res, err)
+	}
+	if _, err := os.Stat(filepath.Join(h.root, "migrations/002.sql")); !os.IsNotExist(err) {
+		t.Fatalf("deny should happen before diff, stat err=%v", err)
+	}
+	tk, _ := h.tasks.Load(res.TaskID)
+	if !slices.Equal(tk.State.PendingPaths, []string{"migrations/002.sql"}) || tk.State.AwaitingCheck || !strings.Contains(tk.State.Reason, "migrations/002.sql") {
+		t.Fatalf("blocked state lost hook denial: %+v", tk.State)
+	}
+	if _, a, err := r.Approve(res.TaskID, "migrations/002.sql"); err != nil || !slices.Equal(a.Paths, []string{"migrations/002.sql"}) {
+		t.Fatalf("approve exact path: %+v %v", a, err)
+	}
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		h.write("migrations/002.sql", "SELECT 1;\n")
+		return h.happy(ctx, step, e, id)
+	}
+	resumed, err := r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true, NoReview: true})
+	if err != nil || resumed.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-feat" {
+		t.Fatalf("resume after exact approval: %+v %v calls=%v", resumed, err, h.calls)
 	}
 }
 
@@ -746,4 +884,22 @@ func TestFeatPromptListsUnmetCriteriaOnRerun(t *testing.T) {
 	if strings.Contains(p, "1. app.txt đã đổi") {
 		t.Fatalf("không liệt kê tiêu chí đã đạt:\n%s", p)
 	}
+}
+
+func TestMergedHookDenyReleasesLockAndRecordsTouched(t *testing.T) {
+	h := newHarness(t)
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		h.write("app.txt", "changed before denial\n")
+		return spool.WriteDenial(h.spool, spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "denial-" + e.RunID, Type: spool.ToolDenied, Source: "hook:codex", Timestamp: time.Now().UTC(), RunID: e.RunID, Payload: map[string]any{"protected_paths": []string{"migrations/002.sql"}, "reason": "denied"}})
+	}
+	res := h.runFeat("Update app.txt", "")
+	tk := h.load(res.TaskID)
+	if res.Status != task.StatusBlocked || len(res.Steps) != 1 || res.Steps[0].Status != "blocked" || !slices.Equal(tk.State.PendingPaths, []string{"migrations/002.sql"}) || tk.State.AwaitingCheck || !slices.Contains(tk.State.Touched, "app.txt") {
+		t.Fatalf("result=%+v state=%+v", res, tk.State)
+	}
+	l, err := AcquireLock(h.tasks.Dir, h.root, "another runner", LockExclusive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Release()
 }

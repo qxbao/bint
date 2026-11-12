@@ -1,0 +1,16 @@
+{
+  "diagnostic_only": true,
+  "warning": "debug prompt-input output exposes inherited host tool definitions; does not certify the candidate thread tool set",
+  "names": [
+    "functions.exec",
+    "functions.wait",
+    "functions.request_user_input",
+    "functions.request_user_input_async",
+    "collaboration.followup_task",
+    "collaboration.interrupt_agent",
+    "collaboration.list_agents",
+    "collaboration.send_message",
+    "collaboration.spawn_agent",
+    "collaboration.wait_agent"
+  ]
+}

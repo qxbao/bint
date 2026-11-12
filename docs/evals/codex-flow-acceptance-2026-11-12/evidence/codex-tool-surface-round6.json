@@ -1,0 +1,75 @@
+{
+  "evidence_kind": "real Codex 0.167.2 CLI against local fixture Responses endpoint; no live model in these three probes",
+  "original_model_metadata": {
+    "slug": "gpt-6.1-sol",
+    "tool_mode": "code_mode_only",
+    "multi_agent_version": "v2",
+    "apply_patch_tool_type": "freeform",
+    "experimental_supported_tools": [
+      "send_user_message_async",
+      "clock"
+    ]
+  },
+  "stages": [
+    {
+      "stage": "flags_only",
+      "model": "gpt-6.1-sol",
+      "top_tools": [],
+      "additional_tools": [
+        {
+          "type": "custom",
+          "name": "functions.exec"
+        },
+        {
+          "type": "function",
+          "name": "functions.wait"
+        },
+        {
+          "type": "function",
+          "name": "collaboration.followup_task"
+        },
+        {
+          "type": "function",
+          "name": "collaboration.interrupt_agent"
+        },
+        {
+          "type": "function",
+          "name": "collaboration.list_agents"
+        },
+        {
+          "type": "function",
+          "name": "collaboration.send_message"
+        },
+        {
+          "type": "function",
+          "name": "collaboration.spawn_agent"
+        },
+        {
+          "type": "function",
+          "name": "collaboration.wait_agent"
+        }
+      ],
+      "request_sha256": "edbe62af52e91c11737e22c31295d148e3e6b906a038ab16cf8a59d830b6452d"
+    },
+    {
+      "stage": "catalog_without_code_mode_multi_agent",
+      "model": "gpt-6.1-sol",
+      "top_tools": [],
+      "additional_tools": [
+        {
+          "type": "custom",
+          "name": "functions.apply_patch"
+        }
+      ],
+      "request_sha256": "896972d0d6455d38a4163f69dd43abb2a35aa414e29a88fd65a54b5a8a8f54dc"
+    },
+    {
+      "stage": "catalog_without_native_tools",
+      "model": "gpt-6.1-sol",
+      "top_tools": [],
+      "additional_tools": [],
+      "request_sha256": "8a598673717c0b6270b8cc5cdb4cb380e810e9f92af4b72014a1f2c71c699437"
+    }
+  ],
+  "redaction": "Only model/tool names/types and local request hashes; no auth, request headers, instructions or session identities."
+}

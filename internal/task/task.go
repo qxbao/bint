@@ -285,12 +285,14 @@ type Runner struct {
 
 // State là trạng thái tác vụ (state.json), chỉ Bint ghi.
 type State struct {
-	Schema    int    `json:"schema"`
-	ID        string `json:"id"`
-	Status    string `json:"status"`
-	Workflow  string `json:"workflow"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	Schema   int    `json:"schema"`
+	ID       string `json:"id"`
+	Status   string `json:"status"`
+	Workflow string `json:"workflow"`
+	// AgentChoices ghi lựa chọn harness/model hiệu lực theo role để resume không đổi agent khi cấu hình đổi.
+	AgentChoices map[string]AgentChoice `json:"agent_choices,omitempty"`
+	CreatedAt    string                 `json:"created_at"`
+	UpdatedAt    string                 `json:"updated_at"`
 	// Base là commit gốc lúc tạo tác vụ (phạm vi diff mặc định của review).
 	Base     string `json:"base,omitempty"`
 	Branch   string `json:"branch,omitempty"`
@@ -445,6 +447,12 @@ func (s *State) EverInProgress() bool {
 		}
 	}
 	return false
+}
+
+// AgentChoice là harness/model đã chọn cho một role của workflow.
+type AgentChoice struct {
+	Harness string `json:"harness"`
+	Model   string `json:"model,omitempty"`
 }
 
 // LastVerification trả về lần kiểm chứng gần nhất (nil nếu chưa có).

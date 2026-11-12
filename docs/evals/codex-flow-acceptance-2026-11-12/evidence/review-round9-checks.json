@@ -1,0 +1,65 @@
+[
+  {
+    "command": "GOCACHE=/tmp/bint-gocache go test ./...",
+    "exit_code": 0,
+    "evidence": "Full command run during this review; tool session 33013 exited 0 (TUI app 113.768s)."
+  },
+  {
+    "command": "GOCACHE=/tmp/bint-gocache go test ./internal/eval -run 'TestCodexReader|TestCodexReaders|TestReviewGlobConcurrentDirectoryReplacement|TestRestricted|TestCodexEvolution' -count=5",
+    "exit_code": 0,
+    "evidence": "Tool session 89881 exited 0; internal/eval 23.452s."
+  },
+  {
+    "command": "GOCACHE=/tmp/bint-gocache go test ./internal/workflow ./internal/app ./internal/app/evolvesvc -count=1",
+    "exit_code": 0,
+    "evidence": "Tool session 35735 exited 0."
+  },
+  {
+    "name": "vet-linux",
+    "command": [
+      "go",
+      "vet",
+      "./..."
+    ],
+    "exit_code": 0,
+    "duration": 4.065995693206787
+  },
+  {
+    "name": "vet-windows",
+    "command": [
+      "go",
+      "vet",
+      "./..."
+    ],
+    "exit_code": 0,
+    "duration": 4.0595543384552
+  },
+  {
+    "name": "staticcheck-linux",
+    "command": [
+      "/tmp/bint-tools/staticcheck",
+      "./..."
+    ],
+    "exit_code": 0,
+    "duration": 2.8759570121765137
+  },
+  {
+    "name": "staticcheck-windows",
+    "command": [
+      "/tmp/bint-tools/staticcheck",
+      "./..."
+    ],
+    "exit_code": 0,
+    "duration": 2.2723448276519775
+  },
+  {
+    "name": "diff-check",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "duration": 0.08631682395935059
+  }
+]

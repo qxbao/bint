@@ -188,26 +188,29 @@ type reply struct {
 }
 
 func (r *reply) drain(ch chan tea.Msg, done <-chan struct{}) {
+	consume := func(m tea.Msg) {
+		switch m := m.(type) {
+		case jobs.PromptMsg:
+			r.prompt, r.asked = m.Prompt, true
+			if r.onAsked != nil {
+				r.onAsked()
+			}
+			m.Reply <- jobs.Answer{Yes: r.answer}
+		case jobs.LogMsg:
+			r.logs = append(r.logs, m.Line)
+		case jobs.DataMsg:
+			r.data = append(r.data, m.Value)
+		}
+	}
 	for {
 		select {
 		case m := <-ch:
-			switch m := m.(type) {
-			case jobs.PromptMsg:
-				r.prompt, r.asked = m.Prompt, true
-				if r.onAsked != nil {
-					r.onAsked()
-				}
-				m.Reply <- jobs.Answer{Yes: r.answer}
-			case jobs.LogMsg:
-				r.logs = append(r.logs, m.Line)
-			case jobs.DataMsg:
-				r.data = append(r.data, m.Value)
-			}
+			consume(m)
 		case <-done:
+			// The job has stopped producing, but its last data messages may
+			// still be queued when select chooses done before ch.
 			for len(ch) > 0 {
-				if m, ok := (<-ch).(jobs.LogMsg); ok {
-					r.logs = append(r.logs, m.Line)
-				}
+				consume(<-ch)
 			}
 			return
 		}

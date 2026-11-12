@@ -1,0 +1,13 @@
+=== RUN   TestCodexRestrictedLive
+=== RUN   TestCodexRestrictedLive/read=false
+    codex_restricted_test.go:249: model=gpt-6.1-astra read=false exit=-1 timeout=false in=<nil> out=<nil> text= error=requested Codex model "gpt-6.1-astra" is absent from its catalog; refusing fallback
+    codex_restricted_test.go:251: live inference failed: {ExitCode:-1 Duration:49.187094ms TimedOut:false Error:requested Codex model "gpt-6.1-astra" is absent from its catalog; refusing fallback NumTurns:<nil> InputTokens:<nil> OutputTokens:<nil> CostUSD:<nil> Model:gpt-6.1-astra Text: SkillsActivated:[] Infra: QuotaHit:false}
+=== RUN   TestCodexRestrictedLive/read=true
+    codex_restricted_test.go:249: model=gpt-6.1-astra read=true exit=-1 timeout=false in=<nil> out=<nil> text= error=requested Codex model "gpt-6.1-astra" is absent from its catalog; refusing fallback
+    codex_restricted_test.go:251: live inference failed: {ExitCode:-1 Duration:46.801405ms TimedOut:false Error:requested Codex model "gpt-6.1-astra" is absent from its catalog; refusing fallback NumTurns:<nil> InputTokens:<nil> OutputTokens:<nil> CostUSD:<nil> Model:gpt-6.1-astra Text: SkillsActivated:[] Infra: QuotaHit:false}
+--- FAIL: TestCodexRestrictedLive (0.10s)
+    --- FAIL: TestCodexRestrictedLive/read=false (0.05s)
+    --- FAIL: TestCodexRestrictedLive/read=true (0.05s)
+FAIL
+FAIL	bint/internal/eval	0.106s
+FAIL

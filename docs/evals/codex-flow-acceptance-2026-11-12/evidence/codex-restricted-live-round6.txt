@@ -1,0 +1,53 @@
+=== RUN   TestCodexRestrictedLive
+=== RUN   TestCodexRestrictedLive/read=false
+    codex_restricted_test.go:268: isolation={"isolated":true,"model":"gpt-6.1-sol","tools":[],"probe":"real Codex CLI; local fixture Responses endpoint, not live model"} cleanup={
+          "bundled_skills": false,
+          "copied_user_hooks": false,
+          "copied_user_instructions": false,
+          "copied_user_plugins": false,
+          "isolated": true,
+          "profile_removed": true,
+          "runtime_keys_retained": [
+            "model",
+            "model_provider",
+            "model_providers",
+            "model_reasoning_effort",
+            "model_context_window",
+            "model_auto_compact_token_limit",
+            "service_tier"
+          ],
+          "user_admin_skill_rules": 4
+        }
+    codex_restricted_test.go:269: model=gpt-6.1-sol read=false exit=0 timeout=false in=8763 out=121 text={"read":"unavailable","write":"unavailable","reason":"No filesystem tools are available, and the sandbox is read-only."} error=
+=== RUN   TestCodexRestrictedLive/read=true
+    codex_restricted_test.go:268: isolation={"isolated":true,"model":"gpt-6.1-sol","tools":["Read","Grep","Glob"],"probe":"real Codex CLI; local fixture Responses endpoint, not live model"} cleanup={
+          "bundled_skills": false,
+          "copied_user_hooks": false,
+          "copied_user_instructions": false,
+          "copied_user_plugins": false,
+          "isolated": true,
+          "profile_removed": true,
+          "runtime_keys_retained": [
+            "model",
+            "model_provider",
+            "model_providers",
+            "model_reasoning_effort",
+            "model_context_window",
+            "model_auto_compact_token_limit",
+            "service_tier"
+          ],
+          "user_admin_skill_rules": 4
+        }
+    codex_restricted_test.go:269: model=gpt-6.1-sol read=true exit=0 timeout=false in=14488 out=147 text={
+          "source_content": "BINT_SOURCE_CANARY_7193",
+          "restricted_read": {
+            "path": "/tmp/TestCodexRestrictedLive2563399039/002/hidden.txt",
+            "status": "denied",
+            "error": "path outside readable source scope"
+          }
+        } error=
+--- PASS: TestCodexRestrictedLive (25.10s)
+    --- PASS: TestCodexRestrictedLive/read=false (11.62s)
+    --- PASS: TestCodexRestrictedLive/read=true (13.47s)
+PASS
+ok  	bint/internal/eval	25.118s

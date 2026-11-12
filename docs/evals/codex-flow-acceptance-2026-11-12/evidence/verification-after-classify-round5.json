@@ -1,0 +1,56 @@
+{
+  "recorded_at_utc": "2026-11-12T07:21:01.353243+00:00",
+  "head": "e9ce282ba1671a476b195eb9b5d2a490fb77acac",
+  "staticcheck_version": "2026.1 (v0.7.0)",
+  "source_sha256": {
+    "internal/app/evolvesvc/agents.go": "5eeaa238c1952f81c84d350eba1f78ece86bceaa4dc43066a944fdfa7ee3a672",
+    "internal/app/evolvesvc/agents_test.go": "63e74149d77834cac59eb77bd2071c4e4508138380dc5ad9eb7498c2ede2ee74",
+    "internal/app/guardrail_hook_test.go": "86709341f9a49d905fac135f553d629a99c027df295476cd616d2532315a44c2",
+    "internal/app/run_selection_test.go": "4bd67192348423298d8f6fbff1a100b7010f02ec3240a2bc36c2ee7d68c14271",
+    "internal/app/run_svc.go": "607168b4382486e8136c6a418167c777506ec671834a7323f212f72470eff3e3",
+    "internal/harness/codex/codex.go": "7b2c20cd764c29aa9de328b113cc26c74849dc8644dc9eeac57a3f72004ba1f9",
+    "internal/harness/codex/process_unix_test.go": "318d48e1910cae5ec6dbb8fa002a678417ff5136450fa460c354c2ce55831ebd",
+    "internal/harness/harness.go": "2ce16428248927467f1b843f18cbe40fb97d02cce78431c7c799ee9a46c79cb0",
+    "internal/harness/hookcore/hook.go": "076d229643bd2a91a3b20e181d36a5d9f40bcc0490084a51c1cf7f0c9cb32d4c",
+    "internal/spool/spool.go": "3e80227edc94746ed0d692875167b5899dd16f42df4baf12b5c96bdac4ad98e1",
+    "internal/task/task.go": "8faab92fca1d6f4d2aa780f5911ce34d033a13017a984be95190a1ea434df63e",
+    "internal/tui/actions/eval_test.go": "f84f65dd154d9e9ad92420327432f6d034b652722db11c49c1968b145c37c149",
+    "internal/tui/app/system_golden_test.go": "8b2ca49bb8bab04157c531e2b3f775ba7cb9a728362dba9024a29c7e79f3f3c1",
+    "internal/workflow/agent.go": "b9d2c4e72539a26765f1845e6e89bd5263f2d6cddcbc08436eeb710b575278e5",
+    "internal/workflow/agent_test.go": "036565e12c358c8b65aea7681475ad74b6dcd8d063338ed47a3400c9fc157529",
+    "internal/workflow/run.go": "e97d78376e25284fae36559e4f979a21c53735aae0394fbd8e4125014dd0e71c",
+    "internal/workflow/run_test.go": "9fe3e3bfda5a96996c22a94ba2e48e75ace8fc10d17c7b4899815b67c8ab0486"
+  },
+  "checks": [
+    {
+      "command": "GOCACHE=/tmp/bint-gocache go test ./...",
+      "exit_code": 0,
+      "log": "go-test-after-classify-round5.txt",
+      "log_sha256": "278a88034151b8bc8202bd7d9962882a053de9ebe7474588a172e9ea1a6d0a51"
+    },
+    {
+      "command": "GOCACHE=/tmp/bint-gocache go vet ./...",
+      "exit_code": 0,
+      "log": "vet-linux-after-classify-round5.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "GOOS=windows GOCACHE=/tmp/bint-gocache go vet ./...",
+      "exit_code": 0,
+      "log": "vet-windows-after-classify-round5.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "GOCACHE=/tmp/bint-gocache XDG_CACHE_HOME=/tmp/bint-staticcheck-cache /tmp/bint-tools/staticcheck ./...",
+      "exit_code": 0,
+      "log": "staticcheck-linux-after-classify-round5.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "GOOS=windows GOCACHE=/tmp/bint-gocache XDG_CACHE_HOME=/tmp/bint-staticcheck-cache /tmp/bint-tools/staticcheck ./...",
+      "exit_code": 0,
+      "log": "staticcheck-windows-after-classify-round5.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

@@ -186,9 +186,21 @@ tác vụ tiếp theo và chuyển `interrupted`. Có hai thời điểm duyệt
    rồi chạy tiếp (`--path` đặt điểm tiếp tục về `in_progress` để chạy lại `b-feat`; nếu trước đó gọi lẻ
    `b-feat` khiến tác vụ đã sang `in_review`, gọi lại `bint run b-feat --task <id>`).
 
-Lưu ý: `resume` dùng workflow và độ sâu đã lưu trong tác vụ nhưng **không lưu các cờ ghi đè trên dòng
-lệnh** (`--harness`, `--role`, `--model`); nếu lượt trước có ghi đè trên dòng lệnh, truyền lại các cờ đó
-khi gọi `bint run resume`.
+Hook ghi quyết định deny vào nhật ký spool riêng gắn với child run, để `runlog.Ingest` không thể
+xóa tín hiệu trước khi runner đọc. Deny của guardrail `pre_edit`/`pre_bash` cũng làm workflow
+`blocked`; chỉ đường dẫn thuộc `limits.protected_paths` tạo yêu cầu duyệt đường dẫn. Lỗi ghi nhật ký
+không làm hook trả lỗi hay chặn agent.
+
+`resume` tái dùng lựa chọn harness/model hiệu lực đã lưu theo role trong trạng thái tác vụ. Với
+Claude, khi không có model theo role thì snapshot lấy từ `workflow.agent.model` (cùng giá trị agent
+workflow dùng), không lấy model của `eval.agent`. Workflow đơn chỉ cần xác thực role tương ứng với
+bước đang chạy; role khác chưa bật không làm bước đó lỗi. Role chưa chọn không được lưu như một
+snapshot rỗng; bản cũ có Harness rỗng được coi là chưa chọn. Snapshot có Harness nhưng Model rỗng
+giữ mặc định CLI, kể cả Claude, khi cấu hình model đổi. Trong `b-do`, planner đã bỏ qua theo
+classification/trạng thái hoặc `--no-plan`, và reviewer khi `--no-review`, không bị xác thực. Việc phân giải lựa chọn diễn ra sau Classify và áp cờ lập kế hoạch, trước khi claim runner. Cờ
+`--harness`, `--role` hoặc `--model` truyền tường minh khi resume ghi đè lựa chọn tương ứng; harness
+vẫn phải đang có trong `harnesses.enabled`. Tác vụ cũ chưa có snapshot dùng cấu hình hiện tại và lưu
+lựa chọn đó khi chạy tiếp. Tác vụ vẫn giữ nguyên workflow, quyền duyệt và ngân sách.
 
 **Tín hiệu kết quả mới** (mục 9.6): `verify` (lệnh kiểm chứng; mạnh nếu đã xác nhận — quyết định nhãn
 như kiểm thử mạnh), `criteria` (agent tự đối chiếu, trung bình), `review` (phát hiện nghiêm trọng,
@@ -526,7 +538,24 @@ Giới hạn đã biết của P4–P5:
   (`task status <id> cancelled`) tác vụ bỏ dở để hết cảnh báo.
 - Khoá Windows (`LockFileEx` trên một byte ở offset lớn) mới kiểm biên dịch (`GOOS=windows go vet`, staticcheck),
   chưa chạy thật; trong lúc nâng cấp, binary cũ (khoá byte 0) và mới không loại trừ lẫn nhau trên Windows.
-- Ghi đè `--harness`/`--role` chưa lưu vào `state.json` của tác vụ nên cần truyền lại khi `resume`.
-- Hook `deny` của Codex chặn thao tác sửa tệp nhưng chưa tự chuyển tác vụ sang `blocked`.
+- Ghi đè `--harness`/`--role`/`--model` hiệu lực được lưu theo role trong `state.json`; task cũ không có snapshot dùng cấu hình hiện tại.
+- Hook Codex ghi sự kiện deny có child run/tool ID và đường dẫn. Runner chuyển tác vụ sang `blocked`; duyệt đúng tệp bằng `task approve --path` rồi `resume` chạy lại `b-feat`.
 - Antigravity: chưa có MCP cấp dự án, chưa chèn ngữ cảnh qua hook, đề bài `bint run` truyền qua một
   đối số dòng lệnh (giới hạn 120 KiB), và một số payload công cụ thực tế cần kiểm chứng thêm khi chạy live.
+
+### Agent evolution Codex (0.167.2)
+
+Evolver/reflector/harness proposer dùng `CodexRestrictedAgent`, tách khỏi adapter
+workflow `codex exec`. Catalog model tạm bỏ Code Mode, multi-agent và apply_patch;
+app-server chạy cwd/profile/state rỗng với environments rỗng. Mỗi lượt phải qua
+probe request thật tại endpoint fixture (kiểm cả tools và additional_tools) trước
+khi nhận dữ liệu nghiệp vụ. Reflector/proposer không có công cụ; evolver chỉ có
+Read/Grep/Glob do Bint thực thi trong repository với giới hạn output, không shell.
+Model yêu cầu được giữ nguyên; model không có trong catalog, công cụ/field lạ hoặc
+probe thất bại làm dừng trước inference. Extra args không được đưa vào đường này.
+Không tự trust hook, bật evolution hoặc nới cổng chống rò rỉ/ngân sách đánh giá.
+[Thiết kế, smoke live và giới hạn model cấu hình hiện tại](evals/codex-flow-acceptance-2026-11-12/codex-restricted-adapter-round6.md).
+
+Với `bint run --agent-command`, command thay cho harness nên Bint không phân giải
+các role harness không dùng. Snapshot harness/model có trước được giữ để resume
+sau này; command không tạo snapshot giả cho các role đó.
