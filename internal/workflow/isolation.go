@@ -314,10 +314,14 @@ type ReadonlyCheck struct {
 // ReadonlyViolations đối chiếu các đường dẫn đổi giữa hai ảnh chụp với những gì bước chỉ đọc được phép đổi:
 //
 //   - Tệp tri thức MỚI (chưa có ở ảnh trước) trong thư mục items, hợp lệ và ở trạng thái candidate.
-//   - Đường dẫn mà dòng nhật ký ghi (writesLog) MỚI NHẤT của nó nằm trong khoảng bước chạy (At >= since), có
-//     agent=false và sha256 khớp nội dung hiện tại của tệp (tệp đã xoá: sha256 rỗng) — thay đổi do người ghi
-//     qua Bint (docs/isolation-subagent-plan.md 4.5). Agent gọi lệnh Bint (agent=true), hoặc sửa tiếp tệp sau
-//     người (băm lệch), hoặc sửa không qua Bint (không có dòng) vẫn là vi phạm.
+//   - Đường dẫn có chuỗi dòng nhật ký ghi (writesLog, At >= since, theo thứ tự trong tệp) nối liền từ nội dung
+//     ở ảnh trước tới nội dung hiện tại: mỗi dòng có agent=false và prev_sha256 bằng băm hiện hành (ban đầu: băm
+//     blob của ảnh trước, đọc qua `git cat-file --filters`; tệp chưa có ở ảnh trước: rỗng), rồi băm hiện hành
+//     thành sha256 của dòng; dòng ghi trùng trạng thái hiện hành (ghi giữa mốc since và ảnh trước) bỏ qua; cuối
+//     chuỗi băm hiện hành phải bằng nội dung hiện tại của tệp (tệp đã xoá: rỗng). Đó là thay đổi do người ghi qua
+//     Bint (docs/isolation-subagent-plan.md 4.5). Agent gọi lệnh Bint (agent=true), dòng thiếu prev_sha256, mắt
+//     xích đứt (agent đã sửa tệp trước khi người ghi đọc-sửa-ghi), sửa tiếp sau người (băm lệch), hoặc sửa không
+//     qua Bint (không có dòng) vẫn là vi phạm.
 //
 // Sửa/xoá mục tri thức có sẵn, hoặc tệp mới tự gán status khác candidate đều là vi phạm. writesLog rỗng:
 // không có miễn trừ nhật ký.
@@ -329,12 +333,12 @@ func ReadonlyViolations(ctx context.Context, root, before, after string, since t
 		ps, _ := DiffPaths(ctx, root, before, after)
 		return ReadonlyCheck{Violations: ps}
 	}
-	var latest map[string]WriteRecord
+	var chains map[string][]WriteRecord
 	if writesLog != "" {
 		if recs, err := ReadWrites(writesLog, since); err == nil {
-			latest = make(map[string]WriteRecord, len(recs))
+			chains = make(map[string][]WriteRecord, len(recs))
 			for _, r := range recs {
-				latest[r.Path] = r // dòng cuối trong tệp thắng
+				chains[r.Path] = append(chains[r.Path], r) // giữ thứ tự trong tệp
 			}
 		}
 	}
@@ -346,13 +350,51 @@ func ReadonlyViolations(ctx context.Context, root, before, after string, since t
 			continue
 		}
 		abs := filepath.Join(root, filepath.FromSlash(p))
-		if rec, ok := latest[NormalizeWritePath(abs)]; ok && !rec.Agent && rec.SHA256 == HashFile(abs) {
+		if chain := chains[NormalizeWritePath(abs)]; len(chain) > 0 && humanChain(ctx, root, before, st, p, abs, chain) {
 			res.HumanWrites = append(res.HumanWrites, p)
 			continue
 		}
 		res.Violations = append(res.Violations, p)
 	}
 	return res
+}
+
+// humanChain: chuỗi dòng nhật ký của một đường dẫn đổi (status git st) có nối liền từ nội dung ở ảnh before tới
+// nội dung hiện tại của abs và không có dòng nào của agent hoặc thiếu prev_sha256 (xem ReadonlyViolations).
+func humanChain(ctx context.Context, root, before, st, rel, abs string, chain []WriteRecord) bool {
+	cur := ""
+	if st != "A" { // "A": tệp chưa có ở ảnh trước, băm rỗng
+		h, ok := blobWorktreeHash(ctx, root, before, rel)
+		if !ok {
+			return false
+		}
+		cur = h
+	}
+	for _, r := range chain {
+		switch {
+		case r.Agent || r.Prev == nil:
+			return false
+		case *r.Prev == cur:
+			cur = r.SHA256
+		case r.SHA256 == cur:
+			// ghi trùng trạng thái hiện hành (ghi xong ngay trước ảnh chụp trước): không đổi gì
+		default:
+			return false
+		}
+	}
+	return cur == HashFile(abs)
+}
+
+// blobWorktreeHash là sha256 nội dung tệp rel ở cây before sau khi áp bộ lọc làm việc (eol/smudge) — tức đúng
+// byte mà cây làm việc có lúc chụp. Lỗi (kể cả bộ lọc LFS lỗi) trả ok=false: không có chuỗi ⇒ vi phạm.
+func blobWorktreeHash(ctx context.Context, root, before, rel string) (string, bool) {
+	cmd := exec.CommandContext(ctx, "git", "cat-file", "--filters", before+":"+rel)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return "", false
+	}
+	return HashBytes(out), true
 }
 
 func newCandidateFile(root, rel string) bool {

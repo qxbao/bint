@@ -144,7 +144,16 @@ type runState struct {
 	warnedNoCost bool
 	// warnedNoTurns: đã ghi chú harness không áp được max_turns.
 	warnedNoTurns bool
+	// featScope*: tập tệp phạm vi tính ngay sau b-feat khi còn giữ khoá độc quyền (phát hiện .8, mục 12.5);
+	// checkScope dùng rồi xoá cờ. featScopeSet=false ⇒ checkScope tự tính dưới khoá chia sẻ.
+	featScope    []string
+	featScopeErr error
+	featScopeSet bool
 }
+
+// afterStepUnlock là seam kiểm thử (nil ở sản phẩm): gọi ngay sau khi runStep nhả khoá worktree của bước,
+// tức thời điểm một b-feat của tác vụ khác có thể giành khoá.
+var afterStepUnlock func(step string)
 
 func (r *Runner) logf(format string, a ...any) {
 	if r.Logf != nil {
@@ -581,7 +590,12 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	if !ok {
 		return false
 	}
-	defer lock.Release()
+	defer func() {
+		lock.Release()
+		if afterStepUnlock != nil {
+			afterStepUnlock(step)
+		}
+	}()
 	var snapBefore, featBefore string
 	started := time.Now() // đồng hồ thật: cùng đồng hồ với dòng nhật ký ghi (không dùng r.now() có thể bị giả)
 	if readOnly {
@@ -625,6 +639,13 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
 		LogPath: stepLog, Env: env, ReadOnly: readOnly, WritableDirs: r.stateDirs()})
 	r.endTouched(ctx, rs, featBefore)
+	if step == StepFeat && ctx.Err() == nil {
+		// Tính phạm vi khi còn giữ khoá độc quyền: sau khi nhả, b-feat của tác vụ khác có thể ghi tệp dở
+		// dang vào cây và bị quy nhầm cho tác vụ này. Chỉ tính ở đây; hỏi người (checkScope) làm sau khi
+		// nhả khoá để không chặn tác vụ khác trong lúc chờ.
+		rs.featScope, rs.featScopeErr = ScopeFiles(ctx, r.Root, r.Tasks, rs.t, r.Cfg.Limits.ProtectedPaths)
+		rs.featScopeSet = true
+	}
 	var humanWrites []string
 	if readOnly && ctx.Err() == nil {
 		after, err := WorktreeSnapshot(ctx, r.Root)
@@ -961,7 +982,21 @@ func passWord(ok bool) string {
 
 // checkScope đối chiếu tệp đã sửa với phạm vi phiếu và đường dẫn bảo vệ (mục 5, 6.7).
 func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
-	files, err := ScopeFiles(ctx, r.Root, r.Tasks, rs.t)
+	var files []string
+	var err error
+	if rs.featScopeSet {
+		files, err = rs.featScope, rs.featScopeErr
+		rs.featScope, rs.featScopeErr, rs.featScopeSet = nil, nil, false
+	} else {
+		// Resume (b-feat chạy ở lượt trước): khoá chia sẻ đợi b-feat đang chạy của tác vụ khác xong nên tệp
+		// dở dang của nó không bị tính; nhả ngay, trước khi hỏi người.
+		lock, ok := r.lockStep(ctx, rs, "scope", LockShared)
+		if !ok {
+			return false
+		}
+		files, err = ScopeFiles(ctx, r.Root, r.Tasks, rs.t, r.Cfg.Limits.ProtectedPaths)
+		lock.Release()
+	}
 	if err != nil {
 		r.fail(rs, "scope", "không xác định được tệp đã sửa: "+err.Error())
 		return false

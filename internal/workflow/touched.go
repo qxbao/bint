@@ -195,12 +195,19 @@ func (r *Runner) overlaps(t *task.Task) map[string][]string {
 	return out
 }
 
-// outsideFeat liệt kê tệp đổi giữa BaseTree và cây hiện tại mà không thuộc Touched của tác vụ nào trên
-// cùng worktree (kể cả tác vụ đã kết thúc): tức là việc ngoài b-feat do Runner chạy — sửa tay bằng
-// agent hay người, ở bất kỳ trạng thái nào của tác vụ. Chúng được tính vào phạm vi của t để không lọt
-// kiểm tra đường dẫn bảo vệ/deny. Tệp có sẵn chưa commit lúc BaseTree không đổi thì không nằm ở đây.
-// Giới hạn: thay đổi tay của người dùng ở cùng worktree cũng bị quy cho t (bảo thủ: chỉ hỏi duyệt).
-func outsideFeat(ctx context.Context, root string, tasks task.Store, t *task.Task) ([]string, error) {
+// outsideFeat liệt kê tệp đổi giữa BaseTree và cây hiện tại mà không được Touched của tác vụ nào miễn
+// cho t: tức là việc ngoài b-feat do Runner chạy — sửa tay bằng agent hay người, ở bất kỳ trạng thái nào
+// của tác vụ. Chúng được tính vào phạm vi của t để không lọt kiểm tra đường dẫn bảo vệ/deny.
+// Luật miễn trừ (phát hiện .7, mục 12.3/12.5 của isolation-subagent-plan):
+//   - Touched của chính t luôn được miễn (đã là một phần của t).
+//   - Touched của tác vụ KHÁC chỉ miễn khi tác vụ đó chưa kết thúc (done/cancelled thì thay đổi của nó
+//     không còn được ai theo dõi) và tệp không phải đường dẫn bảo vệ/deny: sửa tay một tệp bảo vệ mà tác
+//     vụ khác từng sửa không được lọt cổng done của t.
+//
+// Tệp có sẵn chưa commit lúc BaseTree không đổi thì không nằm ở đây.
+// Giới hạn: thay đổi tay của người dùng ở cùng worktree cũng bị quy cho t (bảo thủ: chỉ hỏi duyệt);
+// tệp của tác vụ đã kết thúc còn khác BaseTree của t cũng bị quy cho t.
+func outsideFeat(ctx context.Context, root string, tasks task.Store, t *task.Task, protected []string) ([]string, error) {
 	if !t.State.TracksTouched() {
 		return nil, nil
 	}
@@ -215,36 +222,41 @@ func outsideFeat(ctx context.Context, root string, tasks task.Store, t *task.Tas
 	if len(changed) == 0 {
 		return nil, nil
 	}
-	claimed := map[string]bool{}
+	own := map[string]bool{}
 	for _, f := range t.State.Touched {
-		claimed[f] = true
+		own[f] = true
 	}
+	others := map[string]bool{}
 	all, _ := tasks.List()
 	for _, o := range all {
-		if o.State.ID == t.State.ID || o.State.Worktree == "" || !samePath(o.State.Worktree, root) {
+		if o.State.ID == t.State.ID || task.Terminal(o.State.Status) || o.State.Worktree == "" || !samePath(o.State.Worktree, root) {
 			continue
 		}
 		for _, f := range o.State.Touched {
-			claimed[f] = true
+			others[f] = true
 		}
 	}
 	var out []string
 	for _, f := range changed {
-		if !claimed[f] {
-			out = append(out, f)
+		if own[f] {
+			continue
 		}
+		if others[f] && len(task.CheckScope([]string{f}, t.Ticket, protected).NeedsApproval()) == 0 {
+			continue
+		}
+		out = append(out, f)
 	}
 	return out, nil
 }
 
 // ScopeFiles là tập tệp dùng cho kiểm tra phạm vi và `bint task diff` của tác vụ t trên root: Touched
 // hợp với thay đổi ngoài b-feat (outsideFeat) nếu có theo dõi, ngược lại toàn bộ thay đổi so với Base
-// (phiếu cũ). Chụp cây hiện tại (chỉ thêm đối tượng Git, không đụng cây làm việc).
-func ScopeFiles(ctx context.Context, root string, tasks task.Store, t *task.Task) ([]string, error) {
+// (phiếu cũ). protected là limits.protected_paths. Chụp cây hiện tại (chỉ thêm đối tượng Git, không đụng cây làm việc).
+func ScopeFiles(ctx context.Context, root string, tasks task.Store, t *task.Task, protected []string) ([]string, error) {
 	if !t.State.TracksTouched() {
 		return task.ChangedFiles(ctx, root, t.State.Base)
 	}
-	out, err := outsideFeat(ctx, root, tasks, t)
+	out, err := outsideFeat(ctx, root, tasks, t, protected)
 	if err != nil {
 		return nil, err
 	}

@@ -419,7 +419,7 @@ func (e *Env) UnapprovedChanges(ctx context.Context, t *task.Task) ([]string, er
 	if err != nil {
 		return nil, err
 	}
-	files, err := ScopeFiles(ctx, root, e.Tasks, t)
+	files, err := ScopeFiles(ctx, root, e.Tasks, t, e.Cfg.Limits.ProtectedPaths)
 	if err != nil {
 		return nil, err
 	}

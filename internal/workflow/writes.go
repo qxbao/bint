@@ -28,8 +28,13 @@ type WriteRecord struct {
 	// Path là đường dẫn tuyệt đối đã chuẩn hoá (NormalizeWritePath).
 	Path string `json:"path"`
 	// SHA256 là băm nội dung tệp sau khi ghi; rỗng nếu tệp đã bị xoá.
-	SHA256 string    `json:"sha256"`
-	At     time.Time `json:"at"`
+	SHA256 string `json:"sha256"`
+	// Prev là băm nội dung tệp NGAY TRƯỚC khi Bint ghi ("" = tệp chưa tồn tại); nil = không biết (dòng cũ không
+	// có khoá prev_sha256, hoặc đường ghi không có trạng thái trước). Con trỏ để phân biệt hai trường hợp đó.
+	// ReadonlyViolations chỉ miễn khi chuỗi Prev→SHA256 của đường dẫn nối liền từ ảnh trước: ghi đọc-sửa-ghi
+	// của người không hợp thức hoá sửa đổi mà agent làm trước đó trên cùng tệp.
+	Prev *string   `json:"prev_sha256,omitempty"`
+	At   time.Time `json:"at"`
 	// Actor là tên thao tác ("bint config set"...), chỉ để người đọc.
 	Actor string `json:"actor,omitempty"`
 	// Agent: thao tác chạy trong phiên agent (app.InAgentSession).
@@ -72,6 +77,12 @@ func NormalizeWritePath(p string) string {
 		out = strings.ToLower(out)
 	}
 	return out
+}
+
+// HashBytes trả về sha256 (hex) của data, cùng dạng với HashFile.
+func HashBytes(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 // HashFile trả về sha256 (hex) nội dung tệp; chuỗi rỗng nếu tệp không tồn tại hoặc không đọc được.

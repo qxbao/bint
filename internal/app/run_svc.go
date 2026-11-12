@@ -185,13 +185,35 @@ func runWith(ctx context.Context, ws *TaskWS, wo workflow.RunOptions, harnessNam
 	return res, nil
 }
 
-// ActiveSteps liệt kê các bước `bint run` đang chạy trên cây làm việc của repository chứa dir (đọc tệp chủ khoá
-// của worktree, chỉ đọc). TUI dùng để báo "<bước> của <tác vụ> đang chạy trên cây này". Chưa init hoặc không
-// đọc được thì trả rỗng: đây chỉ là thông tin, không phải điều kiện cho thao tác nào.
-func ActiveSteps(ctx context.Context, dir string) []workflow.ActiveStep {
+// ActiveStepsWatch là thứ cần để đọc lại các bước đang chạy mà không phải mở lại workspace (đọc và phân tích
+// .bint/config.yml, mở repo): thư mục tác vụ và gốc worktree, dựng một lần bằng ResolveActiveSteps.
+type ActiveStepsWatch struct {
+	TasksDir, Root string
+}
+
+// ResolveActiveSteps dựng ActiveStepsWatch cho repository chứa dir. Chưa init hoặc không mở được thì ok=false.
+func ResolveActiveSteps(ctx context.Context, dir string) (ActiveStepsWatch, bool) {
 	ws, err := OpenWorkspace(ctx, dir, true)
 	if err != nil {
+		return ActiveStepsWatch{}, false
+	}
+	return ActiveStepsWatch{TasksDir: task.NewStore(ws.Paths.Runtime).Dir, Root: ws.Repo.Toplevel}, true
+}
+
+// Steps liệt kê các bước đang giữ khoá (chỉ đọc tệp chủ khoá; không đụng cấu hình nên vẫn chạy khi
+// .bint/config.yml hỏng sau lần dựng).
+func (w ActiveStepsWatch) Steps() []workflow.ActiveStep {
+	return workflow.ActiveSteps(w.TasksDir, w.Root)
+}
+
+// ActiveSteps liệt kê các bước `bint run` đang chạy trên cây làm việc của repository chứa dir (đọc tệp chủ khoá
+// của worktree, chỉ đọc). TUI dùng để báo "<bước> của <tác vụ> đang chạy trên cây này". Chưa init hoặc không
+// đọc được thì trả rỗng: đây chỉ là thông tin, không phải điều kiện cho thao tác nào. Gọi lặp thì dùng
+// ResolveActiveSteps một lần rồi Steps() để khỏi mở workspace mỗi lượt.
+func ActiveSteps(ctx context.Context, dir string) []workflow.ActiveStep {
+	w, ok := ResolveActiveSteps(ctx, dir)
+	if !ok {
 		return nil
 	}
-	return workflow.ActiveSteps(task.NewStore(ws.Paths.Runtime).Dir, ws.Repo.Toplevel)
+	return w.Steps()
 }

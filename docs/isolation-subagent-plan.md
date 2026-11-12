@@ -1,7 +1,7 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
 Trạng thái: **đã chốt hướng** (2026-11-11; bổ sung mục 4.5 ngày 2026-11-12). **G1 mục 4.1–4.4 và 4.5 (H8) đã làm**
-(2026-11-12, xem mục 12.1–12.4); G2–G4 chưa làm. Gồm bốn giai đoạn: G1 (cô lập trên
+(2026-11-12, xem mục 12.1–12.5); G2–G4 chưa làm. Gồm bốn giai đoạn: G1 (cô lập trên
 worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy các bước
 bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
 
@@ -496,11 +496,11 @@ Ngoài giới hạn `max_review_rounds` theo yêu cầu của người dùng.
 
 Người dùng chọn đóng phiếu, để lại hai phát hiện cho phiếu sau (chi tiết trong `review.md` của tác vụ):
 
-- **.7 (medium)** — `outsideFeat` (`internal/workflow/touched.go`) miễn trừ theo `Touched` của mọi tác vụ cùng
+- **.7 (medium) — ĐÃ ĐÓNG ở mục 12.5** — `outsideFeat` (`internal/workflow/touched.go`) miễn trừ theo `Touched` của mọi tác vụ cùng
   worktree, kể cả `done`/`cancelled`: sửa tay một tệp bảo vệ mà tác vụ cũ từng sửa vẫn lọt cổng done. Hướng sửa: chỉ
   miễn theo tác vụ chưa kết thúc; không miễn đường dẫn bảo vệ/deny. Test: B sửa `migrations/001.sql` rồi `cancelled`;
   A `b-feat` sửa tệp khác; sửa tay `migrations/001.sql` ⇒ `UnapprovedChanges(A)` phải chứa nó.
-- **.8 (low)** — `checkScope` chạy sau khi `runStep` đã nhả khoá độc quyền của `b-feat`: `b-feat` của tác vụ khác vừa
+- **.8 (low) — ĐÃ ĐÓNG ở mục 12.5** — `checkScope` chạy sau khi `runStep` đã nhả khoá độc quyền của `b-feat`: `b-feat` của tác vụ khác vừa
   giành khoá có thể bị quy vào tác vụ này; tệp do bước chỉ đọc/verify của tác vụ khác tạo cũng vào `ScopeFiles`. Hướng
   sửa: tính `ScopeFiles`/`checkScope` ngay sau `endTouched` khi còn giữ khoá.
 
@@ -593,3 +593,79 @@ sạch; `staticcheck ./...` và `GOOS=windows staticcheck ./...` (binary đã c�
 - Lỗ đã biết (ghi ở `docs/workflows.md`): agent có thể chèn dòng giả vào nhật ký; sửa bằng IDE vẫn bị tính; agent ghi lại
   đúng nội dung người vừa ghi thì không phát hiện.
 - Hiệu năng: mỗi thao tác ghi thêm một lần băm tệp và một lần mở nhật ký.
+
+### 12.5. Sửa phát hiện .7/.8 (mục 12.3) và .1/.2/.3 của H8 (mục 12.4), 2026-11-12, tác vụ 01M774RD3A85K7HY9NRRQ73Z95
+
+**Đã làm** (chưa commit khi viết ghi chép này):
+
+- **.7 (medium) — `outsideFeat` chỉ miễn theo tác vụ chưa kết thúc, không miễn đường dẫn bảo vệ/deny**
+  (`internal/workflow/touched.go`). `Touched` của chính tác vụ luôn được miễn; `Touched` của tác vụ khác chỉ miễn khi
+  tác vụ đó chưa `done`/`cancelled` **và** `task.CheckScope([]string{f}, ticket, protected).NeedsApproval()` rỗng.
+  `outsideFeat`/`ScopeFiles` nhận thêm `protected` (= `Cfg.Limits.ProtectedPaths`); nơi gọi: `Runner.checkScope`,
+  `Env.UnapprovedChanges` (ops.go), `app.DiffTask` (task_diff.go).
+- **.8 (low) — tính tập tệp khi còn giữ khoá độc quyền** (`internal/workflow/run.go`). Chỉ phần **tính tập tệp** dời vào
+  trong khoá: `runStep` gọi `ScopeFiles` ngay sau `endTouched` (khi `step == b-feat` và ctx chưa huỷ) và lưu vào
+  `runState.featScope*`; `checkScope` dùng tập đó. Không dời cả `checkScope`: nó có thể gọi `r.Confirm` (chờ người trả
+  lời), giữ khoá độc quyền lúc đó sẽ chặn mọi bước của tác vụ khác. Đường `stepCheck` (resume, b-feat chạy ở lượt
+  trước) lấy khoá **chia sẻ** (`lockStep(..., "scope", LockShared)`), tính rồi nhả trước khi hỏi người: khoá chia sẻ đợi
+  `b-feat` đang chạy của tác vụ khác xong nên tệp dở dang của nó không bị tính. Seam kiểm thử: biến gói
+  `afterStepUnlock` (nil ở sản phẩm), gọi ngay sau khi `runStep` nhả khoá.
+- **.1 (medium, tác vụ 01M772P7…) — chuỗi nhật ký `prev_sha256`.** `WriteRecord.Prev *string` (`prev_sha256`,
+  `omitempty`; con trỏ để phân biệt "không biết" với `""` = tệp chưa có), `workflow.HashBytes`. `repoWriter` băm tệp **ngay
+  trước** lời gọi ghi (`hashBefore`) cho `WriteFile`/`WriteNew`/`Remove`/`SyncBlock`/`RemoveBlock`/`SaveItem`/`RemoveItem`/
+  `SaveComponent`/`InstallSkills` (quét mọi tệp dưới thư mục skill của các target + `core.lock`) và hook của `init`
+  (`InstallHooks`/`UninstallHooks`: đường dẫn biết trước); `sha256` tính từ dữ liệu ghi khi có (`WriteFile`, `WriteNew`,
+  `SaveComponent`), không đọc lại đĩa. `Record(paths...)` giữ cho nơi không biết trạng thái trước (`Prev = nil`).
+  `ReadonlyViolations` (isolation.go): với đường dẫn đổi, lấy chuỗi dòng nhật ký (thứ tự trong tệp, `At >= since`);
+  `cur` = băm blob ở ảnh trước đọc bằng `git cat-file --filters` (tệp mới `A`: rỗng); dòng `Agent` hoặc `Prev == nil` ⇒
+  vi phạm; `*Prev == cur` ⇒ `cur = SHA256`; `SHA256 == cur` (ghi giữa `started` và ảnh trước) ⇒ bỏ qua; còn lại ⇒
+  vi phạm; cuối chuỗi `cur == HashFile(abs)` ⇒ miễn. Chữ ký hàm và ngoại lệ ứng viên tri thức mới giữ nguyên.
+- **.3 (low) — mở workspace một lần.** `app.ResolveActiveSteps(ctx, dir) (ActiveStepsWatch, bool)` + `Steps()`;
+  `ActiveSteps(ctx, dir)` thành vỏ. TUI (`internal/tui/app/app.go`) dựng watch trong `load()` (`loadActive(true)`, cả khi
+  nạp lại), lượt thăm dò (`loadActive(false)`) chỉ gọi `Steps()`.
+- **.2 (low) — sửa một phần**: xoá mục chết `skills.InstallEvolved` khỏi `lowLevelCalls` và `case` trong
+  `repowrite_audit_test.go`. **Không** chuyển phép quét tĩnh sang `go/types`: go.mod không có `golang.org/x/tools`, tự
+  dựng `types.Config` với importer "source" cho cả `internal/app` chậm và giòn; kiểm thử động (nay kiểm cả chuỗi
+  `prev_sha256` qua `ReadonlyViolations`) bù độ phủ.
+
+**Lệch so với kế hoạch của phiếu:** `InstallHooks`/`UninstallHooks` được băm trước (kế hoạch cho phép để `nil`) vì đường
+dẫn biết trước lời gọi; vẫn để `Prev = nil`: `InstallMCP` (đường dẫn chỉ biết sau khi ghi) và `evolve apply/rollback/cycle`
+(`recordFiles`). Test động liệt kê tường minh `.mcp.json`, `.codex/config.toml` của `init --mcp` trong `noPrev`.
+
+**Kiểm thử đã thêm/sửa:**
+- `internal/workflow/touched_test.go`: `TestOutsideFeatTerminalTaskDoesNotShield` (ca `cancelled` và `done`: B sửa
+  `migrations/001.sql` + `docs/b.md`, sửa tay lại `migrations/001.sql` ⇒ `UnapprovedChanges(A)` chứa nó, `ScopeFiles(A)`
+  chứa cả `docs/b.md`, done của A bị chặn); viết lại `TestOtherTaskFilesNotCountedAndDoneMessage` (B chưa kết thúc: tệp
+  bảo vệ `migrations/002.sql` **bị** tính cho A, `docs/b.md` thì không; duyệt + verify lại ⇒ done qua); giữ
+  `TestOutsideFeatExcludesOtherTaskTouched`; `TestScopeComputedUnderFeatLock` (seam ghi `migrations/003.sql` ngay sau khi A
+  nhả khoá ⇒ A `in_review`, không có câu hỏi, không `PendingPaths`/`ProtectedApproval`); `TestScopeResumeTakesSharedLock`
+  (resume chờ khoá chia sẻ khi b-feat khác giữ khoá độc quyền).
+- `internal/workflow/writes_test.go`: bảng `TestReadonlyViolationsHumanWriteTable` có `prev_sha256` và thêm ca: dòng cũ không
+  có khoá ⇒ vi phạm; hai lần ghi nối tiếp ⇒ miễn; đứt mắt xích (đầu/giữa chuỗi) ⇒ vi phạm; agent đầu/giữa chuỗi ⇒ vi
+  phạm; dòng thiếu `prev_sha256` giữa chuỗi ⇒ vi phạm; ghi trước ảnh chụp trước rồi ghi tiếp ⇒ miễn; tệp mới (prev rỗng) ⇒
+  miễn; xoá ⇒ miễn; `TestWriteRecordPrevJSON`; `TestReadonlyViolationsChainThroughEolFilter` (`.gitattributes eol=crlf`).
+- `internal/app/h8_test.go`: `TestH8AgentEditThenHumanReadModifyWriteViolates` (agent sửa `.bint/config.yml` rồi người
+  `SetUILanguage` ⇒ bước `failed`); `TestActiveStepsWatchSurvivesBrokenConfig`. Các `TestH8*` cũ giữ nguyên và qua.
+- `internal/app/repowrite_audit_test.go`: `TestEveryServiceWriteIsLogged` đòi `workflow.ReadonlyViolations(...).Violations`
+  đúng bằng danh sách `noPrev` của bước (chỉ đường ghi chưa biết trạng thái trước mới được lọt).
+- `internal/tui/app/active_steps_test.go`: `TestActiveStepPollDoesNotReopenWorkspace`.
+- **Kiểm đột biến (đều đỏ như mong đợi):** bỏ lọc `Terminal` ⇒ `TestOutsideFeatTerminalTaskDoesNotShield` đỏ (cả hai ca,
+  nhờ `docs/b.md`; riêng tệp bảo vệ thì luật bảo vệ cũng bắt nên `TestOtherTaskFilesNotCountedAndDoneMessage` giữ nhánh
+  đó); tính `ScopeFiles` sau khi nhả khoá ⇒ `TestScopeComputedUnderFeatLock` đỏ; bỏ khoá chia sẻ ở nhánh resume ⇒
+  `TestScopeResumeTakesSharedLock` đỏ; bỏ kiểm `*Prev == cur` ⇒ `TestH8AgentEditThenHumanReadModifyWriteViolates` đỏ.
+
+**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 1266 test qua (66 gói); `go vet ./...` và
+`GOOS=windows go vet ./...` sạch; `staticcheck ./...` và `GOOS=windows staticcheck ./...` sạch; `go test -race` cho
+`internal/workflow` (Readonly|Writes|Scope|Outside|Touched|Overlap), `internal/app` (H8|EveryService|ActiveSteps) và
+`internal/tui/app` (Active, `-count=3`) qua.
+
+**Rủi ro còn lại / chưa kiểm được:**
+- **Quy nhầm nhiều hơn (đúng theo yêu cầu .7):** tệp của tác vụ B đã `done`/`cancelled` mà còn khác `BaseTree` của A (kể cả
+  đã commit, vì `BaseTree` là cây chụp) vào `ScopeFiles(A)` và `bint task diff A`; tệp bảo vệ đã duyệt ở B phải duyệt lại
+  ở A. Tệp bảo vệ/deny của tác vụ chưa kết thúc khác cũng bị quy cho A. Hướng chính xác hơn (ghi `FeatTree` sau mỗi
+  `endTouched`, miễn khi blob hiện tại khớp `FeatTree` của tác vụ sở hữu) để lại.
+- **Đường ghi có `Prev = nil`** (`InstallMCP`, `evolve apply/rollback/cycle`) không được miễn ở bước chỉ đọc đang chạy; dòng
+  nhật ký cũ (trong 2 × `workflow.timeout_minutes` sau nâng cấp) cũng vậy. Hướng an toàn; ghi ở `docs/workflows.md`.
+- `git cat-file --filters` chạy bộ lọc smudge (LFS) và có thể chậm hoặc lỗi ⇒ coi như không có chuỗi ⇒ vi phạm.
+- Windows chạy thật vẫn chưa kiểm (chỉ biên dịch/vet/staticcheck); phiên `bint run` thật cùng TUI chưa thử tay.
+- Lỗi chập chờn đã biết ở 12.2 (`TestEvalRunEscCancelsBatchAndShowsResumeCommand`…) không xuất hiện ở lượt chạy này.

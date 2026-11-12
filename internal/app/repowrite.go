@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -46,12 +47,23 @@ func newRepoWriter(paths state.Paths, cfg config.Config, actor string) *repoWrit
 	return w
 }
 
+// writeEntry là một tệp cần ghi nhận: prev là băm ngay trước lời gọi ghi (nil = không biết), sha là băm sau
+// khi ghi khi biết từ dữ liệu ghi (nil = băm tệp trên đĩa). Dùng dữ liệu ghi thay vì đọc lại đĩa để một bên
+// khác ghi chen giữa không bị tính là kết quả của lần ghi này.
+type writeEntry struct {
+	path      string
+	prev, sha *string
+}
+
+func strp(s string) *string { return &s }
+
 // WriteFile ghi nguyên tử data vào abs rồi ghi nhận.
 func (w *repoWriter) WriteFile(abs string, data []byte, perm os.FileMode) error {
+	prev := w.hashBefore(abs)
 	if err := fsafe.WriteAtomic(abs, data, perm); err != nil {
 		return err
 	}
-	w.Record(abs)
+	w.record(writeEntry{abs, prev, strp(workflow.HashBytes(data))})
 	return nil
 }
 
@@ -72,110 +84,170 @@ func (w *repoWriter) WriteNew(abs string, data []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	w.Record(abs)
+	// O_EXCL bảo đảm tệp chưa có trước đó.
+	w.record(writeEntry{abs, strp(""), strp(workflow.HashBytes(data))})
 	return nil
 }
 
 // Remove xoá tệp abs rồi ghi nhận (băm rỗng). Tệp không có thì không ghi nhận và trả lỗi như os.Remove.
 func (w *repoWriter) Remove(abs string) error {
+	prev := w.hashBefore(abs)
 	if err := os.Remove(abs); err != nil {
 		return err
 	}
-	w.Record(abs)
+	w.record(writeEntry{abs, prev, strp("")})
 	return nil
 }
 
 // SyncBlock gọi fsafe.SyncBlock và ghi nhận tệp nếu nó thật sự được tạo/cập nhật/gỡ.
 func (w *repoWriter) SyncBlock(req fsafe.BlockSync) (fsafe.Result, error) {
+	prev := w.hashBefore(req.Path)
 	r, err := fsafe.SyncBlock(req)
 	if err == nil && changedOutcome(r.Outcome) {
-		w.Record(req.Path)
+		w.record(writeEntry{path: req.Path, prev: prev})
 	}
 	return r, err
 }
 
 // RemoveBlock gọi fsafe.RemoveBlock và ghi nhận tệp nếu nó thật sự bị đổi (kể cả bị xoá vì rỗng).
 func (w *repoWriter) RemoveBlock(req fsafe.BlockSync) (fsafe.Result, error) {
+	prev := w.hashBefore(req.Path)
 	r, err := fsafe.RemoveBlock(req)
 	if err == nil && changedOutcome(r.Outcome) {
-		w.Record(req.Path)
+		w.record(writeEntry{path: req.Path, prev: prev})
 	}
 	return r, err
 }
 
 // SaveItem lưu mục tri thức (knowledge.Store.Save) rồi ghi nhận tệp của nó.
 func (w *repoWriter) SaveItem(st knowledge.Store, it *knowledge.Item) error {
+	path := st.PathFor(it.ID)
+	prev := w.hashBefore(path)
 	if err := st.Save(it); err != nil {
 		return err
 	}
-	w.Record(st.PathFor(it.ID))
+	w.record(writeEntry{path: path, prev: prev})
 	return nil
 }
 
 // RemoveItem xoá mục tri thức (knowledge.Store.Remove) rồi ghi nhận (băm rỗng).
 func (w *repoWriter) RemoveItem(st knowledge.Store, id string) error {
+	path := st.PathFor(id)
+	prev := w.hashBefore(path)
 	if err := st.Remove(id); err != nil {
 		return err
 	}
-	w.Record(st.PathFor(id))
+	w.record(writeEntry{path, prev, strp("")})
 	return nil
 }
 
 // SaveComponent lưu thành phần quy trình (hcomp.Save) rồi ghi nhận mọi tệp nó đã ghi (đường dẫn trả về
-// tương đối với dir).
+// tương đối với dir). Băm trước và băm sau lấy từ hcomp.Files (cùng nội dung hcomp.Save ghi).
 func (w *repoWriter) SaveComponent(dir string, c hcomp.Component) error {
-	names, err := hcomp.Save(dir, c)
-	var paths []string
-	for _, n := range names {
-		paths = append(paths, filepath.Join(dir, filepath.FromSlash(n)))
+	files, _ := hcomp.Files(c) // lỗi: hcomp.Save trả cùng lỗi, không có tệp nào được ghi
+	prev := map[string]*string{}
+	for n := range files {
+		prev[n] = w.hashBefore(filepath.Join(dir, filepath.FromSlash(n)))
 	}
-	w.Record(paths...)
+	names, err := hcomp.Save(dir, c)
+	var es []writeEntry
+	for _, n := range names {
+		e := writeEntry{path: filepath.Join(dir, filepath.FromSlash(n)), prev: prev[n]}
+		if data, ok := files[n]; ok {
+			e.sha = strp(workflow.HashBytes(data))
+		}
+		es = append(es, e)
+	}
+	w.record(es...)
 	return err
 }
 
 // InstallSkills gọi skills.Install rồi ghi nhận mọi skill thật sự được ghi (Created/Updated/Removed; đường dẫn
 // trong Outcome tương đối với opts.Root) và core.lock nếu nội dung của nó đổi. Ghi nhận cả khi Install trả lỗi
-// giữa chừng: các tệp đã ghi trước đó vẫn là do Bint ghi.
+// giữa chừng: các tệp đã ghi trước đó vẫn là do Bint ghi. Băm trước lấy từ mọi tệp dưới thư mục skill của các
+// target và core.lock (tệp ngoài các thư mục đó không có băm trước: prev nil).
 func (w *repoWriter) InstallSkills(opts skills.InstallOptions) ([]skills.Outcome, error) {
 	lock := filepath.Join(opts.Root, filepath.FromSlash(skills.LockRel))
-	before := workflow.HashFile(lock)
-	outs, err := skills.Install(opts)
-	w.recordSkillOutcomes(opts.Root, outs)
-	if workflow.HashFile(lock) != before {
-		w.Record(lock)
+	before := map[string]string{lock: workflow.HashFile(lock)}
+	var dirs []string
+	for _, t := range opts.Targets {
+		dir := filepath.Join(opts.Root, filepath.FromSlash(t.Dir))
+		dirs = append(dirs, dir)
+		filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+			if err == nil && d.Type().IsRegular() {
+				before[p] = workflow.HashFile(p)
+			}
+			return nil
+		})
 	}
+	prevOf := func(p string) *string {
+		if h, ok := before[p]; ok {
+			return strp(h)
+		}
+		for _, d := range dirs {
+			if rel, err := filepath.Rel(d, p); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+				return strp("") // dưới thư mục đã quét mà không có trước đó: tệp mới
+			}
+		}
+		return nil
+	}
+	outs, err := skills.Install(opts)
+	var es []writeEntry
+	for _, o := range outs {
+		if changedOutcome(o.Result) {
+			p := filepath.Join(opts.Root, filepath.FromSlash(o.Path))
+			es = append(es, writeEntry{path: p, prev: prevOf(p)})
+		}
+	}
+	if workflow.HashFile(lock) != before[lock] {
+		es = append(es, writeEntry{path: lock, prev: strp(before[lock])})
+	}
+	w.record(es...)
 	return outs, err
 }
 
-// recordSkillOutcomes ghi nhận các tệp skill mà Outcome báo là đã đổi.
-func (w *repoWriter) recordSkillOutcomes(root string, outs []skills.Outcome) {
-	var paths []string
-	for _, o := range outs {
-		if changedOutcome(o.Result) {
-			paths = append(paths, filepath.Join(root, filepath.FromSlash(o.Path)))
-		}
+// hashBefore là băm tệp abs ngay lúc gọi ("" nếu chưa có); nil nếu writer không ghi nhật ký (khỏi tốn công băm).
+func (w *repoWriter) hashBefore(abs string) *string {
+	if w == nil || w.log == "" {
+		return nil
 	}
-	w.Record(paths...)
+	return strp(workflow.HashFile(abs))
 }
 
 func changedOutcome(o fsafe.Outcome) bool {
 	return o == fsafe.Created || o == fsafe.Appended || o == fsafe.Updated || o == fsafe.Removed
 }
 
-// Record ghi nhận các tệp (đường dẫn tuyệt đối) vừa được một gói thấp hơn ghi hoặc xoá: mỗi tệp một dòng
-// {path, sha256 hiện tại ("" nếu không còn), at, actor, agent}. Đường dẫn rỗng và tệp trong .git bị bỏ qua.
+// Record ghi nhận các tệp (đường dẫn tuyệt đối) vừa được một gói thấp hơn ghi hoặc xoá, KHÔNG biết trạng thái
+// trước: mỗi tệp một dòng {path, sha256 hiện tại ("" nếu không còn), at, actor, agent} không có prev_sha256, nên
+// ReadonlyViolations không miễn cho các dòng này (hướng an toàn). Đường dẫn rỗng và tệp trong .git bị bỏ qua.
 func (w *repoWriter) Record(paths ...string) {
+	es := make([]writeEntry, len(paths))
+	for i, p := range paths {
+		es[i] = writeEntry{path: p}
+	}
+	w.record(es...)
+}
+
+// record ghi nhận các tệp đã ghi, mỗi tệp một dòng nhật ký.
+func (w *repoWriter) record(es ...writeEntry) {
 	if w == nil || w.log == "" {
 		return
 	}
 	agent, _ := InAgentSession()
 	now := time.Now()
 	var recs []workflow.WriteRecord
-	for _, p := range paths {
-		if p == "" || inDotGit(p) {
+	for _, e := range es {
+		if e.path == "" || inDotGit(e.path) {
 			continue
 		}
-		recs = append(recs, workflow.WriteRecord{Path: workflow.NormalizeWritePath(p), SHA256: workflow.HashFile(p),
+		sha := ""
+		if e.sha != nil {
+			sha = *e.sha
+		} else {
+			sha = workflow.HashFile(e.path)
+		}
+		recs = append(recs, workflow.WriteRecord{Path: workflow.NormalizeWritePath(e.path), SHA256: sha, Prev: e.prev,
 			At: now, Actor: w.actor, Agent: agent})
 	}
 	_ = workflow.AppendWrites(w.log, recs, w.retain, now)

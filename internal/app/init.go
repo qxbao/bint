@@ -291,6 +291,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 				return nil, err
 			}
 			if res.Changed {
+				// Đường dẫn chỉ biết sau lời gọi nên không có băm trước (prev_sha256 nil: bước chỉ đọc không miễn).
 				w.Record(absUnder(root, res.Path)) // adapter có thể trả đường dẫn tương đối với gốc repo
 			}
 			name := "MCP " + h
@@ -411,12 +412,13 @@ func installHooks(ctx context.Context, rep *InitReport, w *repoWriter, opts Init
 	}
 	if !want {
 		if already {
+			prev := w.hashBefore(absUnder(root, settings))
 			res, err := hi.UninstallHooks(settings, paths.Backups, now)
 			if err != nil {
 				return settings, false, err
 			}
 			if res.Changed {
-				w.Record(absUnder(root, settings))
+				w.record(writeEntry{path: absUnder(root, settings), prev: prev})
 				rep.add(name, StepUpdated, "đã gỡ khỏi %s", settings)
 			}
 			return settings, false, nil
@@ -424,12 +426,13 @@ func installHooks(ctx context.Context, rep *InitReport, w *repoWriter, opts Init
 		rep.add(name, StepSkipped, "người dùng không đồng ý")
 		return settings, false, nil
 	}
+	prevSettings := w.hashBefore(absUnder(root, settings))
 	res, err := hi.InstallHooks(settings, opts.BintPath, paths.Backups, now)
 	if err != nil {
 		return settings, false, err
 	}
 	if res.Changed {
-		w.Record(absUnder(root, settings))
+		w.record(writeEntry{path: absUnder(root, settings), prev: prevSettings})
 	}
 	switch {
 	case !res.Changed:

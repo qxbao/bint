@@ -263,9 +263,14 @@ nhiều agent song song) chưa có.
   về cách cũ kèm ghi chú. Thay đổi **ngoài** `b-feat` của Runner
   (người hoặc phiên agent khác sửa tay, ở bất kỳ trạng thái nào của tác vụ, kể cả sau `bint task status <id>
   in_progress`) không có trong `touched`; chúng được tính thêm là tệp đổi giữa `base_tree` và cây hiện tại
-  mà không thuộc `touched` của tác vụ nào trên cùng worktree. Nhờ vậy tệp bảo vệ/deny sửa tay vẫn bị chặn ở
-  cổng `done` và hiện trong `bint task diff`. Hệ quả: thay đổi tay của người dùng trên cùng worktree cũng bị
+  mà không được miễn: `touched` của chính tác vụ luôn được miễn; `touched` của tác vụ **khác** chỉ miễn khi tác
+  vụ đó **chưa kết thúc** (không `done`/`cancelled`) **và** tệp không phải đường dẫn bảo vệ/deny của phiếu này.
+  Nhờ vậy tệp bảo vệ/deny sửa tay vẫn bị chặn ở cổng `done` và hiện trong `bint task diff`, kể cả khi một tác vụ
+  khác (đang chạy hay đã xong) từng sửa đúng tệp đó. Hệ quả: thay đổi tay của người dùng trên cùng worktree cũng bị
   quy cho tác vụ (chỉ dẫn tới yêu cầu duyệt, không mất dữ liệu). Cây gốc (ref) bị xoá khi tác vụ `done`/`cancelled`.
+  Tập tệp phạm vi của `b-feat` được tính **ngay sau bước, khi còn giữ khoá độc quyền** (rồi mới hỏi duyệt, đã nhả
+  khoá), nên `b-feat` của tác vụ khác vừa giành khoá không bị quy nhầm; lượt `resume` (b-feat đã chạy ở lượt trước)
+  tính dưới khoá chia sẻ, tức đợi `b-feat` đang chạy xong.
 - **Chồng lấn:** sau `b-feat`, tệp mà tác vụ chưa kết thúc khác trên cùng worktree cũng đã sửa được đưa vào
   danh sách cần duyệt ("tác vụ <id> cũng sửa: <tệp>"): có terminal thì hỏi, không thì `blocked` chờ
   `bint task approve` rồi `bint run resume`.
@@ -280,13 +285,19 @@ nhiều agent song song) chưa có.
 - **Thay đổi do Bint ghi thay người không tính là vi phạm** (docs/isolation-subagent-plan.md 4.5, H8).
   Người đổi cấu hình (`bint config set`/TUI), duyệt-từ chối-xoá tri thức, sinh lại `AGENTS.md`/skill, `init --update`…
   trong lúc bước chỉ đọc chạy đều đi qua tầng dịch vụ (`internal/app`, dùng chung cho CLI và TUI); mỗi tệp dịch vụ
-  ghi được nối một dòng vào `<state>/runtime/writes.jsonl` (`{path, sha256, at, actor, agent}`, nối bằng `O_APPEND`
-  mỗi dòng một lần ghi; tệp bị xoá ghi `sha256` rỗng; dòng cũ hơn `workflow.timeout_minutes` × 2 được dọn khi nối).
-  Khi hậu kiểm, một đường dẫn đổi được **miễn** nếu dòng nhật ký **mới nhất** của nó nằm trong khoảng bước chạy,
-  `agent: false` (không có biến môi trường phiên agent) và `sha256` khớp nội dung hiện tại. Kết quả bước liệt kê tệp
+  ghi được nối một dòng vào `<state>/runtime/writes.jsonl` (`{path, sha256, prev_sha256, at, actor, agent}`, nối bằng
+  `O_APPEND` mỗi dòng một lần ghi; tệp bị xoá ghi `sha256` rỗng; `prev_sha256` là băm ngay trước khi Bint ghi, rỗng
+  nếu tệp chưa có, còn `sha256` tính từ dữ liệu ghi; dòng cũ hơn `workflow.timeout_minutes` × 2 được dọn khi nối).
+  Khi hậu kiểm, một đường dẫn đổi được **miễn** nếu các dòng nhật ký của nó trong khoảng bước chạy tạo thành một
+  **chuỗi nối liền** từ nội dung ở ảnh chụp trước (blob đọc qua `git cat-file --filters`, nên đúng byte cây làm
+  việc) tới nội dung hiện tại: mọi dòng `agent: false` (không có biến môi trường phiên agent), có `prev_sha256` bằng
+  băm hiện hành rồi chuyển sang `sha256` của dòng; cuối chuỗi băm khớp nội dung hiện tại. Nhờ đó ghi đọc-sửa-ghi
+  của người không hợp thức hoá sửa đổi agent đã làm trước đó trên cùng tệp (`prev_sha256` là bản agent đã sửa, chuỗi
+  đứt). Kết quả bước liệt kê tệp
   được miễn (`steps[].human_writes` trong `bint run --json`, `Result.Notes`) và log in
   "bỏ qua thay đổi do người ghi qua Bint: …" để người xem lại. Vẫn là vi phạm: agent gọi lệnh `bint …` (dòng có
-  `agent: true`), người sửa rồi agent sửa tiếp cùng tệp (băm lệch), sửa tệp trực tiếp không qua Bint. Hook không
+  `agent: true`), agent sửa tệp rồi người đọc-sửa-ghi (chuỗi đứt), người sửa rồi agent sửa tiếp cùng tệp (băm lệch),
+  dòng thiếu `prev_sha256`, sửa tệp trực tiếp không qua Bint. Hook không
   ghi vào nhật ký. TUI hiện dòng "<bước> của <tác vụ> đang chạy trên cây này" ở thanh trên khi cây có bước đang
   chạy (đọc tệp chủ khoá, thăm dò 3 giây); thao tác ghi vẫn được phép.
 - Codex chạy mọi bước trong sandbox `workspace-write` kèm `--add-dir <thư mục trạng thái>` để lệnh
@@ -326,6 +337,15 @@ Giới hạn đã biết của P4–P5:
   đích là tránh chặn nhầm người, không chống agent cố ý; lớp chặn chính của bước chỉ đọc vẫn là
   `--disallowedTools`/sandbox của harness và kết quả bước liệt kê tệp được miễn. Phiên người dùng chạy trong
   phiên agent (có biến `CLAUDECODE`, `BINT_AGENT`…) cũng ghi `agent: true` nên không được miễn.
+- Miễn H8 cần chuỗi `prev_sha256`: dòng nhật ký của đường ghi không biết trạng thái trước thì không được miễn (an
+  toàn, có thể báo vi phạm với ghi hợp lệ của người): `InstallMCP` (`init --mcp`: đường dẫn chỉ biết sau khi ghi) và
+  `evolve apply/rollback/cycle` (gói `evolve` tự ghi nhiều tệp). Dòng nhật ký cũ (trước khi có `prev_sha256`) còn
+  trong hạn dọn cũng không được miễn: bước chỉ đọc đang chạy lúc nâng cấp có thể báo vi phạm với ghi của người
+  (`bint run resume`). Bộ lọc Git (eol/LFS) lệch hay lỗi khi đọc blob cũng thành vi phạm.
+- Tệp của tác vụ **đã kết thúc** (`done`/`cancelled`) còn khác `base_tree` của tác vụ đang xét thì bị quy cho tác vụ
+  đang xét (kể cả tệp không bảo vệ, kể cả đã commit vì `base_tree` là cây chụp): tệp bảo vệ/deny đã được duyệt ở
+  tác vụ kia phải duyệt lại ở đây. Tệp bảo vệ/deny của tác vụ **chưa kết thúc** khác cũng bị quy cho tác vụ đang xét
+  (chỉ tệp thường mới được miễn). Hướng chính xác hơn (ghi cây sau mỗi `b-feat`, miễn khi blob hiện tại khớp) chưa làm.
 - Hậu kiểm so nội dung bằng băm: người ghi qua Bint rồi agent ghi lại đúng nội dung đó thì không phát hiện được.
   Lỗi ghi nhật ký (đĩa đầy, không lấy được khoá) không làm hỏng thao tác của người; hậu quả là bước chỉ đọc báo
   vi phạm như trước (hướng an toàn). Nhật ký chưa chạy thử thật trên Windows (đổi tên tệp khi đang mở).

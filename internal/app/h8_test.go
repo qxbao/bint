@@ -11,6 +11,7 @@ import (
 
 	"bint/internal/eval"
 	"bint/internal/knowledge"
+	"bint/internal/testutil"
 	"bint/internal/workflow"
 )
 
@@ -154,6 +155,31 @@ func TestH8AgentEditAfterHumanViolates(t *testing.T) {
 	}
 }
 
+// Phát hiện .1 (tác vụ 01M772P7…): agent sửa tệp TRƯỚC, rồi người đọc-sửa-ghi cùng tệp qua dịch vụ. Dòng nhật ký
+// của người khớp băm cuối nhưng prev_sha256 là bản agent đã sửa, không phải bản ở ảnh trước: chuỗi đứt ⇒ vi phạm.
+func TestH8AgentEditThenHumanReadModifyWriteViolates(t *testing.T) {
+	f := newH8(t)
+	step, _ := f.runReview(t, func() {
+		p := filepath.Join(f.root, f.cfgRel)
+		b, _ := os.ReadFile(p)
+		if err := os.WriteFile(p, append([]byte("# agent chèn trước\n"), b...), 0o644); err != nil {
+			t.Error(err)
+		}
+		f.setLang(t) // người đọc bản agent đã sửa rồi ghi lại
+	})
+	if step.Status != "failed" || !strings.Contains(step.Error, f.cfgRel) || len(step.HumanWrites) != 0 {
+		t.Fatalf("sửa của agent không được hợp thức hoá bởi ghi của người: %+v", step)
+	}
+	recs, err := workflow.ReadWrites(workflow.WritesLogPath(f.ws.K.Paths.Runtime), time.Time{})
+	if err != nil || len(recs) == 0 {
+		t.Fatalf("%v %v", recs, err)
+	}
+	last := recs[len(recs)-1]
+	if last.Prev == nil || *last.Prev == "" || *last.Prev == last.SHA256 {
+		t.Fatalf("dòng nhật ký phải có prev_sha256 là bản trước khi ghi: %+v", last)
+	}
+}
+
 func TestH8DirectWriteViolates(t *testing.T) {
 	f := newH8(t)
 	step, _ := f.runReview(t, func() {
@@ -227,4 +253,33 @@ func fileSize(p string) int64 {
 		return fi.Size()
 	}
 	return 0
+}
+
+// Phát hiện .3 (mục 12.3): ActiveStepsWatch dựng một lần; Steps() chỉ đọc tệp chủ khoá nên vẫn thấy bước đang giữ
+// khoá khi .bint/config.yml hỏng sau lần dựng.
+func TestActiveStepsWatchSurvivesBrokenConfig(t *testing.T) {
+	testutil.Isolate(t)
+	asHuman(t)
+	ctx := context.Background()
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
+	mustInit(t, InitOptions{Dir: root, Hooks: no()})
+	w, ok := ResolveActiveSteps(ctx, root)
+	if !ok {
+		t.Fatal("ResolveActiveSteps không dựng được watch trên repo đã init")
+	}
+	if got := w.Steps(); len(got) != 0 {
+		t.Fatalf("chưa có khoá: %+v", got)
+	}
+	l, err := workflow.AcquireLock(w.TasksDir, w.Root, "01M772P7DKB3PBRBH7VPE614X6 b-feat", workflow.LockExclusive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Release()
+	if err := os.WriteFile(filepath.Join(root, ".bint", "config.yml"), []byte("schema: [hỏng\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := w.Steps()
+	if len(got) != 1 || got[0].Step != "b-feat" || got[0].TaskID != "01M772P7DKB3PBRBH7VPE614X6" {
+		t.Fatalf("Steps() = %+v", got)
+	}
 }

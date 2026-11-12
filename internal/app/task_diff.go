@@ -75,7 +75,7 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 	switch {
 	case t.State.TracksTouched():
 		res.From = t.State.BaseTree
-		if spec, err = workflow.ScopeFiles(ctx, root, ws.Tasks, t); err != nil {
+		if spec, err = workflow.ScopeFiles(ctx, root, ws.Tasks, t, ws.Cfg.Limits.ProtectedPaths); err != nil {
 			return res, err
 		}
 		if len(spec) == 0 {

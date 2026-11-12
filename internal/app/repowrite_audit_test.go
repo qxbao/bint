@@ -49,7 +49,7 @@ var directWriteCalls = map[string]bool{
 
 // Lời gọi sang gói thấp hơn tự ghi tệp repo: chỉ repowrite.go được gọi (hàm bọc ghi nhận ngay sau).
 var lowLevelCalls = map[string]bool{
-	"hcomp.Save": true, "skills.Install": true, "skills.InstallEvolved": true,
+	"hcomp.Save": true, "skills.Install": true,
 }
 
 type callSite struct {
@@ -137,10 +137,10 @@ func TestRepoWritesGoThroughRepoWriter(t *testing.T) {
 		switch s.call {
 		case "evolve.Apply", "evolve.Rollback", "InstallHooks", "UninstallHooks", "InstallMCP":
 			// Gói/adapter thấp hơn tự ghi: hàm gọi phải ghi nhận ngay trong cùng thân.
-			if !bodies[key]["Record"] && !bodies[key]["recordFiles"] && !bodies[key]["RecordRepoWrites"] {
-				bad = append(bad, fmt.Sprintf("%s gọi %s nhưng không ghi nhận (Record/recordFiles/RecordRepoWrites) trong cùng hàm", key, s.call))
+			if !bodies[key]["Record"] && !bodies[key]["record"] && !bodies[key]["recordFiles"] && !bodies[key]["RecordRepoWrites"] {
+				bad = append(bad, fmt.Sprintf("%s gọi %s nhưng không ghi nhận (Record/record/recordFiles/RecordRepoWrites) trong cùng hàm", key, s.call))
 			}
-		case "Store.Save", "Store.Remove", "hcomp.Save", "skills.Install", "skills.InstallEvolved":
+		case "Store.Save", "Store.Remove", "hcomp.Save", "skills.Install":
 			if _, ok := allowed[key]; !ok {
 				bad = append(bad, fmt.Sprintf("%s gọi %s thẳng: dùng repoWriter.SaveItem/RemoveItem/SaveComponent/InstallSkills", key, s.call))
 			}
@@ -176,8 +176,9 @@ func TestHookDoesNotUseRepoWriter(t *testing.T) {
 	}
 }
 
-// Bảng kiểm động: mỗi dịch vụ ghi chạy vai người giữa hai ảnh chụp cây làm việc; mọi tệp đổi phải có dòng
-// nhật ký (không phải agent, băm khớp, nằm sau mốc since).
+// Bảng kiểm động: mỗi dịch vụ ghi chạy vai người giữa hai ảnh chụp cây làm việc; ReadonlyViolations phải miễn
+// mọi tệp đổi (dòng nhật ký không phải agent, chuỗi prev_sha256 nối liền từ ảnh trước, băm khớp), trừ tệp đã
+// liệt kê tường minh trong noPrev.
 func TestEveryServiceWriteIsLogged(t *testing.T) {
 	testutil.Isolate(t)
 	asHuman(t)
@@ -207,6 +208,12 @@ func TestEveryServiceWriteIsLogged(t *testing.T) {
 		name  string
 		setup func() // chạy TRƯỚC ảnh chụp trước (chuẩn bị trạng thái, không tính)
 		act   func() error
+	}
+	// noPrev: theo tên bước, tệp (tương đối với gốc repo) mà đường ghi chưa biết trạng thái trước (Record:
+	// prev_sha256 nil) nên ReadonlyViolations không miễn — hướng an toàn, ghi ở docs/workflows.md "Giới hạn đã biết".
+	noPrev := map[string][]string{
+		// InstallMCP chỉ trả đường dẫn sau khi ghi nên không băm trước được.
+		"init --hooks --mcp (cài hook và .mcp.json)": {".codex/config.toml", ".mcp.json"},
 	}
 	steps := []step{
 		{"config set ui.language (lớp project)", nil, func() error {
@@ -296,21 +303,23 @@ func TestEveryServiceWriteIsLogged(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			latest := map[string]workflow.WriteRecord{}
-			for _, r := range recs {
-				latest[r.Path] = r
-			}
+			// Đối chiếu bằng chính ReadonlyViolations (chuỗi prev_sha256 nối liền từ ảnh trước): tệp nào không được
+			// miễn thì phải nằm trong danh sách noPrev của bước (đường ghi chưa biết trạng thái trước).
+			chk := workflow.ReadonlyViolations(ctx, root, before, after, since, workflow.WritesLogPath(runtime))
+			var want []string
 			for _, p := range changed {
-				abs := filepath.Join(root, filepath.FromSlash(p))
-				r, ok := latest[workflow.NormalizeWritePath(abs)]
-				switch {
-				case !ok:
-					t.Errorf("%s đổi nhưng không có dòng nhật ký", p)
-				case r.Agent:
-					t.Errorf("%s: dòng nhật ký có agent=true ở vai người", p)
-				case r.SHA256 != workflow.HashFile(abs):
-					t.Errorf("%s: băm trong nhật ký %q không khớp nội dung hiện tại", p, r.SHA256)
+				if slices.Contains(noPrev[s.name], p) {
+					want = append(want, p)
 				}
+			}
+			if len(noPrev[s.name]) != len(want) {
+				t.Errorf("noPrev %v có tệp không đổi (đổi: %v)", noPrev[s.name], changed)
+			}
+			got := slices.Clone(chk.Violations)
+			slices.Sort(got)
+			slices.Sort(want)
+			if !slices.Equal(got, want) {
+				t.Errorf("vi phạm = %v, muốn đúng %v (chỉ đường ghi không biết trạng thái trước mới được lọt)", got, want)
 			}
 			if t.Failed() {
 				names := make([]string, 0, len(recs))

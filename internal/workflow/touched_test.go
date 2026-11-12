@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -108,7 +109,8 @@ func TestLegacyTaskKeepsChangedFilesBehaviour(t *testing.T) {
 	}
 }
 
-// Tệp của tác vụ khác không vào phạm vi / UnapprovedChanges của tác vụ này; thông báo done liệt kê tệp ngoài tác vụ.
+// Tệp KHÔNG bảo vệ của tác vụ chưa kết thúc khác không vào phạm vi của tác vụ này; tệp bảo vệ của nó thì có
+// (phát hiện .7: không miễn đường dẫn bảo vệ/deny theo tác vụ khác). Thông báo done liệt kê tệp ngoài tác vụ.
 func TestOtherTaskFilesNotCountedAndDoneMessage(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
@@ -116,36 +118,86 @@ func TestOtherTaskFilesNotCountedAndDoneMessage(t *testing.T) {
 	if a.Status != task.StatusInReview {
 		t.Fatalf("A: %+v", a)
 	}
-	// B sửa một tệp được bảo vệ (migrations/): chặn B, không liên quan tới A.
-	h.behaveFeat(func() { h.write("migrations/002.sql", "-- của B\n") })
+	// B (chưa kết thúc) sửa một tệp bảo vệ và một tệp thường; chặn B vì đường dẫn bảo vệ của chính nó.
+	h.behaveFeat(func() { h.write("migrations/002.sql", "-- của B\n"); h.write("docs/b.md", "của B\n") })
 	b := h.runFeat("Việc khác trên migrations", "")
 	if b.Status != task.StatusBlocked || !strings.Contains(b.Reason, "migrations/002.sql") {
 		t.Fatalf("B phải bị chặn vì đường dẫn bảo vệ của chính nó: %+v", b)
 	}
 	tkA := h.load(a.TaskID)
 	r := h.runner()
-	if need, err := r.UnapprovedChanges(ctx, tkA); err != nil || len(need) != 0 {
-		t.Fatalf("tệp của B bị tính cho A: %v %v", need, err)
+	need, err := r.UnapprovedChanges(ctx, tkA)
+	if err != nil || !slices.Equal(need, []string{"migrations/002.sql"}) {
+		t.Fatalf("UnapprovedChanges(A) = %v %v: tệp bảo vệ của B phải bị tính, docs/b.md thì không", need, err)
 	}
-	// A: mã đã đổi từ lần verify cuối nhưng chỉ do B → thông báo nêu tệp ngoài tác vụ.
 	_, blockers, err := r.SetStatus(ctx, a.TaskID, task.StatusDone, TransitionOptions{Reason: "thử"})
 	if err == nil {
-		t.Fatal("done phải bị chặn vì mã đã đổi sau lần kiểm chứng")
+		t.Fatal("done phải bị chặn")
 	}
 	msg := strings.Join(blockers, "\n")
 	if !strings.Contains(msg, "thay đổi không thuộc tác vụ") || !strings.Contains(msg, "migrations/002.sql") ||
-		!strings.Contains(msg, "bint task verify "+a.TaskID) || strings.Contains(msg, "app.txt") {
+		!strings.Contains(msg, "docs/b.md") || !strings.Contains(msg, "bint task verify "+a.TaskID) || strings.Contains(msg, "app.txt") {
 		t.Fatalf("thông báo done: %q", msg)
 	}
-	if strings.Contains(msg, "đường dẫn bảo vệ") {
-		t.Fatalf("done của A không được bị chặn vì tệp bảo vệ của B: %q", msg)
+	// Người duyệt đường dẫn bảo vệ rồi chạy lại kiểm chứng thì done qua.
+	if _, _, err := r.Approve(a.TaskID); err != nil {
+		t.Fatal(err)
 	}
-	// Chạy lại kiểm chứng rồi done thì qua.
 	if _, vr, err := r.Verify(ctx, a.TaskID); err != nil || !vr.Verification.Passed || vr.Verification.Tree == "" {
 		t.Fatalf("verify: %+v %v", vr, err)
 	}
 	if _, _, err := r.SetStatus(ctx, a.TaskID, task.StatusDone, TransitionOptions{Reason: "xong"}); err != nil {
-		t.Fatalf("done sau khi kiểm chứng lại: %v", err)
+		t.Fatalf("done sau khi duyệt và kiểm chứng lại: %v", err)
+	}
+}
+
+// Phát hiện .7: tác vụ B ĐÃ kết thúc (cancelled/done) không còn che tệp của nó: sửa tay tệp bảo vệ mà B từng sửa
+// vẫn bị quy cho A (UnapprovedChanges, cổng done).
+func TestOutsideFeatTerminalTaskDoesNotShield(t *testing.T) {
+	for _, final := range []string{task.StatusCancelled, task.StatusDone} {
+		t.Run(final, func(t *testing.T) {
+			h := newHarness(t)
+			ctx := context.Background()
+			a := h.runFeat("Thêm tính năng phiên bản v2 cho app.txt", "")
+			if a.Status != task.StatusInReview {
+				t.Fatalf("A: %+v", a)
+			}
+			// B sửa migrations/001.sql, người duyệt để B qua checkScope.
+			h.behaveFeat(func() { h.write("migrations/001.sql", "-- của B\n"); h.write("docs/b.md", "của B\n") })
+			rb := h.runner()
+			rb.Confirm = func(Question) bool { return true }
+			res, err := rb.Run(ctx, RunOptions{Workflow: StepFeat, Request: "Sửa migrations"})
+			if err != nil || res.Status != task.StatusInReview {
+				t.Fatalf("B: %+v %v", res, err)
+			}
+			if final == task.StatusDone {
+				if _, vr, err := rb.Verify(ctx, res.TaskID); err != nil || !vr.Verification.Passed {
+					t.Fatalf("verify B: %+v %v", vr, err)
+				}
+			}
+			if _, _, err := rb.SetStatus(ctx, res.TaskID, final, TransitionOptions{Reason: "kết thúc B"}); err != nil {
+				t.Fatalf("B → %s: %v", final, err)
+			}
+			// Sửa tay thêm migrations/001.sql: tệp thuộc Touched của B nhưng B đã kết thúc.
+			h.write("migrations/001.sql", "-- sửa tay\n")
+			r := h.runner()
+			tkA := h.load(a.TaskID)
+			if need, err := r.UnapprovedChanges(ctx, tkA); err != nil || !slices.Contains(need, "migrations/001.sql") {
+				t.Fatalf("UnapprovedChanges(A) = %v %v", need, err)
+			}
+			// Tệp không bảo vệ của B (đã kết thúc) cũng không được miễn: nó còn khác BaseTree của A (giới hạn đã biết).
+			files, err := ScopeFiles(ctx, h.root, h.tasks, tkA, h.cfg.Limits.ProtectedPaths)
+			if err != nil || !slices.Contains(files, "docs/b.md") {
+				t.Fatalf("ScopeFiles(A) = %v %v: tệp của tác vụ đã kết thúc không được che", files, err)
+			}
+			if _, vr, err := r.Verify(ctx, a.TaskID); err != nil || !vr.Verification.Passed {
+				t.Fatalf("verify A: %+v %v", vr, err)
+			}
+			_, blockers, err := r.SetStatus(ctx, a.TaskID, task.StatusDone, TransitionOptions{Reason: "thử"})
+			if err == nil || !strings.Contains(strings.Join(blockers, "\n"), "migrations/001.sql") {
+				t.Fatalf("done của A phải bị chặn vì migrations/001.sql: %v %v", blockers, err)
+			}
+		})
 	}
 }
 
@@ -286,7 +338,7 @@ func TestManualEditOutsideFeatIsCaught(t *testing.T) {
 			if need, err := r.UnapprovedChanges(ctx, tk); err != nil || !slices.Contains(need, "migrations/001.sql") {
 				t.Fatalf("UnapprovedChanges = %v %v", need, err)
 			}
-			files, err := ScopeFiles(ctx, h.root, h.tasks, tk)
+			files, err := ScopeFiles(ctx, h.root, h.tasks, tk, h.cfg.Limits.ProtectedPaths)
 			if err != nil || !slices.Contains(files, "migrations/001.sql") || !slices.Contains(files, "app.txt") {
 				t.Fatalf("ScopeFiles = %v %v", files, err)
 			}
@@ -323,7 +375,7 @@ func TestOutsideFeatExcludesOtherTaskTouched(t *testing.T) {
 	if b.Status != task.StatusInReview {
 		t.Fatalf("%+v", b)
 	}
-	files, err := ScopeFiles(ctx, h.root, h.tasks, h.load(a.TaskID))
+	files, err := ScopeFiles(ctx, h.root, h.tasks, h.load(a.TaskID), h.cfg.Limits.ProtectedPaths)
 	if err != nil || slices.Contains(files, "docs/b.md") {
 		t.Fatalf("tệp của B bị tính cho A: %v %v", files, err)
 	}
@@ -376,4 +428,96 @@ func TestReviewPromptUsesTaskDiff(t *testing.T) {
 
 func gitrepoRun(h *harness, args ...string) (string, error) {
 	return gitrepo.Run(context.Background(), h.root, args...)
+}
+
+// Phát hiện .8: ScopeFiles được tính khi Runner còn giữ khoá độc quyền của b-feat. Giả lập b-feat của tác vụ
+// khác giành khoá ngay khi A nhả (afterStepUnlock ghi một tệp bảo vệ chưa thuộc Touched của ai): tệp đó không
+// được quy cho A, nên không có câu hỏi duyệt, không có PendingPaths/ProtectedApproval.
+func TestScopeComputedUnderFeatLock(t *testing.T) {
+	h := newHarness(t)
+	old := afterStepUnlock
+	t.Cleanup(func() { afterStepUnlock = old })
+	afterStepUnlock = func(step string) {
+		if step == StepFeat {
+			h.write("migrations/003.sql", "-- b-feat của tác vụ khác vừa giành khoá\n")
+		}
+	}
+	var asked []Question
+	r := h.runner()
+	r.Confirm = func(q Question) bool { asked = append(asked, q); return true }
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepFeat, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tk := h.load(res.TaskID)
+	if res.Status != task.StatusInReview || len(asked) != 0 || tk.State.ProtectedApproval != nil || len(tk.State.PendingPaths) != 0 {
+		t.Fatalf("tệp của tác vụ khác bị quy cho A: %+v, hỏi %+v, trạng thái %+v", res, asked, tk.State)
+	}
+	if _, err := os.Stat(filepath.Join(h.root, "migrations", "003.sql")); err != nil {
+		t.Fatalf("seam không chạy: %v", err)
+	}
+}
+
+// Nhánh resume (stepCheck: b-feat đã chạy ở lượt trước): checkScope lấy khoá CHIA SẺ nên đợi b-feat đang chạy
+// của tác vụ khác xong, rồi nhả trước khi hỏi người.
+func TestScopeResumeTakesSharedLock(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.behaveFeat(func() {
+		h.write("app.txt", "v2\n")
+		h.write("migrations/002.sql", "-- cần duyệt\n")
+		h.write("done.txt", "ok\n")
+	})
+	res := h.runFeat("Thêm tính năng phiên bản v2 cho app.txt", "")
+	tk := h.load(res.TaskID)
+	if res.Status != task.StatusBlocked || !tk.State.AwaitingCheck {
+		t.Fatalf("lượt đầu phải chờ duyệt: %+v %+v", res, tk.State)
+	}
+	if _, _, err := h.runner().Approve(res.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	// Một b-feat khác đang giữ khoá độc quyền.
+	other, err := AcquireLock(h.tasks.Dir, h.root, "tác vụ khác b-feat", LockExclusive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting := make(chan struct{}, 1)
+	r := h.runner()
+	r.Logf = func(format string, a ...any) {
+		if strings.Contains(fmt.Sprintf(format, a...), "bước scope cần khoá chỉ đọc") {
+			select {
+			case waiting <- struct{}{}:
+			default:
+			}
+		}
+	}
+	done := make(chan *Result, 1)
+	go func() {
+		out, err := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: res.TaskID, Resume: true})
+		if err != nil {
+			t.Error(err)
+		}
+		done <- out
+	}()
+	select {
+	case <-waiting:
+	case <-time.After(10 * time.Second):
+		other.Release()
+		t.Fatal("checkScope của lượt resume không chờ khoá")
+	}
+	select {
+	case <-done:
+		other.Release()
+		t.Fatal("lượt resume xong khi b-feat khác còn giữ khoá độc quyền")
+	case <-time.After(200 * time.Millisecond):
+	}
+	other.Release()
+	select {
+	case out := <-done:
+		if out == nil || out.Status != task.StatusInReview {
+			t.Fatalf("sau khi nhả khoá: %+v", out)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("lượt resume không tiếp tục sau khi khoá được nhả")
+	}
 }

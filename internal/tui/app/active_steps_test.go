@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +29,7 @@ func (f *fixture) lock(owner string, mode workflow.LockMode) *workflow.Lock {
 func (f *fixture) refreshActive(want int) {
 	f.t.Helper()
 	f.pump(func() bool { return !f.m.activeLoading }, nil) // chờ lần đọc đang bay (có thể đọc trước khi lấy khoá)
-	f.pump(func() bool { return !f.m.activeLoading && len(f.m.active) == want }, f.m.loadActive())
+	f.pump(func() bool { return !f.m.activeLoading && len(f.m.active) == want }, f.m.loadActive(false))
 }
 
 func TestActiveStepStatusLine(t *testing.T) {
@@ -87,4 +89,20 @@ func TestActiveStepPolling(t *testing.T) {
 	if r := plain(f.m.Render()); !strings.Contains(r, "b-review của 01M772P7 đang chạy trên cây này") {
 		t.Fatalf("thiếu dòng sau khi thăm dò:\n%s", r)
 	}
+}
+
+// Phát hiện .3 (mục 12.3): lượt thăm dò chỉ gọi Steps() trên watch đã dựng, không mở lại workspace; cấu hình hỏng
+// sau lần dựng không làm mất dòng "đang chạy".
+func TestActiveStepPollDoesNotReopenWorkspace(t *testing.T) {
+	f := newFixture(t, Options{})
+	f.lock(activeTask+" b-review", workflow.LockShared)
+	f.refreshActive(1) // dựng watch
+	if f.m.activeWatch == nil {
+		t.Fatal("watch phải được dựng sau lần đọc đầu")
+	}
+	if err := os.WriteFile(filepath.Join(f.root, ".bint", "config.yml"), []byte("schema: [hỏng\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.lock("01M772P7DKB3PBRBH7VPE614X7 b-req", workflow.LockShared)
+	f.refreshActive(2)
 }

@@ -165,6 +165,8 @@ type Model struct {
 	// activeTicking: đã hẹn lần thăm dò kế (Options.ActivePoll > 0).
 	active                       []workflow.ActiveStep
 	activeLoading, activeTicking bool
+	// activeWatch dựng ở load() (cả khi nạp lại) để lượt thăm dò chỉ đọc tệp chủ khoá, không mở lại workspace.
+	activeWatch *bintapp.ActiveStepsWatch
 
 	pal      *palette.Model
 	showHelp bool
@@ -328,23 +330,40 @@ func (m *Model) load() tea.Cmd {
 		d, err := loader(ctx, dir)
 		return overview.LoadedMsg{Data: d, Err: err}
 	}
-	return tea.Batch(load, m.loadActive(), m.startTick())
+	return tea.Batch(load, m.loadActive(true), m.startTick())
 }
 
-// activeStepsMsg: kết quả đọc các bước đang chạy trên cây làm việc.
-type activeStepsMsg struct{ steps []workflow.ActiveStep }
+// activeStepsMsg: kết quả đọc các bước đang chạy trên cây làm việc; watch != nil khi vừa dựng lại.
+type activeStepsMsg struct {
+	steps []workflow.ActiveStep
+	watch *bintapp.ActiveStepsWatch
+}
 
 // activeTickMsg: tới hạn thăm dò bước đang chạy.
 type activeTickMsg struct{}
 
-// loadActive đọc các bước đang chạy trên cây này (một lần; không chồng hai lần đọc).
-func (m *Model) loadActive() tea.Cmd {
+// loadActive đọc các bước đang chạy trên cây này (một lần; không chồng hai lần đọc). resolve (từ load()) dựng
+// lại ActiveStepsWatch; lượt thăm dò chỉ gọi Steps() trên watch đã có (chưa có thì dựng).
+func (m *Model) loadActive(resolve bool) tea.Cmd {
 	if m.activeLoading {
 		return nil
 	}
 	m.activeLoading = true
-	ctx, dir := m.ctx, m.opts.Dir
-	return func() tea.Msg { return activeStepsMsg{steps: bintapp.ActiveSteps(ctx, dir)} }
+	ctx, dir, w := m.ctx, m.opts.Dir, m.activeWatch
+	return func() tea.Msg {
+		if w == nil || resolve {
+			nw, ok := bintapp.ResolveActiveSteps(ctx, dir)
+			if !ok {
+				if w == nil {
+					return activeStepsMsg{}
+				}
+				return activeStepsMsg{steps: w.Steps()} // không dựng lại được: giữ watch cũ
+			}
+			w = &nw
+			return activeStepsMsg{steps: nw.Steps(), watch: w}
+		}
+		return activeStepsMsg{steps: w.Steps()}
+	}
 }
 
 // Init nạp dữ liệu ban đầu.
@@ -385,13 +404,16 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case activeStepsMsg:
 		m.active, m.activeLoading = msg.steps, false
+		if msg.watch != nil {
+			m.activeWatch = msg.watch
+		}
 		if m.opts.ActivePoll > 0 && !m.activeTicking {
 			m.activeTicking = true
 			return m, tea.Tick(m.opts.ActivePoll, func(time.Time) tea.Msg { return activeTickMsg{} })
 		}
 	case activeTickMsg:
 		m.activeTicking = false
-		return m, m.loadActive()
+		return m, m.loadActive(false)
 	case initwizard.ContinueMsg:
 		m.holdInit = false
 		m.wiz.Reset()
