@@ -93,7 +93,7 @@ jobs:
         run: |
           git config --global user.name "bint-release"
           git config --global user.email "bint-release@users.noreply.github.com"
-          go test -race -count=1 -timeout 15m ./...
+          go test -race -count=1 -timeout 20m ./...
 
       # Cùng cờ build với job build trong ci.yml, chỉ khác chuỗi phiên bản.
       - name: Build và đóng gói

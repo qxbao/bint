@@ -40,10 +40,12 @@ workflow: `contents: read`; checkout với `persist-credentials: false`. Không 
 staticcheck chạy với bộ quy tắc mặc định, không có tệp cấu hình riêng. Không dùng golangci-lint
 để tránh thêm một lớp cấu hình; khi cần nhiều linter hơn có thể chuyển sang sau.
 
-**Test (race)** (20 phút)
+**Test (race)** (25 phút)
 
-`CGO_ENABLED=1 go test -race -count=1 -timeout 15m ./...`
+`CGO_ENABLED=1 go test -race -count=1 -timeout 20m ./...`
 
+- Hạn 20 phút áp dụng cho từng package; job có thêm 5 phút cho khởi tạo và biên dịch.
+  Bộ test TUI từng mất hơn 14 phút trên runner nên hạn 15 phút không đủ dư địa.
 - Chạy mọi package; package không có tệp test vẫn được biên dịch (go test báo
   `[no test files]`), không package nào bị loại.
 - `-race` cần CGO; gcc có sẵn trên runner Ubuntu. Đây là lựa chọn có chủ đích vì Bint có khoá
@@ -98,7 +100,7 @@ go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
 go install honnef.co/go/tools/cmd/staticcheck@v0.7.0 && GOOS=windows "$(go env GOPATH)/bin/staticcheck" ./...
 
 # Test
-CGO_ENABLED=1 go test -race -count=1 -timeout 15m ./...
+CGO_ENABLED=1 go test -race -count=1 -timeout 20m ./...
 
 # Build một nền tảng
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/bint ./cmd/bint
