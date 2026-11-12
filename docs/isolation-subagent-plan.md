@@ -1,8 +1,8 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
-Trạng thái: **đã chốt hướng** (2026-11-11; bổ sung mục 4.5 ngày 2026-11-12). **G1 mục 4.1–4.4 và 4.5 (H8) đã làm**
-(2026-11-12, xem mục 12.1–12.5). **G2 (mục 5) đã làm** (2026-11-12, xem mục 12.6). **G3a (mục 6.1–6.3) đã làm**
-(2026-11-12, xem mục 12.10); G3b (6.4–6.7) và G4 chưa làm. Gồm bốn giai
+Trạng thái: **đã triển khai G1–G4, chờ nghiệm thu thật bằng Claude Code** (2026-11-12). G1 mục 4.1–4.5: mục 12.1–12.5;
+G2 (mục 5): 12.6–12.8; spike S1–S3: 12.9; G3 (mục 6): 12.10–12.13; G4 (mục 7): 12.14–12.15. Cố ý để lại: G2 .5/.6 (12.7)
+và ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95 (12.5). Chưa chạy thật trên Windows. Gồm bốn giai
 đoạn: G1 (cô lập trên worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy
 các bước bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
 
