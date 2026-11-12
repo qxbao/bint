@@ -2,7 +2,7 @@
 schema: 1
 id: 01M746PJW8B5A8S1N5B3BEAPC0
 type: pattern
-status: stale
+status: verified
 title: Thao tác chỉ dành cho người (duyệt/áp dụng/loại bỏ) phải chặn bằng requireHuman / app.InAgentSession
 scope:
   paths:
@@ -12,13 +12,13 @@ scope:
 evidence:
   - path: internal/app/knowledge.go
     lines: 34-42
-    fingerprint: lines:972acf6b6eae4a6b
+    fingerprint: lines:6545d7f83adc6f4c
   - path: internal/evolve/apply.go
     lines: 69-74
     fingerprint: lines:97715b34914ac70e
   - path: internal/app/revalidate.go
     lines: "80"
-    fingerprint: lines:212c4ddabcb84e06
+    fingerprint: lines:6460315d6a9d6415
   - path: internal/knowledge/transition.go
     lines: 81-92
     fingerprint: lines:4cb593f2f937888e
@@ -32,13 +32,13 @@ origin:
     - internal/knowledge/transition.go
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-11T02:27:59Z"
+reviewed_at: "2026-11-12T02:15:27Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:57Z"
-updated_at: "2026-11-11T17:47:13Z"
-verified_at: "2026-11-11T02:27:59Z"
-status_reason: 'bằng chứng thay đổi: bằng chứng internal/app/knowledge.go:34-42 đã thay đổi kể từ khi ghi: nội dung vùng dòng đã thay đổi'
+updated_at: "2026-11-12T02:15:27Z"
+verified_at: "2026-11-12T02:15:27Z"
+status_reason: người duyệt chấp nhận
 ---
 
 Lệnh làm thay đổi tri thức/đề xuất đã duyệt (approve, review, reject, deprecate, evolve apply/reject/rollback, knowledge revalidate, verify --apply) gọi `requireHuman("<lệnh>")` ở đầu, trả lỗi bọc `app.ErrAgentForbidden`.

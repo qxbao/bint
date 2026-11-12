@@ -2,7 +2,7 @@
 schema: 1
 id: 01M746PHJXDZN6QMA3BEVEDNPP
 type: warning
-status: stale
+status: verified
 title: 'go test chạy trong phiên agent có CLAUDECODE=1: kiểm thử thao tác chỉ-dành-cho-người phải xoá biến agent'
 scope:
   paths:
@@ -10,13 +10,13 @@ scope:
 evidence:
   - path: internal/app/knowledge.go
     lines: 18-42
-    fingerprint: lines:6aeab850efb7c995
+    fingerprint: lines:d757a07cafc55751
   - path: internal/testutil/git.go
     lines: 52-78
     fingerprint: lines:6a2b13084e90182a
   - path: internal/cli/knowledge_e2e_test.go
     lines: 14-25
-    fingerprint: lines:f23d29dce8172758
+    fingerprint: lines:9d1570d97e0499c2
   - path: internal/evolve/evolve_test.go
     lines: 23-29
     fingerprint: lines:a331080b6e61ef56
@@ -32,13 +32,13 @@ origin:
     - internal/app/context_test.go
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-11T02:27:50Z"
+reviewed_at: "2026-11-12T02:15:26Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:55Z"
-updated_at: "2026-11-11T17:47:13Z"
-verified_at: "2026-11-11T02:27:50Z"
-status_reason: 'bằng chứng thay đổi: bằng chứng internal/app/knowledge.go:18-42 đã thay đổi kể từ khi ghi: nội dung vùng dòng đã thay đổi'
+updated_at: "2026-11-12T02:15:26Z"
+verified_at: "2026-11-12T02:15:26Z"
+status_reason: người duyệt chấp nhận
 ---
 
 `app.InAgentSession` coi tiến trình là agent khi có một biến trong `agentEnvVars` (BINT_AGENT, CLAUDECODE, AI_AGENT, CODEX_SANDBOX...); khi đó approve/apply/reject trả `ErrAgentForbidden`.

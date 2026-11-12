@@ -52,6 +52,11 @@ Khi làm việc với `internal/eval/**`:
 - **Mục không có bằng chứng bị EconomyFilter loại; bài học từ thất bại được nới** [k:01M74D57FYH0PS3DKV7BHRTCF8]
   EconomyFilter và EvidenceHoldsAt loại mục không có tệp bằng chứng. Bài học failure_lesson (Origin.Provenance=failure_lesson, Origin.Runs khác rỗng) không có tệp nên được nới qua Item.LessonFromRuns(); mọi mục khác vẫn bị loại.
 
+Khi làm việc với `internal/eval/**`, `internal/cli/**`:
+
+- **go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượ…** [k:01M768KJEYSVTCQEJ3JAX3E7S2]
+  go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượng đĩa' khi còn dưới ngưỡng eval.min_free_mb (mặc định 1024). Đĩa đầy thì dọn bộ đệm build (go clean -cache) trước khi chạy; lỗi này không liên quan mã đang sửa.
+
 Khi làm việc với `internal/evolve/**`:
 
 - **CheckLeak chỉ cảnh báo định danh mới; bài học dùng kiểm rò rỉ riêng (định danh mã, định danh mới ở vị trí mã, literal)** [k:01M74D57EZ2HZSQMTB9YP56F3D]
@@ -73,4 +78,16 @@ Khi làm việc với `internal/harness/hookcore/hook.go`:
   Căn cứ: Lỗi của Reset bị bỏ qua (_ =) và sự kiện session.started chỉ ghi payload source; không có trường nào cho biết bộ nhớ đã được xoá hay xoá lỗi. Chưa có bằng chứng tích hợp rằng Claude Code gửi source=compact sau khi nén (chỉ kiểm bằng JSON giả lập), nên nếu sự kiện không đến thì bản sửa lặng lẽ vô tác dụng và không thể phát hiện.
 
   (Rút ra từ phát hiện review 01M74V1M7F41TFP03TWJQKKYF1.3, tác vụ 01M74V1M7F41TFP03TWJQKKYF1.)
+
+Khi làm việc với `internal/tui/**`:
+
+- **Chân phím trong khung phải đi qua frame.Box.BottomHints (footer.FitStyle tự rút nhãn rồi bỏ phím theo độ rộng khung), đ…** [k:01M768KJGVZ4K2ZQ3JRKW01C6H]
+  Chân phím trong khung phải đi qua frame.Box.BottomHints (footer.FitStyle tự rút nhãn rồi bỏ phím theo độ rộng khung), đừng tự ghép chuỗi Bottom: edge() sẽ cắt giữa một phím. Phần tử bấm chuột bọc bằng zone.Mark (chỉ có tác dụng trong Model.Render, nơi dấu được gỡ); danh sách mới phải vẽ bằng list.Render để hàng bấm được.
+
+Khi làm việc với `internal/tui/app/*_test.go`:
+
+- **Test TUI có việc nền: không dùng drive()/press() — jobs.Wait chặn đồng bộ** [k:01M75FZMNEYM2X3WHNH2G7ZQA4]
+  drive() trong testutil_test.go chạy tea.Cmd đồng bộ; khi có việc nền (Action.Job) lệnh jobs.Wait chặn tới khi việc gửi thông điệp nên test treo. Dùng fixture.press/pump (tasks_fixture_test.go) hoặc drv (evolve_screen_test.go) chạy lệnh trong goroutine. Test TestReadOnlyAndAgentNeverReachDo chỉ duyệt Action.Do: hành động Job (evolve.propose/evaluate/process/cycle) cần test chỉ-đọc/HumanOnly riêng.
+- **sysReal/newModel điền loader mẫu cho thẻ Hệ thống chưa gán (withSampleSystem): Config mẫu có ui.language=auto bất kể lo…** [k:01M7607DBEEATX9D3ZV540Y9K7]
+  sysReal/newModel điền loader mẫu cho thẻ Hệ thống chưa gán (withSampleSystem): Config mẫu có ui.language=auto bất kể local.yml thật. Test cần cấu hình hiệu lực thật (ngôn ngữ, lớp local) phải đặt Options.SystemLoad.Config = bintapp.ConfigView qua sysRealWith.
 <!-- bint:end -->
