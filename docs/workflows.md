@@ -362,7 +362,9 @@ nhiều agent song song) chưa có.
   session`, hoặc `workflow.driver: session`; `bint run b-do --driver session "…"` lập phiếu rồi dừng với
   `Result.Status = created`) phiên đang mở (orchestrator) chạy từng bước bằng subagent, còn Bint giữ máy trạng thái và
   **mọi cổng kiểm tra**: `next` và `complete` là hai nửa của một bước (`beginStep`/`endStep` quanh lời gọi agent), driver
-  process dùng đúng hai nửa đó. Driver session luôn điều phối theo `b-do`.
+  process dùng đúng hai nửa đó. Driver session luôn điều phối theo `b-do`. Trong Claude Code, người dùng gõ
+  `/b-do --subagent <việc>` (hoặc nói "dùng subagent để …") thì skill `b-do` lập phiếu `--driver session` rồi tự chạy
+  vòng `next` → Agent → `complete`; harness không có subagent thì dùng driver `process`.
 
   ```
   bint task new --driver session "<yêu cầu>" --json            → ID
