@@ -1,6 +1,6 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
-Trạng thái: **đã chốt hướng** (2026-11-11), chưa triển khai. Gồm bốn giai đoạn: G1 (cô lập trên
+Trạng thái: **đã chốt hướng** (2026-11-11; bổ sung mục 4.5 ngày 2026-11-12), chưa triển khai. Gồm bốn giai đoạn: G1 (cô lập trên
 worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy các bước
 bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
 
@@ -32,6 +32,7 @@ với `Dir = r.Root`, tức worktree của thư mục đang đứng. Mọi kiể
 | H4 | `AcquireWriteLock` (`isolation.go`) độc quyền theo worktree, không chờ | b-feat thứ hai bị `blocked` ngay. |
 | H5 | `State.Worktree`/`State.Branch` được ghi lúc lập phiếu (`ops.go:160`) nhưng không nơi nào đọc | `bint run resume` gõ ở thư mục khác ⇒ chạy trên nhầm cây. |
 | H6 | Skill b-do không nhắc worktree; Bint không có lệnh tạo worktree hay đưa thay đổi về | Kế hoạch gốc (`bint-plan.md:605`) yêu cầu worktree khi chạy song song nhưng không có công cụ. |
+| H8 | Ảnh chụp của bước chỉ đọc không phân biệt người hay agent sửa | Người dùng sửa cấu hình/duyệt tri thức trong TUI lúc b-req chạy ⇒ bước `failed`. Ca thật: tác vụ 01M76RV9STQEA4A47AY1QC4V8T, 2026-11-12 09:29, "b-req … đã sửa cây làm việc: .bint/config.yml" do đổi `ui.language` trong TUI. |
 | H7 | Skill b-do bắt mọi bước đi qua `bint run` | `/b-do Dùng subagent…` hoặc bị lờ đi, hoặc subagent sửa mã mà Bint không biết (bỏ qua mọi cổng). |
 
 Những thứ đã có, dùng lại được:
@@ -85,7 +86,8 @@ Mục tiêu: sửa H1–H5 ở mức không cần worktree mới. Đây cũng l�
   `workflow.timeout_minutes`; Ctrl-C ⇒ `interrupted` như hiện nay. Cờ `--no-wait` để lỗi ngay
   (`blocked`, như hành vi cũ). Không thêm khoá cấu hình.
 - Bước chỉ đọc giữ khoá chia sẻ suốt bước, nên trong `shared` chỉ còn **người dùng** sửa tệp mới làm
-  thay đổi ảnh chụp. Thông báo vi phạm thêm: "nếu chính bạn sửa trong lúc bước chạy: bint run resume".
+  thay đổi ảnh chụp. Sửa qua Bint (TUI/CLI) được miễn theo mục 4.5; sửa bằng IDE vẫn bị tính, thông báo
+  vi phạm thêm: "nếu chính bạn sửa trong lúc bước chạy: bint run resume".
 
 ### 4.3. Tập tệp của từng tác vụ (H2)
 
@@ -109,7 +111,38 @@ nghĩa thật. Chỉ đổi thông báo của `DoneBlockers`: liệt kê tệp �
 verify ("thay đổi không thuộc tác vụ: …; chạy lại bint task verify <id>"). Cần lưu danh sách tệp
 (hoặc tree) lúc verify bên cạnh fingerprint.
 
-### 4.5. Nghiệm thu G1
+### 4.5. Thay đổi do Bint ghi thay người không tính là vi phạm (H8)
+
+Phần lớn thay đổi của người trong lúc agent chạy đi qua chính Bint: TUI/CLI sửa cấu hình, duyệt/từ
+chối/làm mới/áp dụng tri thức, sinh lại `AGENTS.md` và skill, `init --update`. Bint biết chính xác mình
+vừa ghi gì nên tự loại các thay đổi đó khỏi kiểm tra bước chỉ đọc.
+
+- **Nhật ký ghi.** Mọi thao tác ghi tệp trong repo của tầng dịch vụ (`internal/app`, dùng chung cho CLI
+  và TUI) đi qua một hàm ghi chung, hàm này nối thêm một dòng vào
+  `<state>/runtime/writes.jsonl`: `{path, sha256 sau khi ghi, at, actor, agent: InAgentSession()}`.
+  Đặt ở tầng dịch vụ để TUI không thể ghi vòng qua nhật ký. Nối thêm bằng `O_APPEND`, một dòng mỗi lần
+  ghi; dọn dòng cũ hơn `workflow.timeout_minutes` × 2 khi nối.
+- **Đối chiếu.** `ReadonlyViolations` nhận thêm thời điểm bắt đầu bước. Một đường dẫn đổi giữa hai ảnh
+  chụp **không** tính là vi phạm khi dòng nhật ký mới nhất của nó: ghi trong khoảng bước chạy, có
+  `agent: false`, và hash khớp nội dung hiện tại của tệp. Tệp bị xoá: ghi dòng có `sha256: ""`.
+- **Chốt an toàn.**
+  - Agent tự gọi `bint config set`/`bint knowledge …` trong bước chỉ đọc ⇒ dòng nhật ký có
+    `agent: true` ⇒ vẫn là vi phạm.
+  - Agent sửa tiếp đúng tệp đó sau người ⇒ hash lệch ⇒ vẫn là vi phạm.
+  - Tệp nhật ký nằm trong thư mục trạng thái mà bước chỉ đọc được ghi (`WritableDirs`), nên agent có thể
+    tự chèn dòng giả. Chấp nhận được vì mục đích là chặn nhầm chứ không phải chống agent cố tình: lớp
+    chặn chính của bước chỉ đọc vẫn là `--disallowedTools` của harness, và kết quả bước có ghi danh sách
+    tệp được miễn để người xem lại. Ghi giới hạn này trong `workflows.md`.
+- **Kết quả bước** liệt kê tệp được miễn (`StepResult.HumanWrites`) và in một dòng "bỏ qua thay đổi do
+  người ghi qua Bint: …".
+- **TUI báo trước.** Khi cây đang có bước của tác vụ chạy (đọc `bint run status`/khoá), TUI hiện dòng
+  trạng thái "<bước> của <tác vụ> đang chạy trên cây này". Thao tác ghi vẫn được phép, không cần dặn
+  người dùng tránh TUI.
+- **Không chữa được:** người dùng sửa bằng IDE hoặc công cụ ngoài Bint trong lúc bước chỉ đọc chạy. Muốn
+  vừa sửa vừa để agent chạy thì dùng `isolation: worktree` (G2).
+- Hook không ghi vào nhật ký này (hook không ghi tệp trong repo).
+
+### 4.6. Nghiệm thu G1
 
 - Kiểm thử đồng thời (hai `Runner` với agent giả trong cùng thư mục tạm): b-review của A không fail khi
   B có b-feat chờ; B chờ tới lúc A trả khoá rồi chạy.
@@ -118,6 +151,12 @@ verify ("thay đổi không thuộc tác vụ: …; chạy lại bint task verif
   (chạy `-race -count=50`).
 - `checkScope` không tính tệp chưa commit có sẵn trước khi lập phiếu, không tính tệp của tác vụ khác.
 - `bint run resume` ở thư mục khác chạy đúng `State.Worktree`.
+- Tái hiện ca H8: agent giả (bước chỉ đọc) chạy, trong lúc đó gọi dịch vụ sửa `ui.language` và duyệt một
+  mục tri thức với vai người (`asHuman(t)`) ⇒ bước `completed`, kết quả liệt kê hai tệp được miễn. Cùng
+  thao tác nhưng chạy với biến agent ⇒ vi phạm. Người sửa rồi agent giả sửa tiếp cùng tệp ⇒ vi phạm. Sửa
+  tệp trực tiếp (không qua dịch vụ) ⇒ vi phạm.
+- Kiểm thử liệt kê: mọi hàm ghi tệp repo trong `internal/app` đi qua hàm ghi chung (không còn
+  `os.WriteFile`/`fsafe` gọi thẳng trên đường dẫn repo ngoài hàm đó).
 - `GOOS=windows go vet ./...` và staticcheck qua.
 
 ## 5. G2 — Mỗi tác vụ một worktree
@@ -341,7 +380,7 @@ Cập nhật `docs/configuration.md` cùng lúc.
 
 ## 11. Thứ tự và kích thước ước lượng
 
-1. **G1** (nhỏ–vừa): sửa ngay cảm giác "bị nhạy cảm với thay đổi" trên worktree chung.
+1. **G1** (vừa): sửa ngay cảm giác "bị nhạy cảm với thay đổi" trên worktree chung, kể cả người dùng thao tác TUI lúc agent chạy (4.5).
 2. **G2** (vừa): nền cho mọi việc song song.
 3. Spike S1–S3 (nhỏ).
 4. **G3** (vừa–lớn): phần lớn là tách `runStep` và hợp đồng thuê.
