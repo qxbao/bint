@@ -64,7 +64,7 @@ func CiteKnowledge(ctx context.Context, dir string, o CiteOptions) (CiteResult, 
 		ids = append(ids, it.ID)
 	}
 	if len(bad) > 0 {
-		return res, errors.New("không có mục tri thức nào khớp: " + strings.Join(bad, ", "))
+		return res, errors.New("ID tri thức không tồn tại: " + strings.Join(bad, ", ") + " (không ghi trích dẫn nào)")
 	}
 	payload := map[string]any{"ids": anyStrings(ids)}
 	if n := strings.TrimSpace(o.Note); n != "" {

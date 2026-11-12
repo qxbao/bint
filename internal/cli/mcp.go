@@ -14,7 +14,7 @@ import (
 )
 
 func newMCPCmd(stdio IO) *cobra.Command {
-	c := &cobra.Command{Use: "mcp", Short: "MCP server của Context Engine"}
+	c := &cobra.Command{Use: "mcp", Short: "MCP server của Context Engine; danh mục, đăng ký và quyền MCP của service ngoài"}
 	var evalCfg string
 	serve := &cobra.Command{
 		Use:   "serve",
@@ -79,6 +79,7 @@ PostToolUse của Claude Code (bint init --hooks).`,
 		},
 	}
 	c.AddCommand(serve, tools)
+	c.AddCommand(mcpManageCmds(stdio)...)
 	return c
 }
 

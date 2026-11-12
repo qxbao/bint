@@ -45,8 +45,13 @@ func TestKnowledgeCiteEndToEnd(t *testing.T) {
 	if out, code := run(t, root, "", "knowledge", "cite", "01NOSUCHITEM000000000000"); code == 0 || !strings.Contains(out, "01NOSUCHITEM000000000000") {
 		t.Fatalf("ID sai: %d\n%s", code, out)
 	}
-	if out, code := run(t, root, "", "knowledge", "cite", added.ID, "[k:01NOSUCHITEM000000000000]"); code == 0 || !strings.Contains(out, "01NOSUCHITEM000000000000") {
+	if out, code := run(t, root, "", "knowledge", "cite", added.ID, "[k:01NOSUCHITEM000000000000]"); code == 0 ||
+		!strings.Contains(out, "ID tri thức không tồn tại: 01NOSUCHITEM000000000000") ||
+		!strings.Contains(out, "(không ghi trích dẫn nào)") || strings.Contains(out, added.ID) {
 		t.Fatalf("ID sai lẫn ID đúng: %d\n%s", code, out)
+	}
+	if spools, _ := filepath.Glob(filepath.Join(stateDir, "*", "spool", "*")); len(spools) != 0 {
+		t.Fatalf("lỗi ID không được ghi sự kiện vào spool: %v", spools)
 	}
 	// Dạng [k:ID] và --note.
 	out, code = run(t, root, "", "knowledge", "cite", "[k:"+added.ID+"]", "--note", "áp dụng ở Makefile", "--json")
@@ -56,6 +61,10 @@ func TestKnowledgeCiteEndToEnd(t *testing.T) {
 	}
 	if code != 0 || json.Unmarshal([]byte(out), &res) != nil || res.RunID != runID || len(res.IDs) != 1 || res.IDs[0] != added.ID {
 		t.Fatalf("cite: %d\n%s", code, out)
+	}
+
+	if spools, _ := filepath.Glob(filepath.Join(stateDir, "*", "spool", "*")); len(spools) != 1 {
+		t.Fatalf("cite thành công phải ghi đúng một sự kiện vào spool: %v", spools)
 	}
 
 	// Nạp spool: dòng knowledge_citations đúng run_id, ID và ghi chú.

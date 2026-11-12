@@ -46,6 +46,9 @@ var serviceBindings = map[string]any{
 	"skill diff": app.SkillDiffOptions{}, "skill versions": app.SkillVersionsOptions{}, "skill check": evolvesvc.SkillCheckOptions{},
 	"skill regress": evolvesvc.SkillRegressOptions{}, "sync": app.SyncOptions{}, "index rebuild": app.IndexRebuildOptions{},
 	"mcp tools": app.MCPToolsOptions{},
+	// M1 của kế hoạch MCP gateway: màn MCP thuộc M4 nên các lệnh chỉ có dịch vụ + binding (phủ cờ vẫn được kiểm).
+	"mcp list": app.MCPListOptions{}, "mcp add": app.MCPAddOptions{}, "mcp remove": app.MCPRemoveOptions{},
+	"mcp check": app.MCPCheckOptions{}, "mcp index": app.MCPIndexOptions{}, "mcp grants": app.MCPGrantsOptions{},
 	// Giai đoạn 5b: init (11 cờ) và update. hasAction chỉ giữ hành động cuối của mỗi CLIPath nên binding bảo đảm phủ cờ không
 	// phụ thuộc thứ tự khai báo của các hành động dùng chung lệnh `init`.
 	"init": app.InitFlagOptions{}, "update": app.UpdateOptions{},

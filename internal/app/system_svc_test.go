@@ -361,7 +361,7 @@ func TestConfigViewGroupsAndSources(t *testing.T) {
 			t.Errorf("nhóm %s rỗng", g.Key)
 		}
 	}
-	want := "project state harnesses roles context knowledge memory eval evolution workflow limits security ui"
+	want := "project state harnesses roles context knowledge memory eval evolution workflow limits security ui mcp"
 	if strings.Join(keys, " ") != want {
 		t.Fatalf("nhóm khoá = %v", keys)
 	}

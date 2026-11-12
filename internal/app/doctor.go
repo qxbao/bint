@@ -218,6 +218,8 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		}
 	}
 
+	doctorMCP(r, repo.Toplevel, cfg)
+
 	if block, err := fsafe.ReadBlock(filepath.Join(repo.Toplevel, ".gitignore"), fsafe.HashMarkers); err != nil {
 		r.add(".gitignore", LevelWarn, "%v", err)
 	} else if block == nil {

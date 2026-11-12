@@ -262,8 +262,9 @@ không có MCP (ghi một dòng log), không thất bại.
   khoảng trắng được tắt qua bảng nội tuyến `-c 'mcp_servers={"a.b"={enabled=false}}'`, đặt trước mọi `-c mcp_servers.*`
   khác; (2) tắt một tên không tồn tại làm Codex báo `invalid transport` và không chạy, nên server chỉ có trong
   `.codex/config.toml` chỉ bị tắt khi `projects."<thư mục>".trust_level = "trusted"` trong config người dùng khớp đúng
-  thư mục chạy (Codex bỏ qua config của dự án chưa tin cậy). Dự án được tin cậy qua thư mục cha hoặc gốc Git thì
-  server riêng của dự án đó **không** bị tắt. Người dùng vẫn ghi đè được qua `harnesses.codex.extra_args`.
+  thư mục chạy hoặc gốc repo chính (khi thư mục chạy là worktree liên kết) (Codex bỏ qua config của dự án chưa tin
+  cậy). Chỉ dự án được tin cậy qua một thư mục cha khác thì Bint không nhận ra, nên server riêng của dự án đó
+  **không** bị tắt (không gây lỗi). Người dùng vẫn ghi đè được qua `harnesses.codex.extra_args`.
 - **Antigravity**: chỉ có MCP cấp người dùng, Bint không cấp cho từng bước; skill dặn dùng CLI. Bước `agy` nhận mọi
   MCP người dùng đã cấu hình.
 - **Lượt đánh giá** (`bint eval run`) không đổi: nhánh `bint` có cấu hình MCP riêng (`--eval-config`) và Codex chạy
@@ -576,3 +577,28 @@ Giới hạn đã biết của P4–P5:
 - Hook `deny` của Codex chặn thao tác sửa tệp nhưng chưa tự chuyển tác vụ sang `blocked`.
 - Antigravity: chưa có MCP cấp dự án, chưa chèn ngữ cảnh qua hook, đề bài `bint run` truyền qua một
   đối số dòng lệnh (giới hạn 120 KiB), và một số payload công cụ thực tế cần kiểm chứng thêm khi chạy live.
+
+### Quản lý MCP (`bint mcp`)
+
+Danh mục MCP nằm trong binary (`internal/mcpcat`: codegraph, specmatic, deepwiki, context7, jira, chrome-devtools);
+Bint **không tự cài** service nào (docs/mcp-gateway-plan.md mục 5). Hai tầng cấu hình:
+
+- **Máy** (không commit), ở thư mục cấu hình user (`$BINT_CONFIG_HOME` hoặc `<UserConfigDir>/bint`): `mcp.yml`
+  (service đã đăng ký: lệnh, đối số, URL, phiên bản, **tên** biến credential; Bint ghi với quyền 0600) và
+  `secrets.env` (giá trị credential, dạng `TÊN=giá trị`, quyền 0600, do người sửa bằng trình soạn thảo). Trên Windows
+  Bint chưa kiểm ACL của `secrets.env`.
+- **Dự án** (commit), `.bint/config.yml`: `mcp.services` (service dự án dùng; `required: false` cho tuỳ chọn; `options`
+  riêng) và `mcp.grants` (role tự do → `<service>.<nhóm>` hoặc `<service>.*`).
+
+| Lệnh | Việc | Ai chạy |
+|---|---|---|
+| `bint mcp list [--json]` | danh mục, trạng thái đăng ký trên máy, dự án dùng gì | người, agent |
+| `bint mcp add <service> [--command … --arg … --env-name … \| --url …]` | đăng ký (hiện lệnh cài gợi ý nếu thiếu binary; cảnh báo `npx …@latest`, `uvx`), rồi kiểm tra | chỉ người |
+| `bint mcp remove <service>` | gỡ đăng ký (không đụng `secrets.env`) | chỉ người |
+| `bint mcp check [<service>]` | `initialize` + `tools/list`, đối chiếu nhóm thao tác, báo biến credential thiếu; codegraph: gọi thử `codegraph_status`, báo `degraded` khi daemon cũ chạy với env hẹp | người, agent |
+| `bint mcp index codegraph` | `codegraph init -y` (chưa có chỉ mục) hoặc `codegraph sync` ở worktree hiện tại, rồi thêm `.codegraph/` vào `info/exclude` của git | chỉ người |
+| `bint mcp grants [--role <r>]` | quyền đã giải: role → tên tool tới agent (`mcp__bint__<tiền tố>_<tool>`), báo service thiếu | người, agent |
+
+"Chỉ người" nghĩa là lệnh trả `ErrAgentForbidden` khi chạy trong phiên agent. `bint doctor` báo service dự án khai báo mà
+máy chưa đăng ký, chỉ mục codegraph thiếu và `secrets.env` có quyền rộng hơn 0600 (không khởi động tiến trình MCP). M1
+chỉ làm danh mục, cấu hình và lệnh quản lý: việc cấp tool cho bước chạy (shim gộp) và daemon dùng chung là M2/M3.

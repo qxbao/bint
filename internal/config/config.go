@@ -55,6 +55,7 @@ type Config struct {
 	Limits    Limits    `yaml:"limits"`
 	Security  Security  `yaml:"security"`
 	UI        UI        `yaml:"ui"`
+	MCP       MCP       `yaml:"mcp"`
 
 	// contextBase: Context khi KHÔNG có strategy.yml (nil nếu không có strategy được áp).
 	// Đo lường (eval) cần cấu hình gốc để nhánh không-strategy không bị strategy chi phối.
@@ -546,6 +547,7 @@ func Default() Config {
 		Limits:   Limits{Workflows: map[string]PerRunLimits{}, ProtectedPaths: []string{"migrations/**", ".github/workflows/**"}},
 		Security: Security{RequireApprovalForCommands: true},
 		UI:       UI{Language: "auto"},
+		MCP:      MCP{Services: map[string]MCPService{}, Grants: map[string][]string{}},
 	}
 }
 
@@ -921,6 +923,7 @@ func (c Config) Validate() error {
 	if !slices.Contains(UILanguages, c.UI.Language) {
 		add("ui.language: phải là %s, nhận %q", strings.Join(UILanguages, " | "), c.UI.Language)
 	}
+	errs = append(errs, validateMCP(c.MCP)...)
 	if len(errs) > 0 {
 		slices.Sort(errs)
 		return &ValidationError{Problems: errs}

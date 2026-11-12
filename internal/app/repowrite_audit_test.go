@@ -34,6 +34,7 @@ var directWriteAllowed = map[string]string{
 	"doctor.go:checkWritable":         "tệp thăm dò quyền ghi, tạo rồi xoá ngay",
 	"evolvesvc/cycle.go:Cycle":        "evolve/cycles/<id>.json trong thư mục trạng thái",
 	"gitvis.go:saveGitMode":           "git-mode trong thư mục trạng thái",
+	"mcp_svc.go:ensureGitExclude":     "git info/exclude nằm trong .git (không phải tệp của cây làm việc); chỉ thêm một dòng .codegraph/",
 	"hook.go:RunHook":                 "hook-errors.log trong thư mục trạng thái; hook không dùng repoWriter (TestHookDoesNotUseRepoWriter)",
 	"skills_svc.go:PlanSync":          "xem trước sync trên bản sao tạm, không chạm repo",
 	"skills_svc.go:copyTree":          "sao cây vào thư mục tạm của PlanSync",
