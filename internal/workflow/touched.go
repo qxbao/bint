@@ -98,7 +98,24 @@ func pinTree(ctx context.Context, root, tree, ref, msg string) error {
 	return err
 }
 
+// baseRef là ref giữ commit gốc (State.Base) của tác vụ worktree (mục 5.2); baseTreeRef giữ ảnh chụp
+// BaseTree của b-feat đầu (touched.go). Hai tên cùng cấp, không ghi đè nhau. Cả hai bị xoá khi tác vụ kết
+// thúc (deleteTaskRefs): Bint không ghim cây vĩnh viễn.
 func baseRef(id string) string { return "refs/bint/tasks/" + id + "/base" }
+
+func baseTreeRef(id string) string { return "refs/bint/tasks/" + id + "/base-tree" }
+
+// deleteTaskRefs xoá mọi ref giữ cây/commit của tác vụ (base và base-tree). Ref không tồn tại không phải lỗi
+// (update-ref -d bỏ qua); trả lỗi đầu tiên gặp.
+func deleteTaskRefs(ctx context.Context, root, id string) error {
+	var first error
+	for _, ref := range []string{baseRef(id), baseTreeRef(id)} {
+		if _, err := gitrepo.Run(ctx, root, "update-ref", "-d", ref); err != nil && first == nil {
+			first = fmt.Errorf("xoá ref %s: %w", ref, err)
+		}
+	}
+	return first
+}
 
 // unionSorted hợp hai danh sách đường dẫn: sắp xếp, bỏ trùng.
 func unionSorted(a, b []string) []string {
@@ -125,7 +142,7 @@ func (r *Runner) beginTouched(ctx context.Context, rs *runState, firstFeat bool)
 		return snap
 	}
 	id := rs.t.State.ID
-	if err := pinTree(ctx, r.Root, snap, baseRef(id), "bint: cây gốc của tác vụ "+id); err != nil {
+	if err := pinTree(ctx, r.Root, snap, baseTreeRef(id), "bint: cây gốc của tác vụ "+id); err != nil {
 		r.dropTouched(rs, "giữ cây gốc của tác vụ: "+err.Error())
 		return ""
 	}
@@ -178,7 +195,7 @@ func (r *Runner) dropTouched(rs *runState, why string) {
 	}); err == nil {
 		rs.t = t
 	}
-	gitrepo.Run(context.Background(), r.Root, "update-ref", "-d", baseRef(id))
+	gitrepo.Run(context.Background(), r.Root, "update-ref", "-d", baseTreeRef(id))
 	rs.res.Notes = append(rs.res.Notes, "không theo dõi riêng tệp của tác vụ ("+why+"): phạm vi tính theo toàn bộ thay đổi so với base")
 }
 

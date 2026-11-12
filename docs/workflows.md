@@ -48,7 +48,7 @@ bint task verify <id>                           # chạy lệnh kiểm chứng (
 bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí chấp nhận
 bint task error <id> --step b-feat "…"          # ghi lỗi / lần thử thất bại
 bint task review <id> -                         # vòng review (JSON hoặc YAML) → review.json + review.md
-bint task approve <id> [--path <tệp>]           # NGƯỜI: xác nhận lệnh kiểm chứng, duyệt đường dẫn bảo vệ
+bint task approve <id> [--path <tệp>] [--setup-sha <băm>]  # NGƯỜI: xác nhận lệnh kiểm chứng, lệnh setup worktree (đúng băm đã xem), duyệt đường dẫn bảo vệ
 bint task status <id> done [--force]            # done cần bằng chứng; chỉ người --force được
 
 bint skill list
@@ -259,7 +259,7 @@ nhiều agent song song) chưa có.
   trong <đường dẫn>"). Thư mục không còn hoặc không còn là gốc worktree Git → tác vụ `failed` với thông
   báo rõ, không lùi về thư mục đang đứng. Phiếu cũ (không có `Worktree`) dùng thư mục hiện tại.
 - **Tập tệp của riêng từng tác vụ.** Trước `b-feat` đầu tiên Bint chụp cây làm việc (`base_tree`, giữ sống
-  bằng `refs/bint/tasks/<id>/base`); sau mỗi lượt `b-feat` (kể cả lỗi/Ctrl-C) ghi các tệp đã đổi vào
+  bằng `refs/bint/tasks/<id>/base-tree`); sau mỗi lượt `b-feat` (kể cả lỗi/Ctrl-C) ghi các tệp đã đổi vào
   `touched`. Kiểm tra phạm vi, đường dẫn bảo vệ và `task status done` dùng `touched`, nên thay đổi chưa
   commit có sẵn trước khi lập phiếu và tệp của tác vụ khác **không** bị tính cho tác vụ. `bint task diff`
   hiển thị đúng phần này (b-review dùng lệnh này thay cho `git diff <base>`). Phiếu có `b-feat` từ trước khi
@@ -317,12 +317,19 @@ nhiều agent song song) chưa có.
   - *Tạo lười ở lượt `bint run` đầu tiên* (mọi workflow, kể cả `b-req`), sau khi nhận quyền điều phối: ảnh chụp cây
     gốc (gồm thay đổi chưa commit và tệp mới) dưới khoá chia sẻ → commit `bint base <id>` (cha `HEAD`) →
     `refs/bint/tasks/<id>/base` → `git worktree add -b bint/<id> <state>/worktrees/<id>` → chép tệp cục bộ do
-    Bint quản lý và tệp khớp `workflow.worktree.copy` → `workflow.worktree.setup_command`. Nhờ ảnh chụp, agent thấy
+    Bint quản lý và tệp khớp `workflow.worktree.copy` → `workflow.worktree.setup_command`. **Trước tất cả các bước
+    này**, nếu `setup_command` khác rỗng mà người chưa xác nhận (băm sha256 của lệnh, `bint task approve <id> --setup-sha <băm>`; đổi
+    lệnh thì xác nhận lại) và `security.require_approval_for_commands` bật, tác vụ dừng `blocked` với lý do nêu lệnh,
+    băm, `bint task approve <id> --setup-sha <12 ký tự đầu của băm>` và `bint run resume <id>`: chưa có worktree, nhánh hay lệnh nào chạy (cả driver process
+    lẫn driver session). Nhờ ảnh chụp, agent thấy
     đúng nội dung đang sửa dở ở cây gốc. Lỗi ở bước nào thì dọn phần đã tạo, tác vụ `failed` (nêu đường dẫn nhật ký
     của `setup_command`), `resume` tạo lại. Thành công: `State.Origin` = cây gốc, `State.Worktree` = worktree,
     `State.Branch` = `bint/<id>`, `State.Base` = base commit; mọi bước, khoá, ảnh chụp, kiểm chứng sau đó chạy ở
-    worktree (đề bài nêu "Thư mục làm việc"). Ref base dùng chung tên với `base_tree` của G1: ở `b-feat` đầu ref
-    trỏ vào commit `base_tree` cha là base commit, nên base vẫn tới được qua chuỗi cha và qua nhánh `bint/<id>`.
+    worktree (đề bài nêu "Thư mục làm việc"). Hai ref giữ cây, tên riêng: `refs/bint/tasks/<id>/base` luôn trỏ
+    base commit (`State.Base`) cho tới khi land/cancel; `refs/bint/tasks/<id>/base-tree` giữ ảnh chụp `base_tree` của
+    `b-feat` đầu. Cả hai bị xoá khi tác vụ kết thúc hoặc đưa về (không ghim cây vĩnh viễn), nên `bint task diff`
+    của tác vụ đã kết thúc mà `git gc` đã dọn cây so sánh báo lỗi `cây so sánh của tác vụ đã bị dọn` (nêu ID, trạng
+    thái, mã cây thiếu và danh sách tệp đã biết) thay vì lỗi thô của git.
   - *Đưa về* — `bint task land <id>`: bản vá nhị phân `git diff --binary` từ base tới ảnh chụp worktree, giới hạn
     trong tệp của tác vụ (`touched`; phiếu không theo dõi thì mọi thay đổi so với base), lấy **khoá độc quyền của
     cây gốc** (chờ như Runner), `git apply --check` rồi `git apply` **không `--index`**: HEAD và chỉ mục của bạn

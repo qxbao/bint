@@ -428,9 +428,9 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		return t, blockers, err
 	}
 	if task.Terminal(to) {
-		// Tác vụ kết thúc: ref giữ cây gốc không còn cần (nó giữ cả tệp chưa theo dõi, không bị gc dọn).
+		// Tác vụ kết thúc: ref giữ cây gốc (base, base-tree) không còn cần (nó giữ cả tệp chưa theo dõi, không bị gc dọn).
 		if root, rerr := e.RootFor(t); rerr == nil {
-			gitrepo.Run(ctx, root, "update-ref", "-d", baseRef(t.State.ID))
+			deleteTaskRefs(ctx, root, t.State.ID)
 		}
 	}
 	if to == task.StatusCancelled {
@@ -550,6 +550,33 @@ func (e *Env) VerifyConfirmed(t *task.Task) bool {
 	}
 	a := t.State.VerifyApproval
 	return a != nil && a.Command == cmd
+}
+
+// SetupStatus là trạng thái xác nhận workflow.worktree.setup_command của một tác vụ.
+type SetupStatus struct {
+	Command string // lệnh setup đang cấu hình (đã trim)
+	SHA256  string // băm của Command
+	// Required: tác vụ còn cần tạo worktree bằng lệnh này (lệnh khác rỗng, chế độ worktree, chưa tạo xong, chưa kết thúc).
+	Required bool
+	// Confirmed: người đã xác nhận đúng lệnh này (băm trùng SetupApproval).
+	Confirmed bool
+}
+
+// Pending: lệnh setup cần người xác nhận mà chưa có.
+func (s SetupStatus) Pending() bool { return s.Required && !s.Confirmed }
+
+// SetupStatus tính trạng thái xác nhận lệnh setup của tác vụ t theo cấu hình hiện tại.
+func (e *Env) SetupStatus(t *task.Task) SetupStatus {
+	cmd := strings.TrimSpace(e.Cfg.Workflow.Worktree.SetupCommand)
+	st := SetupStatus{Command: cmd}
+	if cmd == "" {
+		return st
+	}
+	st.SHA256 = task.CommandSHA256(cmd)
+	s := &t.State
+	st.Required = s.Isolation() == task.IsolationWorktree && s.Origin == "" && s.Landed == nil && !task.Terminal(s.Status)
+	st.Confirmed = s.SetupApproval != nil && s.SetupApproval.SHA256 == st.SHA256
+	return st
 }
 
 // commandConfirmed: lệnh trùng eval.test_command đã xác nhận trong cấu hình.
@@ -675,13 +702,45 @@ func (e *Env) SubmitReview(ref string, data []byte) (*task.Task, task.ReviewRoun
 // Approval là những gì người vừa duyệt.
 type Approval struct {
 	VerifyCommand string
+	SetupCommand  string
 	Paths         []string
+	// SetupWaiting: lệnh setup còn chờ xác nhận vì người chưa đưa băm của lệnh đã xem (ApproveInput.SetupSHA rỗng);
+	// SetupWaitingSHA là băm đầy đủ của lệnh đó để in lệnh xác nhận.
+	SetupWaiting    string
+	SetupWaitingSHA string
 }
 
-// Approve: người xác nhận lệnh kiểm chứng hiện tại và duyệt các thay đổi đang chờ
-// (đường dẫn bảo vệ/deny). Không đổi trạng thái; `bint run resume` tiếp tục.
+// ApproveInput là điều người duyệt. SetupSHA là băm sha256 (hoặc tiền tố từ MinSetupSHAPrefix ký tự hex) của lệnh setup
+// mà người đã XEM; Approve chỉ ghi SetupApproval khi băm của lệnh trong cấu hình lúc ghi trùng nó, để agent đổi
+// .bint/config.yml giữa lúc người xem và lúc ghi không làm lệnh mới được duyệt (review .1 của tác vụ 01M785XQ…).
+type ApproveInput struct {
+	Paths    []string
+	SetupSHA string
+}
+
+// MinSetupSHAPrefix là độ dài tối thiểu của tiền tố băm lệnh setup khi xác nhận.
+const MinSetupSHAPrefix = 12
+
+// ErrSetupChanged: băm người đưa không khớp lệnh setup hiện tại trong cấu hình.
+var ErrSetupChanged = errors.New("lệnh setup worktree đã đổi so với lệnh bạn đã xem")
+
+// setupSHAMatches: seen là tiền tố (≥ MinSetupSHAPrefix ký tự, không phân biệt hoa thường) của băm cur.
+func setupSHAMatches(seen, cur string) bool {
+	seen = strings.ToLower(strings.TrimSpace(seen))
+	return len(seen) >= MinSetupSHAPrefix && cur != "" && strings.HasPrefix(cur, seen)
+}
+
+// Approve duyệt mà không kèm băm lệnh setup đã xem: lệnh setup đang chờ KHÔNG được xác nhận (báo ở Approval.SetupWaiting).
 func (e *Env) Approve(ref string, requestedPaths ...string) (*task.Task, Approval, error) {
+	return e.ApproveWith(ref, ApproveInput{Paths: requestedPaths})
+}
+
+// ApproveWith: người xác nhận lệnh kiểm chứng hiện tại, lệnh setup worktree (workflow.worktree.setup_command, chỉ khi
+// in.SetupSHA khớp lệnh hiện tại) và duyệt các thay đổi đang chờ (đường dẫn bảo vệ/deny). Không đổi trạng thái;
+// `bint run resume` tiếp tục.
+func (e *Env) ApproveWith(ref string, in ApproveInput) (*task.Task, Approval, error) {
 	var a Approval
+	requestedPaths := in.Paths
 	if !e.Human {
 		return nil, a, fmt.Errorf("%w: bint task approve", ErrAgent)
 	}
@@ -703,6 +762,18 @@ func (e *Env) Approve(ref string, requestedPaths ...string) (*task.Task, Approva
 		if cmd := strings.TrimSpace(t.Ticket.Verify.Command); cmd != "" && !e.VerifyConfirmed(t) {
 			t.State.VerifyApproval = &task.Approval{Command: cmd, By: e.actor(), At: e.at()}
 			a.VerifyCommand = cmd
+		}
+		if ss := e.SetupStatus(t); ss.Pending() {
+			switch {
+			case strings.TrimSpace(in.SetupSHA) == "":
+				a.SetupWaiting, a.SetupWaitingSHA = ss.Command, ss.SHA256
+			case !setupSHAMatches(in.SetupSHA, ss.SHA256):
+				return fmt.Errorf("%w: lệnh hiện tại là %q (sha256 %s…); xem lại rồi xác nhận: bint task approve %s --setup-sha %s",
+					ErrSetupChanged, ss.Command, ss.SHA256[:MinSetupSHAPrefix], t.State.ID, ss.SHA256[:MinSetupSHAPrefix])
+			default:
+				t.State.SetupApproval = &task.Approval{Command: ss.Command, SHA256: ss.SHA256, By: e.actor(), At: e.at()}
+				a.SetupCommand = ss.Command
+			}
 		}
 		// Tính lại từ diff hiện tại (task chưa qua Runner/checkScope thì PendingPaths rỗng).
 		pending := append([]string{}, t.State.PendingPaths...)

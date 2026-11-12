@@ -504,7 +504,7 @@ Ngoài giới hạn `max_review_rounds` theo yêu cầu của người dùng.
   chặn → approve → done), `TestOutsideFeatExcludesOtherTaskTouched`. Đánh đổi: thay đổi tay của người dùng trên
   worktree chung bị quy cho tác vụ (chỉ dẫn tới yêu cầu duyệt); thay đổi của tác vụ chạy chế độ cũ (không `Touched`)
   trên cùng worktree cũng bị quy cho tác vụ có theo dõi.
-- **.4 (đã sửa).** `SetStatus` tới `done`/`cancelled` xoá `refs/bint/tasks/<id>/base`. `bint task diff` của tác vụ
+- **.4 (đã sửa).** `SetStatus` tới `done`/`cancelled` xoá `refs/bint/tasks/<id>/base` (từ 12.19: cả `base-tree`). `bint task diff` của tác vụ
   đã đóng vẫn đọc được `BaseTree` tới khi `git gc` dọn đối tượng mồ côi (mặc định sau 2 tuần).
 - **.3 (đã sửa).** `bint task diff` không đưa `Touched` vào dòng lệnh git: liệt kê toàn bộ rồi lọc trong Go; diff
   đầy đủ chia lô pathspec (≤16000 byte mỗi lô, `pathBatches`). `--stat` nhiều lô in theo lô, không có dòng tổng chung
@@ -815,11 +815,11 @@ Mỗi phát hiện medium có một test tái hiện (đã kiểm đột biến:
   (chỉ khẳng định thông báo vẫn khớp khi môi trường đặt vi_VN; máy này git không có bản dịch nên chưa phân biệt được với trước khi sửa).
 - **.7 `Paths.Worktrees` không dùng** — `state.WorktreesDirFor(tasksDir)` là nơi duy nhất suy thư mục worktree từ `Tasks.Dir`
   (`Env.worktreesDir` gọi nó; `state.At` dùng cùng hằng); `TestWorktreesDirMatchesPaths` bắt lệch bố cục.
-- **.5 ref base bị `pinTree` ghi đè; `Landed.Tree`/`BaseTree` không có ref sau khi dọn** — **không sửa**. Nhánh `bint/<id>` giữ
+- **.5 ref base bị `pinTree` ghi đè; `Landed.Tree`/`BaseTree` không có ref sau khi dọn** — **không sửa ở vòng này; đã sửa ở mục 12.19**. Nhánh `bint/<id>` giữ
   base commit tới lúc land nên chưa hỏng; sau khi tác vụ kết thúc mọi ref của nó bị xoá có chủ ý ở G1 (không ghim cây vĩnh viễn trong
   repo của người dùng), nên `task diff` của tác vụ đã xong sau `git gc` hỏng cũng đúng với tác vụ `shared` của G1. Đổi cần quyết định
   chung (giữ ref `landed` tới khi nào?), để cho vòng sau.
-- **.6 `setup_command` chạy không cần xác nhận** — **chỉ ghi tài liệu** (`docs/configuration.md`). Bắt xác nhận kiểu băm lệnh như
+- **.6 `setup_command` chạy không cần xác nhận** — **chỉ ghi tài liệu ở vòng này; đã sửa ở mục 12.19**. Bắt xác nhận kiểu băm lệnh như
   `verify.command` đòi thêm luồng duyệt/trạng thái chờ ở `bint run` đầu tiên; ngoài phạm vi vòng sửa này. Rủi ro còn: agent ở
   tác vụ `shared` sửa `.bint/config.yml` rồi tác vụ worktree sau chạy lệnh đó.
 - **Test chập chờn đã sửa** — `TestWorktreeParallelEndToEnd` (cli) treo khi A (shared, giữ khoá độc quyền cây gốc suốt b-feat) vào trước
@@ -1256,3 +1256,83 @@ Orchestrator sửa trực tiếp theo yêu cầu người dùng (không chạy t
   thêm `internal/i18n/**`.
 - Giới hạn: luật ngoặc chặn nhầm lệnh chỉ đọc có ngoặc ngoài nháy (ví dụ `git show HEAD@{1}`: viết `'HEAD@{1}'`). Mẫu có `|` trong nháy vẫn bị
   luật chung chặn như trước (luật `;&|<>` chưa xét nháy).
+
+### 12.19. Việc tồn G2 .5 và .6: tách ref base/base-tree, lỗi dễ hiểu khi cây bị dọn, xác nhận `setup_command`, 2026-11-12, tác vụ 01M785XQ96FYDKNTBXJDC0JR7K
+
+**Đã làm:**
+
+- **.5 — tách ref.** `refs/bint/tasks/<id>/base` chỉ còn giữ base commit (`State.Base`) của tác vụ worktree; ảnh chụp `BaseTree` của
+  `b-feat` đầu giữ bằng `refs/bint/tasks/<id>/base-tree` (`baseTreeRef`, `internal/workflow/touched.go`). `beginTouched` ghi
+  `base-tree`; `dropTouched` chỉ xoá `base-tree` (trước đây ghi đè/xoá nhầm `base`). Hai tên cùng cấp nên không xung đột thư mục/tệp
+  trong `refs/` (tên `base/tree` thì có). Vẫn theo quyết định G1: `deleteTaskRefs` xoá **cả hai** ref khi tác vụ `done`/`cancelled`
+  (`SetStatus`), khi land và khi `cleanupWorktree`; chuỗi "dọn tay" in thêm `update-ref -d …/base-tree`. Không ghim cây vĩnh viễn.
+- **.5 — lỗi dễ hiểu.** `bint task diff` kiểm mốc so sánh (`State.BaseTree`/`Base`, và `Landed.Tree`) bằng `git cat-file -e <rev>^{tree}` **trước**
+  khi diff (`checkTreesPresent`, `internal/app/task_diff.go`), không đoán qua stderr của git (phụ thuộc phiên bản/ngôn ngữ). Thiếu ⇒ lỗi bọc
+  `app.ErrTaskTreePruned`: nêu ID, trạng thái, thời điểm, mã cây rút gọn, "Bint xoá ref giữ cây khi tác vụ kết thúc và git gc đã dọn cây sau khi tác
+  vụ kết thúc", và tối đa 20 tệp đã biết (`Landed.Files`/`Touched`). Tác vụ đã đưa về nhưng chưa kết thúc và tác vụ chưa kết thúc có câu riêng
+  (ref `base-tree` bị xoá hoặc hỏng). Chỉ coi là "bị dọn" khi git chạy được trong repo mà `cat-file` thoát khác 0; môi trường lỗi (không có git...)
+  trả lỗi gốc từ bước diff.
+- **.6 — xác nhận `setup_command`.** `State.SetupApproval` (`task.Approval` thêm `SHA256`; `task.CommandSHA256`). `Env.SetupStatus(t)` →
+  `{Command, SHA256, Required, Confirmed}` (`Required` = lệnh khác rỗng, tác vụ worktree, chưa tạo xong worktree, chưa kết thúc; `Confirmed` = băm
+  trùng). `Env.Approve` (chỉ người, agent ⇒ `ErrAgent`/`ErrAgentForbidden`) ghi `SetupApproval` khi `Pending()` và điền `Approval.SetupCommand`.
+  `ensureWorktree` kiểm ngay đầu hàm (trước dọn, khoá, ảnh chụp, tạo worktree/nhánh, chạy lệnh): chưa xác nhận và
+  `security.require_approval_for_commands` bật ⇒ `blocked`, lý do nêu lệnh, `bint task approve <id>` và `bint run resume <id>`; cờ tắt thì chạy và
+  ghi `Note`. Cả driver process (`run.go`) và driver session (`session.go`) đi qua `ensureWorktree`. Lệnh chạy sau đó là cùng `r.Cfg` của lượt đã băm
+  nên không có khoảng hở TOCTOU; resume tới `ensureWorktree` kiểm lại nên lệnh bị đổi giữa chừng (băm khác) lại `blocked`.
+- **.6 — hiển thị.** `bint task show` (dòng `Setup worktree: … [đã xác nhận|chưa xác nhận: bint task approve <id>]`; `--json` thêm `setup_command`,
+  `setup_confirmed`, `setup_required`), `bint task approve` (in "✓ Xác nhận lệnh setup worktree"; "không có gì chờ duyệt" tính cả lệnh setup), hộp
+  xác nhận duyệt của TUI (`ApprovePlan.SetupCommand`) và thẻ Kiểm chứng của TUI (`TaskDetail.Setup`), `bint doctor` (mục "lệnh setup worktree" mức
+  info kèm 12 ký tự đầu của băm; mục warn "lệnh setup chờ xác nhận" liệt kê ID). Khoá i18n `tk.approve.setup*`, `tk.meta.setup`, `tk.verify.setup_*` có ở vi và en.
+- Tài liệu: `docs/configuration.md` (dòng `setup_command`), `docs/workflows.md` (đoạn tạo worktree, hai ref).
+
+**Test:** workflow — `TestBaseCommitSurvivesFirstFeatAndDropTouched` (hai ref sau b-feat đầu và sau `dropTouched`), `TestTaskRefsRemovedOnEnd` (shared done,
+worktree land, worktree cancel: `for-each-ref refs/bint/tasks/<id>/` rỗng), `TestWorktreeSetupNeedsApproval`, `TestWorktreeSetupApprovalInvalidatedByChange`,
+`TestWorktreeSetupEmptySharedOrFlagOffNoApproval`, `TestSessionWorktreeSetupNeedsApproval`; app — `TestDiffTaskSharedPrunedBaseTree` và
+`TestDiffTaskWorktreePrunedLandedTree` (dùng `git reflog expire --expire=now --all` + `git gc --prune=now` thật), `TestApproveSetupCommandHumanOnlyAndShow`,
+`TestDoctorReportsSetupCommand`; cli — `TestTaskShowSetupCommand`; TUI — `TestVerifyTabShowsSetupCommandStatus`, `TestApproveDialogShowsSetupCommand`.
+Hai test setup cũ (`TestWorktreeBaseHasDirtyStateAndCopies`, `TestWorktreeSetupCommandFailure`) nay phải `Approve` trước.
+
+**Lệch so với kế hoạch ban đầu (và lý do):**
+
+1. **Xác nhận theo từng tác vụ, không theo repo** (như `VerifyApproval`): mỗi tác vụ worktree mới phải được duyệt một lần — chỗ gây ma sát với người dùng có
+   `setup_command` (tác vụ `blocked` thêm một lần lúc đầu). Duyệt một lần cho cả repo (ví dụ lưu băm ở `local.yml`) để phiếu sau.
+2. **Lưu cả lệnh lẫn băm** (`SetupApproval.Command` để hiển thị, `SHA256` để so), trong khi `VerifyApproval` chỉ lưu lệnh.
+3. **Doctor không có chỗ hiện `verify.command` theo phiếu** (chỉ có `eval.test_command` cấp cấu hình): mục "lệnh setup worktree" đặt cạnh mục "lệnh kiểm thử" vì
+   cùng là lệnh cấp cấu hình; có thêm mục warn liệt kê tác vụ đang chờ.
+4. **Thẻ Kiểm chứng của TUI** nhận trạng thái từ `Detail.Setup`; danh sách có thể giữ bản phiếu cũ hơn chi tiết nên phần "ai/khi nào" bỏ trống nếu bản phiếu đó chưa có
+   `SetupApproval` (đã gặp panic nil khi viết test, đã chặn).
+5. **Tác vụ worktree đang dở trước bản sửa** có `refs/.../base` đã bị ghi đè (commit `base_tree` cha là Base): không sửa lại; nhánh `bint/<id>` vẫn giữ Base và ref bị xoá như thường khi kết thúc.
+6. Câu "tài liệu đầu vào … không nằm trong phạm vi sửa" của `bint task show` mâu thuẫn với `docs/**` trong `scope.allow` (có vẻ lỗi khớp glob ở bước đánh giá phiếu): ngoài phạm vi,
+   không sửa; nên có phiếu riêng.
+7. `state.json` không dùng `DisallowUnknownFields` (chỉ `review.go` dùng): hai trường JSON mới (`setup_approval`, `sha256`) `omitempty`, hoàn nguyên commit vẫn đọc được phiếu có trường mới.
+
+**Chưa kiểm được / giới hạn:**
+
+- Chưa chạy `bint run` thật với Claude Code (driver session thật) cho ca `blocked → approve → resume`; kiểm bằng test workflow (process và session giả lập agent).
+- `git gc` tự động mặc định chỉ dọn đối tượng mồ côi sau 2 tuần; test dùng `gc --prune=now`, nên chưa thấy lỗi ở điều kiện thời gian thật.
+- Agent ở tác vụ `shared` vẫn sửa được `.bint/config.yml`, nhưng đổi `setup_command` làm đổi băm nên tác vụ worktree sau bị chặn tới khi người xác nhận lại (rủi ro cũ của .6 được bịt khi cờ security bật).
+- Cờ `security.require_approval_for_commands` tắt vẫn cho lệnh chạy không xác nhận (có ghi chú).
+
+**Kết quả kiểm chứng:** `go test ./...` 55 gói qua, 0 lỗi (chạy riêng lại workflow/app/cli/tui/i18n/task với `-count=1`: 1037 test qua); `go vet ./...` và `GOOS=windows go vet ./...` sạch; `staticcheck ./...` và `GOOS=windows staticcheck ./...` sạch.
+
+### 12.20. Sửa phát hiện review của phiếu B (.1–.4), 2026-11-12, tác vụ 01M785XQ96FYDKNTBXJDC0JR7K
+
+Phiếu B tới `done` qua `bint run b-do` (7,13 USD); orchestrator sửa trực tiếp bốn phát hiện review theo yêu cầu người dùng.
+
+- **.1 medium — xác nhận không gắn với lệnh người đã xem.** `Env.ApproveWith(ref, ApproveInput{Paths, SetupSHA})`: lệnh setup đang chờ
+  chỉ được ghi `SetupApproval` khi `SetupSHA` (băm hoặc tiền tố ≥ `MinSetupSHAPrefix` = 12 ký tự hex) khớp băm của lệnh trong cấu hình
+  lúc ghi; không khớp ⇒ `ErrSetupChanged` (nêu lệnh và băm hiện tại), không duyệt gì; rỗng ⇒ không xác nhận lệnh setup, `Approval.SetupWaiting`
+  /`SetupWaitingSHA` cho CLI in lệnh và băm. `Approve(ref, paths...)` giữ chữ ký, gọi `ApproveWith` không băm. `app.ApprovePlan.SetupSHA` mang
+  băm của lệnh hộp duyệt TUI hiển thị và `confirmApprove` gửi lại nó; CLI có cờ `--setup-sha`; lý do `blocked` của `ensureWorktree`,
+  `bint task show` và `bint doctor` in sẵn `bint task approve <id> --setup-sha <12 ký tự>`. Test: `TestWorktreeSetupNeedsApproval` (không băm ⇒
+  chờ; cấu hình đổi sau khi xem ⇒ `ErrSetupChanged`; tiền tố 8 ký tự bị từ chối; đúng băm ⇒ chạy), `TestApproveSetupCommandHumanOnlyAndShow` (kế hoạch mang băm; không băm ⇒ chờ), e2e CLI
+  `depth_e2e_test.go` (không cờ, băm sai, băm đúng). Kiểm đột biến: bỏ so khớp băm ⇒ `TestWorktreeSetupNeedsApproval` đỏ.
+- **.2 low — doctor khi `security.require_approval_for_commands` tắt** báo `warn` "chạy KHÔNG cần người xác nhận" thay cho "cần người xác
+  nhận". Test `TestDoctorSetupCommandApprovalOff`.
+- **.3 low — lệnh hiển thị sau khi worktree đã tạo.** `bint task show` và thẻ Kiểm chứng của TUI hiện `SetupApproval.Command` (lệnh đã duyệt và
+  đã chạy) khi tác vụ không còn cần setup, không lấy lệnh của cấu hình hiện tại; TUI đọc `SetupApproval` từ bản chi tiết (mới hơn bản danh
+  sách). Test `TestVerifyTabShowsApprovedSetupAfterConfigChange`.
+- **.4 low** — bỏ khoá thừa `tk.meta.setup` (vi, en); thêm nhãn form `form.tasks.approve.setup-sha` cho trường mới.
+- Giới hạn: CLI không hỏi lại tương tác; người phải chép băm từ lý do `blocked`/`task show`/lần `approve` không cờ. TOCTOU duyệt
+  `verify.command` (đã biết từ trước) không đổi trong vòng này.
+

@@ -274,7 +274,9 @@ type TaskDetail struct {
 	Review          *task.Review
 	Blockers        []string // điều còn thiếu để chuyển done
 	VerifyConfirmed bool
-	Artifacts       []TaskArtifact
+	// Setup là trạng thái xác nhận workflow.worktree.setup_command của tác vụ (Command rỗng = không có lệnh setup).
+	Setup     workflow.SetupStatus
+	Artifacts []TaskArtifact
 	// Lint là kết quả kiểm tài liệu (nil nếu chưa có tài liệu nào).
 	Lint *task.ArtifactReport
 }
@@ -293,7 +295,7 @@ func ShowTask(ctx context.Context, ws *TaskWS, o TaskShowOptions) (TaskDetail, e
 	if err != nil {
 		return d, err
 	}
-	d = TaskDetail{Task: t, Assessment: ws.Assess(t), Review: rev, VerifyConfirmed: ws.VerifyConfirmed(t)}
+	d = TaskDetail{Task: t, Assessment: ws.Assess(t), Review: rev, VerifyConfirmed: ws.VerifyConfirmed(t), Setup: ws.SetupStatus(t)}
 	in, derr := ws.DoneInputFor(ctx, t)
 	d.Blockers = task.DoneBlockers(t, in)
 	if derr != nil {
@@ -605,6 +607,8 @@ func LintTask(_ context.Context, ws *TaskWS, o TaskLintOptions) (TaskLinted, err
 type TaskApproveOptions struct {
 	Ref   string   `arg:"task-id" form:"required,suggest=tasks"`
 	Paths []string `flag:"path" form:"advanced,suggest=files"`
+	// SetupSHA: băm (tiền tố ≥ 12 ký tự hex) của lệnh setup worktree người đã xem; thiếu thì lệnh setup không được xác nhận.
+	SetupSHA string `flag:"setup-sha" form:"advanced"`
 }
 
 func TaskApproveDefaults(config.Config) TaskApproveOptions { return TaskApproveOptions{} }
@@ -620,6 +624,10 @@ type ApprovePlan struct {
 	Task *task.Task
 	// VerifyCommand là lệnh kiểm chứng sẽ được xác nhận ("" nếu không có lệnh hoặc đã xác nhận).
 	VerifyCommand string
+	// SetupCommand là lệnh workflow.worktree.setup_command sẽ được xác nhận ("" nếu không cần hoặc đã xác nhận);
+	// SetupSHA là băm của đúng lệnh đó, gửi kèm lúc ghi để Approve từ chối nếu cấu hình đổi sau khi người xem.
+	SetupCommand string
+	SetupSHA     string
 	// Paths là các đường dẫn sẽ được duyệt: đang chờ (PendingPaths), thay đổi chưa duyệt tính từ diff hiện tại,
 	// và đường dẫn --path.
 	Paths []string
@@ -628,7 +636,9 @@ type ApprovePlan struct {
 }
 
 // Empty: không có gì để duyệt.
-func (p ApprovePlan) Empty() bool { return p.VerifyCommand == "" && len(p.Paths) == 0 }
+func (p ApprovePlan) Empty() bool {
+	return p.VerifyCommand == "" && p.SetupCommand == "" && len(p.Paths) == 0
+}
 
 // PlanTaskApprove tính điều sẽ được duyệt mà không ghi gì (không đổi state.json). Cùng quy tắc với Approve.
 func PlanTaskApprove(ctx context.Context, ws *TaskWS, o TaskApproveOptions) (ApprovePlan, error) {
@@ -640,6 +650,9 @@ func PlanTaskApprove(ctx context.Context, ws *TaskWS, o TaskApproveOptions) (App
 	p.Task = t
 	if cmd := strings.TrimSpace(t.Ticket.Verify.Command); cmd != "" && !ws.VerifyConfirmed(t) {
 		p.VerifyCommand = cmd
+	}
+	if ss := ws.SetupStatus(t); ss.Pending() {
+		p.SetupCommand, p.SetupSHA = ss.Command, ss.SHA256
 	}
 	add := func(xs ...string) {
 		for _, x := range xs {
@@ -662,7 +675,7 @@ func ApproveTask(_ context.Context, ws *TaskWS, o TaskApproveOptions) (*task.Tas
 	if err := RequireHuman("bint task approve"); err != nil {
 		return nil, workflow.Approval{}, err
 	}
-	return ws.Approve(o.Ref, o.Paths...)
+	return ws.ApproveWith(o.Ref, workflow.ApproveInput{Paths: o.Paths, SetupSHA: o.SetupSHA})
 }
 
 // ---- task land ----

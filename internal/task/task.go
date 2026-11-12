@@ -17,6 +17,8 @@ package task
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -260,10 +262,18 @@ type Verification struct {
 
 // Approval là một lần người duyệt.
 type Approval struct {
-	Command string   `json:"command,omitempty"`
-	Paths   []string `json:"paths,omitempty"`
-	By      string   `json:"by"`
-	At      string   `json:"at"`
+	Command string `json:"command,omitempty"`
+	// SHA256 là băm (hex) của Command đã trim: lệnh setup worktree so theo băm để lệnh đổi phải xác nhận lại.
+	SHA256 string   `json:"sha256,omitempty"`
+	Paths  []string `json:"paths,omitempty"`
+	By     string   `json:"by"`
+	At     string   `json:"at"`
+}
+
+// CommandSHA256 là băm sha256 (hex) của lệnh đã trim khoảng trắng đầu/cuối.
+func CommandSHA256(cmd string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(cmd)))
+	return hex.EncodeToString(sum[:])
 }
 
 // ErrorRecord là một lỗi hoặc lần thử thất bại được ghi nhận.
@@ -296,7 +306,7 @@ type State struct {
 	Branch   string `json:"branch,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
 	// BaseTree là mã cây (git tree) của ảnh chụp cây làm việc ngay trước lần b-feat đầu tiên, gồm cả
-	// thay đổi chưa commit có sẵn lúc đó; giữ sống bằng refs/bint/tasks/<id>/base. Rỗng = phiếu cũ
+	// thay đổi chưa commit có sẵn lúc đó; giữ sống bằng refs/bint/tasks/<id>/base-tree (xoá khi tác vụ kết thúc). Rỗng = phiếu cũ
 	// (hoặc không chụp được): tập tệp của tác vụ tính theo toàn bộ thay đổi so với Base.
 	BaseTree string `json:"base_tree,omitempty"`
 	// Touched là hợp các tệp đổi giữa ảnh chụp trước/sau của mọi lượt b-feat (đã sắp xếp, bỏ trùng);
@@ -323,6 +333,9 @@ type State struct {
 	Verifications           []Verification   `json:"verifications,omitempty"`
 	VerifyApproval          *Approval        `json:"verify_approval,omitempty"`
 	ProtectedApproval       *Approval        `json:"protected_approval,omitempty"`
+	// SetupApproval là lần người xác nhận workflow.worktree.setup_command cho tác vụ worktree này
+	// (bint task approve); so theo băm SHA256 của lệnh, lệnh đổi thì phải xác nhận lại.
+	SetupApproval *Approval `json:"setup_approval,omitempty"`
 	// PendingPaths là tệp đã sửa chạm đường dẫn bảo vệ/deny đang chờ người duyệt.
 	PendingPaths []string      `json:"pending_paths,omitempty"`
 	Errors       []ErrorRecord `json:"errors,omitempty"`

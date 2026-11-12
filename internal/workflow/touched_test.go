@@ -70,7 +70,7 @@ func TestTouchedExcludesPreexistingDirtyFiles(t *testing.T) {
 		t.Fatalf("PendingPaths = %v", tk.State.PendingPaths)
 	}
 	// Cây gốc được giữ sống bằng ref, đúng mã cây đã ghi.
-	if got := h.git("rev-parse", "refs/bint/tasks/"+res.TaskID+"/base^{tree}"); got != tk.State.BaseTree {
+	if got := h.git("rev-parse", "refs/bint/tasks/"+res.TaskID+"/base-tree^{tree}"); got != tk.State.BaseTree {
 		t.Fatalf("ref cây gốc = %s, BaseTree = %s", got, tk.State.BaseTree)
 	}
 	// UnapprovedChanges cũng dùng Touched.
@@ -425,9 +425,9 @@ func TestManualEditOutsideFeatIsCaught(t *testing.T) {
 			if _, _, err := r.SetStatus(ctx, a.TaskID, task.StatusDone, TransitionOptions{Reason: "xong"}); err != nil {
 				t.Fatalf("done sau duyệt: %v", err)
 			}
-			// Kết thúc: ref cây gốc bị xoá (.4).
-			if out, err := gitrepoRun(h, "rev-parse", "--verify", "-q", "refs/bint/tasks/"+a.TaskID+"/base"); err == nil {
-				t.Fatalf("ref cây gốc phải bị xoá khi done, còn %q", out)
+			// Kết thúc: ref giữ cây (base, base-tree) bị xoá (.4).
+			if out := h.git("for-each-ref", "refs/bint/tasks/"+a.TaskID+"/"); strings.TrimSpace(out) != "" {
+				t.Fatalf("ref giữ cây phải bị xoá khi done, còn %q", out)
 			}
 		})
 	}
@@ -452,7 +452,7 @@ func TestOutsideFeatExcludesOtherTaskTouched(t *testing.T) {
 // Không giữ được cây gốc (ref không tạo được) thì quay về chế độ cũ kèm ghi chú, không làm hỏng tác vụ.
 func TestTouchedFallsBackWhenBaseNotPinned(t *testing.T) {
 	h := newHarness(t)
-	// refs/bint là tệp thường nên không tạo được refs/bint/tasks/<id>/base.
+	// refs/bint là tệp thường nên không tạo được refs/bint/tasks/<id>/base-tree.
 	if err := os.WriteFile(filepath.Join(h.root, ".git", "refs", "bint"), []byte("chắn\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

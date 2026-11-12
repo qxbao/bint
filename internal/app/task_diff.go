@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os/exec"
 	"slices"
 	"strings"
 
@@ -16,6 +18,14 @@ import (
 
 // emptyTreeSHA là mã cây rỗng của Git (SHA-1): mốc so sánh khi repository chưa có commit.
 const emptyTreeSHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+// ErrTaskTreePruned: cây (hoặc commit) làm mốc so sánh của tác vụ không còn trong repository nên không dựng lại
+// được diff. Bint xoá ref giữ cây (refs/bint/tasks/<id>/base, base-tree) khi tác vụ kết thúc hoặc đưa về cây
+// gốc, nên git gc có thể dọn các cây đó về sau.
+var ErrTaskTreePruned = errors.New("cây so sánh của tác vụ đã bị dọn")
+
+// maxPrunedFiles là số tệp tối đa nêu trong thông báo ErrTaskTreePruned.
+const maxPrunedFiles = 20
 
 // TaskDiffOptions: `bint task diff <task-id> [--stat|--name-only]`.
 type TaskDiffOptions struct {
@@ -80,6 +90,9 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		if res.From == "" {
 			res.From = t.State.Base
 		}
+		if err := checkTreesPresent(ctx, root, t, res.From, landedTree); err != nil {
+			return res, err
+		}
 		if spec = t.State.Landed.Files; len(spec) == 0 {
 			res.Note = "tác vụ đã đưa về cây gốc nhưng không có tệp nào"
 			return res, nil
@@ -87,6 +100,9 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		res.Note = "tác vụ đã đưa về cây gốc: diff giữa mốc đầu và ảnh chụp lúc đưa về"
 	case t.State.TracksTouched():
 		res.From = t.State.BaseTree
+		if err := checkTreesPresent(ctx, root, t, res.From, ""); err != nil {
+			return res, err
+		}
 		if spec, err = workflow.ScopeFiles(ctx, root, ws.Tasks, t, ws.Cfg.Limits.ProtectedPaths); err != nil {
 			return res, err
 		}
@@ -156,6 +172,64 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		res.Note = strings.TrimSpace(res.Note + " (nhiều tệp: bản thống kê in theo từng lô, không có dòng tổng chung)")
 	}
 	return res, nil
+}
+
+// checkTreesPresent kiểm các mốc so sánh (from, landed; "" và cây rỗng của Git được bỏ qua) còn trong repository
+// bằng `git cat-file -e` TRƯỚC khi diff, để cây đã bị git gc dọn trả ErrTaskTreePruned có lời giải thích thay vì
+// lỗi thô của git (không đoán qua chuỗi stderr của git, vốn phụ thuộc phiên bản và ngôn ngữ). Chỉ coi là "đã bị
+// dọn" khi git chạy được trong repository nhưng cat-file thoát khác 0; lỗi khác (không chạy được git...) trả nguyên.
+func checkTreesPresent(ctx context.Context, root string, t *task.Task, revs ...string) error {
+	if _, err := gitrepo.Run(ctx, root, "rev-parse", "--git-dir"); err != nil {
+		return nil // lỗi môi trường: để bước diff báo lỗi gốc
+	}
+	for _, rev := range revs {
+		if rev == "" || rev == emptyTreeSHA {
+			continue
+		}
+		_, err := gitrepo.Run(ctx, root, "cat-file", "-e", rev+"^{tree}")
+		var ee *exec.ExitError
+		if err == nil || !errors.As(err, &ee) {
+			continue
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return prunedError(t, rev)
+	}
+	return nil
+}
+
+// prunedError dựng lỗi bọc ErrTaskTreePruned: nêu tác vụ, trạng thái, mã cây thiếu, nguyên nhân và các tệp đã biết.
+func prunedError(t *task.Task, rev string) error {
+	st := t.State
+	var why string
+	switch {
+	case task.Terminal(st.Status):
+		why = fmt.Sprintf("tác vụ %s đã %s (%s); Bint xoá ref giữ cây (refs/bint/tasks/%s/) khi tác vụ kết thúc và git gc đã dọn cây %s sau khi tác vụ kết thúc",
+			st.ID, st.Status, st.UpdatedAt, st.ID, shortRev(rev))
+	case st.Landed != nil:
+		why = fmt.Sprintf("tác vụ %s (trạng thái %s) đã đưa về cây gốc; Bint xoá ref giữ cây (refs/bint/tasks/%s/) khi đưa về và git gc đã dọn cây %s",
+			st.ID, st.Status, st.ID, shortRev(rev))
+	default:
+		why = fmt.Sprintf("tác vụ %s (trạng thái %s): cây %s không còn trong repository (ref refs/bint/tasks/%s/base-tree bị xoá hoặc hỏng, rồi git gc đã dọn cây)",
+			st.ID, st.Status, shortRev(rev), st.ID)
+	}
+	files := st.Touched
+	if st.Landed != nil && len(st.Landed.Files) > 0 {
+		files = st.Landed.Files
+	}
+	msg := why + "; không dựng lại được diff"
+	if len(files) > 0 {
+		shown := files
+		if len(shown) > maxPrunedFiles {
+			shown = shown[:maxPrunedFiles]
+		}
+		msg += ". Tệp đã biết của tác vụ: " + strings.Join(shown, ", ")
+		if len(files) > len(shown) {
+			msg += fmt.Sprintf(" và %d tệp nữa", len(files)-len(shown))
+		}
+	}
+	return fmt.Errorf("%w: %s", ErrTaskTreePruned, msg)
 }
 
 // maxPathspecBytes là tổng độ dài pathspec tối đa mỗi lần gọi git (dưới giới hạn dòng lệnh Windows 32767).

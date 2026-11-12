@@ -258,6 +258,17 @@ func (r *Runner) ensureWorktree(ctx context.Context, rs *runState) bool {
 	}
 	id, origin := st.ID, r.Root
 	wt := r.WorktreePath(id)
+	// Lệnh setup chạy theo quyền người dùng: chưa được người xác nhận (băm đúng lệnh sắp chạy) thì dừng ở đây,
+	// trước khi dọn/khoá/chụp cây và tạo worktree. Lệnh chạy ở dưới là chính r.Cfg đã băm ở đây (cùng lượt) nên
+	// không có khoảng hở giữa lúc kiểm và lúc chạy.
+	if ss := r.SetupStatus(rs.t); ss.Pending() {
+		if r.Cfg.Security.RequireApprovalForCommands {
+			r.block(rs, fmt.Sprintf("workflow.worktree.setup_command chưa được người xác nhận: %s — người xem lệnh rồi duyệt: bint task approve %s --setup-sha %s, sau đó bint run resume %s",
+				ss.Command, id, ss.SHA256[:MinSetupSHAPrefix], id))
+			return false
+		}
+		rs.res.Notes = append(rs.res.Notes, "workflow.worktree.setup_command chạy không cần người xác nhận (security.require_approval_for_commands tắt): "+ss.Command)
+	}
 	fail := func(format string, a ...any) bool {
 		r.cleanupWorktree(context.WithoutCancel(ctx), id, origin, wt)
 		if ctx.Err() != nil {
@@ -353,15 +364,15 @@ func (e *Env) cleanupWorktree(ctx context.Context, id, origin, wt string) []stri
 	if err := gitrepo.DeleteBranch(ctx, origin, BranchFor(id)); err != nil {
 		manual("xoá nhánh "+BranchFor(id), err)
 	}
-	if _, err := gitrepo.Run(ctx, origin, "update-ref", "-d", baseRef(id)); err != nil {
-		manual("xoá ref "+baseRef(id), err)
+	if err := deleteTaskRefs(ctx, origin, id); err != nil {
+		manual("xoá ref giữ cây", err)
 	}
 	if err := e.removeLockFiles(wt); err != nil {
 		manual("xoá tệp khoá của worktree", err)
 	}
 	if len(notes) > 0 {
-		notes = append(notes, fmt.Sprintf("dọn tay: git -C %q worktree remove --force %q; git -C %q branch -D %s; git -C %q update-ref -d %s",
-			origin, wt, origin, BranchFor(id), origin, baseRef(id)))
+		notes = append(notes, fmt.Sprintf("dọn tay: git -C %q worktree remove --force %q; git -C %q branch -D %s; git -C %q update-ref -d %s; git -C %q update-ref -d %s",
+			origin, wt, origin, BranchFor(id), origin, baseRef(id), origin, baseTreeRef(id)))
 	}
 	return notes
 }

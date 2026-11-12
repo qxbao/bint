@@ -1,6 +1,8 @@
 package cli_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -137,5 +139,73 @@ func TestDepthReachesReqPromptOnly(t *testing.T) {
 	feat, _ := os.ReadFile(filepath.Join(pdir, "b-feat.txt"))
 	if len(feat) == 0 || strings.Contains(string(feat), "Phân tích:") {
 		t.Fatalf("prompt b-feat không có bước phân tích mới:\n%.300s", feat)
+	}
+}
+
+// task show: lệnh setup worktree và trạng thái xác nhận (văn bản và --json); task approve của người xác nhận lệnh.
+func TestTaskShowSetupCommand(t *testing.T) {
+	asHuman(t)
+	root := newLintRepo(t)
+	if err := os.WriteFile(filepath.Join(root, ".bint", "local.yml"), []byte("workflow:\n  worktree:\n    setup_command: make deps\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, code := run(t, root, "", "task", "new", "--json", "--worktree", "Đổi app.txt")
+	var created struct{ ID string }
+	if code != 0 || json.Unmarshal([]byte(out), &created) != nil {
+		t.Fatalf("task new: %d\n%s", code, out)
+	}
+	show := func() (struct {
+		Command   string `json:"setup_command"`
+		Confirmed bool   `json:"setup_confirmed"`
+		Required  bool   `json:"setup_required"`
+	}, string) {
+		t.Helper()
+		out, _ := run(t, root, "", "task", "show", created.ID, "--json")
+		var s struct {
+			Command   string `json:"setup_command"`
+			Confirmed bool   `json:"setup_confirmed"`
+			Required  bool   `json:"setup_required"`
+		}
+		if err := json.Unmarshal([]byte(out), &s); err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		text, _ := run(t, root, "", "task", "show", created.ID)
+		return s, text
+	}
+	s, text := show()
+	sum := sha256.Sum256([]byte("make deps"))
+	sha := hex.EncodeToString(sum[:])[:12]
+	if s.Command != "make deps" || s.Confirmed || !s.Required || !strings.Contains(text, "Setup worktree: make deps  [chưa xác nhận: bint task approve "+created.ID+" --setup-sha "+sha+"]") {
+		t.Fatalf("trước xác nhận: %+v\n%s", s, text)
+	}
+	// Không có --setup-sha: in lệnh và băm, không xác nhận.
+	if out, code := run(t, root, "", "task", "approve", created.ID); code != 0 || !strings.Contains(out, "CHƯA được xác nhận: make deps") || !strings.Contains(out, "--setup-sha "+sha) {
+		t.Fatalf("approve không băm: %d\n%s", code, out)
+	}
+	if s, _ := show(); s.Confirmed {
+		t.Fatalf("thiếu --setup-sha mà đã xác nhận: %+v", s)
+	}
+	// Băm sai: lỗi, không xác nhận.
+	if out, code := run(t, root, "", "task", "approve", created.ID, "--setup-sha", "0123456789ab"); code == 0 || !strings.Contains(out, "đã đổi") {
+		t.Fatalf("approve băm sai: %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "approve", created.ID, "--setup-sha", sha); code != 0 || !strings.Contains(out, "Xác nhận lệnh setup worktree: make deps") {
+		t.Fatalf("approve: %d\n%s", code, out)
+	}
+	s, text = show()
+	if !s.Confirmed || !strings.Contains(text, "Setup worktree: make deps  [đã xác nhận]") {
+		t.Fatalf("sau xác nhận: %+v\n%s", s, text)
+	}
+	// Lệnh đổi ⇒ cần xác nhận lại.
+	if err := os.WriteFile(filepath.Join(root, ".bint", "local.yml"), []byte("workflow:\n  worktree:\n    setup_command: make other\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := show(); s.Command != "make other" || s.Confirmed {
+		t.Fatalf("lệnh đổi phải chờ xác nhận lại: %+v", s)
+	}
+	// Agent không xác nhận được.
+	t.Setenv("CLAUDECODE", "1")
+	if out, code := run(t, root, "", "task", "approve", created.ID); code == 0 || !strings.Contains(out, "chỉ dành cho người") {
+		t.Fatalf("agent approve: %d\n%s", code, out)
 	}
 }
