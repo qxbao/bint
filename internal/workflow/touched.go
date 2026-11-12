@@ -208,6 +208,58 @@ func (r *Runner) overlaps(t *task.Task) map[string][]string {
 	return out
 }
 
+// fileOwner là một tác vụ khác cùng worktree có tệp trong Touched của nó; Done khi tác vụ đã kết thúc.
+type fileOwner struct {
+	ID   string
+	Done bool
+}
+
+// owners cho mỗi tệp trong files (không thuộc Touched của t) liệt kê các tác vụ KHÁC cùng worktree có tệp đó
+// trong Touched: tác vụ đang chạy, và tác vụ đã kết thúc SAU khi t được lập (kết thúc trước đó thì thay đổi của nó
+// đã nằm trong BaseTree của t, không thể là nguồn của thay đổi đang chờ duyệt — review .3 của tác vụ 01M7826Q…).
+// Đang chạy đứng trước, rồi theo ID giảm dần (mới trước). Dùng để checkScope nói rõ tệp cần duyệt là của ai thay
+// vì khẳng định chính b-feat vừa sửa (phát hiện .2 của tác vụ 01M774RD…).
+func (r *Runner) owners(t *task.Task, files []string) map[string][]fileOwner {
+	all, _ := r.Tasks.List()
+	out := map[string][]fileOwner{}
+	for _, o := range all {
+		if o.State.ID == t.State.ID || o.State.Worktree == "" || !samePath(o.State.Worktree, r.Root) {
+			continue
+		}
+		for _, f := range files {
+			if slices.Contains(o.State.Touched, f) && !slices.Contains(t.State.Touched, f) {
+				done := task.Terminal(o.State.Status)
+				if done && endedBefore(o.State.UpdatedAt, t.State.CreatedAt) {
+					continue
+				}
+				out[f] = append(out[f], fileOwner{ID: o.State.ID, Done: done})
+			}
+		}
+	}
+	for f := range out {
+		sort.Slice(out[f], func(i, j int) bool {
+			a, b := out[f][i], out[f][j]
+			if a.Done != b.Done {
+				return !a.Done
+			}
+			return a.ID > b.ID
+		})
+	}
+	return out
+}
+
+// maxOwnersPerFile giới hạn số tác vụ nêu cho mỗi tệp trong câu hỏi/lý do blocked; phần còn lại gộp thành
+// "và N tác vụ khác" để tệp hay sửa (docs/…) không làm lý do dài hàng chục dòng.
+const maxOwnersPerFile = 3
+
+// endedBefore: thời điểm kết thúc ended (UpdatedAt của tác vụ đã kết thúc) sớm hơn created. Không đọc được thì
+// coi là không (giữ ghi chú, bảo thủ).
+func endedBefore(ended, created string) bool {
+	e, err1 := time.Parse(time.RFC3339Nano, ended)
+	c, err2 := time.Parse(time.RFC3339Nano, created)
+	return err1 == nil && err2 == nil && e.Before(c)
+}
+
 // outsideFeat liệt kê tệp đổi giữa BaseTree và cây hiện tại mà không được Touched của tác vụ nào miễn
 // cho t: tức là việc ngoài b-feat do Runner chạy — sửa tay bằng agent hay người, ở bất kỳ trạng thái nào
 // của tác vụ. Chúng được tính vào phạm vi của t để không lọt kiểm tra đường dẫn bảo vệ/deny.

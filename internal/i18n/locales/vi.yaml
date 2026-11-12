@@ -804,7 +804,7 @@ prompt.workflow.ask.verify_command.body: "{question}\n\nNhập lệnh kiểm ch�
 prompt.workflow.ask.verify_command.title: "Cần lệnh kiểm chứng"
 prompt.workflow.confirm.feat.body: "Tác vụ {task} đặt autonomy: ask_always.\nb-feat sẽ sửa mã trong {root}."
 prompt.workflow.confirm.feat.title: "Cho phép b-feat sửa mã?"
-prompt.workflow.confirm.scope.body: "b-feat đã sửa tệp cần duyệt (đường dẫn bảo vệ / deny / ngoài phạm vi). Hãy xem diff trước.\nChọn Không thì tác vụ chuyển blocked và không có gì được duyệt."
+prompt.workflow.confirm.scope.body: "Có thay đổi cần duyệt (đường dẫn bảo vệ / deny / ngoài phạm vi / tác vụ khác cũng sửa); chưa chắc do b-feat của tác vụ này. Hãy xem diff trước.\nChọn Không thì tác vụ chuyển blocked và không có gì được duyệt."
 prompt.workflow.confirm.scope.title: "Duyệt thay đổi chạm vùng bảo vệ?"
 prompt.yes: "Đồng ý"
 tk.approve.command: "Sẽ xác nhận lệnh kiểm chứng (Bint được phép chạy lệnh này):"

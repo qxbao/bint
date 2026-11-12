@@ -221,6 +221,7 @@ func HookSpec(bintPath string) map[string]any {
 func EditHooks(path, backupDir string, spec map[string]any, now time.Time) (claude.InstallResult, error) {
 	res := claude.InstallResult{Path: path}
 	raw, err := os.ReadFile(path)
+	existed := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return res, err
 	}
@@ -246,6 +247,10 @@ func EditHooks(path, backupDir string, spec map[string]any, now time.Time) (clau
 	if res.BackupPath, err = fsafe.Backup(path, backupDir, "antigravity/hooks.json", now); err != nil {
 		return res, err
 	}
+	// Băm của nội dung chính hàm này đã đọc/ghi (claude.InstallResult.Prev/SHA256); xoá tệp thì SHA256 rỗng.
+	if existed {
+		res.Prev = fsafe.Hash(string(raw))
+	}
 	if spec == nil && doc.Len() == 0 {
 		return res, os.Remove(path)
 	}
@@ -253,6 +258,7 @@ func EditHooks(path, backupDir string, spec map[string]any, now time.Time) (clau
 		return res, err
 	}
 	res.Changed = true
+	res.SHA256 = fsafe.Hash(string(out))
 	return res, nil
 }
 

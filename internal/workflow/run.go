@@ -1234,12 +1234,27 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 	if len(need) == 0 {
 		return true
 	}
+	// Tệp cần duyệt thuộc Touched của tác vụ KHÁC (không phải do t sửa): nêu tác vụ sở hữu và trạng thái của nó.
+	own := r.owners(rs.t, need)
+	for _, f := range need {
+		for i, o := range own[f] {
+			if i == maxOwnersPerFile {
+				overlapNotes = append(overlapNotes, fmt.Sprintf("%s: và %d tác vụ khác", f, len(own[f])-i))
+				break
+			}
+			state := "(đang chạy)"
+			if o.Done {
+				state = "(đã kết thúc)"
+			}
+			overlapNotes = append(overlapNotes, fmt.Sprintf("%s thuộc tác vụ %s %s", f, o.ID, state))
+		}
+	}
 	why := ""
 	if len(overlapNotes) > 0 {
 		why = "\n" + strings.Join(overlapNotes, "\n")
 	}
 	q := Question{Key: QConfirmScope, Paths: slices.Clone(need),
-		Text: fmt.Sprintf("b-feat đã sửa tệp cần duyệt (đường dẫn bảo vệ / deny / ngoài phạm vi / tác vụ khác cũng sửa):\n  %s%s\nDuyệt các thay đổi này?", strings.Join(need, "\n  "), why)}
+		Text: fmt.Sprintf("Có thay đổi cần duyệt (đường dẫn bảo vệ / deny / ngoài phạm vi / tác vụ khác cũng sửa):\n  %s%s\nDuyệt các thay đổi này?", strings.Join(need, "\n  "), why)}
 	if r.Confirm != nil && r.Confirm(q) {
 		t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 			prev := ApprovedPaths(t)

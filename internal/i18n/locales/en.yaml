@@ -802,7 +802,7 @@ prompt.workflow.ask.verify_command.body: "{question}\n\nType a verify command (y
 prompt.workflow.ask.verify_command.title: "A verify command is needed"
 prompt.workflow.confirm.feat.body: "Task {task} has autonomy: ask_always.\nb-feat will change code in {root}."
 prompt.workflow.confirm.feat.title: "Let b-feat change code?"
-prompt.workflow.confirm.scope.body: "b-feat changed files that need approval (protected / deny / out of scope). Review the diff first.\nChoosing No moves the task to blocked and approves nothing."
+prompt.workflow.confirm.scope.body: "There are changes that need approval (protected / deny / out of scope / also changed by another task); they may not come from this task's b-feat. Review the diff first.\nChoosing No moves the task to blocked and approves nothing."
 prompt.workflow.confirm.scope.title: "Approve changes in protected areas?"
 prompt.yes: "Yes"
 tk.approve.command: "Will confirm the verify command (Bint may then run it):"

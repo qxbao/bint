@@ -106,7 +106,7 @@ roles:
 | `workflow.agent.model` | `null` | Mô hình chung cho Claude Code trong workflow. |
 | `workflow.agent.permission_mode` | `"acceptEdits"` | Chế độ quyền của Claude Code (`acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`). |
 | `workflow.agent.allowed_tools` | `[Read, Edit, Write, Glob, Grep, Bash]` | Công cụ cho bước có quyền ghi (`b-feat`) trên Claude Code. |
-| `workflow.agent.readonly_tools` | `Read, Glob, Grep, Bash(bint:*), Bash(git diff|log|show|status:*)` | Công cụ cho bước chỉ đọc (`b-req`, `b-review`) trên Claude Code. |
+| `workflow.agent.readonly_tools` | `Read, Glob, Grep, Bash(bint:*), Bash(git diff|log|show|status:*), Bash(grep:*), Bash(git grep:*)` | Công cụ cho bước chỉ đọc (`b-req`, `b-review`) trên Claude Code. `grep` và `git grep` cho phép tìm kiếm bằng shell; `git grep -O`/`--open-files-in-pager` (chạy chương trình) bị guardrail chỉ đọc chặn. Repo đã có khoá này trong `.bint/config.yml` không tự nhận mẫu mới: thêm tay hai mẫu hoặc xoá khoá để dùng mặc định. |
 | `workflow.agent.setting_sources` | `""` | Nguồn settings truyền cho Claude Code (`""` = mặc định của CLI). |
 | `workflow.agent.extra_args` | `[]` | Đối số dòng lệnh bổ sung cho Claude Code. |
 | `limits.per_run.max_cost_usd` | `null` | Trần chi phí USD mỗi lượt (`> 0` hoặc `null`). |

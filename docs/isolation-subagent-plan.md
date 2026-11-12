@@ -1,8 +1,9 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
 Trạng thái: **đã triển khai G1–G4, chờ nghiệm thu thật bằng Claude Code** (2026-11-12). G1 mục 4.1–4.5: mục 12.1–12.5;
-G2 (mục 5): 12.6–12.8; spike S1–S3: 12.9; G3 (mục 6): 12.10–12.13; G4 (mục 7): 12.14–12.15. Cố ý để lại: G2 .5/.6 (12.7)
-và ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95 (12.5). Chưa chạy thật trên Windows. Gồm bốn giai
+G2 (mục 5): 12.6–12.8; spike S1–S3: 12.9; G3 (mục 6): 12.10–12.13; G4 (mục 7): 12.14–12.15; nghiệm thu thật G3: 12.16;
+việc tồn (ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95, grep trong `readonly_tools`, kiểm hook SubagentStop): 12.17.
+Cố ý để lại: G2 .5/.6 (12.7). Chưa chạy thật trên Windows. Gồm bốn giai
 đoạn: G1 (cô lập trên worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy
 các bước bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
 
@@ -1167,8 +1168,91 @@ Phiếu `--driver session --shared` (thêm câu hướng dẫn `/b-do --subagent
   3 lệnh Bash của `bint-planner` (`guardrail.triggered`, outcome `fired`).
 - **Lỗi thật tìm được:** repo cài hook từ bản cũ thiếu `SubagentStop` ⇒ chi phí b-req `unknown`; `bint doctor` báo "hook claude
   chưa cài", sửa bằng `bint init --hooks`. Phiên đang chạy nhận hook mới không cần khởi động lại. Nên để skill b-do kiểm
-  `bint doctor` (hoặc lỗi "chưa có SubagentStop") trước khi chạy driver session.
+  `bint doctor` (hoặc lỗi "chưa có SubagentStop") trước khi chạy driver session. **Đã xử lý ở 12.17 (3).**
 - **Ma sát:** guardrail chỉ đọc chặn `grep`/`git grep` (chỉ đọc nhưng không có trong `readonly_tools`); subagent tự chuyển sang
-  công cụ Grep. Cân nhắc thêm `Bash(grep:*)`, `Bash(git grep:*)` vào `readonly_tools` mặc định.
+  công cụ Grep. Cân nhắc thêm `Bash(grep:*)`, `Bash(git grep:*)` vào `readonly_tools` mặc định. **Đã xử lý ở 12.17 (2).**
 - **Chưa nghiệm thu thật:** G4 (hai tác vụ `--worktree` song song bằng subagent, guardrail đường dẫn worktree); hook `deny`
   dưới `bypassPermissions`; Windows.
+
+### 12.17. Việc tồn: ba phát hiện low của H8, grep trong `readonly_tools`, kiểm hook SubagentStop — 2026-11-12, tác vụ 01M7826QSKY3ADV2E8WW78DY94
+
+Phiếu A (việc nhỏ), chạy bằng `bint run b-feat` trên cây chung. Ba nhóm:
+
+**(1) Ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95 (12.5).**
+
+- **.1 băm do chính hàm ghi trả về.** `fsafe.Result` và `claude.InstallResult` có thêm `Prev`, `SHA256` (sha256 hex): băm nội dung
+  chính hàm đã đọc (rỗng khi tệp chưa có; tệp rỗng khác tệp chưa có) và đã ghi (rỗng khi tệp bị xoá). `SyncBlock` điền ở
+  Created/Appended/Updated, `RemoveBlock` ở gỡ khối (SHA256 rỗng khi gỡ làm xoá tệp), `claude.EditHooks` (Claude Code và Codex dùng
+  chung) và `antigravity.EditHooks` (kể cả nhánh xoá `hooks.json`) điền `Prev`/`SHA256`. `repoWriter.SyncBlock/RemoveBlock` và hai
+  nhánh cài/gỡ hook ở `internal/app/init.go` (qua `repoWriter.recordHooks`) ghi `prev_sha256`/`sha256` từ các băm đó, không gọi
+  `hashBefore`/`HashFile` nữa. Seam `repoWriteHook(stage, path)` (nil ở sản phẩm, gọi ngay trước lời gọi ghi và ngay sau khi nó trả,
+  trước khi ghi nhật ký) cho test mô phỏng agent ghi chen.
+  - Test: `fsafe.TestResultHashesMatchReadAndWritten` (tạo, cập nhật, chèn cuối/đầu tệp có sẵn, gỡ khối còn nội dung, gỡ làm xoá tệp);
+    `harness.TestHookResultsCarryReadAndWrittenHashes` (Claude, Codex, Antigravity: cài lên tệp chưa có, có sẵn, tệp rỗng; gỡ, gỡ làm
+    xoá tệp); `app.TestH8WriteGapIsViolation` (`SyncBlock` AGENTS.md và cài hook `.claude/settings.json`, ghi chen ở `before` và `after`
+    đều làm bước chỉ đọc `failed` kèm tên tệp; ca đối chứng không ghi chen thì tệp được miễn).
+  - Kiểm đột biến đã thử: trả `SyncBlock` về `hashBefore` trước lời gọi + băm lại đĩa sau thì hai ca `SyncBlock AGENTS.md/before` và
+    `/after` đỏ; bỏ riêng `sha` thì cả hai ca `/after` (SyncBlock và hook) đỏ.
+  - Phạm vi: chỉ các đường trên. `SaveItem`, `RemoveItem`, `SaveComponent`, `InstallSkills` vẫn băm trước bằng `hashBefore` và băm sau từ
+    đĩa, `Record` không biết băm trước: còn khe hở nhỏ (giới hạn, xem dưới).
+- **.2 chủ sở hữu của tệp cần duyệt.** `Runner.owners` (`workflow/touched.go`) liệt kê, cho mỗi tệp cần duyệt không thuộc `Touched` của
+  tác vụ hiện tại, các tác vụ KHÁC cùng worktree có tệp đó trong `Touched` (mọi trạng thái, sắp theo ID). `checkScope` thêm vào
+  `overlapNotes` dòng `<tệp> thuộc tác vụ <id> (đang chạy)` hoặc `(đã kết thúc)`; ghi chú đi vào `Question.Text` của `QConfirmScope`
+  và lý do `blocked`. Câu mở đầu của `Text` đổi thành trung tính ("Có thay đổi cần duyệt (…)") thay vì khẳng định "b-feat đã sửa".
+  `Paths`, `PendingPaths`, khoá i18n không đổi. Test: `TestScopeQuestionNamesOwningTask` (tác vụ khác đang chạy / đã kết thúc; kiểm cả
+  lý do blocked), `TestScopeQuestionOwnFileHasNoOwnerNote` (tệp của chính tác vụ không có ghi chú).
+- **.3 test tách ca sửa tay.** `TestOutsideFeatTerminalTaskDoesNotShield` đổi thứ tự: B chạy trước (sửa `migrations/001.sql`,
+  `docs/b.md`), A chạy sau nên `BaseTree(A)` đã chứa thay đổi của B; B kết thúc (cancelled hoặc done). TRƯỚC bước sửa tay hai tệp không có
+  trong `ScopeFiles(A)` và `UnapprovedChanges(A)`; SAU bước sửa tay cả hai có và `done` của A bị chặn. Kiểm đột biến đã thử: bỏ bước sửa
+  tay ⇒ đỏ; bỏ lọc `task.Terminal` trong `outsideFeat` ⇒ đỏ. Ca cũ (A chạy trước, nên thay đổi của B còn khác `BaseTree(A)` và bị quy cho A
+  dù không sửa tay) giữ thành `TestOutsideFeatTerminalTaskOlderBaseTreeKnownLimit` để hành vi bảo thủ đó (12.5) vẫn có test.
+
+**(2) `grep` và `git grep` trong `readonly_tools` mặc định** (xử lý "Ma sát" của 12.16). `config.Default()` và mẫu `Render` có thêm
+`Bash(grep:*)`, `Bash(git grep:*)` (`TestRenderMatchesDefaults` qua; số mục mặc định trong `harness_test.go` từ 8 lên 10); `docs/configuration.md`
+và `docs/workflows.md` nêu hai mẫu. Guardrail chỉ đọc: GNU grep không có cờ ghi tệp hay chạy lệnh nên chuyển hướng/pipe/`;` do luật chung chặn
+(`grep foo x > out`, `git grep foo >> out`, `grep foo x | sh` bị chặn; `grep -rn foo internal`, `git grep -n foo`, `grep foo x 2>/dev/null` qua).
+`git grep -O[<pager>]`/`--open-files-in-pager[=<pager>]` chạy chương trình tuỳ ý nên bị `hookcore.gitGrepRunsProgram` chặn: kiểm trên lệnh đã
+bỏ nháy đơn/kép và `\`, chặn token một gạch ngang có chữ `O` (kể cả cờ gộp `-nOvim`, brace `-{O,n}`), token hai gạch là tiền tố từ 4 ký tự của
+`--open-files-in-pager` (viết tắt `--op`), và nháy ANSI-C (`$'…'`). Test: `TestReadonlyShellAllowed` (đổi `testReadonlyTools` sang
+`config.Default()…ReadonlyTools`, thêm ~30 ca qua/chặn); bỏ lời gọi `gitGrepRunsProgram` thì các ca `-O` đỏ.
+
+**(3) Kiểm hook SubagentStop** (xử lý "Lỗi thật" của 12.16). `claude.SubagentHookInstalled(settings)` kiểm riêng sự kiện `SubagentStop`.
+`app.RunNext`: khi action là `agent` mà không phạm vi nào (local, project, user) có hook ⇒ `notes` thêm `app.SubagentHookWarning` (chi phí subagent không
+đo được, lệnh `bint init --hooks`); lỗi đọc settings coi như chưa cài. Test: `TestRunNextWarnsWhenSubagentStopHookMissing` (chưa có hook; có hook ở từng
+phạm vi; bản cài cũ thiếu SubagentStop; HOME cô lập bởi `testutil.Isolate`). Skill b-do Bước 2b có đoạn "Kiểm hook `SubagentStop`" trước lệnh lập phiếu
+`--driver session`: chạy `bint doctor --json`, mục `hook claude` có `Level` khác `ok`/`info` hoặc `notes` của `bint run next` có cảnh báo thì dừng,
+báo người dùng và đề nghị `bint init --hooks`, không tự chạy `bint init`. Bản cài `.claude/skills/b-do`, `.agents/skills/b-do`, `.bint/skills/core.lock`
+đồng bộ bằng `bint sync` (chỉ ba tệp đổi). Test: `skills.TestBDoChecksSubagentStopHook`.
+
+**Giới hạn còn lại.**
+
+- `SaveItem`, `RemoveItem`, `SaveComponent`, `InstallSkills`, `Record` vẫn băm trước/sau bằng cách đọc đĩa: agent ghi chen vào khe hở rất hẹp của các đường đó vẫn
+  được hợp thức hoá. Đóng khe hở cần các gói `knowledge`, `hcomp`, `skills` trả băm như `fsafe`.
+- TUI không hiện `Question.Text` của `QConfirmScope` (dùng thân i18n + `Paths`) nên ghi chú chủ sở hữu chỉ thấy ở CLI và lý do `blocked`
+  (thân i18n đã đổi thành câu trung tính ở 12.18).
+- `git grep` bị chặn nhầm khi mẫu tìm có chữ `O` đứng ngay sau một gạch ngang (ví dụ `-e -Ox`); mẫu có `|` (`grep -E 'a|b'`) bị chặn như mọi pipe, dùng `-e a -e b`.
+- `.bint/config.yml` của repo này đặt `readonly_tools` tường minh nên không tự nhận mặc định mới (và `.claude/agents/bint-*.md` sinh từ cấu hình hiệu lực không đổi):
+  thêm tay hai mẫu để dùng.
+- Cảnh báo SubagentStop của `run next` kiểm settings ở gốc repo (local/project) và user; hook chỉ cài ở nơi khác (ví dụ `--settings` riêng) bị báo thiếu.
+- Chưa kiểm được: race thật giữa agent và người (chỉ mô phỏng bằng seam); phiên Claude Code thật đọc cảnh báo trong `notes` (skill chỉ được test bằng chuỗi).
+
+### 12.18. Sửa phát hiện review của phiếu A (.1–.4), 2026-11-12, tác vụ 01M7826QSKY3ADV2E8WW78DY94
+
+Orchestrator sửa trực tiếp theo yêu cầu người dùng (không chạy thêm vòng b-feat). Lần kiểm chứng của `bint run` đỏ chỉ vì
+`TestEvalRunEscCancelsBatchAndShowsResumeCommand` (TUI, chập chờn khi máy bận; reviewer chạy riêng qua 3/3).
+
+- **.1 medium — brace expansion lọt qua `gitGrepRunsProgram`** (`git grep {-Osh,-e} foo` thành `git grep -Osh -e foo`). Không vá trong
+  `gitGrepRunsProgram` (brace ghép được ký tự: `{,-}O` thành `O` và `-O`), mà thêm luật chung ở `readonlyShellAllowed`: chặn `{`, `}`, `(`, `)`
+  nằm **ngoài nháy** (`hookcore.unquoted` thay nội dung trong `'…'`, `"…"` và ký tự sau `\` bằng `x`). Ngoặc trong nháy là chữ thường nên
+  mẫu regex đặt trong nháy (`grep -E 'foo(bar)+'`, `git grep -e "func (r \*Runner)"`) vẫn qua; `\(` cũng qua. Nháy ANSI-C (`$'…'`) bị chặn
+  với mọi lệnh chỉ đọc vì `\'` bên trong làm `unquoted` hiểu sai biên nháy.
+- **.2 low — zsh `=(…)`** và glob qualifier `*(e:…:)`: cùng luật trên chặn.
+- Test thêm trong `TestReadonlyShellAllowed`: brace đầu token (có/không nháy), `{,-}O`, `grep foo =(touch x)`, `grep foo *(e:'touch x':)`,
+  `grep $'\'' =(touch x)`, ba ca ngoặc hợp lệ trong nháy/thoát. Kiểm đột biến: tắt luật ngoặc ⇒ 5 ca chặn đỏ.
+- **.3 low — `owners` nêu cả tác vụ kết thúc từ lâu.** Bỏ tác vụ đã kết thúc có `UpdatedAt` trước `CreatedAt` của tác vụ hiện tại (thay đổi của
+  nó đã nằm trong `BaseTree`); đang chạy đứng trước, rồi mới trước; mỗi tệp nêu tối đa 3 tác vụ, còn lại gộp "và N tác vụ khác"
+  (`maxOwnersPerFile`). Test `TestScopeQuestionSkipsOwnerEndedBeforeTask` (bỏ lọc ⇒ đỏ).
+- **.4 low — thân i18n TUI** `prompt.workflow.confirm.scope.body` (vi, en) đổi thành câu trung tính, nêu cả "tác vụ khác cũng sửa"; phạm vi phiếu
+  thêm `internal/i18n/**`.
+- Giới hạn: luật ngoặc chặn nhầm lệnh chỉ đọc có ngoặc ngoài nháy (ví dụ `git show HEAD@{1}`: viết `'HEAD@{1}'`). Mẫu có `|` trong nháy vẫn bị
+  luật chung chặn như trước (luật `;&|<>` chưa xét nháy).

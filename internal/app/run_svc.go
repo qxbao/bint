@@ -8,6 +8,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/ctxengine"
+	"bint/internal/harness/claude"
 	"bint/internal/task"
 	"bint/internal/workflow"
 )
@@ -331,7 +332,31 @@ func RunNext(ctx context.Context, ws *TaskWS, o RunNextOptions) (*workflow.Sessi
 		return nil, err
 	}
 	ingestAfterSession(ws)
+	if a.Action == workflow.ActionAgent && !subagentHookInstalled(ws.K.Root) {
+		a.Notes = append(a.Notes, SubagentHookWarning)
+	}
 	return a, nil
+}
+
+// SubagentHookWarning là ghi chú của `bint run next` khi repo chưa cài hook SubagentStop của Bint: không có nó chi phí
+// của subagent không đo được (cost_usd null, nghiệm thu mục 12.16 của docs/isolation-subagent-plan.md). Skill b-do tìm
+// ghi chú này theo chuỗi "SubagentStop" và "bint init --hooks".
+const SubagentHookWarning = "chưa cài hook SubagentStop của Bint cho Claude Code (phạm vi local, project hay user): chi phí subagent không đo được " +
+	"(cost_usd null). Đề nghị người dùng chạy `bint init --hooks`; phiên đang chạy nhận hook mới không cần khởi động lại"
+
+// subagentHookInstalled cho biết một trong ba phạm vi settings của Claude Code (local, project, user) có hook SubagentStop
+// của Bint. Lỗi đọc settings coi như chưa cài: đây chỉ là cảnh báo.
+func subagentHookInstalled(root string) bool {
+	for _, sc := range []claude.Scope{claude.ScopeLocal, claude.ScopeProject, claude.ScopeUser} {
+		p, err := claude.SettingsPath(sc, root)
+		if err != nil {
+			continue
+		}
+		if ok, _ := claude.SubagentHookInstalled(p); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // RunComplete đóng bước đang dở của tác vụ (subagent đã xong hoặc báo thất bại): kiểm chỉ đọc, phạm vi, kiểm chứng,

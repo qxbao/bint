@@ -132,3 +132,72 @@ func TestManifestRoundTrip(t *testing.T) {
 		t.Fatalf("manifest lost: %v", r)
 	}
 }
+
+func (e *env) remove(t *testing.T, force bool) Result {
+	t.Helper()
+	r, err := RemoveBlock(BlockSync{Path: e.file, RelName: "AGENTS.md", Markers: HTMLMarkers, Force: force,
+		BackupDir: e.backups, Manifest: e.m, Now: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+// Result.Prev/SHA256 là băm nội dung chính hàm đã đọc/ghi: Prev rỗng khi tệp chưa có, SHA256 bằng băm tệp ngay sau
+// khi ghi (hoặc rỗng khi tệp bị xoá).
+func TestResultHashesMatchReadAndWritten(t *testing.T) {
+	e := newEnv(t)
+
+	// Tạo mới: tệp chưa có.
+	r := e.sync(t, "v1", false)
+	if r.Outcome != Created || r.Prev != "" || r.SHA256 != Hash(read(t, e.file)) {
+		t.Fatalf("tạo: %+v", r)
+	}
+
+	// Cập nhật khối: Prev là nội dung trước, SHA256 là nội dung sau.
+	before := read(t, e.file)
+	r = e.sync(t, "v2", false)
+	if r.Outcome != Updated || r.Prev != Hash(before) || r.SHA256 != Hash(read(t, e.file)) || r.Prev == r.SHA256 {
+		t.Fatalf("cập nhật: %+v", r)
+	}
+
+	// Gỡ khối khi tệp còn nội dung khác: tệp được ghi lại.
+	if err := os.WriteFile(e.file, []byte("# Tiêu đề\n\n"+read(t, e.file)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before = read(t, e.file)
+	r = e.remove(t, false)
+	if r.Outcome != Updated || r.Prev != Hash(before) || r.SHA256 != Hash(read(t, e.file)) || r.SHA256 == "" {
+		t.Fatalf("gỡ khối còn nội dung: %+v", r)
+	}
+
+	// Chèn khối vào tệp có sẵn (Appended).
+	before = read(t, e.file)
+	r = e.sync(t, "v3", false)
+	if r.Outcome != Appended || r.Prev != Hash(before) || r.SHA256 != Hash(read(t, e.file)) {
+		t.Fatalf("chèn: %+v", r)
+	}
+
+	// Chèn ở đầu tệp.
+	e2 := newEnv(t)
+	if err := os.WriteFile(e2.file, []byte("nội dung có sẵn\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before = read(t, e2.file)
+	r = e2.sync(t, "v1", false)
+	if r.Outcome != Appended || r.Prev != Hash(before) || r.SHA256 != Hash(read(t, e2.file)) {
+		t.Fatalf("chèn vào tệp có sẵn: %+v", r)
+	}
+
+	// Gỡ khối làm tệp rỗng ⇒ tệp bị xoá: SHA256 rỗng, Prev là nội dung trước khi xoá.
+	e3 := newEnv(t)
+	e3.sync(t, "v1", false)
+	before = read(t, e3.file)
+	r = e3.remove(t, false)
+	if _, err := os.Stat(e3.file); !os.IsNotExist(err) {
+		t.Fatalf("tệp phải bị xoá: %v", err)
+	}
+	if r.Outcome != Updated || r.Prev != Hash(before) || r.SHA256 != "" {
+		t.Fatalf("gỡ làm xoá tệp: %+v", r)
+	}
+}

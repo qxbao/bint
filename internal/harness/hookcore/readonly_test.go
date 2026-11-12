@@ -1,8 +1,13 @@
 package hookcore
 
-import "testing"
+import (
+	"testing"
 
-var testReadonlyTools = []string{"Read", "Glob", "Grep", "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)"}
+	"bint/internal/config"
+)
+
+// Mẫu chỉ đọc MẶC ĐỊNH của sản phẩm (gồm grep và git grep): test chạy đúng cấu hình người dùng nhận được.
+var testReadonlyTools = config.Default().Workflow.Agent.ReadonlyTools
 
 func TestReadonlyShellAllowed(t *testing.T) {
 	cases := []struct {
@@ -52,6 +57,48 @@ func TestReadonlyShellAllowed(t *testing.T) {
 		{"cd không có lệnh", "cd /tmp &&", false},
 		{"cd hai token", "cd /a b && git status", false},
 		{"rỗng", "  ", false},
+		// grep / git grep trong readonly_tools mặc định (tác vụ 01M7826Q…): đọc thì qua, ghi tệp hay chạy chương trình thì chặn.
+		{"grep -rn", "grep -rn foo internal", true},
+		{"git grep -n", "git grep -n foo", true},
+		{"grep 2>/dev/null", "grep foo x 2>/dev/null", true},
+		{"git grep có đường dẫn", "git grep -n -e foo -- internal/app", true},
+		{"cd rồi grep", "cd /tmp/wt && grep -rn foo .", true},
+		{"grep chuyển hướng ghi", "grep foo x > out", false},
+		{"grep chuyển hướng nối", "grep foo x >> out", false},
+		{"git grep chuyển hướng nối", "git grep foo >> out", false},
+		{"git grep chuyển hướng ghi", "git grep foo > out", false},
+		{"grep pipe sh", "grep foo x | sh", false},
+		{"git grep pipe", "git grep foo | sh", false},
+		{"grep chấm phẩy", "grep foo x; touch y", false},
+		{"grep thay thế lệnh", "grep $(touch y) x", false},
+		{"git grep -O", "git grep -O foo", false},
+		{"git grep -Ovim", "git grep -Ovim foo", false},
+		{"git grep -nO gộp cờ", "git grep -nOtouch foo", false},
+		{"git grep -On gộp cờ", "git grep -On foo", false},
+		{"git grep --open-files-in-pager", "git grep --open-files-in-pager=vim foo", false},
+		{"git grep --open-files-in-pager không giá trị", "git grep --open-files-in-pager foo", false},
+		{"git grep viết tắt --op", "git grep --op=vim foo", false},
+		{"git grep viết tắt --open-files", "git grep --open-files=vim foo", false},
+		{"git grep -O trong nháy kép", `git grep "-O" foo`, false},
+		{"git grep -O trong nháy đơn", "git grep '-Ovim' foo", false},
+		{"git grep -O nháy giữa cờ", "git grep -n'O'vim foo", false},
+		{"git grep -O sau gạch chéo ngược", `git grep -\Ovim foo`, false},
+		{"git grep --open sau gạch chéo ngược", `git grep --o\pen-files-in-pager=vim foo`, false},
+		{"git grep -O ANSI-C", `git grep $'-O'vim foo`, false},
+		{"git grep -O brace", "git grep -{O,n}vim foo", false},
+		{"git grep brace đầu token (review .1)", "git grep {-Osh,-e} foo", false},
+		{"git grep brace có nháy đầu token", `git grep {"-Otouch x",-e} foo`, false},
+		{"brace ghép ký tự", "git grep {,-}O foo", false},
+		{"zsh process substitution =(…) (review .2)", "grep foo =(touch x)", false},
+		{"zsh glob qualifier", "grep foo *(e:'touch x':)", false},
+		{"nháy ANSI-C che ngoặc", `grep $'\'' =(touch x)`, false},
+		{"ngoặc trong nháy đơn vẫn qua", "grep -E 'foo(bar)+{2}' x.go", true},
+		{"ngoặc trong nháy kép vẫn qua", `git grep -e "func (r \*Runner)" -- internal`, true},
+		{"ngoặc thoát bằng gạch chéo ngược", `grep foo\(bar\) x.go`, true},
+		{"git grep --only-matching vẫn qua", "git grep --only-matching foo", true},
+		{"git grep --or vẫn qua", "git grep -e a --or -e b", true},
+		{"git grep -c -w -i vẫn qua", "git grep -c -w -i foo", true},
+		{"git -c rồi grep không khớp mẫu", "git -c core.pager=touch grep foo", false},
 	}
 	for _, c := range cases {
 		got, why := readonlyShellAllowed(c.cmd, testReadonlyTools)

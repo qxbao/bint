@@ -11,6 +11,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/fsafe"
 	"bint/internal/harness"
+	"bint/internal/harness/claude"
 	"bint/internal/hcomp"
 	"bint/internal/knowledge"
 	"bint/internal/skills"
@@ -21,6 +22,11 @@ import (
 // repoWriter là hàm ghi chung cho MỌI thao tác ghi tệp trong repo của tầng dịch vụ (CLI và TUI cùng đi qua
 // đây). Mỗi tệp đã ghi được ghi nhận vào <runtime>/writes.jsonl để bước chỉ đọc của `bint run` không tính
 // thay đổi do Bint ghi thay người là vi phạm (docs/isolation-subagent-plan.md 4.5, H8).
+//
+// Băm trước/sau: WriteFile/WriteNew/Remove tự biết; SyncBlock/RemoveBlock và cài/gỡ hook lấy từ băm nội dung
+// chính hàm ghi đã đọc/ghi (fsafe.Result, claude.InstallResult) nên không có khe hở để ghi chen; SaveItem,
+// SaveComponent, RemoveItem, InstallSkills băm trước bằng hashBefore và băm sau từ đĩa (còn khe hở nhỏ),
+// Record không biết băm trước.
 //
 // Hai dạng: (a) tự ghi (WriteFile, WriteNew, Remove, SyncBlock, RemoveBlock); (b) ghi nhận ngay SAU lời gọi
 // một gói thấp hơn đã tự ghi tệp (Record): knowledge.Store.Save/Remove, skills.Install, hcomp.Save,
@@ -100,24 +106,46 @@ func (w *repoWriter) Remove(abs string) error {
 	return nil
 }
 
-// SyncBlock gọi fsafe.SyncBlock và ghi nhận tệp nếu nó thật sự được tạo/cập nhật/gỡ.
+// repoWriteHook là seam kiểm thử (nil ở sản phẩm) cho các đường ghi mà băm trước/sau do gói thấp hơn trả về
+// (SyncBlock, RemoveBlock, cài/gỡ hook): gọi với stage "before" ngay trước lời gọi ghi và "after" ngay sau khi
+// nó trả về, trước khi ghi nhật ký. Test dùng nó để mô phỏng agent ghi chen vào hai khe hở đó.
+var repoWriteHook func(stage, path string)
+
+func repoWriteSeam(stage, path string) {
+	if repoWriteHook != nil {
+		repoWriteHook(stage, path)
+	}
+}
+
+// SyncBlock gọi fsafe.SyncBlock và ghi nhận tệp nếu nó thật sự được tạo/cập nhật/gỡ. Băm trước/sau là băm
+// nội dung chính fsafe.SyncBlock đã đọc và đã ghi (Result.Prev/SHA256), không đọc lại đĩa.
 func (w *repoWriter) SyncBlock(req fsafe.BlockSync) (fsafe.Result, error) {
-	prev := w.hashBefore(req.Path)
+	repoWriteSeam("before", req.Path)
 	r, err := fsafe.SyncBlock(req)
+	repoWriteSeam("after", req.Path)
 	if err == nil && changedOutcome(r.Outcome) {
-		w.record(writeEntry{path: req.Path, prev: prev})
+		w.record(writeEntry{path: req.Path, prev: strp(r.Prev), sha: strp(r.SHA256)})
 	}
 	return r, err
 }
 
-// RemoveBlock gọi fsafe.RemoveBlock và ghi nhận tệp nếu nó thật sự bị đổi (kể cả bị xoá vì rỗng).
+// RemoveBlock gọi fsafe.RemoveBlock và ghi nhận tệp nếu nó thật sự bị đổi (kể cả bị xoá vì rỗng). Băm lấy từ
+// Result như SyncBlock.
 func (w *repoWriter) RemoveBlock(req fsafe.BlockSync) (fsafe.Result, error) {
-	prev := w.hashBefore(req.Path)
+	repoWriteSeam("before", req.Path)
 	r, err := fsafe.RemoveBlock(req)
+	repoWriteSeam("after", req.Path)
 	if err == nil && changedOutcome(r.Outcome) {
-		w.record(writeEntry{path: req.Path, prev: prev})
+		w.record(writeEntry{path: req.Path, prev: strp(r.Prev), sha: strp(r.SHA256)})
 	}
 	return r, err
+}
+
+// recordHooks ghi nhận tệp settings sau khi cài/gỡ hook (claude.InstallResult mang băm nội dung đã đọc/ghi).
+func (w *repoWriter) recordHooks(abs string, res claude.InstallResult) {
+	if res.Changed {
+		w.record(writeEntry{path: abs, prev: strp(res.Prev), sha: strp(res.SHA256)})
+	}
 }
 
 // SaveItem lưu mục tri thức (knowledge.Store.Save) rồi ghi nhận tệp của nó.

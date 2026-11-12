@@ -151,9 +151,77 @@ func TestOtherTaskFilesNotCountedAndDoneMessage(t *testing.T) {
 	}
 }
 
-// Phát hiện .7: tác vụ B ĐÃ kết thúc (cancelled/done) không còn che tệp của nó: sửa tay tệp bảo vệ mà B từng sửa
-// vẫn bị quy cho A (UnapprovedChanges, cổng done).
+// Phát hiện .7 (+ .3 của tác vụ 01M774RD…): tác vụ B ĐÃ kết thúc (cancelled/done) không còn che tệp của nó: sửa tay
+// tệp mà B từng sửa vẫn bị quy cho A (UnapprovedChanges, cổng done). B chạy TRƯỚC A nên BaseTree(A) đã chứa thay đổi
+// của B: trước bước sửa tay hai tệp của B không khác BaseTree(A) nên không nằm trong phạm vi của A; chỉ bước sửa tay
+// mới đưa chúng vào. Nhờ vậy test đỏ khi bỏ bước sửa tay (không có gì để quy) hoặc khi bỏ lọc task.Terminal ở
+// outsideFeat (docs/b.md, không bảo vệ, được Touched của B che dù B đã kết thúc).
 func TestOutsideFeatTerminalTaskDoesNotShield(t *testing.T) {
+	for _, final := range []string{task.StatusCancelled, task.StatusDone} {
+		t.Run(final, func(t *testing.T) {
+			h := newHarness(t)
+			ctx := context.Background()
+			// B chạy trước: sửa migrations/001.sql (bảo vệ) và docs/b.md; người duyệt để B qua checkScope.
+			happy := h.behave
+			h.behaveFeat(func() {
+				h.write("migrations/001.sql", "-- của B\n")
+				h.write("docs/b.md", "của B\n")
+				h.write("done.txt", "ok\n") // để verify.command ("test -f done.txt") của B qua
+			})
+			rb := h.runner()
+			rb.Confirm = func(Question) bool { return true }
+			res, err := rb.Run(ctx, RunOptions{Workflow: StepFeat, Request: "Sửa migrations"})
+			if err != nil || res.Status != task.StatusInReview {
+				t.Fatalf("B: %+v %v", res, err)
+			}
+			h.behave = happy
+			// A chạy sau: BaseTree(A) đã chứa thay đổi của B.
+			a := h.runFeat("Thêm tính năng phiên bản v2 cho app.txt", "")
+			if a.Status != task.StatusInReview {
+				t.Fatalf("A: %+v", a)
+			}
+			if final == task.StatusDone {
+				if _, vr, err := rb.Verify(ctx, res.TaskID); err != nil || !vr.Verification.Passed {
+					t.Fatalf("verify B: %+v %v", vr, err)
+				}
+			}
+			if _, _, err := rb.SetStatus(ctx, res.TaskID, final, TransitionOptions{Reason: "kết thúc B"}); err != nil {
+				t.Fatalf("B → %s: %v", final, err)
+			}
+			r := h.runner()
+			tkA := h.load(a.TaskID)
+			// TRƯỚC sửa tay: hai tệp của B không có trong phạm vi của A.
+			files, err := ScopeFiles(ctx, h.root, h.tasks, tkA, h.cfg.Limits.ProtectedPaths)
+			if err != nil || slices.Contains(files, "migrations/001.sql") || slices.Contains(files, "docs/b.md") {
+				t.Fatalf("trước sửa tay ScopeFiles(A) = %v %v: không được có tệp của B", files, err)
+			}
+			if need, err := r.UnapprovedChanges(ctx, tkA); err != nil || slices.Contains(need, "migrations/001.sql") {
+				t.Fatalf("trước sửa tay UnapprovedChanges(A) = %v %v", need, err)
+			}
+			// Sửa tay cả hai tệp: chúng thuộc Touched của B nhưng B đã kết thúc nên không che.
+			h.write("migrations/001.sql", "-- sửa tay\n")
+			h.write("docs/b.md", "sửa tay\n")
+			files, err = ScopeFiles(ctx, h.root, h.tasks, tkA, h.cfg.Limits.ProtectedPaths)
+			if err != nil || !slices.Contains(files, "migrations/001.sql") || !slices.Contains(files, "docs/b.md") {
+				t.Fatalf("sau sửa tay ScopeFiles(A) = %v %v: tệp của tác vụ đã kết thúc không được che", files, err)
+			}
+			if need, err := r.UnapprovedChanges(ctx, tkA); err != nil || !slices.Contains(need, "migrations/001.sql") {
+				t.Fatalf("sau sửa tay UnapprovedChanges(A) = %v %v", need, err)
+			}
+			if _, vr, err := r.Verify(ctx, a.TaskID); err != nil || !vr.Verification.Passed {
+				t.Fatalf("verify A: %+v %v", vr, err)
+			}
+			_, blockers, err := r.SetStatus(ctx, a.TaskID, task.StatusDone, TransitionOptions{Reason: "thử"})
+			if err == nil || !strings.Contains(strings.Join(blockers, "\n"), "migrations/001.sql") {
+				t.Fatalf("done của A phải bị chặn vì migrations/001.sql: %v %v", blockers, err)
+			}
+		})
+	}
+}
+
+// Giới hạn đã biết (mục 12.5): A chạy TRƯỚC B nên BaseTree(A) không chứa thay đổi của B; khi B kết thúc thì tệp của B
+// còn khác BaseTree(A) và bị quy cho A dù không ai sửa tay thêm. Test này giữ hành vi đó (bảo thủ: chỉ hỏi duyệt).
+func TestOutsideFeatTerminalTaskOlderBaseTreeKnownLimit(t *testing.T) {
 	for _, final := range []string{task.StatusCancelled, task.StatusDone} {
 		t.Run(final, func(t *testing.T) {
 			h := newHarness(t)

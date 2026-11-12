@@ -137,8 +137,8 @@ func TestRepoWritesGoThroughRepoWriter(t *testing.T) {
 		switch s.call {
 		case "evolve.Apply", "evolve.Rollback", "InstallHooks", "UninstallHooks", "InstallMCP":
 			// Gói/adapter thấp hơn tự ghi: hàm gọi phải ghi nhận ngay trong cùng thân.
-			if !bodies[key]["Record"] && !bodies[key]["record"] && !bodies[key]["recordFiles"] && !bodies[key]["RecordRepoWrites"] {
-				bad = append(bad, fmt.Sprintf("%s gọi %s nhưng không ghi nhận (Record/record/recordFiles/RecordRepoWrites) trong cùng hàm", key, s.call))
+			if !bodies[key]["Record"] && !bodies[key]["record"] && !bodies[key]["recordFiles"] && !bodies[key]["recordHooks"] && !bodies[key]["RecordRepoWrites"] {
+				bad = append(bad, fmt.Sprintf("%s gọi %s nhưng không ghi nhận (Record/record/recordFiles/recordHooks/RecordRepoWrites) trong cùng hàm", key, s.call))
 			}
 		case "Store.Save", "Store.Remove", "hcomp.Save", "skills.Install":
 			if _, ok := allowed[key]; !ok {

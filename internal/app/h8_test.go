@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"bint/internal/eval"
+	"bint/internal/harness/claude"
 	"bint/internal/knowledge"
 	"bint/internal/testutil"
 	"bint/internal/workflow"
@@ -281,5 +282,69 @@ func TestActiveStepsWatchSurvivesBrokenConfig(t *testing.T) {
 	got := w.Steps()
 	if len(got) != 1 || got[0].Step != "b-feat" || got[0].TaskID != "01M772P7DKB3PBRBH7VPE614X6" {
 		t.Fatalf("Steps() = %+v", got)
+	}
+}
+
+// Phát hiện .1 (tác vụ 01M774RD…): băm trước/sau của SyncBlock và đường cài hook do chính hàm ghi trả về, không đọc
+// lại đĩa. repoWriteHook mô phỏng agent ghi chen vào khe hở NGAY TRƯỚC lời gọi ghi hoặc NGAY SAU khi nó trả về
+// (trước khi ghi nhật ký); cả hai đều phải làm ReadonlyViolations báo tệp là vi phạm. Bản cũ (hashBefore trước lời
+// gọi và băm lại đĩa sau) hợp thức hoá cả hai khe hở: quay lại cách cũ thì các ca dưới đỏ.
+func TestH8WriteGapIsViolation(t *testing.T) {
+	cases := []struct {
+		name  string
+		rel   string // tệp bị ghi chen (tương đối với gốc repo)
+		inner string // nội dung agent chèn
+	}{
+		{"SyncBlock AGENTS.md", "AGENTS.md", "# agent chèn\n"},
+		// Phạm vi project: tệp nằm trong cây được theo dõi (settings.local.json bị .gitignore nên không vào ảnh chụp).
+		{"cài hook .claude/settings.json", ".claude/settings.json", `{"agentKey": true}` + "\n"},
+	}
+	for _, c := range cases {
+		// attempt chạy bước review với Init (SyncBlock AGENTS.md + cài hook) làm việc của người qua dịch vụ.
+		attempt := func(t *testing.T, stage string) workflow.StepResult {
+			f := newH8(t)
+			target := filepath.Join(f.root, filepath.FromSlash(c.rel))
+			step, _ := f.runReview(t, func() {
+				if stage != "" {
+					repoWriteHook = func(st, p string) {
+						if st != stage || filepath.Clean(p) != filepath.Clean(target) {
+							return
+						}
+						repoWriteHook = nil // một lần
+						var old []byte
+						if stage == "after" {
+							old, _ = os.ReadFile(p)
+						}
+						if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+							t.Error(err)
+						}
+						if err := os.WriteFile(p, append(old, []byte(c.inner)...), 0o644); err != nil {
+							t.Error(err)
+						}
+					}
+					t.Cleanup(func() { repoWriteHook = nil })
+				}
+				_, err := Init(context.Background(), InitOptions{Dir: f.root, Harnesses: []string{"claude"},
+					Hooks: yes(), HooksScope: claude.ScopeProject, AgentsMD: true, NoSkills: true, BintPath: "bint"})
+				if err != nil {
+					t.Errorf("init: %v", err)
+				}
+			})
+			return step
+		}
+		t.Run(c.name+"/đối chứng", func(t *testing.T) {
+			step := attempt(t, "")
+			if step.Status != "completed" || !slices.Contains(step.HumanWrites, c.rel) {
+				t.Fatalf("không ghi chen thì tệp phải được miễn: %+v", step)
+			}
+		})
+		for _, stage := range []string{"before", "after"} {
+			t.Run(c.name+"/"+stage, func(t *testing.T) {
+				step := attempt(t, stage)
+				if step.Status != "failed" || !strings.Contains(step.Error, c.rel) || slices.Contains(step.HumanWrites, c.rel) {
+					t.Fatalf("ghi chen %s phải là vi phạm: %+v", stage, step)
+				}
+			})
+		}
 	}
 }

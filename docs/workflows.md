@@ -435,7 +435,10 @@ nhiều agent song song) chưa có.
       `Bash(tiền-tố:*)` / `Bash(lệnh)` theo token; cho phép tiền tố `cd <một-thư-mục> && …` (đề bài của tác vụ worktree bắt
       buộc) và heredoc (`bint task write/review <id> … - <<'EOF'`; thân heredoc không nháy mà có `$(`/backtick bị chặn);
       mọi `;`, `&&` khác, `|`, chuyển hướng (trừ `2>&1`, `>/dev/null`), `$(…)`, backtick, nhiều dòng ⇒ chặn dù các vế đều chỉ
-      đọc, và `git … --output=…` bị chặn. Agent khác (`bint-implementer`, `general-purpose`, phiên chính) không bị can thiệp.
+      đọc, `git … --output=…` bị chặn, và `git grep` có `-O`/`--open-files-in-pager` (chạy chương trình tuỳ ý; kể cả cờ gộp
+      `-nOvim`, viết tắt `--op`, trong nháy, sau `\` hay `$'…'`) cũng bị chặn. `readonly_tools` mặc định có `Bash(grep:*)` và
+      `Bash(git grep:*)`: `grep -rn foo internal`, `git grep -n foo`, `grep foo x 2>/dev/null` qua; `grep foo x > out` hay
+      `grep foo x | sh` bị chặn như mọi chuyển hướng/pipe (mẫu có `|` như `grep -E 'a|b'` cũng bị chặn: dùng `-e a -e b`). Agent khác (`bint-implementer`, `general-purpose`, phiên chính) không bị can thiệp.
       Harness không có `agent_type`/deny cho subagent thì `Dialect.SubagentReadonly=false` (Codex, Antigravity). Lớp kiểm sau
       vẫn là ảnh chụp trước/sau của bước chỉ đọc. Hook cũ cần chạy lại `bint init` để có hook `SubagentStop`.
     - **Guardrail đường dẫn worktree `bint-worktree` (hook, mục 7 / 12.14).** Subagent chạy ở cwd của phiên cha (cây gốc), nên với

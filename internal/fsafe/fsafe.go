@@ -236,10 +236,16 @@ const (
 )
 
 // Result của SyncBlock.
+//
+// Prev và SHA256 là sha256 (hex) của nội dung CHÍNH hàm này đã đọc và đã ghi, không đọc lại đĩa: Prev rỗng khi
+// tệp chưa có, SHA256 rỗng khi tệp bị xoá (hoặc không ghi gì). Nhờ đó bên ghi nhận ghi chen vào khe hở giữa đọc
+// và ghi không bị tính là kết quả của lần ghi này. Chỉ có nghĩa khi Outcome là Created/Appended/Updated.
 type Result struct {
 	Outcome    Outcome
 	BackupPath string
 	Detail     string
+	Prev       string
+	SHA256     string
 }
 
 // SyncBlock tạo hoặc cập nhật khối Bint trong tệp, chỉ chạm tới phần giữa hai dấu.
@@ -265,11 +271,12 @@ func SyncBlock(req BlockSync) (Result, error) {
 	}
 
 	if !exists {
-		if err := WriteAtomic(req.Path, []byte(render()), 0o644); err != nil {
+		created := render()
+		if err := WriteAtomic(req.Path, []byte(created), 0o644); err != nil {
 			return Result{}, err
 		}
 		req.Manifest.Set(key, Hash(want))
-		return Result{Outcome: Created}, nil
+		return Result{Outcome: Created, SHA256: Hash(created)}, nil
 	}
 
 	b, err := findBlock(content, req.Markers)
@@ -320,7 +327,7 @@ func SyncBlock(req BlockSync) (Result, error) {
 		return Result{}, err
 	}
 	req.Manifest.Set(key, Hash(want))
-	return Result{Outcome: outcome, BackupPath: bp}, nil
+	return Result{Outcome: outcome, BackupPath: bp, Prev: Hash(content), SHA256: Hash(next)}, nil
 }
 
 // ReadBlock trả về nội dung khối Bint trong tệp (nil nếu không có).
@@ -373,10 +380,12 @@ func RemoveBlock(req BlockSync) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("sao lưu %s: %w", req.Path, err)
 	}
+	nextSHA := Hash(next)
 	if strings.TrimSpace(next) == "" {
 		if err := os.Remove(req.Path); err != nil {
 			return Result{}, err
 		}
+		nextSHA = ""
 	} else {
 		info, err := os.Stat(req.Path)
 		perm := os.FileMode(0o644)
@@ -388,5 +397,5 @@ func RemoveBlock(req BlockSync) (Result, error) {
 		}
 	}
 	req.Manifest.Delete(key)
-	return Result{Outcome: Updated, BackupPath: bp}, nil
+	return Result{Outcome: Updated, BackupPath: bp, Prev: Hash(content), SHA256: nextSHA}, nil
 }

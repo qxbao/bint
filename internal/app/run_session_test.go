@@ -3,9 +3,13 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"bint/internal/harness/claude"
 	"bint/internal/task"
 	"bint/internal/workflow"
 )
@@ -95,4 +99,75 @@ func TestRunSessionServices(t *testing.T) {
 	if _, err := RunNext(ctx, ws, RunNextOptions{Ref: id}); err == nil || !strings.Contains(err.Error(), "lồng") {
 		t.Fatalf("chạy lồng: %v", err)
 	}
+}
+
+// `bint run next` trả action agent mà repo chưa có hook SubagentStop của Bint (ở phạm vi local, project hay user) thì
+// notes có cảnh báo chi phí subagent không đo được và lệnh `bint init --hooks`; có hook ở phạm vi nào thì không cảnh báo.
+// testutil.Isolate (trong taskRepo) cô lập HOME nên phạm vi user không đọc settings thật của máy.
+func TestRunNextWarnsWhenSubagentStopHookMissing(t *testing.T) {
+	hasWarning := func(a *workflow.SessionAction) bool {
+		for _, n := range a.Notes {
+			if strings.Contains(n, "SubagentStop") && strings.Contains(n, "bint init --hooks") && strings.Contains(n, "chi phí") {
+				return true
+			}
+		}
+		return false
+	}
+	ctx := context.Background()
+	// next lấy bước agent; abort để lần sau lấy lại từ đầu.
+	next := func(t *testing.T, ws *TaskWS, id string) *workflow.SessionAction {
+		t.Helper()
+		a, err := RunNext(ctx, ws, RunNextOptions{Ref: id})
+		if err != nil || a.Action != workflow.ActionAgent {
+			t.Fatalf("next: %+v %v", a, err)
+		}
+		if _, err := RunAbort(ctx, ws, RunAbortOptions{Ref: id, Reason: "thử"}); err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	t.Run("chưa có hook", func(t *testing.T) {
+		ws, _, id := taskRepo(t)
+		if _, _, err := ApproveTask(ctx, ws, TaskApproveOptions{Ref: id}); err != nil {
+			t.Fatal(err)
+		}
+		if a := next(t, ws, id); !hasWarning(a) {
+			t.Fatalf("thiếu cảnh báo: %v", a.Notes)
+		}
+	})
+	for _, sc := range []claude.Scope{claude.ScopeLocal, claude.ScopeProject, claude.ScopeUser} {
+		t.Run("có hook phạm vi "+string(sc), func(t *testing.T) {
+			ws, root, id := taskRepo(t)
+			if _, _, err := ApproveTask(ctx, ws, TaskApproveOptions{Ref: id}); err != nil {
+				t.Fatal(err)
+			}
+			p, err := claude.SettingsPath(sc, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := claude.InstallHooks(p, "bint", t.TempDir(), time.Now()); err != nil {
+				t.Fatal(err)
+			}
+			if a := next(t, ws, id); hasWarning(a) {
+				t.Fatalf("đã có hook (%s) mà vẫn cảnh báo: %v", sc, a.Notes)
+			}
+		})
+	}
+	t.Run("hook cũ thiếu SubagentStop", func(t *testing.T) {
+		ws, root, id := taskRepo(t)
+		if _, _, err := ApproveTask(ctx, ws, TaskApproveOptions{Ref: id}); err != nil {
+			t.Fatal(err)
+		}
+		p, _ := claude.SettingsPath(claude.ScopeLocal, root)
+		old := `{"hooks":{"PostToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bint hook claude"}]}]}}`
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(old), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if a := next(t, ws, id); !hasWarning(a) {
+			t.Fatalf("bản cài cũ thiếu SubagentStop phải bị cảnh báo: %v", a.Notes)
+		}
+	})
 }
