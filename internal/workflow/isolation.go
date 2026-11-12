@@ -118,7 +118,13 @@ func AcquireLock(tasksDir, root, owner string, mode LockMode) (*Lock, error) {
 		}
 		// Hợp đồng thuê còn hạn của tác vụ khác (bước chạy bằng subagent, lease.go) cũng là chủ khoá: flock không
 		// giữ suốt bước vì tiến trình `bint run next` đã thoát.
-		if cs := leaseConflicts(p, owner, mode); len(cs) > 0 {
+		cs, lerr := leaseConflicts(p, owner, mode)
+		if lerr != nil {
+			// Không biết có hợp đồng còn hạn hay không (mutex quá hạn, tệp hỏng): coi là đang bị giữ, không cấp khoá.
+			f.Close()
+			return nil, &lockedError{mode: mode, holders: []string{"hợp đồng thuê khoá không đọc được: " + lerr.Error()}}
+		}
+		if len(cs) > 0 {
 			f.Close()
 			return nil, &lockedError{mode: mode, holders: leaseHolders(cs)}
 		}
@@ -439,7 +445,9 @@ type ActiveStep struct {
 func ActiveSteps(tasksDir, root string) []ActiveStep {
 	var out []ActiveStep
 	// Bước chạy bằng subagent: không có tiến trình giữ khoá, chỉ có hợp đồng thuê còn hạn (PID 0).
-	for _, le := range activeLeases(lockPath(tasksDir, root), leaseNow()) {
+	// Lỗi đọc (tệp hỏng, mutex quá hạn) chỉ làm danh sách hiển thị thiếu; AcquireLock mới là nơi coi lỗi là "đang giữ".
+	leases, _ := activeLeases(lockPath(tasksDir, root), leaseNow())
+	for _, le := range leases {
 		s := ActiveStep{TaskID: le.Task, Step: le.Step, Mode: le.lockMode().String()}
 		s.At, _ = time.Parse(time.RFC3339, le.At)
 		out = append(out, s)

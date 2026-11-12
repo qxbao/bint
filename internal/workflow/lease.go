@@ -32,6 +32,9 @@ import (
 // leaseNow là đồng hồ của hợp đồng thuê; biến để kiểm thử đẩy thời gian qua hạn.
 var leaseNow = time.Now
 
+// leaseMutexWait là thời gian chờ mutex của tệp hợp đồng; biến để kiểm thử rút ngắn.
+var leaseMutexWait = 5 * time.Second
+
 // leaseEntry là một hợp đồng thuê.
 type leaseEntry struct {
 	Task  string `json:"task"`
@@ -95,7 +98,7 @@ func withLeaseMutex(lockFile string, fn func() error) error {
 		return err
 	}
 	defer f.Close() // đóng ⇒ hệ điều hành nhả khoá
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(leaseMutexWait)
 	for {
 		busy, err := tryFlock(f, LockExclusive)
 		if err != nil {
@@ -112,19 +115,25 @@ func withLeaseMutex(lockFile string, fn func() error) error {
 	return fn()
 }
 
-// readLeases đọc hợp đồng (gọi dưới mutex khi sắp ghi). Tệp thiếu hoặc hỏng ⇒ không có hợp đồng.
-func readLeases(lockFile string) []leaseEntry {
-	b, err := os.ReadFile(leaseFilePath(lockFile))
+// readLeases đọc hợp đồng (gọi dưới mutex). Tệp thiếu ⇒ không có hợp đồng; tệp không đọc được hoặc hỏng ⇒ lỗi: người
+// gọi phải coi là "đang bị giữ" chứ không được coi là trống (tệp hỏng không được mở khoá nhầm; người gỡ bằng
+// `bint run abort`, hoặc xoá tệp khi chắc không còn bước nào chạy).
+func readLeases(lockFile string) ([]leaseEntry, error) {
+	p := leaseFilePath(lockFile)
+	b, err := os.ReadFile(p)
 	if err != nil {
-		return nil
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("không đọc được tệp hợp đồng thuê khoá %s: %w", p, err)
 	}
 	var f struct {
 		Leases []leaseEntry `json:"leases"`
 	}
-	if json.Unmarshal(b, &f) != nil {
-		return nil
+	if err := json.Unmarshal(b, &f); err != nil {
+		return nil, fmt.Errorf("tệp hợp đồng thuê khoá %s hỏng: %w", p, err)
 	}
-	return f.Leases
+	return f.Leases, nil
 }
 
 // writeLeases ghi nguyên tử; rỗng thì xoá tệp.
@@ -145,30 +154,40 @@ func writeLeases(lockFile string, es []leaseEntry) error {
 	return fsafe.WriteAtomic(p, b, 0o600)
 }
 
-// activeLeases là hợp đồng còn hạn tại now (đọc dưới mutex).
-func activeLeases(lockFile string, now time.Time) []leaseEntry {
+// activeLeases là hợp đồng còn hạn tại now (đọc dưới mutex). Lỗi (không lấy được mutex, tệp hỏng) được trả lại chứ
+// không biến thành "không có hợp đồng": người cấp khoá phải coi lỗi là khoá đang bị giữ.
+func activeLeases(lockFile string, now time.Time) ([]leaseEntry, error) {
 	// Không có tệp hợp đồng (trường hợp thường gặp): khỏi tạo mutex, nên đường chỉ đọc (TUI, ActiveSteps) không ghi gì.
-	if _, err := os.Stat(leaseFilePath(lockFile)); err != nil {
-		return nil
+	if _, err := os.Stat(leaseFilePath(lockFile)); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
 	}
 	var out []leaseEntry
-	_ = withLeaseMutex(lockFile, func() error {
-		for _, e := range readLeases(lockFile) {
+	err := withLeaseMutex(lockFile, func() error {
+		es, err := readLeases(lockFile)
+		for _, e := range es {
 			if e.active(now) {
 				out = append(out, e)
 			}
 		}
-		return nil
+		return err
 	})
-	return out
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // leaseConflicts trả các hợp đồng còn hạn của tác vụ KHÁC xung đột với khoá chế độ mode do owner xin: bảng giống
 // khoá thật (chia sẻ + chia sẻ cùng được; độc quyền loại trừ mọi thứ). Hợp đồng của chính tác vụ không xung đột.
-func leaseConflicts(lockFile, owner string, mode LockMode) []leaseEntry {
+// Lỗi (mutex quá hạn, tệp hợp đồng hỏng) trả kèm: người gọi phải coi là khoá đang bị giữ.
+func leaseConflicts(lockFile, owner string, mode LockMode) ([]leaseEntry, error) {
 	self := leaseTaskOf(owner)
 	var out []leaseEntry
-	for _, e := range activeLeases(lockFile, leaseNow()) {
+	es, err := activeLeases(lockFile, leaseNow())
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range es {
 		if self != "" && e.Task == self {
 			continue
 		}
@@ -176,7 +195,7 @@ func leaseConflicts(lockFile, owner string, mode LockMode) []leaseEntry {
 			out = append(out, e)
 		}
 	}
-	return out
+	return out, nil
 }
 
 // leaseHolders mô tả các hợp đồng còn hạn (để báo "chờ khoá do …").
@@ -199,7 +218,11 @@ func grantLease(tasksDir, root string, e leaseEntry) error {
 		now := leaseNow()
 		var keep []leaseEntry
 		var conflicts []leaseEntry
-		for _, old := range readLeases(lockFile) {
+		olds, err := readLeases(lockFile)
+		if err != nil {
+			return err // không ghi đè tệp hỏng: sẽ mất hợp đồng còn hạn của tác vụ khác
+		}
+		for _, old := range olds {
 			switch {
 			case !old.active(now):
 				// hết hạn: dọn khi ghi
@@ -219,13 +242,22 @@ func grantLease(tasksDir, root string, e leaseEntry) error {
 	})
 }
 
-// releaseLease xoá hợp đồng của tác vụ (theo lượt nếu runID khác rỗng) và dọn hợp đồng hết hạn.
+// releaseLease xoá hợp đồng của tác vụ (theo lượt nếu runID khác rỗng) và dọn hợp đồng hết hạn. Tệp hợp đồng hỏng:
+// đóng một lượt (runID khác rỗng) trả lỗi và để nguyên tệp (khoá vẫn bị giữ); gỡ hợp đồng của cả tác vụ (runID rỗng,
+// tức abort/huỷ — đường người chủ động khôi phục) thì xoá tệp hỏng.
 func releaseLease(tasksDir, root, taskID, runID string) error {
 	lockFile := lockPath(tasksDir, root)
 	return withLeaseMutex(lockFile, func() error {
 		now := leaseNow()
 		var keep []leaseEntry
-		for _, e := range readLeases(lockFile) {
+		es, err := readLeases(lockFile)
+		if err != nil {
+			if runID != "" {
+				return err
+			}
+			return writeLeases(lockFile, nil)
+		}
+		for _, e := range es {
 			if e.Task == taskID && (runID == "" || e.RunID == runID) {
 				continue
 			}

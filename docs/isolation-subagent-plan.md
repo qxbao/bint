@@ -964,3 +964,32 @@ các khoá `workflow.isolation`/`worktree` của G2, ngoài phạm vi phiếu) m
 `git checkout`, và chạy lại riêng `internal/app`, `internal/cli`, `internal/tui/...`, `internal/workflow` không tái hiện được. Nguồn chưa
 xác định (nghi một lệnh `bint` chạy từ ngoài phiên); người dùng nên kiểm `git status` trước khi commit.
 
+### 12.11. Sửa phát hiện review G3a (.1–.4), 2026-11-12, tác vụ 01M77HACA7P0KVK2HZT4VYQC94
+
+Nguồn: `review.md` của tác vụ 01M77ED7S8THNK58QMMJE54YD2 (mục 12.10).
+
+- **.1 (medium) TOCTOU kiểm bước dở.** `claimSession(open=true)` (`internal/workflow/session.go`) kiểm `PendingActive` **bên trong**
+  `Tasks.Update` (dưới khoá phiếu, trên bản nạp lại) trước `ClaimRunner`: còn hạn thì trả `errPendingActive` và không ghi gì. `Next` bắt lỗi
+  này và trả `pendingAction(rs.t)` (đúng bước của `next` kia: cùng `run_id`/prompt), nên nhánh "đóng như hết hạn" chỉ còn chạy khi bước
+  thật sự hết hạn. `Run` (`run.go`) kiểm tương tự trong closure `Update` của `ClaimRunner` ⇒ `PendingStepError`, không chạy chồng bước
+  tiến trình lên bước subagent cùng tác vụ (hợp đồng của chính tác vụ không chặn `AcquireLock`). Cùng khe ấy còn một lỗi phát hiện thêm:
+  `claimSession` chọn `run`/`opened` theo bản nạp cũ nên `next` thứ hai có thể ghi đè `State.SessionRun` của `next` thứ nhất và phát
+  `workflow.started` thừa; nay chọn trong closure theo bản mới. Seam kiểm thử: biến gói `nextAfterLoad`, `runAfterLoad` (giữa nạp phiếu và nhận quyền).
+- **.2 hợp đồng không đọc được ≠ không có hợp đồng.** `readLeases`/`activeLeases`/`leaseConflicts` (`lease.go`) trả lỗi (mutex quá
+  `leaseMutexWait` = 5 giây, tệp không đọc được, JSON hỏng). `AcquireLock` coi lỗi là khoá đang bị giữ: `lockedError` với lý do "hợp đồng thuê
+  khoá không đọc được: …" (⇒ `WaitLock` chờ, `--no-wait`/`next` ⇒ blocked kèm lý do). `grantLease` không ghi đè tệp hỏng; `releaseLease`
+  theo lượt cũng không xoá nó; chỉ `releaseLease` theo tác vụ (`runID` rỗng: `abort`/huỷ, đường người chủ động khôi phục) xoá tệp hỏng.
+  `ActiveSteps` (chỉ hiển thị) bỏ qua lỗi. Vẫn đọc dưới mutex (chọn giữ nguyên thay vì đọc không mutex: tuần tự với `grantLease`, và mutex quá hạn
+  cũng thành "đang giữ" đúng như tiêu chí). Test `TestCorruptLeaseFileHoldsLock` thay ca "tệp hỏng: coi như không có" cũ của
+  `TestGrantAndReleaseLease` (hành vi cũ chính là lỗi).
+- **.3 `next` trên tác vụ đang dừng có bước dở còn hạn.** `pendingAction(t)`: tác vụ `blocked`/`interrupted` ⇒ `action: blocked` kèm `command`
+  `bint run complete <id> --run <run_id> --json` và lý do nêu `abort`, không có `prompt`/`subagent`; kể cả khi `--resume`. Tác vụ đang chạy thì vẫn trả
+  đúng bước (gọi lại an toàn).
+- **.4 sửa ngoài `scope.allow`.** `TestSessionFeatOutsideScopeAllow`: mặc định chỉ ghi chú `sửa ngoài scope.allow: other.txt` và đi tiếp (in_review);
+  `autonomy: ask_always` ⇒ blocked với `PendingPaths=[other.txt]`, bước dở đã đóng, `--resume` chưa duyệt bị từ chối — giống driver process.
+- **Kiểm thử đã thêm:** `TestSessionNextSeesStepOpenedBetweenLoadAndClaim` (đã kiểm: tắt chốt kiểm thì test đỏ với tác vụ `failed` "quá
+  workflow.timeout_minutes"), `TestRunProcessSeesStepOpenedBetweenLoadAndClaim`, `TestSessionNextOnPausedTaskWithLivePendingStepDoesNotReturnAgent`
+  (blocked và interrupted, có/không `--resume`, rồi `complete` đóng được), `TestSessionFeatOutsideScopeAllow`, `TestCorruptLeaseFileHoldsLock`,
+  `TestLeaseMutexTimeoutHoldsLock`, `TestSessionNextBlockedByCorruptLeaseFile`.
+- **Còn lại / rủi ro:** tệp hợp đồng hỏng chặn khoá tới khi người chạy `bint run abort <id>` (của tác vụ nào cũng được) hoặc xoá tay `*.lease.json`;
+  thông báo chưa gợi ý lệnh khi tệp không thuộc tác vụ nào. Chưa chạy `-race -count=50` cho các ca mới.

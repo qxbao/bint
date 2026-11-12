@@ -201,21 +201,27 @@ func (r *Runner) stopAction(rs *runState) *SessionAction {
 // `next` mở lượt mới. `complete`/`abort` (open=false) dùng lại lượt đang có. Trả lỗi (BusyError) nếu tiến trình điều
 // phối khác đang sống.
 func (r *Runner) claimSession(rs *runState, open bool) error {
-	t := rs.t
-	run := t.State.SessionRun
+	id := rs.t.State.ID
+	var run, parent string
 	opened := false
-	switch {
-	case open && (run == "" || task.Paused(t.State.Status)):
-		run, opened = ulid.New(), true
-	case run == "":
-		if ps := t.State.PendingStep; ps != nil && ps.ParentRunID != "" {
-			run = ps.ParentRunID
-		} else {
-			run = ulid.New()
+	nt, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
+		// Mọi quyết định dựa trên bản phiếu nạp dưới khoá, không dựa trên bản nạp trước đó: giữa hai lần nạp một `next`
+		// khác có thể đã mở bước, ghi PendingStep và nhả quyền (TOCTOU). Bước dở còn hạn thì không nhận quyền để đóng nó.
+		if open && t.State.PendingActive(leaseNow()) {
+			return errPendingActive
 		}
-	}
-	parent := t.State.LastRun()
-	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
+		run, opened = t.State.SessionRun, false
+		switch {
+		case open && (run == "" || task.Paused(t.State.Status)):
+			run, opened = ulid.New(), true
+		case run == "":
+			if ps := t.State.PendingStep; ps != nil && ps.ParentRunID != "" {
+				run = ps.ParentRunID
+			} else {
+				run = ulid.New()
+			}
+		}
+		parent = t.State.LastRun()
 		if err := t.ClaimRunner(run, r.now()); err != nil {
 			return err
 		}
@@ -226,6 +232,9 @@ func (r *Runner) claimSession(rs *runState, open bool) error {
 		return nil
 	})
 	if err != nil {
+		if nt != nil {
+			rs.t = nt // bản mới nhất, để người gọi xử lý errPendingActive theo đúng trạng thái hiện tại
+		}
 		return err
 	}
 	rs.t, rs.runID, rs.res.RunID = nt, run, run
@@ -235,6 +244,28 @@ func (r *Runner) claimSession(rs *runState, open bool) error {
 			"bint_version": r.Version, "task_id": nt.State.ID})
 	}
 	return nil
+}
+
+// errPendingActive: claimSession(open) thấy bước dở còn hạn (do một `next` khác vừa mở) nên không nhận quyền.
+var errPendingActive = errors.New("tác vụ có bước dở còn hạn")
+
+// pendingAction là hành động cho tác vụ có bước dở còn hạn (nil nếu không có). Tác vụ đang chạy: trả lại đúng bước
+// (gọi lại an toàn). Tác vụ đang dừng (blocked/interrupted vì `complete` bị ngắt hoặc khoá bị chặn): bước và hợp đồng
+// còn nguyên, subagent đã xong việc — KHÔNG trả action agent (orchestrator sẽ chạy lại subagent) mà chỉ lệnh đóng bước.
+func pendingAction(t *task.Task) *SessionAction {
+	ps := t.State.PendingStep
+	if ps == nil || !t.State.PendingActive(leaseNow()) {
+		return nil
+	}
+	if !task.Paused(t.State.Status) {
+		return sessionAgentAction(t, ps)
+	}
+	id := t.State.ID
+	return &SessionAction{Action: ActionBlocked, TaskID: id, Status: t.State.Status, Step: ps.Step, RunID: ps.RunID,
+		LeaseUntil: ps.LeaseUntil, Command: "bint run complete " + id + " --run " + ps.RunID + " --json",
+		Reason: fmt.Sprintf("tác vụ %s đang %s (%s) nhưng bước %s (lượt %s) vẫn còn hạn tới %s: KHÔNG chạy lại subagent; "+
+			"gọi `bint run complete %s --run %s` để đóng bước, hoặc `bint run abort %s` để bỏ nó",
+			id, t.State.Status, t.State.Reason, ps.Step, ps.RunID, ps.LeaseUntil, id, ps.RunID, id)}
 }
 
 // releaseSession nhả quyền điều phối sau một lệnh mà tác vụ còn tiếp tục (không đóng lượt cha).
@@ -279,6 +310,9 @@ func pendingReview(t *task.Task) *task.ReviewRound {
 	return nil
 }
 
+// nextAfterLoad, runAfterLoad: chỉ để kiểm thử — chạy giữa lần nạp phiếu và lần nhận quyền điều phối (khe TOCTOU).
+var nextAfterLoad, runAfterLoad func()
+
 // Next trả hành động kế tiếp của tác vụ (driver session). Bước agent: mở bước (chuyển trạng thái, giới hạn, khoá,
 // ảnh chụp, prompt), ghi State.PendingStep và hợp đồng thuê rồi trả flock — gọi lại khi bước còn hạn trả đúng
 // bước đó, không mở bước mới. Bước gán harness khác Claude trả `process`. Phần việc không cần agent (kiểm phạm vi và
@@ -297,9 +331,12 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	case task.StatusCancelled:
 		return nil, fmt.Errorf("tác vụ %s đã %s", id, t.State.Status)
 	}
-	// Bước còn hạn: trả lại đúng nó (gọi lại an toàn).
-	if ps := t.State.PendingStep; ps != nil && t.State.PendingActive(leaseNow()) {
-		return sessionAgentAction(t, ps), nil
+	// Bước còn hạn: trả lại đúng nó (gọi lại an toàn); tác vụ đang dừng thì chỉ lệnh đóng bước.
+	if a := pendingAction(t); a != nil {
+		return a, nil
+	}
+	if nextAfterLoad != nil {
+		nextAfterLoad()
 	}
 	if task.Paused(t.State.Status) {
 		rs := r.sessionState(t, "", false, o.NoWait)
@@ -320,6 +357,10 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	}
 	rs := r.sessionState(t, "", o.Resume, o.NoWait)
 	if err := r.claimSession(rs, true); err != nil {
+		if errors.Is(err, errPendingActive) {
+			// Một `next` khác vừa mở bước giữa lúc nạp và nhận quyền: trả lại đúng bước đó, không đóng nó như hết hạn.
+			return pendingAction(rs.t), nil
+		}
 		return nil, err
 	}
 	stopped := false
@@ -355,7 +396,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			return stop()
 		}
 	}
-	// Bước dở đã hết hạn: đóng như bước quá giờ (vẫn kiểm chỉ đọc để báo vi phạm).
+	// Bước dở đã hết hạn (claimSession đã loại bước còn hạn dưới khoá phiếu): đóng như bước quá giờ (vẫn kiểm chỉ đọc để báo vi phạm).
 	if ps := rs.t.State.PendingStep; ps != nil {
 		r.closePending(ctx, rs, ps, closeArgs{reason: "hết hạn thuê khoá, không có lệnh complete", timedOut: true})
 		if t, err := r.Tasks.Load(id); err == nil {

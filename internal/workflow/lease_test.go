@@ -144,13 +144,13 @@ func TestGrantAndReleaseLease(t *testing.T) {
 	if err := grantLease(tasksDir, root, ea2); err != nil {
 		t.Fatal(err)
 	}
-	if got := activeLeases(lockPath(tasksDir, root), time.Now()); len(got) != 1 || got[0].Step != "b-review" {
+	if got, err := activeLeases(lockPath(tasksDir, root), time.Now()); err != nil || len(got) != 1 || got[0].Step != "b-review" {
 		t.Fatalf("hợp đồng: %+v", got)
 	}
 	if err := releaseLease(tasksDir, root, a, "lượt-khác"); err != nil {
 		t.Fatal(err)
 	}
-	if got := activeLeases(lockPath(tasksDir, root), time.Now()); len(got) != 1 {
+	if got, err := activeLeases(lockPath(tasksDir, root), time.Now()); err != nil || len(got) != 1 {
 		t.Fatalf("release sai lượt không được xoá: %+v", got)
 	}
 	if err := releaseLease(tasksDir, root, a, ea2.RunID); err != nil {
@@ -158,15 +158,6 @@ func TestGrantAndReleaseLease(t *testing.T) {
 	}
 	if _, err := os.Stat(leaseFilePath(lockPath(tasksDir, root))); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("hết hợp đồng thì xoá tệp: %v", err)
-	}
-	// Tệp hợp đồng hỏng: coi như không có (không chặn vĩnh viễn).
-	if err := os.WriteFile(leaseFilePath(lockPath(tasksDir, root)), []byte("{hỏng"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if l, err := AcquireLock(tasksDir, root, b+" b-feat", LockExclusive); err != nil {
-		t.Fatalf("tệp hỏng: %v", err)
-	} else {
-		l.Release()
 	}
 }
 
@@ -241,5 +232,122 @@ func TestSessionReadonlyLeasesShare(t *testing.T) {
 		if err != nil || act.Action != ActionAgent || act.Step != StepReq || !act.ReadOnly {
 			t.Fatalf("next %s: %+v %v", tk.State.ID, act, err)
 		}
+	}
+}
+
+// Phát hiện .2: tệp hợp đồng hỏng KHÔNG được coi là không có hợp đồng — khoá không được cấp (chờ/blocked kèm lý do) tới
+// khi người gỡ bằng abort; ghi/đóng một lượt không ghi đè tệp hỏng.
+func TestCorruptLeaseFileHoldsLock(t *testing.T) {
+	st, root := t.TempDir(), t.TempDir()
+	tasksDir := filepath.Join(st, "runtime", "tasks")
+	a, b := ulid.New(), ulid.New()
+	lockFile := lockPath(tasksDir, root)
+	if err := os.MkdirAll(filepath.Dir(lockFile), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(leaseFilePath(lockFile), []byte("{hỏng"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []LockMode{LockShared, LockExclusive} {
+		l, err := AcquireLock(tasksDir, root, b+" b-feat", mode)
+		if err == nil {
+			l.Release()
+			t.Fatalf("chế độ %v: tệp hợp đồng hỏng mà vẫn cấp khoá", mode)
+		}
+		if !errors.Is(err, ErrLocked) || !strings.Contains(err.Error(), "không đọc được") || !strings.Contains(err.Error(), "hỏng") {
+			t.Fatalf("chế độ %v: muốn ErrLocked kèm lý do, được %v", mode, err)
+		}
+	}
+	if _, err := activeLeases(lockFile, time.Now()); err == nil {
+		t.Fatal("activeLeases phải báo lỗi, không trả rỗng")
+	}
+	// Chờ khoá hết thời hạn ⇒ lỗi khoá bận (blocked), không treo vô hạn cũng không cấp.
+	if _, err := WaitLock(context.Background(), tasksDir, root, b+" b-feat", LockExclusive, WaitOptions{Timeout: 50 * time.Millisecond}); !errors.Is(err, ErrLocked) {
+		t.Fatalf("WaitLock: %v", err)
+	}
+	// grantLease không ghi đè tệp hỏng; đóng một lượt cũng không xoá nó.
+	if err := grantLease(tasksDir, root, newLease(a, "b-feat", LockExclusive, time.Now().Add(time.Hour))); err == nil {
+		t.Fatal("grantLease phải từ chối khi tệp hỏng")
+	}
+	if err := releaseLease(tasksDir, root, a, "lượt-x"); err == nil {
+		t.Fatal("releaseLease theo lượt phải báo lỗi khi tệp hỏng")
+	}
+	if b, err := os.ReadFile(leaseFilePath(lockFile)); err != nil || string(b) != "{hỏng" {
+		t.Fatalf("tệp hỏng bị đổi: %q %v", b, err)
+	}
+	// ActiveSteps chỉ hiển thị: không panic, không có bước.
+	if got := ActiveSteps(tasksDir, root); len(got) != 0 {
+		t.Fatalf("ActiveSteps: %+v", got)
+	}
+	// Đường khôi phục của người (abort/huỷ: runID rỗng) xoá tệp hỏng; từ đó cấp khoá lại được.
+	if err := releaseLease(tasksDir, root, a, ""); err != nil {
+		t.Fatal(err)
+	}
+	l, err := AcquireLock(tasksDir, root, b+" b-feat", LockExclusive)
+	if err != nil {
+		t.Fatalf("sau khi gỡ: %v", err)
+	}
+	l.Release()
+}
+
+// Phát hiện .2: không lấy được mutex của hợp đồng trong hạn (tiến trình khác giữ mãi) ⇒ coi là đang bị giữ, không cấp
+// khoá dù tệp hợp đồng đọc được.
+func TestLeaseMutexTimeoutHoldsLock(t *testing.T) {
+	st, root := t.TempDir(), t.TempDir()
+	tasksDir := filepath.Join(st, "runtime", "tasks")
+	a, b := ulid.New(), ulid.New()
+	lockFile := lockPath(tasksDir, root)
+	if err := grantLease(tasksDir, root, newLease(a, "b-req", LockShared, time.Now().Add(time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	old := leaseMutexWait
+	leaseMutexWait = 60 * time.Millisecond
+	defer func() { leaseMutexWait = old }()
+	f, err := os.OpenFile(leaseMutexPath(lockFile), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if busy, err := tryFlock(f, LockExclusive); err != nil || busy {
+		t.Fatalf("giữ mutex: busy=%v %v", busy, err)
+	}
+	// Hợp đồng chia sẻ của A không xung đột với khoá chia sẻ của B, nhưng không đọc được hợp đồng ⇒ không cấp.
+	l, err := AcquireLock(tasksDir, root, b+" b-req", LockShared)
+	if err == nil {
+		l.Release()
+		t.Fatal("mutex quá hạn mà vẫn cấp khoá")
+	}
+	if !errors.Is(err, ErrLocked) || !strings.Contains(err.Error(), "mutex") {
+		t.Fatalf("muốn ErrLocked kèm lý do mutex, được %v", err)
+	}
+	if err := grantLease(tasksDir, root, newLease(b, "b-req", LockShared, time.Now().Add(time.Hour))); err == nil {
+		t.Fatal("grantLease phải lỗi khi không lấy được mutex")
+	}
+	f.Close() // nhả mutex
+	l, err = AcquireLock(tasksDir, root, b+" b-req", LockShared)
+	if err != nil {
+		t.Fatalf("sau khi nhả mutex: %v", err)
+	}
+	l.Release()
+}
+
+// Phát hiện .2 ở mức phiên: next của tác vụ khác gặp tệp hợp đồng hỏng ⇒ blocked kèm lý do, không mở bước.
+func TestSessionNextBlockedByCorruptLeaseFile(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	a := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	lockFile := lockPath(h.tasks.Dir, h.root)
+	if err := os.MkdirAll(filepath.Dir(lockFile), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(leaseFilePath(lockFile), []byte("{hỏng"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	act, err := r.Next(context.Background(), NextOptions{TaskRef: a.State.ID, NoWait: true})
+	if err != nil || act.Action != ActionBlocked || !strings.Contains(act.Reason, "không đọc được") {
+		t.Fatalf("next: %+v %v", act, err)
+	}
+	if got := loadTask(t, h, a.State.ID); got.State.PendingStep != nil {
+		t.Fatalf("không được mở bước: %+v", got.State.PendingStep)
 	}
 }

@@ -401,13 +401,18 @@ nhiều agent song song) chưa có.
     `blocked` với `--no-wait`; `next` của tác vụ khác tương tự; hai bước chỉ đọc cùng chạy được). Hết hạn xác định theo
     **thời gian, không theo PID còn sống** (không có kiểu race R1 của `evolve.AcquireLock`). `complete`/`abort`/huỷ tác vụ
     xoá hợp đồng. Phiên orchestrator chết giữa bước ⇒ khoá bị giữ tới hết hạn hoặc tới khi `bint run abort <id>`.
+    **Không đọc được hợp đồng ⇒ coi là đang bị giữ**: tệp hợp đồng hỏng hoặc không lấy được mutex trong hạn thì khoá không
+    được cấp (chờ / `blocked` kèm lý do "hợp đồng thuê khoá không đọc được: …"), `bint run abort <id>` xoá tệp hỏng.
   - *`abort`* gỡ bước dở và hợp đồng thuê, đóng lượt con là `interrupted`, ghi nhận tệp `b-feat` đã sửa vào `Touched`, đưa
     tác vụ về `interrupted` (tiếp tục bằng `next --resume`, bước dở chạy lại từ đầu). TUI: hành động `tasks.abort` (ghi,
     không phím, mở từ bảng lệnh, qua form xác nhận); `run next`/`run complete` là giao thức của phiên điều phối nên nằm
     trong danh sách loại trừ của bảng phủ lệnh TUI.
   - *Chặn chéo*: tác vụ có bước dở còn hạn thì `bint run <wf> --task` (driver process) bị từ chối ("bước … đang chạy bằng
     subagent: `bint run complete` hoặc `bint run abort`"); hết hạn thì nó đóng bước như quá giờ (`failed`) rồi tiếp tục theo
-    trạng thái mới. Tác vụ session vẫn chạy được bằng `bint run resume` (lối lùi khi phiên không có subagent).
+    trạng thái mới. Kiểm bước dở được làm lại **dưới khoá phiếu ngay lúc nhận quyền điều phối** (cả `next` lẫn `bint run`),
+    nên `next` chạy xen vào không bị đóng nhầm như hết hạn. `next` trên tác vụ đang dừng (`blocked`/`interrupted`) mà bước
+    dở còn hạn **không trả `action: agent`** (orchestrator sẽ chạy lại subagent) mà trả `blocked` kèm lệnh
+    `bint run complete <id> --run <run_id>` (hoặc `abort`). Tác vụ session vẫn chạy được bằng `bint run resume` (lối lùi khi phiên không có subagent).
   - *Đề bài cho subagent* không có biến `BINT_*` (subagent không có biến môi trường riêng): ID tác vụ nằm trong đề bài và
     mọi lệnh `bint task …` phải truyền nó; tác vụ worktree đòi `cd <worktree> && …` ở mọi lệnh Bash và đường dẫn tuyệt đối
     (công cụ Agent không nhận thư mục làm việc). Vòng review ghi bởi subagent không mang `run_id` nên `complete` nhận vòng

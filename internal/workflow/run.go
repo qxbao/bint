@@ -296,8 +296,16 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	}
 
 	// Nhận quyền điều phối tác vụ và mở lượt chạy.
+	if runAfterLoad != nil {
+		runAfterLoad()
+	}
 	parent := rs.t.State.LastRun()
 	t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+		// Kiểm lại dưới khoá phiếu: một `bint run next` có thể đã mở bước subagent sau lần nạp ở trên (TOCTOU), và hợp
+		// đồng của chính tác vụ không chặn AcquireLock ⇒ không được chạy chồng lên bước đó.
+		if ps := t.State.PendingStep; ps != nil && t.State.PendingActive(leaseNow()) {
+			return &PendingStepError{TaskID: t.State.ID, Step: ps.Step, RunID: ps.RunID, Until: ps.LeaseUntil}
+		}
 		if err := t.ClaimRunner(rs.runID, r.now()); err != nil {
 			return err
 		}

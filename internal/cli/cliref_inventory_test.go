@@ -68,6 +68,7 @@ var baseExclusions = []exclusion{
 	{"workflow/session.go", "tiếp tục (bint run next --resume)", rSession},
 	{"workflow/session.go", " --task ", rSession},
 	{"workflow/session.go", " --json", rSession},
+	{"workflow/session.go", " --run ", rSession},
 	{"workflow/session.go", "%w: --run %q (%s)", rSession},
 	{"workflow/session.go", "thiếu --agent-id", rSession},
 }
