@@ -2,7 +2,7 @@
 schema: 1
 id: 01M74PDT2ETJAYRWFV9ZPWVHMR
 type: warning
-status: candidate
+status: verified
 title: Cờ security không thay thế cô lập agent và mạng
 scope:
   paths:
@@ -12,8 +12,8 @@ evidence:
   - path: internal/config/config.go
     lines: 399-403
     fingerprint: lines:599f9b25a6dff930
-  - path: internal/cli/eval.go
-    lines: "1009"
+  - path: internal/app/eval_run.go
+    lines: "220"
     fingerprint: lines:169434fc1a9da302
 origin:
   kind: agent
@@ -21,6 +21,9 @@ origin:
 author: Leekiri1234 <hongducluong0603@gmail.com>
 version: 1
 created_at: "2026-11-11T06:58:46Z"
+updated_at: "2026-11-12T03:23:57Z"
+verified_at: "2026-11-12T03:23:57Z"
+status_reason: qua kiểm tra xác định được
 ---
 
 `security.allow_external_agents` và `security.allow_network_in_evals` hiện mới là khoá khai báo trong schema/mặc định, chưa gắn với cơ chế chặn agent ngoài hay cô lập mạng ở tầng hệ điều hành; lượt đánh giá vẫn chạy với quyền tiến trình của người dùng và truy cập mạng phụ thuộc vào cấu hình sandbox của từng harness.
