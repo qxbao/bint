@@ -366,7 +366,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		// Guardrail đường dẫn worktree cho bint-implementer của driver session (mục 7): trước bộ lọc "tệp ngoài repository"
 		// vì worktree của tác vụ nằm ngoài cây gốc.
 		if d.SubagentPrompt != nil && d.PreToolDecide != nil && hi.AgentType == SubagentImplementer &&
-			(info.Kind == ToolEdit || info.Kind == ToolShell) {
+			(info.Kind == ToolEdit || info.Kind == ToolShell) && HasSessionSteps(paths.Runtime) {
 			chk := worktreeCheck{AgentType: hi.AgentType, Tool: hi.ToolName, Info: info, Cwd: cwd}
 			if prompt, ok := d.SubagentPrompt(hi); ok {
 				if tid, _, run, ok := PromptTaskHeader(prompt); ok {

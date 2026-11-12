@@ -1140,3 +1140,17 @@ fail-closed có giới hạn, Dialect không hỗ trợ, không SQLite), `workfl
   thành phiếu sau.
 - `deny` của hook trên subagent chạy nền (`run_in_background`) và dưới `bypassPermissions` (cùng lý do S1/S3).
 - Hai việc song song thật bằng Agent nền với `claude` thật: thứ tự hoàn thành, `agentId` trả về, xung đột `blocked` riêng.
+
+### 12.15. Sửa phát hiện review của G4 (.1–.3), 2026-11-12, tác vụ 01M77NN59CBFEG4TPYSW0KPKAS
+
+Người dùng yêu cầu orchestrator sửa trực tiếp (không qua b-feat).
+
+- **.1 `cd <worktree> &&` không trích dẫn** — `hookcore.CdPrefix(dir)` dựng `cd '<dir>' && ` (đổi `\` thành `/`; có `'` thì
+  nháy kép) và là nguồn duy nhất cho prompt của `next` (`workflow/run.go`) và lý do deny của guardrail. `cdTargetRe`
+  (worktree) và `cdPrefixRe` (chỉ đọc) nhận dạng nháy kép có `\`; dạng không nháy có `\` vẫn không khớp (shell bỏ `\`).
+  Kiểm dấu nháy trên dòng mở heredoc của guardrail chỉ đọc bỏ tiền tố `cd` trước (tiền tố có nháy là hợp lệ). Test:
+  `TestCdPrefixQuotedPaths` (đường dẫn có dấu cách, dạng Windows, tiền tố trước heredoc).
+- **.2 trần 64 tệp** — `LiveIsolatedSteps` đọc tới `maxSessionStepFiles` (1024) tệp, trần 64 chỉ tính bước isolated còn hạn.
+  Test: `TestLiveIsolatedStepsCapCountsOnlyLive`.
+- **.3 đọc transcript khi không cần** — hook chỉ vào guardrail worktree khi `HasSessionSteps(runtime)` (thư mục session-steps
+  có ít nhất một tệp). Test: `TestHasSessionSteps`.

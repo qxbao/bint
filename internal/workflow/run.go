@@ -18,6 +18,7 @@ import (
 	"bint/internal/gitrepo"
 	adapters "bint/internal/harness"
 	"bint/internal/harness/claude"
+	"bint/internal/harness/hookcore"
 	"bint/internal/skills"
 	"bint/internal/spool"
 	"bint/internal/task"
@@ -1420,10 +1421,13 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 			"Bint đưa thay đổi về cây gốc khi tác vụ hoàn tất (bint task land), đừng sửa cây gốc.\n", r.Root, t.State.Branch, t.State.Origin)
 		if session {
 			// Công cụ Agent không nhận thư mục làm việc: subagent bắt đầu ở thư mục của phiên cha.
-			fmt.Fprintf(&b, "Bạn đang đứng ở thư mục của phiên cha, KHÔNG phải worktree: mọi lệnh Bash phải bắt đầu bằng `cd %s && …`, "+
-				"và Read/Edit/Write phải dùng đường dẫn tuyệt đối dưới %s. Hook của Bint chặn (deny) Edit/Write/NotebookEdit có đường dẫn "+
-				"ngoài thư mục đó và lệnh Bash không bắt đầu bằng `cd %s && …`; bị chặn thì sửa lại đường dẫn hoặc lệnh, đừng thử vòng qua.\n",
-				r.Root, r.Root, r.Root)
+			// Tiền tố cd trích dẫn sẵn (hookcore.CdPrefix): đường dẫn có dấu cách (macOS) hoặc `\` (Windows) vẫn đúng cú pháp và
+			// khớp guardrail (review G4 .1).
+			cd := hookcore.CdPrefix(r.Root)
+			fmt.Fprintf(&b, "Bạn đang đứng ở thư mục của phiên cha, KHÔNG phải worktree: mọi lệnh Bash phải bắt đầu bằng `%s…` "+
+				"(giữ nguyên dấu nháy), và Read/Edit/Write phải dùng đường dẫn tuyệt đối dưới %s. Hook của Bint chặn (deny) "+
+				"Edit/Write/NotebookEdit có đường dẫn ngoài thư mục đó và lệnh Bash không bắt đầu bằng `%s…`; bị chặn thì sửa lại "+
+				"đường dẫn hoặc lệnh, đừng thử vòng qua.\n", cd, r.Root, cd)
 		}
 		b.WriteString("\n")
 	}

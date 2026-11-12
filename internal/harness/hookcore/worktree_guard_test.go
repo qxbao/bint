@@ -1,6 +1,7 @@
 package hookcore
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -168,5 +169,94 @@ func TestSessionStepRecordLifecycle(t *testing.T) {
 	}
 	if LiveIsolatedSteps(filepath.Join(rt, "khong-co"), now) != nil {
 		t.Fatal("thư mục không có ⇒ nil")
+	}
+}
+
+// Review G4 .1: tiền tố cd do prompt đưa ra (CdPrefix) phải đúng cú pháp và được guardrail nhận với đường dẫn có dấu cách
+// (macOS: "Application Support") và đường dẫn kiểu Windows; guardrail chỉ đọc cũng nhận tiền tố đó, kể cả trước heredoc.
+func TestCdPrefixQuotedPaths(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	wt := filepath.Join(base, "Application Support", "bint", "worktrees", "T1")
+	for _, d := range []string{root, wt} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	iso := &SessionStepRecord{RunID: "r1", TaskID: "T1", Worktree: wt, Isolated: true}
+	cmd := CdPrefix(wt) + "go test ./..."
+	if !strings.HasPrefix(cmd, "cd '"+wt+"' && ") {
+		t.Fatalf("CdPrefix phải nháy đơn: %q", cmd)
+	}
+	if v := worktreeDecision(worktreeCheck{AgentType: SubagentImplementer, Tool: "Bash", Info: shellInfo(cmd), Cwd: root, Step: iso}); v.Deny {
+		t.Fatalf("lệnh đúng theo prompt (đường dẫn có dấu cách) bị chặn: %s", v.Reason)
+	}
+	// Lý do deny đưa đúng tiền tố có nháy.
+	v := worktreeDecision(worktreeCheck{AgentType: SubagentImplementer, Tool: "Bash", Info: shellInfo("go test ./..."), Cwd: root, Step: iso})
+	if !v.Deny || !strings.Contains(v.Reason, CdPrefix(wt)) {
+		t.Fatalf("lý do deny phải có tiền tố cd có nháy: %+v", v)
+	}
+	// Dạng Windows: CdPrefix đổi \ thành / ; cdTarget nhận cả nháy kép có \.
+	if got := CdPrefix(`C:\Users\me\AppData\Local\bint\state\worktrees\T1`); got != `cd 'C:/Users/me/AppData/Local/bint/state/worktrees/T1' && ` {
+		t.Fatalf("CdPrefix Windows: %q", got)
+	}
+	if tgt, ok := cdTarget(`cd "C:\Users\me\wt" && go test`, ""); !ok || tgt != `C:\Users\me\wt` {
+		t.Fatalf("cdTarget nháy kép có \\: %q %v", tgt, ok)
+	}
+	if _, ok := cdTarget(`cd C:\Users\me\wt && go test`, ""); ok {
+		t.Fatal("dạng không nháy có \\ phải không khớp (shell bỏ \\)")
+	}
+	if got := CdPrefix("/x/it's"); got != `cd "/x/it's" && ` {
+		t.Fatalf("có ' thì nháy kép: %q", got)
+	}
+	// Guardrail chỉ đọc: tiền tố có nháy trước lệnh đọc và trước heredoc.
+	rules := []string{"Bash(bint:*)", "Bash(git status:*)"}
+	for _, c := range []string{CdPrefix(wt) + "git status", CdPrefix(wt) + "bint task review T1 - <<'EOF'\n{}\nEOF",
+		`cd "C:\Users\me\wt" && git status`} {
+		if ok, why := readonlyShellAllowed(c, rules); !ok {
+			t.Errorf("%q bị chặn: %s", c, why)
+		}
+	}
+}
+
+// Review G4 .2: tệp shared/quá hạn đứng trước trong thư mục không đẩy bước isolated đang chạy ra khỏi trần.
+func TestLiveIsolatedStepsCapCountsOnlyLive(t *testing.T) {
+	rt := t.TempDir()
+	now := time.Now()
+	past := now.Add(-time.Minute).UTC().Format(time.RFC3339Nano)
+	for i := 0; i < maxSessionSteps+10; i++ {
+		// Tên "a…" xếp trước "z-live" trong ReadDir.
+		r := SessionStepRecord{RunID: fmt.Sprintf("a%03d", i), TaskID: "T", Worktree: "/x/old", Isolated: true, Until: past}
+		if err := WriteSessionStep(rt, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	live := SessionStepRecord{RunID: "z-live", TaskID: "TL", Worktree: "/x/wt", Isolated: true, Until: now.Add(time.Hour).UTC().Format(time.RFC3339Nano)}
+	if err := WriteSessionStep(rt, live); err != nil {
+		t.Fatal(err)
+	}
+	got := LiveIsolatedSteps(rt, now)
+	if len(got) != 1 || got[0].RunID != "z-live" {
+		t.Fatalf("bước đang chạy phải được thấy dù có %d tệp quá hạn đứng trước: %+v", maxSessionSteps+10, got)
+	}
+}
+
+// Review G4 .3: không có session-steps ⇒ HasSessionSteps false (hook bỏ qua guardrail, không đọc transcript).
+func TestHasSessionSteps(t *testing.T) {
+	rt := t.TempDir()
+	if HasSessionSteps(rt) {
+		t.Fatal("chưa có thư mục ⇒ false")
+	}
+	if err := os.MkdirAll(filepath.Join(rt, "session-steps"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if HasSessionSteps(rt) {
+		t.Fatal("thư mục rỗng ⇒ false")
+	}
+	if err := WriteSessionStep(rt, SessionStepRecord{RunID: "r1", TaskID: "T", Worktree: "/x"}); err != nil {
+		t.Fatal(err)
+	}
+	if !HasSessionSteps(rt) {
+		t.Fatal("có tệp ⇒ true")
 	}
 }

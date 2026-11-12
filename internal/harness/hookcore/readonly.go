@@ -72,7 +72,8 @@ var (
 	// Chuyển hướng vô hại được phép: 2>&1, >/dev/null, 2>/dev/null.
 	harmlessRedirectRe = regexp.MustCompile(`\s*(?:\d?>\s*/dev/null|2>&1)`)
 	// Tiền tố `cd MỘT_TOKEN && ` (prompt của bước chạy trên worktree riêng bắt buộc nó).
-	cdPrefixRe = regexp.MustCompile(`^\s*cd\s+(?:"[^"$` + "`" + `\\]*"|'[^']*'|[^\s;&|<>$` + "`" + `()\\"']+)\s*&&\s*`)
+	// Dạng nháy kép nhận `\` (đường dẫn Windows, xem CdPrefix/cdTargetRe ở worktree_guard.go).
+	cdPrefixRe = regexp.MustCompile(`^\s*cd\s+(?:"[^"$` + "`" + `]*"|'[^']*'|[^\s;&|<>$` + "`" + `()\\"']+)\s*&&\s*`)
 )
 
 // readonlyShellAllowed cho biết lệnh shell có được phép với bước chỉ đọc. Trả lý do ngắn khi không.
@@ -102,7 +103,8 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 		first = first[:m[0]] + " " + first[m[1]:] // bỏ token heredoc, còn lại là lệnh thật
 		// Phần còn lại của dòng mở heredoc không được có nháy hay gạch chéo ngược: chuỗi nháy chưa đóng kéo sang dòng sau,
 		// `\` cuối dòng nối dòng, cả hai đều đưa nội dung "thân heredoc" thành lệnh thật (review G3b .1).
-		if strings.ContainsAny(first, `'"\`) {
+		// Tiền tố `cd '<worktree>' &&` (CdPrefix, có nháy) hợp lệ: bỏ nó trước khi kiểm.
+		if strings.ContainsAny(cdPrefixRe.ReplaceAllString(first, ""), `'"\`) {
 			return false, "dòng mở heredoc có dấu nháy hoặc \\"
 		}
 		lines := strings.Split(body, "\n")

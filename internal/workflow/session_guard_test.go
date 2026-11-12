@@ -55,7 +55,7 @@ func TestSessionStepRecordWorktreeAndPrompt(t *testing.T) {
 		rec.Worktree == h.root || rec.Until != act.LeaseUntil {
 		t.Fatalf("bản ghi: %+v (hành động %+v)", rec, act)
 	}
-	for _, want := range []string{"cd " + wt + " && …", "đường dẫn tuyệt đối dưới " + wt, "Hook của Bint chặn", "KHÔNG phải worktree"} {
+	for _, want := range []string{hookcore.CdPrefix(wt) + "…", "giữ nguyên dấu nháy", "đường dẫn tuyệt đối dưới " + wt, "Hook của Bint chặn", "KHÔNG phải worktree"} {
 		if !strings.Contains(act.Prompt, want) {
 			t.Fatalf("đề bài thiếu %q:\n%s", want, act.Prompt)
 		}

@@ -55,10 +55,23 @@ type SessionStepRecord struct {
 }
 
 const (
-	sessionStepsDir  = "session-steps"
-	maxSessionSteps  = 64       // số tệp tối đa đọc khi liệt kê
-	maxSessionStepSz = 64 << 10 // trần kích thước một tệp
+	sessionStepsDir     = "session-steps"
+	maxSessionSteps     = 64       // số bước isolated còn hạn tối đa trả về khi liệt kê
+	maxSessionStepFiles = 1024     // số tệp tối đa đọc khi liệt kê
+	maxSessionStepSz    = 64 << 10 // trần kích thước một tệp
 )
+
+// HasSessionSteps cho biết thư mục session-steps có ít nhất một mục (không ai dùng driver session ⇒ hook bỏ qua guardrail
+// worktree mà không đọc transcript, review G4 .3).
+func HasSessionSteps(runtimeDir string) bool {
+	f, err := os.Open(filepath.Join(runtimeDir, sessionStepsDir))
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	names, _ := f.Readdirnames(1)
+	return len(names) > 0
+}
 
 // SessionStepPath là đường dẫn tệp của runID dưới thư mục runtime ("" nếu runID không hợp lệ: dùng làm tên tệp).
 func SessionStepPath(runtimeDir, runID string) string {
@@ -132,9 +145,11 @@ func LiveIsolatedSteps(runtimeDir string, now time.Time) []SessionStepRecord {
 	if err != nil {
 		return nil
 	}
+	// Trần maxSessionSteps chỉ tính bước isolated còn hạn; tệp shared/quá hạn/hỏng không được đẩy bước đang chạy ra khỏi trần
+	// (fail-closed thành fail-open, review G4 .2). Số tệp đọc có trần riêng lớn hơn để hook vẫn trong ngân sách thời gian.
 	var out []SessionStepRecord
 	for i, e := range ents {
-		if i >= maxSessionSteps {
+		if i >= maxSessionStepFiles || len(out) >= maxSessionSteps {
 			break
 		}
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
@@ -161,7 +176,7 @@ func PruneSessionSteps(runtimeDir string, now time.Time, grace time.Duration) {
 		return
 	}
 	for i, e := range ents {
-		if i >= maxSessionSteps*4 {
+		if i >= maxSessionStepFiles {
 			return
 		}
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
@@ -212,8 +227,27 @@ type worktreeVerdict struct {
 	Reason  string
 }
 
-// cdTargetRe: tiền tố `cd MỘT_TOKEN &&` (cùng dạng cdPrefixRe, có nhóm bắt đích).
-var cdTargetRe = regexp.MustCompile(`^\s*cd\s+("[^"$` + "`" + `\\]*"|'[^']*'|[^\s;&|<>$` + "`" + `()\\"']+)\s*&&\s*`)
+// cdTargetRe: tiền tố `cd MỘT_TOKEN &&` (cùng dạng cdPrefixRe, có nhóm bắt đích). Dạng nháy kép nhận `\` (đường dẫn Windows
+// trong Git Bash: trong nháy kép `\` trước chữ cái giữ nguyên); dạng không nháy thì không (shell bỏ `\`).
+var cdTargetRe = regexp.MustCompile(`^\s*cd\s+("[^"$` + "`" + `]*"|'[^']*'|[^\s;&|<>$` + "`" + `()\\"']+)\s*&&\s*`)
+
+// CdPrefix trả tiền tố `cd <dir> && ` để đưa vào prompt và lý do deny: đường dẫn đổi `\` thành `/` (Git Bash trên Windows
+// hiểu cả hai) và trích dẫn theo shell (nháy đơn; có `'` thì nháy kép) để đường dẫn có dấu cách (macOS: "Application
+// Support") vẫn là một token. Kết quả luôn khớp cdTargetRe và cdPrefixRe (review G4 .1).
+func CdPrefix(dir string) string {
+	return "cd " + shellQuoteDir(dir) + " && "
+}
+
+func shellQuoteDir(dir string) string {
+	dir = strings.ReplaceAll(dir, `\`, "/")
+	switch {
+	case !strings.Contains(dir, "'"):
+		return "'" + dir + "'"
+	case !strings.ContainsAny(dir, "\"$`"):
+		return `"` + dir + `"`
+	}
+	return dir // đường dẫn kỳ quặc (có cả ' lẫn "/$/`): để nguyên, guardrail sẽ chặn và lý do nêu rõ
+}
 
 // cdTarget trả thư mục của tiền tố `cd X &&` đầu lệnh ("" nếu không có). X tương đối thì tính theo cwd.
 func cdTarget(cmd, cwd string) (string, bool) {
@@ -272,12 +306,14 @@ func worktreeDecision(c worktreeCheck) worktreeVerdict {
 	var wts []string
 	outcome := OutcomeFired
 	where := ""
+	cdHint := "cd '<worktree>' && "
 	if c.Step != nil {
 		if !c.Step.Isolated {
 			return worktreeVerdict{}
 		}
 		wts = []string{normDir(c.Step.Worktree)}
 		where = fmt.Sprintf("worktree của tác vụ %s là %s", c.Step.TaskID, c.Step.Worktree)
+		cdHint = CdPrefix(c.Step.Worktree)
 	} else {
 		if len(c.Live) == 0 {
 			return worktreeVerdict{}
@@ -294,7 +330,7 @@ func worktreeDecision(c worktreeCheck) worktreeVerdict {
 	deny := func(what string) worktreeVerdict {
 		return worktreeVerdict{Deny: true, Outcome: outcome, Reason: fmt.Sprintf(
 			"Bint: %s bị chặn — %s. Bạn đang đứng ở cây gốc, không phải worktree. Chỉ làm việc trong worktree: dùng đường dẫn tuyệt đối "+
-				"dưới đó cho Read/Edit/Write, và bắt đầu MỌI lệnh Bash bằng `cd <worktree> && …`.", c.Tool, what+" ("+where+")")}
+				"dưới đó cho Read/Edit/Write, và bắt đầu MỌI lệnh Bash bằng `%s…` (giữ nguyên dấu nháy).", c.Tool, what+" ("+where+")", cdHint)}
 	}
 	switch c.Info.Kind {
 	case ToolEdit:
