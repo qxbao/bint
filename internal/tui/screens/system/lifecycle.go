@@ -366,7 +366,9 @@ func (m *Model) cmdUpdate() tea.Cmd {
 	if !m.allowed("system.update") || m.upd.running {
 		return nil
 	}
-	m.openForm("system.update", "update", app.UpdateDefaults())
+	// Mã nguồn lấy từ thông tin đã nạp của thẻ (cùng app.FindSource("")), không tìm lại ở đây: nhờ vậy ảnh chụp kiểm thử
+	// không phụ thuộc đường dẫn thật của cây mã nguồn. Chưa nạp xong thì để trống (rỗng = tìm lúc chạy).
+	m.openForm("system.update", "update", app.UpdateOptions{Source: m.updInfo.Source})
 	if m.updInfo.Source != "" {
 		m.frm.SetSuggestions("bint_source", []string{m.updInfo.Source})
 	}

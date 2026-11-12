@@ -37,10 +37,16 @@ Nếu **không** chạy dưới `bint run` (`BINT_RUN_ID` trống):
 
 ## Bước 2 — Quy ước
 
+Có công cụ MCP của Bint (`context_for_task`, `context_for_paths`) thì dùng chúng; không có (Antigravity,
+phiên không nạp MCP) thì chạy CLI:
+
 ```sh
 bint context "<mục tiêu>"           # quy tắc, điểm dễ sai của dự án
 bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
 ```
+
+Áp dụng một mục tri thức (`[k:<id>]`) thì báo trích dẫn: công cụ MCP `cite_knowledge`, hoặc
+`bint knowledge cite <id>` khi không có MCP.
 
 <!-- bint:anchor project-rules -->
 <!-- bint:anchor-end project-rules -->

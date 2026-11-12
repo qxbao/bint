@@ -47,9 +47,15 @@ người dùng đúng câu đó rồi dừng — đừng đoán.
 
 ## Bước 2 — Tri thức và khu vực mã
 
+Có công cụ MCP của Bint (`context_for_task`) thì dùng nó; không có (Antigravity, phiên không nạp MCP)
+thì chạy CLI:
+
 ```sh
 bint context "<mục tiêu>"          # quy tắc, điểm dễ sai đã biết của dự án
 ```
+
+Áp dụng một mục tri thức (`[k:<id>]`) thì báo trích dẫn: công cụ MCP `cite_knowledge`, hoặc
+`bint knowledge cite <id>` khi không có MCP.
 
 Đọc mã ở các khu vực liên quan. Tìm yêu cầu còn thiếu hoặc mâu thuẫn; nếu một điểm
 mơ hồ thay đổi cách làm, ghi nó vào mục "Câu hỏi mở" (khuôn `- [ ] Q-N: …`, xem Bước 3) thay vì

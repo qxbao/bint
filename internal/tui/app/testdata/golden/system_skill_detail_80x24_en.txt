@@ -3,7 +3,7 @@
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
 │  Config Harness Components  Skills  Index MCP Language Doctor Setup Update   │
-│ ┌─│Content of b-feat│─────────────────────────────────────────────1-16/116─┐ │
+│ ┌─│Content of b-feat│─────────────────────────────────────────────1-16/124─┐ │
 │ │ ---                                                                      │ │
 │ │ name: b-feat                                                             │ │
 │ │ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai     │ │

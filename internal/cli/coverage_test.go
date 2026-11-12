@@ -20,6 +20,7 @@ import (
 // này phải ánh xạ tới một trường Options (thẻ `flag`) hoặc nằm trong danh sách loại trừ có lý do.
 var serviceBindings = map[string]any{
 	"knowledge review":  app.ReviewQueueOptions{},
+	"knowledge cite":    app.CiteOptions{},
 	"bootstrap publish": app.PublishOptions{},
 
 	"task new": app.TaskNewOptions{}, "task list": app.TaskListOptions{}, "task show": app.TaskShowOptions{}, "task set": app.TaskSetOptions{},

@@ -435,3 +435,34 @@ func TestRoleModel(t *testing.T) {
 		t.Fatalf("models.implementer rỗng phải dùng workflow.agent.model: %q", got)
 	}
 }
+
+// Bước workflow có MCPConfig (M0 của docs/mcp-gateway-plan.md): Claude chỉ nạp MCP trong tệp đó và được phép
+// gọi mọi tool của Bint, kể cả ở bước chỉ đọc (vẫn bị cấm công cụ sửa tệp).
+func TestClaudeWorkflowArgsWithMCPConfig(t *testing.T) {
+	for _, readOnly := range []bool{true, false} {
+		a := &eval.ClaudeAgent{Cfg: ClaudeWorkflowArgs(config.Default(), readOnly, nil)}
+		args := a.ArgsFor(eval.AgentRequest{MCPConfig: "/state/runtime/mcp/run1.json"})
+		i := slices.Index(args, "--mcp-config")
+		if !slices.Contains(args, "--strict-mcp-config") || i < 0 || args[i+1] != "/state/runtime/mcp/run1.json" {
+			t.Fatalf("readOnly=%v: thiếu --strict-mcp-config/--mcp-config: %v", readOnly, args)
+		}
+		j := slices.Index(args, "--allowedTools")
+		if j < 0 {
+			t.Fatalf("readOnly=%v: thiếu --allowedTools: %v", readOnly, args)
+		}
+		allowed := strings.Split(args[j+1], ",")
+		for _, tool := range eval.BintMCPTools {
+			if !slices.Contains(allowed, tool) {
+				t.Errorf("readOnly=%v: thiếu %s trong --allowedTools: %v", readOnly, tool, allowed)
+			}
+		}
+		if readOnly != slices.Contains(args, "--disallowedTools") {
+			t.Errorf("readOnly=%v: --disallowedTools không khớp: %v", readOnly, args)
+		}
+	}
+	// Không MCPConfig thì không có --mcp-config và không thêm tool bint.
+	plain := (&eval.ClaudeAgent{Cfg: ClaudeWorkflowArgs(config.Default(), false, nil)}).ArgsFor(eval.AgentRequest{})
+	if slices.Contains(plain, "--mcp-config") || strings.Contains(strings.Join(plain, " "), "mcp__bint__") {
+		t.Fatalf("không MCPConfig mà vẫn có MCP: %v", plain)
+	}
+}

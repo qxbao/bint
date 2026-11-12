@@ -44,7 +44,7 @@ Chỉ người mới duyệt được quy tắc bắt buộc (rule).`,
 		newKnowledgeRejectCmd(stdio, "deprecate", "Loại bỏ một mục (→ deprecated)"),
 		newKnowledgeRmCmd(stdio), newKnowledgeTransitionsCmd(stdio),
 		newKnowledgeSearchCmd(stdio), newKnowledgeStatsCmd(stdio), newKnowledgeDiffCmd(stdio),
-		newKnowledgeRevalidateCmd(stdio))
+		newKnowledgeRevalidateCmd(stdio), newKnowledgeCiteCmd(stdio))
 	return c
 }
 
@@ -687,4 +687,41 @@ func nonNilStrings(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+func newKnowledgeCiteCmd(stdio IO) *cobra.Command {
+	var (
+		note   string
+		asJSON bool
+	)
+	c := &cobra.Command{
+		Use:   "cite <id>...",
+		Short: "Báo đã áp dụng mục tri thức (dùng trong lượt bint run, khi không có MCP)",
+		Long: `Ghi nhận rằng agent đã áp dụng một hay nhiều mục tri thức vào việc đang làm, để Bint đo
+mục nào có ích. Tương đương công cụ MCP cite_knowledge cho harness không có MCP (Antigravity)
+hoặc phiên không nạp MCP của Bint.
+
+ID nhận cả dạng [k:<id>] như trong khối ngữ cảnh. Lệnh gắn trích dẫn vào lượt chạy của bước
+hiện tại (biến BINT_RUN_ID do ` + "`bint run`" + ` đặt); ngoài lượt chạy thì báo lỗi. Chỉ ghi một sự
+kiện vào spool, không đổi mục tri thức.`,
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir, err := cwd()
+			if err != nil {
+				return err
+			}
+			res, err := app.CiteKnowledge(cmd.Context(), dir, app.CiteOptions{IDs: args, Note: note})
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, res)
+			}
+			fmt.Fprintf(stdio.Out, "Đã ghi trích dẫn %d mục cho lượt %s: %s\n", len(res.IDs), res.RunID, strings.Join(res.IDs, ", "))
+			return nil
+		},
+	}
+	c.Flags().StringVar(&note, "note", "", "ghi chú: áp dụng mục đó vào đâu")
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
 }

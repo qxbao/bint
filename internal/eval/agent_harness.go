@@ -100,6 +100,14 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		if req.ExclusiveMCP {
+			// Phải đứng trước mọi -c mcp_servers.* khác (xem codexDisableMCPArgs).
+			off, err := codexDisableMCPArgs(req)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, off...)
+		}
 		args = append(args, "-c", "mcp_servers.bint.command="+tomlString(srv.Command),
 			"-c", "mcp_servers.bint.args="+tomlStrings(srv.Args),
 			"-c", `mcp_servers.bint.tools.cite_knowledge.approval_mode="approve"`)

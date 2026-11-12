@@ -42,11 +42,15 @@ git diff <A>..<B>
 
 ## Bước 2 — Yêu cầu và quy tắc
 
-Đọc tiêu chí chấp nhận và tài liệu của tác vụ (`bint task show <id>`). Truy xuất quy tắc:
+Đọc tiêu chí chấp nhận và tài liệu của tác vụ (`bint task show <id>`). Truy xuất quy tắc: có công cụ MCP của Bint (`context_for_paths`) thì dùng nó;
+không có (Antigravity, phiên không nạp MCP) thì chạy CLI:
 
 ```sh
 bint context --paths <các tệp trong diff>
 ```
+
+Áp dụng một mục tri thức (`[k:<id>]`) thì báo trích dẫn: công cụ MCP `cite_knowledge`, hoặc
+`bint knowledge cite <id>` khi không có MCP.
 
 ## Bước 3 — Kiểm tra
 

@@ -31,6 +31,9 @@ type AgentRequest struct {
 	// MCPConfig / Settings: tệp cấu hình MCP và settings bổ sung (nhánh bint).
 	MCPConfig string
 	Settings  string
+	// ExclusiveMCP: chỉ server trong MCPConfig được bật. Claude luôn có --strict-mcp-config nên bỏ qua;
+	// Codex tắt các mcp_servers khác trong config của người dùng/dự án (-c mcp_servers.X.enabled=false).
+	ExclusiveMCP bool
 	// ReadOnly: bước không được sửa cây làm việc (b-req, b-review); harness áp ở mức
 	// nó hỗ trợ, Bint kiểm tra lại sau bước.
 	ReadOnly bool

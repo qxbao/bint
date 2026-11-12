@@ -237,6 +237,42 @@ bint eval run --harness codex …   # đo trên harness khác (nhánh không h�
 Cấp hỗ trợ (mục 7): cả ba ở **cấp 3** (Skill + Hook + thực thi theo chương trình); cấp 4 (điều phối
 nhiều agent song song) chưa có.
 
+### Tập MCP của mỗi bước
+
+Mỗi bước agent của `bint run` chạy theo chương trình (driver process) có **đúng một** MCP server: `bint`
+(`bint mcp serve`: `context_for_task`, `context_for_paths`, `knowledge_search`, `knowledge_get`,
+`cite_knowledge`, `report_observation`). Trước mỗi bước, Bint ghi
+`<state>/runtime/mcp/<run-id của bước>.json` (chỉ có `mcpServers.bint`, `command` là đường dẫn tuyệt đối của
+binary Bint đang chạy), truyền cho harness và xoá tệp khi bước kết thúc. Thiếu thư mục trạng thái thì bước chạy
+không có MCP (ghi một dòng log), không thất bại.
+
+| Bước | Claude Code | Codex CLI | Antigravity |
+|---|---|---|---|
+| `b-req` (chỉ đọc) | chỉ `bint`: `--strict-mcp-config --mcp-config <tệp>`; `mcp__bint__*` nằm trong `--allowedTools` cùng danh sách công cụ chỉ đọc; vẫn `--disallowedTools Edit,Write,…` | `bint` qua `-c mcp_servers.bint.*`; server khác trong config Codex bị tắt (xem dưới) | không có MCP cấp dự án: dùng CLI `bint context`, `bint knowledge cite` |
+| `b-feat` (ghi) | như trên, `--allowedTools` là danh sách của bước ghi cộng `mcp__bint__*` | như trên | như trên |
+| `b-review` (chỉ đọc) | như `b-req` | như `b-req` | như `b-req` |
+| Driver session (`bint run next`/`complete`) | subagent dùng kết nối MCP của phiên cha; Bint không cấp riêng | như Claude Code (phiên cha) | như Claude Code (phiên cha) |
+
+- **Claude**: `--strict-mcp-config` luôn có, nên `.mcp.json` của dự án và MCP cấp người dùng không được nạp ở bước
+  `bint run`; chỉ còn `bint`.
+- **Codex**: Codex vẫn nạp `[mcp_servers.*]` trong `$CODEX_HOME/config.toml` (mặc định `~/.codex/config.toml`) và
+  `.codex/config.toml` của dự án. Bint đọc tên các bảng đó và thêm `-c mcp_servers.<tên>.enabled=false` cho mọi tên
+  khác `bint`; không dùng `--ignore-user-config` vì cờ đó bỏ cả cấu hình model/provider. Lưu ý (đã kiểm với
+  codex-cli 0.167): (1) `-c` của Codex tách khoá theo dấu chấm mà không hiểu dấu trích dẫn, nên tên có dấu chấm hay
+  khoảng trắng được tắt qua bảng nội tuyến `-c 'mcp_servers={"a.b"={enabled=false}}'`, đặt trước mọi `-c mcp_servers.*`
+  khác; (2) tắt một tên không tồn tại làm Codex báo `invalid transport` và không chạy, nên server chỉ có trong
+  `.codex/config.toml` chỉ bị tắt khi `projects."<thư mục>".trust_level = "trusted"` trong config người dùng khớp đúng
+  thư mục chạy (Codex bỏ qua config của dự án chưa tin cậy). Dự án được tin cậy qua thư mục cha hoặc gốc Git thì
+  server riêng của dự án đó **không** bị tắt. Người dùng vẫn ghi đè được qua `harnesses.codex.extra_args`.
+- **Antigravity**: chỉ có MCP cấp người dùng, Bint không cấp cho từng bước; skill dặn dùng CLI. Bước `agy` nhận mọi
+  MCP người dùng đã cấu hình.
+- **Lượt đánh giá** (`bint eval run`) không đổi: nhánh `bint` có cấu hình MCP riêng (`--eval-config`) và Codex chạy
+  trong profile đã cô lập.
+- Skill `b-req`, `b-feat`, `b-review` ưu tiên công cụ MCP `context_for_task`/`context_for_paths` khi có, và báo trích
+  dẫn mục đã áp dụng bằng `cite_knowledge` hoặc `bint knowledge cite <id>` (cần `BINT_RUN_ID` do `bint run` đặt).
+- Tệp trên sẽ do cửa vào gộp thay thế khi có gateway MCP (docs/mcp-gateway-plan.md, M3); chỗ truyền `MCPConfig`
+  giữ nguyên.
+
 **Chọn harness** cho từng bước theo thứ tự (mục 5): `--role <role|step>=<harness>` → `--harness` →
 `roles.planner|implementer|reviewer` → `harnesses.default` → `claude`. Harness phải nằm trong
 `harnesses.enabled` — yêu cầu dòng lệnh không vượt qua cấu hình dự án. Tham số gọi Codex/Antigravity

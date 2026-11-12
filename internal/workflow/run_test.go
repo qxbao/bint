@@ -86,6 +86,11 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 	a.h.calls = append(a.h.calls, step)
 	a.h.dirs = append(a.h.dirs, req.Dir)
 	a.h.prompts[step] = req.Prompt
+	a.h.reqs = append(a.h.reqs, req)
+	if req.MCPConfig != "" {
+		body, _ := os.ReadFile(req.MCPConfig) // đọc ngay: Runner xoá tệp khi bước kết thúc
+		a.h.mcpBodies = append(a.h.mcpBodies, body)
+	}
 	a.h.mu.Unlock()
 	// Root = thư mục chạy thật của bước (cây gốc, hoặc worktree riêng của tác vụ).
 	agentEnv := &Env{Root: req.Dir, Cfg: a.h.cfg, Tasks: a.h.tasks, Spool: a.h.spool, Actor: "agent", RunID: envs[EnvRunID]}
@@ -101,19 +106,22 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 
 type harness struct {
 	// mu bảo vệ calls/prompts/limits khi nhiều Runner chạy đồng thời trên cùng harness.
-	mu      sync.Mutex
-	t       *testing.T
-	root    string
-	cfg     config.Config
-	tasks   task.Store
-	spool   string
-	db      string
-	calls   []string
-	dirs    []string // Dir của từng lần gọi agent
-	prompts map[string]string
-	behave  func(ctx context.Context, step string, e *Env, taskID string) error
-	limits  []*float64
-	cost    *float64
+	mu    sync.Mutex
+	t     *testing.T
+	root  string
+	cfg   config.Config
+	tasks task.Store
+	spool string
+	db    string
+	calls []string
+	dirs  []string // Dir của từng lần gọi agent
+	// reqs / mcpBodies: yêu cầu giao cho agent và nội dung tệp MCPConfig tại lúc gọi.
+	reqs      []eval.AgentRequest
+	mcpBodies [][]byte
+	prompts   map[string]string
+	behave    func(ctx context.Context, step string, e *Env, taskID string) error
+	limits    []*float64
+	cost      *float64
 	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.
 	costFor func(step string) *float64
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
