@@ -1154,3 +1154,21 @@ Người dùng yêu cầu orchestrator sửa trực tiếp (không qua b-feat).
   Test: `TestLiveIsolatedStepsCapCountsOnlyLive`.
 - **.3 đọc transcript khi không cần** — hook chỉ vào guardrail worktree khi `HasSessionSteps(runtime)` (thư mục session-steps
   có ít nhất một tệp). Test: `TestHasSessionSteps`.
+
+### 12.16. Nghiệm thu thật bằng Claude Code (G3), 2026-11-12, tác vụ 01M77RS37N7JEQ4AEPDSZRTB6V
+
+Phiếu `--driver session --shared` (thêm câu hướng dẫn `/b-do --subagent` vào `docs/workflows.md`) chạy trọn
+`next → Agent → complete` trong phiên Claude Code 2.1.322: `bint-planner` (opus) → `bint-implementer` (sonnet) →
+`bint-reviewer` (opus) → `done`, 0 phát hiện review.
+
+- **Đạt:** prompt nguyên văn từ `next`; `complete --agent-id` ghi `agent_runs` đủ ba bước; sự kiện công cụ của subagent
+  (`file.modified`, `test.completed`, `subagent.stopped`) gắn đúng lượt theo `agent_id`; chi phí từ transcript: b-feat
+  0,084 USD (`claude-sonnet-5-5`, 114k token vào), b-review 0,264 USD (`claude-opus-5-5`); guardrail chỉ đọc (6.4a) chặn thật
+  3 lệnh Bash của `bint-planner` (`guardrail.triggered`, outcome `fired`).
+- **Lỗi thật tìm được:** repo cài hook từ bản cũ thiếu `SubagentStop` ⇒ chi phí b-req `unknown`; `bint doctor` báo "hook claude
+  chưa cài", sửa bằng `bint init --hooks`. Phiên đang chạy nhận hook mới không cần khởi động lại. Nên để skill b-do kiểm
+  `bint doctor` (hoặc lỗi "chưa có SubagentStop") trước khi chạy driver session.
+- **Ma sát:** guardrail chỉ đọc chặn `grep`/`git grep` (chỉ đọc nhưng không có trong `readonly_tools`); subagent tự chuyển sang
+  công cụ Grep. Cân nhắc thêm `Bash(grep:*)`, `Bash(git grep:*)` vào `readonly_tools` mặc định.
+- **Chưa nghiệm thu thật:** G4 (hai tác vụ `--worktree` song song bằng subagent, guardrail đường dẫn worktree); hook `deny`
+  dưới `bypassPermissions`; Windows.
