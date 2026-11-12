@@ -1,9 +1,10 @@
 # Kế hoạch: gateway MCP dùng chung và cấp MCP theo role
 
-Trạng thái: **bản nháp chờ chốt** (2026-11-12), chưa triển khai. Gồm sáu giai đoạn: M0 (cấp MCP của
-Bint cho các bước `bint run`, sửa ngay được), M1 (danh mục, cấu hình hai tầng, API/CLI quản lý),
-M2 (daemon gateway), M3 (cửa vào gộp và cấp quyền theo role), M4 (màn TUI), M5 (đo).
-Các mục ở §3 "Đề xuất chờ chốt" và §10 "Cần xác minh" phải xong trước khi bắt đầu giai đoạn liên quan.
+Trạng thái: **đã chốt hướng** (2026-11-12), chưa triển khai. Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
+các bước `bint run`, sửa ngay được), M1 (danh mục, cấu hình hai tầng, API/CLI quản lý), M2 (daemon
+gateway), M3 (cửa vào gộp và cấp quyền theo role), M4 (màn TUI), M5 (đo).
+Quyết định ở §3, kết quả xác minh ở §10. Chỉ còn S3 (harness xử lý thế nào khi chính shim chết), kiểm thử
+khi làm M3.
 
 Tham khảo: gateway của bflow (`AI-flow-SDLC/packages/mcp-gateway`, `docs/shared-mcp-architecture.md`,
 `docs/mcp-memory-benchmark.md`). Kế hoạch này chỉ lấy phần lõi, không chép nguyên.
@@ -41,6 +42,9 @@ Tổng khoảng 260–500 MB RSS mỗi phiên. Tiến trình bọc `npm exec`/`u
 dùng chung nên mức tiết kiệm thật phải đo bằng PSS (benchmark của bflow: 6 agent dùng chung một backend
 giảm ~83% RSS nhưng 64–80% PSS).
 
+codegraph chưa có trong cấu hình toàn cục. Đo thử ngày 2026-11-12 (§10, S1): mỗi phiên tốn khoảng 170 MB,
+cộng một daemon khoảng 310 MB cho mỗi project.
+
 MCP kiểu `http` (deepwiki, context7) không sinh tiến trình cục bộ. MCP `http` trỏ vào daemon tự chạy
 (gitnexus :8932, playwright :8931) báo `ECONNREFUSED` khi daemon không chạy, vì không ai quản lý vòng đời.
 
@@ -67,9 +71,9 @@ Antigravity chỉ có MCP cấp user (`docs/workflows.md`), nên bước chạy 
 - Tầng dịch vụ CLI/TUI (`internal/app/*_svc.go`, thẻ `flag`/`form`, `Validate()`/`Defaults()`) và sổ
   action có `CLIPath` (`internal/tui/actions`).
 
-## 3. Quyết định
+## 3. Quyết định (chốt 2026-11-11/12)
 
-### 3.1. Đã chốt (2026-11-11/12)
+### 3.1. Hướng chung
 
 | Vấn đề | Quyết định |
 |---|---|
@@ -79,17 +83,17 @@ Antigravity chỉ có MCP cấp user (`docs/workflows.md`), nên bước chạy 
 | Sửa H2/H3 | Gộp vào kế hoạch này (giai đoạn M0), không vá riêng. |
 | gitnexus, mempalace | Không đưa vào danh mục (codegraph thay gitnexus; mempalace không có ích cho Bint). |
 
-### 3.2. Đề xuất chờ chốt
+### 3.2. Quyết định chi tiết
 
-| # | Vấn đề | Đề xuất |
-|---|---|---|
-| D1 | Cài đặt | v1 chỉ **đăng ký + kiểm tra** (`initialize` + `tools/list`); người dùng tự cài gói. Bộ cài để giai đoạn sau. |
-| D2 | Credential | Chỉ lưu **tên** biến môi trường; form TUI không ghi giá trị bí mật vào YAML. |
-| D3 | Thêm/gỡ khi phiên đang chạy | Chỉ có hiệu lực với phiên mới. Không làm `notifications/tools/list_changed` ở v1. |
-| D4 | Phiên tương tác (ngoài `bint run`) | Role `interactive`; không khai báo thì được mọi service **đã đăng ký và được dự án dùng** (giữ trải nghiệm hiện nay). |
-| D5 | Ai sửa đăng ký và quyền | Chỉ người: thao tác ghi của `bint mcp` trả `ErrAgentForbidden` khi `InAgentSession`. |
-| D6 | Hình dạng client | `bint mcp serve` là **cửa vào duy nhất**: phục vụ tool của Bint và chuyển tiếp tool của service với tiền tố (`codegraph_*`, `specmatic_*`…). Tên tool đổi thành `mcp__bint__<service>_<tool>`, quyền trong settings của harness phải sửa một lần. Thay thế: mỗi service một mục `type: http` riêng (giữ tên cũ, không chạy được trên agy). |
-| D7 | Kênh client ↔ daemon | HTTP loopback `127.0.0.1:<cổng động>` + bearer token, kiểm Host/Origin. Không dùng Unix socket vì Windows và vì phương án thay thế của D6 cần URL. |
+| # | Vấn đề | Quyết định | Lý do |
+|---|---|---|---|
+| D1 | Cài đặt | Chỉ **đăng ký và kiểm tra** (`initialize` + `tools/list`). `bint mcp add` hiện lệnh cài gợi ý để người dùng tự chạy. Lệnh dạng `npx …@latest`/`uvx …` bị cảnh báo; khuyên dùng binary đã cài với phiên bản ghim. Bộ cài để giai đoạn sau. | Bộ cài đa nền tảng tốn công mà ít giá trị. Riêng việc bỏ tiến trình bọc `npm exec`/`uvx` đã giảm 35–45% RSS (§2.1). |
+| D2 | Credential | Giá trị nằm trong **`secrets.env` (quyền 0600) ở thư mục cấu hình user**. `mcp.yml` chỉ ghi tên biến (và đường dẫn tệp nếu khác mặc định), không bao giờ ghi giá trị. Daemon đọc tệp này khi khởi động upstream, không lấy env của shell đã khởi động daemon. | Daemon chạy lâu và tách khỏi terminal; lấy env từ shell khởi động nó trước thì dễ lệch (phiên mở từ IDE thiếu biến). Hiện mật khẩu jira đã nằm dạng rõ trong `~/.claude.json` và `~/.codex/config.toml`, nên một tệp 0600 không kém an toàn hơn và gom về một chỗ. |
+| D3 | Thêm/gỡ khi phiên đang chạy | Chỉ có hiệu lực với phiên mới. Không làm `notifications/tools/list_changed` ở v1. | `list_changed` phải kiểm trên từng harness. |
+| D4 | Phiên tương tác (ngoài `bint run`) | Role `interactive`. Không khai báo thì được mọi service **có trong `mcp.services` của dự án và đã đăng ký trên máy**, không phải mọi service máy có. | Giữ trải nghiệm gần như hiện nay nhưng gắn theo dự án: repo không dùng Jira thì phiên của repo đó không thấy jira. |
+| D5 | Ai sửa đăng ký và quyền | Agent được `list`, `check`, `grants`, `gateway status`. Chỉ người được `add`, `remove`, `index`, `gateway stop/restart`: các lệnh này trả `ErrAgentForbidden` khi `InAgentSession`. | Restart một upstream cắt lời gọi đang chạy của phiên khác. |
+| D6 | Hình dạng client | `bint mcp serve` là **cửa vào duy nhất (shim gộp)**: phục vụ tool của Bint và chuyển tiếp tool của service với tiền tố ngắn (§5.1). Tool tới harness có dạng `mcp__bint__<tiền tố>_<tool>`; quyền trong settings của harness sửa một lần. | Harness chỉ thấy một tiến trình stdio ổn định; daemon chết thì shim tự nối lại, nên tránh được phần lớn S3. Role lấy từ env chạy giống nhau trên Claude, Codex và agy (agy chỉ có MCP cấp user). Tên dài nhất (`mcp__bint__spec_backward_compatibility_check`, 45 ký tự) dưới giới hạn 64. Cái giá: mỗi phiên vẫn có một tiến trình ~16 MB (vốn đã có). |
+| D7 | Kênh shim ↔ daemon | HTTP loopback `127.0.0.1:<cổng động>`, bearer token trong `gateway.json` (0600), kiểm Host/Origin. Không dùng Unix socket. | Chạy được trên Windows. Codex hỗ trợ MCP HTTP với `bearer_token_env_var` nếu sau này cần nối thẳng. |
 
 ## 4. M0 — Cấp MCP của Bint cho các bước `bint run`
 
@@ -99,8 +103,10 @@ Làm được ngay, không phụ thuộc gateway. Khi có M3, chỗ truyền `MC
    `eval/arms.go:394`, lệnh là đường dẫn tuyệt đối của binary đang chạy) và truyền qua
    `AgentRequest.MCPConfig`. Claude nhận `--mcp-config` + các tool `mcp__bint__*` trong allowlist (cả bước
    chỉ đọc). Codex nhận `-c mcp_servers.bint.*` sẵn có.
-2. Bước Codex không còn nạp MCP toàn cục (H3): cách tắt xem S4 (§10). Nếu Codex không cho tắt riêng
-   `mcp_servers` thì chạy bằng profile tạm như eval.
+2. Bước Codex không còn nạp MCP toàn cục (H3, đã xác minh ở S4): Bint đọc tên các bảng
+   `[mcp_servers.*]` trong config của Codex (`$CODEX_HOME/config.toml`, mặc định `~/.codex/config.toml`,
+   và `.codex/config.toml` của dự án nếu có), rồi thêm `-c mcp_servers.<tên>.enabled=false` cho từng server
+   không phải `bint`. **Không** dùng `--ignore-user-config`, vì cờ này bỏ luôn cấu hình model/provider.
 3. Skill b-req/b-feat/b-review: ưu tiên `context_for_task`/`context_for_paths` khi có, giữ CLI làm dự
    phòng (agy). Nhắc gọi `cite_knowledge` khi áp dụng một mục.
 4. Thêm `bint knowledge cite <id>` để harness không có MCP vẫn trích dẫn được (H5). Lệnh CLI mới phải khai
@@ -109,26 +115,36 @@ Làm được ngay, không phụ thuộc gateway. Khi có M3, chỗ truyền `MC
 
 **Nghiệm thu M0:** log bước Claude có `--mcp-config`; một lượt `bint run b-do` thật ghi được ít nhất một
 dòng `knowledge_citations` từ bước con; bước Codex không thấy server toàn cục (kiểm bằng `tools/list` hoặc
-log JSONL); test hồi quy cho đối số Claude/Codex.
+log JSONL); test hồi quy cho đối số Claude/Codex, kể cả config Codex không có `mcp_servers` và tên server
+cần trích dẫn trong TOML (có dấu chấm, dấu gạch).
 
 ## 5. M1 — Danh mục, cấu hình hai tầng, API/CLI
 
 ### 5.1. Danh mục nhúng trong binary (`internal/mcpcat`)
 
-Mỗi mục khai báo: id, kiểu kết nối (`stdio` / `http`), lệnh mặc định gợi ý, chính sách chia sẻ (§5.3),
-**nhóm thao tác** (tên nhóm → danh sách tool), tool chỉ đọc (được retry), tool ghi vào cây làm việc
-(cấm ở bước chỉ đọc), biến môi trường cần có, tuỳ chọn riêng của dự án.
+Mỗi mục khai báo:
+
+- id, tiền tố tool (D6), kiểu kết nối (`stdio` / `http`), lệnh cài và lệnh chạy gợi ý (phiên bản ghim);
+- chính sách chia sẻ (§5.3) và **cwd** của tiến trình (`worktree` = gốc worktree, `state` = thư mục riêng
+  trong thư mục trạng thái);
+- **nhóm thao tác** (tên nhóm → danh sách tool), nhóm độc quyền, tool chỉ đọc (được retry), tool ghi vào
+  cây làm việc (cấm ở bước chỉ đọc);
+- **env mặc định** gateway luôn đặt cho upstream;
+- **tham số điền mặc định**: tool → tham số → giá trị (`{worktree}`), gateway điền khi agent không truyền;
+- biến môi trường credential cần có, tuỳ chọn riêng của dự án.
 
 Quyền trong cấu hình trỏ tới nhóm, không trỏ tên tool thô: upstream đổi tên tool thì chỉ sửa danh mục.
+Tên tool tới agent là `<tiền tố>_<tên upstream bỏ tiền tố trùng>` (vd. `codegraph_explore` → `cg_explore`,
+`jira_issue_get` → `jira_issue_get`).
 
-| Service | Kiểu | Chia sẻ | Nhóm thao tác (dự kiến) | Ghi chú |
-|---|---|---|---|---|
-| `codegraph` | stdio | `worktree` | `read`, `index` (độc quyền) | Bản cụ thể và nơi lưu chỉ mục: S1 |
-| `specmatic` | stdio | `worktree` | `compat`, `contract`, `mock` (độc quyền, giữ cổng) | Chỉ hữu ích khi repo có OpenAPI/AsyncAPI; nơi ghi báo cáo: S2 |
-| `deepwiki` | http remote | dùng chung, không trạng thái | `read` | Không sinh tiến trình; qua gateway để có quyền theo role và ghi nhận |
-| `context7` | http remote | dùng chung | `read` | Tuỳ chọn, trùng vai trò với deepwiki |
-| `jira` | stdio (`atlassian-jira-mcp`) | `machine` | `read`, `write` | Tool ghi không bao giờ retry |
-| `chrome-devtools` | stdio | `session`, khởi động lười | `read`, `act` | Không dùng chung tiến trình (trạng thái trang đang chọn) |
+| Service | Tiền tố | Kiểu | Chia sẻ, cwd | Nhóm thao tác | Ghi chú |
+|---|---|---|---|---|---|
+| `codegraph` (`@colbymchenry/codegraph` 1.6.2) | `cg` | stdio | `worktree`, cwd gốc worktree | `explore` (`codegraph_explore`); `query` (node, search, callers, callees, impact, files, status) | Mọi tool chỉ đọc. Env mặc định `CODEGRAPH_TELEMETRY=0`, `CODEGRAPH_MCP_TOOLS=<đủ 8 tool>`. Chi tiết §5.5 |
+| `specmatic` (`specmatic-mcp` 1.2.0) | `spec` | stdio | `worktree`, cwd **trong thư mục trạng thái** (`<state>/mcp/specmatic/<worktree-id>`) | `compat` (backward_compatibility_check); `contract` (run_contract_test, run_resiliency_test); `mock` (manage_mock_server, độc quyền theo cổng) | Điền mặc định `repoDir={worktree}` cho `compat`. `contract` chạy tối đa một lời gọi đồng thời mỗi phân vùng (dò báo cáo theo cwd). Chỉ hữu ích khi repo có OpenAPI/AsyncAPI. Chi tiết §10 S2 |
+| `deepwiki` | `wiki` | http remote | `remote` | `read` | Không sinh tiến trình; qua gateway để có quyền theo role và ghi nhận |
+| `context7` | `ctx7` | http remote | `remote` | `read` | Tuỳ chọn, trùng vai trò với deepwiki |
+| `jira` (`atlassian-jira-mcp`) | `jira` | stdio | `machine` | `read`, `write` | Tool ghi không bao giờ retry; credential qua D2 |
+| `chrome-devtools` | `chrome` | stdio | `session`, khởi động lười | `read`, `act` | Không dùng chung tiến trình (trạng thái trang đang chọn) |
 
 `bint` không nằm trong danh mục: nó là chính cửa vào.
 
@@ -136,7 +152,8 @@ Quyền trong cấu hình trỏ tới nhóm, không trỏ tên tool thô: upstre
 
 | Tầng | Tệp | Nội dung | Ai sửa |
 |---|---|---|---|
-| Máy | `~/.config/bint/mcp.yml` (Windows `%APPDATA%\bint\mcp.yml`), không commit | service đã đăng ký: lệnh/đối số hoặc URL, phiên bản ghim, **tên** biến môi trường credential, giới hạn (idle, restart) | API/CLI/TUI |
+| Máy | `~/.config/bint/mcp.yml` (Windows `%APPDATA%\bint\mcp.yml`), không commit | service đã đăng ký: lệnh/đối số hoặc URL, phiên bản ghim, **tên** biến credential, giới hạn (idle, restart) | API/CLI/TUI |
+| Máy | `~/.config/bint/secrets.env` (0600; Windows: ACL chỉ user), không commit | giá trị credential, dạng `TÊN=giá trị` (D2) | Người, bằng trình soạn thảo; `bint mcp check` báo biến thiếu và quyền tệp lỏng |
 | Dự án | `.bint/config.yml`, commit | service dự án dùng (bắt buộc/tuỳ chọn), tuỳ chọn riêng, `grants` theo role | Người sửa tệp (TUI chỉ xem) |
 
 ```yaml
@@ -146,9 +163,9 @@ mcp:
     specmatic: { required: false, options: { specs: "api/**/*.yaml" } }
     deepwiki: {}
   grants:                  # khoá là tên role tự do; mặc định không cấp gì
-    planner:     [codegraph.read, deepwiki.read, specmatic.compat]
-    implementer: [codegraph.read, deepwiki.read, specmatic.contract, specmatic.mock]
-    reviewer:    [codegraph.read, specmatic.compat]
+    planner:     [codegraph.explore, deepwiki.read, specmatic.compat]
+    implementer: [codegraph.explore, codegraph.query, deepwiki.read, specmatic.contract, specmatic.mock]
+    reviewer:    [codegraph.explore, specmatic.compat]
     # interactive: [...]   # D4
 ```
 
@@ -180,19 +197,53 @@ Tầng dịch vụ `internal/app/mcp_svc.go` theo mẫu `knowledge_svc.go`; CLI 
 | Lệnh | Việc | Ghi |
 |---|---|---|
 | `bint mcp list [--json]` | danh mục + trạng thái đăng ký trên máy + dự án dùng gì | — |
-| `bint mcp add <service> [--command … --arg … --env-name …\|--url …]` | đăng ký, rồi kiểm tra | chỉ người (D5) |
+| `bint mcp add <service> [--command … --arg … --env-name …\|--url …]` | đăng ký, hiện lệnh cài gợi ý nếu chưa thấy binary, rồi kiểm tra | chỉ người (D5) |
 | `bint mcp remove <service>` | gỡ đăng ký, dừng tiến trình nếu đang chạy | chỉ người |
-| `bint mcp check [<service>]` | `initialize` + `tools/list`, đối chiếu nhóm thao tác với danh mục | — |
+| `bint mcp check [<service>]` | `initialize` + `tools/list`, đối chiếu nhóm thao tác với danh mục, báo biến credential thiếu | — |
+| `bint mcp index <service>` | việc chuẩn bị riêng của service cho dự án; v1 chỉ codegraph (§5.5) | chỉ người |
 | `bint mcp grants [--role <r>]` | quyền đã giải (role → tool thật), báo service thiếu | — |
 | `bint mcp gateway start\|stop\|status\|restart <service>` | M2 | stop/restart chỉ người |
 
 Lệnh và cờ mới phải khai báo ở `internal/tui/actions/coverage.go`. Test của thao tác chỉ-dành-cho-người
 gọi `asHuman(t)` [k:01M746PHJXDZN6QMA3BEVEDNPP].
 
-**Nghiệm thu M1:** thêm/gỡ/kiểm tra codegraph, specmatic, deepwiki trên máy thật; `doctor` báo đúng
-service thiếu; cấu hình lạ bị `Validate()` từ chối; `GOOS=windows go vet ./...` qua.
+### 5.5. codegraph
+
+Dựa trên chạy thử bản 1.6.2 (§10, S1).
+
+- **Cài đặt:** người dùng tự cài CLI (`npm i -g @colbymchenry/codegraph@1.6.2`; gói chiếm ~288 MB vì kèm
+  Node 24 riêng). **Không** chạy `codegraph install`: lệnh này ghi mục MCP và quyền vào cấu hình của từng
+  harness và chèn khối vào `CLAUDE.md`/`AGENTS.md`, chồng lên phần Bint quản lý.
+- **Lập chỉ mục:** `bint mcp index codegraph` chạy `codegraph init -y` (lần đầu) hoặc `codegraph sync`
+  trong worktree hiện tại, rồi thêm `.codegraph/` vào `.git/info/exclude`. Không chạy tự động vì `init`
+  đỉnh RAM ~822 MB (repo Bint). Lý do thêm vào exclude: `init` tạo `.codegraph/.gitignore` bỏ qua mọi tệp
+  trong thư mục trừ chính nó, nên tệp này vẫn là tệp chưa theo dõi và sẽ bị tính khi kiểm phạm vi của
+  b-feat. `doctor` báo nếu dự án dùng codegraph mà worktree chưa có chỉ mục.
+- **Daemon không thuộc gateway.** codegraph tự chạy một daemon cho mỗi project (watcher, writer duy nhất
+  của chỉ mục, tách khỏi client, tự thoát sau 5 phút không có client). Gateway chỉ giữ một client
+  `codegraph serve --mcp` cho mỗi worktree; `bint mcp gateway stop` không tắt daemon này.
+- **Env của daemon:** daemon lọc tool khi gọi theo `CODEGRAPH_MCP_TOOLS` **trong env của client đầu tiên
+  đã khởi động nó**; `tools/list` lại lọc theo env của client. Nếu một phiên ngoài Bint khởi động daemon
+  trước với mặc định (chỉ `explore`), các tool của nhóm `query` vẫn có trong danh sách nhưng gọi sẽ báo
+  "disabled". Vì vậy:
+  - `codegraph.explore` là nhóm mặc định trong ví dụ cấp quyền; nhóm này không bị ảnh hưởng;
+  - `bint mcp check codegraph` gọi thử `codegraph_status`; bị từ chối thì báo `degraded` và hướng dẫn dừng
+    daemon cũ (`codegraph daemon`, hoặc kill PID trong `.codegraph/daemon.pid`).
+- **Worktree mới** (G2 của [isolation-subagent-plan.md](isolation-subagent-plan.md)): chép
+  `.codegraph/codegraph.db` và `.codegraph/.gitignore` từ worktree gốc, không chép `*.pid`, `daemon.sock`,
+  `daemon.log`, `-wal`/`-shm`; codegraph tự đối chiếu khi có client kết nối. Đo thử: `sync` sau khi chép
+  mất 3,6 s, đỉnh 323 MB, so với `init` 9 s, đỉnh 822 MB. Không có chỉ mục gốc thì để người dùng chạy
+  `bint mcp index codegraph`.
+- Không dùng `projectPath` để một client phục vụ nhiều worktree: chưa rõ đường đó đi qua daemon thế nào.
+
+**Nghiệm thu M1:** thêm/gỡ/kiểm tra codegraph, specmatic, deepwiki trên máy thật; `index codegraph` tạo
+chỉ mục và cập nhật `.git/info/exclude`; `check` báo `degraded` khi daemon codegraph chạy với env hẹp;
+`doctor` báo đúng service thiếu; cấu hình lạ bị `Validate()` từ chối; `GOOS=windows go vet ./...` qua.
 
 ## 6. M2 — Daemon gateway (`internal/mcpgw`)
+
+Viết tay phần proxy như `internal/mcpserver` (S5): proxy phải đi qua nguyên JSON-RPC (đổi id, chuyển tiếp
+request server→client, giữ nguyên schema), SDK có kiểu sẽ parse rồi serialize lại đúng chỗ đó.
 
 1. **Một bản cho mỗi user:** khoá `flock`/`LockFileEx` trong thư mục trạng thái cấp user; tệp
    `gateway.json` (0600) ghi cổng, PID, token. Mã theo nền tảng tách `*_unix.go`/`*_windows.go`
@@ -203,27 +254,32 @@ service thiếu; cấu hình lạ bị `Validate()` từ chối; `GOOS=windows g
 3. **Stdio bridge:** ghép nhiều phiên vào một upstream:
    - đổi id JSON-RPC thành `gw_<gen>_<seq>_<phiên>` và đổi ngược; đổi id trong `notifications/cancelled`;
    - gọi `initialize`/`tools/list` một lần cho mỗi upstream, cache theo revision;
+   - điền tham số mặc định theo danh mục (§5.1) trước khi chuyển lời gọi;
    - giới hạn kích thước frame và số lệnh ghi chờ; upstream vượt giới hạn thì coi như chết;
    - request server→client (`roots/list`, `sampling/*`, `elicitation/*`): `roots/list` trả gốc worktree
      của phân vùng; sampling/elicitation bị từ chối (agent không được hỏi người qua đường này).
 4. **HTTP upstream** cho deepwiki/context7: giữ `Mcp-Session-Id` nếu server cấp, một handshake chung,
    retry có backoff **chỉ** cho tool chỉ đọc khai báo trong danh mục.
 5. **Vòng đời:** lười, đếm phiên, idle, giới hạn restart; dừng thì kill cả cây tiến trình (unix: process
-   group; Windows: Job Object). Lệnh ghi bị timeout hoặc upstream chết giữa chừng ⇒ trả lỗi "không rõ kết
-   quả", không bao giờ tự gọi lại.
-6. **Môi trường:** upstream nhận env tối thiểu + biến credential đã khai báo, đọc từ môi trường của daemon
-   (daemon được khởi động bởi shim trong phiên của người dùng nên kế thừa env đó).
+   group; Windows: Job Object). Tiến trình upstream tự tách ra (daemon của codegraph) không thuộc cây và
+   không bị kill. Lệnh ghi bị timeout hoặc upstream chết giữa chừng ⇒ trả lỗi "không rõ kết quả", không
+   bao giờ tự gọi lại.
+6. **Môi trường:** upstream nhận env tối thiểu (PATH, HOME, ngôn ngữ…) + env mặc định của danh mục + biến
+   credential đã khai báo, giá trị đọc từ `secrets.env` (D2) lúc khởi động upstream.
 7. **Ghi nhận:** mỗi lời gọi ghi một sự kiện `mcp.called` (run/task/role, service, tool, nhóm, kết quả,
    thời gian; không ghi đối số hay kết quả) vào spool của repo tương ứng. Daemon không mở SQLite.
 8. `bint mcp gateway status`: upstream đang chạy, PID, RSS/PSS (Linux: `/proc`, macOS: `ps`, Windows:
    API tiến trình), số phiên, lời gọi gần nhất, lỗi.
 
 Không làm (so với bflow): grant theo registration có hạn, journal bền vững, fencing token, unit
-systemd/launchd/schtasks, browser runtime riêng.
+systemd/launchd/schtasks, browser runtime riêng. SDK Go chính thức (`modelcontextprotocol/go-sdk`) chỉ
+cân nhắc dùng trong test làm client kiểm tra tuân thủ, nếu yêu cầu phiên bản Go của nó khớp bản Go đang
+ghim.
 
 **Nghiệm thu M2:** 6 client đồng thời gửi cùng id vào một upstream stdio không lẫn phản hồi; hai worktree
-không dùng chung tiến trình `worktree`; kill upstream thì lời gọi sau khởi động lại với generation mới; Host/
-Origin/token sai bị 403/401; chạy trên Linux và Windows (CI).
+không dùng chung tiến trình `worktree`; kill upstream thì lời gọi sau khởi động lại với generation mới;
+Host/Origin/token sai bị 403/401; `compat` của specmatic không truyền `repoDir` vẫn chạy đúng worktree;
+chạy trên Linux và Windows (CI).
 
 ## 7. M3 — Cửa vào gộp và cấp quyền theo role
 
@@ -233,31 +289,37 @@ Origin/token sai bị 403/401; chạy trên Linux và Windows (CI).
      `instructions`;
    - lúc `initialize`, lấy danh sách tool đã cache của các service được cấp, **không** bật upstream chỉ để
      lấy danh sách; service chưa từng chạy thì daemon chạy `tools/list` một lần và cache theo revision;
-   - đặt tên `<service>_<tool>`, chuyển tiếp lời gọi qua HTTP tới daemon.
+   - đặt tên theo tiền tố (§5.1), chuyển tiếp lời gọi qua HTTP tới daemon;
+   - giữ shim tối giản (không chứa logic upstream) để giảm khả năng chính nó chết (S3).
 2. **Xác định role:** shim đọc `BINT_RUN_ID`/`BINT_TASK_ID` từ môi trường lúc khởi động (agent không đổi
    được env của tiến trình MCP đã chạy) → role của bước; không có thì `interactive` (D4). Daemon lọc
    `tools/list` và từ chối lời gọi ngoài quyền (kể cả tên tool đoán mò).
-3. **Bước chỉ đọc:** tool thuộc nhóm "ghi vào cây làm việc" (vd. rebuild chỉ mục nằm trong repo) không
-   được cấp cho b-req/b-review dù `grants` có ghi; `bint mcp grants` báo cảnh báo. Lý do: hậu kiểm chụp
-   cây làm việc sẽ làm bước thất bại.
+3. **Bước chỉ đọc:** tool thuộc nhóm "ghi vào cây làm việc" không được cấp cho b-req/b-review dù `grants`
+   có ghi; `bint mcp grants` báo cảnh báo. Lý do: hậu kiểm chụp cây làm việc sẽ làm bước thất bại. Với
+   danh mục v1, nhóm loại này không còn tool nào: codegraph chỉ đọc và ghi vào `.codegraph/` (bị ignore),
+   specmatic chạy với cwd ngoài repo. `backward_compatibility_check` có thao tác git nào ghi vào repo
+   không thì chưa chắc; hậu kiểm sẽ bắt được nếu có.
 4. **`bint run`:** `MCPConfig` của M0 giờ trỏ vào `bint mcp serve` nên tự có tool theo role, như nhau trên
    Claude và Codex. Antigravity (chỉ MCP cấp user): một mục user-level `bint mcp serve`, role lấy theo env
    như trên.
 5. `bint init --mcp` không đổi đối với harness; thêm tuỳ chọn ghi mục MCP cấp user cho agy.
-6. Hướng dẫn di chuyển: gỡ các mục MCP toàn cục trùng với service đã đăng ký trong Bint (tránh hai bản).
+6. Hướng dẫn di chuyển: gỡ các mục MCP toàn cục trùng với service đã đăng ký trong Bint (tránh hai bản);
+   `bint init --update` thêm quy tắc quyền `mcp__bint__*`.
 
-**Nghiệm thu M3:** 4 phiên Claude + 1 Codex cùng repo chỉ có một tiến trình codegraph/specmatic cho mỗi
-worktree và một jira cho cả máy; bước b-review không thấy `specmatic_mock`; lời gọi ngoài quyền bị từ chối;
-spool có `mcp.called` đúng run/role; daemon chết giữa phiên thì shim khởi động lại được (S3).
+**Nghiệm thu M3:** 4 phiên Claude + 1 Codex cùng repo chỉ có một client codegraph và một specmatic cho mỗi
+worktree và một jira cho cả máy; bước b-review không thấy `spec_manage_mock_server`; lời gọi ngoài quyền bị
+từ chối; spool có `mcp.called` đúng run/role; daemon chết giữa phiên thì shim khởi động lại được; kiểm một
+lần Claude/Codex làm gì khi chính shim chết (S3).
 
 ## 8. M4 — Màn MCP trong TUI
 
 Màn mới `mcp` (sau `system` trong `actions.Screens`), mọi action có `CLIPath`:
 
 - **Danh sách:** mục danh mục với trạng thái `chưa đăng ký` / `đã đăng ký` / `đang chạy` (PID, RSS, số
-  phiên) / `lỗi`; lọc theo "dự án đang dùng".
-- **Thao tác:** thêm (form: lệnh, đối số, tên biến môi trường; không có ô nhập giá trị bí mật), gỡ (xác
-  nhận), kiểm tra, khởi động lại, xem log gần nhất của upstream.
+  phiên) / `degraded` / `lỗi`; lọc theo "dự án đang dùng".
+- **Thao tác:** thêm (form: lệnh, đối số, tên biến môi trường; không có ô nhập giá trị bí mật, chỉ hiện
+  đường dẫn `secrets.env` và biến còn thiếu), gỡ (xác nhận), kiểm tra, lập chỉ mục (codegraph), khởi động
+  lại, xem log gần nhất của upstream.
 - **Quyền:** bảng role × service (nhóm thao tác) chỉ để xem, đọc từ cấu hình đã giải; nút mở
   `.bint/config.yml` trong `$EDITOR` như màn Hệ thống.
 - Phiên agent: các thao tác ghi bị ẩn hoặc vô hiệu như chế độ chỉ đọc hiện có (`docs/tui-plan.md` §7.4).
@@ -269,33 +331,37 @@ Màn mới `mcp` (sau `system` trong `actions.Screens`), mọi action có `CLIPa
 
 | Rủi ro | Xử lý |
 |---|---|
-| Daemon chết làm mọi phiên mất tool cùng lúc | Shim tự khởi động lại daemon; daemon khởi động lại upstream theo generation; S3 kiểm hành vi kết nối lại của harness |
+| Daemon chết làm mọi phiên mất tool cùng lúc | Shim tự khởi động lại daemon; daemon khởi động lại upstream theo generation |
 | Upstream có trạng thái theo kết nối bị dùng chung | Mặc định của danh mục là `worktree`/`session`; chỉ đặt `machine` khi đã kiểm |
 | Agent cùng UID đọc `gateway.json` rồi gọi thẳng daemon, vượt quyền theo role | Quyền theo role là **chính sách**, không phải ranh giới bảo mật. Bước chỉ đọc chỉ có `Bash(bint:*)`/`git …` nên không gọi được HTTP; b-feat có Bash đầy đủ thì vượt được. Ghi rõ trong tài liệu |
-| Credential ở môi trường của daemon tồn tại lâu hơn phiên | Chỉ nạp biến đã khai báo; `bint mcp gateway stop` xoá; không ghi ra log/spool |
-| Tool của service ghi vào cây làm việc trong bước chỉ đọc | Nhóm "ghi vào cây" trong danh mục (§7.3); S1/S2 xác định thư mục ghi |
+| Credential trong `secrets.env` và trong env của upstream sống lâu | Tệp 0600; chỉ nạp biến đã khai báo; `bint mcp gateway stop` dừng upstream; không ghi ra log/spool |
+| Daemon codegraph bị phiên ngoài Bint khởi động với env hẹp | Nhóm mặc định chỉ `explore`; `check` báo `degraded` (§5.5) |
+| codegraph trên ổ FUSE/mạng (WAL, socket) | Đã chạy được trên ntfs-3g (§10, S1). Ổ mạng hoặc `/mnt` của WSL2 thì upstream khuyên `--no-watch`/`CODEGRAPH_NO_DAEMON`; `check` báo Journal khác `wal` |
+| specmatic gọi `npx specmatic@latest` (JVM) mỗi lời gọi | Phần nặng nằm ở lời gọi, gateway không giảm được; giới hạn đồng thời theo nhóm |
 | Lợi ích chất lượng của codegraph/deepwiki/specmatic chưa được chứng minh | M5 đo trước khi đưa vào `grants` mặc định của mẫu cấu hình |
 | Tên tool đổi (D6) làm hỏng quyền đã cấp trong settings của harness | `bint init --update` thêm quy tắc `mcp__bint__*` mới; ghi chú di chuyển |
 
-## 10. Cần xác minh trước khi làm
+## 10. Kết quả xác minh
 
-| # | Câu hỏi | Ảnh hưởng |
+| # | Câu hỏi | Kết quả |
 |---|---|---|
-| S1 | codegraph là bản nào; có dùng `roots/list` hay cwd; chỉ mục lưu ở đâu (trong repo hay ngoài) | chính sách chia sẻ, nhóm "ghi vào cây" |
-| S2 | specmatic-mcp ghi báo cáo/tệp tạm ở đâu; `manage_mock_server` giữ cổng thế nào | nhóm `mock` độc quyền, bước chỉ đọc |
-| S3 | Claude Code, Codex xử lý thế nào khi server stdio MCP chết giữa phiên, và khi gateway trả 404 cho session cũ | thiết kế shim, phương án thay thế của D6 |
-| S4 | Codex 0.167 tắt `mcp_servers` toàn cục cho một lần `codex exec` bằng cách nào (`-c`, profile, `CODEX_HOME`) | M0 bước 2 |
-| S5 | Có Go MCP SDK chính thức đủ dùng cho Streamable HTTP không, hay viết tay như `internal/mcpserver` | khối lượng M2 |
+| S1 | codegraph: bản nào, cwd/`roots`, chỉ mục ở đâu | `@colbymchenry/codegraph` 1.6.2, chạy thử 2026-11-12 trên bản sao repo Bint (ext4 và ntfs-3g). Chỉ mục `.codegraph/codegraph.db` (SQLite WAL) trong repo, tự ignore. Trên ntfs-3g WAL, socket daemon, watcher đều chạy (tự đồng bộ 124 ms). Client ~170 MB/phiên (shim npm 42 + Node 86 + watchdog 43), daemon ~270 MB + 43 MB/project. 8 tool, đều `readOnlyHint`, nhận `projectPath`; `explore` 0,8 s. Daemon giữ env của client đầu tiên. Chép DB sang worktree khác dùng được. Quyết định: §5.5 |
+| S2 | specmatic-mcp ghi gì ở đâu | Đọc mã 1.2.0: `run_contract_test` ghi spec ra thư mục tạm nhưng ghi JUnit vào `./build/reports/specmatic` **theo cwd** và dò tệp báo cáo mới bằng so trước/sau (hai lời gọi song song cùng cwd lẫn kết quả); `backward_compatibility_check` chạy trong `repoDir`, mặc định `process.cwd()`; `manage_mock_server` tạo thư mục tạm và giữ cổng; mỗi lời gọi spawn `npx specmatic@latest`. Quyết định: cwd trong thư mục trạng thái, điền `repoDir`, `mock` độc quyền, `contract` giới hạn một lời gọi đồng thời mỗi phân vùng (§5.1) |
+| S3 | Harness làm gì khi server stdio MCP chết giữa phiên | Với shim D6, chỉ còn trường hợp chính shim chết. Giữ shim tối giản; kiểm một lần trên Claude/Codex trong nghiệm thu M3 |
+| S4 | Codex tắt MCP toàn cục cho một lần `codex exec` | Đã kiểm trên 0.167: `-c mcp_servers.<tên>.enabled=false` làm server đó `disabled`. `--ignore-user-config` có nhưng bỏ luôn cấu hình model/provider. Quyết định: M0 bước 2 |
+| S5 | Go MCP SDK hay viết tay | Viết tay proxy; SDK chỉ cân nhắc trong test (§6) |
 
 ## 11. Thứ tự và phụ thuộc
 
 `M0` (độc lập) → `M1` → `M2` → `M3` → `M4`; `M5` chạy sau M3.
 
 **M5 — Đo:**
-- Bộ nhớ: 4–6 phiên đồng thời, so PSS trước/sau (cấu hình MCP toàn cục hiện nay ↔ gateway).
+- Bộ nhớ: 4–6 phiên đồng thời, so PSS trước/sau (cấu hình MCP toàn cục hiện nay ↔ gateway). Với
+  codegraph, mức tiết kiệm dự kiến là (số phiên − 1) × ~170 MB mỗi worktree.
 - Chất lượng: nhánh eval có/không `grants` cho b-req/b-review trên tác vụ có đổi API (specmatic) và tác
   vụ cần định vị mã (codegraph); chỉ đưa `grants` vào mẫu mặc định khi có cải thiện.
 
 Liên quan [isolation-subagent-plan.md](isolation-subagent-plan.md): G3 (subagent trong phiên) dùng chung
 kết nối MCP của phiên cha, nên quyền theo role của subagent phải đặt ở định nghĩa subagent (danh sách tool
-`mcp__bint__*`) chứ không qua env như §7.2.
+`mcp__bint__*`) chứ không qua env như §7.2. G2 (worktree riêng cho mỗi lượt) chép chỉ mục codegraph theo
+§5.5.
