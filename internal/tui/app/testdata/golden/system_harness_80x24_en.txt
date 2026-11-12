@@ -1,8 +1,8 @@
 ┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP                              │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config  Harness  Components Skills Index MCP Language Doctor Setup Update   │
+│  Config  Harness  Components Skills Index Language Doctor Setup Update       │
 │ ┌─│Harnesses│──────────────────────────────────────────────────────────────┐ │
 │ │   HARNESS     ON   HOST  VERSION   VERIFIED   LEVEL                      │ │
 │ │ ▸ claude      yes  yes   -         Claude Co… 3                          │ │

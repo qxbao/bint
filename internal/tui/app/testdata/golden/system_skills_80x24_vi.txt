@@ -1,8 +1,8 @@
 ┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP                             │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│   Cấu hình Harness Thành phần  Skill  Chỉ mục MCP Ngôn ngữ Doctor ›          │
+│   Cấu hình Harness Thành phần  Skill  Chỉ mục Ngôn ngữ Doctor Cài đặt ›      │
 │ ┌─│Skill (3)│──────────────────────────────────────────────────────────────┐ │
 │ │ ▸ gốc   b-do                                     aaaa1111  đã xuất bản   │ │
 │ │   gốc   b-feat                                   bbbb2222  khác bản Bint │ │

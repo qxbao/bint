@@ -15,7 +15,7 @@ import (
 )
 
 // Hành động của tab Hệ thống (giai đoạn 5a, docs/tui-plan.md mục 5.7): cấu hình, harness và thành phần quy trình,
-// skill + sync, chỉ mục, MCP, ngôn ngữ và doctor. Mọi hành động gọi tầng dịch vụ (internal/app, evolvesvc);
+// skill + sync, chỉ mục, ngôn ngữ và doctor (MCP có màn riêng: mcp.go). Mọi hành động gọi tầng dịch vụ (internal/app, evolvesvc);
 // hành động ghi có Writes = true, duyệt/loại bỏ thành phần là HumanOnly (kiểm ở dịch vụ bằng RequireHuman).
 
 // ConfigEditOptions: chọn lớp cấu hình cần sửa trong $EDITOR (hành động giao diện, không có lệnh CLI).
@@ -331,16 +331,11 @@ func systemActions() []Action {
 		}(),
 		mk("system.restart", "restart", "", 0, "", nil, false, false, nil),
 
-		// Chỉ mục, MCP, Doctor.
+		// Chỉ mục, Doctor.
 		mk("system.index_rebuild", "index_rebuild", "b", 1, "index rebuild", app.IndexRebuildOptions{}, true, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				v, err := app.RebuildIndex(ctx, env.Dir, opts.(app.IndexRebuildOptions))
 				return res("system.index_rebuild", opts, v, err)
-			}),
-		mk("system.mcp_tools", "mcp_tools", "", 0, "mcp tools", app.MCPToolsOptions{}, false, false,
-			func(ctx context.Context, env Env, opts any) tea.Msg {
-				v, err := app.MCPTools(env.Version, opts.(app.MCPToolsOptions))
-				return res("system.mcp_tools", opts, v, err)
 			}),
 		mk("system.doctor", "doctor", "", 0, "", nil, false, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {

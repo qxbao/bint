@@ -1,8 +1,8 @@
 ┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP                              │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness  Components  Skills Index MCP Language Doctor Setup Update   │
+│  Config Harness  Components  Skills Index Language Doctor Setup Update       │
 │ ┌─│Components (3/3)│───────────────────────────────────────1 files skipped─┐ │
 │ │   ✓ guardrail test-before-stop                         verified   low    │ │
 │ │   ◌ guidance  api-style                                candidate  low    │ │

@@ -21,6 +21,7 @@ func (d *Daemon) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mcp", d.handleMCP)
 	mux.HandleFunc("/admin/status", d.handleAdminStatus)
+	mux.HandleFunc("/admin/log", d.handleAdminLog)
 	mux.HandleFunc("/admin/restart", d.handleAdminRestart)
 	mux.HandleFunc("/admin/stop", d.handleAdminStop)
 	return d.guard(mux)
@@ -186,7 +187,7 @@ func (d *Daemon) handleInitialize(w http.ResponseWriter, r *http.Request, m rpcM
 	granted, role, why := d.grantsFor(ri, sc, mc, svc)
 	sc.Role = role
 	if len(granted) == 0 {
-		d.logf("từ chối mở phiên %s (run %q, role %q): %s", svcID, sc.RunID, role, why)
+		d.logf("%s (từ chối mở phiên, run %q, role %q): %s", svcID, sc.RunID, role, why)
 		writeJSON(w, http.StatusOK, rpcFail(m.ID, CodeNotGranted, "role %q không được cấp service %s: %s", role, svcID, why))
 		return
 	}
@@ -381,6 +382,20 @@ func (d *Daemon) handleAdminStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b, _ := json.Marshal(d.Status())
+	writeJSON(w, http.StatusOK, b)
+}
+
+func (d *Daemon) handleAdminLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "dùng GET", http.StatusMethodNotAllowed)
+		return
+	}
+	svc := r.URL.Query().Get("service")
+	if _, ok := d.opts.Lookup(svc); !ok {
+		http.Error(w, fmt.Sprintf("service %q không có trong danh mục", svc), http.StatusBadRequest)
+		return
+	}
+	b, _ := json.Marshal(d.Log(svc))
 	writeJSON(w, http.StatusOK, b)
 }
 

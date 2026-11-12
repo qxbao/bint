@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                             │
+│ ┌─│Chi tiết · codegraph│───────────────────────────────────────────1-16/18─┐ │
+│ │ codegraph (cg)                                                           │ │
+│ │                                                                          │ │
+│ │ Trạng thái      ▶ đang chạy                                              │ │
+│ │ Kiểm tra        chưa kiểm tra trong phiên này                            │ │
+│ │ Giao thức       stdio · worktree                                         │ │
+│ │ Nhóm thao tác   explore, query                                           │ │
+│ │ Đăng ký         codegraph serve --mcp                                    │ │
+│ │ Dự án           dùng (bắt buộc)                                          │ │
+│ │                                                                          │ │
+│ │ PID             4301                                                     │ │
+│ │ RSS             180.0 MB                                                 │ │
+│ │ Phiên           2 (đang gọi 0)                                           │ │
+│ │ Phân vùng       /work/demo                                               │ │
+│ │ Gọi gần nhất    codegraph_explore ok (120ms)                             │ │
+│ │ Phân vùng khác  còn 1 phân vùng đang chạy khác                           │ │
+│ │                                                                          │ │
+│ └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ  i Chỉ mục  R Chạy lại ──────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

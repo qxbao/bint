@@ -34,12 +34,13 @@ const (
 	Eval      Screen = "eval"
 	Evolve    Screen = "evolve"
 	System    Screen = "system"
+	MCP       Screen = "mcp"
 	// Init là màn Khởi tạo (trình hướng dẫn init nhiều bước) của repository chưa init (không phải một tab).
 	Init Screen = "init"
 )
 
-// Screens là bảy tab theo thứ tự hiển thị.
-var Screens = []Screen{Overview, Knowledge, Tasks, Runs, Eval, Evolve, System}
+// Screens là tám tab theo thứ tự hiển thị (phím 1-8).
+var Screens = []Screen{Overview, Knowledge, Tasks, Runs, Eval, Evolve, System, MCP}
 
 // Env là ngữ cảnh chạy một hành động.
 type Env struct {

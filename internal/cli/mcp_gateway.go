@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -13,18 +14,18 @@ import (
 	"bint/internal/config"
 )
 
-// Lệnh daemon gateway MCP (docs/mcp-gateway-plan.md mục 6): bint mcp gateway start|stop|status|restart.
+// Lệnh daemon gateway MCP (docs/mcp-gateway-plan.md mục 6): bint mcp gateway start|stop|status|restart|log.
 func newMCPGatewayCmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "gateway",
-		Short: "Daemon gateway MCP dùng chung: start, stop, status, restart <service>",
+		Short: "Daemon gateway MCP dùng chung: start, stop, status, restart <service>, log <service>",
 		Long: `Daemon gateway MCP (một bản cho mỗi user) ghép nhiều phiên vào một upstream, phân vùng tiến trình theo chính sách
 chia sẻ của danh mục và ghi mỗi lời gọi (mcp.called) vào spool. Nghe 127.0.0.1 cổng động; cổng, PID và bearer token ghi trong
 gateway.json (quyền 0600) cạnh gateway.lock và gateway.log trong thư mục trạng thái cấp user.
 
-stop và restart chỉ dành cho người (cắt lời gọi đang chạy của phiên khác); start và status chạy được trong phiên agent.`,
+stop và restart chỉ dành cho người (cắt lời gọi đang chạy của phiên khác); start, status và log chạy được trong phiên agent.`,
 	}
-	c.AddCommand(newMCPGatewayStartCmd(stdio), newMCPGatewayStopCmd(stdio), newMCPGatewayStatusCmd(stdio), newMCPGatewayRestartCmd(stdio))
+	c.AddCommand(newMCPGatewayStartCmd(stdio), newMCPGatewayStopCmd(stdio), newMCPGatewayStatusCmd(stdio), newMCPGatewayRestartCmd(stdio), newMCPGatewayLogCmd(stdio))
 	return c
 }
 
@@ -189,6 +190,59 @@ func newMCPGatewayRestartCmd(stdio IO) *cobra.Command {
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}
+
+func newMCPGatewayLogCmd(stdio IO) *cobra.Command {
+	o := app.MCPGatewayLogDefaults(config.Default())
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "log <service> [--lines N]",
+		Short: "Log gần nhất của service: stderr của upstream đang chạy và các dòng gateway.log",
+		Long: `In stderr gần nhất của các upstream đang chạy của service (hỏi daemon qua /admin/log) và các dòng gateway.log
+thuộc service (lỗi khởi động, upstream chết, vượt giới hạn khởi động lại). Giá trị credential đã bị che. Daemon không chạy hoặc
+là bản cũ chưa có /admin/log thì chỉ in phần gateway.log, kèm ghi chú.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Service = args[0]
+			res, err := app.MCPGatewayLog(cmd.Context(), o)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, res)
+			}
+			fmt.Fprintf(stdio.Out, "Log của %s\n", res.Service)
+			for _, u := range res.Upstreams {
+				state := "đã dừng"
+				if u.Running {
+					state = "đang chạy"
+				}
+				fmt.Fprintf(stdio.Out, "\nstderr của upstream %s (%s):\n", u.Partition, state)
+				if u.Stderr == "" {
+					fmt.Fprintln(stdio.Out, "  (trống)")
+				}
+				for _, l := range strings.Split(u.Stderr, "\n") {
+					if l != "" {
+						fmt.Fprintln(stdio.Out, "  "+l)
+					}
+				}
+			}
+			fmt.Fprintf(stdio.Out, "\n%s (%d dòng của %s):\n", res.LogFile, len(res.Lines), res.Service)
+			if len(res.Lines) == 0 {
+				fmt.Fprintln(stdio.Out, "  (không có dòng nào)")
+			}
+			for _, l := range res.Lines {
+				fmt.Fprintln(stdio.Out, "  "+l)
+			}
+			if res.Note != "" {
+				fmt.Fprintf(stdio.Out, "\nGhi chú: %s\n", res.Note)
+			}
+			return nil
+		},
+	}
+	c.Flags().IntVar(&o.Lines, "lines", o.Lines, "số dòng gateway.log tối đa")
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
 }

@@ -266,25 +266,27 @@ func TestWriteQueueFull(t *testing.T) {
 	eventually(t, "upstream nhận lời gọi stall", 5*time.Second, func() bool { return len(h.recvs("codegraph", "tools/call")) == 1 })
 	big := strings.Repeat("a", 256<<10)
 	var wg sync.WaitGroup
-	errs := make(chan rpcMsg, 8)
+	type res struct {
+		m   rpcMsg
+		out toolOut
+	}
+	errs := make(chan res, 8)
 	for i := 0; i < 6; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			m, _ := c.call(100+i, "codegraph_explore", map[string]any{"echo": big})
-			errs <- m
+			m, out := c.call(100+i, "codegraph_explore", map[string]any{"echo": big})
+			errs <- res{m, out}
 		}()
 	}
 	wg.Wait()
 	close(errs)
-	failed := 0
-	for m := range errs {
-		if len(m.Error) > 0 {
-			failed++
+	// Mọi lời gọi tới generation 1 (upstream bị coi như chết) phải lỗi. Khi máy tải nặng, một goroutine có thể tới gateway
+	// sau khi upstream đã được khởi động lại; lời gọi đó thành công ở generation 2 và không phải lỗi của cơ chế hàng đợi.
+	for r := range errs {
+		if len(r.m.Error) == 0 && !strings.HasPrefix(r.out.ID, "gw_2_") {
+			t.Errorf("lời gọi thành công ở %q, muốn lỗi khi upstream generation 1 bị coi như chết", r.out.ID)
 		}
-	}
-	if failed != 6 {
-		t.Errorf("%d/6 lời gọi lỗi, muốn cả 6 khi upstream bị coi như chết", failed)
 	}
 	select {
 	case m := <-stalled:

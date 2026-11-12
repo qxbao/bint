@@ -22,7 +22,8 @@ func helpTabs() map[string][]string {
 		"4": {"rn.tab.runs", "rn.tab.lessons"},
 		"5": {"eval.tab.cands", "eval.tab.cases", "eval.tab.batches", "eval.tab.log"},
 		"6": {"ev.tab.opps", "ev.tab.proposals", "ev.tab.history", "ev.tab.queue", "ev.tab.log"},
-		"7": {"sy.tab.config", "sy.tab.harness", "sy.tab.components", "sy.tab.skills", "sy.tab.index", "sy.tab.mcp", "sy.tab.language", "sy.tab.doctor", "sy.tab.setup", "sy.tab.update"},
+		"7": {"sy.tab.config", "sy.tab.harness", "sy.tab.components", "sy.tab.skills", "sy.tab.index", "sy.tab.language", "sy.tab.doctor", "sy.tab.setup", "sy.tab.update"},
+		"8": {"mc.tab.services", "mc.tab.grants", "mc.tab.tools"},
 	}
 }
 

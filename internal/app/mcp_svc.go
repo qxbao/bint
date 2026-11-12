@@ -106,6 +106,18 @@ type MCPServiceStatus struct {
 	// ProjectUses: dự án khai báo service trong mcp.services; Required chỉ có nghĩa khi ProjectUses.
 	ProjectUses bool `json:"project_uses"`
 	Required    bool `json:"required"`
+	// MissingEnv: tên biến credential service cần (danh mục và mcp.yml) mà secrets.env chưa đặt. Chỉ tên, không giá trị;
+	// rỗng với service http (M1 chưa gắn credential vào header).
+	MissingEnv []string `json:"missing_env,omitempty"`
+}
+
+// MCPSecretsFile trả đường dẫn secrets.env của máy này (tệp có thể chưa tồn tại). Không đọc nội dung.
+func MCPSecretsFile() (string, error) {
+	m, err := config.LoadMachineMCP()
+	if err != nil {
+		return "", err
+	}
+	return config.SecretsPath(m), nil
 }
 
 // MCPList trả danh mục kèm trạng thái đăng ký (mcp.yml) và khai báo của dự án tại dir. dir không phải repository
@@ -122,6 +134,10 @@ func MCPList(ctx context.Context, dir string, o MCPListOptions) ([]MCPServiceSta
 	if err != nil {
 		return nil, err
 	}
+	secrets, err := config.ReadSecrets(config.SecretsPath(m))
+	if err != nil {
+		secrets = map[string]string{} // tệp đọc lỗi: coi như chưa đặt biến nào (mcp check báo lỗi đọc chi tiết)
+	}
 	var out []MCPServiceStatus
 	for _, svc := range mcpcat.All() {
 		st := MCPServiceStatus{ID: svc.ID, Prefix: svc.Prefix, Transport: string(svc.Transport), Share: string(svc.Share),
@@ -133,6 +149,13 @@ func MCPList(ctx context.Context, dir string, o MCPListOptions) ([]MCPServiceSta
 		if ps, ok := cfg.MCP.Services[svc.ID]; ok {
 			st.ProjectUses, st.Required = true, ps.IsRequired()
 		}
+		if svc.Transport == mcpcat.Stdio {
+			reg := config.Registration{}
+			if st.Registration != nil {
+				reg = *st.Registration
+			}
+			_, st.MissingEnv, _ = mcpgw.Env(svc, reg, secrets)
+		}
 		out = append(out, st)
 	}
 	return out, nil
@@ -142,7 +165,7 @@ func MCPList(ctx context.Context, dir string, o MCPListOptions) ([]MCPServiceSta
 
 // MCPAddOptions: `bint mcp add <service> [--command … --arg … --env-name … | --url …]`.
 type MCPAddOptions struct {
-	Service  string   `arg:"service" form:"required"`
+	Service  string   `arg:"service" form:"required,suggest=mcp_services"`
 	Command  string   `flag:"command" form:""`
 	Args     []string `flag:"arg" form:""`
 	EnvNames []string `flag:"env-name" form:""`

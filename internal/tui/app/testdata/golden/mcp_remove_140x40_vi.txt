@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                     │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                                                                                         │
+│ ┌─│Dịch vụ MCP (6)│─────────────────────gateway chạy (PID 4242, 3 phiên)─┐┌─│Chi tiết · jira│──────────────────────────────────────────┐ │
+│ │   codegraph       ▶ đang chạy    PID 4301 · 180 MB · 2 phiên +1        ││ jira (jira)                                                │ │
+│ │   specmatic       ✗ lỗi          exit status 1 [stderr: boom ***]      ││                                                            │ │
+│ │   deepwiki        ! degraded     upstream thiếu tool của nhóm thao tá… ││ Trạng thái      ● đã đăng ký                               │ │
+│ │   context7        ○ chưa đăng ký http · remote                         ││ Kiểm tra        chưa kiểm tra trong phiên này              │ │
+│ │ ▸ jira            ● đã đăng ký   stdio · machine                       ││ Giao thức       stdio · machine                            │ │
+│ │   chrome-devtools ○ chưa đăng ký stdio · session                       ││ Nhóm thao tác   read, write                                │ │
+│ │                                                                        ││ Đăng ký         jira-mcp                                   │ │
+│ │                                                                        ││ Dự án           dùng (tuỳ chọn)                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││ secrets.env     /home/u/.config/bint/secrets.env           │ │
+│ │                                                                        ││ Biến còn thiếu  JIRA_MCP_PASSWORD                          │ │
+│ │                           ┌─│Gỡ đăng ký jira│────────────────────────────────────────────────────────────┐                           │ │
+│ │                           │ Gỡ jira khỏi mcp.yml của máy này; daemon không còn khởi động nó.             │                           │ │
+│ │                           │                                                                              │                           │ │
+│ │                           │ secrets.env không bị đụng tới: /home/u/.config/bint/secrets.env              │                           │ │
+│ │                           │                                                                              │                           │ │
+│ │                           │ Dự án vẫn khai báo service này trong mcp.services.                           │                           │ │
+│ │                           │                                                                              │                           │ │
+│ │                           │ [Enter] Gỡ   [Esc] Không                                                     │                           │ │
+│ │                           └──────────────────────────────────────────────────────────────────────────────┘                           │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ ───────────────────────────────────┘└─ i Chỉ mục  R Chạy lại  l Log  p Lọc dự án  G Bật  S Tắt ──┘ │
+└─[Esc→ Thoát]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

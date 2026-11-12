@@ -241,6 +241,8 @@ type NavMsg struct {
 	SystemTab                  string
 	// ConfigUpgrade: mở hộp nâng cấu hình của màn Hệ thống.
 	ConfigUpgrade bool
+	// ConfigEdit: mở luồng sửa cấu hình (system.config_edit) của màn Hệ thống; màn MCP gửi khi người dùng bấm sửa cấu hình quyền.
+	ConfigEdit bool
 }
 
 // Model là trạng thái màn Tổng quan.

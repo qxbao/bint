@@ -144,12 +144,6 @@ func TestSystemIndexRebuildConfirmAndReport(t *testing.T) {
 	hasAll(t, plain(m.Render()), "Đã dựng lại chỉ mục: 12 mục, 0 tệp hỏng")
 }
 
-func TestSystemMCPListsTools(t *testing.T) {
-	m, _ := newSysModel(t, Options{}, 140, 40)
-	press(t, m, ".", ".", ".", ".", ".")
-	hasAll(t, plain(m.Render()), "Công cụ MCP (3)", "context_for_task", "knowledge_search", "cite_knowledge", "Chi tiết · context_for_task", "Gói ngữ cảnh cho một tác vụ")
-}
-
 func TestSystemDoctorShowsAllChecksAndFilters(t *testing.T) {
 	var runs atomic.Int32
 	m, _ := newSysModel(t, Options{SystemLoad: syscreen.Loaders{Doctor: func(ctx context.Context, dir string) (*bintapp.DoctorReport, error) {
@@ -177,7 +171,7 @@ func TestSystemDoctorShowsAllChecksAndFilters(t *testing.T) {
 // Ngôn ngữ: chọn rồi lưu gửi UILanguageOptions; sau khi ghi giao diện đổi ngay (vi → en), auto chọn theo biến môi trường.
 func TestSystemLanguageSaveChangesUIAtOnce(t *testing.T) {
 	m, c := newSysModel(t, Options{Getenv: func(k string) string { return map[string]string{"LANG": "en_US.UTF-8"}[k] }}, 140, 40)
-	press(t, m, ".", ".", ".", ".", ".", ".")
+	press(t, m, ".", ".", ".", ".", ".")
 	hasAll(t, plain(m.Render()), "Ngôn ngữ giao diện", "Đang dùng trong phiên", "auto", "vi", "en", ".bint/local.yml", ".bint/config.yml")
 	press(t, m, "j", "j", "enter") // en
 	hasAll(t, plain(m.Render()), "Ngôn ngữ", "Ghi vào", "bint")
@@ -217,7 +211,7 @@ func TestSystemLanguageAndConfigRefusedInLinkedWorktreeAndReadOnly(t *testing.T)
 		t.Fatal("sửa cấu hình ở worktree phụ không được mở form")
 	}
 	hasAll(t, plain(m.Render()), "worktree phụ", "/work/main")
-	press(t, m, ".", ".", ".", ".", ".", ".", "enter")
+	press(t, m, ".", ".", ".", ".", ".", "enter")
 	if m.sy.Capturing() || c.count("system.language_save") != 0 {
 		t.Fatal("lưu ngôn ngữ ở worktree phụ không được gửi")
 	}
@@ -226,7 +220,7 @@ func TestSystemLanguageAndConfigRefusedInLinkedWorktreeAndReadOnly(t *testing.T)
 	ro, c2 := newSysModel(t, Options{ReadOnly: true}, 140, 40)
 	press(t, ro, "e")
 	hasAll(t, plain(ro.Render()), "chế độ chỉ đọc")
-	press(t, ro, ".", ".", ".", ".", ".", ".", "enter")
+	press(t, ro, ".", ".", ".", ".", ".", "enter")
 	hasAll(t, plain(ro.Render()), "chế độ chỉ đọc")
 	if ro.sy.Capturing() || c2.count("system.language_save") != 0 || c2.count("system.config_edit") != 0 {
 		t.Fatal("chỉ đọc: không form, không ghi")
@@ -240,7 +234,7 @@ func TestSystemReadOnlyDeniesEveryWritingAction(t *testing.T) {
 		syscreen.TabConfig: {"e"}, syscreen.TabComponents: {"n", "a", "d"}, syscreen.TabSkills: {"o", "s", "F"}, syscreen.TabIndex: {"b", "enter"},
 		syscreen.TabLanguage: {"enter"}, syscreen.TabSetup: {"e", "enter", "U"}, syscreen.TabUpdate: {"u", "enter"},
 	}
-	for tab := 0; tab < 10; tab++ {
+	for tab := 0; tab < 9; tab++ {
 		for _, k := range keys[tab] {
 			m.toast = ""
 			press(t, m, k)
@@ -270,7 +264,7 @@ func TestSystemReadOnlyDeniesEveryWritingAction(t *testing.T) {
 		t.Fatalf("bảng lệnh không được hiện hành động ghi ở chế độ chỉ đọc:\n%s", out)
 	}
 	press(t, m, "esc")
-	// Hành động đọc dùng được (sau vòng 10 thẻ đang ở Cấu hình).
+	// Hành động đọc dùng được (sau vòng 9 thẻ đang ở Cấu hình).
 	press(t, m, ".", ".", "R")
 	if !m.sy.Capturing() {
 		t.Fatal("render là hành động đọc, phải mở được ở chế độ chỉ đọc")
@@ -471,7 +465,7 @@ func TestSystemLanguageSaveRealServiceChangesLanguage(t *testing.T) {
 	m, root, _ := sysReal(t)
 	proj := config.ProjectPath(root)
 	orig, _ := os.ReadFile(proj)
-	press(t, m, ".", ".", ".", ".", ".", ".", "j", "j", "enter", "ctrl+s") // en, local
+	press(t, m, ".", ".", ".", ".", ".", "j", "j", "enter", "ctrl+s") // en, local
 	if m.Lang() != "en" {
 		t.Fatalf("giao diện phải đổi ngay: %s", m.Lang())
 	}
@@ -537,7 +531,7 @@ func TestSystemLanguageShadowed(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, func(o *Options) { o.Lang, o.SystemLoad.Config = "en", bintapp.ConfigView })
-		press(t, m, ".", ".", ".", ".", ".", ".", "j", "enter", "tab", " ", "ctrl+s") // chọn en, ghi vào project
+		press(t, m, ".", ".", ".", ".", ".", "j", "enter", "tab", " ", "ctrl+s") // chọn en, ghi vào project
 		if b, _ := os.ReadFile(config.ProjectPath(root)); !strings.Contains(string(b), "language: en") {
 			t.Fatalf("config.yml phải được ghi en:\n%s", b)
 		}
@@ -561,7 +555,7 @@ func TestSystemLanguageShadowed(t *testing.T) {
 					o.LangFlag = "en"
 				}
 			})
-			press(t, m, ".", ".", ".", ".", ".", ".", "j", "enter", "ctrl+s") // chọn vi, ghi vào local
+			press(t, m, ".", ".", ".", ".", ".", "j", "enter", "ctrl+s") // chọn vi, ghi vào local
 			if b, _ := os.ReadFile(config.LocalPath(root)); !strings.Contains(string(b), "language: vi") {
 				t.Fatalf("local.yml phải được ghi vi:\n%s", b)
 			}
@@ -575,7 +569,7 @@ func TestSystemLanguageShadowed(t *testing.T) {
 		m, _, _ := sysRealWith(t, nil, func(o *Options) {
 			o.Getenv, o.SystemLoad.Config = func(string) string { return "" }, bintapp.ConfigView
 		})
-		press(t, m, ".", ".", ".", ".", ".", ".", "j", "j", "enter", "ctrl+s")
+		press(t, m, ".", ".", ".", ".", ".", "j", "j", "enter", "ctrl+s")
 		if m.Lang() != "en" {
 			t.Fatalf("giao diện phải đổi ngay: %s", m.Lang())
 		}

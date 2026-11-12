@@ -138,7 +138,18 @@ var cliRefs = []cliRef{
 	{path: "sync", id: "system.sync_plan", tab: "sy.tab.skills"},
 	{path: "update", id: "system.update", tab: "sy.tab.update"},
 	{path: "index rebuild", id: "system.index_rebuild", tab: "sy.tab.index"},
-	{path: "mcp tools", id: "system.mcp_tools", tab: "sy.tab.mcp", tabOnly: true},
+	{path: "mcp list", id: "mcp.list", tab: "mc.tab.services", tabOnly: true},
+	{path: "mcp add", id: "mcp.add", tab: "mc.tab.services"},
+	{path: "mcp remove", id: "mcp.remove", tab: "mc.tab.services"},
+	{path: "mcp check", id: "mcp.check", tab: "mc.tab.services"},
+	{path: "mcp index", id: "mcp.index", tab: "mc.tab.services"},
+	{path: "mcp grants", id: "mcp.grants", tab: "mc.tab.grants", tabOnly: true},
+	{path: "mcp tools", id: "mcp.tools", tab: "mc.tab.tools", tabOnly: true},
+	{path: "mcp gateway start", id: "mcp.gateway_start", tab: "mc.tab.services"},
+	{path: "mcp gateway stop", id: "mcp.gateway_stop", tab: "mc.tab.services"},
+	{path: "mcp gateway status", id: "mcp.gateway_status", tab: "mc.tab.services", tabOnly: true},
+	{path: "mcp gateway restart", id: "mcp.restart", tab: "mc.tab.services"},
+	{path: "mcp gateway log", id: "mcp.log", tab: "mc.tab.services"},
 }
 
 var cliIndex = sync.OnceValue(func() map[string][]cliRef {

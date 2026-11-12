@@ -67,7 +67,7 @@ func TestAuthTable(t *testing.T) {
 	h := newHarness(t, nil)
 	routes := []struct{ method, path string }{
 		{"POST", "/mcp"}, {"GET", "/mcp"}, {"DELETE", "/mcp"},
-		{"GET", "/admin/status"}, {"POST", "/admin/restart"}, {"POST", "/admin/stop"},
+		{"GET", "/admin/status"}, {"GET", "/admin/log"}, {"POST", "/admin/restart"}, {"POST", "/admin/stop"},
 	}
 	send := func(method, path string, mod func(*http.Request)) int {
 		req, _ := http.NewRequest(method, h.d.URL()+path, nil)

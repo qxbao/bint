@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System │ MCP                                                          │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Services · Grants · Bint tools                                                                                                         │
+│ ┌─│MCP services (6)│───────────────────gateway up (PID 4242, 3 sessions)─┐┌─│Details · jira│───────────────────────────────────────────┐ │
+│ │   codegraph       ▶ running        PID 4301 · 180 MB · 2 sessions +1   ││ jira (jira)                                                │ │
+│ │   specmatic       ✗ error          exit status 1 [stderr: boom ***]    ││                                                            │ │
+│ │   deepwiki        ! degraded       upstream thiếu tool của nhóm thao … ││ State           ● registered                               │ │
+│ │   context7        ○ not registered http · remote                       ││ Check           not checked in this session                │ │
+│ │ ▸ jira            ● registered     stdio · machine                     ││ Transport       stdio · machine                            │ │
+│ │   chrome-devtools ○ not registered stdio · session                     ││ Operation grou… read, write                                │ │
+│ │                                                                        ││ Registration    jira-mcp                                   │ │
+│ │                                                                        ││ Project         used (optional)                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││ secrets.env     /home/u/.config/bint/secrets.env           │ │
+│ │                           ┌─│Unregister jira│────────────────────────────────────────────────────────────┐D                          │ │
+│ │                           │ Removes jira from this machine's mcp.yml; the daemon will no longer start    │                           │ │
+│ │                           │ it.                                                                          │                           │ │
+│ │                           │                                                                              │                           │ │
+│ │                           │ secrets.env is left untouched: /home/u/.config/bint/secrets.env              │                           │ │
+│ │                           │                                                                              │                           │ │
+│ │                           │ The project still declares this service in mcp.services.                     │                           │ │
+│ │                           │                                                                              │                           │ │
+│ │                           │ [Enter] Remove   [Esc] No                                                    │                           │ │
+│ │                           └──────────────────────────────────────────────────────────────────────────────┘                           │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ └─ Enter Open  a Add  c Check  x Remove ─────────────────────────────────┘└─ i Index  R Restart  l Log  p Project  G Start  S Stop ────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

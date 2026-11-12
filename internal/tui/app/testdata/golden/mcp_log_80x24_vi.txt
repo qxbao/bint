@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                             │
+│ ┌─│Log của specmatic│──────────────────────────────────────────────────────┐ │
+│ │ stderr của upstream phiên 01HX0000 (đã dừng):                            │ │
+│ │   (trống)                                                                │ │
+│ │                                                                          │ │
+│ │ stderr của upstream /work/demo (đang chạy):                              │ │
+│ │   warn ***                                                               │ │
+│ │   lỗi thứ hai                                                            │ │
+│ │                                                                          │ │
+│ │ /state/gateway/gateway.log (2 dòng của service):                         │ │
+│ │ 2026-11-13T04:00:01Z specmatic (phiên 01HX0000): exit status 1 [stderr:  │ │
+│ │     boom ***]                                                            │ │
+│ │ 2026-11-13T04:00:09Z specmatic (phiên 01HX0000): vượt giới hạn khởi      │ │
+│ │     động lại                                                             │ │
+│ │                                                                          │ │
+│ │ Ghi chú: gateway đang chạy là bản cũ chưa có /admin/log: chỉ có phần     │ │
+│ │   gateway.log                                                            │ │
+│ │                                                                          │ │
+│ └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ  i Chỉ mục  R Chạy lại ──────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

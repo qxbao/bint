@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│──────⠙ ⟦1 background job~~~~~~⟧─┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧        │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦MCP~~⟧│────────────────────────────────────────────────────────────────────┐
+│   ⟦Services~~~~⟧ · ⟦Grants~~~⟧ · ⟦Bint tools~~~~⟧                            │
+│ ┌─│⟦MCP services (6)~~~~~~⟧│─⟦gateway up (PID 4242, 3 sessions)~~~~~~~~~~…─┐ │
+│ │ ▸ codegraph       ▶ ⟦running~~~⟧           ⟦PID 4301 · 180 MB · 2 sessi… │ │
+│ │   specmatic       ✗ ⟦error~~⟧              exit status 1 [stderr: boom … │ │
+│ │   deepwiki        ! ⟦degraded~~~~⟧         upstream thiếu tool của nhóm… │ │
+│ │   context7        ○ ⟦not registered~~~~~~⟧ http · remote                 │ │
+│ │   jira            ● ⟦registered~~~~⟧       stdio · machine               │ │
+│ │   chrome-devtools ○ ⟦not registered~~~~~~⟧ stdio · session               │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter ⟦Open~…  a ⟦Add~~⟧  c ⟦Check…  x ⟦Remov…  i ⟦Index…  R ⟦Resta… ───┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

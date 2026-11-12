@@ -110,6 +110,14 @@ func newToken() (string, error) {
 // ErrNotRunning: không có daemon đang chạy (không có gateway.json hoặc không kết nối được).
 var ErrNotRunning = errors.New("gateway không chạy")
 
+// StatusError là phản hồi khác 200 của /admin/*; Code 404 nghĩa là daemon là bản cũ chưa có route đó.
+type StatusError struct {
+	Code int
+	Body string
+}
+
+func (e *StatusError) Error() string { return fmt.Sprintf("gateway trả %d: %s", e.Code, e.Body) }
+
 // AdminClient gọi /admin/* của daemon.
 type AdminClient struct {
 	Info Info
@@ -145,7 +153,7 @@ func (c *AdminClient) do(ctx context.Context, method, path string, q url.Values,
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("gateway trả %d: %s", resp.StatusCode, string(bytes.TrimSpace(body)))
+		return &StatusError{Code: resp.StatusCode, Body: string(bytes.TrimSpace(body))}
 	}
 	if out == nil {
 		return nil
@@ -158,6 +166,14 @@ func (c *AdminClient) Status(ctx context.Context) (Status, error) {
 	var s Status
 	err := c.do(ctx, http.MethodGet, "/admin/status", nil, &s)
 	return s, err
+}
+
+// Log lấy phần đuôi stderr của các upstream đang chạy của service (GET /admin/log). Daemon cũ chưa có route này trả
+// lỗi "gateway trả 404".
+func (c *AdminClient) Log(ctx context.Context, service string) ([]PartitionLog, error) {
+	var l []PartitionLog
+	err := c.do(ctx, http.MethodGet, "/admin/log", url.Values{"service": {service}}, &l)
+	return l, err
 }
 
 // RestartResult là kết quả /admin/restart.

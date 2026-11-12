@@ -1,6 +1,9 @@
 package mcpgw
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Status là kết quả /admin/status.
 type Status struct {
@@ -61,4 +64,37 @@ func (p *partition) status() UpstreamStatus {
 		}
 	}
 	return st
+}
+
+// PartitionLog là kết quả /admin/log cho một phân vùng: phần đuôi stderr của upstream stdio đang chạy.
+type PartitionLog struct {
+	Partition string `json:"partition"`
+	Running   bool   `json:"running"`
+	// Stderr đã che giá trị credential (ScrubSecrets); rỗng với upstream http hoặc phân vùng không chạy.
+	Stderr string `json:"stderr,omitempty"`
+}
+
+func (p *partition) log() PartitionLog {
+	p.mu.Lock()
+	up, secrets, label := p.up, p.secretVals, p.label
+	p.mu.Unlock()
+	l := PartitionLog{Partition: label}
+	if up != nil && up.alive() {
+		l.Running = true
+		if su, ok := up.(*stdioUp); ok {
+			l.Stderr = scrubLines(su.stderr.Lines(), secrets)
+		}
+	}
+	return l
+}
+
+// scrubLines che credential từng dòng của s (giữ ngắt dòng để log còn đọc được), bỏ dòng trống, mỗi dòng ≤ 500 ký tự.
+func scrubLines(s string, secrets []string) string {
+	var out []string
+	for _, l := range strings.Split(s, "\n") {
+		if l = ScrubSecrets(l, secrets, 500); l != "" {
+			out = append(out, l)
+		}
+	}
+	return strings.Join(out, "\n")
 }

@@ -1,8 +1,8 @@
 ┌───────────────────────────────────────────────────────────────│␛[1mbint 0.1.0␛[m│───────────────────────────────────────────────────────────────┐
-│ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[7m␛[1mHệ thống␛[m␛[m                                                           │
+│ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[7m␛[1mHệ thống␛[m␛[m │ MCP                                                     │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│␛[7m␛[1mHệ thống␛[m␛[m│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Cấu hình · Harness ·␛[7m␛[1m Thành phần ␛[m␛[m· Skill · Chỉ mục · MCP · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                       │
+│   Cấu hình · Harness ·␛[7m␛[1m Thành phần ␛[m␛[m· Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                             │
 │ ┌─│␛[7m␛[1mThành phần (3/3)␛[m␛[m│─────────────────────────␛[1m1 tệp bị bỏ qua␛[m─┐┌─│␛[1mChi tiết · fmt-check␛[m│─────────────────────────────────────────────────┐ │
 │ │   ✓ guardrail test-before-stop           verified   low    ││ Loại        script                                                     │ │
 │ │   ␛[1m◌␛[m guidance  api-style                  candidate  low    ││ ID          fmt-check                                                  │ │

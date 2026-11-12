@@ -2,7 +2,7 @@
 
 Trạng thái: **giai đoạn 0, 1, 2, 3, 4, 5 và 6 đã triển khai** (giai đoạn 5 gồm hai phiếu: **5a** — tab Hệ thống — ngày 2026-11-12 và
 **5b** — trình hướng dẫn `init`, Hệ thống › Cài đặt repo, nâng cấu hình, cập nhật Bint + khởi động lại — ngày 2026-11-12; giai đoạn 6 gồm hai phiếu: **6a** — chuột, chế độ hẹp, chân phím, đọc đủ thông báo bị cắt — và
-**6b** — thông điệp theo phím TUI, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README, chốt giai đoạn — cùng ngày 2026-11-12); còn lại là thử với người dùng thật và ảnh VHS (mục 12.10).
+**6b** — thông điệp theo phím TUI, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README, chốt giai đoạn — cùng ngày 2026-11-12); còn lại là thử với người dùng thật và ảnh VHS (mục 12.10). Sau đó thêm **màn MCP** (tab thứ tám, mục 5.8; giai đoạn M4 của `docs/mcp-gateway-plan.md`, 2026-11-13): thẻ MCP của Hệ thống chuyển sang màn này.
 Kế hoạch đề xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
 và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4; 12.7: giai đoạn 5a; 12.8: giai đoạn 5b; 12.9: giai đoạn 6a; 12.10: giai đoạn 6b; 12.11: bằng chứng tri thức lệch dạng có cấu trúc).
 
@@ -238,7 +238,30 @@ chờ người duyệt"), strategy (`strategy.yml`); có diff so với thành ph
 - **Skill**: gốc/lớp phủ/skill tiến hoá (`list/show/overlay/diff/versions/check/regress`),
   `sync`.
 - **Cập nhật Bint** (`update`, mục 7.6), **Doctor** đầy đủ, **Chỉ mục** (`index rebuild`),
-  **MCP** (`mcp tools`: danh sách công cụ đang mở cho agent), **Ngôn ngữ**.
+  **Ngôn ngữ**. (Thẻ MCP — `mcp tools` — đã chuyển sang màn MCP, mục 5.8.)
+
+### 5.8 MCP
+Màn thứ tám (phím `8`, ngay sau Hệ thống), giai đoạn M4 của `docs/mcp-gateway-plan.md` (mục 8). Dùng tầng dịch vụ
+`internal/app/mcp_svc.go` và `mcp_gateway_svc.go`; mọi hành động gọi dịch vụ có `CLIPath` (hành động giao diện thuần — lọc, đổi thẻ, làm mới,
+mở `$EDITOR` — không có). Ba thẻ phụ (`.`/`,`):
+- **Dịch vụ**: danh sách mọi mục danh mục, mỗi mục đúng một trạng thái — chưa đăng ký, đã đăng ký, **đang chạy** (PID, RSS, số phiên;
+  `+N` khi còn phân vùng khác), **degraded**, **lỗi** — suy bằng hàm thuần `screens/mcp.State` theo thứ tự ưu tiên của kế hoạch MCP: check
+  fail, phân vùng bị giới hạn khởi động lại hoặc chết còn `LastError` → lỗi; check degraded → degraded; có phân vùng chạy (ưu tiên phân vùng của
+  worktree hiện tại) → đang chạy. Danh sách không tự check (check sinh tiến trình, tới 30 giây mỗi service) nên degraded/lỗi do check chỉ có sau khi
+  người dùng chạy check hoặc thêm service; kết quả sống trong phiên, không lưu xuống đĩa. `p` chỉ giữ service mà dự án khai báo (`mcp.services`).
+  Phím: `a` thêm (form sinh từ `MCPAddOptions`: service, lệnh, đối số, tên biến môi trường, URL — **không có ô giá trị bí mật**; màn hiện
+  đường dẫn `secrets.env` và các biến còn thiếu), `x` gỡ (hộp xác nhận), `c` kiểm tra (việc nền, log từng service), `i` lập chỉ mục codegraph
+  (việc nền, đầu ra codegraph vào khung log), `R` khởi động lại upstream (hộp xác nhận, việc nền), `l` xem log (stderr đã che credential của
+  upstream đang chạy và các dòng `gateway.log` của service: `mcp gateway log`), `G`/`S` bật/tắt daemon (tắt có hộp xác nhận).
+- **Quyền**: bảng role × service (ô = các nhóm thao tác) giải từ `app.MCPGrants`, gồm role `interactive` ngầm (đánh dấu `~`) và cảnh báo; chỉ
+  để xem. `e` mở `.bint/config.yml` trong `$EDITOR` bằng cách chuyển sang Hệ thống và chạy `system.config_edit` (chọn lớp, `Validate()` khi
+  lưu, gộp ba chiều): màn MCP không chép luồng đó.
+- **Công cụ Bint**: công cụ của `bint mcp serve` (`mcp tools`, trước đây ở Hệ thống).
+
+Chế độ chỉ đọc (mục 7.4) ẩn `add`, `remove`, `index`, `restart`, `gateway start/stop`, `config_edit` (Writes); phiên agent khoá `add`, `remove`,
+`index`, `restart`, `gateway stop` (HumanOnly: gỡ/khởi động lại cắt lời gọi của phiên khác). `check` không ghi dữ liệu của Bint và agent được chạy
+(quyết định D5) nên không là Writes. Màn dùng `frame.Box.BottomHints` cho chân phím trong khung (hẹp: tách nửa phím sang khung chi tiết),
+`list.Render` cho danh sách và `zone.Mark` cho hàng, thẻ phụ và phím.
 
 ## 6. Bảng phủ tính năng
 
@@ -259,7 +282,14 @@ chờ người duyệt"), strategy (`strategy.yml`); có diff so với thành ph
 | | `bootstrap`, `bootstrap publish/skill`, `inspect` | Tri thức › Khảo sát / Xuất bản |
 | | `context` | Tri thức › Ngữ cảnh |
 | | `index rebuild` | Hệ thống › Chỉ mục |
-| | `mcp tools` | Hệ thống › MCP |
+| MCP | `mcp list`, `mcp gateway status` | MCP › Dịch vụ (danh sách, chi tiết, lọc dự án) |
+| | `mcp add/remove` | MCP › Dịch vụ (form thêm; gỡ có xác nhận; chỉ người) |
+| | `mcp check` | MCP › Dịch vụ (việc nền) |
+| | `mcp index` | MCP › Dịch vụ (việc nền; chỉ người) |
+| | `mcp gateway start/stop/restart` | MCP › Dịch vụ (stop/restart chỉ người, có xác nhận) |
+| | `mcp gateway log` | MCP › Dịch vụ (khung log) |
+| | `mcp grants` | MCP › Quyền (chỉ xem; sửa qua Hệ thống › Cấu hình) |
+| | `mcp tools` | MCP › Công cụ Bint |
 | Workflow | `task new/list/show/set/status/write/criteria/error/review/lint/verify/approve/transitions` | Tác vụ |
 | | `run`, `run resume/status` | Tác vụ › Chạy / Tiếp tục (việc nền) |
 | | `skill *` | Hệ thống › Skill |
@@ -267,7 +297,7 @@ chờ người duyệt"), strategy (`strategy.yml`); có diff so với thành ph
 | Đánh giá | `eval mine/list/show/spec/verify/approve/reject/estimate/run/report/bootstrap/clean` | Đánh giá |
 | Tiến hoá | `evolve scan/propose/list/show/evaluate/apply/reject/rollback/history/queue/process/cycle` | Tiến hoá (cả đề xuất loại harness) |
 | | `experience digest/show` | Lượt chạy › Bài học |
-| Loại trừ | `mcp serve` (server stdio), `hook *` (do harness gọi), `help`, lệnh ẩn | Không có màn hình; hiện trong Hệ thống › Harness dưới dạng trạng thái |
+| Loại trừ | `mcp serve` (server stdio), `hook *` (do harness gọi), `help`, lệnh ẩn | Không có màn hình; hiện trong Hệ thống › Harness dưới dạng trạng thái (`mcp serve`: công cụ của nó ở MCP › Công cụ Bint) |
 
 `task write/criteria/error/review` chủ yếu do agent gọi; TUI hiện dữ liệu và cho người sửa
 khi cần, không ép người nhập JSON.
@@ -511,7 +541,7 @@ locale giả `xx` (kéo dài ~40%) sinh bằng mã, `Resolve` theo `--lang` > `B
 **Khung TUI** (`internal/tui`): `theme` (vai trò màu; tối/sáng/16 màu/đơn sắc), `components/{frame,tabs,
 footer,palette,help,logo,text}`, `actions` (sổ hành động + dữ liệu phủ), `screens/{overview,
 initplaceholder,placeholder}`, `app` (mô hình gốc, vòng quay của Bubbles `spinner`), `gallery`, `tui.Run`.
-Phím: `1-7`/`[`/`]`/`Tab` đổi tab, `:` hoặc `Ctrl+K` bảng lệnh, `?` trợ giúp, `L` đổi ngôn ngữ (vi ⇄ en,
+Phím: `1-8`/`[`/`]`/`Tab` đổi tab, `:` hoặc `Ctrl+K` bảng lệnh, `?` trợ giúp, `L` đổi ngôn ngữ (vi ⇄ en,
 ngay trong phiên), `r` làm mới, `q`/`Ctrl+C` thoát. Điểm vào: `bint` không đối số (TTY, ngoài phiên agent),
 `bint tui [--lang] [--read-only]` và `bint tui --gallery` (cờ ẩn).
 
@@ -619,7 +649,7 @@ chưa làm mở trang giữ chỗ liệt kê việc đang chờ kèm lệnh CLI 
 
 **Chỗ lệch so với kế hoạch (người duyệt có thể đổi)**
 
-- **Phím**: ở màn Tri thức `Tab` đổi khung (mục 4.3.8), ở Tổng quan vẫn đổi tab; `[` `]` `1-7` luôn đổi tab; `q` `?` `:` `L`
+- **Phím**: ở màn Tri thức `Tab` đổi khung (mục 4.3.8), ở Tổng quan vẫn đổi tab; `[` `]` `1-8` luôn đổi tab; `q` `?` `:` `L`
   `Ctrl+C` không bị màn hình chiếm, trừ khi màn đang nhận chữ (ô lọc, form, hộp thoại, form thẻ phụ): khi đó mọi phím vào ô nhập,
   `Esc` thoát (đang chạy việc nền của thẻ phụ thì `Esc`/`Ctrl+C` huỷ việc). Làm mới là `Ctrl+R` (`r` là từ chối, như mục 5.2).
 - **Giao diện `Screen`**: lúc đó chưa tách; đã tách ở giai đoạn 2 khi có màn thứ hai (`ui.Screen`, mục 12.4).
@@ -747,7 +777,7 @@ và 140×40 (vi/en/xx, đơn sắc; từng chế độ màu ở dạng có mã m
   spool (`NoIngest`); mở cơ sở dữ liệu vẫn có thể áp migration nếu schema cũ (như Tổng quan).
 - **Việc chạy từ mô tả mới** chưa biết tác vụ cho tới bước đầu tiên: log của nó hiện ở thẻ Log của tác vụ đang chọn, `Job.TaskID`
   được điền khi nhận `StepMsg` đầu, và con trỏ nhảy tới tác vụ vừa lập khi việc xong.
-- **Phím**: `Ctrl+R` làm mới (như Tri thức; mục 4.3.8 dùng `r`), `A` hiện cả xong/huỷ, `.`/`,` đổi thẻ con; `q ? : L [ ] 1-7` vẫn là
+- **Phím**: `Ctrl+R` làm mới (như Tri thức; mục 4.3.8 dùng `r`), `A` hiện cả xong/huỷ, `.`/`,` đổi thẻ con; `q ? : L [ ] 1-8` vẫn là
   phím toàn cục trừ khi màn đang nhận chữ (ô lọc, form, hộp thoại).
 - **Đổi nhỏ về hành vi CLI**: thông báo lỗi của "đặt `autonomy: auto` trong phiên agent" nay bọc `app.ErrAgentForbidden` (kèm tên biến
   agent) thay vì `workflow.ErrAgent`; mã thoát vẫn 1. Lỗi dùng sai vẫn được kiểm trước khi mở workspace nên mã 2 thắng mã 4. Đầu ra
@@ -1216,7 +1246,7 @@ Phiếu cuối của giai đoạn 6 (6a = tương tác; 6b = thông điệp và 
 - Test: `TestHelpContextEveryScreenAndSubTab` (đi qua từng thẻ phụ của sáu màn bằng chuột ở chế độ thường và chỉ đọc: tiêu đề màn › thẻ, giới thiệu, đủ phím của chân phím trong khung, thứ tự nhóm, không có tiêu đề hành động Writes ở chỉ đọc; thẻ Log chỉ hiện khi có việc nền nên được bỏ qua), `TestHelpContextReadOnlyDropsWriteKeys`,
   `TestHelpScrollKeysAndWheel` (j/k, PgUp/PgDn, bánh xe, End → thấy dòng cuối, vị trí cuộn); golden `help_80x24_vi` và 140×40 ghi lại.
 
-**README**: mục "Giao diện terminal (TUI)" (cách mở, khi nào `bint` in trợ giúp thay vì mở TUI, bảy tab, phím toàn cục, chuột và cách bật tắt, chế độ chỉ đọc, `NO_COLOR`, ngôn ngữ, liên kết tài liệu này). `TestREADMEDocumentsTUIGlobalKeys` đối chiếu mọi phím của hành động toàn cục có `Key` trong sổ với mục đó.
+**README**: mục "Giao diện terminal (TUI)" (cách mở, khi nào `bint` in trợ giúp thay vì mở TUI, tám tab, phím toàn cục, chuột và cách bật tắt, chế độ chỉ đọc, `NO_COLOR`, ngôn ngữ, liên kết tài liệu này). `TestREADMEDocumentsTUIGlobalKeys` đối chiếu mọi phím của hành động toàn cục có `Key` trong sổ với mục đó.
 
 **Chốt giai đoạn 6**: `actions.CurrentPhase = 6`; `Pending`/`PendingFlags` rỗng, `PendingCeiling = 0`; subtest của `internal/cli/coverage_test.go` đổi sang giai đoạn 6; `TestCommandAndFlagCoverage` xanh. Golden: ghi lại bằng `-update` hai lần liền không đổi tệp nào; `go test ./internal/tui/... -count=2` xanh.
 

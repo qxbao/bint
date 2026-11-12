@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                             │
+│ ┌─│Chi tiết · jira│────────────────────────────────────────────────────────┐ │
+│ │ jira (jira)                                                              │ │
+│ │                                                                          │ │
+│ │ Trạng thái      ● đã đăng ký                                             │ │
+│ │ Kiểm tra        chưa kiểm tra trong phiên này                            │ │
+│ │ Giao thức       stdio · machine                                          │ │
+│ │ Nhóm thao tác   read, write                                              │ │
+│ │ Đăng ký         jira-mcp                                                 │ │
+│ │ Dự án           dùng (tuỳ chọn)                                          │ │
+│ │                                                                          │ │
+│ │ secrets.env     /home/u/.config/bint/secrets.env                         │ │
+│ │ Biến còn thiếu  JIRA_MCP_PASSWORD                                        │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ  i Chỉ mục  R Chạy lại ──────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

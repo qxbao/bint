@@ -38,7 +38,7 @@ func (d *Daemon) cacheStore(svc, rev string, e cacheEntry) {
 		return
 	}
 	if err := writeFileAtomic(path, data); err != nil {
-		d.logf("ghi cache tools/list của %s: %v", svc, err)
+		d.logf("%s (ghi cache tools/list): %v", svc, err)
 	}
 }
 

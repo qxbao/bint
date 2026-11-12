@@ -92,8 +92,8 @@ func TestSystemReadActionsWithRealServices(t *testing.T) {
 	if r := do(t, "system.sync_plan", env, app.SyncOptions{}); r.Err != nil {
 		t.Fatalf("sync_plan: %v", r.Err)
 	}
-	if r := do(t, "system.mcp_tools", env, app.MCPToolsOptions{}); r.Err != nil || len(r.Value.([]app.MCPTool)) < 4 {
-		t.Fatalf("mcp_tools: %+v", r)
+	if _, ok := actions.Default().ByID("system.mcp_tools"); ok {
+		t.Fatal("system.mcp_tools đã chuyển sang màn MCP (mcp.tools)")
 	}
 	if r := do(t, "system.doctor", env, nil); r.Err != nil || len(r.Value.(*app.DoctorReport).Checks) == 0 {
 		t.Fatalf("doctor: %+v", r)

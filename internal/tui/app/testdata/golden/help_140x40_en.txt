@@ -1,5 +1,5 @@
 ┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System │ MCP                                                          │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Overview│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                           ┌─│Help│───────────────────────────────────────────────────────────────────────────┐                           │
@@ -18,7 +18,7 @@
 │                           │          Turn the mouse on/off for this session (scroll, click tabs, rows, foot… │                           │
 │                           │  ]       Go to the next tab                                                      │                           │
 │                           │  [       Go to the previous tab                                                  │                           │
-│                           │  1-7     Jump to a tab                                                           │                           │
+│                           │  1-8     Jump to a tab                                                           │                           │
 │                           │                                                                                  │                           │
 │                           │ Knowledge                                                                        │                           │
 │                           │  a       Approve the item (candidate/stale → verified); humans only  bint know…  │                           │
@@ -27,7 +27,7 @@
 │                           │  d       Remove an item (→ deprecated, a reason is required)  bint knowledge d…  │                           │
 │                           │  A       Approve in bulk (selected items or the whole filtered list); items wit… │                           │
 │                           │  R       Reject in bulk (selected items or the whole filtered list)              │                           │
-│                           └───────────────────────────────────────────────────────────────────────1–24/179 ↕─┘                           │
+│                           └───────────────────────────────────────────────────────────────────────1–24/197 ↕─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

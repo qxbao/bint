@@ -651,11 +651,22 @@ Bint **không tự cài** service nào (docs/mcp-gateway-plan.md mục 5). Hai t
 | `bint mcp gateway status [--json]` | từng upstream: service, phân vùng, generation, PID, RSS/PSS, số phiên, lời gọi dang dở, lời gọi gần nhất, lỗi đã che credential; báo "không chạy" khi chưa có daemon | người, agent |
 | `bint mcp gateway restart <service>` | dừng mọi upstream của service (kill cả cây), xoá lỗi và bộ đếm khởi động lại; lời gọi sau khởi động mới với generation +1 | chỉ người |
 | `bint mcp gateway stop` | tắt daemon và mọi upstream | chỉ người |
+| `bint mcp gateway log <service> [--lines N] [--json]` | log gần nhất của service: stderr (đã che credential) của các upstream **đang chạy** (hỏi daemon qua `GET /admin/log?service=`) và các dòng `gateway.log` của service (đuôi 256 KiB, `--lines` mặc định 50, tối đa 1000); daemon không chạy hoặc là bản cũ (404) thì chỉ có phần `gateway.log` kèm ghi chú | người, agent |
 
 "Chỉ người" nghĩa là lệnh trả `ErrAgentForbidden` khi chạy trong phiên agent. `bint doctor` báo service dự án khai báo mà
 máy chưa đăng ký, chỉ mục codegraph thiếu và `secrets.env` có quyền rộng hơn 0600 (không khởi động tiến trình MCP). M1
 chỉ làm danh mục, cấu hình và lệnh quản lý; M2 thêm daemon gateway (dưới đây); việc cấp tool cho bước chạy qua cửa vào
-gộp (shim) và quyền theo role là M3 (xem "Tập MCP của mỗi bước" và "Di chuyển sang cửa vào gộp").
+gộp (shim) và quyền theo role là M3 (xem "Tập MCP của mỗi bước" và "Di chuyển sang cửa vào gộp"); màn TUI là M4 (dưới đây).
+
+#### Màn MCP trong TUI (M4)
+
+Tab thứ tám của `bint tui` (phím `8`, docs/tui-plan.md mục 5.8) gom các lệnh trên: thẻ **Dịch vụ** (danh mục kèm trạng thái chưa đăng ký / đã đăng ký /
+đang chạy với PID, RSS, số phiên / degraded / lỗi; `p` lọc theo `mcp.services` của dự án), **Quyền** (`mcp grants` dạng bảng role × service, chỉ xem;
+`e` mở `.bint/config.yml` qua luồng sửa cấu hình của Hệ thống) và **Công cụ Bint** (`mcp tools`). Thêm service (`a`) là form từ các cờ của `mcp add` và
+**không có ô nhập giá trị bí mật**: màn chỉ hiện đường dẫn `secrets.env` và tên biến còn thiếu. Gỡ (`x`), khởi động lại (`R`) và tắt daemon (`S`) có hộp
+xác nhận; kiểm tra (`c`), lập chỉ mục (`i`) và khởi động lại là việc nền có log; `l` xem `mcp gateway log`. Trạng thái degraded/lỗi do check chỉ có sau khi chạy
+check trong phiên (danh sách không tự khởi động tiến trình). `add`, `remove`, `index`, `gateway restart`, `gateway stop` là thao tác chỉ người: bị khoá trong
+phiên agent và ẩn ở `--read-only`.
 
 #### Daemon gateway (`bint mcp gateway`, M2)
 
@@ -664,7 +675,7 @@ khởi động ở M2: chỉ người chạy `bint mcp gateway start`; từ M3 s
 `gateway.lock` (khoá `flock`/`LockFileEx`, daemon thứ hai bị từ chối), `gateway.json` (quyền 0600: `pid`, `port`, `token`;
 xoá khi dừng), `gateway.log`, `tools-cache/` (M3).
 
-- **Mạng:** Streamable HTTP trên `127.0.0.1` cổng động; `POST/GET/DELETE /mcp` và `/admin/status|restart|stop` đều đòi
+- **Mạng:** Streamable HTTP trên `127.0.0.1` cổng động; `POST/GET/DELETE /mcp` và `/admin/status|restart|stop|log` đều đòi
   `Authorization: Bearer <token>` (thiếu/sai → 401); Host không phải loopback hoặc có header `Origin` → 403; body POST quá
   giới hạn → 413. Quyền theo role là chính sách, không phải ranh giới bảo mật: agent cùng UID đọc được `gateway.json`.
 - **Phiên:** `initialize` mang header `X-Bint-Service` (bắt buộc), `X-Bint-Worktree` (gốc worktree git, bắt buộc với

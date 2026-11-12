@@ -144,8 +144,6 @@ func (m *Model) tabBody(env ui.Env) string {
 		return m.skillsView(env)
 	case TabIndex:
 		return m.indexView(env)
-	case TabMCP:
-		return m.mcpView(env)
 	case TabLanguage:
 		return m.languageView(env)
 	case TabSetup:
@@ -730,40 +728,6 @@ func (m *Model) indexView(env ui.Env) string {
 	hints := m.hintsLine([2]string{"b", m.t("sy.hint.rebuild")})
 	return frame.Box{Title: m.t("sy.index.title"), TitleAt: frame.Left, Focused: true, BottomHints: env.AllowedHints(hints), BottomAt: frame.Left}.
 		Render(th, env.W, env.H, strings.Join(fitLines(out, iw)[:min(len(out), ih)], "\n"))
-}
-
-// ---- MCP ----
-
-func (m *Model) mcpView(env ui.Env) string {
-	return m.split(env,
-		func(w int) string { return m.mcpList(env, w, env.H) },
-		func(w int) string { return m.mcpDetail(env, w, env.H) })
-}
-
-func (m *Model) mcpList(env ui.Env, w, h int) string {
-	th := env.Th
-	iw, ih := frame.Inner(w, h)
-	body := m.lst[TabMCP].Render(iw, ih, func(i int, cursor bool) string {
-		t := m.mcp[i]
-		return m.cursorMarker(th, text.Pad(t.Name, 22)+" "+th.S(theme.Muted, t.Description), cursor)
-	})
-	return m.listBox(env, w, h, m.t("sy.mcp.title", i18n.A{"count": len(m.mcp)}), "", m.hintsLine([2]string{"Enter", m.t("sy.hint.open")}), body)
-}
-
-func (m *Model) mcpDetail(env ui.Env, w, h int) string {
-	th := env.Th
-	iw, _ := frame.Inner(w, h)
-	c := m.lst[TabMCP].Cursor
-	var out []string
-	title := m.t("sy.detail")
-	if c >= 0 && c < len(m.mcp) {
-		t := m.mcp[c]
-		title += " · " + t.Name
-		out = append(out, th.S(theme.Accent, t.Name), "")
-		out = append(out, text.Wrap(t.Description, max(iw-1, 10))...)
-	}
-	out = append(out, "", th.S(theme.Muted, m.t("sy.mcp.note")))
-	return m.detailBox(env, w, h, title, fitLines(out, max(iw-1, 10)))
 }
 
 // ---- Ngôn ngữ ----

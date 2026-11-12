@@ -149,18 +149,22 @@ func TestDetailShowsFullLongTitlesAndErrors(t *testing.T) {
 		press(t, m, "4")
 		wantWords(t, "lỗi nạp danh sách lượt chạy", plain(m.Render()), words)
 	})
-	t.Run("Hệ thống: lỗi nạp thẻ và chi tiết Doctor", func(t *testing.T) {
-		msg, words := longText("sl")
+	t.Run("MCP: lỗi nạp thẻ Công cụ Bint", func(t *testing.T) {
+		msg, words := longText("ml")
+		o := Options{}
+		o.MCPLoad.Tools = func(context.Context, string, string) ([]bintapp.MCPTool, error) { return nil, errors.New(msg) }
+		m := newM(o)
+		press(t, m, "8", ".", ".")
+		wantWords(t, "lỗi nạp thẻ Công cụ Bint", plain(m.Render()), words)
+	})
+	t.Run("Hệ thống: chi tiết Doctor", func(t *testing.T) {
 		dm, dwords := longText("sd")
 		o := Options{}
 		o.SystemLoad.Doctor = func(context.Context, string) (*bintapp.DoctorReport, error) {
 			return &bintapp.DoctorReport{Checks: []bintapp.Check{{Name: "git", Level: bintapp.LevelFail, Detail: dm}}}, nil
 		}
-		o.SystemLoad.MCP = func(context.Context, string, string) ([]bintapp.MCPTool, error) { return nil, errors.New(msg) }
 		m := newM(o)
-		press(t, m, "7", ".", ".", ".", ".", ".")
-		wantWords(t, "lỗi nạp thẻ MCP", plain(m.Render()), words)
-		press(t, m, ".", ".", "enter")
+		press(t, m, "7", ".", ".", ".", ".", ".", ".", "enter")
 		wantWords(t, "chi tiết Doctor", readAll(t, m, "pgdown"), dwords)
 	})
 }

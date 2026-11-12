@@ -1,5 +1,5 @@
-// Package system là màn Hệ thống (docs/tui-plan.md mục 5.7, giai đoạn 5a): tám thẻ con — Cấu hình, Harness, Thành phần
-// quy trình, Skill, Chỉ mục, MCP, Ngôn ngữ, Doctor — và hai thẻ vòng đời của giai đoạn 5b: Cài đặt repo, Cập nhật Bint. Mọi thao tác đọc gọi tầng dịch vụ (internal/app, evolvesvc); thao
+// Package system là màn Hệ thống (docs/tui-plan.md mục 5.7, giai đoạn 5a): bảy thẻ con — Cấu hình, Harness, Thành phần
+// quy trình, Skill, Chỉ mục, Ngôn ngữ, Doctor (MCP có màn riêng: screens/mcp) — và hai thẻ vòng đời của giai đoạn 5b: Cài đặt repo, Cập nhật Bint. Mọi thao tác đọc gọi tầng dịch vụ (internal/app, evolvesvc); thao
 // tác ghi đi qua actions.RequestMsg để mô hình gốc kiểm chế độ chỉ đọc/khoá theo sổ hành động (màn hình không tự kiểm).
 package system
 
@@ -18,7 +18,6 @@ const (
 	TabComponents
 	TabSkills
 	TabIndex
-	TabMCP
 	TabLanguage
 	TabDoctor
 	TabSetup
@@ -27,7 +26,7 @@ const (
 )
 
 // TabNames là tên (khoá i18n sy.tab.<tên>) của các thẻ con theo thứ tự.
-var TabNames = [numTabs]string{"config", "harness", "components", "skills", "index", "mcp", "language", "doctor", "setup", "update"}
+var TabNames = [numTabs]string{"config", "harness", "components", "skills", "index", "language", "doctor", "setup", "update"}
 
 // TabIndexOf trả chỉ số thẻ theo tên ("" hoặc lạ → -1).
 func TabIndexOf(name string) int {
@@ -59,7 +58,6 @@ type Loaders struct {
 	Runtime    func(ctx context.Context, dir string) ([]app.HarnessStatus, error)
 	Components func(ctx context.Context, dir string) (ComponentsData, error)
 	Skills     func(ctx context.Context, dir string) (app.SkillList, error)
-	MCP        func(ctx context.Context, dir, version string) ([]app.MCPTool, error)
 	Doctor     func(ctx context.Context, dir string) (*app.DoctorReport, error)
 	// Init đọc trạng thái init (thẻ Cài đặt repo); UpdateInfo đọc bản đang chạy và mã nguồn (thẻ Cập nhật Bint).
 	Init       func(ctx context.Context, dir string) (app.InitState, error)
@@ -89,11 +87,6 @@ func (l Loaders) withDefaults() Loaders {
 				return app.SkillList{}, err
 			}
 			return app.ListSkills(k, app.SkillListOptions{})
-		}
-	}
-	if l.MCP == nil {
-		l.MCP = func(_ context.Context, _, version string) ([]app.MCPTool, error) {
-			return app.MCPTools(version, app.MCPToolsOptions{})
 		}
 	}
 	if l.Doctor == nil {

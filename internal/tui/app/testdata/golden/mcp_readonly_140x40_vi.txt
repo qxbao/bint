@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│─────────────────────────────────────────────────────[CHỈ ĐỌC]─┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                     │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                                                                                         │
+│ ┌─│Dịch vụ MCP (6)│─────────────────────gateway chạy (PID 4242, 3 phiên)─┐┌─│Chi tiết · codegraph│─────────────────────────────────────┐ │
+│ │ ▸ codegraph       ▶ đang chạy    PID 4301 · 180 MB · 2 phiên +1        ││ codegraph (cg)                                             │ │
+│ │   specmatic       ✗ lỗi          exit status 1 [stderr: boom ***]      ││                                                            │ │
+│ │   deepwiki        ! degraded     upstream thiếu tool của nhóm thao tá… ││ Trạng thái      ▶ đang chạy                                │ │
+│ │   context7        ○ chưa đăng ký http · remote                         ││ Kiểm tra        chưa kiểm tra trong phiên này              │ │
+│ │   jira            ● đã đăng ký   stdio · machine                       ││ Giao thức       stdio · worktree                           │ │
+│ │   chrome-devtools ○ chưa đăng ký stdio · session                       ││ Nhóm thao tác   explore, query                             │ │
+│ │                                                                        ││ Đăng ký         codegraph serve --mcp                      │ │
+│ │                                                                        ││ Dự án           dùng (bắt buộc)                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││ PID             4301                                       │ │
+│ │                                                                        ││ RSS             180.0 MB                                   │ │
+│ │                                                                        ││ Phiên           2 (đang gọi 0)                             │ │
+│ │                                                                        ││ Phân vùng       /work/demo                                 │ │
+│ │                                                                        ││ Gọi gần nhất    codegraph_explore ok (120ms)               │ │
+│ │                                                                        ││ Phân vùng khác  còn 1 phân vùng đang chạy khác             │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││ secrets.env     /home/u/.config/bint/secrets.env           │ │
+│ │                                                                        ││ Biến còn thiếu  đủ biến                                    │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ └─ Enter Mở  c Kiểm tra ─────────────────────────────────────────────────┘└─ l Log  p Lọc dự án ───────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ Sy │ MCP                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Services · Grants · Bint tools                                             │
+│ ┌─│Register an MCP service on this machine│────────────────────────────────┐ │
+│ │ ▸ Service*                 jira▏                                         │ │
+│ │   Command                                                                │ │
+│ │   Arguments                                                              │ │
+│ │   Credential variable nam…                                               │ │
+│ │   URL                                                                    │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │   Equivalent CLI command: bint mcp add jira                              │ │
+│ │   Enter submit  Tab next field  Ctrl+Y copy command  Esc leave           │ │
+│ │  ──────────────────────────────────────────────────────────────────────  │ │
+│ │  Secret values are not entered here: write them to secrets.env           │ │
+│ │  yourself (NAME=value, mode 0600). This form takes variable names        │ │
+│ │  only.                                                                   │ │
+│ │ secrets.env   /home/u/.config/bint/secrets.env                           │ │
+│ │ Missing (jir… JIRA_MCP_PASSWORD                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

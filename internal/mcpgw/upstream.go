@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 )
 
@@ -93,6 +94,7 @@ type tailBuffer struct {
 	mu  sync.Mutex
 	max int
 	b   []byte
+	cut bool // đã bỏ phần đầu: dòng đầu của b có thể bị cắt giữa chừng
 }
 
 func (t *tailBuffer) Write(p []byte) (int, error) {
@@ -101,15 +103,26 @@ func (t *tailBuffer) Write(p []byte) (int, error) {
 	t.b = append(t.b, p...)
 	if len(t.b) > t.max {
 		t.b = append([]byte(nil), t.b[len(t.b)-t.max:]...)
+		t.cut = true
 	}
 	return len(p), nil
 }
 
-func (t *tailBuffer) String() string {
+// Lines trả nội dung bộ đệm, bỏ dòng đầu nếu bộ đệm đã bị cắt: dòng đó có thể chỉ còn đuôi một giá trị credential mà
+// ScrubSecrets (thay nguyên giá trị) không nhận ra.
+func (t *tailBuffer) Lines() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return string(t.b)
+	s := string(t.b)
+	if t.cut {
+		if i := strings.IndexByte(s, '\n'); i >= 0 {
+			return s[i+1:]
+		}
+		return ""
+	}
+	return s
 }
+
 
 // handshakeParams là params initialize gateway gửi upstream: khai báo roots (gateway trả gốc worktree), không khai
 // báo sampling hay elicitation.

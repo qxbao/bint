@@ -1,15 +1,15 @@
 ┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System                                                                │
+│ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System │ MCP                                                          │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Config · Harness · Components · Skills · Index · MCP · Language · Doctor · Setup · Update                                              │
-│ ┌─│MCP tools (3)│────────────────────────────────────────────┐┌─│Details · context_for_task│───────────────────────────────────────────┐ │
+┌─│MCP│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Services · Grants · Bint tools                                                                                                         │
+│ ┌─│bint mcp serve tools (3)│─────────────────────────────────┐┌─│Details · context_for_task│───────────────────────────────────────────┐ │
 │ │ ▸ context_for_task       Gói ngữ cảnh cho một tác vụ       ││ context_for_task                                                       │ │
 │ │   knowledge_search       Tìm tri thức theo từ khoá         ││                                                                        │ │
 │ │   cite_knowledge         Báo mục tri thức đã áp dụng       ││ Gói ngữ cảnh cho một tác vụ                                            │ │
 │ │                                                            ││                                                                        │ │
-│ │                                                            ││ Tools exposed to agents through `bint mcp serve` (stdio). Per-harness  │ │
-│ │                                                            ││   registration: Harness tab.                                           │ │
+│ │                                                            ││ Tools Bint offers to agents through `bint mcp serve` (stdio).          │ │
+│ │                                                            ││   Per-harness registration: System › Harness.                          │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
@@ -36,5 +36,5 @@
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
 │ │                                                            ││                                                                        │ │
-│ └─ Enter open ───────────────────────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
+│ └─ Enter Open ───────────────────────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
 └─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧        │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦MCP~~⟧│────────────────────────────────────────────────────────────────────┐
+│   ⟦Services~~~~⟧ · ⟦Grants~~~⟧ · ⟦Bint tools~~~~⟧                            │
+│ ┌─│⟦Details~~~⟧ · codegraph│───────────────────────────────────────1-16/18─┐ │
+│ │ codegraph (cg)                                                           │ │
+│ │                                                                          │ │
+│ │ ⟦State~~⟧       ▶ ⟦running~~~⟧                                           │ │
+│ │ ⟦Check~~⟧       ⟦not checked in this session~~~~~~~~~~~⟧                 │ │
+│ │ ⟦Transport~~~~⟧ stdio · worktree                                         │ │
+│ │ ⟦Operation gro… explore, query                                           │ │
+│ │ ⟦Registration~… codegraph serve --mcp                                    │ │
+│ │ ⟦Project~~~⟧    ⟦used (required)~~~~~~⟧                                  │ │
+│ │                                                                          │ │
+│ │ ⟦PID~~⟧         4301                                                     │ │
+│ │ ⟦RSS~~⟧         180.0 MB                                                 │ │
+│ │ ⟦Sessions~~~~⟧  2 (⟦in flight~~~~⟧ 0)                                    │ │
+│ │ ⟦Partition~~~~⟧ /work/demo                                               │ │
+│ │ ⟦Last call~~~~⟧ codegraph_explore ok (120ms)                             │ │
+│ │ ⟦Other partiti… ⟦1 more partitions running~~~~~~~~~~⟧                    │ │
+│ │                                                                          │ │
+│ └─ Enter ⟦Open~…  a ⟦Add~~⟧  c ⟦Check…  x ⟦Remov…  i ⟦Index…  R ⟦Resta… ───┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

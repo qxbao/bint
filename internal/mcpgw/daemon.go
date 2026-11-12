@@ -401,3 +401,22 @@ func (d *Daemon) Restart(service string) int {
 	}
 	return n
 }
+
+// Log trả stderr gần nhất (đã che credential) của mọi phân vùng thuộc service, sắp theo khoá phân vùng. Service lạ hoặc
+// chưa có phân vùng thì trả danh sách rỗng (không phải nil, để JSON ra []).
+func (d *Daemon) Log(service string) []PartitionLog {
+	d.mu.Lock()
+	var ps []*partition
+	for _, p := range d.parts {
+		if p.svc.ID == service {
+			ps = append(ps, p)
+		}
+	}
+	d.mu.Unlock()
+	sort.Slice(ps, func(i, j int) bool { return ps[i].key < ps[j].key })
+	out := []PartitionLog{}
+	for _, p := range ps {
+		out = append(out, p.log())
+	}
+	return out
+}

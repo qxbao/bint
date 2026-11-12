@@ -67,8 +67,8 @@ func newTUICmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "tui",
 		Short: "Mở giao diện terminal của Bint (bint không đối số cũng mở nó)",
-		Long: `Mở giao diện terminal: bảy tab (Tổng quan, Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá,
-Hệ thống), bảng lệnh (:) và trợ giúp (?). Cần terminal tương tác.
+		Long: `Mở giao diện terminal: tám tab (Tổng quan, Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá,
+Hệ thống, MCP), bảng lệnh (:) và trợ giúp (?). Cần terminal tương tác.
 
 Ngôn ngữ giao diện: --lang > biến BINT_LANG > khoá ui.language > LC_ALL/LANG > vi. Đổi được ngay
 trong giao diện (phím L).

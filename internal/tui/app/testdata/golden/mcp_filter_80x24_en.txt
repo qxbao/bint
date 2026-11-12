@@ -1,12 +1,13 @@
 ┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System                                    │
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ Sy │ MCP                                  │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness Components Skills Index  MCP  Language Doctor Setup Update   │
-│ ┌─│MCP tools (3)│──────────────────────────────────────────────────────────┐ │
-│ │ ▸ context_for_task       Gói ngữ cảnh cho một tác vụ                     │ │
-│ │   knowledge_search       Tìm tri thức theo từ khoá                       │ │
-│ │   cite_knowledge         Báo mục tri thức đã áp dụng                     │ │
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Services · Grants · Bint tools                                             │
+│ ┌─│Project services (4/6)│───────────────gateway up (PID 4242, 3 sessions)─┐ │
+│ │ ▸ codegraph       ▶ running        PID 4301 · 180 MB · 2 sessions +1     │ │
+│ │   specmatic       ✗ error          exit status 1 [stderr: boom ***]      │ │
+│ │   deepwiki        ! degraded       upstream thiếu tool của nhóm thao tá… │ │
+│ │   jira            ● registered     stdio · machine                       │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
@@ -19,6 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ Enter open ─────────────────────────────────────────────────────────────┘ │
+│ └─ Enter Open  a Add  c Check  x Remove  i Index  R Restart ───────────────┘ │
 └─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘

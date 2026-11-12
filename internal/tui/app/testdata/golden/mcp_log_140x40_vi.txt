@@ -1,0 +1,40 @@
+┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
+│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                     │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                                                                                         │
+│ ┌─│Dịch vụ MCP (6)│─────────────────────gateway chạy (PID 4242, 3 phiên)─┐┌─│Log của specmatic│────────────────────────────────────────┐ │
+│ │   codegraph       ▶ đang chạy    PID 4301 · 180 MB · 2 phiên +1        ││ stderr của upstream phiên 01HX0000 (đã dừng):              │ │
+│ │ ▸ specmatic       ✗ lỗi          exit status 1 [stderr: boom ***]      ││   (trống)                                                  │ │
+│ │   deepwiki        ! degraded     upstream thiếu tool của nhóm thao tá… ││                                                            │ │
+│ │   context7        ○ chưa đăng ký http · remote                         ││ stderr của upstream /work/demo (đang chạy):                │ │
+│ │   jira            ● đã đăng ký   stdio · machine                       ││   warn ***                                                 │ │
+│ │   chrome-devtools ○ chưa đăng ký stdio · session                       ││   lỗi thứ hai                                              │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││ /state/gateway/gateway.log (2 dòng của service):           │ │
+│ │                                                                        ││ 2026-11-13T04:00:01Z specmatic (phiên 01HX0000): exit      │ │
+│ │                                                                        ││     status 1 [stderr: boom ***]                            │ │
+│ │                                                                        ││ 2026-11-13T04:00:09Z specmatic (phiên 01HX0000): vượt      │ │
+│ │                                                                        ││     giới hạn khởi động lại                                 │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││ Ghi chú: gateway đang chạy là bản cũ chưa có /admin/log:   │ │
+│ │                                                                        ││   chỉ có phần gateway.log                                  │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ │                                                                        ││                                                            │ │
+│ └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ ───────────────────────────────────┘└─ i Chỉ mục  R Chạy lại  l Log  p Lọc dự án  G Bật  S Tắt ──┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────────────────────────────────────────────────────────────────┘

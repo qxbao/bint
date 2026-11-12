@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧        │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦MCP~~⟧│────────────────────────────────────────────────────────────────────┐
+│   ⟦Services~~~~⟧ · ⟦Grants~~~⟧ · ⟦Bint tools~~~~⟧                            │
+│ ┌─│⟦Details~~~⟧ · jira│────────────────────────────────────────────────────┐ │
+│ │ jira (jira)                                                              │ │
+│ │                                                                          │ │
+│ │ ⟦State~~⟧       ● ⟦registered~~~~⟧                                       │ │
+│ │ ⟦Check~~⟧       ⟦not checked in this session~~~~~~~~~~~⟧                 │ │
+│ │ ⟦Transport~~~~⟧ stdio · machine                                          │ │
+│ │ ⟦Operation gro… read, write                                              │ │
+│ │ ⟦Registration~… jira-mcp                                                 │ │
+│ │ ⟦Project~~~⟧    ⟦used (optional)~~~~~~⟧                                  │ │
+│ │                                                                          │ │
+│ │ ⟦secrets.env~~… /home/u/.config/bint/secrets.env                         │ │
+│ │ ⟦Missing varia… JIRA_MCP_PASSWORD                                        │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter ⟦Open~…  a ⟦Add~~⟧  c ⟦Check…  x ⟦Remov…  i ⟦Index…  R ⟦Resta… ───┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

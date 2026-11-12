@@ -149,6 +149,7 @@ func newModel(t *testing.T, o Options, data overview.Data, w, h int) *Model {
 		o.DetectHarnesses = fakeDetect // trình hướng dẫn init không phụ thuộc harness có trên máy chạy kiểm thử
 	}
 	o.SystemLoad = withSampleSystem(o.SystemLoad)
+	o.MCPLoad = withSampleMCP(o.MCPLoad)
 	if o.KnowledgeLoader == nil {
 		o.KnowledgeLoader = func(context.Context, string) (knscreen.Data, error) { return sampleKnowledge(), nil }
 	}

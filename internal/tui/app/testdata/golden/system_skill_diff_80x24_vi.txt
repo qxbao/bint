@@ -1,8 +1,8 @@
 ┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP                             │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│   Cấu hình Harness Thành phần  Skill  Chỉ mục MCP Ngôn ngữ Doctor ›          │
+│   Cấu hình Harness Thành phần  Skill  Chỉ mục Ngôn ngữ Doctor Cài đặt ›      │
 │ ┌─│Bản thay đổi của skill tiến hoá giữa hai phiên bản│─────────────────────┐ │
 │ │ ▸ Skill tiến hoá* api-guide▏                                             │ │
 │ │   Từ phiên bản                                                           │ │

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ Sy │ MCP                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Services · Grants · Bint tools                                             │
+│ ┌─│MCP services (6)│─────────────────────gateway up (PID 4242, 3 sessions)─┐ │
+│ │   codegraph       ▶ running        PID 4301 · 180 MB · 2 sessions +1     │ │
+│ │   specmatic       ✗ error          exit status 1 [stderr: boom ***]      │ │
+│ │ ┌─│Unregister jira│────────────────────────────────────────────────────┐ │ │
+│ │ │ Removes jira from this machine's mcp.yml; the daemon will no longer  │ │ │
+│ │ │ start it.                                                            │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ secrets.env is left untouched: /home/u/.config/bint/secrets.env      │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ The project still declares this service in mcp.services.             │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Remove   [Esc] No                                            │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter Open  a Add  c Check  x Remove  i Index  R Restart ───────────────┘ │
+└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

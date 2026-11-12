@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│────────────────────⠙ 1 việc nền─┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                             │
+│ ┌─│Dịch vụ MCP (6)│───────────────────────gateway chạy (PID 4242, 3 phiên)─┐ │
+│ │ ▸ codegraph       ▶ đang chạy    PID 4301 · 180 MB · 2 phiên +1          │ │
+│ │   specmatic       ✗ lỗi          exit status 1 [stderr: boom ***]        │ │
+│ │   deepwiki        ! degraded     upstream thiếu tool của nhóm thao tác:… │ │
+│ │   context7        ○ chưa đăng ký http · remote                           │ │
+│ │   jira            ● đã đăng ký   stdio · machine                         │ │
+│ │   chrome-devtools ○ chưa đăng ký stdio · session                         │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ  i Chỉ mục  R Chạy lại ──────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

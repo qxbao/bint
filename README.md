@@ -108,15 +108,20 @@ bint tui --read-only     # chỉ xem: ẩn mọi hành động ghi
 chuyển hướng) hoặc khi chạy trong phiên agent; agent không điều khiển được TUI. Gõ `bint tui` trong phiên
 agent vẫn mở được, nhưng các thao tác chỉ dành cho người (duyệt, áp dụng, loại bỏ) bị khoá kèm lý do.
 
-**Bảy tab**: Tổng quan, Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá, Hệ thống. Mỗi tab có thẻ phụ riêng
+**Tám tab**: Tổng quan, Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá, Hệ thống, MCP. Mỗi tab có thẻ phụ riêng
 (chọn bằng bàn phím hoặc chuột); phím của thẻ đang xem hiện ở viền dưới khung. Repository chưa `bint init`
 thì TUI mở trình hướng dẫn khởi tạo.
+
+Tab **MCP** (phím `8`) quản lý MCP của máy: danh mục service với trạng thái (chưa đăng ký, đã đăng ký, đang chạy,
+degraded, lỗi), thêm/gỡ đăng ký, kiểm tra, lập chỉ mục codegraph, khởi động lại upstream, xem log của daemon
+gateway, bảng quyền role × service (chỉ xem) và công cụ của `bint mcp serve`. Giá trị bí mật không nhập trong
+TUI: ghi vào `secrets.env`.
 
 **Phím toàn cục**
 
 | Phím | Việc |
 |---|---|
-| `1`-`7` | chuyển thẳng tới tab (`1` Tổng quan … `7` Hệ thống) |
+| `1`-`8` | chuyển thẳng tới tab (`1` Tổng quan … `7` Hệ thống, `8` MCP) |
 | `[` `]` | tab trước / sau |
 | `:` hoặc `Ctrl+K` | bảng lệnh: tìm mờ trên mọi hành động của mọi màn, kể cả hành động không có phím |
 | `?` | trợ giúp theo ngữ cảnh: giới thiệu thẻ đang xem, phím của thẻ, phím toàn cục, các màn khác (cuộn bằng `j`/`k`, `PgUp`/`PgDn`, bánh xe) |

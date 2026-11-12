@@ -39,3 +39,28 @@ func TestRenderNeverOverflows(t *testing.T) {
 		t.Fatalf("hẹp phải tự rút gọn tab chưa chọn: %q", narrow)
 	}
 }
+
+// Tám tab với nhãn dài (locale giả) ở 76 cột: dấu ngăn thu hẹp dần để tab cuối vẫn hiện đủ thay vì bị cắt; đủ chỗ thì giữ " │ ".
+func TestRenderShrinksSeparatorsBeforeTruncating(t *testing.T) {
+	its := []Item{{Label: "⟦Overview~~~~⟧", Short: "⟦Ov~⟧"}, {Label: "⟦Knowledge~~~~⟧", Short: "⟦Kn~⟧", Badge: 3}, {Label: "⟦Tasks~~⟧", Short: "⟦Tk~⟧"},
+		{Label: "⟦Runs~~⟧", Short: "⟦Rn~⟧"}, {Label: "⟦Evaluation~~~~⟧", Short: "⟦Ev~⟧"}, {Label: "⟦Evolution~~~~⟧", Short: "⟦Evo~~⟧"},
+		{Label: "⟦System~~~⟧", Short: "⟦Sy~⟧"}, {Label: "⟦MCP~~⟧", Short: "⟦MCP~~⟧"}}
+	for sel := range its {
+		out := ansi.Strip(Render(theme.New(theme.Mono), 76, its, sel, true))
+		if text.Width(out) > 76 {
+			t.Fatalf("sel=%d: rộng %d > 76", sel, text.Width(out))
+		}
+		for i, it := range its {
+			want := it.Short
+			if i == sel {
+				want = it.Label
+			}
+			if !strings.Contains(out, want) {
+				t.Errorf("sel=%d: thiếu nhãn %q: %q", sel, want, out)
+			}
+		}
+	}
+	if out := ansi.Strip(Render(theme.New(theme.Mono), 200, its, 0, false)); !strings.Contains(out, "⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧") {
+		t.Errorf("đủ chỗ thì giữ dấu ngăn rộng: %q", out)
+	}
+}

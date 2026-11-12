@@ -96,7 +96,7 @@ func TestHeaderHasSevenTabsAndBadge(t *testing.T) {
 
 func TestTabNavigation(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, sampleData(), 100, 30)
-	for i, k := range []string{"1", "2", "3", "4", "5", "6", "7"} {
+	for i, k := range []string{"1", "2", "3", "4", "5", "6", "7", "8"} {
 		press(t, m, k)
 		if m.Tab() != i {
 			t.Fatalf("phím %s → tab %d", k, m.Tab())
@@ -110,12 +110,12 @@ func TestTabNavigation(t *testing.T) {
 		t.Fatalf("] từ tab cuối phải vòng về đầu: %d", m.Tab())
 	}
 	press(t, m, "[")
-	if m.Tab() != 6 {
-		t.Fatalf("[ từ tab đầu phải về tab cuối: %d", m.Tab())
+	if m.Tab() != 7 {
+		t.Fatalf("[ từ tab đầu phải về tab cuối (MCP): %d", m.Tab())
 	}
-	press(t, m, "tab") // ở Hệ thống Tab đổi khung (như Tri thức), không đổi tab
-	if m.Tab() != 6 {
-		t.Fatalf("Tab ở Hệ thống đổi khung, không đổi tab: %d", m.Tab())
+	press(t, m, "tab") // ở MCP Tab đổi khung (như Hệ thống), không đổi tab
+	if m.Tab() != 7 {
+		t.Fatalf("Tab ở MCP đổi khung, không đổi tab: %d", m.Tab())
 	}
 	press(t, m, "]")
 	if m.Tab() != 0 {

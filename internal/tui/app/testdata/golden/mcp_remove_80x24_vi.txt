@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                             │
+│ ┌─│Dịch vụ MCP (6)│───────────────────────gateway chạy (PID 4242, 3 phiên)─┐ │
+│ │   codegraph       ▶ đang chạy    PID 4301 · 180 MB · 2 phiên +1          │ │
+│ │   specmatic       ✗ lỗi          exit status 1 [stderr: boom ***]        │ │
+│ │   deepwiki        ! degraded     upstream thiếu tool của nhóm thao tác:… │ │
+│ │ ┌─│Gỡ đăng ký jira│────────────────────────────────────────────────────┐ │ │
+│ │ │ Gỡ jira khỏi mcp.yml của máy này; daemon không còn khởi động nó.     │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ secrets.env không bị đụng tới: /home/u/.config/bint/secrets.env      │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ Dự án vẫn khai báo service này trong mcp.services.                   │ │ │
+│ │ │                                                                      │ │ │
+│ │ │ [Enter] Gỡ   [Esc] Không                                             │ │ │
+│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ  i Chỉ mục  R Chạy lại ──────────────┘ │
+└─[Esc→ Thoát]─────────────────────────────────────────────────────────────────┘

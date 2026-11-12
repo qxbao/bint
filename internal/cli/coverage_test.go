@@ -52,6 +52,7 @@ var serviceBindings = map[string]any{
 	// M2: daemon gateway (màn MCP thuộc M4).
 	"mcp gateway start": app.MCPGatewayStartOptions{}, "mcp gateway stop": app.MCPGatewayStopOptions{},
 	"mcp gateway status": app.MCPGatewayStatusOptions{}, "mcp gateway restart": app.MCPGatewayRestartOptions{},
+	"mcp gateway log": app.MCPGatewayLogOptions{},
 	// Giai đoạn 5b: init (11 cờ) và update. hasAction chỉ giữ hành động cuối của mỗi CLIPath nên binding bảo đảm phủ cờ không
 	// phụ thuộc thứ tự khai báo của các hành động dùng chung lệnh `init`.
 	"init": app.InitFlagOptions{}, "update": app.UpdateOptions{},

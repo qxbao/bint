@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                             │
+│ ┌─│Chi tiết · specmatic│───────────────────────────────────────────────────┐ │
+│ │ specmatic (spec)                                                         │ │
+│ │                                                                          │ │
+│ │ Trạng thái      ✗ lỗi                                                    │ │
+│ │ Lý do           exit status 1 [stderr: boom ***]                         │ │
+│ │ Kiểm tra        chưa kiểm tra trong phiên này                            │ │
+│ │ Giao thức       stdio · session                                          │ │
+│ │ Nhóm thao tác   compat, contract, mock                                   │ │
+│ │ Đăng ký         specmatic-mcp                                            │ │
+│ │ Dự án           dùng (tuỳ chọn)                                          │ │
+│ │                                                                          │ │
+│ │ Phân vùng       phiên 01HX0000 · khởi động lại 3                         │ │
+│ │                                                                          │ │
+│ │ secrets.env     /home/u/.config/bint/secrets.env                         │ │
+│ │ Biến còn thiếu  đủ biến                                                  │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ  i Chỉ mục  R Chạy lại ──────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

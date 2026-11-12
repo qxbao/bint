@@ -26,6 +26,9 @@ var writesAudit = map[string]string{
 	"system.config_edit": "mở trình soạn thảo", "system.config_save": "ghi cấu hình", "system.language_save": "ghi cấu hình", "system.component_add": "ghi thành phần",
 	"system.component_approve": "ghi thành phần", "system.component_deprecate": "ghi thành phần", "system.skill_overlay": "mở trình soạn thảo", "system.open_file": "mở trình soạn thảo",
 	"system.sync": "ghi skill", "system.repo_apply": "ghi cấu hình repo", "system.config_upgrade": "ghi cấu hình", "system.update": "cài bản mới", "system.index_rebuild": "ghi chỉ mục",
+	"mcp.add": "ghi mcp.yml (đăng ký trên máy)", "mcp.remove": "ghi mcp.yml (gỡ đăng ký)", "mcp.index": "chạy codegraph init/sync, ghi .codegraph và git info/exclude",
+	"mcp.restart": "dừng upstream của gateway, cắt lời gọi đang chạy", "mcp.gateway_start": "khởi động daemon, ghi gateway.json/log", "mcp.gateway_stop": "tắt daemon",
+	"mcp.config_edit": "mở trình soạn thảo (chuyển sang system.config_edit)",
 }
 
 // Hành động không ghi: đọc, xem trước (kế hoạch), hoặc giao diện thuần.
@@ -41,7 +44,9 @@ var readOnlyAudit = []string{
 	"system.next_view", "system.prev_view", "system.refresh", "system.filter", "system.config_check", "system.config_rebase", "system.config_view", "system.harness_list", "system.harness_show",
 	"system.harness_runtime", "system.harness_version", "system.component_list", "system.component_show", "system.render", "system.skill_list", "system.skill_show", "system.skill_diff",
 	"system.skill_versions", "system.skill_check", "system.skill_regress", "system.sync_plan", "system.repo_state", "system.repo_plan", "system.config_upgrade_plan", "system.restart",
-	"system.mcp_tools", "system.doctor", "system.doctor_filter",
+	"system.doctor", "system.doctor_filter",
+	// mcp.check không ghi dữ liệu của Bint (chỉ tạo thư mục cwd riêng của service kiểu state) và agent được chạy (D5): chỉ đọc.
+	"mcp.next_view", "mcp.prev_view", "mcp.refresh", "mcp.filter", "mcp.list", "mcp.gateway_status", "mcp.grants", "mcp.tools", "mcp.log", "mcp.check",
 }
 
 func TestWritesAudit(t *testing.T) {

@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧        │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│⟦MCP~~⟧│────────────────────────────────────────────────────────────────────┐
+│   ⟦Services~~~~⟧ · ⟦Grants~~~⟧ · ⟦Bint tools~~~~⟧                            │
+│ ┌─│⟦Details~~~⟧ · reviewer│────────────────────────────────────────────────┐ │
+│ │ reviewer                                                                 │ │
+│ │                                                                          │ │
+│ │ ⟦SERVICE~~~⟧⟦OPERATION GROUPS~~~~~~~⟧                                    │ │
+│ │ codegraph  explore                                                       │ │
+│ │ specmatic  compat                                                        │ │
+│ │                                                                          │ │
+│ │ ! service specmatic được cấp nhưng máy này chưa đăng ký (bint mcp add    │ │
+│ │   specmatic)                                                             │ │
+│ │                                                                          │ │
+│ │ ! role reviewer chạy ở bước chỉ đọc: tool ghi vào cây làm việc không     │ │
+│ │   được cấp dù mcp.grants có ghi (mcp__bint__jira_write)                  │ │
+│ │                                                                          │ │
+│ │ ⟦View only. Edit mcp.grants in .bint/config.yml with e: it opens the     │ │
+│ │   System config-edit flow (pick a layer, editor, Validate on             │ │
+│ │   save).~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧          │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

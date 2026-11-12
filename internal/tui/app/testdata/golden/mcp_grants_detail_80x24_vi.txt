@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                                   │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Dịch vụ · Quyền · Công cụ Bint                                             │
+│ ┌─│Chi tiết · reviewer│────────────────────────────────────────────────────┐ │
+│ │ reviewer                                                                 │ │
+│ │                                                                          │ │
+│ │ SERVICE    NHÓM THAO TÁC                                                 │ │
+│ │ codegraph  explore                                                       │ │
+│ │ specmatic  compat                                                        │ │
+│ │                                                                          │ │
+│ │ ! service specmatic được cấp nhưng máy này chưa đăng ký (bint mcp add    │ │
+│ │   specmatic)                                                             │ │
+│ │                                                                          │ │
+│ │ ! role reviewer chạy ở bước chỉ đọc: tool ghi vào cây làm việc không     │ │
+│ │   được cấp dù mcp.grants có ghi (mcp__bint__jira_write)                  │ │
+│ │                                                                          │ │
+│ │ Chỉ xem. Sửa mcp.grants trong .bint/config.yml bằng phím e: mở luồng     │ │
+│ │   sửa cấu hình của Hệ thống (chọn lớp, trình soạn thảo, Validate khi     │ │
+│ │   lưu).                                                                  │ │
+│ │                                                                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

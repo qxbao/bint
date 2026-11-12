@@ -32,11 +32,15 @@ func ParseZone(id string) (int, bool) {
 	return i, err == nil && i >= 0
 }
 
+// seps là các dấu ngăn tab từ rộng tới hẹp: " │ " bình thường; hẹp hơn chỉ khi tám tab vẫn chưa vừa ở chế độ rút gọn (màn 80 cột, locale
+// có chuỗi dài, tab đang chọn mang nhãn đầy đủ) để tab cuối không bị cắt mất.
+var seps = []string{" │ ", " │", "│"}
+
 // Render vẽ thanh tab trong tối đa width ô. compact: tab chưa chọn dùng nhãn rút gọn, chỉ tab đang
-// chọn giữ nhãn đầy đủ. Nếu vẫn dài hơn width thì tự chuyển compact và cắt cuối dòng.
+// chọn giữ nhãn đầy đủ. Nếu vẫn dài hơn width thì tự chuyển compact, rồi thu hẹp dấu ngăn, rồi cắt cuối dòng.
 func Render(th theme.Theme, width int, items []Item, selected int, compact bool) string {
-	sep := th.S(theme.Muted, " │ ")
-	build := func(compact bool) string {
+	build := func(compact bool, sepText string) string {
+		sep := th.S(theme.Muted, sepText)
 		parts := make([]string, len(items))
 		for i, it := range items {
 			label := it.Label
@@ -57,9 +61,16 @@ func Render(th theme.Theme, width int, items []Item, selected int, compact bool)
 		}
 		return strings.Join(parts, sep)
 	}
-	line := build(compact)
+	line := build(compact, seps[0])
 	if text.Width(line) > width && !compact {
-		line = build(true)
+		compact = true
+		line = build(true, seps[0])
+	}
+	for _, sp := range seps[1:] {
+		if text.Width(line) <= width {
+			break
+		}
+		line = build(compact, sp)
 	}
 	return text.Truncate(line, width)
 }

@@ -86,7 +86,6 @@ type Model struct {
 	rt     []app.HarnessStatus
 	comps  ComponentsData
 	skills app.SkillList
-	mcp    []app.MCPTool
 	doctor *app.DoctorReport
 	// Thẻ Cài đặt repo: trạng thái init và giá trị khởi đầu của form đang mở (để so lấy phần đã đổi). Thẻ Cập nhật: thông tin bản
 	// đang chạy và phiên cập nhật gần nhất.
@@ -220,8 +219,6 @@ func (m *Model) load(tab int) tea.Cmd {
 			v, err = ld.Components(ctx, dir)
 		case TabSkills:
 			v, err = ld.Skills(ctx, dir)
-		case TabMCP:
-			v, err = ld.MCP(ctx, dir, ver)
 		case TabDoctor:
 			v, err = ld.Doctor(ctx, dir)
 		case TabSetup:
@@ -269,8 +266,6 @@ func (m *Model) rowCount(tab int) int {
 		return len(m.compIdx)
 	case TabSkills:
 		return len(m.skills.Rows)
-	case TabMCP:
-		return len(m.mcp)
 	case TabLanguage:
 		return len(config.UILanguages)
 	case TabDoctor:
@@ -467,9 +462,6 @@ func (m *Model) onLoaded(msg LoadedMsg) tea.Cmd {
 	case TabSkills:
 		m.skills = msg.Value.(app.SkillList)
 		m.syncList(TabSkills)
-	case TabMCP:
-		m.mcp = msg.Value.([]app.MCPTool)
-		m.syncList(TabMCP)
 	case TabDoctor:
 		m.doctor = msg.Value.(*app.DoctorReport)
 		m.rebuildDoctor()
@@ -979,11 +971,6 @@ func (m *Model) tabKey(s string) (tea.Cmd, bool) {
 		if s == "b" || s == "enter" {
 			return m.cmdIndexRebuild(), true
 		}
-	case TabMCP:
-		if s == "enter" {
-			m.pane = paneDetail
-			return nil, true
-		}
 	case TabLanguage:
 		if s == "enter" || s == "s" {
 			return m.cmdLanguage(), true
@@ -1217,8 +1204,6 @@ func (m *Model) Command(id string) tea.Cmd {
 	case "system.index_rebuild":
 		m.tab = TabIndex
 		return m.cmdIndexRebuild()
-	case "system.mcp_tools":
-		return m.setTab(TabMCP)
 	case "system.doctor":
 		return m.setTab(TabDoctor)
 	case "system.repo_state":

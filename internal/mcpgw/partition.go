@@ -207,6 +207,9 @@ func (p *partition) acquireWith(ctx context.Context, handshake bool) (upstream, 
 		return nil, errPartitionClosed
 	}
 	p.up = up
+	// Khởi động lại thành công: lỗi của lần chết trước không còn là trạng thái hiện tại (bộ đếm deaths/restarts vẫn giữ để
+	// áp giới hạn; lần chết sau ghi lại lastErr nên limitErr vẫn có lỗi gần nhất).
+	p.lastErr = ""
 	p.inflight++
 	p.cancelIdleLocked()
 	p.mu.Unlock()
@@ -328,7 +331,7 @@ func (p *partition) onDead(u *stdioUp, cause error) {
 		return
 	}
 	msg := cause.Error()
-	if se := strings.TrimSpace(u.stderr.String()); se != "" {
+	if se := strings.TrimSpace(u.stderr.Lines()); se != "" {
 		msg += " [stderr: " + se + "]"
 	}
 	p.recordDeath(ScrubSecrets(msg, secrets, 300))

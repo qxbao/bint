@@ -1,4 +1,4 @@
-// Package app là mô hình gốc (Bubble Tea) của TUI: khung bảy tab, chân phím theo ngữ cảnh, bảng lệnh,
+// Package app là mô hình gốc (Bubble Tea) của TUI: khung tám tab, chân phím theo ngữ cảnh, bảng lệnh,
 // trợ giúp, đổi ngôn ngữ ngay trong phiên và việc nạp dữ liệu nền. Mọi chuỗi giao diện đi qua i18n,
 // mọi hành động đi qua sổ hành động.
 package app
@@ -33,6 +33,7 @@ import (
 	evscreen "bint/internal/tui/screens/evolve"
 	"bint/internal/tui/screens/initwizard"
 	knscreen "bint/internal/tui/screens/knowledge"
+	mcscreen "bint/internal/tui/screens/mcp"
 	"bint/internal/tui/screens/overview"
 	rnscreen "bint/internal/tui/screens/runs"
 	syscreen "bint/internal/tui/screens/system"
@@ -85,6 +86,8 @@ type Options struct {
 	EvolveDetailer evscreen.Detailer
 	// SystemLoad thay các hàm nạp dữ liệu của màn Hệ thống (trường nil = nạp thật); thay được trong kiểm thử.
 	SystemLoad syscreen.Loaders
+	// MCPLoad thay các hàm nạp dữ liệu của màn MCP (trường nil = nạp thật); thay được trong kiểm thử.
+	MCPLoad mcscreen.Loaders
 	// Getenv thay os.Getenv khi chọn ngôn ngữ sau khi lưu ui.language; nil = os.Getenv.
 	Getenv func(string) string
 	// LangFlag là giá trị cờ --lang (rỗng = không chỉ định); cờ thắng mọi giá trị ui.language vừa ghi.
@@ -131,6 +134,7 @@ type Model struct {
 	ev  *evscreen.Model
 	el  *elscreen.Model
 	sy  *syscreen.Model
+	mc  *mcscreen.Model
 	// screens là các màn hình chuyên biệt theo tab (giao diện chung ui.Screen); mô hình gốc không rẽ nhánh theo màn.
 	screens map[actions.Screen]ui.Screen
 
@@ -209,8 +213,9 @@ func New(ctx context.Context, opts Options) *Model {
 		Reporter: opts.EvalReporter, Gate: m.gate, Jobs: m.jobs})
 	m.sy = syscreen.New(syscreen.Options{Dir: opts.Dir, Version: opts.Version, ReadOnly: opts.ReadOnly, Load: opts.SystemLoad, Gate: m.gate,
 		Jobs: m.jobs, CanRestart: opts.CanRestart})
+	m.mc = mcscreen.New(mcscreen.Options{Dir: opts.Dir, Version: opts.Version, Load: opts.MCPLoad, Gate: m.gate, Jobs: m.jobs})
 	m.screens = map[actions.Screen]ui.Screen{actions.Knowledge: m.kn, actions.Tasks: m.tk, actions.Runs: m.rn, actions.Eval: m.el, actions.Evolve: m.ev,
-		actions.System: m.sy, actions.Init: m.wiz}
+		actions.System: m.sy, actions.MCP: m.mc, actions.Init: m.wiz}
 	for _, sc := range m.screens {
 		sc.SetEnv(m.th, m.rw())
 	}
@@ -425,6 +430,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case initwizard.RecheckMsg:
 		return m, m.load()
 	case overview.NavMsg:
+		if msg.ConfigEdit && !m.actionAllowed("system.config_edit") {
+			return m, nil // chế độ chỉ đọc hoặc khoá: không chuyển màn, màn gửi đã báo lý do
+		}
 		m.goTo(msg.Screen)
 		switch {
 		case msg.Screen == actions.Knowledge && msg.Filter != nil:
@@ -437,6 +445,8 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.ev.Focus(msg.ProposalID), m.startTick())
 		case msg.Screen == actions.System && msg.ComponentID != "":
 			return m, tea.Batch(m.sy.Focus(msg.ComponentKind, msg.ComponentID), m.startTick())
+		case msg.Screen == actions.System && msg.ConfigEdit:
+			return m, tea.Batch(m.sy.Command("system.config_edit"), m.startTick())
 		case msg.Screen == actions.System && msg.ConfigUpgrade:
 			return m, tea.Batch(m.sy.OpenConfigUpgrade(), m.startTick())
 		case msg.Screen == actions.System && msg.SystemTab != "":
@@ -623,7 +633,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.run("app.next_tab")
 	case "[", "shift+tab", "left":
 		return m.run("app.prev_tab")
-	case "1", "2", "3", "4", "5", "6", "7":
+	case "1", "2", "3", "4", "5", "6", "7", "8":
 		return m.run(actions.NavID(actions.Screens[int(s[0]-'1')]))
 	}
 	// Phím riêng của màn hình hiện tại: tra sổ hành động theo phím, rồi chuyển cho màn hình. Màn Tri thức
@@ -647,7 +657,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // globalKey: phím toàn cục mà màn hình không được chiếm (điều hướng tab, thoát, trợ giúp, bảng lệnh, ngôn ngữ).
 func globalKey(s string) bool {
 	switch s {
-	case "q", "ctrl+c", "?", ":", "ctrl+k", "L", "!", "[", "]", "left", "right", "shift+tab", "1", "2", "3", "4", "5", "6", "7":
+	case "q", "ctrl+c", "?", ":", "ctrl+k", "L", "!", "[", "]", "left", "right", "shift+tab", "1", "2", "3", "4", "5", "6", "7", "8":
 		return true
 	}
 	return false
@@ -1005,7 +1015,7 @@ func (m *Model) screenBody(env ui.Env) string {
 		return m.wiz.View(env)
 	case actions.Overview:
 		return m.ov.View(env)
-	case actions.Knowledge, actions.Tasks, actions.Runs, actions.Eval, actions.Evolve, actions.System:
+	case actions.Knowledge, actions.Tasks, actions.Runs, actions.Eval, actions.Evolve, actions.System, actions.MCP:
 		return m.screens[s].View(env)
 	default:
 		return ""
@@ -1077,10 +1087,10 @@ func (m *Model) helpGroups() []help.Group {
 		if !m.applicable(a) {
 			continue // hành động của màn tạm chỉ hiện khi đang ở đó và hợp trạng thái
 		}
-		if strings.HasPrefix(a.ID, "nav.") { // 7 dòng chuyển tab gộp thành một
+		if strings.HasPrefix(a.ID, "nav.") { // 8 dòng chuyển tab gộp thành một
 			if !navAdded {
 				navAdded = true
-				global.Rows = append(global.Rows, help.Row{Key: "1-7", Title: m.cat.T("help.nav")})
+				global.Rows = append(global.Rows, help.Row{Key: "1-8", Title: m.cat.T("help.nav")})
 			}
 			continue
 		}

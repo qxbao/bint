@@ -119,6 +119,11 @@ func TestHumanOnlyActionsRefuseAtServiceLayer(t *testing.T) {
 		"evolve.process":             evolvesvc.ProcessOptions{},
 		"system.component_approve":   app.ComponentReviewOptions{ID: "khong-co"},
 		"system.component_deprecate": app.ComponentReviewOptions{ID: "khong-co"},
+		"mcp.add":                    app.MCPAddOptions{Service: "deepwiki"},
+		"mcp.remove":                 app.MCPRemoveOptions{Service: "deepwiki"},
+		"mcp.index":                  app.MCPIndexOptions{Service: "codegraph"},
+		"mcp.restart":                app.MCPGatewayRestartOptions{Service: "codegraph"},
+		"mcp.gateway_stop":           app.MCPGatewayStopOptions{},
 	}
 	for id, a := range actions.Default().All() {
 		_ = id

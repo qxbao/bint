@@ -62,16 +62,15 @@ func systemScreens(t *testing.T, lang string, w, h int) map[string]func() *Model
 		},
 		"system_index":         func() *Model { return sysAt(t, o, w, h, 4) },
 		"system_index_confirm": func() *Model { return sysAt(t, o, w, h, 4, "b") },
-		"system_mcp":           func() *Model { return sysAt(t, o, w, h, 5) },
-		"system_language":      func() *Model { return sysAt(t, o, w, h, 6) },
-		"system_language_form": func() *Model { return sysAt(t, o, w, h, 6, "j", "enter") },
-		"system_doctor":        func() *Model { return sysAt(t, o, w, h, 7) },
-		"system_doctor_issues": func() *Model { return sysAt(t, o, w, h, 7, "w") },
+		"system_language":      func() *Model { return sysAt(t, o, w, h, 5) },
+		"system_language_form": func() *Model { return sysAt(t, o, w, h, 5, "j", "enter") },
+		"system_doctor":        func() *Model { return sysAt(t, o, w, h, 6) },
+		"system_doctor_issues": func() *Model { return sysAt(t, o, w, h, 6, "w") },
 		// Giai đoạn 5b: Cài đặt repo (trạng thái, form điền sẵn, hộp xem trước), hộp nâng cấu hình, Cập nhật Bint.
-		"system_setup":      func() *Model { return sysAt(t, o, w, h, 8) },
-		"system_setup_form": func() *Model { return sysAt(t, o, w, h, 8, "e") },
+		"system_setup":      func() *Model { return sysAt(t, o, w, h, 7) },
+		"system_setup_form": func() *Model { return sysAt(t, o, w, h, 7, "e") },
 		"system_setup_preview": func() *Model {
-			m := sysAt(t, o, w, h, 8)
+			m := sysAt(t, o, w, h, 7)
 			m.Update(actions.ResultMsg{ID: "system.repo_plan", Opts: bintapp.InitFlagOptions{MCP: true}, Value: samplePlan()})
 			return m
 		},
@@ -87,23 +86,23 @@ func systemScreens(t *testing.T, lang string, w, h int) map[string]func() *Model
 				Steps:        []bintapp.Step{{Name: ".bint/config.yml", Status: bintapp.StepUpdated, Detail: "thêm: harnesses.claude.models"}}}})
 			return m
 		},
-		"system_update": func() *Model { return sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9) },
+		"system_update": func() *Model { return sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 8) },
 		"system_update_form": func() *Model {
-			return sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9, "u")
+			return sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 8, "u")
 		},
 		"system_update_restart": func() *Model {
-			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9)
+			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 8)
 			m.Update(actions.ResultMsg{ID: "system.update", Value: sampleUpdateOutcome()})
 			return m
 		},
 		"system_update_done": func() *Model {
-			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 9)
+			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang, CanRestart: true}, w, h, 8)
 			m.Update(actions.ResultMsg{ID: "system.update", Value: sampleUpdateOutcome()})
 			press(t, m, "esc")
 			return m
 		},
 		"system_update_reopen": func() *Model { // Windows: không khởi động lại tự động
-			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang}, w, h, 9)
+			m := sysAt(t, Options{Mode: theme.Mono, Lang: lang}, w, h, 8)
 			out := sampleUpdateOutcome()
 			out.Result.OldBackup = "C:\\bin\\bint.exe.old"
 			m.Update(actions.ResultMsg{ID: "system.update", Value: out})

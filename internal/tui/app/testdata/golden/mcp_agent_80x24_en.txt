@@ -1,0 +1,24 @@
+┌─────────────────────────────────│bint 0.1.0│─────────────────[AGENT SESSION]─┐
+│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ Sy │ MCP                                  │
+└───────────────────────────────────────────────────────────────── /work/demo ─┘
+┌─│MCP│────────────────────────────────────────────────────────────────────────┐
+│   Services · Grants · Bint tools                                             │
+│ ┌─│MCP services (6)│─────────────────────gateway up (PID 4242, 3 sessions)─┐ │
+│ │ ▸ codegraph       ▶ running        PID 4301 · 180 MB · 2 sessions +1     │ │
+│ │   specmatic       ✗ error          exit status 1 [stderr: boom ***]      │ │
+│ │   deepwiki        ! degraded       upstream thiếu tool của nhóm thao tá… │ │
+│ │   context7        ○ not registered http · remote                         │ │
+│ │   jira            ● registered     stdio · machine                       │ │
+│ │   chrome-devtools ○ not registered stdio · session                       │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ └─ Enter Open  c Check  l Log  p Project filter  G Start gateway ──────────┘ │
+└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘

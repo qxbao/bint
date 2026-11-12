@@ -72,5 +72,6 @@ func Default() *Registry {
 	list = append(list, evalActions()...)
 	list = append(list, evolveActions()...)
 	list = append(list, systemActions()...)
+	list = append(list, mcpActions()...)
 	return NewRegistry(list)
 }

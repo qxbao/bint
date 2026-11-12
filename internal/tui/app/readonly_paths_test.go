@@ -45,7 +45,7 @@ func countingRegistry() (*actions.Registry, func(string) int, func()) {
 // subStates liệt kê các phím đưa mô hình tới từng (màn, thẻ phụ) để quét chân phím và vùng bấm.
 func subStates() [][]string {
 	var out [][]string
-	for _, s := range []string{"1", "2", "3", "4", "5", "6", "7"} {
+	for _, s := range []string{"1", "2", "3", "4", "5", "6", "7", "8"} {
 		out = append(out, []string{s})
 		if s == "3" { // thẻ phụ của Tác vụ nằm ở khung chi tiết: Enter vào khung rồi "." đổi thẻ
 			for n := 0; n <= 8; n++ {

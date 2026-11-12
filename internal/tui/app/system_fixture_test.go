@@ -42,10 +42,6 @@ func sampleSystemLoaders() syscreen.Loaders {
 					Targets: map[string]string{".claude/skills": "missing"}},
 			}, Orphans: []string{".bint/skills/overlays/cu.md"}}, nil
 		},
-		MCP: func(context.Context, string, string) ([]bintapp.MCPTool, error) {
-			return []bintapp.MCPTool{{Name: "context_for_task", Description: "Gói ngữ cảnh cho một tác vụ"}, {Name: "knowledge_search", Description: "Tìm tri thức theo từ khoá"},
-				{Name: "cite_knowledge", Description: "Báo mục tri thức đã áp dụng"}}, nil
-		},
 		Init:       func(context.Context, string) (bintapp.InitState, error) { return sampleInitState(), nil },
 		UpdateInfo: func(context.Context, string, string) (syscreen.UpdateInfo, error) { return sampleUpdateInfo(), nil },
 		Doctor: func(context.Context, string) (*bintapp.DoctorReport, error) {
@@ -112,9 +108,6 @@ func withSampleSystem(l syscreen.Loaders) syscreen.Loaders {
 	}
 	if l.Skills == nil {
 		l.Skills = s.Skills
-	}
-	if l.MCP == nil {
-		l.MCP = s.MCP
 	}
 	if l.Doctor == nil {
 		l.Doctor = s.Doctor

@@ -17,6 +17,7 @@ import (
 //	log=<tệp>     mỗi dòng JSON một sự kiện: start (cwd, env, args) và recv (method, id, tool, cancelled…)
 //	tools=a,b     tên tool của tools/list
 //	child=<tệp>   sinh một tiến trình con (__child, kế thừa nhóm tiến trình) và ghi PID của nó vào tệp
+//	errmsg=1      ghi biến JIRA_MCP_PASSWORD ra stderr rồi chạy tiếp bình thường
 //	diemsg=1      ghi biến JIRA_MCP_PASSWORD ra stderr rồi thoát 1 ngay khi khởi động
 //
 // Hành vi của tools/call theo arguments: sleep_ms, exit, stall, roots, sampling, progress, bigframe, rpc_error, echo.
@@ -35,6 +36,9 @@ func runFake(args []string) {
 		env[k] = v
 	}
 	f.log(map[string]any{"ev": "start", "cwd": wd, "env": env, "args": args})
+	if opt["errmsg"] != "" {
+		os.Stderr.WriteString("warn " + os.Getenv("JIRA_MCP_PASSWORD") + "\nlỗi thứ hai\n")
+	}
 	if opt["diemsg"] != "" {
 		os.Stderr.WriteString("boom " + os.Getenv("JIRA_MCP_PASSWORD") + "\n")
 		os.Exit(1)

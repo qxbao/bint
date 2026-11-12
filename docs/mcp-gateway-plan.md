@@ -1,6 +1,6 @@
 # Kế hoạch: gateway MCP dùng chung và cấp MCP theo role
 
-Trạng thái: **đã chốt hướng** (2026-11-12). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3 đã làm (2026-11-13, xem "Trạng thái M3" ở §7); M4–M5 chưa.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
+Trạng thái: **đã chốt hướng** (2026-11-12). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3 đã làm (2026-11-13, xem "Trạng thái M3" ở §7); M4 đã làm (2026-11-13, xem "Trạng thái M4" ở §8); M5 chưa.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
 các bước `bint run`, sửa ngay được), M1 (danh mục, cấu hình hai tầng, API/CLI quản lý), M2 (daemon
 gateway), M3 (cửa vào gộp và cấp quyền theo role), M4 (màn TUI), M5 (đo).
 Quyết định ở §3, kết quả xác minh ở §10. Chỉ còn S3 (harness xử lý thế nào khi chính shim chết), chưa kiểm
@@ -408,6 +408,34 @@ Màn mới `mcp` (sau `system` trong `actions.Screens`), mọi action có `CLIPa
 - Mục "MCP" trong màn Hệ thống (`mcp tools`) chuyển sang màn này.
 
 **Nghiệm thu M4:** golden test các trạng thái; test phủ lệnh xanh; chụp màn 140×40 và 80×24.
+
+### Trạng thái M4 (đã làm 2026-11-13)
+
+- **Màn:** `internal/tui/screens/mcp` (tab thứ tám, phím `8`, ngay sau Hệ thống), ba thẻ phụ — **Dịch vụ**, **Quyền**, **Công cụ Bint** —
+  mô tả ở `docs/tui-plan.md` mục 5.8 và `docs/workflows.md` ("Màn MCP trong TUI"). Hành động ở `internal/tui/actions/mcp.go`; mọi hành động gọi
+  dịch vụ có `CLIPath` (`mcp.list`, `mcp.gateway_status`, `mcp.grants`, `mcp.tools`, `mcp.log`, `mcp.check`, `mcp.index`, `mcp.restart`,
+  `mcp.add`, `mcp.remove`, `mcp.gateway_start`, `mcp.gateway_stop`); hành động giao diện thuần (`mcp.filter`, `mcp.refresh`,
+  `mcp.next_view`, `mcp.prev_view`, `mcp.config_edit`) không có. Trong nhóm `mcp` chỉ còn `mcp serve` ở `Excluded` của test phủ lệnh.
+- **Trạng thái service:** hàm thuần `screens/mcp.State(st, gateway, check, worktree)` theo đúng thứ tự ưu tiên: chưa đăng ký → (check fail, hoặc
+  phân vùng `Limited`, hoặc phân vùng không chạy mà còn `LastError`) lỗi → (check degraded) degraded → (có phân vùng đang chạy; ưu tiên phân vùng của
+  worktree hiện tại, `+N` khi còn phân vùng khác) đang chạy → đã đăng ký. Danh sách không tự check nên degraded/lỗi do check chỉ có sau khi người dùng
+  chạy check hoặc thêm service; kết quả check sống trong phiên.
+- **Quyền thao tác:** `add`, `remove`, `index`, `gateway restart`, `gateway stop` là `Writes` + `HumanOnly` (khoá trong phiên agent, ẩn ở chế độ chỉ đọc);
+  `gateway start` là `Writes` nhưng agent được chạy (D5); `check` không `Writes` (chỉ tạo thư mục cwd riêng của service kiểu `state`, D5 cho agent
+  chạy). Kiểm tra (`check`), lập chỉ mục và khởi động lại là `Action.Job` có log trong bảng việc nền.
+- **Dịch vụ mới ở `internal/app`:** `MCPServiceStatus.MissingEnv` (tên biến credential còn thiếu, không giá trị; `mcp list --json` có thêm trường
+  `missing_env`), `MCPSecretsFile()` và `MCPGatewayLog` (`bint mcp gateway log <service> [--lines N] [--json]`).
+- **`internal/mcpgw`:** endpoint `GET /admin/log?service=` (cùng bearer token và kiểm Host/Origin như các route `/admin`) trả
+  `[]PartitionLog{Partition, Running, Stderr}`, stderr che từng dòng bằng `ScrubSecrets`; `AdminClient.Log` và lỗi có kiểu `StatusError`. Daemon bản cũ
+  trả 404: `MCPGatewayLog` vẫn trả phần `gateway.log` kèm ghi chú.
+- **Sửa cấu hình:** `mcp.config_edit` gửi `overview.NavMsg{ConfigEdit}`; mô hình gốc chuyển sang Hệ thống và chạy `system.config_edit` (không chép luồng).
+- **Hệ thống:** thẻ MCP (`system.mcp_tools`, khoá `sy.tab.mcp`, `sy.mcp.*`) đã gỡ; thẻ con của Hệ thống còn chín thẻ.
+- **Thanh tab:** thêm tab thứ tám làm 80 cột không đủ chỗ ở locale giả (nhãn đầy đủ của tab đang chọn + nhãn rút gọn của bảy tab còn lại): `tabs.Render` thu
+  hẹp dấu ngăn (`" │ "` → `" │"` → `"│"`) trước khi cắt, có test ở mọi tab đang chọn.
+- **Kiểm thử:** golden `mcp_*` ở 140×40 và 80×24 × vi/en/xx; golden của màn khác chỉ đổi dòng thanh tab (và dòng thẻ con của Hệ thống, thêm `help_*` vì
+  phím `1-8` và các hành động MCP mới); test chỉ-đọc/HumanOnly cho cả `Job`; test `State` dạng bảng.
+- **Chưa làm / giới hạn:** chưa chạy với codegraph/specmatic/deepwiki thật trên máy và RSS trên Windows thật (chỉ người nghiệm thu); chưa chụp VHS (mục 12.10 của
+  `docs/tui-plan.md` vẫn là việc của người). Danh sách trạng thái đọc `gateway status` mỗi lần nạp lại (`Ctrl+R`), không tự làm mới nền.
 
 ## 9. Rủi ro và giới hạn
 

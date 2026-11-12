@@ -1,8 +1,8 @@
 ┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP                             │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│   Cấu hình Harness Thành phần  Skill  Chỉ mục MCP Ngôn ngữ Doctor ›          │
+│   Cấu hình Harness Thành phần  Skill  Chỉ mục Ngôn ngữ Doctor Cài đặt ›      │
 │ ┌─┌─│Sync --force: ghi đè│───────────────────────────────────────1-13/18─┐─┐ │
 │ │ │ --force ghi đè skill đã bị sửa tay (bản cũ được sao lưu); không vượt │ │ │
 │ │ │ được xung đột điểm neo của lớp phủ.                                  │ │ │

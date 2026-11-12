@@ -122,7 +122,7 @@ var keyCallRE = regexp.MustCompile(`\b(?:T|N|t|n)\("([a-z0-9_.]+)"`)
 var keyFieldRE = regexp.MustCompile(`\b(?:LabelKey|TitleKey|Key):\s*"([a-z0-9_.]+)"`)
 
 // Mọi khoá i18n nhắc trong mã (T/N, LabelKey/TitleKey, tab và nav theo ID màn hình) có trong danh
-// mục vi và en; khoá tab.<id>/tab.<id>.short có đủ cho cả bảy tab.
+// mục vi và en; khoá tab.<id>/tab.<id>.short có đủ cho cả tám tab.
 func TestEveryKeyUsedInCodeExists(t *testing.T) {
 	vi, en := i18n.MustLoad("vi"), i18n.MustLoad("en")
 	seen := map[string]bool{}
@@ -206,7 +206,9 @@ func TestNoUnusedKeys(t *testing.T) {
 		"action.eval.", "prompt.eval.", "eval.tab.", "eval.st.", "eval.vs.", "eval.ls.", "eval.ss.", "eval.bst.", "eval.job.title.", "eval.approve.verify_",
 		// Màn Hệ thống (giai đoạn 5a): hành động, tên thẻ, khả năng/cấp harness, nhãn trường, loại/trạng thái ghép từ giá trị dữ liệu.
 		"action.system.", "sy.tab.", "sy.cap.", "sy.level.", "sy.har.f.", "sy.comp.f.", "sy.skill.f.", "sy.skill.kind.", "sy.skill.pub.",
-		"sy.skill.tgt.", "sy.config.layer.", "sy.lang.f.", "sy.lang.opt.", "sy.doc.level."}
+		"sy.skill.tgt.", "sy.config.layer.", "sy.lang.f.", "sy.lang.opt.", "sy.doc.level.",
+		// Màn MCP (M4): hành động, tên thẻ phụ, trạng thái service, kết quả check và nhãn trường chi tiết (ghép từ giá trị dữ liệu).
+		"action.mcp.", "mc.tab.", "mc.state.", "mc.chk.", "mc.f."}
 	for _, k := range vi.Keys() {
 		if k == "app.name" || strings.Contains(code, `"`+k+`"`) {
 			continue

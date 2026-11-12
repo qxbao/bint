@@ -101,9 +101,12 @@ func TestKeywordsIncludeCLIPathAndFlags(t *testing.T) {
 	}
 }
 
-// Sổ mặc định: ID duy nhất, đủ bảy tab điều hướng, phím ? và q ghim, hành động ghi đánh dấu Writes.
+// Sổ mặc định: ID duy nhất, đủ tám tab điều hướng (phím 1-8, màn MCP ngay sau Hệ thống), phím ? và q ghim, hành động ghi đánh dấu Writes.
 func TestDefaultRegistryShape(t *testing.T) {
 	r := Default()
+	if len(Screens) != 8 || Screens[6] != System || Screens[7] != MCP {
+		t.Errorf("Screens = %v, muốn 8 tab với MCP đứng ngay sau System", Screens)
+	}
 	for _, s := range Screens {
 		a, ok := r.ByID(NavID(s))
 		if !ok || a.Key == "" {

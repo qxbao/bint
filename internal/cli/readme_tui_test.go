@@ -24,8 +24,8 @@ func TestREADMEDocumentsTUIGlobalKeys(t *testing.T) {
 	if j := strings.Index(sec, "\n## "); j >= 0 {
 		sec = sec[:j]
 	}
-	for _, w := range []string{"bint tui", "--lang", "--read-only", "docs/tui-plan.md", "NO_COLOR", "Bảy tab", "chỉ đọc", "Chuột", "Ngôn ngữ", "`Ctrl+K`", "không phải terminal",
-		"Tổng quan", "Tri thức", "Tác vụ", "Lượt chạy", "Đánh giá", "Tiến hoá", "Hệ thống"} {
+	for _, w := range []string{"bint tui", "--lang", "--read-only", "docs/tui-plan.md", "NO_COLOR", "Tám tab", "chỉ đọc", "Chuột", "Ngôn ngữ", "`Ctrl+K`", "không phải terminal",
+		"Tổng quan", "Tri thức", "Tác vụ", "Lượt chạy", "Đánh giá", "Tiến hoá", "Hệ thống", "MCP"} {
 		if !strings.Contains(sec, w) {
 			t.Errorf("mục TUI của README thiếu %q", w)
 		}
@@ -38,7 +38,7 @@ func TestREADMEDocumentsTUIGlobalKeys(t *testing.T) {
 		n++
 		want := "`" + a.Key + "`"
 		if strings.HasPrefix(a.ID, "nav.") {
-			want = "`1`-`7`"
+			want = "`1`-`8`"
 		}
 		if !strings.Contains(sec, want) {
 			t.Errorf("phím %s của hành động toàn cục %s không có trong mục TUI của README (tìm %s)", a.Key, a.ID, want)

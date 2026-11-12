@@ -1,8 +1,8 @@
 ┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống                                   │
+│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP                             │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│ ‹ Thành phần Skill Chỉ mục MCP Ngôn ngữ  Doctor  Cài đặt Cập nhật            │
+│ ‹ Harness Thành phần Skill Chỉ mục Ngôn ngữ  Doctor  Cài đặt Cập nhật        │
 │ ┌─│Doctor: 1 cảnh báo, 1 lỗi│─────────────────────────────chỉ cảnh báo/lỗi─┐ │
 │ │ ▸ ! cấu hình                                                             │ │
 │ │   ✗ hook claude                                                          │ │
