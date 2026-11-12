@@ -37,9 +37,9 @@ const (
 
 // Tên subagent do Bint cài theo role (tệp định nghĩa do `bint init` sinh, phiếu G3b).
 const (
-	SubagentPlanner     = "bint-planner"
-	SubagentImplementer = "bint-implementer"
-	SubagentReviewer    = "bint-reviewer"
+	SubagentPlanner     = adapters.SubagentPlanner
+	SubagentImplementer = adapters.SubagentImplementer
+	SubagentReviewer    = adapters.SubagentReviewer
 )
 
 // SubagentFor trả tên subagent của bước ("" nếu bước không chạy bằng subagent).
@@ -109,8 +109,8 @@ type CompleteOptions struct {
 	TaskRef string
 	// RunID phải khớp lượt của bước đang dở (SessionAction.RunID của `next`).
 	RunID string
-	// AgentID là agentId của subagent (kết quả công cụ Agent); chỉ được lưu vào lượt chạy (ghép sự kiện spool và
-	// chi phí thuộc phiếu G3b).
+	// AgentID là agentId của subagent (kết quả công cụ Agent): lưu vào lượt chạy (ghép sự kiện spool theo agent_id) và
+	// dùng tìm transcript để tính chi phí (session_cost.go).
 	AgentID string
 	// Failed khác rỗng: subagent báo thất bại (lý do); bước bị đánh failed.
 	Failed string
@@ -203,6 +203,7 @@ func (r *Runner) stopAction(rs *runState) *SessionAction {
 func (r *Runner) claimSession(rs *runState, open bool) error {
 	id := rs.t.State.ID
 	var run, parent string
+	var spend *task.SessionSpend
 	opened := false
 	nt, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
 		// Mọi quyết định dựa trên bản phiếu nạp dưới khoá, không dựa trên bản nạp trước đó: giữa hai lần nạp một `next`
@@ -222,6 +223,11 @@ func (r *Runner) claimSession(rs *runState, open bool) error {
 			}
 		}
 		parent = t.State.LastRun()
+		spend = nil
+		if sp := t.State.SessionSpend; sp != nil && sp.RunID == run {
+			c := *sp
+			spend = &c
+		}
 		if err := t.ClaimRunner(run, r.now()); err != nil {
 			return err
 		}
@@ -238,6 +244,9 @@ func (r *Runner) claimSession(rs *runState, open bool) error {
 		return err
 	}
 	rs.t, rs.runID, rs.res.RunID = nt, run, run
+	if spend != nil { // ngân sách b-do đã dùng ở các lệnh trước của cùng lượt cha
+		rs.spent, rs.turns, rs.costMissing, rs.costKnown = spend.Cost, spend.Turns, spend.CostUnknown, spend.Cost > 0
+	}
 	r.RunID = run
 	if opened {
 		r.emitRun(run, spool.WorkflowStarted, map[string]any{"workflow": StepDo, "parent_run_id": parent, "driver": task.DriverSession,
@@ -357,11 +366,21 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	}
 	rs := r.sessionState(t, "", o.Resume, o.NoWait)
 	if err := r.claimSession(rs, true); err != nil {
-		if errors.Is(err, errPendingActive) {
-			// Một `next` khác vừa mở bước giữa lúc nạp và nhận quyền: trả lại đúng bước đó, không đóng nó như hết hạn.
-			return pendingAction(rs.t), nil
+		if !errors.Is(err, errPendingActive) {
+			return nil, err
 		}
-		return nil, err
+		// Một `next` khác vừa mở bước giữa lúc nạp và nhận quyền: trả lại đúng bước đó, không đóng nó như hết hạn.
+		if a := pendingAction(rs.t); a != nil {
+			return a, nil
+		}
+		// Bước còn hạn lúc claimSession kiểm nhưng hết hạn ngay trước pendingAction: không có gì để trả lại, nên nhận quyền
+		// lại một lần — lần này bước đã hết hạn và đi tiếp nhánh "bước dở đã hết hạn" bên dưới. Không bao giờ trả (nil, nil).
+		if err := r.claimSession(rs, true); err != nil {
+			if errors.Is(err, errPendingActive) {
+				return nil, fmt.Errorf("tác vụ %s: bước dở đổi trạng thái liên tục khi nhận quyền điều phối, thử lại `bint run next %s`: %w", id, id, err)
+			}
+			return nil, err
+		}
 	}
 	stopped := false
 	defer func() {
@@ -549,7 +568,10 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 	case a.timedOut && a.reason != "":
 		res.Error = a.reason
 	}
-	return r.endStep(ctx, rs, sr, res)
+	r.fillSubagentUsage(rs, &res, ps.Step, a.agentID)
+	ok = r.endStep(ctx, rs, sr, res)
+	r.saveSessionSpend(rs)
+	return ok
 }
 
 // Complete đóng bước đang dở: subagent đã xong (hoặc báo thất bại). Làm phần sau của bước như `bint run` (kiểm chỉ
@@ -689,6 +711,14 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 		if ps.Step == StepFeat && ps.FeatBefore != "" {
 			// Tệp subagent đã sửa trước khi bị bỏ vẫn thuộc tác vụ: ghi vào Touched (dưới khoá độc quyền nếu lấy được).
 			l, err := AcquireLock(r.Tasks.Dir, r.Root, id+" "+ps.Step, LockExclusive)
+			if err != nil && errors.Is(err, errLeaseUnreadable) {
+				// Tệp hợp đồng thuê hỏng chặn khoá, còn abort chính là đường người chủ động khôi phục: gỡ tệp hỏng (releaseLease
+				// theo tác vụ xoá nó) rồi lấy khoá lại để ghi Touched. Khoá bận vì chủ khác thì không vào nhánh này.
+				if rerr := releaseLease(r.Tasks.Dir, r.Root, id, ""); rerr == nil {
+					notes = append(notes, "đã xoá tệp hợp đồng thuê khoá hỏng để ghi nhận tệp b-feat đã sửa")
+					l, err = AcquireLock(r.Tasks.Dir, r.Root, id+" "+ps.Step, LockExclusive)
+				}
+			}
 			if err == nil {
 				r.endTouched(ctx, rs, ps.FeatBefore)
 				l.Release()

@@ -1,6 +1,6 @@
 ---
 name: b-do
-description: Điều phối một yêu cầu tự nhiên qua chuỗi Classify → b-req → b-feat → b-review → Finalize; mỗi bước do một agent riêng (harness và model theo role trong .bint/config.yml) thực hiện qua `bint run`, phiên này chỉ điều phối và trao đổi với người dùng. Dùng khi người dùng chạy /b-do.
+description: Điều phối một yêu cầu tự nhiên qua chuỗi Classify → b-req → b-feat → b-review → Finalize; mỗi bước do một agent riêng (harness và model theo role trong .bint/config.yml) thực hiện qua `bint run`, phiên này chỉ điều phối và trao đổi với người dùng. Dùng khi người dùng chạy /b-do. Nói "dùng subagent" (hoặc --subagent) để các bước chạy bằng subagent của phiên này (driver session, Claude Code).
 ---
 
 # b-do — điều phối các agent
@@ -118,10 +118,62 @@ bint run b-do --task <id> --json            # đường đi đã chốt ở phi�
 JSON kết quả có `task_status`, `reason`, `questions`, `planning_issues`, `notes` và `steps` (mỗi
 bước kèm `harness`, `model`, `status`, `cost_usd`).
 
+## Bước 2b — Driver session: chạy các bước bằng subagent (chỉ Claude Code)
+
+Dùng nhánh này khi người dùng nói **dùng subagent** ("/b-do --subagent …", "dùng subagent để …") hoặc
+`workflow.driver: session` trong cấu hình. Thay vì `bint run` gọi harness ở tiến trình ngoài, **phiên này** chạy từng
+bước bằng subagent (công cụ Agent) còn Bint giữ máy trạng thái, khoá worktree, giới hạn và mọi cổng kiểm tra. Bạn
+vẫn chỉ điều phối: **không tự làm** việc của bước.
+
+Không có công cụ Agent/subagent (harness khác Claude Code) thì nói với người dùng và dùng driver process (Bước 2).
+
+1. Lập phiếu như Bước 1 nhưng thêm `--driver session` (Bint không chạy gì khi lập phiếu):
+
+```sh
+bint task new "<yêu cầu nguyên văn>" --workflow b-do --plan|--no-plan [--depth deep] --driver session [--clear-scope --allow '<glob>' …] --json
+```
+
+2. Lặp tới khi `action` là `done`, `blocked` hoặc `failed`:
+
+```sh
+bint run next <id> --json --no-wait          # hành động kế tiếp
+```
+
+   - `action: "agent"` (kèm `step`, `run_id`, `subagent`, `model`, `prompt`, `worktree`, `readonly`, `max_turns`,
+     `lease_until`): gọi công cụ **Agent** với `subagent_type` = `subagent`, `model` = `model` (bỏ nếu rỗng),
+     `prompt` = `prompt` **nguyên văn** (không rút gọn, không thêm chỉ dẫn mới). Lấy `agentId` trong kết quả
+     của công cụ Agent rồi báo cho Bint:
+
+```sh
+bint run complete <id> --run <run_id> --agent-id <agentId> --json
+```
+
+     Subagent báo thất bại / hết lượt / lỗi thì thêm `--failed "<lý do ngắn>"` (vẫn kèm `--agent-id` nếu có).
+     `complete` kiểm cây làm việc, phạm vi, kiểm chứng sau b-feat, vòng review… và có thể chạy lâu: chạy **nền**
+     nếu công cụ Bash có giới hạn thời gian. Kết quả JSON có `result` (kể cả `cost_usd`; `null` nghĩa là chưa
+     biết) và `notes`. Thiếu `--agent-id` thì lượt vẫn hợp lệ nhưng sự kiện/chi phí của subagent không gắn được:
+     đừng bỏ. `complete` trả `command` thì gọi tiếp `bint run next`.
+   - `action: "process"` (role gán harness khác Claude): chạy đúng `command` (nền được, như Bước 2), xong gọi
+     lại `bint run next`.
+   - `action: "blocked"`: xử lý như Bước 3. Có `command` là lệnh `bint run complete …` (bước còn hạn mà
+     tác vụ đang dừng): chạy **đúng lệnh đó**, **không** chạy lại subagent. Hết ngân sách `limits.workflows.b-do`
+     cũng dừng ở đây: báo người dùng, đừng lách.
+   - `action: "failed"` / `done`: báo cáo như Bước 4.
+   - Gọi `bint run next` lại khi bước còn hạn trả đúng bước cũ (cùng `run_id`), an toàn. Phiên này chết giữa
+     bước: người dùng chạy `bint run abort <id>` rồi `bint run next <id> --resume`.
+
+3. Tác vụ `worktree`: subagent chạy ở thư mục của phiên chứ không ở worktree; `prompt` đã dặn `cd <worktree>`
+   cho mọi lệnh và dùng đường dẫn tuyệt đối. Rào chắn đường dẫn bằng hook chưa có, nên khi chưa có lý do hãy
+   ưu tiên `--shared` cho driver session.
+4. Bước `b-req`/`b-review` là **chỉ đọc**: hook của Bint chặn lệnh Bash không phải lệnh đọc và công cụ sửa tệp
+   của hai subagent đó. Bị chặn thì đó là thiết kế, đừng tìm đường vòng.
+
+Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task approve`, không `bint task done --force`.
+
 ## Bước 3 — Khi Bint dừng chờ người (`task_status: blocked`)
 
 Đọc `reason`/`questions`, hỏi **người dùng**, ghi câu trả lời rồi tiếp tục bằng
-`bint run resume <id> --json`:
+`bint run resume <id> --json` (driver session: `bint run next <id> --resume --json`):
 
 - **Xung đột khi đưa về** (`reason` bắt đầu bằng `xung đột khi đưa về: <tệp>`, tác vụ `worktree`): cây gốc
   KHÔNG bị đụng; thay đổi của tác vụ vẫn nằm ở worktree. Báo người dùng các tệp xung đột và hai lối ra,

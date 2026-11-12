@@ -32,6 +32,10 @@ import (
 // leaseNow là đồng hồ của hợp đồng thuê; biến để kiểm thử đẩy thời gian qua hạn.
 var leaseNow = time.Now
 
+// errLeaseUnreadable: tệp hợp đồng thuê tồn tại nhưng không đọc được hoặc hỏng (khác với mutex bận hay không có hợp
+// đồng). Giữ qua lockedError (Unwrap) để đường khôi phục của người (abort) nhận ra mà gỡ tệp hỏng.
+var errLeaseUnreadable = errors.New("tệp hợp đồng thuê khoá không đọc được")
+
 // leaseMutexWait là thời gian chờ mutex của tệp hợp đồng; biến để kiểm thử rút ngắn.
 var leaseMutexWait = 5 * time.Second
 
@@ -125,13 +129,13 @@ func readLeases(lockFile string) ([]leaseEntry, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("không đọc được tệp hợp đồng thuê khoá %s: %w", p, err)
+		return nil, fmt.Errorf("không đọc được tệp hợp đồng thuê khoá %s: %w: %w", p, errLeaseUnreadable, err)
 	}
 	var f struct {
 		Leases []leaseEntry `json:"leases"`
 	}
 	if err := json.Unmarshal(b, &f); err != nil {
-		return nil, fmt.Errorf("tệp hợp đồng thuê khoá %s hỏng: %w", p, err)
+		return nil, fmt.Errorf("tệp hợp đồng thuê khoá %s hỏng: %w: %w", p, errLeaseUnreadable, err)
 	}
 	return f.Leases, nil
 }

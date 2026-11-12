@@ -69,6 +69,12 @@ Nếu đặt `state.dir` là đường dẫn tuyệt đối (thường trong `.b
   (`workflow.agent.model` cho Claude; `harnesses.<harness>.model` cho Codex/Antigravity) → mặc định
   của CLI. Tên mô hình không được chứa khoảng trắng; đặt chuỗi rỗng `""` ở mô hình theo role để rơi
   xuống mô hình chung.
+- **Bảng giá model Claude `harnesses.claude.pricing`** (mặc định `{}`): dùng để quy token của subagent (driver session) ra
+  USD khi `bint run complete --agent-id`. Khoá là id model (`claude-sonnet-5-5`; hậu tố ngày như `-20251001` được bỏ khi tra),
+  giá trị gồm `input_usd_per_mtok`, `output_usd_per_mtok`, `cache_write_usd_per_mtok`, `cache_read_usd_per_mtok` (USD mỗi triệu
+  token, không âm; hai giá cache để 0 ⇒ suy từ giá input: ghi 1,25 lần, đọc 0,1 lần). Cấu hình thắng bảng dựng sẵn trong mã
+  (các model Claude hiện hành, nguồn <https://platform.claude.com/docs/en/about-claude/pricing> ngày 2026-11-12); model không
+  có trong cả hai thì chi phí là `unknown`. Ví dụ: `pricing: { claude-sonnet-5-5: { input_usd_per_mtok: 2, output_usd_per_mtok: 10 } }`.
 - **Cấu hình riêng của Codex / Antigravity:** `harnesses.codex` và `harnesses.antigravity` có thêm
   `binary` (`""` = tìm `codex`/`agy` trong `PATH`), `model` (`null`) và `extra_args` (`[]`).
 

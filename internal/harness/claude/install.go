@@ -100,6 +100,8 @@ func desiredGroups(cmd string) map[string]map[string]any {
 		evUserPromptSubmit:   group(""),
 		// Stop: guardrail on: stop (H1). Hook thoát ngay nếu repository không có guardrail.
 		evStop: group(""),
+		// SubagentStop: agent_id + đường dẫn transcript của subagent (chi phí của driver session, mục 6.6).
+		evSubagentStop: group(""),
 	}
 }
 

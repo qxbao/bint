@@ -45,6 +45,9 @@ func Render(p InitParams) string {
 	w("  # Ưu tiên: --model > harnesses.<h>.models.<role> > model chung > mặc định của harness; \"\" = bỏ qua.\n")
 	w("  claude:                   # Claude Code: quyền/công cụ đặt ở workflow.agent và eval.agent\n")
 	writeModels(&b, p, "claude")
+	w("    pricing: {}             # giá model ghi đè bảng dựng sẵn khi tính chi phí bước chạy bằng subagent (USD/triệu token); ví dụ:\n")
+	w("                            #   claude-sonnet-5-5: { input_usd_per_mtok: 2, output_usd_per_mtok: 10, cache_write_usd_per_mtok: 2.5, cache_read_usd_per_mtok: 0.1 }\n")
+	w("                            # cache để 0 = suy từ giá input (ghi 1,25 lần, đọc 0,1 lần); model không có giá thì chi phí là unknown\n")
 	w(`  codex:                    # bint run / bint eval với Codex (codex exec --json, sandbox workspace-write)
     binary: ""              # rỗng = tìm trong PATH
     model: null             # model chung khi role không đặt model riêng

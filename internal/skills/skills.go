@@ -90,6 +90,16 @@ type Lock struct {
 	Skills      map[string]LockEntry `yaml:"skills"`
 	// Evolved: skill chuyên biệt do tiến hoá tạo ra đã được xuất bản (P7).
 	Evolved map[string]LockEntry `yaml:"evolved,omitempty"`
+	// Agents: định nghĩa subagent của driver session đã được xuất bản (.claude/agents, G3b mục 6.4); khoá phiên bản như
+	// skill gốc: tệp bị sửa ngoài Bint thì sync báo xung đột thay vì ghi đè.
+	Agents map[string]LockEntry `yaml:"agents,omitempty"`
+}
+
+// AgentFile là một định nghĩa subagent do Bint sinh (nội dung phụ thuộc cấu hình: model, maxTurns, công cụ).
+type AgentFile struct {
+	Name    string
+	Rel     string // đường dẫn tương đối với gốc repository, ví dụ ".claude/agents/bint-planner.md"
+	Content []byte
 }
 
 // LockEntry ghi phiên bản một skill gốc.
@@ -207,6 +217,8 @@ func ForTarget(s Skill, t Target) Skill {
 
 // Outcome của một lần xuất bản.
 type Outcome struct {
+	// Agent: tệp là định nghĩa subagent (Skill là tên subagent), không phải skill.
+	Agent  bool
 	Skill  string
 	Path   string
 	Result fsafe.Outcome
@@ -226,6 +238,8 @@ type InstallOptions struct {
 	// Files: các tệp theo dõi của repository, để phát hiện skill tiến hoá lỗi thời
 	// (nil = bỏ qua kiểm tra này).
 	Files []string
+	// Agents: định nghĩa subagent cần xuất bản (cùng cơ chế khoá phiên bản; rỗng = không xuất bản).
+	Agents []AgentFile
 }
 
 // Install ghép skill gốc với lớp phủ, xuất bản cho các harness và cập nhật
@@ -289,6 +303,11 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 	}
 	eo, err := installEvolved(opts, &lock)
 	outs = append(outs, eo...)
+	if err != nil {
+		return outs, err
+	}
+	ao, err := installAgents(opts, &lock)
+	outs = append(outs, ao...)
 	if err != nil {
 		return outs, err
 	}

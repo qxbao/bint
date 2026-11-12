@@ -24,6 +24,7 @@ const (
 	evPreToolUse         = "PreToolUse"
 	evUserPromptSubmit   = "UserPromptSubmit"
 	evStop               = "Stop"
+	evSubagentStop       = "SubagentStop"
 )
 
 // MCPPrefix là tiền tố tên công cụ MCP của Bint trong Claude Code (server "bint").
@@ -80,6 +81,9 @@ var Dialect = hookcore.Dialect{
 	// Guardrail (H1): Claude Code hỗ trợ đủ remind (additionalContext), ask, deny và chặn Stop.
 	PreToolDecisions: []string{"deny", "ask"}, RemindPreTool: true,
 	PreToolDecide: hookcore.ClaudeStylePreToolDecide, StopOutput: hookcore.ClaudeStyleStopOutput,
+	// Claude Code gửi agent_type cho công cụ của subagent và áp deny của PreToolUse cho subagent (spike S3): guardrail
+	// chỉ đọc dựng sẵn cho bint-planner/bint-reviewer có hiệu lực.
+	SubagentReadonly: true,
 }
 
 // HookEnv / HookResult giữ tên cũ cho mã gọi.

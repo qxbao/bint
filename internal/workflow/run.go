@@ -17,6 +17,7 @@ import (
 	"bint/internal/eval"
 	"bint/internal/gitrepo"
 	adapters "bint/internal/harness"
+	"bint/internal/harness/claude"
 	"bint/internal/skills"
 	"bint/internal/spool"
 	"bint/internal/task"
@@ -69,6 +70,9 @@ type Runner struct {
 	Context func(ctx context.Context, goal string, paths []string) (ctxengine.Pack, error)
 	// Logf in tiến trình cho người dùng.
 	Logf func(format string, a ...any)
+	// SubagentUsage trả token của subagent agentID (driver session) cùng lý do khi không đọc được; nil = đọc theo
+	// hook (runtime/subagents/<agent_id>.json, dự phòng tệp spool chờ) rồi transcript. Seam cho kiểm thử.
+	SubagentUsage func(agentID string) (*claude.Usage, string)
 }
 
 // StepEvent báo một bước agent của lượt điều phối. Log là đường dẫn log của bước (ghi dần khi agent chạy).
@@ -841,6 +845,15 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		}
 	}
 	srr.Status = status
+	if rs.session && res.CostUSD != nil {
+		// Subagent không dừng được giữa chừng, nên vượt max_cost_usd của bước chỉ được ghi lỗi (bước không failed); ngân sách
+		// b-do vẫn chặn bước sau qua beginStep.
+		if lim := r.Cfg.Limits.ForWorkflow(step).MaxCostUSD; lim != nil && *res.CostUSD > *lim {
+			msg := fmt.Sprintf("bước %s tốn %.4f USD, vượt limits.workflows.%s.max_cost_usd = %.4f", step, *res.CostUSD, step, *lim)
+			r.RecordError(rs.t.State.ID, step, msg)
+			rs.res.Notes = append(rs.res.Notes, msg)
+		}
+	}
 	if r.OnStep != nil {
 		r.OnStep(StepEvent{TaskID: rs.t.State.ID, Step: step, RunID: child, Log: sr.stepLog, Done: true, Status: status})
 	}

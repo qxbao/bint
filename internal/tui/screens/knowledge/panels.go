@@ -466,7 +466,11 @@ func (m *Model) bootstrapLines(r *app.BootstrapReport) []string {
 			case fsafe.Updated:
 				icon = "~"
 			}
-			l = append(l, fmt.Sprintf("%s skill %s: %s", icon, o.Skill, o.Path))
+			kind := "skill"
+			if o.Agent {
+				kind = "subagent"
+			}
+			l = append(l, fmt.Sprintf("%s %s %s: %s", icon, kind, o.Skill, o.Path))
 		}
 	}
 	l = append(l, "", m.t("kn.boot.counts", i18n.A{"verified": r.Counts["verified"], "candidate": r.Counts["candidate"], "stale": r.Counts["stale"]}),

@@ -391,8 +391,8 @@ nhiều agent song song) chưa có.
     kiểm chứng sau `b-feat` (chạy **trong** lệnh này, có thể lâu: chạy nền nếu công cụ có giới hạn thời gian), tài liệu của
     `b-req`, quyết định sau review (vòng sửa / dừng ở `workflow.max_review_rounds` / finalize). `--run` sai hoặc tác vụ
     không có bước dở ⇒ lỗi (mã 1), không đổi gì; thiếu `--run` ⇒ mã 2. `--failed "<lý do>"` đánh bước `failed`.
-    `--agent-id` là `agentId` của kết quả công cụ Agent: **chỉ được lưu** vào lượt chạy (`State.agent_runs`, payload
-    `workflow.finished` của lượt con); việc ghép sự kiện spool của subagent và tính chi phí thuộc phiếu G3b.
+    `--agent-id` là `agentId` của kết quả công cụ Agent: lưu vào lượt chạy (`State.agent_runs`, payload
+    `workflow.finished` của lượt con), dùng ghép sự kiện của subagent vào lượt đó và tính chi phí (G3b, xem dưới).
     `complete` thử lại được nếu bị ngắt giữa chừng (bước dở chỉ bị gỡ ở cuối).
   - *Hợp đồng thuê khoá theo thời gian* (mục 6.3). flock nhả khi `next` thoát nên không giữ được khoá suốt bước; `next` ghi
     hợp đồng `{tác vụ, bước, lượt, chế độ, hạn = bây giờ + workflow.timeout_minutes}` vào `locks/write-<hash>.lock.lease.json`
@@ -417,12 +417,49 @@ nhiều agent song song) chưa có.
     mọi lệnh `bint task …` phải truyền nó; tác vụ worktree đòi `cd <worktree> && …` ở mọi lệnh Bash và đường dẫn tuyệt đối
     (công cụ Agent không nhận thư mục làm việc). Vòng review ghi bởi subagent không mang `run_id` nên `complete` nhận vòng
     mới hơn vòng đã áp quyết định (`State.review_decided`).
-  - *Giới hạn đã biết của G3a*: ngân sách `limits.workflows.b-do.max_cost_usd`/`max_turns` sống trong một tiến trình nên mỗi
-    lệnh `next`/`complete` bắt đầu từ 0 (chưa trừ phần đã dùng ở bước trước; `max_turns` của bước vẫn được trả trong
-    `next`); chi phí của subagent chưa tính (G3b). Chưa có định nghĩa subagent do Bint cài (`bint-planner`,
-    `bint-implementer`, `bint-reviewer`), guardrail chỉ đọc cho subagent (`Bash(...)` của subagent **không** giới hạn lệnh:
-    lớp kiểm hiện có là ảnh chụp trước/sau của bước chỉ đọc), ghép sự kiện theo `agent_id` và nhánh driver session của skill
-    `/b-do` — thuộc phiếu G3b nên hiện chưa chạy thật được bằng Claude Code. Windows chưa chạy thật (chỉ biên dịch/vet/staticcheck).
+  - *G3b — định nghĩa subagent, guardrail chỉ đọc, ghép sự kiện, chi phí (mục 6.4–6.7).*
+    - **Định nghĩa subagent.** `bint init` / `init --update` / `bint sync` sinh `.claude/agents/bint-planner.md`,
+      `bint-implementer.md`, `bint-reviewer.md` (khi bật `claude`): `tools` theo `workflow.agent.readonly_tools` (planner, reviewer)
+      hoặc `allowed_tools` (implementer); `disallowedTools: Edit, Write, MultiEdit, NotebookEdit` cho planner/reviewer (giới hạn
+      mức công cụ là cứng); `model` theo `harnesses.claude.models.<role>` (rỗng ⇒ `inherit`); `maxTurns` theo
+      `limits.workflows.<bước>.max_turns` (bỏ khi không đặt). Khoá phiên bản như skill gốc (`core.lock` có `agents:`; sửa tay ⇒
+      xung đột, `--force` để ghi đè có sao lưu; `bint doctor` báo thiếu/lệch). Đổi model hay `max_turns` trong cấu hình thì chạy
+      `bint sync` để tệp theo kịp. `next` trả `subagent` và `model` (tham số lời gọi Agent thắng frontmatter).
+    - **Guardrail chỉ đọc `bint-readonly` (hook, mục 6.4a).** `Bash(<mẫu>)` trong `tools` của subagent **không giới hạn lệnh**
+      (spike S1), nên hook `PreToolUse` chặn: với `agent_type` là `bint-planner` / `bint-reviewer`, công cụ sửa tệp (Edit,
+      Write, MultiEdit, NotebookEdit — kể cả đường dẫn ngoài repo) và lệnh Bash không khớp `workflow.agent.readonly_tools`
+      đều bị `deny` kèm lý do; mỗi lần chặn ghi `guardrail.triggered` (guardrail `bint-readonly`, `agent_type`, `agent_id`,
+      `command` đã che bí mật). Khớp lệnh **bảo thủ**, không phân tích shell đầy đủ: lệnh phải là một lệnh khớp mẫu
+      `Bash(tiền-tố:*)` / `Bash(lệnh)` theo token; cho phép tiền tố `cd <một-thư-mục> && …` (đề bài của tác vụ worktree bắt
+      buộc) và heredoc (`bint task write/review <id> … - <<'EOF'`; thân heredoc không nháy mà có `$(`/backtick bị chặn);
+      mọi `;`, `&&` khác, `|`, chuyển hướng (trừ `2>&1`, `>/dev/null`), `$(…)`, backtick, nhiều dòng ⇒ chặn dù các vế đều chỉ
+      đọc, và `git … --output=…` bị chặn. Agent khác (`bint-implementer`, `general-purpose`, phiên chính) không bị can thiệp.
+      Harness không có `agent_type`/deny cho subagent thì `Dialect.SubagentReadonly=false` (Codex, Antigravity). Lớp kiểm sau
+      vẫn là ảnh chụp trước/sau của bước chỉ đọc. Hook cũ cần chạy lại `bint init` để có hook `SubagentStop`.
+    - **Ghép sự kiện theo `agent_id` (mục 6.5).** Hook ghi `agent_id` vào payload mọi sự kiện của subagent;
+      `bint run complete --agent-id X` ghi `agent_id` vào `workflow.finished` của lượt con. Lúc nạp spool, sự kiện hook cùng
+      `agent_id` được gắn vào lượt con — cả khi hook tới sau (`resolveRun` tra ánh xạ) lẫn khi đã nạp trước (`bint task …` của
+      chính subagent tự nạp spool; `adoptAgentEvents` chuyển `events`, `run_skill_usages`, hai bảng context, `knowledge_citations`,
+      `observations` và upsert lại artifacts `file.modified`/`file.read`; bản ở lượt phiên cha giữ nguyên). Sự kiện không có
+      `agent_id` không bao giờ bị chuyển. Thiếu `--agent-id`: lượt vẫn hợp lệ, ghi chú nêu sự kiện/chi phí không gắn được.
+      Giới hạn: tín hiệu (`run_signals`, ví dụ kết quả test) theo lượt không được chuyển.
+    - **Chi phí (mục 6.6).** Hook `SubagentStop` ghi sự kiện `subagent.stopped` (`agent_id`, `agent_type`,
+      `agent_transcript_path`) và tệp nhỏ `runtime/subagents/<agent_id>.json` (spool bị nạp/xoá bởi bất kỳ lệnh nào nên
+      `complete` đọc tệp này trước, dự phòng tệp spool còn chờ). `complete` cộng `message.usage` của dòng assistant trong
+      transcript, **khử trùng lặp theo `message.id`** (bản cuối), tách theo model, rồi quy USD theo bảng giá dựng sẵn
+      (`internal/harness/claude/pricing.go`, nguồn và ngày ghi trong mã; Haiku 5.5 có bậc giá prompt > 100 nghìn token) ghi đè
+      được bằng `harnesses.claude.pricing`. `result.cost_usd` null (unknown, không phải 0) kèm ghi chú khi: thiếu
+      `--agent-id`, chưa có `SubagentStop`, transcript không còn/không có usage, hoặc model không có giá — khi đó
+      `max_cost_usd` chỉ là chỉ dẫn. Vượt `limits.workflows.<bước>.max_cost_usd` của bước ⇒ `task.error` + ghi chú (bước không
+      failed: subagent không dừng được giữa chừng). Chi phí và số lượt cộng dồn vào `State.session_spend` theo lượt cha, nên
+      ngân sách `limits.workflows.b-do` (chi phí, lượt) được kiểm qua nhiều lệnh: vượt ⇒ `next` trả `blocked`; lượt cha mới (sau
+      `--resume`) bắt đầu từ 0.
+    - **Skill `/b-do` (mục 6.7)** có nhánh driver session: "dùng subagent" / `--subagent` ⇒ `bint task new … --driver session`, vòng
+      `next → Agent → complete --agent-id`, `process` chạy nền, `blocked` kèm lệnh `complete` thì chạy đúng lệnh đó, không có công
+      cụ Agent ⇒ driver process.
+  - *Giới hạn đã biết của G3a/G3b*: **chưa chạy thật bằng Claude Code** (thứ tự `SubagentStop` so với kết quả Agent, hook `deny`
+    dưới `bypassPermissions`, `maxTurns` của frontmatter): mới có kiểm thử bằng sự kiện giả lập và "subagent giả". Subagent chạy ở
+    thư mục của phiên cha, chưa có rào chắn đường dẫn worktree (G4). Windows chưa chạy thật (chỉ biên dịch/vet/staticcheck).
 - Codex chạy mọi bước trong sandbox `workspace-write` kèm `--add-dir <thư mục trạng thái>` để lệnh
   `bint task …` ghi được; agent nhận `BINT_RUNNER_PID` để không nhầm tiến trình điều phối (bị sandbox
   che PID) là đã chết.

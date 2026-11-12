@@ -127,7 +127,19 @@ func applyEvent(ctx context.Context, tx *sql.Tx, e spool.Event, now time.Time) (
 		WHERE run_id = ? AND (last_event_at IS NULL OR last_event_at < ?)`, ts, runID, ts); err != nil {
 		return false, err
 	}
-	return true, applyRunEffects(ctx, tx, runID, e, ts)
+	if err := applyRunEffects(ctx, tx, runID, e, ts); err != nil {
+		return false, err
+	}
+	// workflow.finished của lượt con có agent_id (`bint run complete --agent-id`): sự kiện hook của subagent đã nạp trước đó
+	// thuộc lượt này (mục 6.5).
+	if e.Type == spool.WorkflowFinished && e.RunID != "" {
+		if aid := str(e.Payload, "agent_id"); aid != "" {
+			if err := adoptAgentEvents(ctx, tx, runID, aid); err != nil {
+				return false, err
+			}
+		}
+	}
+	return true, nil
 }
 
 // resolveRun tìm hoặc tạo lượt chạy cho sự kiện.
@@ -137,6 +149,15 @@ func resolveRun(ctx context.Context, tx *sql.Tx, e spool.Event) (string, error) 
 		_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO runs (run_id, status, harness, started_at, worktree)
 			VALUES (?, 'running', NULLIF(?, ''), ?, NULLIF(?, ''))`, e.RunID, e.Harness, ts, e.Worktree)
 		return e.RunID, err
+	}
+	// Sự kiện của subagent (hook, agent_id trong payload): nếu lượt con của bước đã biết (workflow.finished có agent_id) thì
+	// thuộc lượt đó, không thuộc lượt của phiên cha.
+	if aid := str(e.Payload, "agent_id"); aid != "" {
+		if child, err := agentRun(ctx, tx, aid); err != nil {
+			return "", err
+		} else if child != "" {
+			return child, nil
+		}
 	}
 	var id string
 	err := tx.QueryRowContext(ctx, `SELECT run_id FROM runs WHERE harness = ? AND harness_session_id = ?`,

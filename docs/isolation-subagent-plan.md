@@ -391,7 +391,7 @@ Ghi kết quả spike vào mục 12 của tài liệu này trước khi bắt đ
 | `workflow.worktree.copy` | `[]` | G2 |
 | `workflow.worktree.setup_command` | `""` | G2 |
 | `workflow.driver` | `process` | G3 |
-| bảng giá model (tên khoá chốt ở G3) | dựng sẵn cho Claude | G3 |
+| `harnesses.claude.pricing` (bảng giá model, USD/triệu token; ghi đè bảng dựng sẵn trong mã) | `{}` (dùng bảng dựng sẵn) | G3b |
 
 Cập nhật `docs/configuration.md` cùng lúc.
 
@@ -993,3 +993,64 @@ Nguồn: `review.md` của tác vụ 01M77ED7S8THNK58QMMJE54YD2 (mục 12.10).
   `TestLeaseMutexTimeoutHoldsLock`, `TestSessionNextBlockedByCorruptLeaseFile`.
 - **Còn lại / rủi ro:** tệp hợp đồng hỏng chặn khoá tới khi người chạy `bint run abort <id>` (của tác vụ nào cũng được) hoặc xoá tay `*.lease.json`;
   thông báo chưa gợi ý lệnh khi tệp không thuộc tác vụ nào. Chưa chạy `-race -count=50` cho các ca mới.
+
+### 12.12. G3b mục 6.4–6.7 — định nghĩa subagent, guardrail chỉ đọc, ghép sự kiện, chi phí, skill; hai lỗi low của G3a, 2026-11-12, tác vụ 01M77J7TBB8X77CZ3HX3ZCW5WR
+
+**Đã làm** (chưa commit khi viết ghi chép này; **không** làm G4):
+
+- **Hai lỗi low của review G3a** (`internal/workflow/session.go`, `lease.go`, `isolation.go`; `internal/cli/run_session.go`).
+  (1) `Next`: bước còn hạn lúc `claimSession` kiểm nhưng hết hạn ngay trước `pendingAction` ⇒ trước đây `(nil, nil)` và CLI panic; nay
+  nhận quyền lại **một lần** (bước đã hết hạn ⇒ đi nhánh "đóng như quá giờ"), lần hai vẫn không được ⇒ lỗi rõ ràng; `finishSession` gặp
+  hành động nil trả lỗi thay vì panic. Test `TestSessionNextNeverReturnsNilWhenLeaseExpiresMidway` (đã kiểm: bỏ bản sửa thì đỏ
+  "Next trả (nil, nil)"). (2) `abort` b-feat khi `*.lease.json` hỏng: sentinel `errLeaseUnreadable` (bọc trong lỗi của `readLeases`, giữ qua
+  `lockedError.Unwrap`); `discardPending` gặp nó thì `releaseLease(…, id, "")` (xoá tệp hỏng, đúng đường khôi phục mục 12.11) rồi lấy khoá
+  lại để `endTouched`; khoá bận vì chủ khác vẫn chỉ ghi chú. Test `TestSessionAbortWithCorruptLeaseFileStillRecordsTouched`.
+- **6.4 Định nghĩa subagent.** `harness.SubagentFiles(cfg)` (`internal/harness/subagents.go`) dựng ba tệp; `skills.InstallOptions.Agents` +
+  `Lock.Agents` (`core.lock` có `agents:`) xuất bản bằng chính `publish` của skill (manifest + băm khoá; sửa tay ⇒ Conflict); nối vào
+  `repoWriter.InstallSkills` (quét `.claude/agents` để nhật ký ghi H8 có băm trước), `init`, `bint sync`/`PlanSync`, `bint doctor`,
+  `--git local` (`bintPaths` loại từng tệp, không loại cả thư mục). Frontmatter: `tools`, `disallowedTools` (planner/reviewer), `model`
+  (`inherit` khi rỗng), `maxTurns` (bỏ khi không đặt). `workflow.SubagentPlanner/…` dùng lại hằng của `harness`.
+- **6.4a Guardrail chỉ đọc.** `hookcore/readonly.go` + `Dialect.SubagentReadonly` (Claude `true`); chạy ở đầu nhánh `EvPreTool`, trước chụp ảnh shell. Chi tiết
+  khớp lệnh và giới hạn ghi ở `docs/workflows.md` (mục "G3b"). Không SQLite, không mô hình, lỗi ghi spool bị bỏ qua, luôn trả quyết định.
+- **6.5 Ghép sự kiện.** Hook ghi `agent_id` vào payload; `runlog/agents.go`: `resolveRun` tra ánh xạ từ `workflow.finished` có `agent_id`, và
+  `adoptAgentEvents` chuyển sự kiện hook đã nạp trước (hai thứ tự đều có test, cùng lô và khác lô).
+- **6.6 Chi phí.** `SubagentStop` ⇒ `subagent.stopped` + `runtime/subagents/<agent_id>.json`; `claude.SubagentUsage` (khử trùng lặp theo
+  `message.id`, tách theo model, đếm lượt) + `claude.PriceFor`/`BuiltinPricing` (nguồn <https://platform.claude.com/docs/en/about-claude/pricing>,
+  đọc 2026-11-12); khoá `harnesses.claude.pricing` (struct `ModelPrice`, `Default()`, `Validate()`, dòng mẫu có chú thích); `Runner.SubagentUsage`
+  (seam); `State.SessionSpend` cộng dồn ngân sách b-do qua các lệnh; vượt `max_cost_usd` của bước ⇒ `RecordError` + ghi chú.
+- **6.7 Skill b-do** có "Bước 2b — Driver session"; đã build binary mới và `bint sync` (`.claude/skills/b-do`, `.agents/skills/b-do`,
+  `.bint/skills/core.lock`, `.claude/agents/*`); `.bint/config.yml` không đổi.
+
+**Lệch so với kế hoạch (và lý do):**
+
+1. **Đường dẫn transcript qua tệp runtime, không chỉ spool** (lệch câu chữ 6.6): spool bị nạp và xoá bởi lệnh bất kỳ (kể cả `bint task …` của chính
+   subagent) nên lúc `complete` sự kiện đã có thể vào SQLite mà workflow không mở; hook vì thế còn ghi `runtime/subagents/<agent_id>.json`
+   (`agent_id` chỉ nhận `[A-Za-z0-9_-]`); dự phòng quét tệp spool còn chờ.
+2. **Không quét trước lô khi nạp spool** (kế hoạch ghi "quét trước các tệp chờ của lô"): `adoptAgentEvents` ở lúc nạp `workflow.finished` đã phủ
+   trường hợp hook tới trước trong cùng lô, nên quét trước là thừa.
+3. **Vượt `max_cost_usd` của bước ⇒ ghi lỗi, không failed**, vì subagent không dừng được giữa chừng; ngân sách b-do vẫn chặn bước sau.
+4. **Giá cache để 0 ⇒ suy từ giá input (1,25 lần / 0,1 lần)**, vì cấu hình khoá nào cũng phải có giá trị số; bảng dựng sẵn luôn ghi đủ (tỉ lệ cache thật khác
+   nhau theo model, ví dụ Opus 5.5 / Sonnet 5.5 đọc cache 0,05 lần). Bậc giá dài (prompt > 100 nghìn token) chỉ có ở bảng dựng sẵn (Haiku 5.5), cấu hình chỉ một bậc.
+5. **`disallowedTools` gồm cả `MultiEdit`** (kế hoạch ghi `Edit, Write, NotebookEdit`) cho khớp `ClaudeWorkflowArgs` và hook.
+6. **`description` của subagent đặt trong nháy kép**: câu mô tả có dấu hai chấm làm frontmatter YAML sai (kiểm thử `TestSubagentFilesDefaultConfig` bắt được).
+7. **Skill b-do khuyên `--shared` cho driver session** khi chưa có lý do khác, vì rào chắn đường dẫn worktree thuộc G4.
+
+**Chưa kiểm được / rủi ro còn lại:**
+- **Chưa chạy thật bằng Claude Code** (việc người làm): (a) thứ tự `SubagentStop` so với kết quả công cụ Agent (giả định nó tới trước `complete`; sai thì chi phí
+  unknown + ghi chú, không sai số); (b) hook `deny` và `Bash(<mẫu>)` dưới `bypassPermissions` (spike S1/S3 chưa thử); (c) `maxTurns` trong frontmatter có được Claude Code
+  áp không; (d) `/b-do --subagent <việc nhỏ>` tới `done` và spool có `agent_id` ghép được với `run_id` (nghiệm thu 6.8 còn lại).
+- **Guardrail khớp lệnh bảo thủ** có thể chặn nhầm lệnh chỉ đọc hợp lệ có pipe/`&&`: phát hiện qua `guardrail.triggered` trong spool; sửa bằng thêm mẫu vào
+  `readonly_tools` hoặc viết lại lệnh. `git <lệnh> -c core.pager=…`/`--ext-diff` và các cờ ghi tệp khác ngoài `--output` chưa bị chặn riêng (lớp kiểm sau là ảnh chụp trước/sau).
+- Tín hiệu theo lượt (`run_signals`, ví dụ kết quả test từ hook của subagent) **không** chuyển sang lượt con khi ghép.
+- Người đã cài hook bản cũ phải chạy lại `bint init` để có `SubagentStop` (doctor báo); không có hook ⇒ chi phí unknown. `.bint/config.yml` của repo này vẫn theo mẫu cũ
+  (doctor gợi ý `bint init --update`), không đụng vì ngoài phạm vi.
+- Giá model có thể đổi: bảng dựng sẵn ghi ngày; ghi đè bằng `harnesses.claude.pricing`.
+
+**Kiểm thử đã thêm:** `hookcore` (`readonly_test.go` bảng khớp lệnh, `normalize_test.go`), `internal/app/subagent_hook_test.go` (guardrail qua hook thật: deny + sự kiện, lệnh khớp, agent_type khác,
+Edit/Write/NotebookEdit của planner, Dialect không hỗ trợ, không mở SQLite; `SubagentStop` + tệp runtime), `subagent_install_test.go` (init/sync/xung đột/nhật ký ghi), `claude`
+(`subagent_usage_test.go`: dòng lặp `message.id`, model không giá, giá ghi đè, hậu tố ngày, bậc giá dài; `install_test.go`: nhóm `SubagentStop`), `harness/subagents_test.go`,
+`runlog/agents_test.go` (hai thứ tự nạp), `workflow/session_cost_test.go` (chi phí từ transcript thật, unknown ba nguyên nhân, model không giá, vượt `max_cost_usd` bước, ngân sách b-do
+cộng dồn và `next` blocked, `next` khớp định nghĩa subagent), `config` (`TestClaudePricingDefaultsAndValidate`), `skills` (`TestBDoDriverSessionBranch`).
+
+**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 1387 test qua (66 gói), 0 lỗi; `go vet ./...` và `GOOS=windows go vet ./...` sạch; `staticcheck ./...` và
+`GOOS=windows staticcheck ./...` sạch; `go test -race -count=1` cho `runlog`, `harness/...`, `skills` và `workflow` (`Session|Lease`) qua; `bint doctor` không báo skill hay subagent lệch.

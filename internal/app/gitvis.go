@@ -76,7 +76,18 @@ func bintPaths(root string, enabled []string, hookFiles []string) []string {
 			set[t.Dir+"/"+s.Name+"/"] = true
 		}
 	}
+	if slices.Contains(enabled, "claude") {
+		// Định nghĩa subagent: từng tệp (thư mục .claude/agents còn chứa subagent của người dùng nên không loại cả thư mục).
+		for _, role := range harness.Roles {
+			set[harness.SubagentDir+"/"+harness.SubagentName(role)+".md"] = true
+		}
+	}
 	if l, err := skills.ReadLock(root); err == nil {
+		for _, e := range l.Agents {
+			for _, p := range e.Published {
+				set[filepath.ToSlash(p)] = true
+			}
+		}
 		for _, m := range []map[string]skills.LockEntry{l.Skills, l.Evolved} {
 			for _, e := range m {
 				for _, p := range e.Published {

@@ -148,3 +148,27 @@ func TestInstallAddsStopHook(t *testing.T) {
 		t.Fatal("bản cài cũ thiếu Stop không được coi là đủ")
 	}
 }
+
+// G3b: SubagentStop mang agent_id + transcript của subagent (chi phí driver session). Hook không có nhóm này (bản cài cũ)
+// được báo là chưa đủ.
+func TestInstallAddsSubagentStopHook(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.local.json")
+	if _, err := InstallHooks(p, "bint", t.TempDir(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(p)
+	var s struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(raw, &s); err != nil {
+		t.Fatal(err)
+	}
+	if g := s.Hooks["SubagentStop"]; len(g) != 1 || g[0].Matcher != "" {
+		t.Fatalf("SubagentStop phải có một nhóm không matcher: %+v", s.Hooks["SubagentStop"])
+	}
+	if ok, err := HooksInstalled(p); err != nil || !ok {
+		t.Fatalf("bản cài mới phải đủ: %v %v", ok, err)
+	}
+}

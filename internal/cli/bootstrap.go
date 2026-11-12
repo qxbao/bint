@@ -236,17 +236,21 @@ func printSkillInstall(w io.Writer, si app.SkillInstall) {
 		return
 	}
 	for _, o := range si.Outcomes {
+		kind := "skill"
+		if o.Agent {
+			kind = "subagent"
+		}
 		switch o.Result {
 		case fsafe.Conflict:
-			fmt.Fprintf(w, "✗ skill %s: %s — %s\n", o.Skill, o.Path, o.Detail)
+			fmt.Fprintf(w, "✗ %s %s: %s — %s\n", kind, o.Skill, o.Path, o.Detail)
 		case fsafe.Created:
-			fmt.Fprintf(w, "+ skill %s: %s\n", o.Skill, o.Path)
+			fmt.Fprintf(w, "+ %s %s: %s\n", kind, o.Skill, o.Path)
 		case fsafe.Updated:
-			fmt.Fprintf(w, "~ skill %s: %s (cập nhật)\n", o.Skill, o.Path)
+			fmt.Fprintf(w, "~ %s %s: %s (cập nhật)\n", kind, o.Skill, o.Path)
 		case fsafe.Removed:
-			fmt.Fprintf(w, "- skill %s: %s (%s)\n", o.Skill, o.Path, o.Detail)
+			fmt.Fprintf(w, "- %s %s: %s (%s)\n", kind, o.Skill, o.Path, o.Detail)
 		default:
-			fmt.Fprintf(w, "✓ skill %s: %s\n", o.Skill, o.Path)
+			fmt.Fprintf(w, "✓ %s %s: %s\n", kind, o.Skill, o.Path)
 		}
 	}
 }

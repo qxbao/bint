@@ -307,6 +307,19 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 			}
 		}
 	}
+	for _, a := range harness.SubagentFiles(cfg) {
+		st, err := skills.AgentStatus(root, a)
+		switch {
+		case err != nil:
+			r.add("subagent "+a.Name, LevelWarn, "%v", err)
+		case st == "missing":
+			r.add("subagent "+a.Name, LevelInfo, "chưa xuất bản (bint sync)")
+		case st == "differs":
+			r.add("subagent "+a.Name, LevelWarn, "%s khác bản của Bint (bị sửa tay, cấu hình model/max_turns đổi hoặc Bint đã nâng cấp): chạy `bint sync`", a.Rel)
+		default:
+			r.add("subagent "+a.Name, LevelOK, "%s", a.Rel)
+		}
+	}
 }
 
 // evolvedChecks kiểm tra toàn vẹn skill tiến hoá (P7): xung đột merge giữa hai thay đổi cùng

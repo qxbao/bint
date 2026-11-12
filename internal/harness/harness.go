@@ -455,7 +455,7 @@ func (Claude) UninstallHooks(path, backupDir string, now time.Time) (claude.Inst
 }
 func (Claude) HooksInstalled(path string) (bool, error) { return claude.HooksInstalled(path) }
 func (Claude) HookEvents() string {
-	return "SessionStart, SessionEnd, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop"
+	return "SessionStart, SessionEnd, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop, SubagentStop"
 }
 
 func (Claude) InstallMCP(req MCPRequest) (MCPResult, error) {

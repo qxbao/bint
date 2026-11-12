@@ -122,7 +122,7 @@ func AcquireLock(tasksDir, root, owner string, mode LockMode) (*Lock, error) {
 		if lerr != nil {
 			// Không biết có hợp đồng còn hạn hay không (mutex quá hạn, tệp hỏng): coi là đang bị giữ, không cấp khoá.
 			f.Close()
-			return nil, &lockedError{mode: mode, holders: []string{"hợp đồng thuê khoá không đọc được: " + lerr.Error()}}
+			return nil, &lockedError{mode: mode, holders: []string{"hợp đồng thuê khoá không đọc được: " + lerr.Error()}, cause: lerr}
 		}
 		if len(cs) > 0 {
 			f.Close()
@@ -139,6 +139,8 @@ func AcquireLock(tasksDir, root, owner string, mode LockMode) (*Lock, error) {
 type lockedError struct {
 	mode    LockMode
 	holders []string
+	// cause là lỗi gốc khi khoá bị coi là đang giữ vì không đọc được hợp đồng thuê (errLeaseUnreadable); nil với chủ khoá thật.
+	cause error
 }
 
 func (e *lockedError) Error() string {
@@ -153,6 +155,8 @@ func (e *lockedError) Error() string {
 }
 
 func (e *lockedError) Is(target error) bool { return target == ErrLocked }
+
+func (e *lockedError) Unwrap() error { return e.cause }
 
 // WaitOptions điều khiển WaitLock.
 type WaitOptions struct {

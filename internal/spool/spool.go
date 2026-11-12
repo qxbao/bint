@@ -43,6 +43,10 @@ const (
 	// Chỉ ghi khi guardrail thực sự kích hoạt; ingest lưu như sự kiện thường, không có
 	// hiệu ứng riêng lên lượt chạy.
 	GuardrailTriggered = "guardrail.triggered"
+	// G3b: subagent của Claude Code dừng (SubagentStop). payload: agent_id, agent_type, agent_transcript_path (nguồn
+	// token để tính chi phí của bước driver session, docs/isolation-subagent-plan.md mục 6.6). Chỉ harness có sự kiện
+	// này mới cung cấp; ingest lưu như sự kiện thường.
+	SubagentStopped = "subagent.stopped"
 
 	// P3: Context Engine (mục 9.7). payload.ids là danh sách ID tri thức.
 	ContextRetrieved    = "context.retrieved"

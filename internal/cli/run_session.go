@@ -79,6 +79,9 @@ func printSessionAction(w io.Writer, a *workflow.SessionAction) {
 }
 
 func finishSession(stdio IO, asJSON bool, a *workflow.SessionAction) error {
+	if a == nil { // phòng thủ: lõi không được trả hành động rỗng, nhưng CLI không được panic nếu lỗi đó tái phát
+		return withCode(ExitError, fmt.Errorf("lõi không trả hành động nào (lỗi nội bộ); chạy lại bint run next"))
+	}
 	if asJSON {
 		if err := writeJSON(stdio.Out, a); err != nil {
 			return err
@@ -141,8 +144,9 @@ func newRunCompleteCmd(stdio IO) *cobra.Command {
 không sửa cây làm việc, phạm vi và đường dẫn bảo vệ, kiểm chứng sau b-feat, tài liệu của b-req, quyết định sau review
 (vòng sửa / dừng ở workflow.max_review_rounds / finalize). Gỡ bước dở và hợp đồng thuê khoá.
 
---run phải khớp run_id của bước đang dở (sai ⇒ lỗi, không đổi gì). --agent-id là agentId của kết quả công cụ Agent
-(chỉ lưu vào lượt chạy). --failed "<lý do>" báo subagent thất bại: bước bị đánh failed.
+--run phải khớp run_id của bước đang dở (sai ⇒ lỗi, không đổi gì). --agent-id là agentId của kết quả công cụ Agent:
+Bint ghép sự kiện hook của subagent vào lượt chạy của bước và tính chi phí từ transcript của nó (cost_usd null = chưa
+biết; thiếu --agent-id thì chi phí unknown). Chi phí cộng dồn vào ngân sách limits.workflows.b-do. --failed "<lý do>" báo subagent thất bại: bước bị đánh failed.
 
 Kết quả JSON có "result" (kết quả bước). Tác vụ còn tiếp tục thì không có "action": gọi bint run next. Dừng thì "action" là
 done | blocked | failed (blocked/failed có mã thoát 1). Có thể chạy lâu (kiểm chứng chạy trong lệnh này): chạy nền nếu

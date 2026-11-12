@@ -10,12 +10,12 @@ skills:
     variants:
       agents: a9fa9899d0d8addc
   b-do:
-    sha256: 8ffe57a5a9435c61
+    sha256: 0024ad132d7f99b3
     published:
       - .agents/skills/b-do/SKILL.md
       - .claude/skills/b-do/SKILL.md
     variants:
-      agents: 5578066bdd0f0c5a
+      agents: 92436bf99add03cf
   b-feat:
     sha256: 002a2d0ac0e217f9
     published:
@@ -44,3 +44,16 @@ skills:
       - .claude/skills/b-review/SKILL.md
     variants:
       agents: 51912caf7e1d8af1
+agents:
+  bint-implementer:
+    sha256: fd8defcbac09cb40
+    published:
+      - .claude/agents/bint-implementer.md
+  bint-planner:
+    sha256: 5f77b4e3e7c26a9c
+    published:
+      - .claude/agents/bint-planner.md
+  bint-reviewer:
+    sha256: 1786ada6b869e98c
+    published:
+      - .claude/agents/bint-reviewer.md

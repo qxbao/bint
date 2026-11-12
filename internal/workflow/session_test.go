@@ -341,6 +341,41 @@ func TestSessionAbortClearsPendingAndLease(t *testing.T) {
 	}
 }
 
+// Lỗi low của review G3a: abort b-feat khi tệp hợp đồng thuê hỏng — AcquireLock bị chặn bởi chính tệp hỏng nên trước đây
+// Touched mất. Nay abort gỡ tệp hỏng (đường khôi phục của người), lấy lại khoá và ghi tệp subagent đã sửa.
+func TestSessionAbortWithCorruptLeaseFileStillRecordsTouched(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	a1, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a1.Action != ActionAgent || a1.Step != StepFeat {
+		t.Fatal(a1, err)
+	}
+	h.write("app.txt", "dở dang\n")
+	if err := os.WriteFile(h.leaseFile(tk.State.ID), []byte("{hỏng"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Abort(ctx, tk.State.ID, "orchestrator chết")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := loadTask(t, h, tk.State.ID)
+	if got.State.PendingStep != nil || got.State.Status != task.StatusInterrupted {
+		t.Fatalf("sau abort: %+v", got.State)
+	}
+	if !slices.Contains(got.State.Touched, "app.txt") {
+		t.Fatalf("Touched phải ghi tệp subagent đã sửa dù tệp hợp đồng hỏng: %v (ghi chú %v)", got.State.Touched, res.Notes)
+	}
+	if _, err := os.Stat(h.leaseFile(tk.State.ID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("tệp hợp đồng hỏng phải bị xoá: %v", err)
+	}
+	// Khoá bận vì chủ KHÁC (không phải tệp hỏng) không được khớp sentinel: abort chỉ ghi chú, không xoá hợp đồng của chủ đó.
+	if errors.Is(&lockedError{holders: []string{"x"}}, errLeaseUnreadable) {
+		t.Fatal("lockedError không có cause không được khớp errLeaseUnreadable")
+	}
+}
+
 // Role gán harness khác Claude ⇒ next trả action process kèm lệnh bint run của đúng bước; các bước khác vẫn bằng
 // subagent; next đi tiếp sau bước chạy bằng tiến trình, không review lặp.
 func TestSessionProcessActionForOtherHarness(t *testing.T) {
@@ -618,6 +653,53 @@ func TestSessionCompleteRetriesAfterInterruption(t *testing.T) {
 	}
 	if _, err := os.Stat(h.leaseFile(tk.State.ID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("hợp đồng thuê còn sót: %v", err)
+	}
+}
+
+// Lỗi low của review G3a: bước còn hạn lúc claimSession kiểm nhưng hết hạn ngay trước pendingAction ⇒ trước đây Next trả
+// (nil, nil) và CLI panic. Nay nhận quyền lại một lần, đóng bước như hết hạn và trả hành động dừng.
+func TestSessionNextNeverReturnsNilWhenLeaseExpiresMidway(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	id := tk.State.ID
+	ctx := context.Background()
+	var first *SessionAction
+	var firstErr error
+	var armed bool
+	var calls int
+	old := leaseNow
+	leaseNow = func() time.Time {
+		if !armed {
+			return time.Now()
+		}
+		calls++
+		if calls == 1 { // lần kiểm trong closure của claimSession: còn hạn
+			return time.Now()
+		}
+		return time.Now().Add(1000 * time.Hour) // pendingAction và lần nhận quyền thứ hai: đã hết hạn
+	}
+	t.Cleanup(func() { leaseNow = old; nextAfterLoad = nil })
+	nextAfterLoad = func() {
+		nextAfterLoad = nil
+		first, firstErr = h.runner().Next(ctx, NextOptions{TaskRef: id})
+		armed = true
+	}
+	second, err := h.runner().Next(ctx, NextOptions{TaskRef: id})
+	if firstErr != nil || first == nil || first.Action != ActionAgent {
+		t.Fatalf("next thứ nhất: %+v %v", first, firstErr)
+	}
+	if err == nil && second == nil {
+		t.Fatal("Next trả (nil, nil)")
+	}
+	if err != nil {
+		t.Fatalf("Next lỗi: %v", err)
+	}
+	if second.Action == "" {
+		t.Fatalf("hành động rỗng: %+v", second)
+	}
+	if got := loadTask(t, h, id); got.State.PendingStep != nil {
+		t.Fatalf("bước hết hạn phải được đóng: %+v", got.State.PendingStep)
 	}
 }
 

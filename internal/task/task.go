@@ -347,6 +347,18 @@ type State struct {
 	// AgentRuns ánh xạ agent_id của subagent (do `complete --agent-id` ghi) sang lượt chạy của bước, để nạp
 	// spool gắn sự kiện của subagent vào đúng lượt.
 	AgentRuns []AgentRun `json:"agent_runs,omitempty"`
+	// SessionSpend cộng dồn chi phí/số lượt của các bước subagent trong lượt cha SessionRun, để ngân sách
+	// limits.workflows.b-do (chi phí, lượt) được kiểm qua nhiều lệnh `bint run complete`/`next` (mỗi lệnh là một tiến trình).
+	SessionSpend *SessionSpend `json:"session_spend,omitempty"`
+}
+
+// SessionSpend là phần ngân sách b-do đã dùng trong một lượt cha của driver session.
+type SessionSpend struct {
+	RunID string  `json:"run_id"` // lượt cha; lượt cha mới (sau resume) bắt đầu từ 0
+	Cost  float64 `json:"cost_usd"`
+	// CostUnknown: có bước chạy xong mà không biết chi phí (không có transcript hoặc model không có giá).
+	CostUnknown bool  `json:"cost_unknown,omitempty"`
+	Turns       int64 `json:"turns"`
 }
 
 // PendingStep là nửa giữa của một bước chạy bằng subagent: mọi thứ `complete` cần để làm nửa sau của bước

@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -125,6 +127,18 @@ func (m RoleModels) For(role string) string {
 // ClaudeHarness là phần cấu hình riêng của Claude Code dưới harnesses.claude.
 type ClaudeHarness struct {
 	Models RoleModels `yaml:"models"`
+	// Pricing: giá theo model (khoá = id model, ví dụ claude-sonnet-5-5) ghi đè bảng giá dựng sẵn khi tính chi phí bước
+	// chạy bằng subagent của driver session (docs/isolation-subagent-plan.md mục 6.6). Rỗng = chỉ dùng bảng dựng sẵn.
+	Pricing map[string]ModelPrice `yaml:"pricing"`
+}
+
+// ModelPrice là giá một model, USD cho mỗi triệu token. Giá cache để 0 thì suy từ giá input (ghi bộ nhớ đệm 1,25 lần,
+// đọc 0,1 lần); đặt rõ khi model có tỉ lệ khác.
+type ModelPrice struct {
+	InputUSDPerMTok      float64 `yaml:"input_usd_per_mtok"`
+	OutputUSDPerMTok     float64 `yaml:"output_usd_per_mtok"`
+	CacheWriteUSDPerMTok float64 `yaml:"cache_write_usd_per_mtok"`
+	CacheReadUSDPerMTok  float64 `yaml:"cache_read_usd_per_mtok"`
 }
 
 // Models trả về bảng model theo role của harness name.
@@ -473,7 +487,7 @@ func Default() Config {
 		Harnesses: Harnesses{
 			Enabled:     []string{"claude"},
 			Default:     "claude",
-			Claude:      ClaudeHarness{Models: DefaultRoleModels("claude")},
+			Claude:      ClaudeHarness{Models: DefaultRoleModels("claude"), Pricing: map[string]ModelPrice{}},
 			Codex:       HarnessAgent{ExtraArgs: []string{}, Models: DefaultRoleModels("codex")},
 			Antigravity: HarnessAgent{ExtraArgs: []string{}, Models: DefaultRoleModels("antigravity")},
 		},
@@ -722,6 +736,24 @@ func (c Config) Validate() error {
 			if v := m.For(role); v != strings.TrimSpace(v) || strings.ContainsAny(v, " \t\n") {
 				add("harnesses.%s.models.%s: tên model không được chứa khoảng trắng (%q)", h, role, v)
 			}
+		}
+	}
+	for _, id := range slices.Sorted(maps.Keys(c.Harnesses.Claude.Pricing)) {
+		p := c.Harnesses.Claude.Pricing[id]
+		if id == "" || id != strings.TrimSpace(id) || strings.ContainsAny(id, " \t\n") {
+			add("harnesses.claude.pricing: id model không được rỗng hay chứa khoảng trắng (%q)", id)
+		}
+		for _, f := range []struct {
+			name string
+			v    float64
+		}{{"input_usd_per_mtok", p.InputUSDPerMTok}, {"output_usd_per_mtok", p.OutputUSDPerMTok},
+			{"cache_write_usd_per_mtok", p.CacheWriteUSDPerMTok}, {"cache_read_usd_per_mtok", p.CacheReadUSDPerMTok}} {
+			if f.v < 0 || math.IsNaN(f.v) || math.IsInf(f.v, 0) {
+				add("harnesses.claude.pricing.%s.%s: phải là số không âm", id, f.name)
+			}
+		}
+		if p.InputUSDPerMTok == 0 && p.OutputUSDPerMTok == 0 {
+			add("harnesses.claude.pricing.%s: cần input_usd_per_mtok và output_usd_per_mtok", id)
 		}
 	}
 	if c.Context.MaxTokens <= 0 {

@@ -12,6 +12,7 @@ import (
 	"bint/internal/fsafe"
 	"bint/internal/hcomp"
 	"bint/internal/knowledge"
+	"bint/internal/harness"
 	"bint/internal/skills"
 	"bint/internal/state"
 	"bint/internal/workflow"
@@ -170,8 +171,15 @@ func (w *repoWriter) InstallSkills(opts skills.InstallOptions) ([]skills.Outcome
 	lock := filepath.Join(opts.Root, filepath.FromSlash(skills.LockRel))
 	before := map[string]string{lock: workflow.HashFile(lock)}
 	var dirs []string
+	scan := []string{}
 	for _, t := range opts.Targets {
-		dir := filepath.Join(opts.Root, filepath.FromSlash(t.Dir))
+		scan = append(scan, t.Dir)
+	}
+	if len(opts.Agents) > 0 {
+		scan = append(scan, harness.SubagentDir) // định nghĩa subagent (.claude/agents) cũng là tệp do Bint ghi
+	}
+	for _, rel := range scan {
+		dir := filepath.Join(opts.Root, filepath.FromSlash(rel))
 		dirs = append(dirs, dir)
 		filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 			if err == nil && d.Type().IsRegular() {

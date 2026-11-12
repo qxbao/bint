@@ -45,6 +45,8 @@ const (
 	// EvStop: agent định kết thúc lượt trả lời (Stop của Claude Code). Chỉ harness có sự kiện
 	// này mới có; harness khác không được giả lập bằng sự kiện khác (mục 13.2).
 	EvStop = "stop"
+	// EvSubagentStop: subagent kết thúc (SubagentStop của Claude Code); mang agent_id và đường dẫn transcript của nó.
+	EvSubagentStop = "subagent_stop"
 )
 
 // SourceCompact là nguồn SessionStart sau khi harness nén ngữ cảnh của phiên đang chạy.
@@ -66,6 +68,10 @@ type Input struct {
 	ToolUseID    string
 	ToolResponse string
 	AgentType    string
+	// AgentID: định danh subagent đang gọi công cụ (rỗng ở phiên chính). AgentTranscriptPath: transcript của subagent
+	// (EvSubagentStop). Dùng để ghép sự kiện của subagent vào lượt chạy (mục 6.5) và tính chi phí (mục 6.6).
+	AgentID             string
+	AgentTranscriptPath string
 	// Prompt: nội dung yêu cầu (EvPrompt).
 	Prompt string
 	// TranscriptPath: tệp transcript của phiên (nếu harness cung cấp ở SessionEnd).
@@ -128,6 +134,9 @@ type Dialect struct {
 	// bị hạ xuống mức gần nhất được hỗ trợ (hcomp.Caps.Degrade).
 	PreToolDecisions []string
 	RemindPreTool    bool
+	// SubagentReadonly: harness gửi agent_type cho công cụ của subagent và áp quyết định deny của PreToolUse cho cả
+	// subagent, nên guardrail chỉ đọc dựng sẵn (readonly.go) có hiệu lực. Harness không có agent_type thì để false.
+	SubagentReadonly bool
 	PreToolDecide    func(text, decision, reason string) string
 	StopOutput       func(reason string) string
 }
@@ -213,6 +222,9 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 	}
 	if hi.AgentType != "" {
 		ev.Payload["agent_type"] = hi.AgentType
+	}
+	if hi.AgentID != "" {
+		ev.Payload["agent_id"] = hi.AgentID
 	}
 	// Lượt chạy do `bint run` điều phối: sự kiện thuộc về lượt đó (mục 9.2).
 	if id := strings.TrimSpace(os.Getenv(EnvRunID)); id != "" {
@@ -309,8 +321,44 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			return Result{}, err
 		}
 		return Result{Written: true, SpoolFile: f, Output: d.PromptOutput(pack.Render())}, nil
+	case EvSubagentStop:
+		// Subagent kết thúc: ghi agent_id + đường dẫn transcript (nguồn token của driver session, mục 6.6). Harness không
+		// gửi agent_id thì không có gì để ghi (không giả lập).
+		if hi.AgentID == "" {
+			return Result{Skipped: "SubagentStop không có agent_id"}, nil
+		}
+		ev.Type = spool.SubagentStopped
+		if hi.AgentTranscriptPath != "" {
+			ev.Payload["agent_transcript_path"] = hi.AgentTranscriptPath
+		}
+		ev.EventID = EventID(h, hi.SessionID, hi.RawEvent, hi.AgentID)
+		// Lỗi ghi tệp runtime bị bỏ qua: sự kiện trong spool vẫn là bản ghi chính (workflow có đường dự phòng).
+		_ = WriteSubagentRecord(paths.Runtime, SubagentRecord{AgentID: hi.AgentID, AgentType: hi.AgentType,
+			TranscriptPath: hi.AgentTranscriptPath, At: now.Format(time.RFC3339)})
 	case EvPreTool:
 		info := d.Classify(hi.ToolName, hi.ToolInput)
+		// Guardrail chỉ đọc dựng sẵn cho subagent planner/reviewer (mục 6.4a): chạy trước mọi việc khác của nhánh này.
+		if d.SubagentReadonly && d.PreToolDecide != nil {
+			if deny, reason := readonlyDecision(hi.AgentType, hi.ToolName, info, cfg.Workflow.Agent.ReadonlyTools); deny {
+				on := hcomp.OnPreBash
+				if info.Kind == ToolEdit {
+					on = hcomp.OnPreEdit
+				}
+				ge := ev
+				ge.Type = spool.GuardrailTriggered
+				ge.Payload = map[string]any{"guardrail": GuardrailReadonly, "outcome": "fired", "on": on, "action": hcomp.ActDeny,
+					"requested": hcomp.ActDeny, "blocked": true, "agent_type": hi.AgentType, "tool": hi.ToolName}
+				if hi.AgentID != "" {
+					ge.Payload["agent_id"] = hi.AgentID
+				}
+				if info.Kind == ToolShell {
+					ge.Payload["command"] = detect.Redact(info.Command, 300)
+				}
+				ge.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), "guardrail", GuardrailReadonly, "fired", on)
+				f, _ := spool.Write(paths.Spool, ge) // lỗi ghi spool không được làm mất quyết định deny
+				return Result{Written: f != "", SpoolFile: f, Output: d.PreToolDecide("", hcomp.ActDeny, reason)}, nil
+			}
+		}
 		if info.Kind == ToolShell {
 			// Ảnh chụp working tree trước lệnh shell, để phát hiện tệp lệnh đó sửa (PostTool).
 			sctx, cancel := context.WithTimeout(ctx, snapTimeout(cfg.Context.PathHookTimeoutMS))
@@ -882,14 +930,16 @@ type ClaudeStyleInput struct {
 	AgentID        string          `json:"agent_id"`
 	AgentType      string          `json:"agent_type"`
 	TranscriptPath string          `json:"transcript_path"`
-	StopHookActive bool            `json:"stop_hook_active"`
+	// AgentTranscriptPath: transcript của subagent (SubagentStop).
+	AgentTranscriptPath string `json:"agent_transcript_path"`
+	StopHookActive      bool   `json:"stop_hook_active"`
 }
 
 // claudeEvents ánh xạ hook_event_name kiểu Claude Code sang loại chuẩn hoá.
 var claudeEvents = map[string]string{
 	"SessionStart": EvSessionStart, "SessionEnd": EvSessionEnd, "PreToolUse": EvPreTool,
 	"PostToolUse": EvPostTool, "PostToolUseFailure": EvPostToolFailure,
-	"UserPromptSubmit": EvPrompt, "Stop": EvStop,
+	"UserPromptSubmit": EvPrompt, "Stop": EvStop, "SubagentStop": EvSubagentStop,
 }
 
 // NormalizeClaudeStyle chuyển payload kiểu Claude Code về Input.
@@ -900,8 +950,8 @@ func NormalizeClaudeStyle(raw []byte) (Input, error) {
 	}
 	in := Input{SessionID: ci.SessionID, Cwd: ci.Cwd, RawEvent: ci.HookEventName, Event: claudeEvents[ci.HookEventName],
 		Source: ci.Source, Reason: ci.Reason, Model: ModelName(ci.Model), ToolName: ci.ToolName, ToolUseID: ci.ToolUseID,
-		ToolResponse: RawText(ci.ToolResponse), AgentType: ci.AgentType, TranscriptPath: ci.TranscriptPath, Prompt: ci.Prompt,
-		StopHookActive: ci.StopHookActive}
+		ToolResponse: RawText(ci.ToolResponse), AgentType: ci.AgentType, AgentID: ci.AgentID, AgentTranscriptPath: ci.AgentTranscriptPath,
+		TranscriptPath: ci.TranscriptPath, Prompt: ci.Prompt, StopHookActive: ci.StopHookActive}
 	if ci.HookEventName != "" && in.Event == "" {
 		in.Event = "other"
 	}

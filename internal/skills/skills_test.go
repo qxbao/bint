@@ -166,3 +166,29 @@ func TestCoreSkillsMentionWorktreeIsolation(t *testing.T) {
 		}
 	}
 }
+
+// G3b (docs/isolation-subagent-plan.md 6.7): b-do có nhánh driver session — vòng next → Agent → complete --agent-id, action
+// process chạy nền, blocked kèm lệnh complete, không có công cụ Agent thì dùng driver process; ranh giới tin cậy giữ nguyên.
+func TestBDoDriverSessionBranch(t *testing.T) {
+	b, ok := Get("b-do")
+	if !ok {
+		t.Fatal("thiếu b-do")
+	}
+	body := b.Body()
+	for _, want := range []string{"--driver session", "bint run next <id> --json --no-wait", "bint run complete <id> --run <run_id> --agent-id <agentId> --json",
+		"--failed", "action: \"process\"", "action: \"blocked\"", "driver process", "bint run abort <id>", "subagent_type", "công cụ Agent",
+		"**không tự làm**", "không tự sửa mã, không `bint task approve`"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("b-do thiếu %q", want)
+		}
+	}
+	if !strings.Contains(string(b.Content), "dùng subagent") {
+		t.Error("description phải nhắc kích hoạt bằng 'dùng subagent'")
+	}
+	// Mọi bản xuất bản (Claude và .agents) mang cùng nhánh.
+	for _, tg := range []Target{ClaudeTarget, AgentsTarget} {
+		if !strings.Contains(ForTarget(b, tg).Body(), "Bước 2b") {
+			t.Errorf("%s thiếu Bước 2b", tg.Dir)
+		}
+	}
+}

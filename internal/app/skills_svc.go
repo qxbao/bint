@@ -395,6 +395,12 @@ func PlanSync(ctx context.Context, dir, version string, o SyncOptions) (SyncPlan
 			return SyncPlan{}, err
 		}
 	}
+	agents := harness.SubagentFiles(k.Config)
+	if len(agents) > 0 {
+		if err := copyTree(filepath.Join(k.Root, filepath.FromSlash(harness.SubagentDir)), filepath.Join(root, filepath.FromSlash(harness.SubagentDir))); err != nil {
+			return SyncPlan{}, err
+		}
+	}
 	manifest := filepath.Join(tmp, "manifest.json")
 	if data, err := os.ReadFile(k.Paths.Manifest); err == nil {
 		if err := os.WriteFile(manifest, data, 0o644); err != nil {
@@ -406,7 +412,7 @@ func PlanSync(ctx context.Context, dir, version string, o SyncOptions) (SyncPlan
 		return SyncPlan{}, err
 	}
 	outs, err := skills.Install(skills.InstallOptions{Root: root, Targets: targets, BintVersion: version, Force: o.Force,
-		BackupDir: filepath.Join(tmp, "backups"), Manifest: m, Now: time.Now(), Files: k.Source().Files()})
+		BackupDir: filepath.Join(tmp, "backups"), Manifest: m, Now: time.Now(), Files: k.Source().Files(), Agents: agents})
 	if err != nil {
 		return SyncPlan{}, err
 	}

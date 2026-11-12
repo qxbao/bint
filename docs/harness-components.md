@@ -49,6 +49,14 @@ ghi `guardrail.triggered` vào spool. `remind` chèn ngữ cảnh (ở `stop`: c
 thì hành động bị hạ theo thứ tự deny → ask → remind → bỏ (xem bảng năng lực tại [workflows.md](workflows.md#multi-harness-p5)). **Hook `Stop` mới:** repo
 đã cài hook bản cũ cần chạy lại `bint init` (`bint doctor` báo thiếu hook cho tới lúc đó).
 
+**Guardrail dựng sẵn `bint-readonly` (driver session, G3b).** Ngoài luật `.bint/harness`, hook của Claude Code có sẵn một
+guardrail không cần khai báo: `PreToolUse` của subagent `bint-planner` / `bint-reviewer` (nhận biết bằng `agent_type`) trả `deny`
+cho Edit/Write/MultiEdit/NotebookEdit và cho lệnh Bash không khớp `workflow.agent.readonly_tools`, kèm lý do và sự kiện
+`guardrail.triggered` (`guardrail: bint-readonly`). Khác biệt giữa harness nằm ở `hookcore.Dialect.SubagentReadonly` (Claude: có;
+Codex, Antigravity: không). Hook cài thêm `SubagentStop` (ghi `subagent.stopped` với `agent_id` và `agent_transcript_path`, và tệp
+`runtime/subagents/<agent_id>.json`) để tính chi phí subagent; repo cài hook bản cũ chạy lại `bint init`. Chi tiết khớp lệnh và giới
+hạn: [workflows.md](workflows.md#driver-session).
+
 **Đo trong eval:** nhánh `bint` dùng tập thành phần đang hiệu lực; guidance dựng sẵn `bint-mcp-tools`
 thay đoạn ghi chú MCP cũ **đúng từng byte** (repo không có `.bint/harness` thì nhánh `bint` y hệt trước).
 Biến thể `bint@harness=off` (chỉ bản dựng sẵn) | `on` (mặc định: verified) | `all` (thêm candidate), ví dụ

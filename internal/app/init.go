@@ -460,13 +460,16 @@ func installSkills(rep *InitReport, w *repoWriter, root string, cfg config.Confi
 	}
 	outs, err := w.InstallSkills(skills.InstallOptions{
 		Root: root, Targets: targets, BintVersion: version, Force: force,
-		BackupDir: paths.Backups, Manifest: m, Now: now,
+		BackupDir: paths.Backups, Manifest: m, Now: now, Agents: harness.SubagentFiles(cfg),
 	})
 	if err != nil {
 		return err
 	}
 	for _, o := range outs {
 		name := "skill " + o.Skill
+		if o.Agent {
+			name = "subagent " + o.Skill
+		}
 		switch o.Result {
 		case fsafe.Created:
 			rep.add(name, StepCreated, "%s", o.Path)

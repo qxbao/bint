@@ -222,3 +222,43 @@ func TestWorkflowDriverDefaultsAndValidate(t *testing.T) {
 		t.Fatalf("thiếu khoá driver phải về mặc định, được %q", cfg.Workflow.Driver)
 	}
 }
+
+func TestClaudePricingDefaultsAndValidate(t *testing.T) {
+	c := Default()
+	if c.Harnesses.Claude.Pricing == nil || len(c.Harnesses.Claude.Pricing) != 0 {
+		t.Fatalf("mặc định phải là bảng rỗng: %#v", c.Harnesses.Claude.Pricing)
+	}
+	c.Harnesses.Claude.Pricing = map[string]ModelPrice{"claude-x-1": {InputUSDPerMTok: 2, OutputUSDPerMTok: 10}}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("giá hợp lệ bị từ chối: %v", err)
+	}
+	for name, mut := range map[string]func(*Config){
+		"giá âm": func(c *Config) {
+			c.Harnesses.Claude.Pricing["claude-x-1"] = ModelPrice{InputUSDPerMTok: -1, OutputUSDPerMTok: 10}
+		},
+		"cache âm": func(c *Config) {
+			c.Harnesses.Claude.Pricing["claude-x-1"] = ModelPrice{InputUSDPerMTok: 1, OutputUSDPerMTok: 2, CacheReadUSDPerMTok: -0.1}
+		},
+		"khoá rỗng": func(c *Config) { c.Harnesses.Claude.Pricing[""] = ModelPrice{InputUSDPerMTok: 1, OutputUSDPerMTok: 2} },
+		"khoá có cách": func(c *Config) {
+			c.Harnesses.Claude.Pricing["claude x"] = ModelPrice{InputUSDPerMTok: 1, OutputUSDPerMTok: 2}
+		},
+		"thiếu giá": func(c *Config) { c.Harnesses.Claude.Pricing["claude-x-1"] = ModelPrice{} },
+	} {
+		cc := Default()
+		cc.Harnesses.Claude.Pricing = map[string]ModelPrice{"claude-x-1": {InputUSDPerMTok: 2, OutputUSDPerMTok: 10}}
+		mut(&cc)
+		if err := cc.Validate(); err == nil || !strings.Contains(err.Error(), "pricing") {
+			t.Errorf("%s: muốn lỗi nhắc pricing, được %v", name, err)
+		}
+	}
+	// Khoá nạp từ YAML.
+	var cfg Config
+	y := strings.Replace(Render(InitParams{ProjectName: "p"}), "    pricing: {}", "    pricing:\n      claude-y-2: { input_usd_per_mtok: 1, output_usd_per_mtok: 5 }", 1)
+	if err := Decode(strings.NewReader(y), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Harnesses.Claude.Pricing["claude-y-2"]; got.InputUSDPerMTok != 1 || got.OutputUSDPerMTok != 5 {
+		t.Fatalf("pricing nạp từ YAML: %+v", cfg.Harnesses.Claude.Pricing)
+	}
+}
