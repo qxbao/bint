@@ -237,6 +237,11 @@ có đủ trường `yaml`, `Default()`, `Validate()` và dòng có chú thích 
 
 ## 6. G3 — Driver session (b-do chạy các bước bằng subagent)
 
+Cập nhật 2026-11-12 theo kết quả spike (mục 12.9): `tools: Bash(<mẫu>)` của subagent không giới hạn lệnh (S1), nên
+guardrail chỉ đọc chuyển từ G4 vào G3 (mục 6.4a); ghép lượt chạy bằng `--agent-id` thay cho `bint run attach` (6.5); nguồn
+token là `agent_transcript_path` của `SubagentStop` (6.6). G3 làm thành hai phiếu: **G3a** = 6.1–6.3 (tách Runner, `next`/
+`complete`/`abort`, hợp đồng thuê); **G3b** = 6.4–6.7 (định nghĩa subagent, guardrail, ghép sự kiện, chi phí, skill).
+
 ### 6.1. Luồng
 
 ```
@@ -248,7 +253,7 @@ có đủ trường `yaml`, `Default()`, `Validate()` và dòng có chú thích 
       | {action: "process", command: "bint run b-feat --task T1 --json"}   (role gán harness khác)
       | {action: "done" | "blocked" | "failed", reason, questions}
     Agent(subagent_type, model, prompt)                     ← chạy nền nếu được
-    bint run complete T1 --run <run_id> [--failed "<lý do>"] --json
+    bint run complete T1 --run <run_id> --agent-id <agentId của kết quả Agent> [--failed "<lý do>"] --json
       → Bint làm phần sau bước như bint run: kiểm chỉ đọc, scope, artifact, vòng review…
 ```
 
@@ -285,12 +290,23 @@ flock nhả khi `next` thoát, nên driver session không giữ được khoá h
 `bint-reviewer.md` (cơ chế cài và khoá phiên bản như skill gốc):
 
 - `tools`: theo `workflow.agent.allowed_tools` / `readonly_tools`; `disallowedTools: Edit, Write,
-  NotebookEdit` cho planner và reviewer.
+  NotebookEdit` cho planner và reviewer. Giới hạn mức công cụ (không có Edit/Write) là cứng; mẫu `Bash(...)` thì
+  **không** (S1): chỉ là luật cho phép, lệnh mà chế độ quyền của phiên cha tự duyệt vẫn chạy. Hàng rào thật là 6.4a.
 - `model`: theo `harnesses.claude.models.<role>` (rỗng ⇒ `inherit`). `next` cũng trả `model` để
   orchestrator truyền vào lời gọi Agent (tham số lời gọi được ưu tiên hơn frontmatter).
 - `maxTurns`: theo `limits.workflows.<bước>.max_turns`. Đây là trần cứng mỗi bước. Phần còn lại của
   ngân sách lượt cả b-do được kiểm giữa các bước (không truyền động được vào frontmatter).
 - Nội dung: vai trò ngắn, dẫn tới skill b-req/b-feat/b-review; prompt thật do `next` trả.
+
+### 6.4a. Guardrail chỉ đọc cho subagent (chuyển từ G4 do S1)
+
+- Guardrail dựng sẵn `pre_bash`: `PreToolUse` của Bash có `agent_type` là `bint-planner`/`bint-reviewer` ⇒ lệnh không
+  khớp `workflow.agent.readonly_tools` (mẫu `Bash(...)`) bị trả `deny` kèm lý do. Cùng guardrail trả `deny` cho Edit/Write/
+  NotebookEdit của hai subagent đó (phòng khi định nghĩa bị sửa). S3 đã xác nhận hook thấy `agent_type` và `deny` áp cho
+  subagent.
+- Hook chỉ đọc cấu hình đã nạp sẵn và trả quyết định: không lỗi, không SQLite, không mô hình [k:01M746NPTW1B304MRQQPBCAFAM];
+  khác biệt theo harness đặt trong `hookcore.Dialect` (harness không có `agent_type` thì guardrail không áp).
+- Mỗi lần chặn ghi sự kiện `guardrail.triggered` vào spool. Lớp kiểm sau vẫn còn: ảnh chụp trước/sau của bước chỉ đọc.
 
 ### 6.5. Gắn sự kiện vào lượt chạy (thay cho biến môi trường)
 
@@ -299,14 +315,19 @@ Subagent không có biến môi trường riêng (`BINT_RUN_ID`, `BINT_TASK_ID`,
 - Task ID nằm trong prompt; lệnh `bint task …` vốn nhận `<id>`.
 - `BINT_APPROVED_PATHS`: đọc từ trạng thái phiếu.
 - Thao tác chỉ-người vẫn bị chặn vì phiên cha có `CLAUDECODE=1`.
-- Lệnh đầu tiên trong prompt: `bint run attach <run_id>`. Hook thấy lệnh này kèm `agent_id`/`agent_type`
-  và chỉ ghi chúng vào spool như mọi sự kiện. Lúc nạp spool, Bint ghép `agent_id` ⇒ `run_id`, rồi gắn
-  các sự kiện cùng `agent_id` vào lượt đó. Thiếu `attach` ⇒ lượt vẫn hợp lệ, sự kiện không gắn được và
-  `complete` ghi chú việc này. Không suy đoán, không tạo sự kiện thay.
+- Ghép bằng `agent_id` (thay cho `bint run attach`, theo S2/S3): mọi sự kiện công cụ của subagent có `agent_id`; kết quả
+  công cụ Agent ở phiên cha có `agentId`. Orchestrator truyền nó cho `bint run complete … --agent-id <agentId>`; `complete`
+  ghi ánh xạ `agent_id ⇒ run_id` vào trạng thái lượt chạy, lúc nạp spool Bint gắn các sự kiện cùng `agent_id` vào lượt đó.
+  Hook chỉ ghi `agent_id`/`agent_type` (và `agent_transcript_path` của `SubagentStop`) vào spool như mọi sự kiện. Thiếu
+  `--agent-id` ⇒ lượt vẫn hợp lệ, sự kiện không gắn được và `complete` ghi chú việc này. Không suy đoán, không tạo sự kiện
+  thay.
 
 ### 6.6. Chi phí
 
-- `complete` tính token của bước từ transcript của subagent (nguồn cụ thể chốt ở S2, mục 8).
+- `complete` tính token của bước từ transcript của subagent (S2, mục 12.9): đường dẫn lấy từ `agent_transcript_path` của
+  `SubagentStop` trong spool (theo `agent_id`); cộng `message.usage` của các dòng assistant, khử trùng lặp theo
+  `message.id`; model lấy từ `message.model`. Không dùng `usage`/`totalTokens` của kết quả Agent (chỉ là lượt cuối).
+  Không tìm thấy transcript (phiên không lưu) ⇒ chi phí `unknown`.
 - Quy đổi USD cần bảng giá theo model. Hiện Bint chưa có bảng giá; thêm bảng dựng sẵn cho model Claude,
   ghi đè được bằng cấu hình. Model không có giá ⇒ chi phí `unknown`, dùng lại đường "không báo chi phí:
   max_cost_usd chỉ là chỉ dẫn" đã có.
@@ -328,6 +349,9 @@ Subagent không có biến môi trường riêng (`BINT_RUN_ID`, `BINT_TASK_ID`,
 - `next` gọi hai lần liên tiếp trả cùng bước; `complete` với `run_id` sai bị từ chối.
 - Hợp đồng thuê: `bint run` (process) chờ khi có hợp đồng còn hạn; hết hạn thì lấy được.
 - Role `implementer: codex` ⇒ `next` trả `action: process` cho b-feat.
+- Guardrail 6.4a: sự kiện `PreToolUse` giả lập của `bint-reviewer` với `touch x` ⇒ `deny`; với lệnh khớp `readonly_tools`
+  ⇒ không can thiệp; `agent_type` khác hoặc không có ⇒ không can thiệp; Edit/Write của `bint-planner` ⇒ `deny`.
+- Chi phí: transcript mẫu có dòng lặp cùng `message.id` ⇒ đếm một lần; thiếu transcript ⇒ `unknown`.
 - Thử thật một lần bằng Claude Code: `/b-do --subagent <việc nhỏ>` tới `done`; spool có `agent_id` ghép
   được với `run_id`.
 
@@ -341,8 +365,8 @@ Subagent không có biến môi trường riêng (`BINT_RUN_ID`, `BINT_TASK_ID`,
   `runtime/`, ghi khi thấy lệnh `attach`) trả `deny` cho Edit/Write có đường dẫn ngoài worktree của lượt.
   Hook chỉ đọc tệp và trả quyết định, không lỗi, không SQLite, đúng cơ chế guardrail hiện có. Khác biệt
   theo harness đặt trong `hookcore.Dialect`.
-- Cùng guardrail cho reviewer/planner: `pre_bash` từ chối lệnh không khớp `readonly_tools` (lấp lỗ hổng
-  khi phiên cha ở `bypassPermissions` làm giới hạn mẫu `Bash(...)` mất tác dụng, nếu S1 xác nhận lỗ hổng).
+- Guardrail chỉ đọc cho reviewer/planner đã làm ở G3 (mục 6.4a, S1 xác nhận lỗ hổng); G4 chỉ thêm rào chắn đường dẫn
+  worktree ở trên, dùng chung cơ chế.
 - Đưa về: mỗi tác vụ tự `land` ở finalize; tác vụ sau xung đột với tác vụ trước ⇒ `blocked` riêng tác
   vụ đó.
 - Nghiệm thu: hai tác vụ song song bằng subagent tới `done`, cây gốc có đủ thay đổi; subagent cố sửa tệp
@@ -815,3 +839,36 @@ Người dùng yêu cầu orchestrator sửa trực tiếp (không qua b-feat). 
   dòng `<<<<<<< ` có sẵn trong tệp không chặn done. Test: `TestLandConflictsLeftMatchesOwnLabel`.
 - **.11 doctor gợi ý xoá worktree đang chờ ghép** — `OrphanWorktree.AwaitingMerge` (giữ vì `Unmerged`, tác vụ chưa kết thúc):
   `CleanupCommands` và doctor chỉ in lệnh xem, như `Unlanded`. Test: `TestOrphanAwaitingMergeNotSuggestedForRemoval`.
+
+### 12.9. Kết quả spike S1–S3 (mục 8), 2026-11-12
+
+Cách thử: repo tạm ngoài dự án, `claude -p --setting-sources project --model haiku --permission-mode <chế độ>` (Claude
+Code 2.1.322), phiên cha gọi Agent với hai subagent thử (`tools: Read, Grep, Glob, Bash(echo:*)` + `disallowedTools: Edit,
+Write, NotebookEdit`; và `tools: Read, Write, Bash`), hook ghi toàn bộ JSON của mọi sự kiện. Tổng chi phí ≈ 0,015 USD.
+
+- **S1 — `tools: Bash(<mẫu>)` KHÔNG giới hạn lệnh.** Mẫu hoạt động như luật cho phép, không phải danh sách trắng: lệnh
+  nào chế độ quyền của phiên cha tự duyệt thì vẫn chạy.
+  - `manual`: `echo` và `git status` (chỉ đọc) chạy; `touch x`, `echo a > x` bị từ chối.
+  - `acceptEdits`: `touch pwned-bash.txt` và `echo a > pwned-redirect.txt` **chạy và tạo tệp**; `python3 -c …` cần duyệt.
+  - `bypassPermissions`: chưa thử được (bộ phân loại của chế độ auto chặn việc mở phiên lồng nhau với chế độ này); suy ra
+    mọi lệnh đều chạy.
+  - Giới hạn **mức công cụ** thì cứng: subagent không có Write trong `tools` gọi Write ⇒ "No such tool available".
+  - Hệ quả cho G3: planner/reviewer không được dựa vào `Bash(bint:*)`. Dùng guardrail `pre_bash` dựng sẵn ngay ở G3 (khả
+    thi nhờ S3: hook biết `agent_type`), hoặc bỏ Bash và dùng công cụ MCP.
+- **S2 — có nguồn token chính xác.** `SubagentStop` có `agent_transcript_path`
+  (`~/.claude/projects/<slug>/<session_id>/subagents/agent-<agent_id>.jsonl`); mỗi dòng assistant có `message.usage` và
+  `message.model`. Cộng `usage` theo `message.id` (khử trùng lặp) cho đúng tổng: lần thử 5 lượt gọi API, input 10, output
+  919, cache_read 17471, cache_creation 4916, model `claude-haiku-5-5`. `PostToolUse` của công cụ Agent ở phiên cha có
+  `tool_response.usage`/`totalTokens`/`resolvedModel`/`agentId`, nhưng `usage` chỉ là **lượt cuối** (`totalTokens` = ngữ
+  cảnh lượt cuối, 5140 so với tổng thật ~23 nghìn), không dùng để tính chi phí. Transcript chỉ có khi phiên được lưu (không
+  có với `--no-session-persistence`).
+  - Hệ quả: hook chỉ ghi `agent_id` + `agent_transcript_path` của `SubagentStop` vào spool; `bint run complete` đọc
+    transcript và cộng. Kết quả của công cụ Agent hiện `agentId` cho phiên cha, nên orchestrator có thể truyền
+    `--agent-id` cho `complete` (ghép lượt chạy không cần chờ `attach`).
+- **S3 — hook `deny` áp cho subagent, và có `agent_id`.** `PreToolUse`/`PostToolUse` của công cụ do subagent gọi có
+  `agent_id`, `agent_type` (= tên subagent), `permission_mode`. Hook trả `permissionDecision: deny` chặn được cả Write
+  (`forbidden.txt` không được tạo) lẫn Bash của subagent; subagent nhận "PreToolUse:<Tool> hook error: <lý do>". `SubagentStart`
+  cũng có `agent_id`/`agent_type`. Chưa thử deny dưới `bypassPermissions` (cùng lý do S1).
+
+Việc cần người làm (tuỳ chọn): một lần chạy dưới `bypassPermissions` để xác nhận hook `deny` vẫn áp và `Bash(<mẫu>)` không
+giới hạn gì. Lệnh: `scratchpad/spike/run.sh s1-bypass bypassPermissions "<prompt S1>"` (xem `run.sh`).
