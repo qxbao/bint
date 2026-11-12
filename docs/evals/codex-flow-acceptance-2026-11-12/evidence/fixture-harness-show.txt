@@ -1,5 +1,5 @@
 Codex CLI (codex) — cấp 3: Programmatic Execution
-  chương trình: /home/DUCLH/.local/bin/codex
+  chương trình: ~/.local/bin/codex
   phiên bản:    0.167.2 (bảng khả năng đối chiếu với codex-cli 0.167)
   bật trong cấu hình: có
   skill: .agents/skills

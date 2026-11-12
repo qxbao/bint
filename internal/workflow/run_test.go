@@ -74,15 +74,34 @@ func TestHookDenialIsBoundToChildRunAndCarriesProtectedPath(t *testing.T) {
 	if err := spool.WriteDenial(dir, current); err != nil {
 		t.Fatal(err)
 	}
-	reason, paths, denied := hookDenial(dir, "child-run")
+	reason, paths, denied, _ := hookDenial(dir, "child-run")
 	if !denied || reason != "protected path denied" || len(paths) != 1 || paths[0] != "migrations/001.sql" {
 		t.Fatalf("denial not recovered: %q %v %v", reason, paths, denied)
 	}
 	if remaining, err := spool.Denials(dir, "child-run"); err != nil || len(remaining) != 0 {
 		t.Fatalf("processed child denial journal was not cleared: %d events, %v", len(remaining), err)
 	}
-	if _, _, denied = hookDenial(dir, "other-child"); denied {
+	if _, _, denied, _ = hookDenial(dir, "other-child"); denied {
 		t.Fatal("denial from another child run leaked into this workflow")
+	}
+}
+
+// Deny của guardrail (không có đường dẫn bảo vệ) là phản hồi cho agent: không chặn tác vụ, chỉ trả về để ghi log,
+// và nhật ký vẫn được dọn.
+func TestHookDenialGuardrailOnlyDoesNotBlock(t *testing.T) {
+	dir := t.TempDir()
+	ev := spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "guard", Type: spool.ToolDenied,
+		Source: "hook:codex", Timestamp: time.Now().UTC(), RunID: "child-run", Payload: map[string]any{
+			"paths": []any{"src/a.go"}, "protected_paths": []any{}, "reason": "Không sửa mã."}}
+	if err := spool.WriteDenial(dir, ev); err != nil {
+		t.Fatal(err)
+	}
+	reason, paths, denied, guard := hookDenial(dir, "child-run")
+	if denied || reason != "" || len(paths) != 0 || !slices.Equal(guard, []string{"Không sửa mã."}) {
+		t.Fatalf("guardrail deny phải không chặn: %q %v %v %v", reason, paths, denied, guard)
+	}
+	if remaining, err := spool.Denials(dir, "child-run"); err != nil || len(remaining) != 0 {
+		t.Fatalf("nhật ký deny chưa được dọn: %d, %v", len(remaining), err)
 	}
 }
 
@@ -95,7 +114,7 @@ func TestHookDenialSurvivesConcurrentSpoolIngest(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.ingest()
-	reason, paths, denied := hookDenial(h.spool, "child-run")
+	reason, paths, denied, _ := hookDenial(h.spool, "child-run")
 	if !denied || reason != "protected path denied" || !slices.Equal(paths, []string{"migrations/001.sql"}) {
 		t.Fatalf("ingest consumed active child denial: %q %v %v", reason, paths, denied)
 	}

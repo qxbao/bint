@@ -889,10 +889,14 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		}
 	}
 	var deniedPaths []string
-	if status != "interrupted" {
-		if reason, paths, denied := hookDenial(r.Spool, child); denied {
-			status, endReason, deniedPaths = "blocked", reason, paths
-		}
+	// Luôn đọc (và dọn) nhật ký deny của child run: bước bị ngắt thì bỏ qua kết quả, nhưng không để thư
+	// mục spool/denials/<run> nằm lại vì resume chạy bằng child run mới.
+	reason, paths, denied, guardDenials := hookDenial(r.Spool, child)
+	for _, g := range guardDenials {
+		r.logf("  guardrail đã từ chối một thao tác của agent (không chặn tác vụ): %s", g)
+	}
+	if denied && status != "interrupted" {
+		status, endReason, deniedPaths = "blocked", reason, paths
 	}
 	srr.Status = status
 	if rs.session && res.CostUSD != nil {
@@ -1005,33 +1009,51 @@ func (r *Runner) lockStep(ctx context.Context, rs *runState, step string, mode L
 	return nil, false
 }
 
-func hookDenial(dir, runID string) (string, []string, bool) {
+// hookDenial đọc rồi dọn nhật ký deny của child run (spool/denials, hook ghi). Chỉ deny đường dẫn bảo vệ chặn tác
+// vụ: harness không hỏi được người dùng (Codex) nên hook đổi "cần duyệt" thành deny, tệp chưa được sửa và bước
+// không được coi là xong. Deny của guardrail là phản hồi cho agent (docs/harness-components.md: Bint không nhốt
+// agent), agent có thể đổi cách làm; nó chỉ được trả về trong guardrail để ghi log, không đổi trạng thái tác vụ.
+func hookDenial(dir, runID string) (reason string, paths []string, blocked bool, guardrail []string) {
 	events, err := spool.Denials(dir, runID)
-	if err != nil {
-		return "", nil, false
-	}
 	_ = spool.ClearDenials(dir, runID)
-	var paths []string
+	if err != nil {
+		return "", nil, false, nil
+	}
 	var reasons []string
 	for _, ev := range events {
-		if raw, ok := ev.Payload["protected_paths"].([]any); ok {
+		var hit []string
+		switch raw := ev.Payload["protected_paths"].(type) {
+		case []any:
 			for _, item := range raw {
 				if p, ok := item.(string); ok && p != "" {
-					paths = appendUnique(paths, p)
+					hit = append(hit, p)
+				}
+			}
+		case []string:
+			for _, p := range raw {
+				if p != "" {
+					hit = append(hit, p)
 				}
 			}
 		}
-		if reason, ok := ev.Payload["reason"].(string); ok && reason != "" {
-			reasons = appendUnique(reasons, reason)
+		why, _ := ev.Payload["reason"].(string)
+		if len(hit) == 0 {
+			if why == "" {
+				why = "hook Bint đã từ chối công cụ"
+			}
+			guardrail = appendUnique(guardrail, why)
+			continue
 		}
+		paths = appendUnique(paths, hit...)
+		if why == "" {
+			why = "đường dẫn bảo vệ cần người duyệt: " + strings.Join(hit, ", ")
+		}
+		reasons = appendUnique(reasons, why)
 	}
-	if len(events) == 0 {
-		return "", nil, false
+	if len(paths) == 0 {
+		return "", nil, false, guardrail
 	}
-	if len(reasons) == 0 {
-		reasons = []string{"hook Bint đã từ chối công cụ"}
-	}
-	return strings.Join(reasons, "; "), paths, true
+	return strings.Join(reasons, "; "), paths, true, guardrail
 }
 
 // afterStep xử lý kết quả bước; trả false nếu workflow dừng.

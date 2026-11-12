@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -114,6 +115,11 @@ func systemScreens(t *testing.T, lang string, w, h int) map[string]func() *Model
 
 // Ảnh chụp văn bản của màn Hệ thống ở 80×24 và 140×40, vi/en/locale giả; không dòng nào vượt chiều rộng.
 func TestGoldenSystemScreens(t *testing.T) {
+	// Ô "thư mục mã nguồn" lấy theo FindSource: chỉ định tường minh gốc repo để kết quả không phụ thuộc
+	// cách build (-trimpath làm FindSource thất bại và ô bị rỗng).
+	if root, err := filepath.Abs(filepath.Join("..", "..", "..")); err == nil && bintapp.IsBintSource(root) {
+		t.Setenv(bintapp.SourceEnv, root)
+	}
 	for _, sz := range [][2]int{{80, 24}, {140, 40}} {
 		for _, lang := range []string{"vi", "en", "xx"} {
 			for name, build := range systemScreens(t, lang, sz[0], sz[1]) {
@@ -135,29 +141,37 @@ func TestGoldenSystemScreens(t *testing.T) {
 	}
 }
 
+// canonicalizeSourcePath thay thư mục mã nguồn trong ô nhập (đầy đủ, hoặc bị ô cắt trái thành "…<đuôi>"
+// khi đường dẫn dài) bằng /src/bint để golden không phụ thuộc nơi đặt repo.
 func canonicalizeSourcePath(out, source string, width int) string {
 	if source == "" {
 		return out
 	}
+	const placeholder = "/src/bint"
 	lines := strings.Split(out, "\n")
 	for i, line := range lines {
-		at := strings.Index(line, source)
-		if at < 0 {
-			continue
-		}
-		prefix := line[:at]
-		rest := line[at+len(source):]
-		cursor := strings.Index(rest, "▏")
+		cursor := strings.Index(line, "▏")
 		if cursor < 0 {
 			continue
 		}
-		placeholder := "/src/bint"
-		fixed := prefix + placeholder + rest[:cursor+len("▏")] + "│ │"
-		spaces := width - ansi.StringWidth(fixed)
+		head := line[:cursor]
+		start := strings.LastIndex(head, " ") + 1
+		token := head[start:]
+		tail, cut := strings.CutPrefix(token, "…")
+		if token != source && !(cut && tail != "" && strings.HasSuffix(source, tail)) {
+			continue
+		}
+		rest := line[cursor:]
+		end := strings.LastIndex(rest, "│ │")
+		if end < 0 {
+			continue
+		}
+		fixed := head[:start] + placeholder + "▏"
+		spaces := width - ansi.StringWidth(fixed+"│ │")
 		if spaces < 0 {
 			continue
 		}
-		lines[i] = prefix + placeholder + rest[:cursor+len("▏")] + strings.Repeat(" ", spaces) + "│ │"
+		lines[i] = fixed + strings.Repeat(" ", spaces) + "│ │"
 	}
 	return strings.Join(lines, "\n")
 }

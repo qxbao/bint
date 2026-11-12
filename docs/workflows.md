@@ -187,9 +187,11 @@ tác vụ tiếp theo và chuyển `interrupted`. Có hai thời điểm duyệt
    `b-feat` khiến tác vụ đã sang `in_review`, gọi lại `bint run b-feat --task <id>`).
 
 Hook ghi quyết định deny vào nhật ký spool riêng gắn với child run, để `runlog.Ingest` không thể
-xóa tín hiệu trước khi runner đọc. Deny của guardrail `pre_edit`/`pre_bash` cũng làm workflow
-`blocked`; chỉ đường dẫn thuộc `limits.protected_paths` tạo yêu cầu duyệt đường dẫn. Lỗi ghi nhật ký
-không làm hook trả lỗi hay chặn agent.
+xóa tín hiệu trước khi runner đọc. Chỉ deny đường dẫn thuộc `limits.protected_paths` (harness không hỏi
+được người dùng, như Codex, nhận deny thay cho "cần duyệt") làm workflow `blocked` và tạo yêu cầu duyệt
+đường dẫn. Deny của guardrail `pre_edit`/`pre_bash` là phản hồi cho agent: nó được ghi vào log của bước
+nhưng không đổi trạng thái tác vụ, vì agent có thể đổi cách làm (Bint không nhốt agent). Nhật ký deny của
+child run được dọn khi bước kết thúc, kể cả khi bị ngắt. Lỗi ghi nhật ký không làm hook trả lỗi hay chặn agent.
 
 `resume` tái dùng lựa chọn harness/model hiệu lực đã lưu theo role trong trạng thái tác vụ. Với
 Claude, khi không có model theo role thì snapshot lấy từ `workflow.agent.model` (cùng giá trị agent
