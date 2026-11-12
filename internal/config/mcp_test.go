@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -221,4 +222,107 @@ func TestSecretsPermProblem(t *testing.T) {
 	if s := SecretsPermProblem(fi); s == "" {
 		t.Fatal("0644 phải bị báo")
 	}
+}
+
+func toolNames(r MCPResolution) []string {
+	var out []string
+	for _, t := range r.Granted {
+		out = append(out, t.Upstream)
+	}
+	return out
+}
+
+func exclReasons(r MCPResolution, upstream string) []string {
+	for _, e := range r.Excluded {
+		if e.Tool.Upstream == upstream {
+			return e.Reasons
+		}
+	}
+	return nil
+}
+
+func TestMCPResolve(t *testing.T) {
+	m := MCP{
+		Services: map[string]MCPService{"codegraph": {}, "specmatic": {}, "jira": {}},
+		Grants: map[string][]string{
+			"reviewer":    {"codegraph.explore", "specmatic.*", "deepwiki.read"},
+			"implementer": {"specmatic.*", "codegraph.explore", "codegraph.*"},
+		},
+	}
+	reg := map[string]bool{"codegraph": true, "specmatic": true, "deepwiki": true}
+
+	t.Run("bước chỉ đọc bỏ tool ghi vào cây làm việc", func(t *testing.T) {
+		r := m.Resolve("reviewer", true, reg)
+		got := toolNames(r)
+		for _, w := range []string{"manage_mock_server", "run_contract_test", "run_resiliency_test"} {
+			if slices.Contains(got, w) {
+				t.Errorf("%s không được cấp cho bước chỉ đọc: %v", w, got)
+			}
+			if !slices.Contains(exclReasons(r, w), MCPExcludeReadOnlyStep) {
+				t.Errorf("%s phải bị loại với lý do %s: %v", w, MCPExcludeReadOnlyStep, r.Excluded)
+			}
+		}
+		if !slices.Contains(got, "backward_compatibility_check") || !slices.Contains(got, "codegraph_explore") {
+			t.Errorf("tool chỉ đọc phải còn: %v", got)
+		}
+		// deepwiki được cấp, máy đã đăng ký, nhưng dự án không khai báo.
+		if rs := exclReasons(r, "ask_question"); !slices.Equal(rs, []string{MCPExcludeNotInProject}) {
+			t.Errorf("deepwiki ngoài mcp.services: %v", rs)
+		}
+	})
+
+	t.Run("bước ghi được đủ, bỏ trùng", func(t *testing.T) {
+		r := m.Resolve("implementer", false, reg)
+		got := toolNames(r)
+		if !slices.Contains(got, "manage_mock_server") || !slices.Contains(got, "codegraph_status") {
+			t.Errorf("implementer: %v", got)
+		}
+		if n := strings.Count(strings.Join(got, ","), "codegraph_explore"); n != 1 {
+			t.Errorf("codegraph_explore xuất hiện %d lần: %v", n, got)
+		}
+		if !slices.Equal(r.Services(), []string{"specmatic", "codegraph"}) {
+			t.Errorf("Services: %v", r.Services())
+		}
+		if len(r.ToolsOf("codegraph")) != 8 {
+			t.Errorf("ToolsOf: %v", r.ToolsOf("codegraph"))
+		}
+	})
+
+	t.Run("chưa đăng ký", func(t *testing.T) {
+		r := m.Resolve("implementer", false, map[string]bool{"codegraph": true})
+		if len(r.ToolsOf("specmatic")) != 0 || !slices.Contains(exclReasons(r, "run_contract_test"), MCPExcludeNotRegistered) {
+			t.Errorf("specmatic chưa đăng ký phải bị loại: %+v", r)
+		}
+		if r := m.Resolve("implementer", false, nil); len(r.Granted) != 0 {
+			t.Errorf("registered=nil: không đăng ký gì thì không cấp gì: %v", toolNames(r))
+		}
+	})
+
+	t.Run("interactive ngầm định theo D4", func(t *testing.T) {
+		r := m.Resolve(MCPRoleInteractive, false, map[string]bool{"codegraph": true, "jira": true, "deepwiki": true})
+		if !r.Implicit {
+			t.Error("phải là Implicit")
+		}
+		// codegraph + jira đăng ký và có trong dự án; specmatic có trong dự án nhưng chưa đăng ký; deepwiki không trong dự án.
+		if len(r.ToolsOf("codegraph")) != 8 || len(r.ToolsOf("jira")) == 0 || len(r.ToolsOf("specmatic")) != 0 || len(r.ToolsOf("deepwiki")) != 0 {
+			t.Errorf("interactive: %v", toolNames(r))
+		}
+	})
+
+	t.Run("interactive khai báo thì theo khai báo", func(t *testing.T) {
+		mm := MCP{Services: m.Services, Grants: map[string][]string{MCPRoleInteractive: {"codegraph.explore"}}}
+		r := mm.Resolve(MCPRoleInteractive, false, reg)
+		if r.Implicit || !slices.Equal(toolNames(r), []string{"codegraph_explore"}) {
+			t.Errorf("%+v", r)
+		}
+	})
+
+	t.Run("role lạ không có gì", func(t *testing.T) {
+		if r := m.Resolve("nobody", false, reg); len(r.Granted) != 0 || len(r.Excluded) != 0 {
+			t.Errorf("%+v", r)
+		}
+		if r := m.Resolve("", false, reg); len(r.Granted) != 0 {
+			t.Errorf("role rỗng: %+v", r)
+		}
+	})
 }

@@ -180,11 +180,19 @@ func (d *Daemon) handleInitialize(w http.ResponseWriter, r *http.Request, m rpcM
 		fail("%s: không xác định được thư mục trạng thái của repo", svcID)
 		return
 	}
+	// Quyền: daemon tự giải role (bản ghi lượt chạy hoặc interactive), không tin X-Bint-Role; từ chối trước khi chạm upstream.
+	sc := sessCtx{RunID: r.Header.Get(HeaderRunID), TaskID: r.Header.Get(HeaderTaskID),
+		Harness: r.Header.Get(HeaderHarness), SessionID: r.Header.Get(HeaderSessionID)}
+	granted, role, why := d.grantsFor(ri, sc, mc, svc)
+	sc.Role = role
+	if len(granted) == 0 {
+		d.logf("từ chối mở phiên %s (run %q, role %q): %s", svcID, sc.RunID, role, why)
+		writeJSON(w, http.StatusOK, rpcFail(m.ID, CodeNotGranted, "role %q không được cấp service %s: %s", role, svcID, why))
+		return
+	}
 	now := time.Now()
 	s := &session{id: newSessionID(), svc: svc, root: ri.root, spool: ri.spool, created: now, lastActive: now,
-		done: make(chan struct{}), calls: map[string]*callRef{},
-		ctx: sessCtx{RunID: r.Header.Get(HeaderRunID), TaskID: r.Header.Get(HeaderTaskID), Role: r.Header.Get(HeaderRole),
-			Harness: r.Header.Get(HeaderHarness), SessionID: r.Header.Get(HeaderSessionID)}}
+		done: make(chan struct{}), calls: map[string]*callRef{}, granted: granted, ctx: sc}
 	rev := revision(svc, reg)
 	p := d.partitionFor(partSpec{svc: svc, reg: reg, secretsPath: config.SecretsPath(mc), rev: rev, ri: ri}, s.id)
 	s.p = p
@@ -211,6 +219,44 @@ func (d *Daemon) handleInitialize(w http.ResponseWriter, r *http.Request, m rpcM
 	d.mu.Unlock()
 	w.Header().Set(headerMCPSess, s.id)
 	writeJSON(w, http.StatusOK, resultFrame(m.ID, entry.init))
+}
+
+// grantsFor giải quyền của phiên ở service svcID: role (từ bản ghi lượt chạy hoặc interactive) → config.MCP.Resolve của dự án
+// giao service đã đăng ký trên máy. Trả tool được cấp (rỗng nếu không có), role đã giải và lý do khi không có gì.
+func (d *Daemon) grantsFor(ri repoInfo, sc sessCtx, mc config.MachineMCP, svc mcpcat.Service) (grantedTools, string, string) {
+	id, err := ResolveIdentity(ri.runtime, sc.RunID, sc.TaskID)
+	if err != nil {
+		return nil, "", err.Error()
+	}
+	if !ri.cfgOK {
+		return nil, id.Role, "không đọc được cấu hình dự án (cần header " + HeaderWorktree + " trỏ vào repo có .bint/config.yml)"
+	}
+	registered := map[string]bool{}
+	for k := range mc.Services {
+		registered[k] = true
+	}
+	res := ri.cfg.MCP.Resolve(id.Role, id.ReadOnly, registered)
+	// Quyền trỏ tới nhóm (mục 5.1): tool được cấp là tool của nhóm có tool được cấp, theo danh mục của daemon.
+	groups := map[string]bool{}
+	for _, t := range res.ToolsOf(svc.ID) {
+		groups[t.Group] = true
+	}
+	g := grantedTools{}
+	for _, grp := range svc.Groups {
+		if !groups[grp.Name] {
+			continue
+		}
+		for _, tool := range grp.Tools {
+			if id.ReadOnly && svc.WritesToWorktree(tool) {
+				continue
+			}
+			g[tool] = mcpcat.ToolRef{Service: svc.ID, Group: grp.Name, Upstream: tool, Agent: mcpcat.AgentToolName(svc, tool)}
+		}
+	}
+	if len(g) == 0 {
+		return nil, id.Role, "mcp.grants của dự án không cấp tool nào của service này cho role đó"
+	}
+	return g, id.Role, ""
 }
 
 // errorFromErr đổi lỗi của upstream/gateway thành phản hồi JSON-RPC cho id.

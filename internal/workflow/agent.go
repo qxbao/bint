@@ -41,3 +41,17 @@ func HarnessAgents(cfg config.Config, command, model string, sel adapters.Select
 			Model: adapters.RoleModel(cfg, h, adapters.StepRole(step), model), MaxCost: maxCost, MaxTurns: maxTurns})
 	}
 }
+
+// ReadOnlyRole cho biết role (harness.StepRole) là của một bước chỉ đọc (planner = b-req, reviewer = b-review): tool
+// MCP ghi vào cây làm việc không được cấp cho các role này dù mcp.grants có ghi.
+func ReadOnlyRole(role string) bool {
+	if role == "" {
+		return false
+	}
+	for step := range readonlySteps {
+		if adapters.StepRole(step) == role {
+			return true
+		}
+	}
+	return false
+}

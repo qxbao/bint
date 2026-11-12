@@ -23,10 +23,38 @@ func (d *Daemon) toolsList(r *http.Request, s *session, m rpcMsg) []byte {
 			return rpcFail(m.ID, CodeUpstream, "không lấy được tools/list của %s", s.svc.ID)
 		}
 	}
-	return resultFrame(m.ID, e.tools)
+	return resultFrame(m.ID, filterTools(e.tools, s.granted))
 }
 
-// groupOf tìm nhóm chứa tool; tool lạ trả nhóm rỗng (ok=false): vẫn chuyển tiếp, coi là không chỉ đọc (M3 mới lọc).
+// filterTools giữ trong kết quả tools/list đã cache chỉ tool được cấp (giữ nguyên byte của từng tool và các trường khác).
+func filterTools(raw []byte, granted grantedTools) []byte {
+	var doc map[string]json.RawMessage
+	if json.Unmarshal(raw, &doc) != nil {
+		return []byte(`{"tools":[]}`)
+	}
+	var list []json.RawMessage
+	_ = json.Unmarshal(doc["tools"], &list)
+	keep := make([]json.RawMessage, 0, len(list))
+	for _, t := range list {
+		var n struct {
+			Name string `json:"name"`
+		}
+		if json.Unmarshal(t, &n) == nil {
+			if _, ok := granted[n.Name]; ok {
+				keep = append(keep, t)
+			}
+		}
+	}
+	doc["tools"] = marshalRaw(keep)
+	delete(doc, "nextCursor") // chỉ trang đã cache; phân trang không có nghĩa sau khi lọc
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return []byte(`{"tools":[]}`)
+	}
+	return out
+}
+
+// groupOf tìm nhóm chứa tool; tool lạ trả nhóm rỗng (ok=false). Tool lạ không bao giờ được cấp (quyền chỉ trỏ tới nhóm).
 func groupOf(svc mcpcat.Service, tool string) (mcpcat.Group, bool) {
 	for _, g := range svc.Groups {
 		for _, t := range g.Tools {
@@ -119,6 +147,13 @@ func (d *Daemon) toolsCall(r *http.Request, s *session, m rpcMsg) []byte {
 		return rpcFail(m.ID, codeInvalidParams, "tools/call thiếu name")
 	}
 	grp, known := groupOf(s.svc, tool)
+	if _, ok := s.granted[tool]; !ok {
+		// Ngoài quyền (nhóm không được cấp, bước chỉ đọc, hoặc tên đoán mò không có trong danh mục): từ chối trước khi
+		// tới upstream, vẫn ghi nhận.
+		d.record(s, tool, grp.Name, OutcomeDenied, time.Since(start))
+		s.p.note(tool, OutcomeDenied, time.Since(start))
+		return rpcFail(m.ID, CodeNotGranted, "role %q không được dùng tool %q của %s", s.ctx.Role, tool, s.svc.ID)
+	}
 	readOnly := known && s.svc.IsReadOnly(tool)
 	fillDefaults(s.svc, tool, params, s.root)
 

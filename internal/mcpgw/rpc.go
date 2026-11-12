@@ -27,6 +27,8 @@ const (
 	CodeUpstream = -32013
 	// CodeTimeout: lời gọi chỉ đọc quá thời gian chờ.
 	CodeTimeout = -32014
+	// CodeNotGranted: role của phiên không được cấp service hoặc tool này (mcp.grants, bước chỉ đọc, run_id không có bản ghi).
+	CodeNotGranted = -32015
 )
 
 // rpcMsg là phong bì JSON-RPC; id, params, result, error giữ nguyên byte để chuyển tiếp không mất trường lạ.

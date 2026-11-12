@@ -44,3 +44,11 @@ func TestHarnessAgentsModelPerRole(t *testing.T) {
 		t.Errorf("--model phải ghi đè models.<role>: %q", got)
 	}
 }
+
+func TestReadOnlyRole(t *testing.T) {
+	for role, want := range map[string]bool{"planner": true, "reviewer": true, "implementer": false, "interactive": false, "": false, "khac": false} {
+		if got := ReadOnlyRole(role); got != want {
+			t.Errorf("ReadOnlyRole(%q) = %v, muốn %v", role, got, want)
+		}
+	}
+}

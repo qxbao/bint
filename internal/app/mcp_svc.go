@@ -21,6 +21,7 @@ import (
 	"bint/internal/mcpgw"
 	"bint/internal/mcpserver"
 	"bint/internal/state"
+	"bint/internal/workflow"
 )
 
 // Tầng dịch vụ MCP (docs/mcp-gateway-plan.md mục 5.4): list, add, remove, check, index, grants. CLI (và sau này TUI)
@@ -760,9 +761,8 @@ func MCPGrants(ctx context.Context, dir string, o MCPGrantsOptions) ([]MCPRoleGr
 		return nil, err
 	}
 	roles := cfg.MCP.GrantRoles()
-	implicit := false
 	if !slices.Contains(roles, config.MCPRoleInteractive) {
-		roles, implicit = append(roles, config.MCPRoleInteractive), true
+		roles = append(roles, config.MCPRoleInteractive)
 	}
 	if o.Role != "" {
 		if !slices.Contains(roles, o.Role) {
@@ -770,41 +770,49 @@ func MCPGrants(ctx context.Context, dir string, o MCPGrantsOptions) ([]MCPRoleGr
 		}
 		roles = []string{o.Role}
 	}
+	registered := map[string]bool{}
+	for id := range m.Services {
+		registered[id] = true
+	}
 	var out []MCPRoleGrants
 	for _, role := range roles {
-		g := MCPRoleGrants{Role: role, Tools: []MCPGrantTool{}}
-		var grants []string
-		if role == config.MCPRoleInteractive && implicit {
-			g.Implicit = true
-			for _, id := range cfg.MCP.ServiceIDs() {
-				if _, reg := m.Services[id]; reg {
-					grants = append(grants, id+".*")
-				}
-			}
-		} else {
-			grants = cfg.MCP.Grants[role]
+		// Cùng config.MCP.Resolve với daemon gateway và allowlist của bint run nên kết quả không lệch.
+		res := cfg.MCP.Resolve(role, workflow.ReadOnlyRole(role), registered)
+		g := MCPRoleGrants{Role: role, Tools: []MCPGrantTool{}, Implicit: res.Implicit}
+		add := func(t mcpcat.ToolRef) {
+			g.Tools = append(g.Tools, MCPGrantTool{Service: t.Service, Group: t.Group, Upstream: t.Upstream, Agent: t.Agent})
 		}
-		seen, warned := map[string]bool{}, map[string]bool{}
-		for _, grant := range grants {
-			refs, err := mcpcat.Expand(grant)
-			if err != nil {
-				return nil, fmt.Errorf("mcp.grants.%s: %w", role, err)
+		for _, t := range res.Granted {
+			add(t)
+		}
+		var writes []string
+		warned := map[string]bool{}
+		for _, ex := range res.Excluded {
+			if res.Implicit {
+				continue // D4: chỉ service dự án khai báo và máy đã đăng ký; phần còn lại không phải "được cấp"
 			}
-			for _, ref := range refs {
-				if !warned[ref.Service] {
-					warned[ref.Service] = true
-					if _, reg := m.Services[ref.Service]; !reg {
-						g.Warnings = append(g.Warnings, fmt.Sprintf("service %s được cấp nhưng máy này chưa đăng ký (bint mcp add %s)", ref.Service, ref.Service))
-					}
-					if !cfg.MCP.Uses(ref.Service) {
-						g.Warnings = append(g.Warnings, fmt.Sprintf("service %s được cấp nhưng dự án không khai báo trong mcp.services", ref.Service))
-					}
-				}
-				if !seen[ref.Agent] {
-					seen[ref.Agent] = true
-					g.Tools = append(g.Tools, MCPGrantTool{Service: ref.Service, Group: ref.Group, Upstream: ref.Upstream, Agent: ref.Agent})
-				}
+			notReg, notProj := slices.Contains(ex.Reasons, config.MCPExcludeNotRegistered), slices.Contains(ex.Reasons, config.MCPExcludeNotInProject)
+			readOnlyExcluded := slices.Contains(ex.Reasons, config.MCPExcludeReadOnlyStep)
+			if readOnlyExcluded {
+				writes = append(writes, ex.Tool.Agent)
 			}
+			if !notReg && !notProj {
+				continue // chỉ bị loại vì bước chỉ đọc
+			}
+			if !readOnlyExcluded {
+				add(ex.Tool) // vẫn liệt kê (kèm cảnh báo) tool được cấp mà máy chưa đăng ký / dự án chưa khai báo
+			}
+			if notReg && !warned["r"+ex.Tool.Service] {
+				warned["r"+ex.Tool.Service] = true
+				g.Warnings = append(g.Warnings, fmt.Sprintf("service %s được cấp nhưng máy này chưa đăng ký (bint mcp add %s)", ex.Tool.Service, ex.Tool.Service))
+			}
+			if notProj && !warned["p"+ex.Tool.Service] {
+				warned["p"+ex.Tool.Service] = true
+				g.Warnings = append(g.Warnings, fmt.Sprintf("service %s được cấp nhưng dự án không khai báo trong mcp.services", ex.Tool.Service))
+			}
+		}
+		if len(writes) > 0 {
+			g.Warnings = append(g.Warnings, fmt.Sprintf("role %s chạy ở bước chỉ đọc: tool ghi vào cây làm việc không được cấp dù mcp.grants có ghi (%s)", role, strings.Join(writes, ", ")))
 		}
 		out = append(out, g)
 	}

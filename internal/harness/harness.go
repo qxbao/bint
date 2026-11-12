@@ -119,6 +119,18 @@ type MCPInstaller interface {
 	MCPInstalled(root string) bool
 }
 
+// PermissionInstaller là adapter thêm được quy tắc quyền cho công cụ MCP của Bint (mcp__bint__*) vào tệp settings cùng
+// phạm vi với hook; chạy lại không thêm trùng.
+type PermissionInstaller interface {
+	InstallPermissions(path, backupDir string, now time.Time) (claude.InstallResult, error)
+}
+
+// UserMCPInstaller là adapter chỉ có MCP cấp người dùng (Antigravity): ghi mục `bint mcp serve` vào cấu hình người dùng
+// (có sao lưu, chạy lại không đổi). Root của MCPRequest không dùng.
+type UserMCPInstaller interface {
+	InstallUserMCP(req MCPRequest) (MCPResult, error)
+}
+
 // AgentOptions điều khiển việc tạo agent thực thi.
 type AgentOptions struct {
 	Config   config.Config
@@ -463,6 +475,9 @@ func (Claude) InstallMCP(req MCPRequest) (MCPResult, error) {
 	r, err := claude.InstallMCP(p, req.BintPath, req.BackupDir, req.Install, req.Now)
 	return MCPResult{Path: ".mcp.json", Changed: r.Changed}, err
 }
+func (Claude) InstallPermissions(path, backupDir string, now time.Time) (claude.InstallResult, error) {
+	return claude.InstallPermissions(path, backupDir, now)
+}
 func (Claude) MCPInstalled(root string) bool { return claude.MCPInstalled(claude.MCPConfigPath(root)) }
 
 func (Claude) NewAgent(o AgentOptions) eval.Agent {
@@ -609,6 +624,15 @@ func (Antigravity) UninstallHooks(path, backupDir string, now time.Time) (claude
 }
 func (Antigravity) HooksInstalled(path string) (bool, error) { return antigravity.HooksInstalled(path) }
 func (Antigravity) HookEvents() string                       { return "SessionStart, PreToolUse, PostToolUse" }
+
+func (Antigravity) InstallUserMCP(req MCPRequest) (MCPResult, error) {
+	p, err := antigravity.UserMCPPath()
+	if err != nil {
+		return MCPResult{}, err
+	}
+	r, err := claude.InstallMCPAt(p, req.BintPath, req.BackupDir, "antigravity/mcp_config.json", req.Install, req.Now)
+	return MCPResult{Path: p, Changed: r.Changed}, err
+}
 
 func (Antigravity) NewAgent(o AgentOptions) eval.Agent {
 	h := o.Config.Harnesses.Antigravity

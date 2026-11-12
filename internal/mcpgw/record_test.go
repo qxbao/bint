@@ -1,6 +1,7 @@
 package mcpgw
 
 import (
+	"bint/internal/ulid"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,9 +33,11 @@ func spoolFiles(t *testing.T, dir string) []spool.Event {
 func TestRecordMCPCalled(t *testing.T) {
 	h := newHarness(t, nil)
 	h.register("codegraph")
-	repo := evalDir(t, newRepo(t, true))
+	repo := evalDir(t, newRepoCfg(t, true, allServicesConfig()+"  grants:\n    implementer: [codegraph.*]\n"))
 	paths := markInit(t, repo)
-	c := h.open("codegraph", map[string]string{HeaderWorktree: repo, HeaderRunID: "01RUN", HeaderTaskID: "01TASK", HeaderRole: "implementer"})
+	runID, taskID := ulid.New(), ulid.New()
+	bindRun(t, paths, RunBinding{RunID: runID, TaskID: taskID, Step: "b-feat", Role: "implementer"})
+	c := h.open("codegraph", map[string]string{HeaderWorktree: repo, HeaderRunID: runID, HeaderTaskID: taskID, HeaderRole: "reviewer"}) // header role giả bị bỏ qua
 	c.rpc(1, "tools/list", nil)
 	c.rpc(2, "ping", nil)
 	c.call(3, "codegraph_explore", map[string]any{"echo": "DOI-SO-BI-MAT"})
@@ -51,10 +54,10 @@ func TestRecordMCPCalled(t *testing.T) {
 		byTool[ev.Payload["tool"].(string)] = ev
 	}
 	e := byTool["codegraph_explore"]
-	if e.Type != spool.MCPCalled || e.RunID != "01RUN" || e.Source == "" || e.Worktree != repo {
+	if e.Type != spool.MCPCalled || e.RunID != runID || e.Source == "" || e.Worktree != repo {
 		t.Errorf("sự kiện: %+v", e)
 	}
-	want := map[string]any{"task_id": "01TASK", "role": "implementer", "service": "codegraph", "tool": "codegraph_explore", "group": "explore", "outcome": OutcomeOK}
+	want := map[string]any{"task_id": taskID, "role": "implementer", "service": "codegraph", "tool": "codegraph_explore", "group": "explore", "outcome": OutcomeOK}
 	for k, v := range want {
 		if e.Payload[k] != v {
 			t.Errorf("payload[%s]=%v, muốn %v", k, e.Payload[k], v)
@@ -66,8 +69,8 @@ func TestRecordMCPCalled(t *testing.T) {
 	if p := byTool["codegraph_status"].Payload; p["outcome"] != OutcomeRPCErr || p["group"] != "query" {
 		t.Errorf("lỗi JSON-RPC của upstream: %v", p)
 	}
-	if p := byTool["ham_la"].Payload; p["group"] != "" || p["outcome"] != OutcomeOK {
-		t.Errorf("tool lạ: %v", p)
+	if p := byTool["ham_la"].Payload; p["group"] != "" || p["outcome"] != OutcomeDenied {
+		t.Errorf("tool lạ phải bị từ chối và ghi nhận: %v", p)
 	}
 	files, _ := spool.Pending(paths.Spool)
 	for _, f := range files {
@@ -87,7 +90,7 @@ func TestRecordSkips(t *testing.T) {
 
 	// Repo chưa init Bint: không ghi (không tạo thư mục trạng thái), đếm số sự kiện bỏ.
 	raw := evalDir(t, newRepo(t, false))
-	c := h.open("codegraph", map[string]string{HeaderWorktree: raw, HeaderRunID: "01RUN"})
+	c := h.open("codegraph", map[string]string{HeaderWorktree: raw, HeaderHarness: "claude", HeaderSessionID: "s0"})
 	c.call(1, "codegraph_explore", nil)
 	if h.d.Status().DroppedEvents != 1 {
 		t.Errorf("DroppedEvents=%d, muốn 1 (repo chưa init)", h.d.Status().DroppedEvents)

@@ -14,6 +14,7 @@ import (
 )
 
 // sessCtx là ngữ cảnh của phiên, lấy từ header X-Bint-* lúc initialize (shim M3 đặt từ BINT_RUN_ID/BINT_TASK_ID…).
+// Role KHÔNG lấy từ header X-Bint-Role: daemon tự giải (ResolveIdentity) và ghi role đã giải vào đây.
 type sessCtx struct {
 	RunID     string
 	TaskID    string
@@ -42,6 +43,8 @@ type session struct {
 	ctx   sessCtx
 	root  string // gốc worktree ("" nếu không có)
 	spool string // thư mục spool của repo chứa worktree ("" nếu không ghi được)
+	// granted là tool (tên upstream) role của phiên được dùng ở service này, do daemon tự giải lúc initialize.
+	granted grantedTools
 
 	created time.Time
 	done    chan struct{} // đóng khi phiên đóng

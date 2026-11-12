@@ -12,8 +12,9 @@
 //     theo đường dẫn; vẫn hỏi người được khi sửa đường dẫn được bảo vệ.
 //   - Không có sự kiện kết thúc phiên (Stop là kết thúc một lượt), nên Bint không
 //     ghi session.ended cho Antigravity.
-//   - MCP: chỉ cấu hình được ở cấp người dùng (~/.gemini/config/mcp_config.json) hoặc
-//     plugin; Bint không ghi cấu hình người dùng — agent dùng CLI `bint` qua skill.
+//   - MCP: chỉ cấu hình được ở cấp người dùng (~/.gemini/config/mcp_config.json, khoá
+//     mcpServers) hoặc plugin. Mặc định Bint không ghi cấu hình người dùng — agent dùng CLI
+//     `bint` qua skill; `bint init --mcp-user` ghi mục `bint` (UserMCPPath) sau khi người dùng chọn.
 //   - Thực thi: `agy --print=<đề bài> --output-format json --mode plan|accept-edits`;
 //     báo token, không báo chi phí.
 //
@@ -301,4 +302,13 @@ func HooksInstalled(path string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// UserMCPPath là cấu hình MCP cấp người dùng của Antigravity (~/.gemini/config/mcp_config.json).
+func UserMCPPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".gemini", "config", "mcp_config.json"), nil
 }

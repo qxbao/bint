@@ -105,6 +105,7 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 	f.BoolVar(&flags.NoSkills, "no-skills", false, "không xuất bản skill gốc cho harness (.claude/skills, .agents/skills)")
 	f.BoolVar(&flags.MCP, "mcp", false, "đăng ký MCP server của Bint (Context Engine) cho harness hỗ trợ: .mcp.json (Claude Code), .codex/config.toml (Codex)")
 	f.BoolVar(&flags.NoMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi cấu hình harness")
+	f.BoolVar(&flags.MCPUser, "mcp-user", false, "ghi mục `bint mcp serve` vào cấu hình MCP cấp người dùng của harness chỉ có MCP cấp user (Antigravity: ~/.gemini/config/mcp_config.json; có sao lưu)")
 	f.StringVar(&flags.GitMode, "git", "", "hiện diện trong Git: track (commit cho nhóm) | local (riêng máy: .git/info/exclude + skip-worktree)")
 	f.BoolVar(&flags.Update, "update", false, "nâng .bint/config.yml đã có lên mẫu hiện tại: thêm khoá còn thiếu, giữ nguyên giá trị (có sao lưu)")
 	return c

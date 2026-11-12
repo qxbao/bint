@@ -16,6 +16,7 @@ import (
 	"bint/internal/eval"
 	adapters "bint/internal/harness"
 	"bint/internal/knowledge"
+	"bint/internal/mcpgw"
 	"bint/internal/runlog"
 	"bint/internal/spool"
 	"bint/internal/store"
@@ -87,6 +88,10 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 	a.h.dirs = append(a.h.dirs, req.Dir)
 	a.h.prompts[step] = req.Prompt
 	a.h.reqs = append(a.h.reqs, req)
+	if p, err := mcpgw.RunBindingPath(filepath.Join(filepath.Dir(a.h.spool), "runtime"), envs[EnvRunID]); err == nil {
+		b, _ := os.ReadFile(p)
+		a.h.bindings = append(a.h.bindings, b)
+	}
 	if req.MCPConfig != "" {
 		body, _ := os.ReadFile(req.MCPConfig) // đọc ngay: Runner xoá tệp khi bước kết thúc
 		a.h.mcpBodies = append(a.h.mcpBodies, body)
@@ -118,6 +123,7 @@ type harness struct {
 	// reqs / mcpBodies: yêu cầu giao cho agent và nội dung tệp MCPConfig tại lúc gọi.
 	reqs      []eval.AgentRequest
 	mcpBodies [][]byte
+	bindings  [][]byte // bản ghi lượt chạy (mcpgw.RunBinding) tại lúc gọi agent
 	prompts   map[string]string
 	behave    func(ctx context.Context, step string, e *Env, taskID string) error
 	limits    []*float64

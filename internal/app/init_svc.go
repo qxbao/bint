@@ -36,6 +36,7 @@ type InitFlagOptions struct {
 	AgentsMD   bool     `flag:"agents-md"`
 	MCP        bool     `flag:"mcp"`
 	NoMCP      bool     `flag:"no-mcp"`
+	MCPUser    bool     `flag:"mcp-user"`
 	Force      bool     `flag:"force"`
 	NoSkills   bool     `flag:"no-skills"`
 	GitMode    string   `flag:"git" form:"choices=track|local"`
@@ -83,7 +84,7 @@ func (o InitFlagOptions) ToInit(dir, bintPath, version string) (InitOptions, err
 	}
 	opts := InitOptions{
 		Dir: dir, Harnesses: o.Harnesses, HooksScope: sc, AgentsMD: o.AgentsMD, Force: o.Force,
-		BintPath: bintPath, Version: version, NoSkills: o.NoSkills, Update: o.Update, GitMode: o.GitMode,
+		BintPath: bintPath, Version: version, NoSkills: o.NoSkills, Update: o.Update, GitMode: o.GitMode, MCPUser: o.MCPUser,
 	}
 	switch {
 	case o.Hooks:

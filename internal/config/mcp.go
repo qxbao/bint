@@ -86,3 +86,104 @@ func (m MCP) Uses(id string) bool {
 	_, ok := m.Services[id]
 	return ok
 }
+
+// Lý do một tool được cấp trong mcp.grants nhưng không dùng được (MCPExclusion.Reasons).
+const (
+	// MCPExcludeNotInProject: service không có trong mcp.services của dự án.
+	MCPExcludeNotInProject = "not_in_project"
+	// MCPExcludeNotRegistered: máy này chưa đăng ký service.
+	MCPExcludeNotRegistered = "not_registered"
+	// MCPExcludeReadOnlyStep: tool ghi vào cây làm việc, cấm ở bước chỉ đọc (b-req, b-review).
+	MCPExcludeReadOnlyStep = "read_only_step"
+)
+
+// MCPExclusion là tool được cấp nhưng bị loại, kèm mọi lý do.
+type MCPExclusion struct {
+	Tool    mcpcat.ToolRef
+	Reasons []string
+}
+
+// MCPResolution là kết quả giải quyền của một role.
+type MCPResolution struct {
+	// Granted là tool dùng được (đã bỏ trùng theo service + tên upstream), theo thứ tự khai báo.
+	Granted []mcpcat.ToolRef
+	// Excluded là tool được cấp nhưng bị loại.
+	Excluded []MCPExclusion
+	// Implicit: role interactive không khai báo trong mcp.grants, dựng theo D4.
+	Implicit bool
+}
+
+// Services trả id các service còn tool được cấp, theo thứ tự xuất hiện.
+func (r MCPResolution) Services() []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, t := range r.Granted {
+		if !seen[t.Service] {
+			seen[t.Service] = true
+			out = append(out, t.Service)
+		}
+	}
+	return out
+}
+
+// ToolsOf trả tool được cấp của một service.
+func (r MCPResolution) ToolsOf(service string) []mcpcat.ToolRef {
+	var out []mcpcat.ToolRef
+	for _, t := range r.Granted {
+		if t.Service == service {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// Resolve giải quyền của role thành tool dùng được. Daemon gateway, `bint mcp grants` và `bint run` (allowlist của
+// bước) cùng gọi hàm này nên không lệch nhau (docs/mcp-gateway-plan.md mục 7).
+//
+//   - Quyền lấy từ mcp.grants[role]. Role interactive không khai báo (D4) được `<service>.*` của mọi service trong
+//     mcp.services; role khác không khai báo thì không có gì (đóng an toàn).
+//   - Chỉ tool của service có trong mcp.services VÀ đã đăng ký trên máy (registered: tập id; nil = chưa đăng ký gì).
+//   - readOnly (b-req, b-review): bỏ tool WritesWorktree của danh mục dù grants có ghi.
+//
+// Phần tử quyền sai cấu trúc bị bỏ qua (Validate đã báo khi nạp cấu hình).
+func (m MCP) Resolve(role string, readOnly bool, registered map[string]bool) MCPResolution {
+	var res MCPResolution
+	grants, declared := m.Grants[role]
+	if role == MCPRoleInteractive && !declared {
+		res.Implicit = true
+		grants = nil
+		for _, id := range m.ServiceIDs() {
+			grants = append(grants, id+".*")
+		}
+	}
+	seen := map[string]bool{}
+	for _, g := range grants {
+		refs, err := mcpcat.Expand(g)
+		if err != nil {
+			continue
+		}
+		for _, ref := range refs {
+			key := ref.Service + "\x00" + ref.Upstream
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			var why []string
+			if !m.Uses(ref.Service) {
+				why = append(why, MCPExcludeNotInProject)
+			}
+			if !registered[ref.Service] {
+				why = append(why, MCPExcludeNotRegistered)
+			}
+			if svc, ok := mcpcat.Lookup(ref.Service); ok && readOnly && svc.WritesToWorktree(ref.Upstream) {
+				why = append(why, MCPExcludeReadOnlyStep)
+			}
+			if len(why) == 0 {
+				res.Granted = append(res.Granted, ref)
+			} else {
+				res.Excluded = append(res.Excluded, MCPExclusion{Tool: ref, Reasons: why})
+			}
+		}
+	}
+	return res
+}

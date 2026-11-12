@@ -31,6 +31,10 @@ type AgentRequest struct {
 	// MCPConfig / Settings: tệp cấu hình MCP và settings bổ sung (nhánh bint).
 	MCPConfig string
 	Settings  string
+	// MCPTools là tên tool (tên tới agent, không có tiền tố mcp__bint__) của service ngoài mà bước được cấp qua cửa vào
+	// `bint mcp serve` (cg_explore, ...). Claude thêm vào --allowedTools, Codex đặt approval_mode approve. Rỗng (lượt
+	// đánh giá, bước không có service) thì đối số không đổi so với trước.
+	MCPTools []string
 	// ExclusiveMCP: chỉ server trong MCPConfig được bật. Claude luôn có --strict-mcp-config nên bỏ qua;
 	// Codex tắt các mcp_servers khác trong config của người dùng/dự án (-c mcp_servers.X.enabled=false).
 	ExclusiveMCP bool
@@ -161,6 +165,11 @@ func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 	if req.MCPConfig != "" && !a.NoTools {
 		args = append(args, "--mcp-config", req.MCPConfig)
 		tools = append(tools, BintMCPTools...)
+		for _, t := range req.MCPTools {
+			if name := "mcp__bint__" + t; !slices.Contains(tools, name) {
+				tools = append(tools, name)
+			}
+		}
 	}
 	if req.Settings != "" {
 		args = append(args, "--settings", req.Settings)

@@ -105,7 +105,7 @@ func httpHarness(t *testing.T) (*harness, *fakeMCPHTTP) {
 	f := newFakeMCPHTTP()
 	ts := httptest.NewServer(f)
 	t.Cleanup(ts.Close)
-	h := newHarness(t, nil)
+	h := newHarness(t, withExtraTool("deepwiki", "read", "write_thing"))
 	h.setReg("deepwiki", regHTTP(ts.URL))
 	return h, f
 }

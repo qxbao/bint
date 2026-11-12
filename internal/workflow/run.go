@@ -638,12 +638,12 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
 	// Mọi bước driver process có đúng một MCP server là bint (M0 của docs/mcp-gateway-plan.md).
-	mcpPath, cleanMCP := r.stepMCPConfig(sr.child)
+	mcpPath, mcpTools, cleanMCP := r.stepMCP(sr, rs.t.State.ID)
 	defer cleanMCP()
 	res := sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: sr.prompt,
 		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
 		LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
-		MCPConfig: mcpPath, ExclusiveMCP: mcpPath != ""})
+		MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools})
 	return r.endStep(ctx, rs, sr, res)
 }
 

@@ -15,6 +15,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/gitrepo"
+	"bint/internal/mcpcat"
 	"bint/internal/state"
 	"bint/internal/testutil"
 )
@@ -29,6 +30,7 @@ type harness struct {
 
 	mu      sync.Mutex
 	machine config.MachineMCP
+	defRepo string
 }
 
 var fakeTools = map[string]string{
@@ -157,11 +159,60 @@ func (h *harness) open(svc string, hdr map[string]string) *client {
 	return c
 }
 
+// bindRun ghi bản ghi lượt chạy vào thư mục runtime của repo (như Runner của bint run).
+func bindRun(t *testing.T, paths state.Paths, b RunBinding) {
+	t.Helper()
+	if _, err := WriteRunBinding(paths.Runtime, b); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// withExtraTool làm Options.Lookup thêm tool (không chỉ đọc) vào nhóm group của service svcID trong danh mục của daemon:
+// danh mục thật không có tool ghi cho service http, nên các test về lệnh ghi cần tool giả. Quyền trỏ tới nhóm nên tool
+// được cấp cùng nhóm.
+func withExtraTool(svcID, group, tool string) func(*Options) {
+	return func(o *Options) {
+		o.Lookup = func(id string) (mcpcat.Service, bool) {
+			svc, ok := mcpcat.Lookup(id)
+			if !ok || id != svcID {
+				return svc, ok
+			}
+			groups := append([]mcpcat.Group(nil), svc.Groups...)
+			for i := range groups {
+				if groups[i].Name == group {
+					groups[i].Tools = append(append([]string(nil), groups[i].Tools...), tool)
+				}
+			}
+			svc.Groups = groups
+			return svc, true
+		}
+	}
+}
+
+// noWorktree là giá trị đặc biệt của HeaderWorktree trong test: không gửi header đó (mặc định tryOpen gửi worktree của
+// repo mẫu để role interactive có dự án khai báo service, D4).
+const noWorktree = "-"
+
+func (h *harness) defaultRepo() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.defRepo == "" {
+		h.defRepo = evalDir(h.t, newRepo(h.t, false))
+	}
+	return h.defRepo
+}
+
 func (h *harness) tryOpen(svc string, hdr map[string]string) (*client, string) {
 	h.t.Helper()
 	hd := map[string]string{HeaderService: svc, "Content-Type": "application/json"}
 	for k, v := range hdr {
 		hd[k] = v
+	}
+	if _, ok := hd[HeaderWorktree]; !ok {
+		hd[HeaderWorktree] = h.defaultRepo()
+	}
+	if hd[HeaderWorktree] == noWorktree {
+		delete(hd, HeaderWorktree)
 	}
 	body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{
 		"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "t", "version": "1"}}})
@@ -245,7 +296,28 @@ func rpcErrText(m rpcMsg) string {
 // newRepo tạo repo git có một commit, đã init Bint (có repo.json trong thư mục trạng thái) nếu initBint.
 func newRepo(t *testing.T, initBint bool) string {
 	t.Helper()
-	dir := testutil.NewRepo(t, nil)
+	return newRepoCfg(t, initBint, allServicesConfig())
+}
+
+// allServicesConfig là .bint/config.yml khai mọi service của danh mục trong mcp.services (không có grants: role
+// interactive được mọi service đã đăng ký theo D4).
+func allServicesConfig() string {
+	var b strings.Builder
+	b.WriteString("mcp:\n  services:\n")
+	for _, id := range mcpcat.IDs() {
+		b.WriteString("    " + id + ": {}\n")
+	}
+	return b.String()
+}
+
+// newRepoCfg tạo repo có commit gồm .bint/config.yml = cfg (rỗng = không có tệp cấu hình).
+func newRepoCfg(t *testing.T, initBint bool, cfg string) string {
+	t.Helper()
+	files := map[string]string{"README.md": "# demo\n"}
+	if cfg != "" {
+		files[".bint/config.yml"] = cfg
+	}
+	dir := testutil.NewRepo(t, files)
 	if initBint {
 		markInit(t, dir)
 	}

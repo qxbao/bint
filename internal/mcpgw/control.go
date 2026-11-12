@@ -86,9 +86,20 @@ func StartDetached(ctx context.Context, dir, exe string, args, env []string) (in
 		case <-ctx.Done():
 			return Info{}, false, ctx.Err()
 		case <-exited:
-			// Con thoát: có thể daemon khác đã giữ khoá.
-			if _, i, qerr := QueryStatus(ctx, dir); qerr == nil {
-				return i, false, nil
+			// Con thoát: có thể daemon khác (do shim khác khởi động cùng lúc) đã giữ khoá nhưng chưa kịp ghi gateway.json;
+			// chờ nó lên chừng nào khoá còn bị giữ.
+			for time.Now().Before(deadline) {
+				if _, i, qerr := QueryStatus(ctx, dir); qerr == nil {
+					return i, false, nil
+				}
+				if !lockHeld(dir) {
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return Info{}, false, ctx.Err()
+				case <-time.After(50 * time.Millisecond):
+				}
 			}
 			return Info{}, false, fmt.Errorf("daemon thoát ngay sau khi khởi động; xem %s%s", logPath, logTail(logPath))
 		case <-time.After(50 * time.Millisecond):

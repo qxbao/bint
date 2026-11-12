@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -111,6 +112,14 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 		args = append(args, "-c", "mcp_servers.bint.command="+tomlString(srv.Command),
 			"-c", "mcp_servers.bint.args="+tomlStrings(srv.Args),
 			"-c", `mcp_servers.bint.tools.cite_knowledge.approval_mode="approve"`)
+		// Tool của service ngoài được cấp cho bước (tên chỉ gồm chữ, số, gạch dưới, gạch ngang: không có dấu chấm nên không
+		// vướng việc -c tách khoá theo dấu chấm).
+		for _, t := range req.MCPTools {
+			if !codexToolNameRE.MatchString(t) {
+				return nil, fmt.Errorf("tên tool MCP %q không dùng được trong khoá cấu hình Codex", t)
+			}
+			args = append(args, "-c", "mcp_servers.bint.tools."+t+`.approval_mode="approve"`)
+		}
 		if req.Settings != "" {
 			// Settings là tín hiệu nhánh cần path hook. Dựng dialect Codex từ
 			// chính executable Bint của MCP; không chạy lệnh hook Claude trong settings.
@@ -270,6 +279,9 @@ type AgyAgent struct {
 
 // MaxPromptBytes: đề bài đi qua một đối số dòng lệnh (giới hạn của hệ điều hành
 // cho một đối số là 128 KiB trên Linux).
+// codexToolNameRE là khoá TOML trần hợp lệ: tên tool đặt trong `-c mcp_servers.bint.tools.<tên>.…` (không dấu chấm).
+var codexToolNameRE = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
 const MaxPromptBytes = 120 << 10
 
 func (a *AgyAgent) Name() string                       { return "antigravity" }

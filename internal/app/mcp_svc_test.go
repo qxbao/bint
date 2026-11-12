@@ -819,3 +819,50 @@ func TestDoctorMCPQuietWithoutConfig(t *testing.T) {
 		}
 	}
 }
+
+// Role chỉ đọc (reviewer, planner): tool ghi vào cây làm việc không được cấp dù grants có ghi, và có cảnh báo.
+func TestMCPGrantsReadOnlyRoleDropsWriteTools(t *testing.T) {
+	f := newMCPFx(t, `  services: {specmatic: {}}
+  grants:
+    reviewer: [specmatic.*]
+    planner: [specmatic.*]
+    implementer: [specmatic.*]
+`)
+	m := config.MachineMCP{Services: map[string]config.Registration{"specmatic": {Command: "specmatic-mcp"}}}
+	if err := config.SaveMachineMCP(m); err != nil {
+		t.Fatal(err)
+	}
+	roles, err := MCPGrants(context.Background(), f.root, MCPGrantsOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	by := map[string]MCPRoleGrants{}
+	for _, r := range roles {
+		by[r.Role] = r
+	}
+	names := func(r MCPRoleGrants) []string {
+		var out []string
+		for _, tl := range r.Tools {
+			out = append(out, tl.Agent)
+		}
+		return out
+	}
+	for _, role := range []string{"reviewer", "planner"} {
+		r := by[role]
+		if !slices.Equal(names(r), []string{"spec_backward_compatibility_check"}) {
+			t.Errorf("%s: %v", role, names(r))
+		}
+		w := strings.Join(r.Warnings, "\n")
+		if !strings.Contains(w, "spec_manage_mock_server") || !strings.Contains(w, "chỉ đọc") {
+			t.Errorf("%s: cảnh báo thiếu spec_manage_mock_server: %v", role, r.Warnings)
+		}
+	}
+	impl := by["implementer"]
+	if len(impl.Tools) != 4 || len(impl.Warnings) != 0 {
+		t.Errorf("implementer (bước ghi) phải đủ tool và không cảnh báo: %v %v", names(impl), impl.Warnings)
+	}
+	one, err := MCPGrants(context.Background(), f.root, MCPGrantsOptions{Role: "reviewer"})
+	if err != nil || len(one) != 1 || len(one[0].Tools) != 1 {
+		t.Fatalf("--role reviewer: %+v %v", one, err)
+	}
+}

@@ -1,10 +1,10 @@
 # Kế hoạch: gateway MCP dùng chung và cấp MCP theo role
 
-Trạng thái: **đã chốt hướng** (2026-11-12). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3–M5 chưa.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
+Trạng thái: **đã chốt hướng** (2026-11-12). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3 đã làm (2026-11-13, xem "Trạng thái M3" ở §7); M4–M5 chưa.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
 các bước `bint run`, sửa ngay được), M1 (danh mục, cấu hình hai tầng, API/CLI quản lý), M2 (daemon
 gateway), M3 (cửa vào gộp và cấp quyền theo role), M4 (màn TUI), M5 (đo).
-Quyết định ở §3, kết quả xác minh ở §10. Chỉ còn S3 (harness xử lý thế nào khi chính shim chết), kiểm thử
-khi làm M3.
+Quyết định ở §3, kết quả xác minh ở §10. Chỉ còn S3 (harness xử lý thế nào khi chính shim chết), chưa kiểm
+(phần nghiệm thu thật của M3).
 
 Tham khảo: gateway của bflow (`AI-flow-SDLC/packages/mcp-gateway`, `docs/shared-mcp-architecture.md`,
 `docs/mcp-memory-benchmark.md`). Kế hoạch này chỉ lấy phần lõi, không chép nguyên.
@@ -330,10 +330,11 @@ Các điểm chốt khi làm (kế hoạch gốc để ngỏ):
    được env của tiến trình MCP đã chạy) → role của bước; không có thì `interactive` (D4). Daemon lọc
    `tools/list` và từ chối lời gọi ngoài quyền (kể cả tên tool đoán mò).
 3. **Bước chỉ đọc:** tool thuộc nhóm "ghi vào cây làm việc" không được cấp cho b-req/b-review dù `grants`
-   có ghi; `bint mcp grants` báo cảnh báo. Lý do: hậu kiểm chụp cây làm việc sẽ làm bước thất bại. Với
-   danh mục v1, nhóm loại này không còn tool nào: codegraph chỉ đọc và ghi vào `.codegraph/` (bị ignore),
-   specmatic chạy với cwd ngoài repo. `backward_compatibility_check` có thao tác git nào ghi vào repo
-   không thì chưa chắc; hậu kiểm sẽ bắt được nếu có.
+   có ghi; `bint mcp grants` báo cảnh báo. Lý do: hậu kiểm chụp cây làm việc sẽ làm bước thất bại. Danh mục
+   khai nhóm này bằng `Service.WritesWorktree`: codegraph không có (chỉ ghi vào `.codegraph/`, bị ignore) còn specmatic
+   có `run_contract_test`, `run_resiliency_test`, `manage_mock_server` (ghi báo cáo/trạng thái mà cwd trong thư mục
+   trạng thái chỉ giảm nhẹ, không loại hẳn; thận trọng loại cả ba khỏi bước chỉ đọc).
+   `backward_compatibility_check` có thao tác git nào ghi vào repo không thì chưa chắc; hậu kiểm sẽ bắt được nếu có.
 4. **`bint run`:** `MCPConfig` của M0 giờ trỏ vào `bint mcp serve` nên tự có tool theo role, như nhau trên
    Claude và Codex. Antigravity (chỉ MCP cấp user): một mục user-level `bint mcp serve`, role lấy theo env
    như trên.
@@ -345,6 +346,52 @@ Các điểm chốt khi làm (kế hoạch gốc để ngỏ):
 worktree và một jira cho cả máy; bước b-review không thấy `spec_manage_mock_server`; lời gọi ngoài quyền bị
 từ chối; spool có `mcp.called` đúng run/role; daemon chết giữa phiên thì shim khởi động lại được; kiểm một
 lần Claude/Codex làm gì khi chính shim chết (S3).
+
+### Trạng thái M3 (đã làm 2026-11-13)
+
+Mã: `internal/mcpgw` (`shim.go`, `binding.go`, `toolscache.go`, quyền trong `http.go`/`call.go`), `internal/mcpserver`
+(`Proxy`, xử lý `tools/call` đồng thời), `internal/config/mcp.go` (`MCP.Resolve`), `internal/app/mcp_shim.go`,
+`internal/workflow/mcp.go`, `internal/eval` (`AgentRequest.MCPTools`), `internal/harness` (quy tắc quyền, MCP cấp user).
+Nghiệm thu bằng test tự động với upstream giả (re-exec binary test, daemon thật là tiến trình con): chuyển tiếp đúng tên
+tiền tố và nguyên vẹn, tự khởi động daemon tách rời, daemon không lên thì vẫn đủ 6 tool + instructions nêu lý do, kill daemon
+giữa phiên thì lời gọi sau thành công (nhiều lời gọi chỉ nối lại một lần), cache đĩa sống qua lần khởi động lại daemon, role
+do daemon tự giải, b-review không thấy tool `WritesWorktree`, lời gọi ngoài quyền bị từ chối ở shim và ở daemon (HTTP thẳng),
+`mcp.called` đúng run/task/role đã giải, đối số Claude/Codex của bước. **Chưa làm:** chạy với nhiều phiên Claude/Codex thật,
+kiểm S3 (harness làm gì khi chính shim chết), Codex có chuyển env tới server MCP stdio không, Codex có nhận `approval_mode`
+cho tool chuyển tiếp không, Job Object/detach trên Windows thật — người làm ở nghiệm thu thật.
+
+Điểm chốt khi làm (kế hoạch gốc để ngỏ hoặc mâu thuẫn với mã):
+
+- **Role không lấy từ header.** Daemon không mở SQLite và `state.json` không giữ bước hiện tại của lượt con, nên Runner ghi
+  **bản ghi lượt chạy** `<state>/runtime/mcp-runs/<run_id>.json` (`run_id` phải là ULID; xoá sau bước) và daemon đọc theo
+  `X-Bint-Run-Id`. Không có `run_id` → `interactive` (D4); `run_id` không có bản ghi, hoặc `X-Bint-Task-Id` lệch bản ghi → không
+  cấp gì (đóng an toàn). `X-Bint-Role` bị bỏ qua; `mcp.called` ghi role đã giải. Thẩm quyền của bản ghi là "chính sách,
+  không phải ranh giới bảo mật" (§9).
+- **Run/task nằm trong đối số của shim** (`bint mcp serve --run-id … --task-id …`, cờ ẩn) vì Codex lọc env của server MCP
+  stdio; env `BINT_RUN_ID`/`BINT_TASK_ID` giữ cho Claude và agy.
+- **Một hàm giải quyền** `config.MCP.Resolve(role, readOnly, registered)` cho daemon, `bint mcp grants` và allowlist của
+  bước: grants của role (hoặc D4 ngầm) ∩ `mcp.services` ∩ đã đăng ký, bỏ `WritesWorktree` khi `readOnly`
+  (`workflow.ReadOnlyRole`). Daemon cấp theo **nhóm** (tool của nhóm có tool được cấp, theo danh mục của daemon).
+- **Daemon từ chối** bằng `CodeNotGranted` (-32015): `initialize` của service không được cấp (một phiên gắn một service, nên
+  shim chỉ mở phiên cho service ứng viên) và `tools/call` ngoài quyền (kể cả tên đoán mò), trước khi chạm upstream; ghi
+  `mcp.called` với `outcome: denied`. Không có `X-Bint-Worktree` thì không biết dự án nào → không cấp (đổi so với M2: client
+  gọi thẳng phải khai grants hoặc dựa vào D4 ở một repo có `mcp.services`). Tệp cấu hình chọn theo `LoadFirst(ConfigRoots)`
+  như `app.OpenWorkspace`.
+- **Cache `tools/list` thêm tầng đĩa** `<gateway>/tools-cache/<service>-<revision>.json` (0600, ghi nguyên tử): daemon khởi
+  động lại không phải spawn upstream chỉ để lấy danh sách.
+- **Shim**: `Shim` implement `mcpserver.Proxy`; tập ứng viên tính ở `app.NewMCPShim` (không có thì không chạm gateway:
+  `BINT_MCP_NO_GATEWAY`, repo không khai service, role không có service khả dụng; chế độ `--eval-config` không đi qua đó).
+  Chờ daemon 3 giây (`StartWait`), mở phiên mọi service song song (4 giây); tổng `initialize` ≈ 8 giây, dưới timeout khởi động MCP 10 giây của Codex. Nối lại single-flight khi dial lỗi, 404, 401;
+  gửi lại chỉ khi chắc chưa tới daemon hoặc tool chỉ đọc. `StartDetached` chờ daemon khác đang lên (hai shim khởi động cùng
+  lúc) thay vì báo lỗi. `mcpserver.Serve` xử lý `tools/call` đồng thời (các method khác tuần tự) và `notifications/cancelled`
+  huỷ ctx lời gọi.
+- **Lỗi trả harness:** lỗi của daemon/upstream thành kết quả `isError: true` kèm mã trong thông điệp.
+- **Quyền harness:** `bint init --mcp`/`--update` thêm `mcp__bint__*` vào `permissions.allow` (scope hook, idempotent);
+  Codex ở `bint run` có `approval_mode="approve"` cho tập tool được cấp, phiên Codex tương tác giữ hỏi duyệt mặc định.
+  `bint init --mcp-user` ghi mục `bint` vào `~/.gemini/config/mcp_config.json` (Antigravity).
+- **Chưa làm / giới hạn:** `mcp.called` của phiên tương tác bị bỏ nếu thiếu harness + session (shim chưa đặt
+  `X-Bint-Harness`/`X-Bint-Session-Id`); `forward` (resources/prompts) chưa lọc theo quyền; subagent của driver session dùng
+  role `interactive` của phiên cha (G3).
 
 ## 8. M4 — Màn MCP trong TUI
 

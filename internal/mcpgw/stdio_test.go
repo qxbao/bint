@@ -339,7 +339,7 @@ func TestSessionErrors(t *testing.T) {
 	if _, msg := h.tryOpen("jira", nil); !strings.Contains(msg, "chưa đăng ký") {
 		t.Errorf("service chưa đăng ký: %s", msg)
 	}
-	if _, msg := h.tryOpen("codegraph", nil); !strings.Contains(msg, HeaderWorktree) {
+	if _, msg := h.tryOpen("codegraph", map[string]string{HeaderWorktree: noWorktree}); !strings.Contains(msg, HeaderWorktree) {
 		t.Errorf("thiếu worktree: %s", msg)
 	}
 	if _, msg := h.tryOpen("khong-co", nil); !strings.Contains(msg, "danh mục") {

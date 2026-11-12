@@ -30,7 +30,10 @@ type InitOptions struct {
 	Hooks      *bool
 	HooksScope claude.Scope
 	// MCP: true = đăng ký MCP server vào .mcp.json, false = gỡ, nil = giữ nguyên.
-	MCP      *bool
+	MCP *bool
+	// MCPUser: ghi mục `bint mcp serve` vào cấu hình MCP cấp người dùng của harness chỉ có MCP cấp user (Antigravity:
+	// ~/.gemini/config/mcp_config.json; có sao lưu, chạy lại không đổi).
+	MCPUser  bool
 	AgentsMD bool // ghi khối Bint vào AGENTS.md và nhập lại trong CLAUDE.md
 	Force    bool // ghi đè khối Bint đã bị sửa tay (có sao lưu)
 	BintPath string
@@ -312,6 +315,67 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			}
 			if res.Note != "" {
 				rep.add(name, StepWarn, "%s", res.Note)
+			}
+		}
+	}
+
+	// Quy tắc quyền mcp__bint__* (công cụ của Bint và của service ngoài qua cửa vào gộp) trong settings của harness, cùng
+	// phạm vi với hook: khi đăng ký MCP hoặc nâng cấp (--update).
+	if (opts.MCP != nil && *opts.MCP) || opts.Update {
+		for _, h := range cfg.Harnesses.Enabled {
+			ad, ok := harness.Get(h)
+			if !ok {
+				continue
+			}
+			pi, ok := ad.(harness.PermissionInstaller)
+			hi, hok := ad.(harness.HookInstaller)
+			if !ok || !hok {
+				continue
+			}
+			settings, err := hi.HooksPath(opts.HooksScope, root)
+			if err != nil {
+				return nil, err
+			}
+			name := "quyền MCP " + h
+			repoWriteSeam("before", absUnder(root, settings))
+			res, err := pi.InstallPermissions(settings, paths.Backups, now)
+			repoWriteSeam("after", absUnder(root, settings))
+			if err != nil {
+				rep.add(name, StepWarn, "không ghi được quy tắc %s vào %s: %v", claude.PermissionRule, settings, err)
+				continue
+			}
+			if res.Changed {
+				w.recordHooks(absUnder(root, settings), res)
+				rep.add(name, StepUpdated, "%s: permissions.allow thêm %q", settings, claude.PermissionRule)
+			} else {
+				rep.add(name, StepOK, "%s đã có quy tắc %q", settings, claude.PermissionRule)
+			}
+		}
+	}
+	// MCP cấp người dùng cho harness không có MCP cấp dự án (Antigravity), chỉ khi người dùng chọn --mcp-user.
+	if opts.MCPUser {
+		for _, h := range cfg.Harnesses.Enabled {
+			ad, ok := harness.Get(h)
+			if !ok {
+				continue
+			}
+			ui, ok := ad.(harness.UserMCPInstaller)
+			if !ok {
+				continue
+			}
+			name := "MCP cấp người dùng " + h
+			res, err := ui.InstallUserMCP(harness.MCPRequest{Root: root, BintPath: opts.BintPath, BackupDir: paths.Backups, Install: true, Now: now})
+			if err != nil {
+				rep.add(name, StepWarn, "không ghi được cấu hình MCP cấp người dùng: %v", err)
+				continue
+			}
+			if res.Changed {
+				rep.add(name, StepUpdated, "%s: mục %q (bint mcp serve); role lấy theo BINT_RUN_ID/BINT_TASK_ID, ngoài bint run là interactive", res.Path, claude.MCPServerName)
+				if opts.BintPath != "bint" {
+					rep.add(name, StepWarn, "bint không có trong PATH: %s ghi đường dẫn tuyệt đối %s", res.Path, opts.BintPath)
+				}
+			} else {
+				rep.add(name, StepOK, "%s đã có mục %q", res.Path, claude.MCPServerName)
 			}
 		}
 	}

@@ -224,7 +224,7 @@ bint eval run --harness codex …   # đo trên harness khác (nhánh không h�
 |---|---|---|---|
 | Skill | `.claude/skills` | `.agents/skills` | `.agents/skills` (dùng chung với Codex) |
 | Ẩn skill / chỉ gọi tường minh | ✓ (`disable-model-invocation`) | không ẩn khỏi người; `agents/openai.yaml` có `policy.allow_implicit_invocation: false` (Bint chưa sinh policy này) | ✗ |
-| MCP server của Bint | `.mcp.json` | `.codex/config.toml` — cần dự án được Codex tin cậy; riêng `cite_knowledge` được đặt `approval_mode = "approve"` | ✗ (chỉ cấp người dùng; dùng CLI `bint`) |
+| MCP server của Bint | `.mcp.json` (+ quy tắc `mcp__bint__*` trong `permissions.allow` khi `init --mcp`/`--update`) | `.codex/config.toml` — cần dự án được Codex tin cậy; riêng `cite_knowledge` được đặt `approval_mode = "approve"` | chỉ cấp người dùng: `bint init --mcp-user` ghi mục `bint` vào `~/.gemini/config/mcp_config.json` (tuỳ chọn); mặc định dùng CLI `bint` |
 | Hook ghi nhận | SessionStart/End, PreToolUse, PostToolUse(+Failure), UserPromptSubmit, Stop | `.codex/hooks.json`: SessionStart/End, PreToolUse, PostToolUse — mỗi hook cần được duyệt trong Codex | `.agents/hooks.json`: SessionStart, PreToolUse, PostToolUse — không có kết thúc phiên |
 | Chèn ngữ cảnh theo đường dẫn | trước Read/Edit/Write (và `UserPromptSubmit`) | chỉ trước `apply_patch` | ✗ (`PreToolUse` chỉ trả quyết định) |
 | Guardrail quy trình (`.bint/harness`, xem [harness-components.md](harness-components.md)) | `remind`, `ask`, `deny` trước lệnh/sửa; `Stop` chặn kết thúc (remind một lần, deny tối đa 3 lần) | `deny` và `remind` trước lệnh/sửa; `ask` hạ xuống `remind`; không có `Stop` | `ask`/`deny` trước lệnh/sửa; `remind` bị bỏ (không chèn được ngữ cảnh); không có `Stop` |
@@ -239,20 +239,46 @@ nhiều agent song song) chưa có.
 
 ### Tập MCP của mỗi bước
 
-Mỗi bước agent của `bint run` chạy theo chương trình (driver process) có **đúng một** MCP server: `bint`
-(`bint mcp serve`: `context_for_task`, `context_for_paths`, `knowledge_search`, `knowledge_get`,
-`cite_knowledge`, `report_observation`). Trước mỗi bước, Bint ghi
-`<state>/runtime/mcp/<run-id của bước>.json` (chỉ có `mcpServers.bint`, `command` là đường dẫn tuyệt đối của
-binary Bint đang chạy), truyền cho harness và xoá tệp khi bước kết thúc. Thiếu thư mục trạng thái thì bước chạy
-không có MCP (ghi một dòng log), không thất bại.
+Mỗi bước agent của `bint run` chạy theo chương trình (driver process) có **đúng một** MCP server: `bint`, tức cửa vào
+gộp `bint mcp serve` (shim, docs/mcp-gateway-plan.md mục 7). Nó phục vụ 6 công cụ của Bint (`context_for_task`,
+`context_for_paths`, `knowledge_search`, `knowledge_get`, `cite_knowledge`, `report_observation`) và chuyển tiếp tool của
+các **service ngoài được cấp cho role của bước** (codegraph, specmatic, …) qua daemon gateway dùng chung, với tên
+`<tiền tố>_<tool>` (vd. `cg_explore`; harness thấy `mcp__bint__cg_explore`). Trước mỗi bước, Bint ghi:
+
+- `<state>/mcp/<run-id>.json`: cấu hình MCP chỉ có `mcpServers.bint`, `command` là đường dẫn tuyệt đối của binary Bint,
+  `args` = `mcp serve --run-id <run> --task-id <task>`. Run/task nằm trong **đối số** vì Codex lọc env của server MCP
+  stdio (chưa kiểm trên Codex thật); shim ưu tiên cờ rồi mới tới `BINT_RUN_ID`/`BINT_TASK_ID`.
+- `<state>/runtime/mcp-runs/<run-id>.json` (0600): **bản ghi lượt chạy** (`step`, `role`, `read_only`, `worktree`). Daemon
+  không mở SQLite nên dùng bản ghi này để tự giải role của lượt; Bint xoá cả hai tệp khi bước kết thúc. Thiếu thư mục
+  trạng thái thì bước chạy không có MCP (ghi một dòng log), không thất bại; không ghi được bản ghi thì bước chỉ có tool của
+  Bint.
+
+**Quyền theo role** (`mcp.grants` trong `.bint/config.yml`; role của bước từ `b-req`→`planner`, `b-feat`→`implementer`,
+`b-review`→`reviewer`): tool được cấp = grants của role ∩ `mcp.services` của dự án ∩ service đã đăng ký trên máy. Daemon
+tự giải role (không tin header `X-Bint-Role`), lọc `tools/list` và từ chối lời gọi ngoài quyền (kể cả tên đoán mò) bằng lỗi
+-32015, upstream không nhận lời gọi, `mcp.called` ghi `outcome: denied`. `run_id` không có bản ghi thì không cấp service nào.
+**Bước chỉ đọc** (`b-req`, `b-review`) không được tool ghi vào cây làm việc dù `grants` có ghi (danh mục v1: specmatic
+`run_contract_test`, `run_resiliency_test`, `manage_mock_server`); `bint mcp grants` cảnh báo các tool bị loại. Cùng một
+hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và allowlist của bước nên không lệch nhau.
 
 | Bước | Claude Code | Codex CLI | Antigravity |
 |---|---|---|---|
-| `b-req` (chỉ đọc) | chỉ `bint`: `--strict-mcp-config --mcp-config <tệp>`; `mcp__bint__*` nằm trong `--allowedTools` cùng danh sách công cụ chỉ đọc; vẫn `--disallowedTools Edit,Write,…` | `bint` qua `-c mcp_servers.bint.*`; server khác trong config Codex bị tắt (xem dưới) | không có MCP cấp dự án: dùng CLI `bint context`, `bint knowledge cite` |
-| `b-feat` (ghi) | như trên, `--allowedTools` là danh sách của bước ghi cộng `mcp__bint__*` | như trên | như trên |
-| `b-review` (chỉ đọc) | như `b-req` | như `b-req` | như `b-req` |
-| Driver session (`bint run next`/`complete`) | subagent dùng kết nối MCP của phiên cha; Bint không cấp riêng | như Claude Code (phiên cha) | như Claude Code (phiên cha) |
+| `b-req` (chỉ đọc) | `--strict-mcp-config --mcp-config <tệp>`; `--allowedTools` gồm 6 tool `mcp__bint__*` của Bint cộng `mcp__bint__<tên>` của từng tool được cấp cho `planner`; vẫn `--disallowedTools Edit,Write,…` | `bint` qua `-c mcp_servers.bint.*` (args gồm `--run-id`/`--task-id`), `approval_mode="approve"` cho cùng tập tool được cấp; server khác trong config Codex bị tắt (xem dưới) | không có MCP cấp dự án (trừ khi `init --mcp-user`): dùng CLI `bint context`, `bint knowledge cite` |
+| `b-feat` (ghi) | như trên với role `implementer` (gồm tool nhóm ghi nếu `grants` cấp) | như trên | như trên |
+| `b-review` (chỉ đọc) | như `b-req` với role `reviewer` | như `b-req` | như `b-req` |
+| Phiên tương tác (ngoài `bint run`) | `.mcp.json` → `bint mcp serve`, role `interactive` (D4): không khai `grants.interactive` thì được mọi service có trong `mcp.services` và đã đăng ký trên máy | như Claude Code | mục MCP cấp người dùng (`init --mcp-user`), role `interactive` |
+| Driver session (`bint run next`/`complete`) | subagent dùng kết nối MCP của phiên cha, role `interactive`; quyền riêng cho subagent là việc của G3 | như Claude Code (phiên cha) | như Claude Code (phiên cha) |
 
+- **Shim khởi động daemon:** shim đọc `gateway.json`; không có hoặc không sống thì tự khởi động daemon tách rời
+  (`bint mcp gateway start --foreground`). `initialize` chờ tổng cộng tối đa khoảng 8 giây (3 giây tìm/khởi động daemon, 4 giây
+  mở phiên và lấy `tools/list`), dưới timeout khởi động MCP 10 giây của Codex; service chưa mở xong trong hạn thì phiên đó
+  không có tool của nó và được nêu trong `instructions`. Không lên được thì vẫn phục vụ 6 tool của Bint và nêu service
+  lỗi kèm lý do trong `instructions` của `initialize`. Daemon chết giữa phiên thì lời gọi kế tiếp nối lại (khởi động lại
+  daemon, mở lại phiên); lời gọi chỉ được gửi lại khi chắc chưa tới daemon hoặc tool chỉ đọc — **lệnh ghi không bao giờ bị gửi
+  hai lần**. `tools/list` lấy từ cache theo (service, revision) lưu ở `<gateway>/tools-cache/` nên `initialize` không bật
+  upstream; service chưa từng chạy thì daemon chạy `tools/list` đúng một lần. **Hook không khởi động daemon.**
+- **Tắt hoặc không dùng:** `BINT_MCP_NO_GATEWAY=1` (hoặc repo không khai `mcp.services`, hoặc role không có service khả dụng,
+  hoặc chế độ đánh giá `--eval-config`) thì shim chỉ còn tool của Bint, không đọc `gateway.json`, không khởi động daemon.
 - **Claude**: `--strict-mcp-config` luôn có, nên `.mcp.json` của dự án và MCP cấp người dùng không được nạp ở bước
   `bint run`; chỉ còn `bint`.
 - **Codex**: Codex vẫn nạp `[mcp_servers.*]` trong `$CODEX_HOME/config.toml` (mặc định `~/.codex/config.toml`) và
@@ -264,15 +290,36 @@ không có MCP (ghi một dòng log), không thất bại.
   `.codex/config.toml` chỉ bị tắt khi `projects."<thư mục>".trust_level = "trusted"` trong config người dùng khớp đúng
   thư mục chạy hoặc gốc repo chính (khi thư mục chạy là worktree liên kết) (Codex bỏ qua config của dự án chưa tin
   cậy). Chỉ dự án được tin cậy qua một thư mục cha khác thì Bint không nhận ra, nên server riêng của dự án đó
-  **không** bị tắt (không gây lỗi). Người dùng vẫn ghi đè được qua `harnesses.codex.extra_args`.
+  **không** bị tắt (không gây lỗi). Người dùng vẫn ghi đè được qua `harnesses.codex.extra_args`. Tên tool được cấp không có
+  dấu chấm nên đặt được `-c mcp_servers.bint.tools.<tên>.approval_mode="approve"`. Phiên Codex **tương tác** giữ hỏi duyệt
+  mặc định của Codex cho tool chuyển tiếp (Bint không giả lập).
 - **Antigravity**: chỉ có MCP cấp người dùng, Bint không cấp cho từng bước; skill dặn dùng CLI. Bước `agy` nhận mọi
-  MCP người dùng đã cấu hình.
+  MCP người dùng đã cấu hình. `bint init --mcp-user` ghi mục `bint` (`bint mcp serve`) vào
+  `~/.gemini/config/mcp_config.json` (khoá `mcpServers`, giữ server khác, sao lưu bản cũ, chạy lại không đổi); role lấy theo
+  env như trên (ngoài `bint run` là `interactive`).
 - **Lượt đánh giá** (`bint eval run`) không đổi: nhánh `bint` có cấu hình MCP riêng (`--eval-config`) và Codex chạy
-  trong profile đã cô lập.
+  trong profile đã cô lập; không chạm gateway.
 - Skill `b-req`, `b-feat`, `b-review` ưu tiên công cụ MCP `context_for_task`/`context_for_paths` khi có, và báo trích
   dẫn mục đã áp dụng bằng `cite_knowledge` hoặc `bint knowledge cite <id>` (cần `BINT_RUN_ID` do `bint run` đặt).
-- Tệp trên sẽ do cửa vào gộp thay thế khi có gateway MCP (docs/mcp-gateway-plan.md, M3); chỗ truyền `MCPConfig`
-  giữ nguyên.
+- Quyền theo role là **chính sách, không phải ranh giới bảo mật**: agent cùng UID đọc được `gateway.json` rồi gọi thẳng
+  daemon; bước chỉ đọc không có Bash tự do nên không làm được, b-feat có Bash đầy đủ thì làm được. Ghi `mcp.called` chỉ có
+  khi biết lượt chạy (bước `bint run`, hoặc phiên có harness + session); phiên tương tác chưa có định danh đó thì sự kiện bị bỏ
+  và đếm trong `dropped_events`.
+
+#### Di chuyển sang cửa vào gộp (M3)
+
+1. **Gỡ MCP toàn cục trùng service đã đăng ký trong Bint** (tránh hai bản: một do harness sinh theo từng phiên, một do
+   gateway). Với mỗi service bạn đã `bint mcp add` (codegraph, specmatic, jira, chrome-devtools, deepwiki, context7):
+   xoá mục tương ứng khỏi `~/.claude.json`/`.mcp.json` (Claude: `claude mcp remove <tên>`), `[mcp_servers.<tên>]` trong
+   `~/.codex/config.toml` và `~/.gemini/config/mcp_config.json`. Service chưa đăng ký trong Bint thì giữ nguyên.
+2. Khai `mcp.services` và (khuyến nghị) `mcp.grants` trong `.bint/config.yml`; **khai `grants.interactive`** nếu không muốn
+   phiên tương tác được mọi nhóm của service dự án khai báo (D4 ngầm gồm cả nhóm ghi như `jira.write`, và quy tắc
+   `mcp__bint__*` cho phép chúng không hỏi lại). Kiểm bằng `bint mcp grants`.
+3. Chạy `bint init --update` (hoặc `bint init --mcp`): thêm quy tắc `mcp__bint__*` vào `permissions.allow` của settings Claude
+   cùng phạm vi với hook (`--hooks-scope`, mặc định `local` → `.claude/settings.local.json`); chạy lại không thêm trùng. Quy
+   tắc cũ trỏ tên tool của MCP toàn cục đã gỡ (vd. `mcp__codegraph__*`) vô hại nhưng nên dọn tay.
+4. Antigravity (tuỳ chọn): `bint init --mcp-user`.
+5. Rollback: đặt `BINT_MCP_NO_GATEWAY=1` (chỉ còn tool của Bint, không cần sửa mã).
 
 **Chọn harness** cho từng bước theo thứ tự (mục 5): `--role <role|step>=<harness>` → `--harness` →
 `roles.planner|implementer|reviewer` → `harnesses.default` → `claude`. Harness phải nằm trong
@@ -575,7 +622,7 @@ Giới hạn đã biết của P4–P5:
   chưa chạy thật; trong lúc nâng cấp, binary cũ (khoá byte 0) và mới không loại trừ lẫn nhau trên Windows.
 - Ghi đè `--harness`/`--role` chưa lưu vào `state.json` của tác vụ nên cần truyền lại khi `resume`.
 - Hook `deny` của Codex chặn thao tác sửa tệp nhưng chưa tự chuyển tác vụ sang `blocked`.
-- Antigravity: chưa có MCP cấp dự án, chưa chèn ngữ cảnh qua hook, đề bài `bint run` truyền qua một
+- Antigravity: chưa có MCP cấp dự án (chỉ `init --mcp-user` cấp người dùng), chưa chèn ngữ cảnh qua hook, đề bài `bint run` truyền qua một
   đối số dòng lệnh (giới hạn 120 KiB), và một số payload công cụ thực tế cần kiểm chứng thêm khi chạy live.
 
 ### Quản lý MCP (`bint mcp`)
@@ -606,21 +653,24 @@ Bint **không tự cài** service nào (docs/mcp-gateway-plan.md mục 5). Hai t
 "Chỉ người" nghĩa là lệnh trả `ErrAgentForbidden` khi chạy trong phiên agent. `bint doctor` báo service dự án khai báo mà
 máy chưa đăng ký, chỉ mục codegraph thiếu và `secrets.env` có quyền rộng hơn 0600 (không khởi động tiến trình MCP). M1
 chỉ làm danh mục, cấu hình và lệnh quản lý; M2 thêm daemon gateway (dưới đây); việc cấp tool cho bước chạy qua cửa vào
-gộp (shim) và quyền theo role là M3.
+gộp (shim) và quyền theo role là M3 (xem "Tập MCP của mỗi bước" và "Di chuyển sang cửa vào gộp").
 
 #### Daemon gateway (`bint mcp gateway`, M2)
 
 Một daemon cho mỗi user (`internal/mcpgw`, docs/mcp-gateway-plan.md mục 6), **không do hook khởi động** và chưa có gì tự
-khởi động ở M2: chỉ người (hoặc shim M3 sau này) chạy `bint mcp gateway start`. Tệp trong `<state base>/gateway/`:
+khởi động ở M2: chỉ người chạy `bint mcp gateway start`; từ M3 shim (`bint mcp serve`) tự khởi động khi cần. Tệp trong `<state base>/gateway/`:
 `gateway.lock` (khoá `flock`/`LockFileEx`, daemon thứ hai bị từ chối), `gateway.json` (quyền 0600: `pid`, `port`, `token`;
-xoá khi dừng), `gateway.log`.
+xoá khi dừng), `gateway.log`, `tools-cache/` (M3).
 
 - **Mạng:** Streamable HTTP trên `127.0.0.1` cổng động; `POST/GET/DELETE /mcp` và `/admin/status|restart|stop` đều đòi
   `Authorization: Bearer <token>` (thiếu/sai → 401); Host không phải loopback hoặc có header `Origin` → 403; body POST quá
   giới hạn → 413. Quyền theo role là chính sách, không phải ranh giới bảo mật: agent cùng UID đọc được `gateway.json`.
 - **Phiên:** `initialize` mang header `X-Bint-Service` (bắt buộc), `X-Bint-Worktree` (gốc worktree git, bắt buộc với
   service chia sẻ theo worktree hoặc cần cwd), `X-Bint-Run-Id`, `X-Bint-Task-Id`, `X-Bint-Role`, `X-Bint-Harness`,
-  `X-Bint-Session-Id`; gateway trả `Mcp-Session-Id`. `DELETE /mcp` đóng phiên (nhả khoá exclusive).
+  `X-Bint-Session-Id`; gateway trả `Mcp-Session-Id`. Từ M3 `X-Bint-Role` **bị bỏ qua khi cấp quyền**: daemon tự giải role
+  (có `X-Bint-Run-Id` thì từ bản ghi lượt chạy `runtime/mcp-runs/<run>.json`, không có thì `interactive`) rồi giải quyền theo
+  `mcp.grants` của repo chứa worktree; không được cấp thì `initialize` trả -32015 (`CodeNotGranted`), nên một phiên gắn một
+  service được cấp. Cache `initialize`/`tools/list` cũng lưu ở `<gateway>/tools-cache/<service>-<revision>.json` (0600). `DELETE /mcp` đóng phiên (nhả khoá exclusive).
 - **Phân vùng tiến trình theo danh mục:** `machine` một tiến trình cho cả máy, `worktree` một tiến trình cho mỗi gốc
   worktree, `session` mỗi phiên một tiến trình (dừng khi phiên đóng), `remote` (deepwiki, context7) không sinh tiến trình.
   Upstream khởi động lười ở lời gọi (hoặc `initialize`, khi chưa có cache) đầu tiên cần nó và dừng sau `idle_timeout` khi hết
@@ -640,7 +690,7 @@ xoá khi dừng), `gateway.log`.
 - **Env của upstream** = env tối thiểu (`PATH`, `HOME`, ngôn ngữ…) + env mặc định của danh mục + biến credential đã khai
   báo, giá trị đọc từ `secrets.env` lúc khởi động upstream; biến khác của daemon không lọt sang. Lỗi và stderr trong
   `status` đã che giá trị credential.
-- **Ghi nhận:** mỗi `tools/call` ghi một sự kiện `mcp.called` (run/task/role, service, tool, nhóm, kết quả, thời gian; không
+- **Ghi nhận:** mỗi `tools/call` ghi một sự kiện `mcp.called` (run/task/role đã giải, service, tool, nhóm, kết quả — gồm `denied` cho lời gọi ngoài quyền —, thời gian; không
   có đối số hay kết quả) vào spool của repo chứa worktree; repo chưa `bint init`, hoặc phiên thiếu cả `run_id` lẫn cặp
   harness + session thì không ghi (đếm trong `dropped_events`). Daemon không mở SQLite.
 

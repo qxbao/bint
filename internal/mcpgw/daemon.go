@@ -199,18 +199,38 @@ func (d *Daemon) logf(format string, a ...any) {
 
 func (d *Daemon) cachePut(svc, rev string, init, tools []byte) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	k := svc + "|" + rev
-	if _, ok := d.cache[k]; !ok {
+	_, had := d.cache[k]
+	if !had {
 		d.cache[k] = cacheEntry{init: init, tools: tools}
+	}
+	d.mu.Unlock()
+	if !had {
+		d.cacheStore(svc, rev, cacheEntry{init: init, tools: tools})
 	}
 }
 
+// cacheGet tìm cache initialize/tools/list theo (service, revision): bộ nhớ rồi tới đĩa (tools-cache/, sống qua lần khởi
+// động lại daemon nên không phải spawn upstream chỉ để lấy danh sách).
 func (d *Daemon) cacheGet(svc, rev string) (cacheEntry, bool) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	e, ok := d.cache[svc+"|"+rev]
-	return e, ok
+	d.mu.Unlock()
+	if ok {
+		return e, true
+	}
+	e, ok = d.cacheLoad(svc, rev)
+	if !ok {
+		return cacheEntry{}, false
+	}
+	d.mu.Lock()
+	if cur, had := d.cache[svc+"|"+rev]; had {
+		e = cur
+	} else {
+		d.cache[svc+"|"+rev] = e
+	}
+	d.mu.Unlock()
+	return e, true
 }
 
 func (d *Daemon) dropPartition(p *partition) {
@@ -278,6 +298,9 @@ type repoInfo struct {
 	root      string
 	stateRoot string
 	spool     string // rỗng nếu repo chưa init Bint hoặc không giải được
+	runtime   string // thư mục runtime của repo ("" nếu không giải được): chứa bản ghi lượt chạy (binding.go)
+	cfg       config.Config
+	cfgOK     bool // đọc được cấu hình dự án (cfg.MCP có nghĩa)
 }
 
 // resolveRepo giải worktree dir (gitrepo + config + state, không mở SQLite).
@@ -287,15 +310,17 @@ func resolveRepo(ctx context.Context, dir string) (repoInfo, error) {
 		return repoInfo{}, err
 	}
 	ri := repoInfo{root: repo.Toplevel}
-	cfg, _, err := config.Load(repo.Toplevel, false)
+	cfg, _, err := config.LoadFirst(repo.ConfigRoots(), false) // cùng cách chọn tệp cấu hình với app.OpenWorkspace
 	if err != nil {
 		return ri, nil
 	}
+	ri.cfg, ri.cfgOK = cfg, true
 	paths, err := state.Resolve(repo, cfg)
 	if err != nil {
 		return ri, nil
 	}
 	ri.stateRoot = paths.Root
+	ri.runtime = paths.Runtime
 	if paths.Initialized() {
 		ri.spool = paths.Spool
 	}

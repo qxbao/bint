@@ -241,7 +241,10 @@ func TestRestartLimit(t *testing.T) {
 
 // Tool không chỉ đọc: upstream chết hoặc timeout giữa chừng thì lỗi không rõ kết quả, upstream nhận đúng một lần.
 func TestUnknownOutcomeNeverRetried(t *testing.T) {
-	h := newHarness(t, func(o *Options) { o.CallTimeout = 400 * time.Millisecond })
+	h := newHarness(t, func(o *Options) {
+		withExtraTool("codegraph", "explore", "do_write")(o)
+		o.CallTimeout = 400 * time.Millisecond
+	})
 	h.register("codegraph")
 	repo := evalDir(t, newRepo(t, false))
 	c := h.open("codegraph", worktreeHdr(repo))

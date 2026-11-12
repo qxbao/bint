@@ -15,7 +15,7 @@ import (
 
 func newMCPCmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{Use: "mcp", Short: "MCP server của Context Engine; danh mục, đăng ký và quyền MCP của service ngoài"}
-	var evalCfg string
+	var evalCfg, runID, taskID string
 	serve := &cobra.Command{
 		Use:   "serve",
 		Short: "Chạy MCP server qua stdio (context_for_task, context_for_paths, knowledge_search, knowledge_get, cite_knowledge, report_observation)",
@@ -26,7 +26,13 @@ func newMCPCmd(stdio IO) *cobra.Command {
 
 Các công cụ chỉ đọc, trừ cite_knowledge và report_observation (ghi nhận; mục do
 agent ghi luôn ở candidate). Truy xuất và trích dẫn được quy về lượt chạy qua hook
-PostToolUse của Claude Code (bint init --hooks).`,
+PostToolUse của Claude Code (bint init --hooks).
+
+Đây cũng là cửa vào duy nhất tới MCP của service ngoài (codegraph, specmatic, ...): tool của các
+service mà role của phiên được cấp (mcp.grants) hiện với tên <tiền tố>_<tool> (harness thấy
+mcp__bint__<tiền tố>_<tool>), chuyển tiếp qua daemon gateway dùng chung; daemon được tự khởi động
+nếu chưa chạy. Role lấy từ lượt chạy của bint run (BINT_RUN_ID/BINT_TASK_ID), ngoài bint run là
+interactive. Đặt BINT_MCP_NO_GATEWAY=1 để chỉ còn tool của Bint.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
@@ -57,12 +63,27 @@ PostToolUse của Claude Code (bint init --hooks).`,
 				b := &app.RepoBackend{Dir: dir}
 				defer b.Close()
 				mcpserver.RegisterTools(srv, b)
+				// Chế độ đánh giá (--eval-config) không bao giờ chạm gateway; ở đây NewMCPShim trả nil khi không có gì
+				// để chuyển tiếp (BINT_MCP_NO_GATEWAY, dự án không dùng MCP ngoài, role không được cấp service nào).
+				sh, err := app.NewMCPShim(ctx, dir, app.MCPShimOptions{RunID: runID, TaskID: taskID})
+				if err != nil {
+					return err
+				}
+				if sh != nil {
+					defer sh.Close()
+					srv.Proxy = sh
+					sh.Start() // khởi động daemon song song với việc harness gửi initialize
+				}
 			}
 			return srv.Serve(ctx, stdio.In, stdio.Out)
 		},
 	}
 	serve.Flags().StringVar(&evalCfg, "eval-config", "", "tệp cấu hình ngữ cảnh của lượt đánh giá (nội bộ; mặc định $"+ctxengine.EvalEnv+")")
 	serve.Flags().MarkHidden("eval-config")
+	serve.Flags().StringVar(&runID, "run-id", "", "lượt chạy của bước bint run (nội bộ; mặc định $BINT_RUN_ID)")
+	serve.Flags().StringVar(&taskID, "task-id", "", "tác vụ của bước bint run (nội bộ; mặc định $BINT_TASK_ID)")
+	serve.Flags().MarkHidden("run-id")
+	serve.Flags().MarkHidden("task-id")
 	tools := &cobra.Command{
 		Use:   "tools",
 		Short: "Liệt kê công cụ MCP",

@@ -224,6 +224,9 @@ func (s Service) Tools() []string {
 // IsReadOnly cho biết tool upstream có chỉ đọc (được retry) không.
 func (s Service) IsReadOnly(tool string) bool { return contains(s.ReadOnly, tool) }
 
+// WritesToWorktree cho biết tool ghi vào cây làm việc (cấm ở bước chỉ đọc).
+func (s Service) WritesToWorktree(tool string) bool { return contains(s.WritesWorktree, tool) }
+
 // OptionNames trả về tên tuỳ chọn riêng của dự án, đã sắp xếp.
 func (s Service) OptionNames() []string {
 	out := make([]string, 0, len(s.Options))

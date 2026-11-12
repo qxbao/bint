@@ -21,6 +21,12 @@ func MCPConfigPath(repoRoot string) string { return filepath.Join(repoRoot, ".mc
 // InstallMCP thêm (hoặc gỡ, khi install = false) mục "bint" trong mcpServers của
 // tệp .mcp.json, giữ nguyên mọi server khác.
 func InstallMCP(path, bintPath, backupDir string, install bool, now time.Time) (InstallResult, error) {
+	return InstallMCPAt(path, bintPath, backupDir, "claude/.mcp.json", install, now)
+}
+
+// InstallMCPAt như InstallMCP nhưng đặt tên bản sao lưu (backupRel) cho tệp cấu hình có cùng dạng mcpServers của
+// harness khác (Antigravity: mcp_config.json cấp người dùng).
+func InstallMCPAt(path, bintPath, backupDir, backupRel string, install bool, now time.Time) (InstallResult, error) {
 	res := InstallResult{Path: path}
 	raw, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -68,7 +74,7 @@ func InstallMCP(path, bintPath, backupDir string, install bool, now time.Time) (
 	if doc.Len() == 0 && len(raw) == 0 {
 		return res, nil
 	}
-	if res.BackupPath, err = fsafe.Backup(path, backupDir, "claude/.mcp.json", now); err != nil {
+	if res.BackupPath, err = fsafe.Backup(path, backupDir, backupRel, now); err != nil {
 		return res, err
 	}
 	if err := fsafe.WriteAtomic(path, out, 0o644); err != nil {

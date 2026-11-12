@@ -18,6 +18,8 @@ const (
 	OutcomeTimeout  = "timeout"
 	OutcomeUpstream = "upstream_error"
 	OutcomeCanceled = "canceled"
+	// OutcomeDenied: lời gọi ngoài quyền của role, bị từ chối trước khi tới upstream.
+	OutcomeDenied = "denied"
 )
 
 // record ghi một sự kiện mcp.called vào spool của repo chứa worktree của phiên (daemon không mở SQLite). Không ghi

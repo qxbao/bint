@@ -11,11 +11,11 @@
 │ │   ⟦Write AGENTS.md~~~~~~⟧  [ ]                                           │ │
 │ │   ⟦Register MCP~~~~~⟧      [ ]                                           │ │
 │ │   ⟦Remove MCP~~~~⟧         [ ]                                           │ │
+│ │   ⟦User-level MCP (agy)~~… [ ]                                           │ │
 │ │   ⟦Overwrite (--force)~~~… [ ]                                           │ │
 │ │   ⟦Skip skills~~~~~⟧       [ ]                                           │ │
 │ │   ⟦Git mode~~~~⟧           ( ) ⟦(empty)~~~⟧ ( ) track (●) local          │ │
 │ │   ⟦Upgrade config templat… [ ]                                           │ │
-│ │                                                                          │ │
 │ │                                                                          │ │
 │ │   ⓘ ⟦View only: change harnesses in the Config tab (harnesses.enabled).… │ │
 │ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint init                          │ │
