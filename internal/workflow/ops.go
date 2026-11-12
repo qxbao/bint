@@ -107,6 +107,11 @@ type NewTaskOptions struct {
 	Depth string
 	// Isolation: ""/auto = theo workflow.isolation; shared|worktree = người dùng chỉ định (--shared/--worktree).
 	Isolation string
+	// Driver: ""/auto = theo workflow.driver; process|session = người dùng chỉ định (--driver).
+	Driver string
+	// DriverFlagOnly: bỏ qua workflow.driver, chỉ nhận cờ tường minh (`bint run` tự lập phiếu: bản thân nó là driver
+	// process nên không lấy khoá cấu hình của driver session).
+	DriverFlagOnly bool
 }
 
 // NewTask lập phiếu tác vụ từ mô tả tự do (bước Classify).
@@ -164,6 +169,11 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 		return nil, task.Assessment{}, err
 	}
 	cls.Isolation, cls.IsolationReason, cls.IsolationTasks = iso.Mode, iso.Reason, iso.Tasks
+	drv, err := e.chooseDriver(o.Driver, o.DriverFlagOnly)
+	if err != nil {
+		return nil, task.Assessment{}, err
+	}
+	cls.Driver, cls.DriverReason = drv.Mode, drv.Reason
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
 	if o.Workflow == "b-req" || (o.Workflow == "b-do" && cls.Plan) {
@@ -424,6 +434,8 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		}
 	}
 	if to == task.StatusCancelled {
+		// Bước đang chạy bằng subagent: gỡ bước dở và hợp đồng thuê trước, nếu không hợp đồng của chính tác vụ chặn việc dọn.
+		e.discardPendingForCancel(t)
 		e.removeWorktreeAfterCancel(ctx, t)
 	}
 	e.emit(t, spool.TaskStatus, map[string]any{"status": to, "reason": o.Reason, "forced": o.Force && len(blockers) > 0})

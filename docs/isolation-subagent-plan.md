@@ -1,7 +1,8 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
 Trạng thái: **đã chốt hướng** (2026-11-11; bổ sung mục 4.5 ngày 2026-11-12). **G1 mục 4.1–4.4 và 4.5 (H8) đã làm**
-(2026-11-12, xem mục 12.1–12.5). **G2 (mục 5) đã làm** (2026-11-12, xem mục 12.6); G3–G4 chưa làm. Gồm bốn giai
+(2026-11-12, xem mục 12.1–12.5). **G2 (mục 5) đã làm** (2026-11-12, xem mục 12.6). **G3a (mục 6.1–6.3) đã làm**
+(2026-11-12, xem mục 12.10); G3b (6.4–6.7) và G4 chưa làm. Gồm bốn giai
 đoạn: G1 (cô lập trên worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy
 các bước bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
 
@@ -872,3 +873,94 @@ Write, NotebookEdit`; và `tools: Read, Write, Bash`), hook ghi toàn bộ JSON 
 
 Việc cần người làm (tuỳ chọn): một lần chạy dưới `bypassPermissions` để xác nhận hook `deny` vẫn áp và `Bash(<mẫu>)` không
 giới hạn gì. Lệnh: `scratchpad/spike/run.sh s1-bypass bypassPermissions "<prompt S1>"` (xem `run.sh`).
+
+### 12.10. G3a mục 6.1–6.3 — driver session, `next`/`complete`/`abort`, hợp đồng thuê khoá, 2026-11-12, tác vụ 01M77ED7S8THNK58QMMJE54YD2
+
+**Đã làm** (chưa commit khi viết ghi chép này; **không** làm 6.4–6.7: định nghĩa subagent, guardrail 6.4a, ghép sự kiện
+spool theo `agent_id`, chi phí, skill b-do — thuộc phiếu G3b):
+
+- **Tách `runStep` (6.2).** `internal/workflow/run.go`: kiểu `stepRun` gom trạng thái giữa hai nửa; `beginStep(ctx, rs, step,
+  session)` (preflight b-feat, ask_always, chuyển trạng thái, giới hạn, khoá, ảnh chụp trước, `beginTouched`, sự kiện bắt đầu,
+  `LinkRun`, đề bài, `OnStep`) và `endStep(ctx, rs, sr, res)` (`endTouched`, tính phạm vi lúc còn khoá, ảnh chụp sau +
+  `ReadonlyViolations`, `StepResult`, sự kiện kết thúc, `AwaitingCheck`, interrupted/failed/chạm trần); `runStep` = `beginStep →
+  agent.Run → endStep` giữ nguyên thứ tự sự kiện, thông báo và lời gọi `Tasks.Update`. Khoá nhả ở cuối `endStep` (`stepRun.release`,
+  cùng chỗ với `defer` cũ, gồm seam `afterStepUnlock`). `afterStep(StepReview)` tách phần quyết định thành `reviewDecision`.
+  **Không sửa test nào của `internal/workflow`** (AC-1: toàn bộ test cũ qua nguyên vẹn).
+- **Mô hình dữ liệu (6.2).** `task.State`: `PendingStep{RunID, ParentRunID, Step, Mode, Snapshot, FeatBefore, FirstFeat, Harness, Model,
+  Subagent, Prompt, MaxTurns, StartedAt, LeaseUntil}` + `PendingActive(now)`, `SessionRun`, `AgentRuns[{AgentID, RunID}]`,
+  `ReviewDecided`; `Classification.Driver/DriverReason` (+ `EffectiveDriver()`). Mọi trường `omitempty`: `state.json` cũ đọc được.
+- **Lệnh `bint run next|complete|abort` (6.1).** `internal/workflow/session.go`: `Runner.Next/Complete/Abort`, `SessionAction`
+  (`action` = `agent|process|done|blocked|failed`; `complete` còn tiếp tục thì không có `action`), `ErrRunMismatch`,
+  `PendingStepError`. `app.RunNext/RunComplete/RunAbort` (+ Options có thẻ `flag`/`arg`), CLI `internal/cli/run_session.go`
+  (`--json`, `--resume`, `--no-wait`, `--run`, `--agent-id`, `--failed`, `--reason`; mã thoát 1 khi blocked/failed; `complete`
+  thiếu `--run` ⇒ 2). `next` gọi lại khi bước còn hạn trả đúng bước (cùng `run_id`/prompt, không đổi phiếu); `complete` sai `run_id`
+  ⇒ `ErrRunMismatch` không đổi gì; `abort` xoá bước dở + hợp đồng thuê, ghi `Touched` của b-feat, tác vụ → `interrupted`. Role gán
+  harness khác Claude ⇒ `action: process` với `bint run <bước> --task <id> --json`; review chạy riêng kiểu đó được `next` áp quyết
+  định (không review lặp). `complete --agent-id` chỉ lưu vào `State.AgentRuns` và payload `workflow.finished` của lượt con.
+- **Hợp đồng thuê (6.3).** `internal/workflow/lease.go`: tệp `<tệp khoá>.lease.json` + mutex `.lease.lk` (`tryFlock`), ghi nguyên
+  tử (`fsafe.WriteAtomic`), đồng hồ `leaseNow` thay được trong test. `AcquireLock` sau khi giành flock đọc hợp đồng còn hạn của tác
+  vụ **khác** và xung đột theo bảng chia sẻ/độc quyền ⇒ `lockedError` ("<tác vụ> <bước> (subagent, khoá …, hết hạn HH:MM)"), nên
+  `WaitLock`, `bint run` kiểu tiến trình, `land` và `next` của tác vụ khác đều chờ/blocked. Không có đường nào đọc PID. `ActiveSteps`
+  liệt kê cả hợp đồng (PID 0) nên TUI thấy bước subagent; land/cancel dọn tệp hợp đồng; huỷ tác vụ gỡ bước dở trước khi dọn worktree.
+- **Chặn chéo hai driver.** `Runner.Run` (process): bước dở còn hạn ⇒ `PendingStepError`; hết hạn ⇒ gọi `Complete` đóng như quá giờ.
+- **Cấu hình + cờ (mục 9).** `workflow.driver` (`process` | `session`): trường `yaml`, `DriverProcess/DriverSession/DriverModes`,
+  `Default()`, `Validate()`, dòng mẫu trong `template.go`, `TestWorkflowDriverDefaultsAndValidate`; cờ `--driver auto|process|session` ở
+  `bint task new` và `bint run` (cùng `--task` ⇒ lỗi dùng sai); JSON `task new`/`task show`/`run status` có `driver`.
+- **TUI.** `tasks.abort` (ghi, không phím, mở từ bảng lệnh, form xác nhận) + hàng `cliRefs`; `run next`/`run complete` vào
+  `Excluded` của bảng phủ; ô `--driver` ở form `tasks.new`/`tasks.run`; nhãn vi/en; kiểm kê literal nhắc lệnh CLI có thêm loại trừ
+  kèm lý do cho thông điệp của giao thức session.
+- **Tài liệu:** `docs/workflows.md` (mục "Driver session"), `docs/configuration.md` (`workflow.driver`).
+
+**Lệch so với kế hoạch (và lý do):**
+
+1. **A1 — `--driver` trên `bint run`.** Driver là thuộc tính phiếu. `bint run` tự lập phiếu **chỉ nhận cờ tường minh**, không lấy
+   `workflow.driver` (bản thân nó là driver process; lấy khoá cấu hình thì `bint run b-do "…"` trên terminal không chạy gì).
+   `--driver session` lập phiếu rồi dừng (`Result.Status = created`, ghi chú `bint run next <id>`). `task new`: cờ > cấu hình > process.
+2. **A2 — hợp đồng thuê ở tệp anh em**, không ghi vào chính tệp `write-*.lock`: nhiều chủ chia sẻ cùng giữ flock nên hai `next`
+   chỉ đọc ghi đè nhau; trên Windows vùng khoá của tệp là bắt buộc. Cần mutex riêng cho đọc-sửa-ghi (`.lease.lk`).
+3. **A3 — bước chạy riêng bằng tiến trình giữa luồng session.** `bint run b-review --task` không áp quyết định sau review (workflow
+   đơn). `State.ReviewDecided` (số vòng đã áp) cho `next` nhận ra vòng chưa áp; `reviewDecision` chỉ ghi nó khi workflow là b-do.
+   `next --resume` coi vòng review hiện có là đã được người xem (không áp lại quyết định cũ gây dừng lặp).
+4. **A4 — bước dở hết hạn** = quá `workflow.timeout_minutes` tính từ `next`: `next`/`complete`/`bint run` đóng bước là `failed` "quá
+   workflow.timeout_minutes" (vẫn chạy kiểm chỉ đọc). Subagent xong đúng lúc quá hạn cũng bị tính là quá giờ.
+5. **A5 — ngân sách b-do** (`max_cost_usd`/`max_turns` tổng) sống trong một tiến trình nên mỗi lệnh session bắt đầu từ 0; chi phí thuộc G3b.
+6. **Vòng review do subagent ghi không mang `run_id`** (subagent không có `BINT_RUN_ID`), nên điều kiện cũ "review ghi ở lượt này" của
+   `afterStep` không dùng được: thêm `reviewIsFresh` (driver session nhận vòng có `run_id` rỗng mới hơn `ReviewDecided`). Không có trong
+   kế hoạch; phát hiện khi viết test chuỗi b-req → b-feat → b-review.
+7. **`complete` thử lại được**: bước dở chỉ bị gỡ ở cuối `endStep` (dưới khoá); nếu lệnh bị ngắt giữa chừng, `complete` lại cùng `run_id`
+   (kể cả khi `Reconcile` đã đưa tác vụ về interrupted, `complete` tự tiếp tục) đóng nốt bước.
+8. **`interrupted` báo ra `action: blocked`** (chờ người `next --resume`); chỉ `failed` ⇒ `failed`.
+9. **`abort` khi không có bước dở** vẫn dừng tác vụ đang active (→ interrupted) và xoá hợp đồng còn sót; có ghi chú "tác vụ không có bước dở".
+10. **Bước `process` không ghi gì vào phiếu**: gọi `next` lại trả cùng hành động; `bint run <bước> --task` không vướng vì không có bước dở.
+
+**Chưa kiểm được / rủi ro còn lại:**
+- **Chưa chạy thật bằng Claude Code** (cần định nghĩa subagent và skill của G3b): mới có "subagent giả" (hàm test và test E2E gọi nhị phân thật).
+- **`next` có thể chờ khoá tới `workflow.timeout_minutes`** (như `bint run`): skill G3b nên dùng `--no-wait` hoặc chạy nền.
+- **`complete` chạy kiểm chứng trong lệnh** (có thể lâu) nên công cụ Bash có giới hạn thời gian của orchestrator có thể giết nó; `Reconcile`
+  đưa tác vụ về interrupted, `AwaitingCheck` còn nên `next --resume` chạy lại phần kiểm (đã ghi trong `docs/workflows.md`).
+- **Prompt lưu trong `state.json`** (có thể kèm gói ngữ cảnh vài chục KB): mỗi `Tasks.Update` ghi lại nó trong lúc bước dở; gỡ khi đóng bước.
+- **Windows chạy thật chưa kiểm** (chỉ biên dịch, vet, staticcheck): đọc hợp đồng trong lúc `os.Rename` ghi đè có thể báo lỗi thoáng qua
+  (đọc/ghi đều dưới mutex `.lease.lk` khi có tệp; chỉ đường chỉ-đọc `ActiveSteps` cũng qua mutex khi có tệp).
+- **Hợp đồng chỉ chặn người lấy khoá qua Bint**: tiến trình ngoài Bint (IDE, subagent tự sửa cây gốc) không bị chặn; subagent chỉ đọc vẫn
+  dựa vào ảnh chụp trước/sau (guardrail 6.4a thuộc G3b). `Bash(...)` của subagent không giới hạn lệnh (S1, mục 12.9).
+- Nâng cấp: binary cũ (trước G3a) không biết hợp đồng thuê nên không tôn trọng nó; trạng thái `pending_step` bị binary cũ bỏ qua.
+
+**Kiểm thử đã thêm:** `internal/workflow/session_test.go` (chuỗi đủ tới done kèm lượt cha/con/`agent_id` trong spool, b-review sửa tệp ⇒
+failed, đường dẫn bảo vệ ⇒ blocked rồi `--resume` không chạy lại b-feat, dừng ở `max_review_rounds`, worktree land ở finalize, `next` hai
+lần cùng bước, `complete` sai `run_id`/không có bước dở, `abort` + hợp đồng + `Touched`, `process` cho role khác Claude (b-feat và
+b-review), review bằng tiến trình có phát hiện nghiêm trọng ⇒ vòng sửa, chặn chéo `bint run` ↔ bước dở và hết hạn, `next` đóng bước hết
+hạn, `--failed`, huỷ gỡ bước dở, chọn driver ba nguồn, `bint run --driver session`), `lease_test.go` (bảng chế độ chia sẻ/độc quyền, hợp đồng
+của chính tác vụ, hết hạn theo thời gian và không có PID, `WaitLock` chờ hợp đồng hết hạn, cấp/trả hợp đồng, tệp hỏng, `ActiveSteps`,
+`bint run` chờ/`--no-wait` và `next` của tác vụ khác, hai bước chỉ đọc cùng chạy), `internal/cli/session_e2e_test.go` (nhị phân thật
+tới done, `complete` thiếu `--run` ⇒ mã 2, sai `--run` ⇒ mã 1, hợp đồng giữa hai tiến trình + `abort`, `process` cho `roles.implementer:
+codex`), `internal/app/run_session_test.go`, `internal/config` (`TestWorkflowDriverDefaultsAndValidate`), TUI (`tasks.abort` ở
+`actions` và màn Tác vụ, bảng phủ lệnh/cờ, kiểm kê literal).
+
+**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 55 gói `ok`, 0 lỗi (đã cập nhật 6 golden `help_*` của TUI: chỉ đổi bộ đếm dòng 178 → 179 do thêm hành động
+`tasks.abort`); `go vet ./...` và `GOOS=windows go vet ./...` sạch; `staticcheck ./...` và `GOOS=windows staticcheck ./...` sạch;
+`go test -race -count=1` cho `internal/workflow` (Session|Lease|Lock|Concurrent|Worktree|Isolation|ActiveSteps) qua. Chưa chạy
+`-race -count=50` cho các ca khoá/hợp đồng. **Ghi chú vận hành:** trong lúc làm phiếu này `.bint/config.yml` của repo từng tự đổi (thêm
+các khoá `workflow.isolation`/`worktree` của G2, ngoài phạm vi phiếu) mà không do mã của phiếu; đã hoàn nguyên bằng
+`git checkout`, và chạy lại riêng `internal/app`, `internal/cli`, `internal/tui/...`, `internal/workflow` không tái hiện được. Nguồn chưa
+xác định (nghi một lệnh `bint` chạy từ ngoài phiên); người dùng nên kiểm `git status` trước khi commit.
+

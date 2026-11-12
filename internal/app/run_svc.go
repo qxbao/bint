@@ -47,6 +47,7 @@ type RunWorkflowOptions struct {
 	NoWait        bool     `flag:"no-wait" form:"advanced"`
 	Worktree      bool     `flag:"worktree" form:"advanced"`
 	Shared        bool     `flag:"shared" form:"advanced"`
+	Driver        string   `flag:"driver" form:"advanced,choices=auto|process|session"`
 	Harness       string   `flag:"harness" form:"choices=claude|codex|antigravity"`
 	Roles         []string `flag:"role"`
 	Model         string   `flag:"model"`
@@ -56,9 +57,9 @@ type RunWorkflowOptions struct {
 	RunCallbacks
 }
 
-// RunWorkflowDefaults: độ sâu tự chọn.
+// RunWorkflowDefaults: độ sâu và driver tự chọn.
 func RunWorkflowDefaults(config.Config) RunWorkflowOptions {
-	return RunWorkflowOptions{Depth: task.DepthAuto}
+	return RunWorkflowOptions{Depth: task.DepthAuto, Driver: "auto"}
 }
 
 func (o RunWorkflowOptions) fields() ticketFields {
@@ -80,6 +81,11 @@ func (o RunWorkflowOptions) Validate() error {
 	}
 	if (o.Worktree || o.Shared) && strings.TrimSpace(o.Task) != "" {
 		return Usagef("--worktree/--shared chỉ chọn lúc lập phiếu: không dùng cùng --task (chế độ đã ghi trong phiếu)")
+	}
+	if drv, err := workflow.NormalizeDriverFlag(o.Driver); err != nil {
+		return UsageError{err}
+	} else if drv != "" && strings.TrimSpace(o.Task) != "" {
+		return Usagef("--driver chỉ chọn lúc lập phiếu: không dùng cùng --task (driver đã ghi trong phiếu)")
 	}
 	if _, err := checkDepth(o.Depth, o.NoPlan, o.Workflow); err != nil {
 		return err
@@ -118,6 +124,7 @@ func RunWorkflow(ctx context.Context, ws *TaskWS, o RunWorkflowOptions) (*workfl
 	}
 	wo := workflow.RunOptions{Workflow: o.Workflow, Request: strings.TrimSpace(o.Request), TaskRef: o.Task,
 		NoReview: o.NoReview, NoWait: o.NoWait, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
+	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	if o.Plan || o.NoPlan {
 		p := o.Plan
 		wo.Plan = &p
@@ -224,4 +231,140 @@ func ActiveSteps(ctx context.Context, dir string) []workflow.ActiveStep {
 		return nil
 	}
 	return w.Steps()
+}
+
+// ---- driver session: bint run next | complete | abort (docs/isolation-subagent-plan.md mục 6) ----
+
+// RunNextOptions: `bint run next <task-id>` — hành động kế tiếp của tác vụ (phiên điều phối chạy bước bằng subagent).
+type RunNextOptions struct {
+	Ref    string `arg:"task-id" form:"required,suggest=tasks"`
+	Resume bool   `flag:"resume"`
+	NoWait bool   `flag:"no-wait" form:"advanced"`
+}
+
+func RunNextDefaults(config.Config) RunNextOptions { return RunNextOptions{} }
+
+func (o RunNextOptions) Validate() error {
+	if strings.TrimSpace(o.Ref) == "" {
+		return Usagef("cần ID tác vụ")
+	}
+	return nil
+}
+
+// RunCompleteOptions: `bint run complete <task-id> --run <run_id>` — đóng bước subagent vừa chạy.
+type RunCompleteOptions struct {
+	Ref     string `arg:"task-id" form:"required,suggest=tasks"`
+	Run     string `flag:"run" form:"required"`
+	AgentID string `flag:"agent-id" form:"advanced"`
+	Failed  string `flag:"failed" form:"advanced"`
+	NoWait  bool   `flag:"no-wait" form:"advanced"`
+}
+
+func RunCompleteDefaults(config.Config) RunCompleteOptions { return RunCompleteOptions{} }
+
+func (o RunCompleteOptions) Validate() error {
+	if strings.TrimSpace(o.Ref) == "" {
+		return Usagef("cần ID tác vụ")
+	}
+	if strings.TrimSpace(o.Run) == "" {
+		return Usagef("thiếu --run <run_id> (lượt của bước do `bint run next` trả về)")
+	}
+	return nil
+}
+
+// RunAbortOptions: `bint run abort <task-id>` — bỏ bước subagent đang dở (gỡ hợp đồng thuê khoá).
+type RunAbortOptions struct {
+	Ref    string `arg:"task-id" form:"required,suggest=tasks"`
+	Reason string `flag:"reason"`
+}
+
+func RunAbortDefaults(config.Config) RunAbortOptions { return RunAbortOptions{} }
+
+func (o RunAbortOptions) Validate() error {
+	if strings.TrimSpace(o.Ref) == "" {
+		return Usagef("cần ID tác vụ")
+	}
+	return nil
+}
+
+// sessionRunner dựng Runner cho lệnh session. Driver session không gọi harness từ tiến trình Bint (Agent nil) và
+// không tương tác: những gì cần người duyệt làm tác vụ chuyển blocked. Cấm chạy lồng trong một bước workflow khác.
+func sessionRunner(ws *TaskWS) (*workflow.Runner, error) {
+	if ws.RunID != "" {
+		return nil, fmt.Errorf("không chạy `bint run next/complete/abort` lồng trong một bước workflow khác (BINT_RUN_ID=%s)", ws.RunID)
+	}
+	k := ws.K
+	r := &workflow.Runner{Env: ws.Env}
+	if k.Config.Context.Interfaces.CLI {
+		r.Context = func(ctx context.Context, goal string, paths []string) (ctxengine.Pack, error) {
+			c, err := OpenContext(ctx, k.Root)
+			if err != nil {
+				return ctxengine.Pack{}, err
+			}
+			defer c.Close()
+			return c.Engine.ForTask(ctx, goal, paths)
+		}
+	}
+	return r, nil
+}
+
+// ingestAfterSession nạp sự kiện ngay để `bint runs` thấy lượt vừa chạy.
+func ingestAfterSession(ws *TaskWS) {
+	if s, err := ws.K.OpenStore(context.Background()); err == nil {
+		ws.K.Ingest(context.Background(), s, time.Now())
+		s.Close()
+	}
+}
+
+// RunNext trả hành động kế tiếp của tác vụ: agent (chạy subagent với prompt rồi RunComplete), process (chạy lệnh
+// bint run <bước> --task rồi RunNext), done, blocked hoặc failed. Gọi lại khi bước còn hạn trả đúng bước đó.
+func RunNext(ctx context.Context, ws *TaskWS, o RunNextOptions) (*workflow.SessionAction, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	r, err := sessionRunner(ws)
+	if err != nil {
+		return nil, err
+	}
+	a, err := r.Next(ctx, workflow.NextOptions{TaskRef: o.Ref, Resume: o.Resume, NoWait: o.NoWait})
+	if err != nil {
+		return nil, err
+	}
+	ingestAfterSession(ws)
+	return a, nil
+}
+
+// RunComplete đóng bước đang dở của tác vụ (subagent đã xong hoặc báo thất bại): kiểm chỉ đọc, phạm vi, kiểm chứng,
+// tài liệu, quyết định sau review. run_id sai ⇒ lỗi (workflow.ErrRunMismatch).
+func RunComplete(ctx context.Context, ws *TaskWS, o RunCompleteOptions) (*workflow.SessionAction, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	r, err := sessionRunner(ws)
+	if err != nil {
+		return nil, err
+	}
+	a, err := r.Complete(ctx, workflow.CompleteOptions{TaskRef: o.Ref, RunID: o.Run, AgentID: o.AgentID, Failed: o.Failed, NoWait: o.NoWait})
+	if err != nil {
+		return nil, err
+	}
+	ingestAfterSession(ws)
+	return a, nil
+}
+
+// RunAbort bỏ bước đang dở: gỡ bước, hợp đồng thuê khoá, đưa tác vụ về interrupted.
+func RunAbort(ctx context.Context, ws *TaskWS, o RunAbortOptions) (*workflow.SessionAction, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	r, err := sessionRunner(ws)
+	if err != nil {
+		return nil, err
+	}
+	a, err := r.Abort(ctx, o.Ref, o.Reason)
+	if err != nil {
+		return nil, err
+	}
+	ingestAfterSession(ws)
+	return a, nil
 }

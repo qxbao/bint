@@ -24,6 +24,7 @@ type runFlags struct {
 	noWait       bool
 	worktree     bool
 	shared       bool
+	driver       string
 	agentCommand string
 	model        string
 	harness      string
@@ -62,6 +63,8 @@ Giới hạn:
     cây đang làm; mặc định theo workflow.isolation (auto: worktree riêng khi cây đang có tác vụ khác chưa kết thúc).
     Chỉ chọn lúc lập phiếu (không đi cùng --task). Tác vụ worktree được đưa về cây gốc ở bước finalize của b-do
     (xung đột ⇒ blocked "xung đột khi đưa về"); chạy từng bước thì dùng bint task land.
+  - Driver: --driver session lập phiếu cho phiên điều phối chạy bước bằng subagent rồi dừng (Result created); các bước đi
+    qua bint run next | complete | abort. Mặc định (process) là bint run tự gọi harness cho từng bước. Chỉ chọn lúc lập phiếu.
   - Khoá worktree: bước chỉ đọc giữ khoá chia sẻ, b-feat giữ khoá độc quyền; bước đến sau chờ khoá (tối đa
     workflow.timeout_minutes) thay vì dừng ngay, --no-wait để dừng ngay (blocked). Tác vụ luôn chạy ở
     State.Worktree của nó dù đứng ở thư mục khác.
@@ -91,7 +94,7 @@ blocked / failed / interrupted.`,
 		},
 	}
 	addRunFlags(c, &rf, true)
-	c.AddCommand(newRunStatusCmd(stdio), newRunResumeCmd(stdio))
+	c.AddCommand(newRunStatusCmd(stdio), newRunResumeCmd(stdio), newRunNextCmd(stdio), newRunCompleteCmd(stdio), newRunAbortCmd(stdio))
 	return c
 }
 
@@ -111,6 +114,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 		f.StringVar(&rf.depth, "depth", "auto", depthFlagHelp)
 		f.BoolVar(&rf.worktree, "worktree", false, "tác vụ mới chạy trong worktree riêng (song song với tác vụ khác); loại trừ --shared, không đi cùng --task")
 		f.BoolVar(&rf.shared, "shared", false, "tác vụ mới sửa thẳng trên cây đang làm; loại trừ --worktree, không đi cùng --task")
+		f.StringVar(&rf.driver, "driver", "auto", "ai chạy các bước của tác vụ mới: auto | process | session (session: lập phiếu rồi dừng, bước chạy bằng bint run next/complete); không đi cùng --task")
 		addEditFlags(c, &rf.ef, false)
 	}
 }
@@ -134,7 +138,7 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 		o = app.RunWorkflowDefaults(config.Default())
 		fillRun(&o)
 		o.Harness, o.Roles, o.Model, o.AgentCommand, o.NoWait = rf.harness, rf.roles, rf.model, rf.agentCommand, rf.noWait
-		o.Worktree, o.Shared = rf.worktree, rf.shared
+		o.Worktree, o.Shared, o.Driver = rf.worktree, rf.shared, rf.driver
 		if err := o.Validate(); err != nil {
 			return err
 		}
@@ -262,7 +266,10 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 			if asJSON {
 				out := map[string]any{"task_id": t.State.ID, "status": t.State.Status, "reason": t.State.Reason,
 					"resume_from": t.State.ResumeFrom, "runs": rows, "isolation": t.State.Isolation(),
-					"isolation_reason": isolationReason(t)}
+					"isolation_reason": isolationReason(t), "driver": taskDriver(t)}
+				if ps := t.State.PendingStep; ps != nil {
+					out["pending_step"] = map[string]any{"step": ps.Step, "run_id": ps.RunID, "lease_until": ps.LeaseUntil}
+				}
 				if t.State.Origin != "" {
 					out["worktree"], out["branch"], out["origin"] = t.State.Worktree, t.State.Branch, t.State.Origin
 					out["landed"], out["land"] = t.State.Landed != nil, t.State.Landed
@@ -277,6 +284,7 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 			}
 			fmt.Fprintf(w, "\n  %s\n", t.Ticket.Goal)
 			printIsolationLines(w, "  ", t)
+			printDriverLines(w, "  ", t)
 			if len(rows) == 0 {
 				fmt.Fprintln(w, "\nChưa có lượt chạy nào được ghi nhận cho tác vụ này.")
 				return nil

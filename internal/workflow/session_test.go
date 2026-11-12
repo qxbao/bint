@@ -1,0 +1,622 @@
+package workflow
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"bint/internal/config"
+	"bint/internal/spool"
+	"bint/internal/task"
+)
+
+// Test của G3a (docs/isolation-subagent-plan.md mục 6.1–6.3): driver session — `next` / `complete` / `abort`.
+// Subagent giả là hàm h.behave chạy giữa Next và Complete, không có BINT_RUN_ID/BINT_TASK_ID như subagent thật.
+
+// subagent chạy h.behave như subagent của Claude Code: ở thư mục của hành động, không biến môi trường lượt/tác vụ.
+func (h *harness) subagent(act *SessionAction) {
+	h.t.Helper()
+	h.mu.Lock()
+	h.calls = append(h.calls, act.Step)
+	h.prompts[act.Step] = act.Prompt
+	h.mu.Unlock()
+	env := &Env{Root: act.Worktree, Cfg: h.cfg, Tasks: h.tasks, Spool: h.spool, Actor: "agent"}
+	if err := h.behave(context.Background(), act.Step, env, act.TaskID); err != nil {
+		h.t.Fatalf("subagent %s: %v", act.Step, err)
+	}
+}
+
+// drive lặp next → subagent → complete tới khi tác vụ dừng; trả các bước agent đã chạy và hành động dừng.
+func (h *harness) drive(r *Runner, id string, resume bool) ([]string, *SessionAction) {
+	h.t.Helper()
+	var steps []string
+	for i := 0; i < 20; i++ {
+		act, err := r.Next(context.Background(), NextOptions{TaskRef: id, Resume: resume && i == 0})
+		if err != nil {
+			h.t.Fatal(err)
+		}
+		if act.Action != ActionAgent {
+			return steps, act
+		}
+		steps = append(steps, act.Step)
+		h.subagent(act)
+		c, err := r.Complete(context.Background(), CompleteOptions{TaskRef: id, RunID: act.RunID, AgentID: "agent-" + act.Step})
+		if err != nil {
+			h.t.Fatal(err)
+		}
+		if c.Action != "" {
+			return steps, c
+		}
+	}
+	h.t.Fatal("vòng session không dừng")
+	return nil, nil
+}
+
+func (h *harness) newSession(r *Runner, opts NewTaskOptions) *task.Task {
+	h.t.Helper()
+	opts.Driver = task.DriverSession
+	if opts.Request == "" {
+		opts.Request = "Thêm tính năng phiên bản v2 cho app.txt"
+	}
+	if opts.Workflow == "" {
+		opts.Workflow = StepDo
+	}
+	tk, _, err := r.NewTask(context.Background(), opts)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return tk
+}
+
+func (h *harness) leaseFile(id string) string {
+	h.t.Helper()
+	tk := loadTask(h.t, h, id)
+	return leaseFilePath(lockPath(h.tasks.Dir, tk.State.Worktree))
+}
+
+// AC-2: đủ chuỗi b-req → b-feat → b-review → done; lượt cha/con và agent_id được ghi.
+func TestSessionFullSequenceToDone(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{})
+	if c := tk.State.Classification; c.EffectiveDriver() != task.DriverSession || c.DriverReason != task.DriverReasonUser {
+		t.Fatalf("driver: %+v", c)
+	}
+	steps, last := h.drive(r, tk.State.ID, false)
+	if strings.Join(steps, ",") != "b-req,b-feat,b-review" || last.Action != ActionDone || last.Status != task.StatusDone {
+		t.Fatalf("bước %v, dừng: %+v", steps, last)
+	}
+	if last.Result == nil || last.Result.Step != StepReview || last.Result.Status != "completed" {
+		t.Fatalf("kết quả bước cuối: %+v", last.Result)
+	}
+	got := loadTask(t, h, tk.State.ID)
+	if got.State.PendingStep != nil || got.State.Runner != nil || got.State.SessionRun != "" {
+		t.Fatalf("sót trạng thái session: pending=%v runner=%v session=%q", got.State.PendingStep, got.State.Runner, got.State.SessionRun)
+	}
+	if len(got.State.AgentRuns) != 3 || got.State.AgentRuns[0].AgentID != "agent-b-req" {
+		t.Fatalf("AgentRuns: %+v", got.State.AgentRuns)
+	}
+	if v := got.State.LastVerification(); v == nil || !v.Passed || !v.Confirmed {
+		t.Fatalf("kiểm chứng: %+v", v)
+	}
+	if _, err := os.Stat(h.leaseFile(tk.State.ID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("hợp đồng thuê còn sót: %v", err)
+	}
+	// Đề bài cho subagent: không có biến BINT_*, ID tác vụ nằm trong đề bài.
+	p := h.prompts[StepFeat]
+	if strings.Contains(p, "BINT_TASK_ID.") || !strings.Contains(p, "KHÔNG có biến BINT_TASK_ID") && !strings.Contains(p, "Không có biến BINT_TASK_ID") ||
+		!strings.Contains(p, tk.State.ID) {
+		t.Fatalf("đề bài subagent:\n%s", p)
+	}
+	// Lượt: cha (session) + 3 con; agent_id nằm ở workflow.finished của lượt con.
+	files, err := spool.Pending(h.spool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var evs []spool.Event
+	for _, f := range files {
+		es, err := spool.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		evs = append(evs, es...)
+	}
+	var started, finished, agents int
+	for _, e := range evs {
+		switch {
+		case e.Type == spool.WorkflowStarted && e.Payload["driver"] == task.DriverSession:
+			started++
+		case e.Type == spool.WorkflowFinished && e.Payload["agent_id"] != nil:
+			agents++
+		case e.Type == spool.WorkflowFinished && e.RunID != "" && e.Payload["end_reason"] != nil && strings.HasPrefix(e.Payload["end_reason"].(string), "task "):
+			finished++
+		}
+	}
+	if started != 1 || finished != 1 || agents != 3 {
+		t.Fatalf("sự kiện: started=%d finished=%d agent_id=%d", started, finished, agents)
+	}
+}
+
+// b-review sửa tệp ⇒ complete đánh failed (như driver process).
+func TestSessionReadonlyReviewModifyingTreeFails(t *testing.T) {
+	h := newHarness(t)
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReview {
+			h.write("app.txt", "sửa lén\n")
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{})
+	steps, last := h.drive(r, tk.State.ID, false)
+	if steps[len(steps)-1] != StepReview || last.Action != ActionFailed || last.Result == nil || last.Result.Status != "failed" ||
+		!strings.Contains(last.Result.Error, "bước chỉ đọc") || !strings.Contains(last.Result.Error, "app.txt") {
+		t.Fatalf("bước %v, dừng: %+v result=%+v", steps, last, last.Result)
+	}
+	if got := loadTask(t, h, tk.State.ID); got.State.Status != task.StatusFailed || got.State.PendingStep != nil {
+		t.Fatalf("tác vụ: %s pending=%v", got.State.Status, got.State.PendingStep)
+	}
+}
+
+// Sửa đường dẫn bảo vệ ⇒ blocked chờ duyệt như driver process; duyệt rồi next --resume không chạy lại b-feat.
+func TestSessionProtectedPathBlocksThenResume(t *testing.T) {
+	h := newHarness(t)
+	base := h.happy
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepFeat {
+			h.write("migrations/002.sql", "ALTER TABLE x;\n")
+		}
+		return base(ctx, step, e, id)
+	}
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	steps, last := h.drive(r, tk.State.ID, false)
+	got := loadTask(t, h, tk.State.ID)
+	if strings.Join(steps, ",") != "b-feat" || last.Action != ActionBlocked || len(got.State.PendingPaths) != 1 ||
+		got.State.PendingPaths[0] != "migrations/002.sql" || !got.State.AwaitingCheck || got.State.PendingStep != nil {
+		t.Fatalf("bước %v, dừng: %+v, state: %+v", steps, last, got.State)
+	}
+	// Chưa xử lý: next (không --resume) vẫn dừng, không mở bước.
+	if a, err := r.Next(context.Background(), NextOptions{TaskRef: tk.State.ID}); err != nil || a.Action != ActionBlocked {
+		t.Fatalf("next khi blocked: %+v %v", a, err)
+	}
+	// Agent không duyệt được; resume khi còn thay đổi chờ duyệt bị từ chối.
+	if a, err := r.Next(context.Background(), NextOptions{TaskRef: tk.State.ID, Resume: true}); err != nil || a.Action != ActionBlocked ||
+		!strings.Contains(a.Reason, "chờ người duyệt") {
+		t.Fatalf("resume chưa duyệt: %+v %v", a, err)
+	}
+	if _, a, err := r.Approve(tk.State.ID); err != nil || len(a.Paths) != 1 {
+		t.Fatalf("duyệt: %+v %v", a, err)
+	}
+	steps, last = h.drive(r, tk.State.ID, true)
+	if strings.Join(steps, ",") != "b-review" || last.Action != ActionDone {
+		t.Fatalf("tiếp tục: bước %v, dừng %+v", steps, last)
+	}
+}
+
+// Vòng review dừng đúng workflow.max_review_rounds.
+func TestSessionReviewLoopStopsAtMaxRounds(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Workflow.MaxReviewRounds = 1
+	base := h.happy
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReview {
+			_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`))
+			return err
+		}
+		return base(ctx, step, e, id)
+	}
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	steps, last := h.drive(r, tk.State.ID, false)
+	if strings.Join(steps, ",") != "b-feat,b-review,b-feat,b-review" || last.Action != ActionBlocked ||
+		!strings.Contains(last.Reason, "sau 2 vòng review") {
+		t.Fatalf("bước %v, dừng: %+v", steps, last)
+	}
+	if !strings.Contains(h.prompts[StepFeat], "Phát hiện review vòng 1 cần xử lý") {
+		t.Fatalf("b-feat vòng 2 phải nhận phát hiện:\n%s", h.prompts[StepFeat])
+	}
+}
+
+// Tác vụ worktree: subagent làm việc trong worktree riêng, land ở finalize rồi done.
+func TestSessionWorktreeLandsAtFinalize(t *testing.T) {
+	h := newHarness(t).wtHarness()
+	h.behave = featWrites(h, nil)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	if tk.State.Isolation() != task.IsolationWorktree {
+		t.Fatalf("cô lập: %s", tk.State.Isolation())
+	}
+	steps, last := h.drive(r, tk.State.ID, false)
+	if strings.Join(steps, ",") != "b-feat,b-review" || last.Action != ActionDone {
+		t.Fatalf("bước %v, dừng %+v", steps, last)
+	}
+	got := loadTask(t, h, tk.State.ID)
+	if got.State.Landed == nil || len(got.State.Landed.Files) == 0 {
+		t.Fatalf("chưa đưa về: %+v", got.State.Landed)
+	}
+	if h.readFile(h.root, "app.txt") != "v2\n" || h.readFile(h.root, "done.txt") != "ok\n" {
+		t.Fatal("cây gốc chưa nhận thay đổi")
+	}
+	// Đề bài của subagent đòi cd vào worktree (công cụ Agent không nhận cwd).
+	if p := h.prompts[StepFeat]; !strings.Contains(p, "cd "+got.State.Origin+"/") && !strings.Contains(p, "`cd ") {
+		t.Fatalf("đề bài thiếu cd worktree:\n%s", p)
+	}
+	for _, d := range h.dirs {
+		_ = d
+	}
+}
+
+// next gọi hai lần liên tiếp trả cùng bước; complete với run_id sai bị từ chối và không đổi gì.
+func TestSessionNextIdempotentAndCompleteRunMismatch(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	a1, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a1.Action != ActionAgent || a1.Step != StepFeat || a1.RunID == "" || a1.Subagent != SubagentImplementer ||
+		a1.ReadOnly || a1.Worktree != h.root || a1.LeaseUntil == "" || a1.Prompt == "" {
+		t.Fatalf("next 1: %+v %v", a1, err)
+	}
+	before, _ := os.ReadFile(filepath.Join(loadTask(t, h, tk.State.ID).Dir, "state.json"))
+	a2, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a2.RunID != a1.RunID || a2.Prompt != a1.Prompt || a2.Step != a1.Step || a2.LeaseUntil != a1.LeaseUntil {
+		t.Fatalf("next 2 phải trả đúng bước: %+v %v", a2, err)
+	}
+	after, _ := os.ReadFile(filepath.Join(loadTask(t, h, tk.State.ID).Dir, "state.json"))
+	if string(before) != string(after) {
+		t.Fatal("next gọi lại không được đổi phiếu")
+	}
+	for _, run := range []string{"", "01HXXXXXXXXXXXXXXXXXXXXXXX", a1.RunID + "x"} {
+		if _, err := r.Complete(ctx, CompleteOptions{TaskRef: tk.State.ID, RunID: run}); !errors.Is(err, ErrRunMismatch) {
+			t.Fatalf("run %q: muốn ErrRunMismatch, được %v", run, err)
+		}
+	}
+	after, _ = os.ReadFile(filepath.Join(loadTask(t, h, tk.State.ID).Dir, "state.json"))
+	if string(before) != string(after) {
+		t.Fatal("complete sai run không được đổi phiếu")
+	}
+	// Tác vụ không có bước dở: cũng từ chối.
+	other := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	if _, err := r.Complete(ctx, CompleteOptions{TaskRef: other.State.ID, RunID: a1.RunID}); !errors.Is(err, ErrRunMismatch) {
+		t.Fatalf("tác vụ không có bước dở: %v", err)
+	}
+}
+
+// abort xoá bước dở và hợp đồng thuê; tiếp tục bằng next --resume chạy lại bước từ đầu.
+func TestSessionAbortClearsPendingAndLease(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	a1, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a1.Action != ActionAgent {
+		t.Fatal(a1, err)
+	}
+	if _, err := os.Stat(h.leaseFile(tk.State.ID)); err != nil {
+		t.Fatalf("phải có hợp đồng thuê: %v", err)
+	}
+	// Subagent đã sửa một tệp trước khi bị bỏ: vẫn thuộc tác vụ.
+	h.write("app.txt", "dở dang\n")
+	res, err := r.Abort(ctx, tk.State.ID, "orchestrator chết")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := loadTask(t, h, tk.State.ID)
+	if got.State.PendingStep != nil || got.State.Status != task.StatusInterrupted || got.State.SessionRun != "" || got.State.Runner != nil {
+		t.Fatalf("sau abort: %+v (%+v)", got.State, res)
+	}
+	if !slices.Contains(got.State.Touched, "app.txt") {
+		t.Fatalf("Touched phải ghi tệp subagent đã sửa: %v", got.State.Touched)
+	}
+	if _, err := os.Stat(h.leaseFile(tk.State.ID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("hợp đồng thuê còn sót: %v", err)
+	}
+	// Khoá đã nhả: tác vụ khác lấy được khoá độc quyền ngay.
+	if l, err := AcquireLock(h.tasks.Dir, h.root, tk.State.ID+" b-feat", LockExclusive); err != nil {
+		t.Fatalf("khoá phải trống: %v", err)
+	} else {
+		l.Release()
+	}
+	// Không --resume: dừng; có --resume: bước mới (lượt khác) cho cùng tác vụ.
+	if a, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID}); err != nil || a.Action != ActionBlocked {
+		t.Fatalf("next sau abort: %+v %v", a, err)
+	}
+	a2, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID, Resume: true})
+	if err != nil || a2.Action != ActionAgent || a2.Step != StepFeat || a2.RunID == a1.RunID {
+		t.Fatalf("resume: %+v %v", a2, err)
+	}
+	// abort không có bước dở: không lỗi.
+	if _, err := r.Abort(ctx, tk.State.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := r.Abort(ctx, tk.State.ID, ""); err != nil || !slices.Contains(res.Notes, "tác vụ không có bước dở") {
+		t.Fatalf("abort lần hai: %+v %v", res, err)
+	}
+}
+
+// Role gán harness khác Claude ⇒ next trả action process kèm lệnh bint run của đúng bước; các bước khác vẫn bằng
+// subagent; next đi tiếp sau bước chạy bằng tiến trình, không review lặp.
+func TestSessionProcessActionForOtherHarness(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Harnesses.Enabled = append(h.cfg.Harnesses.Enabled, "codex")
+	h.cfg.Roles.Implementer = "codex"
+	h.cfg.Roles.Reviewer = "codex"
+	h.behave = featWrites(h, nil)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	a, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	want := "bint run b-feat --task " + tk.State.ID + " --json"
+	if err != nil || a.Action != ActionProcess || a.Command != want || a.Step != StepFeat {
+		t.Fatalf("next: %+v %v", a, err)
+	}
+	if got := loadTask(t, h, tk.State.ID); got.State.PendingStep != nil {
+		t.Fatal("action process không được tạo bước dở")
+	}
+	// Chạy lệnh được trả (driver process, agent giả): tác vụ sang in_review.
+	res, err := h.runner().Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: tk.State.ID})
+	if err != nil || res.Status != task.StatusInReview {
+		t.Fatalf("b-feat bằng tiến trình: %+v %v", res, err)
+	}
+	a, err = r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a.Action != ActionProcess || a.Command != "bint run b-review --task "+tk.State.ID+" --json" {
+		t.Fatalf("next sau b-feat: %+v %v", a, err)
+	}
+	res, err = h.runner().Run(ctx, RunOptions{Workflow: StepReview, TaskRef: tk.State.ID})
+	if err != nil || res.Status != task.StatusInReview {
+		t.Fatalf("b-review bằng tiến trình: %+v %v", res, err)
+	}
+	// Review đã ghi nhưng chưa ai áp quyết định: next áp nó (finalize), không chạy review lần nữa.
+	a, err = r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a.Action != ActionDone {
+		t.Fatalf("next sau review: %+v %v", a, err)
+	}
+	if n := strings.Count(strings.Join(h.calls, ","), "b-review"); n != 1 {
+		t.Fatalf("review lặp: %v", h.calls)
+	}
+}
+
+// Review chạy riêng bằng tiến trình có phát hiện nghiêm trọng: next áp quyết định (vòng sửa) rồi trả b-feat.
+func TestSessionProcessReviewWithBlockingFindingsStartsFixRound(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Harnesses.Enabled = append(h.cfg.Harnesses.Enabled, "codex")
+	h.cfg.Roles.Reviewer = "codex"
+	base := featWrites(h, nil)
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReview {
+			_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`))
+			return err
+		}
+		return base(ctx, step, e, id)
+	}
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	steps, last := h.drive(r, tk.State.ID, false)
+	if strings.Join(steps, ",") != "b-feat" || last.Action != ActionProcess || last.Step != StepReview {
+		t.Fatalf("bước %v, dừng %+v", steps, last)
+	}
+	if _, err := h.runner().Run(ctx, RunOptions{Workflow: StepReview, TaskRef: tk.State.ID}); err != nil {
+		t.Fatal(err)
+	}
+	a, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a.Action != ActionAgent || a.Step != StepFeat || !strings.Contains(a.Prompt, "Phát hiện review vòng 1 cần xử lý") {
+		t.Fatalf("vòng sửa: %+v %v", a, err)
+	}
+}
+
+// Chặn chéo giữa hai driver: bước dở còn hạn ⇒ `bint run` kiểu tiến trình từ chối; hết hạn ⇒ đóng như quá giờ.
+func TestSessionPendingStepBlocksProcessRunUntilExpired(t *testing.T) {
+	h := newHarness(t)
+	advance := fakeLeaseClock(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	a, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a.Action != ActionAgent {
+		t.Fatal(a, err)
+	}
+	_, err = h.runner().Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: tk.State.ID})
+	var pe *PendingStepError
+	if !errors.As(err, &pe) || pe.RunID != a.RunID || !strings.Contains(err.Error(), "bint run complete") {
+		t.Fatalf("muốn PendingStepError, được %v", err)
+	}
+	advance(time.Duration(h.cfg.Workflow.TimeoutMinutes+1) * time.Minute)
+	// Hết hạn: Run đóng bước như quá giờ (tác vụ failed) rồi từ chối vì tác vụ đang dừng.
+	_, err = h.runner().Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: tk.State.ID})
+	got := loadTask(t, h, tk.State.ID)
+	if err == nil || got.State.Status != task.StatusFailed || got.State.PendingStep != nil ||
+		!strings.Contains(got.State.Reason, "quá workflow.timeout_minutes") {
+		t.Fatalf("sau hết hạn: err=%v status=%s reason=%q pending=%v", err, got.State.Status, got.State.Reason, got.State.PendingStep)
+	}
+	if _, err := os.Stat(h.leaseFile(tk.State.ID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("hợp đồng thuê còn sót: %v", err)
+	}
+	h.behave = featWrites(h, nil)
+	res, err := h.runner().Run(ctx, RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Resume: true})
+	if err != nil || res.Status != task.StatusDone {
+		t.Fatalf("tiếp tục bằng driver process: %+v %v", res, err)
+	}
+}
+
+// next gặp bước dở đã hết hạn: đóng như quá giờ, báo failed.
+func TestSessionNextClosesExpiredPendingStep(t *testing.T) {
+	h := newHarness(t)
+	advance := fakeLeaseClock(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	a, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a.Action != ActionAgent {
+		t.Fatal(a, err)
+	}
+	advance(time.Duration(h.cfg.Workflow.TimeoutMinutes+1) * time.Minute)
+	b, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || b.Action != ActionFailed || !strings.Contains(b.Reason, "quá workflow.timeout_minutes") {
+		t.Fatalf("next sau hạn: %+v %v", b, err)
+	}
+	if got := loadTask(t, h, tk.State.ID); got.State.PendingStep != nil {
+		t.Fatal("bước dở phải được gỡ")
+	}
+	// complete muộn với lượt đó bị từ chối (bước đã đóng).
+	if _, err := r.Complete(ctx, CompleteOptions{TaskRef: tk.State.ID, RunID: a.RunID}); !errors.Is(err, ErrRunMismatch) {
+		t.Fatalf("complete sau khi đóng: %v", err)
+	}
+}
+
+// Subagent báo thất bại (--failed) ⇒ bước failed, tác vụ failed.
+func TestSessionCompleteFailed(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	a, _ := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	c, err := r.Complete(ctx, CompleteOptions{TaskRef: tk.State.ID, RunID: a.RunID, Failed: "hết lượt"})
+	if err != nil || c.Action != ActionFailed || c.Result == nil || c.Result.Status != "failed" || c.Result.Error != "hết lượt" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	if got := loadTask(t, h, tk.State.ID); got.State.PendingStep != nil || got.State.Status != task.StatusFailed {
+		t.Fatalf("%+v", got.State)
+	}
+}
+
+// Huỷ tác vụ có bước dở: gỡ bước dở và hợp đồng thuê.
+func TestSessionCancelDropsPendingStep(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	if a, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID}); err != nil || a.Action != ActionAgent {
+		t.Fatal(a, err)
+	}
+	if _, _, err := r.SetStatus(ctx, tk.State.ID, task.StatusCancelled, TransitionOptions{Reason: "bỏ"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadTask(t, h, tk.State.ID); got.State.PendingStep != nil {
+		t.Fatal("cancel phải gỡ bước dở")
+	}
+	if _, err := os.Stat(h.leaseFile(tk.State.ID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("hợp đồng thuê còn sót: %v", err)
+	}
+	if _, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID}); err == nil {
+		t.Fatal("next trên tác vụ đã huỷ phải lỗi")
+	}
+}
+
+func TestChooseDriver(t *testing.T) {
+	h := newHarness(t)
+	e := h.runner().Env
+	cases := []struct {
+		flag     string
+		flagOnly bool
+		cfg      string
+		mode     string
+		reason   string
+	}{
+		{"", false, config.DriverProcess, task.DriverProcess, task.DriverReasonDefault},
+		{"", false, config.DriverSession, task.DriverSession, task.DriverReasonConfig},
+		{"process", false, config.DriverSession, task.DriverProcess, task.DriverReasonUser},
+		{"session", false, config.DriverProcess, task.DriverSession, task.DriverReasonUser},
+		{"auto", false, config.DriverSession, task.DriverSession, task.DriverReasonConfig},
+		// `bint run` tự lập phiếu: chỉ nhận cờ tường minh, không lấy khoá cấu hình.
+		{"", true, config.DriverSession, task.DriverProcess, task.DriverReasonDefault},
+		{"session", true, config.DriverSession, task.DriverSession, task.DriverReasonUser},
+	}
+	for _, c := range cases {
+		e.Cfg.Workflow.Driver = c.cfg
+		got, err := e.chooseDriver(c.flag, c.flagOnly)
+		if err != nil || got.Mode != c.mode || got.Reason != c.reason {
+			t.Errorf("%+v: %+v %v", c, got, err)
+		}
+	}
+	if _, err := e.chooseDriver("xyz", false); err == nil {
+		t.Fatal("driver lạ phải lỗi")
+	}
+	if _, err := NormalizeDriverFlag("thread"); err == nil {
+		t.Fatal("cờ lạ phải lỗi")
+	}
+}
+
+// `bint run --driver session` lập phiếu rồi dừng; --driver cùng --task là lỗi.
+func TestRunDriverSessionCreatesTaskAndStops(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	ctx := context.Background()
+	res, err := r.Run(ctx, RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt", Driver: task.DriverSession})
+	if err != nil || res.Status != task.StatusCreated || res.TaskID == "" || len(h.calls) != 0 ||
+		!strings.Contains(strings.Join(res.Notes, " "), "bint run next "+res.TaskID) {
+		t.Fatalf("%+v %v calls=%v", res, err, h.calls)
+	}
+	if got := loadTask(t, h, res.TaskID); got.State.Classification.EffectiveDriver() != task.DriverSession {
+		t.Fatalf("driver: %+v", got.State.Classification)
+	}
+	if _, err := r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Driver: task.DriverSession}); err == nil ||
+		!strings.Contains(err.Error(), "--driver") {
+		t.Fatalf("--driver cùng --task: %v", err)
+	}
+	// workflow.driver: session KHÔNG làm `bint run` tự lập phiếu dừng (bản thân nó là driver process).
+	h2 := newHarness(t)
+	h2.cfg.Workflow.Driver = config.DriverSession
+	res, err = h2.runner().Run(ctx, RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil || res.Status != task.StatusDone {
+		t.Fatalf("bint run với workflow.driver=session: %+v %v", res, err)
+	}
+}
+
+// fakeLeaseClock đẩy đồng hồ của hợp đồng thuê (leaseNow) về phía trước; khôi phục khi test xong.
+func fakeLeaseClock(t *testing.T) (advance func(time.Duration)) {
+	t.Helper()
+	var mu sync.Mutex
+	var off time.Duration
+	old := leaseNow
+	leaseNow = func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		return time.Now().Add(off)
+	}
+	t.Cleanup(func() { leaseNow = old })
+	return func(d time.Duration) {
+		mu.Lock()
+		off += d
+		mu.Unlock()
+	}
+}
+
+// complete thử lại được: tác vụ bị đưa về interrupted giữa chừng (Reconcile sau khi `complete` trước bị giết) mà bước dở còn
+// nguyên thì `complete` cùng run_id tự tiếp tục và đóng nốt bước.
+func TestSessionCompleteRetriesAfterInterruption(t *testing.T) {
+	h := newHarness(t)
+	h.behave = featWrites(h, nil)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	ctx := context.Background()
+	a, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+	if err != nil || a.Action != ActionAgent {
+		t.Fatal(a, err)
+	}
+	h.subagent(a)
+	// Mô phỏng Reconcile: tác vụ đang in_progress bị đưa về interrupted, bước dở và hợp đồng thuê còn nguyên.
+	if _, err := h.tasks.Update(tk.State.ID, time.Now(), func(t *task.Task) error {
+		return t.State.Apply(task.StatusInterrupted, "bint", "tiến trình complete bị giết", task.Now(time.Now()))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := r.Complete(ctx, CompleteOptions{TaskRef: tk.State.ID, RunID: a.RunID})
+	if err != nil || c.Action != "" || c.Result == nil || c.Result.Status != "completed" {
+		t.Fatalf("complete lại: %+v %v", c, err)
+	}
+	got := loadTask(t, h, tk.State.ID)
+	if got.State.Status != task.StatusInReview || got.State.PendingStep != nil {
+		t.Fatalf("sau complete lại: %s pending=%v", got.State.Status, got.State.PendingStep)
+	}
+	if _, err := os.Stat(h.leaseFile(tk.State.ID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("hợp đồng thuê còn sót: %v", err)
+	}
+}

@@ -148,6 +148,12 @@ func taskActions() []Action {
 			withT("tasks.cancel", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
 				return app.CancelTask(ctx, ws, o.(app.TaskCancelOptions))
 			})),
+		// Bỏ bước đang chạy bằng subagent (phiên điều phối chết giữa bước): gỡ bước dở và hợp đồng thuê khoá. Không phím;
+		// mở từ bảng lệnh, qua form xác nhận.
+		mk("tasks.abort", "abort", "", false, 0, "run abort", app.RunAbortOptions{}, true, false,
+			withT("tasks.abort", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
+				return app.RunAbort(ctx, ws, o.(app.RunAbortOptions))
+			})),
 		mk("tasks.transitions", "transitions", "T", false, 9, "task transitions", nil, false, false, nil),
 		mk("tasks.list", "list", "A", true, 7, "task list", app.TaskListOptions{}, false, false, nil),
 		mk("tasks.show", "show", "Enter", true, 2, "task show", app.TaskShowOptions{}, false, false, nil),

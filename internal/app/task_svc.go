@@ -142,14 +142,15 @@ type TaskNewOptions struct {
 	Depth            string   `flag:"depth" form:"advanced,choices=auto|standard|deep"`
 	Worktree         bool     `flag:"worktree" form:"advanced"`
 	Shared           bool     `flag:"shared" form:"advanced"`
+	Driver           string   `flag:"driver" form:"advanced,choices=auto|process|session"`
 	GoalSet          bool     // đặt tường minh dù rỗng (CLI: cờ có mặt)
 	VerifyCommandSet bool
 	AutonomySet      bool
 }
 
-// TaskNewDefaults: workflow b-do, độ sâu tự chọn (như mặc định của cờ).
+// TaskNewDefaults: workflow b-do, độ sâu và driver tự chọn (như mặc định của cờ).
 func TaskNewDefaults(config.Config) TaskNewOptions {
-	return TaskNewOptions{Workflow: workflow.StepDo, Depth: task.DepthAuto}
+	return TaskNewOptions{Workflow: workflow.StepDo, Depth: task.DepthAuto, Driver: "auto"}
 }
 
 func (o TaskNewOptions) fields() ticketFields {
@@ -167,6 +168,9 @@ func (o TaskNewOptions) Validate() error {
 	}
 	if strings.TrimSpace(o.Request) == "" {
 		return Usagef("thiếu mô tả tác vụ")
+	}
+	if _, err := workflow.NormalizeDriverFlag(o.Driver); err != nil {
+		return UsageError{err}
 	}
 	_, err := checkDepth(o.Depth, o.NoPlan, wfOrDefault(o.Workflow))
 	return err
@@ -186,6 +190,7 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 		return res, err
 	}
 	wo := workflow.NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
+	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	if o.Plan || o.NoPlan {
 		p := o.Plan
 		wo.Plan = &p

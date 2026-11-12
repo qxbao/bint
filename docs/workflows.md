@@ -42,6 +42,7 @@ bint task diff <id> [--stat|--name-only]        # thay đổi của RIÊNG tác 
 bint task new --worktree|--shared "<mô tả>"     # chọn nơi chạy lúc lập phiếu (mặc định theo workflow.isolation)
 bint task land <id> [--3way] [--keep]           # tác vụ worktree: đưa thay đổi về cây gốc (chưa commit); --3way chỉ NGƯỜI
 bint task cancel <id> [--reason …] [--discard]  # huỷ; tác vụ worktree: gỡ worktree (--discard chỉ NGƯỜI nếu còn thay đổi chưa đưa về)
+bint task new --driver session "<mô tả>"       # driver session: phiên đang mở chạy bước bằng subagent (bint run next/complete/abort)
 bint task lint <id> [--strict] [--json]         # kiểm ba tài liệu b-req theo hợp đồng v1 (AC↔TSK, câu hỏi mở)
 bint task verify <id>                           # chạy lệnh kiểm chứng (chỉ khi người đã xác nhận)
 bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí chấp nhận
@@ -356,6 +357,67 @@ nhiều agent song song) chưa có.
     lúc nó finalize thì kết quả cũ mất hiệu lực (cần verify lại); tệp tác vụ khác đã đưa về cây này không bị quy cho
     tác vụ `shared` chừng nào chưa bị sửa tiếp (blob khác thì bị tính). `WritableDirs` của agent là cả thư mục trạng
     thái nên về lý thuyết ghi được worktree của tác vụ khác (chưa thu hẹp). Tạo worktree chưa chạy thử trên Windows.
+- <a id="driver-session"></a>**Driver session — b-do chạy các bước bằng subagent (docs/isolation-subagent-plan.md G3a, mục 6.1–6.3).**
+  Mặc định (driver `process`) `bint run` tự gọi harness cho từng bước. Với driver `session` (cờ `bint task new --driver
+  session`, hoặc `workflow.driver: session`; `bint run b-do --driver session "…"` lập phiếu rồi dừng với
+  `Result.Status = created`) phiên đang mở (orchestrator) chạy từng bước bằng subagent, còn Bint giữ máy trạng thái và
+  **mọi cổng kiểm tra**: `next` và `complete` là hai nửa của một bước (`beginStep`/`endStep` quanh lời gọi agent), driver
+  process dùng đúng hai nửa đó. Driver session luôn điều phối theo `b-do`.
+
+  ```
+  bint task new --driver session "<yêu cầu>" --json            → ID
+  lặp:  bint run next <id> --json
+          → {"action":"agent","step","run_id","subagent","model","prompt","worktree","readonly","max_turns","lease_until"}
+          | {"action":"process","command":"bint run b-feat --task <id> --json"}   (role gán harness khác Claude)
+          | {"action":"done"|"blocked"|"failed","reason","questions","notes"}
+        Agent(subagent_type, model, prompt)                    ← orchestrator chạy subagent
+        bint run complete <id> --run <run_id> [--agent-id <agentId>] [--failed "<lý do>"] --json
+          → {"result":{…}} (còn tiếp tục: không có "action", gọi next)  |  {"action":"done|blocked|failed",…}
+  bint run abort <id> [--reason …]                             ← phiên orchestrator chết giữa bước
+  ```
+
+  - *`next`* mở bước (chuyển trạng thái, giới hạn, khoá worktree, ảnh chụp trước, đề bài, sự kiện bắt đầu), ghi
+    `State.pending_step` (lượt, bước, ảnh chụp, đề bài, `lease_until`) rồi trả flock; **gọi lại khi bước còn hạn trả đúng
+    bước đó** (cùng `run_id`, cùng prompt), không mở bước mới. Phần việc không cần agent chạy ngay trong `next`: kiểm
+    phạm vi và kiểm chứng sau `b-feat`, quyết định sau review chạy riêng bằng tiến trình, finalize (kể cả đưa về cây gốc
+    của tác vụ worktree). Tác vụ blocked/failed/interrupted: `next` dừng (mã thoát 1) cho tới khi người xử lý nguyên nhân
+    rồi `bint run next <id> --resume`. `--no-wait`: khoá worktree đang bị giữ thì dừng ngay (blocked) thay vì chờ tối đa
+    `workflow.timeout_minutes`.
+  - *`process`*: role gán harness khác Claude (`roles.implementer: codex`, …) không có subagent; `next` trả lệnh
+    `bint run <bước> --task <id> --json` để orchestrator chạy (nền được) rồi gọi lại `next`. Các bước khác vẫn bằng
+    subagent. Review chạy riêng kiểu này đã ghi kết quả thì `next` áp quyết định sau review (không review lặp).
+  - *`complete --run <run_id>`* làm phần sau của bước như `bint run`: kiểm bước chỉ đọc không sửa cây làm việc (b-req,
+    b-review sửa tệp ⇒ bước `failed`), tập tệp, phạm vi và đường dẫn bảo vệ (sửa ngoài phạm vi ⇒ `blocked` chờ duyệt),
+    kiểm chứng sau `b-feat` (chạy **trong** lệnh này, có thể lâu: chạy nền nếu công cụ có giới hạn thời gian), tài liệu của
+    `b-req`, quyết định sau review (vòng sửa / dừng ở `workflow.max_review_rounds` / finalize). `--run` sai hoặc tác vụ
+    không có bước dở ⇒ lỗi (mã 1), không đổi gì; thiếu `--run` ⇒ mã 2. `--failed "<lý do>"` đánh bước `failed`.
+    `--agent-id` là `agentId` của kết quả công cụ Agent: **chỉ được lưu** vào lượt chạy (`State.agent_runs`, payload
+    `workflow.finished` của lượt con); việc ghép sự kiện spool của subagent và tính chi phí thuộc phiếu G3b.
+    `complete` thử lại được nếu bị ngắt giữa chừng (bước dở chỉ bị gỡ ở cuối).
+  - *Hợp đồng thuê khoá theo thời gian* (mục 6.3). flock nhả khi `next` thoát nên không giữ được khoá suốt bước; `next` ghi
+    hợp đồng `{tác vụ, bước, lượt, chế độ, hạn = bây giờ + workflow.timeout_minutes}` vào `locks/write-<hash>.lock.lease.json`
+    (cạnh tệp khoá của worktree; ghi nguyên tử dưới mutex `.lease.lk`) rồi trả flock. **Mọi người lấy khoá đều tôn trọng
+    hợp đồng còn hạn của tác vụ khác** theo bảng chia sẻ/độc quyền như khoá thật (`bint run` kiểu tiến trình chờ hoặc
+    `blocked` với `--no-wait`; `next` của tác vụ khác tương tự; hai bước chỉ đọc cùng chạy được). Hết hạn xác định theo
+    **thời gian, không theo PID còn sống** (không có kiểu race R1 của `evolve.AcquireLock`). `complete`/`abort`/huỷ tác vụ
+    xoá hợp đồng. Phiên orchestrator chết giữa bước ⇒ khoá bị giữ tới hết hạn hoặc tới khi `bint run abort <id>`.
+  - *`abort`* gỡ bước dở và hợp đồng thuê, đóng lượt con là `interrupted`, ghi nhận tệp `b-feat` đã sửa vào `Touched`, đưa
+    tác vụ về `interrupted` (tiếp tục bằng `next --resume`, bước dở chạy lại từ đầu). TUI: hành động `tasks.abort` (ghi,
+    không phím, mở từ bảng lệnh, qua form xác nhận); `run next`/`run complete` là giao thức của phiên điều phối nên nằm
+    trong danh sách loại trừ của bảng phủ lệnh TUI.
+  - *Chặn chéo*: tác vụ có bước dở còn hạn thì `bint run <wf> --task` (driver process) bị từ chối ("bước … đang chạy bằng
+    subagent: `bint run complete` hoặc `bint run abort`"); hết hạn thì nó đóng bước như quá giờ (`failed`) rồi tiếp tục theo
+    trạng thái mới. Tác vụ session vẫn chạy được bằng `bint run resume` (lối lùi khi phiên không có subagent).
+  - *Đề bài cho subagent* không có biến `BINT_*` (subagent không có biến môi trường riêng): ID tác vụ nằm trong đề bài và
+    mọi lệnh `bint task …` phải truyền nó; tác vụ worktree đòi `cd <worktree> && …` ở mọi lệnh Bash và đường dẫn tuyệt đối
+    (công cụ Agent không nhận thư mục làm việc). Vòng review ghi bởi subagent không mang `run_id` nên `complete` nhận vòng
+    mới hơn vòng đã áp quyết định (`State.review_decided`).
+  - *Giới hạn đã biết của G3a*: ngân sách `limits.workflows.b-do.max_cost_usd`/`max_turns` sống trong một tiến trình nên mỗi
+    lệnh `next`/`complete` bắt đầu từ 0 (chưa trừ phần đã dùng ở bước trước; `max_turns` của bước vẫn được trả trong
+    `next`); chi phí của subagent chưa tính (G3b). Chưa có định nghĩa subagent do Bint cài (`bint-planner`,
+    `bint-implementer`, `bint-reviewer`), guardrail chỉ đọc cho subagent (`Bash(...)` của subagent **không** giới hạn lệnh:
+    lớp kiểm hiện có là ảnh chụp trước/sau của bước chỉ đọc), ghép sự kiện theo `agent_id` và nhánh driver session của skill
+    `/b-do` — thuộc phiếu G3b nên hiện chưa chạy thật được bằng Claude Code. Windows chưa chạy thật (chỉ biên dịch/vet/staticcheck).
 - Codex chạy mọi bước trong sandbox `workspace-write` kèm `--add-dir <thư mục trạng thái>` để lệnh
   `bint task …` ghi được; agent nhận `BINT_RUNNER_PID` để không nhầm tiến trình điều phối (bị sandbox
   che PID) là đã chết.

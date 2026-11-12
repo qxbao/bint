@@ -318,9 +318,12 @@ type Workflow struct {
 	VerifyTimeoutMinutes int `yaml:"verify_timeout_minutes"`
 	// Isolation chọn nơi tác vụ chạy, một lần lúc lập phiếu: auto | shared | worktree
 	// (docs/isolation-subagent-plan.md mục 5.1).
-	Isolation string           `yaml:"isolation"`
-	Worktree  WorkflowWorktree `yaml:"worktree"`
-	Agent     WorkflowAgent    `yaml:"agent"`
+	Isolation string `yaml:"isolation"`
+	// Driver chọn ai chạy các bước của tác vụ mới: process (`bint run` tự gọi harness) | session (phiên đang mở
+	// chạy bước bằng subagent qua `bint run next/complete`); docs/isolation-subagent-plan.md mục 6.
+	Driver   string           `yaml:"driver"`
+	Worktree WorkflowWorktree `yaml:"worktree"`
+	Agent    WorkflowAgent    `yaml:"agent"`
 }
 
 // Giá trị của workflow.isolation.
@@ -332,6 +335,15 @@ const (
 
 // IsolationModes là các giá trị hợp lệ của workflow.isolation.
 var IsolationModes = []string{IsolationAuto, IsolationShared, IsolationWorktree}
+
+// Giá trị của workflow.driver.
+const (
+	DriverProcess = "process" // `bint run` chạy từng bước bằng một tiến trình harness riêng (mặc định)
+	DriverSession = "session" // phiên orchestrator chạy từng bước bằng subagent: bint run next → Agent → bint run complete
+)
+
+// DriverModes là các giá trị hợp lệ của workflow.driver.
+var DriverModes = []string{DriverProcess, DriverSession}
 
 // WorkflowWorktree cấu hình worktree riêng của tác vụ (workflow.isolation: worktree, hoặc auto khi chạy song song).
 type WorkflowWorktree struct {
@@ -509,7 +521,7 @@ func Default() Config {
 		},
 		Workflow: Workflow{
 			MaxReviewRounds: 2, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
-			Isolation: IsolationAuto, Worktree: WorkflowWorktree{Copy: []string{}},
+			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Agent: WorkflowAgent{
 				PermissionMode: "acceptEdits",
 				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"},
@@ -815,6 +827,9 @@ func (c Config) Validate() error {
 	}
 	if !slices.Contains(IsolationModes, c.Workflow.Isolation) {
 		add("workflow.isolation: phải là %s", strings.Join(IsolationModes, " | "))
+	}
+	if !slices.Contains(DriverModes, c.Workflow.Driver) {
+		add("workflow.driver: phải là %s", strings.Join(DriverModes, " | "))
 	}
 	for i, g := range c.Workflow.Worktree.Copy {
 		g = strings.ReplaceAll(g, `\`, "/")

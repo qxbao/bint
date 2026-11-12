@@ -193,3 +193,32 @@ func TestWorkflowIsolationDefaultsAndValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestWorkflowDriverDefaultsAndValidate(t *testing.T) {
+	c := Default()
+	if c.Workflow.Driver != DriverProcess {
+		t.Fatalf("mặc định workflow.driver = %q, muốn %q", c.Workflow.Driver, DriverProcess)
+	}
+	for _, mode := range DriverModes {
+		c := Default()
+		c.Workflow.Driver = mode
+		if err := c.Validate(); err != nil {
+			t.Fatalf("%s: %v", mode, err)
+		}
+	}
+	for _, v := range []string{"", "subagent", "Session"} {
+		c := Default()
+		c.Workflow.Driver = v
+		if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "workflow.driver") {
+			t.Errorf("driver %q: muốn lỗi workflow.driver, được %v", v, err)
+		}
+	}
+	// Tệp cấu hình cũ không có khoá driver vẫn nạp được và nhận mặc định.
+	cfg := Default()
+	if err := Decode(strings.NewReader("workflow:\n  isolation: shared\n"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Workflow.Driver != DriverProcess {
+		t.Fatalf("thiếu khoá driver phải về mặc định, được %q", cfg.Workflow.Driver)
+	}
+}

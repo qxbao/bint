@@ -34,6 +34,8 @@ var Data = Coverage{
 		"hook antigravity": "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
 		"hook claude":      "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
 		"hook codex":       "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+		"run next":         "giao thức của phiên điều phối (orchestrator) chạy bước bằng subagent, không phải thao tác của người; bước đang chạy bằng subagent hiện ở thẻ Phiếu và bảng tác vụ",
+		"run complete":     "giao thức của phiên điều phối (orchestrator) chạy bước bằng subagent, không phải thao tác của người; bước đang chạy bằng subagent hiện ở thẻ Phiếu và bảng tác vụ",
 		"mcp serve":        "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái đăng ký MCP hiện ở Hệ thống › Harness (HarnessRuntime), danh sách công cụ ở Hệ thống › MCP",
 		"tui":              "chính là điểm vào của giao diện terminal",
 	},

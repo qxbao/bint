@@ -12,6 +12,7 @@ import (
 	"bint/internal/knowledge"
 	"bint/internal/task"
 	"bint/internal/tui/actions"
+	"bint/internal/workflow"
 )
 
 // taskWithReview dựng repo đã init kèm một tác vụ có một vòng review (một phát hiện trỏ tới src/a.go:3).
@@ -186,5 +187,32 @@ func TestTaskLandAndCancelActions(t *testing.T) {
 	r := do(t, "tasks.cancel", env, app.TaskCancelOptions{Ref: taskID, Reason: "bỏ"})
 	if tk, ok := r.Value.(*task.Task); r.Err != nil || !ok || tk.State.Status != task.StatusCancelled {
 		t.Fatalf("cancel: %v %+v", r.Err, r.Value)
+	}
+}
+
+// G3a: `run abort` là hành động ghi của TUI (không phím), chạy qua dịch vụ app; `run next`/`run complete` là giao thức của
+// phiên điều phối nên nằm trong Excluded của bảng phủ (không có hành động).
+func TestTaskAbortAction(t *testing.T) {
+	reg := actions.Default()
+	a, ok := reg.ByID("tasks.abort")
+	if !ok || !a.Writes || a.Do == nil || a.CLIPath != "run abort" || a.Key != "" || a.Footer {
+		t.Fatalf("tasks.abort: %+v", a)
+	}
+	if tg, ok := actions.LookupCLI(reg, "run abort", []string{"reason"}); !ok || tg.Action.ID != "tasks.abort" {
+		t.Fatalf("tra lệnh: %+v %v", tg, ok)
+	}
+	for _, p := range []string{"run next", "run complete"} {
+		if _, ok := actions.Data.Excluded[p]; !ok {
+			t.Errorf("%q phải nằm trong Excluded", p)
+		}
+	}
+	env, taskID, _ := taskWithReview(t)
+	// Tác vụ không có bước dở: abort vẫn chạy (dừng tác vụ), có ghi chú.
+	r := do(t, "tasks.abort", env, app.RunAbortOptions{Ref: taskID, Reason: "thử"})
+	if r.Err != nil {
+		t.Fatal(r.Err)
+	}
+	if sa, ok := r.Value.(*workflow.SessionAction); !ok || sa.TaskID != taskID || sa.Status != task.StatusInterrupted {
+		t.Fatalf("abort: %+v", r.Value)
 	}
 }

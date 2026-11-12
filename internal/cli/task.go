@@ -100,6 +100,7 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		depth    string
 		worktree bool
 		shared   bool
+		driver   string
 	)
 	c := &cobra.Command{
 		Use:   "new [mô tả | -]",
@@ -117,7 +118,10 @@ orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và
 Cô lập (chọn một lần lúc lập phiếu, ghi vào phiếu): workflow.isolation = auto sửa thẳng trên cây
 đang làm, và tự chuyển tác vụ vào worktree riêng khi cây đó đang có tác vụ khác chưa kết thúc
 (isolation_reason = concurrent_task); --worktree buộc worktree riêng (để chạy song song), --shared buộc
-sửa thẳng trên cây đang làm. Tác vụ worktree đưa thay đổi về cây này bằng bint task land.`,
+sửa thẳng trên cây đang làm. Tác vụ worktree đưa thay đổi về cây này bằng bint task land.
+
+Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow.driver) là bint run tự gọi harness cho từng bước;
+--driver session để phiên đang mở chạy bước bằng subagent qua bint run next → Agent → bint run complete.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			req := ""
@@ -142,7 +146,7 @@ sửa thẳng trên cây đang làm. Tác vụ worktree đưa thay đổi về c
 			o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = ef.goal, ef.verify, ef.autonomy, ef.criteria, ef.allow, ef.deny
 			o.Constraints, o.ClearScope = ef.constraints, ef.clearScope
 			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
-			o.Worktree, o.Shared = worktree, shared
+			o.Worktree, o.Shared, o.Driver = worktree, shared, driver
 			if err := o.Validate(); err != nil { // lỗi dùng sai (mã 2) thắng lỗi "chưa init", như trước
 				return err
 			}
@@ -159,7 +163,8 @@ sửa thẳng trên cây đang làm. Tác vụ worktree đưa thay đổi về c
 				return writeJSON(stdio.Out, map[string]any{"id": t.State.ID, "dir": t.Dir, "status": t.State.Status,
 					"ticket": t.Ticket, "classification": t.State.Classification, "assessment": a,
 					"verify_confirmed": created.VerifyConfirmed, "isolation": t.State.Isolation(),
-					"isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t))})
+					"isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t)),
+					"driver": taskDriver(t), "driver_reason": driverReason(t)})
 			}
 			w := stdio.Out
 			fmt.Fprintf(w, "Tác vụ %s: %s\n", t.State.ID, t.Ticket.Goal)
@@ -169,6 +174,7 @@ sửa thẳng trên cây đang làm. Tác vụ worktree đưa thay đổi về c
 				printDepthLine(w, "  Phân tích: ", c)
 			}
 			printIsolationLine(w, "  Cô lập:    ", t)
+			printDriverLines(w, "  ", t)
 			printTicketBrief(w, env, t, a)
 			return nil
 		},
@@ -180,6 +186,7 @@ sửa thẳng trên cây đang làm. Tác vụ worktree đưa thay đổi về c
 	c.Flags().StringVar(&depth, "depth", "auto", depthFlagHelp)
 	c.Flags().BoolVar(&worktree, "worktree", false, "chạy tác vụ trong worktree riêng (song song với tác vụ khác); loại trừ --shared")
 	c.Flags().BoolVar(&shared, "shared", false, "sửa thẳng trên cây đang làm, không vào worktree riêng; loại trừ --worktree")
+	c.Flags().StringVar(&driver, "driver", "auto", "ai chạy các bước của tác vụ: auto (theo workflow.driver) | process | session (phiên đang mở chạy bước bằng subagent: bint run next/complete)")
 	c.Flags().StringVar(&fromFile, "file", "", "đọc mô tả từ tệp")
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
@@ -312,7 +319,8 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 				}
 				return writeJSON(stdio.Out, map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
 					"verify_confirmed": d.VerifyConfirmed, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers),
-					"isolation": t.State.Isolation(), "isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t))})
+					"isolation": t.State.Isolation(), "isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t)),
+					"driver": taskDriver(t), "driver_reason": driverReason(t)})
 			}
 			printTask(stdio.Out, ws.Env, t, a, rev, blockers)
 			return nil
@@ -353,6 +361,7 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 		printDepthLine(w, "  Phân tích:  ", c)
 	}
 	printIsolationLines(w, "  ", t)
+	printDriverLines(w, "  ", t)
 	fmt.Fprintf(w, "  Thư mục:    %s\n", t.Dir)
 	printTicketBrief(w, env, t, a)
 	if t.Ticket.Request != "" {
@@ -843,6 +852,34 @@ func isolationReason(t *task.Task) string {
 		return c.IsolationReason
 	}
 	return ""
+}
+
+// taskDriver là driver của tác vụ (process khi phiếu cũ chưa ghi).
+func taskDriver(t *task.Task) string {
+	if c := t.State.Classification; c != nil {
+		return c.EffectiveDriver()
+	}
+	return task.DriverProcess
+}
+
+func driverReason(t *task.Task) string {
+	if c := t.State.Classification; c != nil {
+		return c.DriverReason
+	}
+	return ""
+}
+
+// printDriverLines in driver của tác vụ (chỉ khi khác mặc định process hoặc có bước dở) và bước đang chạy bằng subagent.
+func printDriverLines(w io.Writer, indent string, t *task.Task) {
+	mode := taskDriver(t)
+	if ps := t.State.PendingStep; ps != nil {
+		fmt.Fprintf(w, "%sDriver:      %s — bước %s đang chạy bằng subagent (lượt %s, hết hạn %s): bint run complete %s --run %s | bint run abort %s\n",
+			indent, mode, ps.Step, ps.RunID, fmtRFC(ps.LeaseUntil), t.State.ID, ps.RunID, t.State.ID)
+		return
+	}
+	if mode == task.DriverSession {
+		fmt.Fprintf(w, "%sDriver:      session (%s) — bint run next %s --json\n", indent, orDash(driverReason(t)), t.State.ID)
+	}
 }
 
 func isolationTasks(t *task.Task) []string {

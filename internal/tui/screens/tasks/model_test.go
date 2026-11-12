@@ -23,6 +23,9 @@ import (
 	"bint/internal/workflow"
 )
 
+// pendingStepID (rỗng = không): tác vụ trong data() có bước đang chạy bằng subagent.
+var pendingStepID string
+
 func mk(id, status, goal, updated string) *task.Task {
 	return &task.Task{Dir: "/state/tasks/" + id,
 		Ticket: task.Ticket{ID: id, Goal: goal, Request: "Yêu cầu: " + goal, Autonomy: task.AutonomyAskOnProtected,
@@ -48,6 +51,13 @@ func data(root string) tasks.Data {
 	landed.State.Classification = &task.Classification{Isolation: task.IsolationWorktree, IsolationReason: task.IsolationReasonUser}
 	landed.State.Origin = "/work/demo"
 	landed.State.Landed = &task.Landing{At: "2026-11-10T10:00:00Z", By: "human", Files: []string{"a.go", "b.go"}, Conflicts: []string{"b.go"}}
+	if pendingStepID != "" { // test bước đang chạy bằng subagent (G3a)
+		for _, t := range []*task.Task{blocked, failed, wt} {
+			if t.State.ID == pendingStepID {
+				t.State.PendingStep = &task.PendingStep{RunID: "01RUNPEND", Step: "b-feat", LeaseUntil: "2099-01-01T00:00:00Z"}
+			}
+		}
+	}
 	return tasks.Data{Root: root, Files: []string{"a.go"}, Tasks: []*task.Task{
 		landed,
 		wt,
@@ -749,5 +759,53 @@ func TestLandAndCancelKeysBlockedByGate(t *testing.T) {
 	r.press("x")
 	if r.m.Capturing() || len(r.reqs) != 0 {
 		t.Fatal("x bị chặn phải không mở form")
+	}
+}
+
+// G3a: `run abort` là hành động ghi không phím, mở từ bảng lệnh; chỉ mở form (bước xác nhận) khi tác vụ có bước dở.
+func TestAbortCommandOpensFormOnlyWithPendingStep(t *testing.T) {
+	pendingStepID = ""
+	r := newRig(t, tasks.Options{})
+	r.feed(r.m.Command("tasks.abort"))
+	if r.m.Capturing() {
+		t.Fatal("tác vụ không có bước dở: không mở form")
+	}
+	if out := r.view(140, 34); !strings.Contains(out, "không có bước nào đang chạy bằng subagent") {
+		t.Fatalf("thiếu thông báo:\n%s", out)
+	}
+
+	pendingStepID = "01TASK1"
+	t.Cleanup(func() { pendingStepID = "" })
+	r = newRig(t, tasks.Options{})
+	r.feed(r.m.Command("tasks.abort"))
+	if !r.m.Capturing() {
+		t.Fatal("tác vụ có bước dở: phải mở form")
+	}
+	if out := r.view(140, 34); !strings.Contains(out, "bint run abort 01TASK1") {
+		t.Fatalf("dòng lệnh tương đương:\n%s", out)
+	}
+	r.press("ctrl+s")
+	if req := r.lastReq(); req.ID != "tasks.abort" || req.Opts.(app.RunAbortOptions).Ref != "01TASK1" {
+		t.Fatalf("abort: %+v", req)
+	}
+	r.press("esc")
+
+	// Bị chặn (chỉ đọc/phiên agent): không mở form.
+	r = newRig(t, tasks.Options{})
+	r.gate = func(id string) actions.Availability {
+		if id == "tasks.abort" {
+			return actions.Hidden
+		}
+		return actions.Available
+	}
+	r.feed(r.m.Command("tasks.abort"))
+	if r.m.Capturing() || len(r.reqs) != 0 {
+		t.Fatal("abort bị chặn phải không mở form")
+	}
+	// Kết quả: thông báo.
+	r.gate = nil
+	r.feed(r.m.Update(actions.ResultMsg{ID: "tasks.abort"}))
+	if out := r.view(140, 34); !strings.Contains(out, "Đã bỏ bước đang dở") {
+		t.Fatalf("thông báo kết quả:\n%s", out)
 	}
 }

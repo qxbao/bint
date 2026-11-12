@@ -81,6 +81,22 @@ func (m *Model) cmdCancel() tea.Cmd {
 	return nil
 }
 
+// cmdAbort mở form bỏ bước đang chạy bằng subagent của tác vụ đang chọn (form là bước xác nhận).
+func (m *Model) cmdAbort() tea.Cmd {
+	t := m.Cursor()
+	if t == nil || !m.allowed("tasks.abort") {
+		return nil
+	}
+	if t.State.PendingStep == nil {
+		m.setToast(m.t("tk.abort.none"), true)
+		return nil
+	}
+	o := app.RunAbortDefaults(config.Default())
+	o.Ref = t.State.ID
+	m.openForm("tasks.abort", "run abort", o, nil)
+	return nil
+}
+
 // cmdEdit: ở thẻ Tài liệu sửa tài liệu đang xem trong $EDITOR; ở thẻ Review mở tệp của phát hiện tại dòng của nó;
 // còn lại mở form sửa phiếu.
 func (m *Model) cmdEdit() tea.Cmd {
@@ -353,6 +369,11 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 		}
 		m.invalidate()
 		return tea.Batch(m.Load(), m.wantDetail())
+	case "tasks.abort":
+		m.frm = nil
+		m.setToast(m.t("tk.abort.done"), false)
+		m.invalidate()
+		return tea.Batch(m.Load(), m.wantDetail())
 	case "tasks.lint":
 		if lr, ok := r.Value.(app.TaskLinted); ok {
 			m.showLint(lr)
@@ -595,6 +616,8 @@ func (m *Model) Command(id string) tea.Cmd {
 	case "tasks.add_knowledge":
 		m.setSub(subReview)
 		return tea.Batch(m.wantDetail(), m.cmdKnowledge())
+	case "tasks.abort":
+		return m.cmdAbort()
 	}
 	if k, ok := keyOf[id]; ok {
 		cmd, _ := m.listKey(keyMsgOf(k))

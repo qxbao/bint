@@ -174,6 +174,31 @@ type Classification struct {
 	IsolationReason string `json:"isolation_reason,omitempty"`
 	// IsolationTasks là ID các tác vụ khiến chế độ auto chọn worktree (IsolationReason = concurrent_task).
 	IsolationTasks []string `json:"isolation_tasks,omitempty"`
+	// Driver (DriverProcess | DriverSession) được chọn một lần lúc lập phiếu; rỗng (phiếu cũ) = process.
+	Driver string `json:"driver,omitempty"`
+	// DriverReason: user | config | default (cùng nghĩa với IsolationReason).
+	DriverReason string `json:"driver_reason,omitempty"`
+}
+
+// Driver của tác vụ (docs/isolation-subagent-plan.md mục 6): ai chạy các bước agent.
+const (
+	DriverProcess = "process" // `bint run` gọi harness cho từng bước
+	DriverSession = "session" // phiên orchestrator chạy bước bằng subagent (bint run next/complete)
+)
+
+// Lý do chọn driver (Classification.DriverReason).
+const (
+	DriverReasonUser    = "user"    // cờ --driver
+	DriverReasonConfig  = "config"  // workflow.driver: session
+	DriverReasonDefault = "default" // mặc định process
+)
+
+// EffectiveDriver trả về driver đang có hiệu lực (process khi chưa lưu: phiếu cũ).
+func (c Classification) EffectiveDriver() string {
+	if c.Driver == DriverSession {
+		return DriverSession
+	}
+	return DriverProcess
 }
 
 // Chế độ cô lập của tác vụ (docs/isolation-subagent-plan.md mục 5.1).
@@ -309,6 +334,57 @@ type State struct {
 	AwaitingCheck bool              `json:"awaiting_check,omitempty"`
 	NextFinding   int               `json:"next_finding"`
 	Artifacts     map[string]string `json:"artifacts,omitempty"` // tên → thời điểm ghi
+	// ReviewDecided là số vòng review (ReviewRound.Round) đã được áp quyết định (finalize / vòng sửa / chờ người).
+	// Vòng review mới hơn mà chưa áp là review chạy riêng bằng tiến trình (`bint run b-review --task`): driver
+	// session áp nó ở `bint run next` thay vì review lặp.
+	ReviewDecided int `json:"review_decided,omitempty"`
+	// PendingStep là bước đang chạy bằng subagent (driver session): `bint run next` đã mở, `complete`/`abort` chưa
+	// đóng. nil = không có bước dở.
+	PendingStep *PendingStep `json:"pending_step,omitempty"`
+	// SessionRun là lượt cha của driver session (mở ở `next` đầu tiên, đóng khi tác vụ dừng); các lượt con của bước
+	// là con của nó, như lượt `bint run` của driver process.
+	SessionRun string `json:"session_run,omitempty"`
+	// AgentRuns ánh xạ agent_id của subagent (do `complete --agent-id` ghi) sang lượt chạy của bước, để nạp
+	// spool gắn sự kiện của subagent vào đúng lượt.
+	AgentRuns []AgentRun `json:"agent_runs,omitempty"`
+}
+
+// PendingStep là nửa giữa của một bước chạy bằng subagent: mọi thứ `complete` cần để làm nửa sau của bước
+// (kiểm chỉ đọc, ghi kết quả) mà không phải dựng lại từ tiến trình `next` đã thoát.
+type PendingStep struct {
+	RunID       string `json:"run_id"` // lượt con của bước
+	ParentRunID string `json:"parent_run_id,omitempty"`
+	Step        string `json:"step"`
+	// Mode: chế độ khoá của bước ("shared" | "exclusive").
+	Mode string `json:"mode"`
+	// Snapshot: cây làm việc trước bước chỉ đọc; FeatBefore: cây trước b-feat (cho Touched); FirstFeat: lần b-feat đầu.
+	Snapshot   string `json:"snapshot,omitempty"`
+	FeatBefore string `json:"feat_before,omitempty"`
+	FirstFeat  bool   `json:"first_feat,omitempty"`
+	Harness    string `json:"harness,omitempty"`
+	Model      string `json:"model,omitempty"`
+	Subagent   string `json:"subagent,omitempty"`
+	// Prompt là đề bài đã dựng lúc `next` (gọi lại `next` trả đúng nó, không dựng lại).
+	Prompt   string `json:"prompt"`
+	MaxTurns *int   `json:"max_turns,omitempty"`
+	// StartedAt, LeaseUntil: RFC 3339 UTC. Quá LeaseUntil là bước hết hạn (hợp đồng thuê khoá cũng hết).
+	StartedAt  string `json:"started_at"`
+	LeaseUntil string `json:"lease_until"`
+}
+
+// AgentRun ghép agent_id của một subagent với lượt chạy của bước nó đã làm.
+type AgentRun struct {
+	AgentID string `json:"agent_id"`
+	RunID   string `json:"run_id"`
+}
+
+// PendingActive cho biết có bước dở (subagent) còn hạn tại thời điểm now.
+func (s *State) PendingActive(now time.Time) bool {
+	if s.PendingStep == nil {
+		return false
+	}
+	until, err := time.Parse(time.RFC3339, s.PendingStep.LeaseUntil)
+	return err != nil || now.Before(until) // hạn không đọc được: coi như còn hạn (không mở khoá nhầm)
 }
 
 // Landing là kết quả đưa thay đổi của tác vụ worktree về cây gốc.

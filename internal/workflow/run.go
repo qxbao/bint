@@ -16,6 +16,7 @@ import (
 	"bint/internal/ctxengine"
 	"bint/internal/eval"
 	"bint/internal/gitrepo"
+	adapters "bint/internal/harness"
 	"bint/internal/skills"
 	"bint/internal/spool"
 	"bint/internal/task"
@@ -96,6 +97,9 @@ type RunOptions struct {
 	NoWait bool
 	// Isolation: chế độ cô lập khi tự lập phiếu (""/auto | shared | worktree); không dùng cùng TaskRef.
 	Isolation string
+	// Driver: process|session khi tự lập phiếu (--driver); không dùng cùng TaskRef. session ⇒ lập phiếu rồi dừng
+	// (Result.Status = created): các bước do phiên điều phối chạy bằng `bint run next`.
+	Driver string
 }
 
 // StepResult là kết quả một bước agent.
@@ -159,6 +163,8 @@ type runState struct {
 	featScope    []string
 	featScopeErr error
 	featScopeSet bool
+	// session: lệnh của driver session (bint run next/complete); subagent không có BINT_RUN_ID.
+	session bool
 }
 
 // afterStepUnlock là seam kiểm thử (nil ở sản phẩm): gọi ngay sau khi runStep nhả khoá worktree của bước,
@@ -198,7 +204,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		saved := r.RunID
 		r.RunID = ""
 		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth,
-			Isolation: o.Isolation})
+			Isolation: o.Isolation, Driver: o.Driver, DriverFlagOnly: true})
 		r.RunID = saved
 		if err != nil {
 			return nil, err
@@ -213,12 +219,25 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		if c := t.State.Classification; c != nil {
 			r.logf("Cô lập: %s (%s)", c.EffectiveIsolation(), c.IsolationReason)
+			if c.EffectiveDriver() == task.DriverSession {
+				r.logf("Driver: session (%s)", c.DriverReason)
+			}
+		}
+		if c := t.State.Classification; c != nil && c.EffectiveDriver() == task.DriverSession {
+			// Driver session: không chạy bước nào ở đây (không có phiên orchestrator trong tiến trình này); phiếu đã lập.
+			rs.res.TaskID, rs.res.Status = t.State.ID, t.State.Status
+			rs.res.Isolation = t.State.Isolation()
+			rs.res.Notes = append(assess.Notes, "driver session: tiếp bằng `bint run next "+t.State.ID+" --json`")
+			return rs.res, nil
 		}
 	} else {
 		if strings.TrimSpace(o.Isolation) != "" {
 			if iso, err := NormalizeIsolationFlag(o.Isolation); err != nil || iso != "" {
 				return nil, errors.New("--worktree/--shared chỉ chọn lúc lập phiếu: không dùng cùng --task (chế độ đã ghi trong phiếu)")
 			}
+		}
+		if drv, err := NormalizeDriverFlag(o.Driver); err != nil || drv != "" {
+			return nil, errors.New("--driver chỉ chọn lúc lập phiếu: không dùng cùng --task (driver đã ghi trong phiếu)")
 		}
 		t, err := r.Tasks.Load(o.TaskRef)
 		if err != nil {
@@ -227,6 +246,20 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		t = r.Reconcile(t)
 		if task.Terminal(t.State.Status) {
 			return nil, fmt.Errorf("tác vụ %s đã %s", t.State.ID, t.State.Status)
+		}
+		if ps := t.State.PendingStep; ps != nil {
+			// Bước đang chạy bằng subagent (driver session): không chạy chồng lên nó. Hết hạn thì đóng như bước quá giờ
+			// (tác vụ failed), rồi đi tiếp theo trạng thái mới.
+			if t.State.PendingActive(leaseNow()) {
+				return nil, &PendingStepError{TaskID: t.State.ID, Step: ps.Step, RunID: ps.RunID, Until: ps.LeaseUntil}
+			}
+			if _, err := r.Complete(ctx, CompleteOptions{TaskRef: t.State.ID, RunID: ps.RunID, NoWait: o.NoWait}); err != nil {
+				return nil, err
+			}
+			if t, err = r.Tasks.Load(o.TaskRef); err != nil {
+				return nil, err
+			}
+			t = r.Reconcile(t)
 		}
 		planningState := t.State.Status
 		if o.Resume && task.Paused(planningState) {
@@ -538,14 +571,74 @@ func minPtr(a, b *float64) *float64 {
 	return b
 }
 
-// runStep chạy một bước agent. Trả false nếu workflow phải dừng.
+// stepRun gom trạng thái của một bước agent giữa beginStep và endStep. Driver process giữ nó trong runStep; driver
+// session lưu phần cần thiết vào task.PendingStep giữa `bint run next` và `bint run complete` rồi dựng lại.
+type stepRun struct {
+	step, child, stepID string
+	readOnly            bool
+	mode                LockMode
+	snapBefore          string
+	featBefore          string
+	firstFeat           bool
+	started             time.Time
+	maxCost             *float64
+	maxTurns            *int
+	reqModel, harness   string
+	// agent chỉ có ở driver process; driver session không gọi harness từ tiến trình Bint.
+	agent   eval.Agent
+	stepLog string
+	prompt  string
+	lock    *Lock
+	// agentID là agent_id của subagent (driver session, từ `complete --agent-id`); ghi vào workflow.finished.
+	agentID string
+	// onEnd chạy trong endStep khi vẫn giữ khoá, ngay trước khi nhả (driver session: xoá bước dở và hợp đồng thuê).
+	onEnd func()
+	// timedOut: driver session, hợp đồng thuê đã hết hạn lúc đóng bước.
+	timedOut bool
+}
+
+// release nhả khoá worktree của bước (và seam kiểm thử): gọi đúng một lần khi bước kết thúc hoặc không bắt đầu được.
+func (sr *stepRun) release() {
+	if sr.lock == nil {
+		return
+	}
+	if sr.onEnd != nil {
+		sr.onEnd()
+		sr.onEnd = nil
+	}
+	sr.lock.Release()
+	sr.lock = nil
+	if afterStepUnlock != nil {
+		afterStepUnlock(sr.step)
+	}
+}
+
+// runStep chạy một bước agent (driver process): beginStep → agent.Run → endStep. Trả false nếu workflow phải dừng.
 func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
+	sr, ok := r.beginStep(ctx, rs, step, false)
+	if !ok {
+		return false
+	}
+	env := []string{EnvRunID + "=" + sr.child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
+		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
+		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
+	res := sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: sr.prompt,
+		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
+		LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs()})
+	return r.endStep(ctx, rs, sr, res)
+}
+
+// beginStep là nửa trước của một bước: chuyển trạng thái, giới hạn, khoá, ảnh chụp trước, sự kiện bắt đầu, đề bài.
+// session=true (driver session) không dựng agent của tiến trình: harness/model lấy từ cấu hình role. Trả ok=false
+// nếu workflow phải dừng (trạng thái tác vụ đã đặt); khi ok, khoá của bước vẫn được giữ trong sr.lock cho tới endStep
+// (hoặc sr.release).
+func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, session bool) (sr *stepRun, ok bool) {
 	// Chuyển trạng thái trước bước.
 	firstFeat := false
 	switch step {
 	case StepFeat:
 		if !r.preflightFeat(rs) {
-			return false
+			return nil, false
 		}
 		firstFeat = !rs.t.State.EverInProgress() // phải xét trước khi chuyển in_progress ở dưới
 		if rs.t.Ticket.Autonomy == task.AutonomyAskAlways {
@@ -553,20 +646,20 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 				Text: fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép b-feat sửa mã trong %s?", rs.t.State.ID, r.Root)}
 			if r.Confirm == nil || !r.Confirm(q) {
 				r.block(rs, "autonomy ask_always: chờ người cho phép bước b-feat (bint run resume "+rs.t.State.ID+")")
-				return false
+				return nil, false
 			}
 		}
 		if rs.t.State.Status != task.StatusInProgress {
 			if err := r.transition(rs, task.StatusInProgress, "b-feat bắt đầu"); err != nil {
 				r.fail(rs, step, err.Error())
-				return false
+				return nil, false
 			}
 		}
 	case StepReview:
 		if rs.t.State.Status != task.StatusInReview {
 			if err := r.transition(rs, task.StatusInReview, "b-review bắt đầu"); err != nil {
 				r.fail(rs, step, err.Error())
-				return false
+				return nil, false
 			}
 		}
 	}
@@ -578,7 +671,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		rem := rs.remaining()
 		if rem != nil && *rem <= 0 {
 			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.b-do.max_cost_usd (đã tiêu %.2f USD)", rs.spent))
-			return false
+			return nil, false
 		}
 		maxCost = minPtr(maxCost, rem)
 	}
@@ -587,88 +680,103 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		rem := int64(*rs.limit.MaxTurns) - rs.turns
 		if rem <= 0 {
 			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.b-do.max_turns (đã dùng %d lượt)", rs.turns))
-			return false
+			return nil, false
 		}
 		if maxTurns == nil || int64(*maxTurns) > rem {
 			v := int(rem)
 			maxTurns = &v
 		}
 	}
-	agent, err := r.Agent(step, maxCost, maxTurns)
-	if err != nil {
-		r.fail(rs, step, err.Error())
-		return false
+	sr = &stepRun{step: step, firstFeat: firstFeat, maxCost: maxCost, maxTurns: maxTurns}
+	var who string
+	if session {
+		h, _, err := adapters.ForStep(r.Cfg, adapters.Selection{}, step)
+		if err != nil {
+			r.fail(rs, step, err.Error())
+			return nil, false
+		}
+		sr.harness = h
+		sr.reqModel = adapters.RoleModel(r.Cfg, h, adapters.StepRole(step), "")
+		who = h + " (subagent)"
+	} else {
+		agent, err := r.Agent(step, maxCost, maxTurns)
+		if err != nil {
+			r.fail(rs, step, err.Error())
+			return nil, false
+		}
+		if maxCost != nil && !agent.ReportsCost() && !rs.warnedNoCost {
+			rs.warnedNoCost = true
+			rs.res.Notes = append(rs.res.Notes, agent.Name()+" không báo chi phí: giới hạn max_cost_usd chỉ là chỉ dẫn")
+		}
+		if tl, ok := agent.(eval.TurnLimiter); ok && maxTurns != nil && !tl.EnforcesTurns() && !rs.warnedNoTurns {
+			rs.warnedNoTurns = true
+			rs.res.Notes = append(rs.res.Notes, agent.Name()+" không có giới hạn số lượt: max_turns chỉ là chỉ dẫn")
+		}
+		if mn, ok := agent.(eval.ModelNamer); ok {
+			sr.reqModel = mn.RequestedModel()
+		}
+		sr.agent, sr.harness = agent, agent.Name()
+		who = agent.Name()
 	}
-	if maxCost != nil && !agent.ReportsCost() && !rs.warnedNoCost {
-		rs.warnedNoCost = true
-		rs.res.Notes = append(rs.res.Notes, agent.Name()+" không báo chi phí: giới hạn max_cost_usd chỉ là chỉ dẫn")
-	}
-	if tl, ok := agent.(eval.TurnLimiter); ok && maxTurns != nil && !tl.EnforcesTurns() && !rs.warnedNoTurns {
-		rs.warnedNoTurns = true
-		rs.res.Notes = append(rs.res.Notes, agent.Name()+" không có giới hạn số lượt: max_turns chỉ là chỉ dẫn")
+	if sr.reqModel != "" {
+		who += " · " + sr.reqModel
 	}
 
 	// Cô lập (P5): bước chỉ đọc giữ khoá chia sẻ, bước có quyền ghi giữ khoá độc quyền của worktree
 	// (chờ tới khi lấy được). Khoá lấy TRƯỚC ảnh chụp trước và giữ tới sau ảnh chụp sau, nên b-feat của
 	// tác vụ khác không chen vào giữa hai ảnh chụp của bước chỉ đọc.
-	readOnly := readonlySteps[step]
-	mode := LockExclusive
-	if readOnly {
-		mode = LockShared
+	sr.readOnly = readonlySteps[step]
+	sr.mode = LockExclusive
+	if sr.readOnly {
+		sr.mode = LockShared
 	}
-	lock, ok := r.lockStep(ctx, rs, step, mode)
-	if !ok {
-		return false
+	lock, lok := r.lockStep(ctx, rs, step, sr.mode)
+	if !lok {
+		return nil, false
 	}
+	sr.lock = lock
 	defer func() {
-		lock.Release()
-		if afterStepUnlock != nil {
-			afterStepUnlock(step)
+		if !ok { // không bắt đầu được: trả khoá như khi bước kết thúc
+			sr.release()
 		}
 	}()
-	var snapBefore, featBefore string
-	started := time.Now() // đồng hồ thật: cùng đồng hồ với dòng nhật ký ghi (không dùng r.now() có thể bị giả)
-	if readOnly {
+	sr.started = time.Now() // đồng hồ thật: cùng đồng hồ với dòng nhật ký ghi (không dùng r.now() có thể bị giả)
+	if sr.readOnly {
 		snap, err := WorktreeSnapshot(ctx, r.Root)
 		if err != nil {
 			r.fail(rs, step, "chụp cây làm việc trước bước chỉ đọc: "+err.Error())
-			return false
+			return nil, false
 		}
-		snapBefore = snap
+		sr.snapBefore = snap
 	} else if step == StepFeat {
-		featBefore = r.beginTouched(ctx, rs, firstFeat)
+		sr.featBefore = r.beginTouched(ctx, rs, firstFeat)
 	}
 
-	reqModel := ""
-	if mn, ok := agent.(eval.ModelNamer); ok {
-		reqModel = mn.RequestedModel()
-	}
-	who := agent.Name()
-	if reqModel != "" {
-		who += " · " + reqModel
-	}
-	child := ulid.New()
-	stepID := "st_" + child
+	sr.child = ulid.New()
+	sr.stepID = "st_" + sr.child
 	rs.ran[step]++
-	r.emitRun(rs.runID, spool.StepStarted, map[string]any{"step_id": stepID, "name": step, "status": "running"})
-	r.emitRun(child, spool.WorkflowStarted, map[string]any{"workflow": step, "parent_run_id": rs.runID, "harness": agent.Name(), "model": reqModel,
+	r.emitRun(rs.runID, spool.StepStarted, map[string]any{"step_id": sr.stepID, "name": step, "status": "running"})
+	r.emitRun(sr.child, spool.WorkflowStarted, map[string]any{"workflow": step, "parent_run_id": rs.runID, "harness": sr.harness, "model": sr.reqModel,
 		"bint_version": r.Version, "git_head": gitrepo.HeadCommit(ctx, r.Root), "git_branch": gitrepo.Branch(ctx, r.Root),
 		"task_id": rs.t.State.ID})
-	r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LinkRun(child); return nil })
+	r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LinkRun(sr.child); return nil })
 
-	prompt := r.prompt(ctx, rs, step, child)
-	stepLog := rs.t.LogPath(step + "-" + child + ".log")
-	r.logf("▶ %s [%s] (lượt %s)…", step, who, child)
+	sr.prompt = r.prompt(ctx, rs, step, sr.child, session)
+	sr.stepLog = rs.t.LogPath(step + "-" + sr.child + ".log")
+	r.logf("▶ %s [%s] (lượt %s)…", step, who, sr.child)
 	if r.OnStep != nil {
-		r.OnStep(StepEvent{TaskID: rs.t.State.ID, Step: step, RunID: child, Log: stepLog})
+		r.OnStep(StepEvent{TaskID: rs.t.State.ID, Step: step, RunID: sr.child, Log: sr.stepLog})
 	}
-	env := []string{EnvRunID + "=" + child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
-		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
-		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
-	res := agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt,
-		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
-		LogPath: stepLog, Env: env, ReadOnly: readOnly, WritableDirs: r.stateDirs()})
-	r.endTouched(ctx, rs, featBefore)
+	return sr, true
+}
+
+// endStep là nửa sau của một bước: ghi tập tệp đã đổi (b-feat), tính phạm vi, kiểm ảnh chụp sau của bước chỉ đọc,
+// ghi kết quả/sự kiện, rồi xử lý bước lỗi/huỷ/chạm trần. Nhả khoá của bước (sr.lock) khi trả về. Trả false nếu
+// workflow phải dừng.
+func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eval.AgentResult) bool {
+	defer sr.release()
+	step, child := sr.step, sr.child
+	r.endTouched(ctx, rs, sr.featBefore)
 	if step == StepFeat && ctx.Err() == nil {
 		// Tính phạm vi khi còn giữ khoá độc quyền: sau khi nhả, b-feat của tác vụ khác có thể ghi tệp dở
 		// dang vào cây và bị quy nhầm cho tác vụ này. Chỉ tính ở đây; hỏi người (checkScope) làm sau khi
@@ -677,13 +785,13 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		rs.featScopeSet = true
 	}
 	var humanWrites []string
-	if readOnly && ctx.Err() == nil {
+	if sr.readOnly && ctx.Err() == nil {
 		after, err := WorktreeSnapshot(ctx, r.Root)
 		switch {
 		case err != nil:
 			res.Error = "chụp cây làm việc sau bước chỉ đọc: " + err.Error()
-		case after != snapBefore:
-			chk := ReadonlyViolations(ctx, r.Root, snapBefore, after, started, WritesLogPath(filepath.Dir(r.Tasks.Dir)))
+		case after != sr.snapBefore:
+			chk := ReadonlyViolations(ctx, r.Root, sr.snapBefore, after, sr.started, WritesLogPath(filepath.Dir(r.Tasks.Dir)))
 			if len(chk.HumanWrites) > 0 {
 				humanWrites = chk.HumanWrites
 				list := strings.Join(humanWrites, ", ")
@@ -694,15 +802,15 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 				break
 			}
 			res.Error = fmt.Sprintf("bước chỉ đọc %s (%s) đã sửa cây làm việc: %s — Bint không hoàn tác, hãy xem lại (nếu chính bạn sửa trong lúc bước chạy: bint run resume %s)",
-				step, agent.Name(), strings.Join(chk.Violations, ", "), rs.t.State.ID)
+				step, sr.harness, strings.Join(chk.Violations, ", "), rs.t.State.ID)
 		}
 	}
 
 	model := res.Model
 	if model == "" {
-		model = reqModel
+		model = sr.reqModel
 	}
-	sr := StepResult{Step: step, RunID: child, Harness: agent.Name(), Model: model, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error, HumanWrites: humanWrites}
+	srr := StepResult{Step: step, RunID: child, Harness: sr.harness, Model: model, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error, HumanWrites: humanWrites}
 	if res.CostUSD != nil {
 		rs.spent += *res.CostUSD
 		rs.costKnown = true
@@ -724,14 +832,17 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 			endReason = fmt.Sprintf("agent thoát với mã %d", res.ExitCode)
 		}
 	}
-	sr.Status = status
+	srr.Status = status
 	if r.OnStep != nil {
-		r.OnStep(StepEvent{TaskID: rs.t.State.ID, Step: step, RunID: child, Log: stepLog, Done: true, Status: status})
+		r.OnStep(StepEvent{TaskID: rs.t.State.ID, Step: step, RunID: child, Log: sr.stepLog, Done: true, Status: status})
 	}
 	payload := map[string]any{"status": status, "end_reason": endReason, "model": res.Model,
 		"result_summary": truncate(strings.TrimSpace(res.Text), 500), "task_id": rs.t.State.ID}
 	if len(humanWrites) > 0 {
 		payload["human_writes"] = humanWrites
+	}
+	if sr.agentID != "" {
+		payload["agent_id"] = sr.agentID
 	}
 	if res.CostUSD != nil {
 		payload["cost_usd"] = *res.CostUSD
@@ -743,8 +854,8 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		payload["output_tokens"] = *res.OutputTokens
 	}
 	r.emitRun(child, spool.WorkflowFinished, payload)
-	r.emitRun(rs.runID, spool.StepFinished, map[string]any{"step_id": stepID, "name": step, "status": status})
-	rs.res.Steps = append(rs.res.Steps, sr)
+	r.emitRun(rs.runID, spool.StepFinished, map[string]any{"step_id": sr.stepID, "name": step, "status": status})
+	rs.res.Steps = append(rs.res.Steps, srr)
 	if t, err := r.Tasks.Load(rs.t.State.ID); err == nil {
 		rs.t = t
 	}
@@ -759,15 +870,15 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		r.interrupt(rs, "người dùng huỷ trong bước "+step)
 		return false
 	case "failed":
-		if maxCost != nil && res.CostUSD != nil && *res.CostUSD >= *maxCost*0.98 {
+		if sr.maxCost != nil && res.CostUSD != nil && *res.CostUSD >= *sr.maxCost*0.98 {
 			r.RecordError(rs.t.State.ID, step, endReason)
-			r.block(rs, fmt.Sprintf("bước %s chạm giới hạn chi phí %.2f USD", step, *maxCost))
+			r.block(rs, fmt.Sprintf("bước %s chạm giới hạn chi phí %.2f USD", step, *sr.maxCost))
 			return false
 		}
 		r.fail(rs, step, step+": "+endReason)
 		return false
 	}
-	r.logf("✓ %s xong (%s)", step, sr.Duration)
+	r.logf("✓ %s xong (%s)", step, srr.Duration)
 	return true
 }
 
@@ -895,30 +1006,56 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			return false
 		}
 		last := rev.Last()
-		if last == nil || last.RunID != rs.res.Steps[len(rs.res.Steps)-1].RunID {
+		if !r.reviewIsFresh(rs, last) {
 			r.fail(rs, step, "b-review không ghi kết quả ở lượt này (bint task review)")
 			return false
 		}
-		blocking := last.Blocking()
-		r.logf("  review vòng %d: %d phát hiện, %d nghiêm trọng", last.Round, len(last.Findings), len(blocking))
-		if rs.opts.Workflow != StepDo {
-			return false
-		}
-		if len(blocking) == 0 {
-			r.finalize(ctx, rs)
-			return false
-		}
-		if last.Round <= r.Cfg.Workflow.MaxReviewRounds {
-			if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa theo review vòng %d (%d phát hiện nghiêm trọng)", last.Round, len(blocking))); err != nil {
-				r.fail(rs, step, err.Error())
-				return false
-			}
-			return true
-		}
-		r.block(rs, fmt.Sprintf("còn %d phát hiện nghiêm trọng sau %d vòng review (workflow.max_review_rounds = %d): cần người xem review.md",
-			len(blocking), last.Round, r.Cfg.Workflow.MaxReviewRounds))
+		return r.reviewDecision(ctx, rs, last)
+	}
+	return false
+}
+
+// reviewIsFresh: vòng review last do chính bước b-review vừa chạy ghi. Driver process: lượt ghi khớp lượt của bước
+// (BINT_RUN_ID). Driver session: subagent không có biến môi trường nên vòng ghi không mang lượt; nhận vòng mới hơn
+// vòng đã áp quyết định gần nhất.
+func (r *Runner) reviewIsFresh(rs *runState, last *task.ReviewRound) bool {
+	if last == nil || len(rs.res.Steps) == 0 {
 		return false
 	}
+	if last.RunID == rs.res.Steps[len(rs.res.Steps)-1].RunID {
+		return true
+	}
+	return rs.session && last.RunID == "" && last.Round > rs.t.State.ReviewDecided
+}
+
+// reviewDecision áp quyết định sau một vòng review: finalize khi không còn phát hiện nghiêm trọng, quay lại b-feat
+// khi còn vòng sửa, ngược lại chờ người. Trả true nếu workflow tiếp tục (vòng sửa). Driver session dùng lại nó khi
+// review chạy riêng bằng tiến trình (`bint run b-review --task`) nên chưa ai áp quyết định.
+func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.ReviewRound) bool {
+	blocking := last.Blocking()
+	r.logf("  review vòng %d: %d phát hiện, %d nghiêm trọng", last.Round, len(last.Findings), len(blocking))
+	if rs.opts.Workflow != StepDo {
+		return false // b-review chạy riêng không áp quyết định: vòng này vẫn chờ (driver session áp ở `next`)
+	}
+	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+		t.State.ReviewDecided = max(t.State.ReviewDecided, last.Round)
+		return nil
+	}); err == nil {
+		rs.t = t
+	}
+	if len(blocking) == 0 {
+		r.finalize(ctx, rs)
+		return false
+	}
+	if last.Round <= r.Cfg.Workflow.MaxReviewRounds {
+		if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa theo review vòng %d (%d phát hiện nghiêm trọng)", last.Round, len(blocking))); err != nil {
+			r.fail(rs, StepReview, err.Error())
+			return false
+		}
+		return true
+	}
+	r.block(rs, fmt.Sprintf("còn %d phát hiện nghiêm trọng sau %d vòng review (workflow.max_review_rounds = %d): cần người xem review.md",
+		len(blocking), last.Round, r.Cfg.Workflow.MaxReviewRounds))
 	return false
 }
 
@@ -1227,15 +1364,13 @@ func reasonSuffix(s string) string {
 
 // emitRun ghi sự kiện của một lượt chạy do Bint cấp.
 func (r *Runner) emitRun(runID, typ string, payload map[string]any) {
-	ev := spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "ev_wf_" + ulid.New(), Type: typ, Source: "bint-run",
-		Timestamp: r.now().UTC(), RunID: runID, Worktree: r.Root, Payload: payload}
-	if _, err := spool.Write(r.Spool, ev); err != nil {
+	if err := r.Env.emitRun(runID, typ, payload); err != nil {
 		r.logf("! ghi sự kiện: %v", err)
 	}
 }
 
 // prompt dựng đề bài cho một bước: nội dung skill (gốc + lớp phủ) và khối tác vụ.
-func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) string {
+func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, session bool) string {
 	t := rs.t
 	sk, _ := skills.Get(step)
 	croot := r.ConfigRoot
@@ -1249,11 +1384,25 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 	var b strings.Builder
 	b.WriteString(body)
 	fmt.Fprintf(&b, "\n\n---\n\n<bint-task id=%q step=%q run=%q>\n", t.State.ID, step, child)
-	b.WriteString("Bạn đang chạy dưới `bint run` (Bint Core điều phối). Không gọi `bint task status`, `bint task approve` hay `bint task verify` " +
-		"— Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định hoàn thành. Task ID cũng có trong biến BINT_TASK_ID.\n\n")
+	if session {
+		// Subagent không có biến môi trường riêng: ID tác vụ chỉ nằm trong khối này, lệnh `bint task …` phải truyền nó.
+		fmt.Fprintf(&b, "Bạn đang chạy như subagent của một phiên điều phối (Bint Core điều phối, `bint run next/complete`). Không gọi "+
+			"`bint task status`, `bint task approve` hay `bint task verify` — Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định "+
+			"hoàn thành. Không có biến BINT_TASK_ID/BINT_RUN_ID: mọi lệnh `bint task …` phải truyền ID tác vụ %s (ví dụ "+
+			"`bint task write %s <requirement|plan|tasks> -`).\n\n", t.State.ID, t.State.ID)
+	} else {
+		b.WriteString("Bạn đang chạy dưới `bint run` (Bint Core điều phối). Không gọi `bint task status`, `bint task approve` hay `bint task verify` " +
+			"— Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định hoàn thành. Task ID cũng có trong biến BINT_TASK_ID.\n\n")
+	}
 	if t.State.Origin != "" {
 		fmt.Fprintf(&b, "Thư mục làm việc: %s — worktree riêng của tác vụ (nhánh %s), tách từ cây gốc %s. Chỉ sửa trong thư mục này; "+
-			"Bint đưa thay đổi về cây gốc khi tác vụ hoàn tất (bint task land), đừng sửa cây gốc.\n\n", r.Root, t.State.Branch, t.State.Origin)
+			"Bint đưa thay đổi về cây gốc khi tác vụ hoàn tất (bint task land), đừng sửa cây gốc.\n", r.Root, t.State.Branch, t.State.Origin)
+		if session {
+			// Công cụ Agent không nhận thư mục làm việc: subagent bắt đầu ở thư mục của phiên cha.
+			fmt.Fprintf(&b, "Bạn đang đứng ở thư mục của phiên cha, KHÔNG phải worktree: mọi lệnh Bash phải bắt đầu bằng `cd %s && …`, "+
+				"và Read/Edit/Write phải dùng đường dẫn tuyệt đối dưới %s.\n", r.Root, r.Root)
+		}
+		b.WriteString("\n")
 	}
 	if step == StepReq {
 		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"

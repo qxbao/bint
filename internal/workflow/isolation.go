@@ -116,6 +116,12 @@ func AcquireLock(tasksDir, root, owner string, mode LockMode) (*Lock, error) {
 			f.Close() // bản cũ vừa xoá tệp khi trả khoá; mở lại
 			continue
 		}
+		// Hợp đồng thuê còn hạn của tác vụ khác (bước chạy bằng subagent, lease.go) cũng là chủ khoá: flock không
+		// giữ suốt bước vì tiến trình `bint run next` đã thoát.
+		if cs := leaseConflicts(p, owner, mode); len(cs) > 0 {
+			f.Close()
+			return nil, &lockedError{mode: mode, holders: leaseHolders(cs)}
+		}
 		l := &Lock{path: p, f: f, mode: mode}
 		l.writeHolder(root, owner) // chỉ để thông báo: lỗi ghi không ảnh hưởng khoá
 		return l, nil
@@ -431,11 +437,17 @@ type ActiveStep struct {
 // đọc: khác describeHolders, không xoá mục của tiến trình đã chết mà chỉ bỏ qua nó. Chủ khoá không do Runner
 // đặt (owner không có dạng "<tác vụ> <bước>") vẫn được liệt kê với TaskID là toàn bộ owner.
 func ActiveSteps(tasksDir, root string) []ActiveStep {
+	var out []ActiveStep
+	// Bước chạy bằng subagent: không có tiến trình giữ khoá, chỉ có hợp đồng thuê còn hạn (PID 0).
+	for _, le := range activeLeases(lockPath(tasksDir, root), leaseNow()) {
+		s := ActiveStep{TaskID: le.Task, Step: le.Step, Mode: le.lockMode().String()}
+		s.At, _ = time.Parse(time.RFC3339, le.At)
+		out = append(out, s)
+	}
 	ents, err := os.ReadDir(lockPath(tasksDir, root) + ".d")
 	if err != nil {
-		return nil
+		ents = nil
 	}
-	var out []ActiveStep
 	for _, e := range ents {
 		b, err := os.ReadFile(filepath.Join(lockPath(tasksDir, root)+".d", e.Name()))
 		if err != nil {

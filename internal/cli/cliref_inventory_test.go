@@ -42,6 +42,7 @@ const (
 	rSplit     = "mảnh của chuỗi nối (\"…`bint evolve evaluate <id>\" + \" --regression --yes`\"): thông điệp đầy đủ được viết lại lúc chạy, cờ nằm trong lệnh bint được đổi thành tham chiếu TUI"
 	rAgentGate = "lỗi chỉ trả cho phiên agent (cổng chỉ-dành-cho-người); TUI luôn chạy với người nên không bao giờ hiện"
 	rCLIOnly   = "chỉ có ở chế độ không tương tác của CLI; TUI luôn tương tác (xác nhận bằng hộp thoại)"
+	rSession   = "thông điệp của giao thức driver session (bint run next/complete) gửi cho phiên điều phối qua CLI/JSON: hai lệnh đó nằm trong Excluded của TUI (không phải thao tác của người) nên không có hành động để chỉ tới"
 )
 
 var baseExclusions = []exclusion{
@@ -60,6 +61,15 @@ var baseExclusions = []exclusion{
 	{"eval/case.go", "Ứng viên tác vụ đánh giá", rFile + ": chú thích của tệp ứng viên đánh giá"},
 	{"eval/case.go", "Tác vụ đánh giá đã duyệt", rFile + ": chú thích của tệp tác vụ đánh giá"},
 	{"workflow/run.go", "(thêm `--stat` để định hướng, `--name-only` để chỉ lấy danh sách tệp)", rAgent},
+	{"workflow/run.go", "Không có biến BINT_TASK_ID/BINT_RUN_ID", rAgent},
+	{"workflow/run.go", "driver session: tiếp bằng `bint run next ", rSession},
+	{"workflow/run.go", " --json`", rSession + " (mảnh của chuỗi nối với mã tác vụ)"},
+	{"workflow/session.go", " --resume", rSession},
+	{"workflow/session.go", "tiếp tục (bint run next --resume)", rSession},
+	{"workflow/session.go", " --task ", rSession},
+	{"workflow/session.go", " --json", rSession},
+	{"workflow/session.go", "%w: --run %q (%s)", rSession},
+	{"workflow/session.go", "thiếu --agent-id", rSession},
 }
 
 var litsrUsage = []struct{ file, contains string }{
@@ -96,6 +106,9 @@ var litsrUsage = []struct{ file, contains string }{
 	{"app/run_svc.go", "--plan và --no-plan loại trừ nhau"},
 	{"app/run_svc.go", "--worktree và --shared loại trừ nhau"},
 	{"app/run_svc.go", "--worktree/--shared chỉ chọn lúc lập phiếu"},
+	{"app/run_svc.go", "--driver chỉ chọn lúc lập phiếu"},
+	{"app/run_svc.go", "thiếu --run <run_id>"},
+	{"workflow/run.go", "--driver chỉ chọn lúc lập phiếu"},
 	{"app/task_svc.go", "--worktree và --shared loại trừ nhau"},
 	{"workflow/run.go", "--worktree/--shared chỉ chọn lúc lập phiếu"},
 	{"app/skills_svc.go", "--from/--to phải ≥ 0"},
