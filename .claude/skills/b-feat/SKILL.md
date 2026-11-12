@@ -23,6 +23,12 @@ Task ID lấy từ `BINT_TASK_ID`, từ đầu vào, hoặc tạo mới cho yêu
 bint task show <id>                 # phiếu, trạng thái, tài liệu, phát hiện review chưa xử lý
 ```
 
+Thư mục làm việc (cwd) là nơi tác vụ chạy: với tác vụ `worktree` (`isolation: worktree` trong
+`bint task show <id>`) đó là **worktree riêng của tác vụ** (nhánh `bint/<id>`), không phải cây gốc —
+chỉ sửa trong đó, đừng `cd` sang cây gốc để sửa, và đừng tự commit hay chạy `bint task land` (Bint đưa
+thay đổi về cây gốc ở bước hoàn thành). Tác vụ `worktree` chạy qua `bint run b-do|b-feat --task <id>` để
+Bint tạo worktree; làm tay ngoài `bint run` thì chạy ở cây gốc, không có cô lập.
+
 Đọc `requirement.md`, `plan.md`, `tasks.md` nếu có (đường dẫn trong `bint task show`).
 Nếu một tiêu chí chưa rõ tới mức không biết thế nào là xong, hỏi người dùng (khi chạy
 dưới `bint run`: ghi `bint task error <id> --step b-feat "<câu hỏi>"` rồi dừng).

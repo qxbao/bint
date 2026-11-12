@@ -17,7 +17,7 @@ var writesAudit = map[string]string{
 	"bootstrap.publish": "ghi AGENTS.md", "bootstrap": "ghi báo cáo khảo sát",
 	"tasks.run": "chạy workflow, ghi tác vụ", "tasks.resume": "chạy workflow", "tasks.approve": "ghi xác nhận", "tasks.status": "ghi trạng thái", "tasks.new": "tạo tác vụ",
 	"tasks.verify": "ghi kết quả kiểm chứng", "tasks.set": "ghi phiếu", "tasks.write": "ghi tài liệu", "tasks.edit_doc": "mở trình soạn thảo", "tasks.criteria": "ghi tiêu chí",
-	"tasks.error": "ghi lỗi", "tasks.review": "ghi review", "tasks.review_edit": "mở trình soạn thảo", "tasks.add_knowledge": "ghi mục tri thức", "tasks.open_file": "mở trình soạn thảo",
+	"tasks.land": "áp bản vá lên cây gốc, gỡ worktree", "tasks.cancel": "ghi trạng thái, gỡ worktree", "tasks.error": "ghi lỗi", "tasks.review": "ghi review", "tasks.review_edit": "mở trình soạn thảo", "tasks.add_knowledge": "ghi mục tri thức", "tasks.open_file": "mở trình soạn thảo",
 	"runs.rate": "ghi đánh giá lượt", "runs.scan": "ghi nhãn lượt", "runs.ingest": "nạp spool vào CSDL",
 	"eval.mine": "ghi ứng viên", "eval.verify": "ghi kiểm chứng", "eval.spec": "ghi đặc tả", "eval.approve": "ghi tác vụ đã duyệt", "eval.reject": "ghi trạng thái ứng viên",
 	"eval.run": "ghi đợt đánh giá", "eval.resume": "ghi đợt đánh giá", "eval.bootstrap": "ghi ảnh chụp tri thức", "eval.clean": "xoá bộ đệm", "eval.open_file": "mở trình soạn thảo",

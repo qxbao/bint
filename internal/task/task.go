@@ -168,6 +168,34 @@ type Classification struct {
 	Depth string `json:"depth,omitempty"`
 	// DepthReason: protected_paths | complex_request | default | user_override.
 	DepthReason string `json:"depth_reason,omitempty"`
+	// Isolation (IsolationShared | IsolationWorktree) được chọn một lần lúc lập phiếu; rỗng (phiếu cũ) = shared.
+	Isolation string `json:"isolation,omitempty"`
+	// IsolationReason: concurrent_task | user | config | default.
+	IsolationReason string `json:"isolation_reason,omitempty"`
+	// IsolationTasks là ID các tác vụ khiến chế độ auto chọn worktree (IsolationReason = concurrent_task).
+	IsolationTasks []string `json:"isolation_tasks,omitempty"`
+}
+
+// Chế độ cô lập của tác vụ (docs/isolation-subagent-plan.md mục 5.1).
+const (
+	IsolationShared   = "shared"   // sửa thẳng trên cây đã lập phiếu
+	IsolationWorktree = "worktree" // chạy trong worktree riêng, đưa về cây gốc bằng `bint task land`
+)
+
+// Lý do chọn chế độ cô lập (Classification.IsolationReason).
+const (
+	IsolationReasonConcurrent = "concurrent_task" // auto: cây đang có tác vụ khác chưa kết thúc
+	IsolationReasonUser       = "user"            // cờ --worktree / --shared
+	IsolationReasonConfig     = "config"          // workflow.isolation: shared | worktree
+	IsolationReasonDefault    = "default"         // auto, không có tác vụ nào khác
+)
+
+// EffectiveIsolation trả về chế độ cô lập đang có hiệu lực (shared khi chưa lưu: phiếu cũ).
+func (c Classification) EffectiveIsolation() string {
+	if c.Isolation == IsolationWorktree {
+		return IsolationWorktree
+	}
+	return IsolationShared
 }
 
 // EffectiveDepth trả về độ sâu đang có hiệu lực (standard khi chưa lưu).
@@ -249,6 +277,15 @@ type State struct {
 	// Touched là hợp các tệp đổi giữa ảnh chụp trước/sau của mọi lượt b-feat (đã sắp xếp, bỏ trùng);
 	// chỉ có nghĩa khi TracksTouched().
 	Touched []string `json:"touched,omitempty"`
+	// Origin là cây (worktree) đã lập phiếu khi tác vụ chạy trong worktree riêng: Worktree là worktree của
+	// tác vụ, Origin là nơi thay đổi được đưa về (`bint task land`). Rỗng = tác vụ chạy thẳng trên cây của nó
+	// (shared) hoặc chưa tạo worktree.
+	Origin string `json:"origin,omitempty"`
+	// Landed ghi lần đưa về cây gốc (nil = chưa đưa về).
+	Landed *Landing `json:"landed,omitempty"`
+	// AwaitingLand: tác vụ đã qua cổng done ở worktree và chỉ còn đưa về (xung đột/lỗi land); tiếp tục thì
+	// vào thẳng finalize, không chạy lại b-review.
+	AwaitingLand bool `json:"awaiting_land,omitempty"`
 	// Reason giải thích trạng thái hiện tại (ví dụ vì sao blocked).
 	Reason string `json:"reason,omitempty"`
 	// ResumeFrom là trạng thái hoạt động trước khi blocked/interrupted/failed.
@@ -273,6 +310,40 @@ type State struct {
 	NextFinding   int               `json:"next_finding"`
 	Artifacts     map[string]string `json:"artifacts,omitempty"` // tên → thời điểm ghi
 }
+
+// Landing là kết quả đưa thay đổi của tác vụ worktree về cây gốc.
+type Landing struct {
+	At string `json:"at"`
+	By string `json:"by"`
+	// Files là tệp đã đưa về (tương đối với gốc repo); Conflicts là tệp còn dấu xung đột/chưa trộn được (--3way).
+	Files     []string `json:"files"`
+	Conflicts []string `json:"conflicts,omitempty"`
+	// Unmerged ⊂ Conflicts: tệp không trộn được (cây gốc giữ nguyên, bản của tác vụ chỉ còn ở worktree).
+	Unmerged []string `json:"unmerged,omitempty"`
+	ThreeWay bool     `json:"three_way,omitempty"`
+	// Fingerprint và Tree là trạng thái worktree lúc đưa về (worktree có thể đã gỡ): cổng done, diff và kiểm tra
+	// phạm vi của tác vụ đã đưa về dùng bản lưu này thay vì đọc worktree.
+	Fingerprint string `json:"fingerprint,omitempty"`
+	Tree        string `json:"tree,omitempty"`
+	// Kept: worktree được giữ lại (--keep).
+	Kept bool `json:"kept,omitempty"`
+	// Note ghi chú dọn dẹp lỗi (worktree không gỡ được...).
+	Note string `json:"note,omitempty"`
+}
+
+// Isolation trả về chế độ cô lập của tác vụ (shared khi chưa ghi).
+func (s *State) Isolation() string {
+	if s.Classification == nil {
+		return IsolationShared
+	}
+	return s.Classification.EffectiveIsolation()
+}
+
+// InWorktree cho biết tác vụ đã có worktree riêng (đã tạo, chưa đưa về).
+func (s *State) InWorktree() bool { return s.Origin != "" && s.Landed == nil }
+
+// NeedsLand cho biết tác vụ chạy trong worktree riêng mà chưa đưa về cây gốc: chưa được done.
+func (s *State) NeedsLand() bool { return s.Origin != "" && s.Landed == nil }
 
 // TracksTouched cho biết tác vụ theo dõi tập tệp riêng của mình (BaseTree/Touched). Khi false
 // (phiếu cũ), phạm vi và diff của tác vụ tính theo toàn bộ thay đổi so với Base.

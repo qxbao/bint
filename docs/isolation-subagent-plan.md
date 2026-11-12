@@ -1,9 +1,9 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
 Trạng thái: **đã chốt hướng** (2026-11-11; bổ sung mục 4.5 ngày 2026-11-12). **G1 mục 4.1–4.4 và 4.5 (H8) đã làm**
-(2026-11-12, xem mục 12.1–12.5); G2–G4 chưa làm. Gồm bốn giai đoạn: G1 (cô lập trên
-worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy các bước
-bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
+(2026-11-12, xem mục 12.1–12.5). **G2 (mục 5) đã làm** (2026-11-12, xem mục 12.6); G3–G4 chưa làm. Gồm bốn giai
+đoạn: G1 (cô lập trên worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy
+các bước bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
 
 ## 1. Mục tiêu
 
@@ -669,3 +669,149 @@ dẫn biết trước lời gọi; vẫn để `Prev = nil`: `InstallMCP` (đư�
 - `git cat-file --filters` chạy bộ lọc smudge (LFS) và có thể chậm hoặc lỗi ⇒ coi như không có chuỗi ⇒ vi phạm.
 - Windows chạy thật vẫn chưa kiểm (chỉ biên dịch/vet/staticcheck); phiên `bint run` thật cùng TUI chưa thử tay.
 - Lỗi chập chờn đã biết ở 12.2 (`TestEvalRunEscCancelsBatchAndShowsResumeCommand`…) không xuất hiện ở lượt chạy này.
+
+### 12.6. G2 mục 5 — mỗi tác vụ một worktree, 2026-11-12, tác vụ 01M777NWWZA4J9F66Q1AKEAFFX
+
+**Đã làm** (chưa commit khi viết ghi chép này; không làm G3/G4):
+
+- **Cấu hình (mục 9).** `workflow.isolation` (`auto` | `shared` | `worktree`), `workflow.worktree.copy` (glob tương đối,
+  không tuyệt đối/`..`), `workflow.worktree.setup_command`: trường `yaml` + hằng `config.Isolation*`, `Default()`,
+  `Validate()`, dòng có chú thích trong `template.go`, `TestRenderMatchesDefaults` qua, `TestWorkflowIsolationDefaultsAndValidate`.
+  `docs/configuration.md`, `docs/workflows.md` cập nhật. `state.Paths.Worktrees` (`<state>/worktrees`).
+- **Mô hình dữ liệu.** `task.Classification`: `Isolation`, `IsolationReason`, `IsolationTasks` (+ `EffectiveIsolation()`);
+  `task.State`: `Origin`, `Landed *Landing` (thời điểm, người, tệp, tệp xung đột, `ThreeWay`, `Fingerprint`, `Tree`, `Kept`,
+  `Note`), `AwaitingLand`; `NeedsLand()`; `DoneBlockers` thêm "chưa đưa thay đổi về cây gốc … (bint task land)" trừ khi
+  `DoneInput.IgnoreLanding`. Tất cả `omitempty`: phiếu cũ đọc được, coi là `shared`.
+- **Chọn chế độ (5.1).** `internal/workflow/worktree.go`: `chooseIsolation` (cờ → cấu hình → quy tắc `auto`),
+  `NormalizeIsolationFlag`, `NewTaskOptions.Isolation`, `RunOptions.Isolation`; `--worktree`/`--shared` ở `task new` và
+  `run` (loại trừ nhau, `run --task` + cờ là lỗi dùng sai); `task new --json` có `isolation`, `isolation_reason`,
+  `isolation_tasks`; `bint task show --json` và `run status --json` cũng có.
+- **Tạo worktree lười (5.2).** `Runner.ensureWorktree` sau `ClaimRunner` và bước resume, trước mọi bước: ảnh chụp cây gốc
+  dưới khoá chia sẻ → `commitTree` ("bint base <id>", cha HEAD) → `refs/bint/tasks/<id>/base` → `gitrepo.WorktreeAdd`
+  (`bint/<id>`) → `copyIntoWorktree` (tệp cục bộ do Bint quản lý + `workflow.worktree.copy`, chỉ chép tệp chưa có ở
+  worktree) → `setup_command` (`eval.RunShell`, `logs/worktree-setup.log`) → ghi `Origin/Worktree/Branch/Base`. Lỗi bước nào
+  ⇒ `cleanupWorktree` rồi `failed` (lý do có đường dẫn nhật ký); huỷ ⇒ `interrupted`.
+- **Đưa về (5.3).** `internal/workflow/land.go`: `Env.Land`, `LandOptions{ThreeWay, Keep, Orchestrator}`, `LandResult`,
+  `LandConflictError`; `app.LandTask`, `bint task land`. Bản vá `git diff --binary --full-index --no-renames Base..ảnh chụp`
+  giới hạn trong `ScopeFiles ∩ diff`, khoá độc quyền cây gốc (`WaitLock`), `git apply --check` rồi `git apply` (không
+  `--index`). Finalize của `b-do` (`Runner.landStep`): `Land` (kiểm điều kiện done ở worktree) → `done`; xung đột ⇒ `blocked`
+  "xung đột khi đưa về: <tệp> …", đặt `AwaitingLand` ⇒ `nextStep` ở `in_review` vào thẳng finalize khi `resume`.
+  `SetStatus(done)` của tác vụ worktree chưa đưa về bị chặn. Cổng done/diff/phạm vi của tác vụ đã đưa về dùng bản lưu
+  trong `Landed` (`UnapprovedChanges`, `DoneInputFor`, `app.DiffTask`); `RootFor` lùi về `Origin` khi worktree đã gỡ.
+- **Huỷ/dọn (5.4).** `bint task cancel <id> [--reason] [--discard]` (`app.CancelTask`); `SetStatus(cancelled)` (cả
+  `task status <id> cancelled`) gỡ worktree/nhánh/ref/tệp khoá; còn thay đổi chưa đưa về ⇒ `ErrDiscardRequired`, `--discard`
+  chỉ người (`ErrAgent` ở workflow, `ErrAgentForbidden` ở app). `Env.OrphanWorktrees` + `bint doctor` ("worktree mồ côi",
+  mức warn, in lệnh git dọn; gồm thư mục không ứng với tác vụ, tác vụ đã kết thúc, worktree `--keep`, mục `prunable`).
+  `run status`/`task show` hiện chế độ, worktree, nhánh, cây gốc, trạng thái đưa về.
+- **Skill (5.5).** b-do (bước 1b chế độ cô lập, "song song" ⇒ `--worktree`, báo nơi chạy, `land` trước `done` khi chạy từng
+  bước, xử lý "xung đột khi đưa về", báo cáo đưa về), b-review (cwd là worktree, không `land`), b-feat (cwd là worktree,
+  tác vụ worktree chạy qua `bint run`); đồng bộ `.claude/skills`, `.agents/skills`, `.bint/skills/core.lock` bằng
+  `bint sync`; `TestCoreSkillsMentionWorktreeIsolation`.
+- **Ảnh hưởng (mục 10).** Runlog: `gitscan` thêm `--exclude=refs/bint/* --exclude=refs/heads/bint/*` và loại commit "bint
+  base". TUI: hành động `tasks.land` (phím `o`) và `tasks.cancel` (phím `x`) trong sổ + bảng ánh xạ lệnh CLI (`cliRefs`),
+  ô form `--worktree`/`--shared`, cột chế độ cô lập (`wt`, `wt✓`) và dòng Cô lập/Worktree/Cây gốc/Đưa về ở thẻ Phiếu,
+  nhãn vi/en, golden cập nhật.
+
+**Lệch so với kế hoạch ban đầu (và lý do):**
+
+1. **Ref base dùng chung tên với G1** (`plan.md` của phiếu, giả định 1): `refs/bint/tasks/<id>/base` ghi base commit lúc
+   tạo worktree, `b-feat` đầu ghi đè bằng commit `base_tree` cha là base commit; base vẫn tới được qua chuỗi cha và nhánh
+   `bint/<id>`. Có `TestBaseCommitSurvivesFirstFeatAndDropTouched`.
+2. **`--3way` không dùng `git apply --3way`** (ngầm ghi chỉ mục): phần sạch đi bằng `git apply`, tệp xung đột trộn bằng `git
+   merge-file`; tệp nhị phân hoặc xoá/sửa ở một phía giữ nguyên và được liệt kê trong `Landed.Conflicts`. Đã kiểm bằng test
+   `TestLandThreeWayHumanOnlyLeavesMarkers` (chỉ mục không đổi). Chưa thử riêng ca "git apply --3way ghi chỉ mục" như
+   dự định: bỏ hẳn nên không cần.
+3. **Lệnh `bint task cancel` mới** (trước chỉ có `task status <id> cancelled`); hai đường dùng chung một chỗ dọn.
+4. **Tệp cục bộ do Bint quản lý** (`.bint/local.yml`, `.claude/settings.local.json`, `.codex/hooks.json`, `.agents/hooks.json`) được chép
+   sang worktree theo danh sách cố định trong `worktree.go` (chép khi có ở cây gốc và chưa có ở worktree), không lấy động
+   từ khối `.gitignore` của `init` (gói `app` import `workflow` nên không gọi ngược được).
+5. **`Runner.Run` làm việc trên bản sao `Env` ngay từ đầu** (trước chỉ khi đổi Root): `RunID`/`Source`/`Root` đổi trong lượt
+   không còn rò sang `TaskWS` dùng chung (trước đây lượt thứ hai trên cùng `TaskWS` bị coi là "chạy lồng" khi tác vụ chạy
+   ở chính cây gốc). Phát hiện khi viết test dịch vụ; không đổi hành vi CLI (mỗi tiến trình một lượt).
+6. **Phím TUI**: kế hoạch không nêu; `L` trùng phím toàn cục đổi ngôn ngữ (test `TestTaskWriteActionsRefusedInReadOnly` bắt
+   được vì đổi ngôn ngữ giữa chừng) nên dùng `o` (đưa về cây gốc/origin) và `x` (huỷ). Cả hai không có trong chân phím
+   (Footer=false) để không đổi bố cục; hiện ở bảng lệnh và trợ giúp.
+7. **Quy tắc `auto` tính cả tác vụ bỏ dở** (đúng 5.1): trên repo có phiếu cũ chưa đóng, mọi phiếu mới vào worktree.
+   Test cũ tạo nhiều tác vụ trên một repo nay ghi rõ `Isolation: shared` (`newHarness` của workflow đặt
+   `cfg.Workflow.Isolation = shared`).
+8. **Tệp tác vụ khác đã đưa về cây này** không bị quy cho tác vụ `shared` đang chạy (`outsideFeat` miễn khi blob hiện tại
+   bằng blob trong `Landed.Tree` và tệp không phải đường dẫn bảo vệ/deny của tác vụ đó); sửa tay sau đó vẫn bị tính
+   (`TestLandedFilesNotAttributedToSharedTask`).
+
+**Chưa kiểm được / rủi ro còn lại:**
+
+- **Windows chạy thật**: `git worktree`, `LockFileEx` trên tệp khoá bị xoá khi land/cancel, đường dẫn dài, `git apply` với
+  CRLF mới kiểm biên dịch/vet/staticcheck.
+- **Land làm mất hiệu lực kiểm chứng của tác vụ `shared` đang chạy trên cây gốc** (G1 giữ fingerprint toàn cây, có chủ ý):
+  tác vụ `shared` đã verify mà tác vụ worktree đưa về trước khi nó finalize thì `blocked` "mã đã thay đổi sau lần kiểm
+  chứng", cần `bint task verify` lại. E2E `TestWorktreeParallelEndToEnd` sắp thứ tự bằng tệp tín hiệu để B đưa về sau khi A xong.
+- **`setup_command` chạy lệnh trong cấu hình** với quyền người dùng (không qua cơ chế xác nhận lệnh): chỉ đặt khoá này
+  từ nguồn tin cậy; ghi ở `docs/configuration.md`.
+- `WritableDirs` của agent là cả thư mục trạng thái nên b-feat (Codex `--add-dir`) về lý thuyết ghi được worktree của tác vụ
+  khác; chưa thu hẹp (ngoài phạm vi).
+- Land chỉ đưa tệp thuộc `ScopeFiles` của tác vụ: tệp không bị gitignore do lệnh kiểm chứng sinh ra **sau** `b-feat` (ví dụ
+  `coverage.out`) cũng nằm trong `outsideFeat` nên được đưa về, như chế độ `shared` vẫn tính chúng cho tác vụ.
+- `git apply` dùng chỉ dấu cách `--whitespace=nowarn`; tệp có bộ lọc eol/LFS khác nhau giữa worktree và cây gốc chưa thử.
+- Chưa chạy một phiên `bint run` thật với harness (Claude/Codex) trong worktree và TUI bằng tay; mới có agent giả.
+- Doctor không tự dọn worktree mồ côi (đúng phạm vi: chỉ in lệnh git).
+
+**Kiểm thử đã thêm:** `internal/workflow/worktree_test.go` (chọn chế độ, chạy → land → dọn dẹp, base bẩn + copy + setup,
+setup lỗi + resume, xung đột + resume không review lại, `--3way` chỉ người, `--keep`, điều kiện done/chủ sở hữu, cancel +
+`--discard`, mồ côi, ref base, tệp đã đưa về không quy cho tác vụ khác, glob copy, phân tích lỗi `git apply`),
+`internal/cli/worktree_e2e_test.go` (AC-1 hai tiến trình `bint` song song với tác nhân giả bằng `--agent-command` và tệp
+tín hiệu, từng bước land/cancel/doctor, xung đột + `--3way` + resume, lỗi dùng sai cờ), `internal/app/worktree_svc_test.go`
+(`asHuman`/`asAgent` cho `--3way`/`--discard`, DiffTask/ShowTask sau land, doctor), `internal/config`, `internal/task`,
+`internal/gitrepo`, `internal/runlog` (gitscan), `internal/skills`, TUI (`tasks_test.go`, `model_test.go`, golden, bảng phủ
+lệnh/cờ, kiểm kê literal nhắc lệnh CLI). **Kiểm đột biến (đỏ như mong đợi, đã hoàn nguyên):** `git apply --index` ⇒
+`TestWorktreeRunLandsAndCleansUp` đỏ; bỏ `awaitLand` ⇒ `TestWorktreeLandConflictBlocksAndResumes` đỏ; bỏ `--exclude`/`--invert-grep`
+của gitscan ⇒ `TestScanGitIgnoresBintRefsAndBranches` đỏ.
+
+**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 55 gói `ok`, 1297 test (kể cả subtest) qua, 0 lỗi; `go vet ./...` và
+`GOOS=windows go vet ./...` sạch; `staticcheck ./...` và `GOOS=windows staticcheck ./...` sạch; `go test -race` cho
+`internal/workflow` (Worktree|Land|Cancel|Orphan|Isolation|BaseCommit|Concurrent) và `internal/cli` (Worktree) qua.
+
+### 12.7. Vòng sửa thêm sau review G2 (phát hiện .1–.7), 2026-11-12, tác vụ 01M777NWWZA4J9F66Q1AKEAFFX
+
+Mỗi phát hiện medium có một test tái hiện (đã kiểm đột biến: tắt bản sửa ⇒ test đỏ).
+
+- **.1 `done --force` bỏ qua land** — `SetStatus(done)` trả `NotDoneError` khi `State.NeedsLand()` kể cả có `--force`
+  (`ops.go`); chỉ còn `land` hoặc `cancel --discard`. Doctor: `OrphanWorktree.Unlanded` (tác vụ `done` mà `Landed == nil`, ví
+  dụ phiếu do bản cũ `--force`) không gợi ý `worktree remove --force`/`branch -D`, chỉ `git status`/`git diff HEAD` ở worktree.
+  Test: `TestDoneForceCannotSkipLand`, `TestOrphanUnlandedDoneNotSuggestedForRemoval`.
+- **.2 `--3way` gỡ worktree dù có tệp không trộn được** — `mergeOne` trả `mergeClean/mergeMarkers/mergeSkipped`;
+  `Landing.Unmerged` (⊂ `Conflicts`) ghi tệp không trộn được; có chúng thì worktree được giữ (`Landed.Kept`, `Note`), nhánh
+  `bint/<id>` còn, `LandResult.Notes` nêu cách lấy bản của tác vụ; doctor báo kèm lý do. Test: `TestLandThreeWayUnmergedKeepsWorktree`.
+- **.3 resume → done khi còn dấu xung đột** — `DoneInput.LandConflicts` (tính bởi `landConflictsLeft` từ `Landed.Conflicts`: tệp
+  còn dòng `<<<<<<<` ở cây gốc, và mọi tệp `Unmerged`) là blocker của `DoneBlockers`. Gỡ dấu xong thì `resume` ⇒ done; tệp không
+  trộn được thì người xác nhận bằng `done --force` (Bint không biết khi nào người ghép xong). `TestLandThreeWayHumanOnlyLeavesMarkers`
+  sửa lại: resume khi còn dấu ⇒ blocked, gỡ dấu ⇒ done.
+- **.4 `conflictFiles` phụ thuộc ngôn ngữ của git** — `gitApply` đặt `LC_ALL=C`, `LANGUAGE=`. Test: `TestGitApplyForcesEnglishMessages`
+  (chỉ khẳng định thông báo vẫn khớp khi môi trường đặt vi_VN; máy này git không có bản dịch nên chưa phân biệt được với trước khi sửa).
+- **.7 `Paths.Worktrees` không dùng** — `state.WorktreesDirFor(tasksDir)` là nơi duy nhất suy thư mục worktree từ `Tasks.Dir`
+  (`Env.worktreesDir` gọi nó; `state.At` dùng cùng hằng); `TestWorktreesDirMatchesPaths` bắt lệch bố cục.
+- **.5 ref base bị `pinTree` ghi đè; `Landed.Tree`/`BaseTree` không có ref sau khi dọn** — **không sửa**. Nhánh `bint/<id>` giữ
+  base commit tới lúc land nên chưa hỏng; sau khi tác vụ kết thúc mọi ref của nó bị xoá có chủ ý ở G1 (không ghim cây vĩnh viễn trong
+  repo của người dùng), nên `task diff` của tác vụ đã xong sau `git gc` hỏng cũng đúng với tác vụ `shared` của G1. Đổi cần quyết định
+  chung (giữ ref `landed` tới khi nào?), để cho vòng sau.
+- **.6 `setup_command` chạy không cần xác nhận** — **chỉ ghi tài liệu** (`docs/configuration.md`). Bắt xác nhận kiểu băm lệnh như
+  `verify.command` đòi thêm luồng duyệt/trạng thái chờ ở `bint run` đầu tiên; ngoài phạm vi vòng sửa này. Rủi ro còn: agent ở
+  tác vụ `shared` sửa `.bint/config.yml` rồi tác vụ worktree sau chạy lệnh đó.
+- **Test chập chờn đã sửa** — `TestWorktreeParallelEndToEnd` (cli) treo khi A (shared, giữ khoá độc quyền cây gốc suốt b-feat) vào trước
+  B: B cần khoá chia sẻ để tạo worktree còn A chờ B bắt đầu. Test nay khởi động B và chờ `State.Origin` trước khi khởi động A
+  (6/6 lần qua với `-count=6`; trước đó ~50% đỏ). Đây là tính chất đúng của thiết kế khoá, không phải lỗi sản phẩm.
+- **Kết quả (2026-11-12):** `go test -count=1 ./...` 66 gói, 1302 test qua, 0 lỗi; `go vet` và `GOOS=windows go vet` sạch;
+  `staticcheck` và `GOOS=windows staticcheck` sạch. `TestEvalRunJobPlanBeforeConfirmAndDeclineCreatesNoBatch` (chập chờn khi máy bận,
+  ngoài mục tiêu) qua lần này.
+
+### 12.8. Sửa phát hiện review vòng 2 của G2 (.8–.11), 2026-11-12, cùng tác vụ
+
+Người dùng yêu cầu orchestrator sửa trực tiếp (không qua b-feat). Test ở `internal/workflow/land_review_test.go`.
+
+- **.8 cancel gỡ worktree còn giữ tệp không trộn được** — `checkCancelWorktree`: tác vụ đã đưa về mà `Landed.Unmerged` khác rỗng
+  thì trả `ErrDiscardRequired` liệt kê các tệp đó; chỉ người `--discard` mới gỡ được. Test: `TestCancelKeepsWorktreeWithUnmergedFiles`.
+- **.9 Land không kiểm lại `Landed` dưới khoá** — sau khi lấy khoá độc quyền cây gốc, `Land` nạp lại phiếu; đã đưa về hoặc đã kết
+  thúc thì trả lỗi "đã đưa về"/"đã <trạng thái>" thay vì áp lần hai (hoặc báo xung đột giả). Test: `TestLandRechecksLandedUnderLock`.
+- **.10 dấu xung đột** — `landConflictsLeft` chỉ khớp dòng `<<<<<<< cây gốc` (nhãn do `mergeOne` ghi, hằng `mergeLabelOrigin`);
+  dòng `<<<<<<< ` có sẵn trong tệp không chặn done. Test: `TestLandConflictsLeftMatchesOwnLabel`.
+- **.11 doctor gợi ý xoá worktree đang chờ ghép** — `OrphanWorktree.AwaitingMerge` (giữ vì `Unmerged`, tác vụ chưa kết thúc):
+  `CleanupCommands` và doctor chỉ in lệnh xem, như `Unlanded`. Test: `TestOrphanAwaitingMergeNotSuggestedForRemoval`.

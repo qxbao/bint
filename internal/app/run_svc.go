@@ -45,6 +45,8 @@ type RunWorkflowOptions struct {
 	Depth         string   `flag:"depth" form:"choices=auto|standard|deep"`
 	NoReview      bool     `flag:"no-review"`
 	NoWait        bool     `flag:"no-wait" form:"advanced"`
+	Worktree      bool     `flag:"worktree" form:"advanced"`
+	Shared        bool     `flag:"shared" form:"advanced"`
 	Harness       string   `flag:"harness" form:"choices=claude|codex|antigravity"`
 	Roles         []string `flag:"role"`
 	Model         string   `flag:"model"`
@@ -72,6 +74,12 @@ func (o RunWorkflowOptions) Validate() error {
 	}
 	if o.Plan && o.NoPlan {
 		return Usagef("--plan và --no-plan loại trừ nhau")
+	}
+	if o.Worktree && o.Shared {
+		return Usagef("--worktree và --shared loại trừ nhau")
+	}
+	if (o.Worktree || o.Shared) && strings.TrimSpace(o.Task) != "" {
+		return Usagef("--worktree/--shared chỉ chọn lúc lập phiếu: không dùng cùng --task (chế độ đã ghi trong phiếu)")
 	}
 	if _, err := checkDepth(o.Depth, o.NoPlan, o.Workflow); err != nil {
 		return err
@@ -109,7 +117,7 @@ func RunWorkflow(ctx context.Context, ws *TaskWS, o RunWorkflowOptions) (*workfl
 		return nil, err
 	}
 	wo := workflow.RunOptions{Workflow: o.Workflow, Request: strings.TrimSpace(o.Request), TaskRef: o.Task,
-		NoReview: o.NoReview, NoWait: o.NoWait, Edit: o.fields().edit()}
+		NoReview: o.NoReview, NoWait: o.NoWait, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
 	if o.Plan || o.NoPlan {
 		p := o.Plan
 		wo.Plan = &p

@@ -315,8 +315,31 @@ type Workflow struct {
 	// TimeoutMinutes giới hạn thời gian mỗi bước agent.
 	TimeoutMinutes int `yaml:"timeout_minutes"`
 	// VerifyTimeoutMinutes giới hạn thời gian lệnh kiểm chứng của phiếu tác vụ.
-	VerifyTimeoutMinutes int           `yaml:"verify_timeout_minutes"`
-	Agent                WorkflowAgent `yaml:"agent"`
+	VerifyTimeoutMinutes int `yaml:"verify_timeout_minutes"`
+	// Isolation chọn nơi tác vụ chạy, một lần lúc lập phiếu: auto | shared | worktree
+	// (docs/isolation-subagent-plan.md mục 5.1).
+	Isolation string           `yaml:"isolation"`
+	Worktree  WorkflowWorktree `yaml:"worktree"`
+	Agent     WorkflowAgent    `yaml:"agent"`
+}
+
+// Giá trị của workflow.isolation.
+const (
+	IsolationAuto     = "auto"     // sửa thẳng trên cây đang làm; vào worktree riêng khi cây đó đang có tác vụ khác
+	IsolationShared   = "shared"   // luôn sửa thẳng trên cây đang làm
+	IsolationWorktree = "worktree" // luôn chạy trong worktree riêng của tác vụ
+)
+
+// IsolationModes là các giá trị hợp lệ của workflow.isolation.
+var IsolationModes = []string{IsolationAuto, IsolationShared, IsolationWorktree}
+
+// WorkflowWorktree cấu hình worktree riêng của tác vụ (workflow.isolation: worktree, hoặc auto khi chạy song song).
+type WorkflowWorktree struct {
+	// Copy là các mẫu glob (tương đối với gốc repo) của tệp cần chép từ cây gốc vào worktree, thường là tệp bị
+	// gitignore như .env.
+	Copy []string `yaml:"copy"`
+	// SetupCommand chạy trong worktree mới tạo (vd. npm ci); lỗi thì tác vụ failed. Rỗng = không chạy.
+	SetupCommand string `yaml:"setup_command"`
 }
 
 // WorkflowAgent là tham số gọi harness cho các bước workflow.
@@ -486,6 +509,7 @@ func Default() Config {
 		},
 		Workflow: Workflow{
 			MaxReviewRounds: 2, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
+			Isolation: IsolationAuto, Worktree: WorkflowWorktree{Copy: []string{}},
 			Agent: WorkflowAgent{
 				PermissionMode: "acceptEdits",
 				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"},
@@ -788,6 +812,16 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.TimeoutMinutes < 1 || c.Workflow.VerifyTimeoutMinutes < 1 {
 		add("workflow.timeout_minutes, workflow.verify_timeout_minutes: phải >= 1")
+	}
+	if !slices.Contains(IsolationModes, c.Workflow.Isolation) {
+		add("workflow.isolation: phải là %s", strings.Join(IsolationModes, " | "))
+	}
+	for i, g := range c.Workflow.Worktree.Copy {
+		g = strings.ReplaceAll(g, `\`, "/")
+		if strings.TrimSpace(g) == "" || filepath.IsAbs(g) || strings.HasPrefix(g, "/") || strings.HasPrefix(g, "../") ||
+			g == ".." || strings.Contains(g, "/../") || strings.HasSuffix(g, "/..") {
+			add("workflow.worktree.copy[%d]: mẫu %q phải là đường dẫn tương đối trong repository (không tuyệt đối, không '..')", i, g)
+		}
 	}
 	if !slices.Contains([]string{"acceptEdits", "auto", "dontAsk", "bypassPermissions"}, c.Workflow.Agent.PermissionMode) {
 		add("workflow.agent.permission_mode: phải là acceptEdits | auto | dontAsk | bypassPermissions")

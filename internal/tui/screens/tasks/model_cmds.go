@@ -49,6 +49,38 @@ func (m *Model) cmdDiff() tea.Cmd {
 	return request("tasks.diff", app.TaskDiffOptions{Ref: t.State.ID})
 }
 
+// cmdLand mở form đưa thay đổi của tác vụ worktree về cây gốc.
+func (m *Model) cmdLand() tea.Cmd {
+	t := m.Cursor()
+	if t == nil || !m.allowed("tasks.land") {
+		return nil
+	}
+	if t.State.Origin == "" || t.State.Landed != nil {
+		m.setToast(m.t("tk.land.none"), true)
+		return nil
+	}
+	o := app.TaskLandDefaults(config.Default())
+	o.Ref = t.State.ID
+	m.openForm("tasks.land", "task land", o, nil)
+	return nil
+}
+
+// cmdCancel mở form huỷ tác vụ đang chọn (tác vụ worktree: gỡ worktree; còn thay đổi chưa đưa về thì cần ô bỏ thay đổi).
+func (m *Model) cmdCancel() tea.Cmd {
+	t := m.Cursor()
+	if t == nil || !m.allowed("tasks.cancel") {
+		return nil
+	}
+	if task.Terminal(t.State.Status) {
+		m.setToast(m.t("tk.status.none", i18n.A{"status": t.State.Status}), true)
+		return nil
+	}
+	o := app.TaskCancelDefaults(config.Default())
+	o.Ref = t.State.ID
+	m.openForm("tasks.cancel", "task cancel", o, nil)
+	return nil
+}
+
 // cmdEdit: ở thẻ Tài liệu sửa tài liệu đang xem trong $EDITOR; ở thẻ Review mở tệp của phát hiện tại dòng của nó;
 // còn lại mở form sửa phiếu.
 func (m *Model) cmdEdit() tea.Cmd {
@@ -303,6 +335,24 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 		}
 		m.invalidate()
 		return tea.Batch(m.Load(), m.wantDetail())
+	case "tasks.land":
+		m.frm = nil
+		if lr, ok := r.Value.(*workflow.LandResult); ok && lr != nil {
+			if len(lr.Conflicts) > 0 {
+				m.setToast(m.t("tk.land.conflicts", i18n.A{"count": len(lr.Files), "conflicts": len(lr.Conflicts)}), true)
+			} else {
+				m.setToast(m.t("tk.land.done", i18n.A{"count": len(lr.Files)}), false)
+			}
+		}
+		m.invalidate()
+		return tea.Batch(m.Load(), m.wantDetail())
+	case "tasks.cancel":
+		m.frm = nil
+		if t, ok := r.Value.(*task.Task); ok && t != nil {
+			m.setToast(m.t("tk.cancel.done", i18n.A{"id": short(t.State.ID)}), false)
+		}
+		m.invalidate()
+		return tea.Batch(m.Load(), m.wantDetail())
 	case "tasks.lint":
 		if lr, ok := r.Value.(app.TaskLinted); ok {
 			m.showLint(lr)
@@ -509,7 +559,7 @@ func short(id string) string {
 // keyOf đổi ID hành động của màn hình thành phím tương đương ở chế độ danh sách (cho Command).
 var keyOf = map[string]string{
 	"tasks.new": "n", "tasks.run": "r", "tasks.resume": "c", "tasks.approve": "a", "tasks.status": "s", "tasks.verify": "v",
-	"tasks.lint": "l", "tasks.diff": "D", "tasks.transitions": "T", "tasks.criteria": "m", "tasks.error": "i", "tasks.review_edit": "w",
+	"tasks.lint": "l", "tasks.diff": "D", "tasks.land": "o", "tasks.cancel": "x", "tasks.transitions": "T", "tasks.criteria": "m", "tasks.error": "i", "tasks.review_edit": "w",
 	"tasks.add_knowledge": "K", "tasks.list": "A", "tasks.filter": "/", "tasks.refresh": "ctrl+r", "tasks.show": "enter",
 }
 

@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -72,7 +73,7 @@ func TestClassificationDepthJSONRoundTrip(t *testing.T) {
 	d := Classification{Plan: true, Depth: DepthDeep, DepthReason: DepthReasonComplex}
 	b, _ = json.Marshal(d)
 	var back Classification
-	if json.Unmarshal(b, &back) != nil || back != d || back.EffectiveDepth() != DepthDeep {
+	if json.Unmarshal(b, &back) != nil || !reflect.DeepEqual(back, d) || back.EffectiveDepth() != DepthDeep {
 		t.Fatalf("round-trip: %s → %+v", b, back)
 	}
 }

@@ -148,3 +148,48 @@ func TestUILanguage(t *testing.T) {
 		t.Fatalf("nạp ui.language: %v %+v", err, cfg.UI)
 	}
 }
+
+func TestWorkflowIsolationDefaultsAndValidate(t *testing.T) {
+	c := Default()
+	if c.Workflow.Isolation != IsolationAuto || c.Workflow.Worktree.Copy == nil || len(c.Workflow.Worktree.Copy) != 0 ||
+		c.Workflow.Worktree.SetupCommand != "" {
+		t.Fatalf("mặc định cô lập sai: %+v", c.Workflow)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range IsolationModes {
+		c := Default()
+		c.Workflow.Isolation = mode
+		if err := c.Validate(); err != nil {
+			t.Fatalf("%s: %v", mode, err)
+		}
+	}
+	bad := []struct {
+		name string
+		edit func(*Config)
+		want string
+	}{
+		{"chế độ lạ", func(c *Config) { c.Workflow.Isolation = "separate" }, "workflow.isolation"},
+		{"chế độ rỗng", func(c *Config) { c.Workflow.Isolation = "" }, "workflow.isolation"},
+		{"glob tuyệt đối", func(c *Config) { c.Workflow.Worktree.Copy = []string{"/etc/passwd"} }, "workflow.worktree.copy[0]"},
+		{"glob .. đầu", func(c *Config) { c.Workflow.Worktree.Copy = []string{".env", "../x"} }, "workflow.worktree.copy[1]"},
+		{"glob .. giữa", func(c *Config) { c.Workflow.Worktree.Copy = []string{"a/../../b"} }, "workflow.worktree.copy[0]"},
+		{"glob .. kiểu Windows", func(c *Config) { c.Workflow.Worktree.Copy = []string{`..\x`} }, "workflow.worktree.copy[0]"},
+		{"glob rỗng", func(c *Config) { c.Workflow.Worktree.Copy = []string{" "} }, "workflow.worktree.copy[0]"},
+	}
+	for _, tc := range bad {
+		c := Default()
+		tc.edit(&c)
+		err := c.Validate()
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: muốn lỗi chứa %q, được %v", tc.name, tc.want, err)
+		}
+	}
+	c = Default()
+	c.Workflow.Worktree.Copy = []string{".env", "config/*.local.json", "a..b/c"}
+	c.Workflow.Worktree.SetupCommand = "npm ci"
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}

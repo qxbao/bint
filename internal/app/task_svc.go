@@ -112,6 +112,17 @@ func checkDepth(value string, noPlan bool, wf string) (string, error) {
 	return d, nil
 }
 
+// isolationFlag đổi cặp cờ --worktree/--shared thành giá trị của workflow.NewTaskOptions.Isolation ("" = theo cấu hình).
+func isolationFlag(worktree, shared bool) string {
+	switch {
+	case worktree:
+		return task.IsolationWorktree
+	case shared:
+		return task.IsolationShared
+	}
+	return ""
+}
+
 // ---- task new ----
 
 // TaskNewOptions: `bint task new [mô tả | -]`. Request là mô tả (CLI điền từ đối số, stdin hoặc --file).
@@ -129,6 +140,8 @@ type TaskNewOptions struct {
 	Plan             bool     `flag:"plan"`
 	NoPlan           bool     `flag:"no-plan"`
 	Depth            string   `flag:"depth" form:"advanced,choices=auto|standard|deep"`
+	Worktree         bool     `flag:"worktree" form:"advanced"`
+	Shared           bool     `flag:"shared" form:"advanced"`
 	GoalSet          bool     // đặt tường minh dù rỗng (CLI: cờ có mặt)
 	VerifyCommandSet bool
 	AutonomySet      bool
@@ -148,6 +161,9 @@ func (o TaskNewOptions) fields() ticketFields {
 func (o TaskNewOptions) Validate() error {
 	if o.Plan && o.NoPlan {
 		return Usagef("--plan và --no-plan loại trừ nhau")
+	}
+	if o.Worktree && o.Shared {
+		return Usagef("--worktree và --shared loại trừ nhau")
 	}
 	if strings.TrimSpace(o.Request) == "" {
 		return Usagef("thiếu mô tả tác vụ")
@@ -169,7 +185,7 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 	if err := o.Validate(); err != nil {
 		return res, err
 	}
-	wo := workflow.NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.fields().edit()}
+	wo := workflow.NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
 	if o.Plan || o.NoPlan {
 		p := o.Plan
 		wo.Plan = &p
@@ -642,6 +658,69 @@ func ApproveTask(_ context.Context, ws *TaskWS, o TaskApproveOptions) (*task.Tas
 		return nil, workflow.Approval{}, err
 	}
 	return ws.Approve(o.Ref, o.Paths...)
+}
+
+// ---- task land ----
+
+// TaskLandOptions: `bint task land <task-id> [--3way] [--keep]`.
+type TaskLandOptions struct {
+	Ref      string `arg:"task-id" form:"required,suggest=tasks"`
+	ThreeWay bool   `flag:"3way"`
+	Keep     bool   `flag:"keep"`
+}
+
+func TaskLandDefaults(config.Config) TaskLandOptions { return TaskLandOptions{} }
+func (o TaskLandOptions) Validate() error {
+	if strings.TrimSpace(o.Ref) == "" {
+		return Usagef("cần ID tác vụ")
+	}
+	return nil
+}
+
+// LandTask đưa thay đổi của tác vụ chạy trong worktree riêng về cây gốc (xem workflow.Env.Land). --3way chỉ
+// dành cho người (RequireHuman): nó ghi dấu xung đột vào tệp ở cây gốc.
+func LandTask(ctx context.Context, ws *TaskWS, o TaskLandOptions) (*workflow.LandResult, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	if o.ThreeWay {
+		if err := RequireHuman("bint task land --3way"); err != nil {
+			return nil, err
+		}
+	}
+	return ws.Land(ctx, o.Ref, workflow.LandOptions{ThreeWay: o.ThreeWay, Keep: o.Keep})
+}
+
+// ---- task cancel ----
+
+// TaskCancelOptions: `bint task cancel <task-id> [--reason …] [--discard]`.
+type TaskCancelOptions struct {
+	Ref     string `arg:"task-id" form:"required,suggest=tasks"`
+	Reason  string `flag:"reason"`
+	Discard bool   `flag:"discard"`
+}
+
+func TaskCancelDefaults(config.Config) TaskCancelOptions { return TaskCancelOptions{} }
+func (o TaskCancelOptions) Validate() error {
+	if strings.TrimSpace(o.Ref) == "" {
+		return Usagef("cần ID tác vụ")
+	}
+	return nil
+}
+
+// CancelTask huỷ tác vụ (cùng đường với `task status <id> cancelled`). Tác vụ worktree: gỡ worktree, nhánh, ref
+// base, tệp khoá; còn thay đổi chưa đưa về thì cần --discard (chỉ người, RequireHuman).
+func CancelTask(ctx context.Context, ws *TaskWS, o TaskCancelOptions) (*task.Task, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	if o.Discard {
+		if err := RequireHuman("bint task cancel --discard"); err != nil {
+			return nil, err
+		}
+	}
+	t, _, err := ws.SetStatus(ctx, o.Ref, task.StatusCancelled, workflow.TransitionOptions{Reason: o.Reason, Discard: o.Discard})
+	return t, err
 }
 
 // ---- run status ----

@@ -99,6 +99,35 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 			add(m.kv(env, "depth", depth, w)...)
 		}
 	}
+	if c := st.Classification; c != nil && (c.Isolation != "" || st.Origin != "") {
+		iso := c.EffectiveIsolation()
+		if c.IsolationReason != "" {
+			iso += " (" + c.IsolationReason + ")"
+		}
+		if len(c.IsolationTasks) > 0 {
+			iso += " · " + strings.Join(c.IsolationTasks, ", ")
+		}
+		add(m.kv(env, "isolation", iso, w)...)
+	}
+	if st.Origin != "" {
+		wt := st.Worktree
+		if st.Branch != "" {
+			wt += " · " + st.Branch
+		}
+		add(m.kv(env, "worktree", wt, w)...)
+		add(m.kv(env, "origin", st.Origin, w)...)
+		switch l := st.Landed; {
+		case l == nil && st.AwaitingLand:
+			add(m.kv(env, "landed", m.t("tk.iso.landed.awaiting"), w)...)
+		case l == nil:
+			add(m.kv(env, "landed", m.t("tk.iso.landed.none"), w)...)
+		default:
+			add(m.kv(env, "landed", m.t("tk.iso.landed.yes", i18n.A{"count": len(l.Files), "at": fmtAt(l.At)}), w)...)
+			if len(l.Conflicts) > 0 {
+				add(m.kv(env, "landed", m.t("tk.iso.conflicts", i18n.A{"files": strings.Join(l.Conflicts, ", ")}), w)...)
+			}
+		}
+	}
 	add(m.kv(env, "autonomy", tk.Autonomy, w)...)
 	if st.ResumeFrom != "" {
 		add(m.kv(env, "resume", st.ResumeFrom+" ("+m.cli("bint run resume "+st.ID)+")", w)...)

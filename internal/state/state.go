@@ -34,11 +34,13 @@ const EnvStateDir = "BINT_STATE_DIR"
 
 // Paths là các đường dẫn trong thư mục trạng thái của một repository.
 type Paths struct {
-	RepoID    string
-	Root      string
-	DB        string
-	Spool     string
-	Runtime   string
+	RepoID  string
+	Root    string
+	DB      string
+	Spool   string
+	Runtime string
+	// Worktrees chứa worktree Git riêng của từng tác vụ (<Root>/worktrees/<task-id>), ngoài repository.
+	Worktrees string
 	EvalWork  string
 	Generated string
 	Backups   string
@@ -127,6 +129,14 @@ func Resolve(repo gitrepo.Repo, cfg config.Config) (Paths, error) {
 	return At(id, root), nil
 }
 
+const worktreesName = "worktrees"
+
+// WorktreesDirFor trả Paths.Worktrees ứng với thư mục tác vụ tasksDir (<Root>/runtime/tasks). Workflow chỉ
+// có Tasks.Dir trong tay; hàm này giữ bố cục thư mục ở một nơi (TestWorktreesDirMatchesPaths).
+func WorktreesDirFor(tasksDir string) string {
+	return filepath.Join(filepath.Dir(filepath.Dir(tasksDir)), worktreesName)
+}
+
 // At dựng Paths cho thư mục gốc root.
 func At(id, root string) Paths {
 	return Paths{
@@ -135,6 +145,7 @@ func At(id, root string) Paths {
 		DB:        filepath.Join(root, "state.sqlite"),
 		Spool:     filepath.Join(root, "spool"),
 		Runtime:   filepath.Join(root, "runtime"),
+		Worktrees: filepath.Join(root, worktreesName),
 		EvalWork:  filepath.Join(root, "eval-work"),
 		Generated: filepath.Join(root, "generated"),
 		Backups:   filepath.Join(root, "backups"),

@@ -94,6 +94,8 @@ type RunOptions struct {
 	Resume bool
 	// NoWait: khoá worktree đang bị giữ thì dừng ngay (blocked) thay vì chờ tới workflow.timeout_minutes.
 	NoWait bool
+	// Isolation: chế độ cô lập khi tự lập phiếu (""/auto | shared | worktree); không dùng cùng TaskRef.
+	Isolation string
 }
 
 // StepResult là kết quả một bước agent.
@@ -126,6 +128,14 @@ type Result struct {
 	Notes     []string `json:"notes,omitempty"`
 	// PlanningIssues: lỗi cấu trúc artifact b-req (hợp đồng v1) khiến tác vụ dừng.
 	PlanningIssues []task.ArtifactIssue `json:"planning_issues,omitempty"`
+	// Isolation là chế độ cô lập của tác vụ; Worktree/Branch/Origin chỉ có khi tác vụ chạy trong worktree riêng
+	// (Origin: cây gốc nhận thay đổi); Landed: đã đưa về cây gốc.
+	Isolation   string   `json:"isolation,omitempty"`
+	Worktree    string   `json:"worktree,omitempty"`
+	Branch      string   `json:"branch,omitempty"`
+	Origin      string   `json:"origin,omitempty"`
+	Landed      bool     `json:"landed,omitempty"`
+	LandedFiles []string `json:"landed_files,omitempty"`
 }
 
 type runState struct {
@@ -168,6 +178,12 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	if !slices.Contains(config.WorkflowNames, o.Workflow) {
 		return nil, fmt.Errorf("workflow %q không hợp lệ (%s)", o.Workflow, strings.Join(config.WorkflowNames, ", "))
 	}
+	// Mọi thay đổi Env của lượt này (Source, RunID, Root khi vào worktree) nằm trên bản sao, trả lại Env gốc khi xong
+	// để Runner/TaskWS dùng lại được cho lượt sau (nếu không RunID còn sót lại làm lượt sau bị coi là chạy lồng).
+	origEnv := r.Env
+	cp := *origEnv
+	r.Env = &cp
+	defer func() { r.Env = origEnv }()
 	r.Source = "bint-run"
 	rs := &runState{opts: o, runID: ulid.New(), res: &Result{Steps: []StepResult{}}, ran: map[string]int{},
 		limit: r.Cfg.Limits.ForWorkflow(o.Workflow)}
@@ -181,7 +197,8 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		saved := r.RunID
 		r.RunID = ""
-		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth})
+		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth,
+			Isolation: o.Isolation})
 		r.RunID = saved
 		if err != nil {
 			return nil, err
@@ -194,7 +211,15 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 				r.logf("Phân tích b-req: %s (%s)", c.Depth, c.DepthReason)
 			}
 		}
+		if c := t.State.Classification; c != nil {
+			r.logf("Cô lập: %s (%s)", c.EffectiveIsolation(), c.IsolationReason)
+		}
 	} else {
+		if strings.TrimSpace(o.Isolation) != "" {
+			if iso, err := NormalizeIsolationFlag(o.Isolation); err != nil || iso != "" {
+				return nil, errors.New("--worktree/--shared chỉ chọn lúc lập phiếu: không dùng cùng --task (chế độ đã ghi trong phiếu)")
+			}
+		}
 		t, err := r.Tasks.Load(o.TaskRef)
 		if err != nil {
 			return nil, err
@@ -233,11 +258,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	// không đổi Root của Env dùng chung (TaskWS); trả lại khi xong để Runner dùng lại được.
 	taskRoot, rootErr := r.RootFor(rs.t)
 	if rootErr == nil && taskRoot != r.Root {
-		orig := r.Env
-		cp := *orig
-		cp.Root = taskRoot
-		r.Env = &cp
-		defer func() { r.Env = orig }()
+		r.Env.Root = taskRoot // bản sao Env của lượt này (xem đầu Run)
 		r.logf("chạy trong %s", taskRoot)
 	}
 
@@ -278,6 +299,10 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	if rootErr != nil {
 		// Bảng chuyển không cho blocked/interrupted sang failed: đã về trạng thái hoạt động ở trên.
 		r.fail(rs, "", "thư mục làm việc của tác vụ không còn: "+rootErr.Error())
+		return rs.res, nil
+	}
+	// Tác vụ ở chế độ worktree: tạo worktree ở lượt đầu (mọi workflow), từ đây mọi bước chạy trong đó.
+	if !r.ensureWorktree(ctx, rs) {
 		return rs.res, nil
 	}
 
@@ -419,6 +444,11 @@ func (r *Runner) nextStep(rs *runState) string {
 		}
 		return StepFeat
 	case task.StatusInReview:
+		if rs.t.State.AwaitingLand || rs.t.State.Landed != nil {
+			// Đã qua review và cổng done ở worktree, chỉ còn đưa về (xung đột/lỗi lần trước): không review lại.
+			r.finalize(context.Background(), rs)
+			return ""
+		}
 		if rs.opts.NoReview {
 			r.finalize(context.Background(), rs)
 			return ""
@@ -1073,8 +1103,14 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 	return false
 }
 
-// finalize: chuyển done nếu đủ bằng chứng, nếu không thì chờ người với lý do cụ thể.
+// finalize: chuyển done nếu đủ bằng chứng, nếu không thì chờ người với lý do cụ thể. Tác vụ worktree: kiểm
+// điều kiện done (ở worktree) → đưa về cây gốc (Land) → done. Xung đột ⇒ blocked "xung đột khi đưa về: …".
 func (r *Runner) finalize(ctx context.Context, rs *runState) {
+	if rs.t.State.NeedsLand() {
+		if !r.landStep(ctx, rs) {
+			return
+		}
+	}
 	t, blockers, err := r.SetStatus(ctx, rs.t.State.ID, task.StatusDone, TransitionOptions{Reason: "b-do finalize", Orchestrator: true})
 	if t != nil {
 		rs.t = t
@@ -1089,6 +1125,42 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) {
 		return
 	}
 	r.fail(rs, "finalize", err.Error())
+}
+
+// landStep đưa thay đổi của tác vụ worktree về cây gốc ở finalize. Trả false nếu workflow phải dừng (đã đặt
+// trạng thái). Điều kiện done được kiểm bên trong Land, ở worktree.
+func (r *Runner) landStep(ctx context.Context, rs *runState) bool {
+	id := rs.t.State.ID
+	res, err := r.Land(ctx, id, LandOptions{Orchestrator: true})
+	var (
+		nd *NotDoneError
+		ce *LandConflictError
+	)
+	switch {
+	case err == nil:
+		rs.t = res.Task
+		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("đã đưa %d tệp về cây gốc %s; kiểm chứng đã chạy trên cây cô lập (worktree), "+
+			"cây gốc có thể còn thay đổi khác chưa được kiểm cùng", len(res.Files), rs.t.State.Origin))
+		rs.res.Notes = append(rs.res.Notes, res.Notes...)
+		r.logf("✓ Đã đưa %d tệp về cây gốc %s", len(res.Files), rs.t.State.Origin)
+		return true
+	case errors.As(err, &nd):
+		r.block(rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(nd.Blockers, "; "))
+	case errors.As(err, &ce):
+		r.awaitLand(rs)
+		r.block(rs, err.Error()+"; xong thì `bint run resume "+id+"` (không chạy lại review)")
+	default:
+		r.awaitLand(rs)
+		r.fail(rs, "land", "đưa về cây gốc: "+err.Error())
+	}
+	return false
+}
+
+// awaitLand đánh dấu tác vụ chỉ còn việc đưa về: resume vào thẳng finalize.
+func (r *Runner) awaitLand(rs *runState) {
+	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.AwaitingLand = true; return nil }); err == nil {
+		rs.t = t
+	}
 }
 
 // finish đóng lượt điều phối: giải phóng tác vụ, ghi workflow.finished.
@@ -1133,6 +1205,13 @@ func (r *Runner) finish(rs *runState) {
 		}
 	}
 	r.emitRun(rs.runID, spool.WorkflowFinished, payload)
+	rs.res.Isolation = st.Isolation()
+	if st.Origin != "" {
+		rs.res.Worktree, rs.res.Branch, rs.res.Origin = st.Worktree, st.Branch, st.Origin
+	}
+	if st.Landed != nil {
+		rs.res.Landed, rs.res.LandedFiles = true, st.Landed.Files
+	}
 	rs.res.Status = st.Status
 	if rs.res.Reason == "" {
 		rs.res.Reason = st.Reason
@@ -1172,6 +1251,10 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 	fmt.Fprintf(&b, "\n\n---\n\n<bint-task id=%q step=%q run=%q>\n", t.State.ID, step, child)
 	b.WriteString("Bạn đang chạy dưới `bint run` (Bint Core điều phối). Không gọi `bint task status`, `bint task approve` hay `bint task verify` " +
 		"— Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định hoàn thành. Task ID cũng có trong biến BINT_TASK_ID.\n\n")
+	if t.State.Origin != "" {
+		fmt.Fprintf(&b, "Thư mục làm việc: %s — worktree riêng của tác vụ (nhánh %s), tách từ cây gốc %s. Chỉ sửa trong thư mục này; "+
+			"Bint đưa thay đổi về cây gốc khi tác vụ hoàn tất (bint task land), đừng sửa cây gốc.\n\n", r.Root, t.State.Branch, t.State.Origin)
+	}
 	if step == StepReq {
 		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
 		if c := t.State.Classification; c != nil {

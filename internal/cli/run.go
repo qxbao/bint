@@ -22,6 +22,8 @@ type runFlags struct {
 	plan, noPlan bool
 	noReview     bool
 	noWait       bool
+	worktree     bool
+	shared       bool
 	agentCommand string
 	model        string
 	harness      string
@@ -56,6 +58,10 @@ Giới hạn:
   - workflow.max_review_rounds: số vòng review → sửa tối đa.
   - Lệnh kiểm chứng chỉ chạy khi người đã xác nhận (bint task approve).
   - Hoàn thành (done) chỉ khi có bằng chứng; thiếu thì blocked kèm lý do.
+  - Cô lập: --worktree chạy tác vụ mới trong worktree riêng (song song với tác vụ khác), --shared sửa thẳng trên
+    cây đang làm; mặc định theo workflow.isolation (auto: worktree riêng khi cây đang có tác vụ khác chưa kết thúc).
+    Chỉ chọn lúc lập phiếu (không đi cùng --task). Tác vụ worktree được đưa về cây gốc ở bước finalize của b-do
+    (xung đột ⇒ blocked "xung đột khi đưa về"); chạy từng bước thì dùng bint task land.
   - Khoá worktree: bước chỉ đọc giữ khoá chia sẻ, b-feat giữ khoá độc quyền; bước đến sau chờ khoá (tối đa
     workflow.timeout_minutes) thay vì dừng ngay, --no-wait để dừng ngay (blocked). Tác vụ luôn chạy ở
     State.Worktree của nó dù đứng ở thư mục khác.
@@ -103,6 +109,8 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 		f.BoolVar(&rf.plan, "plan", false, "luôn qua b-req")
 		f.BoolVar(&rf.noPlan, "no-plan", false, "bỏ qua b-req")
 		f.StringVar(&rf.depth, "depth", "auto", depthFlagHelp)
+		f.BoolVar(&rf.worktree, "worktree", false, "tác vụ mới chạy trong worktree riêng (song song với tác vụ khác); loại trừ --shared, không đi cùng --task")
+		f.BoolVar(&rf.shared, "shared", false, "tác vụ mới sửa thẳng trên cây đang làm; loại trừ --worktree, không đi cùng --task")
 		addEditFlags(c, &rf.ef, false)
 	}
 }
@@ -126,6 +134,7 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 		o = app.RunWorkflowDefaults(config.Default())
 		fillRun(&o)
 		o.Harness, o.Roles, o.Model, o.AgentCommand, o.NoWait = rf.harness, rf.roles, rf.model, rf.agentCommand, rf.noWait
+		o.Worktree, o.Shared = rf.worktree, rf.shared
 		if err := o.Validate(); err != nil {
 			return err
 		}
@@ -251,8 +260,15 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 			}
 			t, rows := tr.Task, tr.Runs
 			if asJSON {
-				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "status": t.State.Status, "reason": t.State.Reason,
-					"resume_from": t.State.ResumeFrom, "runs": rows})
+				out := map[string]any{"task_id": t.State.ID, "status": t.State.Status, "reason": t.State.Reason,
+					"resume_from": t.State.ResumeFrom, "runs": rows, "isolation": t.State.Isolation(),
+					"isolation_reason": isolationReason(t)}
+				if t.State.Origin != "" {
+					out["worktree"], out["branch"], out["origin"] = t.State.Worktree, t.State.Branch, t.State.Origin
+					out["landed"], out["land"] = t.State.Landed != nil, t.State.Landed
+					out["awaiting_land"] = t.State.AwaitingLand
+				}
+				return writeJSON(stdio.Out, out)
 			}
 			w := stdio.Out
 			fmt.Fprintf(w, "Tác vụ %s: %s", t.State.ID, t.State.Status)
@@ -260,6 +276,7 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 				fmt.Fprintf(w, " — %s", t.State.Reason)
 			}
 			fmt.Fprintf(w, "\n  %s\n", t.Ticket.Goal)
+			printIsolationLines(w, "  ", t)
 			if len(rows) == 0 {
 				fmt.Fprintln(w, "\nChưa có lượt chạy nào được ghi nhận cho tác vụ này.")
 				return nil

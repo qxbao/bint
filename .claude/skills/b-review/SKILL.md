@@ -30,6 +30,10 @@ bint task diff <id>               # diff đầy đủ (gồm tệp mới)
 bint task diff <id> --name-only   # chỉ danh sách tệp
 ```
 
+Tác vụ chạy trong **worktree riêng** (`isolation: worktree`): thư mục làm việc của bạn (cwd) chính là
+worktree của tác vụ, nơi chỉ có thay đổi của tác vụ này; `bint task diff <id>` đã tính đúng ở đó. Bước
+này chỉ đọc: không `bint task land`, không sửa gì ở cây gốc.
+
 Đừng dùng `git diff <base>` cho tác vụ Bint: nó tính cả thay đổi của tác vụ khác. Chỉ khi đầu vào nêu
 rõ nhánh, `A..B` hoặc commit (không phải tác vụ) thì dùng git cho phạm vi đó:
 

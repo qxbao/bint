@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -372,5 +373,55 @@ func TestStateTracksTouchedAndEverInProgress(t *testing.T) {
 	s.History = append(s.History, Transition{From: StatusPlanned, To: StatusInProgress})
 	if !s.EverInProgress() {
 		t.Fatal("đã vào in_progress")
+	}
+}
+
+func TestClassificationEffectiveIsolation(t *testing.T) {
+	for in, want := range map[string]string{"": IsolationShared, IsolationShared: IsolationShared, IsolationWorktree: IsolationWorktree, "lạ": IsolationShared} {
+		if got := (Classification{Isolation: in}).EffectiveIsolation(); got != want {
+			t.Errorf("%q → %q, mong %q", in, got, want)
+		}
+	}
+	// State không có Classification (phiếu cũ) là shared.
+	if got := (&State{}).Isolation(); got != IsolationShared {
+		t.Fatalf("phiếu cũ: %q", got)
+	}
+	// JSON: trường mới omitempty nên phiếu cũ đọc được và không ghi trường rỗng.
+	b, _ := json.Marshal(Classification{Plan: true, Reason: "x"})
+	if strings.Contains(string(b), "isolation") {
+		t.Fatalf("trường cô lập rỗng không được ghi ra: %s", b)
+	}
+	var back Classification
+	in := Classification{Plan: true, Reason: "x", Isolation: IsolationWorktree, IsolationReason: IsolationReasonConcurrent, IsolationTasks: []string{"A", "B"}}
+	b, _ = json.Marshal(in)
+	if json.Unmarshal(b, &back) != nil || !reflect.DeepEqual(back, in) {
+		t.Fatalf("round-trip: %s → %+v", b, back)
+	}
+}
+
+// Tác vụ worktree chưa đưa về không được done; IgnoreLanding dùng cho việc kiểm trước khi đưa về; đã đưa về thì qua.
+func TestDoneBlockersNeedsLanding(t *testing.T) {
+	tk := &Task{Ticket: Ticket{Goal: "g", Verify: Verify{Criteria: []string{"c1"}}}, State: State{ID: "T1", Origin: "/gốc"}}
+	tk.State.Criteria = []CriterionCheck{{Index: 1, Met: true, Evidence: "e"}}
+	if !tk.State.NeedsLand() || !tk.State.InWorktree() {
+		t.Fatal("có Origin, chưa Landed ⇒ cần đưa về")
+	}
+	b := DoneBlockers(tk, DoneInput{})
+	if len(b) != 1 || !strings.Contains(b[0], "chưa đưa thay đổi về cây gốc /gốc") || !strings.Contains(b[0], "bint task land T1") {
+		t.Fatalf("chưa đưa về: %v", b)
+	}
+	if b := DoneBlockers(tk, DoneInput{IgnoreLanding: true}); len(b) != 0 {
+		t.Fatalf("IgnoreLanding: %v", b)
+	}
+	tk.State.Landed = &Landing{At: "t", By: "x"}
+	if tk.State.NeedsLand() || tk.State.InWorktree() {
+		t.Fatal("đã Landed thì không cần đưa về nữa")
+	}
+	if b := DoneBlockers(tk, DoneInput{}); len(b) != 0 {
+		t.Fatalf("đã đưa về: %v", b)
+	}
+	// Tác vụ shared (Origin rỗng) không bao giờ cần đưa về.
+	if (&State{}).NeedsLand() {
+		t.Fatal("shared không cần đưa về")
 	}
 }

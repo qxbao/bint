@@ -21,6 +21,8 @@ import (
 	"bint/internal/spool"
 	"bint/internal/state"
 	"bint/internal/store"
+	"bint/internal/task"
+	"bint/internal/workflow"
 )
 
 // Level là mức của một kết quả kiểm tra.
@@ -160,6 +162,8 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		s.Close()
 	}
 
+	worktreeChecks(ctx, r, repo.Toplevel, paths)
+
 	pending, _ := spool.Pending(paths.Spool)
 	switch {
 	case len(pending) > 200:
@@ -233,6 +237,29 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 	}
 	knowledgeChecks(r, filepath.Dir(filepath.Dir(src.Project)), cfg)
 	return r
+}
+
+// worktreeChecks báo worktree riêng của tác vụ bị bỏ lại (docs/isolation-subagent-plan.md mục 5.4): thư mục trong
+// <state>/worktrees không ứng với tác vụ chưa kết thúc, hoặc mục `prunable` của git worktree list. Chỉ in lệnh dọn,
+// không tự xoá (worktree có thể còn thay đổi chưa đưa về).
+func worktreeChecks(ctx context.Context, r *DoctorReport, root string, paths state.Paths) {
+	env := &workflow.Env{Root: root, Tasks: task.NewStore(paths.Runtime)}
+	orphans, err := env.OrphanWorktrees(ctx)
+	if err != nil {
+		r.add("worktree tác vụ", LevelWarn, "không liệt kê được: %v", err)
+		return
+	}
+	for _, o := range orphans {
+		why := o.Reason
+		if o.Prunable {
+			why += " (git báo prunable)"
+		}
+		verb := "dọn"
+		if o.Unlanded || o.AwaitingMerge {
+			verb = "xem" // không gợi ý xoá: thay đổi của tác vụ chỉ còn ở đây
+		}
+		r.add("worktree mồ côi", LevelWarn, "%s — %s; %s: %s", o.Path, why, verb, strings.Join(env.CleanupCommands(o), " && "))
+	}
 }
 
 // knowledgeChecks kiểm tra tệp tri thức đọc được và skill gốc đã xuất bản còn

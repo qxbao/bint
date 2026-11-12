@@ -85,7 +85,7 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
-		newTaskLintCmd(stdio), newTaskDiffCmd(stdio))
+		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio))
 	return c
 }
 
@@ -98,6 +98,8 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		asJSON   bool
 		fromFile string
 		depth    string
+		worktree bool
+		shared   bool
 	)
 	c := &cobra.Command{
 		Use:   "new [mô tả | -]",
@@ -110,7 +112,12 @@ ro cao (chạm đường dẫn bảo vệ mà không có cách kiểm chứng).
 Tệp tài liệu (.md, .txt…) mà mô tả coi là kế hoạch/đặc tả cần làm theo ("thực hiện plan
 docs/x.md") được ghi vào references thay vì scope.allow. Đề xuất b-req chỉ là heuristic:
 orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và sửa phạm vi bằng
---clear-scope --allow. Agent không bỏ được b-req (--no-plan) khi tác vụ chạm đường dẫn bảo vệ.`,
+--clear-scope --allow. Agent không bỏ được b-req (--no-plan) khi tác vụ chạm đường dẫn bảo vệ.
+
+Cô lập (chọn một lần lúc lập phiếu, ghi vào phiếu): workflow.isolation = auto sửa thẳng trên cây
+đang làm, và tự chuyển tác vụ vào worktree riêng khi cây đó đang có tác vụ khác chưa kết thúc
+(isolation_reason = concurrent_task); --worktree buộc worktree riêng (để chạy song song), --shared buộc
+sửa thẳng trên cây đang làm. Tác vụ worktree đưa thay đổi về cây này bằng bint task land.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			req := ""
@@ -135,6 +142,7 @@ orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và
 			o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = ef.goal, ef.verify, ef.autonomy, ef.criteria, ef.allow, ef.deny
 			o.Constraints, o.ClearScope = ef.constraints, ef.clearScope
 			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
+			o.Worktree, o.Shared = worktree, shared
 			if err := o.Validate(); err != nil { // lỗi dùng sai (mã 2) thắng lỗi "chưa init", như trước
 				return err
 			}
@@ -150,7 +158,8 @@ orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và
 			if asJSON {
 				return writeJSON(stdio.Out, map[string]any{"id": t.State.ID, "dir": t.Dir, "status": t.State.Status,
 					"ticket": t.Ticket, "classification": t.State.Classification, "assessment": a,
-					"verify_confirmed": created.VerifyConfirmed})
+					"verify_confirmed": created.VerifyConfirmed, "isolation": t.State.Isolation(),
+					"isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t))})
 			}
 			w := stdio.Out
 			fmt.Fprintf(w, "Tác vụ %s: %s\n", t.State.ID, t.Ticket.Goal)
@@ -159,6 +168,7 @@ orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và
 				fmt.Fprintf(w, "  Classify:  %s\n", c.Reason)
 				printDepthLine(w, "  Phân tích: ", c)
 			}
+			printIsolationLine(w, "  Cô lập:    ", t)
 			printTicketBrief(w, env, t, a)
 			return nil
 		},
@@ -168,6 +178,8 @@ orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và
 	c.Flags().BoolVar(&plan, "plan", false, "luôn qua b-req")
 	c.Flags().BoolVar(&noPlan, "no-plan", false, "bỏ qua b-req")
 	c.Flags().StringVar(&depth, "depth", "auto", depthFlagHelp)
+	c.Flags().BoolVar(&worktree, "worktree", false, "chạy tác vụ trong worktree riêng (song song với tác vụ khác); loại trừ --shared")
+	c.Flags().BoolVar(&shared, "shared", false, "sửa thẳng trên cây đang làm, không vào worktree riêng; loại trừ --worktree")
 	c.Flags().StringVar(&fromFile, "file", "", "đọc mô tả từ tệp")
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
@@ -299,7 +311,8 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 					}
 				}
 				return writeJSON(stdio.Out, map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
-					"verify_confirmed": d.VerifyConfirmed, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers)})
+					"verify_confirmed": d.VerifyConfirmed, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers),
+					"isolation": t.State.Isolation(), "isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t))})
 			}
 			printTask(stdio.Out, ws.Env, t, a, rev, blockers)
 			return nil
@@ -339,6 +352,7 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 		fmt.Fprintf(w, "  Classify:   %s\n", c.Reason)
 		printDepthLine(w, "  Phân tích:  ", c)
 	}
+	printIsolationLines(w, "  ", t)
 	fmt.Fprintf(w, "  Thư mục:    %s\n", t.Dir)
 	printTicketBrief(w, env, t, a)
 	if t.Ticket.Request != "" {
@@ -821,5 +835,166 @@ Phiếu lập trước khi Bint theo dõi tệp riêng của từng tác vụ th
 	}
 	c.Flags().BoolVar(&o.Stat, "stat", false, "thống kê số dòng đổi theo tệp")
 	c.Flags().BoolVar(&o.NameOnly, "name-only", false, "chỉ liệt kê tên tệp")
+	return c
+}
+
+func isolationReason(t *task.Task) string {
+	if c := t.State.Classification; c != nil && c.IsolationReason != "" {
+		return c.IsolationReason
+	}
+	return ""
+}
+
+func isolationTasks(t *task.Task) []string {
+	if c := t.State.Classification; c != nil {
+		return c.IsolationTasks
+	}
+	return nil
+}
+
+// printIsolationLine in một dòng chế độ cô lập lúc lập phiếu (task new).
+func printIsolationLine(w io.Writer, prefix string, t *task.Task) {
+	mode := t.State.Isolation()
+	reason := isolationReason(t)
+	if reason == "" {
+		reason = "phiếu lập trước khi có chế độ cô lập"
+	}
+	fmt.Fprintf(w, "%s%s (%s)\n", prefix, mode, reason)
+	if ids := isolationTasks(t); len(ids) > 0 {
+		fmt.Fprintf(w, "%s  vì cây này đang có tác vụ chưa kết thúc: %s (huỷ tác vụ bỏ dở bằng bint task cancel <id>)\n", prefix, strings.Join(ids, ", "))
+	}
+	if mode == task.IsolationWorktree {
+		fmt.Fprintf(w, "%s  worktree riêng được tạo ở lần chạy đầu (bint run); thay đổi về cây này bằng bint task land %s\n", prefix, t.State.ID)
+	}
+}
+
+// printIsolationLines in chế độ cô lập, nơi chạy và trạng thái đưa về (task show, run status).
+func printIsolationLines(w io.Writer, indent string, t *task.Task) {
+	st := t.State
+	printIsolationLine(w, indent+"Cô lập:     ", t)
+	if st.Origin == "" {
+		return
+	}
+	fmt.Fprintf(w, "%sWorktree:    %s   nhánh %s\n%sCây gốc:     %s\n", indent, st.Worktree, orDash(st.Branch), indent, st.Origin)
+	switch l := st.Landed; {
+	case l == nil && st.AwaitingLand:
+		fmt.Fprintf(w, "%sĐưa về:      chưa (đã qua kiểm chứng, chờ đưa về: bint task land %s hoặc bint run resume %s)\n", indent, st.ID, st.ID)
+	case l == nil:
+		fmt.Fprintf(w, "%sĐưa về:      chưa (bint task land %s)\n", indent, st.ID)
+	default:
+		fmt.Fprintf(w, "%sĐưa về:      đã đưa %d tệp lúc %s bởi %s", indent, len(l.Files), fmtRFC(l.At), l.By)
+		if l.ThreeWay {
+			fmt.Fprint(w, " (--3way)")
+		}
+		if l.Kept {
+			fmt.Fprintf(w, "; worktree còn được giữ lại")
+		}
+		fmt.Fprintln(w)
+		if len(l.Conflicts) > 0 {
+			fmt.Fprintf(w, "%s             còn dấu xung đột, cần gỡ tay: %s\n", indent, strings.Join(l.Conflicts, ", "))
+		}
+		if l.Note != "" {
+			fmt.Fprintf(w, "%s             ! %s\n", indent, l.Note)
+		}
+	}
+}
+
+func newTaskLandCmd(stdio IO) *cobra.Command {
+	var o app.TaskLandOptions
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "land <task-id>",
+		Short: "Đưa thay đổi của tác vụ worktree về cây gốc (dưới dạng chưa commit)",
+		Long: `Tác vụ chạy trong worktree riêng (bint task new --worktree, hoặc auto khi cây đang có tác vụ khác) giữ thay
+đổi ở worktree. land đưa chúng về cây đã lập phiếu: bản vá nhị phân từ base tới ảnh chụp worktree (chỉ tệp của
+tác vụ), áp lên cây gốc KHÔNG qua chỉ mục, nên thay đổi hiện ra như chưa commit, HEAD và chỉ mục của bạn không đổi.
+
+Chỉ đưa về khi điều kiện done (trừ chính việc đưa về) đã đủ: kiểm chứng đã qua trên worktree, không có thay đổi
+chưa duyệt. Lấy khoá độc quyền của cây gốc (chờ bước khác đang chạy ở đó xong). Không áp sạch thì cây gốc KHÔNG bị
+đụng: lỗi liệt kê tệp xung đột (tác vụ do bint run điều phối chuyển blocked "xung đột khi đưa về"). Thành công thì gỡ
+worktree, nhánh bint/<id>, ref base và tệp khoá.
+
+  --3way   chỉ người: tệp xung đột được trộn bằng git merge-file và để lại dấu xung đột trong tệp ở cây gốc để
+           bạn gỡ (không dùng git apply --3way vì lệnh đó ngầm ghi chỉ mục)
+  --keep   giữ worktree sau khi đưa về (để xem lại)
+
+land không đổi trạng thái tác vụ: sau đó bint run resume <id> hoặc bint task status <id> done.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Ref = args[0]
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			ws, err := openTasks(cmd)
+			if err != nil {
+				return err
+			}
+			ws.Env.Out = stdio.Out
+			res, err := app.LandTask(cmd.Context(), ws, o)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, map[string]any{"task_id": res.Task.State.ID, "files": nonNil(res.Files),
+					"conflicts": nonNil(res.Conflicts), "worktree_removed": res.Removed, "notes": nonNil(res.Notes),
+					"landed": res.Task.State.Landed})
+			}
+			w := stdio.Out
+			fmt.Fprintf(w, "✓ Đã đưa %d tệp về cây gốc %s\n", len(res.Files), res.Task.State.Origin)
+			for _, f := range res.Files {
+				fmt.Fprintf(w, "  %s\n", f)
+			}
+			if len(res.Conflicts) > 0 {
+				fmt.Fprintf(w, "! còn dấu xung đột (<<<<<<<) hoặc chưa trộn được, gỡ tay: %s\n", strings.Join(res.Conflicts, ", "))
+			}
+			switch {
+			case res.Removed:
+				fmt.Fprintln(w, "  đã gỡ worktree, nhánh bint/"+res.Task.State.ID+" và ref base")
+			case o.Keep:
+				fmt.Fprintf(w, "  giữ worktree: %s\n", res.Task.State.Worktree)
+			}
+			for _, n := range res.Notes {
+				fmt.Fprintf(w, "! %s\n", n)
+			}
+			if !task.Terminal(res.Task.State.Status) {
+				fmt.Fprintf(w, "Tiếp: bint run resume %s (hoặc bint task status %s done)\n", res.Task.State.ID, res.Task.State.ID)
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&o.ThreeWay, "3way", false, "chỉ người: trộn tệp xung đột và để lại dấu xung đột ở cây gốc (không đụng chỉ mục)")
+	c.Flags().BoolVar(&o.Keep, "keep", false, "giữ worktree sau khi đưa về")
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}
+
+func newTaskCancelCmd(stdio IO) *cobra.Command {
+	var o app.TaskCancelOptions
+	c := &cobra.Command{
+		Use:   "cancel <task-id>",
+		Short: "Huỷ tác vụ (tác vụ worktree: gỡ worktree, nhánh, ref base, tệp khoá)",
+		Long: `Chuyển tác vụ sang cancelled (cùng đường với bint task status <id> cancelled). Tác vụ chạy trong worktree riêng thì
+gỡ worktree, nhánh bint/<id>, ref base và tệp khoá. Worktree còn thay đổi chưa đưa về cây gốc thì huỷ sẽ mất chúng: cần
+--discard, chỉ người dùng (không chạy được từ trong phiên agent).`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Ref = args[0]
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			ws, err := openTasks(cmd)
+			if err != nil {
+				return err
+			}
+			t, err := app.CancelTask(cmd.Context(), ws, o)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(stdio.Out, "%s → %s\n", t.State.ID, t.State.Status)
+			return nil
+		},
+	}
+	c.Flags().StringVarP(&o.Reason, "reason", "m", "", "lý do")
+	c.Flags().BoolVar(&o.Discard, "discard", false, "chỉ người: huỷ dù worktree còn thay đổi chưa đưa về (sẽ mất)")
 	return c
 }

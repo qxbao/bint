@@ -5,12 +5,12 @@
 │   Phiếu · Tài liệu · Tiêu chí · Kiểm chứng · Review · Lỗi · Lượt chạy                                                                    │
 │ ┌─│Tác vụ (4/6)│──────────────────────────────chưa lọc─┐┌─│Chi tiết · 01TASK1│─────────────────────────────────────────────────1-32/34─┐ │
 │ │  Chờ bạn (2)                                         ││ 01TASK1                                                                      │ │
-│ │ ▸ ! bị chặn     1TASK1 Thêm cột email                ││ ! bị chặn — thay đổi cần người duyệt: migrations/002.sql                     │ │
-│ │   ✗ thất bại    1TASK2 Đổi cách tính phí             ││ Thêm cột email                                                               │ │
+│ │ ▸ ! bị chặn     1TASK1 ·    Thêm cột email           ││ ! bị chặn — thay đổi cần người duyệt: migrations/002.sql                     │ │
+│ │   ✗ thất bại    1TASK2 ·    Đổi cách tính phí        ││ Thêm cột email                                                               │ │
 │ │  Đang làm (1)                                        ││                                                                              │ │
-│ │   ▶ đang làm    1TASK4 Thêm màn Tác vụ               ││ Workflow     b-do                                                            │ │
+│ │   ▶ đang làm    1TASK4 ·    Thêm màn Tác vụ          ││ Workflow     b-do                                                            │ │
 │ │  Sắp làm (1)                                         ││ Tự chủ       ask_on_protected                                                │ │
-│ │   ◌ sẵn sàng    1TASK5 Viết tài liệu cài đặt         ││ Cập nhật     2026-11-11 10:00                                                │ │
+│ │   ◌ sẵn sàng    1TASK5 ·    Viết tài liệu cài đặt    ││ Cập nhật     2026-11-11 10:00                                                │ │
 │ │                         ┌─│Duyệt tác vụ│───────────────────────────────────────────────────────────────────┐                         │ │
 │ │                         │ 01TASK1 Thêm cột email                                                           │                         │ │
 │ │                         │                                                                                  │───────────────          │ │

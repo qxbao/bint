@@ -75,6 +75,8 @@ var cliRefs = []cliRef{
 	{path: "task review", id: "tasks.review_edit"},
 	{path: "task lint", id: "tasks.lint"},
 	{path: "task diff", id: "tasks.diff"},
+	{path: "task land", id: "tasks.land"},
+	{path: "task cancel", id: "tasks.cancel"},
 	{path: "task transitions", id: "tasks.transitions"},
 	{path: "task list", id: "tasks.list"},
 	{path: "task show", id: "tasks.show"},

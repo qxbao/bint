@@ -114,3 +114,50 @@ func TestScanGitCommitAndRevert(t *testing.T) {
 		t.Fatalf("trùng: %d vs %d", len(sigs2), len(sigs))
 	}
 }
+
+// Ref và nhánh do Bint tự tạo cho worktree tác vụ (refs/bint/*, bint/<id>) và commit "bint base" không phải
+// công việc của lượt chạy: ScanGit không tính chúng thành tín hiệu "đã commit".
+func TestScanGitIgnoresBintRefsAndBranches(t *testing.T) {
+	ctx := context.Background()
+	s, sp := setup(t)
+	repo := testutil.NewRepo(t, map[string]string{"a.go": "package a\n"})
+	time.Sleep(2100 * time.Millisecond)
+	start := time.Now().UTC()
+	if _, err := spool.Write(sp,
+		ev("s1", spool.SessionStarted, "X", start, nil),
+		ev("s2", spool.FileModified, "X", start.Add(time.Minute), map[string]any{"path": "a.go"}),
+		ev("s3", spool.SessionEnded, "X", start.Add(time.Second), nil)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Ingest(ctx, s, sp, time.Now(), 0); err != nil {
+		t.Fatal(err)
+	}
+	var run string
+	s.DB.QueryRow(`SELECT run_id FROM runs`).Scan(&run)
+	s.DB.Exec(`UPDATE runs SET worktree = ? WHERE run_id = ?`, repo, run)
+
+	// Commit "bint base" chỉ có trên ref bint (như Runner tạo khi dựng worktree).
+	testutil.Git(t, repo, "checkout", "-q", "-b", "tam")
+	os.WriteFile(filepath.Join(repo, "a.go"), []byte("package a\n\nvar Base = 1\n"), 0o644)
+	testutil.Git(t, repo, "commit", "-qam", "bint base T1")
+	base := testutil.Git(t, repo, "rev-parse", "HEAD")
+	testutil.Git(t, repo, "update-ref", "refs/bint/tasks/T1/base", base)
+	// Commit của agent trên nhánh bint/<id> của worktree tác vụ.
+	testutil.Git(t, repo, "checkout", "-q", "-b", "bint/T1")
+	os.WriteFile(filepath.Join(repo, "a.go"), []byte("package a\n\nvar Task = 1\n"), 0o644)
+	testutil.Git(t, repo, "commit", "-qam", "việc của tác vụ")
+	testutil.Git(t, repo, "checkout", "-q", "main")
+	testutil.Git(t, repo, "branch", "-D", "tam")
+
+	res, err := ScanGit(ctx, s.DB, repo, ScanOptions{})
+	if err != nil || res.Committed != 0 {
+		t.Fatalf("commit trên refs/bint và nhánh bint/* không được tính: %+v %v", res, err)
+	}
+	// Commit thật trên nhánh của người vẫn được tính.
+	os.WriteFile(filepath.Join(repo, "a.go"), []byte("package a\n\nvar Real = 1\n"), 0o644)
+	testutil.Git(t, repo, "commit", "-qam", "việc thật")
+	res, err = ScanGit(ctx, s.DB, repo, ScanOptions{})
+	if err != nil || res.Committed != 1 {
+		t.Fatalf("commit thật phải được tính: %+v %v", res, err)
+	}
+}

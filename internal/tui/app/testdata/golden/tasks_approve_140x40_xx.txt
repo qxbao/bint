@@ -5,12 +5,12 @@
 │   ⟦Ticket~~~⟧ · ⟦Documents~~~~⟧ · ⟦Criteria~~~~⟧ · ⟦Verify~~~⟧ · ⟦Review~~~⟧ · ⟦Errors~~~⟧ · ⟦Runs~~⟧                                    │
 │ ┌─│⟦Tasks (4/6)~~~~⟧│──────────────────⟦no filter~~~~⟧─┐┌─│⟦Details~~~⟧ · 01TASK1│─────────────────────────────────────────────1-32/34─┐ │
 │ │  ⟦Waiting for you (2)~~~~~~~~⟧                       ││ 01TASK1                                                                      │ │
-│ │ ▸ ! ⟦blocked~~… 1TASK1 Thêm cột email                ││ ! ⟦blocked~~~⟧ — thay đổi cần người duyệt: migrations/002.sql                │ │
-│ │   ✗ ⟦failed~~~⟧ 1TASK2 Đổi cách tính phí             ││ Thêm cột email                                                               │ │
+│ │ ▸ ! ⟦blocked~~… 1TASK1 ·    Thêm cột email           ││ ! ⟦blocked~~~⟧ — thay đổi cần người duyệt: migrations/002.sql                │ │
+│ │   ✗ ⟦failed~~~⟧ 1TASK2 ·    Đổi cách tính phí        ││ Thêm cột email                                                               │ │
 │ │  ⟦In progress (1)~~~~~~⟧                             ││                                                                              │ │
-│ │   ▶ ⟦in progre… 1TASK4 Thêm màn Tác vụ               ││ ⟦Workflow~~~~⟧ b-do                                                          │ │
+│ │   ▶ ⟦in progre… 1TASK4 ·    Thêm màn Tác vụ          ││ ⟦Workflow~~~~⟧ b-do                                                          │ │
 │ │  ⟦Up next (1)~~~~⟧                                   ││ ⟦Autonomy~~~~⟧ ask_on_protected                                              │ │
-│ │   ◌ ⟦planned~~… 1TASK5 V┌─│⟦Approve task~~~~~⟧│────────────────────────────────────────────────────────────┐                         │ │
+│ │   ◌ ⟦planned~~… 1TASK5 ·┌─│⟦Approve task~~~~~⟧│────────────────────────────────────────────────────────────┐                         │ │
 │ │                         │ 01TASK1 Thêm cột email                                                           │                         │ │
 │ │                         │                                                                                  │                         │ │
 │ │                         │ ⟦Will confirm the verify command (Bint may then run it):~~~~~~~~~~~~~~~~~~~~~~⟧  │─────────────            │ │

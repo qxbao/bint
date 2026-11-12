@@ -87,7 +87,8 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 	a.h.dirs = append(a.h.dirs, req.Dir)
 	a.h.prompts[step] = req.Prompt
 	a.h.mu.Unlock()
-	agentEnv := &Env{Root: a.h.root, Cfg: a.h.cfg, Tasks: a.h.tasks, Spool: a.h.spool, Actor: "agent", RunID: envs[EnvRunID]}
+	// Root = thư mục chạy thật của bước (cây gốc, hoặc worktree riêng của tác vụ).
+	agentEnv := &Env{Root: req.Dir, Cfg: a.h.cfg, Tasks: a.h.tasks, Spool: a.h.spool, Actor: "agent", RunID: envs[EnvRunID]}
 	res := eval.AgentResult{CostUSD: a.cost, NumTurns: a.turns, Duration: time.Millisecond, Model: "fake-model"}
 	if err := a.h.behave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
 		res.ExitCode, res.Error = 1, err.Error()
@@ -127,6 +128,8 @@ func newHarness(t *testing.T) *harness {
 	cfg := config.Default()
 	cmd := "test -f done.txt"
 	cfg.Eval.TestCommand = &cmd
+	// Các test cũ kiểm hành vi chế độ shared (nhiều tác vụ trên một cây); test worktree đặt isolation riêng.
+	cfg.Workflow.Isolation = config.IsolationShared
 	h := &harness{t: t, root: root, cfg: cfg, tasks: task.NewStore(filepath.Join(st, "runtime")), spool: filepath.Join(st, "spool"),
 		db: filepath.Join(st, "state.sqlite"), prompts: map[string]string{}}
 	h.behave = h.happy

@@ -20,6 +20,7 @@ import (
 	"bint/internal/tui/screens/tasks"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
+	"bint/internal/workflow"
 )
 
 func mk(id, status, goal, updated string) *task.Task {
@@ -38,9 +39,18 @@ func data(root string) tasks.Data {
 	failed.State.Errors = []task.ErrorRecord{{Step: "b-feat", Message: "agent thoát với mã 1", At: "2026-11-11T09:00:00Z", By: "agent"}}
 	failed.State.Verifications = []task.Verification{{At: "2026-11-11T09:00:00Z", Command: "go test ./...", ExitCode: 1, By: "human"}}
 	failed.State.Criteria = []task.CriterionCheck{{Index: 1, Met: true, Evidence: "go test ./internal/tui qua", By: "agent", At: "2026-11-11T09:00:00Z"}}
+	// 01TASK4 chạy trong worktree riêng, chưa đưa về; 01TASK3 (xong) đã đưa về cây gốc.
+	wt := mk("01TASK4", task.StatusInProgress, "Thêm màn Tác vụ", "2026-11-11T08:00:00Z")
+	wt.State.Classification = &task.Classification{Plan: true, Reason: "r", Isolation: task.IsolationWorktree,
+		IsolationReason: task.IsolationReasonConcurrent, IsolationTasks: []string{"01TASKX"}}
+	wt.State.Origin, wt.State.Worktree, wt.State.Branch = "/work/demo", "/state/worktrees/01TASK4", "bint/01TASK4"
+	landed := mk("01TASK3", task.StatusDone, "Sửa lỗi khoá cơ sở dữ liệu", "2026-11-10T10:00:00Z")
+	landed.State.Classification = &task.Classification{Isolation: task.IsolationWorktree, IsolationReason: task.IsolationReasonUser}
+	landed.State.Origin = "/work/demo"
+	landed.State.Landed = &task.Landing{At: "2026-11-10T10:00:00Z", By: "human", Files: []string{"a.go", "b.go"}, Conflicts: []string{"b.go"}}
 	return tasks.Data{Root: root, Files: []string{"a.go"}, Tasks: []*task.Task{
-		mk("01TASK3", task.StatusDone, "Sửa lỗi khoá cơ sở dữ liệu", "2026-11-10T10:00:00Z"),
-		mk("01TASK4", task.StatusInProgress, "Thêm màn Tác vụ", "2026-11-11T08:00:00Z"),
+		landed,
+		wt,
 		mk("01TASK5", task.StatusPlanned, "Viết tài liệu cài đặt", "2026-11-11T07:00:00Z"),
 		failed, blocked,
 		mk("01TASK6", task.StatusCancelled, "Việc đã huỷ", "2026-11-09T10:00:00Z"),
@@ -642,5 +652,102 @@ func TestDiffKeyIsReadOnlyAndShowsResult(t *testing.T) {
 	r.feed(r.m.Update(actions.ResultMsg{ID: "tasks.diff", Opts: o, Value: app.TaskDiffResult{Task: tk}}))
 	if out := r.view(140, 34); !strings.Contains(out, "chưa đổi tệp nào") {
 		t.Errorf("thiếu thông báo rỗng:\n%s", out)
+	}
+}
+
+// G2: cột chế độ cô lập ở danh sách, thông tin worktree/đưa về ở thẻ Phiếu, phím `o` (đưa về) và `x` (huỷ).
+func TestIsolationColumnDetailAndKeys(t *testing.T) {
+	r := newRig(t, tasks.Options{})
+	out := r.view(140, 34)
+	// Dòng của 01TASK4 mang "wt"; các dòng shared mang "·".
+	var wtLine, sharedLine string
+	for _, l := range strings.Split(out, "\n") {
+		switch {
+		case strings.Contains(l, "1TASK4"):
+			wtLine = l
+		case strings.Contains(l, "1TASK1"):
+			sharedLine = l
+		}
+	}
+	if !strings.Contains(wtLine, " wt ") || strings.Contains(sharedLine, " wt ") || !strings.Contains(sharedLine, "·") {
+		t.Fatalf("cột cô lập:\n%s\n%s", wtLine, sharedLine)
+	}
+	r.press("A") // hiện cả tác vụ đã xong: 01TASK3 đã đưa về
+	if out := r.view(140, 34); !strings.Contains(out, "wt✓") {
+		t.Fatalf("tác vụ đã đưa về phải có wt✓:\n%s", out)
+	}
+	r.press("A")
+
+	// Thẻ Phiếu của tác vụ worktree.
+	r.press("j", "j") // 01TASK4
+	out = r.view(140, 34)
+	for _, want := range []string{"Cô lập", "worktree (concurrent_task)", "01TASKX", "/state/worktrees/01TASK4", "bint/01TASK4", "Cây gốc", "/work/demo", "Đưa về", "chưa đưa về"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("thẻ Phiếu thiếu %q:\n%s", want, out)
+		}
+	}
+
+	// o: mở form đưa về với Ref của tác vụ đang chọn.
+	r.press("o")
+	if !r.m.Capturing() {
+		t.Fatal("o phải mở form đưa về")
+	}
+	if out := r.view(140, 34); !strings.Contains(out, "bint task land 01TASK4") {
+		t.Fatalf("dòng lệnh tương đương:\n%s", out)
+	}
+	r.press("ctrl+s")
+	if req := r.lastReq(); req.ID != "tasks.land" || req.Opts.(app.TaskLandOptions).Ref != "01TASK4" || req.Opts.(app.TaskLandOptions).ThreeWay {
+		t.Fatalf("land: %+v", req)
+	}
+	r.press("esc")
+
+	// x: form huỷ.
+	r.press("x")
+	if out := r.view(140, 34); !strings.Contains(out, "bint task cancel 01TASK4") {
+		t.Fatalf("dòng lệnh tương đương:\n%s", out)
+	}
+	r.press("ctrl+s")
+	if req := r.lastReq(); req.ID != "tasks.cancel" || req.Opts.(app.TaskCancelOptions).Ref != "01TASK4" || req.Opts.(app.TaskCancelOptions).Discard {
+		t.Fatalf("cancel: %+v", req)
+	}
+	r.press("esc")
+
+	// o trên tác vụ shared: báo, không mở form.
+	r.press("k")
+	r.press("o")
+	if r.m.Capturing() {
+		t.Fatal("tác vụ shared không có gì để đưa về")
+	}
+	if out := r.view(140, 34); !strings.Contains(out, "không có worktree riêng") {
+		t.Fatalf("thiếu thông báo:\n%s", out)
+	}
+
+	// Kết quả: thông báo số tệp, có cảnh báo khi còn dấu xung đột.
+	r.feed(r.m.Update(actions.ResultMsg{ID: "tasks.land", Value: &workflow.LandResult{Files: []string{"a.go", "b.go"}}}))
+	if out := r.view(140, 34); !strings.Contains(out, "Đã đưa 2 tệp về cây gốc") {
+		t.Fatalf("thông báo land:\n%s", out)
+	}
+	r.feed(r.m.Update(actions.ResultMsg{ID: "tasks.land", Value: &workflow.LandResult{Files: []string{"a.go", "b.go"}, Conflicts: []string{"b.go"}}}))
+	if out := r.view(140, 34); !strings.Contains(out, "dấu xung đột") {
+		t.Fatalf("thông báo xung đột:\n%s", out)
+	}
+}
+
+// Phím ghi mới bị chặn khi chỉ đọc/phiên agent như các phím ghi khác.
+func TestLandAndCancelKeysBlockedByGate(t *testing.T) {
+	r := newRig(t, tasks.Options{})
+	r.gate = func(id string) actions.Availability {
+		if id == "tasks.land" || id == "tasks.cancel" {
+			return actions.Hidden
+		}
+		return actions.Available
+	}
+	r.press("j", "j", "o")
+	if r.m.Capturing() || len(r.reqs) != 0 {
+		t.Fatal("o bị chặn phải không mở form")
+	}
+	r.press("x")
+	if r.m.Capturing() || len(r.reqs) != 0 {
+		t.Fatal("x bị chặn phải không mở form")
 	}
 }

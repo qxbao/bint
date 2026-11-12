@@ -10,19 +10,19 @@ skills:
     variants:
       agents: a9fa9899d0d8addc
   b-do:
-    sha256: daa3003b65c1ef72
+    sha256: 8ffe57a5a9435c61
     published:
       - .agents/skills/b-do/SKILL.md
       - .claude/skills/b-do/SKILL.md
     variants:
-      agents: a74186443f570334
+      agents: 5578066bdd0f0c5a
   b-feat:
-    sha256: 5c78edc02a19bd94
+    sha256: 002a2d0ac0e217f9
     published:
       - .agents/skills/b-feat/SKILL.md
       - .claude/skills/b-feat/SKILL.md
     variants:
-      agents: 838843ac7eb618cd
+      agents: b19ec977f6ba90a5
   b-knowledge:
     sha256: 8b83fb2d6d7d36e6
     published:
@@ -38,9 +38,9 @@ skills:
     variants:
       agents: dd71d8431dc9004b
   b-review:
-    sha256: a57487b54cdd0363
+    sha256: e3673202f1343a3a
     published:
       - .agents/skills/b-review/SKILL.md
       - .claude/skills/b-review/SKILL.md
     variants:
-      agents: 8954029a973d44a1
+      agents: 51912caf7e1d8af1

@@ -142,3 +142,49 @@ func TestTaskDiffActionIsReadOnly(t *testing.T) {
 		t.Fatal("hai cờ loại trừ nhau phải lỗi")
 	}
 }
+
+// G2: `o` đưa về cây gốc và `x` huỷ là hành động ghi qua dịch vụ app (cờ --3way/--keep, --reason/--discard là ô form);
+// thông điệp nhắc lệnh CLI tra được trong bảng ánh xạ.
+func TestTaskLandAndCancelActions(t *testing.T) {
+	reg := actions.Default()
+	for id, want := range map[string]struct {
+		path  string
+		flags []string
+	}{
+		"tasks.land":   {"task land", []string{"3way", "keep"}},
+		"tasks.cancel": {"task cancel", []string{"reason", "discard"}},
+	} {
+		a, ok := reg.ByID(id)
+		if !ok || !a.Writes || a.Do == nil || a.CLIPath != want.path {
+			t.Fatalf("%s: %+v", id, a)
+		}
+		have := map[string]bool{}
+		for _, f := range a.Flags() {
+			have[f] = true
+		}
+		for _, f := range want.flags {
+			if !have[f] {
+				t.Errorf("%s thiếu cờ %s (có %v)", id, f, a.Flags())
+			}
+		}
+		if tg, ok := actions.LookupCLI(reg, want.path, want.flags[:1]); !ok || tg.Action.ID != id || len(tg.Fields) != 1 || tg.Fields[0] != want.flags[0] {
+			t.Errorf("tra lệnh %q: %+v %v", want.path, tg, ok)
+		}
+	}
+	for id, want := range map[string]string{"tasks.diff": "D", "tasks.land": "o", "tasks.cancel": "x"} {
+		if a, _ := reg.ByID(id); a.Key != want {
+			t.Errorf("%s: phím %q, mong %q", id, a.Key, want)
+		}
+	}
+
+	env, taskID, _ := taskWithReview(t)
+	// Tác vụ chạy thẳng trên cây của nó không có gì để đưa về.
+	if r := do(t, "tasks.land", env, app.TaskLandOptions{Ref: taskID}); r.Err == nil || !strings.Contains(r.Err.Error(), "không có gì để đưa về") {
+		t.Fatalf("land tác vụ shared: %v", r.Err)
+	}
+	// Huỷ tác vụ shared như thường.
+	r := do(t, "tasks.cancel", env, app.TaskCancelOptions{Ref: taskID, Reason: "bỏ"})
+	if tk, ok := r.Value.(*task.Task); r.Err != nil || !ok || tk.State.Status != task.StatusCancelled {
+		t.Fatalf("cancel: %v %+v", r.Err, r.Value)
+	}
+}

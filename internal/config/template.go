@@ -161,6 +161,10 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   max_review_rounds: 2      # số vòng review → sửa tối đa của b-do
   timeout_minutes: 60       # mỗi bước agent
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
+  isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
+  worktree:                 # chỉ dùng khi tác vụ chạy trong worktree riêng
+    copy: []                # glob (tương đối với gốc repo) của tệp bị gitignore cần chép vào worktree, ví dụ [".env", "config/*.local.json"]
+    setup_command: ""       # chạy trong worktree mới tạo, ví dụ "npm ci"; lỗi thì tác vụ failed
   agent:
     model: null
     permission_mode: acceptEdits

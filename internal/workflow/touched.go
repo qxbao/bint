@@ -31,6 +31,10 @@ func (e *Env) RootFor(t *task.Task) (string, error) {
 	}
 	fi, err := os.Stat(w)
 	if err != nil || !fi.IsDir() {
+		if t.State.Landed != nil && t.State.Origin != "" {
+			// Đã đưa về và worktree đã gỡ: về cây gốc (các lệnh đọc trạng thái dùng bản lưu của Landed).
+			return t.State.Origin, nil
+		}
 		return "", fmt.Errorf("%w: %s", ErrWorktreeGone, w)
 	}
 	top, err := gitrepo.Run(context.Background(), w, "rev-parse", "--show-toplevel")
@@ -66,8 +70,9 @@ func DiffPaths(ctx context.Context, root, before, after string, pathspec ...stri
 	return ps, nil
 }
 
-// pinTree tạo một commit rỗng-cha-HEAD trỏ vào cây tree và gắn ref để git gc không dọn cây.
-func pinTree(ctx context.Context, root, tree, ref, msg string) error {
+// commitTree tạo một commit trỏ vào cây tree, cha là HEAD của root (không có cha nếu repository chưa có
+// commit); không đụng nhánh nào. Trả mã commit.
+func commitTree(ctx context.Context, root, tree, msg string) (string, error) {
 	args := []string{"-C", root, "commit-tree", tree, "-m", msg}
 	if head := gitrepo.HeadCommit(ctx, root); head != "" {
 		args = append(args, "-p", head)
@@ -78,10 +83,18 @@ func pinTree(ctx context.Context, root, tree, ref, msg string) error {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git commit-tree: %w: %s", err, strings.TrimSpace(stderr.String()))
+		return "", fmt.Errorf("git commit-tree: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
-	commit := strings.TrimSpace(stdout.String())
-	_, err := gitrepo.Run(ctx, root, "update-ref", ref, commit)
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// pinTree tạo một commit rỗng-cha-HEAD trỏ vào cây tree và gắn ref để git gc không dọn cây.
+func pinTree(ctx context.Context, root, tree, ref, msg string) error {
+	commit, err := commitTree(ctx, root, tree, msg)
+	if err != nil {
+		return err
+	}
+	_, err = gitrepo.Run(ctx, root, "update-ref", ref, commit)
 	return err
 }
 
@@ -236,6 +249,17 @@ func outsideFeat(ctx context.Context, root string, tasks task.Store, t *task.Tas
 			others[f] = true
 		}
 	}
+	// Tệp mà tác vụ KHÁC đã đưa về chính cây này (task land) và chưa bị sửa tiếp: không quy cho t.
+	landed := map[string]string{} // tệp → mã cây lúc đưa về
+	for _, o := range all {
+		if o.State.ID == t.State.ID || o.State.Landed == nil || o.State.Origin == "" || !samePath(o.State.Origin, root) ||
+			o.State.Landed.Tree == "" {
+			continue
+		}
+		for _, f := range o.State.Landed.Files {
+			landed[f] = o.State.Landed.Tree
+		}
+	}
 	var out []string
 	for _, f := range changed {
 		if own[f] {
@@ -244,9 +268,25 @@ func outsideFeat(ctx context.Context, root string, tasks task.Store, t *task.Tas
 		if others[f] && len(task.CheckScope([]string{f}, t.Ticket, protected).NeedsApproval()) == 0 {
 			continue
 		}
+		if tree, ok := landed[f]; ok && len(task.CheckScope([]string{f}, t.Ticket, protected).NeedsApproval()) == 0 &&
+			sameBlob(ctx, root, tree, cur, f) {
+			continue
+		}
 		out = append(out, f)
 	}
 	return out, nil
+}
+
+// sameBlob cho biết tệp rel có cùng nội dung ở hai cây (cùng vắng mặt cũng là bằng nhau).
+func sameBlob(ctx context.Context, root, treeA, treeB, rel string) bool {
+	blob := func(tree string) string {
+		out, err := gitrepo.Run(ctx, root, "--literal-pathspecs", "rev-parse", "--verify", "-q", tree+":"+rel)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(out)
+	}
+	return blob(treeA) == blob(treeB)
 }
 
 // ScopeFiles là tập tệp dùng cho kiểm tra phạm vi và `bint task diff` của tác vụ t trên root: Touched
@@ -261,4 +301,21 @@ func ScopeFiles(ctx context.Context, root string, tasks task.Store, t *task.Task
 		return nil, err
 	}
 	return unionSorted(t.State.Touched, out), nil
+}
+
+// PathBatches chia danh sách đường dẫn thành các lô có tổng độ dài (kèm dấu cách) không quá limit.
+func PathBatches(paths []string, limit int) [][]string {
+	var out [][]string
+	var cur []string
+	n := 0
+	for _, p := range paths {
+		if len(cur) > 0 && n+len(p)+1 > limit {
+			out, cur, n = append(out, cur), nil, 0
+		}
+		cur, n = append(cur, p), n+len(p)+1
+	}
+	if len(cur) > 0 {
+		out = append(out, cur)
+	}
+	return out
 }

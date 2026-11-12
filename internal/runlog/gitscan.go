@@ -37,6 +37,11 @@ type gitRun struct {
 	files                    []string
 }
 
+// bintRefExcludes loại ref do Bint tự tạo khỏi `git log --all`: refs/bint/* (cây gốc và base commit của tác vụ) và
+// nhánh bint/<id> của worktree tác vụ (docs/isolation-subagent-plan.md mục 10). Commit "bint base" không phải công
+// việc của người hay agent nên không được tính là commit của lượt chạy. --exclude chỉ có tác dụng với --all đứng sau.
+var bintRefExcludes = []string{"--exclude=refs/bint/*", "--exclude=refs/heads/bint/*"}
+
 // ScanGit gắn commit với lượt chạy (commit chạm tệp lượt đã sửa, trong cửa sổ thời
 // gian sau lượt) và phát hiện commit đó bị hoàn tác ("This reverts commit <sha>").
 // Tín hiệu đến muộn (hoàn tác sau nhiều ngày) cập nhật lại nhãn ở lần quét sau.
@@ -101,8 +106,8 @@ func ScanGit(ctx context.Context, db *sql.DB, repoDir string, opts ScanOptions) 
 		if r.worktree != "" {
 			dir = r.worktree
 		}
-		args := []string{"log", "--all", "--no-merges", "--format=%H %ct",
-			"--since=" + strconv.FormatInt(start.Unix(), 10), "--until=" + strconv.FormatInt(end.Add(opts.CommitWindow).Unix(), 10), "--"}
+		args := append(append([]string{"log"}, bintRefExcludes...), "--all", "--no-merges", "--invert-grep", "--grep=^bint base ", "--format=%H %ct",
+			"--since="+strconv.FormatInt(start.Unix(), 10), "--until="+strconv.FormatInt(end.Add(opts.CommitWindow).Unix(), 10), "--")
 		args = append(args, r.files...)
 		out, err := gitrepo.Run(ctx, dir, args...)
 		if err != nil {
@@ -145,7 +150,8 @@ func ScanGit(ctx context.Context, db *sql.DB, repoDir string, opts ScanOptions) 
 		return res, nil
 	}
 	since := opts.Now.Add(-opts.Lookback - time.Duration(opts.RevertDays)*24*time.Hour)
-	out, err := gitrepo.Run(ctx, repoDir, "log", "--all", "--format=%H %ct%n%B%x1e", "--since="+strconv.FormatInt(since.Unix(), 10))
+	out, err := gitrepo.Run(ctx, repoDir, append(append([]string{"log"}, bintRefExcludes...), "--all", "--format=%H %ct%n%B%x1e",
+		"--since="+strconv.FormatInt(since.Unix(), 10))...)
 	if err != nil {
 		return res, fmt.Errorf("quét hoàn tác: %w", err)
 	}

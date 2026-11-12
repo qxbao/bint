@@ -94,6 +94,10 @@ var litsrUsage = []struct{ file, contains string }{
 	{"app/revalidate.go", "--budget không được âm"},
 	{"app/review.go", "--status: %q không hợp lệ (%s)"},
 	{"app/run_svc.go", "--plan và --no-plan loại trừ nhau"},
+	{"app/run_svc.go", "--worktree và --shared loại trừ nhau"},
+	{"app/run_svc.go", "--worktree/--shared chỉ chọn lúc lập phiếu"},
+	{"app/task_svc.go", "--worktree và --shared loại trừ nhau"},
+	{"workflow/run.go", "--worktree/--shared chỉ chọn lúc lập phiếu"},
 	{"app/skills_svc.go", "--from/--to phải ≥ 0"},
 	{"app/task_diff.go", "--stat và --name-only loại trừ nhau"},
 	{"app/task_svc.go", "--depth standard|deep hàm ý có b-req: không đi cùng --no-plan"},
@@ -114,6 +118,8 @@ var litsrExtTool = []struct{ file, contains string }{
 	{"app/doctor.go", "phiên bản %s; cần >= 2.31 (rev-parse --path-format)"},
 	{"app/evolvesvc/agents.go", "roles.%s=%q: chỉ harness claude khoá được công cụ của %s (--tools \"\"); "},
 	{"app/update.go", "git pull --ff-only trong %s: %w"},
+	{"workflow/land.go", " worktree remove --force "},
+	{"workflow/worktree.go", "dọn tay: git -C %q worktree remove --force %q"},
 	{"eval/agent.go", "--disallowedTools Edit,Write,… + Bint kiểm tra cây làm việc"},
 	{"eval/agent_harness.go", "Codex eval cô lập không dùng --ignore-user-config vì cờ đó bỏ cấu hình chặn user skill"},
 	{"eval/agent_harness.go", "--mode plan + Bint kiểm tra cây làm việc"},
@@ -130,6 +136,7 @@ var litsrSplit = []struct{ file, contains string }{
 var litsrAgentGate = []struct{ file, contains string }{
 	{"app/task_svc.go", " --autonomy auto"},
 	{"workflow/ops.go", "%w: --force"},
+	{"workflow/ops.go", "%w: --discard"},
 }
 
 var litsrCLIOnly = []struct{ file, contains string }{

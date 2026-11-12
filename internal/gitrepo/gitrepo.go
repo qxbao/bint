@@ -125,3 +125,97 @@ func Version(ctx context.Context) (string, error) {
 	}
 	return f[2], nil
 }
+
+// Worktree là một mục của `git worktree list`.
+type Worktree struct {
+	Path   string
+	Head   string
+	Branch string // tên nhánh đầy đủ (refs/heads/...) hoặc ""
+	// Prunable: thư mục đã mất, `git worktree prune` sẽ dọn mục này.
+	Prunable bool
+	Locked   bool
+	Bare     bool
+}
+
+// WorktreeList liệt kê worktree của repository chứa dir (đầu ra porcelain).
+func WorktreeList(ctx context.Context, dir string) ([]Worktree, error) {
+	out, err := Run(ctx, dir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return nil, err
+	}
+	var list []Worktree
+	var cur *Worktree
+	flush := func() {
+		if cur != nil {
+			list = append(list, *cur)
+			cur = nil
+		}
+	}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
+		key, val, _ := strings.Cut(line, " ")
+		switch key {
+		case "worktree":
+			flush()
+			cur = &Worktree{Path: Clean(val)}
+		case "HEAD":
+			if cur != nil {
+				cur.Head = val
+			}
+		case "branch":
+			if cur != nil {
+				cur.Branch = val
+			}
+		case "bare":
+			if cur != nil {
+				cur.Bare = true
+			}
+		case "locked":
+			if cur != nil {
+				cur.Locked = true
+			}
+		case "prunable":
+			if cur != nil {
+				cur.Prunable = true
+			}
+		}
+	}
+	flush()
+	return list, nil
+}
+
+// WorktreeAdd tạo worktree mới ở path trên nhánh mới branch, bắt đầu từ commit.
+func WorktreeAdd(ctx context.Context, dir, path, branch, commit string) error {
+	_, err := Run(ctx, dir, "worktree", "add", "-q", "-b", branch, path, commit)
+	return err
+}
+
+// WorktreeRemove gỡ worktree path (kể cả khi còn thay đổi chưa commit), rồi dọn mục đã mất.
+func WorktreeRemove(ctx context.Context, dir, path string) error {
+	_, err := Run(ctx, dir, "worktree", "remove", "--force", path)
+	if err != nil {
+		// Thư mục đã mất khỏi đĩa: chỉ còn mục quản trị trong .git/worktrees.
+		if _, perr := Run(ctx, dir, "worktree", "prune"); perr == nil {
+			if list, lerr := WorktreeList(ctx, dir); lerr == nil {
+				found := false
+				for _, w := range list {
+					found = found || Clean(w.Path) == Clean(path)
+				}
+				if !found {
+					return nil
+				}
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+// DeleteBranch xoá nhánh (kể cả chưa gộp). Nhánh không tồn tại không phải lỗi.
+func DeleteBranch(ctx context.Context, dir, branch string) error {
+	if _, err := Run(ctx, dir, "rev-parse", "--verify", "-q", "refs/heads/"+branch); err != nil {
+		return nil
+	}
+	_, err := Run(ctx, dir, "branch", "-D", "--", branch)
+	return err
+}

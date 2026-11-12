@@ -105,6 +105,8 @@ type NewTaskOptions struct {
 	Plan *bool
 	// Depth: ""/auto = tự chọn; standard|deep = người dùng chỉ định (hàm ý có b-req; chỉ b-do/b-req).
 	Depth string
+	// Isolation: ""/auto = theo workflow.isolation; shared|worktree = người dùng chỉ định (--shared/--worktree).
+	Isolation string
 }
 
 // NewTask lập phiếu tác vụ từ mô tả tự do (bước Classify).
@@ -157,6 +159,11 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 			cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(o.Request, assess)
 		}
 	}
+	iso, err := e.chooseIsolation(o.Isolation)
+	if err != nil {
+		return nil, task.Assessment{}, err
+	}
+	cls.Isolation, cls.IsolationReason, cls.IsolationTasks = iso.Mode, iso.Reason, iso.Tasks
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
 	if o.Workflow == "b-req" || (o.Workflow == "b-do" && cls.Plan) {
@@ -333,6 +340,8 @@ type TransitionOptions struct {
 	Force bool
 	// Orchestrator: lệnh do chính tiến trình điều phối gọi.
 	Orchestrator bool
+	// Discard: huỷ tác vụ worktree dù còn thay đổi chưa đưa về (chỉ người).
+	Discard bool
 }
 
 // SetStatus chuyển trạng thái tác vụ theo bảng chuyển. Chuyển sang done cần bằng
@@ -344,9 +353,20 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 	if !slices.Contains(task.Statuses, to) {
 		return nil, nil, fmt.Errorf("trạng thái %q không hợp lệ (%s)", to, strings.Join(task.Statuses, ", "))
 	}
+	if o.Discard && !e.Human {
+		return nil, nil, fmt.Errorf("%w: --discard", ErrAgent)
+	}
 	var blockers []string
 	var doneIn task.DoneInput
 	var doneErr error
+	if to == task.StatusCancelled {
+		// Tác vụ worktree còn thay đổi chưa đưa về: huỷ sẽ mất chúng, cần --discard (chỉ người).
+		if t0, err := e.Tasks.Load(ref); err == nil && t0.State.Origin != "" && !task.Terminal(t0.State.Status) {
+			if err := e.checkCancelWorktree(ctx, t0, o.Discard); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
 	if to == task.StatusDone {
 		// Fingerprint tính ở đúng Root của tác vụ (State.Worktree), nên nạp tác vụ trước khi vào khoá.
 		t0, err := e.Tasks.Load(ref)
@@ -377,19 +397,15 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 			}
 		}
 		if to == task.StatusDone {
-			doneIn.VerifyConfirmed = e.VerifyConfirmed(t)
-			blockers = task.DoneBlockers(t, doneIn)
-			// Tính lại từ diff hiện tại, không tin PendingPaths (chỉ Runner điền).
-			pend, err := e.UnapprovedChanges(ctx, t)
-			if doneErr != nil {
-				blockers = append(blockers, doneErr.Error())
-			} else if err != nil {
-				blockers = append(blockers, "không xác định được tệp đã sửa: "+err.Error())
-			} else if len(pend) > 0 {
-				blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
-			}
+			blockers = e.doneBlockersFor(ctx, t, doneIn, doneErr)
 			if len(blockers) > 0 && !o.Force {
 				return &NotDoneError{Blockers: blockers}
+			}
+			// --force không bỏ qua "chưa đưa về": done rồi thì Land từ chối và thay đổi kẹt trong worktree
+			// (doctor lại gợi ý xoá nó). Muốn bỏ thay đổi thì `cancel --discard`.
+			if t.State.NeedsLand() {
+				return &NotDoneError{Blockers: append(blockers, "cờ ép không bỏ qua việc đưa về cây gốc: `bint task land "+
+					t.State.ID+"`, hoặc người huỷ bằng `bint task cancel "+t.State.ID+"` để bỏ thay đổi")}
 			}
 		}
 		reason := o.Reason
@@ -407,6 +423,9 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 			gitrepo.Run(ctx, root, "update-ref", "-d", baseRef(t.State.ID))
 		}
 	}
+	if to == task.StatusCancelled {
+		e.removeWorktreeAfterCancel(ctx, t)
+	}
 	e.emit(t, spool.TaskStatus, map[string]any{"status": to, "reason": o.Reason, "forced": o.Force && len(blockers) > 0})
 	return t, blockers, nil
 }
@@ -415,13 +434,18 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 // ProtectedApproval. Tệp của tác vụ là Touched nếu có theo dõi, ngược lại toàn bộ thay đổi so với
 // base (phiếu cũ); tính ở Root của tác vụ.
 func (e *Env) UnapprovedChanges(ctx context.Context, t *task.Task) ([]string, error) {
-	root, err := e.RootFor(t)
-	if err != nil {
-		return nil, err
-	}
-	files, err := ScopeFiles(ctx, root, e.Tasks, t, e.Cfg.Limits.ProtectedPaths)
-	if err != nil {
-		return nil, err
+	var files []string
+	if t.State.Landed != nil {
+		// Đã đưa về (worktree có thể đã gỡ): tập tệp là bản lưu lúc đưa về; cổng done đã kiểm chúng ở worktree.
+		files = t.State.Landed.Files
+	} else {
+		root, err := e.RootFor(t)
+		if err != nil {
+			return nil, err
+		}
+		if files, err = ScopeFiles(ctx, root, e.Tasks, t, e.Cfg.Limits.ProtectedPaths); err != nil {
+			return nil, err
+		}
 	}
 	sc := task.CheckScope(files, t.Ticket, e.Cfg.Limits.ProtectedPaths)
 	approved := ApprovedPaths(t)
@@ -443,6 +467,11 @@ func (e *Env) UnapprovedChanges(ctx context.Context, t *task.Task) ([]string, er
 // DoneInput còn dùng được.
 func (e *Env) DoneInputFor(ctx context.Context, t *task.Task) (task.DoneInput, error) {
 	in := task.DoneInput{VerifyConfirmed: e.VerifyConfirmed(t)}
+	if l := t.State.Landed; l != nil {
+		in.Worktree = l.Fingerprint // worktree có thể đã gỡ: dùng bản lưu lúc đưa về
+		in.LandConflicts = landConflictsLeft(t)
+		return in, nil
+	}
 	root, err := e.RootFor(t)
 	if err != nil {
 		return in, err
@@ -456,7 +485,7 @@ func (e *Env) DoneInputFor(ctx context.Context, t *task.Task) (task.DoneInput, e
 // khác) để thông báo chặn done chỉ rõ. Đắt hơn (chụp cây + diff) nên chỉ dùng ở SetStatus(done).
 func (e *Env) DoneInputDetailed(ctx context.Context, t *task.Task) (task.DoneInput, error) {
 	in, err := e.DoneInputFor(ctx, t)
-	if err != nil {
+	if err != nil || t.State.Landed != nil {
 		return in, err
 	}
 	root, _ := e.RootFor(t)

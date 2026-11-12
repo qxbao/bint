@@ -204,7 +204,7 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 	case shown == 0:
 		body = "\n " + th.S(theme.Muted, m.t("tk.empty_filtered"))
 	default:
-		widths := list.Widths(iw-2, 1, []int{1, 11, 6, 0})
+		widths := list.Widths(iw-2, 1, []int{1, 11, 6, 4, 0})
 		body = m.lst.Render(iw, ih, func(i int, cursor bool) string {
 			r := m.rows[i]
 			if r.t == nil {
@@ -215,7 +215,7 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 			if m.o.Jobs.ForTask(t.State.ID) != nil {
 				glyph, role = "⟳", theme.Key
 			}
-			line := list.Row(widths, 1, th.S(role, glyph), m.statusName(t.State.Status), th.S(theme.Muted, short(t.State.ID)[max(len(short(t.State.ID))-6, 0):]), t.Ticket.Goal)
+			line := list.Row(widths, 1, th.S(role, glyph), m.statusName(t.State.Status), th.S(theme.Muted, short(t.State.ID)[max(len(short(t.State.ID))-6, 0):]), th.S(theme.Muted, isolationGlyph(t)), t.Ticket.Goal)
 			if cursor {
 				return th.S(theme.Key, "▸ ") + th.Selected(stripColor(th, line))
 			}
@@ -223,6 +223,18 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 		})
 	}
 	return frame.Box{Title: title, TitleAt: frame.Left, Pane: "list", Focused: m.pane == paneList, Top: chips}.Render(th, w, h, body)
+}
+
+// isolationGlyph là ký hiệu chế độ cô lập ở cột riêng của danh sách: "·" chạy thẳng trên cây, "wt" worktree riêng
+// (đã có hoặc sẽ có), "wt✓" worktree đã đưa về cây gốc.
+func isolationGlyph(t *task.Task) string {
+	switch {
+	case t.State.Landed != nil:
+		return "wt✓"
+	case t.State.Isolation() == task.IsolationWorktree:
+		return "wt"
+	}
+	return "·"
 }
 
 func (m *Model) statusName(s string) string {

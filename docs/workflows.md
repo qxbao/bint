@@ -39,6 +39,9 @@ bint task set <id> --verify-command "go test ./internal/db/..." \
 bint task transitions                           # bảng chuyển trạng thái
 bint task write <id> requirement|plan|tasks -   # ghi tài liệu qua stdin
 bint task diff <id> [--stat|--name-only]        # thay đổi của RIÊNG tác vụ (không lẫn tác vụ khác / thay đổi có sẵn)
+bint task new --worktree|--shared "<mô tả>"     # chọn nơi chạy lúc lập phiếu (mặc định theo workflow.isolation)
+bint task land <id> [--3way] [--keep]           # tác vụ worktree: đưa thay đổi về cây gốc (chưa commit); --3way chỉ NGƯỜI
+bint task cancel <id> [--reason …] [--discard]  # huỷ; tác vụ worktree: gỡ worktree (--discard chỉ NGƯỜI nếu còn thay đổi chưa đưa về)
 bint task lint <id> [--strict] [--json]         # kiểm ba tài liệu b-req theo hợp đồng v1 (AC↔TSK, câu hỏi mở)
 bint task verify <id>                           # chạy lệnh kiểm chứng (chỉ khi người đã xác nhận)
 bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí chấp nhận
@@ -300,6 +303,59 @@ nhiều agent song song) chưa có.
   dòng thiếu `prev_sha256`, sửa tệp trực tiếp không qua Bint. Hook không
   ghi vào nhật ký. TUI hiện dòng "<bước> của <tác vụ> đang chạy trên cây này" ở thanh trên khi cây có bước đang
   chạy (đọc tệp chủ khoá, thăm dò 3 giây); thao tác ghi vẫn được phép.
+- **Mỗi tác vụ một worktree (`workflow.isolation`, docs/isolation-subagent-plan.md G2).** Một tác vụ có thể
+  chạy trong worktree Git riêng do Bint tạo để hai tác vụ trên cùng một repo chạy **song song thật** (khoá của
+  chúng khác nhau, không chờ nhau) mà thay đổi vẫn về cây đã lập phiếu dưới dạng chưa commit:
+  - *Chọn chế độ, một lần lúc lập phiếu* (`Classification.isolation` = `shared` | `worktree`, kèm
+    `isolation_reason` = `concurrent_task` | `user` | `config` | `default` và `isolation_tasks`): cờ `--worktree` /
+    `--shared` (loại trừ nhau; không dùng cùng `--task`) → `workflow.isolation`. Với `auto`: có tác vụ **khác** chưa
+    `done`/`cancelled` mà `State.Worktree` là cây hiện tại và đang `shared` (phiếu cũ không ghi chế độ = `shared`) ⇒
+    `worktree` (`concurrent_task`, kèm ID tác vụ đó; tác vụ bỏ dở cũng tính, huỷ chúng bằng `bint task cancel`);
+    ngược lại `shared`. `task new --json` có `isolation`, `isolation_reason`, `isolation_tasks` ở cấp trên; `resume`
+    không chọn lại.
+  - *Tạo lười ở lượt `bint run` đầu tiên* (mọi workflow, kể cả `b-req`), sau khi nhận quyền điều phối: ảnh chụp cây
+    gốc (gồm thay đổi chưa commit và tệp mới) dưới khoá chia sẻ → commit `bint base <id>` (cha `HEAD`) →
+    `refs/bint/tasks/<id>/base` → `git worktree add -b bint/<id> <state>/worktrees/<id>` → chép tệp cục bộ do
+    Bint quản lý và tệp khớp `workflow.worktree.copy` → `workflow.worktree.setup_command`. Nhờ ảnh chụp, agent thấy
+    đúng nội dung đang sửa dở ở cây gốc. Lỗi ở bước nào thì dọn phần đã tạo, tác vụ `failed` (nêu đường dẫn nhật ký
+    của `setup_command`), `resume` tạo lại. Thành công: `State.Origin` = cây gốc, `State.Worktree` = worktree,
+    `State.Branch` = `bint/<id>`, `State.Base` = base commit; mọi bước, khoá, ảnh chụp, kiểm chứng sau đó chạy ở
+    worktree (đề bài nêu "Thư mục làm việc"). Ref base dùng chung tên với `base_tree` của G1: ở `b-feat` đầu ref
+    trỏ vào commit `base_tree` cha là base commit, nên base vẫn tới được qua chuỗi cha và qua nhánh `bint/<id>`.
+  - *Đưa về* — `bint task land <id>`: bản vá nhị phân `git diff --binary` từ base tới ảnh chụp worktree, giới hạn
+    trong tệp của tác vụ (`touched`; phiếu không theo dõi thì mọi thay đổi so với base), lấy **khoá độc quyền của
+    cây gốc** (chờ như Runner), `git apply --check` rồi `git apply` **không `--index`**: HEAD và chỉ mục của bạn
+    không đổi. Chỉ đưa về khi điều kiện `done` (trừ chính việc đưa về) đã đủ — kiểm ở worktree vì sau khi gỡ không
+    còn chỗ chạy kiểm chứng — và tác vụ không đang được `bint run` khác điều phối. Không áp sạch ⇒ cây gốc **không
+    bị đụng**, lỗi liệt kê tệp xung đột. `--3way` (**chỉ người**, `ErrAgentForbidden`): phần sạch vẫn áp, tệp xung
+    đột trộn bằng `git merge-file` (cây gốc / base / worktree) và để lại dấu `<<<<<<<` để người gỡ; tệp nhị phân
+    hoặc bị xoá/sửa ở một phía giữ nguyên (`Landed.Unmerged`) — lúc đó worktree **được giữ lại** dù không có `--keep`
+    vì bản của tác vụ chỉ còn ở đó (lấy bằng `git -C <worktree> show <mã cây>:<tệp>`). Sau `--3way`, `done` bị chặn
+    tới khi các tệp trong `Landed.Conflicts` hết dấu `<<<<<<<` (rồi `bint run resume`); tệp không trộn được thì
+    người xử lý xong chạy `bint task status <id> done --force`. (Không dùng `git apply --3way` vì lệnh đó ngầm ghi
+    chỉ mục; `git apply` chạy với `LC_ALL=C` để đọc được thông báo lỗi.)
+    Thành công: `State.Landed` (thời điểm, người, tệp, tệp xung đột, fingerprint và mã cây lúc đưa về), gỡ worktree,
+    nhánh `bint/<id>`, ref base, tệp khoá của worktree (`--keep` giữ worktree). Gỡ lỗi (Windows giữ tệp…) thì ghi chú
+    "dọn tay: <lệnh git>" và `Landed` vẫn ghi. Tác vụ đã đưa về dùng bản lưu trong `Landed` cho cổng `done`,
+    `task diff`, kiểm tra phạm vi (worktree có thể đã gỡ).
+  - *Finalize của `b-do`*: kiểm điều kiện `done` (ở worktree) → `land` → `done`. Xung đột ⇒ `blocked` với lý do bắt đầu
+    bằng "xung đột khi đưa về: <tệp>" kèm hướng dẫn; `State.awaiting_land` được đặt nên `resume` vào thẳng finalize
+    (không chạy lại `b-review`). `bint task status <id> done` của tác vụ worktree bị chặn khi chưa đưa về và
+    `--force` **không** bỏ qua điều này (done rồi thì không đưa về được nữa); chạy từng bước thì
+    `bint task land <id>` rồi `done`; muốn bỏ thay đổi thì `bint task cancel <id> --discard`. Báo cáo ghi rõ kiểm chứng đã chạy trên cây cô lập và cây gốc có
+    thể còn thay đổi khác chưa được kiểm cùng.
+  - *Huỷ* — `bint task cancel <id> [--reason] [--discard]` (và `task status <id> cancelled`, cùng đường): gỡ
+    worktree, nhánh, ref, tệp khoá. Worktree còn thay đổi chưa đưa về ⇒ cần `--discard` (**chỉ người**).
+  - *Quan sát*: `bint run status <id>` và `bint task show <id>` hiện chế độ, đường dẫn worktree, nhánh, cây gốc,
+    trạng thái đưa về (`--json`: `isolation`, `worktree`, `branch`, `origin`, `landed`); `bint doctor` báo
+    **worktree mồ côi** (thư mục trong `<state>/worktrees` không ứng với tác vụ chưa kết thúc, worktree còn giữ bằng
+    `--keep`, mục `prunable` của `git worktree list`) kèm lệnh git để dọn tay — doctor không tự xoá. TUI: phím `o`
+    (đưa về) và `x` (huỷ) ở màn Tác vụ, cột chế độ cô lập (`wt`, `wt✓` đã đưa về), ô `--worktree`/`--shared` ở form
+    `task new` và `run`. Quét commit của runlog (`gitscan`) bỏ qua `refs/bint/*`, nhánh `bint/*` và commit "bint base".
+  - *Giới hạn đã biết*: kiểm chứng của tác vụ `shared` giữ fingerprint toàn cây nên khi tác vụ `worktree` đưa về trước
+    lúc nó finalize thì kết quả cũ mất hiệu lực (cần verify lại); tệp tác vụ khác đã đưa về cây này không bị quy cho
+    tác vụ `shared` chừng nào chưa bị sửa tiếp (blob khác thì bị tính). `WritableDirs` của agent là cả thư mục trạng
+    thái nên về lý thuyết ghi được worktree của tác vụ khác (chưa thu hẹp). Tạo worktree chưa chạy thử trên Windows.
 - Codex chạy mọi bước trong sandbox `workspace-write` kèm `--add-dir <thư mục trạng thái>` để lệnh
   `bint task …` ghi được; agent nhận `BINT_RUNNER_PID` để không nhầm tiến trình điều phối (bị sandbox
   che PID) là đã chết.
@@ -326,12 +382,11 @@ Giới hạn đã biết của P4–P5:
 
 - Classify của `bint task new` là heuristic từ khoá; phân loại bằng mô hình do orchestrator của `/b-do`
   đảm nhận (truyền `--plan`/`--no-plan`/`--depth`), `bint run` gọi trực tiếp thì vẫn theo heuristic.
-- Chưa tự động tạo worktree riêng cho từng tác vụ (docs/isolation-subagent-plan.md G2); chưa xuất tài liệu
-  sang `docs/spec/<feature>/`.
+- Chưa xuất tài liệu sang `docs/spec/<feature>/`.
 - Trên worktree chung, người sửa đúng tệp mà `b-feat` đang sửa trong lúc nó chạy thì phần sửa bị tính cho
   tác vụ (không phân biệt được ai sửa). Người sửa tệp khác **bằng IDE hoặc công cụ ngoài Bint** trong lúc bước
   chỉ đọc chạy vẫn làm bước đó `failed` ("nếu chính bạn sửa trong lúc bước chạy: bint run resume"): chỉ thay đổi đi
-  qua Bint mới được miễn (xem trên). Muốn vừa sửa vừa để agent chạy thì cần worktree riêng (G2).
+  qua Bint mới được miễn (xem trên). Muốn vừa sửa vừa để agent chạy thì dùng worktree riêng (`--worktree` hoặc `workflow.isolation: worktree`).
 - Nhật ký ghi `writes.jsonl` nằm trong thư mục trạng thái mà bước chỉ đọc được ghi, nên agent cố tình có thể
   chèn dòng giả (đúng `path`, `sha256` của nội dung nó vừa ghi, `agent: false`) để được miễn. Chấp nhận: mục
   đích là tránh chặn nhầm người, không chống agent cố ý; lớp chặn chính của bước chỉ đọc vẫn là

@@ -139,6 +139,15 @@ func taskActions() []Action {
 			withT("tasks.diff", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
 				return app.DiffTask(ctx, ws, o.(app.TaskDiffOptions))
 			})),
+		// Đưa thay đổi của tác vụ worktree về cây gốc; --3way chỉ người (dịch vụ chặn bằng RequireHuman).
+		mk("tasks.land", "land", "o", false, 8, "task land", app.TaskLandOptions{}, true, false,
+			withT("tasks.land", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
+				return app.LandTask(ctx, ws, o.(app.TaskLandOptions))
+			})),
+		mk("tasks.cancel", "cancel", "x", false, 8, "task cancel", app.TaskCancelOptions{}, true, false,
+			withT("tasks.cancel", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
+				return app.CancelTask(ctx, ws, o.(app.TaskCancelOptions))
+			})),
 		mk("tasks.transitions", "transitions", "T", false, 9, "task transitions", nil, false, false, nil),
 		mk("tasks.list", "list", "A", true, 7, "task list", app.TaskListOptions{}, false, false, nil),
 		mk("tasks.show", "show", "Enter", true, 2, "task show", app.TaskShowOptions{}, false, false, nil),

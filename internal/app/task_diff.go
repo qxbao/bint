@@ -72,7 +72,19 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		return res, err
 	}
 	var spec []string
+	var landedTree string
 	switch {
+	case t.State.Landed != nil && t.State.Landed.Tree != "":
+		// Đã đưa về cây gốc (worktree có thể đã gỡ): so mốc ban đầu với ảnh chụp lúc đưa về, trên tệp đã đưa về.
+		res.From, landedTree = t.State.BaseTree, t.State.Landed.Tree
+		if res.From == "" {
+			res.From = t.State.Base
+		}
+		if spec = t.State.Landed.Files; len(spec) == 0 {
+			res.Note = "tác vụ đã đưa về cây gốc nhưng không có tệp nào"
+			return res, nil
+		}
+		res.Note = "tác vụ đã đưa về cây gốc: diff giữa mốc đầu và ảnh chụp lúc đưa về"
 	case t.State.TracksTouched():
 		res.From = t.State.BaseTree
 		if spec, err = workflow.ScopeFiles(ctx, root, ws.Tasks, t, ws.Cfg.Limits.ProtectedPaths); err != nil {
@@ -94,9 +106,11 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		res.Note = fmt.Sprintf("phiếu lập trước khi Bint theo dõi tệp riêng của từng tác vụ: so commit %s với cây hiện tại "+
 			"trên toàn cây (có thể lẫn thay đổi không thuộc tác vụ này)", shortRev(res.From))
 	}
-	cur, err := workflow.WorktreeSnapshot(ctx, root)
-	if err != nil {
-		return res, fmt.Errorf("chụp cây làm việc: %w", err)
+	cur := landedTree
+	if cur == "" {
+		if cur, err = workflow.WorktreeSnapshot(ctx, root); err != nil {
+			return res, fmt.Errorf("chụp cây làm việc: %w", err)
+		}
 	}
 	// Không đưa spec vào dòng lệnh git: tác vụ sửa hàng trăm tệp vượt giới hạn dòng lệnh (Windows 32 KB).
 	// Liệt kê toàn bộ rồi lọc theo spec trong Go; diff đầy đủ thì chia lô pathspec.
@@ -148,21 +162,7 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 const maxPathspecBytes = 16000
 
 // pathBatches chia danh sách đường dẫn thành các lô có tổng độ dài (kèm dấu cách) không quá limit.
-func pathBatches(paths []string, limit int) [][]string {
-	var out [][]string
-	var cur []string
-	n := 0
-	for _, p := range paths {
-		if len(cur) > 0 && n+len(p)+1 > limit {
-			out, cur, n = append(out, cur), nil, 0
-		}
-		cur, n = append(cur, p), n+len(p)+1
-	}
-	if len(cur) > 0 {
-		out = append(out, cur)
-	}
-	return out
-}
+func pathBatches(paths []string, limit int) [][]string { return workflow.PathBatches(paths, limit) }
 
 func shortRev(s string) string {
 	if len(s) > 10 {

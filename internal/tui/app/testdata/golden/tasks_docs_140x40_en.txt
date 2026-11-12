@@ -5,12 +5,12 @@
 │   Ticket · Documents · Criteria · Verify · Review · Errors · Runs                                                                        │
 │ ┌─│Tasks (4/6)│──────────────────────────────no filter─┐┌─│Details · 01TASK1│──────────────────────────────────────────────────────────┐ │
 │ │  Waiting for you (2)                                 ││  •requirement  •plan  •tasks                                                 │ │
-│ │ ▸ ! blocked     1TASK1 Thêm cột email                ││ ! [ac_gap] tasks.md: AC-2 chưa có TSK                                        │ │
-│ │   ✗ failed      1TASK2 Đổi cách tính phí             ││                                                                              │ │
+│ │ ▸ ! blocked     1TASK1 ·    Thêm cột email           ││ ! [ac_gap] tasks.md: AC-2 chưa có TSK                                        │ │
+│ │   ✗ failed      1TASK2 ·    Đổi cách tính phí        ││                                                                              │ │
 │ │  In progress (1)                                     ││ ── requirement.md                                                            │ │
-│ │   ▶ in progress 1TASK4 Thêm màn Tác vụ               ││   ──────────────────────────────────────────────────────────                 │ │
+│ │   ▶ in progress 1TASK4 ·    Thêm màn Tác vụ          ││   ──────────────────────────────────────────────────────────                 │ │
 │ │  Up next (1)                                         ││ Yêu cầu                                                                      │ │
-│ │   ◌ planned     1TASK5 Viết tài liệu cài đặt         ││ ───────                                                                      │ │
+│ │   ◌ planned     1TASK5 ·    Viết tài liệu cài đặt    ││ ───────                                                                      │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││ Tiêu chí chấp nhận                                                           │ │
 │ │                                                      ││ ──────────────────                                                           │ │

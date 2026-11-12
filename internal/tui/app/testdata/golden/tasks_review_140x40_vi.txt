@@ -5,12 +5,12 @@
 │   Phiếu · Tài liệu · Tiêu chí · Kiểm chứng · Review · Lỗi · Lượt chạy                                                                    │
 │ ┌─│Tác vụ (4/6)│──────────────────────────────chưa lọc─┐┌─│Chi tiết · 01TASK1│─────────────────────────────────────────────────────────┐ │
 │ │  Chờ bạn (2)                                         ││ Vòng 1/1 · 2026-11-11 09:30 · agent                                          │ │
-│ │ ▸ ! bị chặn     1TASK1 Thêm cột email                ││ Hai điểm cần sửa                                                             │ │
-│ │   ✗ thất bại    1TASK2 Đổi cách tính phí             ││                                                                              │ │
+│ │ ▸ ! bị chặn     1TASK1 ·    Thêm cột email           ││ Hai điểm cần sửa                                                             │ │
+│ │   ✗ thất bại    1TASK2 ·    Đổi cách tính phí        ││                                                                              │ │
 │ │  Đang làm (1)                                        ││ ── 3 phát hiện                                                               │ │
-│ │   ▶ đang làm    1TASK4 Thêm màn Tác vụ               ││   ─────────────────────────────────────────────────────────────              │ │
+│ │   ▶ đang làm    1TASK4 ·    Thêm màn Tác vụ          ││   ─────────────────────────────────────────────────────────────              │ │
 │ │  Sắp làm (1)                                         ││ ▸ [nghiêm trọng] Không đóng kết nối  internal/db/db.go:4-5                   │ │
-│ │   ◌ sẵn sàng    1TASK5 Viết tài liệu cài đặt         ││   [vừa]       Khoá ghi quá rộng  README.md:1                                 │ │
+│ │   ◌ sẵn sàng    1TASK5 ·    Viết tài liệu cài đặt    ││   [vừa]       Khoá ghi quá rộng  README.md:1                                 │ │
 │ │                                                      ││   [thấp]      Đặt tên biến rõ hơn  internal/db/db.go:3                       │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││ ── 01TASK1.2                                                                 │ │

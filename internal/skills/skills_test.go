@@ -137,3 +137,32 @@ func TestCoreSkillBReviewUsesTaskDiff(t *testing.T) {
 		}
 	}
 }
+
+// G2 (docs/isolation-subagent-plan.md 5.5): b-do chọn chế độ cô lập, báo nơi chạy, xử lý xung đột khi đưa về và
+// `task land` trước `done` khi chạy từng bước; b-review và b-feat nhắc cwd là worktree của tác vụ.
+func TestCoreSkillsMentionWorktreeIsolation(t *testing.T) {
+	want := map[string][]string{
+		"b-do": {"isolation_reason", "concurrent_task", "--worktree", "--shared", "bint task land <id>", "xung đột khi đưa về",
+			"--3way", "chỉ người", "bint task cancel <id>", "landed", "cây cô lập"},
+		"b-review": {"worktree riêng", "bint task diff <id>", "không `bint task land`"},
+		"b-feat":   {"worktree riêng", "bint/<id>", "bint run b-do|b-feat --task <id>"},
+	}
+	for name, subs := range want {
+		sk, ok := Get(name)
+		if !ok {
+			t.Fatalf("thiếu skill %s", name)
+		}
+		for _, s := range subs {
+			if !strings.Contains(sk.Body(), s) {
+				t.Errorf("%s thiếu %q", name, s)
+			}
+		}
+	}
+	// Orchestrator không được tự chạy --3way / --discard (chỉ người).
+	b, _ := Get("b-do")
+	for _, l := range strings.Split(b.Body(), "\n") {
+		if tl := strings.TrimSpace(l); strings.HasPrefix(tl, "bint task land <id> --3way") || strings.HasPrefix(tl, "bint task cancel <id> --discard") {
+			t.Fatalf("b-do chỉ dẫn lệnh chỉ-người như việc của orchestrator: %q", l)
+		}
+	}
+}

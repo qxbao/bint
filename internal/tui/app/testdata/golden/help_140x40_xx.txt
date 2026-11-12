@@ -27,7 +27,7 @@
 │                           │  r       ⟦Reject a pending item (→ deprecated, asks for a reason)~~~~~~~~~~~~~~… │                           │
 │                           │  d       ⟦Remove an item (→ deprecated, a reason is required)~~~~~~~~~~~~~~~~~~… │                           │
 │                           │  A       ⟦Approve in bulk (selected items or the whole filtered list); items wi… │                           │
-│                           └───────────────────────────────────────────────────────────────────⟦1–24/177 ↕~~⟧─┘                           │
+│                           └───────────────────────────────────────────────────────────────────⟦1–24/179 ↕~~⟧─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

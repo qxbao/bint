@@ -75,12 +75,32 @@ giữa lượt.
 <!-- bint:anchor routing -->
 <!-- bint:anchor-end routing -->
 
+## Bước 1b — Chế độ cô lập (chạy ở đâu)
+
+Bint chọn **một lần lúc lập phiếu**, ghi vào phiếu: `shared` (agent sửa thẳng trên cây đang làm,
+người dùng thấy thay đổi ngay trong IDE) hay `worktree` (tác vụ chạy trong worktree Git riêng, thay đổi
+chỉ về cây này khi xong, dưới dạng chưa commit). JSON của `bint task new` có `isolation`,
+`isolation_reason` (`concurrent_task` | `user` | `config` | `default`) và `isolation_tasks`.
+
+- Mặc định (`workflow.isolation: auto`): cây đang có tác vụ khác chưa kết thúc thì phiếu mới tự vào
+  `worktree` (`isolation_reason: concurrent_task`, `isolation_tasks` liệt kê các tác vụ đó). Nếu danh
+  sách đó có tác vụ **bỏ dở** (`failed`/`blocked` lâu ngày), nói người dùng và hỏi có huỷ chúng
+  không (`bint task cancel <id>`), đừng tự huỷ.
+- Người dùng nói **chạy song song** / "trong lúc tôi đang sửa" / "đừng đụng cây đang làm": lập phiếu
+  bằng `--worktree`. Người dùng muốn thấy thay đổi ngay trên cây: `--shared`. Hai cờ này chỉ dùng lúc lập
+  phiếu (không đi cùng `--task`); phiếu đã lập thì không đổi chế độ, muốn đổi thì huỷ và lập lại.
+- **Báo người dùng tác vụ chạy ở đâu**: `shared` (cây hiện tại) hay `worktree` (worktree sẽ được tạo ở
+  lần `bint run` đầu; đường dẫn, nhánh `bint/<id>` có trong `bint run status <id>`).
+
 ## Bước 2 — Giao việc cho các agent
 
 ```sh
 bint run b-do --task <id> --json            # đường đi đã chốt ở phiếu, không cần lặp lại cờ
 ```
 
+- Tác vụ `worktree`: `bint run` tự tạo worktree ở lần chạy đầu, chạy mọi bước trong đó, và ở bước
+  Finalize **đưa thay đổi về cây này** (`bint task land`) rồi mới `done`. Verify đã chạy trên cây cô
+  lập: nói rõ điều đó khi báo cáo (cây gốc có thể còn thay đổi khác chưa được kiểm cùng).
 - Lệnh chạy lâu: mỗi bước tới `workflow.timeout_minutes`. Chạy **nền** nếu harness cho phép (rồi
   chờ thông báo kết thúc, đừng hỏi dồn), không thì đặt timeout đủ dài. Trong lúc chờ, tiến độ xem
   bằng `bint run status <id>`. Không khởi chạy lần thứ hai trên cùng tác vụ.
@@ -92,7 +112,9 @@ bint run b-do --task <id> --json            # đường đi đã chốt ở phi�
   bước và chờ người dùng đồng ý trước bước sau. Khi chạy từng bước, vòng sửa theo review và bước
   hoàn thành do bạn gọi: còn phát hiện `bug` mức `critical`/`high` thì
   `bint task status <id> in_progress --reason "sửa theo review"` rồi chạy lại b-feat, tối đa
-  `workflow.max_review_rounds` vòng. Hết vòng thì dừng; xong thì `bint task status <id> done --reason "…"`.
+  `workflow.max_review_rounds` vòng. Hết vòng thì dừng. Xong: tác vụ `worktree` thì
+  `bint task land <id> --json` trước (đưa về cây gốc; xung đột xem Bước 3), rồi
+  `bint task status <id> done --reason "…"`; tác vụ `shared` thì `bint task status <id> done --reason "…"`.
 
 JSON kết quả có `task_status`, `reason`, `questions`, `planning_issues`, `notes` và `steps` (mỗi
 bước kèm `harness`, `model`, `status`, `cost_usd`).
@@ -102,6 +124,12 @@ bước kèm `harness`, `model`, `status`, `cost_usd`).
 Đọc `reason`/`questions`, hỏi **người dùng**, ghi câu trả lời rồi tiếp tục bằng
 `bint run resume <id> --json`:
 
+- **Xung đột khi đưa về** (`reason` bắt đầu bằng `xung đột khi đưa về: <tệp>`, tác vụ `worktree`): cây gốc
+  KHÔNG bị đụng; thay đổi của tác vụ vẫn nằm ở worktree. Báo người dùng các tệp xung đột và hai lối ra,
+  rồi chờ họ làm: (1) họ sửa các tệp đó ở cây gốc cho khớp rồi `bint run resume <id>` (hoặc
+  `bint task land <id>`); (2) họ tự chạy `bint task land <id> --3way` trong terminal (để lại dấu xung đột
+  trong tệp để họ gỡ; **chỉ người** dùng được `--3way`, bạn không chạy nó). `resume` sau đó vào thẳng
+  Finalize, không chạy lại review. Không tự sửa tệp ở cây gốc để "gỡ" xung đột.
 - **Câu hỏi mở của b-req** (`bint task lint <id>` báo `open_questions`): ghi câu trả lời vào
   `requirement.md` (`- [x] Q-1: … — Trả lời: …`) qua `bint task write <id> requirement -`.
 - **Artifact b-req lỗi cấu trúc** (`planning_issues`): sửa theo `bint task lint <id>` qua
@@ -122,3 +150,8 @@ phiên này (không có mạng, không tạo được tiến trình) thì đề 
 Khi `task_status` là `done` (hoặc dừng hẳn), báo: task ID; các bước đã chạy hoặc bỏ qua và lý do;
 mỗi bước do agent nào (`harness/model`) chạy, chi phí; tệp đã sửa (`git status`); kết quả kiểm
 chứng; phát hiện review còn mở; việc người dùng cần làm (duyệt, xác nhận lệnh kiểm chứng…).
+
+Tác vụ `worktree` báo thêm: worktree đã chạy ở đâu (`worktree`, `branch` trong `bint run status <id> --json`),
+**đã đưa về cây gốc chưa** (`landed`, `landed_files`), tệp xung đột còn phải gỡ (nếu có), và kiểm chứng đã
+chạy trên cây cô lập chứ không phải trên cây gốc. Muốn dọn bỏ tác vụ worktree dở thì
+`bint task cancel <id>` (còn thay đổi chưa đưa về thì chỉ người dùng `--discard` được).
