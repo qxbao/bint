@@ -49,6 +49,9 @@ var serviceBindings = map[string]any{
 	// M1 của kế hoạch MCP gateway: màn MCP thuộc M4 nên các lệnh chỉ có dịch vụ + binding (phủ cờ vẫn được kiểm).
 	"mcp list": app.MCPListOptions{}, "mcp add": app.MCPAddOptions{}, "mcp remove": app.MCPRemoveOptions{},
 	"mcp check": app.MCPCheckOptions{}, "mcp index": app.MCPIndexOptions{}, "mcp grants": app.MCPGrantsOptions{},
+	// M2: daemon gateway (màn MCP thuộc M4).
+	"mcp gateway start": app.MCPGatewayStartOptions{}, "mcp gateway stop": app.MCPGatewayStopOptions{},
+	"mcp gateway status": app.MCPGatewayStatusOptions{}, "mcp gateway restart": app.MCPGatewayRestartOptions{},
 	// Giai đoạn 5b: init (11 cờ) và update. hasAction chỉ giữ hành động cuối của mỗi CLIPath nên binding bảo đảm phủ cờ không
 	// phụ thuộc thứ tự khai báo của các hành động dùng chung lệnh `init`.
 	"init": app.InitFlagOptions{}, "update": app.UpdateOptions{},

@@ -111,6 +111,14 @@ func TestCatalogSpecifics(t *testing.T) {
 	if g, _ := sp.Group("mock"); !g.Exclusive {
 		t.Error("specmatic.mock phải độc quyền")
 	}
+	if g, _ := sp.Group("contract"); g.MaxConcurrent != 1 {
+		t.Errorf("specmatic.contract chạy tối đa một lời gọi đồng thời mỗi phân vùng, có %d", g.MaxConcurrent)
+	}
+	for _, g := range sp.Groups {
+		if g.Name != "contract" && g.MaxConcurrent != 0 {
+			t.Errorf("specmatic.%s không khai báo giới hạn đồng thời, có %d", g.Name, g.MaxConcurrent)
+		}
+	}
 	if sp.Cwd != CwdState || sp.DefaultArgs["backward_compatibility_check"]["repoDir"] != WorktreePlaceholder {
 		t.Errorf("specmatic: %+v", sp)
 	}

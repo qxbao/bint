@@ -1,6 +1,6 @@
 # Kế hoạch: gateway MCP dùng chung và cấp MCP theo role
 
-Trạng thái: **đã chốt hướng** (2026-11-12), chưa triển khai. Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
+Trạng thái: **đã chốt hướng** (2026-11-12). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3–M5 chưa.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
 các bước `bint run`, sửa ngay được), M1 (danh mục, cấu hình hai tầng, API/CLI quản lý), M2 (daemon
 gateway), M3 (cửa vào gộp và cấp quyền theo role), M4 (màn TUI), M5 (đo).
 Quyết định ở §3, kết quả xác minh ở §10. Chỉ còn S3 (harness xử lý thế nào khi chính shim chết), kiểm thử
@@ -280,6 +280,41 @@ ghim.
 không dùng chung tiến trình `worktree`; kill upstream thì lời gọi sau khởi động lại với generation mới;
 Host/Origin/token sai bị 403/401; `compat` của specmatic không truyền `repoDir` vẫn chạy đúng worktree;
 chạy trên Linux và Windows (CI).
+
+### Trạng thái M2 (đã làm 2026-11-13)
+
+Gói `internal/mcpgw`; lệnh `bint mcp gateway start|stop|status|restart <service>` (`docs/workflows.md`, mục "Quản lý MCP").
+Nghiệm thu bằng test tự động với upstream giả (re-exec binary test): 6 client cùng id, hai worktree khác tiến trình,
+kill upstream thì generation mới, Host/Origin/token sai bị 403/401, điền `repoDir`, khoá exclusive, retry HTTP, ghi
+`mcp.called`. **Chưa làm:** chạy với codegraph/specmatic/deepwiki thật trên máy và Job Object trên Windows thật (CI chỉ
+biên dịch và vet `GOOS=windows`) — người làm ở nghiệm thu thật.
+
+Các điểm chốt khi làm (kế hoạch gốc để ngỏ):
+
+- **Client chọn service bằng header lúc `initialize`, không bằng đường dẫn** (route vẫn là `/mcp`): `X-Bint-Service`,
+  `X-Bint-Worktree`, `X-Bint-Run-Id`, `X-Bint-Task-Id`, `X-Bint-Role`, `X-Bint-Harness`, `X-Bint-Session-Id`. Phiên do
+  gateway cấp (`Mcp-Session-Id`) gắn một service; shim M3 mở một phiên cho mỗi service. Role chỉ để ghi nhận ở M2.
+- **`mcp.called` chỉ ghi khi biết lượt chạy**: có `run_id`, hoặc cặp harness + session. Thiếu cả hai, hoặc repo chưa init
+  Bint, thì bỏ và đếm trong `status` (`dropped_events`) — tự đặt harness cho daemon sẽ tạo lượt giả khi ingest (mục 13.2).
+  Daemon tự giải worktree → repo → thư mục trạng thái (`gitrepo` + `config.Load` + `state.Resolve`), không mở SQLite và
+  không nhận đường dẫn spool từ client.
+- **Revision** = băm lệnh, đối số, URL, phiên bản, tên biến của đăng ký và `Version` của danh mục; `mcp.yml` đọc lại mỗi
+  lần mở phiên (D3). Cache `initialize`/`tools/list` chỉ trong bộ nhớ daemon, khoá (service, revision); daemon khởi
+  động lại thì mất.
+- **Giới hạn là hằng trong `mcpgw`** (không thêm khoá `.bint/config.yml`): idle 10 phút, `max_restarts` 3 trong cửa sổ
+  10 phút (đăng ký ghi đè được), timeout lời gọi 5 phút, khởi động 30 giây, frame 8 MiB, body POST 8 MiB, hàng đợi ghi 64
+  frame, TTL phiên 1 giờ không hoạt động, TTL khoá exclusive 10 phút, chờ khoá 30 giây, retry HTTP 3 lần (0,5/1/2 s).
+  Khởi động thất bại cũng tính vào `max_restarts`; idle hay `restart` thủ công thì không.
+- **Tool lạ** (ngoài mọi nhóm của danh mục) vẫn được chuyển tiếp, coi là không chỉ đọc; lọc theo quyền là M3.
+- **Lỗi không rõ kết quả** (`-32012`) khi lệnh không chỉ đọc đã (bắt đầu) được ghi tới upstream mà upstream chết hoặc quá
+  hạn; chưa ghi tới upstream (còn trong hàng đợi) thì chỉ là lỗi upstream (`-32013`). Mã khác: busy `-32010`, quá giới hạn
+  restart `-32011`, quá hạn tool chỉ đọc `-32014`.
+- **Daemon không tự thoát khi rảnh** (chỉ upstream có idle); tắt bằng `stop`, tín hiệu hoặc `/admin/stop`. `stop` không
+  gọi được `/admin/stop` mà khoá `gateway.lock` còn bị giữ thì kill PID trong `gateway.json`.
+- `start` chạy được trong phiên agent (M3 để shim tự khởi động); `stop`, `restart` chỉ người (D5). Hook không bao giờ
+  khởi động daemon (test quét mã `internal/harness/**` và `internal/app/hook.go`).
+- Windows: Job Object gán sau `Start` nên tiến trình cháu sinh cực sớm có thể lọt ra ngoài; RSS Windows là working set của
+  tiến trình chính (không cộng con cháu, không có PSS).
 
 ## 7. M3 — Cửa vào gộp và cấp quyền theo role
 

@@ -56,6 +56,8 @@ type Group struct {
 	Tools []string
 	// Exclusive: tại một thời điểm chỉ một phiên được dùng nhóm (khoá trong daemon, M2).
 	Exclusive bool
+	// MaxConcurrent là số lời gọi đồng thời tối đa của nhóm trong một phân vùng tiến trình (0 = không giới hạn).
+	MaxConcurrent int
 }
 
 // Service là một mục của danh mục.
@@ -113,7 +115,7 @@ var catalog = []Service{
 		Share:   ShareWorktree, Cwd: CwdState,
 		Groups: []Group{
 			{Name: "compat", Tools: []string{"backward_compatibility_check"}},
-			{Name: "contract", Tools: []string{"run_contract_test", "run_resiliency_test"}},
+			{Name: "contract", Tools: []string{"run_contract_test", "run_resiliency_test"}, MaxConcurrent: 1},
 			{Name: "mock", Tools: []string{"manage_mock_server"}, Exclusive: true},
 		},
 		ReadOnly:       []string{"backward_compatibility_check"},

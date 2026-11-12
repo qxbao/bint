@@ -80,6 +80,7 @@ PostToolUse của Claude Code (bint init --hooks).`,
 	}
 	c.AddCommand(serve, tools)
 	c.AddCommand(mcpManageCmds(stdio)...)
+	c.AddCommand(newMCPGatewayCmd(stdio))
 	return c
 }
 

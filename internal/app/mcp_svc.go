@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net/url"
 	"os"
 	"os/exec"
@@ -16,10 +15,10 @@ import (
 	"time"
 
 	"bint/internal/config"
-	"bint/internal/detect"
 	"bint/internal/gitrepo"
 	"bint/internal/mcpcat"
 	"bint/internal/mcpcat/probe"
+	"bint/internal/mcpgw"
 	"bint/internal/mcpserver"
 	"bint/internal/state"
 )
@@ -61,9 +60,6 @@ const (
 
 // mcpCheckTimeout là thời gian tối đa cho check một service (khởi động, initialize, tools/list, gọi thử).
 var mcpCheckTimeout = 30 * time.Second
-
-// mcpBaseEnv là env tối thiểu truyền cho tiến trình upstream: không kế thừa env của shell (credential lấy từ secrets.env, D2).
-var mcpBaseEnv = []string{"PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemRoot", "TMPDIR", "TEMP", "TMP", "LANG", "LC_ALL"}
 
 // mcpProject nạp cấu hình dự án nếu dir nằm trong repository đã init; ngược lại (ok=false) trả cấu hình mặc định.
 func mcpProject(ctx context.Context, dir string) (cfg config.Config, ok bool, err error) {
@@ -429,46 +425,6 @@ func MCPCheck(ctx context.Context, dir string, o MCPCheckOptions) ([]MCPCheckRes
 	return out, nil
 }
 
-// mcpEnv dựng env cho tiến trình upstream: env tối thiểu, env mặc định của danh mục và biến credential từ secrets.env.
-// Trả thêm tên biến credential còn thiếu và các giá trị bí mật (để che khỏi đầu ra).
-func mcpEnv(svc mcpcat.Service, reg config.Registration, secrets map[string]string) (env, missing, secretVals []string) {
-	for _, k := range mcpBaseEnv {
-		if v := os.Getenv(k); v != "" {
-			env = append(env, k+"="+v)
-		}
-	}
-	for _, k := range slices.Sorted(maps.Keys(svc.DefaultEnv)) {
-		env = append(env, k+"="+svc.DefaultEnv[k])
-	}
-	names := slices.Clone(svc.CredentialEnv)
-	for _, n := range reg.EnvNames {
-		if !slices.Contains(names, n) {
-			names = append(names, n)
-		}
-	}
-	slices.Sort(names)
-	for _, n := range names {
-		if v := secrets[n]; v != "" {
-			env = append(env, n+"="+v)
-			secretVals = append(secretVals, v)
-		} else {
-			missing = append(missing, n)
-		}
-	}
-	return env, missing, secretVals
-}
-
-// scrubSecrets che mọi giá trị bí mật còn sót trong s, cắt gọn thành một dòng ≤ max ký tự.
-func scrubSecrets(s string, secretVals []string, max int) string {
-	for _, v := range secretVals {
-		if len(v) >= 3 {
-			s = strings.ReplaceAll(s, v, "***")
-		}
-	}
-	s = detect.Redact(strings.Join(strings.Fields(s), " "), max)
-	return s
-}
-
 // mcpCwd giải cwd của tiến trình upstream theo danh mục: worktree = gốc worktree của dir; state = thư mục riêng
 // <state>/mcp/<service>/<worktree-id> (tạo 0700); còn lại để trống (kế thừa).
 func mcpCwd(ctx context.Context, dir string, svc mcpcat.Service) (string, error) {
@@ -503,7 +459,7 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 	if svc.Transport == mcpcat.Stdio {
 		// Service http chưa gắn credential vào header (M1): biến credential chỉ có nghĩa với tiến trình stdio.
 		var missing []string
-		env, missing, secretVals = mcpEnv(svc, reg, secrets)
+		env, missing, secretVals = mcpgw.Env(svc, reg, secrets)
 		if len(missing) > 0 {
 			r.MissingEnv = missing
 			return fail("thiếu biến credential trong secrets.env: %s (không khởi động service)", strings.Join(missing, ", "))
@@ -536,8 +492,8 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 	}
 	defer cl.Close()
 	upstreamFail := func(what string, err error) MCPCheckResult {
-		d := what + ": " + scrubSecrets(err.Error(), secretVals, 300)
-		if se := scrubSecrets(cl.Stderr(), secretVals, 300); se != "" {
+		d := what + ": " + mcpgw.ScrubSecrets(err.Error(), secretVals, 300)
+		if se := mcpgw.ScrubSecrets(cl.Stderr(), secretVals, 300); se != "" {
 			d += " [stderr: " + se + "]"
 		}
 		return fail("%s", d)
@@ -592,14 +548,14 @@ func mcpCodegraphProbe(ctx context.Context, cl *probe.Client, cwd string, secret
 		reason = rpc.Error()
 	case err != nil:
 		r.Status = MCPStatusFail
-		r.Detail = "codegraph_status: " + scrubSecrets(err.Error(), secretVals, 300)
+		r.Detail = "codegraph_status: " + mcpgw.ScrubSecrets(err.Error(), secretVals, 300)
 		return
 	case res.IsError:
 		reason = "isError: " + res.Text
 	default:
 		return
 	}
-	reason = scrubSecrets(reason, secretVals, 200)
+	reason = mcpgw.ScrubSecrets(reason, secretVals, 200)
 	r.Status = MCPStatusDegraded
 	if codegraphDisabledRE.MatchString(reason) {
 		pid := filepath.Join(cwd, ".codegraph", "daemon.pid")
@@ -672,7 +628,7 @@ func MCPIndex(ctx context.Context, dir string, o MCPIndexOptions, out io.Writer)
 	if err != nil {
 		return res, fmt.Errorf("đọc secrets.env: %w", err)
 	}
-	env, _, _ := mcpEnv(svc, reg, secrets)
+	env, _, _ := mcpgw.Env(svc, reg, secrets)
 	path, err := codegraphIndexBinary(svc, reg)
 	if err != nil {
 		return res, err

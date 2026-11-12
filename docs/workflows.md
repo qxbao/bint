@@ -598,7 +598,50 @@ Bint **không tự cài** service nào (docs/mcp-gateway-plan.md mục 5). Hai t
 | `bint mcp check [<service>]` | `initialize` + `tools/list`, đối chiếu nhóm thao tác, báo biến credential thiếu; codegraph: gọi thử `codegraph_status`, báo `degraded` khi daemon cũ chạy với env hẹp | người, agent |
 | `bint mcp index codegraph` | `codegraph init -y` (chưa có chỉ mục) hoặc `codegraph sync` ở worktree hiện tại, rồi thêm `.codegraph/` vào `info/exclude` của git | chỉ người |
 | `bint mcp grants [--role <r>]` | quyền đã giải: role → tên tool tới agent (`mcp__bint__<tiền tố>_<tool>`), báo service thiếu | người, agent |
+| `bint mcp gateway start [--foreground] [--json]` | khởi động daemon gateway tách rời (nhật ký `gateway.log`) rồi báo cổng, PID; đã chạy thì chỉ báo thông tin; `--foreground` chạy tại chỗ | người, agent |
+| `bint mcp gateway status [--json]` | từng upstream: service, phân vùng, generation, PID, RSS/PSS, số phiên, lời gọi dang dở, lời gọi gần nhất, lỗi đã che credential; báo "không chạy" khi chưa có daemon | người, agent |
+| `bint mcp gateway restart <service>` | dừng mọi upstream của service (kill cả cây), xoá lỗi và bộ đếm khởi động lại; lời gọi sau khởi động mới với generation +1 | chỉ người |
+| `bint mcp gateway stop` | tắt daemon và mọi upstream | chỉ người |
 
 "Chỉ người" nghĩa là lệnh trả `ErrAgentForbidden` khi chạy trong phiên agent. `bint doctor` báo service dự án khai báo mà
 máy chưa đăng ký, chỉ mục codegraph thiếu và `secrets.env` có quyền rộng hơn 0600 (không khởi động tiến trình MCP). M1
-chỉ làm danh mục, cấu hình và lệnh quản lý: việc cấp tool cho bước chạy (shim gộp) và daemon dùng chung là M2/M3.
+chỉ làm danh mục, cấu hình và lệnh quản lý; M2 thêm daemon gateway (dưới đây); việc cấp tool cho bước chạy qua cửa vào
+gộp (shim) và quyền theo role là M3.
+
+#### Daemon gateway (`bint mcp gateway`, M2)
+
+Một daemon cho mỗi user (`internal/mcpgw`, docs/mcp-gateway-plan.md mục 6), **không do hook khởi động** và chưa có gì tự
+khởi động ở M2: chỉ người (hoặc shim M3 sau này) chạy `bint mcp gateway start`. Tệp trong `<state base>/gateway/`:
+`gateway.lock` (khoá `flock`/`LockFileEx`, daemon thứ hai bị từ chối), `gateway.json` (quyền 0600: `pid`, `port`, `token`;
+xoá khi dừng), `gateway.log`.
+
+- **Mạng:** Streamable HTTP trên `127.0.0.1` cổng động; `POST/GET/DELETE /mcp` và `/admin/status|restart|stop` đều đòi
+  `Authorization: Bearer <token>` (thiếu/sai → 401); Host không phải loopback hoặc có header `Origin` → 403; body POST quá
+  giới hạn → 413. Quyền theo role là chính sách, không phải ranh giới bảo mật: agent cùng UID đọc được `gateway.json`.
+- **Phiên:** `initialize` mang header `X-Bint-Service` (bắt buộc), `X-Bint-Worktree` (gốc worktree git, bắt buộc với
+  service chia sẻ theo worktree hoặc cần cwd), `X-Bint-Run-Id`, `X-Bint-Task-Id`, `X-Bint-Role`, `X-Bint-Harness`,
+  `X-Bint-Session-Id`; gateway trả `Mcp-Session-Id`. `DELETE /mcp` đóng phiên (nhả khoá exclusive).
+- **Phân vùng tiến trình theo danh mục:** `machine` một tiến trình cho cả máy, `worktree` một tiến trình cho mỗi gốc
+  worktree, `session` mỗi phiên một tiến trình (dừng khi phiên đóng), `remote` (deepwiki, context7) không sinh tiến trình.
+  Upstream khởi động lười ở lời gọi (hoặc `initialize`, khi chưa có cache) đầu tiên cần nó và dừng sau `idle_timeout` khi hết
+  phiên và lời gọi dang dở; dừng thì kill cả cây (unix: process group; Windows: Job Object).
+- **Ghép phiên vào một upstream stdio:** đổi id JSON-RPC thành `gw_<generation>_<seq>_<phiên>` và đổi ngược (cả
+  `notifications/cancelled` và `progressToken`); `initialize`/`tools/list` cache theo (service, revision) nên upstream chỉ
+  nhận một `initialize` mỗi generation; điền tham số mặc định của danh mục (`repoDir={worktree}` cho
+  `specmatic.backward_compatibility_check`, giữ nguyên nếu agent truyền); `roots/list` của upstream được trả gốc worktree,
+  `sampling/*` và `elicitation/*` bị từ chối; giới hạn frame (8 MiB) và hàng đợi ghi (64 frame) — vượt thì upstream bị coi
+  như chết và lời gọi sau chạy trên generation mới.
+- **Nhóm thao tác:** nhóm `exclusive` (`specmatic.mock`) một phiên giữ tại một thời điểm (TTL 10 phút, chờ 30 giây rồi trả
+  `busy` -32010); `Group.MaxConcurrent` giới hạn đồng thời mỗi phân vùng (`specmatic.contract` = 1).
+- **Chết và khởi động lại:** upstream chết thì lời gọi đang chờ nhận lỗi và lời gọi sau chạy generation +1; vượt
+  `max_restarts` (đăng ký, mặc định 3) trong 10 phút thì trả -32011 tới khi `bint mcp gateway restart <service>`. Lệnh không
+  chỉ đọc bị timeout hoặc upstream chết sau khi đã gửi → lỗi "không rõ kết quả" (-32012), **không bao giờ tự gọi lại**;
+  chỉ tool chỉ đọc của upstream HTTP được retry có backoff (lỗi mạng, 5xx, 429).
+- **Env của upstream** = env tối thiểu (`PATH`, `HOME`, ngôn ngữ…) + env mặc định của danh mục + biến credential đã khai
+  báo, giá trị đọc từ `secrets.env` lúc khởi động upstream; biến khác của daemon không lọt sang. Lỗi và stderr trong
+  `status` đã che giá trị credential.
+- **Ghi nhận:** mỗi `tools/call` ghi một sự kiện `mcp.called` (run/task/role, service, tool, nhóm, kết quả, thời gian; không
+  có đối số hay kết quả) vào spool của repo chứa worktree; repo chưa `bint init`, hoặc phiên thiếu cả `run_id` lẫn cặp
+  harness + session thì không ghi (đếm trong `dropped_events`). Daemon không mở SQLite.
+
+Chưa kiểm với service thật trên máy và Job Object trên Windows thật (CI chỉ biên dịch và vet cho Windows).

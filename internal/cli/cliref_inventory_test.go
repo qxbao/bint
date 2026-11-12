@@ -42,12 +42,13 @@ const (
 	rSplit     = "mảnh của chuỗi nối (\"…`bint evolve evaluate <id>\" + \" --regression --yes`\"): thông điệp đầy đủ được viết lại lúc chạy, cờ nằm trong lệnh bint được đổi thành tham chiếu TUI"
 	rAgentGate = "lỗi chỉ trả cho phiên agent (cổng chỉ-dành-cho-người); TUI luôn chạy với người nên không bao giờ hiện"
 	rCLIOnly   = "chỉ có ở chế độ không tương tác của CLI; TUI luôn tương tác (xác nhận bằng hộp thoại)"
-	rMCP       = "lệnh bint mcp (add, remove, check, index, grants) chưa có hành động trong sổ TUI: màn MCP thuộc M4 (docs/mcp-gateway-plan.md mục 8); M4 xoá loại trừ này và để hàm viết lại đổi sang tham chiếu TUI"
+	rMCP       = "lệnh bint mcp (add, remove, check, index, grants, gateway) chưa có hành động trong sổ TUI: màn MCP thuộc M4 (docs/mcp-gateway-plan.md mục 8); M4 xoá loại trừ này và để hàm viết lại đổi sang tham chiếu TUI"
 	rSession   = "thông điệp của giao thức driver session (bint run next/complete) gửi cho phiên điều phối qua CLI/JSON: hai lệnh đó nằm trong Excluded của TUI (không phải thao tác của người) nên không có hành động để chỉ tới"
 )
 
 var baseExclusions = []exclusion{
 	{"app/mcp_svc.go", "bint mcp", rMCP},
+	{"app/mcp_gateway_svc.go", "bint mcp", rMCP},
 	{"app/doctor_mcp.go", "bint mcp", rMCP},
 	{"app/hook.go", "bint hook: ", rCLI + ": lỗi của lệnh bint hook (ghi vào hook-errors.log)"},
 	{"app/init.go", "bint mcp serve", "lệnh không có hành động trong sổ (máy chủ MCP qua stdio, không có giao diện)"},

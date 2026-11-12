@@ -48,6 +48,11 @@ const (
 	// này mới cung cấp; ingest lưu như sự kiện thường.
 	SubagentStopped = "subagent.stopped"
 
+	// M2: daemon gateway MCP (docs/mcp-gateway-plan.md mục 6) ghi mỗi lời gọi tools/call. payload: task_id, role,
+	// service, tool, group, outcome (ok | tool_error | rpc_error | busy | limited | unknown | timeout | upstream_error |
+	// canceled), duration_ms. KHÔNG có đối số hay nội dung kết quả. Ingest lưu như sự kiện thường.
+	MCPCalled = "mcp.called"
+
 	// P3: Context Engine (mục 9.7). payload.ids là danh sách ID tri thức.
 	ContextRetrieved    = "context.retrieved"
 	KnowledgeCited      = "knowledge.cited"
