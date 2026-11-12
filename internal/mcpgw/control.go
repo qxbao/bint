@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"bint/internal/state"
 )
 
 // lockHeld cho biết có daemon đang giữ khoá trong dir không (thử lấy khoá rồi nhả ngay).
@@ -50,10 +52,26 @@ func StartDetached(ctx context.Context, dir, exe string, args, env []string) (in
 		return Info{}, false, err
 	}
 	defer lf.Close()
+	// cwd trung tính (thư mục gateway): daemon sống lâu hơn lệnh gọi, không được giữ cwd của người/agent gọi (có thể là
+	// worktree tác vụ, trên Windows làm git worktree remove thất bại) và các upstream không khai báo cwd kế thừa nó.
+	// Đường dẫn tương đối của exe và biến trạng thái phải được phân giải trước khi đổi cwd.
+	if abs, aerr := filepath.Abs(dir); aerr == nil {
+		dir = abs
+	}
+	if strings.ContainsRune(exe, filepath.Separator) && !filepath.IsAbs(exe) {
+		if abs, aerr := filepath.Abs(exe); aerr == nil {
+			exe = abs
+		}
+	}
 	cmd := exec.Command(exe, args...)
+	cmd.Dir = dir
 	cmd.Stdout, cmd.Stderr = lf, lf
 	if env != nil {
 		cmd.Env = env
+	} else if v := os.Getenv(state.EnvStateDir); v != "" && !filepath.IsAbs(v) {
+		if abs, aerr := filepath.Abs(v); aerr == nil {
+			cmd.Env = append(os.Environ(), state.EnvStateDir+"="+abs)
+		}
 	}
 	detachCmd(cmd)
 	if err := cmd.Start(); err != nil {

@@ -111,13 +111,19 @@ func TestCancelledAndCache(t *testing.T) {
 	}
 	select {
 	case m := <-done:
-		if rpcCode(m) != -32800 {
-			t.Errorf("lời gọi bị huỷ nhận %s, muốn lỗi -32800 từ upstream", m.Error)
+		// Gateway kết thúc lời gọi ngay khi nhận cancelled (không chờ phản hồi của upstream): lỗi là đủ.
+		if len(m.Error) == 0 {
+			t.Errorf("lời gọi bị huỷ phải kết thúc bằng lỗi, nhận %s", m.Result)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("lời gọi không kết thúc sau notifications/cancelled")
 	}
-	can := h.recvs("codegraph", "notifications/cancelled")
+	// Gateway kết thúc lời gọi trước khi ghi cancelled tới upstream (ghi bất đồng bộ), nên phải chờ.
+	var can []map[string]any
+	eventually(t, "upstream nhận notifications/cancelled", 5*time.Second, func() bool {
+		can = h.recvs("codegraph", "notifications/cancelled")
+		return len(can) > 0
+	})
 	if len(can) != 1 || can[0]["request_id"] != upID || !strings.HasPrefix(upID, "gw_1_") {
 		t.Errorf("upstream nhận cancelled %v, muốn requestId = id đã đổi %q", can, upID)
 	}

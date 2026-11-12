@@ -182,7 +182,7 @@ func (d *Daemon) handleInitialize(w http.ResponseWriter, r *http.Request, m rpcM
 	}
 	now := time.Now()
 	s := &session{id: newSessionID(), svc: svc, root: ri.root, spool: ri.spool, created: now, lastActive: now,
-		done: make(chan struct{}), calls: map[string]string{},
+		done: make(chan struct{}), calls: map[string]*callRef{},
 		ctx: sessCtx{RunID: r.Header.Get(HeaderRunID), TaskID: r.Header.Get(HeaderTaskID), Role: r.Header.Get(HeaderRole),
 			Harness: r.Header.Get(HeaderHarness), SessionID: r.Header.Get(HeaderSessionID)}}
 	rev := revision(svc, reg)
@@ -253,8 +253,8 @@ func (d *Daemon) handleNotification(s *session, m rpcMsg) {
 	if json.Unmarshal(m.Params, &p) != nil || len(p.RequestID) == 0 {
 		return
 	}
-	gw, ok := s.gwID(p.RequestID)
-	if !ok {
+	gw, ok := s.cancelCall(p.RequestID) // kết thúc lời gọi đang chờ (ctx bị huỷ) rồi báo upstream nếu đã gửi
+	if !ok || gw == "" {
 		return
 	}
 	s.p.mu.Lock()

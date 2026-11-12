@@ -2,6 +2,7 @@ package mcpgw
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -48,7 +49,7 @@ type session struct {
 	mu         sync.Mutex
 	lastActive time.Time
 	closed     bool
-	calls      map[string]string // id gốc của client (đã nén) → id của gateway, cho notifications/cancelled
+	calls      map[string]*callRef // id gốc của client (đã nén) → lời gọi đang chạy, cho notifications/cancelled
 	sse        chan []byte
 	sseOpen    bool
 	progSeq    int
@@ -75,23 +76,50 @@ func idKey(id json.RawMessage) string {
 	return b.String()
 }
 
+// callRef là một lời gọi của client đang chạy: id đã đổi (rỗng tới khi gửi) và hàm huỷ để notifications/cancelled
+// kết thúc lời gọi ngay (nhả inflight, semaphore nhóm) thay vì chờ tới CallTimeout.
+type callRef struct {
+	gw     string
+	cancel context.CancelFunc
+}
+
+// beginCall đăng ký lời gọi theo id gốc của client; trả ctx bị huỷ khi client gửi notifications/cancelled (hoặc cha huỷ)
+// và hàm kết thúc (gỡ đăng ký, giải phóng ctx).
+func (s *session) beginCall(parent context.Context, clientID json.RawMessage) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(parent)
+	key := idKey(clientID)
+	s.mu.Lock()
+	s.calls[key] = &callRef{cancel: cancel}
+	s.mu.Unlock()
+	return ctx, func() {
+		s.mu.Lock()
+		delete(s.calls, key)
+		s.mu.Unlock()
+		cancel()
+	}
+}
+
 func (s *session) trackCall(clientID json.RawMessage, gwID string) {
 	s.mu.Lock()
-	s.calls[idKey(clientID)] = gwID
+	if c := s.calls[idKey(clientID)]; c != nil {
+		c.gw = gwID
+	}
 	s.mu.Unlock()
 }
 
-func (s *session) untrackCall(clientID json.RawMessage) {
+// cancelCall huỷ lời gọi theo id gốc của client; trả id đã đổi (rỗng nếu chưa gửi) và ok=false nếu không có lời gọi.
+func (s *session) cancelCall(clientID json.RawMessage) (gw string, ok bool) {
 	s.mu.Lock()
-	delete(s.calls, idKey(clientID))
+	c := s.calls[idKey(clientID)]
+	if c != nil {
+		gw = c.gw
+	}
 	s.mu.Unlock()
-}
-
-func (s *session) gwID(clientID json.RawMessage) (string, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	id, ok := s.calls[idKey(clientID)]
-	return id, ok
+	if c == nil {
+		return "", false
+	}
+	c.cancel()
+	return gw, true
 }
 
 func (s *session) nextProgressToken() string {

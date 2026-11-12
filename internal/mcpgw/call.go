@@ -131,25 +131,44 @@ func (d *Daemon) toolsCall(r *http.Request, s *session, m rpcMsg) []byte {
 		d.record(s, tool, grp.Name, out, dur)
 	}()
 
-	ctx := r.Context()
+	ctx, endCall := s.beginCall(r.Context(), m.ID)
+	defer endCall()
 	if known && grp.Exclusive {
 		if err = s.p.lockExclusive(ctx, s.id, grp); err != nil {
 			return errorFromErr(m.ID, err)
 		}
 	}
+	// Chỗ trong nhóm (semaphore) và inflight của phân vùng: nhả khi hàm kết thúc, trừ khi lời gọi bị huỷ sau khi đã tới
+	// upstream (heldCancel) — khi đó nhả lúc upstream xong lệnh cũ.
+	var held []func()
+	defer func() {
+		var hc *heldCancel
+		if errors.As(err, &hc) {
+			go func() {
+				<-hc.settled
+				for i := len(held) - 1; i >= 0; i-- {
+					held[i]()
+				}
+			}()
+			return
+		}
+		for i := len(held) - 1; i >= 0; i-- {
+			held[i]()
+		}
+	}()
 	if known {
 		var rel func()
 		if rel, err = s.p.acquireSem(ctx, grp); err != nil {
 			return errorFromErr(m.ID, err)
 		}
-		defer rel()
+		held = append(held, rel)
 	}
-	up, aerr := s.p.acquire(ctx)
+	up, aerr := s.p.acquireLazy(ctx)
 	if aerr != nil {
 		err = aerr
 		return errorFromErr(m.ID, err)
 	}
-	defer s.p.release()
+	held = append(held, s.p.release)
 
 	// progressToken của client đổi sang token của gateway; thông báo tiến độ của upstream đổi ngược rồi đẩy lên SSE.
 	if meta := metaOf(params); meta != nil {
@@ -172,7 +191,6 @@ func (d *Daemon) toolsCall(r *http.Request, s *session, m rpcMsg) []byte {
 	callCtx, cancel := context.WithTimeout(ctx, d.opts.CallTimeout)
 	defer cancel()
 	res, err = up.call(callCtx, s.id, "tools/call", marshalRaw(params), readOnly, func(gw string) { s.trackCall(m.ID, gw) })
-	s.untrackCall(m.ID)
 	if err != nil {
 		return errorFromErr(m.ID, err)
 	}
@@ -197,8 +215,9 @@ func metaOf(params map[string]json.RawMessage) map[string]json.RawMessage {
 
 // forward chuyển nguyên văn một request ngoài tools/* (resources, prompts, completion) tới upstream.
 func (d *Daemon) forward(r *http.Request, s *session, m rpcMsg) []byte {
-	ctx := r.Context()
-	up, err := s.p.acquire(ctx)
+	ctx, endCall := s.beginCall(r.Context(), m.ID)
+	defer endCall()
+	up, err := s.p.acquireLazy(ctx)
 	if err != nil {
 		return errorFromErr(m.ID, err)
 	}
@@ -206,7 +225,6 @@ func (d *Daemon) forward(r *http.Request, s *session, m rpcMsg) []byte {
 	callCtx, cancel := context.WithTimeout(ctx, d.opts.CallTimeout)
 	defer cancel()
 	res, err := up.call(callCtx, s.id, m.Method, m.Params, true, func(gw string) { s.trackCall(m.ID, gw) })
-	s.untrackCall(m.ID)
 	if err != nil {
 		return errorFromErr(m.ID, err)
 	}

@@ -42,7 +42,22 @@ type outFrame struct {
 type waiter struct {
 	ch      chan waitResult
 	written atomic.Bool
+	// state chốt cuộc đua giữa vòng ghi và người huỷ: 0 = còn trong hàng đợi, 1 = đã (bắt đầu) ghi, 2 = bỏ (huỷ trước
+	// khi ghi; vòng ghi bỏ qua frame, upstream không bao giờ nhận lệnh).
+	state atomic.Int32
 }
+
+// markWritten được vòng ghi gọi ngay trước khi ghi; false = người gọi đã bỏ lệnh, không ghi.
+func (w *waiter) markWritten() bool {
+	if !w.state.CompareAndSwap(0, 1) {
+		return false
+	}
+	w.written.Store(true)
+	return true
+}
+
+// abandon bỏ lệnh còn trong hàng đợi; false = lệnh đã (bắt đầu) được ghi tới upstream.
+func (w *waiter) abandon() bool { return w.state.CompareAndSwap(0, 2) }
 
 type waitResult struct {
 	msg rpcMsg
@@ -236,8 +251,9 @@ func (u *stdioUp) writeLoop() {
 	for {
 		select {
 		case f := <-u.q:
-			if f.w != nil {
-				f.w.written.Store(true) // đặt trước khi ghi: ghi dở vẫn có thể tới upstream
+			// Đánh dấu trước khi ghi: ghi dở vẫn có thể tới upstream. Lệnh đã bị huỷ khi còn trong hàng đợi thì bỏ.
+			if f.w != nil && !f.w.markWritten() {
+				continue
 			}
 			if _, err := u.stdin.Write(append(f.b, '\n')); err != nil {
 				u.die(fmt.Errorf("ghi vào upstream: %w", err))
@@ -368,8 +384,30 @@ func (u *stdioUp) rawCall(ctx context.Context, sess, method string, params json.
 		}
 		return upResult{result: r.msg.Result, rpcErr: r.msg.Error}, nil
 	case <-ctx.Done():
+		if !errors.Is(ctx.Err(), context.DeadlineExceeded) && !w.abandon() {
+			// Client huỷ khi lệnh đã tới upstream: trả lỗi huỷ ngay nhưng lệnh có thể vẫn chạy (upstream không bắt buộc
+			// tôn trọng notifications/cancelled). Người gọi giữ chỗ trong nhóm (semaphore, inflight) tới khi upstream trả
+			// lời, chết, hoặc tới hạn chót của lời gọi.
+			settled := make(chan struct{})
+			go func() {
+				defer close(settled)
+				var limit <-chan time.Time
+				if dl, ok := ctx.Deadline(); ok {
+					t := time.NewTimer(time.Until(dl))
+					defer t.Stop()
+					limit = t.C
+				}
+				select {
+				case <-w.ch:
+				case <-limit:
+					drop()
+				}
+			}()
+			return upResult{}, &heldCancel{settled: settled}
+		}
 		drop()
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			w.abandon() // còn trong hàng đợi thì không bao giờ gửi; đã ghi thì written cho biết
 			if w.written.Load() && !readOnly {
 				return upResult{}, &rpcError{Code: CodeUnknownOutcome, Message: "hết thời gian chờ lệnh ghi; không rõ lệnh đã chạy chưa, gateway không tự gọi lại"}
 			}

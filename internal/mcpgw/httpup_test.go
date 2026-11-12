@@ -19,6 +19,8 @@ type fakeMCPHTTP struct {
 	sessions map[string][]string // tool → Mcp-Session-Id của từng request
 	fail     map[string][]int    // tool → danh sách trạng thái lỗi lần lượt (0 = đứt kết nối)
 	sse      bool
+	initFail []int // trạng thái lỗi lần lượt cho initialize (0 = đứt kết nối)
+	initTry  int   // số request initialize (kể cả lỗi)
 }
 
 func newFakeMCPHTTP() *fakeMCPHTTP {
@@ -55,6 +57,19 @@ func (f *fakeMCPHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch m.Method {
 	case "initialize":
+		f.initTry++
+		if q := f.initFail; len(q) > 0 {
+			f.initFail = q[1:]
+			if q[0] == 0 {
+				if hj, ok := w.(http.Hijacker); ok {
+					c, _, _ := hj.Hijack()
+					c.Close()
+				}
+				return
+			}
+			http.Error(w, "lỗi giả", q[0])
+			return
+		}
 		f.inits++
 		w.Header().Set("Mcp-Session-Id", f.sessID)
 		reply(map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "serverInfo": map[string]any{"name": "http-fake"}})
@@ -246,4 +261,10 @@ func (f *fakeMCPHTTP) setSSE() {
 	f.mu.Lock()
 	f.sse = true
 	f.mu.Unlock()
+}
+
+func (f *fakeMCPHTTP) initTryCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.initTry
 }

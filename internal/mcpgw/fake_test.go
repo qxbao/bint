@@ -198,6 +198,7 @@ func (f *fake) call(m rpcMsg, id, tool string, rawArgs json.RawMessage) {
 		BigFrame int             `json:"bigframe"`
 		RPCError bool            `json:"rpc_error"`
 		Echo     string          `json:"echo"`
+		NoCancel bool            `json:"no_cancel"` // bỏ qua notifications/cancelled (upstream không tôn trọng huỷ)
 		Meta     json.RawMessage `json:"_meta"`
 	}
 	_ = json.Unmarshal(rawArgs, &a)
@@ -228,9 +229,11 @@ func (f *fake) call(m rpcMsg, id, tool string, rawArgs json.RawMessage) {
 	}
 	if a.SleepMS > 0 {
 		ch := make(chan struct{})
-		f.cmu.Lock()
-		f.cancels[id] = ch
-		f.cmu.Unlock()
+		if !a.NoCancel {
+			f.cmu.Lock()
+			f.cancels[id] = ch
+			f.cmu.Unlock()
+		}
 		select {
 		case <-time.After(time.Duration(a.SleepMS) * time.Millisecond):
 			f.cmu.Lock()

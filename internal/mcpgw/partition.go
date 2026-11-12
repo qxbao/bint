@@ -150,16 +150,30 @@ func (p *partition) release() {
 
 // acquire trả upstream sẵn sàng (khởi động lười, generation mới nếu chết) và tính một lời gọi dang dở; người gọi phải
 // gọi release. Vượt max_restarts trong cửa sổ thì trả CodeRestartLimit tới khi restart service.
-func (p *partition) acquire(ctx context.Context) (upstream, error) {
+func (p *partition) acquire(ctx context.Context) (upstream, error) { return p.acquireWith(ctx, true) }
+
+// acquireLazy như acquire nhưng không ép handshake: upstream HTTP tự handshake (có retry cho tool chỉ đọc) trong
+// up.call; dùng cho tools/call và request chuyển tiếp. Upstream stdio đã handshake lúc khởi động nên không khác gì.
+func (p *partition) acquireLazy(ctx context.Context) (upstream, error) {
+	return p.acquireWith(ctx, false)
+}
+
+var errPartitionClosed = &rpcError{Code: CodeUpstream, Message: "phiên đã đóng"}
+
+func (p *partition) acquireWith(ctx context.Context, handshake bool) (upstream, error) {
 	if up, ok := p.tryUp(); ok {
-		return p.ready(ctx, up)
+		return p.ready(ctx, up, handshake)
 	}
 	p.startMu.Lock()
 	defer p.startMu.Unlock()
 	if up, ok := p.tryUp(); ok {
-		return p.ready(ctx, up)
+		return p.ready(ctx, up, handshake)
 	}
 	p.mu.Lock()
+	if p.removed {
+		p.mu.Unlock()
+		return nil, errPartitionClosed
+	}
 	if p.limited {
 		p.mu.Unlock()
 		return nil, p.limitErr()
@@ -187,11 +201,16 @@ func (p *partition) acquire(ctx context.Context) (upstream, error) {
 		return nil, &rpcError{Code: CodeUpstream, Message: fmt.Sprintf("không khởi động được %s: %v", p.svc.ID, err)}
 	}
 	p.mu.Lock()
+	if p.removed { // phiên bị đóng (detach) trong lúc spawn: không gắn upstream vào phân vùng mồ côi
+		p.mu.Unlock()
+		up.stop()
+		return nil, errPartitionClosed
+	}
 	p.up = up
 	p.inflight++
 	p.cancelIdleLocked()
 	p.mu.Unlock()
-	return p.ready(ctx, up)
+	return p.ready(ctx, up, handshake)
 }
 
 func (p *partition) limitErr() error {
@@ -218,8 +237,15 @@ func (p *partition) tryUp() (upstream, bool) {
 	return nil, false
 }
 
-// ready hoàn tất handshake (http làm lười) cho upstream đã tính lời gọi dang dở.
-func (p *partition) ready(ctx context.Context, up upstream) (upstream, error) {
+// ready hoàn tất handshake (http làm lười) cho upstream đã tính lời gọi dang dở. handshake=false: bỏ qua ensure để
+// up.call tự lo (retry cho tool chỉ đọc); chỉ ghi cache khi upstream đã có kết quả initialize.
+func (p *partition) ready(ctx context.Context, up upstream, handshake bool) (upstream, error) {
+	if !handshake {
+		if init, _ := up.hello(); len(init) > 0 {
+			_ = p.cacheHello(up)
+		}
+		return up, nil
+	}
 	if err := up.ensure(ctx); err != nil {
 		p.release()
 		return nil, &rpcError{Code: CodeUpstream, Message: fmt.Sprintf("%s: %v", p.svc.ID, err)}

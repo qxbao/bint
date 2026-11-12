@@ -23,6 +23,7 @@ type httpUp struct {
 	retries  int
 	backoff  time.Duration
 	maxFrame int
+	startTO  time.Duration // trần thời gian một lần handshake (0 = không giới hạn)
 
 	hmu      sync.Mutex // tuần tự hoá handshake
 	mu       sync.Mutex
@@ -38,7 +39,7 @@ type httpUp struct {
 
 func newHTTPUp(url, version string, o Options) *httpUp {
 	return &httpUp{url: url, version: version, client: &http.Client{}, retries: o.Retries, backoff: o.Backoff,
-		maxFrame: o.MaxFrame, gen: 1}
+		maxFrame: o.MaxFrame, startTO: o.StartTimeout, gen: 1}
 }
 
 func (h *httpUp) alive() bool                    { return true }
@@ -190,6 +191,11 @@ func (h *httpUp) ensure(ctx context.Context) error {
 		return nil
 	}
 	h.mu.Unlock()
+	if h.startTO > 0 { // upstream treo lúc handshake không được giữ hmu (chặn mọi phiên) quá StartTimeout
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, h.startTO)
+		defer cancel()
+	}
 	id, _ := h.nextID("gateway")
 	rep, err := h.post(ctx, requestFrame(marshalRaw(id), "initialize", handshakeParams(h.version)), id, "", "")
 	if err != nil {

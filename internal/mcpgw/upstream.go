@@ -35,6 +35,14 @@ type upResult struct {
 	rpcErr json.RawMessage
 }
 
+// heldCancel là lỗi huỷ (errors.Is context.Canceled) của lời gọi đã tới upstream: settled đóng khi upstream trả lời,
+// chết, hoặc tới hạn chót của lời gọi. Người gọi giữ chỗ trong nhóm (semaphore, inflight) tới lúc đó để giới hạn
+// đồng thời vẫn đúng với chính upstream.
+type heldCancel struct{ settled <-chan struct{} }
+
+func (*heldCancel) Error() string { return context.Canceled.Error() }
+func (*heldCancel) Unwrap() error { return context.Canceled }
+
 // errStopped là nguyên nhân khi gateway chủ động dừng upstream (idle, restart, tắt daemon).
 var errStopped = errors.New("gateway dừng upstream")
 
