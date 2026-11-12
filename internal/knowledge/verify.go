@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -29,20 +30,29 @@ const (
 	CodeLength      = "length"      // quá dài cho tri thức chèn vào ngữ cảnh
 	CodeUnreviewed  = "unreviewed"  // mục trạng thái verified nhưng thiếu dấu vết duyệt
 	CodeRelocated   = "relocated"   // vùng dòng của bằng chứng dịch chuyển, nội dung không đổi
+	CodeMoved       = "moved"       // khối bằng chứng đã chuyển sang tệp khác, nội dung không đổi
 )
 
 // Relocation là một bằng chứng có vùng dòng cần cập nhật (nội dung không đổi).
+//
+// From/To là vùng dòng cũ/mới. FromPath luôn là tệp lúc kiểm; ToPath chỉ có khi khối đã chuyển
+// sang tệp khác (CodeMoved). ApplyRelocations chỉ áp khi cả hai còn đúng như lúc kiểm.
 type Relocation struct {
-	Index int    `json:"index"`
-	From  string `json:"from"`
-	To    string `json:"to"`
+	Index    int    `json:"index"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	FromPath string `json:"from_path,omitempty"`
+	ToPath   string `json:"to_path,omitempty"`
 }
 
 // Finding là một phát hiện của kiểm tra xác định được.
 type Finding struct {
-	Level  string `json:"level"`
-	Code   string `json:"code"`
+	Level string `json:"level"`
+	Code  string `json:"code"`
+	// Detail là câu tiếng Việt trung tính (không có lệnh bint) cho JSON/MCP/lý do trạng thái.
 	Detail string `json:"detail"`
+	// Evidence có mặt với phát hiện về bằng chứng: tham số có cấu trúc để CLI/TUI tự dựng câu.
+	Evidence *EvidenceIssue `json:"evidence,omitempty"`
 }
 
 // Result là kết quả kiểm tra một mục.
@@ -52,14 +62,26 @@ type Result struct {
 	Relocated []Relocation `json:"relocated,omitempty"`
 }
 
-// ApplyRelocations cập nhật vùng dòng của các bằng chứng chỉ bị dịch chuyển.
+// ApplyRelocations cập nhật vị trí (vùng dòng, và đường dẫn nếu khối đã chuyển tệp) của các
+// bằng chứng chỉ bị dịch chuyển. Chỉ áp khi đường dẫn và vùng dòng hiện tại còn đúng như lúc
+// kiểm; không đụng fingerprint, ký hiệu, commit. Trả về true nếu áp được ít nhất một bản ghi.
 func (r Result) ApplyRelocations(it *Item) bool {
+	applied := false
 	for _, rl := range r.Relocated {
-		if rl.Index < len(it.Evidence) && it.Evidence[rl.Index].Lines == rl.From {
-			it.Evidence[rl.Index].Lines = rl.To
+		if rl.Index < 0 || rl.Index >= len(it.Evidence) {
+			continue
 		}
+		e := &it.Evidence[rl.Index]
+		if e.Lines != rl.From || (rl.FromPath != "" && e.Path != rl.FromPath) {
+			continue
+		}
+		if rl.ToPath != "" {
+			e.Path = rl.ToPath
+		}
+		e.Lines = rl.To
+		applied = true
 	}
-	return len(r.Relocated) > 0
+	return applied
 }
 
 // OK cho biết không có lỗi (cảnh báo không chặn).
@@ -136,6 +158,9 @@ type Verifier struct {
 	Src Source
 	// All là toàn bộ mục (để phát hiện trùng lặp).
 	All []*Item
+	// FindMoved bật tìm khối bằng chứng ở tệp khác khi không tìm lại được ở tệp cũ (có giới hạn
+	// chi phí, xem moved.go). Mặc định tắt để đường nóng (eval, evolve, ctxengine) không đổi.
+	FindMoved bool
 }
 
 // Verify kiểm tra một mục: schema, bằng chứng, fingerprint, ký hiệu, phạm vi, ví dụ
@@ -150,33 +175,96 @@ func (v Verifier) Verify(it *Item) Result {
 	}
 
 	// Bằng chứng: tồn tại, vùng dòng hợp lệ, fingerprint khớp (theo mức đã lưu, có
-	// định vị lại khi vùng dòng chỉ bị dịch chuyển), ký hiệu có mặt.
+	// định vị lại khi vùng dòng chỉ bị dịch chuyển hoặc khối đã chuyển tệp), ký hiệu có mặt.
 	evidenceText := map[string][]byte{}
+	addIssue := func(level, code string, iss EvidenceIssue, detail string) {
+		r.Findings = append(r.Findings, Finding{Level: level, Code: code, Detail: detail, Evidence: &iss})
+	}
 	for i, e := range it.Evidence {
+		base := EvidenceIssue{Index: i, Path: e.Path, Lines: e.Lines, Symbol: e.Symbol}
+		// moved báo khối đã chuyển/không chọn được; false nếu không tìm chuyển tệp hoặc không thấy.
+		// code là mã của phát hiện gốc, dùng khi kết quả là ambiguous hoặc không thấy.
+		moved := func(code string, iss EvidenceIssue, detail string) (Evidence, []byte, bool) {
+			if !v.FindMoved || e.Fingerprint == "" {
+				addIssue(LevelError, code, iss, detail)
+				return e, nil, false
+			}
+			mv := findMoved(v.Src, e, e.Commit, it.Origin.Commit)
+			iss.Truncated = mv.Truncated
+			switch mv.Kind {
+			case IssueMoved:
+				iss.Kind, iss.NewPath, iss.NewLines, iss.FileLines = IssueMoved, mv.NewPath, mv.NewLines, 0
+				addIssue(LevelError, CodeMoved, iss, iss.Describe())
+				r.Relocated = append(r.Relocated, Relocation{Index: i, From: e.Lines, To: mv.NewLines, FromPath: e.Path, ToPath: mv.NewPath})
+				ne := e
+				ne.Path = mv.NewPath
+				if mv.NewLines != "" {
+					ne.Lines = mv.NewLines
+				}
+				return ne, mv.Content, true
+			case IssueAmbiguous:
+				iss.Kind, iss.Candidates = IssueAmbiguous, mv.Candidates
+				addIssue(LevelError, code, iss, iss.Describe())
+			default:
+				addIssue(LevelError, code, iss, detail)
+			}
+			return e, nil, false
+		}
 		b, ok := v.Src.Read(e.Path)
 		if !ok {
-			add(LevelError, CodeEvidence, "bằng chứng %s: không có tệp trong %s", e.Path, v.Src.Name())
-			continue
-		}
-		evidenceText[e.Path] = b
-		if e.Fingerprint == "" {
-			if _, err := Fingerprint(e, b); err != nil {
-				add(LevelError, CodeEvidence, "bằng chứng %s: %v", e, err)
+			iss := base
+			iss.Kind = IssueMissingFile
+			ne, nb, found := moved(CodeEvidence, iss, fmt.Sprintf("bằng chứng %s: không có tệp trong %s", e.Path, v.Src.Name()))
+			if !found {
 				continue
 			}
-			add(LevelWarn, CodeFingerprint, "bằng chứng %s chưa có fingerprint (không phát hiện được khi lỗi thời)", e)
+			e, b = ne, nb
+			evidenceText[e.Path] = b
 		} else {
-			switch c := CheckEvidence(e, b); c.Status {
-			case EvChanged:
-				add(LevelError, CodeFingerprint, "bằng chứng %s đã thay đổi kể từ khi ghi: %s", e, c.Detail)
-			case EvRelocated:
-				add(LevelWarn, CodeRelocated, "bằng chứng %s: %s (`bint knowledge verify --apply` cập nhật vùng dòng)", e, c.Detail)
-				r.Relocated = append(r.Relocated, Relocation{Index: i, From: e.Lines, To: c.Lines})
-				e.Lines = c.Lines
+			evidenceText[e.Path] = b
+			if e.Fingerprint == "" {
+				if _, err := Fingerprint(e, b); err != nil {
+					iss := base
+					iss.Kind = IssueBadRange
+					var ie *EvidenceIssueError
+					if errors.As(err, &ie) {
+						iss = withIndex(ie.Issue, i)
+					}
+					addIssue(LevelError, CodeEvidence, iss, fmt.Sprintf("bằng chứng %s: %v", e, err))
+					continue
+				}
+				iss := base
+				iss.Kind = IssueNoFingerprint
+				addIssue(LevelWarn, CodeFingerprint, iss, fmt.Sprintf("bằng chứng %s chưa có fingerprint (không phát hiện được khi lỗi thời)", e))
+			} else {
+				switch c := CheckEvidence(e, b); c.Status {
+				case EvChanged:
+					iss := base
+					iss.Kind, iss.FileLines = c.Kind, c.FileLines
+					detail := fmt.Sprintf("bằng chứng %s đã thay đổi kể từ khi ghi: %s", e, c.Detail)
+					// Chỉ tìm chuyển tệp khi khối không còn ở tệp cũ (vùng vượt quá tệp, ký hiệu mất). Nội
+					// dung đổi tại chỗ (changed) vẫn là changed/stale: một bản sao ở tệp khác không thay được
+					// khối đã sửa, và không được chặn cách sửa refresh.
+					if c.Kind != IssueOutOfRange && c.Kind != IssueSymbolGone {
+						addIssue(LevelError, CodeFingerprint, iss, detail)
+						break
+					}
+					if ne, nb, found := moved(CodeFingerprint, iss, detail); found {
+						e, b = ne, nb
+						evidenceText[e.Path] = b
+					}
+				case EvRelocated:
+					iss := base
+					iss.Kind, iss.NewLines = IssueRelocated, c.Lines
+					addIssue(LevelWarn, CodeRelocated, iss, fmt.Sprintf("bằng chứng %s: %s", e, c.Detail))
+					r.Relocated = append(r.Relocated, Relocation{Index: i, From: e.Lines, To: c.Lines, FromPath: e.Path})
+					e.Lines = c.Lines
+				}
 			}
 		}
 		if e.Symbol != "" && !containsSymbol(regionOf(e, b), e.Symbol) {
-			add(LevelError, CodeSymbol, "ký hiệu %q không có trong %s", e.Symbol, e)
+			iss := EvidenceIssue{Index: i, Kind: IssueSymbolGone, Path: e.Path, Lines: e.Lines, Symbol: e.Symbol}
+			addIssue(LevelError, CodeSymbol, iss, fmt.Sprintf("ký hiệu %q không có trong %s", e.Symbol, e))
 		}
 	}
 

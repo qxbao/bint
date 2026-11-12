@@ -207,6 +207,40 @@ func LookupCLI(reg *Registry, path string, flags []string) (CLITarget, bool) {
 	return t, true
 }
 
+// TargetFor dựng tham chiếu TUI tới hành động id (không qua chuỗi lệnh CLI): thẻ phụ và ghi chú ghi theo hàng của bảng ánh xạ
+// có cùng id (hàng đầu tiên), fields là các cờ nhập được ở ô form (lọc theo cờ có thật trong Options). Dùng cho thông điệp có cấu trúc
+// biết chính xác cần chỉ tới hành động nào (docs/tui-plan.md mục 12.11).
+func TargetFor(reg *Registry, id string, fields ...string) (CLITarget, bool) {
+	a, ok := reg.ByID(id)
+	if !ok {
+		return CLITarget{}, false
+	}
+	t := CLITarget{Action: a}
+	var row *cliRef
+	for i := range cliRefs {
+		if cliRefs[i].id == id {
+			row = &cliRefs[i]
+			break
+		}
+	}
+	if row != nil {
+		t.TabKey, t.TabOnly = row.tab, row.tabOnly
+		if row.writeFlag != "" && slicesContains(fields, row.writeFlag) {
+			t.WriteID = row.writeID
+		}
+	}
+	known := map[string]bool{}
+	for _, f := range a.Flags() {
+		known[f] = true
+	}
+	for _, f := range fields {
+		if known[f] {
+			t.Fields = append(t.Fields, f)
+		}
+	}
+	return t, true
+}
+
 func slicesContains(s []string, v string) bool {
 	for _, x := range s {
 		if x == v {

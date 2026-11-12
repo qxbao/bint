@@ -295,6 +295,17 @@ func (c cliCmd) render(rw Rewriter, verb bool) string {
 	return strings.Join(parts, " / ")
 }
 
+// ActionRef dựng tham chiếu TUI (phím, thẻ phụ, ô form) tới hành động id trong sổ, không qua chuỗi lệnh CLI. fields là các cờ cần nhập
+// ở ô form ("apply" cho knowledge.verify). Hành động không có trong sổ thì trả về tên hành động để lỗi không im lặng. Ghi chú chỉ đọc tự
+// thêm như refText.
+func (r Rewriter) ActionRef(id string, fields ...string) string {
+	t, ok := actions.TargetFor(r.reg(), id, fields...)
+	if !ok {
+		return id
+	}
+	return refText(r, t, false)
+}
+
 func refText(rw Rewriter, t actions.CLITarget, verb bool) string {
 	cat := rw.Cat
 	suffix := ".noun"

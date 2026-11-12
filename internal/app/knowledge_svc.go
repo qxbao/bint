@@ -110,7 +110,7 @@ func EvidenceExcerpt(e knowledge.Evidence, b []byte, max int) (out []string, mor
 
 // DetailOf dựng chi tiết của một mục đã có trong danh sách all (kiểm tra và đọc bằng chứng).
 func (k *KnowledgeWS) DetailOf(it *knowledge.Item, all []*knowledge.Item) KnowledgeDetail {
-	d := KnowledgeDetail{Item: it, Check: knowledge.Verifier{Src: k.Source(), All: all}.Verify(it)}
+	d := KnowledgeDetail{Item: it, Check: knowledge.Verifier{Src: k.Source(), All: all, FindMoved: true}.Verify(it)}
 	src := k.Source()
 	for _, e := range it.Evidence {
 		ev := EvidenceView{Evidence: e}
@@ -247,7 +247,7 @@ func PlanBatch(_ context.Context, k *KnowledgeWS, refs []string, to string) (Bat
 	if err != nil {
 		return plan, err
 	}
-	v := knowledge.Verifier{Src: k.Source(), All: all}
+	v := knowledge.Verifier{Src: k.Source(), All: all, FindMoved: true}
 	seen := map[string]bool{}
 	for _, ref := range refs {
 		it, err := knowledge.Find(all, ref)

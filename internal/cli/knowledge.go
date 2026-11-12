@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -114,7 +115,7 @@ hiện; cờ khác ghi đè. Mục do agent đề xuất theo cách này vẫn �
 					return err
 				}
 			} else {
-				printFindings(stdio.Out, res.Check.Findings, "  ")
+				printFindings(stdio.Out, res.Check.Findings, "  ", evRef{})
 				if res.Saved {
 					fmt.Fprintf(stdio.Out, "Đã ghi %s [%s/%s, origin %s]: %s\n", res.Item.ID, res.Item.Type, res.Item.Status, res.Origin, res.Item.Title)
 					if res.Item.Status == knowledge.StatusCandidate {
@@ -154,12 +155,6 @@ func nonNilFindings(f []knowledge.Finding) []knowledge.Finding {
 		return []knowledge.Finding{}
 	}
 	return f
-}
-
-func printFindings(w io.Writer, fs []knowledge.Finding, indent string) {
-	for _, f := range fs {
-		fmt.Fprintf(w, "%s%s %-12s %s\n", indent, findingIcon[f.Level], f.Code, f.Detail)
-	}
 }
 
 func newKnowledgeListCmd(stdio IO) *cobra.Command {
@@ -330,7 +325,7 @@ func newKnowledgeShowCmd(stdio IO) *cobra.Command {
 			printItem(stdio.Out, d)
 			if len(r.Findings) > 0 {
 				fmt.Fprintln(stdio.Out, "\nKiểm tra:")
-				printFindings(stdio.Out, r.Findings, "  ")
+				printFindings(stdio.Out, r.Findings, "  ", evRefOf(k, it.ID))
 			}
 			return nil
 		},
@@ -356,6 +351,11 @@ func newKnowledgeVerifyCmd(stdio IO) *cobra.Command {
                         tra trừ fingerprint qua → fingerprint được làm mới
   vùng dòng             bằng chứng chỉ bị dịch chuyển (nội dung không đổi) → cập
                         nhật lines, trạng thái giữ nguyên
+  chuyển tệp            khối bằng chứng không còn ở tệp cũ (tệp mất, ngắn đi, ký hiệu
+                        mất) và nằm nguyên vẹn ở đúng một tệp khác → cập nhật path và
+                        lines, trạng thái giữ nguyên; nội dung đổi tại chỗ thì không
+                        tìm chuyển tệp (vẫn là stale/changed), nhiều nơi khớp hoặc tìm
+                        bị cắt theo giới hạn chi phí thì không áp
 
 Mục stale rủi ro cao (rule, warning) cần người duyệt (bint knowledge revalidate
 để agent nhận định trước). Mục stale quá knowledge.stale_deprecate_days được đề
@@ -381,7 +381,7 @@ xuất deprecated; Bint không tự chuyển.`,
 			}
 			if asJSON {
 				if err := writeJSON(stdio.Out, map[string]any{"results": rep.Results, "transitions": rep.Transitions,
-					"relocated": nonNilStrings(rep.Relocated), "deprecate_proposals": nonNilStrings(rep.DeprecateProposals),
+					"relocated": nonNilStrings(rep.Relocated), "moved": nonNilStrings(rep.Moved), "deprecate_proposals": nonNilStrings(rep.DeprecateProposals),
 					"needs_review": nonNilStrings(rep.NeedsReview),
 					"load_errors":  loadErrStrings(rep.LoadErrors), "errors": errorsN, "warnings": warnN}); err != nil {
 					return err
@@ -399,13 +399,16 @@ xuất deprecated; Bint không tự chuyển.`,
 						icon = "!"
 					}
 					fmt.Fprintf(stdio.Out, "%s %s [%s/%s] %s\n", icon, r.ID, it.Type, it.Status, truncate(it.Title, 70))
-					printFindings(stdio.Out, r.Findings, "    ")
+					printFindings(stdio.Out, r.Findings, "    ", evRefOf(k, r.ID))
 				}
 				for _, t := range rep.Transitions {
 					fmt.Fprintf(stdio.Out, "→ %s: %s → %s (%s)\n", t.ID, t.From, t.To, t.Reason)
 				}
 				if len(rep.Relocated) > 0 {
-					fmt.Fprintf(stdio.Out, "↕ cập nhật vùng dòng (nội dung không đổi): %s\n", strings.Join(rep.Relocated, ", "))
+					fmt.Fprintf(stdio.Out, "↕ cập nhật vị trí bằng chứng (nội dung không đổi): %s\n", strings.Join(rep.Relocated, ", "))
+				}
+				if len(rep.Moved) > 0 {
+					fmt.Fprintf(stdio.Out, "⇄ trong đó đổi đường dẫn vì khối chuyển tệp: %s\n", strings.Join(rep.Moved, ", "))
 				}
 				if len(rep.NeedsReview) > 0 {
 					fmt.Fprintf(stdio.Out, "? stale rủi ro cao, cần xác thực lại (`bint knowledge revalidate` hoặc `approve --refresh`): %s\n", strings.Join(rep.NeedsReview, ", "))
@@ -425,7 +428,7 @@ xuất deprecated; Bint không tự chuyển.`,
 			return nil
 		},
 	}
-	c.Flags().BoolVar(&apply, "apply", false, "áp chuyển trạng thái tự động (candidate→verified cho loại không cần người duyệt; verified→stale)")
+	c.Flags().BoolVar(&apply, "apply", false, "áp chuyển trạng thái tự động (candidate→verified cho loại không cần người duyệt; verified→stale) và cập nhật vị trí bằng chứng (lines, cả path khi khối chuyển tệp)")
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
 }
@@ -443,9 +446,10 @@ func printReviewOutcomes(w io.Writer, outs []app.ReviewOutcome) int {
 	for _, o := range outs {
 		if o.Err != nil {
 			failed++
-			fmt.Fprintf(w, "✗ %s: %v\n", o.ID, o.Err)
-			if o.Check != nil {
-				printFindings(w, o.Check.Findings, "    ")
+			fmt.Fprintf(w, "✗ %s: %s\n", o.ID, reviewErrText(o.Err))
+			var ee *app.EvidenceError
+			if o.Check != nil && !errors.As(o.Err, &ee) {
+				printFindings(w, o.Check.Findings, "    ", evRef{ID: o.ID})
 			}
 			continue
 		}
@@ -608,7 +612,7 @@ kết quả kiểm tra. Mỗi mục nhập một phím rồi Enter:
 					printItem(stdio.Out, d)
 					if r := d.Check; len(r.Findings) > 0 {
 						fmt.Fprintln(stdio.Out, "\nKiểm tra:")
-						printFindings(stdio.Out, r.Findings, "  ")
+						printFindings(stdio.Out, r.Findings, "  ", evRefOf(k, it.ID))
 					}
 					a, ok := ask("\n[a]chấp nhận [r]từ chối [e]sửa [f]chấp nhận+làm mới fingerprint [s]bỏ qua [q]dừng > ")
 					if !ok {

@@ -375,6 +375,15 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 			}
 			pre := th.S(r, icon) + " " + m.findingLabel(f)
 			add(pre)
+			if iss, ok := f.IssueOf(); ok {
+				// Bằng chứng lệch: dòng có cấu trúc dựng qua i18n (vị trí cũ, vị trí mới/ứng viên/số dòng, cách xử lý), không qua Rewriter.
+				for _, ln := range ui.EvidenceLines(m.rw, iss) {
+					for _, s := range text.Wrap(ln, max(w-4, 8)) {
+						add("    " + th.S(theme.Muted, s))
+					}
+				}
+				continue
+			}
 			for _, s := range text.Wrap(m.cli(f.Detail), max(w-4, 8)) {
 				add("    " + th.S(theme.Muted, s))
 			}

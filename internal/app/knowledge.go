@@ -339,6 +339,9 @@ type VerifyReport struct {
 	Transitions []AppliedTransition
 	// Relocated: mục được cập nhật vùng dòng (nội dung bằng chứng không đổi).
 	Relocated []string
+	// Moved: mục được đổi đường dẫn bằng chứng vì khối đã chuyển sang tệp khác (nội dung không đổi).
+	// Mục cũng nằm trong Relocated.
+	Moved []string
 	// DeprecateProposals: mục stale quá knowledge.stale_deprecate_days ngày (mục 8.4).
 	// Chỉ là đề xuất; người dùng quyết định bằng `bint knowledge deprecate`.
 	DeprecateProposals []string
@@ -370,7 +373,7 @@ func VerifyKnowledge(ctx context.Context, k *KnowledgeWS, refs []string, apply b
 	if err != nil {
 		return rep, err
 	}
-	v := knowledge.Verifier{Src: k.Source(), All: all}
+	v := knowledge.Verifier{Src: k.Source(), All: all, FindMoved: true}
 	staleLimit := time.Duration(k.Config.Knowledge.StaleDeprecateDays) * 24 * time.Hour
 	for _, it := range targets {
 		r := v.Verify(it)
@@ -392,7 +395,12 @@ func VerifyKnowledge(ctx context.Context, k *KnowledgeWS, refs []string, apply b
 			// Chỉ cập nhật vị trí; nội dung bằng chứng không đổi nên trạng thái giữ nguyên.
 			changed = true
 			rep.Relocated = append(rep.Relocated, it.ID)
+			if movedFile(r) {
+				rep.Moved = append(rep.Moved, it.ID)
+			}
+			// Kết quả báo cáo là kết quả sau khi áp: khối đã đổi đường dẫn/vùng dòng không còn là lỗi.
 			r = v.Verify(it)
+			rep.Results[len(rep.Results)-1] = r
 		}
 		switch {
 		case it.Status == knowledge.StatusVerified && (r.Has(knowledge.CodeFingerprint) || r.Has(knowledge.CodeEvidence) || r.Has(knowledge.CodeSymbol)) && !r.OK():
@@ -441,6 +449,25 @@ func VerifyKnowledge(ctx context.Context, k *KnowledgeWS, refs []string, apply b
 		}
 	}
 	return rep, nil
+}
+
+// movedFile cho biết kết quả có bằng chứng đổi đường dẫn (khối chuyển sang tệp khác).
+func movedFile(r knowledge.Result) bool {
+	for _, rl := range r.Relocated {
+		if rl.ToPath != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// fillError bọc lỗi làm mới fingerprint: lỗi bằng chứng thành *EvidenceError, lỗi khác giữ nguyên.
+func (k *KnowledgeWS) fillError(it *knowledge.Item, err error) error {
+	var ie *knowledge.EvidenceIssueError
+	if errors.As(err, &ie) {
+		return k.evidenceError(it, []knowledge.EvidenceIssue{ie.Issue})
+	}
+	return err
 }
 
 func firstError(r knowledge.Result) string {
@@ -513,7 +540,7 @@ func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]R
 		return nil, err
 	}
 	who := GitIdentity(ctx, k.Root)
-	v := knowledge.Verifier{Src: k.Source(), All: all}
+	v := knowledge.Verifier{Src: k.Source(), All: all, FindMoved: true}
 	var outs []ReviewOutcome
 	for _, it := range targets {
 		o := ReviewOutcome{ID: it.ID, From: it.Status, To: act.To}
@@ -521,8 +548,20 @@ func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]R
 			Reason: act.Reason, RequireHuman: k.Config.Knowledge.RequireHumanApprovalFor, Now: act.Now}
 		if act.To == knowledge.StatusVerified {
 			if act.Refresh {
+				// Kiểm trước: chỉ làm mới fingerprint khi việc đó chắc chắn đúng. Vùng đã dời hoặc
+				// chuyển tệp thì áp vị trí mới trước, nếu không fingerprint sẽ băm nhầm nội dung ở
+				// vị trí cũ. Ca không sửa được bằng làm mới trả lỗi có cấu trúc, không băm gì.
+				r0 := v.Verify(it)
+				if issues, ok := evidenceIssues(r0); ok {
+					if ee := k.evidenceError(it, issues); ee.Fix() == knowledge.FixEdit {
+						o.Err, o.Check = ee, &r0
+						outs = append(outs, o)
+						continue
+					}
+				}
+				r0.ApplyRelocations(it)
 				if err := knowledge.FillFingerprints(it, k.Source(), k.Config.Context.Freshness.Fingerprint); err != nil {
-					o.Err = err
+					o.Err = k.fillError(it, err)
 					outs = append(outs, o)
 					continue
 				}
@@ -530,8 +569,8 @@ func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]R
 			r := v.Verify(it)
 			o.Check = &r
 			in.ChecksPassed = r.OK()
-			if !r.OK() && r.OnlyErrors(knowledge.CodeFingerprint) {
-				o.Err = fmt.Errorf("bằng chứng đã thay đổi kể từ khi ghi; xem lại (`bint knowledge show %s`) rồi `bint knowledge approve --refresh %s`", it.ID, it.ID)
+			if issues, ok := evidenceIssues(r); ok && !r.OK() {
+				o.Err = k.evidenceError(it, issues)
 				outs = append(outs, o)
 				continue
 			}

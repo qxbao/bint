@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -135,8 +136,10 @@ func TestCLIRefKnowledgeScreen(t *testing.T) {
 	if err != nil || len(outs) != 1 || outs[0].Err == nil {
 		t.Fatalf("dịch vụ phải từ chối duyệt: %v %+v", err, outs)
 	}
-	if !strings.Contains(outs[0].Err.Error(), "`bint knowledge show") || !strings.Contains(outs[0].Err.Error(), "`bint knowledge approve --refresh") {
-		t.Fatalf("CLI giữ nguyên chữ của dịch vụ: %v", outs[0].Err)
+	// Lỗi duyệt có cấu trúc (không còn chuỗi nhắc lệnh CLI của dịch vụ): TUI dựng câu và phím từ cấu trúc.
+	var ee *bintapp.EvidenceError
+	if !errors.As(outs[0].Err, &ee) || ee.Fix() != knowledge.FixRefresh || strings.Contains(outs[0].Err.Error(), "bint ") {
+		t.Fatalf("muốn *EvidenceError cách sửa refresh, không có lệnh CLI: %T %v", outs[0].Err, outs[0].Err)
 	}
 	m := New(ctx, Options{Dir: root, Version: "t", Lang: "vi", Mode: theme.Mono, SpinnerFPS: time.Millisecond})
 	m.SetSize(140, 40)

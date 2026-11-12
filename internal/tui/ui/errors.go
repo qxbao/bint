@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"bint/internal/app"
 	"bint/internal/i18n"
@@ -15,9 +16,12 @@ import (
 // nhãn "chi tiết kỹ thuật" (docs/tui-plan.md mục 7.1).
 func ErrText(rw Rewriter, err error) string {
 	cat := rw.Cat
+	var ee *app.EvidenceError
 	switch {
 	case err == nil:
 		return ""
+	case errors.As(err, &ee):
+		return evidenceErrText(rw, ee)
 	case errors.Is(err, app.ErrAgentForbidden):
 		return cat.T("err.agent_forbidden")
 	case errors.Is(err, app.ErrNotInitialized):
@@ -39,11 +43,23 @@ func ErrText(rw Rewriter, err error) string {
 }
 
 // FindingText dịch mã của một finding kiểm tra tri thức; chi tiết đi kèm nguyên văn (kỹ thuật).
-func FindingText(rw Rewriter, f knowledge.Finding) string {
+func FindingText(rw Rewriter, f knowledge.Finding) string { return findingText(rw, f, true) }
+
+// FindingCause như FindingText nhưng finding bằng chứng chỉ nêu nguyên nhân, không có cách xử lý: dùng khi mục chưa được ghi (thêm mục),
+// nên không có mục nào để duyệt, cập nhật hay sửa.
+func FindingCause(rw Rewriter, f knowledge.Finding) string { return findingText(rw, f, false) }
+
+func findingText(rw Rewriter, f knowledge.Finding, withFix bool) string {
 	cat := rw.Cat
 	label := f.Code
 	if k := "finding." + f.Code; cat.Has(k) {
 		label = cat.T(k)
+	}
+	if iss, ok := f.IssueOf(); ok {
+		if withFix {
+			return label + " — " + EvidenceText(rw, iss)
+		}
+		return label + " — " + strings.Join(EvidenceCause(rw, iss), "; ")
 	}
 	if f.Detail == "" {
 		return label

@@ -1,13 +1,14 @@
 package ui
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"bint/internal/i18n"
+	"bint/internal/knowledge"
 	"bint/internal/tui/actions"
 )
 
@@ -30,8 +31,8 @@ func TestRewriteTable(t *testing.T) {
 		{"không có lệnh", "không có gì để đổi", "không có gì để đổi", "không có gì để đổi"},
 		{"động từ + dấu huyền", "thiếu khối (chạy lại `bint init --update` để thêm)", "thiếu khối (nhấn U ở Hệ thống › Cấu hình để thêm)", "thiếu khối (press U in System › Config để thêm)"},
 		{"ngoặc, ID", "có thay đổi chờ duyệt (bint task approve 01M769D0Y45T2Y178ZC5GHD5QW)", "có thay đổi chờ duyệt (phím a ở Tác vụ)", "có thay đổi chờ duyệt (key a in Tasks)"},
-		{"cờ đặc thù --apply", "bằng chứng X (`bint knowledge verify --apply` cập nhật vùng dòng)", "bằng chứng X (phím v ở Tri thức [ô Áp dụng] cập nhật vùng dòng)", ""},
-		{"cờ --refresh", "xem lại (`bint knowledge show 01ABC`) rồi `bint knowledge approve --refresh 01ABC`", "xem lại (phím Enter ở Tri thức) rồi phím f ở Tri thức", ""},
+		{"cờ đặc thù --apply", "fingerprint của bằng chứng thay đổi (`bint knowledge verify --apply`)", "fingerprint của bằng chứng thay đổi (phím v ở Tri thức [ô Áp dụng])", ""},
+		{"cờ --refresh", "rồi người duyệt (`bint knowledge approve --refresh`)", "rồi người duyệt (phím f ở Tri thức)", ""},
 		{"nhiều lệnh một câu", "bint task set 01M769D0Y45T2Y178ZC5GHD5QW --verify-command '…' rồi bint run resume 01M769D0Y45T2Y178ZC5GHD5QW", "phím e ở Tác vụ [ô Lệnh kiểm chứng] rồi phím c ở Tác vụ", ""},
 		{"lệnh con anh em", "người dùng (`bint knowledge reject/deprecate`)", "người dùng (phím r ở Tri thức / phím d ở Tri thức)", ""},
 		{"lệnh ngoài sổ giữ nguyên", "bint hook: lỗi; bint mcp serve", "bint hook: lỗi; bint mcp serve", "bint hook: lỗi; bint mcp serve"},
@@ -65,17 +66,17 @@ func TestRewriteTable(t *testing.T) {
 // knowledge.verify_apply (Writes), ở chế độ thường không có. "knowledge verify" không cờ ghi (chỉ đọc) không bao giờ có ghi chú.
 func TestRewriteWriteFlagReadOnlyNote(t *testing.T) {
 	vi, en := cats(t)
-	const in = "bằng chứng X (`bint knowledge verify --apply` cập nhật vùng dòng)"
+	const in = "fingerprint của bằng chứng thay đổi (`bint knowledge verify --apply`)"
 	const note = " (không dùng được ở chế độ chỉ đọc)"
 	normal := Rewriter{Cat: vi}.Rewrite(in)
 	ro := Rewriter{Cat: vi, ReadOnly: true}.Rewrite(in)
-	if want := "bằng chứng X (phím v ở Tri thức [ô Áp dụng] cập nhật vùng dòng)"; normal != want {
+	if want := "fingerprint của bằng chứng thay đổi (phím v ở Tri thức [ô Áp dụng])"; normal != want {
 		t.Errorf("thường:\n got %s\nwant %s", normal, want)
 	}
 	if strings.Contains(normal, "chỉ đọc") {
 		t.Errorf("chế độ thường không có ghi chú chỉ đọc: %s", normal)
 	}
-	if want := "bằng chứng X (phím v ở Tri thức [ô Áp dụng]" + note + " cập nhật vùng dòng)"; ro != want {
+	if want := "fingerprint của bằng chứng thay đổi (phím v ở Tri thức [ô Áp dụng]" + note + ")"; ro != want {
 		t.Errorf("chỉ đọc:\n got %s\nwant %s", ro, want)
 	}
 	if got := (Rewriter{Cat: en, ReadOnly: true}).Rewrite(in); !strings.Contains(got, "read-only") && !strings.Contains(got, "chỉ đọc") {
@@ -195,7 +196,7 @@ func TestRewritePositionalIDNeedsDigit(t *testing.T) {
 // ErrText đi qua Rewriter của mô hình: ghi chú chỉ đọc theo từng Rewriter.
 func TestErrTextUsesRewriterReadOnly(t *testing.T) {
 	vi, _ := cats(t)
-	err := errors.New("bằng chứng đã đổi (`bint knowledge verify --apply` cập nhật vùng dòng)")
+	err := fmt.Errorf("%w: fingerprint của bằng chứng thay đổi (`bint knowledge verify --apply`)", knowledge.ErrTransition)
 	if got := ErrText(Rewriter{Cat: vi}, err); strings.Contains(got, "chỉ đọc") || !strings.Contains(got, "phím v ở Tri thức") {
 		t.Errorf("thường: %s", got)
 	}

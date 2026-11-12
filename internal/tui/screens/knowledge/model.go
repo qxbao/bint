@@ -2,6 +2,7 @@ package knowledge
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 
@@ -756,7 +757,7 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 		}
 		if !ar.Saved || ar.Item == nil {
 			if m.frm != nil {
-				m.frm.Err = m.t("kn.add.failed") + " " + strings.Join(findingLines(m.rw, ar.Check.Findings), "; ")
+				m.frm.Err = m.t("kn.add.failed") + " " + strings.Join(findingLines(m.rw, ar.Check.Findings, false), "; ")
 			}
 			return nil
 		}
@@ -785,8 +786,10 @@ func (m *Model) afterOutcomes(outs []app.ReviewOutcome) tea.Cmd {
 	for _, o := range outs {
 		if o.Err != nil {
 			msg := ui.ErrText(m.rw, o.Err)
-			if o.Check != nil && len(o.Check.Findings) > 0 {
-				msg += " · " + strings.Join(findingLines(m.rw, o.Check.Findings), "; ")
+			// Lỗi bằng chứng có cấu trúc đã nói đủ vị trí và cách xử lý: không lặp lại finding bằng chứng.
+			var ee *app.EvidenceError
+			if o.Check != nil && len(o.Check.Findings) > 0 && !errors.As(o.Err, &ee) {
+				msg += " · " + strings.Join(findingLines(m.rw, o.Check.Findings, true), "; ")
 			}
 			m.setToast(msg, true)
 			return m.Load()
@@ -878,11 +881,22 @@ func (m *Model) showVerify(rep app.VerifyReport, applied bool) {
 		}
 		body = append(body, m.th.S(role, icon)+" "+short(r.ID)+" "+title)
 		for _, f := range r.Findings {
-			body = append(body, "    "+m.th.S(theme.Muted, findingIcon(f.Level))+" "+m.findingLabel(f)+" — "+m.cli(f.Detail))
+			detail := m.cli(f.Detail)
+			if iss, ok := f.IssueOf(); ok {
+				detail = ui.EvidenceText(m.rw, iss) // bằng chứng lệch: dựng từ cấu trúc, không qua Rewriter
+			}
+			body = append(body, "    "+m.th.S(theme.Muted, findingIcon(f.Level))+" "+m.findingLabel(f)+" — "+detail)
 		}
 	}
 	for _, t := range rep.Transitions {
 		body = append(body, m.th.S(theme.Accent, "→ ")+short(t.ID)+": "+t.From+" → "+t.To)
+	}
+	// Đã áp: Results là kết quả sau khi áp (không còn ✗ cho khối đã dời), nên nói rõ vị trí nào đã đổi.
+	if len(rep.Relocated) > 0 {
+		body = append(body, m.th.S(theme.Accent, "↕ ")+m.cat.N("kn.verify.relocated", len(rep.Relocated), i18n.A{"ids": shortList(rep.Relocated)}))
+	}
+	if len(rep.Moved) > 0 {
+		body = append(body, m.th.S(theme.Accent, "⇄ ")+m.cat.N("kn.verify.moved", len(rep.Moved), i18n.A{"ids": shortList(rep.Moved)}))
 	}
 	if len(rep.Results) == 0 {
 		body = append(body, m.t("kn.verify.empty"))
@@ -912,12 +926,25 @@ func (m *Model) findingLabel(f kn.Finding) string {
 }
 
 // findingLines là các finding thành chuỗi ngắn "nhãn — chi tiết".
-func findingLines(rw ui.Rewriter, fs []kn.Finding) []string {
+func findingLines(rw ui.Rewriter, fs []kn.Finding, withFix bool) []string {
 	var out []string
 	for _, f := range fs {
-		out = append(out, ui.FindingText(rw, f))
+		if withFix {
+			out = append(out, ui.FindingText(rw, f))
+		} else {
+			out = append(out, ui.FindingCause(rw, f))
+		}
 	}
 	return out
+}
+
+// shortList là danh sách ID đã rút, cách nhau dấu phẩy.
+func shortList(ids []string) string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = short(id)
+	}
+	return strings.Join(out, ", ")
 }
 
 // short rút ID dài (ULID) còn 10 ký tự cuối cho dễ đọc trong hộp thoại.

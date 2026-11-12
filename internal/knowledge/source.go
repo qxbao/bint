@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -34,6 +35,9 @@ type WorktreeSource struct {
 	once  sync.Once
 	files []string
 	err   error
+	// mu và changes nhớ ChangedSince theo commit (verify cả kho không gọi git lặp lại).
+	mu      sync.Mutex
+	changes map[string]changeEntry
 }
 
 func (w *WorktreeSource) Name() string { return "cây làm việc" }
@@ -75,6 +79,7 @@ type CommitSource struct {
 	files   []string
 	mu      sync.Mutex
 	cache   map[string][]byte
+	changes map[string]changeEntry
 }
 
 func (c *CommitSource) Name() string { return "commit " + shortSHA(c.Commit) }
@@ -194,13 +199,16 @@ func FingerprintWith(e Evidence, content []byte, pref string) (string, error) {
 	}
 	from, to, ok, err := e.LineRange()
 	if err != nil {
-		return "", err
+		return "", &EvidenceIssueError{Issue: baseIssue(e, IssueBadRange), msg: err.Error()}
 	}
 	if !ok {
 		return FPFile + ":" + hashLines(lines), nil
 	}
 	if to > len(lines) {
-		return "", fmt.Errorf("%s có %d dòng, bằng chứng tham chiếu dòng %s", e.Path, len(lines), e.Lines)
+		iss := baseIssue(e, IssueOutOfRange)
+		iss.FileLines = len(lines)
+		return "", &EvidenceIssueError{Issue: iss,
+			msg: fmt.Sprintf("%s có %d dòng, bằng chứng tham chiếu dòng %s", e.Path, len(lines), e.Lines)}
 	}
 	return FPLines + ":" + hashLines(lines[from-1:to]), nil
 }
@@ -265,6 +273,10 @@ const (
 // EvidenceCheck là kết quả đối chiếu một bằng chứng với nội dung hiện tại.
 type EvidenceCheck struct {
 	Status string
+	// Kind là loại vấn đề (Issue*) khi Status = relocated hoặc changed; rỗng nếu khớp.
+	Kind string
+	// FileLines là số dòng hiện có của tệp (khi vùng dòng vượt quá).
+	FileLines int
 	// Current là fingerprint hiện tại cùng mức với fingerprint đã lưu.
 	Current string
 	// Lines là vùng dòng mới khi Status = relocated.
@@ -295,13 +307,13 @@ func CheckEvidence(e Evidence, content []byte) EvidenceCheck {
 	case FPSymbol:
 		r, ok := symbols.Locate(e.Path, content, e.Symbol)
 		if !ok || r.To > len(lines) {
-			return EvidenceCheck{Status: EvChanged, Detail: fmt.Sprintf("không còn tìm thấy ký hiệu %q", e.Symbol)}
+			return EvidenceCheck{Status: EvChanged, Kind: IssueSymbolGone, Detail: fmt.Sprintf("không còn tìm thấy ký hiệu %q", e.Symbol)}
 		}
 		return verdict(FPSymbol+":"+hashLines(lines[r.From-1:r.To]), e.Fingerprint, "")
 	case FPLines:
 		from, to, ok, err := e.LineRange()
 		if err != nil || !ok {
-			return EvidenceCheck{Status: EvChanged, Detail: "fingerprint vùng dòng nhưng bằng chứng không có vùng dòng hợp lệ"}
+			return EvidenceCheck{Status: EvChanged, Kind: IssueBadRange, Detail: "fingerprint vùng dòng nhưng bằng chứng không có vùng dòng hợp lệ"}
 		}
 		if to <= len(lines) {
 			if c := verdict(FPLines+":"+hashLines(lines[from-1:to]), e.Fingerprint, ""); c.Status == EvMatch {
@@ -321,7 +333,7 @@ func CheckEvidence(e Evidence, content []byte) EvidenceCheck {
 				if n == 1 {
 					nl = fmt.Sprint(best + 1)
 				}
-				return EvidenceCheck{Status: EvRelocated, Current: e.Fingerprint, Lines: nl,
+				return EvidenceCheck{Status: EvRelocated, Kind: IssueRelocated, Current: e.Fingerprint, Lines: nl,
 					Detail: fmt.Sprintf("nội dung không đổi, dịch từ dòng %s sang %s", e.Lines, nl)}
 			}
 		}
@@ -329,13 +341,13 @@ func CheckEvidence(e Evidence, content []byte) EvidenceCheck {
 		if to <= len(lines) {
 			cur = FPLines + ":" + hashLines(lines[from-1:to])
 		}
-		d := "nội dung vùng dòng đã thay đổi"
+		d, k, fl := "nội dung vùng dòng đã thay đổi", IssueChanged, 0
 		if to > len(lines) {
-			d = fmt.Sprintf("tệp còn %d dòng, không tìm lại được vùng %s", len(lines), e.Lines)
+			d, k, fl = fmt.Sprintf("tệp còn %d dòng, không tìm lại được vùng %s", len(lines), e.Lines), IssueOutOfRange, len(lines)
 		}
-		return EvidenceCheck{Status: EvChanged, Current: cur, Detail: d}
+		return EvidenceCheck{Status: EvChanged, Kind: k, FileLines: fl, Current: cur, Detail: d}
 	}
-	return EvidenceCheck{Status: EvChanged, Detail: fmt.Sprintf("mức fingerprint lạ %q", kind)}
+	return EvidenceCheck{Status: EvChanged, Kind: IssueChanged, Detail: fmt.Sprintf("mức fingerprint lạ %q", kind)}
 }
 
 func verdict(cur, stored, detail string) EvidenceCheck {
@@ -345,7 +357,7 @@ func verdict(cur, stored, detail string) EvidenceCheck {
 	if detail == "" {
 		detail = "nội dung đã thay đổi"
 	}
-	return EvidenceCheck{Status: EvChanged, Current: cur, Detail: detail}
+	return EvidenceCheck{Status: EvChanged, Kind: IssueChanged, Current: cur, Detail: detail}
 }
 
 func absInt(x int) int {
@@ -366,13 +378,27 @@ func FillFingerprints(it *Item, src Source, pref ...string) error {
 		e := &it.Evidence[i]
 		b, ok := src.Read(e.Path)
 		if !ok {
-			return fmt.Errorf("bằng chứng %s: không có tệp trong %s", e.Path, src.Name())
+			return &EvidenceIssueError{Issue: withIndex(baseIssue(*e, IssueMissingFile), i),
+				msg: fmt.Sprintf("bằng chứng %s: không có tệp trong %s", e.Path, src.Name())}
 		}
 		fp, err := FingerprintWith(*e, b, p)
 		if err != nil {
+			var ie *EvidenceIssueError
+			if errors.As(err, &ie) {
+				return &EvidenceIssueError{Issue: withIndex(ie.Issue, i), msg: fmt.Sprintf("bằng chứng %s: %s", e, ie.msg)}
+			}
 			return fmt.Errorf("bằng chứng %s: %w", e, err)
 		}
 		e.Fingerprint = fp
 	}
 	return nil
+}
+
+func baseIssue(e Evidence, kind string) EvidenceIssue {
+	return EvidenceIssue{Kind: kind, Path: e.Path, Lines: e.Lines, Symbol: e.Symbol}
+}
+
+func withIndex(i EvidenceIssue, idx int) EvidenceIssue {
+	i.Index = idx
+	return i
 }

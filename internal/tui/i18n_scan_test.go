@@ -190,6 +190,9 @@ func TestNoUnusedKeys(t *testing.T) {
 		// Màn Tri thức: khoá ghép từ tên hành động, thẻ phụ, mã finding, chỉ số điều kiện chuyển (có test phủ riêng).
 		"action.knowledge.", "kn.sub.", "kn.survey.", "kn.panel.hint.", "kn.reason.title.", "kn.blocked.", "kn.meta.", "kn.insp.",
 		"finding.", "transition.", "form.",
+		// Bằng chứng lệch có cấu trúc (mục 12.11): khoá ghép từ loại vấn đề và cách sửa của knowledge.EvidenceIssue; TestEvidenceKeysBothLanguages
+		// liệt kê mọi loại và cách sửa ở cả hai ngôn ngữ.
+		"kn.ev.",
 		// Màn Tác vụ: trạng thái, thẻ con, mức độ, loại phát hiện, điều kiện chuyển, nhóm, siêu dữ liệu (ghép từ giá trị dữ liệu);
 		// câu hỏi giữa chừng ghép từ khoá do workflow khai báo (workflow.Q*).
 		"action.tasks.", "tk.status.", "tk.sub.", "tk.sev.", "tk.kind.", "tk.trans.", "tk.group.", "tk.meta.", "prompt.workflow.",
@@ -252,7 +255,7 @@ func TestFindingCodesAndTransitionsTranslated(t *testing.T) {
 	vi, en := i18n.MustLoad("vi"), i18n.MustLoad("en")
 	for _, c := range []string{knowledge.CodeSchema, knowledge.CodeEvidence, knowledge.CodeFingerprint, knowledge.CodeSymbol, knowledge.CodeScope,
 		knowledge.CodeExample, knowledge.CodePathRef, knowledge.CodeDuplicate, knowledge.CodeThirdParty, knowledge.CodeOverview,
-		knowledge.CodeLength, knowledge.CodeUnreviewed, knowledge.CodeRelocated} {
+		knowledge.CodeLength, knowledge.CodeUnreviewed, knowledge.CodeRelocated, knowledge.CodeMoved} {
 		if k := "finding." + c; !vi.Has(k) || !en.Has(k) {
 			t.Errorf("thiếu khoá %q", k)
 		}
@@ -269,6 +272,33 @@ func TestFindingCodesAndTransitionsTranslated(t *testing.T) {
 	for i := range knowledge.TransitionTable {
 		if k := "transition." + strconv.Itoa(i); !vi.Has(k) || !en.Has(k) {
 			t.Errorf("thiếu khoá %q", k)
+		}
+	}
+}
+
+// Mọi loại vấn đề bằng chứng (knowledge.IssueKinds) và cách sửa (knowledge.Fixes) có khoá ở cả vi và en, cộng các khoá chung của
+// khung Detail, hộp xác minh và lỗi duyệt (docs/tui-plan.md mục 12.11). Khoá gọi ghép "kn.ev."+loại nên test quét khoá không bắt được.
+func TestEvidenceKeysBothLanguages(t *testing.T) {
+	vi, en := i18n.MustLoad("vi"), i18n.MustLoad("en")
+	keys := []string{"err.evidence", "finding.moved", "kn.ev.at", "kn.ev.new", "kn.ev.candidates", "kn.ev.file_lines", "kn.ev.truncated", "kn.verify.relocated", "kn.verify.moved"}
+	for _, k := range knowledge.IssueKinds {
+		keys = append(keys, "kn.ev."+k)
+	}
+	for _, f := range knowledge.Fixes {
+		keys = append(keys, "kn.ev.fix."+f)
+	}
+	for _, k := range keys {
+		if !vi.Has(k) || !en.Has(k) {
+			t.Errorf("khoá %q thiếu ở vi=%v en=%v", k, vi.Has(k), en.Has(k))
+		}
+	}
+	// en chỉ có ASCII (không lẫn chữ có dấu tiếng Việt).
+	for _, k := range keys {
+		for _, r := range en.T(k) {
+			if r > 0x7f {
+				t.Errorf("en %q có ký tự ngoài ASCII: %q", k, en.T(k))
+				break
+			}
 		}
 	}
 }
