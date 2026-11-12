@@ -202,3 +202,31 @@ func TestBDoDriverSessionBranch(t *testing.T) {
 		}
 	}
 }
+
+// Tác vụ 01M7826Q… (nghiệm thu 12.16): trước khi chạy driver session b-do kiểm hook SubagentStop (thiếu thì chi phí subagent
+// không đo được), thiếu thì đề nghị người dùng chạy `bint init --hooks` chứ không tự chạy; notes của `bint run next` là lưới an toàn.
+func TestBDoChecksSubagentStopHook(t *testing.T) {
+	b, ok := Get("b-do")
+	if !ok {
+		t.Fatal("thiếu b-do")
+	}
+	for _, tg := range []Target{ClaudeTarget, AgentsTarget} {
+		body := ForTarget(b, tg).Body()
+		for _, want := range []string{"Kiểm hook `SubagentStop`", "bint doctor --json", "hook claude", "bint init --hooks",
+			"không đo được", "Không tự chạy `bint init`", "notes", "chưa cài hook SubagentStop"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s: b-do thiếu chỉ dẫn kiểm hook %q", tg.Dir, want)
+			}
+		}
+		// Việc kiểm nằm trước lệnh lập phiếu --driver session.
+		if i, j := strings.Index(body, "Kiểm hook `SubagentStop`"), strings.Index(body, "1. Lập phiếu như Bước 1 nhưng thêm `--driver session`"); i < 0 || j < 0 || i > j {
+			t.Errorf("%s: kiểm hook phải đứng trước bước lập phiếu driver session", tg.Dir)
+		}
+		// Orchestrator không được tự chạy bint init.
+		for _, l := range strings.Split(body, "\n") {
+			if tl := strings.TrimSpace(l); strings.HasPrefix(tl, "bint init") {
+				t.Errorf("%s: b-do chỉ dẫn orchestrator tự chạy %q", tg.Dir, tl)
+			}
+		}
+	}
+}

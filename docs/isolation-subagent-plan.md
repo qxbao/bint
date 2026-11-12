@@ -1,8 +1,9 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
 Trạng thái: **đã triển khai G1–G4, chờ nghiệm thu thật bằng Claude Code** (2026-11-12). G1 mục 4.1–4.5: mục 12.1–12.5;
-G2 (mục 5): 12.6–12.8; spike S1–S3: 12.9; G3 (mục 6): 12.10–12.13; G4 (mục 7): 12.14–12.15. Cố ý để lại: G2 .5/.6 (12.7)
-và ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95 (12.5). Chưa chạy thật trên Windows. Gồm bốn giai
+G2 (mục 5): 12.6–12.8; spike S1–S3: 12.9; G3 (mục 6): 12.10–12.13; G4 (mục 7): 12.14–12.15; nghiệm thu thật G3: 12.16;
+việc tồn (ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95, grep trong `readonly_tools`, kiểm hook SubagentStop): 12.17.
+Cố ý để lại: G2 .5/.6 (12.7). Chưa chạy thật trên Windows. Gồm bốn giai
 đoạn: G1 (cô lập trên worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy
 các bước bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
 
@@ -503,7 +504,7 @@ Ngoài giới hạn `max_review_rounds` theo yêu cầu của người dùng.
   chặn → approve → done), `TestOutsideFeatExcludesOtherTaskTouched`. Đánh đổi: thay đổi tay của người dùng trên
   worktree chung bị quy cho tác vụ (chỉ dẫn tới yêu cầu duyệt); thay đổi của tác vụ chạy chế độ cũ (không `Touched`)
   trên cùng worktree cũng bị quy cho tác vụ có theo dõi.
-- **.4 (đã sửa).** `SetStatus` tới `done`/`cancelled` xoá `refs/bint/tasks/<id>/base`. `bint task diff` của tác vụ
+- **.4 (đã sửa).** `SetStatus` tới `done`/`cancelled` xoá `refs/bint/tasks/<id>/base` (từ 12.19: cả `base-tree`). `bint task diff` của tác vụ
   đã đóng vẫn đọc được `BaseTree` tới khi `git gc` dọn đối tượng mồ côi (mặc định sau 2 tuần).
 - **.3 (đã sửa).** `bint task diff` không đưa `Touched` vào dòng lệnh git: liệt kê toàn bộ rồi lọc trong Go; diff
   đầy đủ chia lô pathspec (≤16000 byte mỗi lô, `pathBatches`). `--stat` nhiều lô in theo lô, không có dòng tổng chung
@@ -814,11 +815,11 @@ Mỗi phát hiện medium có một test tái hiện (đã kiểm đột biến:
   (chỉ khẳng định thông báo vẫn khớp khi môi trường đặt vi_VN; máy này git không có bản dịch nên chưa phân biệt được với trước khi sửa).
 - **.7 `Paths.Worktrees` không dùng** — `state.WorktreesDirFor(tasksDir)` là nơi duy nhất suy thư mục worktree từ `Tasks.Dir`
   (`Env.worktreesDir` gọi nó; `state.At` dùng cùng hằng); `TestWorktreesDirMatchesPaths` bắt lệch bố cục.
-- **.5 ref base bị `pinTree` ghi đè; `Landed.Tree`/`BaseTree` không có ref sau khi dọn** — **không sửa**. Nhánh `bint/<id>` giữ
+- **.5 ref base bị `pinTree` ghi đè; `Landed.Tree`/`BaseTree` không có ref sau khi dọn** — **không sửa ở vòng này; đã sửa ở mục 12.19**. Nhánh `bint/<id>` giữ
   base commit tới lúc land nên chưa hỏng; sau khi tác vụ kết thúc mọi ref của nó bị xoá có chủ ý ở G1 (không ghim cây vĩnh viễn trong
   repo của người dùng), nên `task diff` của tác vụ đã xong sau `git gc` hỏng cũng đúng với tác vụ `shared` của G1. Đổi cần quyết định
   chung (giữ ref `landed` tới khi nào?), để cho vòng sau.
-- **.6 `setup_command` chạy không cần xác nhận** — **chỉ ghi tài liệu** (`docs/configuration.md`). Bắt xác nhận kiểu băm lệnh như
+- **.6 `setup_command` chạy không cần xác nhận** — **chỉ ghi tài liệu ở vòng này; đã sửa ở mục 12.19**. Bắt xác nhận kiểu băm lệnh như
   `verify.command` đòi thêm luồng duyệt/trạng thái chờ ở `bint run` đầu tiên; ngoài phạm vi vòng sửa này. Rủi ro còn: agent ở
   tác vụ `shared` sửa `.bint/config.yml` rồi tác vụ worktree sau chạy lệnh đó.
 - **Test chập chờn đã sửa** — `TestWorktreeParallelEndToEnd` (cli) treo khi A (shared, giữ khoá độc quyền cây gốc suốt b-feat) vào trước
@@ -1167,8 +1168,171 @@ Phiếu `--driver session --shared` (thêm câu hướng dẫn `/b-do --subagent
   3 lệnh Bash của `bint-planner` (`guardrail.triggered`, outcome `fired`).
 - **Lỗi thật tìm được:** repo cài hook từ bản cũ thiếu `SubagentStop` ⇒ chi phí b-req `unknown`; `bint doctor` báo "hook claude
   chưa cài", sửa bằng `bint init --hooks`. Phiên đang chạy nhận hook mới không cần khởi động lại. Nên để skill b-do kiểm
-  `bint doctor` (hoặc lỗi "chưa có SubagentStop") trước khi chạy driver session.
+  `bint doctor` (hoặc lỗi "chưa có SubagentStop") trước khi chạy driver session. **Đã xử lý ở 12.17 (3).**
 - **Ma sát:** guardrail chỉ đọc chặn `grep`/`git grep` (chỉ đọc nhưng không có trong `readonly_tools`); subagent tự chuyển sang
-  công cụ Grep. Cân nhắc thêm `Bash(grep:*)`, `Bash(git grep:*)` vào `readonly_tools` mặc định.
+  công cụ Grep. Cân nhắc thêm `Bash(grep:*)`, `Bash(git grep:*)` vào `readonly_tools` mặc định. **Đã xử lý ở 12.17 (2).**
 - **Chưa nghiệm thu thật:** G4 (hai tác vụ `--worktree` song song bằng subagent, guardrail đường dẫn worktree); hook `deny`
   dưới `bypassPermissions`; Windows.
+
+### 12.17. Việc tồn: ba phát hiện low của H8, grep trong `readonly_tools`, kiểm hook SubagentStop — 2026-11-12, tác vụ 01M7826QSKY3ADV2E8WW78DY94
+
+Phiếu A (việc nhỏ), chạy bằng `bint run b-feat` trên cây chung. Ba nhóm:
+
+**(1) Ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95 (12.5).**
+
+- **.1 băm do chính hàm ghi trả về.** `fsafe.Result` và `claude.InstallResult` có thêm `Prev`, `SHA256` (sha256 hex): băm nội dung
+  chính hàm đã đọc (rỗng khi tệp chưa có; tệp rỗng khác tệp chưa có) và đã ghi (rỗng khi tệp bị xoá). `SyncBlock` điền ở
+  Created/Appended/Updated, `RemoveBlock` ở gỡ khối (SHA256 rỗng khi gỡ làm xoá tệp), `claude.EditHooks` (Claude Code và Codex dùng
+  chung) và `antigravity.EditHooks` (kể cả nhánh xoá `hooks.json`) điền `Prev`/`SHA256`. `repoWriter.SyncBlock/RemoveBlock` và hai
+  nhánh cài/gỡ hook ở `internal/app/init.go` (qua `repoWriter.recordHooks`) ghi `prev_sha256`/`sha256` từ các băm đó, không gọi
+  `hashBefore`/`HashFile` nữa. Seam `repoWriteHook(stage, path)` (nil ở sản phẩm, gọi ngay trước lời gọi ghi và ngay sau khi nó trả,
+  trước khi ghi nhật ký) cho test mô phỏng agent ghi chen.
+  - Test: `fsafe.TestResultHashesMatchReadAndWritten` (tạo, cập nhật, chèn cuối/đầu tệp có sẵn, gỡ khối còn nội dung, gỡ làm xoá tệp);
+    `harness.TestHookResultsCarryReadAndWrittenHashes` (Claude, Codex, Antigravity: cài lên tệp chưa có, có sẵn, tệp rỗng; gỡ, gỡ làm
+    xoá tệp); `app.TestH8WriteGapIsViolation` (`SyncBlock` AGENTS.md và cài hook `.claude/settings.json`, ghi chen ở `before` và `after`
+    đều làm bước chỉ đọc `failed` kèm tên tệp; ca đối chứng không ghi chen thì tệp được miễn).
+  - Kiểm đột biến đã thử: trả `SyncBlock` về `hashBefore` trước lời gọi + băm lại đĩa sau thì hai ca `SyncBlock AGENTS.md/before` và
+    `/after` đỏ; bỏ riêng `sha` thì cả hai ca `/after` (SyncBlock và hook) đỏ.
+  - Phạm vi: chỉ các đường trên. `SaveItem`, `RemoveItem`, `SaveComponent`, `InstallSkills` vẫn băm trước bằng `hashBefore` và băm sau từ
+    đĩa, `Record` không biết băm trước: còn khe hở nhỏ (giới hạn, xem dưới).
+- **.2 chủ sở hữu của tệp cần duyệt.** `Runner.owners` (`workflow/touched.go`) liệt kê, cho mỗi tệp cần duyệt không thuộc `Touched` của
+  tác vụ hiện tại, các tác vụ KHÁC cùng worktree có tệp đó trong `Touched` (mọi trạng thái, sắp theo ID). `checkScope` thêm vào
+  `overlapNotes` dòng `<tệp> thuộc tác vụ <id> (đang chạy)` hoặc `(đã kết thúc)`; ghi chú đi vào `Question.Text` của `QConfirmScope`
+  và lý do `blocked`. Câu mở đầu của `Text` đổi thành trung tính ("Có thay đổi cần duyệt (…)") thay vì khẳng định "b-feat đã sửa".
+  `Paths`, `PendingPaths`, khoá i18n không đổi. Test: `TestScopeQuestionNamesOwningTask` (tác vụ khác đang chạy / đã kết thúc; kiểm cả
+  lý do blocked), `TestScopeQuestionOwnFileHasNoOwnerNote` (tệp của chính tác vụ không có ghi chú).
+- **.3 test tách ca sửa tay.** `TestOutsideFeatTerminalTaskDoesNotShield` đổi thứ tự: B chạy trước (sửa `migrations/001.sql`,
+  `docs/b.md`), A chạy sau nên `BaseTree(A)` đã chứa thay đổi của B; B kết thúc (cancelled hoặc done). TRƯỚC bước sửa tay hai tệp không có
+  trong `ScopeFiles(A)` và `UnapprovedChanges(A)`; SAU bước sửa tay cả hai có và `done` của A bị chặn. Kiểm đột biến đã thử: bỏ bước sửa
+  tay ⇒ đỏ; bỏ lọc `task.Terminal` trong `outsideFeat` ⇒ đỏ. Ca cũ (A chạy trước, nên thay đổi của B còn khác `BaseTree(A)` và bị quy cho A
+  dù không sửa tay) giữ thành `TestOutsideFeatTerminalTaskOlderBaseTreeKnownLimit` để hành vi bảo thủ đó (12.5) vẫn có test.
+
+**(2) `grep` và `git grep` trong `readonly_tools` mặc định** (xử lý "Ma sát" của 12.16). `config.Default()` và mẫu `Render` có thêm
+`Bash(grep:*)`, `Bash(git grep:*)` (`TestRenderMatchesDefaults` qua; số mục mặc định trong `harness_test.go` từ 8 lên 10); `docs/configuration.md`
+và `docs/workflows.md` nêu hai mẫu. Guardrail chỉ đọc: GNU grep không có cờ ghi tệp hay chạy lệnh nên chuyển hướng/pipe/`;` do luật chung chặn
+(`grep foo x > out`, `git grep foo >> out`, `grep foo x | sh` bị chặn; `grep -rn foo internal`, `git grep -n foo`, `grep foo x 2>/dev/null` qua).
+`git grep -O[<pager>]`/`--open-files-in-pager[=<pager>]` chạy chương trình tuỳ ý nên bị `hookcore.gitGrepRunsProgram` chặn: kiểm trên lệnh đã
+bỏ nháy đơn/kép và `\`, chặn token một gạch ngang có chữ `O` (kể cả cờ gộp `-nOvim`, brace `-{O,n}`), token hai gạch là tiền tố từ 4 ký tự của
+`--open-files-in-pager` (viết tắt `--op`), và nháy ANSI-C (`$'…'`). Test: `TestReadonlyShellAllowed` (đổi `testReadonlyTools` sang
+`config.Default()…ReadonlyTools`, thêm ~30 ca qua/chặn); bỏ lời gọi `gitGrepRunsProgram` thì các ca `-O` đỏ.
+
+**(3) Kiểm hook SubagentStop** (xử lý "Lỗi thật" của 12.16). `claude.SubagentHookInstalled(settings)` kiểm riêng sự kiện `SubagentStop`.
+`app.RunNext`: khi action là `agent` mà không phạm vi nào (local, project, user) có hook ⇒ `notes` thêm `app.SubagentHookWarning` (chi phí subagent không
+đo được, lệnh `bint init --hooks`); lỗi đọc settings coi như chưa cài. Test: `TestRunNextWarnsWhenSubagentStopHookMissing` (chưa có hook; có hook ở từng
+phạm vi; bản cài cũ thiếu SubagentStop; HOME cô lập bởi `testutil.Isolate`). Skill b-do Bước 2b có đoạn "Kiểm hook `SubagentStop`" trước lệnh lập phiếu
+`--driver session`: chạy `bint doctor --json`, mục `hook claude` có `Level` khác `ok`/`info` hoặc `notes` của `bint run next` có cảnh báo thì dừng,
+báo người dùng và đề nghị `bint init --hooks`, không tự chạy `bint init`. Bản cài `.claude/skills/b-do`, `.agents/skills/b-do`, `.bint/skills/core.lock`
+đồng bộ bằng `bint sync` (chỉ ba tệp đổi). Test: `skills.TestBDoChecksSubagentStopHook`.
+
+**Giới hạn còn lại.**
+
+- `SaveItem`, `RemoveItem`, `SaveComponent`, `InstallSkills`, `Record` vẫn băm trước/sau bằng cách đọc đĩa: agent ghi chen vào khe hở rất hẹp của các đường đó vẫn
+  được hợp thức hoá. Đóng khe hở cần các gói `knowledge`, `hcomp`, `skills` trả băm như `fsafe`.
+- TUI không hiện `Question.Text` của `QConfirmScope` (dùng thân i18n + `Paths`) nên ghi chú chủ sở hữu chỉ thấy ở CLI và lý do `blocked`
+  (thân i18n đã đổi thành câu trung tính ở 12.18).
+- `git grep` bị chặn nhầm khi mẫu tìm có chữ `O` đứng ngay sau một gạch ngang (ví dụ `-e -Ox`); mẫu có `|` (`grep -E 'a|b'`) bị chặn như mọi pipe, dùng `-e a -e b`.
+- `.bint/config.yml` của repo này đặt `readonly_tools` tường minh nên không tự nhận mặc định mới (và `.claude/agents/bint-*.md` sinh từ cấu hình hiệu lực không đổi):
+  thêm tay hai mẫu để dùng.
+- Cảnh báo SubagentStop của `run next` kiểm settings ở gốc repo (local/project) và user; hook chỉ cài ở nơi khác (ví dụ `--settings` riêng) bị báo thiếu.
+- Chưa kiểm được: race thật giữa agent và người (chỉ mô phỏng bằng seam); phiên Claude Code thật đọc cảnh báo trong `notes` (skill chỉ được test bằng chuỗi).
+
+### 12.18. Sửa phát hiện review của phiếu A (.1–.4), 2026-11-12, tác vụ 01M7826QSKY3ADV2E8WW78DY94
+
+Orchestrator sửa trực tiếp theo yêu cầu người dùng (không chạy thêm vòng b-feat). Lần kiểm chứng của `bint run` đỏ chỉ vì
+`TestEvalRunEscCancelsBatchAndShowsResumeCommand` (TUI, chập chờn khi máy bận; reviewer chạy riêng qua 3/3).
+
+- **.1 medium — brace expansion lọt qua `gitGrepRunsProgram`** (`git grep {-Osh,-e} foo` thành `git grep -Osh -e foo`). Không vá trong
+  `gitGrepRunsProgram` (brace ghép được ký tự: `{,-}O` thành `O` và `-O`), mà thêm luật chung ở `readonlyShellAllowed`: chặn `{`, `}`, `(`, `)`
+  nằm **ngoài nháy** (`hookcore.unquoted` thay nội dung trong `'…'`, `"…"` và ký tự sau `\` bằng `x`). Ngoặc trong nháy là chữ thường nên
+  mẫu regex đặt trong nháy (`grep -E 'foo(bar)+'`, `git grep -e "func (r \*Runner)"`) vẫn qua; `\(` cũng qua. Nháy ANSI-C (`$'…'`) bị chặn
+  với mọi lệnh chỉ đọc vì `\'` bên trong làm `unquoted` hiểu sai biên nháy.
+- **.2 low — zsh `=(…)`** và glob qualifier `*(e:…:)`: cùng luật trên chặn.
+- Test thêm trong `TestReadonlyShellAllowed`: brace đầu token (có/không nháy), `{,-}O`, `grep foo =(touch x)`, `grep foo *(e:'touch x':)`,
+  `grep $'\'' =(touch x)`, ba ca ngoặc hợp lệ trong nháy/thoát. Kiểm đột biến: tắt luật ngoặc ⇒ 5 ca chặn đỏ.
+- **.3 low — `owners` nêu cả tác vụ kết thúc từ lâu.** Bỏ tác vụ đã kết thúc có `UpdatedAt` trước `CreatedAt` của tác vụ hiện tại (thay đổi của
+  nó đã nằm trong `BaseTree`); đang chạy đứng trước, rồi mới trước; mỗi tệp nêu tối đa 3 tác vụ, còn lại gộp "và N tác vụ khác"
+  (`maxOwnersPerFile`). Test `TestScopeQuestionSkipsOwnerEndedBeforeTask` (bỏ lọc ⇒ đỏ).
+- **.4 low — thân i18n TUI** `prompt.workflow.confirm.scope.body` (vi, en) đổi thành câu trung tính, nêu cả "tác vụ khác cũng sửa"; phạm vi phiếu
+  thêm `internal/i18n/**`.
+- Giới hạn: luật ngoặc chặn nhầm lệnh chỉ đọc có ngoặc ngoài nháy (ví dụ `git show HEAD@{1}`: viết `'HEAD@{1}'`). Mẫu có `|` trong nháy vẫn bị
+  luật chung chặn như trước (luật `;&|<>` chưa xét nháy).
+
+### 12.19. Việc tồn G2 .5 và .6: tách ref base/base-tree, lỗi dễ hiểu khi cây bị dọn, xác nhận `setup_command`, 2026-11-12, tác vụ 01M785XQ96FYDKNTBXJDC0JR7K
+
+**Đã làm:**
+
+- **.5 — tách ref.** `refs/bint/tasks/<id>/base` chỉ còn giữ base commit (`State.Base`) của tác vụ worktree; ảnh chụp `BaseTree` của
+  `b-feat` đầu giữ bằng `refs/bint/tasks/<id>/base-tree` (`baseTreeRef`, `internal/workflow/touched.go`). `beginTouched` ghi
+  `base-tree`; `dropTouched` chỉ xoá `base-tree` (trước đây ghi đè/xoá nhầm `base`). Hai tên cùng cấp nên không xung đột thư mục/tệp
+  trong `refs/` (tên `base/tree` thì có). Vẫn theo quyết định G1: `deleteTaskRefs` xoá **cả hai** ref khi tác vụ `done`/`cancelled`
+  (`SetStatus`), khi land và khi `cleanupWorktree`; chuỗi "dọn tay" in thêm `update-ref -d …/base-tree`. Không ghim cây vĩnh viễn.
+- **.5 — lỗi dễ hiểu.** `bint task diff` kiểm mốc so sánh (`State.BaseTree`/`Base`, và `Landed.Tree`) bằng `git cat-file -e <rev>^{tree}` **trước**
+  khi diff (`checkTreesPresent`, `internal/app/task_diff.go`), không đoán qua stderr của git (phụ thuộc phiên bản/ngôn ngữ). Thiếu ⇒ lỗi bọc
+  `app.ErrTaskTreePruned`: nêu ID, trạng thái, thời điểm, mã cây rút gọn, "Bint xoá ref giữ cây khi tác vụ kết thúc và git gc đã dọn cây sau khi tác
+  vụ kết thúc", và tối đa 20 tệp đã biết (`Landed.Files`/`Touched`). Tác vụ đã đưa về nhưng chưa kết thúc và tác vụ chưa kết thúc có câu riêng
+  (ref `base-tree` bị xoá hoặc hỏng). Chỉ coi là "bị dọn" khi git chạy được trong repo mà `cat-file` thoát khác 0; môi trường lỗi (không có git...)
+  trả lỗi gốc từ bước diff.
+- **.6 — xác nhận `setup_command`.** `State.SetupApproval` (`task.Approval` thêm `SHA256`; `task.CommandSHA256`). `Env.SetupStatus(t)` →
+  `{Command, SHA256, Required, Confirmed}` (`Required` = lệnh khác rỗng, tác vụ worktree, chưa tạo xong worktree, chưa kết thúc; `Confirmed` = băm
+  trùng). `Env.Approve` (chỉ người, agent ⇒ `ErrAgent`/`ErrAgentForbidden`) ghi `SetupApproval` khi `Pending()` và điền `Approval.SetupCommand`.
+  `ensureWorktree` kiểm ngay đầu hàm (trước dọn, khoá, ảnh chụp, tạo worktree/nhánh, chạy lệnh): chưa xác nhận và
+  `security.require_approval_for_commands` bật ⇒ `blocked`, lý do nêu lệnh, `bint task approve <id>` và `bint run resume <id>`; cờ tắt thì chạy và
+  ghi `Note`. Cả driver process (`run.go`) và driver session (`session.go`) đi qua `ensureWorktree`. Lệnh chạy sau đó là cùng `r.Cfg` của lượt đã băm
+  nên không có khoảng hở TOCTOU; resume tới `ensureWorktree` kiểm lại nên lệnh bị đổi giữa chừng (băm khác) lại `blocked`.
+- **.6 — hiển thị.** `bint task show` (dòng `Setup worktree: … [đã xác nhận|chưa xác nhận: bint task approve <id>]`; `--json` thêm `setup_command`,
+  `setup_confirmed`, `setup_required`), `bint task approve` (in "✓ Xác nhận lệnh setup worktree"; "không có gì chờ duyệt" tính cả lệnh setup), hộp
+  xác nhận duyệt của TUI (`ApprovePlan.SetupCommand`) và thẻ Kiểm chứng của TUI (`TaskDetail.Setup`), `bint doctor` (mục "lệnh setup worktree" mức
+  info kèm 12 ký tự đầu của băm; mục warn "lệnh setup chờ xác nhận" liệt kê ID). Khoá i18n `tk.approve.setup*`, `tk.meta.setup`, `tk.verify.setup_*` có ở vi và en.
+- Tài liệu: `docs/configuration.md` (dòng `setup_command`), `docs/workflows.md` (đoạn tạo worktree, hai ref).
+
+**Test:** workflow — `TestBaseCommitSurvivesFirstFeatAndDropTouched` (hai ref sau b-feat đầu và sau `dropTouched`), `TestTaskRefsRemovedOnEnd` (shared done,
+worktree land, worktree cancel: `for-each-ref refs/bint/tasks/<id>/` rỗng), `TestWorktreeSetupNeedsApproval`, `TestWorktreeSetupApprovalInvalidatedByChange`,
+`TestWorktreeSetupEmptySharedOrFlagOffNoApproval`, `TestSessionWorktreeSetupNeedsApproval`; app — `TestDiffTaskSharedPrunedBaseTree` và
+`TestDiffTaskWorktreePrunedLandedTree` (dùng `git reflog expire --expire=now --all` + `git gc --prune=now` thật), `TestApproveSetupCommandHumanOnlyAndShow`,
+`TestDoctorReportsSetupCommand`; cli — `TestTaskShowSetupCommand`; TUI — `TestVerifyTabShowsSetupCommandStatus`, `TestApproveDialogShowsSetupCommand`.
+Hai test setup cũ (`TestWorktreeBaseHasDirtyStateAndCopies`, `TestWorktreeSetupCommandFailure`) nay phải `Approve` trước.
+
+**Lệch so với kế hoạch ban đầu (và lý do):**
+
+1. **Xác nhận theo từng tác vụ, không theo repo** (như `VerifyApproval`): mỗi tác vụ worktree mới phải được duyệt một lần — chỗ gây ma sát với người dùng có
+   `setup_command` (tác vụ `blocked` thêm một lần lúc đầu). Duyệt một lần cho cả repo (ví dụ lưu băm ở `local.yml`) để phiếu sau.
+2. **Lưu cả lệnh lẫn băm** (`SetupApproval.Command` để hiển thị, `SHA256` để so), trong khi `VerifyApproval` chỉ lưu lệnh.
+3. **Doctor không có chỗ hiện `verify.command` theo phiếu** (chỉ có `eval.test_command` cấp cấu hình): mục "lệnh setup worktree" đặt cạnh mục "lệnh kiểm thử" vì
+   cùng là lệnh cấp cấu hình; có thêm mục warn liệt kê tác vụ đang chờ.
+4. **Thẻ Kiểm chứng của TUI** nhận trạng thái từ `Detail.Setup`; danh sách có thể giữ bản phiếu cũ hơn chi tiết nên phần "ai/khi nào" bỏ trống nếu bản phiếu đó chưa có
+   `SetupApproval` (đã gặp panic nil khi viết test, đã chặn).
+5. **Tác vụ worktree đang dở trước bản sửa** có `refs/.../base` đã bị ghi đè (commit `base_tree` cha là Base): không sửa lại; nhánh `bint/<id>` vẫn giữ Base và ref bị xoá như thường khi kết thúc.
+6. Câu "tài liệu đầu vào … không nằm trong phạm vi sửa" của `bint task show` mâu thuẫn với `docs/**` trong `scope.allow` (có vẻ lỗi khớp glob ở bước đánh giá phiếu): ngoài phạm vi,
+   không sửa; nên có phiếu riêng.
+7. `state.json` không dùng `DisallowUnknownFields` (chỉ `review.go` dùng): hai trường JSON mới (`setup_approval`, `sha256`) `omitempty`, hoàn nguyên commit vẫn đọc được phiếu có trường mới.
+
+**Chưa kiểm được / giới hạn:**
+
+- Chưa chạy `bint run` thật với Claude Code (driver session thật) cho ca `blocked → approve → resume`; kiểm bằng test workflow (process và session giả lập agent).
+- `git gc` tự động mặc định chỉ dọn đối tượng mồ côi sau 2 tuần; test dùng `gc --prune=now`, nên chưa thấy lỗi ở điều kiện thời gian thật.
+- Agent ở tác vụ `shared` vẫn sửa được `.bint/config.yml`, nhưng đổi `setup_command` làm đổi băm nên tác vụ worktree sau bị chặn tới khi người xác nhận lại (rủi ro cũ của .6 được bịt khi cờ security bật).
+- Cờ `security.require_approval_for_commands` tắt vẫn cho lệnh chạy không xác nhận (có ghi chú).
+
+**Kết quả kiểm chứng:** `go test ./...` 55 gói qua, 0 lỗi (chạy riêng lại workflow/app/cli/tui/i18n/task với `-count=1`: 1037 test qua); `go vet ./...` và `GOOS=windows go vet ./...` sạch; `staticcheck ./...` và `GOOS=windows staticcheck ./...` sạch.
+
+### 12.20. Sửa phát hiện review của phiếu B (.1–.4), 2026-11-12, tác vụ 01M785XQ96FYDKNTBXJDC0JR7K
+
+Phiếu B tới `done` qua `bint run b-do` (7,13 USD); orchestrator sửa trực tiếp bốn phát hiện review theo yêu cầu người dùng.
+
+- **.1 medium — xác nhận không gắn với lệnh người đã xem.** `Env.ApproveWith(ref, ApproveInput{Paths, SetupSHA})`: lệnh setup đang chờ
+  chỉ được ghi `SetupApproval` khi `SetupSHA` (băm hoặc tiền tố ≥ `MinSetupSHAPrefix` = 12 ký tự hex) khớp băm của lệnh trong cấu hình
+  lúc ghi; không khớp ⇒ `ErrSetupChanged` (nêu lệnh và băm hiện tại), không duyệt gì; rỗng ⇒ không xác nhận lệnh setup, `Approval.SetupWaiting`
+  /`SetupWaitingSHA` cho CLI in lệnh và băm. `Approve(ref, paths...)` giữ chữ ký, gọi `ApproveWith` không băm. `app.ApprovePlan.SetupSHA` mang
+  băm của lệnh hộp duyệt TUI hiển thị và `confirmApprove` gửi lại nó; CLI có cờ `--setup-sha`; lý do `blocked` của `ensureWorktree`,
+  `bint task show` và `bint doctor` in sẵn `bint task approve <id> --setup-sha <12 ký tự>`. Test: `TestWorktreeSetupNeedsApproval` (không băm ⇒
+  chờ; cấu hình đổi sau khi xem ⇒ `ErrSetupChanged`; tiền tố 8 ký tự bị từ chối; đúng băm ⇒ chạy), `TestApproveSetupCommandHumanOnlyAndShow` (kế hoạch mang băm; không băm ⇒ chờ), e2e CLI
+  `depth_e2e_test.go` (không cờ, băm sai, băm đúng). Kiểm đột biến: bỏ so khớp băm ⇒ `TestWorktreeSetupNeedsApproval` đỏ.
+- **.2 low — doctor khi `security.require_approval_for_commands` tắt** báo `warn` "chạy KHÔNG cần người xác nhận" thay cho "cần người xác
+  nhận". Test `TestDoctorSetupCommandApprovalOff`.
+- **.3 low — lệnh hiển thị sau khi worktree đã tạo.** `bint task show` và thẻ Kiểm chứng của TUI hiện `SetupApproval.Command` (lệnh đã duyệt và
+  đã chạy) khi tác vụ không còn cần setup, không lấy lệnh của cấu hình hiện tại; TUI đọc `SetupApproval` từ bản chi tiết (mới hơn bản danh
+  sách). Test `TestVerifyTabShowsApprovedSetupAfterConfigChange`.
+- **.4 low** — bỏ khoá thừa `tk.meta.setup` (vi, en); thêm nhãn form `form.tasks.approve.setup-sha` cho trường mới.
+- Giới hạn: CLI không hỏi lại tương tác; người phải chép băm từ lý do `blocked`/`task show`/lần `approve` không cờ. TOCTOU duyệt
+  `verify.command` (đã biết từ trước) không đổi trong vòng này.
+

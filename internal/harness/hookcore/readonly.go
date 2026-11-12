@@ -144,6 +144,16 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 	if strings.ContainsAny(rest, ";&|<>`\n\r") || strings.Contains(rest, "$(") {
 		return false, "có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"
 	}
+	if strings.Contains(rest, "$'") {
+		// Nháy ANSI-C cho phép \' bên trong, nên unquoted (đọc theo nháy đơn thường) sẽ hiểu sai biên nháy.
+		return false, "nháy ANSI-C ($'…') không được hỗ trợ trong lệnh chỉ đọc"
+	}
+	if strings.ContainsAny(unquoted(rest), "{}()") {
+		// Ngoặc ngoài nháy: brace expansion (`{-Osh,-e}` thành cờ -O của git grep), process substitution `=(…)` và
+		// glob qualifier `*(e:…:)` của zsh đều chạy hoặc ghép được lệnh mà không cần ký tự nào ở trên (review .1/.2 của
+		// tác vụ 01M7826Q…). Trong nháy thì ngoặc là chữ thường (mẫu regex của grep vẫn dùng được khi đặt trong nháy).
+		return false, "có ngoặc `{}`/`()` ngoài dấu nháy (brace expansion, `=(…)`, glob qualifier); đặt mẫu trong nháy"
+	}
 	toks := strings.Fields(rest)
 	if len(toks) == 0 {
 		return false, "không có lệnh sau cd"
@@ -154,11 +164,83 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 				return false, "tuỳ chọn --output ghi tệp"
 			}
 		}
+		if why := gitGrepRunsProgram(rest); why != "" {
+			return false, why
+		}
 	}
 	if !matchesReadonlyRules(toks, rest, readonlyTools) {
 		return false, "không khớp workflow.agent.readonly_tools"
 	}
 	return true, ""
+}
+
+// gitGrepRunsProgram trả lý do (rỗng = không có) khi lệnh `git grep …` có thể chạy chương trình tuỳ ý: tuỳ chọn
+// -O[<pager>] / --open-files-in-pager[=<pager>] mở các tệp khớp bằng một pager do lệnh chỉ định. (GNU grep không có tuỳ
+// chọn ghi tệp hay chạy lệnh; chuyển hướng, pipe, `;` đã bị luật chung chặn.)
+//
+// Kiểm trên lệnh đã bỏ nháy đơn, nháy kép và gạch chéo ngược (shell bỏ chúng trước khi git thấy tham số, nên `"-O"`,
+// `-\O`, `-n'O'vim` đều thành -O): token bắt đầu bằng ĐÚNG MỘT gạch ngang và có chữ O hoa ở bất kỳ vị trí nào (cờ gộp như
+// -nOvim; cả khai báo brace `-{O,n}`), hoặc token hai gạch là tiền tố từ 4 ký tự của --open-files-in-pager (git nhận viết
+// tắt không nhập nhằng, ví dụ --op). ANSI-C quoting ($'…', $"…") tạo được -O từ mã thoát nên bị chặn. Có thể chặn nhầm một
+// mẫu tìm có chữ O đứng ngay sau gạch ngang (ví dụ `-e -Ox`); chấp nhận vì bảo thủ.
+func gitGrepRunsProgram(cmd string) string {
+	if strings.Contains(cmd, "$'") || strings.Contains(cmd, `$"`) {
+		return "git grep: nháy ANSI-C ($'…') có thể tạo -O"
+	}
+	toks := strings.Fields(strings.NewReplacer("'", "", `"`, "", `\`, "").Replace(cmd))
+	if len(toks) < 2 || toks[1] != "grep" {
+		return ""
+	}
+	const long = "--open-files-in-pager"
+	for _, t := range toks[2:] {
+		name, _, _ := strings.Cut(t, "=")
+		switch {
+		case strings.HasPrefix(t, "--"):
+			if len(name) >= 4 && strings.HasPrefix(long, name) {
+				return "git grep -O/--open-files-in-pager chạy chương trình tuỳ ý"
+			}
+		case strings.HasPrefix(t, "-") && strings.Contains(t, "O"):
+			return "git grep -O/--open-files-in-pager chạy chương trình tuỳ ý"
+		}
+	}
+	return ""
+}
+
+// unquoted trả phần lệnh nằm ngoài dấu nháy: nội dung trong '…' và "…" cùng ký tự đứng sau gạch chéo ngược (ngoài nháy
+// đơn) được thay bằng chữ x để vị trí token giữ nguyên. Chỉ dùng để tìm ký tự đặc biệt mà shell còn diễn giải; thay thế
+// lệnh trong nháy kép (`$(`, backtick) đã bị luật chung chặn trên toàn chuỗi.
+func unquoted(s string) string {
+	var b strings.Builder
+	var quote rune
+	esc := false
+	for _, c := range s {
+		switch {
+		case esc:
+			esc = false
+			b.WriteRune('x')
+		case quote == '\'':
+			if c == '\'' {
+				quote = 0
+			}
+			b.WriteRune('x')
+		case quote == '"':
+			if c == '\\' {
+				esc = true
+			} else if c == '"' {
+				quote = 0
+			}
+			b.WriteRune('x')
+		case c == '\\':
+			esc = true
+			b.WriteRune('x')
+		case c == '\'' || c == '"':
+			quote = c
+			b.WriteRune('x')
+		default:
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
 }
 
 // matchesReadonlyRules khớp lệnh (đã tách token) với các mẫu Bash(...) của readonly_tools. Mẫu `Bash(tiền tố:*)` (hoặc

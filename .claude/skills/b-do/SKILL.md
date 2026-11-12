@@ -128,6 +128,21 @@ vẫn chỉ điều phối: **không tự làm** việc của bước.
 
 Không có công cụ Agent/subagent (harness khác Claude Code) thì nói với người dùng và dùng driver process (Bước 2).
 
+**Kiểm hook `SubagentStop` trước khi chạy** (một lần cho mỗi phiên; làm trước khi lập phiếu). Hook này ghi
+đường dẫn transcript của subagent để Bint đo chi phí; repo cài từ bản cũ hoặc chưa cài hook thì chi phí của mọi
+bước subagent là `null` và ngân sách `limits.workflows` không chặn được gì:
+
+```sh
+bint doctor --json            # mảng {Name, Level, Detail}
+```
+
+   Mục có `Name` là `hook claude` mà `Level` khác `ok` và `info` (thường là `warn`: "chưa cài") nghĩa là thiếu hook
+   (bản cài cũ thiếu riêng `SubagentStop` cũng báo như vậy). Khi đó **dừng và nói với người dùng**: chi phí subagent
+   sẽ không đo được; đề nghị họ chạy `bint init --hooks` (phiên đang chạy nhận hook mới, không cần khởi động lại) rồi
+   chờ họ trả lời — chạy tiếp mà không đo chi phí chỉ khi họ đồng ý rõ. **Không tự chạy `bint init`** (đó là sửa tệp cấu
+   hình của người dùng). Lưới an toàn: ở vòng lặp dưới, `notes` của `bint run next` có dòng "chưa cài hook SubagentStop
+   … `bint init --hooks`" thì cũng dừng và xử lý như trên trước khi gọi công cụ Agent.
+
 1. Lập phiếu như Bước 1 nhưng thêm `--driver session` (Bint không chạy gì khi lập phiếu):
 
 ```sh
@@ -141,7 +156,8 @@ bint run next <id> --json --no-wait          # hành động kế tiếp
 ```
 
    - `action: "agent"` (kèm `step`, `run_id`, `subagent`, `model`, `prompt`, `worktree`, `readonly`, `max_turns`,
-     `lease_until`): gọi công cụ **Agent** với `subagent_type` = `subagent`, `model` = `model` (bỏ nếu rỗng),
+     `lease_until`): trước hết đọc `notes`: có dòng cảnh báo thiếu hook `SubagentStop` (xem "Kiểm hook" ở trên) mà
+     người dùng chưa biết thì dừng, báo họ và đề nghị `bint init --hooks`, đừng gọi Agent. Sau đó gọi công cụ **Agent** với `subagent_type` = `subagent`, `model` = `model` (bỏ nếu rỗng),
      `prompt` = `prompt` **nguyên văn** (không rút gọn, không thêm chỉ dẫn mới). Lấy `agentId` trong kết quả
      của công cụ Agent rồi báo cho Bint:
 

@@ -106,10 +106,16 @@ func desiredGroups(cmd string) map[string]map[string]any {
 }
 
 // InstallResult mô tả kết quả cài hook.
+//
+// Prev và SHA256 là sha256 (hex) của nội dung chính hàm sửa đã đọc và đã ghi, không đọc lại đĩa: Prev rỗng khi
+// tệp chưa có, SHA256 rỗng khi tệp bị xoá. Chỉ có nghĩa khi Changed. Bên ghi nhận (repoWriter) dùng chúng làm
+// prev_sha256/sha256 để ghi chen vào khe hở giữa đọc và ghi không được hợp thức hoá.
 type InstallResult struct {
 	Path       string
 	Changed    bool
 	BackupPath string
+	Prev       string
+	SHA256     string
 }
 
 // InstallHooks thêm (hoặc cập nhật) các hook ghi nhận của Bint vào tệp settings,
@@ -129,6 +135,7 @@ func UninstallHooks(settingsPath, backupDir string, now time.Time) (InstallResul
 func EditHooks(path, backupDir, backupRel string, now time.Time, desired map[string]map[string]any, isOurs func(cmd string) bool) (InstallResult, error) {
 	res := InstallResult{Path: path}
 	raw, err := os.ReadFile(path)
+	existed := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return res, err
 	}
@@ -205,12 +212,23 @@ func EditHooks(path, backupDir, backupRel string, now time.Time, desired map[str
 		return res, err
 	}
 	res.Changed = true
+	if existed {
+		res.Prev = fsafe.Hash(string(raw))
+	}
+	res.SHA256 = fsafe.Hash(string(out))
 	return res, nil
 }
 
 // HooksInstalled cho biết tệp settings có chứa đủ hook của Bint không.
 func HooksInstalled(settingsPath string) (bool, error) {
 	return HooksPresent(settingsPath, desiredGroups("x"), isBintHook)
+}
+
+// SubagentHookInstalled cho biết tệp settings có handler SubagentStop của Bint không (hook này ghi đường dẫn
+// transcript của subagent để tính chi phí driver session, mục 6.6; bản cài cũ thiếu nó nên chi phí subagent là null).
+func SubagentHookInstalled(settingsPath string) (bool, error) {
+	want := desiredGroups("x")
+	return HooksPresent(settingsPath, map[string]map[string]any{evSubagentStop: want[evSubagentStop]}, isBintHook)
 }
 
 // HooksPresent cho biết khoá "hooks" của tệp có handler của Bint cho mọi sự kiện

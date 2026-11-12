@@ -253,6 +253,32 @@ func TestSessionWorktreeLandsAtFinalize(t *testing.T) {
 	}
 }
 
+// Driver session: tác vụ worktree có setup_command chưa được người xác nhận dừng blocked ở `next` đầu, trước khi
+// tạo worktree hay chạy lệnh; sau khi người xác nhận, `next --resume` chạy tới done.
+func TestSessionWorktreeSetupNeedsApproval(t *testing.T) {
+	h := newHarness(t).wtHarness()
+	h.behave = featWrites(h, nil)
+	h.cfg.Workflow.Worktree.SetupCommand = "echo s > s.out"
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	id := tk.State.ID
+	steps, last := h.drive(r, id, false)
+	if len(steps) != 0 || last.Action != ActionBlocked || !strings.Contains(last.Reason, "bint task approve "+id) {
+		t.Fatalf("phải blocked trước mọi bước: %v %+v", steps, last)
+	}
+	if _, err := os.Stat(r.WorktreePath(id)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("worktree không được tạo: %v", err)
+	}
+	if out := h.git("branch", "--list", "bint/"+id); strings.TrimSpace(out) != "" {
+		t.Fatalf("nhánh không được tạo: %q", out)
+	}
+	approveSetup(t, r, id)
+	steps, last = h.drive(r, id, true)
+	if strings.Join(steps, ",") != "b-feat,b-review" || last.Action != ActionDone {
+		t.Fatalf("bước %v, dừng %+v", steps, last)
+	}
+}
+
 // next gọi hai lần liên tiếp trả cùng bước; complete với run_id sai bị từ chối và không đổi gì.
 func TestSessionNextIdempotentAndCompleteRunMismatch(t *testing.T) {
 	h := newHarness(t)

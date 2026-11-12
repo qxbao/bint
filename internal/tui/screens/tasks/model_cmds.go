@@ -495,6 +495,9 @@ func (m *Model) confirmApprove(p app.ApprovePlan) {
 	if p.VerifyCommand != "" {
 		c.Body = append(c.Body, m.th.S(theme.Accent, m.t("tk.approve.command")), "  "+m.th.S(theme.Key, p.VerifyCommand), m.th.S(theme.Muted, "  "+m.t("tk.approve.command_hint")), "")
 	}
+	if p.SetupCommand != "" {
+		c.Body = append(c.Body, m.th.S(theme.Accent, m.t("tk.approve.setup")), "  "+m.th.S(theme.Key, p.SetupCommand), m.th.S(theme.Muted, "  "+m.t("tk.approve.setup_hint")), "")
+	}
 	if len(p.Paths) > 0 {
 		c.Danger = true
 		c.Body = append(c.Body, m.th.S(theme.Warn, m.cat.N("tk.approve.paths", len(p.Paths))))
@@ -507,7 +510,7 @@ func (m *Model) confirmApprove(p app.ApprovePlan) {
 		c.Body = append(c.Body, "", m.th.S(theme.Muted, m.t("tk.approve.resume", i18n.A{"cmd": m.cli("bint run resume " + p.Task.State.ID)})))
 	}
 	c.Input, c.Label = true, m.t("tk.approve.extra")
-	ref := p.Task.State.ID
+	ref, setupSHA := p.Task.State.ID, p.SetupSHA
 	m.dlg = &dialog{c: c, onYes: func(extra string) tea.Cmd {
 		var paths []string
 		for _, x := range strings.Split(extra, ",") {
@@ -515,7 +518,7 @@ func (m *Model) confirmApprove(p app.ApprovePlan) {
 				paths = append(paths, x)
 			}
 		}
-		return request("tasks.approve", app.TaskApproveOptions{Ref: ref, Paths: paths})
+		return request("tasks.approve", app.TaskApproveOptions{Ref: ref, Paths: paths, SetupSHA: setupSHA})
 	}}
 }
 

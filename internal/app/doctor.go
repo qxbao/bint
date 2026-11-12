@@ -235,8 +235,39 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 	} else {
 		r.add("lệnh kiểm thử", LevelOK, "%s", *cfg.Eval.TestCommand)
 	}
+	setupChecks(r, repo.Toplevel, paths, cfg)
 	knowledgeChecks(r, filepath.Dir(filepath.Dir(src.Project)), cfg)
 	return r
+}
+
+// setupChecks báo workflow.worktree.setup_command: lệnh, băm và các tác vụ worktree còn chờ người xác nhận
+// (bint task approve). Lệnh được xác nhận theo từng tác vụ nên doctor chỉ liệt kê tác vụ đang chờ.
+func setupChecks(r *DoctorReport, root string, paths state.Paths, cfg config.Config) {
+	cmd := strings.TrimSpace(cfg.Workflow.Worktree.SetupCommand)
+	if cmd == "" {
+		return
+	}
+	sum := task.CommandSHA256(cmd)
+	if !cfg.Security.RequireApprovalForCommands {
+		r.add("lệnh setup worktree", LevelWarn, "%s (sha256 %s…) — chạy KHÔNG cần người xác nhận (security.require_approval_for_commands tắt)", cmd, sum[:12])
+		return
+	}
+	r.add("lệnh setup worktree", LevelInfo, "%s (sha256 %s…) — cần người xác nhận cho từng tác vụ worktree: bint task approve <id> --setup-sha %s", cmd, sum[:12], sum[:12])
+	env := &workflow.Env{Root: root, Cfg: cfg, Tasks: task.NewStore(paths.Runtime)}
+	tasks, err := env.Tasks.List()
+	if err != nil {
+		return
+	}
+	var waiting []string
+	for _, t := range tasks {
+		if env.SetupStatus(t).Pending() {
+			waiting = append(waiting, t.State.ID)
+		}
+	}
+	if len(waiting) > 0 {
+		r.add("lệnh setup chờ xác nhận", LevelWarn, "%d tác vụ worktree chưa được xác nhận lệnh setup: %s (bint task approve <id> rồi bint run resume <id>)",
+			len(waiting), strings.Join(waiting, ", "))
+	}
 }
 
 // worktreeChecks báo worktree riêng của tác vụ bị bỏ lại (docs/isolation-subagent-plan.md mục 5.4): thư mục trong

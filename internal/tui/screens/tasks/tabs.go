@@ -12,6 +12,7 @@ import (
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
+	"bint/internal/workflow"
 )
 
 // tabLines dựng nội dung thẻ con hiện tại; sel là chỉ số dòng cần giữ trong vùng nhìn (-1: không có).
@@ -24,7 +25,12 @@ func (m *Model) tabLines(env ui.Env, t *task.Task, w int) ([]string, int) {
 	case subCriteria:
 		return m.criteriaLines(env, t, w), -1
 	case subVerify:
-		return m.verifyLines(env, t, w), -1
+		// Xác nhận lệnh setup đọc từ bản chi tiết (mới hơn bản trong danh sách) khi đã có.
+		st := t
+		if have && d.Task != nil {
+			st = d.Task
+		}
+		return m.verifyLines(env, t, st, d.TaskDetail.Setup, w), -1
 	case subReview:
 		return m.reviewLines(env, t, d, have, derr, w)
 	case subErrors:
@@ -308,7 +314,40 @@ func (m *Model) criteriaLines(env ui.Env, t *task.Task, w int) []string {
 
 // ---- Kiểm chứng ----
 
-func (m *Model) verifyLines(env ui.Env, t *task.Task, w int) []string {
+// setupLines dựng phần lệnh setup worktree (workflow.worktree.setup_command) và trạng thái xác nhận; không có
+// lệnh cần xác nhận thì không có dòng nào (nil).
+func (m *Model) setupLines(env ui.Env, t *task.Task, ss workflow.SetupStatus, w int) []string {
+	ap := t.State.SetupApproval
+	if !ss.Required && ap == nil {
+		return nil
+	}
+	th := env.Th
+	l := []string{"", m.section(env, m.t("tk.verify.setup_section"), w)}
+	if !ss.Required {
+		// Worktree đã tạo (hoặc tác vụ kết thúc): hiện lệnh đã duyệt và đã chạy, không phải lệnh của cấu hình hiện tại.
+		l = append(l, m.kv(env, "command", ap.Command, w)...)
+		return append(l, m.kv(env, "confirmed", th.S(theme.OK, "✓ ")+ap.By+" · "+fmtAt(ap.At), w)...)
+	}
+	l = append(l, m.kv(env, "command", ss.Command, w)...)
+	if ss.Confirmed {
+		who := ""
+		if ap != nil { // danh sách có thể giữ bản phiếu cũ hơn chi tiết
+			who = ap.By + " · " + fmtAt(ap.At)
+		}
+		l = append(l, m.kv(env, "confirmed", th.S(theme.OK, "✓ ")+who, w)...)
+	} else {
+		l = append(l, m.kv(env, "confirmed", th.S(theme.Warn, "✗ "+m.t("tk.verify.not_confirmed")), w)...)
+		l = append(l, th.S(theme.Muted, m.t("tk.verify.setup_hint")))
+	}
+	return l
+}
+
+// verifyLines dựng thẻ Kiểm chứng: lệnh kiểm chứng, các lần chạy, rồi lệnh setup worktree và trạng thái xác nhận.
+func (m *Model) verifyLines(env ui.Env, t, st *task.Task, ss workflow.SetupStatus, w int) []string {
+	return append(m.verifyCmdLines(env, t, w), m.setupLines(env, st, ss, w)...)
+}
+
+func (m *Model) verifyCmdLines(env ui.Env, t *task.Task, w int) []string {
 	th := env.Th
 	var l []string
 	add := func(s ...string) { l = append(l, s...) }

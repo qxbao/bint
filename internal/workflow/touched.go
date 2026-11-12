@@ -98,7 +98,24 @@ func pinTree(ctx context.Context, root, tree, ref, msg string) error {
 	return err
 }
 
+// baseRef là ref giữ commit gốc (State.Base) của tác vụ worktree (mục 5.2); baseTreeRef giữ ảnh chụp
+// BaseTree của b-feat đầu (touched.go). Hai tên cùng cấp, không ghi đè nhau. Cả hai bị xoá khi tác vụ kết
+// thúc (deleteTaskRefs): Bint không ghim cây vĩnh viễn.
 func baseRef(id string) string { return "refs/bint/tasks/" + id + "/base" }
+
+func baseTreeRef(id string) string { return "refs/bint/tasks/" + id + "/base-tree" }
+
+// deleteTaskRefs xoá mọi ref giữ cây/commit của tác vụ (base và base-tree). Ref không tồn tại không phải lỗi
+// (update-ref -d bỏ qua); trả lỗi đầu tiên gặp.
+func deleteTaskRefs(ctx context.Context, root, id string) error {
+	var first error
+	for _, ref := range []string{baseRef(id), baseTreeRef(id)} {
+		if _, err := gitrepo.Run(ctx, root, "update-ref", "-d", ref); err != nil && first == nil {
+			first = fmt.Errorf("xoá ref %s: %w", ref, err)
+		}
+	}
+	return first
+}
 
 // unionSorted hợp hai danh sách đường dẫn: sắp xếp, bỏ trùng.
 func unionSorted(a, b []string) []string {
@@ -125,7 +142,7 @@ func (r *Runner) beginTouched(ctx context.Context, rs *runState, firstFeat bool)
 		return snap
 	}
 	id := rs.t.State.ID
-	if err := pinTree(ctx, r.Root, snap, baseRef(id), "bint: cây gốc của tác vụ "+id); err != nil {
+	if err := pinTree(ctx, r.Root, snap, baseTreeRef(id), "bint: cây gốc của tác vụ "+id); err != nil {
 		r.dropTouched(rs, "giữ cây gốc của tác vụ: "+err.Error())
 		return ""
 	}
@@ -178,7 +195,7 @@ func (r *Runner) dropTouched(rs *runState, why string) {
 	}); err == nil {
 		rs.t = t
 	}
-	gitrepo.Run(context.Background(), r.Root, "update-ref", "-d", baseRef(id))
+	gitrepo.Run(context.Background(), r.Root, "update-ref", "-d", baseTreeRef(id))
 	rs.res.Notes = append(rs.res.Notes, "không theo dõi riêng tệp của tác vụ ("+why+"): phạm vi tính theo toàn bộ thay đổi so với base")
 }
 
@@ -206,6 +223,58 @@ func (r *Runner) overlaps(t *task.Task) map[string][]string {
 		}
 	}
 	return out
+}
+
+// fileOwner là một tác vụ khác cùng worktree có tệp trong Touched của nó; Done khi tác vụ đã kết thúc.
+type fileOwner struct {
+	ID   string
+	Done bool
+}
+
+// owners cho mỗi tệp trong files (không thuộc Touched của t) liệt kê các tác vụ KHÁC cùng worktree có tệp đó
+// trong Touched: tác vụ đang chạy, và tác vụ đã kết thúc SAU khi t được lập (kết thúc trước đó thì thay đổi của nó
+// đã nằm trong BaseTree của t, không thể là nguồn của thay đổi đang chờ duyệt — review .3 của tác vụ 01M7826Q…).
+// Đang chạy đứng trước, rồi theo ID giảm dần (mới trước). Dùng để checkScope nói rõ tệp cần duyệt là của ai thay
+// vì khẳng định chính b-feat vừa sửa (phát hiện .2 của tác vụ 01M774RD…).
+func (r *Runner) owners(t *task.Task, files []string) map[string][]fileOwner {
+	all, _ := r.Tasks.List()
+	out := map[string][]fileOwner{}
+	for _, o := range all {
+		if o.State.ID == t.State.ID || o.State.Worktree == "" || !samePath(o.State.Worktree, r.Root) {
+			continue
+		}
+		for _, f := range files {
+			if slices.Contains(o.State.Touched, f) && !slices.Contains(t.State.Touched, f) {
+				done := task.Terminal(o.State.Status)
+				if done && endedBefore(o.State.UpdatedAt, t.State.CreatedAt) {
+					continue
+				}
+				out[f] = append(out[f], fileOwner{ID: o.State.ID, Done: done})
+			}
+		}
+	}
+	for f := range out {
+		sort.Slice(out[f], func(i, j int) bool {
+			a, b := out[f][i], out[f][j]
+			if a.Done != b.Done {
+				return !a.Done
+			}
+			return a.ID > b.ID
+		})
+	}
+	return out
+}
+
+// maxOwnersPerFile giới hạn số tác vụ nêu cho mỗi tệp trong câu hỏi/lý do blocked; phần còn lại gộp thành
+// "và N tác vụ khác" để tệp hay sửa (docs/…) không làm lý do dài hàng chục dòng.
+const maxOwnersPerFile = 3
+
+// endedBefore: thời điểm kết thúc ended (UpdatedAt của tác vụ đã kết thúc) sớm hơn created. Không đọc được thì
+// coi là không (giữ ghi chú, bảo thủ).
+func endedBefore(ended, created string) bool {
+	e, err1 := time.Parse(time.RFC3339Nano, ended)
+	c, err2 := time.Parse(time.RFC3339Nano, created)
+	return err1 == nil && err2 == nil && e.Before(c)
 }
 
 // outsideFeat liệt kê tệp đổi giữa BaseTree và cây hiện tại mà không được Touched của tác vụ nào miễn

@@ -399,7 +399,7 @@ func TestClaudeReadonlyAllowsCurrentBintExecutable(t *testing.T) {
 		}
 	}
 	// Không sửa slice trong cấu hình gốc.
-	if len(config.Default().Workflow.Agent.ReadonlyTools) != 8 {
+	if len(config.Default().Workflow.Agent.ReadonlyTools) != 10 {
 		t.Fatal("cấu hình mặc định bị đổi")
 	}
 }

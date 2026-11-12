@@ -215,6 +215,18 @@ func printTicketBrief(w io.Writer, env *workflow.Env, t *task.Task, a task.Asses
 		}
 	}
 	fmt.Fprintf(w, "  Kiểm chứng: %s\n", v)
+	if ss := env.SetupStatus(t); ss.Required {
+		sv := ss.Command
+		if ss.Confirmed {
+			sv += "  [đã xác nhận]"
+		} else {
+			sv += "  [chưa xác nhận: bint task approve " + t.State.ID + " --setup-sha " + ss.SHA256[:workflow.MinSetupSHAPrefix] + "]"
+		}
+		fmt.Fprintf(w, "  Setup worktree: %s\n", sv)
+	} else if ap := t.State.SetupApproval; ap != nil {
+		// Worktree đã tạo (hoặc tác vụ kết thúc): lệnh đã duyệt và đã chạy, không phải lệnh của cấu hình hiện tại.
+		fmt.Fprintf(w, "  Setup worktree: %s  [đã xác nhận]\n", ap.Command)
+	}
 	for i, c := range tk.Verify.Criteria {
 		fmt.Fprintf(w, "  Tiêu chí %d: %s\n", i+1, c)
 	}
@@ -318,7 +330,8 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 					}
 				}
 				return writeJSON(stdio.Out, map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
-					"verify_confirmed": d.VerifyConfirmed, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers),
+					"verify_confirmed": d.VerifyConfirmed, "setup_command": d.Setup.Command, "setup_confirmed": d.Setup.Confirmed,
+					"setup_required": d.Setup.Required, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers),
 					"isolation": t.State.Isolation(), "isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t)),
 					"driver": taskDriver(t), "driver_reason": driverReason(t)})
 			}
@@ -677,11 +690,16 @@ bint knowledge add --from-review <id>. Báo cáo Markdown: review.md trong thư 
 
 func newTaskApproveCmd(stdio IO) *cobra.Command {
 	var paths []string
+	var setupSHA string
 	c := &cobra.Command{
 		Use:   "approve <task-id>",
 		Short: "Người xác nhận lệnh kiểm chứng và duyệt thay đổi đang chờ (đường dẫn bảo vệ/deny)",
 		Long: `Chỉ người dùng (không chạy được từ trong phiên agent):
   - xác nhận verify.command hiện tại của phiếu → Bint được chạy lệnh đó và kết quả là tín hiệu mạnh;
+  - xác nhận workflow.worktree.setup_command cho tác vụ worktree chưa tạo worktree, chỉ khi có
+    --setup-sha <băm> của đúng lệnh bạn đã xem (thiếu cờ thì lệnh in lệnh và băm để bạn xem rồi chạy lại;
+    băm không khớp lệnh hiện tại thì báo lỗi, không duyệt gì) → Bint mới chạy lệnh đó khi tạo worktree;
+    đổi lệnh thì phải xác nhận lại;
   - duyệt các tệp đang chờ (thay đổi chạm limits.protected_paths, scope.deny, hoặc ngoài
     scope.allow khi autonomy ask_always).
 Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem diff trước khi duyệt.`,
@@ -691,16 +709,26 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 			if err != nil {
 				return err
 			}
-			t, a, err := app.ApproveTask(cmd.Context(), ws, app.TaskApproveOptions{Ref: args[0], Paths: paths})
+			t, a, err := app.ApproveTask(cmd.Context(), ws, app.TaskApproveOptions{Ref: args[0], Paths: paths, SetupSHA: setupSHA})
 			if err != nil {
 				return err
 			}
-			if a.VerifyCommand == "" && len(a.Paths) == 0 {
+			if a.SetupWaiting != "" {
+				fmt.Fprintf(stdio.Out, "! Lệnh setup worktree CHƯA được xác nhận: %s\n  Lệnh chạy với quyền của bạn khi tạo worktree. Xem kỹ rồi xác nhận: bint task approve %s --setup-sha %s\n",
+					a.SetupWaiting, t.State.ID, a.SetupWaitingSHA[:workflow.MinSetupSHAPrefix])
+			}
+			if a.VerifyCommand == "" && a.SetupCommand == "" && len(a.Paths) == 0 {
+				if a.SetupWaiting != "" {
+					return nil
+				}
 				fmt.Fprintf(stdio.Out, "%s: không có gì chờ duyệt.\n", t.State.ID)
 				return nil
 			}
 			if a.VerifyCommand != "" {
 				fmt.Fprintf(stdio.Out, "✓ Xác nhận lệnh kiểm chứng: %s\n", a.VerifyCommand)
+			}
+			if a.SetupCommand != "" {
+				fmt.Fprintf(stdio.Out, "✓ Xác nhận lệnh setup worktree: %s\n", a.SetupCommand)
 			}
 			if len(a.Paths) > 0 {
 				fmt.Fprintf(stdio.Out, "✓ Duyệt thay đổi: %s\n", strings.Join(a.Paths, ", "))
@@ -711,6 +739,7 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 			return nil
 		},
 	}
+	c.Flags().StringVar(&setupSHA, "setup-sha", "", "băm sha256 (≥ 12 ký tự đầu) của lệnh setup worktree bạn đã xem; chỉ xác nhận khi khớp lệnh hiện tại")
 	c.Flags().StringArrayVar(&paths, "path", nil, "duyệt trước một tệp cụ thể khi hook đã chặn trước lúc tạo/sửa (lặp lại được, không dùng glob); resume sẽ chạy lại b-feat")
 	return c
 }
