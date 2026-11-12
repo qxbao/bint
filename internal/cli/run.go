@@ -21,6 +21,7 @@ type runFlags struct {
 	depth        string
 	plan, noPlan bool
 	noReview     bool
+	noWait       bool
 	agentCommand string
 	model        string
 	harness      string
@@ -55,6 +56,9 @@ Giới hạn:
   - workflow.max_review_rounds: số vòng review → sửa tối đa.
   - Lệnh kiểm chứng chỉ chạy khi người đã xác nhận (bint task approve).
   - Hoàn thành (done) chỉ khi có bằng chứng; thiếu thì blocked kèm lý do.
+  - Khoá worktree: bước chỉ đọc giữ khoá chia sẻ, b-feat giữ khoá độc quyền; bước đến sau chờ khoá (tối đa
+    workflow.timeout_minutes) thay vì dừng ngay, --no-wait để dừng ngay (blocked). Tác vụ luôn chạy ở
+    State.Worktree của nó dù đứng ở thư mục khác.
 
 Ctrl-C: agent bị dừng, tác vụ chuyển interrupted; tiếp tục bằng bint run resume <task-id>.
 
@@ -88,6 +92,7 @@ blocked / failed / interrupted.`,
 func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 	f := c.Flags()
 	f.BoolVar(&rf.noReview, "no-review", false, "bỏ bước b-review (b-do)")
+	f.BoolVar(&rf.noWait, "no-wait", false, "khoá worktree đang bị bước khác giữ thì dừng ngay (blocked) thay vì chờ")
 	f.StringVar(&rf.agentCommand, "agent-command", "", "lệnh tác nhân tuỳ chỉnh cho mọi bước (đề bài qua stdin và $BINT_EVAL_PROMPT_FILE)")
 	f.StringVar(&rf.model, "model", "", "mô hình cho mọi bước (ghi đè harnesses.<h>.models.<role>, workflow.agent.model, harnesses.<h>.model)")
 	f.StringVar(&rf.harness, "harness", "", "harness cho mọi bước của lượt này (claude | codex | antigravity; phải có trong harnesses.enabled)")
@@ -113,14 +118,14 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 	)
 	if resume != nil {
 		ro = app.RunResumeDefaults(config.Default())
-		ro.Ref, ro.NoReview, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.harness, rf.roles, rf.model, rf.agentCommand
+		ro.Ref, ro.NoReview, ro.NoWait, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.harness, rf.roles, rf.model, rf.agentCommand
 		if err := ro.Validate(); err != nil {
 			return err
 		}
 	} else {
 		o = app.RunWorkflowDefaults(config.Default())
 		fillRun(&o)
-		o.Harness, o.Roles, o.Model, o.AgentCommand = rf.harness, rf.roles, rf.model, rf.agentCommand
+		o.Harness, o.Roles, o.Model, o.AgentCommand, o.NoWait = rf.harness, rf.roles, rf.model, rf.agentCommand, rf.noWait
 		if err := o.Validate(); err != nil {
 			return err
 		}

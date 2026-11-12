@@ -44,6 +44,7 @@ type RunWorkflowOptions struct {
 	NoPlan        bool     `flag:"no-plan"`
 	Depth         string   `flag:"depth" form:"choices=auto|standard|deep"`
 	NoReview      bool     `flag:"no-review"`
+	NoWait        bool     `flag:"no-wait" form:"advanced"`
 	Harness       string   `flag:"harness" form:"choices=claude|codex|antigravity"`
 	Roles         []string `flag:"role"`
 	Model         string   `flag:"model"`
@@ -83,6 +84,7 @@ func (o RunWorkflowOptions) Validate() error {
 type RunResumeOptions struct {
 	Ref          string   `arg:"task-id" form:"required,suggest=tasks"`
 	NoReview     bool     `flag:"no-review"`
+	NoWait       bool     `flag:"no-wait" form:"advanced"`
 	Harness      string   `flag:"harness" form:"choices=claude|codex|antigravity"`
 	Roles        []string `flag:"role"`
 	Model        string   `flag:"model"`
@@ -107,7 +109,7 @@ func RunWorkflow(ctx context.Context, ws *TaskWS, o RunWorkflowOptions) (*workfl
 		return nil, err
 	}
 	wo := workflow.RunOptions{Workflow: o.Workflow, Request: strings.TrimSpace(o.Request), TaskRef: o.Task,
-		NoReview: o.NoReview, Edit: o.fields().edit()}
+		NoReview: o.NoReview, NoWait: o.NoWait, Edit: o.fields().edit()}
 	if o.Plan || o.NoPlan {
 		p := o.Plan
 		wo.Plan = &p
@@ -137,7 +139,7 @@ func ResumeWorkflow(ctx context.Context, ws *TaskWS, o RunResumeOptions) (*workf
 	if wf == "" {
 		wf = workflow.StepDo
 	}
-	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview}
+	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait}
 	return runWith(ctx, ws, wo, o.Harness, o.Roles, o.AgentCommand, o.Model, o.RunCallbacks)
 }
 
@@ -181,4 +183,15 @@ func runWith(ctx context.Context, ws *TaskWS, wo workflow.RunOptions, harnessNam
 		s.Close()
 	}
 	return res, nil
+}
+
+// ActiveSteps liệt kê các bước `bint run` đang chạy trên cây làm việc của repository chứa dir (đọc tệp chủ khoá
+// của worktree, chỉ đọc). TUI dùng để báo "<bước> của <tác vụ> đang chạy trên cây này". Chưa init hoặc không
+// đọc được thì trả rỗng: đây chỉ là thông tin, không phải điều kiện cho thao tác nào.
+func ActiveSteps(ctx context.Context, dir string) []workflow.ActiveStep {
+	ws, err := OpenWorkspace(ctx, dir, true)
+	if err != nil {
+		return nil
+	}
+	return workflow.ActiveSteps(task.NewStore(ws.Paths.Runtime).Dir, ws.Repo.Toplevel)
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -81,8 +82,11 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 		envs[k] = v
 	}
 	step := m[1]
+	a.h.mu.Lock()
 	a.h.calls = append(a.h.calls, step)
+	a.h.dirs = append(a.h.dirs, req.Dir)
 	a.h.prompts[step] = req.Prompt
+	a.h.mu.Unlock()
 	agentEnv := &Env{Root: a.h.root, Cfg: a.h.cfg, Tasks: a.h.tasks, Spool: a.h.spool, Actor: "agent", RunID: envs[EnvRunID]}
 	res := eval.AgentResult{CostUSD: a.cost, NumTurns: a.turns, Duration: time.Millisecond, Model: "fake-model"}
 	if err := a.h.behave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
@@ -95,6 +99,8 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 }
 
 type harness struct {
+	// mu bảo vệ calls/prompts/limits khi nhiều Runner chạy đồng thời trên cùng harness.
+	mu      sync.Mutex
 	t       *testing.T
 	root    string
 	cfg     config.Config
@@ -102,6 +108,7 @@ type harness struct {
 	spool   string
 	db      string
 	calls   []string
+	dirs    []string // Dir của từng lần gọi agent
 	prompts map[string]string
 	behave  func(ctx context.Context, step string, e *Env, taskID string) error
 	limits  []*float64
@@ -179,8 +186,10 @@ func (h *harness) writePlan(e *Env, id string, skip map[string]bool) error {
 func (h *harness) runner() *Runner {
 	env := &Env{Root: h.root, Cfg: h.cfg, Tasks: h.tasks, Spool: h.spool, Human: true, Actor: "người duyệt", Version: "test"}
 	return &Runner{Env: env, Agent: func(step string, maxCost *float64, maxTurns *int) (eval.Agent, error) {
+		h.mu.Lock()
 		h.limits = append(h.limits, maxCost)
 		h.turnLimits = append(h.turnLimits, maxTurns)
+		h.mu.Unlock()
 		cost := h.cost
 		if h.costFor != nil {
 			cost = h.costFor(step)
@@ -504,44 +513,27 @@ func TestReadOnlyStepModifyingBintConfigFails(t *testing.T) {
 	}
 }
 
-// P5: một worktree chỉ có một bước có quyền ghi tại một thời điểm.
+// P5: một worktree chỉ có một bước có quyền ghi tại một thời điểm; --no-wait thì dừng ngay.
 func TestWriteLockSerializesWriteSteps(t *testing.T) {
 	h := newHarness(t)
 	lock, err := AcquireWriteLock(h.tasks.Dir, h.root, "phiên khác")
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt", NoWait: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "bước có quyền ghi khác") || strings.Contains(strings.Join(h.calls, ","), StepFeat) {
+	if res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "giữ khoá") || !strings.Contains(res.Reason, "phiên khác") ||
+		strings.Contains(strings.Join(h.calls, ","), StepFeat) {
 		t.Fatalf("phải chặn b-feat: %+v %v", res, h.calls)
 	}
 	lock.Release()
-	// Khoá bỏ lại của tiến trình đã chết bị thay.
-	os.MkdirAll(lockDir(h.tasks.Dir), 0o700)
-	ents, _ := os.ReadDir(lockDir(h.tasks.Dir))
-	if len(ents) != 0 {
-		t.Fatalf("khoá còn sót: %v", ents)
+	// Khoá trả xong: b-feat chạy được, tệp khoá được giữ lại.
+	res, err = h.runner().Run(context.Background(), RunOptions{Workflow: StepFeat, TaskRef: res.TaskID, Resume: true, NoWait: true})
+	if err != nil || res.Status != task.StatusInReview {
+		t.Fatalf("sau khi trả khoá: %+v %v", res, err)
 	}
-	l2, err := AcquireWriteLock(h.tasks.Dir, h.root, "a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	deadOwner(t, l2) // chủ chết: hệ điều hành nhả khoá, tệp còn lại
-	l3, err := AcquireWriteLock(h.tasks.Dir, h.root, "b")
-	if err != nil {
-		t.Fatalf("khoá của tiến trình chết phải được thay: %v", err)
-	}
-	l3.Release()
-	// Worktree khác: khoá riêng.
-	other := t.TempDir()
-	l4, err := AcquireWriteLock(h.tasks.Dir, other, "c")
-	if err != nil {
-		t.Fatal(err)
-	}
-	l4.Release()
 }
 
 // P5: adapter không khả dụng → bước thất bại với lỗi rõ ràng, không để lại khoá.
@@ -571,9 +563,11 @@ func TestUnavailableAdapterFailsStep(t *testing.T) {
 	if res.Status != task.StatusFailed || !strings.Contains(res.Reason, "không khả dụng") {
 		t.Fatalf("%+v", res)
 	}
-	if ents, _ := os.ReadDir(lockDir(h.tasks.Dir)); len(ents) != 0 {
-		t.Fatalf("khoá còn sót: %v", ents)
+	l, err := AcquireLock(h.tasks.Dir, h.root, "kiểm tra", LockExclusive)
+	if err != nil {
+		t.Fatalf("khoá còn sót: %v", err)
 	}
+	l.Release()
 }
 
 // A2: limits.workflows.b-do.max_turns là tổng mọi bước; truyền phần còn lại xuống bước

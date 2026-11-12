@@ -617,3 +617,30 @@ func TestActionErrorsShownInFormOrToast(t *testing.T) {
 		t.Fatalf("lỗi hiện thành thông báo:\n%s", out)
 	}
 }
+
+// D: xem thay đổi của riêng tác vụ — hành động chỉ đọc (chạy được cả ở chế độ chỉ đọc), kết quả hiện trong hộp
+// thoại có diff; tác vụ phiếu cũ kèm ghi chú.
+func TestDiffKeyIsReadOnlyAndShowsResult(t *testing.T) {
+	r := newRig(t, tasks.Options{ReadOnly: true})
+	r.press("D")
+	req := r.lastReq()
+	o, ok := req.Opts.(app.TaskDiffOptions)
+	if req.ID != "tasks.diff" || !ok || o.Ref == "" || o.Stat || o.NameOnly {
+		t.Fatalf("yêu cầu: %+v", req)
+	}
+	tk := data("").Tasks[0]
+	r.feed(r.m.Update(actions.ResultMsg{ID: "tasks.diff", Opts: o, Value: app.TaskDiffResult{Task: tk, Legacy: true,
+		Note: "phiếu lập trước khi theo dõi tệp riêng", Text: "diff --git a/x.go b/x.go\n@@ -1 +1 @@\n-cũ\n+mới\n"}}))
+	out := r.view(140, 34)
+	for _, want := range []string{"Thay đổi của tác vụ", "phiếu lập trước khi theo dõi tệp riêng", "diff --git a/x.go", "-cũ", "+mới"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("hộp diff thiếu %q:\n%s", want, out)
+		}
+	}
+	r.press("esc")
+	// Tác vụ chưa đổi tệp nào.
+	r.feed(r.m.Update(actions.ResultMsg{ID: "tasks.diff", Opts: o, Value: app.TaskDiffResult{Task: tk}}))
+	if out := r.view(140, 34); !strings.Contains(out, "chưa đổi tệp nào") {
+		t.Errorf("thiếu thông báo rỗng:\n%s", out)
+	}
+}

@@ -345,9 +345,15 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		return nil, nil, fmt.Errorf("trạng thái %q không hợp lệ (%s)", to, strings.Join(task.Statuses, ", "))
 	}
 	var blockers []string
-	fp := ""
+	var doneIn task.DoneInput
+	var doneErr error
 	if to == task.StatusDone {
-		fp = task.WorktreeFingerprint(ctx, e.Root)
+		// Fingerprint tính ở đúng Root của tác vụ (State.Worktree), nên nạp tác vụ trước khi vào khoá.
+		t0, err := e.Tasks.Load(ref)
+		if err != nil {
+			return nil, nil, err
+		}
+		doneIn, doneErr = e.DoneInputDetailed(ctx, t0)
 	}
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
 		if !o.Orchestrator && t.OwnedByOther() {
@@ -371,10 +377,13 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 			}
 		}
 		if to == task.StatusDone {
-			blockers = task.DoneBlockers(t, task.DoneInput{Worktree: fp, VerifyConfirmed: e.VerifyConfirmed(t)})
+			doneIn.VerifyConfirmed = e.VerifyConfirmed(t)
+			blockers = task.DoneBlockers(t, doneIn)
 			// Tính lại từ diff hiện tại, không tin PendingPaths (chỉ Runner điền).
 			pend, err := e.UnapprovedChanges(ctx, t)
-			if err != nil {
+			if doneErr != nil {
+				blockers = append(blockers, doneErr.Error())
+			} else if err != nil {
 				blockers = append(blockers, "không xác định được tệp đã sửa: "+err.Error())
 			} else if len(pend) > 0 {
 				blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
@@ -392,14 +401,25 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 	if err != nil {
 		return t, blockers, err
 	}
+	if task.Terminal(to) {
+		// Tác vụ kết thúc: ref giữ cây gốc không còn cần (nó giữ cả tệp chưa theo dõi, không bị gc dọn).
+		if root, rerr := e.RootFor(t); rerr == nil {
+			gitrepo.Run(ctx, root, "update-ref", "-d", baseRef(t.State.ID))
+		}
+	}
 	e.emit(t, spool.TaskStatus, map[string]any{"status": to, "reason": o.Reason, "forced": o.Force && len(blockers) > 0})
 	return t, blockers, nil
 }
 
-// UnapprovedChanges trả về tệp đã sửa (so với base của tác vụ) cần người duyệt
-// nhưng chưa nằm trong ProtectedApproval.
+// UnapprovedChanges trả về tệp đã sửa của tác vụ cần người duyệt nhưng chưa nằm trong
+// ProtectedApproval. Tệp của tác vụ là Touched nếu có theo dõi, ngược lại toàn bộ thay đổi so với
+// base (phiếu cũ); tính ở Root của tác vụ.
 func (e *Env) UnapprovedChanges(ctx context.Context, t *task.Task) ([]string, error) {
-	files, err := task.ChangedFiles(ctx, e.Root, t.State.Base)
+	root, err := e.RootFor(t)
+	if err != nil {
+		return nil, err
+	}
+	files, err := ScopeFiles(ctx, root, e.Tasks, t)
 	if err != nil {
 		return nil, err
 	}
@@ -416,6 +436,48 @@ func (e *Env) UnapprovedChanges(ctx context.Context, t *task.Task) ([]string, er
 		}
 	}
 	return out, nil
+}
+
+// DoneInputFor dựng DoneInput của tác vụ t ở Root của nó, rẻ (chỉ fingerprint): dùng khi chỉ hiển thị điều
+// chặn (app.ShowTask, TUI nạp chi tiết mỗi lần chọn). Lỗi (thư mục làm việc không còn) được trả kèm
+// DoneInput còn dùng được.
+func (e *Env) DoneInputFor(ctx context.Context, t *task.Task) (task.DoneInput, error) {
+	in := task.DoneInput{VerifyConfirmed: e.VerifyConfirmed(t)}
+	root, err := e.RootFor(t)
+	if err != nil {
+		return in, err
+	}
+	in.Worktree = task.WorktreeFingerprint(ctx, root)
+	return in, nil
+}
+
+// DoneInputDetailed như DoneInputFor, thêm: khi mã đã đổi kể từ lần kiểm chứng cuối, có ảnh chụp lúc kiểm
+// chứng và tác vụ theo dõi tập tệp riêng thì liệt kê các tệp đổi mà không thuộc Touched (việc của tác vụ
+// khác) để thông báo chặn done chỉ rõ. Đắt hơn (chụp cây + diff) nên chỉ dùng ở SetStatus(done).
+func (e *Env) DoneInputDetailed(ctx context.Context, t *task.Task) (task.DoneInput, error) {
+	in, err := e.DoneInputFor(ctx, t)
+	if err != nil {
+		return in, err
+	}
+	root, _ := e.RootFor(t)
+	v := t.State.LastVerification()
+	if v == nil || in.Worktree == "" || v.Worktree == in.Worktree || v.Tree == "" || !t.State.TracksTouched() {
+		return in, nil
+	}
+	cur, err := WorktreeSnapshot(ctx, root)
+	if err != nil {
+		return in, nil
+	}
+	changed, err := DiffPaths(ctx, root, v.Tree, cur)
+	if err != nil {
+		return in, nil
+	}
+	for _, f := range changed {
+		if !slices.Contains(t.State.Touched, f) {
+			in.OutsideSinceVerify = append(in.OutsideSinceVerify, f)
+		}
+	}
+	return in, nil
 }
 
 // NotDoneError: chưa đủ bằng chứng để coi là hoàn thành.
@@ -477,6 +539,10 @@ func (e *Env) Verify(ctx context.Context, ref string) (*task.Task, VerifyResult,
 		res.Skipped = "phiếu chưa có verify.command (bint task set --verify-command)"
 		return t, res, nil
 	}
+	root, err := e.RootFor(t)
+	if err != nil {
+		return t, res, err
+	}
 	confirmed := e.VerifyConfirmed(t)
 	if !confirmed && e.Cfg.Security.RequireApprovalForCommands {
 		res.Skipped = "lệnh kiểm chứng chưa được người xác nhận; Bint không chạy lệnh do agent đề xuất (bint task approve " + t.State.ID + ")"
@@ -485,11 +551,15 @@ func (e *Env) Verify(ctx context.Context, ref string) (*task.Task, VerifyResult,
 	n := len(t.State.Verifications) + 1
 	log := t.LogPath(fmt.Sprintf("verify-%d.log", n))
 	timeout := time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes) * time.Minute
-	r := eval.RunShell(ctx, e.Root, cmd, timeout, log, nil)
-	v := task.Verification{At: e.at(), Command: cmd, Confirmed: confirmed, ExitCode: r.ExitCode, Passed: r.OK(),
-		TimedOut: r.TimedOut, Log: log, Worktree: task.WorktreeFingerprint(ctx, e.Root), By: e.actor(), RunID: e.RunID}
+	r := eval.RunShell(ctx, root, cmd, timeout, log, nil)
 	if r.Err != nil && ctx.Err() != nil {
 		return t, res, ctx.Err()
+	}
+	v := task.Verification{At: e.at(), Command: cmd, Confirmed: confirmed, ExitCode: r.ExitCode, Passed: r.OK(),
+		TimedOut: r.TimedOut, Log: log, Worktree: task.WorktreeFingerprint(ctx, root), By: e.actor(), RunID: e.RunID}
+	// Ảnh chụp sau lệnh kiểm chứng: để thông báo done liệt kê tệp đổi ngoài tác vụ. Lỗi thì để rỗng.
+	if t.State.TracksTouched() {
+		v.Tree, _ = WorktreeSnapshot(ctx, root)
 	}
 	t, err = e.Tasks.Update(t.State.ID, e.now(), func(t *task.Task) error {
 		t.State.Verifications = append(t.State.Verifications, v)

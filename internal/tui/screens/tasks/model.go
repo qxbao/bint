@@ -617,6 +617,8 @@ func (m *Model) listKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.cmdVerify(), true
 	case "l":
 		return m.cmdLint(), true
+	case "D":
+		return m.cmdDiff(), true
 	case "T":
 		m.showTransitions()
 		return nil, true

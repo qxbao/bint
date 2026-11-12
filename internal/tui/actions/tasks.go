@@ -134,6 +134,11 @@ func taskActions() []Action {
 			withT("tasks.lint", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
 				return app.LintTask(ctx, ws, o.(app.TaskLintOptions))
 			})),
+		// Thay đổi của riêng tác vụ (chỉ đọc): kết quả hiện trong hộp thoại có tô màu diff.
+		mk("tasks.diff", "diff", "D", false, 9, "task diff", app.TaskDiffOptions{}, false, false,
+			withT("tasks.diff", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
+				return app.DiffTask(ctx, ws, o.(app.TaskDiffOptions))
+			})),
 		mk("tasks.transitions", "transitions", "T", false, 9, "task transitions", nil, false, false, nil),
 		mk("tasks.list", "list", "A", true, 7, "task list", app.TaskListOptions{}, false, false, nil),
 		mk("tasks.show", "show", "Enter", true, 2, "task show", app.TaskShowOptions{}, false, false, nil),

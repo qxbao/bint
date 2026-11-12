@@ -198,8 +198,11 @@ type Verification struct {
 	Log       string `json:"log,omitempty"`
 	// Worktree là fingerprint trạng thái mã lúc kiểm chứng (HEAD + thay đổi chưa commit).
 	Worktree string `json:"worktree,omitempty"`
-	By       string `json:"by"`
-	RunID    string `json:"run_id,omitempty"`
+	// Tree là mã cây ảnh chụp cây làm việc sau lệnh kiểm chứng ("" nếu không chụp được); dùng để
+	// biết tệp nào đổi kể từ lần kiểm chứng.
+	Tree  string `json:"tree,omitempty"`
+	By    string `json:"by"`
+	RunID string `json:"run_id,omitempty"`
 }
 
 // Approval là một lần người duyệt.
@@ -239,6 +242,13 @@ type State struct {
 	Base     string `json:"base,omitempty"`
 	Branch   string `json:"branch,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
+	// BaseTree là mã cây (git tree) của ảnh chụp cây làm việc ngay trước lần b-feat đầu tiên, gồm cả
+	// thay đổi chưa commit có sẵn lúc đó; giữ sống bằng refs/bint/tasks/<id>/base. Rỗng = phiếu cũ
+	// (hoặc không chụp được): tập tệp của tác vụ tính theo toàn bộ thay đổi so với Base.
+	BaseTree string `json:"base_tree,omitempty"`
+	// Touched là hợp các tệp đổi giữa ảnh chụp trước/sau của mọi lượt b-feat (đã sắp xếp, bỏ trùng);
+	// chỉ có nghĩa khi TracksTouched().
+	Touched []string `json:"touched,omitempty"`
 	// Reason giải thích trạng thái hiện tại (ví dụ vì sao blocked).
 	Reason string `json:"reason,omitempty"`
 	// ResumeFrom là trạng thái hoạt động trước khi blocked/interrupted/failed.
@@ -262,6 +272,20 @@ type State struct {
 	AwaitingCheck bool              `json:"awaiting_check,omitempty"`
 	NextFinding   int               `json:"next_finding"`
 	Artifacts     map[string]string `json:"artifacts,omitempty"` // tên → thời điểm ghi
+}
+
+// TracksTouched cho biết tác vụ theo dõi tập tệp riêng của mình (BaseTree/Touched). Khi false
+// (phiếu cũ), phạm vi và diff của tác vụ tính theo toàn bộ thay đổi so với Base.
+func (s *State) TracksTouched() bool { return s.BaseTree != "" }
+
+// EverInProgress cho biết tác vụ đã từng vào in_progress (đã có hoặc đang có b-feat, kể cả làm tay).
+func (s *State) EverInProgress() bool {
+	for _, h := range s.History {
+		if h.To == StatusInProgress {
+			return true
+		}
+	}
+	return false
 }
 
 // LastVerification trả về lần kiểm chứng gần nhất (nil nếu chưa có).

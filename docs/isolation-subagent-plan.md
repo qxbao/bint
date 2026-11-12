@@ -1,6 +1,7 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
-Trạng thái: **đã chốt hướng** (2026-11-11; bổ sung mục 4.5 ngày 2026-11-12), chưa triển khai. Gồm bốn giai đoạn: G1 (cô lập trên
+Trạng thái: **đã chốt hướng** (2026-11-11; bổ sung mục 4.5 ngày 2026-11-12). **G1 mục 4.1–4.4 và 4.5 (H8) đã làm**
+(2026-11-12, xem mục 12.1–12.4); G2–G4 chưa làm. Gồm bốn giai đoạn: G1 (cô lập trên
 worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy các bước
 bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
 
@@ -390,4 +391,205 @@ Mỗi giai đoạn một nhánh/PR, có review bằng b-review, tài liệu cậ
 
 ## 12. Ghi chép triển khai
 
-(Chưa có.)
+### 12.1. G1 mục 4.1–4.4 (H1–H5), 2026-11-12, tác vụ 01M76XPE8PD17GNK77KDP40RDW
+
+**Đã làm** (chưa commit khi viết ghi chép này; kiểm thử đã chạy xem cuối mục):
+
+- **Khoá chia sẻ/độc quyền có chờ khoá (4.2).** `internal/workflow/isolation.go`: `LockMode` (`LockShared`,
+  `LockExclusive`), `AcquireLock` (không chờ), `WaitLock` (thăm dò 50 ms giãn tới 2 s, `OnWait`, hết hạn → lỗi bọc
+  `ErrLocked`, ctx huỷ → `ctx.Err()`), `tryFlock(f, mode)` ở cặp `flock_unix.go`/`flock_windows.go`. Giữ lại vỏ
+  `AcquireWriteLock` (= độc quyền), `WriteLock` (= `Lock`), `ErrWriteLocked` (= `ErrLocked`) vì tri thức và tài
+  liệu dẫn các tên này. `Release` không còn xoá tệp khoá. Runner (`run.go`): bước chỉ đọc lấy khoá chia sẻ
+  **trước** ảnh chụp trước và giữ tới sau ảnh chụp sau; `b-feat` lấy độc quyền; kiểm chứng sau `b-feat` chạy dưới
+  khoá chia sẻ (`lockStep`). Cờ `--no-wait` (`RunOptions.NoWait`, `RunWorkflowOptions`/`RunResumeOptions`, nhãn form
+  vi/en). Hết hạn → `blocked` "chờ khoá quá N phút: <chủ>"; Ctrl-C → `interrupted`.
+- **Gắn tác vụ với worktree (4.1).** `Env.RootFor(t)` + `ErrWorktreeGone` (`internal/workflow/touched.go`). `Runner.Run`
+  chạy trên bản sao `Env` có `Root` của tác vụ (trả lại `Env` gốc khi xong), in "chạy trong <đường dẫn>"; thư
+  mục mất → `failed` sau bước resume. `Verify`, `SetStatus(done)`, `UnapprovedChanges`, `app.ShowTask`,
+  `app.DiffTask` dùng `RootFor`.
+- **BaseTree/Touched (4.3).** `State.BaseTree`, `State.Touched`, `TracksTouched()`, `EverInProgress()`. Chụp trước/sau
+  `b-feat` dưới khoá độc quyền (`beginTouched`/`endTouched`, sau cả khi agent lỗi/Ctrl-C), `DiffPaths` dùng
+  `--no-renames -z` và trả lỗi. `checkScope`/`UnapprovedChanges` dùng `Touched` (phiếu cũ: `ChangedFiles`). Chồng
+  lấn với tác vụ chưa kết thúc khác trên cùng worktree vào luồng duyệt sẵn có. **`bint task diff <id>
+  [--stat|--name-only]`**: `app.DiffTask` (`internal/app/task_diff.go`), lệnh CLI, hành động TUI chỉ đọc
+  `tasks.diff` (phím `D`). Skill b-review và đề bài `StepReview` của Runner dùng lệnh này; ba bản skill +
+  `core.lock` đồng bộ bằng `bint sync`.
+- **Verify (4.4).** `Verification.Tree`, `DoneInput.OutsideSinceVerify`, `Env.DoneInputFor` (dùng chung `SetStatus` và
+  `ShowTask`); thông báo "thay đổi không thuộc tác vụ: …; chạy lại bint task verify <id>".
+- Tài liệu: `docs/workflows.md` (đoạn cô lập, giới hạn đã biết). Chưa làm: 4.5 (H8, nhật ký ghi của Bint) — ở phiếu sau.
+
+**Lệch so với kế hoạch ban đầu (và lý do):**
+
+1. **Tên hàm `app.DiffTask`**, không phải `app.TaskDiff`: các dịch vụ tác vụ khác đặt động từ trước (`ShowTask`, `LintTask`).
+2. **Windows khoá một byte ở offset lớn** (`OffsetHigh=0x7fffffff`), không phải byte 0 như bản cũ: khoá vùng trên
+   Windows là bắt buộc, khoá chia sẻ ở byte 0 làm chính chủ không ghi được tệp, khoá độc quyền làm người khác không
+   đọc được nội dung. Hệ quả: trong lúc nâng cấp, binary cũ (byte 0) và mới **không** loại trừ lẫn nhau trên
+   Windows (trên Unix `flock` cùng tệp nên vẫn loại trừ). Tên tệp khoá `write-<hash16>.lock` giữ nguyên.
+3. **Thông tin chủ khoá nằm ở tệp riêng mỗi chủ** (`locks/write-<hash>.lock.d/<pid>-<nonce>.json`), không ghi vào tệp
+   khoá: nhiều chủ chia sẻ không ghi đè nhau và không đụng vùng khoá Windows. Mục của tiến trình chết bị ẩn/dọn khi
+   hiển thị; **không dùng để quyết định khoá** (không chép mẫu PID chết của `evolve.AcquireLock`).
+4. **Chồng lấn gỡ bằng `bint task approve`** (đưa tệp chung vào `PendingPaths`/`ProtectedApproval`), không thêm trạng
+   thái hay cơ chế riêng. Hệ quả: duyệt một tệp chồng lấn cũng ghi tệp đó vào danh sách đã duyệt của tác vụ.
+   `UnapprovedChanges` (done) **không** tính chồng lấn; chồng lấn chỉ chặn ở `checkScope` của Runner.
+5. **Mốc `BaseTree` chỉ đặt ở lần `b-feat` đầu tiên của tác vụ chưa từng `in_progress`** (kể cả làm tay). Tác vụ đã có
+   `b-feat` trước khi nâng cấp giữ chế độ cũ suốt đời: đặt muộn sẽ bỏ sót tệp đã sửa ở lượt trước, kể cả đường
+   dẫn bảo vệ. Mốc "tiêu chí 3: phiếu cũ (Touched nil)" thực chất là `BaseTree` rỗng (`omitempty` làm nil và rỗng
+   không phân biệt được sau khi lưu). Làm tay sau khi đã có `BaseTree`: bản sửa vòng 1 bỏ theo dõi khi `SetStatus` → `in_progress` không do
+   Runner; **đã thay ở vòng sửa thêm (mục 12.2)** — không bỏ theo dõi nữa.
+6. **Kiểm chứng sau `b-feat` chạy dưới khoá độc quyền** (kế hoạch không nói; vòng đầu là chia sẻ, đổi ở 12.2/.2). `bint task verify` gọi tay không lấy
+   khoá: agent gọi nó trong `b-feat` sẽ không tự chờ chính Runner của mình.
+7. **Bảng chuyển trạng thái không đổi**: "failed khi thư mục mất" đi qua bước resume (về trạng thái hoạt động) rồi
+   `fail`, vì blocked/interrupted không chuyển thẳng sang failed.
+8. `Cfg`/`ConfigRoot` vẫn lấy từ nơi gõ lệnh dù tác vụ chạy ở worktree khác (các worktree cùng repo thường cùng cấu hình).
+9. Thêm `Verification.Tree` chỉ khi tác vụ theo dõi `Touched` (chụp lỗi thì để rỗng, không chặn).
+10. Golden `help_*` của TUI đổi một dòng (thêm phím `D` ở màn Tác vụ); `TestWritesAudit` thêm `tasks.diff` vào danh
+    sách chỉ đọc.
+
+**Chưa kiểm được / rủi ro còn lại:**
+
+- **Windows chạy thật**: mới kiểm biên dịch (`GOOS=windows go vet ./...`, staticcheck với `GOOS=windows`). Cần một lần
+  chạy `go test ./internal/workflow/` và một phiên `bint run` song song trên máy Windows trước khi tin khoá chia sẻ.
+- Hai binary **khác phiên bản** cùng giữ khoá chưa thử (kiến thức hiện có: Unix loại trừ nhờ cùng tệp + `sameFile`;
+  Windows không, xem lệch 2).
+- **Đói lượt khoá độc quyền** khi bước chỉ đọc nối tiếp nhau: chấp nhận ở G1; hết `workflow.timeout_minutes` thì
+  `blocked` (kiểm thử khoá chia sẻ phải chấp nhận người đọc chồng nhau làm người ghi đói).
+- Tác vụ bỏ dở (`failed`/`blocked` lâu) vẫn được dò chồng lấn: người phải huỷ nó (`cancelled`) để hết cảnh báo.
+- Hiệu năng: thêm hai lần `git add -A` vào chỉ mục tạm mỗi `b-feat` và một lần mỗi verify/done/diff.
+
+**Kiểm thử đã thêm:** `isolation_test.go` (ma trận S/X, tranh chấp hỗn hợp, đa tiến trình, kill tiến trình giữ khoá, chờ/hết
+hạn/huỷ, tệp chủ khoá), `concurrent_test.go` (hai Runner; `b-review` của A không fail khi B có `b-feat` chờ; `--no-wait`; hết
+hạn; Ctrl-C), `touched_test.go` (tệp bẩn có sẵn kể cả `migrations/**`, tác vụ khác, chồng lấn + approve + resume, phiếu
+cũ, xoá/đổi tên tệp bảo vệ, agent lỗi, chụp lỗi → chế độ cũ, đề bài b-review), `rootfor_test.go`, e2e CLI
+`isolation_e2e_test.go` (`task diff`, resume từ thư mục khác, thư mục mất), `internal/task` (`DoneBlockers` có/không tệp
+ngoài), TUI (`tasks.diff` chỉ đọc, hộp diff), skill b-review.
+
+### 12.2. Vòng sửa thêm sau review (phát hiện .2–.6), 2026-11-12, cùng tác vụ
+
+Ngoài giới hạn `max_review_rounds` theo yêu cầu của người dùng.
+
+- **.5 (medium) — sửa tay ngoài b-feat lọt cổng done (đã sửa).** Thay vì bỏ theo dõi khi `in_progress` tay (mất
+  `BaseTree` nên mất cả lọc tệp của tác vụ khác, và hỏng đường `bint task status … in_progress` rồi `bint run
+  b-feat` của skill b-do), `workflow.ScopeFiles` = `Touched` ∪ `outsideFeat`: tệp đổi giữa `BaseTree` và cây hiện
+  tại mà không thuộc `Touched` của **bất kỳ** tác vụ nào trên cùng worktree (kể cả đã kết thúc). Dùng ở
+  `checkScope`, `UnapprovedChanges` (cổng done, approve) và `app.DiffTask`. Không cần trường mới trong state nên
+  chạy cả với phiếu đang dở (khác gợi ý `FeatTree` của review: `BaseTree` đã đủ vì phép trừ `Touched` loại phần của
+  b-feat; một mốc "sau b-feat cuối" chỉ thêm trạng thái mà không bắt thêm được gì). Chụp cây lỗi → trả lỗi (không
+  nuốt: cổng done đóng). Test: `TestManualEditOutsideFeatIsCaught` (in_review và in_progress; verify → done bị
+  chặn → approve → done), `TestOutsideFeatExcludesOtherTaskTouched`. Đánh đổi: thay đổi tay của người dùng trên
+  worktree chung bị quy cho tác vụ (chỉ dẫn tới yêu cầu duyệt); thay đổi của tác vụ chạy chế độ cũ (không `Touched`)
+  trên cùng worktree cũng bị quy cho tác vụ có theo dõi.
+- **.4 (đã sửa).** `SetStatus` tới `done`/`cancelled` xoá `refs/bint/tasks/<id>/base`. `bint task diff` của tác vụ
+  đã đóng vẫn đọc được `BaseTree` tới khi `git gc` dọn đối tượng mồ côi (mặc định sau 2 tuần).
+- **.3 (đã sửa).** `bint task diff` không đưa `Touched` vào dòng lệnh git: liệt kê toàn bộ rồi lọc trong Go; diff
+  đầy đủ chia lô pathspec (≤16000 byte mỗi lô, `pathBatches`). `--stat` nhiều lô in theo lô, không có dòng tổng chung
+  (có ghi chú). Test `TestPathBatches`. `DiffPaths` với pathspec vẫn chỉ dùng ở nơi pathspec ngắn.
+- **.2 (đã sửa).** Kiểm chứng sau `b-feat` của Runner lấy khoá **độc quyền** (không còn chia sẻ): lệnh kiểm chứng
+  hay ghi tệp nên không được song song với bước chỉ đọc của tác vụ khác. Đổi lại b-review của tác vụ khác phải chờ
+  trong lúc chạy kiểm chứng (có thể tới `verify_timeout_minutes`). Kế hoạch lệch 6 sửa theo.
+- **.6 (đã sửa).** `DoneInputFor` (dùng cho `ShowTask`/TUI) chỉ tính fingerprint; phần liệt kê tệp ngoài tác vụ
+  (`DoneInputDetailed`, chụp cây + diff) chỉ chạy ở `SetStatus(done)`. Hệ quả: `bint task show` nêu thông báo chung
+  "mã đã thay đổi sau lần kiểm chứng cuối", chi tiết tệp chỉ hiện khi thử `done`.
+- Không sửa: không có phát hiện nào bị bỏ. Lỗi `TestEvalRunEscCancelsBatchAndShowsResumeCommand` (và đôi lúc
+  `TestEvaluateCreateProposal`/`TestEvaluateSkillProposal`) chập chờn khi máy bận, không thuộc diff này.
+
+### 12.3. Phát hiện còn mở khi đóng phiếu 01M76XPE8PD17GNK77KDP40RDW (review vòng 3)
+
+Người dùng chọn đóng phiếu, để lại hai phát hiện cho phiếu sau (chi tiết trong `review.md` của tác vụ):
+
+- **.7 (medium)** — `outsideFeat` (`internal/workflow/touched.go`) miễn trừ theo `Touched` của mọi tác vụ cùng
+  worktree, kể cả `done`/`cancelled`: sửa tay một tệp bảo vệ mà tác vụ cũ từng sửa vẫn lọt cổng done. Hướng sửa: chỉ
+  miễn theo tác vụ chưa kết thúc; không miễn đường dẫn bảo vệ/deny. Test: B sửa `migrations/001.sql` rồi `cancelled`;
+  A `b-feat` sửa tệp khác; sửa tay `migrations/001.sql` ⇒ `UnapprovedChanges(A)` phải chứa nó.
+- **.8 (low)** — `checkScope` chạy sau khi `runStep` đã nhả khoá độc quyền của `b-feat`: `b-feat` của tác vụ khác vừa
+  giành khoá có thể bị quy vào tác vụ này; tệp do bước chỉ đọc/verify của tác vụ khác tạo cũng vào `ScopeFiles`. Hướng
+  sửa: tính `ScopeFiles`/`checkScope` ngay sau `endTouched` khi còn giữ khoá.
+
+### 12.4. G1 mục 4.5 (H8) — thay đổi do Bint ghi thay người không tính là vi phạm, 2026-11-12, tác vụ 01M772P7DKB3PBRBH7VPE614X6
+
+**Đã làm** (chưa commit khi viết ghi chép này, cùng cây với 4.1–4.4; không sửa phát hiện .7/.8 ở 12.3):
+
+- **Nhật ký ghi** `internal/workflow/writes.go`: `WriteRecord{path, sha256, at, actor, agent}`, `WritesLogPath`,
+  `AppendWrites` (khoá `writes.jsonl.lock` bằng `tryFlock` chờ tối đa 2 s; mỗi bản ghi một lệnh `Write` một dòng trên tệp
+  `O_APPEND`; dọn dòng hỏng và dòng cũ hơn retain bằng tệp tạm + rename, chỉ khi lấy được khoá), `ReadWrites(since)`,
+  `HashFile`, `NormalizeWritePath` (giải symlink của thư mục tới tổ tiên còn tồn tại, nên tệp/thư mục đã xoá vẫn cho cùng
+  đường dẫn; không giải symlink của chính tệp để khớp với đường dẫn git).
+- **Đối chiếu** `internal/workflow/isolation.go`: `ReadonlyViolations(ctx, root, before, after, since, writesLog)` trả
+  `ReadonlyCheck{Violations, HumanWrites}`. Thứ tự: ngoại lệ ứng viên tri thức mới → dòng nhật ký **mới nhất** của đường
+  dẫn (cuối tệp) có `At >= since`, `agent == false`, `sha256 == HashFile(abs)` (tệp xoá: rỗng) → miễn; còn lại vi phạm.
+  `ActiveSteps(tasksDir, root)` đọc tệp chủ khoá (chỉ đọc, bỏ qua tiến trình đã chết, không xoá mục).
+- **Runner** `run.go`: `StepResult.HumanWrites` (`human_writes`), mốc `started := time.Now()` ngay trước ảnh chụp trước,
+  log "bỏ qua thay đổi do người ghi qua Bint: …", dòng tương ứng trong `Result.Notes`, `human_writes` trong payload sự kiện
+  kết thúc bước.
+- **Hàm ghi chung** `internal/app/repowrite.go` (`repoWriter`, dựng bằng `newRepoWriter(paths, cfg, actor)`; retain =
+  `workflow.timeout_minutes` × 2): `WriteFile`, `WriteNew`, `Remove`, `SyncBlock`, `RemoveBlock`, `Record`, và các hàm bọc
+  gói thấp `SaveItem`/`RemoveItem` (knowledge.Store), `SaveComponent` (hcomp.Save), `InstallSkills` (skills.Install + `core.lock`
+  nếu băm đổi). Đã chuyển: `config_svc.go` (`writeConfigLayer`, cả `SaveConfigEdit` và `SetUILanguage`), `init.go` (tạo/nâng cấu
+  hình, `.gitignore`, skill, hook, MCP, `CLAUDE.md`, exclude), `publish.go` (`AGENTS.md`), `knowledge.go` (add, verify --apply,
+  approve/reject/deprecate, remove), `skills_svc.go` (overlay), `bootstrap.go` (sync), `harness_components.go`,
+  `evolvesvc` (`evolve.Apply/Rollback` → `recordFiles` → `KnowledgeWS.RecordRepoWrites`). `ComponentWS` có thêm `Paths`.
+- **TUI**: `app.ActiveSteps(ctx, dir)`; `Options.ActivePoll` (3 s ở `tui.go`, 0 trong kiểm thử), `loadActive()` gọi trong
+  `load()`, tin `activeStepsMsg`/`activeTickMsg`; cờ thanh trên `ui.step_running` ("b-review của 01M772P7 đang chạy trên cây
+  này"), nhiều bước thì `ui.steps_running` (vi, en). Không đổi `gate()`: thao tác ghi vẫn `Available`.
+- **Tài liệu**: `docs/workflows.md` (đoạn miễn trừ ghi qua Bint, ba mục "Giới hạn đã biết" mới).
+
+**Lệch so với kế hoạch 4.5 và quyết định:**
+
+1. **"Một hàm ghi chung" thành hai dạng** (tự ghi / ghi nhận ngay sau lời gọi gói thấp), vì phần lớn việc ghi nằm ở
+   `knowledge`, `skills`, `fsafe`, `hcomp`, `evolve`, ngoài `--allow`. Độ phủ giữ bằng kiểm thử tĩnh + động (dưới).
+2. **Chỉ ghi nhận khi Bint thật sự đổi tệp** (`Created/Appended/Updated/Removed`; `core.lock` chỉ khi băm đổi). Ghi nhận
+   tệp không đổi sẽ che việc agent sửa tệp đó trước đó trong cùng bước.
+3. **`started` dùng `time.Now()`**, không dùng `Env.Now` (có thể bị giả), cùng đồng hồ với `At` của dòng nhật ký.
+4. **`ReadWrites(since)` lọc theo `At`** ngay khi đọc; tương đương với luật "dòng mới nhất nằm trong khoảng bước" vì dòng
+   mới nhất cũ hơn `since` cũng cho kết quả "không có dòng" ⇒ vi phạm.
+5. Dòng nhật ký ghi `path` **tuyệt đối đã chuẩn hoá** (thư mục trạng thái dùng chung giữa các worktree, `KnowledgeWS.Root`
+   có thể là worktree chính). Tri thức ghi vào worktree chính không được miễn ở bước chạy trên worktree phụ — đúng.
+6. **`init` lần đầu** tạo `.bint/config.yml` bằng writer chưa có nhật ký (chưa biết thư mục trạng thái); lần init đầu
+   không thể có bước chỉ đọc nào đang chạy. Sau `state.Resolve` writer đầy đủ.
+7. `.git/…` bị bỏ qua khi ghi nhận (exclude nằm ngoài cây làm việc).
+8. `ui.language` mặc định ghi vào `.bint/local.yml` (bị `.gitignore`) nên không vào ảnh chụp; kiểm thử H8 dùng lớp project.
+9. Dòng trạng thái TUI đọc **tệp chủ khoá**, không có `bint run status`; khoá khoá theo `Repo.Toplevel` như Runner.
+10. `bint task show` vẫn cảnh báo "docs/isolation-subagent-plan.md không nằm trong phạm vi sửa" dù `--allow` có đủ: cảnh báo
+    nhầm của Bint, không chặn, không sửa ở tác vụ này.
+
+**Lỗi tìm thấy nhờ kiểm thử động và đã sửa:** `InstallMCP` trả đường dẫn **tương đối** với gốc repo; ghi nhận thẳng làm
+nhật ký trỏ vào thư mục đang đứng (`.mcp.json`, `.codex/config.toml` đổi mà không có dòng khớp). Thêm `absUnder(root, p)`
+cho MCP và đường dẫn hook.
+
+**Kiểm thử đã thêm:**
+- `internal/workflow/writes_test.go`: mỗi lần nối đúng một dòng; 8 writer × 25 lần không mất dòng (`-race`); dọn dòng cũ
+  giữ dòng mới và bỏ dòng hỏng; `ReadWrites` bỏ dòng hỏng/trước mốc; chuẩn hoá đường dẫn ổn định khi tệp bị xoá và qua
+  symlink; bảng `ReadonlyViolations` (người khớp băm, `agent: true`, băm lệch, dòng trước mốc, không có dòng, dòng của tệp
+  khác, dòng mới nhất là agent/người, xoá `sha256: ""`, `sha256: ""` mà tệp còn); candidate mới; Runner giả với bước chỉ đọc
+  (`completed`, `HumanWrites`, log, `Notes`); `ActiveSteps`.
+- `internal/app/h8_test.go` (AC-1, AC-2, AC-4) qua `RunWorkflow` + agent giả của bước chỉ đọc: người đổi `ui.language` + duyệt
+  mục tri thức ⇒ `completed`, `HumanWrites` = `.bint/config.yml` và tệp mục, log có dòng báo; biến agent ⇒ duyệt trả
+  `ErrAgentForbidden`, `ui.language` thành vi phạm; người rồi agent sửa tiếp ⇒ vi phạm; sửa trực tiếp ⇒ vi phạm;
+  `RemoveKnowledge` vai người ⇒ dòng `sha256: ""` và được miễn; hook (PreToolUse/PostToolUse/Stop/SessionStart) không tạo
+  `writes.jsonl`. Kiểm chứng đột biến: làm `Record` thành no-op thì hai ca đầu đỏ. Chạy được cả khi `CLAUDECODE=1`.
+- `internal/app/repowrite_audit_test.go` (AC-3): **tĩnh** (`go/parser`) mọi lời gọi `os.WriteFile/Create/OpenFile/Remove/RemoveAll/
+  Rename/Truncate/CreateTemp/MkdirTemp`, `fsafe.WriteAtomic/SyncBlock/RemoveBlock`, `Store.Save/Remove`, `hcomp.Save`,
+  `skills.Install` ngoài `repowrite.go` phải nằm trong bảng `directWriteAllowed` kèm lý do (thiếu hay thừa đều đỏ);
+  `evolve.Apply/Rollback`, `InstallHooks/UninstallHooks/InstallMCP` phải kèm `Record/recordFiles/RecordRepoWrites` trong cùng
+  hàm; `hook.go` không nhắc `repoWriter`/`AppendWrites`. Thêm tạm một `os.WriteFile` vào một hàm ⇒ test đỏ (đã thử).
+  **Động**: 12 dịch vụ ghi (config set, knowledge add/approve/reject/remove/verify --apply, skill overlay, sync, bootstrap
+  publish, harness component add + approve, `init --update`, `init --hooks --mcp`) chạy giữa hai ảnh chụp; mọi tệp đổi
+  phải có dòng nhật ký không phải agent, băm khớp.
+- `internal/tui/app/active_steps_test.go` (AC-5): khoá thật của workflow trên repo thật của fixture ⇒ "b-review của 01M772P7
+  đang chạy trên cây này" (vi), bản en, dạng gộp "2 bước…", biến mất khi trả khoá, thăm dò tự phát hiện, hành động ghi
+  (`system.language_save`) vẫn `Available`. Golden hiện có không đổi.
+
+**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 1249 test qua (66 gói); `go vet ./...` và `GOOS=windows go vet ./...`
+sạch; `staticcheck ./...` và `GOOS=windows staticcheck ./...` (binary đã cài) sạch; `go test -race` cho `internal/workflow`
+(Writes|Readonly|ActiveSteps) và `internal/app` (H8, audit) qua; `-race -count=20` cho test TUI dòng trạng thái qua.
+
+**Chưa kiểm được / rủi ro còn lại:**
+- **Windows chạy thật**: nhật ký dùng rename để dọn dòng cũ (lỗi khi tệp đang mở thì bỏ dọn lần đó) và `tryFlock` — mới kiểm
+  biên dịch.
+- **Phiên thật**: chưa làm tay một lần đổi `ui.language` trong TUI trong lúc `bint run b-req` chạy với agent thật.
+- **`evolve apply/rollback`** chỉ có kiểm thử tĩnh (buộc `recordFiles`), chưa có ca động vì dựng đề xuất đã đánh giá
+  tốn công; `evolvesvc.Cycle` tự áp dụng/quay lui đi qua cùng `recordFiles`.
+- Đường ghi **ngoài `internal/app`** (nếu sau này thêm ở `internal/cli`/`internal/tui`) không được kiểm thử tĩnh phủ; hiện
+  CLI/TUI chỉ xoá tệp tạm.
+- Lỗ đã biết (ghi ở `docs/workflows.md`): agent có thể chèn dòng giả vào nhật ký; sửa bằng IDE vẫn bị tính; agent ghi lại
+  đúng nội dung người vừa ghi thì không phát hiện.
+- Hiệu năng: mỗi thao tác ghi thêm một lần băm tệp và một lần mở nhật ký.

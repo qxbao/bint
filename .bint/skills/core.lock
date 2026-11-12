@@ -38,9 +38,9 @@ skills:
     variants:
       agents: dd71d8431dc9004b
   b-review:
-    sha256: 6af31c568ce4163a
+    sha256: a57487b54cdd0363
     published:
       - .agents/skills/b-review/SKILL.md
       - .claude/skills/b-review/SKILL.md
     variants:
-      agents: 6e2a37739227df7a
+      agents: 8954029a973d44a1

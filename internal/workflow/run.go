@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -90,6 +92,8 @@ type RunOptions struct {
 	Edit     TicketEdit
 	// Resume: tiếp tục tác vụ đang blocked/interrupted/failed.
 	Resume bool
+	// NoWait: khoá worktree đang bị giữ thì dừng ngay (blocked) thay vì chờ tới workflow.timeout_minutes.
+	NoWait bool
 }
 
 // StepResult là kết quả một bước agent.
@@ -102,6 +106,8 @@ type StepResult struct {
 	CostUSD  *float64 `json:"cost_usd"`
 	Duration string   `json:"duration"`
 	Error    string   `json:"error,omitempty"`
+	// HumanWrites: tệp bị đổi trong bước chỉ đọc nhưng được miễn vì người ghi qua Bint (nhật ký ghi).
+	HumanWrites []string `json:"human_writes,omitempty"`
 }
 
 // Result là kết quả một lượt điều phối.
@@ -214,6 +220,18 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	rs.res.TaskID = rs.t.State.ID
 	rs.res.Notes = assess.Notes
 
+	// Root của tác vụ (State.Worktree): chạy ở đó dù đang đứng ở thư mục khác. Dùng bản sao Env để
+	// không đổi Root của Env dùng chung (TaskWS); trả lại khi xong để Runner dùng lại được.
+	taskRoot, rootErr := r.RootFor(rs.t)
+	if rootErr == nil && taskRoot != r.Root {
+		orig := r.Env
+		cp := *orig
+		cp.Root = taskRoot
+		r.Env = &cp
+		defer func() { r.Env = orig }()
+		r.logf("chạy trong %s", taskRoot)
+	}
+
 	// Nhận quyền điều phối tác vụ và mở lượt chạy.
 	parent := rs.t.State.LastRun()
 	t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
@@ -247,6 +265,11 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if err := r.transition(rs, to, "tiếp tục (bint run resume)"); err != nil {
 			return rs.res, err
 		}
+	}
+	if rootErr != nil {
+		// Bảng chuyển không cho blocked/interrupted sang failed: đã về trạng thái hoạt động ở trên.
+		r.fail(rs, "", "thư mục làm việc của tác vụ không còn: "+rootErr.Error())
+		return rs.res, nil
 	}
 
 	// Chỉ hỏi lại khi thiếu trường quan trọng cho tác vụ rủi ro cao (mục 6.7).
@@ -479,11 +502,13 @@ func minPtr(a, b *float64) *float64 {
 // runStep chạy một bước agent. Trả false nếu workflow phải dừng.
 func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	// Chuyển trạng thái trước bước.
+	firstFeat := false
 	switch step {
 	case StepFeat:
 		if !r.preflightFeat(rs) {
 			return false
 		}
+		firstFeat = !rs.t.State.EverInProgress() // phải xét trước khi chuyển in_progress ở dưới
 		if rs.t.Ticket.Autonomy == task.AutonomyAskAlways {
 			q := Question{Key: QConfirmFeat, Params: map[string]any{"task": rs.t.State.ID, "root": r.Root},
 				Text: fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép b-feat sửa mã trong %s?", rs.t.State.ID, r.Root)}
@@ -544,10 +569,21 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		rs.res.Notes = append(rs.res.Notes, agent.Name()+" không có giới hạn số lượt: max_turns chỉ là chỉ dẫn")
 	}
 
-	// Cô lập (P5): bước có quyền ghi giữ khoá ghi của worktree; bước chỉ đọc được
-	// kiểm tra lại cây làm việc sau khi agent xong.
+	// Cô lập (P5): bước chỉ đọc giữ khoá chia sẻ, bước có quyền ghi giữ khoá độc quyền của worktree
+	// (chờ tới khi lấy được). Khoá lấy TRƯỚC ảnh chụp trước và giữ tới sau ảnh chụp sau, nên b-feat của
+	// tác vụ khác không chen vào giữa hai ảnh chụp của bước chỉ đọc.
 	readOnly := readonlySteps[step]
-	var snapBefore string
+	mode := LockExclusive
+	if readOnly {
+		mode = LockShared
+	}
+	lock, ok := r.lockStep(ctx, rs, step, mode)
+	if !ok {
+		return false
+	}
+	defer lock.Release()
+	var snapBefore, featBefore string
+	started := time.Now() // đồng hồ thật: cùng đồng hồ với dòng nhật ký ghi (không dùng r.now() có thể bị giả)
 	if readOnly {
 		snap, err := WorktreeSnapshot(ctx, r.Root)
 		if err != nil {
@@ -555,13 +591,8 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 			return false
 		}
 		snapBefore = snap
-	} else {
-		lock, err := AcquireWriteLock(r.Tasks.Dir, r.Root, rs.t.State.ID+" "+step)
-		if err != nil {
-			r.block(rs, err.Error())
-			return false
-		}
-		defer lock.Release()
+	} else if step == StepFeat {
+		featBefore = r.beginTouched(ctx, rs, firstFeat)
 	}
 
 	reqModel := ""
@@ -593,17 +624,26 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	res := agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt,
 		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
 		LogPath: stepLog, Env: env, ReadOnly: readOnly, WritableDirs: r.stateDirs()})
+	r.endTouched(ctx, rs, featBefore)
+	var humanWrites []string
 	if readOnly && ctx.Err() == nil {
 		after, err := WorktreeSnapshot(ctx, r.Root)
 		switch {
 		case err != nil:
 			res.Error = "chụp cây làm việc sau bước chỉ đọc: " + err.Error()
 		case after != snapBefore:
-			changed := ReadonlyViolations(ctx, r.Root, snapBefore, after)
-			if len(changed) == 0 {
+			chk := ReadonlyViolations(ctx, r.Root, snapBefore, after, started, WritesLogPath(filepath.Dir(r.Tasks.Dir)))
+			if len(chk.HumanWrites) > 0 {
+				humanWrites = chk.HumanWrites
+				list := strings.Join(humanWrites, ", ")
+				r.logf("bỏ qua thay đổi do người ghi qua Bint: %s", list)
+				rs.res.Notes = append(rs.res.Notes, step+": bỏ qua thay đổi do người ghi qua Bint: "+list)
+			}
+			if len(chk.Violations) == 0 {
 				break
 			}
-			res.Error = fmt.Sprintf("bước chỉ đọc %s (%s) đã sửa cây làm việc: %s — Bint không hoàn tác, hãy xem lại", step, agent.Name(), strings.Join(changed, ", "))
+			res.Error = fmt.Sprintf("bước chỉ đọc %s (%s) đã sửa cây làm việc: %s — Bint không hoàn tác, hãy xem lại (nếu chính bạn sửa trong lúc bước chạy: bint run resume %s)",
+				step, agent.Name(), strings.Join(chk.Violations, ", "), rs.t.State.ID)
 		}
 	}
 
@@ -611,7 +651,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	if model == "" {
 		model = reqModel
 	}
-	sr := StepResult{Step: step, RunID: child, Harness: agent.Name(), Model: model, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error}
+	sr := StepResult{Step: step, RunID: child, Harness: agent.Name(), Model: model, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error, HumanWrites: humanWrites}
 	if res.CostUSD != nil {
 		rs.spent += *res.CostUSD
 		rs.costKnown = true
@@ -639,6 +679,9 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	}
 	payload := map[string]any{"status": status, "end_reason": endReason, "model": res.Model,
 		"result_summary": truncate(strings.TrimSpace(res.Text), 500), "task_id": rs.t.State.ID}
+	if len(humanWrites) > 0 {
+		payload["human_writes"] = humanWrites
+	}
 	if res.CostUSD != nil {
 		payload["cost_usd"] = *res.CostUSD
 	}
@@ -675,6 +718,45 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	}
 	r.logf("✓ %s xong (%s)", step, sr.Duration)
 	return true
+}
+
+// lockWaitUnit là đơn vị của workflow.timeout_minutes khi chờ khoá; biến để kiểm thử rút ngắn.
+var lockWaitUnit = time.Minute
+
+// lockStep lấy khoá worktree cho một bước. Mặc định chờ (tối đa workflow.timeout_minutes) và in
+// "chờ khoá do <chủ>"; NoWait thì lấy một lần, bận thì tác vụ chuyển blocked. Hết hạn chờ → blocked;
+// ctx huỷ → interrupted. Trả false nếu workflow phải dừng.
+func (r *Runner) lockStep(ctx context.Context, rs *runState, step string, mode LockMode) (*Lock, bool) {
+	owner := rs.t.State.ID + " " + step
+	if rs.opts.NoWait {
+		l, err := AcquireLock(r.Tasks.Dir, r.Root, owner, mode)
+		if err != nil {
+			r.block(rs, err.Error())
+			return nil, false
+		}
+		return l, true
+	}
+	mins := r.Cfg.Workflow.TimeoutMinutes
+	l, err := WaitLock(ctx, r.Tasks.Dir, r.Root, owner, mode, WaitOptions{
+		Timeout: time.Duration(mins) * lockWaitUnit,
+		OnWait: func(holders string) {
+			if holders == "" {
+				holders = "chủ khoá chưa rõ"
+			}
+			r.logf("⏳ chờ khoá do %s (bước %s cần khoá %s)", holders, step, mode)
+		},
+	})
+	switch {
+	case err == nil:
+		return l, true
+	case ctx.Err() != nil:
+		r.interrupt(rs, "người dùng huỷ khi chờ khoá của bước "+step)
+	case errors.Is(err, ErrLocked):
+		r.block(rs, fmt.Sprintf("chờ khoá quá %d phút: %v", mins, err))
+	default:
+		r.fail(rs, step, "lấy khoá worktree: "+err.Error())
+	}
+	return nil, false
 }
 
 // afterStep xử lý kết quả bước; trả false nếu workflow dừng.
@@ -718,7 +800,14 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			return false
 		}
 		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" {
+			// Kiểm chứng chạy dưới khoá độc quyền: lệnh kiểm chứng hay ghi tệp (coverage, snapshot, build) nên
+			// không được chạy song song với bước chỉ đọc của tác vụ khác (sẽ bị quy là vi phạm chỉ đọc).
+			lock, ok := r.lockStep(ctx, rs, "verify", LockExclusive)
+			if !ok {
+				return false
+			}
 			t, vr, err := r.Verify(ctx, rs.t.State.ID)
+			lock.Release()
 			switch {
 			case err != nil && ctx.Err() != nil:
 				r.interrupt(rs, "người dùng huỷ khi kiểm chứng")
@@ -872,7 +961,7 @@ func passWord(ok bool) string {
 
 // checkScope đối chiếu tệp đã sửa với phạm vi phiếu và đường dẫn bảo vệ (mục 5, 6.7).
 func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
-	files, err := task.ChangedFiles(ctx, r.Root, rs.t.State.Base)
+	files, err := ScopeFiles(ctx, r.Root, r.Tasks, rs.t)
 	if err != nil {
 		r.fail(rs, "scope", "không xác định được tệp đã sửa: "+err.Error())
 		return false
@@ -897,11 +986,36 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 			}
 		}
 	}
+	// Chồng lấn: tệp mà tác vụ chưa kết thúc khác trên cùng worktree cũng sửa. Không tự xử lý: đi qua
+	// luồng duyệt (hỏi / PendingPaths / bint task approve) để người quyết định chấp nhận chồng lấn.
+	var overlapNotes []string
+	ov := r.overlaps(rs.t)
+	ids := make([]string, 0, len(ov))
+	for id := range ov {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		var fresh []string
+		for _, f := range ov[id] {
+			if !slices.Contains(approved, f) {
+				fresh = append(fresh, f)
+			}
+		}
+		if len(fresh) > 0 {
+			overlapNotes = append(overlapNotes, fmt.Sprintf("tác vụ %s cũng sửa: %s", id, strings.Join(fresh, ", ")))
+			need = appendUnique(need, fresh...)
+		}
+	}
 	if len(need) == 0 {
 		return true
 	}
+	why := ""
+	if len(overlapNotes) > 0 {
+		why = "\n" + strings.Join(overlapNotes, "\n")
+	}
 	q := Question{Key: QConfirmScope, Paths: slices.Clone(need),
-		Text: fmt.Sprintf("b-feat đã sửa tệp cần duyệt (đường dẫn bảo vệ / deny / ngoài phạm vi):\n  %s\nDuyệt các thay đổi này?", strings.Join(need, "\n  "))}
+		Text: fmt.Sprintf("b-feat đã sửa tệp cần duyệt (đường dẫn bảo vệ / deny / ngoài phạm vi / tác vụ khác cũng sửa):\n  %s%s\nDuyệt các thay đổi này?", strings.Join(need, "\n  "), why)}
 	if r.Confirm != nil && r.Confirm(q) {
 		t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 			prev := ApprovedPaths(t)
@@ -920,7 +1034,7 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 	if err == nil {
 		rs.t = t
 	}
-	r.block(rs, "thay đổi cần người duyệt: "+strings.Join(need, ", ")+" (xem diff, rồi bint task approve "+rs.t.State.ID+" && bint run resume "+rs.t.State.ID+")")
+	r.block(rs, "thay đổi cần người duyệt: "+strings.Join(need, ", ")+strings.Join(append([]string{""}, overlapNotes...), "; ")+" (xem diff, rồi bint task approve "+rs.t.State.ID+" && bint run resume "+rs.t.State.ID+")")
 	return false
 }
 
@@ -1072,11 +1186,18 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string) s
 			}
 		}
 	case StepReview:
-		base := t.State.Base
-		if base == "" {
-			base = "HEAD"
+		if t.State.TracksTouched() {
+			fmt.Fprintf(&b, "\nPhạm vi review: chỉ các tệp tác vụ này đã sửa — xem bằng `bint task diff %s` "+
+				"(thêm `--stat` để định hướng, `--name-only` để chỉ lấy danh sách tệp). Đừng dùng `git diff` toàn cây: "+
+				"nó lẫn thay đổi của tác vụ khác.\n", t.State.ID)
+		} else {
+			base := t.State.Base
+			if base == "" {
+				base = "HEAD"
+			}
+			fmt.Fprintf(&b, "\nPhạm vi review: thay đổi so với commit %s — xem bằng `bint task diff %s` (tác vụ lập trước khi Bint theo dõi tệp "+
+				"riêng của từng tác vụ nên lệnh này so với commit đó trên toàn cây).\n", base, t.State.ID)
 		}
-		fmt.Fprintf(&b, "\nPhạm vi review: thay đổi so với commit %s (`git diff %s` cộng tệp chưa theo dõi trong `git status`).\n", base, base)
 		if v := t.State.LastVerification(); v != nil {
 			fmt.Fprintf(&b, "Kiểm chứng gần nhất: `%s` → %s.\n", v.Command, passWord(v.Passed))
 		}

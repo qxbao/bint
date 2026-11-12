@@ -124,3 +124,21 @@ func TestPlanApproveActionIsReadOnly(t *testing.T) {
 		t.Fatalf("duyệt không đổi trạng thái, chỉ xác nhận lệnh: %+v", tk.State)
 	}
 }
+
+// `D`: diff của tác vụ là hành động chỉ đọc, chạy qua dịch vụ app.DiffTask. Tác vụ chưa có b-feat nào: kết quả rỗng
+// kèm ghi chú (hoặc phiếu cũ nếu không theo dõi tệp).
+func TestTaskDiffActionIsReadOnly(t *testing.T) {
+	a, ok := actions.Default().ByID("tasks.diff")
+	if !ok || a.Writes || a.HumanOnly || a.CLIPath != "task diff" || a.Do == nil {
+		t.Fatalf("tasks.diff phải là hành động chỉ đọc: %+v", a)
+	}
+	env, taskID, _ := taskWithReview(t)
+	r := do(t, "tasks.diff", env, app.TaskDiffOptions{Ref: taskID, NameOnly: true})
+	dr, ok := r.Value.(app.TaskDiffResult)
+	if r.Err != nil || !ok || dr.Task == nil || dr.Task.State.ID != taskID || !dr.Legacy {
+		t.Fatalf("kết quả: %v %+v", r.Err, r.Value)
+	}
+	if r := do(t, "tasks.diff", env, app.TaskDiffOptions{Ref: taskID, Stat: true, NameOnly: true}); r.Err == nil {
+		t.Fatal("hai cờ loại trừ nhau phải lỗi")
+	}
+}

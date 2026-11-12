@@ -264,8 +264,10 @@ func runCycle(ctx context.Context, e *Workspace, o CycleOptions, now func() time
 			rep.Steps = append(rep.Steps, CycleStep{Step: "rollback", Target: h.ProposalID, Outcome: "đề xuất quay lui (người áp dụng): bint evolve rollback " + h.ProposalID})
 			continue
 		}
-		if _, err := evolve.Rollback(ctx, evolve.RollbackOptions{K: e.K, DB: db, Ref: h.ProposalID, Auto: true,
-			Reason: "vòng tiến hoá phát hiện hồi quy với mô hình " + cur}); err != nil {
+		rb, err := evolve.Rollback(ctx, evolve.RollbackOptions{K: e.K, DB: db, Ref: h.ProposalID, Auto: true,
+			Reason: "vòng tiến hoá phát hiện hồi quy với mô hình " + cur})
+		recordFiles(e, "bint evolve cycle", rb.Files)
+		if err != nil {
 			rep.Steps = append(rep.Steps, CycleStep{Step: "rollback", Target: h.ProposalID, Outcome: "lỗi: " + err.Error()})
 			continue
 		}
@@ -374,6 +376,7 @@ func runCycle(ctx context.Context, e *Workspace, o CycleOptions, now func() time
 		}
 		res, err := evolve.Apply(ctx, evolve.ApplyOptions{K: e.K, DB: db, Ref: rp.p.ID, Auto: true, Cases: e.CaseMap(),
 			Reason: "tự áp dụng rủi ro thấp (bint evolve cycle " + rep.ID + ")"})
+		recordFiles(e, "bint evolve cycle", res.Files)
 		if err != nil {
 			rep.Ready = append(rep.Ready, rp.p.ID)
 			rep.Steps = append(rep.Steps, CycleStep{Step: "compose", Target: rp.p.ID, Outcome: "không tự áp dụng được: " + err.Error()})

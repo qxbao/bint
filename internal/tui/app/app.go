@@ -107,6 +107,9 @@ type Options struct {
 	CanRestart bool
 	// SpinnerFPS là chu kỳ khung của vòng quay; 0 = mặc định (thay được trong kiểm thử).
 	SpinnerFPS time.Duration
+	// ActivePoll là chu kỳ thăm dò bước `bint run` đang chạy trên cây này (dòng trạng thái ở thanh trên); 0 = không thăm
+	// dò (chỉ nạp lúc nạp dữ liệu). Kiểm thử để 0 để drive() không lặp vô hạn.
+	ActivePoll time.Duration
 }
 
 // Model là mô hình gốc.
@@ -157,6 +160,11 @@ type Model struct {
 	initDone bool
 	// reloadPending: có yêu cầu nạp lại trong lúc đang nạp; nạp thêm một lần khi lần này xong.
 	reloadPending bool
+
+	// active là các bước `bint run` đang giữ khoá cây làm việc này (đọc từ tệp chủ khoá); activeLoading: đang đọc;
+	// activeTicking: đã hẹn lần thăm dò kế (Options.ActivePoll > 0).
+	active                       []workflow.ActiveStep
+	activeLoading, activeTicking bool
 
 	pal      *palette.Model
 	showHelp bool
@@ -320,7 +328,23 @@ func (m *Model) load() tea.Cmd {
 		d, err := loader(ctx, dir)
 		return overview.LoadedMsg{Data: d, Err: err}
 	}
-	return tea.Batch(load, m.startTick())
+	return tea.Batch(load, m.loadActive(), m.startTick())
+}
+
+// activeStepsMsg: kết quả đọc các bước đang chạy trên cây làm việc.
+type activeStepsMsg struct{ steps []workflow.ActiveStep }
+
+// activeTickMsg: tới hạn thăm dò bước đang chạy.
+type activeTickMsg struct{}
+
+// loadActive đọc các bước đang chạy trên cây này (một lần; không chồng hai lần đọc).
+func (m *Model) loadActive() tea.Cmd {
+	if m.activeLoading {
+		return nil
+	}
+	m.activeLoading = true
+	ctx, dir := m.ctx, m.opts.Dir
+	return func() tea.Msg { return activeStepsMsg{steps: bintapp.ActiveSteps(ctx, dir)} }
 }
 
 // Init nạp dữ liệu ban đầu.
@@ -359,6 +383,15 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.reloadPending = false
 			return m, m.load()
 		}
+	case activeStepsMsg:
+		m.active, m.activeLoading = msg.steps, false
+		if m.opts.ActivePoll > 0 && !m.activeTicking {
+			m.activeTicking = true
+			return m, tea.Tick(m.opts.ActivePoll, func(time.Time) tea.Msg { return activeTickMsg{} })
+		}
+	case activeTickMsg:
+		m.activeTicking = false
+		return m, m.loadActive()
 	case initwizard.ContinueMsg:
 		m.holdInit = false
 		m.wiz.Reset()
@@ -979,6 +1012,9 @@ func (m *Model) header(env ui.Env) string {
 	if m.opts.Agent {
 		flags = append(flags, m.th.S(theme.Warn, "["+m.cat.T("ui.agent_session")+"]"))
 	}
+	if l := m.activeLabel(); l != "" {
+		flags = append(flags, m.th.S(theme.Warn, l))
+	}
 	if n := m.jobs.Len(); n > 0 {
 		flags = append(flags, m.th.S(theme.Key, m.spin.View()+" "+m.cat.N("job.running", n)))
 	}
@@ -991,6 +1027,23 @@ func (m *Model) header(env ui.Env) string {
 		Title: "bint " + m.opts.Version, TitleAt: frame.Center, Top: strings.Join(flags, " "),
 		Bottom: bottom, BottomAt: frame.Right,
 	}.Render(m.th, w, 3, bar)
+}
+
+// activeLabel là dòng trạng thái "<bước> của <tác vụ> đang chạy trên cây này" (rỗng nếu không có bước nào).
+// Thao tác ghi vẫn được phép (docs/isolation-subagent-plan.md 4.5): đây chỉ là thông tin báo trước.
+func (m *Model) activeLabel() string {
+	switch len(m.active) {
+	case 0:
+		return ""
+	case 1:
+		a := m.active[0]
+		task := a.TaskID
+		if len(task) > 8 {
+			task = task[:8]
+		}
+		return m.cat.T("ui.step_running", i18n.A{"step": a.Step, "task": task})
+	}
+	return m.cat.N("ui.steps_running", len(m.active))
 }
 
 func (m *Model) helpGroups() []help.Group {

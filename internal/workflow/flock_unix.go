@@ -8,11 +8,16 @@ import (
 	"syscall"
 )
 
-// tryFlock xin khoá độc quyền không chờ trên tệp; busy=true nếu đang có chủ khác giữ.
-// Khoá gắn với mô tả tệp đang mở nên hệ điều hành tự nhả khi tiến trình chết.
-func tryFlock(f *os.File) (busy bool, err error) {
+// tryFlock xin khoá không chờ trên tệp (chia sẻ hoặc độc quyền); busy=true nếu đang có chủ
+// khác giữ khoá không tương thích. Khoá gắn với mô tả tệp đang mở nên hệ điều hành tự nhả
+// khi tiến trình chết.
+func tryFlock(f *os.File, mode LockMode) (busy bool, err error) {
+	how := syscall.LOCK_EX
+	if mode == LockShared {
+		how = syscall.LOCK_SH
+	}
 	for {
-		err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		err = syscall.Flock(int(f.Fd()), how|syscall.LOCK_NB)
 		if errors.Is(err, syscall.EINTR) {
 			continue
 		}
@@ -23,7 +28,8 @@ func tryFlock(f *os.File) (busy bool, err error) {
 	}
 }
 
-// sameFile cho biết đường dẫn p vẫn là đúng tệp f đang mở (chưa bị xoá/thay).
+// sameFile cho biết đường dẫn p vẫn là đúng tệp f đang mở (chưa bị xoá/thay). Bản hiện tại
+// không xoá tệp khoá, nhưng bản cũ (khoá độc quyền) có xoá khi trả nên vẫn kiểm.
 func sameFile(f *os.File, p string) bool {
 	a, err := f.Stat()
 	if err != nil {
@@ -32,6 +38,3 @@ func sameFile(f *os.File, p string) bool {
 	b, err := os.Stat(p)
 	return err == nil && os.SameFile(a, b)
 }
-
-// removeLockFile xoá tệp khoá khi còn giữ khoá (trên Unix được phép xoá tệp đang mở).
-func removeLockFile(path string) { os.Remove(path) }

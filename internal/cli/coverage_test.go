@@ -25,7 +25,7 @@ var serviceBindings = map[string]any{
 	"task new": app.TaskNewOptions{}, "task list": app.TaskListOptions{}, "task show": app.TaskShowOptions{}, "task set": app.TaskSetOptions{},
 	"task write": app.TaskWriteOptions{}, "task status": app.TaskStatusOptions{}, "task verify": app.TaskVerifyOptions{},
 	"task criteria": app.TaskCriteriaOptions{}, "task error": app.TaskErrorOptions{}, "task review": app.TaskReviewOptions{},
-	"task lint": app.TaskLintOptions{}, "task approve": app.TaskApproveOptions{},
+	"task lint": app.TaskLintOptions{}, "task approve": app.TaskApproveOptions{}, "task diff": app.TaskDiffOptions{},
 	"run": app.RunWorkflowOptions{}, "run resume": app.RunResumeOptions{}, "run status": app.TaskRunsOptions{},
 
 	"eval mine": app.EvalMineOptions{}, "eval verify": app.EvalVerifyOptions{}, "eval list": app.EvalListOptions{},

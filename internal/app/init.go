@@ -128,6 +128,9 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		}
 	}
 	cfgPath := config.ProjectPath(cfgRoot)
+	// Chưa biết thư mục trạng thái (cấu hình có thể chưa có): writer chưa có nhật ký, thay bằng bản đầy đủ ngay sau
+	// state.Resolve. Lần init đầu không thể có bước chỉ đọc nào đang chạy.
+	w := &repoWriter{actor: "bint init"}
 	_, statErr := os.Stat(cfgPath)
 	cfgExists := statErr == nil
 	rep.FirstInit = !cfgExists
@@ -152,7 +155,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			SuggestedTestCommand:  sug.Test,
 			SuggestedSetupCommand: sug.Setup,
 		})
-		if err := writeNew(cfgPath, []byte(content)); err != nil {
+		if err := w.WriteNew(cfgPath, []byte(content)); err != nil {
 			return nil, fmt.Errorf("tạo %s: %w", cfgPath, err)
 		}
 		rep.add(".bint/config.yml", StepCreated, "harness: %s", strings.Join(harnesses, ", "))
@@ -191,6 +194,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		return nil, err
 	}
 	rep.StateDir = paths.Root
+	w = newRepoWriter(paths, cfg, "bint init")
 	wasInit := paths.Initialized()
 	if err := paths.Ensure(repo); err != nil {
 		return nil, err
@@ -213,7 +217,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			rep.add(".bint/config.yml", StepSkipped, "--update: cấu hình nằm ở worktree chính %s — chạy `bint init --update` ở đó", cfgRoot)
 			update = false
 		}
-		if cfg, err = upgradeConfig(rep, update, cfgRoot, cfgPath, paths.Backups, cfg, now); err != nil {
+		if cfg, err = upgradeConfig(rep, w, update, cfgRoot, cfgPath, paths.Backups, cfg, now); err != nil {
 			return nil, err
 		}
 	}
@@ -224,7 +228,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 
 	// 5. Skill gốc (b-bootstrap) cho các harness có adapter.
 	if !opts.NoSkills {
-		if err := installSkills(rep, cfgRoot, cfg, paths, manifest, opts.Version, opts.Force, now); err != nil {
+		if err := installSkills(rep, w, cfgRoot, cfg, paths, manifest, opts.Version, opts.Force, now); err != nil {
 			return nil, err
 		}
 	}
@@ -257,7 +261,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			rep.add("hook "+h, StepSkipped, "%s không có hook", ad.Title())
 			continue
 		}
-		path, installed, err := installHooks(ctx, rep, opts, ad, hi, root, paths, now, cfg.Harnesses.Codex.Binary)
+		path, installed, err := installHooks(ctx, rep, w, opts, ad, hi, root, paths, now, cfg.Harnesses.Codex.Binary)
 		if err != nil {
 			return nil, err
 		}
@@ -286,6 +290,9 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			if err != nil {
 				return nil, err
 			}
+			if res.Changed {
+				w.Record(absUnder(root, res.Path)) // adapter có thể trả đường dẫn tương đối với gốc repo
+			}
 			name := "MCP " + h
 			switch {
 			case res.Conflict != "":
@@ -311,7 +318,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 	// 7. .gitignore: chỉ thêm khối, không xoá cấu hình sẵn có. Chế độ local không đụng
 	// .gitignore (thường được commit); tệp riêng của máy đi vào .git/info/exclude.
 	if gitMode == GitTrack {
-		r, err := fsafe.SyncBlock(fsafe.BlockSync{
+		r, err := w.SyncBlock(fsafe.BlockSync{
 			Path: filepath.Join(root, ".gitignore"), RelName: ".gitignore", Markers: fsafe.HashMarkers,
 			Inner: strings.Join(gitignore, "\n"), Force: opts.Force, BackupDir: paths.Backups, Manifest: manifest, Now: now,
 		})
@@ -327,13 +334,13 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := syncAgentDocs(rep, opts, root, paths, manifest, cfg, inner, now); err != nil {
+		if err := syncAgentDocs(rep, w, opts, root, paths, manifest, cfg, inner, now); err != nil {
 			return nil, err
 		}
 	}
 
 	// 8. Hiện diện trong Git (sau mọi bước ghi tệp để bao được tệp vừa tạo).
-	if err := applyGitMode(ctx, rep, gitMode, prevGit, root, bintPaths(root, cfg.Harnesses.Enabled, hookFiles), paths, manifest, opts.Force, now); err != nil {
+	if err := applyGitMode(ctx, rep, w, gitMode, prevGit, root, bintPaths(root, cfg.Harnesses.Enabled, hookFiles), paths, manifest, opts.Force, now); err != nil {
 		return nil, err
 	}
 
@@ -380,7 +387,7 @@ func (r *InitReport) addSync(name string, res fsafe.Result) {
 
 // installHooks cài (hoặc gỡ) hook ghi nhận của một harness; trả về tệp hook và việc
 // hook có đang được cài.
-func installHooks(ctx context.Context, rep *InitReport, opts InitOptions, ad harness.Adapter, hi harness.HookInstaller, root string, paths state.Paths, now time.Time, codexBinary string) (string, bool, error) {
+func installHooks(ctx context.Context, rep *InitReport, w *repoWriter, opts InitOptions, ad harness.Adapter, hi harness.HookInstaller, root string, paths state.Paths, now time.Time, codexBinary string) (string, bool, error) {
 	name := "hook " + ad.Name()
 	settings, err := hi.HooksPath(opts.HooksScope, root)
 	if err != nil {
@@ -409,6 +416,7 @@ func installHooks(ctx context.Context, rep *InitReport, opts InitOptions, ad har
 				return settings, false, err
 			}
 			if res.Changed {
+				w.Record(absUnder(root, settings))
 				rep.add(name, StepUpdated, "đã gỡ khỏi %s", settings)
 			}
 			return settings, false, nil
@@ -419,6 +427,9 @@ func installHooks(ctx context.Context, rep *InitReport, opts InitOptions, ad har
 	res, err := hi.InstallHooks(settings, opts.BintPath, paths.Backups, now)
 	if err != nil {
 		return settings, false, err
+	}
+	if res.Changed {
+		w.Record(absUnder(root, settings))
 	}
 	switch {
 	case !res.Changed:
@@ -439,12 +450,12 @@ func installHooks(ctx context.Context, rep *InitReport, opts InitOptions, ad har
 	return settings, true, nil
 }
 
-func installSkills(rep *InitReport, root string, cfg config.Config, paths state.Paths, m *fsafe.Manifest, version string, force bool, now time.Time) error {
+func installSkills(rep *InitReport, w *repoWriter, root string, cfg config.Config, paths state.Paths, m *fsafe.Manifest, version string, force bool, now time.Time) error {
 	targets := harness.SkillTargets(cfg.Harnesses.Enabled)
 	if len(targets) == 0 {
 		return nil
 	}
-	outs, err := skills.Install(skills.InstallOptions{
+	outs, err := w.InstallSkills(skills.InstallOptions{
 		Root: root, Targets: targets, BintVersion: version, Force: force,
 		BackupDir: paths.Backups, Manifest: m, Now: now,
 	})
@@ -467,7 +478,7 @@ func installSkills(rep *InitReport, root string, cfg config.Config, paths state.
 	return nil
 }
 
-func syncClaudeImport(rep *InitReport, opts InitOptions, root string, paths state.Paths, m *fsafe.Manifest, now time.Time) error {
+func syncClaudeImport(rep *InitReport, w *repoWriter, opts InitOptions, root string, paths state.Paths, m *fsafe.Manifest, now time.Time) error {
 	claudeMD := filepath.Join(root, "CLAUDE.md")
 	if data, err := os.ReadFile(claudeMD); err == nil {
 		block, _ := fsafe.ReadBlock(claudeMD, fsafe.HTMLMarkers)
@@ -478,7 +489,7 @@ func syncClaudeImport(rep *InitReport, opts InitOptions, root string, paths stat
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	r, err := fsafe.SyncBlock(fsafe.BlockSync{
+	r, err := w.SyncBlock(fsafe.BlockSync{
 		Path: claudeMD, RelName: "CLAUDE.md", Markers: fsafe.HTMLMarkers, Inner: "@AGENTS.md",
 		Force: opts.Force, BackupDir: paths.Backups, Manifest: m, Now: now, Placement: fsafe.AtStart,
 	})
@@ -500,11 +511,11 @@ func hasImportLine(content, imp string) bool {
 
 // applyGitMode áp chế độ --git và lưu lựa chọn. local: khối exclude + skip-worktree
 // (chạy lại mỗi lần init để bao tệp mới); track sau local: gỡ cả hai.
-func applyGitMode(ctx context.Context, rep *InitReport, mode, prev, root string, bp []string, paths state.Paths, m *fsafe.Manifest, force bool, now time.Time) error {
+func applyGitMode(ctx context.Context, rep *InitReport, w *repoWriter, mode, prev, root string, bp []string, paths state.Paths, m *fsafe.Manifest, force bool, now time.Time) error {
 	const name = "git"
 	switch {
 	case mode == GitLocal:
-		v, err := applyGitLocal(ctx, root, bp, paths, m, force, now)
+		v, err := applyGitLocal(ctx, w, root, bp, paths, m, force, now)
 		if err != nil {
 			return err
 		}
@@ -518,7 +529,7 @@ func applyGitMode(ctx context.Context, rep *InitReport, mode, prev, root string,
 				strings.Join(v.SkipWorktree, ", "))
 		}
 	case prev == GitLocal:
-		v, err := revertGitLocal(ctx, root, bp, paths, m, force, now)
+		v, err := revertGitLocal(ctx, w, root, bp, paths, m, force, now)
 		if err != nil {
 			return err
 		}
@@ -536,7 +547,7 @@ func applyGitMode(ctx context.Context, rep *InitReport, mode, prev, root string,
 
 // upgradeConfig so cấu hình đã có với mẫu hiện tại. update = false: chỉ báo khoá còn
 // thiếu (không ghi gì); update = true: sao lưu rồi ghi bản đã nâng và nạp lại cấu hình.
-func upgradeConfig(rep *InitReport, update bool, cfgRoot, cfgPath, backups string, cfg config.Config, now time.Time) (config.Config, error) {
+func upgradeConfig(rep *InitReport, w *repoWriter, update bool, cfgRoot, cfgPath, backups string, cfg config.Config, now time.Time) (config.Config, error) {
 	const name = ".bint/config.yml"
 	old, err := os.ReadFile(cfgPath)
 	if err != nil {
@@ -562,7 +573,7 @@ func upgradeConfig(rep *InitReport, update bool, cfgRoot, cfgPath, backups strin
 	if err != nil {
 		return cfg, err
 	}
-	if err := fsafe.WriteAtomic(cfgPath, up.Content, 0o644); err != nil {
+	if err := w.WriteFile(cfgPath, up.Content, 0o644); err != nil {
 		return cfg, err
 	}
 	detail := "thêm: " + orDash(config.SummarizeAdded(up.Added))
@@ -586,21 +597,4 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
-}
-
-// writeNew tạo tệp mới, thất bại nếu tệp đã tồn tại (không ghi đè).
-func writeNew(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(path)
-		return err
-	}
-	return f.Close()
 }

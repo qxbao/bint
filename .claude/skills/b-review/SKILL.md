@@ -20,12 +20,21 @@ duyệt" không có giá trị. Không chạy `bint task approve` hay `bint know
 Task ID lấy từ `BINT_TASK_ID`, từ đầu vào, hoặc tạo mới:
 `bint task new "Review: <mô tả phạm vi>" --workflow b-review --json`.
 
-Xác định **chính xác** phạm vi: theo đầu vào (nhánh, `A..B`, commit) hoặc mặc định là thay
-đổi chưa commit so với commit gốc của tác vụ (`bint task show <id>` ghi `base`):
+Xác định **chính xác** phạm vi. Mặc định (đầu vào là tác vụ Bint) dùng lệnh của Bint — nó chỉ
+cho thấy thay đổi của **riêng tác vụ này**, không lẫn thay đổi có sẵn từ trước hay của tác vụ khác
+đang chạy trên cùng worktree:
 
 ```sh
-git status --short
-git diff <base>            # cộng các tệp chưa theo dõi trong git status
+bint task diff <id> --stat        # định hướng: tệp nào, đổi bao nhiêu dòng
+bint task diff <id>               # diff đầy đủ (gồm tệp mới)
+bint task diff <id> --name-only   # chỉ danh sách tệp
+```
+
+Đừng dùng `git diff <base>` cho tác vụ Bint: nó tính cả thay đổi của tác vụ khác. Chỉ khi đầu vào nêu
+rõ nhánh, `A..B` hoặc commit (không phải tác vụ) thì dùng git cho phạm vi đó:
+
+```sh
+git diff <A>..<B>
 ```
 
 ## Bước 2 — Yêu cầu và quy tắc

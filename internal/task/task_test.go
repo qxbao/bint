@@ -334,3 +334,43 @@ func TestParseSubmissionYAMLBlockEquivalentToClaudeJSON(t *testing.T) {
 		t.Fatalf("rác: %v", errs)
 	}
 }
+
+// TSK-10: khi mã đổi sau lần kiểm chứng, thông báo liệt kê tệp ngoài tác vụ nếu có; không thì giữ câu cũ.
+func TestDoneBlockersOutsideSinceVerify(t *testing.T) {
+	tk := &Task{Ticket: Ticket{Goal: "g", Verify: Verify{Command: "true"}}, State: State{ID: "T1"}}
+	tk.State.Verifications = []Verification{{Command: "true", Passed: true, Worktree: "fp0"}}
+	in := DoneInput{Worktree: "fp1", VerifyConfirmed: true}
+
+	if b := DoneBlockers(tk, in); len(b) != 1 || !strings.Contains(b[0], "mã đã thay đổi sau lần kiểm chứng cuối") {
+		t.Fatalf("không có tệp ngoài: giữ câu cũ: %v", b)
+	}
+	in.OutsideSinceVerify = []string{"a.go", "b/c.go"}
+	b := DoneBlockers(tk, in)
+	if len(b) != 1 || !strings.Contains(b[0], "thay đổi không thuộc tác vụ: a.go, b/c.go") || !strings.Contains(b[0], "chạy lại bint task verify T1") {
+		t.Fatalf("có tệp ngoài: %v", b)
+	}
+	// Mã không đổi thì không chặn dù OutsideSinceVerify có dữ liệu.
+	tk.State.Verifications[0].Worktree = "fp1"
+	if b := DoneBlockers(tk, in); len(b) != 0 {
+		t.Fatalf("%v", b)
+	}
+}
+
+func TestStateTracksTouchedAndEverInProgress(t *testing.T) {
+	var s State
+	if s.TracksTouched() || s.EverInProgress() {
+		t.Fatal("trạng thái rỗng (phiếu cũ) không theo dõi")
+	}
+	s.BaseTree = "abc"
+	if !s.TracksTouched() {
+		t.Fatal("có BaseTree thì theo dõi")
+	}
+	s.History = []Transition{{From: StatusCreated, To: StatusPlanned}}
+	if s.EverInProgress() {
+		t.Fatal("planned chưa phải in_progress")
+	}
+	s.History = append(s.History, Transition{From: StatusPlanned, To: StatusInProgress})
+	if !s.EverInProgress() {
+		t.Fatal("đã vào in_progress")
+	}
+}

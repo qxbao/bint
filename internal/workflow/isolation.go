@@ -5,112 +5,268 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"bint/internal/knowledge"
 	"bint/internal/state"
+	"bint/internal/task"
 )
 
-// Cô lập các bước có quyền ghi (mục 15.2, P5):
+// Cô lập các bước chạy trên cùng một worktree (mục 15.2, P5; docs/isolation-subagent-plan.md 4.2):
 //
-//   - Khoá ghi theo worktree: tại một thời điểm chỉ một bước có quyền ghi (b-feat) — dù
-//     chạy bằng harness nào — được làm việc trên một worktree. Bước chỉ đọc không cần khoá.
-//     Muốn chạy song song thì dùng worktree khác (`git worktree add`), trạng thái Bint
-//     dùng chung giữa các worktree.
+//   - Khoá theo worktree có hai chế độ: chia sẻ (bước chỉ đọc b-req, b-review) và độc quyền
+//     (b-feat và kiểm chứng sau b-feat: lệnh kiểm chứng hay ghi tệp). Nhiều bước chia sẻ cùng chạy được; bước độc quyền
+//     loại trừ mọi bước khác. Bước phải chờ tới khi khoá được nhả (WaitLock).
 //   - Bước chỉ đọc (b-req, b-review) được kiểm tra lại ở tầng chương trình: ảnh chụp cây
 //     làm việc trước và sau bước phải trùng nhau, bất kể harness áp chỉ đọc mạnh tới đâu.
+//     Giữ khoá chia sẻ suốt bước nên b-feat của tác vụ khác không chen vào giữa hai ảnh chụp.
 
-// ErrWriteLocked: worktree đang có bước ghi khác chạy.
-var ErrWriteLocked = errors.New("worktree đang có một bước có quyền ghi khác chạy")
+// ErrLocked: worktree đang bị bước khác giữ khoá không tương thích với chế độ xin.
+var ErrLocked = errors.New("worktree đang có bước khác giữ khoá")
 
-// WriteLock là khoá ghi của một worktree.
-type WriteLock struct {
-	path, content string
-	f             *os.File // tệp đang giữ khoá hệ điều hành; nil nếu không giữ
+// ErrWriteLocked là tên cũ của ErrLocked (khoá ghi độc quyền của worktree).
+var ErrWriteLocked = ErrLocked
+
+// LockMode là chế độ khoá.
+type LockMode int
+
+const (
+	// LockShared: nhiều chủ cùng giữ; chặn LockExclusive.
+	LockShared LockMode = iota + 1
+	// LockExclusive: một chủ duy nhất, không cùng LockShared.
+	LockExclusive
+)
+
+func (m LockMode) String() string {
+	if m == LockShared {
+		return "chỉ đọc"
+	}
+	return "có quyền ghi"
 }
 
-// lockDir là thư mục chứa khoá ghi trong thư mục trạng thái.
+// Lock là khoá của một worktree.
+type Lock struct {
+	path       string
+	holderFile string   // tệp thông tin chủ (chỉ để thông báo)
+	f          *os.File // tệp đang giữ khoá hệ điều hành; nil nếu không giữ
+	mode       LockMode
+}
+
+// WriteLock là tên cũ của Lock.
+type WriteLock = Lock
+
+// lockDir là thư mục chứa khoá trong thư mục trạng thái.
 func lockDir(tasksDir string) string { return filepath.Join(filepath.Dir(tasksDir), "locks") }
 
-// AcquireWriteLock lấy khoá ghi cho worktree root, không chờ.
+func lockPath(tasksDir, root string) string {
+	h := sha256.Sum256([]byte(state.NormalizePath(root)))
+	return filepath.Join(lockDir(tasksDir), "write-"+hex.EncodeToString(h[:])[:16]+".lock")
+}
+
+// holderInfo là nội dung tệp chủ khoá. Không dùng để quyết định ai giữ khoá (đó là việc
+// của hệ điều hành); chỉ để báo "đang chờ ai".
+type holderInfo struct {
+	PID   int    `json:"pid"`
+	At    string `json:"at"`
+	Mode  string `json:"mode"`
+	Owner string `json:"owner"`
+	Root  string `json:"root"`
+}
+
+// AcquireLock xin khoá của worktree root, không chờ.
 //
-// Giao thức: tính độc quyền do khoá của hệ điều hành (flock trên Unix, LockFileEx trên
-// Windows) trên tệp khoá bảo đảm; nội dung tệp (PID, chủ) chỉ để thông báo. Khoá của
-// tiến trình đã chết tự được hệ điều hành nhả nên không còn bước "thu hồi dựa trên
-// quan sát stale" — thứ từng có thể tạm gỡ khoá của chủ đang sống (R1). Vì Release xoá
-// tệp, sau khi khoá được phải kiểm tra tệp vẫn là tệp ở đường dẫn, nếu không thì mở lại.
-func AcquireWriteLock(tasksDir, root, owner string) (*WriteLock, error) {
+// Giao thức: tính loại trừ do khoá của hệ điều hành (flock trên Unix, LockFileEx trên
+// Windows) trên tệp khoá bảo đảm. Khoá của tiến trình đã chết tự được hệ điều hành nhả
+// nên không có bước "thu hồi dựa trên quan sát stale" — thứ từng có thể tạm gỡ khoá của
+// chủ đang sống (R1). Tệp khoá không bao giờ bị xoá khi trả: xoá tệp khi người đọc khác
+// còn giữ sẽ cho người đến sau mở tệp mới và lấy được khoá độc quyền song song. Thông tin
+// chủ nằm ở tệp riêng của từng chủ trong <tệp khoá>.d/ nên nhiều chủ chia sẻ không ghi đè nhau.
+func AcquireLock(tasksDir, root, owner string, mode LockMode) (*Lock, error) {
+	if mode != LockShared && mode != LockExclusive {
+		return nil, fmt.Errorf("chế độ khoá không hợp lệ: %d", mode)
+	}
 	dir := lockDir(tasksDir)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	h := sha256.Sum256([]byte(state.NormalizePath(root)))
-	p := filepath.Join(dir, "write-"+hex.EncodeToString(h[:])[:16]+".lock")
-	var nonce [8]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return nil, err
-	}
-	content := fmt.Sprintf("%d\n%s\n%s\n%s\n%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339), root, owner, hex.EncodeToString(nonce[:]))
-
+	p := lockPath(tasksDir, root)
 	for attempt := 0; attempt < 8; attempt++ {
 		f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0o600)
 		if err != nil {
 			return nil, err
 		}
-		busy, err := tryFlock(f)
+		busy, err := tryFlock(f, mode)
 		if err != nil {
 			f.Close()
 			return nil, err
 		}
 		if busy {
-			holder := describeHolder(p)
 			f.Close()
-			return nil, fmt.Errorf("%w%s; chờ bước đó xong hoặc dùng worktree khác", ErrWriteLocked, holder)
+			return nil, &lockedError{mode: mode, holders: describeHolders(p)}
 		}
 		if !sameFile(f, p) {
-			f.Close() // chủ trước vừa xoá tệp khi trả khoá; mở lại
+			f.Close() // bản cũ vừa xoá tệp khi trả khoá; mở lại
 			continue
 		}
-		err = f.Truncate(0)
-		if err == nil {
-			_, err = f.WriteAt([]byte(content), 0)
-		}
-		if err != nil {
-			f.Close()
+		l := &Lock{path: p, f: f, mode: mode}
+		l.writeHolder(root, owner) // chỉ để thông báo: lỗi ghi không ảnh hưởng khoá
+		return l, nil
+	}
+	return nil, &lockedError{mode: mode}
+}
+
+// lockedError là lỗi khoá đang bận; errors.Is(err, ErrLocked) đúng.
+type lockedError struct {
+	mode    LockMode
+	holders []string
+}
+
+func (e *lockedError) Error() string {
+	msg := ErrLocked.Error()
+	if len(e.holders) > 0 {
+		msg += " (" + strings.Join(e.holders, "; ") + ")"
+	}
+	if e.mode == LockExclusive {
+		return msg + "; chờ bước đó xong hoặc dùng worktree khác"
+	}
+	return msg + "; chờ bước có quyền ghi đó xong"
+}
+
+func (e *lockedError) Is(target error) bool { return target == ErrLocked }
+
+// WaitOptions điều khiển WaitLock.
+type WaitOptions struct {
+	// Timeout là thời gian chờ tối đa; <= 0 là chờ vô hạn (tới khi ctx huỷ).
+	Timeout time.Duration
+	// OnWait được gọi khi bắt đầu chờ và mỗi khi mô tả chủ khoá đổi (nil = bỏ qua).
+	OnWait func(holders string)
+}
+
+// Khoảng thăm dò khi chờ khoá; biến để kiểm thử rút ngắn.
+var (
+	lockPollMin = 50 * time.Millisecond
+	lockPollMax = 2 * time.Second
+)
+
+// WaitLock xin khoá, chờ tới khi lấy được. ctx huỷ thì trả ctx.Err(); hết Timeout thì trả
+// lỗi bọc ErrLocked. Thăm dò giãn cách thay vì chặn trong flock để huỷ được ngay bằng ctx.
+func WaitLock(ctx context.Context, tasksDir, root, owner string, mode LockMode, o WaitOptions) (*Lock, error) {
+	var deadline time.Time
+	if o.Timeout > 0 {
+		deadline = time.Now().Add(o.Timeout)
+	}
+	delay := lockPollMin
+	lastDesc, waited := "", false
+	for {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		return &WriteLock{path: p, content: content, f: f}, nil
+		l, err := AcquireLock(tasksDir, root, owner, mode)
+		if err == nil {
+			return l, nil
+		}
+		var le *lockedError
+		if !errors.As(err, &le) {
+			return nil, err
+		}
+		desc := strings.Join(le.holders, "; ")
+		// Chủ vừa trả khoá (tệp chủ đã xoá, khoá chưa nhả hẳn) thì không báo lại "chủ rỗng".
+		if !waited || (desc != lastDesc && desc != "") {
+			waited, lastDesc = true, desc
+			if o.OnWait != nil {
+				o.OnWait(desc)
+			}
+		}
+		wait := delay
+		if !deadline.IsZero() {
+			left := time.Until(deadline)
+			if left <= 0 {
+				return nil, err
+			}
+			wait = min(wait, left)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+		delay = min(delay*2, lockPollMax)
 	}
-	return nil, ErrWriteLocked
 }
 
-// describeHolder mô tả chủ đang giữ khoá từ nội dung tệp (chỉ để báo lỗi).
-func describeHolder(p string) string {
-	b, err := os.ReadFile(p)
+// AcquireWriteLock lấy khoá độc quyền (bước có quyền ghi) của worktree root, không chờ.
+func AcquireWriteLock(tasksDir, root, owner string) (*Lock, error) {
+	return AcquireLock(tasksDir, root, owner, LockExclusive)
+}
+
+func (l *Lock) holderDir() string { return l.path + ".d" }
+
+func (l *Lock) writeHolder(root, owner string) {
+	dir := l.holderDir()
+	if os.MkdirAll(dir, 0o700) != nil {
+		return
+	}
+	var nonce [6]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return
+	}
+	info := holderInfo{PID: os.Getpid(), At: time.Now().UTC().Format(time.RFC3339), Mode: l.mode.String(), Owner: owner, Root: root}
+	b, err := json.Marshal(info)
 	if err != nil {
-		return ""
+		return
 	}
-	lines := strings.Split(string(b), "\n")
-	if len(lines) < 5 {
-		return ""
+	name := filepath.Join(dir, fmt.Sprintf("%d-%s.json", os.Getpid(), hex.EncodeToString(nonce[:])))
+	if os.WriteFile(name, b, 0o600) == nil {
+		l.holderFile = name
 	}
-	return fmt.Sprintf(" (tiến trình %s, %s)", strings.TrimSpace(lines[0]), strings.TrimSpace(lines[3]))
 }
 
-// Release trả khoá, chỉ khi chính chủ này đang giữ khoá hệ điều hành.
-func (l *WriteLock) Release() {
+// describeHolders mô tả các chủ đang giữ khoá, từ tệp chủ (chỉ để báo lỗi). Mục của tiến
+// trình đã chết bị ẩn (và dọn): hệ điều hành đã nhả khoá của chúng.
+func describeHolders(lockFile string) []string {
+	dir := lockFile + ".d"
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range ents {
+		p := filepath.Join(dir, e.Name())
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		var h holderInfo
+		if json.Unmarshal(b, &h) != nil || h.PID <= 0 {
+			continue
+		}
+		if !task.ProcessAlive(h.PID) {
+			os.Remove(p)
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s giữ khoá %s, tiến trình %d", h.Owner, h.Mode, h.PID))
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Release trả khoá. Không xoá tệp khoá (xem AcquireLock).
+func (l *Lock) Release() {
 	if l == nil || l.f == nil {
 		return
 	}
-	// Còn giữ khoá nên không ai khác sửa/xoá tệp: xoá rồi mới đóng (nhả khoá).
-	removeLockFile(l.path)
-	l.f.Close()
+	if l.holderFile != "" {
+		os.Remove(l.holderFile)
+	}
+	l.f.Close() // nhả khoá hệ điều hành
 	l.f = nil
 }
 
@@ -147,44 +303,56 @@ func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 	return run("write-tree")
 }
 
-// ChangedPaths liệt kê tệp khác nhau giữa hai ảnh chụp.
-func ChangedPaths(ctx context.Context, root, before, after string) []string {
-	cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", before, after)
-	cmd.Dir = root
-	out, err := cmd.Output()
-	if err != nil {
-		return nil
-	}
-	var ps []string
-	for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if l != "" {
-			ps = append(ps, l)
-		}
-	}
-	return ps
+// ReadonlyCheck là kết quả đối chiếu ảnh chụp của bước chỉ đọc.
+type ReadonlyCheck struct {
+	// Violations: đường dẫn (tương đối với gốc repo) bước chỉ đọc không được phép đổi.
+	Violations []string
+	// HumanWrites: đường dẫn đổi nhưng được miễn vì chính Bint ghi thay người (nhật ký ghi).
+	HumanWrites []string
 }
 
-// ReadonlyViolations trả về các đường dẫn đổi giữa hai ảnh chụp mà bước chỉ đọc
-// không được phép đổi. Ngoại lệ duy nhất: tệp tri thức MỚI (chưa có ở ảnh trước) trong
-// thư mục items, hợp lệ và ở trạng thái candidate. Sửa/xoá mục có sẵn, hoặc tệp mới tự
-// gán status khác candidate đều là vi phạm.
-func ReadonlyViolations(ctx context.Context, root, before, after string) []string {
+// ReadonlyViolations đối chiếu các đường dẫn đổi giữa hai ảnh chụp với những gì bước chỉ đọc được phép đổi:
+//
+//   - Tệp tri thức MỚI (chưa có ở ảnh trước) trong thư mục items, hợp lệ và ở trạng thái candidate.
+//   - Đường dẫn mà dòng nhật ký ghi (writesLog) MỚI NHẤT của nó nằm trong khoảng bước chạy (At >= since), có
+//     agent=false và sha256 khớp nội dung hiện tại của tệp (tệp đã xoá: sha256 rỗng) — thay đổi do người ghi
+//     qua Bint (docs/isolation-subagent-plan.md 4.5). Agent gọi lệnh Bint (agent=true), hoặc sửa tiếp tệp sau
+//     người (băm lệch), hoặc sửa không qua Bint (không có dòng) vẫn là vi phạm.
+//
+// Sửa/xoá mục tri thức có sẵn, hoặc tệp mới tự gán status khác candidate đều là vi phạm. writesLog rỗng:
+// không có miễn trừ nhật ký.
+func ReadonlyViolations(ctx context.Context, root, before, after string, since time.Time, writesLog string) ReadonlyCheck {
 	cmd := exec.CommandContext(ctx, "git", "diff", "--name-status", "--no-renames", "-z", before, after)
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
-		return ChangedPaths(ctx, root, before, after)
+		ps, _ := DiffPaths(ctx, root, before, after)
+		return ReadonlyCheck{Violations: ps}
 	}
-	var bad []string
+	var latest map[string]WriteRecord
+	if writesLog != "" {
+		if recs, err := ReadWrites(writesLog, since); err == nil {
+			latest = make(map[string]WriteRecord, len(recs))
+			for _, r := range recs {
+				latest[r.Path] = r // dòng cuối trong tệp thắng
+			}
+		}
+	}
+	var res ReadonlyCheck
 	f := strings.Split(string(out), "\x00")
 	for i := 0; i+1 < len(f); i += 2 {
 		st, p := f[i], f[i+1]
 		if st == "A" && strings.HasPrefix(p, knowledge.ItemsRel+"/") && newCandidateFile(root, p) {
 			continue
 		}
-		bad = append(bad, p)
+		abs := filepath.Join(root, filepath.FromSlash(p))
+		if rec, ok := latest[NormalizeWritePath(abs)]; ok && !rec.Agent && rec.SHA256 == HashFile(abs) {
+			res.HumanWrites = append(res.HumanWrites, p)
+			continue
+		}
+		res.Violations = append(res.Violations, p)
 	}
-	return bad
+	return res
 }
 
 func newCandidateFile(root, rel string) bool {
@@ -205,4 +373,46 @@ func (e *Env) stateDirs() []string {
 		return []string{filepath.Dir(e.Tasks.Dir)}
 	}
 	return nil
+}
+
+// ActiveStep là một bước đang giữ khoá worktree (đang chạy trên cây này).
+type ActiveStep struct {
+	TaskID string
+	Step   string
+	// Mode là chế độ khoá đã dịch ("chỉ đọc" / "có quyền ghi"), chỉ để hiển thị.
+	Mode string
+	PID  int
+	At   time.Time
+}
+
+// ActiveSteps liệt kê các bước đang chạy trên worktree root, đọc từ tệp chủ khoá (<tệp khoá>.d/*.json). Chỉ
+// đọc: khác describeHolders, không xoá mục của tiến trình đã chết mà chỉ bỏ qua nó. Chủ khoá không do Runner
+// đặt (owner không có dạng "<tác vụ> <bước>") vẫn được liệt kê với TaskID là toàn bộ owner.
+func ActiveSteps(tasksDir, root string) []ActiveStep {
+	ents, err := os.ReadDir(lockPath(tasksDir, root) + ".d")
+	if err != nil {
+		return nil
+	}
+	var out []ActiveStep
+	for _, e := range ents {
+		b, err := os.ReadFile(filepath.Join(lockPath(tasksDir, root)+".d", e.Name()))
+		if err != nil {
+			continue
+		}
+		var h holderInfo
+		if json.Unmarshal(b, &h) != nil || h.PID <= 0 || !task.ProcessAlive(h.PID) {
+			continue
+		}
+		s := ActiveStep{PID: h.PID, Mode: h.Mode}
+		s.TaskID, s.Step, _ = strings.Cut(h.Owner, " ")
+		s.At, _ = time.Parse(time.RFC3339, h.At)
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].At.Equal(out[j].At) {
+			return out[i].At.Before(out[j].At)
+		}
+		return out[i].PID < out[j].PID
+	})
+	return out
 }

@@ -111,7 +111,7 @@ type GitVisibility struct {
 }
 
 // applyGitLocal: ghi khối exclude và đặt skip-worktree cho tệp đã được theo dõi.
-func applyGitLocal(ctx context.Context, root string, paths []string, p state.Paths, m *fsafe.Manifest, force bool, now time.Time) (GitVisibility, error) {
+func applyGitLocal(ctx context.Context, w *repoWriter, root string, paths []string, p state.Paths, m *fsafe.Manifest, force bool, now time.Time) (GitVisibility, error) {
 	var v GitVisibility
 	ex, err := excludePath(ctx, root)
 	if err != nil {
@@ -121,7 +121,7 @@ func applyGitLocal(ctx context.Context, root string, paths []string, p state.Pat
 	for _, x := range paths {
 		v.Patterns = append(v.Patterns, "/"+x)
 	}
-	if v.Exclude, err = fsafe.SyncBlock(fsafe.BlockSync{Path: ex, RelName: excludeRel, Markers: fsafe.HashMarkers,
+	if v.Exclude, err = w.SyncBlock(fsafe.BlockSync{Path: ex, RelName: excludeRel, Markers: fsafe.HashMarkers,
 		Inner: strings.Join(v.Patterns, "\n"), Force: force, BackupDir: p.Backups, Manifest: m, Now: now}); err != nil {
 		return v, err
 	}
@@ -139,7 +139,7 @@ func applyGitLocal(ctx context.Context, root string, paths []string, p state.Pat
 }
 
 // revertGitLocal: gỡ khối exclude và cờ skip-worktree trên tệp của Bint.
-func revertGitLocal(ctx context.Context, root string, paths []string, p state.Paths, m *fsafe.Manifest, force bool, now time.Time) (GitVisibility, error) {
+func revertGitLocal(ctx context.Context, w *repoWriter, root string, paths []string, p state.Paths, m *fsafe.Manifest, force bool, now time.Time) (GitVisibility, error) {
 	var v GitVisibility
 	ex, err := excludePath(ctx, root)
 	if err != nil {
@@ -147,7 +147,7 @@ func revertGitLocal(ctx context.Context, root string, paths []string, p state.Pa
 	}
 	v.ExcludePath = ex
 	if _, err := os.Stat(ex); err == nil {
-		if v.Exclude, err = fsafe.RemoveBlock(fsafe.BlockSync{Path: ex, RelName: excludeRel, Markers: fsafe.HashMarkers,
+		if v.Exclude, err = w.RemoveBlock(fsafe.BlockSync{Path: ex, RelName: excludeRel, Markers: fsafe.HashMarkers,
 			Force: force, BackupDir: p.Backups, Manifest: m, Now: now}); err != nil {
 			return v, err
 		}

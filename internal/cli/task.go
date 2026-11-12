@@ -85,7 +85,7 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
-		newTaskLintCmd(stdio))
+		newTaskLintCmd(stdio), newTaskDiffCmd(stdio))
 	return c
 }
 
@@ -778,4 +778,48 @@ func printDepthLine(w io.Writer, prefix string, c *task.Classification) {
 		reason = "mặc định (tác vụ chưa ghi độ sâu)"
 	}
 	fmt.Fprintf(w, "%s%s (%s)\n", prefix, c.EffectiveDepth(), reason)
+}
+
+func newTaskDiffCmd(stdio IO) *cobra.Command {
+	var o app.TaskDiffOptions
+	c := &cobra.Command{
+		Use:   "diff <task-id>",
+		Short: "Thay đổi của riêng một tác vụ (không lẫn thay đổi có sẵn hay của tác vụ khác)",
+		Long: `Cho biết tác vụ đã đổi gì: so ảnh chụp cây làm việc trước b-feat đầu tiên (gồm cả thay đổi chưa commit
+có sẵn lúc đó) với cây làm việc hiện tại, chỉ trên các tệp mà các lượt b-feat của tác vụ đã đổi (gồm tệp
+mới). Dùng thay cho git diff <base> khi review: git diff toàn cây lẫn thay đổi của tác vụ khác đang chạy
+trên cùng worktree.
+
+Phiếu lập trước khi Bint theo dõi tệp riêng của từng tác vụ thì so commit base với cây hiện tại trên toàn cây
+(có ghi chú ở stderr). Chạy ở thư mục làm việc của tác vụ (State.Worktree), không cần khoá, không ghi cây làm việc.
+
+  --stat        thống kê số dòng đổi theo tệp
+  --name-only   chỉ liệt kê tên tệp`,
+		Example: `  bint task diff 01J…
+  bint task diff 01J… --stat
+  bint task diff 01J… --name-only`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Ref = args[0]
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			ws, err := openTasks(cmd)
+			if err != nil {
+				return err
+			}
+			res, err := app.DiffTask(cmd.Context(), ws, o)
+			if err != nil {
+				return err
+			}
+			if res.Note != "" {
+				fmt.Fprintln(stdio.Err, "! "+res.Note)
+			}
+			fmt.Fprint(stdio.Out, res.Text)
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&o.Stat, "stat", false, "thống kê số dòng đổi theo tệp")
+	c.Flags().BoolVar(&o.NameOnly, "name-only", false, "chỉ liệt kê tên tệp")
+	return c
 }

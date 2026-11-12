@@ -242,8 +242,20 @@ func Apply(ctx context.Context, e *Workspace, opts ApplyOptions) (evolve.ApplyRe
 	if err := opts.Validate(); err != nil {
 		return evolve.ApplyResult{}, err
 	}
-	return evolve.Apply(ctx, evolve.ApplyOptions{K: e.K, DB: e.Store.DB, Ref: opts.Ref,
+	res, err := evolve.Apply(ctx, evolve.ApplyOptions{K: e.K, DB: e.Store.DB, Ref: opts.Ref,
 		Unverified: opts.Unverified, ConfirmRisk: opts.ConfirmRisk, Reason: opts.Reason, Cases: e.CaseMap()})
+	recordFiles(e, "bint evolve apply", res.Files)
+	return res, err
+}
+
+// recordFiles ghi nhận các tệp tri thức/skill mà evolve.Apply/Rollback đã ghi vào nhật ký ghi của Bint (H8): gói
+// evolve nằm ngoài tầng dịch vụ nên không tự đi qua hàm ghi chung.
+func recordFiles(e *Workspace, actor string, files []evolve.FileChange) {
+	rel := make([]string, 0, len(files))
+	for _, f := range files {
+		rel = append(rel, f.Path)
+	}
+	e.K.RecordRepoWrites(actor, rel...)
 }
 
 // RejectOptions: `bint evolve reject <id>`.
@@ -310,7 +322,9 @@ func Rollback(ctx context.Context, e *Workspace, opts RollbackOptions) (evolve.R
 				listOrNone(seen), listOrNone(plan.Conflicts))
 		}
 	}
-	return evolve.Rollback(ctx, evolve.RollbackOptions{K: e.K, DB: e.Store.DB, Ref: opts.Ref, Force: opts.Force, Reason: opts.Reason})
+	res, err := evolve.Rollback(ctx, evolve.RollbackOptions{K: e.K, DB: e.Store.DB, Ref: opts.Ref, Force: opts.Force, Reason: opts.Reason})
+	recordFiles(e, "bint evolve rollback", res.Files)
+	return res, err
 }
 
 // ---- history ----

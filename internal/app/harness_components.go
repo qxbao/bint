@@ -14,6 +14,7 @@ import (
 	"bint/internal/harness/codex"
 	"bint/internal/harness/hookcore"
 	"bint/internal/hcomp"
+	"bint/internal/state"
 )
 
 // ComponentWS là thư viện thành phần quy trình (.bint/harness) của repository.
@@ -21,6 +22,7 @@ type ComponentWS struct {
 	Root   string
 	Dir    string
 	Config config.Config
+	Paths  state.Paths
 	Lib    *hcomp.Library
 	// StrategyProblem: lý do strategy.yml verified bị config.Load bỏ qua (rỗng nếu không có).
 	StrategyProblem string
@@ -33,7 +35,7 @@ func OpenComponents(ctx context.Context, dir string) (*ComponentWS, error) {
 		return nil, err
 	}
 	root := filepath.Dir(filepath.Dir(ws.Sources.Project))
-	return &ComponentWS{Root: root, Dir: hcomp.Dir(root), Config: ws.Config, Lib: hcomp.Load(root), StrategyProblem: ws.Sources.StrategyProblem}, nil
+	return &ComponentWS{Root: root, Dir: hcomp.Dir(root), Config: ws.Config, Paths: ws.Paths, Lib: hcomp.Load(root), StrategyProblem: ws.Sources.StrategyProblem}, nil
 }
 
 // Reload đọc lại thư viện sau khi ghi.
@@ -180,7 +182,7 @@ func AddComponent(ctx context.Context, w *ComponentWS, o AddComponentOptions) (h
 	if cf := hcomp.FindConflict(w.Lib.Components, c); cf != nil {
 		return c, errors.New(cf.String())
 	}
-	if _, err := hcomp.Save(w.Dir, c); err != nil {
+	if err := newRepoWriter(w.Paths, w.Config, "bint harness component add").SaveComponent(w.Dir, c); err != nil {
 		return c, err
 	}
 	w.Reload()
@@ -239,7 +241,7 @@ func ReviewComponent(ctx context.Context, w *ComponentWS, o ComponentReviewOptio
 		}
 	}
 	c.Status, c.ApprovedBy = to, GitIdentity(ctx, w.Root)
-	if _, err := hcomp.Save(w.Dir, c); err != nil {
+	if err := newRepoWriter(w.Paths, w.Config, op).SaveComponent(w.Dir, c); err != nil {
 		return zero, err
 	}
 	w.Reload()

@@ -273,7 +273,11 @@ func ShowTask(ctx context.Context, ws *TaskWS, o TaskShowOptions) (TaskDetail, e
 		return d, err
 	}
 	d = TaskDetail{Task: t, Assessment: ws.Assess(t), Review: rev, VerifyConfirmed: ws.VerifyConfirmed(t)}
-	d.Blockers = task.DoneBlockers(t, task.DoneInput{Worktree: task.WorktreeFingerprint(ctx, ws.Root), VerifyConfirmed: d.VerifyConfirmed})
+	in, derr := ws.DoneInputFor(ctx, t)
+	d.Blockers = task.DoneBlockers(t, in)
+	if derr != nil {
+		d.Blockers = append(d.Blockers, derr.Error())
+	}
 	any := false
 	for _, n := range task.ArtifactNames() {
 		a := TaskArtifact{Name: n, Path: t.ArtifactPath(n)}

@@ -93,6 +93,21 @@ func OpenKnowledge(ctx context.Context, dir string) (*KnowledgeWS, error) {
 	return &KnowledgeWS{Workspace: ws, Root: root, Store: knowledge.NewStore(root)}, nil
 }
 
+// writer dựng hàm ghi chung (repowrite.go) cho thao tác actor trên tri thức.
+func (k *KnowledgeWS) writer(actor string) *repoWriter {
+	return newRepoWriter(k.Paths, k.Config, actor)
+}
+
+// RecordRepoWrites ghi nhận vào nhật ký ghi (repowrite.go) các tệp vừa được một gói ngoài tầng dịch vụ ghi hoặc
+// xoá (evolve.Apply/Rollback). rel là đường dẫn tương đối với k.Root.
+func (k *KnowledgeWS) RecordRepoWrites(actor string, rel ...string) {
+	abs := make([]string, 0, len(rel))
+	for _, r := range rel {
+		abs = append(abs, filepath.Join(k.Root, filepath.FromSlash(r)))
+	}
+	k.writer(actor).Record(abs...)
+}
+
 // Source trả về nguồn cây làm việc cho kiểm tra.
 func (k *KnowledgeWS) Source() knowledge.Source { return &knowledge.WorktreeSource{Root: k.Root} }
 
@@ -303,7 +318,7 @@ func AddKnowledge(ctx context.Context, k *KnowledgeWS, opts AddOptions) (AddResu
 	if !res.Check.OK() {
 		return res, nil
 	}
-	if err := k.Store.Save(it); err != nil {
+	if err := k.writer("bint knowledge add").SaveItem(k.Store, it); err != nil {
 		return res, err
 	}
 	res.Saved = true
@@ -359,6 +374,7 @@ type AppliedTransition struct {
 // cần người duyệt), verified có bằng chứng thay đổi/mất → stale.
 func VerifyKnowledge(ctx context.Context, k *KnowledgeWS, refs []string, apply bool, now time.Time) (VerifyReport, error) {
 	rep := VerifyReport{Items: map[string]*knowledge.Item{}}
+	w := k.writer("bint knowledge verify")
 	if apply {
 		if err := RequireHuman("bint knowledge verify --apply"); err != nil {
 			return rep, err
@@ -441,7 +457,7 @@ func VerifyKnowledge(ctx context.Context, k *KnowledgeWS, refs []string, apply b
 		if !changed {
 			continue
 		}
-		if err := k.Store.Save(it); err != nil {
+		if err := w.SaveItem(k.Store, it); err != nil {
 			return rep, err
 		}
 		if it.Status != from {
@@ -531,6 +547,7 @@ func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]R
 	if act.Now.IsZero() {
 		act.Now = time.Now()
 	}
+	w := k.writer(op)
 	all, _, err := k.Items()
 	if err != nil {
 		return nil, err
@@ -586,7 +603,7 @@ func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]R
 		if act.To == knowledge.StatusDeprecated && o.From == knowledge.StatusCandidate {
 			it.ReviewedBy, it.ReviewedAt = who, knowledge.Now(act.Now)
 		}
-		if err := k.Store.Save(it); err != nil {
+		if err := w.SaveItem(k.Store, it); err != nil {
 			o.Err = err
 		}
 		outs = append(outs, o)
@@ -597,6 +614,7 @@ func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]R
 // RemoveKnowledge xoá tệp của mục candidate (ví dụ agent sửa lại mục vừa ghi).
 // Mục đã duyệt phải được loại bỏ bằng deprecate để giữ dấu vết kiểm toán.
 func RemoveKnowledge(k *KnowledgeWS, refs []string) ([]string, error) {
+	w := k.writer("bint knowledge rm")
 	all, _, err := k.Items()
 	if err != nil {
 		return nil, err
@@ -616,7 +634,7 @@ func RemoveKnowledge(k *KnowledgeWS, refs []string) ([]string, error) {
 	}
 	var removed []string
 	for _, it := range targets {
-		if err := k.Store.Remove(it.ID); err != nil {
+		if err := w.RemoveItem(k.Store, it.ID); err != nil {
 			return removed, err
 		}
 		removed = append(removed, it.ID)

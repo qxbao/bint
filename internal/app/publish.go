@@ -118,7 +118,7 @@ func PublishAgents(ctx context.Context, opts PublishOptions) (*PublishReport, er
 		return nil, err
 	}
 	ir := &InitReport{}
-	if err := syncAgentDocs(ir, InitOptions{Force: opts.Force}, root, ws.Paths, manifest, ws.Config, inner, opts.Now); err != nil {
+	if err := syncAgentDocs(ir, newRepoWriter(ws.Paths, ws.Config, "bint publish"), InitOptions{Force: opts.Force}, root, ws.Paths, manifest, ws.Config, inner, opts.Now); err != nil {
 		return nil, err
 	}
 	if err := manifest.Save(); err != nil {
@@ -137,8 +137,8 @@ func claudeImportOK(root string, cfg config.Config) bool {
 }
 
 // syncAgentDocs ghi khối Bint vào AGENTS.md và nhập lại AGENTS.md trong CLAUDE.md.
-func syncAgentDocs(rep *InitReport, opts InitOptions, root string, paths state.Paths, m *fsafe.Manifest, cfg config.Config, inner string, now time.Time) error {
-	r, err := fsafe.SyncBlock(fsafe.BlockSync{
+func syncAgentDocs(rep *InitReport, w *repoWriter, opts InitOptions, root string, paths state.Paths, m *fsafe.Manifest, cfg config.Config, inner string, now time.Time) error {
+	r, err := w.SyncBlock(fsafe.BlockSync{
 		Path: filepath.Join(root, "AGENTS.md"), RelName: "AGENTS.md", Markers: fsafe.HTMLMarkers,
 		Inner: inner, Force: opts.Force, BackupDir: paths.Backups, Manifest: m, Now: now,
 	})
@@ -149,7 +149,7 @@ func syncAgentDocs(rep *InitReport, opts InitOptions, root string, paths state.P
 	if !slices.Contains(cfg.Harnesses.Enabled, claude.HarnessName) {
 		return nil
 	}
-	return syncClaudeImport(rep, opts, root, paths, m, now)
+	return syncClaudeImport(rep, w, opts, root, paths, m, now)
 }
 
 // UnifiedDiff trả về bản so sánh dòng đơn giản (LCS) giữa a và b; rỗng nếu giống nhau.

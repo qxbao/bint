@@ -275,11 +275,11 @@ func SaveConfigEdit(ctx context.Context, dir string, e ConfigEdit, edited []byte
 	if _, err := config.ValidateWith(root, e.Layer, edited); err != nil {
 		return ConfigSaveResult{}, err
 	}
-	return writeConfigLayer(ws, root, e.Layer, e.BaseHash, edited)
+	return writeConfigLayer(ws, root, e.Layer, e.BaseHash, edited, "bint config edit")
 }
 
 // writeConfigLayer ghi nội dung data vào lớp sau khi so băm tệp hiện tại với baseHash.
-func writeConfigLayer(ws *Workspace, root string, layer config.Layer, baseHash string, data []byte) (ConfigSaveResult, error) {
+func writeConfigLayer(ws *Workspace, root string, layer config.Layer, baseHash string, data []byte, actor string) (ConfigSaveResult, error) {
 	path := config.LayerPath(root, layer)
 	res := ConfigSaveResult{Path: path}
 	cur, err := os.ReadFile(path)
@@ -295,7 +295,7 @@ func writeConfigLayer(ws *Workspace, root string, layer config.Layer, baseHash s
 			return res, err
 		}
 	}
-	return res, fsafe.WriteAtomic(path, data, 0o644)
+	return res, newRepoWriter(ws.Paths, ws.Config, actor).WriteFile(path, data, 0o644)
 }
 
 // UILanguageOptions điều khiển việc ghi `ui.language` (Hệ thống › Ngôn ngữ).
@@ -375,7 +375,7 @@ func SetUILanguage(ctx context.Context, dir string, o UILanguageOptions) (UILang
 	if !changed && cur != nil {
 		return res, nil
 	}
-	w, err := writeConfigLayer(ws, root, layer, hashBytes(cur), next)
+	w, err := writeConfigLayer(ws, root, layer, hashBytes(cur), next, "bint config set")
 	res.Changed, res.Backup = err == nil, w.Backup
 	return res, err
 }

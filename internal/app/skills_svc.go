@@ -207,7 +207,7 @@ func CreateOverlay(ctx context.Context, dir string, o SkillOverlayOptions) (Over
 	if err != nil {
 		return res, err
 	}
-	return res, fsafe.WriteAtomic(p, []byte(body), 0o644)
+	return res, k.writer("bint skill overlay").WriteFile(p, []byte(body), 0o644)
 }
 
 // SkillDiffOptions: `bint skill diff <tên> [--from N] [--to N]`.

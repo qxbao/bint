@@ -40,6 +40,15 @@ func (m *Model) cmdLint() tea.Cmd {
 	return request("tasks.lint", app.TaskLintOptions{Ref: t.State.ID})
 }
 
+// cmdDiff cho xem thay đổi của riêng tác vụ đang chọn (chỉ đọc), kết quả hiện trong hộp thoại.
+func (m *Model) cmdDiff() tea.Cmd {
+	t := m.Cursor()
+	if t == nil {
+		return nil
+	}
+	return request("tasks.diff", app.TaskDiffOptions{Ref: t.State.ID})
+}
+
 // cmdEdit: ở thẻ Tài liệu sửa tài liệu đang xem trong $EDITOR; ở thẻ Review mở tệp của phát hiện tại dòng của nó;
 // còn lại mở form sửa phiếu.
 func (m *Model) cmdEdit() tea.Cmd {
@@ -298,6 +307,10 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 		if lr, ok := r.Value.(app.TaskLinted); ok {
 			m.showLint(lr)
 		}
+	case "tasks.diff":
+		if dr, ok := r.Value.(app.TaskDiffResult); ok {
+			m.showDiff(dr)
+		}
 	case "tasks.plan_approve":
 		if p, ok := r.Value.(app.ApprovePlan); ok {
 			m.confirmApprove(p)
@@ -456,6 +469,35 @@ func (m *Model) showLint(lr app.TaskLinted) {
 	m.openInfo(m.t("tk.lint.title", i18n.A{"id": short(lr.Task.State.ID)}), body)
 }
 
+// showDiff hiện diff của tác vụ trong hộp thoại, tô màu theo dòng diff.
+func (m *Model) showDiff(dr app.TaskDiffResult) {
+	var body []string
+	if dr.Note != "" {
+		body = append(body, m.th.S(theme.Warn, "! ")+dr.Note, "")
+	}
+	text := strings.TrimRight(dr.Text, "\n")
+	if text == "" {
+		if dr.Note == "" {
+			body = append(body, m.th.S(theme.Muted, m.t("tk.diff.empty")))
+		}
+	} else {
+		for _, l := range strings.Split(text, "\n") {
+			switch {
+			case strings.HasPrefix(l, "+++"), strings.HasPrefix(l, "---"), strings.HasPrefix(l, "diff "), strings.HasPrefix(l, "index "):
+				l = m.th.S(theme.Muted, l)
+			case strings.HasPrefix(l, "@@"):
+				l = m.th.S(theme.Accent, l)
+			case strings.HasPrefix(l, "+"):
+				l = m.th.S(theme.OK, l)
+			case strings.HasPrefix(l, "-"):
+				l = m.th.S(theme.Err, l)
+			}
+			body = append(body, l)
+		}
+	}
+	m.openInfo(m.t("tk.diff.title", i18n.A{"id": short(dr.Task.State.ID)}), body)
+}
+
 // short rút ID dài (ULID) còn 10 ký tự cuối cho dễ đọc.
 func short(id string) string {
 	if r := []rune(id); len(r) > 10 {
@@ -467,7 +509,7 @@ func short(id string) string {
 // keyOf đổi ID hành động của màn hình thành phím tương đương ở chế độ danh sách (cho Command).
 var keyOf = map[string]string{
 	"tasks.new": "n", "tasks.run": "r", "tasks.resume": "c", "tasks.approve": "a", "tasks.status": "s", "tasks.verify": "v",
-	"tasks.lint": "l", "tasks.transitions": "T", "tasks.criteria": "m", "tasks.error": "i", "tasks.review_edit": "w",
+	"tasks.lint": "l", "tasks.diff": "D", "tasks.transitions": "T", "tasks.criteria": "m", "tasks.error": "i", "tasks.review_edit": "w",
 	"tasks.add_knowledge": "K", "tasks.list": "A", "tasks.filter": "/", "tasks.refresh": "ctrl+r", "tasks.show": "enter",
 }
 

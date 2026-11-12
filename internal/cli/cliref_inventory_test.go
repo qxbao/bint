@@ -59,6 +59,7 @@ var baseExclusions = []exclusion{
 	{"task/task.go", "verify.command chỉ được Bint chạy", rFile + ": chú thích đầu task.yml"},
 	{"eval/case.go", "Ứng viên tác vụ đánh giá", rFile + ": chú thích của tệp ứng viên đánh giá"},
 	{"eval/case.go", "Tác vụ đánh giá đã duyệt", rFile + ": chú thích của tệp tác vụ đánh giá"},
+	{"workflow/run.go", "(thêm `--stat` để định hướng, `--name-only` để chỉ lấy danh sách tệp)", rAgent},
 }
 
 var litsrUsage = []struct{ file, contains string }{
@@ -94,6 +95,7 @@ var litsrUsage = []struct{ file, contains string }{
 	{"app/review.go", "--status: %q không hợp lệ (%s)"},
 	{"app/run_svc.go", "--plan và --no-plan loại trừ nhau"},
 	{"app/skills_svc.go", "--from/--to phải ≥ 0"},
+	{"app/task_diff.go", "--stat và --name-only loại trừ nhau"},
 	{"app/task_svc.go", "--depth standard|deep hàm ý có b-req: không đi cùng --no-plan"},
 	{"app/task_svc.go", "--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)"},
 	{"app/task_svc.go", "--plan và --no-plan loại trừ nhau"},

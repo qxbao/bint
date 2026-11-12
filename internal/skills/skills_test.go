@@ -118,3 +118,22 @@ func TestCoreSkillBKnowledgeContract(t *testing.T) {
 		}
 	}
 }
+
+// b-review dùng `bint task diff <id>` làm phạm vi mặc định (không lẫn thay đổi của tác vụ khác).
+func TestCoreSkillBReviewUsesTaskDiff(t *testing.T) {
+	sk, ok := Get("b-review")
+	if !ok {
+		t.Fatal("thiếu skill b-review")
+	}
+	body := sk.Body()
+	for _, want := range []string{"bint task diff <id>", "--stat", "--name-only"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("b-review thiếu %q", want)
+		}
+	}
+	for _, l := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(l), "git diff <base>") {
+			t.Errorf("b-review không được chỉ dẫn chạy git diff <base> (lẫn thay đổi của tác vụ khác): %q", l)
+		}
+	}
+}

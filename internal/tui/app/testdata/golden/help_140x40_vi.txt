@@ -27,7 +27,7 @@
 │                           │  d       Loại bỏ một mục (→ deprecated, cần lý do)  bint knowledge deprecate     │                           │
 │                           │  A       Duyệt hàng loạt (mục được chọn hoặc cả danh sách đang lọc); mục có lỗi… │                           │
 │                           │  R       Từ chối hàng loạt (mục được chọn hoặc cả danh sách đang lọc)            │                           │
-│                           └───────────────────────────────────────────────────────────────────────1–24/175 ↕─┘                           │
+│                           └───────────────────────────────────────────────────────────────────────1–24/176 ↕─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

@@ -133,7 +133,7 @@ func InstallSkills(k *KnowledgeWS, version string, force bool) (SkillInstall, er
 	if err != nil {
 		return si, err
 	}
-	outs, err := skills.Install(skills.InstallOptions{Root: k.Root, Targets: targets, BintVersion: version, Force: force,
+	outs, err := k.writer("bint sync").InstallSkills(skills.InstallOptions{Root: k.Root, Targets: targets, BintVersion: version, Force: force,
 		BackupDir: k.Paths.Backups, Manifest: m, Now: time.Now(), Files: k.Source().Files()})
 	if err != nil {
 		return si, err

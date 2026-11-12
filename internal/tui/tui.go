@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -17,6 +18,9 @@ import (
 	"bint/internal/tui/gallery"
 	"bint/internal/tui/theme"
 )
+
+// activePoll là chu kỳ thăm dò bước `bint run` đang chạy trên cây làm việc (dòng trạng thái ở thanh trên).
+const activePoll = 3 * time.Second
 
 // Options điều khiển một phiên TUI.
 type Options struct {
@@ -89,7 +93,7 @@ func Run(ctx context.Context, o Options) error {
 		model = gallery.New(gallery.Options{Lang: lang, Mode: mode})
 	} else {
 		root = tuiapp.New(ctx, tuiapp.Options{Dir: o.Dir, Version: o.Version, BintPath: o.BintPath, Lang: lang, LangFlag: o.Lang, Mode: mode,
-			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported})
+			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported, ActivePoll: activePoll})
 		model = root
 	}
 	opts := []tea.ProgramOption{tea.WithContext(ctx)}

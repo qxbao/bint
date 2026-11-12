@@ -34,7 +34,7 @@ var readOnlyAudit = []string{
 	"overview.refresh", "overview.doctor", "init.plan", "init.continue", "init.recheck",
 	"knowledge.plan_batch", "knowledge.verify", "knowledge.review", "knowledge.list", "knowledge.show", "knowledge.filter", "knowledge.select", "knowledge.transitions", "knowledge.refresh",
 	"knowledge.next_view", "knowledge.prev_view", "knowledge.search", "knowledge.stats", "knowledge.diff", "bootstrap.publish_preview", "inspect", "bootstrap.skill", "context",
-	"tasks.plan_approve", "tasks.lint", "tasks.transitions", "tasks.list", "tasks.show", "tasks.runs", "tasks.filter", "tasks.refresh", "tasks.next_view", "tasks.prev_view", "tasks.finding_prefill",
+	"tasks.plan_approve", "tasks.lint", "tasks.diff", "tasks.transitions", "tasks.list", "tasks.show", "tasks.runs", "tasks.filter", "tasks.refresh", "tasks.next_view", "tasks.prev_view", "tasks.finding_prefill",
 	"runs.list", "runs.show", "runs.lesson_show", "runs.lesson_digest", "runs.filter", "runs.refresh", "runs.next_view", "runs.prev_view",
 	"eval.list", "eval.show", "eval.estimate", "eval.report", "eval.baseline", "eval.split", "eval.filter", "eval.refresh", "eval.next_view", "eval.prev_view",
 	"evolve.scan", "evolve.list", "evolve.show", "evolve.plan_apply", "evolve.plan_rollback", "evolve.history", "evolve.queue", "evolve.next_sub", "evolve.refresh", "evolve.next_view", "evolve.prev_view",

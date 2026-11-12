@@ -102,6 +102,9 @@ type DoneInput struct {
 	Worktree string
 	// VerifyConfirmed: lệnh kiểm chứng hiện tại đã được người xác nhận.
 	VerifyConfirmed bool
+	// OutsideSinceVerify là các tệp đã đổi kể từ lần kiểm chứng cuối mà không thuộc Touched của tác vụ
+	// (thường là việc của tác vụ khác trên cùng worktree). Chỉ để làm rõ thông báo.
+	OutsideSinceVerify []string
 }
 
 // DoneBlockers trả về lý do chưa được coi là hoàn thành (rỗng = đủ bằng chứng).
@@ -131,7 +134,12 @@ func DoneBlockers(t *Task, in DoneInput) []string {
 		case !v.Passed:
 			out = append(out, "lần kiểm chứng cuối không qua")
 		case in.Worktree == "" || v.Worktree != in.Worktree:
-			out = append(out, "mã đã thay đổi sau lần kiểm chứng cuối (bint task verify)")
+			if len(in.OutsideSinceVerify) > 0 {
+				out = append(out, "thay đổi không thuộc tác vụ: "+strings.Join(in.OutsideSinceVerify, ", ")+
+					"; chạy lại bint task verify "+st.ID)
+			} else {
+				out = append(out, "mã đã thay đổi sau lần kiểm chứng cuối (bint task verify)")
+			}
 		}
 	}
 	crit := t.Ticket.Verify.Criteria

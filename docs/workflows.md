@@ -38,6 +38,7 @@ bint task set <id> --verify-command "go test ./internal/db/..." \
   --allow "internal/db/**"
 bint task transitions                           # bảng chuyển trạng thái
 bint task write <id> requirement|plan|tasks -   # ghi tài liệu qua stdin
+bint task diff <id> [--stat|--name-only]        # thay đổi của RIÊNG tác vụ (không lẫn tác vụ khác / thay đổi có sẵn)
 bint task lint <id> [--strict] [--json]         # kiểm ba tài liệu b-req theo hợp đồng v1 (AC↔TSK, câu hỏi mở)
 bint task verify <id>                           # chạy lệnh kiểm chứng (chỉ khi người đã xác nhận)
 bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí chấp nhận
@@ -165,7 +166,7 @@ gói ngữ cảnh của Context Engine. Giới hạn vận hành (mục 5):
 |---|---|
 | `limits.workflows.<wf>.max_cost_usd` (mặc định `limits.per_run`) | `b-do`: tổng các bước; mỗi bước `--max-budget-usd` = min(giới hạn bước, phần còn lại); hết → `blocked` (với harness không báo USD thì ghi chú chỉ dẫn) |
 | `limits.workflows.<wf>.max_turns` | `--max-turns` cho bước trên Claude Code (`b-do` trừ số lượt đã dùng khỏi tổng) |
-| `limits.protected_paths`, `scope.deny` | sau `b-feat`, đối chiếu tệp đã sửa với commit gốc; có terminal thì hỏi, không thì `blocked` chờ `task approve` |
+| `limits.protected_paths`, `scope.deny` | sau `b-feat`, đối chiếu tệp mà tác vụ đã sửa (`touched`; phiếu cũ: so với commit gốc); có terminal thì hỏi, không thì `blocked` chờ `task approve` |
 | ngoài `scope.allow` | chỉ hỏi khi `autonomy: ask_always` (ngoài ra ghi chú) |
 | `workflow.max_review_rounds` (2) | phát hiện `bug`/`risk` mức `critical`/`high` → quay lại `b-feat`; hết vòng → `blocked` |
 | `workflow.timeout_minutes` (60), `verify_timeout_minutes` (15) | giới hạn thời gian mỗi bước agent / lệnh kiểm chứng |
@@ -239,14 +240,55 @@ nhiều agent song song) chưa có.
 (`--dangerously-*`). Adapter không khả dụng (thiếu chương trình) → bước thất bại với lỗi nêu cách xử lý.
 
 **Cô lập bước có quyền ghi và hậu kiểm bước chỉ đọc:**
-- Mỗi worktree chỉ một bước có quyền ghi (`b-feat`) chạy tại một thời điểm, bất kể harness, thông qua
-  khoá hệ điều hành (`flock`/`LockFileEx`) trong `<state>/runtime/locks/`; muốn chạy song song thì dùng
-  worktree khác.
+- **Khoá theo worktree có hai chế độ** (`flock`/`LockFileEx` trong `<state>/runtime/locks/`, bất kể harness):
+  *chia sẻ* cho bước chỉ đọc (`b-req`, `b-review`);
+  *độc quyền* cho `b-feat` và cho lệnh kiểm chứng chạy ngay sau `b-feat` (lệnh kiểm chứng hay ghi tệp
+  như coverage/snapshot/build, không được chạy song song với bước chỉ đọc của tác vụ khác). Nhiều bước chia sẻ chạy cùng lúc được; bước độc quyền loại trừ mọi bước khác.
+  Khoá chia sẻ giữ suốt bước chỉ đọc nên `b-feat` của tác vụ khác không chen vào giữa hai ảnh chụp hậu kiểm.
+- **Bước đến sau chờ khoá** (không còn `blocked` ngay): in "chờ khoá do <tác vụ> <bước> giữ…", chờ tối đa
+  `workflow.timeout_minutes` rồi `blocked` ("chờ khoá quá N phút: <chủ>"); Ctrl-C khi chờ → `interrupted`.
+  `--no-wait` (cả `bint run` và `bint run resume`) lấy khoá một lần, bận thì `blocked` như hành vi cũ. Khoá
+  của tiến trình chết do hệ điều hành tự nhả; thông tin "ai đang giữ" chỉ để báo, không quyết định khoá.
+  Tệp khoá không bị xoá khi trả (xoá khi còn người đọc khác sẽ cho hai chủ độc quyền cùng vào).
+- **Mỗi tác vụ chạy đúng worktree của nó** (`State.Worktree`, ghi lúc lập phiếu): `run`, `run resume`,
+  `task verify`, `task status done`, `task diff` dùng thư mục đó dù đang đứng ở thư mục khác (in "chạy
+  trong <đường dẫn>"). Thư mục không còn hoặc không còn là gốc worktree Git → tác vụ `failed` với thông
+  báo rõ, không lùi về thư mục đang đứng. Phiếu cũ (không có `Worktree`) dùng thư mục hiện tại.
+- **Tập tệp của riêng từng tác vụ.** Trước `b-feat` đầu tiên Bint chụp cây làm việc (`base_tree`, giữ sống
+  bằng `refs/bint/tasks/<id>/base`); sau mỗi lượt `b-feat` (kể cả lỗi/Ctrl-C) ghi các tệp đã đổi vào
+  `touched`. Kiểm tra phạm vi, đường dẫn bảo vệ và `task status done` dùng `touched`, nên thay đổi chưa
+  commit có sẵn trước khi lập phiếu và tệp của tác vụ khác **không** bị tính cho tác vụ. `bint task diff`
+  hiển thị đúng phần này (b-review dùng lệnh này thay cho `git diff <base>`). Phiếu có `b-feat` từ trước khi
+  có cơ chế này (hoặc làm tay) giữ cách cũ (toàn bộ thay đổi so với base) suốt đời; chụp lỗi thì cũng quay
+  về cách cũ kèm ghi chú. Thay đổi **ngoài** `b-feat` của Runner
+  (người hoặc phiên agent khác sửa tay, ở bất kỳ trạng thái nào của tác vụ, kể cả sau `bint task status <id>
+  in_progress`) không có trong `touched`; chúng được tính thêm là tệp đổi giữa `base_tree` và cây hiện tại
+  mà không thuộc `touched` của tác vụ nào trên cùng worktree. Nhờ vậy tệp bảo vệ/deny sửa tay vẫn bị chặn ở
+  cổng `done` và hiện trong `bint task diff`. Hệ quả: thay đổi tay của người dùng trên cùng worktree cũng bị
+  quy cho tác vụ (chỉ dẫn tới yêu cầu duyệt, không mất dữ liệu). Cây gốc (ref) bị xoá khi tác vụ `done`/`cancelled`.
+- **Chồng lấn:** sau `b-feat`, tệp mà tác vụ chưa kết thúc khác trên cùng worktree cũng đã sửa được đưa vào
+  danh sách cần duyệt ("tác vụ <id> cũng sửa: <tệp>"): có terminal thì hỏi, không thì `blocked` chờ
+  `bint task approve` rồi `bint run resume`.
+- **Kiểm chứng:** vẫn tính trên toàn cây (thay đổi của tác vụ khác làm kết quả cũ mất nghĩa thật), nhưng khi
+  `task status done` bị chặn vì mã đã đổi, thông báo (chỉ ở lệnh chuyển trạng thái, không ở `bint task show`/TUI để tránh chụp cây mỗi lần xem) liệt kê tệp đổi **ngoài** `touched` kể từ lần kiểm
+  chứng ("thay đổi không thuộc tác vụ: …; chạy lại bint task verify <id>").
 - Bước chỉ đọc (`b-req`, `b-review`) được **hậu kiểm ở tầng chương trình**: Bint chụp cây làm việc bằng
   chỉ mục Git tạm trước và sau bước (gồm cả tệp theo dõi và tệp mới chưa bị Git ignore, **kể cả
   `.bint/`**). Ngoại lệ duy nhất được phép là thêm mục tri thức mới hợp lệ ở trạng thái `candidate`
   trong `.bint/knowledge/items/`; mọi thay đổi khác làm bước thất bại kèm danh sách tệp bị sửa (Bint
   không tự hoàn tác).
+- **Thay đổi do Bint ghi thay người không tính là vi phạm** (docs/isolation-subagent-plan.md 4.5, H8).
+  Người đổi cấu hình (`bint config set`/TUI), duyệt-từ chối-xoá tri thức, sinh lại `AGENTS.md`/skill, `init --update`…
+  trong lúc bước chỉ đọc chạy đều đi qua tầng dịch vụ (`internal/app`, dùng chung cho CLI và TUI); mỗi tệp dịch vụ
+  ghi được nối một dòng vào `<state>/runtime/writes.jsonl` (`{path, sha256, at, actor, agent}`, nối bằng `O_APPEND`
+  mỗi dòng một lần ghi; tệp bị xoá ghi `sha256` rỗng; dòng cũ hơn `workflow.timeout_minutes` × 2 được dọn khi nối).
+  Khi hậu kiểm, một đường dẫn đổi được **miễn** nếu dòng nhật ký **mới nhất** của nó nằm trong khoảng bước chạy,
+  `agent: false` (không có biến môi trường phiên agent) và `sha256` khớp nội dung hiện tại. Kết quả bước liệt kê tệp
+  được miễn (`steps[].human_writes` trong `bint run --json`, `Result.Notes`) và log in
+  "bỏ qua thay đổi do người ghi qua Bint: …" để người xem lại. Vẫn là vi phạm: agent gọi lệnh `bint …` (dòng có
+  `agent: true`), người sửa rồi agent sửa tiếp cùng tệp (băm lệch), sửa tệp trực tiếp không qua Bint. Hook không
+  ghi vào nhật ký. TUI hiện dòng "<bước> của <tác vụ> đang chạy trên cây này" ở thanh trên khi cây có bước đang
+  chạy (đọc tệp chủ khoá, thăm dò 3 giây); thao tác ghi vẫn được phép.
 - Codex chạy mọi bước trong sandbox `workspace-write` kèm `--add-dir <thư mục trạng thái>` để lệnh
   `bint task …` ghi được; agent nhận `BINT_RUNNER_PID` để không nhầm tiến trình điều phối (bị sandbox
   che PID) là đã chết.
@@ -273,7 +315,26 @@ Giới hạn đã biết của P4–P5:
 
 - Classify của `bint task new` là heuristic từ khoá; phân loại bằng mô hình do orchestrator của `/b-do`
   đảm nhận (truyền `--plan`/`--no-plan`/`--depth`), `bint run` gọi trực tiếp thì vẫn theo heuristic.
-- Chưa tự động tạo worktree riêng cho từng bước ghi; chưa xuất tài liệu sang `docs/spec/<feature>/`.
+- Chưa tự động tạo worktree riêng cho từng tác vụ (docs/isolation-subagent-plan.md G2); chưa xuất tài liệu
+  sang `docs/spec/<feature>/`.
+- Trên worktree chung, người sửa đúng tệp mà `b-feat` đang sửa trong lúc nó chạy thì phần sửa bị tính cho
+  tác vụ (không phân biệt được ai sửa). Người sửa tệp khác **bằng IDE hoặc công cụ ngoài Bint** trong lúc bước
+  chỉ đọc chạy vẫn làm bước đó `failed` ("nếu chính bạn sửa trong lúc bước chạy: bint run resume"): chỉ thay đổi đi
+  qua Bint mới được miễn (xem trên). Muốn vừa sửa vừa để agent chạy thì cần worktree riêng (G2).
+- Nhật ký ghi `writes.jsonl` nằm trong thư mục trạng thái mà bước chỉ đọc được ghi, nên agent cố tình có thể
+  chèn dòng giả (đúng `path`, `sha256` của nội dung nó vừa ghi, `agent: false`) để được miễn. Chấp nhận: mục
+  đích là tránh chặn nhầm người, không chống agent cố ý; lớp chặn chính của bước chỉ đọc vẫn là
+  `--disallowedTools`/sandbox của harness và kết quả bước liệt kê tệp được miễn. Phiên người dùng chạy trong
+  phiên agent (có biến `CLAUDECODE`, `BINT_AGENT`…) cũng ghi `agent: true` nên không được miễn.
+- Hậu kiểm so nội dung bằng băm: người ghi qua Bint rồi agent ghi lại đúng nội dung đó thì không phát hiện được.
+  Lỗi ghi nhật ký (đĩa đầy, không lấy được khoá) không làm hỏng thao tác của người; hậu quả là bước chỉ đọc báo
+  vi phạm như trước (hướng an toàn). Nhật ký chưa chạy thử thật trên Windows (đổi tên tệp khi đang mở).
+- Đói lượt khoá độc quyền: bước chỉ đọc nối tiếp nhau có thể giữ `b-feat` chờ lâu; hết `workflow.timeout_minutes`
+  thì `blocked`.
+- Tác vụ chưa kết thúc (kể cả `failed`/`blocked` bị bỏ quên) vẫn được tính khi dò chồng lấn: huỷ
+  (`task status <id> cancelled`) tác vụ bỏ dở để hết cảnh báo.
+- Khoá Windows (`LockFileEx` trên một byte ở offset lớn) mới kiểm biên dịch (`GOOS=windows go vet`, staticcheck),
+  chưa chạy thật; trong lúc nâng cấp, binary cũ (khoá byte 0) và mới không loại trừ lẫn nhau trên Windows.
 - Ghi đè `--harness`/`--role` chưa lưu vào `state.json` của tác vụ nên cần truyền lại khi `resume`.
 - Hook `deny` của Codex chặn thao tác sửa tệp nhưng chưa tự chuyển tác vụ sang `blocked`.
 - Antigravity: chưa có MCP cấp dự án, chưa chèn ngữ cảnh qua hook, đề bài `bint run` truyền qua một
