@@ -472,13 +472,8 @@ func TestUpdateTabShowsLiveLogAndEscCancels(t *testing.T) {
 	hasAll(t, f.screen(), "update")
 	f.press("esc") // Ở lại
 	// Esc huỷ việc nền.
-	f.pump(func() bool { return f.m.jobs.Len() == 0 && !strings.Contains(f.screen(), "Đang build") }, func() tea.Msg {
-		_, cmd := f.m.Update(keyMsg("esc"))
-		if cmd == nil {
-			return nil
-		}
-		return cmd()
-	})
+	f.press("esc")
+	f.pump(func() bool { return f.m.jobs.Len() == 0 && !strings.Contains(f.screen(), "Đang build") }, nil)
 	out = f.screen()
 	hasAll(t, out, "Cập nhật thất bại", "go: downloading example.com/y v2.0.0")
 	if strings.Contains(out, "Khởi động lại ngay?") {

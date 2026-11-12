@@ -1,0 +1,2 @@
+ok  	bint/internal/eval	5.312s
+ok  	bint/internal/app/evolvesvc	0.008s

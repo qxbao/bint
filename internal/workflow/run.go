@@ -16,7 +16,6 @@ import (
 	"bint/internal/ctxengine"
 	"bint/internal/eval"
 	"bint/internal/gitrepo"
-	adapters "bint/internal/harness"
 	"bint/internal/harness/claude"
 	"bint/internal/harness/hookcore"
 	"bint/internal/skills"
@@ -105,6 +104,11 @@ type RunOptions struct {
 	// Driver: process|session khi tự lập phiếu (--driver); không dùng cùng TaskRef. session ⇒ lập phiếu rồi dừng
 	// (Result.Status = created): các bước do phiên điều phối chạy bằng `bint run next`.
 	Driver string
+	// AgentChoices là lựa chọn hiệu lực được chụp khi tạo lượt đầu; resume tái sử dụng.
+	AgentChoices map[string]task.AgentChoice
+	// ResolveAgentChoices runs after Classify and planning overrides, before
+	// claiming the task. It lets callers select only roles this run may use.
+	ResolveAgentChoices func(*task.Task) (map[string]task.AgentChoice, error)
 }
 
 // StepResult là kết quả một bước agent.
@@ -228,13 +232,6 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 				r.logf("Driver: session (%s)", c.DriverReason)
 			}
 		}
-		if c := t.State.Classification; c != nil && c.EffectiveDriver() == task.DriverSession {
-			// Driver session: không chạy bước nào ở đây (không có phiên orchestrator trong tiến trình này); phiếu đã lập.
-			rs.res.TaskID, rs.res.Status = t.State.ID, t.State.Status
-			rs.res.Isolation = t.State.Isolation()
-			rs.res.Notes = append(assess.Notes, "driver session: tiếp bằng `bint run next "+t.State.ID+" --json`")
-			return rs.res, nil
-		}
 	} else {
 		if strings.TrimSpace(o.Isolation) != "" {
 			if iso, err := NormalizeIsolationFlag(o.Isolation); err != nil || iso != "" {
@@ -282,15 +279,32 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if t, err = r.applyOverrides(t, o); err != nil {
 			return nil, err
 		}
-		if hasEdit(o.Edit) {
-			if t, _, err = r.SetTicket(t.State.ID, o.Edit); err != nil {
-				return nil, err
-			}
-		}
 		rs.t, assess = t, r.Assess(t)
 	}
 	rs.res.TaskID = rs.t.State.ID
 	rs.res.Notes = assess.Notes
+	if o.ResolveAgentChoices != nil {
+		choices, err := o.ResolveAgentChoices(rs.t)
+		if err != nil {
+			return nil, err
+		}
+		o.AgentChoices = choices
+	}
+	if o.TaskRef == "" && rs.t.State.Classification != nil && rs.t.State.Classification.EffectiveDriver() == task.DriverSession {
+		if len(o.AgentChoices) > 0 {
+			t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+				t.State.AgentChoices = cloneAgentChoices(o.AgentChoices)
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			rs.t = t
+		}
+		rs.res.Status, rs.res.Isolation = rs.t.State.Status, rs.t.State.Isolation()
+		rs.res.Notes = append(assess.Notes, "driver session: tiếp bằng `bint run next "+rs.t.State.ID+" --json`")
+		return rs.res, nil
+	}
 
 	// Root của tác vụ (State.Worktree): chạy ở đó dù đang đứng ở thư mục khác. Dùng bản sao Env để
 	// không đổi Root của Env dùng chung (TaskWS); trả lại khi xong để Runner dùng lại được.
@@ -313,6 +327,9 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		if err := t.ClaimRunner(rs.runID, r.now()); err != nil {
 			return err
+		}
+		if len(o.AgentChoices) > 0 {
+			t.State.AgentChoices = cloneAgentChoices(o.AgentChoices)
 		}
 		// Tác vụ lập bởi workflow b-req nhưng nay do b-do/b-feat/b-review điều phối: `resume` phải đi theo
 		// workflow này, nếu không sẽ báo "b-req chỉ chạy trên created/planned" và không có đường tiếp tục.
@@ -385,6 +402,17 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	return rs.res, nil
 }
 
+func cloneAgentChoices(in map[string]task.AgentChoice) map[string]task.AgentChoice {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]task.AgentChoice, len(in))
+	for role, choice := range in {
+		out[role] = choice
+	}
+	return out
+}
+
 // applyOverrides áp --plan/--no-plan/--depth lên tác vụ có sẵn và nâng/hạ hợp đồng artifact.
 //   - --depth tường minh chỉ nhận khi tác vụ `created`, hoặc khi `b-req --task` chạy lại trên `planned`;
 //     từ in_progress trở đi trả lỗi thay vì lặng lẽ đổi độ sâu giữa lượt. Hàm ý Plan=true.
@@ -408,10 +436,24 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) 
 				"hoặc để lập kế hoạch lại bằng `bint run b-req --task %s --depth %s` trên tác vụ planned", st, t.State.ID, depth)
 		}
 	}
-	if !explicit && o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) {
+	if !explicit && o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) && !hasEdit(o.Edit) {
 		return t, nil
 	}
 	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
+		if hasEdit(o.Edit) {
+			if task.Terminal(t.State.Status) {
+				return fmt.Errorf("tác vụ đã %s", t.State.Status)
+			}
+			if !r.Human && o.Edit.Autonomy != nil && *o.Edit.Autonomy == task.AutonomyAuto {
+				return fmt.Errorf("%w: chỉ người mới đặt được autonomy: auto", ErrAgent)
+			}
+			if err := o.Edit.apply(&t.Ticket); err != nil {
+				return err
+			}
+		}
+		if !explicit && o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) {
+			return nil
+		}
 		created := t.State.Status == task.StatusCreated
 		cls := task.Classification{Plan: true, Reason: "mặc định"}
 		if t.State.Classification != nil {
@@ -421,7 +463,8 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) 
 			cls.Plan, cls.Reason = *o.Plan, r.chooser()+" chỉ định"
 			if a := r.Assess(t); !cls.Plan && !r.Human && created && a.Risk == "high" &&
 				(o.Workflow == StepDo || o.Workflow == StepReq) {
-				cls = protectedPlan(a.Protected, true)
+				protected := protectedPlan(a.Protected, true)
+				cls.Plan, cls.Reason = protected.Plan, protected.Reason
 			}
 		}
 		switch {
@@ -703,13 +746,13 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 	sr = &stepRun{step: step, firstFeat: firstFeat, maxCost: maxCost, maxTurns: maxTurns}
 	var who string
 	if session {
-		h, _, err := adapters.ForStep(r.Cfg, adapters.Selection{}, step)
+		h, model, err := r.sessionChoice(rs.t, step)
 		if err != nil {
 			r.fail(rs, step, err.Error())
 			return nil, false
 		}
 		sr.harness = h
-		sr.reqModel = adapters.RoleModel(r.Cfg, h, adapters.StepRole(step), "")
+		sr.reqModel = model
 		who = h + " (subagent)"
 	} else {
 		agent, err := r.Agent(step, maxCost, maxTurns)
@@ -845,6 +888,16 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 			endReason = fmt.Sprintf("agent thoát với mã %d", res.ExitCode)
 		}
 	}
+	var deniedPaths []string
+	// Luôn đọc (và dọn) nhật ký deny của child run: bước bị ngắt thì bỏ qua kết quả, nhưng không để thư
+	// mục spool/denials/<run> nằm lại vì resume chạy bằng child run mới.
+	reason, paths, denied, guardDenials := hookDenial(r.Spool, child)
+	for _, g := range guardDenials {
+		r.logf("  guardrail đã từ chối một thao tác của agent (không chặn tác vụ): %s", g)
+	}
+	if denied && status != "interrupted" {
+		status, endReason, deniedPaths = "blocked", reason, paths
+	}
 	srr.Status = status
 	if rs.session && res.CostUSD != nil {
 		// Subagent không dừng được giữa chừng, nên vượt max_cost_usd của bước chỉ được ghi lỗi (bước không failed); ngân sách
@@ -882,6 +935,19 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		rs.t = t
 	}
 
+	if status == "blocked" {
+		if len(deniedPaths) > 0 {
+			if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+				t.State.PendingPaths = appendUnique(t.State.PendingPaths, deniedPaths...)
+				t.State.AwaitingCheck = false
+				return nil
+			}); err == nil {
+				rs.t = t
+			}
+		}
+		r.block(rs, endReason)
+		return false
+	}
 	if status == "completed" && step == StepFeat {
 		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.AwaitingCheck = true; return nil }); err == nil {
 			rs.t = t
@@ -941,6 +1007,53 @@ func (r *Runner) lockStep(ctx context.Context, rs *runState, step string, mode L
 		r.fail(rs, step, "lấy khoá worktree: "+err.Error())
 	}
 	return nil, false
+}
+
+// hookDenial đọc rồi dọn nhật ký deny của child run (spool/denials, hook ghi). Chỉ deny đường dẫn bảo vệ chặn tác
+// vụ: harness không hỏi được người dùng (Codex) nên hook đổi "cần duyệt" thành deny, tệp chưa được sửa và bước
+// không được coi là xong. Deny của guardrail là phản hồi cho agent (docs/harness-components.md: Bint không nhốt
+// agent), agent có thể đổi cách làm; nó chỉ được trả về trong guardrail để ghi log, không đổi trạng thái tác vụ.
+func hookDenial(dir, runID string) (reason string, paths []string, blocked bool, guardrail []string) {
+	events, err := spool.Denials(dir, runID)
+	_ = spool.ClearDenials(dir, runID)
+	if err != nil {
+		return "", nil, false, nil
+	}
+	var reasons []string
+	for _, ev := range events {
+		var hit []string
+		switch raw := ev.Payload["protected_paths"].(type) {
+		case []any:
+			for _, item := range raw {
+				if p, ok := item.(string); ok && p != "" {
+					hit = append(hit, p)
+				}
+			}
+		case []string:
+			for _, p := range raw {
+				if p != "" {
+					hit = append(hit, p)
+				}
+			}
+		}
+		why, _ := ev.Payload["reason"].(string)
+		if len(hit) == 0 {
+			if why == "" {
+				why = "hook Bint đã từ chối công cụ"
+			}
+			guardrail = appendUnique(guardrail, why)
+			continue
+		}
+		paths = appendUnique(paths, hit...)
+		if why == "" {
+			why = "đường dẫn bảo vệ cần người duyệt: " + strings.Join(hit, ", ")
+		}
+		reasons = appendUnique(reasons, why)
+	}
+	if len(paths) == 0 {
+		return "", nil, false, guardrail
+	}
+	return strings.Join(reasons, "; "), paths, true, guardrail
 }
 
 // afterStep xử lý kết quả bước; trả false nếu workflow dừng.

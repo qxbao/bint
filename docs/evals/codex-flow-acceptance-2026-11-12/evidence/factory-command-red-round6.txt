@@ -1,0 +1,14 @@
+--- FAIL: TestCodexEvolutionFactories (0.00s)
+    --- FAIL: TestCodexEvolutionFactories/evolver (0.00s)
+        agents_test.go:50: roles.evolver="codex": evolver cần giới hạn công cụ đọc ở Read/Grep/Glob; harness codex chưa có allowlist công cụ tương đương nên không dùng được cho role này
+    --- FAIL: TestCodexEvolutionFactories/reflector (0.00s)
+        agents_test.go:50: roles.reflector="codex": chỉ harness claude khoá được công cụ của reflector (--tools ""); harness codex chưa có cơ chế tắt hết công cụ tương đương nên không dùng được cho role này
+    --- FAIL: TestCodexEvolutionFactories/proposer (0.00s)
+        agents_test.go:50: roles.evolver="codex": chỉ harness claude khoá được công cụ của evolver (--tools ""); harness codex chưa có cơ chế tắt hết công cụ tương đương nên không dùng được cho role này
+FAIL
+FAIL	bint/internal/app/evolvesvc	0.010s
+--- FAIL: TestRunWorkflowAgentCommandIgnoresUnusedHarness (0.08s)
+    run_selection_test.go:206: custom command must not resolve unused disabled harness: harness "codex" (roles.implementer) chưa được bật trong harnesses.enabled của .bint/config.yml
+FAIL
+FAIL	bint/internal/app	0.092s
+FAIL

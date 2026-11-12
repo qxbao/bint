@@ -1,0 +1,22 @@
+Routing regression — task 01M77MTS8RPSP3MS0QCXNYW5YE
+
+Trước sửa (fixture Runner và app, không gọi Codex live):
+GOCACHE=/tmp/bint-routing-cache XDG_CACHE_HOME=/tmp/bint-routing-xdg go test ./internal/workflow ./internal/app -run 'TestAgentNoPlanWithNewProtectedScope|TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides/new-protected-no-plan' -count=1
+exit 1:
+TestAgentNoPlanWithNewProtectedScope: Plan:false, Reason:orchestrator chỉ định, contract=0, steps=[b-feat b-review]
+TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides/new-protected-no-plan: first step=b-feat, want b-req; planner snapshot {Harness: Model:}
+
+Sau sửa cùng hai ca và các ca planning override:
+GOCACHE=/tmp/bint-routing-cache XDG_CACHE_HOME=/tmp/bint-routing-xdg go test ./internal/workflow ./internal/app -run 'TestAgentNoPlanWithNewProtectedScope|TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides' -count=1
+exit 0: ok bint/internal/workflow; ok bint/internal/app
+
+Hồi quy rộng hơn: TestAgentNoPlanEffectiveScope và TestAgentNoPlanRejectedChangesDoNotPersist đối chiếu scope hiệu lực và không ghi khi đầu vào sai. Đây là kiểm thử giả lập, không phải phiên Codex live.
+
+Kiểm tra sau sửa (GOCACHE=/tmp/bint-routing-cache, XDG_CACHE_HOME=/tmp/bint-routing-xdg):
+go test ./internal/workflow ./internal/app -run 'Test(AgentNoPlan|Depth|RunWorkflow|AgentChoices|BusyRunner|ProtectedPath|DoneRechecks|Planning|Verify)' -count=1: exit 0
+ go vet ./...: exit 0
+GOOS=windows go vet ./...: exit 0
+staticcheck ./... (binary tools/staticcheck trong task chính): exit 0
+GOOS=windows staticcheck ./... (cùng binary): exit 0
+Review độc lập và verify của Core chưa hoàn tất.
+go test ./...: exit 0 (bộ đầy đủ sau sửa; Core còn chạy verify riêng).

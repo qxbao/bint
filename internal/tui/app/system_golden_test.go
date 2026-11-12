@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -114,10 +115,18 @@ func systemScreens(t *testing.T, lang string, w, h int) map[string]func() *Model
 
 // Ảnh chụp văn bản của màn Hệ thống ở 80×24 và 140×40, vi/en/locale giả; không dòng nào vượt chiều rộng.
 func TestGoldenSystemScreens(t *testing.T) {
+	// Ô "thư mục mã nguồn" lấy theo FindSource: chỉ định tường minh gốc repo để kết quả không phụ thuộc
+	// cách build (-trimpath làm FindSource thất bại và ô bị rỗng).
+	if root, err := filepath.Abs(filepath.Join("..", "..", "..")); err == nil && bintapp.IsBintSource(root) {
+		t.Setenv(bintapp.SourceEnv, root)
+	}
 	for _, sz := range [][2]int{{80, 24}, {140, 40}} {
 		for _, lang := range []string{"vi", "en", "xx"} {
 			for name, build := range systemScreens(t, lang, sz[0], sz[1]) {
 				out := plain(build().Render())
+				if source, err := bintapp.FindSource(""); err == nil {
+					out = canonicalizeSourcePath(out, source, sz[0])
+				}
 				for i, l := range strings.Split(out, "\n") {
 					if w := ansi.StringWidth(l); w > sz[0] {
 						t.Errorf("%s %dx%d %s: dòng %d rộng %d > %d: %q", name, sz[0], sz[1], lang, i, w, sz[0], l)
@@ -130,6 +139,41 @@ func TestGoldenSystemScreens(t *testing.T) {
 			}
 		}
 	}
+}
+
+// canonicalizeSourcePath thay thư mục mã nguồn trong ô nhập (đầy đủ, hoặc bị ô cắt trái thành "…<đuôi>"
+// khi đường dẫn dài) bằng /src/bint để golden không phụ thuộc nơi đặt repo.
+func canonicalizeSourcePath(out, source string, width int) string {
+	if source == "" {
+		return out
+	}
+	const placeholder = "/src/bint"
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
+		cursor := strings.Index(line, "▏")
+		if cursor < 0 {
+			continue
+		}
+		head := line[:cursor]
+		start := strings.LastIndex(head, " ") + 1
+		token := head[start:]
+		tail, cut := strings.CutPrefix(token, "…")
+		if token != source && !(cut && tail != "" && strings.HasSuffix(source, tail)) {
+			continue
+		}
+		rest := line[cursor:]
+		end := strings.LastIndex(rest, "│ │")
+		if end < 0 {
+			continue
+		}
+		fixed := head[:start] + placeholder + "▏"
+		spaces := width - ansi.StringWidth(fixed+"│ │")
+		if spaces < 0 {
+			continue
+		}
+		lines[i] = fixed + strings.Repeat(" ", spaces) + "│ │"
+	}
+	return strings.Join(lines, "\n")
 }
 
 // Không chuỗi nào ở locale giả hay vi/en còn là khoá chưa dịch (dạng "sy.x.y" hay "action.system.…"): mọi thẻ và trạng thái.

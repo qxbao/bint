@@ -1,0 +1,19 @@
+Codex CLI (codex) — cấp 3: Programmatic Execution
+  chương trình: ~/.local/bin/codex
+  phiên bản:    0.167.2 (bảng khả năng đối chiếu với codex-cli 0.167)
+  bật trong cấu hình: có
+  skill: .agents/skills
+
+  ✓  Đồng bộ skill                                    .agents/skills/<tên>/SKILL.md (dùng chung với Antigravity)
+  ~  Ẩn skill / chỉ gọi tường minh                    không ẩn khỏi người dùng; agents/openai.yaml policy.allow_implicit_invocation: false loại khỏi danh sách tự kích hoạt (Codex 0.167); Bint chưa sinh policy này, bỏ disable-model-invocation khi xuất bản
+  ~  MCP server của Bint                              .codex/config.toml [mcp_servers.bint] — chỉ hiệu lực khi dự án được Codex tin cậy
+  ~  Hook ghi nhận sự kiện                            .codex/hooks.json: SessionStart/End, Pre/PostToolUse; cần trust từng định nghĩa; kết quả shell lấy từ exit_code của transcript cùng tool_use_id, thiếu thì unknown; script phức tạp không nâng thành tín hiệu test
+  ~  Chèn ngữ cảnh theo đường dẫn                     chỉ trước khi sửa (apply_patch); Codex đọc tệp qua shell nên không chèn khi đọc
+  ~  Hỏi người khi sửa đường dẫn bảo vệ               PreToolUse deny kèm lý do (không hỏi được trong codex exec); duyệt trước tệp chưa có diff bằng bint task approve <id> --path <tệp>, rồi resume
+  ~  Guardrail quy trình (.bint/harness/guardrails)   pre_edit/pre_bash: deny và remind (additionalContext); ask hạ xuống remind; không có sự kiện Stop nên guardrail stop không chạy
+  ✓  Thực thi theo chương trình (bint run)            codex exec --json, đề bài qua stdin
+  ~  Giữ bước chỉ đọc                                 sandbox workspace-write (bint CLI cần ghi thư mục trạng thái); Bint kiểm tra cây làm việc sau bước
+  ✗  Báo chi phí (áp max_cost_usd)                    chỉ báo token; max_cost_usd chỉ là chỉ dẫn
+  ✗  Giới hạn số lượt (max_turns)                     không có cờ giới hạn lượt; max_turns chỉ là chỉ dẫn
+  ✗  Ghi nhận skill được kích hoạt (skill.activated)  skill được chọn ngầm, không có công cụ gọi skill đi qua hook: không ghi nhận (không tổng hợp giả)
+harness show exit=0

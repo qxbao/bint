@@ -1,0 +1,70 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/app	41.370s
+ok  	bint/internal/app/evolvesvc	9.426s
+ok  	bint/internal/cli	56.009s
+ok  	bint/internal/config	(cached)
+ok  	bint/internal/ctxengine	(cached)
+ok  	bint/internal/detect	(cached)
+ok  	bint/internal/eval	19.672s
+ok  	bint/internal/evolve	22.674s
+ok  	bint/internal/fsafe	(cached)
+?   	bint/internal/gitrepo	[no test files]
+ok  	bint/internal/harness	0.167s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	(cached)
+ok  	bint/internal/harness/codex	0.163s
+ok  	bint/internal/harness/hookcore	0.184s
+ok  	bint/internal/hcomp	(cached)
+ok  	bint/internal/i18n	(cached)
+ok  	bint/internal/inspect	0.246s
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	(cached)
+ok  	bint/internal/knowledge	0.358s
+ok  	bint/internal/mcpserver	(cached)
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/runlog	3.445s
+ok  	bint/internal/skills	(cached)
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	(cached)
+ok  	bint/internal/store	(cached)
+ok  	bint/internal/symbols	(cached)
+ok  	bint/internal/task	0.580s
+?   	bint/internal/testutil	[no test files]
+ok  	bint/internal/tui	0.897s
+--- FAIL: TestEvalRunJobPlanBeforeConfirmAndDeclineCreatesNoBatch (1.10s)
+    eval_test.go:280: mỗi lượt báo một thông điệp có kiểu và một dòng log: 1 [eval.log.estimate_unknown eval.log.note eval.log.note eval.log.plan eval.log.attempt eval.log.attempt]
+FAIL
+FAIL	bint/internal/tui/actions	10.864s
+ok  	bint/internal/tui/app	126.275s
+ok  	bint/internal/tui/components/barchart	(cached)
+ok  	bint/internal/tui/components/confirm	(cached)
+ok  	bint/internal/tui/components/footer	(cached)
+ok  	bint/internal/tui/components/form	0.188s
+ok  	bint/internal/tui/components/frame	(cached)
+?   	bint/internal/tui/components/help	[no test files]
+ok  	bint/internal/tui/components/input	(cached)
+ok  	bint/internal/tui/components/list	(cached)
+ok  	bint/internal/tui/components/logo	(cached)
+ok  	bint/internal/tui/components/logview	(cached)
+ok  	bint/internal/tui/components/markdown	(cached)
+ok  	bint/internal/tui/components/palette	(cached)
+ok  	bint/internal/tui/components/tabs	(cached)
+ok  	bint/internal/tui/components/text	(cached)
+ok  	bint/internal/tui/components/viewer	(cached)
+ok  	bint/internal/tui/components/zone	(cached)
+ok  	bint/internal/tui/gallery	21.883s
+ok  	bint/internal/tui/jobs	(cached)
+?   	bint/internal/tui/screens/eval	[no test files]
+ok  	bint/internal/tui/screens/evolve	0.049s
+ok  	bint/internal/tui/screens/initwizard	0.371s
+ok  	bint/internal/tui/screens/knowledge	4.562s
+ok  	bint/internal/tui/screens/overview	0.065s
+?   	bint/internal/tui/screens/runs	[no test files]
+?   	bint/internal/tui/screens/shared	[no test files]
+?   	bint/internal/tui/screens/system	[no test files]
+ok  	bint/internal/tui/screens/tasks	1.754s
+ok  	bint/internal/tui/theme	(cached)
+ok  	bint/internal/tui/ui	0.643s
+ok  	bint/internal/ulid	(cached)
+ok  	bint/internal/workflow	12.985s
+FAIL

@@ -8,6 +8,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/ctxengine"
+	adapters "bint/internal/harness"
 	"bint/internal/harness/claude"
 	"bint/internal/task"
 	"bint/internal/workflow"
@@ -164,14 +165,34 @@ func runWith(ctx context.Context, ws *TaskWS, wo workflow.RunOptions, harnessNam
 	if ws.RunID != "" {
 		return nil, fmt.Errorf("không chạy `bint run` lồng trong một bước workflow khác (BINT_RUN_ID=%s)", ws.RunID)
 	}
-	sel, err := harnessSelection(harnessName, roles, agentCommand)
-	if err != nil {
-		return nil, err
-	}
 	k := ws.K
-	r := &workflow.Runner{Env: ws.Env, Agent: workflow.HarnessAgents(k.Config, agentCommand, model, sel), OnStep: cb.OnStep}
-	if cb.Agent != nil {
-		r.Agent = cb.Agent
+	r := &workflow.Runner{Env: ws.Env, OnStep: cb.OnStep}
+	wo.ResolveAgentChoices = func(t *task.Task) (map[string]task.AgentChoice, error) {
+		// A custom command does not use a harness. Keep existing snapshots for a
+		// later resume, without resolving or recording unused configured roles.
+		if agentCommand != "" {
+			r.Agent = workflow.HarnessAgentsWithChoices(k.Config, agentCommand, adapters.Selection{}, nil)
+			if cb.Agent != nil {
+				r.Agent = cb.Agent
+			}
+			return t.State.AgentChoices, nil
+		}
+		choices, err := agentChoicesForRoles(k.Config, t.State.AgentChoices, harnessName, roles, model,
+			rolesForRun(wo.Workflow, t, wo.NoReview))
+		if err != nil {
+			return nil, err
+		}
+		sel := adapters.Selection{Roles: map[string]string{}}
+		models := map[string]string{}
+		for role, choice := range choices {
+			sel.Roles[role] = choice.Harness
+			models[role] = choice.Model
+		}
+		r.Agent = workflow.HarnessAgentsWithChoices(k.Config, agentCommand, sel, models)
+		if cb.Agent != nil {
+			r.Agent = cb.Agent
+		}
+		return choices, nil
 	}
 	if cb.Log != nil {
 		r.Logf = func(format string, a ...any) { cb.Log(fmt.Sprintf(format, a...)) }
@@ -392,4 +413,120 @@ func RunAbort(ctx context.Context, ws *TaskWS, o RunAbortOptions) (*workflow.Ses
 	}
 	ingestAfterSession(ws)
 	return a, nil
+}
+
+func agentChoices(cfg config.Config, previous map[string]task.AgentChoice, harnessName string, roleFlags []string, model, workflowName string) (map[string]task.AgentChoice, error) {
+	return agentChoicesForRoles(cfg, previous, harnessName, roleFlags, model, workflowRoles(workflowName))
+}
+
+func agentChoicesForRoles(cfg config.Config, previous map[string]task.AgentChoice, harnessName string, roleFlags []string, model string, active map[string]bool) (map[string]task.AgentChoice, error) {
+	sel, err := harnessSelection(harnessName, roleFlags, "")
+	if err != nil {
+		return nil, err
+	}
+	choices := make(map[string]task.AgentChoice, 3)
+	for _, role := range []string{"planner", "implementer", "reviewer"} {
+		choice, saved := previous[role]
+		// Older snapshots wrote zero values for roles not selected by a single
+		// step. Only a resolved harness identifies an effective snapshot.
+		saved = saved && choice.Harness != ""
+		if !active[role] {
+			if saved {
+				choices[role] = choice
+			}
+			continue
+		}
+		// A resume with no explicit override keeps the prior effective choice.
+		explicitRole := sel.Roles[role] != "" || sel.All != ""
+		if saved && !explicitRole {
+			choice.Harness, _, err = adapters.ForStep(cfg, adapters.Selection{Roles: map[string]string{role: choice.Harness}}, roleStep(role))
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			choice.Harness, _, err = adapters.ForStep(cfg, sel, roleStep(role))
+			if err != nil {
+				return nil, err
+			}
+		}
+		if model != "" {
+			choice.Model = model
+		} else if !saved || explicitRole {
+			choice.Model = configuredRoleModel(cfg, choice.Harness, role)
+		}
+		choices[role] = choice
+	}
+	return choices, nil
+}
+
+// rolesForRun excludes steps skipped by the workflow's persisted classification
+// or state. The implementer remains possible after a review requests changes.
+func rolesForRun(name string, t *task.Task, noReview bool) map[string]bool {
+	active := workflowRoles(name)
+	if name != workflow.StepDo {
+		return active
+	}
+	active["reviewer"] = !noReview
+	if t != nil {
+		status := t.State.Status
+		if task.Paused(status) {
+			status = t.State.ResumeFrom
+			if status == "" {
+				status = task.StatusCreated
+			}
+		}
+		if status != task.StatusCreated {
+			active["planner"] = false
+			return active
+		}
+		if c := t.State.Classification; c != nil {
+			active["planner"] = c.Plan
+		}
+	}
+	return active
+}
+
+func roleStep(role string) string {
+	switch role {
+	case "planner":
+		return workflow.StepReq
+	case "reviewer":
+		return workflow.StepReview
+	default:
+		return workflow.StepFeat
+	}
+}
+
+func configuredRoleModel(cfg config.Config, harnessName, role string) string {
+	if model := adapters.RoleModel(cfg, harnessName, role, ""); model != "" {
+		return model
+	}
+	switch harnessName {
+	case "claude":
+		if cfg.Workflow.Agent.Model != nil {
+			return *cfg.Workflow.Agent.Model
+		}
+	case "codex":
+		if cfg.Harnesses.Codex.Model != nil {
+			return *cfg.Harnesses.Codex.Model
+		}
+	case "antigravity":
+		if cfg.Harnesses.Antigravity.Model != nil {
+			return *cfg.Harnesses.Antigravity.Model
+		}
+	}
+	return ""
+}
+
+func workflowRoles(name string) map[string]bool {
+	switch name {
+	case workflow.StepReq:
+		return map[string]bool{"planner": true}
+	case workflow.StepFeat:
+		return map[string]bool{"implementer": true}
+	case workflow.StepReview:
+		return map[string]bool{"reviewer": true}
+	default:
+		return map[string]bool{"planner": true, "implementer": true, "reviewer": true}
+	}
 }

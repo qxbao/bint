@@ -110,6 +110,7 @@ var Dialect = hookcore.Dialect{
 	Harness: HarnessName, Classify: Classify, InjectRead: false, InjectEdit: true,
 	PreToolOutput:     hookcore.ClaudeStylePreToolOutput("deny"),
 	ProtectedPathHelp: approvalHelp,
+	ProtectedPathDeny: true,
 	PostToolOutcome:   postToolOutcome,
 	IsTestCommand:     detect.IsExecutedTestCommand,
 	// Guardrail (H1): PreToolUse của Codex chỉ có deny (không hỏi được) và additionalContext;

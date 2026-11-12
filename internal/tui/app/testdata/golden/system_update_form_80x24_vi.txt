@@ -4,7 +4,7 @@
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
 │ ‹ Thành phần Skill Chỉ mục MCP Ngôn ngữ Doctor Cài đặt  Cập nhật             │
 │ ┌─│Cập nhật Bint từ mã nguồn (go install)│─────────────────────────────────┐ │
-│ │ ▸ Thư mục mã nguồn         /mnt/01DCE9A4D6522BD0/Project/Go/bint▏        │ │
+│ │ ▸ Thư mục mã nguồn         /src/bint▏                                    │ │
 │ │   git pull --ff-only trước [ ]                                           │ │
 │ │                                                                          │ │
 │ │                                                                          │ │

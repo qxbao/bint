@@ -29,6 +29,18 @@ func DefaultAgents(cfg config.Config, command, model string) AgentFactory {
 // adapter tương ứng. Adapter không khả dụng → lỗi rõ ràng, bước
 // thất bại (mục 17).
 func HarnessAgents(cfg config.Config, command, model string, sel adapters.Selection) AgentFactory {
+	models := map[string]string{}
+	if model != "" {
+		for _, role := range []string{"planner", "implementer", "reviewer"} {
+			models[role] = model
+		}
+	}
+	return HarnessAgentsWithChoices(cfg, command, sel, models)
+}
+
+// HarnessAgentsWithChoices uses the saved model for each role while still checking
+// the selected harness against the current enabled-harness policy.
+func HarnessAgentsWithChoices(cfg config.Config, command string, sel adapters.Selection, models map[string]string) AgentFactory {
 	return func(step string, maxCost *float64, maxTurns *int) (eval.Agent, error) {
 		if command != "" {
 			return &eval.CommandAgent{Command: command}, nil
@@ -37,7 +49,14 @@ func HarnessAgents(cfg config.Config, command, model string, sel adapters.Select
 		if err != nil {
 			return nil, err
 		}
+		role := adapters.StepRole(step)
+		model, snapshotted := models[role]
+		modelSet := snapshotted
+		if !snapshotted {
+			model = adapters.RoleModel(cfg, h, role, "")
+			modelSet = model != ""
+		}
 		return adapters.NewAgent(h, adapters.AgentOptions{Config: cfg, Step: step, ReadOnly: readonlySteps[step],
-			Model: adapters.RoleModel(cfg, h, adapters.StepRole(step), model), MaxCost: maxCost, MaxTurns: maxTurns})
+			Model: model, ModelSet: modelSet, MaxCost: maxCost, MaxTurns: maxTurns})
 	}
 }

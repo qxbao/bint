@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"bint/internal/harness/claude"
+	"bint/internal/harness/codex"
 	"bint/internal/harness/hookcore"
 	"bint/internal/hcomp"
 	"bint/internal/spool"
@@ -209,6 +210,73 @@ func TestGuardrailPreEditMergesWithProtectedPath(t *testing.T) {
 	if out := runHook(t, hookInput("s", "PreToolUse", root, map[string]any{"tool_name": "Edit",
 		"tool_input": map[string]any{"file_path": filepath.Join(root, "src", "a.go")}, "tool_use_id": "e2"})).Output; out != "" {
 		t.Fatalf("không khớp: %s", out)
+	}
+}
+
+func TestCodexProtectedPathDenyWritesChildRunEvent(t *testing.T) {
+	root := guardRepo(t, []string{"codex"}, nil)
+	t.Setenv(hookcore.EnvRunID, "child-denied")
+	in := hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "apply_patch",
+		"tool_input": map[string]any{"command": "*** Begin Patch\n*** Update File: migrations/001.sql\n*** End Patch"}, "tool_use_id": "tool-1"})
+	res, err := codex.HandleHook(context.Background(), strings.NewReader(in), hookcore.Env{BintVersion: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := decision(t, res.Output)["permissionDecision"]; got != "deny" {
+		t.Fatalf("Codex must deny protected path: %s", res.Output)
+	}
+	ws, err := OpenWorkspace(context.Background(), root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := spool.Denials(ws.Paths.Spool, "child-denied")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range events {
+		if ev.Type == spool.ToolDenied {
+			paths, _ := ev.Payload["protected_paths"].([]any)
+			if len(paths) == 1 && paths[0] == "migrations/001.sql" {
+				return
+			}
+		}
+	}
+	t.Fatalf("missing child-scoped denial event: %+v", events)
+}
+
+func TestCodexGuardrailDeniesWriteDurableWorkflowEvents(t *testing.T) {
+	root := guardRepo(t, []string{"codex"}, map[string]string{
+		"guardrails/no-edit.yml": gmeta("no-edit", "verified") + "on: pre_edit\nwhen: { paths: \"src/**\" }\naction: deny\nmessage: Không sửa mã.\n",
+		"guardrails/no-push.yml": gmeta("no-push", "verified") + "on: pre_bash\nwhen: { command: \"git push\" }\naction: deny\nmessage: Không push.\n",
+	})
+	t.Setenv(hookcore.EnvRunID, "child-guardrail")
+	for _, in := range []string{
+		hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "apply_patch",
+			"tool_input": map[string]any{"command": "*** Begin Patch\n*** Update File: src/a.go\n@@\n-package a\n+package b\n*** End Patch"}, "tool_use_id": "edit-1"}),
+		hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "Bash",
+			"tool_input": map[string]any{"command": "git push origin main"}, "tool_use_id": "bash-1"}),
+	} {
+		res, err := codex.HandleHook(context.Background(), strings.NewReader(in), hookcore.Env{BintVersion: "test"})
+		if err != nil || decision(t, res.Output)["permissionDecision"] != "deny" {
+			t.Fatalf("expected Codex deny, got %q: %v", res.Output, err)
+		}
+	}
+	ws, err := OpenWorkspace(context.Background(), root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := spool.Denials(ws.Paths.Spool, "child-guardrail")
+	if err != nil || len(events) != 2 {
+		t.Fatalf("expected durable pre_edit and pre_bash denial events, got %d: %v", len(events), err)
+	}
+	foundEditPath := false
+	for _, ev := range events {
+		if got, _ := ev.Payload["paths"].([]any); len(got) == 1 && got[0] == "src/a.go" {
+			foundEditPath = true
+		}
+	}
+	if !foundEditPath {
+		t.Fatalf("pre_edit affected path missing: %+v", events)
 	}
 }
 

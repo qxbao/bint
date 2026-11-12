@@ -131,7 +131,6 @@ var litsrUsage = []struct{ file, contains string }{
 
 var litsrExtTool = []struct{ file, contains string }{
 	{"app/doctor.go", "phiên bản %s; cần >= 2.31 (rev-parse --path-format)"},
-	{"app/evolvesvc/agents.go", "roles.%s=%q: chỉ harness claude khoá được công cụ của %s (--tools \"\"); "},
 	{"app/update.go", "git pull --ff-only trong %s: %w"},
 	{"workflow/land.go", " worktree remove --force "},
 	{"workflow/worktree.go", "dọn tay: git -C %q worktree remove --force %q"},

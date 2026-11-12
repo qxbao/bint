@@ -1,0 +1,66 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/app	(cached)
+ok  	bint/internal/app/evolvesvc	(cached)
+ok  	bint/internal/cli	24.763s
+ok  	bint/internal/config	(cached)
+ok  	bint/internal/ctxengine	(cached)
+ok  	bint/internal/detect	(cached)
+ok  	bint/internal/eval	(cached)
+ok  	bint/internal/evolve	(cached)
+ok  	bint/internal/fsafe	(cached)
+?   	bint/internal/gitrepo	[no test files]
+ok  	bint/internal/harness	(cached)
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	(cached)
+ok  	bint/internal/harness/codex	(cached)
+ok  	bint/internal/harness/hookcore	(cached)
+ok  	bint/internal/hcomp	(cached)
+ok  	bint/internal/i18n	(cached)
+ok  	bint/internal/inspect	(cached)
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	(cached)
+ok  	bint/internal/knowledge	(cached)
+ok  	bint/internal/mcpserver	(cached)
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/runlog	(cached)
+ok  	bint/internal/skills	(cached)
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	(cached)
+ok  	bint/internal/store	(cached)
+ok  	bint/internal/symbols	(cached)
+ok  	bint/internal/task	(cached)
+?   	bint/internal/testutil	[no test files]
+ok  	bint/internal/tui	0.686s
+ok  	bint/internal/tui/actions	5.849s
+ok  	bint/internal/tui/app	(cached)
+ok  	bint/internal/tui/components/barchart	(cached)
+ok  	bint/internal/tui/components/confirm	(cached)
+ok  	bint/internal/tui/components/footer	(cached)
+ok  	bint/internal/tui/components/form	(cached)
+ok  	bint/internal/tui/components/frame	(cached)
+?   	bint/internal/tui/components/help	[no test files]
+ok  	bint/internal/tui/components/input	(cached)
+ok  	bint/internal/tui/components/list	(cached)
+ok  	bint/internal/tui/components/logo	(cached)
+ok  	bint/internal/tui/components/logview	(cached)
+ok  	bint/internal/tui/components/markdown	(cached)
+ok  	bint/internal/tui/components/palette	(cached)
+ok  	bint/internal/tui/components/tabs	(cached)
+ok  	bint/internal/tui/components/text	(cached)
+ok  	bint/internal/tui/components/viewer	(cached)
+ok  	bint/internal/tui/components/zone	(cached)
+ok  	bint/internal/tui/gallery	(cached)
+ok  	bint/internal/tui/jobs	(cached)
+?   	bint/internal/tui/screens/eval	[no test files]
+ok  	bint/internal/tui/screens/evolve	(cached)
+ok  	bint/internal/tui/screens/initwizard	(cached)
+ok  	bint/internal/tui/screens/knowledge	(cached)
+ok  	bint/internal/tui/screens/overview	(cached)
+?   	bint/internal/tui/screens/runs	[no test files]
+?   	bint/internal/tui/screens/shared	[no test files]
+?   	bint/internal/tui/screens/system	[no test files]
+ok  	bint/internal/tui/screens/tasks	(cached)
+ok  	bint/internal/tui/theme	(cached)
+ok  	bint/internal/tui/ui	(cached)
+ok  	bint/internal/ulid	(cached)
+ok  	bint/internal/workflow	(cached)

@@ -1,0 +1,129 @@
+{
+  "task_id": "01M77HBTHRB8B06TT2VXGGRH34",
+  "status": "done",
+  "binary_sha256": "a04e193e60d31c5756d68afdd8076eb4302598deafa31852c1a3272fc40a0708",
+  "source_changes_since_build": [],
+  "controls": {
+    "interrupt": {
+      "exit_code": 1,
+      "task_status": "interrupted",
+      "pending_paths": null,
+      "agent_choices": {
+        "implementer": {
+          "harness": "codex",
+          "model": "gpt-6.1-terra"
+        },
+        "planner": {
+          "harness": "codex",
+          "model": "gpt-6-astra"
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-6.1-sol"
+        }
+      }
+    },
+    "deny": {
+      "exit_code": 1,
+      "task_status": "blocked",
+      "pending_paths": [
+        "README.md"
+      ],
+      "agent_choices": {
+        "implementer": {
+          "harness": "codex",
+          "model": "gpt-6.1-terra"
+        },
+        "planner": {
+          "harness": "codex",
+          "model": "gpt-6-astra"
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-6.1-sol"
+        }
+      }
+    },
+    "resume": {
+      "exit_code": 0,
+      "task_status": "done",
+      "pending_paths": null,
+      "agent_choices": {
+        "implementer": {
+          "harness": "codex",
+          "model": "gpt-6.1-terra"
+        },
+        "planner": {
+          "harness": "codex",
+          "model": "gpt-6-astra"
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-6.1-sol"
+        }
+      }
+    }
+  },
+  "model_drift": {
+    "snapshot_model": "gpt-6.1-terra",
+    "fixture_model_after_drift": "gpt-6.1-sol",
+    "main_project_unchanged": true
+  },
+  "human_path_approval": {
+    "paths": [
+      "README.md"
+    ],
+    "at": "2026-11-12T09:56:35Z"
+  },
+  "human_verify_approval_at": "2026-11-12T09:56:35Z",
+  "last_verification": {
+    "confirmed": true,
+    "exit_code": 0,
+    "passed": true,
+    "at": "2026-11-12T10:00:35Z"
+  },
+  "logs": [
+    {
+      "name": "b-feat-01M77HF9J2YHZP502F0K5GAKSJ.log",
+      "sha256": "8191d5b042a367f0dd12f39bdbd9c098e2f47fe5717b1456c6ba1a2fb49f217a",
+      "sha256sum_output_present": true,
+      "requested_model_from_command": [
+        "gpt-6.1-terra"
+      ]
+    },
+    {
+      "name": "b-feat-01M77HMQR333RG6EFWWTRNX05E.log",
+      "sha256": "9a48bda19ec80b30c0ef27b2c19a4bac4aac1f6975331f6b3aae7282ca90098f",
+      "sha256sum_output_present": true,
+      "requested_model_from_command": [
+        "gpt-6.1-terra"
+      ]
+    },
+    {
+      "name": "b-feat-01M77K67CCJAX2DXHM4SAED85J.log",
+      "sha256": "bf2837d2cc3d041f0b21001b1d53f3165289842777e976e0a8a86f2eb977f4dc",
+      "sha256sum_output_present": true,
+      "requested_model_from_command": [
+        "gpt-6.1-terra"
+      ]
+    },
+    {
+      "name": "b-req-01M77HDDX98MEXC85MDBQSV998.log",
+      "sha256": "20f6bcc7957f3cd0aefb0f1530803d7d03de4450fc2825b8b506bef791aceca2",
+      "sha256sum_output_present": true,
+      "requested_model_from_command": [
+        "gpt-6-astra"
+      ]
+    },
+    {
+      "name": "b-review-01M77K7DX774AG7QZVXK8RJEHH.log",
+      "sha256": "407d5c0d837905f3d18129a34332786a1d426b75c6a50dcc7568537dd37e4af3",
+      "sha256sum_output_present": true,
+      "requested_model_from_command": [
+        "gpt-6.1-sol"
+      ]
+    }
+  ],
+  "isolated_profile_removed": true,
+  "scope": "Real Codex planning, SIGINT during implementer sleep, resume without model flags after fixture config drift, native trusted hook denial, human README and verification approval, resume/verify/review/finalize."
+}

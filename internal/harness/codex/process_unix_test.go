@@ -26,8 +26,12 @@ func TestMetadataCancellationKillsDescendants(t *testing.T) {
 	go func() { _, err := InspectHookTrust(ctx, bin, root, filepath.Join(root, "hooks.json")); done <- err }()
 	// Chờ tiến trình con thực sự tồn tại trước khi huỷ; không dùng ngân sách
 	// 400ms cho cả khởi động shell khi bộ test đang chạy đồng thời/race.
+	var pid int
 	for deadline := time.Now().Add(8 * time.Second); ; time.Sleep(10 * time.Millisecond) {
-		if _, err := os.Stat(pidFile); err == nil {
+		if b, err := os.ReadFile(pidFile); err == nil {
+			pid, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+		}
+		if pid > 0 {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -38,14 +42,6 @@ func TestMetadataCancellationKillsDescendants(t *testing.T) {
 	err := <-done
 	if err == nil {
 		t.Fatal("metadata chưa trả mà không báo lỗi")
-	}
-	b, err := os.ReadFile(pidFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	if err != nil {
-		t.Fatal(err)
 	}
 	defer syscall.Kill(pid, syscall.SIGKILL)
 	// Kill(0) còn thấy zombie cho tới khi init reap; zombie không còn thực thi.

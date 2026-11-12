@@ -1,0 +1,66 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/app	21.429s
+ok  	bint/internal/app/evolvesvc	4.109s
+ok  	bint/internal/cli	27.548s
+ok  	bint/internal/config	(cached)
+ok  	bint/internal/ctxengine	(cached)
+ok  	bint/internal/detect	(cached)
+ok  	bint/internal/eval	(cached)
+ok  	bint/internal/evolve	(cached)
+ok  	bint/internal/fsafe	(cached)
+?   	bint/internal/gitrepo	[no test files]
+ok  	bint/internal/harness	(cached)
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	(cached)
+ok  	bint/internal/harness/codex	(cached)
+ok  	bint/internal/harness/hookcore	(cached)
+ok  	bint/internal/hcomp	(cached)
+ok  	bint/internal/i18n	(cached)
+ok  	bint/internal/inspect	(cached)
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	(cached)
+ok  	bint/internal/knowledge	(cached)
+ok  	bint/internal/mcpserver	(cached)
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/runlog	(cached)
+ok  	bint/internal/skills	(cached)
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	(cached)
+ok  	bint/internal/store	(cached)
+ok  	bint/internal/symbols	(cached)
+ok  	bint/internal/task	(cached)
+?   	bint/internal/testutil	[no test files]
+ok  	bint/internal/tui	1.017s
+ok  	bint/internal/tui/actions	6.894s
+ok  	bint/internal/tui/app	115.664s
+ok  	bint/internal/tui/components/barchart	(cached)
+ok  	bint/internal/tui/components/confirm	(cached)
+ok  	bint/internal/tui/components/footer	(cached)
+ok  	bint/internal/tui/components/form	0.120s
+ok  	bint/internal/tui/components/frame	(cached)
+?   	bint/internal/tui/components/help	[no test files]
+ok  	bint/internal/tui/components/input	(cached)
+ok  	bint/internal/tui/components/list	(cached)
+ok  	bint/internal/tui/components/logo	(cached)
+ok  	bint/internal/tui/components/logview	(cached)
+ok  	bint/internal/tui/components/markdown	(cached)
+ok  	bint/internal/tui/components/palette	(cached)
+ok  	bint/internal/tui/components/tabs	(cached)
+ok  	bint/internal/tui/components/text	(cached)
+ok  	bint/internal/tui/components/viewer	(cached)
+ok  	bint/internal/tui/components/zone	(cached)
+ok  	bint/internal/tui/gallery	15.810s
+ok  	bint/internal/tui/jobs	(cached)
+?   	bint/internal/tui/screens/eval	[no test files]
+ok  	bint/internal/tui/screens/evolve	0.034s
+ok  	bint/internal/tui/screens/initwizard	0.218s
+ok  	bint/internal/tui/screens/knowledge	3.223s
+ok  	bint/internal/tui/screens/overview	0.063s
+?   	bint/internal/tui/screens/runs	[no test files]
+?   	bint/internal/tui/screens/shared	[no test files]
+?   	bint/internal/tui/screens/system	[no test files]
+ok  	bint/internal/tui/screens/tasks	1.328s
+ok  	bint/internal/tui/theme	(cached)
+ok  	bint/internal/tui/ui	0.525s
+ok  	bint/internal/ulid	(cached)
+ok  	bint/internal/workflow	9.794s

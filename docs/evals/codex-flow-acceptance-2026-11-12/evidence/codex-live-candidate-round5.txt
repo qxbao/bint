@@ -1,0 +1,21 @@
+Codex 0.167.2; model=gpt-6.1-sol (current reflector model); isolated fixture/CODEX_HOME; no user auth copied
+Invocation: codex --no-daemon exec --json --sandbox read-only --ephemeral --skip-git-repo-check --cd <fixture> -
+Prompt: Reply with OK only. This is an isolated connectivity smoke with no eval data.
+timeout=20s; subprocess killed by timeout
+{"type":"error","message":"Reconnecting... 2/5 (stream disconnected before completion: Operation not permitted (os error 1))"}
+{"type":"error","message":"Reconnecting... 3/5 (stream disconnected before completion: Operation not permitted (os error 1))"}
+{"type":"error","message":"Reconnecting... 4/5 (stream disconnected before completion: Operation not permitted (os error 1))"}
+{"type":"error","message":"Reconnecting... 5/5 (stream disconnected before completion: Operation not permitted (os error 1))"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Falling back from WebSockets to HTTPS transport. stream disconnected before completion: Operation not permitted (os error 1)"}}
+{"type":"error","message":"Reconnecting... waiting for network (Connection failed: error sending request)"}
+{"type":"error","message":"Reconnecting... waiting for network (Connection failed: error sending request)"}
+WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir "/tmp" (codex_home: AbsolutePathBuf("<fixture>/home"))
+2026-11-12T07:08:20.083610Z ERROR codex_api::endpoint::responses_websocket: failed to connect to Responses WebSocket stage=Unknown
+2026-11-12T07:08:20.094647Z ERROR codex_api::endpoint::responses_websocket: failed to connect to Responses WebSocket stage=Unknown
+2026-11-12T07:08:20.301099Z ERROR codex_api::endpoint::responses_websocket: failed to connect to Responses WebSocket stage=Unknown
+2026-11-12T07:08:20.697008Z ERROR codex_api::endpoint::responses_websocket: failed to connect to Responses WebSocket stage=Unknown
+2026-11-12T07:08:21.570351Z ERROR codex_api::endpoint::responses_websocket: failed to connect to Responses WebSocket stage=Unknown
+2026-11-12T07:08:23.051795Z ERROR codex_api::endpoint::responses_websocket: failed to connect to Responses WebSocket stage=Unknown
+2026-11-12T07:08:26.396741Z ERROR codex_api::endpoint::responses_websocket: failed to connect to Responses WebSocket stage=Unknown
+
+No model response: this is an incomplete live attempt, not live acceptance or a no-tools guarantee.

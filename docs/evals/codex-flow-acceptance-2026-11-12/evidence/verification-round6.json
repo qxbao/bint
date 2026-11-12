@@ -1,0 +1,98 @@
+{
+  "recorded_at_utc": "2026-11-12T07:59:43.928388+00:00",
+  "head": "e9ce282ba1671a476b195eb9b5d2a490fb77acac",
+  "staticcheck_version": "staticcheck 2026.1 (v0.7.0)",
+  "source_sha256": {
+    "internal/app/evolvesvc/agents.go": "a62443fc7820ca35c71feaa44df07919f061cce256647365fbd815909c010c29",
+    "internal/app/evolvesvc/agents_test.go": "9b24355af042f9761c2ce3f79c58c7ba93f428c09b43e138a21660d579396038",
+    "internal/app/guardrail_hook_test.go": "86709341f9a49d905fac135f553d629a99c027df295476cd616d2532315a44c2",
+    "internal/app/run_selection_test.go": "941b00101caf32662fc2c122468ae847bdc9c016284b77cffd7a237df8750694",
+    "internal/app/run_svc.go": "686462eba48246f15c634f71bfbebbacd24336532700b360a6e36da972bc4e77",
+    "internal/cli/cliref_inventory_test.go": "265a1bb68d61c11f6e5651653f75d48a2f622eddf6f3b909e595961dd64917d6",
+    "internal/cli/evolve_e2e_test.go": "8b36a8e0bd049aed2e5a7634981bd17a01f67502394ded72c4dac53f3e2bcca7",
+    "internal/eval/codex_read_tools.go": "06b7f10a506818019af8a8635e93c82d458c58d2cc09c025322b3c6919a3f156",
+    "internal/eval/codex_restricted.go": "3a2ae4414fee8d9c75dba85a1f72e463bbe1ab17238aa7c1fabe4980a6a831c7",
+    "internal/eval/codex_restricted_test.go": "c5f55efc66b85ac0228080abf88b7786b72ba3d0369437173b8cfbee72685461",
+    "internal/harness/codex/codex.go": "7b2c20cd764c29aa9de328b113cc26c74849dc8644dc9eeac57a3f72004ba1f9",
+    "internal/harness/codex/process_unix_test.go": "318d48e1910cae5ec6dbb8fa002a678417ff5136450fa460c354c2ce55831ebd",
+    "internal/harness/harness.go": "2ce16428248927467f1b843f18cbe40fb97d02cce78431c7c799ee9a46c79cb0",
+    "internal/harness/hookcore/hook.go": "076d229643bd2a91a3b20e181d36a5d9f40bcc0490084a51c1cf7f0c9cb32d4c",
+    "internal/spool/spool.go": "3e80227edc94746ed0d692875167b5899dd16f42df4baf12b5c96bdac4ad98e1",
+    "internal/task/task.go": "8faab92fca1d6f4d2aa780f5911ce34d033a13017a984be95190a1ea434df63e",
+    "internal/tui/actions/eval_test.go": "f84f65dd154d9e9ad92420327432f6d034b652722db11c49c1968b145c37c149",
+    "internal/tui/app/system_golden_test.go": "8b2ca49bb8bab04157c531e2b3f775ba7cb9a728362dba9024a29c7e79f3f3c1",
+    "internal/tui/app/testdata/golden/system_update_form_140x40_en.txt": "564ebf2ceafb5d09eead50267ee93002da08aaf17fdfb8bb6d850eed61550463",
+    "internal/tui/app/testdata/golden/system_update_form_140x40_vi.txt": "a535277f6424655bc9698800a00ffac808a80336474fe4901354d1a92df858ea",
+    "internal/tui/app/testdata/golden/system_update_form_140x40_xx.txt": "b7c949f05af742b4b27a52852e4f4425c0db9507c5b92eda61acef088553772a",
+    "internal/tui/app/testdata/golden/system_update_form_80x24_en.txt": "582cebb116bd0ce05fd3a044cd8ca6bb7080687cf73dad0a686066021f216c18",
+    "internal/tui/app/testdata/golden/system_update_form_80x24_vi.txt": "75359b6af54c17bd9d4dbe56ce74135a821a1c462ef5fe901111948a4281e25a",
+    "internal/tui/app/testdata/golden/system_update_form_80x24_xx.txt": "d6ad6bf7694c92b6378bc2eb0c6a895b89469744f2b92f9d6c25581212459f01",
+    "internal/workflow/agent.go": "b9d2c4e72539a26765f1845e6e89bd5263f2d6cddcbc08436eeb710b575278e5",
+    "internal/workflow/agent_test.go": "036565e12c358c8b65aea7681475ad74b6dcd8d063338ed47a3400c9fc157529",
+    "internal/workflow/run.go": "e97d78376e25284fae36559e4f979a21c53735aae0394fbd8e4125014dd0e71c",
+    "internal/workflow/run_test.go": "9fe3e3bfda5a96996c22a94ba2e48e75ace8fc10d17c7b4899815b67c8ab0486"
+  },
+  "docs_sha256": {
+    "docs/status.md": "6976b9b6f3eb8cef1c0270d7af004e13878b946120100ef941eed60858761015",
+    "docs/workflows.md": "a3f01b0244767d39fbc040f5a4964f27b35bf6c87c276b0dc84201cc7aee9977",
+    "docs/evals/codex-flow-acceptance-2026-11-12/README.md": "29b36cfafaf897a2d0e89e5b152c5544ff996ec7e4ad8215ecb8374a615b1939",
+    "docs/evals/codex-flow-acceptance-2026-11-12/codex-restricted-adapter-round6.md": "8b01384c8f6a61d739afe765a936be1121afac36e61a03b9b705497840731b47",
+    "docs/evals/codex-flow-acceptance-2026-11-12/codex-no-tools-investigation-round5.md": "4b3c13fd716548364925d7fc6719be453f80e3b02aea82cd05850089953680fe"
+  },
+  "checks": [
+    {
+      "command": "GOCACHE=/tmp/bint-gocache go test ./...",
+      "exit_code": 0,
+      "log": "go-test-round6.txt",
+      "log_sha256": "d231359d22351231c0b1c90ee7c9cc2e368e2acb6a29823ad989509dcc00d50a"
+    },
+    {
+      "command": "GOCACHE=/tmp/bint-gocache go vet ./...",
+      "exit_code": 0,
+      "log": "vet-linux-round6.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "GOOS=windows GOCACHE=/tmp/bint-gocache go vet ./...",
+      "exit_code": 0,
+      "log": "vet-windows-round6.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "GOCACHE=/tmp/bint-gocache XDG_CACHE_HOME=/tmp/bint-staticcheck-cache /tmp/bint-tools/staticcheck ./...",
+      "exit_code": 0,
+      "log": "staticcheck-linux-round6.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "GOOS=windows GOCACHE=/tmp/bint-gocache XDG_CACHE_HOME=/tmp/bint-staticcheck-cache /tmp/bint-tools/staticcheck ./...",
+      "exit_code": 0,
+      "log": "staticcheck-windows-round6.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "live": {
+    "command": "BINT_CODEX_RESTRICTED_LIVE=1 BINT_CODEX_RESTRICTED_MODEL=gpt-6.1-sol GOCACHE=/tmp/bint-gocache go test ./internal/eval -run ^TestCodexRestrictedLive$ -v -count=1",
+    "exit_code": 0,
+    "log": "codex-restricted-live-round6.txt",
+    "log_sha256": "8021fb7b8c366b99d916fd88eeac85ef9de829a0b30c7d26d8b06bdb1f513d44",
+    "model": "gpt-6.1-sol",
+    "cases": [
+      "no-tools",
+      "Bint readers; external path denied"
+    ],
+    "profile_removed": true
+  },
+  "configured_evolver_attempt": {
+    "model": "gpt-6.1-astra",
+    "exit_code": 1,
+    "inference_started": false,
+    "reason": "model absent from CLI catalog; provider models list also omits it; no direct inference attempt to establish unlisted-alias support",
+    "log": "codex-configured-evolver-round6.txt",
+    "log_sha256": "ee3d5296b9dc8a29388c170b8fc1fe4a83cabece3cd33f555ea7f3877dc6b4a6"
+  },
+  "excluded_runtime": [
+    ".codex/config.toml: orchestrator temporary network setting, untouched by implementer",
+    ".bint/local.yml: existing machine configuration, untouched by implementer"
+  ]
+}

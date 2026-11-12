@@ -9,6 +9,8 @@ package spool
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,6 +49,8 @@ const (
 	// token để tính chi phí của bước driver session, docs/isolation-subagent-plan.md mục 6.6). Chỉ harness có sự kiện
 	// này mới cung cấp; ingest lưu như sự kiện thường.
 	SubagentStopped = "subagent.stopped"
+	// ToolDenied là quyết định deny do hook Bint thực sự trả về trước khi công cụ chạy.
+	ToolDenied = "hook.tool_denied"
 
 	// P3: Context Engine (mục 9.7). payload.ids là danh sách ID tri thức.
 	ContextRetrieved    = "context.retrieved"
@@ -153,6 +157,58 @@ func Write(dir string, events ...Event) (string, error) {
 		return "", err
 	}
 	return final, nil
+}
+
+// WriteDenial ghi quyết định hook vào nhật ký bền riêng, không bị Ingest tiêu thụ
+// trước khi workflow runner đọc. Hook vẫn chỉ ghi tệp spool, không mở SQLite.
+func WriteDenial(dir string, ev Event) error {
+	if ev.RunID == "" {
+		return errors.New("denial event missing run_id")
+	}
+	denials := filepath.Join(dir, "denials", denialRunKey(ev.RunID))
+	if err := os.MkdirAll(denials, 0o700); err != nil {
+		return err
+	}
+	_, err := Write(denials, ev)
+	return err
+}
+
+// Denials trả về mọi quyết định deny đã ghi cho child run. Thư mục riêng không
+// nằm trong hàng đợi sự kiện thường và được giữ lại sau khi runlog ingest.
+func Denials(dir, runID string) ([]Event, error) {
+	if runID == "" {
+		return nil, nil
+	}
+	files, err := Pending(filepath.Join(dir, "denials", denialRunKey(runID)))
+	if err != nil {
+		return nil, err
+	}
+	var out []Event
+	for _, file := range files {
+		events, err := ReadFile(file)
+		if err != nil {
+			continue
+		}
+		for _, ev := range events {
+			if ev.Type == ToolDenied && ev.RunID == runID {
+				out = append(out, ev)
+			}
+		}
+	}
+	return out, nil
+}
+
+// ClearDenials removes the journal after the workflow has processed a completed child run.
+func ClearDenials(dir, runID string) error {
+	if runID == "" {
+		return nil
+	}
+	return os.RemoveAll(filepath.Join(dir, "denials", denialRunKey(runID)))
+}
+
+func denialRunKey(runID string) string {
+	sum := sha256.Sum256([]byte(runID))
+	return hex.EncodeToString(sum[:])
 }
 
 // Pending liệt kê các tệp spool chờ nạp, theo thứ tự thời gian tạo.

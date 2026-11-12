@@ -1,0 +1,2 @@
+fixture=/tmp/bint-codex-accept.MRgd9Y
+xdg_state_home=/tmp/bint-codex-xdg.MbkuPr

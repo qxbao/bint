@@ -1,0 +1,9 @@
+Codex CLI capability check — codex-cli 0.167.2
+
+Command: codex exec --help
+Observed options include --sandbox {read-only, workspace-write, danger-full-access}, --approve-for-me, --dangerously-bypass-approvals-and-sandbox, and --dangerously-bypass-hook-trust. Help exposes no --tools allowlist or disable-tools option. Read-only sandbox still permits reading repository data, so it does not provide the no-tool guarantee required for eval reflection.
+
+Command: codex --version
+Output: codex-cli 0.167.2
+
+The same help output contains no USD budget or max-turn enforcement option. That limitation was recorded, but was not used to skip the isolated smoke attempt (see codex-live-smoke.txt).
