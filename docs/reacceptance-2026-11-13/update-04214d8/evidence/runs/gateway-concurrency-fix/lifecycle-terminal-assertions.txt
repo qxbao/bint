@@ -1,0 +1,17 @@
+command: go test -race -count=30 -timeout 3m ./internal/mcpgw -run ^TestFakeCallActiveLifecycle$
+cwd: /home/DUCLH/orca/bint
+started_utc: 2026-11-13T08:53:07Z
+# ./internal/mcpgw
+open /home/DUCLH/.cache/go-build/9b/9bb87e9e32bb8638ae87440354446fa620e7dbb57b0c72ef312477b7ffe184f0-a: read-only file system
+FAIL	./internal/mcpgw [setup failed]
+FAIL
+exit: 1
+finished_utc: 2026-11-13T08:53:07Z
+
+retry_command: GOCACHE=/tmp/bint-go-cache go test -race -count=30 -timeout 3m ./internal/mcpgw -run ^TestFakeCallActiveLifecycle$
+cwd: /home/DUCLH/orca/bint
+started_utc: 2026-11-13T08:53:18Z
+ok  	bint/internal/mcpgw	1.070s
+exit: 0
+finished_utc: 2026-11-13T08:53:21Z
+source_sha256: 0eee9310599895c0e6e61aa8fdf5d3da186f928d4f4e942ee2917ddd819a66c8

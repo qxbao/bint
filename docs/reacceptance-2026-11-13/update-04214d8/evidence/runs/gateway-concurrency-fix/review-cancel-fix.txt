@@ -1,0 +1,31 @@
+Cancellation regression review fix
+Date: 2026-11-13
+Repository cwd: /home/DUCLH/orca/bint
+GOCACHE: /tmp/bint-go-cache
+
+Review finding reproduction (reported by b-review, before this fix)
+Command: GOCACHE=/tmp/bint-go-cache go test -overlay /tmp/bint-review-01M7A069-overlay.json -count=1 -timeout 30s -v ./internal/mcpgw -run '^TestFakeCallActiveLifecycle/cancel$'
+UTC: 2026-11-13T08:44:07Z
+Exit: 0 (the test incorrectly passed)
+Result: reviewer overlay waited for and observed a terminal `result` before closing the cancellation channel. This confirmed the test could pass without executing cancellation.
+
+Change
+The regression configures `cancelSignals`; in that test-only mode fake.call disables its sleep timer and waits for the cancellation channel. The cancel case now asserts RPC error code -32800 and absence of `result` before checking active count and unwind. Integration fixtures leave `cancelSignals` nil and retain their original timer behavior.
+
+Verification on the final regression source
+Command: GOCACHE=/tmp/bint-go-cache go test -count=1 -timeout=30s ./internal/mcpgw -run '^TestFakeCallActiveLifecycle$'
+UTC: 2026-11-13T08:48:34Z to 2026-11-13T08:48:34Z
+Exit: 0
+Result: all lifecycle cases passed, including required cancellation error response, terminal active=0, progress/server request active=1, and unwind active=0.
+
+Command: GOCACHE=/tmp/bint-go-cache go test -race -count=30 -timeout=3m ./internal/mcpgw -run '^TestFakeCallActiveLifecycle$'
+UTC: 2026-11-13T08:48:34Z to 2026-11-13T08:48:36Z
+Exit: 0
+Result: all repeated lifecycle cases passed under the race detector.
+
+Command: git diff --check && test -z "$(gofmt -d internal/mcpgw/fake_test.go internal/mcpgw/fake_concurrency_test.go)"
+UTC: 2026-11-13T08:48:36Z
+Exit: 0
+
+Pending host revalidation
+The cancellation review fix changes `internal/mcpgw/fake_test.go` and `fake_concurrency_test.go` after the previously recorded host full-suite/package/static-analysis run. The previous host results are retained as historical evidence and do not validate these final file hashes. Core must rerun host contract/compat coverage, package/race/vet/staticcheck as appropriate, full `go test ./...`, and review this final diff before treating criteria 2 and 3 as met. Loopback remains unavailable in this sandbox.
