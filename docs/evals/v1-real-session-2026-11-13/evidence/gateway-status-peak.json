@@ -1,0 +1,71 @@
+{
+  "running": true,
+  "dir": "~/.local/state/bint/gateway",
+  "status": {
+    "pid": 2017585,
+    "port": 36115,
+    "version": "0.1.0-dev",
+    "started_at": "2026-11-13T09:32:49.195275063Z",
+    "uptime_sec": 438,
+    "sessions": 9,
+    "dropped_events": 0,
+    "upstreams": [
+      {
+        "service": "codegraph",
+        "partition": "~/.local/state/bint/bint-683968601bd8/worktrees/01M7A4E1TQ14Q60WQ0H00F0HC7",
+        "share": "worktree",
+        "running": false,
+        "generation": 0,
+        "sessions": 1,
+        "inflight": 0,
+        "restarts": 0
+      },
+      {
+        "service": "codegraph",
+        "partition": "<v1>/bint",
+        "share": "worktree",
+        "running": true,
+        "generation": 1,
+        "pid": 2017611,
+        "rss_kb": 175252,
+        "pss_kb": 78304,
+        "sessions": 2,
+        "inflight": 0,
+        "restarts": 0
+      },
+      {
+        "service": "deepwiki",
+        "partition": "remote",
+        "share": "remote",
+        "running": true,
+        "generation": 1,
+        "sessions": 3,
+        "inflight": 0,
+        "restarts": 0
+      },
+      {
+        "service": "specmatic",
+        "partition": "~/.local/state/bint/bint-683968601bd8/worktrees/01M7A4E1TQ14Q60WQ0H00F0HC7",
+        "share": "worktree",
+        "running": false,
+        "generation": 0,
+        "sessions": 1,
+        "inflight": 0,
+        "restarts": 0
+      },
+      {
+        "service": "specmatic",
+        "partition": "<v1>/bint",
+        "share": "worktree",
+        "running": true,
+        "generation": 1,
+        "pid": 2017621,
+        "rss_kb": 64176,
+        "pss_kb": 23331,
+        "sessions": 2,
+        "inflight": 0,
+        "restarts": 0
+      }
+    ]
+  }
+}

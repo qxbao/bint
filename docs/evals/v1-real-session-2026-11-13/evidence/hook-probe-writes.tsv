@@ -1,0 +1,5 @@
+giờ(HHMMSS)	tệp	agent_type	permission_mode	quyết định
+170458	V1_PROBE_E3.txt	bint-implementer	auto	deny
+170601	V1_PROBE_E4.txt	bint-implementer	bypassPermissions	deny
+170611	V1_PROBE_E5.txt	bint-implementer	bypassPermissions	deny
+172713	V1_ROOT_PROBE2.txt	bint-implementer	bypassPermissions	deny

@@ -1,0 +1,5 @@
+  ✓  codegraph        ok (8 tool)
+  ✓  specmatic        ok (4 tool)
+  !  deepwiki         degraded (3 tool)
+       upstream thiếu tool của nhóm thao tác: ask_question (danh mục lệch phiên bản upstream?)
+       tool lạ (danh mục chưa biết): ask_wiki_question

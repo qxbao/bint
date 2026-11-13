@@ -1,0 +1,1 @@
+{"session_id": "sessX", "transcript_path": "<v1>/log/fake-transcript/sessX.jsonl", "cwd": "<v1>/bint", "permission_mode": "bypassPermissions", "hook_event_name": "PreToolUse", "tool_name": "Write", "tool_input": {"file_path": "<v1>/bint/V1_PROBE_MAPPED.txt", "content": "x"}, "agent_id": "afake0000000001", "agent_type": "bint-implementer"}
