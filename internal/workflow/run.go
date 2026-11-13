@@ -15,6 +15,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/ctxengine"
 	"bint/internal/eval"
+	"bint/internal/flow"
 	"bint/internal/gitrepo"
 	"bint/internal/harness/claude"
 	"bint/internal/harness/hookcore"
@@ -154,7 +155,9 @@ type Result struct {
 }
 
 type runState struct {
-	opts      RunOptions
+	opts RunOptions
+	// flow là định nghĩa flow nhúng của workflow đang chạy: nguồn của kind bước, thứ tự bước và cổng sau bước.
+	flow      flow.Def
 	t         *task.Task
 	runID     string
 	res       *Result
@@ -202,7 +205,11 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	r.Env = &cp
 	defer func() { r.Env = origEnv }()
 	r.Source = "bint-run"
-	rs := &runState{opts: o, runID: ulid.New(), res: &Result{Steps: []StepResult{}}, ran: map[string]int{},
+	fd, ok := flow.GetBuiltin(o.Workflow)
+	if !ok {
+		return nil, fmt.Errorf("workflow %q chưa có flow nhúng", o.Workflow)
+	}
+	rs := &runState{opts: o, flow: fd, runID: ulid.New(), res: &Result{Steps: []StepResult{}}, ran: map[string]int{},
 		limit: r.Cfg.Limits.ForWorkflow(o.Workflow)}
 	rs.res.RunID = rs.runID
 
@@ -222,7 +229,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		rs.t, assess = t, a
 		r.logf("Tác vụ %s: %s", t.State.ID, t.Ticket.Goal)
-		if c := t.State.Classification; c != nil && o.Workflow == StepDo {
+		if c := t.State.Classification; c != nil && fd.PlanOptional() {
 			r.logf("Classify: %s", c.Reason)
 			if c.Plan && c.Depth != "" {
 				r.logf("Phân tích b-req: %s (%s)", c.Depth, c.DepthReason)
@@ -272,7 +279,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 				planningState = task.StatusCreated
 			}
 		}
-		if o.Workflow == StepReq && !slices.Contains([]string{task.StatusCreated, task.StatusPlanned}, planningState) {
+		if fd.OnlyKind(flow.KindPlan) && !slices.Contains([]string{task.StatusCreated, task.StatusPlanned}, planningState) {
 			return nil, fmt.Errorf("b-req chỉ chạy trên tác vụ created/planned (đang %s)", t.State.Status)
 		}
 		if !o.Resume && task.Paused(t.State.Status) {
@@ -335,7 +342,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		// Tác vụ lập bởi workflow b-req nhưng nay do b-do/b-feat/b-review điều phối: `resume` phải đi theo
 		// workflow này, nếu không sẽ báo "b-req chỉ chạy trên created/planned" và không có đường tiếp tục.
-		if t.State.Workflow == StepReq && o.Workflow != StepReq {
+		if builtinFlow(t.State.Workflow).OnlyKind(flow.KindPlan) && o.Workflow != t.State.Workflow {
 			t.State.Workflow = o.Workflow
 		}
 		t.State.LinkRun(rs.runID)
@@ -389,7 +396,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		if step == stepCheck {
 			// b-feat đã chạy ở lượt trước; chỉ còn kiểm tra phạm vi và kiểm chứng.
-			if !r.afterStep(ctx, rs, StepFeat) {
+			if !r.afterStep(ctx, rs, rs.implementStep()) {
 				break
 			}
 			continue
@@ -426,19 +433,21 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) 
 		return t, err
 	}
 	explicit := depth != ""
+	fd := builtinFlow(o.Workflow)
+	planning, planOnly := fd.HasKind(flow.KindPlan), fd.OnlyKind(flow.KindPlan)
 	if explicit {
-		if o.Workflow != StepDo && o.Workflow != StepReq {
+		if !planning {
 			return t, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
 		}
 		if o.Plan != nil && !*o.Plan {
 			return t, errors.New("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")
 		}
-		if st := t.State.Status; st != task.StatusCreated && !(o.Workflow == StepReq && st == task.StatusPlanned) {
+		if st := t.State.Status; st != task.StatusCreated && !(planOnly && st == task.StatusPlanned) {
 			return t, fmt.Errorf("không đổi được độ sâu phân tích khi tác vụ đang %s: --depth chỉ nhận khi tác vụ còn created, "+
 				"hoặc để lập kế hoạch lại bằng `bint run b-req --task %s --depth %s` trên tác vụ planned", st, t.State.ID, depth)
 		}
 	}
-	if !explicit && o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) && !hasEdit(o.Edit) {
+	if !explicit && o.Plan == nil && !(planOnly && t.State.Status == task.StatusCreated) && !hasEdit(o.Edit) {
 		return t, nil
 	}
 	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
@@ -453,7 +462,7 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) 
 				return err
 			}
 		}
-		if !explicit && o.Plan == nil && !(o.Workflow == StepReq && t.State.Status == task.StatusCreated) {
+		if !explicit && o.Plan == nil && !(planOnly && t.State.Status == task.StatusCreated) {
 			return nil
 		}
 		created := t.State.Status == task.StatusCreated
@@ -463,8 +472,7 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) 
 		}
 		if o.Plan != nil {
 			cls.Plan, cls.Reason = *o.Plan, r.chooser()+" chỉ định"
-			if a := r.Assess(t); !cls.Plan && !r.Human && created && a.Risk == "high" &&
-				(o.Workflow == StepDo || o.Workflow == StepReq) {
+			if a := r.Assess(t); !cls.Plan && !r.Human && created && a.Risk == "high" && planning {
 				protected := protectedPlan(a.Protected, true)
 				cls.Plan, cls.Reason = protected.Plan, protected.Reason
 			}
@@ -486,14 +494,14 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions) (*task.Task, error) 
 			cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(req, r.Assess(t))
 		}
 		t.State.Classification = &cls
-		if created && (o.Workflow == StepDo || o.Workflow == StepReq) && (o.Plan != nil || explicit) {
+		if created && planning && (o.Plan != nil || explicit) {
 			if cls.Plan {
 				ensurePlanningContract(t)
 			} else {
 				t.State.PlanningContractVersion = 0
 			}
 		}
-		if o.Workflow == StepReq && created {
+		if planOnly && created {
 			ensurePlanningContract(t)
 		}
 		return nil
@@ -509,42 +517,57 @@ func hasEdit(e TicketEdit) bool {
 		len(e.Deny) > 0 || e.ClearScope || len(e.Constraints) > 0 || e.Autonomy != nil
 }
 
-// nextStep chọn bước tiếp theo theo trạng thái tác vụ.
+// nextStep chọn bước tiếp theo theo trạng thái tác vụ và cấu trúc của flow đang chạy (kind của bước, bước plan có thể
+// bỏ qua, flow một hay nhiều bước).
 func (r *Runner) nextStep(rs *runState) string {
 	st := rs.t.State.Status
-	wf := rs.opts.Workflow
-	if wf != StepDo {
-		if wf == StepFeat && rs.ran[wf] == 0 && rs.t.State.AwaitingCheck && st == task.StatusInProgress {
-			rs.ran[wf]++
-			return stepCheck
-		}
-		if rs.ran[wf] > 0 {
+	fd := rs.flow
+	if !fd.Multi() {
+		// Flow một bước: chạy đúng bước đó một lần. Bước implement vừa chạy xong ở lượt trước (AwaitingCheck) chỉ còn
+		// cổng sau bước.
+		if len(fd.Steps) == 0 {
 			return ""
 		}
-		return wf
+		only := fd.Steps[0]
+		if only.Kind == flow.KindImplement && rs.ran[only.ID] == 0 && rs.t.State.AwaitingCheck && st == task.StatusInProgress {
+			rs.ran[only.ID]++
+			return stepCheck
+		}
+		if rs.ran[only.ID] > 0 {
+			return ""
+		}
+		return only.ID
+	}
+	plan, hasPlan := fd.FirstOfKind(flow.KindPlan)
+	impl, hasImpl := fd.FirstOfKind(flow.KindImplement)
+	review, hasReview := fd.FirstOfKind(flow.KindReview)
+	if !hasImpl {
+		return ""
 	}
 	switch st {
 	case task.StatusCreated:
-		if c := rs.t.State.Classification; c == nil || c.Plan {
-			return StepReq
+		if hasPlan {
+			if c := rs.t.State.Classification; c == nil || c.Plan || !plan.Optional {
+				return plan.ID
+			}
 		}
-		return StepFeat
+		return impl.ID
 	case task.StatusPlanned, task.StatusInProgress:
 		if rs.t.State.AwaitingCheck && st == task.StatusInProgress {
 			return stepCheck
 		}
-		return StepFeat
+		return impl.ID
 	case task.StatusInReview:
 		if rs.t.State.AwaitingLand || rs.t.State.Landed != nil {
 			// Đã qua review và cổng done ở worktree, chỉ còn đưa về (xung đột/lỗi lần trước): không review lại.
 			r.finalize(context.Background(), rs)
 			return ""
 		}
-		if rs.opts.NoReview {
+		if rs.opts.NoReview || !hasReview {
 			r.finalize(context.Background(), rs)
 			return ""
 		}
-		return StepReview
+		return review.ID
 	}
 	return ""
 }
@@ -697,8 +720,9 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, session bool) (sr *stepRun, ok bool) {
 	// Chuyển trạng thái trước bước.
 	firstFeat := false
-	switch step {
-	case StepFeat:
+	kind := rs.kindOf(step)
+	switch kind {
+	case flow.KindImplement:
 		if !r.preflightFeat(rs) {
 			return nil, false
 		}
@@ -717,7 +741,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 				return nil, false
 			}
 		}
-	case StepReview:
+	case flow.KindReview:
 		if rs.t.State.Status != task.StatusInReview {
 			if err := r.transition(rs, task.StatusInReview, "b-review bắt đầu"); err != nil {
 				r.fail(rs, step, err.Error())
@@ -729,19 +753,19 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 	// Giới hạn vận hành (mục 5): giới hạn của bước, không vượt phần còn lại của lượt.
 	stepLim := r.Cfg.Limits.ForWorkflow(step)
 	maxCost := stepLim.MaxCostUSD
-	if rs.opts.Workflow == StepDo {
+	if rs.flow.Multi() { // ngân sách chung của cả chuỗi bước (limits.workflows.<flow>)
 		rem := rs.remaining()
 		if rem != nil && *rem <= 0 {
-			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.b-do.max_cost_usd (đã tiêu %.2f USD)", rs.spent))
+			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.%s.max_cost_usd (đã tiêu %.2f USD)", rs.flow.Name, rs.spent))
 			return nil, false
 		}
 		maxCost = minPtr(maxCost, rem)
 	}
 	maxTurns := stepLim.MaxTurns
-	if rs.opts.Workflow == StepDo && rs.limit.MaxTurns != nil {
+	if rs.flow.Multi() && rs.limit.MaxTurns != nil {
 		rem := int64(*rs.limit.MaxTurns) - rs.turns
 		if rem <= 0 {
-			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.b-do.max_turns (đã dùng %d lượt)", rs.turns))
+			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.%s.max_turns (đã dùng %d lượt)", rs.flow.Name, rs.turns))
 			return nil, false
 		}
 		if maxTurns == nil || int64(*maxTurns) > rem {
@@ -787,7 +811,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 	// Cô lập (P5): bước chỉ đọc giữ khoá chia sẻ, bước có quyền ghi giữ khoá độc quyền của worktree
 	// (chờ tới khi lấy được). Khoá lấy TRƯỚC ảnh chụp trước và giữ tới sau ảnh chụp sau, nên b-feat của
 	// tác vụ khác không chen vào giữa hai ảnh chụp của bước chỉ đọc.
-	sr.readOnly = readonlySteps[step]
+	sr.readOnly = readOnlyKind(kind)
 	sr.mode = LockExclusive
 	if sr.readOnly {
 		sr.mode = LockShared
@@ -810,7 +834,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 			return nil, false
 		}
 		sr.snapBefore = snap
-	} else if step == StepFeat {
+	} else if kind == flow.KindImplement {
 		sr.featBefore = r.beginTouched(ctx, rs, firstFeat)
 	}
 
@@ -839,7 +863,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	defer sr.release()
 	step, child := sr.step, sr.child
 	r.endTouched(ctx, rs, sr.featBefore)
-	if step == StepFeat && ctx.Err() == nil {
+	if rs.kindOf(step) == flow.KindImplement && ctx.Err() == nil {
 		// Tính phạm vi khi còn giữ khoá độc quyền: sau khi nhả, b-feat của tác vụ khác có thể ghi tệp dở
 		// dang vào cây và bị quy nhầm cho tác vụ này. Chỉ tính ở đây; hỏi người (checkScope) làm sau khi
 		// nhả khoá để không chặn tác vụ khác trong lúc chờ.
@@ -954,7 +978,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		r.block(rs, endReason)
 		return false
 	}
-	if status == "completed" && step == StepFeat {
+	if status == "completed" && rs.kindOf(step) == flow.KindImplement {
 		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.AwaitingCheck = true; return nil }); err == nil {
 			rs.t = t
 		}
@@ -1064,8 +1088,8 @@ func hookDenial(dir, runID string) (reason string, paths []string, blocked bool,
 
 // afterStep xử lý kết quả bước; trả false nếu workflow dừng.
 func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool {
-	switch step {
-	case StepReq:
+	switch rs.kindOf(step) {
+	case flow.KindPlan:
 		missing := 0
 		for _, n := range task.ArtifactNames() {
 			if _, err := os.Stat(rs.t.ArtifactPath(n)); err != nil {
@@ -1097,8 +1121,8 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		if len(rep.OpenQuestions) > 0 {
 			return r.stopOnQuestions(rs, rep)
 		}
-		return rs.opts.Workflow == StepDo
-	case StepFeat:
+		return rs.flow.Multi() // flow nhiều bước đi tiếp sang bước sau plan; plan chạy riêng thì dừng
+	case flow.KindImplement:
 		if !r.checkScope(ctx, rs) {
 			return false
 		}
@@ -1132,7 +1156,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			r.fail(rs, step, err.Error())
 			return false
 		}
-		if rs.opts.Workflow != StepDo {
+		if !rs.flow.Multi() {
 			return false
 		}
 		if rs.opts.NoReview {
@@ -1140,7 +1164,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			return false
 		}
 		return true
-	case StepReview:
+	case flow.KindReview:
 		rev, err := rs.t.LoadReview()
 		if err != nil {
 			r.fail(rs, step, err.Error())
@@ -1175,8 +1199,9 @@ func (r *Runner) reviewIsFresh(rs *runState, last *task.ReviewRound) bool {
 func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.ReviewRound) bool {
 	blocking := last.Blocking()
 	r.logf("  review vòng %d: %d phát hiện, %d nghiêm trọng", last.Round, len(last.Findings), len(blocking))
-	if rs.opts.Workflow != StepDo {
-		return false // b-review chạy riêng không áp quyết định: vòng này vẫn chờ (driver session áp ở `next`)
+	rv, _ := rs.flow.FirstOfKind(flow.KindReview)
+	if rv.Fix == "" {
+		return false // review chạy riêng (không có bước sửa để quay về) không áp quyết định: vòng này vẫn chờ (driver session áp ở `next`)
 	}
 	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		t.State.ReviewDecided = max(t.State.ReviewDecided, last.Round)
@@ -1190,7 +1215,7 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 	}
 	if last.Round <= r.Cfg.Workflow.MaxReviewRounds {
 		if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa theo review vòng %d (%d phát hiện nghiêm trọng)", last.Round, len(blocking))); err != nil {
-			r.fail(rs, StepReview, err.Error())
+			r.fail(rs, rv.ID, err.Error())
 			return false
 		}
 		return true
@@ -1208,7 +1233,7 @@ func (r *Runner) stopOnPlanning(rs *runState, rep task.ArtifactReport) bool {
 	reason := "artifact b-req chưa đạt hợp đồng v1: " + strings.Join(issueLines(rep.Errors), "; ") +
 		" — sửa bằng `bint task write " + rs.t.State.ID + " <requirement|plan|tasks> -`, kiểm bằng `bint task lint " +
 		rs.t.State.ID + "`, rồi " + r.continueHint(rs)
-	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+	if rs.flow.HasKind(flow.KindImplement) {
 		r.block(rs, reason)
 	} else {
 		rs.res.Reason = reason
@@ -1223,7 +1248,7 @@ func (r *Runner) stopOnPlanning(rs *runState, rep task.ArtifactReport) bool {
 // hiện tại, vì lúc dựng lý do tác vụ chưa được chuyển sang blocked.)
 func (r *Runner) continueHint(rs *runState) string {
 	id := rs.t.State.ID
-	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+	if rs.flow.HasKind(flow.KindImplement) {
 		return "`bint run resume " + id + "`"
 	}
 	return "`bint run b-do --task " + id + "` (hoặc `bint run b-feat --task " + id + "`; không dùng `resume` vì sẽ chạy lại b-req)"
@@ -1273,7 +1298,7 @@ func (r *Runner) stopOnQuestions(rs *runState, rep task.ArtifactReport) bool {
 	reason := fmt.Sprintf("còn %d câu hỏi mở trong requirement.md: %s — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng "+
 		"`bint task write %s requirement -`, kiểm bằng `bint task lint %s`, rồi %s",
 		len(qs), strings.Join(qs, "; "), id, id, r.continueHint(rs))
-	if rs.opts.Workflow == StepDo || rs.opts.Workflow == StepFeat {
+	if rs.flow.HasKind(flow.KindImplement) {
 		r.block(rs, reason)
 	} else {
 		rs.res.Reason = reason
@@ -1528,7 +1553,12 @@ func (r *Runner) emitRun(runID, typ string, payload map[string]any) {
 // prompt dựng đề bài cho một bước: nội dung skill (gốc + lớp phủ) và khối tác vụ.
 func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, session bool) string {
 	t := rs.t
-	sk, _ := skills.Get(step)
+	stepDef, _ := rs.flow.StepByID(step)
+	skill := stepDef.Skill
+	if skill == "" {
+		skill = step
+	}
+	sk, _ := skills.Get(skill)
 	croot := r.ConfigRoot
 	if croot == "" {
 		croot = r.Root
@@ -1565,7 +1595,7 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		}
 		b.WriteString("\n")
 	}
-	if step == StepReq {
+	if stepDef.Kind == flow.KindPlan {
 		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
 		if c := t.State.Classification; c != nil {
 			depth = c.EffectiveDepth()
@@ -1586,8 +1616,8 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	if len(r.Cfg.Limits.ProtectedPaths) > 0 {
 		fmt.Fprintf(&b, "\nĐường dẫn được bảo vệ (cần người duyệt): %s\n", strings.Join(r.Cfg.Limits.ProtectedPaths, ", "))
 	}
-	switch step {
-	case StepFeat:
+	switch stepDef.Kind {
+	case flow.KindImplement:
 		// Chạy lại sau khi bị chặn: tiêu chí còn unmet mang bằng chứng cũ; agent phải ghi lại.
 		var unmet []string
 		for i, c := range t.Ticket.Verify.Criteria {
@@ -1613,7 +1643,7 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 				}
 			}
 		}
-	case StepReview:
+	case flow.KindReview:
 		if t.State.TracksTouched() {
 			fmt.Fprintf(&b, "\nPhạm vi review: chỉ các tệp tác vụ này đã sửa — xem bằng `bint task diff %s` "+
 				"(thêm `--stat` để định hướng, `--name-only` để chỉ lấy danh sách tệp). Đừng dùng `git diff` toàn cây: "+

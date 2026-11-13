@@ -52,8 +52,9 @@ type File struct {
 	Err  error
 }
 
-// Load đọc mọi tệp .bint/flows/*.yml (sắp theo tên). Mỗi tệp hỏng mang lỗi riêng, không chặn tệp khác. Thư mục
-// không tồn tại → rỗng, không lỗi. Tệp .yaml, symlink, tệp không thường và tệp quá MaxFileBytes là lỗi của tệp đó.
+// Load đọc mọi tệp .bint/flows/*.yml (sắp theo tên, cùng tên thì .yml đứng trước .yaml). Mỗi tệp hỏng mang lỗi riêng,
+// không chặn tệp khác. Thư mục không tồn tại → rỗng, không lỗi. Tệp .yaml (đổi đuôi, hoặc trùng với tệp .yml cùng
+// tên), symlink, tệp không thường và tệp quá MaxFileBytes là lỗi của tệp đó.
 func Load(root string) ([]File, error) {
 	dir := filepath.Join(root, filepath.FromSlash(Rel))
 	entries, err := os.ReadDir(dir)
@@ -64,6 +65,12 @@ func Load(root string) ([]File, error) {
 		return nil, err
 	}
 	var out []File
+	yml := map[string]bool{} // tên có tệp .yml
+	for _, e := range entries {
+		if n := e.Name(); !strings.HasPrefix(n, ".") && !e.IsDir() && filepath.Ext(n) == ".yml" {
+			yml[strings.TrimSuffix(n, ".yml")] = true
+		}
+	}
 	for _, e := range entries {
 		n := e.Name()
 		if strings.HasPrefix(n, ".") || e.IsDir() {
@@ -74,14 +81,23 @@ func Load(root string) ([]File, error) {
 			continue
 		}
 		f := File{Name: strings.TrimSuffix(n, ext), Path: path.Join(Rel, n)}
-		if ext == ".yaml" {
+		switch {
+		case ext == ".yaml" && yml[f.Name]:
+			f.Err = fmt.Errorf("trùng với %s.yml (tra theo tên luôn dùng bản .yml; xoá %s)", f.Name, n)
+		case ext == ".yaml":
 			f.Err = fmt.Errorf("tệp flow dùng đuôi .yml (đổi tên %s thành %s.yml)", n, f.Name)
-		} else {
+		default:
 			f.Def, f.Err = loadFile(filepath.Join(dir, n))
 		}
 		out = append(out, f)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	// Thứ tự xác định: theo tên, cùng tên thì .yml trước .yaml (Find lấy bản đầu khớp tên nên luôn là .yml).
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		return strings.HasSuffix(out[i].Path, ".yml") && !strings.HasSuffix(out[j].Path, ".yml")
+	})
 	return out, nil
 }
 
@@ -102,27 +118,36 @@ func loadFile(p string) (Def, error) {
 	return Decode(b)
 }
 
-// Get tra flow theo tên: flow nhúng trước, rồi .bint/flows/<tên>.yml. Flow tuỳ biến chưa được kiểm luật (dùng
-// Validate). Không có → lỗi bọc ErrNotFound.
-func Get(root, name string) (Def, error) {
+// Find tra flow theo tên: flow nhúng trước (File.Path rỗng), rồi .bint/flows/<tên>.yml. Khi có cả <tên>.yml và
+// <tên>.yaml thì luôn trả bản .yml. File.Err là lỗi nạp riêng của tệp (Def rỗng); flow tuỳ biến chưa được kiểm luật
+// (dùng Validate). Không có → lỗi bọc ErrNotFound.
+func Find(root, name string) (File, error) {
 	if d, ok := GetBuiltin(name); ok {
-		return d, nil
+		return File{Name: name, Def: d}, nil
 	}
 	if name == "" || strings.HasPrefix(name, ".") || strings.ContainsAny(name, `/\`) {
-		return Def{}, fmt.Errorf("%w %q", ErrNotFound, name)
+		return File{}, fmt.Errorf("%w %q", ErrNotFound, name)
 	}
 	files, err := Load(root)
 	if err != nil {
-		return Def{}, err
+		return File{}, err
 	}
 	for _, f := range files {
-		if f.Name != name {
-			continue
+		if f.Name == name {
+			return f, nil
 		}
-		if f.Err != nil {
-			return Def{}, fmt.Errorf("%s: %w", f.Path, f.Err)
-		}
-		return f.Def, nil
 	}
-	return Def{}, fmt.Errorf("%w %q", ErrNotFound, name)
+	return File{}, fmt.Errorf("%w %q", ErrNotFound, name)
+}
+
+// Get tra flow theo tên như Find; tệp không nạp được là lỗi (không phải ErrNotFound).
+func Get(root, name string) (Def, error) {
+	f, err := Find(root, name)
+	if err != nil {
+		return Def{}, err
+	}
+	if f.Err != nil {
+		return Def{}, fmt.Errorf("%s: %w", f.Path, f.Err)
+	}
+	return f.Def, nil
 }

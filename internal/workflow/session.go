@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bint/internal/eval"
+	"bint/internal/flow"
 	adapters "bint/internal/harness"
 	"bint/internal/harness/hookcore"
 	"bint/internal/spool"
@@ -45,17 +46,7 @@ const (
 )
 
 // SubagentFor trả tên subagent của bước ("" nếu bước không chạy bằng subagent).
-func SubagentFor(step string) string {
-	switch adapters.StepRole(step) {
-	case "planner":
-		return SubagentPlanner
-	case "implementer":
-		return SubagentImplementer
-	case "reviewer":
-		return SubagentReviewer
-	}
-	return ""
-}
+func SubagentFor(step string) string { return adapters.SubagentName(adapters.StepRole(step)) }
 
 // ErrRunMismatch: `complete --run` không khớp bước đang dở của tác vụ (hoặc tác vụ không có bước dở).
 var ErrRunMismatch = errors.New("lượt chạy không khớp bước đang dở của tác vụ")
@@ -165,7 +156,8 @@ func (r *Runner) sessionEnv() (restore func()) {
 // sessionState dựng runState cho một lệnh session. Driver session chỉ điều phối b-do. Ngân sách của b-do và bộ
 // đếm lượt sống trong một tiến trình nên mỗi lệnh bắt đầu từ 0 (chưa trừ phần đã dùng ở bước trước).
 func (r *Runner) sessionState(t *task.Task, runID string, resume, noWait bool) *runState {
-	rs := &runState{opts: RunOptions{Workflow: StepDo, TaskRef: t.State.ID, Resume: resume, NoWait: noWait},
+	// Driver session chỉ điều phối flow nhúng b-do (tên workflow là khoá limits.workflows.b-do và nhãn của lượt cha).
+	rs := &runState{opts: RunOptions{Workflow: StepDo, TaskRef: t.State.ID, Resume: resume, NoWait: noWait}, flow: builtinFlow(StepDo),
 		t: t, runID: runID, res: &Result{TaskID: t.State.ID, RunID: runID, Steps: []StepResult{}}, ran: map[string]int{},
 		limit: r.Cfg.Limits.ForWorkflow(StepDo), session: true}
 	return rs
@@ -175,7 +167,7 @@ func (r *Runner) sessionState(t *task.Task, runID string, resume, noWait bool) *
 func sessionAgentAction(t *task.Task, ps *task.PendingStep) *SessionAction {
 	a := &SessionAction{Action: ActionAgent, TaskID: t.State.ID, Status: t.State.Status, Step: ps.Step, RunID: ps.RunID,
 		Subagent: SubagentFor(ps.Step), Model: ps.Model, Prompt: ps.Prompt, Worktree: t.State.Worktree,
-		ReadOnly: readonlySteps[ps.Step], MaxTurns: ps.MaxTurns, LeaseUntil: ps.LeaseUntil}
+		ReadOnly: stepReadOnly(ps.Step), MaxTurns: ps.MaxTurns, LeaseUntil: ps.LeaseUntil}
 	return a
 }
 
@@ -478,7 +470,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		}
 		if step == stepCheck {
 			// b-feat đã xong (kể cả chạy riêng bằng tiến trình); chỉ còn kiểm phạm vi và kiểm chứng.
-			if !r.afterStep(ctx, rs, StepFeat) {
+			if !r.afterStep(ctx, rs, rs.implementStep()) {
 				return stop()
 			}
 			continue
@@ -597,7 +589,7 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 		started = leaseNow()
 	}
 	id := rs.t.State.ID
-	sr := &stepRun{step: ps.Step, child: ps.RunID, stepID: "st_" + ps.RunID, readOnly: readonlySteps[ps.Step], mode: mode,
+	sr := &stepRun{step: ps.Step, child: ps.RunID, stepID: "st_" + ps.RunID, readOnly: readOnlyKind(rs.kindOf(ps.Step)), mode: mode,
 		snapBefore: ps.Snapshot, featBefore: ps.FeatBefore, firstFeat: ps.FirstFeat, started: started, maxTurns: ps.MaxTurns,
 		reqModel: ps.Model, harness: ps.Harness, stepLog: rs.t.LogPath(ps.Step + "-" + ps.RunID + ".log"), lock: lock,
 		agentID: a.agentID, timedOut: a.timedOut}
@@ -774,7 +766,7 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 	ps := rs.t.State.PendingStep
 	var notes []string
 	if ps != nil {
-		if ps.Step == StepFeat && ps.FeatBefore != "" {
+		if rs.kindOf(ps.Step) == flow.KindImplement && ps.FeatBefore != "" {
 			// Tệp subagent đã sửa trước khi bị bỏ vẫn thuộc tác vụ: ghi vào Touched (dưới khoá độc quyền nếu lấy được).
 			l, err := AcquireLock(r.Tasks.Dir, r.Root, id+" "+ps.Step, LockExclusive)
 			if err != nil && errors.Is(err, errLeaseUnreadable) {

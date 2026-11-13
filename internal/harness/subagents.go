@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bint/internal/config"
+	"bint/internal/flow"
 	"bint/internal/skills"
 )
 
@@ -34,6 +35,13 @@ func SubagentName(role string) string {
 	return ""
 }
 
+// subagentWhat là câu mô tả việc của subagent theo kind của bước (nằm trong định nghĩa subagent do `bint init` sinh).
+var subagentWhat = map[flow.Kind]string{
+	flow.KindPlan:      "phân tích yêu cầu và lập kế hoạch (requirement, plan, tasks) bằng `bint task write`; không sửa mã nguồn",
+	flow.KindImplement: "thực thi kế hoạch của tác vụ: sửa mã trong phạm vi scope.allow, chạy kiểm thử, ghi bằng chứng cho tiêu chí chấp nhận",
+	flow.KindReview:    "đánh giá thay đổi của tác vụ và ghi phát hiện có bằng chứng bằng `bint task review`; không sửa mã",
+}
+
 // readonlyDisallowed: công cụ sửa tệp bị cấm cứng ở mức công cụ (không có trong subagent, gọi ⇒ "No such tool").
 const readonlyDisallowed = "Edit, Write, MultiEdit, NotebookEdit"
 
@@ -53,16 +61,24 @@ func SubagentFiles(cfg config.Config) []skills.AgentFile {
 	if !enabled {
 		return nil
 	}
-	type def struct{ role, step, skill, what string }
-	defs := []def{
-		{"planner", "b-req", "b-req", "phân tích yêu cầu và lập kế hoạch (requirement, plan, tasks) bằng `bint task write`; không sửa mã nguồn"},
-		{"implementer", "b-feat", "b-feat", "thực thi kế hoạch của tác vụ: sửa mã trong phạm vi scope.allow, chạy kiểm thử, ghi bằng chứng cho tiêu chí chấp nhận"},
-		{"reviewer", "b-review", "b-review", "đánh giá thay đổi của tác vụ và ghi phát hiện có bằng chứng bằng `bint task review`; không sửa mã"},
+	// Mỗi bước của flow nhúng b-do ứng với một subagent theo role của nó; chế độ chỉ đọc theo kind của bước.
+	type def struct {
+		role, step, skill, what string
+		kind                    flow.Kind
+	}
+	var defs []def
+	if bdo, ok := flow.GetBuiltin("b-do"); ok {
+		for _, s := range bdo.Steps {
+			defs = append(defs, def{role: s.EffectiveRole(), step: s.ID, skill: s.Skill, what: subagentWhat[s.Kind], kind: s.Kind})
+		}
 	}
 	var out []skills.AgentFile
 	for _, d := range defs {
 		name := SubagentName(d.role)
-		readonly := d.role != "implementer"
+		if name == "" {
+			continue
+		}
+		readonly := d.kind != flow.KindImplement
 		tools := cfg.Workflow.Agent.AllowedTools
 		if readonly {
 			tools = cfg.Workflow.Agent.ReadonlyTools

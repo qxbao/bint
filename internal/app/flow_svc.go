@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"slices"
 
@@ -156,25 +157,21 @@ func ShowFlow(ctx context.Context, dir string, o FlowShowOptions) (FlowShowResul
 	return res, nil
 }
 
-// findFlow tra flow theo tên (nhúng trước). file là tên tệp không đuôi của flow tuỳ biến, path là đường dẫn tệp.
+// findFlow tra flow theo tên (nhúng trước; cùng đường tra với flow.Get). file là tên tệp không đuôi của flow tuỳ biến,
+// path là đường dẫn tệp. Không có flow hoặc tệp không nạp được → lỗi cách dùng.
 func findFlow(root, name string) (d flow.Def, file, path string, err error) {
-	if b, ok := flow.GetBuiltin(name); ok {
-		return b, "", "", nil
-	}
-	files, err := flow.Load(root)
-	if err != nil {
+	f, err := flow.Find(root, name)
+	switch {
+	case errors.Is(err, flow.ErrNotFound):
+		return d, "", "", Usagef("không có flow %q (xem `bint flow list`)", name)
+	case err != nil:
 		return d, "", "", err
+	case f.Err != nil:
+		return d, "", "", Usagef("%s: %v", f.Path, f.Err)
+	case f.Def.IsBuiltin():
+		return f.Def, "", "", nil
 	}
-	for _, f := range files {
-		if f.Name != name {
-			continue
-		}
-		if f.Err != nil {
-			return d, "", "", Usagef("%s: %v", f.Path, f.Err)
-		}
-		return f.Def, f.Name, f.Path, nil
-	}
-	return d, "", "", Usagef("không có flow %q (xem `bint flow list`)", name)
+	return f.Def, f.Name, f.Path, nil
 }
 
 // ---- lint

@@ -20,6 +20,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/detect"
 	"bint/internal/eval"
+	"bint/internal/flow"
 	"bint/internal/fsafe"
 	"bint/internal/harness/antigravity"
 	"bint/internal/harness/claude"
@@ -294,17 +295,14 @@ func HarnessesForTarget(enabled []string, dir string) []string {
 // ---------------------------------------------------------------------------
 // Chọn harness theo role (mục 5: roles; mục 6.5)
 
-// Role của một bước workflow.
+// StepRole trả role của một bước workflow theo flow nhúng (b-req → planner, b-feat → implementer, b-review → reviewer);
+// "" nếu id không phải bước của flow nhúng nào (bước giả post-feat/verify, id lạ).
 func StepRole(step string) string {
-	switch step {
-	case "b-req":
-		return "planner"
-	case "b-feat":
-		return "implementer"
-	case "b-review":
-		return "reviewer"
+	s, ok := flow.BuiltinStep(step)
+	if !ok {
+		return ""
 	}
-	return ""
+	return s.EffectiveRole()
 }
 
 // Roles là danh sách role ghi đè được.

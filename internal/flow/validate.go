@@ -20,13 +20,15 @@ var pseudoSteps = []string{"post-feat", "verify"}
 // Validate kiểm một định nghĩa flow và trả danh sách lỗi (rỗng = hợp lệ), mỗi lỗi một câu nêu bước/khoá.
 //
 // file là tên tệp không đuôi của flow tuỳ biến (tên flow phải trùng); "" nếu flow không đến từ tệp.
-// skillExists cho biết skill (gốc hoặc tuỳ biến hợp lệ) có tồn tại không; nil coi mọi skill đều tồn tại.
+// skillExists cho biết skill (gốc hoặc tuỳ biến hợp lệ) có tồn tại không; nil coi mọi skill đều tồn tại (không kiểm
+// skill của bước) và cũng bỏ luật "tên flow trùng tên một skill", vì luật đó cần biết skill nào có thật.
 //
 // Flow nhúng (Def.IsBuiltin) qua cùng hàm này, ngoại lệ duy nhất: không bị luật về tên gốc (trùng workflow gốc,
 // tiền tố b-), và nếu chỉ có một bước thì được miễn luật "thiếu bước implement" (b-req, b-review).
 func Validate(d Def, file string, skillExists func(string) bool) []string {
 	var errs []string
 	add := func(f string, a ...any) { errs = append(errs, fmt.Sprintf(f, a...)) }
+	checkNameVsSkill := skillExists != nil
 	if skillExists == nil {
 		skillExists = func(string) bool { return true }
 	}
@@ -44,7 +46,7 @@ func Validate(d Def, file string, skillExists func(string) bool) []string {
 		add("name: %q trùng workflow gốc của Bint", d.Name)
 	case strings.HasPrefix(d.Name, "b-"):
 		add("name: %q dùng tiền tố b- dành cho workflow và skill gốc của Bint", d.Name)
-	case skillExists(d.Name):
+	case checkNameVsSkill && skillExists(d.Name):
 		add("name: %q trùng tên một skill (flow được xuất bản thành skill cùng tên, hai nguồn sẽ đè nhau)", d.Name)
 	}
 	if file != "" && d.Name != file {

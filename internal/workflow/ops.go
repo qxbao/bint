@@ -18,6 +18,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/ctxengine"
 	"bint/internal/eval"
+	"bint/internal/flow"
 	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
 	"bint/internal/spool"
@@ -126,13 +127,14 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 		return nil, task.Assessment{}, err
 	}
 	if o.Workflow == "" {
-		o.Workflow = "b-do"
+		o.Workflow = "b-do" // workflow mặc định khi không chỉ định (lập phiếu cho flow nhúng b-do)
 	}
 	depth, err := task.NormalizeDepth(o.Depth)
 	if err != nil {
 		return nil, task.Assessment{}, err
 	}
-	planning := o.Workflow == "b-do" || o.Workflow == "b-req"
+	fd := builtinFlow(o.Workflow)
+	planning := fd.HasKind(flow.KindPlan)
 	if depth != "" {
 		if !planning {
 			return nil, task.Assessment{}, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
@@ -176,7 +178,7 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	cls.Driver, cls.DriverReason = drv.Mode, drv.Reason
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
-	if o.Workflow == "b-req" || (o.Workflow == "b-do" && cls.Plan) {
+	if planning && (!fd.PlanOptional() || cls.Plan) {
 		st.PlanningContractVersion = task.PlanningContractV1
 	}
 	if e.RunID != "" {

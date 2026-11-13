@@ -3,18 +3,17 @@ package workflow
 import (
 	"bint/internal/config"
 	"bint/internal/eval"
+	"bint/internal/flow"
 	adapters "bint/internal/harness"
 )
 
-// readonlySteps không được sửa tệp (b-req, b-review).
-var readonlySteps = map[string]bool{StepReq: true, StepReview: true}
-
-// IsReadOnly cho biết bước có phải bước chỉ đọc.
-func IsReadOnly(step string) bool { return readonlySteps[step] }
+// IsReadOnly cho biết bước có phải bước chỉ đọc (kind plan hoặc review của flow nhúng; bước plan/review không được
+// sửa tệp).
+func IsReadOnly(step string) bool { return stepReadOnly(step) }
 
 // AgentArgs dựng cấu hình gọi Claude Code cho một bước.
 func AgentArgs(cfg config.Config, step string, maxTurns *int) config.EvalAgent {
-	return adapters.ClaudeWorkflowArgs(cfg, readonlySteps[step], maxTurns)
+	return adapters.ClaudeWorkflowArgs(cfg, stepReadOnly(step), maxTurns)
 }
 
 // DefaultAgents trả về factory agent theo cấu hình (roles → harness).
@@ -56,20 +55,22 @@ func HarnessAgentsWithChoices(cfg config.Config, command string, sel adapters.Se
 			model = adapters.RoleModel(cfg, h, role, "")
 			modelSet = model != ""
 		}
-		return adapters.NewAgent(h, adapters.AgentOptions{Config: cfg, Step: step, ReadOnly: readonlySteps[step],
+		return adapters.NewAgent(h, adapters.AgentOptions{Config: cfg, Step: step, ReadOnly: stepReadOnly(step),
 			Model: model, ModelSet: modelSet, MaxCost: maxCost, MaxTurns: maxTurns})
 	}
 }
 
-// ReadOnlyRole cho biết role (harness.StepRole) là của một bước chỉ đọc (planner = b-req, reviewer = b-review): tool
-// MCP ghi vào cây làm việc không được cấp cho các role này dù mcp.grants có ghi.
+// ReadOnlyRole cho biết role (harness.StepRole) là của một bước chỉ đọc (kind plan hoặc review của flow nhúng: planner,
+// reviewer): tool MCP ghi vào cây làm việc không được cấp cho các role này dù mcp.grants có ghi.
 func ReadOnlyRole(role string) bool {
 	if role == "" {
 		return false
 	}
-	for step := range readonlySteps {
-		if adapters.StepRole(step) == role {
-			return true
+	for _, d := range flow.Builtin() {
+		for _, s := range d.Steps {
+			if readOnlyKind(s.Kind) && s.EffectiveRole() == role {
+				return true
+			}
 		}
 	}
 	return false

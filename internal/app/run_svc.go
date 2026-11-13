@@ -8,6 +8,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/ctxengine"
+	"bint/internal/flow"
 	adapters "bint/internal/harness"
 	"bint/internal/harness/claude"
 	"bint/internal/task"
@@ -463,10 +464,18 @@ func agentChoicesForRoles(cfg config.Config, previous map[string]task.AgentChoic
 // or state. The implementer remains possible after a review requests changes.
 func rolesForRun(name string, t *task.Task, noReview bool) map[string]bool {
 	active := workflowRoles(name)
-	if name != workflow.StepDo {
+	fd, _ := flow.GetBuiltin(name)
+	if !fd.Multi() {
 		return active
 	}
-	active["reviewer"] = !noReview
+	// Flow nhiều bước: bước review bỏ qua khi --no-review, bước plan chỉ chạy ở trạng thái created theo phân loại.
+	if rv, ok := fd.FirstOfKind(flow.KindReview); ok {
+		active[rv.EffectiveRole()] = !noReview
+	}
+	planRole := ""
+	if pl, ok := fd.FirstOfKind(flow.KindPlan); ok {
+		planRole = pl.EffectiveRole()
+	}
 	if t != nil {
 		status := t.State.Status
 		if task.Paused(status) {
@@ -476,25 +485,26 @@ func rolesForRun(name string, t *task.Task, noReview bool) map[string]bool {
 			}
 		}
 		if status != task.StatusCreated {
-			active["planner"] = false
+			delete(active, planRole)
 			return active
 		}
-		if c := t.State.Classification; c != nil {
-			active["planner"] = c.Plan
+		if c := t.State.Classification; c != nil && planRole != "" {
+			active[planRole] = c.Plan
 		}
 	}
 	return active
 }
 
+// roleStep trả id bước của flow nhúng b-do chạy role đó (bước implement nếu role không có bước riêng).
 func roleStep(role string) string {
-	switch role {
-	case "planner":
-		return workflow.StepReq
-	case "reviewer":
-		return workflow.StepReview
-	default:
-		return workflow.StepFeat
+	bdo, _ := flow.GetBuiltin(workflow.StepDo)
+	for _, s := range bdo.Steps {
+		if s.EffectiveRole() == role {
+			return s.ID
+		}
 	}
+	impl, _ := bdo.FirstOfKind(flow.KindImplement)
+	return impl.ID
 }
 
 func configuredRoleModel(cfg config.Config, harnessName, role string) string {
@@ -518,15 +528,15 @@ func configuredRoleModel(cfg config.Config, harnessName, role string) string {
 	return ""
 }
 
+// workflowRoles là tập role của các bước trong flow nhúng; tên không phải workflow gốc coi như b-do (đủ ba role).
 func workflowRoles(name string) map[string]bool {
-	switch name {
-	case workflow.StepReq:
-		return map[string]bool{"planner": true}
-	case workflow.StepFeat:
-		return map[string]bool{"implementer": true}
-	case workflow.StepReview:
-		return map[string]bool{"reviewer": true}
-	default:
-		return map[string]bool{"planner": true, "implementer": true, "reviewer": true}
+	fd, ok := flow.GetBuiltin(name)
+	if !ok {
+		fd, _ = flow.GetBuiltin(workflow.StepDo)
 	}
+	roles := make(map[string]bool, len(fd.Steps))
+	for _, s := range fd.Steps {
+		roles[s.EffectiveRole()] = true
+	}
+	return roles
 }

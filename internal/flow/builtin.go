@@ -52,3 +52,15 @@ func GetBuiltin(name string) (Def, bool) {
 	}
 	return Def{}, false
 }
+
+// BuiltinStep tra bước của flow nhúng theo id (b-req, b-feat, b-review). Các flow nhúng dùng chung ba bước này
+// (khác nhau ở Optional/Fix của b-do, không ảnh hưởng kind hay role). Id không thuộc flow nhúng nào (bước giả
+// post-feat/verify, id lạ) → false.
+func BuiltinStep(id string) (Step, bool) {
+	for _, d := range Builtin() {
+		if s, ok := d.StepByID(id); ok {
+			return s, true
+		}
+	}
+	return Step{}, false
+}

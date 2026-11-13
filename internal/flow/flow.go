@@ -4,7 +4,8 @@
 //
 // Gói này là gói lá: không import internal/workflow, internal/config hay internal/skills, để workflow (GĐ3) và
 // config (GĐ4) import flow mà không tạo vòng. Việc skill có tồn tại hay không do bên gọi truyền vào Validate.
-// Hiện Runner chưa đọc flow: flow tuỳ biến chỉ xem và kiểm được (bint flow list|show|lint), chưa chạy được.
+// Runner (GĐ3) đọc flow nhúng để chọn bước, trạng thái, chế độ chỉ đọc và cổng sau bước theo kind; flow tuỳ biến
+// hiện chỉ xem và kiểm được (bint flow list|show|lint), chạy được từ GĐ4.
 package flow
 
 import (
@@ -125,6 +126,45 @@ func (d Def) StepByID(id string) (Step, bool) {
 		}
 	}
 	return Step{}, false
+}
+
+// HasKind cho biết flow có ít nhất một bước kind k.
+func (d Def) HasKind(k Kind) bool {
+	_, ok := d.FirstOfKind(k)
+	return ok
+}
+
+// FirstOfKind trả bước đầu tiên có kind k.
+func (d Def) FirstOfKind(k Kind) (Step, bool) {
+	for _, s := range d.Steps {
+		if s.Kind == k {
+			return s, true
+		}
+	}
+	return Step{}, false
+}
+
+// OnlyKind cho biết flow không rỗng và mọi bước đều có kind k (ví dụ b-req chỉ có bước plan).
+func (d Def) OnlyKind(k Kind) bool {
+	if len(d.Steps) == 0 {
+		return false
+	}
+	for _, s := range d.Steps {
+		if s.Kind != k {
+			return false
+		}
+	}
+	return true
+}
+
+// Multi cho biết flow có nhiều bước (Runner điều phối cả chuỗi, có ngân sách và cổng chung); flow một bước chỉ chạy
+// đúng bước đó.
+func (d Def) Multi() bool { return len(d.Steps) > 1 }
+
+// PlanOptional cho biết flow có bước plan có thể bỏ qua theo phân loại tác vụ (b-do).
+func (d Def) PlanOptional() bool {
+	s, ok := d.FirstOfKind(KindPlan)
+	return ok && s.Optional
 }
 
 // Marshal xuất định nghĩa đã chuẩn hoá (role mặc định được điền) thành YAML, thụt lề 2 khoảng trắng.
