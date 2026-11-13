@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -77,7 +78,7 @@ func TestUpgradeAddsMissingKeysKeepingEveryLine(t *testing.T) {
 	if err := Decode(strings.NewReader(got), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Harnesses.Claude.Models != DefaultRoleModels("claude") || cfg.Context.MaxTokens != 9000 {
+	if !reflect.DeepEqual(cfg.Harnesses.Claude.Models, DefaultRoleModels("claude")) || cfg.Context.MaxTokens != 9000 {
 		t.Fatalf("models=%+v max_tokens=%d", cfg.Harnesses.Claude.Models, cfg.Context.MaxTokens)
 	}
 	// Khối mới nằm đúng chỗ: claude sau default, models của codex trong khối codex.
@@ -117,10 +118,10 @@ func TestUpgradeKeepsGenericModel(t *testing.T) {
 	if err := Decode(strings.NewReader(string(res.Content)), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Harnesses.Claude.Models != (RoleModels{}) {
+	if !reflect.DeepEqual(cfg.Harnesses.Claude.Models, RoleModels{}) {
 		t.Fatalf("models của claude phải trống: %+v", cfg.Harnesses.Claude.Models)
 	}
-	if cfg.Harnesses.Codex.Models != DefaultRoleModels("codex") {
+	if !reflect.DeepEqual(cfg.Harnesses.Codex.Models, DefaultRoleModels("codex")) {
 		t.Fatalf("codex không đặt model chung, phải nhận mặc định: %+v", cfg.Harnesses.Codex.Models)
 	}
 	if len(res.Notes) != 1 || !strings.Contains(res.Notes[0], "workflow.agent.model") {

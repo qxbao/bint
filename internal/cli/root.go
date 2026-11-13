@@ -125,7 +125,7 @@ func NewRoot(stdio IO) *cobra.Command {
 		newTUICmd(stdio))
 	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
 		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
-	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newSkillCmd(stdio))
+	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newSkillCmd(stdio), newFlowCmd(stdio))
 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
 	add("eval", newEvalCmd(stdio))
 	add("evolve", newEvolveCmd(stdio), newExperienceCmd(stdio))

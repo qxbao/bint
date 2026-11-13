@@ -94,6 +94,11 @@ Context Engine (FTS5) cùng MCP server cho agent.
 viết mã; tác vụ chạy trên cây chung hoặc worktree riêng, có phạm vi đường dẫn được sửa, tiêu chí chấp
 nhận và lệnh kiểm chứng.
 
+Dự án tự mở rộng quy trình: **skill tuỳ biến** (`.bint/skills/<tên>/`, tạo bằng `/b-add-skill` hoặc `bint skill new`) và
+**flow tuỳ biến** (`.bint/flows/<tên>.yml`: dãy bước plan → implement → review, mỗi bước chọn skill và role, tạo bằng
+`/b-add-flow`). `bint sync` xuất bản skill cho các harness và biến mỗi flow qua `bint flow lint` thành skill điều phối `/<tên>`
+chạy qua `bint run <tên> --task`, với cùng cổng kiểm soát của Bint.
+
 [![Tác vụ](docs/assets/screenshots/tasks.png)](docs/workflows.md)
 
 ➡️ [docs/workflows.md](docs/workflows.md)
@@ -152,7 +157,45 @@ bint evolve cycle --budget 20         # đề xuất → đối chiếu validati
 ```
 
 Trong phiên của harness có hỗ trợ skill, gọi trực tiếp `/b-bootstrap`, `/b-knowledge`, `/b-req`,
-`/b-feat`, `/b-review`, `/b-do`. Toàn bộ lệnh, mã thoát và phím tắt: [docs/usage.md](docs/usage.md).
+`/b-feat`, `/b-review`, `/b-do`, `/b-add-skill`, `/b-add-flow` (cùng `/<tên>` cho mỗi flow tuỳ biến). Toàn bộ lệnh, mã thoát và phím tắt: [docs/usage.md](docs/usage.md).
+
+## Giao diện terminal (TUI)
+
+Xem và duyệt tri thức, tác vụ, lượt chạy, đánh giá, tiến hoá và cấu hình ngay trong terminal thay cho việc
+gõ lệnh. Thiết kế chi tiết: [docs/tui-plan.md](docs/tui-plan.md); hướng dẫn dùng:
+[docs/usage.md](docs/usage.md#giao-diện-terminal-tui).
+
+```sh
+bint                  # không đối số: mở TUI nếu có terminal tương tác, ngược lại in trợ giúp
+bint tui              # mở tường minh (lỗi nếu stdin/stdout không phải terminal)
+bint tui --lang en    # ngôn ngữ giao diện: vi | en
+bint tui --read-only  # chỉ xem: ẩn mọi hành động ghi
+```
+
+Khi stdin/stdout không phải terminal (đường ống, CI) hoặc đang chạy trong phiên agent, `bint` in trợ giúp
+thay vì mở TUI. Gõ `bint tui` trong phiên agent vẫn mở được, nhưng thao tác chỉ dành cho người (duyệt, áp
+dụng, loại bỏ) bị khoá kèm lý do.
+
+**Tám tab**: Tổng quan, Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá, Hệ thống, MCP. Repository chưa
+`bint init` thì TUI mở trình hướng dẫn khởi tạo.
+
+**Phím toàn cục**
+
+| Phím | Việc |
+|---|---|
+| `1`-`8` | chuyển thẳng tới tab (`1` Tổng quan … `7` Hệ thống, `8` MCP) |
+| `[` `]` | tab trước / sau |
+| `:` hoặc `Ctrl+K` | bảng lệnh: tìm mờ trên mọi hành động của mọi màn |
+| `?` | trợ giúp theo ngữ cảnh |
+| `!` | hộp Thông báo: nguyên văn thông báo hiện tại và 50 thông báo gần nhất |
+| `L` | đổi ngôn ngữ trong phiên (vi ⇄ en) |
+| `r` | làm mới ở Tổng quan (các màn khác: `Ctrl+R`) |
+| `q` | thoát (còn việc nền thì hỏi trước) |
+
+**Chuột** bật mặc định (bấm tab, thẻ phụ, hàng danh sách, phím ở chân phím); mọi thứ vẫn dùng được chỉ
+bằng bàn phím. **Chế độ chỉ đọc** (`--read-only`) ẩn và từ chối mọi hành động ghi; đây là chế độ xem an
+toàn tiện dụng, không phải ranh giới bảo mật. Đặt `NO_COLOR` để chuyển sang đơn sắc. **Ngôn ngữ** theo thứ
+tự: `--lang` > `BINT_LANG` > `ui.language` trong cấu hình > `LC_ALL`/`LANG` > tiếng Việt.
 
 ## Trạng thái dự án
 
@@ -160,7 +203,8 @@ Trong phiên của harness có hỗ trợ skill, gọi trực tiếp `/b-bootstr
 > Bint đang trong giai đoạn thử nghiệm và chưa có bản phát hành chính thức. Các giai đoạn P0–P8 đã có
 > trong mã và đã chạy thực nghiệm trên Claude Code lẫn Codex ([docs/evals](docs/evals/README.md)), nhưng
 > cổng quyết định [1](docs/gate-1.md) và [2](docs/gate-2.md) chưa nghiệm thu chính thức và chưa có đề
-> xuất tiến hoá nào được chứng minh cải thiện có ý nghĩa thống kê. Giới hạn còn mở: [docs/status.md](docs/status.md).
+> xuất tiến hoá nào được chứng minh cải thiện có ý nghĩa thống kê. Giới hạn còn mở: [docs/status.md](docs/status.md);
+> trạng thái và kế hoạch nghiệm thu: [docs/acceptance.md](docs/acceptance.md).
 
 ## Tài liệu
 

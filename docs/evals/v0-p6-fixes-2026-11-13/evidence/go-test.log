@@ -1,0 +1,73 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/app	105.470s
+ok  	bint/internal/app/evolvesvc	3.088s
+ok  	bint/internal/cli	82.500s
+ok  	bint/internal/config	0.046s
+ok  	bint/internal/ctxengine	0.020s
+ok  	bint/internal/detect	0.005s
+ok  	bint/internal/eval	25.738s
+ok  	bint/internal/evolve	21.451s
+ok  	bint/internal/flow	0.012s
+ok  	bint/internal/fsafe	0.146s
+ok  	bint/internal/fslock	0.005s
+ok  	bint/internal/gitrepo	0.063s
+ok  	bint/internal/harness	0.273s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	0.096s
+ok  	bint/internal/harness/codex	0.051s
+ok  	bint/internal/harness/hookcore	0.755s
+ok  	bint/internal/hcomp	0.137s
+ok  	bint/internal/i18n	0.046s
+ok  	bint/internal/inspect	0.061s
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	0.126s
+ok  	bint/internal/knowledge	0.208s
+ok  	bint/internal/mcpcat	0.002s
+ok  	bint/internal/mcpcat/probe	2.330s
+?   	bint/internal/mcpcat/probe/probetest	[no test files]
+ok  	bint/internal/mcpgw	13.105s
+ok  	bint/internal/mcpserver	0.156s
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/runlog	5.217s
+ok  	bint/internal/skills	3.943s
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	0.003s
+ok  	bint/internal/store	0.197s
+ok  	bint/internal/symbols	0.003s
+ok  	bint/internal/task	0.290s
+?   	bint/internal/testutil	[no test files]
+ok  	bint/internal/tui	0.543s
+ok  	bint/internal/tui/actions	21.622s
+ok  	bint/internal/tui/app	83.795s
+ok  	bint/internal/tui/components/barchart	0.118s
+ok  	bint/internal/tui/components/confirm	0.021s
+ok  	bint/internal/tui/components/footer	0.032s
+ok  	bint/internal/tui/components/form	0.060s
+ok  	bint/internal/tui/components/frame	0.058s
+?   	bint/internal/tui/components/help	[no test files]
+ok  	bint/internal/tui/components/input	0.030s
+ok  	bint/internal/tui/components/list	0.038s
+ok  	bint/internal/tui/components/logo	0.021s
+ok  	bint/internal/tui/components/logview	0.031s
+ok  	bint/internal/tui/components/markdown	0.023s
+ok  	bint/internal/tui/components/palette	0.024s
+ok  	bint/internal/tui/components/tabs	0.030s
+ok  	bint/internal/tui/components/text	0.025s
+ok  	bint/internal/tui/components/viewer	0.025s
+ok  	bint/internal/tui/components/zone	0.027s
+ok  	bint/internal/tui/gallery	1.512s
+ok  	bint/internal/tui/jobs	0.050s
+?   	bint/internal/tui/screens/eval	[no test files]
+ok  	bint/internal/tui/screens/evolve	0.023s
+ok  	bint/internal/tui/screens/initwizard	0.040s
+ok  	bint/internal/tui/screens/knowledge	0.921s
+ok  	bint/internal/tui/screens/mcp	0.027s
+ok  	bint/internal/tui/screens/overview	0.038s
+?   	bint/internal/tui/screens/runs	[no test files]
+?   	bint/internal/tui/screens/shared	[no test files]
+?   	bint/internal/tui/screens/system	[no test files]
+ok  	bint/internal/tui/screens/tasks	0.151s
+ok  	bint/internal/tui/theme	0.033s
+ok  	bint/internal/tui/ui	0.054s
+ok  	bint/internal/ulid	0.004s
+ok  	bint/internal/workflow	108.952s

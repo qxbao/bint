@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"bint/internal/flow"
 	"bint/internal/fsafe"
 )
 
@@ -25,25 +26,35 @@ func TestInstallNeverOverwritesEdits(t *testing.T) {
 	root := t.TempDir()
 	m, _ := fsafe.LoadManifest(filepath.Join(t.TempDir(), "m.json"))
 	opts := InstallOptions{Root: root, Targets: []Target{ClaudeTarget}, BintVersion: "v1", BackupDir: t.TempDir(), Manifest: m, Now: time.Now()}
+	// boot trả kết quả của b-bootstrap trong một lần Install (không giả định vị trí trong danh sách).
+	boot := func(outs []Outcome) Outcome {
+		for _, o := range outs {
+			if o.Skill == "b-bootstrap" {
+				return o
+			}
+		}
+		t.Fatalf("thiếu kết quả b-bootstrap: %+v", outs)
+		return Outcome{}
+	}
 	outs, err := Install(opts)
-	if err != nil || len(outs) == 0 || outs[0].Result != fsafe.Created {
+	if err != nil || len(outs) == 0 || boot(outs).Result != fsafe.Created {
 		t.Fatalf("%v %+v", err, outs)
 	}
 	p := filepath.Join(root, ".claude", "skills", "b-bootstrap", "SKILL.md")
-	if outs, _ := Install(opts); outs[0].Result != fsafe.Unchanged {
+	if outs, _ := Install(opts); boot(outs).Result != fsafe.Unchanged {
 		t.Fatalf("lần hai: %+v", outs)
 	}
 
 	// Sửa tay → xung đột, nội dung người dùng giữ nguyên.
 	os.WriteFile(p, []byte("sửa tay\n"), 0o644)
-	if outs, _ := Install(opts); outs[0].Result != fsafe.Conflict {
+	if outs, _ := Install(opts); boot(outs).Result != fsafe.Conflict {
 		t.Fatalf("phải báo xung đột: %+v", outs)
 	}
 	if b, _ := os.ReadFile(p); string(b) != "sửa tay\n" {
 		t.Fatal("không được ghi đè")
 	}
 	opts.Force = true
-	if outs, _ := Install(opts); outs[0].Result != fsafe.Updated || outs[0].Backup == "" {
+	if outs, _ := Install(opts); boot(outs).Result != fsafe.Updated || boot(outs).Backup == "" {
 		t.Fatalf("--force phải ghi đè có sao lưu: %+v", outs)
 	}
 
@@ -55,7 +66,7 @@ func TestInstallNeverOverwritesEdits(t *testing.T) {
 	lock.Skills["b-bootstrap"] = LockEntry{SHA256: Skill{Content: old}.Hash()}
 	writeLock(root, lock)
 	opts.Manifest, _ = fsafe.LoadManifest(filepath.Join(t.TempDir(), "m2.json"))
-	if outs, _ := Install(opts); outs[0].Result != fsafe.Updated {
+	if outs, _ := Install(opts); boot(outs).Result != fsafe.Updated {
 		t.Fatalf("bản khớp core.lock phải được nâng cấp: %+v", outs)
 	}
 }
@@ -228,5 +239,83 @@ func TestBDoChecksSubagentStopHook(t *testing.T) {
 				t.Errorf("%s: b-do chỉ dẫn orchestrator tự chạy %q", tg.Dir, tl)
 			}
 		}
+	}
+}
+
+func TestCoreSkillBAddSkillContract(t *testing.T) {
+	s, ok := Get("b-add-skill")
+	if !ok {
+		t.Fatal("thiếu skill gốc b-add-skill")
+	}
+	d, err := ParseDoc(s.Content)
+	if err != nil || d.Name != "b-add-skill" || !strings.HasPrefix(d.Description, "Dùng khi") {
+		t.Fatalf("frontmatter: %v %+v", err, d)
+	}
+	if len(d.Extra) != 1 || d.Extra[0] != "disable-model-invocation" || !strings.Contains(string(s.Content), "disable-model-invocation: true") {
+		t.Fatalf("phải có disable-model-invocation: true, khoá thừa: %v", d.Extra)
+	}
+	as, err := s.Anchors()
+	if err != nil || len(as) != 1 || as[0].Name != "project-rules" {
+		t.Fatalf("điểm neo: %v %+v", err, as)
+	}
+	// description chỉ nêu điều kiện kích hoạt, không tóm tắt cách làm.
+	for _, w := range []string{"bint skill", "RED", "bint sync"} {
+		if strings.Contains(d.Description, w) {
+			t.Fatalf("description không được tóm tắt cách làm (%q): %s", w, d.Description)
+		}
+	}
+	for _, want := range []string{"bint skill new", "bint skill lint", "bint sync", "RED", "GREEN", "REFACTOR", "subagent",
+		"bint knowledge add", "bint skill overlay", "Không tự `git commit`", "bint knowledge approve", "bint task approve", "tests/"} {
+		if !strings.Contains(s.Body(), want) {
+			t.Errorf("b-add-skill thiếu %q", want)
+		}
+	}
+	if n := strings.Count(s.Body(), "\n"); n > MaxBodyLines {
+		t.Fatalf("thân %d dòng", n)
+	}
+}
+
+func TestCoreSkillBAddFlowContract(t *testing.T) {
+	s, ok := Get("b-add-flow")
+	if !ok {
+		t.Fatal("thiếu skill gốc b-add-flow")
+	}
+	d, err := ParseDoc(s.Content)
+	if err != nil || d.Name != "b-add-flow" || !strings.HasPrefix(d.Description, "Dùng khi") {
+		t.Fatalf("frontmatter: %v %+v", err, d)
+	}
+	if len(d.Extra) != 1 || d.Extra[0] != "disable-model-invocation" || !strings.Contains(string(s.Content), "disable-model-invocation: true") {
+		t.Fatalf("phải có disable-model-invocation: true, khoá thừa: %v", d.Extra)
+	}
+	as, err := s.Anchors()
+	if err != nil || len(as) != 1 || as[0].Name != "project-rules" {
+		t.Fatalf("điểm neo: %v %+v", err, as)
+	}
+	// description chỉ nêu điều kiện kích hoạt, không tóm tắt cách làm.
+	for _, w := range []string{"bint flow", "bint sync", "lint"} {
+		if strings.Contains(d.Description, w) {
+			t.Fatalf("description không được tóm tắt cách làm (%q): %s", w, d.Description)
+		}
+	}
+	for _, want := range []string{"kind", "skill", "role", "optional", "verify", "fix", "plan → implement → review",
+		"bint task write", "hợp đồng v1", "bint task review", "bint flow lint", "bint flow list", "bint sync", "/b-add-skill",
+		"bint task new", "--workflow <tên>", "bint run <tên> --task", "phiếu nhỏ",
+		"Không tự `git commit`", "bint knowledge approve", "bint task approve", ".bint/flows/<tên>.yml"} {
+		if !strings.Contains(s.Body(), want) {
+			t.Errorf("b-add-flow thiếu %q", want)
+		}
+	}
+	if n := strings.Count(s.Body(), "\n"); n > MaxBodyLines {
+		t.Fatalf("thân %d dòng", n)
+	}
+	// Ví dụ flow trong skill phải qua kiểm của Bint (kể cả skill viet-kiem-thu-do giả định có).
+	i := strings.Index(s.Body(), "```yaml\n")
+	j := strings.Index(s.Body()[i+8:], "```")
+	def, err := flow.Decode([]byte(s.Body()[i+8 : i+8+j]))
+	if err != nil {
+		t.Fatalf("ví dụ flow: %v", err)
+	}
+	if errs := flow.Validate(def, "tdd", func(n string) bool { _, ok := Get(n); return ok || n == "viet-kiem-thu-do" }); len(errs) != 0 {
+		t.Fatalf("ví dụ flow không qua lint: %v", errs)
 	}
 }

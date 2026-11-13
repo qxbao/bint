@@ -1,0 +1,1663 @@
+{
+  "role_step": {
+    "": "b-feat",
+    "bogus": "b-feat",
+    "implementer": "b-feat",
+    "planner": "b-req",
+    "reviewer": "b-review"
+  },
+  "roles_for_run": {
+    "b-do/blocked/resume=/plan=nil/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=/plan=nil/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/blocked/resume=/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/blocked/resume=/plan=plan/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=/plan=plan/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/blocked/resume=in_review/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/blocked/resume=in_review/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/blocked/resume=in_review/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/blocked/resume=planned/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/blocked/resume=planned/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/blocked/resume=planned/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/blocked/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/created/resume=/plan=nil/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/created/resume=/plan=nil/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/created/resume=/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/created/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/created/resume=/plan=plan/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/created/resume=/plan=plan/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/created/resume=in_review/plan=nil/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/created/resume=in_review/plan=nil/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/created/resume=in_review/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/created/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/created/resume=in_review/plan=plan/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/created/resume=in_review/plan=plan/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/created/resume=planned/plan=nil/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/created/resume=planned/plan=nil/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/created/resume=planned/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/created/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/created/resume=planned/plan=plan/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/created/resume=planned/plan=plan/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/failed/resume=/plan=nil/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/failed/resume=/plan=nil/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/failed/resume=/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/failed/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/failed/resume=/plan=plan/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/failed/resume=/plan=plan/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/failed/resume=in_review/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/failed/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/failed/resume=in_review/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/failed/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/failed/resume=in_review/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/failed/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/failed/resume=planned/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/failed/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/failed/resume=planned/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/failed/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/failed/resume=planned/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/failed/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=in_review/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=in_review/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=in_review/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=planned/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=planned/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_progress/resume=planned/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_progress/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=in_review/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=in_review/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=in_review/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=planned/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=planned/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/in_review/resume=planned/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/in_review/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/interrupted/resume=/plan=nil/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=/plan=nil/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/interrupted/resume=/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/interrupted/resume=/plan=plan/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=/plan=plan/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/interrupted/resume=in_review/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/interrupted/resume=in_review/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/interrupted/resume=in_review/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/interrupted/resume=planned/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/interrupted/resume=planned/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/interrupted/resume=planned/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/interrupted/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/nil_task/noreview=false": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do/nil_task/noreview=true": [
+      "implementer",
+      "planner"
+    ],
+    "b-do/planned/resume=/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/planned/resume=/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/planned/resume=/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/planned/resume=in_review/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/planned/resume=in_review/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/planned/resume=in_review/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/planned/resume=planned/plan=nil/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-do/planned/resume=planned/plan=noplan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-do/planned/resume=planned/plan=plan/noreview=false": [
+      "implementer",
+      "reviewer"
+    ],
+    "b-do/planned/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=in_review/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=in_review/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=in_review/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=planned/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=planned/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=planned/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/blocked/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=in_review/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=in_review/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=in_review/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=planned/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=planned/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/created/resume=planned/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/created/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=in_review/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=in_review/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=in_review/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=planned/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=planned/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=planned/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/failed/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=in_review/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=in_review/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=in_review/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=planned/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=planned/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=planned/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_progress/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=in_review/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=in_review/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=in_review/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=planned/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=planned/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=planned/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/in_review/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=in_review/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=in_review/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=in_review/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=planned/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=planned/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=planned/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/interrupted/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/nil_task/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/nil_task/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=in_review/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=in_review/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=in_review/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=in_review/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=in_review/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=in_review/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=planned/plan=nil/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=planned/plan=nil/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=planned/plan=noplan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=planned/plan=noplan/noreview=true": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=planned/plan=plan/noreview=false": [
+      "implementer"
+    ],
+    "b-feat/planned/resume=planned/plan=plan/noreview=true": [
+      "implementer"
+    ],
+    "b-req/blocked/resume=/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/blocked/resume=/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/blocked/resume=/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/blocked/resume=in_review/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=in_review/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/blocked/resume=in_review/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=in_review/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/blocked/resume=in_review/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=in_review/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/blocked/resume=planned/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=planned/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/blocked/resume=planned/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=planned/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/blocked/resume=planned/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/blocked/resume=planned/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=in_review/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=in_review/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=in_review/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=in_review/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=in_review/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=in_review/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=planned/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=planned/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=planned/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=planned/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/created/resume=planned/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/created/resume=planned/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=in_review/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=in_review/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=in_review/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=in_review/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=in_review/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=in_review/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=planned/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=planned/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=planned/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=planned/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/failed/resume=planned/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/failed/resume=planned/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=in_review/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=in_review/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=in_review/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=in_review/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=in_review/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=in_review/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=planned/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=planned/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=planned/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=planned/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=planned/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_progress/resume=planned/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=in_review/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=in_review/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=in_review/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=in_review/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=in_review/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=in_review/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=planned/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=planned/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=planned/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=planned/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/in_review/resume=planned/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/in_review/resume=planned/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=in_review/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=in_review/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=in_review/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=in_review/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=in_review/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=in_review/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=planned/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=planned/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=planned/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=planned/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=planned/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/interrupted/resume=planned/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/nil_task/noreview=false": [
+      "planner"
+    ],
+    "b-req/nil_task/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=in_review/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=in_review/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=in_review/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=in_review/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=in_review/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=in_review/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=planned/plan=nil/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=planned/plan=nil/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=planned/plan=noplan/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=planned/plan=noplan/noreview=true": [
+      "planner"
+    ],
+    "b-req/planned/resume=planned/plan=plan/noreview=false": [
+      "planner"
+    ],
+    "b-req/planned/resume=planned/plan=plan/noreview=true": [
+      "planner"
+    ],
+    "b-review/blocked/resume=/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=in_review/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=in_review/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=in_review/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=in_review/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=in_review/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=in_review/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=planned/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=planned/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=planned/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=planned/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=planned/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/blocked/resume=planned/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=in_review/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=in_review/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=in_review/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=in_review/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=in_review/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=in_review/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=planned/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=planned/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=planned/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=planned/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/created/resume=planned/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/created/resume=planned/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=in_review/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=in_review/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=in_review/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=in_review/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=in_review/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=in_review/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=planned/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=planned/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=planned/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=planned/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=planned/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/failed/resume=planned/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=in_review/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=in_review/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=in_review/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=in_review/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=in_review/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=in_review/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=planned/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=planned/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=planned/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=planned/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=planned/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_progress/resume=planned/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=in_review/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=in_review/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=in_review/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=in_review/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=in_review/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=in_review/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=planned/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=planned/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=planned/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=planned/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=planned/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/in_review/resume=planned/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=in_review/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=in_review/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=in_review/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=in_review/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=in_review/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=in_review/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=planned/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=planned/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=planned/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=planned/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=planned/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/interrupted/resume=planned/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/nil_task/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/nil_task/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=in_review/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=in_review/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=in_review/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=in_review/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=in_review/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=in_review/plan=plan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=planned/plan=nil/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=planned/plan=nil/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=planned/plan=noplan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=planned/plan=noplan/noreview=true": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=planned/plan=plan/noreview=false": [
+      "reviewer"
+    ],
+    "b-review/planned/resume=planned/plan=plan/noreview=true": [
+      "reviewer"
+    ]
+  },
+  "workflow_roles": {
+    "": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-do": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ],
+    "b-feat": [
+      "implementer"
+    ],
+    "b-req": [
+      "planner"
+    ],
+    "b-review": [
+      "reviewer"
+    ],
+    "bogus": [
+      "implementer",
+      "planner",
+      "reviewer"
+    ]
+  }
+}

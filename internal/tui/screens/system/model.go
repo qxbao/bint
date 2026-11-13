@@ -598,6 +598,49 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 			return m.reload(TabSkills)
 		}
 		return tea.Batch(m.request("system.open_file", actions.OpenFileOptions{Path: v.Abs}), m.reload(TabSkills))
+	case "system.skill_new":
+		m.finishForm(msg.ID)
+		if msg.Err != nil {
+			m.fail(msg.Err)
+			return nil
+		}
+		v, _ := msg.Value.(app.SkillNewResult)
+		key := "sy.skill.new.created"
+		if v.Existed {
+			key = "sy.skill.new.exists"
+		}
+		m.setToast(m.t(key, i18n.A{"path": v.Path}), false)
+		if v.Abs == "" {
+			return m.reload(TabSkills)
+		}
+		return tea.Batch(m.request("system.open_file", actions.OpenFileOptions{Path: v.Abs}), m.reload(TabSkills))
+	case "system.skill_lint":
+		if msg.Err != nil {
+			m.fail(msg.Err)
+			return nil
+		}
+		m.showOut(m.t("sy.skill.lint.title"), m.lintLines(msg.Value))
+	case "system.flow_list":
+		if msg.Err != nil {
+			m.fail(msg.Err)
+			return nil
+		}
+		m.showOut(m.t("sy.flow.list.title"), m.flowListLines(msg.Value))
+	case "system.flow_show":
+		m.finishForm(msg.ID)
+		if msg.Err != nil {
+			m.fail(msg.Err)
+			return nil
+		}
+		v, _ := msg.Value.(app.FlowShowResult)
+		m.showOut(m.t("sy.flow.show.title", i18n.A{"name": v.Name}), m.flowShowLines(v))
+	case "system.flow_lint":
+		m.finishForm(msg.ID)
+		if msg.Err != nil {
+			m.fail(msg.Err)
+			return nil
+		}
+		m.showOut(m.t("sy.flow.lint.title"), m.flowLintLines(msg.Value))
 	case "system.skill_diff":
 		m.finishForm(msg.ID)
 		if msg.Err != nil {
@@ -1036,6 +1079,10 @@ func (m *Model) skillKey(s string) (tea.Cmd, bool) {
 		return m.cmdSkillShow(), true
 	case "o":
 		return m.cmdSkillOverlay(), true
+	case "n":
+		return m.cmdSkillNew(), true
+	case "l":
+		return m.cmdSkillLint(), true
 	case "d":
 		return m.cmdSkillForm("system.skill_diff", "skill diff"), true
 	case "v":
@@ -1080,6 +1127,7 @@ func (m *Model) openForm(id, cli string, defaults any) {
 	f.SetSuggestions("skills", m.skillNames(""))
 	f.SetSuggestions("core_skills", m.skillNames("core"))
 	f.SetSuggestions("evolved_skills", m.skillNames("evolved"))
+	f.SetSuggestions("custom_skills", m.skillNames("custom"))
 	m.frm, m.frmID, m.frmBusy = &f, id, false
 }
 
@@ -1185,6 +1233,23 @@ func (m *Model) Command(id string) tea.Cmd {
 	case "system.skill_overlay":
 		m.tab = TabSkills
 		return tea.Batch(m.ensureTab(TabSkills), m.cmdSkillOverlay())
+	case "system.skill_new":
+		m.tab = TabSkills
+		return tea.Batch(m.ensureTab(TabSkills), m.cmdSkillNew())
+	case "system.skill_lint":
+		m.tab = TabSkills
+		return tea.Batch(m.ensureTab(TabSkills), m.cmdSkillLint())
+	case "system.flow_list":
+		m.tab = TabSkills
+		return tea.Batch(m.ensureTab(TabSkills), m.request("system.flow_list", app.FlowListDefaults(config.Default())))
+	case "system.flow_show":
+		m.tab = TabSkills
+		m.openForm("system.flow_show", "flow show", app.FlowShowDefaults(config.Default()))
+		return m.ensureTab(TabSkills)
+	case "system.flow_lint":
+		m.tab = TabSkills
+		m.openForm("system.flow_lint", "flow lint", app.FlowLintDefaults(config.Default()))
+		return m.ensureTab(TabSkills)
 	case "system.skill_diff":
 		m.tab = TabSkills
 		return tea.Batch(m.ensureTab(TabSkills), m.cmdSkillForm("system.skill_diff", "skill diff"))

@@ -13,7 +13,6 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/eval"
-	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
 	"bint/internal/skills"
 	"bint/internal/store"
@@ -87,7 +86,7 @@ func newSkillProposal(in ProposeInput, o Opportunity, action string, targets []*
 		}
 	}
 	byName := indexEvolved(all)
-	if err := validateSkillChanges(p, byName, in.K.Source()); err != nil {
+	if err := validateSkillChanges(p, byName, in.K.Source(), in.K.Root); err != nil {
 		return nil, err
 	}
 	p.Risk, p.RiskReasons = assessSkillRisk(p, byName)
@@ -210,16 +209,16 @@ func agentSkillProposal(ctx context.Context, in ProposeInput, o Opportunity, all
 		r := remaining
 		ca.MaxCostUSD = &r
 	}
-	before, _ := gitrepo.Run(ctx, in.K.Root, "status", "--porcelain", "--untracked-files=all")
 	timeout := in.Timeout
 	if timeout <= 0 {
 		timeout = 15 * time.Minute
 	}
-	res := in.Agent.Run(ctx, eval.AgentRequest{Dir: in.K.Root, Prompt: prompt, Timeout: timeout, ReadOnly: true,
-		LogPath: filepath.Join(logDir, ulid.New()+".log"), Env: []string{"BINT_AGENT=1"}})
-	after, _ := gitrepo.Run(ctx, in.K.Root, "status", "--porcelain", "--untracked-files=all")
-	if before != after {
-		return nil, nil, res.CostUSD, fmt.Errorf("agent evolver đã sửa cây làm việc (chỉ được đọc); bỏ kết quả — kiểm tra `git status`")
+	var res eval.AgentResult
+	if err := guardReadOnly(ctx, in.K.Root, func() {
+		res = in.Agent.Run(ctx, eval.AgentRequest{Dir: in.K.Root, Prompt: prompt, Timeout: timeout, ReadOnly: true,
+			LogPath: filepath.Join(logDir, ulid.New()+".log"), Env: []string{"BINT_AGENT=1"}})
+	}); err != nil {
+		return nil, nil, res.CostUSD, err
 	}
 	cands, ok := parseSkillCandidates(res.Text)
 	if !ok {

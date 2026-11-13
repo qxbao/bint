@@ -15,12 +15,18 @@ func newSkillCmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "skill",
 		Short: "Skill gốc và lớp phủ theo dự án",
-		Long: `Skill gốc (b-bootstrap, b-knowledge, b-req, b-feat, b-review, b-do) đi kèm tệp thực thi Bint và không
+		Long: `Skill gốc (b-bootstrap, b-knowledge, b-req, b-feat, b-review, b-do, b-add-skill, b-add-flow) đi kèm tệp thực thi Bint và không
 được sửa trực tiếp trong repository (mục 6.6). Tuỳ biến theo dự án đặt trong lớp phủ
 .bint/skills/overlays/<skill>.md, chỉ tại các điểm neo skill gốc khai báo. ` + "`bint sync`" + `
 ghép skill gốc với lớp phủ và xuất bản cho harness; core.lock ghi phiên bản đang dùng.
 
 Khi nâng cấp Bint, lớp phủ được áp lại; điểm neo không còn → xung đột, bản cũ được giữ.
+
+Skill tuỳ biến của dự án do người dùng (hoặc agent theo /b-add-skill) viết trong .bint/skills/<tên>/SKILL.md, kèm tệp
+phụ (tài liệu tham chiếu, script; thư mục tests/ không xuất bản). ` + "`bint sync`" + ` xuất bản chúng cho mọi harness
+như skill gốc:
+  bint skill new <tên>       tạo SKILL.md mẫu (không ghi đè)
+  bint skill lint [tên]      kiểm hình thức; skill lỗi lint không được xuất bản
 
 Skill chuyên biệt do tiến hoá tạo (L2, ` + "`bint evolve`" + `) nằm trong .bint/skills/evolved/<tên>/ và được
 xuất bản cùng skill gốc. Mỗi phiên bản gắn với mô hình đã kiểm chứng nó:
@@ -29,8 +35,8 @@ xuất bản cùng skill gốc. Mỗi phiên bản gắn với mô hình đã ki
   bint skill check <tên|đề xuất>  kiểm tra điều kiện kích hoạt
   bint skill regress         skill nào chưa xác thực với mô hình hiện dùng`,
 	}
-	c.AddCommand(newSkillListCmd(stdio), newSkillShowCmd(stdio), newSkillOverlayCmd(stdio), newSkillDiffCmd(stdio),
-		newSkillVersionsCmd(stdio), newSkillCheckCmd(stdio), newSkillRegressCmd(stdio))
+	c.AddCommand(newSkillListCmd(stdio), newSkillShowCmd(stdio), newSkillOverlayCmd(stdio), newSkillNewCmd(stdio),
+		newSkillLintCmd(stdio), newSkillDiffCmd(stdio), newSkillVersionsCmd(stdio), newSkillCheckCmd(stdio), newSkillRegressCmd(stdio))
 	return c
 }
 
@@ -38,7 +44,7 @@ func newSkillListCmd(stdio IO) *cobra.Command {
 	var asJSON bool
 	c := &cobra.Command{
 		Use:   "list",
-		Short: "Liệt kê skill gốc: điểm neo, lớp phủ, trạng thái xuất bản",
+		Short: "Liệt kê skill gốc, tiến hoá và tuỳ biến: điểm neo, lớp phủ, trạng thái xuất bản",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			k, err := openKnowledge(cmd)
@@ -144,19 +150,107 @@ func newSkillOverlayCmd(stdio IO) *cobra.Command {
 	}
 }
 
+func newSkillNewCmd(stdio IO) *cobra.Command {
+	return &cobra.Command{
+		Use:   "new <tên>",
+		Short: "Tạo skill tuỳ biến mẫu trong .bint/skills/<tên>/ (không ghi đè)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir, err := cwd()
+			if err != nil {
+				return err
+			}
+			res, err := app.NewSkill(cmd.Context(), dir, app.SkillNewOptions{Name: args[0]})
+			if err != nil {
+				return err
+			}
+			if res.Existed {
+				fmt.Fprintf(stdio.Out, "Đã có %s (không ghi đè). Sửa rồi chạy `bint skill lint %s` và `bint sync`.\n", res.Path, args[0])
+				return nil
+			}
+			fmt.Fprintf(stdio.Out, "Đã tạo %s. Viết skill, rồi chạy `bint skill lint %s` và `bint sync`.\n", res.Path, args[0])
+			return nil
+		},
+	}
+}
+
+func newSkillLintCmd(stdio IO) *cobra.Command {
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "lint [tên]",
+		Short: "Kiểm hình thức skill tuỳ biến (không tên: mọi skill tuỳ biến); thoát 1 khi có lỗi",
+		Long: `Kiểm skill tuỳ biến trong .bint/skills/<tên>/: tên hợp lệ (không tiền tố b-, không trùng skill gốc hay
+tiến hoá), name khớp tên thư mục, description không rỗng và tối đa 1024 ký tự, frontmatter chỉ có name, description,
+disable-model-invocation, argument-hint, thân không rỗng và tối đa 500 dòng, liên kết tới tệp phụ phải tồn tại, tệp phụ
+là tệp thường trong trần kích thước. Description không mở đầu "Dùng khi" chỉ bị cảnh báo. Skill có lỗi không được
+` + "`bint sync`" + ` xuất bản.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir, err := cwd()
+			if err != nil {
+				return err
+			}
+			o := app.SkillLintOptions{}
+			if len(args) == 1 {
+				o.Name = args[0]
+			}
+			res, err := app.LintSkills(cmd.Context(), dir, o)
+			if err != nil {
+				return err
+			}
+			bad := 0
+			for _, r := range res {
+				if !r.OK() {
+					bad++
+				}
+			}
+			if asJSON {
+				if err := writeJSON(stdio.Out, res); err != nil {
+					return err
+				}
+			} else {
+				if len(res) == 0 {
+					fmt.Fprintln(stdio.Out, "Chưa có skill tuỳ biến nào (tạo bằng `bint skill new <tên>`).")
+				}
+				for _, r := range res {
+					mark := "✓"
+					if !r.OK() {
+						mark = "✗"
+					}
+					fmt.Fprintf(stdio.Out, "%s %s\n", mark, r.Path)
+					for _, e := range r.Errors {
+						fmt.Fprintf(stdio.Out, "    lỗi: %s\n", e)
+					}
+					for _, w := range r.Warnings {
+						fmt.Fprintf(stdio.Out, "    cảnh báo: %s\n", w)
+					}
+				}
+			}
+			if bad > 0 {
+				return withCode(ExitError, fmt.Errorf("%d skill tuỳ biến có lỗi", bad))
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}
+
 func newSyncCmd(stdio IO) *cobra.Command {
 	var force bool
 	c := &cobra.Command{
 		Use:   "sync",
-		Short: "Ghép skill gốc với lớp phủ và xuất bản cho harness; cập nhật core.lock",
-		Long: `Ghép skill gốc với lớp phủ (.bint/skills/overlays/) và xuất bản cho các harness có
-adapter: Claude Code → .claude/skills/, Codex và Antigravity → .agents/skills/ (frontmatter
+		Short: "Ghép skill gốc với lớp phủ, xuất bản skill cho harness; cập nhật core.lock",
+		Long: `Ghép skill gốc với lớp phủ (.bint/skills/overlays/), thêm skill tuỳ biến (.bint/skills/<tên>/,
+kèm tệp phụ) và skill tiến hoá, rồi xuất bản cho các harness có adapter: Claude Code → .claude/skills/, Codex và Antigravity → .agents/skills/ (frontmatter
 chỉ giữ name, description). Chạy sau khi sửa lớp phủ hoặc nâng cấp Bint.
 
   - Skill đã xuất bản bị sửa tay → xung đột, không ghi đè (--force để ghi đè, có sao lưu);
     tuỳ biến thuộc về lớp phủ.
   - Lớp phủ dùng điểm neo không còn trong skill gốc mới → xung đột, giữ bản cũ và mục
-    core.lock cũ cho tới khi lớp phủ được sửa (--force không vượt qua được).`,
+    core.lock cũ cho tới khi lớp phủ được sửa (--force không vượt qua được).
+  - Skill tuỳ biến không qua ` + "`bint skill lint`" + ` → xung đột, không xuất bản bản mới, giữ bản đã xuất
+    bản. Tệp phụ hay cả skill bị xoá khỏi nguồn thì bản đã xuất bản được gỡ (nếu chưa bị sửa tay).`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dir, err := cwd()

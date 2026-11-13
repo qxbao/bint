@@ -1,8 +1,9 @@
 # Biên bản nghiệm thu và thực nghiệm
 
 Mục lục các đợt đo trên harness thật và các biên bản nghiệm thu theo commit. Mỗi báo cáo phản ánh
-đúng phiên bản mã nguồn và cấu hình tại thời điểm chạy; tổng hợp hiện trạng tại `HEAD` xem ở
-[docs/status.md](../status.md).
+đúng phiên bản mã nguồn và cấu hình tại thời điểm chạy. Trạng thái nghiệm thu hiện tại, tiêu chí còn mở và
+kế hoạch các vòng nghiệm thu xem ở [docs/acceptance.md](../acceptance.md); trạng thái triển khai ở
+[docs/status.md](../status.md). Biên bản của vòng nghiệm thu mới lưu ở `docs/evals/<tên-vòng>-<ngày>/`.
 
 ## Các đợt chạy harness thật
 
@@ -13,6 +14,7 @@ Mục lục các đợt đo trên harness thật và các biên bản nghiệm t
 | [Kiểm chứng các flow Codex — 2026-11-10](codex-flows-2026-11-10/README.md) | 15 phiên chạy thật kiểm tra nhóm luồng F1–F7 (`b-do`, bảo vệ đường dẫn, duyệt và đánh giá `strict`) |
 | [Nghiệm thu tiếp các flow Codex — 2026-11-11](codex-flows-2026-11-11/README.md) | Thêm 15 phiên chạy thật hoàn tất kiểm chứng 5 skill, fail-open hook, hậu kiểm bước chỉ đọc, timeout và Ctrl-C/`resume` |
 | [Nghiệm thu flow hỗn hợp Claude ↔ Codex — 2026-11-11](claude-codex-mixed-2026-11-11/README.md) | Chạy thật cả hai hướng phân vai Claude ↔ Codex và chuỗi chặn đường dẫn bảo vệ → `task approve` → chạy tiếp (5 bản sửa đã hợp nhất vào `main`) |
+| [Nghiệm thu Codex và adapter evolution — 2026-11-12](codex-flow-acceptance-2026-11-12/README.md) | Ma trận flow Codex có hồi quy snapshot/deny, interrupt/resume trên fixture live, adapter reflector/proposer không công cụ chạy model thật |
 
 ## Biên bản nghiệm thu theo commit
 
@@ -25,5 +27,5 @@ Mục lục các đợt đo trên harness thật và các biên bản nghiệm t
 | [Nghiệm thu P6 (`dff6570`)](../bint-acceptance-p6-dff6570.md) | Kiểm tra tiến hoá tri thức L1 kèm [artifact tái hiện](acceptance-p6-dff6570/), ghi nhận `P6-01..P6-05` |
 
 Các thư mục `evidence/`, tệp log và ảnh chụp tác vụ đi kèm báo cáo là dữ liệu đối chứng lịch sử
-(đã ẩn thông tin nhạy cảm), giữ nguyên để phục vụ kiểm toán và tái hiện. Giao thức nghiệm thu
-chính thức cho cổng 1 và cổng 2 xem tại [docs/gate-1.md](../gate-1.md) và [docs/gate-2.md](../gate-2.md).
+(đã ẩn thông tin nhạy cảm), giữ nguyên để phục vụ kiểm toán và tái hiện. Giao thức đã chốt
+của cổng 1 và cổng 2 xem tại [docs/gate-1.md](../gate-1.md) và [docs/gate-2.md](../gate-2.md).

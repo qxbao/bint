@@ -1,5 +1,9 @@
 # Kế hoạch TUI cho Bint
 
+> **Nghiệm thu:** golden và test phủ lệnh đạt cho giai đoạn 0–6. Phần cần người và máy thật (thử với người
+> dùng, terminal thật, ảnh VHS, Windows) được theo dõi ở [acceptance.md](acceptance.md): mã `NT-TUI-*`
+> (vòng V1) và `NT-WIN-TUI` (vòng V2).
+
 Trạng thái: **giai đoạn 0, 1, 2, 3, 4, 5 và 6 đã triển khai** (giai đoạn 5 gồm hai phiếu: **5a** — tab Hệ thống — ngày 2026-11-12 và
 **5b** — trình hướng dẫn `init`, Hệ thống › Cài đặt repo, nâng cấu hình, cập nhật Bint + khởi động lại — ngày 2026-11-12; giai đoạn 6 gồm hai phiếu: **6a** — chuột, chế độ hẹp, chân phím, đọc đủ thông báo bị cắt — và
 **6b** — thông điệp theo phím TUI, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README, chốt giai đoạn — cùng ngày 2026-11-12); còn lại là thử với người dùng thật và ảnh VHS (mục 12.10). Sau đó thêm **màn MCP** (tab thứ tám, mục 5.8; giai đoạn M4 của `docs/mcp-gateway-plan.md`, 2026-11-13): thẻ MCP của Hệ thống chuyển sang màn này.

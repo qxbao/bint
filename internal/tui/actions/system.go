@@ -265,6 +265,16 @@ func systemActions() []Action {
 				v, err := app.CreateOverlay(ctx, env.Dir, opts.(app.SkillOverlayOptions))
 				return res("system.skill_overlay", opts, v, err)
 			}),
+		mk("system.skill_new", "skill_new", "n", 8, "skill new", app.SkillNewOptions{}, true, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.NewSkill(ctx, env.Dir, opts.(app.SkillNewOptions))
+				return res("system.skill_new", opts, v, err)
+			}),
+		mk("system.skill_lint", "skill_lint", "l", 9, "skill lint", app.SkillLintOptions{}, false, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.LintSkills(ctx, env.Dir, opts.(app.SkillLintOptions))
+				return res("system.skill_lint", opts, v, err)
+			}),
 		mk("system.skill_diff", "skill_diff", "d", 4, "skill diff", app.SkillDiffOptions{}, false, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				v, err := app.DiffSkill(ctx, env.Dir, opts.(app.SkillDiffOptions))
@@ -283,6 +293,22 @@ func systemActions() []Action {
 			withEvolve("system.skill_regress", func(ctx context.Context, e *evolvesvc.Workspace, o any) (any, error) {
 				return evolvesvc.SkillRegress(ctx, e, o.(evolvesvc.SkillRegressOptions))
 			})),
+		// Flow (GĐ2 của custom-flow-plan): chỉ đọc, không gán phím nên chỉ gọi từ bảng lệnh (kết quả ở khung đầu ra).
+		mk("system.flow_list", "flow_list", "", 0, "flow list", app.FlowListOptions{}, false, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.ListFlows(ctx, env.Dir, opts.(app.FlowListOptions))
+				return res("system.flow_list", opts, v, err)
+			}),
+		mk("system.flow_show", "flow_show", "", 0, "flow show", app.FlowShowOptions{}, false, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.ShowFlow(ctx, env.Dir, opts.(app.FlowShowOptions))
+				return res("system.flow_show", opts, v, err)
+			}),
+		mk("system.flow_lint", "flow_lint", "", 0, "flow lint", app.FlowLintOptions{}, false, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.LintFlows(ctx, env.Dir, opts.(app.FlowLintOptions))
+				return res("system.flow_lint", opts, v, err)
+			}),
 		mk("system.open_file", "open_file", "", 0, "", OpenFileOptions{}, true, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				o := opts.(OpenFileOptions)

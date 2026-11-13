@@ -88,6 +88,7 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	}
 	add("")
 	add(m.kv(env, "workflow", st.Workflow, w)...)
+	add(m.kv(env, "flow_step", st.FlowStep, w)...)
 	if st.Base != "" {
 		base := shortSHA(st.Base)
 		if st.Branch != "" {

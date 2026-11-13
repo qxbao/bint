@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -93,6 +94,11 @@ type Lock struct {
 	// Agents: định nghĩa subagent của driver session đã được xuất bản (.claude/agents, G3b mục 6.4); khoá phiên bản như
 	// skill gốc: tệp bị sửa ngoài Bint thì sync báo xung đột thay vì ghi đè.
 	Agents map[string]LockEntry `yaml:"agents,omitempty"`
+	// Custom: skill tuỳ biến của dự án (.bint/skills/<tên>/) đã được xuất bản (GĐ1 custom-flow-plan).
+	Custom map[string]LockEntry `yaml:"custom,omitempty"`
+	// Flows: skill điều phối của flow tuỳ biến (.bint/flows/<tên>.yml) đã được xuất bản (GĐ5 custom-flow-plan); SHA256 là
+	// băm bản định dạng Claude, Variants["agents"] là băm bản .agents/skills. Rỗng ở core.lock cũ.
+	Flows map[string]LockEntry `yaml:"flows,omitempty"`
 }
 
 // AgentFile là một định nghĩa subagent do Bint sinh (nội dung phụ thuộc cấu hình: model, maxTurns, công cụ).
@@ -115,6 +121,9 @@ type LockEntry struct {
 	// Variants: băm nội dung đã xuất bản theo từng định dạng khác định dạng gốc
 	// (ví dụ "agents" cho .agents/skills) — để máy khác trong nhóm nhận ra tệp chưa bị sửa.
 	Variants map[string]string `yaml:"variants,omitempty"`
+	// Files: băm (SKILL.md theo định dạng của target, và từng tệp phụ) theo từng đường dẫn đã xuất bản — skill tuỳ biến
+	// có nhiều tệp nên cần băm riêng từng tệp để nhận ra tệp nào bị sửa tay. Rỗng ở skill gốc/tiến hoá và core.lock cũ.
+	Files map[string]string `yaml:"files,omitempty"`
 }
 
 // PublishedHash trả về băm nội dung đã xuất bản.
@@ -142,7 +151,8 @@ func ReadLock(root string) (Lock, error) {
 func writeLock(root string, l Lock) (bool, error) {
 	var b strings.Builder
 	b.WriteString("# Do Bint quản lý: phiên bản skill gốc đang dùng (mục 6.6). Không sửa tay;\n")
-	b.WriteString("# tuỳ biến theo dự án đặt trong .bint/skills/overlays/ rồi chạy `bint sync`.\n")
+	b.WriteString("# tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (lớp phủ) hoặc .bint/skills/<tên>/ (skill tuỳ biến)\n")
+	b.WriteString("# rồi chạy `bint sync`.\n")
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
@@ -306,6 +316,16 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 	if err != nil {
 		return outs, err
 	}
+	co, err := installCustom(opts, &lock)
+	outs = append(outs, co...)
+	if err != nil {
+		return outs, err
+	}
+	fo, err := installFlows(opts, &lock)
+	outs = append(outs, fo...)
+	if err != nil {
+		return outs, err
+	}
 	ao, err := installAgents(opts, &lock)
 	outs = append(outs, ao...)
 	if err != nil {
@@ -321,14 +341,21 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 // băm Bint ghi lần trước trên máy này (manifest) hoặc trùng phiên bản trong
 // core.lock đã commit (máy khác trong nhóm đã xuất bản).
 func publish(opts InstallOptions, s Skill, rel, lockSHA string) (Outcome, error) {
-	o := Outcome{Skill: s.Name, Path: rel}
+	return publishFile(opts, s.Name, rel, s.Content, 0o644, lockSHA,
+		"skill đã bị sửa ngoài Bint (tuỳ biến đặt trong "+OverlayPath(s.Name)+", xem `bint skill overlay`); --force để ghi đè (bản cũ được sao lưu)")
+}
+
+// publishFile là lõi của publish cho một tệp bất kỳ: lockSHA là băm (Skill.Hash, 16 ký tự) bản đã xuất bản ghi
+// trong core.lock, conflict là Detail khi tệp bị sửa ngoài Bint.
+func publishFile(opts InstallOptions, name, rel string, content []byte, perm os.FileMode, lockSHA, conflict string) (Outcome, error) {
+	o := Outcome{Skill: name, Path: rel}
 	full := filepath.Join(opts.Root, filepath.FromSlash(rel))
 	key := rel + "#skill"
-	want := fsafe.Hash(string(s.Content))
+	want := fsafe.Hash(string(content))
 	have, err := os.ReadFile(full)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		if err := fsafe.WriteAtomic(full, s.Content, 0o644); err != nil {
+		if err := fsafe.WriteAtomic(full, content, perm); err != nil {
 			return o, err
 		}
 		opts.Manifest.Set(key, want)
@@ -341,20 +368,29 @@ func publish(opts InstallOptions, s Skill, rel, lockSHA string) (Outcome, error)
 	if cur == want {
 		opts.Manifest.Set(key, want)
 		o.Result = fsafe.Unchanged
+		// Nội dung không đổi nhưng nguồn đổi bit thực thi (chmod +x script phụ): đồng bộ bit đó (Windows không có).
+		if runtime.GOOS != "windows" {
+			if fi, err := os.Stat(full); err == nil && (fi.Mode().Perm()^perm)&0o111 != 0 {
+				if err := os.Chmod(full, fi.Mode().Perm()&^0o111|perm&0o111); err != nil {
+					return o, err
+				}
+				o.Result, o.Detail = fsafe.Updated, "đổi quyền thực thi theo nguồn"
+			}
+		}
 		return o, nil
 	}
 	prev, known := opts.Manifest.Get(key)
 	pristine := (known && prev == cur) || (lockSHA != "" && lockSHA == Skill{Content: have}.Hash())
 	if !opts.Force && !pristine {
 		o.Result = fsafe.Conflict
-		o.Detail = "skill đã bị sửa ngoài Bint (tuỳ biến đặt trong " + OverlayPath(s.Name) + ", xem `bint skill overlay`); --force để ghi đè (bản cũ được sao lưu)"
+		o.Detail = conflict
 		return o, nil
 	}
 	bp, err := fsafe.Backup(full, opts.BackupDir, rel, opts.Now)
 	if err != nil {
 		return o, err
 	}
-	if err := fsafe.WriteAtomic(full, s.Content, 0o644); err != nil {
+	if err := fsafe.WriteAtomic(full, content, perm); err != nil {
 		return o, err
 	}
 	opts.Manifest.Set(key, want)

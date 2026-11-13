@@ -1,7 +1,22 @@
 # Do Bint quản lý: phiên bản skill gốc đang dùng (mục 6.6). Không sửa tay;
-# tuỳ biến theo dự án đặt trong .bint/skills/overlays/ rồi chạy `bint sync`.
+# tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (lớp phủ) hoặc .bint/skills/<tên>/ (skill tuỳ biến)
+# rồi chạy `bint sync`.
 bint_version: 0.1.0-dev
 skills:
+  b-add-flow:
+    sha256: 4571ee55e3ae6227
+    published:
+      - .agents/skills/b-add-flow/SKILL.md
+      - .claude/skills/b-add-flow/SKILL.md
+    variants:
+      agents: e07017aca8cc7230
+  b-add-skill:
+    sha256: 8f2b4becb0148b0a
+    published:
+      - .agents/skills/b-add-skill/SKILL.md
+      - .claude/skills/b-add-skill/SKILL.md
+    variants:
+      agents: cf3828d98bfb8633
   b-bootstrap:
     sha256: 4ce0e1d98454a778
     published:

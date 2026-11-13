@@ -95,7 +95,7 @@ func (m *Model) split(env ui.Env, left, right func(w int) string) string {
 var hintAction = map[int]map[string]string{
 	TabConfig:     {"e": "system.config_edit", "U": "system.config_upgrade_plan"},
 	TabComponents: {"n": "system.component_add", "a": "system.component_approve", "d": "system.component_deprecate", "R": "system.render"},
-	TabSkills:     {"o": "system.skill_overlay", "d": "system.skill_diff", "v": "system.skill_versions", "c": "system.skill_check", "g": "system.skill_regress", "s": "system.sync_plan"},
+	TabSkills:     {"o": "system.skill_overlay", "n": "system.skill_new", "l": "system.skill_lint", "d": "system.skill_diff", "v": "system.skill_versions", "c": "system.skill_check", "g": "system.skill_regress", "s": "system.sync_plan"},
 	TabIndex:      {"b": "system.index_rebuild"},
 	TabLanguage:   {"Enter": "system.language_save"},
 	TabSetup:      {"e": "system.repo_plan", "U": "system.config_upgrade_plan"},
@@ -598,8 +598,14 @@ func (m *Model) skillsList(env ui.Env, w, h int) string {
 	if m.coreView {
 		top = th.S(theme.Key, m.t("sy.skill.coremode"))
 	}
-	hints := m.hintsLine([2]string{"Enter", m.t("sy.hint.content")}, [2]string{"s", m.t("sy.hint.sync")}, [2]string{"o", m.t("sy.hint.overlay")},
-		[2]string{"d", m.t("sy.hint.diff")}, [2]string{"c", m.t("sy.hint.check")})
+	// Thứ tự = ưu tiên khi chật (footer.FitStyle bỏ phím cuối trước): n/c đứng trước d; l chỉ hiện khi con trỏ ở skill
+	// tuỳ biến (lint nhắm vào nó) và là phím bị bỏ đầu tiên.
+	pairs := [][2]string{{"Enter", m.t("sy.hint.content")}, {"s", m.t("sy.hint.sync")}, {"o", m.t("sy.hint.overlay")},
+		{"n", m.t("sy.hint.new")}, {"c", m.t("sy.hint.check")}, {"d", m.t("sy.hint.diff")}}
+	if r := m.cursorSkill(); r != nil && r.Kind == "custom" {
+		pairs = append(pairs, [2]string{"l", m.t("sy.hint.lint")})
+	}
+	hints := m.hintsLine(pairs...)
 	return m.listBox(env, w, h, title, top, hints, body)
 }
 
@@ -650,6 +656,16 @@ func (m *Model) skillsDetail(env ui.Env, w, h int) string {
 				}
 				kv("lock", locked)
 				kv("overlay", r.Overlay)
+			} else if r.Kind == "custom" {
+				locked := "-"
+				if r.Locked != "" {
+					locked = r.Locked
+					if r.Locked != r.Version {
+						locked += " " + m.t("sy.skill.lock.old")
+					}
+				}
+				kv("lock", locked)
+				kv("files", fmt.Sprint(r.Files))
 			} else {
 				st := r.Status
 				if r.Stale != "" {

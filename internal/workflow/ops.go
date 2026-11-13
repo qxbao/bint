@@ -18,6 +18,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/ctxengine"
 	"bint/internal/eval"
+	"bint/internal/flow"
 	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
 	"bint/internal/spool"
@@ -126,13 +127,17 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 		return nil, task.Assessment{}, err
 	}
 	if o.Workflow == "" {
-		o.Workflow = "b-do"
+		o.Workflow = "b-do" // workflow mặc định khi không chỉ định (lập phiếu cho flow nhúng b-do)
 	}
 	depth, err := task.NormalizeDepth(o.Depth)
 	if err != nil {
 		return nil, task.Assessment{}, err
 	}
-	planning := o.Workflow == "b-do" || o.Workflow == "b-req"
+	fd, err := e.resolveFlow(o.Workflow)
+	if err != nil {
+		return nil, task.Assessment{}, err
+	}
+	planning := fd.HasKind(flow.KindPlan)
 	if depth != "" {
 		if !planning {
 			return nil, task.Assessment{}, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
@@ -144,6 +149,13 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	cls := task.Classify(o.Request, t.References...)
 	if o.Plan != nil {
 		cls = task.Classification{Plan: *o.Plan, Reason: e.chooser() + " chỉ định"}
+	}
+	if !fd.IsBuiltin() && planning && !fd.PlanOptional() {
+		// Bước plan của flow tuỳ biến không khai báo optional: luôn chạy, phân loại không bỏ được nó.
+		if o.Plan != nil && !*o.Plan {
+			return nil, task.Assessment{}, fmt.Errorf("flow %s có bước plan bắt buộc: không đi cùng --no-plan", fd.Name)
+		}
+		cls = task.Classification{Plan: true, Reason: "flow " + fd.Name + " có bước plan bắt buộc"}
 	}
 	// Độ sâu là quyết định riêng với rủi ro quyền ghi: chỉ dùng Assess để biết có chạm đường dẫn bảo vệ.
 	// Chưa có Task nên gọi thẳng task.Assess trên phiếu.
@@ -176,8 +188,11 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	cls.Driver, cls.DriverReason = drv.Mode, drv.Reason
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
-	if o.Workflow == "b-req" || (o.Workflow == "b-do" && cls.Plan) {
+	if planning && (!fd.PlanOptional() || cls.Plan) {
 		st.PlanningContractVersion = task.PlanningContractV1
+	}
+	if !fd.IsBuiltin() {
+		st.FlowSHA = flow.Hash(fd) // flow đổi giữa chừng thì tác vụ bị chặn (flowGate)
 	}
 	if e.RunID != "" {
 		st.LinkRun(e.RunID)

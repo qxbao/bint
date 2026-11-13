@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bint/internal/config"
+	"bint/internal/flow"
 	"bint/internal/harness"
 	"bint/internal/runlog"
 	"bint/internal/task"
@@ -106,7 +107,8 @@ func checkDepth(value string, noPlan bool, wf string) (string, error) {
 	if noPlan {
 		return "", Usagef("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")
 	}
-	if wf != workflow.StepDo && wf != workflow.StepReq {
+	// Flow tuỳ biến có bước plan hay không do NewTask/applyOverrides kiểm (cần đọc flow từ gốc repository).
+	if flow.IsBuiltin(wf) && wf != workflow.StepDo && wf != workflow.StepReq {
 		return "", Usagef("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", wf)
 	}
 	return d, nil

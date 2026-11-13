@@ -1,6 +1,10 @@
 # Cổng quyết định 1 — Bootstrap tối giản
 
 **Trạng thái: ĐÃ CHỐT (2026-11-10) — đã chạy pilot Codex và đợt đo Claude Code; chưa đủ điều kiện nghiệm thu chính thức.**
+
+> Tài liệu này là **phụ lục giao thức đã chốt** (ngưỡng, điều kiện, quy trình). Trạng thái hiện tại và kế hoạch
+> chạy cổng nằm ở [acceptance.md](acceptance.md) (mã `NT-GATE-1`, vòng V6).
+
 Theo mục 16 và 19 của kế hoạch, ngưỡng dưới đây được chốt và commit trước khi chạy
 đo (SHA ở mục "Chốt" cuối tài liệu). Không điều chỉnh ngưỡng, điều kiện hay quy trình
 sau khi đã thấy kết quả; mọi thay đổi phải là một lần chốt mới, ghi rõ lý do, và chỉ

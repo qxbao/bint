@@ -3,19 +3,9 @@ package workflow
 import (
 	"bint/internal/config"
 	"bint/internal/eval"
+	"bint/internal/flow"
 	adapters "bint/internal/harness"
 )
-
-// readonlySteps không được sửa tệp (b-req, b-review).
-var readonlySteps = map[string]bool{StepReq: true, StepReview: true}
-
-// IsReadOnly cho biết bước có phải bước chỉ đọc.
-func IsReadOnly(step string) bool { return readonlySteps[step] }
-
-// AgentArgs dựng cấu hình gọi Claude Code cho một bước.
-func AgentArgs(cfg config.Config, step string, maxTurns *int) config.EvalAgent {
-	return adapters.ClaudeWorkflowArgs(cfg, readonlySteps[step], maxTurns)
-}
 
 // DefaultAgents trả về factory agent theo cấu hình (roles → harness).
 func DefaultAgents(cfg config.Config, command, model string) AgentFactory {
@@ -39,37 +29,41 @@ func HarnessAgents(cfg config.Config, command, model string, sel adapters.Select
 }
 
 // HarnessAgentsWithChoices uses the saved model for each role while still checking
-// the selected harness against the current enabled-harness policy.
+// the selected harness against the current enabled-harness policy. Chế độ chỉ đọc, role và role gốc lấy từ spec của bước
+// (flow đang chạy), không tra theo id bước.
 func HarnessAgentsWithChoices(cfg config.Config, command string, sel adapters.Selection, models map[string]string) AgentFactory {
-	return func(step string, maxCost *float64, maxTurns *int) (eval.Agent, error) {
+	return func(spec StepSpec, maxCost *float64, maxTurns *int) (eval.Agent, error) {
 		if command != "" {
 			return &eval.CommandAgent{Command: command}, nil
 		}
-		h, _, err := adapters.ForStep(cfg, sel, step)
+		h, _, err := adapters.ForRole(cfg, sel, spec.Role, spec.Base)
 		if err != nil {
 			return nil, err
 		}
-		role := adapters.StepRole(step)
-		model, snapshotted := models[role]
+		model, snapshotted := models[spec.Role]
 		modelSet := snapshotted
 		if !snapshotted {
-			model = adapters.RoleModel(cfg, h, role, "")
+			model = adapters.RoleModelFor(cfg, h, spec.Role, spec.Base, "")
 			modelSet = model != ""
 		}
-		return adapters.NewAgent(h, adapters.AgentOptions{Config: cfg, Step: step, ReadOnly: readonlySteps[step],
+		return adapters.NewAgent(h, adapters.AgentOptions{Config: cfg, Step: spec.ID, ReadOnly: spec.ReadOnly,
 			Model: model, ModelSet: modelSet, MaxCost: maxCost, MaxTurns: maxTurns})
 	}
 }
 
-// ReadOnlyRole cho biết role (harness.StepRole) là của một bước chỉ đọc (planner = b-req, reviewer = b-review): tool
-// MCP ghi vào cây làm việc không được cấp cho các role này dù mcp.grants có ghi.
+// ReadOnlyRole cho biết role là của một bước chỉ đọc (kind plan hoặc review của flow nhúng: planner, reviewer): tool MCP ghi
+// vào cây làm việc không được cấp cho các role này dù mcp.grants có ghi. Chỉ để `bint mcp grants` hiển thị: role tuỳ biến
+// của flow không có kind cố định nên luôn false ở đây; khi chạy thật, quyền ghi theo StepSpec.ReadOnly của bước (kind của
+// bước trong flow đang chạy), nên bước plan/review của flow tuỳ biến vẫn bị bỏ tool ghi.
 func ReadOnlyRole(role string) bool {
 	if role == "" {
 		return false
 	}
-	for step := range readonlySteps {
-		if adapters.StepRole(step) == role {
-			return true
+	for _, d := range flow.Builtin() {
+		for _, s := range d.Steps {
+			if readOnlyKind(s.Kind) && s.EffectiveRole() == role {
+				return true
+			}
 		}
 	}
 	return false

@@ -38,7 +38,7 @@ func runFeat(t *testing.T, ws *TaskWS, id string) *workflow.Result {
 	t.Helper()
 	o := RunWorkflowDefaults(ws.K.Config)
 	o.Workflow, o.Task = workflow.StepFeat, id
-	o.RunCallbacks = RunCallbacks{Agent: func(string, *float64, *int) (eval.Agent, error) { return dirAgent{}, nil }}
+	o.RunCallbacks = RunCallbacks{Agent: func(workflow.StepSpec, *float64, *int) (eval.Agent, error) { return dirAgent{}, nil }}
 	res, err := RunWorkflow(context.Background(), ws, o)
 	if err != nil {
 		t.Fatal(err)

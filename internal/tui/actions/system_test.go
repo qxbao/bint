@@ -19,7 +19,7 @@ func TestSystemActionsWritesFlags(t *testing.T) {
 	reg := actions.Default()
 	writes := map[string]bool{
 		"system.config_edit": true, "system.config_save": true, "system.language_save": true, "system.component_add": true,
-		"system.component_approve": true, "system.component_deprecate": true, "system.skill_overlay": true, "system.open_file": true,
+		"system.component_approve": true, "system.component_deprecate": true, "system.skill_overlay": true, "system.skill_new": true, "system.open_file": true,
 		"system.sync": true, "system.index_rebuild": true,
 		// Giai đoạn 5b: chạy lại init, nâng cấu hình và cập nhật Bint đều ghi.
 		"system.repo_apply": true, "system.config_upgrade": true, "system.update": true,
@@ -120,6 +120,39 @@ func TestSystemWriteActionsWithRealServices(t *testing.T) {
 	}
 	if r := do(t, "system.skill_overlay", env, app.SkillOverlayOptions{Name: "b-do"}); r.Err != nil || !r.Value.(app.OverlayResult).Existed {
 		t.Fatalf("skill_overlay lần hai: %+v", r)
+	}
+	// Skill tuỳ biến: tạo mẫu, lần hai không ghi đè, rồi kiểm (mẫu qua lint không lỗi; thiếu tên thì lỗi cách dùng).
+	if r := do(t, "system.skill_new", env, app.SkillNewOptions{Name: "demo-skill"}); r.Err != nil || r.Value.(app.SkillNewResult).Existed {
+		t.Fatalf("skill_new: %+v", r)
+	}
+	if r := do(t, "system.skill_new", env, app.SkillNewOptions{Name: "demo-skill"}); r.Err != nil || !r.Value.(app.SkillNewResult).Existed {
+		t.Fatalf("skill_new lần hai: %+v", r)
+	}
+	if r := do(t, "system.skill_lint", env, app.SkillLintOptions{}); r.Err != nil || len(r.Value.([]app.SkillLintResult)) != 1 || !r.Value.([]app.SkillLintResult)[0].OK() {
+		t.Fatalf("skill_lint: %+v", r)
+	}
+	if r := do(t, "system.skill_new", env, app.SkillNewOptions{Name: "b-bad"}); r.Err == nil {
+		t.Fatal("tên b- phải bị từ chối")
+	}
+	// Flow (chỉ đọc): list có bốn flow nhúng, show in YAML, lint một flow tuỳ biến hợp lệ thoát sạch và tên lạ lỗi cách dùng.
+	if err := os.MkdirAll(filepath.Join(env.Dir, ".bint", "flows"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	flowSrc := "schema: 1\nname: demo-flow\nsteps:\n  - {id: green, kind: implement, skill: demo-skill}\n"
+	if err := os.WriteFile(filepath.Join(env.Dir, ".bint", "flows", "demo-flow.yml"), []byte(flowSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := do(t, "system.flow_list", env, app.FlowListOptions{}); r.Err != nil || len(r.Value.([]app.FlowRow)) != 5 {
+		t.Fatalf("flow_list: %+v", r)
+	}
+	if r := do(t, "system.flow_show", env, app.FlowShowOptions{Name: "demo-flow"}); r.Err != nil || !strings.Contains(r.Value.(app.FlowShowResult).YAML, "role: implementer") {
+		t.Fatalf("flow_show: %+v", r)
+	}
+	if r := do(t, "system.flow_lint", env, app.FlowLintOptions{Name: "demo-flow"}); r.Err != nil || len(r.Value.([]app.FlowLintResult)) != 1 || !r.Value.([]app.FlowLintResult)[0].OK() {
+		t.Fatalf("flow_lint: %+v", r)
+	}
+	if r := do(t, "system.flow_lint", env, app.FlowLintOptions{Name: "khong-co"}); r.Err == nil {
+		t.Fatal("flow lạ phải lỗi")
 	}
 	// Chỉ mục.
 	if r := do(t, "system.index_rebuild", env, app.IndexRebuildOptions{}); r.Err != nil || r.Value.(app.IndexRebuildResult).Total != 2 {

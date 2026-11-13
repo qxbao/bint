@@ -27,7 +27,7 @@ func TestHarnessAgentsModelPerRole(t *testing.T) {
 
 	model := func(f AgentFactory, step string) string {
 		t.Helper()
-		a, err := f(step, nil, nil)
+		a, err := f(sp(step), nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -64,7 +64,7 @@ func TestHarnessAgentsWithSavedChoicesUsesSavedCodexModel(t *testing.T) {
 	cfg.Harnesses.Codex.Model = ptrStringAgent("new-config-model")
 	f := HarnessAgentsWithChoices(cfg, "", adapters.Selection{Roles: map[string]string{"implementer": "codex"}},
 		map[string]string{"implementer": "saved-model"})
-	ag, err := f(StepFeat, nil, nil)
+	ag, err := f(sp(StepFeat), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestHarnessAgentsWithSavedEmptyModelDoesNotPickUpNewConfig(t *testing.T) {
 	cfg.Harnesses.Codex.Model = &newDefault
 	f := HarnessAgentsWithChoices(cfg, "", adapters.Selection{Roles: map[string]string{"implementer": "codex"}},
 		map[string]string{"implementer": ""})
-	ag, err := f(StepFeat, nil, nil)
+	ag, err := f(sp(StepFeat), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestHarnessAgentsSavedEmptyClaudeModel(t *testing.T) {
 	cfg.Workflow.Agent.Model = ptrStringAgent("new-config-model")
 	f := HarnessAgentsWithChoices(cfg, "", adapters.Selection{Roles: map[string]string{"implementer": "claude"}},
 		map[string]string{"implementer": ""})
-	ag, err := f(StepFeat, nil, nil)
+	ag, err := f(sp(StepFeat), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

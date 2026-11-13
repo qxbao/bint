@@ -280,7 +280,7 @@ func TestSessionNextSubagentMatchesDefinitions(t *testing.T) {
 	if err != nil || a.Action != ActionAgent {
 		t.Fatal(a, err)
 	}
-	if a.Subagent != SubagentFor(StepFeat) || a.Model != "haiku" {
+	if a.Subagent != goldenSubagent(StepFeat) || a.Model != "haiku" {
 		t.Fatalf("subagent/model: %q %q", a.Subagent, a.Model)
 	}
 	found := false

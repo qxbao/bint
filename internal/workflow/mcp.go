@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"bint/internal/config"
-	adapters "bint/internal/harness"
 	"bint/internal/mcpgw"
 )
 
@@ -71,7 +70,7 @@ func (r *Runner) stepMCP(sr *stepRun, taskID string) (path string, tools []strin
 		return "", nil, func() {}
 	}
 	runtimeDir := filepath.Join(stateRoot, "runtime")
-	role := adapters.StepRole(sr.step)
+	role := grantRole(r.Cfg, sr.role, sr.base)
 	if _, err := mcpgw.WriteRunBinding(runtimeDir, mcpgw.RunBinding{RunID: runID, TaskID: taskID, Step: sr.step,
 		Role: role, ReadOnly: sr.readOnly, Worktree: r.Root}); err != nil {
 		// Không có bản ghi thì daemon không cấp service nào (đóng an toàn): bước vẫn có tool của Bint.
@@ -83,6 +82,15 @@ func (r *Runner) stepMCP(sr *stepRun, taskID string) (path string, tools []strin
 		_ = os.Remove(path)
 		mcpgw.RemoveRunBinding(runtimeDir, runID)
 	}
+}
+
+// grantRole là role cấp quyền MCP của bước: role của bước nếu mcp.grants khai báo nó, không thì role gốc theo kind (role
+// tuỳ biến chưa khai báo quyền được quyền như role gốc, không hơn).
+func grantRole(cfg config.Config, role, base string) string {
+	if _, declared := cfg.MCP.Grants[role]; declared || base == "" {
+		return role
+	}
+	return base
 }
 
 // staleStepFileAge là tuổi mà tệp cấu hình MCP/bản ghi lượt chạy chắc chắn không còn thuộc bước đang chạy: gấp đôi

@@ -65,7 +65,7 @@ func (f *h8Fixture) runReview(t *testing.T, act func()) (workflow.StepResult, []
 	o.Workflow, o.Task = "b-review", f.taskID
 	o.RunCallbacks = RunCallbacks{
 		Log:   func(s string) { logs = append(logs, s) },
-		Agent: func(string, *float64, *int) (eval.Agent, error) { return readonlyAgent{act}, nil },
+		Agent: func(workflow.StepSpec, *float64, *int) (eval.Agent, error) { return readonlyAgent{act}, nil },
 	}
 	res, err := RunWorkflow(context.Background(), f.ws, o)
 	if err != nil {

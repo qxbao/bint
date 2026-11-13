@@ -137,6 +137,6 @@ Giới hạn đã biết của P1:
 
 Kết quả lưu trong SQLite (`eval_batches`, `evaluation_runs`, migration 0002); tác vụ đã
 duyệt là nguồn chuẩn trong `.bint/evals/cases/*.yml` (fingerprint của đề bài + lệnh chấm
-được ghi vào mỗi lượt để phát hiện tác vụ bị sửa). Giao thức nghiệm thu đã chốt tại
-[docs/gate-1.md](gate-1.md) và [docs/gate-2.md](gate-2.md); các đợt đo thực nghiệm đã lưu tại
-[docs/evals/README.md](evals/README.md).
+được ghi vào mỗi lượt để phát hiện tác vụ bị sửa). Giao thức đã chốt của hai cổng ở
+[docs/gate-1.md](gate-1.md) và [docs/gate-2.md](gate-2.md); kế hoạch các vòng nghiệm thu ở
+[docs/acceptance.md](acceptance.md); các đợt đo thực nghiệm đã lưu tại [docs/evals/README.md](evals/README.md).

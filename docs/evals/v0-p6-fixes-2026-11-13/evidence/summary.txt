@@ -1,0 +1,25 @@
+== HEAD 7925e7d + thay đổi của V0 (cây làm việc chỉ có V0)
+go version go1.25.1 linux/amd64
+== go test -count=1 ./...
+exit=0
+61
+== go test -race -count=1 ./internal/evolve/... ./internal/workflow/... ./internal/fslock/...
+exit=0
+== go test -race -count=5 -run Lock ./internal/evolve/ ./internal/fslock/
+exit=0
+== go vet ./...
+exit=0
+== GOOS=windows go vet ./...
+exit=0
+== staticcheck ./...
+exit=0
+== GOOS=windows staticcheck ./...
+exit=0
+== run-probes.py (5 probe P6)
+exit=0
+--- PASS: TestAcceptanceP6EvolutionLockExclusive (0.01s)
+--- PASS: TestAcceptanceP6RollbackFailurePreservesAppliedState (0.11s)
+--- PASS: TestAcceptanceP6MergePreservesDistinctFacts (0.11s)
+--- PASS: TestAcceptanceP6EvolverRejectsDirtyFileMutation (0.08s)
+--- PASS: TestAcceptanceP6UpdatePreservesExternalInputProvenance (0.10s)
+ok  	bint/internal/evolve	0.420s

@@ -299,6 +299,11 @@ type State struct {
 	ID       string `json:"id"`
 	Status   string `json:"status"`
 	Workflow string `json:"workflow"`
+	// FlowStep là id bước của flow đang chạy hoặc kế tiếp (Runner ghi khi mở bước và khi chuyển bước; rỗng = chưa theo
+	// dõi, Runner suy từ trạng thái như flow nhúng). FlowSHA là băm định nghĩa flow lúc lập phiếu (flow.Hash), chỉ với
+	// flow tuỳ biến: khác băm hiện tại nghĩa là flow đã đổi giữa chừng và tác vụ bị chặn.
+	FlowStep string `json:"flow_step,omitempty"`
+	FlowSHA  string `json:"flow_sha,omitempty"`
 	// AgentChoices ghi lựa chọn harness/model hiệu lực theo role để resume không đổi agent khi cấu hình đổi.
 	AgentChoices map[string]AgentChoice `json:"agent_choices,omitempty"`
 	CreatedAt    string                 `json:"created_at"`
@@ -382,6 +387,9 @@ type PendingStep struct {
 	RunID       string `json:"run_id"` // lượt con của bước
 	ParentRunID string `json:"parent_run_id,omitempty"`
 	Step        string `json:"step"`
+	// Kind là kind của bước trong flow lúc mở (plan | implement | review): nguồn của chế độ chỉ đọc và subagent khi
+	// `next` được gọi lại hoặc `complete` đóng bước, không phụ thuộc flow còn nguyên hay không. Rỗng ở bước mở bởi bản cũ.
+	Kind string `json:"kind,omitempty"`
 	// Mode: chế độ khoá của bước ("shared" | "exclusive").
 	Mode string `json:"mode"`
 	// Snapshot: cây làm việc trước bước chỉ đọc; FeatBefore: cây trước b-feat (cho Touched); FirstFeat: lần b-feat đầu.

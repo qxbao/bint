@@ -330,7 +330,8 @@ func (h *harness) writePlan(e *Env, id string, skip map[string]bool) error {
 
 func (h *harness) runner() *Runner {
 	env := &Env{Root: h.root, Cfg: h.cfg, Tasks: h.tasks, Spool: h.spool, Human: true, Actor: "người duyệt", Version: "test"}
-	return &Runner{Env: env, Agent: func(step string, maxCost *float64, maxTurns *int) (eval.Agent, error) {
+	return &Runner{Env: env, Agent: func(spec StepSpec, maxCost *float64, maxTurns *int) (eval.Agent, error) {
+		step := spec.ID
 		h.mu.Lock()
 		h.limits = append(h.limits, maxCost)
 		h.turnLimits = append(h.turnLimits, maxTurns)
@@ -626,17 +627,17 @@ func TestDoneNeedsEvidenceWithoutVerifyCommand(t *testing.T) {
 func TestAgentArgs(t *testing.T) {
 	cfg := config.Default()
 	n := 30
-	a := AgentArgs(cfg, StepReview, &n)
+	a := adapters.ClaudeWorkflowArgs(cfg, true, &n)
 	args := strings.Join((&eval.ClaudeAgent{Cfg: a}).Args(), " ")
 	if !strings.Contains(args, "--disallowedTools Edit,Write,MultiEdit,NotebookEdit") || !strings.Contains(args, "--max-turns 30") ||
 		!strings.Contains(args, "Bash(bint:*)") || strings.Contains(args, "--setting-sources") {
 		t.Fatalf("%s", args)
 	}
-	if args := strings.Join((&eval.ClaudeAgent{Cfg: AgentArgs(cfg, StepFeat, nil)}).Args(), " "); strings.Contains(args, "disallowedTools") {
+	if args := strings.Join((&eval.ClaudeAgent{Cfg: adapters.ClaudeWorkflowArgs(cfg, false, nil)}).Args(), " "); strings.Contains(args, "disallowedTools") {
 		t.Fatalf("b-feat được sửa tệp: %s", args)
 	}
 	cfg.Roles.Implementer = "codex"
-	if _, err := DefaultAgents(cfg, "", "")(StepFeat, nil, nil); err == nil {
+	if _, err := DefaultAgents(cfg, "", "")(sp(StepFeat), nil, nil); err == nil {
 		t.Fatal("harness chưa có adapter phải lỗi")
 	}
 }
@@ -716,17 +717,17 @@ func TestUnavailableAdapterFailsStep(t *testing.T) {
 	h.cfg.Harnesses.Enabled = []string{"claude", "codex"}
 	h.cfg.Harnesses.Codex.Binary = filepath.Join(t.TempDir(), "khong-co")
 	f := HarnessAgents(h.cfg, "", "", adapters.Selection{Roles: map[string]string{"implementer": "codex"}})
-	if _, err := f(StepFeat, nil, nil); err == nil || !strings.Contains(err.Error(), "không khả dụng") {
+	if _, err := f(sp(StepFeat), nil, nil); err == nil || !strings.Contains(err.Error(), "không khả dụng") {
 		t.Fatalf("err = %v", err)
 	}
-	if _, err := HarnessAgents(h.cfg, "", "", adapters.Selection{All: "antigravity"})(StepReq, nil, nil); err == nil ||
+	if _, err := HarnessAgents(h.cfg, "", "", adapters.Selection{All: "antigravity"})(sp(StepReq), nil, nil); err == nil ||
 		!strings.Contains(err.Error(), "harnesses.enabled") {
 		t.Fatalf("harness chưa bật: %v", err)
 	}
 	r := h.runner()
-	r.Agent = func(step string, c *float64, n *int) (eval.Agent, error) {
-		if step == StepFeat {
-			return f(step, c, n)
+	r.Agent = func(spec StepSpec, c *float64, n *int) (eval.Agent, error) {
+		if spec.ID == StepFeat {
+			return f(spec, c, n)
 		}
 		return &fakeAgent{h: h}, nil
 	}

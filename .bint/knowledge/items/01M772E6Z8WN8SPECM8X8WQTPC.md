@@ -2,7 +2,7 @@
 schema: 1
 id: 01M772E6Z8WN8SPECM8X8WQTPC
 type: warning
-status: candidate
+status: deprecated
 title: Role chưa chạy bị lưu như snapshot model rỗng khi chuyển từ b-req sang b-do
 scope:
   paths:
@@ -20,8 +20,12 @@ origin:
   inputs:
     - internal/app/run_svc.go
 author: Leekiri1234 <hongducluong0603@gmail.com>
+reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
+reviewed_at: "2026-11-13T07:57:49Z"
 version: 1
 created_at: "2026-11-12T05:07:11Z"
+updated_at: "2026-11-13T07:57:49Z"
+status_reason: người duyệt từ chối
 ---
 
 Chỉ lưu role đã được chọn thực sự, hoặc coi lựa chọn có Harness rỗng là chưa chụp; thêm hồi quy b-req sang b-do với model cấu hình khác mặc định CLI.

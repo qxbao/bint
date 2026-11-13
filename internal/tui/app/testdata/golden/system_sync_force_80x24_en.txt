@@ -20,5 +20,5 @@
 │ │ │                                                                      │ │ │
 │ │ │ [Enter] Write   [Esc] Cancel                                         │ │ │
 │ │ └──────────────────────────────────────────────────────────────────────┘ │ │
-│ └─ Enter content  s sync  o overlay  d diff  c check ──────────────────────┘ │
+│ └─ Enter content  s sync  o overlay  n new  c check  d diff ───────────────┘ │
 └─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘

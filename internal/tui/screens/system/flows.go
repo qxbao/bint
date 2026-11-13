@@ -166,6 +166,46 @@ func (m *Model) cmdSkillOverlay() tea.Cmd {
 	return m.request("system.skill_overlay", app.SkillOverlayOptions{Name: r.Name})
 }
 
+// cmdSkillNew mở form tạo skill tuỳ biến mẫu (ghi tệp nên không mở ở chế độ chỉ đọc).
+func (m *Model) cmdSkillNew() tea.Cmd {
+	if m.allowed("system.skill_new") {
+		m.openForm("system.skill_new", "skill new", app.SkillNewDefaults(config.Default()))
+	}
+	return nil
+}
+
+// cmdSkillLint kiểm skill tuỳ biến dưới con trỏ, hoặc mọi skill tuỳ biến khi con trỏ không ở skill tuỳ biến.
+func (m *Model) cmdSkillLint() tea.Cmd {
+	o := app.SkillLintOptions{}
+	if r := m.cursorSkill(); r != nil && r.Kind == "custom" {
+		o.Name = r.Name
+	}
+	return m.request("system.skill_lint", o)
+}
+
+// lintLines dựng các dòng kết quả kiểm skill tuỳ biến.
+func (m *Model) lintLines(v any) []string {
+	res, _ := v.([]app.SkillLintResult)
+	if len(res) == 0 {
+		return []string{m.t("sy.skill.lint.none")}
+	}
+	var out []string
+	for _, r := range res {
+		glyph, role := "✓", theme.OK
+		if !r.OK() {
+			glyph, role = "✗", theme.Err
+		}
+		out = append(out, m.th.S(role, glyph)+" "+r.Path)
+		for _, e := range r.Errors {
+			out = append(out, "    "+m.th.S(theme.Err, m.t("sy.skill.lint.err"))+" "+m.cli(e))
+		}
+		for _, w := range r.Warnings {
+			out = append(out, "    "+m.th.S(theme.Warn, m.t("sy.skill.lint.warn"))+" "+m.cli(w))
+		}
+	}
+	return out
+}
+
 func (m *Model) cmdSkillForm(id, cli string) tea.Cmd {
 	name := ""
 	if r := m.cursorSkill(); r != nil && r.Kind == "evolved" {
@@ -363,4 +403,73 @@ func issuesOf(r *app.DoctorReport) (warn, fail int) {
 		}
 	}
 	return
+}
+
+// flowListLines dựng các dòng của `bint flow list`: flow nhúng rồi flow tuỳ biến, kèm trạng thái lint.
+func (m *Model) flowListLines(v any) []string {
+	rows, _ := v.([]app.FlowRow)
+	width := 0
+	for _, r := range rows {
+		width = max(width, len([]rune(r.Name)))
+	}
+	var out []string
+	for _, r := range rows {
+		glyph, role := "✓", theme.OK
+		if !r.OK {
+			glyph, role = "✗", theme.Err
+		}
+		src := m.t("sy.flow.source.builtin")
+		if r.Source == app.FlowCustom {
+			src = r.Path
+		}
+		out = append(out, fmt.Sprintf("%s %-*s  %s", m.th.S(role, glyph), width, r.Name, m.t("sy.flow.list.row", i18n.A{"source": src, "steps": r.Steps, "desc": r.Description})))
+		for _, p := range r.Problems {
+			out = append(out, "    "+m.th.S(theme.Err, m.t("sy.skill.lint.err"))+" "+m.cli(p))
+		}
+	}
+	return out
+}
+
+// flowShowLines dựng các dòng của `bint flow show`: nguồn, băm, YAML chuẩn hoá, rồi lỗi/cảnh báo lint nếu có.
+func (m *Model) flowShowLines(v app.FlowShowResult) []string {
+	src := m.t("sy.flow.source.builtin")
+	if v.Source == app.FlowCustom {
+		src = v.Path
+	}
+	out := []string{m.t("sy.flow.show.source", i18n.A{"source": src}), m.t("sy.flow.show.hash", i18n.A{"hash": v.Hash}), ""}
+	out = append(out, strings.Split(strings.TrimRight(v.YAML, "\n"), "\n")...)
+	for _, e := range v.Errors {
+		out = append(out, m.th.S(theme.Err, m.t("sy.skill.lint.err"))+" "+m.cli(e))
+	}
+	for _, w := range v.Warnings {
+		out = append(out, m.th.S(theme.Warn, m.t("sy.skill.lint.warn"))+" "+m.cli(w))
+	}
+	return out
+}
+
+// flowLintLines dựng các dòng kết quả kiểm flow.
+func (m *Model) flowLintLines(v any) []string {
+	res, _ := v.([]app.FlowLintResult)
+	if len(res) == 0 {
+		return []string{m.t("sy.flow.lint.none")}
+	}
+	var out []string
+	for _, r := range res {
+		glyph, role := "✓", theme.OK
+		if !r.OK() {
+			glyph, role = "✗", theme.Err
+		}
+		where := r.Path
+		if where == "" {
+			where = m.t("sy.flow.lint.builtin", i18n.A{"name": r.Name})
+		}
+		out = append(out, m.th.S(role, glyph)+" "+where)
+		for _, e := range r.Errors {
+			out = append(out, "    "+m.th.S(theme.Err, m.t("sy.skill.lint.err"))+" "+m.cli(e))
+		}
+		for _, w := range r.Warnings {
+			out = append(out, "    "+m.th.S(theme.Warn, m.t("sy.skill.lint.warn"))+" "+m.cli(w))
+		}
+	}
+	return out
 }

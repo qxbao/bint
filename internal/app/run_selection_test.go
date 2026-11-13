@@ -133,7 +133,7 @@ func TestRunWorkflowSkipsDisabledRolesThatWillNotRun(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			cb := RunCallbacks{Agent: func(string, *float64, *int) (eval.Agent, error) {
+			cb := RunCallbacks{Agent: func(workflow.StepSpec, *float64, *int) (eval.Agent, error) {
 				return fakeStepAgent{root}, nil
 			}}
 			if mode == "resume" {
@@ -173,8 +173,8 @@ func TestRunWorkflowSnapshotsPlannerAfterPlanningOverrides(t *testing.T) {
 				t.Fatal(err)
 			}
 			o := RunWorkflowOptions{Workflow: workflow.StepDo, Task: id, Depth: task.DepthDeep,
-				RunCallbacks: RunCallbacks{Agent: func(step string, _ *float64, _ *int) (eval.Agent, error) {
-					if step != workflow.StepReq {
+				RunCallbacks: RunCallbacks{Agent: func(spec workflow.StepSpec, _ *float64, _ *int) (eval.Agent, error) {
+					if step := spec.ID; step != workflow.StepReq {
 						t.Errorf("first step = %s, want b-req", step)
 					}
 					return nil, errors.New("stop before executing planner")
@@ -205,7 +205,7 @@ func TestRunWorkflowAgentCommandIgnoresUnusedHarness(t *testing.T) {
 	ws, root, id := taskRepo(t)
 	ws.K.Config.Roles.Implementer = "codex"
 	ws.K.Config.Harnesses.Enabled = []string{"claude"}
-	_, err := RunWorkflow(context.Background(), ws, RunWorkflowOptions{Workflow: workflow.StepFeat, Task: id, AgentCommand: "true", RunCallbacks: RunCallbacks{Agent: func(string, *float64, *int) (eval.Agent, error) { return fakeStepAgent{root}, nil }}})
+	_, err := RunWorkflow(context.Background(), ws, RunWorkflowOptions{Workflow: workflow.StepFeat, Task: id, AgentCommand: "true", RunCallbacks: RunCallbacks{Agent: func(workflow.StepSpec, *float64, *int) (eval.Agent, error) { return fakeStepAgent{root}, nil }}})
 	if err != nil {
 		t.Fatalf("custom command must not resolve unused disabled harness: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestRunWorkflowNewProtectedScopeRequiresEnabledPlanner(t *testing.T) {
 	ws.K.Config.Roles.Planner = "codex"
 	ws.K.Config.Harnesses.Enabled = []string{"claude"}
 	called := false
-	_, err := RunWorkflow(context.Background(), ws, RunWorkflowOptions{Workflow: workflow.StepDo, Task: id, NoPlan: true, Allow: []string{".github/workflows/check.yml"}, RunCallbacks: RunCallbacks{Agent: func(string, *float64, *int) (eval.Agent, error) { called = true; return nil, nil }}})
+	_, err := RunWorkflow(context.Background(), ws, RunWorkflowOptions{Workflow: workflow.StepDo, Task: id, NoPlan: true, Allow: []string{".github/workflows/check.yml"}, RunCallbacks: RunCallbacks{Agent: func(workflow.StepSpec, *float64, *int) (eval.Agent, error) { called = true; return nil, nil }}})
 	if err == nil || called {
 		t.Fatalf("disabled required planner: err=%v agent called=%v", err, called)
 	}

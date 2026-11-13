@@ -580,6 +580,13 @@ Ví dụ: sửa lỗi chính tả không nhất thiết phải tạo bộ yêu c
 
 Bước Classify luôn lập phiếu tác vụ (mục 6.7), kể cả khi bỏ qua b-req. Với tác vụ nhỏ, phiếu có thể chỉ gồm mục tiêu và phạm vi.
 
+b-do là **flow nhúng** `plan (tuỳ chọn) → implement → review`: Runner chạy mọi flow theo `kind` của bước, không theo tên bước.
+Dự án định nghĩa thêm **flow tuỳ biến** trong `.bint/flows/<tên>.yml` (dãy bước, mỗi bước có `kind` plan, implement hoặc review, một
+skill và một role; thứ tự bắt buộc plan → implement → review). Flow qua `bint flow lint` được chạy bằng `bint run <tên> --task <id>`
+với cùng cổng của Bint (phạm vi, kiểm chứng đã xác nhận, vòng review, giới hạn), và được `bint sync` xuất bản thành skill điều phối
+`/<tên>` làm việc như b-do: lập phiếu bằng `bint task new --workflow <tên>`, chạy `bint run`, chuyển câu hỏi của Bint tới người dùng,
+báo cáo. Skill gốc `b-add-flow` hướng dẫn agent cùng người dùng tạo flow (chi tiết ở `docs/workflows.md`).
+
 b-do chịu trách nhiệm:
 
 - Chọn workflow.
@@ -620,6 +627,23 @@ Khi nâng cấp Bint:
 2. Áp lại lớp phủ.
 3. Nếu một điểm neo không còn tồn tại, báo xung đột và giữ bản cũ cho tới khi người dùng xử lý; không tự đoán vị trí mới.
 
+Ngoài skill gốc, `bint sync` còn xuất bản ba loại skill của dự án, mỗi loại có mục riêng trong `core.lock` (băm nội dung đã xuất
+bản, để nhận ra tệp bị sửa tay):
+
+- **Skill tuỳ biến** (`.bint/skills/<tên>/`, mục `custom`): người dùng hoặc agent theo skill gốc `b-add-skill` viết `SKILL.md` kèm
+  tệp phụ (tài liệu tham chiếu, script; thư mục `tests/` không xuất bản). Skill phải qua `bint skill lint` mới được xuất bản; tên không
+  mang tiền tố `b-`, không trùng skill gốc hay skill tiến hoá.
+- **Skill tiến hoá** (`.bint/skills/evolved/<tên>/`, mục `evolved`): do `bint evolve` tạo và người duyệt (mục 7, Chính sách skill nội bộ).
+- **Skill điều phối của flow tuỳ biến** (`.bint/flows/<tên>.yml`, mục `flows`): `bint sync` dựng từ mẫu nhúng trong tệp thực thi, một
+  skill cùng tên cho mỗi flow qua kiểm (`disable-model-invocation: true`), hướng dẫn lập phiếu và chạy flow như b-do (mục 6.4). Flow
+  lỗi lint không được xuất bản (bản đã xuất bản được giữ); flow bị xoá thì skill điều phối bị gỡ nếu chưa bị sửa tay. Tên flow trùng
+  skill gốc, thư mục skill tuỳ biến nào hoặc skill tiến hoá bị từ chối (ở `bint flow lint`, khi chạy và khi sync).
+
+Quy tắc an toàn như nhau cho cả bốn loại: tệp đã xuất bản bị sửa tay thì báo xung đột và không ghi đè hay xoá (`--force` ghi đè và sao
+lưu bản cũ); nguồn lỗi thì giữ bản đã xuất bản. Nguồn chuẩn luôn là thư mục `.bint/`, không sửa tay bản trong `.claude/skills` hay
+`.agents/skills`. Hai skill gốc `b-add-skill` (tạo skill tuỳ biến bằng quy trình RED → GREEN → REFACTOR) và `b-add-flow` (tạo flow tuỳ
+biến) dẫn người dùng qua việc này; chúng ghi nháp và chạy `lint`/`sync`, không tự commit hay duyệt.
+
 ### 6.7. Phiếu tác vụ
 
 Người dùng mô tả tác vụ bằng văn bản tự do; Bint không bắt buộc đầu vào có cấu trúc. Bước Classify của b-do, hoặc bước đầu của b-req, lập một phiếu tác vụ từ mô tả đó:
@@ -654,8 +678,8 @@ Cần định nghĩa giao diện trừu tượng thay vì gắn logic Bint trự
 Một adapter cung cấp các năng lực:
 
 - Phát hiện chương trình và phiên bản.
-- Cài đặt và đồng bộ skill.
-- Ghép skill gốc với lớp phủ theo định dạng của harness.
+- Cài đặt và đồng bộ skill: skill gốc ghép lớp phủ, skill tiến hoá, skill tuỳ biến (kèm tệp phụ) và skill điều phối của flow tuỳ biến (mục 6.6).
+- Ghép skill gốc với lớp phủ theo định dạng của harness. `.claude/skills` giữ nguyên frontmatter; `.agents/skills` (Codex, Antigravity) chỉ giữ `name` và `description`, bỏ khoá harness không hiểu như `disable-model-invocation` thay vì giả lập.
 - Sinh tài liệu hướng dẫn cho harness.
 - Đăng ký MCP server của Bint.
 - Xác định khả năng ẩn hoặc gọi ngầm skill.
@@ -698,7 +722,7 @@ Hỗ trợ phối hợp nhiều agent, cô lập thực thi, theo dõi chi phí 
 
 ### Chính sách skill nội bộ
 
-Skill phát triển được lưu trong `.bint/skills/evolved`.
+Skill phát triển được lưu trong `.bint/skills/evolved`. Skill tuỳ biến (`.bint/skills/<tên>/`) và skill điều phối của flow (`.bint/flows/`) đi qua cùng đường xuất bản, cùng chính sách này.
 
 Adapter chỉ xuất bản skill cho harness khi có chiến lược kích hoạt tương thích.
 
@@ -1460,6 +1484,10 @@ Biện pháp:
 ---
 
 ## 16. Kế hoạch phát triển theo giai đoạn
+
+> Ô đánh dấu của P0–P7 dưới đây giữ nguyên như bản thiết kế, không phản ánh tiến độ. Trạng thái triển khai xem
+> [status.md](status.md); trạng thái nghiệm thu, tiêu chí còn mở và kế hoạch các vòng nghiệm thu xem
+> [acceptance.md](acceptance.md). Câu "Nghiệm thu" và "Cổng quyết định" của từng giai đoạn ở đây là điều kiện gốc.
 
 Nguyên tắc sắp xếp: phần ghi nhận dữ liệu và đo lường đi trước, vì mọi quyết định phía sau phụ thuộc vào chúng và dữ liệu cần thời gian để tích luỹ. Các phần trùng với năng lực sẵn có của harness chỉ được xây ở mức tối thiểu.
 

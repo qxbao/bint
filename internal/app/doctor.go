@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"bint/internal/config"
 	"bint/internal/detect"
+	"bint/internal/flow"
 	"bint/internal/fsafe"
 	"bint/internal/gitrepo"
 	"bint/internal/harness"
@@ -238,8 +241,55 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		r.add("lệnh kiểm thử", LevelOK, "%s", *cfg.Eval.TestCommand)
 	}
 	setupChecks(r, repo.Toplevel, paths, cfg)
+	flowChecks(r, filepath.Dir(filepath.Dir(src.Project)), cfg)
 	knowledgeChecks(r, filepath.Dir(filepath.Dir(src.Project)), cfg)
 	return r
+}
+
+// flowChecks cảnh báo cấu hình trỏ tới flow tuỳ biến không có: Validate chỉ kiểm cú pháp (không có gốc repository), nên
+// khoá gõ sai dưới limits.workflows, roles hay harnesses.<h>.models (yaml inline không bắt khoá lạ) chỉ lộ ra ở đây.
+func flowChecks(r *DoctorReport, root string, cfg config.Config) {
+	files, err := flow.Load(root)
+	if err != nil {
+		r.add("flow", LevelWarn, "không đọc được %s: %v", flow.Rel, err)
+		return
+	}
+	known := map[string]bool{} // tên workflow gốc, flow tuỳ biến và id bước của chúng
+	usedRoles := map[string]bool{}
+	for _, d := range flow.Builtin() {
+		known[d.Name] = true
+		for _, s := range d.Steps {
+			known[s.ID] = true
+		}
+	}
+	for _, f := range files {
+		known[f.Name] = true
+		for _, s := range f.Def.Steps {
+			known[s.ID] = true
+			usedRoles[s.EffectiveRole()] = true
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(cfg.Limits.Workflows)) {
+		if !known[name] {
+			r.add("limits.workflows", LevelWarn, "khoá %q không phải workflow gốc, flow tuỳ biến (%s) hay id bước của flow nào", name, flow.Rel)
+		}
+	}
+	extra := map[string]string{}
+	for role := range cfg.Roles.Extra {
+		extra[role] = "roles." + role
+	}
+	for _, h := range config.KnownHarnesses {
+		for role := range cfg.Harnesses.Models(h).Extra {
+			if _, ok := extra[role]; !ok {
+				extra[role] = "harnesses." + h + ".models." + role
+			}
+		}
+	}
+	for _, role := range slices.Sorted(maps.Keys(extra)) {
+		if !usedRoles[role] {
+			r.add("role tuỳ biến", LevelWarn, "%s không thuộc bước nào của flow trong %s (gõ sai tên role, hoặc flow chưa có)", extra[role], flow.Rel)
+		}
+	}
 }
 
 // setupChecks báo workflow.worktree.setup_command: lệnh, băm và các tác vụ worktree còn chờ người xác nhận
@@ -340,6 +390,7 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 			}
 		}
 	}
+	customSkillChecks(r, root, cfg, targets)
 	for _, a := range harness.SubagentFiles(cfg) {
 		st, err := skills.AgentStatus(root, a)
 		switch {
@@ -351,6 +402,40 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 			r.add("subagent "+a.Name, LevelWarn, "%s khác bản của Bint (bị sửa tay, cấu hình model/max_turns đổi hoặc Bint đã nâng cấp): chạy `bint sync`", a.Rel)
 		default:
 			r.add("subagent "+a.Name, LevelOK, "%s", a.Rel)
+		}
+	}
+}
+
+// customSkillChecks báo skill tuỳ biến (.bint/skills/<tên>/) lỗi lint (không được xuất bản) hoặc khác bản đã xuất bản.
+func customSkillChecks(r *DoctorReport, root string, cfg config.Config, targets []skills.Target) {
+	list, err := skills.LoadCustom(root)
+	if err != nil {
+		r.add("skill tuỳ biến", LevelFail, "%v", err)
+		return
+	}
+	for _, cs := range list {
+		name := "skill " + cs.Name
+		if errs, _ := skills.CheckCustom(root, cs); len(errs) > 0 {
+			r.add(name, LevelWarn, "skill tuỳ biến không qua lint, không được xuất bản: %s (chạy `bint skill lint %s`)", strings.Join(errs, "; "), cs.Name)
+			continue
+		}
+		for _, t := range targets {
+			who := strings.Join(harness.HarnessesForTarget(cfg.Harnesses.Enabled, t.Dir), ", ")
+			rel := filepath.ToSlash(filepath.Join(t.Dir, cs.Name, "SKILL.md"))
+			st, err := skills.Status(root, t, cs.AsSkill())
+			if st == "current" {
+				st, err = skills.CustomFilesStatus(root, t, cs)
+			}
+			switch {
+			case err != nil:
+				r.add(name, LevelWarn, "%v", err)
+			case st == "missing":
+				r.add(name, LevelInfo, "skill tuỳ biến chưa xuất bản cho %s (bint sync)", who)
+			case st == "differs":
+				r.add(name, LevelWarn, "%s/ khác nguồn %s/ (nguồn đổi hoặc bản xuất bản bị sửa tay): chạy `bint sync`", filepath.ToSlash(filepath.Join(t.Dir, cs.Name)), skills.CustomPath(cs.Name))
+			default:
+				r.add(name, LevelOK, "%s", rel)
+			}
 		}
 	}
 }

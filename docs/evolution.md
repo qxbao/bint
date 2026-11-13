@@ -146,8 +146,8 @@ Giới hạn đã biết của P6:
   tác vụ có commit gốc sau khi mục đã tồn tại; tác vụ không chịu ảnh hưởng được báo kèm lý do.
 - Đã chạy [đợt đo thực nghiệm trên Claude Code](evals/p6-p7-claude-2026-11-10/README.md) nhưng chưa có
   đề xuất đạt trên tập `test` độc lập; năm phát hiện nghiệm thu `P6-01..P6-05` (khoá tiến hoá, hậu kiểm
-  `git status` của evolver, rollback giữa chừng, gộp `Inputs` và merge nội dung) vẫn còn mở tại
-  [docs/status.md](status.md).
+  `git status` của evolver, rollback giữa chừng, gộp `Inputs` và merge nội dung) vẫn còn mở; điều kiện đóng
+  và kế hoạch đo lại ở [docs/acceptance.md](acceptance.md) (mã `NT-P6-01..05`, `NT-EVO-TEST`).
 
 ## Tiến hoá skill — L2 (P7)
 

@@ -310,7 +310,7 @@ func TestRunWorkflowServiceCallbacksAndRuns(t *testing.T) {
 	var logs []string
 	var steps []workflow.StepEvent
 	cb := RunCallbacks{Log: func(s string) { logs = append(logs, s) }, OnStep: func(e workflow.StepEvent) { steps = append(steps, e) },
-		Agent:   func(string, *float64, *int) (eval.Agent, error) { return fakeStepAgent{root}, nil },
+		Agent:   func(workflow.StepSpec, *float64, *int) (eval.Agent, error) { return fakeStepAgent{root}, nil },
 		Confirm: func(workflow.Question) bool { t.Error("không có gì cần hỏi"); return false }}
 	o := RunWorkflowDefaults(ws.K.Config)
 	o.Workflow, o.Task, o.NoReview = "b-do", id, true

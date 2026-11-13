@@ -23,7 +23,9 @@ type Data struct {
 	// Files là các tệp được Git theo dõi (gợi ý cho ô phạm vi).
 	Files []string
 	// Root là thư mục gốc repository (đọc trích đoạn tệp của phát hiện review).
-	Root  string
+	Root string
+	// Flows là tên các flow tuỳ biến (.bint/flows) qua lint sạch: chọn được ở form run và task new cùng workflow gốc.
+	Flows []string
 	Stamp time.Time
 }
 
@@ -93,7 +95,15 @@ func Load(ctx context.Context, dir string, readOnly bool) (Data, error) {
 	if err != nil {
 		return Data{}, err
 	}
-	return Data{Tasks: l.Tasks, Bad: len(l.Bad), Files: app.TrackedFiles(ws.K, maxSuggestFiles), Root: ws.Root, Stamp: time.Now()}, nil
+	d := Data{Tasks: l.Tasks, Bad: len(l.Bad), Files: app.TrackedFiles(ws.K, maxSuggestFiles), Root: ws.Root, Stamp: time.Now()}
+	if rows, err := app.ListFlows(ctx, dir, app.FlowListOptions{}); err == nil { // lỗi đọc flow chỉ làm mất gợi ý, không chặn danh sách
+		for _, r := range rows {
+			if r.Source == app.FlowCustom && r.OK {
+				d.Flows = append(d.Flows, r.Name)
+			}
+		}
+	}
+	return d, nil
 }
 
 // LoadDetail đọc chi tiết tác vụ id và nội dung các tài liệu.
