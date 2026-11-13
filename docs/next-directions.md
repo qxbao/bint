@@ -198,7 +198,7 @@ phát hiện review (`internal/app/knowledge.go`).
 **Lý do.** Skill tuỳ biến và `bint skill test` gắn với đo lường. Flow tuỳ biến là phần trùng nhiều nhất
 với superpowers và Spec Kit, và đặc tả tự giới hạn workflow ở mức tối thiểu cần cho đo lường.
 
-**Hiện trạng.** GĐ1 (`21171cb`) và GĐ2 (`f77ae19`) đã commit; GĐ3–6 chưa commit.
+**Hiện trạng.** GĐ1–6 đã commit (`21171cb` … `25afb78`, sửa review đến `5ce48e2`); còn nghiệm thu thủ công `NT-CF-MANUAL`.
 
 **Ngoại lệ.** Nếu làm mục B2 (flow `b-debug`) thì cần GĐ2–4 trước.
 

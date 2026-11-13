@@ -3,9 +3,9 @@
 > Chép từ artifact b-req của phiếu `01M79GY29G41X7J3AZCY30TTWB` (2026-11-13). Mỗi giai đoạn (GĐ) lập một phiếu b-do riêng.
 > Tài liệu tham khảo: [superpowers-writing-skills.md](references/superpowers-writing-skills.md).
 
-Trạng thái (2026-11-13): **GĐ1 đã làm** (commit `21171cb`: TSK-1..3), **GĐ2 đã làm** (commit `f77ae19`: TSK-4),
-**GĐ3 đã làm** (commit `f124cd7`: TSK-5..6), **GĐ4 đã làm** (TSK-7..8: chạy flow tuỳ biến qua `bint run <flow>`, `task new
---workflow`, `resume`, driver session và TUI; xem [workflows.md](workflows.md); đang chờ commit); GĐ5–6 chưa làm. Lượt nghiệm thu thủ công sau GĐ5–6 được theo dõi ở [acceptance.md](acceptance.md)
+Trạng thái (2026-11-13): **GĐ1–6 đã làm và đã push**: GĐ1 `21171cb` (TSK-1..3), GĐ2 `f77ae19` (TSK-4), GĐ3 `f124cd7`
+(TSK-5..6), GĐ4 `7925e7d` (TSK-7..8), GĐ5 `1c727f8` (TSK-9..10), GĐ6 `25afb78` (TSK-11..12); sửa review `99083d0`,
+`b313ec1`, `5ce48e2`. Còn lượt nghiệm thu thủ công với harness thật, theo dõi ở [acceptance.md](acceptance.md)
 (mã `NT-CF-MANUAL`).
 
 ## Yêu cầu
@@ -287,20 +287,20 @@ Mỗi giai đoạn (GĐ) lập một phiếu b-do riêng, tiêu chí của phi�
 
 ### GĐ3 — Runner theo kind (không đổi hành vi)
 
-- [ ] TSK-5 [AC-6, AC-11]: ghi golden bảng (trạng thái, phân loại, cờ) → bước kế tiếp từ mã cũ, rồi đổi nextStep/afterStep/beginStep/prompt/readonlySteps/stopOnPlanning/reviewDecision của driver process sang switch theo kind của flow.Def — xong khi: golden khớp, toàn bộ test internal/workflow qua mà không sửa kỳ vọng
-- [ ] TSK-6 [AC-6, AC-11]: chuyển session.go (next/complete/PendingStep), app.workflowRoles/roleStep/rolesForRun, harness.StepRole và harness.SubagentFiles sang đọc flow nhúng; thêm hồi quy cho snapshot role khi chuyển b-req sang b-do — xong khi: test internal/app, internal/cli, internal/harness qua mà không sửa kỳ vọng và go test ./... qua
+- [x] TSK-5 [AC-6, AC-11]: ghi golden bảng (trạng thái, phân loại, cờ) → bước kế tiếp từ mã cũ, rồi đổi nextStep/afterStep/beginStep/prompt/readonlySteps/stopOnPlanning/reviewDecision của driver process sang switch theo kind của flow.Def — xong khi: golden khớp, toàn bộ test internal/workflow qua mà không sửa kỳ vọng
+- [x] TSK-6 [AC-6, AC-11]: chuyển session.go (next/complete/PendingStep), app.workflowRoles/roleStep/rolesForRun, harness.StepRole và harness.SubagentFiles sang đọc flow nhúng; thêm hồi quy cho snapshot role khi chuyển b-req sang b-do — xong khi: test internal/app, internal/cli, internal/harness qua mà không sửa kỳ vọng và go test ./... qua
 
 ### GĐ4 — Chạy flow tuỳ biến
 
-- [ ] TSK-7 [AC-8, AC-11]: config Roles.Extra và RoleModels.Extra (yaml inline), Validate tên role và harness, limits.workflows nhận tên flow, dòng chú thích trong template.go, doctor kiểm flow tồn tại; MCP grants tra theo role của bước — xong khi: test decode config cũ không có khoá mới qua, test role tuỳ biến lấy đúng harness/model/grants, TestRenderMatchesDefaults qua
-- [ ] TSK-8 [AC-7, AC-11]: bint run {flow}, task new --workflow {flow}, resume, run next/complete, State.FlowStep và State.FlowSHA, verify theo cờ của bước, TUI màn Tác vụ chọn flow — xong khi: e2e với agent giả trên flow 4 bước (plan, red verify false, green, review fix green) xác nhận thứ tự bước, bước chỉ đọc bị chặn ghi, kiểm phạm vi sau red, kiểm chứng không chạy sau red mà chạy sau green, vòng sửa về green, flow đổi giữa chừng làm resume blocked, và cùng kịch bản qua driver session
+- [x] TSK-7 [AC-8, AC-11]: config Roles.Extra và RoleModels.Extra (yaml inline), Validate tên role và harness, limits.workflows nhận tên flow, dòng chú thích trong template.go, doctor kiểm flow tồn tại; MCP grants tra theo role của bước — xong khi: test decode config cũ không có khoá mới qua, test role tuỳ biến lấy đúng harness/model/grants, TestRenderMatchesDefaults qua
+- [x] TSK-8 [AC-7, AC-11]: bint run {flow}, task new --workflow {flow}, resume, run next/complete, State.FlowStep và State.FlowSHA, verify theo cờ của bước, TUI màn Tác vụ chọn flow — xong khi: e2e với agent giả trên flow 4 bước (plan, red verify false, green, review fix green) xác nhận thứ tự bước, bước chỉ đọc bị chặn ghi, kiểm phạm vi sau red, kiểm chứng không chạy sau red mà chạy sau green, vòng sửa về green, flow đổi giữa chừng làm resume blocked, và cùng kịch bản qua driver session
 
 ### GĐ5 — Xuất bản flow và b-add-flow
 
-- [ ] TSK-9 [AC-9, AC-11]: bint sync sinh skill điều phối cùng tên cho mỗi flow hợp lệ từ mẫu nhúng, mục flows trong core.lock, gỡ khi flow bị xoá — xong khi: test xuất bản có nội dung bint run tdd, test gỡ khi xoá flow và giữ bản bị sửa tay
-- [ ] TSK-10 [AC-2, AC-11]: skill gốc internal/skills/core/b-add-flow/SKILL.md (chọn bước, kind, role, hợp đồng v1 cho bước plan, flow lint, sync, chạy thử), cập nhật docs/bint-plan.md mục 6.4, 6.6, 7, docs/workflows.md và README — xong khi: bint skill list có b-add-flow, bint sync xuất bản nó, test bảng skill gốc qua
+- [x] TSK-9 [AC-9, AC-11]: bint sync sinh skill điều phối cùng tên cho mỗi flow hợp lệ từ mẫu nhúng, mục flows trong core.lock, gỡ khi flow bị xoá — xong khi: test xuất bản có nội dung bint run tdd, test gỡ khi xoá flow và giữ bản bị sửa tay
+- [x] TSK-10 [AC-2, AC-11]: skill gốc internal/skills/core/b-add-flow/SKILL.md (chọn bước, kind, role, hợp đồng v1 cho bước plan, flow lint, sync, chạy thử), cập nhật docs/bint-plan.md mục 6.4, 6.6, 7, docs/workflows.md và README — xong khi: bint skill list có b-add-flow, bint sync xuất bản nó, test bảng skill gốc qua
 
 ### GĐ6 — Kiểm thử skill
 
-- [ ] TSK-11 [AC-10, AC-11]: bint skill test {tên}: định dạng tests/*.yml, hai nhánh có và không có skill qua eval.Agent theo role skill-tester, ghi JSON kết quả vào thư mục trạng thái, ước tính chi phí, yêu cầu --yes khi không tương tác — xong khi: test với agent giả ghi đúng tỉ lệ tuân thủ của hai nhánh, test thiếu --yes khi stdin không phải terminal xác nhận agent không được gọi
-- [ ] TSK-12 [AC-1, AC-11]: cập nhật b-add-skill dùng bint skill test cho bước RED/GREEN và nhắc kịch bản đặt trong tests/ — xong khi: nội dung b-add-skill nêu bint skill test, bint sync xuất bản bản mới, go test ./... và GOOS=windows go vet ./... qua
+- [x] TSK-11 [AC-10, AC-11]: bint skill test {tên}: định dạng tests/*.yml, hai nhánh có và không có skill qua eval.Agent theo role skill-tester, ghi JSON kết quả vào thư mục trạng thái, ước tính chi phí, yêu cầu --yes khi không tương tác — xong khi: test với agent giả ghi đúng tỉ lệ tuân thủ của hai nhánh, test thiếu --yes khi stdin không phải terminal xác nhận agent không được gọi
+- [x] TSK-12 [AC-1, AC-11]: cập nhật b-add-skill dùng bint skill test cho bước RED/GREEN và nhắc kịch bản đặt trong tests/ — xong khi: nội dung b-add-skill nêu bint skill test, bint sync xuất bản bản mới, go test ./... và GOOS=windows go vet ./... qua
