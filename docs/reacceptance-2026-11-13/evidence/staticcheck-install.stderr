@@ -1,1 +1,0 @@
-go: honnef.co/go/tools/cmd/staticcheck@v0.7.0: honnef.co/go/tools/cmd/staticcheck@v0.7.0: Get "https://proxy.golang.org/honnef.co/go/tools/cmd/staticcheck/@v/v0.7.0.info": dial tcp: lookup proxy.golang.org on 127.0.0.53:53: dial udp 127.0.0.53:53: socket: operation not permitted

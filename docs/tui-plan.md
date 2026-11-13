@@ -1250,7 +1250,7 @@ Phiếu cuối của giai đoạn 6 (6a = tương tác; 6b = thông điệp và 
 - Test: `TestHelpContextEveryScreenAndSubTab` (đi qua từng thẻ phụ của sáu màn bằng chuột ở chế độ thường và chỉ đọc: tiêu đề màn › thẻ, giới thiệu, đủ phím của chân phím trong khung, thứ tự nhóm, không có tiêu đề hành động Writes ở chỉ đọc; thẻ Log chỉ hiện khi có việc nền nên được bỏ qua), `TestHelpContextReadOnlyDropsWriteKeys`,
   `TestHelpScrollKeysAndWheel` (j/k, PgUp/PgDn, bánh xe, End → thấy dòng cuối, vị trí cuộn); golden `help_80x24_vi` và 140×40 ghi lại.
 
-**README**: mục "Giao diện terminal (TUI)" (cách mở, khi nào `bint` in trợ giúp thay vì mở TUI, tám tab, phím toàn cục, chuột và cách bật tắt, chế độ chỉ đọc, `NO_COLOR`, ngôn ngữ, liên kết tài liệu này). `TestREADMEDocumentsTUIGlobalKeys` đối chiếu mọi phím của hành động toàn cục có `Key` trong sổ với mục đó.
+**README**: mục "Giao diện terminal (TUI)" (cách mở, khi nào `bint` in trợ giúp thay vì mở TUI, tám tab, phím toàn cục, chuột và cách bật tắt, chế độ chỉ đọc, `NO_COLOR`, ngôn ngữ, liên kết tài liệu này). Hướng dẫn chi tiết sau đó chuyển sang mục cùng tên của `docs/usage.md`; `TestUsageDocumentsTUIGlobalKeys` (`internal/cli/usage_tui_test.go`) đối chiếu mọi phím của hành động toàn cục có `Key` trong sổ với mục đó.
 
 **Chốt giai đoạn 6**: `actions.CurrentPhase = 6`; `Pending`/`PendingFlags` rỗng, `PendingCeiling = 0`; subtest của `internal/cli/coverage_test.go` đổi sang giai đoạn 6; `TestCommandAndFlagCoverage` xanh. Golden: ghi lại bằng `-update` hai lần liền không đổi tệp nào; `go test ./internal/tui/... -count=2` xanh.
 

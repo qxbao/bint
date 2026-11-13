@@ -1,1 +1,0 @@
-go: failed to trim cache: open /home/DUCLH/.cache/go-build/trim.txt: read-only file system

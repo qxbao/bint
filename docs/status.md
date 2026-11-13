@@ -7,10 +7,6 @@ giữ nguyên theo thời điểm chạy. Yêu cầu thiết kế xem ở [đặ
 [acceptance.md](acceptance.md)** (nguồn chuẩn duy nhất). Tài liệu này không ghi kết luận nghiệm thu; mã
 `NT-…` bên dưới trỏ sang đó.
 
-Các biên bản bổ sung được lưu theo baseline: [tái nghiệm thu `d788669`](reacceptance-2026-11-13/README.md)
-và [phụ lục MCP/TUI `04214d8`](reacceptance-2026-11-13/update-04214d8/README.md).
-Đây là bằng chứng lịch sử; trạng thái và tiêu chí còn mở hiện hành được đối chiếu ở `acceptance.md`.
-
 ## Tổng quan theo giai đoạn
 
 | Giai đoạn | Phần đã có trong mã | Giới hạn hiện tại |

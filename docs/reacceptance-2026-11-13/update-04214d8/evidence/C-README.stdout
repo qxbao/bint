@@ -1,9 +1,0 @@
-{"Time":"2026-11-13T12:34:53.932963073+07:00","Action":"start","Package":"bint/internal/cli"}
-{"Time":"2026-11-13T12:34:54.92208371+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestREADMEDocumentsTUIGlobalKeys"}
-{"Time":"2026-11-13T12:34:54.922115894+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestREADMEDocumentsTUIGlobalKeys","Output":"=== RUN   TestREADMEDocumentsTUIGlobalKeys\n"}
-{"Time":"2026-11-13T12:34:54.922125152+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestREADMEDocumentsTUIGlobalKeys","Output":"    readme_tui_test.go:21: README thiếu mục \"## Giao diện terminal (TUI)\"\n"}
-{"Time":"2026-11-13T12:34:54.922188894+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestREADMEDocumentsTUIGlobalKeys","Output":"--- FAIL: TestREADMEDocumentsTUIGlobalKeys (0.00s)\n"}
-{"Time":"2026-11-13T12:34:54.922198458+07:00","Action":"fail","Package":"bint/internal/cli","Test":"TestREADMEDocumentsTUIGlobalKeys","Elapsed":0}
-{"Time":"2026-11-13T12:34:54.922202768+07:00","Action":"output","Package":"bint/internal/cli","Output":"FAIL\n"}
-{"Time":"2026-11-13T12:34:54.927374505+07:00","Action":"output","Package":"bint/internal/cli","Output":"FAIL\tbint/internal/cli\t0.994s\n"}
-{"Time":"2026-11-13T12:34:54.927404377+07:00","Action":"fail","Package":"bint/internal/cli","Elapsed":0.994}

@@ -45,11 +45,3 @@ tái nghiệm thu và biên bản đóng lỗi).
 
 Khối `bint:begin … bint:end` trong `AGENTS.md` và `CLAUDE.md` ở gốc repository do Bint sinh từ
 `.bint/knowledge/items/`; sửa mục nguồn rồi chạy `bint bootstrap publish`, không sửa tay khối đã sinh.
-
-## Biên bản tái nghiệm thu ngày 2026-11-13
-
-[Báo cáo tái nghiệm thu toàn dự án](reacceptance-2026-11-13/README.md) ghi kết quả tại baseline
-`d788669` cho P0–P8, E/H, TUI, isolation, MCP gateway, gate và các đợt thử nghiệm.
-[Phụ lục MCP/TUI](reacceptance-2026-11-13/update-04214d8/README.md) đối chiếu phần mới tại baseline `04214d8`.
-Các biên bản giữ nguyên bằng chứng và giới hạn tại thời điểm kiểm tra; trạng thái nghiệm thu hiện hành
-vẫn được quản lý tại [acceptance.md](acceptance.md).

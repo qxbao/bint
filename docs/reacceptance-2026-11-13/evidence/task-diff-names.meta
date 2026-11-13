@@ -1,5 +1,0 @@
-started=2026-11-13T11:14:31+07:00
-ended=2026-11-13T11:14:32+07:00
-exit_code=0
-cwd=/home/DUCLH/orca/bint
-command=GIT_INDEX_FILE=/tmp/bint-audit-index GIT_OBJECT_DIRECTORY=/tmp/bint-audit-git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/home/DUCLH/orca/bint/.git/objects bint task diff 01M79DW2JXXF41V10HZ5MFMACM --name-only

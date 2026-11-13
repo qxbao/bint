@@ -1,5 +1,0 @@
-started=2026-11-13T11:15:18+07:00
-ended=2026-11-13T11:15:18+07:00
-exit_code=0
-cwd=/home/DUCLH/orca/bint
-command=git rev-parse HEAD; git rev-parse HEAD^{tree}; sha256sum .git/index; git diff -- .bint/config.yml local.yml; git status --short; git diff --name-only; git diff --cached --name-only; git status --short --untracked-files=all

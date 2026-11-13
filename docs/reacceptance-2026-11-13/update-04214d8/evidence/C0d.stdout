@@ -1,8 +1,0 @@
-{"Time":"2026-11-13T12:34:27.194132182+07:00","Action":"start","Package":"bint/internal/cli"}
-{"Time":"2026-11-13T12:34:28.255654474+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestKnowledgeCiteEndToEnd"}
-{"Time":"2026-11-13T12:34:28.2556718+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestKnowledgeCiteEndToEnd","Output":"=== RUN   TestKnowledgeCiteEndToEnd\n"}
-{"Time":"2026-11-13T12:34:28.707934457+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestKnowledgeCiteEndToEnd","Output":"--- PASS: TestKnowledgeCiteEndToEnd (0.45s)\n"}
-{"Time":"2026-11-13T12:34:28.70797133+07:00","Action":"pass","Package":"bint/internal/cli","Test":"TestKnowledgeCiteEndToEnd","Elapsed":0.45}
-{"Time":"2026-11-13T12:34:28.707981726+07:00","Action":"output","Package":"bint/internal/cli","Output":"PASS\n"}
-{"Time":"2026-11-13T12:34:28.714615076+07:00","Action":"output","Package":"bint/internal/cli","Output":"ok  \tbint/internal/cli\t1.520s\n"}
-{"Time":"2026-11-13T12:34:28.714634208+07:00","Action":"pass","Package":"bint/internal/cli","Elapsed":1.521}

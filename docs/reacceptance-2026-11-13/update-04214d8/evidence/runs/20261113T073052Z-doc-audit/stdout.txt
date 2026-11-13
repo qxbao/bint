@@ -1,3 +1,0 @@
-check-docs.py ignored --help and ran its checks: passed=7, failed=3.
-Expected/stale findings recorded: config_hashes differs for .bint/config.yml (local.yml matches); scope check excludes internal/cli/readme_tui_test.go although the current task constraint explicitly authorizes it (docs/status.md was preserved pre-existing); README_finding still expects the old failure. local_links and matrix_source_paths passed; required outputs/task columns passed.
-git diff --check returned success; status showed only the authorized test and the update-04214d8 appendix in the requested path filter.

@@ -56,10 +56,10 @@ Ký hiệu: **Đủ điều kiện** = mọi phát hiện đã đóng, có bằn
 | Kế hoạch | Mã đã xong | Trạng thái nghiệm thu | Còn mở |
 |---|---|---|---|
 | [E — bài học từ thất bại](p8-harness-evolution-plan.md) | E1–E5, kiểm thử xác định của E6 | Chưa đo | `NT-E6` |
-| [H — thành phần quy trình](p8-harness-evolution-plan.md) | H1–H4 | Chưa đo | `NT-H5` |
+| [H — thành phần quy trình](p8-harness-evolution-plan.md) | H1–H4 | Chưa đo | `NT-H1-STOP`, `NT-H5` |
 | [Thử nghiệm A, B](p8-next-experiments.md) | B có đủ mã; A thiếu `eval snapshot import` | Chưa đo | `NT-EXP-A`, `NT-EXP-B` |
 | [Cô lập và driver session](isolation-subagent-plan.md) | G1–G4 và việc tồn | G1–G3 đạt (G3 chạy thật 2026-11-12, mục 12.16); G4 chạy thật ở [V1](evals/v1-real-session-2026-11-13/README.md): không đạt (một lần ghi lọt ra cây gốc) | `NT-ISO-G4`, `NT-ISO-BYPASS` (vế Bash), `NT-ISO-MAXTURNS`, `NT-WIN-*` |
-| [Gateway MCP](mcp-gateway-plan.md) | M0–M4; M5 đã đo bộ nhớ | Test tự động đạt cho M0–M4; M1 đạt với service thật ([V1](evals/v1-real-session-2026-11-13/README.md)) | `NT-MCP-PROBE`, `NT-MCP-M0`, `NT-MCP-M2`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-*` |
+| [Gateway MCP](mcp-gateway-plan.md) | M0–M4; M5 đã đo bộ nhớ | Test tự động đạt cho M0–M4; M1 đạt với service thật ([V1](evals/v1-real-session-2026-11-13/README.md)) | `NT-MCP-PROBE`, `NT-MCP-SEED`, `NT-MCP-M0`, `NT-MCP-M2`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-*` |
 | [TUI](tui-plan.md) | Giai đoạn 0–6, màn MCP | Golden và test phủ lệnh đạt; chưa thử với người và terminal thật | `NT-TUI-*` |
 | [Custom skill/flow](custom-flow-plan.md) | GĐ1 (`21171cb`), GĐ2 (`f77ae19`), GĐ3 (`f124cd7`), GĐ4 (`7925e7d`), GĐ5 (`1c727f8`), GĐ6 (`25afb78`); sửa review `99083d0`, `b313ec1`, `5ce48e2` | Tiêu chí bằng test của GĐ1–6 đạt; chưa chạy với harness thật | `NT-CF-MANUAL` |
 
@@ -72,6 +72,7 @@ Cột "Vòng" trỏ tới mục 4. "Token" là token đo (eval/evolve), không t
 | Mã | Mức | Điều kiện đóng | Vòng |
 |---|---|---|---|
 | `NT-MCP-PROBE` | Thấp | `bint mcp check` phát hiện daemon codegraph env hẹp kể cả khi env vẫn chứa `codegraph_status` (gọi thử một tool mỗi nhóm được cấp, hoặc so danh sách) | Phiếu riêng |
+| `NT-MCP-SEED` | Thấp | Worktree mới chép `.codegraph/codegraph.db` và `.codegraph/.gitignore` từ worktree gốc, không chép `*.pid`, `daemon.sock`, `daemon.log`, `-wal`/`-shm` (mcp §5.5). Hiện chưa có mã: `bint mcp index codegraph` chỉ chạy `init`/`sync` trong worktree hiện tại. Cần test cho tệp được chép và tệp bị loại | Phiếu riêng |
 | `NT-WF-BASELINE` | Trung bình | Tác vụ `shared`: commit của người hoặc thay đổi do tác vụ khác land vào cây trong lúc tác vụ chạy không bị `bint task diff` và Finalize tính là thay đổi của tác vụ (hiện bị chặn "thay đổi không thuộc tác vụ", chỉ gỡ được bằng `--force`); test tái hiện: commit lên HEAD giữa b-feat và Finalize | Phiếu riêng |
 | `NT-P6-06` | Thấp | Các phát hiện low còn lại sau V0 (`mergeBodies` không idempotent với khối mã chưa đóng, nối trùng câu khác dạng, test `third_party` chưa chặt, `repoToplevel` gọi hai lần, submodule, nhánh merge của skill); danh sách ở [biên bản V0](evals/v0-p6-fixes-2026-11-13/README.md) | Phiếu riêng |
 
@@ -92,6 +93,7 @@ chờ người sửa hoặc revalidate.
 | `NT-MCP-M5-WT` | mcp §11 | Đo PSS với ≥ 2 worktree (mỗi worktree một phân vùng codegraph) | V1 |
 | `NT-AGY-REAL` | P5, workflows | Antigravity thật: một lượt `b-do`, payload hook đúng dạng adapter chờ, MCP cấp người dùng khởi động với cwd là workspace | V1 |
 | `NT-HOOK-COMPACT` | tri thức `k:01M74VDJXBG8BF6J1DWB56KW06` | Sau một phiên dài thật có nén ngữ cảnh: spool có `session.started` với `source=compact`, và có dấu vết việc đặt lại bộ nhớ | V1 |
+| `NT-H1-STOP` | plan H, H1 | Guardrail `on: stop` (`when: edited`, `unless: ran test`) với Claude Code thật, mỗi lần một `action`: `remind`/`ask` chặn một lần rồi không chặn lại khi `stop_hook_active=true`; `deny` chặn tới `MaxStopDenies` lần rồi bỏ qua; chạy test trước khi dừng thì không chặn. Lưu input Stop thô, phản hồi hook và spool | V1 |
 | `NT-TUI-REAL` | tui 12.10 | Terminal thật: `NO_COLOR=1 bint tui`, `bint tui --read-only`, phím `?` ở từng thẻ phụ; màn MCP với service thật | V1 |
 | `NT-TUI-VHS` | tui 12.10 | Ảnh VHS các màn chính | V1 |
 | `NT-CF-MANUAL` | custom-flow §7 | GĐ1–6 đã commit. `b-add-skill`, `b-add-flow` và skill điều phối chạy với harness thật; ghi chi phí thật của `bint skill test` | V1 (lần sau) |
@@ -135,7 +137,7 @@ nên kiểm role/`mcp.called` phải dùng `bint run` (process driver).
 | Vòng | Nội dung | Đóng các mã | Token đo (trần đề xuất) | Cần người | Điều kiện trước |
 |---|---|---|---|---|---|
 | **V0** | Sửa mã P6 và hồi quy tự động — **xong 2026-11-13** | `NT-P6-01..05` | 0 | Duyệt phiếu | — |
-| **V1** | Một phiên chạy thật trên máy: G4 + MCP + TUI + Antigravity — **một phần 2026-11-13, dừng sớm** | `NT-ISO-*`, `NT-MCP-M0..M3`, `NT-MCP-S3`, `NT-MCP-M5-WT`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-TUI-*` | 0 (chỉ token phiên agent) | Có, suốt vòng | Service MCP cài trên máy |
+| **V1** | Một phiên chạy thật trên máy: G4 + MCP + TUI + Antigravity — **một phần 2026-11-13, dừng sớm** | `NT-ISO-*`, `NT-MCP-M0..M3`, `NT-MCP-S3`, `NT-MCP-M5-WT`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-H1-STOP`, `NT-TUI-*` | 0 (chỉ token phiên agent) | Có, suốt vòng | Service MCP cài trên máy |
 | **V2** | Một lượt trên máy Windows | `NT-WIN-*` | 0 | Có | Máy Windows |
 | **V3** | Một đợt eval trên `validation` với model rẻ, ba nhánh | `NT-EXP-B` (B0, B1), bước 1 của `NT-E6`, bước 1 của `NT-H5` | ~$15 | Duyệt ngân sách | Guardrail `test-before-stop` ở `candidate` |
 | **V4** | Một vòng `evolve cycle` rồi xác nhận trên `test` | `NT-EVO-TEST`, `NT-E6`, `NT-H5` (bước 2), B2–B3 | ≤ $35 | Duyệt ngân sách | V0, V3 qua cổng B0 |

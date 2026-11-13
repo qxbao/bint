@@ -1,5 +1,0 @@
-started=2026-11-13T11:14:31+07:00
-ended=2026-11-13T11:14:31+07:00
-exit_code=0
-cwd=/home/DUCLH/orca/bint
-command=python3 docs/reacceptance-2026-11-13/evidence/check-report-links.py

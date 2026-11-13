@@ -1,6 +1,0 @@
-started=2026-11-13T10:12:47+07:00
-ended=2026-11-13T10:13:00+07:00
-exit_code=0
-cwd=/home/DUCLH/orca/bint
-command=go vet ./...
-GOOS=linux

@@ -1,5 +1,0 @@
-started=2026-11-13T10:35:33+07:00
-ended=2026-11-13T10:35:33+07:00
-exit_code=0
-cwd=/home/DUCLH/orca/bint
-command=rg -n 'package mcpcat|package mcpgw|internal/mcpcat|internal/mcpgw|mcp gateway|mcp catalog|MCPConfig|mcp serve' internal cmd
