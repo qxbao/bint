@@ -56,6 +56,7 @@ bint skill show <tên> [--core]
 bint skill overlay <tên>
 bint skill new <tên>                            # skill tuỳ biến: tạo .bint/skills/<tên>/SKILL.md mẫu (không ghi đè)
 bint skill lint [tên]                           # kiểm hình thức skill tuỳ biến; thoát 1 khi có lỗi (--json)
+bint flow list|show|lint                        # flow nhúng và flow tuỳ biến (.bint/flows): xem, kiểm; CHƯA chạy được bằng bint run
 bint sync                                       # ghép skill gốc + lớp phủ, xuất bản, cập nhật core.lock
 bint knowledge add --from-review <task-id>.<n>  # phát hiện review → mục warning/lesson
 ```
@@ -238,6 +239,44 @@ chỉ gồm `name`, `description`, `disable-model-invocation`, `argument-hint`, 
 Markdown tới tệp phụ phải tồn tại. Description không mở đầu "Dùng khi"/"Use when" chỉ bị cảnh báo. Skill có lỗi lint
 → xung đột: **không** xuất bản bản mới nhưng **giữ** bản đã xuất bản và mục `core.lock` cũ (như lớp phủ hỏng).
 Nội dung skill tuỳ biến là tệp người viết: ranh giới tin cậy là review Git (không có kiểm nội dung kiểu skill tiến hoá).
+
+### Flow tuỳ biến (xem trước, GĐ2 của `docs/custom-flow-plan.md`)
+
+Một **flow** là dãy bước của một workflow; mỗi bước có `id`, `kind` (`plan` | `implement` | `review`, do Bint giữ vì kind
+quyết định trạng thái tác vụ, chế độ chỉ đọc và cổng sau bước), `skill` và `role`. Bốn workflow gốc `b-do`, `b-req`, `b-feat`,
+`b-review` là flow nhúng (gói `internal/flow`; `b-do` = `b-req` plan tuỳ chọn → `b-feat` implement → `b-review` review với
+vòng sửa về `b-feat`). Người dùng khai báo thêm flow trong `.bint/flows/<tên>.yml` (commit được):
+
+```yaml
+schema: 1
+name: tdd                # trùng tên tệp; không trùng workflow gốc, không tiền tố b-, không trùng tên skill
+description: "Dùng khi muốn viết kiểm thử đỏ trước khi sửa mã"
+steps:
+  - {id: plan,   kind: plan,      skill: b-req, optional: true}
+  - {id: red,    kind: implement, skill: write-failing-test, role: test-writer, verify: false}
+  - {id: green,  kind: implement, skill: b-feat}
+  - {id: review, kind: review,    skill: b-review, fix: green}
+```
+
+Khoá của bước: `id`, `kind`, `skill` (bắt buộc); `role` (rỗng → `planner`/`implementer`/`reviewer` theo kind), `optional`
+(chỉ bước plan: bỏ qua theo phân loại), `verify` (chỉ bước implement: có chạy lệnh kiểm chứng sau bước hay không, mặc định có),
+`fix` (chỉ bước review: id bước implement mà vòng sửa quay về). Khoá YAML lạ ở bất cứ đâu là lỗi.
+
+`bint flow lint [tên]` (thoát 1 khi có lỗi, `--json`) từ chối: `schema` khác 1; tên sai quy tắc (chữ thường, số, gạch ngang,
+3–40 ký tự), khác tên tệp, trùng workflow gốc, có tiền tố `b-` hoặc trùng tên một skill (flow sẽ được xuất bản thành skill cùng
+tên ở giai đoạn sau); không có bước; id rỗng, trùng hoặc trùng bước giả `post-feat`/`verify`; `kind` ngoài ba giá trị; kind giảm
+theo thứ tự plan → implement → review; hơn một bước plan; thiếu bước implement; `skill` rỗng hoặc không tồn tại (skill gốc hoặc
+skill tuỳ biến qua được `bint skill lint`; skill tiến hoá không tính); `optional` ở bước không phải plan; `verify: false` ở bước
+implement cuối (kiểm chứng phải chạy trước review và trước khi done); `fix` ở bước không phải review hoặc không trỏ tới bước
+implement. Một tệp hỏng không chặn việc kiểm tệp khác; flow nhúng cũng qua cùng bộ luật (riêng flow nhúng một bước được miễn
+luật "thiếu implement" và luật tên gốc). `bint flow list` hiện cả flow nhúng và flow tuỳ biến (nguồn, số bước, mô tả, trạng thái
+lint); `bint flow show <tên>` in định nghĩa đã chuẩn hoá (role mặc định được điền) kèm nguồn và băm (`sha256:…`, không phụ thuộc
+chú thích, thứ tự khoá hay mô tả). Trong TUI: ba hành động chỉ đọc "Liệt kê/Xem/Kiểm flow" ở bảng lệnh (`:`), kết quả ở khung đầu ra
+của thẻ Skill.
+
+**Chưa chạy được**: ở bản này Runner (`internal/workflow`) chưa đọc flow, nên `bint run <flow>`, `bint task new --workflow <flow>`,
+`limits.workflows.<flow>` và role tuỳ biến trong cấu hình chưa có (GĐ3–GĐ4); chưa có skill điều phối `/{flow}` (GĐ5). Hiện
+chỉ khai báo, xem và kiểm được định nghĩa.
 
 ## Multi-Harness (P5)
 

@@ -42,7 +42,7 @@ var readOnlyAudit = []string{
 	"eval.list", "eval.show", "eval.estimate", "eval.report", "eval.baseline", "eval.split", "eval.filter", "eval.refresh", "eval.next_view", "eval.prev_view",
 	"evolve.scan", "evolve.list", "evolve.show", "evolve.plan_apply", "evolve.plan_rollback", "evolve.history", "evolve.queue", "evolve.next_sub", "evolve.refresh", "evolve.next_view", "evolve.prev_view",
 	"system.next_view", "system.prev_view", "system.refresh", "system.filter", "system.config_check", "system.config_rebase", "system.config_view", "system.harness_list", "system.harness_show",
-	"system.harness_runtime", "system.harness_version", "system.component_list", "system.component_show", "system.render", "system.skill_list", "system.skill_show", "system.skill_lint", "system.skill_diff",
+	"system.harness_runtime", "system.harness_version", "system.component_list", "system.component_show", "system.render", "system.skill_list", "system.skill_show", "system.skill_lint", "system.flow_list", "system.flow_show", "system.flow_lint", "system.skill_diff",
 	"system.skill_versions", "system.skill_check", "system.skill_regress", "system.sync_plan", "system.repo_state", "system.repo_plan", "system.config_upgrade_plan", "system.restart",
 	"system.doctor", "system.doctor_filter",
 	// mcp.check không ghi dữ liệu của Bint (chỉ tạo thư mục cwd riêng của service kiểu state) và agent được chạy (D5): chỉ đọc.

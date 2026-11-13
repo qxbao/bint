@@ -620,6 +620,27 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 			return nil
 		}
 		m.showOut(m.t("sy.skill.lint.title"), m.lintLines(msg.Value))
+	case "system.flow_list":
+		if msg.Err != nil {
+			m.fail(msg.Err)
+			return nil
+		}
+		m.showOut(m.t("sy.flow.list.title"), m.flowListLines(msg.Value))
+	case "system.flow_show":
+		m.finishForm(msg.ID)
+		if msg.Err != nil {
+			m.fail(msg.Err)
+			return nil
+		}
+		v, _ := msg.Value.(app.FlowShowResult)
+		m.showOut(m.t("sy.flow.show.title", i18n.A{"name": v.Name}), m.flowShowLines(v))
+	case "system.flow_lint":
+		m.finishForm(msg.ID)
+		if msg.Err != nil {
+			m.fail(msg.Err)
+			return nil
+		}
+		m.showOut(m.t("sy.flow.lint.title"), m.flowLintLines(msg.Value))
 	case "system.skill_diff":
 		m.finishForm(msg.ID)
 		if msg.Err != nil {
@@ -1218,6 +1239,17 @@ func (m *Model) Command(id string) tea.Cmd {
 	case "system.skill_lint":
 		m.tab = TabSkills
 		return tea.Batch(m.ensureTab(TabSkills), m.cmdSkillLint())
+	case "system.flow_list":
+		m.tab = TabSkills
+		return tea.Batch(m.ensureTab(TabSkills), m.request("system.flow_list", app.FlowListDefaults(config.Default())))
+	case "system.flow_show":
+		m.tab = TabSkills
+		m.openForm("system.flow_show", "flow show", app.FlowShowDefaults(config.Default()))
+		return m.ensureTab(TabSkills)
+	case "system.flow_lint":
+		m.tab = TabSkills
+		m.openForm("system.flow_lint", "flow lint", app.FlowLintDefaults(config.Default()))
+		return m.ensureTab(TabSkills)
 	case "system.skill_diff":
 		m.tab = TabSkills
 		return tea.Batch(m.ensureTab(TabSkills), m.cmdSkillForm("system.skill_diff", "skill diff"))

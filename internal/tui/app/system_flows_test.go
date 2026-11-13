@@ -578,3 +578,45 @@ func TestSystemLanguageShadowed(t *testing.T) {
 		}
 	})
 }
+
+// Flow (GĐ2 của custom-flow-plan): ba hành động chỉ đọc, không phím, gọi từ bảng lệnh; kết quả ở khung đầu ra.
+func TestSystemFlowActionsFromPalette(t *testing.T) {
+	m, c := newSysModel(t, Options{}, 140, 40)
+	palette := func(label string) {
+		t.Helper()
+		press(t, m, ":")
+		for _, r := range label {
+			press(t, m, string(r))
+		}
+		press(t, m, "enter")
+	}
+
+	c.values["system.flow_list"] = []bintapp.FlowRow{
+		{Name: "b-do", Source: bintapp.FlowBuiltin, Steps: 3, OK: true, Problems: []string{}, Description: "luồng gốc"},
+		{Name: "tdd", Source: bintapp.FlowCustom, Path: ".bint/flows/tdd.yml", Steps: 4, Problems: []string{"skill \"x\" không tồn tại"}},
+	}
+	palette("Liệt kê flow nhúng")
+	hasAll(t, plain(m.Render()), "Danh sách flow", "b-do", "nhúng", "3 bước", "tdd", ".bint/flows/tdd.yml", "4 bước", "lỗi:", "không tồn tại")
+
+	c.values["system.flow_show"] = bintapp.FlowShowResult{Name: "tdd", Source: bintapp.FlowCustom, Path: ".bint/flows/tdd.yml", Hash: "sha256:abc",
+		YAML: "schema: 1\nname: tdd\nsteps:\n  - id: green\n", Errors: []string{}, Warnings: []string{"bước \"x\": verify bị bỏ qua"}}
+	palette("In định nghĩa chuẩn hoá")
+	hasAll(t, plain(m.Render()), "Tên flow", "bint flow show")
+	for _, r := range "tdd" {
+		press(t, m, string(r))
+	}
+	press(t, m, "ctrl+s")
+	if o := c.last(t, "system.flow_show").(bintapp.FlowShowOptions); o.Name != "tdd" {
+		t.Fatalf("%+v", o)
+	}
+	hasAll(t, plain(m.Render()), "Flow tdd", "nguồn: .bint/flows/tdd.yml", "băm: sha256:abc", "id: green", "cảnh báo:")
+
+	c.values["system.flow_lint"] = []bintapp.FlowLintResult{{Name: "b-do", Source: bintapp.FlowBuiltin, Errors: []string{}, Warnings: []string{}}}
+	palette("Kiểm định nghĩa flow")
+	hasAll(t, plain(m.Render()), "bint flow lint")
+	press(t, m, "ctrl+s")
+	if o := c.last(t, "system.flow_lint").(bintapp.FlowLintOptions); o.Name != "" {
+		t.Fatalf("lint không tên phải kiểm mọi flow: %+v", o)
+	}
+	hasAll(t, plain(m.Render()), "Kiểm flow", "b-do (nhúng)")
+}

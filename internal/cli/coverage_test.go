@@ -45,6 +45,7 @@ var serviceBindings = map[string]any{
 	"skill list": app.SkillListOptions{}, "skill show": app.SkillShowOptions{}, "skill overlay": app.SkillOverlayOptions{}, "skill new": app.SkillNewOptions{}, "skill lint": app.SkillLintOptions{},
 	"skill diff": app.SkillDiffOptions{}, "skill versions": app.SkillVersionsOptions{}, "skill check": evolvesvc.SkillCheckOptions{},
 	"skill regress": evolvesvc.SkillRegressOptions{}, "sync": app.SyncOptions{}, "index rebuild": app.IndexRebuildOptions{},
+	"flow list": app.FlowListOptions{}, "flow show": app.FlowShowOptions{}, "flow lint": app.FlowLintOptions{},
 	"mcp tools": app.MCPToolsOptions{},
 	// M1 của kế hoạch MCP gateway: màn MCP thuộc M4 nên các lệnh chỉ có dịch vụ + binding (phủ cờ vẫn được kiểm).
 	"mcp list": app.MCPListOptions{}, "mcp add": app.MCPAddOptions{}, "mcp remove": app.MCPRemoveOptions{},

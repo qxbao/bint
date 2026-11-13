@@ -134,6 +134,26 @@ func TestSystemWriteActionsWithRealServices(t *testing.T) {
 	if r := do(t, "system.skill_new", env, app.SkillNewOptions{Name: "b-bad"}); r.Err == nil {
 		t.Fatal("tên b- phải bị từ chối")
 	}
+	// Flow (chỉ đọc): list có bốn flow nhúng, show in YAML, lint một flow tuỳ biến hợp lệ thoát sạch và tên lạ lỗi cách dùng.
+	if err := os.MkdirAll(filepath.Join(env.Dir, ".bint", "flows"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	flowSrc := "schema: 1\nname: demo-flow\nsteps:\n  - {id: green, kind: implement, skill: demo-skill}\n"
+	if err := os.WriteFile(filepath.Join(env.Dir, ".bint", "flows", "demo-flow.yml"), []byte(flowSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := do(t, "system.flow_list", env, app.FlowListOptions{}); r.Err != nil || len(r.Value.([]app.FlowRow)) != 5 {
+		t.Fatalf("flow_list: %+v", r)
+	}
+	if r := do(t, "system.flow_show", env, app.FlowShowOptions{Name: "demo-flow"}); r.Err != nil || !strings.Contains(r.Value.(app.FlowShowResult).YAML, "role: implementer") {
+		t.Fatalf("flow_show: %+v", r)
+	}
+	if r := do(t, "system.flow_lint", env, app.FlowLintOptions{Name: "demo-flow"}); r.Err != nil || len(r.Value.([]app.FlowLintResult)) != 1 || !r.Value.([]app.FlowLintResult)[0].OK() {
+		t.Fatalf("flow_lint: %+v", r)
+	}
+	if r := do(t, "system.flow_lint", env, app.FlowLintOptions{Name: "khong-co"}); r.Err == nil {
+		t.Fatal("flow lạ phải lỗi")
+	}
 	// Chỉ mục.
 	if r := do(t, "system.index_rebuild", env, app.IndexRebuildOptions{}); r.Err != nil || r.Value.(app.IndexRebuildResult).Total != 2 {
 		t.Fatalf("index_rebuild: %+v", r)
