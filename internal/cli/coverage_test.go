@@ -42,7 +42,7 @@ var serviceBindings = map[string]any{
 	"harness component list": app.ComponentListOptions{}, "harness component show": app.ComponentShowOptions{},
 	"harness component add": app.AddComponentOptions{}, "harness component approve": app.ComponentReviewOptions{},
 	"harness component deprecate": app.ComponentReviewOptions{}, "harness render": app.RenderOptions{},
-	"skill list": app.SkillListOptions{}, "skill show": app.SkillShowOptions{}, "skill overlay": app.SkillOverlayOptions{},
+	"skill list": app.SkillListOptions{}, "skill show": app.SkillShowOptions{}, "skill overlay": app.SkillOverlayOptions{}, "skill new": app.SkillNewOptions{}, "skill lint": app.SkillLintOptions{},
 	"skill diff": app.SkillDiffOptions{}, "skill versions": app.SkillVersionsOptions{}, "skill check": evolvesvc.SkillCheckOptions{},
 	"skill regress": evolvesvc.SkillRegressOptions{}, "sync": app.SyncOptions{}, "index rebuild": app.IndexRebuildOptions{},
 	"mcp tools": app.MCPToolsOptions{},

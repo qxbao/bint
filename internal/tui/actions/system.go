@@ -265,6 +265,16 @@ func systemActions() []Action {
 				v, err := app.CreateOverlay(ctx, env.Dir, opts.(app.SkillOverlayOptions))
 				return res("system.skill_overlay", opts, v, err)
 			}),
+		mk("system.skill_new", "skill_new", "n", 8, "skill new", app.SkillNewOptions{}, true, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.NewSkill(ctx, env.Dir, opts.(app.SkillNewOptions))
+				return res("system.skill_new", opts, v, err)
+			}),
+		mk("system.skill_lint", "skill_lint", "l", 9, "skill lint", app.SkillLintOptions{}, false, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.LintSkills(ctx, env.Dir, opts.(app.SkillLintOptions))
+				return res("system.skill_lint", opts, v, err)
+			}),
 		mk("system.skill_diff", "skill_diff", "d", 4, "skill diff", app.SkillDiffOptions{}, false, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				v, err := app.DiffSkill(ctx, env.Dir, opts.(app.SkillDiffOptions))

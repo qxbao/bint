@@ -87,7 +87,7 @@ func newSkillProposal(in ProposeInput, o Opportunity, action string, targets []*
 		}
 	}
 	byName := indexEvolved(all)
-	if err := validateSkillChanges(p, byName, in.K.Source()); err != nil {
+	if err := validateSkillChanges(p, byName, in.K.Source(), in.K.Root); err != nil {
 		return nil, err
 	}
 	p.Risk, p.RiskReasons = assessSkillRisk(p, byName)

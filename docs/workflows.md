@@ -54,6 +54,8 @@ bint task status <id> done [--force]            # done cần bằng chứng; ch�
 bint skill list
 bint skill show <tên> [--core]
 bint skill overlay <tên>
+bint skill new <tên>                            # skill tuỳ biến: tạo .bint/skills/<tên>/SKILL.md mẫu (không ghi đè)
+bint skill lint [tên]                           # kiểm hình thức skill tuỳ biến; thoát 1 khi có lỗi (--json)
 bint sync                                       # ghép skill gốc + lớp phủ, xuất bản, cập nhật core.lock
 bint knowledge add --from-review <task-id>.<n>  # phát hiện review → mục warning/lesson
 ```
@@ -217,6 +219,25 @@ khác bị bỏ qua. `bint sync` (và `init`, `bootstrap`) ghép rồi xuất b�
 lớp phủ và bản đã xuất bản. Nâng cấp Bint: skill gốc mới được áp lại lớp phủ; nếu lớp phủ dùng điểm neo
 không còn → **xung đột**, bản đã xuất bản và mục `core.lock` cũ được giữ nguyên cho tới khi sửa lớp phủ
 (`--force` không vượt qua được). Skill đã xuất bản bị sửa tay → xung đột như P2.
+
+**Skill tuỳ biến** (GĐ1 của `docs/custom-flow-plan.md`). Ngoài skill gốc (bất biến) và skill tiến hoá (do Bint sinh),
+dự án có thể có skill do người dùng tự viết: thư mục `.bint/skills/<tên>/` (commit được) gồm `SKILL.md` và tệp phụ
+(tài liệu tham chiếu, script, kể cả thư mục con). Mọi thư mục con trực tiếp của `.bint/skills/` là ứng viên, trừ tên
+dành riêng `overlays`, `evolved` và thư mục ẩn. Tạo bằng `bint skill new <tên>` hoặc nhờ agent qua skill gốc
+`/b-add-skill` (hướng dẫn quy trình RED → GREEN → REFACTOR bằng subagent, và khi nào *không* nên tạo skill).
+`bint sync` xuất bản `SKILL.md` (với `.agents/skills` chỉ giữ `name`, `description`) và tệp phụ nguyên văn sang
+`.claude/skills/<tên>/` và `.agents/skills/<tên>/`; `core.lock` ghi mục `custom` với băm từng tệp đã xuất bản.
+Thư mục `tests/` ở gốc skill và tệp ẩn không được xuất bản; symlink hay tệp không thường là lỗi. Trần tệp phụ: 50 tệp,
+mỗi tệp 1 MiB, tổng 5 MiB. Cùng quy tắc an toàn như skill gốc: bản đã xuất bản bị sửa tay → xung đột (`--force`
+ghi đè, có sao lưu; tuỳ biến thuộc về nguồn trong `.bint/skills/<tên>/`); tệp phụ hoặc cả skill bị xoá khỏi nguồn →
+gỡ bản đã xuất bản nếu chưa bị sửa tay.
+
+`bint skill lint` (và `bint sync`, `bint doctor`) kiểm: tên (chữ thường, số, gạch ngang, 3–40 ký tự; không tiền tố `b-`;
+không trùng skill gốc hay tiến hoá), `name` trùng tên thư mục, `description` không rỗng và ≤ 1024 ký tự, frontmatter
+chỉ gồm `name`, `description`, `disable-model-invocation`, `argument-hint`, thân không rỗng và ≤ 500 dòng, liên kết
+Markdown tới tệp phụ phải tồn tại. Description không mở đầu "Dùng khi"/"Use when" chỉ bị cảnh báo. Skill có lỗi lint
+→ xung đột: **không** xuất bản bản mới nhưng **giữ** bản đã xuất bản và mục `core.lock` cũ (như lớp phủ hỏng).
+Nội dung skill tuỳ biến là tệp người viết: ranh giới tin cậy là review Git (không có kiểm nội dung kiểu skill tiến hoá).
 
 ## Multi-Harness (P5)
 

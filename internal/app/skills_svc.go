@@ -30,10 +30,12 @@ type SkillRow struct {
 	Targets map[string]string `json:"targets,omitempty"`
 	Locked  string            `json:"locked,omitempty"`
 	Problem string            `json:"problem,omitempty"`
-	// Kind: core | evolved. Skill tiến hoá: Status (active | deprecated), Stale (lý do lỗi thời).
+	// Kind: core | evolved | custom. Skill tiến hoá: Status (active | deprecated), Stale (lý do lỗi thời).
+	// Skill tuỳ biến: Files (số tệp phụ), Problem (lỗi lint hoặc lỗi nạp, nối bằng "; ").
 	Kind   string `json:"kind"`
 	Status string `json:"status,omitempty"`
 	Stale  string `json:"stale,omitempty"`
+	Files  int    `json:"files,omitempty"`
 }
 
 // SkillList là kết quả `skill list`.
@@ -103,6 +105,19 @@ func ListSkills(k *KnowledgeWS, o SkillListOptions) (SkillList, error) {
 		}
 		out.Rows = append(out.Rows, row)
 	}
+	custom, _ := skills.LoadCustom(k.Root)
+	for _, cs := range custom {
+		row := SkillRow{Name: cs.Name, Version: cs.AsSkill().Hash(), Overlay: "-", Published: "-", Kind: "custom", Files: len(cs.Files)}
+		if e, ok := lock.Custom[cs.Name]; ok {
+			row.Locked = e.SHA256
+		}
+		if errs, _ := skills.CheckCustom(k.Root, cs); len(errs) > 0 {
+			row.Problem = strings.Join(errs, "; ")
+		} else if len(targets) > 0 {
+			publish(&row, cs.AsSkill())
+		}
+		out.Rows = append(out.Rows, row)
+	}
 	out.Orphans = skills.OrphanOverlays(k.Root)
 	return out, nil
 }
@@ -125,7 +140,7 @@ func (o SkillShowOptions) Validate() error {
 // SkillContent là nội dung một skill.
 type SkillContent struct {
 	Name string
-	// Kind: core | evolved. Composed: đã ghép lớp phủ (chỉ skill gốc, khi không --core và mở được repository).
+	// Kind: core | custom | evolved. Composed: đã ghép lớp phủ (chỉ skill gốc, khi không --core và mở được repository).
 	Kind     string
 	Composed bool
 	Content  []byte
@@ -139,11 +154,14 @@ func ShowSkill(ctx context.Context, dir string, o SkillShowOptions) (SkillConten
 	s, ok := skills.Get(o.Name)
 	if !ok {
 		if k, err := OpenKnowledge(ctx, dir); err == nil {
+			if cs, err := skills.LoadCustomOne(k.Root, o.Name); err == nil && cs.Content != nil {
+				return SkillContent{Name: o.Name, Kind: "custom", Content: cs.Content}, nil
+			}
 			if ev, err := skills.LoadEvolvedOne(k.Root, o.Name); err == nil {
 				return SkillContent{Name: o.Name, Kind: "evolved", Content: ev.Content}, nil
 			}
 		}
-		return SkillContent{}, fmt.Errorf("không có skill %q (gốc hoặc tiến hoá)", o.Name)
+		return SkillContent{}, fmt.Errorf("không có skill %q (gốc, tuỳ biến hoặc tiến hoá)", o.Name)
 	}
 	out := SkillContent{Name: s.Name, Kind: "core"}
 	if !o.Core {
@@ -208,6 +226,112 @@ func CreateOverlay(ctx context.Context, dir string, o SkillOverlayOptions) (Over
 		return res, err
 	}
 	return res, k.writer("bint skill overlay").WriteFile(p, []byte(body), 0o644)
+}
+
+// SkillNewOptions: `bint skill new <tên>`.
+type SkillNewOptions struct {
+	Name string `arg:"name" form:"required"`
+}
+
+func SkillNewDefaults(config.Config) SkillNewOptions { return SkillNewOptions{} }
+
+func (o SkillNewOptions) Validate() error {
+	if o.Name == "" {
+		return Usagef("cần tên skill")
+	}
+	return nil
+}
+
+// SkillNewResult là kết quả tạo skill tuỳ biến mẫu.
+type SkillNewResult struct {
+	// Path tương đối với gốc repository; Abs là đường dẫn tuyệt đối (để mở $EDITOR).
+	Path, Abs string
+	// Existed: đã có SKILL.md nên không ghi đè.
+	Existed bool
+}
+
+// NewSkill tạo .bint/skills/<tên>/SKILL.md từ mẫu (qua lint không lỗi); không bao giờ ghi đè SKILL.md có sẵn.
+func NewSkill(ctx context.Context, dir string, o SkillNewOptions) (SkillNewResult, error) {
+	if err := o.Validate(); err != nil {
+		return SkillNewResult{}, err
+	}
+	k, err := OpenKnowledge(ctx, dir)
+	if err != nil {
+		return SkillNewResult{}, err
+	}
+	if err := skills.CheckCustomName(k.Root, o.Name); err != nil {
+		return SkillNewResult{}, Usagef("%v", err)
+	}
+	rel := skills.CustomPath(o.Name, "SKILL.md")
+	p := filepath.Join(k.Root, filepath.FromSlash(rel))
+	res := SkillNewResult{Path: rel, Abs: p}
+	if _, err := os.Lstat(p); err == nil {
+		res.Existed = true
+		return res, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return res, err
+	}
+	return res, k.writer("bint skill new").WriteFile(p, skills.CustomTemplate(o.Name), 0o644)
+}
+
+// SkillLintOptions: `bint skill lint [tên]` (không tên = mọi skill tuỳ biến).
+type SkillLintOptions struct {
+	Name string `arg:"name" form:"suggest=custom_skills"`
+}
+
+func SkillLintDefaults(config.Config) SkillLintOptions { return SkillLintOptions{} }
+func (o SkillLintOptions) Validate() error             { return nil }
+
+// SkillLintResult là kết quả kiểm một skill tuỳ biến.
+type SkillLintResult struct {
+	Name     string   `json:"name"`
+	Path     string   `json:"path"`
+	Errors   []string `json:"errors"`
+	Warnings []string `json:"warnings"`
+}
+
+// OK cho biết skill không có lỗi (cảnh báo không tính).
+func (r SkillLintResult) OK() bool { return len(r.Errors) == 0 }
+
+// LintSkills kiểm hình thức skill tuỳ biến (skills.CheckCustom): một skill theo tên, hoặc mọi skill khi Name rỗng.
+// Tên là skill gốc/tiến hoá → lỗi cách dùng (lệnh này chỉ kiểm skill tuỳ biến).
+func LintSkills(ctx context.Context, dir string, o SkillLintOptions) ([]SkillLintResult, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	k, err := OpenKnowledge(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	var list []*skills.CustomSkill
+	if o.Name != "" {
+		cs, err := skills.LoadCustomOne(k.Root, o.Name)
+		if err != nil {
+			if _, core := skills.Get(o.Name); core {
+				return nil, Usagef("%q là skill gốc: lệnh này chỉ kiểm skill tuỳ biến", o.Name)
+			}
+			if _, err := skills.LoadEvolvedOne(k.Root, o.Name); err == nil {
+				return nil, Usagef("%q là skill tiến hoá: lệnh này chỉ kiểm skill tuỳ biến (kiểm bằng `bint skill check`)", o.Name)
+			}
+			return nil, Usagef("không có skill tuỳ biến %q (tạo bằng `bint skill new`)", o.Name)
+		}
+		list = []*skills.CustomSkill{cs}
+	} else if list, err = skills.LoadCustom(k.Root); err != nil {
+		return nil, err
+	}
+	out := []SkillLintResult{}
+	for _, cs := range list {
+		errs, warns := skills.CheckCustom(k.Root, cs)
+		out = append(out, SkillLintResult{Name: cs.Name, Path: skills.CustomPath(cs.Name), Errors: nonNil(errs), Warnings: nonNil(warns)})
+	}
+	return out, nil
+}
+
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // SkillDiffOptions: `bint skill diff <tên> [--from N] [--to N]`.
@@ -387,17 +511,17 @@ func PlanSync(ctx context.Context, dir, version string, o SyncOptions) (SyncPlan
 	}
 	defer os.RemoveAll(tmp)
 	root := filepath.Join(tmp, "repo")
-	if err := copyTree(filepath.Join(k.Root, ".bint", "skills"), filepath.Join(root, ".bint", "skills")); err != nil {
+	if err := copyTree(filepath.Join(k.Root, ".bint", "skills"), filepath.Join(root, ".bint", "skills"), true); err != nil {
 		return SyncPlan{}, err
 	}
 	for _, t := range targets {
-		if err := copyTree(filepath.Join(k.Root, filepath.FromSlash(t.Dir)), filepath.Join(root, filepath.FromSlash(t.Dir))); err != nil {
+		if err := copyTree(filepath.Join(k.Root, filepath.FromSlash(t.Dir)), filepath.Join(root, filepath.FromSlash(t.Dir)), false); err != nil {
 			return SyncPlan{}, err
 		}
 	}
 	agents := harness.SubagentFiles(k.Config)
 	if len(agents) > 0 {
-		if err := copyTree(filepath.Join(k.Root, filepath.FromSlash(harness.SubagentDir)), filepath.Join(root, filepath.FromSlash(harness.SubagentDir))); err != nil {
+		if err := copyTree(filepath.Join(k.Root, filepath.FromSlash(harness.SubagentDir)), filepath.Join(root, filepath.FromSlash(harness.SubagentDir)), false); err != nil {
 			return SyncPlan{}, err
 		}
 	}
@@ -440,8 +564,8 @@ func PlanSync(ctx context.Context, dir, version string, o SyncOptions) (SyncPlan
 	return plan, nil
 }
 
-// copyTree sao chép cây thư mục src sang dst (src không tồn tại thì bỏ qua).
-func copyTree(src, dst string) error {
+// copyTree sao chép cây thư mục src sang dst (src không tồn tại thì bỏ qua); chỉ tệp thường (và symlink nếu keepLinks).
+func copyTree(src, dst string, keepLinks bool) error {
 	if _, err := os.Stat(src); errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -453,6 +577,18 @@ func copyTree(src, dst string) error {
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
 			return os.MkdirAll(target, 0o755)
+		}
+		if d.Type()&fs.ModeSymlink != 0 {
+			// Bản xem trước phải thấy đúng cái Sync thật thấy: LoadCustom báo symlink trong skill tuỳ biến là vấn đề
+			// (skill không được xuất bản), nên tái tạo nó (chỉ Lstat, không bao giờ đi theo). Chỉ làm với nguồn skill
+			// (keepLinks): symlink trong thư mục xuất bản của harness mà tái tạo thì Install ghi xuyên qua nó vào
+			// repository thật. Nơi không tạo được symlink (Windows không đặc quyền) thì bỏ qua như trước.
+			if keepLinks {
+				if link, err := os.Readlink(p); err == nil {
+					_ = os.Symlink(link, target)
+				}
+			}
+			return nil
 		}
 		if !d.Type().IsRegular() {
 			return nil

@@ -87,7 +87,9 @@ func (p *Proposal) CheckBaseWS(k *app.KnowledgeWS) ([]BaseProblem, error) {
 	}
 	for _, c := range p.SkillChanges {
 		if c.Op == ActionCreate {
-			if sha, err := skills.EvolvedSHA(k.Root, c.Name); err != nil {
+			if skills.CustomExists(k.Root, c.Name) {
+				out = append(out, BaseProblem{c.Name, "tên trùng skill tuỳ biến (.bint/skills/" + c.Name + "/)"})
+			} else if sha, err := skills.EvolvedSHA(k.Root, c.Name); err != nil {
 				return nil, err
 			} else if sha != "" {
 				out = append(out, BaseProblem{c.Name, "skill cần tạo đã tồn tại"})
@@ -107,7 +109,7 @@ func indexEvolved(list []*skills.Evolved) map[string]*skills.Evolved {
 
 // validateSkillChanges kiểm tra ranh giới của đề xuất L2: chỉ đụng tới skill tiến hoá,
 // chỉ các thao tác cho phép, nội dung qua kiểm tra xác định được.
-func validateSkillChanges(p *Proposal, byName map[string]*skills.Evolved, src knowledge.Source) error {
+func validateSkillChanges(p *Proposal, byName map[string]*skills.Evolved, src knowledge.Source, root string) error {
 	if p.TargetType != TargetSkill || p.Level != LevelL2 {
 		return fmt.Errorf("đề xuất skill phải có level L2 và target_type skill")
 	}
@@ -130,6 +132,9 @@ func validateSkillChanges(p *Proposal, byName map[string]*skills.Evolved, src kn
 		case ActionCreate:
 			if cur != nil {
 				return fmt.Errorf("create: skill %s đã tồn tại", c.Name)
+			}
+			if skills.CustomExists(root, c.Name) {
+				return fmt.Errorf("create: tên %s trùng skill tuỳ biến (.bint/skills/%s/)", c.Name, c.Name)
 			}
 			if c.Draft == nil {
 				return fmt.Errorf("create cần nội dung (%s)", c.Name)

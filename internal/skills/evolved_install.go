@@ -29,6 +29,12 @@ func installEvolved(opts InstallOptions, lock *Lock) ([]Outcome, error) {
 		if !ev.Active() {
 			continue
 		}
+		if _, has := lock.Custom[ev.Meta.Name]; has && CustomExists(opts.Root, ev.Meta.Name) {
+			// Cùng tên với skill tuỳ biến ĐÃ xuất bản: hai nguồn đè nhau trong .claude/skills/<tên>/; bản đã xuất bản thắng.
+			outs = append(outs, Outcome{Skill: ev.Meta.Name, Path: EvolvedRelPath(ev.Meta.Name, "SKILL.md"), Result: fsafe.Conflict,
+				Detail: "trùng tên skill tuỳ biến (" + CustomPath(ev.Meta.Name) + "): không xuất bản skill tiến hoá; đổi tên một trong hai"})
+			continue
+		}
 		if stale, why := ev.Stale(opts.Files); stale {
 			outs = append(outs, Outcome{Skill: ev.Meta.Name, Path: EvolvedRelPath(ev.Meta.Name), Result: fsafe.Unchanged,
 				Detail: "lỗi thời, không xuất bản: " + why})
@@ -69,6 +75,11 @@ func installEvolved(opts InstallOptions, lock *Lock) ([]Outcome, error) {
 		if live[name] {
 			continue
 		}
+		if _, has := lock.Custom[name]; has {
+			// Bản đã xuất bản nay thuộc skill tuỳ biến cùng tên: không gỡ (sẽ xoá nhầm), chỉ bỏ mục khỏi lock tiến hoá.
+			delete(lock.Evolved, name)
+			continue
+		}
 		keep := entry
 		keep.Published = nil
 		for _, rel := range entry.Published {
@@ -92,10 +103,22 @@ func installEvolved(opts InstallOptions, lock *Lock) ([]Outcome, error) {
 
 // unpublish gỡ một bản đã xuất bản nếu chưa bị sửa tay.
 func unpublish(opts InstallOptions, name, rel string, entry LockEntry) (Outcome, error) {
+	hashes := []string{entry.SHA256}
+	for _, v := range entry.Variants {
+		hashes = append(hashes, v)
+	}
+	return unpublishFile(opts, name, rel, hashes, "skill không còn hiệu lực nhưng bản đã xuất bản bị sửa tay: không xoá; xoá tay hoặc --force",
+		"gỡ: skill không còn hiệu lực")
+}
+
+// unpublishFile gỡ tệp đã xuất bản rel nếu chưa bị sửa tay: băm (Skill.Hash) trùng một trong hashes, hoặc trùng
+// manifest. Tệp không còn thì coi như đã gỡ (Unchanged).
+func unpublishFile(opts InstallOptions, name, rel string, hashes []string, conflict, removed string) (Outcome, error) {
 	o := Outcome{Skill: name, Path: rel}
 	full := filepath.Join(opts.Root, filepath.FromSlash(rel))
 	have, err := os.ReadFile(full)
 	if errors.Is(err, os.ErrNotExist) {
+		opts.Manifest.Delete(rel + "#skill")
 		o.Result = fsafe.Unchanged
 		return o, nil
 	}
@@ -104,13 +127,13 @@ func unpublish(opts InstallOptions, name, rel string, entry LockEntry) (Outcome,
 	}
 	cur := Skill{Content: have}.Hash()
 	prev, known := opts.Manifest.Get(rel + "#skill")
-	pristine := cur == entry.SHA256 || (known && prev == fsafe.Hash(string(have)))
-	for _, v := range entry.Variants {
-		pristine = pristine || cur == v
+	pristine := known && prev == fsafe.Hash(string(have))
+	for _, h := range hashes {
+		pristine = pristine || (h != "" && cur == h)
 	}
 	if !pristine && !opts.Force {
 		o.Result = fsafe.Conflict
-		o.Detail = "skill không còn hiệu lực nhưng bản đã xuất bản bị sửa tay: không xoá; xoá tay hoặc --force"
+		o.Detail = conflict
 		return o, nil
 	}
 	if _, err := fsafe.Backup(full, opts.BackupDir, rel, opts.Now); err != nil {
@@ -122,6 +145,6 @@ func unpublish(opts InstallOptions, name, rel string, entry LockEntry) (Outcome,
 	os.Remove(filepath.Dir(full)) // chỉ xoá được khi thư mục rỗng
 	opts.Manifest.Delete(rel + "#skill")
 	o.Result = fsafe.Removed
-	o.Detail = "gỡ: skill không còn hiệu lực"
+	o.Detail = removed
 	return o, nil
 }

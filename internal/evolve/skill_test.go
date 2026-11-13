@@ -257,3 +257,33 @@ func TestTriggerConditionsAndModelStatus(t *testing.T) {
 		t.Fatalf("đổi mô hình: %+v", sts)
 	}
 }
+
+// Hồi quy review .1: đề xuất tạo skill tiến hoá trùng tên skill tuỳ biến (.bint/skills/<tên>/) bị từ chối, cả lúc
+// lập đề xuất lẫn lúc áp dụng (thư mục tuỳ biến có thể xuất hiện giữa hai thời điểm).
+func TestSkillCreateRejectsCustomSkillName(t *testing.T) {
+	f := setup(t)
+	d := retryDraft()
+	if err := os.MkdirAll(filepath.Join(f.root, ".bint", "skills", d.Name), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := createProposal(t, f, d); err == nil || !strings.Contains(err.Error(), "skill tuỳ biến") {
+		t.Fatalf("phải từ chối tên trùng skill tuỳ biến: %v", err)
+	}
+
+	// thư mục tuỳ biến xuất hiện sau khi đề xuất đã lập: CheckBaseWS báo vấn đề
+	os.RemoveAll(filepath.Join(f.root, ".bint", "skills", d.Name))
+	p, err := createProposal(t, f, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if probs, err := p.CheckBaseWS(f.k); err != nil || len(probs) != 0 {
+		t.Fatalf("chưa có skill tuỳ biến: %v %v", probs, err)
+	}
+	if err := os.MkdirAll(filepath.Join(f.root, ".bint", "skills", d.Name), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	probs, err := p.CheckBaseWS(f.k)
+	if err != nil || len(probs) != 1 || !strings.Contains(probs[0].Detail, "skill tuỳ biến") {
+		t.Fatalf("phải báo trùng skill tuỳ biến: %v %v", probs, err)
+	}
+}

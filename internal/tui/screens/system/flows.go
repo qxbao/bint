@@ -166,6 +166,46 @@ func (m *Model) cmdSkillOverlay() tea.Cmd {
 	return m.request("system.skill_overlay", app.SkillOverlayOptions{Name: r.Name})
 }
 
+// cmdSkillNew mở form tạo skill tuỳ biến mẫu (ghi tệp nên không mở ở chế độ chỉ đọc).
+func (m *Model) cmdSkillNew() tea.Cmd {
+	if m.allowed("system.skill_new") {
+		m.openForm("system.skill_new", "skill new", app.SkillNewDefaults(config.Default()))
+	}
+	return nil
+}
+
+// cmdSkillLint kiểm skill tuỳ biến dưới con trỏ, hoặc mọi skill tuỳ biến khi con trỏ không ở skill tuỳ biến.
+func (m *Model) cmdSkillLint() tea.Cmd {
+	o := app.SkillLintOptions{}
+	if r := m.cursorSkill(); r != nil && r.Kind == "custom" {
+		o.Name = r.Name
+	}
+	return m.request("system.skill_lint", o)
+}
+
+// lintLines dựng các dòng kết quả kiểm skill tuỳ biến.
+func (m *Model) lintLines(v any) []string {
+	res, _ := v.([]app.SkillLintResult)
+	if len(res) == 0 {
+		return []string{m.t("sy.skill.lint.none")}
+	}
+	var out []string
+	for _, r := range res {
+		glyph, role := "✓", theme.OK
+		if !r.OK() {
+			glyph, role = "✗", theme.Err
+		}
+		out = append(out, m.th.S(role, glyph)+" "+r.Path)
+		for _, e := range r.Errors {
+			out = append(out, "    "+m.th.S(theme.Err, m.t("sy.skill.lint.err"))+" "+m.cli(e))
+		}
+		for _, w := range r.Warnings {
+			out = append(out, "    "+m.th.S(theme.Warn, m.t("sy.skill.lint.warn"))+" "+m.cli(w))
+		}
+	}
+	return out
+}
+
 func (m *Model) cmdSkillForm(id, cli string) tea.Cmd {
 	name := ""
 	if r := m.cursorSkill(); r != nil && r.Kind == "evolved" {

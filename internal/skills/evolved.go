@@ -183,6 +183,8 @@ func ValidName(name string) error {
 		return fmt.Errorf("tên skill %q không hợp lệ (chữ thường, số, gạch ngang; 3–40 ký tự)", name)
 	case strings.HasPrefix(name, "b-"):
 		return fmt.Errorf("tên skill %q: tiền tố b- dành cho skill gốc của Bint", name)
+	case reserved(name):
+		return fmt.Errorf("tên skill %q là tên dành riêng của .bint/skills", name)
 	}
 	if _, ok := Get(name); ok {
 		return fmt.Errorf("tên skill %q trùng skill gốc", name)

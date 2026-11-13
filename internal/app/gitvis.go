@@ -95,6 +95,12 @@ func bintPaths(root string, enabled []string, hookFiles []string) []string {
 				}
 			}
 		}
+		// Skill tuỳ biến: cả thư mục {target}/{tên}/ (tệp phụ có thể nằm ở thư mục con nên không lấy theo Dir của từng tệp).
+		for name := range l.Custom {
+			for _, t := range harness.SkillTargets(enabled) {
+				set[t.Dir+"/"+name+"/"] = true
+			}
+		}
 	}
 	for _, h := range hookFiles {
 		set[h] = true
