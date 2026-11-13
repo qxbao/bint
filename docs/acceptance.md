@@ -1,6 +1,6 @@
 # Nghiệm thu Bint — trạng thái, kế hoạch và hướng dẫn
 
-Cập nhật: 2026-11-13, tại `HEAD` `f77ae19`.
+Cập nhật: 2026-11-13, sau vòng V0 (commit sửa mã `f1467a0`).
 
 **Đây là nguồn chuẩn duy nhất về nghiệm thu.** Tài liệu này giữ:
 
@@ -47,7 +47,7 @@ Ký hiệu: **Đủ điều kiện** = mọi phát hiện đã đóng, có bằn
 | P3 Context Engine | **Cổng quyết định 2** | Chưa mở | [gate-2.md](gate-2.md) (chỉ có pilot) | `NT-GATE-2` | |
 | P4 Workflow | Một yêu cầu đi qua `b-do` với đầu ra liên kết bằng task ID; nâng cấp không mất lớp phủ | Đủ điều kiện | [P0–P4](bint-acceptance-p0-p4.md), [Codex đợt 1](evals/codex-flows-2026-11-10/README.md), [đợt 2](evals/codex-flows-2026-11-11/README.md) | — | |
 | P5 Multi-Harness | Cùng workflow và tri thức dùng được trên nhiều harness, giới hạn báo đúng | Một phần | [P5](bint-acceptance-p5.md), [hỗn hợp Claude↔Codex](evals/claude-codex-mixed-2026-11-11/README.md), [Codex 2026-11-12](evals/codex-flow-acceptance-2026-11-12/README.md) | `NT-AGY-REAL`, `NT-WIN-CODEX` | |
-| P6 Tiến hoá L1 | Đề xuất được chấp nhận có lợi trên tập `test` độc lập | Một phần | [P6](bint-acceptance-p6-dff6570.md) | `NT-P6-01..05`, `NT-EVO-TEST` | |
+| P6 Tiến hoá L1 | Đề xuất được chấp nhận có lợi trên tập `test` độc lập | Một phần | [P6](bint-acceptance-p6-dff6570.md), [V0](evals/v0-p6-fixes-2026-11-13/README.md) | `NT-EVO-TEST`, `NT-P6-06` | |
 | P7 Tiến hoá L2 | Skill đề xuất từ lịch sử chứng minh hữu ích trên tập đối chiếu | Chưa đo | — | `NT-EVO-TEST` | |
 | P8 Tiến hoá tự động | Cải thiện trên tập tác vụ mới, giữ điều kiện chất lượng và an toàn | Chưa đạt (vòng đầu `not_supported`) | [Claude 2026-11-10, mục "Mở P8"](evals/p6-p7-claude-2026-11-10/README.md) | `NT-EVO-TEST` | |
 
@@ -71,15 +71,11 @@ Cột "Vòng" trỏ tới mục 4. "Token" là token đo (eval/evolve), không t
 
 | Mã | Mức | Điều kiện đóng | Vòng |
 |---|---|---|---|
-| `NT-P6-01` | Cao | `evolve.AcquireLock` (`internal/evolve/apply.go`) dùng `flock`/`LockFileEx` như `workflow.AcquireWriteLock`; có test tranh chấp nhiều tiến trình với khoá của PID chết | V0 |
-| `NT-P6-02` | Cao | Hậu kiểm sau evolver (`internal/evolve/generate.go`) so nội dung bằng chỉ mục Git tạm thay vì chuỗi `git status --porcelain`; test: evolver sửa thêm vào tệp vốn đã bẩn thì bị phát hiện | V0 |
-| `NT-P6-03` | Cao | `Rollback` khôi phục các tệp đã ghi khi lỗi giữa chừng; test tiêm lỗi ghi ở tệp thứ hai | V0 |
-| `NT-P6-04` | Trung bình | Đề xuất `update` hợp nhất `Inputs` mới và tính lại `ThirdParty` | V0 |
-| `NT-P6-05` | Trung bình | Đề xuất `merge` không làm mất chi tiết chỉ có ở mục bị gộp | V0 |
+| `NT-WF-BASELINE` | Trung bình | Tác vụ `shared`: commit của người hoặc thay đổi do tác vụ khác land vào cây trong lúc tác vụ chạy không bị `bint task diff` và Finalize tính là thay đổi của tác vụ (hiện bị chặn "thay đổi không thuộc tác vụ", chỉ gỡ được bằng `--force`); test tái hiện: commit lên HEAD giữa b-feat và Finalize | Phiếu riêng |
+| `NT-P6-06` | Thấp | Các phát hiện low còn lại sau V0 (`mergeBodies` không idempotent với khối mã chưa đóng, nối trùng câu khác dạng, test `third_party` chưa chặt, `repoToplevel` gọi hai lần, submodule, nhánh merge của skill); danh sách ở [biên bản V0](evals/v0-p6-fixes-2026-11-13/README.md) | Phiếu riêng |
 
-`NT-P6-01` và `NT-P6-02` đã đối chiếu lại mã ngày 2026-11-13 và còn nguyên. `NT-P6-03..05` ghi theo
-[biên bản P6](bint-acceptance-p6-dff6570.md), chưa đối chiếu lại; bộ tái hiện ở
-[`evals/acceptance-p6-dff6570/`](evals/acceptance-p6-dff6570/).
+`NT-P6-01..05` đóng ở V0 (2026-11-13), chờ ký. Mục tri thức `k:01M746PTBYPSXDT0WJZS38KPFD` đã lỗi thời sau V0,
+chờ người sửa hoặc revalidate.
 
 ### 3.2. Chạy thật trên máy (cần người, không token đo)
 
@@ -134,7 +130,7 @@ chưa có biên bản, nên vẫn mở cho cả hai.
 
 | Vòng | Nội dung | Đóng các mã | Token đo (trần đề xuất) | Cần người | Điều kiện trước |
 |---|---|---|---|---|---|
-| **V0** | Sửa mã P6 và hồi quy tự động | `NT-P6-01..05` | 0 | Duyệt phiếu | — |
+| **V0** | Sửa mã P6 và hồi quy tự động — **xong 2026-11-13** | `NT-P6-01..05` | 0 | Duyệt phiếu | — |
 | **V1** | Một phiên chạy thật trên máy: G4 + MCP + TUI + Antigravity | `NT-ISO-*`, `NT-MCP-M0..M3`, `NT-MCP-S3`, `NT-MCP-M5-WT`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-TUI-*` | 0 (chỉ token phiên agent) | Có, suốt vòng | Service MCP cài trên máy |
 | **V2** | Một lượt trên máy Windows | `NT-WIN-*` | 0 | Có | Máy Windows |
 | **V3** | Một đợt eval trên `validation` với model rẻ, ba nhánh | `NT-EXP-B` (B0, B1), bước 1 của `NT-E6`, bước 1 của `NT-H5` | ~$15 | Duyệt ngân sách | Guardrail `test-before-stop` ở `candidate` |
@@ -378,6 +374,7 @@ Thêm một dòng sau mỗi vòng. Kết luận do chủ dự án ký.
 | 2026-11-10 | (trước khi có tài liệu này) | `8b5cc9f` | R1–R3, F1, F3, F7, F8 (một phần), F11, F12 | — | [open-findings](bint-acceptance-open-findings.md) | 0 | |
 | 2026-11-12 | (trước khi có tài liệu này) | `2d1d901` | G3 chạy thật | G4, bypassPermissions, Windows | [isolation 12.16](isolation-subagent-plan.md) | — | |
 | 2026-11-13 | (trước khi có tài liệu này) | `b958512` | M5 bộ nhớ (một worktree) | M5 chất lượng, nhiều worktree | [mcp §11](mcp-gateway-plan.md) | 0 | |
+| 2026-11-13 | V0 | `f1467a0` | `NT-P6-01..05` | `NT-P6-06`, `NT-WF-BASELINE` (mới), `NT-EVO-TEST` | [v0-p6-fixes](evals/v0-p6-fixes-2026-11-13/README.md) | 0 token đo; $10,06 phiên agent | |
 
 ## 6. Mẫu biên bản một vòng
 

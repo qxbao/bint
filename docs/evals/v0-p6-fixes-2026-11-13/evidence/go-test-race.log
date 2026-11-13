@@ -1,0 +1,3 @@
+ok  	bint/internal/evolve	26.735s
+ok  	bint/internal/workflow	67.811s
+ok  	bint/internal/fslock	1.008s

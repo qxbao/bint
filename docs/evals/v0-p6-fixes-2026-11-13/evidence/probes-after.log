@@ -1,0 +1,13 @@
+=== RUN   TestAcceptanceP6EvolutionLockExclusive
+    acceptance_p6_probes_test.go:26: acquisitions=15
+--- PASS: TestAcceptanceP6EvolutionLockExclusive (0.01s)
+=== RUN   TestAcceptanceP6RollbackFailurePreservesAppliedState
+--- PASS: TestAcceptanceP6RollbackFailurePreservesAppliedState (0.11s)
+=== RUN   TestAcceptanceP6MergePreservesDistinctFacts
+--- PASS: TestAcceptanceP6MergePreservesDistinctFacts (0.11s)
+=== RUN   TestAcceptanceP6EvolverRejectsDirtyFileMutation
+--- PASS: TestAcceptanceP6EvolverRejectsDirtyFileMutation (0.08s)
+=== RUN   TestAcceptanceP6UpdatePreservesExternalInputProvenance
+--- PASS: TestAcceptanceP6UpdatePreservesExternalInputProvenance (0.10s)
+PASS
+ok  	bint/internal/evolve	0.420s
