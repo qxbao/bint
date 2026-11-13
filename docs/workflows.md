@@ -793,8 +793,11 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
       đường dẫn ngoài worktree, Bash không bắt đầu bằng `cd <worktree> &&` (hoặc `cd` ra ngoài) và `cwd` ngoài worktree. Chỉ tính
       lời gọi đã **thực sự chạy**: có `tool_result` và không bị hook chặn. Edit-type chỉ dựa vào `is_error` (kết quả thành công
       có thể chứa trích đoạn tệp có chuỗi "hook error"/"Bint: … bị chặn" mà vẫn là lần ghi đã xảy ra); Bash `is_error` chỉ
-      bị coi là hook chặn khi kết quả bắt đầu bằng `PreToolUse:` và dòng đầu có "hook error" (`hookcore.IsHookDenial`), còn
-      lệnh thoát khác 0 vẫn tính vì lệnh đã chạy; lời gọi chưa có `tool_result` không tính. Có vi phạm thì bước **không** completed: tác vụ `blocked` (ghi đè cả `failed`/quá hạn; trừ khi bị
+      bị coi là chưa chạy khi kết quả có dạng bị chặn trước khi thực thi (`hookcore.IsPreExecDenial`): hook chặn
+      (`PreToolUse:` và dòng đầu có "hook error"), Claude Code từ chối (`<tool_use_error>`, ví dụ `Blocked: sleep …`), từ chối
+      quyền (`Permission to use …`, `Permission for this …`) hoặc người dùng từ chối (`The user doesn't want to …`) — chỉ xét
+      ở đầu nội dung. Lệnh thoát khác 0 (`Exit code N`) và mọi dạng lỗi lạ vẫn tính vì có thể đã chạy; lời gọi chưa có
+      `tool_result` không tính. Có vi phạm thì bước **không** completed: tác vụ `blocked` (ghi đè cả `failed`/quá hạn; trừ khi bị
       huỷ), lý do nêu tối đa 10 mục `tool_use_id (công cụ): tệp|lệnh` (đã che bí mật) và nhắc kiểm tra cây gốc (các thay đổi đó
       không thuộc tác vụ; **Bint không tự xoá hay khôi phục**), lịch sử lỗi của phiếu ghi lại, và mỗi vi phạm một sự kiện spool
       `guardrail.triggered` (`guardrail: bint-worktree`, `outcome: missed_by_hook`, `on: post_step`, `blocked: false`, kèm

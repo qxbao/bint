@@ -165,6 +165,18 @@ func TestIsolationAuditNotViolations(t *testing.T) {
 		"Bash ngoài worktree bị hook chặn": func(h *harness, wt string) []isoCall {
 			return []isoCall{{id: "t1", tool: "Bash", input: map[string]any{"command": "ls"}, cwd: h.root, result: "PreToolUse:Bash hook error: Bint: Bash bị chặn", isErr: true}}
 		},
+		"Bash ngoài worktree bị Claude Code chặn trước khi chạy": func(h *harness, wt string) []isoCall {
+			return []isoCall{{id: "t1", tool: "Bash", input: map[string]any{"command": "sleep 100; cat x | tail -20"}, cwd: h.root,
+				result: "<tool_use_error>Blocked: sleep 100 followed by: cat x | tail -20</tool_use_error>", isErr: true}}
+		},
+		"Bash ngoài worktree bị từ chối quyền": func(h *harness, wt string) []isoCall {
+			return []isoCall{{id: "t1", tool: "Bash", input: map[string]any{"command": "ls"}, cwd: h.root,
+				result: "Permission to use Bash has been denied.", isErr: true}}
+		},
+		"Bash ngoài worktree bị người dùng từ chối": func(h *harness, wt string) []isoCall {
+			return []isoCall{{id: "t1", tool: "Bash", input: map[string]any{"command": "ls"}, cwd: h.root,
+				result: "The user doesn't want to proceed with this tool use.", isErr: true}}
+		},
 		"lời gọi chưa có kết quả": func(h *harness, wt string) []isoCall {
 			return []isoCall{{id: "t1", tool: "Write", input: map[string]any{"file_path": filepath.Join(h.root, "x.txt")}, cwd: h.root}}
 		},
@@ -196,6 +208,9 @@ func TestIsolationAuditShellViolations(t *testing.T) {
 		},
 		"lỗi không phải hook": func(h *harness, wt string) isoCall {
 			return isoCall{id: "tb", tool: "Bash", input: map[string]any{"command": "touch LEAK && false"}, cwd: h.root, result: "Exit code 1", isErr: true}
+		},
+		"lỗi dạng lạ không nhận ra": func(h *harness, wt string) isoCall {
+			return isoCall{id: "tb", tool: "Bash", input: map[string]any{"command": "touch LEAK"}, cwd: h.root, result: "Something unknown went wrong", isErr: true}
 		},
 		"cd ra ngoài": func(h *harness, wt string) isoCall {
 			return isoCall{id: "tb", tool: "Bash", input: map[string]any{"command": "cd '" + h.root + "' && touch LEAK"}, cwd: wt, result: "ok"}
