@@ -129,4 +129,16 @@ func TestTaskSetSyncsCriteriaThenLintPasses(t *testing.T) {
 	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
 		t.Fatalf("lint sau --clear-criteria: %d\n%s", code, out)
 	}
+
+	// Thu gọn 3 → 1: TSK [AC-1, AC-3]... được gỡ AC đã bỏ; TSK chỉ còn AC đã bỏ giữ và lint báo đúng dòng đó.
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: một\n- [ ] AC-2: hai\n- [ ] AC-3: ba\n## Câu hỏi mở\n")
+	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1, AC-3]: việc một — xong khi: một\n- [ ] TSK-2 [AC-2]: việc hai — xong khi: hai\n- [ ] TSK-3 [AC-3]: việc ba — xong khi: ba\n")
+	out, code = run(t, root, "", "task", "set", id, "--clear-criteria", "--criteria", "một", "--criteria", "hai")
+	if code != 0 || !strings.Contains(out, "đã gỡ AC-3 khỏi TSK-1") || !strings.Contains(out, "TSK-3") || !strings.Contains(out, "unknown_ac") {
+		t.Fatalf("task set thu gọn phải in ghi chú: %d\n%s", code, out)
+	}
+	out, code = run(t, root, "", "task", "lint", id, "--strict")
+	if code == 0 || !strings.Contains(out, "unknown_ac") || !strings.Contains(out, "TSK-3") || strings.Contains(out, "TSK-1 tham chiếu") {
+		t.Fatalf("lint phải báo unknown_ac đúng TSK-3: %d\n%s", code, out)
+	}
 }

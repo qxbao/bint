@@ -28,7 +28,7 @@ bint run b-do --depth deep "Thiết kế lại luồng thanh toán trong interna
 bint run b-do --no-plan "Sửa chính tả trong README.md"
 bint run b-req --task <id>                      # chạy lẻ một bước (b-req | b-feat | b-review)
 bint run status <task-id|run-id>                # tác vụ + các lượt chạy (cha b-do, con từng bước)
-bint run resume <task-id>                       # tiếp tục tác vụ blocked / interrupted / failed
+bint run resume <task-id> [--rerun]             # tiếp tục tác vụ blocked / interrupted / failed; --rerun: bỏ kết quả bước chỉ đọc đang giữ, chạy lại bước
 
 bint task new "<mô tả tự do>"                   # Classify: lập phiếu tác vụ (mục 6.7)
 bint task list [--all]
@@ -71,7 +71,7 @@ nhận lệnh cũ hết hiệu lực. Khi tác vụ đã có `requirement.md`, �
 `--clear-criteria`, hoặc sửa phiếu qua `bint run … --criteria`) tự đồng bộ sang artifact: Bint viết lại
 các dòng AC cho khớp phiếu (AC mới thêm nguyên văn, số tiếp theo; AC thừa bị bỏ), thêm vào `tasks.md` một
 TSK cho mỗi AC chưa có TSK bao phủ, và in ghi chú những gì đã đổi — `bint task lint` qua ngay mà không
-cần `bint task write`. TSK đã tham chiếu AC không còn thì Bint chỉ ghi chú, người sửa tay.
+cần `bint task write`. TSK còn tham chiếu AC đã bỏ (số lớn hơn số tiêu chí mới, khi thu gọn): nếu TSK còn AC hợp lệ khác thì Bint gỡ AC đã bỏ khỏi ngoặc và ghi chú; nếu TSK chỉ còn AC đã bỏ thì giữ nguyên dòng, ghi chú nêu TSK, AC và lệnh sửa (`bint task write <id> tasks`), và `bint task lint` báo `unknown_ac` đúng dòng đó.
 
 **Classify** xác định được (heuristic, chưa gọi mô hình): mục tiêu = dòng đầu mô tả; `scope.allow` =
 đường dẫn và mẫu glob nêu trong mô tả mà tồn tại; `verify.command` = `eval.test_command` đã xác nhận;
@@ -150,8 +150,25 @@ HEAD + diff + tệp chưa theo dõi), hoặc — khi không có lệnh kiểm ch
 Phiếu **chỉ lập kế hoạch** (workflow mà flow không có bước ghi, như `b-req`; đang `planned`, chưa từng `in_progress`,
 không có `touched`/đường dẫn chờ duyệt) đóng được bằng `bint task status <id> done --reason "…"` mà không cần kiểm chứng,
 đối chiếu tiêu chí hay duyệt đường dẫn bảo vệ (nó không có mã; thay đổi của người khác trên cây không bị gán cho nó);
-chỉ còn điều kiện "đã đưa về" nếu phiếu ở worktree riêng. Phiếu có bước `b-feat` giữ nguyên cổng done và vẫn không
-chuyển `planned → done` được.
+chỉ còn điều kiện "đã đưa về" nếu phiếu ở worktree riêng. Ở worktree riêng, phiếu chỉ được hưởng cổng nhẹ này khi diff
+của worktree so với commit gốc rỗng hoặc chỉ gồm mục tri thức `candidate` mới dưới `.bint/knowledge/items/` (cùng quy tắc
+miễn trừ của bước chỉ đọc); có thay đổi nào khác (kể cả tệp mã trong `scope.allow`) thì `bint task land` và `done` áp
+cổng đầy đủ (kiểm chứng, tiêu chí, phạm vi, đường dẫn bảo vệ) và blocker nêu tệp đó — phiếu chỉ lập kế hoạch không đưa mã
+về cây gốc: chạy `b-feat`/`b-do` hoặc người huỷ bằng `cancel --discard`. Người ép `done --force` thì lịch sử ghi chú
+thích "người xác nhận dù thiếu bằng chứng" cùng các điều chặn đã bỏ qua. Phiếu có bước `b-feat` giữ nguyên cổng done và
+vẫn không chuyển `planned → done` được.
+
+**Hai tác vụ không cùng ghi một cây chung.** Phiếu `b-req` đang `planned` ở cây chung (isolation chọn bằng `auto`) không
+được tính khi lập phiếu mới (nó không ghi cây). Nếu sau đó nó được chạy tiếp bằng `b-do`/`b-feat`/flow tuỳ biến (hoặc
+driver session) trong lúc cây chung còn tác vụ shared khác chưa kết thúc, Bint dừng nó ở `blocked` trước bước ghi đầu
+tiên, lý do nêu ID tác vụ kia và hai lối ra: chờ tác vụ đó xong rồi `bint run resume <id>`, hoặc huỷ phiếu
+(`bint task cancel <id>`) rồi lập lại với `--worktree`. Isolation do người chọn (`--shared`, `workflow.isolation`) không bị
+chặn; tác vụ khác đang `blocked` mà chưa từng ghi (do chính cổng này giữ) không tính, để hai phiếu không chặn nhau mãi.
+
+**Bước chỉ đọc bị giữ.** Bước plan/review kết thúc bình thường nhưng cây đổi trong lúc chạy thì tác vụ `blocked` và kết
+quả bước được giữ (`HeldStep`): `bint run resume <id>` áp kết quả đó, không chạy lại; `bint run resume <id> --rerun`
+(driver session: `bint run next <id> --resume --rerun`) bỏ kết quả giữ và chạy lại bước — dùng khi đã hoàn tác thay đổi lạ.
+Người tự chuyển trạng thái bằng `bint task status` (không qua resume) cũng bỏ kết quả giữ, lịch sử ghi dấu vết.
 
 **Chỉ người** (chặn khi phát hiện biến môi trường của phiên agent, như ở P2): xác nhận lệnh kiểm
 chứng và duyệt thay đổi (`task approve`), đặt `autonomy: auto`, `done --force`. Lệnh kiểm chứng do

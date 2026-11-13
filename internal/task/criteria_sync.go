@@ -187,12 +187,19 @@ func syncRequirementText(text string, crit []string) (string, []string) {
 	return strings.Join(out, eol), notes
 }
 
+// tskBracketRe tìm ngoặc tham chiếu AC đầu tiên của dòng TSK: nhóm 1 là phần trong ngoặc.
+var tskBracketRe = regexp.MustCompile(`TSK-\d+\s*\[([^\]]*)\]`)
+
+// syncTasksText đồng bộ tasks.md với số tiêu chí nCrit của phiếu: thêm TSK cho AC chưa được bao phủ; TSK còn tham
+// chiếu AC đã bỏ (số > nCrit) thì gỡ AC đó khỏi ngoặc nếu còn AC hợp lệ khác, ngược lại (chỉ còn AC đã bỏ) giữ nguyên
+// và ghi chú để người sửa — lint báo unknown_ac đúng dòng TSK đó, không lỗi ngầm.
 func syncTasksText(text string, nCrit int, taskID string) (string, []string) {
 	lines, eol := splitKeepEOL(text)
 	covered := map[int]bool{}
 	maxTSK := 0
 	var notes []string
-	walkLines(lines, func(_ int, _ string, line string) {
+	rewritten := map[int]string{}
+	walkLines(lines, func(i int, _ string, line string) {
 		cb := lintCheckboxRe.FindStringSubmatch(line)
 		if cb == nil {
 			return
@@ -203,19 +210,41 @@ func syncTasksText(text string, nCrit int, taskID string) (string, []string) {
 		}
 		n, _ := strconv.Atoi(m[1])
 		maxTSK = max(maxTSK, n)
+		var kept, dropped []string
+		valid := false
 		for _, tok := range strings.FieldsFunc(m[2], func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
 			rm := lintRefRe.FindStringSubmatch(tok)
 			if rm == nil {
+				kept = append(kept, tok)
 				continue
 			}
 			ref, _ := strconv.Atoi(rm[1])
 			if ref > nCrit {
-				notes = append(notes, fmt.Sprintf("TSK-%d trong tasks.md tham chiếu AC-%d không còn trong phiếu: sửa tay (bint task write %s tasks)", n, ref, taskID))
+				dropped = append(dropped, tok)
 				continue
 			}
 			covered[ref] = true
+			valid = true
+			kept = append(kept, tok)
+		}
+		switch {
+		case len(dropped) == 0:
+		case valid:
+			if loc := tskBracketRe.FindStringSubmatchIndex(line); loc != nil {
+				rewritten[i] = line[:loc[2]] + strings.Join(kept, ", ") + line[loc[3]:]
+				notes = append(notes, fmt.Sprintf("đã gỡ %s khỏi TSK-%d trong tasks.md (không còn trong phiếu)", strings.Join(dropped, ", "), n))
+			}
+		default:
+			notes = append(notes, fmt.Sprintf("TSK-%d trong tasks.md chỉ tham chiếu %s không còn trong phiếu: giữ nguyên, bint task lint báo unknown_ac cho dòng này; sửa tay hoặc ghi lại bằng bint task write %s tasks",
+				n, strings.Join(dropped, ", "), taskID))
 		}
 	}, nil)
+	if len(rewritten) > 0 {
+		for i, l := range rewritten {
+			lines[i] = l
+		}
+		text = strings.Join(lines, eol)
+	}
 	var add []string
 	for n := 1; n <= nCrit; n++ {
 		if covered[n] {

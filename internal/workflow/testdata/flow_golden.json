@@ -9081,7 +9081,7 @@
       "results": [
         {
           "status": "blocked",
-          "reason": "bước chỉ đọc b-req (fake) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run resume \u003cULID\u003e` để đi tiếp từ sau bước b-req (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi mới resume, hoặc `bint task cancel \u003cULID\u003e`",
+          "reason": "bước chỉ đọc b-req (fake) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run resume \u003cULID\u003e` để đi tiếp từ sau bước b-req (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `bint run resume \u003cULID\u003e --rerun` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel \u003cULID\u003e`",
           "steps": [
             "b-req:blocked"
           ]
@@ -9329,7 +9329,7 @@
       "results": [
         {
           "status": "blocked",
-          "reason": "bước chỉ đọc b-review (fake) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run resume \u003cULID\u003e` để đi tiếp từ sau bước b-review (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi mới resume, hoặc `bint task cancel \u003cULID\u003e`",
+          "reason": "bước chỉ đọc b-review (fake) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run resume \u003cULID\u003e` để đi tiếp từ sau bước b-review (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `bint run resume \u003cULID\u003e --rerun` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel \u003cULID\u003e`",
           "steps": [
             "b-feat:completed",
             "b-review:blocked"
@@ -9996,7 +9996,7 @@
           "call": "complete",
           "action": "blocked",
           "task_status": "blocked",
-          "reason": "bước chỉ đọc b-review (claude) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run next \u003cULID\u003e --resume` để đi tiếp từ sau bước b-review (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi mới resume, hoặc `bint task cancel \u003cULID\u003e`",
+          "reason": "bước chỉ đọc b-review (claude) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run next \u003cULID\u003e --resume` để đi tiếp từ sau bước b-review (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `bint run next \u003cULID\u003e --resume --rerun` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel \u003cULID\u003e`",
           "notes": [
             "b-review: chi phí của subagent agent-b-review unknown — chưa có SubagentStop của agent-b-review (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)"
           ],

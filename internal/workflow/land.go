@@ -81,9 +81,9 @@ func (e *ErrDiscardRequired) Error() string {
 }
 
 // doneBlockersFor gom điều chặn done của tác vụ t: bằng chứng (task.DoneBlockers), thay đổi chạm đường dẫn
-// bảo vệ/deny/ngoài phạm vi chưa duyệt. in/inErr là kết quả DoneInputDetailed.
-func (e *Env) doneBlockersFor(ctx context.Context, t *task.Task, in task.DoneInput, inErr error) []string {
-	if e.planOnlyTask(t) {
+// bảo vệ/deny chưa duyệt. in/inErr là kết quả DoneInputDetailed; pg là planGateFor tính trước (ngoài khoá phiếu).
+func (e *Env) doneBlockersFor(ctx context.Context, t *task.Task, in task.DoneInput, inErr error, pg planGate) []string {
+	if pg.PlanOnly && e.planOnlyTask(t) { // kiểm lại: trạng thái phiếu có thể đã đổi từ lúc tính pg
 		// Phiếu chỉ lập kế hoạch: không có mã để kiểm chứng. Ở cây chung UnapprovedChanges (diff so với Base) sẽ gán
 		// nhầm commit của người khác cho nó nên bỏ qua. Ở worktree riêng không có ai khác ghi: thay đổi chạm đường
 		// dẫn bảo vệ/deny/ngoài phạm vi (do orchestrator hay agent sửa ngoài bước) vẫn cần người duyệt, nếu không
@@ -98,13 +98,16 @@ func (e *Env) doneBlockersFor(ctx context.Context, t *task.Task, in task.DoneInp
 			case err != nil:
 				blockers = append(blockers, "không xác định được tệp đã sửa: "+err.Error())
 			case len(pend) > 0:
-				blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
+				blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
 			}
 		}
 		return blockers
 	}
 	in.VerifyConfirmed = e.VerifyConfirmed(t)
 	blockers := task.DoneBlockers(t, in)
+	if e.planOnlyTask(t) { // phiếu chỉ lập kế hoạch ở worktree nhưng có thay đổi khác: cổng đầy đủ + lý do rõ nghĩa
+		blockers = append(blockers, strayBlocker(t.State.ID, pg))
+	}
 	// Tính lại từ diff hiện tại, không tin PendingPaths (chỉ Runner điền).
 	pend, err := e.UnapprovedChanges(ctx, t)
 	switch {
@@ -113,9 +116,20 @@ func (e *Env) doneBlockersFor(ctx context.Context, t *task.Task, in task.DoneInp
 	case err != nil:
 		blockers = append(blockers, "không xác định được tệp đã sửa: "+err.Error())
 	case len(pend) > 0:
-		blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
+		blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
 	}
 	return blockers
+}
+
+// strayBlocker nêu vì sao phiếu chỉ lập kế hoạch không được hưởng cổng nhẹ: worktree có thay đổi ngoài mục tri
+// thức candidate (hoặc không tính được diff).
+func strayBlocker(id string, pg planGate) string {
+	what := "worktree có thay đổi ngoài mục tri thức candidate: " + strings.Join(pg.Stray, ", ")
+	if pg.Err != nil {
+		what = "không xác định được thay đổi của worktree: " + pg.Err.Error()
+	}
+	return what + fmt.Sprintf("; phiếu chỉ lập kế hoạch không đưa mã về cây gốc: chạy `bint run b-feat --task %s` (hoặc b-do) "+
+		"để triển khai và kiểm chứng, hoặc người huỷ bằng `bint task cancel %s --discard`", id, id)
 }
 
 // Land đưa thay đổi của tác vụ worktree về cây gốc (State.Origin). Chỉ đưa về khi điều kiện done (trừ chính "đã
@@ -148,9 +162,10 @@ func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult,
 	}
 	origin := st.Origin
 
+	pg := e.planGateFor(ctx, t)
 	in, inErr := e.DoneInputDetailed(ctx, t)
 	in.IgnoreLanding = true
-	if blockers := e.doneBlockersFor(ctx, t, in, inErr); len(blockers) > 0 {
+	if blockers := e.doneBlockersFor(ctx, t, in, inErr, pg); len(blockers) > 0 {
 		return nil, &NotDoneError{Blockers: blockers}
 	}
 

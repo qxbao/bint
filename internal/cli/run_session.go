@@ -129,6 +129,7 @@ giữ thì chờ tối đa workflow.timeout_minutes, --no-wait để dừng ngay
 		},
 	}
 	c.Flags().BoolVar(&o.Resume, "resume", false, "tiếp tục tác vụ blocked/interrupted/failed sau khi đã xử lý nguyên nhân")
+	c.Flags().BoolVar(&o.Rerun, "rerun", false, "cùng --resume: bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó")
 	c.Flags().BoolVar(&o.NoWait, "no-wait", false, "khoá worktree đang bị bước khác giữ thì dừng ngay (blocked) thay vì chờ")
 	c.Flags().BoolVar(&asJSON, "json", false, "in kết quả dạng JSON")
 	return c

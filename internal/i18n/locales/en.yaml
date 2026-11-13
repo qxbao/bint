@@ -2338,6 +2338,8 @@ form.tasks.run.worktree: "Own worktree"
 form.tasks.run.worktree.hint: "New task runs in its own worktree (in parallel); not with an existing task"
 form.tasks.resume.no-wait: "Do not wait for lock"
 form.tasks.resume.no-wait.hint: "If the worktree lock is held, stop at once (blocked) instead of waiting"
+form.tasks.resume.rerun: "Rerun held step"
+form.tasks.resume.rerun.hint: "Discard the held read-only step result (tree changed while it ran) and run the step again instead of applying the held result"
 tk.diff.title: "Task changes {id}"
 tk.diff.empty: "The task has not changed any file."
 

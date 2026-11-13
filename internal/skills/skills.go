@@ -403,15 +403,15 @@ const (
 	StateCurrent = "current"
 	StateMissing = "missing"
 	StateDiffers = "differs"
-	// StateStaleBinary: tệp khác bản nhúng của binary đang chạy nhưng khớp băm core.lock ghi cho định dạng của thư mục
-	// đích, và băm skill gốc trong core.lock khác bản nhúng: tệp do một bản Bint khác (mới hơn) xuất bản, chưa ai sửa
-	// tay; binary đang chạy mới là bên cũ.
-	StateStaleBinary = "stale_binary"
+	// StateOtherVersion: tệp khác bản nhúng của binary đang chạy nhưng khớp băm core.lock ghi cho định dạng của thư mục
+	// đích, và băm skill gốc trong core.lock khác bản nhúng: tệp do một bản Bint khác xuất bản, chưa ai sửa tay. Hướng
+	// lệch (bint đang chạy cũ hơn hay mới hơn bản đã ghi) không do trạng thái này quyết định mà do nơi gọi so phiên bản.
+	StateOtherVersion = "other_version"
 )
 
-// PublishedState như Status, thêm phân biệt StateStaleBinary khỏi StateDiffers dựa vào core.lock: core là skill gốc
+// PublishedState như Status, thêm phân biệt StateOtherVersion khỏi StateDiffers dựa vào core.lock: core là skill gốc
 // nhúng của binary, e là mục core.lock của nó. Tệp khớp băm core.lock mà SHA256 gốc trong lock khác bản nhúng thì
-// không phải "sửa tay" (sửa tay làm băm lệch core.lock): bản nhúng của binary này cũ hơn bản đã xuất bản.
+// không phải "sửa tay" (sửa tay làm băm lệch core.lock): tệp do bản Bint khác ghi.
 func PublishedState(root string, t Target, s, core Skill, e LockEntry) (string, error) {
 	st, err := Status(root, t, s)
 	if err != nil || st != StateDiffers {
@@ -426,7 +426,7 @@ func PublishedState(root string, t Target, s, core Skill, e LockEntry) (string, 
 		locked = e.Variants[t.Format]
 	}
 	if locked != "" && e.SHA256 != "" && e.SHA256 != core.Hash() && (Skill{Content: b}).Hash() == locked {
-		return StateStaleBinary, nil
+		return StateOtherVersion, nil
 	}
 	return st, nil
 }

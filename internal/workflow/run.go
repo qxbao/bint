@@ -110,6 +110,9 @@ type RunOptions struct {
 	Resume bool
 	// NoWait: khoá worktree đang bị giữ thì dừng ngay (blocked) thay vì chờ tới workflow.timeout_minutes.
 	NoWait bool
+	// Rerun (cùng Resume): bỏ kết quả bước chỉ đọc đang giữ (HeldStep) và chạy lại bước đó thay vì chỉ áp cổng sau bước
+	// của nó (`bint run resume --rerun`). Lỗi nếu phiếu không có bước giữ.
+	Rerun bool
 	// Isolation: chế độ cô lập khi tự lập phiếu (""/auto | shared | worktree); không dùng cùng TaskRef.
 	Isolation string
 	// Driver: process|session khi tự lập phiếu (--driver); không dùng cùng TaskRef. session ⇒ lập phiếu rồi dừng
@@ -209,6 +212,9 @@ func (r *Runner) logf(format string, a ...any) {
 // b-review (tối đa workflow.max_review_rounds vòng sửa) → Finalize. Các workflow
 // đơn (b-req, b-feat, b-review) chạy đúng một bước trên tác vụ.
 func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
+	if o.Rerun && !o.Resume {
+		return nil, errors.New("--rerun chỉ dùng khi tiếp tục tác vụ (bint run resume <id> --rerun)")
+	}
 	if o.Step != "" && (o.TaskRef == "" || !isCustomFlow(o.Workflow)) {
 		return nil, errors.New("--step chỉ dùng với --task và flow tuỳ biến (workflow gốc chạy theo tên: bint run <workflow> --task <id>)")
 	}
@@ -362,11 +368,19 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		runAfterLoad()
 	}
 	parent := rs.t.State.LastRun()
+	var rerunDropped *task.HeldStep
 	t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		// Kiểm lại dưới khoá phiếu: một `bint run next` có thể đã mở bước subagent sau lần nạp ở trên (TOCTOU), và hợp
 		// đồng của chính tác vụ không chặn AcquireLock ⇒ không được chạy chồng lên bước đó.
 		if ps := t.State.PendingStep; ps != nil && t.State.PendingActive(leaseNow()) {
 			return &PendingStepError{TaskID: t.State.ID, Step: ps.Step, RunID: ps.RunID, Until: ps.LeaseUntil}
+		}
+		if o.Rerun {
+			if h, err := dropHeldForRerun(t, o.Resume); err != nil {
+				return err
+			} else {
+				rerunDropped = h
+			}
 		}
 		if err := t.ClaimRunner(rs.runID, r.now()); err != nil {
 			return err
@@ -393,6 +407,9 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		return nil, err
 	}
 	rs.t = t
+	if rerunDropped != nil {
+		rs.res.Notes = append(rs.res.Notes, rerunNote(rerunDropped))
+	}
 	r.RunID = rs.runID
 	r.emitRun(rs.runID, spool.WorkflowStarted, map[string]any{"workflow": o.Workflow, "parent_run_id": parent,
 		"bint_version": r.Version, "git_head": gitrepo.HeadCommit(ctx, r.Root), "git_branch": gitrepo.Branch(ctx, r.Root),
@@ -872,6 +889,13 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 			return nil, false
 		}
 		firstFeat = !rs.t.State.EverInProgress() // phải xét trước khi chuyển in_progress ở dưới
+		if others := r.sharedWriteConflicts(rs.t); len(others) > 0 {
+			id := rs.t.State.ID
+			r.block(rs, fmt.Sprintf("cây chung %s còn tác vụ khác chưa kết thúc (%s): hai tác vụ không được cùng ghi một cây. "+
+				"Chờ tác vụ đó xong (bint task show %s) rồi bint run resume %s; hoặc huỷ phiếu này (bint task cancel %s) "+
+				"và lập lại bằng --worktree", rs.t.State.Worktree, strings.Join(others, ", "), others[0], id, id))
+			return nil, false
+		}
 		if rs.t.Ticket.Autonomy == task.AutonomyAskAlways {
 			q := Question{Key: QConfirmFeat, Params: map[string]any{"task": rs.t.State.ID, "root": r.Root},
 				Text: fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép %s sửa mã trong %s?", rs.t.State.ID, step, r.Root)}
@@ -1186,14 +1210,32 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 // nói rõ kết quả bước được giữ và hai lối ra (người sửa đồng thời → resume; agent sửa → xem lại/hoàn tác rồi resume).
 func (r *Runner) heldReason(rs *runState, sr *stepRun, files []string) string {
 	id := rs.t.State.ID
-	resume := "bint run resume " + id
+	resume, rerun := "bint run resume "+id, fmt.Sprintf("bint run resume %s --rerun", id)
 	if rs.session {
-		resume = "bint run next " + id + " --resume"
+		resume, rerun = "bint run next "+id+" --resume", fmt.Sprintf("bint run next %s --resume --rerun", id)
 	}
 	return fmt.Sprintf("bước chỉ đọc %s (%s) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: %s — kết quả của bước đã được giữ. "+
 		"Nếu chính bạn sửa đồng thời: `%s` để đi tiếp từ sau bước %s (không chạy lại). "+
-		"Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi mới resume, hoặc `bint task cancel %s`",
-		sr.step, sr.harness, strings.Join(files, ", "), resume, sr.step, id)
+		"Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `%s` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel %s`",
+		sr.step, sr.harness, strings.Join(files, ", "), resume, sr.step, rerun, id)
+}
+
+// dropHeldForRerun xoá HeldStep của phiếu t cho `resume --rerun` (bước đó sẽ chạy lại, kết quả giữ bị bỏ). Lỗi cách
+// dùng nếu không phải resume hoặc phiếu không có bước giữ.
+func dropHeldForRerun(t *task.Task, resume bool) (*task.HeldStep, error) {
+	if !resume {
+		return nil, errors.New("--rerun chỉ dùng khi tiếp tục tác vụ (resume)")
+	}
+	h := t.State.HeldStep
+	if h == nil {
+		return nil, fmt.Errorf("--rerun: tác vụ %s không có bước chỉ đọc nào đang được giữ để chạy lại", t.State.ID)
+	}
+	t.State.HeldStep = nil
+	return h, nil
+}
+
+func rerunNote(h *task.HeldStep) string {
+	return fmt.Sprintf("bỏ kết quả bước giữ %s (lượt %s), chạy lại bước theo yêu cầu của người dùng", h.Step, h.RunID)
 }
 
 // heldStepOf trả bước đang giữ nếu nó thuộc flow đang chạy (nil nếu không có hoặc thuộc flow khác).

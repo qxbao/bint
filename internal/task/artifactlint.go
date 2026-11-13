@@ -93,18 +93,13 @@ func stripCodeSpans(s string) string {
 
 func isIdentRune(r rune) bool { return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) }
 
-// dottedSegment: đoạn s[start:end] (một dạng <…>) là một thành phần của định danh có dấu chấm,
-// như limits.workflows.<flow> hoặc harnesses.<h>.model: ngay trước là `ident.` hoặc ngay sau là `.ident`
-// (ident cũng có thể là một đoạn <…> khác liền kề, như a.<x>.<y>). Ngoặc nhọn đứng riêng hoặc
-// kèm dấu chấm câu cuối câu (`<việc>.`) không phải thành phần định danh.
+// dottedSegment: đoạn s[start:end] (một dạng <…>) là một thành phần của định danh có dấu chấm, như
+// limits.workflows.<flow> hoặc harnesses.<h>.model: ngay trước là `ident.` (ident cũng có thể là một đoạn <…> khác liền
+// kề, như a.<x>.<y>). Đoạn đứng đầu (không có `ident.` ngay trước) không được miễn dù theo sau là dấu chấm: `<tên>.md`
+// hay `<việc>.Tiếp` là placeholder chưa điền, cũng như `<việc>.` cuối câu.
 func dottedSegment(s string, start, end int) bool {
 	if start >= 2 && s[start-1] == '.' {
 		if r, _ := utf8.DecodeLastRuneInString(s[:start-1]); isIdentRune(r) || r == '>' {
-			return true
-		}
-	}
-	if end+1 < len(s) && s[end] == '.' {
-		if r, _ := utf8.DecodeRuneInString(s[end+1:]); isIdentRune(r) || r == '<' {
 			return true
 		}
 	}

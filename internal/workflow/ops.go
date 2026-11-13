@@ -428,6 +428,7 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 	var blockers []string
 	var doneIn task.DoneInput
 	var doneErr error
+	var pg planGate
 	if to == task.StatusCancelled {
 		// Tác vụ worktree còn thay đổi chưa đưa về: huỷ sẽ mất chúng, cần --discard (chỉ người).
 		if t0, err := e.Tasks.Load(ref); err == nil && t0.State.Origin != "" && !task.Terminal(t0.State.Status) {
@@ -442,7 +443,8 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		if err != nil {
 			return nil, nil, err
 		}
-		if !e.planOnlyTask(t0) { // phiếu chỉ lập kế hoạch không có mã để chụp/so
+		// Phiếu chỉ lập kế hoạch (ở worktree: diff chỉ gồm mục tri thức candidate) không có mã để chụp/so.
+		if pg = e.planGateFor(ctx, t0); !pg.PlanOnly {
 			doneIn, doneErr = e.DoneInputDetailed(ctx, t0)
 		}
 	}
@@ -467,8 +469,15 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 				}
 			}
 		}
+		reason := o.Reason
+		if h := t.State.HeldStep; h != nil && !o.Orchestrator {
+			// Người (hoặc agent) tự chuyển trạng thái thay cho `bint run resume`: kết quả bước chỉ đọc đang giữ có thể đã
+			// cũ so với cây họ vừa sửa; lượt chạy sau không được áp lại cổng của bước đó. Có dấu vết trong lịch sử.
+			t.State.HeldStep = nil
+			reason = strings.TrimSpace(reason + " [bỏ kết quả bước giữ " + h.Step + "]")
+		}
 		if to == task.StatusDone {
-			blockers = e.doneBlockersFor(ctx, t, doneIn, doneErr)
+			blockers = e.doneBlockersFor(ctx, t, doneIn, doneErr, pg)
 			if len(blockers) > 0 && !o.Force {
 				return &NotDoneError{Blockers: blockers}
 			}
@@ -478,14 +487,18 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 				return &NotDoneError{Blockers: append(blockers, "cờ ép không bỏ qua việc đưa về cây gốc: `bint task land "+
 					t.State.ID+"`, hoặc người huỷ bằng `bint task cancel "+t.State.ID+"` để bỏ thay đổi")}
 			}
-			if e.planOnlyTask(t) {
-				// Bảng chuyển giữ nguyên (planned → done không có): chỉ phiếu chỉ lập kế hoạch mới đóng được bằng ClosePlan.
-				return t.State.ClosePlan(e.actor(), o.Reason, e.at())
+			if len(blockers) > 0 { // chỉ tới đây khi --force: ghi vào lịch sử người đã ép qua điều chặn nào (kể cả ClosePlan)
+				reason = strings.TrimSpace(reason + " [người xác nhận dù thiếu bằng chứng: " + strings.Join(blockers, "; ") + "]")
 			}
-		}
-		reason := o.Reason
-		if o.Force && len(blockers) > 0 {
-			reason = strings.TrimSpace(reason + " [người xác nhận dù thiếu bằng chứng: " + strings.Join(blockers, "; ") + "]")
+			if e.planOnlyTask(t) {
+				if !pg.PlanOnly {
+					// Có thay đổi ngoài mục tri thức candidate: ClosePlan không áp dụng, bảng chuyển không có planned → done.
+					// doneBlockersFor đã thêm điều chặn nêu lối ra; --force không mở được lối này.
+					return &NotDoneError{Blockers: blockers}
+				}
+				// Bảng chuyển giữ nguyên (planned → done không có): chỉ phiếu chỉ lập kế hoạch mới đóng được bằng ClosePlan.
+				return t.State.ClosePlan(e.actor(), reason, e.at())
+			}
 		}
 		return t.State.Apply(to, e.actor(), reason, e.at())
 	})

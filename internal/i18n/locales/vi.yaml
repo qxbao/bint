@@ -2339,6 +2339,8 @@ form.tasks.run.worktree: "Worktree riêng"
 form.tasks.run.worktree.hint: "Tác vụ mới chạy trong worktree riêng (song song); không dùng cùng tác vụ có sẵn"
 form.tasks.resume.no-wait: "Không chờ khoá"
 form.tasks.resume.no-wait.hint: "Khoá worktree đang bị giữ thì dừng ngay (blocked) thay vì chờ"
+form.tasks.resume.rerun: "Chạy lại bước giữ"
+form.tasks.resume.rerun.hint: "Bỏ kết quả bước chỉ đọc đang giữ (cây đổi trong lúc chạy) và chạy lại bước đó thay vì áp kết quả đã giữ"
 tk.diff.title: "Thay đổi của tác vụ {id}"
 tk.diff.empty: "Tác vụ chưa đổi tệp nào."
 

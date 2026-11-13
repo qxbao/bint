@@ -94,6 +94,8 @@ type NextOptions struct {
 	Resume bool
 	// NoWait: khoá worktree đang bị giữ thì dừng ngay (blocked) thay vì chờ tới workflow.timeout_minutes.
 	NoWait bool
+	// Rerun (cùng Resume): bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó (như RunOptions.Rerun).
+	Rerun bool
 }
 
 // CompleteOptions điều khiển Runner.Complete.
@@ -348,6 +350,9 @@ var nextAfterLoad, runAfterLoad func()
 // kiểm chứng sau b-feat, quyết định sau review chạy riêng, finalize) chạy ngay trong lệnh này.
 func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error) {
 	defer r.sessionEnv()()
+	if o.Rerun && !o.Resume {
+		return nil, fmt.Errorf("--rerun chỉ dùng cùng --resume")
+	}
 	t, err := r.Tasks.Load(o.TaskRef)
 	if err != nil {
 		return nil, err
@@ -413,10 +418,26 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		return r.endSession(rs), nil
 	}
 
+	rerunMsg := ""
 	if task.Paused(rs.t.State.Status) { // chỉ tới đây khi o.Resume
 		to := rs.t.State.ResumeFrom
 		if to == "" {
 			to = task.StatusCreated
+		}
+		if o.Rerun {
+			// Bỏ kết quả bước giữ trước (kể cả vòng review của nó: không áp lại quyết định đó, review sẽ chạy lại).
+			var dropped *task.HeldStep
+			if t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
+				h, err := dropHeldForRerun(t, true)
+				dropped = h
+				return err
+			}); err != nil {
+				return nil, err
+			} else {
+				rs.t = t
+			}
+			rerunMsg = rerunNote(dropped)
+			rs.res.Notes = append(rs.res.Notes, rerunMsg)
 		}
 		if held := rs.t.State.HeldStep; to == task.StatusInReview && !(held != nil && held.Kind == string(flow.KindReview)) {
 			// Người đã xem phát hiện review lúc tác vụ dừng; resume không áp lại quyết định cũ (sẽ dừng lại y hệt).
@@ -522,7 +543,11 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			return stop()
 		}
 		sr.release() // trả flock: từ đây hợp đồng thuê giữ chỗ
-		return sessionAgentAction(rs.t, ps), nil
+		act := sessionAgentAction(rs.t, ps)
+		if rerunMsg != "" {
+			act.Notes = append(act.Notes, rerunMsg)
+		}
+		return act, nil
 	}
 	r.fail(rs, "", "vòng điều phối không dừng (bất thường)")
 	return stop()

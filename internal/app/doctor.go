@@ -385,7 +385,7 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 				r.add("skill "+sk.Name, LevelWarn, "%v", err)
 			case st == skills.StateMissing:
 				r.add("skill "+sk.Name, LevelInfo, "chưa xuất bản cho %s (bint sync)", who)
-			case st == skills.StateStaleBinary:
+			case st == skills.StateOtherVersion:
 				advice := staleBinaryAdvice(lock.BintVersion, runningVersion())
 				r.add("skill "+sk.Name, LevelWarn, "%s do bản Bint khác ghi (core.lock bint_version %s, bint đang chạy %s), chưa ai sửa tay: %s",
 					rel, lock.BintVersion, cmp.Or(runningVersion(), "không rõ"), advice)
