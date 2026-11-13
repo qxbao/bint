@@ -1,0 +1,83 @@
+{"Time":"2026-11-13T12:34:28.987728916+07:00","Action":"start","Package":"bint/internal/mcpcat"}
+{"Time":"2026-11-13T12:34:28.989561161+07:00","Action":"run","Package":"bint/internal/mcpcat","Test":"TestCatalogServices"}
+{"Time":"2026-11-13T12:34:28.989571943+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestCatalogServices","Output":"=== RUN   TestCatalogServices\n"}
+{"Time":"2026-11-13T12:34:28.989607066+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestCatalogServices","Output":"--- PASS: TestCatalogServices (0.00s)\n"}
+{"Time":"2026-11-13T12:34:28.989612491+07:00","Action":"pass","Package":"bint/internal/mcpcat","Test":"TestCatalogServices","Elapsed":0}
+{"Time":"2026-11-13T12:34:28.989616332+07:00","Action":"run","Package":"bint/internal/mcpcat","Test":"TestAgentToolName"}
+{"Time":"2026-11-13T12:34:28.989618943+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestAgentToolName","Output":"=== RUN   TestAgentToolName\n"}
+{"Time":"2026-11-13T12:34:28.989621906+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestAgentToolName","Output":"--- PASS: TestAgentToolName (0.00s)\n"}
+{"Time":"2026-11-13T12:34:28.989624708+07:00","Action":"pass","Package":"bint/internal/mcpcat","Test":"TestAgentToolName","Elapsed":0}
+{"Time":"2026-11-13T12:34:28.989627257+07:00","Action":"run","Package":"bint/internal/mcpcat","Test":"TestCatalogInvariants"}
+{"Time":"2026-11-13T12:34:28.989629421+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestCatalogInvariants","Output":"=== RUN   TestCatalogInvariants\n"}
+{"Time":"2026-11-13T12:34:28.989634412+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestCatalogInvariants","Output":"--- PASS: TestCatalogInvariants (0.00s)\n"}
+{"Time":"2026-11-13T12:34:28.989639318+07:00","Action":"pass","Package":"bint/internal/mcpcat","Test":"TestCatalogInvariants","Elapsed":0}
+{"Time":"2026-11-13T12:34:28.989641859+07:00","Action":"run","Package":"bint/internal/mcpcat","Test":"TestCatalogSpecifics"}
+{"Time":"2026-11-13T12:34:28.989645398+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestCatalogSpecifics","Output":"=== RUN   TestCatalogSpecifics\n"}
+{"Time":"2026-11-13T12:34:28.989655922+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestCatalogSpecifics","Output":"--- PASS: TestCatalogSpecifics (0.00s)\n"}
+{"Time":"2026-11-13T12:34:28.989660733+07:00","Action":"pass","Package":"bint/internal/mcpcat","Test":"TestCatalogSpecifics","Elapsed":0}
+{"Time":"2026-11-13T12:34:28.989663372+07:00","Action":"run","Package":"bint/internal/mcpcat","Test":"TestExpand"}
+{"Time":"2026-11-13T12:34:28.989666969+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestExpand","Output":"=== RUN   TestExpand\n"}
+{"Time":"2026-11-13T12:34:28.989754145+07:00","Action":"output","Package":"bint/internal/mcpcat","Test":"TestExpand","Output":"--- PASS: TestExpand (0.00s)\n"}
+{"Time":"2026-11-13T12:34:28.989762247+07:00","Action":"pass","Package":"bint/internal/mcpcat","Test":"TestExpand","Elapsed":0}
+{"Time":"2026-11-13T12:34:28.989765544+07:00","Action":"output","Package":"bint/internal/mcpcat","Output":"PASS\n"}
+{"Time":"2026-11-13T12:34:28.990017865+07:00","Action":"output","Package":"bint/internal/mcpcat","Output":"ok  \tbint/internal/mcpcat\t0.002s\n"}
+{"Time":"2026-11-13T12:34:28.990033415+07:00","Action":"pass","Package":"bint/internal/mcpcat","Elapsed":0.002}
+{"Time":"2026-11-13T12:34:29.106661479+07:00","Action":"start","Package":"bint/internal/mcpcat/probe"}
+{"Time":"2026-11-13T12:34:29.106817409+07:00","Action":"start","Package":"bint/internal/mcpcat/probe/probetest"}
+{"Time":"2026-11-13T12:34:29.106841133+07:00","Action":"output","Package":"bint/internal/mcpcat/probe/probetest","Output":"?   \tbint/internal/mcpcat/probe/probetest\t[no test files]\n"}
+{"Time":"2026-11-13T12:34:29.106850103+07:00","Action":"skip","Package":"bint/internal/mcpcat/probe/probetest","Elapsed":0}
+{"Time":"2026-11-13T12:34:29.109792543+07:00","Action":"run","Package":"bint/internal/mcpcat/probe","Test":"TestStdioListAndCall"}
+{"Time":"2026-11-13T12:34:29.109860543+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioListAndCall","Output":"=== RUN   TestStdioListAndCall\n"}
+{"Time":"2026-11-13T12:34:29.114672863+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioListAndCall","Output":"--- PASS: TestStdioListAndCall (0.01s)\n"}
+{"Time":"2026-11-13T12:34:29.114753719+07:00","Action":"pass","Package":"bint/internal/mcpcat/probe","Test":"TestStdioListAndCall","Elapsed":0.01}
+{"Time":"2026-11-13T12:34:29.11476328+07:00","Action":"run","Package":"bint/internal/mcpcat/probe","Test":"TestStdioNoTools"}
+{"Time":"2026-11-13T12:34:29.114766247+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioNoTools","Output":"=== RUN   TestStdioNoTools\n"}
+{"Time":"2026-11-13T12:34:29.117805418+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioNoTools","Output":"--- PASS: TestStdioNoTools (0.00s)\n"}
+{"Time":"2026-11-13T12:34:29.117821921+07:00","Action":"pass","Package":"bint/internal/mcpcat/probe","Test":"TestStdioNoTools","Elapsed":0}
+{"Time":"2026-11-13T12:34:29.117826659+07:00","Action":"run","Package":"bint/internal/mcpcat/probe","Test":"TestStdioToolErrors"}
+{"Time":"2026-11-13T12:34:29.117828947+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioToolErrors","Output":"=== RUN   TestStdioToolErrors\n"}
+{"Time":"2026-11-13T12:34:29.122959017+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioToolErrors","Output":"--- PASS: TestStdioToolErrors (0.01s)\n"}
+{"Time":"2026-11-13T12:34:29.122984682+07:00","Action":"pass","Package":"bint/internal/mcpcat/probe","Test":"TestStdioToolErrors","Elapsed":0.01}
+{"Time":"2026-11-13T12:34:29.122990119+07:00","Action":"run","Package":"bint/internal/mcpcat/probe","Test":"TestStdioTimeoutAndClose"}
+{"Time":"2026-11-13T12:34:29.122992863+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioTimeoutAndClose","Output":"=== RUN   TestStdioTimeoutAndClose\n"}
+{"Time":"2026-11-13T12:34:31.425250163+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioTimeoutAndClose","Output":"--- PASS: TestStdioTimeoutAndClose (2.30s)\n"}
+{"Time":"2026-11-13T12:34:31.425274143+07:00","Action":"pass","Package":"bint/internal/mcpcat/probe","Test":"TestStdioTimeoutAndClose","Elapsed":2.3}
+{"Time":"2026-11-13T12:34:31.425282922+07:00","Action":"run","Package":"bint/internal/mcpcat/probe","Test":"TestStdioProcessExit"}
+{"Time":"2026-11-13T12:34:31.425289106+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioProcessExit","Output":"=== RUN   TestStdioProcessExit\n"}
+{"Time":"2026-11-13T12:34:31.429161952+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioProcessExit","Output":"--- PASS: TestStdioProcessExit (0.00s)\n"}
+{"Time":"2026-11-13T12:34:31.429185221+07:00","Action":"pass","Package":"bint/internal/mcpcat/probe","Test":"TestStdioProcessExit","Elapsed":0}
+{"Time":"2026-11-13T12:34:31.429193781+07:00","Action":"run","Package":"bint/internal/mcpcat/probe","Test":"TestStdioStartFailure"}
+{"Time":"2026-11-13T12:34:31.42919619+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioStartFailure","Output":"=== RUN   TestStdioStartFailure\n"}
+{"Time":"2026-11-13T12:34:31.430081375+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestStdioStartFailure","Output":"--- PASS: TestStdioStartFailure (0.00s)\n"}
+{"Time":"2026-11-13T12:34:31.430111939+07:00","Action":"pass","Package":"bint/internal/mcpcat/probe","Test":"TestStdioStartFailure","Elapsed":0}
+{"Time":"2026-11-13T12:34:31.430127138+07:00","Action":"run","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE"}
+{"Time":"2026-11-13T12:34:31.430131174+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"=== RUN   TestHTTPJSONAndSSE\n"}
+{"Time":"2026-11-13T12:34:31.430138881+07:00","Action":"run","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE/sse=false"}
+{"Time":"2026-11-13T12:34:31.4301411+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE/sse=false","Output":"=== RUN   TestHTTPJSONAndSSE/sse=false\n"}
+{"Time":"2026-11-13T12:34:31.430239411+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE/sse=false","Output":"--- FAIL: TestHTTPJSONAndSSE/sse=false (0.00s)\n"}
+{"Time":"2026-11-13T12:34:31.430244872+07:00","Action":"fail","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE/sse=false","Elapsed":0}
+{"Time":"2026-11-13T12:34:31.430247663+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"--- FAIL: TestHTTPJSONAndSSE (0.00s)\n"}
+{"Time":"2026-11-13T12:34:31.432405798+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: socket: operation not permitted [recovered, repanicked]\n"}
+{"Time":"2026-11-13T12:34:31.432427797+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\n"}
+{"Time":"2026-11-13T12:34:31.432431416+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"goroutine 57 [running]:\n"}
+{"Time":"2026-11-13T12:34:31.432434403+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"testing.tRunner.func1.2({0x776dc0, 0xc0001843e0})\n"}
+{"Time":"2026-11-13T12:34:31.432437244+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/testing/testing.go:1872 +0x237\n"}
+{"Time":"2026-11-13T12:34:31.432439927+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"testing.tRunner.func1()\n"}
+{"Time":"2026-11-13T12:34:31.432447226+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/testing/testing.go:1875 +0x35b\n"}
+{"Time":"2026-11-13T12:34:31.432451885+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"panic({0x776dc0?, 0xc0001843e0?})\n"}
+{"Time":"2026-11-13T12:34:31.432454565+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/runtime/panic.go:783 +0x132\n"}
+{"Time":"2026-11-13T12:34:31.432457232+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"net/http/httptest.newLocalListener()\n"}
+{"Time":"2026-11-13T12:34:31.432459802+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/net/http/httptest/server.go:71 +0xda\n"}
+{"Time":"2026-11-13T12:34:31.432462479+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"net/http/httptest.NewUnstartedServer(...)\n"}
+{"Time":"2026-11-13T12:34:31.43246566+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/net/http/httptest/server.go:119\n"}
+{"Time":"2026-11-13T12:34:31.432468323+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"net/http/httptest.NewServer({0x88c720, 0xc0001d81e0})\n"}
+{"Time":"2026-11-13T12:34:31.4324722+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/net/http/httptest/server.go:106 +0x25\n"}
+{"Time":"2026-11-13T12:34:31.43247503+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"bint/internal/mcpcat/probe_test.TestHTTPJSONAndSSE.func1(0xc0001b48c0)\n"}
+{"Time":"2026-11-13T12:34:31.432479075+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/orca/bint/internal/mcpcat/probe/probe_test.go:189 +0xcb\n"}
+{"Time":"2026-11-13T12:34:31.432482044+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"testing.tRunner(0xc0001b48c0, 0xc0001820f0)\n"}
+{"Time":"2026-11-13T12:34:31.432485954+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/testing/testing.go:1934 +0xea\n"}
+{"Time":"2026-11-13T12:34:31.432495045+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"created by testing.(*T).Run in goroutine 56\n"}
+{"Time":"2026-11-13T12:34:31.432499077+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/testing/testing.go:1997 +0x465\n"}
+{"Time":"2026-11-13T12:34:31.43324965+07:00","Action":"fail","Package":"bint/internal/mcpcat/probe","Test":"TestHTTPJSONAndSSE","Elapsed":0}
+{"Time":"2026-11-13T12:34:31.433259746+07:00","Action":"output","Package":"bint/internal/mcpcat/probe","Output":"FAIL\tbint/internal/mcpcat/probe\t2.327s\n"}
+{"Time":"2026-11-13T12:34:31.433268145+07:00","Action":"fail","Package":"bint/internal/mcpcat/probe","Elapsed":2.327}

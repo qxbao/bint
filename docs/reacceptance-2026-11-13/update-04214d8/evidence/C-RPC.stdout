@@ -1,0 +1,40 @@
+{"Time":"2026-11-13T12:34:53.05126459+07:00","Action":"start","Package":"bint/internal/mcpserver"}
+{"Time":"2026-11-13T12:34:53.054199622+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestPackStructuredCarriesContent"}
+{"Time":"2026-11-13T12:34:53.054212639+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestPackStructuredCarriesContent","Output":"=== RUN   TestPackStructuredCarriesContent\n"}
+{"Time":"2026-11-13T12:34:53.054237822+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestPackStructuredCarriesContent","Output":"--- PASS: TestPackStructuredCarriesContent (0.00s)\n"}
+{"Time":"2026-11-13T12:34:53.054242721+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestPackStructuredCarriesContent","Elapsed":0}
+{"Time":"2026-11-13T12:34:53.054248506+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestConcurrentToolCalls"}
+{"Time":"2026-11-13T12:34:53.054250919+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestConcurrentToolCalls","Output":"=== RUN   TestConcurrentToolCalls\n"}
+{"Time":"2026-11-13T12:34:53.054643749+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestConcurrentToolCalls","Output":"--- PASS: TestConcurrentToolCalls (0.00s)\n"}
+{"Time":"2026-11-13T12:34:53.054654094+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestConcurrentToolCalls","Elapsed":0}
+{"Time":"2026-11-13T12:34:53.054659489+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestProxyInitializeListAndError"}
+{"Time":"2026-11-13T12:34:53.054661893+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestProxyInitializeListAndError","Output":"=== RUN   TestProxyInitializeListAndError\n"}
+{"Time":"2026-11-13T12:34:53.055051733+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestProxyInitializeListAndError","Output":"--- PASS: TestProxyInitializeListAndError (0.00s)\n"}
+{"Time":"2026-11-13T12:34:53.05505687+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestProxyInitializeListAndError","Elapsed":0}
+{"Time":"2026-11-13T12:34:53.055061549+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestCancelledNotificationCancelsCall"}
+{"Time":"2026-11-13T12:34:53.055065552+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestCancelledNotificationCancelsCall","Output":"=== RUN   TestCancelledNotificationCancelsCall\n"}
+{"Time":"2026-11-13T12:34:53.055164019+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestCancelledNotificationCancelsCall","Output":"--- PASS: TestCancelledNotificationCancelsCall (0.00s)\n"}
+{"Time":"2026-11-13T12:34:53.055169176+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestCancelledNotificationCancelsCall","Elapsed":0}
+{"Time":"2026-11-13T12:34:53.055173127+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestNoProxyUnchanged"}
+{"Time":"2026-11-13T12:34:53.055175498+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestNoProxyUnchanged","Output":"=== RUN   TestNoProxyUnchanged\n"}
+{"Time":"2026-11-13T12:34:53.055334366+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestNoProxyUnchanged","Output":"--- PASS: TestNoProxyUnchanged (0.00s)\n"}
+{"Time":"2026-11-13T12:34:53.05533786+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestNoProxyUnchanged","Elapsed":0}
+{"Time":"2026-11-13T12:34:53.055341628+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestServeCancelsInflightOnEOF"}
+{"Time":"2026-11-13T12:34:53.055343838+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestServeCancelsInflightOnEOF","Output":"=== RUN   TestServeCancelsInflightOnEOF\n"}
+{"Time":"2026-11-13T12:34:53.105698921+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestServeCancelsInflightOnEOF","Output":"--- PASS: TestServeCancelsInflightOnEOF (0.05s)\n"}
+{"Time":"2026-11-13T12:34:53.105721901+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestServeCancelsInflightOnEOF","Elapsed":0.05}
+{"Time":"2026-11-13T12:34:53.105727992+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestProxyToolsListChanged"}
+{"Time":"2026-11-13T12:34:53.105730645+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestProxyToolsListChanged","Output":"=== RUN   TestProxyToolsListChanged\n"}
+{"Time":"2026-11-13T12:34:53.105929663+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestProxyToolsListChanged","Output":"--- PASS: TestProxyToolsListChanged (0.00s)\n"}
+{"Time":"2026-11-13T12:34:53.105939281+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestProxyToolsListChanged","Elapsed":0}
+{"Time":"2026-11-13T12:34:53.105943079+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestProxyWithoutNotifierListChangedFalse"}
+{"Time":"2026-11-13T12:34:53.105945472+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestProxyWithoutNotifierListChangedFalse","Output":"=== RUN   TestProxyWithoutNotifierListChangedFalse\n"}
+{"Time":"2026-11-13T12:34:53.106018928+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestProxyWithoutNotifierListChangedFalse","Output":"--- PASS: TestProxyWithoutNotifierListChangedFalse (0.00s)\n"}
+{"Time":"2026-11-13T12:34:53.106026236+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestProxyWithoutNotifierListChangedFalse","Elapsed":0}
+{"Time":"2026-11-13T12:34:53.106031009+07:00","Action":"run","Package":"bint/internal/mcpserver","Test":"TestServeFinishesQuickCallsAfterEOF"}
+{"Time":"2026-11-13T12:34:53.106033622+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestServeFinishesQuickCallsAfterEOF","Output":"=== RUN   TestServeFinishesQuickCallsAfterEOF\n"}
+{"Time":"2026-11-13T12:34:53.206448477+07:00","Action":"output","Package":"bint/internal/mcpserver","Test":"TestServeFinishesQuickCallsAfterEOF","Output":"--- PASS: TestServeFinishesQuickCallsAfterEOF (0.10s)\n"}
+{"Time":"2026-11-13T12:34:53.206476543+07:00","Action":"pass","Package":"bint/internal/mcpserver","Test":"TestServeFinishesQuickCallsAfterEOF","Elapsed":0.1}
+{"Time":"2026-11-13T12:34:53.206482514+07:00","Action":"output","Package":"bint/internal/mcpserver","Output":"PASS\n"}
+{"Time":"2026-11-13T12:34:53.20706321+07:00","Action":"output","Package":"bint/internal/mcpserver","Output":"ok  \tbint/internal/mcpserver\t0.156s\n"}
+{"Time":"2026-11-13T12:34:53.207078194+07:00","Action":"pass","Package":"bint/internal/mcpserver","Elapsed":0.156}

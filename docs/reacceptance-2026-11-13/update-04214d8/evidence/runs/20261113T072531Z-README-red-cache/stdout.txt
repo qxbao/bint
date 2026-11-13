@@ -1,0 +1,5 @@
+--- FAIL: TestREADMEDocumentsTUIGlobalKeys (0.00s)
+    readme_tui_test.go:21: README thiếu mục "## Giao diện terminal (TUI)"
+FAIL
+FAIL	bint/internal/cli	1.784s
+FAIL

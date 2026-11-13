@@ -1,0 +1,41 @@
+internal/harness/harness.go:463:	p := claude.MCPConfigPath(req.Root)
+internal/harness/harness.go:467:func (Claude) MCPInstalled(root string) bool { return claude.MCPInstalled(claude.MCPConfigPath(root)) }
+internal/eval/arms.go:186:	MCPConfig  string
+internal/eval/arms.go:394:		s.MCPConfig = filepath.Join(logDir, "mcp.json")
+internal/eval/arms.go:395:		if err := writeJSONFile(s.MCPConfig, map[string]any{"mcpServers": map[string]any{
+internal/eval/runner.go:524:		MCPConfig: setup.MCPConfig, Settings: setup.Settings, Env: evalContextEnv(setup),
+internal/harness/claude/mcp.go:18:// MCPConfigPath là tệp .mcp.json cấp dự án của Claude Code (commit được).
+internal/harness/claude/mcp.go:19:func MCPConfigPath(repoRoot string) string { return filepath.Join(repoRoot, ".mcp.json") }
+internal/eval/trace_test.go:81:	args := a.ArgsFor(AgentRequest{MCPConfig: "/x/mcp.json", HasSkills: true})
+internal/cli/context_e2e_test.go:68:		t.Fatalf("mcp serve: %d\n%s", code, out)
+internal/eval/agent_harness_test.go:72:	args, err := c.ArgsFor(AgentRequest{Dir: "/repo", WritableDirs: []string{"/state"}, MCPConfig: mcp, ReadOnly: true})
+internal/eval/agent_harness_test.go:115:	args, err := (&CodexAgent{}).ArgsFor(AgentRequest{MCPConfig: mcp})
+internal/eval/agent_harness_test.go:133:	args, err := a.ArgsFor(AgentRequest{MCPConfig: mcp, Settings: "settings.json"})
+internal/eval/agent_harness_test.go:144:	plain, _ := a.ArgsFor(AgentRequest{MCPConfig: mcp})
+internal/eval/agent_harness_test.go:163:			args, err := (&CodexAgent{}).ArgsFor(AgentRequest{MCPConfig: mcp, Settings: "settings.json"})
+internal/eval/agent_harness.go:98:	if req.MCPConfig != "" {
+internal/eval/agent_harness.go:99:		srv, err := readMCPServer(req.MCPConfig)
+internal/eval/agent.go:31:	// MCPConfig / Settings: tệp cấu hình MCP và settings bổ sung (nhánh bint).
+internal/eval/agent.go:32:	MCPConfig string
+internal/eval/agent.go:158:	if req.MCPConfig != "" && !a.NoTools {
+internal/eval/agent.go:159:		args = append(args, "--mcp-config", req.MCPConfig)
+internal/eval/agent.go:361:	if req.MCPConfig != "" {
+internal/eval/agent.go:362:		extra = append(extra, "BINT_EVAL_MCP_CONFIG="+req.MCPConfig)
+internal/cli/mcp.go:25:  claude mcp add bint -- bint mcp serve
+internal/eval/arms_test.go:49:	if s.MCPConfig != "" {
+internal/eval/arms_test.go:69:	b, _ := os.ReadFile(s.MCPConfig)
+internal/eval/arms_test.go:105:	if vs.MCPConfig != "" || strings.Contains(string(vset), "UserPromptSubmit") || !strings.Contains(string(vset), "PreToolUse") || strings.Contains(string(vagents), "context_for_task") {
+internal/app/init.go:302:				rep.add(name, StepUpdated, "%s: mục %q (bint mcp serve)", res.Path, claude.MCPServerName)
+internal/cli/cliref_inventory_test.go:50:	{"app/init.go", "bint mcp serve", "lệnh không có hành động trong sổ (máy chủ MCP qua stdio, không có giao diện)"},
+internal/mcpserver/server.go:1:// Package mcpserver là MCP server của Context Engine (`bint mcp serve`, mục 2.3,
+internal/i18n/locales/vi.yaml:1858:sy.mcp.note: "Công cụ đang mở cho agent qua `bint mcp serve` (stdio). Trạng thái đăng ký từng harness: thẻ Harness."
+internal/i18n/locales/en.yaml:1856:sy.mcp.note: "Tools exposed to agents through `bint mcp serve` (stdio). Per-harness registration: Harness tab."
+internal/tui/app/testdata/golden/system_mcp_140x40_xx.txt:11:│ │                                                            ││ ⟦Tools exposed to agents through `bint mcp serve` (stdio).             │ │
+internal/tui/actions/coverage.go:39:		"mcp serve":        "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái đăng ký MCP hiện ở Hệ thống › Harness (HarnessRuntime), danh sách công cụ ở Hệ thống › MCP",
+internal/tui/ui/cliref_test.go:38:		{"lệnh ngoài sổ giữ nguyên", "bint hook: lỗi; bint mcp serve", "bint hook: lỗi; bint mcp serve", "bint hook: lỗi; bint mcp serve"},
+internal/tui/ui/cliref.go:36:// Markdown và log của agent không đi qua đây. Đường lệnh không có hành động trong sổ ("bint hook", "bint mcp serve") và chữ "bint"
+internal/app/context_test.go:29:	if !claude.MCPInstalled(claude.MCPConfigPath(root)) {
+internal/app/context_test.go:140:	if claude.MCPInstalled(claude.MCPConfigPath(root)) {
+internal/app/context_test.go:143:	os.Remove(claude.MCPConfigPath(root))
+internal/tui/app/testdata/golden/system_mcp_140x40_vi.txt:11:│ │                                                            ││ Công cụ đang mở cho agent qua `bint mcp serve` (stdio). Trạng thái     │ │
+internal/tui/app/testdata/golden/system_mcp_140x40_en.txt:11:│ │                                                            ││ Tools exposed to agents through `bint mcp serve` (stdio). Per-harness  │ │

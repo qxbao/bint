@@ -1,0 +1,5 @@
+started=2026-11-13T10:12:36+07:00
+ended=2026-11-13T10:14:16+07:00
+exit_code=1
+cwd=/home/DUCLH/orca/bint
+command=go test -count=1 -json -timeout 20m ./...

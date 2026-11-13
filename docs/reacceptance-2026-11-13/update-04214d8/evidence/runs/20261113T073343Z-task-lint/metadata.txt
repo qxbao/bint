@@ -1,0 +1,7 @@
+run_id=20261113T073343Z-task-lint
+started_utc=2026-11-13T07:33:43Z
+head=04214d8babb97baa3994dd0cb571418df21706ab
+argv=/tmp/bint-acceptance-current-yob_9zp_/bint task lint 01M79NVK4EMZVFAY00X8B044X8 --strict
+cwd=/home/DUCLH/orca/bint
+exit=0
+finished_utc=2026-11-13T07:33:43Z

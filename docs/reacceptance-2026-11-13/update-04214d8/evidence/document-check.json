@@ -1,0 +1,57 @@
+{
+  "cwd": "/home/DUCLH/orca/bint",
+  "checks": [
+    {
+      "name": "old_report_hashes",
+      "ok": true,
+      "detail": "missing=[]; changed=['docs/reacceptance-2026-11-13/README.md']"
+    },
+    {
+      "name": "config_hashes",
+      "ok": false,
+      "detail": "[{'path': '.bint/config.yml', 'same': False}, {'path': '/home/DUCLH/orca/bint/local.yml', 'same': True}]"
+    },
+    {
+      "name": "index_hash",
+      "ok": true,
+      "detail": "{'sha256': '15da3dbc6ea23b300e424a0af2f436c179d60625a020c77ddd175a659b37281c', 'bytes': 216561, 'path': '.git/index'}"
+    },
+    {
+      "name": "scope",
+      "ok": false,
+      "detail": "outside=['internal/cli/readme_tui_test.go']; tracked_changes=['docs/README.md', 'docs/status.md', 'internal/cli/readme_tui_test.go']; preserved_preexisting=['docs/status.md']; untracked_inventory_not_used_as_delta=196"
+    },
+    {
+      "name": "local_links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "matrix_source_paths",
+      "ok": true,
+      "detail": "count=65 missing=[]"
+    },
+    {
+      "name": "task_columns",
+      "ok": true,
+      "detail": "| ID | Stage | Tiêu chí | Command / protocol | Dependency | Trạng thái | Evidence / hoãn |"
+    },
+    {
+      "name": "required_outputs",
+      "ok": true,
+      "detail": "required report files present"
+    },
+    {
+      "name": "README_finding",
+      "ok": false,
+      "detail": "README regression mapped"
+    },
+    {
+      "name": "staticcheck_deferred",
+      "ok": true,
+      "detail": "missing binary stays deferred"
+    }
+  ],
+  "passed": 7,
+  "failed": 3
+}

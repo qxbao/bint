@@ -1,0 +1,8 @@
+started=2026-11-13T10:14:56+07:00
+ended=2026-11-13T10:14:56+07:00
+cwd=/home/DUCLH/orca/bint
+GOOS=linux
+command=type -a staticcheck; staticcheck -version; GOBIN=/tmp/bint-reacceptance-bin go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+discovery_exit=1
+version_exit=127
+install_exit=1

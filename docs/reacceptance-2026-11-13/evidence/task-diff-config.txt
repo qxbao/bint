@@ -1,0 +1,93 @@
+started=2026-11-13T11:11:05+07:00
+ended=2026-11-13T11:11:05+07:00
+cwd=/home/DUCLH/orca/bint
+command=GIT_INDEX_FILE=/tmp/bint-audit-index GIT_OBJECT_DIRECTORY=/tmp/bint-audit-git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/home/DUCLH/orca/bint/.git/objects bint task diff 01M79DW2JXXF41V10HZ5MFMACM --name-only
+exit_code=0
+.bint/config.yml
+docs/README.md
+docs/reacceptance-2026-11-13/README.md
+docs/reacceptance-2026-11-13/core.md
+docs/reacceptance-2026-11-13/deferred.md
+docs/reacceptance-2026-11-13/evidence/artifact-hashes.txt
+docs/reacceptance-2026-11-13/evidence/baseline-caveats.txt
+docs/reacceptance-2026-11-13/evidence/baseline.txt
+docs/reacceptance-2026-11-13/evidence/check-report-links.py
+docs/reacceptance-2026-11-13/evidence/check-source-refs.py
+docs/reacceptance-2026-11-13/evidence/commands.md
+docs/reacceptance-2026-11-13/evidence/embedded-calc-search.meta
+docs/reacceptance-2026-11-13/evidence/embedded-calc-search.stderr
+docs/reacceptance-2026-11-13/evidence/embedded-calc-search.txt
+docs/reacceptance-2026-11-13/evidence/experiment-feature-search.meta
+docs/reacceptance-2026-11-13/evidence/experiment-feature-search.stderr
+docs/reacceptance-2026-11-13/evidence/experiment-feature-search.txt
+docs/reacceptance-2026-11-13/evidence/final-state.txt
+docs/reacceptance-2026-11-13/evidence/final-tracked-diff.patch
+docs/reacceptance-2026-11-13/evidence/go-test-race.json
+docs/reacceptance-2026-11-13/evidence/go-test-race.meta
+docs/reacceptance-2026-11-13/evidence/go-test-race.stderr
+docs/reacceptance-2026-11-13/evidence/go-test.json
+docs/reacceptance-2026-11-13/evidence/go-test.meta
+docs/reacceptance-2026-11-13/evidence/go-test.stderr
+docs/reacceptance-2026-11-13/evidence/index-hash.txt
+docs/reacceptance-2026-11-13/evidence/inventory-search.txt
+docs/reacceptance-2026-11-13/evidence/mcp-source-search.meta
+docs/reacceptance-2026-11-13/evidence/mcp-source-search.stderr
+docs/reacceptance-2026-11-13/evidence/mcp-source-search.txt
+docs/reacceptance-2026-11-13/evidence/plan-headings.txt
+docs/reacceptance-2026-11-13/evidence/report-links.meta
+docs/reacceptance-2026-11-13/evidence/report-links.stderr
+docs/reacceptance-2026-11-13/evidence/report-links.txt
+docs/reacceptance-2026-11-13/evidence/source-refs.meta
+docs/reacceptance-2026-11-13/evidence/source-refs.stderr
+docs/reacceptance-2026-11-13/evidence/source-refs.txt
+docs/reacceptance-2026-11-13/evidence/staticcheck-discovery.stderr
+docs/reacceptance-2026-11-13/evidence/staticcheck-discovery.stdout
+docs/reacceptance-2026-11-13/evidence/staticcheck-install.stderr
+docs/reacceptance-2026-11-13/evidence/staticcheck-install.stdout
+docs/reacceptance-2026-11-13/evidence/staticcheck-install.txt
+docs/reacceptance-2026-11-13/evidence/staticcheck-version.stderr
+docs/reacceptance-2026-11-13/evidence/staticcheck-version.stdout
+docs/reacceptance-2026-11-13/evidence/staticcheck.meta
+docs/reacceptance-2026-11-13/evidence/vet-linux.meta
+docs/reacceptance-2026-11-13/evidence/vet-linux.stderr
+docs/reacceptance-2026-11-13/evidence/vet-linux.stdout
+docs/reacceptance-2026-11-13/evidence/vet-windows.meta
+docs/reacceptance-2026-11-13/evidence/vet-windows.stderr
+docs/reacceptance-2026-11-13/evidence/vet-windows.stdout
+docs/reacceptance-2026-11-13/evolution.md
+docs/reacceptance-2026-11-13/experiments.md
+docs/reacceptance-2026-11-13/isolation.md
+docs/reacceptance-2026-11-13/mcp.md
+docs/reacceptance-2026-11-13/tui.md
+docs/status.md
+
+command=GIT_INDEX_FILE=/tmp/bint-audit-index GIT_OBJECT_DIRECTORY=/tmp/bint-audit-git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/home/DUCLH/orca/bint/.git/objects bint task diff 01M79DW2JXXF41V10HZ5MFMACM
+exit_code=0
+diff --git a/.bint/config.yml b/.bint/config.yml
+index e5c1fad..cddb6dc 100644
+--- a/.bint/config.yml
++++ b/.bint/config.yml
+@@ -31,8 +31,8 @@ harnesses:
+     models:
+       planner:      "gpt-6-astra"
+       implementer:  "gpt-6-luna"
+-      reviewer:     "gpt-6.1-sol"
+-      evolver:      "gpt-6.1-sol"
++      reviewer:     "gpt-6-astra"
++      evolver:      "gpt-6-astra"
+
+command=git show 1a15e30d85994cad8085e524422cc2bdae1792e4:.bint/config.yml | sed -n 31,35p
+exit_code=0
+    models:
+      planner:      "gpt-6-astra"
+      implementer:  "gpt-6-luna"
+      reviewer:     "gpt-6.1-sol"
+      evolver:      "gpt-6.1-sol"
+
+command=git show 74735317002625692ca9f6a51d74f53073af88d6:.bint/config.yml | sed -n 31,35p
+exit_code=0
+    models:
+      planner:      "gpt-6-astra"
+      implementer:  "gpt-6-luna"
+      reviewer:     "gpt-6-astra"
+      evolver:      "gpt-6-astra"

@@ -1,0 +1,28 @@
+{"Time":"2026-11-13T12:34:49.038476169+07:00","Action":"start","Package":"bint/internal/tui/actions"}
+{"Time":"2026-11-13T12:34:49.069635505+07:00","Action":"run","Package":"bint/internal/tui/actions","Test":"TestMCPActionProperties"}
+{"Time":"2026-11-13T12:34:49.069654882+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPActionProperties","Output":"=== RUN   TestMCPActionProperties\n"}
+{"Time":"2026-11-13T12:34:49.06990556+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPActionProperties","Output":"--- PASS: TestMCPActionProperties (0.00s)\n"}
+{"Time":"2026-11-13T12:34:49.06991345+07:00","Action":"pass","Package":"bint/internal/tui/actions","Test":"TestMCPActionProperties","Elapsed":0}
+{"Time":"2026-11-13T12:34:49.069917987+07:00","Action":"run","Package":"bint/internal/tui/actions","Test":"TestMCPReadActionsWithRealServices"}
+{"Time":"2026-11-13T12:34:49.069920392+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPReadActionsWithRealServices","Output":"=== RUN   TestMCPReadActionsWithRealServices\n"}
+{"Time":"2026-11-13T12:34:49.249380696+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPReadActionsWithRealServices","Output":"--- PASS: TestMCPReadActionsWithRealServices (0.18s)\n"}
+{"Time":"2026-11-13T12:34:49.24944506+07:00","Action":"pass","Package":"bint/internal/tui/actions","Test":"TestMCPReadActionsWithRealServices","Elapsed":0.18}
+{"Time":"2026-11-13T12:34:49.249542233+07:00","Action":"run","Package":"bint/internal/tui/actions","Test":"TestMCPAddRemoveActions"}
+{"Time":"2026-11-13T12:34:49.249556758+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPAddRemoveActions","Output":"=== RUN   TestMCPAddRemoveActions\n"}
+{"Time":"2026-11-13T12:34:49.408097225+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPAddRemoveActions","Output":"--- PASS: TestMCPAddRemoveActions (0.16s)\n"}
+{"Time":"2026-11-13T12:34:49.408121905+07:00","Action":"pass","Package":"bint/internal/tui/actions","Test":"TestMCPAddRemoveActions","Elapsed":0.16}
+{"Time":"2026-11-13T12:34:49.408130578+07:00","Action":"run","Package":"bint/internal/tui/actions","Test":"TestMCPCheckJob"}
+{"Time":"2026-11-13T12:34:49.408133589+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPCheckJob","Output":"=== RUN   TestMCPCheckJob\n"}
+{"Time":"2026-11-13T12:34:49.569000175+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPCheckJob","Output":"--- PASS: TestMCPCheckJob (0.16s)\n"}
+{"Time":"2026-11-13T12:34:49.569016176+07:00","Action":"pass","Package":"bint/internal/tui/actions","Test":"TestMCPCheckJob","Elapsed":0.16}
+{"Time":"2026-11-13T12:34:49.56902107+07:00","Action":"run","Package":"bint/internal/tui/actions","Test":"TestMCPRestartAndIndexJobs"}
+{"Time":"2026-11-13T12:34:49.569023613+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPRestartAndIndexJobs","Output":"=== RUN   TestMCPRestartAndIndexJobs\n"}
+{"Time":"2026-11-13T12:34:49.716132544+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestMCPRestartAndIndexJobs","Output":"--- PASS: TestMCPRestartAndIndexJobs (0.15s)\n"}
+{"Time":"2026-11-13T12:34:49.716149443+07:00","Action":"pass","Package":"bint/internal/tui/actions","Test":"TestMCPRestartAndIndexJobs","Elapsed":0.15}
+{"Time":"2026-11-13T12:34:49.71615503+07:00","Action":"run","Package":"bint/internal/tui/actions","Test":"TestNoReferenceToSystemMCPTab"}
+{"Time":"2026-11-13T12:34:49.716157829+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestNoReferenceToSystemMCPTab","Output":"=== RUN   TestNoReferenceToSystemMCPTab\n"}
+{"Time":"2026-11-13T12:34:49.718839521+07:00","Action":"output","Package":"bint/internal/tui/actions","Test":"TestNoReferenceToSystemMCPTab","Output":"--- PASS: TestNoReferenceToSystemMCPTab (0.00s)\n"}
+{"Time":"2026-11-13T12:34:49.718857755+07:00","Action":"pass","Package":"bint/internal/tui/actions","Test":"TestNoReferenceToSystemMCPTab","Elapsed":0}
+{"Time":"2026-11-13T12:34:49.718862124+07:00","Action":"output","Package":"bint/internal/tui/actions","Output":"PASS\n"}
+{"Time":"2026-11-13T12:34:49.720148699+07:00","Action":"output","Package":"bint/internal/tui/actions","Output":"ok  \tbint/internal/tui/actions\t0.682s\n"}
+{"Time":"2026-11-13T12:34:49.720166369+07:00","Action":"pass","Package":"bint/internal/tui/actions","Elapsed":0.682}

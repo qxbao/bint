@@ -1,0 +1,125 @@
+PLAN_FILES
+docs/README.md
+docs/architecture.md
+docs/bint-acceptance-open-findings.md
+docs/bint-acceptance-p0-p4.md
+docs/bint-acceptance-p5.md
+docs/bint-acceptance-p6-dff6570.md
+docs/bint-plan.md
+docs/bint-reacceptance-p0-p5-137dbf9.md
+docs/ci-cd.md
+docs/configuration.md
+docs/evals/README.md
+docs/evals/claude-codex-mixed-2026-11-11/README.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/requirement.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/tasks.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/plan.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/requirement.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/review.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/tasks.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/plan.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/requirement.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/review.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/tasks.md
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74BFD9EM8XEXRVQRW4EQ3XZ/review.md
+docs/evals/codex-flow-acceptance-2026-11-12/README.md
+docs/evals/codex-flow-acceptance-2026-11-12/codex-no-tools-investigation-round5.md
+docs/evals/codex-flow-acceptance-2026-11-12/codex-restricted-adapter-round6.md
+docs/evals/codex-flows-2026-11-10/PLAN.md
+docs/evals/codex-flows-2026-11-10/README.md
+docs/evals/codex-flows-2026-11-10/evidence/README.md
+docs/evals/codex-flows-2026-11-11/PLAN.md
+docs/evals/codex-flows-2026-11-11/README.md
+docs/evals/codex-flows-2026-11-11/evidence/README.md
+docs/evals/p6-p7-claude-2026-11-10/README.md
+docs/evals/pilot-codex-2026-11-10/README.md
+docs/evaluation.md
+docs/evolution.md
+docs/fingerprint-outcome-decisions.md
+docs/gate-1.md
+docs/gate-2.md
+docs/harness-components.md
+docs/isolation-subagent-plan.md
+docs/knowledge.md
+docs/mcp-gateway-plan.md
+docs/p8-harness-evolution-plan.md
+docs/p8-next-experiments.md
+docs/status.md
+docs/tui-plan.md
+docs/workflows.md
+CHECKBOX_COUNTS
+docs/bint-plan.md 73
+docs/p8-harness-evolution-plan.md docs/p8-next-experiments.md docs/tui-plan.md docs/isolation-subagent-plan.md docs/mcp-gateway-plan.md docs/gate-1.md docs/gate-2.md docs/evals/codex-flows-2026-11-10/PLAN.md 10
+docs/evals/codex-flows-2026-11-11/PLAN.md 6
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/plan.md docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/plan.md MCP_IMPLEMENTATION_SEARCH
+internal/eval/arms.go:186:	MCPConfig  string
+internal/eval/arms.go:394:		s.MCPConfig = filepath.Join(logDir, "mcp.json")
+internal/eval/arms.go:395:		if err := writeJSONFile(s.MCPConfig, map[string]any{"mcpServers": map[string]any{
+internal/eval/runner.go:524:		MCPConfig: setup.MCPConfig, Settings: setup.Settings, Env: evalContextEnv(setup),
+internal/eval/trace_test.go:81:	args := a.ArgsFor(AgentRequest{MCPConfig: "/x/mcp.json", HasSkills: true})
+internal/eval/agent_harness_test.go:72:	args, err := c.ArgsFor(AgentRequest{Dir: "/repo", WritableDirs: []string{"/state"}, MCPConfig: mcp, ReadOnly: true})
+internal/eval/agent_harness_test.go:115:	args, err := (&CodexAgent{}).ArgsFor(AgentRequest{MCPConfig: mcp})
+internal/eval/agent_harness_test.go:133:	args, err := a.ArgsFor(AgentRequest{MCPConfig: mcp, Settings: "settings.json"})
+internal/eval/agent_harness_test.go:144:	plain, _ := a.ArgsFor(AgentRequest{MCPConfig: mcp})
+internal/eval/agent_harness_test.go:163:			args, err := (&CodexAgent{}).ArgsFor(AgentRequest{MCPConfig: mcp, Settings: "settings.json"})
+internal/eval/agent_harness.go:98:	if req.MCPConfig != "" {
+internal/eval/agent_harness.go:99:		srv, err := readMCPServer(req.MCPConfig)
+internal/eval/agent.go:31:	// MCPConfig / Settings: tệp cấu hình MCP và settings bổ sung (nhánh bint).
+internal/eval/agent.go:32:	MCPConfig string
+internal/eval/agent.go:158:	if req.MCPConfig != "" && !a.NoTools {
+internal/eval/agent.go:159:		args = append(args, "--mcp-config", req.MCPConfig)
+internal/eval/agent.go:361:	if req.MCPConfig != "" {
+internal/eval/agent.go:362:		extra = append(extra, "BINT_EVAL_MCP_CONFIG="+req.MCPConfig)
+internal/eval/arms_test.go:49:	if s.MCPConfig != "" {
+internal/eval/arms_test.go:69:	b, _ := os.ReadFile(s.MCPConfig)
+internal/eval/arms_test.go:105:	if vs.MCPConfig != "" || strings.Contains(string(vset), "UserPromptSubmit") || !strings.Contains(string(vset), "PreToolUse") || strings.Contains(string(vagents), "context_for_task") {
+internal/mcpserver/server.go:1:// Package mcpserver là MCP server của Context Engine (`bint mcp serve`, mục 2.3,
+internal/i18n/locales/vi.yaml:1858:sy.mcp.note: "Công cụ đang mở cho agent qua `bint mcp serve` (stdio). Trạng thái đăng ký từng harness: thẻ Harness."
+internal/i18n/locales/en.yaml:1856:sy.mcp.note: "Tools exposed to agents through `bint mcp serve` (stdio). Per-harness registration: Harness tab."
+internal/harness/harness.go:463:	p := claude.MCPConfigPath(req.Root)
+internal/harness/harness.go:467:func (Claude) MCPInstalled(root string) bool { return claude.MCPInstalled(claude.MCPConfigPath(root)) }
+internal/tui/actions/coverage.go:39:		"mcp serve":        "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái đăng ký MCP hiện ở Hệ thống › Harness (HarnessRuntime), danh sách công cụ ở Hệ thống › MCP",
+internal/harness/claude/mcp.go:18:// MCPConfigPath là tệp .mcp.json cấp dự án của Claude Code (commit được).
+internal/harness/claude/mcp.go:19:func MCPConfigPath(repoRoot string) string { return filepath.Join(repoRoot, ".mcp.json") }
+internal/tui/ui/cliref_test.go:38:		{"lệnh ngoài sổ giữ nguyên", "bint hook: lỗi; bint mcp serve", "bint hook: lỗi; bint mcp serve", "bint hook: lỗi; bint mcp serve"},
+internal/tui/ui/cliref.go:36:// Markdown và log của agent không đi qua đây. Đường lệnh không có hành động trong sổ ("bint hook", "bint mcp serve") và chữ "bint"
+internal/cli/context_e2e_test.go:68:		t.Fatalf("mcp serve: %d\n%s", code, out)
+internal/cli/mcp.go:25:  claude mcp add bint -- bint mcp serve
+internal/tui/app/testdata/golden/system_mcp_140x40_xx.txt:11:│ │                                                            ││ ⟦Tools exposed to agents through `bint mcp serve` (stdio).             │ │
+internal/app/init.go:302:				rep.add(name, StepUpdated, "%s: mục %q (bint mcp serve)", res.Path, claude.MCPServerName)
+internal/app/context_test.go:29:	if !claude.MCPInstalled(claude.MCPConfigPath(root)) {
+internal/app/context_test.go:140:	if claude.MCPInstalled(claude.MCPConfigPath(root)) {
+internal/app/context_test.go:143:	os.Remove(claude.MCPConfigPath(root))
+internal/cli/cliref_inventory_test.go:50:	{"app/init.go", "bint mcp serve", "lệnh không có hành động trong sổ (máy chủ MCP qua stdio, không có giao diện)"},
+internal/tui/app/testdata/golden/system_mcp_140x40_en.txt:11:│ │                                                            ││ Tools exposed to agents through `bint mcp serve` (stdio). Per-harness  │ │
+internal/tui/app/testdata/golden/system_mcp_140x40_vi.txt:11:│ │                                                            ││ Công cụ đang mở cho agent qua `bint mcp serve` (stdio). Trạng thái     │ │
+ROLES
+22:      planner:      "opus"
+23:      implementer:  "sonnet"
+24:      reviewer:     "opus"
+25:      evolver:      "opus"
+26:      reflector:    "opus"
+32:      planner:      "gpt-6-astra"
+33:      implementer:  "gpt-6-luna"
+34:      reviewer:     "gpt-6.1-sol"
+35:      evolver:      "gpt-6.1-sol"
+36:      reflector:    "gpt-6.1-sol"
+42:      planner:      "gemini-4-argon-high"
+43:      implementer:  "gemini-3.8-flash-medium"
+44:      reviewer:     "gemini-4-argon-high"
+45:      evolver:      "gemini-4-argon-high"
+46:      reflector:    "gemini-4-argon-high"
+48:roles:
+49:  planner: claude
+50:  implementer: claude
+51:  reviewer: claude
+52:  evolver: claude
+53:  reflector: claude        # bint evolve propose (bài học từ thất bại)
+TOOLS
+1
+linux
+amd64
+/home/DUCLH/go
+/home/DUCLH/go/pkg/mod
+/home/DUCLH/.cache/go-build

@@ -1,0 +1,8 @@
+{"Time":"2026-11-13T14:08:58.995320922+07:00","Action":"start","Package":"bint/internal/app"}
+{"Time":"2026-11-13T14:08:59.002008181+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPIndexLinkedWorktree"}
+{"Time":"2026-11-13T14:08:59.002036614+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPIndexLinkedWorktree","Output":"=== RUN   TestMCPIndexLinkedWorktree\n"}
+{"Time":"2026-11-13T14:08:59.177829572+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPIndexLinkedWorktree","Output":"--- PASS: TestMCPIndexLinkedWorktree (0.18s)\n"}
+{"Time":"2026-11-13T14:08:59.178185262+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPIndexLinkedWorktree","Elapsed":0.18}
+{"Time":"2026-11-13T14:08:59.178214705+07:00","Action":"output","Package":"bint/internal/app","Output":"PASS\n"}
+{"Time":"2026-11-13T14:08:59.184970275+07:00","Action":"output","Package":"bint/internal/app","Output":"ok  \tbint/internal/app\t0.189s\n"}
+{"Time":"2026-11-13T14:08:59.184995906+07:00","Action":"pass","Package":"bint/internal/app","Elapsed":0.19}

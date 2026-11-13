@@ -1,0 +1,5 @@
+started=2026-11-13T10:31:29+07:00
+ended=2026-11-13T10:31:29+07:00
+exit_code=1
+cwd=/home/DUCLH/orca/bint
+command=rg -n 'eval snapshot import|snapshot import|knowledge_origin' internal cmd

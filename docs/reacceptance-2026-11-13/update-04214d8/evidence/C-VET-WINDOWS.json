@@ -1,0 +1,24 @@
+{
+  "id": "C-VET-WINDOWS",
+  "argv": [
+    "go",
+    "vet",
+    "./..."
+  ],
+  "cwd": "/home/DUCLH/orca/bint",
+  "started_local": "2026-11-13T12:35:50+07:00",
+  "ended_local": "2026-11-13T12:35:52+07:00",
+  "elapsed_seconds": 1.698,
+  "exit_code": 0,
+  "env_relevant": {
+    "GOOS": "windows",
+    "GOARCH": null,
+    "TMPDIR": null,
+    "BINT_TASK_ID": "01M79NVK4EMZVFAY00X8B044X8",
+    "BINT_RUN_ID": "01M79P8640TAY5FS8YX1VVMB2Z",
+    "BINT_AGENT": "1"
+  },
+  "kind": "static analysis; no product mutation",
+  "stdout_file": "C-VET-WINDOWS.stdout",
+  "stderr_file": "C-VET-WINDOWS.stderr"
+}

@@ -1,0 +1,16 @@
+{"Time":"2026-11-13T14:02:14.893930369+07:00","Action":"start","Package":"bint/internal/app"}
+{"Time":"2026-11-13T14:02:14.899495064+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded"}
+{"Time":"2026-11-13T14:02:14.899532096+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded","Output":"=== RUN   TestMCPCheckCodegraphDegraded\n"}
+{"Time":"2026-11-13T14:02:14.899545849+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded/status_error"}
+{"Time":"2026-11-13T14:02:14.899548646+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded/status_error","Output":"=== RUN   TestMCPCheckCodegraphDegraded/status_error\n"}
+{"Time":"2026-11-13T14:02:15.03356559+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded/status_error","Output":"--- PASS: TestMCPCheckCodegraphDegraded/status_error (0.13s)\n"}
+{"Time":"2026-11-13T14:02:15.033587331+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded/status_error","Elapsed":0.13}
+{"Time":"2026-11-13T14:02:15.033597169+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded/status_rpcerror"}
+{"Time":"2026-11-13T14:02:15.033599932+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded/status_rpcerror","Output":"=== RUN   TestMCPCheckCodegraphDegraded/status_rpcerror\n"}
+{"Time":"2026-11-13T14:02:15.156835226+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded/status_rpcerror","Output":"--- PASS: TestMCPCheckCodegraphDegraded/status_rpcerror (0.12s)\n"}
+{"Time":"2026-11-13T14:02:15.156855657+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded/status_rpcerror","Elapsed":0.12}
+{"Time":"2026-11-13T14:02:15.156861939+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded","Output":"--- PASS: TestMCPCheckCodegraphDegraded (0.26s)\n"}
+{"Time":"2026-11-13T14:02:15.156866542+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPCheckCodegraphDegraded","Elapsed":0.26}
+{"Time":"2026-11-13T14:02:15.156869788+07:00","Action":"output","Package":"bint/internal/app","Output":"PASS\n"}
+{"Time":"2026-11-13T14:02:15.157798259+07:00","Action":"output","Package":"bint/internal/app","Output":"ok  \tbint/internal/app\t0.264s\n"}
+{"Time":"2026-11-13T14:02:15.157814494+07:00","Action":"pass","Package":"bint/internal/app","Elapsed":0.264}

@@ -1,0 +1,1117 @@
+docs/mcp-gateway-plan.md:1:# Kế hoạch: gateway MCP dùng chung và cấp MCP theo role
+docs/mcp-gateway-plan.md:3:Trạng thái: **đã chốt hướng** (2026-11-12), chưa triển khai. Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
+docs/mcp-gateway-plan.md:4:các bước `bint run`, sửa ngay được), M1 (danh mục, cấu hình hai tầng, API/CLI quản lý), M2 (daemon
+docs/mcp-gateway-plan.md:5:gateway), M3 (cửa vào gộp và cấp quyền theo role), M4 (màn TUI), M5 (đo).
+docs/mcp-gateway-plan.md:6:Quyết định ở §3, kết quả xác minh ở §10. Chỉ còn S3 (harness xử lý thế nào khi chính shim chết), kiểm thử
+docs/mcp-gateway-plan.md:7:khi làm M3.
+docs/mcp-gateway-plan.md:12:## 1. Mục tiêu
+docs/mcp-gateway-plan.md:14:1. **Một tiến trình MCP cho nhiều phiên.** Mỗi terminal hay mỗi lượt `bint run` không còn tự sinh một bộ
+docs/mcp-gateway-plan.md:17:2. **Một điểm quản lý cho mọi harness** (Claude Code, Codex, Antigravity). Người dùng thêm, gỡ, kiểm tra
+docs/mcp-gateway-plan.md:19:3. **Agent nào được dùng MCP nào thì khai báo trong cấu hình dự án, theo role.** Khoá là tên role tự do
+docs/mcp-gateway-plan.md:21:4. **Mỗi bước workflow có đúng tập tool được cấp, như nhau trên mọi harness** (sửa khoảng trống ở §2.2).
+docs/mcp-gateway-plan.md:22:5. Không nới quy tắc hook [k:01M746NPTW1B304MRQQPBCAFAM]: hook không khởi động daemon, không chờ mạng,
+docs/mcp-gateway-plan.md:28:## 2. Hiện trạng
+docs/mcp-gateway-plan.md:30:### 2.1. Mỗi phiên một bộ tiến trình MCP
+docs/mcp-gateway-plan.md:42:dùng chung nên mức tiết kiệm thật phải đo bằng PSS (benchmark của bflow: 6 agent dùng chung một backend
+docs/mcp-gateway-plan.md:45:codegraph chưa có trong cấu hình toàn cục. Đo thử ngày 2026-11-12 (§10, S1): mỗi phiên tốn khoảng 170 MB,
+docs/mcp-gateway-plan.md:46:cộng một daemon khoảng 310 MB cho mỗi project.
+docs/mcp-gateway-plan.md:51:### 2.2. Các bước `bint run` không nhất quán về MCP
+docs/mcp-gateway-plan.md:55:| H1 | `internal/eval/agent.go:145`: `ClaudeAgent.ArgsFor` luôn thêm `--strict-mcp-config` (từ P1, để lượt eval kín) và chỉ thêm `--mcp-config` khi `AgentRequest.MCPConfig` khác rỗng | — |
+docs/mcp-gateway-plan.md:56:| H2 | `internal/workflow/run.go:559`: workflow (P4) dùng lại `ClaudeAgent` qua `harness.Claude.NewAgent` nhưng **không đặt `MCPConfig`** | Bước chạy bằng Claude **không có MCP nào, kể cả `bint`**. Không có tài liệu nào ghi đây là chủ ý. |
+docs/mcp-gateway-plan.md:57:| H3 | `harness.go:568`: `Codex.NewAgent` không cô lập profile như eval | `codex exec` của một bước nạp mọi `[mcp_servers.*]` trong `~/.codex/config.toml` (máy phát triển: 6 server, gồm tool ghi của jira) cộng `bint` của dự án. Cùng bước, tập tool khác nhau theo harness. |
+docs/mcp-gateway-plan.md:58:| H4 | Skill b-req/b-feat/b-review gọi CLI `bint context` qua `Bash(bint:*)` | Tri thức vẫn tới agent (cùng hook theo đường dẫn, vì `workflow.agent.setting_sources` mặc định rỗng). |
+docs/mcp-gateway-plan.md:59:| H5 | CLI không có lệnh tương đương `cite_knowledge`; skill không nhắc trích dẫn | Lượt `bint run` gần như không ghi `knowledge_citations`, nên tín hiệu kết quả và vòng evolve thiếu dữ liệu từ chính các lượt tự động. |
+docs/mcp-gateway-plan.md:64:### 2.3. Thứ dùng lại được
+docs/mcp-gateway-plan.md:74:## 3. Quyết định (chốt 2026-11-11/12)
+docs/mcp-gateway-plan.md:76:### 3.1. Hướng chung
+docs/mcp-gateway-plan.md:86:### 3.2. Quyết định chi tiết
+docs/mcp-gateway-plan.md:91:| D2 | Credential | Giá trị nằm trong **`secrets.env` (quyền 0600) ở thư mục cấu hình user**. `mcp.yml` chỉ ghi tên biến (và đường dẫn tệp nếu khác mặc định), không bao giờ ghi giá trị. Daemon đọc tệp này khi khởi động upstream, không lấy env của shell đã khởi động daemon. | Daemon chạy lâu và tách khỏi terminal; lấy env từ shell khởi động nó trước thì dễ lệch (phiên mở từ IDE thiếu biến). Hiện mật khẩu jira đã nằm dạng rõ trong `~/.claude.json` và `~/.codex/config.toml`, nên một tệp 0600 không kém an toàn hơn và gom về một chỗ. |
+docs/mcp-gateway-plan.md:95:| D6 | Hình dạng client | `bint mcp serve` là **cửa vào duy nhất (shim gộp)**: phục vụ tool của Bint và chuyển tiếp tool của service với tiền tố ngắn (§5.1). Tool tới harness có dạng `mcp__bint__<tiền tố>_<tool>`; quyền trong settings của harness sửa một lần. | Harness chỉ thấy một tiến trình stdio ổn định; daemon chết thì shim tự nối lại, nên tránh được phần lớn S3. Role lấy từ env chạy giống nhau trên Claude, Codex và agy (agy chỉ có MCP cấp user). Tên dài nhất (`mcp__bint__spec_backward_compatibility_check`, 45 ký tự) dưới giới hạn 64. Cái giá: mỗi phiên vẫn có một tiến trình ~16 MB (vốn đã có). |
+docs/mcp-gateway-plan.md:98:## 4. M0 — Cấp MCP của Bint cho các bước `bint run`
+docs/mcp-gateway-plan.md:102:1. `workflow.Runner` sinh `<state>/runtime/mcp/<run-id>.json` chỉ chứa server `bint` (cùng dạng
+docs/mcp-gateway-plan.md:106:2. Bước Codex không còn nạp MCP toàn cục (H3, đã xác minh ở S4): Bint đọc tên các bảng
+docs/mcp-gateway-plan.md:110:3. Skill b-req/b-feat/b-review: ưu tiên `context_for_task`/`context_for_paths` khi có, giữ CLI làm dự
+docs/mcp-gateway-plan.md:112:4. Thêm `bint knowledge cite <id>` để harness không có MCP vẫn trích dẫn được (H5). Lệnh CLI mới phải khai
+docs/mcp-gateway-plan.md:114:5. `docs/workflows.md`: ghi rõ tập MCP của mỗi bước.
+docs/mcp-gateway-plan.md:116:**Nghiệm thu M0:** log bước Claude có `--mcp-config`; một lượt `bint run b-do` thật ghi được ít nhất một
+docs/mcp-gateway-plan.md:121:## 5. M1 — Danh mục, cấu hình hai tầng, API/CLI
+docs/mcp-gateway-plan.md:123:### 5.1. Danh mục nhúng trong binary (`internal/mcpcat`)
+docs/mcp-gateway-plan.md:142:| `codegraph` (`@colbymchenry/codegraph` 1.6.2) | `cg` | stdio | `worktree`, cwd gốc worktree | `explore` (`codegraph_explore`); `query` (node, search, callers, callees, impact, files, status) | Mọi tool chỉ đọc. Env mặc định `CODEGRAPH_TELEMETRY=0`, `CODEGRAPH_MCP_TOOLS=<đủ 8 tool>`. Chi tiết §5.5 |
+docs/mcp-gateway-plan.md:143:| `specmatic` (`specmatic-mcp` 1.2.0) | `spec` | stdio | `worktree`, cwd **trong thư mục trạng thái** (`<state>/mcp/specmatic/<worktree-id>`) | `compat` (backward_compatibility_check); `contract` (run_contract_test, run_resiliency_test); `mock` (manage_mock_server, độc quyền theo cổng) | Điền mặc định `repoDir={worktree}` cho `compat`. `contract` chạy tối đa một lời gọi đồng thời mỗi phân vùng (dò báo cáo theo cwd). Chỉ hữu ích khi repo có OpenAPI/AsyncAPI. Chi tiết §10 S2 |
+docs/mcp-gateway-plan.md:151:### 5.2. Hai tầng cấu hình
+docs/mcp-gateway-plan.md:180:### 5.3. Chính sách chia sẻ
+docs/mcp-gateway-plan.md:193:### 5.4. API và CLI
+docs/mcp-gateway-plan.md:205:| `bint mcp gateway start\|stop\|status\|restart <service>` | M2 | stop/restart chỉ người |
+docs/mcp-gateway-plan.md:210:### 5.5. codegraph
+docs/mcp-gateway-plan.md:212:Dựa trên chạy thử bản 1.6.2 (§10, S1).
+docs/mcp-gateway-plan.md:215:  Node 24 riêng). **Không** chạy `codegraph install`: lệnh này ghi mục MCP và quyền vào cấu hình của từng
+docs/mcp-gateway-plan.md:223:  của chỉ mục, tách khỏi client, tự thoát sau 5 phút không có client). Gateway chỉ giữ một client
+docs/mcp-gateway-plan.md:235:  mất 3,6 s, đỉnh 323 MB, so với `init` 9 s, đỉnh 822 MB. Không có chỉ mục gốc thì để người dùng chạy
+docs/mcp-gateway-plan.md:239:**Nghiệm thu M1:** thêm/gỡ/kiểm tra codegraph, specmatic, deepwiki trên máy thật; `index codegraph` tạo
+docs/mcp-gateway-plan.md:243:## 6. M2 — Daemon gateway (`internal/mcpgw`)
+docs/mcp-gateway-plan.md:248:1. **Một bản cho mỗi user:** khoá `flock`/`LockFileEx` trong thư mục trạng thái cấp user; tệp
+docs/mcp-gateway-plan.md:251:2. **Lắng nghe:** Streamable HTTP trên `127.0.0.1`, `POST/GET/DELETE /mcp`; từ chối Host không phải
+docs/mcp-gateway-plan.md:254:3. **Stdio bridge:** ghép nhiều phiên vào một upstream:
+docs/mcp-gateway-plan.md:261:4. **HTTP upstream** cho deepwiki/context7: giữ `Mcp-Session-Id` nếu server cấp, một handshake chung,
+docs/mcp-gateway-plan.md:263:5. **Vòng đời:** lười, đếm phiên, idle, giới hạn restart; dừng thì kill cả cây tiến trình (unix: process
+docs/mcp-gateway-plan.md:267:6. **Môi trường:** upstream nhận env tối thiểu (PATH, HOME, ngôn ngữ…) + env mặc định của danh mục + biến
+docs/mcp-gateway-plan.md:269:7. **Ghi nhận:** mỗi lời gọi ghi một sự kiện `mcp.called` (run/task/role, service, tool, nhóm, kết quả,
+docs/mcp-gateway-plan.md:271:8. `bint mcp gateway status`: upstream đang chạy, PID, RSS/PSS (Linux: `/proc`, macOS: `ps`, Windows:
+docs/mcp-gateway-plan.md:279:**Nghiệm thu M2:** 6 client đồng thời gửi cùng id vào một upstream stdio không lẫn phản hồi; hai worktree
+docs/mcp-gateway-plan.md:284:## 7. M3 — Cửa vào gộp và cấp quyền theo role
+docs/mcp-gateway-plan.md:286:1. `bint mcp serve` (D6):
+docs/mcp-gateway-plan.md:294:2. **Xác định role:** shim đọc `BINT_RUN_ID`/`BINT_TASK_ID` từ môi trường lúc khởi động (agent không đổi
+docs/mcp-gateway-plan.md:297:3. **Bước chỉ đọc:** tool thuộc nhóm "ghi vào cây làm việc" không được cấp cho b-req/b-review dù `grants`
+docs/mcp-gateway-plan.md:302:4. **`bint run`:** `MCPConfig` của M0 giờ trỏ vào `bint mcp serve` nên tự có tool theo role, như nhau trên
+docs/mcp-gateway-plan.md:305:5. `bint init --mcp` không đổi đối với harness; thêm tuỳ chọn ghi mục MCP cấp user cho agy.
+docs/mcp-gateway-plan.md:306:6. Hướng dẫn di chuyển: gỡ các mục MCP toàn cục trùng với service đã đăng ký trong Bint (tránh hai bản);
+docs/mcp-gateway-plan.md:309:**Nghiệm thu M3:** 4 phiên Claude + 1 Codex cùng repo chỉ có một client codegraph và một specmatic cho mỗi
+docs/mcp-gateway-plan.md:314:## 8. M4 — Màn MCP trong TUI
+docs/mcp-gateway-plan.md:328:**Nghiệm thu M4:** golden test các trạng thái; test phủ lệnh xanh; chụp màn 140×40 và 80×24.
+docs/mcp-gateway-plan.md:330:## 9. Rủi ro và giới hạn
+docs/mcp-gateway-plan.md:341:| Lợi ích chất lượng của codegraph/deepwiki/specmatic chưa được chứng minh | M5 đo trước khi đưa vào `grants` mặc định của mẫu cấu hình |
+docs/mcp-gateway-plan.md:344:## 10. Kết quả xác minh
+docs/mcp-gateway-plan.md:348:| S1 | codegraph: bản nào, cwd/`roots`, chỉ mục ở đâu | `@colbymchenry/codegraph` 1.6.2, chạy thử 2026-11-12 trên bản sao repo Bint (ext4 và ntfs-3g). Chỉ mục `.codegraph/codegraph.db` (SQLite WAL) trong repo, tự ignore. Trên ntfs-3g WAL, socket daemon, watcher đều chạy (tự đồng bộ 124 ms). Client ~170 MB/phiên (shim npm 42 + Node 86 + watchdog 43), daemon ~270 MB + 43 MB/project. 8 tool, đều `readOnlyHint`, nhận `projectPath`; `explore` 0,8 s. Daemon giữ env của client đầu tiên. Chép DB sang worktree khác dùng được. Quyết định: §5.5 |
+docs/mcp-gateway-plan.md:349:| S2 | specmatic-mcp ghi gì ở đâu | Đọc mã 1.2.0: `run_contract_test` ghi spec ra thư mục tạm nhưng ghi JUnit vào `./build/reports/specmatic` **theo cwd** và dò tệp báo cáo mới bằng so trước/sau (hai lời gọi song song cùng cwd lẫn kết quả); `backward_compatibility_check` chạy trong `repoDir`, mặc định `process.cwd()`; `manage_mock_server` tạo thư mục tạm và giữ cổng; mỗi lời gọi spawn `npx specmatic@latest`. Quyết định: cwd trong thư mục trạng thái, điền `repoDir`, `mock` độc quyền, `contract` giới hạn một lời gọi đồng thời mỗi phân vùng (§5.1) |
+docs/mcp-gateway-plan.md:350:| S3 | Harness làm gì khi server stdio MCP chết giữa phiên | Với shim D6, chỉ còn trường hợp chính shim chết. Giữ shim tối giản; kiểm một lần trên Claude/Codex trong nghiệm thu M3 |
+docs/mcp-gateway-plan.md:351:| S4 | Codex tắt MCP toàn cục cho một lần `codex exec` | Đã kiểm trên 0.167: `-c mcp_servers.<tên>.enabled=false` làm server đó `disabled`. `--ignore-user-config` có nhưng bỏ luôn cấu hình model/provider. Quyết định: M0 bước 2 |
+docs/mcp-gateway-plan.md:354:## 11. Thứ tự và phụ thuộc
+docs/mcp-gateway-plan.md:356:`M0` (độc lập) → `M1` → `M2` → `M3` → `M4`; `M5` chạy sau M3.
+docs/mcp-gateway-plan.md:364:Liên quan [isolation-subagent-plan.md](isolation-subagent-plan.md): G3 (subagent trong phiên) dùng chung
+docs/mcp-gateway-plan.md:366:`mcp__bint__*`) chứ không qua env như §7.2. G2 (worktree riêng cho mỗi lượt) chép chỉ mục codegraph theo
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/plan.md:1:# Kế hoạch
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/plan.md:3:## Hướng triển khai
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/plan.md:4:Hàm nhánh đơn `if a < 0 { return -a }; return a` trong `calc.go`, đặt sau `Negate`.
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/plan.md:8:## Tệp/ký hiệu sẽ chạm
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/plan.md:13:## Rủi ro
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AT2NVMZBMRB69MH92H6TH/plan.md:18:## Chiến lược kiểm thử
+docs/bint-plan.md:1:# BINT — KẾ HOẠCH THIẾT KẾ VÀ TRIỂN KHAI
+docs/bint-plan.md:6:**Trạng thái:** Đề xuất kiến trúc — bản sửa đổi 3  
+docs/bint-plan.md:9:### Thay đổi ở bản sửa đổi 3
+docs/bint-plan.md:11:1. Thêm ba mức sử dụng; cổng quyết định là việc của nhóm phát triển Bint, người dùng cuối chỉ cần khung đánh giá khi bật tiến hoá (mục 4, 16).
+docs/bint-plan.md:12:2. Thêm cách để người đóng góp và duyệt tri thức nhanh, có ghi nhận tác giả; hook Git `post-merge` tuỳ chọn (mục 6, 8, 14).
+docs/bint-plan.md:13:3. Thêm phiếu tác vụ được lập từ mô tả tự do, nối với truy xuất theo đường dẫn, giới hạn quyền và tín hiệu kết quả (mục 6, 9).
+docs/bint-plan.md:14:4. Thêm giới hạn vận hành: ngân sách mỗi lượt chạy và đường dẫn được bảo vệ (mục 5).
+docs/bint-plan.md:15:5. Thêm nhánh tham chiếu lý tưởng và quy trình chẩn đoán khi không qua cổng quyết định (mục 12, 16).
+docs/bint-plan.md:16:6. Ghi nhận điều kiện cho việc tái sử dụng tri thức giữa các repository; hoãn tới sau v1.0 (mục 1, 8).
+docs/bint-plan.md:17:7. Sửa đường dẫn đầu ra của b-req về thư mục trạng thái cục bộ (mục 6).
+docs/bint-plan.md:19:### Thay đổi ở bản sửa đổi 2
+docs/bint-plan.md:21:1. Đưa khung đánh giá lên giai đoạn đầu, thêm các cổng quyết định với tiêu chí dừng được ấn định trước (mục 1, 2, 12, 16).
+docs/bint-plan.md:22:2. Khai thác tác vụ đánh giá từ lịch sử Git của repository, có cơ chế chống rò rỉ đáp án (mục 12).
+docs/bint-plan.md:23:3. Thu hẹp bootstrap: ưu tiên quy tắc bất thường và điểm dễ sai, không sinh tổng quan kiến trúc mặc định (mục 4, 8).
+docs/bint-plan.md:24:4. Ghi nhận lượt chạy ngay từ P0; bổ sung nhãn kết quả, quy công và điều kiện tiên quyết về dữ liệu cho tiến hoá (mục 9, 10, 16).
+docs/bint-plan.md:25:5. Trạng thái cục bộ mặc định nằm ngoài repository, dùng chung giữa các worktree; hook ghi qua hàng đợi tệp (mục 3, 9, 13).
+docs/bint-plan.md:26:6. Tệp trong Git là nguồn chuẩn duy nhất của tri thức, SQLite chỉ là chỉ mục dẫn xuất; bổ sung quy tắc làm việc nhóm (mục 2, 8).
+docs/bint-plan.md:27:7. Thư mục gốc chỉ còn AGENTS.md và CLAUDE.md; tài liệu chi tiết là bản sinh từ tri thức (mục 3, 8).
+docs/bint-plan.md:28:8. Context Engine có giao diện MCP và cơ chế chèn ngữ cảnh theo đường dẫn tệp (mục 2, 7, 8, 13).
+docs/bint-plan.md:29:9. Fingerprint theo vùng ký hiệu thay vì cả tệp; xác thực lại theo mức rủi ro (mục 8).
+docs/bint-plan.md:30:10. Skill gốc bất biến, tuỳ biến theo dự án qua lớp phủ (mục 3, 6, 7).
+docs/bint-plan.md:31:11. Lưu nguồn gốc tri thức, chống đầu độc bộ nhớ; quy tắc bắt buộc chỉ do người duyệt (mục 8, 15).
+docs/bint-plan.md:32:12. Gắn mọi cải tiến với phiên bản mô hình; bổ sung phần khác biệt so với năng lực sẵn có của harness (mục 1, 12).
+docs/bint-plan.md:36:## 1. Tầm nhìn sản phẩm
+docs/bint-plan.md:44:1. **Understand:** Khám phá kiến trúc, nghiệp vụ, quy ước và các đặc thù của repository.
+docs/bint-plan.md:45:2. **Execute:** Hỗ trợ lập kế hoạch, thực thi, đánh giá thay đổi và phối hợp nhiều tác nhân.
+docs/bint-plan.md:46:3. **Remember:** Lưu lại kinh nghiệm có giá trị, truy xuất đúng ngữ cảnh khi gặp công việc tương ứng.
+docs/bint-plan.md:47:4. **Evolve:** Tự đề xuất, thử nghiệm, đánh giá và áp dụng các cải tiến đối với skill, tri thức và chiến lược điều phối.
+docs/bint-plan.md:49:### Giả thuyết cốt lõi và tiêu chí dừng
+docs/bint-plan.md:55:Giả thuyết này đã có bằng chứng phản bác một phần. Nghiên cứu *Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?* (Gloaguen và cộng sự, ETH Zurich, 2026 — https://arxiv.org/abs/2602.11988) ghi nhận:
+docs/bint-plan.md:64:- Khung đánh giá có/không có Bint phải tồn tại trước khi xây các lớp tri thức (xem mục 12 và 16).
+docs/bint-plan.md:68:### Khác biệt so với năng lực sẵn có của harness
+docs/bint-plan.md:81:### Nguyên tắc thiết kế
+docs/bint-plan.md:93:### Ngoài phạm vi phiên bản đầu
+docs/bint-plan.md:101:- Chia sẻ tri thức giữa các repository (xuất/nhập gói tri thức); xem điều kiện ở mục 8.9.
+docs/bint-plan.md:106:## 2. Kiến trúc tổng thể
+docs/bint-plan.md:110:### 2.1. Bint Core
+docs/bint-plan.md:116:### 2.2. Repository Intelligence
+docs/bint-plan.md:127:### 2.3. Context Engine
+docs/bint-plan.md:146:Đầu ra kèm ID của từng mục tri thức để agent trích dẫn khi áp dụng (phục vụ quy công, xem mục 9.7).
+docs/bint-plan.md:148:### 2.4. Workflow Orchestrator
+docs/bint-plan.md:154:### 2.5. Experience Store
+docs/bint-plan.md:163:SQLite nằm ngoài repository theo mặc định (xem mục 3.1).
+docs/bint-plan.md:165:### 2.6. Evolution Engine
+docs/bint-plan.md:171:### 2.7. Evaluation Harness
+docs/bint-plan.md:181:Evolution Engine dùng khung này nhưng không được sửa nó (xem mục 15.4).
+docs/bint-plan.md:185:## 3. Cấu trúc repository
+docs/bint-plan.md:216:Skill gốc (b-bootstrap, b-knowledge, b-req, b-feat, b-review, b-do) đi kèm tệp thực thi Bint và không được sửa trực tiếp trong repository. `core.lock` ghi phiên bản đang dùng; phần tuỳ biến nằm trong `overlays/` (xem mục 6.6).
+docs/bint-plan.md:218:Không tạo mặc định CODEBASE.md, DOMAIN.md, PATTERNS.md, QUIRKS.md ở thư mục gốc. Khi cần tài liệu cho người đọc, `bint docs render` sinh chúng vào thư mục trạng thái hoặc một đường dẫn do người dùng chỉ định (xem mục 8.5).
+docs/bint-plan.md:220:### 3.1. Thư mục trạng thái cục bộ
+docs/bint-plan.md:238:### Chính sách quản lý bằng Git
+docs/bint-plan.md:259:## 4. Khởi tạo dự án
+docs/bint-plan.md:261:### 4.1. Quy trình khởi tạo
+docs/bint-plan.md:269:1. Xác định thư mục gốc Git.
+docs/bint-plan.md:270:2. Kiểm tra Bint đã được khởi tạo hay chưa.
+docs/bint-plan.md:271:3. Nhận diện những harness đang được cài đặt.
+docs/bint-plan.md:272:4. Khởi tạo `.bint`, cấu hình mặc định và thư mục trạng thái cục bộ (gồm SQLite) bên ngoài repository.
+docs/bint-plan.md:273:5. Cài đặt skill `b-bootstrap` cho các harness được chọn.
+docs/bint-plan.md:274:6. Cài hook ghi nhận lượt chạy nếu harness hỗ trợ và người dùng đồng ý, để bắt đầu tích luỹ dữ liệu ngay.
+docs/bint-plan.md:275:7. Cập nhật `.gitignore` theo nguyên tắc không xoá cấu hình hiện có.
+docs/bint-plan.md:276:8. Phát hiện lệnh kiểm thử và lệnh dựng môi trường, ghi vào cấu hình dưới dạng đề xuất chờ xác nhận (không chạy).
+docs/bint-plan.md:277:9. Thông báo bước tiếp theo là bootstrap. Khung đánh giá chỉ được gợi ý khi người dùng muốn bật mức 3 (mục 4.4).
+docs/bint-plan.md:281:### 4.2. Bootstrap — khám phá repository bằng agent
+docs/bint-plan.md:287:**Bước 1 — Static Discovery**
+docs/bint-plan.md:300:**Bước 2 — Agent Investigation**
+docs/bint-plan.md:306:**Bước 3 — Knowledge Generation**
+docs/bint-plan.md:310:1. **Quy tắc bất thường:** những quy ước khác với thông lệ của ngôn ngữ hoặc framework mà agent không thể tự đoán (lệnh build đặc biệt, thư mục không được sửa, cách đặt tên riêng).
+docs/bint-plan.md:311:2. **Điểm dễ sai:** lỗi đặc thù, điều kiện đặc biệt, những chỗ đã từng gây hồi quy — chỉ khi có bằng chứng.
+docs/bint-plan.md:312:3. **Mẫu triển khai đặc thù:** cách dự án làm một việc lặp lại, khác với cách phổ biến.
+docs/bint-plan.md:313:4. **Thuật ngữ nghiệp vụ:** khái niệm mà tên trong mã nguồn không tự giải thích.
+docs/bint-plan.md:317:Mọi mục do bootstrap sinh ra đều ở trạng thái `candidate`. Các mục loại `rule` cần người duyệt trước khi được chèn như quy tắc bắt buộc (xem mục 8.1).
+docs/bint-plan.md:324:**Bước 4 — Skill Adaptation**
+docs/bint-plan.md:330:**Bước 5 — Validation**
+docs/bint-plan.md:334:**Bước 6 — Publication**
+docs/bint-plan.md:338:**Bước 7 — Đo**
+docs/bint-plan.md:342:### 4.3. Khởi tạo lại
+docs/bint-plan.md:356:### 4.4. Các mức sử dụng
+docs/bint-plan.md:360:**Mức 1 — Dùng ngay (mặc định)**
+docs/bint-plan.md:369:**Mức 2 — Tri thức được duyệt**
+docs/bint-plan.md:371:Người dùng duyệt các mục chờ bằng `bint knowledge review` và ghi thêm tri thức của mình bằng `bint knowledge add` (mục 8.8). Quy tắc đã duyệt được chèn như quy tắc bắt buộc.
+docs/bint-plan.md:373:**Mức 3 — Tiến hoá có kiểm chứng**
+docs/bint-plan.md:375:Người dùng xác nhận lệnh kiểm thử và lệnh dựng môi trường, khai thác và duyệt tập đánh giá (`bint eval mine`), đặt ngân sách, sau đó duyệt các đề xuất tiến hoá. Bint chỉ gợi ý bật mức này khi đã đủ điều kiện ở mục 10.6.
+docs/bint-plan.md:377:Chi phí chạy đánh giá ở mức 3 chỉ biết được sau P1. Nếu chi phí cao, mức này có thể chỉ phù hợp với nhóm hoặc repository lớn, và tài liệu người dùng phải nói rõ điều đó.
+docs/bint-plan.md:381:## 5. Hệ thống cấu hình
+docs/bint-plan.md:388:version: 1
+docs/bint-plan.md:411:  max_tokens: 6000
+docs/bint-plan.md:431:  retention_days: 90
+docs/bint-plan.md:436:  repeats: 3
+docs/bint-plan.md:445:    min_similar_runs: 3
+docs/bint-plan.md:446:    min_new_evidence: 2
+docs/bint-plan.md:449:    max_candidates: 2
+docs/bint-plan.md:470:### Thứ tự ưu tiên
+docs/bint-plan.md:472:1. Yêu cầu cụ thể của người dùng, trong phạm vi chính sách cho phép.
+docs/bint-plan.md:473:2. Chính sách bảo mật và giới hạn bắt buộc.
+docs/bint-plan.md:474:3. Cấu hình dự án.
+docs/bint-plan.md:475:4. Mặc định của Bint.
+docs/bint-plan.md:476:5. Cơ chế dự phòng nếu harness không khả dụng.
+docs/bint-plan.md:482:### Giới hạn vận hành
+docs/bint-plan.md:489:Mức thực thi phụ thuộc vào khả năng của harness. Với workflow do Bint điều phối (cấp 3 trở lên), giới hạn được áp ở tầng chương trình. Với phiên làm việc trực tiếp trong harness, giới hạn chỉ được áp khi harness có hook chặn được thao tác; nếu không, nó chỉ là chỉ dẫn và phải được báo rõ như vậy.
+docs/bint-plan.md:493:## 6. Hệ thống skill gốc
+docs/bint-plan.md:497:### 6.1. b-req — Phân tích và lập kế hoạch
+docs/bint-plan.md:503:1. Phân tích mục tiêu và phạm vi; lập hoặc hoàn thiện phiếu tác vụ (mục 6.7).
+docs/bint-plan.md:504:2. Truy xuất kiến thức dự án.
+docs/bint-plan.md:505:3. Xác định các khu vực mã nguồn liên quan.
+docs/bint-plan.md:506:4. Phát hiện các yêu cầu còn thiếu hoặc mâu thuẫn.
+docs/bint-plan.md:507:5. Lập yêu cầu chức năng và tiêu chí chấp nhận.
+docs/bint-plan.md:508:6. Thiết kế hướng triển khai.
+docs/bint-plan.md:509:7. Phân rã đầu việc theo thứ tự phụ thuộc.
+docs/bint-plan.md:510:8. Xác định rủi ro và chiến lược kiểm thử.
+docs/bint-plan.md:516:├── task.yml          # phiếu tác vụ (mục 6.7)
+docs/bint-plan.md:524:`<state>` là thư mục trạng thái cục bộ (mục 3.1).
+docs/bint-plan.md:528:### 6.2. b-feat — Thực thi kế hoạch
+docs/bint-plan.md:534:1. Đọc đầu vào và trạng thái công việc.
+docs/bint-plan.md:535:2. Kiểm tra những tiêu chí chưa rõ.
+docs/bint-plan.md:536:3. Truy xuất quy ước và skill chuyên biệt.
+docs/bint-plan.md:537:4. Lập phạm vi chỉnh sửa dự kiến.
+docs/bint-plan.md:538:5. Thực hiện từng nhóm thay đổi.
+docs/bint-plan.md:539:6. Chạy kiểm thử phù hợp.
+docs/bint-plan.md:540:7. Ghi nhận lỗi và các lần thử sửa.
+docs/bint-plan.md:541:8. Đối chiếu với tiêu chí chấp nhận.
+docs/bint-plan.md:542:9. Cập nhật trạng thái công việc.
+docs/bint-plan.md:548:### 6.3. b-review — Đánh giá thay đổi
+docs/bint-plan.md:554:1. Xác định chính xác phạm vi diff.
+docs/bint-plan.md:555:2. Đọc yêu cầu và tiêu chí chấp nhận nếu có.
+docs/bint-plan.md:556:3. Truy xuất các quy tắc liên quan.
+docs/bint-plan.md:557:4. Kiểm tra tính đúng đắn và nghiệp vụ.
+docs/bint-plan.md:558:5. Kiểm tra kiến trúc, bảo mật và hiệu năng.
+docs/bint-plan.md:559:6. Đánh giá kiểm thử, lỗi hồi quy và phạm vi thay đổi.
+docs/bint-plan.md:560:7. Đưa ra các phát hiện với đường dẫn, dòng mã, mức độ nghiêm trọng và bằng chứng.
+docs/bint-plan.md:561:8. Phân biệt lỗi thực tế, rủi ro và đề xuất cải thiện.
+docs/bint-plan.md:569:### 6.4. b-do — Điều phối toàn bộ công việc
+docs/bint-plan.md:581:Bước Classify luôn lập phiếu tác vụ (mục 6.7), kể cả khi bỏ qua b-req. Với tác vụ nhỏ, phiếu có thể chỉ gồm mục tiêu và phạm vi.
+docs/bint-plan.md:594:### 6.5. Chính sách đa agent
+docs/bint-plan.md:609:### 6.6. Skill gốc và lớp phủ
+docs/bint-plan.md:619:1. Thay skill gốc bằng phiên bản mới, cập nhật `core.lock`.
+docs/bint-plan.md:620:2. Áp lại lớp phủ.
+docs/bint-plan.md:621:3. Nếu một điểm neo không còn tồn tại, báo xung đột và giữ bản cũ cho tới khi người dùng xử lý; không tự đoán vị trí mới.
+docs/bint-plan.md:623:### 6.7. Phiếu tác vụ
+docs/bint-plan.md:643:- `verify` trở thành tín hiệu kết quả mạnh (mục 9.6) khi lệnh kiểm chứng đã được người xác nhận.
+docs/bint-plan.md:650:## 7. Harness Adapter
+docs/bint-plan.md:681:### Các cấp hỗ trợ
+docs/bint-plan.md:683:**Cấp 1 — Skill + MCP**
+docs/bint-plan.md:687:**Cấp 2 — Skill + Hook**
+docs/bint-plan.md:691:**Cấp 3 — Programmatic Execution**
+docs/bint-plan.md:695:**Cấp 4 — Full Orchestration**
+docs/bint-plan.md:699:### Chính sách skill nội bộ
+docs/bint-plan.md:711:## 8. Mô hình tri thức và Context Engine
+docs/bint-plan.md:713:### 8.1. Đơn vị tri thức
+docs/bint-plan.md:740:| `stale → verified` | Xác thực lại theo mục 8.4 |
+docs/bint-plan.md:745:Mục `candidate` có thể được Context Engine trả về như tài liệu tham khảo, gắn nhãn "chưa duyệt", nhưng không bao giờ được chèn như quy tắc bắt buộc. Mục bị gắn cờ có đầu vào từ bên thứ ba (mục 15.5) không được trả về cho tới khi được duyệt.
+docs/bint-plan.md:749:### 8.2. Truy xuất ngữ cảnh
+docs/bint-plan.md:757:1. Chuẩn hoá mô tả tác vụ.
+docs/bint-plan.md:758:2. Phân loại loại công việc và miền nghiệp vụ.
+docs/bint-plan.md:759:3. Xác định các khu vực mã nguồn có khả năng liên quan.
+docs/bint-plan.md:760:4. Truy xuất tri thức và skill theo tên, đường dẫn, thẻ và độ liên quan.
+docs/bint-plan.md:761:5. Kiểm tra trạng thái hiệu lực của bằng chứng.
+docs/bint-plan.md:762:6. Loại các mục trùng lặp hoặc mâu thuẫn chưa giải quyết.
+docs/bint-plan.md:763:7. Ưu tiên các quy tắc bắt buộc.
+docs/bint-plan.md:764:8. Tạo gói ngữ cảnh theo ngân sách.
+docs/bint-plan.md:765:9. Trả nội dung cùng các tham chiếu.
+docs/bint-plan.md:786:### 8.3. Chiến lược tìm kiếm
+docs/bint-plan.md:794:### 8.4. Chống ngữ cảnh lỗi thời
+docs/bint-plan.md:800:1. **Ký hiệu:** phân tích bằng tree-sitter với các ngôn ngữ được hỗ trợ.
+docs/bint-plan.md:801:2. **Vùng dòng:** khi không phân tích được ký hiệu, một mục chỉ bị đánh dấu lỗi thời nếu các khối thay đổi trong Git diff chồng lên vùng dòng được tham chiếu.
+docs/bint-plan.md:802:3. **Tệp:** phương án cuối cùng.
+docs/bint-plan.md:806:1. Chạy kiểm tra xác định được trước: đường dẫn, ký hiệu còn tồn tại không, ví dụ mã còn khớp không.
+docs/bint-plan.md:807:2. Chỉ dùng agent để xác thực lại các mục rủi ro cao (`rule`, `warning`), gom theo lô và trong giới hạn ngân sách.
+docs/bint-plan.md:808:3. Mục chưa được xác thực lại thì không được chèn như quy tắc chắc chắn; nếu được trả về thì phải kèm cảnh báo.
+docs/bint-plan.md:809:4. Mục `stale` quá thời hạn cấu hình mà không được xác thực sẽ được đề xuất chuyển sang `deprecated`.
+docs/bint-plan.md:811:### 8.5. Tài liệu cấp repository
+docs/bint-plan.md:822:### 8.6. Nguồn chuẩn
+docs/bint-plan.md:829:### 8.7. Làm việc nhóm
+docs/bint-plan.md:836:- Tri thức do người khác commit cũng là đầu vào cần kiểm soát nguồn gốc (xem mục 15.5).
+docs/bint-plan.md:838:### 8.8. Đóng góp và duyệt tri thức
+docs/bint-plan.md:843:- **Từ review:** chuyển phát hiện của b-review thành mục tri thức bằng một lệnh (mục 6.3).
+docs/bint-plan.md:845:- **Ghi nhận đóng góp:** mỗi mục lưu tác giả. `bint knowledge stats` cho biết mỗi mục được truy xuất và được trích dẫn bao nhiêu lần. Tác động thực của một mục chỉ được báo cáo khi đã có đánh giá loại bỏ (mục 9.7); không suy ra tác động từ số lần sử dụng.
+docs/bint-plan.md:848:### 8.9. Tái sử dụng giữa repository (sau v1.0)
+docs/bint-plan.md:853:- **Lợi ích không tự chuyển giao.** Một mục có tác động tốt ở repository A phải được đánh giá lại ở repository B. Tiêu chí để xuất một mục phải dựa trên tác động đo bằng đánh giá loại bỏ, không dựa trên tỷ lệ đạt của các lượt chạy có dùng mục đó.
+docs/bint-plan.md:860:## 9. Lưu lịch sử bằng SQLite
+docs/bint-plan.md:862:### 9.1. Các bảng chính
+docs/bint-plan.md:884:### 9.2. Dữ liệu của một lần chạy
+docs/bint-plan.md:912:`NULL` thể hiện dữ liệu không có hoặc chưa biết. Không chuyển các thông tin không đo được thành số 0.
+docs/bint-plan.md:914:### 9.3. Dữ liệu sự kiện
+docs/bint-plan.md:931:### 9.4. Trạng thái lượt chạy
+docs/bint-plan.md:937:### 9.5. Chính sách lưu trữ
+docs/bint-plan.md:949:### 9.6. Nhãn kết quả
+docs/bint-plan.md:970:### 9.7. Quy công
+docs/bint-plan.md:976:- **Có tác động:** chỉ xác định được qua đánh giá loại bỏ — chạy lại cùng tác vụ khi bỏ mục đó ra (xem mục 12.4).
+docs/bint-plan.md:982:## 10. Evolution Engine
+docs/bint-plan.md:984:### 10.1. Mục tiêu
+docs/bint-plan.md:998:### 10.2. Phát hiện cơ hội tiến hoá
+docs/bint-plan.md:1012:### 10.3. Nhóm tác vụ
+docs/bint-plan.md:1025:### 10.4. Đề xuất cải tiến
+docs/bint-plan.md:1047:### 10.5. Các cấp độ tiến hoá
+docs/bint-plan.md:1067:### 10.6. Điều kiện tiên quyết về dữ liệu
+docs/bint-plan.md:1072:- Tập đánh giá từ lịch sử Git đủ lớn để phát hiện mức cải thiện mong muốn với độ dao động đã đo (xem mục 12.5).
+docs/bint-plan.md:1081:## 11. Vòng lặp Propose–Probe–Compose
+docs/bint-plan.md:1083:### 11.1. Propose
+docs/bint-plan.md:1089:### 11.2. Probe
+docs/bint-plan.md:1102:- Tri thức được dựng theo trạng thái tại thời điểm của tác vụ (xem mục 12.3).
+docs/bint-plan.md:1107:### 11.3. Compose
+docs/bint-plan.md:1115:### 11.4. Reflect
+docs/bint-plan.md:1125:### 11.5. Chính sách áp dụng
+docs/bint-plan.md:1135:## 12. Hệ thống đánh giá và kiểm chứng
+docs/bint-plan.md:1139:### 12.1. Các thước đo
+docs/bint-plan.md:1166:### 12.2. Tập đánh giá
+docs/bint-plan.md:1191:### 12.3. Chống rò rỉ đáp án
+docs/bint-plan.md:1202:### 12.4. Nhánh so sánh
+docs/bint-plan.md:1206:1. **Không ngữ cảnh:** chỉ harness, không có AGENTS.md hay tri thức.
+docs/bint-plan.md:1207:2. **Tối giản:** AGENTS.md ngắn chứa các quy tắc bất thường, không có Context Engine.
+docs/bint-plan.md:1208:3. **Bint đầy đủ:** Context Engine, chèn theo đường dẫn, skill.
+docs/bint-plan.md:1210:Khi cần chẩn đoán (mục 12.9), chạy thêm:
+docs/bint-plan.md:1212:4. **Tham chiếu lý tưởng:** thay bộ truy xuất bằng tập mục tri thức "đúng", tức những mục có phạm vi chồng lên các tệp trong lời giải thật, lấy từ chính kho tri thức được dựng ở chế độ `strict` tại commit gốc. Nhánh này không đưa nội dung lời giải vào, nhưng có lộ gián tiếp vị trí cần sửa, nên chỉ dùng làm cận trên: nếu truy xuất hoàn hảo trên kho tri thức hiện có thì được lợi tối đa bao nhiêu. Đây không phải cấu hình dùng thật và không bao giờ được báo cáo như kết quả của Bint.
+docs/bint-plan.md:1214:Nhánh 2 là mốc khó vượt nhất và quan trọng nhất: nếu Bint đầy đủ không tốt hơn nó, phần phức tạp còn lại không có lý do tồn tại.
+docs/bint-plan.md:1216:Đánh giá loại bỏ (bỏ từng mục hoặc từng nhóm tri thức) dùng cùng cơ chế để xác định tác động thực (mục 9.7).
+docs/bint-plan.md:1218:### 12.5. Độ dao động và cỡ mẫu
+docs/bint-plan.md:1227:### 12.6. Phiên bản mô hình
+docs/bint-plan.md:1229:Một skill hay chiến lược được tối ưu cho mô hình A có thể hồi quy trên mô hình B.
+docs/bint-plan.md:1235:### 12.7. Điều kiện chấp nhận
+docs/bint-plan.md:1248:### 12.8. Chi phí tiến hoá
+docs/bint-plan.md:1260:### 12.9. Chẩn đoán khi không qua cổng
+docs/bint-plan.md:1280:## 13. Hook và cơ chế tự động kích hoạt
+docs/bint-plan.md:1282:### 13.1. Nguyên tắc
+docs/bint-plan.md:1295:### 13.2. Chuẩn hoá sự kiện
+docs/bint-plan.md:1312:### 13.3. Bộ kích hoạt tiến hoá
+docs/bint-plan.md:1316:1. Lưu kết quả.
+docs/bint-plan.md:1317:2. Cập nhật dữ liệu tổng hợp.
+docs/bint-plan.md:1318:3. Đánh giá xem có đủ bằng chứng mới.
+docs/bint-plan.md:1319:4. Nếu đủ điều kiện, tạo yêu cầu tiến hoá.
+docs/bint-plan.md:1320:5. Kiểm tra ngân sách và trạng thái khoá.
+docs/bint-plan.md:1321:6. Thực thi qua CLI, trình điều phối hoặc cơ chế công việc được hỗ trợ.
+docs/bint-plan.md:1325:### 13.4. Chế độ thực thi
+docs/bint-plan.md:1337:## 14. CLI dự kiến
+docs/bint-plan.md:1339:### Khởi tạo và quản lý dự án
+docs/bint-plan.md:1350:### Ngữ cảnh và tri thức
+docs/bint-plan.md:1370:### Workflow
+docs/bint-plan.md:1381:### Đánh giá
+docs/bint-plan.md:1391:### Tiến hoá
+docs/bint-plan.md:1406:## 15. Bảo mật và ranh giới tin cậy
+docs/bint-plan.md:1408:### 15.1. Dữ liệu repository là dữ liệu không đáng tin cậy
+docs/bint-plan.md:1416:### 15.2. Quyền thực thi
+docs/bint-plan.md:1429:### 15.3. Cô lập đánh giá
+docs/bint-plan.md:1435:### 15.4. Bảo vệ hệ thống tiến hoá
+docs/bint-plan.md:1448:### 15.5. Chống đầu độc bộ nhớ
+docs/bint-plan.md:1462:## 16. Kế hoạch phát triển theo giai đoạn
+docs/bint-plan.md:1466:Cổng quyết định 1 và 2 là việc của nhóm phát triển Bint, chạy trên các repository thử nghiệm đại diện (mục 17) để quyết định hướng đi của sản phẩm. Người dùng cuối không phải chạy lại chúng; khung đánh giá trên repository của người dùng chỉ cần khi bật mức 3 (mục 4.4).
+docs/bint-plan.md:1468:### P0 — Nền tảng CLI và ghi nhận lượt chạy
+docs/bint-plan.md:1474:- [ ] Khởi tạo Go module và cấu trúc package.
+docs/bint-plan.md:1475:- [ ] Xây CLI và quản lý lỗi.
+docs/bint-plan.md:1476:- [ ] Định nghĩa config schema v1.
+docs/bint-plan.md:1477:- [ ] Thư mục trạng thái cục bộ ngoài repository, xác định theo `git-common-dir`.
+docs/bint-plan.md:1478:- [ ] Triển khai SQLite và migration (chọn driver hỗ trợ FTS5, ưu tiên không cần CGO để dễ biên dịch chéo; xác minh trước khi chốt).
+docs/bint-plan.md:1479:- [ ] Triển khai `bint init` và `bint doctor`.
+docs/bint-plan.md:1480:- [ ] Cơ chế đồng bộ tệp an toàn, có sao lưu; quản lý khối đánh dấu trong AGENTS.md.
+docs/bint-plan.md:1481:- [ ] Hàng đợi sự kiện `spool/` và lệnh nạp, loại trùng theo `event_id`.
+docs/bint-plan.md:1482:- [ ] Hook ghi nhận tối thiểu cho harness đầu tiên: bắt đầu và kết thúc phiên, tệp được sửa, lệnh kiểm thử.
+docs/bint-plan.md:1483:- [ ] Kiểm thử CLI trên các trạng thái repository khác nhau, kể cả nhiều worktree.
+docs/bint-plan.md:1487:### P1 — Khung đánh giá
+docs/bint-plan.md:1493:- [ ] `bint eval mine`: khai thác tác vụ từ lịch sử Git.
+docs/bint-plan.md:1494:- [ ] Dựng môi trường tại commit gốc trong worktree cô lập.
+docs/bint-plan.md:1495:- [ ] Viết lại đề bài để không lộ lời giải; quy trình duyệt tác vụ.
+docs/bint-plan.md:1496:- [ ] Bộ chạy nhiều nhánh, nhiều lần lặp, cho một harness.
+docs/bint-plan.md:1497:- [ ] Ước tính chi phí và cỡ mẫu trước khi chạy.
+docs/bint-plan.md:1498:- [ ] Báo cáo so sánh theo cặp kèm khoảng tin cậy.
+docs/bint-plan.md:1499:- [ ] Chế độ chống rò rỉ `strict` và `economy`.
+docs/bint-plan.md:1500:- [ ] Đo mốc nhánh "không ngữ cảnh" trên các repository thử nghiệm.
+docs/bint-plan.md:1504:### P2 — Bootstrap tối giản
+docs/bint-plan.md:1510:- [ ] Static discovery: ngôn ngữ, công cụ, manifest, lệnh kiểm thử.
+docs/bint-plan.md:1511:- [ ] Định dạng tệp tri thức, ULID, nguồn gốc, bằng chứng.
+docs/bint-plan.md:1512:- [ ] Quy trình `b-bootstrap` sinh quy tắc bất thường và điểm dễ sai.
+docs/bint-plan.md:1513:- [ ] Kiểm tra xác định được: đường dẫn, ký hiệu, ví dụ mã.
+docs/bint-plan.md:1514:- [ ] `bint knowledge approve` và bảng chuyển trạng thái.
+docs/bint-plan.md:1515:- [ ] `bint knowledge add` và `bint knowledge review` (duyệt theo lô).
+docs/bint-plan.md:1516:- [ ] Sinh AGENTS.md (khối Bint) và CLAUDE.md (nhập lại).
+docs/bint-plan.md:1517:- [ ] Đo nhánh "tối giản" so với "không ngữ cảnh".
+docs/bint-plan.md:1519:**Cổng quyết định 1:** Với ngưỡng được ghi vào tài liệu trước khi chạy, nhánh tối giản không được kém nhánh không ngữ cảnh về tỷ lệ đạt (trong khoảng tin cậy) và phải giảm rõ rệt chi phí hoặc thao tác khám phá. Nếu không đạt: chẩn đoán theo mục 12.9, điều chỉnh rồi đo lại trên tác vụ chưa dùng để chẩn đoán; sau hai vòng vẫn không đạt thì dừng hướng sinh tri thức tự động, chỉ giữ tri thức do người viết.
+docs/bint-plan.md:1521:### P3 — Context Engine và vòng đời tri thức
+docs/bint-plan.md:1527:- [ ] Chỉ mục FTS5 dẫn xuất, `bint index rebuild`.
+docs/bint-plan.md:1528:- [ ] Truy xuất theo mô tả tác vụ và theo đường dẫn.
+docs/bint-plan.md:1529:- [ ] `bint mcp serve` với các công cụ ở mục 8.2.
+docs/bint-plan.md:1530:- [ ] Hook chèn ngữ cảnh theo đường dẫn, có giới hạn thời gian.
+docs/bint-plan.md:1531:- [ ] Fingerprint theo ký hiệu (tree-sitter) và theo vùng dòng.
+docs/bint-plan.md:1532:- [ ] Xác thực lại theo mức rủi ro.
+docs/bint-plan.md:1533:- [ ] Ghi nhận truy xuất và trích dẫn (`cite_knowledge`).
+docs/bint-plan.md:1534:- [ ] Thu thập tín hiệu kết quả (mục 9.6), quét hoàn tác từ lịch sử Git.
+docs/bint-plan.md:1535:- [ ] Nhánh tham chiếu lý tưởng và báo cáo chẩn đoán (mục 12.9).
+docs/bint-plan.md:1536:- [ ] Đo nhánh "Bint đầy đủ" so với "tối giản".
+docs/bint-plan.md:1538:**Cổng quyết định 2:** Bint đầy đủ phải tốt hơn nhánh tối giản trên thước đo đã chọn trước. Nếu không, chẩn đoán theo mục 12.9. Lỗi truy xuất hoặc lỗi trình bày thì sửa và đo lại trên tác vụ mới. Nếu nguyên nhân là nội dung tri thức, hoặc vẫn không đạt sau hai vòng, Context Engine được thu hẹp về chế độ chèn theo đường dẫn (phần rẻ nhất) và các giai đoạn tiến hoá được xem xét lại.
+docs/bint-plan.md:1540:### P4 — Workflow tối thiểu
+docs/bint-plan.md:1546:- [ ] Skill gốc bất biến, cơ chế điểm neo và lớp phủ.
+docs/bint-plan.md:1547:- [ ] Xây b-req, b-feat, b-review, b-do ở mức tối thiểu.
+docs/bint-plan.md:1548:- [ ] Định nghĩa cấu trúc task artifacts và state machine.
+docs/bint-plan.md:1549:- [ ] Kiểm tra tiêu chí chấp nhận, gắn với tín hiệu kết quả.
+docs/bint-plan.md:1550:- [ ] Ghi nhận lỗi và trạng thái gián đoạn.
+docs/bint-plan.md:1551:- [ ] Nâng cấp skill gốc và áp lại lớp phủ.
+docs/bint-plan.md:1552:- [ ] Phiếu tác vụ (mục 6.7) và giới hạn vận hành (mục 5).
+docs/bint-plan.md:1553:- [ ] Chuyển phát hiện review thành tri thức.
+docs/bint-plan.md:1557:### P5 — Multi-Harness
+docs/bint-plan.md:1563:- [ ] Hoàn thiện HarnessAdapter và capability matrix (bao gồm hỗ trợ MCP và hook trước khi đọc/sửa tệp).
+docs/bint-plan.md:1564:- [ ] Tích hợp Claude Code.
+docs/bint-plan.md:1565:- [ ] Tích hợp Codex.
+docs/bint-plan.md:1566:- [ ] Tích hợp Antigravity.
+docs/bint-plan.md:1567:- [ ] Đồng bộ skill theo từng định dạng.
+docs/bint-plan.md:1568:- [ ] Hỗ trợ role override.
+docs/bint-plan.md:1569:- [ ] Chuẩn hoá sự kiện khi có hỗ trợ.
+docs/bint-plan.md:1570:- [ ] Cô lập các tác vụ có quyền ghi.
+docs/bint-plan.md:1571:- [ ] Mở rộng khung đánh giá cho nhiều harness.
+docs/bint-plan.md:1572:- [ ] Kiểm thử hành vi khi adapter không khả dụng.
+docs/bint-plan.md:1576:### P6 — Tiến hoá tri thức (L1)
+docs/bint-plan.md:1582:- [ ] Kiểm tra điều kiện tiên quyết về dữ liệu (mục 10.6).
+docs/bint-plan.md:1583:- [ ] Phát hiện nhóm tác vụ tương tự và chi phí khám phá lặp lại.
+docs/bint-plan.md:1584:- [ ] Xây agent evolver; proposal schema có phiên bản gốc.
+docs/bint-plan.md:1585:- [ ] Đánh giá loại bỏ để xác định tác động của từng mục.
+docs/bint-plan.md:1586:- [ ] Đề xuất thêm, sửa, gộp, loại bỏ tri thức.
+docs/bint-plan.md:1587:- [ ] Phê duyệt, quay lui, phát hiện đề xuất mất hiệu lực do phiên bản gốc thay đổi.
+docs/bint-plan.md:1591:### P7 — Tiến hoá skill (L2)
+docs/bint-plan.md:1597:- [ ] Tạo skill chuyên biệt.
+docs/bint-plan.md:1598:- [ ] Hợp nhất và loại bỏ skill.
+docs/bint-plan.md:1599:- [ ] Kiểm tra điều kiện kích hoạt.
+docs/bint-plan.md:1600:- [ ] Quản lý phiên bản skill, gắn với phiên bản mô hình.
+docs/bint-plan.md:1601:- [ ] Tạo và xem bản thay đổi.
+docs/bint-plan.md:1602:- [ ] Phát hiện hồi quy khi đổi mô hình.
+docs/bint-plan.md:1606:### P8 — Tiến hoá tự động có giới hạn (L3–L4)
+docs/bint-plan.md:1612:- [x] Triển khai Propose–Probe–Compose (`bint evolve cycle`).
+docs/bint-plan.md:1613:- [x] Chạy ứng viên trong môi trường cô lập.
+docs/bint-plan.md:1614:- [x] Thử nghiệm chiến lược chọn ngữ cảnh (nhánh `bint@…`).
+docs/bint-plan.md:1615:- [x] Thử nghiệm thay đổi workflow (đề xuất skill L2 được `bint evolve cycle` đối chiếu như tri thức; đạt thì luôn chờ người duyệt).
+docs/bint-plan.md:1616:- [x] Theo dõi chi phí tiến hoá.
+docs/bint-plan.md:1617:- [x] Tự áp dụng cải tiến rủi ro thấp (`evolution.adoption.auto_low_risk`).
+docs/bint-plan.md:1618:- [x] Phát hiện hồi quy và tự đề xuất quay lui.
+docs/bint-plan.md:1624:## 17. Chiến lược kiểm thử toàn hệ thống
+docs/bint-plan.md:1626:### Unit Tests
+docs/bint-plan.md:1630:### Integration Tests
+docs/bint-plan.md:1636:### Adapter Contract Tests
+docs/bint-plan.md:1646:### End-to-End Tests
+docs/bint-plan.md:1655:Thực hiện các tác vụ giống nhau trên ba nhánh so sánh (mục 12.4).
+docs/bint-plan.md:1657:### Evaluation Integrity Tests
+docs/bint-plan.md:1666:### Evolution Regression Tests
+docs/bint-plan.md:1678:## 18. Mốc phát hành
+docs/bint-plan.md:1680:### v0.1 — Foundation
+docs/bint-plan.md:1682:Hoàn thành P0 và P1.
+docs/bint-plan.md:1686:### v0.2 — Measured Bootstrap
+docs/bint-plan.md:1688:Hoàn thành P2 và qua cổng quyết định 1.
+docs/bint-plan.md:1692:### v0.3 — Context
+docs/bint-plan.md:1694:Hoàn thành P3 và qua cổng quyết định 2.
+docs/bint-plan.md:1698:### v0.4 — Workflow & Interoperability
+docs/bint-plan.md:1700:Hoàn thành P4 và P5.
+docs/bint-plan.md:1704:### v0.5 — Guided Evolution
+docs/bint-plan.md:1706:Hoàn thành P6 và P7.
+docs/bint-plan.md:1710:### v1.0 — Verified Autonomous Evolution
+docs/bint-plan.md:1712:Hoàn thành P8 (nếu điều kiện mở được đáp ứng) và đáp ứng bộ tiêu chí chất lượng.
+docs/bint-plan.md:1714:Có tiến hoá tự động có giới hạn, kiểm chứng đối chiếu và khả năng quay lui. Nếu P8 không khả thi về chi phí, v1.0 được định nghĩa lại từ v0.5 cộng với độ ổn định vận hành.
+docs/bint-plan.md:1718:## 19. Các chỉ số quyết định thành công
+docs/bint-plan.md:1738:**Tiêu chí dừng:** Mỗi cổng quyết định ở mục 16 phải có ngưỡng cụ thể được ghi vào tài liệu trước khi chạy đo. Không điều chỉnh ngưỡng sau khi đã thấy kết quả.
+docs/bint-plan.md:1742:## 20. Những quyết định kỹ thuật phải giữ nhất quán
+docs/bint-plan.md:1744:1. **Bint Core là nguồn điều phối chuẩn**, không phải bất kỳ harness nào.
+docs/bint-plan.md:1745:2. **Tệp trong Git là nguồn chuẩn của tri thức**; SQLite lưu lịch sử lượt chạy và chỉ mục dẫn xuất có thể dựng lại.
+docs/bint-plan.md:1746:3. **Skill không phải đơn vị tri thức cơ bản**; skill được tổng hợp từ tri thức và kinh nghiệm.
+docs/bint-plan.md:1747:4. **Hook không phải nguồn sự thật duy nhất** về một lượt thực thi.
+docs/bint-plan.md:1748:5. **Không mặc định cần nhiều agent** cho một tác vụ.
+docs/bint-plan.md:1749:6. **Không mặc định mọi harness có cùng khả năng**.
+docs/bint-plan.md:1750:7. **Không tự động chấp nhận cải tiến chỉ vì agent đánh giá tích cực**.
+docs/bint-plan.md:1751:8. **Không tự tăng số lượng skill vô hạn**; phải có hợp nhất và loại bỏ.
+docs/bint-plan.md:1752:9. **Không sửa các quy tắc bảo vệ và tiêu chí đánh giá bằng chính ứng viên đang được chấm**.
+docs/bint-plan.md:1753:10. **Không được làm suy giảm chất lượng chỉ để giảm số token**.
+docs/bint-plan.md:1754:11. **Đo trước khi xây**: lớp tính năng sau chỉ được mở khi lớp trước qua cổng quyết định.
+docs/bint-plan.md:1755:12. **Trạng thái cục bộ nằm ngoài repository** và dùng chung giữa các worktree.
+docs/bint-plan.md:1756:13. **Skill gốc bất biến**; tuỳ biến theo dự án chỉ qua lớp phủ.
+docs/bint-plan.md:1757:14. **Chỉ người mới nâng được quy tắc bắt buộc**; agent không tự xác thực tri thức do agent tạo.
+docs/bint-plan.md:1758:15. **Đánh giá trên tác vụ lịch sử phải chống rò rỉ đáp án**.
+docs/bint-plan.md:1759:16. **Mọi cải tiến gắn với phiên bản mô hình** đã dùng để kiểm chứng nó.
+docs/bint-plan.md:1760:17. **Không bắt buộc đầu vào có cấu trúc**; phiếu tác vụ do Bint lập từ mô tả tự do.
+docs/bint-plan.md:1761:18. **Người dùng cuối không gánh việc kiểm chứng sản phẩm**; cổng quyết định thuộc về nhóm phát triển, khung đánh giá theo repository chỉ cần khi bật tiến hoá.
+docs/bint-plan.md:1762:19. **Tri thức nhập từ bên ngoài luôn bắt đầu ở `candidate`**.
+docs/bint-plan.md:1764:### Thứ tự triển khai ưu tiên
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md:1:# Kế hoạch
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md:3:## Hướng triển khai
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md:5:nhánh `if a < 0 { return -a }; return a`. Không dùng `math.Abs` (chỉ cho float64,
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md:9:## Tệp / ký hiệu sẽ chạm
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md:14:## Rủi ro
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md:19:## Chiến lược kiểm thử
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74AEVHRH7M0HEK0G2396WE1/plan.md:20:- Ba test riêng cho 0, -7, 7.
+docs/gate-1.md:1:# Cổng quyết định 1 — Bootstrap tối giản
+docs/gate-1.md:4:Theo mục 16 và 19 của kế hoạch, ngưỡng dưới đây được chốt và commit trước khi chạy
+docs/gate-1.md:9:## Câu hỏi
+docs/gate-1.md:22:repository, vì nó đã chứa lời giải của các commit cũ (mục 12.3).
+docs/gate-1.md:24:## Ngưỡng
+docs/gate-1.md:28:1. **Không kém về tỷ lệ đạt** — cận dưới CI95 của chênh lệch tỷ lệ đạt theo cặp
+docs/gate-1.md:30:2. **Giảm rõ rệt chi phí hoặc thao tác** — ít nhất một trong hai:
+docs/gate-1.md:33:   - số lượt agent (`num_turns`): chênh lệch theo cặp ≤ **−10 %** và cận trên CI95 < 0.
+docs/gate-1.md:35:Cả 1 và 2 đạt → qua cổng.
+docs/gate-1.md:37:## Điều kiện để phép đo được tính
+docs/gate-1.md:39:- Ít nhất **2 repository thử nghiệm** khác hệ sinh thái (mục 17 đề xuất Go backend,
+docs/gate-1.md:42:  `bint eval estimate --effect 0.1` với độ lệch chuẩn đo ở đợt `none` đầu tiên.
+docs/gate-1.md:46:  hạ tầng ≤ 10 %, tác vụ không bị sửa giữa chừng, không có lượt `economy`.
+docs/gate-1.md:48:- Lượt `minimal` bị `skipped` (thiếu ảnh chụp) không được vượt 5 %.
+docs/gate-1.md:50:## Quy trình
+docs/gate-1.md:53:# Trên mỗi repository thử nghiệm
+docs/gate-1.md:55:# xác nhận eval.test_command (và setup_command) trong .bint/local.yml
+docs/gate-1.md:58:bint eval estimate --split test --arms none,minimal --effect 0.1
+docs/gate-1.md:59:bint eval run --split test --arms none,minimal --repeats 3 --leakage-mode strict --budget <USD> --yes
+docs/gate-1.md:63:## Khi không qua (mục 12.9)
+docs/gate-1.md:65:1. Chẩn đoán chỉ trên tập **validation**, theo thứ tự của bảng 12.9.
+docs/gate-1.md:66:2. Điều chỉnh (skill `b-bootstrap`, cách trình bày, giới hạn số mục), rồi đo lại trên
+docs/gate-1.md:68:3. Tối đa **2 vòng**. Sau 2 vòng vẫn không qua: dừng hướng sinh tri thức tự động, chỉ
+docs/gate-1.md:71:## Giới hạn đã biết của phép đo ở P2
+docs/gate-1.md:79:## Chốt
+docs/gate-1.md:87:## Kết quả
+docs/gate-1.md:89:Pilot Codex thật trên repository A (TypeScript) ngày 2026-11-10 được ghi tại
+docs/gate-1.md:91:Baseline P1 hoàn tất 6 lượt trên 2 tác vụ validation, đạt 3/6 lượt (50%),
+docs/gate-1.md:92:CI95 [0%, 100%]. Đợt so sánh đã hoàn tất 18 lượt: none, minimal và bint đều đạt 3/6 lượt (50%).
+docs/gate-1.md:93:Chênh lệch minimal−none là 0 điểm % trong mẫu; đây chưa phải phép đo gate chính thức.
+docs/evals/codex-flows-2026-11-11/PLAN.md:1:# Nghiệm thu tiếp F1–F7 — 2026-11-11
+docs/evals/codex-flows-2026-11-11/PLAN.md:3:Tiếp yêu cầu người dùng nghiệm thu toàn bộ, trên `fix/codex-flows` từ `9a688b3`; không merge/push. Đợt hai tối đa 15 session model Codex thật, gộp quan sát; truy vấn schema/app-server/debug không chạy model không tính quota. Claude thật cần đăng nhập, đã hỏi người dùng khi auth status báo false; không tự login hoặc giả mạo Claude.
+docs/evals/codex-flows-2026-11-11/PLAN.md:5:- [x] F1: hooks/list/config state thật trong profile tạm, trust từng phần/đủ/modified/disabled; doctor tương ứng; scope user trong home Codex cô lập; hướng dẫn init đúng harness.
+docs/evals/codex-flows-2026-11-11/PLAN.md:6:- [x] F2: payload shell/patch/MCP đã có; bổ sung lỗi hook/timeout/malformed fail-open và test thất bại.
+docs/evals/codex-flows-2026-11-11/PLAN.md:7:- [x] F3/F4: skill discovery + gọi thật đủ b-do/b-req/b-feat/b-review/b-bootstrap, explicit/implicit, policy false; đo MCP tự chọn và sự kiện có thật.
+docs/evals/codex-flows-2026-11-11/PLAN.md:8:- [x] F5: workflow đơn lẻ, deliberate readonly violation, timeout, Ctrl-C/interrupted/resume; hết auth trong profile rỗng; role/mixed thật nếu có Claude auth.
+docs/evals/codex-flows-2026-11-11/PLAN.md:9:- [x] F6: profile/config/skill cô lập có giữ auth; strict none/minimal/bint không tải user skill; sửa rồi chạy lại ba nhánh.
+docs/evals/codex-flows-2026-11-11/PLAN.md:10:- [x] Fixture thực, từng lỗi commit Việt riêng, không đổi Claude mặc định/gate; rà soát và gofmt/vet/test/race cuối.
+docs/evals/codex-flows-2026-11-11/PLAN.md:14:Kết thúc: Codex 15 thread thật; mixed ghi blocked do Claude auth theo quyết định người dùng. Không tự hỏi đăng nhập lại. Các giới hạn còn lại được công khai trong README, không suy đoán hỗ trợ runtime.
+docs/evals/codex-flows-2026-11-10/PLAN.md:1:# Kế hoạch kiểm chứng Codex thật — 2026-11-10
+docs/evals/codex-flows-2026-11-10/PLAN.md:5:- [x] Nền: fetch/merge vào `duc`, kiểm tra Go, đọc adapter và pilot; phân biệt payload dựng với CLI thật.
+docs/evals/codex-flows-2026-11-10/PLAN.md:6:- [x] F1: init local/project, idempotent, gỡ hook/MCP giữ cấu hình khác, doctor trước trust. User scope chưa thử runtime để tránh sửa home người dùng; không nâng nhãn từ source/test.
+docs/evals/codex-flows-2026-11-10/PLAN.md:7:- [x] F2: bắt stdin/stdout/JSONL Codex thật trong Git repo tạm; shell, patch add/update/delete/move, deny và MCP.
+docs/evals/codex-flows-2026-11-10/PLAN.md:8:- [x] Sửa timeout SessionEnd: fixture cảnh báo thật → test đỏ → sửa → test xanh; commit riêng.
+docs/evals/codex-flows-2026-11-10/PLAN.md:9:- [x] F3: tái hiện cite bị policy never chặn; thêm quyền riêng cite_knowledge vào init và executor eval, doctor cảnh báo; CLI thật xác nhận citation.
+docs/evals/codex-flows-2026-11-10/PLAN.md:10:- [x] Fixture replay: kiểm tra tên tool, đường dẫn và chuẩn hoá JSONL; giữ nguyên field payload, chỉ che đường dẫn/định danh riêng.
+docs/evals/codex-flows-2026-11-10/PLAN.md:11:- [x] F4/F5 (trong ngân sách; các trường hợp chưa chạy ghi ở README): b-do thật (planner/implementer/reviewer), đối chiếu role, token, giới hạn và chỉ đọc; protected/approve/resume nếu ngân sách cho phép.
+docs/evals/codex-flows-2026-11-10/PLAN.md:12:- [x] F6: 1 case × 1 repeat × 3 arm strict; không dùng agent-command, lưu log/cấu hình/đăng nhập và citation.
+docs/evals/codex-flows-2026-11-10/PLAN.md:13:- [x] F7: đo kích thước AGENTS.md, kiểm tra ngữ cảnh đầu vào và tham chiếu riêng Claude trong skill gốc.
+docs/evals/codex-flows-2026-11-10/PLAN.md:14:- [x] Kết thúc: nhãn bằng chứng từng kết luận, lỗi nguyên văn, gofmt/vet/test/race; cập nhật README/bảng khả năng nếu sai.
+docs/evals/codex-flows-2026-11-10/PLAN.md:16:Ngân sách tối đa 15 session Codex thật. Các lỗi parse CLI trước khi tạo session không tính là lượt model. Dừng trước flow sau nếu không nạp được hook. Dùng sandbox workspace-write, approval never; bypass hook trust chỉ cho hook thử nghiệm đã đọc, từng invocation, không lưu bypass. Không yêu cầu thêm quyền hệ thống.
+docs/evals/codex-flows-2026-11-10/PLAN.md:20:## Quyết định phát sinh
+docs/evals/codex-flows-2026-11-10/PLAN.md:25:- Dừng gọi model sau session 15. Các trường hợp biên từ review dùng test cục bộ, không gọi là Codex runtime đã kiểm chứng.
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/plan.md:1:# Kế hoạch
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/plan.md:2:## Hướng triển khai
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/plan.md:5:## Khu vực mã
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/plan.md:9:## Rủi ro
+docs/evals/claude-codex-mixed-2026-11-11/evidence/tasks/01M74B6HCGKJC5DJNMD0Y39X76/plan.md:12:## Chiến lược kiểm thử
+docs/p8-next-experiments.md:1:# Kế hoạch thử nghiệm tiếp theo sau khi mở P8
+docs/p8-next-experiments.md:5:## Hiện trạng
+docs/p8-next-experiments.md:7:- **Tỷ lệ đạt:** trên 30 tác vụ, có Bint đạt 40%, không có Bint đạt 37%. Khoảng tin cậy rộng ±15 điểm %, nên chưa có khác biệt.
+docs/p8-next-experiments.md:10:- **Giới hạn của cỡ mẫu:** với 30 tác vụ chỉ phát hiện được hiệu ứng khoảng 15 điểm % trở lên. Mức +3–5 điểm như các công bố về tối ưu harness thì cần hàng trăm tác vụ.
+docs/p8-next-experiments.md:19:## Kế hoạch A — Tri thức do người viết
+docs/p8-next-experiments.md:25:1. Chọn một vùng mã có nhiều tác vụ, ví dụ một thư mục có ≥ 20 tác vụ validation/test có commit gốc nằm gần nhau.
+docs/p8-next-experiments.md:26:2. Lấy commit gốc sớm nhất B0 của nhóm tác vụ đó. Người viết checkout B0 trong một worktree riêng và viết tri thức chỉ dựa trên mã và lịch sử tới B0. Người viết không mở danh sách tác vụ hay commit sửa lỗi.
+docs/p8-next-experiments.md:27:3. Mỗi mục phải có bằng chứng (tệp:dòng) tồn tại ở B0. Khi dựng ảnh chụp cho từng tác vụ, Bint kiểm tra bằng chứng còn khớp tại commit gốc của tác vụ (giống điều kiện của chế độ economy).
+docs/p8-next-experiments.md:49:| A1 | `none` trên ~20 tác vụ của vùng, 2 lần lặp (dùng lại kết quả cũ nếu đã có) | $0–8 |
+docs/p8-next-experiments.md:50:| A2 | `bint` với tri thức người viết, cùng tác vụ, 2 lần lặp, Sonnet | ~$8 |
+docs/p8-next-experiments.md:57:- **Δ(bint − none) ≥ +15 điểm % và khoảng tin cậy không chứa 0:** giả thuyết được ủng hộ. Ưu tiên tính năng giúp người ghi tri thức dễ hơn, như gợi ý điều cần ghi từ lượt thất bại, rồi mới tới tối ưu tự động.
+docs/p8-next-experiments.md:58:- **Δ dương nhưng khoảng tin cậy chứa 0:** chưa kết luận. Chỉ mở rộng thêm 20 tác vụ nếu người dùng duyệt thêm ngân sách.
+docs/p8-next-experiments.md:59:- **Δ ≤ 0:** ghi kết luận âm tính. Với loại tác vụ này, đưa tri thức vào ngữ cảnh không cải thiện được agent mạnh. Dừng hướng tối ưu tri thức và giữ Bint làm công cụ quản lý tri thức và giám sát.
+docs/p8-next-experiments.md:63:- 20 tác vụ trong một vùng có thể không đủ.
+docs/p8-next-experiments.md:68:## Kế hoạch B — Model mạnh đề xuất, model rẻ thực thi
+docs/p8-next-experiments.md:70:**Câu hỏi:** khi đề xuất do Opus viết, còn agent giải đề chạy model rẻ hơn (Haiku), vòng `bint evolve cycle` có tạo được cải tiến đạt trên tập test độc lập không? Nếu có thì đây là nghiệm thu P8.
+docs/p8-next-experiments.md:72:**Khác biệt so với vòng P8 đầu tiên:**
+docs/p8-next-experiments.md:74:1. Agent giải đề yếu hơn nên còn nhiều chỗ để cải thiện. Agent viết đề xuất mạnh hơn nên có thể mang thông tin mới.
+docs/p8-next-experiments.md:75:2. Nguồn cơ hội là **lượt thất bại trên tập validation**, không chỉ lịch sử phiên làm việc. Reflector đọc bản tóm tắt của lượt trượt và viết mục `lesson` (đề xuất skill đi qua luồng L2 riêng).
+docs/p8-next-experiments.md:76:3. Phạm vi thay đổi gồm bài học từ thất bại và quy trình (skill; chỉ dẫn công cụ thuộc [Kế hoạch H](p8-harness-evolution-plan.md), đã có mã, chưa đo).
+docs/p8-next-experiments.md:81:- Bài học rút ra từ một tác vụ không được dùng khi chấm lại chính tác vụ đó (mục 12.3 của kế hoạch Bint).
+docs/p8-next-experiments.md:87:- Mô hình rút bài học tách riêng qua `roles.reflector: claude` và `harnesses.claude.models.reflector: opus` (hoặc ghi đè bằng `bint evolve propose --reflector-model opus`), nên `bint evolve cycle --model haiku --budget 25 --max 3` tự động dùng Opus cho reflector và Haiku cho thực thi/đối chiếu (không cần cờ `--propose-model`).
+docs/p8-next-experiments.md:94:| B0 | Đo `none` với Haiku trên validation (70 tác vụ, 1 lần lặp) để biết mức nền | ~$5 |
+docs/p8-next-experiments.md:97:| B2 | Với `harnesses.claude.models.reflector: opus`: chạy `bint evolve cycle --model haiku --budget 25 --max 3` để rút tối đa 3 đề xuất từ lượt trượt và đối chiếu trên validation rồi test (có dừng sớm) | ≤ $25 |
+docs/p8-next-experiments.md:98:| B3 | Nếu có đề xuất đạt trên test: chạy lại trên test với 2 lần lặp để xác nhận | ~$5–10 |
+docs/p8-next-experiments.md:104:- **Có đề xuất đạt độc lập trên test và B3 xác nhận:** nghiệm thu P8. Ghi báo cáo. Sau đó thử chuyển cải tiến sang Sonnet để xem có còn tác dụng với model mạnh hơn không.
+docs/p8-next-experiments.md:105:- **Không đề xuất nào đạt sau 3 đề xuất:** dừng. Ghi kết luận rằng ngay cả cấu hình mạnh dạy yếu cũng không cải thiện được trên loại tác vụ này với cỡ mẫu này.
+docs/p8-next-experiments.md:116:## Thứ tự đề xuất
+docs/p8-next-experiments.md:118:1. Mã cho B đã có qua Kế hoạch E; nếu chạy cả A thì viết thêm lệnh `bint eval snapshot import` (không tốn token).
+docs/p8-next-experiments.md:119:2. Chạy B0 ($5). Đây là bước rẻ nhất và cho biết ngay hướng B có khả thi không.
+docs/p8-next-experiments.md:120:3. Song song với bước 2, người dùng viết tri thức cho A tại commit gốc B0.
+docs/p8-next-experiments.md:121:4. Chạy A và B2 theo cổng của từng kế hoạch.
+docs/p8-next-experiments.md:125:## Ràng buộc chung
+docs/gate-2.md:1:# Cổng quyết định 2 — Context Engine
+docs/gate-2.md:4:Theo mục 16 và 19 của kế hoạch, ngưỡng dưới đây được chốt và commit trước khi chạy
+docs/gate-2.md:9:Điều kiện tiên quyết: cổng quyết định 1 ([gate-1.md](gate-1.md)) đã qua. Nếu cổng 1
+docs/gate-2.md:10:không qua và hướng sinh tri thức tự động bị dừng, cổng 2 đo trên tri thức do người viết.
+docs/gate-2.md:12:## Câu hỏi
+docs/gate-2.md:21:| `ideal` | chỉ để chẩn đoán (mục 12.9): AGENTS.md + toàn bộ mục có phạm vi chồng lên tệp của lời giải thật. Cận trên, không bao giờ báo cáo như kết quả của Bint |
+docs/gate-2.md:26:## Ngưỡng
+docs/gate-2.md:30:1. **Thước đo chính (chọn trước): tỷ lệ đạt.** Cận dưới CI95 của chênh lệch tỷ lệ đạt
+docs/gate-2.md:32:2. **Không đổi chi phí lấy chất lượng quá mức:** chênh lệch chi phí trung bình mỗi tác vụ
+docs/gate-2.md:35:Cả 1 và 2 đạt → qua cổng.
+docs/gate-2.md:37:> Đã cân nhắc và **không** chọn: lấy chi phí/số lượt làm thước đo chính (giảm ≥ 10 %,
+docs/gate-2.md:42:## Điều kiện để phép đo được tính
+docs/gate-2.md:44:Giống cổng 1: ≥ 2 repository thử nghiệm khác hệ sinh thái, mỗi repository ≥ 20 tác vụ
+docs/gate-2.md:45:test đã kiểm chứng fail→pass, 3 lần lặp, cùng harness/mô hình trong một đợt, phần
+docs/gate-2.md:46:"Độ tin cậy của phép đo" không có cảnh báo chặn, lượt `bint` bị `skipped` ≤ 5 %.
+docs/gate-2.md:47:Thêm: hook và MCP thực sự hoạt động — trên ≥ 80 % lượt `bint` có ít nhất một lần truy
+docs/gate-2.md:50:## Quy trình
+docs/gate-2.md:54:bint eval run --split test --arms minimal,bint --repeats 3 --leakage-mode strict --budget <USD> --yes
+docs/gate-2.md:58:## Khi không qua (mục 12.9)
+docs/gate-2.md:60:1. Chẩn đoán trên tập **validation** với cả ba nhánh:
+docs/gate-2.md:64:   < 50 %) → không được áp dụng (mục đúng ít được trích dẫn ở lượt thất bại) → nhiễu.
+docs/gate-2.md:65:2. Lỗi truy xuất hoặc trình bày: sửa rồi đo lại trên tác vụ test **chưa dùng** để chẩn đoán.
+docs/gate-2.md:66:3. Nguyên nhân là nội dung tri thức, hoặc sau **2 vòng** vẫn không qua: thu hẹp Context
+docs/gate-2.md:69:## Giới hạn đã biết của phép đo ở P3
+docs/gate-2.md:80:## Chốt
+docs/gate-2.md:89:## Kết quả
+docs/gate-2.md:91:Pilot Codex thật trên repository A (TypeScript) ngày 2026-11-10 được ghi tại
+docs/gate-2.md:94:đây là thăm dò kỹ thuật, chưa phải phép đo đủ điều kiện mở gate 2.
+docs/gate-2.md:96:6/6 lượt bint có truy xuất, 4 lời gọi cite bị chặn quyền, số trích dẫn ghi nhận bằng 0.
+docs/gate-2.md:98:**Quyết định hiện tại: chưa mở gate chính thức.** Gate 1 chưa được nghiệm thu;
+docs/p8-harness-evolution-plan.md:1:# Kế hoạch: tiến hoá quy trình và bài học từ thất bại
+docs/p8-harness-evolution-plan.md:3:Ngày: 2026-11-11. Mở rộng P8 theo hai ý học từ các nghiên cứu tối ưu harness (hiện trạng tổng thể xem tại [docs/status.md](status.md)):
+docs/p8-harness-evolution-plan.md:5:1. **Kế hoạch E — Bài học từ thất bại.** Mỗi lượt thất bại được tóm tắt, rồi rút thành bài học có phạm vi rõ ràng. Thư viện bài học tích luỹ dần, tương tự `EXPERIENCE.md`.
+docs/p8-harness-evolution-plan.md:6:2. **Kế hoạch H — Sửa được quy trình.** Ngoài tri thức và skill, vòng tiến hoá được đề xuất thay đổi:
+docs/p8-harness-evolution-plan.md:16:## Hiện trạng: Bint đang điều khiển được gì
+docs/p8-harness-evolution-plan.md:30:## Kế hoạch E — Bài học từ thất bại (đã có mã, chưa đo)
+docs/p8-harness-evolution-plan.md:32:### Luồng xử lý
+docs/p8-harness-evolution-plan.md:41:### E1. Nguồn thất bại và bản tóm tắt (không tốn token)
+docs/p8-harness-evolution-plan.md:57:- Bản tóm tắt giới hạn khoảng 1.500 token, để chi phí của bước rút bài học không phụ thuộc độ dài log.
+docs/p8-harness-evolution-plan.md:65:### E2. Rút bài học (tốn token, model cấu hình riêng)
+docs/p8-harness-evolution-plan.md:79:- Agent viết tối đa 2 ứng viên theo hai phạm vi:
+docs/p8-harness-evolution-plan.md:85:### E3. Kiểm tra xác định (không tốn token)
+docs/p8-harness-evolution-plan.md:87:1. **Rò rỉ.** Với lượt eval, `CheckLesson` so bài học với diff lời giải của các tác vụ nguồn: chặn dòng mã, định danh mới ở vị trí mã và chuỗi literal dài của phần thêm mới (trừ phần đã có trong kiểm thử).
+docs/p8-harness-evolution-plan.md:88:2. **Tổng quát.** Bài học chung phải có bằng chứng từ ít nhất 2 vùng mã khác nhau. Bài học riêng phải có ít nhất 2 lượt thất bại trong vùng của nó.
+docs/p8-harness-evolution-plan.md:89:3. **Trùng.** Dùng cơ chế phát hiện mục trùng đã có. Nếu trùng thì đề xuất gộp thay vì tạo mới.
+docs/p8-harness-evolution-plan.md:90:4. **Độ dài và hình thức.** Trigger, mistake và instead đều phải có; tổng không quá khoảng 80 từ.
+docs/p8-harness-evolution-plan.md:91:5. **Nguồn gốc.** Mục ghi `origin: agent`, `provenance: failure_lesson` và danh sách lượt chạy làm bằng chứng. Quy tắc đã có vẫn áp dụng: bài học rút từ tác vụ X không được dùng khi chấm lại X.
+docs/p8-harness-evolution-plan.md:93:### E4. Đề xuất, đối chiếu, áp dụng
+docs/p8-harness-evolution-plan.md:100:### E5. Thư viện và cách đưa vào ngữ cảnh
+docs/p8-harness-evolution-plan.md:110:### E6. Kiểm thử và đo
+docs/p8-harness-evolution-plan.md:122:| 1 | Một đợt `bint` trên validation để lấy lượt trượt (đã có kết quả cũ, dùng lại nếu log còn) | $0–6 |
+docs/p8-harness-evolution-plan.md:123:| 2 | Reflector (Opus) rút bài học cho tối đa 4 nhóm | ~$2–4 |
+docs/p8-harness-evolution-plan.md:124:| 3 | `bint evolve cycle` đối chiếu tối đa 3 bài học trên validation rồi test | ≤ $20 |
+docs/p8-harness-evolution-plan.md:129:- Có bài học đạt trên test: đạt nghiệm thu P8 với nguồn thất bại.
+docs/p8-harness-evolution-plan.md:130:- Không có bài học nào đạt sau 3 đề xuất: ghi kết luận âm tính và xem lại cách tóm tắt thất bại trước khi thử tiếp.
+docs/p8-harness-evolution-plan.md:136:### Trạng thái thực hiện (mã E1–E6, chưa đo)
+docs/p8-harness-evolution-plan.md:138:Mã của E1–E5 và kiểm thử không tốn token của E6 đã xong; phần đo (đợt validation, reflector thật,
+docs/p8-harness-evolution-plan.md:153:  thử), hoặc chuỗi literal đủ dài (≥ 12 ký tự, gồm `"..."`, `'...'` và raw backtick, bỏ literal có trong kiểm
+docs/p8-harness-evolution-plan.md:175:- Reflector nhận tối đa 8 bản tóm tắt đầu của nhóm (theo ID).
+docs/p8-harness-evolution-plan.md:177:  (bộ nhớ bị chặn; dòng quá 4 MiB bị bỏ, log quá 256 MiB bị cắt đuôi). Vết thiếu được đánh dấu `Trace.Truncated`
+docs/p8-harness-evolution-plan.md:189:## Kế hoạch H — Sửa được quy trình, tách chung/riêng (mã H1–H4 đã xong, chưa đo)
+docs/p8-harness-evolution-plan.md:193:### H1. Đưa thành phần quy trình thành tệp, có phiên bản (không tốn token)
+docs/p8-harness-evolution-plan.md:245:### H2. Đo được thay đổi quy trình (không tốn token)
+docs/p8-harness-evolution-plan.md:251:### H3. Đề xuất thay đổi quy trình (tốn token khi chạy)
+docs/p8-harness-evolution-plan.md:264:- Nhóm thất bại theo dấu hiệu hành vi của E1. Ví dụ "không chạy test" dẫn tới guardrail `test-before-stop`, "lặp lệnh" dẫn tới guidance.
+docs/p8-harness-evolution-plan.md:274:### H4. Tách chung/riêng trong vòng tiến hoá
+docs/p8-harness-evolution-plan.md:289:### H5. Đo
+docs/p8-harness-evolution-plan.md:293:| 1 | Guardrail mặc định do người viết (`test-before-stop`, dạng remind): `bint` so với `bint` + guardrail trên 30 tác vụ | ~$13 |
+docs/p8-harness-evolution-plan.md:294:| 2 | Một vòng cycle với cơ hội quy trình từ E1, tối đa 2 cơ hội × 2 ứng viên | ≤ $25 |
+docs/p8-harness-evolution-plan.md:298:**Cổng quyết định:** bước 1 là phép thử rẻ xem guardrail có tác động không. Nếu agent đã tự chạy test ở hầu hết lượt (đọc từ log) thì guardrail này không còn tác dụng; khi đó chuyển sang dấu hiệu khác trước khi chạy bước 2.
+docs/p8-harness-evolution-plan.md:300:**Ước lượng công:** H1–H2 khoảng 2–3 ngày, H3–H4 khoảng 2 ngày.
+docs/p8-harness-evolution-plan.md:304:### Trạng thái thực hiện (mã H1–H4, chưa đo)
+docs/p8-harness-evolution-plan.md:306:Mã của H1–H4 và kiểm thử không tốn token đã xong; phần đo H5 (đợt `bint eval` so `bint` với
+docs/p8-harness-evolution-plan.md:321:  `ask`/`deny`, `remind` bị bỏ, không có `Stop` (sự kiện không có thì không giả lập, mục 13.2). Guidance dựng sẵn `bint-mcp-tools`
+docs/p8-harness-evolution-plan.md:336:  Cơ hội `KindHarness`: `harness:signal:<dấu hiệu>` cho từng dấu hiệu E1 trên **validation** (`no_test`, `edit_outside` → guardrail;
+docs/p8-harness-evolution-plan.md:359:- Người đề xuất không có Read/Grep/Glob như văn bản H3: định nghĩa tác vụ (gồm tập test) nằm trong `.bint/evals/` nên đọc được; thay vào đó
+docs/p8-harness-evolution-plan.md:369:  đề xuất do model thật viết **chưa được kiểm chứng**: thuộc H5.
+docs/p8-harness-evolution-plan.md:380:  `file.modified`), nên chưa có cách ghi nhận này ở nhánh đo; không giả lập sự kiện mà harness không cung cấp (mục 13.2).
+docs/p8-harness-evolution-plan.md:381:- Trạng thái phiên của guardrail đọc tối đa 4 MB cuối của tệp JSONL; quá trần thì `State.Truncated` và guardrail `deny`/`remind` ở `stop`
+docs/p8-harness-evolution-plan.md:390:## Thứ tự và tổng chi phí
+docs/p8-harness-evolution-plan.md:392:1. E1–E5 và kiểm thử xác định E6 (không tốn token): **đã hoàn thành**.
+docs/p8-harness-evolution-plan.md:393:2. E: chạy thực nghiệm đo hiệu quả, trần $30 (cần duyệt trước khi chạy).
+docs/p8-harness-evolution-plan.md:394:3. H1–H2: viết mã và kiểm thử (không tốn token): **đã hoàn thành**.
+docs/p8-harness-evolution-plan.md:395:4. H: đo bước 1, trần $13 (cần duyệt).
+docs/p8-harness-evolution-plan.md:396:5. H3–H4: viết mã (**đã hoàn thành**), rồi đo bước 2 của H, trần $25 (cần duyệt).
+docs/p8-harness-evolution-plan.md:400:## Ràng buộc chung
+docs/isolation-subagent-plan.md:1:# Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
+docs/isolation-subagent-plan.md:3:Trạng thái: **đã triển khai G1–G4, chờ nghiệm thu thật bằng Claude Code** (2026-11-12). G1 mục 4.1–4.5: mục 12.1–12.5;
+docs/isolation-subagent-plan.md:4:G2 (mục 5): 12.6–12.8; spike S1–S3: 12.9; G3 (mục 6): 12.10–12.13; G4 (mục 7): 12.14–12.15; nghiệm thu thật G3: 12.16;
+docs/isolation-subagent-plan.md:5:việc tồn (ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95, grep trong `readonly_tools`, kiểm hook SubagentStop): 12.17.
+docs/isolation-subagent-plan.md:6:Cố ý để lại: G2 .5/.6 (12.7). Chưa chạy thật trên Windows. Gồm bốn giai
+docs/isolation-subagent-plan.md:7:đoạn: G1 (cô lập trên worktree chung), G2 (mỗi tác vụ một worktree, chế độ `auto`), G3 (driver session: b-do chạy
+docs/isolation-subagent-plan.md:8:các bước bằng subagent), G4 (nhiều tác vụ song song bằng subagent).
+docs/isolation-subagent-plan.md:10:## 1. Mục tiêu
+docs/isolation-subagent-plan.md:12:1. Hai tác vụ không đụng nhau chạy song song được mà **không làm hỏng nhau**: bước của tác vụ này
+docs/isolation-subagent-plan.md:14:2. Trường hợp thường gặp nhất (một tác vụ trên cây đang làm) **giữ nguyên trải nghiệm hiện nay**:
+docs/isolation-subagent-plan.md:16:3. Người dùng gõ `/b-do Dùng subagent để …` (hoặc `/b-do --subagent …`) thì phiên đang mở tự chạy
+docs/isolation-subagent-plan.md:19:4. Không nới quy tắc hook [k:01M746NPTW1B304MRQQPBCAFAM]: hook không trả lỗi, không mở SQLite, không gọi
+docs/isolation-subagent-plan.md:22:Ngoài phạm vi: tự trộn thay đổi xung đột (mục 6.5 của `bint-plan.md`), driver session cho Codex làm
+docs/isolation-subagent-plan.md:25:## 2. Hiện trạng
+docs/isolation-subagent-plan.md:30:| # | Chỗ | Hậu quả khi hai tác vụ A, B cùng chạy trên một worktree |
+docs/isolation-subagent-plan.md:32:| H1 | `internal/workflow/run.go:519-575`: bước chỉ đọc chụp toàn cây trước/sau (`WorktreeSnapshot`) | b-feat của B chạy trong lúc b-review của A ⇒ A `failed` "bước chỉ đọc đã sửa cây làm việc". Khoá ghi không loại trừ bước chỉ đọc. |
+docs/isolation-subagent-plan.md:33:| H2 | `checkScope` (`run.go:837`) và `UnapprovedChanges` (`ops.go:401`) dùng `task.ChangedFiles(root, base)` | Tệp của B (và thay đổi chưa commit có từ trước khi lập phiếu) bị tính cho A: cảnh báo ngoài scope, chặn chờ duyệt đường dẫn bảo vệ. Skill b-review `git diff <base>` nên review A soi cả mã B. |
+docs/isolation-subagent-plan.md:34:| H3 | `WorktreeFingerprint` (`ticket.go:315`, `ops.go:350`) | B sửa bất kỳ tệp nào ⇒ kết quả verify của A mất hiệu lực. |
+docs/isolation-subagent-plan.md:35:| H4 | `AcquireWriteLock` (`isolation.go`) độc quyền theo worktree, không chờ | b-feat thứ hai bị `blocked` ngay. |
+docs/isolation-subagent-plan.md:36:| H5 | `State.Worktree`/`State.Branch` được ghi lúc lập phiếu (`ops.go:160`) nhưng không nơi nào đọc | `bint run resume` gõ ở thư mục khác ⇒ chạy trên nhầm cây. |
+docs/isolation-subagent-plan.md:38:| H8 | Ảnh chụp của bước chỉ đọc không phân biệt người hay agent sửa | Người dùng sửa cấu hình/duyệt tri thức trong TUI lúc b-req chạy ⇒ bước `failed`. Ca thật: tác vụ 01M76RV9STQEA4A47AY1QC4V8T, 2026-11-12 09:29, "b-req … đã sửa cây làm việc: .bint/config.yml" do đổi `ui.language` trong TUI. |
+docs/isolation-subagent-plan.md:52:## 3. Quyết định đã chốt
+docs/isolation-subagent-plan.md:65:## 4. G1 — Cô lập trên worktree chung
+docs/isolation-subagent-plan.md:69:### 4.1. Gắn tác vụ với worktree của nó (H5)
+docs/isolation-subagent-plan.md:71:- `run`, `resume`, `task verify`, `task done`, `task diff` (mục 4.3) lấy Root từ `t.State.Worktree`;
+docs/isolation-subagent-plan.md:78:### 4.2. Khoá đọc/ghi và chờ khoá (H1, H4)
+docs/isolation-subagent-plan.md:92:  thay đổi ảnh chụp. Sửa qua Bint (TUI/CLI) được miễn theo mục 4.5; sửa bằng IDE vẫn bị tính, thông báo
+docs/isolation-subagent-plan.md:95:### 4.3. Tập tệp của từng tác vụ (H2)
+docs/isolation-subagent-plan.md:110:### 4.4. Verify (H3)
+docs/isolation-subagent-plan.md:117:### 4.5. Thay đổi do Bint ghi thay người không tính là vi phạm (H8)
+docs/isolation-subagent-plan.md:127:  ghi; dọn dòng cũ hơn `workflow.timeout_minutes` × 2 khi nối.
+docs/isolation-subagent-plan.md:148:### 4.6. Nghiệm thu G1
+docs/isolation-subagent-plan.md:150:- Kiểm thử đồng thời (hai `Runner` với agent giả trong cùng thư mục tạm): b-review của A không fail khi
+docs/isolation-subagent-plan.md:151:  B có b-feat chờ; B chờ tới lúc A trả khoá rồi chạy.
+docs/isolation-subagent-plan.md:165:## 5. G2 — Mỗi tác vụ một worktree
+docs/isolation-subagent-plan.md:167:### 5.1. Chọn chế độ (lúc lập phiếu)
+docs/isolation-subagent-plan.md:177:### 5.2. Tạo worktree (lười, ở bước đầu tiên của `bint run`)
+docs/isolation-subagent-plan.md:181:1. `State.Origin` = cây đã lập phiếu.
+docs/isolation-subagent-plan.md:182:2. Ảnh chụp cây gốc (`WorktreeSnapshot`, có cả thay đổi chưa commit và tệp mới) ⇒
+docs/isolation-subagent-plan.md:184:3. `git worktree add -b bint/<id> <state>/worktrees/<id> <base-commit>`. Worktree nằm trong thư mục trạng
+docs/isolation-subagent-plan.md:186:4. Chép các tệp khớp `workflow.worktree.copy` (glob, tệp bị gitignore như `.env`) từ cây gốc; chạy
+docs/isolation-subagent-plan.md:188:5. `State.Worktree` = worktree mới, `State.Branch` = `bint/<id>`, `State.Base` = base commit, nên
+docs/isolation-subagent-plan.md:195:### 5.3. Đưa về: `bint task land <id>`
+docs/isolation-subagent-plan.md:211:### 5.4. Dọn dẹp
+docs/isolation-subagent-plan.md:219:### 5.5. Skill (A3)
+docs/isolation-subagent-plan.md:227:  như commit 5136884.
+docs/isolation-subagent-plan.md:229:### 5.6. Nghiệm thu G2
+docs/isolation-subagent-plan.md:240:## 6. G3 — Driver session (b-do chạy các bước bằng subagent)
+docs/isolation-subagent-plan.md:242:Cập nhật 2026-11-12 theo kết quả spike (mục 12.9): `tools: Bash(<mẫu>)` của subagent không giới hạn lệnh (S1), nên
+docs/isolation-subagent-plan.md:243:guardrail chỉ đọc chuyển từ G4 vào G3 (mục 6.4a); ghép lượt chạy bằng `--agent-id` thay cho `bint run attach` (6.5); nguồn
+docs/isolation-subagent-plan.md:244:token là `agent_transcript_path` của `SubagentStop` (6.6). G3 làm thành hai phiếu: **G3a** = 6.1–6.3 (tách Runner, `next`/
+docs/isolation-subagent-plan.md:245:`complete`/`abort`, hợp đồng thuê); **G3b** = 6.4–6.7 (định nghĩa subagent, guardrail, ghép sự kiện, chi phí, skill).
+docs/isolation-subagent-plan.md:247:### 6.1. Luồng
+docs/isolation-subagent-plan.md:265:### 6.2. Tách Runner
+docs/isolation-subagent-plan.md:276:### 6.3. Khoá khi tiến trình `next` đã thoát
+docs/isolation-subagent-plan.md:281:- `next` lấy flock trong chốc lát, đọc hợp đồng thuê; còn hạn và khác chủ ⇒ chờ/`blocked` như mục 4.2;
+docs/isolation-subagent-plan.md:289:### 6.4. Định nghĩa subagent do Bint cài
+docs/isolation-subagent-plan.md:296:  **không** (S1): chỉ là luật cho phép, lệnh mà chế độ quyền của phiên cha tự duyệt vẫn chạy. Hàng rào thật là 6.4a.
+docs/isolation-subagent-plan.md:303:### 6.4a. Guardrail chỉ đọc cho subagent (chuyển từ G4 do S1)
+docs/isolation-subagent-plan.md:307:  NotebookEdit của hai subagent đó (phòng khi định nghĩa bị sửa). S3 đã xác nhận hook thấy `agent_type` và `deny` áp cho
+docs/isolation-subagent-plan.md:313:### 6.5. Gắn sự kiện vào lượt chạy (thay cho biến môi trường)
+docs/isolation-subagent-plan.md:327:### 6.6. Chi phí
+docs/isolation-subagent-plan.md:329:- `complete` tính token của bước từ transcript của subagent (S2, mục 12.9): đường dẫn lấy từ `agent_transcript_path` của
+docs/isolation-subagent-plan.md:338:### 6.7. Skill b-do
+docs/isolation-subagent-plan.md:346:### 6.8. Nghiệm thu G3
+docs/isolation-subagent-plan.md:354:- Guardrail 6.4a: sự kiện `PreToolUse` giả lập của `bint-reviewer` với `touch x` ⇒ `deny`; với lệnh khớp `readonly_tools`
+docs/isolation-subagent-plan.md:360:## 7. G4 — Song song nhiều tác vụ bằng subagent
+docs/isolation-subagent-plan.md:370:  `run_id`) để tra tệp (mục 12.14). Hook chỉ đọc tệp và trả quyết định, không lỗi, không SQLite, đúng cơ chế guardrail
+docs/isolation-subagent-plan.md:377:## 8. Việc cần kiểm trước G3 (spike, không viết mã sản phẩm)
+docs/isolation-subagent-plan.md:381:| S1 | `tools: Bash(bint:*)` trong định nghĩa subagent có giới hạn lệnh khi phiên cha ở `bypassPermissions`/`acceptEdits` không? | Planner/reviewer bỏ Bash, dùng công cụ MCP mới (`task_show`, `task_diff`, `task_write`, `task_review`), hoặc làm guardrail `pre_bash` của G4 ngay ở G3. |
+docs/isolation-subagent-plan.md:382:| S2 | Lấy token của subagent từ đâu: trường của `SubagentStop` (đường dẫn transcript?), hay tệp transcript con dưới phiên cha? | Chi phí của driver session là `unknown`; chỉ còn `maxTurns`. |
+docs/isolation-subagent-plan.md:383:| S3 | Hook `PreToolUse` trả `deny` có áp cho công cụ do subagent gọi không? `agent_id` có mặt ở `PreToolUse` của subagent không? | G4 không có rào chắn đường dẫn; khi đó song song bằng subagent chỉ cho phép khi có cách cô lập khác. |
+docs/isolation-subagent-plan.md:385:Ghi kết quả spike vào mục 12 của tài liệu này trước khi bắt đầu G3.
+docs/isolation-subagent-plan.md:387:## 9. Cấu hình mới
+docs/isolation-subagent-plan.md:391:| `workflow.isolation` | `auto` | G2 |
+docs/isolation-subagent-plan.md:392:| `workflow.worktree.copy` | `[]` | G2 |
+docs/isolation-subagent-plan.md:393:| `workflow.worktree.setup_command` | `""` | G2 |
+docs/isolation-subagent-plan.md:394:| `workflow.driver` | `process` | G3 |
+docs/isolation-subagent-plan.md:399:## 10. Ảnh hưởng tới phần khác
+docs/isolation-subagent-plan.md:406:- MCP: chỉ thêm công cụ nếu S1 buộc phải thêm.
+docs/isolation-subagent-plan.md:408:## 11. Thứ tự và kích thước ước lượng
+docs/isolation-subagent-plan.md:410:1. **G1** (vừa): sửa ngay cảm giác "bị nhạy cảm với thay đổi" trên worktree chung, kể cả người dùng thao tác TUI lúc agent chạy (4.5).
+docs/isolation-subagent-plan.md:411:2. **G2** (vừa): nền cho mọi việc song song.
+docs/isolation-subagent-plan.md:412:3. Spike S1–S3 (nhỏ).
+docs/isolation-subagent-plan.md:413:4. **G3** (vừa–lớn): phần lớn là tách `runStep` và hợp đồng thuê.
+docs/isolation-subagent-plan.md:414:5. **G4** (vừa): guardrail dựng sẵn và hướng dẫn song song.
+docs/isolation-subagent-plan.md:418:## 12. Ghi chép triển khai
+docs/isolation-subagent-plan.md:420:### 12.1. G1 mục 4.1–4.4 (H1–H5), 2026-11-12, tác vụ 01M76XPE8PD17GNK77KDP40RDW
+docs/isolation-subagent-plan.md:425:  `LockExclusive`), `AcquireLock` (không chờ), `WaitLock` (thăm dò 50 ms giãn tới 2 s, `OnWait`, hết hạn → lỗi bọc
+docs/isolation-subagent-plan.md:445:- Tài liệu: `docs/workflows.md` (đoạn cô lập, giới hạn đã biết). Chưa làm: 4.5 (H8, nhật ký ghi của Bint) — ở phiếu sau.
+docs/isolation-subagent-plan.md:449:1. **Tên hàm `app.DiffTask`**, không phải `app.TaskDiff`: các dịch vụ tác vụ khác đặt động từ trước (`ShowTask`, `LintTask`).
+docs/isolation-subagent-plan.md:450:2. **Windows khoá một byte ở offset lớn** (`OffsetHigh=0x7fffffff`), không phải byte 0 như bản cũ: khoá vùng trên
+docs/isolation-subagent-plan.md:451:   Windows là bắt buộc, khoá chia sẻ ở byte 0 làm chính chủ không ghi được tệp, khoá độc quyền làm người khác không
+docs/isolation-subagent-plan.md:454:3. **Thông tin chủ khoá nằm ở tệp riêng mỗi chủ** (`locks/write-<hash>.lock.d/<pid>-<nonce>.json`), không ghi vào tệp
+docs/isolation-subagent-plan.md:457:4. **Chồng lấn gỡ bằng `bint task approve`** (đưa tệp chung vào `PendingPaths`/`ProtectedApproval`), không thêm trạng
+docs/isolation-subagent-plan.md:460:5. **Mốc `BaseTree` chỉ đặt ở lần `b-feat` đầu tiên của tác vụ chưa từng `in_progress`** (kể cả làm tay). Tác vụ đã có
+docs/isolation-subagent-plan.md:462:   dẫn bảo vệ. Mốc "tiêu chí 3: phiếu cũ (Touched nil)" thực chất là `BaseTree` rỗng (`omitempty` làm nil và rỗng
+docs/isolation-subagent-plan.md:463:   không phân biệt được sau khi lưu). Làm tay sau khi đã có `BaseTree`: bản sửa vòng 1 bỏ theo dõi khi `SetStatus` → `in_progress` không do
+docs/isolation-subagent-plan.md:464:   Runner; **đã thay ở vòng sửa thêm (mục 12.2)** — không bỏ theo dõi nữa.
+docs/isolation-subagent-plan.md:465:6. **Kiểm chứng sau `b-feat` chạy dưới khoá độc quyền** (kế hoạch không nói; vòng đầu là chia sẻ, đổi ở 12.2/.2). `bint task verify` gọi tay không lấy
+docs/isolation-subagent-plan.md:467:7. **Bảng chuyển trạng thái không đổi**: "failed khi thư mục mất" đi qua bước resume (về trạng thái hoạt động) rồi
+docs/isolation-subagent-plan.md:469:8. `Cfg`/`ConfigRoot` vẫn lấy từ nơi gõ lệnh dù tác vụ chạy ở worktree khác (các worktree cùng repo thường cùng cấu hình).
+docs/isolation-subagent-plan.md:470:9. Thêm `Verification.Tree` chỉ khi tác vụ theo dõi `Touched` (chụp lỗi thì để rỗng, không chặn).
+docs/isolation-subagent-plan.md:471:10. Golden `help_*` của TUI đổi một dòng (thêm phím `D` ở màn Tác vụ); `TestWritesAudit` thêm `tasks.diff` vào danh
+docs/isolation-subagent-plan.md:486:hạn/huỷ, tệp chủ khoá), `concurrent_test.go` (hai Runner; `b-review` của A không fail khi B có `b-feat` chờ; `--no-wait`; hết
+docs/isolation-subagent-plan.md:492:### 12.2. Vòng sửa thêm sau review (phát hiện .2–.6), 2026-11-12, cùng tác vụ
+docs/isolation-subagent-plan.md:507:- **.4 (đã sửa).** `SetStatus` tới `done`/`cancelled` xoá `refs/bint/tasks/<id>/base` (từ 12.19: cả `base-tree`). `bint task diff` của tác vụ
+docs/isolation-subagent-plan.md:508:  đã đóng vẫn đọc được `BaseTree` tới khi `git gc` dọn đối tượng mồ côi (mặc định sau 2 tuần).
+docs/isolation-subagent-plan.md:514:  trong lúc chạy kiểm chứng (có thể tới `verify_timeout_minutes`). Kế hoạch lệch 6 sửa theo.
+docs/isolation-subagent-plan.md:521:### 12.3. Phát hiện còn mở khi đóng phiếu 01M76XPE8PD17GNK77KDP40RDW (review vòng 3)
+docs/isolation-subagent-plan.md:525:- **.7 (medium) — ĐÃ ĐÓNG ở mục 12.5** — `outsideFeat` (`internal/workflow/touched.go`) miễn trừ theo `Touched` của mọi tác vụ cùng
+docs/isolation-subagent-plan.md:527:  miễn theo tác vụ chưa kết thúc; không miễn đường dẫn bảo vệ/deny. Test: B sửa `migrations/001.sql` rồi `cancelled`;
+docs/isolation-subagent-plan.md:528:  A `b-feat` sửa tệp khác; sửa tay `migrations/001.sql` ⇒ `UnapprovedChanges(A)` phải chứa nó.
+docs/isolation-subagent-plan.md:529:- **.8 (low) — ĐÃ ĐÓNG ở mục 12.5** — `checkScope` chạy sau khi `runStep` đã nhả khoá độc quyền của `b-feat`: `b-feat` của tác vụ khác vừa
+docs/isolation-subagent-plan.md:533:### 12.4. G1 mục 4.5 (H8) — thay đổi do Bint ghi thay người không tính là vi phạm, 2026-11-12, tác vụ 01M772P7DKB3PBRBH7VPE614X6
+docs/isolation-subagent-plan.md:535:**Đã làm** (chưa commit khi viết ghi chép này, cùng cây với 4.1–4.4; không sửa phát hiện .7/.8 ở 12.3):
+docs/isolation-subagent-plan.md:538:  `AppendWrites` (khoá `writes.jsonl.lock` bằng `tryFlock` chờ tối đa 2 s; mỗi bản ghi một lệnh `Write` một dòng trên tệp
+docs/isolation-subagent-plan.md:556:- **TUI**: `app.ActiveSteps(ctx, dir)`; `Options.ActivePoll` (3 s ở `tui.go`, 0 trong kiểm thử), `loadActive()` gọi trong
+docs/isolation-subagent-plan.md:561:**Lệch so với kế hoạch 4.5 và quyết định:**
+docs/isolation-subagent-plan.md:563:1. **"Một hàm ghi chung" thành hai dạng** (tự ghi / ghi nhận ngay sau lời gọi gói thấp), vì phần lớn việc ghi nằm ở
+docs/isolation-subagent-plan.md:565:2. **Chỉ ghi nhận khi Bint thật sự đổi tệp** (`Created/Appended/Updated/Removed`; `core.lock` chỉ khi băm đổi). Ghi nhận
+docs/isolation-subagent-plan.md:567:3. **`started` dùng `time.Now()`**, không dùng `Env.Now` (có thể bị giả), cùng đồng hồ với `At` của dòng nhật ký.
+docs/isolation-subagent-plan.md:568:4. **`ReadWrites(since)` lọc theo `At`** ngay khi đọc; tương đương với luật "dòng mới nhất nằm trong khoảng bước" vì dòng
+docs/isolation-subagent-plan.md:570:5. Dòng nhật ký ghi `path` **tuyệt đối đã chuẩn hoá** (thư mục trạng thái dùng chung giữa các worktree, `KnowledgeWS.Root`
+docs/isolation-subagent-plan.md:572:6. **`init` lần đầu** tạo `.bint/config.yml` bằng writer chưa có nhật ký (chưa biết thư mục trạng thái); lần init đầu
+docs/isolation-subagent-plan.md:574:7. `.git/…` bị bỏ qua khi ghi nhận (exclude nằm ngoài cây làm việc).
+docs/isolation-subagent-plan.md:575:8. `ui.language` mặc định ghi vào `.bint/local.yml` (bị `.gitignore`) nên không vào ảnh chụp; kiểm thử H8 dùng lớp project.
+docs/isolation-subagent-plan.md:576:9. Dòng trạng thái TUI đọc **tệp chủ khoá**, không có `bint run status`; khoá khoá theo `Repo.Toplevel` như Runner.
+docs/isolation-subagent-plan.md:577:10. `bint task show` vẫn cảnh báo "docs/isolation-subagent-plan.md không nằm trong phạm vi sửa" dù `--allow` có đủ: cảnh báo
+docs/isolation-subagent-plan.md:585:- `internal/workflow/writes_test.go`: mỗi lần nối đúng một dòng; 8 writer × 25 lần không mất dòng (`-race`); dọn dòng cũ
+docs/isolation-subagent-plan.md:600:  **Động**: 12 dịch vụ ghi (config set, knowledge add/approve/reject/remove/verify --apply, skill overlay, sync, bootstrap
+docs/isolation-subagent-plan.md:607:**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 1249 test qua (66 gói); `go vet ./...` và `GOOS=windows go vet ./...`
+docs/isolation-subagent-plan.md:623:### 12.5. Sửa phát hiện .7/.8 (mục 12.3) và .1/.2/.3 của H8 (mục 12.4), 2026-11-12, tác vụ 01M774RD3A85K7HY9NRRQ73Z95
+docs/isolation-subagent-plan.md:662:- `internal/workflow/touched_test.go`: `TestOutsideFeatTerminalTaskDoesNotShield` (ca `cancelled` và `done`: B sửa
+docs/isolation-subagent-plan.md:664:  chứa cả `docs/b.md`, done của A bị chặn); viết lại `TestOtherTaskFilesNotCountedAndDoneMessage` (B chưa kết thúc: tệp
+docs/isolation-subagent-plan.md:666:  `TestOutsideFeatExcludesOtherTaskTouched`; `TestScopeComputedUnderFeatLock` (seam ghi `migrations/003.sql` ngay sau khi A
+docs/isolation-subagent-plan.md:667:  nhả khoá ⇒ A `in_review`, không có câu hỏi, không `PendingPaths`/`ProtectedApproval`); `TestScopeResumeTakesSharedLock`
+docs/isolation-subagent-plan.md:683:**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 1266 test qua (66 gói); `go vet ./...` và
+docs/isolation-subagent-plan.md:689:- **Quy nhầm nhiều hơn (đúng theo yêu cầu .7):** tệp của tác vụ B đã `done`/`cancelled` mà còn khác `BaseTree` của A (kể cả
+docs/isolation-subagent-plan.md:690:  đã commit, vì `BaseTree` là cây chụp) vào `ScopeFiles(A)` và `bint task diff A`; tệp bảo vệ đã duyệt ở B phải duyệt lại
+docs/isolation-subagent-plan.md:691:  ở A. Tệp bảo vệ/deny của tác vụ chưa kết thúc khác cũng bị quy cho A. Hướng chính xác hơn (ghi `FeatTree` sau mỗi
+docs/isolation-subagent-plan.md:694:  nhật ký cũ (trong 2 × `workflow.timeout_minutes` sau nâng cấp) cũng vậy. Hướng an toàn; ghi ở `docs/workflows.md`.
+docs/isolation-subagent-plan.md:697:- Lỗi chập chờn đã biết ở 12.2 (`TestEvalRunEscCancelsBatchAndShowsResumeCommand`…) không xuất hiện ở lượt chạy này.
+docs/isolation-subagent-plan.md:699:### 12.6. G2 mục 5 — mỗi tác vụ một worktree, 2026-11-12, tác vụ 01M777NWWZA4J9F66Q1AKEAFFX
+docs/isolation-subagent-plan.md:732:- **Skill (5.5).** b-do (bước 1b chế độ cô lập, "song song" ⇒ `--worktree`, báo nơi chạy, `land` trước `done` khi chạy từng
+docs/isolation-subagent-plan.md:743:1. **Ref base dùng chung tên với G1** (`plan.md` của phiếu, giả định 1): `refs/bint/tasks/<id>/base` ghi base commit lúc
+docs/isolation-subagent-plan.md:746:2. **`--3way` không dùng `git apply --3way`** (ngầm ghi chỉ mục): phần sạch đi bằng `git apply`, tệp xung đột trộn bằng `git
+docs/isolation-subagent-plan.md:750:3. **Lệnh `bint task cancel` mới** (trước chỉ có `task status <id> cancelled`); hai đường dùng chung một chỗ dọn.
+docs/isolation-subagent-plan.md:751:4. **Tệp cục bộ do Bint quản lý** (`.bint/local.yml`, `.claude/settings.local.json`, `.codex/hooks.json`, `.agents/hooks.json`) được chép
+docs/isolation-subagent-plan.md:754:5. **`Runner.Run` làm việc trên bản sao `Env` ngay từ đầu** (trước chỉ khi đổi Root): `RunID`/`Source`/`Root` đổi trong lượt
+docs/isolation-subagent-plan.md:757:6. **Phím TUI**: kế hoạch không nêu; `L` trùng phím toàn cục đổi ngôn ngữ (test `TestTaskWriteActionsRefusedInReadOnly` bắt
+docs/isolation-subagent-plan.md:760:7. **Quy tắc `auto` tính cả tác vụ bỏ dở** (đúng 5.1): trên repo có phiếu cũ chưa đóng, mọi phiếu mới vào worktree.
+docs/isolation-subagent-plan.md:763:8. **Tệp tác vụ khác đã đưa về cây này** không bị quy cho tác vụ `shared` đang chạy (`outsideFeat` miễn khi blob hiện tại
+docs/isolation-subagent-plan.md:773:  chứng", cần `bint task verify` lại. E2E `TestWorktreeParallelEndToEnd` sắp thứ tự bằng tệp tín hiệu để B đưa về sau khi A xong.
+docs/isolation-subagent-plan.md:795:**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 55 gói `ok`, 1297 test (kể cả subtest) qua, 0 lỗi; `go vet ./...` và
+docs/isolation-subagent-plan.md:799:### 12.7. Vòng sửa thêm sau review G2 (phát hiện .1–.7), 2026-11-12, tác vụ 01M777NWWZA4J9F66Q1AKEAFFX
+docs/isolation-subagent-plan.md:818:- **.5 ref base bị `pinTree` ghi đè; `Landed.Tree`/`BaseTree` không có ref sau khi dọn** — **không sửa ở vòng này; đã sửa ở mục 12.19**. Nhánh `bint/<id>` giữ
+docs/isolation-subagent-plan.md:819:  base commit tới lúc land nên chưa hỏng; sau khi tác vụ kết thúc mọi ref của nó bị xoá có chủ ý ở G1 (không ghim cây vĩnh viễn trong
+docs/isolation-subagent-plan.md:820:  repo của người dùng), nên `task diff` của tác vụ đã xong sau `git gc` hỏng cũng đúng với tác vụ `shared` của G1. Đổi cần quyết định
+docs/isolation-subagent-plan.md:822:- **.6 `setup_command` chạy không cần xác nhận** — **chỉ ghi tài liệu ở vòng này; đã sửa ở mục 12.19**. Bắt xác nhận kiểu băm lệnh như
+docs/isolation-subagent-plan.md:825:- **Test chập chờn đã sửa** — `TestWorktreeParallelEndToEnd` (cli) treo khi A (shared, giữ khoá độc quyền cây gốc suốt b-feat) vào trước
+docs/isolation-subagent-plan.md:826:  B: B cần khoá chia sẻ để tạo worktree còn A chờ B bắt đầu. Test nay khởi động B và chờ `State.Origin` trước khi khởi động A
+docs/isolation-subagent-plan.md:828:- **Kết quả (2026-11-12):** `go test -count=1 ./...` 66 gói, 1302 test qua, 0 lỗi; `go vet` và `GOOS=windows go vet` sạch;
+docs/isolation-subagent-plan.md:832:### 12.8. Sửa phát hiện review vòng 2 của G2 (.8–.11), 2026-11-12, cùng tác vụ
+docs/isolation-subagent-plan.md:845:### 12.9. Kết quả spike S1–S3 (mục 8), 2026-11-12
+docs/isolation-subagent-plan.md:848:Code 2.1.322), phiên cha gọi Agent với hai subagent thử (`tools: Read, Grep, Glob, Bash(echo:*)` + `disallowedTools: Edit,
+docs/isolation-subagent-plan.md:858:  - Hệ quả cho G3: planner/reviewer không được dựa vào `Bash(bint:*)`. Dùng guardrail `pre_bash` dựng sẵn ngay ở G3 (khả
+docs/isolation-subagent-plan.md:859:    thi nhờ S3: hook biết `agent_type`), hoặc bỏ Bash và dùng công cụ MCP.
+docs/isolation-subagent-plan.md:862:  `message.model`. Cộng `usage` theo `message.id` (khử trùng lặp) cho đúng tổng: lần thử 5 lượt gọi API, input 10, output
+docs/isolation-subagent-plan.md:865:  cảnh lượt cuối, 5140 so với tổng thật ~23 nghìn), không dùng để tính chi phí. Transcript chỉ có khi phiên được lưu (không
+docs/isolation-subagent-plan.md:878:### 12.10. G3a mục 6.1–6.3 — driver session, `next`/`complete`/`abort`, hợp đồng thuê khoá, 2026-11-12, tác vụ 01M77ED7S8THNK58QMMJE54YD2
+docs/isolation-subagent-plan.md:880:**Đã làm** (chưa commit khi viết ghi chép này; **không** làm 6.4–6.7: định nghĩa subagent, guardrail 6.4a, ghép sự kiện
+docs/isolation-subagent-plan.md:896:  (`--json`, `--resume`, `--no-wait`, `--run`, `--agent-id`, `--failed`, `--reason`; mã thoát 1 khi blocked/failed; `complete`
+docs/isolation-subagent-plan.md:917:1. **A1 — `--driver` trên `bint run`.** Driver là thuộc tính phiếu. `bint run` tự lập phiếu **chỉ nhận cờ tường minh**, không lấy
+docs/isolation-subagent-plan.md:920:2. **A2 — hợp đồng thuê ở tệp anh em**, không ghi vào chính tệp `write-*.lock`: nhiều chủ chia sẻ cùng giữ flock nên hai `next`
+docs/isolation-subagent-plan.md:922:3. **A3 — bước chạy riêng bằng tiến trình giữa luồng session.** `bint run b-review --task` không áp quyết định sau review (workflow
+docs/isolation-subagent-plan.md:925:4. **A4 — bước dở hết hạn** = quá `workflow.timeout_minutes` tính từ `next`: `next`/`complete`/`bint run` đóng bước là `failed` "quá
+docs/isolation-subagent-plan.md:927:5. **A5 — ngân sách b-do** (`max_cost_usd`/`max_turns` tổng) sống trong một tiến trình nên mỗi lệnh session bắt đầu từ 0; chi phí thuộc G3b.
+docs/isolation-subagent-plan.md:928:6. **Vòng review do subagent ghi không mang `run_id`** (subagent không có `BINT_RUN_ID`), nên điều kiện cũ "review ghi ở lượt này" của
+docs/isolation-subagent-plan.md:931:7. **`complete` thử lại được**: bước dở chỉ bị gỡ ở cuối `endStep` (dưới khoá); nếu lệnh bị ngắt giữa chừng, `complete` lại cùng `run_id`
+docs/isolation-subagent-plan.md:933:8. **`interrupted` báo ra `action: blocked`** (chờ người `next --resume`); chỉ `failed` ⇒ `failed`.
+docs/isolation-subagent-plan.md:934:9. **`abort` khi không có bước dở** vẫn dừng tác vụ đang active (→ interrupted) và xoá hợp đồng còn sót; có ghi chú "tác vụ không có bước dở".
+docs/isolation-subagent-plan.md:935:10. **Bước `process` không ghi gì vào phiếu**: gọi `next` lại trả cùng hành động; `bint run <bước> --task` không vướng vì không có bước dở.
+docs/isolation-subagent-plan.md:946:  dựa vào ảnh chụp trước/sau (guardrail 6.4a thuộc G3b). `Bash(...)` của subagent không giới hạn lệnh (S1, mục 12.9).
+docs/isolation-subagent-plan.md:960:**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 55 gói `ok`, 0 lỗi (đã cập nhật 6 golden `help_*` của TUI: chỉ đổi bộ đếm dòng 178 → 179 do thêm hành động
+docs/isolation-subagent-plan.md:968:### 12.11. Sửa phát hiện review G3a (.1–.4), 2026-11-12, tác vụ 01M77HACA7P0KVK2HZT4VYQC94
+docs/isolation-subagent-plan.md:970:Nguồn: `review.md` của tác vụ 01M77ED7S8THNK58QMMJE54YD2 (mục 12.10).
+docs/isolation-subagent-plan.md:980:  `leaseMutexWait` = 5 giây, tệp không đọc được, JSON hỏng). `AcquireLock` coi lỗi là khoá đang bị giữ: `lockedError` với lý do "hợp đồng thuê
+docs/isolation-subagent-plan.md:998:### 12.12. G3b mục 6.4–6.7 — định nghĩa subagent, guardrail chỉ đọc, ghép sự kiện, chi phí, skill; hai lỗi low của G3a, 2026-11-12, tác vụ 01M77J7TBB8X77CZ3HX3ZCW5WR
+docs/isolation-subagent-plan.md:1007:  `lockedError.Unwrap`); `discardPending` gặp nó thì `releaseLease(…, id, "")` (xoá tệp hỏng, đúng đường khôi phục mục 12.11) rồi lấy khoá
+docs/isolation-subagent-plan.md:1022:- **6.7 Skill b-do** có "Bước 2b — Driver session"; đã build binary mới và `bint sync` (`.claude/skills/b-do`, `.agents/skills/b-do`,
+docs/isolation-subagent-plan.md:1027:1. **Đường dẫn transcript qua tệp runtime, không chỉ spool** (lệch câu chữ 6.6): spool bị nạp và xoá bởi lệnh bất kỳ (kể cả `bint task …` của chính
+docs/isolation-subagent-plan.md:1030:2. **Không quét trước lô khi nạp spool** (kế hoạch ghi "quét trước các tệp chờ của lô"): `adoptAgentEvents` ở lúc nạp `workflow.finished` đã phủ
+docs/isolation-subagent-plan.md:1032:3. **Vượt `max_cost_usd` của bước ⇒ ghi lỗi, không failed**, vì subagent không dừng được giữa chừng; ngân sách b-do vẫn chặn bước sau.
+docs/isolation-subagent-plan.md:1033:4. **Giá cache để 0 ⇒ suy từ giá input (1,25 lần / 0,1 lần)**, vì cấu hình khoá nào cũng phải có giá trị số; bảng dựng sẵn luôn ghi đủ (tỉ lệ cache thật khác
+docs/isolation-subagent-plan.md:1034:   nhau theo model, ví dụ Opus 5.5 / Sonnet 5.5 đọc cache 0,05 lần). Bậc giá dài (prompt > 100 nghìn token) chỉ có ở bảng dựng sẵn (Haiku 5.5), cấu hình chỉ một bậc.
+docs/isolation-subagent-plan.md:1035:5. **`disallowedTools` gồm cả `MultiEdit`** (kế hoạch ghi `Edit, Write, NotebookEdit`) cho khớp `ClaudeWorkflowArgs` và hook.
+docs/isolation-subagent-plan.md:1036:6. **`description` của subagent đặt trong nháy kép**: câu mô tả có dấu hai chấm làm frontmatter YAML sai (kiểm thử `TestSubagentFilesDefaultConfig` bắt được).
+docs/isolation-subagent-plan.md:1037:7. **Skill b-do khuyên `--shared` cho driver session** khi chưa có lý do khác, vì rào chắn đường dẫn worktree thuộc G4.
+docs/isolation-subagent-plan.md:1042:  áp không; (d) `/b-do --subagent <việc nhỏ>` tới `done` và spool có `agent_id` ghép được với `run_id` (nghiệm thu 6.8 còn lại).
+docs/isolation-subagent-plan.md:1056:**Kết quả kiểm chứng (2026-11-12):** `go test -count=1 ./...` 1387 test qua (66 gói), 0 lỗi; `go vet ./...` và `GOOS=windows go vet ./...` sạch; `staticcheck ./...` và
+docs/isolation-subagent-plan.md:1059:### 12.13. Sửa phát hiện review của G3b (.1–.4), 2026-11-12, tác vụ 01M77J7TBB8X77CZ3HX3ZCW5WR
+docs/isolation-subagent-plan.md:1077:### 12.14. G4 mục 7 — song song bằng subagent, guardrail đường dẫn worktree, 2026-11-12, tác vụ 01M77NN59CBFEG4TPYSW0KPKAS
+docs/isolation-subagent-plan.md:1081:- **Ánh xạ `agent_id` ⇒ worktree, thay cho `attach`.** Mục 7 cũ để hook biết ánh xạ "khi thấy lệnh `attach`", nhưng G3 (6.5) đã
+docs/isolation-subagent-plan.md:1084:  1. `bint run next`, khi mở bước subagent (mọi bước, cả `shared`), ghi `runtime/session-steps/<run_id>.json`
+docs/isolation-subagent-plan.md:1087:     (`discardPendingForCancel`), lỗi `grantPending`; `next` dọn tệp quá `until` hơn 24 giờ. `runtime/` dùng chung giữa cây gốc
+docs/isolation-subagent-plan.md:1089:  2. Hook (`PreToolUse` có `agent_type = bint-implementer`, công cụ sửa tệp hoặc Bash) gọi `Dialect.SubagentPrompt`, lấy khối
+docs/isolation-subagent-plan.md:1092:     (`internal/harness/claude/subagent_prompt.go`) đọc **một dòng** (trần 4 MiB) của
+docs/isolation-subagent-plan.md:1108:  subagent quên `cd` sửa cây gốc, đúng rủi ro G4 cần chặn; fail-closed toàn phần (deny mọi thứ) làm hỏng cả G4 nếu Claude Code
+docs/isolation-subagent-plan.md:1109:  đổi bố cục transcript, và chặn người không dùng G4. Bản giới hạn giữ được cây gốc, các tác vụ worktree vẫn chạy được, chỉ mất
+docs/isolation-subagent-plan.md:1114:  đối"; G4 thêm câu cho biết hook sẽ chặn và hướng dẫn xử lý. Tác vụ `shared` không có câu này.
+docs/isolation-subagent-plan.md:1116:  chạy nền, vòng `next → Agent → complete` xen kẽ từng phiếu, mỗi tác vụ tự land, xung đột ⇒ `blocked` riêng); điểm 3 thay câu
+docs/isolation-subagent-plan.md:1133:  mục 6.4a.
+docs/isolation-subagent-plan.md:1145:### 12.15. Sửa phát hiện review của G4 (.1–.3), 2026-11-12, tác vụ 01M77NN59CBFEG4TPYSW0KPKAS
+docs/isolation-subagent-plan.md:1154:- **.2 trần 64 tệp** — `LiveIsolatedSteps` đọc tới `maxSessionStepFiles` (1024) tệp, trần 64 chỉ tính bước isolated còn hạn.
+docs/isolation-subagent-plan.md:1159:### 12.16. Nghiệm thu thật bằng Claude Code (G3), 2026-11-12, tác vụ 01M77RS37N7JEQ4AEPDSZRTB6V
+docs/isolation-subagent-plan.md:1162:`next → Agent → complete` trong phiên Claude Code 2.1.322: `bint-planner` (opus) → `bint-implementer` (sonnet) →
+docs/isolation-subagent-plan.md:1163:`bint-reviewer` (opus) → `done`, 0 phát hiện review.
+docs/isolation-subagent-plan.md:1168:  3 lệnh Bash của `bint-planner` (`guardrail.triggered`, outcome `fired`).
+docs/isolation-subagent-plan.md:1171:  `bint doctor` (hoặc lỗi "chưa có SubagentStop") trước khi chạy driver session. **Đã xử lý ở 12.17 (3).**
+docs/isolation-subagent-plan.md:1173:  công cụ Grep. Cân nhắc thêm `Bash(grep:*)`, `Bash(git grep:*)` vào `readonly_tools` mặc định. **Đã xử lý ở 12.17 (2).**
+docs/isolation-subagent-plan.md:1174:- **Chưa nghiệm thu thật:** G4 (hai tác vụ `--worktree` song song bằng subagent, guardrail đường dẫn worktree); hook `deny`
+docs/isolation-subagent-plan.md:1177:### 12.17. Việc tồn: ba phát hiện low của H8, grep trong `readonly_tools`, kiểm hook SubagentStop — 2026-11-12, tác vụ 01M7826QSKY3ADV2E8WW78DY94
+docs/isolation-subagent-plan.md:1179:Phiếu A (việc nhỏ), chạy bằng `bint run b-feat` trên cây chung. Ba nhóm:
+docs/isolation-subagent-plan.md:1204:- **.3 test tách ca sửa tay.** `TestOutsideFeatTerminalTaskDoesNotShield` đổi thứ tự: B chạy trước (sửa `migrations/001.sql`,
+docs/isolation-subagent-plan.md:1205:  `docs/b.md`), A chạy sau nên `BaseTree(A)` đã chứa thay đổi của B; B kết thúc (cancelled hoặc done). TRƯỚC bước sửa tay hai tệp không có
+docs/isolation-subagent-plan.md:1206:  trong `ScopeFiles(A)` và `UnapprovedChanges(A)`; SAU bước sửa tay cả hai có và `done` của A bị chặn. Kiểm đột biến đã thử: bỏ bước sửa
+docs/isolation-subagent-plan.md:1207:  tay ⇒ đỏ; bỏ lọc `task.Terminal` trong `outsideFeat` ⇒ đỏ. Ca cũ (A chạy trước, nên thay đổi của B còn khác `BaseTree(A)` và bị quy cho A
+docs/isolation-subagent-plan.md:1210:**(2) `grep` và `git grep` trong `readonly_tools` mặc định** (xử lý "Ma sát" của 12.16). `config.Default()` và mẫu `Render` có thêm
+docs/isolation-subagent-plan.md:1211:`Bash(grep:*)`, `Bash(git grep:*)` (`TestRenderMatchesDefaults` qua; số mục mặc định trong `harness_test.go` từ 8 lên 10); `docs/configuration.md`
+docs/isolation-subagent-plan.md:1215:bỏ nháy đơn/kép và `\`, chặn token một gạch ngang có chữ `O` (kể cả cờ gộp `-nOvim`, brace `-{O,n}`), token hai gạch là tiền tố từ 4 ký tự của
+docs/isolation-subagent-plan.md:1219:**(3) Kiểm hook SubagentStop** (xử lý "Lỗi thật" của 12.16). `claude.SubagentHookInstalled(settings)` kiểm riêng sự kiện `SubagentStop`.
+docs/isolation-subagent-plan.md:1222:phạm vi; bản cài cũ thiếu SubagentStop; HOME cô lập bởi `testutil.Isolate`). Skill b-do Bước 2b có đoạn "Kiểm hook `SubagentStop`" trước lệnh lập phiếu
+docs/isolation-subagent-plan.md:1232:  (thân i18n đã đổi thành câu trung tính ở 12.18).
+docs/isolation-subagent-plan.md:1239:### 12.18. Sửa phát hiện review của phiếu A (.1–.4), 2026-11-12, tác vụ 01M7826QSKY3ADV2E8WW78DY94
+docs/isolation-subagent-plan.md:1251:  `grep $'\'' =(touch x)`, ba ca ngoặc hợp lệ trong nháy/thoát. Kiểm đột biến: tắt luật ngoặc ⇒ 5 ca chặn đỏ.
+docs/isolation-subagent-plan.md:1253:  nó đã nằm trong `BaseTree`); đang chạy đứng trước, rồi mới trước; mỗi tệp nêu tối đa 3 tác vụ, còn lại gộp "và N tác vụ khác"
+docs/isolation-subagent-plan.md:1260:### 12.19. Việc tồn G2 .5 và .6: tách ref base/base-tree, lỗi dễ hiểu khi cây bị dọn, xác nhận `setup_command`, 2026-11-12, tác vụ 01M785XQ96FYDKNTBXJDC0JR7K
+docs/isolation-subagent-plan.md:1267:  trong `refs/` (tên `base/tree` thì có). Vẫn theo quyết định G1: `deleteTaskRefs` xoá **cả hai** ref khi tác vụ `done`/`cancelled`
+docs/isolation-subagent-plan.md:1272:  vụ kết thúc", và tối đa 20 tệp đã biết (`Landed.Files`/`Touched`). Tác vụ đã đưa về nhưng chưa kết thúc và tác vụ chưa kết thúc có câu riêng
+docs/isolation-subagent-plan.md:1285:  info kèm 12 ký tự đầu của băm; mục warn "lệnh setup chờ xác nhận" liệt kê ID). Khoá i18n `tk.approve.setup*`, `tk.meta.setup`, `tk.verify.setup_*` có ở vi và en.
+docs/isolation-subagent-plan.md:1297:1. **Xác nhận theo từng tác vụ, không theo repo** (như `VerifyApproval`): mỗi tác vụ worktree mới phải được duyệt một lần — chỗ gây ma sát với người dùng có
+docs/isolation-subagent-plan.md:1299:2. **Lưu cả lệnh lẫn băm** (`SetupApproval.Command` để hiển thị, `SHA256` để so), trong khi `VerifyApproval` chỉ lưu lệnh.
+docs/isolation-subagent-plan.md:1300:3. **Doctor không có chỗ hiện `verify.command` theo phiếu** (chỉ có `eval.test_command` cấp cấu hình): mục "lệnh setup worktree" đặt cạnh mục "lệnh kiểm thử" vì
+docs/isolation-subagent-plan.md:1302:4. **Thẻ Kiểm chứng của TUI** nhận trạng thái từ `Detail.Setup`; danh sách có thể giữ bản phiếu cũ hơn chi tiết nên phần "ai/khi nào" bỏ trống nếu bản phiếu đó chưa có
+docs/isolation-subagent-plan.md:1304:5. **Tác vụ worktree đang dở trước bản sửa** có `refs/.../base` đã bị ghi đè (commit `base_tree` cha là Base): không sửa lại; nhánh `bint/<id>` vẫn giữ Base và ref bị xoá như thường khi kết thúc.
+docs/isolation-subagent-plan.md:1305:6. Câu "tài liệu đầu vào … không nằm trong phạm vi sửa" của `bint task show` mâu thuẫn với `docs/**` trong `scope.allow` (có vẻ lỗi khớp glob ở bước đánh giá phiếu): ngoài phạm vi,
+docs/isolation-subagent-plan.md:1307:7. `state.json` không dùng `DisallowUnknownFields` (chỉ `review.go` dùng): hai trường JSON mới (`setup_approval`, `sha256`) `omitempty`, hoàn nguyên commit vẫn đọc được phiếu có trường mới.
+docs/isolation-subagent-plan.md:1312:- `git gc` tự động mặc định chỉ dọn đối tượng mồ côi sau 2 tuần; test dùng `gc --prune=now`, nên chưa thấy lỗi ở điều kiện thời gian thật.
+docs/isolation-subagent-plan.md:1316:**Kết quả kiểm chứng:** `go test ./...` 55 gói qua, 0 lỗi (chạy riêng lại workflow/app/cli/tui/i18n/task với `-count=1`: 1037 test qua); `go vet ./...` và `GOOS=windows go vet ./...` sạch; `staticcheck ./...` và `GOOS=windows staticcheck ./...` sạch.
+docs/isolation-subagent-plan.md:1318:### 12.20. Sửa phát hiện review của phiếu B (.1–.4), 2026-11-12, tác vụ 01M785XQ96FYDKNTBXJDC0JR7K
+docs/isolation-subagent-plan.md:1320:Phiếu B tới `done` qua `bint run b-do` (7,13 USD); orchestrator sửa trực tiếp bốn phát hiện review theo yêu cầu người dùng.
+docs/isolation-subagent-plan.md:1323:  chỉ được ghi `SetupApproval` khi `SetupSHA` (băm hoặc tiền tố ≥ `MinSetupSHAPrefix` = 12 ký tự hex) khớp băm của lệnh trong cấu hình
+docs/isolation-subagent-plan.md:1328:  chờ; cấu hình đổi sau khi xem ⇒ `ErrSetupChanged`; tiền tố 8 ký tự bị từ chối; đúng băm ⇒ chạy), `TestApproveSetupCommandHumanOnlyAndShow` (kế hoạch mang băm; không băm ⇒ chờ), e2e CLI
+docs/tui-plan.md:1:# Kế hoạch TUI cho Bint
+docs/tui-plan.md:3:Trạng thái: **giai đoạn 0, 1, 2, 3, 4, 5 và 6 đã triển khai** (giai đoạn 5 gồm hai phiếu: **5a** — tab Hệ thống — ngày 2026-11-12 và
+docs/tui-plan.md:4:**5b** — trình hướng dẫn `init`, Hệ thống › Cài đặt repo, nâng cấu hình, cập nhật Bint + khởi động lại — ngày 2026-11-12; giai đoạn 6 gồm hai phiếu: **6a** — chuột, chế độ hẹp, chân phím, đọc đủ thông báo bị cắt — và
+docs/tui-plan.md:5:**6b** — thông điệp theo phím TUI, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README, chốt giai đoạn — cùng ngày 2026-11-12); còn lại là thử với người dùng thật và ảnh VHS (mục 12.10).
+docs/tui-plan.md:6:Kế hoạch đề xuất và rà soát lần 1 cùng ngày (phủ cấp cờ, vòng đời, tiêu chí thẩm mỹ). Chi tiết những gì đã làm
+docs/tui-plan.md:7:và những chỗ lệch so với kế hoạch ở mục 12 (12.1–12.2: giai đoạn 0; 12.3: giai đoạn 1; 12.4: giai đoạn 2; 12.5: giai đoạn 3; 12.6: giai đoạn 4; 12.7: giai đoạn 5a; 12.8: giai đoạn 5b; 12.9: giai đoạn 6a; 12.10: giai đoạn 6b; 12.11: bằng chứng tri thức lệch dạng có cấu trúc).
+docs/tui-plan.md:9:## 1. Mục tiêu
+docs/tui-plan.md:11:1. **Đẹp**: bố cục khung viền có tiêu đề nằm trên đường viền, thanh tab, màu nhấn tiết chế,
+docs/tui-plan.md:13:   (mục 4.4), không chỉ golden test.
+docs/tui-plan.md:14:2. **Thân thiện**: người không thuộc lệnh vẫn dùng được hết Bint. Mọi thao tác nhìn thấy
+docs/tui-plan.md:16:3. **Đủ tính năng**: mọi lệnh lá **và mọi cờ** của CLI đều có chỗ trong TUI, hoặc được loại
+docs/tui-plan.md:17:   trừ có lý do (bảng ở mục 6, quy tắc cờ ở mục 7.3). Có kiểm thử ép buộc điều này (mục 8).
+docs/tui-plan.md:18:4. **Không phá CLI**: CLI, `--json` và MCP giữ nguyên cho agent, CI và kịch bản.
+docs/tui-plan.md:22:dịch vụ ở giai đoạn 0 được thiết kế để một giao diện web sau này dùng lại được.
+docs/tui-plan.md:24:## 2. Hiện trạng ảnh hưởng tới thiết kế
+docs/tui-plan.md:50:## 3. Lựa chọn công nghệ
+docs/tui-plan.md:58:kiểm tra `go vet`/`staticcheck` với `GOOS=windows` ngay ở giai đoạn 0.
+docs/tui-plan.md:62:`golang.org/x/term v0.45.0` (`term.IsTerminal`). Chọn bản v2 mới nhất còn khai `go 1.25.x`: bubbletea
+docs/tui-plan.md:63:v2.0.10+ và lipgloss v2.1.0 đòi Go 1.26, còn `x/text` ≥ v0.42 và `x/term` ≥ v0.46 cũng vậy; nâng Go
+docs/tui-plan.md:65:trong `go.mod` giữ 1.25.1. Khi nâng Go, nâng cả các phụ thuộc này.
+docs/tui-plan.md:78:## 4. Thiết kế giao diện
+docs/tui-plan.md:80:### 4.1 Bố cục chung
+docs/tui-plan.md:83:┌───────────────────────────────│bint 0.1.0│────────────────────────────────┐
+docs/tui-plan.md:99:- Màn hình hẹp (< 100 cột): danh sách và chi tiết chuyển từ hai cột sang xếp chồng; tab rút
+docs/tui-plan.md:101:- Thanh trên còn hiện: nhãn "CHỈ ĐỌC" (mục 7.4), số việc nền đang chạy, và cảnh báo khi
+docs/tui-plan.md:104:### 4.2 Hệ thống thiết kế (`internal/tui/theme`)
+docs/tui-plan.md:106:- Bảng màu theo vai trò, không theo màu. Giá trị khởi điểm cho nền tối (chốt ở giai đoạn 0
+docs/tui-plan.md:107:  sau khi duyệt màn mẫu, mục 4.4):
+docs/tui-plan.md:109:  | Vai trò | Dùng cho | Tối (truecolor) | 16 màu |
+docs/tui-plan.md:118:  gạch chân, đảo màu) và chế độ 16 màu. Nền dùng màu mặc định của terminal, không tô nền khung.
+docs/tui-plan.md:121:- **Khoảng cách**: lề trong khung 1 cột/0 dòng; giữa các khung 1 dòng; hộp thông tin
+docs/tui-plan.md:131:### 4.3 Nguyên tắc UX
+docs/tui-plan.md:133:1. **Hộp thư "Việc cần bạn"** là trang đầu: mục tri thức chờ duyệt, thành phần harness
+docs/tui-plan.md:136:2. **Bảng lệnh** (`:` hoặc Ctrl+K): tìm mờ trên mọi hành động của mọi màn hình, kể cả hành
+docs/tui-plan.md:138:3. **Biểu mẫu thay cờ**: mỗi hành động có tham số mở form có nhãn, giá trị mặc định lấy từ
+docs/tui-plan.md:140:   struct `Options` của tầng dịch vụ (mục 7.3); trường ít dùng nằm trong nhóm "Nâng cao" thu
+docs/tui-plan.md:142:4. **Xem trước rồi mới ghi**: thao tác thay đổi tệp (publish AGENTS.md, apply, rollback,
+docs/tui-plan.md:145:5. **Hiện lệnh CLI tương đương** ở chân form (`bint knowledge approve 01M7…`), phím `y` để
+docs/tui-plan.md:147:6. **Việc chạy lâu** (`run`, `eval run`, `evolve cycle`, `revalidate`, `update`) chạy nền:
+docs/tui-plan.md:150:7. **Chuột** (cuộn, bấm tab, bấm hàng) bật mặc định; mọi thứ vẫn dùng được chỉ bằng bàn phím.
+docs/tui-plan.md:151:8. **Phím nhất quán** giữa các màn hình: `j/k`/mũi tên di chuyển, `Enter` mở, `Esc`/`Bksp`
+docs/tui-plan.md:153:9. **Lỗi có hướng xử lý**: lỗi hiện trong khung, kèm gợi ý (ví dụ "chưa `init` → nhấn i để
+docs/tui-plan.md:156:### 4.4 Tiêu chí thẩm mỹ
+docs/tui-plan.md:160:1. **Màn mẫu trước, màn thật sau**: giai đoạn 0 dựng màn Tổng quan bằng component thật theo
+docs/tui-plan.md:162:   phím trên viền dưới). Chủ dự án duyệt ảnh chụp, chốt bảng màu và khoảng cách ở mục 4.2,
+docs/tui-plan.md:164:2. **Trang trưng bày** `bint tui --gallery` (ẩn): mọi component (khung, tab, bảng, form, diff,
+docs/tui-plan.md:167:3. **Ảnh PNG bằng VHS**: mỗi màn hình có một kịch bản `.tape` trong `internal/tui/testdata/vhs`;
+docs/tui-plan.md:174:## 5. Các màn hình
+docs/tui-plan.md:176:### 5.1 Tổng quan
+docs/tui-plan.md:179:hướng dẫn khởi tạo** thay cho bảng điều khiển (mục 7.6).
+docs/tui-plan.md:181:### 5.2 Tri thức
+docs/tui-plan.md:188:│                                                       ││   42  ## Versioning           │
+docs/tui-plan.md:189:│                                                       ││─│Kiểm tra│ ✓ 0 lỗi ───────────│
+docs/tui-plan.md:203:### 5.3 Tác vụ
+docs/tui-plan.md:211:### 5.4 Lượt chạy
+docs/tui-plan.md:215:### 5.5 Đánh giá
+docs/tui-plan.md:220:### 5.6 Tiến hoá
+docs/tui-plan.md:229:### 5.7 Hệ thống
+docs/tui-plan.md:240:- **Cập nhật Bint** (`update`, mục 7.6), **Doctor** đầy đủ, **Chỉ mục** (`index rebuild`),
+docs/tui-plan.md:243:## 6. Bảng phủ tính năng
+docs/tui-plan.md:277:## 7. Kiến trúc
+docs/tui-plan.md:310:### 7.1 Đa ngôn ngữ
+docs/tui-plan.md:312:- **Phạm vi**: mọi chuỗi giao diện của TUI đi qua danh mục dịch ngay từ giai đoạn 0. Ngôn ngữ
+docs/tui-plan.md:333:### 7.2 Việc nền
+docs/tui-plan.md:341:  chuyển thành callback trong `Options` ở giai đoạn 0.
+docs/tui-plan.md:348:### 7.3 Tham số và cờ
+docs/tui-plan.md:359:  dạng đầu ra văn bản. `--force` vẫn là trường, kèm cảnh báo (mục 4.3.4).
+docs/tui-plan.md:362:### 7.4 Chế độ chỉ đọc
+docs/tui-plan.md:368:- Việc nền đang chạy (do phiên khác khởi động) vẫn xem được tiến độ và log (mục 7.2), nhưng
+docs/tui-plan.md:376:  buộc mọi hành động ghi tệp, ghi CSDL hoặc mở trình soạn thảo có `Writes = true` (mục 12.10).
+docs/tui-plan.md:378:### 7.5 Worktree
+docs/tui-plan.md:384:### 7.6 Vòng đời: khởi tạo, nâng cấu hình, cập nhật Bint
+docs/tui-plan.md:390:  Trước giai đoạn 5 (chưa có wizard): màn hình tạm hiện giải thích và nút "Khởi tạo với mặc
+docs/tui-plan.md:405:## 8. Kiểm thử
+docs/tui-plan.md:409:  **chưa làm** gắn giai đoạn. Danh sách chưa làm chỉ được thu nhỏ; giai đoạn 6 đòi nó rỗng.
+docs/tui-plan.md:413:  `Options` (qua thẻ tên cờ) hoặc nằm trong danh sách loại trừ cờ có lý do (mục 7.3). Thêm
+docs/tui-plan.md:419:- **Duyệt bằng mắt**: kịch bản VHS xuất PNG làm artifact CI (mục 4.4); không so pixel.
+docs/tui-plan.md:431:## 9. Giai đoạn
+docs/tui-plan.md:435:| 0 ✅ | Tách tầng dịch vụ cho `knowledge review`, `eval`, `evolve` (cycle, apply, report) khỏi `internal/cli`; đưa kiểm tra chỉ-dành-cho-người, ràng buộc cờ (`Options.Validate`), giá trị mặc định (`Defaults`) và lời hỏi `confirm()` xuống `app`. Khung TUI: theme, khung viền tự vẽ, tab, chân phím theo ưu tiên, bảng lệnh, sổ hành động, `internal/i18n` (vi, en) và khoá `ui.language`, test phủ lệnh + cờ với danh sách chưa làm. **Màn Tổng quan mẫu** + trang trưng bày + kịch bản VHS; màn tạm "Khởi tạo với mặc định" cho repo chưa `init`. | CLI chạy lại toàn bộ test không đổi hành vi; `bint` mở khung 7 tab, đổi `vi`/`en` được; chủ dự án duyệt ảnh màn mẫu và chốt bảng màu. |
+docs/tui-plan.md:436:| 1 ✅ | Tổng quan + hộp thư; Tri thức đầy đủ, gồm duyệt theo lô và lọc theo `nguon:*`. | Duyệt 30 mục từ một lần `/b-knowledge` trong < 1 phút, không gõ lệnh. |
+docs/tui-plan.md:437:| 2 ✅ | Tác vụ + chạy/tiếp tục workflow có log trực tiếp, câu hỏi giữa chừng thành hộp thoại, xác nhận khi thoát còn việc nền. | Từ TUI tạo tác vụ, chạy `b-do`, duyệt, xem review đến `done`. |
+docs/tui-plan.md:438:| 3 ✅ | Lượt chạy, Bài học, Tiến hoá (cả đề xuất loại harness). | Áp dụng và quay lui một đề xuất hoàn toàn trong TUI. |
+docs/tui-plan.md:439:| 4 ✅ | Đánh giá, có biểu đồ báo cáo. | Chạy một đợt nhỏ và đọc báo cáo trong TUI. |
+docs/tui-plan.md:440:| 5 ✅ | Hệ thống (cấu hình, cài đặt repo, harness + thành phần, skill, chỉ mục, MCP) + vòng đời: trình hướng dẫn `init`, nâng cấu hình, cập nhật Bint và khởi động lại. Tách làm hai phiếu: **5a ✅** (tab Hệ thống: Cấu hình, Harness, Thành phần, Skill + sync, Chỉ mục, MCP, Ngôn ngữ, Doctor; mục 12.7) và **5b ✅** (trình hướng dẫn `init`, Cài đặt repo với 11 cờ `init`, nâng cấu hình `init --update` qua hộp thư, `update` + khởi động lại; mục 12.8). | Repo mới: `bint` → hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư; `update` rồi khởi động lại trong TUI. |
+docs/tui-plan.md:441:| 6 ✅ | Hoàn thiện: chuột, chế độ hẹp, `NO_COLOR`, chế độ chỉ đọc, trợ giúp theo ngữ cảnh, README; thông báo theo phím TUI, đọc đủ thông báo bị cắt, phím thường dùng luôn thấy (xem dưới). Tách làm hai phiếu: **6a ✅** (tương tác: sửa 5 phát hiện review của 5a/5b, chuột, chế độ hẹp đầy đủ, chân phím không đẩy mất phím, đọc đủ thông báo/ô chi tiết; mục 12.9) và **6b ✅** (viết lại thông báo nhắc lệnh CLI thành phím TUI, `NO_COLOR` đầy đủ, chế độ chỉ đọc theo mục 7.4, trợ giúp theo ngữ cảnh, README, `CurrentPhase = 6`; mục 12.10). | Danh sách chưa làm rỗng, test phủ lệnh và cờ xanh; ảnh chụp ổn định; thử với 2–3 người không quen CLI. |
+docs/tui-plan.md:443:Yêu cầu bổ sung cho giai đoạn 6 (chủ dự án, 2026-11-12, khi xem màn Tri thức có mục lỗi bằng chứng):
+docs/tui-plan.md:448:  145 chuỗi chứa `bint <lệnh>` trong `internal/app`, `knowledge`, `task`, `workflow`, `eval`, `evolve` (không
+docs/tui-plan.md:456:Giai đoạn 1 đem lại giá trị lớn nhất (thay vòng `knowledge review` gõ phím từng mục) nên có
+docs/tui-plan.md:459:## 10. Rủi ro
+docs/tui-plan.md:469:- **Thẩm mỹ không đạt kỳ vọng**: chặn sớm bằng màn mẫu ở giai đoạn 0 (mục 4.4); phần vẽ viền
+docs/tui-plan.md:477:## 11. Câu hỏi mở
+docs/tui-plan.md:480:đoạn 0 (mục 7.1); hỗ trợ chế độ chỉ đọc (mục 7.4); phủ đến cấp cờ (mục 7.3); vòng đời
+docs/tui-plan.md:481:`init`/`init --update`/`update` trong TUI (mục 7.6); duyệt màn mẫu trước khi làm màn thật
+docs/tui-plan.md:482:(mục 4.4).
+docs/tui-plan.md:486:## 12. Tiến độ triển khai
+docs/tui-plan.md:488:### 12.1 Giai đoạn 0 (đã xong, 2026-11-11)
+docs/tui-plan.md:544:### 12.2 Chỗ lệch so với kế hoạch và việc còn lại
+docs/tui-plan.md:550:- **Logo**: bản điểm ảnh dùng ký tự khối đầy `██` (mỗi điểm 2 cột × 1 dòng, 5 dòng) ở vùng ≥ 100×30; bản nửa
+docs/tui-plan.md:551:  khối 3 dòng thử trước đó quá khó đọc nên bỏ. Dưới ngưỡng chỉ hiện chữ "bint." đậm, như kế hoạch.
+docs/tui-plan.md:552:- **Bảng màu**: giá trị khởi điểm mục 4.2 giữ nguyên, chờ chủ dự án duyệt ảnh. Ở chế độ 16 màu vai trò `fg`
+docs/tui-plan.md:554:- **Chân phím** xếp phím riêng của màn hình trước, rồi phím toàn cục, cuối cùng các phím ghim (`?`, `q`). Từ 6a: thiếu chỗ thì rút nhãn trước khi bỏ phím (mục 12.9).
+docs/tui-plan.md:555:- **Đổi ngôn ngữ chỉ có hiệu lực trong phiên** (phím `L`): từ giai đoạn 5a, Hệ thống › Ngôn ngữ ghi `ui.language` vào cấu hình (mục 12.7).
+docs/tui-plan.md:561:  --json` nên có đợt (kể cả dừng vì `ErrBudget`/`ErrQuota`) là thoát 0 kèm verdict. `probe` nay dùng verdict
+docs/tui-plan.md:563:  kế trả `errBudgetLeft` và vòng dừng êm, mã 0. Có test vòng với runner giả (bước Probe, bước hồi quy).
+docs/tui-plan.md:564:- **Màn tạm Khởi tạo** (`internal/tui/app`; **đã thay bằng trình hướng dẫn ở giai đoạn 5b**, mục 12.8 — `init.defaults` và `screens/initplaceholder` không còn): hành động `init.*` chỉ có ở màn Khởi tạo (bảng lệnh, chân phím,
+docs/tui-plan.md:574:- **Đã tách ở giai đoạn 3**: kiểm `InAgentSession` của `runs rate` nay nằm ở dịch vụ (`app.RateRun`, mục 12.5); của `task approve` đã tách ở giai đoạn 2 (mục 12.4).
+docs/tui-plan.md:575:- **Chưa có**: `teatest` (golden dùng `View()` của mô hình); thử với 2–3 người không quen CLI và xuất ảnh VHS thật (mục 12.10). **Chuột và chế độ hẹp có từ 6a** (mục 12.9) và **thông báo theo phím TUI, `NO_COLOR`, chế độ chỉ đọc đầy đủ, trợ giúp theo ngữ cảnh, README có từ 6b** (mục 12.10); không dùng `bubblezone` mà tự đánh dấu vùng bấm bằng gói `components/zone` (lý do ở 12.9). Danh sách chưa làm ở
+docs/tui-plan.md:576:  `internal/tui/actions/coverage.go` (`PendingCeiling` giảm mỗi khi xoá mục: 96 sau giai đoạn 0, 78 sau giai đoạn 1, 61 sau giai đoạn 2, 42 sau giai đoạn 3, 30 sau giai đoạn 4, 12 sau giai đoạn 5a, **0 sau giai đoạn 5b**:
+docs/tui-plan.md:577:  `Pending` và `PendingFlags` **rỗng**, **`CurrentPhase = 6` từ 6b** (test đòi danh sách rỗng ở giai đoạn 6 nay chạy thật).
+docs/tui-plan.md:579:### 12.3 Giai đoạn 1 (đã xong, 2026-11-11)
+docs/tui-plan.md:581:Mốc "xong": duyệt 30 mục của một lần `/b-knowledge` (cùng nhãn `nguon:<lô>`) không gõ chữ. Kiểm bằng
+docs/tui-plan.md:582:`TestMilestoneApproveThirtyItemsFromInbox` (`internal/tui/app`): repo tạm `app.Init` + 30 mục `origin: agent` bên thứ
+docs/tui-plan.md:583:ba gắn `nguon:lo-thu` + 1 mục lỗi bằng chứng cùng lô; **3 phím** (Enter trên dòng lô ở hộp thư → `A` → Enter) đưa 30 mục
+docs/tui-plan.md:584:thành verified, mục lỗi vẫn candidate. Chạy thật binary dưới pty cũng cho kết quả đó (6 mục). Thời gian "< 1 phút" với
+docs/tui-plan.md:601:`PendingCeiling = 78` (gỡ 19 mục lệnh, thêm `PendingFlags["knowledge add --from-review"] = 2`; `knowledge add --body-file`
+docs/tui-plan.md:605:**Màn Tri thức** (`internal/tui/screens/knowledge`): danh sách + chi tiết (≥ 100 cột hai khung; hẹp một khung, `Tab`/`Enter`
+docs/tui-plan.md:611:xem); danh sách chỉ vẽ hàng trong vùng nhìn (test 5 000 mục). Lỗi dịch vụ đã biết dịch qua khoá (`err.*`), mã finding
+docs/tui-plan.md:622:- **Phím**: ở màn Tri thức `Tab` đổi khung (mục 4.3.8), ở Tổng quan vẫn đổi tab; `[` `]` `1-7` luôn đổi tab; `q` `?` `:` `L`
+docs/tui-plan.md:624:  `Esc` thoát (đang chạy việc nền của thẻ phụ thì `Esc`/`Ctrl+C` huỷ việc). Làm mới là `Ctrl+R` (`r` là từ chối, như mục 5.2).
+docs/tui-plan.md:625:- **Giao diện `Screen`**: lúc đó chưa tách; đã tách ở giai đoạn 2 khi có màn thứ hai (`ui.Screen`, mục 12.4).
+docs/tui-plan.md:639:- **`knowledge add --from-review`**: lúc đó chờ danh sách phát hiện review của màn Tác vụ; đã làm ở giai đoạn 2 (mục 12.4).
+docs/tui-plan.md:644:- **Đổi nhỏ về hành vi CLI**: không có (các ca mã thoát 2 của `add`/`reject`/`context` có test mới; `bootstrap` vẫn in phần đã làm
+docs/tui-plan.md:658:chạy tay), cảm nhận thẩm mỹ, thời gian thật "< 1 phút" với người, `$EDITOR` thật (test thay bằng hàm giả; `tea.ExecProcess` chưa
+docs/tui-plan.md:661:### 12.4 Giai đoạn 2 (đã xong, 2026-11-11)
+docs/tui-plan.md:689:trong kênh). `Reply` có đệm 1 và hàm hỏi `select` với `ctx.Done()`: huỷ khi câu hỏi còn chờ thì trả "không"/rỗng ngay.
+docs/tui-plan.md:705:`/` lọc chữ, `Ctrl+R` làm mới; ≥ 100 cột hai khung, hẹp một khung (`Tab`/`Enter` đổi). Thẻ con `,` `.`: **Phiếu** (mục tiêu,
+docs/tui-plan.md:709:hiện, `Enter` mở trích đoạn `path:lines` kèm 3 dòng ngữ cảnh — chỉ đọc nên dùng được ở `--read-only`, `e` mở `$EDITOR`
+docs/tui-plan.md:720:**Phủ và kiểm thử**: `CurrentPhase = 2`; gỡ 16 lệnh `task *`/`run *` và `PendingFlags["knowledge add --from-review"]` khỏi
+docs/tui-plan.md:721:danh sách chưa làm (`PendingCeiling` 78 → 61); `ExcludedCmdFlags["task new --file"]` (TUI soạn mô tả trong ô nhiều dòng); thêm
+docs/tui-plan.md:724:gọi lại), mã thoát 2 của CLI (kể cả khi repo chưa init), khoá câu hỏi của workflow, `OnStep`, markdown/logview (độ rộng chữ có dấu),
+docs/tui-plan.md:750:- **Phím**: `Ctrl+R` làm mới (như Tri thức; mục 4.3.8 dùng `r`), `A` hiện cả xong/huỷ, `.`/`,` đổi thẻ con; `q ? : L [ ] 1-7` vẫn là
+docs/tui-plan.md:753:  agent) thay vì `workflow.ErrAgent`; mã thoát vẫn 1. Lỗi dùng sai vẫn được kiểm trước khi mở workspace nên mã 2 thắng mã 4. Đầu ra
+docs/tui-plan.md:757:  Mục tri thức k:01M746PHJXDZN6QMA3BEVEDNPP và các phát hiện mức thấp của giai đoạn 1 (12.3) vẫn còn mở.
+docs/tui-plan.md:764:bint tui                                                      # 3 → n (tạo) → r (chạy b-do); q khi còn việc → hộp thoại thoát
+docs/tui-plan.md:767:### 12.5 Giai đoạn 3 (đã xong, 2026-11-11)
+docs/tui-plan.md:770:dịch vụ thật, không gọi mô hình): repo tạm có mục tri thức được truy xuất nhưng chưa trích dẫn và spool 3 phiên có nhãn → `4` rồi `I`
+docs/tui-plan.md:796:runner giả trong kiểm thử). `CurrentPhase = 3`; gỡ 19 lệnh (runs ×4, events ingest, experience ×2, evolve ×12) khỏi `Pending` (`PendingCeiling` 61 → 42);
+docs/tui-plan.md:801:thúc, harness, mô hình, Git, thời gian, nhãn + lý do, tín hiệu, đầu ra, sự kiện cuộn được); ≥ 100 cột hai khung, hẹp một khung (`Tab`/`Enter` đổi). `+`/`-` mở
+docs/tui-plan.md:816:với ô `--force` và diff "hiện tại (sẽ mất) → sau quay lui" của từng tệp xung đột (tối đa 20 dòng mỗi tệp) — chọn thì gửi `Force` kèm `ExpectConflicts`
+docs/tui-plan.md:821:nay có **một dòng mỗi đề xuất** (khoá `overview.inbox.proposal`, tối đa 5 rồi "và N đề xuất khác"), Enter mở màn Tiến hoá tại đề xuất đó; `screens/placeholder` bỏ Lượt chạy và
+docs/tui-plan.md:825:chứng/rủi ro/gốc đã đổi/đã áp dụng, `PlanRollback`: xung đột, `Rollback` với `Force` + `ExpectConflicts` khác tập hoặc khác nội dung → lỗi và tệp không đổi), test CLI (thứ tự lỗi mã 2 trước "chỉ người",
+docs/tui-plan.md:837:- **`evolve scan` ở `--read-only`** ép bỏ quét Git và không nạp spool (mục 7.4); ở chế độ thường như CLI (nạp spool + quét Git). Khi nạp màn hình luôn quét **không** quét Git (tín hiệu Git đã ghi vẫn dùng);
+docs/tui-plan.md:846:  6 phát hiện review còn mở của giai đoạn 2 và phát hiện mức thấp của giai đoạn 1 (phiếu riêng; riêng phát hiện TOCTOU của hộp duyệt đã được xử lý cho `rollback --force` bằng `ExpectConflicts`).
+docs/tui-plan.md:858:bint tui                                                      # 4 (Lượt chạy) → I (nạp spool) → 6 (Tiến hoá) → s → p → a/u
+docs/tui-plan.md:861:### 12.6 Giai đoạn 4 (đã xong, 2026-11-11)
+docs/tui-plan.md:865:`none`, 2 lần lặp, agent lệnh tuỳ chỉnh ở nhóm Nâng cao; dòng CLI tương đương khớp) → hộp xác nhận kèm ước tính và lưu ý → Enter → đợt `completed` (2/2 lượt) → thẻ Đợt tự mở báo cáo với dòng biểu đồ cột
+docs/tui-plan.md:884:`N`/`Total`), `actions.EvalVerifyStep` và `actions.EvalBootstrapProgress`, không phân tích chữ log. `coverage.go`: gỡ 12 lệnh `eval`, `CurrentPhase = 4`, `PendingCeiling` 42 → 30; các ca ngược của
+docs/tui-plan.md:890:mốc `--baseline`), **Log** khi có việc nền (lưới ô + log trực tiếp; Esc huỷ an toàn). ≥ 100 cột (vùng nội dung, như các màn trước) hai khung, hẹp một khung (`Tab`/`Enter` đổi); `/` lọc, `Ctrl+R` làm mới, `,`/`.` đổi thẻ. Phím:
+docs/tui-plan.md:891:`m v V p a x e A t r R E b B C`. Hàm định dạng số và CI viết trong màn (không import `internal/cli`).
+docs/tui-plan.md:900:`[` `]` (hoặc `┃` khi một ô) màu key, phần trăm + `[lo–hi]` bên phải khi đủ rộng (≥ 44 cột), chú thích khi ≥ 64 cột; CI không hợp lệ thì không vẽ mốc và không in khoảng. Có trong gallery (`gallery.section.barchart`).
+docs/tui-plan.md:902:**Tích hợp**: màn vào bảng `screens`; `overview.NavMsg.EvalCaseID` + `Focus(id)`; hộp thư nay có **một dòng mỗi ứng viên đánh giá** (khoá `overview.inbox.eval`, tối đa 5 rồi "và N ứng viên khác"), Enter mở màn Đánh giá, thẻ
+docs/tui-plan.md:913:- **`eval approve/reject` không là `HumanOnly`**: CLI hiện không chặn `InAgentSession` ở hai lệnh này (mục 2 của kế hoạch không liệt kê eval trong thao tác chỉ dành cho người) và giai đoạn này giữ nguyên hành vi CLI. Muốn khoá
+docs/tui-plan.md:935:bint tui                                                      # 5 (Đánh giá) → m (khai thác + kiểm chứng) → a (duyệt) → E (ước tính) → r (chạy) → xem thẻ Đợt
+docs/tui-plan.md:938:### 12.7 Giai đoạn 5a (đã xong, 2026-11-12)
+docs/tui-plan.md:940:Giai đoạn 5 được tách làm hai phiếu. **5a** (phiếu này) chỉ làm tab Hệ thống (mục 5.7); **5b** giữ trình hướng dẫn `init` / Hệ thống › Cài đặt repo cùng 11 cờ `init`,
+docs/tui-plan.md:942:(`Pending["update"]` và 11 mục `PendingFlags["init …"]`; đã làm ở mục 12.8). Mốc "xong" của 5a: dùng được mọi thẻ của tab Hệ thống mà không gõ lệnh; kiểm bằng `TestSystem*` (`internal/tui/app`,
+docs/tui-plan.md:945:**Tầng dịch vụ** (`internal/app`, `internal/app/evolvesvc`): 18 lệnh lá có kiểu `Options` (thẻ `flag`/`arg`/`form`), `Validate()` (trả `UsageError` → mã thoát 2) và `Defaults(cfg)`;
+docs/tui-plan.md:953:  (CLI giữ mã thoát 1 khi `skill check` không đạt). `index_svc.go`: `RebuildIndex`; `mcp_svc.go`: `MCPTools`.
+docs/tui-plan.md:959:  (`UILanguageOptions{Language, Layer}`, mặc định `local`). Ở worktree phụ cả hai đều trả `LinkedWorktreeError{Main}` (mục 7.5).
+docs/tui-plan.md:961:**Sổ hành động và phủ** (`actions/system.go`, `coverage.go`): 33 hành động `system.*` (18 lệnh + hành động giao diện/phụ: `config_edit/check/save/view`, `language_save`, `harness_runtime/version`, `open_file`,
+docs/tui-plan.md:963:`coverage.go` gỡ 18 lệnh khỏi `Pending` (`PendingCeiling` 30 → **12**, `CurrentPhase` giữ **4**), sửa lý do `Excluded` của `hook *`/`mcp serve`; `serviceBindings` thêm 18 lệnh; các ca ngược của
+docs/tui-plan.md:966:**Màn Hệ thống** (`internal/tui/screens/system`, `ui.Screen`; thay `screens/placeholder`, đã xoá cùng khoá `placeholder.*`): thẻ con đổi bằng `,`/`.`; ≥ 100 cột (vùng nội dung) hai khung, hẹp một
+docs/tui-plan.md:968:- **Cấu hình**: hàng đầu là các lớp nguồn (toàn cục/dự án/strategy/cục bộ, đường dẫn, "sửa được"), các hàng sau là 13 nhóm khoá cấp một kèm YAML của nhóm. `e` mở form chọn lớp (`project` = `config.yml`,
+docs/tui-plan.md:971:- **Harness**: bảng (bật, trên máy, phiên bản, đối chiếu, cấp), bảng khả năng ✓ ~ ✗ (tiêu đề cột là 4 chữ đầu tên harness), chi tiết như `harness show` kèm hook (phạm vi đã cài) và MCP (đã đăng ký hay chưa) từ
+docs/tui-plan.md:980:- **Hộp thư** (Tổng quan): mỗi thành phần candidate một dòng (`overview.inbox.component`, tối đa 5 rồi "và N thành phần…"), Enter mở Hệ thống › Thành phần tại đúng thành phần (`NavMsg.ComponentID/ComponentKind` → `Focus`);
+docs/tui-plan.md:986:test hành động với dịch vụ thật (`actions/system_test.go`: cờ `Writes`/`HumanOnly`, đọc/ghi trên repo tạm, sửa cấu hình với trình soạn thảo giả), e2e CLI mới (`system_e2e_test.go`: `mcp tools` giống từng byte, mã thoát 2 của `harness component add/list/show`,
+docs/tui-plan.md:988:sync xác nhận "không" thì không ghi, `--force` hộp đỏ, ngôn ngữ đổi ngay, `--read-only` từ chối mọi `Writes` qua phím/bảng lệnh/yêu cầu trực tiếp, worktree phụ, Enter ở hộp thư), golden 80×24 và 140×40 (vi/en/xx, đơn sắc, 21 trạng thái mỗi cỡ;
+docs/tui-plan.md:996:- **Đổi nhỏ về hành vi CLI**: `harness component add --template … --kind …/--file …` nay là lỗi dùng sai (mã 2); trước đó `--template` lặng lẽ thắng. `--kind`/`--status`/`--mode`/`--harness` sai vẫn mã 2 (nay qua `Validate()`).
+docs/tui-plan.md:1000:- **Thanh thẻ con rút gọn ở 80 cột** (bỏ đệm và dấu `·` của thẻ không chọn) để không cắt tên thẻ (từ 5b có mười thẻ nên thêm dạng cửa sổ, xem 12.8); bảng khả năng dùng cột 4 ký tự cho mỗi harness.
+docs/tui-plan.md:1007:- **Chưa làm** (đúng phạm vi): trình hướng dẫn `init`, Hệ thống › Cài đặt repo và 11 cờ `init`, nâng cấu hình `init --update` qua hộp thư/Cấu hình › Nâng mẫu, `update` + khởi động lại, cài/gỡ hook và MCP từ TUI (5b); sửa cấu hình toàn cục
+docs/tui-plan.md:1015:- **.4** (cùng gốc với 5b.3: `PlanSync` bỏ sót `core.lock`): `SyncPlan` thêm `LockChanged`/`LockDiff`; `PlanSync` so `core.lock` sau `skills.Install` trên bản tạm với bản thật (khác phiên bản hoặc thiếu tệp) và tính vào `Changes`, nên `onSyncPlan` mở hộp xác nhận thay vì "đã cập nhật"; hộp liệt kê dòng `core.lock` kèm diff. Test: `TestPlanSyncCountsCoreLock`, `TestInboxVersionSkewSyncClearsItem` (lock phiên bản cũ, skill khớp → Enter hộp thư → `s` → xác nhận → lock mang phiên bản binary, mục hộp thư biến mất).
+docs/tui-plan.md:1025:bint tui                                                       # 7 (Hệ thống) → e (sửa cấu hình, $EDITOR thật) → . (thẻ kế) … s (xem trước sync) → ., ., ., Enter (chọn ngôn ngữ)
+docs/tui-plan.md:1031:### 12.8 Giai đoạn 5b (đã xong, 2026-11-12)
+docs/tui-plan.md:1033:Phiếu thứ hai của giai đoạn 5: phần **vòng đời** (mục 7.6, 5.7 Cài đặt repo, 7.5 worktree). Mốc "xong": repo mới `bint` → trình hướng dẫn → khởi tạo xong không cần đọc tài liệu; repo cấu hình cũ được nâng qua hộp thư;
+docs/tui-plan.md:1037:- `init_svc.go`: `InitFlagOptions` — một cờ một trường (thẻ `flag`) cho **đủ 11 cờ** `init` (`harness`, `hooks`, `no-hooks`, `hooks-scope`, `agents-md`, `mcp`, `no-mcp`, `force`, `no-skills`, `git`, `update`); `Validate()` trả `UsageError`
+docs/tui-plan.md:1055:**Hệ thống** (từ 8 thành 10 thẻ: thêm **Cài đặt** và **Cập nhật**; tên đầy đủ "Cài đặt repo"/"Cập nhật Bint" là tiêu đề khung)
+docs/tui-plan.md:1066:- **Mã thoát 1 → 2** cho lỗi dùng sai của `init` (`--git` sai, `--harness` lạ) và `update --source` không phải mã nguồn Bint: chuyển xuống `Validate()` nên là `UsageError`. Không e2e cũ khẳng định mã 1; e2e mới (`init_update_usage_e2e_test.go`) khẳng định mã 2. Thông báo `--harness` có thêm tiền tố `--harness:`.
+docs/tui-plan.md:1073:- **Thanh thẻ Hệ thống**: mười thẻ không vừa 80 cột nên thêm dạng cửa sổ quanh thẻ đang chọn (`‹ … ›`); khi có thông báo thì dành chỗ cho cả thông báo (tối đa nửa chiều rộng) trước khi rút gọn. Tên thẻ ngắn ("Cài đặt", "Cập nhật") để vừa 100–140 cột.
+docs/tui-plan.md:1085:bint tui                                                       # repo chưa init: trình hướng dẫn; 7 (Hệ thống) → . ×8 (Cài đặt) → e; . (Cập nhật) → u → khởi động lại
+docs/tui-plan.md:1088:**Chưa kiểm được tự động**: `go install` thật (test dùng hàm cập nhật giả), `syscall.Exec` thật (test thay `execFn`; chạy tay: `bint` → 7 → Cập nhật → khởi động lại), hành vi Windows thật (chỉ `go vet`/staticcheck với `GOOS=windows`), ảnh VHS, chạy `init` của Codex với `codex` thật (kiểm trust hook).
+docs/tui-plan.md:1094:- **.3** (`PlanSync` không tính `core.lock`): cùng sửa với 5a.4 ở trên (`TestPlanSyncCountsCoreLock`, `TestInboxVersionSkewSyncClearsItem`).
+docs/tui-plan.md:1098:### 12.9 Giai đoạn 6a (đã xong, 2026-11-12)
+docs/tui-plan.md:1100:Phiếu thứ nhất của giai đoạn 6 (6a = tương tác; 6b = thông điệp và hoàn tất): sửa các phát hiện review còn mở của 5a/5b, **chuột** (mục 4.3.7), **chế độ hẹp** đầy đủ (mục 4.1), chân phím không đẩy mất phím thường dùng và đọc đủ mọi thông báo/ô chi tiết bị cắt
+docs/tui-plan.md:1114:- **Cách làm**: không dùng `bubblezone` (thêm phụ thuộc, và dấu của nó chèn ký tự vào chuỗi) mà gói `internal/tui/components/zone`: component/màn hình bọc phần tử bấm được bằng `zone.Mark(id, s)` — chuỗi APC `ESC _ Zs;<id> ESC \ … ESC _ Ze ESC \` rộng 0 ô nên mọi phép đo/cắt/đệm/`Overlay` giữ nguyên.
+docs/tui-plan.md:1118:- **Hành vi**: bấm hàng dời con trỏ (kèm nạp chi tiết như phím `j/k`); bấm lại hàng đang chọn = Enter; bánh xe 3 dòng/nấc: trên khung danh sách dời con trỏ, trên khung chi tiết/kết quả cuộn nội dung, trên hộp thư Tổng quan dời con trỏ, trên hộp thoại/bảng lệnh cuộn nội dung của hộp.
+docs/tui-plan.md:1124:- `footer.Fit` rút nhãn **trước** khi bỏ phím: nhãn đầy đủ → cắt theo từ còn 10/7/5/3 ô → chỉ còn phím; chỉ khi chỉ-còn-phím vẫn tràn mới bỏ phím ưu tiên thấp (thứ tự bỏ: phím thường theo `Priority` giảm dần, rồi phím bắt buộc, ghim cuối). Phím ghim và `Priority ≤ footer.MustPriority (2)` không bị giới hạn `MaxHints`; `:` đổi từ ưu tiên 3 sang 2 nên luôn hiện cùng `?` và `q`.
+docs/tui-plan.md:1126:- Test: `TestFitShortensLabelsBeforeDroppingKeys`, `TestFitDropsLowestPriorityOnlyWhenKeysOnlyOverflow`, `TestFitKeepsMustHintsBeyondMax`, `TestInlineNeverOverflowsOrCutsKey`; `TestNarrowScan` kiểm chân phím ngoài của **mọi** kịch bản ảnh chụp ở 60×20 và 80×24 (vi, en, xx): có `?`, `q`, `:` và mọi phím ưu tiên ≤ 2 của ngữ cảnh, không dòng viền nào bị cắt (`…─`, `…┘`).
+docs/tui-plan.md:1130:- Chi tiết: lỗi nạp (danh sách và chi tiết, mọi màn) dùng `ui.ErrBlock` (ngắt dòng, thụt treo) thay vì `Truncate`; mọi viewer chi tiết/kết quả dùng `viewer.SetWrapped` (dòng dài ngắt theo từ, giữ mã màu) và các hàm dựng chi tiết (Tác vụ, Lượt chạy, Tri thức, Tiến hoá) bỏ `text.Truncate` ở giá trị; `system.fitLines` ngắt dòng; Tổng quan: giá trị dài của hộp thông tin ngắt dòng, hàng hộp thư đang chọn bị rút gọn thì hiện nguyên văn (tối đa 3 dòng) ngay dưới danh sách.
+docs/tui-plan.md:1132:- Test: `TestNoticesFullTextOfRootAndScreenToasts` (toast 300 ký tự ở 80×24 của mô hình gốc, của màn Hệ thống, bấm `[!]`, giới hạn 50), `TestDetailShowsFullLongTitlesAndErrors` (tiêu đề và lỗi 300 ký tự, Tri thức/Tác vụ/Lượt chạy/Hệ thống, cuộn bằng `pgdown`).
+docs/tui-plan.md:1135:- `ui.SubBar` dùng chung cho thanh thẻ phụ của Lượt chạy, Đánh giá, Tiến hoá: đầy đủ → chỉ thẻ chọn có đệm → cửa sổ quanh thẻ chọn kèm `‹ ›`; **tên thẻ đang chọn luôn hiện đủ** (`ui.SubTabber` cho test). `frame` đẩy tiêu đề căn giữa sang trái khi nhãn phụ không vừa (trước đây viền trên của khung ngoài tràn 4 ô ở 60×20 khi có việc nền).
+docs/tui-plan.md:1144:- **Không dùng `bubblezone`** (mục 3 nêu làm ứng viên): tự viết gói `zone` nhỏ (APC, không phụ thuộc mới; `go.mod` không đổi). Cờ bật `zone.Begin/End` là biến toàn cục, an toàn vì Bubble Tea vẽ trong một goroutine; đổi sang `ui.Env` nếu sau này vẽ song song.
+docs/tui-plan.md:1145:- **Bánh xe trên danh sách dời con trỏ** (3 hàng/nấc) thay vì cuộn vùng nhìn giữ nguyên con trỏ: đơn giản và nạp chi tiết theo con trỏ như phím `j/k`; trợ giúp (`?`) vẫn không cuộn được (chỉ cắt cuối kèm "còn nữa"; thuộc "trợ giúp theo ngữ cảnh" của 6b — **đã làm ở 6b**, mục 12.10: cuộn được kèm vị trí cuộn).
+docs/tui-plan.md:1146:- **Chân phím rất hẹp chỉ còn phím**: ở 60 cột chân phím khung ngoài thường là `[a] [r] [Enter] [:] [q] [?]` (không nhãn) vì phải giữ mọi phím ưu tiên ≤ 2; nhãn nằm ở chân phím trong khung. Locale giả `xx` cho thấy nhãn rút còn 3–5 ô ở khung trong hẹp.
+docs/tui-plan.md:1160:### 12.10 Giai đoạn 6b (đã xong, 2026-11-12)
+docs/tui-plan.md:1162:Phiếu cuối của giai đoạn 6 (6a = tương tác; 6b = thông điệp và hoàn tất): sửa 4 phát hiện review của 6a, **thông điệp của tầng dịch vụ nhắc phím TUI thay vì lệnh CLI** (yêu cầu bổ sung ở mục 9),
+docs/tui-plan.md:1163:`NO_COLOR` đầy đủ, chế độ chỉ đọc theo mục 7.4, trợ giúp theo ngữ cảnh, README, và chốt giai đoạn (`actions.CurrentPhase = 6`). Làm tiếp trên cây làm việc còn chưa commit của 6a.
+docs/tui-plan.md:1176:- **Cách làm (hướng 2: viết lại ở tầng hiển thị)**: một phương thức duy nhất `Rewrite(s)` của `ui.Rewriter{Cat, Reg, ReadOnly}` (`internal/tui/ui/cliref.go`; mỗi mô hình gốc giữ một bản của riêng nó và truyền qua `ui.Env.RW` cho mọi màn hình, không có trạng thái toàn cục của gói) tìm đoạn "`bint` + đường lệnh + đối số/cờ" (có hoặc không dấu huyền, nằm trong ngoặc, `reject/deprecate`, `` `bint knowledge reject` / `deprecate` ``), tra
+docs/tui-plan.md:1190:- **Con số thật**: kiểm kê bằng `go/ast` thấy **245 literal chuỗi** nhắc `bint <chữ thường>` hoặc mang token `--cờ` đứng rời (kể cả khi không có chữ "bint"; literal chỉ là một token argv của lệnh ngoài như `--name-only` hoặc `--format=%H` bị bỏ qua theo cấu trúc) trong `internal/app` (gồm `evolvesvc`), `knowledge`, `task`, `workflow`, `eval`, `evolve` (không tính chú thích và tệp `_test`); **175** bị hàm viết lại đổi và **69 mục loại trừ có lý do**: 14 mục riêng (lỗi `bint hook`, `bint mcp serve`, `knowledge import`, hướng dẫn sửa cấu hình Codex bằng tay, 2 prompt gửi agent, khối AGENTS.md, chú thích tệp sinh ra; hai nhóm sau hàm viết lại đổi được nhưng TUI không bao giờ đưa nội dung tệp/prompt qua nó) và 55 mục theo nhóm lý do trong `cliref_inventory_test.go`: 44 lỗi kiểm tra đối số (`rUsage`, xem chỗ lệch), 6 cờ của công cụ ngoài (git, claude, codex), 1 mẫu biểu thức chính quy, 1 mảnh chuỗi nối, 2 lỗi chỉ trả cho phiên agent, 1 lỗi chỉ có ở chế độ không tương tác. `go test ./internal/cli -run TestServiceMessageCLIInventory -v` in bản trước/sau của từng literal bị đổi để người duyệt đọc.
+docs/tui-plan.md:1193:  đầu-cuối theo màn trong `internal/tui/app/cliref_screens_test.go`: `TestCLIRefKnowledgeScreen` (lỗi duyệt thật của `ReviewKnowledge` — từ mục 12.11 là `*app.EvidenceError`, TUI dựng phím từ cấu trúc chứ không qua `Rewrite` — và finding `relocated` thật từ `Verify` trên repo tạm), `TestCLIRefTasksScreen` (điều kiện chưa thể done thật, lỗi `SetTaskStatus` thật, lý do blocked đúng mẫu `askVerify`),
+docs/tui-plan.md:1202:- Sửa phát hiện review vòng 1 (01M769D0Y45T2Y178ZC5GHD5QW.1): `NoColor` từng xoá cả `ESC[m` (đặt lại không tham số do lipgloss/git phát) nên đậm/đảo màu tràn sang phần sau màn hình ở Mono; nay giữ nguyên chuỗi không tham số. Test: ca `ESC[m` trong `TestNoColorStripsOnlyColors` và `TestMonoRenderDoesNotLeakAttributes` (mô phỏng trạng thái SGR, không kiểu nào còn bật ở cuối `Render()` của mọi kịch bản; đỏ trên mã cũ). Golden `*_mono.ansi.txt` ghi lại, nay có lại các `␛[m`.
+docs/tui-plan.md:1204:**Chế độ chỉ đọc theo mục 7.4**
+docs/tui-plan.md:1207:- **Phát hiện khi đọc mã**: `tasks.open_file` mở trình soạn thảo nhưng `Writes = false` (khác `eval.open_file`, `knowledge.edit`, `system.open_file`) → sửa thành `true`. Chân phím trong khung của 6 màn dựng cứng phím ghi (không lọc theo chỉ đọc) → nay lọc.
+docs/tui-plan.md:1213:- Hộp mở có tiêu đề **màn › thẻ phụ**, đoạn giới thiệu ngắn của thẻ (khoá `help.ctx.<màn>[.<thẻ>]`, 39 khoá ở vi và en), **nhóm phím của ngữ cảnh** (chân phím trong khung của thẻ phụ), rồi nhóm hành động của màn, phím toàn cục, các màn khác. Phím của ngữ cảnh **không khai báo lần hai**: `ui.Env.Collect` thu mọi chân phím trong khung (đã lọc theo chỉ đọc)
+docs/tui-plan.md:1236:**Sửa sau review vòng 1 của phiếu 01M76KN3M9BZCNMHKN4KNP1639** (mã `.n` là phát hiện 01M76KN3M9BZCNMHKN4KNP1639.n; sửa ở phiếu 01M76NWG57TVW63NE4J1MMHQFQ)
+docs/tui-plan.md:1241:- **.3 (kiểm kê bắt được cờ rời mới)**: bỏ `knownLooseFlagRE`; `inventoried` nhận mọi literal nhắc `bint <lệnh>` hoặc có token `--cờ` đứng rời, trừ literal chỉ là một token argv của lệnh ngoài (`^--?x(=…)?$`). Quét thật ra 62 literal còn cờ rời: 20 hướng dẫn hành động được viết lại thêm
+docs/tui-plan.md:1242:  (ngân sách `--budget <USD>`/`(USD)`/`> 0`, `giảm --limit/--repeats/--arms`, `dùng --bare`, `thêm --approved`, `--source`, `--hooks`, `--allow`, `--no-plan`, `--arms`, `--task <id>`, `--delivery bint`, `--prospective`, `cần --reason`/`--evidence`, `thiếu --type`, `chỉ định --kind`, `--paths`) và 55 loại trừ theo nhóm lý do.
+docs/tui-plan.md:1245:- **Chỗ lệch còn lại**: 44 literal lỗi kiểm tra đối số (`--repeats phải >= 1`, `--plan và --no-plan loại trừ nhau`, `--git: phải là …`, …) chưa có cụm TUI riêng: form TUI dựng từ cờ của lệnh nên tên cờ trùng tên ô và ô chọn/số/công tắc đã ngăn phần lớn giá trị sai, nhưng nếu vẫn lọt thì người dùng thấy tên cờ nguyên văn.
+docs/tui-plan.md:1255:- Review vòng 1 của phiếu 01M76KN3… (kiểm bằng cách gỡ tạm chính thay đổi rồi hoàn nguyên): `.4` — `TestRewritePositionalIDNeedsDigit` đỏ ("\"task_id\" bị nuốt vào tham chiếu: phím Enter ở Tác vụ", cả vi và en, cả `key_name` và `item_x`); `.2` — gỡ cụm `cliref.flag.force_*`/`no_agent`/`budget` thì `TestRewriteLooseFlagsOfServiceFlows` đỏ (22 dòng lỗi) và `TestCLIRefLooseFlagsInServiceFlows` đỏ ("duyệt ứng viên: còn token cờ --force", "kết quả đề xuất: còn token cờ --no-agent", "lỗi quay lui (hộp Thông báo): còn token cờ --force");
+docs/tui-plan.md:1260:- **Viết lại ở tầng hiển thị thay vì mã lỗi có cấu trúc** (mục 7.1 hẹn mã lỗi cho từng chuỗi; **riêng thông điệp bằng chứng tri thức lệch đã chuyển sang lỗi có cấu trúc ở mục 12.11**, phần còn lại vẫn viết lại): đổi hàng trăm điểm sinh lỗi ở sáu gói là rủi ro làm lệch chữ CLI và không phủ chuỗi đã lưu; bù lại ngữ pháp đôi chỗ gượng ("nhấn e ở Hệ thống › Cài đặt [ô Đăng ký MCP]" sau "chưa đăng ký MCP server của Bint (…)"). Chuỗi dịch vụ vẫn là
+docs/tui-plan.md:1276:### 12.11 Bằng chứng tri thức lệch: lỗi có cấu trúc (đã xong, 2026-11-12)
+docs/tui-plan.md:1279:`bint knowledge approve` báo "bằng chứng đã đổi, xem lại rồi `--refresh`", TUI viết lại thành "xem lại (Enter) rồi bấm f", và `f` hỏng y hệt (vùng 1009 vượt quá tệp mới ngắn đi) — vòng lặp không lối ra; ở giao diện en
+docs/tui-plan.md:1286:  `missing_file`, `out_of_range` (kèm `FileLines`), `symbol_gone`, `bad_range`, `ambiguous` (kèm tối đa 5 ứng viên `path:lines`) → `edit` (sửa bằng chứng trong tệp mục hoặc từ chối); `no_fingerprint` → `none`.
+docs/tui-plan.md:1299:- **Giới hạn chi phí cố định cho mỗi bằng chứng**: `maxMoveFiles = 400` tệp ứng viên, `maxMoveBytes = 32 MiB` đã đọc, bỏ tệp lớn hơn 1 MiB, tổng công việc băm dùng chung `maxRelocateWork` (4 triệu). Vượt giới hạn (số tệp, byte hoặc công việc băm): dừng và đặt `Truncated` (hiện "tìm chuyển tệp dừng ở giới hạn chi phí"), **không bao giờ báo "đã chuyển"**: một nơi khớp trong phần đã quét chưa chắc là nơi duy nhất, nên kết quả là `ambiguous` kèm ứng viên đó và `Truncated`.
+docs/tui-plan.md:1300:- Đúng **một** vị trí khớp và khối đủ đặc trưng (từ 20 ký tự không trắng) → `moved` (kèm `Relocation{FromPath, ToPath, From, To}`). Từ hai vị trí trở lên, khối quá ngắn như `}`, hoặc tìm bị cắt (`Truncated`) dù chỉ một nơi khớp → `ambiguous` kèm ứng viên, **không** chuyển. `ambiguous` phát sinh từ vùng vượt quá tệp giữ `FileLines` (số dòng hiện có của tệp); `moved` đặt `FileLines = 0`.
+docs/tui-plan.md:1302:  mục bên thứ ba) không tự thành verified; `RequireHuman` vẫn chặn từ phiên agent. Sau khi áp, `VerifyReport.Results` của mục là **kết quả kiểm lại sau khi áp** (không còn finding `moved`/`✗`), `Relocated`/`Moved` ghi vị trí nào đã đổi; nên `verify --apply` thoát 0 khi chỉ còn việc đã áp, và hộp kết quả của TUI không gợi ý phím cập nhật vị trí. **Đổi nghĩa có chủ ý**: mục `verified` có bằng chứng chuyển tệp trước đây thành `stale` khi `--apply`, nay được dời và giữ `verified` (giống `relocated`).
+docs/tui-plan.md:1320:- `internal/knowledge/moved_test.go`: `TestMovedOneLineWithCommit` (ca thật: khối 1 dòng cùng thụt lề từ `internal/cli/eval.go` sang `internal/app/eval_run.go`, `origin.commit` và `evidence.commit`), `TestMovedOneLineWithoutCommit` (kể cả commit không tồn tại), `TestMovedFileDeleted`,
+docs/tui-plan.md:1330:- Khớp bằng băm 16 hex của fingerprint; nội dung gốc không có sẵn nên không so được từng dòng. Khối ngắn dùng ngưỡng 20 ký tự không trắng; khối lặp lại ở nhiều tệp là `ambiguous`.

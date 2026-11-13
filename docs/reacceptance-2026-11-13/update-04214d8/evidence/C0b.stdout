@@ -1,0 +1,68 @@
+{"Time":"2026-11-13T12:34:25.545735475+07:00","Action":"start","Package":"bint/internal/eval"}
+{"Time":"2026-11-13T12:34:25.550910821+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexEvalCitationApproval"}
+{"Time":"2026-11-13T12:34:25.550931133+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexEvalCitationApproval","Output":"=== RUN   TestCodexEvalCitationApproval\n"}
+{"Time":"2026-11-13T12:34:25.551302722+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexEvalCitationApproval","Output":"--- PASS: TestCodexEvalCitationApproval (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.551331801+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexEvalCitationApproval","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.551351379+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP"}
+{"Time":"2026-11-13T12:34:25.551365097+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP","Output":"=== RUN   TestCodexExclusiveMCP\n"}
+{"Time":"2026-11-13T12:34:25.551380791+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/không_có_tệp"}
+{"Time":"2026-11-13T12:34:25.551393203+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/không_có_tệp","Output":"=== RUN   TestCodexExclusiveMCP/không_có_tệp\n"}
+{"Time":"2026-11-13T12:34:25.551914215+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/không_có_tệp","Output":"--- PASS: TestCodexExclusiveMCP/không_có_tệp (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.551926241+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/không_có_tệp","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.551930986+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/có_tệp_nhưng_không_có_mcp_servers"}
+{"Time":"2026-11-13T12:34:25.551933804+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/có_tệp_nhưng_không_có_mcp_servers","Output":"=== RUN   TestCodexExclusiveMCP/có_tệp_nhưng_không_có_mcp_servers\n"}
+{"Time":"2026-11-13T12:34:25.552396818+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/có_tệp_nhưng_không_có_mcp_servers","Output":"--- PASS: TestCodexExclusiveMCP/có_tệp_nhưng_không_có_mcp_servers (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.552406921+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/có_tệp_nhưng_không_có_mcp_servers","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.552411995+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/tên_có_dấu_gạch_là_khoá_trần"}
+{"Time":"2026-11-13T12:34:25.552414686+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/tên_có_dấu_gạch_là_khoá_trần","Output":"=== RUN   TestCodexExclusiveMCP/tên_có_dấu_gạch_là_khoá_trần\n"}
+{"Time":"2026-11-13T12:34:25.552658178+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/tên_có_dấu_gạch_là_khoá_trần","Output":"--- PASS: TestCodexExclusiveMCP/tên_có_dấu_gạch_là_khoá_trần (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.552671075+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/tên_có_dấu_gạch_là_khoá_trần","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.552674744+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/tên_có_dấu_chấm_là_khoá_trích_dẫn_TOML"}
+{"Time":"2026-11-13T12:34:25.552677272+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/tên_có_dấu_chấm_là_khoá_trích_dẫn_TOML","Output":"=== RUN   TestCodexExclusiveMCP/tên_có_dấu_chấm_là_khoá_trích_dẫn_TOML\n"}
+{"Time":"2026-11-13T12:34:25.552991113+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/tên_có_dấu_chấm_là_khoá_trích_dẫn_TOML","Output":"--- PASS: TestCodexExclusiveMCP/tên_có_dấu_chấm_là_khoá_trích_dẫn_TOML (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.553000212+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/tên_có_dấu_chấm_là_khoá_trích_dẫn_TOML","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.553004135+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/nhiều_tên_trích_dẫn_gộp_một_bảng,_khoá_trần_đứng_sau"}
+{"Time":"2026-11-13T12:34:25.553007123+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/nhiều_tên_trích_dẫn_gộp_một_bảng,_khoá_trần_đứng_sau","Output":"=== RUN   TestCodexExclusiveMCP/nhiều_tên_trích_dẫn_gộp_một_bảng,_khoá_trần_đứng_sau\n"}
+{"Time":"2026-11-13T12:34:25.553281406+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/nhiều_tên_trích_dẫn_gộp_một_bảng,_khoá_trần_đứng_sau","Output":"--- PASS: TestCodexExclusiveMCP/nhiều_tên_trích_dẫn_gộp_một_bảng,_khoá_trần_đứng_sau (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.553286375+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/nhiều_tên_trích_dẫn_gộp_một_bảng,_khoá_trần_đứng_sau","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.553289302+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/trùng_ở_hai_tệp_chỉ_một_lần"}
+{"Time":"2026-11-13T12:34:25.553291657+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/trùng_ở_hai_tệp_chỉ_một_lần","Output":"=== RUN   TestCodexExclusiveMCP/trùng_ở_hai_tệp_chỉ_một_lần\n"}
+{"Time":"2026-11-13T12:34:25.553677246+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/trùng_ở_hai_tệp_chỉ_một_lần","Output":"--- PASS: TestCodexExclusiveMCP/trùng_ở_hai_tệp_chỉ_một_lần (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.553685622+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/trùng_ở_hai_tệp_chỉ_một_lần","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.553694421+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/server_chỉ_có_ở_dự_án_chưa_tin_cậy_không_bị_tắt_(Codex_bỏ_qua_tệp_đó;_tắt_tên_không_tồn_tại_làm_Codex_lỗi)"}
+{"Time":"2026-11-13T12:34:25.55369754+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/server_chỉ_có_ở_dự_án_chưa_tin_cậy_không_bị_tắt_(Codex_bỏ_qua_tệp_đó;_tắt_tên_không_tồn_tại_làm_Codex_lỗi)","Output":"=== RUN   TestCodexExclusiveMCP/server_chỉ_có_ở_dự_án_chưa_tin_cậy_không_bị_tắt_(Codex_bỏ_qua_tệp_đó;_tắt_tên_không_tồn_tại_làm_Codex_lỗi)\n"}
+{"Time":"2026-11-13T12:34:25.554066101+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/server_chỉ_có_ở_dự_án_chưa_tin_cậy_không_bị_tắt_(Codex_bỏ_qua_tệp_đó;_tắt_tên_không_tồn_tại_làm_Codex_lỗi)","Output":"--- PASS: TestCodexExclusiveMCP/server_chỉ_có_ở_dự_án_chưa_tin_cậy_không_bị_tắt_(Codex_bỏ_qua_tệp_đó;_tắt_tên_không_tồn_tại_làm_Codex_lỗi) (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.554075154+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/server_chỉ_có_ở_dự_án_chưa_tin_cậy_không_bị_tắt_(Codex_bỏ_qua_tệp_đó;_tắt_tên_không_tồn_tại_làm_Codex_lỗi)","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.554079135+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/bint_không_bị_tắt"}
+{"Time":"2026-11-13T12:34:25.554081633+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/bint_không_bị_tắt","Output":"=== RUN   TestCodexExclusiveMCP/bint_không_bị_tắt\n"}
+{"Time":"2026-11-13T12:34:25.554384653+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/bint_không_bị_tắt","Output":"--- PASS: TestCodexExclusiveMCP/bint_không_bị_tắt (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.554392777+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP/bint_không_bị_tắt","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.554476031+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP","Output":"--- PASS: TestCodexExclusiveMCP (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.554483656+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCP","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.554487363+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPEnvPrecedenceAndErrors"}
+{"Time":"2026-11-13T12:34:25.554489812+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPEnvPrecedenceAndErrors","Output":"=== RUN   TestCodexExclusiveMCPEnvPrecedenceAndErrors\n"}
+{"Time":"2026-11-13T12:34:25.555799741+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPEnvPrecedenceAndErrors","Output":"--- PASS: TestCodexExclusiveMCPEnvPrecedenceAndErrors (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.555807523+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPEnvPrecedenceAndErrors","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.55581107+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexEvalArgsUnchangedByUserMCP"}
+{"Time":"2026-11-13T12:34:25.555813986+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexEvalArgsUnchangedByUserMCP","Output":"=== RUN   TestCodexEvalArgsUnchangedByUserMCP\n"}
+{"Time":"2026-11-13T12:34:25.556473971+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexEvalArgsUnchangedByUserMCP","Output":"--- PASS: TestCodexEvalArgsUnchangedByUserMCP (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.556482045+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexEvalArgsUnchangedByUserMCP","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.556485578+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPWorktreeInheritsTrust"}
+{"Time":"2026-11-13T12:34:25.556489445+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPWorktreeInheritsTrust","Output":"=== RUN   TestCodexExclusiveMCPWorktreeInheritsTrust\n"}
+{"Time":"2026-11-13T12:34:25.58665956+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPWorktreeInheritsTrust","Output":"--- PASS: TestCodexExclusiveMCPWorktreeInheritsTrust (0.03s)\n"}
+{"Time":"2026-11-13T12:34:25.586683868+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPWorktreeInheritsTrust","Elapsed":0.03}
+{"Time":"2026-11-13T12:34:25.586729511+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPBrokenProjectTOML"}
+{"Time":"2026-11-13T12:34:25.586736946+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPBrokenProjectTOML","Output":"=== RUN   TestCodexExclusiveMCPBrokenProjectTOML\n"}
+{"Time":"2026-11-13T12:34:25.587375267+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPBrokenProjectTOML","Output":"--- PASS: TestCodexExclusiveMCPBrokenProjectTOML (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.587383321+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexExclusiveMCPBrokenProjectTOML","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.587387027+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestClaudeArgsForMCPTools"}
+{"Time":"2026-11-13T12:34:25.587390839+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestClaudeArgsForMCPTools","Output":"=== RUN   TestClaudeArgsForMCPTools\n"}
+{"Time":"2026-11-13T12:34:25.587397016+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestClaudeArgsForMCPTools","Output":"--- PASS: TestClaudeArgsForMCPTools (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.587399906+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestClaudeArgsForMCPTools","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.587402533+07:00","Action":"run","Package":"bint/internal/eval","Test":"TestCodexArgsForMCPTools"}
+{"Time":"2026-11-13T12:34:25.587406835+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexArgsForMCPTools","Output":"=== RUN   TestCodexArgsForMCPTools\n"}
+{"Time":"2026-11-13T12:34:25.587676553+07:00","Action":"output","Package":"bint/internal/eval","Test":"TestCodexArgsForMCPTools","Output":"--- PASS: TestCodexArgsForMCPTools (0.00s)\n"}
+{"Time":"2026-11-13T12:34:25.587683699+07:00","Action":"pass","Package":"bint/internal/eval","Test":"TestCodexArgsForMCPTools","Elapsed":0}
+{"Time":"2026-11-13T12:34:25.587692343+07:00","Action":"output","Package":"bint/internal/eval","Output":"PASS\n"}
+{"Time":"2026-11-13T12:34:25.588414331+07:00","Action":"output","Package":"bint/internal/eval","Output":"ok  \tbint/internal/eval\t0.042s\n"}
+{"Time":"2026-11-13T12:34:25.588424412+07:00","Action":"pass","Package":"bint/internal/eval","Elapsed":0.043}

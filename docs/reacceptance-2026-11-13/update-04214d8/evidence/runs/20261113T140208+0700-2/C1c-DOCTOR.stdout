@@ -1,0 +1,8 @@
+{"Time":"2026-11-13T14:02:19.324079743+07:00","Action":"start","Package":"bint/internal/app"}
+{"Time":"2026-11-13T14:02:19.330331125+07:00","Action":"run","Package":"bint/internal/app","Test":"TestDoctorMCP"}
+{"Time":"2026-11-13T14:02:19.330352286+07:00","Action":"output","Package":"bint/internal/app","Test":"TestDoctorMCP","Output":"=== RUN   TestDoctorMCP\n"}
+{"Time":"2026-11-13T14:02:19.517504181+07:00","Action":"output","Package":"bint/internal/app","Test":"TestDoctorMCP","Output":"--- PASS: TestDoctorMCP (0.19s)\n"}
+{"Time":"2026-11-13T14:02:19.517523586+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestDoctorMCP","Elapsed":0.19}
+{"Time":"2026-11-13T14:02:19.51752877+07:00","Action":"output","Package":"bint/internal/app","Output":"PASS\n"}
+{"Time":"2026-11-13T14:02:19.518513237+07:00","Action":"output","Package":"bint/internal/app","Output":"ok  \tbint/internal/app\t0.194s\n"}
+{"Time":"2026-11-13T14:02:19.518524081+07:00","Action":"pass","Package":"bint/internal/app","Elapsed":0.194}

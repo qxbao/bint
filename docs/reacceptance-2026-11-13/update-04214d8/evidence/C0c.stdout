@@ -1,0 +1,37 @@
+{"Time":"2026-11-13T12:34:26.389139941+07:00","Action":"start","Package":"bint/internal/harness"}
+{"Time":"2026-11-13T12:34:26.389239476+07:00","Action":"start","Package":"bint/internal/harness/antigravity"}
+{"Time":"2026-11-13T12:34:26.389252357+07:00","Action":"output","Package":"bint/internal/harness/antigravity","Output":"?   \tbint/internal/harness/antigravity\t[no test files]\n"}
+{"Time":"2026-11-13T12:34:26.389259224+07:00","Action":"skip","Package":"bint/internal/harness/antigravity","Elapsed":0}
+{"Time":"2026-11-13T12:34:26.389265679+07:00","Action":"start","Package":"bint/internal/harness/claude"}
+{"Time":"2026-11-13T12:34:26.389281335+07:00","Action":"start","Package":"bint/internal/harness/codex"}
+{"Time":"2026-11-13T12:34:26.389293655+07:00","Action":"start","Package":"bint/internal/harness/hookcore"}
+{"Time":"2026-11-13T12:34:26.393870532+07:00","Action":"run","Package":"bint/internal/harness/codex","Test":"TestMCPUpgradePreservesManualCitationPolicy"}
+{"Time":"2026-11-13T12:34:26.393918499+07:00","Action":"output","Package":"bint/internal/harness/codex","Test":"TestMCPUpgradePreservesManualCitationPolicy","Output":"=== RUN   TestMCPUpgradePreservesManualCitationPolicy\n"}
+{"Time":"2026-11-13T12:34:26.393994356+07:00","Action":"output","Package":"bint/internal/harness/claude","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-11-13T12:34:26.394416317+07:00","Action":"output","Package":"bint/internal/harness/claude","Output":"PASS\n"}
+{"Time":"2026-11-13T12:34:26.394838996+07:00","Action":"output","Package":"bint/internal/harness/claude","Output":"ok  \tbint/internal/harness/claude\t0.005s [no tests to run]\n"}
+{"Time":"2026-11-13T12:34:26.39490173+07:00","Action":"pass","Package":"bint/internal/harness/claude","Elapsed":0.006}
+{"Time":"2026-11-13T12:34:26.396207934+07:00","Action":"run","Package":"bint/internal/harness","Test":"TestCodexMCPBlock"}
+{"Time":"2026-11-13T12:34:26.396257143+07:00","Action":"output","Package":"bint/internal/harness","Test":"TestCodexMCPBlock","Output":"=== RUN   TestCodexMCPBlock\n"}
+{"Time":"2026-11-13T12:34:26.397294855+07:00","Action":"output","Package":"bint/internal/harness/hookcore","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-11-13T12:34:26.397339092+07:00","Action":"output","Package":"bint/internal/harness/hookcore","Output":"PASS\n"}
+{"Time":"2026-11-13T12:34:26.39743808+07:00","Action":"output","Package":"bint/internal/harness/hookcore","Output":"ok  \tbint/internal/harness/hookcore\t0.008s [no tests to run]\n"}
+{"Time":"2026-11-13T12:34:26.397457306+07:00","Action":"pass","Package":"bint/internal/harness/hookcore","Elapsed":0.008}
+{"Time":"2026-11-13T12:34:26.400613723+07:00","Action":"output","Package":"bint/internal/harness/codex","Test":"TestMCPUpgradePreservesManualCitationPolicy","Output":"--- PASS: TestMCPUpgradePreservesManualCitationPolicy (0.01s)\n"}
+{"Time":"2026-11-13T12:34:26.400698721+07:00","Action":"pass","Package":"bint/internal/harness/codex","Test":"TestMCPUpgradePreservesManualCitationPolicy","Elapsed":0.01}
+{"Time":"2026-11-13T12:34:26.400712588+07:00","Action":"run","Package":"bint/internal/harness/codex","Test":"TestInstalledMCPCanCiteWithApprovalNever"}
+{"Time":"2026-11-13T12:34:26.400718226+07:00","Action":"output","Package":"bint/internal/harness/codex","Test":"TestInstalledMCPCanCiteWithApprovalNever","Output":"=== RUN   TestInstalledMCPCanCiteWithApprovalNever\n"}
+{"Time":"2026-11-13T12:34:26.400883005+07:00","Action":"output","Package":"bint/internal/harness/codex","Test":"TestInstalledMCPCanCiteWithApprovalNever","Output":"--- PASS: TestInstalledMCPCanCiteWithApprovalNever (0.00s)\n"}
+{"Time":"2026-11-13T12:34:26.400893752+07:00","Action":"pass","Package":"bint/internal/harness/codex","Test":"TestInstalledMCPCanCiteWithApprovalNever","Elapsed":0}
+{"Time":"2026-11-13T12:34:26.400897083+07:00","Action":"output","Package":"bint/internal/harness/codex","Output":"PASS\n"}
+{"Time":"2026-11-13T12:34:26.401150865+07:00","Action":"output","Package":"bint/internal/harness/codex","Output":"ok  \tbint/internal/harness/codex\t0.012s\n"}
+{"Time":"2026-11-13T12:34:26.40116521+07:00","Action":"pass","Package":"bint/internal/harness/codex","Elapsed":0.012}
+{"Time":"2026-11-13T12:34:26.40652436+07:00","Action":"output","Package":"bint/internal/harness","Test":"TestCodexMCPBlock","Output":"--- PASS: TestCodexMCPBlock (0.01s)\n"}
+{"Time":"2026-11-13T12:34:26.40655053+07:00","Action":"pass","Package":"bint/internal/harness","Test":"TestCodexMCPBlock","Elapsed":0.01}
+{"Time":"2026-11-13T12:34:26.406556257+07:00","Action":"run","Package":"bint/internal/harness","Test":"TestClaudeWorkflowArgsWithMCPConfig"}
+{"Time":"2026-11-13T12:34:26.406559005+07:00","Action":"output","Package":"bint/internal/harness","Test":"TestClaudeWorkflowArgsWithMCPConfig","Output":"=== RUN   TestClaudeWorkflowArgsWithMCPConfig\n"}
+{"Time":"2026-11-13T12:34:26.406567163+07:00","Action":"output","Package":"bint/internal/harness","Test":"TestClaudeWorkflowArgsWithMCPConfig","Output":"--- PASS: TestClaudeWorkflowArgsWithMCPConfig (0.00s)\n"}
+{"Time":"2026-11-13T12:34:26.406575509+07:00","Action":"pass","Package":"bint/internal/harness","Test":"TestClaudeWorkflowArgsWithMCPConfig","Elapsed":0}
+{"Time":"2026-11-13T12:34:26.406586036+07:00","Action":"output","Package":"bint/internal/harness","Output":"PASS\n"}
+{"Time":"2026-11-13T12:34:26.407442507+07:00","Action":"output","Package":"bint/internal/harness","Output":"ok  \tbint/internal/harness\t0.018s\n"}
+{"Time":"2026-11-13T12:34:26.407469264+07:00","Action":"pass","Package":"bint/internal/harness","Elapsed":0.018}

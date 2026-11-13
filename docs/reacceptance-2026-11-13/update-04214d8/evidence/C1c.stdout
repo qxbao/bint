@@ -1,0 +1,69 @@
+{"Time":"2026-11-13T12:34:34.306991328+07:00","Action":"start","Package":"bint/internal/app"}
+{"Time":"2026-11-13T12:34:34.313259148+07:00","Action":"run","Package":"bint/internal/app","Test":"TestPathHookMCPAndStats"}
+{"Time":"2026-11-13T12:34:34.313282384+07:00","Action":"output","Package":"bint/internal/app","Test":"TestPathHookMCPAndStats","Output":"=== RUN   TestPathHookMCPAndStats\n"}
+{"Time":"2026-11-13T12:34:34.564108542+07:00","Action":"output","Package":"bint/internal/app","Test":"TestPathHookMCPAndStats","Output":"--- PASS: TestPathHookMCPAndStats (0.25s)\n"}
+{"Time":"2026-11-13T12:34:34.564130181+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestPathHookMCPAndStats","Elapsed":0.25}
+{"Time":"2026-11-13T12:34:34.564138502+07:00","Action":"run","Package":"bint/internal/app","Test":"TestInitAddsMCPPermissionRule"}
+{"Time":"2026-11-13T12:34:34.564140923+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitAddsMCPPermissionRule","Output":"=== RUN   TestInitAddsMCPPermissionRule\n"}
+{"Time":"2026-11-13T12:34:34.739915092+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitAddsMCPPermissionRule","Output":"--- PASS: TestInitAddsMCPPermissionRule (0.18s)\n"}
+{"Time":"2026-11-13T12:34:34.739935746+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestInitAddsMCPPermissionRule","Elapsed":0.18}
+{"Time":"2026-11-13T12:34:34.739941811+07:00","Action":"run","Package":"bint/internal/app","Test":"TestInitUpdateAddsMCPPermissionRule"}
+{"Time":"2026-11-13T12:34:34.739944668+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitUpdateAddsMCPPermissionRule","Output":"=== RUN   TestInitUpdateAddsMCPPermissionRule\n"}
+{"Time":"2026-11-13T12:34:34.878392721+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitUpdateAddsMCPPermissionRule","Output":"--- PASS: TestInitUpdateAddsMCPPermissionRule (0.14s)\n"}
+{"Time":"2026-11-13T12:34:34.878427355+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestInitUpdateAddsMCPPermissionRule","Elapsed":0.14}
+{"Time":"2026-11-13T12:34:34.878434472+07:00","Action":"run","Package":"bint/internal/app","Test":"TestInitMCPUserAntigravity"}
+{"Time":"2026-11-13T12:34:34.878437699+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitMCPUserAntigravity","Output":"=== RUN   TestInitMCPUserAntigravity\n"}
+{"Time":"2026-11-13T12:34:35.02792894+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitMCPUserAntigravity","Output":"--- PASS: TestInitMCPUserAntigravity (0.15s)\n"}
+{"Time":"2026-11-13T12:34:35.027963973+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestInitMCPUserAntigravity","Elapsed":0.15}
+{"Time":"2026-11-13T12:34:35.027973112+07:00","Action":"run","Package":"bint/internal/app","Test":"TestInitPermissionRuleFollowsInstalledHookScopeAndNoMCPRemoves"}
+{"Time":"2026-11-13T12:34:35.027985065+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitPermissionRuleFollowsInstalledHookScopeAndNoMCPRemoves","Output":"=== RUN   TestInitPermissionRuleFollowsInstalledHookScopeAndNoMCPRemoves\n"}
+{"Time":"2026-11-13T12:34:35.214616076+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitPermissionRuleFollowsInstalledHookScopeAndNoMCPRemoves","Output":"--- PASS: TestInitPermissionRuleFollowsInstalledHookScopeAndNoMCPRemoves (0.19s)\n"}
+{"Time":"2026-11-13T12:34:35.214640097+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestInitPermissionRuleFollowsInstalledHookScopeAndNoMCPRemoves","Elapsed":0.19}
+{"Time":"2026-11-13T12:34:35.214649901+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPGatewayLogNoDaemonNoFile"}
+{"Time":"2026-11-13T12:34:35.214652809+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogNoDaemonNoFile","Output":"=== RUN   TestMCPGatewayLogNoDaemonNoFile\n"}
+{"Time":"2026-11-13T12:34:35.215339427+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogNoDaemonNoFile","Output":"--- PASS: TestMCPGatewayLogNoDaemonNoFile (0.00s)\n"}
+{"Time":"2026-11-13T12:34:35.21535184+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPGatewayLogNoDaemonNoFile","Elapsed":0}
+{"Time":"2026-11-13T12:34:35.215355845+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPGatewayLogFiltersAndLimits"}
+{"Time":"2026-11-13T12:34:35.215358211+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogFiltersAndLimits","Output":"=== RUN   TestMCPGatewayLogFiltersAndLimits\n"}
+{"Time":"2026-11-13T12:34:35.215930021+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogFiltersAndLimits","Output":"--- PASS: TestMCPGatewayLogFiltersAndLimits (0.00s)\n"}
+{"Time":"2026-11-13T12:34:35.215937375+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPGatewayLogFiltersAndLimits","Elapsed":0}
+{"Time":"2026-11-13T12:34:35.215942934+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPGatewayLogReadsOnlyTail"}
+{"Time":"2026-11-13T12:34:35.215945467+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogReadsOnlyTail","Output":"=== RUN   TestMCPGatewayLogReadsOnlyTail\n"}
+{"Time":"2026-11-13T12:34:35.561791784+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogReadsOnlyTail","Output":"--- PASS: TestMCPGatewayLogReadsOnlyTail (0.35s)\n"}
+{"Time":"2026-11-13T12:34:35.561820188+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPGatewayLogReadsOnlyTail","Elapsed":0.35}
+{"Time":"2026-11-13T12:34:35.561828338+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPGatewayLogValidate"}
+{"Time":"2026-11-13T12:34:35.561831599+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogValidate","Output":"=== RUN   TestMCPGatewayLogValidate\n"}
+{"Time":"2026-11-13T12:34:35.56183494+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogValidate","Output":"--- PASS: TestMCPGatewayLogValidate (0.00s)\n"}
+{"Time":"2026-11-13T12:34:35.561837538+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPGatewayLogValidate","Elapsed":0}
+{"Time":"2026-11-13T12:34:35.561840487+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPGatewayLogWithDaemon"}
+{"Time":"2026-11-13T12:34:35.561843103+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogWithDaemon","Output":"=== RUN   TestMCPGatewayLogWithDaemon\n"}
+{"Time":"2026-11-13T12:34:35.562246533+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogWithDaemon","Output":"    mcp_gateway_log_test.go:143: listen tcp 127.0.0.1:0: socket: operation not permitted\n"}
+{"Time":"2026-11-13T12:34:35.562512792+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogWithDaemon","Output":"--- FAIL: TestMCPGatewayLogWithDaemon (0.00s)\n"}
+{"Time":"2026-11-13T12:34:35.562523094+07:00","Action":"fail","Package":"bint/internal/app","Test":"TestMCPGatewayLogWithDaemon","Elapsed":0}
+{"Time":"2026-11-13T12:34:35.562528159+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404"}
+{"Time":"2026-11-13T12:34:35.562530713+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"=== RUN   TestMCPGatewayLogOldDaemon404\n"}
+{"Time":"2026-11-13T12:34:35.563000891+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"--- FAIL: TestMCPGatewayLogOldDaemon404 (0.00s)\n"}
+{"Time":"2026-11-13T12:34:35.565281427+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"panic: httptest: failed to listen on a port: listen tcp6 [::1]:0: socket: operation not permitted [recovered, repanicked]\n"}
+{"Time":"2026-11-13T12:34:35.565313054+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\n"}
+{"Time":"2026-11-13T12:34:35.565316384+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"goroutine 296 [running]:\n"}
+{"Time":"2026-11-13T12:34:35.565318856+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"testing.tRunner.func1.2({0xc933a0, 0xc00027a410})\n"}
+{"Time":"2026-11-13T12:34:35.565321545+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/testing/testing.go:1872 +0x237\n"}
+{"Time":"2026-11-13T12:34:35.565324264+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"testing.tRunner.func1()\n"}
+{"Time":"2026-11-13T12:34:35.565326683+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/testing/testing.go:1875 +0x35b\n"}
+{"Time":"2026-11-13T12:34:35.565329098+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"panic({0xc933a0?, 0xc00027a410?})\n"}
+{"Time":"2026-11-13T12:34:35.56533517+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/runtime/panic.go:783 +0x132\n"}
+{"Time":"2026-11-13T12:34:35.565337599+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"net/http/httptest.newLocalListener()\n"}
+{"Time":"2026-11-13T12:34:35.565339961+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/net/http/httptest/server.go:71 +0xda\n"}
+{"Time":"2026-11-13T12:34:35.565342465+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"net/http/httptest.NewUnstartedServer(...)\n"}
+{"Time":"2026-11-13T12:34:35.565344896+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/net/http/httptest/server.go:119\n"}
+{"Time":"2026-11-13T12:34:35.565347998+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"net/http/httptest.NewServer({0xee1860, 0xdd6ce8})\n"}
+{"Time":"2026-11-13T12:34:35.565350342+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/net/http/httptest/server.go:106 +0x25\n"}
+{"Time":"2026-11-13T12:34:35.565352764+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"bint/internal/app.TestMCPGatewayLogOldDaemon404(0xc000389a40)\n"}
+{"Time":"2026-11-13T12:34:35.56536886+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/orca/bint/internal/app/mcp_gateway_log_test.go:159 +0x4f\n"}
+{"Time":"2026-11-13T12:34:35.565372618+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"testing.tRunner(0xc000389a40, 0xdd66d0)\n"}
+{"Time":"2026-11-13T12:34:35.565381385+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/testing/testing.go:1934 +0xea\n"}
+{"Time":"2026-11-13T12:34:35.565397646+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"created by testing.(*T).Run in goroutine 1\n"}
+{"Time":"2026-11-13T12:34:35.565400423+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Output":"\t/home/DUCLH/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.1.linux-amd64/src/testing/testing.go:1997 +0x465\n"}
+{"Time":"2026-11-13T12:34:35.566983288+07:00","Action":"fail","Package":"bint/internal/app","Test":"TestMCPGatewayLogOldDaemon404","Elapsed":0}
+{"Time":"2026-11-13T12:34:35.566995015+07:00","Action":"output","Package":"bint/internal/app","Output":"FAIL\tbint/internal/app\t1.260s\n"}
+{"Time":"2026-11-13T12:34:35.567002477+07:00","Action":"fail","Package":"bint/internal/app","Elapsed":1.26}

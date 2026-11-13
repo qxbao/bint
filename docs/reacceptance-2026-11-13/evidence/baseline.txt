@@ -1,0 +1,12 @@
+2026-11-13T10:12:16+07:00
+2026-11-13T03:12:16+00:00
+HEAD d788669b8f9754c21a94fb8324a65731b2edcc38
+TREE 74735317002625692ca9f6a51d74f53073af88d6
+INDEX fatal: Unable to create '/home/DUCLH/orca/bint/.git/index.lock': Read-only file system
+STATUS
+?? docs/reacceptance-2026-11-13/evidence/baseline.txt
+DIFF
+CACHED_DIFF
+At initial baseline capture, `git status --short` was clean. Bint task base tree is `1a15e30d85994cad8085e524422cc2bdae1792e4`; its `.bint/config.yml` has reviewer/evolver `gpt-6.1-sol`, while committed HEAD and current worktree have `gpt-6-astra`. Attribution and time of change were unknown at capture. Current worktree diff for `.bint/config.yml` and `local.yml` is empty. See the post-capture addendum below and the unchanged `task-diff-config.txt`; this audit did not edit either config file.
+
+Post-capture attribution addendum (recorded after the baseline capture): The user confirmed «Đúng, thay đổi của tôi; giữ lại» for the reviewer/evolver model changes. The hunk remains in the original task diff as a user-owned concurrent change, separate from audit-authored documentation; it is not an agent scope violation and does not make AC-3 unsatisfied. This addendum does not change the captured task diff, original timestamp, config, local config, Git index/skip-worktree metadata, task snapshot/state, or original evidence logs. No resnapshot is needed. See DEF-017 and `baseline-caveats.txt`.

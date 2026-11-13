@@ -1,0 +1,6 @@
+started=2026-11-13T10:16:27+07:00
+ended=2026-11-13T10:19:52+07:00
+exit_code=1
+cwd=/home/DUCLH/orca/bint
+command=go test -race -count=1 -json -timeout 20m ./...
+CGO_ENABLED=1

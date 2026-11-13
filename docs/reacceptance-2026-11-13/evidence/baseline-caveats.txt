@@ -1,0 +1,11 @@
+Baseline time: 2026-11-13T10:12:16+07:00 (Asia/Ho_Chi_Minh)
+HEAD: d788669b8f9754c21a94fb8324a65731b2edcc38
+HEAD tree: 74735317002625692ca9f6a51d74f53073af88d6
+The initial `git status --porcelain=v1 --untracked-files=all` was empty, before this report directory was created.
+`git write-tree` was attempted to capture the index tree, but failed with `fatal: Unable to create '.git/index.lock': Read-only file system`; it did not write the index. Direct index-tree hash is therefore unavailable. The index file SHA-256 is `c23e91a95263dfb8816bf8597317f9f7ffc0d564bc6bb772e78c75fcfd8e4ded` (see `index-hash.txt`); `git diff --cached --binary` was empty.
+The report files created after the baseline are expected untracked changes. No source files were changed by this audit.
+Tools: Go go1.25.1 linux/amd64; Git 2.43.0; Bint 0.1.0-dev; Codex CLI 0.167.2. `bint version` is not a valid command (exit 1); `bint --version` succeeded. The staticcheck probe/install was rerun with exact timestamps in `staticcheck.meta`; no binary was available and network lookup was blocked.
+Workspace free disk at baseline: 114545240 KiB on the filesystem containing both repository and /tmp.
+Effective roles/models from the Bint run/task plan snapshot: planner Codex/gpt-6-astra; implementer Codex/gpt-6-luna; reviewer Codex/gpt-6.1-sol. Evolver/reflector were not invoked and are not claimed as effective task roles. The checked-in `.bint/config.yml` still names Claude defaults; it was read only and not changed. No Claude process was invoked.
+
+Post-capture attribution addendum (2026-11-13): The user confirmed «Đúng, thay đổi của tôi; giữ lại» for `.bint/config.yml` reviewer/evolver changes from `gpt-6.1-sol` to `gpt-6-astra`. The task diff still contains the hunk documented in `task-diff-config.txt`; it is user-owned and separate from audit-authored reports, not an agent scope violation or AC-3 failure. This later confirmation does not alter the original baseline capture, config, local config, index/skip-worktree metadata, task snapshot/state, or original evidence logs. No resnapshot is needed.

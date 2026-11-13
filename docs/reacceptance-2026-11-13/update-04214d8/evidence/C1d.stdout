@@ -1,0 +1,43 @@
+{"Time":"2026-11-13T12:34:36.349811963+07:00","Action":"start","Package":"bint/internal/cli"}
+{"Time":"2026-11-13T12:34:37.329854403+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPManageEndToEnd"}
+{"Time":"2026-11-13T12:34:37.329870348+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPManageEndToEnd","Output":"=== RUN   TestMCPManageEndToEnd\n"}
+{"Time":"2026-11-13T12:34:37.969766972+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPManageEndToEnd","Output":"--- PASS: TestMCPManageEndToEnd (0.64s)\n"}
+{"Time":"2026-11-13T12:34:37.969790418+07:00","Action":"pass","Package":"bint/internal/cli","Test":"TestMCPManageEndToEnd","Elapsed":0.64}
+{"Time":"2026-11-13T12:34:37.96980049+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPManageAgentForbidden"}
+{"Time":"2026-11-13T12:34:37.969803491+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPManageAgentForbidden","Output":"=== RUN   TestMCPManageAgentForbidden\n"}
+{"Time":"2026-11-13T12:34:38.149998443+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPManageAgentForbidden","Output":"--- PASS: TestMCPManageAgentForbidden (0.18s)\n"}
+{"Time":"2026-11-13T12:34:38.150021085+07:00","Action":"pass","Package":"bint/internal/cli","Test":"TestMCPManageAgentForbidden","Elapsed":0.18}
+{"Time":"2026-11-13T12:34:38.150034657+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPGrantsWarnsReadOnlyRole"}
+{"Time":"2026-11-13T12:34:38.15003737+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGrantsWarnsReadOnlyRole","Output":"=== RUN   TestMCPGrantsWarnsReadOnlyRole\n"}
+{"Time":"2026-11-13T12:34:38.350547866+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGrantsWarnsReadOnlyRole","Output":"--- PASS: TestMCPGrantsWarnsReadOnlyRole (0.20s)\n"}
+{"Time":"2026-11-13T12:34:38.350574364+07:00","Action":"pass","Package":"bint/internal/cli","Test":"TestMCPGrantsWarnsReadOnlyRole","Elapsed":0.2}
+{"Time":"2026-11-13T12:34:38.350582433+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPServeGatewayOptOuts"}
+{"Time":"2026-11-13T12:34:38.350586001+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPServeGatewayOptOuts","Output":"=== RUN   TestMCPServeGatewayOptOuts\n"}
+{"Time":"2026-11-13T12:34:38.759736217+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPServeGatewayOptOuts","Output":"    mcp_e2e_test.go:264: đối chứng: shim phải khởi động daemon: stat /tmp/TestMCPServeGatewayOptOuts667567460/001/gateway/gateway.json: no such file or directory\n"}
+{"Time":"2026-11-13T12:34:38.801154322+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPServeGatewayOptOuts","Output":"--- FAIL: TestMCPServeGatewayOptOuts (0.45s)\n"}
+{"Time":"2026-11-13T12:34:38.801174209+07:00","Action":"fail","Package":"bint/internal/cli","Test":"TestMCPServeGatewayOptOuts","Elapsed":0.45}
+{"Time":"2026-11-13T12:34:38.801179396+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPServeOutsideBintWorkspace"}
+{"Time":"2026-11-13T12:34:38.801181879+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPServeOutsideBintWorkspace","Output":"=== RUN   TestMCPServeOutsideBintWorkspace\n"}
+{"Time":"2026-11-13T12:34:38.837348096+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPServeOutsideBintWorkspace","Output":"--- PASS: TestMCPServeOutsideBintWorkspace (0.04s)\n"}
+{"Time":"2026-11-13T12:34:38.837364936+07:00","Action":"pass","Package":"bint/internal/cli","Test":"TestMCPServeOutsideBintWorkspace","Elapsed":0.04}
+{"Time":"2026-11-13T12:34:38.83737012+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPGatewayEndToEnd"}
+{"Time":"2026-11-13T12:34:38.837372839+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGatewayEndToEnd","Output":"=== RUN   TestMCPGatewayEndToEnd\n"}
+{"Time":"2026-11-13T12:34:39.046473122+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGatewayEndToEnd","Output":"    mcp_gateway_e2e_test.go:52: start: 1\n"}
+{"Time":"2026-11-13T12:34:39.046503579+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGatewayEndToEnd","Output":"        lỗi: daemon thoát ngay sau khi khởi động; xem /tmp/TestMCPGatewayEndToEnd1994079042/001/gateway/gateway.log: lỗi: listen tcp 127.0.0.1:0: socket: operation not permitted\n"}
+{"Time":"2026-11-13T12:34:39.080252198+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGatewayEndToEnd","Output":"--- FAIL: TestMCPGatewayEndToEnd (0.24s)\n"}
+{"Time":"2026-11-13T12:34:39.080278168+07:00","Action":"fail","Package":"bint/internal/cli","Test":"TestMCPGatewayEndToEnd","Elapsed":0.24}
+{"Time":"2026-11-13T12:34:39.080286421+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPGatewayAgentForbidden"}
+{"Time":"2026-11-13T12:34:39.0802889+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGatewayAgentForbidden","Output":"=== RUN   TestMCPGatewayAgentForbidden\n"}
+{"Time":"2026-11-13T12:34:39.189394185+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGatewayAgentForbidden","Output":"--- PASS: TestMCPGatewayAgentForbidden (0.11s)\n"}
+{"Time":"2026-11-13T12:34:39.189413452+07:00","Action":"pass","Package":"bint/internal/cli","Test":"TestMCPGatewayAgentForbidden","Elapsed":0.11}
+{"Time":"2026-11-13T12:34:39.189418394+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPGatewayLog"}
+{"Time":"2026-11-13T12:34:39.189420918+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGatewayLog","Output":"=== RUN   TestMCPGatewayLog\n"}
+{"Time":"2026-11-13T12:34:39.398893283+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPGatewayLog","Output":"--- PASS: TestMCPGatewayLog (0.21s)\n"}
+{"Time":"2026-11-13T12:34:39.398931431+07:00","Action":"pass","Package":"bint/internal/cli","Test":"TestMCPGatewayLog","Elapsed":0.21}
+{"Time":"2026-11-13T12:34:39.39894998+07:00","Action":"run","Package":"bint/internal/cli","Test":"TestMCPToolsOutputByteIdentical"}
+{"Time":"2026-11-13T12:34:39.398962673+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPToolsOutputByteIdentical","Output":"=== RUN   TestMCPToolsOutputByteIdentical\n"}
+{"Time":"2026-11-13T12:34:39.432164491+07:00","Action":"output","Package":"bint/internal/cli","Test":"TestMCPToolsOutputByteIdentical","Output":"--- PASS: TestMCPToolsOutputByteIdentical (0.03s)\n"}
+{"Time":"2026-11-13T12:34:39.43219896+07:00","Action":"pass","Package":"bint/internal/cli","Test":"TestMCPToolsOutputByteIdentical","Elapsed":0.03}
+{"Time":"2026-11-13T12:34:39.432210881+07:00","Action":"output","Package":"bint/internal/cli","Output":"FAIL\n"}
+{"Time":"2026-11-13T12:34:39.436683748+07:00","Action":"output","Package":"bint/internal/cli","Output":"FAIL\tbint/internal/cli\t3.087s\n"}
+{"Time":"2026-11-13T12:34:39.436711425+07:00","Action":"fail","Package":"bint/internal/cli","Elapsed":3.087}

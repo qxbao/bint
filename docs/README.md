@@ -28,7 +28,7 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
 | [Quyết định fingerprint và outcome](fingerprint-outcome-decisions.md) | Quyết định về sai khác fingerprint đa ngôn ngữ và các tín hiệu kết quả trong đợt đo thực tế |
 | [Tiến hoá quy trình và bài học từ thất bại](p8-harness-evolution-plan.md) | Kế hoạch E (bài học từ thất bại) và Kế hoạch H (tiến hoá thành phần quy trình); mã E1–E5 và H1–H4 đã xong, phần đo chưa chạy |
 | [Kế hoạch thử nghiệm tiếp theo](p8-next-experiments.md) | Thiết kế thực nghiệm A (tri thức do người viết) và B (model mạnh rút bài học cho model yếu) |
-| [Kế hoạch TUI](tui-plan.md) | Thiết kế giao diện terminal tương tác (chưa triển khai) |
+| [Kế hoạch TUI](tui-plan.md) | Thiết kế và lịch sử triển khai giao diện terminal tương tác (các giai đoạn 0–6b đã có mã; xem trạng thái tái nghiệm thu bên dưới) |
 | [Kế hoạch gateway MCP](mcp-gateway-plan.md) | Gateway MCP dùng chung cho mọi harness, danh mục và quản lý MCP (API/CLI/TUI), cấp MCP theo role, cấp MCP cho các bước `bint run` (đã chốt hướng, chưa triển khai) |
 
 ## Nghiệm thu và thực nghiệm
@@ -39,3 +39,11 @@ Xem [mục lục thực nghiệm và nghiệm thu](evals/README.md) cho toàn b�
 
 Khối `bint:begin … bint:end` trong `AGENTS.md` và `CLAUDE.md` ở gốc repository do Bint sinh từ
 `.bint/knowledge/items/`; sửa mục nguồn rồi chạy `bint bootstrap publish`, không sửa tay khối đã sinh.
+
+## Tái nghiệm thu tại HEAD ngày 2026-11-13
+
+Xem [báo cáo tái nghiệm thu toàn dự án](reacceptance-2026-11-13/README.md) để biết trạng thái hiện tại
+của P0–P8, E/H, TUI, isolation, MCP gateway, gate và các đợt thử nghiệm. Báo cáo tách kiểm tra
+chức năng khỏi hiệu quả thực nghiệm; lỗi môi trường và yêu cầu Claude bị hoãn được ghi rõ, không tính là đạt.
+
+Phụ lục kiểm toán phần MCP/TUI mới tại baseline `04214d8`: [update-04214d8](reacceptance-2026-11-13/update-04214d8/README.md). Kết luận lịch sử phía trên được giữ nguyên.

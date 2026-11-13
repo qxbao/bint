@@ -1,0 +1,2 @@
+c23e91a95263dfb8816bf8597317f9f7ffc0d564bc6bb772e78c75fcfd8e4ded  .git/index
+926af1d1fc4888334b104f8f5d4fd7b4bd6cc1e758b4688af995fa92897a37eb  docs/reacceptance-2026-11-13/evidence/staticcheck.meta

@@ -1,7 +1,9 @@
 # Trạng thái triển khai và giới hạn hiện tại
 
-Tổng hợp trạng thái mã nguồn tại HEAD `e9ce282` cùng các thay đổi đang được nghiệm thu; số liệu
-thực nghiệm lịch sử giữ nguyên theo thời điểm chạy. Ma trận đối chiếu Codex mới nhất nằm ở
+Tài liệu này là tổng hợp tại snapshot lịch sử HEAD `e9ce282`; số liệu
+thực nghiệm lịch sử giữ nguyên theo thời điểm chạy. Tái nghiệm thu mới tại HEAD
+`d788669b8f9754c21a94fb8324a65731b2edcc38` nằm trong
+[báo cáo ngày 2026-11-13](reacceptance-2026-11-13/README.md). Ma trận đối chiếu Codex được lưu ở
 [báo cáo 2026-11-12](evals/codex-flow-acceptance-2026-11-12/README.md). Các đợt trước lưu tại
 [docs/evals/README.md](evals/README.md); yêu cầu thiết kế xem ở
 [đặc tả thiết kế](bint-plan.md).
@@ -16,8 +18,8 @@ thực nghiệm lịch sử giữ nguyên theo thời điểm chạy. Ma trận 
 | **P3 — Context Engine** | Chỉ mục FTS5 dẫn xuất, truy xuất theo tác vụ/đường dẫn, MCP server stdio (6 công cụ), hook chèn ngữ cảnh, tín hiệu kết quả và chẩn đoán cổng 2 | Fingerprint ngoài Go dùng heuristic; chưa có truy xuất ngữ nghĩa hay hook `post-merge` |
 | **P4 — Workflow** | `b-req`/`b-feat`/`b-review`/`b-do`, hợp đồng artifact v1 (`task lint`, AC↔TSK, câu hỏi mở `Q-N`), độ sâu `standard`/`deep`, lớp phủ skill; harness/model lưu theo role để resume | Classify dùng heuristic; task cũ chưa có snapshot dùng cấu hình tại thời điểm resume |
 | **P5 — Multi-Harness** | Adapter cấp 3 cho Claude Code, Codex CLI và Antigravity CLI; chọn harness và mô hình theo từng role; khoá ghi `flock`/`LockFileEx`; hậu kiểm bước chỉ đọc | Codex và Antigravity không báo chi phí USD / không có cờ giới hạn lượt; Antigravity chưa có MCP cấp dự án và chưa chèn ngữ cảnh qua hook |
-| **P6/P7 — Tiến hoá L1/L2** | Quét cơ hội, đề xuất bất biến, đối chiếu hồi cứu/tiến cứu bằng Probe tuần tự (dừng sớm O'Brien–Fleming), áp dụng/quay lui, kiểm tra hồi quy khi đổi mô hình, chế độ `deferred` | Còn 5 phát hiện nghiệm thu `P6-01..P6-05` bên dưới; chưa có đề xuất L1/L2 chứng minh cải thiện có ý nghĩa thống kê trên tập `test` độc lập |
-| **P8 — Cycle, bài học (E) và thành phần quy trình (H)** | Vòng `bint evolve cycle` có ngân sách, `bint experience digest`/`show`, cơ hội `failure_lesson`, reflector Claude (`--tools ""`) và adapter Codex cô lập có probe no-tools/reader, kiểm tra rò rỉ bài học và ngân sách token riêng. Kế hoạch H1–H4: `.bint/harness` (guidance, guardrail, script, `strategy.yml`), `bint harness component`/`render`, guardrail thực thi qua hook (kể cả `Stop`), biến thể `bint@harness=…`, bảng `eval_guardrail_usage`, đề xuất `target_type: harness` ([hướng dẫn](harness-components.md)) | Mã và kiểm thử xác định của E và H1–H4 đã xong; chưa chạy thực nghiệm đo E6, H5 hoặc chu kỳ evolution đầy đủ; reflector factory đã smoke bằng model thật. [TUI](tui-plan.md) vẫn là đề xuất |
+| **P6/P7 — Tiến hoá L1/L2** | Quét cơ hội, đề xuất bất biến, đối chiếu hồi cứu/tiến cứu bằng Probe tuần tự (dừng sớm O'Brien–Fleming), áp dụng/quay lui, kiểm tra hồi quy khi đổi mô hình, chế độ `deferred` | Snapshot này từng ghi 5 phát hiện `P6-01..P6-05`; báo cáo hiện tại xác nhận một số rủi ro nguồn còn mở tại HEAD, chưa có bằng chứng mới về cải thiện trên tập độc lập |
+| **P8 — Cycle, bài học (E) và thành phần quy trình (H)** | Vòng `bint evolve cycle` có ngân sách, `bint experience digest`/`show`, cơ hội `failure_lesson`, reflector Claude (`--tools ""`) và adapter Codex cô lập có probe no-tools/reader, kiểm tra rò rỉ bài học và ngân sách token riêng. Kế hoạch H1–H4: `.bint/harness` (guidance, guardrail, script, `strategy.yml`), `bint harness component`/`render`, guardrail thực thi qua hook (kể cả `Stop`), biến thể `bint@harness=…`, bảng `eval_guardrail_usage`, đề xuất `target_type: harness` ([hướng dẫn](harness-components.md)) | Mã và kiểm thử xác định của E và H1–H4 đã xong; chưa chạy thực nghiệm đo E6, H5 hoặc chu kỳ evolution đầy đủ; xem trạng thái TUI trong [tái nghiệm thu 2026-11-13](reacceptance-2026-11-13/README.md) |
 
 ## Kết quả thực nghiệm theo giai đoạn
 

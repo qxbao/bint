@@ -1,0 +1,8 @@
+{"Time":"2026-11-13T14:02:21.473085296+07:00","Action":"start","Package":"bint/internal/app"}
+{"Time":"2026-11-13T14:02:21.479116703+07:00","Action":"run","Package":"bint/internal/app","Test":"TestInitAddsMCPPermissionRule"}
+{"Time":"2026-11-13T14:02:21.479143436+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitAddsMCPPermissionRule","Output":"=== RUN   TestInitAddsMCPPermissionRule\n"}
+{"Time":"2026-11-13T14:02:21.643340693+07:00","Action":"output","Package":"bint/internal/app","Test":"TestInitAddsMCPPermissionRule","Output":"--- PASS: TestInitAddsMCPPermissionRule (0.16s)\n"}
+{"Time":"2026-11-13T14:02:21.643382633+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestInitAddsMCPPermissionRule","Elapsed":0.16}
+{"Time":"2026-11-13T14:02:21.643392896+07:00","Action":"output","Package":"bint/internal/app","Output":"PASS\n"}
+{"Time":"2026-11-13T14:02:21.644726316+07:00","Action":"output","Package":"bint/internal/app","Output":"ok  \tbint/internal/app\t0.171s\n"}
+{"Time":"2026-11-13T14:02:21.644741588+07:00","Action":"pass","Package":"bint/internal/app","Elapsed":0.172}

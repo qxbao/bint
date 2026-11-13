@@ -1,0 +1,8 @@
+{"Time":"2026-11-13T14:08:55.680886857+07:00","Action":"start","Package":"bint/internal/app"}
+{"Time":"2026-11-13T14:08:55.69389651+07:00","Action":"run","Package":"bint/internal/app","Test":"TestMCPIndex"}
+{"Time":"2026-11-13T14:08:55.693924867+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPIndex","Output":"=== RUN   TestMCPIndex\n"}
+{"Time":"2026-11-13T14:08:55.975065778+07:00","Action":"output","Package":"bint/internal/app","Test":"TestMCPIndex","Output":"--- PASS: TestMCPIndex (0.28s)\n"}
+{"Time":"2026-11-13T14:08:55.975136517+07:00","Action":"pass","Package":"bint/internal/app","Test":"TestMCPIndex","Elapsed":0.28}
+{"Time":"2026-11-13T14:08:55.975203756+07:00","Action":"output","Package":"bint/internal/app","Output":"PASS\n"}
+{"Time":"2026-11-13T14:08:55.979083964+07:00","Action":"output","Package":"bint/internal/app","Output":"ok  \tbint/internal/app\t0.298s\n"}
+{"Time":"2026-11-13T14:08:55.979114581+07:00","Action":"pass","Package":"bint/internal/app","Elapsed":0.298}
