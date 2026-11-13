@@ -154,6 +154,44 @@ bint evolve cycle --budget 20         # đề xuất → đối chiếu validati
 Trong phiên của harness có hỗ trợ skill, gọi trực tiếp `/b-bootstrap`, `/b-knowledge`, `/b-req`,
 `/b-feat`, `/b-review`, `/b-do`. Toàn bộ lệnh, mã thoát và phím tắt: [docs/usage.md](docs/usage.md).
 
+## Giao diện terminal (TUI)
+
+Xem và duyệt tri thức, tác vụ, lượt chạy, đánh giá, tiến hoá và cấu hình ngay trong terminal thay cho việc
+gõ lệnh. Thiết kế chi tiết: [docs/tui-plan.md](docs/tui-plan.md); hướng dẫn dùng:
+[docs/usage.md](docs/usage.md#giao-diện-terminal-tui).
+
+```sh
+bint                  # không đối số: mở TUI nếu có terminal tương tác, ngược lại in trợ giúp
+bint tui              # mở tường minh (lỗi nếu stdin/stdout không phải terminal)
+bint tui --lang en    # ngôn ngữ giao diện: vi | en
+bint tui --read-only  # chỉ xem: ẩn mọi hành động ghi
+```
+
+Khi stdin/stdout không phải terminal (đường ống, CI) hoặc đang chạy trong phiên agent, `bint` in trợ giúp
+thay vì mở TUI. Gõ `bint tui` trong phiên agent vẫn mở được, nhưng thao tác chỉ dành cho người (duyệt, áp
+dụng, loại bỏ) bị khoá kèm lý do.
+
+**Tám tab**: Tổng quan, Tri thức, Tác vụ, Lượt chạy, Đánh giá, Tiến hoá, Hệ thống, MCP. Repository chưa
+`bint init` thì TUI mở trình hướng dẫn khởi tạo.
+
+**Phím toàn cục**
+
+| Phím | Việc |
+|---|---|
+| `1`-`8` | chuyển thẳng tới tab (`1` Tổng quan … `7` Hệ thống, `8` MCP) |
+| `[` `]` | tab trước / sau |
+| `:` hoặc `Ctrl+K` | bảng lệnh: tìm mờ trên mọi hành động của mọi màn |
+| `?` | trợ giúp theo ngữ cảnh |
+| `!` | hộp Thông báo: nguyên văn thông báo hiện tại và 50 thông báo gần nhất |
+| `L` | đổi ngôn ngữ trong phiên (vi ⇄ en) |
+| `r` | làm mới ở Tổng quan (các màn khác: `Ctrl+R`) |
+| `q` | thoát (còn việc nền thì hỏi trước) |
+
+**Chuột** bật mặc định (bấm tab, thẻ phụ, hàng danh sách, phím ở chân phím); mọi thứ vẫn dùng được chỉ
+bằng bàn phím. **Chế độ chỉ đọc** (`--read-only`) ẩn và từ chối mọi hành động ghi; đây là chế độ xem an
+toàn tiện dụng, không phải ranh giới bảo mật. Đặt `NO_COLOR` để chuyển sang đơn sắc. **Ngôn ngữ** theo thứ
+tự: `--lang` > `BINT_LANG` > `ui.language` trong cấu hình > `LC_ALL`/`LANG` > tiếng Việt.
+
 ## Trạng thái dự án
 
 > [!WARNING]
