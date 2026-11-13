@@ -14,10 +14,10 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/eval"
+	"bint/internal/fslock"
 	"bint/internal/knowledge"
 	"bint/internal/skills"
 	"bint/internal/store"
-	"bint/internal/task"
 	"bint/internal/ulid"
 )
 
@@ -25,44 +25,70 @@ import (
 var ErrLocked = errors.New("một thao tác tiến hoá khác đang chạy trên repository này")
 
 // Lock là khoá tiến hoá của repository (dùng chung mọi worktree).
-type Lock struct{ path string }
+type Lock struct {
+	f *os.File // tệp đang giữ khoá hệ điều hành; nil sau Release
+}
 
-// AcquireLock lấy khoá trong <runtime>/locks/evolve.lock. Khoá của tiến trình đã chết
-// được coi là bỏ lại.
+// AcquireLock lấy khoá độc quyền trong <runtime>/locks/evolve.lock, không chờ.
+//
+// Tính loại trừ do khoá của hệ điều hành (flock trên Unix, LockFileEx trên Windows) bảo đảm,
+// theo mẫu workflow.AcquireLock: khoá gắn với tệp đang mở nên tiến trình chết thì hệ điều hành
+// tự nhả; không có bước thu hồi dựa trên PID chết, và tệp khoá không bao giờ bị xoá (xoá theo
+// tên có thể gỡ nhầm khoá của chủ mới). Nội dung tệp (PID, giờ, owner) chỉ để báo "đang bận
+// vì ai", không dùng để quyết định ai giữ khoá.
 func AcquireLock(runtimeDir, owner string) (*Lock, error) {
 	dir := filepath.Join(runtimeDir, "locks")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
 	p := filepath.Join(dir, "evolve.lock")
-	for attempt := 0; attempt < 2; attempt++ {
-		f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err == nil {
-			fmt.Fprintf(f, "%d\n%s\n%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339), owner)
-			f.Close()
-			return &Lock{path: p}, nil
-		}
-		if !errors.Is(err, os.ErrExist) {
-			return nil, err
-		}
-		b, _ := os.ReadFile(p)
-		lines := strings.Split(string(b), "\n")
-		if pid, _ := strconv.Atoi(strings.TrimSpace(lines[0])); pid > 0 && task.ProcessAlive(pid) {
-			who := ""
-			if len(lines) > 2 {
-				who = lines[2]
-			}
-			return nil, fmt.Errorf("%w (tiến trình %d: %s)", ErrLocked, pid, who)
-		}
-		os.Remove(p)
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
 	}
-	return nil, ErrLocked
+	busy, err := fslock.Try(f, true)
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	if busy {
+		f.Close()
+		return nil, fmt.Errorf("%w%s", ErrLocked, describeHolder(p))
+	}
+	// Chỉ để thông báo: lỗi ghi không ảnh hưởng khoá.
+	info := fmt.Sprintf("%d\n%s\n%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339), owner)
+	if f.Truncate(0) == nil {
+		f.WriteAt([]byte(info), 0)
+	}
+	return &Lock{f: f}, nil
 }
 
-// Release trả khoá.
+// describeHolder đọc thông tin chủ khoá từ tệp khoá (chỉ để báo lỗi); rỗng nếu không đọc được.
+func describeHolder(p string) string {
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(b), "\n")
+	pid, _ := strconv.Atoi(strings.TrimSpace(lines[0]))
+	if pid <= 0 {
+		return ""
+	}
+	who := ""
+	if len(lines) > 2 {
+		who = lines[2]
+	}
+	return fmt.Sprintf(" (tiến trình %d: %s)", pid, who)
+}
+
+// Release trả khoá (đóng tệp ⇒ hệ điều hành nhả); tệp khoá được giữ lại. Thông tin chủ khoá bị xoá
+// TRƯỚC khi nhả (còn giữ khoá nên không xoá nhầm thông tin của chủ mới), để thông báo "đang bận"
+// của lần sau không nêu một chủ cũ đã đi.
 func (l *Lock) Release() {
-	if l != nil {
-		os.Remove(l.path)
+	if l != nil && l.f != nil {
+		l.f.Truncate(0) // best-effort: chỉ là thông tin hiển thị
+		l.f.Close()
+		l.f = nil
 	}
 }
 
@@ -150,7 +176,7 @@ type ApplyResult struct {
 func relItemPath(id string) string { return knowledge.ItemsRel + "/" + id + ".md" }
 
 func readOpt(p string) (*string, error) {
-	b, err := os.ReadFile(p)
+	b, err := readFile(p)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -262,6 +288,7 @@ func Apply(ctx context.Context, o ApplyOptions) (ApplyResult, error) {
 			if err != nil {
 				return res, err
 			}
+			carryThirdParty(p, it, ch.ItemID, byID) // gộp: cờ bên thứ ba của mục bị gộp theo sang
 			r := (knowledge.Verifier{Src: src, All: all}).Verify(it)
 			if !r.OK() {
 				return res, fmt.Errorf("bản sửa của %s không qua kiểm tra xác định được: %s", it.ID, firstError(r))
@@ -474,6 +501,13 @@ type RollbackResult struct {
 	Files      []FileChange `json:"files"`
 }
 
+// readFile, writeFile và removeFile là điểm tiêm lỗi của kiểm thử cho các vòng đọc/khôi phục tệp.
+var (
+	readFile   = os.ReadFile
+	writeFile  = os.WriteFile
+	removeFile = os.Remove
+)
+
 // Rollback khôi phục các tệp tri thức về trạng thái trước lần áp dụng đề xuất.
 func Rollback(ctx context.Context, o RollbackOptions) (RollbackResult, error) {
 	var res RollbackResult
@@ -516,11 +550,16 @@ func Rollback(ctx context.Context, o RollbackOptions) (RollbackResult, error) {
 		return res, fmt.Errorf("đề xuất %s do %s áp dụng: chỉ người dùng được quay lui", p.ID, applied.Actor)
 	}
 	var conflicts []string
-	for _, f := range applied.Files {
+	// curs[i]: nội dung hiện tại của applied.Files[i], đọc MỘT lần ở đây và dùng lại làm "trước khi
+	// quay lui" cho vòng ghi. Không đọc lại (bỏ lỗi) ở vòng ghi: lỗi đọc sẽ thành "tệp không có" và
+	// bước bù trừ xoá nhầm tệp.
+	curs := make([]*string, len(applied.Files))
+	for i, f := range applied.Files {
 		cur, err := readOpt(filepath.Join(o.K.Root, filepath.FromSlash(f.Path)))
 		if err != nil {
 			return res, err
 		}
+		curs[i] = cur
 		if !sameOpt(cur, f.After) {
 			conflicts = append(conflicts, f.Path)
 		}
@@ -528,21 +567,47 @@ func Rollback(ctx context.Context, o RollbackOptions) (RollbackResult, error) {
 	if len(conflicts) > 0 && !o.Force {
 		return res, fmt.Errorf("tệp đã bị sửa sau khi áp dụng: %s; xem lại rồi dùng --force để ghi đè bằng bản trước khi áp dụng", strings.Join(conflicts, ", "))
 	}
-	for _, f := range applied.Files {
+	// undo đưa mọi tệp đã (hoặc đang) khôi phục về nội dung trước khi quay lui (= sau khi áp dụng),
+	// theo thứ tự ngược; lỗi bù trừ không che lỗi gốc mà được báo kèm. Đặt trước vòng ghi: lỗi
+	// giữa chừng (kể cả ở chính tệp đang ghi dở) không được để lại trạng thái một phần.
+	undo := func(what string, cause error) (RollbackResult, error) {
+		var failed []string
+		for i := len(res.Files) - 1; i >= 0; i-- {
+			f := res.Files[i]
+			abs := filepath.Join(o.K.Root, filepath.FromSlash(f.Path))
+			if f.Before == nil {
+				if err := removeFile(abs); err != nil && !errors.Is(err, os.ErrNotExist) {
+					failed = append(failed, f.Path+": "+err.Error())
+				}
+				continue
+			}
+			os.MkdirAll(filepath.Dir(abs), 0o755) // thư mục skill có thể đã bị dọn khi gỡ tệp
+			if err := writeFile(abs, []byte(*f.Before), 0o644); err != nil {
+				failed = append(failed, f.Path+": "+err.Error())
+			}
+		}
+		res.Files = nil
+		if len(failed) > 0 {
+			return res, fmt.Errorf("%s: %w (KHÔNG trả hết tệp về như trước khi quay lui, kiểm tra tay: %s)", what, cause, strings.Join(failed, "; "))
+		}
+		return res, fmt.Errorf("%s: %w (đã trả tệp về như trước khi quay lui)", what, cause)
+	}
+	for i, f := range applied.Files {
 		abs := filepath.Join(o.K.Root, filepath.FromSlash(f.Path))
-		cur, _ := readOpt(abs)
+		cur := curs[i]
+		// Ghi nhận trước khi thao tác: nếu thao tác lỗi giữa chừng, undo cũng khôi phục tệp này.
+		res.Files = append(res.Files, FileChange{Path: f.Path, Before: cur, After: f.Before})
 		if f.Before == nil {
-			if err := os.Remove(abs); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return res, err
+			if err := removeFile(abs); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return undo("quay lui "+f.Path, err)
 			}
 			pruneEvolvedDirs(o.K.Root, f.Path)
 		} else {
 			os.MkdirAll(filepath.Dir(abs), 0o755)
-			if err := os.WriteFile(abs, []byte(*f.Before), 0o644); err != nil {
-				return res, err
+			if err := writeFile(abs, []byte(*f.Before), 0o644); err != nil {
+				return undo("quay lui "+f.Path, err)
 			}
 		}
-		res.Files = append(res.Files, FileChange{Path: f.Path, Before: cur, After: f.Before})
 	}
 	who := app.GitIdentity(ctx, o.K.Root)
 	if o.Auto {
@@ -553,34 +618,22 @@ func Rollback(ctx context.Context, o RollbackOptions) (RollbackResult, error) {
 		reason = "người dùng quay lui"
 	}
 	res.AdoptionID = "ead_" + ulid.At(o.Now)
-	// Không ghi được bản kiểm toán → trả tệp về trạng thái trước khi quay lui.
-	undo := func(err error) (RollbackResult, error) {
-		for _, f := range res.Files {
-			abs := filepath.Join(o.K.Root, filepath.FromSlash(f.Path))
-			if f.Before == nil {
-				os.Remove(abs)
-			} else {
-				os.WriteFile(abs, []byte(*f.Before), 0o644)
-			}
-		}
-		return res, fmt.Errorf("ghi bản kiểm toán: %w (đã trả tệp về như trước khi quay lui)", err)
-	}
 	files, _ := json.Marshal(res.Files)
 	tx, err := o.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return undo(err)
+		return undo("ghi bản kiểm toán", err)
 	}
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `INSERT INTO evolution_adoptions (adoption_id, proposal_id, action, actor, verified,
 		files, reason, created_at) VALUES (?, ?, 'rollback', ?, 0, ?, ?, ?)`,
 		res.AdoptionID, p.ID, who, string(files), reason, store.FormatTime(o.Now)); err != nil {
-		return undo(err)
+		return undo("ghi bản kiểm toán", err)
 	}
 	if err := SetStatus(ctx, tx, p.ID, StatusRolledBack, reason, o.Now); err != nil {
-		return undo(err)
+		return undo("ghi bản kiểm toán", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return undo(err)
+		return undo("ghi bản kiểm toán", err)
 	}
 	p.Status = StatusRolledBack
 	return res, nil

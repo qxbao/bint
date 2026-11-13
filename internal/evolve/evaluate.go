@@ -78,6 +78,7 @@ func candidateSet(ctx context.Context, p *Proposal, items []*knowledge.Item, c *
 			if err != nil {
 				return nil, err
 			}
+			carryThirdParty(p, it, ch.ItemID, byID) // giống Apply
 			if it.Status == knowledge.StatusStale {
 				it.Status, it.VerifiedAt = knowledge.StatusVerified, knowledge.Now(now)
 			}

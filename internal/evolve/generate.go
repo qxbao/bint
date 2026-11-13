@@ -14,7 +14,6 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/eval"
-	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
 	"bint/internal/skills"
 	"bint/internal/store"
@@ -270,10 +269,28 @@ func deterministicProposal(in ProposeInput, o Opportunity, items []*knowledge.It
 		d.Scope.Domains = union(keep.Scope.Domains, drop.Scope.Domains)
 		d.Scope.Symbols = union(keep.Scope.Symbols, drop.Scope.Symbols)
 		d.Evidence = union(d.Evidence, draftFrom(drop).Evidence)
-		if !slices.Equal(d.Evidence, draftFrom(keep).Evidence) || !slices.Equal(d.Scope.Paths, keep.Scope.Paths) ||
+		// Phần body chỉ có ở mục bị gộp được nối vào mục giữ lại (P6-05); mục bị gộp bị deprecated nên
+		// nếu không nối, chi tiết đó biến khỏi tri thức đang dùng. Inputs của nó hợp vào Inputs của mục giữ
+		// lại (DraftItem hợp với Origin.Inputs của base, rồi tính lại ThirdParty).
+		d.Body = mergeBodies(keep.Body, drop.Body, drop.ID)
+		bodyChanged := strings.TrimSpace(d.Body) != strings.TrimSpace(keep.Body)
+		d.Inputs = drop.Origin.Inputs
+		inputsChanged := !slices.Equal(union(keep.Origin.Inputs, drop.Origin.Inputs), union(keep.Origin.Inputs, nil))
+		var notes []string
+		if bodyChanged {
+			notes = append(notes, fmt.Sprintf("nội dung chỉ có ở %s đã được nối vào cuối body của %s (khối \"Gộp từ %s\"): đọc lại để bỏ ý lặp và kiểm tra mâu thuẫn giữa hai bản trước khi áp dụng", drop.ID, keep.ID, drop.ID))
+			if n := len([]rune(strings.TrimSpace(d.Body))); n > knowledge.MaxBodyRunes {
+				notes = append(notes, fmt.Sprintf("body sau khi gộp dài %d ký tự (nên <= %d): rút gọn tay sau khi áp dụng", n, knowledge.MaxBodyRunes))
+			}
+		}
+		if bodyChanged || inputsChanged || !slices.Equal(d.Evidence, draftFrom(keep).Evidence) || !slices.Equal(d.Scope.Paths, keep.Scope.Paths) ||
 			!slices.Equal(d.Scope.Tags, keep.Scope.Tags) || !slices.Equal(d.Scope.Domains, keep.Scope.Domains) ||
 			!slices.Equal(d.Scope.Symbols, keep.Scope.Symbols) {
-			changes = append(changes, Change{Op: ActionUpdate, ItemID: keep.ID, Draft: d, Reason: "gộp phạm vi và bằng chứng của " + drop.ID})
+			reason := "gộp phạm vi và bằng chứng của " + drop.ID
+			if bodyChanged {
+				reason = "gộp phạm vi, bằng chứng và phần nội dung chỉ có ở " + drop.ID
+			}
+			changes = append(changes, Change{Op: ActionUpdate, ItemID: keep.ID, Draft: d, Reason: reason})
 		}
 		changes = append(changes, Change{Op: ActionDeprecate, ItemID: drop.ID, Reason: "trùng với " + keep.ID + ", đã gộp"})
 		p, err := newProposal(in, o, ActionMerge, []*knowledge.Item{keep, drop}, changes, items)
@@ -281,6 +298,7 @@ func deterministicProposal(in ProposeInput, o Opportunity, items []*knowledge.It
 			return nil, err
 		}
 		p.ExpectedBenefit = "bớt một mục trùng trong ngữ cảnh; giữ " + keep.ID
+		p.Notes = append(p.Notes, notes...)
 		return p, nil
 	}
 	return nil, fmt.Errorf("không dựng được đề xuất xác định cho loại %s", o.Kind)
@@ -338,6 +356,9 @@ func DraftItem(d *Draft, id string, base *knowledge.Item, src knowledge.Source, 
 		}
 	} else {
 		it = *base
+		// Origin.Inputs của base hợp với Inputs mới của bản nháp (bỏ trùng, giữ thứ tự; union sao chép
+		// nên không đụng slice của base): ThirdParty bên dưới tính trên tập đã hợp nhất (P6-04).
+		it.Origin.Inputs = union(base.Origin.Inputs, d.Inputs)
 		it.Evidence = nil
 		it.Version = base.Version + 1
 		it.UpdatedAt = knowledge.Now(now)
@@ -444,16 +465,16 @@ func agentProposal(ctx context.Context, in ProposeInput, o Opportunity, items []
 		r := remaining
 		ca.MaxCostUSD = &r
 	}
-	before, _ := gitrepo.Run(ctx, in.K.Root, "status", "--porcelain", "--untracked-files=all")
 	timeout := in.Timeout
 	if timeout <= 0 {
 		timeout = 15 * time.Minute
 	}
-	res := in.Agent.Run(ctx, eval.AgentRequest{Dir: in.K.Root, Prompt: prompt, Timeout: timeout, ReadOnly: true,
-		LogPath: filepath.Join(logDir, ulid.New()+".log"), Env: []string{"BINT_AGENT=1"}})
-	after, _ := gitrepo.Run(ctx, in.K.Root, "status", "--porcelain", "--untracked-files=all")
-	if before != after {
-		return nil, nil, res.CostUSD, fmt.Errorf("agent evolver đã sửa cây làm việc (chỉ được đọc); bỏ kết quả — kiểm tra `git status`")
+	var res eval.AgentResult
+	if err := guardReadOnly(ctx, in.K.Root, func() {
+		res = in.Agent.Run(ctx, eval.AgentRequest{Dir: in.K.Root, Prompt: prompt, Timeout: timeout, ReadOnly: true,
+			LogPath: filepath.Join(logDir, ulid.New()+".log"), Env: []string{"BINT_AGENT=1"}})
+	}); err != nil {
+		return nil, nil, res.CostUSD, err
 	}
 	cands, ok := parseCandidates(res.Text)
 	if !ok {
