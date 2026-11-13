@@ -98,6 +98,18 @@ func TestTaskDiffCLI(t *testing.T) {
 		t.Fatalf("từ thư mục con: %d %q", code, out)
 	}
 
+	// NT-WF-BASELINE: tệp người khác đổi vào cây sau khi tác vụ chạy bị loại khỏi diff mặc định (ghi chú nêu tên);
+	// --all hiện lại.
+	os.WriteFile(filepath.Join(root, "other.txt"), []byte("của người khác\n"), 0o644)
+	if out, code := run(t, root, "", "task", "diff", id, "--name-only"); code != 0 || !strings.HasSuffix(out, "\napp.txt\ndone.txt\n") ||
+		!strings.HasPrefix(out, "! đã loại 1 tệp không thuộc tác vụ: other.txt") {
+		t.Fatalf("diff mặc định phải loại other.txt và ghi chú: %d %q", code, out)
+	}
+	if out, code := run(t, root, "", "task", "diff", id, "--name-only", "--all"); code != 0 || out != "app.txt\ndone.txt\nother.txt\n" {
+		t.Fatalf("--all: %d %q", code, out)
+	}
+	os.Remove(filepath.Join(root, "other.txt"))
+
 	// Phiếu cũ (không BaseTree/Touched): so base với cây hiện tại trên toàn cây, kèm ghi chú.
 	out, _ = run(t, root, "", "task", "show", id, "--json")
 	var shown struct{ Dir string }

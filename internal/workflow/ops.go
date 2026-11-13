@@ -592,7 +592,9 @@ func (e *Env) DoneInputDetailed(ctx context.Context, t *task.Task) (task.DoneInp
 		return in, nil
 	}
 	for _, f := range changed {
-		if !slices.Contains(t.State.Touched, f) {
+		if slices.Contains(t.State.Touched, f) {
+			in.TouchedSinceVerify = append(in.TouchedSinceVerify, f)
+		} else {
 			in.OutsideSinceVerify = append(in.OutsideSinceVerify, f)
 		}
 	}
@@ -675,6 +677,11 @@ type VerifyResult struct {
 // security.require_approval_for_commands (mặc định); nếu tắt, kết quả chỉ là tín
 // hiệu trung bình.
 func (e *Env) Verify(ctx context.Context, ref string) (*task.Task, VerifyResult, error) {
+	return e.VerifyWith(ctx, ref, "")
+}
+
+// VerifyWith như Verify, ghi thêm lý do chạy (Verification.Reason, payload task.verified) khi Bint tự kiểm chứng lại.
+func (e *Env) VerifyWith(ctx context.Context, ref, reason string) (*task.Task, VerifyResult, error) {
 	var res VerifyResult
 	t, err := e.Tasks.Load(ref)
 	if err != nil {
@@ -702,7 +709,7 @@ func (e *Env) Verify(ctx context.Context, ref string) (*task.Task, VerifyResult,
 		return t, res, ctx.Err()
 	}
 	v := task.Verification{At: e.at(), Command: cmd, Confirmed: confirmed, ExitCode: r.ExitCode, Passed: r.OK(),
-		TimedOut: r.TimedOut, Log: log, Worktree: task.WorktreeFingerprint(ctx, root), By: e.actor(), RunID: e.RunID}
+		TimedOut: r.TimedOut, Log: log, Worktree: task.WorktreeFingerprint(ctx, root), By: e.actor(), RunID: e.RunID, Reason: reason}
 	// Ảnh chụp sau lệnh kiểm chứng: để thông báo done liệt kê tệp đổi ngoài tác vụ. Lỗi thì để rỗng.
 	if t.State.TracksTouched() {
 		v.Tree, _ = WorktreeSnapshot(ctx, root)
@@ -715,8 +722,12 @@ func (e *Env) Verify(ctx context.Context, ref string) (*task.Task, VerifyResult,
 		return t, res, err
 	}
 	res.Verification = v
-	e.emit(t, spool.TaskVerified, map[string]any{"command": cmd, "passed": v.Passed, "confirmed": confirmed,
-		"exit_code": v.ExitCode, "timed_out": v.TimedOut})
+	payload := map[string]any{"command": cmd, "passed": v.Passed, "confirmed": confirmed,
+		"exit_code": v.ExitCode, "timed_out": v.TimedOut}
+	if reason != "" {
+		payload["reason"] = reason
+	}
+	e.emit(t, spool.TaskVerified, payload)
 	return t, res, nil
 }
 

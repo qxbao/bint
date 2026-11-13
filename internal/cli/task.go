@@ -850,16 +850,19 @@ func newTaskDiffCmd(stdio IO) *cobra.Command {
 		Long: `Cho biết tác vụ đã đổi gì: so ảnh chụp cây làm việc trước b-feat đầu tiên (gồm cả thay đổi chưa commit
 có sẵn lúc đó) với cây làm việc hiện tại, chỉ trên các tệp mà các lượt b-feat của tác vụ đã đổi (gồm tệp
 mới). Dùng thay cho git diff <base> khi review: git diff toàn cây lẫn thay đổi của tác vụ khác đang chạy
-trên cùng worktree.
+trên cùng worktree. Tệp khác đổi vào cùng cây (người hay tác vụ khác commit/sửa) bị loại khỏi diff; ghi chú
+ở stderr nêu số và tên các tệp đã loại, --all để xem lại toàn bộ.
 
 Phiếu lập trước khi Bint theo dõi tệp riêng của từng tác vụ thì so commit base với cây hiện tại trên toàn cây
 (có ghi chú ở stderr). Chạy ở thư mục làm việc của tác vụ (State.Worktree), không cần khoá, không ghi cây làm việc.
 
   --stat        thống kê số dòng đổi theo tệp
-  --name-only   chỉ liệt kê tên tệp`,
+  --name-only   chỉ liệt kê tên tệp
+  --all         gồm cả tệp không thuộc tác vụ (mặc định bị loại)`,
 		Example: `  bint task diff 01J…
   bint task diff 01J… --stat
-  bint task diff 01J… --name-only`,
+  bint task diff 01J… --name-only
+  bint task diff 01J… --all`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Ref = args[0]
@@ -883,6 +886,7 @@ Phiếu lập trước khi Bint theo dõi tệp riêng của từng tác vụ th
 	}
 	c.Flags().BoolVar(&o.Stat, "stat", false, "thống kê số dòng đổi theo tệp")
 	c.Flags().BoolVar(&o.NameOnly, "name-only", false, "chỉ liệt kê tên tệp")
+	c.Flags().BoolVar(&o.All, "all", false, "gồm cả tệp không thuộc tác vụ (mặc định bị loại)")
 	return c
 }
 
@@ -954,7 +958,7 @@ func printIsolationLines(w io.Writer, indent string, t *task.Task) {
 	fmt.Fprintf(w, "%sWorktree:    %s   nhánh %s\n%sCây gốc:     %s\n", indent, st.Worktree, orDash(st.Branch), indent, st.Origin)
 	switch l := st.Landed; {
 	case l == nil && st.AwaitingLand:
-		fmt.Fprintf(w, "%sĐưa về:      chưa (đã qua kiểm chứng, chờ đưa về: bint task land %s hoặc bint run resume %s)\n", indent, st.ID, st.ID)
+		fmt.Fprintf(w, "%sĐưa về:      chưa (đã qua kiểm chứng, chờ đưa về: bint task land %s hoặc %s)\n", indent, st.ID, st.ResumeCommand())
 	case l == nil:
 		fmt.Fprintf(w, "%sĐưa về:      chưa (bint task land %s)\n", indent, st.ID)
 	default:
