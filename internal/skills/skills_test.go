@@ -265,7 +265,9 @@ func TestCoreSkillBAddSkillContract(t *testing.T) {
 		}
 	}
 	for _, want := range []string{"bint skill new", "bint skill lint", "bint sync", "RED", "GREEN", "REFACTOR", "subagent",
-		"bint knowledge add", "bint skill overlay", "Không tự `git commit`", "bint knowledge approve", "bint task approve", "tests/"} {
+		"bint knowledge add", "bint skill overlay", "Không tự `git commit`", "bint knowledge approve", "bint task approve", "tests/",
+		"bint skill test <tên> --arm without", "bint skill test <tên>\n", "--yes", ".bint/skills/<tên>/tests/", "không được xuất bản",
+		"runtime/skill-tests/", "hỏi người dùng đồng ý chi phí", "expect:", "pressures:"} {
 		if !strings.Contains(s.Body(), want) {
 			t.Errorf("b-add-skill thiếu %q", want)
 		}

@@ -13,11 +13,31 @@ import (
 	"bint/internal/testutil"
 )
 
+// pathWithoutCodegraph bỏ khỏi PATH mọi thư mục có tệp thực thi codegraph (kể cả bản cài toàn cục của
+// máy chạy) và thêm một thư mục tạm trống ở đầu, để test không phụ thuộc máy; các thư mục khác (git...) giữ nguyên.
+func pathWithoutCodegraph(t *testing.T) {
+	t.Helper()
+	keep := []string{t.TempDir()}
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		found := false
+		for _, name := range []string{"codegraph", "codegraph.exe", "codegraph.cmd", "codegraph.bat"} {
+			if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+				found = true
+				break
+			}
+		}
+		if !found {
+			keep = append(keep, dir)
+		}
+	}
+	t.Setenv("PATH", strings.Join(keep, string(os.PathListSeparator)))
+}
+
 // Quản lý MCP của M1 qua CLI thật: list --json, grants, add/remove/check/index (không cần service thật).
 func TestMCPManageEndToEnd(t *testing.T) {
 	testutil.Isolate(t)
 	asHuman(t)
-	t.Setenv("PATH", t.TempDir()+string(os.PathListSeparator)+os.Getenv("PATH"))
+	pathWithoutCodegraph(t)
 	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
 	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
 		t.Fatalf("init: %d\n%s", code, out)

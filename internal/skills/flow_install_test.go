@@ -287,6 +287,61 @@ func TestInstallFlowsCustomSkillTakesOverPublishedName(t *testing.T) {
 	}
 }
 
+// GĐ5 review .1: tên flow đã xuất bản bị một skill CHƯA xuất bản chiếm (tuỳ biến lỗi lint, tiến hoá không active) thì skill
+// điều phối cũ vẫn thuộc mục flows; xoá flow ở lần sync sau thì gỡ được, không thành tệp mồ côi.
+func TestInstallFlowsNameTakenByUnpublishedSkillKeepsEntryForRemoval(t *testing.T) {
+	cases := map[string]func(t *testing.T, root string){
+		"tuỳ biến lỗi lint": func(t *testing.T, root string) { writeCustom(t, root, "tdd", "SKILL.md", "hỏng\n") },
+		"tiến hoá không active": func(t *testing.T, root string) {
+			if err := newEvolved("tdd", goodDesc, "1. Gọi Reset.", "internal/core/**").Save(root); err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
+	for name, claim := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			writeFlow(t, root, "tdd", tddSrc)
+			opts := customOpts(t, root)
+			opts.Files = []string{"docs/x.md"} // không khớp internal/core/** nên skill tiến hoá không active
+			if _, err := Install(opts); err != nil {
+				t.Fatal(err)
+			}
+			if !exists(root, flowClaude) || !exists(root, flowAgents) {
+				t.Fatal("flow phải được xuất bản ở lần đầu")
+			}
+			claim(t, root)
+			outs, err := Install(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !hasConflict(outs, ".bint/flows/tdd.yml", "trùng một skill khác") {
+				t.Fatalf("phải báo xung đột: %+v", outs)
+			}
+			lock, _ := ReadLock(root)
+			if len(lock.Flows["tdd"].Published) != 2 {
+				t.Fatalf("tệp chưa ai nhận phải còn trong mục flows: %+v", lock.Flows)
+			}
+			if !exists(root, flowClaude) || !exists(root, flowAgents) {
+				t.Fatal("không được gỡ tệp khi flow còn")
+			}
+			// Xoá flow: lần sync sau gỡ skill điều phối cũ và mục lock.
+			if err := os.Remove(filepath.Join(root, ".bint/flows/tdd.yml")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Install(opts); err != nil {
+				t.Fatal(err)
+			}
+			if exists(root, flowClaude) || exists(root, flowAgents) {
+				t.Fatal("skill điều phối cũ thành tệp mồ côi")
+			}
+			if lock, _ := ReadLock(root); len(lock.Flows) != 0 {
+				t.Fatalf("lock.Flows phải rỗng: %+v", lock.Flows)
+			}
+		})
+	}
+}
+
 // Xoá flow X và tạo skill tuỳ biến X trong cùng một lần Install: bản tuỳ biến còn, không bị gỡ nhầm.
 func TestInstallFlowsDeletedFlowDoesNotRemoveNewCustomSkill(t *testing.T) {
 	root := t.TempDir()

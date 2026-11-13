@@ -254,8 +254,8 @@ func flowChecks(r *DoctorReport, root string, cfg config.Config) {
 		r.add("flow", LevelWarn, "không đọc được %s: %v", flow.Rel, err)
 		return
 	}
-	known := map[string]bool{} // tên workflow gốc, flow tuỳ biến và id bước của chúng
-	usedRoles := map[string]bool{}
+	known := map[string]bool{}                                 // tên workflow gốc, flow tuỳ biến và id bước của chúng
+	usedRoles := map[string]bool{config.RoleSkillTester: true} // role của `bint skill test`, không thuộc bước flow nào
 	for _, d := range flow.Builtin() {
 		known[d.Name] = true
 		for _, s := range d.Steps {

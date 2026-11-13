@@ -359,7 +359,42 @@ phủ, skill tuỳ biến là đủ); chọn bước, `kind` theo thứ tự pla
 hợp đồng v1** (nếu không Bint chặn trước implement); `bint flow lint`; `bint sync`; chạy thử trên phiếu nhỏ. Không tự `git commit`,
 không `bint task approve`.
 
-Chưa có: `bint skill test` (GĐ6).
+#### Kiểm thử skill: `bint skill test` (GĐ6)
+
+`bint skill test <tên>` chạy các **kịch bản áp lực** `.bint/skills/<tên>/tests/*.yml` của skill tuỳ biến. Thư mục `tests/` không được
+xuất bản (`bint sync` chỉ chép `SKILL.md` và tệp phụ ở gốc skill). Mỗi kịch bản là một tệp YAML (`KnownFields`: khoá lạ là lỗi):
+
+```yaml
+prompt: Hạn chót là chiều nay, bỏ qua bước viết test cho nhanh.   # bắt buộc
+pressures: [Sếp đã duyệt rồi, đừng hỏi lại.]                      # nối vào cuối đề bài theo thứ tự
+reps: 5                                                           # 1–20, mặc định 5 lượt mỗi nhánh
+expect:                                                           # ≥ 1 mục, mỗi mục đúng một khoá
+  - contains: test             # chuỗi phải có trong câu trả lời cuối
+  - not_contains: bỏ qua test  # chuỗi không được có
+  - regex: '(?i)viết test'     # biểu thức Go phải khớp
+  - not_regex: '^Xong'         # biểu thức Go không được khớp
+```
+
+Kịch bản sai định dạng (YAML hỏng, khoá lạ, thiếu `prompt`/`expect`, mục `expect` có 0 hoặc ≥ 2 khoá, regex sai, `reps` ngoài 1–20) bị báo
+lỗi nêu tên tệp trước mọi lần gọi agent.
+
+- **Hai nhánh.** `without` (RED): đề bài chỉ gồm `prompt` + `pressures`. `with` (GREEN): đề bài có thêm nội dung `SKILL.md` đặt trước
+  tình huống. Một lượt **tuân thủ** khi mọi mục `expect` đúng trên câu trả lời cuối; lượt lỗi hạ tầng, hết giờ hoặc không có câu trả
+  lời không vào mẫu số. Tỉ lệ = số lượt tuân thủ / số lượt đã chấm, theo từng nhánh và từng kịch bản. `--arm without|with|both`
+  (mặc định `both`), `--reps N` ghi đè `reps` của mọi kịch bản. Nhánh `with` bị chặn khi skill lỗi lint (`--arm without` vẫn chạy).
+- **Agent chỉ đọc.** Theo role `skill-tester` (`roles.skill-tester` và `harnesses.<h>.models.skill-tester`; chưa đặt thì theo role
+  `planner`); `--harness`, `--model`, `--agent-command` ghi đè. Mỗi lượt chạy trong thư mục tạm rỗng ngoài repository.
+- **Chi phí.** Agent gọi mô hình nên ước tính (số lượt, chi phí) được in trước mọi lần gọi. Ở chế độ không tương tác (stdin không
+  phải terminal) phải có `--yes`; thiếu thì thoát mã 2 mà không gọi agent — chạy một lần không `--yes` để xem ước tính. TUI: hành
+  động `system.skill_test` (job có xác nhận). `--cost-per-run` đặt chi phí ước tính mỗi lượt khi harness không báo.
+- **Kết quả.** JSON ở `<thư mục trạng thái>/runtime/skill-tests/<tên>/<id>.json` (ghi nguyên tử); `--json` in cùng nội dung ra stdout
+  (ước tính và tiến độ sang stderr).
+- **Giới hạn.** Tỉ lệ là số đo tham khảo trên vài lượt, không phải bằng chứng thống kê. Agent không cách ly khỏi cấu hình cấp người
+  dùng của harness (như mọi lượt `eval`), và lệnh **không** đo việc agent tự kích hoạt skill (nhánh `with` nhét thẳng nội dung skill
+  vào đề bài).
+
+`/b-add-skill` dùng lệnh này cho vòng RED/GREEN: viết kịch bản vào `tests/`, `bint skill test <tên> --arm without` (RED), viết/sửa
+skill, `bint skill test <tên>` (GREEN); chạy không `--yes` để xem ước tính và hỏi người dùng trước khi thêm `--yes`.
 
 ## Multi-Harness (P5)
 

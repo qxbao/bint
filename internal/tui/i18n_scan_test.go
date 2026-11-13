@@ -208,7 +208,9 @@ func TestNoUnusedKeys(t *testing.T) {
 		"action.system.", "sy.tab.", "sy.cap.", "sy.level.", "sy.har.f.", "sy.comp.f.", "sy.skill.f.", "sy.skill.kind.", "sy.skill.pub.",
 		"sy.skill.tgt.", "sy.config.layer.", "sy.lang.f.", "sy.lang.opt.", "sy.doc.level.",
 		// Màn MCP (M4): hành động, tên thẻ phụ, trạng thái service, kết quả check và nhãn trường chi tiết (ghép từ giá trị dữ liệu).
-		"action.mcp.", "mc.tab.", "mc.state.", "mc.chk.", "mc.f."}
+		"action.mcp.", "mc.tab.", "mc.state.", "mc.chk.", "mc.f.",
+		// Kiểm thử skill (GĐ6): câu hỏi xác nhận (ghép từ app.ConfirmSkillTestKey), nhãn nhánh và trạng thái lượt ghép từ giá trị dữ liệu.
+		"prompt.skill.test.", "sy.skilltest.arm.", "sy.skilltest.status."}
 	for _, k := range vi.Keys() {
 		if k == "app.name" || strings.Contains(code, `"`+k+`"`) {
 			continue

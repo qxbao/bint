@@ -133,6 +133,7 @@ var cliRefs = []cliRef{
 	{path: "skill overlay", id: "system.skill_overlay", tab: "sy.tab.skills"},
 	{path: "skill new", id: "system.skill_new", tab: "sy.tab.skills"},
 	{path: "skill lint", id: "system.skill_lint", tab: "sy.tab.skills"},
+	{path: "skill test", id: "system.skill_test", tab: "sy.tab.skills"},
 	{path: "flow list", id: "system.flow_list", tab: "sy.tab.skills"},
 	{path: "flow show", id: "system.flow_show", tab: "sy.tab.skills"},
 	{path: "flow lint", id: "system.flow_lint", tab: "sy.tab.skills"},

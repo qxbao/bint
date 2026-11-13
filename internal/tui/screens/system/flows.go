@@ -10,6 +10,7 @@ import (
 	"bint/internal/app"
 	"bint/internal/app/evolvesvc"
 	"bint/internal/config"
+	"bint/internal/eval"
 	"bint/internal/fsafe"
 	"bint/internal/hcomp"
 	"bint/internal/i18n"
@@ -472,4 +473,48 @@ func (m *Model) flowLintLines(v any) []string {
 		}
 	}
 	return out
+}
+
+// skillTestLines dựng bảng tỉ lệ tuân thủ của một lần kiểm thử skill (res nil: không có kết quả); err khác nil kèm res là
+// kết quả một phần (huỷ giữa chừng).
+func (m *Model) skillTestLines(res *app.SkillTestResult, err error) []string {
+	if res == nil {
+		return nil
+	}
+	rep := res.Report
+	cell := func(arm string) string {
+		s, ok := rep.Totals[arm]
+		if !ok {
+			return "-"
+		}
+		rate := "-"
+		if s.Rate != nil {
+			rate = fmt.Sprintf("%.0f%%", 100**s.Rate)
+		}
+		c := fmt.Sprintf("%d/%d (%s)", s.Complied, s.Graded, rate)
+		if s.Errors > 0 {
+			c += " " + m.t("sy.skilltest.errors", i18n.A{"n": s.Errors})
+		}
+		return c
+	}
+	out := []string{m.t("sy.skilltest.head", i18n.A{"skill": rep.Skill, "harness": rep.Harness})}
+	for _, arm := range []string{eval.SkillArmWithout, eval.SkillArmWith} {
+		if _, ok := rep.Totals[arm]; ok {
+			out = append(out, "  "+m.t("sy.skilltest.arm."+arm)+": "+cell(arm))
+		}
+	}
+	for _, s := range rep.Scenarios {
+		rate := "-"
+		if s.Rate != nil {
+			rate = fmt.Sprintf("%.0f%%", 100**s.Rate)
+		}
+		out = append(out, fmt.Sprintf("    %s · %s: %d/%d (%s)", s.Scenario, m.t("sy.skilltest.arm."+s.Arm), s.Complied, s.Graded, rate))
+	}
+	if rep.CostUSD != nil {
+		out = append(out, m.t("sy.skilltest.cost", i18n.A{"cost": fmt.Sprintf("%.3f", *rep.CostUSD)}))
+	}
+	if rep.Status != eval.SkillTestCompleted || err != nil {
+		out = append(out, m.th.S(theme.Warn, m.t("sy.skilltest.partial", i18n.A{"status": rep.Status})))
+	}
+	return append(out, m.t("sy.skilltest.path", i18n.A{"path": res.Path}))
 }
