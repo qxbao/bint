@@ -94,6 +94,11 @@ Context Engine (FTS5) cùng MCP server cho agent.
 viết mã; tác vụ chạy trên cây chung hoặc worktree riêng, có phạm vi đường dẫn được sửa, tiêu chí chấp
 nhận và lệnh kiểm chứng.
 
+Dự án tự mở rộng quy trình: **skill tuỳ biến** (`.bint/skills/<tên>/`, tạo bằng `/b-add-skill` hoặc `bint skill new`) và
+**flow tuỳ biến** (`.bint/flows/<tên>.yml`: dãy bước plan → implement → review, mỗi bước chọn skill và role, tạo bằng
+`/b-add-flow`). `bint sync` xuất bản skill cho các harness và biến mỗi flow qua `bint flow lint` thành skill điều phối `/<tên>`
+chạy qua `bint run <tên> --task`, với cùng cổng kiểm soát của Bint.
+
 [![Tác vụ](docs/assets/screenshots/tasks.png)](docs/workflows.md)
 
 ➡️ [docs/workflows.md](docs/workflows.md)
@@ -152,7 +157,7 @@ bint evolve cycle --budget 20         # đề xuất → đối chiếu validati
 ```
 
 Trong phiên của harness có hỗ trợ skill, gọi trực tiếp `/b-bootstrap`, `/b-knowledge`, `/b-req`,
-`/b-feat`, `/b-review`, `/b-do`. Toàn bộ lệnh, mã thoát và phím tắt: [docs/usage.md](docs/usage.md).
+`/b-feat`, `/b-review`, `/b-do`, `/b-add-skill`, `/b-add-flow` (cùng `/<tên>` cho mỗi flow tuỳ biến). Toàn bộ lệnh, mã thoát và phím tắt: [docs/usage.md](docs/usage.md).
 
 ## Giao diện terminal (TUI)
 

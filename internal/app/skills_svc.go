@@ -514,6 +514,10 @@ func PlanSync(ctx context.Context, dir, version string, o SyncOptions) (SyncPlan
 	if err := copyTree(filepath.Join(k.Root, ".bint", "skills"), filepath.Join(root, ".bint", "skills"), true); err != nil {
 		return SyncPlan{}, err
 	}
+	// .bint/flows: flow tuỳ biến được xuất bản thành skill điều phối; symlink vẫn là lỗi của tệp như ở sync thật.
+	if err := copyTree(filepath.Join(k.Root, ".bint", "flows"), filepath.Join(root, ".bint", "flows"), true); err != nil {
+		return SyncPlan{}, err
+	}
 	for _, t := range targets {
 		if err := copyTree(filepath.Join(k.Root, filepath.FromSlash(t.Dir)), filepath.Join(root, filepath.FromSlash(t.Dir)), false); err != nil {
 			return SyncPlan{}, err
@@ -597,6 +601,12 @@ func copyTree(src, dst string, keepLinks bool) error {
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(target, data, 0o644)
+		// Giữ bit thực thi của tệp nguồn: Install đồng bộ bit này cho script phụ (chmod +x không đổi nội dung), nên bản
+		// xem trước phải thấy đúng cái Sync thật làm.
+		perm := os.FileMode(0o644)
+		if info, err := d.Info(); err == nil {
+			perm |= info.Mode().Perm() & 0o111
+		}
+		return os.WriteFile(target, data, perm)
 	})
 }

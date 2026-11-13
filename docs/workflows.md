@@ -56,7 +56,7 @@ bint skill show <tên> [--core]
 bint skill overlay <tên>
 bint skill new <tên>                            # skill tuỳ biến: tạo .bint/skills/<tên>/SKILL.md mẫu (không ghi đè)
 bint skill lint [tên]                           # kiểm hình thức skill tuỳ biến; thoát 1 khi có lỗi (--json)
-bint flow list|show|lint                        # flow nhúng và flow tuỳ biến (.bint/flows): xem, kiểm; CHƯA chạy được bằng bint run
+bint flow list|show|lint                        # flow nhúng và flow tuỳ biến (.bint/flows): xem, kiểm; chạy bằng bint run <flow> --task, bint sync xuất bản /<flow>
 bint sync                                       # ghép skill gốc + lớp phủ, xuất bản, cập nhật core.lock
 bint knowledge add --from-review <task-id>.<n>  # phát hiện review → mục warning/lesson
 ```
@@ -263,8 +263,8 @@ Khoá của bước: `id`, `kind`, `skill` (bắt buộc); `role` (rỗng → `p
 `fix` (chỉ bước review: id bước implement mà vòng sửa quay về). Khoá YAML lạ ở bất cứ đâu là lỗi.
 
 `bint flow lint [tên]` (thoát 1 khi có lỗi, `--json`) từ chối: `schema` khác 1; tên sai quy tắc (chữ thường, số, gạch ngang,
-3–40 ký tự), khác tên tệp, trùng workflow gốc, có tiền tố `b-` hoặc trùng tên một skill (flow sẽ được xuất bản thành skill cùng
-tên ở giai đoạn sau); không có bước; id rỗng, trùng hoặc trùng bước giả `post-feat`/`verify`; `kind` ngoài ba giá trị; kind giảm
+3–40 ký tự), khác tên tệp, trùng workflow gốc, có tiền tố `b-` hoặc trùng tên một skill (gốc, **mọi** thư mục skill tuỳ biến kể cả đang lỗi
+lint, hoặc skill tiến hoá, vì flow được xuất bản thành skill cùng tên; cùng luật ở `bint flow lint`, `bint run <flow>` và `bint sync`); không có bước; id rỗng, trùng hoặc trùng bước giả `post-feat`/`verify`; `kind` ngoài ba giá trị; kind giảm
 theo thứ tự plan → implement → review; hơn một bước plan; thiếu bước implement; `skill` rỗng hoặc không tồn tại (skill gốc hoặc
 skill tuỳ biến qua được `bint skill lint`; skill tiến hoá không tính); `optional` ở bước không phải plan; `verify: false` ở bước
 implement cuối (kiểm chứng phải chạy trước review và trước khi done); `fix` ở bước không phải review hoặc không trỏ tới bước
@@ -294,9 +294,11 @@ Runner theo **kind** của bước, không theo tên bước:
   của phiếu chạy sau bước implement có `verify` (mặc định `true`) và **luôn** trước bước review đầu tiên và trước khi done, kể
   cả khi bước implement cuối khai báo `verify: false` (luật nằm ở Runner, không chỉ ở lint). Lệnh vẫn chỉ chạy khi người đã xác
   nhận (`bint task approve`).
-- Review còn phát hiện nghiêm trọng (tối đa `workflow.max_review_rounds` vòng): quay về đúng bước `fix` của bước review (không
+- Review còn phát hiện nghiêm trọng (tối đa `workflow.max_review_rounds` vòng sửa): quay về đúng bước `fix` của bước review (không
   khai báo `fix` thì về bước implement cuối) rồi đi tiếp các bước sau nó tới review; sạch thì sang bước review kế tiếp hoặc
   finalize. `State.FlowStep` ghi bước đang chạy/kế tiếp nên resume và driver session đi tiếp đúng chỗ.
+  Flow một bước review đếm vòng theo số vòng của `review.json`; flow có **nhiều** bước review chỉ đếm các vòng có phát hiện nghiêm
+  trọng (mỗi lượt review sạch của mỗi bước không tiêu hao ngân sách vòng sửa).
 - Mọi flow tuỳ biến, kể cả flow chỉ có **một** bước implement, do Runner điều phối cả chuỗi: sau implement cuối chạy review (nếu
   có) rồi finalize (không dừng ở `in_review`), và chịu ngân sách chung `limits.workflows.<tên flow>` (tên flow khác id bước).
   Phiếu chuyển từ b-req sang flow tuỳ biến chưa có `FlowSHA` thì băm được ghi ở lần đầu flow nạp được.
@@ -327,7 +329,37 @@ sau bước (kể cả quyết định review) rồi dừng.
 Ví dụ nghiệm thu: `internal/cli/flow_run_e2e_test.go` chạy flow `tdd` ở trên bằng driver process và driver session với agent giả
 (thứ tự `plan, red, green, review, green, review` → done; không kiểm chứng sau `red`, một lần sau mỗi `green`).
 
-Chưa có: skill điều phối `/{flow}` và xuất bản flow (GĐ5), `bint skill test` (GĐ6).
+#### Xuất bản flow và `/b-add-flow` (GĐ5)
+
+`bint sync` xuất bản mỗi flow tuỳ biến **qua kiểm** (cùng luật với `bint flow lint`) thành một **skill điều phối** cùng tên, dựng từ
+mẫu nhúng trong tệp thực thi (không có tệp mẫu để sửa trong repository), để người dùng gọi `/<flow>` trong harness như `/b-do`:
+
+- Ở `.claude/skills/<flow>/SKILL.md` (frontmatter `name`, `description`, `disable-model-invocation: true`) và
+  `.agents/skills/<flow>/SKILL.md` (chỉ `name`, `description`). `description` ghép mô tả của flow với câu "Dùng khi người dùng chạy
+  /<flow>" (mã hoá YAML, tối đa 1024 ký tự).
+- Nội dung sinh theo định nghĩa flow: bảng bước (id, kind, skill, role, ghi chú optional/verify/fix); lập phiếu bằng
+  `bint task new "<yêu cầu>" --workflow <flow> … --json` (`--plan|--no-plan` chỉ khi bước plan `optional`, `--depth` chỉ khi flow có
+  bước plan); chạy `bint run <flow> --task <id> --json` (nền, tiến độ bằng `bint run status`); nhánh driver session
+  (`--driver session`, `bint run next/complete`); xử lý `blocked` (câu hỏi mở của bước plan, lệnh kiểm chứng chưa xác nhận, đường dẫn
+  bảo vệ, hết ngân sách `limits.workflows.<flow>`, hết vòng review, xung đột khi land, **flow đổi giữa chừng**); báo cáo như b-do.
+  Ranh giới tin cậy như b-do: không `bint task approve`, không `done --force`. Không có điểm neo lớp phủ (muốn đổi thì sửa flow).
+- `core.lock` ghi mục `flows` (băm bản định dạng Claude, biến thể `agents`, các đường dẫn đã xuất bản; lock cũ không có mục này vẫn
+  đọc được). Quy tắc an toàn như skill gốc: bản đã xuất bản bị sửa tay → xung đột, không ghi đè (`--force` ghi đè, có sao lưu).
+- Flow lỗi lint (hoặc tệp hỏng) → xung đột nêu lỗi: **không** xuất bản bản mới, **giữ** bản đã xuất bản và mục lock cũ.
+- Tệp flow bị xoá → skill điều phối đã xuất bản bị gỡ nếu chưa bị sửa tay; bị sửa tay → xung đột, giữ tệp và mục lock. Bản đã xuất
+  bản thuộc nguồn khác cùng tên (skill tuỳ biến hoặc tiến hoá vừa ghi đè) không bị gỡ nhầm.
+- Tên flow trùng skill gốc, thư mục skill tuỳ biến nào hoặc skill tiến hoá bị từ chối (xung đột ở sync, lỗi ở `bint flow lint` và khi
+  chạy). Tạo skill tuỳ biến/tiến hoá trùng tên một flow đã xuất bản thì skill thắng, flow thành lỗi lint.
+- Bản xem trước của `bint sync` (phím `s` ở TUI) liệt kê cả tệp của skill điều phối. Skill điều phối chưa hiện trong
+  `bint skill list`/`skill show`; danh sách flow xem bằng `bint flow list`.
+
+**`/b-add-flow`** (skill gốc, cùng khuôn `/b-add-skill`) hướng dẫn agent cùng người dùng tạo flow: có cần flow không (hay `/b-do`, lớp
+phủ, skill tuỳ biến là đủ); chọn bước, `kind` theo thứ tự plan → implement → review, `skill` (gốc hoặc tuỳ biến qua `/b-add-skill`),
+`role`, `optional`, `verify`, `fix`; skill thay bước plan **phải ghi `requirement.md`, `plan.md`, `tasks.md` bằng `bint task write` theo
+hợp đồng v1** (nếu không Bint chặn trước implement); `bint flow lint`; `bint sync`; chạy thử trên phiếu nhỏ. Không tự `git commit`,
+không `bint task approve`.
+
+Chưa có: `bint skill test` (GĐ6).
 
 ## Multi-Harness (P5)
 

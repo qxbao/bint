@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"bint/internal/flow"
 	"bint/internal/fsafe"
 )
 
@@ -271,5 +272,50 @@ func TestCoreSkillBAddSkillContract(t *testing.T) {
 	}
 	if n := strings.Count(s.Body(), "\n"); n > MaxBodyLines {
 		t.Fatalf("thân %d dòng", n)
+	}
+}
+
+func TestCoreSkillBAddFlowContract(t *testing.T) {
+	s, ok := Get("b-add-flow")
+	if !ok {
+		t.Fatal("thiếu skill gốc b-add-flow")
+	}
+	d, err := ParseDoc(s.Content)
+	if err != nil || d.Name != "b-add-flow" || !strings.HasPrefix(d.Description, "Dùng khi") {
+		t.Fatalf("frontmatter: %v %+v", err, d)
+	}
+	if len(d.Extra) != 1 || d.Extra[0] != "disable-model-invocation" || !strings.Contains(string(s.Content), "disable-model-invocation: true") {
+		t.Fatalf("phải có disable-model-invocation: true, khoá thừa: %v", d.Extra)
+	}
+	as, err := s.Anchors()
+	if err != nil || len(as) != 1 || as[0].Name != "project-rules" {
+		t.Fatalf("điểm neo: %v %+v", err, as)
+	}
+	// description chỉ nêu điều kiện kích hoạt, không tóm tắt cách làm.
+	for _, w := range []string{"bint flow", "bint sync", "lint"} {
+		if strings.Contains(d.Description, w) {
+			t.Fatalf("description không được tóm tắt cách làm (%q): %s", w, d.Description)
+		}
+	}
+	for _, want := range []string{"kind", "skill", "role", "optional", "verify", "fix", "plan → implement → review",
+		"bint task write", "hợp đồng v1", "bint task review", "bint flow lint", "bint flow list", "bint sync", "/b-add-skill",
+		"bint task new", "--workflow <tên>", "bint run <tên> --task", "phiếu nhỏ",
+		"Không tự `git commit`", "bint knowledge approve", "bint task approve", ".bint/flows/<tên>.yml"} {
+		if !strings.Contains(s.Body(), want) {
+			t.Errorf("b-add-flow thiếu %q", want)
+		}
+	}
+	if n := strings.Count(s.Body(), "\n"); n > MaxBodyLines {
+		t.Fatalf("thân %d dòng", n)
+	}
+	// Ví dụ flow trong skill phải qua kiểm của Bint (kể cả skill viet-kiem-thu-do giả định có).
+	i := strings.Index(s.Body(), "```yaml\n")
+	j := strings.Index(s.Body()[i+8:], "```")
+	def, err := flow.Decode([]byte(s.Body()[i+8 : i+8+j]))
+	if err != nil {
+		t.Fatalf("ví dụ flow: %v", err)
+	}
+	if errs := flow.Validate(def, "tdd", func(n string) bool { _, ok := Get(n); return ok || n == "viet-kiem-thu-do" }); len(errs) != 0 {
+		t.Fatalf("ví dụ flow không qua lint: %v", errs)
 	}
 }

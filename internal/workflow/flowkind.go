@@ -143,19 +143,7 @@ func (e *Env) configRoot() string {
 // FlowSkillExists cho biết skill có dùng được cho flow không: skill gốc, hoặc skill tuỳ biến qua kiểm hình thức không
 // lỗi (skill lỗi lint không được xuất bản nên flow không được dựa vào). Skill tiến hoá không tính. Dùng chung cho
 // `bint flow lint` và cho Runner, để lint và chạy cùng một luật.
-func FlowSkillExists(root string) func(string) bool {
-	return func(name string) bool {
-		if _, ok := skills.Get(name); ok {
-			return true
-		}
-		cs, err := skills.LoadCustomOne(root, name)
-		if err != nil {
-			return false
-		}
-		errs, _ := skills.CheckCustom(root, cs)
-		return len(errs) == 0
-	}
-}
+func FlowSkillExists(root string) func(string) bool { return skills.UsableInFlow(root) }
 
 // ErrUnknownWorkflow: tên không phải workflow gốc và không có flow tuỳ biến trùng tên.
 var ErrUnknownWorkflow = errors.New("workflow không hợp lệ")
@@ -175,7 +163,7 @@ func (e *Env) resolveFlow(name string) (flow.Def, error) {
 		}
 		return flow.Def{}, err
 	}
-	if errs := flow.Validate(d, name, FlowSkillExists(root)); len(errs) > 0 {
+	if errs := skills.ValidateFlow(root, d, name); len(errs) > 0 {
 		return flow.Def{}, fmt.Errorf("flow %q không hợp lệ (xem `bint flow lint %s`): %s", name, name, strings.Join(errs, "; "))
 	}
 	return flow.Normalize(d), nil

@@ -98,6 +98,10 @@ func installCustom(opts InstallOptions, lock *Lock) ([]Outcome, error) {
 		keep := entry
 		keep.Published, keep.Files = nil, map[string]string{}
 		for _, rel := range entry.Published {
+			if claimedByOther(lock, "custom", name, rel) {
+				// skill tiến hoá (hoặc flow) cùng tên vừa ghi đè tệp này ở lần Install này: gỡ sẽ xoá nhầm bản mới
+				continue
+			}
 			o, err := removeCustom(opts, name, rel, entry)
 			if err != nil {
 				return outs, err

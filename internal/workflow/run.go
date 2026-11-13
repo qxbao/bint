@@ -1358,7 +1358,8 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 		r.finalize(ctx, rs)
 		return false
 	}
-	if last.Round <= r.Cfg.Workflow.MaxReviewRounds {
+	used := r.reviewRoundsUsed(rs, last)
+	if used <= r.Cfg.Workflow.MaxReviewRounds {
 		fix := rv.Fix
 		if fix == "" {
 			fix = rs.lastImplement().ID
@@ -1371,8 +1372,29 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 		return true
 	}
 	r.block(rs, fmt.Sprintf("còn %d phát hiện nghiêm trọng sau %d vòng review (workflow.max_review_rounds = %d): cần người xem review.md",
-		len(blocking), last.Round, r.Cfg.Workflow.MaxReviewRounds))
+		len(blocking), used, r.Cfg.Workflow.MaxReviewRounds))
 	return false
+}
+
+// reviewRoundsUsed là số vòng review đã dùng để so với workflow.max_review_rounds. Flow có một bước review (b-do, flow
+// tuỳ biến thông thường): số vòng của review.json (last.Round). Flow có nhiều bước review: mỗi bước thêm một vòng vào
+// review.json dù sạch, nên last.Round đếm cả lượt review không đòi sửa và ngân sách bị chia theo số bước review; chỉ
+// đếm các vòng có phát hiện nghiêm trọng (mỗi vòng như vậy là một lần quay về sửa, kể cả vòng hiện tại).
+func (r *Runner) reviewRoundsUsed(rs *runState, last *task.ReviewRound) int {
+	if rs.countKind(flow.KindReview) <= 1 {
+		return last.Round
+	}
+	rev, err := rs.t.LoadReview()
+	if err != nil {
+		return last.Round
+	}
+	n := 0
+	for _, rd := range rev.Rounds {
+		if rd.Round <= last.Round && len(rd.Blocking()) > 0 {
+			n++
+		}
+	}
+	return max(n, 1) // vòng hiện tại có phát hiện nghiêm trọng (người gọi đã kiểm)
 }
 
 // setFlowStep ghi bước kế tiếp của flow vào phiếu (lỗi ghi không chặn: bước kế tiếp suy lại từ trạng thái).

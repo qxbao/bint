@@ -27,16 +27,18 @@ func TestCustomSkillEndToEnd(t *testing.T) {
 	if json.Unmarshal([]byte(out), &rows) != nil {
 		t.Fatalf("skill list --json: %s", out)
 	}
-	hasAdd := false
-	for _, r := range rows {
-		hasAdd = hasAdd || (r.Name == "b-add-skill" && r.Kind == "core")
-	}
-	if !hasAdd {
-		t.Fatalf("thiếu b-add-skill: %s", out)
-	}
-	for _, d := range []string{".claude/skills", ".agents/skills"} {
-		if _, err := os.Stat(filepath.Join(root, d, "b-add-skill", "SKILL.md")); err != nil {
-			t.Fatalf("b-add-skill chưa xuất bản ở %s: %v", d, err)
+	for _, name := range []string{"b-add-skill", "b-add-flow"} {
+		has := false
+		for _, r := range rows {
+			has = has || (r.Name == name && r.Kind == "core")
+		}
+		if !has {
+			t.Fatalf("thiếu %s: %s", name, out)
+		}
+		for _, d := range []string{".claude/skills", ".agents/skills"} {
+			if _, err := os.Stat(filepath.Join(root, d, name, "SKILL.md")); err != nil {
+				t.Fatalf("%s chưa xuất bản ở %s: %v", name, d, err)
+			}
 		}
 	}
 

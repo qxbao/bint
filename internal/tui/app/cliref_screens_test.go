@@ -278,7 +278,7 @@ func TestCLIRefOverviewAndSystemDoctor(t *testing.T) {
 		t.Fatalf("không tới được thẻ Doctor: %q", m.sy.SubTab())
 	}
 	var det strings.Builder
-	for i := 0; i < 16; i++ {
+	for i := 0; i < 24; i++ {
 		det.WriteString(flat(m.Render()) + "\n")
 		press(t, m, "j")
 	}

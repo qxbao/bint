@@ -96,6 +96,9 @@ type Lock struct {
 	Agents map[string]LockEntry `yaml:"agents,omitempty"`
 	// Custom: skill tuỳ biến của dự án (.bint/skills/<tên>/) đã được xuất bản (GĐ1 custom-flow-plan).
 	Custom map[string]LockEntry `yaml:"custom,omitempty"`
+	// Flows: skill điều phối của flow tuỳ biến (.bint/flows/<tên>.yml) đã được xuất bản (GĐ5 custom-flow-plan); SHA256 là
+	// băm bản định dạng Claude, Variants["agents"] là băm bản .agents/skills. Rỗng ở core.lock cũ.
+	Flows map[string]LockEntry `yaml:"flows,omitempty"`
 }
 
 // AgentFile là một định nghĩa subagent do Bint sinh (nội dung phụ thuộc cấu hình: model, maxTurns, công cụ).
@@ -315,6 +318,11 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 	}
 	co, err := installCustom(opts, &lock)
 	outs = append(outs, co...)
+	if err != nil {
+		return outs, err
+	}
+	fo, err := installFlows(opts, &lock)
+	outs = append(outs, fo...)
 	if err != nil {
 		return outs, err
 	}

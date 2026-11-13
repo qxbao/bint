@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"errors"
-	"os"
 	"slices"
 
 	"bint/internal/config"
@@ -26,15 +25,11 @@ const (
 func flowSkillExists(root string) func(string) bool { return workflow.FlowSkillExists(root) }
 
 // lintFlow kiểm một flow (nhúng hoặc từ tệp). file là tên tệp không đuôi ("" với flow nhúng).
-func lintFlow(root, file string, d flow.Def, exists func(string) bool) (errs, warns []string) {
-	errs = flow.Validate(d, file, exists)
-	// Flow xuất bản thành skill cùng tên: Validate chỉ thấy skill hợp lệ, còn skill tuỳ biến lỗi lint và skill
-	// tiến hoá cùng tên cũng sẽ đè lên bản xuất bản của flow.
-	if file != "" && d.Name != "" && !exists(d.Name) {
-		_, evErr := os.Stat(skills.EvolvedDir(root, d.Name))
-		if skills.CustomExists(root, d.Name) || evErr == nil {
-			errs = append(errs, "name: \""+d.Name+"\" trùng tên một skill tuỳ biến hoặc skill tiến hoá")
-		}
+func lintFlow(root, file string, d flow.Def) (errs, warns []string) {
+	if file == "" {
+		errs = flow.Validate(d, file, flowSkillExists(root))
+	} else {
+		errs = skills.ValidateFlow(root, d, file)
 	}
 	return errs, flow.Warnings(d)
 }
@@ -67,10 +62,9 @@ func ListFlows(ctx context.Context, dir string, o FlowListOptions) ([]FlowRow, e
 	if err != nil {
 		return nil, err
 	}
-	exists := flowSkillExists(k.Root)
 	rows := []FlowRow{}
 	for _, d := range flow.Builtin() {
-		errs, _ := lintFlow(k.Root, "", d, exists)
+		errs, _ := lintFlow(k.Root, "", d)
 		rows = append(rows, FlowRow{Name: d.Name, Source: FlowBuiltin, Description: d.Description,
 			Steps: len(d.Steps), OK: len(errs) == 0, Problems: nonNil(errs)})
 	}
@@ -83,7 +77,7 @@ func ListFlows(ctx context.Context, dir string, o FlowListOptions) ([]FlowRow, e
 		if f.Err != nil {
 			row.Problems = []string{f.Err.Error()}
 		} else {
-			errs, _ := lintFlow(k.Root, f.Name, f.Def, exists)
+			errs, _ := lintFlow(k.Root, f.Name, f.Def)
 			row.Description, row.Steps, row.OK, row.Problems = f.Def.Description, len(f.Def.Steps), len(errs) == 0, nonNil(errs)
 		}
 		rows = append(rows, row)
@@ -141,7 +135,7 @@ func ShowFlow(ctx context.Context, dir string, o FlowShowOptions) (FlowShowResul
 	if d.IsBuiltin() {
 		res.Source = FlowBuiltin
 	}
-	errs, warns := lintFlow(k.Root, file, d, flowSkillExists(k.Root))
+	errs, warns := lintFlow(k.Root, file, d)
 	res.Errors, res.Warnings = nonNil(errs), nonNil(warns)
 	return res, nil
 }
@@ -195,13 +189,12 @@ func LintFlows(ctx context.Context, dir string, o FlowLintOptions) ([]FlowLintRe
 	if err != nil {
 		return nil, err
 	}
-	exists := flowSkillExists(k.Root)
 	out := []FlowLintResult{}
 
 	if b, ok := flow.GetBuiltin(o.Name); ok {
 		// Flow nhúng được tra trước; tệp .bint/flows/<tên>.yml trùng tên (luôn là lỗi) cũng được kiểm ngay sau đó
 		// để lint theo tên không che nó.
-		errs, warns := lintFlow(k.Root, "", b, exists)
+		errs, warns := lintFlow(k.Root, "", b)
 		out = append(out, FlowLintResult{Name: b.Name, Source: FlowBuiltin, Errors: nonNil(errs), Warnings: nonNil(warns)})
 	}
 	files, err := flow.Load(k.Root)
@@ -222,7 +215,7 @@ func LintFlows(ctx context.Context, dir string, o FlowLintOptions) ([]FlowLintRe
 		if f.Err != nil {
 			r.Errors, r.Warnings = []string{f.Err.Error()}, []string{}
 		} else {
-			errs, warns := lintFlow(k.Root, f.Name, f.Def, exists)
+			errs, warns := lintFlow(k.Root, f.Name, f.Def)
 			r.Errors, r.Warnings = nonNil(errs), nonNil(warns)
 		}
 		out = append(out, r)

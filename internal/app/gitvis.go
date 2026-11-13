@@ -96,9 +96,12 @@ func bintPaths(root string, enabled []string, hookFiles []string) []string {
 			}
 		}
 		// Skill tuỳ biến: cả thư mục {target}/{tên}/ (tệp phụ có thể nằm ở thư mục con nên không lấy theo Dir của từng tệp).
-		for name := range l.Custom {
-			for _, t := range harness.SkillTargets(enabled) {
-				set[t.Dir+"/"+name+"/"] = true
+		// Skill điều phối của flow tuỳ biến (core.lock `flows`): cùng dạng thư mục {target}/{tên}/.
+		for _, m := range []map[string]skills.LockEntry{l.Custom, l.Flows} {
+			for name := range m {
+				for _, t := range harness.SkillTargets(enabled) {
+					set[t.Dir+"/"+name+"/"] = true
+				}
 			}
 		}
 	}

@@ -197,6 +197,66 @@ func TestReviewRoundsExhaustedBlocks(t *testing.T) {
 	}
 }
 
+const twoReviewFlow = `schema: 1
+name: duo
+steps:
+  - {id: impl,  kind: implement, skill: b-feat}
+  - {id: rev-a, kind: review,    skill: b-review, fix: impl}
+  - {id: rev-b, kind: review,    skill: b-review, fix: impl}
+`
+
+// GĐ4 .4: flow có nhiều bước review: max_review_rounds đếm vòng sửa (vòng có phát hiện nghiêm trọng), không đếm mọi lượt
+// review của mọi bước. verdict(step, lần gọi thứ n của bước đó) cho biết lượt đó có phát hiện nghiêm trọng không.
+func (h *harness) twoReviewBehave(verdict func(step string, n int) bool) func(context.Context, string, *Env, string) error {
+	calls := map[string]int{}
+	return func(ctx context.Context, step string, e *Env, id string) error {
+		if step == "impl" {
+			h.write("app.txt", "v2\n")
+			h.write("done.txt", "ok\n")
+			return nil
+		}
+		calls[step]++
+		body := `{"summary":"ổn","findings":[]}`
+		if verdict(step, calls[step]) {
+			body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`
+		}
+		_, _, err := e.SubmitReview(id, []byte(body))
+		return err
+	}
+}
+
+func TestMaxReviewRoundsCountsFixRoundsNotReviewSteps(t *testing.T) {
+	// max_review_rounds = 2: rev-a vòng 1 nghiêm trọng (sửa 1), rev-a vòng 2 sạch, rev-b vòng 3 nghiêm trọng (sửa 2): số
+	// vòng review đã tới 3 nhưng mới 2 vòng sửa nên vẫn được sửa tiếp, không blocked.
+	h := newHarness(t)
+	h.cfg.Workflow.MaxReviewRounds = 2
+	h.writeFlow("duo", twoReviewFlow)
+	h.behave = h.twoReviewBehave(func(step string, n int) bool { return (step == "rev-a" && n == 1) || (step == "rev-b" && n == 1) })
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: "duo", Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil || res.Status != task.StatusDone {
+		t.Fatalf("run duo: %+v %v", res, err)
+	}
+	if got, want := strings.Join(h.calls, ","), "impl,rev-a,impl,rev-a,rev-b,impl,rev-a,rev-b"; got != want {
+		t.Fatalf("thứ tự bước = %s, muốn %s", got, want)
+	}
+}
+
+func TestMaxReviewRoundsBlocksWhenFixRoundsExceeded(t *testing.T) {
+	// Cùng cấu hình nhưng rev-b luôn nghiêm trọng: vòng sửa thứ 3 (vòng review 5) vượt max_review_rounds = 2.
+	h := newHarness(t)
+	h.cfg.Workflow.MaxReviewRounds = 2
+	h.writeFlow("duo", twoReviewFlow)
+	h.behave = h.twoReviewBehave(func(step string, n int) bool { return (step == "rev-a" && n == 1) || step == "rev-b" })
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: "duo", Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "max_review_rounds = 2") ||
+		!strings.Contains(res.Reason, "sau 3 vòng") {
+		t.Fatalf("run duo: %+v %v", res, err)
+	}
+	if got, want := strings.Join(h.calls, ","), "impl,rev-a,impl,rev-a,rev-b,impl,rev-a,rev-b"; got != want {
+		t.Fatalf("thứ tự bước = %s, muốn %s", got, want)
+	}
+}
+
 // Kiểm phạm vi sau MỖI bước implement: red sửa tệp thuộc scope.deny bị chặn chờ người duyệt ngay (blocked), green không
 // chạy; kiểm chứng không chạy sau bước bị chặn.
 func TestCustomFlowScopeCheckedAfterEachImplement(t *testing.T) {
@@ -512,6 +572,21 @@ func TestRunUnknownOrInvalidFlow(t *testing.T) {
 	}
 	if _, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "x", Workflow: "hong"}); err == nil {
 		t.Fatal("NewTask với flow hỏng phải lỗi")
+	}
+}
+
+// Flow trùng tên skill tiến hoá (hoặc skill tuỳ biến lỗi lint) bị Runner từ chối: cùng luật với `bint flow lint` và
+// `bint sync`, vì flow được xuất bản thành skill cùng tên.
+func TestResolveFlowRejectsNameClashingWithSkill(t *testing.T) {
+	h := newHarness(t)
+	h.write(".bint/skills/evolved/core-retry/SKILL.md", "---\nname: core-retry\ndescription: Dùng khi x\n---\nthân\n")
+	h.write(".bint/skills/vo-hong/SKILL.md", "không có frontmatter\n")
+	for _, name := range []string{"core-retry", "vo-hong"} {
+		h.writeFlow(name, "schema: 1\nname: "+name+"\nsteps:\n  - {id: build, kind: implement, skill: b-feat}\n")
+		_, err := h.runner().Run(context.Background(), RunOptions{Workflow: name, Request: "x"})
+		if err == nil || !strings.Contains(err.Error(), "trùng tên một skill") {
+			t.Fatalf("flow %s trùng skill phải bị từ chối: %v", name, err)
+		}
 	}
 }
 
