@@ -7,6 +7,7 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
 
 | Tài liệu | Nội dung |
 |---|---|
+| [Sử dụng CLI và TUI](usage.md) | Cài đặt, `bint init` và hiện diện trong Git, mã thoát, luồng lệnh chính, mở và điều khiển giao diện terminal |
 | [Kiến trúc và dữ liệu](architecture.md) | Cây package, luồng ghi nhận qua spool, thư mục trạng thái, nguồn chuẩn và dữ liệu dẫn xuất |
 | [Cấu hình](configuration.md) | Các lớp YAML, mặc định, chọn harness/mô hình theo role, giới hạn ngân sách và khoá dự phòng |
 | [Tri thức và Context Engine](knowledge.md) | Bootstrap (P2), nhập tài liệu, vòng đời tri thức, kiểm tra xác định được, Context Engine, MCP và hook (P3) |
