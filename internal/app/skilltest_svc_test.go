@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -382,8 +383,12 @@ func TestSkillTestQuotaStopsAndCancelKeepsPartial(t *testing.T) {
 		return eval.AgentResult{Text: "OK"}
 	}}
 	res, err := SkillTest(context.Background(), root, SkillTestOptions{Name: "demo-skill", Arm: "without", Yes: true, Agent: quota})
-	if err != nil || res.Report.Status != eval.SkillTestQuota || quota.calls() != 3 || len(res.Report.Runs) != 3 {
-		t.Fatalf("quota: %v %s %d", err, res.Report.Status, quota.calls())
+	// Hết hạn mức: ghi kết quả dở (trạng thái quota) nhưng trả ErrSkillTestQuota để `bint skill test` thoát khác 0.
+	if !errors.Is(err, ErrSkillTestQuota) || res == nil || res.Report.Status != eval.SkillTestQuota || quota.calls() != 3 || len(res.Report.Runs) != 3 {
+		t.Fatalf("quota: %v %v %d", err, res, quota.calls())
+	}
+	if IsSkillTestCancelled(err) {
+		t.Error("quota không phải huỷ")
 	}
 	if got := readSkillTestReport(t, res.Path); got.Status != eval.SkillTestQuota {
 		t.Errorf("JSON: %+v", got.Status)
@@ -502,5 +507,80 @@ func TestDoctorAcceptsSkillTesterRole(t *testing.T) {
 	}
 	if len(warned) != 1 || !strings.Contains(warned[0], "skill-tster") || strings.Contains(warned[0], config.RoleSkillTester+" ") {
 		t.Fatalf("chỉ role gõ sai được cảnh báo: %q", warned)
+	}
+}
+
+// Phát hiện .5: không có models.skill-tester/planner thì model chung của harness (harnesses.<h>.model) vẫn có hiệu lực,
+// như role planner; không bị ModelSet=true cắt mất.
+func TestSkillTestAgentKeepsHarnessGeneralModel(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "codex-fake")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	general := "chung"
+	cfg := config.Default()
+	cfg.Harnesses.Enabled = []string{"codex"}
+	cfg.Roles.Planner = "codex"
+	cfg.Harnesses.Codex.Binary = bin
+	cfg.Harnesses.Codex.Model = &general
+	cfg.Harnesses.Codex.Models = config.RoleModels{}
+	build := func(cli string) (string, string) {
+		t.Helper()
+		ag, _, model, err := SkillTestOptions{Model: cli}.buildAgent(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ca, ok := ag.(*eval.CodexAgent)
+		if !ok {
+			t.Fatalf("agent %T", ag)
+		}
+		return ca.Model, model
+	}
+	if got, sel := build(""); got != general || sel != "" {
+		t.Fatalf("model chung: agent %q, chọn %q", got, sel)
+	}
+	cfg.Harnesses.Codex.Models.Planner = "mp"
+	if got, _ := build(""); got != "mp" {
+		t.Fatalf("models.planner: %q", got)
+	}
+	cfg.Harnesses.Codex.Models.Extra = map[string]string{config.RoleSkillTester: "mt"}
+	if got, _ := build(""); got != "mt" {
+		t.Fatalf("models.skill-tester: %q", got)
+	}
+	if got, _ := build("cli"); got != "cli" {
+		t.Fatalf("--model: %q", got)
+	}
+}
+
+// Phát hiện .7: lịch sử chi phí chỉ lấy từ kết quả cùng harness và cùng model.
+func TestSkillTestCostHistoryMatchesHarnessAndModel(t *testing.T) {
+	rt := t.TempDir()
+	dir := filepath.Join(rt, SkillTestDir, "demo-skill")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(id, h, model string, cost float64) {
+		t.Helper()
+		c := cost
+		b, _ := json.Marshal(eval.SkillTestReport{ID: id, Harness: h, Model: model, Runs: []eval.SkillTestRun{{CostUSD: &c}}})
+		if err := os.WriteFile(filepath.Join(dir, id+".json"), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("01", "claude", "opus", 1.0)
+	write("02", "claude", "haiku", 0.1) // mới hơn nhưng khác model
+	write("03", "codex", "opus", 5.0)   // mới nhất nhưng khác harness
+	if c, ok := lastSkillTestCost(rt, "demo-skill", "claude", "opus"); !ok || c != 1.0 {
+		t.Fatalf("claude/opus: %v %v", c, ok)
+	}
+	if c, ok := lastSkillTestCost(rt, "demo-skill", "claude", "haiku"); !ok || c != 0.1 {
+		t.Fatalf("claude/haiku: %v %v", c, ok)
+	}
+	if _, ok := lastSkillTestCost(rt, "demo-skill", "claude", "sonnet"); ok {
+		t.Fatal("model chưa từng chạy không được mượn lịch sử của model khác")
+	}
+	c, src := skillTestCostPerRun(rt, "demo-skill", "claude", "sonnet", nil, 0.5)
+	if c == nil || *c != 0.5 || !strings.Contains(src, "prior_run_usd") {
+		t.Fatalf("rơi về prior: %v %q", c, src)
 	}
 }

@@ -32,6 +32,9 @@ const (
 	SkillTestArmBoth = "both"
 )
 
+// ErrSkillTestQuota: đợt dừng vì harness báo hết hạn mức; kết quả dở vẫn được ghi và trả kèm lỗi này.
+var ErrSkillTestQuota = errors.New("dừng vì hết hạn mức sử dụng của harness (kết quả một phần đã ghi)")
+
 // SkillTestOptions: `bint skill test <tên>`.
 type SkillTestOptions struct {
 	Name string `arg:"name" form:"required,suggest=custom_skills"`
@@ -141,7 +144,7 @@ func loadCustomSkillOrUsage(root, name string) (*skills.CustomSkill, error) {
 // SkillTest chạy kịch bản áp lực của một skill tuỳ biến ở các nhánh được chọn, chấm và ghi JSON vào
 // <runtime>/skill-tests/<tên>/<id>.json. Trình tự: nạp và kiểm kịch bản (lỗi thì dừng, chưa tính gì) → ước tính (OnEstimate)
 // → xác nhận (ConfirmOrFail) → chạy tuần tự. Huỷ giữa chừng và hết hạn mức vẫn ghi phần đã chạy (trạng thái
-// cancelled / quota); lỗi huỷ trả kèm kết quả.
+// cancelled / quota); lỗi huỷ (context.Canceled) và ErrSkillTestQuota trả kèm kết quả.
 func SkillTest(ctx context.Context, dir string, o SkillTestOptions) (*SkillTestResult, error) {
 	if o.Arm == "" {
 		o.Arm = SkillTestArmBoth
@@ -186,7 +189,7 @@ func SkillTest(ctx context.Context, dir string, o SkillTestOptions) (*SkillTestR
 	for _, sc := range scenarios {
 		est.Runs += reps(sc) * len(arms)
 	}
-	est.CostPerRun, est.CostSource = skillTestCostPerRun(k.Paths.Runtime, o.Name, harnessName, o.CostPerRun, cfg.Eval.PriorRunUSD)
+	est.CostPerRun, est.CostSource = skillTestCostPerRun(k.Paths.Runtime, o.Name, harnessName, model, o.CostPerRun, cfg.Eval.PriorRunUSD)
 	if est.CostPerRun != nil {
 		t := *est.CostPerRun * float64(est.Runs)
 		est.Total = &t
@@ -251,6 +254,9 @@ run:
 	if rep.Status == eval.SkillTestCancelled {
 		return res, fmt.Errorf("%w", context.Canceled)
 	}
+	if rep.Status == eval.SkillTestQuota {
+		return res, ErrSkillTestQuota
+	}
 	return res, nil
 }
 
@@ -268,8 +274,11 @@ func (o SkillTestOptions) buildAgent(cfg config.Config) (agent eval.Agent, harne
 		return nil, "", "", Usagef("%v", err)
 	}
 	model = skillTesterModel(cfg, h, o.Model)
-	agent, err = harness.NewAgent(h, harness.AgentOptions{Config: cfg, ReadOnly: true, Model: model, ModelSet: true,
-		MaxCost: cfg.Limits.PerRun.MaxCostUSD})
+	agent, err = harness.NewAgent(h, harness.AgentOptions{Config: cfg, ReadOnly: true, Model: model,
+		// Như role planner: model rỗng (không --model, không models.skill-tester/planner) để adapter dùng model chung
+		// của harness (harnesses.<h>.model / workflow.agent.model) hoặc mặc định của CLI.
+		ModelSet: model != "",
+		MaxCost:  cfg.Limits.PerRun.MaxCostUSD})
 	if err != nil {
 		return nil, "", "", err
 	}
@@ -346,13 +355,13 @@ func copySkillFiles(work string, files []skills.CustomFile) error {
 	return nil
 }
 
-// skillTestCostPerRun chọn chi phí mỗi lượt: --cost-per-run → trung bình đo được ở kết quả gần nhất của cùng skill và
-// harness → eval.prior_run_usd (0 = tắt). nil = chưa biết.
-func skillTestCostPerRun(runtimeDir, skill, harnessName string, flag *float64, prior float64) (*float64, string) {
+// skillTestCostPerRun chọn chi phí mỗi lượt: --cost-per-run → trung bình đo được ở kết quả gần nhất của cùng skill,
+// harness và model → eval.prior_run_usd (0 = tắt). nil = chưa biết.
+func skillTestCostPerRun(runtimeDir, skill, harnessName, model string, flag *float64, prior float64) (*float64, string) {
 	if flag != nil {
 		return flag, "do người dùng nhập"
 	}
-	if avg, ok := lastSkillTestCost(runtimeDir, skill, harnessName); ok {
+	if avg, ok := lastSkillTestCost(runtimeDir, skill, harnessName, model); ok {
 		return &avg, "trung bình đo ở lần chạy gần nhất của skill này"
 	}
 	if prior > 0 {
@@ -361,8 +370,8 @@ func skillTestCostPerRun(runtimeDir, skill, harnessName string, flag *float64, p
 	return nil, "chưa có lịch sử và eval.prior_run_usd = 0"
 }
 
-// lastSkillTestCost đọc kết quả mới nhất (id ULID tăng dần theo thời gian) của skill với harness này có chi phí đo được.
-func lastSkillTestCost(runtimeDir, skill, harnessName string) (float64, bool) {
+// lastSkillTestCost đọc kết quả mới nhất (id ULID tăng dần theo thời gian) của skill với đúng harness và model này có chi phí đo được.
+func lastSkillTestCost(runtimeDir, skill, harnessName, model string) (float64, bool) {
 	dir := filepath.Join(runtimeDir, SkillTestDir, skill)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -381,7 +390,7 @@ func lastSkillTestCost(runtimeDir, skill, harnessName string) (float64, bool) {
 			continue
 		}
 		var rep eval.SkillTestReport
-		if json.Unmarshal(b, &rep) != nil || rep.Harness != harnessName {
+		if json.Unmarshal(b, &rep) != nil || rep.Harness != harnessName || rep.Model != model {
 			continue
 		}
 		var sum float64

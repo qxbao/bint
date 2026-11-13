@@ -355,6 +355,9 @@ Agent gọi mô hình nên tốn chi phí: ước tính được in trước, v�
 			if errors.Is(err, context.Canceled) {
 				return withCode(ExitError, fmt.Errorf("đã dừng theo yêu cầu (kết quả một phần đã ghi)"))
 			}
+			if errors.Is(err, app.ErrSkillTestQuota) {
+				return withCode(ExitError, err)
+			}
 			return err
 		},
 	}
