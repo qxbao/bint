@@ -3,9 +3,10 @@
 //
 // Cấu hình qua biến môi trường của tiến trình con:
 //
-//	BINT_FAKE_MCP     chế độ: ok | status_error | status_rpcerror (tool bị tắt) | status_error_other | status_rpcerror_other (lỗi khác, không phải tool bị tắt) | hang | exit | die (ghi biến JIRA_MCP_PASSWORD ra stderr rồi thoát 1)
+//	BINT_FAKE_MCP     chế độ: ok | status_error | status_rpcerror (tool bị tắt, lỗi JSON-RPC "... is disabled") | status_error_other | status_rpcerror_other (lỗi khác, không phải tool bị tắt) | hang | exit | die (ghi biến JIRA_MCP_PASSWORD ra stderr rồi thoát 1)
 //	BINT_FAKE_TOOLS   tên tool, phân tách bằng dấu phẩy (mặc định: không có tool)
 //	BINT_FAKE_DUMP    tệp ghi {cwd, args, env} lúc khởi động (và đối số lệnh con init/sync)
+//	BINT_FAKE_VERSION phiên bản in ra với --version (mặc định 1.6.2; không ghi dump)
 //
 // Khi argv[1] là "init" hoặc "sync" thì đóng vai CLI codegraph: ghi dump rồi thoát (init tạo .codegraph/codegraph.db).
 package probetest
@@ -23,6 +24,8 @@ const (
 	EnvMode  = "BINT_FAKE_MCP"
 	EnvTools = "BINT_FAKE_TOOLS"
 	EnvDump  = "BINT_FAKE_DUMP"
+	// EnvVersion là phiên bản bản giả in ra với --version.
+	EnvVersion = "BINT_FAKE_VERSION"
 )
 
 // Dump là nội dung tệp ghi lúc khởi động.
@@ -37,6 +40,14 @@ func MaybeRun() {
 	mode := os.Getenv(EnvMode)
 	if mode == "" {
 		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		v := os.Getenv(EnvVersion)
+		if v == "" {
+			v = "1.6.2"
+		}
+		fmt.Println(v)
+		os.Exit(0)
 	}
 	writeDump()
 	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "sync") {
@@ -147,7 +158,7 @@ func serve(mode string) {
 			case "status_error":
 				reply(map[string]any{"isError": true, "content": []map[string]any{{"type": "text", "text": "tool disabled (CODEGRAPH_MCP_TOOLS)"}}})
 			case "status_rpcerror":
-				send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32000, "message": "tool bị tắt"}})
+				send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32000, "message": "tool codegraph_status is disabled"}})
 			case "status_error_other":
 				reply(map[string]any{"isError": true, "content": []map[string]any{{"type": "text", "text": "database not initialized"}}})
 			case "status_rpcerror_other":

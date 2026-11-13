@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"bint/internal/config"
 	"bint/internal/mcpgw"
@@ -145,5 +146,41 @@ func TestStepMCPToolsEmptyWhenNoServicesOrNotRegistered(t *testing.T) {
 	cfg.MCP = config.MCP{Services: map[string]config.MCPService{"codegraph": {}}, Grants: map[string][]string{"implementer": {"codegraph.*"}}}
 	if got := StepMCPTools(cfg, "implementer", false); len(got) != 0 {
 		t.Errorf("chưa đăng ký trên máy: %v", got)
+	}
+}
+
+// Phát hiện M0 .5: tệp cấu hình MCP/bản ghi lượt chạy của bước bị giết được dọn khi đã quá hạn; tệp mới và tệp không phải
+// .json giữ nguyên.
+func TestPruneStaleJSON(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name string, age time.Duration) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		ts := time.Now().Add(-age)
+		if err := os.Chtimes(p, ts, ts); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	old := write("old.json", 48*time.Hour)
+	fresh := write("fresh.json", time.Hour)
+	other := write("old.txt", 48*time.Hour)
+	pruneStaleJSON(dir, staleStepFileAge(60))
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Error("tệp .json quá hạn phải bị xoá")
+	}
+	for _, p := range []string{fresh, other} {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("%s phải còn: %v", p, err)
+		}
+	}
+	pruneStaleJSON(filepath.Join(dir, "khong-co"), time.Hour) // thư mục không có: không lỗi
+	if got := staleStepFileAge(60); got != 24*time.Hour {
+		t.Errorf("tối thiểu 24 giờ, được %s", got)
+	}
+	if got := staleStepFileAge(24 * 60); got != 48*time.Hour {
+		t.Errorf("gấp đôi timeout, được %s", got)
 	}
 }

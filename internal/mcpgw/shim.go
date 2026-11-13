@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"bint/internal/mcpcat"
@@ -32,6 +33,11 @@ type Shim struct {
 	ready chan struct{} // đóng khi lần kết nối đầu xong (thành công hay không)
 	begin sync.Once
 	rmu   sync.Mutex // single-flight cho nối lại
+	// closed đóng khi Close: dừng lần thử lại nền.
+	closed    chan struct{}
+	closeOnce sync.Once
+	// reqID cấp id JSON-RPC riêng cho mỗi request gửi lên daemon (MCP: id duy nhất trong một phiên).
+	reqID atomic.Int64
 
 	mu     sync.Mutex
 	info   Info
@@ -41,6 +47,8 @@ type Shim struct {
 	order  []string
 	table  map[string]shimTool // tên tới agent → tool
 	tools  []json.RawMessage
+	// onChanged (nếu có) được gọi khi lần thử lại nền thêm được tool (server gửi notifications/tools/list_changed).
+	onChanged func()
 }
 
 // ShimOptions cấu hình Shim.
@@ -64,6 +72,9 @@ type ShimOptions struct {
 	Lookup func(id string) (mcpcat.Service, bool)
 	// Log nhận cảnh báo (nil = bỏ).
 	Log io.Writer
+	// RetryDelay: lần kết nối đầu không lên được gateway hoặc có service không mở được thì sau ngần này thử lại một lần ở
+	// nền; thêm được tool thì báo harness qua notifications/tools/list_changed. Mặc định 10 giây; âm = không thử lại.
+	RetryDelay time.Duration
 }
 
 // Giá trị mặc định của Shim. Tổng thời gian initialize chờ (StartWait + OpenWait + 1 s ≈ 8 s) phải dưới timeout khởi
@@ -72,6 +83,8 @@ type ShimOptions struct {
 const (
 	DefaultShimStartWait = 3 * time.Second
 	DefaultShimOpenWait  = 4 * time.Second
+	// DefaultShimRetryDelay: chờ trước lần thử lại nền (daemon hoặc upstream đang khởi động chậm thường đã lên).
+	DefaultShimRetryDelay = 10 * time.Second
 )
 
 type shimSvc struct {
@@ -80,6 +93,8 @@ type shimSvc struct {
 	fail string // lý do không dùng được ("" nếu phiên đang mở)
 	// denied: daemon từ chối vì role không được cấp (không phải lỗi: không báo trong instructions).
 	denied bool
+	// listed: đã lấy tools/list của service (tool của nó có trong bảng); phiên mở lại khi nối lại thì không lấy lại.
+	listed bool
 }
 
 type shimTool struct {
@@ -103,6 +118,9 @@ func NewShim(o ShimOptions) (*Shim, error) {
 	if o.OpenWait <= 0 {
 		o.OpenWait = DefaultShimOpenWait
 	}
+	if o.RetryDelay == 0 {
+		o.RetryDelay = DefaultShimRetryDelay
+	}
 	if o.Lookup == nil {
 		o.Lookup = mcpcat.Lookup
 	}
@@ -124,8 +142,8 @@ func NewShim(o ShimOptions) (*Shim, error) {
 	}
 	ids := slices.Clone(o.Services)
 	sort.Strings(ids)
-	return &Shim{o: o, dir: dir, hc: &http.Client{}, ready: make(chan struct{}), svcs: map[string]*shimSvc{}, order: slices.Compact(ids),
-		table: map[string]shimTool{}}, nil
+	return &Shim{o: o, dir: dir, hc: &http.Client{}, ready: make(chan struct{}), closed: make(chan struct{}), svcs: map[string]*shimSvc{},
+		order: slices.Compact(ids), table: map[string]shimTool{}}, nil
 }
 
 // Active cho biết Shim có service ứng viên (không có thì không bao giờ chạm gateway).
@@ -140,8 +158,11 @@ func (s *Shim) Start() {
 			return
 		}
 		go func() {
-			defer close(s.ready)
 			s.connect()
+			close(s.ready)
+			if s.o.RetryDelay > 0 && s.needsRetry() {
+				s.retryLater()
+			}
 		}()
 	})
 }
@@ -202,7 +223,7 @@ func (s *Shim) connect() {
 	defer s.mu.Unlock()
 	for _, o := range out {
 		svc, _ := s.o.Lookup(o.id)
-		st := &shimSvc{svc: svc, sid: o.sid}
+		st := &shimSvc{svc: svc, sid: o.sid, listed: o.err == nil}
 		if o.err != nil {
 			st.sid, st.fail = "", o.err.Error()
 			var re *rpcError
@@ -263,6 +284,152 @@ func (s *Shim) discover(ctx context.Context) (Info, error) {
 	return info, nil
 }
 
+// nextID trả id JSON-RPC mới cho một request gửi lên daemon (mỗi lời gọi một id, kể cả khi chạy đồng thời trên một phiên).
+func (s *Shim) nextID() json.RawMessage { return marshalRaw(s.reqID.Add(1)) }
+
+// needsRetry: lần kết nối đầu không có daemon, hoặc có service (được cấp) chưa có tool trong bảng.
+func (s *Shim) needsRetry() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.daemon != "" {
+		return true
+	}
+	for _, id := range s.order {
+		if st := s.svcs[id]; st == nil || (!st.denied && !st.listed) {
+			return true
+		}
+	}
+	return false
+}
+
+// retryLater chờ RetryDelay (hoặc Close) rồi thử lại một lần: lên daemon nếu chưa có, mở phiên và lấy tools/list của các
+// service chưa có tool. Thêm được tool thì gọi onChanged. Dùng chung khoá với nối lại (rmu).
+func (s *Shim) retryLater() {
+	t := time.NewTimer(s.o.RetryDelay)
+	defer t.Stop()
+	select {
+	case <-t.C:
+	case <-s.closed:
+		return
+	}
+	s.rmu.Lock()
+	defer s.rmu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), s.o.StartWait+s.o.OpenWait)
+	defer cancel()
+	go func() {
+		select {
+		case <-s.closed:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	s.mu.Lock()
+	info, down := s.info, s.daemon != ""
+	s.mu.Unlock()
+	if down {
+		var err error
+		if info, err = s.discover(ctx); err != nil {
+			s.logf("thử lại: vẫn không có gateway: %v", err)
+			return
+		}
+	}
+	s.mu.Lock()
+	var ids, stale []string
+	for _, id := range s.order {
+		st := s.svcs[id]
+		if st != nil && (st.denied || st.listed) && !down {
+			continue
+		}
+		ids = append(ids, id)
+		if st != nil && st.sid != "" {
+			stale = append(stale, st.sid) // phiên mở lại khi nối lại nhưng chưa có tool: thay bằng phiên mới
+		}
+	}
+	s.mu.Unlock()
+	type opened struct {
+		sid   string
+		tools []json.RawMessage
+		err   error
+	}
+	res := make([]opened, len(ids))
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sid, tools, err := s.open(ctx, info, id, true)
+			res[i] = opened{sid, tools, err}
+		}()
+	}
+	wg.Wait()
+	s.mu.Lock()
+	// Kiểm trong khoá: Close đóng closed rồi mới chụp các phiên dưới s.mu, nên hoặc thấy đã đóng ở đây, hoặc Close sẽ đóng cả
+	// các phiên vừa mở.
+	if s.isClosed() {
+		s.mu.Unlock()
+		for _, r := range res {
+			if r.sid != "" {
+				s.closeRemote(info, r.sid)
+			}
+		}
+		return
+	}
+	before := len(s.tools)
+	s.info, s.daemon = info, ""
+	for i, id := range ids {
+		svc, _ := s.o.Lookup(id)
+		st := s.svcs[id]
+		if st == nil {
+			st = &shimSvc{svc: svc}
+			s.svcs[id] = st
+		}
+		r := res[i]
+		if r.err != nil {
+			if st.sid == "" {
+				st.fail = r.err.Error()
+				var re *rpcError
+				st.denied = errors.As(r.err, &re) && re.Code == CodeNotGranted
+			}
+			continue
+		}
+		st.sid, st.fail, st.denied, st.listed = r.sid, "", false, true
+		for _, raw := range r.tools {
+			s.addTool(svc, raw)
+		}
+	}
+	added := len(s.tools) > before
+	if added {
+		s.gen++
+	}
+	cb := s.onChanged
+	s.mu.Unlock()
+	for _, sid := range stale {
+		go s.closeRemote(info, sid)
+	}
+	if added {
+		s.logf("thử lại: đã thêm %d tool của service ngoài", len(s.Tools())-before)
+		if cb != nil {
+			cb()
+		}
+	}
+}
+
+func (s *Shim) isClosed() bool {
+	select {
+	case <-s.closed:
+		return true
+	default:
+		return false
+	}
+}
+
+// OnToolsChanged đăng ký hàm được gọi khi danh sách tool đổi sau lần kết nối đầu (mcpserver.ToolsNotifier).
+func (s *Shim) OnToolsChanged(f func()) {
+	s.mu.Lock()
+	s.onChanged = f
+	s.mu.Unlock()
+}
+
 // ---- mcpserver.Proxy ----
 
 // Tools trả mô tả tool của các service được cấp (đã đổi tên).
@@ -313,7 +480,7 @@ func (s *Shim) Call(ctx context.Context, name string, args json.RawMessage) (jso
 	if !ok {
 		return nil, fmt.Errorf("không có công cụ %q (ngoài quyền của phiên này)", name)
 	}
-	body := requestFrame(json.RawMessage(`1`), "tools/call", marshalRaw(map[string]any{"name": tool.upstream, "arguments": args}))
+	body := requestFrame(s.nextID(), "tools/call", marshalRaw(map[string]any{"name": tool.upstream, "arguments": args}))
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		info, sid, gen, reason := s.session(tool.service)
@@ -449,7 +616,7 @@ func (s *Shim) open(ctx context.Context, info Info, id string, wantTools bool) (
 	set(HeaderTaskID, s.o.TaskID)
 	set(HeaderHarness, s.o.Harness)
 	set(HeaderSessionID, s.o.SessionID)
-	body := requestFrame(json.RawMessage(`1`), "initialize", marshalRaw(map[string]any{
+	body := requestFrame(s.nextID(), "initialize", marshalRaw(map[string]any{
 		"protocolVersion": "2025-06-18", "capabilities": map[string]any{},
 		"clientInfo": map[string]any{"name": "bint-shim", "version": "1"}}))
 	status, header, resp, err := s.postRaw(ctx, info, "", hdr, body)
@@ -544,6 +711,7 @@ func (s *Shim) closeRemote(info Info, sid string) {
 
 // Close đóng các phiên đã mở (DELETE /mcp, có hạn 1 giây mỗi phiên); không khởi động daemon.
 func (s *Shim) Close() {
+	s.closeOnce.Do(func() { close(s.closed) })
 	s.mu.Lock()
 	info := s.info
 	var sids []string

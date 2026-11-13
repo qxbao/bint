@@ -45,10 +45,21 @@ type waiter struct {
 	// state chốt cuộc đua giữa vòng ghi và người huỷ: 0 = còn trong hàng đợi, 1 = đã (bắt đầu) ghi, 2 = bỏ (huỷ trước
 	// khi ghi; vòng ghi bỏ qua frame, upstream không bao giờ nhận lệnh).
 	state atomic.Int32
+	// done là ctx.Done() của lời gọi: đã đóng khi tới lượt ghi thì vòng ghi bỏ lệnh. Nhờ vậy lời gọi bị huỷ trước khi id gateway
+	// được gán (notifications/cancelled không biết id để chuyển tiếp) không bao giờ tới upstream.
+	done <-chan struct{}
 }
 
-// markWritten được vòng ghi gọi ngay trước khi ghi; false = người gọi đã bỏ lệnh, không ghi.
+// markWritten được vòng ghi gọi ngay trước khi ghi; false = người gọi đã bỏ lệnh (hoặc lời gọi đã bị huỷ), không ghi.
 func (w *waiter) markWritten() bool {
+	if w.done != nil {
+		select {
+		case <-w.done:
+			w.abandon()
+			return false
+		default:
+		}
+	}
 	if !w.state.CompareAndSwap(0, 1) {
 		return false
 	}
@@ -56,8 +67,8 @@ func (w *waiter) markWritten() bool {
 	return true
 }
 
-// abandon bỏ lệnh còn trong hàng đợi; false = lệnh đã (bắt đầu) được ghi tới upstream.
-func (w *waiter) abandon() bool { return w.state.CompareAndSwap(0, 2) }
+// abandon bỏ lệnh còn trong hàng đợi (hoặc xác nhận vòng ghi đã bỏ nó); false = lệnh đã (bắt đầu) được ghi tới upstream.
+func (w *waiter) abandon() bool { return w.state.CompareAndSwap(0, 2) || w.state.Load() == 2 }
 
 type waitResult struct {
 	msg rpcMsg
@@ -359,7 +370,7 @@ func (u *stdioUp) rawCall(ctx context.Context, sess, method string, params json.
 	}
 	u.seq++
 	id := fmt.Sprintf("gw_%d_%d_%s", u.cfg.gen, u.seq, sess)
-	w := &waiter{ch: make(chan waitResult, 1)}
+	w := &waiter{ch: make(chan waitResult, 1), done: ctx.Done()}
 	u.pending[id] = w
 	u.mu.Unlock()
 	drop := func() {

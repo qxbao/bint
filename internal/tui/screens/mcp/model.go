@@ -504,7 +504,7 @@ func (m *Model) serviceKey(s string) (tea.Cmd, bool) {
 		return m.cmdRestart(), true
 	case "l":
 		return m.cmdLog(), true
-	case "G":
+	case "s": // không dùng G: G là về cuối danh sách như mọi thẻ khác
 		return m.cmdGatewayStart(), true
 	case "S":
 		return m.cmdGatewayStop(), true

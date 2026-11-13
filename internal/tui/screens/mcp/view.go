@@ -16,7 +16,7 @@ import (
 // hintAction ánh xạ (thẻ, phím) của chân phím trong khung sang hành động trong sổ ("" = phím giao diện thuần). Phím của hành động Writes
 // bị bỏ ở chế độ chỉ đọc (và phím HumanOnly bị bỏ trong phiên agent) qua ui.Env.AllowedHints; màn hình không tự kiểm.
 var hintAction = map[int]map[string]string{
-	TabServices: {"a": "mcp.add", "x": "mcp.remove", "c": "mcp.check", "i": "mcp.index", "R": "mcp.restart", "l": "mcp.log", "G": "mcp.gateway_start",
+	TabServices: {"a": "mcp.add", "x": "mcp.remove", "c": "mcp.check", "i": "mcp.index", "R": "mcp.restart", "l": "mcp.log", "s": "mcp.gateway_start",
 		"S": "mcp.gateway_stop", "e": "mcp.config_edit"},
 	TabGrants: {"e": "mcp.config_edit"},
 }
@@ -262,7 +262,7 @@ func (m *Model) summary(r Row) string {
 func (m *Model) serviceHints(half int) []footer.Hint {
 	all := m.hintsLine([2]string{"Enter", m.t("mc.hint.open")}, [2]string{"a", m.t("mc.hint.add")}, [2]string{"c", m.t("mc.hint.check")},
 		[2]string{"x", m.t("mc.hint.remove")}, [2]string{"i", m.t("mc.hint.index")}, [2]string{"R", m.t("mc.hint.restart")},
-		[2]string{"l", m.t("mc.hint.log")}, [2]string{"p", m.t("mc.hint.filter")}, [2]string{"G", m.t("mc.hint.start")}, [2]string{"S", m.t("mc.hint.stop")})
+		[2]string{"l", m.t("mc.hint.log")}, [2]string{"p", m.t("mc.hint.filter")}, [2]string{"s", m.t("mc.hint.start")}, [2]string{"S", m.t("mc.hint.stop")})
 	switch half {
 	case 1:
 		return all[:4]

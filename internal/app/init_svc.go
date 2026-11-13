@@ -78,12 +78,13 @@ func (o InitFlagOptions) ToInit(dir, bintPath, version string) (InitOptions, err
 	if err := o.Validate(); err != nil {
 		return InitOptions{}, err
 	}
-	sc := claude.ScopeLocal
+	sc, scDefault := claude.ScopeLocal, true
 	if o.HooksScope != "" {
 		sc, _ = claude.ParseScope(o.HooksScope) // đã qua Validate
+		scDefault = false
 	}
 	opts := InitOptions{
-		Dir: dir, Harnesses: o.Harnesses, HooksScope: sc, AgentsMD: o.AgentsMD, Force: o.Force,
+		Dir: dir, Harnesses: o.Harnesses, HooksScope: sc, HooksScopeDefault: scDefault, AgentsMD: o.AgentsMD, Force: o.Force,
 		BintPath: bintPath, Version: version, NoSkills: o.NoSkills, Update: o.Update, GitMode: o.GitMode, MCPUser: o.MCPUser,
 	}
 	switch {

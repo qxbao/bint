@@ -143,3 +143,86 @@ func TestInitMCPUserAntigravity(t *testing.T) {
 		t.Errorf("chạy lại phải không đổi:\n%s\n---\n%s", before, after)
 	}
 }
+
+// Phát hiện M3 .9: --update không chọn --hooks-scope thì quy tắc vào phạm vi mà hook đang được cài (project), không vào
+// settings.local.json; --no-mcp gỡ quy tắc ở các phạm vi trong repository, giữ quy tắc khác.
+func TestInitPermissionRuleFollowsInstalledHookScopeAndNoMCPRemoves(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
+	mustInit(t, InitOptions{Dir: root, Hooks: yes(), HooksScope: claude.ScopeProject})
+	project := filepath.Join(root, ".claude", "settings.json")
+	local := filepath.Join(root, ".claude", "settings.local.json")
+	opts, err := (InitFlagOptions{Update: true}).ToInit(root, "bint", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.HooksScopeDefault {
+		t.Fatal("không truyền --hooks-scope thì HooksScopeDefault phải bật")
+	}
+	mustInit(t, opts)
+	if countRule(readJSONFile(t, project)) != 1 {
+		t.Fatalf("quy tắc phải vào settings.json (hook ở project): %v", readJSONFile(t, project)["permissions"])
+	}
+	if _, err := os.Stat(local); err == nil && countRule(readJSONFile(t, local)) != 0 {
+		t.Fatal("không được ghi quy tắc vào settings.local.json")
+	}
+	// Thêm một quy tắc khác ở local rồi --no-mcp: quy tắc của Bint bị gỡ ở cả hai tệp, quy tắc khác giữ.
+	if err := os.WriteFile(local, []byte(`{"permissions":{"allow":["Bash(ls:*)","`+claude.PermissionRule+`"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustInit(t, InitOptions{Dir: root, MCP: no()})
+	if countRule(readJSONFile(t, project)) != 0 || countRule(readJSONFile(t, local)) != 0 {
+		t.Fatal("--no-mcp phải gỡ quy tắc ở mọi phạm vi trong repository")
+	}
+	if allow := readJSONFile(t, local)["permissions"].(map[string]any)["allow"].([]any); len(allow) != 1 || allow[0] != "Bash(ls:*)" {
+		t.Errorf("quy tắc khác phải giữ: %v", allow)
+	}
+	if readJSONFile(t, project)["hooks"] == nil {
+		t.Error("--no-mcp không được đụng hook")
+	}
+}
+
+// Phát hiện M3 .10: dự án khai service có nhóm ghi mà không khai grants.interactive thì init cảnh báo (cùng mcp__bint__* tool ghi
+// chạy không hỏi); khai interactive thì không cảnh báo.
+func TestInitWarnsImplicitInteractiveWriteGrants(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
+	mustInit(t, InitOptions{Dir: root, Hooks: no()})
+	cfgPath := filepath.Join(root, ".bint", "config.yml")
+	setMCP := func(services, grants string) {
+		b, err := os.ReadFile(cfgPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, l := range strings.Split(string(b), "\n") {
+			switch {
+			case strings.HasPrefix(l, "  services: "):
+				l = "  services: " + services
+			case strings.HasPrefix(l, "  grants: "):
+				l = "  grants: " + grants
+			}
+			out = append(out, l)
+		}
+		if err := os.WriteFile(cfgPath, []byte(strings.Join(out, "\n")), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	warned := func(rep *InitReport) string {
+		for _, st := range rep.Steps {
+			if st.Status == StepWarn && strings.Contains(st.Detail, "interactive") {
+				return st.Detail
+			}
+		}
+		return ""
+	}
+	setMCP("{jira: {}, codegraph: {}}", "{}")
+	w := warned(mustInit(t, InitOptions{Dir: root, MCP: yes(), Hooks: no()}))
+	if !strings.Contains(w, "jira.write") || strings.Contains(w, "codegraph") {
+		t.Fatalf("muốn cảnh báo nêu jira.write (không nêu codegraph chỉ đọc): %q", w)
+	}
+	setMCP("{jira: {}, codegraph: {}}", "{interactive: [jira.read]}")
+	if w := warned(mustInit(t, InitOptions{Dir: root, MCP: yes(), Hooks: no()})); w != "" {
+		t.Fatalf("đã khai grants.interactive thì không cảnh báo: %q", w)
+	}
+}

@@ -19,6 +19,19 @@ const PermissionRule = "mcp__bint__*"
 // InstallPermissions thêm PermissionRule vào permissions.allow của tệp settings (tạo nếu chưa có), giữ nguyên mọi khoá và
 // quy tắc khác; chạy lại không thêm trùng. Có sao lưu trước khi ghi.
 func InstallPermissions(settingsPath, backupDir string, now time.Time) (InstallResult, error) {
+	return editPermissions(settingsPath, backupDir, now, true)
+}
+
+// RemovePermissions gỡ PermissionRule khỏi permissions.allow của tệp settings (bint init --no-mcp); tệp không có hoặc không có
+// quy tắc thì không ghi gì. Giữ nguyên mọi khoá và quy tắc khác; có sao lưu trước khi ghi.
+func RemovePermissions(settingsPath, backupDir string, now time.Time) (InstallResult, error) {
+	if _, err := os.Stat(settingsPath); errors.Is(err, os.ErrNotExist) {
+		return InstallResult{Path: settingsPath}, nil
+	}
+	return editPermissions(settingsPath, backupDir, now, false)
+}
+
+func editPermissions(settingsPath, backupDir string, now time.Time, add bool) (InstallResult, error) {
 	res := InstallResult{Path: settingsPath}
 	raw, err := os.ReadFile(settingsPath)
 	existed := err == nil
@@ -41,15 +54,24 @@ func InstallPermissions(settingsPath, backupDir string, now time.Time) (InstallR
 			return res, fmt.Errorf("%s: permissions.allow không phải mảng: %w", settingsPath, err)
 		}
 	}
+	kept := make([]json.RawMessage, 0, len(allow))
+	found := false
 	for _, a := range allow {
 		var s string
 		if json.Unmarshal(a, &s) == nil && s == PermissionRule {
-			return res, nil
+			found = true
+			continue
 		}
+		kept = append(kept, a)
 	}
-	rule, _ := json.Marshal(PermissionRule)
-	allow = append(allow, rule)
-	perms["allow"], _ = json.Marshal(allow)
+	if found == add {
+		return res, nil // đã có (thêm) hoặc không có (gỡ): không ghi
+	}
+	if add {
+		rule, _ := json.Marshal(PermissionRule)
+		kept = append(kept, rule)
+	}
+	perms["allow"], _ = json.Marshal(kept)
 	if err := doc.SetValue("permissions", perms); err != nil {
 		return res, err
 	}

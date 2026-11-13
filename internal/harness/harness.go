@@ -123,6 +123,8 @@ type MCPInstaller interface {
 // phạm vi với hook; chạy lại không thêm trùng.
 type PermissionInstaller interface {
 	InstallPermissions(path, backupDir string, now time.Time) (claude.InstallResult, error)
+	// RemovePermissions gỡ quy tắc (bint init --no-mcp); không có thì không ghi.
+	RemovePermissions(path, backupDir string, now time.Time) (claude.InstallResult, error)
 }
 
 // UserMCPInstaller là adapter chỉ có MCP cấp người dùng (Antigravity): ghi mục `bint mcp serve` vào cấu hình người dùng
@@ -477,6 +479,9 @@ func (Claude) InstallMCP(req MCPRequest) (MCPResult, error) {
 }
 func (Claude) InstallPermissions(path, backupDir string, now time.Time) (claude.InstallResult, error) {
 	return claude.InstallPermissions(path, backupDir, now)
+}
+func (Claude) RemovePermissions(path, backupDir string, now time.Time) (claude.InstallResult, error) {
+	return claude.RemovePermissions(path, backupDir, now)
 }
 func (Claude) MCPInstalled(root string) bool { return claude.MCPInstalled(claude.MCPConfigPath(root)) }
 

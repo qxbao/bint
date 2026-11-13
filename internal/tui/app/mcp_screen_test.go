@@ -365,7 +365,7 @@ func TestMCPGrantsTabIsReadOnlyAndEditGoesThroughSystemConfigEdit(t *testing.T) 
 	press(t, m, "esc", "j", "enter")
 	hasAll(t, plain(m.Render()), "Role ngầm (D4)", "jira       read, write")
 	// Không có thao tác ghi nào ở thẻ này.
-	press(t, m, "a", "x", "c", "i", "R", "S", "G")
+	press(t, m, "a", "x", "c", "i", "R", "S", "s")
 	if m.mc.Capturing() || m.jobs.Len() != 0 {
 		t.Fatal("thẻ Quyền chỉ để xem")
 	}
@@ -514,10 +514,10 @@ func TestMCPHumanSessionRunsWritesOnce(t *testing.T) {
 	d.press("c")
 	d.until(func() bool { return called("mcp.check") == 1 })
 	d.until(func() bool { return m.jobs.Len() == 0 })
-	// gateway: đang chạy nên G báo đã chạy; S + Enter tắt.
-	d.press("G")
+	// gateway: đang chạy nên s báo đã chạy; S + Enter tắt.
+	d.press("s")
 	if called("mcp.gateway_start") != 0 {
-		t.Fatal("gateway đã chạy: G không gọi lại")
+		t.Fatal("gateway đã chạy: s không gọi lại")
 	}
 	d.press("S", "enter")
 	d.until(func() bool { return called("mcp.gateway_stop") == 1 })
@@ -674,4 +674,16 @@ func TestMCPReadOnlyNeverRunsWritingActions(t *testing.T) {
 		}
 	}
 	hasAll(t, out, "c Kiểm tra", "l Log", "p Lọc dự án")
+}
+
+// Phát hiện M4 .5: ở thẻ Dịch vụ, G về cuối danh sách (như mọi thẻ), không khởi động gateway.
+func TestMCPServicesGGoesToEnd(t *testing.T) {
+	m := mcpAt(t, Options{Mode: theme.Mono, Lang: "vi"}, 140, 40)
+	press(t, m, "G")
+	if !strings.Contains(plain(m.Render()), "▸ chrome-devtools") {
+		t.Fatalf("G phải chọn hàng cuối:\n%s", plain(m.Render()))
+	}
+	if m.jobs.Len() != 0 {
+		t.Fatal("G không được chạy hành động nào")
+	}
 }

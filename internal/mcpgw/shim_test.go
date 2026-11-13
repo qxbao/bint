@@ -427,6 +427,7 @@ type fakeGW struct {
 	dropOnce map[string]bool // tool → ngắt kết nối (không trả lời) ở lần gọi đầu
 	notFound map[string]bool // tool → trả 404 ở lần gọi đầu (chưa xử lý)
 	inits    int
+	ids      []string // id JSON-RPC của mọi request tools/call và initialize, theo thứ tự tới
 }
 
 func (f *fakeGW) handler() http.Handler {
@@ -440,6 +441,11 @@ func (f *fakeGW) handler() http.Handler {
 		var m rpcMsg
 		body, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(body, &m)
+		if m.Method == "initialize" || m.Method == "tools/call" {
+			f.mu.Lock()
+			f.ids = append(f.ids, string(m.ID))
+			f.mu.Unlock()
+		}
 		switch m.Method {
 		case "initialize":
 			f.mu.Lock()
@@ -558,5 +564,125 @@ func TestShimDefaultReadyBudgetUnderCodexStartupTimeout(t *testing.T) {
 	const codexStartupTimeout = 10 * time.Second
 	if total := DefaultShimStartWait + DefaultShimOpenWait + time.Second; total >= codexStartupTimeout-time.Second {
 		t.Fatalf("initialize có thể chờ %s, phải dưới %s (còn dư ít nhất 1 giây)", total, codexStartupTimeout)
+	}
+}
+
+// Phát hiện M3 .2/.11: mỗi request shim gửi lên daemon có id JSON-RPC riêng (kể cả các tools/call trên cùng một phiên).
+func TestShimUniqueRequestIDs(t *testing.T) {
+	f, o := newFakeGateway(t)
+	sh, err := NewShim(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+	sh.Ready(context.Background())
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := sh.Call(context.Background(), "spec_backward_compatibility_check", json.RawMessage(`{}`)); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	f.mu.Lock()
+	ids := slices.Clone(f.ids)
+	f.mu.Unlock()
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			t.Fatalf("id %s bị dùng lại: %v", id, ids)
+		}
+		seen[id] = true
+	}
+	if len(ids) != 5 { // 1 initialize + 4 tools/call
+		t.Fatalf("%d request, muốn 5: %v", len(ids), ids)
+	}
+}
+
+// Phát hiện M3 .3: lần kết nối đầu không lên được gateway thì shim thử lại nền một lần; được thì thêm tool và báo OnToolsChanged.
+func TestShimBackgroundRetryAddsTools(t *testing.T) {
+	_, o := newFakeGateway(t)
+	c, err := Connect(o.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info := c.Info
+	if err := os.Remove(filepath.Join(o.Dir, InfoFileName)); err != nil { // lần đầu không tìm thấy daemon
+		t.Fatal(err)
+	}
+	var starts atomic.Int32
+	o.Start = func(context.Context, string) (Info, error) {
+		if starts.Add(1) == 1 {
+			return Info{}, errors.New("daemon chưa lên")
+		}
+		return info, nil
+	}
+	o.StartWait, o.RetryDelay = 2*time.Second, 50*time.Millisecond
+	sh, err := NewShim(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+	changed := make(chan struct{}, 1)
+	sh.OnToolsChanged(func() { changed <- struct{}{} })
+	sh.Start()
+	sh.Ready(context.Background())
+	if sh.Owns("spec_run_contract_test") || !strings.Contains(sh.Instructions(), "daemon chưa lên") {
+		t.Fatalf("lần đầu phải chưa có tool và nêu lỗi: %q", sh.Instructions())
+	}
+	select {
+	case <-changed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("không có lần thử lại nền")
+	}
+	if !sh.Owns("spec_run_contract_test") || !sh.Owns("spec_backward_compatibility_check") || sh.Instructions() != "" {
+		t.Fatalf("sau thử lại phải có tool và hết lỗi: owns=%v instr=%q", sh.Owns("spec_run_contract_test"), sh.Instructions())
+	}
+	if _, err := sh.Call(context.Background(), "spec_run_contract_test", json.RawMessage(`{}`)); err != nil {
+		t.Fatalf("gọi sau thử lại: %v", err)
+	}
+}
+
+// Kết nối đầu đủ tool thì không có lần thử lại nền; Close trước hạn thì lần thử lại không chạy.
+func TestShimNoRetryWhenConnectedAndStopsOnClose(t *testing.T) {
+	_, o := newFakeGateway(t)
+	o.RetryDelay = 20 * time.Millisecond
+	sh, err := NewShim(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := make(chan struct{}, 1)
+	sh.OnToolsChanged(func() { changed <- struct{}{} })
+	sh.Start()
+	sh.Ready(context.Background())
+	if sh.needsRetry() {
+		t.Fatal("đã đủ tool mà vẫn cần thử lại")
+	}
+	sh.Close()
+	select {
+	case <-changed:
+		t.Fatal("không được báo đổi danh sách")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	var starts atomic.Int32
+	o2 := o
+	o2.Dir = t.TempDir()
+	o2.RetryDelay = 300 * time.Millisecond
+	o2.StartWait = 100 * time.Millisecond
+	o2.Start = func(context.Context, string) (Info, error) { starts.Add(1); return Info{}, errors.New("không lên") }
+	sh2, err := NewShim(o2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sh2.Start()
+	sh2.Ready(context.Background())
+	sh2.Close()
+	time.Sleep(500 * time.Millisecond)
+	if n := starts.Load(); n != 1 {
+		t.Fatalf("đã Close mà vẫn thử lại: %d lần khởi động", n)
 	}
 }

@@ -4,18 +4,18 @@
 ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
 │ ‹ Harness Thành phần Skill Chỉ mục Ngôn ngữ Doctor  Cài đặt  Cập nhật        │
 │ ┌─│Chạy init với phần đã đổi│──────────────────────────────────────────────┐ │
-│ │ ▸ Harness (cấu hình mới)   claude, codex▏                                │ │
-│ │   Cài hook                 [x]                                           │ │
-│ │   Gỡ hook                  [ ]                                           │ │
-│ │   Phạm vi hook             ‹ (●) project ›                               │ │
-│ │   Ghi AGENTS.md            [ ]                                           │ │
-│ │   Đăng ký MCP              [ ]                                           │ │
-│ │   Gỡ MCP                   [ ]                                           │ │
-│ │   MCP cấp người dùng (agy) [ ]                                           │ │
-│ │   Ghi đè (--force)         [ ]                                           │ │
-│ │   Không xuất skill         [ ]                                           │ │
-│ │   Chế độ Git               ( ) (để trống) ( ) track (●) local            │ │
-│ │   Nâng mẫu cấu hình        [ ]                                           │ │
+│ │ ▸ Harness (cấu hình mới)  claude, codex▏                                 │ │
+│ │   Cài hook                [x]                                            │ │
+│ │   Gỡ hook                 [ ]                                            │ │
+│ │   Phạm vi hook            ( ) (để trống) ( ) local (●) project ( ) user  │ │
+│ │   Ghi AGENTS.md           [ ]                                            │ │
+│ │   Đăng ký MCP             [ ]                                            │ │
+│ │   Gỡ MCP                  [ ]                                            │ │
+│ │   MCP người dùng (agy)    [ ]                                            │ │
+│ │   Ghi đè (--force)        [ ]                                            │ │
+│ │   Không xuất skill        [ ]                                            │ │
+│ │   Chế độ Git              ( ) (để trống) ( ) track (●) local             │ │
+│ │   Nâng mẫu cấu hình       [ ]                                            │ │
 │ │                                                                          │ │
 │ │   ⓘ Chỉ để xem: đổi harness ở thẻ Cấu hình (harnesses.enabled).          │ │
 │ │   Lệnh CLI tương đương: bint init                                        │ │

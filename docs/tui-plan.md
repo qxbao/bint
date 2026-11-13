@@ -252,7 +252,7 @@ mở `$EDITOR` — không có). Ba thẻ phụ (`.`/`,`):
   Phím: `a` thêm (form sinh từ `MCPAddOptions`: service, lệnh, đối số, tên biến môi trường, URL — **không có ô giá trị bí mật**; màn hiện
   đường dẫn `secrets.env` và các biến còn thiếu), `x` gỡ (hộp xác nhận), `c` kiểm tra (việc nền, log từng service), `i` lập chỉ mục codegraph
   (việc nền, đầu ra codegraph vào khung log), `R` khởi động lại upstream (hộp xác nhận, việc nền), `l` xem log (stderr đã che credential của
-  upstream đang chạy và các dòng `gateway.log` của service: `mcp gateway log`), `G`/`S` bật/tắt daemon (tắt có hộp xác nhận).
+  upstream đang chạy và các dòng `gateway.log` của service: `mcp gateway log`), `s`/`S` bật/tắt daemon (tắt có hộp xác nhận; `G` vẫn là về cuối danh sách như mọi thẻ).
 - **Quyền**: bảng role × service (ô = các nhóm thao tác) giải từ `app.MCPGrants`, gồm role `interactive` ngầm (đánh dấu `~`) và cảnh báo; chỉ
   để xem. `e` mở `.bint/config.yml` trong `$EDITOR` bằng cách chuyển sang Hệ thống và chạy `system.config_edit` (chọn lớp, `Validate()` khi
   lưu, gộp ba chiều): màn MCP không chép luồng đó.

@@ -36,5 +36,5 @@
 │ │                                                                        ││                                                            │ │
 │ │                                                                        ││                                                            │ │
 │ │                                                                        ││                                                            │ │
-│ └─ Enter Open  a Add  c Check  x Remove ─────────────────────────────────┘└─ i Index  R Restart  l Log  p Project  G Start  S Stop ────┘ │
+│ └─ Enter Open  a Add  c Check  x Remove ─────────────────────────────────┘└─ i Index  R Restart  l Log  p Project  s Start  S Stop ────┘ │
 └─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────────────────────────────────────────────────────────────────┘

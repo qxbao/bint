@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"bint/internal/harness"
 	"bint/internal/harness/claude"
 	"bint/internal/harness/codex"
+	"bint/internal/mcpcat"
 	"bint/internal/skills"
 	"bint/internal/state"
 	"bint/internal/store"
@@ -29,6 +31,9 @@ type InitOptions struct {
 	// Hooks: nil = hỏi qua Confirm (nếu có), không thì bỏ qua.
 	Hooks      *bool
 	HooksScope claude.Scope
+	// HooksScopeDefault: người dùng không chọn phạm vi (HooksScope là mặc định local). Khi đó quy tắc quyền mcp__bint__* đi
+	// theo phạm vi mà hook đang được cài, không ghi vào local cho riêng người chạy.
+	HooksScopeDefault bool
 	// MCP: true = đăng ký MCP server vào .mcp.json, false = gỡ, nil = giữ nguyên.
 	MCP *bool
 	// MCPUser: ghi mục `bint mcp serve` vào cấu hình MCP cấp người dùng của harness chỉ có MCP cấp user (Antigravity:
@@ -101,6 +106,7 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 	}
 	if opts.HooksScope == "" {
 		opts.HooksScope = claude.ScopeLocal
+		opts.HooksScopeDefault = true
 	}
 	now := opts.Now()
 	rep := &InitReport{}
@@ -320,7 +326,39 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 	}
 
 	// Quy tắc quyền mcp__bint__* (công cụ của Bint và của service ngoài qua cửa vào gộp) trong settings của harness, cùng
-	// phạm vi với hook: khi đăng ký MCP hoặc nâng cấp (--update).
+	// phạm vi với hook: khi đăng ký MCP hoặc nâng cấp (--update). --no-mcp gỡ quy tắc ở các phạm vi trong repository.
+	if opts.MCP != nil && !*opts.MCP {
+		for _, h := range cfg.Harnesses.Enabled {
+			ad, ok := harness.Get(h)
+			if !ok {
+				continue
+			}
+			pi, ok := ad.(harness.PermissionInstaller)
+			hi, hok := ad.(harness.HookInstaller)
+			if !ok || !hok {
+				continue
+			}
+			var seen []string
+			for _, sc := range []claude.Scope{claude.ScopeLocal, claude.ScopeProject} {
+				settings, err := hi.HooksPath(sc, root)
+				if err != nil || slices.Contains(seen, settings) {
+					continue
+				}
+				seen = append(seen, settings)
+				repoWriteSeam("before", absUnder(root, settings))
+				res, err := pi.RemovePermissions(settings, paths.Backups, now)
+				repoWriteSeam("after", absUnder(root, settings))
+				name := "quyền MCP " + h
+				switch {
+				case err != nil:
+					rep.add(name, StepWarn, "không gỡ được quy tắc %s khỏi %s: %v", claude.PermissionRule, settings, err)
+				case res.Changed:
+					w.recordHooks(absUnder(root, settings), res)
+					rep.add(name, StepUpdated, "%s: permissions.allow bỏ %q", settings, claude.PermissionRule)
+				}
+			}
+		}
+	}
 	if (opts.MCP != nil && *opts.MCP) || opts.Update {
 		for _, h := range cfg.Harnesses.Enabled {
 			ad, ok := harness.Get(h)
@@ -332,7 +370,11 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			if !ok || !hok {
 				continue
 			}
-			settings, err := hi.HooksPath(opts.HooksScope, root)
+			scope := opts.HooksScope
+			if opts.HooksScopeDefault {
+				scope = installedHookScope(hi, root, scope)
+			}
+			settings, err := hi.HooksPath(scope, root)
 			if err != nil {
 				return nil, err
 			}
@@ -350,6 +392,9 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 			} else {
 				rep.add(name, StepOK, "%s đã có quy tắc %q", settings, claude.PermissionRule)
 			}
+		}
+		if msg := interactiveWriteGrantWarning(cfg.MCP); msg != "" {
+			rep.add("quyền MCP", StepWarn, "%s", msg)
 		}
 	}
 	// MCP cấp người dùng cho harness không có MCP cấp dự án (Antigravity), chỉ khi người dùng chọn --mcp-user.
@@ -667,4 +712,47 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+// installedHookScope trả phạm vi đầu tiên (local, project, user) mà hook của harness đang được cài; không có thì trả def.
+func installedHookScope(hi harness.HookInstaller, root string, def claude.Scope) claude.Scope {
+	for _, sc := range []claude.Scope{claude.ScopeLocal, claude.ScopeProject, claude.ScopeUser} {
+		p, err := hi.HooksPath(sc, root)
+		if err != nil {
+			continue
+		}
+		if ok, _ := hi.HooksInstalled(p); ok {
+			return sc
+		}
+	}
+	return def
+}
+
+// interactiveWriteGrantWarning: dự án không khai grants.interactive thì phiên tương tác được mọi nhóm của service đã khai (D4);
+// cùng quy tắc mcp__bint__* (không hỏi) nghĩa là tool ghi của service ngoài (vd. jira.write) chạy không cần duyệt. Trả cảnh báo
+// nêu các nhóm đó; rỗng nếu không có.
+func interactiveWriteGrantWarning(m config.MCP) string {
+	if _, ok := m.Grants["interactive"]; ok {
+		return ""
+	}
+	var groups []string
+	for _, id := range slices.Sorted(maps.Keys(m.Services)) {
+		svc, ok := mcpcat.Lookup(id)
+		if !ok {
+			continue
+		}
+		for _, g := range svc.Groups {
+			for _, t := range g.Tools {
+				if !svc.IsReadOnly(t) {
+					groups = append(groups, id+"."+g.Name)
+					break
+				}
+			}
+		}
+	}
+	if len(groups) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("mcp.grants không khai interactive nên phiên tương tác được mọi nhóm, kể cả nhóm có tool ghi (%s); cùng quy tắc %s chúng chạy không hỏi. Khai mcp.grants.interactive (vd. chỉ nhóm đọc) nếu cần duyệt từng lần",
+		strings.Join(groups, ", "), claude.PermissionRule)
 }

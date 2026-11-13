@@ -195,7 +195,7 @@ func mcpActions() []Action {
 			}),
 
 		// Daemon gateway: agent được khởi động (D5: shim tự khởi động), dừng thì chỉ người.
-		mk("mcp.gateway_start", "gateway_start", "G", 7, "mcp gateway start", app.MCPGatewayStartOptions{}, true, false,
+		mk("mcp.gateway_start", "gateway_start", "s", 7, "mcp gateway start", app.MCPGatewayStartOptions{}, true, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				o := opts.(app.MCPGatewayStartOptions)
 				o.Foreground = false // TUI luôn khởi động tách rời: chạy tại chỗ sẽ chặn giao diện

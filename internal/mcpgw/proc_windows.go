@@ -15,8 +15,7 @@ import (
 // procGroup là Job Object của một upstream (KILL_ON_JOB_CLOSE): kill giết cả cây tiến trình. Tiến trình cháu sinh ra
 // trước khi cmd được gán vào job (khoảng giữa Start và attachProc) có thể lọt ra ngoài; chỉ kiểm được trên Windows thật.
 type procGroup struct {
-	job  windows.Handle // bất biến sau attachProc
-	once killOnce
+	job *handleKiller // bất biến sau attachProc
 }
 
 // setupCmd: nhóm tiến trình riêng để Ctrl+Break của daemon không lan sang upstream.
@@ -47,18 +46,17 @@ func attachProc(cmd *exec.Cmd) (*procGroup, error) {
 		_ = windows.CloseHandle(job)
 		return nil, fmt.Errorf("AssignProcessToJobObject: %w", err)
 	}
-	return &procGroup{job: job}, nil
+	return &procGroup{job: newHandleKiller(uintptr(job),
+		func(h uintptr) error { return windows.TerminateJobObject(windows.Handle(h), 1) },
+		func(h uintptr) error { return windows.CloseHandle(windows.Handle(h)) })}, nil
 }
 
 // kill giết cả cây bằng cách kết thúc job; an toàn khi gọi nhiều lần và đồng thời (handle chỉ đóng một lần).
 func (g *procGroup) kill() {
-	if g == nil || g.job == 0 {
+	if g == nil {
 		return
 	}
-	g.once.do(func() {
-		_ = windows.TerminateJobObject(g.job, 1)
-		_ = windows.CloseHandle(g.job)
-	})
+	g.job.kill()
 }
 
 // detachCmd khởi động tiến trình tách rời, không gắn với console của lệnh gọi.

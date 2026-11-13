@@ -236,7 +236,11 @@ func (d *Daemon) grantsFor(ri repoInfo, sc sessCtx, mc config.MachineMCP, svc mc
 	for k := range mc.Services {
 		registered[k] = true
 	}
-	res := ri.cfg.MCP.Resolve(id.Role, id.ReadOnly, registered)
+	cfg := ri.cfg
+	if sc.RunID != "" && ri.runCfgOK {
+		cfg = ri.runCfg // phiên của bint run: quyền theo cấu hình của worktree chính (khớp allowlist của Runner)
+	}
+	res := cfg.MCP.Resolve(id.Role, id.ReadOnly, registered)
 	// Quyền trỏ tới nhóm (mục 5.1): tool được cấp là tool của nhóm có tool được cấp, theo danh mục của daemon.
 	groups := map[string]bool{}
 	for _, t := range res.ToolsOf(svc.ID) {

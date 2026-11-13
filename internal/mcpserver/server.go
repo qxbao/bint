@@ -16,6 +16,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // SupportedVersions là các phiên bản giao thức MCP server chấp nhận (mới nhất trước).
@@ -54,6 +56,13 @@ type Proxy interface {
 	Call(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error)
 }
 
+// ToolsNotifier là phần tuỳ chọn của Proxy có danh sách công cụ đổi được sau initialize (vd. shim nối lại nền được gateway).
+// Server khi đó khai capabilities.tools.listChanged=true và gửi notifications/tools/list_changed mỗi lần f được gọi (sau khi
+// client đã gửi notifications/initialized).
+type ToolsNotifier interface {
+	OnToolsChanged(f func())
+}
+
 // Server là MCP server qua stdio.
 type Server struct {
 	Name         string
@@ -63,7 +72,15 @@ type Server struct {
 	Proxy    Proxy
 	tools    []Tool
 	handlers map[string]Handler
+	// listChanged: Proxy là ToolsNotifier (đặt trong Serve).
+	listChanged bool
+	// EOFGrace: hết stdin thì chờ các lời gọi đang chạy tối đa ngần này rồi huỷ chúng (0 = DefaultEOFGrace). Client gửi yêu
+	// cầu rồi đóng stdin ngay vẫn nhận đủ kết quả nhanh; lời gọi chuyển tiếp dài không giữ tiến trình sau khi harness đóng phiên.
+	EOFGrace time.Duration
 }
+
+// DefaultEOFGrace là thời gian chờ lời gọi đang chạy sau khi hết stdin.
+const DefaultEOFGrace = 5 * time.Second
 
 // New tạo server.
 func New(name, version, instructions string) *Server {
@@ -113,9 +130,38 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 		defer mu.Unlock()
 		enc.Encode(r)
 	}
+	// Hết stdin là harness đã đóng phiên: chờ các lời gọi còn chạy trong EOFGrace rồi huỷ chúng (lời gọi chuyển tiếp dài).
+	ctx, cancelAll := context.WithCancel(ctx)
 	var wg sync.WaitGroup
-	defer wg.Wait()
-	run := &inflight{calls: map[string]context.CancelFunc{}}
+	defer func() {
+		done := make(chan struct{})
+		go func() { wg.Wait(); close(done) }()
+		grace := s.EOFGrace
+		if grace <= 0 {
+			grace = DefaultEOFGrace
+		}
+		t := time.NewTimer(grace)
+		defer t.Stop()
+		select {
+		case <-done:
+		case <-t.C:
+		}
+		cancelAll()
+		<-done
+	}()
+	var initialized atomic.Bool
+	if n, ok := s.Proxy.(ToolsNotifier); ok && s.Proxy != nil {
+		s.listChanged = true
+		n.OnToolsChanged(func() {
+			if !initialized.Load() || ctx.Err() != nil {
+				return // trước notifications/initialized thì tools/list sắp tới đã có công cụ mới
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			enc.Encode(map[string]any{"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
+		})
+	}
+	run := &inflight{calls: map[string]context.CancelFunc{}, initialized: &initialized}
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" {
@@ -145,6 +191,8 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 type inflight struct {
 	mu    sync.Mutex
 	calls map[string]context.CancelFunc
+	// initialized được đặt khi client gửi notifications/initialized (từ đó server được gửi thông báo).
+	initialized *atomic.Bool
 }
 
 func idKey(id json.RawMessage) string {
@@ -187,6 +235,9 @@ func (s *Server) serveOne(ctx context.Context, raw []byte, write func(response),
 		return
 	}
 	isNotification := len(req.ID) == 0 || string(req.ID) == "null"
+	if isNotification && req.Method == "notifications/initialized" && run.initialized != nil {
+		run.initialized.Store(true)
+	}
 	if isNotification && req.Method == "notifications/cancelled" {
 		var p struct {
 			RequestID json.RawMessage `json:"requestId"`
@@ -250,7 +301,7 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 		}
 		return map[string]any{
 			"protocolVersion": v,
-			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
+			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": s.listChanged}},
 			"serverInfo":      map[string]any{"name": s.Name, "version": s.Version},
 			"instructions":    instr,
 		}, nil

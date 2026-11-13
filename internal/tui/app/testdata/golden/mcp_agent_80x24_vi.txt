@@ -20,5 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ └─ Enter Mở  c Kiểm tra  l Log  p Lọc dự án  G Bật gateway ────────────────┘ │
+│ └─ Enter Mở  c Kiểm tra  l Log  p Lọc dự án  s Bật gateway ────────────────┘ │
 └─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘

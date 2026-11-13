@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+	"time"
 
 	"bint/internal/config"
 	adapters "bint/internal/harness"
@@ -59,6 +61,10 @@ func (r *Runner) stepMCP(sr *stepRun, taskID string) (path string, tools []strin
 		}
 	}
 	stateRoot := filepath.Dir(r.Spool)
+	// Tệp của bước bị giết (SIGKILL, mất điện) không được defer dọn: dọn tệp đã quá hạn mọi bước có thể chạy.
+	stale := staleStepFileAge(r.Cfg.Workflow.TimeoutMinutes)
+	pruneStaleJSON(filepath.Join(stateRoot, "mcp"), stale)
+	pruneStaleJSON(filepath.Join(stateRoot, "runtime", mcpgw.BindingDirName), stale)
 	path, err := writeStepMCPConfig(stateRoot, runID, taskID, exe)
 	if err != nil {
 		r.logf("bước %s: không ghi được cấu hình MCP, bước chạy không có MCP của Bint: %v", runID, err)
@@ -76,6 +82,29 @@ func (r *Runner) stepMCP(sr *stepRun, taskID string) (path string, tools []strin
 	return path, tools, func() {
 		_ = os.Remove(path)
 		mcpgw.RemoveRunBinding(runtimeDir, runID)
+	}
+}
+
+// staleStepFileAge là tuổi mà tệp cấu hình MCP/bản ghi lượt chạy chắc chắn không còn thuộc bước đang chạy: gấp đôi
+// workflow.timeout_minutes, tối thiểu 24 giờ.
+func staleStepFileAge(timeoutMinutes int) time.Duration {
+	return max(24*time.Hour, 2*time.Duration(timeoutMinutes)*time.Minute)
+}
+
+// pruneStaleJSON xoá các tệp *.json trong dir (không đệ quy) sửa lần cuối trước now-age; lỗi bị bỏ qua (dọn là phụ).
+func pruneStaleJSON(dir string, age time.Duration) {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	cut := time.Now().Add(-age)
+	for _, e := range ents {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		if fi, err := e.Info(); err == nil && fi.ModTime().Before(cut) {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
 	}
 }
 

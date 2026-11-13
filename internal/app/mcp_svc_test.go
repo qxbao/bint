@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 
 const secretValue = "hunter2-S3CRET"
 
-var fakeEnvNames = []string{probetest.EnvMode, probetest.EnvTools, probetest.EnvDump}
+var fakeEnvNames = []string{probetest.EnvMode, probetest.EnvTools, probetest.EnvDump, probetest.EnvVersion}
 
 // mcpFx là một repository đã init, cấu hình user cô lập và người dùng (không phải agent).
 type mcpFx struct {
@@ -53,10 +53,15 @@ func newMCPFx(t *testing.T, projectMCP string) *mcpFx {
 }
 
 // secrets ghi secrets.env (0600) với cấu hình của bản giả và một credential không được lộ.
-func (f *mcpFx) secrets(t *testing.T, mode, tools string) {
+// secrets ghi secrets.env của bản giả; version là phiên bản bản giả báo với --version (mặc định 1.6.2 = bản ghim của danh mục).
+func (f *mcpFx) secrets(t *testing.T, mode, tools string, version ...string) {
 	t.Helper()
-	body := fmt.Sprintf("%s=%s\n%s=%s\n%s=%s\nJIRA_MCP_PASSWORD=%s\nJIRA_MCP_URL=https://jira.example\nJIRA_MCP_USERNAME=bob\n",
-		probetest.EnvMode, mode, probetest.EnvTools, tools, probetest.EnvDump, f.dump, secretValue)
+	ver := "1.6.2"
+	if len(version) > 0 {
+		ver = version[0]
+	}
+	body := fmt.Sprintf("%s=%s\n%s=%s\n%s=%s\n%s=%s\nJIRA_MCP_PASSWORD=%s\nJIRA_MCP_URL=https://jira.example\nJIRA_MCP_USERNAME=bob\n",
+		probetest.EnvMode, mode, probetest.EnvTools, tools, probetest.EnvDump, f.dump, probetest.EnvVersion, ver, secretValue)
 	p := filepath.Join(config.MachineDir(), "secrets.env")
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		t.Fatal(err)
@@ -193,7 +198,11 @@ func TestMCPAddInstallHintAndWarnings(t *testing.T) {
 	if warn("npx", "-y", "@colbymchenry/codegraph@latest", "serve") != 1 || warn("uvx", "x") != 1 || warn("uv", "tool", "run", "x") != 1 {
 		t.Error("npx @latest, uvx, uv tool run phải có cảnh báo")
 	}
-	if warn("npx", "-y", "@colbymchenry/codegraph@1.6.2") != 0 || warn("codegraph") != 0 {
+	// Phát hiện M1-fix .3: dist-tag và khoảng phiên bản không phải ghim.
+	if warn("npx", "-y", "pkg@next") != 1 || warn("npx", "-y", "pkg@^1") != 1 || warn("npx", "-y", "@scope/pkg@1") != 1 || warn("npx", "-y", "pkg@beta") != 1 {
+		t.Error("npx với dist-tag/khoảng phiên bản phải có cảnh báo")
+	}
+	if warn("npx", "-y", "@colbymchenry/codegraph@1.6.2") != 0 || warn("npx", "-y", "pkg@1.0.0-rc.1") != 0 || warn("codegraph") != 0 {
 		t.Error("lệnh ghim phiên bản không được cảnh báo")
 	}
 	// Phát hiện .5: npx không có @<phiên bản> thực chất là latest, cũng phải cảnh báo.
@@ -315,7 +324,7 @@ func TestMCPListOutsideRepo(t *testing.T) {
 func TestMCPCheckMissingEnv(t *testing.T) {
 	f := newMCPFx(t, "")
 	// secrets.env chỉ có biến của bản giả, thiếu JIRA_*.
-	body := fmt.Sprintf("%s=ok\n%s=x\n%s=%s\n", probetest.EnvMode, probetest.EnvTools, probetest.EnvDump, f.dump)
+	body := fmt.Sprintf("%s=ok\n%s=x\n%s=%s\n%s=1.6.2\n", probetest.EnvMode, probetest.EnvTools, probetest.EnvDump, f.dump, probetest.EnvVersion)
 	os.MkdirAll(config.MachineDir(), 0o700)
 	os.WriteFile(filepath.Join(config.MachineDir(), "secrets.env"), []byte(body), 0o600)
 	res := f.register(t, "jira")
@@ -612,11 +621,18 @@ func TestMCPIndexIgnoresWrapperLauncher(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(f.root, ".codegraph")); err == nil {
 		t.Error("không được tạo chỉ mục")
 	}
-	// Có binary codegraph trên PATH thì index chạy binary đó, không chạy npx đã đăng ký.
+	// Có binary codegraph trên PATH thì index chạy binary đó, không chạy npx đã đăng ký; cùng phiên bản ghim thì không cảnh báo.
 	codegraphOnPath(t)
 	res, err := MCPIndex(ctx, f.root, MCPIndexOptions{Service: "codegraph"}, nil)
-	if err != nil || res.Action != "init" {
+	if err != nil || res.Action != "init" || filepath.Base(res.Binary) != filepath.Base(codegraphName()) || res.Warning != "" {
 		t.Fatalf("index với codegraph trên PATH: %+v %v", res, err)
+	}
+	// Phát hiện M1-fix .1: bản trên PATH khác phiên bản ghim thì cảnh báo (kết quả và đầu ra).
+	f.secrets(t, "ok", codegraphTools(), "1.7.0")
+	var out bytes.Buffer
+	res, err = MCPIndex(ctx, f.root, MCPIndexOptions{Service: "codegraph"}, &out)
+	if err != nil || !strings.Contains(res.Warning, "1.7.0") || !strings.Contains(res.Warning, "1.6.2") || !strings.Contains(out.String(), "cảnh báo:") {
+		t.Fatalf("khác phiên bản phải cảnh báo: %+v %v %q", res, err, out.String())
 	}
 	after, _ = probetest.ReadDumps(f.dump)
 	for _, d := range after[len(before):] {
@@ -624,6 +640,40 @@ func TestMCPIndexIgnoresWrapperLauncher(t *testing.T) {
 			t.Errorf("chỉ init/sync của codegraph được chạy: %v", d.Args)
 		}
 	}
+}
+
+// Phát hiện M1-fix .2: lệnh đã đăng ký chính là binary codegraph (đường dẫn tuyệt đối, không trên PATH) thì index chạy đúng nó,
+// không chạy bản codegraph khác trên PATH.
+func TestMCPIndexUsesRegisteredCodegraphBinary(t *testing.T) {
+	f := newMCPFx(t, "")
+	f.secrets(t, "ok", codegraphTools())
+	data, err := os.ReadFile(fakeExe(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg := filepath.Join(t.TempDir(), codegraphName())
+	if err := os.WriteFile(reg, data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MCPAdd(context.Background(), f.root, MCPAddOptions{Service: "codegraph", Command: reg, Args: []string{"serve", "--mcp"},
+		EnvNames: slices.Clone(fakeEnvNames)}); err != nil {
+		t.Fatal(err)
+	}
+	codegraphOnPath(t) // bản khác trên PATH
+	res, err := MCPIndex(context.Background(), f.root, MCPIndexOptions{Service: "codegraph"}, nil)
+	if err != nil || res.Action != "init" {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if res.Binary != reg || res.Warning != "" {
+		t.Fatalf("index chạy %q (cảnh báo %q), muốn lệnh đã đăng ký %q", res.Binary, res.Warning, reg)
+	}
+}
+
+func codegraphName() string {
+	if runtime.GOOS == "windows" {
+		return "codegraph.exe"
+	}
+	return "codegraph"
 }
 
 func TestMCPIndexLinkedWorktree(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -301,6 +302,11 @@ type repoInfo struct {
 	runtime   string // thư mục runtime của repo ("" nếu không giải được): chứa bản ghi lượt chạy (binding.go)
 	cfg       config.Config
 	cfgOK     bool // đọc được cấu hình dự án (cfg.MCP có nghĩa)
+	// runCfg là cấu hình dùng giải quyền cho phiên của một lượt bint run: đọc từ worktree CHÍNH trước (như cấu hình của
+	// Runner, nơi tính allowlist của bước), nên bước trước sửa .bint/config.yml trong worktree tác vụ không đổi được quyền
+	// của bước sau.
+	runCfg   config.Config
+	runCfgOK bool
 }
 
 // resolveRepo giải worktree dir (gitrepo + config + state, không mở SQLite).
@@ -315,6 +321,14 @@ func resolveRepo(ctx context.Context, dir string) (repoInfo, error) {
 		return ri, nil
 	}
 	ri.cfg, ri.cfgOK = cfg, true
+	ri.runCfg, ri.runCfgOK = cfg, true
+	if roots := repo.ConfigRoots(); len(roots) > 1 {
+		main := slices.Clone(roots)
+		slices.Reverse(main)
+		if mc, _, err := config.LoadFirst(main, false); err == nil {
+			ri.runCfg = mc
+		}
+	}
 	paths, err := state.Resolve(repo, cfg)
 	if err != nil {
 		return ri, nil

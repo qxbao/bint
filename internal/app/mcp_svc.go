@@ -317,11 +317,14 @@ func npxPackage(args []string) string {
 	return ""
 }
 
-// npxPinned: gói có hậu tố @<phiên bản> khác rỗng và khác latest (tiền tố @ của scope không tính).
+// npxPinned: gói có hậu tố @<phiên bản semver đầy đủ> (vd. @1.6.2, @1.0.0-rc.1; tiền tố @ của scope không tính). Dist-tag
+// (latest, next, beta) và khoảng phiên bản (^1, 1, 1.x) vẫn tải bản khác theo thời gian nên không coi là ghim (D1).
 func npxPinned(pkg string) bool {
 	_, ver, ok := strings.Cut(strings.TrimPrefix(pkg, "@"), "@")
-	return ok && ver != "" && ver != "latest"
+	return ok && semverExactRE.MatchString(ver)
 }
+
+var semverExactRE = regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
 
 // ---- mcp remove ----
 
@@ -557,7 +560,7 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 }
 
 // codegraphDisabledRE khớp văn bản lỗi báo tool bị tắt bởi bộ lọc CODEGRAPH_MCP_TOOLS của daemon.
-var codegraphDisabledRE = regexp.MustCompile(`(?i)\b(disabled|not enabled)\b|bị tắt`)
+var codegraphDisabledRE = regexp.MustCompile(`(?i)\b(disabled|not enabled)\b`)
 
 // mcpCodegraphProbe gọi thử codegraph_status: daemon codegraph lọc tool theo env của client ĐẦU TIÊN đã khởi động nó, nên
 // một phiên ngoài Bint khởi động daemon với env hẹp làm tool thuộc nhóm query bị từ chối dù tools/list vẫn liệt kê (mục 5.5).
@@ -620,6 +623,10 @@ type MCPIndexResult struct {
 	// ExcludeFile là tệp git info/exclude đã đảm bảo có dòng .codegraph/; ExcludeAdded: lần này mới thêm.
 	ExcludeFile  string `json:"exclude_file"`
 	ExcludeAdded bool   `json:"exclude_added"`
+	// Binary là binary codegraph đã chạy init/sync; Warning (nếu có): binary đó không phải lệnh đã đăng ký và phiên bản
+	// của nó khác (hoặc không đọc được so với) phiên bản đã ghim, nên chỉ mục có thể do bản khác với server MCP dựng.
+	Binary  string `json:"binary"`
+	Warning string `json:"warning,omitempty"`
 }
 
 // codegraphDB là đường dẫn chỉ mục codegraph so với gốc worktree.
@@ -664,6 +671,10 @@ func MCPIndex(ctx context.Context, dir string, o MCPIndexOptions, out io.Writer)
 	if out == nil {
 		out = io.Discard
 	}
+	warning := codegraphVersionWarning(ctx, path, reg, env)
+	if warning != "" {
+		fmt.Fprintln(out, "cảnh báo: "+warning)
+	}
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = repo.Toplevel, env, out, out
 	if err := cmd.Run(); err != nil {
@@ -673,7 +684,33 @@ func MCPIndex(ctx context.Context, dir string, o MCPIndexOptions, out io.Writer)
 	if err != nil {
 		return res, fmt.Errorf("cập nhật git info/exclude: %w", err)
 	}
-	return MCPIndexResult{Service: svc.ID, Action: args[0], Cwd: repo.Toplevel, ExcludeFile: file, ExcludeAdded: added}, nil
+	return MCPIndexResult{Service: svc.ID, Action: args[0], Cwd: repo.Toplevel, ExcludeFile: file, ExcludeAdded: added,
+		Binary: path, Warning: warning}, nil
+}
+
+// codegraphVersionWarning: index dùng binary trên PATH thay cho lệnh bọc đã đăng ký (npx/node...) thì so `<bin> --version` với
+// phiên bản đã ghim (reg.Version); khác hoặc không đọc được thì trả cảnh báo. Lệnh đã đăng ký chính là binary thì không cảnh báo.
+func codegraphVersionWarning(ctx context.Context, bin string, reg config.Registration, env []string) string {
+	if reg.Command == "" || bin == reg.Command || reg.Version == "" {
+		return ""
+	}
+	if p, err := exec.LookPath(reg.Command); err == nil && p == bin {
+		return ""
+	}
+	vctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	vc := exec.CommandContext(vctx, bin, "--version")
+	vc.Env = env
+	out, err := vc.Output()
+	got := strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
+	if err == nil && got == strings.TrimPrefix(reg.Version, "v") {
+		return ""
+	}
+	if err != nil || got == "" {
+		got = "không rõ"
+	}
+	return fmt.Sprintf("index chạy %s (phiên bản %s) thay cho lệnh đã đăng ký %q (phiên bản ghim %s): chỉ mục có thể do bản khác với server MCP dựng",
+		bin, got, reg.Command, reg.Version)
 }
 
 // codegraphIndexBinary tìm binary codegraph để chạy init/sync. Lệnh đã đăng ký chỉ dùng được khi chính nó là binary

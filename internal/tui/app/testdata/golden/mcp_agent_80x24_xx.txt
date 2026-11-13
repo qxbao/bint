@@ -20,5 +20,5 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
-│ └─ Enter ⟦Open~~⟧  c ⟦Check~~⟧  l ⟦Log~~⟧  p ⟦Project  G ⟦Start ───────────┘ │
+│ └─ Enter ⟦Open~~⟧  c ⟦Check~~⟧  l ⟦Log~~⟧  p ⟦Project  s ⟦Start ───────────┘ │
 └─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘

@@ -19,6 +19,7 @@ import (
 //	child=<tệp>   sinh một tiến trình con (__child, kế thừa nhóm tiến trình) và ghi PID của nó vào tệp
 //	errmsg=1      ghi biến JIRA_MCP_PASSWORD ra stderr rồi chạy tiếp bình thường
 //	diemsg=1      ghi biến JIRA_MCP_PASSWORD ra stderr rồi thoát 1 ngay khi khởi động
+//	initsleep=<ms> ngủ trước khi trả lời initialize (khởi động chậm)
 //
 // Hành vi của tools/call theo arguments: sleep_ms, exit, stall, roots, sampling, progress, bigframe, rpc_error, echo.
 // Kết quả là một khối text JSON {pid, cwd, id, args, max_concurrent, ...}.
@@ -35,7 +36,7 @@ func runFake(args []string) {
 		k, v, _ := strings.Cut(kv, "=")
 		env[k] = v
 	}
-	f.log(map[string]any{"ev": "start", "cwd": wd, "env": env, "args": args})
+	f.log(map[string]any{"ev": "start", "cwd": wd, "env": env, "args": args, "pid": os.Getpid()})
 	if opt["errmsg"] != "" {
 		os.Stderr.WriteString("warn " + os.Getenv("JIRA_MCP_PASSWORD") + "\nlỗi thứ hai\n")
 	}
@@ -143,6 +144,9 @@ func (f *fake) handle(m rpcMsg) {
 			ch <- raw
 		}
 	case m.Method == "initialize":
+		if ms, _ := strconv.Atoi(f.opt["initsleep"]); ms > 0 {
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+		}
 		f.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{
 			"protocolVersion": "2025-06-18", "capabilities": map[string]any{"tools": map[string]any{}},
 			"serverInfo": map[string]any{"name": "fake", "version": "0.0.1", "pid": os.Getpid()}}})

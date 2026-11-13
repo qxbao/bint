@@ -112,17 +112,16 @@ func (s *session) trackCall(clientID json.RawMessage, gwID string) {
 
 // cancelCall huỷ lời gọi theo id gốc của client; trả id đã đổi (rỗng nếu chưa gửi) và ok=false nếu không có lời gọi.
 func (s *session) cancelCall(clientID json.RawMessage) (gw string, ok bool) {
+	// Huỷ trong khoá: hoặc trackCall đã gán gw trước (người gọi chuyển cancelled tới upstream), hoặc ctx đã bị huỷ trước khi
+	// lệnh vào hàng đợi (vòng ghi bỏ lệnh, waiter.markWritten); không còn khe nào lệnh tới upstream mà không nhận cancelled.
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	c := s.calls[idKey(clientID)]
-	if c != nil {
-		gw = c.gw
-	}
-	s.mu.Unlock()
 	if c == nil {
 		return "", false
 	}
 	c.cancel()
-	return gw, true
+	return c.gw, true
 }
 
 func (s *session) nextProgressToken() string {

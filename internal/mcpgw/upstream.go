@@ -123,7 +123,6 @@ func (t *tailBuffer) Lines() string {
 	return s
 }
 
-
 // handshakeParams là params initialize gateway gửi upstream: khai báo roots (gateway trả gốc worktree), không khai
 // báo sampling hay elicitation.
 func handshakeParams(version string) json.RawMessage {

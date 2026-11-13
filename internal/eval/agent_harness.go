@@ -84,6 +84,9 @@ func (a *CodexAgent) bin() string {
 // đã kiểm tra (ExtraArgs), adapter không tự bỏ qua trust của người dùng.
 func (a *CodexAgent) ArmUnavailable(string) string { return "" }
 
+// codexToolNameRE là khoá TOML trần hợp lệ: tên tool đặt trong `-c mcp_servers.bint.tools.<tên>.…` (không dấu chấm).
+var codexToolNameRE = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
 // ArgsFor dựng đối số dòng lệnh cho một yêu cầu.
 func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 	args := []string{"exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"}
@@ -279,9 +282,6 @@ type AgyAgent struct {
 
 // MaxPromptBytes: đề bài đi qua một đối số dòng lệnh (giới hạn của hệ điều hành
 // cho một đối số là 128 KiB trên Linux).
-// codexToolNameRE là khoá TOML trần hợp lệ: tên tool đặt trong `-c mcp_servers.bint.tools.<tên>.…` (không dấu chấm).
-var codexToolNameRE = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-
 const MaxPromptBytes = 120 << 10
 
 func (a *AgyAgent) Name() string                       { return "antigravity" }

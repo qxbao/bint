@@ -36,5 +36,5 @@
 │ │                                                                        ││                                                            │ │
 │ │                                                                        ││                                                            │ │
 │ │                                                                        ││                                                            │ │
-│ └─ Enter ⟦Open~~⟧  a ⟦Add~~⟧  c ⟦Check~~⟧  x ⟦Remove~~~⟧ ────────────────┘└─ i ⟦Ind…  R ⟦Res…  l ⟦Log…  p ⟦Pro…  G ⟦Sta…  S ⟦Stop ─────┘ │
+│ └─ Enter ⟦Open~~⟧  a ⟦Add~~⟧  c ⟦Check~~⟧  x ⟦Remove~~~⟧ ────────────────┘└─ i ⟦Ind…  R ⟦Res…  l ⟦Log…  p ⟦Pro…  s ⟦Sta…  S ⟦Stop ─────┘ │
 └─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────────────────────────────────────────────────────────────────┘

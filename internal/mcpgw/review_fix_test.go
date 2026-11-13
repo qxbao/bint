@@ -2,6 +2,7 @@ package mcpgw
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"bint/internal/state"
+	"bint/internal/ulid"
 )
 
 // stallTransport treo mọi request tới khi context huỷ (hoặc stall đóng): upstream HTTP treo lúc handshake.
@@ -280,11 +282,24 @@ func TestStartDetachedRelativeStateDir(t *testing.T) {
 	}
 }
 
-// .2: killOnce chạy hành động giải phóng đúng một lần dù bị gọi đồng thời (mô phỏng die() và goroutine Wait cùng kill).
-func TestKillOnceConcurrent(t *testing.T) {
+// .2 / M2-fix .6: handleKiller (mã kill thật của procGroup trên Windows, hàm giải phóng được tiêm) kết thúc và đóng handle
+// đúng một lần dù bị gọi đồng thời (mô phỏng die() và goroutine Wait cùng kill).
+func TestHandleKillerConcurrent(t *testing.T) {
 	for i := 0; i < 200; i++ {
-		var k killOnce
-		var n atomic.Int32
+		var term, closed atomic.Int32
+		k := newHandleKiller(42, func(h uintptr) error {
+			if h != 42 {
+				t.Errorf("terminate handle %d", h)
+			}
+			term.Add(1)
+			return nil
+		}, func(uintptr) error {
+			if term.Load() != 1 {
+				t.Error("close trước terminate")
+			}
+			closed.Add(1)
+			return nil
+		})
 		var wg sync.WaitGroup
 		start := make(chan struct{})
 		for j := 0; j < 8; j++ {
@@ -292,14 +307,38 @@ func TestKillOnceConcurrent(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start
-				k.do(func() { n.Add(1) })
+				k.kill()
 			}()
 		}
 		close(start)
 		wg.Wait()
-		if n.Load() != 1 {
-			t.Fatalf("hành động giải phóng chạy %d lần, muốn 1", n.Load())
+		if term.Load() != 1 || closed.Load() != 1 {
+			t.Fatalf("terminate %d lần, close %d lần; muốn 1 và 1", term.Load(), closed.Load())
 		}
+	}
+	var nilK *handleKiller
+	nilK.kill() // không panic
+	newHandleKiller(0, nil, nil).kill()
+}
+
+// procGroup của Windows phải đi qua handleKiller, không tự gọi TerminateJobObject/CloseHandle trên job (test trên Linux không
+// biên dịch tệp _windows.go nên quét nguồn).
+func TestWindowsProcGroupUsesHandleKiller(t *testing.T) {
+	src, err := os.ReadFile("proc_windows.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+	i := strings.Index(s, "func (g *procGroup) kill()")
+	if i < 0 || !strings.Contains(s, "newHandleKiller(") {
+		t.Fatal("proc_windows.go phải dựng procGroup bằng newHandleKiller")
+	}
+	body := s[i:]
+	if j := strings.Index(body, "\n}\n"); j >= 0 {
+		body = body[:j]
+	}
+	if strings.Contains(body, "CloseHandle") || strings.Contains(body, "TerminateJobObject") || !strings.Contains(body, "g.job.kill()") {
+		t.Fatalf("procGroup.kill phải gọi g.job.kill(), không tự giải phóng handle:\n%s", body)
 	}
 }
 
@@ -318,5 +357,113 @@ func TestWaiterAbandonVersusWrite(t *testing.T) {
 	}
 	if w2.abandon() {
 		t.Fatal("lệnh đã ghi không được coi là bỏ")
+	}
+}
+
+// Phát hiện M2-fix .5: lời gọi bị huỷ khi còn trong hàng đợi (kể cả trước khi id gateway được gán) không được ghi tới upstream.
+func TestWaiterCanceledBeforeWriteIsDropped(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	w := &waiter{ch: make(chan waitResult, 1), done: ctx.Done()}
+	cancel()
+	if w.markWritten() || w.written.Load() {
+		t.Fatal("lời gọi đã huỷ không được ghi")
+	}
+	// Người gọi (nhánh ctx.Done của rawCall) phải thấy lệnh chưa ghi, để nhả semaphore ngay thay vì giữ tới hạn chót.
+	if !w.abandon() {
+		t.Fatal("vòng ghi đã bỏ lệnh: abandon sau đó phải xác nhận lệnh chưa ghi")
+	}
+	live := &waiter{ch: make(chan waitResult, 1), done: context.Background().Done()}
+	if !live.markWritten() {
+		t.Fatal("lời gọi còn sống phải ghi được")
+	}
+}
+
+// Phát hiện M2-fix .3: phiên session bị đóng TRONG LÚC lời gọi đang khởi động upstream: upstream vừa khởi động bị dừng, không gắn
+// vào phân vùng mồ côi, inflight về 0.
+func TestDetachDuringSpawnStopsNewUpstream(t *testing.T) {
+	h := newHarness(t, nil)
+	h.register("chrome-devtools", "initsleep=1500")
+	repo := evalDir(t, newRepo(t, false))
+	// Phiên đầu điền cache tools/list rồi đóng; phiên sau mở không cần upstream nên lời gọi đầu mới khởi động lười.
+	first := h.open("chrome-devtools", worktreeHdr(repo))
+	first.call(1, "take_snapshot", nil)
+	first.close()
+	b := h.open("chrome-devtools", worktreeHdr(repo))
+	var p *partition
+	h.d.mu.Lock()
+	for _, x := range h.d.parts {
+		p = x
+	}
+	h.d.mu.Unlock()
+	if p == nil {
+		t.Fatal("không có phân vùng của phiên sau")
+	}
+	starts := len(h.starts("chrome-devtools"))
+	done := make(chan rpcMsg, 1)
+	go func() {
+		m, _ := b.call(2, "take_snapshot", nil)
+		done <- m
+	}()
+	eventually(t, "upstream mới đang khởi động", 5*time.Second, func() bool { return len(h.starts("chrome-devtools")) > starts })
+	b.close()
+	select {
+	case m := <-done:
+		if len(m.Error) == 0 {
+			t.Fatal("lời gọi trên phiên đã đóng trong lúc spawn phải lỗi")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("lời gọi không kết thúc")
+	}
+	ev := h.starts("chrome-devtools")[starts]
+	pid := int(ev["pid"].(float64))
+	eventually(t, "upstream khởi động trong lúc detach bị dừng", 5*time.Second, func() bool { return !processAlive(pid) })
+	p.mu.Lock()
+	up, inflight := p.up, p.inflight
+	p.mu.Unlock()
+	if up != nil || inflight != 0 {
+		t.Errorf("phân vùng mồ côi giữ up=%v inflight=%d", up, inflight)
+	}
+}
+
+// Phát hiện M3 .8: phiên của bint run lấy quyền từ cấu hình của worktree CHÍNH (như allowlist của Runner); bước trước sửa
+// .bint/config.yml trong worktree tác vụ không mở thêm nhóm cho bước sau. Phiên tương tác vẫn theo cấu hình của worktree.
+func TestRunSessionGrantsFromMainWorktreeConfig(t *testing.T) {
+	h := newHarness(t, nil)
+	h.register("codegraph")
+	base := "mcp:\n  services:\n    codegraph: {}\n  grants:\n"
+	repo := evalDir(t, newRepoCfg(t, true, base+"    reviewer: [codegraph.explore]\n    interactive: [codegraph.explore]\n"))
+	paths := markInit(t, repo)
+	wt := addWorktree(t, repo, "task")
+	// b-feat sửa cấu hình trong worktree tác vụ (chưa commit): cấp thêm nhóm query.
+	widened := base + "    reviewer: [codegraph.*]\n    interactive: [codegraph.*]\n"
+	if err := os.WriteFile(filepath.Join(wt, ".bint", "config.yml"), []byte(widened), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runID, taskID := ulid.New(), ulid.New()
+	bindRun(t, paths, RunBinding{RunID: runID, TaskID: taskID, Step: "b-review", Role: "reviewer", ReadOnly: true})
+	names := func(c *client) []string {
+		m := c.rpc(1, "tools/list", nil)
+		var r struct {
+			Tools []struct {
+				Name string `json:"name"`
+			} `json:"tools"`
+		}
+		_ = json.Unmarshal(m.Result, &r)
+		var out []string
+		for _, t := range r.Tools {
+			out = append(out, t.Name)
+		}
+		return out
+	}
+	run := h.open("codegraph", map[string]string{HeaderWorktree: wt, HeaderRunID: runID, HeaderTaskID: taskID})
+	if got := names(run); len(got) != 1 || got[0] != "codegraph_explore" {
+		t.Fatalf("phiên bint run: %v, muốn chỉ codegraph_explore (grants của worktree chính)", got)
+	}
+	if m := run.rpc(2, "tools/call", map[string]any{"name": "codegraph_status"}); rpcCode(m) != CodeNotGranted {
+		t.Fatalf("codegraph_status ngoài quyền của worktree chính phải bị từ chối: %s", m.Error)
+	}
+	inter := h.open("codegraph", worktreeHdr(wt))
+	if got := names(inter); len(got) != 2 {
+		t.Fatalf("phiên tương tác theo cấu hình của worktree: %v, muốn cả hai tool", got)
 	}
 }

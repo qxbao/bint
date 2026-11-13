@@ -251,7 +251,8 @@ các **service ngoài được cấp cho role của bước** (codegraph, specma
 - `<state>/runtime/mcp-runs/<run-id>.json` (0600): **bản ghi lượt chạy** (`step`, `role`, `read_only`, `worktree`). Daemon
   không mở SQLite nên dùng bản ghi này để tự giải role của lượt; Bint xoá cả hai tệp khi bước kết thúc. Thiếu thư mục
   trạng thái thì bước chạy không có MCP (ghi một dòng log), không thất bại; không ghi được bản ghi thì bước chỉ có tool của
-  Bint.
+  Bint. Bước bị giết (SIGKILL, mất điện) để lại hai tệp này; bước sau dọn các tệp cũ hơn gấp đôi `workflow.timeout_minutes`
+  (tối thiểu 24 giờ).
 
 **Quyền theo role** (`mcp.grants` trong `.bint/config.yml`; role của bước từ `b-req`→`planner`, `b-feat`→`implementer`,
 `b-review`→`reviewer`): tool được cấp = grants của role ∩ `mcp.services` của dự án ∩ service đã đăng ký trên máy. Daemon
@@ -316,10 +317,13 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
    `~/.codex/config.toml` và `~/.gemini/config/mcp_config.json`. Service chưa đăng ký trong Bint thì giữ nguyên.
 2. Khai `mcp.services` và (khuyến nghị) `mcp.grants` trong `.bint/config.yml`; **khai `grants.interactive`** nếu không muốn
    phiên tương tác được mọi nhóm của service dự án khai báo (D4 ngầm gồm cả nhóm ghi như `jira.write`, và quy tắc
-   `mcp__bint__*` cho phép chúng không hỏi lại). Kiểm bằng `bint mcp grants`.
+   `mcp__bint__*` cho phép chúng không hỏi lại; `bint init --mcp`/`--update` cảnh báo khi gặp trường hợp này). Kiểm bằng
+   `bint mcp grants`.
 3. Chạy `bint init --update` (hoặc `bint init --mcp`): thêm quy tắc `mcp__bint__*` vào `permissions.allow` của settings Claude
-   cùng phạm vi với hook (`--hooks-scope`, mặc định `local` → `.claude/settings.local.json`); chạy lại không thêm trùng. Quy
-   tắc cũ trỏ tên tool của MCP toàn cục đã gỡ (vd. `mcp__codegraph__*`) vô hại nhưng nên dọn tay.
+   ở phạm vi `--hooks-scope`; không truyền cờ thì theo phạm vi hook đang được cài (local, project rồi user; chưa cài hook thì
+   `local` → `.claude/settings.local.json`); chạy lại không thêm trùng. `bint init --no-mcp` gỡ quy tắc khỏi
+   `.claude/settings.json` và `.claude/settings.local.json`. Quy tắc cũ trỏ tên tool của MCP toàn cục đã gỡ
+   (vd. `mcp__codegraph__*`) vô hại nhưng nên dọn tay.
 4. Antigravity (tuỳ chọn): `bint init --mcp-user`.
 5. Rollback: đặt `BINT_MCP_NO_GATEWAY=1` (chỉ còn tool của Bint, không cần sửa mã).
 
@@ -682,7 +686,8 @@ xoá khi dừng), `gateway.log`, `tools-cache/` (M3).
   service chia sẻ theo worktree hoặc cần cwd), `X-Bint-Run-Id`, `X-Bint-Task-Id`, `X-Bint-Role`, `X-Bint-Harness`,
   `X-Bint-Session-Id`; gateway trả `Mcp-Session-Id`. Từ M3 `X-Bint-Role` **bị bỏ qua khi cấp quyền**: daemon tự giải role
   (có `X-Bint-Run-Id` thì từ bản ghi lượt chạy `runtime/mcp-runs/<run>.json`, không có thì `interactive`) rồi giải quyền theo
-  `mcp.grants` của repo chứa worktree; không được cấp thì `initialize` trả -32015 (`CodeNotGranted`), nên một phiên gắn một
+  `mcp.grants` của repo chứa worktree (phiên của `bint run` đọc `.bint/config.yml` của worktree **chính** trước, như allowlist
+  của bước, nên bước trước sửa cấu hình trong worktree tác vụ không đổi được quyền của bước sau); không được cấp thì `initialize` trả -32015 (`CodeNotGranted`), nên một phiên gắn một
   service được cấp. Cache `initialize`/`tools/list` cũng lưu ở `<gateway>/tools-cache/<service>-<revision>.json` (0600). `DELETE /mcp` đóng phiên (nhả khoá exclusive).
 - **Phân vùng tiến trình theo danh mục:** `machine` một tiến trình cho cả máy, `worktree` một tiến trình cho mỗi gốc
   worktree, `session` mỗi phiên một tiến trình (dừng khi phiên đóng), `remote` (deepwiki, context7) không sinh tiến trình.
