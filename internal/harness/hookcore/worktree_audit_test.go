@@ -47,20 +47,26 @@ func TestWorktreeViolation(t *testing.T) {
 	}
 }
 
-// Lý do deny thật của hook (cả hai nhánh) phải được IsHookDenial nhận ra: hai bên đổi cùng nhau.
+// Lý do deny thật của hook, sau khi Claude Code bọc "PreToolUse:<Tool> hook error: ", phải được IsHookDenial nhận ra: hai bên
+// đổi cùng nhau. Đầu ra thật của lệnh có "hook error" ở giữa, hoặc lý do Bint trần không có tiền tố bọc, không phải bị chặn.
 func TestIsHookDenial(t *testing.T) {
 	v := worktreeDecision(worktreeCheck{AgentType: SubagentImplementer, Tool: "Write",
 		Info: ToolInfo{Kind: ToolEdit, Paths: []string{"/ngoai/x"}}, Step: &SessionStepRecord{Isolated: true, Worktree: t.TempDir()}})
-	if !v.Deny || !IsHookDenial(v.Reason) {
+	if !v.Deny || !IsHookDenial("PreToolUse:Write hook error: "+v.Reason) {
 		t.Fatalf("lý do deny của worktree không nhận ra: %+v", v)
 	}
 	for text, want := range map[string]bool{
-		"PreToolUse:Write hook error: lý do khác": true,
-		"Bint: Bash bị chặn — lệnh":               true,
-		"File created successfully at: /x/y.txt":  false,
-		"Bint: ok":                                false,
-		"":                                        false,
-		strings.Repeat("a", 5000) + "hook error":  false, // ngoài cửa sổ quét
+		"PreToolUse:Write hook error: lý do khác":            true,
+		"  \nPreToolUse:Bash hook error: Bint: Bash bị chặn": true,  // khoảng trắng đầu được bỏ
+		"Bint: Bash bị chặn — lệnh":                          false, // không có tiền tố bọc
+		"make: lỗi\nPreToolUse:Bash hook error: x":           false, // không ở đầu
+		"Exit code 1\nthấy hook error ở giữa đầu ra":         false,
+		"PreToolUse:Bash ok\nhook error ở dòng sau":          false, // không ở dòng đầu
+		"Bash hook error: x":                                 false,
+		"File created successfully at: /x/y.txt":             false,
+		"Bint: ok":                                           false,
+		"":                                                   false,
+		strings.Repeat("a", 5000) + "hook error":             false,
 	} {
 		if got := IsHookDenial(text); got != want {
 			t.Errorf("IsHookDenial(%.40q) = %v, muốn %v", text, got, want)

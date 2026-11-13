@@ -18,23 +18,22 @@ func WorktreeViolation(worktree, cwd string, info ToolInfo) (what string, bad bo
 	return v.What, v.Deny
 }
 
-// hookDenialMarkers: dấu hiệu trong nội dung tool_result khi lời gọi bị hook chặn. Claude Code bọc deny của PreToolUse thành
-// "PreToolUse:<Tool> hook error: <lý do>"; lý do của chính Bint bắt đầu "Bint: <Tool> bị chặn" (worktreeDecision, readonlyDecision).
-// Đặt cạnh lý do deny để cùng đổi khi lý do đổi.
+// Claude Code bọc deny của PreToolUse thành "PreToolUse:<Tool> hook error: <lý do>" ở ĐẦU nội dung tool_result (dòng đầu).
+// Chỉ nhận dạng này: đầu ra thật của lệnh (Bash thoát khác 0) có thể chứa "hook error" ở giữa mà lệnh vẫn đã chạy. Lý do của
+// chính Bint bắt đầu "Bint: <Tool> bị chặn" (worktreeDecision, readonlyDecision) nằm sau tiền tố đó; đặt cạnh lý do deny để
+// cùng đổi khi lý do đổi.
 const (
-	hookDenialMarker  = "hook error"
-	bintDenialPrefix  = "Bint:"
-	bintDenialInfix   = "bị chặn"
-	maxDenialTextScan = 4096
+	hookDenialPrefix = "PreToolUse:"
+	hookDenialMarker = "hook error"
 )
 
-// IsHookDenial cho biết nội dung tool_result là lời gọi bị hook chặn (không chạy).
+// IsHookDenial cho biết nội dung tool_result là lời gọi bị hook chặn (không chạy): sau khi bỏ khoảng trắng đầu, bắt đầu bằng
+// "PreToolUse:" và dòng đầu có "hook error".
 func IsHookDenial(text string) bool {
-	if len(text) > maxDenialTextScan {
-		text = text[:maxDenialTextScan]
+	text = strings.TrimLeft(text, " \t\r\n")
+	if !strings.HasPrefix(text, hookDenialPrefix) {
+		return false
 	}
-	if strings.Contains(text, hookDenialMarker) {
-		return true
-	}
-	return strings.Contains(text, bintDenialPrefix) && strings.Contains(text, bintDenialInfix)
+	first, _, _ := strings.Cut(text, "\n")
+	return strings.Contains(first, hookDenialMarker)
 }

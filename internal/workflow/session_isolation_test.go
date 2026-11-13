@@ -283,3 +283,64 @@ func TestIsolationAuditSkipsOtherSubagent(t *testing.T) {
 		t.Fatalf("subagent khác phải bỏ qua: %q", got)
 	}
 }
+
+// Edit-type chỉ dựa vào is_error: kết quả thành công có thể chứa trích đoạn tệp có chuỗi chặn (vd worktree_guard.go) mà lần
+// ghi ra cây gốc vẫn đã xảy ra ⇒ vẫn là vi phạm.
+func TestIsolationAuditEditSuccessWithDenialTextIsViolation(t *testing.T) {
+	for name, text := range map[string]string{
+		"Bint bị chặn":    "Bint: Write bị chặn — đường dẫn nằm ngoài worktree",
+		"PreToolUse hook": "PreToolUse:Write hook error: Bint: Write bị chặn\n(trích đoạn tệp vừa sửa)",
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, _, c, _ := isoRun(t, false, "A1", true, func(h *harness, wt string) []isoCall {
+				return []isoCall{{id: "te", tool: "Edit", input: map[string]any{"file_path": filepath.Join(h.root, "guard.go")}, cwd: h.root,
+					result: text}}
+			})
+			if c.Result.Status != "blocked" || !strings.Contains(c.Reason, "te (Edit)") || len(isoLeakEvents(t, h)) != 1 {
+				t.Fatalf("status %q, lý do %q", c.Result.Status, c.Reason)
+			}
+		})
+	}
+}
+
+// Bash thoát khác 0 với đầu ra chứa "hook error" ở giữa: lệnh đã chạy (không phải hook chặn) ⇒ vi phạm.
+func TestIsolationAuditBashOutputMentioningHookErrorIsViolation(t *testing.T) {
+	h, _, c, _ := isoRun(t, false, "A1", true, func(h *harness, wt string) []isoCall {
+		return []isoCall{{id: "tb", tool: "Bash", input: map[string]any{"command": "touch LEAK && false"}, cwd: h.root,
+			result: "Exit code 1\nlog: PreToolUse:Bash hook error: x\nBint: Bash bị chặn", isErr: true}}
+	})
+	if c.Result.Status != "blocked" || len(isoLeakEvents(t, h)) != 1 {
+		t.Fatalf("status %q, lý do %q", c.Result.Status, c.Reason)
+	}
+}
+
+// Lý do blocked của tác vụ driver session hướng dẫn `bint run next <id> --resume` (không có lệnh `bint run resume`).
+func TestIsolationReasonResumeHint(t *testing.T) {
+	h, tk, c, _ := isoRun(t, false, "A1", true, func(h *harness, wt string) []isoCall {
+		return []isoCall{{id: "tl", tool: "Write", input: map[string]any{"file_path": filepath.Join(h.root, "L.txt")}, cwd: h.root, result: "ok"}}
+	})
+	_ = h
+	want := "`bint run next " + tk.State.ID + " --resume`"
+	if !strings.Contains(c.Reason, want) || strings.Contains(c.Reason, "bint run resume") {
+		t.Fatalf("lý do thiếu %s: %s", want, c.Reason)
+	}
+}
+
+// Trường paths của missed_by_hook là danh sách, mỗi phần tử một đường dẫn (không phải chuỗi nối dấu phẩy).
+func TestEmitIsolationLeavesPathsAsList(t *testing.T) {
+	h := newHarness(t).wtHarness()
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	rs := &runState{t: tk}
+	ps := &task.PendingStep{RunID: "R1", Step: "b-feat"}
+	a, b := "/goc/a.txt", "/goc/b.txt"
+	r.emitIsolationLeaks(rs, ps, "A1", "/wt", []isoViolation{{id: "tm", tool: "Write", what: "w", subject: a + ", " + b, paths: []string{a, b}, kind: hookcore.ToolEdit}})
+	evs := isoLeakEvents(t, h)
+	if len(evs) != 1 {
+		t.Fatalf("sự kiện: %+v", evs)
+	}
+	got, ok := evs[0].Payload["paths"].([]any)
+	if !ok || len(got) != 2 || got[0] != a || got[1] != b {
+		t.Fatalf("paths = %#v, muốn [%q %q]", evs[0].Payload["paths"], a, b)
+	}
+}

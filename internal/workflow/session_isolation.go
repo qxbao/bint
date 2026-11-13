@@ -25,7 +25,8 @@ const (
 
 // isoViolation là một lời gọi đã chạy ngoài worktree.
 type isoViolation struct {
-	id, tool, what, subject string // subject: đường dẫn hoặc lệnh (đã che)
+	id, tool, what, subject string   // subject: đường dẫn (nối ", ") hoặc lệnh (đã che)
+	paths                   []string // Edit-type: từng đường dẫn (đã che), mỗi phần tử một đường dẫn
 	kind                    hookcore.ToolKind
 }
 
@@ -36,12 +37,14 @@ func (v isoViolation) String() string {
 // ranForReal: lời gọi đã thực sự chạy, không bị hook chặn. Thiếu tool_result (transcript cắt, subagent bị dừng giữa chừng) thì
 // không biết nên không tính. Edit-type: mọi kết quả lỗi đều là chưa ghi được. Bash: lỗi do hook chặn là chưa chạy; lệnh chạy
 // rồi thoát khác 0 cũng là is_error nhưng ĐÃ chạy.
+// Edit-type CHỈ dựa vào is_error: kết quả thành công có thể chứa trích đoạn tệp vừa sửa (kể cả chuỗi "hook error"), không được
+// coi đó là dấu hiệu bị chặn.
 func ranForReal(c claude.ToolCall, kind hookcore.ToolKind) bool {
 	if !c.HasResult {
 		return false
 	}
 	if kind == hookcore.ToolEdit {
-		return !c.IsError && !hookcore.IsHookDenial(c.Result)
+		return !c.IsError
 	}
 	return !(c.IsError && hookcore.IsHookDenial(c.Result))
 }
@@ -94,6 +97,9 @@ func (r *Runner) auditIsolation(rs *runState, ps *task.PendingStep, agentID stri
 		if info.Kind == hookcore.ToolShell {
 			v.subject = detect.Redact(info.Command, 200)
 		} else {
+			for _, p := range info.Paths {
+				v.paths = append(v.paths, detect.Redact(p, 300))
+			}
 			v.subject = detect.Redact(strings.Join(info.Paths, ", "), 300)
 		}
 		bad = append(bad, v)
@@ -102,10 +108,10 @@ func (r *Runner) auditIsolation(rs *runState, ps *task.PendingStep, agentID stri
 		return ""
 	}
 	r.emitIsolationLeaks(rs, ps, agentID, wt, bad)
-	return isolationReason(rs.t.State.Origin, ps.Step, agentID, bad)
+	return isolationReason(rs.t.State.Origin, rs.t.State.ID, ps.Step, agentID, bad)
 }
 
-func isolationReason(origin, step, agentID string, bad []isoViolation) string {
+func isolationReason(origin, taskID, step, agentID string, bad []isoViolation) string {
 	var items []string
 	for i, v := range bad {
 		if i == maxIsolationItems {
@@ -116,7 +122,7 @@ func isolationReason(origin, step, agentID string, bad []isoViolation) string {
 	}
 	return fmt.Sprintf("bước %s: subagent %s (agent %s) đã chạy %d lời gọi ngoài worktree của tác vụ mà hook không chặn: %s. "+
 		"Hãy kiểm tra cây gốc %s: các tệp/thay đổi đó KHÔNG thuộc tác vụ này và Bint không tự xoá hay khôi phục. "+
-		"Xem xong thì tiếp tục bằng `bint run resume`.", step, SubagentImplementer, agentID, len(bad), strings.Join(items, "; "), origin)
+		"Xem xong thì tiếp tục bằng `bint run next %s --resume`.", step, SubagentImplementer, agentID, len(bad), strings.Join(items, "; "), origin, taskID)
 }
 
 // emitIsolationLeaks ghi mỗi vi phạm một sự kiện guardrail.triggered (guardrail bint-worktree, outcome missed_by_hook, on
@@ -137,7 +143,7 @@ func (r *Runner) emitIsolationLeaks(rs *runState, ps *task.PendingStep, agentID,
 		if v.kind == hookcore.ToolShell {
 			payload["command"] = v.subject
 		} else {
-			payload["paths"] = []string{v.subject}
+			payload["paths"] = v.paths
 		}
 		ev := spool.Event{SchemaVersion: spool.SchemaVersion, EventID: hookcore.EventID("bint-run", ps.RunID, v.id, "guardrail", hookcore.OutcomeMissedByHook),
 			Type: spool.GuardrailTriggered, Source: src, Timestamp: r.now().UTC(), RunID: ps.RunID, Worktree: r.Root, Payload: payload}

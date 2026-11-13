@@ -125,6 +125,13 @@ func TestCatalogSpecifics(t *testing.T) {
 	if len(sp.Options) == 0 || sp.Options["specs"] == "" {
 		t.Error("specmatic cần tuỳ chọn specs")
 	}
+	if sp.Install != "npm i -g specmatic-mcp@1.2.0" {
+		t.Errorf("specmatic.Install = %q", sp.Install)
+	}
+	dw, _ := Lookup("deepwiki")
+	if g, ok := dw.Group("read"); !ok || !slices.Contains(g.Tools, "ask_wiki_question") {
+		t.Errorf("deepwiki.read thiếu ask_wiki_question: %+v", g)
+	}
 	if j, _ := Lookup("jira"); len(j.CredentialEnv) == 0 || j.Share != ShareMachine {
 		t.Errorf("jira: %+v", j)
 	}
