@@ -15,7 +15,8 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
 | [Khung đánh giá](evaluation.md) | Khai thác tác vụ từ Git, đặc tả đề bài, môi trường cô lập, chống rò rỉ, các nhánh đánh giá và biến thể `bint@…` (P1) |
 | [Tiến hoá](evolution.md) | Tiến hoá tri thức L1 (P6), skill L2 (P7), bài học từ thất bại, Probe tuần tự, chế độ deferred và vòng `evolve cycle` (P8) |
 | [Thành phần quy trình](harness-components.md) | `.bint/harness` (chỉ dẫn, guardrail, script, chiến lược ngữ cảnh), lệnh `bint harness component`/`render`, thực thi qua hook, đo trong eval và đề xuất tiến hoá (P8, kế hoạch H) |
-| [Trạng thái và giới hạn](status.md) | Tổng hợp khả năng đã triển khai, kết quả thực nghiệm, phát hiện còn mở và giới hạn vận hành |
+| [Trạng thái và giới hạn](status.md) | Tổng hợp khả năng đã triển khai, kết quả đo đã có và giới hạn vận hành |
+| [Nghiệm thu](acceptance.md) | **Nguồn chuẩn duy nhất về nghiệm thu:** trạng thái từng giai đoạn, tiêu chí còn mở (mã `NT-…`), kế hoạch các vòng nghiệm thu đã gom và hướng dẫn chạy |
 | [Phát triển và CI/CD](ci-cd.md) | Kiểm tra cục bộ trên Linux/Windows/macOS, lưu ý chạy test từ phiên agent và quy trình phát hành |
 
 ## Thiết kế và kế hoạch
@@ -23,19 +24,24 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
 | Tài liệu | Vai trò |
 |---|---|
 | [Đặc tả thiết kế](bint-plan.md) | Kiến trúc tổng thể, nguyên tắc thiết kế và điều kiện nghiệm thu P0–P8 (số mục được mã nguồn và tri thức tham chiếu) |
-| [Cổng quyết định 1](gate-1.md) | Giao thức và ngưỡng nghiệm thu bootstrap tối giản (P2), chốt trước khi đo |
-| [Cổng quyết định 2](gate-2.md) | Giao thức và ngưỡng nghiệm thu Context Engine (P3), chốt trước khi đo |
+| [Cổng quyết định 1](gate-1.md) | Phụ lục giao thức đã chốt: ngưỡng và điều kiện của cổng bootstrap tối giản (P2) |
+| [Cổng quyết định 2](gate-2.md) | Phụ lục giao thức đã chốt: ngưỡng và điều kiện của cổng Context Engine (P3) |
 | [Quyết định fingerprint và outcome](fingerprint-outcome-decisions.md) | Quyết định về sai khác fingerprint đa ngôn ngữ và các tín hiệu kết quả trong đợt đo thực tế |
 | [Tiến hoá quy trình và bài học từ thất bại](p8-harness-evolution-plan.md) | Kế hoạch E (bài học từ thất bại) và Kế hoạch H (tiến hoá thành phần quy trình); mã E1–E5 và H1–H4 đã xong, phần đo chưa chạy |
 | [Kế hoạch thử nghiệm tiếp theo](p8-next-experiments.md) | Thiết kế thực nghiệm A (tri thức do người viết) và B (model mạnh rút bài học cho model yếu) |
-| [Kế hoạch TUI](tui-plan.md) | Thiết kế giao diện terminal tương tác (chưa triển khai) |
-| [Kế hoạch gateway MCP](mcp-gateway-plan.md) | Gateway MCP dùng chung cho mọi harness, danh mục và quản lý MCP (API/CLI/TUI), cấp MCP theo role, cấp MCP cho các bước `bint run` (đã chốt hướng, chưa triển khai) |
+| [Hướng phát triển tiếp theo](next-directions.md) | Khảo sát các dự án tương tự (claude-mem, superpowers, Beads…), hướng chiến lược và tính năng mới đề xuất (chưa chốt, chưa có phiếu) |
+| [Kế hoạch TUI](tui-plan.md) | Thiết kế giao diện terminal tương tác và nhật ký triển khai giai đoạn 0–6 (đã triển khai) |
+| [Kế hoạch gateway MCP](mcp-gateway-plan.md) | Gateway MCP dùng chung cho mọi harness, danh mục và quản lý MCP (API/CLI/TUI), cấp MCP theo role, cấp MCP cho các bước `bint run` (M0–M4 đã triển khai, M5 đã đo bộ nhớ) |
+| [Kế hoạch cô lập và driver session](isolation-subagent-plan.md) | Cô lập tác vụ chạy song song (khoá, worktree), điều phối `b-do` bằng subagent trong phiên (G1–G4 đã triển khai) |
+| [Kế hoạch custom skill/flow](custom-flow-plan.md) | Skill tuỳ biến, flow tuỳ biến, `b-add-skill`/`b-add-flow`, `bint skill test` (GĐ1–2 đã triển khai trên 6 giai đoạn) |
 
 ## Nghiệm thu và thực nghiệm
 
-Xem [mục lục thực nghiệm và nghiệm thu](evals/README.md) cho toàn bộ báo cáo chạy harness thật
-(Claude Code, Codex, hỗn hợp Claude↔Codex) và các biên bản nghiệm thu theo commit (`P0–P4`, `P5`,
-`P6`, tái nghiệm thu và biên bản đóng lỗi).
+Trạng thái nghiệm thu hiện tại, tiêu chí còn mở và kế hoạch các vòng nghiệm thu: [acceptance.md](acceptance.md).
+
+Bản ghi lịch sử (bất biến): [mục lục thực nghiệm và nghiệm thu](evals/README.md) gồm các báo cáo chạy harness
+thật (Claude Code, Codex, hỗn hợp Claude↔Codex) và các biên bản nghiệm thu theo commit (`P0–P4`, `P5`, `P6`,
+tái nghiệm thu và biên bản đóng lỗi).
 
 Khối `bint:begin … bint:end` trong `AGENTS.md` và `CLAUDE.md` ở gốc repository do Bint sinh từ
 `.bint/knowledge/items/`; sửa mục nguồn rồi chạy `bint bootstrap publish`, không sửa tay khối đã sinh.

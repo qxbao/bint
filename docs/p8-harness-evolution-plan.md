@@ -2,6 +2,10 @@
 
 Ngày: 2026-11-11. Mở rộng P8 theo hai ý học từ các nghiên cứu tối ưu harness (hiện trạng tổng thể xem tại [docs/status.md](status.md)):
 
+> **Nghiệm thu:** phần đo E6 và H5 chưa chạy. Trạng thái và cách chạy gom vòng nằm ở
+> [acceptance.md](acceptance.md): bước 1 của E6 và của H5 chạy chung một đợt ở vòng V3, phần còn lại chung một
+> vòng `evolve cycle` ở V4 (`NT-E6`, `NT-H5`).
+
 1. **Kế hoạch E — Bài học từ thất bại.** Mỗi lượt thất bại được tóm tắt, rồi rút thành bài học có phạm vi rõ ràng. Thư viện bài học tích luỹ dần, tương tự `EXPERIENCE.md`.
 2. **Kế hoạch H — Sửa được quy trình.** Ngoài tri thức và skill, vòng tiến hoá được đề xuất thay đổi:
    - chỉ dẫn dùng công cụ;

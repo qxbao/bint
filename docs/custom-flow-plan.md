@@ -3,6 +3,10 @@
 > Chép từ artifact b-req của phiếu `01M79GY29G41X7J3AZCY30TTWB` (2026-11-13). Mỗi giai đoạn (GĐ) lập một phiếu b-do riêng.
 > Tài liệu tham khảo: [superpowers-writing-skills.md](references/superpowers-writing-skills.md).
 
+Trạng thái (2026-11-13): **GĐ1 đã làm** (commit `21171cb`: TSK-1..3), **GĐ2 đã làm** (commit `f77ae19`: TSK-4);
+GĐ3–6 chưa commit. Lượt nghiệm thu thủ công sau GĐ5–6 được theo dõi ở [acceptance.md](acceptance.md)
+(mã `NT-CF-MANUAL`).
+
 ## Yêu cầu
 
 ### Mục tiêu và phạm vi
@@ -272,13 +276,13 @@ Mỗi giai đoạn (GĐ) lập một phiếu b-do riêng, tiêu chí của phi�
 
 ### GĐ1 — Skill tuỳ biến
 
-- [ ] TSK-1 [AC-3, AC-11]: internal/skills: nạp skill tuỳ biến từ .bint/skills/{tên}/ (bỏ overlays, evolved, core.lock), tệp phụ an toàn (không symlink, không thoát thư mục, bỏ tests/), installCustom xuất bản sang mọi target và gỡ khi xoá, mục custom trong core.lock — xong khi: test mới trong internal/skills chứng minh xuất bản 2 target kèm tệp phụ, xung đột khi tệp đã xuất bản bị sửa tay, gỡ khi skill bị xoá, đọc được core.lock cũ; go test ./... và GOOS=windows go vet ./... qua
-- [ ] TSK-2 [AC-4, AC-11]: bint skill new và bint skill lint (CheckCustom), skill list/show hiện loại custom, hàng cliRefs và litsrUsage cho lệnh mới — xong khi: bảng test có một ca cho mỗi lỗi nêu trong AC-4 và một ca hợp lệ, e2e skill new rồi skill lint thoát 0, TestServiceMessageCLIInventory qua
-- [ ] TSK-3 [AC-1, AC-11]: skill gốc internal/skills/core/b-add-skill/SKILL.md theo phương pháp của docs/references/superpowers-writing-skills.md (khi nào tạo skill, description chỉ nêu điều kiện kích hoạt, new/lint, RED/GREEN, sync, không tự duyệt), chạy bint sync cập nhật core.lock — xong khi: bint skill list có b-add-skill, bint sync xuất bản nó vào .claude/skills và .agents/skills, test bảng skill gốc trong skills_test.go qua
+- [x] TSK-1 [AC-3, AC-11]: internal/skills: nạp skill tuỳ biến từ .bint/skills/{tên}/ (bỏ overlays, evolved, core.lock), tệp phụ an toàn (không symlink, không thoát thư mục, bỏ tests/), installCustom xuất bản sang mọi target và gỡ khi xoá, mục custom trong core.lock — xong khi: test mới trong internal/skills chứng minh xuất bản 2 target kèm tệp phụ, xung đột khi tệp đã xuất bản bị sửa tay, gỡ khi skill bị xoá, đọc được core.lock cũ; go test ./... và GOOS=windows go vet ./... qua
+- [x] TSK-2 [AC-4, AC-11]: bint skill new và bint skill lint (CheckCustom), skill list/show hiện loại custom, hàng cliRefs và litsrUsage cho lệnh mới — xong khi: bảng test có một ca cho mỗi lỗi nêu trong AC-4 và một ca hợp lệ, e2e skill new rồi skill lint thoát 0, TestServiceMessageCLIInventory qua
+- [x] TSK-3 [AC-1, AC-11]: skill gốc internal/skills/core/b-add-skill/SKILL.md theo phương pháp của docs/references/superpowers-writing-skills.md (khi nào tạo skill, description chỉ nêu điều kiện kích hoạt, new/lint, RED/GREEN, sync, không tự duyệt), chạy bint sync cập nhật core.lock — xong khi: bint skill list có b-add-skill, bint sync xuất bản nó vào .claude/skills và .agents/skills, test bảng skill gốc trong skills_test.go qua
 
 ### GĐ2 — Mô hình flow
 
-- [ ] TSK-4 [AC-5, AC-11]: gói internal/flow (Def, Step, Load, Get, Builtin cho b-do/b-req/b-feat/b-review, Validate, Hash; decode KnownFields) và lệnh bint flow list/show/lint kèm cliRefs — xong khi: bảng test lint có một ca cho mỗi lỗi nêu trong AC-5 cộng ca hợp lệ, bốn flow nhúng qua Validate, bint flow lint trên .bint/flows/tdd.yml mẫu trong test thoát 0
+- [x] TSK-4 [AC-5, AC-11]: gói internal/flow (Def, Step, Load, Get, Builtin cho b-do/b-req/b-feat/b-review, Validate, Hash; decode KnownFields) và lệnh bint flow list/show/lint kèm cliRefs — xong khi: bảng test lint có một ca cho mỗi lỗi nêu trong AC-5 cộng ca hợp lệ, bốn flow nhúng qua Validate, bint flow lint trên .bint/flows/tdd.yml mẫu trong test thoát 0
 
 ### GĐ3 — Runner theo kind (không đổi hành vi)
 

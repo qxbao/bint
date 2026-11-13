@@ -1,6 +1,6 @@
 # Biên bản nghiệm thu P0–P4
 
-> **Bản ghi lịch sử:** Biên bản dưới đây phản ánh trạng thái tại commit được kiểm tra. Tổng hợp hiện trạng và các phát hiện đã đóng / còn mở tại `HEAD` xem ở [docs/status.md](status.md) và [docs/evals/README.md](evals/README.md).
+> **Bản ghi lịch sử:** Biên bản dưới đây phản ánh trạng thái tại commit được kiểm tra. Trạng thái nghiệm thu hiện tại và tiêu chí còn mở xem ở [docs/acceptance.md](acceptance.md); trạng thái triển khai ở [docs/status.md](status.md).
 
 Ngày kiểm tra: 2026-11-10. Phiên bản được kiểm tra: `c52633419d8c39b2e650191f46dcbc6e5a4db281` (`P4: Workflow tối thiểu`).
 

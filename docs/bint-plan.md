@@ -1461,6 +1461,10 @@ Biện pháp:
 
 ## 16. Kế hoạch phát triển theo giai đoạn
 
+> Ô đánh dấu của P0–P7 dưới đây giữ nguyên như bản thiết kế, không phản ánh tiến độ. Trạng thái triển khai xem
+> [status.md](status.md); trạng thái nghiệm thu, tiêu chí còn mở và kế hoạch các vòng nghiệm thu xem
+> [acceptance.md](acceptance.md). Câu "Nghiệm thu" và "Cổng quyết định" của từng giai đoạn ở đây là điều kiện gốc.
+
 Nguyên tắc sắp xếp: phần ghi nhận dữ liệu và đo lường đi trước, vì mọi quyết định phía sau phụ thuộc vào chúng và dữ liệu cần thời gian để tích luỹ. Các phần trùng với năng lực sẵn có của harness chỉ được xây ở mức tối thiểu.
 
 Cổng quyết định 1 và 2 là việc của nhóm phát triển Bint, chạy trên các repository thử nghiệm đại diện (mục 17) để quyết định hướng đi của sản phẩm. Người dùng cuối không phải chạy lại chúng; khung đánh giá trên repository của người dùng chỉ cần khi bật mức 3 (mục 4.4).

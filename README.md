@@ -198,7 +198,8 @@ tự: `--lang` > `BINT_LANG` > `ui.language` trong cấu hình > `LC_ALL`/`LANG`
 > Bint đang trong giai đoạn thử nghiệm và chưa có bản phát hành chính thức. Các giai đoạn P0–P8 đã có
 > trong mã và đã chạy thực nghiệm trên Claude Code lẫn Codex ([docs/evals](docs/evals/README.md)), nhưng
 > cổng quyết định [1](docs/gate-1.md) và [2](docs/gate-2.md) chưa nghiệm thu chính thức và chưa có đề
-> xuất tiến hoá nào được chứng minh cải thiện có ý nghĩa thống kê. Giới hạn còn mở: [docs/status.md](docs/status.md).
+> xuất tiến hoá nào được chứng minh cải thiện có ý nghĩa thống kê. Giới hạn còn mở: [docs/status.md](docs/status.md);
+> trạng thái và kế hoạch nghiệm thu: [docs/acceptance.md](docs/acceptance.md).
 
 ## Tài liệu
 

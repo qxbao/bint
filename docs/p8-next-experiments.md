@@ -2,6 +2,10 @@
 
 Ngày: 2026-11-11. Bối cảnh: [số liệu P6–P7](evals/p6-p7-claude-2026-11-10/README.md), [trạng thái hiện tại](status.md) và [Kế hoạch E/H](p8-harness-evolution-plan.md).
 
+> **Nghiệm thu:** trạng thái và cách chạy gom vòng nằm ở [acceptance.md](acceptance.md): B0 và B1 chạy chung
+> một đợt ở vòng V3 (`NT-EXP-B`), B2–B3 ở vòng V4 (`NT-EVO-TEST`), Kế hoạch A ở vòng V5 (`NT-EXP-A`). Tài liệu
+> này giữ thiết kế, ràng buộc chống rò rỉ và cổng quyết định; chưa bước nào đã chạy.
+
 ## Hiện trạng
 
 - **Tỷ lệ đạt:** trên 30 tác vụ, có Bint đạt 40%, không có Bint đạt 37%. Khoảng tin cậy rộng ±15 điểm %, nên chưa có khác biệt.

@@ -1,6 +1,9 @@
 # Kế hoạch: gateway MCP dùng chung và cấp MCP theo role
 
-Trạng thái: **đã chốt hướng** (2026-11-12). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3 đã làm (2026-11-13, xem "Trạng thái M3" ở §7); M4 đã làm (2026-11-13, xem "Trạng thái M4" ở §8); M5: đã đo bộ nhớ (2026-11-13, xem "Trạng thái M5" ở §11), chưa đo chất lượng.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
+> **Nghiệm thu:** M0–M4 đạt bằng test tự động; phần chạy với service và harness thật, đo chất lượng và Windows
+> được theo dõi ở [acceptance.md](acceptance.md): mã `NT-MCP-*` (vòng V1, V3) và `NT-WIN-MCP` (vòng V2).
+
+Trạng thái: **đã triển khai M0–M4, M5 đo xong bộ nhớ** (2026-11-13). **M0 và M1 đã làm (commit 2e3fb38, 89c85f3); M2 đã làm (2026-11-13, xem "Trạng thái M2" ở §6); M3 đã làm (2026-11-13, xem "Trạng thái M3" ở §7); M4 đã làm (2026-11-13, xem "Trạng thái M4" ở §8); M5: đã đo bộ nhớ (2026-11-13, xem "Trạng thái M5" ở §11), chưa đo chất lượng.** Gồm sáu giai đoạn: M0 (cấp MCP của Bint cho
 các bước `bint run`, sửa ngay được), M1 (danh mục, cấu hình hai tầng, API/CLI quản lý), M2 (daemon
 gateway), M3 (cửa vào gộp và cấp quyền theo role), M4 (màn TUI), M5 (đo).
 Quyết định ở §3, kết quả xác minh ở §10. Chỉ còn S3 (harness xử lý thế nào khi chính shim chết), chưa kiểm

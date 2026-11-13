@@ -1,6 +1,10 @@
 # Cổng quyết định 2 — Context Engine
 
 **Trạng thái: ĐÃ CHỐT (2026-11-10) — cổng chính thức chưa mở; đã có pilot Codex và đợt đo Claude Code để thăm dò kỹ thuật.**
+
+> Tài liệu này là **phụ lục giao thức đã chốt** (ngưỡng, điều kiện, quy trình). Trạng thái hiện tại và kế hoạch
+> chạy cổng nằm ở [acceptance.md](acceptance.md) (mã `NT-GATE-2`, vòng V6).
+
 Theo mục 16 và 19 của kế hoạch, ngưỡng dưới đây được chốt và commit trước khi chạy
 đo (SHA ở mục "Chốt" cuối tài liệu). Không điều chỉnh ngưỡng, thước đo, điều kiện hay
 quy trình sau khi đã thấy kết quả; mọi thay đổi phải là một lần chốt mới, ghi rõ lý do,

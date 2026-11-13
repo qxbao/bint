@@ -1,6 +1,9 @@
 # Kế hoạch: cô lập tác vụ chạy song song và điều phối b-do bằng subagent
 
-Trạng thái: **đã triển khai G1–G4, chờ nghiệm thu thật bằng Claude Code** (2026-11-12). G1 mục 4.1–4.5: mục 12.1–12.5;
+> **Nghiệm thu:** G3 đã chạy thật (mục 12.16). Việc còn mở (G4 chạy thật, `bypassPermissions`, `maxTurns`,
+> Windows) được theo dõi ở [acceptance.md](acceptance.md): mã `NT-ISO-*` (vòng V1) và `NT-WIN-*` (vòng V2).
+
+Trạng thái: **đã triển khai G1–G4 và việc tồn (mục 12.17–12.20); G3 đã nghiệm thu thật, G4 chưa** (2026-11-12). G1 mục 4.1–4.5: mục 12.1–12.5;
 G2 (mục 5): 12.6–12.8; spike S1–S3: 12.9; G3 (mục 6): 12.10–12.13; G4 (mục 7): 12.14–12.15; nghiệm thu thật G3: 12.16;
 việc tồn (ba phát hiện low của tác vụ 01M774RD3A85K7HY9NRRQ73Z95, grep trong `readonly_tools`, kiểm hook SubagentStop): 12.17.
 Cố ý để lại: G2 .5/.6 (12.7). Chưa chạy thật trên Windows. Gồm bốn giai
