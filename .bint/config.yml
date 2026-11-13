@@ -24,6 +24,9 @@ harnesses:
       reviewer:     "opus"
       evolver:      "opus"
       reflector:    "opus"
+    pricing: {}             # giá model ghi đè bảng dựng sẵn khi tính chi phí bước chạy bằng subagent (USD/triệu token); ví dụ:
+                            #   claude-sonnet-5-5: { input_usd_per_mtok: 2, output_usd_per_mtok: 10, cache_write_usd_per_mtok: 2.5, cache_read_usd_per_mtok: 0.1 }
+                            # cache để 0 = suy từ giá input (ghi 1,25 lần, đọc 0,1 lần); model không có giá thì chi phí là unknown
   codex:                    # bint run / bint eval với Codex (codex exec --json, sandbox workspace-write)
     binary: ""              # rỗng = tìm trong PATH
     model: null
@@ -147,6 +150,11 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   max_review_rounds: 2      # số vòng review → sửa tối đa của b-do
   timeout_minutes: 60       # mỗi bước agent
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
+  isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
+  driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
+  worktree:                 # chỉ dùng khi tác vụ chạy trong worktree riêng
+    copy: []                # glob (tương đối với gốc repo) của tệp bị gitignore cần chép vào worktree, ví dụ [".env", "config/*.local.json"]
+    setup_command: ""       # chạy trong worktree mới tạo, ví dụ "npm ci"; lỗi thì tác vụ failed
   agent:
     model: null
     permission_mode: acceptEdits

@@ -42,6 +42,16 @@ Khi làm việc với `**/*_test.go`:
   `testutil.Isolate` chỉ xoá CLAUDE_CODE_SESSION_ID/BINT_RUN_ID/BINT_TASK_ID/BINT_APPROVED_PATHS, KHÔNG xoá các biến trên. Kiểm thử đóng vai người phải gọi `asHuman(t)` (hoặc đặt rỗng từng biến); nếu không, test qua trên CI nhưng hỏng khi agent chạy `go test`.
   Danh sách biến bị chép tay trong `internal/cli/knowledge_e2e_test.go` và `internal/evolve/evolve_test.go`: thêm biến vào `agentEnvVars` thì sửa cả hai.
 
+Khi làm việc với `internal/app/**`, `internal/tui/actions/**`:
+
+- **Thêm lệnh CLI mới hoặc thông báo lỗi nêu cờ rời: TestServiceMessageCLIInventory đòi (1) hàng của lệnh trong cliRefs (in…** [k:01M78XP5NXWWRAZQHN5PSHNC13]
+  Thêm lệnh CLI mới hoặc thông báo lỗi nêu cờ rời: TestServiceMessageCLIInventory đòi (1) hàng của lệnh trong cliRefs (internal/tui/actions/cliref.go) để Rewriter đổi lời nhắc 'bint <lệnh>' thành phím TUI, (2) cờ rời trong literal lỗi cách dùng phải vào litsrUsage của cliref_inventory_test.go. Quên cả hai thì test đỏ ở cli, không ở actions.
+
+Khi làm việc với `internal/config/**`, `internal/eval/**`:
+
+- **Cờ security không thay thế cô lập agent và mạng** [k:01M74PDT2ETJAYRWFV9ZPWVHMR]
+  `security.allow_external_agents` và `security.allow_network_in_evals` hiện mới là khoá khai báo trong schema/mặc định, chưa gắn với cơ chế chặn agent ngoài hay cô lập mạng ở tầng hệ điều hành; lượt đánh giá vẫn chạy với quyền tiến trình của người dùng và truy cập mạng phụ thuộc vào cấu hình sandbox của từng harness.
+
 Khi làm việc với `internal/config/template.go`:
 
 - **Render ghi mẫu bằng w(format) = fmt.Fprintf: mọi ký tự % trong chú thích của mẫu phải viết %% (bản cũ sinh '%!k(MISSING…** [k:01M7487MQV2FFZPHJDWEFVZC7Z]
@@ -51,6 +61,8 @@ Khi làm việc với `internal/eval/**`:
 
 - **Mục không có bằng chứng bị EconomyFilter loại; bài học từ thất bại được nới** [k:01M74D57FYH0PS3DKV7BHRTCF8]
   EconomyFilter và EvidenceHoldsAt loại mục không có tệp bằng chứng. Bài học failure_lesson (Origin.Provenance=failure_lesson, Origin.Runs khác rỗng) không có tệp nên được nới qua Item.LessonFromRuns(); mọi mục khác vẫn bị loại.
+- **codex -c tách khoá theo dấu chấm, không hiểu dấu trích dẫn: -c 'mcp_servers."a.b".enabled=false' làm Codex lỗi (invalid…** [k:01M77JFNA33PQ99TVS9A386HFG]
+  codex -c tách khoá theo dấu chấm, không hiểu dấu trích dẫn: -c 'mcp_servers."a.b".enabled=false' làm Codex lỗi (invalid transport). Tên server có dấu chấm tắt bằng bảng nội tuyến -c 'mcp_servers={"a.b"={enabled=false}}' đặt TRƯỚC mọi -c mcp_servers.* khác (bảng nội tuyến thay thế các khoá đặt trước). Tắt tên không tồn tại (vd server chỉ có trong .codex/config.toml của dự án chưa trust) cũng làm Codex lỗi.
 
 Khi làm việc với `internal/eval/**`, `internal/cli/**`:
 
@@ -78,16 +90,4 @@ Khi làm việc với `internal/harness/hookcore/hook.go`:
   Căn cứ: Lỗi của Reset bị bỏ qua (_ =) và sự kiện session.started chỉ ghi payload source; không có trường nào cho biết bộ nhớ đã được xoá hay xoá lỗi. Chưa có bằng chứng tích hợp rằng Claude Code gửi source=compact sau khi nén (chỉ kiểm bằng JSON giả lập), nên nếu sự kiện không đến thì bản sửa lặng lẽ vô tác dụng và không thể phát hiện.
 
   (Rút ra từ phát hiện review 01M74V1M7F41TFP03TWJQKKYF1.3, tác vụ 01M74V1M7F41TFP03TWJQKKYF1.)
-
-Khi làm việc với `internal/tui/**`:
-
-- **Chân phím trong khung phải đi qua frame.Box.BottomHints (footer.FitStyle tự rút nhãn rồi bỏ phím theo độ rộng khung), đ…** [k:01M768KJGVZ4K2ZQ3JRKW01C6H]
-  Chân phím trong khung phải đi qua frame.Box.BottomHints (footer.FitStyle tự rút nhãn rồi bỏ phím theo độ rộng khung), đừng tự ghép chuỗi Bottom: edge() sẽ cắt giữa một phím. Phần tử bấm chuột bọc bằng zone.Mark (chỉ có tác dụng trong Model.Render, nơi dấu được gỡ); danh sách mới phải vẽ bằng list.Render để hàng bấm được.
-
-Khi làm việc với `internal/tui/app/*_test.go`:
-
-- **Test TUI có việc nền: không dùng drive()/press() — jobs.Wait chặn đồng bộ** [k:01M75FZMNEYM2X3WHNH2G7ZQA4]
-  drive() trong testutil_test.go chạy tea.Cmd đồng bộ; khi có việc nền (Action.Job) lệnh jobs.Wait chặn tới khi việc gửi thông điệp nên test treo. Dùng fixture.press/pump (tasks_fixture_test.go) hoặc drv (evolve_screen_test.go) chạy lệnh trong goroutine. Test TestReadOnlyAndAgentNeverReachDo chỉ duyệt Action.Do: hành động Job (evolve.propose/evaluate/process/cycle) cần test chỉ-đọc/HumanOnly riêng.
-- **sysReal/newModel điền loader mẫu cho thẻ Hệ thống chưa gán (withSampleSystem): Config mẫu có ui.language=auto bất kể lo…** [k:01M7607DBEEATX9D3ZV540Y9K7]
-  sysReal/newModel điền loader mẫu cho thẻ Hệ thống chưa gán (withSampleSystem): Config mẫu có ui.language=auto bất kể local.yml thật. Test cần cấu hình hiệu lực thật (ngôn ngữ, lớp local) phải đặt Options.SystemLoad.Config = bintapp.ConfigView qua sysRealWith.
 <!-- bint:end -->
