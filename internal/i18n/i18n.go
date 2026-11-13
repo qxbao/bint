@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
@@ -55,7 +56,7 @@ type entry struct {
 	plural           bool
 }
 
-// Catalog là danh mục chuỗi của một ngôn ngữ.
+// Catalog là danh mục chuỗi bất biến của một ngôn ngữ, dùng chung an toàn giữa các goroutine.
 type Catalog struct {
 	lang string
 	msgs map[string]entry
@@ -66,14 +67,29 @@ func (c *Catalog) Lang() string { return c.lang }
 
 var paramRE = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
-// Load nạp danh mục của lang ("vi", "en" hoặc Pseudo).
-func Load(lang string) (*Catalog, error) {
-	if lang == Pseudo {
-		en, err := load(English)
+// Locale nhúng không thay đổi trong suốt tiến trình. Chỉ giải mã mỗi locale
+// một lần, thay vì giải mã lại YAML mỗi lần dựng model hay đổi ngôn ngữ.
+var (
+	loadVietnamese = sync.OnceValues(func() (*Catalog, error) { return load(Vietnamese) })
+	loadEnglish    = sync.OnceValues(func() (*Catalog, error) { return load(English) })
+	loadPseudo     = sync.OnceValues(func() (*Catalog, error) {
+		en, err := loadEnglish()
 		if err != nil {
 			return nil, err
 		}
 		return en.pseudo(), nil
+	})
+)
+
+// Load nạp danh mục dùng chung của lang ("vi", "en" hoặc Pseudo).
+func Load(lang string) (*Catalog, error) {
+	switch lang {
+	case Vietnamese:
+		return loadVietnamese()
+	case English:
+		return loadEnglish()
+	case Pseudo:
+		return loadPseudo()
 	}
 	return load(lang)
 }

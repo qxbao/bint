@@ -1,0 +1,8 @@
+Codex CLI isolated smoke attempt — 2026-11-12
+
+CLI: codex-cli 0.167.2
+Repository: /tmp/bint-codex-accept.MRgd9Y (fixture, no user repository writes)
+Profile: /tmp/bint-codex-accept-live-profile (isolated CODEX_HOME; no user auth copied)
+Invocation: CODEX_HOME=<isolated-profile> codex exec --json --sandbox read-only --ephemeral --ignore-user-config --cd <fixture> "Reply with OK only."
+
+Result: Codex started a thread, then the environment denied Responses WebSocket/HTTPS connections ("Operation not permitted" / "error sending request"). The invocation was interrupted during reconnect retries. No model response or workflow run completed. This is an attempted live smoke, not live acceptance evidence. No secrets or auth values were captured. USD/turn limits were not used as a reason to skip the attempt.

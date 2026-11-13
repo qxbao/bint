@@ -179,6 +179,24 @@ func sessionAgentAction(t *task.Task, ps *task.PendingStep) *SessionAction {
 	return a
 }
 
+// sessionChoice uses the saved effective selection, including an intentionally empty model.
+func (r *Runner) sessionChoice(t *task.Task, step string) (string, string, error) {
+	role := adapters.StepRole(step)
+	choice, saved := t.State.AgentChoices[role]
+	sel := adapters.Selection{}
+	if saved && choice.Harness != "" {
+		sel.Roles = map[string]string{role: choice.Harness}
+	}
+	h, _, err := adapters.ForStep(r.Cfg, sel, step)
+	if err != nil {
+		return "", "", err
+	}
+	if saved && choice.Harness != "" {
+		return h, choice.Model, nil
+	}
+	return h, adapters.RoleModel(r.Cfg, h, role, ""), nil
+}
+
 // stopAction dựng hành động dừng (done | blocked | failed) từ trạng thái tác vụ hiện tại.
 func (r *Runner) stopAction(rs *runState) *SessionAction {
 	st := rs.t.State
@@ -465,7 +483,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			}
 			continue
 		}
-		h, _, err := adapters.ForStep(r.Cfg, adapters.Selection{}, step)
+		h, _, err := r.sessionChoice(rs.t, step)
 		if err != nil {
 			r.fail(rs, step, err.Error())
 			return stop()

@@ -2,8 +2,10 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -309,5 +311,118 @@ func TestDepthPromptForReq(t *testing.T) {
 	}
 	if p := h2.prompts[StepReq]; !strings.Contains(p, "Phân tích: standard") || !strings.Contains(p, "Lý do:") {
 		t.Fatalf("state cũ:\n%s", p)
+	}
+}
+
+func TestAgentNoPlanWithNewProtectedScope(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	r.Human = false
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Sửa app.txt", Workflow: StepDo, Plan: ptr(false), Edit: TicketEdit{VerifyCommand: ptr("true")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.behave = func(context.Context, string, *Env, string) error { return nil }
+	_, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(false), Edit: TicketEdit{Allow: []string{"migrations/**"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := loadTask(t, h, tk.State.ID)
+	c := got.State.Classification
+	if !c.Plan || c.Depth != task.DepthDeep || c.DepthReason != task.DepthReasonProtected || !strings.Contains(c.Reason, "agent không bỏ được b-req") || got.State.PlanningContractVersion != 1 || len(h.calls) == 0 || h.calls[0] != StepReq {
+		t.Fatalf("expected b-req on updated protected scope: classification=%+v contract=%d steps=%v", c, got.State.PlanningContractVersion, h.calls)
+	}
+}
+
+func TestAgentNoPlanEffectiveScope(t *testing.T) {
+	for _, tc := range []struct {
+		name                                                   string
+		human, initialProtected, clear, addProtected, wantPlan bool
+	}{
+		{name: "agent new protected", addProtected: true, wantPlan: true},
+		{name: "human new protected", human: true, addProtected: true},
+		{name: "agent existing protected", initialProtected: true, wantPlan: true},
+		{name: "agent clear protected", initialProtected: true, clear: true},
+		{name: "agent ordinary"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			r := h.runner()
+			r.Human = tc.human
+			tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Sửa app.txt", Workflow: StepDo, Plan: ptr(false)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.initialProtected {
+				_, err = r.Tasks.Update(tk.State.ID, r.now(), func(tt *task.Task) error { tt.Ticket.Scope.Allow = []string{"migrations/**"}; return nil })
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			edit := TicketEdit{ClearScope: tc.clear}
+			if tc.addProtected {
+				edit.Allow = []string{"migrations/**"}
+			}
+			stop := errors.New("stop resolver")
+			_, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(false), Edit: edit, ResolveAgentChoices: func(*task.Task) (map[string]task.AgentChoice, error) { return nil, stop }})
+			if !errors.Is(err, stop) {
+				t.Fatal(err)
+			}
+			got := loadTask(t, h, tk.State.ID)
+			if got.State.Classification.Plan != tc.wantPlan {
+				t.Fatalf("classification=%+v scope=%+v", got.State.Classification, got.Ticket.Scope)
+			}
+		})
+	}
+}
+
+func TestAgentNoPlanRejectedChangesDoNotPersist(t *testing.T) {
+	for _, tc := range []struct {
+		name, depth string
+		edit        TicketEdit
+	}{
+		{name: "invalid depth", depth: "shallow", edit: TicketEdit{Allow: []string{"migrations/**"}}},
+		{name: "conflicting depth", depth: "deep", edit: TicketEdit{Allow: []string{"migrations/**"}}},
+		{name: "invalid ticket", edit: TicketEdit{Goal: ptr("")}},
+		{name: "agent autonomy", edit: TicketEdit{Autonomy: ptr(task.AutonomyAuto)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			r := h.runner()
+			r.Human = false
+			tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Sửa app.txt", Workflow: StepDo, Plan: ptr(false)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := loadTask(t, h, tk.State.ID)
+			called := false
+			_, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(false), Depth: tc.depth, Edit: tc.edit, ResolveAgentChoices: func(*task.Task) (map[string]task.AgentChoice, error) { called = true; return nil, nil }})
+			if err == nil || called {
+				t.Fatalf("err=%v resolver=%v", err, called)
+			}
+			after := loadTask(t, h, tk.State.ID)
+			if !reflect.DeepEqual(before.Ticket, after.Ticket) || !reflect.DeepEqual(before.State, after.State) {
+				t.Fatalf("rejected request changed ticket/state: before=%+v after=%+v", before, after)
+			}
+		})
+	}
+}
+
+func TestProtectedScopeOverridePreservesIsolationAndDriver(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	r.Human = false
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Update app.txt", Workflow: StepDo, Plan: ptr(false), Isolation: task.IsolationWorktree, Driver: task.DriverSession})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := *tk.State.Classification
+	updated, err := r.applyOverrides(tk, RunOptions{Workflow: StepDo, Plan: ptr(false), Edit: TicketEdit{Allow: []string{"migrations/**"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := updated.State.Classification
+	if !c.Plan || c.Isolation != before.Isolation || c.IsolationReason != before.IsolationReason || !reflect.DeepEqual(c.IsolationTasks, before.IsolationTasks) || c.Driver != before.Driver || c.DriverReason != before.DriverReason {
+		t.Fatalf("classification before=%+v after=%+v", before, c)
 	}
 }

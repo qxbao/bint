@@ -107,8 +107,8 @@ func TestEvolveEndToEnd(t *testing.T) {
 		t.Fatalf("scan text: %d\n%s", code, out)
 	}
 
-	// roles.reflector khác claude (chưa khoá được công cụ): chỉ cảnh báo và bỏ cơ hội failure_lesson,
-	// đề xuất xác định vẫn chạy (không làm hỏng cả `bint evolve propose`).
+	// Codex reflector now has a restricted adapter. A deterministic opportunity
+	// neither rejects the configured harness nor calls a model.
 	cfgPath := filepath.Join(root, ".bint", "config.yml")
 	cfg, err := os.ReadFile(cfgPath)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestEvolveEndToEnd(t *testing.T) {
 			dep = f
 		}
 	}
-	if code != 0 || dep == "" || !strings.Contains(out, "không dùng được agent reflector") {
+	if code != 0 || dep == "" || strings.Contains(out, "không dùng được agent reflector") {
 		t.Fatalf("propose với reflector=codex: %d\n%s", code, out)
 	}
 	if err := os.WriteFile(cfgPath, cfg, 0o644); err != nil {

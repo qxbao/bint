@@ -139,6 +139,7 @@ type AgentOptions struct {
 	Step     string // b-req | b-feat | b-review ("" = đánh giá)
 	ReadOnly bool
 	Model    string // ghi đè từ dòng lệnh
+	ModelSet bool   // model là snapshot hiệu lực, kể cả khi rỗng (để adapter dùng mặc định CLI)
 	MaxCost  *float64
 	MaxTurns *int
 	// Eval: tạo agent cho khung đánh giá (dùng eval.agent với Claude Code).
@@ -486,10 +487,16 @@ func (Claude) RemovePermissions(path, backupDir string, now time.Time) (claude.I
 func (Claude) MCPInstalled(root string) bool { return claude.MCPInstalled(claude.MCPConfigPath(root)) }
 
 func (Claude) NewAgent(o AgentOptions) eval.Agent {
+	var cfg config.EvalAgent
 	if o.Eval {
-		return &eval.ClaudeAgent{Cfg: o.Config.Eval.Agent, Model: o.Model, MaxCostUSD: o.MaxCost, Bare: o.Bare}
+		cfg = o.Config.Eval.Agent
+	} else {
+		cfg = ClaudeWorkflowArgs(o.Config, o.ReadOnly, o.MaxTurns)
 	}
-	return &eval.ClaudeAgent{Cfg: ClaudeWorkflowArgs(o.Config, o.ReadOnly, o.MaxTurns), Model: o.Model, MaxCostUSD: o.MaxCost}
+	if o.ModelSet {
+		cfg.Model = nil // an empty saved choice must keep the CLI default
+	}
+	return &eval.ClaudeAgent{Cfg: cfg, Model: o.Model, MaxCostUSD: o.MaxCost, Bare: o.Eval && o.Bare}
 }
 
 // bintToolRule là quy tắc mặc định cho phép bước chỉ đọc gọi Bint qua PATH.
@@ -587,7 +594,11 @@ func (Codex) MCPInstalled(root string) bool { return codex.MCPInstalled(root) }
 
 func (Codex) NewAgent(o AgentOptions) eval.Agent {
 	h := o.Config.Harnesses.Codex
-	return &eval.CodexAgent{Binary: h.Binary, Model: model(o.Model, h.Model), ExtraArgs: h.ExtraArgs}
+	modelName := model(o.Model, h.Model)
+	if o.ModelSet {
+		modelName = o.Model
+	}
+	return &eval.CodexAgent{Binary: h.Binary, Model: modelName, ExtraArgs: h.ExtraArgs}
 }
 
 // ---------------------------------------------------------------------------
@@ -641,7 +652,11 @@ func (Antigravity) InstallUserMCP(req MCPRequest) (MCPResult, error) {
 
 func (Antigravity) NewAgent(o AgentOptions) eval.Agent {
 	h := o.Config.Harnesses.Antigravity
-	return &eval.AgyAgent{Binary: h.Binary, Model: model(o.Model, h.Model), ExtraArgs: h.ExtraArgs}
+	modelName := model(o.Model, h.Model)
+	if o.ModelSet {
+		modelName = o.Model
+	}
+	return &eval.AgyAgent{Binary: h.Binary, Model: modelName, ExtraArgs: h.ExtraArgs}
 }
 
 // usableBinary: đường dẫn là tệp thường và (trên Unix) có quyền thực thi.

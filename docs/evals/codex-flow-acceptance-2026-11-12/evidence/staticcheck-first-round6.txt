@@ -1,0 +1,7 @@
+internal/eval/codex_restricted.go:387:9: error strings should not be capitalized (ST1005)
+internal/eval/codex_restricted.go:475:20: error strings should not be capitalized (ST1005)
+internal/eval/codex_restricted.go:498:22: error strings should not be capitalized (ST1005)
+internal/eval/codex_restricted.go:506:22: error strings should not be capitalized (ST1005)
+internal/eval/codex_restricted.go:524:17: error strings should not be capitalized (ST1005)
+internal/eval/codex_restricted.go:588:14: error strings should not be capitalized (ST1005)
+internal/eval/codex_restricted.go:595:28: error strings should not be capitalized (ST1005)

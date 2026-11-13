@@ -1,0 +1,71 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/app	(cached)
+ok  	bint/internal/app/evolvesvc	6.706s
+--- FAIL: TestServiceMessageCLIInventory (0.75s)
+    cliref_inventory_test.go:263: kiểm kê literal nhắc lệnh bint chưa đạt:
+          loại trừ thừa (không còn literal nào khớp): app/evolvesvc/agents.go / roles.%s=%q: chỉ harness claude khoá được công cụ của %s (--tools "");
+FAIL
+FAIL	bint/internal/cli	41.386s
+ok  	bint/internal/config	(cached)
+ok  	bint/internal/ctxengine	(cached)
+ok  	bint/internal/detect	(cached)
+ok  	bint/internal/eval	21.557s
+ok  	bint/internal/evolve	(cached)
+ok  	bint/internal/fsafe	(cached)
+?   	bint/internal/gitrepo	[no test files]
+ok  	bint/internal/harness	(cached)
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	(cached)
+ok  	bint/internal/harness/codex	(cached)
+ok  	bint/internal/harness/hookcore	(cached)
+ok  	bint/internal/hcomp	(cached)
+ok  	bint/internal/i18n	(cached)
+ok  	bint/internal/inspect	(cached)
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	(cached)
+ok  	bint/internal/knowledge	(cached)
+ok  	bint/internal/mcpserver	(cached)
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/runlog	(cached)
+ok  	bint/internal/skills	(cached)
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	(cached)
+ok  	bint/internal/store	(cached)
+ok  	bint/internal/symbols	(cached)
+ok  	bint/internal/task	(cached)
+?   	bint/internal/testutil	[no test files]
+ok  	bint/internal/tui	2.154s
+ok  	bint/internal/tui/actions	9.316s
+ok  	bint/internal/tui/app	115.607s
+ok  	bint/internal/tui/components/barchart	(cached)
+ok  	bint/internal/tui/components/confirm	(cached)
+ok  	bint/internal/tui/components/footer	(cached)
+ok  	bint/internal/tui/components/form	0.436s
+ok  	bint/internal/tui/components/frame	(cached)
+?   	bint/internal/tui/components/help	[no test files]
+ok  	bint/internal/tui/components/input	(cached)
+ok  	bint/internal/tui/components/list	(cached)
+ok  	bint/internal/tui/components/logo	(cached)
+ok  	bint/internal/tui/components/logview	(cached)
+ok  	bint/internal/tui/components/markdown	(cached)
+ok  	bint/internal/tui/components/palette	(cached)
+ok  	bint/internal/tui/components/tabs	(cached)
+ok  	bint/internal/tui/components/text	(cached)
+ok  	bint/internal/tui/components/viewer	(cached)
+ok  	bint/internal/tui/components/zone	(cached)
+ok  	bint/internal/tui/gallery	16.274s
+ok  	bint/internal/tui/jobs	(cached)
+?   	bint/internal/tui/screens/eval	[no test files]
+ok  	bint/internal/tui/screens/evolve	0.042s
+ok  	bint/internal/tui/screens/initwizard	0.263s
+ok  	bint/internal/tui/screens/knowledge	3.716s
+ok  	bint/internal/tui/screens/overview	0.066s
+?   	bint/internal/tui/screens/runs	[no test files]
+?   	bint/internal/tui/screens/shared	[no test files]
+?   	bint/internal/tui/screens/system	[no test files]
+ok  	bint/internal/tui/screens/tasks	1.466s
+ok  	bint/internal/tui/theme	(cached)
+ok  	bint/internal/tui/ui	0.650s
+ok  	bint/internal/ulid	(cached)
+ok  	bint/internal/workflow	(cached)
+FAIL

@@ -131,6 +131,45 @@ func TestLoadUnknownLanguage(t *testing.T) {
 	}
 }
 
+func TestLoadConcurrent(t *testing.T) {
+	for range 8 {
+		for _, lang := range []string{Vietnamese, English, Pseudo} {
+			t.Run(lang, func(t *testing.T) {
+				t.Parallel()
+				c, err := Load(lang)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if c.Lang() != lang || !c.Has("tab.overview") {
+					t.Fatalf("wrong catalog: %s", c.Lang())
+				}
+				want := "Overview"
+				if lang == Vietnamese {
+					want = "Tổng quan"
+				} else if lang == Pseudo {
+					want = "⟦Overview~~~~⟧"
+				}
+				if got := c.T("tab.overview"); got != want {
+					t.Fatalf("got %q, want %q", got, want)
+				}
+			})
+		}
+	}
+}
+
+func BenchmarkLoad(b *testing.B) {
+	for _, lang := range []string{Vietnamese, English, Pseudo} {
+		b.Run(lang, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := Load(lang); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func TestResolvePrecedence(t *testing.T) {
 	cases := []struct {
 		name           string

@@ -1,0 +1,18 @@
+{
+  "model": "gpt-6.1-sol",
+  "modelProvider": "openai",
+  "approvalPolicy": "never",
+  "sandbox": {
+    "type": "readOnly",
+    "networkAccess": false
+  },
+  "activePermissionProfile": {
+    "id": ":read-only",
+    "extends": null
+  },
+  "runtimeWorkspaceRoots": [],
+  "instructionSources": [],
+  "environments": [],
+  "cliVersion": "0.167.2",
+  "ephemeral": true
+}

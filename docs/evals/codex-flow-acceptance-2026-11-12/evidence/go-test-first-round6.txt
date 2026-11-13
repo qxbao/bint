@@ -1,0 +1,75 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/app	13.524s
+ok  	bint/internal/app/evolvesvc	1.668s
+--- FAIL: TestEvolveEndToEnd (0.65s)
+    evolve_e2e_test.go:132: propose với reflector=codex: 0
+        + ep_01M77BPNFWYB49BNS2G6Q5KE9V  deprecate deprecate:01M77BPN6T25T9HXZVHPMWX2K2  rủi ro medium  (op-2cd97a0f)
+            01M77BPN6T25T9HXZVHPMWX2K2 (Handle không được chặn) được truy xuất ở 3 lượt có nhãn nhưng chưa lần nào được trích dẫn; chỉ đánh giá loại bỏ mới xác định được tác động
+
+        Bước tiếp: `bint evolve show <id>`, `bint evolve evaluate <id> --split validation`, rồi --split test.
+        Lưu ý: điều kiện tiên quyết chưa đạt — đề xuất CHƯA được kiểm chứng định lượng; áp dụng cần --unverified.
+FAIL
+FAIL	bint/internal/cli	27.428s
+ok  	bint/internal/config	(cached)
+ok  	bint/internal/ctxengine	(cached)
+ok  	bint/internal/detect	(cached)
+ok  	bint/internal/eval	14.580s
+ok  	bint/internal/evolve	10.721s
+ok  	bint/internal/fsafe	(cached)
+?   	bint/internal/gitrepo	[no test files]
+ok  	bint/internal/harness	0.090s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	(cached)
+ok  	bint/internal/harness/codex	0.063s
+ok  	bint/internal/harness/hookcore	0.045s
+ok  	bint/internal/hcomp	(cached)
+ok  	bint/internal/i18n	(cached)
+ok  	bint/internal/inspect	0.070s
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	(cached)
+ok  	bint/internal/knowledge	0.079s
+ok  	bint/internal/mcpserver	(cached)
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/runlog	2.654s
+ok  	bint/internal/skills	(cached)
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	(cached)
+ok  	bint/internal/store	(cached)
+ok  	bint/internal/symbols	(cached)
+ok  	bint/internal/task	0.240s
+?   	bint/internal/testutil	[no test files]
+ok  	bint/internal/tui	0.670s
+ok  	bint/internal/tui/actions	6.981s
+ok  	bint/internal/tui/app	119.826s
+ok  	bint/internal/tui/components/barchart	(cached)
+ok  	bint/internal/tui/components/confirm	(cached)
+ok  	bint/internal/tui/components/footer	(cached)
+ok  	bint/internal/tui/components/form	0.139s
+ok  	bint/internal/tui/components/frame	(cached)
+?   	bint/internal/tui/components/help	[no test files]
+ok  	bint/internal/tui/components/input	(cached)
+ok  	bint/internal/tui/components/list	(cached)
+ok  	bint/internal/tui/components/logo	(cached)
+ok  	bint/internal/tui/components/logview	(cached)
+ok  	bint/internal/tui/components/markdown	(cached)
+ok  	bint/internal/tui/components/palette	(cached)
+ok  	bint/internal/tui/components/tabs	(cached)
+ok  	bint/internal/tui/components/text	(cached)
+ok  	bint/internal/tui/components/viewer	(cached)
+ok  	bint/internal/tui/components/zone	(cached)
+ok  	bint/internal/tui/gallery	16.129s
+ok  	bint/internal/tui/jobs	0.069s
+?   	bint/internal/tui/screens/eval	[no test files]
+ok  	bint/internal/tui/screens/evolve	0.037s
+ok  	bint/internal/tui/screens/initwizard	0.233s
+ok  	bint/internal/tui/screens/knowledge	3.484s
+ok  	bint/internal/tui/screens/overview	0.064s
+?   	bint/internal/tui/screens/runs	[no test files]
+?   	bint/internal/tui/screens/shared	[no test files]
+?   	bint/internal/tui/screens/system	[no test files]
+ok  	bint/internal/tui/screens/tasks	1.127s
+ok  	bint/internal/tui/theme	(cached)
+ok  	bint/internal/tui/ui	0.562s
+ok  	bint/internal/ulid	(cached)
+ok  	bint/internal/workflow	9.202s
+FAIL

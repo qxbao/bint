@@ -425,3 +425,24 @@ func TestDoneBlockersNeedsLanding(t *testing.T) {
 		t.Fatal("shared không cần đưa về")
 	}
 }
+
+func TestMergedTaskStateRoundTrip(t *testing.T) {
+	s := NewStore(t.TempDir())
+	want := State{AgentChoices: map[string]AgentChoice{"implementer": {Harness: "codex", Model: ""}}, BaseTree: "tree", Touched: []string{"app.txt"}, PendingStep: &PendingStep{RunID: "child", Step: "b-feat"}, SessionSpend: &SessionSpend{RunID: "parent", Cost: 1.25, Turns: 3}}
+	created, err := s.Create(Ticket{Goal: "test"}, want, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Update(created.State.ID, time.Now(), func(tk *Task) error { tk.State.Reason = "updated"; return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Load(created.State.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := got.State
+	if !reflect.DeepEqual(st.AgentChoices, want.AgentChoices) || st.BaseTree != want.BaseTree || !reflect.DeepEqual(st.Touched, want.Touched) || !reflect.DeepEqual(st.PendingStep, want.PendingStep) || !reflect.DeepEqual(st.SessionSpend, want.SessionSpend) {
+		t.Fatalf("state lost fields: %+v", st)
+	}
+}

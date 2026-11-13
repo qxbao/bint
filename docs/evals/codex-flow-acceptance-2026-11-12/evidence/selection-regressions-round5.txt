@@ -1,0 +1,2 @@
+ok  	bint/internal/app	3.728s
+ok  	bint/internal/workflow	0.019s
