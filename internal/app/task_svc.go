@@ -371,6 +371,8 @@ func (o TaskSetOptions) Validate() error {
 type TaskUpdated struct {
 	Task       *task.Task
 	Assessment task.Assessment
+	// Notes: ghi chú đồng bộ tiêu chí sang requirement.md/tasks.md (rỗng khi tiêu chí không đổi hoặc chưa có artifact).
+	Notes []string
 }
 
 // SetTask sửa phiếu. Đặt autonomy: auto chỉ dành cho người.
@@ -382,8 +384,8 @@ func SetTask(_ context.Context, ws *TaskWS, o TaskSetOptions) (TaskUpdated, erro
 	if err := requireHumanForAutonomy(ed, "bint task set"); err != nil {
 		return TaskUpdated{}, err
 	}
-	t, a, err := ws.SetTicket(o.Ref, ed)
-	return TaskUpdated{Task: t, Assessment: a}, err
+	t, a, notes, err := ws.SetTicketSynced(o.Ref, ed)
+	return TaskUpdated{Task: t, Assessment: a, Notes: notes}, err
 }
 
 // ---- task write ----

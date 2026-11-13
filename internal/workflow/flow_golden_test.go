@@ -607,8 +607,7 @@ func TestFlowGoldenRunnerBehaviour(t *testing.T) {
 		if err := os.WriteFile(goldenFlowPath, got, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("đã ghi %s (%d byte)", goldenFlowPath, len(got))
-		return
+		t.Fatalf("đã ghi %s (%d byte) do BINT_UPDATE_GOLDEN=1: xem git diff rồi chạy lại không có biến để kiểm", goldenFlowPath, len(got))
 	}
 	want, err := os.ReadFile(goldenFlowPath)
 	if err != nil {

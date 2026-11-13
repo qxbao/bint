@@ -2,6 +2,7 @@ package flow
 
 import (
 	"errors"
+	"path"
 	"strings"
 	"testing"
 )
@@ -133,5 +134,39 @@ func TestFind(t *testing.T) {
 		if _, err := Find(root, n); !errors.Is(err, ErrNotFound) {
 			t.Errorf("Find(%q): muốn ErrNotFound, được %v", n, err)
 		}
+	}
+}
+
+// Phát hiện review GĐ2 (01M79SBT7J85T54JSZEJNTMG8Z.3): .yaml trùng tên với .yml cũng lỗi thì không khuyên xoá bản .yml
+// (người đang sửa dở); .yml hợp lệ giữ thông báo cũ.
+func TestLoadYamlDuplicateOfBrokenYml(t *testing.T) {
+	root := t.TempDir()
+	writeFlow(t, root, "hong.yml", "schema: [oops\n")
+	writeFlow(t, root, "hong.yaml", tddYAML)
+	// .yml quá lớn cũng là lỗi nạp của bản .yml.
+	writeFlow(t, root, "lon.yml", strings.Repeat("# x\n", MaxFileBytes/4+10))
+	writeFlow(t, root, "lon.yaml", tddYAML)
+	writeFlow(t, root, "tot.yml", tddYAML)
+	writeFlow(t, root, "tot.yaml", tddYAML)
+
+	files, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]error{}
+	for _, f := range files {
+		byPath[path.Base(f.Path)] = f.Err
+	}
+	for _, n := range []string{"hong.yaml", "lon.yaml"} {
+		e := byPath[n]
+		if e == nil || !strings.Contains(e.Error(), "cũng lỗi") || !strings.Contains(e.Error(), "sửa "+strings.TrimSuffix(n, ".yaml")+".yml rồi xoá "+n) {
+			t.Errorf("%s: thông báo phải nêu bản .yml cũng lỗi và không khuyên xoá nó trước: %v", n, e)
+		}
+		if strings.Contains(e.Error(), "xoá "+n+")") {
+			t.Errorf("%s: không được chỉ khuyên xoá .yaml như khi .yml hợp lệ: %v", n, e)
+		}
+	}
+	if e := byPath["tot.yaml"]; e == nil || strings.Contains(e.Error(), "cũng lỗi") || !strings.Contains(e.Error(), "xoá tot.yaml") {
+		t.Errorf("tot.yaml (yml hợp lệ) giữ thông báo cũ: %v", e)
 	}
 }

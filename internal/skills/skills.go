@@ -398,6 +398,39 @@ func publishFile(opts InstallOptions, name, rel string, content []byte, perm os.
 	return o, nil
 }
 
+// Trạng thái tệp skill đã xuất bản (Status, PublishedState).
+const (
+	StateCurrent = "current"
+	StateMissing = "missing"
+	StateDiffers = "differs"
+	// StateStaleBinary: tệp khác bản nhúng của binary đang chạy nhưng khớp băm core.lock ghi cho định dạng của thư mục
+	// đích, và băm skill gốc trong core.lock khác bản nhúng: tệp do một bản Bint khác (mới hơn) xuất bản, chưa ai sửa
+	// tay; binary đang chạy mới là bên cũ.
+	StateStaleBinary = "stale_binary"
+)
+
+// PublishedState như Status, thêm phân biệt StateStaleBinary khỏi StateDiffers dựa vào core.lock: core là skill gốc
+// nhúng của binary, e là mục core.lock của nó. Tệp khớp băm core.lock mà SHA256 gốc trong lock khác bản nhúng thì
+// không phải "sửa tay" (sửa tay làm băm lệch core.lock): bản nhúng của binary này cũ hơn bản đã xuất bản.
+func PublishedState(root string, t Target, s, core Skill, e LockEntry) (string, error) {
+	st, err := Status(root, t, s)
+	if err != nil || st != StateDiffers {
+		return st, err
+	}
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(t.Dir), s.Name, "SKILL.md"))
+	if err != nil {
+		return "", err
+	}
+	locked := e.PublishedHash()
+	if t.Format != "" {
+		locked = e.Variants[t.Format]
+	}
+	if locked != "" && e.SHA256 != "" && e.SHA256 != core.Hash() && (Skill{Content: b}).Hash() == locked {
+		return StateStaleBinary, nil
+	}
+	return st, nil
+}
+
 // Status cho biết trạng thái một skill đã xuất bản so với nội dung mong muốn s
 // (đã ghép lớp phủ) — dùng cho doctor.
 func Status(root string, t Target, s Skill) (string, error) {

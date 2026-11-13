@@ -180,3 +180,37 @@ func TestSkillTestRejectsBadScenarioBeforeAgent(t *testing.T) {
 		t.Fatal("agent đã được gọi")
 	}
 }
+
+// Phát hiện 01M7A7SXWMEF2NR2FE5MRYKVAG.2: agent báo hết hạn mức (JSON kiểu Claude Code is_error + "hit your limit") thì
+// `bint skill test` dừng đợt, vẫn in và ghi kết quả dở, nhưng thoát mã 1 và nêu hết hạn mức (không thoát 0 như đã xong).
+func TestSkillTestQuotaExitsNonZeroWithPartialResult(t *testing.T) {
+	root, _, marker := skillTestE2ERepo(t, e2eScenario)
+	tmp := t.TempDir()
+	script := filepath.Join(tmp, "quota.sh")
+	sh := "echo called >> '" + filepath.ToSlash(marker) + "'\n" +
+		"echo '{\"type\":\"result\",\"is_error\":true,\"result\":\"You'\"'\"'ve hit your 5-hour limit\",\"api_error_status\":429}'\n"
+	if err := os.WriteFile(script, []byte(sh), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, code := run(t, root, "", "skill", "test", "demo-skill", "--agent-command", "sh "+filepath.ToSlash(script), "--yes")
+	if code != 1 {
+		t.Fatalf("hết hạn mức phải thoát 1, được %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "hạn mức") {
+		t.Errorf("thông báo phải nêu hết hạn mức:\n%s", out)
+	}
+	if !strings.Contains(out, "TỔNG") {
+		t.Errorf("kết quả dở vẫn phải được in:\n%s", out)
+	}
+	if b, _ := os.ReadFile(marker); strings.Count(string(b), "called") != 1 {
+		t.Errorf("đợt phải dừng sau lượt đầu hết hạn mức, agent được gọi %d lần", strings.Count(string(b), "called"))
+	}
+	files := skillTestFiles(t)
+	if len(files) != 1 {
+		t.Fatalf("kết quả dở phải được ghi: %v", files)
+	}
+	data, _ := os.ReadFile(files[0])
+	if !strings.Contains(string(data), "quota") {
+		t.Errorf("trạng thái báo cáo phải là quota:\n%s", data)
+	}
+}

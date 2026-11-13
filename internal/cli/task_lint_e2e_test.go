@@ -101,3 +101,32 @@ func TestTaskLintLegacyIsAdvisoryUnlessStrict(t *testing.T) {
 		t.Fatalf("lint không được đổi state:\n%s", show)
 	}
 }
+
+// bint task set --criteria/--clear-criteria trên phiếu đã có artifact b-req tự đồng bộ AC/TSK:
+// lint --strict qua ngay, không cần task write.
+func TestTaskSetSyncsCriteriaThenLintPasses(t *testing.T) {
+	root := newLintRepo(t)
+	id := newTaskID(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n")
+	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n")
+	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n")
+	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
+		t.Fatalf("lint ban đầu: %d\n%s", code, out)
+	}
+
+	out, code := run(t, root, "", "task", "set", id, "--criteria", "app.txt có chú thích đầu tệp")
+	if code != 0 || !strings.Contains(out, "đồng bộ tiêu chí") {
+		t.Fatalf("task set phải in ghi chú đồng bộ: %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
+		t.Fatalf("lint sau --criteria: %d\n%s", code, out)
+	}
+
+	out, code = run(t, root, "", "task", "set", id, "--clear-criteria", "--criteria", "một", "--criteria", "hai", "--criteria", "ba")
+	if code != 0 {
+		t.Fatalf("task set --clear-criteria: %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
+		t.Fatalf("lint sau --clear-criteria: %d\n%s", code, out)
+	}
+}

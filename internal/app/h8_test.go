@@ -136,7 +136,7 @@ func TestH8AgentEnvStillViolates(t *testing.T) {
 	if approveErr == nil || !strings.Contains(approveErr.Error(), ErrAgentForbidden.Error()) {
 		t.Fatalf("duyệt trong phiên agent phải bị từ chối: %v", approveErr)
 	}
-	if step.Status != "failed" || !strings.Contains(step.Error, f.cfgRel) || len(step.HumanWrites) != 0 {
+	if step.Status != "blocked" || !strings.Contains(step.Error, f.cfgRel) || len(step.HumanWrites) != 0 {
 		t.Fatalf("muốn vi phạm vì %s: %+v", f.cfgRel, step)
 	}
 }
@@ -151,7 +151,7 @@ func TestH8AgentEditAfterHumanViolates(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	if step.Status != "failed" || !strings.Contains(step.Error, f.cfgRel) {
+	if step.Status != "blocked" || !strings.Contains(step.Error, f.cfgRel) {
 		t.Fatalf("băm lệch phải là vi phạm: %+v", step)
 	}
 }
@@ -168,7 +168,7 @@ func TestH8AgentEditThenHumanReadModifyWriteViolates(t *testing.T) {
 		}
 		f.setLang(t) // người đọc bản agent đã sửa rồi ghi lại
 	})
-	if step.Status != "failed" || !strings.Contains(step.Error, f.cfgRel) || len(step.HumanWrites) != 0 {
+	if step.Status != "blocked" || !strings.Contains(step.Error, f.cfgRel) || len(step.HumanWrites) != 0 {
 		t.Fatalf("sửa của agent không được hợp thức hoá bởi ghi của người: %+v", step)
 	}
 	recs, err := workflow.ReadWrites(workflow.WritesLogPath(f.ws.K.Paths.Runtime), time.Time{})
@@ -190,7 +190,7 @@ func TestH8DirectWriteViolates(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	if step.Status != "failed" || !strings.Contains(step.Error, f.cfgRel) || len(step.HumanWrites) != 0 {
+	if step.Status != "blocked" || !strings.Contains(step.Error, f.cfgRel) || len(step.HumanWrites) != 0 {
 		t.Fatalf("sửa không qua dịch vụ phải là vi phạm: %+v", step)
 	}
 }
@@ -341,7 +341,7 @@ func TestH8WriteGapIsViolation(t *testing.T) {
 		for _, stage := range []string{"before", "after"} {
 			t.Run(c.name+"/"+stage, func(t *testing.T) {
 				step := attempt(t, stage)
-				if step.Status != "failed" || !strings.Contains(step.Error, c.rel) || slices.Contains(step.HumanWrites, c.rel) {
+				if step.Status != "blocked" || !strings.Contains(step.Error, c.rel) || slices.Contains(step.HumanWrites, c.rel) {
 					t.Fatalf("ghi chen %s phải là vi phạm: %+v", stage, step)
 				}
 			})

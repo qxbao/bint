@@ -321,19 +321,63 @@ var ErrAgent = errors.New("thao tác này chỉ dành cho người dùng, không
 
 // SetTicket sửa phiếu. Agent không được nâng autonomy lên auto (mức tự chủ do người quyết).
 func (e *Env) SetTicket(ref string, ed TicketEdit) (*task.Task, task.Assessment, error) {
+	t, a, _, err := e.SetTicketSynced(ref, ed)
+	return t, a, err
+}
+
+// SetTicketSynced như SetTicket và trả thêm các ghi chú đồng bộ requirement.md/tasks.md khi danh sách tiêu chí đổi.
+func (e *Env) SetTicketSynced(ref string, ed TicketEdit) (*task.Task, task.Assessment, []string, error) {
 	if !e.Human && ed.Autonomy != nil && *ed.Autonomy == task.AutonomyAuto {
-		return nil, task.Assessment{}, fmt.Errorf("%w: chỉ người mới đặt được autonomy: auto", ErrAgent)
+		return nil, task.Assessment{}, nil, fmt.Errorf("%w: chỉ người mới đặt được autonomy: auto", ErrAgent)
 	}
+	var sync criteriaSync
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
 		if task.Terminal(t.State.Status) {
 			return fmt.Errorf("tác vụ đã %s", t.State.Status)
 		}
-		return ed.apply(&t.Ticket)
+		before := slices.Clone(t.Ticket.Verify.Criteria)
+		if err := ed.apply(&t.Ticket); err != nil {
+			return err
+		}
+		return e.syncCriteria(t, before, &sync)
 	})
 	if err != nil {
-		return nil, task.Assessment{}, err
+		return nil, task.Assessment{}, nil, err
 	}
-	return t, e.Assess(t), nil
+	e.emitSynced(t, sync)
+	return t, e.Assess(t), sync.notes, nil
+}
+
+// criteriaSync gom kết quả đồng bộ tiêu chí trong một lần Update để phát sự kiện sau khi phiếu đã được lưu.
+type criteriaSync struct {
+	written []string
+	notes   []string
+}
+
+// syncCriteria (gọi trong callback Update đang giữ khoá phiếu): nếu danh sách tiêu chí đổi so với before thì
+// viết lại các dòng AC trong requirement.md và bổ sung TSK trong tasks.md (task.SyncCriteriaArtifacts).
+func (e *Env) syncCriteria(t *task.Task, before []string, out *criteriaSync) error {
+	if slices.Equal(before, t.Ticket.Verify.Criteria) {
+		return nil
+	}
+	written, notes, err := task.SyncCriteriaArtifacts(t)
+	if err != nil {
+		return fmt.Errorf("đồng bộ tiêu chí sang requirement.md/tasks.md: %w", err)
+	}
+	if t.State.Artifacts == nil && len(written) > 0 {
+		t.State.Artifacts = map[string]string{}
+	}
+	for _, n := range written {
+		t.State.Artifacts[n] = e.at()
+	}
+	out.written, out.notes = written, notes
+	return nil
+}
+
+func (e *Env) emitSynced(t *task.Task, s criteriaSync) {
+	for _, n := range s.written {
+		e.emit(t, spool.TaskArtifact, map[string]any{"name": n, "path": t.ArtifactPath(n)})
+	}
 }
 
 // WriteArtifact ghi tài liệu của tác vụ.
@@ -398,7 +442,9 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		if err != nil {
 			return nil, nil, err
 		}
-		doneIn, doneErr = e.DoneInputDetailed(ctx, t0)
+		if !e.planOnlyTask(t0) { // phiếu chỉ lập kế hoạch không có mã để chụp/so
+			doneIn, doneErr = e.DoneInputDetailed(ctx, t0)
+		}
 	}
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
 		if !o.Orchestrator && t.OwnedByOther() {
@@ -431,6 +477,10 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 			if t.State.NeedsLand() {
 				return &NotDoneError{Blockers: append(blockers, "cờ ép không bỏ qua việc đưa về cây gốc: `bint task land "+
 					t.State.ID+"`, hoặc người huỷ bằng `bint task cancel "+t.State.ID+"` để bỏ thay đổi")}
+			}
+			if e.planOnlyTask(t) {
+				// Bảng chuyển giữ nguyên (planned → done không có): chỉ phiếu chỉ lập kế hoạch mới đóng được bằng ClosePlan.
+				return t.State.ClosePlan(e.actor(), o.Reason, e.at())
 			}
 		}
 		reason := o.Reason

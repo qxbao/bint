@@ -358,6 +358,10 @@ type State struct {
 	// Vòng review mới hơn mà chưa áp là review chạy riêng bằng tiến trình (`bint run b-review --task`): driver
 	// session áp nó ở `bint run next` thay vì review lặp.
 	ReviewDecided int `json:"review_decided,omitempty"`
+	// HeldStep là bước chỉ đọc (plan/review) đã kết thúc bình thường nhưng cây làm việc đổi trong lúc nó chạy: tác vụ
+	// blocked để người xem, kết quả của bước (artifact b-req, vòng review) được giữ. Resume đi tiếp bằng cổng sau bước
+	// của chính bước này (không chạy lại agent), tương tự AwaitingCheck của bước implement. nil = không có.
+	HeldStep *HeldStep `json:"held_step,omitempty"`
 	// PendingStep là bước đang chạy bằng subagent (driver session): `bint run next` đã mở, `complete`/`abort` chưa
 	// đóng. nil = không có bước dở.
 	PendingStep *PendingStep `json:"pending_step,omitempty"`
@@ -370,6 +374,15 @@ type State struct {
 	// SessionSpend cộng dồn chi phí/số lượt của các bước subagent trong lượt cha SessionRun, để ngân sách
 	// limits.workflows.b-do (chi phí, lượt) được kiểm qua nhiều lệnh `bint run complete`/`next` (mỗi lệnh là một tiến trình).
 	SessionSpend *SessionSpend `json:"session_spend,omitempty"`
+}
+
+// HeldStep ghi bước chỉ đọc đang được giữ vì cây đổi trong lúc chạy (State.HeldStep).
+type HeldStep struct {
+	Step  string   `json:"step"`
+	RunID string   `json:"run_id"` // lượt con của bước (BINT_RUN_ID của agent; vòng review do bước này ghi mang lượt này)
+	Kind  string   `json:"kind,omitempty"`
+	Files []string `json:"files"` // tệp đổi mà không do người ghi qua Bint
+	At    string   `json:"at,omitempty"`
 }
 
 // SessionSpend là phần ngân sách b-do đã dùng trong một lượt cha của driver session.

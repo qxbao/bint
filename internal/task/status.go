@@ -96,6 +96,17 @@ func (s *State) Apply(to, by, reason, at string) error {
 	return nil
 }
 
+// ClosePlan đóng phiếu chỉ lập kế hoạch đang planned thành done và ghi lịch sử. Không phải đường tắt trong bảng
+// chuyển (planned → done vẫn không có ở transitions): chỉ nơi gọi đã kiểm phiếu không có bước ghi nào mới dùng.
+func (s *State) ClosePlan(by, reason, at string) error {
+	if s.Status != StatusPlanned {
+		return fmt.Errorf("không đóng được kế hoạch ở trạng thái %s (cần planned)", s.Status)
+	}
+	s.History = append(s.History, Transition{From: StatusPlanned, To: StatusDone, At: at, By: by, Reason: reason})
+	s.Status, s.Reason, s.ResumeFrom = StatusDone, reason, ""
+	return nil
+}
+
 // DoneInput là trạng thái hiện tại cần cho kiểm tra hoàn thành.
 type DoneInput struct {
 	// Worktree là fingerprint mã hiện tại ("" nếu không xác định được).

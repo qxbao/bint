@@ -67,7 +67,11 @@ bint knowledge add --from-review <task-id>.<n>  # phát hiện review → mục 
 lỗi, lượt chạy), `requirement.md`, `plan.md`, `tasks.md`, `review.json`/`review.md`, `logs/`.
 `--criteria`, `--allow`, `--deny`, `--constraint` trong `task set` nối thêm vào danh sách sẵn có;
 dùng `--clear-criteria` và `--clear-scope` để xoá trước khi đặt lại. Đổi `verify.command` làm lần xác
-nhận lệnh cũ hết hiệu lực.
+nhận lệnh cũ hết hiệu lực. Khi tác vụ đã có `requirement.md`, đổi danh sách tiêu chí (`task set --criteria` /
+`--clear-criteria`, hoặc sửa phiếu qua `bint run … --criteria`) tự đồng bộ sang artifact: Bint viết lại
+các dòng AC cho khớp phiếu (AC mới thêm nguyên văn, số tiếp theo; AC thừa bị bỏ), thêm vào `tasks.md` một
+TSK cho mỗi AC chưa có TSK bao phủ, và in ghi chú những gì đã đổi — `bint task lint` qua ngay mà không
+cần `bint task write`. TSK đã tham chiếu AC không còn thì Bint chỉ ghi chú, người sửa tay.
 
 **Classify** xác định được (heuristic, chưa gọi mô hình): mục tiêu = dòng đầu mô tả; `scope.allow` =
 đường dẫn và mẫu glob nêu trong mô tả mà tồn tại; `verify.command` = `eval.test_command` đã xác nhận;
@@ -85,8 +89,10 @@ từ phiên agent bị bỏ qua và lý do ghi vào `classification.reason`.
   khớp từng tiêu chí tương ứng trong `task.yml` (sau khi chuẩn hoá khoảng trắng).
 - `tasks.md`: mỗi đầu việc dạng `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`, ID duy nhất; mọi
   AC phải được ít nhất một TSK bao phủ.
-- `plan.md`: không rỗng. Dòng AC/TSK không được chứa placeholder (`TODO`, `TBD`, `...`, `<...>`), và nội
-  dung trong khối code fence không được tính là AC/TSK.
+- `plan.md`: không rỗng. Dòng AC/TSK không được chứa placeholder (`TODO`, `TBD`, `…`, `<mô tả>` đứng riêng), và nội
+  dung trong khối code fence không được tính là AC/TSK. Hai ngoại lệ: nội dung trong code span
+  (`` `<x>` ``) và đoạn `<…>` là một thành phần của định danh có dấu chấm (`limits.workflows.<flow>`,
+  `harnesses.<h>.model`).
 - **Câu hỏi mở:** dưới `## Câu hỏi mở` trong `requirement.md`, câu hỏi thực sự cản trở triển khai có
   dạng `- [ ] Q-1: <câu hỏi>` sẽ chặn `b-feat`. Sau khi có câu trả lời, cập nhật thành
   `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>` bằng `bint task write`.
@@ -141,6 +147,11 @@ còn `created` (hoặc `bint run b-req --task <id> --depth …` để lập kế
 chứng đã được người xác nhận và lần chạy cuối qua trên **đúng trạng thái mã hiện tại** (fingerprint
 HEAD + diff + tệp chưa theo dõi), hoặc — khi không có lệnh kiểm chứng — mọi tiêu chí được đối chiếu là
 đạt; không tiêu chí nào bị đánh dấu `unmet`; không có thay đổi chạm đường dẫn bảo vệ chưa duyệt.
+Phiếu **chỉ lập kế hoạch** (workflow mà flow không có bước ghi, như `b-req`; đang `planned`, chưa từng `in_progress`,
+không có `touched`/đường dẫn chờ duyệt) đóng được bằng `bint task status <id> done --reason "…"` mà không cần kiểm chứng,
+đối chiếu tiêu chí hay duyệt đường dẫn bảo vệ (nó không có mã; thay đổi của người khác trên cây không bị gán cho nó);
+chỉ còn điều kiện "đã đưa về" nếu phiếu ở worktree riêng. Phiếu có bước `b-feat` giữ nguyên cổng done và vẫn không
+chuyển `planned → done` được.
 
 **Chỉ người** (chặn khi phát hiện biến môi trường của phiên agent, như ở P2): xác nhận lệnh kiểm
 chứng và duyệt thay đổi (`task approve`), đặt `autonomy: auto`, `done --force`. Lệnh kiểm chứng do
@@ -566,8 +577,13 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
 - Bước chỉ đọc (`b-req`, `b-review`) được **hậu kiểm ở tầng chương trình**: Bint chụp cây làm việc bằng
   chỉ mục Git tạm trước và sau bước (gồm cả tệp theo dõi và tệp mới chưa bị Git ignore, **kể cả
   `.bint/`**). Ngoại lệ duy nhất được phép là thêm mục tri thức mới hợp lệ ở trạng thái `candidate`
-  trong `.bint/knowledge/items/`; mọi thay đổi khác làm bước thất bại kèm danh sách tệp bị sửa (Bint
-  không tự hoàn tác).
+  trong `.bint/knowledge/items/`; mọi thay đổi khác làm tác vụ chuyển `blocked` (không `failed`) kèm danh sách tệp đổi
+  (Bint không tự hoàn tác, và không phân biệt được người hay agent sửa nên người quyết định). Kết quả của bước được **giữ**
+  (artifact `b-req`, vòng review trong `review.json`/`review.md`) và phiếu ghi bước đang giữ (`state.json` `held_step`,
+  hiện ở `bint task show` dòng "Bước giữ"). Lối ra: chính bạn sửa đồng thời thì `bint run resume <id>` (driver session:
+  `bint run next <id> --resume`) đi tiếp từ **sau** bước đó (lint + `planned` cho plan, quyết định review cho review), không
+  chạy lại agent; agent sửa thì xem `git diff`, hoàn tác rồi mới resume, hoặc `bint task cancel`. Agent lỗi/quá giờ kèm vi
+  phạm vẫn `failed` như cũ.
 - **Thay đổi do Bint ghi thay người không tính là vi phạm** (docs/isolation-subagent-plan.md 4.5, H8).
   Người đổi cấu hình (`bint config set`/TUI), duyệt-từ chối-xoá tri thức, sinh lại `AGENTS.md`/skill, `init --update`…
   trong lúc bước chỉ đọc chạy đều đi qua tầng dịch vụ (`internal/app`, dùng chung cho CLI và TUI); mỗi tệp dịch vụ
@@ -594,7 +610,8 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
     `--shared` (loại trừ nhau; không dùng cùng `--task`) → `workflow.isolation`. Với `auto`: có tác vụ **khác** chưa
     `done`/`cancelled` mà `State.Worktree` là cây hiện tại và đang `shared` (phiếu cũ không ghi chế độ = `shared`) ⇒
     `worktree` (`concurrent_task`, kèm ID tác vụ đó; tác vụ bỏ dở cũng tính, huỷ chúng bằng `bint task cancel`);
-    ngược lại `shared`. `task new --json` có `isolation`, `isolation_reason`, `isolation_tasks` ở cấp trên; `resume`
+    ngược lại `shared`. Phiếu **chỉ lập kế hoạch đã `planned`** (workflow mà flow không có bước ghi, như `b-req`, chưa từng
+    vào `in_progress`, không có `touched`/đường dẫn chờ duyệt) không ghi cây nên **không tính** là tác vụ chưa kết thúc. `task new --json` có `isolation`, `isolation_reason`, `isolation_tasks` ở cấp trên; `resume`
     không chọn lại.
   - *Tạo lười ở lượt `bint run` đầu tiên* (mọi workflow, kể cả `b-req`), sau khi nhận quyền điều phối: ảnh chụp cây
     gốc (gồm thay đổi chưa commit và tệp mới) dưới khoá chia sẻ → commit `bint base <id>` (cha `HEAD`) →
@@ -678,7 +695,7 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
     `bint run <bước> --task <id> --json` để orchestrator chạy (nền được) rồi gọi lại `next`. Các bước khác vẫn bằng
     subagent. Review chạy riêng kiểu này đã ghi kết quả thì `next` áp quyết định sau review (không review lặp).
   - *`complete --run <run_id>`* làm phần sau của bước như `bint run`: kiểm bước chỉ đọc không sửa cây làm việc (b-req,
-    b-review sửa tệp ⇒ bước `failed`), tập tệp, phạm vi và đường dẫn bảo vệ (sửa ngoài phạm vi ⇒ `blocked` chờ duyệt),
+    b-review sửa tệp ⇒ tác vụ `blocked`, giữ kết quả bước), tập tệp, phạm vi và đường dẫn bảo vệ (sửa ngoài phạm vi ⇒ `blocked` chờ duyệt),
     kiểm chứng sau `b-feat` (chạy **trong** lệnh này, có thể lâu: chạy nền nếu công cụ có giới hạn thời gian), tài liệu của
     `b-req`, quyết định sau review (vòng sửa / dừng ở `workflow.max_review_rounds` / finalize). `--run` sai hoặc tác vụ
     không có bước dở ⇒ lỗi (mã 1), không đổi gì; thiếu `--run` ⇒ mã 2. `--failed "<lý do>"` đánh bước `failed`.

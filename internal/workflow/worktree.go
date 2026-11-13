@@ -15,6 +15,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/eval"
+	"bint/internal/flow"
 	"bint/internal/gitrepo"
 	"bint/internal/pathglob"
 	"bint/internal/state"
@@ -66,7 +67,7 @@ func (e *Env) chooseIsolation(flag string) (IsolationChoice, error) {
 	var ids []string
 	for _, o := range all {
 		if task.Terminal(o.State.Status) || o.State.Worktree == "" || !samePath(o.State.Worktree, e.Root) ||
-			o.State.Isolation() != task.IsolationShared {
+			o.State.Isolation() != task.IsolationShared || e.planOnlyTask(o) {
 			continue
 		}
 		ids = append(ids, o.State.ID)
@@ -76,6 +77,19 @@ func (e *Env) chooseIsolation(flag string) (IsolationChoice, error) {
 		return IsolationChoice{Mode: task.IsolationWorktree, Reason: task.IsolationReasonConcurrent, Tasks: ids}, nil
 	}
 	return IsolationChoice{Mode: task.IsolationShared, Reason: task.IsolationReasonDefault}, nil
+}
+
+// planOnlyTask: phiếu chỉ lập kế hoạch đã xong bước lập: có workflow mà flow không có bước ghi (b-req, hoặc flow tuỳ
+// biến không có bước implement), đang planned, chưa từng vào in_progress và không có thay đổi gán cho nó (Touched,
+// PendingPaths). Phiếu như vậy không ghi cây nên không tranh cây với phiếu khác (chooseIsolation) và không có mã
+// để kiểm chứng hay duyệt (cổng done). Flow không nạp được thì coi như không chỉ lập kế hoạch (giữ cổng nghiêm hơn).
+func (e *Env) planOnlyTask(t *task.Task) bool {
+	st := &t.State
+	if st.Status != task.StatusPlanned || st.Workflow == "" || st.EverInProgress() || len(st.Touched) > 0 || len(st.PendingPaths) > 0 {
+		return false
+	}
+	fd, err := e.resolveFlow(st.Workflow)
+	return err == nil && !fd.HasKind(flow.KindImplement)
 }
 
 // worktreesDir là thư mục chứa worktree của các tác vụ (<state>/worktrees).

@@ -99,7 +99,7 @@ func TestFlowGoldenRoles(t *testing.T) {
 		if err := os.WriteFile(rolesGoldenPath, got, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		return
+		t.Fatalf("đã ghi %s do BINT_UPDATE_GOLDEN=1: xem git diff rồi chạy lại không có biến để kiểm", rolesGoldenPath)
 	}
 	want, err := os.ReadFile(rolesGoldenPath)
 	if err != nil {

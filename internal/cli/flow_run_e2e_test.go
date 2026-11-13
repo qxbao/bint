@@ -183,7 +183,7 @@ func TestFlowRunTDDEndToEnd(t *testing.T) {
 	}
 }
 
-// Bước plan (chỉ đọc) ghi tệp ⇒ failed; red sửa tệp ngoài scope (scope.deny) ⇒ blocked chờ người duyệt, không chạy green.
+// Bước plan (chỉ đọc) ghi tệp ⇒ blocked (giữ kết quả bước); red sửa tệp ngoài scope (scope.deny) ⇒ blocked chờ người duyệt, không chạy green.
 func TestFlowRunReadOnlyAndScopeEndToEnd(t *testing.T) {
 	root, env := tddRepo(t)
 	cmd := "sh " + env["SCRIPT"]
@@ -192,9 +192,9 @@ func TestFlowRunReadOnlyAndScopeEndToEnd(t *testing.T) {
 	id := newFlowTask(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 	out, code := run(t, root, "", "run", "tdd", "--task", id, "--agent-command", cmd)
 	if code == 0 || !strings.Contains(out, "chỉ đọc") || !strings.Contains(out, "plan-wrote.txt") {
-		t.Fatalf("plan ghi tệp phải failed vì chỉ đọc: %d\n%s", code, out)
+		t.Fatalf("plan ghi tệp phải blocked vì chỉ đọc: %d\n%s", code, out)
 	}
-	if s := showFlowTask(t, root, id); s.State.Status != "failed" {
+	if s := showFlowTask(t, root, id); s.State.Status != "blocked" || !strings.Contains(s.State.Reason, "bint run resume") {
 		t.Fatalf("sau plan ghi tệp: %+v", s.State)
 	}
 

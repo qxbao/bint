@@ -64,6 +64,7 @@ var baseExclusions = []exclusion{
 	{"workflow/run.go", "Không có biến BINT_TASK_ID/BINT_RUN_ID", rAgent},
 	{"workflow/run.go", "driver session: tiếp bằng `bint run next ", rSession},
 	{"workflow/run.go", " --json`", rSession + " (mảnh của chuỗi nối với mã tác vụ)"},
+	{"workflow/run.go", " --resume", rSession + " (lý do blocked của bước chỉ đọc bị giữ, driver session)"},
 	{"workflow/session.go", " --resume", rSession},
 	{"workflow/session.go", "tiếp tục (bint run next --resume)", rSession},
 	{"workflow/session.go", " --task ", rSession},

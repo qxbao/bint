@@ -261,11 +261,14 @@ run:
 }
 
 // buildAgent dựng agent và cho biết harness/model hiệu lực. Chỉ dựng (không gọi mô hình): harness thiếu chương trình
-// báo lỗi ở đây, trước lời hỏi xác nhận chi phí.
+// báo lỗi ở đây, trước lời hỏi xác nhận chi phí. model là model agent thật sự dùng: model chọn (--model,
+// models.skill-tester/planner) nếu có, không thì model chung của harness (harnesses.<h>.model, workflow.agent.model)
+// do agent báo qua eval.ModelNamer; rỗng chỉ khi chính CLI chọn mặc định. Báo cáo, ước tính và khoá lịch sử chi phí
+// dùng model này (không thì lượt đo bằng model chung bị ghi model rỗng và lẫn với lượt dùng model khác).
 func (o SkillTestOptions) buildAgent(cfg config.Config) (agent eval.Agent, harnessName, model string, err error) {
 	switch {
 	case o.Agent != nil:
-		return o.Agent, o.Agent.Name(), o.Model, nil
+		return o.Agent, o.Agent.Name(), effectiveModel(o.Agent, o.Model), nil
 	case o.AgentCommand != "":
 		return &eval.CommandAgent{Command: o.AgentCommand}, "command", o.Model, nil
 	}
@@ -273,16 +276,27 @@ func (o SkillTestOptions) buildAgent(cfg config.Config) (agent eval.Agent, harne
 	if err != nil {
 		return nil, "", "", Usagef("%v", err)
 	}
-	model = skillTesterModel(cfg, h, o.Model)
-	agent, err = harness.NewAgent(h, harness.AgentOptions{Config: cfg, ReadOnly: true, Model: model,
-		// Như role planner: model rỗng (không --model, không models.skill-tester/planner) để adapter dùng model chung
+	selected := skillTesterModel(cfg, h, o.Model)
+	agent, err = harness.NewAgent(h, harness.AgentOptions{Config: cfg, ReadOnly: true, Model: selected,
+		// Như role planner: model chọn rỗng (không --model, không models.skill-tester/planner) để adapter dùng model chung
 		// của harness (harnesses.<h>.model / workflow.agent.model) hoặc mặc định của CLI.
-		ModelSet: model != "",
+		ModelSet: selected != "",
 		MaxCost:  cfg.Limits.PerRun.MaxCostUSD})
 	if err != nil {
 		return nil, "", "", err
 	}
-	return agent, h, model, nil
+	return agent, h, effectiveModel(agent, selected), nil
+}
+
+// effectiveModel: model chọn nếu có, không thì model agent báo là sẽ yêu cầu ("" nếu agent không báo).
+func effectiveModel(a eval.Agent, selected string) string {
+	if selected != "" {
+		return selected
+	}
+	if mn, ok := a.(eval.ModelNamer); ok {
+		return mn.RequestedModel()
+	}
+	return ""
 }
 
 // runSkillTestOnce chạy một lượt trong thư mục tạm rỗng riêng (nhánh with được chép thêm tệp phụ của skill, không có

@@ -83,6 +83,26 @@ func (e *ErrDiscardRequired) Error() string {
 // doneBlockersFor gom điều chặn done của tác vụ t: bằng chứng (task.DoneBlockers), thay đổi chạm đường dẫn
 // bảo vệ/deny/ngoài phạm vi chưa duyệt. in/inErr là kết quả DoneInputDetailed.
 func (e *Env) doneBlockersFor(ctx context.Context, t *task.Task, in task.DoneInput, inErr error) []string {
+	if e.planOnlyTask(t) {
+		// Phiếu chỉ lập kế hoạch: không có mã để kiểm chứng. Ở cây chung UnapprovedChanges (diff so với Base) sẽ gán
+		// nhầm commit của người khác cho nó nên bỏ qua. Ở worktree riêng không có ai khác ghi: thay đổi chạm đường
+		// dẫn bảo vệ/deny/ngoài phạm vi (do orchestrator hay agent sửa ngoài bước) vẫn cần người duyệt, nếu không
+		// Land sẽ đưa chúng về cây gốc không qua cổng nào.
+		var blockers []string
+		if t.State.NeedsLand() && !in.IgnoreLanding {
+			blockers = append(blockers, "chưa đưa thay đổi về cây gốc "+t.State.Origin+" (bint task land "+t.State.ID+")")
+		}
+		if t.State.Isolation() == task.IsolationWorktree {
+			pend, err := e.UnapprovedChanges(ctx, t)
+			switch {
+			case err != nil:
+				blockers = append(blockers, "không xác định được tệp đã sửa: "+err.Error())
+			case len(pend) > 0:
+				blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny/ngoài phạm vi chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
+			}
+		}
+		return blockers
+	}
 	in.VerifyConfirmed = e.VerifyConfirmed(t)
 	blockers := task.DoneBlockers(t, in)
 	// Tính lại từ diff hiện tại, không tin PendingPaths (chỉ Runner điền).

@@ -65,29 +65,32 @@ func Load(root string) ([]File, error) {
 		return nil, err
 	}
 	var out []File
-	yml := map[string]bool{} // tên có tệp .yml
+	ymlFiles := map[string]File{} // tệp .yml theo tên, để .yaml trùng tên biết bản .yml có lỗi không
 	for _, e := range entries {
-		if n := e.Name(); !strings.HasPrefix(n, ".") && !e.IsDir() && filepath.Ext(n) == ".yml" {
-			yml[strings.TrimSuffix(n, ".yml")] = true
+		n := e.Name()
+		if strings.HasPrefix(n, ".") || e.IsDir() || filepath.Ext(n) != ".yml" {
+			continue
 		}
+		f := File{Name: strings.TrimSuffix(n, ".yml"), Path: path.Join(Rel, n)}
+		f.Def, f.Err = loadFile(filepath.Join(dir, n))
+		ymlFiles[f.Name] = f
+		out = append(out, f)
 	}
 	for _, e := range entries {
 		n := e.Name()
-		if strings.HasPrefix(n, ".") || e.IsDir() {
+		if strings.HasPrefix(n, ".") || e.IsDir() || filepath.Ext(n) != ".yaml" {
 			continue
 		}
-		ext := filepath.Ext(n)
-		if ext != ".yml" && ext != ".yaml" {
-			continue
-		}
-		f := File{Name: strings.TrimSuffix(n, ext), Path: path.Join(Rel, n)}
-		switch {
-		case ext == ".yaml" && yml[f.Name]:
+		f := File{Name: strings.TrimSuffix(n, ".yaml"), Path: path.Join(Rel, n)}
+		switch y, dup := ymlFiles[f.Name]; {
+		case dup && y.Err != nil:
+			// Bản .yml cũng lỗi: khuyên xoá nó sẽ làm mất bản người đang sửa dở; sửa .yml rồi mới bỏ .yaml.
+			f.Err = fmt.Errorf("trùng với %s.yml (tra theo tên luôn dùng bản .yml), mà bản .yml cũng lỗi: sửa %s.yml rồi xoá %s, "+
+				"hoặc xoá %s.yml rồi đổi tên %s thành %s.yml", f.Name, f.Name, n, f.Name, n, f.Name)
+		case dup:
 			f.Err = fmt.Errorf("trùng với %s.yml (tra theo tên luôn dùng bản .yml; xoá %s)", f.Name, n)
-		case ext == ".yaml":
-			f.Err = fmt.Errorf("tệp flow dùng đuôi .yml (đổi tên %s thành %s.yml)", n, f.Name)
 		default:
-			f.Def, f.Err = loadFile(filepath.Join(dir, n))
+			f.Err = fmt.Errorf("tệp flow dùng đuôi .yml (đổi tên %s thành %s.yml)", n, f.Name)
 		}
 		out = append(out, f)
 	}

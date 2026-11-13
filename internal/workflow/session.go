@@ -418,8 +418,9 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		if to == "" {
 			to = task.StatusCreated
 		}
-		if to == task.StatusInReview {
+		if held := rs.t.State.HeldStep; to == task.StatusInReview && !(held != nil && held.Kind == string(flow.KindReview)) {
 			// Người đã xem phát hiện review lúc tác vụ dừng; resume không áp lại quyết định cũ (sẽ dừng lại y hệt).
+			// Bước review đang giữ (cây đổi trong lúc chạy) thì ngược lại: vòng review của nó chưa được áp, để cổng sau bước áp.
 			if rev, err := rs.t.LoadReview(); err == nil {
 				if last := rev.Last(); last != nil {
 					if t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
@@ -469,6 +470,16 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		if ctx.Err() != nil {
 			r.interrupt(rs, "người dùng huỷ")
 			return stop()
+		}
+		if rs.t.State.HeldStep != nil {
+			// Bước chỉ đọc đã xong (cây đổi trong lúc chạy, người đã xem rồi resume): chỉ áp cổng sau bước, trước quyết
+			// định review chưa áp (vòng của chính bước giữ).
+			if h := r.takeHeld(rs); h != nil { // nil: bước giữ thuộc flow khác, đã bỏ kèm ghi chú
+				if !r.afterHeld(ctx, rs, h.Step) {
+					return stop()
+				}
+			}
+			continue
 		}
 		if last := pendingReview(rs.t); last != nil {
 			// Review chạy riêng bằng tiến trình (role reviewer gán harness khác) đã ghi kết quả nhưng chưa ai áp quyết định.

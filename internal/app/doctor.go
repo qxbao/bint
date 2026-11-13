@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -368,6 +369,7 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 	}
 	evolvedChecks(r, root)
 	targets := harness.SkillTargets(cfg.Harnesses.Enabled)
+	lock, _ := skills.ReadLock(root) // lỗi đọc core.lock: không phân biệt được binary cũ, giữ thông báo "khác bản"
 	for _, core := range skills.Core() {
 		sk, _, cerr := skills.Composed(root, core)
 		if cerr != nil {
@@ -377,13 +379,17 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 		for _, t := range targets {
 			who := strings.Join(harness.HarnessesForTarget(cfg.Harnesses.Enabled, t.Dir), ", ")
 			rel := filepath.ToSlash(filepath.Join(t.Dir, sk.Name, "SKILL.md"))
-			st, err := skills.Status(root, t, sk)
+			st, err := skills.PublishedState(root, t, sk, core, lock.Skills[core.Name])
 			switch {
 			case err != nil:
 				r.add("skill "+sk.Name, LevelWarn, "%v", err)
-			case st == "missing":
+			case st == skills.StateMissing:
 				r.add("skill "+sk.Name, LevelInfo, "chưa xuất bản cho %s (bint sync)", who)
-			case st == "differs":
+			case st == skills.StateStaleBinary:
+				advice := staleBinaryAdvice(lock.BintVersion, runningVersion())
+				r.add("skill "+sk.Name, LevelWarn, "%s do bản Bint khác ghi (core.lock bint_version %s, bint đang chạy %s), chưa ai sửa tay: %s",
+					rel, lock.BintVersion, cmp.Or(runningVersion(), "không rõ"), advice)
+			case st == skills.StateDiffers:
 				r.add("skill "+sk.Name, LevelWarn, "%s khác bản của Bint (bị sửa tay, lớp phủ đổi hoặc Bint đã nâng cấp): chạy `bint sync`", rel)
 			default:
 				r.add("skill "+sk.Name, LevelOK, "%s", rel)

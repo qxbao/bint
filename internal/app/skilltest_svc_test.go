@@ -536,8 +536,10 @@ func TestSkillTestAgentKeepsHarnessGeneralModel(t *testing.T) {
 		}
 		return ca.Model, model
 	}
-	if got, sel := build(""); got != general || sel != "" {
-		t.Fatalf("model chung: agent %q, chọn %q", got, sel)
+	// Model hiệu lực (báo cáo, ước tính, khoá lịch sử chi phí) là model chung, không rỗng (phát hiện
+	// 01M7A7SXWMEF2NR2FE5MRYKVAG.1); agent vẫn chạy với model chung do adapter đọc từ cấu hình (không ép qua ModelSet).
+	if got, eff := build(""); got != general || eff != general {
+		t.Fatalf("model chung: agent %q, hiệu lực %q", got, eff)
 	}
 	cfg.Harnesses.Codex.Models.Planner = "mp"
 	if got, _ := build(""); got != "mp" {
