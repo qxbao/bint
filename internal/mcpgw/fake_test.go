@@ -63,16 +63,17 @@ func runFake(args []string) {
 }
 
 type fake struct {
-	opt     map[string]string
-	wmu     sync.Mutex
-	out     *bufio.Writer
-	lmu     sync.Mutex
-	cur     atomic.Int64
-	max     atomic.Int64
-	cmu     sync.Mutex
-	cancels map[string]chan struct{}
-	replies map[string]chan json.RawMessage
-	seq     atomic.Int64
+	opt           map[string]string
+	wmu           sync.Mutex
+	out           *bufio.Writer
+	lmu           sync.Mutex
+	cur           atomic.Int64
+	max           atomic.Int64
+	cmu           sync.Mutex
+	cancels       map[string]chan struct{}
+	replies       map[string]chan json.RawMessage
+	cancelSignals chan chan struct{} // test synchronization for deterministic cancellation
+	seq           atomic.Int64
 }
 
 func (f *fake) log(v map[string]any) {
@@ -195,7 +196,9 @@ func (f *fake) call(m rpcMsg, id, tool string, rawArgs json.RawMessage) {
 			break
 		}
 	}
-	defer f.cur.Add(-1)
+	var finished sync.Once
+	finish := func() { finished.Do(func() { f.cur.Add(-1) }) }
+	defer finish()
 	var a struct {
 		SleepMS  int             `json:"sleep_ms"`
 		Exit     bool            `json:"exit"`
@@ -241,18 +244,27 @@ func (f *fake) call(m rpcMsg, id, tool string, rawArgs json.RawMessage) {
 			f.cmu.Lock()
 			f.cancels[id] = ch
 			f.cmu.Unlock()
+			if f.cancelSignals != nil {
+				f.cancelSignals <- ch
+			}
+		}
+		var timer <-chan time.Time
+		if f.cancelSignals == nil {
+			timer = time.After(time.Duration(a.SleepMS) * time.Millisecond)
 		}
 		select {
-		case <-time.After(time.Duration(a.SleepMS) * time.Millisecond):
+		case <-timer:
 			f.cmu.Lock()
 			delete(f.cancels, id)
 			f.cmu.Unlock()
 		case <-ch:
+			finish()
 			f.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32800, "message": "cancelled"}})
 			return
 		}
 	}
 	if a.RPCError {
+		finish()
 		f.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32000, "message": "lỗi giả"}})
 		return
 	}
@@ -260,6 +272,7 @@ func (f *fake) call(m rpcMsg, id, tool string, rawArgs json.RawMessage) {
 	body := map[string]any{"pid": os.Getpid(), "cwd": wd, "id": id, "tool": tool, "args": json.RawMessage(rawArgsOrNull(rawArgs)),
 		"max_concurrent": f.max.Load(), "echo": a.Echo, "extra": extra}
 	text, _ := json.Marshal(body)
+	finish()
 	f.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{
 		"content": []map[string]any{{"type": "text", "text": string(text)}}}})
 }

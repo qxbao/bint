@@ -656,6 +656,12 @@ func TestAgentFactoryCustomRole(t *testing.T) {
 	cfg := config.Default()
 	cfg.Harnesses.Enabled = []string{"claude", "codex"}
 	cfg.Harnesses.Codex.Binary = filepath.Join(t.TempDir(), "khong-co")
+	// Binary claude giả: test không phụ thuộc máy chạy có cài Claude Code (CI không có).
+	binDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(binDir, "claude"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	spec := StepSpec{ID: "red", Kind: flow.KindImplement, Role: "test-writer", Base: "implementer"}
 
 	// Chưa cấu hình test-writer: theo implementer (claude ⇒ chạy được; model của implementer).
