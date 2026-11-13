@@ -144,9 +144,9 @@ func goldenStepProps() ([]stepPropRow, map[string]bool) {
 	}
 	var rows []stepPropRow
 	for _, id := range []string{"b-req", "b-feat", "b-review", "b-do", stepCheck, "verify", "", "bogus"} {
-		args, _ := json.Marshal(AgentArgs(cfg, id, nil))
+		args, _ := json.Marshal(adapters.ClaudeWorkflowArgs(cfg, goldenReadOnly(id), nil))
 		args = reGoldenTestBin.ReplaceAll(args, []byte("Bash(<test-binary>:*)"))
-		rows = append(rows, stepPropRow{Step: id, ReadOnly: IsReadOnly(id), Role: adapters.StepRole(id), Subagent: SubagentFor(id),
+		rows = append(rows, stepPropRow{Step: id, ReadOnly: goldenReadOnly(id), Role: adapters.StepRole(id), Subagent: goldenSubagent(id),
 			AgentArgsRO: string(args), ForStep: forStep(adapters.Selection{}, id), ForStepAll: forStep(adapters.Selection{All: "claude"}, id)})
 	}
 	ro := map[string]bool{}

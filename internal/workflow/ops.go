@@ -133,7 +133,10 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	if err != nil {
 		return nil, task.Assessment{}, err
 	}
-	fd := builtinFlow(o.Workflow)
+	fd, err := e.resolveFlow(o.Workflow)
+	if err != nil {
+		return nil, task.Assessment{}, err
+	}
 	planning := fd.HasKind(flow.KindPlan)
 	if depth != "" {
 		if !planning {
@@ -146,6 +149,13 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	cls := task.Classify(o.Request, t.References...)
 	if o.Plan != nil {
 		cls = task.Classification{Plan: *o.Plan, Reason: e.chooser() + " chỉ định"}
+	}
+	if !fd.IsBuiltin() && planning && !fd.PlanOptional() {
+		// Bước plan của flow tuỳ biến không khai báo optional: luôn chạy, phân loại không bỏ được nó.
+		if o.Plan != nil && !*o.Plan {
+			return nil, task.Assessment{}, fmt.Errorf("flow %s có bước plan bắt buộc: không đi cùng --no-plan", fd.Name)
+		}
+		cls = task.Classification{Plan: true, Reason: "flow " + fd.Name + " có bước plan bắt buộc"}
 	}
 	// Độ sâu là quyết định riêng với rủi ro quyền ghi: chỉ dùng Assess để biết có chạm đường dẫn bảo vệ.
 	// Chưa có Task nên gọi thẳng task.Assess trên phiếu.
@@ -180,6 +190,9 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 		Worktree: e.Root, Classification: &cls}
 	if planning && (!fd.PlanOptional() || cls.Plan) {
 		st.PlanningContractVersion = task.PlanningContractV1
+	}
+	if !fd.IsBuiltin() {
+		st.FlowSHA = flow.Hash(fd) // flow đổi giữa chừng thì tác vụ bị chặn (flowGate)
 	}
 	if e.RunID != "" {
 		st.LinkRun(e.RunID)

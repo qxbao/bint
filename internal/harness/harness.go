@@ -340,49 +340,62 @@ type Selection struct {
 	Roles map[string]string
 }
 
-// ForStep chọn harness cho bước theo thứ tự ưu tiên (mục 5): yêu cầu của người dùng
-// (--role, rồi --harness) → roles trong cấu hình → harnesses.default → claude.
-// Harness được chọn phải nằm trong harnesses.enabled — yêu cầu của người dùng không
-// được vượt qua cấu hình dự án.
+// ForStep chọn harness cho bước của flow nhúng (id bước gốc) theo ForRole; bước giả hoặc id lạ có role rỗng.
 func ForStep(cfg config.Config, sel Selection, step string) (string, string, error) {
 	role := StepRole(step)
-	h, src := "", ""
-	switch {
-	case sel.Roles[role] != "":
-		h, src = sel.Roles[role], "--role "+role
-	case sel.All != "":
-		h, src = sel.All, "--harness"
-	default:
-		switch role {
-		case "planner":
-			h = cfg.Roles.Planner
-		case "implementer":
-			h = cfg.Roles.Implementer
-		case "reviewer":
-			h = cfg.Roles.Reviewer
-		}
-		src = "roles." + role
-		if h == "" {
-			h, src = cfg.Harnesses.Default, "harnesses.default"
-		}
-		if h == "" {
-			h, src = "claude", "mặc định"
-		}
-	}
+	return ForRole(cfg, sel, role, role)
+}
+
+// ForRole chọn harness cho role của một bước theo thứ tự ưu tiên (mục 5): yêu cầu của người dùng (--role của chính
+// role, rồi --harness) → roles.<role> trong cấu hình → [role tuỳ biến chưa cấu hình: cách chọn của role gốc theo kind
+// của bước (--role <gốc> → roles.<gốc>)] → harnesses.default → claude. base là role gốc theo kind (flow.DefaultRole);
+// role là chính nó (role gốc) thì không có bước rơi về. Harness được chọn phải nằm trong harnesses.enabled — yêu cầu của
+// người dùng không được vượt qua cấu hình dự án.
+func ForRole(cfg config.Config, sel Selection, role, base string) (string, string, error) {
+	h, src := pickRole(cfg, sel, role, base)
 	if !slices.Contains(cfg.Harnesses.Enabled, h) {
 		return "", src, fmt.Errorf("harness %q (%s) chưa được bật trong harnesses.enabled của .bint/config.yml", h, src)
 	}
 	return h, src, nil
 }
 
+func pickRole(cfg config.Config, sel Selection, role, base string) (h, src string) {
+	switch {
+	case sel.Roles[role] != "":
+		return sel.Roles[role], "--role " + role
+	case sel.All != "":
+		return sel.All, "--harness"
+	}
+	if h := cfg.Roles.For(role); h != "" {
+		return h, "roles." + role
+	}
+	if base != "" && base != role {
+		return pickRole(cfg, sel, base, base)
+	}
+	if cfg.Harnesses.Default != "" {
+		return cfg.Harnesses.Default, "harnesses.default"
+	}
+	return "claude", "mặc định"
+}
+
 // RoleModel chọn model cho role chạy trên harness h: cli (--model) nếu có, rồi
 // harnesses.<h>.models.<role>; "" = để adapter dùng model chung của harness
 // (workflow.agent.model / harnesses.<h>.model) hoặc mặc định của harness.
 func RoleModel(cfg config.Config, h, role, cli string) string {
+	return RoleModelFor(cfg, h, role, role, cli)
+}
+
+// RoleModelFor như RoleModel cho role của một bước flow: --model → models.<role> → models.<base> (role gốc theo kind)
+// → "" (model chung của harness).
+func RoleModelFor(cfg config.Config, h, role, base, cli string) string {
 	if cli != "" {
 		return cli
 	}
-	return cfg.Harnesses.Models(h).For(role)
+	m := cfg.Harnesses.Models(h)
+	if v := m.For(role); v != "" || base == "" || base == role {
+		return v
+	}
+	return m.For(base)
 }
 
 // NewAgent tạo agent thực thi cho harness name. Lỗi rõ ràng khi adapter không thực

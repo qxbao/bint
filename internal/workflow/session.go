@@ -27,12 +27,14 @@ import (
 //	bint run complete <id> --run <run_id> [--agent-id <agentId>] [--failed "<lý do>"] --json
 //	bint run abort <id>            ← phiên orchestrator chết giữa bước: gỡ bước dở và hợp đồng thuê
 //
-// Driver session luôn điều phối theo workflow b-do (Classify → b-req → b-feat → b-review → Finalize).
+// Driver session điều phối theo flow của tác vụ: flow tuỳ biến (State.Workflow là tên flow trong .bint/flows) hoặc, với mọi
+// tác vụ khác, workflow b-do (Classify → b-req → b-feat → b-review → Finalize). Subagent theo kind của bước
+// (bint-planner/implementer/reviewer), model theo role của bước.
 
 // Giá trị của SessionAction.Action.
 const (
 	ActionAgent   = "agent"   // chạy subagent với prompt này rồi `bint run complete`
-	ActionProcess = "process" // role gán harness khác Claude: chạy lệnh Command (bint run <bước> --task), rồi `bint run next`
+	ActionProcess = "process" // role gán harness khác Claude: chạy lệnh Command (bint run <bước|flow> --task [--step]), rồi `bint run next`
 	ActionDone    = "done"
 	ActionBlocked = "blocked" // chờ người (xem Reason, Questions); người xử lý xong thì `bint run next --resume`
 	ActionFailed  = "failed"
@@ -44,9 +46,6 @@ const (
 	SubagentImplementer = adapters.SubagentImplementer
 	SubagentReviewer    = adapters.SubagentReviewer
 )
-
-// SubagentFor trả tên subagent của bước ("" nếu bước không chạy bằng subagent).
-func SubagentFor(step string) string { return adapters.SubagentName(adapters.StepRole(step)) }
 
 // ErrRunMismatch: `complete --run` không khớp bước đang dở của tác vụ (hoặc tác vụ không có bước dở).
 var ErrRunMismatch = errors.New("lượt chạy không khớp bước đang dở của tác vụ")
@@ -153,40 +152,49 @@ func (r *Runner) sessionEnv() (restore func()) {
 	return func() { r.Env = orig }
 }
 
-// sessionState dựng runState cho một lệnh session. Driver session chỉ điều phối b-do. Ngân sách của b-do và bộ
-// đếm lượt sống trong một tiến trình nên mỗi lệnh bắt đầu từ 0 (chưa trừ phần đã dùng ở bước trước).
+// sessionState dựng runState cho một lệnh session. Tác vụ của flow tuỳ biến chạy theo flow đó (rs.flowBlock khác rỗng
+// nếu flow đã đổi từ lúc lập phiếu hoặc không còn dùng được: lệnh gọi quyết định chặn tác vụ); các tác vụ còn lại theo
+// flow nhúng b-do (tên workflow là khoá limits.workflows.b-do và nhãn của lượt cha). Ngân sách của flow và bộ đếm lượt
+// sống trong một tiến trình nên mỗi lệnh bắt đầu từ 0 (chưa trừ phần đã dùng ở bước trước).
 func (r *Runner) sessionState(t *task.Task, runID string, resume, noWait bool) *runState {
-	// Driver session chỉ điều phối flow nhúng b-do (tên workflow là khoá limits.workflows.b-do và nhãn của lượt cha).
-	rs := &runState{opts: RunOptions{Workflow: StepDo, TaskRef: t.State.ID, Resume: resume, NoWait: noWait}, flow: builtinFlow(StepDo),
+	name, fd, block := StepDo, builtinFlow(StepDo), ""
+	if isCustomFlow(t.State.Workflow) {
+		name = t.State.Workflow
+		fd, block = r.flowGate(t)
+	}
+	return &runState{opts: RunOptions{Workflow: name, TaskRef: t.State.ID, Resume: resume, NoWait: noWait}, flow: fd, flowBlock: block,
 		t: t, runID: runID, res: &Result{TaskID: t.State.ID, RunID: runID, Steps: []StepResult{}}, ran: map[string]int{},
-		limit: r.Cfg.Limits.ForWorkflow(StepDo), session: true}
-	return rs
+		limit: r.Cfg.Limits.ForWorkflow(name), session: true}
 }
 
 // SessionStep dựng hành động agent từ bước đang dở (gọi lại an toàn: trả đúng prompt đã dựng).
 func sessionAgentAction(t *task.Task, ps *task.PendingStep) *SessionAction {
 	a := &SessionAction{Action: ActionAgent, TaskID: t.State.ID, Status: t.State.Status, Step: ps.Step, RunID: ps.RunID,
-		Subagent: SubagentFor(ps.Step), Model: ps.Model, Prompt: ps.Prompt, Worktree: t.State.Worktree,
-		ReadOnly: stepReadOnly(ps.Step), MaxTurns: ps.MaxTurns, LeaseUntil: ps.LeaseUntil}
+		Subagent: subagentOf(kindOfPending(ps)), Model: ps.Model, Prompt: ps.Prompt, Worktree: t.State.Worktree,
+		ReadOnly: readOnlyKind(kindOfPending(ps)), MaxTurns: ps.MaxTurns, LeaseUntil: ps.LeaseUntil}
 	return a
 }
 
-// sessionChoice uses the saved effective selection, including an intentionally empty model.
-func (r *Runner) sessionChoice(t *task.Task, step string) (string, string, error) {
-	role := adapters.StepRole(step)
-	choice, saved := t.State.AgentChoices[role]
-	sel := adapters.Selection{}
-	if saved && choice.Harness != "" {
-		sel.Roles = map[string]string{role: choice.Harness}
+// sessionChoice uses the saved effective selection (keyed by the step's role, falling back to the base role's), including
+// an intentionally empty model.
+func (r *Runner) sessionChoice(t *task.Task, spec StepSpec) (string, string, error) {
+	choice, saved := t.State.AgentChoices[spec.Role]
+	saved = saved && choice.Harness != ""
+	sel := adapters.Selection{Roles: map[string]string{}}
+	if saved {
+		sel.Roles[spec.Role] = choice.Harness
 	}
-	h, _, err := adapters.ForStep(r.Cfg, sel, step)
+	if bc := t.State.AgentChoices[spec.Base]; spec.Base != spec.Role && bc.Harness != "" {
+		sel.Roles[spec.Base] = bc.Harness // role tuỳ biến chưa cấu hình đi theo lựa chọn đã chụp của role gốc
+	}
+	h, _, err := adapters.ForRole(r.Cfg, sel, spec.Role, spec.Base)
 	if err != nil {
 		return "", "", err
 	}
-	if saved && choice.Harness != "" {
+	if saved {
 		return h, choice.Model, nil
 	}
-	return h, adapters.RoleModel(r.Cfg, h, role, ""), nil
+	return h, adapters.RoleModelFor(r.Cfg, h, spec.Role, spec.Base, ""), nil
 }
 
 // stopAction dựng hành động dừng (done | blocked | failed) từ trạng thái tác vụ hiện tại.
@@ -360,7 +368,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		nextAfterLoad()
 	}
 	if task.Paused(t.State.Status) {
-		rs := r.sessionState(t, "", false, o.NoWait)
+		rs := r.sessionState(t, "", false, o.NoWait) // chỉ để dựng hành động dừng
 		rs.res.Reason = t.State.Reason
 		switch {
 		case !o.Resume:
@@ -435,6 +443,11 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		}
 		return stop()
 	}
+	if rs.flowBlock != "" {
+		// Flow tuỳ biến đã đổi từ lúc lập phiếu (hoặc không còn dùng được): không mở bước nào.
+		r.block(rs, rs.flowBlock)
+		return stop()
+	}
 	taskRoot, rootErr := r.RootFor(rs.t)
 	if rootErr == nil && taskRoot != r.Root {
 		r.Env.Root = taskRoot
@@ -452,7 +465,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		}
 	}
 
-	for guard := 0; guard < 4+3*(r.Cfg.Workflow.MaxReviewRounds+1); guard++ {
+	for guard := 0; guard < rs.loopGuard(r.Cfg.Workflow.MaxReviewRounds); guard++ {
 		if ctx.Err() != nil {
 			r.interrupt(rs, "người dùng huỷ")
 			return stop()
@@ -469,13 +482,14 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			return stop()
 		}
 		if step == stepCheck {
-			// b-feat đã xong (kể cả chạy riêng bằng tiến trình); chỉ còn kiểm phạm vi và kiểm chứng.
-			if !r.afterStep(ctx, rs, rs.implementStep()) {
+			// Bước implement đã xong (kể cả chạy riêng bằng tiến trình); chỉ còn kiểm phạm vi và kiểm chứng.
+			if !r.afterStep(ctx, rs, rs.currentImplement().ID) {
 				return stop()
 			}
 			continue
 		}
-		h, _, err := r.sessionChoice(rs.t, step)
+		spec := rs.spec(step)
+		h, _, err := r.sessionChoice(rs.t, spec)
 		if err != nil {
 			r.fail(rs, step, err.Error())
 			return stop()
@@ -483,8 +497,8 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		if h != "claude" {
 			// Role gán harness khác Claude: không có subagent cho nó, bước chạy kiểu tiến trình.
 			a := &SessionAction{Action: ActionProcess, TaskID: id, Status: rs.t.State.Status, Step: step, Worktree: rs.t.State.Worktree,
-				Command: processCommand(step, id), Notes: []string{fmt.Sprintf("role %s gán harness %s: chạy lệnh này rồi `bint run next %s --json`",
-					adapters.StepRole(step), h, id)}}
+				Command: processCommand(rs.flow, step, id), Notes: []string{fmt.Sprintf("role %s gán harness %s: chạy lệnh này rồi `bint run next %s --json`",
+					spec.Role, h, id)}}
 			return a, nil
 		}
 		sr, ok := r.beginStep(ctx, rs, step, true)
@@ -503,7 +517,14 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	return stop()
 }
 
-func processCommand(step, id string) string { return "bint run " + step + " --task " + id + " --json" }
+// processCommand là lệnh chạy một bước bằng tiến trình (role gán harness khác Claude). Flow nhúng: tên bước gốc cũng là tên
+// workflow một bước (`bint run b-feat --task`); flow tuỳ biến: chạy đúng một bước của flow bằng --step.
+func processCommand(fd flow.Def, step, id string) string {
+	if fd.IsBuiltin() {
+		return "bint run " + step + " --task " + id + " --json"
+	}
+	return "bint run " + fd.Name + " --task " + id + " --step " + step + " --json"
+}
 
 // pendingFrom dựng PendingStep từ bước vừa mở.
 func (r *Runner) pendingFrom(rs *runState, sr *stepRun) *task.PendingStep {
@@ -511,7 +532,7 @@ func (r *Runner) pendingFrom(rs *runState, sr *stepRun) *task.PendingStep {
 	until := now.Add(time.Duration(r.Cfg.Workflow.TimeoutMinutes) * lockWaitUnit)
 	return &task.PendingStep{RunID: sr.child, ParentRunID: rs.runID, Step: sr.step, Mode: leaseModeName(sr.mode),
 		Snapshot: sr.snapBefore, FeatBefore: sr.featBefore, FirstFeat: sr.firstFeat, Harness: sr.harness, Model: sr.reqModel,
-		Subagent: SubagentFor(sr.step), Prompt: sr.prompt, MaxTurns: sr.maxTurns,
+		Kind: string(sr.kind), Subagent: subagentOf(sr.kind), Prompt: sr.prompt, MaxTurns: sr.maxTurns,
 		StartedAt: sr.started.UTC().Format(time.RFC3339Nano), LeaseUntil: until.UTC().Format(time.RFC3339Nano)}
 }
 
@@ -589,7 +610,8 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 		started = leaseNow()
 	}
 	id := rs.t.State.ID
-	sr := &stepRun{step: ps.Step, child: ps.RunID, stepID: "st_" + ps.RunID, readOnly: readOnlyKind(rs.kindOf(ps.Step)), mode: mode,
+	kind := kindOfPending(ps)
+	sr := &stepRun{step: ps.Step, kind: kind, child: ps.RunID, stepID: "st_" + ps.RunID, readOnly: readOnlyKind(kind), mode: mode,
 		snapBefore: ps.Snapshot, featBefore: ps.FeatBefore, firstFeat: ps.FirstFeat, started: started, maxTurns: ps.MaxTurns,
 		reqModel: ps.Model, harness: ps.Harness, stepLog: rs.t.LogPath(ps.Step + "-" + ps.RunID + ".log"), lock: lock,
 		agentID: a.agentID, timedOut: a.timedOut}
@@ -683,6 +705,11 @@ func (r *Runner) Complete(ctx context.Context, o CompleteOptions) (*SessionActio
 	if t, err := r.Tasks.Load(id); err == nil {
 		rs.t = t
 	}
+	if ok && rs.flowBlock != "" {
+		// Bước đã được đóng (kết quả ghi đủ), nhưng flow đã đổi giữa chừng nên không áp cổng sau bước theo định nghĩa mới.
+		r.block(rs, rs.flowBlock)
+		ok = false
+	}
 	if ok {
 		ok = r.afterStep(ctx, rs, ps.Step)
 	}
@@ -766,7 +793,7 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 	ps := rs.t.State.PendingStep
 	var notes []string
 	if ps != nil {
-		if rs.kindOf(ps.Step) == flow.KindImplement && ps.FeatBefore != "" {
+		if kindOfPending(ps) == flow.KindImplement && ps.FeatBefore != "" {
 			// Tệp subagent đã sửa trước khi bị bỏ vẫn thuộc tác vụ: ghi vào Touched (dưới khoá độc quyền nếu lấy được).
 			l, err := AcquireLock(r.Tasks.Dir, r.Root, id+" "+ps.Step, LockExclusive)
 			if err != nil && errors.Is(err, errLeaseUnreadable) {

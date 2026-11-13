@@ -11,6 +11,7 @@ import (
 	"sort"
 	"testing"
 
+	"bint/internal/flow"
 	"bint/internal/task"
 )
 
@@ -27,11 +28,33 @@ func sortedRoles(m map[string]bool) []string {
 	return out
 }
 
+// goldenFlow: flow nhúng theo tên; tên lạ coi như b-do (cách mã cũ tra tên workflow).
+func goldenFlow(name string) flow.Def {
+	fd, ok := flow.GetBuiltin(name)
+	if !ok {
+		fd, _ = flow.GetBuiltin("b-do")
+	}
+	return fd
+}
+
+// roleStep trả id bước của flow nhúng b-do chạy role đó (bước implement nếu role không có bước riêng): bản tham chiếu
+// của mã cũ, chỉ để golden vẫn sinh đúng cùng kết quả.
+func roleStep(role string) string {
+	bdo, _ := flow.GetBuiltin("b-do")
+	for _, s := range bdo.Steps {
+		if s.EffectiveRole() == role {
+			return s.ID
+		}
+	}
+	impl, _ := bdo.FirstOfKind(flow.KindImplement)
+	return impl.ID
+}
+
 func buildRolesGolden() map[string]any {
 	g := map[string]any{}
 	wr := map[string][]string{}
 	for _, n := range []string{"b-do", "b-req", "b-feat", "b-review", "", "bogus"} {
-		wr[n] = sortedRoles(workflowRoles(n))
+		wr[n] = sortedRoles(workflowRoles(goldenFlow(n)))
 	}
 	g["workflow_roles"] = wr
 	rs := map[string]string{}
@@ -45,7 +68,7 @@ func buildRolesGolden() map[string]any {
 		task.StatusInterrupted, task.StatusFailed}
 	for _, wf := range []string{"b-do", "b-req", "b-feat", "b-review"} {
 		for _, noReview := range []bool{false, true} {
-			rr[fmt.Sprintf("%s/nil_task/noreview=%v", wf, noReview)] = sortedRoles(rolesForRun(wf, nil, noReview))
+			rr[fmt.Sprintf("%s/nil_task/noreview=%v", wf, noReview)] = sortedRoles(rolesForRun(goldenFlow(wf), nil, noReview))
 			for _, st := range statuses {
 				for _, resume := range []string{"", task.StatusPlanned, task.StatusInReview} {
 					for _, plan := range []string{"nil", "plan", "noplan"} {
@@ -56,7 +79,7 @@ func buildRolesGolden() map[string]any {
 						case "noplan":
 							tk.State.Classification = &task.Classification{Plan: false}
 						}
-						rr[fmt.Sprintf("%s/%s/resume=%s/plan=%s/noreview=%v", wf, st, resume, plan, noReview)] = sortedRoles(rolesForRun(wf, tk, noReview))
+						rr[fmt.Sprintf("%s/%s/resume=%s/plan=%s/noreview=%v", wf, st, resume, plan, noReview)] = sortedRoles(rolesForRun(goldenFlow(wf), tk, noReview))
 					}
 				}
 			}

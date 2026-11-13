@@ -369,6 +369,9 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 		fmt.Fprintf(w, " (%s)", st.Branch)
 	}
 	fmt.Fprintln(w)
+	if st.FlowStep != "" {
+		fmt.Fprintf(w, "  Bước flow:  %s\n", st.FlowStep)
+	}
 	if c := st.Classification; c != nil {
 		fmt.Fprintf(w, "  Classify:   %s\n", c.Reason)
 		printDepthLine(w, "  Phân tích:  ", c)

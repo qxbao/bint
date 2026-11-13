@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"bint/internal/flow"
 	"bint/internal/task"
 )
 
@@ -364,7 +365,7 @@ func TestAgentNoPlanEffectiveScope(t *testing.T) {
 				edit.Allow = []string{"migrations/**"}
 			}
 			stop := errors.New("stop resolver")
-			_, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(false), Edit: edit, ResolveAgentChoices: func(*task.Task) (map[string]task.AgentChoice, error) { return nil, stop }})
+			_, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(false), Edit: edit, ResolveAgentChoices: func(*task.Task, flow.Def) (map[string]task.AgentChoice, error) { return nil, stop }})
 			if !errors.Is(err, stop) {
 				t.Fatal(err)
 			}
@@ -396,7 +397,7 @@ func TestAgentNoPlanRejectedChangesDoNotPersist(t *testing.T) {
 			}
 			before := loadTask(t, h, tk.State.ID)
 			called := false
-			_, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(false), Depth: tc.depth, Edit: tc.edit, ResolveAgentChoices: func(*task.Task) (map[string]task.AgentChoice, error) { called = true; return nil, nil }})
+			_, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(false), Depth: tc.depth, Edit: tc.edit, ResolveAgentChoices: func(*task.Task, flow.Def) (map[string]task.AgentChoice, error) { called = true; return nil, nil }})
 			if err == nil || called {
 				t.Fatalf("err=%v resolver=%v", err, called)
 			}
@@ -417,7 +418,7 @@ func TestProtectedScopeOverridePreservesIsolationAndDriver(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := *tk.State.Classification
-	updated, err := r.applyOverrides(tk, RunOptions{Workflow: StepDo, Plan: ptr(false), Edit: TicketEdit{Allow: []string{"migrations/**"}}})
+	updated, err := r.applyOverrides(tk, RunOptions{Workflow: StepDo, Plan: ptr(false), Edit: TicketEdit{Allow: []string{"migrations/**"}}}, builtinFlow(StepDo))
 	if err != nil {
 		t.Fatal(err)
 	}

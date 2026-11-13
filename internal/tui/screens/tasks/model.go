@@ -2,12 +2,14 @@ package tasks
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"bint/internal/app"
 	"bint/internal/config"
+	"bint/internal/flow"
 	"bint/internal/i18n"
 	"bint/internal/task"
 	"bint/internal/tui/actions"
@@ -469,6 +471,21 @@ func (m *Model) suggest(f *form.Model) {
 	f.SetSuggestions("findings", ids)
 }
 
+// workflowChoices đặt danh sách workflow của ô "workflow" trong form run/task new: workflow gốc cộng flow tuỳ biến lint
+// sạch, và cur (workflow đang chọn, có thể là flow tuỳ biến đã hỏng) luôn có mặt để không mất mặc định. Không có flow tuỳ
+// biến nào thì giữ danh sách tĩnh của thẻ choices.
+func (m *Model) workflowChoices(f *form.Model, cur string) {
+	if len(m.Data.Flows) == 0 && (cur == "" || flow.IsBuiltin(cur)) {
+		return
+	}
+	list := append(flow.BuiltinNames(), m.Data.Flows...)
+	if cur != "" && !slices.Contains(list, cur) {
+		list = append(list, cur)
+	}
+	f.SetChoices("workflow", list)
+	f.SelectChoice("workflow", cur)
+}
+
 // ---- phím ----
 
 // Key xử lý một phím; handled = false nghĩa là màn hình không dùng phím này.
@@ -793,7 +810,8 @@ func (m *Model) confirmForce(o app.TaskStatusOptions) {
 // cmdNew mở form tạo tác vụ.
 func (m *Model) cmdNew() tea.Cmd {
 	if m.allowed("tasks.new") {
-		m.openForm("tasks.new", "task new", app.TaskNewDefaults(config.Default()), nil)
+		o := app.TaskNewDefaults(config.Default())
+		m.openForm("tasks.new", "task new", o, func(f *form.Model) { m.workflowChoices(f, o.Workflow) })
 	}
 	return nil
 }
@@ -811,7 +829,7 @@ func (m *Model) cmdRun() tea.Cmd {
 			o.Workflow = wf
 		}
 	}
-	m.openForm("tasks.run", "run", o, nil)
+	m.openForm("tasks.run", "run", o, func(f *form.Model) { m.workflowChoices(f, o.Workflow) })
 	return nil
 }
 

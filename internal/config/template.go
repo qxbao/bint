@@ -43,6 +43,7 @@ func Render(p InitParams) string {
 	w("  default: %s\n", h)
 	w("  # models: model của từng role khi role chạy trên harness đó (bint run, /b-do, bint evolve).\n")
 	w("  # Ưu tiên: --model > harnesses.<h>.models.<role> > model chung > mặc định của harness; \"\" = bỏ qua.\n")
+	w("  # Role tuỳ biến của flow (.bint/flows): thêm khoá cùng cấp dưới models, ví dụ test-writer: \"sonnet\"; role chưa đặt dùng model của role gốc theo kind của bước.\n")
 	w("  claude:                   # Claude Code: quyền/công cụ đặt ở workflow.agent và eval.agent\n")
 	writeModels(&b, p, "claude")
 	w("    pricing: {}             # giá model ghi đè bảng dựng sẵn khi tính chi phí bước chạy bằng subagent (USD/triệu token); ví dụ:\n")
@@ -62,6 +63,7 @@ func Render(p InitParams) string {
 	writeModels(&b, p, "antigravity")
 	w("\n")
 	w("roles:                      # harness chạy mỗi role; model lấy từ harnesses.<harness>.models.<role>\n")
+	w("  # role tuỳ biến của flow (.bint/flows): thêm khoá cùng cấp, ví dụ test-writer: codex; role chưa đặt đi theo role gốc theo kind của bước (plan: planner, implement: implementer, review: reviewer)\n")
 	w("  planner: %s     # b-req\n  implementer: %s # b-feat\n  reviewer: %s    # b-review\n  evolver: %s     # bint evolve propose\n  reflector: %s   # bint evolve propose (bài học từ thất bại)\n\n",
 		pad(h, 11), pad(h, 11), pad(h, 11), pad(h, 11), pad(h, 11))
 	w(`context:
@@ -181,7 +183,7 @@ limits:
   per_run:
     max_cost_usd: null
     max_turns: null
-  workflows: {}             # ví dụ: {b-do: {max_cost_usd: 5}, b-feat: {max_turns: 60}}
+  workflows: {}             # ví dụ: {b-do: {max_cost_usd: 5}, b-feat: {max_turns: 60}}; khoá cũng nhận tên flow tuỳ biến (tổng cả flow) hoặc id một bước của flow
   protected_paths:
     - "migrations/**"
     - ".github/workflows/**"

@@ -3,8 +3,9 @@
 > Chép từ artifact b-req của phiếu `01M79GY29G41X7J3AZCY30TTWB` (2026-11-13). Mỗi giai đoạn (GĐ) lập một phiếu b-do riêng.
 > Tài liệu tham khảo: [superpowers-writing-skills.md](references/superpowers-writing-skills.md).
 
-Trạng thái (2026-11-13): **GĐ1 đã làm** (commit `21171cb`: TSK-1..3), **GĐ2 đã làm** (commit `f77ae19`: TSK-4);
-GĐ3–6 chưa commit. Lượt nghiệm thu thủ công sau GĐ5–6 được theo dõi ở [acceptance.md](acceptance.md)
+Trạng thái (2026-11-13): **GĐ1 đã làm** (commit `21171cb`: TSK-1..3), **GĐ2 đã làm** (commit `f77ae19`: TSK-4),
+**GĐ3 đã làm** (commit `f124cd7`: TSK-5..6), **GĐ4 đã làm** (TSK-7..8: chạy flow tuỳ biến qua `bint run <flow>`, `task new
+--workflow`, `resume`, driver session và TUI; xem [workflows.md](workflows.md); đang chờ commit); GĐ5–6 chưa làm. Lượt nghiệm thu thủ công sau GĐ5–6 được theo dõi ở [acceptance.md](acceptance.md)
 (mã `NT-CF-MANUAL`).
 
 ## Yêu cầu

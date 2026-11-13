@@ -57,8 +57,8 @@ func TestRunWorkflowReqThenDoSnapshotsConfiguredImplementerModel(t *testing.T) {
 			cfg.Roles.Implementer = "codex"
 			cfg.Harnesses.Codex.Models.Implementer = "gpt-config"
 			var steps []string
-			cb := RunCallbacks{Agent: func(step string, _ *float64, _ *int) (eval.Agent, error) {
-				steps = append(steps, step)
+			cb := RunCallbacks{Agent: func(spec workflow.StepSpec, _ *float64, _ *int) (eval.Agent, error) {
+				steps = append(steps, spec.ID)
 				return planningAgent{ws, id}, nil
 			}}
 

@@ -72,7 +72,7 @@ func newFixture(t *testing.T, o Options) *fixture {
 
 func boolPtr(b bool) *bool { return &b }
 
-func (f *fixture) factory(step string, _ *float64, _ *int) (eval.Agent, error) {
+func (f *fixture) factory(workflow.StepSpec, *float64, *int) (eval.Agent, error) {
 	return &fakeAgent{f: f}, nil
 }
 

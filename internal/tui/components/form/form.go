@@ -303,6 +303,21 @@ func (m *Model) SetChoices(name string, list []string) {
 	}
 }
 
+// SelectChoice chọn giá trị value của ô lựa chọn name nếu nó có trong danh sách hiện tại (không thì giữ nguyên). Dùng sau
+// SetChoices khi giá trị mặc định (ví dụ workflow của tác vụ là flow tuỳ biến) không nằm trong danh sách tĩnh của thẻ.
+func (m *Model) SelectChoice(name, value string) {
+	for i, f := range m.Fields {
+		if f.Name != name || f.Kind != Choice {
+			continue
+		}
+		for j, c := range f.Choices {
+			if c == value {
+				m.choice[i] = j + 1
+			}
+		}
+	}
+}
+
 // Capturing luôn đúng: khi biểu mẫu mở, mọi phím chữ thuộc về ô nhập.
 func (m *Model) Capturing() bool { return true }
 

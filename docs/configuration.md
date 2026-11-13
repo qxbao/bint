@@ -60,11 +60,20 @@ Nếu đặt `state.dir` là đường dẫn tuyệt đối (thường trong `.b
 | `roles.reviewer` | Đánh giá (`b-review`) | `opus` / `gpt-6-astra` / `gemini-4-argon-high` |
 | `roles.evolver` | Soạn đề xuất tiến hoá L1/L2 | `opus` / `gpt-6-astra` / `gemini-4-argon-high` |
 | `roles.reflector` | Rút bài học từ thất bại (kế hoạch E) | `opus` (chỉ hỗ trợ `claude`) |
+| `roles.<tên>` | Role tuỳ biến của flow trong `.bint/flows` (xem dưới) | theo `models.<tên>`, không có thì theo role gốc của bước |
 
 - **Thứ tự chọn harness trong workflow:** `--role <role>=<harness>` → `--harness` → `roles.<role>` →
   `harnesses.default` → `claude`. Riêng `roles.reflector` hiện chỉ chạy trên `claude` vì cần khoá
   toàn bộ công cụ bằng `--tools ""`; khi dùng Codex hoặc Antigravity làm harness chính, giữ
   `roles.reflector: claude` nếu muốn rút bài học từ thất bại.
+- **Role tuỳ biến (flow):** khoá cùng cấp với role cố định, ở `roles:` (harness) và `harnesses.<h>.models:` (mô hình), ví dụ
+  `roles.test-writer: codex`, `harnesses.claude.models.test-writer: haiku`. Tên theo cú pháp id bước (chữ thường, số, gạch
+  ngang, tối đa 40 ký tự), không trùng role cố định (`planner`, `implementer`, `reviewer`, `evolver`, `reflector`) và không phải
+  `interactive`; harness phải là harness được hỗ trợ. Role chưa đặt rơi về role gốc theo kind của bước (plan → `planner`,
+  implement → `implementer`, review → `reviewer`): harness theo `--role <gốc>` → `roles.<gốc>` → `harnesses.default`, mô hình
+  theo `models.<gốc>`. Quyền MCP của role lấy từ `mcp.grants.<tên>` nếu khai báo, không thì từ `mcp.grants.<gốc>`. Các lớp cấu
+  hình (toàn cục → dự án → `local.yml`) ghép role tuỳ biến theo từng khoá. Vì yaml nội tuyến không bắt khoá lạ, `bint doctor`
+  cảnh báo role không thuộc bước nào của flow.
 - **Thứ tự chọn mô hình:** `--model` → `harnesses.<harness>.models.<role>` → mô hình chung
   (`workflow.agent.model` cho Claude; `harnesses.<harness>.model` cho Codex/Antigravity) → mặc định
   của CLI. Tên mô hình không được chứa khoảng trắng; đặt chuỗi rỗng `""` ở mô hình theo role để rơi
@@ -111,7 +120,7 @@ roles:
 | `workflow.agent.extra_args` | `[]` | Đối số dòng lệnh bổ sung cho Claude Code. |
 | `limits.per_run.max_cost_usd` | `null` | Trần chi phí USD mỗi lượt (`> 0` hoặc `null`). |
 | `limits.per_run.max_turns` | `null` | Trần số lượt gọi mô hình mỗi lượt (`>= 1` hoặc `null`). |
-| `limits.workflows.<wf>` | `{}` | Ghi đè `max_cost_usd` / `max_turns` cho `b-do`, `b-req`, `b-feat`, `b-review`. |
+| `limits.workflows.<wf>` | `{}` | Ghi đè `max_cost_usd` / `max_turns` cho `b-do`, `b-req`, `b-feat`, `b-review`, tên một flow tuỳ biến (tổng cả flow nhiều bước) hoặc id một bước của flow (giới hạn của riêng bước). Validate chỉ kiểm cú pháp tên; `bint doctor` cảnh báo khoá không trỏ tới đâu. |
 | `limits.protected_paths` | `["migrations/**", ".github/workflows/**"]` | Mẫu glob đường dẫn nhạy cảm cần người duyệt khi bị sửa. |
 
 Trong `b-do`, `max_cost_usd` và `max_turns` là **tổng ngân sách của toàn chuỗi**; mỗi bước con nhận

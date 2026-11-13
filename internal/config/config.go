@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strings"
 
+	"bint/internal/flow"
 	"gopkg.in/yaml.v3"
 )
 
@@ -106,9 +107,13 @@ type RoleModels struct {
 	// Reflector rút bài học từ thất bại (bint evolve propose, mục E2); tách khỏi evolver
 	// vì nó chỉ đọc bản tóm tắt và nên dùng model mạnh nhất.
 	Reflector string `yaml:"reflector"`
+	// Extra là model của role tuỳ biến do flow trong .bint/flows khai báo (khoá cùng cấp với role cố định).
+	// yaml.v3 đưa khoá không khớp trường nào vào đây nên KnownFields không còn bắt lỗi gõ sai dưới models:
+	// (bint doctor cảnh báo role không thuộc flow nào).
+	Extra map[string]string `yaml:",inline"`
 }
 
-// For trả về model của role ("" nếu không đặt hoặc role lạ).
+// For trả về model của role: trường cố định rồi Extra ("" nếu không đặt hoặc role lạ).
 func (m RoleModels) For(role string) string {
 	switch role {
 	case "planner":
@@ -122,7 +127,7 @@ func (m RoleModels) For(role string) string {
 	case "reflector":
 		return m.Reflector
 	}
-	return ""
+	return m.Extra[role]
 }
 
 // ClaudeHarness là phần cấu hình riêng của Claude Code dưới harnesses.claude.
@@ -183,6 +188,25 @@ type Roles struct {
 	Reviewer    string `yaml:"reviewer"`
 	Evolver     string `yaml:"evolver"`
 	Reflector   string `yaml:"reflector"`
+	// Extra là harness của role tuỳ biến do flow trong .bint/flows khai báo (xem RoleModels.Extra).
+	Extra map[string]string `yaml:",inline"`
+}
+
+// For trả về harness cấu hình cho role: trường cố định rồi Extra ("" nếu không đặt hoặc role lạ).
+func (r Roles) For(role string) string {
+	switch role {
+	case "planner":
+		return r.Planner
+	case "implementer":
+		return r.Implementer
+	case "reviewer":
+		return r.Reviewer
+	case "evolver":
+		return r.Evolver
+	case "reflector":
+		return r.Reflector
+	}
+	return r.Extra[role]
 }
 
 type Context struct {
@@ -682,10 +706,56 @@ func mergeFile(cfg *Config, path string, over map[string][]byte) (bool, error) {
 			return false, err
 		}
 	}
+	before := snapshotExtras(cfg)
 	if err := Decode(bytes.NewReader(data), cfg); err != nil {
 		return false, fmt.Errorf("%s: %w", path, err)
 	}
+	before.restore(cfg)
 	return true, nil
+}
+
+// extras là các map role tuỳ biến (khoá yaml inline) của một cấu hình. yaml.v3 đặt lại map inline về nil mỗi khi giải
+// mã lại khối chứa nó, nên lớp sau có `roles:` hay `models:` sẽ làm mất role tuỳ biến của lớp trước; mergeFile chụp và
+// phục hồi để các lớp ghép theo từng khoá như mọi trường khác.
+type extras struct {
+	roles  map[string]string
+	models [3]map[string]string // claude, codex, antigravity
+}
+
+func snapshotExtras(c *Config) extras {
+	return extras{roles: maps.Clone(c.Roles.Extra), models: [3]map[string]string{
+		maps.Clone(c.Harnesses.Claude.Models.Extra), maps.Clone(c.Harnesses.Codex.Models.Extra),
+		maps.Clone(c.Harnesses.Antigravity.Models.Extra)}}
+}
+
+func (e extras) restore(c *Config) {
+	c.Roles.Extra = keepExtra(e.roles, c.Roles.Extra)
+	c.Harnesses.Claude.Models.Extra = keepExtra(e.models[0], c.Harnesses.Claude.Models.Extra)
+	c.Harnesses.Codex.Models.Extra = keepExtra(e.models[1], c.Harnesses.Codex.Models.Extra)
+	c.Harnesses.Antigravity.Models.Extra = keepExtra(e.models[2], c.Harnesses.Antigravity.Models.Extra)
+}
+
+// keepExtra ghép old (lớp trước) với cur (lớp vừa giải mã): khoá có ở cur thắng; không có khoá nào thì giữ nil.
+func keepExtra(old, cur map[string]string) map[string]string {
+	if len(old) == 0 {
+		return cur
+	}
+	out := maps.Clone(old)
+	maps.Copy(out, cur)
+	return out
+}
+
+// extraRoleProblem kiểm tên role tuỳ biến (khoá Extra của roles và models); "" nếu hợp lệ.
+func extraRoleProblem(role string) string {
+	switch {
+	case !flow.ValidRole(role):
+		return fmt.Sprintf("tên role %q không hợp lệ (chữ thường, số, gạch ngang; tối đa 40 ký tự)", role)
+	case slices.Contains(RoleNames, role):
+		return fmt.Sprintf("role %q trùng role cố định của Bint", role)
+	case role == MCPRoleInteractive:
+		return fmt.Sprintf("role %q dành riêng cho phiên tương tác (mcp.grants)", role)
+	}
+	return ""
 }
 
 // Decode giải mã YAML vào cfg (chỉ ghi đè các trường có mặt), từ chối trường lạ
@@ -732,10 +802,24 @@ func (c Config) Validate() error {
 			add("roles.%s: harness không hỗ trợ %q", r.name, r.v)
 		}
 	}
+	for _, role := range slices.Sorted(maps.Keys(c.Roles.Extra)) {
+		if why := extraRoleProblem(role); why != "" {
+			add("roles.%s: %s", role, why)
+		} else if v := c.Roles.Extra[role]; v != "" && !slices.Contains(KnownHarnesses, v) {
+			add("roles.%s: harness không hỗ trợ %q", role, v)
+		}
+	}
 	for _, h := range KnownHarnesses {
 		m := c.Harnesses.Models(h)
 		for _, role := range RoleNames {
 			if v := m.For(role); v != strings.TrimSpace(v) || strings.ContainsAny(v, " \t\n") {
+				add("harnesses.%s.models.%s: tên model không được chứa khoảng trắng (%q)", h, role, v)
+			}
+		}
+		for _, role := range slices.Sorted(maps.Keys(m.Extra)) {
+			if why := extraRoleProblem(role); why != "" {
+				add("harnesses.%s.models.%s: %s", h, role, why)
+			} else if v := m.Extra[role]; v != strings.TrimSpace(v) || strings.ContainsAny(v, " \t\n") {
 				add("harnesses.%s.models.%s: tên model không được chứa khoảng trắng (%q)", h, role, v)
 			}
 		}
@@ -843,8 +927,10 @@ func (c Config) Validate() error {
 		add("limits.per_run.max_turns: phải >= 1")
 	}
 	for name, w := range c.Limits.Workflows {
-		if !slices.Contains(WorkflowNames, name) {
-			add("limits.workflows: workflow không hợp lệ %q (%s)", name, strings.Join(WorkflowNames, ", "))
+		// Khoá là workflow gốc, tên flow tuỳ biến hoặc id một bước của flow: ở đây chỉ kiểm cú pháp (Validate không có
+		// gốc repository để biết flow có tồn tại không); bint doctor cảnh báo khoá không trỏ tới đâu.
+		if !slices.Contains(WorkflowNames, name) && !flow.ValidID(name) {
+			add("limits.workflows: khoá %q không phải workflow gốc (%s) hay tên flow/bước hợp lệ (chữ thường, số, gạch ngang)", name, strings.Join(WorkflowNames, ", "))
 		}
 		if w.MaxCostUSD != nil && *w.MaxCostUSD <= 0 {
 			add("limits.workflows.%s.max_cost_usd: phải > 0", name)

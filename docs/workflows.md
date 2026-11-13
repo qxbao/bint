@@ -240,7 +240,7 @@ Markdown tới tệp phụ phải tồn tại. Description không mở đầu "D
 → xung đột: **không** xuất bản bản mới nhưng **giữ** bản đã xuất bản và mục `core.lock` cũ (như lớp phủ hỏng).
 Nội dung skill tuỳ biến là tệp người viết: ranh giới tin cậy là review Git (không có kiểm nội dung kiểu skill tiến hoá).
 
-### Flow tuỳ biến (xem trước, GĐ2 của `docs/custom-flow-plan.md`)
+### Flow tuỳ biến (GĐ2 và GĐ4 của `docs/custom-flow-plan.md`)
 
 Một **flow** là dãy bước của một workflow; mỗi bước có `id`, `kind` (`plan` | `implement` | `review`, do Bint giữ vì kind
 quyết định trạng thái tác vụ, chế độ chỉ đọc và cổng sau bước), `skill` và `role`. Bốn workflow gốc `b-do`, `b-req`, `b-feat`,
@@ -274,9 +274,60 @@ lint); `bint flow show <tên>` in định nghĩa đã chuẩn hoá (role mặc �
 chú thích, thứ tự khoá hay mô tả). Trong TUI: ba hành động chỉ đọc "Liệt kê/Xem/Kiểm flow" ở bảng lệnh (`:`), kết quả ở khung đầu ra
 của thẻ Skill.
 
-**Chưa chạy được**: ở bản này Runner (`internal/workflow`) chưa đọc flow, nên `bint run <flow>`, `bint task new --workflow <flow>`,
-`limits.workflows.<flow>` và role tuỳ biến trong cấu hình chưa có (GĐ3–GĐ4); chưa có skill điều phối `/{flow}` (GĐ5). Hiện
-chỉ khai báo, xem và kiểm được định nghĩa.
+#### Chạy flow tuỳ biến (GĐ4)
+
+Flow tuỳ biến chạy bằng cùng các lệnh với workflow gốc: `bint run <flow> "<mô tả>"`, `bint task new --workflow <flow>` rồi
+`bint run <flow> --task <id>`, `bint run resume <id>`, driver session (`bint run next/complete`) và màn Tác vụ của TUI (form
+`run` và `task new` có thêm các flow qua lint sạch ở ô workflow; thẻ Phiếu hiện bước flow đang chạy). Tên `<flow>` được Runner
+nạp từ `.bint/flows/<flow>.yml` của thư mục có `.bint/` (không phải worktree của tác vụ, nên flow chưa commit vẫn chạy được ở
+chế độ worktree) và phải qua cùng bộ luật của `bint flow lint` (kể cả skill của bước tồn tại) trước khi chạy.
+
+Runner theo **kind** của bước, không theo tên bước:
+
+- Thứ tự: bước plan (bỏ qua nếu `optional` và phân loại không cần) → các bước implement theo thứ tự → bước review. Đề bài của
+  mỗi bước là thân skill đã khai báo (skill gốc ghép lớp phủ, hoặc skill tuỳ biến `.bint/skills/<tên>`) cộng khối tác vụ như
+  workflow gốc; skill lỗi lint thì bước `failed` nêu skill.
+- Bước plan và review **chỉ đọc** (kiểm cây làm việc trước/sau, khoá worktree chia sẻ, công cụ sửa tệp bị cấm); bước implement
+  giữ khoá độc quyền. Chế độ chỉ đọc theo kind của bước trong flow đang chạy: một bước implement đặt id `b-review` vẫn ghi
+  được.
+- Sau **mỗi** bước implement Bint kiểm phạm vi (`scope`, đường dẫn bảo vệ, autonomy) trước khi sang bước sau. Lệnh kiểm chứng
+  của phiếu chạy sau bước implement có `verify` (mặc định `true`) và **luôn** trước bước review đầu tiên và trước khi done, kể
+  cả khi bước implement cuối khai báo `verify: false` (luật nằm ở Runner, không chỉ ở lint). Lệnh vẫn chỉ chạy khi người đã xác
+  nhận (`bint task approve`).
+- Review còn phát hiện nghiêm trọng (tối đa `workflow.max_review_rounds` vòng): quay về đúng bước `fix` của bước review (không
+  khai báo `fix` thì về bước implement cuối) rồi đi tiếp các bước sau nó tới review; sạch thì sang bước review kế tiếp hoặc
+  finalize. `State.FlowStep` ghi bước đang chạy/kế tiếp nên resume và driver session đi tiếp đúng chỗ.
+- Mọi flow tuỳ biến, kể cả flow chỉ có **một** bước implement, do Runner điều phối cả chuỗi: sau implement cuối chạy review (nếu
+  có) rồi finalize (không dừng ở `in_review`), và chịu ngân sách chung `limits.workflows.<tên flow>` (tên flow khác id bước).
+  Phiếu chuyển từ b-req sang flow tuỳ biến chưa có `FlowSHA` thì băm được ghi ở lần đầu flow nạp được.
+- Cổng của Bint không đổi: kiểm chứng đã xác nhận, đường dẫn bảo vệ, `autonomy`, `done` chỉ khi có bằng chứng, giới hạn
+  (`limits.workflows.<flow>` là ngân sách chung của cả flow nhiều bước; mỗi bước dùng thêm `limits.workflows.<id bước>` nếu có).
+
+**Flow đổi giữa chừng.** Phiếu của flow tuỳ biến ghi `flow_sha` (băm `bint flow show`) lúc lập. Nếu tệp flow khác băm đó (bị sửa,
+hoặc bị xoá/hỏng) thì `bint run <flow> --task`, `bint run resume` và `bint run next` chuyển tác vụ `blocked` kèm lý do nêu tên
+flow và không chạy bước nào; không trộn hai định nghĩa trong một tác vụ. Cách thoát: khôi phục `.bint/flows/<flow>.yml` về bản lúc
+lập phiếu rồi `bint run resume <id>`, hoặc `bint task cancel <id>`. Băm chỉ phủ định nghĩa flow, không phủ nội dung skill. Flow
+nhúng không ghi băm (nó đổi theo phiên bản Bint). Tác vụ lập cho flow tuỳ biến chỉ chạy bằng đúng flow đó; tác vụ mới chỉ lập
+kế hoạch (`b-req`) có thể chạy tiếp bằng flow tuỳ biến (khi đó băm ghi lúc chuyển).
+
+**Role tuỳ biến.** Role của bước là `role` của nó (rỗng → `planner`/`implementer`/`reviewer` theo kind; không dùng được
+`interactive`, `evolver`, `reflector`). Cấu hình nhận role tự do cùng cấp với role cố định (`roles.test-writer: codex`,
+`harnesses.<h>.models.test-writer: gpt-6-luna`, `mcp.grants.test-writer: […]`). Chọn harness: `--harness` → `roles.<role>` →
+(role chưa cấu hình) cách chọn của role gốc theo kind (`--role <gốc>=… → roles.<gốc> → harnesses.default → claude`); model:
+`--model` → `models.<role>` → `models.<gốc>` → model chung; quyền MCP của bước driver process: `mcp.grants.<role>` nếu khai báo,
+không thì `mcp.grants.<gốc>`. `--role` ở CLI vẫn chỉ nhận `planner|implementer|reviewer`. Khoá gõ sai dưới `roles:` hoặc
+`models:` không bị schema bắt (yaml nội tuyến), nên `bint doctor` cảnh báo role không thuộc bước nào của flow, và khoá
+`limits.workflows` không trỏ tới workflow gốc, flow tuỳ biến hay id bước.
+
+**Driver session.** Subagent theo kind (`bint-planner`/`bint-implementer`/`bint-reviewer`), `model` của role trong action. Role gán
+harness khác Claude trả action `process` với lệnh chạy đúng một bước: `bint run <flow> --task <id> --step <bước> --json`. Cờ
+`--step` (nâng cao) chỉ nhận cùng `--task` và flow tuỳ biến, và phải là bước kế tiếp của tác vụ; Runner chạy đúng một bước cùng cổng
+sau bước (kể cả quyết định review) rồi dừng.
+
+Ví dụ nghiệm thu: `internal/cli/flow_run_e2e_test.go` chạy flow `tdd` ở trên bằng driver process và driver session với agent giả
+(thứ tự `plan, red, green, review, green, review` → done; không kiểm chứng sau `red`, một lần sau mỗi `green`).
+
+Chưa có: skill điều phối `/{flow}` và xuất bản flow (GĐ5), `bint skill test` (GĐ6).
 
 ## Multi-Harness (P5)
 

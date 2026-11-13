@@ -112,8 +112,12 @@ func Validate(d Def, file string, skillExists func(string) bool) []string {
 		case !skillExists(s.Skill):
 			add("%s: skill %q không tồn tại (skill gốc hoặc skill tuỳ biến hợp lệ trong .bint/skills)", at, s.Skill)
 		}
-		if s.Role != "" && (!nameRe.MatchString(s.Role) || len(s.Role) > maxNameLen) {
+		switch {
+		case s.Role == "":
+		case !ValidRole(s.Role):
 			add("%s: role %q không hợp lệ (chữ thường, số, gạch ngang; tối đa %d ký tự)", at, s.Role, maxNameLen)
+		case slices.Contains(ReservedRoles, s.Role):
+			add("%s: role %q là role dành riêng của Bint (%s)", at, s.Role, strings.Join(ReservedRoles, ", "))
 		}
 
 		// khoá riêng theo kind
@@ -156,3 +160,18 @@ func Warnings(d Def) []string {
 	}
 	return out
 }
+
+// ValidID cho biết s có cú pháp id bước, tên role hay khoá limits.workflows của một bước (chữ thường, số, gạch
+// ngang; tối đa 40 ký tự). Gói config dùng nó để kiểm role tuỳ biến mà không phải đọc flow.
+func ValidID(s string) bool { return nameRe.MatchString(s) && len(s) <= maxNameLen }
+
+// ValidName cho biết s có cú pháp tên flow (chữ thường, số, gạch ngang; 3–40 ký tự). Chưa kiểm tên có trùng
+// workflow gốc hay skill: đó là việc của Validate.
+func ValidName(s string) bool { return ValidID(s) && len(s) >= minNameLen }
+
+// ValidRole cho biết s có cú pháp tên role (cùng cú pháp với id bước).
+func ValidRole(s string) bool { return ValidID(s) }
+
+// ReservedRoles là role mà bước của flow không được dùng: role của phiên tương tác (khoá mcp.grants dành riêng) và
+// các role ngoài workflow (evolver, reflector: harness của chúng bị hạn chế).
+var ReservedRoles = []string{"interactive", "evolver", "reflector"}

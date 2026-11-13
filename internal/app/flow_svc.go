@@ -12,6 +12,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/flow"
 	"bint/internal/skills"
+	"bint/internal/workflow"
 )
 
 // Nguồn của một flow.
@@ -20,21 +21,9 @@ const (
 	FlowCustom  = "custom"
 )
 
-// flowSkillExists: skill gốc, hoặc skill tuỳ biến qua kiểm hình thức không lỗi (skill lỗi lint không được xuất
-// bản nên flow không được dựa vào). Skill tiến hoá không tính.
-func flowSkillExists(root string) func(string) bool {
-	return func(name string) bool {
-		if _, ok := skills.Get(name); ok {
-			return true
-		}
-		cs, err := skills.LoadCustomOne(root, name)
-		if err != nil {
-			return false
-		}
-		errs, _ := skills.CheckCustom(root, cs)
-		return len(errs) == 0
-	}
-}
+// flowSkillExists: skill gốc, hoặc skill tuỳ biến qua kiểm hình thức không lỗi. Dùng chung với Runner
+// (workflow.FlowSkillExists) để `bint flow lint` và `bint run <flow>` cùng một luật.
+func flowSkillExists(root string) func(string) bool { return workflow.FlowSkillExists(root) }
 
 // lintFlow kiểm một flow (nhúng hoặc từ tệp). file là tên tệp không đuôi ("" với flow nhúng).
 func lintFlow(root, file string, d flow.Def, exists func(string) bool) (errs, warns []string) {

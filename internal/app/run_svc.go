@@ -32,9 +32,10 @@ type RunCallbacks struct {
 
 // RunWorkflowOptions: `bint run <workflow> [mô tả]`.
 type RunWorkflowOptions struct {
-	Workflow      string   `arg:"workflow" form:"required,choices=b-do|b-req|b-feat|b-review"`
+	Workflow      string   `arg:"workflow" form:"required,choices=b-do|b-req|b-feat|b-review"` // hoặc tên flow tuỳ biến (TUI nạp danh sách flow)
 	Request       string   `arg:"description" form:"multiline"`
 	Task          string   `flag:"task" form:"suggest=tasks"`
+	Step          string   `flag:"step" form:"advanced"`
 	Goal          string   `flag:"goal" form:"advanced"`
 	VerifyCommand string   `flag:"verify-command" form:"advanced"`
 	Criteria      []string `flag:"criteria" form:"advanced"`
@@ -71,10 +72,19 @@ func (o RunWorkflowOptions) fields() ticketFields {
 }
 
 // Validate: --plan/--no-plan loại trừ nhau, --depth hợp lệ, harness/role hợp lệ và không đi cùng --agent-command.
-// Workflow không có trong danh sách do Runner báo (lỗi thường, không phải lỗi dùng sai) như CLI cũ.
+// Workflow không phải workflow gốc có thể là flow tuỳ biến (cần gốc repository để biết có tồn tại không): Runner kiểm
+// và báo lỗi thường (không phải lỗi dùng sai) như CLI cũ.
 func (o RunWorkflowOptions) Validate() error {
 	if strings.TrimSpace(o.Workflow) == "" {
-		return Usagef("thiếu workflow (b-do | b-req | b-feat | b-review)")
+		return Usagef("thiếu workflow (b-do | b-req | b-feat | b-review | tên flow tuỳ biến)")
+	}
+	if o.Step != "" {
+		switch {
+		case strings.TrimSpace(o.Task) == "":
+			return Usagef("--step chỉ dùng với --task (chạy một bước của tác vụ có sẵn)")
+		case flow.IsBuiltin(o.Workflow):
+			return Usagef("--step chỉ dùng với flow tuỳ biến: workflow gốc %s đã chạy theo tên (bint run %s --task <id>)", o.Workflow, o.Workflow)
+		}
 	}
 	if o.Plan && o.NoPlan {
 		return Usagef("--plan và --no-plan loại trừ nhau")
@@ -125,7 +135,7 @@ func RunWorkflow(ctx context.Context, ws *TaskWS, o RunWorkflowOptions) (*workfl
 	if err := o.Validate(); err != nil {
 		return nil, err
 	}
-	wo := workflow.RunOptions{Workflow: o.Workflow, Request: strings.TrimSpace(o.Request), TaskRef: o.Task,
+	wo := workflow.RunOptions{Workflow: o.Workflow, Request: strings.TrimSpace(o.Request), TaskRef: o.Task, Step: o.Step,
 		NoReview: o.NoReview, NoWait: o.NoWait, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	if o.Plan || o.NoPlan {
@@ -168,7 +178,7 @@ func runWith(ctx context.Context, ws *TaskWS, wo workflow.RunOptions, harnessNam
 	}
 	k := ws.K
 	r := &workflow.Runner{Env: ws.Env, OnStep: cb.OnStep}
-	wo.ResolveAgentChoices = func(t *task.Task) (map[string]task.AgentChoice, error) {
+	wo.ResolveAgentChoices = func(t *task.Task, fd flow.Def) (map[string]task.AgentChoice, error) {
 		// A custom command does not use a harness. Keep existing snapshots for a
 		// later resume, without resolving or recording unused configured roles.
 		if agentCommand != "" {
@@ -179,14 +189,16 @@ func runWith(ctx context.Context, ws *TaskWS, wo workflow.RunOptions, harnessNam
 			return t.State.AgentChoices, nil
 		}
 		choices, err := agentChoicesForRoles(k.Config, t.State.AgentChoices, harnessName, roles, model,
-			rolesForRun(wo.Workflow, t, wo.NoReview))
+			rolesForRun(fd, t, wo.NoReview), roleBases(fd))
 		if err != nil {
 			return nil, err
 		}
 		sel := adapters.Selection{Roles: map[string]string{}}
 		models := map[string]string{}
 		for role, choice := range choices {
-			sel.Roles[role] = choice.Harness
+			if choice.Harness != "" {
+				sel.Roles[role] = choice.Harness
+			}
 			models[role] = choice.Model
 		}
 		r.Agent = workflow.HarnessAgentsWithChoices(k.Config, agentCommand, sel, models)
@@ -416,17 +428,40 @@ func RunAbort(ctx context.Context, ws *TaskWS, o RunAbortOptions) (*workflow.Ses
 	return a, nil
 }
 
+// agentChoices chụp lựa chọn harness/model theo role của một workflow gốc (dùng cho kiểm thử và `bint task` khi chưa có
+// flow tuỳ biến trong tay); flow tuỳ biến đi qua agentChoicesForRoles với tập role của chính nó.
 func agentChoices(cfg config.Config, previous map[string]task.AgentChoice, harnessName string, roleFlags []string, model, workflowName string) (map[string]task.AgentChoice, error) {
-	return agentChoicesForRoles(cfg, previous, harnessName, roleFlags, model, workflowRoles(workflowName))
+	fd, ok := flow.GetBuiltin(workflowName)
+	if !ok {
+		fd, _ = flow.GetBuiltin(workflow.StepDo)
+	}
+	return agentChoicesForRoles(cfg, previous, harnessName, roleFlags, model, workflowRoles(fd), roleBases(fd))
 }
 
-func agentChoicesForRoles(cfg config.Config, previous map[string]task.AgentChoice, harnessName string, roleFlags []string, model string, active map[string]bool) (map[string]task.AgentChoice, error) {
+// agentChoicesForRoles chụp lựa chọn hiệu lực cho mọi role của flow (role gốc planner/implementer/reviewer luôn được xét,
+// cộng role tuỳ biến của các bước). active là tập role lượt này có thể dùng; bases ánh xạ role → role gốc theo kind của bước
+// (role tuỳ biến chưa cấu hình rơi về role gốc). Role không active chỉ giữ lại lựa chọn đã chụp trước đó.
+func agentChoicesForRoles(cfg config.Config, previous map[string]task.AgentChoice, harnessName string, roleFlags []string, model string,
+	active map[string]bool, bases map[string]string) (map[string]task.AgentChoice, error) {
 	sel, err := harnessSelection(harnessName, roleFlags, "")
 	if err != nil {
 		return nil, err
 	}
-	choices := make(map[string]task.AgentChoice, 3)
-	for _, role := range []string{"planner", "implementer", "reviewer"} {
+	roles := map[string]bool{"planner": true, "implementer": true, "reviewer": true}
+	for role := range active {
+		roles[role] = true
+	}
+	for role, c := range previous {
+		if c.Harness != "" {
+			roles[role] = true
+		}
+	}
+	choices := make(map[string]task.AgentChoice, len(roles))
+	for role := range roles {
+		base := bases[role]
+		if base == "" {
+			base = role
+		}
 		choice, saved := previous[role]
 		// Older snapshots wrote zero values for roles not selected by a single
 		// step. Only a resolved harness identifies an effective snapshot.
@@ -438,22 +473,19 @@ func agentChoicesForRoles(cfg config.Config, previous map[string]task.AgentChoic
 			continue
 		}
 		// A resume with no explicit override keeps the prior effective choice.
-		explicitRole := sel.Roles[role] != "" || sel.All != ""
+		explicitRole := sel.Roles[role] != "" || sel.All != "" || sel.Roles[base] != ""
 		if saved && !explicitRole {
-			choice.Harness, _, err = adapters.ForStep(cfg, adapters.Selection{Roles: map[string]string{role: choice.Harness}}, roleStep(role))
-			if err != nil {
-				return nil, err
-			}
+			choice.Harness, _, err = adapters.ForRole(cfg, adapters.Selection{Roles: map[string]string{role: choice.Harness}}, role, base)
 		} else {
-			choice.Harness, _, err = adapters.ForStep(cfg, sel, roleStep(role))
-			if err != nil {
-				return nil, err
-			}
+			choice.Harness, _, err = adapters.ForRole(cfg, sel, role, base)
+		}
+		if err != nil {
+			return nil, err
 		}
 		if model != "" {
 			choice.Model = model
 		} else if !saved || explicitRole {
-			choice.Model = configuredRoleModel(cfg, choice.Harness, role)
+			choice.Model = configuredRoleModel(cfg, choice.Harness, role, base)
 		}
 		choices[role] = choice
 	}
@@ -462,9 +494,8 @@ func agentChoicesForRoles(cfg config.Config, previous map[string]task.AgentChoic
 
 // rolesForRun excludes steps skipped by the workflow's persisted classification
 // or state. The implementer remains possible after a review requests changes.
-func rolesForRun(name string, t *task.Task, noReview bool) map[string]bool {
-	active := workflowRoles(name)
-	fd, _ := flow.GetBuiltin(name)
+func rolesForRun(fd flow.Def, t *task.Task, noReview bool) map[string]bool {
+	active := workflowRoles(fd)
 	if !fd.Multi() {
 		return active
 	}
@@ -489,26 +520,19 @@ func rolesForRun(name string, t *task.Task, noReview bool) map[string]bool {
 			return active
 		}
 		if c := t.State.Classification; c != nil && planRole != "" {
-			active[planRole] = c.Plan
+			if pl, _ := fd.FirstOfKind(flow.KindPlan); !pl.Optional {
+				active[planRole] = true // bước plan bắt buộc luôn chạy, phân loại không bỏ được
+			} else {
+				active[planRole] = c.Plan
+			}
 		}
 	}
 	return active
 }
 
-// roleStep trả id bước của flow nhúng b-do chạy role đó (bước implement nếu role không có bước riêng).
-func roleStep(role string) string {
-	bdo, _ := flow.GetBuiltin(workflow.StepDo)
-	for _, s := range bdo.Steps {
-		if s.EffectiveRole() == role {
-			return s.ID
-		}
-	}
-	impl, _ := bdo.FirstOfKind(flow.KindImplement)
-	return impl.ID
-}
-
-func configuredRoleModel(cfg config.Config, harnessName, role string) string {
-	if model := adapters.RoleModel(cfg, harnessName, role, ""); model != "" {
+// configuredRoleModel là model hiệu lực của role trên harness: models.<role> → models.<role gốc> → model chung của harness.
+func configuredRoleModel(cfg config.Config, harnessName, role, base string) string {
+	if model := adapters.RoleModelFor(cfg, harnessName, role, base, ""); model != "" {
 		return model
 	}
 	switch harnessName {
@@ -528,15 +552,22 @@ func configuredRoleModel(cfg config.Config, harnessName, role string) string {
 	return ""
 }
 
-// workflowRoles là tập role của các bước trong flow nhúng; tên không phải workflow gốc coi như b-do (đủ ba role).
-func workflowRoles(name string) map[string]bool {
-	fd, ok := flow.GetBuiltin(name)
-	if !ok {
-		fd, _ = flow.GetBuiltin(workflow.StepDo)
-	}
+// workflowRoles là tập role của các bước trong flow.
+func workflowRoles(fd flow.Def) map[string]bool {
 	roles := make(map[string]bool, len(fd.Steps))
 	for _, s := range fd.Steps {
 		roles[s.EffectiveRole()] = true
 	}
 	return roles
+}
+
+// roleBases ánh xạ role của các bước trong flow → role gốc theo kind (flow.DefaultRole).
+func roleBases(fd flow.Def) map[string]string {
+	out := make(map[string]string, len(fd.Steps))
+	for _, s := range fd.Steps {
+		if _, ok := out[s.EffectiveRole()]; !ok {
+			out[s.EffectiveRole()] = flow.DefaultRole(s.Kind)
+		}
+	}
+	return out
 }
