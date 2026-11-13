@@ -38,7 +38,7 @@ bint task set <id> --verify-command "go test ./internal/db/..." \
   --allow "internal/db/**"
 bint task transitions                           # bảng chuyển trạng thái
 bint task write <id> requirement|plan|tasks -   # ghi tài liệu qua stdin
-bint task diff <id> [--stat|--name-only]        # thay đổi của RIÊNG tác vụ (không lẫn tác vụ khác / thay đổi có sẵn)
+bint task diff <id> [--stat|--name-only] [--all]  # thay đổi của RIÊNG tác vụ (shared: chỉ tệp Touched, tệp khác nêu tên ở ghi chú, --all để xem hết)
 bint task new --worktree|--shared "<mô tả>"     # chọn nơi chạy lúc lập phiếu (mặc định theo workflow.isolation)
 bint task land <id> [--3way] [--keep]           # tác vụ worktree: đưa thay đổi về cây gốc (chưa commit); --3way chỉ NGƯỜI
 bint task cancel <id> [--reason …] [--discard]  # huỷ; tác vụ worktree: gỡ worktree (--discard chỉ NGƯỜI nếu còn thay đổi chưa đưa về)
@@ -147,6 +147,18 @@ còn `created` (hoặc `bint run b-req --task <id> --depth …` để lập kế
 chứng đã được người xác nhận và lần chạy cuối qua trên **đúng trạng thái mã hiện tại** (fingerprint
 HEAD + diff + tệp chưa theo dõi), hoặc — khi không có lệnh kiểm chứng — mọi tiêu chí được đối chiếu là
 đạt; không tiêu chí nào bị đánh dấu `unmet`; không có thay đổi chạm đường dẫn bảo vệ chưa duyệt.
+**Tự kiểm chứng lại ở Finalize** (NT-WF-BASELINE): khi người hoặc tác vụ khác commit/land vào cùng cây giữa lúc tác vụ
+chạy, fingerprint mã đổi sau lần kiểm chứng cuối và `done` bị chặn ("thay đổi không thuộc tác vụ: …"). Nếu **chỉ** vì
+thế (lệnh kiểm chứng đã xác nhận, lần chạy cuối qua, mọi tệp đổi kể từ đó đều ngoài `touched` của tác vụ, và nếu coi
+lần kiểm chứng là còn mới thì không còn điều chặn nào khác) thì Finalize (cả driver process lẫn session) tự chạy lại
+lệnh kiểm chứng đúng một lần dưới khoá độc quyền, ghi một `verification` mới có `reason` "mã khác đổi sau lần kiểm
+chứng: <tệp>", rồi xét `done` lại. Chạy lại không qua thì tác vụ `blocked` kèm mã thoát, tệp và log. Không tự chạy khi
+lệnh chưa được người xác nhận, khi có tệp thuộc `touched` đổi, hoặc khi còn lý do chặn khác (đường dẫn bảo vệ chưa duyệt,
+tiêu chí `unmet`, xung đột đưa về…). `bint task status <id> done` do người/agent gọi không tự chạy lệnh nào.
+Với tác vụ `shared`, `bint task diff <id>` mặc định chỉ hiện tệp thuộc `touched`; tệp khác đổi vào cây sau mốc đầu được
+loại, ghi chú nêu số và tên chúng (`--all` hiện lại toàn bộ). Tác vụ `worktree` luôn hiện toàn bộ phạm vi (worktree
+không có người viết khác, và mọi tệp đổi trong đó đều được đưa về cây gốc). Lời nhắc tiếp tục trong lý do chặn theo driver: tác vụ session là
+`bint run next <id> --resume`, tác vụ process là `bint run resume <id>`.
 Phiếu **chỉ lập kế hoạch** (workflow mà flow không có bước ghi, như `b-req`; đang `planned`, chưa từng `in_progress`,
 không có `touched`/đường dẫn chờ duyệt) đóng được bằng `bint task status <id> done --reason "…"` mà không cần kiểm chứng,
 đối chiếu tiêu chí hay duyệt đường dẫn bảo vệ (nó không có mã; thay đổi của người khác trên cây không bị gán cho nó);

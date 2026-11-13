@@ -446,3 +446,46 @@ func TestMergedTaskStateRoundTrip(t *testing.T) {
 		t.Fatalf("state lost fields: %+v", st)
 	}
 }
+
+// NT-WF-BASELINE: lời nhắc tiếp tục theo driver; state.json cũ (Verification không có reason) vẫn nạp.
+func TestStateResumeCommandFollowsDriver(t *testing.T) {
+	s := State{ID: "T1"}
+	if got := s.ResumeCommand(); got != "bint run resume T1" {
+		t.Fatalf("chưa phân loại (phiếu cũ): %q", got)
+	}
+	s.Classification = &Classification{Driver: DriverProcess}
+	if got := s.ResumeCommand(); got != "bint run resume T1" {
+		t.Fatalf("process: %q", got)
+	}
+	s.Classification = &Classification{Driver: DriverSession}
+	if got := s.ResumeCommand(); got != "bint run next T1 --resume" {
+		t.Fatalf("session: %q", got)
+	}
+}
+
+func TestDoneBlockersLandConflictResumeHintFollowsDriver(t *testing.T) {
+	tk := &Task{Ticket: Ticket{Goal: "g", Verify: Verify{Command: "true"}}, State: State{ID: "T1"}}
+	in := DoneInput{LandConflicts: []string{"a.go"}}
+	if b := strings.Join(DoneBlockers(tk, in), "\n"); !strings.Contains(b, "bint run resume T1") || strings.Contains(b, "bint run next") {
+		t.Fatalf("process: %s", b)
+	}
+	tk.State.Classification = &Classification{Driver: DriverSession}
+	if b := strings.Join(DoneBlockers(tk, in), "\n"); !strings.Contains(b, "bint run next T1 --resume") || strings.Contains(b, "bint run resume") {
+		t.Fatalf("session: %s", b)
+	}
+}
+
+func TestVerificationReasonBackwardCompatible(t *testing.T) {
+	var v Verification
+	if err := json.Unmarshal([]byte(`{"at":"x","command":"true","confirmed":true,"exit_code":0,"passed":true,"by":"agent"}`), &v); err != nil || v.Reason != "" {
+		t.Fatalf("state.json cũ: %+v %v", v, err)
+	}
+	b, _ := json.Marshal(Verification{Command: "true"})
+	if strings.Contains(string(b), "reason") {
+		t.Fatalf("reason rỗng không được ghi ra: %s", b)
+	}
+	b, _ = json.Marshal(Verification{Command: "true", Reason: "mã khác đổi sau lần kiểm chứng: a.go"})
+	if !strings.Contains(string(b), `"reason":"mã khác đổi sau lần kiểm chứng: a.go"`) {
+		t.Fatalf("%s", b)
+	}
+}

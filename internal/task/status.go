@@ -116,6 +116,9 @@ type DoneInput struct {
 	// OutsideSinceVerify là các tệp đã đổi kể từ lần kiểm chứng cuối mà không thuộc Touched của tác vụ
 	// (thường là việc của tác vụ khác trên cùng worktree). Chỉ để làm rõ thông báo.
 	OutsideSinceVerify []string
+	// TouchedSinceVerify là các tệp đã đổi kể từ lần kiểm chứng cuối mà thuộc Touched của tác vụ. Chỉ DoneInputDetailed
+	// điền (bộ nhớ, không lưu): Finalize chỉ tự kiểm chứng lại khi mảng này rỗng còn OutsideSinceVerify khác rỗng.
+	TouchedSinceVerify []string
 	// IgnoreLanding bỏ điều kiện "đã đưa về cây gốc" (dùng khi kiểm cổng done ngay trước khi đưa về).
 	IgnoreLanding bool
 	// LandConflicts là tệp ở cây gốc còn xung đột sau `land --3way` (còn dấu xung đột hoặc không trộn được):
@@ -139,7 +142,7 @@ func DoneBlockers(t *Task, in DoneInput) []string {
 	}
 	if len(in.LandConflicts) > 0 {
 		out = append(out, "tệp ở cây gốc còn xung đột sau khi đưa về bằng ba chiều: "+strings.Join(in.LandConflicts, ", ")+
-			" (gỡ dấu <<<<<<< / ghép tay phần của tác vụ rồi bint run resume "+st.ID+"; người đã xử lý xong tệp không trộn được thì xác nhận bằng bint task status "+st.ID+" done kèm cờ ép)")
+			" (gỡ dấu <<<<<<< / ghép tay phần của tác vụ rồi "+st.ResumeCommand()+"; người đã xử lý xong tệp không trộn được thì xác nhận bằng bint task status "+st.ID+" done kèm cờ ép)")
 	}
 	if len(st.PendingPaths) > 0 {
 		out = append(out, "thay đổi chạm đường dẫn bảo vệ/deny chưa được duyệt: "+strings.Join(st.PendingPaths, ", ")+" (bint task approve)")

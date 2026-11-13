@@ -27,11 +27,14 @@ var ErrTaskTreePruned = errors.New("cây so sánh của tác vụ đã bị dọ
 // maxPrunedFiles là số tệp tối đa nêu trong thông báo ErrTaskTreePruned.
 const maxPrunedFiles = 20
 
-// TaskDiffOptions: `bint task diff <task-id> [--stat|--name-only]`.
+// TaskDiffOptions: `bint task diff <task-id> [--stat|--name-only] [--all]`.
 type TaskDiffOptions struct {
 	Ref      string `arg:"task-id" form:"required,suggest=tasks"`
 	Stat     bool   `flag:"stat"`
 	NameOnly bool   `flag:"name-only"`
+	// All: tác vụ có theo dõi Touched cũng hiện tệp không thuộc Touched (người/tác vụ khác đổi vào cùng cây, sửa tay
+	// ngoài b-feat). Mặc định chỉ hiện tệp thuộc Touched.
+	All bool `flag:"all"`
 }
 
 func TaskDiffDefaults(config.Config) TaskDiffOptions { return TaskDiffOptions{} }
@@ -56,6 +59,9 @@ type TaskDiffResult struct {
 	Paths []string
 	// Legacy: phiếu lập trước khi Bint theo dõi tệp riêng của từng tác vụ; so trên toàn cây.
 	Legacy bool
+	// Excluded là các tệp đổi so với BaseTree nhưng không thuộc Touched của tác vụ, bị loại khỏi diff mặc định
+	// (chỉ điền khi tác vụ theo dõi Touched và không có --all).
+	Excluded []string
 	// Note là lời giải thích kèm kết quả (phiếu cũ, tác vụ chưa sửa tệp nào); rỗng nếu không có gì.
 	Note string
 	// Text là kết quả của `git diff` (diff đầy đủ, --stat hoặc --name-only theo Options).
@@ -83,6 +89,8 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 	}
 	var spec []string
 	var landedTree string
+	useSpec := false // true: chỉ giữ tệp thuộc spec (kể cả spec rỗng)
+	hideOthers := false
 	switch {
 	case t.State.Landed != nil && t.State.Landed.Tree != "":
 		// Đã đưa về cây gốc (worktree có thể đã gỡ): so mốc ban đầu với ảnh chụp lúc đưa về, trên tệp đã đưa về.
@@ -93,6 +101,7 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		if err := checkTreesPresent(ctx, root, t, res.From, landedTree); err != nil {
 			return res, err
 		}
+		useSpec = true
 		if spec = t.State.Landed.Files; len(spec) == 0 {
 			res.Note = "tác vụ đã đưa về cây gốc nhưng không có tệp nào"
 			return res, nil
@@ -103,12 +112,22 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		if err := checkTreesPresent(ctx, root, t, res.From, ""); err != nil {
 			return res, err
 		}
-		if spec, err = workflow.ScopeFiles(ctx, root, ws.Tasks, t, ws.Cfg.Limits.ProtectedPaths); err != nil {
-			return res, err
-		}
-		if len(spec) == 0 {
-			res.Note = "tác vụ chưa sửa tệp nào (b-feat chưa chạy hoặc không đổi gì)"
-			return res, nil
+		useSpec = true
+		if o.All || t.State.InWorktree() {
+			// Toàn bộ phạm vi của tác vụ: Touched cùng thay đổi ngoài b-feat quy cho nó (cổng phạm vi dùng tập này).
+			// Tác vụ worktree luôn dùng tập này: worktree riêng không có người viết khác, và Land đưa mọi tệp trong
+			// đó về cây gốc, nên ẩn tệp ngoài Touched sẽ giấu khỏi reviewer đúng những gì sắp được đưa về.
+			if spec, err = workflow.ScopeFiles(ctx, root, ws.Tasks, t, ws.Cfg.Limits.ProtectedPaths); err != nil {
+				return res, err
+			}
+			if len(spec) == 0 {
+				res.Note = "tác vụ chưa sửa tệp nào (b-feat chưa chạy hoặc không đổi gì)"
+				return res, nil
+			}
+		} else {
+			// Mặc định chỉ tệp của chính tác vụ: người hay tác vụ khác commit/sửa vào cùng cây sau BaseTree làm
+			// reviewer kết luận sai nếu lẫn vào đây.
+			spec, hideOthers = t.State.Touched, true
 		}
 	default:
 		res.Legacy = true
@@ -134,7 +153,7 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 	if err != nil {
 		return res, err
 	}
-	if len(spec) == 0 {
+	if !useSpec {
 		res.Paths = all
 	} else {
 		in := make(map[string]bool, len(spec))
@@ -142,9 +161,20 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 			in[f] = true
 		}
 		for _, f := range all {
-			if in[f] {
+			switch {
+			case in[f]:
 				res.Paths = append(res.Paths, f)
+			case hideOthers:
+				res.Excluded = append(res.Excluded, f)
 			}
+		}
+	}
+	if hideOthers {
+		if len(t.State.Touched) == 0 {
+			res.Note = "tác vụ chưa sửa tệp nào (b-feat chưa chạy hoặc không đổi gì)"
+		}
+		if n := len(res.Excluded); n > 0 {
+			res.Note = strings.TrimSpace(res.Note + " " + excludedNote(res.Excluded))
 		}
 	}
 	switch {
@@ -172,6 +202,19 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		res.Note = strings.TrimSpace(res.Note + " (nhiều tệp: bản thống kê in theo từng lô, không có dòng tổng chung)")
 	}
 	return res, nil
+}
+
+// excludedNote là dòng ghi chú về các tệp bị loại khỏi diff mặc định (tên vẫn liệt kê để người xem biết cần --all không).
+func excludedNote(files []string) string {
+	shown := files
+	if len(shown) > maxPrunedFiles {
+		shown = shown[:maxPrunedFiles]
+	}
+	msg := fmt.Sprintf("đã loại %d tệp không thuộc tác vụ: %s", len(files), strings.Join(shown, ", "))
+	if len(files) > len(shown) {
+		msg += fmt.Sprintf(" và %d tệp nữa", len(files)-len(shown))
+	}
+	return msg + " (--all để xem toàn bộ)"
 }
 
 // checkTreesPresent kiểm các mốc so sánh (from, landed; "" và cây rỗng của Git được bỏ qua) còn trong repository

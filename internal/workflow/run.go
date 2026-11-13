@@ -316,7 +316,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 			return nil, fmt.Errorf("b-req chỉ chạy trên tác vụ created/planned (đang %s)", t.State.Status)
 		}
 		if !o.Resume && task.Paused(t.State.Status) {
-			return nil, fmt.Errorf("tác vụ %s đang %s (%s): dùng `bint run resume %s`", t.State.ID, t.State.Status, t.State.Reason, t.State.ID)
+			return nil, fmt.Errorf("tác vụ %s đang %s (%s): dùng `%s`", t.State.ID, t.State.Status, t.State.Reason, t.State.ResumeCommand())
 		}
 		if rs.flowBlock == "" {
 			if t, err = r.applyOverrides(t, o, fd); err != nil {
@@ -763,7 +763,7 @@ func (r *Runner) interrupt(rs *runState, reason string) {
 func (r *Runner) askVerify(rs *runState, a task.Assessment) bool {
 	if r.Ask == nil {
 		rs.res.Questions = a.Questions
-		r.block(rs, strings.Join(a.Questions, " ")+" — trả lời: bint task set "+rs.t.State.ID+" --verify-command '…' rồi bint run resume "+rs.t.State.ID)
+		r.block(rs, strings.Join(a.Questions, " ")+" — trả lời: bint task set "+rs.t.State.ID+" --verify-command '…' rồi "+r.resumeCmd(rs))
 		return false
 	}
 	ans := strings.TrimSpace(r.Ask(Question{Key: QAskVerifyCommand, Params: map[string]any{"question": a.Questions[0]},
@@ -892,15 +892,15 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 		if others := r.sharedWriteConflicts(rs.t); len(others) > 0 {
 			id := rs.t.State.ID
 			r.block(rs, fmt.Sprintf("cây chung %s còn tác vụ khác chưa kết thúc (%s): hai tác vụ không được cùng ghi một cây. "+
-				"Chờ tác vụ đó xong (bint task show %s) rồi bint run resume %s; hoặc huỷ phiếu này (bint task cancel %s) "+
-				"và lập lại bằng --worktree", rs.t.State.Worktree, strings.Join(others, ", "), others[0], id, id))
+				"Chờ tác vụ đó xong (bint task show %s) rồi %s; hoặc huỷ phiếu này (bint task cancel %s) "+
+				"và lập lại bằng --worktree", rs.t.State.Worktree, strings.Join(others, ", "), others[0], r.resumeCmd(rs), id))
 			return nil, false
 		}
 		if rs.t.Ticket.Autonomy == task.AutonomyAskAlways {
 			q := Question{Key: QConfirmFeat, Params: map[string]any{"task": rs.t.State.ID, "root": r.Root},
 				Text: fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép %s sửa mã trong %s?", rs.t.State.ID, step, r.Root)}
 			if r.Confirm == nil || !r.Confirm(q) {
-				r.block(rs, "autonomy ask_always: chờ người cho phép bước "+step+" (bint run resume "+rs.t.State.ID+")")
+				r.block(rs, "autonomy ask_always: chờ người cho phép bước "+step+" ("+r.resumeCmd(rs)+")")
 				return nil, false
 			}
 		}
@@ -1210,10 +1210,8 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 // nói rõ kết quả bước được giữ và hai lối ra (người sửa đồng thời → resume; agent sửa → xem lại/hoàn tác rồi resume).
 func (r *Runner) heldReason(rs *runState, sr *stepRun, files []string) string {
 	id := rs.t.State.ID
-	resume, rerun := "bint run resume "+id, fmt.Sprintf("bint run resume %s --rerun", id)
-	if rs.session {
-		resume, rerun = "bint run next "+id+" --resume", fmt.Sprintf("bint run next %s --resume --rerun", id)
-	}
+	resume := r.resumeCmd(rs)
+	rerun := resume + " --rerun"
 	return fmt.Sprintf("bước chỉ đọc %s (%s) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: %s — kết quả của bước đã được giữ. "+
 		"Nếu chính bạn sửa đồng thời: `%s` để đi tiếp từ sau bước %s (không chạy lại). "+
 		"Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `%s` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel %s`",
@@ -1604,7 +1602,7 @@ func (r *Runner) stopOnPlanning(rs *runState, rep task.ArtifactReport) bool {
 func (r *Runner) continueHint(rs *runState) string {
 	id := rs.t.State.ID
 	if rs.flow.HasKind(flow.KindImplement) {
-		return "`bint run resume " + id + "`"
+		return "`" + r.resumeCmd(rs) + "`"
 	}
 	return "`bint run b-do --task " + id + "` (hoặc `bint run b-feat --task " + id + "`; không dùng `resume` vì sẽ chạy lại b-req)"
 }
@@ -1772,13 +1770,16 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 	if err == nil {
 		rs.t = t
 	}
-	r.block(rs, "thay đổi cần người duyệt: "+strings.Join(need, ", ")+strings.Join(append([]string{""}, overlapNotes...), "; ")+" (xem diff, rồi bint task approve "+rs.t.State.ID+" && bint run resume "+rs.t.State.ID+")")
+	r.block(rs, "thay đổi cần người duyệt: "+strings.Join(need, ", ")+strings.Join(append([]string{""}, overlapNotes...), "; ")+" (xem diff, rồi bint task approve "+rs.t.State.ID+" && "+r.resumeCmd(rs)+")")
 	return false
 }
 
 // finalize: chuyển done nếu đủ bằng chứng, nếu không thì chờ người với lý do cụ thể. Tác vụ worktree: kiểm
 // điều kiện done (ở worktree) → đưa về cây gốc (Land) → done. Xung đột ⇒ blocked "xung đột khi đưa về: …".
 func (r *Runner) finalize(ctx context.Context, rs *runState) {
+	if !r.reverifyIfStale(ctx, rs) {
+		return
+	}
 	if rs.t.State.NeedsLand() {
 		if !r.landStep(ctx, rs) {
 			return
@@ -1794,10 +1795,64 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) {
 	}
 	var nd *NotDoneError
 	if errors.As(err, &nd) {
-		r.block(rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(blockers, "; "))
+		r.block(rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(blockers, "; ")+"; xử lý xong thì `"+r.resumeCmd(rs)+"`")
 		return
 	}
 	r.fail(rs, "finalize", err.Error())
+}
+
+// reverifyIfStale: khi cổng done chỉ bị chặn vì tệp NGOÀI tác vụ đổi sau lần kiểm chứng cuối (staleVerifyOnly) thì tự
+// chạy lại lệnh kiểm chứng đã được xác nhận, đúng một lần, dưới khoá độc quyền (như kiểm chứng sau bước implement), ghi
+// một Verification mới có lý do. Dùng chung cho driver process và session (cả hai vào finalize). Trả false nếu workflow
+// phải dừng (đã đặt trạng thái): lỗi, huỷ, hoặc kiểm chứng lại không qua. Trường hợp khác trả true và để cổng done
+// quyết định như cũ (kể cả khi lệnh bị bỏ qua).
+func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) bool {
+	files, ok := r.staleVerifyOnly(ctx, rs.t)
+	if !ok {
+		return true
+	}
+	id := rs.t.State.ID
+	reason := reverifyReason(files)
+	r.logf("  %s: chạy lại kiểm chứng", reason)
+	lock, locked := r.lockStep(ctx, rs, "verify", LockExclusive)
+	if !locked {
+		return false
+	}
+	t, vr, err := r.VerifyWith(ctx, id, reason)
+	lock.Release()
+	switch {
+	case err != nil && ctx.Err() != nil:
+		r.interrupt(rs, "người dùng huỷ khi kiểm chứng")
+		return false
+	case err != nil:
+		r.fail(rs, "verify", err.Error())
+		return false
+	case vr.Skipped != "":
+		rs.res.Notes = append(rs.res.Notes, "kiểm chứng: "+vr.Skipped)
+		return true
+	}
+	rs.t = t
+	v := vr.Verification
+	r.logf("  kiểm chứng: %s → %s", v.Command, passWord(v.Passed))
+	rs.res.Notes = append(rs.res.Notes, "đã tự kiểm chứng lại một lần ("+reason+") → "+passWord(v.Passed))
+	if v.Passed {
+		return true
+	}
+	how := fmt.Sprintf("mã thoát %d", v.ExitCode)
+	if v.TimedOut {
+		how = "quá giờ"
+	}
+	r.block(rs, fmt.Sprintf("chưa đủ bằng chứng hoàn thành: tự kiểm chứng lại sau khi %s không qua (%s, log %s); "+
+		"xử lý xong thì `%s`", reason, how, v.Log, r.resumeCmd(rs)))
+	return false
+}
+
+// resumeCmd là lệnh tiếp tục tác vụ theo driver của lượt này (session: bint run next <id> --resume).
+func (r *Runner) resumeCmd(rs *runState) string {
+	if rs.session {
+		return "bint run next " + rs.t.State.ID + " --resume"
+	}
+	return rs.t.State.ResumeCommand()
 }
 
 // landStep đưa thay đổi của tác vụ worktree về cây gốc ở finalize. Trả false nếu workflow phải dừng (đã đặt
@@ -1818,10 +1873,10 @@ func (r *Runner) landStep(ctx context.Context, rs *runState) bool {
 		r.logf("✓ Đã đưa %d tệp về cây gốc %s", len(res.Files), rs.t.State.Origin)
 		return true
 	case errors.As(err, &nd):
-		r.block(rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(nd.Blockers, "; "))
+		r.block(rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(nd.Blockers, "; ")+"; xử lý xong thì `"+r.resumeCmd(rs)+"`")
 	case errors.As(err, &ce):
 		r.awaitLand(rs)
-		r.block(rs, err.Error()+"; xong thì `bint run resume "+id+"` (không chạy lại review)")
+		r.block(rs, err.Error()+"; xong thì `"+r.resumeCmd(rs)+"` (không chạy lại review)")
 	default:
 		r.awaitLand(rs)
 		r.fail(rs, "land", "đưa về cây gốc: "+err.Error())

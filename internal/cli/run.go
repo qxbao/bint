@@ -318,7 +318,7 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 			}
 			tw.Flush()
 			if task.Paused(t.State.Status) {
-				fmt.Fprintf(w, "\nTiếp tục: bint run resume %s\n", t.State.ID)
+				fmt.Fprintf(w, "\nTiếp tục: %s\n", t.State.ResumeCommand())
 			}
 			return nil
 		},

@@ -9587,7 +9587,7 @@
           "call": "complete",
           "action": "blocked",
           "task_status": "blocked",
-          "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run resume \u003cULID\u003e`",
+          "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run next \u003cULID\u003e --resume`",
           "notes": [
             "b-req: chi phí của subagent agent-b-req unknown — chưa có SubagentStop của agent-b-req (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)"
           ],
@@ -9616,7 +9616,7 @@
           "call": "complete",
           "action": "blocked",
           "task_status": "blocked",
-          "reason": "artifact b-req chưa đạt hợp đồng v1: [artifact_missing] tasks.md: chưa có tệp; ghi bằng `bint task write \u003cid\u003e tasks -` — sửa bằng `bint task write \u003cULID\u003e \u003crequirement|plan|tasks\u003e -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run resume \u003cULID\u003e`",
+          "reason": "artifact b-req chưa đạt hợp đồng v1: [artifact_missing] tasks.md: chưa có tệp; ghi bằng `bint task write \u003cid\u003e tasks -` — sửa bằng `bint task write \u003cULID\u003e \u003crequirement|plan|tasks\u003e -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run next \u003cULID\u003e --resume`",
           "notes": [
             "b-req: chi phí của subagent agent-b-req unknown — chưa có SubagentStop của agent-b-req (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)"
           ],
@@ -9740,7 +9740,7 @@
           "call": "complete",
           "action": "blocked",
           "task_status": "blocked",
-          "reason": "thay đổi cần người duyệt: migrations/002.sql (xem diff, rồi bint task approve \u003cULID\u003e \u0026\u0026 bint run resume \u003cULID\u003e)",
+          "reason": "thay đổi cần người duyệt: migrations/002.sql (xem diff, rồi bint task approve \u003cULID\u003e \u0026\u0026 bint run next \u003cULID\u003e --resume)",
           "notes": [
             "b-feat: chi phí của subagent agent-b-feat unknown — chưa có SubagentStop của agent-b-feat (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)",
             "sửa ngoài scope.allow: done.txt"

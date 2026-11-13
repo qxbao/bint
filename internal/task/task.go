@@ -258,6 +258,9 @@ type Verification struct {
 	Tree  string `json:"tree,omitempty"`
 	By    string `json:"by"`
 	RunID string `json:"run_id,omitempty"`
+	// Reason là lý do chạy khi Bint tự kiểm chứng lại (ví dụ "mã khác đổi sau lần kiểm chứng: a.go"); rỗng
+	// khi người/agent gọi bint task verify hoặc Runner chạy sau bước implement. state.json cũ không có trường này.
+	Reason string `json:"reason,omitempty"`
 }
 
 // Approval là một lần người duyệt.
@@ -468,6 +471,15 @@ func (s *State) InWorktree() bool { return s.Origin != "" && s.Landed == nil }
 
 // NeedsLand cho biết tác vụ chạy trong worktree riêng mà chưa đưa về cây gốc: chưa được done.
 func (s *State) NeedsLand() bool { return s.Origin != "" && s.Landed == nil }
+
+// ResumeCommand là lệnh tiếp tục tác vụ bị chặn/dừng theo driver: driver session tiếp bằng `bint run next <id> --resume`
+// (phiên điều phối chạy bước bằng subagent), driver process bằng `bint run resume <id>`. Một nguồn cho mọi lời nhắc.
+func (s *State) ResumeCommand() string {
+	if s.Classification != nil && s.Classification.EffectiveDriver() == DriverSession {
+		return "bint run next " + s.ID + " --resume"
+	}
+	return "bint run resume " + s.ID
+}
 
 // TracksTouched cho biết tác vụ theo dõi tập tệp riêng của mình (BaseTree/Touched). Khi false
 // (phiếu cũ), phạm vi và diff của tác vụ tính theo toàn bộ thay đổi so với Base.
