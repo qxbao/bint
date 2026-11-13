@@ -22,13 +22,6 @@ Khi làm việc với `internal/config/**`:
   `TestRenderMatchesDefaults` buộc mẫu khớp đúng `Default()`; `Decode` dùng `KnownFields(true)` nên khoá chưa khai báo làm hỏng việc nạp cấu hình.
   Xem commit d124a58 (thêm `eval.prior_run_usd`) làm mẫu.
 
-Khi làm việc với `internal/harness/**`, `internal/app/hook.go`:
-
-- **Hook không bao giờ chặn agent: không trả lỗi, không mở SQLite, không gọi mô hình, không tự tổng hợp sự kiện** [k:01M746NPTW1B304MRQQPBCAFAM]
-  Hook chạy ở mỗi lần agent dùng công cụ (giới hạn 5 giây). Lỗi của hook được ghi vào `hook-errors.log`, lệnh `bint hook ...` luôn trả `nil`; đừng thêm đường trả lỗi/mã thoát khác 0.
-  Hook chỉ ghi vào spool, không mở SQLite và không gọi mô hình (việc nạp spool vào CSDL làm ở nơi khác).
-  Sự kiện mà harness không cung cấp thì không được giả lập (docs/bint-plan.md mục 13.2). Khác biệt giữa harness đặt trong `hookcore.Dialect`, không rẽ nhánh theo tên harness trong hookcore.
-
 ### Điểm dễ sai
 
 - **Khoá liên tiến trình: dùng flock/LockFileEx, đừng chép kiểu thu hồi theo PID chết của evolve.AcquireLock** [k:01M746PTBYPSXDT0WJZS38KPFD]
@@ -69,6 +62,21 @@ Khi làm việc với `internal/eval/**`, `internal/cli/**`:
 - **go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượ…** [k:01M768KJEYSVTCQEJ3JAX3E7S2]
   go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượng đĩa' khi còn dưới ngưỡng eval.min_free_mb (mặc định 1024). Đĩa đầy thì dọn bộ đệm build (go clean -cache) trước khi chạy; lỗi này không liên quan mã đang sửa.
 
+Khi làm việc với `internal/eval/*_test.go`:
+
+- **Fixture dùng chính binary test cần tính thời gian thoát của race detector** [k:01M78968T95MDQSK472NC5XQT9]
+  TestRestrictedRPCProfileCleanupAndRejectsUnknownTools gọi lại binary kiểm thử để đọc catalog trước khi mở app-server. Với go test -race, tiến trình catalog mặc định chờ khoảng 1 giây khi thoát; hạn tổng 1 giây có thể hết trước khi fixture RPC khởi động. Dành đủ hạn cho cả khởi tạo và probe, đồng thời xác nhận đã tới lượt RPC bị chặn để không kiểm nhầm timeout ở giai đoạn khởi tạo.
+
+Khi làm việc với `internal/eval/codex*`:
+
+- **Codex 0.167.2: features.multi_agent=false và features.code_mode=false không đủ tắt công cụ vì metadata model tool_mode/…** [k:01M77BS1E11BFC8C6JSS20Z5VF]
+  Codex 0.167.2: features.multi_agent=false và features.code_mode=false không đủ tắt công cụ vì metadata model tool_mode/multi_agent_version vẫn bật Code Mode/collaboration; apply_patch_tool_type còn mở apply_patch. Adapter evolution cần catalog tạm bỏ các metadata này, environments=[], profile cô lập và probe request thật kiểm cả tools lẫn input.additional_tools trước khi đưa dữ liệu eval. Không suy no-tools từ thread/start hoặc riêng tools cấp cao nhất rỗng.
+
+Khi làm việc với `internal/eval/codex_read_tools.go`:
+
+- **Kiểm Lstat trước rồi mở lại toàn đường dẫn có race symlink: os.Root chỉ chặn thoát root, không chặn chuyển hướng vào .b…** [k:01M77FRYBCKRMTENPFE1XRFHVW]
+  Kiểm Lstat trước rồi mở lại toàn đường dẫn có race symlink: os.Root chỉ chặn thoát root, không chặn chuyển hướng vào .bint/evals. Phải kiểm danh tính từng đối tượng đã mở và dùng handle thư mục đã kiểm.
+
 Khi làm việc với `internal/evolve/**`:
 
 - **CheckLeak chỉ cảnh báo định danh mới; bài học dùng kiểm rò rỉ riêng (định danh mã, định danh mới ở vị trí mã, literal)** [k:01M74D57EZ2HZSQMTB9YP56F3D]
@@ -79,15 +87,4 @@ Khi làm việc với `internal/evolve/**`:
   Thêm ca chặn mới thì sửa TestCheckLessonTable (failure_test.go), kể cả ca chặn nhầm.
 - **Mọi đường gọi evolve.Propose (kể cả ProcessRequests/deferred) phải truyền Cases và RepoDir. Thiếu chúng thì kiểm rò rỉ …** [k:01M74E2CYQEZ443CCRB0N2YS72]
   Mọi đường gọi evolve.Propose (kể cả ProcessRequests/deferred) phải truyền Cases và RepoDir. Thiếu chúng thì kiểm rò rỉ của bài học failure_lesson báo 'không tìm thấy tác vụ' sau khi reflector đã chạy: tốn tiền rồi bỏ hết. Kiểm rò rỉ được dựng trước khi gọi reflector để lỗi này không tốn tiền.
-- **EvalCases của bài học lấy từ mọi tác vụ trong prompt, không chỉ bằng chứng** [k:01M74FMJH0K4HXQ6HCB941HJRY]
-  Tập tác vụ nguồn (EvalCases) của bài học phải là mọi tác vụ có bản tóm tắt trong prompt của reflector (biến shown từ caseIDsOf(fails)), không lấy từ các lượt reflector nêu làm evidence. Chỉ lấy theo evidence thì tác vụ reflector đã thấy nhưng không nêu sẽ bị chấm lại bằng chính bài học đó, vi phạm mục 12.3 và E3.5 của kế hoạch P8.
-
-Khi làm việc với `internal/harness/hookcore/hook.go`:
-
-- **Không có dấu vết để xác nhận ngoài thực tế rằng việc quên bộ nhớ đã xảy ra** [k:01M74VDJXBG8BF6J1DWB56KW06]
-  Ghi thêm ev.Payload[memory_reset]=true/false (hoặc lỗi cắt ngắn) để kiểm tra bằng spool sau một phiên dài thật.
-
-  Căn cứ: Lỗi của Reset bị bỏ qua (_ =) và sự kiện session.started chỉ ghi payload source; không có trường nào cho biết bộ nhớ đã được xoá hay xoá lỗi. Chưa có bằng chứng tích hợp rằng Claude Code gửi source=compact sau khi nén (chỉ kiểm bằng JSON giả lập), nên nếu sự kiện không đến thì bản sửa lặng lẽ vô tác dụng và không thể phát hiện.
-
-  (Rút ra từ phát hiện review 01M74V1M7F41TFP03TWJQKKYF1.3, tác vụ 01M74V1M7F41TFP03TWJQKKYF1.)
 <!-- bint:end -->
