@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -148,6 +149,8 @@ type TaskNewOptions struct {
 	GoalSet          bool     // đặt tường minh dù rỗng (CLI: cờ có mặt)
 	VerifyCommandSet bool
 	AutonomySet      bool
+	// FromFindings: ID phát hiện review (`--from-findings`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
+	FromFindings []string
 }
 
 // TaskNewDefaults: workflow b-do, độ sâu và driver tự chọn (như mặc định của cờ).
@@ -168,7 +171,7 @@ func (o TaskNewOptions) Validate() error {
 	if o.Worktree && o.Shared {
 		return Usagef("--worktree và --shared loại trừ nhau")
 	}
-	if strings.TrimSpace(o.Request) == "" {
+	if strings.TrimSpace(o.Request) == "" && len(o.FromFindings) == 0 {
 		return Usagef("thiếu mô tả tác vụ")
 	}
 	if _, err := workflow.NormalizeDriverFlag(o.Driver); err != nil {
@@ -192,6 +195,7 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 		return res, err
 	}
 	wo := workflow.NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
+	wo.FromFindings = o.FromFindings
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	if o.Plan || o.NoPlan {
 		p := o.Plan
@@ -206,6 +210,9 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 	}
 	t, a, err := ws.NewTask(ctx, wo)
 	if err != nil {
+		if errors.Is(err, workflow.ErrFindingInput) {
+			return res, UsageError{err}
+		}
 		return res, err
 	}
 	return TaskCreated{Task: t, Assessment: a, VerifyConfirmed: ws.VerifyConfirmed(t)}, nil

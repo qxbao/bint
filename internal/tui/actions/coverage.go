@@ -37,6 +37,8 @@ var Data = Coverage{
 		"run next":         "giao thức của phiên điều phối (orchestrator) chạy bước bằng subagent, không phải thao tác của người; bước đang chạy bằng subagent hiện ở thẻ Phiếu và bảng tác vụ",
 		"run complete":     "giao thức của phiên điều phối (orchestrator) chạy bước bằng subagent, không phải thao tác của người; bước đang chạy bằng subagent hiện ở thẻ Phiếu và bảng tác vụ",
 		"knowledge cite":   "agent báo trích dẫn tri thức trong lượt bint run (gắn BINT_RUN_ID), không phải thao tác của người; trích dẫn được nạp vào knowledge_citations cùng sự kiện của hook",
+		"findings list":    "B1 phần 1 chỉ làm CLI (kết cục phát hiện review); màn hình TUI cho phát hiện mở thuộc phần sau của B1",
+		"findings set":     "B1 phần 1 chỉ làm CLI (kết cục phát hiện review); màn hình TUI cho phát hiện mở thuộc phần sau của B1",
 		"mcp serve":        "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái đăng ký MCP hiện ở Hệ thống › Harness (HarnessRuntime), công cụ của nó hiện ở thẻ Công cụ Bint của màn MCP",
 		"tui":              "chính là điểm vào của giao diện terminal",
 	},
@@ -47,6 +49,7 @@ var Data = Coverage{
 	ExcludedCmdFlags: map[string]string{
 		"eval report --cases":       "chỉ định dạng đầu ra văn bản (bảng theo từng tác vụ); TUI luôn hiện cả hai",
 		"knowledge add --body-file": "TUI soạn nội dung trong ô nhiều dòng thay vì đọc từ tệp",
+		"task new --from-findings":  "B1 phần 1 chỉ làm CLI: lập phiếu sửa từ phát hiện review; form TUI chưa có lựa chọn phát hiện",
 		"task new --file":           "TUI soạn mô tả trong ô nhiều dòng thay vì đọc từ tệp",
 	},
 	Pending:        map[string]int{},

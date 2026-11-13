@@ -352,6 +352,8 @@ type State struct {
 	Runs         []string      `json:"runs,omitempty"`
 	Runner       *Runner       `json:"runner,omitempty"`
 	ReviewRounds int           `json:"review_rounds"`
+	// FromFindings là ID các phát hiện review mà phiếu này được lập để sửa (`task new --from-findings`).
+	FromFindings []string `json:"from_findings,omitempty"`
 	// AwaitingCheck: b-feat đã xong nhưng chưa qua kiểm tra phạm vi/kiểm chứng (ví dụ
 	// đang chờ người duyệt); tiếp tục thì không chạy lại b-feat.
 	AwaitingCheck bool              `json:"awaiting_check,omitempty"`

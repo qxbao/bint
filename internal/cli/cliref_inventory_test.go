@@ -46,6 +46,7 @@ const (
 )
 
 var baseExclusions = []exclusion{
+	{"app/findings_svc.go", "bint findings set", rAgentGate + ": cổng chỉ-dành-cho-người của findings set"},
 	{"app/hook.go", "bint hook: ", rCLI + ": lỗi của lệnh bint hook (ghi vào hook-errors.log)"},
 	{"app/init.go", "bint mcp serve", "lệnh không có hành động trong sổ (máy chủ MCP qua stdio, không có giao diện)"},
 	{"app/knowledge.go", "bint knowledge import", "lệnh knowledge import chưa tồn tại (sau v1.0) nên không có hành động trong sổ để chỉ tới"},
@@ -81,6 +82,9 @@ var baseExclusions = []exclusion{
 }
 
 var litsrUsage = []struct{ file, contains string }{
+	{"app/findings_svc.go", "fixed cần --commit"},
+	{"workflow/ops_findings.go", "fixed cần --commit"},
+	{"workflow/ops_findings.go", "--commit %q không phải commit"},
 	{"app/mcp_svc.go", "--url loại trừ --command/--arg"},
 	{"app/mcp_svc.go", "--url chỉ dùng cho service http"},
 	{"app/mcp_svc.go", "--url %q không phải địa chỉ http(s)"},

@@ -243,6 +243,10 @@ và rủi ro.
   lập phiếu sửa với phạm vi suy từ đường dẫn của phát hiện.
 - Màn Tác vụ của TUI hiển thị cây kế hoạch và số phát hiện tồn.
 
+*Đã làm (phần 1, chỉ CLI):* sổ chỉ-thêm `findings.json` cạnh `review.json`, `bint findings list|set`,
+`bint task new --from-findings`; mô tả ở `docs/workflows.md`. *Còn lại:* `depends_on`, `bint task ready`,
+kế thừa phạm vi, màn TUI.
+
 **Rủi ro.** Phiếu nằm ở thư mục trạng thái ngoài repository nên không chia sẻ giữa các máy. Beads giải
 bằng JSONL trong Git; với Bint đây là câu hỏi mở (mục 6).
 

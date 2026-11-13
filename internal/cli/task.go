@@ -101,6 +101,7 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		worktree bool
 		shared   bool
 		driver   string
+		fromFind []string
 	)
 	c := &cobra.Command{
 		Use:   "new [mô tả | -]",
@@ -147,6 +148,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 			o.Constraints, o.ClearScope = ef.constraints, ef.clearScope
 			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
 			o.Worktree, o.Shared, o.Driver = worktree, shared, driver
+			o.FromFindings = fromFind
 			if err := o.Validate(); err != nil { // lỗi dùng sai (mã 2) thắng lỗi "chưa init", như trước
 				return err
 			}
@@ -160,11 +162,15 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 			}
 			env, t, a := ws.Env, created.Task, created.Assessment
 			if asJSON {
-				return writeJSON(stdio.Out, map[string]any{"id": t.State.ID, "dir": t.Dir, "status": t.State.Status,
+				out := map[string]any{"id": t.State.ID, "dir": t.Dir, "status": t.State.Status,
 					"ticket": t.Ticket, "classification": t.State.Classification, "assessment": a,
 					"verify_confirmed": created.VerifyConfirmed, "isolation": t.State.Isolation(),
 					"isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t)),
-					"driver": taskDriver(t), "driver_reason": driverReason(t)})
+					"driver": taskDriver(t), "driver_reason": driverReason(t)}
+				if len(t.State.FromFindings) > 0 {
+					out["from_findings"] = t.State.FromFindings
+				}
+				return writeJSON(stdio.Out, out)
 			}
 			w := stdio.Out
 			fmt.Fprintf(w, "Tác vụ %s: %s\n", t.State.ID, t.Ticket.Goal)
@@ -175,6 +181,9 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 			}
 			printIsolationLine(w, "  Cô lập:    ", t)
 			printDriverLines(w, "  ", t)
+			if len(t.State.FromFindings) > 0 {
+				fmt.Fprintf(w, "  Từ phát hiện: %s\n", strings.Join(t.State.FromFindings, ", "))
+			}
 			printTicketBrief(w, env, t, a)
 			return nil
 		},
@@ -187,6 +196,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 	c.Flags().BoolVar(&worktree, "worktree", false, "chạy tác vụ trong worktree riêng (song song với tác vụ khác); loại trừ --shared")
 	c.Flags().BoolVar(&shared, "shared", false, "sửa thẳng trên cây đang làm, không vào worktree riêng; loại trừ --worktree")
 	c.Flags().StringVar(&driver, "driver", "auto", "ai chạy các bước của tác vụ: auto (theo workflow.driver) | process | session (phiên đang mở chạy bước bằng subagent: bint run next/complete)")
+	c.Flags().StringSliceVar(&fromFind, "from-findings", nil, "lập phiếu sửa từ phát hiện review (ID dạng <task-id>.<n>, lặp lại hoặc dấu phẩy): phạm vi suy từ đường dẫn của chúng, mô tả thành tuỳ chọn; loại phát hiện fixed/rejected")
 	c.Flags().StringVar(&fromFile, "file", "", "đọc mô tả từ tệp")
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c

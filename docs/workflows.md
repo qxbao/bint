@@ -203,6 +203,21 @@ Mỗi phát hiện có `kind` (`bug`, `risk`, `suggestion`), `severity` (`critic
 `workflow.max_review_rounds`, mặc định 2 vòng; quá số vòng → `blocked`). Khi chạy lại `b-feat`, đề bài
 nhắc rõ các tiêu chí còn `unmet` để agent hoàn thành và đối chiếu lại.
 
+**Kết cục phát hiện (`bint findings`).** Mỗi phát hiện có kết cục `open` (mặc định, kể cả `review.json` cũ),
+`fixed`, `rejected` hoặc `deferred`. Kết cục ghi chỉ-thêm vào `findings.json` trong thư mục tác vụ (kèm `by`,
+`at`), không sửa `review.json`, nên vòng review mới không làm mất kết cục:
+
+```sh
+bint findings list [--open] [--task <id>] [--json]     # mọi tác vụ (kể cả done/cancelled); tác vụ hỏng báo ở stderr
+bint findings set fixed <id>... --commit <sha>         # commit phải có thật; lưu SHA đầy đủ
+bint findings set rejected <id>... --reason "…"        # tương tự deferred
+bint findings set open <id>...                         # mở lại
+bint task new --from-findings <id>[,<id>…] [--allow …] # phiếu sửa: scope.allow = đường dẫn phát hiện (+ --allow)
+```
+
+`--from-findings` từ chối phát hiện `fixed`/`rejected`; mô tả tự do thành tuỳ chọn (Bint liệt kê từng phát hiện
+vào mô tả) và `from_findings` được ghi vào `state.json`. Chỉ có CLI, chưa có màn hình TUI.
+
 **`bint run`** cấp `run_id` cho lượt `b-do` (cha) và mỗi bước (con, `parent_run_id`), ghi `run_steps`,
 chi phí/token/mô hình; agent nhận `BINT_RUN_ID`, `BINT_TASK_ID`, `BINT_AGENT=1`, `BINT_RUNNER_PID` và
 danh sách đường dẫn đã duyệt, nên lệnh `bint task` và hook gắn sự kiện vào đúng lượt con. Đề bài =

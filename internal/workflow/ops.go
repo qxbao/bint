@@ -113,6 +113,9 @@ type NewTaskOptions struct {
 	// DriverFlagOnly: bỏ qua workflow.driver, chỉ nhận cờ tường minh (`bint run` tự lập phiếu: bản thân nó là driver
 	// process nên không lấy khoá cấu hình của driver session).
 	DriverFlagOnly bool
+	// FromFindings: ID phát hiện review mà phiếu được lập để sửa (`task new --from-findings`); phạm vi suy từ
+	// đường dẫn của chúng và Request có thể rỗng.
+	FromFindings []string
 }
 
 // NewTask lập phiếu tác vụ từ mô tả tự do (bước Classify).
@@ -121,6 +124,17 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	confirmed := ""
 	if tc := e.Cfg.Eval.TestCommand; tc != nil {
 		confirmed = *tc
+	}
+	var findViews []FindingView
+	if len(o.FromFindings) > 0 {
+		var paths []string
+		var err error
+		if findViews, paths, err = e.fromFindings(o.FromFindings); err != nil {
+			return nil, task.Assessment{}, err
+		}
+		o.Request = findingsRequest(o.Request, findViews)
+		o.Edit.ClearScope = true
+		o.Edit.Allow = appendUnique(append([]string(nil), paths...), o.Edit.Allow...)
 	}
 	t := task.FromRequest(e.Root, o.Request, confirmed)
 	if err := o.Edit.apply(&t); err != nil {
@@ -193,6 +207,9 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	}
 	if !fd.IsBuiltin() {
 		st.FlowSHA = flow.Hash(fd) // flow đổi giữa chừng thì tác vụ bị chặn (flowGate)
+	}
+	for _, v := range findViews {
+		st.FromFindings = append(st.FromFindings, v.Finding.ID)
 	}
 	if e.RunID != "" {
 		st.LinkRun(e.RunID)
