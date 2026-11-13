@@ -35,8 +35,9 @@ func (v isoViolation) String() string {
 }
 
 // ranForReal: lời gọi đã thực sự chạy, không bị hook chặn. Thiếu tool_result (transcript cắt, subagent bị dừng giữa chừng) thì
-// không biết nên không tính. Edit-type: mọi kết quả lỗi đều là chưa ghi được. Bash: lỗi do hook chặn là chưa chạy; lệnh chạy
-// rồi thoát khác 0 cũng là is_error nhưng ĐÃ chạy.
+// không biết nên không tính. Edit-type: mọi kết quả lỗi đều là chưa ghi được. Công cụ khác (Bash): lỗi do hook của Bint hoặc
+// do Claude Code chặn trước khi chạy (hookcore.IsPreExecDenial) là chưa chạy; lệnh chạy rồi thoát khác 0 ("Exit code N") cũng
+// là is_error nhưng ĐÃ chạy, và dạng lỗi lạ không nhận ra cũng tính là đã chạy (hướng an toàn).
 // Edit-type CHỈ dựa vào is_error: kết quả thành công có thể chứa trích đoạn tệp vừa sửa (kể cả chuỗi "hook error"), không được
 // coi đó là dấu hiệu bị chặn.
 func ranForReal(c claude.ToolCall, kind hookcore.ToolKind) bool {
@@ -46,7 +47,7 @@ func ranForReal(c claude.ToolCall, kind hookcore.ToolKind) bool {
 	if kind == hookcore.ToolEdit {
 		return !c.IsError
 	}
-	return !(c.IsError && hookcore.IsHookDenial(c.Result))
+	return !(c.IsError && hookcore.IsPreExecDenial(c.Result))
 }
 
 // auditIsolation quét transcript của subagent agentID của bước ps. Chỉ áp cho bint-implementer của tác vụ worktree

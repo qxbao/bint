@@ -73,3 +73,34 @@ func TestIsHookDenial(t *testing.T) {
 		}
 	}
 }
+
+// IsPreExecDenial nhận các dạng Claude Code chặn trước khi chạy; Bash đã chạy ("Exit code N"), dạng lạ và tiền tố nằm giữa
+// văn bản thì không.
+func TestIsPreExecDenial(t *testing.T) {
+	for text, want := range map[string]bool{
+		"<tool_use_error>Blocked: sleep 100 followed by: cat x</tool_use_error>":           true,
+		"<tool_use_error>InputValidationError: Bash failed</tool_use_error>":               true,
+		"<tool_use_error>Error: No such tool available: Foo</tool_use_error>":              true,
+		"  \n<tool_use_error>Blocked: x</tool_use_error>":                                  true, // khoảng trắng đầu được bỏ
+		"Permission to use Bash has been denied.":                                          true,
+		"Permission for this tool use was denied.":                                         true,
+		"Permission for this action was denied by the Claude Code auto mode classifier: x": true,
+		"Permission for this command was denied by a built-in Claude Code safety check":    true,
+		"The user doesn't want to proceed with this tool use. The tool use was rejected":   true,
+		"The user doesn't want to take this action right now. STOP what you are doing":     true,
+		"The user doesn\u2019t want to proceed with this tool use.":                        true,
+		"PreToolUse:Bash hook error: Bint: Bash bị chặn":                                   true,
+		"Exit code 1\n<tool_use_error>trong đầu ra</tool_use_error>":                       false,
+		"Exit code 1\nPermission for this tool use was denied":                             false,
+		"Exit code 2\nThe user doesn't want to proceed":                                    false,
+		"Exit code 1\n...":                        false,
+		"log: <tool_use_error>x</tool_use_error>": false,
+		"permission denied":                       false,
+		"Something unknown went wrong":            false,
+		"":                                        false,
+	} {
+		if got := IsPreExecDenial(text); got != want {
+			t.Errorf("IsPreExecDenial(%.50q) = %v, muốn %v", text, got, want)
+		}
+	}
+}
