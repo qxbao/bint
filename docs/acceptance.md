@@ -59,7 +59,7 @@ Ký hiệu: **Đủ điều kiện** = mọi phát hiện đã đóng, có bằn
 | [H — thành phần quy trình](p8-harness-evolution-plan.md) | H1–H4 | Chưa đo | `NT-H5` |
 | [Thử nghiệm A, B](p8-next-experiments.md) | B có đủ mã; A thiếu `eval snapshot import` | Chưa đo | `NT-EXP-A`, `NT-EXP-B` |
 | [Cô lập và driver session](isolation-subagent-plan.md) | G1–G4 và việc tồn | G1–G3 đạt (G3 chạy thật 2026-11-12, mục 12.16); G4 chạy thật ở [V1](evals/v1-real-session-2026-11-13/README.md): không đạt (một lần ghi lọt ra cây gốc) | `NT-ISO-LEAK`, `NT-ISO-G4`, `NT-ISO-BYPASS` (vế Bash), `NT-ISO-MAXTURNS`, `NT-WIN-*` |
-| [Gateway MCP](mcp-gateway-plan.md) | M0–M4; M5 đã đo bộ nhớ | Test tự động đạt cho M0–M4; M1 đạt với service thật ([V1](evals/v1-real-session-2026-11-13/README.md)) | `NT-MCP-CAT`, `NT-MCP-PROBE`, `NT-MCP-M0`, `NT-MCP-M2`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-*` |
+| [Gateway MCP](mcp-gateway-plan.md) | M0–M4; M5 đã đo bộ nhớ | Test tự động đạt cho M0–M4; M1 đạt với service thật ([V1](evals/v1-real-session-2026-11-13/README.md)) | `NT-MCP-PROBE`, `NT-MCP-M0`, `NT-MCP-M2`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-*` |
 | [TUI](tui-plan.md) | Giai đoạn 0–6, màn MCP | Golden và test phủ lệnh đạt; chưa thử với người và terminal thật | `NT-TUI-*` |
 | [Custom skill/flow](custom-flow-plan.md) | GĐ1 (`21171cb`), GĐ2 (`f77ae19`) | Tiêu chí bằng test của GĐ1–2 đạt; GĐ3–6 chưa commit | `NT-CF-MANUAL` (sau GĐ5–6) |
 
@@ -72,12 +72,11 @@ Cột "Vòng" trỏ tới mục 4. "Token" là token đo (eval/evolve), không t
 | Mã | Mức | Điều kiện đóng | Vòng |
 |---|---|---|---|
 | `NT-ISO-LEAK` | Cao | Ở V1, subagent `bint-implementer` (driver session, worktree, chạy nền) một lần ghi được tệp ra cây gốc mà hook không chặn và không để lại `guardrail.triggered`; không tái hiện được. Điều kiện đóng: lớp phát hiện độc lập với hook (Finalize/`run complete` của bước worktree chụp cây gốc trước/sau, thay đổi không thuộc tác vụ thì chặn và báo) có test, và có cách bật ghi log hook để chẩn đoán | Phiếu riêng, trước khi chạy lại `NT-ISO-G4` |
-| `NT-MCP-CAT` | Trung bình | Danh mục MCP khớp upstream: `specmatic` cài bằng `npm i -g specmatic-mcp@1.2.0` (PyPI không có gói); `deepwiki` nhóm `read` dùng `ask_wiki_question`; `bint mcp check` hết `degraded` với deepwiki thật | Phiếu riêng |
 | `NT-MCP-PROBE` | Thấp | `bint mcp check` phát hiện daemon codegraph env hẹp kể cả khi env vẫn chứa `codegraph_status` (gọi thử một tool mỗi nhóm được cấp, hoặc so danh sách) | Phiếu riêng |
 | `NT-WF-BASELINE` | Trung bình | Tác vụ `shared`: commit của người hoặc thay đổi do tác vụ khác land vào cây trong lúc tác vụ chạy không bị `bint task diff` và Finalize tính là thay đổi của tác vụ (hiện bị chặn "thay đổi không thuộc tác vụ", chỉ gỡ được bằng `--force`); test tái hiện: commit lên HEAD giữa b-feat và Finalize | Phiếu riêng |
 | `NT-P6-06` | Thấp | Các phát hiện low còn lại sau V0 (`mergeBodies` không idempotent với khối mã chưa đóng, nối trùng câu khác dạng, test `third_party` chưa chặt, `repoToplevel` gọi hai lần, submodule, nhánh merge của skill); danh sách ở [biên bản V0](evals/v0-p6-fixes-2026-11-13/README.md) | Phiếu riêng |
 
-`NT-P6-01..05` đóng ở V0 (2026-11-13), chờ ký. Mục tri thức `k:01M746PTBYPSXDT0WJZS38KPFD` đã lỗi thời sau V0,
+`NT-P6-01..05` đóng ở V0 (2026-11-13), chờ ký. `NT-MCP-CAT` đóng 2026-11-13 (tác vụ `01M7A80F2X6A803CFR491X14GR`; còn gợi ý low: thêm test giữ cố định `Install` của specmatic và tool `ask_wiki_question`). Mục tri thức `k:01M746PTBYPSXDT0WJZS38KPFD` đã lỗi thời sau V0,
 chờ người sửa hoặc revalidate.
 
 ### 3.2. Chạy thật trên máy (cần người, không token đo)

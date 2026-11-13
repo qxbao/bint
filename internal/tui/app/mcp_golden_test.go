@@ -20,8 +20,8 @@ func mcpAt(t *testing.T, o Options, w, h int, keys ...string) *Model {
 	m := newModel(t, o, sampleData(), w, h)
 	press(t, m, "8")
 	m.Update(actions.ResultMsg{ID: "mcp.check", Value: actions.MCPCheckOutcome{Results: []bintapp.MCPCheckResult{
-		{Service: "deepwiki", Status: bintapp.MCPStatusDegraded, Tools: []string{"read_wiki_structure"}, Missing: []string{"ask_question"},
-			Detail: "upstream thiếu tool của nhóm thao tác: ask_question (danh mục lệch phiên bản upstream?)"}}}})
+		{Service: "deepwiki", Status: bintapp.MCPStatusDegraded, Tools: []string{"read_wiki_structure"}, Missing: []string{"ask_wiki_question"},
+			Detail: "upstream thiếu tool của nhóm thao tác: ask_wiki_question (danh mục lệch phiên bản upstream?)"}}}})
 	press(t, m, "esc") // đóng khung kết quả và xoá thông báo của lần check giả: chỉ giữ trạng thái đã suy ra
 	press(t, m, keys...)
 	return m

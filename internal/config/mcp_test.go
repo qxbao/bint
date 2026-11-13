@@ -266,7 +266,7 @@ func TestMCPResolve(t *testing.T) {
 			t.Errorf("tool chỉ đọc phải còn: %v", got)
 		}
 		// deepwiki được cấp, máy đã đăng ký, nhưng dự án không khai báo.
-		if rs := exclReasons(r, "ask_question"); !slices.Equal(rs, []string{MCPExcludeNotInProject}) {
+		if rs := exclReasons(r, "ask_wiki_question"); !slices.Equal(rs, []string{MCPExcludeNotInProject}) {
 			t.Errorf("deepwiki ngoài mcp.services: %v", rs)
 		}
 	})

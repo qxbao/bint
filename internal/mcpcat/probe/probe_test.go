@@ -185,7 +185,7 @@ func (f *httpFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func TestHTTPJSONAndSSE(t *testing.T) {
 	for _, sse := range []bool{false, true} {
 		t.Run(fmt.Sprintf("sse=%v", sse), func(t *testing.T) {
-			f := &httpFake{sse: sse, tools: []string{"read_wiki_structure", "ask_question"}}
+			f := &httpFake{sse: sse, tools: []string{"read_wiki_structure", "ask_wiki_question"}}
 			srv := httptest.NewServer(f)
 			defer srv.Close()
 			c := probe.HTTP(srv.URL, srv.Client(), nil)
@@ -196,10 +196,10 @@ func TestHTTPJSONAndSSE(t *testing.T) {
 				t.Fatalf("initialize: %+v %v", info, err)
 			}
 			tools, err := c.ListTools(ctx)
-			if err != nil || len(tools) != 2 || tools[1].Name != "ask_question" {
+			if err != nil || len(tools) != 2 || tools[1].Name != "ask_wiki_question" {
 				t.Fatalf("tools: %+v %v", tools, err)
 			}
-			res, err := c.CallTool(ctx, "ask_question", map[string]any{"q": 1})
+			res, err := c.CallTool(ctx, "ask_wiki_question", map[string]any{"q": 1})
 			if err != nil || res.Text != "hi" {
 				t.Fatalf("call: %+v %v", res, err)
 			}
