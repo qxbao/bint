@@ -140,3 +140,11 @@ duyệt là nguồn chuẩn trong `.bint/evals/cases/*.yml` (fingerprint của �
 được ghi vào mỗi lượt để phát hiện tác vụ bị sửa). Giao thức đã chốt của hai cổng ở
 [docs/gate-1.md](gate-1.md) và [docs/gate-2.md](gate-2.md); kế hoạch các vòng nghiệm thu ở
 [docs/acceptance.md](acceptance.md); các đợt đo thực nghiệm đã lưu tại [docs/evals/README.md](evals/README.md).
+
+## Kiểm thử skill (`bint skill test`) khác `bint eval run`
+
+`bint skill test <tên>` (GĐ6 của `docs/custom-flow-plan.md`) không dùng bộ tác vụ, nhánh Bint hay worktree của `eval run`: nó chạy
+kịch bản áp lực `.bint/skills/<tên>/tests/*.yml` của một skill tuỳ biến qua `eval.Agent` chỉ đọc (role `skill-tester`, mặc định theo
+`planner`), ở nhánh không và có skill trong đề bài, chấm bằng chuỗi/regex trên câu trả lời cuối rồi ghi tỉ lệ tuân thủ mỗi nhánh vào
+`<thư mục trạng thái>/runtime/skill-tests/<tên>/<id>.json`. Cùng quy tắc chi phí như `eval run`: in ước tính trước, cần `--yes` khi
+không tương tác. Định dạng kịch bản và giới hạn: `docs/workflows.md` mục "Kiểm thử skill".

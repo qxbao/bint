@@ -30,6 +30,10 @@ import (
 // stepCheck: bước giả — kiểm tra phạm vi và kiểm chứng sau b-feat (không gọi agent).
 const stepCheck = "post-feat"
 
+// stepHeld: bước giả — bước chỉ đọc đã kết thúc nhưng bị giữ vì cây đổi trong lúc chạy (State.HeldStep); resume chỉ áp
+// cổng sau bước của nó (lint + planned cho plan, quyết định cho review), không chạy lại agent.
+const stepHeld = "held-step"
+
 // Bước của workflow.
 const (
 	StepReq    = "b-req"
@@ -106,6 +110,9 @@ type RunOptions struct {
 	Resume bool
 	// NoWait: khoá worktree đang bị giữ thì dừng ngay (blocked) thay vì chờ tới workflow.timeout_minutes.
 	NoWait bool
+	// Rerun (cùng Resume): bỏ kết quả bước chỉ đọc đang giữ (HeldStep) và chạy lại bước đó thay vì chỉ áp cổng sau bước
+	// của nó (`bint run resume --rerun`). Lỗi nếu phiếu không có bước giữ.
+	Rerun bool
 	// Isolation: chế độ cô lập khi tự lập phiếu (""/auto | shared | worktree); không dùng cùng TaskRef.
 	Isolation string
 	// Driver: process|session khi tự lập phiếu (--driver); không dùng cùng TaskRef. session ⇒ lập phiếu rồi dừng
@@ -187,6 +194,8 @@ type runState struct {
 	featScopeSet bool
 	// session: lệnh của driver session (bint run next/complete); subagent không có BINT_RUN_ID.
 	session bool
+	// heldRunID: lượt con của bước đang giữ vừa được nhận để áp cổng sau bước (takeHeld); rs.res.Steps rỗng khi resume.
+	heldRunID string
 }
 
 // afterStepUnlock là seam kiểm thử (nil ở sản phẩm): gọi ngay sau khi runStep nhả khoá worktree của bước,
@@ -203,6 +212,9 @@ func (r *Runner) logf(format string, a ...any) {
 // b-review (tối đa workflow.max_review_rounds vòng sửa) → Finalize. Các workflow
 // đơn (b-req, b-feat, b-review) chạy đúng một bước trên tác vụ.
 func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
+	if o.Rerun && !o.Resume {
+		return nil, errors.New("--rerun chỉ dùng khi tiếp tục tác vụ (bint run resume <id> --rerun)")
+	}
 	if o.Step != "" && (o.TaskRef == "" || !isCustomFlow(o.Workflow)) {
 		return nil, errors.New("--step chỉ dùng với --task và flow tuỳ biến (workflow gốc chạy theo tên: bint run <workflow> --task <id>)")
 	}
@@ -356,11 +368,19 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		runAfterLoad()
 	}
 	parent := rs.t.State.LastRun()
+	var rerunDropped *task.HeldStep
 	t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		// Kiểm lại dưới khoá phiếu: một `bint run next` có thể đã mở bước subagent sau lần nạp ở trên (TOCTOU), và hợp
 		// đồng của chính tác vụ không chặn AcquireLock ⇒ không được chạy chồng lên bước đó.
 		if ps := t.State.PendingStep; ps != nil && t.State.PendingActive(leaseNow()) {
 			return &PendingStepError{TaskID: t.State.ID, Step: ps.Step, RunID: ps.RunID, Until: ps.LeaseUntil}
+		}
+		if o.Rerun {
+			if h, err := dropHeldForRerun(t, o.Resume); err != nil {
+				return err
+			} else {
+				rerunDropped = h
+			}
 		}
 		if err := t.ClaimRunner(rs.runID, r.now()); err != nil {
 			return err
@@ -387,6 +407,9 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		return nil, err
 	}
 	rs.t = t
+	if rerunDropped != nil {
+		rs.res.Notes = append(rs.res.Notes, rerunNote(rerunDropped))
+	}
 	r.RunID = rs.runID
 	r.emitRun(rs.runID, spool.WorkflowStarted, map[string]any{"workflow": o.Workflow, "parent_run_id": parent,
 		"bint_version": r.Version, "git_head": gitrepo.HeadCommit(ctx, r.Root), "git_branch": gitrepo.Branch(ctx, r.Root),
@@ -433,6 +456,16 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		step := r.nextStep(rs)
 		if step == "" {
 			break
+		}
+		if step == stepHeld {
+			// Bước chỉ đọc đã xong ở lượt trước (cây đổi trong lúc chạy, người đã xem rồi resume): chỉ áp cổng sau bước.
+			if !r.afterHeld(ctx, rs, r.takeHeld(rs).Step) {
+				break
+			}
+			if o.Step != "" {
+				break
+			}
+			continue
 		}
 		if step == stepCheck {
 			// Bước implement đã chạy ở lượt trước; chỉ còn kiểm tra phạm vi và kiểm chứng.
@@ -542,6 +575,7 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions, fd flow.Def) (*task.
 	if !explicit && o.Plan == nil && !(planOnly && t.State.Status == task.StatusCreated) && !hasEdit(o.Edit) {
 		return t, nil
 	}
+	var sync criteriaSync
 	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
 		if hasEdit(o.Edit) {
 			if task.Terminal(t.State.Status) {
@@ -550,7 +584,11 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions, fd flow.Def) (*task.
 			if !r.Human && o.Edit.Autonomy != nil && *o.Edit.Autonomy == task.AutonomyAuto {
 				return fmt.Errorf("%w: chỉ người mới đặt được autonomy: auto", ErrAgent)
 			}
+			before := slices.Clone(t.Ticket.Verify.Criteria)
 			if err := o.Edit.apply(&t.Ticket); err != nil {
+				return err
+			}
+			if err := r.syncCriteria(t, before, &sync); err != nil {
 				return err
 			}
 		}
@@ -601,6 +639,10 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions, fd flow.Def) (*task.
 	if err != nil {
 		return t, err
 	}
+	r.emitSynced(nt, sync)
+	for _, n := range sync.notes {
+		r.logf("đồng bộ tiêu chí: %s", n)
+	}
 	return nt, nil
 }
 
@@ -613,6 +655,9 @@ func hasEdit(e TicketEdit) bool {
 // bỏ qua, flow một hay nhiều bước, bước implement/review đang chạy theo State.FlowStep). Trả "" khi không còn bước agent
 // nào (kể cả sau khi finalize), stepCheck khi bước implement vừa chạy chỉ còn cổng sau bước.
 func (r *Runner) nextStep(rs *runState) string {
+	if rs.t.State.HeldStep != nil && rs.heldStepOf() == nil {
+		r.takeHeld(rs) // bước giữ của flow khác: bỏ kèm ghi chú
+	}
 	step, fin := rs.pickStep()
 	if fin {
 		r.finalize(context.Background(), rs)
@@ -629,6 +674,9 @@ func (r *Runner) nextStep(rs *runState) string {
 func (rs *runState) pickStep() (step string, finalize bool) {
 	st := rs.t.State.Status
 	fd := rs.flow
+	if rs.heldStepOf() != nil {
+		return stepHeld, false // bước chỉ đọc đã xong, chỉ còn cổng sau bước của nó
+	}
 	if !rs.chain() {
 		// Flow một bước: chạy đúng bước đó một lần. Bước implement vừa chạy xong ở lượt trước (AwaitingCheck) chỉ còn
 		// cổng sau bước.
@@ -788,6 +836,8 @@ type stepRun struct {
 	onEnd func()
 	// timedOut: driver session, hợp đồng thuê đã hết hạn lúc đóng bước.
 	timedOut bool
+	// isoLeak: lý do hậu kiểm cô lập thấy subagent đã chạy lời gọi ngoài worktree (auditIsolation); khác rỗng ⇒ bước blocked.
+	isoLeak string
 }
 
 // release nhả khoá worktree của bước (và seam kiểm thử): gọi đúng một lần khi bước kết thúc hoặc không bắt đầu được.
@@ -839,6 +889,13 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 			return nil, false
 		}
 		firstFeat = !rs.t.State.EverInProgress() // phải xét trước khi chuyển in_progress ở dưới
+		if others := r.sharedWriteConflicts(rs.t); len(others) > 0 {
+			id := rs.t.State.ID
+			r.block(rs, fmt.Sprintf("cây chung %s còn tác vụ khác chưa kết thúc (%s): hai tác vụ không được cùng ghi một cây. "+
+				"Chờ tác vụ đó xong (bint task show %s) rồi bint run resume %s; hoặc huỷ phiếu này (bint task cancel %s) "+
+				"và lập lại bằng --worktree", rs.t.State.Worktree, strings.Join(others, ", "), others[0], id, id))
+			return nil, false
+		}
 		if rs.t.Ticket.Autonomy == task.AutonomyAskAlways {
 			q := Question{Key: QConfirmFeat, Params: map[string]any{"task": rs.t.State.ID, "root": r.Root},
 				Text: fmt.Sprintf("Tác vụ %s (autonomy: ask_always): cho phép %s sửa mã trong %s?", rs.t.State.ID, step, r.Root)}
@@ -995,7 +1052,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		rs.featScope, rs.featScopeErr = ScopeFiles(ctx, r.Root, r.Tasks, rs.t, r.Cfg.Limits.ProtectedPaths)
 		rs.featScopeSet = true
 	}
-	var humanWrites []string
+	var humanWrites, violations []string
 	if sr.readOnly && ctx.Err() == nil {
 		after, err := WorktreeSnapshot(ctx, r.Root)
 		switch {
@@ -1009,11 +1066,9 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 				r.logf("bỏ qua thay đổi do người ghi qua Bint: %s", list)
 				rs.res.Notes = append(rs.res.Notes, step+": bỏ qua thay đổi do người ghi qua Bint: "+list)
 			}
-			if len(chk.Violations) == 0 {
-				break
-			}
-			res.Error = fmt.Sprintf("bước chỉ đọc %s (%s) đã sửa cây làm việc: %s — Bint không hoàn tác, hãy xem lại (nếu chính bạn sửa trong lúc bước chạy: bint run resume %s)",
-				step, sr.harness, strings.Join(chk.Violations, ", "), rs.t.State.ID)
+			// Không còn đặt res.Error: agent kết thúc bình thường mà cây đổi thì giữ kết quả bước và chờ người (blocked,
+			// HeldStep) thay vì failed bỏ kết quả — thay đổi có thể do người sửa đồng thời trên cây chung.
+			violations = chk.Violations
 		}
 	}
 
@@ -1053,6 +1108,23 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	if denied && status != "interrupted" {
 		status, endReason, deniedPaths = "blocked", reason, paths
 	}
+	held := false
+	if len(violations) > 0 {
+		if status == "completed" {
+			status, held = "blocked", true
+			endReason = r.heldReason(rs, sr, violations)
+		} else {
+			// Agent lỗi/quá giờ/bị chặn kèm vi phạm: giữ trạng thái đó, nối tệp đổi vào lý do (không giữ kết quả bước).
+			endReason += fmt.Sprintf("; bước chỉ đọc %s còn sửa cây làm việc: %s (Bint không hoàn tác, hãy xem lại)", step, strings.Join(violations, ", "))
+		}
+		srr.Error = endReason
+	}
+	if sr.isoLeak != "" && status != "interrupted" {
+		// Ghi đè cả failed/timeout: người phải xem cây gốc trước khi tác vụ đi tiếp. Rò cô lập thắng việc giữ kết quả bước
+		// chỉ đọc (held): resume phải chạy lại bước, không coi kết quả của lượt đã chạy ngoài worktree là dùng được.
+		status, endReason, held = "blocked", sr.isoLeak, false
+		r.RecordError(rs.t.State.ID, step, sr.isoLeak)
+	}
 	srr.Status = status
 	if rs.session && res.CostUSD != nil {
 		// Subagent không dừng được giữa chừng, nên vượt max_cost_usd của bước chỉ được ghi lỗi (bước không failed); ngân sách
@@ -1090,6 +1162,15 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		rs.t = t
 	}
 
+	if held {
+		r.RecordError(rs.t.State.ID, step, endReason)
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+			t.State.HeldStep = &task.HeldStep{Step: step, RunID: child, Kind: string(sr.kind), Files: violations, At: r.at()}
+			return nil
+		}); err == nil {
+			rs.t = t
+		}
+	}
 	if status == "blocked" {
 		if len(deniedPaths) > 0 {
 			if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
@@ -1123,6 +1204,76 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	}
 	r.logf("✓ %s xong (%s)", step, srr.Duration)
 	return true
+}
+
+// heldReason là lý do chuyển blocked khi bước chỉ đọc kết thúc bình thường nhưng cây đổi trong lúc chạy: nêu tệp đổi,
+// nói rõ kết quả bước được giữ và hai lối ra (người sửa đồng thời → resume; agent sửa → xem lại/hoàn tác rồi resume).
+func (r *Runner) heldReason(rs *runState, sr *stepRun, files []string) string {
+	id := rs.t.State.ID
+	resume, rerun := "bint run resume "+id, fmt.Sprintf("bint run resume %s --rerun", id)
+	if rs.session {
+		resume, rerun = "bint run next "+id+" --resume", fmt.Sprintf("bint run next %s --resume --rerun", id)
+	}
+	return fmt.Sprintf("bước chỉ đọc %s (%s) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: %s — kết quả của bước đã được giữ. "+
+		"Nếu chính bạn sửa đồng thời: `%s` để đi tiếp từ sau bước %s (không chạy lại). "+
+		"Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `%s` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel %s`",
+		sr.step, sr.harness, strings.Join(files, ", "), resume, sr.step, rerun, id)
+}
+
+// dropHeldForRerun xoá HeldStep của phiếu t cho `resume --rerun` (bước đó sẽ chạy lại, kết quả giữ bị bỏ). Lỗi cách
+// dùng nếu không phải resume hoặc phiếu không có bước giữ.
+func dropHeldForRerun(t *task.Task, resume bool) (*task.HeldStep, error) {
+	if !resume {
+		return nil, errors.New("--rerun chỉ dùng khi tiếp tục tác vụ (resume)")
+	}
+	h := t.State.HeldStep
+	if h == nil {
+		return nil, fmt.Errorf("--rerun: tác vụ %s không có bước chỉ đọc nào đang được giữ để chạy lại", t.State.ID)
+	}
+	t.State.HeldStep = nil
+	return h, nil
+}
+
+func rerunNote(h *task.HeldStep) string {
+	return fmt.Sprintf("bỏ kết quả bước giữ %s (lượt %s), chạy lại bước theo yêu cầu của người dùng", h.Step, h.RunID)
+}
+
+// heldStepOf trả bước đang giữ nếu nó thuộc flow đang chạy (nil nếu không có hoặc thuộc flow khác).
+func (rs *runState) heldStepOf() *task.HeldStep {
+	h := rs.t.State.HeldStep
+	if h == nil {
+		return nil
+	}
+	if _, ok := rs.flow.StepByID(h.Step); !ok {
+		return nil
+	}
+	return h
+}
+
+// takeHeld nhận bước đang giữ để áp cổng sau bước của nó: xoá HeldStep khỏi phiếu và nhớ lượt của bước cho
+// reviewIsFresh (rs.res.Steps rỗng khi resume). Bước giữ thuộc flow khác (đổi workflow giữa chừng) bị bỏ kèm ghi chú.
+func (r *Runner) takeHeld(rs *runState) *task.HeldStep {
+	h := rs.t.State.HeldStep
+	if h == nil {
+		return nil
+	}
+	foreign := rs.heldStepOf() == nil
+	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.HeldStep = nil; return nil }); err == nil {
+		rs.t = t
+	}
+	if foreign {
+		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("bỏ bước giữ %s: không thuộc flow %s đang chạy", h.Step, rs.flow.Name))
+		return nil
+	}
+	rs.heldRunID = h.RunID
+	return h
+}
+
+// afterHeld áp cổng sau bước cho bước giữ vừa nhận (takeHeld) rồi quên lượt của nó: heldRunID chỉ đúng cho đúng
+// cổng này; để lại thì reviewIsFresh của b-review chạy sau đó (cùng lượt Run) so nhầm với lượt của bước giữ.
+func (r *Runner) afterHeld(ctx context.Context, rs *runState, step string) bool {
+	defer func() { rs.heldRunID = "" }()
+	return r.afterStep(ctx, rs, step)
 }
 
 // lockWaitUnit là đơn vị của workflow.timeout_minutes khi chờ khoá; biến để kiểm thử rút ngắn.
@@ -1324,10 +1475,18 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 // (BINT_RUN_ID). Driver session: subagent không có biến môi trường nên vòng ghi không mang lượt; nhận vòng mới hơn
 // vòng đã áp quyết định gần nhất.
 func (r *Runner) reviewIsFresh(rs *runState, last *task.ReviewRound) bool {
-	if last == nil || len(rs.res.Steps) == 0 {
+	if last == nil {
 		return false
 	}
-	if last.RunID == rs.res.Steps[len(rs.res.Steps)-1].RunID {
+	// Lượt của bước vừa chạy; khi resume áp bước đang giữ thì rs.res.Steps rỗng và lượt lấy từ HeldStep.
+	runID := rs.heldRunID
+	if n := len(rs.res.Steps); runID == "" && n > 0 {
+		runID = rs.res.Steps[n-1].RunID
+	}
+	if runID == "" {
+		return false
+	}
+	if last.RunID == runID {
 		return true
 	}
 	return rs.session && last.RunID == "" && last.Round > rs.t.State.ReviewDecided

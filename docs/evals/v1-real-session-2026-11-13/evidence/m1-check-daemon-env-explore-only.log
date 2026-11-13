@@ -1,0 +1,6 @@
+  !  codegraph        degraded (8 tool)
+       codegraph_status bị từ chối (isError: Error: Tool codegraph_status is disabled via CODEGRAPH_MCP_TOOLS): daemon codegraph có thể đang chạy với env hẹp của một phiên khác (CODEGRAPH_MCP_TOOLS thiếu tool nhóm query). Dừng daemon cũ rồi chạy lại check: `codegraph daemon` (xem --help) hoặc kết thúc tiến trình có PID ghi trong <v1>/bint/.codegraph/daemon.pid
+  ✓  specmatic        ok (4 tool)
+  !  deepwiki         degraded (3 tool)
+       upstream thiếu tool của nhóm thao tác: ask_question (danh mục lệch phiên bản upstream?)
+       tool lạ (danh mục chưa biết): ask_wiki_question

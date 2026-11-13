@@ -20,7 +20,7 @@ func TestSystemActionsWritesFlags(t *testing.T) {
 	writes := map[string]bool{
 		"system.config_edit": true, "system.config_save": true, "system.language_save": true, "system.component_add": true,
 		"system.component_approve": true, "system.component_deprecate": true, "system.skill_overlay": true, "system.skill_new": true, "system.open_file": true,
-		"system.sync": true, "system.index_rebuild": true,
+		"system.sync": true, "system.index_rebuild": true, "system.skill_test": true,
 		// Giai đoạn 5b: chạy lại init, nâng cấu hình và cập nhật Bint đều ghi.
 		"system.repo_apply": true, "system.config_upgrade": true, "system.update": true,
 	}

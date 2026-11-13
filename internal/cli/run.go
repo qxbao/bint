@@ -23,6 +23,7 @@ type runFlags struct {
 	plan, noPlan bool
 	noReview     bool
 	noWait       bool
+	rerun        bool
 	worktree     bool
 	shared       bool
 	driver       string
@@ -136,7 +137,7 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 	)
 	if resume != nil {
 		ro = app.RunResumeDefaults(config.Default())
-		ro.Ref, ro.NoReview, ro.NoWait, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.harness, rf.roles, rf.model, rf.agentCommand
+		ro.Ref, ro.NoReview, ro.NoWait, ro.Rerun, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.rerun, rf.harness, rf.roles, rf.model, rf.agentCommand
 		if err := ro.Validate(); err != nil {
 			return err
 		}
@@ -243,13 +244,18 @@ func newRunResumeCmd(stdio IO) *cobra.Command {
 		Use:   "resume <task-id>",
 		Short: "Tiếp tục tác vụ blocked / interrupted / failed từ bước đang dở",
 		Long: `Tiếp tục điều phối tác vụ (workflow đã tạo nó) từ trạng thái trước khi dừng. Lượt mới có
-parent_run_id là lượt trước. Thay đổi đang chờ duyệt phải được duyệt trước (bint task approve).`,
+parent_run_id là lượt trước. Thay đổi đang chờ duyệt phải được duyệt trước (bint task approve).
+
+Bước chỉ đọc (b-req, b-review, bước plan/review của flow tuỳ biến) kết thúc mà cây đổi trong lúc chạy thì tác vụ dừng
+blocked và kết quả bước được giữ; resume áp kết quả đó (không chạy lại). Đã hoàn tác thay đổi lạ và muốn chạy lại bước:
+--rerun bỏ kết quả giữ rồi chạy lại bước (lỗi nếu tác vụ không có bước giữ).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWorkflow(cmd, stdio, rf, nil, &args[0])
 		},
 	}
 	addRunFlags(c, &rf, false)
+	c.Flags().BoolVar(&rf.rerun, "rerun", false, "bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó (thay vì áp kết quả đã giữ)")
 	return c
 }
 

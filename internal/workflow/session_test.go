@@ -143,24 +143,44 @@ func TestSessionFullSequenceToDone(t *testing.T) {
 	}
 }
 
-// b-review sửa tệp ⇒ complete đánh failed (như driver process).
-func TestSessionReadonlyReviewModifyingTreeFails(t *testing.T) {
+// b-review sửa tệp ⇒ complete đánh blocked (giữ kết quả bước), như driver process; `next --resume` đi tiếp sau bước đã
+// giữ (áp quyết định của vòng review đã ghi), không trả lại action agent cho b-review.
+func TestSessionReadonlyReviewModifyingTreeBlocksThenResume(t *testing.T) {
 	h := newHarness(t)
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 		if step == StepReview {
-			h.write("app.txt", "sửa lén\n")
+			h.write("app.txt", "sửa đồng thời\n")
 		}
 		return h.happy(ctx, step, e, id)
 	}
 	r := h.runner()
 	tk := h.newSession(r, NewTaskOptions{})
-	steps, last := h.drive(r, tk.State.ID, false)
-	if steps[len(steps)-1] != StepReview || last.Action != ActionFailed || last.Result == nil || last.Result.Status != "failed" ||
-		!strings.Contains(last.Result.Error, "bước chỉ đọc") || !strings.Contains(last.Result.Error, "app.txt") {
+	id := tk.State.ID
+	steps, last := h.drive(r, id, false)
+	if steps[len(steps)-1] != StepReview || last.Action != ActionBlocked || last.Result == nil || last.Result.Status != "blocked" ||
+		!strings.Contains(last.Result.Error, "bước chỉ đọc") || !strings.Contains(last.Result.Error, "app.txt") ||
+		!strings.Contains(last.Result.Error, "bint run next "+id+" --resume") || !strings.Contains(last.Result.Error, "hoàn tác") {
 		t.Fatalf("bước %v, dừng: %+v result=%+v", steps, last, last.Result)
 	}
-	if got := loadTask(t, h, tk.State.ID); got.State.Status != task.StatusFailed || got.State.PendingStep != nil {
-		t.Fatalf("tác vụ: %s pending=%v", got.State.Status, got.State.PendingStep)
+	got := loadTask(t, h, id)
+	if got.State.Status != task.StatusBlocked || got.State.PendingStep != nil || got.State.HeldStep == nil || got.State.HeldStep.Step != StepReview {
+		t.Fatalf("tác vụ: %s pending=%v held=%+v", got.State.Status, got.State.PendingStep, got.State.HeldStep)
+	}
+	if rev, err := got.LoadReview(); err != nil || rev.Last() == nil {
+		t.Fatalf("vòng review phải được giữ: %v", err)
+	}
+
+	// Resume: đi tiếp từ sau b-review (áp quyết định), không mở lại b-review.
+	reviews := countCalls(h, StepReview)
+	if _, _, err := r.Verify(context.Background(), id); err != nil { // cổng done đòi kiểm chứng khớp cây hiện tại
+		t.Fatal(err)
+	}
+	steps2, last2 := h.drive(r, id, true)
+	if slices.Contains(steps2, StepReview) || countCalls(h, StepReview) != reviews {
+		t.Fatalf("resume không được chạy lại b-review: %v calls=%v", steps2, h.calls)
+	}
+	if got := loadTask(t, h, id); got.State.Status != task.StatusDone || got.State.HeldStep != nil {
+		t.Fatalf("sau resume: %s held=%+v (dừng: %+v)", got.State.Status, got.State.HeldStep, last2)
 	}
 }
 

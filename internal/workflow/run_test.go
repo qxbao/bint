@@ -644,8 +644,9 @@ func TestAgentArgs(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
-// P5: bước chỉ đọc sửa cây làm việc thì thất bại, bất kể harness hứa gì.
-func TestReadOnlyStepModifyingTreeFails(t *testing.T) {
+// P5: bước chỉ đọc kết thúc bình thường nhưng cây đổi trong lúc chạy ⇒ tác vụ blocked (không failed), giữ kết quả bước
+// (vòng review đã ghi); lý do nêu tệp đổi và hai lối ra. Bint không phân biệt được agent hay người sửa nên người quyết định.
+func TestReadOnlyStepModifyingTreeBlocks(t *testing.T) {
 	h := newHarness(t)
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 		if step == StepReview {
@@ -659,17 +660,138 @@ func TestReadOnlyStepModifyingTreeFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := res.Steps[len(res.Steps)-1]
-	if last.Step != StepReview || last.Status != "failed" || !strings.Contains(last.Error, "bước chỉ đọc") ||
+	if last.Step != StepReview || last.Status != "blocked" || !strings.Contains(last.Error, "bước chỉ đọc") ||
 		!strings.Contains(last.Error, "app.txt") || strings.Contains(last.Error, ".bint") {
 		t.Fatalf("bước: %+v", res.Steps)
 	}
-	if res.Status != task.StatusFailed {
+	if res.Status != task.StatusBlocked {
 		t.Fatalf("tác vụ: %s", res.Status)
+	}
+	for _, want := range []string{"app.txt", "bint run resume " + res.TaskID, "hoàn tác", "không chạy lại", "git diff"} {
+		if !strings.Contains(res.Reason, want) {
+			t.Errorf("lý do thiếu %q: %s", want, res.Reason)
+		}
+	}
+	tk := loadTask(t, h, res.TaskID)
+	if hs := tk.State.HeldStep; hs == nil || hs.Step != StepReview || hs.RunID != last.RunID || !slices.Equal(hs.Files, []string{"app.txt"}) {
+		t.Fatalf("HeldStep: %+v", hs)
+	}
+	if len(tk.State.Errors) == 0 {
+		t.Fatal("lịch sử lỗi vẫn phải ghi vi phạm")
+	}
+	// Kết quả bước được giữ: vòng review của b-review vẫn trong review.json.
+	if rev, err := tk.LoadReview(); err != nil || rev.Last() == nil || rev.Last().RunID != last.RunID {
+		t.Fatalf("review.json phải giữ vòng của bước: %+v %v", rev, err)
+	}
+}
+
+// Resume sau bước review bị giữ đi tiếp từ sau bước (áp quyết định của vòng đã ghi), không chạy lại b-review.
+func TestResumeAfterHeldReviewDoesNotRerunReview(t *testing.T) {
+	h := newHarness(t)
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReview && countCalls(h, StepReview) == 1 {
+			h.write("app.txt", "sửa đồng thời\n")
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	r := h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil || res.Status != task.StatusBlocked {
+		t.Fatalf("lượt đầu: %+v %v", res, err)
+	}
+	// Người đã xem thay đổi đồng thời của mình và kiểm chứng lại (cổng done vẫn đòi kiểm chứng khớp cây hiện tại).
+	if _, _, err := r.Verify(context.Background(), res.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	res2, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Status != task.StatusDone || countCalls(h, StepReview) != 1 || countCalls(h, StepFeat) != 1 || countCalls(h, StepReq) != 1 {
+		t.Fatalf("resume: %+v calls=%v", res2, h.calls)
+	}
+	if tk := loadTask(t, h, res.TaskID); tk.State.HeldStep != nil {
+		t.Fatalf("HeldStep phải được xoá: %+v", tk.State.HeldStep)
+	}
+}
+
+// b-req bị giữ: resume đi tiếp bằng lint + planned, không chạy lại planner.
+func TestResumeAfterHeldPlanDoesNotRerunPlanner(t *testing.T) {
+	h := newHarness(t)
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReq {
+			h.write("app.txt", "sửa đồng thời\n")
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	r := h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepReq, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "bint run resume "+res.TaskID) {
+		t.Fatalf("lượt đầu: %+v %v", res, err)
+	}
+	tk := loadTask(t, h, res.TaskID)
+	if tk.State.HeldStep == nil || tk.State.HeldStep.Step != StepReq {
+		t.Fatalf("HeldStep: %+v", tk.State.HeldStep)
+	}
+	for _, n := range task.ArtifactNames() {
+		if _, err := os.Stat(tk.ArtifactPath(n)); err != nil {
+			t.Fatalf("artifact %s phải được giữ: %v", n, err)
+		}
+	}
+	res2, err := r.Run(context.Background(), RunOptions{Workflow: StepReq, TaskRef: res.TaskID, Resume: true})
+	if err != nil || res2.Status != task.StatusPlanned || countCalls(h, StepReq) != 1 {
+		t.Fatalf("resume: %+v %v calls=%v", res2, err, h.calls)
+	}
+}
+
+// Agent lỗi kèm vi phạm vẫn failed như cũ (không giữ kết quả).
+func TestReadOnlyViolationWithAgentErrorStaysFailed(t *testing.T) {
+	h := newHarness(t)
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReview {
+			h.write("app.txt", "sửa lén\n")
+			return errors.New("agent hỏng")
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := res.Steps[len(res.Steps)-1]
+	if res.Status != task.StatusFailed || last.Status != "failed" || !strings.Contains(last.Error, "app.txt") {
+		t.Fatalf("agent lỗi kèm vi phạm phải failed: %+v", res)
+	}
+	if loadTask(t, h, res.TaskID).State.HeldStep != nil {
+		t.Fatal("không giữ bước khi agent lỗi")
+	}
+}
+
+// HeldStep của flow khác (đổi workflow giữa chừng) bị bỏ kèm ghi chú, không kẹt tác vụ.
+func TestHeldStepOfOtherFlowIsDropped(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepReq, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil || res.Status != task.StatusPlanned {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if _, err := h.tasks.Update(res.TaskID, time.Now(), func(t *task.Task) error {
+		t.State.HeldStep = &task.HeldStep{Step: "buoc-la", RunID: "x", Files: []string{"a"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res2, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: res.TaskID})
+	if err != nil || res2.Status != task.StatusDone {
+		t.Fatalf("%+v %v", res2, err)
+	}
+	if !strings.Contains(strings.Join(res2.Notes, "\n"), "bỏ bước giữ buoc-la") {
+		t.Fatalf("thiếu ghi chú: %v", res2.Notes)
 	}
 }
 
 // P5-02: bước chỉ đọc không được sửa cấu hình/chính sách trong .bint/.
-func TestReadOnlyStepModifyingBintConfigFails(t *testing.T) {
+func TestReadOnlyStepModifyingBintConfigBlocks(t *testing.T) {
 	h := newHarness(t)
 	h.write(".bint/config.yml", "security:\n  require_approval_for_commands: true\n")
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
@@ -683,7 +805,7 @@ func TestReadOnlyStepModifyingBintConfigFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := res.Steps[len(res.Steps)-1]
-	if last.Status != "failed" || !strings.Contains(last.Error, ".bint/config.yml") {
+	if last.Status != "blocked" || res.Status != task.StatusBlocked || !strings.Contains(last.Error, ".bint/config.yml") {
 		t.Fatalf("bước: %+v", res.Steps)
 	}
 }
@@ -788,6 +910,8 @@ func TestDoneRechecksProtectedPathsFromDiff(t *testing.T) {
 	}
 	h.write("migrations/001.sql", "-- sửa\n")
 	h.tasks.Update(res.TaskID, time.Now(), func(t *task.Task) error {
+		// Phiếu có bước ghi (đã chuyển sang b-do): phiếu chỉ lập kế hoạch thì không bị gán thay đổi (plan_only_test.go).
+		t.State.Workflow = StepDo
 		t.State.PendingPaths = nil
 		t.Ticket.Verify.Criteria = []string{"đã đổi"}
 		t.State.Criteria = []task.CriterionCheck{{Index: 1, Met: true, Evidence: "agent tự nhận"}}
@@ -936,4 +1060,33 @@ func TestMergedHookDenyReleasesLockAndRecordsTouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	l.Release()
+}
+
+// Sau khi resume áp bước b-req đang giữ, b-review của cùng lượt Run không bị coi là "không ghi kết quả":
+// heldRunID chỉ đúng cho cổng sau bước giữ.
+func TestResumeAfterHeldPlanThenReviewIsFresh(t *testing.T) {
+	h := newHarness(t)
+	held := true
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepReq && held {
+			held = false
+			h.write("app.txt", "sửa đồng thời\n")
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	r := h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"})
+	if err != nil || res.Status != task.StatusBlocked {
+		t.Fatalf("lượt đầu: %+v %v", res, err)
+	}
+	res2, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Status == task.StatusFailed || strings.Contains(res2.Reason, "không ghi kết quả") {
+		t.Fatalf("resume không được failed: %+v", res2)
+	}
+	if countCalls(h, StepReq) != 1 {
+		t.Fatalf("b-req không chạy lại: %v", h.calls)
+	}
 }

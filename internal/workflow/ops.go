@@ -321,19 +321,63 @@ var ErrAgent = errors.New("thao tác này chỉ dành cho người dùng, không
 
 // SetTicket sửa phiếu. Agent không được nâng autonomy lên auto (mức tự chủ do người quyết).
 func (e *Env) SetTicket(ref string, ed TicketEdit) (*task.Task, task.Assessment, error) {
+	t, a, _, err := e.SetTicketSynced(ref, ed)
+	return t, a, err
+}
+
+// SetTicketSynced như SetTicket và trả thêm các ghi chú đồng bộ requirement.md/tasks.md khi danh sách tiêu chí đổi.
+func (e *Env) SetTicketSynced(ref string, ed TicketEdit) (*task.Task, task.Assessment, []string, error) {
 	if !e.Human && ed.Autonomy != nil && *ed.Autonomy == task.AutonomyAuto {
-		return nil, task.Assessment{}, fmt.Errorf("%w: chỉ người mới đặt được autonomy: auto", ErrAgent)
+		return nil, task.Assessment{}, nil, fmt.Errorf("%w: chỉ người mới đặt được autonomy: auto", ErrAgent)
 	}
+	var sync criteriaSync
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
 		if task.Terminal(t.State.Status) {
 			return fmt.Errorf("tác vụ đã %s", t.State.Status)
 		}
-		return ed.apply(&t.Ticket)
+		before := slices.Clone(t.Ticket.Verify.Criteria)
+		if err := ed.apply(&t.Ticket); err != nil {
+			return err
+		}
+		return e.syncCriteria(t, before, &sync)
 	})
 	if err != nil {
-		return nil, task.Assessment{}, err
+		return nil, task.Assessment{}, nil, err
 	}
-	return t, e.Assess(t), nil
+	e.emitSynced(t, sync)
+	return t, e.Assess(t), sync.notes, nil
+}
+
+// criteriaSync gom kết quả đồng bộ tiêu chí trong một lần Update để phát sự kiện sau khi phiếu đã được lưu.
+type criteriaSync struct {
+	written []string
+	notes   []string
+}
+
+// syncCriteria (gọi trong callback Update đang giữ khoá phiếu): nếu danh sách tiêu chí đổi so với before thì
+// viết lại các dòng AC trong requirement.md và bổ sung TSK trong tasks.md (task.SyncCriteriaArtifacts).
+func (e *Env) syncCriteria(t *task.Task, before []string, out *criteriaSync) error {
+	if slices.Equal(before, t.Ticket.Verify.Criteria) {
+		return nil
+	}
+	written, notes, err := task.SyncCriteriaArtifacts(t)
+	if err != nil {
+		return fmt.Errorf("đồng bộ tiêu chí sang requirement.md/tasks.md: %w", err)
+	}
+	if t.State.Artifacts == nil && len(written) > 0 {
+		t.State.Artifacts = map[string]string{}
+	}
+	for _, n := range written {
+		t.State.Artifacts[n] = e.at()
+	}
+	out.written, out.notes = written, notes
+	return nil
+}
+
+func (e *Env) emitSynced(t *task.Task, s criteriaSync) {
+	for _, n := range s.written {
+		e.emit(t, spool.TaskArtifact, map[string]any{"name": n, "path": t.ArtifactPath(n)})
+	}
 }
 
 // WriteArtifact ghi tài liệu của tác vụ.
@@ -384,6 +428,7 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 	var blockers []string
 	var doneIn task.DoneInput
 	var doneErr error
+	var pg planGate
 	if to == task.StatusCancelled {
 		// Tác vụ worktree còn thay đổi chưa đưa về: huỷ sẽ mất chúng, cần --discard (chỉ người).
 		if t0, err := e.Tasks.Load(ref); err == nil && t0.State.Origin != "" && !task.Terminal(t0.State.Status) {
@@ -398,7 +443,10 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 		if err != nil {
 			return nil, nil, err
 		}
-		doneIn, doneErr = e.DoneInputDetailed(ctx, t0)
+		// Phiếu chỉ lập kế hoạch (ở worktree: diff chỉ gồm mục tri thức candidate) không có mã để chụp/so.
+		if pg = e.planGateFor(ctx, t0); !pg.PlanOnly {
+			doneIn, doneErr = e.DoneInputDetailed(ctx, t0)
+		}
 	}
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
 		if !o.Orchestrator && t.OwnedByOther() {
@@ -421,8 +469,15 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 				}
 			}
 		}
+		reason := o.Reason
+		if h := t.State.HeldStep; h != nil && !o.Orchestrator {
+			// Người (hoặc agent) tự chuyển trạng thái thay cho `bint run resume`: kết quả bước chỉ đọc đang giữ có thể đã
+			// cũ so với cây họ vừa sửa; lượt chạy sau không được áp lại cổng của bước đó. Có dấu vết trong lịch sử.
+			t.State.HeldStep = nil
+			reason = strings.TrimSpace(reason + " [bỏ kết quả bước giữ " + h.Step + "]")
+		}
 		if to == task.StatusDone {
-			blockers = e.doneBlockersFor(ctx, t, doneIn, doneErr)
+			blockers = e.doneBlockersFor(ctx, t, doneIn, doneErr, pg)
 			if len(blockers) > 0 && !o.Force {
 				return &NotDoneError{Blockers: blockers}
 			}
@@ -432,10 +487,18 @@ func (e *Env) SetStatus(ctx context.Context, ref, to string, o TransitionOptions
 				return &NotDoneError{Blockers: append(blockers, "cờ ép không bỏ qua việc đưa về cây gốc: `bint task land "+
 					t.State.ID+"`, hoặc người huỷ bằng `bint task cancel "+t.State.ID+"` để bỏ thay đổi")}
 			}
-		}
-		reason := o.Reason
-		if o.Force && len(blockers) > 0 {
-			reason = strings.TrimSpace(reason + " [người xác nhận dù thiếu bằng chứng: " + strings.Join(blockers, "; ") + "]")
+			if len(blockers) > 0 { // chỉ tới đây khi --force: ghi vào lịch sử người đã ép qua điều chặn nào (kể cả ClosePlan)
+				reason = strings.TrimSpace(reason + " [người xác nhận dù thiếu bằng chứng: " + strings.Join(blockers, "; ") + "]")
+			}
+			if e.planOnlyTask(t) {
+				if !pg.PlanOnly {
+					// Có thay đổi ngoài mục tri thức candidate: ClosePlan không áp dụng, bảng chuyển không có planned → done.
+					// doneBlockersFor đã thêm điều chặn nêu lối ra; --force không mở được lối này.
+					return &NotDoneError{Blockers: blockers}
+				}
+				// Bảng chuyển giữ nguyên (planned → done không có): chỉ phiếu chỉ lập kế hoạch mới đóng được bằng ClosePlan.
+				return t.State.ClosePlan(e.actor(), reason, e.at())
+			}
 		}
 		return t.State.Apply(to, e.actor(), reason, e.at())
 	})

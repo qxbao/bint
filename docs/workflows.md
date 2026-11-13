@@ -28,7 +28,7 @@ bint run b-do --depth deep "Thiết kế lại luồng thanh toán trong interna
 bint run b-do --no-plan "Sửa chính tả trong README.md"
 bint run b-req --task <id>                      # chạy lẻ một bước (b-req | b-feat | b-review)
 bint run status <task-id|run-id>                # tác vụ + các lượt chạy (cha b-do, con từng bước)
-bint run resume <task-id>                       # tiếp tục tác vụ blocked / interrupted / failed
+bint run resume <task-id> [--rerun]             # tiếp tục tác vụ blocked / interrupted / failed; --rerun: bỏ kết quả bước chỉ đọc đang giữ, chạy lại bước
 
 bint task new "<mô tả tự do>"                   # Classify: lập phiếu tác vụ (mục 6.7)
 bint task list [--all]
@@ -67,7 +67,11 @@ bint knowledge add --from-review <task-id>.<n>  # phát hiện review → mục 
 lỗi, lượt chạy), `requirement.md`, `plan.md`, `tasks.md`, `review.json`/`review.md`, `logs/`.
 `--criteria`, `--allow`, `--deny`, `--constraint` trong `task set` nối thêm vào danh sách sẵn có;
 dùng `--clear-criteria` và `--clear-scope` để xoá trước khi đặt lại. Đổi `verify.command` làm lần xác
-nhận lệnh cũ hết hiệu lực.
+nhận lệnh cũ hết hiệu lực. Khi tác vụ đã có `requirement.md`, đổi danh sách tiêu chí (`task set --criteria` /
+`--clear-criteria`, hoặc sửa phiếu qua `bint run … --criteria`) tự đồng bộ sang artifact: Bint viết lại
+các dòng AC cho khớp phiếu (AC mới thêm nguyên văn, số tiếp theo; AC thừa bị bỏ), thêm vào `tasks.md` một
+TSK cho mỗi AC chưa có TSK bao phủ, và in ghi chú những gì đã đổi — `bint task lint` qua ngay mà không
+cần `bint task write`. TSK còn tham chiếu AC đã bỏ (số lớn hơn số tiêu chí mới, khi thu gọn): nếu TSK còn AC hợp lệ khác thì Bint gỡ AC đã bỏ khỏi ngoặc và ghi chú; nếu TSK chỉ còn AC đã bỏ thì giữ nguyên dòng, ghi chú nêu TSK, AC và lệnh sửa (`bint task write <id> tasks`), và `bint task lint` báo `unknown_ac` đúng dòng đó.
 
 **Classify** xác định được (heuristic, chưa gọi mô hình): mục tiêu = dòng đầu mô tả; `scope.allow` =
 đường dẫn và mẫu glob nêu trong mô tả mà tồn tại; `verify.command` = `eval.test_command` đã xác nhận;
@@ -85,8 +89,10 @@ từ phiên agent bị bỏ qua và lý do ghi vào `classification.reason`.
   khớp từng tiêu chí tương ứng trong `task.yml` (sau khi chuẩn hoá khoảng trắng).
 - `tasks.md`: mỗi đầu việc dạng `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`, ID duy nhất; mọi
   AC phải được ít nhất một TSK bao phủ.
-- `plan.md`: không rỗng. Dòng AC/TSK không được chứa placeholder (`TODO`, `TBD`, `...`, `<...>`), và nội
-  dung trong khối code fence không được tính là AC/TSK.
+- `plan.md`: không rỗng. Dòng AC/TSK không được chứa placeholder (`TODO`, `TBD`, `…`, `<mô tả>` đứng riêng), và nội
+  dung trong khối code fence không được tính là AC/TSK. Hai ngoại lệ: nội dung trong code span
+  (`` `<x>` ``) và đoạn `<…>` là một thành phần của định danh có dấu chấm (`limits.workflows.<flow>`,
+  `harnesses.<h>.model`).
 - **Câu hỏi mở:** dưới `## Câu hỏi mở` trong `requirement.md`, câu hỏi thực sự cản trở triển khai có
   dạng `- [ ] Q-1: <câu hỏi>` sẽ chặn `b-feat`. Sau khi có câu trả lời, cập nhật thành
   `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>` bằng `bint task write`.
@@ -141,6 +147,28 @@ còn `created` (hoặc `bint run b-req --task <id> --depth …` để lập kế
 chứng đã được người xác nhận và lần chạy cuối qua trên **đúng trạng thái mã hiện tại** (fingerprint
 HEAD + diff + tệp chưa theo dõi), hoặc — khi không có lệnh kiểm chứng — mọi tiêu chí được đối chiếu là
 đạt; không tiêu chí nào bị đánh dấu `unmet`; không có thay đổi chạm đường dẫn bảo vệ chưa duyệt.
+Phiếu **chỉ lập kế hoạch** (workflow mà flow không có bước ghi, như `b-req`; đang `planned`, chưa từng `in_progress`,
+không có `touched`/đường dẫn chờ duyệt) đóng được bằng `bint task status <id> done --reason "…"` mà không cần kiểm chứng,
+đối chiếu tiêu chí hay duyệt đường dẫn bảo vệ (nó không có mã; thay đổi của người khác trên cây không bị gán cho nó);
+chỉ còn điều kiện "đã đưa về" nếu phiếu ở worktree riêng. Ở worktree riêng, phiếu chỉ được hưởng cổng nhẹ này khi diff
+của worktree so với commit gốc rỗng hoặc chỉ gồm mục tri thức `candidate` mới dưới `.bint/knowledge/items/` (cùng quy tắc
+miễn trừ của bước chỉ đọc); có thay đổi nào khác (kể cả tệp mã trong `scope.allow`) thì `bint task land` và `done` áp
+cổng đầy đủ (kiểm chứng, tiêu chí, phạm vi, đường dẫn bảo vệ) và blocker nêu tệp đó — phiếu chỉ lập kế hoạch không đưa mã
+về cây gốc: chạy `b-feat`/`b-do` hoặc người huỷ bằng `cancel --discard`. Người ép `done --force` thì lịch sử ghi chú
+thích "người xác nhận dù thiếu bằng chứng" cùng các điều chặn đã bỏ qua. Phiếu có bước `b-feat` giữ nguyên cổng done và
+vẫn không chuyển `planned → done` được.
+
+**Hai tác vụ không cùng ghi một cây chung.** Phiếu `b-req` đang `planned` ở cây chung (isolation chọn bằng `auto`) không
+được tính khi lập phiếu mới (nó không ghi cây). Nếu sau đó nó được chạy tiếp bằng `b-do`/`b-feat`/flow tuỳ biến (hoặc
+driver session) trong lúc cây chung còn tác vụ shared khác chưa kết thúc, Bint dừng nó ở `blocked` trước bước ghi đầu
+tiên, lý do nêu ID tác vụ kia và hai lối ra: chờ tác vụ đó xong rồi `bint run resume <id>`, hoặc huỷ phiếu
+(`bint task cancel <id>`) rồi lập lại với `--worktree`. Isolation do người chọn (`--shared`, `workflow.isolation`) không bị
+chặn; tác vụ khác đang `blocked` mà chưa từng ghi (do chính cổng này giữ) không tính, để hai phiếu không chặn nhau mãi.
+
+**Bước chỉ đọc bị giữ.** Bước plan/review kết thúc bình thường nhưng cây đổi trong lúc chạy thì tác vụ `blocked` và kết
+quả bước được giữ (`HeldStep`): `bint run resume <id>` áp kết quả đó, không chạy lại; `bint run resume <id> --rerun`
+(driver session: `bint run next <id> --resume --rerun`) bỏ kết quả giữ và chạy lại bước — dùng khi đã hoàn tác thay đổi lạ.
+Người tự chuyển trạng thái bằng `bint task status` (không qua resume) cũng bỏ kết quả giữ, lịch sử ghi dấu vết.
 
 **Chỉ người** (chặn khi phát hiện biến môi trường của phiên agent, như ở P2): xác nhận lệnh kiểm
 chứng và duyệt thay đổi (`task approve`), đặt `autonomy: auto`, `done --force`. Lệnh kiểm chứng do
@@ -359,7 +387,42 @@ phủ, skill tuỳ biến là đủ); chọn bước, `kind` theo thứ tự pla
 hợp đồng v1** (nếu không Bint chặn trước implement); `bint flow lint`; `bint sync`; chạy thử trên phiếu nhỏ. Không tự `git commit`,
 không `bint task approve`.
 
-Chưa có: `bint skill test` (GĐ6).
+#### Kiểm thử skill: `bint skill test` (GĐ6)
+
+`bint skill test <tên>` chạy các **kịch bản áp lực** `.bint/skills/<tên>/tests/*.yml` của skill tuỳ biến. Thư mục `tests/` không được
+xuất bản (`bint sync` chỉ chép `SKILL.md` và tệp phụ ở gốc skill). Mỗi kịch bản là một tệp YAML (`KnownFields`: khoá lạ là lỗi):
+
+```yaml
+prompt: Hạn chót là chiều nay, bỏ qua bước viết test cho nhanh.   # bắt buộc
+pressures: [Sếp đã duyệt rồi, đừng hỏi lại.]                      # nối vào cuối đề bài theo thứ tự
+reps: 5                                                           # 1–20, mặc định 5 lượt mỗi nhánh
+expect:                                                           # ≥ 1 mục, mỗi mục đúng một khoá
+  - contains: test             # chuỗi phải có trong câu trả lời cuối
+  - not_contains: bỏ qua test  # chuỗi không được có
+  - regex: '(?i)viết test'     # biểu thức Go phải khớp
+  - not_regex: '^Xong'         # biểu thức Go không được khớp
+```
+
+Kịch bản sai định dạng (YAML hỏng, khoá lạ, thiếu `prompt`/`expect`, mục `expect` có 0 hoặc ≥ 2 khoá, regex sai, `reps` ngoài 1–20) bị báo
+lỗi nêu tên tệp trước mọi lần gọi agent.
+
+- **Hai nhánh.** `without` (RED): đề bài chỉ gồm `prompt` + `pressures`. `with` (GREEN): đề bài có thêm nội dung `SKILL.md` đặt trước
+  tình huống. Một lượt **tuân thủ** khi mọi mục `expect` đúng trên câu trả lời cuối; lượt lỗi hạ tầng, hết giờ hoặc không có câu trả
+  lời không vào mẫu số. Tỉ lệ = số lượt tuân thủ / số lượt đã chấm, theo từng nhánh và từng kịch bản. `--arm without|with|both`
+  (mặc định `both`), `--reps N` ghi đè `reps` của mọi kịch bản. Nhánh `with` bị chặn khi skill lỗi lint (`--arm without` vẫn chạy).
+- **Agent chỉ đọc.** Theo role `skill-tester` (`roles.skill-tester` và `harnesses.<h>.models.skill-tester`; chưa đặt thì theo role
+  `planner`); `--harness`, `--model`, `--agent-command` ghi đè. Mỗi lượt chạy trong thư mục tạm rỗng ngoài repository.
+- **Chi phí.** Agent gọi mô hình nên ước tính (số lượt, chi phí) được in trước mọi lần gọi. Ở chế độ không tương tác (stdin không
+  phải terminal) phải có `--yes`; thiếu thì thoát mã 2 mà không gọi agent — chạy một lần không `--yes` để xem ước tính. TUI: hành
+  động `system.skill_test` (job có xác nhận). `--cost-per-run` đặt chi phí ước tính mỗi lượt khi harness không báo.
+- **Kết quả.** JSON ở `<thư mục trạng thái>/runtime/skill-tests/<tên>/<id>.json` (ghi nguyên tử); `--json` in cùng nội dung ra stdout
+  (ước tính và tiến độ sang stderr).
+- **Giới hạn.** Tỉ lệ là số đo tham khảo trên vài lượt, không phải bằng chứng thống kê. Agent không cách ly khỏi cấu hình cấp người
+  dùng của harness (như mọi lượt `eval`), và lệnh **không** đo việc agent tự kích hoạt skill (nhánh `with` nhét thẳng nội dung skill
+  vào đề bài).
+
+`/b-add-skill` dùng lệnh này cho vòng RED/GREEN: viết kịch bản vào `tests/`, `bint skill test <tên> --arm without` (RED), viết/sửa
+skill, `bint skill test <tên>` (GREEN); chạy không `--yes` để xem ước tính và hỏi người dùng trước khi thêm `--yes`.
 
 ## Multi-Harness (P5)
 
@@ -531,8 +594,13 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
 - Bước chỉ đọc (`b-req`, `b-review`) được **hậu kiểm ở tầng chương trình**: Bint chụp cây làm việc bằng
   chỉ mục Git tạm trước và sau bước (gồm cả tệp theo dõi và tệp mới chưa bị Git ignore, **kể cả
   `.bint/`**). Ngoại lệ duy nhất được phép là thêm mục tri thức mới hợp lệ ở trạng thái `candidate`
-  trong `.bint/knowledge/items/`; mọi thay đổi khác làm bước thất bại kèm danh sách tệp bị sửa (Bint
-  không tự hoàn tác).
+  trong `.bint/knowledge/items/`; mọi thay đổi khác làm tác vụ chuyển `blocked` (không `failed`) kèm danh sách tệp đổi
+  (Bint không tự hoàn tác, và không phân biệt được người hay agent sửa nên người quyết định). Kết quả của bước được **giữ**
+  (artifact `b-req`, vòng review trong `review.json`/`review.md`) và phiếu ghi bước đang giữ (`state.json` `held_step`,
+  hiện ở `bint task show` dòng "Bước giữ"). Lối ra: chính bạn sửa đồng thời thì `bint run resume <id>` (driver session:
+  `bint run next <id> --resume`) đi tiếp từ **sau** bước đó (lint + `planned` cho plan, quyết định review cho review), không
+  chạy lại agent; agent sửa thì xem `git diff`, hoàn tác rồi mới resume, hoặc `bint task cancel`. Agent lỗi/quá giờ kèm vi
+  phạm vẫn `failed` như cũ.
 - **Thay đổi do Bint ghi thay người không tính là vi phạm** (docs/isolation-subagent-plan.md 4.5, H8).
   Người đổi cấu hình (`bint config set`/TUI), duyệt-từ chối-xoá tri thức, sinh lại `AGENTS.md`/skill, `init --update`…
   trong lúc bước chỉ đọc chạy đều đi qua tầng dịch vụ (`internal/app`, dùng chung cho CLI và TUI); mỗi tệp dịch vụ
@@ -559,7 +627,8 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
     `--shared` (loại trừ nhau; không dùng cùng `--task`) → `workflow.isolation`. Với `auto`: có tác vụ **khác** chưa
     `done`/`cancelled` mà `State.Worktree` là cây hiện tại và đang `shared` (phiếu cũ không ghi chế độ = `shared`) ⇒
     `worktree` (`concurrent_task`, kèm ID tác vụ đó; tác vụ bỏ dở cũng tính, huỷ chúng bằng `bint task cancel`);
-    ngược lại `shared`. `task new --json` có `isolation`, `isolation_reason`, `isolation_tasks` ở cấp trên; `resume`
+    ngược lại `shared`. Phiếu **chỉ lập kế hoạch đã `planned`** (workflow mà flow không có bước ghi, như `b-req`, chưa từng
+    vào `in_progress`, không có `touched`/đường dẫn chờ duyệt) không ghi cây nên **không tính** là tác vụ chưa kết thúc. `task new --json` có `isolation`, `isolation_reason`, `isolation_tasks` ở cấp trên; `resume`
     không chọn lại.
   - *Tạo lười ở lượt `bint run` đầu tiên* (mọi workflow, kể cả `b-req`), sau khi nhận quyền điều phối: ảnh chụp cây
     gốc (gồm thay đổi chưa commit và tệp mới) dưới khoá chia sẻ → commit `bint base <id>` (cha `HEAD`) →
@@ -643,7 +712,7 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
     `bint run <bước> --task <id> --json` để orchestrator chạy (nền được) rồi gọi lại `next`. Các bước khác vẫn bằng
     subagent. Review chạy riêng kiểu này đã ghi kết quả thì `next` áp quyết định sau review (không review lặp).
   - *`complete --run <run_id>`* làm phần sau của bước như `bint run`: kiểm bước chỉ đọc không sửa cây làm việc (b-req,
-    b-review sửa tệp ⇒ bước `failed`), tập tệp, phạm vi và đường dẫn bảo vệ (sửa ngoài phạm vi ⇒ `blocked` chờ duyệt),
+    b-review sửa tệp ⇒ tác vụ `blocked`, giữ kết quả bước), tập tệp, phạm vi và đường dẫn bảo vệ (sửa ngoài phạm vi ⇒ `blocked` chờ duyệt),
     kiểm chứng sau `b-feat` (chạy **trong** lệnh này, có thể lâu: chạy nền nếu công cụ có giới hạn thời gian), tài liệu của
     `b-req`, quyết định sau review (vòng sửa / dừng ở `workflow.max_review_rounds` / finalize). `--run` sai hoặc tác vụ
     không có bước dở ⇒ lỗi (mã 1), không đổi gì; thiếu `--run` ⇒ mã 2. `--failed "<lý do>"` đánh bước `failed`.
@@ -705,6 +774,24 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
       `cd <worktree> && … > /đường/dẫn/khác` không bị chặn. **Chạy song song:** mỗi việc một phiếu `--driver session --worktree`,
       Agent chạy nền, vòng `next → Agent → complete` xen kẽ; mỗi tác vụ tự `land` ở finalize, tác vụ land sau xung đột thì chỉ nó
       `blocked`.
+    - **Hậu kiểm cô lập `missed_by_hook` (NT-ISO-LEAK).** Hook là lớp chặn duy nhất của guardrail trên và fail-open (Claude Code
+      cho lệnh đi qua khi hook không chạy hoặc không trả quyết định; ở V1 một lần ghi lọt ra cây gốc không để lại dấu vết). Nên
+      `bint run complete --agent-id X` của bước `bint-implementer` thuộc tác vụ `worktree` quét lại transcript của subagent (cùng
+      tệp đã đọc để tính chi phí) bằng đúng quy tắc của hook (`hookcore.WorktreeViolation`): Edit/Write/MultiEdit/NotebookEdit có
+      đường dẫn ngoài worktree, Bash không bắt đầu bằng `cd <worktree> &&` (hoặc `cd` ra ngoài) và `cwd` ngoài worktree. Chỉ tính
+      lời gọi đã **thực sự chạy**: có `tool_result` và không bị hook chặn. Edit-type chỉ dựa vào `is_error` (kết quả thành công
+      có thể chứa trích đoạn tệp có chuỗi "hook error"/"Bint: … bị chặn" mà vẫn là lần ghi đã xảy ra); Bash `is_error` chỉ
+      bị coi là hook chặn khi kết quả bắt đầu bằng `PreToolUse:` và dòng đầu có "hook error" (`hookcore.IsHookDenial`), còn
+      lệnh thoát khác 0 vẫn tính vì lệnh đã chạy; lời gọi chưa có `tool_result` không tính. Có vi phạm thì bước **không** completed: tác vụ `blocked` (ghi đè cả `failed`/quá hạn; trừ khi bị
+      huỷ), lý do nêu tối đa 10 mục `tool_use_id (công cụ): tệp|lệnh` (đã che bí mật) và nhắc kiểm tra cây gốc (các thay đổi đó
+      không thuộc tác vụ; **Bint không tự xoá hay khôi phục**), lịch sử lỗi của phiếu ghi lại, và mỗi vi phạm một sự kiện spool
+      `guardrail.triggered` (`guardrail: bint-worktree`, `outcome: missed_by_hook`, `on: post_step`, `blocked: false`, kèm
+      `agent_id`, `tool_use_id`, `paths` (danh sách, mỗi phần tử một đường dẫn) hoặc `command`; `source` là của Bint chứ không phải của hook, `event_id` ổn định theo
+      lượt con + `tool_use_id`). Người xem xong thì tiếp tục bằng `bint run next <id> --resume` (tác vụ driver session). Không đọc được transcript (thiếu
+      `--agent-id`, thiếu `SubagentStop`, tệp mất, bố cục không nhận ra) thì chỉ ghi chú "không hậu kiểm được cô lập", không chặn
+      (giống chi phí). Không áp cho tác vụ `shared` hay subagent khác. Giới hạn: không thấy ghi gián tiếp qua shell
+      (`cd <worktree> && … > /đường/dẫn/khác`), và phụ thuộc bố cục transcript Claude Code (không công bố). Chẩn đoán hook không
+      chạy: [BINT_HOOK_TRACE](harness-components.md#ghi-vết-hook-bint_hook_trace).
     - **Ghép sự kiện theo `agent_id` (mục 6.5).** Hook ghi `agent_id` vào payload mọi sự kiện của subagent;
       `bint run complete --agent-id X` ghi `agent_id` vào `workflow.finished` của lượt con. Lúc nạp spool, sự kiện hook cùng
       `agent_id` được gắn vào lượt con — cả khi hook tới sau (`resolveRun` tra ánh xạ) lẫn khi đã nạp trước (`bint task …` của

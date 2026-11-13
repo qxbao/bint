@@ -96,6 +96,10 @@ type Harnesses struct {
 // RoleNames là các role của workflow (thứ tự hiển thị).
 var RoleNames = []string{"planner", "implementer", "reviewer", "evolver", "reflector"}
 
+// RoleSkillTester là role của `bint skill test` (kiểm thử skill tuỳ biến): không phải role cố định nên đặt qua
+// roles.skill-tester và harnesses.<h>.models.skill-tester (khoá Extra); chưa đặt thì theo role planner.
+const RoleSkillTester = "skill-tester"
+
 // RoleModels là model của từng role khi role đó chạy trên một harness. Rỗng = dùng
 // model chung của harness (workflow.agent.model với Claude, harnesses.<h>.model với
 // Codex/Antigravity), rồi mặc định của harness.

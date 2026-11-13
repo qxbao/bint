@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // PlanningContractV1 là phiên bản hợp đồng artifact của b-req (AC/TSK/Q có cấu trúc).
@@ -47,6 +49,75 @@ var (
 	lintRefRe      = regexp.MustCompile(`^AC-(\d+)$`)
 	lintPlaceholdR = regexp.MustCompile(`(?i)<[^<>\n]*>|…|\b(?:todo|tbd)\b`)
 )
+
+// stripCodeSpans xoá mọi code span Markdown (n dấu backtick mở tới đúng n dấu backtick đóng) khỏi s.
+// Span không có dấu đóng khớp được giữ nguyên (RE2 không có backreference nên quét tay).
+func stripCodeSpans(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] != '`' {
+			b.WriteByte(s[i])
+			i++
+			continue
+		}
+		n := 0
+		for i+n < len(s) && s[i+n] == '`' {
+			n++
+		}
+		closeAt := -1
+		for j := i + n; j < len(s); {
+			if s[j] != '`' {
+				j++
+				continue
+			}
+			m := 0
+			for j+m < len(s) && s[j+m] == '`' {
+				m++
+			}
+			if m == n {
+				closeAt = j + m
+				break
+			}
+			j += m
+		}
+		if closeAt < 0 {
+			b.WriteString(s[i : i+n]) // không có dấu đóng: giữ nguyên, quét tiếp sau dãy backtick
+			i += n
+			continue
+		}
+		b.WriteByte(' ')
+		i = closeAt
+	}
+	return b.String()
+}
+
+func isIdentRune(r rune) bool { return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) }
+
+// dottedSegment: đoạn s[start:end] (một dạng <…>) là một thành phần của định danh có dấu chấm, như
+// limits.workflows.<flow> hoặc harnesses.<h>.model: ngay trước là `ident.` (ident cũng có thể là một đoạn <…> khác liền
+// kề, như a.<x>.<y>). Đoạn đứng đầu (không có `ident.` ngay trước) không được miễn dù theo sau là dấu chấm: `<tên>.md`
+// hay `<việc>.Tiếp` là placeholder chưa điền, cũng như `<việc>.` cuối câu.
+func dottedSegment(s string, start, end int) bool {
+	if start >= 2 && s[start-1] == '.' {
+		if r, _ := utf8.DecodeLastRuneInString(s[:start-1]); isIdentRune(r) || r == '>' {
+			return true
+		}
+	}
+	return false
+}
+
+// hasPlaceholder: nội dung dòng AC/TSK còn placeholder (<…> đứng riêng, ký tự …, TODO, TBD). Bỏ qua
+// nội dung trong code span và đoạn <…> là thành phần của định danh có dấu chấm.
+func hasPlaceholder(content string) bool {
+	s := stripCodeSpans(content)
+	for _, loc := range lintPlaceholdR.FindAllStringIndex(s, -1) {
+		if s[loc[0]] == '<' && dottedSegment(s, loc[0], loc[1]) {
+			continue
+		}
+		return true
+	}
+	return false
+}
 
 const (
 	artReq   = "requirement.md"
@@ -93,8 +164,15 @@ func sectionKind(name string) string {
 // Fence đóng bằng đúng loại ký hiệu đã mở (``` hoặc ~~~). Trả về true nếu hết văn bản mà fence vẫn mở:
 // mọi dòng sau đó bị bỏ qua nên nơi gọi phải báo lỗi thay vì lặng lẽ coi như không có câu hỏi.
 func scanLines(text string, fn func(section string, line string)) (unclosedFence bool) {
+	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+	return walkLines(lines, func(_ int, section, line string) { fn(section, line) }, nil)
+}
+
+// walkLines là lõi của scanLines: gọi fn(chỉ số dòng, section, dòng) cho từng dòng ngoài code fence và heading.
+// heading (nếu có) được gọi cho mỗi heading cấp 1–2. Dùng chung với đồng bộ tiêu chí để hai nơi hiểu cùng một cấu trúc tệp.
+func walkLines(lines []string, fn func(i int, section string, line string), heading func(i int, kind string)) (unclosedFence bool) {
 	section, marker := "", ""
-	for line := range strings.SplitSeq(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+	for i, line := range lines {
 		t := strings.TrimSpace(line)
 		if marker != "" {
 			if strings.HasPrefix(t, marker) {
@@ -112,9 +190,12 @@ func scanLines(text string, fn func(section string, line string)) (unclosedFence
 		}
 		if m := lintHeadingRe.FindStringSubmatch(line); m != nil {
 			section = sectionKind(m[2])
+			if heading != nil {
+				heading(i, section)
+			}
 			continue
 		}
-		fn(section, line)
+		fn(i, section, line)
 	}
 	return marker != ""
 }
@@ -240,7 +321,7 @@ func lintRequirement(b *reportBuilder, text string) []acItem {
 			if strings.TrimSpace(m[2]) == "" {
 				b.err("malformed_ac", artReq, "AC-%d không có nội dung", n)
 			}
-			if lintPlaceholdR.MatchString(content) {
+			if hasPlaceholder(content) {
 				b.err("placeholder_text", artReq, "AC-%d còn placeholder (<…>, …, TODO, TBD); viết tiêu chí cụ thể", n)
 			}
 			if seenAC[n] {
@@ -321,7 +402,7 @@ func lintTasks(b *reportBuilder, text string) []tskItem {
 			b.err("invalid_id", artTasks, "TSK-%s: số thứ tự phải từ 1", m[1])
 			return
 		}
-		if lintPlaceholdR.MatchString(content) {
+		if hasPlaceholder(content) {
 			b.err("placeholder_text", artTasks, "TSK-%d còn placeholder (<…>, …, TODO, TBD); viết việc cụ thể", n)
 		}
 		if seen[n] {

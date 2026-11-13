@@ -641,6 +641,14 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 			return nil
 		}
 		m.showOut(m.t("sy.flow.lint.title"), m.flowLintLines(msg.Value))
+	case "system.skill_test":
+		m.finishForm(msg.ID)
+		out, _ := msg.Value.(actions.SkillTestOutcome)
+		if msg.Err != nil && out.Result == nil { // bị từ chối ở hộp xác nhận, kịch bản sai, thiếu harness...
+			m.fail(msg.Err)
+			return nil
+		}
+		m.showOut(m.t("sy.skilltest.title"), m.skillTestLines(out.Result, msg.Err))
 	case "system.skill_diff":
 		m.finishForm(msg.ID)
 		if msg.Err != nil {
@@ -1249,6 +1257,10 @@ func (m *Model) Command(id string) tea.Cmd {
 	case "system.flow_lint":
 		m.tab = TabSkills
 		m.openForm("system.flow_lint", "flow lint", app.FlowLintDefaults(config.Default()))
+		return m.ensureTab(TabSkills)
+	case "system.skill_test":
+		m.tab = TabSkills
+		m.openForm("system.skill_test", "skill test", app.SkillTestDefaults(config.Default()))
 		return m.ensureTab(TabSkills)
 	case "system.skill_diff":
 		m.tab = TabSkills

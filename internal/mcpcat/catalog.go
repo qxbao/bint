@@ -110,7 +110,7 @@ var catalog = []Service{
 	},
 	{
 		ID: "specmatic", Prefix: "spec", Transport: Stdio, Version: "1.2.0",
-		Install: "uv tool install specmatic-mcp==1.2.0",
+		Install: "npm i -g specmatic-mcp@1.2.0",
 		Run:     []string{"specmatic-mcp"},
 		Share:   ShareWorktree, Cwd: CwdState,
 		Groups: []Group{
@@ -127,9 +127,9 @@ var catalog = []Service{
 		ID: "deepwiki", Prefix: "wiki", Transport: HTTP, URL: "https://mcp.deepwiki.com/mcp",
 		Share: ShareRemote,
 		Groups: []Group{
-			{Name: "read", Tools: []string{"read_wiki_structure", "read_wiki_contents", "ask_question"}},
+			{Name: "read", Tools: []string{"read_wiki_structure", "read_wiki_contents", "ask_wiki_question"}},
 		},
-		ReadOnly: []string{"read_wiki_structure", "read_wiki_contents", "ask_question"},
+		ReadOnly: []string{"read_wiki_structure", "read_wiki_contents", "ask_wiki_question"},
 	},
 	{
 		ID: "context7", Prefix: "ctx7", Transport: HTTP, URL: "https://mcp.context7.com/mcp",

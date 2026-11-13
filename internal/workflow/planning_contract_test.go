@@ -155,10 +155,8 @@ func TestPlanningContractPreflightCatchesLaterEdits(t *testing.T) {
 	if err != nil || res.Status != task.StatusPlanned {
 		t.Fatalf("%+v %v", res, err)
 	}
-	// Sửa criterion trong task.yml sau khi plan xong.
-	if _, _, err := r.SetTicket(res.TaskID, TicketEdit{ClearCriteria: true, Criteria: []string{"khác"}}); err != nil {
-		t.Fatal(err)
-	}
+	// Sửa criterion trong task.yml sau khi plan xong, bỏ qua đồng bộ (như sửa tay task.yml).
+	setCriteriaRaw(t, r, res.TaskID, "khác")
 	res2, err := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: res.TaskID})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +165,7 @@ func TestPlanningContractPreflightCatchesLaterEdits(t *testing.T) {
 		t.Fatalf("preflight: %+v %v", res2, h.calls)
 	}
 	// Xóa artifact → cũng bị chặn (sau khi khôi phục criterion).
-	r.SetTicket(res.TaskID, TicketEdit{ClearCriteria: true, Criteria: []string{"app.txt ghi v2"}})
+	setCriteriaRaw(t, r, res.TaskID, "app.txt ghi v2")
 	tk := loadTask(t, h, res.TaskID)
 	os.Remove(tk.ArtifactPath("tasks"))
 	res3, _ := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: res.TaskID, Resume: true})
@@ -270,5 +268,53 @@ func TestPlanningContractStandaloneReqStaysPlanned(t *testing.T) {
 	res, _ := h.runner().Run(context.Background(), RunOptions{Workflow: StepReq, Request: "Thêm tính năng v2"})
 	if res.Status != task.StatusPlanned || len(res.PlanningIssues) == 0 || res.Reason == "" {
 		t.Fatalf("%+v", res)
+	}
+}
+
+// setCriteriaRaw đặt tiêu chí thẳng vào phiếu, không qua SetTicket nên không đồng bộ requirement.md (giả lập sửa tay task.yml).
+func setCriteriaRaw(t *testing.T, r *Runner, id string, crit ...string) {
+	t.Helper()
+	if _, err := r.Tasks.Update(id, time.Now(), func(tk *task.Task) error { tk.Ticket.Verify.Criteria = crit; return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// SetTicket trên phiếu đã có artifact b-req tự đồng bộ AC/TSK nên lint strict qua ngay, không cần task write.
+func TestSetTicketSyncsCriteriaToArtifacts(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	r := h.runner()
+	res, err := r.Run(ctx, RunOptions{Workflow: StepReq, Request: "Thêm tính năng v2"})
+	if err != nil || res.Status != task.StatusPlanned {
+		t.Fatalf("%+v %v", res, err)
+	}
+	_, _, notes, err := r.SetTicketSynced(res.TaskID, TicketEdit{Criteria: []string{"tiêu chí thêm sau"}})
+	if err != nil || len(notes) == 0 {
+		t.Fatalf("notes=%v err=%v", notes, err)
+	}
+	tk := loadTask(t, h, res.TaskID)
+	if rep := task.LintPlanningTask(tk, true); rep.Blocking() {
+		t.Fatalf("lint strict phải sạch: %v", rep.Errors)
+	}
+	reqBody, _ := os.ReadFile(tk.ArtifactPath("requirement"))
+	if !strings.Contains(string(reqBody), "AC-2: tiêu chí thêm sau") {
+		t.Fatalf("requirement.md thiếu AC mới:\n%s", reqBody)
+	}
+	// clear + đặt lại: dựng lại danh sách, vẫn lint sạch.
+	if _, _, err := r.SetTicket(res.TaskID, TicketEdit{ClearCriteria: true, Criteria: []string{"một", "hai", "ba"}}); err != nil {
+		t.Fatal(err)
+	}
+	if rep := task.LintPlanningTask(loadTask(t, h, res.TaskID), true); rep.Blocking() {
+		t.Fatalf("sau clear: %v", rep.Errors)
+	}
+	// Sửa goal (tiêu chí không đổi) không đụng artifact.
+	before, _ := os.ReadFile(tk.ArtifactPath("requirement"))
+	g := "mục tiêu mới"
+	if _, _, err := r.SetTicket(res.TaskID, TicketEdit{Goal: &g}); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.ReadFile(tk.ArtifactPath("requirement"))
+	if string(before) != string(after) {
+		t.Fatal("không đổi tiêu chí thì không được ghi requirement.md")
 	}
 }

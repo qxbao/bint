@@ -17,7 +17,9 @@ import (
 //
 // Flow không qua kiểm (tệp hỏng hoặc skills.ValidateFlow có lỗi) → xung đột: không xuất bản bản mới, GIỮ bản đã xuất bản
 // và mục core.lock cũ, để một lần sửa dở không làm mất skill điều phối đang dùng. Ngoại lệ: lỗi do tên nay trùng một
-// skill khác (gốc, tuỳ biến, tiến hoá) thì tệp đã xuất bản thuộc về nguồn kia: bỏ mục flows khỏi lock mà không gỡ tệp.
+// skill khác (gốc, tuỳ biến, tiến hoá): chỉ những tệp nguồn kia thật sự đã nhận (claimedByOther) bị bỏ khỏi mục flows mà
+// không gỡ tệp; tệp chưa ai nhận (skill chiếm tên chưa xuất bản: lỗi lint, tiến hoá không active) vẫn thuộc mục flows để
+// lần sync sau gỡ được khi flow bị xoá, không thành tệp mồ côi.
 func installFlows(opts InstallOptions, lock *Lock) ([]Outcome, error) {
 	files, err := flow.Load(opts.Root)
 	if err != nil {
@@ -39,7 +41,8 @@ func installFlows(opts InstallOptions, lock *Lock) ([]Outcome, error) {
 		}
 		if len(errs) > 0 {
 			if nameTaken(opts.Root, name) {
-				delete(lock.Flows, name)
+				releaseClaimed(lock, name)
+				live[name] = true // còn tệp nguồn: mục flows (nếu còn) chỉ bị gỡ khi flow bị xoá
 				outs = append(outs, Outcome{Skill: name, Path: f.Path, Result: fsafe.Conflict,
 					Detail: "tên flow trùng một skill khác, không xuất bản skill điều phối: " + strings.Join(errs, "; ")})
 				continue
@@ -85,6 +88,27 @@ func installFlows(opts InstallOptions, lock *Lock) ([]Outcome, error) {
 		}
 	}
 	return outs, nil
+}
+
+// releaseClaimed bỏ khỏi mục flows của name những tệp đã được nguồn khác (skill tuỳ biến/tiến hoá cùng tên) xuất bản ở lần
+// Install này; tệp chưa ai nhận được giữ lại (mục bị xoá khi không còn tệp nào).
+func releaseClaimed(lock *Lock, name string) {
+	entry, ok := lock.Flows[name]
+	if !ok {
+		return
+	}
+	var keep []string
+	for _, rel := range entry.Published {
+		if !claimedByOther(lock, "flows", name, rel) {
+			keep = append(keep, rel)
+		}
+	}
+	if len(keep) == 0 {
+		delete(lock.Flows, name)
+		return
+	}
+	entry.Published = keep
+	lock.Flows[name] = entry
 }
 
 // publishFlow xuất bản skill điều phối của một flow đã qua kiểm cho mọi target và cập nhật lock.Flows[tên].

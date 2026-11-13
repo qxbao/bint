@@ -80,10 +80,10 @@ func TestReadOnlyStepKnowledgeExceptionNarrow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if c.ok && res.Status == task.StatusFailed {
+			if c.ok && res.Status == task.StatusBlocked {
 				t.Fatalf("candidate mới phải được phép: %+v", res.Steps)
 			}
-			if !c.ok && res.Status != task.StatusFailed {
+			if !c.ok && res.Status != task.StatusBlocked {
 				t.Fatalf("thay đổi không được phép mà bước vẫn qua: task=%s steps=%+v", res.Status, res.Steps)
 			}
 		})

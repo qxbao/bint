@@ -82,7 +82,8 @@ func flowFrontmatter(d flow.Def) string {
 	add := func(k string, v *yaml.Node) {
 		node.Content = append(node.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: k}, v)
 	}
-	add("name", &yaml.Node{Kind: yaml.ScalarNode, Value: d.Name})
+	// Tag !!str: tên dạng số hoặc từ khoá YAML (123, null, true, 1e3) vẫn ghi thành chuỗi có nháy, không đổi kiểu khi đọc lại.
+	add("name", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: d.Name})
 	add("description", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: head + " " + suffix})
 	add("disable-model-invocation", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"})
 	var buf bytes.Buffer

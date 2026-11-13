@@ -33,7 +33,7 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
 | [Kế hoạch TUI](tui-plan.md) | Thiết kế giao diện terminal tương tác và nhật ký triển khai giai đoạn 0–6 (đã triển khai) |
 | [Kế hoạch gateway MCP](mcp-gateway-plan.md) | Gateway MCP dùng chung cho mọi harness, danh mục và quản lý MCP (API/CLI/TUI), cấp MCP theo role, cấp MCP cho các bước `bint run` (M0–M4 đã triển khai, M5 đã đo bộ nhớ) |
 | [Kế hoạch cô lập và driver session](isolation-subagent-plan.md) | Cô lập tác vụ chạy song song (khoá, worktree), điều phối `b-do` bằng subagent trong phiên (G1–G4 đã triển khai) |
-| [Kế hoạch custom skill/flow](custom-flow-plan.md) | Skill tuỳ biến, flow tuỳ biến, `b-add-skill`/`b-add-flow`, `bint skill test` (GĐ1–2 đã triển khai trên 6 giai đoạn) |
+| [Kế hoạch custom skill/flow](custom-flow-plan.md) | Skill tuỳ biến, flow tuỳ biến, `b-add-skill`/`b-add-flow`, `bint skill test` (GĐ1–6 đã triển khai; chờ nghiệm thu thủ công `NT-CF-MANUAL`) |
 
 ## Nghiệm thu và thực nghiệm
 

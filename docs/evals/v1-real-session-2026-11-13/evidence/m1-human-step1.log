@@ -1,0 +1,54 @@
+== bint: <v1>/bin/bint
+== 1. add
+Đã đăng ký codegraph.
+  ✓  codegraph        ok (8 tool)
+Đã đăng ký specmatic.
+  ✓  specmatic        ok (4 tool)
+Đã đăng ký deepwiki.
+  !  deepwiki         degraded (3 tool)
+       upstream thiếu tool của nhóm thao tác: ask_question (danh mục lệch phiên bản upstream?)
+       tool lạ (danh mục chưa biết): ask_wiki_question
+== 2. index codegraph
+┌  Initializing CodeGraph
+│
+◆  Initialized in <v1>/bint
+│
+Scanning files...
+Parsing code...
+Resolving refs...
+Linking dynamic dispatch...
+│
+◆  Indexed 719 files
+│
+●  15,080 nodes, 55,043 edges in 1.2s
+│
+└  Done
+
+codegraph init xong tại <v1>/bint.
+Đã thêm .codegraph/ vào <v1>/bint/.git/info/exclude.
+.git/info/exclude:7:.codegraph/	.codegraph
+7:.codegraph/
+== 3. check
+  ✓  codegraph        ok (8 tool)
+  ✓  specmatic        ok (4 tool)
+  !  deepwiki         degraded (3 tool)
+       upstream thiếu tool của nhóm thao tác: ask_question (danh mục lệch phiên bản upstream?)
+       tool lạ (danh mục chưa biết): ask_wiki_question
+== 4. gỡ codegraph rồi doctor (phải báo thiếu)
+Đã gỡ đăng ký codegraph (secrets.env giữ nguyên).
+Lưu ý: dự án vẫn khai báo codegraph trong mcp.services; `bint doctor` sẽ báo thiếu.
+  ✓  MCP claude                 đã đăng ký
+  ✓  MCP codex                  đã đăng ký
+  !  MCP codex citation         chưa xác minh cite_knowledge được phép chạy với approval policy never; chạy bint init --mcp hoặc đặt [mcp_servers.bint.tools.cite_knowledge] approval_mode = "approve" trong .codex/config.toml
+  !  MCP codegraph              dự án khai báo trong mcp.services nhưng máy này chưa đăng ký — bint mcp add codegraph
+  ✓  MCP deepwiki               đã đăng ký trên máy
+  ✓  MCP specmatic              đã đăng ký trên máy
+== 5. thêm lại codegraph
+Đã đăng ký codegraph.
+  ✓  codegraph        ok (8 tool)
+  ✓  codegraph        ok (8 tool)
+  ✓  specmatic        ok (4 tool)
+  !  deepwiki         degraded (3 tool)
+       upstream thiếu tool của nhóm thao tác: ask_question (danh mục lệch phiên bản upstream?)
+       tool lạ (danh mục chưa biết): ask_wiki_question
+== XONG

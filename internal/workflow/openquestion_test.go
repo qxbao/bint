@@ -200,7 +200,7 @@ func TestPlanningContractPreflightAppliesInReview(t *testing.T) {
 		t.Fatalf("%+v", res)
 	}
 	r.Tasks.Update(res.TaskID, time.Now(), func(t *task.Task) error { t.State.Status = task.StatusInReview; return nil })
-	r.SetTicket(res.TaskID, TicketEdit{ClearCriteria: true, Criteria: []string{"khác"}})
+	setCriteriaRaw(t, r, res.TaskID, "khác")
 	res2, _ := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: res.TaskID})
 	if res2.Status != task.StatusBlocked || countCalls(h, StepFeat) != 0 || len(res2.PlanningIssues) == 0 {
 		t.Fatalf("%+v %v", res2, h.calls)

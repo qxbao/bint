@@ -5,6 +5,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"gopkg.in/yaml.v3"
+
 	"bint/internal/flow"
 )
 
@@ -116,6 +118,28 @@ func TestFlowSkillDescriptionSurvivesSpecialCharacters(t *testing.T) {
 			}
 			if strings.Contains(doc.Description, "\n") {
 				t.Fatalf("mô tả không được xuống dòng: %q", doc.Description)
+			}
+		})
+	}
+}
+
+// GĐ5 review .2: name trong frontmatter luôn là chuỗi, kể cả tên dạng số hoặc từ khoá YAML.
+func TestFlowSkillNameIsAlwaysYAMLString(t *testing.T) {
+	for _, name := range []string{"123", "null", "true", "1e3", "0x1f", "~", "no", "2026-11-13"} {
+		t.Run(name, func(t *testing.T) {
+			d := decodeFlow(t, tddSrc)
+			d.Name = name
+			s := FlowSkill(d)
+			front := strings.SplitN(string(s.Content), "---\n", 3)[1]
+			var m map[string]any
+			if err := yaml.Unmarshal([]byte(front), &m); err != nil {
+				t.Fatalf("frontmatter hỏng: %v\n%s", err, front)
+			}
+			if got, ok := m["name"].(string); !ok || got != name {
+				t.Fatalf("name phải là chuỗi %q, được %T %v\n%s", name, m["name"], m["name"], front)
+			}
+			if doc, err := ParseDoc(s.Content); err != nil || doc.Name != name {
+				t.Fatalf("ParseDoc: %v %+v", err, doc)
 			}
 		})
 	}

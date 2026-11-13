@@ -18,7 +18,7 @@
 │ │  !       Read the current notice in full plus the last 50 notices from … │ │
 │ │          Turn the mouse on/off for this session (scroll, click tabs, ro… │ │
 │ │  ]       Go to the next tab                                              │ │
-│ └───────────────────────────────────────────────────────────────1–15/203 ↕─┘ │
+│ └───────────────────────────────────────────────────────────────1–15/204 ↕─┘ │
 │                                                                              │
 │                                                                              │
 └─[r→ Refresh] [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]─────────────────┘

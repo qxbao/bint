@@ -275,6 +275,19 @@ func systemActions() []Action {
 				v, err := app.LintSkills(ctx, env.Dir, opts.(app.SkillLintOptions))
 				return res("system.skill_lint", opts, v, err)
 			}),
+		// Kiểm thử skill (GĐ6): gọi agent nên là việc nền có hộp xác nhận kèm ước tính chi phí; không gán phím, mở từ bảng lệnh.
+		func() Action {
+			a := mk("system.skill_test", "skill_test", "", 0, "skill test", app.SkillTestOptions{}, true, false, nil)
+			a.Job = runSkillTest
+			a.JobInfo = func(o any) jobs.Info {
+				label := "skill test"
+				if n := o.(app.SkillTestOptions).Name; n != "" {
+					label += " · " + n
+				}
+				return jobs.Info{Kind: jobs.KindAction, Label: label}
+			}
+			return a
+		}(),
 		mk("system.skill_diff", "skill_diff", "d", 4, "skill diff", app.SkillDiffOptions{}, false, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				v, err := app.DiffSkill(ctx, env.Dir, opts.(app.SkillDiffOptions))

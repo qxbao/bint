@@ -1,14 +1,20 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
+	"slices"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"bint/internal/app"
 	"bint/internal/config"
+	"bint/internal/eval"
 )
 
 func newSkillCmd(stdio IO) *cobra.Command {
@@ -27,6 +33,7 @@ phụ (tài liệu tham chiếu, script; thư mục tests/ không xuất bản).
 như skill gốc:
   bint skill new <tên>       tạo SKILL.md mẫu (không ghi đè)
   bint skill lint [tên]      kiểm hình thức; skill lỗi lint không được xuất bản
+  bint skill test <tên>      chạy kịch bản áp lực tests/*.yml ở nhánh có và không có skill (tốn chi phí agent)
 
 Skill chuyên biệt do tiến hoá tạo (L2, ` + "`bint evolve`" + `) nằm trong .bint/skills/evolved/<tên>/ và được
 xuất bản cùng skill gốc. Mỗi phiên bản gắn với mô hình đã kiểm chứng nó:
@@ -36,7 +43,7 @@ xuất bản cùng skill gốc. Mỗi phiên bản gắn với mô hình đã ki
   bint skill regress         skill nào chưa xác thực với mô hình hiện dùng`,
 	}
 	c.AddCommand(newSkillListCmd(stdio), newSkillShowCmd(stdio), newSkillOverlayCmd(stdio), newSkillNewCmd(stdio),
-		newSkillLintCmd(stdio), newSkillDiffCmd(stdio), newSkillVersionsCmd(stdio), newSkillCheckCmd(stdio), newSkillRegressCmd(stdio))
+		newSkillLintCmd(stdio), newSkillTestCmd(stdio), newSkillDiffCmd(stdio), newSkillVersionsCmd(stdio), newSkillCheckCmd(stdio), newSkillRegressCmd(stdio))
 	return c
 }
 
@@ -271,4 +278,172 @@ chỉ giữ name, description). Chạy sau khi sửa lớp phủ hoặc nâng c�
 	}
 	c.Flags().BoolVar(&force, "force", false, "ghi đè skill đã bị sửa tay (bản cũ được sao lưu)")
 	return c
+}
+
+func newSkillTestCmd(stdio IO) *cobra.Command {
+	var (
+		arm, harnessName, model, agentCommand string
+		reps                                  int
+		costPerRun                            float64
+		yes, asJSON                           bool
+	)
+	c := &cobra.Command{
+		Use:   "test <tên>",
+		Short: "Chạy kịch bản áp lực tests/*.yml của skill tuỳ biến ở nhánh có và không có skill, đo tỉ lệ tuân thủ",
+		Long: `Chạy kịch bản trong .bint/skills/<tên>/tests/*.yml (không xuất bản) bằng agent chỉ đọc, ở hai nhánh:
+  without  đề bài = prompt + pressures (RED: agent làm gì khi chưa có skill)
+  with     đề bài có thêm nội dung SKILL.md trước tình huống (GREEN: skill có đổi được hành vi không)
+Mỗi lượt chạy trong thư mục tạm rỗng ngoài repository (nhánh with có thêm tệp phụ của skill). Một lượt tuân thủ khi mọi mục
+expect đúng trên câu trả lời cuối; lượt lỗi hạ tầng, hết giờ hoặc không có câu trả lời không tính vào mẫu số.
+
+Mỗi kịch bản là một tệp YAML:
+  prompt: tình huống giao cho agent          (bắt buộc)
+  pressures: [câu áp lực, ...]               (nối vào cuối đề bài)
+  reps: 5                                    (1–20, mặc định 5 lượt mỗi nhánh)
+  expect:                                    (≥ 1 mục, mỗi mục đúng một khoá)
+    - contains: chuỗi phải có
+    - not_contains: chuỗi không được có
+    - regex: biểu thức Go phải khớp
+    - not_regex: biểu thức Go không được khớp
+
+Agent gọi mô hình nên tốn chi phí: ước tính được in trước, và khi không chạy trong terminal phải có --yes (chạy một lần không --yes
+để xem ước tính). Agent theo role skill-tester (roles.skill-tester, mặc định theo planner). Kết quả JSON ghi vào
+<thư mục trạng thái>/runtime/skill-tests/<tên>/<id>.json. Tỉ lệ là số đo tham khảo trên vài lượt, không phải bằng chứng thống kê.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir, err := cwd()
+			if err != nil {
+				return err
+			}
+			// Với --json, stdout chỉ có JSON kết quả; ước tính và tiến độ đi sang stderr.
+			w, log := stdio.Out, stdio.Out
+			if asJSON {
+				log = stdio.Err
+			}
+			opts := app.SkillTestDefaults(config.Default())
+			opts.Name, opts.Reps, opts.Harness, opts.Model, opts.AgentCommand, opts.Yes = args[0], reps, harnessName, model, agentCommand, yes
+			if arm != "" {
+				opts.Arm = arm
+			}
+			if cmd.Flags().Changed("cost-per-run") {
+				opts.CostPerRun = &costPerRun
+			}
+			if isTerminal(stdio.In) {
+				opts.Confirm = func(req app.ConfirmRequest) bool { return confirm(stdio, req.Text) }
+			}
+			opts.OnEstimate = func(e app.SkillTestEstimate) { printSkillTestEstimate(log, e) }
+			opts.Progress = func(r eval.SkillTestRun, n, total int) {
+				mark := "✓"
+				switch {
+				case r.Error != "":
+					mark = "! " + truncate(r.Error, 100)
+				case !r.Complied:
+					mark = "✗ " + strings.Join(r.Failed, "; ")
+				}
+				fmt.Fprintf(log, "[%d/%d] %s %-7s #%d  %s\n", n, total, r.Scenario, r.Arm, r.Rep, mark)
+			}
+			res, err := app.SkillTest(cmd.Context(), dir, opts)
+			if res != nil && res.Path != "" {
+				if asJSON {
+					if werr := writeJSON(w, res.Report); werr != nil {
+						return werr
+					}
+				} else {
+					printSkillTestReport(w, res)
+				}
+			}
+			if errors.Is(err, context.Canceled) {
+				return withCode(ExitError, fmt.Errorf("đã dừng theo yêu cầu (kết quả một phần đã ghi)"))
+			}
+			if errors.Is(err, app.ErrSkillTestQuota) {
+				return withCode(ExitError, err)
+			}
+			return err
+		},
+	}
+	f := c.Flags()
+	f.StringVar(&arm, "arm", "both", "nhánh chạy: both | without | with (without = RED khi skill chưa viết)")
+	f.IntVar(&reps, "reps", 0, "số lượt mỗi nhánh cho mọi kịch bản, 1–20 (mặc định theo reps của từng kịch bản)")
+	f.StringVar(&harnessName, "harness", "", "harness chạy agent: claude | codex | antigravity (mặc định roles.skill-tester, rồi roles.planner)")
+	f.StringVar(&model, "model", "", "mô hình (mặc định harnesses.<h>.models.skill-tester, rồi models.planner)")
+	f.StringVar(&agentCommand, "agent-command", "", "dùng lệnh tuỳ chỉnh làm agent thay cho harness (đề bài qua stdin; in JSON kiểu Claude Code có trường result)")
+	f.Float64Var(&costPerRun, "cost-per-run", 0, "chi phí ước tính mỗi lượt (mặc định: trung bình lần chạy trước, rồi eval.prior_run_usd)")
+	f.BoolVarP(&yes, "yes", "y", false, "không hỏi xác nhận (bắt buộc khi chạy không tương tác)")
+	f.BoolVar(&asJSON, "json", false, "in kết quả dạng JSON thay cho bảng")
+	return c
+}
+
+func printSkillTestEstimate(w io.Writer, e app.SkillTestEstimate) {
+	model := e.Model
+	if model == "" {
+		model = "mặc định của harness"
+	}
+	fmt.Fprintf(w, "Kiểm thử skill %s: %d kịch bản × nhánh %s → %d lượt agent (chỉ đọc, thư mục tạm rỗng)\n",
+		e.Skill, e.Scenarios, strings.Join(e.Arms, "+"), e.Runs)
+	fmt.Fprintf(w, "Agent:          %s, mô hình %s (role skill-tester)\n", e.Harness, model)
+	if e.CostPerRun != nil && e.Total != nil {
+		fmt.Fprintf(w, "Chi phí/lượt:   $%.3f (%s)\n", *e.CostPerRun, e.CostSource)
+		fmt.Fprintf(w, "Tổng chi phí:   ~$%.2f\n", *e.Total)
+	} else {
+		fmt.Fprintf(w, "Chi phí:        chưa biết (%s) — dùng --cost-per-run để ước tính\n", e.CostSource)
+	}
+	if !e.ReportsCost {
+		fmt.Fprintln(w, "Lưu ý:          harness này không báo chi phí nên không đo được chi phí thật.")
+	}
+	if e.Timeout > 0 {
+		fmt.Fprintf(w, "Hạn mỗi lượt:   %s (eval.timeout_minutes)\n", e.Timeout.Round(time.Second))
+	}
+}
+
+func printSkillTestReport(w io.Writer, res *app.SkillTestResult) {
+	rep := res.Report
+	rate := func(s eval.SkillArmStats) string {
+		if s.Rate == nil {
+			return "-"
+		}
+		return fmt.Sprintf("%.0f%%", 100**s.Rate)
+	}
+	cell := func(s eval.SkillArmStats) string {
+		out := fmt.Sprintf("%d/%d (%s)", s.Complied, s.Graded, rate(s))
+		if s.Errors > 0 {
+			out += fmt.Sprintf(", %d lỗi", s.Errors)
+		}
+		return out
+	}
+	stats := map[string]eval.SkillArmStats{}
+	for _, s := range rep.Scenarios {
+		stats[s.Scenario+"\x00"+s.Arm] = s.SkillArmStats
+	}
+	var names []string
+	for _, s := range rep.Scenarios {
+		if !slices.Contains(names, s.Scenario) {
+			names = append(names, s.Scenario)
+		}
+	}
+	fmt.Fprintf(w, "\nTỉ lệ tuân thủ (đạt/chấm được):\n")
+	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
+	fmt.Fprintln(tw, "KỊCH BẢN\tWITHOUT\tWITH")
+	row := func(label string, get func(arm string) (eval.SkillArmStats, bool)) {
+		cols := make([]string, 0, 2)
+		for _, arm := range []string{eval.SkillArmWithout, eval.SkillArmWith} {
+			if s, ok := get(arm); ok {
+				cols = append(cols, cell(s))
+			} else {
+				cols = append(cols, "-")
+			}
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", label, cols[0], cols[1])
+	}
+	for _, n := range names {
+		row(n, func(arm string) (eval.SkillArmStats, bool) { s, ok := stats[n+"\x00"+arm]; return s, ok })
+	}
+	row("TỔNG", func(arm string) (eval.SkillArmStats, bool) { s, ok := rep.Totals[arm]; return s, ok })
+	tw.Flush()
+	if rep.CostUSD != nil {
+		fmt.Fprintf(w, "Chi phí đo được: $%.3f\n", *rep.CostUSD)
+	}
+	if rep.Status != eval.SkillTestCompleted {
+		fmt.Fprintf(w, "Trạng thái: %s (chỉ có phần đã chạy)\n", rep.Status)
+	}
+	fmt.Fprintf(w, "Kết quả: %s\n", res.Path)
 }

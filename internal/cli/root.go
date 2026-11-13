@@ -19,6 +19,9 @@ import (
 // Version được gán khi build: -ldflags "-X bint/internal/cli.Version=v0.1.0".
 var Version = "0.1.0-dev"
 
+// init cho app biết phiên bản binary (ldflags đã áp dụng trước init) để doctor phân biệt binary cũ với core.lock mới hơn.
+func init() { app.SetBinaryVersion(Version) }
+
 // Mã thoát.
 const (
 	ExitOK             = 0

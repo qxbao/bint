@@ -112,6 +112,7 @@ type RunResumeOptions struct {
 	Ref          string   `arg:"task-id" form:"required,suggest=tasks"`
 	NoReview     bool     `flag:"no-review"`
 	NoWait       bool     `flag:"no-wait" form:"advanced"`
+	Rerun        bool     `flag:"rerun" form:"advanced"`
 	Harness      string   `flag:"harness" form:"choices=claude|codex|antigravity"`
 	Roles        []string `flag:"role"`
 	Model        string   `flag:"model"`
@@ -167,7 +168,10 @@ func ResumeWorkflow(ctx context.Context, ws *TaskWS, o RunResumeOptions) (*workf
 	if wf == "" {
 		wf = workflow.StepDo
 	}
-	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait}
+	if o.Rerun && t.State.HeldStep == nil {
+		return nil, Usagef("--rerun: tác vụ %s không có bước chỉ đọc nào đang được giữ để chạy lại", t.State.ID)
+	}
+	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait, Rerun: o.Rerun}
 	return runWith(ctx, ws, wo, o.Harness, o.Roles, o.AgentCommand, o.Model, o.RunCallbacks)
 }
 
@@ -274,6 +278,7 @@ func ActiveSteps(ctx context.Context, dir string) []workflow.ActiveStep {
 type RunNextOptions struct {
 	Ref    string `arg:"task-id" form:"required,suggest=tasks"`
 	Resume bool   `flag:"resume"`
+	Rerun  bool   `flag:"rerun" form:"advanced"`
 	NoWait bool   `flag:"no-wait" form:"advanced"`
 }
 
@@ -282,6 +287,9 @@ func RunNextDefaults(config.Config) RunNextOptions { return RunNextOptions{} }
 func (o RunNextOptions) Validate() error {
 	if strings.TrimSpace(o.Ref) == "" {
 		return Usagef("cần ID tác vụ")
+	}
+	if o.Rerun && !o.Resume {
+		return Usagef("--rerun chỉ dùng cùng --resume")
 	}
 	return nil
 }
@@ -361,7 +369,7 @@ func RunNext(ctx context.Context, ws *TaskWS, o RunNextOptions) (*workflow.Sessi
 	if err != nil {
 		return nil, err
 	}
-	a, err := r.Next(ctx, workflow.NextOptions{TaskRef: o.Ref, Resume: o.Resume, NoWait: o.NoWait})
+	a, err := r.Next(ctx, workflow.NextOptions{TaskRef: o.Ref, Resume: o.Resume, Rerun: o.Rerun, NoWait: o.NoWait})
 	if err != nil {
 		return nil, err
 	}

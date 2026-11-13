@@ -15,6 +15,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/eval"
+	"bint/internal/flow"
 	"bint/internal/gitrepo"
 	"bint/internal/pathglob"
 	"bint/internal/state"
@@ -62,20 +63,100 @@ func (e *Env) chooseIsolation(flag string) (IsolationChoice, error) {
 	case config.IsolationWorktree:
 		return IsolationChoice{Mode: task.IsolationWorktree, Reason: task.IsolationReasonConfig}, nil
 	}
+	if ids := e.sharedTasksOn(e.Root, ""); len(ids) > 0 {
+		return IsolationChoice{Mode: task.IsolationWorktree, Reason: task.IsolationReasonConcurrent, Tasks: ids}, nil
+	}
+	return IsolationChoice{Mode: task.IsolationShared, Reason: task.IsolationReasonDefault}, nil
+}
+
+// sharedTasksOn liệt kê (đã sắp xếp) ID tác vụ chưa kết thúc đang ở chế độ shared trên cây root, trừ tác vụ except
+// và phiếu chỉ lập kế hoạch (planOnlyTask: không ghi cây). Dùng chung cho chooseIsolation (phiếu mới) và
+// sharedWriteConflicts (phiếu sắp ghi) để hai nơi cùng một điều kiện.
+func (e *Env) sharedTasksOn(root, except string) []string {
 	all, _ := e.Tasks.List()
 	var ids []string
 	for _, o := range all {
-		if task.Terminal(o.State.Status) || o.State.Worktree == "" || !samePath(o.State.Worktree, e.Root) ||
-			o.State.Isolation() != task.IsolationShared {
+		if o.State.ID == except || task.Terminal(o.State.Status) || o.State.Worktree == "" || !samePath(o.State.Worktree, root) ||
+			o.State.Isolation() != task.IsolationShared || e.planOnlyTask(o) {
 			continue
 		}
 		ids = append(ids, o.State.ID)
 	}
-	if len(ids) > 0 {
-		sort.Strings(ids)
-		return IsolationChoice{Mode: task.IsolationWorktree, Reason: task.IsolationReasonConcurrent, Tasks: ids}, nil
+	sort.Strings(ids)
+	return ids
+}
+
+// sharedWriteConflicts trả ID các tác vụ khiến phiếu t chưa được vào bước ghi đầu tiên (docs: phát hiện .8). Phiếu
+// b-req ở cây chung không bị tính khi chọn chế độ cô lập (chooseIsolation bỏ phiếu chỉ lập kế hoạch), nhưng Run đổi
+// workflow của nó sang b-do/b-feat khi chạy tiếp: tới lúc đó phải kiểm lại, nếu không hai tác vụ cùng ghi cây chung.
+//
+// Chỉ áp cho phiếu shared do auto chọn (IsolationReasonDefault) chưa từng in_progress: --shared của người và cấu hình
+// workflow.isolation là chấp nhận có chủ đích; phiếu cũ không có Classification giữ hành vi cũ. Tác vụ khác đang
+// blocked mà chưa từng in_progress (bị chính cổng này giữ lại) chưa ghi gì nên không tính, nếu không hai phiếu
+// chặn nhau mãi.
+func (e *Env) sharedWriteConflicts(t *task.Task) []string {
+	st := &t.State
+	if st.Isolation() != task.IsolationShared || st.Worktree == "" || st.EverInProgress() ||
+		st.Classification == nil || st.Classification.IsolationReason != task.IsolationReasonDefault {
+		return nil
 	}
-	return IsolationChoice{Mode: task.IsolationShared, Reason: task.IsolationReasonDefault}, nil
+	var out []string
+	for _, id := range e.sharedTasksOn(st.Worktree, st.ID) {
+		if o, err := e.Tasks.Load(id); err == nil && o.State.Status == task.StatusBlocked && !o.State.EverInProgress() {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
+}
+
+// planOnlyTask: phiếu chỉ lập kế hoạch đã xong bước lập: có workflow mà flow không có bước ghi (b-req, hoặc flow tuỳ
+// biến không có bước implement), đang planned, chưa từng vào in_progress và không có thay đổi gán cho nó (Touched,
+// PendingPaths). Phiếu như vậy không ghi cây nên không tranh cây với phiếu khác (chooseIsolation) và không có mã
+// để kiểm chứng hay duyệt (cổng done). Flow không nạp được thì coi như không chỉ lập kế hoạch (giữ cổng nghiêm hơn).
+func (e *Env) planOnlyTask(t *task.Task) bool {
+	st := &t.State
+	if st.Status != task.StatusPlanned || st.Workflow == "" || st.EverInProgress() || len(st.Touched) > 0 || len(st.PendingPaths) > 0 {
+		return false
+	}
+	fd, err := e.resolveFlow(st.Workflow)
+	return err == nil && !fd.HasKind(flow.KindImplement)
+}
+
+// planGate là kết quả planGateFor: phiếu có được hưởng cổng done của phiếu chỉ lập kế hoạch hay không.
+type planGate struct {
+	// PlanOnly: planOnlyTask và (ở worktree) diff so với Base rỗng hoặc chỉ gồm mục tri thức candidate mới.
+	PlanOnly bool
+	// Stray: phiếu chỉ lập kế hoạch (planOnlyTask) nhưng worktree có thay đổi khác; Err: không tính được diff
+	// (coi như có thay đổi, cổng nghiêm hơn).
+	Stray []string
+	Err   error
+}
+
+// planGateFor quyết định cổng done/land của phiếu t. Ở cây chung chỉ xét trạng thái (planOnlyTask). Ở worktree
+// còn đòi diff so với State.Base chỉ gồm mục tri thức candidate mới (cùng quy tắc miễn trừ của bước chỉ đọc):
+// thay đổi mã do orchestrator/agent sửa ngoài bước không được đưa về cây gốc mà thiếu kiểm chứng.
+func (e *Env) planGateFor(ctx context.Context, t *task.Task) planGate {
+	if !e.planOnlyTask(t) {
+		return planGate{}
+	}
+	st := &t.State
+	if st.Isolation() != task.IsolationWorktree || st.Origin == "" || st.Landed != nil {
+		// Chưa có worktree, hoặc đã đưa về (Land đã chạy cổng này; worktree có thể đã gỡ).
+		return planGate{PlanOnly: true}
+	}
+	root, err := e.RootFor(t)
+	var stray []string
+	if err == nil {
+		var snap string
+		if snap, err = WorktreeSnapshot(ctx, root); err == nil {
+			stray, err = nonCandidateChanges(ctx, root, st.Base, snap)
+		}
+	}
+	if err != nil {
+		return planGate{Err: err}
+	}
+	return planGate{PlanOnly: len(stray) == 0, Stray: stray}
 }
 
 // worktreesDir là thư mục chứa worktree của các tác vụ (<state>/worktrees).

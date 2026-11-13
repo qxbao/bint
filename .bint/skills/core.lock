@@ -11,12 +11,12 @@ skills:
     variants:
       agents: e07017aca8cc7230
   b-add-skill:
-    sha256: 8f2b4becb0148b0a
+    sha256: a0d1625df4d6570d
     published:
       - .agents/skills/b-add-skill/SKILL.md
       - .claude/skills/b-add-skill/SKILL.md
     variants:
-      agents: cf3828d98bfb8633
+      agents: 2fd7fea17b44220b
   b-bootstrap:
     sha256: 4ce0e1d98454a778
     published:

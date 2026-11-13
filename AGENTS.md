@@ -40,6 +40,11 @@ Khi làm việc với `internal/app/**`, `internal/tui/actions/**`:
 - **Thêm lệnh CLI mới hoặc thông báo lỗi nêu cờ rời: TestServiceMessageCLIInventory đòi (1) hàng của lệnh trong cliRefs (in…** [k:01M78XP5NXWWRAZQHN5PSHNC13]
   Thêm lệnh CLI mới hoặc thông báo lỗi nêu cờ rời: TestServiceMessageCLIInventory đòi (1) hàng của lệnh trong cliRefs (internal/tui/actions/cliref.go) để Rewriter đổi lời nhắc 'bint <lệnh>' thành phím TUI, (2) cờ rời trong literal lỗi cách dùng phải vào litsrUsage của cliref_inventory_test.go. Quên cả hai thì test đỏ ở cli, không ở actions.
 
+Khi làm việc với `internal/config/**`:
+
+- **yaml.v3 đặt lại map inline mỗi lần giải mã lại khối chứa nó: lớp cấu hình sau làm mất role tuỳ biến của lớp trước** [k:01M79Y7NRTR51P7JA4A50P8FPG]
+  Roles.Extra và RoleModels.Extra dùng thẻ yaml:",inline". yaml.v3 đặt map inline về nil mỗi khi giải mã lại khối `roles:`/`models:`, nên Decode lớp sau (local.yml) xoá role tuỳ biến đã nạp từ lớp trước. mergeFile phải chụp (snapshotExtras) rồi phục hồi (restore) quanh Decode. Thêm map inline mới vào Config thì làm tương tự; test: TestMergeFileKeepsExtraRoles.
+
 Khi làm việc với `internal/config/**`, `internal/eval/**`:
 
 - **Cờ security không thay thế cô lập agent và mạng** [k:01M74PDT2ETJAYRWFV9ZPWVHMR]
@@ -85,6 +90,4 @@ Khi làm việc với `internal/evolve/**`:
   - eval.SolutionNewIdentifiers: MỌI định danh mới ở VỊ TRÍ MÃ (kể cả tên một từ như Reset/Flush), trừ tên test. Từ thường chỉ nằm trong chú thích hoặc nội dung chuỗi (server, cache, timeout...) không bị chặn, vì bài học hay nhắc chúng;
   - eval.SolutionLiterals: chuỗi literal ≥ 12 ký tự ("...", '...', `...` raw) của phần thêm mới, trừ chuỗi có trong kiểm thử.
   Thêm ca chặn mới thì sửa TestCheckLessonTable (failure_test.go), kể cả ca chặn nhầm.
-- **Mọi đường gọi evolve.Propose (kể cả ProcessRequests/deferred) phải truyền Cases và RepoDir. Thiếu chúng thì kiểm rò rỉ …** [k:01M74E2CYQEZ443CCRB0N2YS72]
-  Mọi đường gọi evolve.Propose (kể cả ProcessRequests/deferred) phải truyền Cases và RepoDir. Thiếu chúng thì kiểm rò rỉ của bài học failure_lesson báo 'không tìm thấy tác vụ' sau khi reflector đã chạy: tốn tiền rồi bỏ hết. Kiểm rò rỉ được dựng trước khi gọi reflector để lỗi này không tốn tiền.
 <!-- bint:end -->

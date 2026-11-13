@@ -61,6 +61,7 @@ Nếu đặt `state.dir` là đường dẫn tuyệt đối (thường trong `.b
 | `roles.evolver` | Soạn đề xuất tiến hoá L1/L2 | `opus` / `gpt-6-astra` / `gemini-4-argon-high` |
 | `roles.reflector` | Rút bài học từ thất bại (kế hoạch E) | `opus` (chỉ hỗ trợ `claude`) |
 | `roles.<tên>` | Role tuỳ biến của flow trong `.bint/flows` (xem dưới) | theo `models.<tên>`, không có thì theo role gốc của bước |
+| `roles.skill-tester` | Agent chỉ đọc của `bint skill test` (kiểm thử skill tuỳ biến) | theo `roles.planner` / `models.planner` khi chưa đặt |
 
 - **Thứ tự chọn harness trong workflow:** `--role <role>=<harness>` → `--harness` → `roles.<role>` →
   `harnesses.default` → `claude`. Riêng `roles.reflector` hiện chỉ chạy trên `claude` vì cần khoá

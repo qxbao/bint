@@ -359,10 +359,9 @@ func ReadonlyViolations(ctx context.Context, root, before, after string, since t
 		}
 	}
 	var res ReadonlyCheck
-	f := strings.Split(string(out), "\x00")
-	for i := 0; i+1 < len(f); i += 2 {
-		st, p := f[i], f[i+1]
-		if st == "A" && strings.HasPrefix(p, knowledge.ItemsRel+"/") && newCandidateFile(root, p) {
+	for _, ch := range parseNameStatusZ(out) {
+		st, p := ch.status, ch.path
+		if newCandidateItem(root, st, p) {
 			continue
 		}
 		abs := filepath.Join(root, filepath.FromSlash(p))
@@ -373,6 +372,42 @@ func ReadonlyViolations(ctx context.Context, root, before, after string, since t
 		res.Violations = append(res.Violations, p)
 	}
 	return res
+}
+
+// nameStatus là một dòng của `git diff --name-status --no-renames -z`.
+type nameStatus struct{ status, path string }
+
+func parseNameStatusZ(out []byte) []nameStatus {
+	var res []nameStatus
+	f := strings.Split(string(out), "\x00")
+	for i := 0; i+1 < len(f); i += 2 {
+		res = append(res, nameStatus{f[i], f[i+1]})
+	}
+	return res
+}
+
+// newCandidateItem: thay đổi (status git st, đường dẫn p) là thêm một mục tri thức MỚI hợp lệ ở trạng thái
+// candidate dưới thư mục items. Đây là thay đổi duy nhất bước chỉ đọc được phép (ReadonlyViolations) và cũng là
+// thay đổi duy nhất một phiếu chỉ lập kế hoạch ở worktree được mang theo mà không qua cổng done (planGateFor).
+func newCandidateItem(root, st, p string) bool {
+	return st == "A" && strings.HasPrefix(p, knowledge.ItemsRel+"/") && newCandidateFile(root, p)
+}
+
+// nonCandidateChanges liệt kê đường dẫn đổi giữa hai ảnh chụp mà không phải thêm mục tri thức candidate mới.
+func nonCandidateChanges(ctx context.Context, root, before, after string) ([]string, error) {
+	cmd := exec.CommandContext(ctx, "git", "-c", "core.quotepath=off", "diff", "--name-status", "--no-renames", "-z", before, after)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git diff %s %s: %w", before, after, err)
+	}
+	var res []string
+	for _, ch := range parseNameStatusZ(out) {
+		if !newCandidateItem(root, ch.status, ch.path) {
+			res = append(res, ch.path)
+		}
+	}
+	return res, nil
 }
 
 // humanChain: chuỗi dòng nhật ký của một đường dẫn đổi (status git st) có nối liền từ nội dung ở ảnh before tới

@@ -28,17 +28,23 @@ import (
 // RemoveBlock ngoài repowrite.go, kèm lý do vì sao đường dẫn đó không nằm trong cây làm việc của repo. Thiếu hay
 // thừa một mục đều làm kiểm thử đỏ.
 var directWriteAllowed = map[string]string{
-	"bootstrap.go:Bootstrap":          "generated/inspect.json trong thư mục trạng thái",
-	"config_svc.go:PrepareConfigEdit": "bản tạm soạn cấu hình trong thư mục tạm của hệ điều hành",
-	"config_svc.go:RebaseConfigEdit":  "ghi lại bản tạm soạn cấu hình (thư mục tạm), không phải tệp lớp cấu hình",
-	"doctor.go:checkWritable":         "tệp thăm dò quyền ghi, tạo rồi xoá ngay",
-	"evolvesvc/cycle.go:Cycle":        "evolve/cycles/<id>.json trong thư mục trạng thái",
-	"gitvis.go:saveGitMode":           "git-mode trong thư mục trạng thái",
-	"mcp_svc.go:ensureGitExclude":     "git info/exclude nằm trong .git (không phải tệp của cây làm việc); chỉ thêm một dòng .codegraph/",
-	"hook.go:RunHook":                 "hook-errors.log trong thư mục trạng thái; hook không dùng repoWriter (TestHookDoesNotUseRepoWriter)",
-	"skills_svc.go:PlanSync":          "xem trước sync trên bản sao tạm, không chạm repo",
-	"skills_svc.go:copyTree":          "sao cây vào thư mục tạm của PlanSync",
-	"update.go:UpdateSelf":            "thay binary bint đang chạy (ngoài repo)",
+	"bootstrap.go:Bootstrap":            "generated/inspect.json trong thư mục trạng thái",
+	"config_svc.go:PrepareConfigEdit":   "bản tạm soạn cấu hình trong thư mục tạm của hệ điều hành",
+	"config_svc.go:RebaseConfigEdit":    "ghi lại bản tạm soạn cấu hình (thư mục tạm), không phải tệp lớp cấu hình",
+	"doctor.go:checkWritable":           "tệp thăm dò quyền ghi, tạo rồi xoá ngay",
+	"evolvesvc/cycle.go:Cycle":          "evolve/cycles/<id>.json trong thư mục trạng thái",
+	"gitvis.go:saveGitMode":             "git-mode trong thư mục trạng thái",
+	"mcp_svc.go:ensureGitExclude":       "git info/exclude nằm trong .git (không phải tệp của cây làm việc); chỉ thêm một dòng .codegraph/",
+	"hook_trace.go:startHookTrace":      "runtime/hook-trace/*.in trong thư mục trạng thái (BINT_HOOK_TRACE); hook không dùng repoWriter",
+	"hook_trace.go:finish":              "runtime/hook-trace/*.out trong thư mục trạng thái",
+	"hook_trace.go:pruneHookTrace":      "xoá tệp cũ của runtime/hook-trace trong thư mục trạng thái",
+	"hook.go:RunHook":                   "hook-errors.log trong thư mục trạng thái; hook không dùng repoWriter (TestHookDoesNotUseRepoWriter)",
+	"skilltest_svc.go:SkillTest":        "skill-tests/<tên>/<id>.json trong thư mục trạng thái",
+	"skilltest_svc.go:copySkillFiles":   "chép tệp phụ của skill vào thư mục tạm của lượt kiểm thử",
+	"skilltest_svc.go:runSkillTestOnce": "thư mục tạm riêng mỗi lượt kiểm thử skill, ngoài repo, xoá sau lượt",
+	"skills_svc.go:PlanSync":            "xem trước sync trên bản sao tạm, không chạm repo",
+	"skills_svc.go:copyTree":            "sao cây vào thư mục tạm của PlanSync",
+	"update.go:UpdateSelf":              "thay binary bint đang chạy (ngoài repo)",
 }
 
 // Các lời gọi ghi trực tiếp bị theo dõi (gói.hàm).

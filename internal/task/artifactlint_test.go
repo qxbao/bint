@@ -297,3 +297,49 @@ func TestLintPlanningFenceHandling(t *testing.T) {
 		t.Errorf("AC trong fence ``` chứa ~~~ phải bị bỏ qua: %+v", r.Errors)
 	}
 }
+
+func TestHasPlaceholderTable(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"định danh có ngoặc nhọn ở cuối", "đặt limits.workflows.<flow> cho từng luồng", false},
+		{"định danh có ngoặc nhọn ở giữa", "đọc harnesses.<h>.model từ cấu hình", false},
+		{"hai đoạn liền nhau", "khoá a.<x>.<y> hợp lệ", false},
+		{"định danh a.<b>.c", "khoá a.<b>.c hợp lệ", false},
+		{"định danh có đoạn ngoặc nhọn rồi .ident", "khoá a.<b>.go hợp lệ", false},
+		{"tên tệp ngoặc nhọn rồi .go", "tệp <tên>.go được sinh", true},
+		{"tên tệp ngoặc nhọn rồi .md", "ghi <tên tệp>.md vào docs", true},
+		{"ngoặc nhọn rồi .Tiếp thiếu khoảng trắng", "làm <việc>.Tiếp theo", true},
+		{"ngoặc nhọn đứng đầu rồi đoạn khác", "<a>.<b> còn trống", true},
+		{"code span chứa placeholder", "dùng `<nội dung>` và `TODO` và `…` làm ví dụ", false},
+		{"code span nhiều backtick", "ví dụ ``a ` <x> `` xong", false},
+		{"ngoặc nhọn đứng riêng", "sửa <nội dung> ngay", true},
+		{"ngoặc nhọn cuối câu có dấu chấm", "viết <việc>.", true},
+		{"ngoặc nhọn rồi dấu chấm và khoảng trắng", "viết <việc>. Sau đó làm tiếp", true},
+		{"ba chấm Unicode", "cần làm …", true},
+		{"TODO đứng riêng", "TODO xem lại", true},
+		{"tbd đứng riêng", "kết quả tbd", true},
+		{"code span không đóng", "dùng `<nội dung> chưa đóng", true},
+		{"backtick độ dài khác không đóng", "dùng ``<x>` chưa đóng", true},
+		{"ngoài code span vẫn bị bắt", "`ok` rồi <việc>", true},
+		{"không có placeholder", "app.txt chứa v2", false},
+	}
+	for _, c := range cases {
+		if got := hasPlaceholder(c.in); got != c.want {
+			t.Errorf("%s: hasPlaceholder(%q) = %v, muốn %v", c.name, c.in, got, c.want)
+		}
+	}
+}
+
+func TestLintPlaceholderDottedIdentInACAndTSK(t *testing.T) {
+	d := goodDocs()
+	d["requirement"] = strings.Replace(goodReq, "AC-1: app.txt chứa v2", "AC-1: limits.workflows.<flow> và `<x>` đọc được", 1)
+	d["tasks"] = "- [ ] TSK-1 [AC-1]: đọc harnesses.<h>.model — xong khi: có `TODO` trong ví dụ\n"
+	tk := goodTicket()
+	tk.Verify.Criteria = []string{"limits.workflows.<flow> và `<x>` đọc được"}
+	if r := LintPlanningText(tk, d, true); hasCode(r.Errors, "placeholder_text") {
+		t.Fatalf("định danh có dấu chấm/code span không được bắt: %s", codes(r.Errors))
+	}
+}

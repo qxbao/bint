@@ -101,3 +101,44 @@ func TestTaskLintLegacyIsAdvisoryUnlessStrict(t *testing.T) {
 		t.Fatalf("lint không được đổi state:\n%s", show)
 	}
 }
+
+// bint task set --criteria/--clear-criteria trên phiếu đã có artifact b-req tự đồng bộ AC/TSK:
+// lint --strict qua ngay, không cần task write.
+func TestTaskSetSyncsCriteriaThenLintPasses(t *testing.T) {
+	root := newLintRepo(t)
+	id := newTaskID(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n")
+	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n")
+	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n")
+	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
+		t.Fatalf("lint ban đầu: %d\n%s", code, out)
+	}
+
+	out, code := run(t, root, "", "task", "set", id, "--criteria", "app.txt có chú thích đầu tệp")
+	if code != 0 || !strings.Contains(out, "đồng bộ tiêu chí") {
+		t.Fatalf("task set phải in ghi chú đồng bộ: %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
+		t.Fatalf("lint sau --criteria: %d\n%s", code, out)
+	}
+
+	out, code = run(t, root, "", "task", "set", id, "--clear-criteria", "--criteria", "một", "--criteria", "hai", "--criteria", "ba")
+	if code != 0 {
+		t.Fatalf("task set --clear-criteria: %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
+		t.Fatalf("lint sau --clear-criteria: %d\n%s", code, out)
+	}
+
+	// Thu gọn 3 → 1: TSK [AC-1, AC-3]... được gỡ AC đã bỏ; TSK chỉ còn AC đã bỏ giữ và lint báo đúng dòng đó.
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: một\n- [ ] AC-2: hai\n- [ ] AC-3: ba\n## Câu hỏi mở\n")
+	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1, AC-3]: việc một — xong khi: một\n- [ ] TSK-2 [AC-2]: việc hai — xong khi: hai\n- [ ] TSK-3 [AC-3]: việc ba — xong khi: ba\n")
+	out, code = run(t, root, "", "task", "set", id, "--clear-criteria", "--criteria", "một", "--criteria", "hai")
+	if code != 0 || !strings.Contains(out, "đã gỡ AC-3 khỏi TSK-1") || !strings.Contains(out, "TSK-3") || !strings.Contains(out, "unknown_ac") {
+		t.Fatalf("task set thu gọn phải in ghi chú: %d\n%s", code, out)
+	}
+	out, code = run(t, root, "", "task", "lint", id, "--strict")
+	if code == 0 || !strings.Contains(out, "unknown_ac") || !strings.Contains(out, "TSK-3") || strings.Contains(out, "TSK-1 tham chiếu") {
+		t.Fatalf("lint phải báo unknown_ac đúng TSK-3: %d\n%s", code, out)
+	}
+}

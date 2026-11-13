@@ -78,7 +78,7 @@ func TestFlowGoldenHarness(t *testing.T) {
 		if err := os.WriteFile(goldenPath, got, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		return
+		t.Fatalf("đã ghi %s do BINT_UPDATE_GOLDEN=1: xem git diff rồi chạy lại không có biến để kiểm", goldenPath)
 	}
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {

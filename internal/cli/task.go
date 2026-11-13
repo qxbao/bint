@@ -372,6 +372,10 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 	if st.FlowStep != "" {
 		fmt.Fprintf(w, "  Bước flow:  %s\n", st.FlowStep)
 	}
+	if hs := st.HeldStep; hs != nil {
+		fmt.Fprintf(w, "  Bước giữ:   %s (lượt %s) đã xong nhưng cây đổi trong lúc chạy: %s — resume áp kết quả của bước, không chạy lại\n",
+			hs.Step, hs.RunID, strings.Join(hs.Files, ", "))
+	}
 	if c := st.Classification; c != nil {
 		fmt.Fprintf(w, "  Classify:   %s\n", c.Reason)
 		printDepthLine(w, "  Phân tích:  ", c)
@@ -497,6 +501,9 @@ không còn hiệu lực. Agent không đặt được autonomy: auto.`,
 				return err
 			}
 			fmt.Fprintf(stdio.Out, "Đã cập nhật %s: %s\n", u.Task.State.ID, u.Task.Ticket.Goal)
+			for _, n := range u.Notes {
+				fmt.Fprintf(stdio.Out, "  đồng bộ tiêu chí: %s\n", n)
+			}
 			printTicketBrief(stdio.Out, ws.Env, u.Task, u.Assessment)
 			return nil
 		},

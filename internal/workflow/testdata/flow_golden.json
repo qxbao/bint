@@ -9080,18 +9080,18 @@
       ],
       "results": [
         {
-          "status": "failed",
-          "reason": "b-req: bước chỉ đọc b-req (fake) đã sửa cây làm việc: app.txt — Bint không hoàn tác, hãy xem lại (nếu chính bạn sửa trong lúc bước chạy: bint run resume \u003cULID\u003e)",
+          "status": "blocked",
+          "reason": "bước chỉ đọc b-req (fake) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run resume \u003cULID\u003e` để đi tiếp từ sau bước b-req (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `bint run resume \u003cULID\u003e --rerun` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel \u003cULID\u003e`",
           "steps": [
-            "b-req:failed"
+            "b-req:blocked"
           ]
         }
       ],
       "history": [
         "\u003ecreated",
-        "created\u003efailed"
+        "created\u003eblocked"
       ],
-      "final_status": "failed"
+      "final_status": "blocked"
     },
     "req_only": {
       "calls": [
@@ -9328,11 +9328,11 @@
       ],
       "results": [
         {
-          "status": "failed",
-          "reason": "b-review: bước chỉ đọc b-review (fake) đã sửa cây làm việc: app.txt — Bint không hoàn tác, hãy xem lại (nếu chính bạn sửa trong lúc bước chạy: bint run resume \u003cULID\u003e)",
+          "status": "blocked",
+          "reason": "bước chỉ đọc b-review (fake) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run resume \u003cULID\u003e` để đi tiếp từ sau bước b-review (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `bint run resume \u003cULID\u003e --rerun` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel \u003cULID\u003e`",
           "steps": [
             "b-feat:completed",
-            "b-review:failed"
+            "b-review:blocked"
           ],
           "notes": [
             "sửa ngoài scope.allow: done.txt"
@@ -9343,9 +9343,9 @@
         "\u003ecreated",
         "created\u003ein_progress",
         "in_progress\u003ein_review",
-        "in_review\u003efailed"
+        "in_review\u003eblocked"
       ],
-      "final_status": "failed"
+      "final_status": "blocked"
     },
     "review_only": {
       "calls": [
@@ -9994,22 +9994,22 @@
         },
         {
           "call": "complete",
-          "action": "failed",
-          "task_status": "failed",
-          "reason": "b-review: bước chỉ đọc b-review (claude) đã sửa cây làm việc: app.txt — Bint không hoàn tác, hãy xem lại (nếu chính bạn sửa trong lúc bước chạy: bint run resume \u003cULID\u003e)",
+          "action": "blocked",
+          "task_status": "blocked",
+          "reason": "bước chỉ đọc b-review (claude) đã kết thúc nhưng cây làm việc đổi trong lúc chạy: app.txt — kết quả của bước đã được giữ. Nếu chính bạn sửa đồng thời: `bint run next \u003cULID\u003e --resume` để đi tiếp từ sau bước b-review (không chạy lại). Nếu do agent sửa: xem `git diff`, hoàn tác (Bint không hoàn tác) rồi `bint run next \u003cULID\u003e --resume --rerun` để bỏ kết quả giữ và chạy lại bước, hoặc `bint task cancel \u003cULID\u003e`",
           "notes": [
             "b-review: chi phí của subagent agent-b-review unknown — chưa có SubagentStop của agent-b-review (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)"
           ],
-          "result": "b-review:failed"
+          "result": "b-review:blocked"
         }
       ],
       "history": [
         "\u003ecreated",
         "created\u003ein_progress",
         "in_progress\u003ein_review",
-        "in_review\u003efailed"
+        "in_review\u003eblocked"
       ],
-      "final_status": "failed"
+      "final_status": "blocked"
     }
   }
 }

@@ -25,7 +25,7 @@ var writesAudit = map[string]string{
 	"evolve.process": "ghi đề xuất, tiêu tiền", "evolve.cycle": "ghi đề xuất, tiêu tiền",
 	"system.config_edit": "mở trình soạn thảo", "system.config_save": "ghi cấu hình", "system.language_save": "ghi cấu hình", "system.component_add": "ghi thành phần",
 	"system.component_approve": "ghi thành phần", "system.component_deprecate": "ghi thành phần", "system.skill_overlay": "mở trình soạn thảo", "system.skill_new": "ghi skill tuỳ biến, mở trình soạn thảo", "system.open_file": "mở trình soạn thảo",
-	"system.sync": "ghi skill", "system.repo_apply": "ghi cấu hình repo", "system.config_upgrade": "ghi cấu hình", "system.update": "cài bản mới", "system.index_rebuild": "ghi chỉ mục",
+	"system.sync": "ghi skill", "system.skill_test": "gọi agent (tốn chi phí), ghi kết quả JSON vào thư mục trạng thái", "system.repo_apply": "ghi cấu hình repo", "system.config_upgrade": "ghi cấu hình", "system.update": "cài bản mới", "system.index_rebuild": "ghi chỉ mục",
 	"mcp.add": "ghi mcp.yml (đăng ký trên máy)", "mcp.remove": "ghi mcp.yml (gỡ đăng ký)", "mcp.index": "chạy codegraph init/sync, ghi .codegraph và git info/exclude",
 	"mcp.restart": "dừng upstream của gateway, cắt lời gọi đang chạy", "mcp.gateway_start": "khởi động daemon, ghi gateway.json/log", "mcp.gateway_stop": "tắt daemon",
 	"mcp.config_edit": "mở trình soạn thảo (chuyển sang system.config_edit)",

@@ -49,25 +49,65 @@ Chọn **loại skill**, vì mỗi loại kiểm thử khác nhau ở Bước 3:
 **Luật sắt: không có skill nào mà không có kịch bản thất bại trước.** Viết skill trước khi kiểm là vi phạm: bỏ bản
 nháp đó, làm lại từ đầu. Áp dụng cả khi chỉ sửa skill đã có ("chỉ thêm một mục", "chỉ chỉnh câu chữ").
 
-1. Soạn 2–3 kịch bản cho loại skill đã chọn: một tình huống thật, kèm áp lực cụ thể (hạn chót, đã viết xong
-   nửa chừng, người dùng giục) để agent có động cơ làm tắt. Kịch bản kỷ luật cần từ ba áp lực trở lên.
-2. Chạy từng kịch bản bằng **subagent không có skill** (subagent mới, ngữ cảnh sạch; skill chưa xuất bản nên nó
-   không thấy). Với harness không có subagent, nhờ người dùng mở phiên mới.
-3. Ghi **nguyên văn** lựa chọn của agent và lời biện minh của nó ("làm tạm cho nhanh", "chỗ này hiển nhiên"). Đây là
-   bằng chứng skill cần dạy gì.
+1. Tạo thư mục skill để có chỗ đặt kịch bản (SKILL.md mẫu chỉ là chỗ giữ chỗ, **chưa phải nội dung skill**; nhánh
+   `without` không đọc nó):
 
-Agent làm đúng ngay khi không có skill → kỹ thuật này không cần skill. Nói người dùng và dừng.
+   ```sh
+   bint skill new <tên>
+   ```
+
+   Tên: chữ thường, số, gạch ngang, 3–40 ký tự, không tiền tố `b-` (dành cho skill gốc), không trùng skill gốc hay
+   skill tiến hoá. Lệnh không bao giờ ghi đè skill có sẵn.
+2. Soạn 2–3 kịch bản cho loại skill đã chọn, mỗi kịch bản một tệp `.bint/skills/<tên>/tests/<tên-kịch-bản>.yml`: một
+   tình huống thật kèm áp lực cụ thể (hạn chót, đã viết xong nửa chừng, người dùng giục) để agent có động cơ làm tắt.
+   Kịch bản kỷ luật cần từ ba áp lực trở lên. Thư mục `tests/` **không được xuất bản** (`bint sync` bỏ qua nó):
+
+   ```yaml
+   prompt: Tình huống giao cho agent (đủ ngữ cảnh để tự chứa, không dựa vào tệp trong repository).
+   pressures:                    # nối vào cuối đề bài theo thứ tự
+     - Còn 10 phút nữa là họp, sếp đang đứng đợi.
+     - Tôi đã viết xong mã rồi, chỉ cần anh/chị gật là xong.
+   reps: 5                       # 1–20, mặc định 5 lượt mỗi nhánh
+   expect:                       # đúng một khoá mỗi mục; mọi mục phải đúng thì lượt mới tính là tuân thủ
+     - contains: kiểm thử        # chuỗi phải có trong câu trả lời cuối
+     - not_contains: bỏ qua      # chuỗi không được có
+     - regex: '(?i)viết .* trước'
+     - not_regex: 'tạm thời|để sau'
+   ```
+
+   `expect` chấm bằng chuỗi hoặc biểu thức chính quy Go trên **câu trả lời cuối**, nên đặt các điều kiện thấy được
+   trong câu chữ (agent nói sẽ làm gì, từ chối gì), không chấm hành vi không nằm trong câu trả lời. Chưa biết agent
+   hay biện minh thế nào thì viết `expect` theo hành vi đúng trước, đọc câu trả lời thật ở bước 4, rồi chỉnh.
+3. Chạy **không `--yes`** để xem ước tính số lượt và chi phí (lệnh in ước tính rồi dừng khi stdin không phải terminal;
+   agent chưa được gọi):
+
+   ```sh
+   bint skill test <tên> --arm without
+   ```
+
+   Nói người dùng ước tính đó và **hỏi người dùng đồng ý chi phí**; chỉ khi họ đồng ý mới chạy lại thêm `--yes`:
+
+   ```sh
+   bint skill test <tên> --arm without --yes
+   ```
+
+   Lệnh chạy mỗi kịch bản `reps` lần bằng agent chỉ đọc trong thư mục tạm rỗng (agent không thấy skill đã xuất bản
+   hay mã của repository), chấm và in tỉ lệ tuân thủ; kết quả JSON và câu trả lời từng lượt nằm trong
+   `<thư mục trạng thái>/runtime/skill-tests/<tên>/` (đường dẫn in ở cuối lệnh).
+4. Đọc câu trả lời của các lượt **trượt** (tệp `answer.txt` trong thư mục log của lượt) và ghi **nguyên văn** lựa chọn
+   của agent cùng lời biện minh ("làm tạm cho nhanh", "chỗ này hiển nhiên"). Đây là bằng chứng skill cần dạy gì.
+
+Tỉ lệ `without` cao (agent đã làm đúng) → kỹ thuật này không cần skill. Nói người dùng và dừng. Tỉ lệ chỉ đo trên vài
+lượt, là số đo tham khảo chứ không phải bằng chứng thống kê.
+
+Harness chưa chạy được agent qua `bint skill test` (không có chương trình, hết hạn mức)? Dùng cách thủ công: chạy từng
+kịch bản bằng **subagent không có skill** (subagent mới, ngữ cảnh sạch; skill chưa xuất bản nên nó không thấy), với
+harness không có subagent thì nhờ người dùng mở phiên mới, và ghi lại câu trả lời nguyên văn như bước 4.
 
 ## Bước 3 — GREEN: viết skill tối thiểu
 
-```sh
-bint skill new <tên>
-```
-
-Tên: chữ thường, số, gạch ngang, 3–40 ký tự, không tiền tố `b-` (dành cho skill gốc), không trùng skill gốc hay skill
-tiến hoá. Lệnh tạo `.bint/skills/<tên>/SKILL.md` từ mẫu và không bao giờ ghi đè.
-
-Viết theo kết quả RED, chỉ trả lời đúng những lỗi và lời biện minh đã ghi:
+Skill đã có thư mục từ Bước 2 (`bint skill new <tên>` tạo `.bint/skills/<tên>/SKILL.md` từ mẫu). Viết lại SKILL.md theo
+kết quả RED, chỉ trả lời đúng những lỗi và lời biện minh đã ghi:
 
 - `description` chỉ nêu **khi nào dùng** (điều kiện, triệu chứng, từ khoá agent sẽ gặp), mở đầu "Dùng khi …", ngôi thứ
   ba, dưới 1024 ký tự. **Không tóm tắt cách làm**: agent đọc bản tóm tắt sẽ làm theo nó thay vì đọc skill.
@@ -90,18 +130,25 @@ bint skill lint <tên>
 
 Sửa mọi lỗi (thoát 1 khi còn lỗi). Cảnh báo về mô tả không mở đầu "Dùng khi" cũng nên sửa.
 
-Chạy **lại đúng các kịch bản ở Bước 2, lần này có skill** (xuất bản bằng `bint sync` ở Bước 5 hoặc cho subagent đọc
-tệp `.bint/skills/<tên>/SKILL.md`). Agent làm đúng thì GREEN. Vẫn sai → skill chưa trả lời đúng lời biện minh,
-quay lại viết.
+Chạy **lại đúng các kịch bản ở Bước 2, lần này có skill** (không cần `bint sync` trước: nhánh `with` đưa nội dung
+SKILL.md vào đề bài và chép tệp phụ vào thư mục làm việc). Cùng quy tắc chi phí: chạy không `--yes` để xem ước tính, hỏi
+người dùng đồng ý, rồi thêm `--yes`:
+
+```sh
+bint skill test <tên>
+```
+
+Lệnh chạy cả hai nhánh. GREEN khi tỉ lệ nhánh `with` đạt (mọi kịch bản cao) và cao hơn rõ rệt nhánh `without` ở RED. Vẫn
+trượt → đọc `answer.txt` của lượt trượt: skill chưa trả lời đúng lời biện minh, quay lại viết. Lệnh báo lỗi khi skill
+chưa qua `bint skill lint` (nhánh `with` cần skill sạch).
 
 ## Bước 4 — REFACTOR: bịt lỗ hổng
 
-Agent tìm được cách lách mới? Ghi lời biện minh mới, thêm câu trả lời tường minh vào skill, chạy lại. Lặp tới khi
-kịch bản khó nhất vẫn qua. Mỗi lần sửa skill sau đó đều quay lại Bước 2: sửa mà không kiểm là vi phạm luật sắt.
+Agent tìm được cách lách mới? Ghi lời biện minh mới, thêm kịch bản (hoặc `expect`) bắt đúng lời đó vào `tests/`, thêm câu
+trả lời tường minh vào skill, chạy lại `bint skill test <tên>`. Lặp tới khi kịch bản khó nhất vẫn qua. Mỗi lần sửa skill
+sau đó đều quay lại Bước 2: sửa mà không kiểm là vi phạm luật sắt.
 
 Một skill xong hẳn rồi mới sang skill kế tiếp; không viết hàng loạt rồi kiểm một lượt.
-
-> Hiện RED/GREEN do bạn chạy thủ công bằng subagent. Phiên bản Bint sau sẽ có lệnh kiểm thử skill thay cho bước này.
 
 ## Bước 5 — Xuất bản
 
@@ -114,8 +161,8 @@ giữ `name`, `description`) và ghi mục `custom` trong `core.lock`. Nguồn c
 tay bản đã xuất bản**: lần sync sau báo xung đột và không ghi đè. Skill không qua lint thì không được xuất bản (bản
 đang dùng được giữ nguyên).
 
-**Không tự `git commit`.** Báo người dùng: tệp đã tạo/sửa, kết quả lint, kết quả hai vòng kiểm thử (có và không có
-skill, kèm các lời biện minh đã bịt), và những gì chưa kiểm được. Việc commit và review là của người dùng.
+**Không tự `git commit`.** Báo người dùng: tệp đã tạo/sửa, kết quả lint, kết quả hai vòng kiểm thử (tỉ lệ tuân thủ nhánh
+`without` và `with` từ `bint skill test`, kèm các lời biện minh đã bịt và tệp kết quả JSON), và những gì chưa kiểm được. Việc commit và review là của người dùng.
 
 <!-- bint:anchor project-rules -->
 <!-- bint:anchor-end project-rules -->

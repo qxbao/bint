@@ -37,7 +37,13 @@ const GuardrailWorktree = "bint-worktree"
 const (
 	OutcomeFired    = "fired"    // ánh xạ được sang bước, vi phạm bị chặn
 	OutcomeUnmapped = "unmapped" // không ánh xạ được, bị chặn theo chính sách fail-closed có giới hạn
+	// OutcomeMissedByHook: hậu kiểm ở `bint run complete` thấy một lời gọi vi phạm đã chạy thật mà hook không chặn (workflow
+	// ghi, không phải hook; xem WorktreeViolation).
+	OutcomeMissedByHook = "missed_by_hook"
 )
+
+// OnPostStep là giá trị `on` của sự kiện hậu kiểm ở `bint run complete` (không phải điểm móc của hook).
+const OnPostStep = "post_step"
 
 // SessionStepRecord là tệp `bint run next` ghi khi mở một bước subagent: runtime/session-steps/<run_id>.json.
 // Hook dùng nó để biết worktree của bước (Isolated=false: tác vụ chạy ở cây gốc dùng chung, không có gì để chặn).
@@ -225,6 +231,8 @@ type worktreeVerdict struct {
 	Deny    bool
 	Outcome string
 	Reason  string
+	// What: phần mô tả vi phạm trong Reason ("đường dẫn X nằm ngoài worktree", ...), dùng cho hậu kiểm.
+	What string
 }
 
 // cdTargetRe: tiền tố `cd MỘT_TOKEN &&` (cùng dạng cdPrefixRe, có nhóm bắt đích). Dạng nháy kép nhận `\` (đường dẫn Windows
@@ -328,7 +336,7 @@ func worktreeDecision(c worktreeCheck) worktreeVerdict {
 			"đang có bước chạy trên worktree: " + strings.Join(raw, ", ")
 	}
 	deny := func(what string) worktreeVerdict {
-		return worktreeVerdict{Deny: true, Outcome: outcome, Reason: fmt.Sprintf(
+		return worktreeVerdict{Deny: true, Outcome: outcome, What: what, Reason: fmt.Sprintf(
 			"Bint: %s bị chặn — %s. Bạn đang đứng ở cây gốc, không phải worktree. Chỉ làm việc trong worktree: dùng đường dẫn tuyệt đối "+
 				"dưới đó cho Read/Edit/Write, và bắt đầu MỌI lệnh Bash bằng `%s…` (giữ nguyên dấu nháy).", c.Tool, what+" ("+where+")", cdHint)}
 	}
