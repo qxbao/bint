@@ -788,6 +788,8 @@ type stepRun struct {
 	onEnd func()
 	// timedOut: driver session, hợp đồng thuê đã hết hạn lúc đóng bước.
 	timedOut bool
+	// isoLeak: lý do hậu kiểm cô lập thấy subagent đã chạy lời gọi ngoài worktree (auditIsolation); khác rỗng ⇒ bước blocked.
+	isoLeak string
 }
 
 // release nhả khoá worktree của bước (và seam kiểm thử): gọi đúng một lần khi bước kết thúc hoặc không bắt đầu được.
@@ -1052,6 +1054,11 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	}
 	if denied && status != "interrupted" {
 		status, endReason, deniedPaths = "blocked", reason, paths
+	}
+	if sr.isoLeak != "" && status != "interrupted" {
+		// Ghi đè cả failed/timeout: người phải xem cây gốc trước khi tác vụ đi tiếp.
+		status, endReason = "blocked", sr.isoLeak
+		r.RecordError(rs.t.State.ID, step, sr.isoLeak)
 	}
 	srr.Status = status
 	if rs.session && res.CostUSD != nil {

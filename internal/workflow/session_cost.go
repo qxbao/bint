@@ -17,12 +17,10 @@ import (
 // giá dựng sẵn (ghi đè bằng harnesses.claude.pricing). Không đọc được hoặc model không có giá ⇒ chi phí unknown (nil, không
 // phải 0) kèm ghi chú: max_cost_usd khi đó chỉ là chỉ dẫn. Không tìm thấy thì không đoán.
 
-// subagentUsage tìm token của subagent: seam kiểm thử, rồi tệp hook ghi (runtime/subagents/<agent_id>.json), rồi sự kiện
-// subagent.stopped còn chờ trong spool (chưa bị nạp vào SQLite). Trả lý do khi không đọc được.
-func (r *Runner) subagentUsage(agentID string) (*claude.Usage, string) {
-	if r.SubagentUsage != nil {
-		return r.SubagentUsage(agentID)
-	}
+// subagentTranscript tìm đường dẫn transcript của subagent: tệp hook ghi (runtime/subagents/<agent_id>.json), rồi sự kiện
+// subagent.stopped còn chờ trong spool (chưa bị nạp vào SQLite). Trả lý do khi không có hoặc không mở được. Dùng chung cho
+// chi phí và hậu kiểm cô lập.
+func (r *Runner) subagentTranscript(agentID string) (string, string) {
 	transcript := ""
 	runtimeDir := filepath.Dir(r.Tasks.Dir)
 	if rec, ok := hookcore.ReadSubagentRecord(runtimeDir, agentID); ok {
@@ -32,10 +30,22 @@ func (r *Runner) subagentUsage(agentID string) (*claude.Usage, string) {
 		transcript = transcriptFromSpool(r.Spool, agentID)
 	}
 	if transcript == "" {
-		return nil, "chưa có SubagentStop của " + agentID + " (hook chưa cài hoặc chưa tới)"
+		return "", "chưa có SubagentStop của " + agentID + " (hook chưa cài hoặc chưa tới)"
 	}
 	if _, err := os.Stat(transcript); err != nil {
-		return nil, "không mở được transcript " + transcript + ": " + err.Error()
+		return "", "không mở được transcript " + transcript + ": " + err.Error()
+	}
+	return transcript, ""
+}
+
+// subagentUsage tìm token của subagent: seam kiểm thử, rồi transcript (subagentTranscript). Trả lý do khi không đọc được.
+func (r *Runner) subagentUsage(agentID string) (*claude.Usage, string) {
+	if r.SubagentUsage != nil {
+		return r.SubagentUsage(agentID)
+	}
+	transcript, why := r.subagentTranscript(agentID)
+	if transcript == "" {
+		return nil, why
 	}
 	u := claude.SubagentUsage(transcript)
 	if u == nil {

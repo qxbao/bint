@@ -740,6 +740,23 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
       `cd <worktree> && … > /đường/dẫn/khác` không bị chặn. **Chạy song song:** mỗi việc một phiếu `--driver session --worktree`,
       Agent chạy nền, vòng `next → Agent → complete` xen kẽ; mỗi tác vụ tự `land` ở finalize, tác vụ land sau xung đột thì chỉ nó
       `blocked`.
+    - **Hậu kiểm cô lập `missed_by_hook` (NT-ISO-LEAK).** Hook là lớp chặn duy nhất của guardrail trên và fail-open (Claude Code
+      cho lệnh đi qua khi hook không chạy hoặc không trả quyết định; ở V1 một lần ghi lọt ra cây gốc không để lại dấu vết). Nên
+      `bint run complete --agent-id X` của bước `bint-implementer` thuộc tác vụ `worktree` quét lại transcript của subagent (cùng
+      tệp đã đọc để tính chi phí) bằng đúng quy tắc của hook (`hookcore.WorktreeViolation`): Edit/Write/MultiEdit/NotebookEdit có
+      đường dẫn ngoài worktree, Bash không bắt đầu bằng `cd <worktree> &&` (hoặc `cd` ra ngoài) và `cwd` ngoài worktree. Chỉ tính
+      lời gọi đã **thực sự chạy**: có `tool_result`, không phải lời gọi bị hook chặn (`is_error` kèm "hook error" hoặc "Bint: … bị
+      chặn"); Edit-type bỏ mọi kết quả lỗi, Bash lỗi không do hook (thoát khác 0) vẫn tính vì lệnh đã chạy; lời gọi chưa có
+      `tool_result` không tính. Có vi phạm thì bước **không** completed: tác vụ `blocked` (ghi đè cả `failed`/quá hạn; trừ khi bị
+      huỷ), lý do nêu tối đa 10 mục `tool_use_id (công cụ): tệp|lệnh` (đã che bí mật) và nhắc kiểm tra cây gốc (các thay đổi đó
+      không thuộc tác vụ; **Bint không tự xoá hay khôi phục**), lịch sử lỗi của phiếu ghi lại, và mỗi vi phạm một sự kiện spool
+      `guardrail.triggered` (`guardrail: bint-worktree`, `outcome: missed_by_hook`, `on: post_step`, `blocked: false`, kèm
+      `agent_id`, `tool_use_id`, `paths` hoặc `command`; `source` là của Bint chứ không phải của hook, `event_id` ổn định theo
+      lượt con + `tool_use_id`). Người xem xong thì tiếp tục bằng `bint run resume`. Không đọc được transcript (thiếu
+      `--agent-id`, thiếu `SubagentStop`, tệp mất, bố cục không nhận ra) thì chỉ ghi chú "không hậu kiểm được cô lập", không chặn
+      (giống chi phí). Không áp cho tác vụ `shared` hay subagent khác. Giới hạn: không thấy ghi gián tiếp qua shell
+      (`cd <worktree> && … > /đường/dẫn/khác`), và phụ thuộc bố cục transcript Claude Code (không công bố). Chẩn đoán hook không
+      chạy: [BINT_HOOK_TRACE](harness-components.md#ghi-vết-hook-bint_hook_trace).
     - **Ghép sự kiện theo `agent_id` (mục 6.5).** Hook ghi `agent_id` vào payload mọi sự kiện của subagent;
       `bint run complete --agent-id X` ghi `agent_id` vào `workflow.finished` của lượt con. Lúc nạp spool, sự kiện hook cùng
       `agent_id` được gắn vào lượt con — cả khi hook tới sau (`resolveRun` tra ánh xạ) lẫn khi đã nạp trước (`bint task …` của

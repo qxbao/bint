@@ -65,6 +65,11 @@ Claude: có; Codex, Antigravity: không, guardrail không áp) và tệp `runtim
 chỉ đọc tệp. Không ánh xạ được thì fail-closed có giới hạn (chỉ khi còn bước worktree đang chạy). Chi tiết:
 [isolation-subagent-plan.md](isolation-subagent-plan.md) mục 12.14.
 
+**Hậu kiểm `bint-worktree` ở `bint run complete`.** Vì hook fail-open, `complete` của bước `bint-implementer` (tác vụ `worktree`) còn
+quét transcript của subagent: lời gọi vi phạm đã thực sự chạy mà hook không chặn thì tác vụ `blocked` và spool có
+`guardrail.triggered` với `outcome: missed_by_hook`, `on: post_step` (do workflow ghi, không phải hook). Chi tiết và giới hạn:
+[workflows.md](workflows.md#driver-session).
+
 **Đo trong eval:** nhánh `bint` dùng tập thành phần đang hiệu lực; guidance dựng sẵn `bint-mcp-tools`
 thay đoạn ghi chú MCP cũ **đúng từng byte** (repo không có `.bint/harness` thì nhánh `bint` y hệt trước).
 Biến thể `bint@harness=off` (chỉ bản dựng sẵn) | `on` (mặc định: verified) | `all` (thêm candidate), ví dụ
@@ -79,3 +84,16 @@ Mỗi cơ hội cho tối đa **hai đề xuất anh em, chung và riêng**: b�
 trên tác vụ khớp vùng; `bint evolve cycle` giữ một nửa theo `non_inferiority_margin` và **không bao giờ gộp** hai
 bản. `bint evolve evaluate` buộc `--delivery bint` cho đề xuất quy trình. Tự áp dụng chỉ với `create` rủi ro thấp,
 và thành phần vẫn vào ở `candidate` chờ người duyệt. Phần đo (tốn tiền) chưa chạy: xem [p8-harness-evolution-plan.md](p8-harness-evolution-plan.md).
+
+### Ghi vết hook (`BINT_HOOK_TRACE`)
+
+Chẩn đoán "hook có được gọi không, nhận gì, trả gì". Đặt `BINT_HOOK_TRACE=1` **trước khi mở harness** (hook kế thừa môi trường
+của harness); mỗi lần `bint hook <harness>` chạy ghi một cặp tệp dưới `<thư mục trạng thái>/runtime/hook-trace/`:
+
+- `<thời điểm UTC>-<harness>-<sự kiện>.in`: đầu vào nguyên văn (cắt ở 1 MiB kèm dòng đánh dấu), ghi **trước** khi xử lý;
+- `<cùng tên>.out`: JSON `output` (thứ in ra stdout cho harness), `duration_ms`, `skipped`, `written`, `spool_file`, `error`.
+
+Có `.in` mà không có `.out` nghĩa là hook chết hoặc quá hạn giữa chừng; không có `.in` nghĩa là harness không gọi hook. Chỉ giữ 500
+tệp mới nhất (cũ nhất bị xoá). Không đặt biến (hoặc giá trị khác `1`) thì không ghi gì. Lỗi ghi vết bị bỏ qua: hook không bao giờ
+chặn agent, không đổi đầu ra, không mở SQLite. **Cảnh báo:** `.in` chứa nguyên văn lệnh, đường dẫn và nội dung tệp của agent (tệp
+0600, trong thư mục trạng thái ngoài repository); tắt biến và xoá thư mục khi chẩn đoán xong.

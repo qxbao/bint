@@ -32,6 +32,11 @@ func RunHook(ctx context.Context, harness, event string, stdin io.Reader, stdout
 	data, err := io.ReadAll(io.LimitReader(stdin, 8<<20))
 	env := hookcore.Env{BintVersion: version}
 	var res hookcore.Result
+	var trace *hookTrace
+	if err == nil {
+		trace = startHookTrace(harness, event, data) // chỉ khi BINT_HOOK_TRACE=1; mọi lỗi bị nuốt
+	}
+	handled := time.Now()
 	if err == nil {
 		switch harness {
 		case codex.HarnessName:
@@ -42,12 +47,14 @@ func RunHook(ctx context.Context, harness, event string, stdin io.Reader, stdout
 			res, err = claude.HandleHook(ctx, bytes.NewReader(data), env)
 		}
 	}
+	dur := time.Since(handled)
 	if harness == antigravity.HarnessName && res.Output == "" {
 		res.Output = antigravity.DefaultOutput(event)
 	}
 	if res.Output != "" {
 		fmt.Fprintln(stdout, res.Output)
 	}
+	trace.finish(res, err, dur)
 	if err == nil {
 		return
 	}
@@ -62,14 +69,7 @@ func RunHook(ctx context.Context, harness, event string, stdin io.Reader, stdout
 		name = event
 	}
 	line := fmt.Sprintf("%s %s %s: %v\n", time.Now().UTC().Format(time.RFC3339), harness, name, err)
-	dir := in.Cwd
-	if dir == "" && len(in.WorkspacePaths) > 0 {
-		dir = in.WorkspacePaths[0]
-	}
-	if dir == "" {
-		dir, _ = os.Getwd()
-	}
-	if ws, werr := OpenWorkspace(context.Background(), dir, false); werr == nil && ws.Paths.Initialized() {
+	if ws := hookWorkspace(in.Cwd, in.WorkspacePaths); ws != nil {
 		f, ferr := os.OpenFile(filepath.Join(ws.Paths.Root, HookErrorLog), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if ferr == nil {
 			defer f.Close()

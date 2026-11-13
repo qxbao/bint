@@ -634,6 +634,7 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 		res.Error = a.reason
 	}
 	r.fillSubagentUsage(rs, &res, ps.Step, a.agentID)
+	sr.isoLeak = r.auditIsolation(rs, ps, a.agentID)
 	ok = r.endStep(ctx, rs, sr, res)
 	r.saveSessionSpend(rs)
 	return ok

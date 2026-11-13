@@ -73,6 +73,7 @@ var baseExclusions = []exclusion{
 	{"workflow/session.go", "%w: --run %q (%s)", rSession},
 	{"workflow/session.go", "thiếu --agent-id", rSession},
 	{"workflow/session_cost.go", "thiếu --agent-id", rSession},
+	{"workflow/session_isolation.go", "thiếu --agent-id", rSession},
 }
 
 var litsrUsage = []struct{ file, contains string }{
