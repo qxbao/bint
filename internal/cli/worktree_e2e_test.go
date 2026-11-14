@@ -33,6 +33,10 @@ func initWorktreeRepo(t *testing.T) string {
 	testutil.Isolate(t)
 	asHuman(t)
 	root := testutil.NewRepo(t, map[string]string{"app.txt": "v1\n", "migrations/001.sql": "--\n"})
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
 		t.Fatalf("init: %d\n%s", code, out)
 	}

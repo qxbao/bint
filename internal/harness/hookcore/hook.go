@@ -29,6 +29,7 @@ import (
 	"bint/internal/hcomp"
 	"bint/internal/knowledge"
 	"bint/internal/pathglob"
+	"bint/internal/pathutil"
 	"bint/internal/spool"
 	"bint/internal/state"
 )
@@ -428,8 +429,11 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		}
 		var rels []string
 		for _, p := range info.Paths {
-			if rel, inside := RelPath(repo.Toplevel, cwd, p); inside {
+			if rel, target, inside := relPathNames(repo.Toplevel, cwd, p); inside {
 				rels = append(rels, rel)
+				if info.Kind == ToolEdit && target != rel {
+					rels = append(rels, target)
+				}
 			}
 		}
 		if len(rels) == 0 {
@@ -976,21 +980,53 @@ func RawText(raw json.RawMessage) string {
 // RelPath trả về đường dẫn tương đối (dấu '/') của p so với root; p tương đối
 // được hiểu theo cwd. inside=false nếu p nằm ngoài root.
 func RelPath(root, cwd, p string) (string, bool) {
+	rel, _, inside := relPathNames(root, cwd, p)
+	return rel, inside
+}
+
+// relPathNames keeps both the caller's name and the canonical target so policy
+// checks cannot be bypassed by a symlink in either direction.
+func relPathNames(root, cwd, p string) (string, string, bool) {
 	if p == "" {
-		return "", false
+		return "", "", false
 	}
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(cwd, p)
 	}
-	rel, err := filepath.Rel(state.NormalizePath(root), state.NormalizePath(p))
-	if err != nil || outside(rel) {
-		return "", false
+	// Missing files must resolve through the same ancestors as the repository;
+	// on macOS Git commonly reports /private/var while hooks use /var.
+	root, err := pathutil.Canonical(root)
+	if err != nil {
+		return "", "", false
 	}
-	// NormalizePath hạ chữ thường trên Windows/macOS; lấy lại cách viết gốc nếu được.
-	if r2, err := filepath.Rel(filepath.Clean(root), filepath.Clean(p)); err == nil && !outside(r2) {
+	resolved, err := pathutil.Canonical(p)
+	if err != nil {
+		return "", "", false
+	}
+	rootKey := state.NormalizePath(root)
+	rel, err := filepath.Rel(rootKey, state.NormalizePath(resolved))
+	if err != nil || outside(rel) {
+		return "", "", false
+	}
+	if r2, err := filepath.Rel(root, resolved); err == nil && !outside(r2) {
 		rel = r2
 	}
-	return filepath.ToSlash(rel), true
+	target := filepath.ToSlash(rel)
+	// Containment uses the resolved target, but policy globs need the original
+	// repository-relative name. Resolve only the repository prefix, keeping
+	// symlinks below it (e.g. migrations/001.sql -> ../src/a.go) in the result.
+	// Walk all ancestors so a nested link back to root cannot erase its name.
+	for prefix := filepath.Dir(p); ; prefix = filepath.Dir(prefix) {
+		if real, err := pathutil.Canonical(prefix); err == nil && state.NormalizePath(real) == rootKey {
+			if original, err := filepath.Rel(prefix, p); err == nil && !outside(original) {
+				rel = original
+			}
+		}
+		if filepath.Dir(prefix) == prefix {
+			break
+		}
+	}
+	return filepath.ToSlash(rel), target, true
 }
 
 func outside(rel string) bool {

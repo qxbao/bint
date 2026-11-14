@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -210,6 +211,69 @@ func TestGuardrailPreEditMergesWithProtectedPath(t *testing.T) {
 	if out := runHook(t, hookInput("s", "PreToolUse", root, map[string]any{"tool_name": "Edit",
 		"tool_input": map[string]any{"file_path": filepath.Join(root, "src", "a.go")}, "tool_use_id": "e2"})).Output; out != "" {
 		t.Fatalf("không khớp: %s", out)
+	}
+}
+
+// Both the name used by the write tool and its resolved target must be checked,
+// including when the repository itself is reached via an alias.
+func TestProtectedPathThroughSymlink(t *testing.T) {
+	for _, harness := range []string{"claude", "codex"} {
+		t.Run(harness, func(t *testing.T) {
+			root := guardRepo(t, []string{harness}, nil)
+			alias := filepath.Join(t.TempDir(), "repo alias")
+			if err := os.Symlink(root, alias); err != nil {
+				if runtime.GOOS == "windows" {
+					t.Skipf("symlink privilege unavailable: %v", err)
+				}
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(filepath.Join(root, "migrations"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			for name, target := range map[string]string{"001.sql": "../src/a.go", "linked": "../src"} {
+				if err := os.Symlink(target, filepath.Join(root, "migrations", name)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(root, "migrations", "003.sql"), []byte("SELECT 1;\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for name, target := range map[string]string{"alias.sql": "../migrations/003.sql", "linked": "../migrations"} {
+				if err := os.Symlink(target, filepath.Join(root, "src", name)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, rel := range []string{"migrations/001.sql", "migrations/linked/new.go", "src/alias.sql", "src/linked/new.sql", "src/a.go"} {
+				t.Run(rel, func(t *testing.T) {
+					input := map[string]any{"file_path": filepath.Join(alias, filepath.FromSlash(rel))}
+					tool, want := "Edit", "ask"
+					if harness == "codex" {
+						tool, want = "apply_patch", "deny"
+						input = map[string]any{"command": "*** Begin Patch\n*** Update File: " + rel + "\n*** End Patch"}
+					}
+					if rel == "src/a.go" {
+						want = ""
+					}
+					in := hookInput("protected-symlink", "PreToolUse", alias, map[string]any{
+						"tool_name": tool, "tool_input": input, "tool_use_id": rel,
+					})
+					var res hookcore.Result
+					var err error
+					if harness == "codex" {
+						res, err = codex.HandleHook(context.Background(), strings.NewReader(in), hookcore.Env{BintVersion: "test"})
+					} else {
+						res, err = claude.HandleHook(context.Background(), strings.NewReader(in), hookcore.Env{BintVersion: "test"})
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					got, _ := decision(t, res.Output)["permissionDecision"].(string)
+					if got != want {
+						t.Fatalf("protected symlink %s: got %v, want %s; output=%s", rel, got, want, res.Output)
+					}
+				})
+			}
+		})
 	}
 }
 

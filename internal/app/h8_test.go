@@ -307,7 +307,7 @@ func TestH8WriteGapIsViolation(t *testing.T) {
 			step, _ := f.runReview(t, func() {
 				if stage != "" {
 					repoWriteHook = func(st, p string) {
-						if st != stage || filepath.Clean(p) != filepath.Clean(target) {
+						if st != stage || workflow.NormalizeWritePath(p) != workflow.NormalizeWritePath(target) {
 							return
 						}
 						repoWriteHook = nil // một lần

@@ -27,6 +27,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/gitrepo"
+	"bint/internal/pathutil"
 )
 
 // EnvStateDir ghi đè thư mục gốc chứa trạng thái của mọi repository.
@@ -123,7 +124,11 @@ func Resolve(repo gitrepo.Repo, cfg config.Config) (Paths, error) {
 		}
 		root = filepath.Join(base, id)
 	}
-	if isInside(root, repo.Toplevel) {
+	inside, err := isInside(root, repo.Toplevel)
+	if err != nil {
+		return Paths{}, fmt.Errorf("chuẩn hoá thư mục trạng thái: %w", err)
+	}
+	if inside {
 		return Paths{}, fmt.Errorf("thư mục trạng thái %s nằm trong repository; đặt state.dir ra ngoài", root)
 	}
 	return At(id, root), nil
@@ -154,12 +159,20 @@ func At(id, root string) Paths {
 	}
 }
 
-func isInside(p, dir string) bool {
+func isInside(p, dir string) (bool, error) {
+	dir, err := pathutil.Canonical(dir)
+	if err != nil {
+		return false, err
+	}
+	p, err = pathutil.Canonical(p)
+	if err != nil {
+		return false, err
+	}
 	rel, err := filepath.Rel(NormalizePath(dir), NormalizePath(p))
 	if err != nil {
-		return false
+		return false, nil // different volumes cannot contain each other (Windows)
 	}
-	return rel == "." || (!strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel))
+	return rel == "." || (rel != ".." && !strings.HasPrefix(filepath.ToSlash(rel), "../") && !filepath.IsAbs(rel)), nil
 }
 
 // Initialized cho biết thư mục trạng thái đã được `bint init` tạo hay chưa.

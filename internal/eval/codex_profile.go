@@ -69,9 +69,16 @@ func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), err
 	// User skills ở ~/.agents/skills vẫn được Codex phát hiện dù CODEX_HOME mới.
 	// Ghi deny theo đường dẫn (cả symlink và đích) thay vì giả định home mới là đủ.
 	var disabled []map[string]any
+	disabledPaths := map[string]bool{}
+	disable := func(path string) {
+		if !disabledPaths[path] {
+			disabledPaths[path] = true
+			disabled = append(disabled, map[string]any{"path": path, "enabled": false})
+		}
+	}
 	seen := map[string]bool{}
-	var visit func(string) error
-	visit = func(root string) error {
+	var visit func(string, ...string) error
+	visit = func(root string, aliases ...string) error {
 		real, err := filepath.EvalSymlinks(root)
 		if os.IsNotExist(err) {
 			return nil
@@ -79,11 +86,32 @@ func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), err
 		if err != nil {
 			return err
 		}
+		// Carry all spellings through a single traversal. Visiting aliases
+		// separately would lose their rules when seen[real] deduplicates dirs.
+		spellings := append([]string{root, real}, aliases...)
+		known := map[string]bool{}
+		for _, p := range spellings {
+			known[p] = true
+		}
+		for i := 0; i < len(spellings); i++ {
+			p := spellings[i]
+			if target, e := os.Readlink(p); e == nil {
+				if !filepath.IsAbs(target) {
+					target = filepath.Join(filepath.Dir(p), target)
+				}
+				if !known[target] {
+					known[target] = true
+					spellings = append(spellings, target)
+				}
+			}
+		}
 		// Một SKILL.md có thể là symlink tới file tên khác; phải chặn tên
 		// được Codex phát hiện trước khi dereference, cùng đường dẫn đích.
 		if filepath.Base(root) == "SKILL.md" {
 			if st, e := os.Stat(real); e == nil && !st.IsDir() {
-				disabled = append(disabled, map[string]any{"path": root, "enabled": false}, map[string]any{"path": real, "enabled": false})
+				for _, p := range spellings {
+					disable(p)
+				}
 				return nil
 			}
 		}
@@ -95,13 +123,20 @@ func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), err
 			if err != nil {
 				return err
 			}
+			rel, err := filepath.Rel(real, path)
+			if err != nil {
+				return err
+			}
 			if d.Type()&os.ModeSymlink != 0 {
-				return visit(path)
+				var childAliases []string
+				for _, p := range spellings {
+					childAliases = append(childAliases, filepath.Join(p, rel))
+				}
+				return visit(path, childAliases...)
 			}
 			if !d.IsDir() && d.Name() == "SKILL.md" {
-				disabled = append(disabled, map[string]any{"path": path, "enabled": false})
-				if rel, e := filepath.Rel(real, path); e == nil && root != real {
-					disabled = append(disabled, map[string]any{"path": filepath.Join(root, rel), "enabled": false})
+				for _, p := range spellings {
+					disable(filepath.Join(p, rel))
 				}
 			}
 			return nil
