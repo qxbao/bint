@@ -428,11 +428,12 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			return Result{Skipped: "công cụ không đọc/sửa tệp"}, nil
 		}
 		var rels []string
-		for _, p := range info.Paths {
-			if rel, target, inside := relPathNames(repo.Toplevel, cwd, p); inside {
-				rels = append(rels, rel)
-				if info.Kind == ToolEdit && target != rel {
-					rels = append(rels, target)
+		if info.Kind == ToolEdit {
+			rels = editRels(repo.Toplevel, cwd, info.Paths)
+		} else {
+			for _, p := range info.Paths {
+				if rel, inside := RelPath(repo.Toplevel, cwd, p); inside {
+					rels = append(rels, rel)
 				}
 			}
 		}
@@ -581,11 +582,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			if g := newSessionGuard(); g != nil {
 				var edits []string
 				if info.Kind == ToolEdit && ok {
-					for _, p := range info.Paths {
-						if rel, inside := RelPath(repo.Toplevel, cwd, p); inside {
-							edits = append(edits, rel)
-						}
-					}
+					edits = editRels(repo.Toplevel, cwd, info.Paths)
 				}
 				g.post(edits, info.Command, info.Kind == ToolShell)
 			}
@@ -606,12 +603,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			ev.Payload["skill"] = info.Skill
 			ev.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), info.Skill)
 		case ToolEdit:
-			var rels []string
-			for _, p := range info.Paths {
-				if rel, inside := RelPath(repo.Toplevel, cwd, p); inside {
-					rels = append(rels, rel)
-				}
-			}
+			rels := editRels(repo.Toplevel, cwd, info.Paths)
 			if len(rels) == 0 {
 				return Result{Skipped: "tệp nằm ngoài repository"}, nil
 			}
@@ -985,7 +977,10 @@ func RelPath(root, cwd, p string) (string, bool) {
 }
 
 // relPathNames keeps both the caller's name and the canonical target so policy
-// checks cannot be bypassed by a symlink in either direction.
+// checks cannot be bypassed by a symlink in either direction. When the
+// filesystem cannot resolve a path, it falls back to the lexical path rather
+// than reporting it outside the repository: a resolution error must not skip
+// protected-path checks.
 func relPathNames(root, cwd, p string) (string, string, bool) {
 	if p == "" {
 		return "", "", false
@@ -993,31 +988,32 @@ func relPathNames(root, cwd, p string) (string, string, bool) {
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(cwd, p)
 	}
+	p = filepath.Clean(p)
 	// Missing files must resolve through the same ancestors as the repository;
 	// on macOS Git commonly reports /private/var while hooks use /var.
-	root, err := pathutil.Canonical(root)
-	if err != nil {
-		return "", "", false
-	}
-	resolved, err := pathutil.Canonical(p)
-	if err != nil {
-		return "", "", false
-	}
-	rootKey := state.NormalizePath(root)
+	rootReal := pathutil.BestEffort(root)
+	resolved := pathutil.BestEffort(p)
+	rootKey := state.NormalizePath(rootReal)
 	rel, err := filepath.Rel(rootKey, state.NormalizePath(resolved))
 	if err != nil || outside(rel) {
 		return "", "", false
 	}
-	if r2, err := filepath.Rel(root, resolved); err == nil && !outside(r2) {
+	// NormalizePath hạ chữ thường trên Windows/macOS; lấy lại cách viết gốc nếu được.
+	if r2, err := filepath.Rel(rootReal, resolved); err == nil && !outside(r2) {
 		rel = r2
 	}
 	target := filepath.ToSlash(rel)
 	// Containment uses the resolved target, but policy globs need the original
-	// repository-relative name. Resolve only the repository prefix, keeping
-	// symlinks below it (e.g. migrations/001.sql -> ../src/a.go) in the result.
-	// Walk all ancestors so a nested link back to root cannot erase its name.
+	// repository-relative name. Common case: p is spelled under root itself, and
+	// no ancestor of root can resolve back to root, so the lexical name is it.
+	if r, err := filepath.Rel(filepath.Clean(root), p); err == nil && !outside(r) {
+		return filepath.ToSlash(r), target, true
+	}
+	// Otherwise resolve only the repository prefix, keeping symlinks below it
+	// (e.g. migrations/001.sql -> ../src/a.go) in the result. Walk all ancestors
+	// so a nested link back to root cannot erase its name.
 	for prefix := filepath.Dir(p); ; prefix = filepath.Dir(prefix) {
-		if real, err := pathutil.Canonical(prefix); err == nil && state.NormalizePath(real) == rootKey {
+		if state.NormalizePath(prefix) == rootKey {
 			if original, err := filepath.Rel(prefix, p); err == nil && !outside(original) {
 				rel = original
 			}
@@ -1027,6 +1023,28 @@ func relPathNames(root, cwd, p string) (string, string, bool) {
 		}
 	}
 	return filepath.ToSlash(rel), target, true
+}
+
+// editRels lists the repository-relative names an edit touches: the name the
+// tool used and, when a symlink redirects it, the file actually written.
+// Pre- and post-tool hooks must agree, so guardrails and scope checks keyed on
+// the target see the same paths the approval prompt did.
+func editRels(root, cwd string, paths []string) []string {
+	var rels []string
+	seen := map[string]bool{}
+	add := func(r string) {
+		if !seen[r] {
+			seen[r] = true
+			rels = append(rels, r)
+		}
+	}
+	for _, p := range paths {
+		if rel, target, inside := relPathNames(root, cwd, p); inside {
+			add(rel)
+			add(target)
+		}
+	}
+	return rels
 }
 
 func outside(rel string) bool {

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -60,5 +61,34 @@ func TestRelPathThroughSymlink(t *testing.T) {
 				t.Fatalf("RelPath = %q, %v; want %q, %v", got, ok, tc.want, tc.inside)
 			}
 		})
+	}
+}
+
+// A dangling symlink must be checked under its target's name too, and
+// pre/post hooks must report the same names for the edit.
+func TestEditRelsDanglingSymlinkTarget(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"src", "migrations"} {
+		if err := os.Mkdir(filepath.Join(root, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("../migrations/999.sql", filepath.Join(root, "src", "x.sql")); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlink privilege unavailable: %v", err)
+		}
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "job")
+	if err := os.Symlink(outside, filepath.Join(root, "src", "out")); err != nil {
+		t.Fatal(err)
+	}
+	got := editRels(root, root, []string{"src/x.sql", "src/out"})
+	want := []string{"src/x.sql", "migrations/999.sql"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("editRels = %v; want %v (src/out writes outside the repository)", got, want)
 	}
 }

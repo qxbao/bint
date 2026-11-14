@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"bint/internal/pathutil"
 )
 
 // codexEvalProfile tách auth/runtime khỏi instructions, plugin, hook và skill cá
@@ -76,7 +79,12 @@ func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), err
 			disabled = append(disabled, map[string]any{"path": path, "enabled": false})
 		}
 	}
-	seen := map[string]bool{}
+	// active guards against symlink cycles; walked skips a directory already
+	// walked with exactly the same spellings. Deduplicating on the real
+	// directory alone would drop a second, independent link to it (skills/a
+	// and skills/b -> /shared): Codex finds SKILL.md under both names.
+	active := map[string]bool{}
+	walked := map[string]bool{}
 	var visit func(string, ...string) error
 	visit = func(root string, aliases ...string) error {
 		real, err := filepath.EvalSymlinks(root)
@@ -95,10 +103,7 @@ func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), err
 		}
 		for i := 0; i < len(spellings); i++ {
 			p := spellings[i]
-			if target, e := os.Readlink(p); e == nil {
-				if !filepath.IsAbs(target) {
-					target = filepath.Join(filepath.Dir(p), target)
-				}
+			if target, e := pathutil.LinkTarget(p); e == nil {
 				if !known[target] {
 					known[target] = true
 					spellings = append(spellings, target)
@@ -115,10 +120,18 @@ func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), err
 				return nil
 			}
 		}
-		if seen[real] {
+		if active[real] {
 			return nil
 		}
-		seen[real] = true
+		names := append([]string(nil), spellings...)
+		sort.Strings(names)
+		key := strings.Join(names, "\x00")
+		if walked[key] {
+			return nil
+		}
+		walked[key] = true
+		active[real] = true
+		defer delete(active, real)
 		return filepath.WalkDir(real, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
