@@ -315,7 +315,15 @@ func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 		}
 		return strings.TrimSpace(string(out)), nil
 	}
-	if _, err := run("add", "-A", "--", ".", ":(exclude)"+task.LedgerDir); err != nil {
+	// Sổ phiếu (.bint/tasks) không thuộc ảnh chụp. Không loại bằng pathspec
+	// ":(exclude).bint/tasks" trong git add: khi đường dẫn đó (hoặc .bint/) bị ignore,
+	// chẳng hạn bint init --git local thêm .bint/ vào .git/info/exclude, git add thoát mã 1
+	// ("paths are ignored") và mọi bước chỉ-đọc bị chặn. Gỡ khỏi chỉ mục tạm sau khi add thì
+	// không phụ thuộc .gitignore.
+	if _, err := run("add", "-A", "--", "."); err != nil {
+		return "", err
+	}
+	if _, err := run("rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", task.LedgerDir); err != nil {
 		return "", err
 	}
 	return run("write-tree")

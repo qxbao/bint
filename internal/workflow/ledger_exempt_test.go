@@ -63,3 +63,47 @@ func TestLedgerPathExemptFromTreeChecks(t *testing.T) {
 		t.Fatal("dấu vân tay phải đổi khi mã đổi")
 	}
 }
+
+// .bint/ (bint init --git local ghi vào .git/info/exclude) hoặc .bint/tasks bị ignore:
+// ảnh chụp của bước chỉ-đọc vẫn phải chụp được, không lỗi "paths are ignored".
+func TestWorktreeSnapshotLedgerIgnored(t *testing.T) {
+	ctx := context.Background()
+	for name, ignore := range map[string]struct{ file, line string }{
+		"info-exclude-bint": {".git/info/exclude", ".bint/\n"},
+		"gitignore-tasks":   {".gitignore", ".bint/tasks/\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := testutil.NewRepo(t, map[string]string{"a.go": "package a\n"})
+			p := filepath.Join(root, filepath.FromSlash(ignore.file))
+			os.MkdirAll(filepath.Dir(p), 0o755)
+			if err := os.WriteFile(p, []byte(ignore.line), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			led := filepath.Join(root, ".bint", "tasks", "01M7D2DDP0QFAQKXP484QS7VJX")
+			os.MkdirAll(led, 0o755)
+			if err := os.WriteFile(filepath.Join(led, "task.yml"), []byte("x\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			before, err := WorktreeSnapshot(ctx, root)
+			if err != nil {
+				t.Fatalf("WorktreeSnapshot lỗi khi sổ phiếu bị ignore: %v", err)
+			}
+			os.WriteFile(filepath.Join(led, "plan.md"), []byte("mới\n"), 0o644)
+			after, err := WorktreeSnapshot(ctx, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if before != after {
+				t.Fatal("ảnh chụp phải không đổi khi chỉ .bint/tasks đổi")
+			}
+			os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n// đổi\n"), 0o644)
+			after2, err := WorktreeSnapshot(ctx, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ps, _ := DiffPaths(ctx, root, before, after2); !slices.Equal(ps, []string{"a.go"}) {
+				t.Fatalf("thay đổi mã thật phải còn: %v", ps)
+			}
+		})
+	}
+}
