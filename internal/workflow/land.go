@@ -590,7 +590,7 @@ func (e *Env) OrphanWorktrees(ctx context.Context) ([]OrphanWorktree, error) {
 			if seen[state.NormalizePath(w.Path)] {
 				// Thư mục còn nhưng git coi là prunable: đã báo ở trên nếu mồ côi; thêm cờ.
 				for i := range out {
-					if out[i].Path == w.Path {
+					if samePath(out[i].Path, w.Path) {
 						out[i].Prunable = true
 					}
 				}

@@ -82,6 +82,10 @@ func TestWorktreeFlagsValidate(t *testing.T) {
 // người thì làm được. Kiểm thử đóng vai người gọi asHuman(t), vai agent gọi asAgent(t).
 func TestLandAndCancelHumanOnlyOperations(t *testing.T) {
 	ws, root, id := taskRepo(t)
+	physicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx := context.Background()
 	if _, err := ws.Tasks.Update(id, time.Now(), func(tk *task.Task) error {
 		tk.State.Classification.Isolation, tk.State.Classification.IsolationReason = task.IsolationWorktree, task.IsolationReasonUser
@@ -92,7 +96,7 @@ func TestLandAndCancelHumanOnlyOperations(t *testing.T) {
 	if _, _, err := ApproveTask(ctx, ws, TaskApproveOptions{Ref: id}); err != nil { // người xác nhận lệnh kiểm chứng
 		t.Fatal(err)
 	}
-	if res := runFeat(t, ws, id); res.Status != task.StatusInReview || res.Worktree == "" || res.Origin != root {
+	if res := runFeat(t, ws, id); res.Status != task.StatusInReview || res.Worktree == "" || res.Origin != physicalRoot {
 		t.Fatalf("b-feat: %+v", res)
 	}
 	wt := ws.WorktreePath(id)
