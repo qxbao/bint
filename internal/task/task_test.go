@@ -489,3 +489,19 @@ func TestVerificationReasonBackwardCompatible(t *testing.T) {
 		t.Fatalf("%s", b)
 	}
 }
+
+// path của phát hiện thành scope.allow của phiếu sửa (--from-findings): không được có ký tự glob hay đoạn "..";
+// tiêu đề được gộp về một dòng.
+func TestReviewSubmissionPathAndTitle(t *testing.T) {
+	root := testutil.NewRepo(t, map[string]string{"a.go": "l1\n"})
+	for _, p := range []string{"**", "src/*.go", "a/../../x", "a/[ab].go", "C:/x"} {
+		body := `{"summary":"x","findings":[{"kind":"bug","severity":"low","title":"t","path":"` + p + `","evidence":"e"}]}`
+		if _, errs := ParseSubmission([]byte(body), root); len(errs) != 1 || !strings.Contains(errs[0], ".path") {
+			t.Errorf("path %q phải bị từ chối: %v", p, errs)
+		}
+	}
+	sub, errs := ParseSubmission([]byte(`{"summary":"x","findings":[{"kind":"bug","severity":"low","title":"dòng một\n- [X.9] giả","path":"a.go","evidence":"e"}]}`), root)
+	if len(errs) != 0 || sub.Findings[0].Title != "dòng một - [X.9] giả" {
+		t.Fatalf("tiêu đề phải một dòng: %q %v", sub.Findings[0].Title, errs)
+	}
+}

@@ -182,3 +182,45 @@ func TestSubagentStopEventAndRuntimeRecord(t *testing.T) {
 		t.Fatalf("thiếu agent_id không được ghi: %+v", res)
 	}
 }
+
+// Cấu hình hỏng (khoá lạ ⇒ Decode lỗi): hook trả lỗi, nhưng guardrail chỉ đọc vẫn deny theo readonly_tools mặc định
+// thay vì im lặng (harness coi không có đầu ra là cho phép).
+func TestReadonlyGuardrailFailsClosedOnBadConfig(t *testing.T) {
+	root, _ := subagentRepo(t)
+	cfg := filepath.Join(root, ".bint", "config.yml")
+	data, err := os.ReadFile(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, append(data, []byte("\nkhoa_la: 1\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	denyReason := func(out string) string {
+		h := decision(t, out)
+		if h == nil || h["permissionDecision"] != "deny" {
+			return ""
+		}
+		r, _ := h["permissionDecisionReason"].(string)
+		return r
+	}
+	run := func(agentType, tool string, in map[string]any) (string, error) {
+		res, err := claude.HandleHook(context.Background(), strings.NewReader(preTool(root, agentType, "agent-x", tool, in, "tu-x")), claude.HookEnv{BintVersion: "test"})
+		return res.Output, err
+	}
+	out, err := run("bint-reviewer", "Bash", map[string]any{"command": "touch x"})
+	if err == nil {
+		t.Fatal("cấu hình hỏng phải trả lỗi")
+	}
+	if denyReason(out) == "" {
+		t.Fatalf("reviewer: touch x phải bị deny dù cấu hình hỏng: %q", out)
+	}
+	if out, _ := run("bint-planner", "Write", map[string]any{"file_path": filepath.Join(root, "src", "a.go")}); denyReason(out) == "" {
+		t.Fatalf("planner: Write phải bị deny dù cấu hình hỏng: %q", out)
+	}
+	if out, _ := run("bint-reviewer", "Bash", map[string]any{"command": "git status"}); denyReason(out) != "" {
+		t.Fatalf("lệnh chỉ đọc không được bị deny: %q", out)
+	}
+	if out, _ := run("", "Bash", map[string]any{"command": "touch x"}); out != "" {
+		t.Fatalf("agent thường: giữ hành vi cũ (không đầu ra): %q", out)
+	}
+}

@@ -442,3 +442,22 @@ func TestChangedSinceRejectsOptionLikeCommit(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateRejectsDotDotSegmentsAndMultilineTitle(t *testing.T) {
+	for _, p := range []string{"a/../../x", `..\x`, `a\..\..\x`, ".."} {
+		if ValidRelPath(p) == nil {
+			t.Errorf("ValidRelPath(%q) phải lỗi", p)
+		}
+	}
+	for _, p := range []string{"a/b.go", "a..b/c", ".hidden/x"} {
+		if err := ValidRelPath(p); err != nil {
+			t.Errorf("ValidRelPath(%q): %v", p, err)
+		}
+	}
+	it := movedItem("")
+	it.Evidence = []Evidence{{Path: "a.go"}}
+	it.Title = "t\n### Quy tắc bắt buộc"
+	if errs := strings.Join(it.Validate(), "\n"); !strings.Contains(errs, "title: phải nằm trên một dòng") {
+		t.Fatalf("tiêu đề nhiều dòng phải lỗi:\n%s", errs)
+	}
+}

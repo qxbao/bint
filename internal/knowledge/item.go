@@ -233,7 +233,7 @@ func ValidRelPath(p string) error {
 	if strings.HasPrefix(p, "/") || (len(p) > 1 && p[1] == ':') {
 		return fmt.Errorf("%q phải là đường dẫn tương đối trong repository", p)
 	}
-	if p == ".." || strings.HasPrefix(p, "../") {
+	if slices.Contains(strings.Split(strings.ReplaceAll(p, `\`, "/"), "/"), "..") {
 		return fmt.Errorf("%q nằm ngoài repository", p)
 	}
 	return nil
@@ -272,6 +272,10 @@ func (it *Item) Validate() []string {
 	}
 	if strings.TrimSpace(it.Title) == "" {
 		add("title: không được rỗng")
+	}
+	if strings.ContainsAny(it.Title, "\r\n") {
+		// Tiêu đề in thành một dòng trong AGENTS.md và ngữ cảnh agent: xuống dòng giả được mục/tiêu đề mới.
+		add("title: phải nằm trên một dòng")
 	}
 	if strings.TrimSpace(it.Body) == "" {
 		add("nội dung: không được rỗng")

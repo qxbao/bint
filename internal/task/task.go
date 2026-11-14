@@ -32,6 +32,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"bint/internal/fsafe"
+	"bint/internal/fslock"
 	"bint/internal/ulid"
 )
 
@@ -732,24 +733,28 @@ func (s Store) Update(ref string, now time.Time, fn func(*Task) error) (*Task, e
 	return t, writeState(t)
 }
 
-// lockDir lấy khoá thư mục bằng mkdir (nguyên tử trên mọi hệ điều hành). Khoá cũ
-// hơn 2 phút được coi là của tiến trình đã chết.
+// lockDir lấy khoá độc quyền của thư mục tác vụ bằng flock/LockFileEx trên tệp .ticket.lock: hệ điều hành tự nhả khi
+// tiến trình chết, nên không cần (và không được) thu hồi khoá "cũ" theo thời gian — kiểu mkdir + xoá khoá quá 2 phút
+// trước đây để hai tiến trình cùng vào khi thao tác dài (snapshot git trong callback) vượt ngưỡng. Tệp khoá không bao
+// giờ bị xoá: xoá tệp đang khoá rồi tạo lại cho phép hai chủ trên hai inode khác nhau.
 func lockDir(dir string) (func(), error) {
-	p := filepath.Join(dir, ".lock")
+	p := filepath.Join(dir, ".ticket.lock")
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		err := os.Mkdir(p, 0o700)
-		if err == nil {
-			return func() { os.Remove(p) }, nil
-		}
-		if !errors.Is(err, os.ErrExist) {
+		busy, err := fslock.Try(f, true)
+		if err != nil {
+			f.Close()
 			return nil, err
 		}
-		if fi, serr := os.Stat(p); serr == nil && time.Since(fi.ModTime()) > 2*time.Minute {
-			os.Remove(p)
-			continue
+		if !busy {
+			return func() { f.Close() }, nil
 		}
 		if time.Now().After(deadline) {
+			f.Close()
 			return nil, fmt.Errorf("tác vụ đang bị khoá bởi tiến trình khác (%s)", p)
 		}
 		time.Sleep(20 * time.Millisecond)

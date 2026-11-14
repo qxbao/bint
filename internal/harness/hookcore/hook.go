@@ -201,11 +201,11 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		return Result{Skipped: "không phải repository Git"}, nil
 	}
 	if err != nil {
-		return Result{}, err
+		return readonlyFailClosed(hi, d), err
 	}
 	cfg, cfgSrc, err := config.LoadFirst(repo.ConfigRoots(), false)
 	if err != nil {
-		return Result{}, err
+		return readonlyFailClosed(hi, d), err
 	}
 	paths, err := state.Resolve(repo, cfg)
 	if err != nil {
@@ -1075,4 +1075,18 @@ func isConfirmedTest(tc *string, command string) bool {
 		return false
 	}
 	return detect.MatchesTemplate(command, *tc)
+}
+
+// readonlyFailClosed: hook lỗi trước khi nạp được cấu hình (config sai khoá, git lỗi/hết giờ) thì harness coi "không có
+// đầu ra" là cho phép. Với subagent chỉ đọc, guardrail dựng sẵn vẫn phải có hiệu lực: quyết định theo readonly_tools
+// mặc định và trả deny nếu lệnh/công cụ không thuộc bước chỉ đọc. Các trường hợp khác giữ hành vi cũ (Result rỗng).
+func readonlyFailClosed(hi Input, d Dialect) Result {
+	if hi.Event != EvPreTool || !d.SubagentReadonly || d.PreToolDecide == nil || d.Classify == nil {
+		return Result{}
+	}
+	info := d.Classify(hi.ToolName, hi.ToolInput)
+	if deny, reason := readonlyDecision(hi.AgentType, hi.ToolName, info, config.Default().Workflow.Agent.ReadonlyTools); deny {
+		return Result{Output: d.PreToolDecide("", hcomp.ActDeny, reason)}
+	}
+	return Result{}
 }

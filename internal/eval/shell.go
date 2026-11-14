@@ -150,7 +150,9 @@ func cleanEnv(extra ...string) []string {
 		k, _, _ := strings.Cut(kv, "=")
 		switch strings.ToUpper(k) {
 		case "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT",
-			"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "BINT_EVAL_CONTEXT":
+			"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "BINT_EVAL_CONTEXT",
+			// Định danh lượt chạy/tác vụ của phiên chủ: lượt eval không thuộc tác vụ đó.
+			"BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS", "CLAUDE_CODE_SESSION_ID":
 			continue
 		}
 		out = append(out, kv)

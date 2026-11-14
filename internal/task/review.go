@@ -148,7 +148,8 @@ func ParseSubmission(data []byte, root string) (Submission, []string) {
 		at := fmt.Sprintf("findings[%d]", i)
 		f.ID = ""
 		f.Kind, f.Severity = strings.ToLower(strings.TrimSpace(f.Kind)), strings.ToLower(strings.TrimSpace(f.Severity))
-		f.Title, f.Evidence = strings.TrimSpace(f.Title), strings.TrimSpace(f.Evidence)
+		// Tiêu đề một dòng: tiêu đề được chèn vào yêu cầu của phiếu sửa (--from-findings) dưới dạng dòng danh sách.
+		f.Title, f.Evidence = strings.Join(strings.Fields(f.Title), " "), strings.TrimSpace(f.Evidence)
 		f.Path = strings.TrimPrefix(filepath.ToSlash(strings.TrimSpace(f.Path)), "./")
 		if !slices.Contains(FindingKinds, f.Kind) {
 			errs = append(errs, fmt.Sprintf("%s.kind: phải là %s", at, strings.Join(FindingKinds, " | ")))
@@ -171,8 +172,13 @@ func ParseSubmission(data []byte, root string) (Submission, []string) {
 			}
 			continue
 		}
-		if filepath.IsAbs(f.Path) || f.Path == ".." || strings.HasPrefix(f.Path, "../") {
+		if filepath.IsAbs(f.Path) || (len(f.Path) > 1 && f.Path[1] == ':') || slices.Contains(strings.Split(f.Path, "/"), "..") {
 			errs = append(errs, at+".path: phải là đường dẫn tương đối trong repository")
+			continue
+		}
+		// path thành scope.allow của phiếu sửa (--from-findings): ký tự glob sẽ mở rộng phạm vi (ví dụ "**").
+		if strings.ContainsAny(f.Path, "*?[]{}") {
+			errs = append(errs, at+".path: không được chứa ký tự glob (*, ?, [, {)")
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(f.Path)))

@@ -170,6 +170,9 @@ func (h *httpUp) readSSE(r io.Reader, wantID string) (rpcMsg, error) {
 				data.WriteByte('\n')
 			}
 			data.WriteString(strings.TrimPrefix(strings.TrimPrefix(s, "data:"), " "))
+			if data.Len() > h.maxFrame { // nhiều dòng data: liên tiếp không có dòng trống: giới hạn cả sự kiện, không chỉ từng dòng
+				return rpcMsg{}, errFrameTooLarge
+			}
 		}
 	}
 }

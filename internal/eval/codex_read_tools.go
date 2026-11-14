@@ -68,6 +68,11 @@ func codexReadablePath(rel string) bool {
 		return false
 	}
 	for _, part := range strings.Split(rel, "/") {
+		// Windows bỏ dấu chấm/khoảng trắng cuối tên và hiểu ':' là luồng dữ liệu thay thế: `.git./config`, `.bint /evals`
+		// mở đúng thư mục thật nhưng qua được so chuỗi bên dưới. Tên hợp lệ trong mã nguồn không cần các dạng này.
+		if (strings.HasSuffix(part, ".") && part != ".") || strings.HasSuffix(part, " ") || strings.Contains(part, ":") {
+			return false
+		}
 		if strings.EqualFold(part, ".git") {
 			return false
 		}

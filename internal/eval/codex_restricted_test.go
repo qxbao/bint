@@ -90,7 +90,9 @@ func TestCodexReadersConfineFilesAndBoundOutput(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "secret")
 	os.WriteFile(outside, []byte(secret), 0o600)
 	symlink := os.Symlink(outside, filepath.Join(root, "link")) == nil
-	for _, p := range []string{".BINT/EVALS/secret", ".GIT/objects/secret"} {
+	for _, p := range []string{".BINT/EVALS/secret", ".GIT/objects/secret",
+		// Windows bỏ dấu chấm/khoảng trắng cuối tên: các dạng này mở đúng .git / .bint/evals thật.
+		".bint./evals/secret", ".bint/evals./secret", ".bint /evals/secret", ".git./config", ".git /config", ".git:x/config"} {
 		if codexReadablePath(p) {
 			t.Fatalf("case alias accepted: %s", p)
 		}

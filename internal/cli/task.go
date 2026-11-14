@@ -618,7 +618,13 @@ agent đề xuất chưa được người xác nhận thì không được ch�
 			}
 			t, res := vr.Task, vr.Result
 			if asJSON {
-				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "skipped": res.Skipped, "verification": res.Verification})
+				if err := writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "skipped": res.Skipped, "verification": res.Verification}); err != nil {
+					return err
+				}
+				if res.Skipped == "" && !res.Verification.Passed {
+					return withCode(ExitError, errors.New("kiểm chứng không qua"))
+				}
+				return nil
 			}
 			if res.Skipped != "" {
 				fmt.Fprintf(stdio.Out, "Bỏ qua: %s\n", res.Skipped)

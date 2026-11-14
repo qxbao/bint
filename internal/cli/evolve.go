@@ -609,8 +609,14 @@ không kém, hoặc futility).`,
 			}
 			p, record, v, rep, runErr := res.Proposal, res.Record, res.Verdict, res.Report, res.RunErr
 			if asJSON {
-				return writeJSON(w, map[string]any{"evaluation_id": record.ID, "batch_id": res.Run.BatchID, "status": res.Run.Status,
-					"verdict": v, "report": rep, "skill_activation": res.Activation})
+				if err := writeJSON(w, map[string]any{"evaluation_id": record.ID, "batch_id": res.Run.BatchID, "status": res.Run.Status,
+					"verdict": v, "report": rep, "skill_activation": res.Activation}); err != nil {
+					return err
+				}
+				if errors.Is(runErr, context.Canceled) {
+					return withCode(ExitError, fmt.Errorf("đã dừng theo yêu cầu"))
+				}
+				return runErr
 			}
 			fmt.Fprintf(w, "\nĐợt %s: %s, %d/%d lượt\n", res.Run.BatchID, res.Run.Status, res.Run.Done, res.Run.Total)
 			if res.Run.Status == eval.StatusStoppedEarly {

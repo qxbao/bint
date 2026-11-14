@@ -66,8 +66,17 @@ func copyFilesFromCommit(ctx context.Context, repoDir, commit string, files []st
 			return err
 		}
 		target := filepath.Join(dest, filepath.FromSlash(f))
-		typ, err := gitString(ctx, repoDir, "cat-file", "-t", commit+":"+f)
-		if err != nil || typ != "blob" {
+		// ls-tree in rỗng khi tệp không có ở commit; lỗi git khác (khoá, hết giờ) phải dừng, không được coi là "không có
+		// tệp" rồi chấm điểm thiếu test ẩn.
+		entry, err := gitString(ctx, repoDir, "ls-tree", "--end-of-options", commit, "--", f)
+		if err != nil {
+			return fmt.Errorf("đọc %s tại %s: %w", f, commit, err)
+		}
+		typ := ""
+		if fields := strings.Fields(entry); len(fields) >= 2 {
+			typ = fields[1]
+		}
+		if typ != "blob" {
 			if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
 				return err
 			}
