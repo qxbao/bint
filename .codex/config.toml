@@ -3,4 +3,8 @@
 [mcp_servers.bint]
 command = "bint"
 args = ["mcp", "serve"]
+
+# Chỉ ghi trích dẫn đã kiểm tra; không tự duyệt tool tạo/sửa tri thức.
+[mcp_servers.bint.tools.cite_knowledge]
+approval_mode = "approve"
 # bint:end
