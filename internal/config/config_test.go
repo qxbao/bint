@@ -262,3 +262,21 @@ func TestClaudePricingDefaultsAndValidate(t *testing.T) {
 		t.Fatalf("pricing nạp từ YAML: %+v", cfg.Harnesses.Claude.Pricing)
 	}
 }
+
+func TestTasksLedgerKey(t *testing.T) {
+	c := Default()
+	if c.Tasks.Ledger != LedgerGit {
+		t.Fatalf("mặc định tasks.ledger = %q, muốn git", c.Tasks.Ledger)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	c.Tasks.Ledger = LedgerLocal
+	if err := c.Validate(); err != nil {
+		t.Fatalf("local hợp lệ: %v", err)
+	}
+	c.Tasks.Ledger = "svn"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "tasks.ledger") {
+		t.Fatalf("giá trị lạ phải bị từ chối: %v", err)
+	}
+}

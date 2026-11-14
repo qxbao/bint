@@ -52,7 +52,7 @@ func TestFlowServicesWithYmlAndYamlSameName(t *testing.T) {
 		t.Fatalf("tdd.yaml phải báo trùng: %+v", lint[1])
 	}
 	rows, err := ListFlows(ctx, root, FlowListOptions{})
-	if err != nil || len(rows) != 6 || rows[4].Path != ".bint/flows/tdd.yml" || rows[5].Path != ".bint/flows/tdd.yaml" || rows[5].OK {
+	if err != nil || len(rows) != 7 || rows[5].Path != ".bint/flows/tdd.yml" || rows[6].Path != ".bint/flows/tdd.yaml" || rows[6].OK {
 		t.Fatalf("ListFlows: %v %+v", err, rows)
 	}
 }

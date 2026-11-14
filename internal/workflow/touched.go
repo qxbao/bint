@@ -63,7 +63,7 @@ func DiffPaths(ctx context.Context, root, before, after string, pathspec ...stri
 	}
 	var ps []string
 	for p := range strings.SplitSeq(out, "\x00") {
-		if p != "" {
+		if p != "" && !task.IsLedgerPath(p) { // sổ phiếu (.bint/tasks) do Bint ghi, không tính là sửa mã
 			ps = append(ps, p)
 		}
 	}

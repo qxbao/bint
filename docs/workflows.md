@@ -304,6 +304,63 @@ bint task ready [--parent <id>] [--json]                             # phiếu c
   kiểm chu trình; `task ready` chịu được dữ liệu như vậy (phiếu trong chu trình không bao giờ sẵn sàng). Chỉ có
   CLI, chưa có màn hình TUI.
 
+#### Phiếu trong Git: `.bint/tasks/` và `bint task sync`
+
+Phiếu tác vụ có hai nơi lưu. Thư mục `<state>/runtime/tasks/<ID>/` (ngoài repository) vẫn là **bộ đệm làm việc** và giữ
+dữ liệu riêng của máy: runner, khoá, log, mọi phê duyệt của người, worktree, ảnh chụp cây. Phần **bền** của phiếu thì
+được Bint xuất ra **cây làm việc** ở `.bint/tasks/<ID>/`, để commit cùng mã như `.beads/issues.jsonl` của Beads: mỗi
+nhánh/worktree một bản, đi theo `git push`/`git pull`/merge, nên chia sẻ được giữa các máy và các nhánh. Bint **không
+bao giờ tự commit hay push**; người commit `.bint/tasks/` như mọi tệp khác.
+
+- **Xuất.** Mỗi lần Bint ghi phần bền của phiếu (tạo, đổi trạng thái, `task set`, `task write`, vòng review, `findings
+  set`, đối chiếu tiêu chí...) thì `.bint/tasks/<ID>/` ở cây gốc của phiếu (cây lập phiếu; `origin` với tác vụ
+  worktree) được cập nhật: `task.yml`, `state.json` (bản chiếu bền), `requirement.md`, `plan.md`, `tasks.md`,
+  `review.json`, `findings.json`. Chỉ ghi khi bản chiếu đổi: thay đổi chỉ ở trường cục bộ (runner, bước dở...) không
+  ghi lại tệp nào. Lỗi ghi `.bint/tasks` không làm hỏng thao tác cục bộ, chỉ in cảnh báo (`bint task sync` ghi bù).
+- **Bản chiếu không chứa** trường cục bộ hay phê duyệt: `runner`, `pending_step`, `held_step`, `session_run`,
+  `session_spend`, `agent_runs`, `worktree`, `origin`, `base_tree`, `touched`, `verify_approval`,
+  `protected_approval`, `setup_approval`, đường dẫn log, dấu vân tay và mã cây của lần kiểm chứng. Nhập từ cây không
+  đặt các trường đó, nên lệnh kiểm chứng của phiếu nhập về vẫn chờ `bint task approve` trên máy này.
+- **Tự nhập sau `git pull`/merge (như Beads).** Trong phiên của người, khi bản **đã commit** trong `.bint/tasks/<ID>`
+  khác băm lần đồng bộ trước và phía cục bộ không đổi (so băm, không dựa vào `updated_at`), thì các lệnh đọc (`task show`,
+  `task list`, TUI) và lệnh ghi phiếu tự nhập trước khi dùng — kể cả phiếu chỉ có trong cây — không cần chạy gì. Đổi cả
+  hai phía thì không nhập, giữ bản cục bộ và báo xung đột. Sửa **chưa commit** trong `.bint/tasks` (kể cả của agent đang
+  chạy trong cây) không tự nhập, để không lặng lẽ đổi phạm vi hay tiêu chí của phiếu: nhập bằng `bint task sync`.
+  Bản đã commit mà đổi trường quyền hạn (`autonomy`, `scope`, `verify.command`, `constraints`, chuyển sang `done`,
+  lùi khỏi `done`/`cancelled`; phiếu mới có `autonomy: auto`) cũng **không tự nhập** (vì `.bint/tasks` miễn kiểm phạm vi, agent không worktree có
+  thể sửa rồi commit): Bint cảnh báo, người xem `git diff` rồi chạy `bint task sync`, lệnh này nhập và nêu rõ từng thay
+  đổi quyền hạn trong kết quả.
+- **`bint task sync [--json]`** so ba bên (thư mục cục bộ, `.bint/tasks` trong cây, băm lần đồng bộ trước): phiếu chỉ có
+  trong cây thì dựng thư mục cục bộ; chỉ có cục bộ thì ghi ra cây; một phía đổi (theo băm so với lần đồng bộ trước)
+  thì lấy phía đó; chỉ `findings.json` khác thì hợp các bản ghi; đổi cả hai phía thì giữ bản cục bộ, báo xung đột và
+  thoát mã 1. Sửa tay tệp trong cây (kể cả không đổi `updated_at` của `state.json`) cũng là một phía đổi: lần ghi tự
+  động và `task sync` không bao giờ đè nó khi bản cục bộ cũng đổi. Giải xung đột: áp phần cần giữ của bản trong cây
+  bằng `bint task set`/`bint task write`, xoá `.bint/tasks/<ID>` rồi chạy lại `bint task sync` để ghi bản cục bộ ra
+  cây. Chạy lần hai liền sau không đổi tệp nào.
+- **Phiên agent không nhập.** Trong phiên agent, `task sync` và các lệnh đọc/ghi chỉ ghi ra cây và liệt kê thay đổi chờ
+  người nhập (`pending`); chỉ người mới áp thay đổi từ cây vào thư mục cục bộ, kể cả hợp bản ghi `findings.json`.
+- **Cảnh báo.** CLI in cảnh báo của sổ (lỗi ghi, xung đột, thay đổi chờ nhập) ra stderr; TUI hiện chúng thành thông báo
+  lỗi ở thanh trên và giữ trong hộp Thông báo (phím `!`).
+- **Kiểm dữ liệu nhập.** Tên thư mục phải là ULID; chỉ nhận các tệp trên (tệp thường, không symlink, tối đa 1 MiB);
+  `task.yml` qua kiểm phiếu và `id` khớp thư mục; JSON hỏng hoặc còn dấu xung đột merge bị bỏ. Mục sai bị bỏ qua và
+  báo, không bao giờ ghi ra ngoài thư mục tác vụ.
+- **Miễn khỏi mọi kiểm tra cây làm việc.** `.bint/tasks/` không tính vào ảnh chụp chỉ-đọc của bước plan/review, kiểm
+  phạm vi, `touched`, `land`, `bint task diff`, dấu vân tay kiểm chứng và cổng plan-only: Bint ghi phiếu trong bước
+  chỉ-đọc không làm bước bị chặn và không làm lần kiểm chứng trước thành lỗi thời.
+- **Cấu hình `tasks.ledger`:** `git` (mặc định) hoặc `local`. `local` giữ đúng hành vi cũ: không đọc, không ghi
+  `.bint/tasks`. Gỡ bỏ: đặt `local` và xoá thư mục `.bint/tasks`; bộ đệm cục bộ đủ dữ liệu.
+- **Giới hạn.** Phía nào đổi được xác định bằng băm so với lần đồng bộ trước (lưu cục bộ cho từng cây), nên đổi nhánh
+  sang bản phiếu khác mà phía cục bộ cũng đã đổi thì là xung đột, không tự chọn phía. Chỉ khi chưa có mốc đồng bộ với
+  cây đó (vd. worktree dựng từ nhánh mang bản phiếu cũ) mới so `updated_at`: bản trong cây không mới hơn bản cục bộ
+  thì coi là cũ, nên lệch đồng hồ giữa máy có thể làm sai ở ca này. **Chuyển sang nhánh mang bản phiếu cũ hơn**
+  (`git checkout`, `git switch`) mà phía cục bộ không đổi thì là "cây đổi một phía": lệnh đọc/ghi phiếu tự nhập bản của
+  nhánh đó (lịch sử, tiêu chí, review lùi theo), như Beads; riêng lùi khỏi `done`/`cancelled` và các trường quyền hạn ở
+  trên thì không tự nhập, chỉ cảnh báo, người quyết bằng `bint task sync`. Tác vụ đang chạy
+  dở trên máy khác (worktree, runner, bước subagent) là dữ liệu của máy và không chuyển sang. Log và `review.md`
+  không xuất (`review.md` dựng lại từ `review.json`). Không có nhánh `bint/tasks` riêng hay merge driver: xung đột merge
+  trong `.bint/tasks/` do người giải như tệp thường. `bint init --git local` loại `.bint/` khỏi Git nên phiếu không commit
+  được khi dùng chế độ đó. eval/evolve/hook vẫn đọc bộ đệm cục bộ, không tự nhập.
+
 **`bint run`** cấp `run_id` cho lượt `b-do` (cha) và mỗi bước (con, `parent_run_id`), ghi `run_steps`,
 chi phí/token/mô hình; agent nhận `BINT_RUN_ID`, `BINT_TASK_ID`, `BINT_AGENT=1`, `BINT_RUNNER_PID` và
 danh sách đường dẫn đã duyệt, nên lệnh `bint task` và hook gắn sự kiện vào đúng lượt con. Đề bài =
@@ -384,9 +441,9 @@ Nội dung skill tuỳ biến là tệp người viết: ranh giới tin cậy l
 ### Flow tuỳ biến (GĐ2 và GĐ4 của `docs/custom-flow-plan.md`)
 
 Một **flow** là dãy bước của một workflow; mỗi bước có `id`, `kind` (`plan` | `implement` | `review`, do Bint giữ vì kind
-quyết định trạng thái tác vụ, chế độ chỉ đọc và cổng sau bước), `skill` và `role`. Bốn workflow gốc `b-do`, `b-req`, `b-feat`,
-`b-review` là flow nhúng (gói `internal/flow`; `b-do` = `b-req` plan tuỳ chọn → `b-feat` implement → `b-review` review với
-vòng sửa về `b-feat`). Người dùng khai báo thêm flow trong `.bint/flows/<tên>.yml` (commit được):
+quyết định trạng thái tác vụ, chế độ chỉ đọc và cổng sau bước), `skill` và `role`. Năm workflow gốc `b-do`, `b-req`, `b-feat`,
+`b-review`, `b-debug` là flow nhúng (gói `internal/flow`; `b-do` = `b-req` plan tuỳ chọn → `b-feat` implement → `b-review` review với
+vòng sửa về `b-feat`; `b-debug` xem mục "Flow `b-debug`" dưới đây). Người dùng khai báo thêm flow trong `.bint/flows/<tên>.yml` (commit được):
 
 ```yaml
 schema: 1
@@ -401,19 +458,65 @@ steps:
 
 Khoá của bước: `id`, `kind`, `skill` (bắt buộc); `role` (rỗng → `planner`/`implementer`/`reviewer` theo kind), `optional`
 (chỉ bước plan: bỏ qua theo phân loại), `verify` (chỉ bước implement: có chạy lệnh kiểm chứng sau bước hay không, mặc định có),
-`fix` (chỉ bước review: id bước implement mà vòng sửa quay về). Khoá YAML lạ ở bất cứ đâu là lỗi.
+`fix` (chỉ bước review: id bước implement mà vòng sửa quay về), `expect` (chỉ bước implement, giá trị duy nhất `fail`: cổng đỏ,
+xem "Khoá `expect: fail`"). Khoá YAML lạ ở bất cứ đâu là lỗi.
 
 `bint flow lint [tên]` (thoát 1 khi có lỗi, `--json`) từ chối: `schema` khác 1; tên sai quy tắc (chữ thường, số, gạch ngang,
 3–40 ký tự), khác tên tệp, trùng workflow gốc, có tiền tố `b-` hoặc trùng tên một skill (gốc, **mọi** thư mục skill tuỳ biến kể cả đang lỗi
 lint, hoặc skill tiến hoá, vì flow được xuất bản thành skill cùng tên; cùng luật ở `bint flow lint`, `bint run <flow>` và `bint sync`); không có bước; id rỗng, trùng hoặc trùng bước giả `post-feat`/`verify`; `kind` ngoài ba giá trị; kind giảm
 theo thứ tự plan → implement → review; hơn một bước plan; thiếu bước implement; `skill` rỗng hoặc không tồn tại (skill gốc hoặc
 skill tuỳ biến qua được `bint skill lint`; skill tiến hoá không tính); `optional` ở bước không phải plan; `verify: false` ở bước
-implement cuối (kiểm chứng phải chạy trước review và trước khi done); `fix` ở bước không phải review hoặc không trỏ tới bước
+implement cuối (kiểm chứng phải chạy trước review và trước khi done); `expect` khác `fail`, ở bước không phải implement, ở bước
+implement cuối hoặc cùng `verify: false`; `fix` ở bước không phải review hoặc không trỏ tới bước
 implement. Một tệp hỏng không chặn việc kiểm tệp khác; flow nhúng cũng qua cùng bộ luật (riêng flow nhúng một bước được miễn
 luật "thiếu implement" và luật tên gốc). `bint flow list` hiện cả flow nhúng và flow tuỳ biến (nguồn, số bước, mô tả, trạng thái
 lint); `bint flow show <tên>` in định nghĩa đã chuẩn hoá (role mặc định được điền) kèm nguồn và băm (`sha256:…`, không phụ thuộc
 chú thích, thứ tự khoá hay mô tả). Trong TUI: ba hành động chỉ đọc "Liệt kê/Xem/Kiểm flow" ở bảng lệnh (`:`), kết quả ở khung đầu ra
 của thẻ Skill.
+
+#### Khoá `expect: fail` (cổng đỏ)
+
+Bước implement khai báo `expect: fail` là bước viết **kiểm thử tái hiện lỗi**: sau nó Bint luôn chạy lệnh kiểm chứng của phiếu
+(không phụ thuộc `verify`) và **mong nó hỏng**. `flow.Validate` từ chối khoá này ở bước không phải implement, ở bước implement
+cuối (sau bước đỏ phải có bước sửa cho kiểm chứng qua) và cùng `verify: false`. Runner áp ở `afterStep`, theo thuộc tính của bước
+chứ không theo tên:
+
+- Kiểm chứng **hỏng**: ghi một `Verification` hỏng (bằng chứng đỏ trước bản sửa) và sang bước kế.
+- Kiểm chứng **qua**: test chưa tái hiện lỗi (có thể lệnh kiểm chứng không bao phủ test mới). Tác vụ `blocked` nêu lý do này;
+  `State.FlowStep` giữ ở bước đỏ nên `bint run resume` (hoặc `bint run next --resume`) chạy lại đúng bước đó.
+- Kiểm chứng **không chạy được** (lệnh bị bỏ qua hoặc quá giờ): `blocked`, giữ `AwaitingCheck`; `resume` chỉ chạy lại cổng, không
+  gọi lại agent.
+- **Trước** bước đỏ: phiếu thiếu `verify.command`, hoặc lệnh chưa được người xác nhận (`bint task approve`) thì tác vụ `blocked`
+  trước khi gọi agent, lời nhắc nêu `bint task set --verify-command`, `bint task approve` và lệnh resume.
+
+Giới hạn: kiểm chứng hỏng chỉ chứng minh `verify.command` hỏng sau bước đỏ, không chứng minh nó hỏng đúng ở test mới (có thể do
+lỗi biên dịch hoặc một test khác đỏ sẵn). Skill `b-repro` bắt chạy test hẹp và ghi bằng chứng, `b-review` xét lại, còn `bint eval
+verify` là phép kiểm fail→pass độc lập khi phiếu trở thành đề đánh giá.
+
+#### Flow `b-debug`
+
+Flow nhúng thứ năm, dùng cho sửa lỗi có test tái hiện (cùng khuôn `/b-do`, phần thực thi tách làm hai):
+
+| Bước | kind | Skill | Ghi chú |
+|---|---|---|---|
+| `b-req` | plan, optional | `b-req` | như `b-do`: `--plan`/`--no-plan`/`--depth` |
+| `b-repro` | implement, `expect: fail` | `b-repro` | viết một test hỏng, không sửa mã sản phẩm |
+| `b-fix` | implement | `b-fix` | giả thuyết nguyên nhân, sửa tối thiểu, test qua |
+| `b-review` | review, `fix: b-fix` | `b-review` | vòng sửa quay về `b-fix`, không về `b-repro` |
+
+Chạy: `bint task new "<mô tả lỗi>" --workflow b-debug --verify-command '<lệnh test>'` rồi `bint run b-debug --task <id>`, hoặc
+`bint run b-debug "<mô tả lỗi>"`, `bint run resume`, driver session (`bint run next/complete`), TUI (ô workflow của form `run` và
+`task new`). Skill điều phối `/b-debug` (skill gốc, cùng khuôn `/b-do`) hướng dẫn lập phiếu kèm lệnh kiểm chứng. Role theo kind
+(`planner`, `implementer`, `reviewer`); ngân sách `limits.workflows.b-debug`.
+
+Khác bốn workflow gốc cũ, id bước của `b-debug` (`b-repro`, `b-fix`) không phải tên workflow đơn lẻ, nên nó **gắn phiếu** như flow
+tuỳ biến: phiếu `b-debug` chỉ chạy bằng `bint run b-debug --task` (`b-do`, `b-feat`, `b-review --task` bị từ chối; `b-debug` cũng
+không nhận phiếu `b-do`, chỉ nhận phiếu mới chỉ lập kế hoạch bằng `b-req`), và `--step` hợp lệ cho nó: `bint run b-debug --task <id>
+--step b-repro|b-fix|b-review`. Role gán harness khác Claude trong driver session trả lệnh dạng `--step` đó. `b-debug` là flow nhúng
+nên không ghi `flow_sha` (đổi theo phiên bản Bint).
+
+Phiếu `b-debug` đã `done` cho ra một đề fail→pass: `bint eval mine --from-tasks` nhận nó cùng phiếu `b-do` (xem
+[evaluation.md](evaluation.md)); cây trước `b-repro` là commit gốc của đề, cây sau `b-fix` là lời giải, test tái hiện là kiểm thử ẩn.
 
 #### Chạy flow tuỳ biến (GĐ4)
 
@@ -464,7 +567,7 @@ không thì `mcp.grants.<gốc>`. `--role` ở CLI vẫn chỉ nhận `planner|i
 
 **Driver session.** Subagent theo kind (`bint-planner`/`bint-implementer`/`bint-reviewer`), `model` của role trong action. Role gán
 harness khác Claude trả action `process` với lệnh chạy đúng một bước: `bint run <flow> --task <id> --step <bước> --json`. Cờ
-`--step` (nâng cao) chỉ nhận cùng `--task` và flow tuỳ biến, và phải là bước kế tiếp của tác vụ; Runner chạy đúng một bước cùng cổng
+`--step` (nâng cao) chỉ nhận cùng `--task` và flow gắn phiếu (flow tuỳ biến hoặc `b-debug`), và phải là bước kế tiếp của tác vụ; Runner chạy đúng một bước cùng cổng
 sau bước (kể cả quyết định review) rồi dừng.
 
 Ví dụ nghiệm thu: `internal/cli/flow_run_e2e_test.go` chạy flow `tdd` ở trên bằng driver process và driver session với agent giả

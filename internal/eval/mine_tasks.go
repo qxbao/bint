@@ -21,7 +21,7 @@ const (
 	SkipNoSolution = "không dựng lại được lời giải (thiếu cây hoặc tệp của phiếu)"
 )
 
-// TaskSource là dữ liệu thuần của một phiếu b-do đã done mà eval cần để dựng ứng viên (gói eval không
+// TaskSource là dữ liệu thuần của một phiếu b-do hoặc b-debug đã done mà eval cần để dựng ứng viên (gói eval không
 // phụ thuộc gói task; internal/app đọc kho phiếu rồi dựng danh sách này).
 type TaskSource struct {
 	ID          string
@@ -32,7 +32,7 @@ type TaskSource struct {
 	// VerifyCommand là verify.command của phiếu khi đã được người xác nhận; rỗng = dùng eval.test_command.
 	VerifyCommand string
 	Base          string   // commit gốc lúc lập phiếu
-	BaseTree      string   // cây ngay trước b-feat đầu tiên ("" = như cây của Base)
+	BaseTree      string   // cây ngay trước bước implement đầu tiên (b-feat, hoặc b-repro của b-debug) ("" = như cây của Base)
 	AfterTree     string   // cây có lời giải (lúc đưa về hoặc của lần kiểm chứng qua cuối cùng)
 	Files         []string // tập tệp của phiếu (tương đối gốc repo)
 	Runs          []string // mọi lượt chạy gắn với phiếu

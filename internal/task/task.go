@@ -564,7 +564,17 @@ func (t *Task) ArtifactPath(name string) string { return filepath.Join(t.Dir, Ar
 func (t *Task) LogPath(name string) string { return filepath.Join(t.Dir, LogsDir, name) }
 
 // Store là thư mục chứa các tác vụ.
-type Store struct{ Dir string }
+type Store struct {
+	Dir string
+	// Ledger bật sổ phiếu trong Git (`.bint/tasks/`, xem ledger.go); false = chỉ thư mục cục bộ (tasks.ledger: local).
+	Ledger bool
+	// Root là gốc cây làm việc hiện tại: nơi tự nhập đọc `.bint/tasks` và nơi phiếu mới được xuất (cây lập phiếu).
+	Root string
+	// Import cho phép tự nhập từ cây vào thư mục cục bộ; false trong phiên agent (chỉ người nhập).
+	Import bool
+	// Warn nhận cảnh báo của sổ (lỗi xuất, xung đột, thay đổi chờ nhập); nil = bỏ qua.
+	Warn func(string)
+}
 
 // NewStore trả về kho tác vụ trong thư mục runtime.
 func NewStore(runtimeDir string) Store { return Store{Dir: filepath.Join(runtimeDir, "tasks")} }
@@ -601,7 +611,18 @@ func (s Store) Create(t Ticket, st State, now time.Time) (*Task, error) {
 	if err := fsafe.WriteAtomic(filepath.Join(dir, TicketFile), data, 0o600); err != nil {
 		return nil, err
 	}
-	return task, writeState(task)
+	if err := writeState(task); err != nil {
+		return task, err
+	}
+	if s.Ledger {
+		m := loadMeta(dir)
+		if st.Origin == "" {
+			m.Home = s.Root
+		}
+		_ = saveMeta(dir, m)
+		s.export(task)
+	}
+	return task, nil
 }
 
 func writeState(t *Task) error {
@@ -643,6 +664,7 @@ func (s Store) Resolve(ref string) (string, error) {
 	if ref == "" {
 		return "", fmt.Errorf("%w: thiếu task ID", ErrNotFound)
 	}
+	s.pullMatching(ref)
 	entries, err := os.ReadDir(s.Dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("%w: %s", ErrNotFound, ref)
@@ -679,6 +701,7 @@ func (s Store) Load(ref string) (*Task, error) {
 
 // List nạp mọi tác vụ, mới nhất trước. Thư mục hỏng bị bỏ qua và trả về riêng.
 func (s Store) List() ([]*Task, []error) {
+	s.pullMatching("")
 	entries, err := os.ReadDir(s.Dir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -737,7 +760,11 @@ func (s Store) Update(ref string, now time.Time, fn func(*Task) error) (*Task, e
 		}
 	}
 	t.State.UpdatedAt = Now(now)
-	return t, writeState(t)
+	if err := writeState(t); err != nil {
+		return t, err
+	}
+	s.export(t)
+	return t, nil
 }
 
 // lockDir lấy khoá độc quyền của thư mục tác vụ bằng flock/LockFileEx trên tệp .ticket.lock: hệ điều hành tự nhả khi

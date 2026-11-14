@@ -11,7 +11,7 @@
 │ │   Lệnh kiểm chứng                                                                                                                    │ │
 │ │   Tiêu chí                                                                                                                           │ │
 │ │   Được sửa                                                                                                                           │ │
-│ │   Workflow         ( ) (để trống) (●) b-do ( ) b-req ( ) b-feat ( ) b-review                                                         │ │
+│ │   Workflow         ( ) (để trống) (●) b-do ( ) b-req ( ) b-feat ( ) b-review ( ) b-debug                                             │ │
 │ │   Luôn qua b-req   [ ]                                                                                                               │ │
 │ │   Bỏ qua b-req     [ ]                                                                                                               │ │
 │ │   ▸ Nâng cao                                                                                                                         │ │

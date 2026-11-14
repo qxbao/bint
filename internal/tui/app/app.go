@@ -96,6 +96,9 @@ type Options struct {
 	AgentFactory workflow.AgentFactory
 	// CycleRunner thay cách chạy các bước của `evolve cycle` (nil = trong tiến trình); tiêm runner giả trong kiểm thử.
 	CycleRunner evolvesvc.CycleRunner
+	// LedgerWarnings lấy (và xoá) cảnh báo sổ phiếu .bint/tasks đang chờ (lỗi ghi, xung đột, thay đổi chờ nhập);
+	// TUI hiện chúng thành thông báo lỗi sau mỗi lần Update. nil = không có.
+	LedgerWarnings func() []string
 	// ExitGrace là thời gian chờ việc nền kết thúc sau khi huỷ lúc thoát; 0 = 15 giây.
 	ExitGrace time.Duration
 	// TailEvery là chu kỳ đọc đuôi log của bước agent đang chạy; 0 = 400 ms.
@@ -377,6 +380,7 @@ func (m *Model) Init() tea.Cmd { return m.load() }
 // Update xử lý thông điệp.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	mm, cmd := m.update(msg)
+	m.harvestLedgerWarnings()
 	m.harvestNotices()
 	return mm, cmd
 }

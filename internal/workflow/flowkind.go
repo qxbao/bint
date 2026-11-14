@@ -51,6 +51,11 @@ func builtinFlow(name string) flow.Def {
 	return d
 }
 
+// boundFlow cho biết workflow là flow gắn phiếu: flow tuỳ biến, hoặc flow nhúng mà id bước không trùng tên workflow đơn
+// lẻ (b-debug: bước b-repro/b-fix). Phiếu của flow gắn phiếu chỉ chạy bằng đúng flow đó, và nhận `--step`; bốn workflow
+// gốc ban đầu (flow.Legacy) chạy theo tên workflow.
+func boundFlow(name string) bool { return name != "" && !flow.Legacy(name) }
+
 // isCustomFlow cho biết tên workflow không phải workflow gốc (tức flow tuỳ biến trong .bint/flows).
 func isCustomFlow(name string) bool { return name != "" && !flow.IsBuiltin(name) }
 

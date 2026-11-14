@@ -1,10 +1,24 @@
 package flow
 
-// Bốn workflow gốc dưới dạng flow nhúng. Id bước giữ đúng tên bước hiện tại của Runner (b-req, b-feat, b-review)
+// Năm workflow gốc dưới dạng flow nhúng. Id bước giữ đúng tên bước hiện tại của Runner (b-req, b-feat, b-review)
 // để GĐ3 chuyển sang đọc flow mà không đổi sự kiện, tên log hay khoá limits.workflows.<bước>.
 
-// BuiltinNames là tên bốn flow nhúng theo thứ tự cố định.
-func BuiltinNames() []string { return []string{"b-do", "b-req", "b-feat", "b-review"} }
+// BuiltinNames là tên năm flow nhúng theo thứ tự cố định.
+func BuiltinNames() []string { return []string{"b-do", "b-req", "b-feat", "b-review", "b-debug"} }
+
+// legacyNames là bốn workflow gốc ban đầu, mỗi workflow một bước đặt tên theo workflow (b-do dùng ba bước đó).
+var legacyNames = []string{"b-do", "b-req", "b-feat", "b-review"}
+
+// Legacy cho biết tên là một trong bốn workflow gốc ban đầu (b-do, b-req, b-feat, b-review): id bước của chúng
+// trùng tên bước đơn lẻ (b-req/b-feat/b-review) nên Runner chạy được bằng tên workflow. b-debug thì không.
+func Legacy(name string) bool {
+	for _, n := range legacyNames {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
 
 // IsBuiltin cho biết tên là một workflow gốc.
 func IsBuiltin(name string) bool {
@@ -16,7 +30,7 @@ func IsBuiltin(name string) bool {
 	return false
 }
 
-// Builtin trả về bốn flow nhúng (đã chuẩn hoá role). Mỗi lần gọi trả bản mới, bên gọi sửa thoải mái.
+// Builtin trả về năm flow nhúng (đã chuẩn hoá role). Mỗi lần gọi trả bản mới, bên gọi sửa thoải mái.
 func Builtin() []Def {
 	plan := Step{ID: "b-req", Kind: KindPlan, Skill: "b-req", Role: DefaultRole(KindPlan)}
 	feat := Step{ID: "b-feat", Kind: KindImplement, Skill: "b-feat", Role: DefaultRole(KindImplement)}
@@ -26,6 +40,11 @@ func Builtin() []Def {
 	doPlan.Optional = true
 	doReview := review
 	doReview.Fix = "b-feat"
+
+	repro := Step{ID: "b-repro", Kind: KindImplement, Skill: "b-repro", Role: DefaultRole(KindImplement), Expect: ExpectFail}
+	fix := Step{ID: "b-fix", Kind: KindImplement, Skill: "b-fix", Role: DefaultRole(KindImplement)}
+	debugReview := review
+	debugReview.Fix = "b-fix"
 
 	return []Def{
 		{Schema: Schema, Name: "b-do", builtin: true,
@@ -40,6 +59,9 @@ func Builtin() []Def {
 		{Schema: Schema, Name: "b-review", builtin: true,
 			Description: "Đánh giá thay đổi của tác vụ và ghi phát hiện",
 			Steps:       []Step{review}},
+		{Schema: Schema, Name: "b-debug", builtin: true,
+			Description: "Tái hiện lỗi bằng một test hỏng, đưa giả thuyết, sửa cho test qua rồi review",
+			Steps:       []Step{doPlan, repro, fix, debugReview}},
 	}
 }
 

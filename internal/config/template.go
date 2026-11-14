@@ -162,6 +162,9 @@ evolution:
     auto_low_risk: false    # bint evolve cycle tự áp dụng đề xuất rủi ro thấp chỉ tạo mục mới (candidate) đã supported độc lập trên test
     bind_to_model_version: true
 
+tasks:
+  ledger: git               # nơi lưu phiếu tác vụ: git (bản chiếu bền ở .bint/tasks/<ID>/ trong cây làm việc, commit cùng mã, tự nhập sau git pull; Bint không tự commit) | local (chỉ thư mục trạng thái cục bộ)
+
 workflow:                   # workflow gốc do Bint điều phối (bint run)
   max_review_rounds: 2      # số vòng review → sửa tối đa của b-do
   timeout_minutes: 60       # mỗi bước agent

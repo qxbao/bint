@@ -59,6 +59,10 @@ func openTUI(ctx context.Context, stdio IO, req tuiRequest) error {
 	if f, ok := stdio.Out.(*os.File); ok {
 		o.Out = f
 	}
+	// Cảnh báo stderr làm hỏng màn hình TUI: gom lại để TUI hiện thành thông báo (thanh trên và hộp Thông báo).
+	warns := &app.LedgerWarnings{}
+	app.SetLedgerWarn(warns.Add)
+	o.LedgerWarnings = warns.Drain
 	return runTUI(ctx, o)
 }
 

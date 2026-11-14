@@ -32,7 +32,7 @@ type RunCallbacks struct {
 
 // RunWorkflowOptions: `bint run <workflow> [mô tả]`.
 type RunWorkflowOptions struct {
-	Workflow      string   `arg:"workflow" form:"required,choices=b-do|b-req|b-feat|b-review"` // hoặc tên flow tuỳ biến (TUI nạp danh sách flow)
+	Workflow      string   `arg:"workflow" form:"required,choices=b-do|b-req|b-feat|b-review|b-debug"` // hoặc tên flow tuỳ biến (TUI nạp danh sách flow)
 	Request       string   `arg:"description" form:"multiline"`
 	Task          string   `flag:"task" form:"suggest=tasks"`
 	Step          string   `flag:"step" form:"advanced"`
@@ -76,14 +76,14 @@ func (o RunWorkflowOptions) fields() ticketFields {
 // và báo lỗi thường (không phải lỗi dùng sai) như CLI cũ.
 func (o RunWorkflowOptions) Validate() error {
 	if strings.TrimSpace(o.Workflow) == "" {
-		return Usagef("thiếu workflow (b-do | b-req | b-feat | b-review | tên flow tuỳ biến)")
+		return Usagef("thiếu workflow (b-do | b-req | b-feat | b-review | b-debug | tên flow tuỳ biến)")
 	}
 	if o.Step != "" {
 		switch {
 		case strings.TrimSpace(o.Task) == "":
 			return Usagef("--step chỉ dùng với --task (chạy một bước của tác vụ có sẵn)")
-		case flow.IsBuiltin(o.Workflow):
-			return Usagef("--step chỉ dùng với flow tuỳ biến: workflow gốc %s đã chạy theo tên (bint run %s --task <id>)", o.Workflow, o.Workflow)
+		case flow.Legacy(o.Workflow):
+			return Usagef("--step chỉ dùng với flow tuỳ biến hoặc b-debug: workflow gốc %s đã chạy theo tên (bint run %s --task <id>)", o.Workflow, o.Workflow)
 		}
 	}
 	if o.Plan && o.NoPlan {
@@ -130,7 +130,7 @@ func (o RunResumeOptions) Validate() error {
 	return err
 }
 
-// RunWorkflow điều phối một workflow (b-do, b-req, b-feat, b-review). Kết quả blocked/failed/interrupted là
+// RunWorkflow điều phối một workflow (b-do, b-req, b-feat, b-review, b-debug). Kết quả blocked/failed/interrupted là
 // kết quả hợp lệ (Result.Status), không phải lỗi; huỷ ctx thì tác vụ chuyển interrupted.
 func RunWorkflow(ctx context.Context, ws *TaskWS, o RunWorkflowOptions) (*workflow.Result, error) {
 	if err := o.Validate(); err != nil {

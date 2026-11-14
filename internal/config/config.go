@@ -37,7 +37,7 @@ const (
 var KnownHarnesses = []string{"claude", "codex", "antigravity"}
 
 // WorkflowNames là các workflow gốc (mục 6).
-var WorkflowNames = []string{"b-do", "b-req", "b-feat", "b-review"}
+var WorkflowNames = []string{"b-do", "b-req", "b-feat", "b-review", "b-debug"}
 
 var knowledgeKinds = []string{"rule", "fact", "pattern", "decision", "lesson", "warning"}
 
@@ -53,6 +53,7 @@ type Config struct {
 	Eval      Eval      `yaml:"eval"`
 	Evolution Evolution `yaml:"evolution"`
 	Workflow  Workflow  `yaml:"workflow"`
+	Tasks     Tasks     `yaml:"tasks"`
 	Limits    Limits    `yaml:"limits"`
 	Security  Security  `yaml:"security"`
 	UI        UI        `yaml:"ui"`
@@ -351,6 +352,22 @@ func (l Limits) ForWorkflow(name string) PerRunLimits {
 	return out
 }
 
+// Tasks cấu hình nơi lưu phiếu tác vụ.
+type Tasks struct {
+	// Ledger: git (mặc định) = bản chiếu bền của phiếu nằm trong cây làm việc ở `.bint/tasks/<ID>/`, commit cùng mã và
+	// tự nhập sau git pull/merge; local = chỉ thư mục trạng thái cục bộ (không đọc, không ghi `.bint/tasks`).
+	Ledger string `yaml:"ledger"`
+}
+
+// Giá trị của tasks.ledger.
+const (
+	LedgerGit   = "git"
+	LedgerLocal = "local"
+)
+
+// LedgerModes là các giá trị hợp lệ của tasks.ledger.
+var LedgerModes = []string{LedgerGit, LedgerLocal}
+
 // Workflow cấu hình các workflow gốc do Bint điều phối (`bint run`, mục 6).
 type Workflow struct {
 	// MaxReviewRounds: số vòng b-review → b-feat tối đa của b-do trước khi dừng chờ người.
@@ -562,6 +579,7 @@ func Default() Config {
 				NonInferiorityMargin: 0.10, MaxRepeats: 8, EffectSD: 0.15, Delivery: "bint", LeakageMode: "economy"},
 			Adoption: EvolutionAdoption{BindToModelVersion: true},
 		},
+		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
 			MaxReviewRounds: 2, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
@@ -942,6 +960,9 @@ func (c Config) Validate() error {
 		if w.MaxTurns != nil && *w.MaxTurns < 1 {
 			add("limits.workflows.%s.max_turns: phải >= 1", name)
 		}
+	}
+	if !slices.Contains(LedgerModes, c.Tasks.Ledger) {
+		add("tasks.ledger: phải là " + strings.Join(LedgerModes, " | "))
 	}
 	if c.Workflow.MaxReviewRounds < 0 || c.Workflow.MaxReviewRounds > 10 {
 		add("workflow.max_review_rounds: phải trong khoảng 0..10")

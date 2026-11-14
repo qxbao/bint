@@ -218,8 +218,8 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	if o.Rerun && !o.Resume {
 		return nil, errors.New("--rerun chỉ dùng khi tiếp tục tác vụ (bint run resume <id> --rerun)")
 	}
-	if o.Step != "" && (o.TaskRef == "" || !isCustomFlow(o.Workflow)) {
-		return nil, errors.New("--step chỉ dùng với --task và flow tuỳ biến (workflow gốc chạy theo tên: bint run <workflow> --task <id>)")
+	if o.Step != "" && (o.TaskRef == "" || !boundFlow(o.Workflow)) {
+		return nil, errors.New("--step chỉ dùng với --task và flow tuỳ biến hoặc b-debug (workflow gốc khác chạy theo tên: bint run <workflow> --task <id>)")
 	}
 	// Mọi thay đổi Env của lượt này (Source, RunID, Root khi vào worktree) nằm trên bản sao, trả lại Env gốc khi xong
 	// để Runner/TaskWS dùng lại được cho lượt sau (nếu không RunID còn sót lại làm lượt sau bị coi là chạy lồng).
@@ -500,8 +500,8 @@ func (rs *runState) loopGuard(maxReviewRounds int) int {
 	return 4 + max(3, 2*rs.countKind(flow.KindImplement)+rs.countKind(flow.KindReview))*(maxReviewRounds+1)
 }
 
-// checkFlowSwitch kiểm luật đổi workflow khi chạy tác vụ có sẵn: tác vụ lập cho flow tuỳ biến chỉ chạy bằng đúng flow đó
-// (bint run <flow> --task, resume); flow tuỳ biến chỉ nhận tác vụ của chính nó hoặc tác vụ mới chỉ lập kế hoạch (b-req).
+// checkFlowSwitch kiểm luật đổi workflow khi chạy tác vụ có sẵn: tác vụ lập cho flow gắn phiếu (flow tuỳ biến, b-debug;
+// xem boundFlow) chỉ chạy bằng đúng flow đó (bint run <flow> --task, resume); flow gắn phiếu chỉ nhận tác vụ của chính nó hoặc tác vụ mới chỉ lập kế hoạch (b-req).
 // Workflow gốc với nhau thì giữ nguyên hành vi cũ (ví dụ b-feat --task trên tác vụ b-do).
 func checkFlowSwitch(t *task.Task, workflow string) error {
 	tw := t.State.Workflow
@@ -510,11 +510,11 @@ func checkFlowSwitch(t *task.Task, workflow string) error {
 		return nil
 	case builtinFlow(tw).OnlyKind(flow.KindPlan):
 		return nil
-	case isCustomFlow(tw):
+	case boundFlow(tw):
 		return fmt.Errorf("tác vụ %s thuộc flow %s, không chạy được bằng %s giữa chừng: `bint run %s --task %s` hoặc `bint run resume %s`",
 			t.State.ID, tw, workflow, tw, t.State.ID, t.State.ID)
-	case isCustomFlow(workflow):
-		return fmt.Errorf("tác vụ %s thuộc workflow %s, không chạy được bằng flow %s (flow tuỳ biến chỉ nhận tác vụ lập cho chính nó, "+
+	case boundFlow(workflow):
+		return fmt.Errorf("tác vụ %s thuộc workflow %s, không chạy được bằng flow %s (flow tuỳ biến và b-debug chỉ nhận tác vụ lập cho chính nó, "+
 			"hoặc tác vụ mới chỉ lập kế hoạch bằng b-req)", t.State.ID, tw, workflow)
 	}
 	return nil
@@ -906,6 +906,9 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 	kind := rs.kindOf(step)
 	switch kind {
 	case flow.KindImplement:
+		if sd, _ := rs.flow.StepByID(step); sd.ExpectsFail() && !r.preflightRepro(rs, step) {
+			return nil, false
+		}
 		if !r.preflightFeat(rs) {
 			return nil, false
 		}
@@ -1433,6 +1436,9 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		next, hasNext := rs.stepAfter(step)
 		nextImpl := hasNext && next.Kind == flow.KindImplement
 		sd, _ := rs.flow.StepByID(step)
+		if sd.ExpectsFail() {
+			return r.redGate(ctx, rs, sd, next)
+		}
 		// Kiểm chứng chạy khi bước khai báo verify (mặc định có), và LUÔN chạy trước bước review đầu tiên và trước khi
 		// done (bước implement cuối): luật này nằm ở Runner chứ không chỉ ở lint, nên flow không nới được cổng.
 		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" && (sd.VerifyOn() || !nextImpl) {
@@ -1496,6 +1502,79 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		return r.reviewDecision(ctx, rs, last)
 	}
 	return false
+}
+
+// preflightRepro chặn trước bước implement có expect: fail khi cổng đỏ không thể chạy: phiếu thiếu verify.command, hoặc
+// lệnh chưa được người xác nhận (Bint không chạy lệnh do agent đề xuất). Chặn trước khi gọi agent để không tốn lượt chạy
+// rồi mới biết không kiểm được. Trả true nếu chạy tiếp được.
+func (r *Runner) preflightRepro(rs *runState, step string) bool {
+	id := rs.t.State.ID
+	cmd := strings.TrimSpace(rs.t.Ticket.Verify.Command)
+	switch {
+	case cmd == "":
+		r.block(rs, fmt.Sprintf("bước %s cần lệnh kiểm chứng để biết test đã tái hiện lỗi: đặt bằng `bint task set %s --verify-command '…'`, "+
+			"người xác nhận bằng `bint task approve %s`, rồi %s", step, id, id, r.resumeCmd(rs)))
+		return false
+	case !r.VerifyConfirmed(rs.t) && r.Cfg.Security.RequireApprovalForCommands:
+		r.block(rs, fmt.Sprintf("bước %s cần lệnh kiểm chứng đã được người xác nhận (Bint không chạy lệnh do agent đề xuất): "+
+			"`bint task approve %s`, rồi %s", step, id, r.resumeCmd(rs)))
+		return false
+	}
+	return true
+}
+
+// redGate là cổng sau bước implement có expect: fail (bước viết test tái hiện lỗi): kiểm chứng phải KHÔNG qua. Hỏng thì
+// sang bước kế (bản sửa). Qua nghĩa là test chưa tái hiện lỗi: chặn chờ người, FlowStep giữ ở bước này nên resume chạy
+// lại nó. Không chạy được kiểm chứng (bỏ qua, quá giờ) cũng chặn nhưng giữ AwaitingCheck: resume chỉ chạy lại cổng, không
+// gọi lại agent. Trả true nếu workflow đi tiếp.
+func (r *Runner) redGate(ctx context.Context, rs *runState, sd flow.Step, next flow.Step) bool {
+	lock, ok := r.lockStep(ctx, rs, "verify", LockExclusive)
+	if !ok {
+		return false
+	}
+	t, vr, err := r.Verify(ctx, rs.t.State.ID)
+	lock.Release()
+	switch {
+	case err != nil && ctx.Err() != nil:
+		r.interrupt(rs, "người dùng huỷ khi kiểm chứng")
+		return false
+	case err != nil:
+		r.fail(rs, "verify", err.Error())
+		return false
+	case vr.Skipped != "":
+		r.block(rs, fmt.Sprintf("không chạy được cổng đỏ của bước %s: %s; xử lý rồi %s (chỉ chạy lại kiểm chứng, không gọi lại agent)",
+			sd.ID, vr.Skipped, r.resumeCmd(rs)))
+		return false
+	}
+	rs.t = t
+	v := vr.Verification
+	r.logf("  kiểm chứng (cổng đỏ): %s → %s", v.Command, passWord(v.Passed))
+	if v.TimedOut {
+		r.block(rs, fmt.Sprintf("cổng đỏ của bước %s: lệnh kiểm chứng quá giờ nên chưa biết test có tái hiện lỗi không; "+
+			"xử lý rồi %s (chỉ chạy lại kiểm chứng, không gọi lại agent)", sd.ID, r.resumeCmd(rs)))
+		return false
+	}
+	if v.Passed {
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+			t.State.AwaitingCheck = false
+			t.State.FlowStep = sd.ID
+			return nil
+		}); err == nil {
+			rs.t = t
+		}
+		r.block(rs, fmt.Sprintf("bước %s xong nhưng lệnh kiểm chứng vẫn qua: test chưa tái hiện lỗi (cần một test hỏng trước khi sửa). "+
+			"Xem lại test hoặc lệnh kiểm chứng (bint task set %s --verify-command), rồi %s để chạy lại %s",
+			sd.ID, rs.t.State.ID, r.resumeCmd(rs), sd.ID))
+		return false
+	}
+	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+		t.State.AwaitingCheck = false
+		t.State.FlowStep = next.ID
+		return nil
+	}); err == nil {
+		rs.t = t
+	}
+	return true
 }
 
 // reviewIsFresh: vòng review last do chính bước b-review vừa chạy ghi. Driver process: lượt ghi khớp lượt của bước

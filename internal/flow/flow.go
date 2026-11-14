@@ -68,7 +68,16 @@ type Step struct {
 	Verify *bool `yaml:"verify,omitempty" json:"verify,omitempty"`
 	// Fix: chỉ ở bước review; id bước implement mà vòng sửa quay về.
 	Fix string `yaml:"fix,omitempty" json:"fix,omitempty"`
+	// Expect: chỉ ở bước implement không phải bước cuối; "fail" nghĩa là sau bước này lệnh kiểm chứng phải KHÔNG qua
+	// (bước viết test tái hiện lỗi): qua thì Runner chặn tác vụ thay vì sang bước kế.
+	Expect string `yaml:"expect,omitempty" json:"expect,omitempty"`
 }
+
+// ExpectFail là giá trị duy nhất của Step.Expect.
+const ExpectFail = "fail"
+
+// ExpectsFail cho biết sau bước này kiểm chứng phải hỏng (cổng đỏ).
+func (s Step) ExpectsFail() bool { return s.Expect == ExpectFail }
 
 // VerifyOn cho biết có chạy kiểm chứng sau bước này không (mặc định có).
 func (s Step) VerifyOn() bool { return s.Verify == nil || *s.Verify }
@@ -92,7 +101,7 @@ type Def struct {
 	builtin bool
 }
 
-// IsBuiltin cho biết đây là flow nhúng (một trong bốn workflow gốc).
+// IsBuiltin cho biết đây là flow nhúng (một trong năm workflow gốc).
 func (d Def) IsBuiltin() bool { return d.builtin }
 
 // Clone là bản sao sâu (bước và con trỏ Verify không chia sẻ với bản gốc).

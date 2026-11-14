@@ -315,7 +315,7 @@ func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 		}
 		return strings.TrimSpace(string(out)), nil
 	}
-	if _, err := run("add", "-A", "--", "."); err != nil {
+	if _, err := run("add", "-A", "--", ".", ":(exclude)"+task.LedgerDir); err != nil {
 		return "", err
 	}
 	return run("write-tree")
@@ -363,6 +363,9 @@ func ReadonlyViolations(ctx context.Context, root, before, after string, since t
 	var res ReadonlyCheck
 	for _, ch := range parseNameStatusZ(out) {
 		st, p := ch.status, ch.path
+		if task.IsLedgerPath(p) {
+			continue // sổ phiếu do Bint ghi, kể cả trong bước chỉ-đọc
+		}
 		if newCandidateItem(root, st, p) {
 			continue
 		}
@@ -405,7 +408,7 @@ func nonCandidateChanges(ctx context.Context, root, before, after string) ([]str
 	}
 	var res []string
 	for _, ch := range parseNameStatusZ(out) {
-		if !newCandidateItem(root, ch.status, ch.path) {
+		if !newCandidateItem(root, ch.status, ch.path) && !task.IsLedgerPath(ch.path) {
 			res = append(res, ch.path)
 		}
 	}

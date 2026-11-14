@@ -53,7 +53,7 @@ func TestSystemActionsWritesFlags(t *testing.T) {
 func TestSystemReadActionsWithRealServices(t *testing.T) {
 	root, _ := seed(t)
 	env := actions.Env{Dir: root, Version: "test"}
-	if r := do(t, "system.config_view", env, nil); r.Err != nil || len(r.Value.(app.ConfigViewData).Groups) != 14 {
+	if r := do(t, "system.config_view", env, nil); r.Err != nil || len(r.Value.(app.ConfigViewData).Groups) != 15 {
 		t.Fatalf("config_view: %+v", r)
 	}
 	if r := do(t, "system.harness_list", env, app.HarnessListOptions{NoVersion: true}); r.Err != nil {
@@ -134,7 +134,7 @@ func TestSystemWriteActionsWithRealServices(t *testing.T) {
 	if r := do(t, "system.skill_new", env, app.SkillNewOptions{Name: "b-bad"}); r.Err == nil {
 		t.Fatal("tên b- phải bị từ chối")
 	}
-	// Flow (chỉ đọc): list có bốn flow nhúng, show in YAML, lint một flow tuỳ biến hợp lệ thoát sạch và tên lạ lỗi cách dùng.
+	// Flow (chỉ đọc): list có năm flow nhúng, show in YAML, lint một flow tuỳ biến hợp lệ thoát sạch và tên lạ lỗi cách dùng.
 	if err := os.MkdirAll(filepath.Join(env.Dir, ".bint", "flows"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestSystemWriteActionsWithRealServices(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(env.Dir, ".bint", "flows", "demo-flow.yml"), []byte(flowSrc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if r := do(t, "system.flow_list", env, app.FlowListOptions{}); r.Err != nil || len(r.Value.([]app.FlowRow)) != 5 {
+	if r := do(t, "system.flow_list", env, app.FlowListOptions{}); r.Err != nil || len(r.Value.([]app.FlowRow)) != 6 {
 		t.Fatalf("flow_list: %+v", r)
 	}
 	if r := do(t, "system.flow_show", env, app.FlowShowOptions{Name: "demo-flow"}); r.Err != nil || !strings.Contains(r.Value.(app.FlowShowResult).YAML, "role: implementer") {

@@ -682,7 +682,7 @@ func (e *EvalWorkspace) resolveArms(arms []string, explicit bool, log func(strin
 
 // ---- eval mine --from-tasks ----
 
-// taskSources đọc kho phiếu và dựng nguồn cho đề: chỉ phiếu workflow b-do ở trạng thái done. Phiếu không
+// taskSources đọc kho phiếu và dựng nguồn cho đề: chỉ phiếu workflow b-do hoặc b-debug ở trạng thái done. Phiếu không
 // đọc được bị bỏ qua (kho phiếu hỏng không được chặn việc khai thác).
 func taskSources(e *EvalWorkspace) ([]eval.TaskSource, error) {
 	tasks, _ := task.NewStore(e.WS.Paths.Runtime).List()
@@ -690,7 +690,7 @@ func taskSources(e *EvalWorkspace) ([]eval.TaskSource, error) {
 	var out []eval.TaskSource
 	for _, t := range tasks {
 		st := &t.State
-		if st.Workflow != "b-do" || st.Status != task.StatusDone {
+		if (st.Workflow != "b-do" && st.Workflow != "b-debug") || st.Status != task.StatusDone {
 			continue
 		}
 		ts := eval.TaskSource{

@@ -17,7 +17,13 @@ import (
 )
 
 // TestEvalMineFromTasksEndToEnd: phiếu b-do đã done → ứng viên → verify fail→pass → approve với split theo ID.
-func TestEvalMineFromTasksEndToEnd(t *testing.T) {
+func TestEvalMineFromTasksEndToEnd(t *testing.T) { evalMineFromTasksE2E(t, "b-do") }
+
+// TestEvalMineFromTasksDebugEndToEnd: như trên với phiếu workflow b-debug (cùng nguồn đề: tái hiện bằng test hỏng, sửa).
+func TestEvalMineFromTasksDebugEndToEnd(t *testing.T) { evalMineFromTasksE2E(t, "b-debug") }
+
+func evalMineFromTasksE2E(t *testing.T, wf string) {
+	t.Helper()
 	if runtime.GOOS == "windows" {
 		if _, err := exec.LookPath("sh"); err != nil {
 			t.Skip("cần sh")
@@ -58,12 +64,12 @@ func TestEvalMineFromTasksEndToEnd(t *testing.T) {
 			History: []task.Transition{{To: task.StatusDone, At: "2026-11-10T00:00:00Z", By: "bint"}}}
 	}
 	tk, err := store.Create(task.Ticket{Goal: "Add a multiplication helper", Request: "Add a mul function to the calc library so callers can compute products, not only sums.",
-		Verify: task.Verify{Command: "sh tests/run.sh", Criteria: []string{"mul 4 5 prints 20"}}}, done("b-do", task.StatusDone), time.Now())
+		Verify: task.Verify{Command: "sh tests/run.sh", Criteria: []string{"mul 4 5 prints 20"}}}, done(wf, task.StatusDone), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Phiếu khác workflow hoặc chưa done không tạo ứng viên.
-	for _, st := range []task.State{done("b-feat", task.StatusDone), done("b-do", task.StatusInReview)} {
+	for _, st := range []task.State{done("b-feat", task.StatusDone), done(wf, task.StatusInReview)} {
 		if _, err := store.Create(task.Ticket{Goal: "Other task"}, st, time.Now().Add(time.Second)); err != nil {
 			t.Fatal(err)
 		}

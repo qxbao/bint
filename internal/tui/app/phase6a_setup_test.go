@@ -48,6 +48,7 @@ func failSecondApply(o *Options) {
 // "Bước i/n"; setupProblem được xoá nên lần chạy sạch kế tiếp không báo vấn đề.
 func TestSetupMultiStepFailureKeepsReportAndClearsProblem(t *testing.T) {
 	f, root, c := lifeFixture(t, failSecondApply)
+	f.m.SetSize(140, 52) // báo cáo init liệt kê mọi skill gốc: đủ cao để thấy cả dòng lỗi cuối khung (không cuộn)
 	installClaudeHook(t, root, claude.ScopeLocal)
 	f.sysTab(syscreen.TabSetup)
 	f.waitFor("Mẫu cấu hình")

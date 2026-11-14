@@ -147,7 +147,7 @@ func PendingWork(ctx context.Context, dir string) (*PendingWorkReport, error) {
 	}
 
 	// 3. Tác vụ blocked.
-	tasks, bad := task.NewStore(ws.Paths.Runtime).List()
+	tasks, bad := taskStore(ws).List()
 	for _, t := range tasks {
 		if t.State.Status == task.StatusBlocked {
 			rep.BlockedTasks = append(rep.BlockedTasks, PendingTask{ID: t.State.ID, Goal: t.Ticket.Goal, Reason: t.State.Reason})
