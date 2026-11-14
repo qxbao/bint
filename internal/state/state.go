@@ -27,6 +27,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/gitrepo"
+	"bint/internal/pathutil"
 )
 
 // EnvStateDir ghi đè thư mục gốc chứa trạng thái của mọi repository.
@@ -94,16 +95,12 @@ func RepoID(commonDir string) string {
 	return name + "-" + hex.EncodeToString(sum[:])[:12]
 }
 
-// NormalizePath chuẩn hoá đường dẫn để băm: tuyệt đối, giải symlink nếu được,
-// dấu '/', và không phân biệt hoa thường trên Windows/macOS.
+// NormalizePath chuẩn hoá đường dẫn để băm và so sánh: tuyệt đối, giải symlink nếu được (cả tổ tiên
+// còn tồn tại gần nhất của đường dẫn chưa có/đã xoá, nên /var và /private/var trên macOS khớp nhau),
+// dấu '/', và không phân biệt hoa thường trên Windows/macOS. Với đường dẫn đang tồn tại, kết quả
+// trùng với EvalSymlinks nên RepoID không đổi.
 func NormalizePath(p string) string {
-	if abs, err := filepath.Abs(p); err == nil {
-		p = abs
-	}
-	if r, err := filepath.EvalSymlinks(p); err == nil {
-		p = r
-	}
-	p = filepath.ToSlash(filepath.Clean(p))
+	p = filepath.ToSlash(filepath.Clean(pathutil.BestEffort(p)))
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		p = strings.ToLower(p)
 	}
@@ -155,11 +152,13 @@ func At(id, root string) Paths {
 }
 
 func isInside(p, dir string) bool {
+	// NormalizePath giải symlink theo khả năng và quay về so theo chuỗi khi hệ tệp không trả lời,
+	// để lỗi chuẩn hoá không làm hỏng mọi lệnh bint.
 	rel, err := filepath.Rel(NormalizePath(dir), NormalizePath(p))
 	if err != nil {
-		return false
+		return false // khác ổ đĩa thì không chứa nhau (Windows)
 	}
-	return rel == "." || (!strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel))
+	return rel == "." || (rel != ".." && !strings.HasPrefix(filepath.ToSlash(rel), "../") && !filepath.IsAbs(rel))
 }
 
 // Initialized cho biết thư mục trạng thái đã được `bint init` tạo hay chưa.

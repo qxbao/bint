@@ -18,7 +18,7 @@ const tddAgent = `set -e
 P="$(cat "$BINT_EVAL_PROMPT_FILE")"
 STEP="$(printf '%s' "$P" | sed -n 's/.*<bint-task id="[^"]*" step="\([^"]*\)".*/\1/p' | head -1)"
 echo "$STEP" >> "$STEPLOG"
-printf '%s' "$P" > "$PROMPTS/$STEP.$(wc -l < "$STEPLOG").txt"
+printf '%s' "$P" > "$PROMPTS/$STEP.$(wc -l < "$STEPLOG" | tr -d '[:space:]').txt"
 flag() { test -e "$FLAGS/$1"; }
 case "$STEP" in
 plan)

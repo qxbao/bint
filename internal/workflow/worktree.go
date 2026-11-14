@@ -18,6 +18,7 @@ import (
 	"bint/internal/flow"
 	"bint/internal/gitrepo"
 	"bint/internal/pathglob"
+	"bint/internal/pathutil"
 	"bint/internal/state"
 	"bint/internal/task"
 )
@@ -480,6 +481,6 @@ func (e *Env) removeLockFiles(wt string) error {
 
 // isUnder cho biết p nằm dưới dir.
 func isUnder(dir, p string) bool {
-	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(p))
-	return err == nil && rel != "." && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel)
+	rel, err := filepath.Rel(pathutil.BestEffort(dir), pathutil.BestEffort(p))
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(filepath.ToSlash(rel), "../") && !filepath.IsAbs(rel)
 }

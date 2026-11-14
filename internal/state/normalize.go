@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"bint/internal/pathutil"
 )
 
 // NormalizeWritePath chuẩn hoá đường dẫn tệp để so khớp giữa nhật ký và kết quả git diff: tuyệt đối, giải
@@ -15,21 +17,8 @@ func NormalizeWritePath(p string) string {
 		abs = p
 	}
 	abs = filepath.Clean(abs)
-	base := filepath.Base(abs)
-	cur, rest := filepath.Dir(abs), ""
-	for {
-		if r, err := filepath.EvalSymlinks(cur); err == nil {
-			cur = r
-			break
-		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
-			break
-		}
-		rest = filepath.Join(filepath.Base(cur), rest)
-		cur = parent
-	}
-	out := filepath.ToSlash(filepath.Clean(filepath.Join(cur, rest, base)))
+	dir := pathutil.BestEffort(filepath.Dir(abs))
+	out := filepath.ToSlash(filepath.Clean(filepath.Join(dir, filepath.Base(abs))))
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		out = strings.ToLower(out)
 	}
