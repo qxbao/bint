@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 )
 
 // Harness mô tả một harness được phát hiện trên máy.
@@ -34,37 +36,81 @@ var harnessSpecs = []struct {
 // Harnesses phát hiện các harness Bint biết.
 func Harnesses() []Harness {
 	home, _ := os.UserHomeDir()
-	var out []Harness
-	for _, s := range harnessSpecs {
-		h := Harness{Name: s.name}
-		for _, b := range s.bins {
-			if p, err := exec.LookPath(b); err == nil {
-				h.Binary = p
-				break
-			}
-		}
-		if home != "" {
-			for _, d := range s.homes {
-				if fi, err := os.Stat(filepath.Join(home, filepath.FromSlash(d))); err == nil && fi.IsDir() {
-					h.Home = filepath.Join(home, filepath.FromSlash(d))
-					break
-				}
-			}
-		}
-		h.Present = h.Binary != "" || h.Home != ""
-		out = append(out, h)
+	out := make([]Harness, 0, len(harnessSpecs))
+	for i := range harnessSpecs {
+		out = append(out, detectSpec(i, home))
 	}
 	return out
 }
 
-// Find trả về kết quả phát hiện của một harness.
+// Find trả về kết quả phát hiện của một harness. Chỉ dò harness được hỏi: màn System và Describe gọi Find cho từng
+// harness, dò cả danh sách mỗi lần nhân số lần tra PATH lên.
 func Find(name string) Harness {
-	for _, h := range Harnesses() {
-		if h.Name == name {
-			return h
+	for i, s := range harnessSpecs {
+		if s.name == name {
+			home, _ := os.UserHomeDir()
+			return detectSpec(i, home)
 		}
 	}
 	return Harness{Name: name}
+}
+
+func detectSpec(i int, home string) Harness {
+	s := harnessSpecs[i]
+	h := Harness{Name: s.name}
+	for _, b := range s.bins {
+		if p := lookPath(b); p != "" {
+			h.Binary = p
+			break
+		}
+	}
+	if home != "" {
+		for _, d := range s.homes {
+			if fi, err := os.Stat(filepath.Join(home, filepath.FromSlash(d))); err == nil && fi.IsDir() {
+				h.Home = filepath.Join(home, filepath.FromSlash(d))
+				break
+			}
+		}
+	}
+	h.Present = h.Binary != "" || h.Home != ""
+	return h
+}
+
+// lookPathTTL: exec.LookPath trên Windows stat mọi thư mục trong PATH × mọi đuôi PATHEXT (~8 ms với PATH 70+ mục);
+// TUI gọi phát hiện harness ở mỗi lần nạp màn hình. Kết quả được nhớ ngắn hạn theo (PATH, PATHEXT, tên): đổi PATH thì
+// tra lại ngay, cài harness mới thì thấy sau tối đa lookPathTTL.
+const lookPathTTL = 2 * time.Second
+
+type lookPathEntry struct {
+	path string
+	at   time.Time
+}
+
+var (
+	lookPathMu    sync.Mutex
+	lookPathCache = map[string]lookPathEntry{}
+)
+
+func lookPath(name string) string {
+	key := strings.Join([]string{os.Getenv("PATH"), os.Getenv("PATHEXT"), name}, "\n")
+	now := time.Now()
+	lookPathMu.Lock()
+	e, ok := lookPathCache[key]
+	lookPathMu.Unlock()
+	if ok && now.Sub(e.at) < lookPathTTL {
+		return e.path
+	}
+	p, err := exec.LookPath(name)
+	if err != nil {
+		p = ""
+	}
+	lookPathMu.Lock()
+	if len(lookPathCache) > 256 {
+		clear(lookPathCache)
+	}
+	lookPathCache[key] = lookPathEntry{p, now}
+	lookPathMu.Unlock()
+	return p
 }
 
 // Commands là lệnh kiểm thử và dựng môi trường đề xuất.
