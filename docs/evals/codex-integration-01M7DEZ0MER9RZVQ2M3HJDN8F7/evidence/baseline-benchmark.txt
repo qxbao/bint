@@ -1,0 +1,14 @@
+{"command": "go test ./internal/eval -run '^$' -bench '^BenchmarkParseCodexJSONL$' -benchmem -count=5", "overrides": {}, "started": "2026-11-14T16:49:12.368651+00:00", "code_diff_sha256": "802ca50ba46c40feb13e9a98ceea03458497a03cddd25bec1b37b714b4831846"}
+goos: darwin
+goarch: arm64
+pkg: bint/internal/eval
+cpu: Apple M4
+BenchmarkParseCodexJSONL-10    	   13141	     93172 ns/op	   7.81 MB/s	 1051224 B/op	      67 allocs/op
+BenchmarkParseCodexJSONL-10    	   13266	     89673 ns/op	   8.12 MB/s	 1051224 B/op	      67 allocs/op
+BenchmarkParseCodexJSONL-10    	   13848	     84021 ns/op	   8.66 MB/s	 1051224 B/op	      67 allocs/op
+BenchmarkParseCodexJSONL-10    	   13291	     89186 ns/op	   8.16 MB/s	 1051223 B/op	      67 allocs/op
+BenchmarkParseCodexJSONL-10    	   13465	     89008 ns/op	   8.18 MB/s	 1051224 B/op	      67 allocs/op
+PASS
+ok  	bint/internal/eval	6.593s
+
+{"command": "go test ./internal/eval -run '^$' -bench '^BenchmarkParseCodexJSONL$' -benchmem -count=5", "overrides": {}, "started": "2026-11-14T16:49:12.368651+00:00", "code_diff_sha256": "802ca50ba46c40feb13e9a98ceea03458497a03cddd25bec1b37b714b4831846", "exit_code": 0, "elapsed_seconds": 16.938}

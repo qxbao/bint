@@ -1,0 +1,51 @@
+{"command": "go test ./internal/eval ./internal/harness/codex ./internal/app -run 'Test(CodexJSONL|ProjectTrust|CodexExclusiveMCPProjectLayers|InstalledHooksMatchSupportedShellTools|CodexGuardrailDeniesWriteDurableWorkflowEvents)' -count=1", "overrides": {}, "started": "2026-11-14T16:49:13.567214+00:00", "code_diff_sha256": "802ca50ba46c40feb13e9a98ceea03458497a03cddd25bec1b37b714b4831846"}
+--- FAIL: TestCodexJSONLRequiresCompletedTurn (0.00s)
+    --- FAIL: TestCodexJSONLRequiresCompletedTurn/empty (0.00s)
+        agent_harness_test.go:85: incomplete/failed stream reported success: {ExitCode:0 Duration:0s TimedOut:false Error: NumTurns:<nil> InputTokens:<nil> OutputTokens:<nil> CostUSD:<nil> Model: Text: SkillsActivated:[] Infra: QuotaHit:false}
+    --- FAIL: TestCodexJSONLRequiresCompletedTurn/answer_without_terminal (0.00s)
+        agent_harness_test.go:85: incomplete/failed stream reported success: {ExitCode:0 Duration:0s TimedOut:false Error: NumTurns:<nil> InputTokens:<nil> OutputTokens:<nil> CostUSD:<nil> Model: Text:Done. SkillsActivated:[] Infra: QuotaHit:false}
+    --- FAIL: TestCodexJSONLRequiresCompletedTurn/truncated_terminal (0.00s)
+        agent_harness_test.go:85: incomplete/failed stream reported success: {ExitCode:0 Duration:0s TimedOut:false Error: NumTurns:<nil> InputTokens:<nil> OutputTokens:<nil> CostUSD:<nil> Model: Text:Done. SkillsActivated:[] Infra: QuotaHit:false}
+    --- FAIL: TestCodexJSONLRequiresCompletedTurn/malformed_before_terminal (0.00s)
+        agent_harness_test.go:85: incomplete/failed stream reported success: {ExitCode:0 Duration:0s TimedOut:false Error: NumTurns:<nil> InputTokens:0x1400021a470 OutputTokens:0x1400021a478 CostUSD:<nil> Model: Text:Created c.txt. SkillsActivated:[] Infra: QuotaHit:false}
+    --- FAIL: TestCodexJSONLRequiresCompletedTurn/next_turn_interrupted (0.00s)
+        agent_harness_test.go:85: incomplete/failed stream reported success: {ExitCode:0 Duration:0s TimedOut:false Error: NumTurns:<nil> InputTokens:0x1400021a790 OutputTokens:0x1400021a798 CostUSD:<nil> Model: Text:Done. SkillsActivated:[] Infra: QuotaHit:false}
+    --- FAIL: TestCodexJSONLRequiresCompletedTurn/failed_without_details (0.00s)
+        agent_harness_test.go:85: incomplete/failed stream reported success: {ExitCode:0 Duration:0s TimedOut:false Error: NumTurns:<nil> InputTokens:<nil> OutputTokens:<nil> CostUSD:<nil> Model: Text:Done. SkillsActivated:[] Infra: QuotaHit:false}
+    --- FAIL: TestCodexJSONLRequiresCompletedTurn/error_without_details (0.00s)
+        agent_harness_test.go:85: incomplete/failed stream reported success: {ExitCode:0 Duration:0s TimedOut:false Error: NumTurns:<nil> InputTokens:0x1400021a3c0 OutputTokens:0x1400021a3c8 CostUSD:<nil> Model: Text:Created c.txt. SkillsActivated:[] Infra: QuotaHit:false}
+    agent_harness_test.go:97: lost process failure: {ExitCode:0 Duration:0s TimedOut:false Error:codex báo lỗi: secondary error NumTurns:<nil> InputTokens:<nil> OutputTokens:<nil> CostUSD:<nil> Model: Text: SkillsActivated:[] Infra: QuotaHit:false}
+--- FAIL: TestCodexJSONLReadsFailureAfterLargeItem (0.03s)
+    agent_harness_test.go:109: large item hid terminal failure: {ExitCode:0 Duration:0s TimedOut:false Error: NumTurns:<nil> InputTokens:0x1400021a030 OutputTokens:0x1400021a038 CostUSD:<nil> Model: Text:Created c.txt. SkillsActivated:[] Infra: QuotaHit:false}
+--- FAIL: TestCodexExclusiveMCPProjectLayers (0.10s)
+    --- FAIL: TestCodexExclusiveMCPProjectLayers/root_trusted (0.01s)
+        codex_mcp_test.go:244: project servers = [deep_only], <nil>; want [child_only deep_only root_only]
+    --- FAIL: TestCodexExclusiveMCPProjectLayers/child_trusted_only (0.01s)
+        codex_mcp_test.go:244: project servers = [], <nil>; want [child_only]
+    --- FAIL: TestCodexExclusiveMCPProjectLayers/child_explicitly_untrusted (0.01s)
+        codex_mcp_test.go:244: project servers = [deep_only], <nil>; want [deep_only root_only]
+FAIL
+FAIL	bint/internal/eval	0.854s
+--- FAIL: TestInstalledHooksMatchSupportedShellTools (0.01s)
+    codex_test.go:42: PreToolUse does not dispatch supported tool local_shell
+    codex_test.go:42: PostToolUse does not dispatch supported tool local_shell
+--- FAIL: TestProjectTrustParsesTOML (0.01s)
+    --- FAIL: TestProjectTrustParsesTOML/literal (0.00s)
+        project_trust_test.go:33: ProjectTrusted = false, want true
+    --- FAIL: TestProjectTrustParsesTOML/inline (0.00s)
+        project_trust_test.go:33: ProjectTrusted = false, want true
+    --- FAIL: TestProjectTrustParsesTOML/indented_unrelated_table (0.00s)
+        project_trust_test.go:33: ProjectTrusted = true, want false
+    --- FAIL: TestProjectTrustParsesTOML/trust_prefix (0.00s)
+        project_trust_test.go:33: ProjectTrusted = true, want false
+--- FAIL: TestProjectTrustWorktreeAndExplicitDenial (0.08s)
+    project_trust_test.go:54: linked worktree did not inherit main repository trust
+FAIL
+FAIL	bint/internal/harness/codex	1.272s
+--- FAIL: TestCodexGuardrailDeniesWriteDurableWorkflowEvents (0.21s)
+    guardrail_hook_test.go:329: expected Codex deny, got "": <nil>
+FAIL
+FAIL	bint/internal/app	1.428s
+FAIL
+
+{"command": "go test ./internal/eval ./internal/harness/codex ./internal/app -run 'Test(CodexJSONL|ProjectTrust|CodexExclusiveMCPProjectLayers|InstalledHooksMatchSupportedShellTools|CodexGuardrailDeniesWriteDurableWorkflowEvents)' -count=1", "overrides": {}, "started": "2026-11-14T16:49:13.567214+00:00", "code_diff_sha256": "802ca50ba46c40feb13e9a98ceea03458497a03cddd25bec1b37b714b4831846", "exit_code": 1, "elapsed_seconds": 11.173}

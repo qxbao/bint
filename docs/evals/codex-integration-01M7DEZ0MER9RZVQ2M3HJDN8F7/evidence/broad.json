@@ -1,0 +1,8 @@
+{
+  "command": "go test ./internal/harness/codex ./internal/harness/hookcore ./internal/pathutil ./internal/state ./internal/eval ./internal/workflow ./internal/app ./internal/mcpgw -count=1",
+  "overrides": {},
+  "started": "2026-11-14T16:51:05.961445+00:00",
+  "code_diff_sha256": "7b45127d62cce7ab32ec0b5dbe63ad1011e68afd132404fd0a4e342590db49f4",
+  "exit_code": 1,
+  "elapsed_seconds": 213.679
+}

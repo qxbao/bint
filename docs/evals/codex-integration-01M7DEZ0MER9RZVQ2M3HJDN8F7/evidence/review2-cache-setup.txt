@@ -1,0 +1,4 @@
+# ./internal/eval
+open /Users/hongducc/Library/Caches/go-build/9e/9e2197e66fa27c560da0b2aeacd9f77d143ae5c7186b70eaf438fe7434e0132e-d: operation not permitted
+FAIL	./internal/eval [setup failed]
+FAIL

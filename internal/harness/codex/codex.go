@@ -27,6 +27,7 @@ import (
 
 	"context"
 
+	"bint/internal/codexconfig"
 	"bint/internal/detect"
 	"bint/internal/fsafe"
 	"bint/internal/harness/claude"
@@ -75,7 +76,11 @@ func Classify(tool string, input map[string]any) hookcore.ToolInfo {
 		}
 		return hookcore.ToolInfo{Kind: hookcore.ToolEdit, Paths: PatchPaths(patch)}
 	case shellTools[tool]:
-		return hookcore.ToolInfo{Kind: hookcore.ToolShell, Command: shellCommand(input["command"])}
+		command := shellCommand(input["command"])
+		if command == "" {
+			command = shellCommand(input["cmd"])
+		}
+		return hookcore.ToolInfo{Kind: hookcore.ToolShell, Command: command}
 	case strings.HasPrefix(tool, MCPPrefix):
 		return hookcore.ToolInfo{Kind: hookcore.ToolMCP, MCPTool: strings.TrimPrefix(tool, MCPPrefix)}
 	}
@@ -197,8 +202,8 @@ func desiredGroups(cmd string) map[string]map[string]any {
 	groups := map[string]map[string]any{
 		"SessionStart": group(""),
 		"SessionEnd":   group(""),
-		"PreToolUse":   group("apply_patch|Bash|shell|exec_command"),
-		"PostToolUse":  group("apply_patch|Bash|shell|exec_command|mcp__bint__.*"),
+		"PreToolUse":   group("apply_patch|Bash|shell|exec_command|local_shell"),
+		"PostToolUse":  group("apply_patch|Bash|shell|exec_command|local_shell|mcp__bint__.*"),
 	}
 	// Codex 0.167 giới hạn SessionEnd ở 3 giây; không dùng chung bản đồ h
 	// để giữ timeout của các sự kiện còn lại ở 10 giây.
@@ -237,25 +242,11 @@ func ProjectTrusted(repoRoot string) bool {
 	if err != nil {
 		return false
 	}
-	b, err := os.ReadFile(filepath.Join(h, "config.toml"))
+	cfg, err := codexconfig.Read(filepath.Join(h, "config.toml"))
 	if err != nil {
 		return false
 	}
-	s := string(b)
-	for _, root := range []string{repoRoot, filepath.ToSlash(repoRoot)} {
-		i := strings.Index(s, `[projects."`+root+`"]`)
-		if i < 0 {
-			continue
-		}
-		rest := s[i+len(root)+13:]
-		if j := strings.Index(rest, "\n["); j >= 0 {
-			rest = rest[:j]
-		}
-		if regexp.MustCompile(`(?m)^\s*trust_level\s*=\s*"trusted"`).MatchString(rest) {
-			return true
-		}
-	}
-	return false
+	return cfg.Trusted(repoRoot)
 }
 
 // ConfigPath là tệp cấu hình Codex cấp dự án.

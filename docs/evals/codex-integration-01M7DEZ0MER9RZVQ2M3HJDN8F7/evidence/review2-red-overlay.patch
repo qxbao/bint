@@ -1,0 +1,11 @@
+--- internal/codexconfig/config.go
++++ overlay/internal/codexconfig/config.go
+@@ -82,7 +82,7 @@
+ 	defer cancel()
+ 	if r, err := gitrepo.Discover(ctx, dir); err == nil {
+ 		main = r.MainWorktree()
+-		if main == "" || !r.IsLinkedWorktree() {
++		if !r.IsLinkedWorktree() {
+ 			// Separate Git dirs and submodules need not store metadata in
+ 			// <root>/.git. Codex uses the current toplevel as the trust root
+ 			// even for linked worktrees when no main root can be inferred.

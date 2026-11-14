@@ -1,7 +1,6 @@
 package eval
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -164,10 +163,10 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	if r.Err != nil {
 		res.Error = r.Err.Error()
 	}
-	parseCodexJSONL(stdout.Bytes(), &res)
 	if res.Error == "" && r.ExitCode != 0 && !r.TimedOut {
 		res.Error = "codex thoát với mã " + strconv.Itoa(r.ExitCode) + ": " + truncate(strings.TrimSpace(r.Tail), 300)
 	}
+	parseCodexJSONL(stdout.Bytes(), &res)
 	return res
 }
 
@@ -177,10 +176,18 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 func parseCodexJSONL(out []byte, res *AgentResult) {
 	var in, outTok int64
 	haveUsage := false
-	sc := bufio.NewScanner(bytes.NewReader(out))
-	sc.Buffer(make([]byte, 1<<20), 64<<20)
-	for sc.Scan() {
-		line := bytes.TrimSpace(sc.Bytes())
+	completed := false
+	fail := func(message string) {
+		if res.Error == "" {
+			res.Error = message
+		}
+	}
+	// Run already holds stdout in memory. Slice its lines directly: Scanner
+	// both copied the buffer and silently stopped at large tool results.
+	for len(out) > 0 {
+		var line []byte
+		line, out, _ = bytes.Cut(out, []byte{'\n'})
+		line = bytes.TrimSpace(line)
 		if len(line) == 0 || line[0] != '{' {
 			continue
 		}
@@ -199,29 +206,40 @@ func parseCodexJSONL(out []byte, res *AgentResult) {
 			} `json:"error"`
 			Message string `json:"message"`
 		}
-		if json.Unmarshal(line, &ev) != nil {
+		if err := json.Unmarshal(line, &ev); err != nil {
+			fail("codex JSONL không hợp lệ: " + err.Error())
 			continue
 		}
 		switch ev.Type {
+		case "turn.started":
+			completed = false
 		case "item.completed":
 			if ev.Item != nil && ev.Item.Type == "agent_message" {
 				res.Text = ev.Item.Text
 			}
 		case "turn.completed":
+			completed = true
 			if ev.Usage != nil {
 				haveUsage = true
 				in += ev.Usage.InputTokens
 				outTok += ev.Usage.OutputTokens
 			}
 		case "turn.failed":
+			message := "turn.failed"
 			if ev.Error != nil && ev.Error.Message != "" {
-				res.Error = "codex báo lỗi: " + truncate(ev.Error.Message, 300)
+				message = ev.Error.Message
 			}
+			fail("codex báo lỗi: " + truncate(message, 300))
 		case "error":
-			if ev.Message != "" && res.Error == "" {
-				res.Error = "codex báo lỗi: " + truncate(ev.Message, 300)
+			message := ev.Message
+			if message == "" {
+				message = "error"
 			}
+			fail("codex báo lỗi: " + truncate(message, 300))
 		}
+	}
+	if !completed {
+		fail("codex JSONL thiếu turn.completed")
 	}
 	if haveUsage {
 		res.InputTokens, res.OutputTokens = &in, &outTok

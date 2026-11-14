@@ -1,0 +1,8 @@
+{
+  "command": "go test ./internal/eval ./internal/harness/codex ./internal/app -run 'Test(CodexJSONL|ProjectTrust|CodexExclusiveMCPProjectLayers|InstalledHooksMatchSupportedShellTools|CodexGuardrailDeniesWriteDurableWorkflowEvents)' -count=1",
+  "overrides": {},
+  "started": "2026-11-14T16:49:13.567214+00:00",
+  "code_diff_sha256": "802ca50ba46c40feb13e9a98ceea03458497a03cddd25bec1b37b714b4831846",
+  "exit_code": 1,
+  "elapsed_seconds": 11.173
+}

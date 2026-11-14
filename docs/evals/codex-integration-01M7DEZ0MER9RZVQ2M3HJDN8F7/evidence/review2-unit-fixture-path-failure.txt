@@ -1,0 +1,95 @@
+=== RUN   TestCodexExclusiveMCP
+=== RUN   TestCodexExclusiveMCP/không_có_tệp
+=== RUN   TestCodexExclusiveMCP/có_tệp_nhưng_không_có_mcp_servers
+=== RUN   TestCodexExclusiveMCP/tên_có_dấu_gạch_là_khoá_trần
+=== RUN   TestCodexExclusiveMCP/tên_có_dấu_chấm_là_khoá_trích_dẫn_TOML
+=== RUN   TestCodexExclusiveMCP/nhiều_tên_trích_dẫn_gộp_một_bảng,_khoá_trần_đứng_sau
+=== RUN   TestCodexExclusiveMCP/trùng_ở_hai_tệp_chỉ_một_lần
+=== RUN   TestCodexExclusiveMCP/server_chỉ_có_ở_dự_án_chưa_tin_cậy_không_bị_tắt_(Codex_bỏ_qua_tệp_đó;_tắt_tên_không_tồn_tại_làm_Codex_lỗi)
+=== RUN   TestCodexExclusiveMCP/bint_không_bị_tắt
+--- PASS: TestCodexExclusiveMCP (0.02s)
+    --- PASS: TestCodexExclusiveMCP/không_có_tệp (0.00s)
+    --- PASS: TestCodexExclusiveMCP/có_tệp_nhưng_không_có_mcp_servers (0.01s)
+    --- PASS: TestCodexExclusiveMCP/tên_có_dấu_gạch_là_khoá_trần (0.00s)
+    --- PASS: TestCodexExclusiveMCP/tên_có_dấu_chấm_là_khoá_trích_dẫn_TOML (0.00s)
+    --- PASS: TestCodexExclusiveMCP/nhiều_tên_trích_dẫn_gộp_một_bảng,_khoá_trần_đứng_sau (0.00s)
+    --- PASS: TestCodexExclusiveMCP/trùng_ở_hai_tệp_chỉ_một_lần (0.01s)
+    --- PASS: TestCodexExclusiveMCP/server_chỉ_có_ở_dự_án_chưa_tin_cậy_không_bị_tắt_(Codex_bỏ_qua_tệp_đó;_tắt_tên_không_tồn_tại_làm_Codex_lỗi) (0.00s)
+    --- PASS: TestCodexExclusiveMCP/bint_không_bị_tắt (0.00s)
+=== RUN   TestCodexExclusiveMCPEnvPrecedenceAndErrors
+--- PASS: TestCodexExclusiveMCPEnvPrecedenceAndErrors (0.00s)
+=== RUN   TestCodexEvalArgsUnchangedByUserMCP
+--- PASS: TestCodexEvalArgsUnchangedByUserMCP (0.00s)
+=== RUN   TestCodexExclusiveMCPWorktreeInheritsTrust
+--- PASS: TestCodexExclusiveMCPWorktreeInheritsTrust (0.08s)
+=== RUN   TestCodexExclusiveMCPBrokenProjectTOML
+--- PASS: TestCodexExclusiveMCPBrokenProjectTOML (0.01s)
+=== RUN   TestCodexExclusiveMCPProjectLayers
+=== RUN   TestCodexExclusiveMCPProjectLayers/root_trusted
+=== RUN   TestCodexExclusiveMCPProjectLayers/child_trusted_only
+=== RUN   TestCodexExclusiveMCPProjectLayers/deep_trusted_only
+=== RUN   TestCodexExclusiveMCPProjectLayers/child_explicitly_untrusted
+=== RUN   TestCodexExclusiveMCPProjectLayers/unrelated_ancestor_trusted
+--- PASS: TestCodexExclusiveMCPProjectLayers (0.09s)
+    --- PASS: TestCodexExclusiveMCPProjectLayers/root_trusted (0.01s)
+    --- PASS: TestCodexExclusiveMCPProjectLayers/child_trusted_only (0.01s)
+    --- PASS: TestCodexExclusiveMCPProjectLayers/deep_trusted_only (0.01s)
+    --- PASS: TestCodexExclusiveMCPProjectLayers/child_explicitly_untrusted (0.01s)
+    --- PASS: TestCodexExclusiveMCPProjectLayers/unrelated_ancestor_trusted (0.01s)
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/separate-git-dir
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/separate-git-dir/root_trusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/separate-git-dir/child_explicitly_untrusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/separate-git-dir/outside_ancestor_trusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/submodule
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/submodule/root_trusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/submodule/child_explicitly_untrusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/submodule/outside_ancestor_trusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/linked-separate-git-dir
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/linked-separate-git-dir/root_trusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/linked-separate-git-dir/child_explicitly_untrusted
+    codex_mcp_test.go:300: project servers = [child_only root_only], <nil>; want [root_only]
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/linked-separate-git-dir/outside_ancestor_trusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/linked-submodule
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/linked-submodule/root_trusted
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/linked-submodule/child_explicitly_untrusted
+    codex_mcp_test.go:300: project servers = [child_only root_only], <nil>; want [root_only]
+=== RUN   TestCodexExclusiveMCPGitFileProjectLayers/linked-submodule/outside_ancestor_trusted
+--- FAIL: TestCodexExclusiveMCPGitFileProjectLayers (0.65s)
+    --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/separate-git-dir (0.08s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/separate-git-dir/root_trusted (0.01s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/separate-git-dir/child_explicitly_untrusted (0.01s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/separate-git-dir/outside_ancestor_trusted (0.01s)
+    --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/submodule (0.22s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/submodule/root_trusted (0.01s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/submodule/child_explicitly_untrusted (0.01s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/submodule/outside_ancestor_trusted (0.01s)
+    --- FAIL: TestCodexExclusiveMCPGitFileProjectLayers/linked-separate-git-dir (0.11s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/linked-separate-git-dir/root_trusted (0.01s)
+        --- FAIL: TestCodexExclusiveMCPGitFileProjectLayers/linked-separate-git-dir/child_explicitly_untrusted (0.01s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/linked-separate-git-dir/outside_ancestor_trusted (0.01s)
+    --- FAIL: TestCodexExclusiveMCPGitFileProjectLayers/linked-submodule (0.25s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/linked-submodule/root_trusted (0.01s)
+        --- FAIL: TestCodexExclusiveMCPGitFileProjectLayers/linked-submodule/child_explicitly_untrusted (0.01s)
+        --- PASS: TestCodexExclusiveMCPGitFileProjectLayers/linked-submodule/outside_ancestor_trusted (0.01s)
+FAIL
+FAIL	bint/internal/eval	1.343s
+=== RUN   TestProjectTrustParsesTOML
+=== RUN   TestProjectTrustParsesTOML/basic
+=== RUN   TestProjectTrustParsesTOML/literal
+=== RUN   TestProjectTrustParsesTOML/inline
+=== RUN   TestProjectTrustParsesTOML/commented_header
+=== RUN   TestProjectTrustParsesTOML/indented_unrelated_table
+=== RUN   TestProjectTrustParsesTOML/trust_prefix
+--- PASS: TestProjectTrustParsesTOML (0.01s)
+    --- PASS: TestProjectTrustParsesTOML/basic (0.00s)
+    --- PASS: TestProjectTrustParsesTOML/literal (0.00s)
+    --- PASS: TestProjectTrustParsesTOML/inline (0.00s)
+    --- PASS: TestProjectTrustParsesTOML/commented_header (0.01s)
+    --- PASS: TestProjectTrustParsesTOML/indented_unrelated_table (0.00s)
+    --- PASS: TestProjectTrustParsesTOML/trust_prefix (0.00s)
+=== RUN   TestProjectTrustWorktreeAndExplicitDenial
+--- PASS: TestProjectTrustWorktreeAndExplicitDenial (0.08s)
+PASS
+ok  	bint/internal/harness/codex	0.962s
+FAIL

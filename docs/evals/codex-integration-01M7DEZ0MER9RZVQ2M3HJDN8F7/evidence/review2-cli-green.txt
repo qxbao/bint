@@ -1,0 +1,64 @@
+=== RUN   TestCodexMCPConfigLive
+=== RUN   TestCodexMCPConfigLive/regular
+=== RUN   TestCodexMCPConfigLive/regular/root
+=== RUN   TestCodexMCPConfigLive/regular/child
+=== RUN   TestCodexMCPConfigLive/regular/denied_child
+=== RUN   TestCodexMCPConfigLive/regular/untrusted
+=== RUN   TestCodexMCPConfigLive/regular/outside_ancestor
+=== RUN   TestCodexMCPConfigLive/separate-git-dir
+=== RUN   TestCodexMCPConfigLive/separate-git-dir/root
+=== RUN   TestCodexMCPConfigLive/separate-git-dir/child
+=== RUN   TestCodexMCPConfigLive/separate-git-dir/denied_child
+=== RUN   TestCodexMCPConfigLive/separate-git-dir/untrusted
+=== RUN   TestCodexMCPConfigLive/separate-git-dir/outside_ancestor
+=== RUN   TestCodexMCPConfigLive/submodule
+=== RUN   TestCodexMCPConfigLive/submodule/root
+=== RUN   TestCodexMCPConfigLive/submodule/child
+=== RUN   TestCodexMCPConfigLive/submodule/denied_child
+=== RUN   TestCodexMCPConfigLive/submodule/untrusted
+=== RUN   TestCodexMCPConfigLive/submodule/outside_ancestor
+=== RUN   TestCodexMCPConfigLive/linked-separate-git-dir
+=== RUN   TestCodexMCPConfigLive/linked-separate-git-dir/root
+=== RUN   TestCodexMCPConfigLive/linked-separate-git-dir/child
+=== RUN   TestCodexMCPConfigLive/linked-separate-git-dir/denied_child
+=== RUN   TestCodexMCPConfigLive/linked-separate-git-dir/untrusted
+=== RUN   TestCodexMCPConfigLive/linked-separate-git-dir/outside_ancestor
+=== RUN   TestCodexMCPConfigLive/linked-submodule
+=== RUN   TestCodexMCPConfigLive/linked-submodule/root
+=== RUN   TestCodexMCPConfigLive/linked-submodule/child
+=== RUN   TestCodexMCPConfigLive/linked-submodule/denied_child
+=== RUN   TestCodexMCPConfigLive/linked-submodule/untrusted
+=== RUN   TestCodexMCPConfigLive/linked-submodule/outside_ancestor
+--- PASS: TestCodexMCPConfigLive (1.62s)
+    --- PASS: TestCodexMCPConfigLive/regular (0.26s)
+        --- PASS: TestCodexMCPConfigLive/regular/root (0.05s)
+        --- PASS: TestCodexMCPConfigLive/regular/child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/regular/denied_child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/regular/untrusted (0.03s)
+        --- PASS: TestCodexMCPConfigLive/regular/outside_ancestor (0.05s)
+    --- PASS: TestCodexMCPConfigLive/separate-git-dir (0.28s)
+        --- PASS: TestCodexMCPConfigLive/separate-git-dir/root (0.05s)
+        --- PASS: TestCodexMCPConfigLive/separate-git-dir/child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/separate-git-dir/denied_child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/separate-git-dir/untrusted (0.03s)
+        --- PASS: TestCodexMCPConfigLive/separate-git-dir/outside_ancestor (0.05s)
+    --- PASS: TestCodexMCPConfigLive/submodule (0.40s)
+        --- PASS: TestCodexMCPConfigLive/submodule/root (0.05s)
+        --- PASS: TestCodexMCPConfigLive/submodule/child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/submodule/denied_child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/submodule/untrusted (0.03s)
+        --- PASS: TestCodexMCPConfigLive/submodule/outside_ancestor (0.05s)
+    --- PASS: TestCodexMCPConfigLive/linked-separate-git-dir (0.29s)
+        --- PASS: TestCodexMCPConfigLive/linked-separate-git-dir/root (0.05s)
+        --- PASS: TestCodexMCPConfigLive/linked-separate-git-dir/child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/linked-separate-git-dir/denied_child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/linked-separate-git-dir/untrusted (0.03s)
+        --- PASS: TestCodexMCPConfigLive/linked-separate-git-dir/outside_ancestor (0.04s)
+    --- PASS: TestCodexMCPConfigLive/linked-submodule (0.40s)
+        --- PASS: TestCodexMCPConfigLive/linked-submodule/root (0.04s)
+        --- PASS: TestCodexMCPConfigLive/linked-submodule/child (0.05s)
+        --- PASS: TestCodexMCPConfigLive/linked-submodule/denied_child (0.04s)
+        --- PASS: TestCodexMCPConfigLive/linked-submodule/untrusted (0.03s)
+        --- PASS: TestCodexMCPConfigLive/linked-submodule/outside_ancestor (0.05s)
+PASS
+ok  	bint/internal/eval	2.712s

@@ -1,0 +1,4 @@
+{"command": "go test ./internal/eval -run 'Test(CodexJSONL|ParseCodex|Codex.*0?167|Codex.*Args|Codex.*Profile|CodexEval)' -count=1", "overrides": {}, "started": "2026-11-14T16:49:41.717521+00:00", "code_diff_sha256": "22e5d379d48904c590e9f8dc37e7ff8bbed023fc7e2f63fe008f2394cbd585f0"}
+ok  	bint/internal/eval	7.785s
+
+{"command": "go test ./internal/eval -run 'Test(CodexJSONL|ParseCodex|Codex.*0?167|Codex.*Args|Codex.*Profile|CodexEval)' -count=1", "overrides": {}, "started": "2026-11-14T16:49:41.717521+00:00", "code_diff_sha256": "22e5d379d48904c590e9f8dc37e7ff8bbed023fc7e2f63fe008f2394cbd585f0", "exit_code": 0, "elapsed_seconds": 8.481}

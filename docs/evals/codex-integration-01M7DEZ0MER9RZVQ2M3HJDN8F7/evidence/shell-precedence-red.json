@@ -1,0 +1,8 @@
+{
+  "command": "go test ./internal/harness/codex -run '^TestShellCommandFieldPrecedence$' -count=1",
+  "overrides": {},
+  "started": "2026-11-14T16:50:05.501907+00:00",
+  "code_diff_sha256": "273b0c380279b0f6a64807b10e495f6262198a94c2d95956e81aa281f3de6c73",
+  "exit_code": 1,
+  "elapsed_seconds": 0.759
+}

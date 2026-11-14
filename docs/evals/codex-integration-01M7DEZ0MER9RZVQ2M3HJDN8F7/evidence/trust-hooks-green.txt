@@ -1,0 +1,6 @@
+{"command": "go test ./internal/harness/codex ./internal/eval ./internal/app -run 'Test(ProjectTrust|CodexExclusiveMCP|InstalledHooks|ShellCommand|CodexGuardrail|PostToolOutcome)' -count=1", "overrides": {}, "started": "2026-11-14T16:50:24.167680+00:00", "code_diff_sha256": "7b45127d62cce7ab32ec0b5dbe63ad1011e68afd132404fd0a4e342590db49f4"}
+ok  	bint/internal/harness/codex	0.894s
+ok  	bint/internal/eval	0.830s
+ok  	bint/internal/app	0.802s
+
+{"command": "go test ./internal/harness/codex ./internal/eval ./internal/app -run 'Test(ProjectTrust|CodexExclusiveMCP|InstalledHooks|ShellCommand|CodexGuardrail|PostToolOutcome)' -count=1", "overrides": {}, "started": "2026-11-14T16:50:24.167680+00:00", "code_diff_sha256": "7b45127d62cce7ab32ec0b5dbe63ad1011e68afd132404fd0a4e342590db49f4", "exit_code": 0, "elapsed_seconds": 2.746}

@@ -1,0 +1,10 @@
+{
+  "recorded": "2026-11-14T17:26:48.706224+00:00",
+  "versions": {
+    "go": "go version go1.25.1 darwin/arm64",
+    "codex": "WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\ncodex-cli 0.169.0",
+    "staticcheck": "staticcheck 2026.1 (v0.7.0)",
+    "git": "git version 2.50.1 (Apple Git-155)"
+  },
+  "fingerprint_sha256": "7d220dbb92e357e9891550e809e9bf264f199c7e51ed71cf312de462f840b97b"
+}

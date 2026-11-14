@@ -1,91 +1,25 @@
 package eval
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
+	"bint/internal/codexconfig"
 )
 
 var tomlBareKey = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-
-// codexConfig là phần của config.toml của Codex mà Bint cần: tên server MCP và các dự án đã tin cậy.
-type codexConfig struct {
-	MCPServers map[string]any `toml:"mcp_servers"`
-	Projects   map[string]struct {
-		TrustLevel string `toml:"trust_level"`
-	} `toml:"projects"`
-}
-
-// readCodexConfig đọc một config.toml; tệp không tồn tại cho cấu hình rỗng, TOML hỏng trả lỗi nêu đường dẫn.
-func readCodexConfig(path string) (codexConfig, error) {
-	var cfg codexConfig
-	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return cfg, nil
-	}
-	if err != nil {
-		return cfg, err
-	}
-	if err := toml.Unmarshal(b, &cfg); err != nil {
-		return cfg, fmt.Errorf("%s: %w", path, err)
-	}
-	return cfg, nil
-}
-
-func (c codexConfig) hasTrusted() bool {
-	for _, v := range c.Projects {
-		if v.TrustLevel == "trusted" {
-			return true
-		}
-	}
-	return false
-}
-
-// mainRepoRoot trả gốc của repo chính khi dir là worktree liên kết (cha của `git rev-parse --git-common-dir`); rỗng khi
-// dir không trong repo Git, repo bare hay không xác định được. Codex tính tin cậy theo gốc repo chính nên worktree của
-// tác vụ kế thừa tin cậy của cây gốc.
-func mainRepoRoot(dir string) string {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	common := filepath.Clean(strings.TrimSpace(string(out)))
-	if filepath.Base(common) != ".git" {
-		return ""
-	}
-	return filepath.Dir(common)
-}
-
-// trusts cho biết cấu hình người dùng đã tin cậy đúng thư mục dir (khoá projects.<đường dẫn>.trust_level = "trusted").
-func (c codexConfig) trusts(dir string) bool {
-	if dir == "" {
-		return false
-	}
-	want := filepath.Clean(dir)
-	for p, v := range c.Projects {
-		if v.TrustLevel == "trusted" && filepath.Clean(p) == want {
-			return true
-		}
-	}
-	return false
-}
 
 // codexOtherMCPServers liệt kê server MCP khác bint mà Codex sẽ nạp cho yêu cầu này, không trùng, theo thứ tự tên:
 // các bảng [mcp_servers.*] trong $CODEX_HOME/config.toml (CODEX_HOME trong req.Env thắng môi trường tiến trình;
 // mặc định ~/.codex) và trong <req.Dir>/.codex/config.toml.
 //
-// Server chỉ có trong config dự án được tính khi người dùng đã tin cậy đúng thư mục đó: Codex bỏ qua config của dự
-// án chưa tin cậy, và `enabled=false` cho một tên không tồn tại làm Codex báo "invalid transport" rồi không chạy.
-// Tin cậy được nhận theo req.Dir hoặc gốc repo chính (khi req.Dir là worktree liên kết). Dự án tin cậy qua thư mục cha
-// khác thì không nhận ra được: server riêng của dự án đó không bị tắt (không lỗi). Config dự án chưa tin cậy không được
-// đọc, nên TOML hỏng ở đó không làm hỏng bước.
+// Chỉ đọc các lớp cấu hình dự án được Codex tin cậy, từ cwd tới gốc worktree.
+// Một thư mục có trust riêng thì dùng giá trị đó; còn lại kế thừa gốc repo chính.
+// Không đọc TOML dự án chưa tin cậy: Codex bỏ qua nó và tắt tên server không tồn
+// tại có thể làm CLI báo invalid transport.
 func codexOtherMCPServers(req AgentRequest) ([]string, error) {
 	home := ""
 	for _, kv := range req.Env {
@@ -102,29 +36,27 @@ func codexOtherMCPServers(req AgentRequest) ([]string, error) {
 		}
 	}
 	seen := map[string]bool{}
-	add := func(c codexConfig) {
+	add := func(c codexconfig.Config) {
 		for name := range c.MCPServers {
 			if name != "bint" {
 				seen[name] = true
 			}
 		}
 	}
-	var user codexConfig
+	var user codexconfig.Config
 	if home != "" {
 		var err error
-		if user, err = readCodexConfig(filepath.Join(home, "config.toml")); err != nil {
+		if user, err = codexconfig.Read(filepath.Join(home, "config.toml")); err != nil {
 			return nil, err
 		}
 		add(user)
 	}
-	if req.Dir != "" {
-		if user.trusts(req.Dir) || (user.hasTrusted() && user.trusts(mainRepoRoot(req.Dir))) {
-			proj, err := readCodexConfig(filepath.Join(req.Dir, ".codex", "config.toml"))
-			if err != nil {
-				return nil, err
-			}
-			add(proj)
+	for _, dir := range user.TrustedDirs(req.Dir) {
+		proj, err := codexconfig.Read(filepath.Join(dir, ".codex", "config.toml"))
+		if err != nil {
+			return nil, err
 		}
+		add(proj)
 	}
 	names := make([]string, 0, len(seen))
 	for n := range seen {

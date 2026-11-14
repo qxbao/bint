@@ -1,0 +1,630 @@
+diff --git a/internal/app/guardrail_hook_test.go b/internal/app/guardrail_hook_test.go
+index 29206cf..c2fd268 100644
+--- a/internal/app/guardrail_hook_test.go
++++ b/internal/app/guardrail_hook_test.go
+@@ -319,6 +319,10 @@ func TestCodexGuardrailDeniesWriteDurableWorkflowEvents(t *testing.T) {
+ 			"tool_input": map[string]any{"command": "*** Begin Patch\n*** Update File: src/a.go\n@@\n-package a\n+package b\n*** End Patch"}, "tool_use_id": "edit-1"}),
+ 		hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "Bash",
+ 			"tool_input": map[string]any{"command": "git push origin main"}, "tool_use_id": "bash-1"}),
++		hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "exec_command",
++			"tool_input": map[string]any{"cmd": "git push origin main"}, "tool_use_id": "exec-1"}),
++		hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "local_shell",
++			"tool_input": map[string]any{"command": []any{"sh", "-lc", "git push origin main"}}, "tool_use_id": "shell-1"}),
+ 	} {
+ 		res, err := codex.HandleHook(context.Background(), strings.NewReader(in), hookcore.Env{BintVersion: "test"})
+ 		if err != nil || decision(t, res.Output)["permissionDecision"] != "deny" {
+@@ -330,7 +334,7 @@ func TestCodexGuardrailDeniesWriteDurableWorkflowEvents(t *testing.T) {
+ 		t.Fatal(err)
+ 	}
+ 	events, err := spool.Denials(ws.Paths.Spool, "child-guardrail")
+-	if err != nil || len(events) != 2 {
++	if err != nil || len(events) != 4 {
+ 		t.Fatalf("expected durable pre_edit and pre_bash denial events, got %d: %v", len(events), err)
+ 	}
+ 	foundEditPath := false
+diff --git a/internal/eval/agent_harness.go b/internal/eval/agent_harness.go
+index 3a96cb7..6dd2e74 100644
+--- a/internal/eval/agent_harness.go
++++ b/internal/eval/agent_harness.go
+@@ -1,7 +1,6 @@
+ package eval
+ 
+ import (
+-	"bufio"
+ 	"bytes"
+ 	"context"
+ 	"encoding/json"
+@@ -164,10 +163,10 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
+ 	if r.Err != nil {
+ 		res.Error = r.Err.Error()
+ 	}
+-	parseCodexJSONL(stdout.Bytes(), &res)
+ 	if res.Error == "" && r.ExitCode != 0 && !r.TimedOut {
+ 		res.Error = "codex thoát với mã " + strconv.Itoa(r.ExitCode) + ": " + truncate(strings.TrimSpace(r.Tail), 300)
+ 	}
++	parseCodexJSONL(stdout.Bytes(), &res)
+ 	return res
+ }
+ 
+@@ -177,10 +176,18 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
+ func parseCodexJSONL(out []byte, res *AgentResult) {
+ 	var in, outTok int64
+ 	haveUsage := false
+-	sc := bufio.NewScanner(bytes.NewReader(out))
+-	sc.Buffer(make([]byte, 1<<20), 64<<20)
+-	for sc.Scan() {
+-		line := bytes.TrimSpace(sc.Bytes())
++	completed := false
++	fail := func(message string) {
++		if res.Error == "" {
++			res.Error = message
++		}
++	}
++	// Run already holds stdout in memory. Slice its lines directly: Scanner
++	// both copied the buffer and silently stopped at large tool results.
++	for len(out) > 0 {
++		var line []byte
++		line, out, _ = bytes.Cut(out, []byte{'\n'})
++		line = bytes.TrimSpace(line)
+ 		if len(line) == 0 || line[0] != '{' {
+ 			continue
+ 		}
+@@ -199,30 +206,41 @@ func parseCodexJSONL(out []byte, res *AgentResult) {
+ 			} `json:"error"`
+ 			Message string `json:"message"`
+ 		}
+-		if json.Unmarshal(line, &ev) != nil {
++		if err := json.Unmarshal(line, &ev); err != nil {
++			fail("codex JSONL không hợp lệ: " + err.Error())
+ 			continue
+ 		}
+ 		switch ev.Type {
++		case "turn.started":
++			completed = false
+ 		case "item.completed":
+ 			if ev.Item != nil && ev.Item.Type == "agent_message" {
+ 				res.Text = ev.Item.Text
+ 			}
+ 		case "turn.completed":
++			completed = true
+ 			if ev.Usage != nil {
+ 				haveUsage = true
+ 				in += ev.Usage.InputTokens
+ 				outTok += ev.Usage.OutputTokens
+ 			}
+ 		case "turn.failed":
++			message := "turn.failed"
+ 			if ev.Error != nil && ev.Error.Message != "" {
+-				res.Error = "codex báo lỗi: " + truncate(ev.Error.Message, 300)
++				message = ev.Error.Message
+ 			}
++			fail("codex báo lỗi: " + truncate(message, 300))
+ 		case "error":
+-			if ev.Message != "" && res.Error == "" {
+-				res.Error = "codex báo lỗi: " + truncate(ev.Message, 300)
++			message := ev.Message
++			if message == "" {
++				message = "error"
+ 			}
++			fail("codex báo lỗi: " + truncate(message, 300))
+ 		}
+ 	}
++	if !completed {
++		fail("codex JSONL thiếu turn.completed")
++	}
+ 	if haveUsage {
+ 		res.InputTokens, res.OutputTokens = &in, &outTok
+ 	}
+diff --git a/internal/eval/agent_harness_test.go b/internal/eval/agent_harness_test.go
+index 02bfd73..bc5c69e 100644
+--- a/internal/eval/agent_harness_test.go
++++ b/internal/eval/agent_harness_test.go
+@@ -65,6 +65,61 @@ func TestParseCodexAndAgy(t *testing.T) {
+ 	}
+ }
+ 
++func TestCodexJSONLRequiresCompletedTurn(t *testing.T) {
++	message := `{"type":"item.completed","item":{"type":"agent_message","text":"Done."}}` + "\n"
++	for _, tc := range []struct {
++		name, stream string
++	}{
++		{"empty", ""},
++		{"answer without terminal", message},
++		{"truncated terminal", message + `{"type":"turn.completed"`},
++		{"malformed before terminal", "{broken}\n" + codexSample},
++		{"next turn interrupted", codexSample + "{\"type\":\"turn.started\"}\n" + message},
++		{"failed without details", message + `{"type":"turn.failed","error":{}}`},
++		{"error without details", codexSample + `{"type":"error"}`},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			var res AgentResult
++			parseCodexJSONL([]byte(tc.stream), &res)
++			if res.Error == "" {
++				t.Fatalf("incomplete/failed stream reported success: %+v", res)
++			}
++		})
++	}
++	var res AgentResult
++	parseCodexJSONL([]byte(codexSample+codexSample), &res)
++	if res.Error != "" || res.InputTokens == nil || *res.InputTokens != 125426 || *res.OutputTokens != 1018 {
++		t.Fatalf("completed turns and config warning must remain valid: %+v", res)
++	}
++	res = AgentResult{Error: "process cancelled"}
++	parseCodexJSONL([]byte(`{"type":"turn.failed","error":{"message":"secondary error"}}`), &res)
++	if res.Error != "process cancelled" {
++		t.Fatalf("lost process failure: %+v", res)
++	}
++}
++
++func TestCodexJSONLReadsFailureAfterLargeItem(t *testing.T) {
++	// stdout is already buffered by Run. A large tool result must not hide the
++	// terminal error behind Scanner's former 64 MiB token limit.
++	stream := codexSample + `{"type":"item.completed","item":{"type":"command_execution","aggregated_output":"` +
++		strings.Repeat("x", 64<<20) + "\"}}\n" + `{"type":"turn.failed","error":{"message":"late failure"}}`
++	var res AgentResult
++	parseCodexJSONL([]byte(stream), &res)
++	if !strings.Contains(res.Error, "late failure") {
++		t.Fatalf("large item hid terminal failure: %+v", res)
++	}
++}
++
++func BenchmarkParseCodexJSONL(b *testing.B) {
++	stream := []byte(codexSample)
++	b.ReportAllocs()
++	b.SetBytes(int64(len(stream)))
++	for b.Loop() {
++		var res AgentResult
++		parseCodexJSONL(stream, &res)
++	}
++}
++
+ func TestCodexAndAgyArgs(t *testing.T) {
+ 	mcp := filepath.Join(t.TempDir(), "mcp.json")
+ 	os.WriteFile(mcp, []byte(`{"mcpServers":{"bint":{"command":"/x/bint","args":["mcp","serve","--eval-config","/l/c.json"]}}}`), 0o644)
+diff --git a/internal/eval/codex_mcp.go b/internal/eval/codex_mcp.go
+index dab7a20..7e3b28f 100644
+--- a/internal/eval/codex_mcp.go
++++ b/internal/eval/codex_mcp.go
+@@ -1,91 +1,25 @@
+ package eval
+ 
+ import (
+-	"fmt"
+ 	"os"
+-	"os/exec"
+ 	"path/filepath"
+ 	"regexp"
+ 	"sort"
+ 	"strings"
+ 
+-	"github.com/pelletier/go-toml/v2"
++	"bint/internal/codexconfig"
+ )
+ 
+ var tomlBareKey = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+ 
+-// codexConfig là phần của config.toml của Codex mà Bint cần: tên server MCP và các dự án đã tin cậy.
+-type codexConfig struct {
+-	MCPServers map[string]any `toml:"mcp_servers"`
+-	Projects   map[string]struct {
+-		TrustLevel string `toml:"trust_level"`
+-	} `toml:"projects"`
+-}
+-
+-// readCodexConfig đọc một config.toml; tệp không tồn tại cho cấu hình rỗng, TOML hỏng trả lỗi nêu đường dẫn.
+-func readCodexConfig(path string) (codexConfig, error) {
+-	var cfg codexConfig
+-	b, err := os.ReadFile(path)
+-	if os.IsNotExist(err) {
+-		return cfg, nil
+-	}
+-	if err != nil {
+-		return cfg, err
+-	}
+-	if err := toml.Unmarshal(b, &cfg); err != nil {
+-		return cfg, fmt.Errorf("%s: %w", path, err)
+-	}
+-	return cfg, nil
+-}
+-
+-func (c codexConfig) hasTrusted() bool {
+-	for _, v := range c.Projects {
+-		if v.TrustLevel == "trusted" {
+-			return true
+-		}
+-	}
+-	return false
+-}
+-
+-// mainRepoRoot trả gốc của repo chính khi dir là worktree liên kết (cha của `git rev-parse --git-common-dir`); rỗng khi
+-// dir không trong repo Git, repo bare hay không xác định được. Codex tính tin cậy theo gốc repo chính nên worktree của
+-// tác vụ kế thừa tin cậy của cây gốc.
+-func mainRepoRoot(dir string) string {
+-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+-	out, err := cmd.Output()
+-	if err != nil {
+-		return ""
+-	}
+-	common := filepath.Clean(strings.TrimSpace(string(out)))
+-	if filepath.Base(common) != ".git" {
+-		return ""
+-	}
+-	return filepath.Dir(common)
+-}
+-
+-// trusts cho biết cấu hình người dùng đã tin cậy đúng thư mục dir (khoá projects.<đường dẫn>.trust_level = "trusted").
+-func (c codexConfig) trusts(dir string) bool {
+-	if dir == "" {
+-		return false
+-	}
+-	want := filepath.Clean(dir)
+-	for p, v := range c.Projects {
+-		if v.TrustLevel == "trusted" && filepath.Clean(p) == want {
+-			return true
+-		}
+-	}
+-	return false
+-}
+-
+ // codexOtherMCPServers liệt kê server MCP khác bint mà Codex sẽ nạp cho yêu cầu này, không trùng, theo thứ tự tên:
+ // các bảng [mcp_servers.*] trong $CODEX_HOME/config.toml (CODEX_HOME trong req.Env thắng môi trường tiến trình;
+ // mặc định ~/.codex) và trong <req.Dir>/.codex/config.toml.
+ //
+-// Server chỉ có trong config dự án được tính khi người dùng đã tin cậy đúng thư mục đó: Codex bỏ qua config của dự
+-// án chưa tin cậy, và `enabled=false` cho một tên không tồn tại làm Codex báo "invalid transport" rồi không chạy.
+-// Tin cậy được nhận theo req.Dir hoặc gốc repo chính (khi req.Dir là worktree liên kết). Dự án tin cậy qua thư mục cha
+-// khác thì không nhận ra được: server riêng của dự án đó không bị tắt (không lỗi). Config dự án chưa tin cậy không được
+-// đọc, nên TOML hỏng ở đó không làm hỏng bước.
++// Chỉ đọc các lớp cấu hình dự án được Codex tin cậy, từ cwd tới gốc worktree.
++// Một thư mục có trust riêng thì dùng giá trị đó; còn lại kế thừa gốc repo chính.
++// Không đọc TOML dự án chưa tin cậy: Codex bỏ qua nó và tắt tên server không tồn
++// tại có thể làm CLI báo invalid transport.
+ func codexOtherMCPServers(req AgentRequest) ([]string, error) {
+ 	home := ""
+ 	for _, kv := range req.Env {
+@@ -102,29 +36,27 @@ func codexOtherMCPServers(req AgentRequest) ([]string, error) {
+ 		}
+ 	}
+ 	seen := map[string]bool{}
+-	add := func(c codexConfig) {
++	add := func(c codexconfig.Config) {
+ 		for name := range c.MCPServers {
+ 			if name != "bint" {
+ 				seen[name] = true
+ 			}
+ 		}
+ 	}
+-	var user codexConfig
++	var user codexconfig.Config
+ 	if home != "" {
+ 		var err error
+-		if user, err = readCodexConfig(filepath.Join(home, "config.toml")); err != nil {
++		if user, err = codexconfig.Read(filepath.Join(home, "config.toml")); err != nil {
+ 			return nil, err
+ 		}
+ 		add(user)
+ 	}
+-	if req.Dir != "" {
+-		if user.trusts(req.Dir) || (user.hasTrusted() && user.trusts(mainRepoRoot(req.Dir))) {
+-			proj, err := readCodexConfig(filepath.Join(req.Dir, ".codex", "config.toml"))
+-			if err != nil {
+-				return nil, err
+-			}
+-			add(proj)
++	for _, dir := range user.TrustedDirs(req.Dir) {
++		proj, err := codexconfig.Read(filepath.Join(dir, ".codex", "config.toml"))
++		if err != nil {
++			return nil, err
+ 		}
++		add(proj)
+ 	}
+ 	names := make([]string, 0, len(seen))
+ 	for n := range seen {
+diff --git a/internal/eval/codex_mcp_test.go b/internal/eval/codex_mcp_test.go
+index 1de5a95..489df75 100644
+--- a/internal/eval/codex_mcp_test.go
++++ b/internal/eval/codex_mcp_test.go
+@@ -32,6 +32,9 @@ func disabledArgs(args []string) []string {
+ }
+ 
+ func trustedProject(dir string) string {
++	if real, err := filepath.EvalSymlinks(dir); err == nil {
++		dir = real
++	}
+ 	return "[projects." + tomlString(dir) + "]\ntrust_level = \"trusted\"\n"
+ }
+ 
+@@ -215,3 +218,31 @@ func TestCodexExclusiveMCPBrokenProjectTOML(t *testing.T) {
+ 		t.Fatal("dự án đã tin cậy mà TOML hỏng: muốn lỗi")
+ 	}
+ }
++
++func TestCodexExclusiveMCPProjectLayers(t *testing.T) {
++	repo := testutil.NewRepo(t, map[string]string{"README.md": "fixture\n"})
++	repo, _ = filepath.EvalSymlinks(repo)
++	child, deep := filepath.Join(repo, "child"), filepath.Join(repo, "child", "deep")
++	for path, name := range map[string]string{repo: "root_only", child: "child_only", deep: "deep_only"} {
++		writeMCPTestFile(t, filepath.Join(path, ".codex", "config.toml"), "[mcp_servers."+name+"]\ncommand='fixture'\n")
++	}
++	home := t.TempDir()
++	for _, tc := range []struct {
++		name, config string
++		want         []string
++	}{
++		{"root trusted", trustedProject(repo), []string{"child_only", "deep_only", "root_only"}},
++		{"child trusted only", trustedProject(child), []string{"child_only"}},
++		{"deep trusted only", trustedProject(deep), []string{"deep_only"}},
++		{"child explicitly untrusted", trustedProject(repo) + "\n[projects." + tomlString(child) + "]\ntrust_level='untrusted'\n", []string{"deep_only", "root_only"}},
++		{"unrelated ancestor trusted", trustedProject(filepath.Dir(repo)), nil},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			writeMCPTestFile(t, filepath.Join(home, "config.toml"), tc.config)
++			got, err := codexOtherMCPServers(AgentRequest{Dir: deep, Env: []string{"CODEX_HOME=" + home}})
++			if err != nil || !slices.Equal(got, tc.want) {
++				t.Fatalf("project servers = %v, %v; want %v", got, err, tc.want)
++			}
++		})
++	}
++}
+diff --git a/internal/eval/codex_profile_test.go b/internal/eval/codex_profile_test.go
+index 5fc5c87..318e4bc 100644
+--- a/internal/eval/codex_profile_test.go
++++ b/internal/eval/codex_profile_test.go
+@@ -26,7 +26,7 @@ func TestCodexEvalIsolatesHomeAndRemovesCredentials(t *testing.T) {
+ 	os.WriteFile(filepath.Join(source, "config.toml"), []byte("model = 'gpt-probe'\nnotify = ['USER_ONLY']\n[plugins.USER_ONLY]\nenabled = true\n"), 0o600)
+ 	os.WriteFile(filepath.Join(source, "AGENTS.md"), []byte("USER_ONLY"), 0o600)
+ 	bin := filepath.Join(t.TempDir(), "codex")
+-	os.WriteFile(bin, []byte("#!/bin/sh\ncat >/dev/null\nprintf '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"%s\"}}\\n' \"$CODEX_HOME\"\n"), 0o755)
++	os.WriteFile(bin, []byte("#!/bin/sh\ncat >/dev/null\nprintf '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"%s\"}}\\n' \"$CODEX_HOME\"\nprintf '%s\\n' '{\"type\":\"turn.completed\"}'\n"), 0o755)
+ 	r := (&CodexAgent{Binary: bin}).Run(context.Background(), AgentRequest{Dir: t.TempDir(), Arm: ArmNone, Prompt: "probe", Timeout: 5 * time.Second})
+ 	if r.Error != "" {
+ 		t.Fatal(r.Error)
+@@ -262,3 +262,63 @@ func TestCodexProfileDisablesEverySkillAlias(t *testing.T) {
+ 		t.Error("đích tương đối bị ghép theo chuỗi qua thư mục symlink")
+ 	}
+ }
++
++func TestCodexProfileCleanupAfterExitErrorAndCancellation(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("POSIX subprocess fixture")
++	}
++	for _, mode := range []string{"error", "cancel"} {
++		t.Run(mode, func(t *testing.T) {
++			home := t.TempDir()
++			t.Setenv("HOME", home)
++			t.Setenv("USERPROFILE", home)
++			source := filepath.Join(home, ".codex")
++			if err := os.MkdirAll(source, 0o700); err != nil {
++				t.Fatal(err)
++			}
++			auth := `{"OPENAI_API_KEY":"fixture-not-secret"}`
++			if err := os.WriteFile(filepath.Join(source, "auth.json"), []byte(auth), 0o600); err != nil {
++				t.Fatal(err)
++			}
++			ready, bin := filepath.Join(t.TempDir(), "ready"), filepath.Join(t.TempDir(), "codex")
++			script := "#!/bin/sh\ncat >/dev/null\nprintf '%s' \"$CODEX_HOME\" > \"$PROFILE_READY\"\nif [ \"$PROFILE_MODE\" = error ]; then echo fixture-exit >&2; exit 7; fi\nsleep 60\n"
++			if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
++				t.Fatal(err)
++			}
++			ctx, cancel := context.WithCancel(context.Background())
++			defer cancel()
++			done := make(chan AgentResult, 1)
++			go func() {
++				done <- (&CodexAgent{Binary: bin, Model: "fixture-model"}).Run(ctx, AgentRequest{Dir: t.TempDir(), Arm: ArmNone, Prompt: "fixture", Timeout: 10 * time.Second,
++					Env: []string{"CODEX_HOME=" + source, "PROFILE_READY=" + ready, "PROFILE_MODE=" + mode}})
++			}()
++			var profile []byte
++			for deadline := time.Now().Add(8 * time.Second); len(profile) == 0; {
++				profile, _ = os.ReadFile(ready)
++				if time.Now().After(deadline) {
++					t.Fatal("fixture did not start")
++				}
++				time.Sleep(10 * time.Millisecond)
++			}
++			if mode == "cancel" {
++				cancel()
++			}
++			res := <-done
++			if res.Error == "" || res.ExitCode == 0 || res.TimedOut {
++				t.Fatalf("expected process failure: %+v", res)
++			}
++			if mode == "cancel" && !strings.Contains(res.Error, context.Canceled.Error()) {
++				t.Fatalf("lost cancellation: %+v", res)
++			}
++			if mode == "error" && (res.ExitCode != 7 || !strings.Contains(res.Error, "fixture-exit")) {
++				t.Fatalf("lost exit diagnostic: %+v", res)
++			}
++			if _, err := os.Stat(string(profile)); !os.IsNotExist(err) {
++				t.Fatalf("profile survived: %v", err)
++			}
++			if got, err := os.ReadFile(filepath.Join(source, "auth.json")); err != nil || string(got) != auth {
++				t.Fatal("source auth changed")
++			}
++		})
++	}
++}
+diff --git a/internal/harness/codex/codex.go b/internal/harness/codex/codex.go
+index acaace7..35d728c 100644
+--- a/internal/harness/codex/codex.go
++++ b/internal/harness/codex/codex.go
+@@ -27,6 +27,7 @@ import (
+ 
+ 	"context"
+ 
++	"bint/internal/codexconfig"
+ 	"bint/internal/detect"
+ 	"bint/internal/fsafe"
+ 	"bint/internal/harness/claude"
+@@ -75,7 +76,11 @@ func Classify(tool string, input map[string]any) hookcore.ToolInfo {
+ 		}
+ 		return hookcore.ToolInfo{Kind: hookcore.ToolEdit, Paths: PatchPaths(patch)}
+ 	case shellTools[tool]:
+-		return hookcore.ToolInfo{Kind: hookcore.ToolShell, Command: shellCommand(input["command"])}
++		command := shellCommand(input["command"])
++		if command == "" {
++			command = shellCommand(input["cmd"])
++		}
++		return hookcore.ToolInfo{Kind: hookcore.ToolShell, Command: command}
+ 	case strings.HasPrefix(tool, MCPPrefix):
+ 		return hookcore.ToolInfo{Kind: hookcore.ToolMCP, MCPTool: strings.TrimPrefix(tool, MCPPrefix)}
+ 	}
+@@ -197,8 +202,8 @@ func desiredGroups(cmd string) map[string]map[string]any {
+ 	groups := map[string]map[string]any{
+ 		"SessionStart": group(""),
+ 		"SessionEnd":   group(""),
+-		"PreToolUse":   group("apply_patch|Bash|shell|exec_command"),
+-		"PostToolUse":  group("apply_patch|Bash|shell|exec_command|mcp__bint__.*"),
++		"PreToolUse":   group("apply_patch|Bash|shell|exec_command|local_shell"),
++		"PostToolUse":  group("apply_patch|Bash|shell|exec_command|local_shell|mcp__bint__.*"),
+ 	}
+ 	// Codex 0.167 giới hạn SessionEnd ở 3 giây; không dùng chung bản đồ h
+ 	// để giữ timeout của các sự kiện còn lại ở 10 giây.
+@@ -237,25 +242,11 @@ func ProjectTrusted(repoRoot string) bool {
+ 	if err != nil {
+ 		return false
+ 	}
+-	b, err := os.ReadFile(filepath.Join(h, "config.toml"))
++	cfg, err := codexconfig.Read(filepath.Join(h, "config.toml"))
+ 	if err != nil {
+ 		return false
+ 	}
+-	s := string(b)
+-	for _, root := range []string{repoRoot, filepath.ToSlash(repoRoot)} {
+-		i := strings.Index(s, `[projects."`+root+`"]`)
+-		if i < 0 {
+-			continue
+-		}
+-		rest := s[i+len(root)+13:]
+-		if j := strings.Index(rest, "\n["); j >= 0 {
+-			rest = rest[:j]
+-		}
+-		if regexp.MustCompile(`(?m)^\s*trust_level\s*=\s*"trusted"`).MatchString(rest) {
+-			return true
+-		}
+-	}
+-	return false
++	return cfg.Trusted(repoRoot)
+ }
+ 
+ // ConfigPath là tệp cấu hình Codex cấp dự án.
+diff --git a/internal/harness/codex/codex_test.go b/internal/harness/codex/codex_test.go
+index 420d730..c66963a 100644
+--- a/internal/harness/codex/codex_test.go
++++ b/internal/harness/codex/codex_test.go
+@@ -4,6 +4,7 @@ import (
+ 	"encoding/json"
+ 	"os"
+ 	"path/filepath"
++	"regexp"
+ 	"strings"
+ 	"testing"
+ 	"time"
+@@ -12,6 +13,60 @@ import (
+ 	"bint/internal/harness/hookcore"
+ )
+ 
++func TestShellCommandFieldPrecedence(t *testing.T) {
++	for _, tool := range []string{"Bash", "shell", "exec_command", "local_shell"} {
++		for _, tc := range []struct {
++			name  string
++			input map[string]any
++			want  string
++		}{
++			{"cmd string", map[string]any{"cmd": "git push origin main"}, "git push origin main"},
++			{"cmd argv", map[string]any{"cmd": []any{"sh", "-lc", "git push origin main"}}, "git push origin main"},
++			{"command wins", map[string]any{"command": "git status", "cmd": "git push origin main"}, "git status"},
++			{"empty command", map[string]any{"command": "", "cmd": "git status"}, "git status"},
++		} {
++			t.Run(tool+"/"+tc.name, func(t *testing.T) {
++				got := Classify(tool, tc.input)
++				if got.Kind != hookcore.ToolShell || got.Command != tc.want {
++					t.Fatalf("Classify = %+v, want shell %q", got, tc.want)
++				}
++			})
++		}
++	}
++}
++
++func TestInstalledHooksMatchSupportedShellTools(t *testing.T) {
++	path := filepath.Join(t.TempDir(), "hooks.json")
++	if _, err := InstallHooks(path, "bint", t.TempDir(), time.Now()); err != nil {
++		t.Fatal(err)
++	}
++	raw, err := os.ReadFile(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var config struct {
++		Hooks map[string][]struct{ Matcher string }
++	}
++	if err := json.Unmarshal(raw, &config); err != nil {
++		t.Fatal(err)
++	}
++	for _, event := range []string{"PreToolUse", "PostToolUse"} {
++		for _, tool := range []string{"Bash", "shell", "exec_command", "local_shell"} {
++			matched := false
++			for _, group := range config.Hooks[event] {
++				re, err := regexp.Compile("^(?:" + group.Matcher + ")$")
++				if err != nil {
++					t.Fatal(err)
++				}
++				matched = matched || re.MatchString(tool)
++			}
++			if !matched {
++				t.Errorf("%s does not dispatch supported tool %s", event, tool)
++			}
++		}
++	}
++}
++
+ func TestSessionEndTimeoutMatchesRealCodex(t *testing.T) {
+ 	// Codex 0.167 thực tế cảnh báo và ép timeout SessionEnd xuống 3s.
+ 	raw, err := os.ReadFile("testdata/codex-0.167/session-end-timeout.json")
+diff --git a/internal/harness/codex/trust_test.go b/internal/harness/codex/trust_test.go
+index 49fd5d4..76e2742 100644
+--- a/internal/harness/codex/trust_test.go
++++ b/internal/harness/codex/trust_test.go
+@@ -1,12 +1,15 @@
+ package codex
+ 
+ import (
++	"context"
++	"encoding/json"
+ 	"fmt"
+ 	"os"
+ 	"path/filepath"
+ 	"runtime"
+ 	"strings"
+ 	"testing"
++	"time"
+ )
+ 
+ func TestHooksTrustedUsesCurrentCodexDefinition(t *testing.T) {
+@@ -45,3 +48,27 @@ func TestHooksTrustedUsesCurrentCodexDefinition(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestCodexHookMetadataLive(t *testing.T) {
++	if os.Getenv("BINT_CODEX_CONFIG_LIVE") != "1" {
++		t.Skip("set BINT_CODEX_CONFIG_LIVE=1 to check installed Codex hooks/list")
++	}
++	root, home := t.TempDir(), t.TempDir()
++	root, _ = filepath.EvalSymlinks(root)
++	t.Setenv("CODEX_HOME", home)
++	quoted, _ := json.Marshal(root)
++	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte("[projects."+string(quoted)+"]\ntrust_level='trusted'\n"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	path := filepath.Join(root, ".codex", "hooks.json")
++	if _, err := InstallHooks(path, "fixture-bint", t.TempDir(), time.Now()); err != nil {
++		t.Fatal(err)
++	}
++	report, err := InspectHookTrust(context.Background(), "codex", root, path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if report.Total != 4 || report.Untrusted != 4 || report.AllTrusted() {
++		t.Fatalf("new fixture hooks must remain untrusted: %+v", report)
++	}
++}

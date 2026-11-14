@@ -1,0 +1,25 @@
+{
+  "host": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "commands": {
+    "go version": {
+      "exit": 0,
+      "output": "go version go1.25.1 darwin/arm64\n"
+    },
+    "codex --version": {
+      "exit": 0,
+      "output": "codex-cli 0.169.0\nWARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\n"
+    },
+    "/Users/hongducc/go/bin/staticcheck -version": {
+      "exit": 0,
+      "output": "staticcheck 2026.1 (v0.7.0)\n"
+    },
+    "git rev-parse HEAD": {
+      "exit": 0,
+      "output": "25c26000b9b1fc48b2715f64fcb613d780f17a1f\n"
+    },
+    "git status --short": {
+      "exit": 0,
+      "output": " M internal/app/guardrail_hook_test.go\n M internal/eval/agent_harness.go\n M internal/eval/agent_harness_test.go\n M internal/eval/codex_mcp.go\n M internal/eval/codex_mcp_test.go\n M internal/eval/codex_profile_test.go\n M internal/harness/codex/codex.go\n M internal/harness/codex/codex_test.go\n M internal/harness/codex/trust_test.go\n?? docs/evals/codex-integration-01M7DEZ0MER9RZVQ2M3HJDN8F7/\n?? internal/codexconfig/\n?? internal/eval/codex_mcp_live_test.go\n?? internal/harness/codex/outcome_test.go\n?? internal/harness/codex/project_trust_test.go\n"
+    }
+  }
+}
