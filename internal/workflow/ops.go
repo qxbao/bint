@@ -116,6 +116,9 @@ type NewTaskOptions struct {
 	// FromFindings: ID phát hiện review mà phiếu được lập để sửa (`task new --from-findings`); phạm vi suy từ
 	// đường dẫn của chúng và Request có thể rỗng.
 	FromFindings []string
+	// Parent: phiếu cha (kế hoạch) để kế thừa phạm vi/bối cảnh; DependsOn: phiếu phải done trước (ID hoặc tiền tố).
+	Parent    string
+	DependsOn []string
 }
 
 // NewTask lập phiếu tác vụ từ mô tả tự do (bước Classify).
@@ -124,6 +127,23 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	confirmed := ""
 	if tc := e.Cfg.Eval.TestCommand; tc != nil {
 		confirmed = *tc
+	}
+	var parentTask *task.Task
+	var depIDs []string
+	if o.Parent != "" {
+		ids, err := e.resolveTaskRefs("--parent", []string{o.Parent})
+		if err != nil {
+			return nil, task.Assessment{}, err
+		}
+		if parentTask, err = e.Tasks.Load(ids[0]); err != nil {
+			return nil, task.Assessment{}, dependencyInputf("--parent %q: %v", o.Parent, err)
+		}
+	}
+	if len(o.DependsOn) > 0 {
+		var err error
+		if depIDs, err = e.resolveTaskRefs("--depends-on", o.DependsOn); err != nil {
+			return nil, task.Assessment{}, err
+		}
 	}
 	var findViews []FindingView
 	if len(o.FromFindings) > 0 {
@@ -139,6 +159,11 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	t := task.FromRequest(e.Root, o.Request, confirmed)
 	if err := o.Edit.apply(&t); err != nil {
 		return nil, task.Assessment{}, err
+	}
+	var inherited []string
+	if parentTask != nil {
+		// Trước Classify/Assess: references và đường dẫn bảo vệ kế thừa phải có hiệu lực ở cả hai.
+		inherited = task.Inherit(&t, parentTask.Ticket, o.Edit.ClearScope)
 	}
 	if o.Workflow == "" {
 		o.Workflow = "b-do" // workflow mặc định khi không chỉ định (lập phiếu cho flow nhúng b-do)
@@ -211,6 +236,10 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	for _, v := range findViews {
 		st.FromFindings = append(st.FromFindings, v.Finding.ID)
 	}
+	if parentTask != nil {
+		st.Parent, st.Inherited = parentTask.State.ID, inherited
+	}
+	st.DependsOn = depIDs
 	if e.RunID != "" {
 		st.LinkRun(e.RunID)
 	}

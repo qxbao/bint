@@ -82,7 +82,7 @@ failed tiếp tục được (bint run resume); cancelled kết thúc. Xem ` + "
 Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi chạm đường dẫn bảo vệ
 (bint task approve), đặt autonomy auto, xác nhận hoàn thành khi thiếu bằng chứng (--force).`,
 	}
-	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
+	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskReadyCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
 		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio))
@@ -102,6 +102,8 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		shared   bool
 		driver   string
 		fromFind []string
+		parent   string
+		depends  []string
 	)
 	c := &cobra.Command{
 		Use:   "new [mô tả | -]",
@@ -149,6 +151,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
 			o.Worktree, o.Shared, o.Driver = worktree, shared, driver
 			o.FromFindings = fromFind
+			o.Parent, o.DependsOn = parent, depends
 			if err := o.Validate(); err != nil { // lỗi dùng sai (mã 2) thắng lỗi "chưa init", như trước
 				return err
 			}
@@ -170,6 +173,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 				if len(t.State.FromFindings) > 0 {
 					out["from_findings"] = t.State.FromFindings
 				}
+				addRelationJSON(out, t)
 				return writeJSON(stdio.Out, out)
 			}
 			w := stdio.Out
@@ -184,6 +188,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 			if len(t.State.FromFindings) > 0 {
 				fmt.Fprintf(w, "  Từ phát hiện: %s\n", strings.Join(t.State.FromFindings, ", "))
 			}
+			printNewRelations(w, t)
 			printTicketBrief(w, env, t, a)
 			return nil
 		},
@@ -197,6 +202,8 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 	c.Flags().BoolVar(&shared, "shared", false, "sửa thẳng trên cây đang làm, không vào worktree riêng; loại trừ --worktree")
 	c.Flags().StringVar(&driver, "driver", "auto", "ai chạy các bước của tác vụ: auto (theo workflow.driver) | process | session (phiên đang mở chạy bước bằng subagent: bint run next/complete)")
 	c.Flags().StringSliceVar(&fromFind, "from-findings", nil, "lập phiếu sửa từ phát hiện review (ID dạng <task-id>.<n>, lặp lại hoặc dấu phẩy): phạm vi suy từ đường dẫn của chúng, mô tả thành tuỳ chọn; loại phát hiện fixed/rejected")
+	c.Flags().StringVar(&parent, "parent", "", "phiếu cha (kế hoạch; ID hoặc tiền tố): phiếu con kế thừa scope.allow, scope.deny, tài liệu tham chiếu và ràng buộc của cha cho từng trường còn rỗng")
+	c.Flags().StringSliceVar(&depends, "depends-on", nil, "phiếu phải done trước khi phiếu này sẵn sàng (ID hoặc tiền tố, lặp lại hoặc dấu phẩy); xem bint task ready")
 	c.Flags().StringVar(&fromFile, "file", "", "đọc mô tả từ tệp")
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
@@ -339,13 +346,18 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 						arts[x.Name] = x.Path
 					}
 				}
-				return writeJSON(stdio.Out, map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
+				out := map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
 					"verify_confirmed": d.VerifyConfirmed, "setup_command": d.Setup.Command, "setup_confirmed": d.Setup.Confirmed,
 					"setup_required": d.Setup.Required, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers),
 					"isolation": t.State.Isolation(), "isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t)),
-					"driver": taskDriver(t), "driver_reason": driverReason(t)})
+					"driver": taskDriver(t), "driver_reason": driverReason(t)}
+				if len(d.Children) > 0 {
+					out["children"] = d.Children
+				}
+				return writeJSON(stdio.Out, out)
 			}
 			printTask(stdio.Out, ws.Env, t, a, rev, blockers)
+			printRelations(stdio.Out, d)
 			return nil
 		},
 	}
@@ -489,6 +501,8 @@ func passText(ok bool) string {
 
 func newTaskSetCmd(stdio IO) *cobra.Command {
 	var ef editFlags
+	var depends []string
+	var clearDeps bool
 	c := &cobra.Command{
 		Use:   "set <task-id>",
 		Short: "Sửa phiếu tác vụ (mục tiêu, kiểm chứng, tiêu chí, phạm vi, autonomy)",
@@ -505,6 +519,7 @@ không còn hiệu lực. Agent không đặt được autonomy: auto.`,
 			o.Ref, o.Goal, o.VerifyCommand, o.Autonomy = args[0], ef.goal, ef.verify, ef.autonomy
 			o.Criteria, o.Allow, o.Deny, o.Constraints = ef.criteria, ef.allow, ef.deny, ef.constraints
 			o.ClearCriteria, o.ClearScope = ef.clearCriteria, ef.clearScope
+			o.DependsOn, o.ClearDependsOn = depends, clearDeps
 			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
 			u, err := app.SetTask(cmd.Context(), ws, o)
 			if err != nil {
@@ -519,6 +534,8 @@ không còn hiệu lực. Agent không đặt được autonomy: auto.`,
 		},
 	}
 	addEditFlags(c, &ef, true)
+	c.Flags().StringSliceVar(&depends, "depends-on", nil, "thêm phụ thuộc: phiếu phải done trước khi phiếu này sẵn sàng (ID hoặc tiền tố, lặp lại hoặc dấu phẩy); từ chối nếu tạo chu trình")
+	c.Flags().BoolVar(&clearDeps, "clear-depends-on", false, "xoá mọi phụ thuộc cũ trước khi thêm")
 	return c
 }
 

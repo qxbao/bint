@@ -218,6 +218,29 @@ bint task new --from-findings <id>[,<id>…] [--allow …] # phiếu sửa: scop
 `--from-findings` từ chối phát hiện `fixed`/`rejected`; mô tả tự do thành tuỳ chọn (Bint liệt kê từng phát hiện
 vào mô tả) và `from_findings` được ghi vào `state.json`. Chỉ có CLI, chưa có màn hình TUI.
 
+**Phiếu cha/con và phụ thuộc (`depends_on`).** Quan hệ lưu trong `state.json` (trường `parent`, `depends_on`,
+`inherited`, đều omitempty; không có trong `task.yml`, không migration), nên phiếu cũ đọc và chạy như trước:
+
+```sh
+bint task new "giai đoạn 1" --parent <id> --depends-on <id>[,<id>…]   # ID đầy đủ hoặc tiền tố
+bint task set <id> --depends-on <id>…                                # thêm phụ thuộc
+bint task set <id> --clear-depends-on                                # xoá hết phụ thuộc cũ
+bint task ready [--parent <id>] [--json]                             # phiếu chưa kết thúc mà mọi phụ thuộc đã done
+```
+
+- ID không có, tiền tố mơ hồ hoặc trùng chính phiếu → mã thoát 2 và không tạo gì; cạnh tạo chu trình (A→B rồi
+  B→A, hoặc dài hơn) → mã thoát 2, thông báo nêu đường chu trình, `state.json` không đổi.
+- `task ready` liệt kê cũ nhất trước; phụ thuộc chưa xong, `cancelled` hoặc không đọc được làm phiếu vắng mặt.
+  Phiếu cha không ngầm phụ thuộc phiếu con: muốn kế hoạch xong sau cùng thì thêm `depends_on` cho nó.
+- Kế thừa: lúc lập, phiếu con chép từ phiếu cha `scope.allow`, `scope.deny`, `references`, `constraints` cho từng
+  trường còn rỗng sau khi dựng từ mô tả và cờ (một lần, không theo dõi thay đổi về sau). Phạm vi tự đặt (đường dẫn
+  trong mô tả, `--allow`, `--clear-scope`) không bị ghi đè; đánh giá rủi ro/đường dẫn bảo vệ tính trên phiếu sau
+  kế thừa. `task new` in các trường đã kế thừa; `task show` in phiếu cha, từng phụ thuộc kèm trạng thái và phiếu
+  con (`--json` thêm `children` chỉ khi có).
+- Giới hạn: khoá chỉ theo từng phiếu, nên hai `task set --depends-on` chạy song song (A→B và B→A) có thể cùng qua
+  kiểm chu trình; `task ready` chịu được dữ liệu như vậy (phiếu trong chu trình không bao giờ sẵn sàng). Chỉ có
+  CLI, chưa có màn hình TUI.
+
 **`bint run`** cấp `run_id` cho lượt `b-do` (cha) và mỗi bước (con, `parent_run_id`), ghi `run_steps`,
 chi phí/token/mô hình; agent nhận `BINT_RUN_ID`, `BINT_TASK_ID`, `BINT_AGENT=1`, `BINT_RUNNER_PID` và
 danh sách đường dẫn đã duyệt, nên lệnh `bint task` và hook gắn sự kiện vào đúng lượt con. Đề bài =

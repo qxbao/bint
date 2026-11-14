@@ -83,6 +83,8 @@ var baseExclusions = []exclusion{
 
 var litsrUsage = []struct{ file, contains string }{
 	{"app/findings_svc.go", "fixed cần --commit"},
+	{"app/task_svc.go", "--parent %q: %v"},
+	{"workflow/ops.go", "--parent %q: %v"},
 	{"workflow/ops_findings.go", "fixed cần --commit"},
 	{"workflow/ops_findings.go", "--commit %q không phải commit"},
 	{"app/mcp_svc.go", "--url loại trừ --command/--arg"},

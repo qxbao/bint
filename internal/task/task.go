@@ -354,6 +354,12 @@ type State struct {
 	ReviewRounds int           `json:"review_rounds"`
 	// FromFindings là ID các phát hiện review mà phiếu này được lập để sửa (`task new --from-findings`).
 	FromFindings []string `json:"from_findings,omitempty"`
+	// Parent là ID phiếu cha (kế hoạch) của phiếu này (`task new --parent`); DependsOn là ID các phiếu phải done
+	// trước khi phiếu này sẵn sàng (`bint task ready`). Ở State (không ở task.yml) để chỉ đi qua đường có kiểm
+	// ID/chu trình. Inherited là tên các trường đã chép từ phiếu cha lúc lập (scope.allow, scope.deny, references, constraints).
+	Parent    string   `json:"parent,omitempty"`
+	DependsOn []string `json:"depends_on,omitempty"`
+	Inherited []string `json:"inherited,omitempty"`
 	// AwaitingCheck: b-feat đã xong nhưng chưa qua kiểm tra phạm vi/kiểm chứng (ví dụ
 	// đang chờ người duyệt); tiếp tục thì không chạy lại b-feat.
 	AwaitingCheck bool              `json:"awaiting_check,omitempty"`

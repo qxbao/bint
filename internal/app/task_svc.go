@@ -58,6 +58,12 @@ type ticketFields struct {
 	clearCriteria, clearScope          bool
 }
 
+// empty: không có trường sửa phiếu nào được đặt.
+func (f ticketFields) empty() bool {
+	return !f.goalSet && !f.verifySet && !f.autonomySet && f.goal == "" && f.verify == "" && f.autonomy == "" &&
+		len(f.criteria)+len(f.allow)+len(f.deny)+len(f.constraints) == 0 && !f.clearCriteria && !f.clearScope
+}
+
 func (f ticketFields) edit() workflow.TicketEdit {
 	ed := workflow.TicketEdit{Criteria: f.criteria, Allow: f.allow, Deny: f.deny, Constraints: f.constraints,
 		ClearCriteria: f.clearCriteria, ClearScope: f.clearScope}
@@ -151,6 +157,9 @@ type TaskNewOptions struct {
 	AutonomySet      bool
 	// FromFindings: ID phát hiện review (`--from-findings`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
 	FromFindings []string
+	// Parent, DependsOn: phiếu cha và phiếu phụ thuộc (`--parent`, `--depends-on`, chỉ CLI; không có thẻ flag).
+	Parent    string
+	DependsOn []string
 }
 
 // TaskNewDefaults: workflow b-do, độ sâu và driver tự chọn (như mặc định của cờ).
@@ -196,6 +205,7 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 	}
 	wo := workflow.NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
 	wo.FromFindings = o.FromFindings
+	wo.Parent, wo.DependsOn = o.Parent, o.DependsOn
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	if o.Plan || o.NoPlan {
 		p := o.Plan
@@ -210,7 +220,7 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 	}
 	t, a, err := ws.NewTask(ctx, wo)
 	if err != nil {
-		if errors.Is(err, workflow.ErrFindingInput) {
+		if errors.Is(err, workflow.ErrFindingInput) || errors.Is(err, workflow.ErrDependencyInput) {
 			return res, UsageError{err}
 		}
 		return res, err
@@ -288,6 +298,11 @@ type TaskDetail struct {
 	Artifacts []TaskArtifact
 	// Lint là kết quả kiểm tài liệu (nil nếu chưa có tài liệu nào).
 	Lint *task.ArtifactReport
+	// Parent, Deps, Children: quan hệ giữa các phiếu (rỗng khi phiếu không có quan hệ). Phiếu không đọc được
+	// chỉ có ID và Status rỗng.
+	Parent   *RelatedTask
+	Deps     []RelatedTask
+	Children []RelatedTask
 }
 
 // ShowTask dựng chi tiết tác vụ: phiếu, đánh giá, review, điều chặn done, tài liệu và kết quả lint.
@@ -318,6 +333,7 @@ func ShowTask(ctx context.Context, ws *TaskWS, o TaskShowOptions) (TaskDetail, e
 		}
 		d.Artifacts = append(d.Artifacts, a)
 	}
+	d.Parent, d.Deps, d.Children = relations(ws, t)
 	if any {
 		rep := task.LintPlanningTask(t, t.State.PlanningContractVersion >= task.PlanningContractV1)
 		d.Lint = &rep
@@ -351,6 +367,9 @@ type TaskSetOptions struct {
 	GoalSet          bool
 	VerifyCommandSet bool
 	AutonomySet      bool
+	// DependsOn, ClearDependsOn: quan hệ phụ thuộc (`--depends-on`, `--clear-depends-on`, chỉ CLI; không có thẻ flag).
+	DependsOn      []string
+	ClearDependsOn bool
 }
 
 func TaskSetDefaults(config.Config) TaskSetOptions { return TaskSetOptions{} }
@@ -391,8 +410,61 @@ func SetTask(_ context.Context, ws *TaskWS, o TaskSetOptions) (TaskUpdated, erro
 	if err := requireHumanForAutonomy(ed, "bint task set"); err != nil {
 		return TaskUpdated{}, err
 	}
-	t, a, notes, err := ws.SetTicketSynced(o.Ref, ed)
-	return TaskUpdated{Task: t, Assessment: a, Notes: notes}, err
+	if len(o.DependsOn) == 0 && !o.ClearDependsOn {
+		t, a, notes, err := ws.SetTicketSynced(o.Ref, ed)
+		return TaskUpdated{Task: t, Assessment: a, Notes: notes}, err
+	}
+	if o.fields().empty() {
+		t, err := ws.SetDependencies(o.Ref, o.DependsOn, o.ClearDependsOn)
+		if err != nil {
+			return TaskUpdated{}, depUsageErr(err)
+		}
+		return TaskUpdated{Task: t, Assessment: ws.Assess(t)}, nil
+	}
+	// Có cờ sửa phiếu đi kèm: kiểm hết rồi ghi một lần, lỗi thì state.json không đổi.
+	t, a, notes, err := ws.SetTicketAndDependencies(o.Ref, ed, o.DependsOn, o.ClearDependsOn)
+	if err != nil {
+		return TaskUpdated{}, depUsageErr(err)
+	}
+	return TaskUpdated{Task: t, Assessment: a, Notes: notes}, nil
+}
+
+func depUsageErr(err error) error {
+	if errors.Is(err, workflow.ErrDependencyInput) {
+		return UsageError{err}
+	}
+	return err
+}
+
+// ---- task ready ----
+
+// TaskReadyOptions: `bint task ready`. Parent (ID hoặc tiền tố) chỉ giữ phiếu con của phiếu đó.
+type TaskReadyOptions struct {
+	Parent string
+}
+
+// ReadyTasks liệt kê phiếu chưa kết thúc mà mọi phụ thuộc đã done, cũ nhất trước. Đọc toàn bộ phiếu (kể cả
+// done/cancelled) để biết trạng thái phụ thuộc; phiếu hỏng trả ở Bad và coi như không đọc được.
+func ReadyTasks(_ context.Context, ws *TaskWS, o TaskReadyOptions) (TaskList, error) {
+	ts, bad := ws.Tasks.List()
+	out := TaskList{Bad: bad}
+	parent := ""
+	if strings.TrimSpace(o.Parent) != "" {
+		id, err := ws.Tasks.Resolve(o.Parent)
+		if err != nil {
+			return out, Usagef("--parent %q: %v", o.Parent, err)
+		}
+		parent = id
+	}
+	for i, t := range ts {
+		ts[i] = ws.Reconcile(t)
+	}
+	for _, t := range task.Ready(ts) {
+		if parent == "" || t.State.Parent == parent {
+			out.Tasks = append(out.Tasks, t)
+		}
+	}
+	return out, nil
 }
 
 // ---- task write ----
@@ -857,4 +929,36 @@ func harnessSelection(harnessName string, roles []string, agentCommand string) (
 		return sel, Usagef("--agent-command không đi cùng --harness/--role")
 	}
 	return sel, nil
+}
+
+// RelatedTask là phiếu có quan hệ với phiếu đang xem (cha, phụ thuộc, con).
+type RelatedTask struct {
+	ID     string `json:"id"`
+	Status string `json:"status,omitempty"` // rỗng: không đọc được
+	Goal   string `json:"goal,omitempty"`
+}
+
+func relatedOf(t *task.Task) RelatedTask {
+	return RelatedTask{ID: t.State.ID, Status: t.State.Status, Goal: t.Ticket.Goal}
+}
+
+// relations dựng quan hệ của t; phiếu cha/phụ thuộc không đọc được vẫn hiện ID.
+func relations(ws *TaskWS, t *task.Task) (parent *RelatedTask, deps, children []RelatedTask) {
+	load := func(id string) RelatedTask {
+		if r, err := ws.Tasks.Load(id); err == nil {
+			return relatedOf(r)
+		}
+		return RelatedTask{ID: id}
+	}
+	if t.State.Parent != "" {
+		p := load(t.State.Parent)
+		parent = &p
+	}
+	for _, id := range t.State.DependsOn {
+		deps = append(deps, load(id))
+	}
+	for _, c := range ws.Children(t.State.ID) {
+		children = append(children, relatedOf(c))
+	}
+	return
 }
