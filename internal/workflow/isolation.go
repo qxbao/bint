@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -441,34 +442,34 @@ func humanChain(ctx context.Context, root, before, st, rel, abs string, chain []
 	return cur == HashFile(abs)
 }
 
-// blobWorktreeHashes là các băm chấp nhận được cho nội dung tệp rel ở cây before: dạng đã lọc, rồi dạng thô nếu khác.
-// Dạng thô cần vì Bint tự ghi byte LF còn bộ lọc eol (core.autocrlf=true) cho checkout ra CRLF.
+// blobWorktreeHashes là các băm chấp nhận được cho nội dung tệp rel ở cây before: dạng đã lọc, rồi dạng thô nếu
+// dạng đã lọc khác dạng thô đúng bởi chuyển LF sang CRLF (bộ lọc eol, core.autocrlf=true). Dạng thô cần vì Bint tự
+// ghi byte LF còn bộ lọc eol cho checkout ra CRLF. Bộ lọc khác (ident, smudge) không làm thêm băm thô.
 func blobWorktreeHashes(ctx context.Context, root, before, rel string) []string {
-	h, ok := blobWorktreeHash(ctx, root, before, rel)
+	filtered, ok := blobWorktreeBytes(ctx, root, before, rel)
 	if !ok {
 		return nil
 	}
-	hs := []string{h}
+	hs := []string{HashBytes(filtered)}
 	cmd := exec.CommandContext(ctx, "git", "cat-file", "blob", before+":"+rel)
 	cmd.Dir = root
-	if out, err := cmd.Output(); err == nil {
-		if raw := HashBytes(out); raw != h {
-			hs = append(hs, raw)
-		}
+	if raw, err := cmd.Output(); err == nil && !bytes.Equal(raw, filtered) &&
+		bytes.Equal(bytes.ReplaceAll(filtered, []byte("\r\n"), []byte("\n")), raw) {
+		hs = append(hs, HashBytes(raw))
 	}
 	return hs
 }
 
-// blobWorktreeHash là sha256 nội dung tệp rel ở cây before sau khi áp bộ lọc làm việc (eol/smudge) — tức đúng
+// blobWorktreeBytes là nội dung tệp rel ở cây before sau khi áp bộ lọc làm việc (eol/smudge) — tức đúng
 // byte mà cây làm việc có lúc chụp. Lỗi (kể cả bộ lọc LFS lỗi) trả ok=false: không có chuỗi ⇒ vi phạm.
-func blobWorktreeHash(ctx context.Context, root, before, rel string) (string, bool) {
+func blobWorktreeBytes(ctx context.Context, root, before, rel string) ([]byte, bool) {
 	cmd := exec.CommandContext(ctx, "git", "cat-file", "--filters", before+":"+rel)
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
-		return "", false
+		return nil, false
 	}
-	return HashBytes(out), true
+	return out, true
 }
 
 func newCandidateFile(root, rel string) bool {

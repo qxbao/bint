@@ -446,3 +446,41 @@ func TestReadonlyViolationsHumanWriteWithAutocrlf(t *testing.T) {
 		})
 	}
 }
+
+// Thuộc tính ident (không có bộ lọc eol): dạng đã lọc khác dạng thô nhưng không phải do LF/CRLF, nên băm thô của
+// blob không phải điểm bắt đầu chấp nhận được; lần ghi của người có prev là băm thô vẫn là vi phạm.
+func TestReadonlyViolationsIdentFilterRejectsRawPrev(t *testing.T) {
+	ctx := context.Background()
+	testutil.Isolate(t)
+	const rel = "app.txt"
+	root := testutil.NewRepo(t, map[string]string{rel: "v1 $Id$\n", ".gitattributes": "app.txt ident\n"})
+	abs := filepath.Join(root, rel)
+	raw := HashBytes([]byte("v1 $Id$\n"))
+	filtered, ok := blobWorktreeBytes(ctx, root, "HEAD", rel)
+	if !ok || HashBytes(filtered) == raw {
+		t.Fatalf("giả định của test: ident phải làm dạng lọc khác dạng thô (ok=%v)", ok)
+	}
+	if err := os.WriteFile(abs, filtered, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before, err := WorktreeSnapshot(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	since := time.Now()
+	if err := os.WriteFile(abs, []byte("v2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	after, err := WorktreeSnapshot(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logp := WritesLogPath(t.TempDir())
+	if err := AppendWrites(logp, []WriteRecord{recP(NormalizeWritePath(abs), since.Add(time.Second), false, raw, HashFile(abs))}, 0, since); err != nil {
+		t.Fatal(err)
+	}
+	chk := ReadonlyViolations(ctx, root, before, after, since, logp)
+	if !slices.Equal(chk.Violations, []string{rel}) || len(chk.HumanWrites) != 0 {
+		t.Fatalf("muốn vi phạm: %+v", chk)
+	}
+}

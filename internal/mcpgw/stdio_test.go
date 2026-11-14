@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -259,33 +258,58 @@ func TestWriteQueueFull(t *testing.T) {
 	repo := evalDir(t, newRepo(t, false))
 	c := h.open("codegraph", worktreeHdr(repo))
 	// Upstream ngừng đọc stdin sau lời gọi stall; các frame lớn kế tiếp lấp ống rồi hàng đợi.
+	// Upstream giả chỉ có một goroutine: select{} của lời gọi stall sẽ làm tiến trình thoát vì deadlock (generation 1
+	// chết trước khi hàng đợi đầy). Một lời gọi ngủ lâu giữ một goroutine khác sống suốt bài kiểm thử.
+	keepalive := make(chan rpcMsg, 1)
+	go func() {
+		m, _ := c.call("keep", "codegraph_explore", map[string]any{"sleep_ms": 60000})
+		keepalive <- m
+	}()
+	eventually(t, "upstream nhận lời gọi giữ sống", 5*time.Second, func() bool { return len(h.recvs("codegraph", "tools/call")) == 1 })
 	stalled := make(chan rpcMsg, 1)
 	go func() {
 		m, _ := c.call("stall", "codegraph_explore", map[string]any{"stall": true})
 		stalled <- m
 	}()
-	eventually(t, "upstream nhận lời gọi stall", 5*time.Second, func() bool { return len(h.recvs("codegraph", "tools/call")) == 1 })
+	eventually(t, "upstream nhận lời gọi stall", 5*time.Second, func() bool { return len(h.recvs("codegraph", "tools/call")) == 2 })
 	big := strings.Repeat("a", 256<<10)
-	var wg sync.WaitGroup
 	type res struct {
 		m   rpcMsg
 		out toolOut
 	}
-	errs := make(chan res, 8)
-	for i := 0; i < 6; i++ {
-		wg.Add(1)
+	// Gửi từng frame lớn một (mỗi lần chờ ngắn) tới khi upstream generation 1 bị coi như chết, rồi dừng: không
+	// lời gọi lớn nào tới sau cái chết nên generation 2 không phải nhận chúng. Kích thước ống stdio khác nhau
+	// giữa hệ điều hành chỉ đổi số frame cần gửi.
+	errs := make(chan res, 64)
+	sent := 0
+	var first res
+	for first.m.ID == nil && sent < 60 {
+		i := sent
+		sent++
 		go func() {
-			defer wg.Done()
 			m, out := c.call(100+i, "codegraph_explore", map[string]any{"echo": big})
 			errs <- res{m, out}
 		}()
+		select {
+		case first = <-errs:
+		case <-time.After(300 * time.Millisecond):
+		}
 	}
-	wg.Wait()
-	close(errs)
-	// Mọi lời gọi tới generation 1 (upstream bị coi như chết) phải lỗi. Khi máy tải nặng, một goroutine có thể tới gateway
-	// sau khi upstream đã được khởi động lại; lời gọi đó thành công ở generation 2 và không phải lỗi của cơ chế hàng đợi.
-	for r := range errs {
-		if len(r.m.Error) == 0 && callGeneration(r.out.ID) < 2 {
+	if first.m.ID == nil {
+		t.Fatalf("gửi %d frame lớn mà upstream không bị coi như chết", sent)
+	}
+	// Mọi lời gọi lớn đều tới khi generation 1 còn sống nên đều phải lỗi.
+	got := []res{first}
+	for len(got) < sent {
+		select {
+		case r := <-errs:
+			got = append(got, r)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("chỉ %d/%d lời gọi lớn kết thúc", len(got), sent)
+		}
+	}
+	for _, r := range got {
+		if len(r.m.Error) == 0 {
 			t.Errorf("lời gọi thành công ở %q, muốn lỗi khi upstream generation 1 bị coi như chết", r.out.ID)
 		}
 	}
@@ -298,24 +322,12 @@ func TestWriteQueueFull(t *testing.T) {
 		t.Fatal("lời gọi stall không kết thúc")
 	}
 	_, out := c.call("sau", "codegraph_explore", map[string]any{"echo": "ok"})
-	// Ống stdio Windows nhỏ hơn nên với WriteQueue=2 generation 2 cũng có thể đầy và bị khởi động lại: chỉ đòi
-	// một generation mới hơn generation 1 đã bị coi như chết.
-	if g := callGeneration(out.ID); g < 2 {
-		t.Errorf("lời gọi sau chạy với id %q, muốn generation >= 2", out.ID)
+	if !strings.HasPrefix(out.ID, "gw_2_") || out.Echo != "ok" {
+		t.Errorf("lời gọi sau: id %q (muốn generation 2), echo %q", out.ID, out.Echo)
 	}
-}
-
-// callGeneration lấy số generation từ id dạng gw_<generation>_<n>_<nonce>; 0 nếu không đọc được.
-func callGeneration(id string) int {
-	parts := strings.Split(id, "_")
-	if len(parts) < 3 || parts[0] != "gw" {
-		return 0
+	if n := len(h.starts("codegraph")); n != 2 {
+		t.Errorf("%d lần khởi động, muốn 2", n)
 	}
-	g, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return 0
-	}
-	return g
 }
 
 // Body POST vượt giới hạn bị từ chối với 413.
