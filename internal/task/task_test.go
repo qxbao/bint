@@ -505,3 +505,19 @@ func TestReviewSubmissionPathAndTitle(t *testing.T) {
 		t.Fatalf("tiêu đề phải một dòng: %q %v", sub.Findings[0].Title, errs)
 	}
 }
+
+// Danh sách cho phép tường minh của điều chặn người có thể bỏ qua (land --force): loại thêm sau này mặc định là cứng.
+func TestBlockerKindForceableAllowlist(t *testing.T) {
+	want := map[BlockerKind]bool{
+		BlockVerifyMissing: true, BlockVerifyChanged: true, BlockVerifyFailed: true, BlockVerifyStale: true,
+		BlockNoEvidence: true, BlockCriterionUnchecked: true,
+	}
+	for k := BlockLand; k <= BlockCriterionUnchecked; k++ {
+		if k.Forceable() != want[k] {
+			t.Errorf("loại %d: Forceable=%v, muốn %v", k, k.Forceable(), want[k])
+		}
+	}
+	if (BlockCriterionUnchecked + 1).Forceable() {
+		t.Error("loại mới chưa khai báo phải là điều chặn cứng")
+	}
+}

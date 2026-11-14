@@ -70,10 +70,16 @@ type taskState struct {
 		AwaitingLand bool     `json:"awaiting_land"`
 		Touched      []string `json:"touched"`
 		Landed       *struct {
-			Files     []string `json:"files"`
-			Conflicts []string `json:"conflicts"`
-			Kept      bool     `json:"kept"`
+			Files       []string `json:"files"`
+			Conflicts   []string `json:"conflicts"`
+			Kept        bool     `json:"kept"`
+			Forced      bool     `json:"forced"`
+			ForceReason string   `json:"force_reason"`
+			Bypassed    []string `json:"bypassed"`
 		} `json:"landed"`
+		Verifications []struct {
+			Passed bool `json:"passed"`
+		} `json:"verifications"`
 	} `json:"state"`
 	Isolation       string `json:"isolation"`
 	IsolationReason string `json:"isolation_reason"`
@@ -397,5 +403,74 @@ func TestWorktreeFlagUsageErrors(t *testing.T) {
 	}
 	if out, code := run(t, root, "", "run", "b-do", "--task", c.ID, "--shared"); code != 2 {
 		t.Fatalf("run --task --shared: %d\n%s", code, out)
+	}
+}
+
+// land --force --reason (chỉ người) bỏ qua điều chặn về bằng chứng khi kiểm chứng hỏng vì lý do ngoài mã, rồi
+// status done --force chốt tác vụ; land thường vẫn bị chặn.
+func TestWorktreeLandForceThenDoneForce(t *testing.T) {
+	root := initWorktreeRepo(t)
+	flag := filepath.Join(t.TempDir(), "outage")
+	os.WriteFile(filepath.Join(root, ".bint", "local.yml"), []byte("eval:\n  test_command: \"ls *.done && test ! -f "+filepath.ToSlash(flag)+"\"\n"), 0o644)
+	c := newTask(t, root, "--worktree", "Thêm tính năng v2 cho app.txt")
+	script := writeScript(t, "echo v2 > app.txt\necho ok > x.done\n"+resultJSON)
+	if out, code := run(t, root, "", "run", "b-feat", "--task", c.ID, "--agent-command", script); code != 0 || !strings.Contains(out, "in_review") {
+		t.Fatalf("run b-feat: %d\n%s", code, out)
+	}
+	// Sự cố ngoài mã làm lần kiểm chứng cuối không qua (worktree không đổi).
+	os.WriteFile(flag, []byte("x"), 0o644)
+	run(t, root, "", "task", "verify", c.ID)
+	if vs := showTask(t, root, c.ID).State.Verifications; len(vs) < 2 || vs[len(vs)-1].Passed {
+		t.Fatalf("lần kiểm chứng cuối phải không qua: %+v", vs)
+	}
+
+	// Không có --force: vẫn bị chặn như cũ.
+	if out, code := run(t, root, "", "task", "land", c.ID); code == 0 || !strings.Contains(out, "lần kiểm chứng cuối không qua") {
+		t.Fatalf("land thường phải bị chặn: %d\n%s", code, out)
+	}
+	// --force thiếu --reason: lỗi cách dùng.
+	if out, code := run(t, root, "", "task", "land", c.ID, "--force"); code == 0 || !strings.Contains(out, "--force cần --reason") {
+		t.Fatalf("--force thiếu --reason: %d\n%s", code, out)
+	}
+	// Agent bị từ chối.
+	t.Setenv("BINT_AGENT", "1")
+	if out, code := run(t, root, "", "task", "land", c.ID, "--force", "--reason", "mạng hỏng"); code == 0 || !strings.Contains(out, "chỉ dành cho người") {
+		t.Fatalf("agent --force phải bị từ chối: %d\n%s", code, out)
+	}
+	t.Setenv("BINT_AGENT", "")
+	asHuman(t)
+	if showTask(t, root, c.ID).State.Landed != nil {
+		t.Fatal("chưa được đưa về")
+	}
+
+	// --force không bỏ qua thay đổi chạm đường dẫn bảo vệ chưa duyệt.
+	prot := filepath.Join(showTask(t, root, c.ID).State.Worktree, "migrations", "002.sql")
+	os.WriteFile(prot, []byte("ALTER TABLE x;\n"), 0o644)
+	if out, code := run(t, root, "", "task", "land", c.ID, "--force", "--reason", "mạng hỏng"); code == 0 || !strings.Contains(out, "chưa được duyệt") {
+		t.Fatalf("--force không được bỏ qua đường dẫn bảo vệ: %d\n%s", code, out)
+	}
+	os.Remove(prot)
+
+	out, code := run(t, root, "", "task", "land", c.ID, "--force", "--reason", "mạng hỏng, mã không đổi")
+	if code != 0 || !strings.Contains(out, "Đã đưa") {
+		t.Fatalf("land --force: %d\n%s", code, out)
+	}
+	l := showTask(t, root, c.ID).State.Landed
+	if l == nil || !l.Forced || l.ForceReason != "mạng hỏng, mã không đổi" || len(l.Bypassed) == 0 ||
+		!strings.Contains(strings.Join(l.Bypassed, ";"), "lần kiểm chứng cuối không qua") {
+		t.Fatalf("Landing: %+v", l)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "app.txt")); string(got) != "v2\n" {
+		t.Fatal("cây gốc không nhận thay đổi")
+	}
+	if out, _ := run(t, root, "", "task", "show", c.ID); !strings.Contains(out, "ÉP (--force): mạng hỏng, mã không đổi") ||
+		!strings.Contains(out, "điều chặn đã bỏ qua") {
+		t.Fatalf("task show thiếu lý do ép:\n%s", out)
+	}
+	if out, code := run(t, root, "", "task", "status", c.ID, "done", "--force", "--reason", "đã xem"); code != 0 {
+		t.Fatalf("done --force: %d\n%s", code, out)
+	}
+	if got := showTask(t, root, c.ID); got.State.Status != "done" {
+		t.Fatalf("trạng thái cuối: %+v", got.State)
 	}
 }

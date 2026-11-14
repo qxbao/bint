@@ -768,12 +768,21 @@ type TaskLandOptions struct {
 	Ref      string `arg:"task-id" form:"required,suggest=tasks"`
 	ThreeWay bool   `flag:"3way"`
 	Keep     bool   `flag:"keep"`
+	// Force + Reason (chỉ người): bỏ qua điều chặn về bằng chứng; lý do ghi vào phiếu.
+	Force  bool   `flag:"force"`
+	Reason string `flag:"reason"`
 }
 
 func TaskLandDefaults(config.Config) TaskLandOptions { return TaskLandOptions{} }
 func (o TaskLandOptions) Validate() error {
 	if strings.TrimSpace(o.Ref) == "" {
 		return Usagef("cần ID tác vụ")
+	}
+	if o.Force && strings.TrimSpace(o.Reason) == "" {
+		return Usagef("--force cần --reason: lý do bỏ qua điều chặn về bằng chứng")
+	}
+	if !o.Force && strings.TrimSpace(o.Reason) != "" {
+		return Usagef("--reason chỉ dùng cùng --force")
 	}
 	return nil
 }
@@ -789,7 +798,12 @@ func LandTask(ctx context.Context, ws *TaskWS, o TaskLandOptions) (*workflow.Lan
 			return nil, err
 		}
 	}
-	return ws.Land(ctx, o.Ref, workflow.LandOptions{ThreeWay: o.ThreeWay, Keep: o.Keep})
+	if o.Force {
+		if err := RequireHuman("bint task land --force"); err != nil {
+			return nil, err
+		}
+	}
+	return ws.Land(ctx, o.Ref, workflow.LandOptions{ThreeWay: o.ThreeWay, Keep: o.Keep, Force: o.Force, Reason: o.Reason})
 }
 
 // ---- task cancel ----

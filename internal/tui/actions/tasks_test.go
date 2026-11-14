@@ -152,7 +152,7 @@ func TestTaskLandAndCancelActions(t *testing.T) {
 		path  string
 		flags []string
 	}{
-		"tasks.land":   {"task land", []string{"3way", "keep"}},
+		"tasks.land":   {"task land", []string{"3way", "keep", "force", "reason"}},
 		"tasks.cancel": {"task cancel", []string{"reason", "discard"}},
 	} {
 		a, ok := reg.ByID(id)

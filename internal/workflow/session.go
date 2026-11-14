@@ -456,6 +456,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		if err := r.transition(rs, to, "tiếp tục (bint run next --resume)"); err != nil {
 			return stop()
 		}
+		r.markFinalizeResume(ctx, rs, to, o.Rerun)
 	}
 	// Bước dở đã hết hạn (claimSession đã loại bước còn hạn dưới khoá phiếu): đóng như bước quá giờ (vẫn kiểm chỉ đọc để báo vi phạm).
 	if ps := rs.t.State.PendingStep; ps != nil {
