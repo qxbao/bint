@@ -36,6 +36,10 @@ type LandOptions struct {
 	Keep bool
 	// Orchestrator: do chính Runner gọi khi finalize (bỏ kiểm "tác vụ đang được bint run khác điều phối").
 	Orchestrator bool
+	// Force (chỉ người) + Reason: bỏ qua điều chặn về bằng chứng (kiểm chứng không qua/cũ, tiêu chí chưa đối chiếu).
+	// Không bỏ qua thay đổi chạm đường dẫn bảo vệ/deny chưa duyệt, phiếu chỉ lập kế hoạch có thay đổi lạ, hay xung đột.
+	Force  bool
+	Reason string
 }
 
 // LandResult là kết quả đưa về.
@@ -83,6 +87,13 @@ func (e *ErrDiscardRequired) Error() string {
 // doneBlockersFor gom điều chặn done của tác vụ t: bằng chứng (task.DoneBlockers), thay đổi chạm đường dẫn
 // bảo vệ/deny chưa duyệt. in/inErr là kết quả DoneInputDetailed; pg là planGateFor tính trước (ngoài khoá phiếu).
 func (e *Env) doneBlockersFor(ctx context.Context, t *task.Task, in task.DoneInput, inErr error, pg planGate) []string {
+	ev, hard := e.doneBlockersSplit(ctx, t, in, inErr, pg)
+	return append(ev, hard...)
+}
+
+// doneBlockersSplit như doneBlockersFor nhưng tách điều chặn về bằng chứng (kiểm chứng, tiêu chí: người có thể --force)
+// khỏi điều chặn cứng (đường dẫn bảo vệ/deny chưa duyệt, thay đổi lạ của phiếu chỉ lập kế hoạch, lỗi tính toán).
+func (e *Env) doneBlockersSplit(ctx context.Context, t *task.Task, in task.DoneInput, inErr error, pg planGate) (evidence, hard []string) {
 	if pg.PlanOnly && e.planOnlyTask(t) { // kiểm lại: trạng thái phiếu có thể đã đổi từ lúc tính pg
 		// Phiếu chỉ lập kế hoạch: không có mã để kiểm chứng. Ở cây chung UnapprovedChanges (diff so với Base) sẽ gán
 		// nhầm commit của người khác cho nó nên bỏ qua. Ở worktree riêng không có ai khác ghi: thay đổi chạm đường
@@ -101,10 +112,19 @@ func (e *Env) doneBlockersFor(ctx context.Context, t *task.Task, in task.DoneInp
 				blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
 			}
 		}
-		return blockers
+		return nil, blockers
 	}
 	in.VerifyConfirmed = e.VerifyConfirmed(t)
-	blockers := task.DoneBlockers(t, in)
+	// Phân loại theo loại điều chặn (task.BlockerKind.Forceable), không so chuỗi: chỉ danh sách cho phép tường minh
+	// là bằng chứng người có thể --force; mọi loại khác (kể cả loại thêm sau này) là điều chặn cứng.
+	for _, b := range task.DoneBlockersTyped(t, in) {
+		if b.Kind.Forceable() {
+			evidence = append(evidence, b.Text)
+		} else {
+			hard = append(hard, b.Text)
+		}
+	}
+	blockers := hard
 	if e.planOnlyTask(t) { // phiếu chỉ lập kế hoạch ở worktree nhưng có thay đổi khác: cổng đầy đủ + lý do rõ nghĩa
 		blockers = append(blockers, strayBlocker(t.State.ID, pg))
 	}
@@ -118,7 +138,7 @@ func (e *Env) doneBlockersFor(ctx context.Context, t *task.Task, in task.DoneInp
 	case len(pend) > 0:
 		blockers = append(blockers, "thay đổi chạm đường dẫn bảo vệ/deny chưa được duyệt: "+strings.Join(pend, ", ")+" (bint task approve)")
 	}
-	return blockers
+	return evidence, blockers
 }
 
 // strayBlocker nêu vì sao phiếu chỉ lập kế hoạch không được hưởng cổng nhẹ: worktree có thay đổi ngoài mục tri
@@ -138,6 +158,12 @@ func strayBlocker(id string, pg planGate) string {
 func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult, error) {
 	if o.ThreeWay && !e.Human {
 		return nil, fmt.Errorf("%w: bint task land --3way", ErrAgent)
+	}
+	if o.Force && !e.Human {
+		return nil, fmt.Errorf("%w: bint task land --force", ErrAgent)
+	}
+	if o.Force && strings.TrimSpace(o.Reason) == "" {
+		return nil, errors.New("land --force cần --reason: lý do bỏ qua điều chặn (ghi vào lịch sử của phiếu)")
 	}
 	t, err := e.Tasks.Load(ref)
 	if err != nil {
@@ -165,7 +191,12 @@ func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult,
 	pg := e.planGateFor(ctx, t)
 	in, inErr := e.DoneInputDetailed(ctx, t)
 	in.IgnoreLanding = true
-	if blockers := e.doneBlockersFor(ctx, t, in, inErr, pg); len(blockers) > 0 {
+	evBlockers, hardBlockers := e.doneBlockersSplit(ctx, t, in, inErr, pg)
+	var bypassed []string
+	if o.Force {
+		bypassed, evBlockers = evBlockers, nil
+	}
+	if blockers := append(evBlockers, hardBlockers...); len(blockers) > 0 {
 		return nil, &NotDoneError{Blockers: blockers}
 	}
 
@@ -245,6 +276,9 @@ func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult,
 	keep := o.Keep || len(unmerged) > 0
 	landing := &task.Landing{At: e.at(), By: e.actor(), Files: files, Conflicts: conflicts, Unmerged: unmerged,
 		ThreeWay: o.ThreeWay, Fingerprint: fp, Tree: snap, Kept: keep}
+	if o.Force {
+		landing.Forced, landing.ForceReason, landing.Bypassed = true, strings.TrimSpace(o.Reason), bypassed
+	}
 	if len(unmerged) > 0 && !o.Keep {
 		landing.Note = "giữ worktree vì không trộn được: " + strings.Join(unmerged, ", ")
 		res.Notes = append(res.Notes, fmt.Sprintf("không trộn được %s (cây gốc giữ nguyên): bản của tác vụ còn ở worktree %s "+
@@ -274,8 +308,12 @@ func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult,
 		}
 	}
 	res.Task = t
-	e.emit(t, spool.TaskStatus, map[string]any{"status": t.State.Status, "landed": true, "files": len(files),
-		"conflicts": len(conflicts), "three_way": o.ThreeWay, "kept": keep})
+	payload := map[string]any{"status": t.State.Status, "landed": true, "files": len(files),
+		"conflicts": len(conflicts), "three_way": o.ThreeWay, "kept": keep}
+	if o.Force {
+		payload["forced"], payload["force_reason"], payload["bypassed"] = true, landing.ForceReason, bypassed
+	}
+	e.emit(t, spool.TaskStatus, payload)
 	return res, nil
 }
 

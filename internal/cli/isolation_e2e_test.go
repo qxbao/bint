@@ -36,7 +36,7 @@ func writeScript(t *testing.T, body string) string {
 	if err := os.WriteFile(p, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return "sh " + p
+	return "sh " + filepath.ToSlash(p) // sh -c nuốt dấu gạch chéo ngược: đường dẫn Windows trần ra mã thoát 127
 }
 
 func taskIDs(t *testing.T, dir string) []string {

@@ -84,6 +84,10 @@ type Source struct {
 	Author  string `yaml:"author"`
 	Date    string `yaml:"date"`
 	Subject string `yaml:"subject"`
+	// Task là ID phiếu b-do mà đề được dựng từ (rỗng = khai thác từ Git); TaskRuns là các lượt chạy của phiếu.
+	// Tri thức rút từ chính phiếu đó không được dùng khi chấm đề này (mục 12.3).
+	Task     string   `yaml:"task,omitempty"`
+	TaskRuns []string `yaml:"task_runs,omitempty"`
 }
 
 // Stats là quy mô thay đổi của commit.
@@ -126,6 +130,9 @@ func CaseID(commit string) string {
 	}
 	return "c" + commit
 }
+
+// TaskCaseID tính ID ổn định của đề dựng từ phiếu: chữ t nối ID phiếu viết thường.
+func TaskCaseID(taskID string) string { return "t" + strings.ToLower(strings.TrimSpace(taskID)) }
 
 // AssignSplit chia tác vụ vào tập con một cách tất định theo ID (50/25/25).
 func AssignSplit(id string) string {

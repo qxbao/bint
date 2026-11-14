@@ -332,6 +332,9 @@ type State struct {
 	// AwaitingLand: tác vụ đã qua cổng done ở worktree và chỉ còn đưa về (xung đột/lỗi land); tiếp tục thì
 	// vào thẳng finalize, không chạy lại b-review.
 	AwaitingLand bool `json:"awaiting_land,omitempty"`
+	// FinalizeFP là dấu vân tay worktree lúc finalize bị chặn vì thiếu bằng chứng (sau khi review đã duyệt). Resume mà
+	// worktree không đổi so với nó thì không mở lượt b-review mới, chỉ chạy lại kiểm chứng một lần rồi áp cổng done.
+	FinalizeFP string `json:"finalize_fp,omitempty"`
 	// Reason giải thích trạng thái hiện tại (ví dụ vì sao blocked).
 	Reason string `json:"reason,omitempty"`
 	// ResumeFrom là trạng thái hoạt động trước khi blocked/interrupted/failed.
@@ -465,6 +468,10 @@ type Landing struct {
 	Kept bool `json:"kept,omitempty"`
 	// Note ghi chú dọn dẹp lỗi (worktree không gỡ được...).
 	Note string `json:"note,omitempty"`
+	// Forced: người đưa về bằng `land --force --reason`, bỏ qua các điều chặn về bằng chứng (Bypassed) vì ForceReason.
+	Forced      bool     `json:"forced,omitempty"`
+	ForceReason string   `json:"force_reason,omitempty"`
+	Bypassed    []string `json:"bypassed,omitempty"`
 }
 
 // Isolation trả về chế độ cô lập của tác vụ (shared khi chưa ghi).

@@ -41,6 +41,7 @@ bint task write <id> requirement|plan|tasks -   # ghi tài liệu qua stdin
 bint task diff <id> [--stat|--name-only] [--all]  # thay đổi của RIÊNG tác vụ (shared: chỉ tệp Touched, tệp khác nêu tên ở ghi chú, --all để xem hết)
 bint task new --worktree|--shared "<mô tả>"     # chọn nơi chạy lúc lập phiếu (mặc định theo workflow.isolation)
 bint task land <id> [--3way] [--keep]           # tác vụ worktree: đưa thay đổi về cây gốc (chưa commit); --3way chỉ NGƯỜI
+bint task land <id> --force --reason "<lý do>"  # chỉ NGƯỜI: bỏ qua điều chặn về bằng chứng (kiểm chứng không qua/cũ, tiêu chí chưa đối chiếu)
 bint task cancel <id> [--reason …] [--discard]  # huỷ; tác vụ worktree: gỡ worktree (--discard chỉ NGƯỜI nếu còn thay đổi chưa đưa về)
 bint task new --driver session "<mô tả>"       # driver session: phiên đang mở chạy bước bằng subagent (bint run next/complete/abort)
 bint task lint <id> [--strict] [--json]         # kiểm ba tài liệu b-req theo hợp đồng v1 (AC↔TSK, câu hỏi mở)
@@ -155,6 +156,68 @@ lệnh kiểm chứng đúng một lần dưới khoá độc quyền, ghi một
 chứng: <tệp>", rồi xét `done` lại. Chạy lại không qua thì tác vụ `blocked` kèm mã thoát, tệp và log. Không tự chạy khi
 lệnh chưa được người xác nhận, khi có tệp thuộc `touched` đổi, hoặc khi còn lý do chặn khác (đường dẫn bảo vệ chưa duyệt,
 tiêu chí `unmet`, xung đột đưa về…). `bint task status <id> done` do người/agent gọi không tự chạy lệnh nào.
+**`land --force --reason` và lối thoát khi kiểm chứng hỏng vì lý do ngoài mã.** `land` đòi lần kiểm chứng cuối qua và mới, còn
+`status done --force` không bỏ qua việc chưa đưa về, nên tác vụ `worktree` có kiểm chứng hỏng ngoài mã (mạng, đĩa đầy, máy
+treo) trước đây không chốt được. Người (không phải agent: `ErrAgentForbidden`) chạy `bint task land <id> --force --reason
+"<lý do>"` để bỏ qua **chỉ** điều chặn về bằng chứng: lần kiểm chứng cuối không qua/cũ/chưa chạy/lệnh đổi, tiêu chí chưa
+đối chiếu, phiếu không có bằng chứng nào. Danh sách cho phép này phân loại theo loại điều chặn (`task.BlockerKind.Forceable`,
+không so chuỗi); loại điều chặn thêm sau này mặc định là cứng. KHÔNG bỏ qua: tiêu chí đã đánh dấu chưa đạt (`unmet`), lệnh
+kiểm chứng chưa được người xác nhận, thay đổi chạm đường dẫn bảo vệ hoặc `scope.deny` chưa duyệt, phiếu chỉ lập kế hoạch có
+thay đổi lạ, xung đột khi áp. `--force` thiếu `--reason` (hoặc `--reason` thiếu `--force`) là lỗi cách dùng. Lý do và danh
+sách điều chặn đã bỏ qua nằm ở `landed.forced/force_reason/bypassed` của phiếu, ở payload sự kiện `task.status`
+(`forced`, `force_reason`, `bypassed`) và ở `bint task show` ("ÉP (--force): …"). Sau đó chốt bằng `bint task status <id>
+done --force`. Ở TUI: màn Tác vụ, `o`, ô "Ép đưa về" và "Lý do".
+
+**Resume sau khi finalize bị chặn không review lại.** Khi review đã duyệt (không có phát hiện nghiêm trọng) nhưng finalize
+bị chặn vì thiếu bằng chứng (thường là kiểm chứng cuối không qua), phiếu nhớ dấu vân tay worktree lúc chặn
+(`State.finalize_fp`). `bint run next <id> --resume` (driver session) và `bint run resume <id>` (driver process) mà
+worktree không đổi kể từ lúc đó thì KHÔNG mở lượt b-review mới: chạy lại lệnh kiểm chứng đã xác nhận đúng một lần (ghi
+`verification` có `reason` "tiếp tục sau khi finalize bị chặn…") rồi áp cổng `done`. Worktree đã đổi, hoặc `--rerun`, thì
+review lại như cũ. Dấu vân tay bị xoá khi lần kiểm chứng chạy lại xong hoặc khi tác vụ bị chặn vì lý do khác lần kiểm
+chứng hỏng (ví dụ tiêu chí `unmet`), để lần resume sau không bỏ review nhầm.
+
+**Kiểm chứng chạy qua Bint trên Windows chậm hoặc treo (tác vụ 01M7C3CBN5JKTMVJV97TXDR5DK, 2026-11-14).** Trạng thái:
+**nguyên nhân CHƯA được xác nhận**; việc đo tái hiện đầy đủ (toàn bộ `./...`, so chạy tay với qua Bint, tỉ lệ gói cached,
+thao tác tệp của `go.exe`) thuộc một phiếu riêng, chưa làm. Dưới đây là những gì đã đo và đã đọc được, không hơn.
+
+*Đường chạy:* `eval.RunShell` → `sh.exe -c` → `go.exe test ./...`, stdout/stderr ghi vào `verify-N.log` (append), stdin rỗng.
+
+*Phép đo đã làm* (cùng máy, `go test -count=1 ./internal/task/ ./internal/eval/`, cả hai gói chạy thật, không cached): gõ
+tay 64,4 s; qua `sh -c` với stdin `/dev/null` và đầu ra qua pipe 61,7 s. Với hai gói này, `sh.exe`/pipe/stdin của RunShell
+không thêm độ trễ đo được. Chưa đo toàn bộ `./...` qua Bint.
+
+*Log thật của tác vụ nguồn* (`logs/verify-1..3.log`): `verify-1.log` có phần lớn gói `(cached)`, dừng sau
+`internal/tui/actions` (gói kế tiếp, `internal/tui/app`, không in gì vì `go test` chỉ in kết quả gói khi gói xong);
+`verify-2.log` chỉ có dòng `bint/cmd/bint [no test files]`; `verify-3.log` (sau `go clean -testcache`, không còn gói cached)
+có kết quả đầy đủ của phần lớn gói nhưng `internal/cli` 209 s, `internal/eval` 78 s, `internal/evolve` 106 s,
+`internal/tui/app` 338 s, và phiếu ghi `timed_out: true`. Cũng trong log đó: `chdir …\worktrees\<id>\internal\app: The
+system cannot find the file specified` và golden `testdata\golden\…` "không tìm thấy đường dẫn" ở `internal/tui/app`, tức
+thư mục worktree biến mất giữa lúc chạy (bị dọn/đổi trong lúc kiểm chứng) nên các gói đó FAIL vì lý do ngoài mã. Đó là bằng
+chứng có thật nhưng không giải thích triệu chứng `go.exe` ~160 nghìn thao tác tệp/giây, ~1,3 GB RAM, không có tiến trình
+con của `verify-1`.
+
+*Khác biệt đã biết giữa chạy tay và qua Bint* là môi trường: lệnh kiểm chứng trước đây kế thừa nguyên môi trường của tiến
+trình `bint` (đang trong lượt điều phối), gồm `BINT_RUN_ID`, `BINT_TASK_ID`, `BINT_APPROVED_PATHS`, `BINT_RUNNER_PID`,
+`CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_SSE_PORT` và `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`/`GIT_COMMON_DIR` (nếu có).
+Kiểm thử của Bint dựng repo tạm và gọi lại `bint`/`git` nên có thể nhận nhầm là nằm trong lượt/tác vụ của phiên chủ hoặc đọc
+nhầm kho git của worktree. Đây là giả thuyết, chưa được chứng minh là nguyên nhân của việc chậm hay treo. Bản sửa phòng
+ngừa: `Env.VerifyWith` dùng `eval.VerifyEnv()` — bỏ các biến trên, GIỮ `BINT_AGENT`, `CLAUDECODE`, `AI_AGENT`,
+`CODEX_SANDBOX`, `GEMINI_CLI` (kiểm thử thao tác chỉ dành cho người vẫn thấy mình ở trong agent). Hồi quy:
+`TestVerifyEnvStripsRunIdentityKeepsAgentMarkers` (eval) và `TestVerifyWithEnvironment` (workflow). Không tái hiện được
+triệu chứng trong phiên điều tra vì đặt `GIT_DIR` trỏ vào kho thật có nguy cơ làm hỏng kho.
+
+*Nếu sau bản sửa vẫn treo, đo theo thứ tự:* (1) chạy cùng lệnh qua `bint task verify` và tay với `GOFLAGS=-p=1`, so thời gian
+từng gói (`go test -json`); (2) thử loại trừ thư mục worktree và `%LOCALAPPDATA%\go-build` khỏi Microsoft Defender (giả thuyết,
+chưa đo: quét thời gian thực tệp thực thi kiểm thử, nhất là sau `go clean -testcache`); (3) đảm bảo không dọn worktree trong
+lúc kiểm chứng đang chạy. Mỗi lần chạy có tệp riêng `verify-<n>.log` theo thứ tự lần kiểm chứng (xem `verifications[].log`);
+việc đối chiếu tệp log "mất" với `verifications[].log` của tác vụ nguồn chưa được làm, nên chưa kết luận gì về nó.
+
+*Mã thoát 127* là của `sh`: "command not found". Hai nguyên nhân thường gặp trên Windows: `go` (hoặc công cụ khác) không có
+trong `PATH` của `sh.exe`, và đường dẫn Windows trần có dấu `\` trong lệnh (ví dụ `sh C:\Users\…\agent.sh`) bị `sh -c` nuốt
+dấu gạch chéo ngược nên không tìm thấy tệp; viết đường dẫn bằng `/` (kiểm thử e2e dùng `filepath.ToSlash`). `verify-1` và
+`verify-2` của tác vụ nguồn đều thoát 127 nhưng log không có dòng lỗi của `sh`; nguyên nhân cụ thể của 127 ở hai lượt đó
+chưa được xác nhận.
+
 Với tác vụ `shared`, `bint task diff <id>` mặc định chỉ hiện tệp thuộc `touched`; tệp khác đổi vào cây sau mốc đầu được
 loại, ghi chú nêu số và tên chúng (`--all` hiện lại toàn bộ). Tác vụ `worktree` luôn hiện toàn bộ phạm vi (worktree
 không có người viết khác, và mọi tệp đổi trong đó đều được đưa về cây gốc). Lời nhắc tiếp tục trong lý do chặn theo driver: tác vụ session là

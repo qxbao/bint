@@ -159,3 +159,31 @@ func cleanEnv(extra ...string) []string {
 	}
 	return append(out, extra...)
 }
+
+// verifyStripped là biến định danh theo lượt/tác vụ và biến trỏ repository mà lệnh kiểm chứng không được thấy: tiến
+// trình con (go test dựng repo tạm, gọi lại bint...) sẽ nhận nhầm là đang chạy trong lượt/tác vụ của phiên chủ, hoặc
+// đọc nhầm kho git của worktree. Biến đánh dấu agent (BINT_AGENT, CLAUDECODE, AI_AGENT, CODEX_SANDBOX, GEMINI_CLI)
+// được GIỮ để thao tác chỉ dành cho người vẫn bị từ chối trong kiểm thử.
+var verifyStripped = map[string]bool{
+	"BINT_RUN_ID": true, "BINT_TASK_ID": true, "BINT_APPROVED_PATHS": true, "BINT_RUNNER_PID": true,
+	"CLAUDE_CODE_SESSION_ID": true, "CLAUDE_CODE_SSE_PORT": true,
+	"GIT_DIR": true, "GIT_WORK_TREE": true, "GIT_INDEX_FILE": true, "GIT_COMMON_DIR": true,
+}
+
+// VerifyEnv trả môi trường của tiến trình hiện tại cho lệnh kiểm chứng (Env.VerifyWith): bỏ biến định danh theo lượt,
+// giữ biến đánh dấu agent.
+func VerifyEnv(extra ...string) []string { return VerifyEnvFrom(os.Environ(), extra...) }
+
+// VerifyEnvFrom như VerifyEnv nhưng lọc từ môi trường environ cho trước (kiểm thử tầng workflow không phải đặt biến
+// GIT_* thật vào tiến trình kiểm thử, vì chúng làm hỏng chính git của harness).
+func VerifyEnvFrom(environ []string, extra ...string) []string {
+	var out []string
+	for _, kv := range environ {
+		k, _, _ := strings.Cut(kv, "=")
+		if verifyStripped[strings.ToUpper(k)] {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, extra...)
+}

@@ -999,12 +999,18 @@ func printIsolationLines(w io.Writer, indent string, t *task.Task) {
 		if l.ThreeWay {
 			fmt.Fprint(w, " (--3way)")
 		}
+		if l.Forced {
+			fmt.Fprintf(w, "; ÉP (--force): %s", l.ForceReason)
+		}
 		if l.Kept {
 			fmt.Fprintf(w, "; worktree còn được giữ lại")
 		}
 		fmt.Fprintln(w)
 		if len(l.Conflicts) > 0 {
 			fmt.Fprintf(w, "%s             còn dấu xung đột, cần gỡ tay: %s\n", indent, strings.Join(l.Conflicts, ", "))
+		}
+		if l.Forced && len(l.Bypassed) > 0 {
+			fmt.Fprintf(w, "%s             điều chặn đã bỏ qua: %s\n", indent, strings.Join(l.Bypassed, "; "))
 		}
 		if l.Note != "" {
 			fmt.Fprintf(w, "%s             ! %s\n", indent, l.Note)
@@ -1030,6 +1036,10 @@ worktree, nhánh bint/<id>, ref base và tệp khoá.
   --3way   chỉ người: tệp xung đột được trộn bằng git merge-file và để lại dấu xung đột trong tệp ở cây gốc để
            bạn gỡ (không dùng git apply --3way vì lệnh đó ngầm ghi chỉ mục)
   --keep   giữ worktree sau khi đưa về (để xem lại)
+  --force  chỉ người, kèm --reason "<lý do>": bỏ qua điều chặn về bằng chứng (kiểm chứng không qua hoặc cũ, tiêu
+           chí chưa đối chiếu), vd kiểm chứng hỏng vì lý do ngoài mã. KHÔNG bỏ qua thay đổi chạm đường dẫn bảo
+           vệ/deny chưa duyệt, thay đổi lạ của phiếu chỉ lập kế hoạch hay xung đột. Lý do và các điều chặn đã bỏ
+           qua được ghi vào phiếu (task show) và sự kiện task.status; sau đó chốt bằng bint task status <id> done --force
 
 land không đổi trạng thái tác vụ: sau đó bint run resume <id> hoặc bint task status <id> done.`,
 		Args: cobra.ExactArgs(1),
@@ -1077,6 +1087,8 @@ land không đổi trạng thái tác vụ: sau đó bint run resume <id> hoặc
 	}
 	c.Flags().BoolVar(&o.ThreeWay, "3way", false, "chỉ người: trộn tệp xung đột và để lại dấu xung đột ở cây gốc (không đụng chỉ mục)")
 	c.Flags().BoolVar(&o.Keep, "keep", false, "giữ worktree sau khi đưa về")
+	c.Flags().BoolVar(&o.Force, "force", false, "chỉ người, cần --reason: bỏ qua điều chặn về bằng chứng (kiểm chứng không qua/cũ, tiêu chí chưa đối chiếu)")
+	c.Flags().StringVar(&o.Reason, "reason", "", "lý do của --force (ghi vào phiếu)")
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
 }

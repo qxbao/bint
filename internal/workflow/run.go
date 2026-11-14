@@ -196,6 +196,9 @@ type runState struct {
 	session bool
 	// heldRunID: lượt con của bước đang giữ vừa được nhận để áp cổng sau bước (takeHeld); rs.res.Steps rỗng khi resume.
 	heldRunID string
+	// finalizeResume: resume sau khi finalize bị chặn vì thiếu bằng chứng và worktree không đổi kể từ lúc chặn: vào thẳng
+	// finalize (không mở b-review mới) và chạy lại lệnh kiểm chứng đúng một lần.
+	finalizeResume bool
 }
 
 // afterStepUnlock là seam kiểm thử (nil ở sản phẩm): gọi ngay sau khi runStep nhả khoá worktree của bước,
@@ -425,6 +428,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if err := r.transition(rs, to, "tiếp tục (bint run resume)"); err != nil {
 			return rs.res, err
 		}
+		r.markFinalizeResume(ctx, rs, to, o.Rerun)
 	}
 	if rs.flowBlock != "" {
 		// Flow đã đổi giữa chừng (hoặc không còn dùng được): không chạy bước nào, người khôi phục flow rồi resume.
@@ -715,7 +719,7 @@ func (rs *runState) pickStep() (step string, finalize bool) {
 		}
 		return impl.ID, false
 	case task.StatusInReview:
-		if rs.t.State.AwaitingLand || rs.t.State.Landed != nil {
+		if rs.t.State.AwaitingLand || rs.t.State.Landed != nil || rs.finalizeResume {
 			// Đã qua review và cổng done ở worktree, chỉ còn đưa về (xung đột/lỗi lần trước): không review lại.
 			return "", true
 		}
@@ -735,7 +739,24 @@ func (r *Runner) transition(rs *runState, to, reason string) error {
 	return err
 }
 
+// block chặn tác vụ chờ người vì lý do bất kỳ; xoá dấu vân tay finalize (FinalizeFP) để lần resume sau không bỏ review
+// nhầm. Riêng finalize thiếu bằng chứng đi qua blockFinalize (đặt lại dấu vân tay rồi blockKeep).
 func (r *Runner) block(rs *runState, reason string) {
+	r.setFinalizeFP(rs, "")
+	r.blockKeep(rs, reason)
+}
+
+// setFinalizeFP ghi FinalizeFP của phiếu (rỗng = xoá); không làm gì nếu không đổi.
+func (r *Runner) setFinalizeFP(rs *runState, fp string) {
+	if rs.t.State.FinalizeFP == fp {
+		return
+	}
+	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.FinalizeFP = fp; return nil }); err == nil {
+		rs.t = t
+	}
+}
+
+func (r *Runner) blockKeep(rs *runState, reason string) {
 	if err := r.transition(rs, task.StatusBlocked, reason); err != nil {
 		r.logf("! %v", err)
 	}
@@ -1225,6 +1246,11 @@ func dropHeldForRerun(t *task.Task, resume bool) (*task.HeldStep, error) {
 		return nil, errors.New("--rerun chỉ dùng khi tiếp tục tác vụ (resume)")
 	}
 	h := t.State.HeldStep
+	if h == nil && t.State.FinalizeFP != "" {
+		// Finalize bị chặn thiếu bằng chứng: --rerun bỏ lối tắt "không review lại" và mở lượt b-review mới như cũ.
+		t.State.FinalizeFP = ""
+		return nil, nil
+	}
 	if h == nil {
 		return nil, fmt.Errorf("--rerun: tác vụ %s không có bước chỉ đọc nào đang được giữ để chạy lại", t.State.ID)
 	}
@@ -1233,6 +1259,9 @@ func dropHeldForRerun(t *task.Task, resume bool) (*task.HeldStep, error) {
 }
 
 func rerunNote(h *task.HeldStep) string {
+	if h == nil {
+		return "bỏ lối tắt sau finalize bị chặn theo yêu cầu chạy lại, review lại như thường"
+	}
 	return fmt.Sprintf("bỏ kết quả bước giữ %s (lượt %s), chạy lại bước theo yêu cầu của người dùng", h.Step, h.RunID)
 }
 
@@ -1795,7 +1824,7 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) {
 	}
 	var nd *NotDoneError
 	if errors.As(err, &nd) {
-		r.block(rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(blockers, "; ")+"; xử lý xong thì `"+r.resumeCmd(rs)+"`")
+		r.blockFinalize(ctx, rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(blockers, "; ")+"; xử lý xong thì `"+r.resumeCmd(rs)+"`")
 		return
 	}
 	r.fail(rs, "finalize", err.Error())
@@ -1807,12 +1836,17 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) {
 // phải dừng (đã đặt trạng thái): lỗi, huỷ, hoặc kiểm chứng lại không qua. Trường hợp khác trả true và để cổng done
 // quyết định như cũ (kể cả khi lệnh bị bỏ qua).
 func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) bool {
+	forced := rs.finalizeResume
+	rs.finalizeResume = false
 	files, ok := r.staleVerifyOnly(ctx, rs.t)
-	if !ok {
+	if !ok && !forced {
 		return true
 	}
 	id := rs.t.State.ID
-	reason := reverifyReason(files)
+	reason := "tiếp tục sau khi finalize bị chặn (worktree không đổi, không review lại)"
+	if ok {
+		reason = reverifyReason(files)
+	}
 	r.logf("  %s: chạy lại kiểm chứng", reason)
 	lock, locked := r.lockStep(ctx, rs, "verify", LockExclusive)
 	if !locked {
@@ -1832,6 +1866,7 @@ func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) bool {
 		return true
 	}
 	rs.t = t
+	r.setFinalizeFP(rs, "") // đã kiểm chứng lại xong: dấu vân tay cũ hết giá trị (hỏng lại thì blockFinalize đặt mới)
 	v := vr.Verification
 	r.logf("  kiểm chứng: %s → %s", v.Command, passWord(v.Passed))
 	rs.res.Notes = append(rs.res.Notes, "đã tự kiểm chứng lại một lần ("+reason+") → "+passWord(v.Passed))
@@ -1842,9 +1877,41 @@ func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) bool {
 	if v.TimedOut {
 		how = "quá giờ"
 	}
-	r.block(rs, fmt.Sprintf("chưa đủ bằng chứng hoàn thành: tự kiểm chứng lại sau khi %s không qua (%s, log %s); "+
+	r.blockFinalize(ctx, rs, fmt.Sprintf("chưa đủ bằng chứng hoàn thành: tự kiểm chứng lại sau khi %s không qua (%s, log %s); "+
 		"xử lý xong thì `%s`", reason, how, v.Log, r.resumeCmd(rs)))
 	return false
+}
+
+// blockFinalize chặn tác vụ ở finalize vì thiếu bằng chứng, nhớ dấu vân tay worktree để resume không đổi thì không mở
+// lượt b-review mới (chỉ chạy lại kiểm chứng một lần rồi áp cổng done).
+func (r *Runner) blockFinalize(ctx context.Context, rs *runState, reason string) {
+	// Chỉ khi lần kiểm chứng cuối không qua (kiểm chứng hỏng, có thể do lý do ngoài mã); chặn vì lý do khác (lệnh chưa
+	// xác nhận, tiêu chí chưa đạt...) thì xoá dấu vân tay: resume vẫn review lại như cũ.
+	fp := ""
+	if v := rs.t.State.LastVerification(); v != nil && !v.Passed {
+		if root, err := r.RootFor(rs.t); err == nil {
+			fp = task.WorktreeFingerprint(ctx, root)
+		}
+	}
+	r.setFinalizeFP(rs, fp)
+	r.blockKeep(rs, reason)
+}
+
+// markFinalizeResume đặt rs.finalizeResume khi resume từ blocked ở finalize (to = in_review) mà worktree không đổi kể từ
+// lúc chặn, không --rerun và không có bước giữ. Gọi sau khi đã chuyển trạng thái.
+func (r *Runner) markFinalizeResume(ctx context.Context, rs *runState, to string, rerun bool) {
+	st := &rs.t.State
+	if rerun || to != task.StatusInReview || st.FinalizeFP == "" || st.HeldStep != nil || st.Landed != nil {
+		return
+	}
+	root, err := r.RootFor(rs.t)
+	if err != nil {
+		return
+	}
+	if task.WorktreeFingerprint(ctx, root) == st.FinalizeFP {
+		rs.finalizeResume = true
+		rs.res.Notes = append(rs.res.Notes, "worktree không đổi kể từ lúc finalize bị chặn: không review lại, chạy lại kiểm chứng một lần")
+	}
 }
 
 // resumeCmd là lệnh tiếp tục tác vụ theo driver của lượt này (session: bint run next <id> --resume).
@@ -1873,7 +1940,7 @@ func (r *Runner) landStep(ctx context.Context, rs *runState) bool {
 		r.logf("✓ Đã đưa %d tệp về cây gốc %s", len(res.Files), rs.t.State.Origin)
 		return true
 	case errors.As(err, &nd):
-		r.block(rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(nd.Blockers, "; ")+"; xử lý xong thì `"+r.resumeCmd(rs)+"`")
+		r.blockFinalize(ctx, rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(nd.Blockers, "; ")+"; xử lý xong thì `"+r.resumeCmd(rs)+"`")
 	case errors.As(err, &ce):
 		r.awaitLand(rs)
 		r.block(rs, err.Error()+"; xong thì `"+r.resumeCmd(rs)+"` (không chạy lại review)")

@@ -189,3 +189,76 @@ func TestCodexEvalProfileRemovedAfterTimeout(t *testing.T) {
 		t.Fatalf("auth profile chưa dọn sau timeout: %v", err)
 	}
 }
+
+// Two independent links to one directory: Codex discovers SKILL.md under both
+// names, so both must be disabled. A relative link inside a symlinked
+// directory resolves against its physical parent.
+func TestCodexProfileDisablesEverySkillAlias(t *testing.T) {
+	home := t.TempDir()
+	data := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(data, "agents", "skills"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(data, "agents"), filepath.Join(home, ".agents")); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlink privilege unavailable: %v", err)
+		}
+		t.Fatal(err)
+	}
+	shared := t.TempDir()
+	os.MkdirAll(filepath.Join(shared, "x"), 0o700)
+	os.WriteFile(filepath.Join(shared, "x", "SKILL.md"), []byte("shared"), 0o600)
+	os.MkdirAll(filepath.Join(data, "rel", "c"), 0o700)
+	os.WriteFile(filepath.Join(data, "rel", "c", "SKILL.md"), []byte("relative"), 0o600)
+	skills := filepath.Join(home, ".agents", "skills")
+	for name, target := range map[string]string{"a": shared, "b": shared, "c": filepath.Join("..", "..", "rel", "c")} {
+		if err := os.Symlink(target, filepath.Join(skills, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	source := filepath.Join(home, ".codex")
+	os.MkdirAll(source, 0o700)
+	os.WriteFile(filepath.Join(source, "auth.json"), []byte(`{"tokens":{"access_token":"fixture-only"}}`), 0o600)
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("CODEX_HOME", source)
+	env, cleanup, err := codexEvalProfile(AgentRequest{Dir: t.TempDir()}, os.Environ())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	profile := ""
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "CODEX_HOME=") {
+			profile = strings.TrimPrefix(kv, "CODEX_HOME=")
+		}
+	}
+	var cfg map[string]any
+	b, _ := os.ReadFile(filepath.Join(profile, "config.toml"))
+	if err := toml.Unmarshal(b, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	disabled := map[string]bool{}
+	for _, r := range cfg["skills"].(map[string]any)["config"].([]any) {
+		m := r.(map[string]any)
+		if m["enabled"] == false {
+			disabled[m["path"].(string)] = true
+		}
+	}
+	realData, _ := filepath.EvalSymlinks(data)
+	realShared, _ := filepath.EvalSymlinks(shared)
+	for _, want := range []string{
+		filepath.Join(skills, "a", "x", "SKILL.md"),
+		filepath.Join(skills, "b", "x", "SKILL.md"),
+		filepath.Join(realShared, "x", "SKILL.md"),
+		filepath.Join(skills, "c", "SKILL.md"),
+		filepath.Join(realData, "rel", "c", "SKILL.md"),
+	} {
+		if !disabled[want] {
+			t.Errorf("bỏ sót skill %s; đã tắt: %v", want, disabled)
+		}
+	}
+	if disabled[filepath.Join(home, "rel", "c", "SKILL.md")] {
+		t.Error("đích tương đối bị ghép theo chuỗi qua thư mục symlink")
+	}
+}

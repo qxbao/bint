@@ -753,7 +753,7 @@ func (e *Env) VerifyWith(ctx context.Context, ref, reason string) (*task.Task, V
 	n := len(t.State.Verifications) + 1
 	log := t.LogPath(fmt.Sprintf("verify-%d.log", n))
 	timeout := time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes) * time.Minute
-	r := eval.RunShell(ctx, root, cmd, timeout, log, nil)
+	r := eval.RunShell(ctx, root, cmd, timeout, log, eval.VerifyEnvFrom(verifyEnviron()))
 	if r.Err != nil && ctx.Err() != nil {
 		return t, res, ctx.Err()
 	}
@@ -779,6 +779,9 @@ func (e *Env) VerifyWith(ctx context.Context, ref, reason string) (*task.Task, V
 	e.emit(t, spool.TaskVerified, payload)
 	return t, res, nil
 }
+
+// verifyEnviron là môi trường nguồn của lệnh kiểm chứng (đổi được trong kiểm thử).
+var verifyEnviron = os.Environ
 
 // CheckCriterion ghi kết quả đối chiếu một tiêu chí (tự đánh giá; tín hiệu trung bình).
 func (e *Env) CheckCriterion(ref string, index int, met bool, evidence string) (*task.Task, error) {

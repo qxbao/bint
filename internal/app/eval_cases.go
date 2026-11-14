@@ -12,6 +12,8 @@ import (
 	"bint/internal/config"
 	"bint/internal/eval"
 	"bint/internal/store"
+	"bint/internal/task"
+	"bint/internal/workflow"
 )
 
 // EvalWorkspace là không gian làm việc của khung đánh giá (và của tiến hoá): cấu hình, kho
@@ -115,6 +117,8 @@ type EvalMineOptions struct {
 	Limit      int    `flag:"limit" form:"advanced"`
 	Verify     bool   `flag:"verify"`
 	VerifyRuns int    `flag:"verify-runs" form:"advanced"`
+	// FromTasks: dựng ứng viên từ phiếu b-do đã done thay vì lịch sử Git.
+	FromTasks bool `flag:"from-tasks"`
 	// Progress báo tiến độ kiểm chứng từng ứng viên mới (chỉ khi Verify).
 	Progress func(EvalProgress)
 }
@@ -125,7 +129,12 @@ func EvalMineDefaults(config.Config) EvalMineOptions {
 }
 
 // Validate: chưa có ràng buộc mức giá trị (kiểm tra eval.test_command làm khi chạy).
-func (o EvalMineOptions) Validate() error { return nil }
+func (o EvalMineOptions) Validate() error {
+	if o.FromTasks && o.Rev != "" && o.Rev != "HEAD" {
+		return Usagef("--from-tasks không đi cùng --rev")
+	}
+	return nil
+}
 
 // EvalMineResult là kết quả khai thác.
 type EvalMineResult struct {
@@ -139,12 +148,21 @@ func EvalMine(ctx context.Context, e *EvalWorkspace, opts EvalMineOptions) (*Eva
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	if opts.Verify {
+	if opts.Verify && !opts.FromTasks {
 		if _, err := e.Env.TestCommand(&eval.Case{}); err != nil {
 			return nil, err
 		}
 	}
-	res, err := eval.Mine(ctx, e.WS.Repo.Toplevel, e.WS.Config.Eval.Mine, e.Cases, eval.MineOptions{Rev: opts.Rev, Limit: opts.Limit})
+	var res eval.MineResult
+	var err error
+	if opts.FromTasks {
+		var srcs []eval.TaskSource
+		if srcs, err = taskSources(e); err == nil {
+			res, err = eval.MineTasks(ctx, e.WS.Repo.Toplevel, e.WS.Config.Eval.Mine, e.Cases, srcs, eval.MineOptions{Limit: opts.Limit})
+		}
+	} else {
+		res, err = eval.Mine(ctx, e.WS.Repo.Toplevel, e.WS.Config.Eval.Mine, e.Cases, eval.MineOptions{Rev: opts.Rev, Limit: opts.Limit})
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -659,5 +677,69 @@ func (e *EvalWorkspace) resolveArms(arms []string, explicit bool, log func(strin
 	if len(out) == 0 {
 		return nil, fmt.Errorf("không còn nhánh nào để chạy")
 	}
+	return out, nil
+}
+
+// ---- eval mine --from-tasks ----
+
+// taskSources đọc kho phiếu và dựng nguồn cho đề: chỉ phiếu workflow b-do ở trạng thái done. Phiếu không
+// đọc được bị bỏ qua (kho phiếu hỏng không được chặn việc khai thác).
+func taskSources(e *EvalWorkspace) ([]eval.TaskSource, error) {
+	tasks, _ := task.NewStore(e.WS.Paths.Runtime).List()
+	wenv := &workflow.Env{Root: e.WS.Repo.Toplevel, Cfg: e.WS.Config, Tasks: task.NewStore(e.WS.Paths.Runtime)}
+	var out []eval.TaskSource
+	for _, t := range tasks {
+		st := &t.State
+		if st.Workflow != "b-do" || st.Status != task.StatusDone {
+			continue
+		}
+		ts := eval.TaskSource{
+			ID: st.ID, Goal: t.Ticket.Goal, Request: t.Ticket.Request, Criteria: t.Ticket.Verify.Criteria,
+			Base: st.Base, BaseTree: st.BaseTree,
+		}
+		if data, err := os.ReadFile(t.ArtifactPath("requirement")); err == nil {
+			ts.Requirement = string(data)
+		}
+		if wenv.VerifyConfirmed(t) {
+			ts.VerifyCommand = strings.TrimSpace(t.Ticket.Verify.Command)
+		}
+		switch {
+		case st.Landed != nil && st.Landed.Tree != "":
+			ts.AfterTree, ts.Files = st.Landed.Tree, slices.Clone(st.Landed.Files)
+		default:
+			for i := len(st.Verifications) - 1; i >= 0; i-- {
+				if v := st.Verifications[i]; v.Passed && v.Tree != "" {
+					ts.AfterTree = v.Tree
+					break
+				}
+			}
+			ts.Files = slices.Clone(st.Touched)
+		}
+		runs := slices.Clone(st.Runs)
+		runs = append(runs, st.SessionRun)
+		for _, a := range st.AgentRuns {
+			runs = append(runs, a.RunID)
+		}
+		for _, v := range st.Verifications {
+			runs = append(runs, v.RunID)
+		}
+		if rv, err := t.LoadReview(); err == nil {
+			for _, r := range rv.Rounds {
+				runs = append(runs, r.RunID)
+			}
+		}
+		for _, r := range runs {
+			if r != "" && !slices.Contains(ts.Runs, r) {
+				ts.Runs = append(ts.Runs, r)
+			}
+		}
+		for _, h := range st.History {
+			if h.To == task.StatusDone {
+				ts.DoneAt, ts.Author = h.At, h.By
+			}
+		}
+		out = append(out, ts)
+	}
+	slices.SortFunc(out, func(a, b eval.TaskSource) int { return strings.Compare(a.DoneAt+a.ID, b.DoneAt+b.ID) })
 	return out, nil
 }

@@ -542,7 +542,7 @@ func writeJSONFile(p string, v any) error {
 func idealItems(items []*knowledge.Item, c *Case, candidates bool) []*knowledge.Item {
 	var out []*knowledge.Item
 	for _, it := range items {
-		if !it.Active() || it.Scope.Global() || it.Origin.FromEvalCase(c.ID) {
+		if !it.Active() || it.Scope.Global() || c.excludes(it) {
 			continue
 		}
 		if it.Status == knowledge.StatusCandidate && !candidates {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -97,6 +98,22 @@ func committedItems(ctx context.Context, repoDir, commit string) ([]*knowledge.I
 	return items, nil
 }
 
+// excludes cho biết mục tri thức không được dùng khi chấm đề c (mục 12.3): rút từ chính đề, hoặc — với đề dựng
+// từ phiếu — sinh ra trong lượt chạy của phiếu đó hoặc nêu ID phiếu trong nội dung.
+func (c *Case) excludes(it *knowledge.Item) bool {
+	if it.Origin.FromEvalCase(c.ID) {
+		return true
+	}
+	if c.Source.Task == "" {
+		return false
+	}
+	if it.Origin.RunID != "" && slices.Contains(c.Source.TaskRuns, it.Origin.RunID) {
+		return true
+	}
+	tid := strings.ToLower(c.Source.Task)
+	return strings.Contains(strings.ToLower(it.Title), tid) || strings.Contains(strings.ToLower(it.Body), tid)
+}
+
 // CaseKnowledge trả về tập tri thức mà các nhánh minimal/bint/base dùng cho tác vụ
 // (đã lọc chống rò rỉ theo chế độ), cho phép tập rỗng. Dùng để chọn tác vụ chịu ảnh
 // hưởng của một đề xuất trước khi tốn chi phí chạy.
@@ -114,7 +131,7 @@ func knowledgeFor(ctx context.Context, env Env, mode string, c *Case, leakIn *Le
 	notFromCase := func(items []*knowledge.Item) []*knowledge.Item {
 		var out []*knowledge.Item
 		for _, it := range items {
-			if !it.Origin.FromEvalCase(c.ID) {
+			if !c.excludes(it) {
 				out = append(out, it)
 			}
 		}

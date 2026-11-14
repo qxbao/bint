@@ -270,6 +270,13 @@ tất đã có yêu cầu, tiêu chí chấp nhận, lệnh kiểm chứng đã 
   một đề fail→pass có sẵn kiểm thử.
 - Tập đánh giá lớn dần theo việc thật, giải quyết dần giới hạn cỡ mẫu.
 
+*Đã làm (phần 1, chỉ CLI):* `bint eval mine --from-tasks` (`internal/eval/mine_tasks.go`) dựng ứng viên từ phiếu `b-do`
+đã `done` có lời giải dựng lại được; ID `t<id phiếu>`, ghi `source.task`/`source.task_runs`; tập con theo
+`eval.AssignSplit` như đề từ Git (ở đây "train" là `build` trong mã); tri thức sinh trong lượt của phiếu hoặc
+nêu ID phiếu bị loại khi chấm đề đó; đề trùng thay đổi kiểm thử giữa hai nguồn bị bỏ. Mô tả ở
+`docs/evaluation.md`. *Còn lại:* flow `b-debug`, và chia sẻ đề từ phiếu giữa các máy (commit tổng hợp chỉ
+sống trong kho cục bộ nhờ ref `refs/bint/eval/`).
+
 **Rủi ro.**
 
 - Rò rỉ: yêu cầu của phiếu có thể chứa gợi ý lời giải, cần qua bước `spec` như đề thường. Tri thức và
@@ -451,7 +458,7 @@ Các quy tắc hiện hành của dự án áp cho mọi mục ở trên:
 
 1. Phiếu tác vụ và phát hiện review có nên xuất được vào Git (như Beads) để dùng chung giữa các máy
    không, hay giữ ở thư mục trạng thái cục bộ?
-2. Đề đánh giá sinh từ phiếu (B2) vào tập nào theo mặc định, và ai duyệt?
+2. Đề đánh giá sinh từ phiếu (B2) vào tập nào theo mặc định, và ai duyệt? *Đã trả lời ở phần 1: cùng quy tắc `AssignSplit` theo ID như đề từ Git, người duyệt bằng `bint eval approve`.*
 3. Đặc tả sống (B6) có đáng một loại đối tượng riêng, hay là một `type` mới của mục tri thức?
 4. Plugin Claude Code (A3) là kênh phân phối chính hay phụ so với tệp nhị phân?
 

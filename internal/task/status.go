@@ -126,6 +126,41 @@ type DoneInput struct {
 	LandConflicts []string
 }
 
+// BlockerKind phân loại điều chặn done. Người chỉ được bỏ qua (land --force) loại thuộc danh sách cho phép tường minh
+// Forceable; loại mới thêm sau này mặc định là điều chặn cứng cho tới khi được đưa vào danh sách.
+type BlockerKind int
+
+const (
+	BlockLand             BlockerKind = iota // chưa đưa về cây gốc
+	BlockLandConflict                        // tệp còn xung đột sau land --3way
+	BlockPendingPaths                        // đường dẫn bảo vệ/deny chưa duyệt
+	BlockVerifyUnconfirm                     // lệnh kiểm chứng chưa được người xác nhận
+	BlockVerifyMissing                       // chưa chạy lệnh kiểm chứng
+	BlockVerifyChanged                       // lệnh đổi sau lần chạy cuối
+	BlockVerifyFailed                        // lần kiểm chứng cuối không qua
+	BlockVerifyStale                         // mã đổi sau lần kiểm chứng cuối
+	BlockNoEvidence                          // phiếu không có lệnh kiểm chứng lẫn tiêu chí
+	BlockCriterionUnmet                      // tiêu chí đã đánh dấu chưa đạt
+	BlockCriterionUnchecked                  // tiêu chí chưa đối chiếu
+)
+
+// Forceable cho biết người có thể bỏ qua điều chặn loại k bằng land --force: chỉ danh sách cho phép tường minh (kiểm
+// chứng không qua/cũ/chưa chạy/đổi lệnh, tiêu chí chưa đối chiếu, thiếu bằng chứng). Mọi loại khác, kể cả loại thêm
+// sau này, KHÔNG bỏ qua được.
+func (k BlockerKind) Forceable() bool {
+	switch k {
+	case BlockVerifyMissing, BlockVerifyChanged, BlockVerifyFailed, BlockVerifyStale, BlockNoEvidence, BlockCriterionUnchecked:
+		return true
+	}
+	return false
+}
+
+// Blocker là một điều chặn done kèm loại.
+type Blocker struct {
+	Kind BlockerKind
+	Text string
+}
+
 // DoneBlockers trả về lý do chưa được coi là hoàn thành (rỗng = đủ bằng chứng).
 //
 // Quy tắc (mục 6.2: không tự coi là xong khi chưa đủ bằng chứng):
@@ -135,51 +170,62 @@ type DoneInput struct {
 //   - không có lệnh kiểm chứng: mọi tiêu chí chấp nhận phải được đối chiếu là đạt
 //     kèm bằng chứng; không có cả hai thì không có bằng chứng nào → chặn.
 func DoneBlockers(t *Task, in DoneInput) []string {
-	var out []string
+	bs := DoneBlockersTyped(t, in)
+	out := make([]string, len(bs))
+	for i, b := range bs {
+		out[i] = b.Text
+	}
+	return out
+}
+
+// DoneBlockersTyped như DoneBlockers nhưng mỗi điều chặn mang loại.
+func DoneBlockersTyped(t *Task, in DoneInput) []Blocker {
+	var out []Blocker
+	add := func(k BlockerKind, s string) { out = append(out, Blocker{k, s}) }
 	st := &t.State
 	if st.NeedsLand() && !in.IgnoreLanding {
-		out = append(out, "chưa đưa thay đổi về cây gốc "+st.Origin+" (bint task land "+st.ID+")")
+		add(BlockLand, "chưa đưa thay đổi về cây gốc "+st.Origin+" (bint task land "+st.ID+")")
 	}
 	if len(in.LandConflicts) > 0 {
-		out = append(out, "tệp ở cây gốc còn xung đột sau khi đưa về bằng ba chiều: "+strings.Join(in.LandConflicts, ", ")+
+		add(BlockLandConflict, "tệp ở cây gốc còn xung đột sau khi đưa về bằng ba chiều: "+strings.Join(in.LandConflicts, ", ")+
 			" (gỡ dấu <<<<<<< / ghép tay phần của tác vụ rồi "+st.ResumeCommand()+"; người đã xử lý xong tệp không trộn được thì xác nhận bằng bint task status "+st.ID+" done kèm cờ ép)")
 	}
 	if len(st.PendingPaths) > 0 {
-		out = append(out, "thay đổi chạm đường dẫn bảo vệ/deny chưa được duyệt: "+strings.Join(st.PendingPaths, ", ")+" (bint task approve)")
+		add(BlockPendingPaths, "thay đổi chạm đường dẫn bảo vệ/deny chưa được duyệt: "+strings.Join(st.PendingPaths, ", ")+" (bint task approve)")
 	}
 	cmd := strings.TrimSpace(t.Ticket.Verify.Command)
 	if cmd != "" {
 		v := st.LastVerification()
 		switch {
 		case !in.VerifyConfirmed:
-			out = append(out, "lệnh kiểm chứng chưa được người xác nhận (bint task approve)")
+			add(BlockVerifyUnconfirm, "lệnh kiểm chứng chưa được người xác nhận (bint task approve)")
 		case v == nil:
-			out = append(out, "chưa chạy lệnh kiểm chứng (bint task verify)")
+			add(BlockVerifyMissing, "chưa chạy lệnh kiểm chứng (bint task verify)")
 		case v.Command != cmd:
-			out = append(out, "lệnh kiểm chứng đã đổi sau lần chạy cuối (bint task verify)")
+			add(BlockVerifyChanged, "lệnh kiểm chứng đã đổi sau lần chạy cuối (bint task verify)")
 		case !v.Passed:
-			out = append(out, "lần kiểm chứng cuối không qua")
+			add(BlockVerifyFailed, "lần kiểm chứng cuối không qua")
 		case in.Worktree == "" || v.Worktree != in.Worktree:
 			if len(in.OutsideSinceVerify) > 0 {
-				out = append(out, "thay đổi không thuộc tác vụ: "+strings.Join(in.OutsideSinceVerify, ", ")+
+				add(BlockVerifyStale, "thay đổi không thuộc tác vụ: "+strings.Join(in.OutsideSinceVerify, ", ")+
 					"; chạy lại bint task verify "+st.ID)
 			} else {
-				out = append(out, "mã đã thay đổi sau lần kiểm chứng cuối (bint task verify)")
+				add(BlockVerifyStale, "mã đã thay đổi sau lần kiểm chứng cuối (bint task verify)")
 			}
 		}
 	}
 	crit := t.Ticket.Verify.Criteria
 	if cmd == "" && len(crit) == 0 {
-		out = append(out, "phiếu không có lệnh kiểm chứng hay tiêu chí chấp nhận: không có bằng chứng (người có thể --force)")
+		add(BlockNoEvidence, "phiếu không có lệnh kiểm chứng hay tiêu chí chấp nhận: không có bằng chứng (người có thể --force)")
 	}
 	for i := range crit {
 		c := st.CriterionStatus(i + 1)
 		switch {
 		case c != nil && !c.Met:
 			// Tiêu chí bị đánh dấu chưa đạt luôn chặn, kể cả khi lệnh kiểm chứng qua.
-			out = append(out, fmt.Sprintf("tiêu chí %d chưa đạt", i+1))
+			add(BlockCriterionUnmet, fmt.Sprintf("tiêu chí %d chưa đạt", i+1))
 		case c == nil && cmd == "":
-			out = append(out, fmt.Sprintf("tiêu chí %d chưa được đối chiếu", i+1))
+			add(BlockCriterionUnchecked, fmt.Sprintf("tiêu chí %d chưa được đối chiếu", i+1))
 		}
 	}
 	return out
