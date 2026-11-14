@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -284,7 +285,7 @@ func TestWriteQueueFull(t *testing.T) {
 	// Mọi lời gọi tới generation 1 (upstream bị coi như chết) phải lỗi. Khi máy tải nặng, một goroutine có thể tới gateway
 	// sau khi upstream đã được khởi động lại; lời gọi đó thành công ở generation 2 và không phải lỗi của cơ chế hàng đợi.
 	for r := range errs {
-		if len(r.m.Error) == 0 && !strings.HasPrefix(r.out.ID, "gw_2_") {
+		if len(r.m.Error) == 0 && callGeneration(r.out.ID) < 2 {
 			t.Errorf("lời gọi thành công ở %q, muốn lỗi khi upstream generation 1 bị coi như chết", r.out.ID)
 		}
 	}
@@ -297,9 +298,24 @@ func TestWriteQueueFull(t *testing.T) {
 		t.Fatal("lời gọi stall không kết thúc")
 	}
 	_, out := c.call("sau", "codegraph_explore", map[string]any{"echo": "ok"})
-	if !strings.HasPrefix(out.ID, "gw_2_") {
-		t.Errorf("lời gọi sau chạy với id %q, muốn generation 2", out.ID)
+	// Ống stdio Windows nhỏ hơn nên với WriteQueue=2 generation 2 cũng có thể đầy và bị khởi động lại: chỉ đòi
+	// một generation mới hơn generation 1 đã bị coi như chết.
+	if g := callGeneration(out.ID); g < 2 {
+		t.Errorf("lời gọi sau chạy với id %q, muốn generation >= 2", out.ID)
 	}
+}
+
+// callGeneration lấy số generation từ id dạng gw_<generation>_<n>_<nonce>; 0 nếu không đọc được.
+func callGeneration(id string) int {
+	parts := strings.Split(id, "_")
+	if len(parts) < 3 || parts[0] != "gw" {
+		return 0
+	}
+	g, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0
+	}
+	return g
 }
 
 // Body POST vượt giới hạn bị từ chối với 413.

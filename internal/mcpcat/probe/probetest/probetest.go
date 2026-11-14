@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // EnvMode là biến chọn chế độ; có mặt thì tiến trình là bản giả.
@@ -111,7 +112,11 @@ type msg struct {
 
 func serve(mode string) {
 	if mode == "hang" {
-		select {} // không bao giờ trả lời
+		// Không bao giờ trả lời. Không dùng `select {}`: runtime thấy không còn goroutine nào chạy được nên báo
+		// deadlock và thoát ngay (nhất là trên Windows), làm kiểm thử hết hạn thấy tiến trình đã chết thay vì treo.
+		for {
+			time.Sleep(time.Hour)
+		}
 	}
 	if mode == "die" {
 		fmt.Fprintln(os.Stderr, "fatal: boom token="+os.Getenv("JIRA_MCP_PASSWORD"))

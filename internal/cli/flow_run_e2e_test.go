@@ -139,7 +139,7 @@ func newFlowTask(t *testing.T, root string, args ...string) string {
 // red chứa thân skill tuỳ biến; flow đổi giữa chừng làm resume blocked kèm lý do.
 func TestFlowRunTDDEndToEnd(t *testing.T) {
 	root, env := tddRepo(t)
-	cmd := "sh " + env["SCRIPT"]
+	cmd := agentCmd(env)
 
 	id := newFlowTask(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 	s := showFlowTask(t, root, id)
@@ -186,7 +186,7 @@ func TestFlowRunTDDEndToEnd(t *testing.T) {
 // Bước plan (chỉ đọc) ghi tệp ⇒ blocked (giữ kết quả bước); red sửa tệp ngoài scope (scope.deny) ⇒ blocked chờ người duyệt, không chạy green.
 func TestFlowRunReadOnlyAndScopeEndToEnd(t *testing.T) {
 	root, env := tddRepo(t)
-	cmd := "sh " + env["SCRIPT"]
+	cmd := agentCmd(env)
 
 	os.WriteFile(filepath.Join(env["FLAGS"], "plan-writes"), nil, 0o644)
 	id := newFlowTask(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
@@ -222,7 +222,7 @@ func TestFlowRunReadOnlyAndScopeEndToEnd(t *testing.T) {
 // phục tệp thì resume chạy tiếp.
 func TestFlowRunChangedFlowBlocksEndToEnd(t *testing.T) {
 	root, env := tddRepo(t)
-	cmd := "sh " + env["SCRIPT"]
+	cmd := agentCmd(env)
 	id := newFlowTask(t, root, "--no-plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 
 	writeFlowE2E(t, root, "tdd.yml", strings.Replace(e2eTDD, "verify: false", "verify: true", 1))
@@ -256,7 +256,7 @@ func TestFlowRunChangedFlowBlocksEndToEnd(t *testing.T) {
 // bint run <flow> "<mô tả>" tự lập phiếu rồi chạy hết flow; --step và tên flow lạ bị từ chối.
 func TestFlowRunNewTaskAndStepEndToEnd(t *testing.T) {
 	root, env := tddRepo(t)
-	cmd := "sh " + env["SCRIPT"]
+	cmd := agentCmd(env)
 
 	out, code := run(t, root, "", "run", "tdd", "--no-plan", "--agent-command", cmd, "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 	if code != 0 || !strings.Contains(out, ": done") {
@@ -427,7 +427,7 @@ func TestFlowSessionProcessStepAndChangedFlowEndToEnd(t *testing.T) {
 		t.Fatalf("role test-writer=codex phải trả process --step red: %d\n%s", code, out)
 	}
 	// Chạy lệnh process (thêm tác nhân giả), rồi next trả bước kế tiếp (green, role implementer ⇒ claude ⇒ agent).
-	if out, code = run(t, root, "", "run", "tdd", "--task", id, "--step", "red", "--agent-command", "sh "+env["SCRIPT"]); code != 0 {
+	if out, code = run(t, root, "", "run", "tdd", "--task", id, "--step", "red", "--agent-command", agentCmd(env)); code != 0 {
 		t.Fatalf("chạy lệnh process: %d\n%s", code, out)
 	}
 	if got := strings.Join(readLines(t, env["STEPLOG"]), ","); got != "red" {
@@ -437,4 +437,10 @@ func TestFlowSessionProcessStepAndChangedFlowEndToEnd(t *testing.T) {
 	if code != 0 || a.Action != "agent" || a.Step != "green" || a.Subagent != "bint-implementer" {
 		t.Fatalf("sau red: %d\n%s", code, out)
 	}
+}
+
+// agentCmd là lệnh shell chạy tác nhân giả: đường dẫn đổi sang `/` và có nháy để shell (Git Bash trên Windows)
+// không bỏ dấu `\` hay tách đường dẫn có dấu cách.
+func agentCmd(env map[string]string) string {
+	return "sh '" + filepath.ToSlash(env["SCRIPT"]) + "'"
 }

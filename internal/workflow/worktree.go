@@ -475,11 +475,7 @@ func (e *Env) removeLockFiles(wt string) error {
 	defer l.Release()
 	os.RemoveAll(p + ".d")
 	removeLeaseFiles(p) // hợp đồng còn hạn đã chặn AcquireLock ở trên; tới đây chỉ còn hợp đồng hết hạn
-	// Windows không xoá được tệp đang giữ khoá: lỗi này chỉ để lại một tệp nhỏ.
-	if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	return nil
+	return removeHeldLockFile(l, p)
 }
 
 // isUnder cho biết p nằm dưới dir.

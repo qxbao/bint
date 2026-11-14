@@ -60,9 +60,9 @@ func TestWorktreeDecisionMapped(t *testing.T) {
 		{"bash cd tương đối trong worktree", SubagentImplementer, iso, shellInfo("cd sub && ls"), wt, false},
 		{"bash không cd, cwd gốc", SubagentImplementer, iso, shellInfo("go test ./..."), root, true},
 		{"bash không cd, cwd worktree", SubagentImplementer, iso, shellInfo("go test ./..."), wt, false},
-		{"bash cd cây gốc", SubagentImplementer, iso, shellInfo("cd " + root + " && touch x"), root, true},
-		{"bash cd cây gốc dù cwd trong worktree", SubagentImplementer, iso, shellInfo("cd " + root + " && touch x"), wt, true},
-		{"bash cd worktree khác", SubagentImplementer, iso, shellInfo("cd " + wt2 + " && touch x"), root, true},
+		{"bash cd cây gốc", SubagentImplementer, iso, shellInfo(CdPrefix(root) + "touch x"), root, true},
+		{"bash cd cây gốc dù cwd trong worktree", SubagentImplementer, iso, shellInfo(CdPrefix(root) + "touch x"), wt, true},
+		{"bash cd worktree khác", SubagentImplementer, iso, shellInfo(CdPrefix(wt2) + "touch x"), root, true},
 		{"bash cd tiền tố trùng tên", SubagentImplementer, iso, shellInfo("cd " + wt + "2 && touch x"), root, true},
 		{"bash cd .. ra ngoài", SubagentImplementer, iso, shellInfo("cd " + wt + "/.. && touch x"), root, true},
 		{"bash shared", SubagentImplementer, shared, shellInfo("touch x"), root, false},
@@ -94,8 +94,8 @@ func TestWorktreeDecisionUnmapped(t *testing.T) {
 		{"edit trong một worktree đang chạy", live, editInfo(filepath.Join(wt, "a.go")), root, false},
 		{"edit trong worktree khác đang chạy", live, editInfo(filepath.Join(wt2, "a.go")), root, false},
 		{"bash không cd", live, shellInfo("touch x"), root, true},
-		{"bash cd worktree đang chạy", live, shellInfo("cd " + wt2 + " && touch x"), root, false},
-		{"bash cd cây gốc", live, shellInfo("cd " + root + " && touch x"), root, true},
+		{"bash cd worktree đang chạy", live, shellInfo(CdPrefix(wt2) + "touch x"), root, false},
+		{"bash cd cây gốc", live, shellInfo(CdPrefix(root) + "touch x"), root, true},
 		{"bash cwd trong worktree", live, shellInfo("touch x"), wt, false},
 	}
 	for _, c := range cases {
@@ -185,7 +185,7 @@ func TestCdPrefixQuotedPaths(t *testing.T) {
 	}
 	iso := &SessionStepRecord{RunID: "r1", TaskID: "T1", Worktree: wt, Isolated: true}
 	cmd := CdPrefix(wt) + "go test ./..."
-	if !strings.HasPrefix(cmd, "cd '"+wt+"' && ") {
+	if !strings.HasPrefix(cmd, "cd '"+filepath.ToSlash(wt)+"' && ") {
 		t.Fatalf("CdPrefix phải nháy đơn: %q", cmd)
 	}
 	if v := worktreeDecision(worktreeCheck{AgentType: SubagentImplementer, Tool: "Bash", Info: shellInfo(cmd), Cwd: root, Step: iso}); v.Deny {

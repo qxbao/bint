@@ -213,7 +213,7 @@ func TestH8RemoveThroughServiceRecordsEmptyHash(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := recs[len(recs)-1]
-	if last.SHA256 != "" || last.Agent || !strings.HasSuffix(last.Path, f.itemRel) {
+	if last.SHA256 != "" || last.Agent || last.Path != workflow.NormalizeWritePath(filepath.Join(f.root, f.itemRel)) {
 		t.Fatalf("dòng nhật ký của lần xoá: %+v", last)
 	}
 }

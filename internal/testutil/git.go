@@ -57,6 +57,9 @@ func Isolate(t *testing.T) (stateDir string) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	// Cấu hình git hệ thống (Git for Windows đặt core.autocrlf=true) không được đổi byte checkout/apply của
+	// lệnh git do Bint gọi: giống testutil.Git. Kiểm hành vi autocrlf thì đặt core.autocrlf ở cấu hình repo.
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	// Chương trình harness giả đứng đầu PATH: kết quả không phụ thuộc máy có cài
 	// claude/codex/agy hay không, và kiểm thử không bao giờ gọi harness thật.
 	bin := t.TempDir()

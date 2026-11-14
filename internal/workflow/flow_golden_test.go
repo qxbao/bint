@@ -28,8 +28,9 @@ const goldenFlowPath = "testdata/flow_golden.json"
 var (
 	reGoldenULID = regexp.MustCompile(`\b[0-9A-HJKMNP-TV-Z]{26}\b`)
 	// AllowedTools chứa đường dẫn binary đang chạy (binary kiểm thử có tên thay đổi theo lần chạy).
-	reGoldenTestBin = regexp.MustCompile(`Bash\([^)"]*\.test:\*\)`)
-	reGoldenTime    = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?`)
+	reGoldenTestBin  = regexp.MustCompile(`Bash\([^)"]*\.test(\.exe)?:\*\)`)
+	reGoldenPathTail = regexp.MustCompile(`<(STATE|ROOT)>[^\s"'` + "`" + `)]*`)
+	reGoldenTime     = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?`)
 )
 
 // goldenRunState dựng runState cho bảng nextStep. Đây là chỗ duy nhất trong golden biết cách khởi tạo runState.
@@ -44,6 +45,10 @@ func goldenRunState(opts RunOptions, tk *task.Task, ran int) *runState {
 func (h *harness) norm(s string) string {
 	s = strings.ReplaceAll(s, filepath.Dir(h.spool), "<STATE>")
 	s = strings.ReplaceAll(s, h.root, "<ROOT>")
+	if filepath.Separator == '\\' {
+		// Windows: phần đường dẫn sau mốc giữ dấu `\`; golden ghi dạng `/`.
+		s = reGoldenPathTail.ReplaceAllStringFunc(s, func(m string) string { return strings.ReplaceAll(m, `\`, "/") })
+	}
 	s = reGoldenULID.ReplaceAllString(s, "<ULID>")
 	return reGoldenTime.ReplaceAllString(s, "<TIME>")
 }

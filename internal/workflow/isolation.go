@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -413,18 +414,22 @@ func nonCandidateChanges(ctx context.Context, root, before, after string) ([]str
 // humanChain: chuỗi dòng nhật ký của một đường dẫn đổi (status git st) có nối liền từ nội dung ở ảnh before tới
 // nội dung hiện tại của abs và không có dòng nào của agent hoặc thiếu prev_sha256 (xem ReadonlyViolations).
 func humanChain(ctx context.Context, root, before, st, rel, abs string, chain []WriteRecord) bool {
-	cur := ""
+	starts := []string{""}
 	if st != "A" { // "A": tệp chưa có ở ảnh trước, băm rỗng
-		h, ok := blobWorktreeHash(ctx, root, before, rel)
-		if !ok {
+		starts = blobWorktreeHashes(ctx, root, before, rel)
+		if len(starts) == 0 {
 			return false
 		}
-		cur = h
 	}
-	for _, r := range chain {
+	cur := starts[0]
+	for i, r := range chain {
 		switch {
 		case r.Agent || r.Prev == nil:
 			return false
+		case i == 0 && slices.Contains(starts, *r.Prev):
+			// mắt xích đầu: nội dung trước khi người ghi có thể là dạng lọc (eol/smudge) hoặc dạng thô
+			// (Bint ghi LF dù core.autocrlf=true làm checkout ra CRLF)
+			cur = r.SHA256
 		case *r.Prev == cur:
 			cur = r.SHA256
 		case r.SHA256 == cur:
@@ -434,6 +439,24 @@ func humanChain(ctx context.Context, root, before, st, rel, abs string, chain []
 		}
 	}
 	return cur == HashFile(abs)
+}
+
+// blobWorktreeHashes là các băm chấp nhận được cho nội dung tệp rel ở cây before: dạng đã lọc, rồi dạng thô nếu khác.
+// Dạng thô cần vì Bint tự ghi byte LF còn bộ lọc eol (core.autocrlf=true) cho checkout ra CRLF.
+func blobWorktreeHashes(ctx context.Context, root, before, rel string) []string {
+	h, ok := blobWorktreeHash(ctx, root, before, rel)
+	if !ok {
+		return nil
+	}
+	hs := []string{h}
+	cmd := exec.CommandContext(ctx, "git", "cat-file", "blob", before+":"+rel)
+	cmd.Dir = root
+	if out, err := cmd.Output(); err == nil {
+		if raw := HashBytes(out); raw != h {
+			hs = append(hs, raw)
+		}
+	}
+	return hs
 }
 
 // blobWorktreeHash là sha256 nội dung tệp rel ở cây before sau khi áp bộ lọc làm việc (eol/smudge) — tức đúng

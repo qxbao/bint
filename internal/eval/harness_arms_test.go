@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -180,8 +181,13 @@ func TestBintArmWithHarnessComponents(t *testing.T) {
 	if _, ok := lib.Find(hcomp.KindGuardrail, "draft-no-push"); ok {
 		t.Fatal("candidate không vào bản dựng ở chế độ on")
 	}
-	if fi, err := os.Stat(filepath.Join(dir, ".bint", "harness", "scripts", "run-it.sh")); err != nil || fi.Mode().Perm()&0o100 == 0 {
+	fi, err := os.Stat(filepath.Join(dir, ".bint", "harness", "scripts", "run-it.sh"))
+	if err != nil {
 		t.Fatalf("script phải được chép vào thư mục làm việc: %v", err)
+	}
+	// Windows không có bit thực thi Unix: chỉ kiểm ở nơi hệ tệp biểu diễn được.
+	if runtime.GOOS != "windows" && fi.Mode().Perm()&0o100 == 0 {
+		t.Fatalf("script phải có bit thực thi: %v", fi.Mode())
 	}
 
 	// harness=all: thêm cả candidate.

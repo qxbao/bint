@@ -114,13 +114,13 @@ func TestWorktreeGuardrailMapped(t *testing.T) {
 	}
 
 	// Bash: cd vào worktree thì qua; không cd (cwd cây gốc) hoặc cd ra cây gốc thì deny kèm lệnh đã che trong sự kiện.
-	if r := f.call(t, "bint-implementer", "Bash", map[string]any{"command": "cd " + f.wt + " && go test ./..."}, iso); r != "" {
+	if r := f.call(t, "bint-implementer", "Bash", map[string]any{"command": hookcore.CdPrefix(f.wt) + "go test ./..."}, iso); r != "" {
 		t.Fatalf("cd worktree: %q", r)
 	}
 	if r := f.call(t, "bint-implementer", "Bash", map[string]any{"command": "go test ./..."}, iso); !strings.Contains(r, "cd <worktree>") {
 		t.Fatalf("bash không cd phải bị deny: %q", r)
 	}
-	if r := f.call(t, "bint-implementer", "Bash", map[string]any{"command": "cd " + f.root + " && touch x"}, iso); r == "" {
+	if r := f.call(t, "bint-implementer", "Bash", map[string]any{"command": hookcore.CdPrefix(f.root) + "touch x"}, iso); r == "" {
 		t.Fatal("cd ra cây gốc phải bị deny")
 	}
 	bash := 0
@@ -185,7 +185,7 @@ func TestWorktreeGuardrailUnmappedFailClosedBounded(t *testing.T) {
 		if r := f.call(t, "bint-implementer", "Write", map[string]any{"file_path": inside}, parent); r != "" {
 			t.Fatalf("%s: sửa trong worktree đang chạy không bị chặn: %q", name, r)
 		}
-		if r := f.call(t, "bint-implementer", "Bash", map[string]any{"command": "cd " + f.wt + " && ls"}, parent); r != "" {
+		if r := f.call(t, "bint-implementer", "Bash", map[string]any{"command": hookcore.CdPrefix(f.wt) + "ls"}, parent); r != "" {
 			t.Fatalf("%s: cd worktree đang chạy không bị chặn: %q", name, r)
 		}
 		if r := f.call(t, "bint-implementer", "Bash", map[string]any{"command": "ls"}, parent); r == "" {

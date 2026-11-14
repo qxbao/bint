@@ -183,9 +183,18 @@ func TestSkillActivationEvents(t *testing.T) {
 
 	// Hook thật: PostToolUse của công cụ Skill → skill.activated (ghi một lần dù hook gọi hai lần).
 	sid := "sess-skill"
-	start := `{"session_id":"` + sid + `","cwd":"` + root + `","hook_event_name":"SessionStart","source":"startup","model":"claude-opus-5-5"}`
-	post := `{"session_id":"` + sid + `","cwd":"` + root + `","hook_event_name":"PostToolUse","tool_name":"Skill","tool_use_id":"tu1","tool_input":{"skill":"core-retry-order"},"tool_response":"ok"}`
-	end := `{"session_id":"` + sid + `","cwd":"` + root + `","hook_event_name":"SessionEnd","reason":"exit"}`
+	hookIn := func(m map[string]any) string {
+		m["session_id"], m["cwd"] = sid, root // json.Marshal thoát `\` của đường dẫn Windows
+		b, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	start := hookIn(map[string]any{"hook_event_name": "SessionStart", "source": "startup", "model": "claude-opus-5-5"})
+	post := hookIn(map[string]any{"hook_event_name": "PostToolUse", "tool_name": "Skill", "tool_use_id": "tu1",
+		"tool_input": map[string]any{"skill": "core-retry-order"}, "tool_response": "ok"})
+	end := hookIn(map[string]any{"hook_event_name": "SessionEnd", "reason": "exit"})
 	for _, in := range []string{start, post, post, end} {
 		if out, code := run(t, root, in, "hook", "claude"); code != 0 {
 			t.Fatalf("hook: %d %s", code, out)

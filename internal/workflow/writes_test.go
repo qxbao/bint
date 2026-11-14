@@ -399,3 +399,50 @@ func TestReadonlyViolationsChainThroughEolFilter(t *testing.T) {
 		t.Fatalf("muốn được miễn qua bộ lọc eol: %+v", chk)
 	}
 }
+
+// Với core.autocrlf=true (đặt ở cấu hình repo nên chạy được trên mọi OS) bộ lọc cho blob ảnh trước ra CRLF
+// còn Bint ghi LF: mắt xích đầu phải chấp nhận băm thô của blob; prev lệch vẫn là vi phạm.
+func TestReadonlyViolationsHumanWriteWithAutocrlf(t *testing.T) {
+	ctx := context.Background()
+	for _, c := range []struct {
+		name, prev, want string
+	}{
+		{"prev là băm LF của tệp", HashBytes([]byte("v1\n")), "human"},
+		{"prev lệch", HashBytes([]byte("khác\n")), "violation"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			testutil.Isolate(t)
+			const rel = "app.txt"
+			root := testutil.NewRepo(t, map[string]string{rel: "v1\n"})
+			testutil.Git(t, root, "config", "core.autocrlf", "true")
+			abs := filepath.Join(root, rel)
+			if err := os.WriteFile(abs, []byte("v1\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			before, err := WorktreeSnapshot(ctx, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			since := time.Now()
+			if err := os.WriteFile(abs, []byte("v2\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			after, err := WorktreeSnapshot(ctx, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			logp := WritesLogPath(t.TempDir())
+			if err := AppendWrites(logp, []WriteRecord{recP(NormalizeWritePath(abs), since.Add(time.Second), false, c.prev, HashFile(abs))}, 0, since); err != nil {
+				t.Fatal(err)
+			}
+			chk := ReadonlyViolations(ctx, root, before, after, since, logp)
+			if c.want == "human" {
+				if !slices.Equal(chk.HumanWrites, []string{rel}) || len(chk.Violations) != 0 {
+					t.Fatalf("muốn được miễn: %+v", chk)
+				}
+			} else if !slices.Equal(chk.Violations, []string{rel}) || len(chk.HumanWrites) != 0 {
+				t.Fatalf("muốn vi phạm: %+v", chk)
+			}
+		})
+	}
+}

@@ -584,8 +584,15 @@ func TestSetupTabHookScopeMove(t *testing.T) {
 	f.waitFor("Xem trước init")
 	out := f.screen()
 	// Phạm vi local là mặc định của --hooks-scope nên dòng CLI của bước gỡ không ghi ra.
-	hasAll(t, out, "Bước 1/2", "bint init --no-hooks", "Bước 2/2", "bint init --hooks --hooks-scope project", "settings.local.json", "settings.json")
-	if strings.Index(out, "bint init --no-hooks") > strings.Index(out, "bint init --hooks --hooks-scope project") {
+	hasAll(t, out, "Bước 1/2", "bint init --no-hooks", "settings.local.json")
+	// Hộp xem trước cuộn được và đường dẫn tạm dài (Windows) đẩy cuối hộp ra khỏi khung: cuộn tới khi thấy dòng CLI
+	// của bước 2. Thứ tự: dòng CLI của bước gỡ đã thấy ở màn trước, dòng của bước cài chỉ có thể xuất hiện sau.
+	for i := 0; i < 5 && !strings.Contains(out, "bint init --hooks --hooks-scope project"); i++ {
+		f.press("pgdown")
+		out = f.screen()
+	}
+	hasAll(t, out, "Bước 2/2", "bint init --hooks --hooks-scope project", "settings.json")
+	if strings.Contains(out, "bint init --no-hooks") && strings.Index(out, "bint init --no-hooks") > strings.Index(out, "bint init --hooks --hooks-scope project") {
 		t.Fatalf("phải gỡ ở phạm vi cũ trước khi cài ở phạm vi mới:\n%s", out)
 	}
 	f.press("enter")

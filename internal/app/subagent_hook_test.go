@@ -89,7 +89,7 @@ func TestReadonlyGuardrailForSubagents(t *testing.T) {
 	}
 
 	// Lệnh khớp readonly_tools: không can thiệp (không deny, không sự kiện mới).
-	for _, cmd := range []string{"git status", "cd " + root + " && git diff", "bint task show X"} {
+	for _, cmd := range []string{"git status", hookcore.CdPrefix(root) + "git diff", "bint task show X"} {
 		out := runHook(t, preTool(root, "bint-reviewer", "agent-r1", "Bash", map[string]any{"command": cmd}, "tu-ok")).Output
 		if denyReason(out) != "" {
 			t.Fatalf("%q không được bị deny: %s", cmd, out)
