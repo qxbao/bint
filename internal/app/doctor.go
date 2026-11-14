@@ -19,6 +19,7 @@ import (
 	"bint/internal/fsafe"
 	"bint/internal/gitrepo"
 	"bint/internal/harness"
+	"bint/internal/harness/codex"
 	"bint/internal/knowledge"
 	"bint/internal/runlog"
 	"bint/internal/skills"
@@ -141,7 +142,12 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 	} else if state.NormalizePath(info.CommonDir) != state.NormalizePath(repo.CommonDir) {
 		r.add("thư mục trạng thái", LevelFail, "thuộc repository khác: %s", info.CommonDir)
 	} else if err := checkWritable(paths.Spool); err != nil {
-		r.add("thư mục trạng thái", LevelFail, "spool không ghi được: %v", err)
+		hint := ""
+		if agent, _ := InAgentSession(); agent {
+			hint = "; đang trong phiên agent: sandbox của agent có thể chỉ cho ghi repository — thêm " + paths.Root +
+				" vào vùng ghi được (Codex: writable_roots trong [sandbox_workspace_write] của ~/.codex/config.toml) rồi mở lại phiên, hoặc chạy lệnh này ngoài sandbox"
+		}
+		r.add("thư mục trạng thái", LevelFail, "spool không ghi được: %v%s", err, hint)
 	} else {
 		r.add("thư mục trạng thái", LevelOK, "%s (dùng chung cho mọi worktree)", paths.Root)
 	}
@@ -219,6 +225,17 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		}
 		if rt.CodexUntrusted {
 			r.add("codex trust", LevelInfo, "repository chưa được Codex tin cậy: .codex/config.toml và .codex/hooks.json cấp dự án chưa có hiệu lực")
+		}
+		if h == codex.HarnessName && !codex.SandboxAllowsWrite(repo.Toplevel, paths.Root) {
+			dir := paths.Root
+			if cfg.State.Dir == "auto" {
+				if base, err := state.BaseDir(); err == nil {
+					dir = base
+				}
+			}
+			r.add("codex sandbox", LevelWarn, "phiên Codex tương tác (sandbox workspace-write) không ghi được %s nên lệnh `bint` do agent chạy "+
+				"(task, knowledge, events ingest...) báo Access denied/readonly database; thêm vào ~/.codex/config.toml (gộp vào bảng sẵn có nếu đã có):\n%s",
+				paths.Root, codex.SandboxSnippet(dir))
 		}
 	}
 
