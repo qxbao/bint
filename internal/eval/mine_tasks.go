@@ -7,13 +7,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"bint/internal/config"
+	"bint/internal/gitrepo"
 )
 
 // Lý do bỏ qua riêng của đề dựng từ phiếu.
@@ -279,7 +279,7 @@ func gitEnv(ctx context.Context, dir string, env []string, stdin []byte, args ..
 		args = args[1:]
 	}
 	full := append(append([]string{"-C", dir, "-c", "core.quotePath=false", "-c", "commit.gpgsign=false"}, global...), args...)
-	cmd := exec.CommandContext(ctx, "git", full...)
+	cmd := gitrepo.CommandContext(ctx, full...)
 	cmd.Env = cleanEnv(append([]string{"GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1"}, env...)...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)

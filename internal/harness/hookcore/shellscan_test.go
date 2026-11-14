@@ -3,17 +3,18 @@ package hookcore
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"bint/internal/gitrepo"
 )
 
 func gitRepo(t *testing.T) string {
 	t.Helper()
 	d := t.TempDir()
-	if out, err := exec.Command("git", "-C", d, "init", "-q").CombinedOutput(); err != nil {
+	if out, err := gitrepo.Command("-C", d, "init", "-q").CombinedOutput(); err != nil {
 		t.Skipf("git: %v %s", err, out)
 	}
 	os.WriteFile(filepath.Join(d, "big.bin"), []byte(strings.Repeat("x", 4096)), 0o644)

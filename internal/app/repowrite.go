@@ -273,17 +273,24 @@ func (w *repoWriter) record(es ...writeEntry) {
 	agent, _ := InAgentSession()
 	now := time.Now()
 	var recs []workflow.WriteRecord
+	var kept []writeEntry
+	var paths []string
 	for _, e := range es {
 		if e.path == "" || inDotGit(e.path) {
 			continue
 		}
+		kept = append(kept, e)
+		paths = append(paths, e.path)
+	}
+	norm := workflow.NormalizeWritePaths(paths)
+	for i, e := range kept {
 		sha := ""
 		if e.sha != nil {
 			sha = *e.sha
 		} else {
 			sha = workflow.HashFile(e.path)
 		}
-		recs = append(recs, workflow.WriteRecord{Path: workflow.NormalizeWritePath(e.path), SHA256: sha, Prev: e.prev,
+		recs = append(recs, workflow.WriteRecord{Path: norm[i], SHA256: sha, Prev: e.prev,
 			At: now, Actor: w.actor, Agent: agent})
 	}
 	_ = workflow.AppendWrites(w.log, recs, w.retain, now)

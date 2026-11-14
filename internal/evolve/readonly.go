@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"bint/internal/gitrepo"
 	"bint/internal/workflow"
 )
 
@@ -58,7 +59,7 @@ func guardReadOnly(ctx context.Context, dir string, run func()) error {
 
 // repoToplevel trả gốc repository Git chứa dir.
 func repoToplevel(ctx context.Context, dir string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel")
+	cmd := gitrepo.CommandContext(ctx, "rev-parse", "--show-toplevel")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

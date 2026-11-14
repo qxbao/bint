@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -21,6 +20,7 @@ import (
 	"time"
 
 	"bint/internal/detect"
+	"bint/internal/gitrepo"
 )
 
 // Report là kết quả static discovery.
@@ -227,7 +227,7 @@ func Inspect(ctx context.Context, root string, opts Options) (*Report, error) {
 }
 
 func git(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir, "-c", "core.quotepath=off"}, args...)...)
+	cmd := gitrepo.CommandContext(ctx, append([]string{"-C", dir, "-c", "core.quotepath=off"}, args...)...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

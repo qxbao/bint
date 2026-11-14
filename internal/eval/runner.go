@@ -435,6 +435,10 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 }
 
 func finishWith(ctx context.Context, db *sql.DB, b *Batch, status string, now func() time.Time, err error) error {
+	if ctx.Err() != nil {
+		// Huỷ đợt (Esc/Ctrl-C) trong lúc chuẩn bị không phải lỗi của đợt.
+		status = "cancelled"
+	}
 	b.Notes = append(b.Notes, "lỗi: "+err.Error())
 	updateBatch(context.WithoutCancel(ctx), db, b.BatchID, status, nowString(now()), b.Notes)
 	return err

@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"bint/internal/gitrepo"
 )
 
 // git chạy lệnh git trong dir, trả về stdout dạng byte (giữ nguyên nội dung nhị phân).
@@ -19,7 +20,7 @@ func git(ctx context.Context, dir string, args ...string) ([]byte, error) {
 		defer cancel()
 	}
 	full := append([]string{"-C", dir, "-c", "core.quotePath=false"}, args...)
-	cmd := exec.CommandContext(ctx, "git", full...)
+	cmd := gitrepo.CommandContext(ctx, full...)
 	cmd.Env = cleanEnv("GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

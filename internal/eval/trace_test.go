@@ -3,13 +3,13 @@ package eval
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"bint/internal/config"
+	"bint/internal/gitrepo"
 )
 
 // Kiểm thử TSK-1 (vết lượt đánh giá): stream-json kèm --verbose khi Trace, và files.txt liệt kê
@@ -32,7 +32,7 @@ func TestArgsForTraceUsesStreamJSON(t *testing.T) {
 
 func gitIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
+	cmd := gitrepo.Command(append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)

@@ -176,9 +176,46 @@ worktree không đổi kể từ lúc đó thì KHÔNG mở lượt b-review m�
 review lại như cũ. Dấu vân tay bị xoá khi lần kiểm chứng chạy lại xong hoặc khi tác vụ bị chặn vì lý do khác lần kiểm
 chứng hỏng (ví dụ tiêu chí `unmet`), để lần resume sau không bỏ review nhầm.
 
-**Kiểm chứng chạy qua Bint trên Windows chậm hoặc treo (tác vụ 01M7C3CBN5JKTMVJV97TXDR5DK, 2026-11-14).** Trạng thái:
-**nguyên nhân CHƯA được xác nhận**; việc đo tái hiện đầy đủ (toàn bộ `./...`, so chạy tay với qua Bint, tỉ lệ gói cached,
-thao tác tệp của `go.exe`) thuộc một phiếu riêng, chưa làm. Dưới đây là những gì đã đo và đã đọc được, không hơn.
+**Kiểm chứng chạy qua Bint trên Windows chậm hoặc treo (tác vụ 01M7C3CBN5JKTMVJV97TXDR5DK, 2026-11-14).** Trạng thái: **nguyên nhân đã được xác nhận bằng phép đo** (2026-11-14, Go 1.25.1, phiếu 01M7CZR838A68TT47THCCPWH9A); các phần
+đo và giả thuyết cũ bên dưới giữ làm lịch sử.
+
+*Nguyên nhân (test cache băm testlog).* Khi có test cache, trước khi chạy mỗi gói `go.exe` nạp testlog của lần chạy trước
+(danh sách `getenv`/`stat`/`open` do tiến trình test ghi) và băm từng dòng trong `computeTestInputsID` để biết kết quả cũ còn
+dùng được không. Đường dẫn ngoài module đi qua `search.InDir` và bị `filepath.EvalSymlinks` hai lần; trên Windows bước này tốn rất
+nhiều thao tác hệ thống tệp mà không đọc tệp nào, nên `go.exe` ~2 nhân, ~1,3 GB, không có tiến trình con, không in gì cho tới
+khi xong gói (đo riêng bước băm: 56 nghìn dòng ≈ 17 s mỗi lượt, mỗi gói 2–3 lượt). Mỗi `exec.Command("git")` gọi `exec.LookPath`,
+sinh (số thư mục PATH × số đuôi PATHEXT) dòng `stat` kèm `open NUL` vào testlog; testlog của `internal/tui/app` có ~477 nghìn
+dòng (~7000 lần dò git), `internal/app` ~357 nghìn, `internal/evolve` ~101 nghìn, `internal/eval` ~68 nghìn,
+`internal/tui/actions` ~63 nghìn.
+
+*Vì sao `go test -count=1` không tái hiện:* `-count=1` tắt test cache nên `go.exe` không nạp và không băm testlog; đó là lý do lần
+đo trước (phiếu 01M7CVBF84DKPP40QJ392H8MQS, dùng `-count=1`) không thấy lỗi. **Giải pháp tạm** của người dùng: `go env -w
+GOFLAGS=-count=1` (biến môi trường `GOFLAGS` rỗng không ghi đè được `go env -w`). Đo testlog: `go test -c -o x.test.exe ./pkg`
+rồi chạy `x.test.exe -test.testlogfile=<tệp>` trong thư mục gói.
+
+*Sửa trong Bint:* mọi lệnh git của mã không phải test đi qua `gitrepo.Command`/`gitrepo.CommandContext`, nhớ đường dẫn git theo
+(PATH, PATHEXT) và dò lại khi một trong hai đổi (`internal/gitrepo/command.go`; kiểm thử `TestLookGitCachesPerPath`);
+`TestNoDirectGitExec` quét từ gốc module (gồm `cmd/`), nhận diện gói `os/exec` qua import (kể cả import đổi tên) và chặn mã
+ngoài helper gọi `exec.Command("git")`; `testutil.Git` cũng dùng helper. `gitrepo.LookPathCached` dùng chung cho `taskkill`
+(`internal/eval/proc_windows.go`, `internal/harness/codex/process_windows.go`), chỉ nhớ khi dò được và đường dẫn tuyệt đối.
+`repoWriter.record` giải thư mục cha trùng nhau một lần (`state.NormalizeWritePaths`). Không còn đường tắt `pathutil.Canonical`
+dưới `%TEMP%` (đã hoàn tác; `internal/pathutil` không đổi). Thêm hai giảm dò PATH trong kiểm thử: `testutil.Isolate` dùng
+thư mục harness giả **riêng của tiến trình kiểm thử** (`os.MkdirTemp` một lần qua `sync.Once`, dọn bằng `testutil.Main` /
+`testutil.CleanupHarness` trong `TestMain`; gói không có `TestMain` để lại thư mục, bị quét sau 6 giờ) nên PATH không đổi giữa
+các kiểm thử và bộ nhớ đệm `LookPath` trúng; `detect.lookPath` nhớ kết quả tìm thấy 10 phút (không thấy: 2 giây), khoá đã gồm
+PATH/PATHEXT, và gói `detect` không import `testing`.
+
+*Số đo testlog (dòng `stat`, binary test chạy trong thư mục gói bằng `-test.testlogfile`, cùng máy; "sau" đo 2026-11-15 sau khi
+hoàn tác `pathutil`):*
+
+| gói | trước: tổng dòng / stat | sau: tổng dòng / stat | stat của `git` trước → sau |
+|---|---|---|---|
+| `internal/tui/app` | 383.861 / 287.641 | 151.478 / 63.267 | 141.718 → 3.525 |
+| `internal/app` | 311.097 / 223.884 | 186.591 / 105.570 | 100.648 → 3.503 |
+
+Tổng dòng `stat` của `internal/tui/app` giảm **4,5 lần** (đạt đích 3 lần; đích ban đầu 10 lần đã được người quyết định hạ xuống 3
+lần ngày 2026-11-14); `internal/app` giảm **2,1 lần** (tiêu chí chỉ đòi giảm và ghi số đo). Muốn đo lại: `go test -c -o x.test.exe
+./internal/<gói>` rồi chạy `x.test.exe -test.testlogfile=<tệp>` trong thư mục gói.
 
 *Đường chạy:* `eval.RunShell` → `sh.exe -c` → `go.exe test ./...`, stdout/stderr ghi vào `verify-N.log` (append), stdin rỗng.
 

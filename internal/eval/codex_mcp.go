@@ -3,13 +3,14 @@ package eval
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"bint/internal/gitrepo"
 )
 
 var tomlBareKey = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -51,7 +52,7 @@ func (c codexConfig) hasTrusted() bool {
 // dir không trong repo Git, repo bare hay không xác định được. Codex tính tin cậy theo gốc repo chính nên worktree của
 // tác vụ kế thừa tin cậy của cây gốc.
 func mainRepoRoot(dir string) string {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	cmd := gitrepo.Command("-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

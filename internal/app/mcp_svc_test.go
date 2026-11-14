@@ -25,7 +25,9 @@ import (
 
 func TestMain(m *testing.M) {
 	probetest.MaybeRun() // MCP/codegraph giả: chạy lại chính tệp test (xem probetest)
-	os.Exit(m.Run())
+	code := m.Run()
+	testutil.CleanupHarness()
+	os.Exit(code)
 }
 
 const secretValue = "hunter2-S3CRET"
