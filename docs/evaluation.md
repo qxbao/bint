@@ -11,6 +11,7 @@ bật mức 3 (tiến hoá có kiểm chứng).
 #        test_command: "go test {test_dirs}"   # {test_dirs}/{test_files} = kiểm thử của tác vụ
 #        setup_command: "go mod download"      # tuỳ chọn, chạy trước agent ở mỗi lượt
 bint eval mine --verify          # khai thác commit có kiểm thử fail→pass làm ứng viên
+#   (hoặc `bint eval mine --from-tasks --verify`: dựng ứng viên từ phiếu b-do đã done)
 bint eval show <id>              # đọc đề bài; sửa `prompt` trong tệp ứng viên nếu cần
 bint eval approve <id>           # duyệt vào .bint/evals/cases/ (nhận một hoặc nhiều ID, commit được)
 bint eval bootstrap --budget 5   # nhánh minimal (strict): dựng tri thức tại commit gốc từng tác vụ
@@ -28,6 +29,31 @@ kiểm thử của commit **thất bại** ở commit cha và **qua** (2 lần, 
 lời giải thật; ứng viên không đạt bị loại. Ứng viên chứa thông điệp gốc nên chỉ nằm trong thư
 mục trạng thái; `approve` từ chối đề bài `fail` (trừ `--force`) và tác vụ chưa kiểm chứng (trừ
 `--unverified`), ghi người duyệt và gán tập `build/validation/test` (50/25/25, tất định theo ID).
+
+**Khai thác từ phiếu (`mine --from-tasks`).** Thay vì `git log`, quét phiếu workflow `b-do` ở trạng thái
+`done` và dựng ứng viên từ yêu cầu, tiêu chí chấp nhận và lời giải của phiếu. Lời giải là cây lúc đưa về cây
+gốc (`landed.tree`) hoặc cây của lần kiểm chứng qua cuối cùng, giới hạn trong tập tệp của phiếu; Bint đóng
+băng nó thành hai commit tổng hợp (gốc = cây trước `b-feat` đầu tiên, lời giải = gốc + tệp của phiếu), dựng
+tất định và giữ sống bằng ref `refs/bint/eval/<id>/base` và `.../commit` (chỉ có trong kho cục bộ: đề này
+không chia sẻ được giữa các máy cho tới khi phiếu xuất được vào Git). Từ đó ứng viên đi qua đúng đường ống của
+đề từ Git:
+
+- ID là chữ `t` nối ID phiếu viết thường (ổn định, chạy lại không tạo trùng); `source.task` và
+  `source.task_runs` ghi nguồn. Phiếu không dựng lại được lời giải (cây đã bị `git gc` dọn, không có tệp)
+  hoặc không qua bộ lọc `eval.mine.*` (không có kiểm thử, không có mã nguồn, quá nhỏ/lớn) được đếm trong
+  `Bỏ qua` kèm lý do.
+- Đề bài là yêu cầu (hoặc mục tiêu) cộng tiêu chí chấp nhận, làm sạch như thông điệp commit rồi qua `spec` và
+  kiểm tra rò rỉ; `original_message` (chỉ trong ứng viên) chứa yêu cầu, tiêu chí và `requirement.md` cho người
+  duyệt và bị xoá khi `approve`. Tiêu chí do `b-req` viết có thể nêu tên ký hiệu mới: xem `leak_check`.
+- `test_command` là `verify.command` của phiếu khi đã được người xác nhận (hoặc trùng `eval.test_command`);
+  chưa xác nhận thì để trống để dùng `eval.test_command`. Lệnh của phiếu thường rộng hơn `{test_dirs}`;
+  người duyệt sửa được trong tệp ứng viên (đổi fingerprint).
+- `verify`/`approve` như đề từ Git; tập con mặc định là `AssignSplit(id)` (`build` là "train" của tài liệu
+  hướng đi).
+- Chống rò rỉ (mục 12.3): khi chấm đề có `source.task`, mục tri thức có `origin.run_id` thuộc lượt của phiếu
+  hoặc nêu ID phiếu trong tiêu đề/nội dung bị loại ở cả chế độ `economy` và `strict`.
+- Không có hai đề cùng thay đổi kiểm thử: `--from-tasks` bỏ phiếu trùng đề từ Git đã có, và `mine` từ Git
+  bỏ commit trùng đề từ phiếu đã có (đếm trong `Bỏ qua`).
 
 **Đặc tả đề bài (`mine`, `bint eval spec`).** Đề bài từ tiêu đề commit thường không nói tên
 hàm/lớp/hằng mới mà kiểm thử ẩn gọi tới; agent không đoán được nên tác vụ không giải được ở mọi

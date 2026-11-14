@@ -69,6 +69,7 @@ func newEvalMineCmd(stdio IO) *cobra.Command {
 		limit      int
 		verify     bool
 		verifyRuns int
+		fromTasks  bool
 		asJSON     bool
 	)
 	c := &cobra.Command{
@@ -83,7 +84,12 @@ với lời giải để phát hiện rò rỉ. Ứng viên nằm trong thư m�
 vào tập đánh giá cho tới khi được duyệt.
 
 --verify chạy eval.test_command trong thư mục cô lập để xác nhận kiểm thử của commit
-thất bại tại commit cha và qua với lời giải thật; ứng viên không đạt bị loại.`,
+thất bại tại commit cha và qua với lời giải thật; ứng viên không đạt bị loại.
+
+--from-tasks dựng ứng viên từ phiếu b-do đã done thay vì lịch sử Git: đề bài lấy từ yêu cầu và
+tiêu chí chấp nhận của phiếu; lời giải là cây lúc đưa về (hoặc của lần kiểm chứng qua cuối cùng),
+đóng băng thành hai commit tổng hợp giữ bằng ref refs/bint/eval/<id>/. test_command là
+verify.command của phiếu nếu người đã xác nhận. Tri thức rút từ chính phiếu bị loại khi chấm.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
@@ -93,7 +99,7 @@ thất bại tại commit cha và qua với lời giải thật; ứng viên kh�
 			}
 			w := stdio.Out
 			opts := app.EvalMineDefaults(e.WS.Config)
-			opts.Rev, opts.Limit, opts.Verify, opts.VerifyRuns = rev, limit, verify, verifyRuns
+			opts.Rev, opts.Limit, opts.Verify, opts.VerifyRuns, opts.FromTasks = rev, limit, verify, verifyRuns, fromTasks
 			if !asJSON {
 				opts.Progress = func(p app.EvalProgress) {
 					if p.Done {
@@ -110,7 +116,11 @@ thất bại tại commit cha và qua với lời giải thật; ứng viên kh�
 			if asJSON {
 				return writeJSON(w, map[string]any{"scanned": res.Scanned, "new": res.New, "skipped": res.Skipped})
 			}
-			fmt.Fprintf(w, "Đã quét %d commit, %d ứng viên mới.\n", res.Scanned, len(res.New))
+			unit := "commit"
+			if fromTasks {
+				unit = "phiếu"
+			}
+			fmt.Fprintf(w, "Đã quét %d %s, %d ứng viên mới.\n", res.Scanned, unit, len(res.New))
 			if len(res.Skipped) > 0 {
 				fmt.Fprintln(w, "Bỏ qua:")
 				for _, k := range sortedMapKeys(res.Skipped) {
@@ -133,6 +143,7 @@ thất bại tại commit cha và qua với lời giải thật; ứng viên kh�
 	f.StringVar(&rev, "rev", "HEAD", "điểm bắt đầu quét lịch sử")
 	f.IntVar(&limit, "limit", 0, "số ứng viên mới tối đa (0 = không giới hạn)")
 	f.BoolVar(&verify, "verify", false, "kiểm chứng fail→pass từng ứng viên mới (chạy eval.test_command)")
+	f.BoolVar(&fromTasks, "from-tasks", false, "dựng ứng viên từ phiếu b-do đã done thay vì lịch sử Git")
 	f.IntVar(&verifyRuns, "verify-runs", 2, "số lần chạy kiểm thử với lời giải thật (bắt kiểm thử chập chờn)")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c

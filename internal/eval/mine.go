@@ -20,14 +20,15 @@ type MineOptions struct {
 
 // Lý do bỏ qua commit khi khai thác.
 const (
-	SkipNoParent = "commit gốc (không có commit cha)"
-	SkipNoTests  = "không thêm/sửa kiểm thử"
-	SkipNoSource = "không sửa mã nguồn"
-	SkipTooSmall = "thay đổi mã nguồn quá nhỏ"
-	SkipTooLarge = "thay đổi quá lớn"
-	SkipBinary   = "có tệp nhị phân trong mã nguồn"
-	SkipShortMsg = "mô tả quá ngắn để làm đề bài"
-	SkipKnown    = "đã có (ứng viên hoặc tác vụ)"
+	SkipNoParent  = "commit gốc (không có commit cha)"
+	SkipNoTests   = "không thêm/sửa kiểm thử"
+	SkipNoSource  = "không sửa mã nguồn"
+	SkipTooSmall  = "thay đổi mã nguồn quá nhỏ"
+	SkipTooLarge  = "thay đổi quá lớn"
+	SkipBinary    = "có tệp nhị phân trong mã nguồn"
+	SkipShortMsg  = "mô tả quá ngắn để làm đề bài"
+	SkipKnown     = "đã có (ứng viên hoặc tác vụ)"
+	SkipDuplicate = "trùng kiểm thử với đề đã có"
 )
 
 // MineResult là kết quả khai thác.
@@ -95,6 +96,11 @@ func Mine(ctx context.Context, repoDir string, m config.EvalMine, st Store, opts
 		return res, err
 	}
 	cls := NewClassifier(m)
+	// Khoá kiểm thử của đề dựng từ phiếu: commit Git trùng thay đổi kiểm thử với đề đó thì bỏ qua.
+	taskKeys, err := existingTestKeys(ctx, repoDir, st, func(c *Case) bool { return c.Source.Task != "" })
+	if err != nil {
+		return res, err
+	}
 	for _, lc := range commits {
 		if err := ctx.Err(); err != nil {
 			return res, err
@@ -116,6 +122,13 @@ func Mine(ctx context.Context, repoDir string, m config.EvalMine, st Store, opts
 		if reason != "" {
 			res.Skipped[reason]++
 			continue
+		}
+		if len(taskKeys) > 0 {
+			key, err := testKey(ctx, repoDir, c.Source.Commit, c.TestFiles)
+			if err == nil && taskKeys[key] {
+				res.Skipped[SkipDuplicate]++
+				continue
+			}
 		}
 		c.ID = id
 		c.MinedAt = nowString(opts.Now())
@@ -140,8 +153,24 @@ func buildCase(lc logCommit, cls Classifier, m config.EvalMine) (*Case, string) 
 		Status: StatusCandidate,
 		Source: Source{Commit: lc.hash, Base: lc.parents[0], Author: lc.author, Date: lc.date},
 	}
+	if reason := classifyChanges(c, lc.files, cls, m); reason != "" {
+		return nil, reason
+	}
+	subject, _, _ := strings.Cut(strings.TrimSpace(lc.message), "\n")
+	c.Source.Subject = strings.TrimSpace(subject)
+	c.OriginalMessage = strings.TrimSpace(lc.message)
+	c.Prompt = DraftPrompt(lc.message, lc.hash)
+	if len([]rune(c.Prompt)) < m.MinMessageChars {
+		return nil, SkipShortMsg
+	}
+	return c, ""
+}
+
+// classifyChanges phân loại tệp đổi vào c (TestFiles/SourceFiles/AuxFiles/Stats) và áp bộ lọc quy mô
+// chung cho đề từ Git và đề từ phiếu; trả về lý do bỏ qua ("" = đạt).
+func classifyChanges(c *Case, files []FileChange, cls Classifier, m config.EvalMine) string {
 	testAdded := false
-	for _, f := range lc.files {
+	for _, f := range files {
 		switch cls.Kind(f.Path) {
 		case "test":
 			c.TestFiles = append(c.TestFiles, f.Path)
@@ -153,31 +182,24 @@ func buildCase(lc logCommit, cls Classifier, m config.EvalMine) (*Case, string) 
 			c.AuxFiles = append(c.AuxFiles, f.Path)
 		default:
 			if f.Binary {
-				return nil, SkipBinary
+				return SkipBinary
 			}
 			c.SourceFiles = append(c.SourceFiles, f.Path)
 			c.Stats.SourceLines += f.Added + f.Deleted
 		}
 	}
-	c.Stats.Files = len(lc.files)
+	c.Stats.Files = len(files)
 	switch {
 	case !testAdded:
-		return nil, SkipNoTests
+		return SkipNoTests
 	case len(c.SourceFiles) == 0:
-		return nil, SkipNoSource
+		return SkipNoSource
 	case c.Stats.SourceLines < m.MinSourceLines:
-		return nil, SkipTooSmall
+		return SkipTooSmall
 	case c.Stats.SourceLines > m.MaxSourceLines || c.Stats.Files > m.MaxFiles:
-		return nil, SkipTooLarge
+		return SkipTooLarge
 	}
-	subject, _, _ := strings.Cut(strings.TrimSpace(lc.message), "\n")
-	c.Source.Subject = strings.TrimSpace(subject)
-	c.OriginalMessage = strings.TrimSpace(lc.message)
-	c.Prompt = DraftPrompt(lc.message, lc.hash)
-	if len([]rune(c.Prompt)) < m.MinMessageChars {
-		return nil, SkipShortMsg
-	}
-	return c, ""
+	return ""
 }
 
 const (
@@ -205,20 +227,7 @@ func readLog(ctx context.Context, repoDir, rev string, max int) ([]logCommit, er
 			continue
 		}
 		lc := logCommit{hash: f[0], parents: strings.Fields(f[1]), author: f[2], date: f[3], message: f[4]}
-		for _, ln := range strings.Split(f[5], "\n") {
-			p := strings.SplitN(strings.TrimRight(ln, "\r"), "\t", 3)
-			if len(p) != 3 {
-				continue
-			}
-			fc := FileChange{Path: unquotePath(p[2])}
-			if p[0] == "-" {
-				fc.Binary = true
-			} else {
-				fc.Added, _ = strconv.Atoi(p[0])
-				fc.Deleted, _ = strconv.Atoi(p[1])
-			}
-			lc.files = append(lc.files, fc)
-		}
+		lc.files = parseNumstat(f[5])
 		commits = append(commits, lc)
 	}
 	return commits, nil
@@ -232,4 +241,24 @@ func unquotePath(p string) string {
 		}
 	}
 	return p
+}
+
+// parseNumstat đọc đầu ra của `git ... --numstat` (không đổi tên).
+func parseNumstat(s string) []FileChange {
+	var files []FileChange
+	for _, ln := range strings.Split(s, "\n") {
+		p := strings.SplitN(strings.TrimRight(ln, "\r"), "\t", 3)
+		if len(p) != 3 {
+			continue
+		}
+		fc := FileChange{Path: unquotePath(p[2])}
+		if p[0] == "-" {
+			fc.Binary = true
+		} else {
+			fc.Added, _ = strconv.Atoi(p[0])
+			fc.Deleted, _ = strconv.Atoi(p[1])
+		}
+		files = append(files, fc)
+	}
+	return files
 }
