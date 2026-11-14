@@ -3,9 +3,11 @@ package tasks
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"bint/internal/app"
 	"bint/internal/i18n"
 	"bint/internal/task"
 	"bint/internal/tui/components/markdown"
@@ -152,6 +154,7 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	add(m.kv(env, "deny", strings.Join(tk.Scope.Deny, ", "), w)...)
 	add(m.kv(env, "refs", strings.Join(tk.References, ", "), w)...)
 	add(m.kv(env, "constraints", strings.Join(tk.Constraints, "; "), w)...)
+	add(m.relationLines(env, st, d, w)...)
 	if len(st.PendingPaths) > 0 {
 		add("", m.section(env, m.t("tk.section.pending"), w))
 		for _, p := range st.PendingPaths {
@@ -568,4 +571,38 @@ func (m *Model) runsLines(env ui.Env, t *task.Task, w int) []string {
 		l = append(l, "", th.S(theme.Muted, m.t("tk.runs.resume", i18n.A{"cmd": m.cli("bint run resume " + id)})))
 	}
 	return l
+}
+
+// relationLines dựng mục Quan hệ của thẻ Phiếu (phiếu cha, phụ thuộc, phiếu con kèm ký hiệu và tên trạng thái, từ
+// app.TaskDetail) và số phát hiện open; rỗng khi phiếu không có gì để hiện.
+func (m *Model) relationLines(env ui.Env, st task.State, d Detail, w int) []string {
+	th := env.Th
+	var l []string
+	rel := func(key string, r app.RelatedTask) {
+		stat := th.S(theme.Muted, "? "+m.t("tk.rel.unreadable"))
+		if r.Status != "" {
+			g, role := statusGlyph(r.Status)
+			stat = th.S(role, g) + " " + m.statusName(r.Status)
+		}
+		l = append(l, m.kv(env, key, stat+"  "+th.S(theme.Muted, short(r.ID))+"  "+r.Goal, w)...)
+	}
+	if d.Parent != nil {
+		rel("rel_parent", *d.Parent)
+	}
+	for _, r := range d.Deps {
+		rel("rel_dep", r)
+	}
+	for _, r := range d.Children {
+		rel("rel_child", r)
+	}
+	if len(l) > 0 && len(st.Inherited) > 0 {
+		l = append(l, m.kv(env, "rel_inherited", strings.Join(st.Inherited, ", "), w)...)
+	}
+	if n := m.Data.OpenFindings[st.ID]; n > 0 {
+		l = append(l, m.kv(env, "open_findings", strconv.Itoa(n), w)...)
+	}
+	if len(l) == 0 {
+		return nil
+	}
+	return append([]string{"", m.section(env, m.t("tk.section.relations"), w)}, l...)
 }

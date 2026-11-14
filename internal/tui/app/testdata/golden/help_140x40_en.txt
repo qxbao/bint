@@ -27,7 +27,7 @@
 │                           │  d       Remove an item (→ deprecated, a reason is required)  bint knowledge d…  │                           │
 │                           │  A       Approve in bulk (selected items or the whole filtered list); items wit… │                           │
 │                           │  R       Reject in bulk (selected items or the whole filtered list)              │                           │
-│                           └───────────────────────────────────────────────────────────────────────1–24/203 ↕─┘                           │
+│                           └───────────────────────────────────────────────────────────────────────1–24/205 ↕─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

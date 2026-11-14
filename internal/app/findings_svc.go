@@ -44,6 +44,16 @@ func ListFindings(_ context.Context, ws *TaskWS, o FindingsListOptions) (Finding
 		ts, bad = ws.Tasks.List()
 		res.Bad = append(res.Bad, bad...)
 	}
+	c := CollectFindings(ts, o.Open)
+	res.Findings = c.Findings
+	res.Bad = append(res.Bad, c.Bad...)
+	return res, nil
+}
+
+// CollectFindings gom phát hiện của ts (open: chỉ phát hiện có kết cục hiệu lực open); tác vụ hỏng vào Bad.
+// Dùng chung cho ListFindings và màn Tác vụ của TUI (đếm phát hiện open).
+func CollectFindings(ts []*task.Task, open bool) FindingsList {
+	var res FindingsList
 	// List trả mới nhất trước; phát hiện hiển thị theo thứ tự cũ → mới trong từng tác vụ, tác vụ mới trước.
 	for _, t := range ts {
 		views, err := workflow.ViewFindings(t)
@@ -52,13 +62,13 @@ func ListFindings(_ context.Context, ws *TaskWS, o FindingsListOptions) (Finding
 			continue
 		}
 		for _, v := range views {
-			if o.Open && v.Outcome.Outcome != task.OutcomeOpen {
+			if open && v.Outcome.Outcome != task.OutcomeOpen {
 				continue
 			}
 			res.Findings = append(res.Findings, v)
 		}
 	}
-	return res, nil
+	return res
 }
 
 // FindingsSetOptions: `bint findings set <kết-cục> <id-phát-hiện>...`.

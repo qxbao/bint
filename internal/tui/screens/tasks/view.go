@@ -169,6 +169,9 @@ func (m *Model) filterChips() string {
 	if m.showAll {
 		parts = append(parts, m.t("tk.filter.all"))
 	}
+	if m.tree {
+		parts = append(parts, m.t("tk.filter.tree"))
+	}
 	if m.filter != "" {
 		parts = append(parts, "“"+m.filter+"”")
 	}
@@ -215,7 +218,7 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 			if m.o.Jobs.ForTask(t.State.ID) != nil {
 				glyph, role = "⟳", theme.Key
 			}
-			line := list.Row(widths, 1, th.S(role, glyph), m.statusName(t.State.Status), th.S(theme.Muted, short(t.State.ID)[max(len(short(t.State.ID))-6, 0):]), th.S(theme.Muted, isolationGlyph(t)), t.Ticket.Goal)
+			line := list.Row(widths, 1, th.S(role, glyph), m.statusName(t.State.Status), th.S(theme.Muted, short(t.State.ID)[max(len(short(t.State.ID))-6, 0):]), th.S(theme.Muted, isolationGlyph(t)), m.goalMarks(r)+t.Ticket.Goal)
 			if cursor {
 				return th.S(theme.Key, "▸ ") + th.Selected(stripColor(th, line))
 			}

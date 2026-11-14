@@ -382,6 +382,10 @@ func (m *Model) onResult(r actions.ResultMsg) tea.Cmd {
 		if dr, ok := r.Value.(app.TaskDiffResult); ok {
 			m.showDiff(dr)
 		}
+	case "tasks.findings":
+		if fl, ok := r.Value.(app.FindingsList); ok {
+			m.showFindings(fl)
+		}
 	case "tasks.plan_approve":
 		if p, ok := r.Value.(app.ApprovePlan); ok {
 			m.confirmApprove(p)
@@ -584,7 +588,7 @@ func short(id string) string {
 var keyOf = map[string]string{
 	"tasks.new": "n", "tasks.run": "r", "tasks.resume": "c", "tasks.approve": "a", "tasks.status": "s", "tasks.verify": "v",
 	"tasks.lint": "l", "tasks.diff": "D", "tasks.land": "o", "tasks.cancel": "x", "tasks.transitions": "T", "tasks.criteria": "m", "tasks.error": "i", "tasks.review_edit": "w",
-	"tasks.add_knowledge": "K", "tasks.list": "A", "tasks.filter": "/", "tasks.refresh": "ctrl+r", "tasks.show": "enter",
+	"tasks.add_knowledge": "K", "tasks.list": "A", "tasks.tree": "P", "tasks.findings": "F", "tasks.filter": "/", "tasks.refresh": "ctrl+r", "tasks.show": "enter",
 }
 
 // Command thực hiện hành động theo ID (từ bảng lệnh): chọn thẻ con tương ứng hoặc làm như bấm phím tương đương.

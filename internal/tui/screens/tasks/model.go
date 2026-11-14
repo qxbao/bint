@@ -76,6 +76,7 @@ type dialog struct {
 type row struct {
 	group int
 	t     *task.Task
+	depth int // thụt lề ở chế độ cây
 }
 
 // Model là trạng thái màn Tác vụ.
@@ -93,6 +94,7 @@ type Model struct {
 
 	// showAll: hiện cả done/cancelled (như `task list --all`); filter là chữ lọc nhanh `/`.
 	showAll bool
+	tree    bool // chế độ cây kế hoạch (phím P): phiếu con thụt lề dưới phiếu cha
 	filter  string
 	rows    []row
 	lst     list.Model
@@ -252,6 +254,10 @@ func (m *Model) rebuild() {
 	sortTasks(ts)
 	m.rows = m.rows[:0]
 	last := -1
+	if m.tree {
+		m.rows = append(m.rows, treeRows(ts)...)
+		ts = nil
+	}
 	for _, t := range ts {
 		if g := GroupOf(t.State.Status); g != last {
 			m.rows = append(m.rows, row{group: g})
@@ -607,6 +613,15 @@ func (m *Model) listKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	case "/":
 		m.textIn, m.textOld = true, m.filter
 		return nil, true
+	case "P":
+		m.tree = !m.tree
+		m.rebuild()
+		return m.wantDetail(), true
+	case "F":
+		if !m.allowed("tasks.findings") {
+			return nil, true
+		}
+		return request("tasks.findings", nil), true
 	case "A":
 		m.showAll = !m.showAll
 		m.rebuild()

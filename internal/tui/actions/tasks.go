@@ -156,6 +156,13 @@ func taskActions() []Action {
 			})),
 		mk("tasks.transitions", "transitions", "T", false, 9, "task transitions", nil, false, false, nil),
 		mk("tasks.list", "list", "A", true, 7, "task list", app.TaskListOptions{}, false, false, nil),
+		// Chế độ cây kế hoạch (phiếu cha/con thụt lề) bật/tắt bằng P; chỉ đổi cách xếp danh sách.
+		mk("tasks.tree", "tree", "P", false, 8, "", nil, false, false, nil),
+		// Phát hiện review còn open qua mọi phiếu (chỉ đọc): hộp liệt kê nhóm theo phiếu.
+		mk("tasks.findings", "findings", "F", false, 8, "", nil, false, false,
+			withT("tasks.findings", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
+				return app.ListFindings(ctx, ws, app.FindingsListOptions{Open: true})
+			})),
 		mk("tasks.show", "show", "Enter", true, 2, "task show", app.TaskShowOptions{}, false, false, nil),
 		mk("tasks.runs", "runs", "", false, 0, "run status", app.TaskRunsOptions{}, false, false, nil),
 		mk("tasks.filter", "filter", "/", true, 6, "", nil, false, false, nil),

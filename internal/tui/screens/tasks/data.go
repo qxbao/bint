@@ -26,7 +26,10 @@ type Data struct {
 	Root string
 	// Flows là tên các flow tuỳ biến (.bint/flows) qua lint sạch: chọn được ở form run và task new cùng workflow gốc.
 	Flows []string
-	Stamp time.Time
+	// Ready là ID phiếu sẵn sàng (task.Ready trên mọi phiếu đã nạp); OpenFindings đếm phát hiện review còn open theo phiếu.
+	Ready        map[string]bool
+	OpenFindings map[string]int
+	Stamp        time.Time
 }
 
 // IDs trả ID của mọi tác vụ.
@@ -96,6 +99,16 @@ func Load(ctx context.Context, dir string, readOnly bool) (Data, error) {
 		return Data{}, err
 	}
 	d := Data{Tasks: l.Tasks, Bad: len(l.Bad), Files: app.TrackedFiles(ws.K, maxSuggestFiles), Root: ws.Root, Stamp: time.Now()}
+	d.Ready = map[string]bool{}
+	for _, t := range task.Ready(l.Tasks) {
+		d.Ready[t.State.ID] = true
+	}
+	d.OpenFindings = map[string]int{}
+	fl := app.CollectFindings(l.Tasks, true)
+	d.Bad += len(fl.Bad) // lỗi đọc review.json của từng phiếu không chặn danh sách
+	for _, f := range fl.Findings {
+		d.OpenFindings[f.TaskID]++
+	}
 	if rows, err := app.ListFlows(ctx, dir, app.FlowListOptions{}); err == nil { // lỗi đọc flow chỉ làm mất gợi ý, không chặn danh sách
 		for _, r := range rows {
 			if r.Source == app.FlowCustom && r.OK {

@@ -246,7 +246,10 @@ và rủi ro.
 *Đã làm (phần 1, chỉ CLI):* sổ chỉ-thêm `findings.json` cạnh `review.json`, `bint findings list|set`,
 `bint task new --from-findings`; mô tả ở `docs/workflows.md`. *Đã làm (phần 2, chỉ CLI):* `parent`/`depends_on` trong `state.json`, `bint task new --parent/--depends-on`,
 `bint task set --depends-on/--clear-depends-on`, `bint task ready`, kế thừa phạm vi và bối cảnh lúc lập, chặn chu
-trình; mô tả ở `docs/workflows.md`. *Còn lại:* màn TUI (cây kế hoạch, số phát hiện tồn) và xuất phiếu vào Git
+trình; mô tả ở `docs/workflows.md`. *Đã làm (phần 3, TUI, chỉ hiển thị):* màn Tác vụ đánh dấu phiếu có `depends_on` (`◇` sẵn sàng theo `task.Ready`, `⧗` chờ),
+hiện `⚑N` phát hiện open ở hàng danh sách (đếm bằng `app.CollectFindings`, dùng chung với `findings list`), thẻ Phiếu có
+mục Quan hệ (cha, phụ thuộc, con kèm trạng thái), phím `P` bật/tắt cây kế hoạch, phím `F` mở hộp chỉ đọc liệt kê phát
+hiện open qua mọi phiếu; `findings set` vẫn chỉ ở CLI. *Còn lại:* xuất phiếu vào Git
 (câu hỏi mở 1).
 
 **Rủi ro.** Phiếu nằm ở thư mục trạng thái ngoài repository nên không chia sẻ giữa các máy. Beads giải
