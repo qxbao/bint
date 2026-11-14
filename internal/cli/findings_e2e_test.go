@@ -141,6 +141,32 @@ func TestFindingsOutcomesE2E(t *testing.T) {
 	if o, c := newTask("--from-findings", f3); c != 0 || !strings.Contains(o, "Từ phát hiện: "+f3) {
 		t.Fatalf("deferred được phép: %d\n%s", c, o)
 	}
+
+	// --from-findings cùng --parent: scope.deny của cha vẫn phải được kế thừa (ClearScope nội bộ của --from-findings
+	// không phải là --clear-scope của người lập).
+	out, code = newTask("phiếu cha", "--deny", "secrets/**", "--json")
+	if code != 0 {
+		t.Fatalf("task new cha: %d\n%s", code, out)
+	}
+	var parent map[string]any
+	if err := json.Unmarshal([]byte(out), &parent); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	out, code = newTask("--parent", parent["id"].(string), "--from-findings", f3, "--json")
+	if code != 0 {
+		t.Fatalf("from-findings + parent: %d\n%s", code, out)
+	}
+	var child struct {
+		Ticket struct {
+			Scope struct{ Deny []string }
+		}
+	}
+	if err := json.Unmarshal([]byte(out), &child); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if strings.Join(child.Ticket.Scope.Deny, ",") != "secrets/**" {
+		t.Fatalf("scope.deny của phiếu con = %v, muốn kế thừa [secrets/**] từ cha", child.Ticket.Scope.Deny)
+	}
 }
 
 func exec2(t *testing.T, root string, args ...string) string {

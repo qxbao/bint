@@ -239,6 +239,21 @@ func ValidRelPath(p string) error {
 	return nil
 }
 
+// ValidRev cho biết rev dùng được làm tham số revision của git: không rỗng, không bắt đầu bằng "-" (git sẽ đọc thành
+// tuỳ chọn, ví dụ --output=<tệp> ghi đè tệp) và không chứa khoảng trắng hay ký tự điều khiển. Trường commit của mục tri
+// thức đến từ tệp do agent hoặc PR viết nên phải qua kiểm tra này trước khi đưa vào lệnh git.
+func ValidRev(rev string) bool {
+	if rev == "" || rev[0] == '-' {
+		return false
+	}
+	for _, c := range rev {
+		if c <= ' ' || c == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
 // Validate kiểm tra ràng buộc schema và trả về mọi vấn đề.
 func (it *Item) Validate() []string {
 	var errs []string
@@ -282,6 +297,12 @@ func (it *Item) Validate() []string {
 		if _, _, _, err := e.LineRange(); err != nil {
 			add("evidence[%d]: %v", i, err)
 		}
+		if e.Commit != "" && !ValidRev(e.Commit) {
+			add("evidence[%d].commit: %q không phải revision hợp lệ", i, e.Commit)
+		}
+	}
+	if it.Origin.Commit != "" && !ValidRev(it.Origin.Commit) {
+		add("origin.commit: %q không phải revision hợp lệ", it.Origin.Commit)
 	}
 	if it.Origin.Provenance != "" && it.Origin.Provenance != ProvenanceFailureLesson {
 		add("origin.provenance: %q không hợp lệ (%s)", it.Origin.Provenance, ProvenanceFailureLesson)

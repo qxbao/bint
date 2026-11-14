@@ -145,6 +145,9 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 			return nil, task.Assessment{}, err
 		}
 	}
+	// --clear-scope do người lập đặt: chỉ khi đó phiếu con mới không kế thừa scope của cha. --from-findings cũng bật
+	// ClearScope ở dưới nhưng không được làm mất scope.deny của cha.
+	userClearScope := o.Edit.ClearScope
 	var findViews []FindingView
 	if len(o.FromFindings) > 0 {
 		var paths []string
@@ -153,7 +156,7 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 			return nil, task.Assessment{}, err
 		}
 		o.Request = findingsRequest(o.Request, findViews)
-		o.Edit.ClearScope = true
+		o.Edit.ClearScope = true // bỏ phạm vi suy từ lời yêu cầu; KHÔNG phải người lập tự đặt phạm vi (xem userClearScope)
 		o.Edit.Allow = appendUnique(append([]string(nil), paths...), o.Edit.Allow...)
 	}
 	t := task.FromRequest(e.Root, o.Request, confirmed)
@@ -163,7 +166,7 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	var inherited []string
 	if parentTask != nil {
 		// Trước Classify/Assess: references và đường dẫn bảo vệ kế thừa phải có hiệu lực ở cả hai.
-		inherited = task.Inherit(&t, parentTask.Ticket, o.Edit.ClearScope)
+		inherited = task.Inherit(&t, parentTask.Ticket, userClearScope)
 	}
 	if o.Workflow == "" {
 		o.Workflow = "b-do" // workflow mặc định khi không chỉ định (lập phiếu cho flow nhúng b-do)

@@ -80,7 +80,11 @@ func (w *WorktreeSource) ChangedSince(commit string) (ChangeSet, bool) {
 		w.changes = map[string]changeEntry{}
 	}
 	cs, ok := ChangeSet{}, false
-	if out, err := gitOut(context.Background(), w.Root, "diff", "-M", "--name-status", "-z", commit, "--"); err == nil {
+	if !ValidRev(commit) {
+		w.changes[commit] = changeEntry{cs, ok}
+		return cs, ok
+	}
+	if out, err := gitOut(context.Background(), w.Root, "diff", "-M", "--name-status", "-z", "--end-of-options", commit, "--"); err == nil {
 		cs, ok = parseNameStatus(out), true
 		if un, err := gitOut(context.Background(), w.Root, "ls-files", "-z", "--others", "--exclude-standard"); err == nil {
 			for _, f := range strings.Split(string(un), "\x00") {
@@ -104,7 +108,11 @@ func (c *CommitSource) ChangedSince(commit string) (ChangeSet, bool) {
 		c.changes = map[string]changeEntry{}
 	}
 	cs, ok := ChangeSet{}, false
-	if out, err := gitOut(context.Background(), c.RepoDir, "diff", "-M", "--name-status", "-z", commit, c.Commit, "--"); err == nil {
+	if !ValidRev(commit) || !ValidRev(c.Commit) {
+		c.changes[commit] = changeEntry{cs, ok}
+		return cs, ok
+	}
+	if out, err := gitOut(context.Background(), c.RepoDir, "diff", "-M", "--name-status", "-z", "--end-of-options", commit, c.Commit, "--"); err == nil {
 		cs, ok = parseNameStatus(out), true
 	}
 	c.changes[commit] = changeEntry{cs, ok}

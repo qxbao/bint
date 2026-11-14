@@ -158,13 +158,21 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 	if len(toks) == 0 {
 		return false, "không có lệnh sau cd"
 	}
+	// Kiểm tuỳ chọn trên token đã bỏ nháy và gạch chéo ngược: shell bỏ chúng trước khi chương trình thấy tham số, nên
+	// `"--output=x"` hay `--out\put=x` vẫn là --output.
+	bare := shellBareTokens(rest)
 	if toks[0] == "git" || path.Base(toks[0]) == "git" {
-		for _, t := range toks[1:] {
-			if strings.HasPrefix(t, "--output") { // git diff/log --output=<tệp> ghi tệp
+		for _, t := range bare[1:] {
+			if gitOutputOption(t) { // git diff/log/show --output=<tệp> ghi tệp
 				return false, "tuỳ chọn --output ghi tệp"
 			}
 		}
 		if why := gitGrepRunsProgram(rest); why != "" {
+			return false, why
+		}
+	}
+	if isBintExecutable(toks[0]) {
+		if why := bintNotReadonly(bare); why != "" {
 			return false, why
 		}
 	}
@@ -201,6 +209,51 @@ func gitGrepRunsProgram(cmd string) string {
 			}
 		case strings.HasPrefix(t, "-") && strings.Contains(t, "O"):
 			return "git grep -O/--open-files-in-pager chạy chương trình tuỳ ý"
+		}
+	}
+	return ""
+}
+
+// shellBareTokens tách lệnh thành token sau khi bỏ nháy đơn, nháy kép và gạch chéo ngược (cùng cách gitGrepRunsProgram
+// đọc tham số). Chỉ dùng để nhận diện tuỳ chọn và lệnh con; có thể tách một tham số có khoảng trắng trong nháy thành
+// nhiều token, chấp nhận vì các kiểm tra dùng nó đều theo hướng chặn.
+func shellBareTokens(cmd string) []string {
+	return strings.Fields(strings.NewReplacer("'", "", `"`, "", `\`, "").Replace(cmd))
+}
+
+// gitOutputOption: token là --output[=<tệp>] của git diff/log/show, kể cả --output-directory và dạng viết tắt không
+// nhập nhằng mà git chấp nhận (--outp, --outpu). Chặn từ 4 ký tự ("--ou") để không phụ thuộc bảng tuỳ chọn của từng bản git.
+func gitOutputOption(tok string) bool {
+	name, _, _ := strings.Cut(tok, "=")
+	const long = "--output"
+	return strings.HasPrefix(name, long) || (len(name) >= 4 && strings.HasPrefix(long, name))
+}
+
+// readonlyBintCommands là các lệnh con cấp một của bint mà bước chỉ đọc (b-req, b-review) được chạy qua Bash(bint:*).
+// Các lệnh còn lại (init, update, eval, evolve, skill, mcp, harness, doctor…) đổi cấu hình/hook hoặc chạy chương trình
+// ngoài nên không thuộc bước chỉ đọc. Thêm lệnh con mới cho planner/reviewer thì thêm vào đây.
+var readonlyBintCommands = map[string]bool{
+	"task": true, "knowledge": true, "context": true, "findings": true, "run": true, "runs": true,
+	"status": true, "flow": true, "experience": true, "inspect": true, "help": true, "version": true,
+}
+
+// bintNotReadonly trả lý do (rỗng = được phép) khi một lời gọi bint không hợp với bước chỉ đọc: lệnh con ngoài
+// readonlyBintCommands, hoặc có --agent-command (bint chạy chuỗi đó qua shell, tức là chạy lệnh tuỳ ý). toks là token đã
+// bỏ nháy, toks[0] là bint.
+func bintNotReadonly(toks []string) string {
+	if len(toks) < 2 {
+		return ""
+	}
+	sub := toks[1]
+	if sub == "--help" || sub == "-h" || sub == "--version" {
+		return ""
+	}
+	if !readonlyBintCommands[sub] {
+		return "lệnh con `bint " + sub + "` không thuộc bước chỉ đọc"
+	}
+	for _, t := range toks[2:] {
+		if name, _, _ := strings.Cut(t, "="); name == "--agent-command" {
+			return "--agent-command chạy lệnh tuỳ ý"
 		}
 	}
 	return ""

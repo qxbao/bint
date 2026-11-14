@@ -206,10 +206,10 @@ next:
 		// Nguồn gốc: mục phải chứng minh được tạo tại/trước commit gốc. Không chứng
 		// minh được (thiếu origin.commit, commit không phải tổ tiên, tạo sau commit
 		// gốc, hoặc thiếu/không đọc được created_at) thì loại.
-		if it.Origin.Commit == "" {
+		if !knowledge.ValidRev(it.Origin.Commit) {
 			continue
 		}
-		if _, err := git(ctx, repoDir, "merge-base", "--is-ancestor", it.Origin.Commit, c.Source.Base); err != nil {
+		if _, err := git(ctx, repoDir, "merge-base", "--is-ancestor", "--end-of-options", it.Origin.Commit, c.Source.Base); err != nil {
 			continue
 		}
 		if !baseTime.IsZero() {

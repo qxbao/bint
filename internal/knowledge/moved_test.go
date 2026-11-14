@@ -410,3 +410,35 @@ func TestMovedTruncatedSingleMatchAmbiguous(t *testing.T) {
 		t.Fatalf("bị cắt mà vẫn chuyển: %+v", r)
 	}
 }
+
+// Trường commit bắt đầu bằng "-" không được tới git dưới dạng tuỳ chọn: `--output=<tệp>` sẽ ghi đè tệp trong repo.
+func TestChangedSinceRejectsOptionLikeCommit(t *testing.T) {
+	root := testutil.NewRepo(t, map[string]string{"a.go": "package a\n", "victim.txt": "giữ nguyên\n"})
+	head := testutil.Git(t, root, "rev-parse", "HEAD")
+	const evil = "--output=victim.txt"
+	if _, ok := (&WorktreeSource{Root: root}).ChangedSince(evil); ok {
+		t.Fatal("WorktreeSource.ChangedSince phải từ chối commit dạng tuỳ chọn")
+	}
+	if _, ok := (&CommitSource{RepoDir: root, Commit: head}).ChangedSince(evil); ok {
+		t.Fatal("CommitSource.ChangedSince phải từ chối commit dạng tuỳ chọn")
+	}
+	if b, err := os.ReadFile(filepath.Join(root, "victim.txt")); err != nil || string(b) != "giữ nguyên\n" {
+		t.Fatalf("victim.txt bị ghi đè: %q, %v", b, err)
+	}
+	if _, ok := (&WorktreeSource{Root: root}).ChangedSince(head); !ok {
+		t.Fatal("commit hợp lệ vẫn phải dùng được")
+	}
+
+	it := movedItem(evil, Evidence{Path: "a.go", Commit: evil})
+	errs := strings.Join(it.Validate(), "\n")
+	for _, want := range []string{"origin.commit", "evidence[0].commit"} {
+		if !strings.Contains(errs, want) {
+			t.Errorf("Validate thiếu lỗi %s:\n%s", want, errs)
+		}
+	}
+	for rev, want := range map[string]bool{"": false, "-x": false, "a b": false, "HEAD": true, head: true} {
+		if ValidRev(rev) != want {
+			t.Errorf("ValidRev(%q) = %v, muốn %v", rev, !want, want)
+		}
+	}
+}

@@ -99,6 +99,28 @@ func TestReadonlyShellAllowed(t *testing.T) {
 		{"git grep --or vẫn qua", "git grep -e a --or -e b", true},
 		{"git grep -c -w -i vẫn qua", "git grep -c -w -i foo", true},
 		{"git -c rồi grep không khớp mẫu", "git -c core.pager=touch grep foo", false},
+		// --output của git diff/log/show ghi tệp: chặn cả dạng có nháy, gạch chéo ngược và viết tắt.
+		{"git log --output", "git log -1 --output=x", false},
+		{"git log --output trong nháy kép", `git log -1 "--output=.git/hooks/pre-commit" '--format=#!/bin/sh'`, false},
+		{"git log --output trong nháy đơn", `git log -1 '--output=x'`, false},
+		{"git diff --output nháy giữa chừng", `git diff --out"put"=x`, false},
+		{"git show --output có gạch chéo ngược", `git show --out\put=x HEAD`, false},
+		{"git diff --outp viết tắt", "git diff --outp=x", false},
+		{"git log --oneline vẫn qua", "git log --oneline -3", true},
+		// Bash(bint:*) chỉ mở các lệnh con của bước chỉ đọc; --agent-command chạy lệnh tuỳ ý qua shell.
+		{"bint knowledge add", `bint knowledge add --type warning "nội dung"`, true},
+		{"bint context", "bint context --paths internal/a.go", true},
+		{"bint run next", "bint run next", true},
+		{"bint --help", "bint --help", true},
+		{"bint skill test --agent-command", `bint skill test b-req --agent-command "python x.py"`, false},
+		{"bint run --agent-command", `bint run b-feat --task X --agent-command "python x.py"`, false},
+		{"bint run --agent-command= có nháy", `bint run b-feat "--agent-command=python x.py"`, false},
+		{"bint init --no-hooks", "bint init --no-hooks", false},
+		{"bint init trong nháy", `bint "init" --no-hooks`, false},
+		{"bint update", "bint update --source /tmp/x", false},
+		{"bint eval", "bint eval run", false},
+		{"bint cờ trước lệnh con", "bint --foo init", false},
+		{"bint tuyệt đối init", "/usr/local/bin/bint init --mcp", false},
 	}
 	for _, c := range cases {
 		got, why := readonlyShellAllowed(c.cmd, testReadonlyTools)
