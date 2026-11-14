@@ -226,20 +226,22 @@ func TestStartDetachedNeutralCwd(t *testing.T) {
 		t.Fatal(err)
 	}
 	caller := t.TempDir()
+	cwdFile := filepath.Join(t.TempDir(), "daemon-cwd")
 	old, _ := os.Getwd()
 	if err := os.Chdir(caller); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
-	info, started, err := StartDetached(t.Context(), dir, osArgs0(), []string{"__gateway"}, nil)
+	_, started, err := StartDetached(t.Context(), dir, osArgs0(), []string{"__gateway", cwdFile}, nil)
 	if err != nil || !started {
 		t.Fatalf("StartDetached: %v started=%v", err, started)
 	}
 	t.Cleanup(func() { _, _ = Stop(t.Context(), dir) })
-	cwd, err := os.Readlink(filepath.Join("/proc", itoaI(info.PID), "cwd"))
+	data, err := os.ReadFile(cwdFile)
 	if err != nil {
-		t.Skipf("không đọc được cwd của tiến trình (cần /proc): %v", err)
+		t.Fatalf("không đọc được cwd do daemon báo: %v", err)
 	}
+	cwd := string(data)
 	if sameFile(t, cwd, caller) {
 		t.Errorf("daemon kế thừa cwd của lệnh gọi %s", caller)
 	}
@@ -277,7 +279,7 @@ func TestStartDetachedRelativeStateDir(t *testing.T) {
 	if i, err := ReadInfo(dir); err != nil || i.PID != info.PID {
 		t.Errorf("gateway.json không nằm ở %s: %+v %v", dir, i, err)
 	}
-	if !filepath.IsAbs(dir) || !strings.HasPrefix(dir, base) {
+	if !filepath.IsAbs(dir) || !sameFile(t, dir, filepath.Join(base, "rel-state", "gateway")) {
 		t.Errorf("dir %s không phân giải theo cwd của lệnh gọi %s", dir, base)
 	}
 }

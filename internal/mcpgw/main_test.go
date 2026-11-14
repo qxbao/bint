@@ -20,6 +20,15 @@ func TestMain(m *testing.M) {
 			time.Sleep(10 * time.Minute)
 			os.Exit(0)
 		case "__gateway":
+			if len(os.Args) > 2 {
+				cwd, err := os.Getwd()
+				if err != nil {
+					os.Exit(1)
+				}
+				if err := os.WriteFile(os.Args[2], []byte(cwd), 0o600); err != nil {
+					os.Exit(1)
+				}
+			}
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 			defer stop()
 			if err := Run(ctx, Options{Version: "test"}); err != nil {

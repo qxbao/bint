@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -38,7 +39,12 @@ func TestWorktreeAddListRemoveDeleteBranch(t *testing.T) {
 	ctx := context.Background()
 	repo := newRepo(t)
 	head := HeadCommit(ctx, repo)
-	wt := filepath.Join(t.TempDir(), "wt")
+	// Git reports physical paths, while macOS TMPDIR can contain /var symlinks.
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wt := filepath.Join(base, "wt")
 	if err := WorktreeAdd(ctx, repo, wt, "bint/T1", head); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +62,7 @@ func TestWorktreeAddListRemoveDeleteBranch(t *testing.T) {
 		t.Fatalf("mục worktree: %+v", found)
 	}
 	// Thư mục mất ⇒ prunable.
-	gone := filepath.Join(t.TempDir(), "gone")
+	gone := filepath.Join(base, "gone")
 	if err := WorktreeAdd(ctx, repo, gone, "bint/T2", head); err != nil {
 		t.Fatal(err)
 	}
@@ -91,5 +97,46 @@ func TestWorktreeAddListRemoveDeleteBranch(t *testing.T) {
 	}
 	if out := gitIn(t, repo, "branch", "--list", "bint/*"); strings.Contains(out, "T1") {
 		t.Fatalf("nhánh còn: %q", out)
+	}
+}
+
+// A failed removal of a locked worktree must stay an error, including when
+// the caller reaches it through a symlink and after its directory disappears.
+func TestWorktreeRemoveLockedSymlink(t *testing.T) {
+	ctx := context.Background()
+	repo := newRepo(t)
+	base := t.TempDir()
+	alias := filepath.Join(t.TempDir(), "alias with spaces")
+	if err := os.Symlink(base, alias); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlink privilege unavailable: %v", err)
+		}
+		t.Fatal(err)
+	}
+	for _, missing := range []bool{false, true} {
+		t.Run(map[bool]string{false: "existing", true: "missing"}[missing], func(t *testing.T) {
+			name := t.Name()[strings.LastIndex(t.Name(), "/")+1:]
+			wt := filepath.Join(alias, name+" worktree")
+			if err := WorktreeAdd(ctx, repo, wt, "bint/"+name, HeadCommit(ctx, repo)); err != nil {
+				t.Fatal(err)
+			}
+			gitIn(t, repo, "worktree", "lock", wt)
+			other := filepath.Join(t.TempDir(), filepath.Base(wt))
+			if err := WorktreeRemove(ctx, repo, other); err != nil {
+				t.Fatalf("đường dẫn khác không được nhận nhầm là worktree khóa: %v", err)
+			}
+			if missing {
+				if err := os.RemoveAll(wt); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := WorktreeRemove(ctx, repo, wt); err == nil {
+				t.Error("worktree bị khóa vẫn còn đăng ký: remove phải trả lỗi")
+			}
+			gitIn(t, repo, "worktree", "unlock", wt)
+			if err := WorktreeRemove(ctx, repo, wt); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

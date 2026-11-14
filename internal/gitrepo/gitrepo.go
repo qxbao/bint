@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"bint/internal/pathutil"
 )
 
 // ErrNotRepo được trả về khi thư mục không nằm trong repository Git.
@@ -197,9 +199,21 @@ func WorktreeRemove(ctx context.Context, dir, path string) error {
 		// Thư mục đã mất khỏi đĩa: chỉ còn mục quản trị trong .git/worktrees.
 		if _, perr := Run(ctx, dir, "worktree", "prune"); perr == nil {
 			if list, lerr := WorktreeList(ctx, dir); lerr == nil {
+				requested := path
+				if !filepath.IsAbs(requested) {
+					requested = filepath.Join(dir, requested)
+				}
+				requested, rerr := pathutil.Canonical(requested)
+				if rerr != nil {
+					return err
+				}
 				found := false
 				for _, w := range list {
-					found = found || Clean(w.Path) == Clean(path)
+					listed, rerr := pathutil.Canonical(w.Path)
+					if rerr != nil {
+						return err
+					}
+					found = found || listed == requested
 				}
 				if !found {
 					return nil

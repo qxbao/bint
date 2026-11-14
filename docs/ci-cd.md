@@ -117,8 +117,11 @@ các khối `run:`).
 > vai người dùng phải gọi `asHuman(t)` (hoặc đặt rỗng từng biến) để không lỗi `ErrAgentForbidden`
 > khi chạy trong phiên agent.
 >
-> **macOS:** `$TMPDIR` (`/var/folders/…`) là symlink tới `/private/var/…`; nếu gặp test so sánh
-> đường dẫn lỗi vì symlink, chạy `TMPDIR="$(cd "$TMPDIR" && pwd -P)" go test ./...`.
+> **macOS:** chạy test với `$TMPDIR` mặc định (`/var/folders/…`, qua symlink tới
+> `/private/var/…`). So sánh đường dẫn phải nhận diện cùng đối tượng qua symlink,
+> kể cả tệp chưa tạo hoặc đã xóa; không cần đổi TMPDIR để làm xanh test.
+> Xem [báo cáo tương thích macOS](macos-compatibility.md) để biết kết quả và giới hạn.
+> Suite dùng cổng loopback động qua `httptest`; sandbox cấm bind sẽ làm suite lỗi.
 
 ## Xem kết quả CI trên GitHub
 

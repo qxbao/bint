@@ -457,6 +457,11 @@ func TestPrepareConfigEditLocalNewHasSeed(t *testing.T) {
 
 func TestSetUILanguageService(t *testing.T) {
 	root := sysRepo(t, InitOptions{})
+	// Services use Git's physical repository path, including on macOS /var.
+	physicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx := context.Background()
 	proj := config.ProjectPath(root)
 	origProj, _ := os.ReadFile(proj)
@@ -471,7 +476,7 @@ func TestSetUILanguageService(t *testing.T) {
 	}
 	o := UILanguageOptions{Language: "en", Layer: "local"}
 	res, err = SetUILanguage(ctx, root, o)
-	if err != nil || !res.Changed || res.Path != config.LocalPath(root) {
+	if err != nil || !res.Changed || res.Path != config.LocalPath(physicalRoot) {
 		t.Fatalf("%v %+v", err, res)
 	}
 	b, _ := os.ReadFile(config.LocalPath(root))

@@ -43,7 +43,26 @@ func TestCodexEvalIsolatesHomeAndRemovesCredentials(t *testing.T) {
 }
 
 func TestCodexProfileKeepsRuntimeWithoutUserContext(t *testing.T) {
+	testCodexProfileKeepsRuntimeWithoutUserContext(t, false)
+}
+
+func TestCodexProfileThroughSymlinkHome(t *testing.T) {
+	testCodexProfileKeepsRuntimeWithoutUserContext(t, true)
+}
+
+func testCodexProfileKeepsRuntimeWithoutUserContext(t *testing.T, symlinkHome bool) {
+	t.Helper()
 	home := t.TempDir()
+	if symlinkHome {
+		alias := filepath.Join(t.TempDir(), "home alias")
+		if err := os.Symlink(home, alias); err != nil {
+			if runtime.GOOS == "windows" {
+				t.Skipf("symlink privilege unavailable: %v", err)
+			}
+			t.Fatal(err)
+		}
+		home = alias
+	}
 	source := filepath.Join(home, ".codex")
 	os.MkdirAll(source, 0o700)
 	t.Setenv("HOME", home)
@@ -60,6 +79,24 @@ func TestCodexProfileKeepsRuntimeWithoutUserContext(t *testing.T) {
 	target := filepath.Join(home, "instructions.md")
 	os.WriteFile(target, []byte("linked user canary"), 0o600)
 	linkCreated := os.Symlink(target, linked) == nil
+	var directorySkills []string
+	if symlinkHome {
+		targetDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(targetDir, "SKILL.md"), []byte("directory canary"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		linkDir := filepath.Join(home, ".agents", "skills", "linked-directory")
+		if err := os.Symlink(targetDir, linkDir); err != nil {
+			t.Fatal(err)
+		}
+		realHome, err := filepath.EvalSymlinks(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		directorySkills = []string{filepath.Join(linkDir, "SKILL.md"),
+			filepath.Join(realHome, ".agents", "skills", "linked-directory", "SKILL.md"),
+			filepath.Join(targetDir, "SKILL.md")}
+	}
 	os.WriteFile(filepath.Join(source, "AGENTS.md"), []byte("USER_ONLY"), 0o600)
 	env, cleanup, err := codexEvalProfile(AgentRequest{Dir: t.TempDir()}, os.Environ())
 	if err != nil {
@@ -115,6 +152,18 @@ func TestCodexProfileKeepsRuntimeWithoutUserContext(t *testing.T) {
 			if !found {
 				t.Errorf("bỏ sót symlink skill %s", want)
 			}
+		}
+	}
+	for _, want := range directorySkills {
+		found := false
+		for _, r := range rules {
+			m := r.(map[string]any)
+			if m["path"] == want && m["enabled"] == false {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("bỏ sót directory symlink skill %s", want)
 		}
 	}
 }

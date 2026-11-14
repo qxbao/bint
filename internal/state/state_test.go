@@ -2,7 +2,9 @@ package state
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -23,6 +25,23 @@ func TestRepoID(t *testing.T) {
 	}
 	if !strings.HasPrefix(RepoID(filepath.Join("srv", "proj.git")), "proj-") {
 		t.Fatal("bare-style name")
+	}
+}
+
+func TestResolveRejectsMissingStateThroughSymlink(t *testing.T) {
+	root := t.TempDir()
+	alias := filepath.Join(t.TempDir(), "repo alias")
+	if err := os.Symlink(root, alias); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlink privilege unavailable: %v", err)
+		}
+		t.Fatal(err)
+	}
+	repo := gitrepo.Repo{Toplevel: root, CommonDir: filepath.Join(root, ".git")}
+	cfg := config.Default()
+	cfg.State.Dir = filepath.Join(alias, "not-created", "state")
+	if _, err := Resolve(repo, cfg); err == nil {
+		t.Fatal("state chưa tạo qua symlink vẫn nằm trong repo và phải bị từ chối")
 	}
 }
 
