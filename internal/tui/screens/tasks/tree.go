@@ -1,7 +1,6 @@
 package tasks
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 
@@ -11,8 +10,9 @@ import (
 	"bint/internal/tui/theme"
 )
 
-// treeRows xếp ts thành cây kế hoạch: phiếu gốc (không có cha, hoặc cha không nằm trong ts) theo thứ tự ts, con
-// của mỗi phiếu cũ nhất trước (ID tăng) và thụt lề theo độ sâu. Mỗi phiếu xuất hiện đúng một lần (chống lặp).
+// treeRows xếp ts thành cây kế hoạch: phiếu gốc (không có cha, hoặc cha không nằm trong ts) và con của mỗi phiếu
+// xếp theo thứ tự phụ thuộc (phiếu được phụ thuộc đứng trước, hoà thì giữ thứ tự của ts) và vẽ nhánh bằng ký
+// tự nối cây (2 ô mỗi bậc). Mỗi phiếu xuất hiện đúng một lần (chống lặp).
 func treeRows(ts []*task.Task) []row {
 	in := make(map[string]bool, len(ts))
 	for _, t := range ts {
@@ -27,36 +27,51 @@ func treeRows(ts []*task.Task) []row {
 			roots = append(roots, t)
 		}
 	}
-	for _, k := range kids {
-		sort.SliceStable(k, func(i, j int) bool { return k[i].State.ID < k[j].State.ID })
+	roots = siblingOrder(roots)
+	for p, k := range kids {
+		kids[p] = siblingOrder(k)
 	}
 	var out []row
 	seen := map[string]bool{}
-	var walk func(t *task.Task, depth int)
-	walk = func(t *task.Task, depth int) {
+	var walk func(t *task.Task, depth int, lead string, last bool)
+	walk = func(t *task.Task, depth int, lead string, last bool) {
 		if seen[t.State.ID] {
 			return
 		}
 		seen[t.State.ID] = true
-		out = append(out, row{group: GroupOf(t.State.Status), t: t, depth: depth})
+		prefix, next := "", ""
+		if depth > 0 {
+			if last {
+				prefix, next = lead+"└ ", lead+"  "
+			} else {
+				prefix, next = lead+"├ ", lead+"│ "
+			}
+		}
+		out = append(out, row{group: GroupOf(t.State.Status), t: t, depth: depth, prefix: prefix})
+		var todo []*task.Task
 		for _, c := range kids[t.State.ID] {
-			walk(c, depth+1)
+			if !seen[c.State.ID] {
+				todo = append(todo, c)
+			}
+		}
+		for i, c := range todo {
+			walk(c, depth+1, next, i == len(todo)-1)
 		}
 	}
 	for _, t := range roots {
-		walk(t, 0)
+		walk(t, 0, "", true)
 	}
 	for _, t := range ts { // chu trình cha–con: không có gốc, vẫn phải hiện
-		walk(t, 0)
+		walk(t, 0, "", true)
 	}
 	return out
 }
 
-// goalMarks là phần đầu ô mục tiêu: thụt lề cây, dấu phụ thuộc (◇ sẵn sàng, ⧗ chờ; chỉ phiếu có depends_on) và
-// ⚑N phát hiện open (N > 0). Phiếu không có gì thì trả rỗng, hàng giữ nguyên như cũ.
+// goalMarks là phần đầu ô mục tiêu: nhánh cây (ký tự nối), dấu phụ thuộc (◇ sẵn sàng, ⧗ chờ; chỉ phiếu có
+// depends_on) và ⚑N phát hiện open (N > 0). Phiếu không có gì thì trả rỗng, hàng giữ nguyên như cũ.
 func (m *Model) goalMarks(r row) string {
 	var b strings.Builder
-	b.WriteString(strings.Repeat("  ", r.depth))
+	b.WriteString(m.th.S(theme.Muted, r.prefix))
 	t := r.t
 	if len(t.State.DependsOn) > 0 {
 		if m.Data.Ready[t.State.ID] {

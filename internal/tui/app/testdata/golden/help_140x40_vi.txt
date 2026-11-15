@@ -27,7 +27,7 @@
 │                           │  a          Duyệt mục (candidate/stale → verified); chỉ người dùng  bint knowl…  │                           │
 │                           │  f          Duyệt và làm mới fingerprint của bằng chứng (mục stale)  bint know…  │                           │
 │                           │  r          Từ chối mục chờ duyệt (→ deprecated, hỏi lý do)  bint knowledge re…  │                           │
-│                           └───────────────────────────────────────────────────────────────────────1–24/212 ↕─┘                           │
+│                           └───────────────────────────────────────────────────────────────────────1–24/213 ↕─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

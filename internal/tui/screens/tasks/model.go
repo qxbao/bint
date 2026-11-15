@@ -77,9 +77,10 @@ type dialog struct {
 
 // row là một hàng của danh sách: tiêu đề nhóm (t == nil) hoặc một tác vụ.
 type row struct {
-	group int
-	t     *task.Task
-	depth int // thụt lề ở chế độ cây
+	group  int
+	t      *task.Task
+	depth  int    // độ sâu ở chế độ cây
+	prefix string // nhánh vẽ bằng ký tự nối cây (rỗng ở gốc)
 }
 
 // Model là trạng thái màn Tác vụ.
@@ -679,6 +680,12 @@ func (m *Model) listKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		m.tree = !m.tree
 		m.rebuild()
 		return m.wantDetail(), true
+	case "R":
+		if !m.allowed("tasks.graph") {
+			return nil, true
+		}
+		m.showGraph()
+		return nil, true
 	case "F":
 		if !m.allowed("tasks.findings") {
 			return nil, true

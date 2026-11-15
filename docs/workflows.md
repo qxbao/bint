@@ -351,8 +351,9 @@ bint task ready [--parent <id>] [--json]                             # phiếu c
   kế thừa. `task new` in các trường đã kế thừa; `task show` in phiếu cha, từng phụ thuộc kèm trạng thái và phiếu
   con (`--json` thêm `children` chỉ khi có).
 - Giới hạn: khoá chỉ theo từng phiếu, nên hai `task set --depends-on` chạy song song (A→B và B→A) có thể cùng qua
-  kiểm chu trình; `task ready` chịu được dữ liệu như vậy (phiếu trong chu trình không bao giờ sẵn sàng). Chỉ có
-  CLI, chưa có màn hình TUI.
+  kiểm chu trình; `task ready` chịu được dữ liệu như vậy (phiếu trong chu trình không bao giờ sẵn sàng).
+- Agent: skill `b-do` (Bước 1c) dạy khi nào tách yêu cầu lớn thành phiếu cha + phiếu con giai đoạn có `depends_on`, lập chúng bằng `task new --parent/--depends-on`, rồi lặp `task ready --parent <cha> --json` + `run b-do --task <id>` tới khi hết phiếu sẵn sàng hoặc một phiếu dừng. `b-req` đọc tài liệu phiếu cha khi phiếu có `parent`, đề xuất tách giai đoạn trong `plan.md` (mục "Đề xuất tách giai đoạn") và không tự lập phiếu con dưới `bint run`.
+- TUI (màn Tác vụ): hàng danh sách có `◇` (sẵn sàng) / `⧗` (chờ); phím `P` bật cây kế hoạch (nhánh vẽ bằng ký tự nối cây, phiếu được phụ thuộc đứng trước); phím `R` mở hộp chỉ đọc Đồ thị phụ thuộc của kế hoạch chứa phiếu đang chọn: các bậc theo thứ tự topo, mỗi phiếu kèm trạng thái, dấu sẵn sàng/chờ, phụ thuộc chưa xong, phiếu sẵn sàng kế tiếp; chu trình và phụ thuộc không đọc được hiện riêng.
 
 #### Phiếu trong Git: `.bint/tasks/` và `bint task sync`
 

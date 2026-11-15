@@ -27,7 +27,7 @@
 │                           │  a           Approve the item (candidate/stale → verified); humans only  bint …  │                           │
 │                           │  f           Approve and refresh the evidence fingerprint (stale item)  bint k…  │                           │
 │                           │  r           Reject a pending item (→ deprecated, asks for a reason)  bint kno…  │                           │
-│                           └───────────────────────────────────────────────────────────────────────1–24/212 ↕─┘                           │
+│                           └───────────────────────────────────────────────────────────────────────1–24/213 ↕─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

@@ -93,8 +93,8 @@ func TestTreeModeIndentsChildrenAndToggles(t *testing.T) {
 		t.Errorf("phiếu con phải ngay dưới phiếu cha: %v", got)
 	}
 	out := r.view(140, 40)
-	if l := lineWith(out, "Đổi cách tính phí"); !strings.Contains(l, "  Đổi") {
-		t.Errorf("phiếu con phải thụt lề: %q", l)
+	if l := lineWith(out, "Đổi cách tính phí"); !strings.Contains(l, "└ Đổi") {
+		t.Errorf("phiếu con phải có ký tự nối cây: %q", l)
 	}
 	r.press("P")
 	if after := ids(r.m.Visible()); strings.Join(after, ",") != strings.Join(before, ",") {
@@ -136,4 +136,115 @@ func TestFindingsKeyRequestsOpenList(t *testing.T) {
 	if len(r.reqs) != n {
 		t.Errorf("Value rỗng không được sinh yêu cầu")
 	}
+}
+
+func TestTreeConnectorsAndDependencyOrder(t *testing.T) {
+	r := planRig(t)
+	r.press("P")
+	out := r.view(140, 40)
+	if l := lineWith(out, "Đổi cách tính phí"); !strings.Contains(l, "└ ") {
+		t.Errorf("con cuối phải có └: %q", l)
+	}
+	// 01TASK1 phụ thuộc 01TASK4 nên 01TASK4 phải đứng trước.
+	if a, b := lineIndex(out, "Thêm màn Tác vụ"), lineIndex(out, "Thêm cột email"); a < 0 || b < 0 || a > b {
+		t.Errorf("phiếu được phụ thuộc phải đứng trước (%d, %d):\n%s", a, b, out)
+	}
+}
+
+// Bật cây không được xáo phiếu gốc không có quan hệ phụ thuộc: giữ thứ tự của danh sách thường.
+func TestTreeKeepsListOrderForUnrelatedRoots(t *testing.T) {
+	r := planRig(t)
+	before := ids(r.m.Visible())
+	r.press("P")
+	got := ids(r.m.Visible())
+	pos := func(s []string, id string) int {
+		for i, x := range s {
+			if x == id {
+				return i
+			}
+		}
+		return -1
+	}
+	// 01TASK3 và 01TASK5: 5 phụ thuộc 3; hai phiếu này không dính 01TASK4 nên thứ tự tương đối với 4 giữ như cũ.
+	for _, p := range [][2]string{{"01TASK4", "01TASK3"}, {"01TASK3", "01TASK4"}} {
+		if pos(before, p[0]) < pos(before, p[1]) && pos(got, p[0]) > pos(got, p[1]) {
+			t.Errorf("cây đổi thứ tự gốc %s/%s: %v → %v", p[0], p[1], before, got)
+		}
+	}
+}
+
+// Phiếu sẵn sàng nhưng đang chạy không được gợi ý làm Tiếp theo.
+func TestGraphBoxNextSkipsStartedTasks(t *testing.T) {
+	r := planRig(t)
+	for _, tk := range r.m.Data.Tasks {
+		if tk.State.ID == "01TASK5" {
+			tk.State.Status = "in_progress"
+		}
+	}
+	for r.m.Cursor().State.ID != "01TASK5" {
+		r.press("j")
+	}
+	r.press("R")
+	if out := r.view(140, 50); strings.Contains(out, "Tiếp theo:") {
+		t.Errorf("phiếu đang chạy không được là Tiếp theo:\n%s", out)
+	}
+}
+
+func TestGraphBoxShowsLevelsReadyAndWaits(t *testing.T) {
+	r := planRig(t)
+	if r.m.Cursor().State.ID != "01TASK1" {
+		t.Fatalf("con trỏ = %s", r.m.Cursor().State.ID)
+	}
+	r.press("R")
+	out := r.view(140, 50)
+	for _, want := range []string{"Đồ thị phụ thuộc", "Bậc 1", "Bậc 2", "01TASK4", "▸", "chờ: 01TASK4", "Không có phiếu nào sẵn sàng"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("hộp đồ thị thiếu %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "tk.graph.") {
+		t.Errorf("khoá i18n thô:\n%s", out)
+	}
+}
+
+func TestGraphBoxNextReadyAndSolo(t *testing.T) {
+	r := planRig(t)
+	for r.m.Cursor().State.ID != "01TASK5" {
+		r.press("j")
+	}
+	r.press("R")
+	out := r.view(140, 50)
+	for _, want := range []string{"Tiếp theo:", "01TASK5", "sẵn sàng", "01TASK3"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("thiếu %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "tk.graph.") {
+		t.Errorf("khoá i18n thô:\n%s", out)
+	}
+}
+
+func TestGraphBoxCycleDoesNotHang(t *testing.T) {
+	r := planRig(t)
+	for _, tk := range r.m.Data.Tasks {
+		switch tk.State.ID {
+		case "01TASK4":
+			tk.State.DependsOn = []string{"01TASK1"} // 1→4→1
+		}
+	}
+	r.press("R")
+	out := r.view(140, 50)
+	if !strings.Contains(out, "Chu trình phụ thuộc") || strings.Contains(out, "tk.graph.") {
+		t.Errorf("ca chu trình:\n%s", out)
+	}
+}
+
+// lineIndex là số thứ tự dòng đầu tiên chứa sub, -1 nếu không có.
+func lineIndex(out, sub string) int {
+	for i, l := range strings.Split(out, "\n") {
+		if strings.Contains(l, sub) {
+			return i
+		}
+	}
+	return -1
 }
