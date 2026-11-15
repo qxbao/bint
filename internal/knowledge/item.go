@@ -51,6 +51,17 @@ const (
 	OriginImported = "imported"
 )
 
+// Nguồn của mục imported (Origin.Source), do `bint knowledge import` ghi.
+const (
+	ImportClaudeMemory = "claude-memory"
+	ImportCodexMemory  = "codex-memory"
+	ImportCursorRules  = "cursor-rules"
+	ImportFile         = "file"
+)
+
+// ImportSources là các nguồn nhập hợp lệ.
+var ImportSources = []string{ImportClaudeMemory, ImportCodexMemory, ImportCursorRules, ImportFile}
+
 // Mức tin cậy.
 var Confidences = []string{"high", "medium", "low"}
 
@@ -120,7 +131,10 @@ type Origin struct {
 	Session string `yaml:"session,omitempty" json:"session,omitempty"`
 	// Commit là HEAD của repository lúc tạo.
 	Commit string `yaml:"commit,omitempty" json:"commit,omitempty"`
-	// Inputs là các đầu vào agent đã đọc khi tạo mục.
+	// Source: nguồn của mục origin imported (ImportSources); rỗng với origin khác.
+	Source string `yaml:"source,omitempty" json:"source,omitempty"`
+	// Inputs là các đầu vào agent đã đọc khi tạo mục. Mục imported ghi tham chiếu nguồn
+	// ("claude-memory:feedback_x.md"), không ghi đường dẫn tuyệt đối trong thư mục home.
 	Inputs []string `yaml:"inputs,omitempty" json:"inputs,omitempty"`
 	// ThirdParty = true khi đầu vào có nội dung bên thứ ba (dependency, tài liệu
 	// ngoài, issue). Mục bị gắn cờ không được chèn như quy tắc bắt buộc.
@@ -317,6 +331,16 @@ func (it *Item) Validate() []string {
 	// Bài học từ thất bại không có bằng chứng tệp: bằng chứng là các lượt (origin.runs).
 	if it.Origin.Kind == OriginAgent && len(it.Evidence) == 0 && !it.LessonFromRuns() {
 		add("evidence: mục do agent tạo phải có ít nhất một bằng chứng")
+	}
+	// Mục nhập từ bộ nhớ ngoài chưa được kiểm chứng: không có bằng chứng thì không có gì để kiểm.
+	if it.Origin.Kind == OriginImported && len(it.Evidence) == 0 {
+		add("evidence: mục imported phải có ít nhất một bằng chứng")
+	}
+	if it.Origin.Source != "" && !slices.Contains(ImportSources, it.Origin.Source) {
+		add("origin.source: %q không hợp lệ (%s)", it.Origin.Source, strings.Join(ImportSources, ", "))
+	}
+	if it.Origin.Source != "" && it.Origin.Kind != OriginImported {
+		add("origin.source: chỉ dùng cho mục imported")
 	}
 	if it.Status == StatusVerified && it.Type == TypeRule && it.ReviewedBy == "" && it.Origin.Kind != OriginHuman {
 		add("reviewed_by: quy tắc verified phải có người duyệt")

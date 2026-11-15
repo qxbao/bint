@@ -34,10 +34,11 @@ const (
 	subPublish
 	subSurvey
 	subContext
+	subImport
 	numSubs
 )
 
-var subNames = [numSubs]string{"list", "search", "stats", "diff", "revalidate", "publish", "survey", "context"}
+var subNames = [numSubs]string{"list", "search", "stats", "diff", "revalidate", "publish", "survey", "context", "import"}
 
 type pane int
 
@@ -968,6 +969,7 @@ var subOf = map[string]string{
 	"knowledge.search": "search", "knowledge.stats": "stats", "knowledge.diff": "diff", "knowledge.revalidate": "revalidate",
 	"bootstrap.publish": "publish", "bootstrap.publish_preview": "publish", "context": "context",
 	"inspect": "survey", "bootstrap": "survey", "bootstrap.skill": "survey",
+	"knowledge.import_preview": "import", "knowledge.import": "import",
 }
 
 // Command thực hiện hành động theo ID (từ bảng lệnh): mở thẻ phụ tương ứng hoặc làm như bấm phím tương đương.

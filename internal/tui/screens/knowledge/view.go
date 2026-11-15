@@ -409,6 +409,9 @@ func (m *Model) panelView(env ui.Env) string {
 		if m.sub == subPublish {
 			formH = 6
 		}
+		if m.sub == subImport {
+			formH = min(fields+4, 9)
+		}
 		fi, fh := frame.Inner(w, formH)
 		formBox = frame.Box{Title: m.t("kn.form.title"), TitleAt: frame.Left, Focused: p.inForm}.
 			Render(th, w, formH, p.form.View(env.WithSize(fi, fh), 0))
@@ -459,6 +462,9 @@ func (m *Model) panelFooter(env ui.Env, p *panel) []footer.Hint {
 		}
 		if m.sub == subPublish {
 			k("w", m.t("kn.publish.write"), "bootstrap.publish")
+		}
+		if m.sub == subImport {
+			k("w", m.t("kn.import.write"), "knowledge.import")
 		}
 		if m.sub == subSurvey {
 			k("m", m.t("kn.hint.mode"), "")

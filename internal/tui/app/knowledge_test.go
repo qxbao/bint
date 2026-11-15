@@ -231,11 +231,21 @@ func TestReadOnlyAndAgentNeverReachDo(t *testing.T) {
 	}
 }
 
+// Onboarding: NavMsg có KnowledgeSub mở đúng thẻ phụ của màn Tri thức (bước tiếp theo của báo cáo init → thẻ Nhập).
+func TestNavMsgOpensKnowledgeImportTab(t *testing.T) {
+	m := newModel(t, Options{Mode: theme.Mono}, sampleData(), 120, 36)
+	_, cmd := m.Update(overview.NavMsg{Screen: actions.Knowledge, KnowledgeSub: "import"})
+	drive(t, m, cmd)
+	if m.Tab() != 1 || m.kn.SubTab() != "Nhập" {
+		t.Fatalf("phải mở thẻ Nhập của màn Tri thức: tab=%d thẻ=%q", m.Tab(), m.kn.SubTab())
+	}
+}
+
 // Mọi hành động ghi mới khai báo Writes (chỉ đọc ẩn được) — các hành động của tầng dịch vụ chỉ-dành-cho-người
 // còn khai báo HumanOnly để TUI khoá kèm lý do.
 func TestWriteActionsAreDeclared(t *testing.T) {
 	humanOnly := []string{"knowledge.approve", "knowledge.approve_refresh", "knowledge.reject", "knowledge.deprecate", "knowledge.approve_batch",
-		"knowledge.reject_batch", "knowledge.verify_apply", "knowledge.revalidate"}
+		"knowledge.reject_batch", "knowledge.verify_apply", "knowledge.revalidate", "knowledge.import"}
 	writes := append([]string{"knowledge.edit", "knowledge.add", "knowledge.rm", "bootstrap.publish", "bootstrap"}, humanOnly...)
 	reg := actions.Default()
 	for _, id := range writes {
@@ -249,7 +259,7 @@ func TestWriteActionsAreDeclared(t *testing.T) {
 			t.Errorf("%s phải HumanOnly", id)
 		}
 	}
-	for _, id := range []string{"knowledge.search", "knowledge.stats", "knowledge.diff", "knowledge.verify", "bootstrap.publish_preview", "inspect", "context", "knowledge.plan_batch"} {
+	for _, id := range []string{"knowledge.search", "knowledge.stats", "knowledge.diff", "knowledge.verify", "bootstrap.publish_preview", "knowledge.import_preview", "inspect", "context", "knowledge.plan_batch"} {
 		if a, _ := reg.ByID(id); a.Writes {
 			t.Errorf("%s là hành động đọc, không được Writes", id)
 		}

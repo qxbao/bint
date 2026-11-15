@@ -371,3 +371,35 @@ func TestThirdPartyInput(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateImportedOrigin(t *testing.T) {
+	base := func() *Item {
+		return &Item{Schema: SchemaVersion, ID: ulid.New(), Type: TypeWarning, Status: StatusCandidate, Title: "t", Body: "b",
+			Origin: Origin{Kind: OriginImported, Source: ImportClaudeMemory, Inputs: []string{"claude-memory:x.md"}},
+			Evidence: []Evidence{{Path: "a.go", Lines: "1-2"}}, Version: 1}
+	}
+	if errs := base().Validate(); len(errs) != 0 {
+		t.Fatalf("mục imported hợp lệ bị báo lỗi: %v", errs)
+	}
+	noEv := base()
+	noEv.Evidence = nil
+	if errs := noEv.Validate(); len(errs) != 1 || !strings.Contains(errs[0], "imported") {
+		t.Fatalf("imported thiếu bằng chứng phải lỗi: %v", errs)
+	}
+	bad := base()
+	bad.Origin.Source = "url"
+	if errs := bad.Validate(); len(errs) != 1 || !strings.Contains(errs[0], "origin.source") {
+		t.Fatalf("source lạ phải lỗi: %v", errs)
+	}
+	human := base()
+	human.Origin.Kind = OriginHuman
+	if errs := human.Validate(); len(errs) != 1 || !strings.Contains(errs[0], "chỉ dùng cho mục imported") {
+		t.Fatalf("source trên mục không imported phải lỗi: %v", errs)
+	}
+	// Tệp cũ không có origin.source vẫn hợp lệ.
+	old := base()
+	old.Origin.Source = ""
+	if errs := old.Validate(); len(errs) != 0 {
+		t.Fatalf("mục imported không source (cũ) phải hợp lệ: %v", errs)
+	}
+}

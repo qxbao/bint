@@ -110,6 +110,8 @@ func TestHumanOnlyActionsRefuseAtServiceLayer(t *testing.T) {
 		"knowledge.reject_batch":     app.BatchOptions{Refs: ids, Reason: "x"},
 		"knowledge.verify_apply":     app.VerifyOptions{Apply: true},
 		"knowledge.revalidate":       app.RevalidateOptions{BudgetUSD: 1, AgentCommand: "true"},
+		"knowledge.import_preview":   app.ImportOptions{From: "claude-memory"},
+		"knowledge.import":           app.ImportOptions{From: "claude-memory"},
 		"tasks.approve":              app.TaskApproveOptions{Ref: "khong-co"},
 		"runs.rate":                  app.RunsRateOptions{Ref: "khong-co", Rating: "good"},
 		"evolve.propose":             evolvesvc.ProposeOptions{NoAgent: true},

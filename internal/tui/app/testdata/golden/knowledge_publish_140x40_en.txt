@@ -2,7 +2,7 @@
 │ Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System │ MCP                                                          │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Knowledge│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context                                                    │
+│   List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context · Import                                           │
 │ ┌─│Parameters│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
 │ │ ▸ Overwrite  [ ]                                                                                                                     │ │
 │ │                                                                                                                                      │ │

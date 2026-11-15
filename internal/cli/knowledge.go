@@ -44,7 +44,7 @@ Chỉ người mới duyệt được quy tắc bắt buộc (rule).`,
 		newKnowledgeRejectCmd(stdio, "deprecate", "Loại bỏ một mục (→ deprecated)"),
 		newKnowledgeRmCmd(stdio), newKnowledgeTransitionsCmd(stdio),
 		newKnowledgeSearchCmd(stdio), newKnowledgeStatsCmd(stdio), newKnowledgeDiffCmd(stdio),
-		newKnowledgeRevalidateCmd(stdio), newKnowledgeCiteCmd(stdio))
+		newKnowledgeRevalidateCmd(stdio), newKnowledgeCiteCmd(stdio), newKnowledgeImportCmd(stdio))
 	return c
 }
 
@@ -148,6 +148,87 @@ hiện; cờ khác ghi đè. Mục do agent đề xuất theo cách này vẫn �
 	f.StringVar(&o.FromReview, "from-review", "", "chuyển phát hiện review <task-id>.<n> thành mục warning/lesson")
 	f.MarkHidden("eval-case")
 	return c
+}
+
+func newKnowledgeImportCmd(stdio IO) *cobra.Command {
+	var (
+		o      app.ImportOptions
+		asJSON bool
+	)
+	c := &cobra.Command{
+		Use:   "import --from <nguồn>",
+		Short: "Nhập bộ nhớ của harness thành mục candidate; chỉ người dùng",
+		Long: `Nhập bộ nhớ sẵn có của harness thành mục tri thức candidate (origin: imported) để duyệt như mọi mục khác.
+Không gọi mô hình, không dùng mạng; chỉ người dùng chạy được (cả --dry-run), không chạy được từ phiên agent.
+
+Nguồn (--from):
+  claude-memory   $CLAUDE_CONFIG_DIR hoặc ~/.claude, projects/<tên dự án>/memory/*.md
+  codex-memory    $CODEX_HOME hoặc ~/.codex, memories/**/*.md
+  cursor-rules    .cursor/rules/**/*.mdc và .cursorrules trong repository
+  <tệp.md>        một tệp Markdown cục bộ (không nhận URL); --from file --path <tệp.md> cũng được
+--path chỉ thẳng thư mục hoặc tệp nguồn (khi tên dự án của Claude không khớp quy tắc đặt tên thư mục).
+
+Mỗi ý phải có bằng chứng: đường dẫn hoặc mã nội tuyến trong ý được đối chiếu với tệp của repository (tối đa 3 bằng chứng,
+có fingerprint). Bỏ qua, kèm lý do trong báo cáo: không có bằng chứng, trùng mục đã có (kể cả mục imported đã bị từ chối),
+ghi chú trạng thái công việc, bộ nhớ Claude loại user (riêng tư), MEMORY.md, nội dung do Bint sinh ra.
+Chạy lại không tạo mục mới. Mục nhập có nhãn lô nguon:import-<nguồn> để duyệt theo lô (bint knowledge review).`,
+		Example: `  bint knowledge import --from claude-memory --dry-run
+  bint knowledge import --from cursor-rules --type rule
+  bint knowledge import --from notes/lessons.md`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			k, err := openKnowledge(cmd)
+			if err != nil {
+				return err
+			}
+			res, err := app.ImportKnowledge(cmd.Context(), k, o)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, map[string]any{"dry_run": o.DryRun, "written": res.Written, "ids": nonNilStrings(res.IDs), "plan": res.Plan})
+			}
+			printImport(stdio.Out, res, o.DryRun)
+			return nil
+		},
+	}
+	f := c.Flags()
+	f.StringVar(&o.From, "from", "", "claude-memory | codex-memory | cursor-rules | đường dẫn tệp Markdown (bắt buộc)")
+	f.StringVar(&o.Path, "path", "", "thư mục hoặc tệp nguồn (ghi đè vị trí mặc định)")
+	f.StringVarP(&o.Type, "type", "t", "", "loại mục: rule | warning | pattern | fact | decision | lesson (mặc định theo nguồn, thường warning)")
+	f.BoolVar(&o.DryRun, "dry-run", false, "chỉ liệt kê từng ý và kết cục dự kiến, không ghi gì")
+	f.BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}
+
+func printImport(w io.Writer, res *app.ImportResult, dry bool) {
+	p := res.Plan
+	fmt.Fprintf(w, "Nguồn %s: %d tệp, %d ý\n", p.Source, p.Files, len(p.Ideas))
+	for _, i := range p.Ideas {
+		if i.Outcome == app.ImportCreate {
+			id := ""
+			if i.ID != "" {
+				id = " → " + i.ID
+			}
+			fmt.Fprintf(w, "  + tạo      %s: %s%s\n", i.Ref, i.Title, id)
+			fmt.Fprintf(w, "             bằng chứng: %s\n", strings.Join(i.Evidence, ", "))
+			continue
+		}
+		fmt.Fprintf(w, "  - bỏ qua   %s: %s [%s] %s\n", i.Ref, i.Title, i.Reason, i.Detail)
+	}
+	created := p.Count(app.ImportCreate)
+	switch {
+	case dry:
+		fmt.Fprintf(w, "Dự kiến: %d mục mới, %d ý bỏ qua. Chưa ghi gì (--dry-run).\n", created, len(p.Ideas)-created)
+	case res.Written:
+		fmt.Fprintf(w, "Đã ghi %d mục candidate (nhãn lô %s); %d ý bỏ qua.\n", len(res.IDs), p.Batch, len(p.Ideas)-created)
+		fmt.Fprintln(w, "Mục chờ người duyệt: bint knowledge review")
+	default:
+		fmt.Fprintf(w, "Không có mục mới để ghi (%d ý bỏ qua).\n", len(p.Ideas)-created)
+	}
 }
 
 func nonNilFindings(f []knowledge.Finding) []knowledge.Finding {

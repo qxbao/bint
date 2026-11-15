@@ -855,3 +855,120 @@ func TestReloadRequestedWhileLoadingIsNotLost(t *testing.T) {
 		t.Fatalf("phải nạp đúng 2 lần (1 + 1 yêu cầu dồn): %d, loading=%v", loads, h.m.Loading)
 	}
 }
+
+func importPlan(hash string, created int) app.ImportResult {
+	plan := app.ImportPlan{Source: "claude-memory", Batch: "nguon:import-claude-memory", Files: 3, Hash: hash,
+		Ideas: []app.ImportIdea{{Ref: "claude-memory:b.md", Title: "Không có gì", Outcome: app.ImportSkip, Reason: "no_evidence", Detail: "không thấy tệp"}}}
+	for i := 0; i < created; i++ {
+		plan.Ideas = append(plan.Ideas, app.ImportIdea{Ref: "claude-memory:a.md", Title: "Mở SQLite bằng OpenStore", Outcome: app.ImportCreate,
+			Type: "warning", Evidence: []string{"internal/db/db.go:3-5#OpenStore"}})
+	}
+	return app.ImportResult{Plan: plan}
+}
+
+// Thẻ Nhập hai bước: xem trước → w → xác nhận → ghi với băm đã xem; ghi xong chuyển sang danh sách lọc theo lô.
+func TestImportTabPreviewThenWriteFiltersBatch(t *testing.T) {
+	h := newHarness(t, sample(), Options{})
+	h.m.EnterSub("import")
+	h.key("esc") // rời form
+	h.key("w")
+	if h.m.dlg != nil || !strings.Contains(h.m.toast, "Xem trước") {
+		t.Fatalf("chưa xem trước thì không ghi được: %q", h.m.toast)
+	}
+	h.key("enter") // vào lại form
+	h.key("enter") // gửi: xem trước
+	r := h.lastReq()
+	io, ok := r.Opts.(app.ImportOptions)
+	if r.ID != "knowledge.import_preview" || !ok || io.From != "claude-memory" {
+		t.Fatalf("%+v", r)
+	}
+	h.result("knowledge.import_preview", r.Opts, importPlan("h1", 1), nil)
+	out := h.view(120, 30)
+	for _, want := range []string{"Nguồn claude-memory: 3 tệp, 2 ý", "Mở SQLite bằng OpenStore", "internal/db/db.go:3-5#OpenStore", "không có bằng chứng", "Nhấn w để ghi 1 mục"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("thiếu %q:\n%s", want, out)
+		}
+	}
+	h.key("w")
+	if h.m.dlg == nil {
+		t.Fatal("w phải mở hộp xác nhận")
+	}
+	h.key("enter")
+	r = h.lastReq()
+	io = r.Opts.(app.ImportOptions)
+	if r.ID != "knowledge.import" || io.Expect != "h1" || io.DryRun {
+		t.Fatalf("bước ghi phải mang băm đã xem: %+v", r)
+	}
+	// Kế hoạch lúc ghi khác bản đã xem: không ghi, hiện kế hoạch mới kèm cảnh báo; lần ghi sau so với băm mới.
+	res := importPlan("h2", 2)
+	res.Mismatch = true
+	h.result("knowledge.import", r.Opts, res, nil)
+	if out = h.view(120, 30); !strings.Contains(out, "Kế hoạch lúc ghi khác bản đã xem") || !strings.Contains(out, "Nhấn w để ghi 2 mục") {
+		t.Fatalf("thiếu cảnh báo kế hoạch đổi:\n%s", out)
+	}
+	if h.m.sub != subImport {
+		t.Fatal("kế hoạch lệch thì ở lại thẻ Nhập")
+	}
+	h.key("w")
+	h.key("enter")
+	r = h.lastReq()
+	if io = r.Opts.(app.ImportOptions); io.Expect != "h2" {
+		t.Fatalf("lần ghi sau phải theo băm mới: %+v", io)
+	}
+	done := importPlan("h2", 2)
+	done.Written = true
+	done.IDs = []string{"01AAAAAAAAAAAAAAAAAAAAAAAA", "01BBBBBBBBBBBBBBBBBBBBBBBB"}
+	for i := range done.Plan.Ideas {
+		if done.Plan.Ideas[i].Outcome == app.ImportCreate {
+			done.Plan.Ideas[i].ID = done.IDs[0]
+		}
+	}
+	h.result("knowledge.import", r.Opts, done, nil)
+	if h.m.sub != subList || h.m.Filter().Batch != "nguon:import-claude-memory" {
+		t.Fatalf("ghi xong phải lọc danh sách theo lô: sub=%d filter=%+v", h.m.sub, h.m.Filter())
+	}
+	if !strings.Contains(h.m.toast, "Đã nhập 2 mục") {
+		t.Fatalf("toast = %q", h.m.toast)
+	}
+}
+
+func TestImportTabNothingToWriteAndReadOnly(t *testing.T) {
+	h := newHarness(t, sample(), Options{})
+	h.m.EnterSub("import")
+	h.key("enter")
+	r := h.lastReq()
+	h.result("knowledge.import_preview", r.Opts, importPlan("h0", 0), nil)
+	if !strings.Contains(h.view(120, 30), "Không có mục mới để nhập") {
+		t.Fatal("thiếu thông báo không có gì để nhập")
+	}
+	h.key("w")
+	if h.m.dlg != nil || !strings.Contains(h.m.toast, "không có mục mới") {
+		t.Fatalf("w phải bị chặn: dlg=%v toast=%q", h.m.dlg, h.m.toast)
+	}
+
+	// Chế độ chỉ đọc: hành động ghi bị ẩn, w không mở hộp và không gửi yêu cầu ghi.
+	ro := newHarness(t, sample(), Options{Gate: func(id string) actions.Availability {
+		if id == "knowledge.import" {
+			return actions.Hidden
+		}
+		return actions.Available
+	}})
+	ro.m.EnterSub("import")
+	ro.key("enter")
+	r = ro.lastReq()
+	ro.result("knowledge.import_preview", r.Opts, importPlan("h1", 1), nil)
+	n := len(ro.reqs)
+	ro.key("w")
+	if ro.m.dlg != nil || len(ro.reqs) != n || !strings.Contains(ro.m.toast, "chỉ đọc") {
+		t.Fatalf("chỉ đọc: dlg=%v reqs=%d toast=%q", ro.m.dlg, len(ro.reqs)-n, ro.m.toast)
+	}
+	hide := func(id string) bool { return id != "knowledge.import" }
+	for name, allow := range map[string]func(string) bool{"đủ quyền": nil, "chỉ đọc": hide} {
+		env := ro.env(120, 30)
+		env.Allowed = allow
+		hasW := strings.Contains(ansi.Strip(ro.m.View(env)), "w Nhập")
+		if hasW != (name == "đủ quyền") {
+			t.Errorf("%s: phím w ở chân = %v", name, hasW)
+		}
+	}
+}

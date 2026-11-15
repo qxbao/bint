@@ -2,7 +2,7 @@
 │ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                     │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Tri thức│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Danh sách · Tìm kiếm · Thống kê · Thay đổi · Thẩm định lại · Xuất bản AGENTS.md · Khảo sát · Ngữ cảnh                                  │
+│   Danh sách · Tìm kiếm · Thống kê · Thay đổi · Thẩm định lại · Xuất bản AGENTS.md · Khảo sát · Ngữ cảnh · Nhập                           │
 │ ┌─│Danh sách (5/6)│───────────────mọi mục còn hiệu lực─┐┌─│Chi tiết│───────────────────────────────────────────────────────────────────┐ │
 │ │     ◌ ⚑ rule     Endpoint phải có /v1 api/**         ││ 01KNOW000002                                                                 │ │
 │ │ ▸   ◌ ⚑ warning  Không gọi sql.Open … internal/db/** ││ ◌ warning · candidate · agent ⚑                                              │ │

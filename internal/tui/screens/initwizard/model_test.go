@@ -139,6 +139,14 @@ func TestNavForMapsNextSteps(t *testing.T) {
 			t.Errorf("%q → %+v", s, n)
 		}
 	}
+	// Dòng nhập bộ nhớ đưa tới thẻ Nhập của màn Tri thức (kể cả khi dòng đó cũng nhắc duyệt).
+	imp := NavFor("Nhập bộ nhớ harness đã có (claude-memory: 5 tệp): bint knowledge import --from claude-memory --dry-run, rồi `bint knowledge review`")
+	if imp == nil || imp.Screen != actions.Knowledge || imp.KnowledgeSub != "import" {
+		t.Errorf("dòng nhập phải tới thẻ Nhập: %+v", imp)
+	}
+	if n := NavFor("Bootstrap tri thức: … rồi `bint knowledge review` và …"); n == nil || n.KnowledgeSub != "" {
+		t.Errorf("dòng duyệt không mở thẻ Nhập: %+v", n)
+	}
 	if NavFor("Xác nhận lệnh kiểm thử: điền eval.test_command") != nil || NavFor("Commit .bint/config.yml") != nil {
 		t.Error("bước không có ánh xạ chỉ hiện chữ")
 	}

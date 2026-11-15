@@ -12,6 +12,7 @@ import (
 	"bint/internal/i18n"
 	"bint/internal/inspect"
 	"bint/internal/kindex"
+	kn "bint/internal/knowledge"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/components/confirm"
 	"bint/internal/tui/components/form"
@@ -39,6 +40,9 @@ type panel struct {
 	lastDiff    string
 	lastChanged bool // bản xem trước (hoặc lần ghi bị từ chối gần nhất) có thay đổi để ghi
 	lastOpts    any
+	// Nhập: băm kế hoạch đã xem và số mục sẽ tạo; bước ghi chỉ chạy khi kế hoạch lúc ghi trùng băm này.
+	lastHash   string
+	lastCreate int
 }
 
 func inputOf(s string) *input.Model { i := input.New(s); return &i }
@@ -61,6 +65,7 @@ func (m *Model) initPanels() {
 	m.pnls[subDiff].inForm = false
 	m.pnls[subRevalidate] = newPanel("knowledge.revalidate", "knowledge.revalidate", "knowledge revalidate", app.RevalidateDefaults(cfg), false)
 	m.pnls[subPublish] = newPanel("bootstrap.publish_preview", "bootstrap.publish", "bootstrap publish", app.PublishDefaults(cfg, "."), false)
+	m.pnls[subImport] = newPanel("knowledge.import_preview", "knowledge.import", "knowledge import", app.ImportDefaults(cfg), false)
 	m.pnls[subContext] = newPanel("context", "context", "context", app.ContextDefaults(cfg), false)
 	m.surv = [3]*panel{
 		newPanel("inspect", "inspect", "inspect", app.InspectDefaults(cfg), false),
@@ -98,7 +103,8 @@ func (m *Model) cur() *panel {
 
 func (m *Model) panelFor(id string) *panel {
 	for _, p := range m.allPanels() {
-		if p.action == id || (id == "bootstrap.publish" && p.action == "bootstrap.publish_preview") {
+		if p.action == id || (id == "bootstrap.publish" && p.action == "bootstrap.publish_preview") ||
+			(id == "knowledge.import" && p.action == "knowledge.import_preview") {
 			return p
 		}
 	}
@@ -124,7 +130,7 @@ func (m *Model) runPanel(p *panel, opts any) tea.Cmd {
 		return nil
 	}
 	p.running, p.ran, p.err, p.inForm = true, true, nil, false
-	if p.action == "bootstrap.publish_preview" {
+	if p.action == "bootstrap.publish_preview" || p.action == "knowledge.import_preview" {
 		p.lastOpts = opts
 	}
 	return request(p.action, opts)
@@ -185,8 +191,11 @@ func (m *Model) panelKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		}
 		return nil, false
 	case "w":
-		if m.sub == subPublish {
+		switch m.sub {
+		case subPublish:
 			return m.confirmPublish(p), true
+		case subImport:
+			return m.confirmImport(p), true
 		}
 		return nil, false
 	default:
@@ -241,6 +250,32 @@ func (m *Model) confirmPublish(p *panel) tea.Cmd {
 		onYes: func(string) tea.Cmd {
 			p.running, p.err = true, nil
 			return request("bootstrap.publish", opts)
+		}}
+	return nil
+}
+
+// confirmImport mở hộp xác nhận ghi các mục nhập sau khi người dùng đã xem trước (bước hai). Ghi chỉ chạy khi kế hoạch dựng lại
+// lúc ghi có băm trùng bản đã xem (Expect); lệch thì dịch vụ không ghi và màn hình hiện kế hoạch mới.
+func (m *Model) confirmImport(p *panel) tea.Cmd {
+	if !m.allowed("knowledge.import") {
+		return nil
+	}
+	opts, ok := p.lastOpts.(app.ImportOptions)
+	if !ok || !p.ran {
+		m.setToast(m.t("kn.import.preview_first"), true)
+		return nil
+	}
+	if p.lastCreate == 0 {
+		m.setToast(m.t("kn.import.nothing_to_write"), true)
+		return nil
+	}
+	opts.Expect, opts.DryRun = p.lastHash, false
+	body := []string{m.t("kn.import.confirm", i18n.A{"count": p.lastCreate}), "", m.th.S(theme.Muted, m.t("kn.import.confirm_note"))}
+	m.dlg = &dialog{c: confirm.Model{Title: m.t("kn.import.title"), Body: body,
+		YesLabel: m.t("kn.import.write"), NoLabel: m.t("kn.dialog.cancel")},
+		onYes: func(string) tea.Cmd {
+			p.running, p.err = true, nil
+			return request("knowledge.import", opts)
 		}}
 	return nil
 }
@@ -310,6 +345,13 @@ func (m *Model) panelResult(p *panel, r actions.ResultMsg) tea.Cmd {
 		add("", m.t("kn.revalidate.spent", i18n.A{"usd": fmt.Sprintf("%.4f", v.SpentUSD)}), th.S(theme.Muted, m.t("kn.revalidate.hint")))
 	case app.PublishReport:
 		l = m.publishLines(p, r, v)
+	case app.ImportResult:
+		var focus tea.Cmd
+		l, focus = m.importLines(p, r, v)
+		p.lines = l
+		p.view.SetLines(l)
+		p.view.Reset()
+		return focus
 	case *inspect.Report:
 		l = m.inspectLines(v)
 	case *app.BootstrapReport:
@@ -359,6 +401,63 @@ func (m *Model) publishLines(p *panel, r actions.ResultMsg, rep app.PublishRepor
 		l = append(l, "", th.S(theme.Muted, m.t("kn.publish.unchanged")))
 	}
 	return l
+}
+
+// importLines dựng kết quả của thẻ Nhập. Ghi xong thì chuyển sang danh sách lọc theo lô vừa nhập để duyệt.
+func (m *Model) importLines(p *panel, r actions.ResultMsg, res app.ImportResult) ([]string, tea.Cmd) {
+	th := m.th
+	plan := res.Plan
+	real := r.ID == "knowledge.import"
+	var l []string
+	if res.Mismatch {
+		l = append(l, th.S(theme.Warn, "! "+m.t("kn.import.plan_changed")), "")
+	}
+	l = append(l, th.Bold(m.t("kn.import.head", i18n.A{"source": plan.Source, "files": plan.Files, "ideas": len(plan.Ideas)})), "")
+	for _, i := range plan.Ideas {
+		if i.Outcome == app.ImportCreate {
+			id := ""
+			if i.ID != "" {
+				id = " → " + short(i.ID)
+			}
+			l = append(l, th.S(theme.OK, "+ ")+i.Title+th.S(theme.Muted, "  ("+i.Ref+")")+id)
+			l = append(l, "    "+th.S(theme.Muted, m.t("kn.import.evidence")+": "+strings.Join(i.Evidence, ", ")))
+			continue
+		}
+		l = append(l, th.S(theme.Muted, "- "+i.Title+"  ("+i.Ref+")"))
+		l = append(l, "    "+th.S(theme.Warn, m.reasonText(i.Reason))+th.S(theme.Muted, " — "+m.cli(i.Detail)))
+	}
+	create := plan.Count(app.ImportCreate)
+	// Kế hoạch vừa hiện là bản để xem lại: lần ghi kế tiếp so với băm của nó. Ghi xong thì không còn gì để ghi.
+	p.lastHash, p.lastCreate = plan.Hash, create
+	if res.Written {
+		p.lastCreate = 0
+	}
+	var focus tea.Cmd
+	switch {
+	case real && res.Written:
+		l = append(l, "", th.S(theme.OK, "✓ "+m.t("kn.import.written", i18n.A{"count": len(res.IDs), "batch": plan.Batch})))
+		m.setToast(m.t("kn.import.written", i18n.A{"count": len(res.IDs), "batch": plan.Batch}), false)
+		focus = m.Focus(kn.Filter{Batch: plan.Batch, Statuses: []string{kn.StatusCandidate, kn.StatusStale}})
+	case create > 0:
+		l = append(l, "", th.S(theme.Key, m.t("kn.import.press_w", i18n.A{"count": create})))
+	default:
+		l = append(l, "", th.S(theme.Muted, m.t("kn.import.none")))
+	}
+	return l, focus
+}
+
+// reasonText là nhãn của lý do bỏ qua một ý nhập; khoá liệt kê tường minh để kiểm tra khoá i18n thấy được chúng.
+func (m *Model) reasonText(reason string) string {
+	keys := map[string]string{
+		"no_evidence": "kn.import.reason.no_evidence", "duplicate": "kn.import.reason.duplicate",
+		"already_imported": "kn.import.reason.already_imported", "work_state": "kn.import.reason.work_state",
+		"private": "kn.import.reason.private", "bint_derived": "kn.import.reason.bint_derived",
+		"index_file": "kn.import.reason.index_file", "check_failed": "kn.import.reason.check_failed",
+	}
+	if k, ok := keys[reason]; ok {
+		return m.t(k)
+	}
+	return reason
 }
 
 func stepIcon(s app.StepStatus) string {

@@ -427,9 +427,11 @@ func (m *Model) doneKey(s string) (tea.Cmd, bool) {
 }
 
 // NavFor ánh xạ một dòng "bước tiếp theo" của báo cáo sang màn hình tương ứng (nil = chỉ là chữ): doctor → Hệ thống › Doctor,
-// runs list → Lượt chạy, knowledge review → Tri thức.
+// runs list → Lượt chạy, knowledge import → Tri thức › Nhập, knowledge review → Tri thức.
 func NavFor(step string) *overview.NavMsg {
 	switch {
+	case strings.Contains(step, "bint knowledge import"): // trước "knowledge review": dòng nhập cũng nhắc duyệt
+		return &overview.NavMsg{Screen: actions.Knowledge, KnowledgeSub: "import"}
 	case strings.Contains(step, "bint doctor"):
 		return &overview.NavMsg{Screen: actions.System, SystemTab: "doctor"}
 	case strings.Contains(step, "bint runs list"):

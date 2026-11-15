@@ -58,6 +58,7 @@ var cliRefs = []cliRef{
 	{path: "knowledge diff", id: "knowledge.diff", tab: "kn.sub.diff", tabOnly: true},
 	{path: "knowledge revalidate", id: "knowledge.revalidate", tab: "kn.sub.revalidate", tabOnly: true},
 	{path: "bootstrap publish", id: "bootstrap.publish_preview", tab: "kn.sub.publish", tabOnly: true},
+	{path: "knowledge import", id: "knowledge.import_preview", tab: "kn.sub.import", tabOnly: true},
 	{path: "bootstrap", id: "bootstrap", tab: "kn.sub.survey", tabOnly: true},
 	{path: "inspect", id: "inspect", tab: "kn.sub.survey", tabOnly: true},
 	{path: "context", id: "context", tab: "kn.sub.context", tabOnly: true},

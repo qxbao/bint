@@ -2,7 +2,7 @@
 │ TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                             │
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Tri thức│───────────────────────────────────────────────────────────────────┐
-│  ‹  Danh sách  1/8 ›                                                         │
+│  ‹  Danh sách  1/9 ›                                                         │
 │ ┌─│Danh sách (5/6)│───────────────────────────────────mọi mục còn hiệu lực─┐ │
 │ │ ▸   ◌ ⚑ rule     Endpoint phải có /v1                     api/**         │ │
 │ │     ◌ ⚑ warning  Không gọi sql.Open trực tiếp             internal/db/** │ │
