@@ -91,6 +91,35 @@ jobs:
           CGO_ENABLED: "1"
         run: go test -race -count=1 -timeout 20m ./...
 
+  # go vet/staticcheck với GOOS=windows chỉ bắt lỗi biên dịch; lỗi hành vi riêng của Windows (tiến trình bị giết trả
+  # "exit status 1", CRLF, khoá LockFileEx, git chậm làm lộ race) chỉ thấy khi chạy test trên Windows thật.
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Môi trường
+        shell: bash
+        run: |
+          go version
+          git --version
+          git config --global user.name "bint-ci"
+          git config --global user.email "bint-ci@users.noreply.github.com"
+
+      # Không -race (cần CGO và gcc, runner Windows không có sẵn). Gói internal/workflow mất khoảng 10 phút trên
+      # Windows nên hạn mỗi gói là 30 phút, không dùng mặc định 10 phút của go test.
+      - name: go test
+        shell: bash
+        run: go test -count=1 -timeout 30m ./...
+
   build:
     name: Build (đa nền tảng)
     runs-on: ubuntu-24.04
