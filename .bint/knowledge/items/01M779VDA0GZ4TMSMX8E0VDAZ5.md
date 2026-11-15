@@ -9,7 +9,7 @@ scope:
     - internal/workflow/run.go
 evidence:
   - path: internal/workflow/run.go
-    lines: "340"
+    lines: "592"
     fingerprint: lines:d439d21b32589415
 origin:
   kind: agent

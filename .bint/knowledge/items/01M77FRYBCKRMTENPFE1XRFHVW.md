@@ -9,7 +9,7 @@ scope:
     - internal/eval/codex_read_tools.go
 evidence:
   - path: internal/eval/codex_read_tools.go
-    lines: "80"
+    lines: "85"
     fingerprint: lines:54253a7017434466
 origin:
   kind: agent
