@@ -38,6 +38,17 @@ var templateFixes = strings.NewReplacer("%!k(MISSING)hông", "% không")
 // Claude, harnesses.<h>.model với Codex/Antigravity) mà chưa có khối models thì khối
 // models được thêm với giá trị rỗng, để model chung đó vẫn dùng cho mọi role.
 func Upgrade(old []byte) (UpgradeResult, error) {
+	return UpgradeWith(old, UpgradeSuggestions{})
+}
+
+// UpgradeSuggestions là các lệnh phát hiện được ở repository, được thêm như khoá suggested_* còn thiếu khi nâng.
+type UpgradeSuggestions struct {
+	// AffectedCommand: đề xuất cho workflow.verify.affected_command; bỏ qua khi người dùng đã đặt affected_command.
+	AffectedCommand string
+}
+
+// UpgradeWith như Upgrade, kèm đề xuất sug.
+func UpgradeWith(old []byte, sug UpgradeSuggestions) (UpgradeResult, error) {
 	res := UpgradeResult{Content: old}
 	cur := Default()
 	if err := Decode(bytes.NewReader(old), &cur); err != nil {
@@ -52,6 +63,9 @@ func Upgrade(old []byte) (UpgradeResult, error) {
 	}
 	p := InitParams{ProjectName: cur.Project.Name, Harnesses: cur.Harnesses.Enabled, DefaultHarness: cur.Harnesses.Default,
 		KeepGenericModel: genericModels(cur)}
+	if cur.Workflow.Verify.AffectedCommand == "" {
+		p.SuggestedAffectedCommand = sug.AffectedCommand
+	}
 	tmplText := Render(p)
 	var tmpl yaml.Node
 	if err := yaml.Unmarshal([]byte(tmplText), &tmpl); err != nil {

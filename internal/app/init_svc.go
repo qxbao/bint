@@ -358,7 +358,13 @@ func readUpgrade(cfgRoot string) (config.UpgradeResult, error) {
 	if err != nil {
 		return config.UpgradeResult{}, err
 	}
-	return config.Upgrade(old)
+	return upgradeWithSuggestions(old, cfgRoot)
+}
+
+// upgradeWithSuggestions nâng cấu hình như config.Upgrade, kèm các lệnh phát hiện được ở cfgRoot (hiện chỉ
+// workflow.verify.suggested_affected_command, thêm khi khoá còn thiếu và affected_command chưa đặt).
+func upgradeWithSuggestions(old []byte, cfgRoot string) (config.UpgradeResult, error) {
+	return config.UpgradeWith(old, config.UpgradeSuggestions{AffectedCommand: detect.SuggestCommands(cfgRoot).Affected})
 }
 
 // PlanChange là loại thay đổi của một mục trong kế hoạch.
@@ -617,7 +623,7 @@ func PlanConfigUpgrade(ctx context.Context, dir string) (ConfigUpgradePlan, erro
 	if err != nil {
 		return pl, err
 	}
-	up, err := config.Upgrade(old)
+	up, err := upgradeWithSuggestions(old, cfgRoot)
 	if err != nil {
 		return pl, fmt.Errorf("nâng %s: %w", pl.Path, err)
 	}

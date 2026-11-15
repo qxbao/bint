@@ -13,6 +13,8 @@ type InitParams struct {
 	DefaultHarness        string
 	SuggestedTestCommand  string
 	SuggestedSetupCommand string
+	// SuggestedAffectedCommand: lệnh đề xuất cho workflow.verify.affected_command (chỉ ghi khi khác rỗng).
+	SuggestedAffectedCommand string
 	// KeepGenericModel: harness → khoá model chung đã đặt tay; khối models của harness đó
 	// được để trống (chỉ dùng khi nâng cấu hình cũ, Upgrade).
 	KeepGenericModel map[string]string
@@ -177,7 +179,11 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   verify:                   # phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (cổng done và bint task verify luôn chạy đầy đủ)
     scope: full             # full (chạy verify.command của phiếu) | affected (chỉ chạy test bị ảnh hưởng bởi thay đổi; thay đổi lạ thì tự nới ra full)
     affected_command: ""    # lệnh cho scope affected, có {test_dirs} hoặc {test_files}, ví dụ "go test -count=1 {test_dirs}"
-  worktree:                # chỉ dùng khi tác vụ chạy trong worktree riêng
+`)
+	if p.SuggestedAffectedCommand != "" {
+		w("    suggested_affected_command: %s   # phát hiện khi init, chưa xác nhận: chép sang affected_command và đặt scope: affected để bật\n", quote(p.SuggestedAffectedCommand))
+	}
+	w(`  worktree:                # chỉ dùng khi tác vụ chạy trong worktree riêng
     copy: []                # glob (tương đối với gốc repo) của tệp bị gitignore cần chép vào worktree, ví dụ [".env", "config/*.local.json"]
     setup_command: ""       # chạy trong worktree mới tạo, ví dụ "npm ci"; lỗi thì tác vụ failed
   agent:

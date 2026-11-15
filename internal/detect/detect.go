@@ -127,9 +127,12 @@ func lookPath(name string) string {
 
 // Commands là lệnh kiểm thử và dựng môi trường đề xuất.
 type Commands struct {
-	Test   string
-	Setup  string
-	Reason string // tệp làm căn cứ
+	Test  string
+	Setup string
+	// Affected: lệnh cho workflow.verify.scope affected (có {test_dirs}); chỉ có khi ngôn ngữ được internal/affected
+	// hỗ trợ (hiện là Go).
+	Affected string
+	Reason   string // tệp làm căn cứ
 }
 
 func exists(root, name string) bool {
@@ -142,7 +145,7 @@ func exists(root, name string) bool {
 func SuggestCommands(root string) Commands {
 	switch {
 	case exists(root, "go.mod"):
-		return Commands{Test: "go test ./...", Setup: "go mod download", Reason: "go.mod"}
+		return Commands{Test: "go test ./...", Setup: "go mod download", Affected: "go test -count=1 {test_dirs}", Reason: "go.mod"}
 	case exists(root, "package.json"):
 		pm := "npm"
 		switch {

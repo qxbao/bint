@@ -81,5 +81,13 @@ func TestSuggestCommands(t *testing.T) {
 		if got.Test != c.test || got.Setup != c.setup {
 			t.Errorf("%v: got %+v", c.files, got)
 		}
+		// Chỉ Go có nguồn ảnh hưởng (internal/affected) nên chỉ Go có lệnh affected đề xuất.
+		wantAffected := ""
+		if _, ok := c.files["go.mod"]; ok {
+			wantAffected = "go test -count=1 {test_dirs}"
+		}
+		if got.Affected != wantAffected {
+			t.Errorf("%v: Affected = %q, muốn %q", c.files, got.Affected, wantAffected)
+		}
 	}
 }

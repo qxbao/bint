@@ -193,3 +193,40 @@ func TestUpgradeAddsUILanguage(t *testing.T) {
 		t.Fatalf("không được chèn lại: %v %v", err, mine.Added)
 	}
 }
+
+// Đề xuất affected_command: init ghi khoá suggested (không bật scope); Upgrade thêm khi thiếu và affected_command
+// chưa đặt, bỏ qua khi người dùng đã đặt lệnh.
+func TestSuggestedAffectedCommand(t *testing.T) {
+	const sug = "go test -count=1 {test_dirs}"
+	out := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}, SuggestedAffectedCommand: sug})
+	cfg := Default()
+	if err := Decode(strings.NewReader(out), &cfg); err != nil {
+		t.Fatalf("decode: %v\n%s", err, out)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	v := cfg.Workflow.Verify
+	if v.SuggestedAffectedCommand == nil || *v.SuggestedAffectedCommand != sug {
+		t.Fatalf("suggested_affected_command = %v", v.SuggestedAffectedCommand)
+	}
+	if v.Scope != VerifyScopeFull || v.AffectedCommand != "" {
+		t.Fatalf("init không được bật affected: %+v", v)
+	}
+
+	plain := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}})
+	res, err := UpgradeWith([]byte(plain), UpgradeSuggestions{AffectedCommand: sug})
+	if err != nil || !res.Changed() || !strings.Contains(string(res.Content), "suggested_affected_command: \""+sug+"\"") {
+		t.Fatalf("Upgrade phải thêm đề xuất: changed=%v err=%v\n%s", res.Changed(), err, res.Content)
+	}
+	again, err := UpgradeWith(res.Content, UpgradeSuggestions{AffectedCommand: sug})
+	if err != nil || again.Changed() {
+		t.Fatalf("lần hai phải không đổi: changed=%v err=%v", again.Changed(), err)
+	}
+
+	set := strings.Replace(plain, `affected_command: ""`, `affected_command: "go test {test_files}"`, 1)
+	res, err = UpgradeWith([]byte(set), UpgradeSuggestions{AffectedCommand: sug})
+	if err != nil || res.Changed() {
+		t.Fatalf("đã đặt affected_command thì không thêm đề xuất: changed=%v err=%v added=%v", res.Changed(), err, res.Added)
+	}
+}

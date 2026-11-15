@@ -417,6 +417,9 @@ type WorkflowVerify struct {
 	// AffectedCommand là lệnh chạy khi Scope=affected; {test_dirs}/{test_files} được thay bằng test bị ảnh hưởng,
 	// ví dụ "go test -count=1 {test_dirs}". Chỉ dùng khi verify.command của phiếu đã được người xác nhận.
 	AffectedCommand string `yaml:"affected_command"`
+	// SuggestedAffectedCommand: lệnh `bint init` đề xuất cho AffectedCommand (chưa xác nhận, Bint không dùng). Người
+	// dùng chép sang affected_command và đặt scope affected để bật.
+	SuggestedAffectedCommand *string `yaml:"suggested_affected_command,omitempty"`
 }
 
 // Giá trị của workflow.isolation.
