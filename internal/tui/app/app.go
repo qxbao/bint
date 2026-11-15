@@ -189,6 +189,8 @@ type Model struct {
 	dataWatch                                         *bintapp.DataWatch
 	dataSig                                           uint64
 	dataSigSet, dataLoading, dataTicking, dataPending bool
+	// dataRebase: có mẫu chữ ký lấy trong lúc Tổng quan đang nạp; mẫu đầu tiên sau khi nạp xong chỉ ghi nền.
+	dataRebase bool
 
 	pal      *palette.Model
 	showHelp bool
@@ -408,6 +410,8 @@ type dataSigMsg struct {
 	sig   uint64
 	watch *bintapp.DataWatch
 	ok    bool
+	// duringLoad: mẫu bắt đầu lấy khi Tổng quan đang nạp.
+	duringLoad bool
 }
 
 // startDataPoll hẹn lượt thăm dò dữ liệu đầu tiên (không chồng: đã hẹn hoặc đang tính thì thôi).
@@ -425,7 +429,7 @@ func (m *Model) sampleData() tea.Cmd {
 		return nil
 	}
 	m.dataLoading = true
-	ctx, dir, w := m.ctx, m.opts.Dir, m.dataWatch
+	ctx, dir, w, busy := m.ctx, m.opts.Dir, m.dataWatch, m.ov.Loading
 	return func() tea.Msg {
 		if w == nil {
 			nw, ok := bintapp.ResolveDataWatch(ctx, dir)
@@ -434,7 +438,7 @@ func (m *Model) sampleData() tea.Cmd {
 			}
 			w = &nw
 		}
-		return dataSigMsg{sig: w.Signature(), watch: w, ok: true}
+		return dataSigMsg{sig: w.Signature(), watch: w, ok: true, duringLoad: busy}
 	}
 }
 
@@ -457,6 +461,18 @@ func (m *Model) onDataSig(msg dataSigMsg) (tea.Model, tea.Cmd) {
 	m.dataWatch = msg.watch
 	if !m.dataSigSet {
 		m.dataSig, m.dataSigSet = msg.sig, true // lần đầu chỉ ghi nền
+		return m, next
+	}
+	// Chính lần nạp Tổng quan ghi vào dữ liệu được theo dõi (mở SQLite tạo rồi xoá state.sqlite-wal, nạp spool): mẫu lấy
+	// trong lúc nạp thấy trạng thái tạm, so với nền sẽ báo đổi và kích lần nạp kế — vòng lặp không dứt khi lần nạp chậm
+	// (kiểm thử -race). Bỏ qua các mẫu đó và lấy nền mới từ mẫu đầu tiên sau khi nạp xong; thay đổi từ ngoài đúng lúc
+	// đang nạp vì thế chỉ được thấy ở lần đổi kế tiếp.
+	if msg.duringLoad || m.ov.Loading {
+		m.dataRebase = true
+		return m, next
+	}
+	if m.dataRebase {
+		m.dataRebase, m.dataSig = false, msg.sig
 		return m, next
 	}
 	if msg.sig != m.dataSig {

@@ -36,11 +36,6 @@ Khi làm việc với `**/*_test.go`:
   `testutil.Isolate` chỉ xoá CLAUDE_CODE_SESSION_ID/BINT_RUN_ID/BINT_TASK_ID/BINT_APPROVED_PATHS, KHÔNG xoá các biến trên. Kiểm thử đóng vai người phải gọi `asHuman(t)` (hoặc đặt rỗng từng biến); nếu không, test qua trên CI nhưng hỏng khi agent chạy `go test`.
   Danh sách biến bị chép tay trong `internal/cli/knowledge_e2e_test.go` và `internal/evolve/evolve_test.go`: thêm biến vào `agentEnvVars` thì sửa cả hai.
 
-Khi làm việc với `internal/**/*_test.go`:
-
-- **go test ./... (có test cache, không -count=1) trên Windows treo hàng chục phút, go.exe không tiến trình con, không in g…** [k:01M7D6WA84MDN32JHM21VZWQ5H]
-  go test ./... (có test cache, không -count=1) trên Windows treo hàng chục phút, go.exe không tiến trình con, không in gì: trước khi chạy mỗi gói, go.exe đọc testlog của lần trước và băm từng dòng stat/open; đường dẫn ngoài module bị filepath.EvalSymlinks hai lần (search.InDir). Mỗi exec.Command('git') gọi LookPath, sinh ~số thư mục PATH x số đuôi PATHEXT dòng stat, nên testlog của internal/tui/app ~477 nghìn dòng (~7000 lần LookPath git), internal/app ~357 nghìn; 56 nghìn dòng đã tốn ~17s mỗi lượt băm. Đo bằng -count=1 sẽ không tái hiện vì cờ này tắt test cache và testlog. Lệnh kiểm chứng nên dùng go test -count=1 ./..., hoặc giảm số lần LookPath git trong test.
-
 Khi làm việc với `internal/**/*_test.go`, `internal/testutil/**`:
 
 - **Git for Windows đặt core.autocrlf=true ở cấu hình hệ thống. testutil.Git chạy với GIT_CONFIG_NOSYSTEM=1 nhưng lệnh git …** [k:01M7B2GCBFCZEE8D2F84FDC8BR]
@@ -84,4 +79,9 @@ Khi làm việc với `internal/eval/**`, `internal/cli/**`:
 
 - **go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượ…** [k:01M768KJEYSVTCQEJ3JAX3E7S2]
   go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượng đĩa' khi còn dưới ngưỡng eval.min_free_mb (mặc định 1024). Đĩa đầy thì dọn bộ đệm build (go clean -cache) trước khi chạy; lỗi này không liên quan mã đang sửa.
+
+Khi làm việc với `internal/eval/*_test.go`:
+
+- **Fixture dùng chính binary test cần tính thời gian thoát của race detector** [k:01M78968T95MDQSK472NC5XQT9]
+  TestRestrictedRPCProfileCleanupAndRejectsUnknownTools gọi lại binary kiểm thử để đọc catalog trước khi mở app-server. Với go test -race, tiến trình catalog mặc định chờ khoảng 1 giây khi thoát; hạn tổng 1 giây có thể hết trước khi fixture RPC khởi động. Dành đủ hạn cho cả khởi tạo và probe, đồng thời xác nhận đã tới lượt RPC bị chặn để không kiểm nhầm timeout ở giai đoạn khởi tạo.
 <!-- bint:end -->

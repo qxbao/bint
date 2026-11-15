@@ -24,6 +24,16 @@ func samePath(a, b string) bool {
 	return a == b
 }
 
+// canonPath giải symlink (và trên Windows tên ngắn 8.3) để so đường dẫn: thư mục trạng thái có thể đi qua symlink hoặc
+// dạng ngắn (TEMP của runner CI là C:\Users\RUNNER~1\..., /var → /private/var trên macOS) trong khi đường dẫn từ git hay
+// tham số của tool là dạng thật. Không giải được (chưa tồn tại) thì chỉ Clean.
+func canonPath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return filepath.Clean(p)
+}
+
 // underDir cho biết p nằm dưới dir (không tính chính dir).
 func underDir(dir, p string) bool {
 	rel, err := filepath.Rel(pathutil.BestEffort(dir), pathutil.BestEffort(p))
@@ -51,12 +61,13 @@ func (d *Daemon) routeFor(ctx context.Context, s *session, params map[string]jso
 		return s.p
 	}
 	// Kiểm chữ trước (không tốn lệnh git): phải nằm dưới thư mục worktrees của thư mục trạng thái phiên.
-	if samePath(pp, s.root) || !underDir(state.At("", s.p.stateRoot).Worktrees, pp) {
+	ppc, root := canonPath(pp), canonPath(s.root)
+	if samePath(ppc, root) || !underDir(canonPath(state.At("", s.p.stateRoot).Worktrees), ppc) {
 		return s.p
 	}
 	ri, err := resolveRepo(ctx, pp)
-	if err != nil || ri.root == "" || samePath(ri.root, s.root) || !samePath(ri.stateRoot, s.p.stateRoot) ||
-		!underDir(state.At("", ri.stateRoot).Worktrees, ri.root) {
+	if err != nil || ri.root == "" || samePath(canonPath(ri.root), root) || !samePath(canonPath(ri.stateRoot), canonPath(s.p.stateRoot)) ||
+		!underDir(canonPath(state.At("", ri.stateRoot).Worktrees), canonPath(ri.root)) {
 		return s.p
 	}
 	return d.partitionFor(partSpec{svc: s.svc, reg: s.p.reg, secretsPath: s.p.secretsPath, rev: s.p.rev, ri: ri}, s.id)
@@ -65,10 +76,11 @@ func (d *Daemon) routeFor(ctx context.Context, s *session, params map[string]jso
 // ReleaseWorktree dừng upstream và gỡ mọi phân vùng có gốc là worktree wt (đường dẫn tuyệt đối), đóng các phiên gắn vào
 // chúng; trả số phân vùng đã nhả. Phân vùng của worktree khác giữ nguyên.
 func (d *Daemon) ReleaseWorktree(wt string) int {
+	wt = canonPath(wt)
 	d.mu.Lock()
 	var ps []*partition
 	for _, p := range d.parts {
-		if p.root != "" && samePath(p.root, wt) {
+		if p.root != "" && samePath(canonPath(p.root), wt) {
 			ps = append(ps, p)
 		}
 	}

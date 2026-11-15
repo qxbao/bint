@@ -553,8 +553,8 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 		r.Status = MCPStatusDegraded
 		r.Detail = "upstream thiếu tool của nhóm thao tác: " + strings.Join(r.Missing, ", ") + " (danh mục lệch phiên bản upstream?)"
 	}
-	if svc.ID == "codegraph" && have["codegraph_status"] {
-		mcpCodegraphProbe(cctx, cl, cwd, secretVals, &r)
+	if svc.ID == "codegraph" {
+		mcpCodegraphProbe(cctx, cl, svc, have, cwd, secretVals, &r)
 	}
 	return r
 }
@@ -562,35 +562,77 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 // codegraphDisabledRE khớp văn bản lỗi báo tool bị tắt bởi bộ lọc CODEGRAPH_MCP_TOOLS của daemon.
 var codegraphDisabledRE = regexp.MustCompile(`(?i)\b(disabled|not enabled)\b`)
 
-// mcpCodegraphProbe gọi thử codegraph_status: daemon codegraph lọc tool theo env của client ĐẦU TIÊN đã khởi động nó, nên
-// một phiên ngoài Bint khởi động daemon với env hẹp làm tool thuộc nhóm query bị từ chối dù tools/list vẫn liệt kê (mục 5.5).
-// Chỉ lỗi báo tool bị tắt mới đổ cho daemon env hẹp; lỗi khác báo degraded kèm nguyên văn đã che (worktree chưa có chỉ mục
-// thì nhắc `bint mcp index codegraph`).
-func mcpCodegraphProbe(ctx context.Context, cl *probe.Client, cwd string, secretVals []string, r *MCPCheckResult) {
-	res, err := cl.CallTool(ctx, "codegraph_status", nil)
-	var rpc *probe.RPCError
-	var reason string
-	switch {
-	case errors.As(err, &rpc):
-		reason = rpc.Error()
-	case err != nil:
-		r.Status = MCPStatusFail
-		r.Detail = "codegraph_status: " + mcpgw.ScrubSecrets(err.Error(), secretVals, 300)
-		return
-	case res.IsError:
-		reason = "isError: " + res.Text
-	default:
-		return
+// mcpCodegraphProbe gọi thử mọi tool của danh mục codegraph có trong tools/list: daemon codegraph lọc tool theo env của
+// client ĐẦU TIÊN đã khởi động nó, nên một phiên ngoài Bint khởi động daemon với env hẹp làm tool của nhóm bị tắt bị từ
+// chối dù tools/list vẫn liệt kê (kể cả codegraph_status; mục 5.5). Tool báo bị tắt (isError hoặc lỗi JSON-RPC) được gom theo
+// nhóm thao tác để báo nhóm nào thiếu. Lỗi khác của tool ngoài codegraph_status (vd thiếu tham số vì gọi không đối số) bị bỏ
+// qua; lỗi khác của codegraph_status báo degraded kèm nguyên văn đã che (worktree chưa có chỉ mục thì nhắc `bint mcp index codegraph`).
+func mcpCodegraphProbe(ctx context.Context, cl *probe.Client, svc mcpcat.Service, have map[string]bool, cwd string, secretVals []string, r *MCPCheckResult) {
+	disabled := map[string]string{} // tool -> lý do (đã che)
+	var statusOther string
+	for _, name := range svc.Tools() {
+		if !have[name] {
+			continue
+		}
+		res, err := cl.CallTool(ctx, name, nil)
+		var rpc *probe.RPCError
+		var reason string
+		switch {
+		case errors.As(err, &rpc):
+			reason = rpc.Error()
+		case err != nil:
+			// Lỗi truyền tải (hết hạn, daemon chết) của bất kỳ tool nào: dừng và nêu đúng tool gây lỗi; bỏ qua thì
+			// lời gọi sau (thường là codegraph_status) hỏng theo và bị gán nhầm nguyên nhân.
+			r.Status = MCPStatusFail
+			r.Detail = name + ": " + mcpgw.ScrubSecrets(err.Error(), secretVals, 300)
+			return
+		case res.IsError:
+			reason = "isError: " + res.Text
+		default:
+			continue
+		}
+		reason = mcpgw.ScrubSecrets(reason, secretVals, 200)
+		switch {
+		case codegraphDisabledRE.MatchString(reason):
+			disabled[name] = reason
+		case name == "codegraph_status":
+			statusOther = reason
+		}
 	}
-	reason = mcpgw.ScrubSecrets(reason, secretVals, 200)
-	r.Status = MCPStatusDegraded
-	if codegraphDisabledRE.MatchString(reason) {
+	if len(disabled) > 0 {
+		var parts []string
+		sample := "" // nguyên văn (đã che) lỗi của tool bị tắt đầu tiên theo thứ tự danh mục, để đối chiếu với daemon
+		for _, g := range svc.Groups {
+			var off []string
+			for _, t := range g.Tools {
+				if why, ok := disabled[t]; ok {
+					off = append(off, t)
+					if sample == "" {
+						sample = why
+					}
+				}
+			}
+			if len(off) > 0 {
+				parts = append(parts, g.Name+" ("+strings.Join(off, ", ")+")")
+			}
+		}
 		pid := filepath.Join(cwd, ".codegraph", "daemon.pid")
-		r.Detail = "codegraph_status bị từ chối (" + reason + "): daemon codegraph có thể đang chạy với env hẹp của một phiên khác " +
-			"(CODEGRAPH_MCP_TOOLS thiếu tool nhóm query). Dừng daemon cũ rồi chạy lại check: `codegraph daemon` (xem --help) hoặc kết thúc tiến trình có PID ghi trong " + pid
+		r.Status = MCPStatusDegraded
+		detail := "tool codegraph bị từ chối (disabled) ở nhóm thao tác: " + strings.Join(parts, "; ") +
+			" (lỗi: " + sample + ")" +
+			": daemon codegraph có thể đang chạy với env hẹp của một phiên khác (CODEGRAPH_MCP_TOOLS thiếu tool). " +
+			"Dừng daemon cũ rồi chạy lại check: `codegraph daemon` (xem --help) hoặc kết thúc tiến trình có PID ghi trong " + pid
+		if r.Detail != "" {
+			detail = r.Detail + "; " + detail
+		}
+		r.Detail = detail
 		return
 	}
-	r.Detail = "codegraph_status báo lỗi (" + reason + ")"
+	if statusOther == "" {
+		return
+	}
+	r.Status = MCPStatusDegraded
+	r.Detail = "codegraph_status báo lỗi (" + statusOther + ")"
 	if _, err := os.Stat(filepath.Join(cwd, codegraphDB)); err != nil {
 		r.Detail += ": worktree chưa có chỉ mục " + filepath.ToSlash(codegraphDB) + ", chạy `bint mcp index codegraph`"
 	}

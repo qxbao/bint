@@ -167,7 +167,8 @@ func newMCPCheckCmd(stdio IO) *cobra.Command {
 		Short: "Kiểm tra service MCP đã đăng ký (initialize + tools/list, đối chiếu danh mục)",
 		Long: `Khởi động từng service đã đăng ký (hoặc kết nối tới URL), gửi initialize rồi tools/list và đối
 chiếu với nhóm thao tác của danh mục; báo biến credential thiếu trong secrets.env. Với codegraph còn gọi thử
-codegraph_status: bị từ chối thì báo degraded (daemon cũ chạy với env hẹp).
+mọi tool của danh mục có trong tools/list: tool báo bị tắt thì báo degraded kèm nhóm thao tác và tên tool
+(daemon cũ chạy với env hẹp).
 
 Thoát khác 0 khi có service ở trạng thái fail; degraded vẫn thoát 0 kèm cảnh báo.`,
 		Args: cobra.MaximumNArgs(1),

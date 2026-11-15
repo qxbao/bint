@@ -5,6 +5,9 @@
 //
 //	BINT_FAKE_MCP     chế độ: ok | status_error | status_rpcerror (tool bị tắt, lỗi JSON-RPC "... is disabled") | status_error_other | status_rpcerror_other (lỗi khác, không phải tool bị tắt) | hang | exit | die (ghi biến JIRA_MCP_PASSWORD ra stderr rồi thoát 1)
 //	BINT_FAKE_TOOLS   tên tool, phân tách bằng dấu phẩy (mặc định: không có tool)
+//	BINT_FAKE_DISABLED tên tool bị tắt theo tên, phân tách bằng dấu phẩy: gọi các tool này trả lỗi JSON-RPC "tool X is disabled" (các tool khác chạy bình thường)
+//	BINT_FAKE_FAILOTHER tên tool phân tách bằng dấu phẩy: gọi các tool này trả isError "missing required parameter" (lỗi không phải tool bị tắt)
+//	BINT_FAKE_CRASHON tên tool: gọi tool này làm tiến trình thoát ngay (lỗi truyền tải, không phải lỗi của tool)
 //	BINT_FAKE_DUMP    tệp ghi {cwd, args, env} lúc khởi động (và đối số lệnh con init/sync)
 //	BINT_FAKE_VERSION phiên bản in ra với --version (mặc định 1.6.2; không ghi dump)
 //
@@ -25,6 +28,10 @@ const (
 	EnvMode  = "BINT_FAKE_MCP"
 	EnvTools = "BINT_FAKE_TOOLS"
 	EnvDump  = "BINT_FAKE_DUMP"
+	// EnvDisabled, EnvFailOther: xem mô tả gói.
+	EnvDisabled  = "BINT_FAKE_DISABLED"
+	EnvFailOther = "BINT_FAKE_FAILOTHER"
+	EnvCrashOn   = "BINT_FAKE_CRASHON"
 	// EnvVersion là phiên bản bản giả in ra với --version.
 	EnvVersion = "BINT_FAKE_VERSION"
 )
@@ -159,6 +166,21 @@ func serve(mode string) {
 			if mode == "exit" {
 				os.Exit(3)
 			}
+			var cp struct {
+				Name string `json:"name"`
+			}
+			_ = json.Unmarshal(m.Params, &cp)
+			if inList(os.Getenv(EnvCrashOn), cp.Name) {
+				os.Exit(3)
+			}
+			if inList(os.Getenv(EnvDisabled), cp.Name) {
+				send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32000, "message": "tool " + cp.Name + " is disabled"}})
+				continue
+			}
+			if inList(os.Getenv(EnvFailOther), cp.Name) {
+				reply(map[string]any{"isError": true, "content": []map[string]any{{"type": "text", "text": "missing required parameter: query"}}})
+				continue
+			}
 			switch mode {
 			case "status_error":
 				reply(map[string]any{"isError": true, "content": []map[string]any{{"type": "text", "text": "tool disabled (CODEGRAPH_MCP_TOOLS)"}}})
@@ -175,4 +197,13 @@ func serve(mode string) {
 			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32601, "message": "không hỗ trợ " + m.Method}})
 		}
 	}
+}
+
+func inList(csv, name string) bool {
+	for _, t := range strings.Split(csv, ",") {
+		if name != "" && strings.TrimSpace(t) == name {
+			return true
+		}
+	}
+	return false
 }
