@@ -528,3 +528,25 @@ func evalGridModel(t *testing.T, m *Model) {
 		j.Log.Add(fmt.Sprintf("Lượt %d/8: %s · %s · lần %d → %s", n+1, a.CaseID, a.Arm, a.Repeat, a.Status))
 	}
 }
+
+// Kết quả không có BatchID (huỷ trước khi tạo đợt): không hiện dòng "Đợt -: -" và không hiện lệnh chạy tiếp.
+func TestEvalRunResultWithoutBatchShowsNoBatchLine(t *testing.T) {
+	m, c := newCapModel(t, Options{}, "eval.run")
+	d := newDrv(t, m)
+	c.values["eval.run"] = &bintapp.EvalRunResult{RunResult: eval.RunResult{Status: "cancelled"}}
+	d.press("5", ".", "r", "ctrl+s")
+	if !d.until(func() bool { return m.jobs.Len() == 1 }) {
+		t.Fatal("việc phải chạy")
+	}
+	close(c.release["eval.run"])
+	if !d.until(func() bool { return m.jobs.Len() == 0 }) {
+		t.Fatal("việc phải kết thúc")
+	}
+	d.settle(nil)
+	out := plain(m.Render())
+	for _, bad := range []string{"Đợt -", "Chạy tiếp bằng", "Kết quả chạy đợt"} {
+		if strings.Contains(out, bad) {
+			t.Fatalf("không được hiện %q:\n%s", bad, out)
+		}
+	}
+}

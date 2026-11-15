@@ -246,20 +246,25 @@ func TestEvalRunEscCancelsBatchAndShowsResumeCommand(t *testing.T) {
 
 	f.press("5", ".")
 	f.pump(func() bool { return len(f.m.el.Data.Cases) == 1 }, nil)
-	f.fillRunForm("sleep 30") // agent chạy lâu: huỷ giữa chừng
+	// Agent ghi tệp đánh dấu rồi ngủ: chỉ gửi Esc khi lượt đã thực sự chạy (không sleep, không hạn chờ).
+	started := filepath.ToSlash(filepath.Join(t.TempDir(), "agent-started"))
+	f.fillRunForm("touch '" + started + "'; sleep 30")
 	f.press("ctrl+s")
 	f.pump(func() bool { return f.m.prompt != nil }, nil)
 	f.press("enter")
 	f.pump(func() bool {
-		return strings.Contains(f.screen(), "Tiến độ theo ô") && strings.Contains(f.screen(), "0/2 lượt đã xong")
+		_, err := os.Stat(filepath.FromSlash(started))
+		return err == nil
 	}, nil)
 	f.press("esc") // Esc ở thẻ Log huỷ an toàn
+	f.pump(func() bool { return strings.Contains(f.screen(), "Kết quả chạy đợt") }, nil)
 	f.waitJobsDone()
 	bs := f.batches()
 	if len(bs) != 1 || bs[0].Status != "cancelled" {
 		t.Fatalf("đợt phải cancelled: %+v", bs)
 	}
-	hasAll(t, f.screen(), "Kết quả chạy đợt", "đã huỷ", "Chạy tiếp bằng: phím R ở Đánh giá")
+	resume := "Chạy tiếp bằng: phím R ở Đánh giá"
+	hasAll(t, f.screen(), "Kết quả chạy đợt", "Đợt "+bs[0].BatchID+": đã huỷ", resume)
 	f.press("esc")
 	hasAll(t, f.screen(), "Chạy tiếp", "phím R ở Đánh giá")
 }

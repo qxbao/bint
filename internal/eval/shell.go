@@ -103,6 +103,10 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
 	default:
 		res.ExitCode = -1
 		res.Err = err
+		if ctx.Err() != nil {
+			// Huỷ giữa chừng có thể báo lỗi không phải ExitError (Windows: "TerminateProcess: Access is denied").
+			res.Err = ctx.Err()
+		}
 	}
 	return res
 }
