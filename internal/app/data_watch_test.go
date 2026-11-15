@@ -50,6 +50,35 @@ func TestResolveDataWatchNotInitialized(t *testing.T) {
 	}
 }
 
+func TestDataWatchSignatureStableWhileReadingStore(t *testing.T) {
+	_, root, _ := taskRepo(t)
+	ctx := context.Background()
+	ws, err := OpenWorkspace(ctx, root, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, ok := ResolveDataWatch(ctx, root)
+	if !ok {
+		t.Fatal("ResolveDataWatch phải dựng được watch")
+	}
+	before := w.Signature()
+	s, err := ws.OpenStore(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if got := w.Signature(); got != before {
+		info, statErr := os.Stat(ws.Paths.DB + "-wal")
+		t.Fatalf("mở store chỉ đọc làm chữ ký đổi: %d → %d; wal=%v stat=%v", before, got, info, statErr)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if w.Signature() != before {
+		t.Fatal("đóng store chỉ đọc làm chữ ký đổi")
+	}
+}
+
 // Ở worktree phụ không có .bint, cấu hình và tri thức nạp từ worktree chính: chữ ký phải theo dõi .bint ở đó.
 func TestResolveDataWatchLinkedWorktreeWatchesMainBint(t *testing.T) {
 	_, root, _ := taskRepo(t)
