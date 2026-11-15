@@ -351,7 +351,7 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 					"verify_confirmed": d.VerifyConfirmed, "setup_command": d.Setup.Command, "setup_confirmed": d.Setup.Confirmed,
 					"setup_required": d.Setup.Required, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers),
 					"isolation": t.State.Isolation(), "isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t)),
-					"driver": taskDriver(t), "driver_reason": driverReason(t)}
+					"driver": taskDriver(t), "driver_reason": driverReason(t), "last_step": t.State.LastStep}
 				if len(d.Children) > 0 {
 					out["children"] = d.Children
 				}
@@ -405,6 +405,7 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 	}
 	printIsolationLines(w, "  ", t)
 	printDriverLines(w, "  ", t)
+	printLastStepLine(w, "  ", t)
 	fmt.Fprintf(w, "  Thư mục:    %s\n", t.Dir)
 	printTicketBrief(w, env, t, a)
 	if t.Ticket.Request != "" {
@@ -1005,6 +1006,23 @@ func printDriverLines(w io.Writer, indent string, t *task.Task) {
 	if mode == task.DriverSession {
 		fmt.Fprintf(w, "%sDriver:      session (%s) — bint run next %s --json\n", indent, orDash(driverReason(t)), t.State.ID)
 	}
+}
+
+// printLastStepLine in bước dừng gần nhất (State.LastStep): lớp dừng và có nối tiếp được không (chỉ ghi nhận; resume chưa dùng).
+func printLastStepLine(w io.Writer, indent string, t *task.Task) {
+	ls := t.State.LastStep
+	if ls == nil {
+		return
+	}
+	cont := "không"
+	if ls.Continuable {
+		cont = "có"
+	}
+	fmt.Fprintf(w, "%sBước dừng:   %s (lượt %s) — lớp dừng %s, nối tiếp được: %s", indent, ls.Step, ls.RunID, ls.StopClass, cont)
+	if ls.Harness != "" {
+		fmt.Fprintf(w, ", harness %s", ls.Harness)
+	}
+	fmt.Fprintln(w)
 }
 
 func isolationTasks(t *task.Task) []string {

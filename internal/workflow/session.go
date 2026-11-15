@@ -651,7 +651,7 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 	sr := &stepRun{step: ps.Step, kind: kind, child: ps.RunID, stepID: "st_" + ps.RunID, readOnly: readOnlyKind(kind), mode: mode,
 		snapBefore: ps.Snapshot, featBefore: ps.FeatBefore, firstFeat: ps.FirstFeat, started: started, maxTurns: ps.MaxTurns,
 		reqModel: ps.Model, harness: ps.Harness, stepLog: rs.t.LogPath(ps.Step + "-" + ps.RunID + ".log"), lock: lock,
-		agentID: a.agentID, timedOut: a.timedOut}
+		agentID: a.agentID, timedOut: a.timedOut, agentFailed: a.failed != ""}
 	root := r.Root
 	sr.onEnd = func() {
 		r.Tasks.Update(id, r.now(), func(t *task.Task) error {
@@ -862,7 +862,13 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 		}
 		r.emitRun(parent, spool.StepFinished, map[string]any{"step_id": "st_" + ps.RunID, "name": ps.Step, "status": "interrupted"})
 		r.RecordError(id, ps.Step, "bước "+ps.Step+" bị bỏ (bint run abort): "+reason)
-		if t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error { t.State.PendingStep = nil; return nil }); err == nil {
+		// Bỏ bước: không có handle để nối tiếp, nhưng `run status` vẫn giải thích được vì sao bước dừng.
+		stop := &task.StepStop{Step: ps.Step, RunID: ps.RunID, Harness: ps.Harness, StopClass: StopExternal, At: r.at()}
+		if t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
+			t.State.PendingStep = nil
+			t.State.LastStep = stop
+			return nil
+		}); err == nil {
 			rs.t = t
 		}
 		removeSessionStep(r.Tasks.Dir, ps.RunID)

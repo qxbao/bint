@@ -3,6 +3,7 @@ package eval
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -51,6 +52,9 @@ type AgentRequest struct {
 	// tắt thất bại (bint experience digest) đọc được chuỗi lệnh và tệp đã đọc/sửa. Log
 	// kiểu cũ (một đối tượng JSON) vẫn được đọc chi phí như trước; chỉ thiếu vết.
 	Trace bool
+	// SessionID khác rỗng: Bint cấp UUID phiên (bước workflow, để nối tiếp sau này). Claude chạy với --session-id và giữ
+	// phiên trên đĩa (bỏ --no-session-persistence); rỗng (lượt đánh giá) thì đối số không đổi.
+	SessionID string
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
@@ -75,6 +79,22 @@ type AgentResult struct {
 	Infra string
 	// QuotaHit: hết hạn mức sử dụng/rate limit; các lượt sau cũng sẽ hỏng nên đợt phải dừng.
 	QuotaHit bool
+	// SessionID là handle phiên harness (Claude: session_id trong kết quả JSON; Codex: thread_id của thread.started).
+	SessionID string
+	// NoResult: harness thoát mà không có kết quả đọc được (Claude không có đối tượng result, Codex thiếu turn.completed
+	// hoặc luồng hỏng). Khác với agent tự báo lỗi kèm kết quả.
+	NoResult bool
+}
+
+// NewSessionUUID sinh UUID v4 làm định danh phiên cho harness nhận --session-id.
+func NewSessionUUID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic("crypto/rand: " + err.Error())
+	}
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // Agent chạy một tác vụ trong thư mục làm việc (adapter cấp 3: thực thi theo chương trình).
@@ -151,6 +171,11 @@ func (a *ClaudeAgent) Args() []string { return a.ArgsFor(AgentRequest{}) }
 func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 	args := []string{"-p", "--output-format", "json", "--no-session-persistence", "--strict-mcp-config",
 		"--permission-mode", a.Cfg.PermissionMode}
+	if req.SessionID != "" {
+		// Phiên phải được lưu để `claude --resume <id>` nối tiếp được: bỏ --no-session-persistence (vị trí 3).
+		args = slices.Delete(args, 3, 4)
+		args = append(args, "--session-id", req.SessionID)
+	}
 	tools := append([]string{}, a.Cfg.AllowedTools...)
 	if req.HasSkills || req.Trace {
 		// Cần tool_use để biết skill có được gọi không (và để bản tóm tắt thất bại đọc được
@@ -202,7 +227,7 @@ func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 func (a *ClaudeAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	var stdout bytes.Buffer
 	r := runProcess(ctx, req.Dir, a.bin(), a.ArgsFor(req), req.Timeout, req.LogPath, cleanEnv(req.Env...), strings.NewReader(req.Prompt), &stdout)
-	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut}
+	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, SessionID: req.SessionID}
 	if r.Err != nil {
 		res.Error = r.Err.Error()
 	}
@@ -239,6 +264,7 @@ func parseClaudeJSON(out []byte, res *AgentResult) {
 		Result       string              `json:"result"`
 		APIStatus    int                 `json:"api_error_status"`
 		Terminal     string              `json:"terminal_reason"`
+		SessionID    string              `json:"session_id"`
 	}
 	found := false
 	for _, cand := range jsonCandidates(out) {
@@ -248,7 +274,11 @@ func parseClaudeJSON(out []byte, res *AgentResult) {
 		}
 	}
 	if !found {
+		res.NoResult = true
 		return
+	}
+	if r.SessionID != "" {
+		res.SessionID = r.SessionID
 	}
 	res.NumTurns = r.NumTurns
 	res.CostUSD = r.TotalCostUSD

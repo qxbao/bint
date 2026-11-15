@@ -233,6 +233,9 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 	if ctx.Err() != nil {
 		res.ExitCode, res.Error = -1, ctx.Err().Error()
 	}
+	if a.h.mutate != nil {
+		a.h.mutate(step, &res)
+	}
 	return res
 }
 
@@ -256,6 +259,8 @@ type harness struct {
 	limits    []*float64
 	cost      *float64
 	denyNext  []string
+	// mutate (nếu có) sửa kết quả agent giả sau khi chạy: mô phỏng Infra, quá giờ, thiếu kết quả, handle phiên.
+	mutate func(step string, res *eval.AgentResult)
 	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.
 	costFor func(step string) *float64
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.

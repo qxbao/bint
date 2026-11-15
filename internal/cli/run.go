@@ -281,6 +281,9 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 				out := map[string]any{"task_id": t.State.ID, "status": t.State.Status, "reason": t.State.Reason,
 					"resume_from": t.State.ResumeFrom, "runs": rows, "isolation": t.State.Isolation(),
 					"isolation_reason": isolationReason(t), "driver": taskDriver(t)}
+				if ls := t.State.LastStep; ls != nil {
+					out["last_step"] = ls
+				}
 				if ps := t.State.PendingStep; ps != nil {
 					out["pending_step"] = map[string]any{"step": ps.Step, "run_id": ps.RunID, "lease_until": ps.LeaseUntil}
 				}
@@ -299,6 +302,7 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 			fmt.Fprintf(w, "\n  %s\n", t.Ticket.Goal)
 			printIsolationLines(w, "  ", t)
 			printDriverLines(w, "  ", t)
+			printLastStepLine(w, "  ", t)
 			if len(rows) == 0 {
 				fmt.Fprintln(w, "\nChưa có lượt chạy nào được ghi nhận cho tác vụ này.")
 				if task.Paused(t.State.Status) {

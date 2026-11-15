@@ -50,6 +50,19 @@ nguyên văn các dòng câu hỏi + câu trả lời / quyết định duyệt.
 
 ### Giai đoạn 1 — Phân loại lý do dừng và lưu handle (chỉ ghi nhận, chưa đổi hành vi resume)
 
+**Đã làm (2026-11-16).** `workflow.ClassifyStop` (`internal/workflow/stopclass.go`) phân loại ở `endStep`; kết quả ghi vào
+`StepResult` (`stop_class`, `continuable`, `session_id`), payload `workflow.finished` của lượt con và `task.State.LastStep`
+(`task.StepStop`; xoá ở `beginStep`; không chạm SQLite). `awaiting_human` ghi ở cổng sau bước (`markAwaitingHuman`) bằng
+handle của bước vừa kết thúc **trong cùng lượt**; resume không có bước nào chạy thì giữ `LastStep` cũ. `bint run status` và
+`bint task show` (văn bản, `--json`) hiển thị `last_step`. Giả định/hạn chế đã biết:
+
+- Bước workflow của Claude chạy với `--session-id <uuid>` và **bỏ `--no-session-persistence`** (không lưu phiên thì không
+  `--resume` được); lượt `bint eval` giữ nguyên cờ. Hệ quả: transcript bước workflow nằm trong `~/.claude/projects`.
+- `continuable` = lớp cho phép (external/awaiting_human/timeout) **và** có handle **và** chụp được fingerprint.
+- Driver session: câu hỏi mở phát hiện ở lệnh `next` kế tiếp (không cùng lệnh với `complete`) chưa có handle trong bộ nhớ,
+  nên chưa ghi `awaiting_human`; giai đoạn 2 cần lưu handle bền cho trường hợp này.
+- Chỉ fingerprint cây tại lúc ghi; việc so sánh và điều kiện nối tiếp thuộc giai đoạn 2/3.
+
 - Phân loại `stop_class` ở `endStep` (dùng lại `classifyInfra`/`res.Infra`/`res.QuotaHit`, mã thoát, `TimedOut`,
   `ctx.Err()`, deny của hook, vi phạm), ghi vào kết quả bước (`StepResult`, sự kiện `step.finished`/runlog) và vào phiếu
   (bước dừng gần nhất) để giai đoạn sau đọc.

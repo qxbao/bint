@@ -1,0 +1,88 @@
+package eval
+
+import (
+	"os"
+	"regexp"
+	"strings"
+	"testing"
+)
+
+func TestNewSessionUUID(t *testing.T) {
+	re := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	a, b := NewSessionUUID(), NewSessionUUID()
+	if !re.MatchString(a) || a == b {
+		t.Fatalf("UUID v4 sai: %q %q", a, b)
+	}
+}
+
+func TestClaudeArgsSessionID(t *testing.T) {
+	a := &ClaudeAgent{}
+	a.Cfg.PermissionMode = "acceptEdits"
+	def := strings.Join(a.ArgsFor(AgentRequest{}), " ")
+	if !strings.Contains(def, "--no-session-persistence") || strings.Contains(def, "--session-id") {
+		t.Fatalf("lượt eval phải giữ --no-session-persistence và không có --session-id: %s", def)
+	}
+	got := strings.Join(a.ArgsFor(AgentRequest{SessionID: "abc"}), " ")
+	if strings.Contains(got, "--no-session-persistence") || !strings.Contains(got, "--session-id abc") {
+		t.Fatalf("bước workflow: bỏ --no-session-persistence, thêm --session-id: %s", got)
+	}
+	if !strings.Contains(got, "-p --output-format json --strict-mcp-config") {
+		t.Fatalf("các đối số khác không đổi: %s", got)
+	}
+}
+
+func TestParseClaudeSessionAndNoResult(t *testing.T) {
+	var r AgentResult
+	r.SessionID = "own"
+	parseClaudeJSON([]byte(`{"type":"result","session_id":"from-json","total_cost_usd":1}`), &r)
+	if r.SessionID != "from-json" || r.NoResult {
+		t.Fatalf("%+v", r)
+	}
+	var e AgentResult
+	parseClaudeJSON([]byte("segfault"), &e)
+	if !e.NoResult {
+		t.Fatal("không có đối tượng result phải đặt NoResult")
+	}
+}
+
+func TestCodexThreadID(t *testing.T) {
+	var r AgentResult
+	parseCodexJSONL([]byte(codexSample), &r)
+	if r.SessionID != "01a1c35f-6ec6-78e1-9ff0-14c28dcf01a5" || r.NoResult {
+		t.Fatalf("%+v", r)
+	}
+	b, err := os.ReadFile("testdata/codex-0.167/citation-approved.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var r2 AgentResult
+	parseCodexJSONL(b, &r2)
+	if r2.SessionID != "01a1c5db-43b7-7162-9761-71ac7be405e1" {
+		t.Fatalf("thread_id: %q", r2.SessionID)
+	}
+	var cut AgentResult
+	parseCodexJSONL([]byte(`{"type":"thread.started","thread_id":"t9"}`+"\n"), &cut)
+	if cut.SessionID != "t9" || !cut.NoResult {
+		t.Fatalf("luồng cụt: %+v", cut)
+	}
+}
+
+func TestCodexInfra(t *testing.T) {
+	for _, tc := range []struct {
+		msg   string
+		infra bool
+		quota bool
+	}{
+		{"codex báo lỗi: unexpected status 429 Too Many Requests", true, true},
+		{"codex báo lỗi: You've hit your usage limit", true, true},
+		{"codex báo lỗi: unexpected status 503 Service Unavailable", true, false},
+		{"codex báo lỗi: Overloaded", true, false},
+		{"codex báo lỗi: ran 5000 tokens", false, false},
+		{"codex báo lỗi: patch failed", false, false},
+	} {
+		reason, q := codexInfra(tc.msg)
+		if (reason != "") != tc.infra || q != tc.quota {
+			t.Errorf("%q: infra=%q quota=%v", tc.msg, reason, q)
+		}
+	}
+}

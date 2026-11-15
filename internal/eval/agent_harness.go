@@ -171,6 +171,9 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	} else {
 		codexStreamErrors(stdout.Bytes(), &res)
 	}
+	if res.Error != "" && res.Infra == "" {
+		res.Infra, res.QuotaHit = codexInfra(res.Error)
+	}
 	if res.Error == "" && r.ExitCode != 0 && !r.TimedOut {
 		res.Error = "codex thoát với mã " + strconv.Itoa(r.ExitCode) + ": " + truncate(strings.TrimSpace(r.Tail), 300)
 	}
@@ -215,8 +218,9 @@ func codexStreamErrors(out []byte, res *AgentResult) (reported, integrity string
 			continue
 		}
 		var ev struct {
-			Type string `json:"type"`
-			Item *struct {
+			Type     string `json:"type"`
+			ThreadID string `json:"thread_id"`
+			Item     *struct {
 				Type string `json:"type"`
 				Text string `json:"text"`
 			} `json:"item"`
@@ -237,6 +241,10 @@ func codexStreamErrors(out []byte, res *AgentResult) (reported, integrity string
 			continue // JSON hợp lệ nhưng khác lược đồ (sự kiện mới): bỏ qua như loại sự kiện lạ
 		}
 		switch ev.Type {
+		case "thread.started":
+			if ev.ThreadID != "" && res.SessionID == "" {
+				res.SessionID = ev.ThreadID
+			}
 		case "turn.started":
 			completed = false
 		case "item.completed":
@@ -269,6 +277,7 @@ func codexStreamErrors(out []byte, res *AgentResult) (reported, integrity string
 	}
 	// Dòng hỏng chỉ đáng báo khi lượt không kết thúc: nó có thể là sự kiện kết thúc bị cắt.
 	if !completed {
+		res.NoResult = true
 		integrity = "codex JSONL thiếu turn.completed"
 		if malformed != "" {
 			integrity = malformed
@@ -455,4 +464,25 @@ func parseAgyJSON(out []byte, res *AgentResult) {
 		}
 		res.Error = "antigravity báo lỗi: " + truncate(strings.TrimSpace(msg), 300)
 	}
+}
+
+// codexServerRe khớp lỗi API phía máy chủ trong thông báo Codex tự báo (mã 5xx, quá tải).
+var codexServerRe = regexp.MustCompile(`(?i)\b5\d\d\b|overloaded|internal server error|service unavailable|bad gateway`)
+
+// codexRateRe khớp mã 429 trong thông báo Codex tự báo.
+var codexRateRe = regexp.MustCompile(`\b429\b|(?i:too many requests)`)
+
+// codexInfra phân loại lỗi Codex tự báo (chỉ có văn bản, không có mã trạng thái riêng): hạn mức/429 → QuotaHit,
+// 5xx/quá tải → lỗi hạ tầng; còn lại không phải hạ tầng.
+func codexInfra(msg string) (string, bool) {
+	if codexRateRe.MatchString(msg) {
+		return "hết hạn mức sử dụng: " + truncate(strings.TrimSpace(msg), 160), true
+	}
+	if reason, quota := classifyInfra(0, "", msg); reason != "" {
+		return reason, quota
+	}
+	if codexServerRe.MatchString(msg) {
+		return "lỗi API: " + truncate(strings.TrimSpace(msg), 160), false
+	}
+	return "", false
 }

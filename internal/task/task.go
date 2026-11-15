@@ -400,6 +400,8 @@ type State struct {
 	// SessionSpend cộng dồn chi phí/số lượt của các bước subagent trong lượt cha SessionRun, để ngân sách
 	// limits.workflows.b-do (chi phí, lượt) được kiểm qua nhiều lệnh `bint run complete`/`next` (mỗi lệnh là một tiến trình).
 	SessionSpend *SessionSpend `json:"session_spend,omitempty"`
+	// LastStep là bước dừng gần nhất không hoàn thành (hoặc dừng chờ người ngay sau bước); xoá khi bước mới bắt đầu.
+	LastStep *StepStop `json:"last_step,omitempty"`
 }
 
 // HeldStep ghi bước chỉ đọc đang được giữ vì cây đổi trong lúc chạy (State.HeldStep).
@@ -409,6 +411,23 @@ type HeldStep struct {
 	Kind  string   `json:"kind,omitempty"`
 	Files []string `json:"files"` // tệp đổi mà không do người ghi qua Bint
 	At    string   `json:"at,omitempty"`
+}
+
+// StepStop là bước dừng gần nhất của tác vụ (State.LastStep): lý do dừng đã phân loại, handle phiên harness và dấu vân
+// tay cây làm việc lúc dừng. Giai đoạn 1 của docs/step-continuation-plan.md chỉ ghi nhận; resume chưa đọc nó.
+type StepStop struct {
+	Step    string `json:"step"`
+	RunID   string `json:"run_id"`
+	Harness string `json:"harness,omitempty"`
+	// StopClass: external | awaiting_human | intrinsic | timeout (workflow.ClassifyStop).
+	StopClass string `json:"stop_class"`
+	// SessionID là handle phiên harness (Claude session UUID, Codex thread_id, agent_id của subagent); rỗng = không có.
+	SessionID string `json:"session_id,omitempty"`
+	// Fingerprint là ảnh chụp cây làm việc lúc dừng (workflow.WorktreeSnapshot); rỗng = không chụp được.
+	Fingerprint string `json:"fingerprint,omitempty"`
+	// Continuable: lớp dừng cho phép nối tiếp, có handle và có fingerprint.
+	Continuable bool   `json:"continuable"`
+	At          string `json:"at,omitempty"`
 }
 
 // SessionSpend là phần ngân sách b-do đã dùng trong một lượt cha của driver session.

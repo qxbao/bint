@@ -138,6 +138,11 @@ type StepResult struct {
 	Error    string   `json:"error,omitempty"`
 	// HumanWrites: tệp bị đổi trong bước chỉ đọc nhưng được miễn vì người ghi qua Bint (nhật ký ghi).
 	HumanWrites []string `json:"human_writes,omitempty"`
+	// StopClass là lớp lý do dừng (ClassifyStop; rỗng = hoàn thành bình thường), Continuable: có thể nối tiếp phiên
+	// (lớp cho phép, có handle và fingerprint), SessionID: handle phiên harness của bước.
+	StopClass   string `json:"stop_class,omitempty"`
+	Continuable bool   `json:"continuable,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
 }
 
 // Result là kết quả một lượt điều phối.
@@ -199,7 +204,12 @@ type runState struct {
 	// finalizeResume: resume sau khi finalize bị chặn vì thiếu bằng chứng và worktree không đổi kể từ lúc chặn: vào thẳng
 	// finalize (không mở b-review mới) và chạy lại lệnh kiểm chứng đúng một lần.
 	finalizeResume bool
+	// last là bước vừa kết thúc trong lượt này (endStep ghi): cổng chờ người sau bước (markAwaitingHuman) dùng lại handle.
+	last *endedStep
 }
+
+// endedStep là handle phiên của bước vừa kết thúc, giữ để cổng sau bước ghi awaiting_human vào State.LastStep.
+type endedStep struct{ step, runID, harness, handle string }
 
 // afterStepUnlock là seam kiểm thử (nil ở sản phẩm): gọi ngay sau khi runStep nhả khoá worktree của bước,
 // tức thời điểm một b-feat của tác vụ khác có thể giành khoá.
@@ -859,6 +869,10 @@ type stepRun struct {
 	onEnd func()
 	// timedOut: driver session, hợp đồng thuê đã hết hạn lúc đóng bước.
 	timedOut bool
+	// sessionID là UUID phiên Bint cấp cho harness (Claude --session-id); rỗng với harness khác.
+	sessionID string
+	// agentFailed: subagent báo thất bại qua `bint run complete --failed`.
+	agentFailed bool
 	// isoLeak: lý do hậu kiểm cô lập thấy subagent đã chạy lời gọi ngoài worktree (auditIsolation); khác rỗng ⇒ bước blocked.
 	isoLeak string
 }
@@ -891,7 +905,10 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	// Mọi bước driver process có đúng một MCP server là bint (M0 của docs/mcp-gateway-plan.md).
 	mcpPath, mcpTools, cleanMCP := r.stepMCP(sr, rs.t.State.ID)
 	defer cleanMCP()
-	res := sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: sr.prompt,
+	if sr.harness == "claude" {
+		sr.sessionID = eval.NewSessionUUID() // handle bền kể cả khi tiến trình chết trước khi in JSON
+	}
+	res := sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: sr.prompt, SessionID: sr.sessionID,
 		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
 		LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
 		MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools})
@@ -1047,6 +1064,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 		"task_id": rs.t.State.ID})
 	if nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		t.State.LinkRun(sr.child)
+		t.State.LastStep = nil // bước mới bắt đầu: bước dừng cũ không còn là "gần nhất"
 		if rs.chain() {
 			t.State.FlowStep = step // bước đang chạy: nguồn của nextStep khi flow có nhiều bước implement/review
 		}
@@ -1079,8 +1097,12 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		rs.featScopeSet = true
 	}
 	var humanWrites, violations []string
+	afterSnap := ""
 	if sr.readOnly && ctx.Err() == nil {
 		after, err := WorktreeSnapshot(ctx, r.Root)
+		if err == nil {
+			afterSnap = after
+		}
 		switch {
 		case err != nil:
 			res.Error = "chụp cây làm việc sau bước chỉ đọc: " + err.Error()
@@ -1152,6 +1174,31 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		r.RecordError(rs.t.State.ID, step, sr.isoLeak)
 	}
 	srr.Status = status
+	costCap := status == "failed" && sr.maxCost != nil && res.CostUSD != nil && *res.CostUSD >= *sr.maxCost*0.98
+	class := ClassifyStop(StopFacts{
+		Failed: res.Error != "" || res.ExitCode != 0, AgentFailed: sr.agentFailed, CostCap: costCap,
+		Interrupted: ctx.Err() != nil, LeaseExpired: sr.timedOut, TimedOut: res.TimedOut && !sr.timedOut,
+		Infra: res.Infra != "", QuotaHit: res.QuotaHit, NoResult: res.NoResult,
+		ReadonlyViolation: len(violations) > 0, IsolationLeak: sr.isoLeak != "" && status != "interrupted",
+		ProtectedDenied: len(deniedPaths) > 0,
+	})
+	handle := cmp.Or(sr.agentID, res.SessionID, sr.sessionID)
+	rs.last = &endedStep{step: step, runID: child, harness: sr.harness, handle: handle}
+	var stop *task.StepStop
+	if class != "" {
+		fp := afterSnap
+		if fp == "" {
+			var err error
+			if fp, err = r.stopFingerprint(ctx); err != nil {
+				rs.res.Notes = append(rs.res.Notes, step+": không chụp được fingerprint cây lúc dừng (không nối tiếp được): "+err.Error())
+			}
+		}
+		stop = &task.StepStop{Step: step, RunID: child, Harness: sr.harness, StopClass: class, SessionID: handle, Fingerprint: fp,
+			Continuable: stopContinuable(class, handle, fp), At: r.at()}
+		srr.StopClass, srr.Continuable, srr.SessionID = class, stop.Continuable, handle
+	} else {
+		srr.SessionID = handle
+	}
 	if rs.session && res.CostUSD != nil {
 		// Subagent không dừng được giữa chừng, nên vượt max_cost_usd của bước chỉ được ghi lỗi (bước không failed); ngân sách
 		// b-do vẫn chặn bước sau qua beginStep.
@@ -1172,6 +1219,13 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	if sr.agentID != "" {
 		payload["agent_id"] = sr.agentID
 	}
+	if class != "" {
+		payload["stop_class"] = class
+		payload["continuable"] = stop.Continuable
+	}
+	if handle != "" {
+		payload["session_id"] = handle
+	}
 	if res.CostUSD != nil {
 		payload["cost_usd"] = *res.CostUSD
 	}
@@ -1186,6 +1240,9 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	rs.res.Steps = append(rs.res.Steps, srr)
 	if t, err := r.Tasks.Load(rs.t.State.ID); err == nil {
 		rs.t = t
+	}
+	if stop != nil {
+		r.setLastStep(rs, stop)
 	}
 
 	if held {
@@ -1234,6 +1291,32 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 
 // heldReason là lý do chuyển blocked khi bước chỉ đọc kết thúc bình thường nhưng cây đổi trong lúc chạy: nêu tệp đổi,
 // nói rõ kết quả bước được giữ và hai lối ra (người sửa đồng thời → resume; agent sửa → xem lại/hoàn tác rồi resume).
+// stopFingerprint chụp cây làm việc lúc bước dừng. ctx có thể đã huỷ (Ctrl-C) nên tách khỏi huỷ, kèm hạn giờ ngắn.
+func (r *Runner) stopFingerprint(ctx context.Context) (string, error) {
+	c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	return WorktreeSnapshot(c, r.Root)
+}
+
+// setLastStep ghi State.LastStep của phiếu (lỗi ghi chỉ làm mất thông tin chẩn đoán, không làm hỏng bước).
+func (r *Runner) setLastStep(rs *runState, ls *task.StepStop) {
+	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LastStep = ls; return nil }); err == nil {
+		rs.t = t
+	}
+}
+
+// markAwaitingHuman ghi bước vừa kết thúc (rs.last) là dừng chờ người: câu hỏi mở sau b-req, đường dẫn bảo vệ cần duyệt
+// sau b-feat. Không có bước nào vừa kết thúc trong lượt này (resume) thì giữ nguyên LastStep đã ghi từ lượt trước.
+func (r *Runner) markAwaitingHuman(rs *runState) {
+	l := rs.last
+	if l == nil {
+		return
+	}
+	fp, _ := r.stopFingerprint(context.Background())
+	r.setLastStep(rs, &task.StepStop{Step: l.step, RunID: l.runID, Harness: l.harness, StopClass: StopAwaitingHuman, SessionID: l.handle,
+		Fingerprint: fp, Continuable: stopContinuable(StopAwaitingHuman, l.handle, fp), At: r.at()})
+}
+
 func (r *Runner) heldReason(rs *runState, sr *stepRun, files []string) string {
 	id := rs.t.State.ID
 	resume := r.resumeCmd(rs)
@@ -1759,6 +1842,7 @@ func (r *Runner) preflightFeat(rs *runState) bool {
 // Core chỉ kiểm hình thức có câu trả lời, không xác thực nội dung. Luôn trả false.
 func (r *Runner) stopOnQuestions(rs *runState, rep task.ArtifactReport) bool {
 	qs := questionLines(rep.OpenQuestions)
+	r.markAwaitingHuman(rs)
 	rs.res.Questions = qs
 	id := rs.t.State.ID
 	reason := fmt.Sprintf("còn %d câu hỏi mở trong requirement.md: %s — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng "+
@@ -1883,6 +1967,7 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 	if err == nil {
 		rs.t = t
 	}
+	r.markAwaitingHuman(rs)
 	r.block(rs, "thay đổi cần người duyệt: "+strings.Join(need, ", ")+strings.Join(append([]string{""}, overlapNotes...), "; ")+" (xem diff, rồi bint task approve "+rs.t.State.ID+" && "+r.resumeCmd(rs)+")")
 	return false
 }
