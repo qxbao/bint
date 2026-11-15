@@ -178,6 +178,8 @@ func (d Data) Inbox() []Inbox {
 type LoadedMsg struct {
 	Data Data
 	Err  error
+	// Soft: lần nạp do thăm dò dữ liệu tự kích hoạt; lỗi không được thay dữ liệu đang hiện bằng trang lỗi.
+	Soft bool
 }
 
 // Load đọc dữ liệu của Tổng quan ở repository chứa dir. Repository chưa init cho Data.NotInit = true
@@ -261,7 +263,11 @@ type Model struct {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case LoadedMsg:
-		m.Loading, m.Err = false, msg.Err
+		m.Loading = false
+		if msg.Soft && msg.Err != nil && m.Loaded {
+			break // nạp nền lỗi: giữ dữ liệu đang hiện (như các màn chuyên biệt)
+		}
+		m.Err = msg.Err
 		if msg.Err == nil {
 			m.Data, m.Loaded = msg.Data, true
 			m.Cursor = min(m.Cursor, max(len(m.Data.Inbox())-1, 0))

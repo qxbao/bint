@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"bint/internal/task"
 )
@@ -25,8 +26,13 @@ func ResolveDataWatch(ctx context.Context, dir string) (DataWatch, bool) {
 	if err != nil {
 		return DataWatch{}, false
 	}
+	// Gốc .bint là nơi cấu hình và tri thức được nạp (ws.Sources.Project, như OpenKnowledge), có thể là worktree chính.
+	bintRoot := ws.Repo.Toplevel
+	if ws.Sources.Project != "" {
+		bintRoot = filepath.Dir(filepath.Dir(ws.Sources.Project))
+	}
 	return DataWatch{
-		Trees: []string{filepath.Join(ws.Repo.Toplevel, ".bint"), ws.Paths.Spool, task.NewStore(ws.Paths.Runtime).Dir},
+		Trees: []string{filepath.Join(bintRoot, ".bint"), ws.Paths.Spool, task.NewStore(ws.Paths.Runtime).Dir},
 		Files: []string{ws.Paths.DB, ws.Paths.DB + "-wal"},
 	}, true
 }
@@ -55,6 +61,12 @@ func (w DataWatch) Signature() uint64 {
 			if rerr != nil {
 				rel = p
 			}
+			if watchIgnored(root, rel, d) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 			info, ierr := d.Info()
 			if ierr != nil {
 				info = nil
@@ -70,4 +82,17 @@ func (w DataWatch) Signature() uint64 {
 		}
 	}
 	return h.Sum64()
+}
+
+// watchIgnored bỏ khỏi chữ ký những thứ được ghi liên tục trong lúc tác vụ chạy mà không đổi dữ liệu hiển thị:
+// tệp .lock và thư mục logs của từng tác vụ (<runtime>/tasks/<id>/logs).
+func watchIgnored(root, rel string, d fs.DirEntry) bool {
+	if !d.IsDir() && strings.HasSuffix(d.Name(), ".lock") {
+		return true
+	}
+	if d.IsDir() && d.Name() == "logs" && filepath.Base(root) == "tasks" {
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		return len(parts) == 2
+	}
+	return false
 }

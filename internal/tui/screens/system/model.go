@@ -742,7 +742,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		si, _ := msg.Value.(app.SkillInstall)
 		m.showOut(m.t("sy.sync.result.title"), m.syncResultLines(si))
 		m.setToast(m.t("sy.sync.done", i18n.A{"conflicts": si.Conflicts}), si.Conflicts > 0)
-		return m.reload(TabSkills)
+		return tea.Batch(m.reload(TabSkills), m.reload(TabDoctor)) // thẻ Doctor còn gợi ý sync cũ nếu không nạp lại
 	case "system.index_rebuild":
 		if msg.Err != nil {
 			m.fail(msg.Err)

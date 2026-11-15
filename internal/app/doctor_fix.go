@@ -105,6 +105,42 @@ func FixDoctor(ctx context.Context, dir string, o DoctorFixOptions) (DoctorFixRe
 	return res, nil
 }
 
+// orphanFixBlocker trả lý do không được tự xoá worktree g (nil nếu xoá an toàn): tác vụ chưa kết thúc (kể cả Origin
+// rỗng), thay đổi chưa đưa về, tệp chưa commit, hoặc nhánh bint/<id> có commit chưa thuộc HEAD của cây gốc.
+func orphanFixBlocker(ctx context.Context, env *workflow.Env, g workflow.OrphanWorktree) error {
+	if g.Unlanded || g.AwaitingMerge {
+		return fmt.Errorf("worktree %s còn thay đổi của tác vụ chưa đưa về (đang chờ lấy ra hoặc ghép tay): không xoá", g.Path)
+	}
+	if g.TaskID != "" {
+		if t, err := env.Tasks.Load(g.TaskID); err == nil && !task.Terminal(t.State.Status) {
+			return fmt.Errorf("worktree %s thuộc tác vụ %s chưa kết thúc (%s): không xoá", g.Path, g.TaskID, t.State.Status)
+		}
+	}
+	// Thư mục không có mục .git không phải worktree của git: không có gì để git kiểm (và worktree remove sẽ từ chối).
+	if _, err := os.Lstat(filepath.Join(g.Path, ".git")); err == nil {
+		out, err := gitrepo.Run(ctx, g.Path, "status", "--porcelain")
+		if err != nil {
+			return fmt.Errorf("không kiểm được tệp chưa commit của worktree %s: %w", g.Path, err)
+		}
+		if strings.TrimSpace(out) != "" {
+			return fmt.Errorf("worktree %s còn tệp chưa commit: không xoá", g.Path)
+		}
+	}
+	if g.TaskID != "" {
+		br := workflow.BranchFor(g.TaskID)
+		if _, err := gitrepo.Run(ctx, env.Root, "rev-parse", "--verify", "-q", "refs/heads/"+br); err == nil {
+			out, err := gitrepo.Run(ctx, env.Root, "rev-list", "-n", "1", "HEAD.."+br)
+			if err != nil {
+				return fmt.Errorf("không kiểm được commit chưa gộp của nhánh %s: %w", br, err)
+			}
+			if strings.TrimSpace(out) != "" {
+				return fmt.Errorf("nhánh %s có commit chưa thuộc HEAD của cây gốc: không xoá", br)
+			}
+		}
+	}
+	return nil
+}
+
 // findFixableOrphan tìm lại worktree mồ côi khớp o lúc này; từ chối khi không còn mồ côi, nằm ngoài thư mục worktrees của
 // Bint, hoặc là Unlanded/AwaitingMerge (thay đổi của tác vụ chỉ còn ở đó).
 func findFixableOrphan(ctx context.Context, env *workflow.Env, paths state.Paths, o DoctorFixOptions) (*workflow.OrphanWorktree, error) {
@@ -123,8 +159,8 @@ func findFixableOrphan(ctx context.Context, env *workflow.Env, paths state.Paths
 		if state.NormalizePath(g.Path) != want || g.TaskID != o.TaskID {
 			continue
 		}
-		if g.Unlanded || g.AwaitingMerge {
-			return nil, fmt.Errorf("worktree %s còn thay đổi của tác vụ chưa đưa về (đang chờ lấy ra hoặc ghép tay): không xoá", g.Path)
+		if err := orphanFixBlocker(ctx, env, g); err != nil {
+			return nil, err
 		}
 		return &g, nil
 	}

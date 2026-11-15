@@ -86,7 +86,7 @@ func cellLeftmostRight(t *testing.T, m *Model, needle string) (int, int) {
 
 func clickAt(t *testing.T, m *Model, x, y int) {
 	t.Helper()
-	_, cmd := m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	cmd := clickMsgs(m, x, y)
 	drive(t, m, cmd)
 }
 
@@ -94,7 +94,7 @@ func clickAt(t *testing.T, m *Model, x, y int) {
 func clickNoDrive(t *testing.T, m *Model, needle string) {
 	t.Helper()
 	x, y := cellOf(t, m, needle)
-	m.Update(tea.MouseClickMsg{X: x + 1, Y: y, Button: tea.MouseLeft})
+	clickMsgs(m, x+1, y)
 }
 
 func clickText(t *testing.T, m *Model, needle string, nth ...int) {
@@ -744,9 +744,16 @@ func TestMouseLogEscLabelCancelsJob(t *testing.T) {
 		t.Fatal("cycle phải chạy nền")
 	}
 	x, y := cellOf(t, m, "huỷ việc")
-	_, cmd := m.Update(tea.MouseClickMsg{X: x + 1, Y: y, Button: tea.MouseLeft})
+	cmd := clickMsgs(m, x+1, y)
 	d.settle(cmd)
 	if !d.until(func() bool { return m.jobs.Len() == 0 }) {
 		t.Fatalf("bấm nhãn Esc phải huỷ việc:\n%s", plain(m.Render()))
 	}
+}
+
+// clickMsgs gửi nhấn rồi thả cùng ô (một cú bấm thật): hành động của vùng bấm chạy lúc thả, nên trả Cmd của lúc thả.
+func clickMsgs(m *Model, x, y int) tea.Cmd {
+	m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+	return cmd
 }

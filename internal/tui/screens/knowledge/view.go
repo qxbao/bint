@@ -414,6 +414,7 @@ func (m *Model) panelView(env ui.Env) string {
 			formH = min(fields+4, 9)
 		}
 		fi, fh := frame.Inner(w, formH)
+		p.form.Static = !p.inForm // chân form chỉ có vùng bấm khi form đang nhận phím
 		formBox = frame.Box{Title: m.t("kn.form.title"), TitleAt: frame.Left, Focused: p.inForm}.
 			Render(th, w, formH, p.form.View(env.WithSize(fi, fh), 0))
 	}

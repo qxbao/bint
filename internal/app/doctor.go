@@ -381,12 +381,18 @@ func worktreeChecks(ctx context.Context, r *DoctorReport, root string, paths sta
 		if o.Prunable {
 			why += " (git báo prunable)"
 		}
+		blocked := orphanFixBlocker(ctx, env, o)
 		verb := "dọn"
-		if o.Unlanded || o.AwaitingMerge {
-			verb = "xem" // không gợi ý xoá: thay đổi của tác vụ chỉ còn ở đây
+		cmds := env.CleanupCommands(o)
+		if blocked != nil {
+			verb = "xem" // không gợi ý xoá: thay đổi hoặc tác vụ còn dùng worktree
+			if !o.Unlanded && !o.AwaitingMerge {
+				why += "; " + blocked.Error()
+				cmds = []string{"git -C " + o.Path + " status", "git -C " + o.Path + " diff HEAD"}
+			}
 		}
-		detail := fmt.Sprintf("%s — %s; %s: %s", o.Path, why, verb, strings.Join(env.CleanupCommands(o), " && "))
-		if o.Unlanded || o.AwaitingMerge {
+		detail := fmt.Sprintf("%s — %s; %s: %s", o.Path, why, verb, strings.Join(cmds, " && "))
+		if blocked != nil {
 			r.add("worktree mồ côi", LevelWarn, "%s", detail)
 		} else {
 			r.addFix(DoctorFix{Kind: FixWorktree, Path: o.Path, TaskID: o.TaskID}, "worktree mồ côi", LevelWarn, "%s", detail)

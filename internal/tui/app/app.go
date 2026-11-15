@@ -76,6 +76,8 @@ type Options struct {
 	TasksLoader   tkscreen.Loader
 	TasksDetailer tkscreen.Detailer
 	TasksRuns     tkscreen.RunsLoader
+	// TasksRunsDebounce là độ trễ gom lần nạp lượt chạy của thẻ Phiếu khi dời con trỏ (0 = mặc định).
+	TasksRunsDebounce time.Duration
 	// RunsLoader/RunsDetailer/RunsLessons thay được trong kiểm thử; nil = nạp thật.
 	RunsLoader   rnscreen.Loader
 	RunsDetailer rnscreen.Detailer
@@ -173,6 +175,7 @@ type Model struct {
 	initDone bool
 	// reloadPending: có yêu cầu nạp lại trong lúc đang nạp; nạp thêm một lần khi lần này xong.
 	reloadPending bool
+	reloadSoft    bool // lần nạp bù đang chờ chỉ do thăm dò dữ liệu yêu cầu
 
 	// active là các bước `bint run` đang giữ khoá cây làm việc này (đọc từ tệp chủ khoá); activeLoading: đang đọc;
 	// activeTicking: đã hẹn lần thăm dò kế (Options.ActivePoll > 0).
@@ -226,7 +229,7 @@ func New(ctx context.Context, opts Options) *Model {
 	m.kn = knscreen.New(knscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Agent: opts.Agent,
 		Loader: opts.KnowledgeLoader, Detailer: opts.KnowledgeDetailer, Gate: m.gate})
 	m.tk = tkscreen.New(tkscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.TasksLoader, Detailer: opts.TasksDetailer,
-		Runs: opts.TasksRuns, Gate: m.gate, Jobs: m.jobs})
+		Runs: opts.TasksRuns, RunsDebounce: opts.TasksRunsDebounce, Gate: m.gate, Jobs: m.jobs})
 	m.rn = rnscreen.New(rnscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.RunsLoader, Detailer: opts.RunsDetailer,
 		Lessons: opts.RunsLessons, Gate: m.gate})
 	m.ev = evscreen.New(evscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.EvolveLoader, Detailer: opts.EvolveDetailer,
@@ -339,8 +342,12 @@ func (m *Model) startTick() tea.Cmd {
 
 // load nạp dữ liệu Tổng quan. Đang nạp thì không khởi thêm goroutine (mỗi lần nạp có thể nạp spool
 // vào SQLite): chỉ đánh dấu để nạp lại một lần khi lần hiện tại xong, nên kết quả cũ không ghi đè mới.
-func (m *Model) load() tea.Cmd {
+func (m *Model) load() tea.Cmd { return m.loadMode(false) }
+
+// loadMode nạp Tổng quan; soft: do thăm dò dữ liệu tự kích hoạt (lỗi không thay dữ liệu đang hiện bằng trang lỗi).
+func (m *Model) loadMode(soft bool) tea.Cmd {
 	if m.ov.Loading {
+		m.reloadSoft = soft && (!m.reloadPending || m.reloadSoft) // một yêu cầu nạp tay làm lần nạp bù thành nạp tay
 		m.reloadPending = true
 		return nil
 	}
@@ -355,7 +362,7 @@ func (m *Model) load() tea.Cmd {
 	ctx, dir := m.ctx, m.opts.Dir
 	load := func() tea.Msg {
 		d, err := loader(ctx, dir)
-		return overview.LoadedMsg{Data: d, Err: err}
+		return overview.LoadedMsg{Data: d, Err: err, Soft: soft}
 	}
 	return tea.Batch(load, m.loadActive(true), m.startTick())
 }
@@ -465,7 +472,7 @@ func (m *Model) onDataSig(msg dataSigMsg) (tea.Model, tea.Cmd) {
 // reloadData nạp lại khi dữ liệu đổi: Tổng quan và màn đang hiện nạp mềm, các màn chuyên biệt khác chỉ bị đánh dấu cũ
 // (nạp khi người dùng tới tab).
 func (m *Model) reloadData() tea.Cmd {
-	cmds := []tea.Cmd{m.load()}
+	cmds := []tea.Cmd{m.loadMode(true)}
 	cur := m.Screen()
 	for s, sc := range m.screens {
 		r, ok := sc.(ui.Refresher)
@@ -496,9 +503,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.MouseClickMsg:
-		mm, cmd := m.click(tea.Mouse(msg))
-		m.selPress(tea.Mouse(msg))
-		return mm, cmd
+		m.selPress(tea.Mouse(msg)) // chỉ ghi điểm neo: hành động của vùng bấm chạy khi thả (selRelease) nếu không kéo
+		return m, nil
 	case tea.MouseMotionMsg:
 		m.selMotion(tea.Mouse(msg))
 		return m, nil
@@ -510,9 +516,11 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clipMsg:
 		return m.onClip(msg)
 	case tea.MouseWheelMsg:
+		m.clearSelection() // vùng đã chép nằm ở toạ độ cũ: cuộn làm nó lệch
 		return m.wheel(tea.Mouse(msg))
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
+		m.clearSelection() // đổi kích thước: toạ độ vùng đã chép không còn đúng
 	case spinner.TickMsg:
 		if !m.busy() { // hết việc: dừng chuỗi tick
 			m.ticking = false
@@ -532,7 +540,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.reloadPending {
 			m.reloadPending = false
-			return m, m.load()
+			return m, m.loadMode(m.reloadSoft)
 		}
 		return m, m.startDataPoll()
 	case dataTickMsg:

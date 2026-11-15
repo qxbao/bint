@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"bint/internal/testutil"
 )
 
 func TestDataWatchSignature(t *testing.T) {
@@ -45,5 +47,67 @@ func TestDataWatchSignature(t *testing.T) {
 func TestResolveDataWatchNotInitialized(t *testing.T) {
 	if _, ok := ResolveDataWatch(context.Background(), t.TempDir()); ok {
 		t.Fatal("thư mục không phải repo đã init thì ok=false")
+	}
+}
+
+// Ở worktree phụ không có .bint, cấu hình và tri thức nạp từ worktree chính: chữ ký phải theo dõi .bint ở đó.
+func TestResolveDataWatchLinkedWorktreeWatchesMainBint(t *testing.T) {
+	_, root, _ := taskRepo(t)
+	wt := filepath.Join(t.TempDir(), "linked")
+	testutil.Git(t, root, "worktree", "add", "-q", "-b", "side", wt, "HEAD")
+	if _, err := os.Stat(filepath.Join(wt, ".bint")); err == nil {
+		t.Skip("worktree phụ đã có .bint (được commit)")
+	}
+	w, ok := ResolveDataWatch(context.Background(), wt)
+	if !ok {
+		t.Fatal("ResolveDataWatch ở worktree phụ phải ok")
+	}
+	know := filepath.Join(root, ".bint", "knowledge")
+	if err := os.MkdirAll(know, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s0 := w.Signature()
+	item := filepath.Join(know, "new.md")
+	if err := os.WriteFile(item, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s1 := w.Signature()
+	if s1 == s0 {
+		t.Fatal("thêm tệp tri thức ở worktree chính phải làm chữ ký đổi")
+	}
+	if err := os.WriteFile(item, []byte("xyz-longer"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if w.Signature() == s1 {
+		t.Fatal("sửa tệp tri thức ở worktree chính phải làm chữ ký đổi")
+	}
+}
+
+func TestDataWatchSignatureIgnoresTaskLogsAndLocks(t *testing.T) {
+	root := t.TempDir()
+	tasks := filepath.Join(root, "runtime", "tasks")
+	logs := filepath.Join(tasks, "T1", "logs")
+	if err := os.MkdirAll(logs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	w := DataWatch{Trees: []string{tasks}}
+	s0 := w.Signature()
+	if err := os.WriteFile(filepath.Join(logs, "verify-1.log"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tasks, "T1", "x.lock"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := os.OpenFile(filepath.Join(logs, "verify-1.log"), os.O_APPEND|os.O_WRONLY, 0o644)
+	f.WriteString("more")
+	f.Close()
+	if w.Signature() != s0 {
+		t.Fatal("ghi logs/.lock không được làm chữ ký đổi")
+	}
+	if err := os.WriteFile(filepath.Join(tasks, "T1", "state.yml"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if w.Signature() == s0 {
+		t.Fatal("tệp trạng thái phải làm chữ ký đổi")
 	}
 }

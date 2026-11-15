@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"bint/internal/tui/actions"
 	"bint/internal/tui/clipboard"
 )
 
@@ -81,7 +82,8 @@ func TestClickWithoutDragDoesNotCopy(t *testing.T) {
 	x, y := cellOf(t, m, "Thêm màn Tác vụ")
 	send(t, m, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
 	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
-	if cmd != nil {
+	drive(t, m, cmd) // thả không kéo chỉ chạy hành động của vùng bấm, không chép
+	if m.sel.shown {
 		t.Fatal("nhấn rồi thả không kéo thì không chép")
 	}
 	if fake.Writes != 0 {
@@ -99,5 +101,87 @@ func TestDragIgnoredWhenMouseOff(t *testing.T) {
 	}
 	if fake.Writes != 0 {
 		t.Fatal("clipboard bị ghi")
+	}
+}
+
+// Nhấn chuột chỉ ghi điểm neo; hành động của vùng bấm chạy đúng một lần lúc thả cùng ô.
+func TestClickRunsOnReleaseOnly(t *testing.T) {
+	m := mouseModel(t, 140, 40)
+	x, y := cellOf(t, m, "Tri thức")
+	before := m.Screen()
+	m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	if m.Screen() != before {
+		t.Fatal("nhấn chưa được đổi tab")
+	}
+	if !m.sel.pressed {
+		t.Fatal("nhấn phải ghi điểm neo")
+	}
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+	drive(t, m, cmd)
+	if m.Screen() != actions.Knowledge {
+		t.Fatalf("thả cùng ô phải chuyển tab: %s", m.Screen())
+	}
+	// Thả lần nữa không có nhấn trước: không làm gì thêm.
+	m.run(actions.NavID(actions.Overview))
+	if _, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft}); cmd != nil || m.Screen() != actions.Overview {
+		t.Fatalf("thả không có nhấn không được chạy hành động (màn %s)", m.Screen())
+	}
+}
+
+// Kéo bắt đầu trên tab hoặc nút chân phím rồi thả chỉ chép vùng chọn, không chạy hành động.
+func TestDragStartedOnClickableOnlyCopies(t *testing.T) {
+	for _, tc := range []struct {
+		name, needle string
+		check        func(m *Model) bool
+	}{
+		{"tab", "Tri thức", func(m *Model) bool { return m.Screen() == actions.Overview }},
+		{"chân phím ?", "[?→", func(m *Model) bool { return !m.showHelp }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &clipboard.Fake{}
+			m := mouseModel(t, 140, 40)
+			m.clip = fake
+			x, y := cellOf(t, m, tc.needle)
+			cmd := drag(t, m, x, y, x+3, y)
+			drive(t, m, cmd)
+			if !tc.check(m) {
+				t.Fatalf("kéo bắt đầu trên %s không được chạy hành động của nó", tc.name)
+			}
+			if fake.Writes == 0 {
+				t.Fatal("kéo phải chép vùng chọn")
+			}
+		})
+	}
+	// Thả ở ô khác dù không có sự kiện di chuyển cũng là kéo.
+	m := mouseModel(t, 140, 40)
+	x, y := cellOf(t, m, "Tri thức")
+	m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x + 3, Y: y, Button: tea.MouseLeft})
+	drive(t, m, cmd)
+	if m.Screen() != actions.Overview {
+		t.Fatalf("thả ở ô khác không được đổi tab: %s", m.Screen())
+	}
+}
+
+// Sau khi chép bằng kéo chuột, cuộn bánh xe hoặc đổi kích thước xoá vùng tô đảo màu.
+func TestWheelAndResizeClearCopiedHighlight(t *testing.T) {
+	for _, name := range []string{"wheel", "resize"} {
+		t.Run(name, func(t *testing.T) {
+			m := mouseModel(t, 140, 30, "3")
+			m.clip = &clipboard.Fake{}
+			x, y := cellOf(t, m, "Thêm màn Tác vụ")
+			drive(t, m, drag(t, m, x, y, x+10, y))
+			if !strings.Contains(m.highlight(m.Render()), "\x1b[7m") {
+				t.Fatal("phải đang tô vùng đã chép")
+			}
+			if name == "wheel" {
+				m.Update(tea.MouseWheelMsg{X: x, Y: y, Button: tea.MouseWheelDown})
+			} else {
+				m.Update(tea.WindowSizeMsg{Width: 130, Height: 30})
+			}
+			if m.sel.shown || m.sel.dragging {
+				t.Fatalf("%s phải xoá vùng tô", name)
+			}
+		})
 	}
 }

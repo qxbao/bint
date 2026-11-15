@@ -11,7 +11,7 @@ import (
 
 // Chọn và chép bằng chuột: kéo chuột trái (nhấn, di, thả) bôi đen một vùng trên bản vẽ; khi thả, chữ thuần của vùng
 // (không mã ANSI, bỏ khoảng trắng cuối dòng) được chép vào clipboard qua OSC52 (tea.SetClipboard) và clipboard hệ thống.
-// Nhấn không kéo vẫn là bấm như cũ. Vùng chọn là dòng chảy: dòng đầu từ cột neo, dòng giữa trọn dòng, dòng cuối tới cột thả.
+// Nhấn không kéo vẫn là bấm, nhưng hành động chạy lúc thả (nhấn chỉ ghi điểm neo). Vùng chọn là dòng chảy: dòng đầu từ cột neo, dòng giữa trọn dòng, dòng cuối tới cột thả.
 
 type cell struct{ x, y int }
 
@@ -55,6 +55,16 @@ func (m *Model) selRelease(mo tea.Mouse) tea.Cmd {
 		return nil
 	}
 	m.sel.pressed = false
+	if !m.sel.dragging && (mo.X != m.sel.anchor.x || mo.Y != m.sel.anchor.y) {
+		m.sel.dragging, m.sel.end = true, cell{mo.X, mo.Y} // thả ở ô khác dù không có sự kiện di chuyển: vẫn là kéo
+	}
+	if !m.sel.dragging && m.selectable() {
+		// Bấm thật (nhấn và thả cùng ô): chạy hành động của vùng tại điểm nhấn, đúng một lần.
+		a := m.sel.anchor
+		m.clearSelection()
+		_, cmd := m.click(tea.Mouse{X: a.x, Y: a.y, Button: tea.MouseLeft})
+		return cmd
+	}
 	if !m.sel.dragging || !m.selectable() {
 		m.clearSelection()
 		return nil

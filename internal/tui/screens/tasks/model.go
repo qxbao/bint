@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -60,6 +61,8 @@ type Options struct {
 	Loader   Loader
 	Detailer Detailer
 	Runs     RunsLoader
+	// RunsDebounce là độ trễ gom lần nạp lượt chạy của thẻ Phiếu khi dời con trỏ (0 = mặc định runsDebounce).
+	RunsDebounce time.Duration
 	// Gate cho biết hành động có dùng được không theo sổ hành động và chế độ (nil = luôn dùng được).
 	Gate func(id string) actions.Availability
 	// Jobs là bảng việc nền của mô hình gốc (chỉ đọc): màn hình hiện log và biết việc nào đang chạy.
@@ -119,7 +122,10 @@ type Model struct {
 	asked    map[string]bool
 	runs     map[string]app.TaskRunsResult
 	runsErr  map[string]error
-	runsAsk  map[string]bool
+	runsAsk  map[string]bool // đã yêu cầu nạp đầy đủ (thẻ Lượt chạy: nạp spool, Reconcile)
+	// runsLite: đã yêu cầu nạp nhẹ cho khối nổi bật của thẻ Phiếu (không nạp spool, không Reconcile); runsSeq đánh số lần hẹn gom.
+	runsLite map[string]bool
+	runsSeq  int
 
 	dlg      *dialog
 	frm      *form.Model
@@ -150,7 +156,7 @@ func New(o Options) *Model {
 		o.Jobs = &jobs.Table{}
 	}
 	m := &Model{o: o, log: logview.New(), cache: map[string]Detail{}, cacheErr: map[string]error{}, asked: map[string]bool{},
-		runs: map[string]app.TaskRunsResult{}, runsErr: map[string]error{}, runsAsk: map[string]bool{}}
+		runs: map[string]app.TaskRunsResult{}, runsErr: map[string]error{}, runsAsk: map[string]bool{}, runsLite: map[string]bool{}}
 	return m
 }
 
@@ -403,20 +409,59 @@ func (m *Model) wantDetail() tea.Cmd {
 			return DetailMsg{ID: id, Detail: d, Err: err}
 		})
 	}
-	if (m.sub == subRuns || m.sub == subInfo) && !m.runsAsk[id] {
+	switch {
+	case m.sub == subRuns && !m.runsAsk[id]:
 		m.runsAsk[id] = true
-		ctx, dir, rl, ro := context.Background(), m.o.Dir, m.o.Runs, m.o.ReadOnly
-		cmds = append(cmds, func() tea.Msg {
-			r, err := rl(ctx, dir, id, ro)
-			return RunsMsg{ID: id, Runs: r, Err: err}
-		})
+		cmds = append(cmds, m.loadRuns(id, m.o.ReadOnly))
+	case m.sub == subInfo && !m.runsAsk[id] && !m.runsLite[id]:
+		// Khối nổi bật của thẻ Phiếu chỉ cần số liệu: gom theo độ trễ ngắn khi dời con trỏ (chỉ tác vụ cuối được nạp).
+		m.runsSeq++
+		seq, d := m.runsSeq, m.o.RunsDebounce
+		if d <= 0 {
+			d = runsDebounce
+		}
+		cmds = append(cmds, tea.Tick(d, func(time.Time) tea.Msg { return runsDueMsg{ID: id, Seq: seq} }))
 	}
 	return tea.Batch(cmds...)
 }
 
+// runsDebounce là độ trễ mặc định gom lần nạp lượt chạy của thẻ Phiếu.
+const runsDebounce = 150 * time.Millisecond
+
+// runsDueMsg: tới hạn gom; chỉ lần hẹn mới nhất (Seq) mà tác vụ còn là tác vụ dưới con trỏ mới nạp.
+type runsDueMsg struct {
+	ID  string
+	Seq int
+}
+
+func (runsDueMsg) Target() actions.Screen { return actions.Tasks }
+
+// onRunsDue nạp nhẹ lượt chạy (không nạp spool, không Reconcile) cho tác vụ dưới con trỏ khi hết hạn gom.
+func (m *Model) onRunsDue(msg runsDueMsg) tea.Cmd {
+	t := m.Cursor()
+	if msg.Seq != m.runsSeq || t == nil || t.State.ID != msg.ID || m.sub != subInfo || m.runsAsk[msg.ID] || m.runsLite[msg.ID] {
+		return nil
+	}
+	if m.o.ReadOnly {
+		m.runsAsk[msg.ID] = true // chế độ chỉ đọc luôn nạp nhẹ: lần nạp này cũng là đầy đủ
+	} else {
+		m.runsLite[msg.ID] = true
+	}
+	return m.loadRuns(msg.ID, true)
+}
+
+// loadRuns gọi RunsLoader; noIngest = true: không nạp spool và không Reconcile.
+func (m *Model) loadRuns(id string, noIngest bool) tea.Cmd {
+	ctx, dir, rl := context.Background(), m.o.Dir, m.o.Runs
+	return func() tea.Msg {
+		r, err := rl(ctx, dir, id, noIngest)
+		return RunsMsg{ID: id, Runs: r, Err: err}
+	}
+}
+
 // invalidate buộc nạp lại chi tiết và lượt chạy (giữ nội dung cũ hiện tới khi có bản mới).
 func (m *Model) invalidate() {
-	m.asked, m.runsAsk = map[string]bool{}, map[string]bool{}
+	m.asked, m.runsAsk, m.runsLite = map[string]bool{}, map[string]bool{}, map[string]bool{}
 }
 
 // Update xử lý thông điệp không phải phím; trả lệnh kế tiếp.
@@ -453,6 +498,8 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			m.cache[msg.ID] = msg.Detail
 			delete(m.cacheErr, msg.ID)
 		}
+	case runsDueMsg:
+		return m.onRunsDue(msg)
 	case RunsMsg:
 		if msg.Err != nil {
 			m.runsErr[msg.ID] = msg.Err

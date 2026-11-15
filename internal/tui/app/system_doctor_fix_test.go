@@ -95,3 +95,56 @@ func TestSystemDoctorFixHiddenInReadOnly(t *testing.T) {
 		t.Fatal("chế độ chỉ đọc: f không được tới Do")
 	}
 }
+
+// Sửa mục sync hoặc mẫu cấu hình bằng phím f (qua luồng xem trước) xong thì Doctor nạp lại ngay và mục đã sửa mất gợi ý.
+func TestSystemDoctorReloadsAfterSyncAndConfigUpgrade(t *testing.T) {
+	for _, tc := range []struct {
+		name, planID, doID, detail string
+		down                       int
+		plan, done                 any
+	}{
+		{"sync", "system.sync_plan", "system.sync", "sync-detail", 0,
+			bintapp.SyncPlan{Changes: 1, Files: []bintapp.SyncFile{{Skill: "b-do", Path: "a", Result: "updated"}}}, bintapp.SkillInstall{}},
+		{"config_upgrade", "system.config_upgrade_plan", "system.config_upgrade", "tpl-detail", 1,
+			bintapp.ConfigUpgradePlan{Changed: true, Path: "x"}, &bintapp.InitReport{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var runs atomic.Int32
+			var fixed atomic.Bool
+			loader := func(context.Context, string) (*bintapp.DoctorReport, error) {
+				runs.Add(1)
+				checks := []bintapp.Check{}
+				if !fixed.Load() {
+					checks = append(checks,
+						bintapp.Check{Name: "skill b-do", Level: bintapp.LevelWarn, Detail: "sync-detail", Fix: &bintapp.DoctorFix{Kind: bintapp.FixSync}},
+						bintapp.Check{Name: bintapp.CheckConfigTemplate, Level: bintapp.LevelWarn, Detail: "tpl-detail", Fix: &bintapp.DoctorFix{Kind: bintapp.FixConfigTemplate}})
+				}
+				checks = append(checks, bintapp.Check{Name: "lỗi hook", Level: bintapp.LevelWarn, Detail: "plain-detail"})
+				return &bintapp.DoctorReport{Checks: checks}, nil
+			}
+			m, c := newSysModel(t, Options{SystemLoad: syscreen.Loaders{Doctor: loader}}, 140, 40)
+			c.values[tc.planID], c.values[tc.doID] = tc.plan, tc.done
+			press(t, m, ",", ",", ",")
+			for i := 0; i < tc.down; i++ {
+				press(t, m, "j")
+			}
+			hasAll(t, plain(m.Render()), tc.detail)
+			press(t, m, "f")
+			if c.count(tc.planID) != 1 {
+				t.Fatalf("f phải mở xem trước %s", tc.planID)
+			}
+			before := runs.Load()
+			fixed.Store(true) // dịch vụ ghi xong: lần nạp sau không còn mục này
+			press(t, m, "enter")
+			if c.count(tc.doID) != 1 {
+				t.Fatalf("xác nhận phải gọi %s đúng một lần: %d", tc.doID, c.count(tc.doID))
+			}
+			if runs.Load() <= before {
+				t.Fatalf("sau %s thành công Doctor phải nạp lại (runs %d → %d)", tc.doID, before, runs.Load())
+			}
+			if out := plain(m.Render()); strings.Contains(out, tc.detail) {
+				t.Fatalf("mục đã sửa còn hiện:\n%s", out)
+			}
+		})
+	}
+}

@@ -175,6 +175,8 @@ type Model struct {
 	// Err là lỗi chung (kiểm tra Validate) và FieldErr là lỗi theo ô (chỉ số trong Fields).
 	Err      string
 	FieldErr map[int]string
+	// Static: chân phím chỉ để đọc, không có vùng bấm (biểu mẫu nhúng chưa có tiêu điểm: phím chưa gửi tới nó).
+	Static bool
 }
 
 // New dựng biểu mẫu cho hành động actionID từ Options mẫu defaults (giá trị khởi đầu, struct hoặc con trỏ).
@@ -796,7 +798,7 @@ func (m *Model) View(env ui.Env, labelWidth int) string {
 	foot := []string{
 		hint,
 		"  " + th.S(theme.Muted, env.T("form.cli")+" ") + text.Truncate(strings.ReplaceAll(cli, "\n", "⏎"), max(w-4-text.Width(env.T("form.cli")), 8)),
-		" " + footer.Inline(th, []footer.Hint{
+		" " + inlineFooter(th, m.Static, []footer.Hint{
 			{Key: "Enter", Label: env.T("form.hint.submit"), Press: "ctrl+s"},
 			{Key: "Tab", Label: env.T("form.hint.next"), Press: "tab"},
 			{Key: "Ctrl+Y", Label: env.T("form.hint.copy"), Press: "ctrl+y"},
@@ -855,4 +857,11 @@ func (m *Model) choiceLine(env ui.Env, ri, i int, f Field, focused bool, room in
 		return zone.Mark(rowSubZone(ri, "prev"), th.Selected("‹")) + th.Selected(" "+mid+" ") + zone.Mark(rowSubZone(ri, "next"), th.Selected("›"))
 	}
 	return zone.Mark(rowSubZone(ri, "prev"), "‹") + " " + mid + " " + zone.Mark(rowSubZone(ri, "next"), "›")
+}
+
+func inlineFooter(th theme.Theme, static bool, hints []footer.Hint, maxW int) string {
+	if static {
+		return footer.InlineStatic(th, hints, maxW)
+	}
+	return footer.Inline(th, hints, maxW)
 }

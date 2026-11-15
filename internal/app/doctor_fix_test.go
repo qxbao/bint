@@ -211,3 +211,51 @@ func TestDoctorFixSpoolOver200(t *testing.T) {
 		t.Fatal("loại sync không chạy qua dịch vụ")
 	}
 }
+
+// orphanNoFix kiểm doctor không gắn Fix cho worktree p, FixDoctor từ chối và không đụng worktree/nhánh.
+func orphanNoFix(t *testing.T, root, p, id, name string) {
+	t.Helper()
+	c := orphanCheck(t, root)
+	if c == nil || c.Fix != nil || !strings.Contains(c.Detail, p) {
+		t.Fatalf("%s: không được có Fix: %+v", name, c)
+	}
+	if _, err := FixDoctor(context.Background(), root, DoctorFixOptions{Kind: FixWorktree, Path: p, TaskID: id}); err == nil {
+		t.Fatalf("%s: FixDoctor phải từ chối", name)
+	}
+	if _, err := os.Stat(p); err != nil || !branchExists(t, root, "bint/"+id) {
+		t.Fatalf("%s: worktree/nhánh bị đụng", name)
+	}
+}
+
+func TestDoctorFixRefusesUncommittedFiles(t *testing.T) {
+	ws, root, _ := taskRepo(t)
+	p := addOrphanWorktree(t, ws, root, "01DIRTY")
+	if err := os.WriteFile(filepath.Join(p, "wip.txt"), []byte("chưa commit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	orphanNoFix(t, root, p, "01DIRTY", "tệp chưa commit")
+}
+
+func TestDoctorFixRefusesUnmergedCommits(t *testing.T) {
+	ws, root, _ := taskRepo(t)
+	p := addOrphanWorktree(t, ws, root, "01AHEAD")
+	if err := os.WriteFile(filepath.Join(p, "feat.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Git(t, p, "add", "feat.txt")
+	testutil.Git(t, p, "commit", "-q", "-m", "chưa gộp")
+	orphanNoFix(t, root, p, "01AHEAD", "commit chưa gộp")
+}
+
+func TestDoctorFixRefusesUnfinishedTaskWithEmptyOrigin(t *testing.T) {
+	ws, root, id := taskRepo(t)
+	p := addOrphanWorktree(t, ws, root, id)
+	if _, err := ws.Tasks.Update(id, time.Now(), func(tk *task.Task) error {
+		tk.State.Status = task.StatusInProgress
+		tk.State.Origin = ""
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	orphanNoFix(t, root, p, id, "tác vụ chưa kết thúc, Origin rỗng")
+}
