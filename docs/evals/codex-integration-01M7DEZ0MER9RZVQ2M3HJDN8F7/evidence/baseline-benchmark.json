@@ -1,8 +1,0 @@
-{
-  "command": "go test ./internal/eval -run '^$' -bench '^BenchmarkParseCodexJSONL$' -benchmem -count=5",
-  "overrides": {},
-  "started": "2026-11-14T16:49:12.368651+00:00",
-  "code_diff_sha256": "802ca50ba46c40feb13e9a98ceea03458497a03cddd25bec1b37b714b4831846",
-  "exit_code": 0,
-  "elapsed_seconds": 16.938
-}

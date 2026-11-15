@@ -111,3 +111,72 @@ func checkCodexMCPConfigLive(t *testing.T, bin, repo string) {
 		})
 	}
 }
+
+func TestCodexMCPRootTrustLive(t *testing.T) {
+	if os.Getenv("BINT_CODEX_CONFIG_LIVE") != "1" {
+		t.Skip("set BINT_CODEX_CONFIG_LIVE=1 to check installed Codex root trust")
+	}
+	bin, err := exec.LookPath("codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range []struct {
+		name string
+		make func(*testing.T) (string, []codexTrustCase)
+	}{{"markers", codexMarkerFixture}, {"linked", codexLinkedTrustFixture}} {
+		t.Run(fixture.name, func(t *testing.T) {
+			dir, cases := fixture.make(t)
+			home := t.TempDir()
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					writeMCPTestFile(t, filepath.Join(home, "config.toml"), tc.config)
+					req := AgentRequest{Dir: dir, Env: []string{"CODEX_HOME=" + home}}
+					list := func(overrides []string) []string {
+						t.Helper()
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						args := append([]string{"--no-daemon"}, overrides...)
+						cmd := exec.CommandContext(ctx, bin, append(args, "mcp", "list", "--json")...)
+						cmd.Dir, cmd.Env = dir, cleanEnv(req.Env...)
+						var stderr strings.Builder
+						cmd.Stderr = &stderr
+						raw, err := cmd.Output()
+						if err != nil {
+							t.Fatalf("Codex mcp list: %v\n%s", err, stderr.String())
+						}
+						var servers []struct {
+							Name    string
+							Enabled bool
+						}
+						if err := json.Unmarshal(raw, &servers); err != nil {
+							t.Fatal(err)
+						}
+						var names []string
+						for _, s := range servers {
+							if s.Enabled {
+								names = append(names, s.Name)
+							}
+						}
+						slices.Sort(names)
+						t.Logf("Codex overrides=%v enabled=%v", overrides, names)
+						return names
+					}
+					if got := list(nil); !slices.Equal(got, tc.want) {
+						t.Fatalf("CLI configured servers = %v; want %v", got, tc.want)
+					}
+					if got, err := codexOtherMCPServers(req); err != nil || !slices.Equal(got, tc.want) {
+						t.Errorf("Bint discovered servers = %v, %v; want %v", got, err, tc.want)
+					}
+					off, err := codexDisableMCPArgs(req)
+					if err != nil {
+						t.Fatal(err)
+					}
+					off = append(off, "-c", `mcp_servers.bint.command="fixture-bint"`)
+					if got := list(off); !slices.Equal(got, []string{"bint"}) {
+						t.Fatalf("exclusive MCP left enabled servers %v", got)
+					}
+				})
+			}
+		})
+	}
+}

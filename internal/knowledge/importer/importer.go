@@ -122,7 +122,8 @@ func SlugOf(abs string) string {
 }
 
 // Locate liệt kê tệp của nguồn. Chưa đọc nội dung.
-func Locate(source string, o LocateOptions) ([]File, error) {
+func Locate(source string, o LocateOptions) (files []File, err error) {
+	defer func() { err = sourceError(err) }()
 	switch source {
 	case knowledge.ImportClaudeMemory:
 		return locateClaude(o)
@@ -272,7 +273,8 @@ func walkDir(dir, prefix string, keep func(rel string) bool) ([]File, error) {
 }
 
 // Read đọc tệp nguồn, chặn tệp quá lớn.
-func Read(f File) ([]byte, error) {
+func Read(f File) (data []byte, err error) {
+	defer func() { err = sourceError(err) }()
 	st, err := os.Stat(f.Abs)
 	if err != nil {
 		return nil, err
@@ -281,6 +283,15 @@ func Read(f File) ([]byte, error) {
 		return nil, fmt.Errorf("%s: tệp quá lớn (%d KB, tối đa %d KB)", f.Name, st.Size()>>10, MaxFileBytes>>10)
 	}
 	return os.ReadFile(f.Abs)
+}
+
+// sourceError giữ nguyên loại lỗi, nhưng không đưa đường dẫn nguồn riêng tư vào báo cáo.
+func sourceError(err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return &fs.PathError{Op: pe.Op, Path: filepath.Base(pe.Path), Err: pe.Err}
+	}
+	return err
 }
 
 var (
@@ -298,7 +309,11 @@ func Split(source, name string, data []byte) []Idea {
 		return []Idea{{Source: source, Ref: source + ":" + name, Title: name, Skip: SkipIndexFile,
 			SkipDetail: "tệp chỉ mục MEMORY.md chỉ liệt kê các ghi chú khác"}}
 	}
-	fm, body := splitFrontmatter(text)
+	fm, body, err := splitFrontmatter(text)
+	if err != nil {
+		return []Idea{{Source: source, Ref: source + ":" + name, Title: name, Skip: SkipCheckFailed,
+			SkipDetail: "frontmatter không hợp lệ"}}
+	}
 	var out []Idea
 	if bintBlockRe.MatchString(body) {
 		body = bintBlockRe.ReplaceAllString(body, "")
@@ -395,27 +410,29 @@ func filter(id Idea) Idea {
 }
 
 var (
-	commitRe   = regexp.MustCompile(`\b[0-9a-f]{7,40}\b`)
-	dateRe     = regexp.MustCompile(`\b\d{4}-\d{2}-\d{2}\b`)
-	ticketRe   = regexp.MustCompile(`\b[A-Z][A-Z0-9]{1,9}-\d{1,6}\b`)
-	progressRe = regexp.MustCompile(`(?i)(\bwip\b|\btodo\b|in progress|đang làm|tiến độ|đã hoàn thành|\bnext step|bước tiếp theo|\bstatus:|trạng thái:)`)
-	digitRe    = regexp.MustCompile(`\d`)
-	letterRe   = regexp.MustCompile(`[a-f]`)
+	commitRe      = regexp.MustCompile(`\b[0-9a-f]{7,40}\b`)
+	dateRe        = regexp.MustCompile(`\b\d{4}-\d{2}-\d{2}\b`)
+	ticketRe      = regexp.MustCompile(`\b[A-Z][A-Z0-9]{1,9}-\d{1,6}\b`)
+	progressRe    = regexp.MustCompile(`(?im)^[ \t#*+-]*((wip|todo|in progress|đang làm|tiến độ|đã hoàn thành|next steps?|bước tiếp theo)([ \t:]|$)|(status|trạng thái)[ \t]*:)`)
+	workContextRe = regexp.MustCompile(`(?im)(\bhôm qua\b|\byesterday\b|^[ \t#*+-]*((hạn|deadline|due)[ \t]*:?[ \t]+[0-9]|theo ticket\b))`)
+	digitRe       = regexp.MustCompile(`\d`)
+	letterRe      = regexp.MustCompile(`[a-f]`)
 )
 
-// WorkState trả lý do khi văn bản là ghi chú trạng thái công việc (tiến độ, hash commit, ngày, ticket); rỗng nếu không.
+// WorkState nhận diện tiến độ rõ ràng; ngày/ticket/hash chỉ là dấu hiệu khi có ngữ cảnh công việc.
+// Ví dụ trong quy tắc bền vững có thể chứa mọi loại giá trị này.
 func WorkState(s string) string {
 	if m := progressRe.FindString(s); m != "" {
 		return "ghi chú tiến độ (“" + strings.TrimSpace(m) + "”)"
 	}
-	if m := dateRe.FindString(s); m != "" {
+	if m := dateRe.FindString(s); m != "" && workContextRe.MatchString(s) {
 		return "chứa ngày " + m
 	}
-	if m := ticketRe.FindString(s); m != "" {
+	if m := ticketRe.FindString(s); m != "" && workContextRe.MatchString(s) {
 		return "chứa mã ticket " + m
 	}
 	for _, m := range commitRe.FindAllString(s, -1) {
-		if digitRe.MatchString(m) && letterRe.MatchString(m) { // chỉ chữ số hay chỉ chữ thì không phải băm commit
+		if digitRe.MatchString(m) && letterRe.MatchString(m) && workContextRe.MatchString(s) { // chỉ chữ số hay chỉ chữ thì không phải băm commit
 			return "chứa mã băm commit " + m
 		}
 	}
@@ -440,25 +457,61 @@ func clip(s string) string {
 }
 
 // splitFrontmatter tách phần đầu YAML đơn giản (khoá: giá trị chuỗi hoặc danh sách) khỏi nội dung.
-func splitFrontmatter(text string) (map[string]string, string) {
+func splitFrontmatter(text string) (map[string]string, string, error) {
 	fm := map[string]string{}
-	if !strings.HasPrefix(text, "---\n") {
-		return fm, text
+	first, rest, _ := strings.Cut(text, "\n")
+	if strings.TrimSpace(first) != "---" {
+		return fm, text, nil
 	}
-	rest := text[4:]
-	end := strings.Index(rest, "\n---")
+	parts := strings.Split(rest, "\n")
+	end := -1
+	for i, line := range parts {
+		if strings.TrimSpace(line) == "---" {
+			end = i
+			break
+		}
+	}
 	if end < 0 {
-		return fm, text
+		return fm, "", errors.New("frontmatter chưa đóng")
 	}
-	head, tail := rest[:end], rest[end+4:]
-	if i := strings.Index(tail, "\n"); i >= 0 {
-		tail = tail[i+1:]
-	} else {
-		tail = ""
-	}
+	head, tail := strings.Join(parts[:end], "\n"), strings.Join(parts[end+1:], "\n")
 	var raw map[string]any
+	// Cursor dùng cả globs: **/*.go và [**/*.go, internal/**], không phải YAML alias.
+	// Chỉ chuẩn hoá trường globs nếu YAML chuẩn không giải mã được giá trị đó.
+	lines := strings.Split(head, "\n")
+	for i, line := range lines {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok || strings.TrimSpace(key) != "globs" {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		var parsed any
+		if yaml.Unmarshal([]byte(value), &parsed) == nil {
+			continue
+		}
+		// Chỉ hỗ trợ cú pháp glob không trích dẫn, không chữa YAML hỏng.
+		if strings.HasPrefix(value, "[") != strings.HasSuffix(value, "]") ||
+			(!strings.HasPrefix(value, "*") && !strings.HasPrefix(value, "[")) {
+			return fm, "", errors.New("globs không hợp lệ")
+		}
+		value = strings.TrimSuffix(strings.TrimPrefix(value, "["), "]")
+		var quoted []string
+		for _, glob := range strings.Split(value, ",") {
+			glob = strings.TrimSpace(glob)
+			var decoded string
+			if err := yaml.Unmarshal([]byte(glob), &decoded); err != nil {
+				if !strings.HasPrefix(glob, "*") || strings.ContainsAny(glob, "\"'[]") {
+					return fm, "", errors.New("globs không hợp lệ")
+				}
+				decoded = glob
+			}
+			quoted = append(quoted, fmt.Sprintf("%q", decoded))
+		}
+		lines[i] = key + ": [" + strings.Join(quoted, ", ") + "]"
+	}
+	head = strings.Join(lines, "\n")
 	if err := yaml.Unmarshal([]byte(head), &raw); err != nil {
-		return fm, tail
+		return fm, tail, err
 	}
 	for k, v := range raw {
 		switch x := v.(type) {
@@ -475,7 +528,7 @@ func splitFrontmatter(text string) (map[string]string, string) {
 			fm[k] = fmt.Sprint(x)
 		}
 	}
-	return fm, tail
+	return fm, tail, nil
 }
 
 // globList đổi giá trị globs của rule Cursor thành danh sách mẫu đường dẫn hợp lệ trong repository.

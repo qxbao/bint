@@ -1,8 +1,0 @@
-{
-  "command": "go test ./internal/eval ./internal/app ./internal/harness/codex -run 'Test(MultiHarnessInit|CodexJSONL|ParseCodex|ProjectTrust|ShellCommand|InstalledHooks|CodexExclusiveMCP|CodexGuardrail|CodexProfile|CodexEval|PostToolOutcome)' -count=1",
-  "overrides": {},
-  "started": "2026-11-14T17:09:59.696384+00:00",
-  "code_diff_sha256": "18e7e51840f62e7534a7e4c40247b7bb166005fc59f39f04f16650920ad32b04",
-  "exit_code": 0,
-  "elapsed_seconds": 10.774
-}

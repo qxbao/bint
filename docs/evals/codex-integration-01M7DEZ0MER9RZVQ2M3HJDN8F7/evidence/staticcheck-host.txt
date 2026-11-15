@@ -1,3 +1,0 @@
-{"command": "/Users/hongducc/go/bin/staticcheck ./...", "overrides": {}, "started": "2026-11-14T16:51:05.965580+00:00", "code_diff_sha256": "7b45127d62cce7ab32ec0b5dbe63ad1011e68afd132404fd0a4e342590db49f4"}
-
-{"command": "/Users/hongducc/go/bin/staticcheck ./...", "overrides": {}, "started": "2026-11-14T16:51:05.965580+00:00", "code_diff_sha256": "7b45127d62cce7ab32ec0b5dbe63ad1011e68afd132404fd0a4e342590db49f4", "exit_code": 0, "elapsed_seconds": 39.402}

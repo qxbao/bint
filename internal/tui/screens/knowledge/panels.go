@@ -130,6 +130,9 @@ func (m *Model) runPanel(p *panel, opts any) tea.Cmd {
 		return nil
 	}
 	p.running, p.ran, p.err, p.inForm = true, true, nil, false
+	if p.action == "knowledge.import_preview" {
+		p.lastHash, p.lastCreate, p.lastOpts = "", 0, nil
+	}
 	if p.action == "bootstrap.publish_preview" || p.action == "knowledge.import_preview" {
 		p.lastOpts = opts
 	}
@@ -159,6 +162,11 @@ func (m *Model) panelKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch s {
 	case "enter", "i":
 		if p.form != nil {
+			if p.action == "knowledge.import_preview" {
+				p.lastHash, p.lastCreate, p.lastOpts = "", 0, nil
+				p.lines = nil
+				p.view.SetLines(nil)
+			}
 			p.inForm = true
 			return nil, true
 		}
@@ -261,7 +269,7 @@ func (m *Model) confirmImport(p *panel) tea.Cmd {
 		return nil
 	}
 	opts, ok := p.lastOpts.(app.ImportOptions)
-	if !ok || !p.ran {
+	if !ok || !p.ran || p.lastHash == "" || p.err != nil {
 		m.setToast(m.t("kn.import.preview_first"), true)
 		return nil
 	}

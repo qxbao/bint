@@ -1,8 +1,0 @@
-{
-  "command": "go test ./internal/eval ./internal/app -run 'Test(CodexExclusiveMCPGitFileProjectLayers|MultiHarnessInit)$' -v -count=1",
-  "overrides": {},
-  "started": "2026-11-14T17:09:11.675520+00:00",
-  "code_diff_sha256": "f75abe03491dc5be0c91d126d3aad42a2c46dda04cce57afe8a0ff6d1001b7bd",
-  "exit_code": 1,
-  "elapsed_seconds": 2.69
-}

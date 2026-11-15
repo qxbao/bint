@@ -248,16 +248,16 @@ func distinctPaths(ev []knowledge.Evidence) []string {
 func normKey(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
 
 // findDuplicate tìm mục đã có cùng tiêu đề hoặc nội dung. Mục còn hiệu lực là trùng; mục imported (kể cả đã bị từ chối,
-// deprecated) hoặc cùng tham chiếu nguồn là "đã nhập": chạy lại không tạo lại mục người đã từ chối.
+// deprecated) là "đã nhập": chạy lại không tạo lại mục người đã từ chối.
+// Ref chỉ ghi vị trí nguồn; thứ tự/ý tại vị trí đó có thể đổi nên không dùng làm khoá trùng.
 func findDuplicate(all []*knowledge.Item, idea importer.Idea) (it *knowledge.Item, imported bool) {
 	nt, nb := normKey(idea.Title), normKey(idea.Body)
 	for _, o := range all {
 		same := (nt != "" && normKey(o.Title) == nt) || (nb != "" && normKey(o.Body) == nb)
-		fromRef := o.Origin.Kind == knowledge.OriginImported && slices.Contains(o.Origin.Inputs, idea.Ref)
-		if !same && !fromRef {
+		if !same {
 			continue
 		}
-		if o.Origin.Kind == knowledge.OriginImported && (same || fromRef) {
+		if o.Origin.Kind == knowledge.OriginImported {
 			return o, true
 		}
 		if same && o.Active() {
@@ -319,7 +319,9 @@ type ImportSourceInfo struct {
 }
 
 // DetectImportSources liệt kê nguồn nhập có sẵn cho repository ở dir và số tệp của từng nguồn. Chỉ định vị và đếm tệp,
-// không đọc nội dung (onboarding gợi ý chứ không tự nhập). Không cần .bint/ và không cần là người dùng thật.
+// không đọc nội dung (onboarding gợi ý chứ không tự nhập). Codex memories là bộ nhớ global,
+// nên chỉ nhập khi người chỉ định nguồn, không dùng để gợi ý cho từng repository.
+// Không cần .bint/ và không cần là người dùng thật.
 func DetectImportSources(ctx context.Context, dir string) []ImportSourceInfo {
 	repo, err := gitrepo.Discover(ctx, dir)
 	root := dir
@@ -329,7 +331,7 @@ func DetectImportSources(ctx context.Context, dir string) []ImportSourceInfo {
 	}
 	lo.Root = filepath.Clean(lo.Root)
 	var out []ImportSourceInfo
-	for _, s := range []string{knowledge.ImportClaudeMemory, knowledge.ImportCodexMemory, knowledge.ImportCursorRules} {
+	for _, s := range []string{knowledge.ImportClaudeMemory, knowledge.ImportCursorRules} {
 		files, err := importer.Locate(s, lo)
 		if err != nil {
 			continue

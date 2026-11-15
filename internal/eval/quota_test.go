@@ -99,13 +99,16 @@ func TestRunCancelDuringPrepareMarksCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var batch string
-	_, err := Run(ctx, env, db, RunOptions{
+	result, err := Run(ctx, env, db, RunOptions{
 		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
 		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
 		OnBatch: func(id string) error { batch = id; cancel(); return nil },
 	})
 	if err == nil {
 		t.Fatal("mong đợi lỗi khi ctx bị huỷ lúc chuẩn bị")
+	}
+	if result.BatchID != batch || result.Status != "cancelled" {
+		t.Fatalf("cancelled preparation lost batch result: %+v", result)
 	}
 	var status string
 	if qerr := db.QueryRow("SELECT status FROM eval_batches WHERE batch_id = ?", batch).Scan(&status); qerr != nil {
@@ -137,7 +140,7 @@ func TestRunCancelledPreparationReturnsContextError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var batch string
-	_, err = Run(ctx, env, db, RunOptions{
+	result, err := Run(ctx, env, db, RunOptions{
 		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
 		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
 		OnBatch: func(id string) error {
@@ -149,11 +152,50 @@ func TestRunCancelledPreparationReturnsContextError(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled preparation returned %v, want context.Canceled", err)
 	}
+	if result.BatchID != batch || result.Status != "cancelled" {
+		t.Fatalf("cancelled preparation lost batch result: %+v; want batch %s, status cancelled", result, batch)
+	}
 	var status string
 	if err := db.QueryRow("SELECT status FROM eval_batches WHERE batch_id = ?", batch).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
 	if status != "cancelled" {
 		t.Fatalf("batch status = %q, want cancelled", status)
+	}
+}
+
+func TestRunPreparationReportsPersistenceFailure(t *testing.T) {
+	needSh(t)
+	testutil.Isolate(t)
+	root, solution, _ := fixtureRepo(t)
+	env, st, db := testEnv(t, root)
+	if _, err := Mine(context.Background(), root, env.Cfg.Eval.Mine, st, MineOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	cands, err := st.Candidates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var good *Case
+	for _, c := range cands {
+		if c.Source.Commit == solution {
+			good = c
+		}
+	}
+	preparationErr := errors.New("preparation failed")
+	_, err = Run(context.Background(), env, db, RunOptions{
+		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
+		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
+		OnBatch: func(string) error {
+			_, err := db.Exec(`CREATE TRIGGER fail_batch_update BEFORE UPDATE ON eval_batches
+				BEGIN SELECT RAISE(FAIL, 'fixture persistence failure'); END`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return preparationErr
+		},
+	})
+	if !errors.Is(err, preparationErr) || !strings.Contains(err.Error(), "fixture persistence failure") {
+		t.Fatalf("must report preparation and batch persistence failures: %v", err)
 	}
 }

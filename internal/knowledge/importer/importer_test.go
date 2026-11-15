@@ -274,3 +274,68 @@ func TestFindEvidence(t *testing.T) {
 		t.Errorf("cần đúng %d bằng chứng: %+v", MaxEvidence, ev)
 	}
 }
+
+func TestSplitCursorUnquotedGlobs(t *testing.T) {
+	for _, value := range []string{"**/*.go", "**/*.go,internal/**", "[**/*.go, internal/**]"} {
+		t.Run(value, func(t *testing.T) {
+			ideas := Split(knowledge.ImportCursorRules, "rule.mdc", []byte("---\ndescription: Durable Go rule\nglobs: "+value+"\n---\nAlways call `OpenStore` when opening the database.\n"))
+			want := []string{"**/*.go"}
+			if strings.Contains(value, "internal/**") {
+				want = append(want, "internal/**")
+			}
+			if len(ideas) != 1 || strings.Join(ideas[0].Paths, ",") != strings.Join(want, ",") || ideas[0].Title != "Durable Go rule" {
+				t.Fatalf("frontmatter must preserve description and scope: %+v, want %v", ideas, want)
+			}
+		})
+	}
+}
+
+func TestWorkStateKeepsDurableExamples(t *testing.T) {
+	for _, body := range []string{
+		"Always parse dates such as 2026-11-13 with the date parser.",
+		"Use BINT-123 as the required ticket format in validation examples.",
+		"Always reject sample token 755b544 in authentication fixtures.",
+		"Use `Status: active` for durable records; do not omit the field.",
+	} {
+		if why := WorkState(body); why != "" {
+			t.Errorf("durable rule rejected: %q: %s", body, why)
+		}
+	}
+}
+
+func TestReadSourceErrorHidesHome(t *testing.T) {
+	home := t.TempDir()
+	_, err := Read(File{Name: "note.md", Abs: filepath.Join(home, "note.md")})
+	if err == nil || !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing source: %v", err)
+	}
+	if strings.Contains(err.Error(), home) {
+		t.Fatalf("read error leaks absolute source: %v", err)
+	}
+}
+
+func TestSplitMalformedFrontmatterFailClosed(t *testing.T) {
+	for _, tc := range []struct{ name, source, data string }{
+		{"private unclosed", knowledge.ImportClaudeMemory, "---\ntype: user\ndescription: Private preferences\nMy private preference is to use `OpenStore` for all database operations.\n"},
+		{"cursor unclosed", knowledge.ImportCursorRules, "---\nglobs: internal/**\nAlways use `OpenStore` for all database operations.\n"},
+		{"cursor malformed array", knowledge.ImportCursorRules, "---\nglobs: [**/*.go\n---\nAlways use `OpenStore` for all database operations.\n"},
+		{"cursor malformed quote", knowledge.ImportCursorRules, "---\nglobs: [**/*.go, \"internal/**]\n---\nAlways use `OpenStore` for all database operations.\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Split(tc.source, "note.md", []byte(tc.data))
+			if len(got) != 1 || got[0].Skip != SkipCheckFailed || got[0].Body != "" {
+				t.Fatalf("malformed metadata must not produce importable body: %+v", got)
+			}
+		})
+	}
+}
+func TestWorkStateKeepsDurableStatusAndDeadline(t *testing.T) {
+	for _, body := range []string{
+		"Status values must be checked by `ValidateStatus` before storing a record.",
+		"Deadline fields must parse ISO dates such as 2026-11-13 with `ParseDate`.",
+	} {
+		if why := WorkState(body); why != "" {
+			t.Errorf("durable rule rejected: %q: %s", body, why)
+		}
+	}
+}

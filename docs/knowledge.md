@@ -78,7 +78,7 @@ bint knowledge import --from notes/lessons.md --type fact
 |---|---|
 | `claude-memory` | `$CLAUDE_CONFIG_DIR` hoặc `~/.claude`, rồi `projects/<tên>/memory/*.md`. `<tên>` là đường dẫn tuyệt đối của repository với mọi ký tự không phải chữ/số ASCII thành `-` (ví dụ `D--Projects-bint`); thử cả cây làm việc hiện tại lẫn cây chính khi đang ở worktree |
 | `codex-memory` | `$CODEX_HOME` hoặc `~/.codex`, rồi `memories/**/*.md` (định dạng chưa đối chiếu tài liệu chính thức: đọc như Markdown thường) |
-| `cursor-rules` | `.cursor/rules/**/*.mdc` và `.cursorrules` trong repository; `globs` của rule thành `scope.paths` |
+| `cursor-rules` | `.cursor/rules/**/*.mdc` và `.cursorrules` trong repository; `globs` của rule (kể cả mẫu không trích dẫn như `**/*.go`) thành `scope.paths` |
 | `<tệp.md>` hoặc `file` + `--path` | một tệp Markdown cục bộ; không nhận URL |
 
 `--path` chỉ thẳng thư mục hoặc tệp nguồn (khi tên dự án của Claude không khớp quy tắc đặt tên).
@@ -91,6 +91,8 @@ từ `globs` (Cursor), nếu không thì từ các tệp bằng chứng, không 
 `origin.inputs` (tham chiếu nguồn dạng `claude-memory:feedback_x.md`, không chứa đường dẫn thư mục home), độ tin cậy
 `low`, nhãn `import` và nhãn lô `nguon:import-<nguồn>` để duyệt theo lô (`bint knowledge review`, Tổng quan).
 
+Khử trùng theo tiêu đề/nội dung, không theo vị trí `#n` của nguồn: chèn hoặc đổi thứ tự ý không làm mất ý mới.
+
 **Quy tắc bỏ qua** (mỗi ý bỏ qua có lý do trong báo cáo):
 
 | Lý do | Ý nghĩa |
@@ -98,7 +100,7 @@ từ `globs` (Cursor), nếu không thì từ các tệp bằng chứng, không 
 | `no_evidence` | không tìm được tệp hay ký hiệu nào của repository |
 | `duplicate` | trùng tiêu đề hoặc nội dung của mục còn hiệu lực |
 | `already_imported` | đã nhập trước đó, kể cả mục đã bị từ chối (`deprecated`): chạy lại không tạo mục mới và không đưa lại mục người đã loại |
-| `work_state` | ghi chú trạng thái công việc: tiến độ/TODO/WIP, ngày, mã ticket, mã băm commit |
+| `work_state` | ghi chú tiến độ/TODO/WIP rõ ràng; ngày, mã ticket hoặc commit chỉ bị loại khi kèm ngữ cảnh công việc, không loại ví dụ trong quy tắc |
 | `private` | bộ nhớ Claude `type: user` (thông tin riêng về người dùng; nội dung không được giữ lại trong kết quả) |
 | `index_file` | `MEMORY.md` (chỉ mục các ghi chú khác) |
 | `bint_derived` | nội dung do chính Bint sinh ra: khối `bint:begin … bint:end`, ý có tham chiếu `[k:…]` |
@@ -106,7 +108,7 @@ từ `globs` (Cursor), nếu không thì từ các tệp bằng chứng, không 
 
 **Riêng tư và quyền.** Bộ nhớ của harness nằm ngoài repository và có thể chứa thông tin riêng tư, nên nhập là thao tác
 chỉ dành cho người (`RequireHuman`): cả chạy thật lẫn `--dry-run` bị từ chối trong phiên agent. Lệnh không bao giờ tự chạy
-(hook, `bint init` và wizard chỉ gợi ý). Mỗi tệp nguồn bị chặn ở 256 KB, tối đa 500 tệp. Mục nhập là tệp `candidate` trong
+(hook, `bint init` và wizard chỉ gợi ý). Lỗi nguồn chỉ nêu tên tệp, không đưa đường dẫn home vào báo cáo. Onboarding chỉ gợi ý Claude/Cursor theo repository; bộ nhớ Codex global cần người chọn nguồn rõ ràng. TUI yêu cầu xem trước lại sau khi mở form sửa hoặc khi preview lỗi. Mỗi tệp nguồn bị chặn ở 256 KB, tối đa 500 tệp. Mục nhập là tệp `candidate` trong
 Git nên reviewer PR thấy trước khi nó có hiệu lực; gỡ bằng `knowledge rm` hoặc từ chối theo lô.
 
 **TUI và onboarding.** Màn Tri thức có thẻ phụ **Nhập**: form (nguồn, đường dẫn, loại) → xem trước từng ý → `w` mở hộp

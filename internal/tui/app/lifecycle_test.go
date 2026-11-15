@@ -484,12 +484,30 @@ func TestUpdateTabShowsLiveLogAndEscCancels(t *testing.T) {
 // 5b.3/5a.4: core.lock ghi phiên bản cũ nhưng nội dung skill khớp → Enter mục hộp thư lệch phiên bản, s, xác nhận thì
 // core.lock mang phiên bản binary và mục hộp thư biến mất sau khi nạp lại.
 func TestInboxVersionSkewSyncClearsItem(t *testing.T) {
+	// Hold the real preview action until the skills pane is rendered. This
+	// models a slow action under package/race load without relying on sleeps.
+	previewStarted, releasePreview := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releasePreview) }) }
+	t.Cleanup(release)
 	f, root, calls := lifeFixture(t, func(o *Options) {
 		if _, err := bintapp.Sync(context.Background(), o.Dir, "0.1.0", bintapp.SyncOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		o.Version = "9.9.9"
 		o.Loader = overview.Load
+		list := o.Registry.All()
+		for i := range list {
+			if list[i].ID == "system.sync_plan" {
+				orig := list[i].Do
+				list[i].Do = func(ctx context.Context, env actions.Env, opts any) tea.Msg {
+					close(previewStarted)
+					<-releasePreview
+					return orig(ctx, env, opts)
+				}
+			}
+		}
+		o.Registry = actions.NewRegistry(list)
 	})
 	lock := filepath.Join(root, ".bint", "skills", "core.lock")
 	f.press("r")
@@ -506,12 +524,31 @@ func TestInboxVersionSkewSyncClearsItem(t *testing.T) {
 		t.Fatalf("hộp thư phải có mục lệch phiên bản: %+v", f.m.ov.Data.Inbox())
 	}
 	f.press("enter", "s")
-	f.waitFor("core.lock") // hộp xem trước phải nêu core.lock, không phải 'đã cập nhật'
+	f.pump(func() bool {
+		select {
+		case <-previewStarted:
+			return true
+		default:
+			return false
+		}
+	}, nil)
+	if f.m.sy.Capturing() || !strings.Contains(f.screen(), "core.lock") {
+		t.Fatalf("fixture must show core.lock in the background before the preview:\n%s", f.screen())
+	}
+	release()
+	// core.lock also occurs in the skill body behind the dialog. Wait for the
+	// preview itself so Enter cannot overtake the asynchronous plan result.
+	f.pump(func() bool {
+		return f.m.sy.Capturing() && strings.Contains(f.screen(), "Xem trước sync")
+	}, nil)
+	hasAll(t, f.screen(), "core.lock")
 	if calls.count("system.sync") != 0 {
 		t.Fatal("chưa xác nhận thì chưa sync")
 	}
 	f.press("enter")
-	f.pump(func() bool { return calls.count("system.sync") == 1 }, nil)
+	f.pump(func() bool {
+		return calls.count("system.sync") == 1 && strings.Contains(f.screen(), "Kết quả sync")
+	}, nil)
 	if b, _ := os.ReadFile(lock); !strings.Contains(string(b), "9.9.9") {
 		t.Fatalf("core.lock phải mang phiên bản binary:\n%s", b)
 	}
