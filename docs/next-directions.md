@@ -299,6 +299,8 @@ không có lệnh nhập từ nguồn ngoài.
   commit) vốn không phải tri thức về mã.
 - Người duyệt như mọi mục `candidate` khác.
 
+*Đã làm:* `bint knowledge import --from claude-memory|codex-memory|cursor-rules|<tệp.md>` (`--path`, `--type`, `--dry-run`, `--json`; `internal/knowledge/importer`, `internal/app/knowledge_import.go`). Xác định, không gọi mô hình; mục `imported` luôn `candidate`, nhãn lô `nguon:import-<nguồn>`; bỏ qua kèm lý do (không bằng chứng, trùng kể cả mục đã bị từ chối, trạng thái công việc, bộ nhớ `user`, `MEMORY.md`, nội dung do Bint sinh); chạy lại không tạo mục mới; chỉ người (cả `--dry-run`). Tích hợp TUI (thẻ phụ Nhập của màn Tri thức: xem trước, `w` xác nhận, ghi chỉ khi kế hoạch trùng bản đã xem) và onboarding (`bint init` nhắc nhập khi có nguồn, `initwizard.NavFor` dẫn tới thẻ Nhập); mô tả ở `docs/knowledge.md` mục "Nhập bộ nhớ của harness". *Chưa đối chiếu:* định dạng thật của Codex memories và quy tắc tên thư mục dự án của Claude Code ngoài máy phát triển; nhập CSDL claude-mem và tách ý bằng mô hình để sau.
+
 **Giá trị.** Các công cụ kia ghi nhận rất rẻ nhưng không kiểm chứng; Bint kiểm chứng và xuất bản cho
 mọi harness. Khi đó chúng thành nguồn cấp thay vì đối thủ.
 
@@ -433,7 +435,7 @@ Công sức là ước lượng thô: S dưới một ngày, M vài ngày, L hơ
 | 3 | B1 — kế hoạch nhiều giai đoạn, kết cục phát hiện (xong) | M | Không | — |
 | 4 | B2 — phiếu thành đề đánh giá | S–M | Chỉ khi verify | — |
 | 5 | B4 — lịch sử theo tệp qua MCP | S–M | Chỉ khi đo | — |
-| 6 | B3 — nhập bộ nhớ harness | M | Không | — |
+| 6 | B3 — nhập bộ nhớ harness (xong) | M | Không | — |
 | 7 | A2 — thước đo tuân thủ | M | Có | GĐ6 custom skill |
 | 8 | A6 — custom skill GĐ1, GĐ6 | M | Có (GĐ6) | — |
 | 9 | A4 — eval cho đối tượng ngoài | M | Có | A3 |

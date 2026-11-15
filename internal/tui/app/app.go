@@ -439,6 +439,8 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.goTo(msg.Screen)
 		switch {
+		case msg.Screen == actions.Knowledge && msg.KnowledgeSub != "":
+			return m, tea.Batch(m.kn.EnterSub(msg.KnowledgeSub), m.startTick())
 		case msg.Screen == actions.Knowledge && msg.Filter != nil:
 			return m, tea.Batch(m.kn.Focus(*msg.Filter), m.startTick())
 		case msg.Screen == actions.Tasks && msg.TaskID != "":

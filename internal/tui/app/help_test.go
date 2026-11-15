@@ -17,7 +17,7 @@ import (
 // helpTabs liệt kê (màn, khoá tên thẻ phụ) của mọi thẻ phụ để test trợ giúp theo ngữ cảnh đi qua từng thẻ.
 func helpTabs() map[string][]string {
 	return map[string][]string{
-		"2": {"kn.sub.list", "kn.sub.search", "kn.sub.stats", "kn.sub.diff", "kn.sub.revalidate", "kn.sub.publish", "kn.sub.survey", "kn.sub.context"},
+		"2": {"kn.sub.list", "kn.sub.search", "kn.sub.stats", "kn.sub.diff", "kn.sub.revalidate", "kn.sub.publish", "kn.sub.survey", "kn.sub.context", "kn.sub.import"},
 		"3": {"tk.sub.info", "tk.sub.docs", "tk.sub.criteria", "tk.sub.verify", "tk.sub.review", "tk.sub.errors", "tk.sub.runs", "tk.sub.log"},
 		"4": {"rn.tab.runs", "rn.tab.lessons"},
 		"5": {"eval.tab.cands", "eval.tab.cases", "eval.tab.batches", "eval.tab.log"},

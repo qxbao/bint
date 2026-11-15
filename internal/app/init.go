@@ -477,6 +477,9 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		"Bootstrap tri thức: chạy "+bootstrapSkill+" (hoặc `bint bootstrap` để xem dữ liệu khảo sát), rồi `bint knowledge review` và `bint bootstrap publish`",
 		"Khung đánh giá (bint eval --help) chỉ cần khi muốn đo trên repository này",
 	)
+	if step := importNextStep(ctx, root); step != "" {
+		rep.NextSteps = append(rep.NextSteps, step)
+	}
 	return rep, nil
 }
 

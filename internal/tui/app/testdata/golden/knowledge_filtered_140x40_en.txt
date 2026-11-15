@@ -2,7 +2,7 @@
 │ Overview │ Knowledge (10) │ Tasks (1) │ Runs │ Evaluation │ Evolution │ System │ MCP                                                     │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Knowledge│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context                                      ● 2 selected  │
+│   List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context · Import                             ● 2 selected  │
 │ ┌─│List (2/6)│──────────────────pending · nguon:lo-thu─┐┌─│Details│────────────────────────────────────────────────────────────────────┐ │
 │ │   ● ◌ ⚑ rule     Endpoint phải có /v1 api/**         ││ 01KNOW000002                                                                 │ │
 │ │ ▸ ● ◌ ⚑ warning  Không gọi sql.Open … internal/db/** ││ ◌ warning · candidate · agent ⚑                                              │ │

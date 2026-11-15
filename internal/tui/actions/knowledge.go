@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"os/exec"
 	"time"
 
@@ -105,6 +106,27 @@ func doPublish(id string, dry bool) DoFunc {
 		}
 		return res(id, opts, *rep, err)
 	}
+}
+
+// doImport dựng hành động của thẻ Nhập: xem trước (dry) hoặc ghi. Cả hai chỉ dành cho người (dịch vụ kiểm lại). Bước ghi chỉ ghi
+// khi kế hoạch dựng lại lúc ghi có băm trùng o.Expect (bản người đã xem); lệch thì trả kế hoạch mới với Mismatch, không phải lỗi,
+// để màn hình hiện bản thực tế như Xuất bản.
+func doImport(id string, dry bool) DoFunc {
+	return withK(id, func(ctx context.Context, k *app.KnowledgeWS, o any) (any, error) {
+		io := o.(app.ImportOptions)
+		io.DryRun = dry
+		if dry {
+			io.Expect = ""
+		}
+		r, err := app.ImportKnowledge(ctx, k, io)
+		if r == nil {
+			return nil, err
+		}
+		if errors.Is(err, app.ErrImportPlanChanged) {
+			err = nil
+		}
+		return *r, err
+	})
 }
 
 // knowledgeActions là các hành động của màn Tri thức (giai đoạn 1).
@@ -216,6 +238,10 @@ func knowledgeActions() []Action {
 			doPublish("bootstrap.publish_preview", true)),
 		mk("bootstrap.publish", "publish", "", false, 0, "bootstrap publish", app.PublishOptions{}, true, false,
 			doPublish("bootstrap.publish", false)),
+		mk("knowledge.import_preview", "import_preview", "", false, 0, "knowledge import", app.ImportOptions{}, false, true,
+			doImport("knowledge.import_preview", true)),
+		mk("knowledge.import", "import", "", false, 0, "knowledge import", app.ImportOptions{}, true, true,
+			doImport("knowledge.import", false)),
 		mk("inspect", "inspect", "", false, 0, "inspect", app.InspectOptions{}, false, false,
 			func(ctx context.Context, env Env, o any) tea.Msg {
 				v, err := app.Inspect(ctx, env.Dir, o.(app.InspectOptions))
@@ -244,7 +270,8 @@ func knowledgeActions() []Action {
 	// Hành động dùng chung Options với hành động khác dùng chung nhãn form.
 	ns := map[string]string{"knowledge.approve_refresh": "knowledge.approve", "knowledge.deprecate": "knowledge.reject",
 		"knowledge.approve_batch": "knowledge.batch", "knowledge.reject_batch": "knowledge.batch", "knowledge.plan_batch": "knowledge.batch",
-		"knowledge.verify_apply": "knowledge.verify", "bootstrap.publish_preview": "bootstrap.publish"}
+		"knowledge.verify_apply": "knowledge.verify", "bootstrap.publish_preview": "bootstrap.publish",
+		"knowledge.import_preview": "knowledge.import"}
 	for i := range list {
 		list[i].FormID = ns[list[i].ID]
 	}

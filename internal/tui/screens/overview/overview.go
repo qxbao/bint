@@ -239,6 +239,8 @@ type NavMsg struct {
 	// ComponentID/ComponentKind là thành phần cần chọn ở màn Hệ thống; SystemTab là thẻ con cần mở.
 	ComponentID, ComponentKind string
 	SystemTab                  string
+	// KnowledgeSub: thẻ phụ của màn Tri thức cần mở (tên thẻ, ví dụ "import").
+	KnowledgeSub string
 	// ConfigUpgrade: mở hộp nâng cấu hình của màn Hệ thống.
 	ConfigUpgrade bool
 	// ConfigEdit: mở luồng sửa cấu hình (system.config_edit) của màn Hệ thống; màn MCP gửi khi người dùng bấm sửa cấu hình quyền.

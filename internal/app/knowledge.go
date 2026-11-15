@@ -263,37 +263,80 @@ func AddKnowledge(ctx context.Context, k *KnowledgeWS, opts AddOptions) (AddResu
 	case origin == knowledge.OriginHuman && inAgent:
 		return res, fmt.Errorf("%w: agent không ghi được mục origin: human (phát hiện biến %s); mục do agent ghi sẽ chờ người duyệt", ErrAgentForbidden, envVar)
 	case origin != knowledge.OriginHuman && origin != knowledge.OriginAgent:
-		return res, fmt.Errorf("--origin phải là human hoặc agent (imported dành cho `bint knowledge import`, sau v1.0)")
+		return res, fmt.Errorf("--origin phải là human hoặc agent (imported dành cho `bint knowledge import`)")
 	}
 	res.Origin = origin
-	author := GitIdentity(ctx, k.Root)
-	it := &knowledge.Item{
-		Schema: knowledge.SchemaVersion, Type: opts.Type, Status: knowledge.StatusCandidate,
-		Title: strings.TrimSpace(opts.Title), Body: strings.TrimSpace(opts.Body),
-		Scope:      knowledge.Scope{Paths: cleanList(opts.Paths), Symbols: cleanList(opts.Symbols), Tags: cleanList(opts.Tags), Domains: cleanList(opts.Domains)},
-		Origin:     knowledge.Origin{Kind: origin, RunID: opts.RunID, Inputs: cleanList(opts.Inputs), ThirdParty: opts.ThirdParty, EvalCase: opts.EvalCase},
-		Author:     author,
-		Confidence: opts.Confidence,
-		Version:    1,
-		CreatedAt:  knowledge.Now(opts.Now),
-	}
-	if it.Title == "" {
-		it.Title = firstLine(it.Body)
-	}
-	for i, p := range it.Scope.Paths {
-		it.Scope.Paths[i] = strings.TrimPrefix(filepath.ToSlash(p), "./")
-	}
-	if s := os.Getenv("CLAUDE_CODE_SESSION_ID"); s != "" && origin == knowledge.OriginAgent {
-		it.Origin.Session = s
-	}
-	it.Origin.Commit = strings.TrimSpace(gitrepo.HeadCommit(ctx, k.Root))
+	evidence := make([]knowledge.Evidence, 0, len(opts.Evidence))
 	for _, spec := range opts.Evidence {
 		e, err := ParseEvidenceSpec(spec)
 		if err != nil {
 			return res, err
 		}
-		it.Evidence = append(it.Evidence, e)
+		evidence = append(evidence, e)
 	}
+	d := itemDraft{
+		Type: opts.Type, Title: opts.Title, Body: opts.Body,
+		Scope:      knowledge.Scope{Paths: cleanList(opts.Paths), Symbols: cleanList(opts.Symbols), Tags: cleanList(opts.Tags), Domains: cleanList(opts.Domains)},
+		Origin:     knowledge.Origin{Kind: origin, RunID: opts.RunID, Inputs: cleanList(opts.Inputs), ThirdParty: opts.ThirdParty, EvalCase: opts.EvalCase},
+		Evidence:   evidence,
+		Confidence: opts.Confidence,
+		Now:        opts.Now,
+	}
+	if s := os.Getenv("CLAUDE_CODE_SESSION_ID"); s != "" && origin == knowledge.OriginAgent {
+		d.Origin.Session = s
+	}
+	it := k.buildItem(ctx, d)
+	author := it.Author
+	if origin == knowledge.OriginHuman {
+		it.Status = knowledge.StatusVerified
+		it.ReviewedBy, it.ReviewedAt, it.VerifiedAt = author, knowledge.Now(opts.Now), knowledge.Now(opts.Now)
+	}
+	all, _, err := k.Items()
+	if err != nil {
+		return res, err
+	}
+	res.Item = it
+	res.Check = knowledge.Verifier{Src: k.Source(), All: all}.Verify(it)
+	if !res.Check.OK() {
+		return res, nil
+	}
+	if err := k.writer("bint knowledge add").SaveItem(k.Store, it); err != nil {
+		return res, err
+	}
+	res.Saved = true
+	return res, nil
+}
+
+// itemDraft là phần đầu vào dùng chung để dựng một mục mới (AddKnowledge và ImportKnowledge): mọi đường tạo mục đi
+// qua buildItem nên tác giả, commit gốc, fingerprint và ID được tính cùng một cách.
+type itemDraft struct {
+	Type, Title, Body string
+	Scope             knowledge.Scope
+	Origin            knowledge.Origin
+	Evidence          []knowledge.Evidence
+	Confidence        string
+	Now               time.Time
+}
+
+// buildItem dựng mục ở trạng thái candidate: tiêu đề mặc định là dòng đầu nội dung, đường dẫn phạm vi chuẩn hoá, commit gốc
+// là HEAD, fingerprint của bằng chứng đọc từ cây làm việc, ID cấp ngay (để phát hiện trùng không nhầm với chính nó). Chưa
+// kiểm tra và chưa ghi.
+func (k *KnowledgeWS) buildItem(ctx context.Context, d itemDraft) *knowledge.Item {
+	it := &knowledge.Item{
+		Schema: knowledge.SchemaVersion, Type: d.Type, Status: knowledge.StatusCandidate,
+		Title: strings.TrimSpace(d.Title), Body: strings.TrimSpace(d.Body),
+		Scope: d.Scope, Origin: d.Origin, Evidence: slices.Clone(d.Evidence),
+		Author: GitIdentity(ctx, k.Root), Confidence: d.Confidence,
+		Version: 1, CreatedAt: knowledge.Now(d.Now),
+	}
+	if it.Title == "" {
+		it.Title = firstLine(it.Body)
+	}
+	it.Scope.Paths = slices.Clone(it.Scope.Paths)
+	for i, p := range it.Scope.Paths {
+		it.Scope.Paths[i] = strings.TrimPrefix(filepath.ToSlash(p), "./")
+	}
+	it.Origin.Commit = strings.TrimSpace(gitrepo.HeadCommit(ctx, k.Root))
 	src := k.Source()
 	for i := range it.Evidence {
 		e := &it.Evidence[i]
@@ -303,26 +346,8 @@ func AddKnowledge(ctx context.Context, k *KnowledgeWS, opts AddOptions) (AddResu
 			}
 		}
 	}
-	if origin == knowledge.OriginHuman {
-		it.Status = knowledge.StatusVerified
-		it.ReviewedBy, it.ReviewedAt, it.VerifiedAt = author, knowledge.Now(opts.Now), knowledge.Now(opts.Now)
-	}
-	all, _, err := k.Items()
-	if err != nil {
-		return res, err
-	}
-	// Cấp ID trước khi kiểm tra để phát hiện trùng lặp không nhầm với chính nó.
-	it.ID = newID(opts.Now)
-	res.Item = it
-	res.Check = knowledge.Verifier{Src: src, All: all}.Verify(it)
-	if !res.Check.OK() {
-		return res, nil
-	}
-	if err := k.writer("bint knowledge add").SaveItem(k.Store, it); err != nil {
-		return res, err
-	}
-	res.Saved = true
-	return res, nil
+	it.ID = newID(d.Now)
+	return it
 }
 
 func firstLine(s string) string {
