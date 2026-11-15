@@ -87,8 +87,14 @@ const LockRel = ".bint/skills/core.lock"
 
 // Lock là nội dung core.lock.
 type Lock struct {
-	BintVersion string               `yaml:"bint_version"`
-	Skills      map[string]LockEntry `yaml:"skills"`
+	BintVersion string `yaml:"bint_version"`
+	// BintRevision, BintRevisionTime, BintModified: dấu build (vcs.revision/vcs.time/vcs.modified) của binary đã ghi băm
+	// skill gốc trong lock. Chỉ đổi khi băm skill gốc đổi (hoặc lock chưa có), để sync lặp lại bằng binary khác mà nội
+	// dung không đổi không làm đổi core.lock.
+	BintRevision     string               `yaml:"bint_revision,omitempty"`
+	BintRevisionTime string               `yaml:"bint_revision_time,omitempty"`
+	BintModified     bool                 `yaml:"bint_modified,omitempty"`
+	Skills           map[string]LockEntry `yaml:"skills"`
 	// Evolved: skill chuyên biệt do tiến hoá tạo ra đã được xuất bản (P7).
 	Evolved map[string]LockEntry `yaml:"evolved,omitempty"`
 	// Agents: định nghĩa subagent của driver session đã được xuất bản (.claude/agents, G3b mục 6.4); khoá phiên bản như
@@ -250,6 +256,49 @@ type InstallOptions struct {
 	Files []string
 	// Agents: định nghĩa subagent cần xuất bản (cùng cơ chế khoá phiên bản; rỗng = không xuất bản).
 	Agents []AgentFile
+	// Build là dấu build của binary đang chạy (rỗng = không biết). Dùng để chặn hạ cấp và ghi dấu vào core.lock.
+	Build BuildStamp
+	// AllowDowngrade: cho ghi skill dù binary cũ hơn bản đã ghi core.lock (bint sync --allow-downgrade).
+	AllowDowngrade bool
+}
+
+// ErrDowngrade: binary cũ hơn bản đã ghi core.lock và băm skill gốc nhúng khác lock; ghi sẽ hạ cấp skill.
+var ErrDowngrade = errors.New("binary cũ hơn bản đã xuất skill")
+
+// DowngradeError là lỗi Install từ chối hạ cấp (errors.Is(err, ErrDowngrade)).
+type DowngradeError struct{ Lock, Binary BuildStamp }
+
+func (e *DowngradeError) Error() string {
+	return fmt.Sprintf("binary cũ hơn bản đã xuất skill (core.lock: %s; bint đang chạy: %s): chạy `bint update --pull` để cập nhật bint, "+
+		"hoặc `bint sync --allow-downgrade` để hạ cấp skill", stampOrNone(e.Lock), stampOrNone(e.Binary))
+}
+
+func (e *DowngradeError) Is(target error) bool { return target == ErrDowngrade }
+
+func stampOrNone(b BuildStamp) string {
+	if b.Version == "" && b.Revision == "" {
+		return "không rõ"
+	}
+	return b.String()
+}
+
+// coreChanged: băm skill gốc nhúng khác (hoặc chưa có trong) core.lock.
+func coreChanged(lock Lock) bool {
+	for _, c := range Core() {
+		if lock.Skills[c.Name].SHA256 != c.Hash() {
+			return true
+		}
+	}
+	return false
+}
+
+// CoreChangedIn cho biết băm skill gốc nhúng của binary khác (hoặc chưa có trong) lock l.
+func CoreChangedIn(l Lock) bool { return coreChanged(l) }
+
+// CoreChanged như CoreChangedIn cho core.lock đọc từ root (lỗi đọc = false).
+func CoreChanged(root string) bool {
+	l, err := ReadLock(root)
+	return err == nil && coreChanged(l)
 }
 
 // Install ghép skill gốc với lớp phủ, xuất bản cho các harness và cập nhật
@@ -264,6 +313,18 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 	}
 	if lock.Skills == nil {
 		lock.Skills = map[string]LockEntry{}
+	}
+	changed := coreChanged(lock)
+	bin := opts.Build
+	if bin.Version == "" {
+		bin.Version = opts.BintVersion
+	}
+	if changed && !opts.AllowDowngrade && CompareBuild(lock, bin) == DirBinOlder {
+		return nil, &DowngradeError{Lock: lock.Stamp(), Binary: bin}
+	}
+	hadStamp := lock.BintRevision != "" || lock.BintRevisionTime != "" || lock.BintModified
+	if changed || (!hadStamp && bin.Revision != "") {
+		lock.BintRevision, lock.BintRevisionTime, lock.BintModified = bin.Revision, bin.Time, bin.Modified
 	}
 	lock.BintVersion = opts.BintVersion
 	var outs []Outcome

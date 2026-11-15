@@ -1094,3 +1094,8 @@ func relations(ws *TaskWS, t *task.Task) (parent *RelatedTask, deps, children []
 	}
 	return
 }
+
+// WriteTaskArtifactFor như WriteTaskArtifact, trả thêm tác vụ (ID đầy đủ cho đầu ra --json).
+func WriteTaskArtifactFor(_ context.Context, ws *TaskWS, o TaskWriteOptions) (*task.Task, string, error) {
+	return ws.WriteArtifact(o.Ref, o.Name, o.Content)
+}

@@ -67,6 +67,7 @@ var cliRefs = []cliRef{
 	{path: "run resume", id: "tasks.resume"},
 	{path: "task approve", id: "tasks.approve"},
 	{path: "task status", id: "tasks.status"},
+	{path: "task done", id: "tasks.status"},
 	{path: "task new", id: "tasks.new"},
 	{path: "task verify", id: "tasks.verify"},
 	{path: "task set", id: "tasks.set"},

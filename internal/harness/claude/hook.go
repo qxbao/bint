@@ -75,9 +75,10 @@ func nonEmpty(p string) []string {
 // Dialect mô tả Claude Code cho hookcore.
 var Dialect = hookcore.Dialect{
 	Harness: HarnessName, Classify: Classify, InjectRead: true, InjectEdit: true,
-	PreToolOutput: hookcore.ClaudeStylePreToolOutput("ask"),
-	PromptOutput:  hookcore.ClaudeStylePromptOutput,
-	Usage:         TranscriptUsage,
+	PreToolOutput:      hookcore.ClaudeStylePreToolOutput("ask"),
+	PromptOutput:       hookcore.ClaudeStylePromptOutput,
+	SessionStartOutput: hookcore.ClaudeStyleSessionStartOutput,
+	Usage:              TranscriptUsage,
 	// Guardrail (H1): Claude Code hỗ trợ đủ remind (additionalContext), ask, deny và chặn Stop.
 	PreToolDecisions: []string{"deny", "ask"}, RemindPreTool: true,
 	PreToolDecide: hookcore.ClaudeStylePreToolDecide, StopOutput: hookcore.ClaudeStyleStopOutput,

@@ -51,6 +51,7 @@ bint task error <id> --step b-feat "…"          # ghi lỗi / lần thử th�
 bint task review <id> -                         # vòng review (JSON hoặc YAML) → review.json + review.md
 bint task approve <id> [--path <tệp>] [--setup-sha <băm>]  # NGƯỜI: xác nhận lệnh kiểm chứng, lệnh setup worktree (đúng băm đã xem), duyệt đường dẫn bảo vệ
 bint task status <id> done [--force]            # done cần bằng chứng; chỉ người --force được
+bint task done <id> [--force] [-m "…"]          # bí danh của bint task status <id> done
 
 bint skill list
 bint skill show <tên> [--core]
@@ -59,6 +60,7 @@ bint skill new <tên>                            # skill tuỳ biến: tạo .bi
 bint skill lint [tên]                           # kiểm hình thức skill tuỳ biến; thoát 1 khi có lỗi (--json)
 bint flow list|show|lint                        # flow nhúng và flow tuỳ biến (.bint/flows): xem, kiểm; chạy bằng bint run <flow> --task, bint sync xuất bản /<flow>
 bint sync                                       # ghép skill gốc + lớp phủ, xuất bản, cập nhật core.lock
+bint sync --allow-downgrade                     # ép ghi skill khi binary cũ hơn core.lock (mặc định bị chặn)
 bint knowledge add --from-review <task-id>.<n>  # phát hiện review → mục warning/lesson
 ```
 
@@ -455,6 +457,32 @@ khác bị bỏ qua. `bint sync` (và `init`, `bootstrap`) ghép rồi xuất b�
 lớp phủ và bản đã xuất bản. Nâng cấp Bint: skill gốc mới được áp lại lớp phủ; nếu lớp phủ dùng điểm neo
 không còn → **xung đột**, bản đã xuất bản và mục `core.lock` cũ được giữ nguyên cho tới khi sửa lớp phủ
 (`--force` không vượt qua được). Skill đã xuất bản bị sửa tay → xung đột như P2.
+
+**Dấu build và lệch phiên bản binary ↔ `core.lock`.** `bint --version` in phiên bản kèm revision rút gọn, thời điểm commit
+(`vcs.time`) và `sửa` khi `vcs.modified=true` (ví dụ `0.1.0-dev (c17f329, 2026-11-15T09:06:25Z, sửa)`); bản build không có
+thông tin VCS (`go test`, `go run`) chỉ in phiên bản. `core.lock` ghi `bint_revision`, `bint_revision_time`,
+`bint_modified` của binary đã ghi băm skill gốc; các trường này **chỉ đổi khi băm skill gốc trong lock đổi** (hoặc lock chưa
+có chúng), nên `bint sync` lặp lại bằng binary khác mà nội dung không đổi không làm đổi `core.lock` (không nhiễu git).
+Hướng lệch giữa binary và `core.lock`: semver khác nhau thì theo semver; cùng semver thì theo `vcs.time` của hai revision;
+cùng revision thì lock có sửa mà binary sạch nghĩa là binary cũ hơn; thiếu thông tin hoặc binary có sửa là *không xác định*.
+`bint doctor` có mục `phiên bản skill`: khớp / binary cũ hơn (cảnh báo, khuyên `bint update --pull`, không gắn sửa nhanh sync) /
+binary mới hơn (khuyên `bint sync`, có sửa nhanh) / không xác định.
+
+- **Chặn hạ cấp.** `bint sync`, `bint init --update` và cài skill từ TUI trả lỗi, không ghi tệp skill nào và không đổi
+  `core.lock` khi binary cũ hơn `core.lock` **và** băm skill gốc nhúng khác lock. Muốn hạ cấp thật: `bint sync --allow-downgrade`
+  (cờ chỉ của người; `bint update --pull` là cách cập nhật binary). Băm khớp thì không từ chối.
+- **Tự xuất lại skill.** `bint status`, `bint task new` và `bint run <workflow>` tự chạy sync khi binary *sạch* mới hơn
+  `core.lock`, băm skill gốc nhúng khác lock và bản xem trước sync không có xung đột; in đúng một dòng lên stderr (stdout không
+  đổi), lỗi của bước này chỉ là cảnh báo và không làm lệnh thất bại. Không chạy khi có tệp đã xuất bị sửa tay, binary cũ hơn hoặc
+  không xác định, binary có `vcs.modified`, trong phiên agent, khi `BINT_RUN_ID` có giá trị, và không bao giờ trong `bint hook`.
+- **Nhắc ở SessionStart.** Hook `SessionStart` của Claude Code so `core.lock` với binary đang chạy (chỉ đọc một tệp: không SQLite,
+  không gọi mô hình, không trả lỗi kể cả khi `core.lock` hỏng) và khi binary cũ hơn thì chèn đúng một dòng
+  `additionalContext` nhắc `bint update --pull`. Khớp, mới hơn, không xác định: không chèn gì. Codex và Antigravity chưa có đầu ra
+  SessionStart đã xác minh nên chưa nhắc.
+- **`bint task done <id>`** là bí danh của `bint task status <id> done` (cùng `--force`, `-m/--reason`, `--json`).
+  Gõ sai lệnh con (ví dụ `stauts` thay cho `status`, `tsak` thay cho `task`) thoát mã 2, nêu lệnh lạ và dòng `Ý bạn là:` kèm gợi ý.
+- **`--json` cho lệnh ghi của task.** `bint task set --json`, `bint task status --json`, `bint task done --json`, `bint task write --json`, `bint task criteria --json`, `bint task error --json` và `bint task review --json` in đúng một JSON object (có
+  `task_id`) lên stdout thay cho văn bản; lỗi vẫn ra stderr với mã thoát như cũ.
 
 **Skill tuỳ biến** (GĐ1 của `docs/custom-flow-plan.md`). Ngoài skill gốc (bất biến) và skill tiến hoá (do Bint sinh),
 dự án có thể có skill do người dùng tự viết: thư mục `.bint/skills/<tên>/` (commit được) gồm `SKILL.md` và tệp phụ

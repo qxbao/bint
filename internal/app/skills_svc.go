@@ -437,7 +437,8 @@ func SkillVersions(ctx context.Context, dir string, o SkillVersionsOptions) (ski
 
 // SyncOptions: `bint sync`.
 type SyncOptions struct {
-	Force bool `flag:"force"`
+	Force          bool `flag:"force"`
+	AllowDowngrade bool `flag:"allow-downgrade"`
 }
 
 func SyncDefaults(config.Config) SyncOptions { return SyncOptions{} }
@@ -464,7 +465,7 @@ func Sync(ctx context.Context, dir, version string, o SyncOptions) (SkillInstall
 	if err != nil {
 		return SkillInstall{}, err
 	}
-	return InstallSkills(k, version, o.Force)
+	return installSkillsDowngrade(k, version, o.Force, o.AllowDowngrade)
 }
 
 // SyncFile là một tệp skill sẽ được `sync` xử lý.
@@ -539,7 +540,7 @@ func PlanSync(ctx context.Context, dir, version string, o SyncOptions) (SyncPlan
 	if err != nil {
 		return SyncPlan{}, err
 	}
-	outs, err := skills.Install(skills.InstallOptions{Root: root, Targets: targets, BintVersion: version, Force: o.Force,
+	outs, err := skills.Install(skills.InstallOptions{Root: root, Targets: targets, BintVersion: version, Force: o.Force, Build: buildFor(version), AllowDowngrade: o.AllowDowngrade,
 		BackupDir: filepath.Join(tmp, "backups"), Manifest: m, Now: time.Now(), Files: k.Source().Files(), Agents: agents})
 	if err != nil {
 		return SyncPlan{}, err

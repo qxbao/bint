@@ -14,6 +14,7 @@ import (
 	"bint/internal/app"
 	"bint/internal/config"
 	"bint/internal/gitrepo"
+	"bint/internal/skills"
 )
 
 // Version được gán khi build: -ldflags "-X bint/internal/cli.Version=v0.1.0".
@@ -61,6 +62,10 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 		return ExitOK
 	}
 	root := NewRoot(stdio)
+	if err := unknownSubcommand(root, args); err != nil {
+		fmt.Fprintln(stdio.Err, "lỗi:", err)
+		return ExitUsage
+	}
 	root.SetArgs(args)
 	err := root.ExecuteContext(ctx)
 	if err == nil {
@@ -99,7 +104,7 @@ func NewRoot(stdio IO) *cobra.Command {
 		Short:         "Bint — ghi nhận, đo lường và tri thức cho coding agent",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Version:       Version,
+		Version:       versionString(),
 	}
 	root.SetIn(stdio.In)
 	root.SetOut(stdio.Out)
@@ -135,6 +140,13 @@ func NewRoot(stdio IO) *cobra.Command {
 	add("planned", plannedCommands()...)
 	root.AddCommand(newHookCmd(stdio))
 	return root
+}
+
+// versionString là phiên bản kèm dấu build: "0.1.0-dev (abc1234, 2026-11-15T10:00:00Z, sửa)"; không có VCS chỉ in phiên bản.
+func versionString() string {
+	b := skills.CurrentBuild()
+	b.Version = Version
+	return b.String()
 }
 
 func cwd() (string, error) { return os.Getwd() }

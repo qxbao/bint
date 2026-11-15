@@ -11,10 +11,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
 	"strings"
 
 	"bint/internal/gitrepo"
+	"bint/internal/skills"
 )
 
 // SourceEnv ghi đè thư mục mã nguồn Bint cho `bint update`.
@@ -243,15 +243,14 @@ func samePath(a, b string) bool {
 
 // SelfRevision trả về commit của bản đang chạy (rỗng nếu không có thông tin VCS).
 func SelfRevision() string {
-	bi, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
-	return revisionFromSettings(func(yield func(k, v string)) {
-		for _, s := range bi.Settings {
-			yield(s.Key, s.Value)
+	if b := skills.CurrentBuild(); b.Revision != "" {
+		rev := b.Short()
+		if b.Modified {
+			rev += "+sửa"
 		}
-	})
+		return rev
+	}
+	return ""
 }
 
 // binaryRevision đọc commit của một tệp thực thi qua `go version -m`.

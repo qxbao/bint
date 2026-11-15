@@ -418,6 +418,7 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 	evolvedChecks(r, root)
 	targets := harness.SkillTargets(cfg.Harnesses.Enabled)
 	lock, _ := skills.ReadLock(root) // lỗi đọc core.lock: không phân biệt được binary cũ, giữ thông báo "khác bản"
+	versionCheck(r, lock)
 	for _, core := range skills.Core() {
 		sk, _, cerr := skills.Composed(root, core)
 		if cerr != nil {
@@ -434,11 +435,12 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 			case st == skills.StateMissing:
 				r.addFix(DoctorFix{Kind: FixSync}, "skill "+sk.Name, LevelInfo, "chưa xuất bản cho %s (bint sync)", who)
 			case st == skills.StateOtherVersion:
-				advice := staleBinaryAdvice(lock.BintVersion, runningVersion())
+				dir := skills.CompareBuild(lock, skills.CurrentBuild())
+				advice := staleBinaryAdvice(dir)
 				r.add("skill "+sk.Name, LevelWarn, "%s do bản Bint khác ghi (core.lock bint_version %s, bint đang chạy %s), chưa ai sửa tay: %s",
 					rel, lock.BintVersion, cmp.Or(runningVersion(), "không rõ"), advice)
 				// Chỉ gợi ý sửa khi bint đang chạy không cũ hơn bản đã ghi: nếu cũ hơn, sync sẽ hạ cấp skill.
-				if c, ok := compareVersions(lock.BintVersion, runningVersion()); ok && c <= 0 {
+				if dir == skills.DirBinNewer {
 					r.Checks[len(r.Checks)-1].Fix = &DoctorFix{Kind: FixSync}
 				}
 			case st == skills.StateDiffers:

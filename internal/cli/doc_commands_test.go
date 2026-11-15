@@ -294,13 +294,14 @@ func TestDocCommandsExist(t *testing.T) {
 func TestDocCommandCheckerCatchesMistakes(t *testing.T) {
 	root := NewRoot(IO{In: strings.NewReader(""), Out: &bytes.Buffer{}, Err: &bytes.Buffer{}})
 	for text, wantBad := range map[string]bool{
-		"bint task done --force":                                                   true,
-		"bint task status <id> done --force -m lý-do":                              false,
-		"bint task set X --json":                                                   true,
-		"bint task new 'mô tả' --workflow b-do --json":                             false,
-		"bint run b-do --task <id> --json":                                         false,
-		"bint mcp index codegraph":                                                 false,
-		"bint config set x y":                                                      true,
+		"bint task done --force":                       false,
+		"bint task done --bogus":                       true,
+		"bint task status <id> done --force -m lý-do":  false,
+		"bint task set X --json":                       false,
+		"bint task new 'mô tả' --workflow b-do --json": false,
+		"bint run b-do --task <id> --json":             false,
+		"bint mcp index codegraph":                     false,
+		"bint config set x y":                          true,
 		"bint knowledge add --type warning --paths 'a/**' --evidence a.go:1 \"x\"": false,
 		"bint run b-do --task <id> | jq .":                                         false,
 		"bint task new 'x' --plan|--no-plan":                                       false,

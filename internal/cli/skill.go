@@ -244,7 +244,7 @@ là tệp thường trong trần kích thước. Description không mở đầu 
 }
 
 func newSyncCmd(stdio IO) *cobra.Command {
-	var force bool
+	var force, allowDowngrade bool
 	c := &cobra.Command{
 		Use:   "sync",
 		Short: "Ghép skill gốc với lớp phủ, xuất bản skill cho harness; cập nhật core.lock",
@@ -252,6 +252,7 @@ func newSyncCmd(stdio IO) *cobra.Command {
 kèm tệp phụ) và skill tiến hoá, rồi xuất bản cho các harness có adapter: Claude Code → .claude/skills/, Codex và Antigravity → .agents/skills/ (frontmatter
 chỉ giữ name, description). Chạy sau khi sửa lớp phủ hoặc nâng cấp Bint.
 
+  - Binary cũ hơn bản đã ghi core.lock mà băm skill gốc khác → từ chối, không ghi gì (--allow-downgrade để ép).
   - Skill đã xuất bản bị sửa tay → xung đột, không ghi đè (--force để ghi đè, có sao lưu);
     tuỳ biến thuộc về lớp phủ.
   - Lớp phủ dùng điểm neo không còn trong skill gốc mới → xung đột, giữ bản cũ và mục
@@ -264,7 +265,7 @@ chỉ giữ name, description). Chạy sau khi sửa lớp phủ hoặc nâng c�
 			if err != nil {
 				return err
 			}
-			si, err := app.Sync(cmd.Context(), dir, Version, app.SyncOptions{Force: force})
+			si, err := app.Sync(cmd.Context(), dir, Version, app.SyncOptions{Force: force, AllowDowngrade: allowDowngrade})
 			if err != nil {
 				return err
 			}
@@ -277,6 +278,7 @@ chỉ giữ name, description). Chạy sau khi sửa lớp phủ hoặc nâng c�
 		},
 	}
 	c.Flags().BoolVar(&force, "force", false, "ghi đè skill đã bị sửa tay (bản cũ được sao lưu)")
+	c.Flags().BoolVar(&allowDowngrade, "allow-downgrade", false, "ghi skill dù binary cũ hơn bản đã ghi core.lock (hạ cấp skill; mặc định bị chặn, nên `bint update --pull`)")
 	return c
 }
 

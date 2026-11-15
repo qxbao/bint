@@ -91,6 +91,7 @@ blocked / failed / interrupted.`,
 			if len(args) == 0 {
 				return usageError{errors.New("thiếu workflow (b-do | b-req | b-feat | b-review | b-debug)")}
 			}
+			autoResync(cmd, stdio)
 			return runWorkflow(cmd, stdio, rf, func(o *app.RunWorkflowOptions) {
 				o.Workflow, o.Request, o.Task, o.NoReview, o.Step = args[0], strings.Join(args[1:], " "), rf.taskRef, rf.noReview, rf.step
 				o.Plan, o.NoPlan, o.Depth = rf.plan, rf.noPlan, rf.depth

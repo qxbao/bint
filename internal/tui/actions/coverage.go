@@ -44,6 +44,7 @@ var Data = Coverage{
 		"task ready":       "TUI đánh dấu phiếu sẵn sàng/chờ phụ thuộc ở danh sách tác vụ và chế độ cây (phím P), dùng task.Ready",
 		"mcp serve":        "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái đăng ký MCP hiện ở Hệ thống › Harness (HarnessRuntime), công cụ của nó hiện ở thẻ Công cụ Bint của màn MCP",
 		"tui":              "chính là điểm vào của giao diện terminal",
+		"task done":        "bí danh của `bint task status <id> done` (cùng tùy chọn); TUI dùng hành động tasks.status",
 	},
 	ExcludedFlags: map[string]string{
 		"--json": "TUI luôn nhận dữ liệu có cấu trúc từ tầng dịch vụ, không cần chế độ xuất JSON",
