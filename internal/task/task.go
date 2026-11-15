@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"bint/internal/affected"
 	"bint/internal/fsafe"
 	"bint/internal/fslock"
 	"bint/internal/ulid"
@@ -262,7 +263,17 @@ type Verification struct {
 	// Reason là lý do chạy khi Bint tự kiểm chứng lại (ví dụ "mã khác đổi sau lần kiểm chứng: a.go"); rỗng
 	// khi người/agent gọi bint task verify hoặc Runner chạy sau bước implement. state.json cũ không có trường này.
 	Reason string `json:"reason,omitempty"`
+	// Scope là phạm vi lần kiểm chứng: "" hoặc "full" (chạy verify.command đầy đủ), hoặc none | graph | package
+	// (chỉ test bị ảnh hưởng, Ran là lệnh thực chạy). state.json cũ không có trường này = full.
+	Scope string `json:"scope,omitempty"`
+	// Ran là lệnh thực chạy khi khác Command (scope affected); rỗng khi không chạy gì (none) hay chạy Command.
+	Ran string `json:"ran,omitempty"`
+	// Selection là bằng chứng chọn phạm vi (base, head, tệp đổi, lý do nới) của lần kiểm chứng affected.
+	Selection *affected.Selection `json:"selection,omitempty"`
 }
+
+// Full cho biết lần kiểm chứng đã chạy verify.command đầy đủ.
+func (v *Verification) Full() bool { return v.Scope == "" || v.Scope == string(affected.TierFull) }
 
 // Approval là một lần người duyệt.
 type Approval struct {

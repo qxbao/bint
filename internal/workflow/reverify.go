@@ -72,6 +72,7 @@ func (e *Env) failedVerifyOutdated(ctx context.Context, t *task.Task, v *task.Ve
 	tc := *t
 	tc.State.Verifications = slices.Clone(t.State.Verifications)
 	tc.State.Verifications[len(tc.State.Verifications)-1].Passed = true
+	tc.State.Verifications[len(tc.State.Verifications)-1].Scope = ""
 	in.Worktree = v.Worktree
 	in.OutsideSinceVerify = nil
 	in.IgnoreLanding = t.State.NeedsLand()
@@ -84,4 +85,39 @@ func (e *Env) failedVerifyOutdated(ctx context.Context, t *task.Task, v *task.Ve
 // reverifyReason là lý do ghi vào Verification.Reason khi Finalize tự kiểm chứng lại.
 func reverifyReason(files []string) string {
 	return "mã khác đổi sau lần kiểm chứng: " + strings.Join(files, ", ")
+}
+
+// partialVerifyOnly: lần kiểm chứng cuối đã qua nhưng chỉ chạy test bị ảnh hưởng (workflow.verify.scope: affected) và,
+// nếu coi nó là đầy đủ và còn mới, cổng done không còn điều chặn nào khác. Khi đó Finalize chạy verify.command đầy đủ
+// một lần trước done/land (cổng done không nhận lần kiểm chứng một phần).
+func (e *Env) partialVerifyOnly(ctx context.Context, t *task.Task) bool {
+	if e.planOnlyTask(t) || t.State.Landed != nil {
+		return false
+	}
+	cmd := strings.TrimSpace(t.Ticket.Verify.Command)
+	if cmd == "" || !e.VerifyConfirmed(t) {
+		return false
+	}
+	v := t.State.LastVerification()
+	if v == nil || v.Command != cmd || !v.Passed || v.Full() {
+		return false
+	}
+	in, err := e.DoneInputDetailed(ctx, t)
+	if err != nil {
+		return false
+	}
+	tc := *t
+	tc.State.Verifications = slices.Clone(t.State.Verifications)
+	tc.State.Verifications[len(tc.State.Verifications)-1].Scope = ""
+	in.Worktree = v.Worktree
+	in.OutsideSinceVerify = nil
+	in.IgnoreLanding = t.State.NeedsLand()
+	return len(e.doneBlockersFor(ctx, &tc, in, nil, e.planGateFor(ctx, t))) == 0
+}
+
+const partialReasonPrefix = "lần kiểm chứng trước chỉ chạy test bị ảnh hưởng (scope "
+
+// partialReason là lý do ghi vào Verification.Reason khi Finalize chạy đầy đủ sau lần kiểm chứng một phần.
+func partialReason(scope string) string {
+	return partialReasonPrefix + scope + "): chạy đầy đủ trước khi done"
 }

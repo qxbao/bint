@@ -387,6 +387,9 @@ func (m *Model) verifyCmdLines(env ui.Env, t *task.Task, w int) []string {
 			line += th.S(theme.Muted, " · "+m.t("tk.verify.unconfirmed"))
 		}
 		add(line)
+		for _, sl := range m.scopeLines(v) {
+			add(th.S(theme.Muted, "  "+text.Path(sl, max(w-4, 10))))
+		}
 		if v.Log != "" {
 			add(th.S(theme.Muted, "  "+text.Path(v.Log, max(w-4, 10))))
 		}
@@ -586,4 +589,29 @@ func (m *Model) relationLines(env ui.Env, st task.State, d Detail, w int) []stri
 		return nil
 	}
 	return append([]string{"", m.section(env, m.t("tk.section.relations"), w)}, l...)
+}
+
+// scopeLines: phạm vi của một lần kiểm chứng (full/none/graph/package), số thư mục và tệp test được chọn, lý do nới.
+func (m *Model) scopeLines(v task.Verification) []string {
+	scope := v.Scope
+	if v.Full() {
+		scope = "full"
+	}
+	label := map[string]string{"full": "tk.verify.scope.full", "none": "tk.verify.scope.none",
+		"graph": "tk.verify.scope.graph", "package": "tk.verify.scope.package"}[scope]
+	if label == "" {
+		label = "tk.verify.scope.full"
+	}
+	out := []string{m.t("tk.verify.scope", i18n.A{"scope": m.t(label)})}
+	sel := v.Selection
+	if sel == nil {
+		return out
+	}
+	if scope != "full" {
+		out = append(out, m.t("tk.verify.selected", i18n.A{"dirs": len(sel.TestDirs), "files": len(sel.TestFiles)}))
+	}
+	for _, w := range sel.Widening {
+		out = append(out, m.t("tk.verify.widen", i18n.A{"reason": w.Reason, "path": w.Path}))
+	}
+	return out
 }

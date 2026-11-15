@@ -135,6 +135,22 @@ các khối `run:`).
 > Xem [báo cáo tương thích macOS](macos-compatibility.md) để biết kết quả và giới hạn.
 > Suite dùng cổng loopback động qua `httptest`; sandbox cấm bind sẽ làm suite lỗi.
 
+### Chỉ chạy test bị ảnh hưởng: `bint test affected`
+
+Workflow CI của dự án khác (dùng bint) có thể rút ngắn job test bằng cùng bộ chọn mà vòng kiểm chứng của tác vụ dùng
+(xem [workflows.md](workflows.md#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)). Checkout đủ lịch sử (`fetch-depth: 0`)
+để tính `merge-base`, đặt `workflow.verify.affected_command` (ví dụ `go test -count=1 {test_dirs}`) và `eval.test_command` (lệnh chạy
+toàn bộ) trong `.bint/config.yml`, rồi:
+
+```sh
+bint test affected --base origin/main --run     # thoát theo mã của lệnh test
+bint test affected --base origin/main --json    # chỉ xem phạm vi (scope, tệp đổi, lý do nới)
+```
+
+Phạm vi `none` không chạy gì, `graph`/`package` chạy `affected_command`, `full` chạy `eval.test_command`. Thay đổi `go.mod`,
+`go.sum`, `.github/**`, `Makefile`, script, `.bint/**` hay tệp lạ luôn ra `full`, nên có thể giữ một lượt chạy đầy đủ định kỳ
+(lịch, nhánh chính) làm lưới an toàn.
+
 ## Xem kết quả CI trên GitHub
 
 - PR: mục **Checks** ở cuối PR hiện ba check `CI / Lint`, `CI / Test (race)`,

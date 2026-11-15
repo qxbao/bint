@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"bint/internal/affected"
 	"bint/internal/config"
 	"bint/internal/ctxengine"
 	"bint/internal/eval"
@@ -740,6 +741,17 @@ func (e *Env) Verify(ctx context.Context, ref string) (*task.Task, VerifyResult,
 
 // VerifyWith như Verify, ghi thêm lý do chạy (Verification.Reason, payload task.verified) khi Bint tự kiểm chứng lại.
 func (e *Env) VerifyWith(ctx context.Context, ref, reason string) (*task.Task, VerifyResult, error) {
+	return e.verify(ctx, ref, reason, false)
+}
+
+// VerifyScoped như VerifyWith nhưng theo workflow.verify.scope: với scope affected và verify.command đã được xác nhận,
+// chỉ chạy test bị ảnh hưởng (affected_command), chạy verify.command đầy đủ khi phải nới ra full, hoặc không chạy gì khi
+// không test nào bị ảnh hưởng. Chỉ dùng ở vòng kiểm chứng sau bước implement; cổng done đòi lần kiểm chứng đầy đủ.
+func (e *Env) VerifyScoped(ctx context.Context, ref, reason string) (*task.Task, VerifyResult, error) {
+	return e.verify(ctx, ref, reason, true)
+}
+
+func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*task.Task, VerifyResult, error) {
 	var res VerifyResult
 	t, err := e.Tasks.Load(ref)
 	if err != nil {
@@ -762,12 +774,36 @@ func (e *Env) VerifyWith(ctx context.Context, ref, reason string) (*task.Task, V
 	n := len(t.State.Verifications) + 1
 	log := t.LogPath(fmt.Sprintf("verify-%d.log", n))
 	timeout := time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes) * time.Minute
-	r := eval.RunShell(ctx, root, cmd, timeout, log, eval.VerifyEnvFrom(verifyEnviron()))
-	if r.Err != nil && ctx.Err() != nil {
-		return t, res, ctx.Err()
+	ran, scope := cmd, ""
+	var sel *affected.Selection
+	run := true
+	if vc := e.Cfg.Workflow.Verify; scoped && confirmed && vc.Scope == config.VerifyScopeAffected && strings.TrimSpace(vc.AffectedCommand) != "" {
+		s := SelectAffected(ctx, root, t.State.Base)
+		sel, scope = &s, string(s.Scope)
+		switch s.Scope {
+		case affected.TierNone:
+			run = false
+		case affected.TierFull:
+		default:
+			ran = eval.ExpandTestCommand(strings.TrimSpace(vc.AffectedCommand), s.TestFiles)
+		}
 	}
-	v := task.Verification{At: e.at(), Command: cmd, Confirmed: confirmed, ExitCode: r.ExitCode, Passed: r.OK(),
-		TimedOut: r.TimedOut, Log: log, Worktree: task.WorktreeFingerprint(ctx, root), By: e.actor(), RunID: e.RunID, Reason: reason}
+	var r eval.CmdResult
+	if run {
+		r = eval.RunShell(ctx, root, ran, timeout, log, eval.VerifyEnvFrom(verifyEnviron()))
+		if r.Err != nil && ctx.Err() != nil {
+			return t, res, ctx.Err()
+		}
+	} else {
+		r = eval.CmdResult{} // không test nào bị ảnh hưởng: qua, không chạy lệnh
+		log = ""
+	}
+	v := task.Verification{At: e.at(), Command: cmd, Confirmed: confirmed, ExitCode: r.ExitCode, Passed: !run || r.OK(),
+		TimedOut: r.TimedOut, Log: log, Worktree: task.WorktreeFingerprint(ctx, root), By: e.actor(), RunID: e.RunID, Reason: reason,
+		Scope: scope, Selection: sel}
+	if run && ran != cmd {
+		v.Ran = ran
+	}
 	// Ảnh chụp sau lệnh kiểm chứng: để thông báo done liệt kê tệp đổi ngoài tác vụ. Lỗi thì để rỗng.
 	if t.State.TracksTouched() {
 		v.Tree, _ = WorktreeSnapshot(ctx, root)
@@ -781,7 +817,13 @@ func (e *Env) VerifyWith(ctx context.Context, ref, reason string) (*task.Task, V
 	}
 	res.Verification = v
 	payload := map[string]any{"command": cmd, "passed": v.Passed, "confirmed": confirmed,
-		"exit_code": v.ExitCode, "timed_out": v.TimedOut}
+		"exit_code": v.ExitCode, "timed_out": v.TimedOut, "scope": string(affected.TierFull)}
+	if v.Scope != "" {
+		payload["scope"] = v.Scope
+		if v.Ran != "" {
+			payload["ran"] = v.Ran
+		}
+	}
 	if reason != "" {
 		payload["reason"] = reason
 	}

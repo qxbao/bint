@@ -397,6 +397,26 @@ type Workflow struct {
 	Driver   string           `yaml:"driver"`
 	Worktree WorkflowWorktree `yaml:"worktree"`
 	Agent    WorkflowAgent    `yaml:"agent"`
+	// Verify chọn phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (sau bước implement).
+	Verify WorkflowVerify `yaml:"verify"`
+}
+
+// Phạm vi kiểm chứng (workflow.verify.scope).
+const (
+	VerifyScopeFull     = "full"     // luôn chạy verify.command của phiếu
+	VerifyScopeAffected = "affected" // chỉ chạy test bị ảnh hưởng bởi thay đổi (internal/affected)
+)
+
+// VerifyScopes là các giá trị hợp lệ của workflow.verify.scope.
+var VerifyScopes = []string{VerifyScopeFull, VerifyScopeAffected}
+
+// WorkflowVerify cấu hình phạm vi kiểm chứng của tác vụ. Cổng done và `bint task verify` luôn chạy đầy đủ.
+type WorkflowVerify struct {
+	// Scope: full (mặc định) | affected.
+	Scope string `yaml:"scope"`
+	// AffectedCommand là lệnh chạy khi Scope=affected; {test_dirs}/{test_files} được thay bằng test bị ảnh hưởng,
+	// ví dụ "go test -count=1 {test_dirs}". Chỉ dùng khi verify.command của phiếu đã được người xác nhận.
+	AffectedCommand string `yaml:"affected_command"`
 }
 
 // Giá trị của workflow.isolation.
@@ -597,6 +617,7 @@ func Default() Config {
 		Workflow: Workflow{
 			MaxReviewRounds: 2, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
+			Verify: WorkflowVerify{Scope: VerifyScopeFull},
 			Agent: WorkflowAgent{
 				PermissionMode: "acceptEdits",
 				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash", "mcp__bint__*"},
@@ -986,6 +1007,14 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.TimeoutMinutes < 1 || c.Workflow.VerifyTimeoutMinutes < 1 {
 		add("workflow.timeout_minutes, workflow.verify_timeout_minutes: phải >= 1")
+	}
+	if !slices.Contains(VerifyScopes, c.Workflow.Verify.Scope) {
+		add("workflow.verify.scope: phải là %s", strings.Join(VerifyScopes, " | "))
+	} else if c.Workflow.Verify.Scope == VerifyScopeAffected {
+		cmd := c.Workflow.Verify.AffectedCommand
+		if strings.TrimSpace(cmd) == "" || (!strings.Contains(cmd, "{test_dirs}") && !strings.Contains(cmd, "{test_files}")) {
+			add("workflow.verify.affected_command: scope affected cần lệnh có {test_dirs} hoặc {test_files}")
+		}
 	}
 	if !slices.Contains(IsolationModes, c.Workflow.Isolation) {
 		add("workflow.isolation: phải là %s", strings.Join(IsolationModes, " | "))

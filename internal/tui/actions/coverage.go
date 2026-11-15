@@ -41,6 +41,7 @@ var Data = Coverage{
 		"runs get":         "chi tiết một lượt chạy cho agent (cùng hàm dựng với công cụ MCP run_get); người xem bằng runs.show ở màn Lượt chạy",
 		"findings list":    "TUI xem phát hiện open bằng phím F ở màn Tác vụ (hành động đọc không gắn lệnh vì không có ô --task); số phát hiện open hiện ở hàng danh sách",
 		"findings set":     "thao tác chỉ dành cho người (đổi kết cục phát hiện), chưa đưa vào TUI",
+		"test affected":    "công cụ dòng lệnh cho CI và người dùng (chọn/chạy test bị ảnh hưởng theo thay đổi); vòng kiểm chứng của tác vụ ghi phạm vi (scope) vào lần kiểm chứng hiện ở thẻ Kiểm chứng (màn Tác vụ)",
 		"task ready":       "TUI đánh dấu phiếu sẵn sàng/chờ phụ thuộc ở danh sách tác vụ và chế độ cây (phím P), dùng task.Ready",
 		"mcp serve":        "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái đăng ký MCP hiện ở Hệ thống › Harness (HarnessRuntime), công cụ của nó hiện ở thẻ Công cụ Bint của màn MCP",
 		"tui":              "chính là điểm vào của giao diện terminal",

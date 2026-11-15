@@ -425,6 +425,7 @@ gói ngữ cảnh của Context Engine. Giới hạn vận hành (mục 5):
 | ngoài `scope.allow` | chỉ hỏi khi `autonomy: ask_always` (ngoài ra ghi chú) |
 | `workflow.max_review_rounds` (2) | phát hiện `bug`/`risk` mức `critical`/`high` → quay lại `b-feat`; hết vòng → `blocked` |
 | `workflow.timeout_minutes` (60), `verify_timeout_minutes` (15) | giới hạn thời gian mỗi bước agent / lệnh kiểm chứng |
+| `workflow.verify.scope` (`full`), `verify.affected_command` | `affected`: kiểm chứng sau implement chỉ chạy test bị ảnh hưởng; done vẫn đòi chạy đầy đủ ([phạm vi kiểm chứng](#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)) |
 
 **Dừng, duyệt đường dẫn bảo vệ và chạy tiếp (`resume`).** Ctrl-C trong `bint run` chuyển tác vụ sang
 `interrupted`; timeout chuyển sang `failed`; tiến trình điều phối bị kill sẽ được phát hiện ở lần đọc
@@ -549,6 +550,68 @@ luật "thiếu implement" và luật tên gốc). `bint flow list` hiện cả 
 lint); `bint flow show <tên>` in định nghĩa đã chuẩn hoá (role mặc định được điền) kèm nguồn và băm (`sha256:…`, không phụ thuộc
 chú thích, thứ tự khoá hay mô tả). Trong TUI: ba hành động chỉ đọc "Liệt kê/Xem/Kiểm flow" ở bảng lệnh (`:`), kết quả ở khung đầu ra
 của thẻ Skill.
+
+#### Phạm vi kiểm chứng: `workflow.verify.scope` và `bint test affected`
+
+Mặc định (`workflow.verify.scope: full`) mọi lần kiểm chứng chạy nguyên `verify.command` của phiếu. Với
+`scope: affected`, **vòng kiểm chứng sau bước implement** (sau `b-feat` và các bước implement của flow tuỳ biến) chỉ chạy
+các test bị ảnh hưởng bởi thay đổi của tác vụ, để vòng review/sửa nhanh hơn. Chỉ áp dụng khi `verify.command` của phiếu đã được
+người xác nhận; lệnh chạy là `workflow.verify.affected_command`, trong đó `{test_dirs}` (thư mục `./dir`) và `{test_files}`
+được thay bằng test được chọn, ví dụ:
+
+```yaml
+workflow:
+  verify:
+    scope: affected
+    affected_command: "go test -count=1 {test_dirs}"   # bắt buộc có {test_dirs} hoặc {test_files}
+```
+
+Tập thay đổi là mọi tệp khác nhau giữa commit gốc của tác vụ (`Base`) và cây làm việc hiện tại (gồm thay đổi chưa commit và tệp
+chưa theo dõi, không gồm sổ phiếu `.bint/tasks`). Phạm vi chọn theo tầng, từ hẹp đến rộng:
+
+| Tầng | Khi nào | Lần kiểm chứng làm gì |
+|---|---|---|
+| `none` | chỉ `*.md`/`*.txt` ngoài mọi gói mà không test nào nhắc tới tên tệp (test có nhắc thì nới lên `package`, lý do `test_reference`; `.md`/`.txt` trong thư mục con của gói thuộc gói đó); hoặc không gói nào có test bị ảnh hưởng | không chạy lệnh nào, ghi nhận là qua |
+| `graph` | có tệp mã (`.go`) trong thư mục gói | chạy `affected_command` với test của gói đổi và mọi gói có test phụ thuộc bắc cầu vào nó |
+| `package` | thay đổi không phải mã nằm trong gói: `testdata/`, tệp được `//go:embed`, tệp khác trong thư mục gói | như `graph` |
+| `full` | `go.mod`, `go.sum`, `go.work`, khoá phụ thuộc, cấu hình công cụ, `.bint/**`, `.github/**`, `Makefile`, script, tệp lạ ngoài gói, module lồng, hoặc nguồn ảnh hưởng không dùng được | chạy nguyên `verify.command` |
+
+**Quy tắc nới (không bao giờ thu hẹp).** Gặp thay đổi không phân loại chắc được thì phạm vi nới lên tầng rộng hơn, và mỗi lần
+nới ghi đường dẫn, tầng và lý do (`root_config`, `ci_config`, `bint_config`, `testdata`, `embedded_file`, `non_code_change`,
+`nested_module`, `unknown_package`, `deleted_package`, `unknown_file`, `source_unavailable`, `unsupported_language`, `no_base`).
+Cụ thể: `go list` lỗi hoặc không có trên `PATH`, gói lỗi nhập/biên dịch, thư mục có `.go` mà không ra gói nào, gói bị xoá, tệp
+thuộc module lồng (`go.mod` con), dự án không có nguồn hỗ trợ (không có `go.mod`) và không có commit gốc đều ra `full`.
+Phạm vi rỗng ở `graph`/`package` hạ về `none` (không bao giờ để `{test_dirs}` rỗng, vì `go test` không đối số sẽ chạy thư mục
+hiện tại).
+
+**Nguồn ảnh hưởng theo ngôn ngữ** nằm sau interface `affected.Source` (`internal/affected`). Hiện có Go: một lần
+`go list -e -test -json ./...` cho đồ thị phụ thuộc mức gói, ánh xạ tệp đổi theo thư mục gói (tệp bị build tag loại như
+`*_windows.go` vẫn ra gói của nó, chạy được trên mọi GOOS), chọn gói có test mà phụ thuộc bắc cầu vào gói đổi. Không dùng codegraph
+làm nguồn cho Go vì nó bỏ sót gói phụ thuộc theo từng tệp build tag. Ngôn ngữ chưa hỗ trợ → `full`.
+
+**Bằng chứng.** `Verification` ghi `scope`, `selection` (`base`, `head` là mã cây, `changed` tối đa 200 tệp kèm cờ cắt,
+`widening`, test được chọn) và `ran` (lệnh thực chạy); payload `task.verified` có `scope`. state.json cũ không có `scope` = full.
+
+**Vẫn chạy đầy đủ trước khi xong.** Lần kiểm chứng một phần chỉ là bằng chứng trung gian:
+
+- cổng `done` không nhận lần kiểm chứng cuối có `scope` khác `full` (điều chặn mới, ép được bằng `--force` như các điều chặn
+  bằng chứng khác);
+- finalize tự chạy `verify.command` đầy đủ một lần trước `done`/`land` khi lần cuối chỉ là affected (ghi lý do vào lần kiểm
+  chứng). Nếu lần chạy đầy đủ này hỏng, tác vụ quay về bước sửa (`in_progress`, như vòng sửa sau review, chung ngân sách
+  `workflow.max_review_rounds`); hết vòng mới chặn chờ người;
+- `bint task verify` và cổng đỏ (`expect: fail`) luôn chạy đầy đủ.
+
+**`bint test affected`** dùng cùng bộ chọn ngoài tác vụ (cho CI và người dùng):
+
+```sh
+bint test affected --base origin/main            # in scope, base/head, tệp đổi, lý do nới, thư mục test
+bint test affected --base origin/main --json     # như trên dạng JSON (selection, command, ran, exit_code)
+bint test affected --base origin/main --run      # chạy luôn và thoát theo mã của lệnh test
+```
+
+`--base` mặc định `HEAD` (chỉ thay đổi chưa commit và tệp chưa theo dõi); gốc so sánh là điểm tách của `--base` khỏi `HEAD`
+(`merge-base`). `--run` chạy `affected_command` ở tầng `graph`/`package`, `eval.test_command` ở tầng `full`, không chạy gì ở
+`none`; thiếu lệnh tương ứng thì báo lỗi. Với `--json`, đầu ra của lệnh test đi sang stderr.
 
 #### Khoá `expect: fail` (cổng đỏ)
 

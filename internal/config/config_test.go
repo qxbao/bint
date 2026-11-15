@@ -280,3 +280,40 @@ func TestTasksLedgerKey(t *testing.T) {
 		t.Fatalf("giá trị lạ phải bị từ chối: %v", err)
 	}
 }
+
+func TestWorkflowVerifyScope(t *testing.T) {
+	c := Default()
+	if c.Workflow.Verify.Scope != VerifyScopeFull || c.Workflow.Verify.AffectedCommand != "" {
+		t.Fatalf("mặc định verify = %+v", c.Workflow.Verify)
+	}
+	ok := []WorkflowVerify{
+		{Scope: "full"},
+		{Scope: "full", AffectedCommand: "go test {test_dirs}"},
+		{Scope: "affected", AffectedCommand: "go test -count=1 {test_dirs}"},
+		{Scope: "affected", AffectedCommand: "pytest {test_files}"},
+	}
+	for _, v := range ok {
+		c := Default()
+		c.Workflow.Verify = v
+		if err := c.Validate(); err != nil {
+			t.Errorf("%+v: %v", v, err)
+		}
+	}
+	bad := []struct {
+		v    WorkflowVerify
+		want string
+	}{
+		{WorkflowVerify{Scope: "partial"}, "workflow.verify.scope"},
+		{WorkflowVerify{Scope: ""}, "workflow.verify.scope"},
+		{WorkflowVerify{Scope: "affected"}, "workflow.verify.affected_command"},
+		{WorkflowVerify{Scope: "affected", AffectedCommand: "  "}, "workflow.verify.affected_command"},
+		{WorkflowVerify{Scope: "affected", AffectedCommand: "go test ./..."}, "workflow.verify.affected_command"},
+	}
+	for _, tc := range bad {
+		c := Default()
+		c.Workflow.Verify = tc.v
+		if err := c.Validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%+v: muốn lỗi chứa %q, được %v", tc.v, tc.want, err)
+		}
+	}
+}

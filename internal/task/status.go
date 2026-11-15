@@ -139,6 +139,7 @@ const (
 	BlockVerifyChanged                         // lệnh đổi sau lần chạy cuối
 	BlockVerifyFailed                          // lần kiểm chứng cuối không qua
 	BlockVerifyStale                           // mã đổi sau lần kiểm chứng cuối
+	BlockVerifyPartial                         // lần kiểm chứng cuối chỉ chạy test bị ảnh hưởng, chưa chạy đầy đủ
 	BlockNoEvidence                            // phiếu không có lệnh kiểm chứng lẫn tiêu chí
 	BlockCriterionUnmet                        // tiêu chí đã đánh dấu chưa đạt
 	BlockCriterionUnchecked                    // tiêu chí chưa đối chiếu
@@ -149,7 +150,7 @@ const (
 // sau này, KHÔNG bỏ qua được.
 func (k BlockerKind) Forceable() bool {
 	switch k {
-	case BlockVerifyMissing, BlockVerifyChanged, BlockVerifyFailed, BlockVerifyStale, BlockNoEvidence, BlockCriterionUnchecked:
+	case BlockVerifyMissing, BlockVerifyChanged, BlockVerifyFailed, BlockVerifyStale, BlockVerifyPartial, BlockNoEvidence, BlockCriterionUnchecked:
 		return true
 	}
 	return false
@@ -212,6 +213,8 @@ func DoneBlockersTyped(t *Task, in DoneInput) []Blocker {
 			} else {
 				add(BlockVerifyStale, "mã đã thay đổi sau lần kiểm chứng cuối (bint task verify)")
 			}
+		case !v.Full():
+			add(BlockVerifyPartial, "lần kiểm chứng cuối chỉ chạy test bị ảnh hưởng (scope "+v.Scope+"): cần chạy đầy đủ (bint task verify "+st.ID+")")
 		}
 	}
 	crit := t.Ticket.Verify.Criteria

@@ -664,7 +664,9 @@ func (r *Runner) nextStep(rs *runState) string {
 	}
 	step, fin := rs.pickStep()
 	if fin {
-		r.finalize(context.Background(), rs)
+		if r.finalize(context.Background(), rs) {
+			return r.nextStep(rs) // kiểm chứng đầy đủ ở finalize hỏng: tác vụ đã về bước sửa
+		}
 		return ""
 	}
 	if step == stepCheck && !rs.chain() {
@@ -1448,7 +1450,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			if !ok {
 				return false
 			}
-			t, vr, err := r.Verify(ctx, rs.t.State.ID)
+			t, vr, err := r.VerifyScoped(ctx, rs.t.State.ID, "")
 			lock.Release()
 			switch {
 			case err != nil && ctx.Err() != nil:
@@ -1461,7 +1463,12 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 				rs.res.Notes = append(rs.res.Notes, "kiểm chứng: "+vr.Skipped)
 			default:
 				rs.t = t
-				r.logf("  kiểm chứng: %s → %s", vr.Verification.Command, passWord(vr.Verification.Passed))
+				v := vr.Verification
+				if v.Scope != "" {
+					r.logf("  kiểm chứng (scope %s): %s → %s", v.Scope, cmpStr(v.Ran, v.Command), passWord(v.Passed))
+				} else {
+					r.logf("  kiểm chứng: %s → %s", v.Command, passWord(v.Passed))
+				}
 			}
 		}
 		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
@@ -1484,8 +1491,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			return false
 		}
 		if rs.opts.NoReview {
-			r.finalize(ctx, rs)
-			return false
+			return r.finalize(ctx, rs)
 		}
 		return true
 	case flow.KindReview:
@@ -1620,8 +1626,7 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 			r.setFlowStep(rs, next.ID)
 			return true
 		}
-		r.finalize(ctx, rs)
-		return false
+		return r.finalize(ctx, rs)
 	}
 	used := r.reviewRoundsUsed(rs, last)
 	if used <= r.Cfg.Workflow.MaxReviewRounds {
@@ -1884,13 +1889,17 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 
 // finalize: chuyển done nếu đủ bằng chứng, nếu không thì chờ người với lý do cụ thể. Tác vụ worktree: kiểm
 // điều kiện done (ở worktree) → đưa về cây gốc (Land) → done. Xung đột ⇒ blocked "xung đột khi đưa về: …".
-func (r *Runner) finalize(ctx context.Context, rs *runState) {
-	if !r.reverifyIfStale(ctx, rs) {
-		return
+// Trả true khi tác vụ quay về bước sửa (kiểm chứng đầy đủ hỏng sau lần kiểm chứng affected, còn vòng): workflow đi tiếp.
+func (r *Runner) finalize(ctx context.Context, rs *runState) bool {
+	switch r.reverifyIfStale(ctx, rs) {
+	case reverifyStop:
+		return false
+	case reverifyFix:
+		return true
 	}
 	if rs.t.State.NeedsLand() {
 		if !r.landStep(ctx, rs) {
-			return
+			return false
 		}
 	}
 	t, blockers, err := r.SetStatus(ctx, rs.t.State.ID, task.StatusDone, TransitionOptions{Reason: rs.flow.Name + " finalize", Orchestrator: true})
@@ -1899,14 +1908,52 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) {
 	}
 	if err == nil {
 		r.logf("✓ Hoàn thành")
-		return
+		return false
 	}
 	var nd *NotDoneError
 	if errors.As(err, &nd) {
 		r.blockFinalize(ctx, rs, "chưa đủ bằng chứng hoàn thành: "+strings.Join(blockers, "; ")+"; xử lý xong thì `"+r.resumeCmd(rs)+"`")
-		return
+		return false
 	}
 	r.fail(rs, "finalize", err.Error())
+	return false
+}
+
+// reverifyResult là kết quả reverifyIfStale.
+type reverifyResult int
+
+const (
+	reverifyOK   reverifyResult = iota // đi tiếp tới land/done
+	reverifyStop                       // workflow dừng (đã đặt trạng thái)
+	reverifyFix                        // kiểm chứng đầy đủ hỏng: tác vụ về bước sửa, workflow đi tiếp
+)
+
+// fullVerifyFailRounds là số lần kiểm chứng đầy đủ ở finalize (sau lần kiểm chứng affected) đã hỏng, kể cả lần cuối.
+func fullVerifyFailRounds(t *task.Task) int {
+	n := 0
+	for _, v := range t.State.Verifications {
+		if !v.Passed && v.Full() && strings.HasPrefix(v.Reason, partialReasonPrefix) {
+			n++
+		}
+	}
+	return n
+}
+
+// fixAfterFullVerify đưa tác vụ về bước sửa khi kiểm chứng đầy đủ ở finalize hỏng và còn vòng trong
+// workflow.max_review_rounds (cùng ngân sách với vòng sửa sau review). Trả false khi hết vòng hoặc chuyển trạng thái lỗi.
+func (r *Runner) fixAfterFullVerify(rs *runState, how string) bool {
+	used := fullVerifyFailRounds(rs.t)
+	if used > r.Cfg.Workflow.MaxReviewRounds {
+		return false
+	}
+	r.setFinalizeFP(rs, "")
+	r.setFlowStep(rs, rs.lastImplement().ID)
+	if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa: kiểm chứng đầy đủ ở finalize hỏng (%s) sau lần kiểm chứng chỉ test bị ảnh hưởng (vòng %d/%d)",
+		how, used, r.Cfg.Workflow.MaxReviewRounds)); err != nil {
+		r.fail(rs, "finalize", err.Error())
+		return false
+	}
+	return true
 }
 
 // reverifyIfStale: khi cổng done chỉ bị chặn vì tệp NGOÀI tác vụ đổi sau lần kiểm chứng cuối (staleVerifyOnly) thì tự
@@ -1914,35 +1961,41 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) {
 // một Verification mới có lý do. Dùng chung cho driver process và session (cả hai vào finalize). Trả false nếu workflow
 // phải dừng (đã đặt trạng thái): lỗi, huỷ, hoặc kiểm chứng lại không qua. Trường hợp khác trả true và để cổng done
 // quyết định như cũ (kể cả khi lệnh bị bỏ qua).
-func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) bool {
+func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) reverifyResult {
 	forced := rs.finalizeResume
 	rs.finalizeResume = false
 	files, ok := r.staleVerifyOnly(ctx, rs.t)
-	if !ok && !forced {
-		return true
+	partial := false
+	if !ok {
+		partial = r.partialVerifyOnly(ctx, rs.t)
+	}
+	if !ok && !partial && !forced {
+		return reverifyOK
 	}
 	id := rs.t.State.ID
 	reason := "tiếp tục sau khi finalize bị chặn (worktree không đổi, không review lại)"
 	if ok {
 		reason = reverifyReason(files)
+	} else if partial {
+		reason = partialReason(rs.t.State.LastVerification().Scope)
 	}
 	r.logf("  %s: chạy lại kiểm chứng", reason)
 	lock, locked := r.lockStep(ctx, rs, "verify", LockExclusive)
 	if !locked {
-		return false
+		return reverifyStop
 	}
 	t, vr, err := r.VerifyWith(ctx, id, reason)
 	lock.Release()
 	switch {
 	case err != nil && ctx.Err() != nil:
 		r.interrupt(rs, "người dùng huỷ khi kiểm chứng")
-		return false
+		return reverifyStop
 	case err != nil:
 		r.fail(rs, "verify", err.Error())
-		return false
+		return reverifyStop
 	case vr.Skipped != "":
 		rs.res.Notes = append(rs.res.Notes, "kiểm chứng: "+vr.Skipped)
-		return true
+		return reverifyOK
 	}
 	rs.t = t
 	r.setFinalizeFP(rs, "") // đã kiểm chứng lại xong: dấu vân tay cũ hết giá trị (hỏng lại thì blockFinalize đặt mới)
@@ -1950,15 +2003,23 @@ func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) bool {
 	r.logf("  kiểm chứng: %s → %s", v.Command, passWord(v.Passed))
 	rs.res.Notes = append(rs.res.Notes, "đã tự kiểm chứng lại một lần ("+reason+") → "+passWord(v.Passed))
 	if v.Passed {
-		return true
+		return reverifyOK
 	}
 	how := fmt.Sprintf("mã thoát %d", v.ExitCode)
 	if v.TimedOut {
 		how = "quá giờ"
 	}
+	if partial {
+		if r.fixAfterFullVerify(rs, how) {
+			return reverifyFix
+		}
+		if rs.t.State.Status != task.StatusInReview {
+			return reverifyStop // chuyển trạng thái lỗi (đã r.fail)
+		}
+	}
 	r.blockFinalize(ctx, rs, fmt.Sprintf("chưa đủ bằng chứng hoàn thành: tự kiểm chứng lại sau khi %s không qua (%s, log %s); "+
 		"xử lý xong thì `%s`", reason, how, v.Log, r.resumeCmd(rs)))
-	return false
+	return reverifyStop
 }
 
 // blockFinalize chặn tác vụ ở finalize vì thiếu bằng chứng, nhớ dấu vân tay worktree để resume không đổi thì không mở
@@ -2241,4 +2302,12 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		}
 	}
 	return b.String()
+}
+
+// cmpStr trả a nếu khác rỗng, nếu không b (lệnh thực chạy so với lệnh của phiếu).
+func cmpStr(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }

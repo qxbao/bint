@@ -509,7 +509,7 @@ func TestReviewSubmissionPathAndTitle(t *testing.T) {
 // Danh sách cho phép tường minh của điều chặn người có thể bỏ qua (land --force): loại thêm sau này mặc định là cứng.
 func TestBlockerKindForceableAllowlist(t *testing.T) {
 	want := map[BlockerKind]bool{
-		BlockVerifyMissing: true, BlockVerifyChanged: true, BlockVerifyFailed: true, BlockVerifyStale: true,
+		BlockVerifyMissing: true, BlockVerifyChanged: true, BlockVerifyFailed: true, BlockVerifyStale: true, BlockVerifyPartial: true,
 		BlockNoEvidence: true, BlockCriterionUnchecked: true,
 	}
 	for k := BlockLand; k <= BlockCriterionUnchecked; k++ {

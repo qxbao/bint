@@ -92,6 +92,7 @@ var litsrUsage = []struct{ file, contains string }{
 	{"workflow/ops.go", "--parent %q: %v"},
 	{"workflow/ops_findings.go", "fixed cần --commit"},
 	{"workflow/ops_findings.go", "--commit %q không phải commit"},
+	{"app/test_affected.go", "--base %q không phải commit hoặc ref hợp lệ"},
 	{"app/mcp_svc.go", "--url loại trừ --command/--arg"},
 	{"app/mcp_svc.go", "--url chỉ dùng cho service http"},
 	{"app/mcp_svc.go", "--url %q không phải địa chỉ http(s)"},

@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"bint/internal/affected"
 	"bint/internal/app"
 	"bint/internal/i18n"
 	"bint/internal/task"
@@ -40,7 +41,10 @@ func data(root string) tasks.Data {
 	blocked.State.PendingPaths = []string{"migrations/002.sql"}
 	failed := mk("01TASK2", task.StatusFailed, "Đổi cách tính phí", "2026-11-11T09:00:00Z")
 	failed.State.Errors = []task.ErrorRecord{{Step: "b-feat", Message: "agent thoát với mã 1", At: "2026-11-11T09:00:00Z", By: "agent"}}
-	failed.State.Verifications = []task.Verification{{At: "2026-11-11T09:00:00Z", Command: "go test ./...", ExitCode: 1, By: "human"}}
+	failed.State.Verifications = []task.Verification{{At: "2026-11-11T09:00:00Z", Command: "go test ./...", ExitCode: 1, By: "human"},
+		{At: "2026-11-11T09:30:00Z", Command: "go test ./...", Scope: "package", Passed: true, By: "human",
+			Selection: &affected.Selection{Scope: affected.TierPackage, TestDirs: []string{"./a", "./b"}, TestFiles: []string{"a/a_test.go", "a/x_test.go", "b/b_test.go"},
+				Widening: []affected.Widening{{Path: "a/testdata/x.json", Tier: affected.TierPackage, Reason: affected.ReasonTestdata}}}}}
 	failed.State.Criteria = []task.CriterionCheck{{Index: 1, Met: true, Evidence: "go test ./internal/tui qua", By: "agent", At: "2026-11-11T09:00:00Z"}}
 	// 01TASK4 chạy trong worktree riêng, chưa đưa về; 01TASK3 (xong) đã đưa về cây gốc.
 	wt := mk("01TASK4", task.StatusInProgress, "Thêm màn Tác vụ", "2026-11-11T08:00:00Z")
@@ -311,7 +315,8 @@ func TestSubTabsShowTaskData(t *testing.T) {
 		{"Phiếu", []string{"Đổi cách tính phí", "internal/tui/**", "go.mod", "Rủi ro", "high", "migrations/**", "Lệnh kiểm chứng là gì?", "Chưa thể done", "chưa có bằng chứng"}},
 		{"Tài liệu", []string{"requirement", "Yêu cầu", "[ ] AC-1", "[x] AC-2", "│ func A() {}", "ac_gap", "AC-2 chưa có TSK"}},
 		{"Tiêu chí", []string{"1/2 tiêu chí đã đạt", "✓ 1. Danh sách theo trạng thái", "go test ./internal/tui qua", "? 2. Hành động duyệt"}},
-		{"Kiểm chứng", []string{"go test ./...", "chưa được người xác nhận", "không qua", "mã 1"}},
+		{"Kiểm chứng", []string{"go test ./...", "chưa được người xác nhận", "không qua", "mã 1",
+			"phạm vi: đầy đủ", "phạm vi: package", "2 thư mục test · 3 tệp test", "nới: testdata a/testdata/x.json"}},
 		{"Review", []string{"Vòng 2/1", "Hai điểm cần sửa", "3 phát hiện", "Không đóng kết nối", "Đặt tên biến rõ hơn", "db.go:4-5"}},
 		{"Lỗi", []string{"agent thoát với mã 1", "b-feat"}},
 		{"Lượt chạy", []string{"RUN000001", "completed", "b-do"}},
