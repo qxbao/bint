@@ -121,6 +121,20 @@ func TestMergeBodiesTable(t *testing.T) {
 		{"mục danh sách là tiền tố của mục khác", "- cache-busting", "- cache",
 			"- cache-busting\n\nGộp từ ID2:\n\n- cache"},
 		{"keep rỗng", "", "Chỉ có ở drop.", "Gộp từ ID2:\n\nChỉ có ở drop."},
+		// NT-P6-06 .1: khối mã rào chưa đóng ở keep không được nuốt khối "Gộp từ" ở lần gọi sau.
+		{"keep có khối mã chưa đóng", "Dùng:\n```go\nx := 1", "Close only after workers stop.",
+			"Dùng:\n```go\nx := 1\n```\n\nGộp từ ID2:\n\nClose only after workers stop."},
+		// NT-P6-06 .2: cùng một câu ở dạng đơn vị khác (danh sách/văn xuôi, thiếu dấu chấm) là đã có.
+		{"danh sách so với văn xuôi có chấm", "- Close after workers stop", "Close after workers stop.", ""},
+		{"văn xuôi so với danh sách", "Close after workers stop.", "- Close after workers stop", ""},
+		{"văn xuôi thiếu dấu chấm", "Close after workers stop.", "close after workers stop", ""},
+		{"danh sách đánh số so với danh sách gạch", "1. Close after workers stop.", "- close after workers stop", ""},
+		{"danh sách có chấm so với văn xuôi trần", "* Close after workers stop.", "Close after workers stop", ""},
+		// Review phiếu 01M7FGG2H0KZZ6G4CDDPYAE0TT .5: câu hỏi/câu cảm khác câu khẳng định.
+		{"câu hỏi khác câu khẳng định", "Retry on timeout.", "Retry on timeout?",
+			"Retry on timeout.\n\nGộp từ ID2:\n\nRetry on timeout?"},
+		{"câu cảm khác câu khẳng định", "- Never retry", "- Never retry!",
+			"- Never retry\n\nGộp từ ID2:\n\n- Never retry!"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -284,11 +298,21 @@ func TestMergeCarriesThirdParty(t *testing.T) {
 // Evaluate dựng mục giữ lại bằng cùng đường với Apply: cờ third_party của mục bị gộp phải theo sang
 // (review phiếu 2 .2); đề xuất không phải merge thì không đổi cờ.
 func TestEvaluateCandidateCarriesThirdParty(t *testing.T) {
-	f, _, _, p := mergeFixture(t, "Open requires context.", "Close after workers stop.", "internal/db/db.go:3", "internal/db/db.go:5",
+	f, a, b, p := mergeFixture(t, "Open requires context.", "Close after workers stop.", "internal/db/db.go:3", "internal/db/db.go:5",
 		func(a, b *knowledge.Item) { b.Origin.ThirdParty = true })
 	items, _, err := f.k.Items()
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Giả định của test: mục giữ lại (a) KHÁC mục mang cờ (b), và a ban đầu không mang cờ; nếu không,
+	// việc gỡ carryThirdParty không làm test đỏ.
+	if a.ID == b.ID || !b.Origin.ThirdParty || a.Origin.ThirdParty {
+		t.Fatalf("fixture sai: a=%s third=%v, b=%s third=%v", a.ID, a.Origin.ThirdParty, b.ID, b.Origin.ThirdParty)
+	}
+	for _, it := range items {
+		if it.ID == a.ID && it.Origin.ThirdParty {
+			t.Fatal("mục giữ lại ban đầu không được mang cờ third_party")
+		}
 	}
 	var keepID string
 	for _, ch := range p.Changes {
@@ -298,6 +322,9 @@ func TestEvaluateCandidateCarriesThirdParty(t *testing.T) {
 	}
 	if keepID == "" {
 		t.Fatalf("đề xuất merge phải có một thay đổi update: %+v", p.Changes)
+	}
+	if keepID != a.ID || keepID == b.ID {
+		t.Fatalf("mục giữ lại phải là a=%s (không phải mục mang cờ b=%s), được %s", a.ID, b.ID, keepID)
 	}
 	base := strings.TrimSpace(testutil.Git(t, f.root, "rev-parse", "HEAD"))
 	c := &eval.Case{ID: "c1", Source: eval.Source{Commit: base, Base: base}}

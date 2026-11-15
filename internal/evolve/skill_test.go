@@ -190,6 +190,18 @@ func TestSkillOpportunitiesAndMerge(t *testing.T) {
 	if mp.Action != ActionMerge || len(mp.SkillChanges) != 2 || mp.Plan.Kind != "non_inferiority" || mp.SkillChanges[1].MergedInto != "retry-order" {
 		t.Fatalf("đề xuất gộp: %+v", mp)
 	}
+	var noted bool
+	for _, n := range mp.Notes {
+		if strings.Contains(n, "mâu thuẫn") && strings.Contains(n, "retry-reset") {
+			noted = true
+		}
+	}
+	if !noted {
+		t.Fatalf("đề xuất gộp skill phải nhắc người duyệt đọc lại/kiểm mâu thuẫn: %v", mp.Notes)
+	}
+	if want := "bớt một skill trùng: harness không còn chọn nhầm giữa hai skill; giữ retry-order"; mp.ExpectedBenefit != want {
+		t.Fatalf("ExpectedBenefit = %q, muốn %q", mp.ExpectedBenefit, want)
+	}
 	// Không mất kiến thức: mọi dòng của skill bị gộp nằm trong skill giữ lại.
 	merged := mp.SkillChanges[0].Draft.Body
 	for _, l := range strings.Split(b.Doc().Body, "\n") {
