@@ -131,17 +131,17 @@ type DoneInput struct {
 type BlockerKind int
 
 const (
-	BlockLand             BlockerKind = iota // chưa đưa về cây gốc
-	BlockLandConflict                        // tệp còn xung đột sau land --3way
-	BlockPendingPaths                        // đường dẫn bảo vệ/deny chưa duyệt
-	BlockVerifyUnconfirm                     // lệnh kiểm chứng chưa được người xác nhận
-	BlockVerifyMissing                       // chưa chạy lệnh kiểm chứng
-	BlockVerifyChanged                       // lệnh đổi sau lần chạy cuối
-	BlockVerifyFailed                        // lần kiểm chứng cuối không qua
-	BlockVerifyStale                         // mã đổi sau lần kiểm chứng cuối
-	BlockNoEvidence                          // phiếu không có lệnh kiểm chứng lẫn tiêu chí
-	BlockCriterionUnmet                      // tiêu chí đã đánh dấu chưa đạt
-	BlockCriterionUnchecked                  // tiêu chí chưa đối chiếu
+	BlockLand               BlockerKind = iota // chưa đưa về cây gốc
+	BlockLandConflict                          // tệp còn xung đột sau land --3way
+	BlockPendingPaths                          // đường dẫn bảo vệ/deny chưa duyệt
+	BlockVerifyUnconfirm                       // lệnh kiểm chứng chưa được người xác nhận
+	BlockVerifyMissing                         // chưa chạy lệnh kiểm chứng
+	BlockVerifyChanged                         // lệnh đổi sau lần chạy cuối
+	BlockVerifyFailed                          // lần kiểm chứng cuối không qua
+	BlockVerifyStale                           // mã đổi sau lần kiểm chứng cuối
+	BlockNoEvidence                            // phiếu không có lệnh kiểm chứng lẫn tiêu chí
+	BlockCriterionUnmet                        // tiêu chí đã đánh dấu chưa đạt
+	BlockCriterionUnchecked                    // tiêu chí chưa đối chiếu
 )
 
 // Forceable cho biết người có thể bỏ qua điều chặn loại k bằng land --force: chỉ danh sách cho phép tường minh (kiểm
