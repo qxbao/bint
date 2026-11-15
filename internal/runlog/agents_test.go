@@ -127,3 +127,21 @@ func TestAgentEventsBeforeFinishedAreMovedToChildRun(t *testing.T) {
 		t.Fatal("nạp lại không được nhân artifacts")
 	}
 }
+
+// Lượt con của bước bị chặn phát workflow.finished status=blocked: phải nạp được (runs ghi interrupted), không làm hỏng cả spool.
+func TestFinishedBlockedIngestsAsInterrupted(t *testing.T) {
+	s, sp := setup(t)
+	t0 := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
+	const child = "01CHILDRUN00000000000000BB"
+	e := finishedEv("wf-blocked", child, "", t0)
+	e.Payload["status"] = "blocked"
+	e.Payload["end_reason"] = "chờ người"
+	ingestAll(t, s, sp, t0, []spool.Event{e})
+	var status, reason string
+	if err := s.DB.QueryRow(`SELECT status, COALESCE(end_reason,'') FROM runs WHERE run_id = ?`, child).Scan(&status, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if status != "interrupted" || reason != "chờ người" {
+		t.Fatalf("status=%q end_reason=%q", status, reason)
+	}
+}

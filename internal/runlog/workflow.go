@@ -58,6 +58,11 @@ func applyWorkflowEffects(ctx context.Context, tx *sql.Tx, runID string, e spool
 		return recomputeDuration(ctx, tx, runID)
 	case spool.WorkflowFinished:
 		status := str(p, "status")
+		if status == "blocked" {
+			// Lượt con của bước bị chặn (deny/rò cô lập/bước chỉ đọc sửa cây) dừng chờ người: bảng runs không có
+			// trạng thái blocked (CHECK), nên ghi interrupted; blocked vẫn nằm ở run_steps và tác vụ.
+			status = "interrupted"
+		}
 		switch status {
 		case "completed", "failed", "cancelled", "interrupted":
 		default:
