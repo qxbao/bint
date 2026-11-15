@@ -99,13 +99,18 @@ func TestRunCancelDuringPrepareMarksCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var batch string
-	_, err := Run(ctx, env, db, RunOptions{
+	res, err := Run(ctx, env, db, RunOptions{
 		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
 		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
 		OnBatch: func(id string) error { batch = id; cancel(); return nil },
 	})
-	if err == nil {
-		t.Fatal("mong đợi lỗi khi ctx bị huỷ lúc chuẩn bị")
+	// Lệnh git bị giết vì huỷ chỉ báo "exit status 1" trên Windows: lỗi vẫn phải nhận được là huỷ, và res.Status phải
+	// khớp trạng thái đã lưu, để TUI hiện "đã huỷ" như khi huỷ giữa các lượt.
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("lỗi phải nhận được là huỷ: %v", err)
+	}
+	if res.Status != "cancelled" {
+		t.Fatalf("res.Status = %q, muốn cancelled như trạng thái đã lưu", res.Status)
 	}
 	var status string
 	if qerr := db.QueryRow("SELECT status FROM eval_batches WHERE batch_id = ?", batch).Scan(&status); qerr != nil {

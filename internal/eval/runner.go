@@ -213,7 +213,8 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 		}
 		if opts.OnBatch != nil {
 			if err := opts.OnBatch(batch.BatchID); err != nil {
-				return res, finishWith(ctx, db, &batch, "failed", opts.Now, err)
+				err = finishWith(ctx, db, &batch, &res, "failed", opts.Now, err)
+				return res, err
 			}
 		}
 	}
@@ -243,11 +244,13 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	leakIns := map[string]*LeakInput{}
 	for _, c := range opts.Cases {
 		if err := checkBaseCommit(ctx, env.RepoDir, c.Source.Base); err != nil {
-			return res, finishWith(ctx, db, &batch, "failed", opts.Now, err)
+			err = finishWith(ctx, db, &batch, &res, "failed", opts.Now, err)
+			return res, err
 		}
 		in, err := BuildLeakInput(ctx, env.RepoDir, c)
 		if err != nil {
-			return res, finishWith(ctx, db, &batch, "failed", opts.Now, err)
+			err = finishWith(ctx, db, &batch, &res, "failed", opts.Now, err)
+			return res, err
 		}
 		leakIns[c.ID] = &in
 	}
@@ -434,11 +437,14 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	return res, ctx.Err()
 }
 
-func finishWith(ctx context.Context, db *sql.DB, b *Batch, status string, now func() time.Time, err error) error {
+// finishWith kết thúc đợt hỏng trong lúc chuẩn bị: ghi trạng thái vào CSDL và vào res.Status, để người gọi (TUI, CLI)
+// báo cùng trạng thái với đợt đã lưu. Huỷ ở đây (git đang chạy bị giết) phải hiện như huỷ giữa các lượt.
+func finishWith(ctx context.Context, db *sql.DB, b *Batch, res *RunResult, status string, now func() time.Time, err error) error {
 	if ctx.Err() != nil {
 		// Huỷ đợt (Esc/Ctrl-C) trong lúc chuẩn bị không phải lỗi của đợt.
 		status = "cancelled"
 	}
+	res.Status = status
 	b.Notes = append(b.Notes, "lỗi: "+err.Error())
 	updateBatch(context.WithoutCancel(ctx), db, b.BatchID, status, nowString(now()), b.Notes)
 	return err
