@@ -735,8 +735,15 @@ func TestShimReplacesStaleDaemon(t *testing.T) {
 		t.Fatalf("tools/list sau khi thay daemon: %v", names)
 	}
 	now, err := ReadInfo(e.dir)
-	if err != nil || now.PID == old.PID || processAlive(old.PID) {
+	if err != nil || now.PID == old.PID {
 		t.Fatalf("daemon cũ (PID %d) phải được thay: %+v %v", old.PID, now, err)
+	}
+	// Daemon cũ có thể còn vài nhịp để thoát sau khi Stop trả về.
+	for deadline := time.Now().Add(5 * time.Second); processAlive(old.PID) && time.Now().Before(deadline); {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if processAlive(old.PID) {
+		t.Fatalf("daemon cũ (PID %d) vẫn sống sau khi bị thay", old.PID)
 	}
 }
 
