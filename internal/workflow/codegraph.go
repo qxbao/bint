@@ -138,7 +138,10 @@ func (e *Env) releaseWorktreeParts(ctx context.Context, wt string) {
 	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- releaseGatewayWorktree(rctx, wt) }()
+	// Đọc seam trước khi mở goroutine: hết hạn thì hàm trả về không chờ goroutine, nên đọc bên trong goroutine sẽ đua với
+	// việc test gán lại seam (race detector).
+	release := releaseGatewayWorktree
+	go func() { done <- release(rctx, wt) }()
 	select {
 	case <-done: // lỗi (gateway không chạy, daemon cũ trả 404...) bị bỏ qua
 	case <-rctx.Done():
