@@ -73,6 +73,20 @@ func (f *mcpFx) secrets(t *testing.T, mode, tools string, version ...string) {
 	}
 }
 
+// secretsExtra nối thêm biến của bản giả vào secrets.env đã ghi bởi secrets.
+func (f *mcpFx) secretsExtra(t *testing.T, kv ...string) {
+	t.Helper()
+	p := filepath.Join(config.MachineDir(), "secrets.env")
+	fh, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fh.Close()
+	for i := 0; i+1 < len(kv); i += 2 {
+		fmt.Fprintf(fh, "%s=%s\n", kv[i], kv[i+1])
+	}
+}
+
 func fakeExe(t *testing.T) string {
 	t.Helper()
 	exe, err := os.Executable()
@@ -396,6 +410,86 @@ func TestMCPCheckCodegraphOtherErrors(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// NT-MCP-PROBE: daemon env hẹp mà tools/list vẫn liệt kê đủ; mỗi tool được gọi thử, tool bị tắt theo tên báo theo nhóm.
+func TestMCPCheckCodegraphNarrowEnv(t *testing.T) {
+	all := strings.Split(codegraphTools(), ",")
+	except := func(keep ...string) string {
+		var off []string
+		for _, t := range all {
+			if !slices.Contains(keep, t) {
+				off = append(off, t)
+			}
+		}
+		return strings.Join(off, ",")
+	}
+	cases := []struct {
+		name     string
+		disabled string
+		degraded bool
+		want     []string
+		notWant  []string
+	}{
+		{"chi_status", except("codegraph_status"), true, []string{"explore (codegraph_explore)", "query (", "codegraph_node", "daemon.pid"}, nil},
+		{"mot_phan_query", "codegraph_callers,codegraph_impact", true, []string{"query (codegraph_callers, codegraph_impact)", "daemon.pid"}, []string{"explore", "codegraph_status"}},
+		{"khong_tat", "khong_co_tool_nay", false, nil, []string{"daemon.pid"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newMCPFx(t, "")
+			f.secrets(t, "ok", codegraphTools())
+			f.secretsExtra(t, probetest.EnvDisabled, tc.disabled)
+			c := f.register(t, "codegraph", probetest.EnvDisabled).Check
+			if tc.degraded != (c.Status == MCPStatusDegraded) || (!tc.degraded && c.Status != MCPStatusOK) {
+				t.Fatalf("status: %+v", c)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(c.Detail, w) {
+					t.Errorf("Detail thiếu %q: %q", w, c.Detail)
+				}
+			}
+			for _, w := range tc.notWant {
+				if strings.Contains(c.Detail, w) {
+					t.Errorf("Detail không được nêu %q: %q", w, c.Detail)
+				}
+			}
+		})
+	}
+}
+
+// Lỗi không phải tool bị tắt của tool ngoài codegraph_status (thiếu tham số) không làm check degraded.
+func TestMCPCheckCodegraphNonStatusOtherErrorIgnored(t *testing.T) {
+	f := newMCPFx(t, "")
+	f.secrets(t, "ok", codegraphTools())
+	f.secretsExtra(t, probetest.EnvFailOther, "codegraph_explore,codegraph_node,codegraph_search")
+	if c := f.register(t, "codegraph", probetest.EnvFailOther).Check; c.Status != MCPStatusOK {
+		t.Fatalf("check: %+v", c)
+	}
+}
+
+// Review .1 của phiếu 01M7FSQACD3XBT79JEWYC958YK: lỗi truyền tải khi gọi một tool ngoài codegraph_status (daemon chết
+// giữa chừng) là fail và nêu đúng tool gây lỗi, không bị bỏ qua rồi gán nhầm cho codegraph_status.
+func TestMCPCheckCodegraphTransportErrorNamesTool(t *testing.T) {
+	f := newMCPFx(t, "")
+	f.secrets(t, "ok", codegraphTools())
+	f.secretsExtra(t, probetest.EnvCrashOn, "codegraph_search")
+	c := f.register(t, "codegraph", probetest.EnvCrashOn).Check
+	if c.Status != MCPStatusFail || !strings.HasPrefix(c.Detail, "codegraph_search: ") {
+		t.Fatalf("phải fail và nêu codegraph_search: %+v", c)
+	}
+}
+
+// Review .4: Detail của tool bị tắt kèm nguyên văn lỗi (đã che) của daemon để người đọc đối chiếu. Fixture đặt
+// BINT_FAKE_DISABLED trong secrets.env nên tên tool trong lỗi bị che (***): chỉ kiểm phần còn lại.
+func TestMCPCheckCodegraphDisabledDetailQuotesError(t *testing.T) {
+	f := newMCPFx(t, "")
+	f.secrets(t, "ok", codegraphTools())
+	f.secretsExtra(t, probetest.EnvDisabled, "codegraph_callers")
+	c := f.register(t, "codegraph", probetest.EnvDisabled).Check
+	if c.Status != MCPStatusDegraded || !strings.Contains(c.Detail, "(lỗi: ") || !strings.Contains(c.Detail, " is disabled)") {
+		t.Fatalf("Detail phải kèm nguyên văn lỗi: %+v", c)
 	}
 }
 

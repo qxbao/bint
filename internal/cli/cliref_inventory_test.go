@@ -173,7 +173,7 @@ var litsrUsage = []struct{ file, contains string }{
 }
 
 var litsrExtTool = []struct{ file, contains string }{
-	{"app/mcp_svc.go", "(CODEGRAPH_MCP_TOOLS thiếu tool nhóm query)"},
+	{"app/mcp_svc.go", "Dừng daemon cũ rồi chạy lại check: `codegraph daemon` (xem --help)"},
 	{"app/doctor.go", "phiên bản %s; cần >= 2.31 (rev-parse --path-format)"},
 	{"app/update.go", "git pull --ff-only trong %s: %w"},
 	{"workflow/land.go", " worktree remove --force "},

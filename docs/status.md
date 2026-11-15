@@ -40,7 +40,7 @@ Kết luận nghiệm thu tương ứng: [acceptance.md, mục 2](acceptance.md#
 
 `NT-P6-01..05` (khoá `evolve.AcquireLock`, hậu kiểm bằng `git status --porcelain`, `Rollback` giữa chừng, gộp
 `Inputs`, merge nội dung) đã sửa ở V0 ngày 2026-11-13, chờ ký ([biên bản V0](evals/v0-p6-fixes-2026-11-13/README.md)).
-Phát hiện còn mở trong mã (`NT-P6-06`, `NT-MCP-PROBE`, `NT-MCP-SEED` và các low còn lại của phiếu đã đóng): mô tả và
+Phát hiện còn mở trong mã (`NT-P6-06`, `NT-MCP-SEED` và các low còn lại của phiếu đã đóng): mô tả và
 điều kiện đóng ở [acceptance.md, mục 3.1](acceptance.md#31-sửa-mã-trước-khi-nghiệm-thu-không-token).
 
 Phát hiện review mức low còn lại của từng giai đoạn được ghi trong mục tiến độ của kế hoạch tương ứng

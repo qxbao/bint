@@ -192,8 +192,19 @@ dòng (~7000 lần dò git), `internal/app` ~357 nghìn, `internal/evolve` ~101 
 
 *Vì sao `go test -count=1` không tái hiện:* `-count=1` tắt test cache nên `go.exe` không nạp và không băm testlog; đó là lý do lần
 đo trước (phiếu 01M7CVBF84DKPP40QJ392H8MQS, dùng `-count=1`) không thấy lỗi. **Giải pháp tạm** của người dùng: `go env -w
-GOFLAGS=-count=1` (biến môi trường `GOFLAGS` rỗng không ghi đè được `go env -w`). Đo testlog: `go test -c -o x.test.exe ./pkg`
-rồi chạy `x.test.exe -test.testlogfile=<tệp>` trong thư mục gói.
+GOFLAGS=-count=1` (biến môi trường `GOFLAGS` rỗng không ghi đè được `go env -w`; muốn bỏ qua cho một lệnh thì đặt
+`GOFLAGS=" "`). Đo testlog: `go test -c -o x.test.exe ./pkg` rồi chạy `x.test.exe -test.testlogfile=<tệp>` trong thư mục gói.
+
+*Gỡ giải pháp tạm (2026-11-15).* Sau bản sửa bên dưới, `go env -u GOFLAGS` đã bật lại test cache; mục tri thức
+01M7D6WA84MDN32JHM21VZWQ5H đã bị vô hiệu. Đo cùng máy: testlog của `internal/tui/app` còn 167.600 dòng (12.816 dòng khác nhau;
+~72 nghìn dòng `stat`/`open` là tệp tạm dưới `%TEMP%`, ~54 nghìn `getenv`, chủ yếu PATHEXT/USERPROFILE/PATH);
+`go test ./internal/tui/app` chạy thật 327 s, lần sau trả `(cached)` trong 19 s. `eval.test_command` vẫn giữ `-count=1`: lần
+kiểm chứng full không dựa vào cache (cache không theo dõi tệp mà tiến trình con như git đọc).
+
+*Test cache không dùng chung giữa các worktree.* Khoá cache của bước biên dịch chứa thư mục gói (trừ khi `-trimpath`), mà
+worktree của mỗi tác vụ có đường dẫn riêng, nên lần kiểm chứng đầu của mỗi tác vụ chạy thật mọi gói; từ lần thứ hai trong cùng
+worktree mới được cache. Với `-trimpath`, gói thuần (`ulid`, `config`) dùng chung được, nhưng gói mở tệp theo đường dẫn
+tương đối hoặc phụ thuộc thư mục (`gitrepo`, `knowledge`) vẫn chạy lại, và hai worktree ghi đè kết quả cache của nhau.
 
 *Sửa trong Bint:* mọi lệnh git của mã không phải test đi qua `gitrepo.Command`/`gitrepo.CommandContext`, nhớ đường dẫn git theo
 (PATH, PATHEXT) và dò lại khi một trong hai đổi (`internal/gitrepo/command.go`; kiểm thử `TestLookGitCachesPerPath`);
@@ -1193,7 +1204,7 @@ Bint **không tự cài** service nào (docs/mcp-gateway-plan.md mục 5). Hai t
 | `bint mcp list [--json]` | danh mục, trạng thái đăng ký trên máy, dự án dùng gì | người, agent |
 | `bint mcp add <service> [--command … --arg … --env-name … \| --url …]` | đăng ký (hiện lệnh cài gợi ý nếu thiếu binary; cảnh báo `npx …@latest`, `uvx`), rồi kiểm tra | chỉ người |
 | `bint mcp remove <service>` | gỡ đăng ký (không đụng `secrets.env`) | chỉ người |
-| `bint mcp check [<service>]` | `initialize` + `tools/list`, đối chiếu nhóm thao tác, báo biến credential thiếu; codegraph: gọi thử `codegraph_status`, báo `degraded` khi daemon cũ chạy với env hẹp | người, agent |
+| `bint mcp check [<service>]` | `initialize` + `tools/list`, đối chiếu nhóm thao tác, báo biến credential thiếu; codegraph: gọi thử mọi tool của danh mục có trong `tools/list`, báo `degraded` kèm nhóm thao tác và tên tool bị tắt khi daemon cũ chạy với env hẹp | người, agent |
 | `bint mcp index codegraph` | `codegraph init -y` (chưa có chỉ mục) hoặc `codegraph sync` ở worktree hiện tại, rồi thêm `.codegraph/` vào `info/exclude` của git | chỉ người |
 | `bint mcp grants [--role <r>]` | quyền đã giải: role → tên tool tới agent (`mcp__bint__<tiền tố>_<tool>`), báo service thiếu | người, agent |
 | `bint mcp gateway start [--foreground] [--json]` | khởi động daemon gateway tách rời (nhật ký `gateway.log`) rồi báo cổng, PID; đã chạy thì chỉ báo thông tin; `--foreground` chạy tại chỗ | người, agent |

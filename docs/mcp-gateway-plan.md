@@ -231,8 +231,9 @@ Dựa trên chạy thử bản 1.6.2 (§10, S1).
   trước với mặc định (chỉ `explore`), các tool của nhóm `query` vẫn có trong danh sách nhưng gọi sẽ báo
   "disabled". Vì vậy:
   - `codegraph.explore` là nhóm mặc định trong ví dụ cấp quyền; nhóm này không bị ảnh hưởng;
-  - `bint mcp check codegraph` gọi thử `codegraph_status`; bị từ chối thì báo `degraded` và hướng dẫn dừng
-    daemon cũ (`codegraph daemon`, hoặc kill PID trong `.codegraph/daemon.pid`).
+  - `bint mcp check codegraph` gọi thử mọi tool của danh mục có trong `tools/list` (không chỉ
+    `codegraph_status`); tool báo bị tắt (`disabled`/`not enabled`) thì báo `degraded`, nêu từng nhóm thao tác
+    có tool bị tắt kèm tên tool, và hướng dẫn dừng daemon cũ (`codegraph daemon`, hoặc kill PID trong `.codegraph/daemon.pid`).
 - **Worktree mới** (G2 của [isolation-subagent-plan.md](isolation-subagent-plan.md)): khi dự án khai báo
   codegraph trong `mcp.services`, `ensureWorktree` tự chuẩn bị chỉ mục cho worktree tác vụ. Chép bản nhất
   quán của `.codegraph/codegraph.db` (`VACUUM INTO` trong một giao dịch đọc, nên gồm cả dữ liệu còn trong

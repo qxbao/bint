@@ -129,8 +129,8 @@ func TestCatalogSpecifics(t *testing.T) {
 		t.Errorf("specmatic.Install = %q", sp.Install)
 	}
 	dw, _ := Lookup("deepwiki")
-	if g, ok := dw.Group("read"); !ok || !slices.Contains(g.Tools, "ask_wiki_question") {
-		t.Errorf("deepwiki.read thiếu ask_wiki_question: %+v", g)
+	if g, ok := dw.Group("read"); !ok || !slices.Equal(g.Tools, []string{"read_wiki_structure", "read_wiki_contents", "ask_wiki_question"}) {
+		t.Errorf("deepwiki.read phải đúng read_wiki_structure, read_wiki_contents, ask_wiki_question: %+v", g)
 	}
 	if j, _ := Lookup("jira"); len(j.CredentialEnv) == 0 || j.Share != ShareMachine {
 		t.Errorf("jira: %+v", j)
