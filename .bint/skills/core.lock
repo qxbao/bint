@@ -82,14 +82,14 @@ skills:
       agents: a2a6e3679c13a393
 agents:
   bint-implementer:
-    sha256: fd8defcbac09cb40
+    sha256: 0100c78c477c64c7
     published:
       - .claude/agents/bint-implementer.md
   bint-planner:
-    sha256: 5f77b4e3e7c26a9c
+    sha256: 7652f7b78c4a5b2e
     published:
       - .claude/agents/bint-planner.md
   bint-reviewer:
-    sha256: 1786ada6b869e98c
+    sha256: 4a9b99cfcb803cb2
     published:
       - .claude/agents/bint-reviewer.md
