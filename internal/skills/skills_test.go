@@ -267,7 +267,8 @@ func TestCoreSkillBAddSkillContract(t *testing.T) {
 	for _, want := range []string{"bint skill new", "bint skill lint", "bint sync", "RED", "GREEN", "REFACTOR", "subagent",
 		"bint knowledge add", "bint skill overlay", "Không tự `git commit`", "bint knowledge approve", "bint task approve", "tests/",
 		"bint skill test <tên> --arm without", "bint skill test <tên>\n", "--yes", ".bint/skills/<tên>/tests/", "không được xuất bản",
-		"runtime/skill-tests/", "hỏi người dùng đồng ý chi phí", "expect:", "pressures:"} {
+		"runtime/skill-tests/", "hỏi người dùng đồng ý chi phí", "expect:", "pressures:",
+		"Quy ước dự án", "context_for_paths", "cite_knowledge"} {
 		if !strings.Contains(s.Body(), want) {
 			t.Errorf("b-add-skill thiếu %q", want)
 		}
@@ -302,7 +303,7 @@ func TestCoreSkillBAddFlowContract(t *testing.T) {
 	for _, want := range []string{"kind", "skill", "role", "optional", "verify", "fix", "plan → implement → review",
 		"bint task write", "hợp đồng v1", "bint task review", "bint flow lint", "bint flow list", "bint sync", "/b-add-skill",
 		"bint task new", "--workflow <tên>", "bint run <tên> --task", "phiếu nhỏ",
-		"Không tự `git commit`", "bint knowledge approve", "bint task approve", ".bint/flows/<tên>.yml"} {
+		"Không tự `git commit`", "bint knowledge approve", "bint task approve", ".bint/flows/<tên>.yml", "Quy ước dự án"} {
 		if !strings.Contains(s.Body(), want) {
 			t.Errorf("b-add-flow thiếu %q", want)
 		}

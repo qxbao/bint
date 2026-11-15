@@ -131,6 +131,9 @@ func TestCustomTemplatePassesLint(t *testing.T) {
 	if len(errs) > 0 || len(warns) > 0 {
 		t.Fatalf("mẫu phải sạch: %v %v", errs, warns)
 	}
+	if !MentionsKnowledge(string(CustomTemplate("demo-skill"))) || !strings.Contains(string(CustomTemplate("demo-skill")), "cite_knowledge") {
+		t.Fatal("mẫu phải có mục Quy ước dự án (tra và trích dẫn tri thức)")
+	}
 }
 
 func TestLoadCustomSelectsAndSkips(t *testing.T) {

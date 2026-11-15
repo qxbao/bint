@@ -2,6 +2,7 @@ package skills
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"bint/internal/flow"
@@ -74,5 +75,22 @@ func TestUsableInFlow(t *testing.T) {
 		if ok(name) != want {
 			t.Errorf("UsableInFlow(%q) = %v, muốn %v", name, !want, want)
 		}
+	}
+}
+
+// Bước dùng skill tuỳ biến không dặn tra tri thức dự án bị cảnh báo; skill gốc và skill theo mẫu thì không.
+func TestFlowKnowledgeWarnings(t *testing.T) {
+	root := t.TempDir()
+	writeCustom(t, root, "bare-step", "SKILL.md", goodSkill("bare-step"))
+	writeCustom(t, root, "tpl-step", "SKILL.md", string(CustomTemplate("tpl-step")))
+	d := tddFlow("knw-flow")
+	d.Steps[1].Skill = "bare-step"
+	d.Steps[2].Skill = "tpl-step"
+	warns := FlowKnowledgeWarnings(root, d)
+	if len(warns) != 1 || !strings.Contains(warns[0], `"scaffold"`) || !strings.Contains(warns[0], "bare-step") {
+		t.Fatalf("cần đúng một cảnh báo cho bước scaffold: %v", warns)
+	}
+	if w := FlowKnowledgeWarnings(root, tddFlow("core-only")); len(w) != 0 {
+		t.Fatalf("flow chỉ dùng skill gốc không được cảnh báo: %v", w)
 	}
 }

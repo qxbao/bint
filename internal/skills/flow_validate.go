@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"fmt"
 	"os"
 	"slices"
 
@@ -22,6 +23,30 @@ func UsableInFlow(root string) func(string) bool {
 		errs, _ := CheckCustom(root, cs)
 		return len(errs) == 0
 	}
+}
+
+// FlowKnowledgeWarnings cảnh báo bước dùng skill tuỳ biến mà thân skill không dặn agent tra tri thức dự án
+// (context_for_task/context_for_paths hoặc `bint context`). Gói <bint-context> mà Runner chèn đầu bước chỉ khớp mục
+// tiêu và phạm vi của phiếu; skill gốc đều có lời dặn này. Skill không nạp được đã có lỗi riêng nên bỏ qua.
+func FlowKnowledgeWarnings(root string, d flow.Def) []string {
+	var out []string
+	for _, s := range d.Steps {
+		if _, core := Get(s.Skill); core || s.Skill == "" {
+			continue
+		}
+		cs, err := LoadCustomOne(root, s.Skill)
+		if err != nil || cs.Content == nil {
+			continue
+		}
+		doc, err := ParseDoc(cs.Content)
+		if err != nil || MentionsKnowledge(doc.Body) {
+			continue
+		}
+		out = append(out, fmt.Sprintf("bước %q: skill tuỳ biến %q không dặn agent tra quy ước dự án (context_for_task, "+
+			"context_for_paths hoặc `bint context`); gói tri thức đầu bước chỉ khớp mục tiêu và phạm vi của phiếu. "+
+			"Thêm mục \"Quy ước dự án\" như mẫu của `bint skill new`", s.ID, s.Skill))
+	}
+	return out
 }
 
 // ValidateFlow kiểm một flow tuỳ biến (file là tên tệp không đuôi) bằng flow.Validate với UsableInFlow, thêm luật về
