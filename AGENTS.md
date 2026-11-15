@@ -48,10 +48,20 @@ Khi làm việc với `internal/app/**`, `internal/tui/actions/**`:
 - **Thêm lệnh CLI mới hoặc thông báo lỗi nêu cờ rời: TestServiceMessageCLIInventory đòi (1) hàng của lệnh trong cliRefs (in…** [k:01M78XP5NXWWRAZQHN5PSHNC13]
   Thêm lệnh CLI mới hoặc thông báo lỗi nêu cờ rời: TestServiceMessageCLIInventory đòi (1) hàng của lệnh trong cliRefs (internal/tui/actions/cliref.go) để Rewriter đổi lời nhắc 'bint <lệnh>' thành phím TUI, (2) cờ rời trong literal lỗi cách dùng phải vào litsrUsage của cliref_inventory_test.go. Quên cả hai thì test đỏ ở cli, không ở actions.
 
+Khi làm việc với `internal/app/data_watch*`:
+
+- **Bỏ qua WAL rỗng khi tính chữ ký polling SQLite** [k:01M7FTJMR965DVT7515E5WK6PZ]
+  SQLite có thể tạo WAL rỗng khi chỉ mở DB để đọc. DataWatch phải coi WAL rỗng như chưa tồn tại để tránh vòng polling tự kích hoạt reload; vẫn theo dõi WAL có dữ liệu và thay đổi của DB. Hồi quy: TestDataWatchSignatureStableWhileReadingStore.
+
 Khi làm việc với `internal/cli/*_test.go`, `internal/eval/shell.go`:
 
 - **Trên Windows, lệnh chạy qua sh -c (eval.RunShell) mà chứa đường dẫn Windows trần có dấu gạch chéo ngược (sh C:\Users\..…** [k:01M7CX9V792957T6MGK6QWEJ7F]
   Trên Windows, lệnh chạy qua sh -c (eval.RunShell) mà chứa đường dẫn Windows trần có dấu gạch chéo ngược (sh C:\Users\...\agent.sh) bị sh nuốt dấu \ nên thoát mã 127 (command not found); viết đường dẫn bằng / (filepath.ToSlash). Cũng lưu ý lệnh kiểm chứng go test ./... trên Windows chậm/treo có thể do Defender quét tệp thực thi kiểm thử: xem docs/workflows.md mục 'Kiểm chứng chạy qua Bint trên Windows'.
+
+Khi làm việc với `internal/codexconfig/**`, `internal/eval/codex_mcp*`:
+
+- **Resolver Codex cần tách project_root_markers khỏi Git-main trust: từng lớp ưu tiên entry chính nó, gốc marker rồi main …** [k:01M7EEX78J3Q530NZF2DJDRQ3D]
+  Resolver Codex cần tách project_root_markers khỏi Git-main trust: từng lớp ưu tiên entry chính nó, gốc marker rồi main Git. Worktree root trusted/untrusted áp cho lớp con; markers=[] chỉ quét cwd. Git discovery phải dùng môi trường đã bỏ GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE/GIT_COMMON_DIR như tiến trình Codex. TestCodexMCPRootTrustLive đối chiếu CLI thật không inference.
 
 Khi làm việc với `internal/config/**`:
 
@@ -74,14 +84,4 @@ Khi làm việc với `internal/eval/**`:
   EconomyFilter và EvidenceHoldsAt loại mục không có tệp bằng chứng. Bài học failure_lesson (Origin.Provenance=failure_lesson, Origin.Runs khác rỗng) không có tệp nên được nới qua Item.LessonFromRuns(); mọi mục khác vẫn bị loại.
 - **codex -c tách khoá theo dấu chấm, không hiểu dấu trích dẫn: -c 'mcp_servers."a.b".enabled=false' làm Codex lỗi (invalid…** [k:01M77JFNA33PQ99TVS9A386HFG]
   codex -c tách khoá theo dấu chấm, không hiểu dấu trích dẫn: -c 'mcp_servers."a.b".enabled=false' làm Codex lỗi (invalid transport). Tên server có dấu chấm tắt bằng bảng nội tuyến -c 'mcp_servers={"a.b"={enabled=false}}' đặt TRƯỚC mọi -c mcp_servers.* khác (bảng nội tuyến thay thế các khoá đặt trước). Tắt tên không tồn tại (vd server chỉ có trong .codex/config.toml của dự án chưa trust) cũng làm Codex lỗi.
-
-Khi làm việc với `internal/eval/**`, `internal/cli/**`:
-
-- **go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượ…** [k:01M768KJEYSVTCQEJ3JAX3E7S2]
-  go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượng đĩa' khi còn dưới ngưỡng eval.min_free_mb (mặc định 1024). Đĩa đầy thì dọn bộ đệm build (go clean -cache) trước khi chạy; lỗi này không liên quan mã đang sửa.
-
-Khi làm việc với `internal/eval/*_test.go`:
-
-- **Fixture dùng chính binary test cần tính thời gian thoát của race detector** [k:01M78968T95MDQSK472NC5XQT9]
-  TestRestrictedRPCProfileCleanupAndRejectsUnknownTools gọi lại binary kiểm thử để đọc catalog trước khi mở app-server. Với go test -race, tiến trình catalog mặc định chờ khoảng 1 giây khi thoát; hạn tổng 1 giây có thể hết trước khi fixture RPC khởi động. Dành đủ hạn cho cả khởi tạo và probe, đồng thời xác nhận đã tới lượt RPC bị chặn để không kiểm nhầm timeout ở giai đoạn khởi tạo.
 <!-- bint:end -->

@@ -1,11 +1,15 @@
 package eval
 
 import (
+	"context"
+	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"bint/internal/testutil"
 )
@@ -32,6 +36,9 @@ func disabledArgs(args []string) []string {
 }
 
 func trustedProject(dir string) string {
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = real
+	}
 	return "[projects." + tomlString(dir) + "]\ntrust_level = \"trusted\"\n"
 }
 
@@ -213,5 +220,242 @@ func TestCodexExclusiveMCPBrokenProjectTOML(t *testing.T) {
 	writeMCPTestFile(t, filepath.Join(home, "config.toml"), "[mcp_servers.global]\ncommand=\"x\"\n\n"+trustedProject(dir))
 	if _, err = (&CodexAgent{}).ArgsFor(req); err == nil {
 		t.Fatal("dự án đã tin cậy mà TOML hỏng: muốn lỗi")
+	}
+}
+
+func TestCodexExclusiveMCPProjectLayers(t *testing.T) {
+	repo := testutil.NewRepo(t, map[string]string{"README.md": "fixture\n"})
+	repo, _ = filepath.EvalSymlinks(repo)
+	child, deep := filepath.Join(repo, "child"), filepath.Join(repo, "child", "deep")
+	for path, name := range map[string]string{repo: "root_only", child: "child_only", deep: "deep_only"} {
+		writeMCPTestFile(t, filepath.Join(path, ".codex", "config.toml"), "[mcp_servers."+name+"]\ncommand='fixture'\n")
+	}
+	home := t.TempDir()
+	for _, tc := range []struct {
+		name, config string
+		want         []string
+	}{
+		{"root trusted", trustedProject(repo), []string{"child_only", "deep_only", "root_only"}},
+		{"child trusted only", trustedProject(child), []string{"child_only"}},
+		{"deep trusted only", trustedProject(deep), []string{"deep_only"}},
+		{"child explicitly untrusted", trustedProject(repo) + "\n[projects." + tomlString(child) + "]\ntrust_level='untrusted'\n", []string{"deep_only", "root_only"}},
+		{"unrelated ancestor trusted", trustedProject(filepath.Dir(repo)), nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			writeMCPTestFile(t, filepath.Join(home, "config.toml"), tc.config)
+			got, err := codexOtherMCPServers(AgentRequest{Dir: deep, Env: []string{"CODEX_HOME=" + home}})
+			if err != nil || !slices.Equal(got, tc.want) {
+				t.Fatalf("project servers = %v, %v; want %v", got, err, tc.want)
+			}
+		})
+	}
+}
+
+// A .git file can point at a separate Git directory or a submodule's metadata;
+// neither common directory has to be named .git.
+func newCodexGitFileRepo(t *testing.T, kind string) string {
+	t.Helper()
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	repo := testutil.NewRepo(t, nil)
+	switch kind {
+	case "separate-git-dir":
+		testutil.Git(t, repo, "init", "-q", "--separate-git-dir", filepath.Join(t.TempDir(), "gitstore"))
+	case "submodule":
+		super := testutil.NewRepo(t, nil)
+		testutil.Git(t, super, "-c", "protocol.file.allow=always", "submodule", "add", "-q", repo, "sub")
+		repo = filepath.Join(super, "sub")
+	default:
+		t.Fatalf("unknown Git fixture %q", kind)
+	}
+	root, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func TestCodexExclusiveMCPGitFileProjectLayers(t *testing.T) {
+	for _, kind := range []string{"separate-git-dir", "submodule", "linked-separate-git-dir", "linked-submodule"} {
+		t.Run(kind, func(t *testing.T) {
+			repo := newCodexGitFileRepo(t, strings.TrimPrefix(kind, "linked-"))
+			if strings.HasPrefix(kind, "linked-") {
+				wt := filepath.Join(t.TempDir(), "linked")
+				testutil.Git(t, repo, "worktree", "add", "-q", "-b", "task", wt)
+				var err error
+				repo, err = filepath.EvalSymlinks(wt)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			child := filepath.Join(repo, "child")
+			for path, name := range map[string]string{repo: "root_only", child: "child_only", filepath.Dir(repo): "outside_only"} {
+				writeMCPTestFile(t, filepath.Join(path, ".codex", "config.toml"), "[mcp_servers."+name+"]\ncommand='fixture'\n")
+			}
+			home := t.TempDir()
+			for _, tc := range []struct {
+				name, config string
+				want         []string
+			}{
+				{"root trusted", trustedProject(repo), []string{"child_only", "root_only"}},
+				{"child explicitly untrusted", trustedProject(repo) + "\n[projects." + tomlString(child) + "]\ntrust_level='untrusted'\n", []string{"root_only"}},
+				{"outside ancestor trusted", trustedProject(filepath.Dir(repo)), nil},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					writeMCPTestFile(t, filepath.Join(home, "config.toml"), tc.config)
+					req := AgentRequest{Dir: child, Env: []string{"CODEX_HOME=" + home}}
+					got, err := codexOtherMCPServers(req)
+					if err != nil || !slices.Equal(got, tc.want) {
+						t.Fatalf("project servers = %v, %v; want %v", got, err, tc.want)
+					}
+				})
+			}
+		})
+	}
+}
+
+type codexTrustCase struct {
+	name, config string
+	want         []string
+}
+
+func codexMarkerFixture(t *testing.T) (string, []codexTrustCase) {
+	t.Helper()
+	repo := testutil.NewRepo(t, map[string]string{"README.md": "fixture\n"})
+	repo, _ = filepath.EvalSymlinks(repo)
+	outer := filepath.Dir(repo)
+	child, deep := filepath.Join(repo, "child"), filepath.Join(repo, "child", "deep")
+	for path, name := range map[string]string{outer: "outer_only", repo: "root_only", child: "child_only", deep: "deep_only"} {
+		writeMCPTestFile(t, filepath.Join(path, ".codex", "config.toml"), "[mcp_servers."+name+"]\ncommand='fixture'\n")
+	}
+	writeMCPTestFile(t, filepath.Join(outer, "CUSTOM"), "")
+	writeMCPTestFile(t, filepath.Join(child, "INNER"), "")
+	absoluteMarker := filepath.Join(t.TempDir(), "BOUNDARY")
+	writeMCPTestFile(t, absoluteMarker, "")
+	missingAbsolute := filepath.Join(t.TempDir(), "MISSING")
+	// A relative decoy distinguishes Rust's path join from filepath.Join
+	// on Unix, without depending on whether the filesystem root has a .git.
+	if filepath.VolumeName(missingAbsolute) == "" {
+		writeMCPTestFile(t, filepath.Join(repo, missingAbsolute), "")
+	}
+	deny := func(dir string) string { return "[projects." + tomlString(dir) + "]\ntrust_level='untrusted'\n" }
+	all := []string{"child_only", "deep_only", "outer_only", "root_only"}
+	return deep, []codexTrustCase{
+		{"absolute missing", "project_root_markers=[" + tomlString(missingAbsolute) + "]\n" + trustedProject(repo), []string{"deep_only"}},
+		{"absolute existing", "project_root_markers=[" + tomlString(absoluteMarker) + "]\n" + trustedProject(repo), []string{"deep_only"}},
+		{"absolute existing before relative", "project_root_markers=[" + tomlString(absoluteMarker) + ",'.git']\n" + trustedProject(repo), []string{"deep_only"}},
+		{"absolute missing before relative", "project_root_markers=[" + tomlString(missingAbsolute) + ",'.git']\n" + trustedProject(repo), []string{"child_only", "deep_only", "root_only"}},
+		{"disabled markers", "project_root_markers=[]\n" + trustedProject(repo), []string{"deep_only"}},
+		{"missing marker", "project_root_markers=['MISSING']\n" + trustedProject(repo), []string{"deep_only"}},
+		{"custom root trusted", "project_root_markers=['CUSTOM']\n" + trustedProject(outer), all},
+		{"custom root git fallback", "project_root_markers=['CUSTOM']\n" + trustedProject(repo), all},
+		{"custom root denial wins", "project_root_markers=['CUSTOM']\n" + deny(outer) + trustedProject(repo), []string{"root_only"}},
+		{"exact git denial wins", "project_root_markers=['CUSTOM']\n" + trustedProject(outer) + deny(repo), []string{"child_only", "deep_only", "outer_only"}},
+		{"inner root", "project_root_markers=['INNER']\n" + trustedProject(child), []string{"child_only", "deep_only"}},
+		{"inner root git fallback", "project_root_markers=['INNER']\n" + trustedProject(repo), []string{"child_only", "deep_only"}},
+		{"nearest marker", "project_root_markers=['CUSTOM','.git']\n" + trustedProject(repo), []string{"child_only", "deep_only", "root_only"}},
+	}
+}
+
+func codexLinkedTrustFixture(t *testing.T) (string, []codexTrustCase) {
+	t.Helper()
+	repo := testutil.NewRepo(t, nil)
+	repo, _ = filepath.EvalSymlinks(repo)
+	wt := filepath.Join(t.TempDir(), "linked")
+	testutil.Git(t, repo, "worktree", "add", "-q", "-b", "task", wt)
+	wt, _ = filepath.EvalSymlinks(wt)
+	child, deep := filepath.Join(wt, "child"), filepath.Join(wt, "child", "deep")
+	for path, name := range map[string]string{wt: "root_only", child: "child_only", deep: "deep_only"} {
+		writeMCPTestFile(t, filepath.Join(path, ".codex", "config.toml"), "[mcp_servers."+name+"]\ncommand='fixture'\n")
+	}
+	deny := func(dir string) string { return "[projects." + tomlString(dir) + "]\ntrust_level='untrusted'\n" }
+	all := []string{"child_only", "deep_only", "root_only"}
+	return deep, []codexTrustCase{
+		{"worktree trusted", trustedProject(wt), all},
+		{"worktree denied", trustedProject(repo) + deny(wt), nil},
+		{"worktree overrides main denial", deny(repo) + trustedProject(wt), all},
+		{"exact child denial", trustedProject(wt) + deny(child), []string{"deep_only", "root_only"}},
+		{"exact child trust overrides root denial", deny(wt) + trustedProject(child), []string{"child_only"}},
+		{"no markers use main", "project_root_markers=[]\n" + trustedProject(repo) + deny(wt), []string{"deep_only"}},
+		{"no markers ignore worktree root", "project_root_markers=[]\n" + trustedProject(wt), nil},
+	}
+}
+
+func TestCodexExclusiveMCPRootTrust(t *testing.T) {
+	for _, fixture := range []struct {
+		name string
+		make func(*testing.T) (string, []codexTrustCase)
+	}{{"markers", codexMarkerFixture}, {"linked", codexLinkedTrustFixture}} {
+		t.Run(fixture.name, func(t *testing.T) {
+			dir, cases := fixture.make(t)
+			home := t.TempDir()
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					writeMCPTestFile(t, filepath.Join(home, "config.toml"), tc.config)
+					got, err := codexOtherMCPServers(AgentRequest{Dir: dir, Env: []string{"CODEX_HOME=" + home}})
+					if err != nil || !slices.Equal(got, tc.want) {
+						t.Fatalf("project servers = %v, %v; want %v", got, err, tc.want)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestCodexExclusiveMCPIgnoresParentGitEnvironment(t *testing.T) {
+	repo := testutil.NewRepo(t, nil)
+	repo, _ = filepath.EvalSymlinks(repo)
+	other := testutil.NewRepo(t, nil)
+	wt := filepath.Join(t.TempDir(), "linked")
+	testutil.Git(t, repo, "worktree", "add", "-q", "-b", "task", wt)
+	child := filepath.Join(wt, "child")
+	for dir, name := range map[string]string{wt: "root_only", child: "child_only"} {
+		writeMCPTestFile(t, filepath.Join(dir, ".codex", "config.toml"), "[mcp_servers."+name+"]\ncommand='fixture'\n")
+	}
+	home := t.TempDir()
+	writeMCPTestFile(t, filepath.Join(home, "config.toml"), trustedProject(repo))
+	for _, tc := range []struct{ key, value string }{
+		{"GIT_DIR", filepath.Join(other, ".git")},
+		{"GIT_WORK_TREE", other},
+		{"GIT_COMMON_DIR", filepath.Join(other, ".git")},
+		{"GIT_INDEX_FILE", filepath.Join(other, ".git", "index")},
+	} {
+		t.Setenv(tc.key, tc.value)
+	}
+	got, err := codexOtherMCPServers(AgentRequest{Dir: child, Env: []string{"CODEX_HOME=" + home}})
+	if err != nil || !slices.Equal(got, []string{"child_only", "root_only"}) {
+		t.Fatalf("parent Git environment changed child config resolution: %v, %v", got, err)
+	}
+	if os.Getenv("BINT_CODEX_CONFIG_LIVE") == "1" {
+		req := AgentRequest{Dir: child, Env: []string{"CODEX_HOME=" + home}}
+		off, err := codexDisableMCPArgs(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		args := append([]string{"--no-daemon"}, off...)
+		args = append(args, "-c", `mcp_servers.bint.command="fixture-bint"`, "mcp", "list", "--json")
+		cmd := exec.CommandContext(ctx, "codex", args...)
+		cmd.Dir, cmd.Env = child, cleanEnv(req.Env...)
+		raw, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("Codex mcp list: %v", err)
+		}
+		var servers []struct {
+			Name    string
+			Enabled bool
+		}
+		if err := json.Unmarshal(raw, &servers); err != nil {
+			t.Fatal(err)
+		}
+		var enabled []string
+		for _, s := range servers {
+			if s.Enabled {
+				enabled = append(enabled, s.Name)
+			}
+		}
+		if !slices.Equal(enabled, []string{"bint"}) {
+			t.Fatalf("parent Git environment left extra servers enabled: %v", enabled)
+		}
 	}
 }

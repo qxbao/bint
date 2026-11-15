@@ -65,6 +65,71 @@ func TestParseCodexAndAgy(t *testing.T) {
 	}
 }
 
+func TestCodexJSONLRequiresCompletedTurn(t *testing.T) {
+	message := `{"type":"item.completed","item":{"type":"agent_message","text":"Done."}}` + "\n"
+	for _, tc := range []struct {
+		name, stream string
+	}{
+		{"empty", ""},
+		{"answer without terminal", message},
+		{"truncated terminal", message + `{"type":"turn.completed"`},
+		{"malformed after answer", message + "{broken}\n"},
+		{"next turn interrupted", codexSample + "{\"type\":\"turn.started\"}\n" + message},
+		{"failed without details", message + `{"type":"turn.failed","error":{}}`},
+		{"error without details", codexSample + `{"type":"error"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var res AgentResult
+			parseCodexJSONL([]byte(tc.stream), &res)
+			if res.Error == "" {
+				t.Fatalf("incomplete/failed stream reported success: %+v", res)
+			}
+		})
+	}
+	var res AgentResult
+	parseCodexJSONL([]byte(codexSample+codexSample), &res)
+	if res.Error != "" || res.InputTokens == nil || *res.InputTokens != 125426 || *res.OutputTokens != 1018 {
+		t.Fatalf("completed turns and config warning must remain valid: %+v", res)
+	}
+	res = AgentResult{}
+	parseCodexJSONL([]byte("{log line}\n"+`{"type":"error","error":"schema drift"}`+"\n"+codexSample), &res)
+	if !strings.Contains(res.Error, "schema drift") {
+		t.Fatalf("string error field must be reported: %+v", res)
+	}
+	res = AgentResult{}
+	parseCodexJSONL([]byte("{log line}\n"+`{"type":"future","error":"x"}`+"\n"+codexSample), &res)
+	if res.Error != "" {
+		t.Fatalf("malformed/unknown lines before a completed turn must not fail the run: %+v", res)
+	}
+	res = AgentResult{Error: "process cancelled"}
+	parseCodexJSONL([]byte(`{"type":"turn.failed","error":{"message":"secondary error"}}`), &res)
+	if res.Error != "process cancelled" {
+		t.Fatalf("lost process failure: %+v", res)
+	}
+}
+
+func TestCodexJSONLReadsFailureAfterLargeItem(t *testing.T) {
+	// stdout is already buffered by Run. A large tool result must not hide the
+	// terminal error behind Scanner's former 64 MiB token limit.
+	stream := codexSample + `{"type":"item.completed","item":{"type":"command_execution","aggregated_output":"` +
+		strings.Repeat("x", 64<<20) + "\"}}\n" + `{"type":"turn.failed","error":{"message":"late failure"}}`
+	var res AgentResult
+	parseCodexJSONL([]byte(stream), &res)
+	if !strings.Contains(res.Error, "late failure") {
+		t.Fatalf("large item hid terminal failure: %+v", res)
+	}
+}
+
+func BenchmarkParseCodexJSONL(b *testing.B) {
+	stream := []byte(codexSample)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(stream)))
+	for b.Loop() {
+		var res AgentResult
+		parseCodexJSONL(stream, &res)
+	}
+}
+
 func TestCodexAndAgyArgs(t *testing.T) {
 	mcp := filepath.Join(t.TempDir(), "mcp.json")
 	os.WriteFile(mcp, []byte(`{"mcpServers":{"bint":{"command":"/x/bint","args":["mcp","serve","--eval-config","/l/c.json"]}}}`), 0o644)
@@ -217,6 +282,17 @@ printf '{"status":"SUCCESS","response":"got:%s","num_turns":2,"usage":{"input_to
 	r = (&CodexAgent{Binary: filepath.Join(dir, "missing")}).Run(context.Background(), AgentRequest{Dir: dir, Prompt: "x", Timeout: 5 * time.Second})
 	if r.Error == "" || r.ExitCode == 0 {
 		t.Fatalf("missing: %+v", r)
+	}
+	// Codex tự báo lỗi rồi thoát mã khác 0: giữ thông điệp cụ thể, không thay bằng mã thoát.
+	quota := filepath.Join(dir, "codex-quota")
+	os.WriteFile(quota, []byte(`#!/bin/sh
+cat >/dev/null
+printf '%s\n' '{"type":"turn.failed","error":{"message":"usage limit reached"}}'
+exit 1
+`), 0o755)
+	r = (&CodexAgent{Binary: quota}).Run(context.Background(), AgentRequest{Dir: dir, Prompt: "x", Timeout: 5 * time.Second})
+	if r.Error != "codex báo lỗi: usage limit reached" || r.ExitCode != 1 {
+		t.Fatalf("codex turn.failed + exit 1: %+v", r)
 	}
 	// Thoát lỗi: thông điệp gồm phần cuối đầu ra.
 	bad := filepath.Join(dir, "bad")

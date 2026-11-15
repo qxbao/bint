@@ -54,7 +54,13 @@ func (r Repo) ConfigRoots() []string {
 
 // Discover tìm repository chứa dir.
 func Discover(ctx context.Context, dir string) (Repo, error) {
-	out, err := Run(ctx, dir, "rev-parse", "--path-format=absolute",
+	return DiscoverWithEnv(ctx, dir, nil)
+}
+
+// DiscoverWithEnv discovers Git roots using the environment of a child process.
+// A nil env inherits the current environment, just like Discover.
+func DiscoverWithEnv(ctx context.Context, dir string, env []string) (Repo, error) {
+	out, err := runWithEnv(ctx, dir, env, "rev-parse", "--path-format=absolute",
 		"--show-toplevel", "--git-common-dir", "--git-dir")
 	if err != nil {
 		if strings.Contains(err.Error(), "not a git repository") {
@@ -81,12 +87,17 @@ func Clean(p string) string {
 
 // Run chạy một lệnh git trong dir và trả về stdout.
 func Run(ctx context.Context, dir string, args ...string) (string, error) {
+	return runWithEnv(ctx, dir, nil, args...)
+}
+
+func runWithEnv(ctx context.Context, dir string, env []string, args ...string) (string, error) {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 	}
 	cmd := CommandContext(ctx, append([]string{"-C", dir}, args...)...)
+	cmd.Env = env
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

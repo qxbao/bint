@@ -1,12 +1,15 @@
 package codex
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHooksTrustedUsesCurrentCodexDefinition(t *testing.T) {
@@ -43,5 +46,29 @@ func TestHooksTrustedUsesCurrentCodexDefinition(t *testing.T) {
 				t.Fatalf("%s: trusted=%v, want=%v (không được tin chỉ vì có một state entry cũ)", tc.state, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestCodexHookMetadataLive(t *testing.T) {
+	if os.Getenv("BINT_CODEX_CONFIG_LIVE") != "1" {
+		t.Skip("set BINT_CODEX_CONFIG_LIVE=1 to check installed Codex hooks/list")
+	}
+	root, home := t.TempDir(), t.TempDir()
+	root, _ = filepath.EvalSymlinks(root)
+	t.Setenv("CODEX_HOME", home)
+	quoted, _ := json.Marshal(root)
+	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte("[projects."+string(quoted)+"]\ntrust_level='trusted'\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, ".codex", "hooks.json")
+	if _, err := InstallHooks(path, "fixture-bint", t.TempDir(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	report, err := InspectHookTrust(context.Background(), "codex", root, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Total != 4 || report.Untrusted != 4 || report.AllTrusted() {
+		t.Fatalf("new fixture hooks must remain untrusted: %+v", report)
 	}
 }

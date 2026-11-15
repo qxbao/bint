@@ -26,7 +26,7 @@ func TestCodexEvalIsolatesHomeAndRemovesCredentials(t *testing.T) {
 	os.WriteFile(filepath.Join(source, "config.toml"), []byte("model = 'gpt-probe'\nnotify = ['USER_ONLY']\n[plugins.USER_ONLY]\nenabled = true\n"), 0o600)
 	os.WriteFile(filepath.Join(source, "AGENTS.md"), []byte("USER_ONLY"), 0o600)
 	bin := filepath.Join(t.TempDir(), "codex")
-	os.WriteFile(bin, []byte("#!/bin/sh\ncat >/dev/null\nprintf '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"%s\"}}\\n' \"$CODEX_HOME\"\n"), 0o755)
+	os.WriteFile(bin, []byte("#!/bin/sh\ncat >/dev/null\nprintf '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"%s\"}}\\n' \"$CODEX_HOME\"\nprintf '%s\\n' '{\"type\":\"turn.completed\"}'\n"), 0o755)
 	r := (&CodexAgent{Binary: bin}).Run(context.Background(), AgentRequest{Dir: t.TempDir(), Arm: ArmNone, Prompt: "probe", Timeout: 5 * time.Second})
 	if r.Error != "" {
 		t.Fatal(r.Error)
@@ -260,5 +260,65 @@ func TestCodexProfileDisablesEverySkillAlias(t *testing.T) {
 	}
 	if disabled[filepath.Join(home, "rel", "c", "SKILL.md")] {
 		t.Error("đích tương đối bị ghép theo chuỗi qua thư mục symlink")
+	}
+}
+
+func TestCodexProfileCleanupAfterExitErrorAndCancellation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX subprocess fixture")
+	}
+	for _, mode := range []string{"error", "cancel"} {
+		t.Run(mode, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
+			source := filepath.Join(home, ".codex")
+			if err := os.MkdirAll(source, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			auth := `{"OPENAI_API_KEY":"fixture-not-secret"}`
+			if err := os.WriteFile(filepath.Join(source, "auth.json"), []byte(auth), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			ready, bin := filepath.Join(t.TempDir(), "ready"), filepath.Join(t.TempDir(), "codex")
+			script := "#!/bin/sh\ncat >/dev/null\nprintf '%s' \"$CODEX_HOME\" > \"$PROFILE_READY\"\nif [ \"$PROFILE_MODE\" = error ]; then echo fixture-exit >&2; exit 7; fi\nsleep 60\n"
+			if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan AgentResult, 1)
+			go func() {
+				done <- (&CodexAgent{Binary: bin, Model: "fixture-model"}).Run(ctx, AgentRequest{Dir: t.TempDir(), Arm: ArmNone, Prompt: "fixture", Timeout: 10 * time.Second,
+					Env: []string{"CODEX_HOME=" + source, "PROFILE_READY=" + ready, "PROFILE_MODE=" + mode}})
+			}()
+			var profile []byte
+			for deadline := time.Now().Add(8 * time.Second); len(profile) == 0; {
+				profile, _ = os.ReadFile(ready)
+				if time.Now().After(deadline) {
+					t.Fatal("fixture did not start")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if mode == "cancel" {
+				cancel()
+			}
+			res := <-done
+			if res.Error == "" || res.ExitCode == 0 || res.TimedOut {
+				t.Fatalf("expected process failure: %+v", res)
+			}
+			if mode == "cancel" && !strings.Contains(res.Error, context.Canceled.Error()) {
+				t.Fatalf("lost cancellation: %+v", res)
+			}
+			if mode == "error" && (res.ExitCode != 7 || !strings.Contains(res.Error, "fixture-exit")) {
+				t.Fatalf("lost exit diagnostic: %+v", res)
+			}
+			if _, err := os.Stat(string(profile)); !os.IsNotExist(err) {
+				t.Fatalf("profile survived: %v", err)
+			}
+			if got, err := os.ReadFile(filepath.Join(source, "auth.json")); err != nil || string(got) != auth {
+				t.Fatal("source auth changed")
+			}
+		})
 	}
 }

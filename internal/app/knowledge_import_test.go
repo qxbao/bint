@@ -353,3 +353,100 @@ func TestInitNextStepMentionsImportOnlyWithSources(t *testing.T) {
 		t.Fatalf("init không được tự nhập: %d mục", len(items))
 	}
 }
+
+// Moving a source block must not make its former position suppress a new idea.
+func TestImportReorderedIdeas(t *testing.T) {
+	k, _ := importRepo(t)
+	source := filepath.Join(t.TempDir(), "notes.md")
+	old := "- Always open SQLite using `OpenStore` to preserve its timeout.\n- This unrelated note has no repository evidence at all.\n"
+	writeFile(t, source, old)
+	opts := ImportOptions{From: source}
+	first, err := ImportKnowledge(context.Background(), k, opts)
+	if err != nil || len(first.IDs) != 1 {
+		t.Fatalf("first import: %+v, %v", first, err)
+	}
+	writeFile(t, source, "- Always call `AcquireLock` before changing interprocess locks.\n"+old)
+	plan, err := PlanImport(context.Background(), k, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Count(ImportCreate) != 1 || plan.Ideas[0].Outcome != ImportCreate || plan.Ideas[1].Reason != importer.SkipAlreadyImported {
+		t.Fatalf("new idea must survive reused Ref and old content stay deduplicated: %+v", plan.Ideas)
+	}
+}
+
+func TestImportSourceErrorsHideHome(t *testing.T) {
+	k, _ := importRepo(t)
+	home, _ := os.UserHomeDir()
+	missing := filepath.Join(home, "private-notes", "missing.md")
+	_, err := PlanImport(context.Background(), k, ImportOptions{From: "file", Path: missing})
+	if err == nil || !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing source: %v", err)
+	}
+	if strings.Contains(err.Error(), home) {
+		t.Fatalf("source error leaks home: %v", err)
+	}
+}
+
+func TestDetectImportSourcesIgnoresGlobalCodexMemory(t *testing.T) {
+	k, _ := importRepo(t)
+	home, _ := os.UserHomeDir()
+	writeFile(t, filepath.Join(home, ".codex", "memories", "other-project.md"), "Rules for an unrelated project.\n")
+	if got := DetectImportSources(context.Background(), k.Root); len(got) != 0 {
+		t.Fatalf("global Codex memory does not establish a source for this repository: %+v", got)
+	}
+}
+
+func TestImportUnclosedPrivateMemoryIsNotImported(t *testing.T) {
+	k, _ := importRepo(t)
+	source := filepath.Join(t.TempDir(), "private.md")
+	writeFile(t, source, "---\ntype: user\ndescription: Private preference\nPrivate review fixture marker: I prefer `OpenStore` for all database operations.\n")
+	got, err := ImportKnowledge(context.Background(), k, ImportOptions{From: "claude-memory", Path: source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, _, err := k.Items()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Written || len(items) != 0 {
+		t.Fatalf("private malformed source persisted: result=%+v items=%+v", got, items)
+	}
+}
+
+func TestImportPrivateFrontmatterWhitespaceDelimiter(t *testing.T) {
+	k, _ := importRepo(t)
+	source := filepath.Join(t.TempDir(), "private.md")
+	writeFile(t, source, "--- \ntype: user\ndescription: Private preference\n---\nPrivate review fixture marker: I prefer `OpenStore` for all database operations.\n")
+	got, err := ImportKnowledge(context.Background(), k, ImportOptions{From: "claude-memory", Path: source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, _, err := k.Items()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Written || len(items) != 0 {
+		t.Fatalf("private source persisted with whitespace delimiter: result=%+v items=%+v", got, items)
+	}
+}
+
+func TestImportSmallSourceEditStaysImported(t *testing.T) {
+	k, _ := importRepo(t)
+	source := filepath.Join(t.TempDir(), "notes.md")
+	writeFile(t, source, "- Always open SQLite using `OpenStore` to preserve its busy timeout setting.\n")
+	opts := ImportOptions{From: source}
+	first, err := ImportKnowledge(context.Background(), k, opts)
+	if err != nil || len(first.IDs) != 1 {
+		t.Fatalf("first import: %+v, %v", first, err)
+	}
+	// Sửa lỗi chính tả ở nguồn: không tạo lại ý đã nhập (và có thể đã bị người từ chối).
+	writeFile(t, source, "- Always open SQLite using `OpenStore` to preserve its busy-timeout setting.\n")
+	plan, err := PlanImport(context.Background(), k, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Ideas) != 1 || plan.Ideas[0].Reason != importer.SkipAlreadyImported {
+		t.Fatalf("small edit at the same Ref must stay imported: %+v", plan.Ideas)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"bint/internal/state"
 	"bint/internal/testutil"
 )
 
@@ -80,6 +81,40 @@ func TestRouteProjectPathToWorktreePartition(t *testing.T) {
 		if o := callPath(t, c, 10, pp); o.PID != base.PID || !samePathT(o.Cwd, repo) {
 			t.Errorf("%s: phải dùng phân vùng của phiên (pid %d, cwd %q)", name, o.PID, o.Cwd)
 		}
+	}
+}
+
+func TestRouteAndReleaseWorktreeThroughStateAlias(t *testing.T) {
+	h := newHarness(t, nil)
+	h.register("codegraph")
+	base := evalDir(t, t.TempDir())
+	alias := filepath.Join(t.TempDir(), "state-alias")
+	if err := os.Symlink(base, alias); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	t.Setenv(state.EnvStateDir, alias)
+	repo := evalDir(t, newRepo(t, false))
+	wt := taskWorktree(t, repo, "T1")
+	c := h.open("codegraph", worktreeHdr(repo))
+	root := callPath(t, c, 1, nil)
+	routed := callPath(t, c, 2, wt)
+	if routed.PID == root.PID || !samePathT(routed.Cwd, wt) {
+		t.Fatalf("state alias lost worktree routing: %+v", routed)
+	}
+	cl, err := Connect(h.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliasWT := filepath.Join(markInit(t, repo).Worktrees, "T1")
+	res, err := cl.ReleaseWorktree(context.Background(), aliasWT)
+	if err != nil || res.Released != 1 {
+		t.Fatalf("release through state alias: %+v %v", res, err)
+	}
+	if next := callPath(t, c, 3, wt); next.PID == routed.PID {
+		t.Fatal("release through alias kept the old worktree upstream")
+	}
+	if next := callPath(t, c, 4, nil); next.PID != root.PID {
+		t.Fatal("release through alias affected the root upstream")
 	}
 }
 

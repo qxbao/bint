@@ -38,7 +38,7 @@ func ResolveDataWatch(ctx context.Context, dir string) (DataWatch, bool) {
 }
 
 // Signature băm (tên, kích thước, mtime) của mọi tệp được theo dõi. Đường dẫn không tồn tại tính là rỗng.
-// Hai lần gọi cho cùng một trạng thái đĩa cho cùng kết quả; thêm, xoá, sửa tệp làm kết quả đổi.
+// Hai lần gọi cho cùng dữ liệu cho cùng kết quả; WAL rỗng do mở DB chỉ đọc không tính là thay đổi.
 func (w DataWatch) Signature() uint64 {
 	h := fnv.New64a()
 	add := func(rel string, info fs.FileInfo) {
@@ -78,6 +78,11 @@ func (w DataWatch) Signature() uint64 {
 	for _, f := range w.Files {
 		h.Write([]byte("F" + f + "\x01"))
 		if info, err := os.Stat(f); err == nil {
+			// SQLite có thể tạo rồi xoá WAL rỗng khi chỉ đọc. Nó không chứa dữ liệu
+			// mới và không được tự kích hoạt một vòng nạp Tổng quan khác.
+			if !info.IsDir() && info.Size() == 0 && strings.HasSuffix(f, "-wal") {
+				continue
+			}
 			add("", info)
 		}
 	}

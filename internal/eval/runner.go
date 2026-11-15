@@ -216,7 +216,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 		}
 		if opts.OnBatch != nil {
 			if err := opts.OnBatch(batch.BatchID); err != nil {
-				return res, finishWith(ctx, db, &batch, &res, opts.Now, err)
+				return finishWith(ctx, db, &batch, res, opts.Now, err)
 			}
 		}
 	}
@@ -246,11 +246,11 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	leakIns := map[string]*LeakInput{}
 	for _, c := range opts.Cases {
 		if err := checkBaseCommit(ctx, env.RepoDir, c.Source.Base); err != nil {
-			return res, finishWith(ctx, db, &batch, &res, opts.Now, err)
+			return finishWith(ctx, db, &batch, res, opts.Now, err)
 		}
 		in, err := BuildLeakInput(ctx, env.RepoDir, c)
 		if err != nil {
-			return res, finishWith(ctx, db, &batch, &res, opts.Now, err)
+			return finishWith(ctx, db, &batch, res, opts.Now, err)
 		}
 		leakIns[c.ID] = &in
 	}
@@ -277,7 +277,7 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	)
 	spent, costN, err := batchSpent(ctx, db, batch.BatchID)
 	if err != nil {
-		return res, finishWith(ctx, db, &batch, &res, opts.Now, err)
+		return finishWith(ctx, db, &batch, res, opts.Now, err)
 	}
 	// tryStart áp ngân sách ngay trước khi bắt đầu một lượt: không bắt đầu nếu đã
 	// tiêu + chi phí dự kiến của các lượt đang chạy và của lượt này (theo trung bình
@@ -437,21 +437,22 @@ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, 
 	return res, ctx.Err()
 }
 
-// finishWith đóng đợt do lỗi trong pha chuẩn bị: "cancelled" nếu ctx đã huỷ (lỗi trả về luôn thoả
-// errors.Is(err, context.Canceled)), ngược lại "failed". Trạng thái cũng được đặt vào res.
-func finishWith(ctx context.Context, db *sql.DB, b *Batch, res *RunResult, now func() time.Time, err error) error {
+// finishWith đóng đợt do lỗi trong pha chuẩn bị: cancelled khi ctx đã huỷ,
+// ngược lại failed. Trả cùng lúc trạng thái, BatchID và cả lỗi lưu trạng thái.
+func finishWith(ctx context.Context, db *sql.DB, b *Batch, res RunResult, now func() time.Time, err error) (RunResult, error) {
 	status := "failed"
 	if cerr := ctx.Err(); cerr != nil {
-		// Huỷ đợt (Esc/Ctrl-C) trong lúc chuẩn bị không phải lỗi của đợt.
 		status = "cancelled"
 		if !errors.Is(err, cerr) {
 			err = fmt.Errorf("%w: %v", cerr, err)
 		}
 	}
-	res.Status = status
 	b.Notes = append(b.Notes, "lỗi: "+err.Error())
-	updateBatch(context.WithoutCancel(ctx), db, b.BatchID, status, nowString(now()), b.Notes)
-	return err
+	if updateErr := updateBatch(context.WithoutCancel(ctx), db, b.BatchID, status, nowString(now()), b.Notes); updateErr != nil {
+		err = errors.Join(err, fmt.Errorf("lưu trạng thái đợt %s: %w", b.BatchID, updateErr))
+	}
+	res.BatchID, res.Status = b.BatchID, status
+	return res, err
 }
 
 // runAttempt chạy một lượt: dựng thư mục cô lập tại commit gốc → đặt ngữ cảnh

@@ -319,6 +319,10 @@ func TestCodexGuardrailDeniesWriteDurableWorkflowEvents(t *testing.T) {
 			"tool_input": map[string]any{"command": "*** Begin Patch\n*** Update File: src/a.go\n@@\n-package a\n+package b\n*** End Patch"}, "tool_use_id": "edit-1"}),
 		hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "Bash",
 			"tool_input": map[string]any{"command": "git push origin main"}, "tool_use_id": "bash-1"}),
+		hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "exec_command",
+			"tool_input": map[string]any{"cmd": "git push origin main"}, "tool_use_id": "exec-1"}),
+		hookInput("session", "PreToolUse", root, map[string]any{"tool_name": "local_shell",
+			"tool_input": map[string]any{"command": []any{"sh", "-lc", "git push origin main"}}, "tool_use_id": "shell-1"}),
 	} {
 		res, err := codex.HandleHook(context.Background(), strings.NewReader(in), hookcore.Env{BintVersion: "test"})
 		if err != nil || decision(t, res.Output)["permissionDecision"] != "deny" {
@@ -330,7 +334,7 @@ func TestCodexGuardrailDeniesWriteDurableWorkflowEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	events, err := spool.Denials(ws.Paths.Spool, "child-guardrail")
-	if err != nil || len(events) != 2 {
+	if err != nil || len(events) != 4 {
 		t.Fatalf("expected durable pre_edit and pre_bash denial events, got %d: %v", len(events), err)
 	}
 	foundEditPath := false

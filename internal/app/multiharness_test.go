@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -157,8 +158,29 @@ func TestMultiHarnessInit(t *testing.T) {
 		t.Fatalf(".agents/hooks.json: %s", ag)
 	}
 	cx := read(t, filepath.Join(root, ".codex/hooks.json"))
-	if !strings.Contains(cx, "bint hook codex") || !strings.Contains(cx, `"apply_patch|Bash|shell|exec_command"`) {
+	if !strings.Contains(cx, "bint hook codex") {
 		t.Fatalf(".codex/hooks.json: %s", cx)
+	}
+	var cxHooks struct {
+		Hooks map[string][]struct{ Matcher string }
+	}
+	if err := json.Unmarshal([]byte(cx), &cxHooks); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []string{"PreToolUse", "PostToolUse"} {
+		for _, tool := range []string{"apply_patch", "Bash", "shell", "exec_command", "local_shell"} {
+			matched := false
+			for _, group := range cxHooks.Hooks[event] {
+				matcher, err := regexp.Compile("^(" + group.Matcher + ")$")
+				if err != nil {
+					t.Fatal(err)
+				}
+				matched = matched || matcher.MatchString(tool)
+			}
+			if !matched {
+				t.Errorf(".codex/hooks.json: %s không nhận %s", event, tool)
+			}
+		}
 	}
 	toml := read(t, filepath.Join(root, ".codex/config.toml"))
 	if !strings.HasPrefix(toml, "model = \"x\"\n") || !strings.Contains(toml, "[mcp_servers.bint]") || !codex.MCPInstalled(root) {

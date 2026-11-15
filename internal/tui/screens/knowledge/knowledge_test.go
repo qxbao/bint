@@ -972,3 +972,28 @@ func TestImportTabNothingToWriteAndReadOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestImportTabInvalidatesPreviousPreview(t *testing.T) {
+	for _, mode := range []string{"form_cancel", "preview_error"} {
+		t.Run(mode, func(t *testing.T) {
+			h := newHarness(t, sample(), Options{})
+			h.m.EnterSub("import")
+			h.key("enter")
+			r := h.lastReq()
+			h.result("knowledge.import_preview", r.Opts, importPlan("old", 1), nil)
+			h.key("enter") // enter editable form; prior plan can no longer authorize writes
+			if mode == "form_cancel" {
+				h.key("esc")
+			} else {
+				h.key("enter")
+				r = h.lastReq()
+				h.result("knowledge.import_preview", r.Opts, nil, errors.New("source unavailable"))
+			}
+			n := len(h.reqs)
+			h.key("w")
+			if h.m.dlg != nil || len(h.reqs) != n {
+				t.Fatalf("stale preview still allows write: dialog=%v", h.m.dlg)
+			}
+		})
+	}
+}

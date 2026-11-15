@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,60 @@ import (
 	"bint/internal/fsafe"
 	"bint/internal/harness/hookcore"
 )
+
+func TestShellCommandFieldPrecedence(t *testing.T) {
+	for _, tool := range []string{"Bash", "shell", "exec_command", "local_shell"} {
+		for _, tc := range []struct {
+			name  string
+			input map[string]any
+			want  string
+		}{
+			{"cmd string", map[string]any{"cmd": "git push origin main"}, "git push origin main"},
+			{"cmd argv", map[string]any{"cmd": []any{"sh", "-lc", "git push origin main"}}, "git push origin main"},
+			{"command wins", map[string]any{"command": "git status", "cmd": "git push origin main"}, "git status"},
+			{"empty command", map[string]any{"command": "", "cmd": "git status"}, "git status"},
+		} {
+			t.Run(tool+"/"+tc.name, func(t *testing.T) {
+				got := Classify(tool, tc.input)
+				if got.Kind != hookcore.ToolShell || got.Command != tc.want {
+					t.Fatalf("Classify = %+v, want shell %q", got, tc.want)
+				}
+			})
+		}
+	}
+}
+
+func TestInstalledHooksMatchSupportedShellTools(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.json")
+	if _, err := InstallHooks(path, "bint", t.TempDir(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		Hooks map[string][]struct{ Matcher string }
+	}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []string{"PreToolUse", "PostToolUse"} {
+		for _, tool := range []string{"Bash", "shell", "exec_command", "local_shell"} {
+			matched := false
+			for _, group := range config.Hooks[event] {
+				re, err := regexp.Compile("^(?:" + group.Matcher + ")$")
+				if err != nil {
+					t.Fatal(err)
+				}
+				matched = matched || re.MatchString(tool)
+			}
+			if !matched {
+				t.Errorf("%s does not dispatch supported tool %s", event, tool)
+			}
+		}
+	}
+}
 
 func TestSessionEndTimeoutMatchesRealCodex(t *testing.T) {
 	// Codex 0.167 thực tế cảnh báo và ép timeout SessionEnd xuống 3s.
@@ -159,4 +214,35 @@ func TestCitationApprovalConfigured(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHooksCurrentDetectsStaleMatcher(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.json")
+	stale := `{"hooks":{
+"SessionStart":[{"hooks":[{"type":"command","command":"bint hook codex"}]}],
+"SessionEnd":[{"hooks":[{"type":"command","command":"bint hook codex"}]}],
+"PreToolUse":[{"matcher":"apply_patch|Bash|shell|exec_command","hooks":[{"type":"command","command":"bint hook codex"}]}],
+"PostToolUse":[{"matcher":"apply_patch|Bash|shell|exec_command|mcp__bint__.*","hooks":[{"type":"command","command":"bint hook codex"}]}]}}`
+	if err := os.WriteFile(path, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := HooksInstalled(path); err != nil || !ok {
+		t.Fatalf("stale install must still count as installed: %v %v", ok, err)
+	}
+	if ok, err := HooksCurrent(path); err != nil || ok {
+		t.Fatalf("stale matcher must not be current: %v %v", ok, err)
+	}
+	b, _ := json.Marshal(map[string]any{"hooks": desiredGroupsList("bint hook codex")})
+	os.WriteFile(path, b, 0o644)
+	if ok, err := HooksCurrent(path); err != nil || !ok {
+		t.Fatalf("fresh install must be current: %v %v", ok, err)
+	}
+}
+
+func desiredGroupsList(cmd string) map[string][]map[string]any {
+	out := map[string][]map[string]any{}
+	for ev, g := range desiredGroups(cmd) {
+		out[ev] = []map[string]any{g}
+	}
+	return out
 }
