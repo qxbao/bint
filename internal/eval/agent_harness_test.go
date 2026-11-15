@@ -250,6 +250,35 @@ func TestCodexEvalHookQuotesExecutableLiterally(t *testing.T) {
 	}
 }
 
+// Khoá hành vi: lỗi Codex 429/5xx/quá tải là lượt hạ tầng (Infra khác rỗng → không chấm);
+// riêng 429 còn đặt QuotaHit (dừng cả đợt). Đồng nhất với Claude.
+func TestCodexRunClassifiesInfraFromTurnFailed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("kịch bản sh")
+	}
+	dir := t.TempDir()
+	for _, tc := range []struct {
+		name, msg string
+		infra     bool
+		quota     bool
+	}{
+		{"503", "unexpected status 503 Service Unavailable: upstream", true, false},
+		{"429", "unexpected status 429 Too Many Requests", true, true},
+		{"overloaded", "Overloaded", true, false},
+		{"lỗi thường", "patch failed", false, false},
+	} {
+		bin := filepath.Join(dir, "codex-"+tc.name)
+		script := "#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' '{\"type\":\"turn.failed\",\"error\":{\"message\":\"" + tc.msg + "\"}}'\nexit 1\n"
+		if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		r := (&CodexAgent{Binary: bin}).Run(context.Background(), AgentRequest{Dir: dir, Prompt: "x", Timeout: 5 * time.Second})
+		if (r.Infra != "") != tc.infra || r.QuotaHit != tc.quota {
+			t.Errorf("%s: Infra=%q QuotaHit=%v, muốn infra=%v quota=%v (%+v)", tc.name, r.Infra, r.QuotaHit, tc.infra, tc.quota, r)
+		}
+	}
+}
+
 // Chạy chương trình giả thay cho codex/agy: kiểm tra đề bài tới đúng kênh (stdin /
 // đối số) và kết quả được đọc lại.
 func TestCodexAndAgyRunWithFakeBinary(t *testing.T) {

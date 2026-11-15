@@ -62,6 +62,11 @@ handle của bước vừa kết thúc **trong cùng lượt**; resume không c�
 - Driver session: câu hỏi mở phát hiện ở lệnh `next` kế tiếp (không cùng lệnh với `complete`) chưa có handle trong bộ nhớ,
   nên chưa ghi `awaiting_human`; giai đoạn 2 cần lưu handle bền cho trường hợp này.
 - Chỉ fingerprint cây tại lúc ghi; việc so sánh và điều kiện nối tiếp thuộc giai đoạn 2/3.
+- **Đổi hành vi chấm eval của Codex (có chủ đích, giữ lại).** `CodexAgent.Run` gán `Infra`/`QuotaHit` từ `codexInfra` trên lỗi
+  `turn.failed`/`error`; regex `codexServerRe`/`codexRateRe` đã thu hẹp (`unexpected status 5xx/429`, `overloaded`...). Lỗi
+  Codex 429/5xx/quá tải là **lượt hạ tầng**: `runner.go` coi `Infra` khác rỗng là lượt `error`, không chấm; `QuotaHit` (429,
+  usage limit) dừng cả đợt — đồng nhất với Claude. Khoá bằng `TestCodexRunClassifiesInfraFromTurnFailed` (cấp `CodexAgent.Run`)
+  và `TestCodexInfra`.
 
 - Phân loại `stop_class` ở `endStep` (dùng lại `classifyInfra`/`res.Infra`/`res.QuotaHit`, mã thoát, `TimedOut`,
   `ctx.Err()`, deny của hook, vi phạm), ghi vào kết quả bước (`StepResult`, sự kiện `step.finished`/runlog) và vào phiếu
