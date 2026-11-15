@@ -52,7 +52,9 @@ type dialog struct {
 
 type slot struct {
 	Loaded, Loading, again bool
-	Err                    error
+	// stale: dữ liệu đã cũ (ui.Refresher.MarkStale); soft: lần nạp đang bay là nạp mềm (lỗi không thay dữ liệu đang hiện).
+	stale, soft bool
+	Err         error
 }
 
 // outPane là kết quả của một hành động (log, kiểm tra, lập chỉ mục) hiện ở khung chi tiết thay cho chi tiết mặc định; Esc đóng.
@@ -172,6 +174,10 @@ func (m *Model) Cursor() *Row {
 func (m *Model) Ensure() tea.Cmd { return m.ensureTab(m.tab) }
 
 func (m *Model) ensureTab(tab int) tea.Cmd {
+	if sl := &m.slots[tab]; sl.Loaded && sl.stale && !sl.Loading {
+		sl.soft = true
+		return m.load(tab)
+	}
 	if m.slots[tab].Loaded || m.slots[tab].Loading {
 		return nil
 	}
@@ -183,7 +189,7 @@ func (m *Model) load(tab int) tea.Cmd {
 		m.slots[tab].again = true
 		return nil
 	}
-	m.slots[tab].Loading = true
+	m.slots[tab].Loading, m.slots[tab].stale = true, false
 	ctx, dir, ver, ld := context.Background(), m.o.Dir, m.o.Version, m.ld
 	return func() tea.Msg {
 		var v any
@@ -198,6 +204,24 @@ func (m *Model) load(tab int) tea.Cmd {
 		}
 		return LoadedMsg{Tab: tab, Value: v, Err: err}
 	}
+}
+
+// MarkStale đánh dấu các thẻ đã nạp là cũ: Ensure nạp mềm lại khi người dùng tới thẻ (ui.Refresher).
+func (m *Model) MarkStale() {
+	for i := range m.slots {
+		if m.slots[i].Loaded {
+			m.slots[i].stale = true
+		}
+	}
+}
+
+// Refresh nạp mềm thẻ đang hiện, đánh dấu cũ các thẻ còn lại (ui.Refresher).
+func (m *Model) Refresh() tea.Cmd {
+	m.MarkStale()
+	if sl := &m.slots[m.tab]; sl.Loaded {
+		sl.soft = true
+	}
+	return m.load(m.tab)
 }
 
 // reloadAll nạp lại các thẻ đã từng nạp (dữ liệu cũ vẫn hiện cho tới khi dữ liệu mới về).
@@ -285,7 +309,11 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 
 func (m *Model) onLoaded(msg LoadedMsg) tea.Cmd {
 	s := &m.slots[msg.Tab]
-	s.Loading, s.Err = false, msg.Err
+	soft := s.soft
+	s.Loading, s.soft = false, false
+	if !(soft && msg.Err != nil && s.Loaded) { // nạp mềm lỗi: giữ dữ liệu đang hiện
+		s.Err = msg.Err
+	}
 	var next tea.Cmd
 	if s.again {
 		s.again = false

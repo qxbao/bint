@@ -62,3 +62,12 @@ type Helper interface {
 type SubTabber interface {
 	SubTab() string
 }
+
+// Refresher là giao diện tuỳ chọn cho nạp lại tự động khi dữ liệu repository đổi (Options.DataPoll).
+type Refresher interface {
+	// Refresh nạp mềm: giữ con trỏ, bộ lọc, thẻ phụ, mục đã chọn và cache chi tiết; không đổi khung về "đang tải";
+	// lỗi nạp không thay dữ liệu đang hiện bằng trang lỗi.
+	Refresh() tea.Cmd
+	// MarkStale đánh dấu dữ liệu đã cũ: lần Ensure kế tiếp (khi người dùng chuyển tới màn) nạp mềm lại.
+	MarkStale()
+}

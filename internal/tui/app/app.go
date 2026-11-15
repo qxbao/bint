@@ -119,6 +119,9 @@ type Options struct {
 	// ActivePoll là chu kỳ thăm dò bước `bint run` đang chạy trên cây này (dòng trạng thái ở thanh trên); 0 = không thăm
 	// dò (chỉ nạp lúc nạp dữ liệu). Kiểm thử để 0 để drive() không lặp vô hạn.
 	ActivePoll time.Duration
+	// DataPoll là chu kỳ thăm dò thay đổi dữ liệu repository (stat .bint, SQLite, spool; không mở SQLite, không ghi):
+	// đổi thì Tổng quan và màn đang hiện tự nạp lại, các màn chuyên biệt khác chỉ bị đánh dấu cũ; 0 = tắt (kiểm thử).
+	DataPoll time.Duration
 }
 
 // Model là mô hình gốc.
@@ -177,6 +180,12 @@ type Model struct {
 	activeLoading, activeTicking bool
 	// activeWatch dựng ở load() (cả khi nạp lại) để lượt thăm dò chỉ đọc tệp chủ khoá, không mở lại workspace.
 	activeWatch *bintapp.ActiveStepsWatch
+
+	// Thăm dò dữ liệu (Options.DataPoll): dataWatch dựng khi cần; dataSig là chữ ký lần thấy gần nhất (dataSigSet: đã có
+	// nền); dataLoading: đang tính chữ ký; dataTicking: đã hẹn lượt kế; dataPending: có thay đổi chưa nạp (đang Capturing).
+	dataWatch                                         *bintapp.DataWatch
+	dataSig                                           uint64
+	dataSigSet, dataLoading, dataTicking, dataPending bool
 
 	pal      *palette.Model
 	showHelp bool
@@ -384,6 +393,95 @@ func (m *Model) loadActive(resolve bool) tea.Cmd {
 	}
 }
 
+// dataTickMsg: tới hạn thăm dò thay đổi dữ liệu.
+type dataTickMsg struct{}
+
+// dataSigMsg: kết quả tính chữ ký dữ liệu; watch != nil khi vừa dựng; ok=false: chưa dựng được watch (chưa init).
+type dataSigMsg struct {
+	sig   uint64
+	watch *bintapp.DataWatch
+	ok    bool
+}
+
+// startDataPoll hẹn lượt thăm dò dữ liệu đầu tiên (không chồng: đã hẹn hoặc đang tính thì thôi).
+func (m *Model) startDataPoll() tea.Cmd {
+	if m.opts.DataPoll <= 0 || m.dataTicking || m.dataLoading {
+		return nil
+	}
+	m.dataTicking = true
+	return tea.Tick(m.opts.DataPoll, func(time.Time) tea.Msg { return dataTickMsg{} })
+}
+
+// sampleData tính chữ ký dữ liệu trong goroutine (chỉ stat). Chuỗi thăm dò không chồng: lượt kế chỉ hẹn khi kết quả về.
+func (m *Model) sampleData() tea.Cmd {
+	if m.dataLoading {
+		return nil
+	}
+	m.dataLoading = true
+	ctx, dir, w := m.ctx, m.opts.Dir, m.dataWatch
+	return func() tea.Msg {
+		if w == nil {
+			nw, ok := bintapp.ResolveDataWatch(ctx, dir)
+			if !ok {
+				return dataSigMsg{}
+			}
+			w = &nw
+		}
+		return dataSigMsg{sig: w.Signature(), watch: w, ok: true}
+	}
+}
+
+// dataCaptured: có thứ đang nhận phím hoặc giữ dữ liệu cần ổn định (form, hộp thoại, ô lọc, bảng lệnh, trợ giúp,
+// khởi tạo); không tự nạp lại lúc đó, thay đổi được hoãn tới lượt thăm dò sau khi đóng.
+func (m *Model) dataCaptured() bool {
+	if m.notes.dlg != nil || m.exitDlg != nil || m.exiting || m.prompt != nil || m.pal != nil || m.showHelp || m.holdInit || m.needsInit() {
+		return true
+	}
+	sc := m.screens[m.Screen()]
+	return sc != nil && sc.Capturing()
+}
+
+func (m *Model) onDataSig(msg dataSigMsg) (tea.Model, tea.Cmd) {
+	m.dataLoading = false
+	next := m.startDataPoll()
+	if !msg.ok {
+		return m, next
+	}
+	m.dataWatch = msg.watch
+	if !m.dataSigSet {
+		m.dataSig, m.dataSigSet = msg.sig, true // lần đầu chỉ ghi nền
+		return m, next
+	}
+	if msg.sig != m.dataSig {
+		m.dataSig, m.dataPending = msg.sig, true
+	}
+	if !m.dataPending || m.dataCaptured() {
+		return m, next
+	}
+	m.dataPending = false
+	return m, tea.Batch(m.reloadData(), next)
+}
+
+// reloadData nạp lại khi dữ liệu đổi: Tổng quan và màn đang hiện nạp mềm, các màn chuyên biệt khác chỉ bị đánh dấu cũ
+// (nạp khi người dùng tới tab).
+func (m *Model) reloadData() tea.Cmd {
+	cmds := []tea.Cmd{m.load()}
+	cur := m.Screen()
+	for s, sc := range m.screens {
+		r, ok := sc.(ui.Refresher)
+		if !ok {
+			continue
+		}
+		if s == cur {
+			cmds = append(cmds, r.Refresh())
+		} else {
+			r.MarkStale()
+		}
+	}
+	cmds = append(cmds, m.tickIfBusy())
+	return tea.Batch(cmds...)
+}
+
 // Init nạp dữ liệu ban đầu.
 func (m *Model) Init() tea.Cmd { return m.load() }
 
@@ -429,10 +527,19 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil && msg.Data.NotInit {
 			m.initDone = false // kết quả đáng tin gần nhất là chưa init: lần nạp lỗi sau đó không được che nó
 		}
+		if msg.Err == nil && msg.Data.NotInit {
+			m.dataWatch, m.dataSigSet = nil, false // chưa init: dựng lại watch khi có .bint
+		}
 		if m.reloadPending {
 			m.reloadPending = false
 			return m, m.load()
 		}
+		return m, m.startDataPoll()
+	case dataTickMsg:
+		m.dataTicking = false
+		return m, m.sampleData()
+	case dataSigMsg:
+		return m.onDataSig(msg)
 	case activeStepsMsg:
 		m.active, m.activeLoading = msg.steps, false
 		if msg.watch != nil {
