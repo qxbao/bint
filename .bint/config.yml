@@ -89,7 +89,7 @@ memory:
 
 eval:
   # Bint không chạy lệnh nào cho tới khi bạn xác nhận bằng cách điền hai khoá dưới.
-  test_command: "go test ./..."
+  test_command: "go test -count=1 -timeout 30m ./..."
   setup_command: "go mod download"
   suggested_test_command: "go test ./..."   # phát hiện khi init, chưa xác nhận
   suggested_setup_command: "go mod download"  # phát hiện khi init, chưa xác nhận

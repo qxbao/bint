@@ -629,11 +629,20 @@ func (e *Env) DoneInputDetailed(ctx context.Context, t *task.Task) (task.DoneInp
 	}
 	root, _ := e.RootFor(t)
 	v := t.State.LastVerification()
-	if v == nil || in.Worktree == "" || v.Worktree == in.Worktree || v.Tree == "" || !t.State.TracksTouched() {
+	if v == nil || in.Worktree == "" || v.Worktree == in.Worktree || v.Tree == "" {
 		return in, nil
 	}
 	cur, err := WorktreeSnapshot(ctx, root)
 	if err != nil {
+		return in, nil
+	}
+	if cur == v.Tree {
+		// Chỉ HEAD đổi (commit mà cây không đổi): nội dung mã vẫn là thứ lần kiểm chứng đã chạy, vân tay chỉ lệch vì
+		// HEAD. Coi lần kiểm chứng là còn mới.
+		in.Worktree = v.Worktree
+		return in, nil
+	}
+	if !t.State.TracksTouched() {
 		return in, nil
 	}
 	changed, err := DiffPaths(ctx, root, v.Tree, cur)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"bint/internal/detect"
 	"bint/internal/harness/hookcore"
 	"bint/internal/spool"
 	"bint/internal/task"
@@ -357,5 +358,45 @@ func TestEmitIsolationLeavesPathsAsList(t *testing.T) {
 	got, ok := evs[0].Payload["paths"].([]any)
 	if !ok || len(got) != 2 || got[0] != a || got[1] != b {
 		t.Fatalf("paths = %#v, muốn [%q %q]", evs[0].Payload["paths"], a, b)
+	}
+}
+
+// NT-ISO-LEAK (low dựng paths): ở `complete` (driver session, tác vụ worktree), payload paths của missed_by_hook là danh
+// sách đúng từng đường dẫn của lời gọi, mỗi phần tử đi qua detect.Redact (đường dẫn dài hơn 300 ký tự bị cắt, dấu ba chấm
+// cuối). Gỡ hoặc đổi cách dựng paths trong auditIsolation thì test đỏ.
+func TestIsolationAuditPathsPayloadIsRedactedList(t *testing.T) {
+	var short, long string
+	h, _, c, _ := isoRun(t, false, "A1", true, func(h *harness, wt string) []isoCall {
+		short = filepath.Join(h.root, "LEAK1.txt")
+		long = filepath.Join(h.root, strings.Repeat("d", 400)+".txt")
+		return []isoCall{
+			{id: "toolu_in", tool: "Edit", input: map[string]any{"file_path": filepath.Join(wt, "app.txt")}, cwd: wt, result: "updated"},
+			{id: "toolu_short", tool: "Write", input: map[string]any{"file_path": short}, cwd: h.root, result: "created"},
+			{id: "toolu_long", tool: "Edit", input: map[string]any{"file_path": long}, cwd: h.root, result: "updated"},
+		}
+	})
+	if c.Result.Status != "blocked" {
+		t.Fatalf("status bước %q, muốn blocked", c.Result.Status)
+	}
+	byID := map[string][]any{}
+	for _, ev := range isoLeakEvents(t, h) {
+		ps, ok := ev.Payload["paths"].([]any)
+		if !ok {
+			t.Fatalf("paths phải là danh sách: %#v", ev.Payload["paths"])
+		}
+		byID[ev.Payload["tool_use_id"].(string)] = ps
+	}
+	if len(byID) != 2 || byID["toolu_in"] != nil {
+		t.Fatalf("chỉ hai lời gọi ngoài worktree: %v", byID)
+	}
+	if got := byID["toolu_short"]; len(got) != 1 || got[0] != detect.Redact(short, 300) || got[0] != short {
+		t.Fatalf("paths của lời gọi ngắn = %#v, muốn [%q]", got, short)
+	}
+	got := byID["toolu_long"]
+	if len(got) != 1 || got[0] != detect.Redact(long, 300) {
+		t.Fatalf("paths của lời gọi dài = %#v, muốn [Redact(đường dẫn, 300)]", got)
+	}
+	if s := got[0].(string); !strings.HasSuffix(s, "…") || len([]rune(s)) != 301 || s == long {
+		t.Fatalf("đường dẫn dài phải bị cắt 300 ký tự kèm dấu ba chấm: %d ký tự", len([]rune(s)))
 	}
 }

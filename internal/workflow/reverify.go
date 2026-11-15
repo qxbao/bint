@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"bint/internal/task"
@@ -24,8 +25,11 @@ func (e *Env) staleVerifyOnly(ctx context.Context, t *task.Task) ([]string, bool
 		return nil, false
 	}
 	v := t.State.LastVerification()
-	if v == nil || v.Command != cmd || !v.Passed || v.Tree == "" || v.Worktree == "" {
+	if v == nil || v.Command != cmd || v.Tree == "" || v.Worktree == "" {
 		return nil, false
+	}
+	if !v.Passed {
+		return e.failedVerifyOutdated(ctx, t, v)
 	}
 	pg := e.planGateFor(ctx, t)
 	in, err := e.DoneInputDetailed(ctx, t)
@@ -41,6 +45,40 @@ func (e *Env) staleVerifyOnly(ctx context.Context, t *task.Task) ([]string, bool
 		return nil, false
 	}
 	return in.OutsideSinceVerify, true
+}
+
+// failedVerifyOutdated: lần kiểm chứng cuối KHÔNG qua nhưng nội dung mã đã đổi kể từ đó (người sửa nguyên nhân bằng
+// commit vào nhánh tác vụ, cherry-pick...; kể cả tệp Touched): kết quả cũ không còn nói gì về mã hiện tại nên cũng
+// phải chạy lại. Chỉ khi, coi lần kiểm chứng là qua và còn mới, cổng done không còn điều chặn nào khác. Commit chỉ đổi
+// HEAD mà cây giữ nguyên thì không phải thay đổi (kết quả cũ còn đúng). Trả các tệp đã đổi.
+func (e *Env) failedVerifyOutdated(ctx context.Context, t *task.Task, v *task.Verification) ([]string, bool) {
+	root, err := e.RootFor(t)
+	if err != nil {
+		return nil, false
+	}
+	cur, err := WorktreeSnapshot(ctx, root)
+	if err != nil || cur == v.Tree {
+		return nil, false
+	}
+	files, err := DiffPaths(ctx, root, v.Tree, cur)
+	if err != nil || len(files) == 0 {
+		return nil, false
+	}
+	in, err := e.DoneInputDetailed(ctx, t)
+	if err != nil || in.Worktree == "" {
+		return nil, false
+	}
+	// Bản sao phiếu có lần kiểm chứng cuối "qua" và ứng với mã hiện tại: chỉ còn lại các lý do chặn khác.
+	tc := *t
+	tc.State.Verifications = slices.Clone(t.State.Verifications)
+	tc.State.Verifications[len(tc.State.Verifications)-1].Passed = true
+	in.Worktree = v.Worktree
+	in.OutsideSinceVerify = nil
+	in.IgnoreLanding = t.State.NeedsLand()
+	if len(e.doneBlockersFor(ctx, &tc, in, nil, e.planGateFor(ctx, t))) > 0 {
+		return nil, false
+	}
+	return files, true
 }
 
 // reverifyReason là lý do ghi vào Verification.Reason khi Finalize tự kiểm chứng lại.

@@ -246,7 +246,7 @@ func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult,
 		}
 		return nil, err
 	}
-	var conflicts, unmerged []string
+	var conflicts, unmerged, identical []string
 	func() {
 		defer lock.Release()
 		// Nạp lại dưới khoá: một lượt land khác (tay hoặc finalize của bint run resume) có thể đã đưa về trong lúc
@@ -260,7 +260,7 @@ func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult,
 		case task.Terminal(cur.State.Status):
 			err = fmt.Errorf("tác vụ %s đã %s", st.ID, cur.State.Status)
 		default:
-			conflicts, unmerged, err = e.applyLanding(ctx, origin, wt, st.Base, snap, files, o.ThreeWay)
+			identical, conflicts, unmerged, err = e.applyLanding(ctx, origin, wt, st.Base, snap, files, o.ThreeWay)
 		}
 	}()
 	if err != nil {
@@ -271,6 +271,10 @@ func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult,
 		return nil, err
 	}
 	res.Conflicts, res.Unmerged = conflicts, unmerged
+	if len(identical) > 0 {
+		res.Notes = append(res.Notes, fmt.Sprintf("bỏ qua %d tệp đã giống hệt ở cây gốc (thay đổi đã có sẵn, ví dụ cherry-pick từ cây gốc): %s",
+			len(identical), strings.Join(identical, ", ")))
+	}
 	// Tệp không trộn được: bản của tác vụ chỉ còn trong worktree (tree object của ảnh chụp không có ref nào giữ)
 	// nên không gỡ worktree dù không có --keep.
 	keep := o.Keep || len(unmerged) > 0
@@ -318,25 +322,75 @@ func (e *Env) Land(ctx context.Context, ref string, o LandOptions) (*LandResult,
 }
 
 // applyLanding áp bản vá Base→snap (giới hạn trong files) lên cây gốc origin, dưới khoá độc quyền của người gọi.
+// Tệp mà cây gốc đã có đúng nội dung của ảnh chụp (kể cả cả hai phía cùng xoá) không phải xung đột: bỏ qua và trả về
+// trong identical, phần còn lại vẫn áp.
 // Trả các tệp còn xung đột (--3way): conflicts gồm tệp có dấu xung đột và tệp không trộn được; unmerged chỉ
 // gồm tệp không trộn được. Không áp sạch và không --3way: *LandConflictError, cây gốc không đổi.
-func (e *Env) applyLanding(ctx context.Context, origin, wt, base, snap string, files []string, threeWay bool) (conflicts, unmerged []string, err error) {
+func (e *Env) applyLanding(ctx context.Context, origin, wt, base, snap string, files []string, threeWay bool) (identical, conflicts, unmerged []string, err error) {
+	var todo []string
+	for _, f := range files {
+		if sameAsSnapshot(ctx, origin, snap, f) {
+			identical = append(identical, f)
+		} else {
+			todo = append(todo, f)
+		}
+	}
+	files = todo
 	if len(files) == 0 {
-		return nil, nil, nil
+		return identical, nil, nil, nil
 	}
 	patch, err := landPatch(ctx, wt, base, snap, files)
 	if err != nil {
-		return nil, nil, err
+		return identical, nil, nil, err
 	}
 	check := func(p string) error { return gitApply(ctx, origin, p, "--check") }
 	if err := check(patch); err == nil {
-		return nil, nil, gitApply(ctx, origin, patch)
+		return identical, nil, nil, gitApply(ctx, origin, patch)
 	} else if !threeWay {
 		bad := conflictFiles(err.Error(), files)
-		return nil, nil, &LandConflictError{Files: bad, Detail: err.Error()}
+		return identical, nil, nil, &LandConflictError{Files: bad, Detail: err.Error()}
 	} else {
-		return e.threeWayLanding(ctx, origin, wt, base, snap, files, conflictFiles(err.Error(), files))
+		conflicts, unmerged, err = e.threeWayLanding(ctx, origin, wt, base, snap, files, conflictFiles(err.Error(), files))
+		return identical, conflicts, unmerged, err
 	}
+}
+
+// sameAsSnapshot cho biết tệp rel ở cây làm việc của origin đã giống hệt bản của ảnh chụp snap: cùng nội dung (so mã
+// blob, qua bộ lọc của git như lúc commit), hoặc cả hai đều không có tệp. Không chắc (lỗi git, không phải tệp thường,
+// tệp bị xoá một phía) thì trả false để áp/báo xung đột như thường.
+func sameAsSnapshot(ctx context.Context, origin, snap, rel string) bool {
+	out, err := gitrepo.Run(ctx, origin, "--literal-pathspecs", "ls-tree", "-z", snap, "--", rel)
+	if err != nil {
+		return false
+	}
+	snapOID, snapMode := "", ""
+	if meta, _, ok := strings.Cut(strings.TrimRight(out, "\x00"), "\t"); ok {
+		f := strings.Fields(meta) // <mode> <type> <oid>
+		if len(f) != 3 || f[1] != "blob" || f[0] == "120000" {
+			return false
+		}
+		snapOID, snapMode = f[2], f[0]
+	}
+	fi, err := os.Lstat(filepath.Join(origin, filepath.FromSlash(rel)))
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return snapOID == "" // cả hai phía cùng xoá
+	case err != nil || !fi.Mode().IsRegular() || snapOID == "":
+		return false
+	}
+	// Quyền thực thi là một phần của thay đổi (chmod +x): khác quyền thì không "giống hệt". Khi core.fileMode=false
+	// (mặc định trên Windows) git bỏ qua bit này nên cũng không so.
+	if fileModeTracked(ctx, origin) && (snapMode == "100755") != (fi.Mode().Perm()&0o111 != 0) {
+		return false
+	}
+	oid, err := gitrepo.Run(ctx, origin, "--literal-pathspecs", "hash-object", "--", rel)
+	return err == nil && strings.TrimSpace(oid) == snapOID
+}
+
+// fileModeTracked: git của repo có theo dõi bit thực thi không (core.fileMode, mặc định true).
+func fileModeTracked(ctx context.Context, dir string) bool {
+	out, err := gitrepo.Run(ctx, dir, "config", "--bool", "core.fileMode")
+	return err != nil || strings.TrimSpace(out) != "false"
 }
 
 // threeWayLanding: áp phần sạch bằng `git apply`, trộn từng tệp xung đột bằng `git merge-file` (ours = tệp ở cây

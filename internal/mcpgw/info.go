@@ -213,3 +213,17 @@ func (c *AdminClient) Restart(ctx context.Context, service string) (RestartResul
 func (c *AdminClient) Stop(ctx context.Context) error {
 	return c.do(ctx, http.MethodPost, "/admin/stop", nil, nil)
 }
+
+// ReleaseResult là kết quả /admin/release.
+type ReleaseResult struct {
+	Worktree string `json:"worktree"`
+	Released int    `json:"released"`
+}
+
+// ReleaseWorktree dừng upstream và gỡ mọi phân vùng có gốc là worktree wt (đường dẫn tuyệt đối). Daemon cũ chưa có route
+// này trả *StatusError mã 404.
+func (c *AdminClient) ReleaseWorktree(ctx context.Context, wt string) (ReleaseResult, error) {
+	var r ReleaseResult
+	err := c.do(ctx, http.MethodPost, "/admin/release", url.Values{"worktree": {wt}}, &r)
+	return r, err
+}

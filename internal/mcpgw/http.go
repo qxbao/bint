@@ -23,6 +23,7 @@ func (d *Daemon) handler() http.Handler {
 	mux.HandleFunc("/admin/status", d.handleAdminStatus)
 	mux.HandleFunc("/admin/log", d.handleAdminLog)
 	mux.HandleFunc("/admin/restart", d.handleAdminRestart)
+	mux.HandleFunc("/admin/release", d.handleAdminRelease)
 	mux.HandleFunc("/admin/stop", d.handleAdminStop)
 	return d.guard(mux)
 }
@@ -310,13 +311,13 @@ func (d *Daemon) handleNotification(s *session, m rpcMsg) {
 	if json.Unmarshal(m.Params, &p) != nil || len(p.RequestID) == 0 {
 		return
 	}
-	gw, ok := s.cancelCall(p.RequestID) // kết thúc lời gọi đang chờ (ctx bị huỷ) rồi báo upstream nếu đã gửi
+	gw, cp, ok := s.cancelCall(p.RequestID) // kết thúc lời gọi đang chờ (ctx bị huỷ) rồi báo upstream nếu đã gửi
 	if !ok || gw == "" {
 		return
 	}
-	s.p.mu.Lock()
-	up := s.p.up
-	s.p.mu.Unlock()
+	cp.mu.Lock()
+	up := cp.up
+	cp.mu.Unlock()
 	if up != nil {
 		up.cancel(gw, p.Reason)
 	}
@@ -430,4 +431,19 @@ func (d *Daemon) handleAdminStop(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, []byte(`{"stopping":true}`))
 	d.requestStop()
+}
+
+// handleAdminRelease nhả mọi phân vùng của một worktree (cleanupWorktree gọi trước khi gỡ worktree).
+func (d *Daemon) handleAdminRelease(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "dùng POST", http.StatusMethodNotAllowed)
+		return
+	}
+	wt := r.URL.Query().Get("worktree")
+	if wt == "" || !filepath.IsAbs(wt) {
+		http.Error(w, "tham số worktree phải là đường dẫn tuyệt đối", http.StatusBadRequest)
+		return
+	}
+	b, _ := json.Marshal(ReleaseResult{Worktree: wt, Released: d.ReleaseWorktree(wt)})
+	writeJSON(w, http.StatusOK, b)
 }

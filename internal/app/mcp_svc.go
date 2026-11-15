@@ -630,10 +630,11 @@ type MCPIndexResult struct {
 }
 
 // codegraphDB là đường dẫn chỉ mục codegraph so với gốc worktree.
-var codegraphDB = filepath.Join(".codegraph", "codegraph.db")
+var codegraphDB = mcpgw.CodegraphDB
 
 // MCPIndex chạy `codegraph init -y` (worktree chưa có chỉ mục) hoặc `codegraph sync` với cwd là gốc worktree của dir,
 // rồi thêm `.codegraph/` vào git info/exclude (mục 5.5). Đầu ra của codegraph chuyển sang out. Chỉ người (D5).
+// Lõi chạy ở mcpgw.CodegraphInit (dùng chung với bước chuẩn bị worktree của workflow, không qua RequireHuman).
 func MCPIndex(ctx context.Context, dir string, o MCPIndexOptions, out io.Writer) (MCPIndexResult, error) {
 	var res MCPIndexResult
 	if err := RequireHuman("bint mcp index"); err != nil {
@@ -642,133 +643,28 @@ func MCPIndex(ctx context.Context, dir string, o MCPIndexOptions, out io.Writer)
 	if err := o.Validate(); err != nil {
 		return res, err
 	}
-	svc, _ := mcpcat.Lookup(o.Service)
 	m, err := config.LoadMachineMCP()
 	if err != nil {
 		return res, err
 	}
-	reg, ok := m.Services[svc.ID]
-	if !ok {
+	if _, ok := m.Services["codegraph"]; !ok {
 		return res, Usagef("codegraph chưa đăng ký trên máy này (bint mcp add codegraph)")
 	}
 	repo, err := gitrepo.Discover(ctx, dir)
 	if err != nil {
 		return res, fmt.Errorf("index cần chạy trong một worktree git: %w", err)
 	}
-	secrets, err := config.ReadSecrets(config.SecretsPath(m))
-	if err != nil {
-		return res, fmt.Errorf("đọc secrets.env: %w", err)
-	}
-	env, _, _ := mcpgw.Env(svc, reg, secrets)
-	path, err := codegraphIndexBinary(svc, reg)
+	r, err := mcpgw.CodegraphInit(ctx, repo.Toplevel, out)
 	if err != nil {
 		return res, err
 	}
-	args := []string{"sync"}
-	if _, err := os.Stat(filepath.Join(repo.Toplevel, codegraphDB)); err != nil {
-		args = []string{"init", "-y"}
-	}
-	if out == nil {
-		out = io.Discard
-	}
-	warning := codegraphVersionWarning(ctx, path, reg, env)
-	if warning != "" {
-		fmt.Fprintln(out, "cảnh báo: "+warning)
-	}
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = repo.Toplevel, env, out, out
-	if err := cmd.Run(); err != nil {
-		return res, fmt.Errorf("codegraph %s: %w", strings.Join(args, " "), err)
-	}
-	file, added, err := ensureGitExclude(ctx, repo.Toplevel, ".codegraph/")
-	if err != nil {
-		return res, fmt.Errorf("cập nhật git info/exclude: %w", err)
-	}
-	return MCPIndexResult{Service: svc.ID, Action: args[0], Cwd: repo.Toplevel, ExcludeFile: file, ExcludeAdded: added,
-		Binary: path, Warning: warning}, nil
+	return MCPIndexResult{Service: "codegraph", Action: r.Action, Cwd: repo.Toplevel, ExcludeFile: r.ExcludeFile,
+		ExcludeAdded: r.ExcludeAdded, Binary: r.Binary, Warning: r.Warning}, nil
 }
 
-// codegraphVersionWarning: index dùng binary trên PATH thay cho lệnh bọc đã đăng ký (npx/node...) thì so `<bin> --version` với
-// phiên bản đã ghim (reg.Version); khác hoặc không đọc được thì trả cảnh báo. Lệnh đã đăng ký chính là binary thì không cảnh báo.
-func codegraphVersionWarning(ctx context.Context, bin string, reg config.Registration, env []string) string {
-	if reg.Command == "" || bin == reg.Command || reg.Version == "" {
-		return ""
-	}
-	if p, err := exec.LookPath(reg.Command); err == nil && p == bin {
-		return ""
-	}
-	vctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	vc := exec.CommandContext(vctx, bin, "--version")
-	vc.Env = env
-	out, err := vc.Output()
-	got := strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
-	if err == nil && got == strings.TrimPrefix(reg.Version, "v") {
-		return ""
-	}
-	if err != nil || got == "" {
-		got = "không rõ"
-	}
-	return fmt.Sprintf("index chạy %s (phiên bản %s) thay cho lệnh đã đăng ký %q (phiên bản ghim %s): chỉ mục có thể do bản khác với server MCP dựng",
-		bin, got, reg.Command, reg.Version)
-}
-
-// codegraphIndexBinary tìm binary codegraph để chạy init/sync. Lệnh đã đăng ký chỉ dùng được khi chính nó là binary
-// codegraph (tên gốc codegraph, bỏ .exe/.cmd): lệnh bọc như npx/uvx/node mang đối số đã đăng ký mà init/sync không có,
-// nên chạy `npx init -y` sẽ tải nhầm gói `init`. Các trường hợp khác dùng binary của danh mục trên PATH.
-func codegraphIndexBinary(svc mcpcat.Service, reg config.Registration) (string, error) {
-	name := svc.Run[0]
-	if mcpCmdBase(reg.Command) == name {
-		name = reg.Command
-	}
-	path, err := exec.LookPath(name)
-	if err != nil {
-		if name == svc.Run[0] && reg.Command != "" && mcpCmdBase(reg.Command) != name {
-			return "", fmt.Errorf("index cần binary %s trên PATH, nhưng lệnh đã đăng ký là %q (không phải binary %s); cài: %s", name, reg.Command, name, svc.Install)
-		}
-		return "", fmt.Errorf("không tìm thấy lệnh %q trên PATH; cài: %s", name, svc.Install)
-	}
-	return path, nil
-}
-
-// ensureGitExclude thêm dòng pattern vào tệp git info/exclude của repository chứa root (tệp do `git rev-parse --git-path
-// info/exclude` trả về: worktree liên kết dùng chung của git common dir) khi chưa có dòng tương đương.
-func ensureGitExclude(ctx context.Context, root, pattern string) (file string, added bool, err error) {
-	out, err := gitrepo.Run(ctx, root, "rev-parse", "--git-path", "info/exclude")
-	if err != nil {
-		return "", false, err
-	}
-	file = gitrepo.Clean(out)
-	if !filepath.IsAbs(file) {
-		file = filepath.Join(root, file)
-	}
-	bare := strings.TrimSuffix(pattern, "/")
-	data, err := os.ReadFile(file)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return file, false, err
-	}
-	for _, l := range strings.Split(string(data), "\n") {
-		switch strings.TrimSpace(l) {
-		case pattern, "/" + pattern, bare, "/" + bare:
-			return file, false, nil
-		}
-	}
-	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-		return file, false, err
-	}
-	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return file, false, err
-	}
-	defer f.Close()
-	line := pattern + "\n"
-	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
-		line = "\n" + line
-	}
-	if _, err := f.WriteString(line); err != nil {
-		return file, false, err
-	}
-	return file, true, nil
+// ensureGitExclude giữ tên cũ cho mã gọi trong gói app.
+func ensureGitExclude(ctx context.Context, root, pattern string) (string, bool, error) {
+	return mcpgw.EnsureGitExclude(ctx, root, pattern)
 }
 
 // ---- mcp grants ----

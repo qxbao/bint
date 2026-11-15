@@ -156,20 +156,21 @@ func (d *Daemon) toolsCall(r *http.Request, s *session, m rpcMsg) []byte {
 	}
 	readOnly := known && s.svc.IsReadOnly(tool)
 	fillDefaults(s.svc, tool, params, s.root)
+	p := d.routeFor(r.Context(), s, params)
 
 	var res upResult
 	var err error
 	defer func() {
 		out := outcomeOf(res, err)
 		dur := time.Since(start)
-		s.p.note(tool, out, dur)
+		p.note(tool, out, dur)
 		d.record(s, tool, grp.Name, out, dur)
 	}()
 
 	ctx, endCall := s.beginCall(r.Context(), m.ID)
 	defer endCall()
 	if known && grp.Exclusive {
-		if err = s.p.lockExclusive(ctx, s.id, grp); err != nil {
+		if err = p.lockExclusive(ctx, s.id, grp); err != nil {
 			return errorFromErr(m.ID, err)
 		}
 	}
@@ -193,17 +194,17 @@ func (d *Daemon) toolsCall(r *http.Request, s *session, m rpcMsg) []byte {
 	}()
 	if known {
 		var rel func()
-		if rel, err = s.p.acquireSem(ctx, grp); err != nil {
+		if rel, err = p.acquireSem(ctx, grp); err != nil {
 			return errorFromErr(m.ID, err)
 		}
 		held = append(held, rel)
 	}
-	up, aerr := s.p.acquireLazy(ctx)
+	up, aerr := p.acquireLazy(ctx)
 	if aerr != nil {
 		err = aerr
 		return errorFromErr(m.ID, err)
 	}
-	held = append(held, s.p.release)
+	held = append(held, p.release)
 
 	// progressToken của client đổi sang token của gateway; thông báo tiến độ của upstream đổi ngược rồi đẩy lên SSE.
 	if meta := metaOf(params); meta != nil {
@@ -225,7 +226,7 @@ func (d *Daemon) toolsCall(r *http.Request, s *session, m rpcMsg) []byte {
 
 	callCtx, cancel := context.WithTimeout(ctx, d.opts.CallTimeout)
 	defer cancel()
-	res, err = up.call(callCtx, s.id, "tools/call", marshalRaw(params), readOnly, func(gw string) { s.trackCall(m.ID, gw) })
+	res, err = up.call(callCtx, s.id, "tools/call", marshalRaw(params), readOnly, func(gw string) { s.trackCall(m.ID, gw, p) })
 	if err != nil {
 		return errorFromErr(m.ID, err)
 	}
@@ -259,7 +260,7 @@ func (d *Daemon) forward(r *http.Request, s *session, m rpcMsg) []byte {
 	defer s.p.release()
 	callCtx, cancel := context.WithTimeout(ctx, d.opts.CallTimeout)
 	defer cancel()
-	res, err := up.call(callCtx, s.id, m.Method, m.Params, true, func(gw string) { s.trackCall(m.ID, gw) })
+	res, err := up.call(callCtx, s.id, m.Method, m.Params, true, func(gw string) { s.trackCall(m.ID, gw, s.p) })
 	if err != nil {
 		return errorFromErr(m.ID, err)
 	}

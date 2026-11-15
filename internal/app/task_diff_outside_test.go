@@ -113,3 +113,49 @@ func TestDiffTaskNoNoteWhenNothingExcluded(t *testing.T) {
 		t.Fatalf("%+v %v", d, err)
 	}
 }
+
+// NT-WF-BASELINE.2: `--all` của tác vụ shared hiện MỌI tệp khác BaseTree, kể cả tệp thuộc Touched của một tác vụ
+// shared khác đang chạy trên cùng cây (ScopeFiles loại các tệp đó vì không quy cho tác vụ này). Diff mặc định vẫn chỉ
+// hiện tệp Touched của chính tác vụ.
+func TestDiffTaskAllShowsOtherRunningTaskFiles(t *testing.T) {
+	ws, root, id := taskRepo(t)
+	ctx := context.Background()
+	if _, _, err := ApproveTask(ctx, ws, TaskApproveOptions{Ref: id}); err != nil {
+		t.Fatal(err)
+	}
+	if res := runFeat(t, ws, id); res.Status != task.StatusInReview {
+		t.Fatalf("b-feat: %+v", res)
+	}
+	// Tác vụ shared thứ hai đang chạy trên cùng cây, đã sửa other.txt (Touched của nó).
+	o := TaskNewDefaults(ws.K.Config)
+	o.Request, o.VerifyCommand, o.Criteria = "Việc khác", "git --version", []string{"xong"}
+	c, err := NewTask(ctx, ws, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ws.Tasks.Update(c.Task.State.ID, ws.Now(), func(tk *task.Task) error {
+		tk.State.Worktree = root
+		tk.State.Touched = []string{"other.txt"}
+		return tk.State.Apply(task.StatusInProgress, "test", "đang chạy", "2026-01-01T00:00:00Z")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "other.txt"), []byte("của tác vụ khác\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := DiffTask(ctx, ws, TaskDiffOptions{Ref: id, NameOnly: true, All: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Fields(d.Text); strings.Join(got, ",") != "a.go,other.txt" {
+		t.Fatalf("--all phải hiện cả tệp của tác vụ khác: %q", d.Text)
+	}
+	d, err = DiffTask(ctx, ws, TaskDiffOptions{Ref: id, NameOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Fields(d.Text); strings.Join(got, ",") != "a.go" || len(d.Excluded) != 1 || d.Excluded[0] != "other.txt" {
+		t.Fatalf("mặc định chỉ tệp Touched: %q excluded=%v", d.Text, d.Excluded)
+	}
+}

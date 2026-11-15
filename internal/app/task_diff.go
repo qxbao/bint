@@ -112,8 +112,12 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 		if err := checkTreesPresent(ctx, root, t, res.From, ""); err != nil {
 			return res, err
 		}
-		useSpec = true
-		if o.All || t.State.InWorktree() {
+		useSpec = !o.All // --all: mọi tệp khác BaseTree, kể cả tệp Touched của tác vụ khác đang chạy trên cùng cây
+		switch {
+		case o.All:
+			// Không lọc: ScopeFiles loại tệp thuộc Touched của tác vụ shared khác (không quy cho tác vụ này), nên
+			// dùng nó thì --all không hiện lại đúng những tệp đó.
+		case t.State.InWorktree():
 			// Toàn bộ phạm vi của tác vụ: Touched cùng thay đổi ngoài b-feat quy cho nó (cổng phạm vi dùng tập này).
 			// Tác vụ worktree luôn dùng tập này: worktree riêng không có người viết khác, và Land đưa mọi tệp trong
 			// đó về cây gốc, nên ẩn tệp ngoài Touched sẽ giấu khỏi reviewer đúng những gì sắp được đưa về.
@@ -124,7 +128,7 @@ func DiffTask(ctx context.Context, ws *TaskWS, o TaskDiffOptions) (TaskDiffResul
 				res.Note = "tác vụ chưa sửa tệp nào (b-feat chưa chạy hoặc không đổi gì)"
 				return res, nil
 			}
-		} else {
+		default:
 			// Mặc định chỉ tệp của chính tác vụ: người hay tác vụ khác commit/sửa vào cùng cây sau BaseTree làm
 			// reviewer kết luận sai nếu lẫn vào đây.
 			spec, hideOthers = t.State.Touched, true
