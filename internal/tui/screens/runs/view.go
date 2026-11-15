@@ -228,6 +228,16 @@ func (m *Model) detailLines(env ui.Env, d *app.RunDetail, w int) []string {
 	kv("status", status)
 	kv("harness", shared.Dash(run.Harness.String)+"  "+m.t("rn.f.session")+" "+shared.Dash(run.SessionID.String))
 	kv("model", run.Model.String)
+	cost := ""
+	if d.CostUSD != nil {
+		cost = fmt.Sprintf("$%.4f", *d.CostUSD)
+	}
+	kv("cost", cost)
+	tok := ""
+	if d.InputTokens != nil || d.OutputTokens != nil {
+		tok = m.t("rn.tokens", i18n.A{"in": tokenStr(d.InputTokens), "out": tokenStr(d.OutputTokens)})
+	}
+	kv("tokens", tok)
 	kv("git", shared.Dash(run.GitBranch.String)+" @ "+shared.Dash(run.GitBaseCommit.String))
 	kv("worktree", run.Worktree.String)
 	kv("time", shared.Time(run.StartedAt.String)+" → "+shared.Time(run.FinishedAt.String)+" ("+fmtDuration(run)+")")
@@ -434,4 +444,12 @@ func (m *Model) LessonCursor() *evolve.LessonRow {
 		return nil
 	}
 	return rows[m.llst.Cursor].row
+}
+
+// tokenStr là số token hoặc "-" khi không có.
+func tokenStr(n *int64) string {
+	if n == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%d", *n)
 }

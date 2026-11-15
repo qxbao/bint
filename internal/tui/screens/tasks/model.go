@@ -391,7 +391,7 @@ func (m *Model) wantDetail() tea.Cmd {
 			return DetailMsg{ID: id, Detail: d, Err: err}
 		})
 	}
-	if m.sub == subRuns && !m.runsAsk[id] {
+	if (m.sub == subRuns || m.sub == subInfo) && !m.runsAsk[id] {
 		m.runsAsk[id] = true
 		ctx, dir, rl, ro := context.Background(), m.o.Dir, m.o.Runs, m.o.ReadOnly
 		cmds = append(cmds, func() tea.Msg {

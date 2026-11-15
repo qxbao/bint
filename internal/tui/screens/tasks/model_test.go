@@ -107,7 +107,10 @@ func newRig(t *testing.T, o tasks.Options) *rig {
 	}
 	r := &rig{t: t}
 	o.Loader = func(context.Context, string, bool) (tasks.Data, error) { return data(root), nil }
-	o.Detailer, o.Runs = detailer, runs
+	o.Detailer = detailer
+	if o.Runs == nil {
+		o.Runs = runs
+	}
 	o.Gate = func(id string) actions.Availability {
 		if r.gate != nil {
 			return r.gate(id)

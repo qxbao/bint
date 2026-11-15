@@ -164,7 +164,7 @@ func newModel(t *testing.T, o Options, data overview.Data, w, h int) *Model {
 	}
 	if o.TasksRuns == nil {
 		o.TasksRuns = func(context.Context, string, string, bool) (bintapp.TaskRunsResult, error) {
-			return bintapp.TaskRunsResult{Runs: []bintapp.TaskRunRow{{RunID: "01RUN000001", Workflow: "b-do", Status: "completed", Duration: "12s"}}}, nil
+			return sampleTaskRuns(), nil
 		}
 	}
 	if o.RunsLoader == nil {
@@ -253,3 +253,16 @@ func plain(s string) string { return ansi.Strip(s) }
 func lines(s string) []string { return strings.Split(plain(s), "\n") }
 
 func allModes() []theme.Mode { return theme.Modes }
+
+// sampleTaskRuns: lượt điều phối b-do với hai lượt con (b-feat có chi phí, b-review thiếu chi phí).
+func sampleTaskRuns() bintapp.TaskRunsResult {
+	n := func(v int64) *int64 { return &v }
+	c := func(v float64) *float64 { return &v }
+	rows := []bintapp.TaskRunRow{
+		{RunID: "01RUN000001", Workflow: "b-do", Status: "completed", Duration: "12s", CostUSD: c(0.42)},
+		{RunID: "01RUN000002", Workflow: "b-feat", Parent: "01RUN000001", Status: "completed", Duration: "8s", CostUSD: c(0.3), InputTokens: n(12000), OutputTokens: n(900), DurationMS: n(8000)},
+		{RunID: "01RUN000003", Workflow: "b-review", Parent: "01RUN000001", Status: "completed", Duration: "4s", InputTokens: n(3000), OutputTokens: n(200), DurationMS: n(4000)},
+	}
+	steps, total, partial := bintapp.StepCosts(rows, []string{"b-feat", "b-review"})
+	return bintapp.TaskRunsResult{Runs: rows, Steps: steps, TotalUSD: total, TotalPartial: partial}
+}

@@ -1,6 +1,9 @@
 package overview
 
 import (
+	"strings"
+
+	"github.com/charmbracelet/x/ansi"
 	"reflect"
 	"testing"
 
@@ -59,5 +62,32 @@ func TestCenterVertically(t *testing.T) {
 	// nội dung dài hơn h: không đệm, không cắt
 	if got := centerVertically(lines, 2); len(got) != 3 {
 		t.Errorf("h nhỏ hơn nội dung: %d dòng", len(got))
+	}
+}
+
+func TestRunsLineStackedBarAndLegend(t *testing.T) {
+	runs := map[string]int{"completed": 33, "failed": 3, "interrupted": 1, "running": 5}
+	for _, mode := range []theme.Mode{theme.Dark, theme.Mono} {
+		env := ui.Env{Th: theme.New(mode), Cat: i18n.MustLoad("vi")}
+		for _, vw := range []int{12, 20, 40, 80} {
+			line := runsLine(env, 42, runs, vw)
+			plain := ansi.Strip(line)
+			if !strings.HasPrefix(plain, "42") {
+				t.Fatalf("vw=%d: phải mở đầu bằng tổng: %q", vw, plain)
+			}
+			if vw >= 80 { // đủ chỗ: thanh xếp chồng và ký hiệu khớp chú giải
+				for _, g := range []string{"█", "▓", "▚", "▞"} {
+					if !strings.Contains(plain, g) {
+						t.Fatalf("vw=%d: thiếu ký hiệu %s: %q", vw, g, plain)
+					}
+				}
+			}
+			if vw >= 62 && ansi.StringWidth(plain) > vw {
+				t.Fatalf("vw=%d: dòng rộng %d, phải gọn trên một dòng: %q", vw, ansi.StringWidth(plain), plain)
+			}
+		}
+	}
+	if got := runsLine(ui.Env{Th: theme.New(theme.Mono), Cat: i18n.MustLoad("vi")}, 0, nil, 40); got != "0" {
+		t.Fatalf("không có lượt: %q", got)
 	}
 }

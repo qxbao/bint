@@ -811,18 +811,20 @@ func TestOverviewCentersVerticallyInTallWindow(t *testing.T) {
 
 // Trạng thái lượt chạy được dịch (vi/en), không còn key=value tiếng Anh.
 func TestRunStatusesTranslated(t *testing.T) {
-	vi := plain(newModel(t, Options{Mode: theme.Mono, Lang: "vi"}, sampleData(), 100, 30).Render())
+	// Chú giải có ký hiệu khớp thanh xếp chồng ("█ 33 xong"); bỏ ký hiệu để so cụm chữ đã dịch.
+	noGlyph := strings.NewReplacer("█ ", "", "▓ ", "", "▒ ", "", "▚ ", "", "▞ ", "", "▪ ", "").Replace
+	vi := noGlyph(plain(newModel(t, Options{Mode: theme.Mono, Lang: "vi"}, sampleData(), 100, 30).Render()))
 	if !strings.Contains(vi, "33 xong · 3 lỗi · 1 bị ngắt · 5 đang chạy") || strings.Contains(vi, "completed=") {
 		t.Errorf("vi:\n%s", vi)
 	}
-	en := plain(newModel(t, Options{Mode: theme.Mono, Lang: "en"}, sampleData(), 100, 30).Render())
+	en := noGlyph(plain(newModel(t, Options{Mode: theme.Mono, Lang: "en"}, sampleData(), 100, 30).Render()))
 	if !strings.Contains(en, "33 done · 3 failed · 1 interrupted · 5 running") {
 		t.Errorf("en:\n%s", en)
 	}
 	// Trạng thái lạ hiện nguyên tên; trạng thái 0 bị bỏ.
 	d := sampleData()
 	d.Status.Runs = map[string]int{"completed": 2, "failed": 0, "paused": 4}
-	if out := plain(newModel(t, Options{Mode: theme.Mono}, d, 100, 30).Render()); !strings.Contains(out, "2 xong · 4 paused") {
+	if out := noGlyph(plain(newModel(t, Options{Mode: theme.Mono}, d, 100, 30).Render())); !strings.Contains(out, "2 xong · 4 paused") {
 		t.Errorf("trạng thái lạ:\n%s", out)
 	}
 }

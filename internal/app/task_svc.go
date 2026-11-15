@@ -866,12 +866,116 @@ type TaskRunRow struct {
 	CostUSD  *float64 `json:"cost_usd"`
 	Verify   string   `json:"verification_status,omitempty"`
 	Reason   string   `json:"end_reason,omitempty"`
+
+	Model        string `json:"model,omitempty"`
+	Harness      string `json:"harness,omitempty"`
+	InputTokens  *int64 `json:"input_tokens,omitempty"`
+	OutputTokens *int64 `json:"output_tokens,omitempty"`
+	// DurationMS không vào JSON (Duration đã là chuỗi); dùng để cộng thời lượng theo bước.
+	DurationMS *int64 `json:"-"`
+}
+
+// TaskStepCost là tổng hợp các lượt con của một bước flow.
+type TaskStepCost struct {
+	Step  string
+	Count int
+	// CostUSD là phần chi phí đã biết; nil khi không lượt nào báo chi phí.
+	CostUSD *float64
+	// CostMissing: có lượt con đã kết thúc không báo chi phí (tổng chỉ là một phần).
+	CostMissing  bool
+	InputTokens  int64
+	OutputTokens int64
+	// LastStatus là trạng thái lượt gần nhất của bước ("" khi chưa chạy).
+	LastStatus string
+	Duration   time.Duration
+	// InFlow false: bước không thuộc flow (bước lạ).
+	InFlow bool
 }
 
 // TaskRunsResult là tác vụ và các lượt chạy gắn với nó.
 type TaskRunsResult struct {
 	Task *task.Task
 	Runs []TaskRunRow
+	// Steps: tổng hợp theo bước của flow (đúng thứ tự flow, bước chưa chạy vẫn có), rồi bước lạ.
+	Steps []TaskStepCost
+	// TotalUSD là tổng phần đã biết (nil khi không lượt con nào báo); TotalPartial khi thiếu chi phí ở đâu đó.
+	TotalUSD     *float64
+	TotalPartial bool
+}
+
+// StepCosts tổng hợp chi phí theo bước. Chỉ cộng lượt con (có Parent): lượt điều phối mang tổng của các con nên cộng
+// chung sẽ đếm đôi. Workflow của lượt con là id bước. Lượt còn chạy chưa tính là thiếu chi phí.
+func StepCosts(rows []TaskRunRow, flowSteps []string) (steps []TaskStepCost, total *float64, partial bool) {
+	idx := map[string]int{}
+	for _, id := range flowSteps {
+		if _, dup := idx[id]; dup {
+			continue
+		}
+		idx[id] = len(steps)
+		steps = append(steps, TaskStepCost{Step: id, InFlow: true})
+	}
+	for _, r := range rows {
+		if r.Parent == "" {
+			continue
+		}
+		i, ok := idx[r.Workflow]
+		if !ok {
+			i = len(steps)
+			idx[r.Workflow] = i
+			steps = append(steps, TaskStepCost{Step: r.Workflow})
+		}
+		st := &steps[i]
+		st.Count++
+		st.LastStatus = r.Status
+		if r.CostUSD != nil {
+			c := *r.CostUSD
+			if st.CostUSD != nil {
+				c += *st.CostUSD
+			}
+			st.CostUSD = &c
+			if total == nil {
+				z := 0.0
+				total = &z
+			}
+			*total += *r.CostUSD
+		} else if r.Status != "running" {
+			st.CostMissing = true
+			partial = true
+		}
+		if r.InputTokens != nil {
+			st.InputTokens += *r.InputTokens
+		}
+		if r.OutputTokens != nil {
+			st.OutputTokens += *r.OutputTokens
+		}
+		if r.DurationMS != nil {
+			st.Duration += time.Duration(*r.DurationMS) * time.Millisecond
+		}
+	}
+	return steps, total, partial
+}
+
+// flowStepIDs trả id các bước của flow (nhúng trước, rồi flow tuỳ biến); lỗi thì rỗng.
+func flowStepIDs(ws *TaskWS, name string) []string {
+	if name == "" {
+		return nil
+	}
+	d, ok := flow.GetBuiltin(name)
+	if !ok {
+		root := ws.ConfigRoot
+		if root == "" {
+			root = ws.Root
+		}
+		var err error
+		if d, err = flow.Get(root, name); err != nil {
+			return nil
+		}
+	}
+	ids := make([]string, 0, len(d.Steps))
+	for _, s := range d.Steps {
+		ids = append(ids, s.ID)
+	}
+	return ids
 }
 
 // TaskRuns liệt kê lượt chạy của tác vụ (hoặc của tác vụ chứa lượt run-id).
@@ -917,13 +1021,27 @@ func TaskRuns(ctx context.Context, ws *TaskWS, o TaskRunsOptions) (TaskRunsResul
 			dur = (time.Duration(r.DurationMS.Int64) * time.Millisecond).Round(time.Second).String()
 		}
 		row := TaskRunRow{RunID: r.RunID, Workflow: r.Workflow.String, Parent: m.ParentRunID.String, Status: r.Status,
-			Started: r.StartedAt.String, Duration: dur, Verify: m.VerificationStatus.String, Reason: r.EndReason.String}
+			Started: r.StartedAt.String, Duration: dur, Verify: m.VerificationStatus.String, Reason: r.EndReason.String,
+			Model: r.Model.String, Harness: r.Harness.String}
+		if r.DurationMS.Valid {
+			d := r.DurationMS.Int64
+			row.DurationMS = &d
+		}
+		if m.InputTokens.Valid {
+			n := m.InputTokens.Int64
+			row.InputTokens = &n
+		}
+		if m.OutputTokens.Valid {
+			n := m.OutputTokens.Int64
+			row.OutputTokens = &n
+		}
 		if m.CostUSD.Valid {
 			c := m.CostUSD.Float64
 			row.CostUSD = &c
 		}
 		res.Runs = append(res.Runs, row)
 	}
+	res.Steps, res.TotalUSD, res.TotalPartial = StepCosts(res.Runs, flowStepIDs(ws, t.State.Workflow))
 	return res, nil
 }
 

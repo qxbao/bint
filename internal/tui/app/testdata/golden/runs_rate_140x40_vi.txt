@@ -8,23 +8,23 @@
 │ │   ✗ 000002 failed      codex   11-11 09:00 thất bại              ││ Trạng thái  completed (exit)                                     │ │
 │ │   ✓ 000001 completed   claude  11-11 08:00 thành công            ││ Harness     claude  phiên -                                      │ │
 │ │                                                                  ││ Mô hình     claude-opus-5-5                                      │ │
+│ │                                                                  ││ Chi phí     -                                                    │ │
+│ │                                                                  ││ Token       -                                                    │ │
 │ │                                                                  ││ Git         main @ 46e924d                                       │ │
 │ │                                                                  ││ Worktree    -                                                    │ │
 │ │                                                                  ││ Thời gian   2026-11-11 10:00 → 2026-11-11 10:00 (2m5s)           │ │
 │ │                                                                  ││ Nhãn        · chưa gán nhãn                                      │ │
 │ │                                                                  ││             không có tín hiệu đủ mạnh                            │ │
 │ │                                                                  ││                                                                  │ │
-│ │                                                                  ││ Tín hiệu kết quả (1)                                             │ │
-│ │                                                                  ││   - rating strong human ghi chú của người chấm                   │ │
 │ │                         ┌─│Chấm lượt 01RUN000003: xấu (bad)│───────────────────────────────────────────────┐                         │ │
-│ │                         │                                                                                  │                         │ │
+│ │                         │                                                                                  │i chấm                   │ │
 │ │                         │ Ghi chú: ▏tuỳ chọn; chấm lại thì lần sau ghi đè lần trước                        │                         │ │
 │ │                         │                                                                                  │                         │ │
 │ │                         │ [Enter] Chấm   [Esc] Huỷ                                                         │                         │ │
-│ │                         └──────────────────────────────────────────────────────────────────────────────────┘":"claude-opus-5-5"}     │ │
+│ │                         └──────────────────────────────────────────────────────────────────────────────────┘                         │ │
+│ │                                                                  ││ Sự kiện (2)                                                      │ │
+│ │                                                                  ││ 2026-11-11 08:00 session.started {"model":"claude-opus-5-5"}     │ │
 │ │                                                                  ││ 2026-11-11 08:01 file.modified {"path":"internal/db/db.go"}      │ │
-│ │                                                                  ││                                                                  │ │
-│ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │

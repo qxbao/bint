@@ -37,11 +37,17 @@ func sampleRuns() rnscreen.Data {
 func sampleRunDetail(_ context.Context, _ string, id string, _ bool) (*bintapp.RunDetail, error) {
 	for _, r := range sampleRuns().Rows {
 		if r.Run.RunID == id {
-			return &bintapp.RunDetail{Run: r.Run, Label: r.Label, Reason: r.Reason,
+			cost, in := 0.4213, int64(15200)
+			d := &bintapp.RunDetail{Run: r.Run, Label: r.Label, Reason: r.Reason,
 				Signals:   []runlog.Signal{{Kind: "rating", Positive: r.Label == runlog.LabelSuccess, Strength: "strong", Source: "human", Detail: "ghi chú của người chấm"}},
 				Artifacts: []runlog.Artifact{{Kind: "file.modified", Path: "internal/db/db.go", Count: 2}},
 				Events: []runlog.EventRow{{EventID: "e1", Type: "session.started", Source: "hook:claude", Timestamp: "2026-11-11T08:00:00.000Z", Payload: `{"model":"claude-opus-5-5"}`},
-					{EventID: "e2", Type: "file.modified", Source: "hook:claude", Timestamp: "2026-11-11T08:01:00.000Z", Payload: `{"path":"internal/db/db.go"}`}}}, nil
+					{EventID: "e2", Type: "file.modified", Source: "hook:claude", Timestamp: "2026-11-11T08:01:00.000Z", Payload: `{"path":"internal/db/db.go"}`}}}
+			if id == "01RUN000001" { // chỉ lượt này có chi phí và token; các lượt khác hiện dấu -
+				out := int64(830)
+				d.CostUSD, d.InputTokens, d.OutputTokens = &cost, &in, &out
+			}
+			return d, nil
 		}
 	}
 	return nil, errors.New("không có lượt")
