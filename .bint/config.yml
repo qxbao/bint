@@ -155,7 +155,7 @@ tasks:
 workflow:                   # workflow gốc do Bint điều phối (bint run)
   verify:
     scope: affected
-    affected_command: "go test -count=1 {test_dirs}"
+    affected_command: "go test -count=1 -timeout 30m {test_dirs}"
   max_review_rounds: 2      # số vòng review → sửa tối đa của b-do
   timeout_minutes: 90       # mỗi bước agent
   verify_timeout_minutes: 30   # lệnh kiểm chứng của phiếu tác vụ
