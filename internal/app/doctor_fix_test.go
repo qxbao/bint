@@ -79,6 +79,32 @@ func TestDoctorFixPrunableWorktree(t *testing.T) {
 	}
 }
 
+// Thư mục rỗng còn sót (git đã bỏ worktree nhưng không xoá được thư mục) phải được dọn, không báo "xoá tay".
+func TestDoctorFixEmptyLeftoverDir(t *testing.T) {
+	ws, root, _ := taskRepo(t)
+	p := addOrphanWorktree(t, ws, root, "01EMPTY")
+	if err := os.RemoveAll(p); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Git(t, root, "worktree", "prune")
+	if err := os.MkdirAll(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := orphanCheck(t, root)
+	if c == nil || c.Fix == nil {
+		t.Fatalf("%+v", c)
+	}
+	if _, err := FixDoctor(context.Background(), root, DoctorFixOptions{Kind: FixWorktree, Path: c.Fix.Path, TaskID: c.Fix.TaskID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p); err == nil {
+		t.Fatal("thư mục rỗng còn")
+	}
+	if orphanCheck(t, root) != nil {
+		t.Fatal("doctor vẫn báo worktree mồ côi")
+	}
+}
+
 func TestDoctorFixRefusesUnsafeTargets(t *testing.T) {
 	ws, root, id := taskRepo(t)
 	ctx := context.Background()

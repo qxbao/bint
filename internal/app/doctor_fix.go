@@ -91,7 +91,9 @@ func FixDoctor(ctx context.Context, dir string, o DoctorFixOptions) (DoctorFixRe
 	if err := gitrepo.WorktreeRemove(ctx, env.Root, orph.Path); err != nil {
 		return res, fmt.Errorf("gỡ worktree %s: %w", orph.Path, err)
 	}
-	if _, err := os.Stat(orph.Path); err == nil {
+	// git có thể để lại thư mục rỗng (trên Windows không rmdir được khi còn handle, hoặc thư mục rỗng sót từ trước):
+	// os.Remove chỉ xoá được thư mục rỗng nên an toàn; còn nội dung thì người dùng phải tự xem.
+	if _, err := os.Stat(orph.Path); err == nil && os.Remove(orph.Path) != nil {
 		return res, fmt.Errorf("worktree %s đã được git bỏ nhưng thư mục vẫn còn: xoá tay sau khi kiểm tra nội dung", orph.Path)
 	}
 	res.Actions = append(res.Actions, "đã gỡ worktree "+orph.Path)
