@@ -19,6 +19,6 @@
 │ │                                                                          │ │
 │ │   ⓘ ⟦Knowledge type; only humans can approve a rule~~~~~~~~~~~~~~~~~~~⟧  │ │
 │ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint knowledge add                 │ │
-│ │   Enter ⟦submit~~~⟧  Tab ⟦next field~~~~⟧  Ctrl+Y ⟦copy command~~~~~⟧  … │ │
+│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
 └─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

@@ -3,6 +3,7 @@
 package confirm
 
 import (
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,6 +18,39 @@ import (
 
 // ModalZone là id vùng phủ cả hộp thoại: mô hình gốc coi mọi bấm ngoài các vùng này là bấm ngoài hộp.
 const ModalZone = "dlg"
+
+// Vùng bấm chuột của ô: "cf:<i>" là ô chọn i, "cf:in" là dòng ô nhập.
+const zonePrefix = "cf:"
+
+// IsZone cho biết id là vùng ô chọn/ô nhập của hộp.
+func IsZone(id string) bool { return strings.HasPrefix(id, zonePrefix) }
+
+// Click xử lý bấm vào vùng id: bấm ô chọn đảo ô và đặt tiêu điểm vào nó, bấm dòng ô nhập đặt tiêu điểm vào ô nhập. Không bao giờ
+// trả Yes/No (nút [Enter]/[Esc] là vùng key:). Trả true nếu id thuộc hộp này.
+func (m *Model) Click(id string) bool {
+	if !IsZone(id) {
+		return false
+	}
+	rest := strings.TrimPrefix(id, zonePrefix)
+	if rest == "in" {
+		if !m.Input {
+			return false
+		}
+		m.focus = len(m.Checks)
+		m.showErr = false
+		return true
+	}
+	i, err := strconv.Atoi(rest)
+	if err != nil || i < 0 || i >= len(m.Checks) {
+		return false
+	}
+	if len(m.On) < len(m.Checks) {
+		m.On = append(m.On, make([]bool, len(m.Checks)-len(m.On))...)
+	}
+	m.focus = i
+	m.On[i] = !m.On[i]
+	return true
+}
 
 // Result là kết quả xử lý một phím.
 type Result int
@@ -135,6 +169,18 @@ func (m *Model) Update(msg tea.KeyPressMsg) Result {
 	return Pending
 }
 
+// Paste chèn chữ dán vào ô nhập khi tiêu điểm đang ở ô nhập; trả true nếu có chữ được chèn.
+func (m *Model) Paste(s string) bool {
+	if !m.onInput() {
+		return false
+	}
+	if m.In.Paste(s) {
+		m.showErr = false
+		return true
+	}
+	return false
+}
+
 // View vẽ hộp rộng w, cao tối đa h (cao vừa nội dung).
 func (m *Model) View(th theme.Theme, w, h int) []string {
 	iw := max(w-4, 10)
@@ -159,7 +205,7 @@ func (m *Model) View(th theme.Theme, w, h int) []string {
 			default:
 				l = "  " + l
 			}
-			extra = append(extra, l)
+			extra = append(extra, zone.Mark(zonePrefix+strconv.Itoa(i), l))
 		}
 	}
 	if m.Input {
@@ -167,7 +213,7 @@ func (m *Model) View(th theme.Theme, w, h int) []string {
 		if m.In.Text == "" && m.Placeholder != "" {
 			line = text.Pad(input.Cursor+th.S(theme.Muted, text.Truncate(m.Placeholder, max(iw-text.Width(m.Label)-4, 1))), max(iw-text.Width(m.Label)-2, 4))
 		}
-		extra = append(extra, "", th.S(theme.Accent, m.Label)+": "+line)
+		extra = append(extra, "", zone.Mark(zonePrefix+"in", th.S(theme.Accent, m.Label)+": "+line))
 		if m.showErr && m.RequiredMsg != "" {
 			extra = append(extra, th.S(theme.Err, "✗ "+m.RequiredMsg))
 		}
@@ -204,3 +250,6 @@ func (m *Model) View(th theme.Theme, w, h int) []string {
 	}
 	return box
 }
+
+// CanPaste cho biết tiêu điểm đang ở ô nhập (Paste có tác dụng).
+func (m Model) CanPaste() bool { return m.onInput() }

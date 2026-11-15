@@ -40,6 +40,12 @@ type Pointer interface {
 	Wheel(pane string, dy int) tea.Cmd
 }
 
+// Paster là giao diện tuỳ chọn của màn hình có ô nhập: nhận chữ dán (tea.PasteMsg hoặc Ctrl+V) và chèn vào ô đang nhận phím
+// theo cùng thứ tự với Key (hộp thoại, form, ô lọc). Chỉ gọi khi Capturing đúng.
+type Paster interface {
+	Paste(s string) tea.Cmd
+}
+
 // Toaster là giao diện tuỳ chọn: trả nguyên văn thông báo hiện tại của màn hình (rỗng = không có), để hộp Thông báo của
 // mô hình gốc hiện đủ nội dung dù thanh phụ đã rút gọn bằng "…".
 type Toaster interface {

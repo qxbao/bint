@@ -62,7 +62,9 @@ ui.steps_running:
   other: "{count} steps are running on this tree"
 ui.locked.agent: "humans only"
 ui.mouse.on: "Mouse is on."
-ui.mouse.off: "Mouse is off (use the keyboard; turn it on again from the command palette)."
+ui.mouse.off: "Mouse is off (use the keyboard; turn it on again from the command palette). With the mouse off, select text with the terminal to copy."
+ui.copied: "Copied {n} characters to the clipboard."
+ui.paste.err: "Cannot read the clipboard: {err}"
 notices.title: "Notices"
 notices.current: "Current"
 notices.recent:
@@ -81,6 +83,11 @@ palette.empty: "No matching action."
 help.title: "Help"
 help.nav: "Jump to a tab"
 help.global: "Global"
+help.paste: "Paste clipboard text into the open input"
+help.key.drag: "Drag"
+help.select: "Select with the mouse (drag left button) and copy to the clipboard"
+help.key.shift_drag: "Shift+drag"
+help.select_native: "Select with the terminal (hold Shift while dragging, or turn the mouse off from the command palette)"
 
 # --- Overview ---
 overview.info.title: "Repository"

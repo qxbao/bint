@@ -13,7 +13,7 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint mcp add jira                  │ │
-│ │   Enter ⟦submit~~~⟧  Tab ⟦next field~~~~⟧  Ctrl+Y ⟦copy command~~~~~⟧  … │ │
+│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
 │ │  ──────────────────────────────────────────────────────────────────────  │ │
 │ │  ⟦Secret values are not entered here: write them to secrets.env          │ │
 │ │  yourself (NAME=value, mode 0600). This form takes variable names        │ │

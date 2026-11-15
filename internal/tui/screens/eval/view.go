@@ -15,6 +15,7 @@ import (
 	"bint/internal/tui/components/logview"
 	"bint/internal/tui/components/markdown"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/screens/shared"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
@@ -517,7 +518,7 @@ func (m *Model) logBox(env ui.Env, w, h int) string {
 		return frame.Box{Title: m.t("eval.log.title"), TitleAt: frame.Left, Focused: true}.Render(th, w, h, "\n "+th.S(theme.Muted, m.t("eval.log.none")))
 	}
 	state := m.t("eval.log.running", i18n.A{"label": j.Label})
-	top := th.S(theme.Key, "Esc") + " " + th.S(theme.Muted, m.t("eval.log.cancel"))
+	top := zone.Mark(footer.ZoneID("esc"), th.S(theme.Key, "Esc")+" "+th.S(theme.Muted, m.t("eval.log.cancel")))
 	if !j.Ended.IsZero() {
 		state = m.t("eval.log.finished", i18n.A{"label": j.Label})
 		if j.Err != nil {

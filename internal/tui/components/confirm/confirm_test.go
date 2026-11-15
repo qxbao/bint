@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 )
 
@@ -115,5 +116,44 @@ func TestConfirmChecks(t *testing.T) {
 	}
 	if m.Update(key("enter")) != Yes || m.Update(key("esc")) != No {
 		t.Fatal("Enter/Esc")
+	}
+}
+
+// Chuột: bấm ô chọn đảo ô và đặt tiêu điểm vào nó; bấm dòng ô nhập đặt tiêu điểm vào ô nhập; không bao giờ xác nhận.
+func TestClickChecksAndInput(t *testing.T) {
+	m := Model{Title: "Duyệt", Body: []string{"a"}, Checks: []string{"bỏ qua kiểm chứng", "chấp nhận rủi ro"}, Input: true, Label: "Lý do", YesLabel: "OK", NoLabel: "Huỷ"}
+	zone.Begin()
+	clean, zs := zone.Scan(strings.Join(m.View(theme.New(theme.Mono), 60, 20), "\n"))
+	zone.End()
+	ids := map[string]bool{}
+	for _, z := range zs {
+		ids[z.ID] = true
+	}
+	for _, id := range []string{"cf:0", "cf:1", "cf:in", "key:enter", "key:esc", ModalZone} {
+		if !ids[id] {
+			t.Fatalf("thiếu vùng %s:\n%s", id, clean)
+		}
+	}
+	if !m.Click("cf:1") || !m.Checked(1) || m.Checked(0) || m.focus != 1 {
+		t.Fatalf("bấm ô 1: On=%v focus=%d", m.On, m.focus)
+	}
+	m.Click("cf:1")
+	if m.Checked(1) {
+		t.Fatal("bấm lần hai phải bỏ chọn")
+	}
+	m.Click("cf:in")
+	if !m.onInput() {
+		t.Fatalf("bấm ô nhập phải đặt tiêu điểm vào ô nhập, focus=%d", m.focus)
+	}
+	m.Click("cf:0")
+	if !m.Checked(0) || m.focus != 0 {
+		t.Fatalf("On=%v focus=%d", m.On, m.focus)
+	}
+	if m.Click("cf:7") || m.Click("key:enter") || m.Click("cf:x") {
+		t.Fatal("id không hợp lệ không được xử lý")
+	}
+	plain := Model{Title: "x", YesLabel: "OK", NoLabel: "Huỷ"}
+	if plain.Click("cf:in") {
+		t.Fatal("hộp không có ô nhập không nhận cf:in")
 	}
 }

@@ -7,18 +7,18 @@
 │ │  Overview: repository status and the “Needs you” inbox (items awaiting   │ │
 │ │  review, doctor warnings). Enter on a row opens the screen that handles  │ │
 │ │  it.                                                                     │ │
-│ │  r       Refresh the repository status  bint status                      │ │
-│ │          Check the environment (doctor)  bint doctor                     │ │
+│ │  r           Refresh the repository status  bint status                  │ │
+│ │              Check the environment (doctor)  bint doctor                 │ │
 │ │                                                                          │ │
 │ │ Global                                                                   │ │
-│ │  q       Quit Bint                                                       │ │
-│ │  ?       Show the full help                                              │ │
-│ │  :       Open the command palette (search every action)                  │ │
-│ │  L       Switch interface language (vi ⇄ en)                             │ │
-│ │  !       Read the current notice in full plus the last 50 notices from … │ │
-│ │          Turn the mouse on/off for this session (scroll, click tabs, ro… │ │
-│ │  ]       Go to the next tab                                              │ │
-│ └───────────────────────────────────────────────────────────────1–15/209 ↕─┘ │
+│ │  q           Quit Bint                                                   │ │
+│ │  ?           Show the full help                                          │ │
+│ │  :           Open the command palette (search every action)              │ │
+│ │  L           Switch interface language (vi ⇄ en)                         │ │
+│ │  !           Read the current notice in full plus the last 50 notices f… │ │
+│ │              Turn the mouse on/off for this session (scroll, click tabs… │ │
+│ │  ]           Go to the next tab                                          │ │
+│ └───────────────────────────────────────────────────────────────1–15/212 ↕─┘ │
 │                                                                              │
 │                                                                              │
 └─[r→ Refresh] [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]─────────────────┘

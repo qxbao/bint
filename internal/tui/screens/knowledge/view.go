@@ -12,6 +12,7 @@ import (
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
@@ -422,7 +423,7 @@ func (m *Model) panelView(env ui.Env) string {
 	var body string
 	switch {
 	case p.running:
-		body = "\n " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("kn.running")) + "  " + th.S(theme.Key, "Esc") + " " + th.S(theme.Muted, m.t("kn.cancel"))
+		body = "\n " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("kn.running")) + "  " + zone.Mark(footer.ZoneID("esc"), th.S(theme.Key, "Esc")+" "+th.S(theme.Muted, m.t("kn.cancel")))
 	case p.err != nil:
 		body = "\n" + strings.Join(ui.ErrBlock(th, ui.ErrText(m.rw, p.err), max(iw-1, 8), " "), "\n")
 	case !p.ran && p.lines == nil:

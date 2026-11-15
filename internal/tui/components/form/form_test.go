@@ -1,6 +1,7 @@
 package form
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -9,7 +10,9 @@ import (
 	"bint/internal/app"
 	"bint/internal/config"
 	"bint/internal/i18n"
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
@@ -379,5 +382,166 @@ func TestEmbeddedStructFields(t *testing.T) {
 	}
 	if got := m.CLI(); got != "bint x y --first ab --split validation --limit 7 42" {
 		t.Fatalf("CLI: %s", got)
+	}
+}
+
+// ---- chuột ----
+
+// renderZones vẽ form trong một lần thu vùng (như mô hình gốc) và trả bản vẽ sạch cùng tập id vùng.
+func renderZones(m *Model, w, h int) (string, map[string]zone.Zone) {
+	env := ui.Env{Th: theme.New(theme.Mono), Cat: i18n.MustLoad("vi"), W: w, H: h}
+	zone.Begin()
+	defer zone.End()
+	clean, zs := zone.Scan(m.View(env, 0))
+	byID := map[string]zone.Zone{}
+	for _, z := range zs {
+		byID[z.ID] = z
+	}
+	return clean, byID
+}
+
+func rowOf(m *Model, name string) int {
+	for i, r := range m.rows() {
+		if r.field >= 0 && m.Fields[r.field].Name == name {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestClickRowBoolChoiceAndAdvanced(t *testing.T) {
+	m := New("knowledge.add", "knowledge add", app.AddDefaults(config.Config{}))
+	_, zs := renderZones(&m, 100, 40)
+	if _, ok := zs["fm:adv"]; !ok {
+		t.Fatal("thiếu vùng tiêu đề Nâng cao")
+	}
+	// Bấm hàng một ô: tiêu điểm tới ô đó.
+	ri := rowOf(&m, "body")
+	if _, ok := zs[rowZone(ri)]; !ok {
+		t.Fatalf("thiếu vùng hàng body (%d)", ri)
+	}
+	if !m.Click(rowZone(ri)) || m.Focus != ri {
+		t.Fatalf("Focus = %d, muốn %d", m.Focus, ri)
+	}
+	// Nâng cao đóng: bấm tiêu đề mở, bấm lại đóng.
+	if m.Advanced {
+		t.Fatal("Nâng cao phải đóng lúc đầu")
+	}
+	m.Click("fm:adv")
+	if !m.Advanced {
+		t.Fatal("bấm tiêu đề Nâng cao phải mở nhóm")
+	}
+	if r, _ := m.cur(); r.field != -1 {
+		t.Fatal("tiêu điểm phải ở tiêu đề Nâng cao")
+	}
+	// Ô Bool (third-party, nằm trong Nâng cao): bấm ô [ ] đảo giá trị và đặt tiêu điểm.
+	_, zs = renderZones(&m, 100, 60)
+	bi := rowOf(&m, "third-party")
+	fi := -1
+	for i, f := range m.Fields {
+		if f.Name == "third-party" {
+			fi = i
+		}
+	}
+	z, ok := zs[rowSubZone(bi, "t")]
+	if !ok {
+		t.Fatal("thiếu vùng ô Bool")
+	}
+	if z.X1-z.X0 != 3 {
+		t.Fatalf("vùng ô Bool rộng %d, muốn 3", z.X1-z.X0)
+	}
+	m.Click(rowSubZone(bi, "t"))
+	if !m.bools[fi] || m.Focus != bi {
+		t.Fatalf("bools=%v Focus=%d", m.bools[fi], m.Focus)
+	}
+	m.Click(rowSubZone(bi, "t"))
+	if m.bools[fi] {
+		t.Fatal("bấm lần hai phải đảo lại")
+	}
+	m.Click("fm:adv")
+	if m.Advanced {
+		t.Fatal("bấm tiêu đề lần hai phải đóng nhóm")
+	}
+}
+
+func TestClickChoiceRadioAndCollapsedArrows(t *testing.T) {
+	m := New("knowledge.add", "knowledge add", app.AddDefaults(config.Config{}))
+	ti := rowOf(&m, "type")
+	fi := 0
+	for i, f := range m.Fields {
+		if f.Name == "type" {
+			fi = i
+		}
+	}
+	_, zs := renderZones(&m, 140, 40)
+	for j := 1; j <= len(m.Fields[fi].Choices); j++ {
+		if _, ok := zs[rowSubZone(ti, strconv.Itoa(j))]; !ok {
+			t.Fatalf("thiếu vùng lựa chọn %d", j)
+		}
+	}
+	m.Click(rowSubZone(ti, "3"))
+	if m.choice[fi] != 3 || m.Focus != ti {
+		t.Fatalf("choice=%d focus=%d", m.choice[fi], m.Focus)
+	}
+	// Dạng thu gọn (hẹp): chỉ còn mũi tên.
+	_, zs = renderZones(&m, 40, 40)
+	if _, ok := zs[rowSubZone(ti, "next")]; !ok {
+		t.Fatal("thiếu mũi tên phải ở dạng thu gọn")
+	}
+	if _, ok := zs[rowSubZone(ti, "prev")]; !ok {
+		t.Fatal("thiếu mũi tên trái ở dạng thu gọn")
+	}
+	m.Click(rowSubZone(ti, "next"))
+	if m.choice[fi] != 4 {
+		t.Fatalf("next: %d", m.choice[fi])
+	}
+	m.Click(rowSubZone(ti, "prev"))
+	m.Click(rowSubZone(ti, "prev"))
+	if m.choice[fi] != 2 {
+		t.Fatalf("prev: %d", m.choice[fi])
+	}
+	// Bấm không bao giờ gửi: không có hàm trả Result, và giá trị lạ bị bỏ.
+	if m.Click("r:3") || m.Click("fm:99") || m.Click("fm:x") {
+		t.Fatal("id lạ không được xử lý")
+	}
+}
+
+// Chân form bấm được: mỗi nút tương đương một phím; Enter là ctrl+s (gửi cả khi ô nhiều dòng có tiêu điểm).
+func TestFooterZonesMatchKeys(t *testing.T) {
+	m := New("knowledge.add", "knowledge add", app.AddDefaults(config.Config{}))
+	clean, zs := renderZones(&m, 100, 40)
+	for _, id := range []string{"key:ctrl+s", "key:tab", "key:ctrl+y", "key:esc"} {
+		if _, ok := zs[id]; !ok {
+			t.Fatalf("thiếu vùng %s trong chân form:\n%s", id, clean)
+		}
+	}
+	if strings.Contains(clean, "\x1b_Z") {
+		t.Fatal("dấu vùng lọt ra đầu ra đã quét")
+	}
+	// Ô nhiều dòng có tiêu điểm: phím tương ứng của nút Enter (ctrl+s) vẫn gửi.
+	typeText(&m, "")
+	m.FocusField("body")
+	typeText(&m, "nội dung")
+	m.FocusField("title")
+	typeText(&m, "tiêu đề")
+	m.FocusField("body")
+	km, ok := footer.KeyMsg("ctrl+s")
+	if !ok {
+		t.Fatal("KeyMsg ctrl+s")
+	}
+	if m.Update(km) != Submit {
+		t.Fatalf("nút Enter phải gửi khi ô nhiều dòng có tiêu điểm: %s", m.CLI())
+	}
+	for id, want := range map[string]Result{"key:esc": Cancel, "key:ctrl+y": Copy} {
+		km, _ := footer.KeyMsg(strings.TrimPrefix(id, "key:"))
+		if got := m.Update(km); got != want {
+			t.Fatalf("%s = %v, muốn %v", id, got, want)
+		}
+	}
+	km, _ = footer.KeyMsg("tab")
+	before := m.Focus
+	m.Update(km)
+	if m.Focus == before && len(m.rows()) > 1 && before != len(m.rows())-1 {
+		t.Fatal("nút Tab phải dời tiêu điểm")
 	}
 }

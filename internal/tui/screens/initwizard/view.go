@@ -8,7 +8,9 @@ import (
 	"bint/internal/i18n"
 	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/form"
+	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
@@ -125,14 +127,16 @@ func (m *Model) askView(env ui.Env) []string {
 		if r.hint != "" {
 			line += "  " + th.S(theme.Muted, m.t(r.hint))
 		}
+		var l string
 		switch {
 		case i == m.cur:
-			out = append(out, th.S(theme.Key, "▸ ")+th.Selected(text.Truncate(line, max(env.W-4, 8))))
+			l = th.S(theme.Key, "▸ ") + th.Selected(text.Truncate(line, max(env.W-4, 8)))
 		case r.dim:
-			out = append(out, "  "+th.S(theme.Muted, text.Truncate(line, max(env.W-4, 8))))
+			l = "  " + th.S(theme.Muted, text.Truncate(line, max(env.W-4, 8)))
 		default:
-			out = append(out, "  "+text.Truncate(line, max(env.W-4, 8)))
+			l = "  " + text.Truncate(line, max(env.W-4, 8))
 		}
+		out = append(out, zone.Mark(list.RowZone(i), l))
 	}
 	if m.msg != "" {
 		out = append(out, "", "  "+th.S(theme.Err, "✗ ")+m.msg)
@@ -195,8 +199,7 @@ func (m *Model) previewView(env ui.Env) (body, foot []string) {
 		}
 		foot = append(foot, l)
 	}
-	run := m.t("wiz.hint.run")
 	foot = append(foot, "  "+th.S(theme.Muted, m.t("wiz.preview.estimate")))
-	foot = append(foot, "  "+th.S(theme.Key, "Enter")+" "+th.S(theme.Muted, run)+"  "+th.S(theme.Key, "Esc")+" "+th.S(theme.Muted, m.t("wiz.hint.back")))
+	foot = append(foot, "  "+m.hints(th, env.W-4, "wiz.hint.run", "Enter", "wiz.hint.back", "Esc"))
 	return body, foot
 }

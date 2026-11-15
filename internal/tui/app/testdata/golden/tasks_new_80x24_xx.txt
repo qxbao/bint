@@ -19,6 +19,6 @@
 │ │                                                                          │ │
 │ │   ⓘ ⟦Free-form request; Bint builds the ticket from it~~~~~~~~~~~~~~~~~… │ │
 │ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint task new                      │ │
-│ │   Enter ⟦submit~~~⟧  Tab ⟦next field~~~~⟧  Ctrl+Y ⟦copy command~~~~~⟧  … │ │
+│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
 └─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

@@ -85,6 +85,38 @@ func (m *Model) Update(msg tea.KeyPressMsg) bool {
 	return true
 }
 
+// Sanitize chuẩn hoá chữ dán: CRLF và CR thành LF; ô nhiều dòng giữ LF (tab giữ nguyên), ô một dòng đổi LF và tab
+// thành dấu cách; ký tự điều khiển C0 còn lại, DEL và C1 (gồm ESC) bị bỏ.
+func Sanitize(s string, multiline bool) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r == '\n' || r == '\t':
+			if multiline {
+				b.WriteRune(r)
+			} else {
+				b.WriteRune(' ')
+			}
+		case r < 0x20 || (r >= 0x7f && r <= 0x9f):
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// Paste chèn chữ dán tại con trỏ sau khi chuẩn hoá theo Multiline; trả true nếu có chữ được chèn.
+func (m *Model) Paste(s string) bool {
+	s = Sanitize(s, m.Multiline)
+	if s == "" {
+		return false
+	}
+	m.insert(s)
+	return true
+}
+
 func (m *Model) insert(s string) {
 	r := []rune(m.Text)
 	m.Cur = max(0, min(m.Cur, len(r)))

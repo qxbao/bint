@@ -19,6 +19,6 @@
 │ │                                                                          │ │
 │ │   ⓘ ⟦Empty: BINT_SOURCE_DIR or the build directory~~~~~~~~~~~~~~~~~~⟧    │ │
 │ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint update                        │ │
-│ │   Enter ⟦submit~~~⟧  Tab ⟦next field~~~~⟧  Ctrl+Y ⟦copy command~~~~~⟧  … │ │
+│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
 └─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

@@ -14,6 +14,16 @@ func (m *Model) Toast() (string, bool) { return m.toast, m.toastErr }
 
 // Click xử lý bấm chuột (ui.Pointer): thẻ, hàng (bấm lại hàng đang chọn = Enter), focus khung.
 func (m *Model) Click(id string) tea.Cmd {
+	if m.dlg != nil { // hộp xác nhận: bấm ô chọn/ô nhập (nút [Enter]/[Esc] là vùng key:)
+		m.dlg.c.Click(id)
+		return nil
+	}
+	if m.frm != nil { // biểu mẫu: tiêu điểm, ô Bool, lựa chọn (chỉ đổi trạng thái, không gửi)
+		if !m.frmBusy {
+			m.frm.Click(id)
+		}
+		return nil
+	}
 	if m.Capturing() {
 		return nil
 	}

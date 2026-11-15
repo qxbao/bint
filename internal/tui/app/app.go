@@ -20,6 +20,7 @@ import (
 	"bint/internal/detect"
 	"bint/internal/i18n"
 	"bint/internal/tui/actions"
+	"bint/internal/tui/clipboard"
 	"bint/internal/tui/components/confirm"
 	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/frame"
@@ -52,9 +53,11 @@ const (
 
 // Options điều khiển mô hình.
 type Options struct {
-	Dir      string // thư mục repository
-	Version  string
-	BintPath string
+	Dir string // thư mục repository
+	// Clipboard thay được trong kiểm thử (đọc cho Ctrl+V, ghi khi chọn bằng chuột); nil = clipboard hệ thống.
+	Clipboard clipboard.Clipboard
+	Version   string
+	BintPath  string
 	// Lang là ngôn ngữ đã chọn ("vi", "en", hoặc "xx" cho locale giả); rỗng = mặc định.
 	Lang string
 	Mode theme.Mode
@@ -186,6 +189,9 @@ type Model struct {
 	zones    []zone.Zone
 	mouseOff bool
 	notes    notices
+	// Chọn/chép bằng chuột (selection.go) và clipboard (paste.go).
+	sel  selection
+	clip clipboard.Clipboard
 }
 
 // New dựng mô hình. ctx là ngữ cảnh của các việc nền.
@@ -204,6 +210,10 @@ func New(ctx context.Context, opts Options) *Model {
 	m := &Model{opts: opts, reg: opts.Registry, cat: i18n.MustLoad(lang), th: theme.New(opts.Mode), ctx: ctx,
 		spin: spinner.New(spinner.WithSpinner(sp)), jobs: &jobs.Table{}, jobCh: make(chan tea.Msg, 1024),
 		wiz: initwizard.New(initwizard.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Detect: opts.DetectHarnesses})}
+	m.clip = opts.Clipboard
+	if m.clip == nil {
+		m.clip = clipboard.System()
+	}
 	m.kn = knscreen.New(knscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Agent: opts.Agent,
 		Loader: opts.KnowledgeLoader, Detailer: opts.KnowledgeDetailer, Gate: m.gate})
 	m.tk = tkscreen.New(tkscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.TasksLoader, Detailer: opts.TasksDetailer,
@@ -388,7 +398,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.MouseClickMsg:
-		return m.click(tea.Mouse(msg))
+		mm, cmd := m.click(tea.Mouse(msg))
+		m.selPress(tea.Mouse(msg))
+		return mm, cmd
+	case tea.MouseMotionMsg:
+		m.selMotion(tea.Mouse(msg))
+		return m, nil
+	case tea.MouseReleaseMsg:
+		return m, m.selRelease(tea.Mouse(msg))
+	case tea.PasteMsg:
+		m.clearSelection()
+		return m.paste(msg.Content)
+	case clipMsg:
+		return m.onClip(msg)
 	case tea.MouseWheelMsg:
 		return m.wheel(tea.Mouse(msg))
 	case tea.WindowSizeMsg:
@@ -589,6 +611,11 @@ func (m *Model) goTo(s actions.Screen) {
 
 func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := msg.String()
+	m.clearSelection()
+	if s == "ctrl+v" && m.pasteTarget() {
+		m.setToast("", false)
+		return m, m.readClipboard()
+	}
 	if s != "!" { // "!" mở hộp Thông báo: giữ thông báo hiện tại để hộp ghi nhận đủ
 		m.setToast("", false)
 	}
@@ -905,7 +932,7 @@ func (m *Model) Hints() []footer.Hint {
 
 // View vẽ giao diện.
 func (m *Model) View() tea.View {
-	v := tea.NewView(m.Render())
+	v := tea.NewView(m.highlight(m.Render()))
 	v.AltScreen = true
 	if !m.mouseOff {
 		v.MouseMode = tea.MouseModeCellMotion // chuột bật mặc định (mục 4.3.7); app.mouse tắt/bật trong phiên
@@ -1119,6 +1146,10 @@ func (m *Model) helpGroups() []help.Group {
 		}
 		g.Rows = append(g.Rows, row)
 	}
+	global.Rows = append(global.Rows,
+		help.Row{Key: "Ctrl+V", Title: m.cat.T("help.paste")},
+		help.Row{Key: m.cat.T("help.key.drag"), Title: m.cat.T("help.select")},
+		help.Row{Key: m.cat.T("help.key.shift_drag"), Title: m.cat.T("help.select_native")})
 	// Ngữ cảnh hiện tại (thẻ phụ, giới thiệu, phím của thẻ) đứng đầu, rồi nhóm của màn hình đang xem, rồi toàn cục, rồi các màn hình khác.
 	var groups []help.Group
 	cur := m.Screen()
