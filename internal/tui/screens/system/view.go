@@ -101,6 +101,7 @@ var hintAction = map[int]map[string]string{
 	TabSetup:      {"e": "system.repo_plan", "U": "system.config_upgrade_plan"},
 	TabUpdate:     {"u": "system.update"},
 	TabHarness:    {"V": "system.harness_version"},
+	TabDoctor:     {"f": "system.doctor_fix"},
 }
 
 // hintsLine dựng chân phím trong khung của thẻ hiện tại từ các cặp {phím, nhãn đã dịch}.
@@ -811,7 +812,11 @@ func (m *Model) doctorList(env ui.Env, w, h int) string {
 			return m.cursorMarker(th, th.S(role, g)+" "+c.Name, cursor)
 		})
 	}
-	hints := m.hintsLine([2]string{"w", m.t("sy.hint.issues")}, [2]string{"Ctrl+R", m.t("sy.hint.refresh")}, [2]string{"Enter", m.t("sy.hint.open")})
+	pairs := [][2]string{{"w", m.t("sy.hint.issues")}, {"Ctrl+R", m.t("sy.hint.refresh")}, {"Enter", m.t("sy.hint.open")}}
+	if m.doctorFixAt() != nil {
+		pairs = append(pairs, [2]string{"f", m.t("sy.hint.fix")})
+	}
+	hints := m.hintsLine(pairs...)
 	return m.listBox(env, w, h, title, top, hints, body)
 }
 
@@ -827,6 +832,9 @@ func (m *Model) doctorDetail(env ui.Env, w, h int) string {
 		title += " · " + ck.Name
 		out = append(out, th.S(role, g)+" "+th.S(theme.Accent, ck.Name)+"  "+th.S(theme.Muted, m.t("sy.doc.level."+string(ck.Level))), "")
 		out = append(out, text.Wrap(m.cli(ck.Detail), max(iw-1, 10))...)
+		if ck.Fix != nil && m.fixAvailable() {
+			out = append(out, "", th.S(theme.Key, "f")+" "+th.S(theme.Muted, m.t("sy.doc.fix.line")))
+		}
 	} else {
 		out = []string{"", " " + th.S(theme.Muted, m.t("sy.doc.none"))}
 	}

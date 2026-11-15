@@ -18,7 +18,7 @@
 │ │  !                 ⟦Read the current notice in full plus the last 50 no… │ │
 │ │                    ⟦Turn the mouse on/off for this session (scroll, cli… │ │
 │ │  ]                 ⟦Go to the next tab~~~~~~~~⟧                          │ │
-│ └───────────────────────────────────────────────────────────⟦1–15/212 ↕~~⟧─┘ │
+│ └───────────────────────────────────────────────────────────⟦1–15/213 ↕~~⟧─┘ │
 │                                                                              │
 │                                                                              │
 └─[r→ ⟦Refre…] [:→ ⟦Comma…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]─────────────┘

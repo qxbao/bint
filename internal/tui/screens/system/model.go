@@ -553,6 +553,8 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		return m.onConfigChecked(msg)
 	case "system.config_rebase":
 		return m.onConfigRebased(msg)
+	case "system.doctor_fix":
+		return m.onDoctorFix(msg)
 	case "system.config_save":
 		m.dlg = nil
 		if msg.Err != nil {
@@ -1083,6 +1085,8 @@ func (m *Model) tabKey(s string) (tea.Cmd, bool) {
 			m.rebuildDoctor()
 			m.det.Reset()
 			return nil, true
+		case "f":
+			return m.cmdDoctorFix(), true
 		case "enter":
 			m.pane = paneDetail
 			return nil, true
@@ -1319,6 +1323,9 @@ func (m *Model) Command(id string) tea.Cmd {
 		return m.cmdIndexRebuild()
 	case "system.doctor":
 		return m.setTab(TabDoctor)
+	case "system.doctor_fix":
+		m.tab = TabDoctor
+		return tea.Batch(m.ensureTab(TabDoctor), m.cmdDoctorFix())
 	case "system.repo_state":
 		return m.setTab(TabSetup)
 	case "system.repo_plan", "system.repo_apply":

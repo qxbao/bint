@@ -48,6 +48,26 @@ type Check struct {
 	Name   string
 	Level  Level
 	Detail string
+	// Fix là cách sửa có cấu trúc khi kiểm tra có lệnh dọn/sửa rõ ràng (nil nếu chỉ để xem). TUI ánh xạ loại sửa sang
+	// hành động thay vì phân tích Detail.
+	Fix *DoctorFix `json:"fix,omitempty"`
+}
+
+// DoctorFixKind là loại sửa của một kết quả doctor.
+type DoctorFixKind string
+
+const (
+	FixWorktree       DoctorFixKind = "worktree"        // gỡ worktree mồ côi và nhánh của tác vụ (FixDoctor)
+	FixSpool          DoctorFixKind = "spool"           // nạp spool vào cơ sở dữ liệu (FixDoctor)
+	FixConfigTemplate DoctorFixKind = "config_template" // nâng mẫu cấu hình (luồng xem trước init --update)
+	FixSync           DoctorFixKind = "sync"            // xuất bản lại skill/subagent (luồng xem trước sync)
+)
+
+// DoctorFix mô tả việc sửa. Path và TaskID chỉ có với FixWorktree.
+type DoctorFix struct {
+	Kind   DoctorFixKind `json:"kind"`
+	Path   string        `json:"path,omitempty"`
+	TaskID string        `json:"task_id,omitempty"`
 }
 
 // DoctorReport tổng hợp các kiểm tra.
@@ -55,6 +75,12 @@ type DoctorReport struct{ Checks []Check }
 
 func (r *DoctorReport) add(name string, l Level, format string, a ...any) {
 	r.Checks = append(r.Checks, Check{Name: name, Level: l, Detail: fmt.Sprintf(format, a...)})
+}
+
+// addFix như add, kèm cách sửa.
+func (r *DoctorReport) addFix(fix DoctorFix, name string, l Level, format string, a ...any) {
+	r.add(name, l, format, a...)
+	r.Checks[len(r.Checks)-1].Fix = &fix
 }
 
 // Failed cho biết có kiểm tra nào thất bại.
@@ -122,7 +148,7 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		if up.Fixed > 0 {
 			detail += fmt.Sprintf("; %d dòng chú thích hỏng", up.Fixed)
 		}
-		r.add(CheckConfigTemplate, LevelWarn, "%s — chạy `bint init --update` (giữ nguyên giá trị đang có)", detail)
+		r.addFix(DoctorFix{Kind: FixConfigTemplate}, CheckConfigTemplate, LevelWarn, "%s — chạy `bint init --update` (giữ nguyên giá trị đang có)", detail)
 	}
 	if src.StrategyProblem != "" {
 		r.add("strategy", LevelWarn, "strategy.yml (verified) bị bỏ qua ở phiên thật: %s", src.StrategyProblem)
@@ -177,7 +203,7 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 	pending, _ := spool.Pending(paths.Spool)
 	switch {
 	case len(pending) > 200:
-		r.add("spool", LevelWarn, "%d tệp chờ nạp; chạy `bint events ingest`", len(pending))
+		r.addFix(DoctorFix{Kind: FixSpool}, "spool", LevelWarn, "%d tệp chờ nạp; chạy `bint events ingest`", len(pending))
 	default:
 		r.add("spool", LevelOK, "%d tệp chờ nạp", len(pending))
 	}
@@ -359,7 +385,12 @@ func worktreeChecks(ctx context.Context, r *DoctorReport, root string, paths sta
 		if o.Unlanded || o.AwaitingMerge {
 			verb = "xem" // không gợi ý xoá: thay đổi của tác vụ chỉ còn ở đây
 		}
-		r.add("worktree mồ côi", LevelWarn, "%s — %s; %s: %s", o.Path, why, verb, strings.Join(env.CleanupCommands(o), " && "))
+		detail := fmt.Sprintf("%s — %s; %s: %s", o.Path, why, verb, strings.Join(env.CleanupCommands(o), " && "))
+		if o.Unlanded || o.AwaitingMerge {
+			r.add("worktree mồ côi", LevelWarn, "%s", detail)
+		} else {
+			r.addFix(DoctorFix{Kind: FixWorktree, Path: o.Path, TaskID: o.TaskID}, "worktree mồ côi", LevelWarn, "%s", detail)
+		}
 	}
 }
 
@@ -401,13 +432,17 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 			case err != nil:
 				r.add("skill "+sk.Name, LevelWarn, "%v", err)
 			case st == skills.StateMissing:
-				r.add("skill "+sk.Name, LevelInfo, "chưa xuất bản cho %s (bint sync)", who)
+				r.addFix(DoctorFix{Kind: FixSync}, "skill "+sk.Name, LevelInfo, "chưa xuất bản cho %s (bint sync)", who)
 			case st == skills.StateOtherVersion:
 				advice := staleBinaryAdvice(lock.BintVersion, runningVersion())
 				r.add("skill "+sk.Name, LevelWarn, "%s do bản Bint khác ghi (core.lock bint_version %s, bint đang chạy %s), chưa ai sửa tay: %s",
 					rel, lock.BintVersion, cmp.Or(runningVersion(), "không rõ"), advice)
+				// Chỉ gợi ý sửa khi bint đang chạy không cũ hơn bản đã ghi: nếu cũ hơn, sync sẽ hạ cấp skill.
+				if c, ok := compareVersions(lock.BintVersion, runningVersion()); ok && c <= 0 {
+					r.Checks[len(r.Checks)-1].Fix = &DoctorFix{Kind: FixSync}
+				}
 			case st == skills.StateDiffers:
-				r.add("skill "+sk.Name, LevelWarn, "%s khác bản của Bint (bị sửa tay, lớp phủ đổi hoặc Bint đã nâng cấp): chạy `bint sync`", rel)
+				r.addFix(DoctorFix{Kind: FixSync}, "skill "+sk.Name, LevelWarn, "%s khác bản của Bint (bị sửa tay, lớp phủ đổi hoặc Bint đã nâng cấp): chạy `bint sync`", rel)
 			default:
 				r.add("skill "+sk.Name, LevelOK, "%s", rel)
 			}
@@ -420,9 +455,9 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
 		case err != nil:
 			r.add("subagent "+a.Name, LevelWarn, "%v", err)
 		case st == "missing":
-			r.add("subagent "+a.Name, LevelInfo, "chưa xuất bản (bint sync)")
+			r.addFix(DoctorFix{Kind: FixSync}, "subagent "+a.Name, LevelInfo, "chưa xuất bản (bint sync)")
 		case st == "differs":
-			r.add("subagent "+a.Name, LevelWarn, "%s khác bản của Bint (bị sửa tay, cấu hình model/max_turns đổi hoặc Bint đã nâng cấp): chạy `bint sync`", a.Rel)
+			r.addFix(DoctorFix{Kind: FixSync}, "subagent "+a.Name, LevelWarn, "%s khác bản của Bint (bị sửa tay, cấu hình model/max_turns đổi hoặc Bint đã nâng cấp): chạy `bint sync`", a.Rel)
 		default:
 			r.add("subagent "+a.Name, LevelOK, "%s", a.Rel)
 		}
@@ -453,9 +488,9 @@ func customSkillChecks(r *DoctorReport, root string, cfg config.Config, targets 
 			case err != nil:
 				r.add(name, LevelWarn, "%v", err)
 			case st == "missing":
-				r.add(name, LevelInfo, "skill tuỳ biến chưa xuất bản cho %s (bint sync)", who)
+				r.addFix(DoctorFix{Kind: FixSync}, name, LevelInfo, "skill tuỳ biến chưa xuất bản cho %s (bint sync)", who)
 			case st == "differs":
-				r.add(name, LevelWarn, "%s/ khác nguồn %s/ (nguồn đổi hoặc bản xuất bản bị sửa tay): chạy `bint sync`", filepath.ToSlash(filepath.Join(t.Dir, cs.Name)), skills.CustomPath(cs.Name))
+				r.addFix(DoctorFix{Kind: FixSync}, name, LevelWarn, "%s/ khác nguồn %s/ (nguồn đổi hoặc bản xuất bản bị sửa tay): chạy `bint sync`", filepath.ToSlash(filepath.Join(t.Dir, cs.Name)), skills.CustomPath(cs.Name))
 			default:
 				r.add(name, LevelOK, "%s", rel)
 			}

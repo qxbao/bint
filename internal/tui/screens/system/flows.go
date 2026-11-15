@@ -21,6 +21,7 @@ import (
 	"bint/internal/tui/components/viewer"
 	"bint/internal/tui/screens/shared"
 	"bint/internal/tui/theme"
+	"bint/internal/workflow"
 )
 
 func evolvesvcRegressDefaults() evolvesvc.SkillRegressOptions {
@@ -517,4 +518,65 @@ func (m *Model) skillTestLines(res *app.SkillTestResult, err error) []string {
 		out = append(out, m.th.S(theme.Warn, m.t("sy.skilltest.partial", i18n.A{"status": rep.Status})))
 	}
 	return append(out, m.t("sy.skilltest.path", i18n.A{"path": res.Path}))
+}
+
+// ---- quick fix của thẻ Doctor ----
+
+// doctorFixAt trả cách sửa của mục Doctor đang chọn (nil nếu không có).
+func (m *Model) doctorFixAt() *app.DoctorFix {
+	c := m.lst[TabDoctor].Cursor
+	if m.doctor == nil || c < 0 || c >= len(m.docIdx) {
+		return nil
+	}
+	return m.doctor.Checks[m.docIdx[c]].Fix
+}
+
+// fixAvailable: hành động system.doctor_fix dùng được ở chế độ hiện tại (không chỉ đọc, không khoá theo phiên agent).
+func (m *Model) fixAvailable() bool {
+	return m.o.Gate == nil || m.o.Gate("system.doctor_fix") == actions.Available
+}
+
+// cmdDoctorFix xử lý phím f trên mục Doctor đang chọn. Mục config/sync mở luồng xem trước sẵn có (không ghi ngay); việc còn
+// lại hiện hộp xác nhận nêu đúng việc sẽ làm rồi mới gọi system.doctor_fix.
+func (m *Model) cmdDoctorFix() tea.Cmd {
+	fix := m.doctorFixAt()
+	if fix == nil || !m.allowed("system.doctor_fix") {
+		return nil
+	}
+	switch fix.Kind {
+	case app.FixConfigTemplate:
+		return m.cmdConfigUpgrade()
+	case app.FixSync:
+		return m.cmdSyncPlan(app.SyncDefaults(config.Default()))
+	}
+	o := app.DoctorFixOptions{Kind: fix.Kind, Path: fix.Path, TaskID: fix.TaskID}
+	var body []string
+	danger := false
+	switch fix.Kind {
+	case app.FixWorktree:
+		danger = true
+		body = wrapText(m.t("sy.doc.fix.worktree", i18n.A{"path": fix.Path}), 72)
+		if fix.TaskID != "" {
+			body = append(body, wrapText(m.t("sy.doc.fix.branch", i18n.A{"branch": workflow.BranchFor(fix.TaskID)}), 72)...)
+		}
+		body = append(body, "", m.th.S(theme.Muted, m.t("sy.doc.fix.worktree.note")))
+	case app.FixSpool:
+		body = wrapText(m.t("sy.doc.fix.spool"), 72)
+	default:
+		return nil
+	}
+	m.dlg = &dialog{c: confirm.Model{Title: m.t("sy.doc.fix.title"), Body: body, Danger: danger, YesLabel: m.t("sy.doc.fix.yes"), NoLabel: m.t("sy.cancel")},
+		onYes: func(string) tea.Cmd { return m.request("system.doctor_fix", o) }}
+	return nil
+}
+
+func (m *Model) onDoctorFix(msg actions.ResultMsg) tea.Cmd {
+	if msg.Err != nil {
+		m.fail(msg.Err)
+	} else if r, ok := msg.Value.(app.DoctorFixResult); ok && len(r.Actions) > 0 {
+		m.setToast(m.t("sy.doc.fix.done", i18n.A{"what": strings.Join(r.Actions, "; ")}), false)
+	} else {
+		m.setToast(m.t("sy.doc.fix.done", i18n.A{"what": "OK"}), false)
+	}
+	return m.reload(TabDoctor)
 }
