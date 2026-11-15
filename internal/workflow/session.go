@@ -160,7 +160,7 @@ func (r *Runner) sessionEnv() (restore func()) {
 // sống trong một tiến trình nên mỗi lệnh bắt đầu từ 0 (chưa trừ phần đã dùng ở bước trước).
 func (r *Runner) sessionState(t *task.Task, runID string, resume, noWait bool) *runState {
 	name, fd, block := StepDo, builtinFlow(StepDo), ""
-	if isCustomFlow(t.State.Workflow) {
+	if boundFlow(t.State.Workflow) {
 		name = t.State.Workflow
 		fd, block = r.flowGate(t)
 	}
@@ -554,10 +554,10 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	return stop()
 }
 
-// processCommand là lệnh chạy một bước bằng tiến trình (role gán harness khác Claude). Flow nhúng: tên bước gốc cũng là tên
-// workflow một bước (`bint run b-feat --task`); flow tuỳ biến: chạy đúng một bước của flow bằng --step.
+// processCommand là lệnh chạy một bước bằng tiến trình (role gán harness khác Claude). Bốn workflow gốc ban đầu: tên bước
+// cũng là tên workflow một bước (`bint run b-feat --task`); flow tuỳ biến và b-debug: chạy đúng một bước của flow bằng --step.
 func processCommand(fd flow.Def, step, id string) string {
-	if fd.IsBuiltin() {
+	if flow.Legacy(fd.Name) {
 		return "bint run " + step + " --task " + id + " --json"
 	}
 	return "bint run " + fd.Name + " --task " + id + " --step " + step + " --json"

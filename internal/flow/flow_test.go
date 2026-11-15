@@ -147,10 +147,10 @@ func TestDecodeRejectsUnknownKeys(t *testing.T) {
 }
 
 func TestBuiltinPassValidate(t *testing.T) {
-	core := skillSet("b-req", "b-feat", "b-review", "b-do")
+	core := skillSet("b-req", "b-feat", "b-review", "b-do", "b-debug", "b-repro", "b-fix")
 	got := Builtin()
-	if len(got) != 4 {
-		t.Fatalf("Builtin trả %d flow, muốn 4", len(got))
+	if len(got) != 5 {
+		t.Fatalf("Builtin trả %d flow, muốn 5", len(got))
 	}
 	for i, d := range got {
 		if d.Name != BuiltinNames()[i] || !d.IsBuiltin() {
@@ -170,6 +170,84 @@ func TestBuiltinPassValidate(t *testing.T) {
 	}
 	if !do.Steps[0].Optional || do.Steps[2].Fix != "b-feat" {
 		t.Errorf("b-do: plan optional=%v, fix=%q", do.Steps[0].Optional, do.Steps[2].Fix)
+	}
+}
+
+func TestBuiltinDebugShape(t *testing.T) {
+	d, ok := GetBuiltin("b-debug")
+	if !ok || BuiltinNames()[4] != "b-debug" || Legacy("b-debug") || !IsBuiltin("b-debug") {
+		t.Fatalf("b-debug: ok=%v names=%v legacy=%v", ok, BuiltinNames(), Legacy("b-debug"))
+	}
+	want := []struct {
+		id    string
+		kind  Kind
+		skill string
+		fix   string
+		opt   bool
+		exp   bool
+	}{
+		{"b-req", KindPlan, "b-req", "", true, false},
+		{"b-repro", KindImplement, "b-repro", "", false, true},
+		{"b-fix", KindImplement, "b-fix", "", false, false},
+		{"b-review", KindReview, "b-review", "b-fix", false, false},
+	}
+	if len(d.Steps) != len(want) {
+		t.Fatalf("b-debug có %d bước, muốn %d", len(d.Steps), len(want))
+	}
+	for i, w := range want {
+		s := d.Steps[i]
+		if s.ID != w.id || s.Kind != w.kind || s.Skill != w.skill || s.Fix != w.fix || s.Optional != w.opt || s.ExpectsFail() != w.exp {
+			t.Errorf("bước %d = %+v, muốn %+v", i, s, w)
+		}
+	}
+	for _, n := range []string{"b-do", "b-req", "b-feat", "b-review"} {
+		if !Legacy(n) {
+			t.Errorf("Legacy(%q) = false", n)
+		}
+	}
+}
+
+func TestValidateExpect(t *testing.T) {
+	red := "verify: false}"
+	tests := []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{name: "expect fail ở implement không cuối", yaml: strings.Replace(tddYAML, red, "expect: fail}", 1)},
+		{name: "giá trị lạ", want: `expect "pass" không hợp lệ`, yaml: strings.Replace(tddYAML, red, "expect: pass}", 1)},
+		{name: "ở bước plan", want: "expect chỉ dùng được ở bước implement", yaml: strings.Replace(strings.Replace(tddYAML, red, "}", 1), "optional: true}", "optional: true, expect: fail}", 1)},
+		{name: "ở bước review", want: "expect chỉ dùng được ở bước implement", yaml: strings.Replace(tddYAML, "fix: green}", "fix: green, expect: fail}", 1)},
+		{name: "ở implement cuối", want: "expect: fail không được đặt ở bước implement cuối", yaml: strings.Replace(strings.Replace(tddYAML, red, "}", 1), "skill: b-feat}", "skill: b-feat, expect: fail}", 1)},
+		{name: "cùng verify false", want: "không đi cùng verify: false", yaml: strings.Replace(tddYAML, red, "verify: false, expect: fail}", 1)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Bỏ ", }" thừa do thay thế rỗng.
+			y := strings.ReplaceAll(tc.yaml, ", }", "}")
+			d, err := Decode([]byte(y))
+			if err != nil {
+				t.Fatalf("Decode: %v", err)
+			}
+			errs := Validate(d, "tdd", testSkills)
+			if tc.want == "" {
+				if len(errs) != 0 {
+					t.Fatalf("muốn hợp lệ, được %v", errs)
+				}
+				return
+			}
+			if !strings.Contains(strings.Join(errs, "; "), tc.want) {
+				t.Fatalf("muốn lỗi chứa %q, được %v", tc.want, errs)
+			}
+		})
+	}
+}
+
+func TestHashExpect(t *testing.T) {
+	base := mustDecode(t, tddYAML)
+	withExpect := mustDecode(t, strings.Replace(tddYAML, "verify: false}", "expect: fail}", 1))
+	if Hash(base) == Hash(withExpect) {
+		t.Error("đặt expect không đổi băm")
 	}
 }
 

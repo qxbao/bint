@@ -11,7 +11,7 @@ bật mức 3 (tiến hoá có kiểm chứng).
 #        test_command: "go test {test_dirs}"   # {test_dirs}/{test_files} = kiểm thử của tác vụ
 #        setup_command: "go mod download"      # tuỳ chọn, chạy trước agent ở mỗi lượt
 bint eval mine --verify          # khai thác commit có kiểm thử fail→pass làm ứng viên
-#   (hoặc `bint eval mine --from-tasks --verify`: dựng ứng viên từ phiếu b-do đã done)
+#   (hoặc `bint eval mine --from-tasks --verify`: dựng ứng viên từ phiếu b-do hoặc b-debug đã done)
 bint eval show <id>              # đọc đề bài; sửa `prompt` trong tệp ứng viên nếu cần
 bint eval approve <id>           # duyệt vào .bint/evals/cases/ (nhận một hoặc nhiều ID, commit được)
 bint eval bootstrap --budget 5   # nhánh minimal (strict): dựng tri thức tại commit gốc từng tác vụ
@@ -30,14 +30,17 @@ lời giải thật; ứng viên không đạt bị loại. Ứng viên chứa t
 mục trạng thái; `approve` từ chối đề bài `fail` (trừ `--force`) và tác vụ chưa kiểm chứng (trừ
 `--unverified`), ghi người duyệt và gán tập `build/validation/test` (50/25/25, tất định theo ID).
 
-**Khai thác từ phiếu (`mine --from-tasks`).** Thay vì `git log`, quét phiếu workflow `b-do` ở trạng thái
+**Khai thác từ phiếu (`mine --from-tasks`).** Thay vì `git log`, quét phiếu workflow `b-do` hoặc `b-debug` ở trạng thái
 `done` và dựng ứng viên từ yêu cầu, tiêu chí chấp nhận và lời giải của phiếu. Lời giải là cây lúc đưa về cây
 gốc (`landed.tree`) hoặc cây của lần kiểm chứng qua cuối cùng, giới hạn trong tập tệp của phiếu; Bint đóng
-băng nó thành hai commit tổng hợp (gốc = cây trước `b-feat` đầu tiên, lời giải = gốc + tệp của phiếu), dựng
+băng nó thành hai commit tổng hợp (gốc = cây trước bước implement đầu tiên: `b-feat`, hoặc `b-repro` của `b-debug`, lời giải = gốc + tệp của phiếu), dựng
 tất định và giữ sống bằng ref `refs/bint/eval/<id>/base` và `.../commit` (chỉ có trong kho cục bộ: đề này
 không chia sẻ được giữa các máy cho tới khi phiếu xuất được vào Git). Từ đó ứng viên đi qua đúng đường ống của
 đề từ Git:
 
+- Phiếu `b-debug` (flow sửa lỗi, xem [workflows.md](workflows.md)) đi cùng đường ống: test do `b-repro` viết
+  và hỏng trước bản sửa chính là kiểm thử ẩn fail→pass, `b-fix` cho ra lời giải. Phiếu `b-debug` mà test chưa
+  được tái hiện (cổng đỏ chặn) không thể `done`, và `eval verify` vẫn kiểm lại độc lập fail→pass.
 - ID là chữ `t` nối ID phiếu viết thường (ổn định, chạy lại không tạo trùng); `source.task` và
   `source.task_runs` ghi nguồn. Phiếu không dựng lại được lời giải (cây đã bị `git gc` dọn, không có tệp)
   hoặc không qua bộ lọc `eval.mine.*` (không có kiểm thử, không có mã nguồn, quá nhỏ/lớn) được đếm trong

@@ -86,7 +86,7 @@ vào tập đánh giá cho tới khi được duyệt.
 --verify chạy eval.test_command trong thư mục cô lập để xác nhận kiểm thử của commit
 thất bại tại commit cha và qua với lời giải thật; ứng viên không đạt bị loại.
 
---from-tasks dựng ứng viên từ phiếu b-do đã done thay vì lịch sử Git: đề bài lấy từ yêu cầu và
+--from-tasks dựng ứng viên từ phiếu b-do hoặc b-debug đã done thay vì lịch sử Git: đề bài lấy từ yêu cầu và
 tiêu chí chấp nhận của phiếu; lời giải là cây lúc đưa về (hoặc của lần kiểm chứng qua cuối cùng),
 đóng băng thành hai commit tổng hợp giữ bằng ref refs/bint/eval/<id>/. test_command là
 verify.command của phiếu nếu người đã xác nhận. Tri thức rút từ chính phiếu bị loại khi chấm.`,
@@ -143,7 +143,7 @@ verify.command của phiếu nếu người đã xác nhận. Tri thức rút t�
 	f.StringVar(&rev, "rev", "HEAD", "điểm bắt đầu quét lịch sử")
 	f.IntVar(&limit, "limit", 0, "số ứng viên mới tối đa (0 = không giới hạn)")
 	f.BoolVar(&verify, "verify", false, "kiểm chứng fail→pass từng ứng viên mới (chạy eval.test_command)")
-	f.BoolVar(&fromTasks, "from-tasks", false, "dựng ứng viên từ phiếu b-do đã done thay vì lịch sử Git")
+	f.BoolVar(&fromTasks, "from-tasks", false, "dựng ứng viên từ phiếu b-do hoặc b-debug đã done thay vì lịch sử Git")
 	f.IntVar(&verifyRuns, "verify-runs", 2, "số lần chạy kiểm thử với lời giải thật (bắt kiểm thử chập chờn)")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c

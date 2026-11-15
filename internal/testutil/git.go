@@ -3,17 +3,20 @@ package testutil
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"bint/internal/gitrepo"
 )
 
 // Git chạy lệnh git trong dir và dừng kiểm thử nếu lỗi.
 func Git(t testing.TB, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd := gitrepo.Command(append([]string{"-C", dir}, args...)...)
 	cmd.Env = append(os.Environ(),
 		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com",
 		"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com",
@@ -62,20 +65,84 @@ func Isolate(t *testing.T) (stateDir string) {
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	// Chương trình harness giả đứng đầu PATH: kết quả không phụ thuộc máy có cài
 	// claude/codex/agy hay không, và kiểm thử không bao giờ gọi harness thật.
-	bin := t.TempDir()
-	for _, name := range []string{"claude", "codex", "agy"} {
-		file, body := name, "#!/bin/sh\necho 'bint test: harness giả' >&2\nexit 1\n"
-		if runtime.GOOS == "windows" {
-			file, body = name+".bat", "@echo bint test: harness gia 1>&2\r\n@exit /b 1\r\n"
-		}
-		if err := os.WriteFile(filepath.Join(bin, file), []byte(body), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
+	bin := fakeHarnessDir(t)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	// Kiểm thử có thể đang chạy trong một phiên agent/lượt workflow thật.
 	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS"} {
 		t.Setenv(k, "")
 	}
 	return stateDir
+}
+
+var (
+	harnessOnce sync.Once
+	harnessDir  string
+	harnessErr  error
+)
+
+// fakeHarnessDir trả thư mục chứa claude/codex/agy giả, riêng của tiến trình kiểm thử (os.MkdirTemp, tạo một lần):
+// PATH giữ nguyên giữa các kiểm thử nên bộ nhớ đệm LookPath (detect, gitrepo) trúng thay vì dò lại; mỗi lần dò
+// trên Windows là hàng trăm dòng stat trong testlog mà go test băm lại ở lần chạy sau (docs/workflows.md).
+// Không dùng đường dẫn cố định nên không bao giờ chạy tệp do tiến trình khác tạo sẵn. Dọn bằng Main/CleanupHarness;
+// gói không có TestMain để lại thư mục, được quét ở lần tạo sau khi quá harnessStaleAfter.
+func fakeHarnessDir(t testing.TB) string {
+	t.Helper()
+	harnessOnce.Do(func() {
+		sweepStaleHarness()
+		dir, err := os.MkdirTemp("", harnessPrefix+"*")
+		if err != nil {
+			harnessErr = err
+			return
+		}
+		for _, name := range []string{"claude", "codex", "agy"} {
+			file, body := name, "#!/bin/sh\necho 'bint test: harness giả' >&2\nexit 1\n"
+			if runtime.GOOS == "windows" {
+				file, body = name+".bat", "@echo bint test: harness gia 1>&2\r\n@exit /b 1\r\n"
+			}
+			if err := os.WriteFile(filepath.Join(dir, file), []byte(body), 0o755); err != nil {
+				harnessErr = err
+				return
+			}
+		}
+		harnessDir = dir
+	})
+	if harnessErr != nil {
+		t.Fatalf("dựng harness giả: %v", harnessErr)
+	}
+	return harnessDir
+}
+
+const (
+	harnessPrefix     = "bint-test-harness-"
+	harnessStaleAfter = 6 * time.Hour
+)
+
+// sweepStaleHarness xoá thư mục harness giả của tiến trình kiểm thử cũ không kịp dọn.
+func sweepStaleHarness() {
+	ents, err := os.ReadDir(os.TempDir())
+	if err != nil {
+		return
+	}
+	for _, e := range ents {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), harnessPrefix) {
+			continue
+		}
+		if fi, err := e.Info(); err == nil && time.Since(fi.ModTime()) > harnessStaleAfter {
+			os.RemoveAll(filepath.Join(os.TempDir(), e.Name()))
+		}
+	}
+}
+
+// CleanupHarness xoá thư mục harness giả của tiến trình này (nếu đã tạo).
+func CleanupHarness() {
+	if harnessDir != "" {
+		os.RemoveAll(harnessDir)
+	}
+}
+
+// Main chạy m.Run rồi dọn thư mục harness giả; dùng trong TestMain của gói gọi Isolate.
+func Main(m *testing.M) {
+	code := m.Run()
+	CleanupHarness()
+	os.Exit(code)
 }

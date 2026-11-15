@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"slices"
 	"sort"
 	"strings"
@@ -63,7 +62,7 @@ func DiffPaths(ctx context.Context, root, before, after string, pathspec ...stri
 	}
 	var ps []string
 	for p := range strings.SplitSeq(out, "\x00") {
-		if p != "" {
+		if p != "" && !task.IsLedgerPath(p) { // sổ phiếu (.bint/tasks) do Bint ghi, không tính là sửa mã
 			ps = append(ps, p)
 		}
 	}
@@ -77,7 +76,7 @@ func commitTree(ctx context.Context, root, tree, msg string) (string, error) {
 	if head := gitrepo.HeadCommit(ctx, root); head != "" {
 		args = append(args, "-p", head)
 	}
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := gitrepo.CommandContext(ctx, args...)
 	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=bint", "GIT_AUTHOR_EMAIL=bint@localhost",
 		"GIT_COMMITTER_NAME=bint", "GIT_COMMITTER_EMAIL=bint@localhost")
 	var stdout, stderr bytes.Buffer

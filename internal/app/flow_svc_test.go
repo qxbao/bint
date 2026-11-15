@@ -53,9 +53,9 @@ func TestFlowServices(t *testing.T) {
 	root := sysRepo(t, InitOptions{})
 	ctx := context.Background()
 
-	// Chưa có flow tuỳ biến: list chỉ có bốn flow nhúng, đều qua lint; lint không tên rỗng.
+	// Chưa có flow tuỳ biến: list chỉ có năm flow nhúng, đều qua lint; lint không tên rỗng.
 	rows, err := ListFlows(ctx, root, FlowListOptions{})
-	if err != nil || len(rows) != 4 {
+	if err != nil || len(rows) != 5 {
 		t.Fatalf("%v %+v", err, rows)
 	}
 	for i, r := range rows {
@@ -111,7 +111,7 @@ func TestFlowServices(t *testing.T) {
 			got[r.Name] = r
 		}
 	}
-	if len(rows) != 7 || !got["tdd"].OK || got["tdd"].Steps != 4 || got["la"].OK || got["b-do"].OK {
+	if len(rows) != 8 || !got["tdd"].OK || got["tdd"].Steps != 4 || got["la"].OK || got["b-do"].OK {
 		t.Fatalf("list: %+v", rows)
 	}
 	all, err := LintFlows(ctx, root, FlowLintOptions{})

@@ -33,6 +33,7 @@ func TestMain(m *testing.M) {
 	}
 	code := m.Run()
 	os.RemoveAll(dir)
+	testutil.CleanupHarness()
 	os.Exit(code)
 }
 

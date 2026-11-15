@@ -296,7 +296,7 @@ func ChangedFiles(ctx context.Context, root, base string) ([]string, error) {
 			return nil, err
 		}
 		for l := range strings.SplitSeq(out, "\x00") {
-			if l = strings.TrimSpace(l); l != "" {
+			if l = strings.TrimSpace(l); l != "" && !IsLedgerPath(l) {
 				set[path.Clean(l)] = true
 			}
 		}
@@ -320,7 +320,7 @@ func WorktreeFingerprint(ctx context.Context, root string) string {
 	if head == "" {
 		ref = "--cached"
 	}
-	diff, err := gitrepo.Run(ctx, root, "diff", "--binary", "--no-ext-diff", ref)
+	diff, err := gitrepo.Run(ctx, root, "diff", "--binary", "--no-ext-diff", ref, "--", ".", ":(exclude)"+LedgerDir)
 	if err != nil {
 		return ""
 	}
@@ -332,7 +332,7 @@ func WorktreeFingerprint(ctx context.Context, root string) string {
 	names := strings.Split(others, "\x00")
 	sort.Strings(names)
 	for _, n := range names {
-		if n = strings.TrimSpace(n); n == "" {
+		if n = strings.TrimSpace(n); n == "" || IsLedgerPath(n) {
 			continue
 		}
 		h.Write([]byte("\x00" + n + "\x00"))

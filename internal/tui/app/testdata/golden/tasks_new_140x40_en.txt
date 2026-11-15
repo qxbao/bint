@@ -11,7 +11,7 @@
 │ │   Verify command                                                                                                                     │ │
 │ │   Criteria                                                                                                                           │ │
 │ │   Allow                                                                                                                              │ │
-│ │   Workflow        ( ) (empty) (●) b-do ( ) b-req ( ) b-feat ( ) b-review                                                             │ │
+│ │   Workflow        ( ) (empty) (●) b-do ( ) b-req ( ) b-feat ( ) b-review ( ) b-debug                                                 │ │
 │ │   Always plan     [ ]                                                                                                                │ │
 │ │   Skip planning   [ ]                                                                                                                │ │
 │ │   ▸ Advanced                                                                                                                         │ │

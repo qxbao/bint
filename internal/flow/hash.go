@@ -18,6 +18,8 @@ func Hash(d Def) string {
 		Optional bool   `json:"optional"`
 		Verify   bool   `json:"verify"`
 		Fix      string `json:"fix"`
+		// omitempty: flow không đặt expect giữ nguyên băm cũ.
+		Expect string `json:"expect,omitempty"`
 	}
 	type hdef struct {
 		Schema int     `json:"schema"`
@@ -27,7 +29,7 @@ func Hash(d Def) string {
 	n := Normalize(d)
 	h := hdef{Schema: n.Schema, Name: n.Name, Steps: make([]hstep, len(n.Steps))}
 	for i, s := range n.Steps {
-		h.Steps[i] = hstep{s.ID, s.Kind, s.Skill, s.Role, s.Optional, s.VerifyOn(), s.Fix}
+		h.Steps[i] = hstep{s.ID, s.Kind, s.Skill, s.Role, s.Optional, s.VerifyOn(), s.Fix, s.Expect}
 	}
 	b, _ := json.Marshal(h) // chỉ gồm chuỗi/số/bool: không thể lỗi
 	sum := sha256.Sum256(b)

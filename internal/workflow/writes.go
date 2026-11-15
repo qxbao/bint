@@ -52,6 +52,9 @@ func WritesLogPath(runtimeDir string) string { return filepath.Join(runtimeDir, 
 // NormalizeWritePath: xem state.NormalizeWritePath (hookcore dùng chung, không import workflow).
 func NormalizeWritePath(p string) string { return state.NormalizeWritePath(p) }
 
+// NormalizeWritePaths chuẩn hoá nhiều đường dẫn, giải thư mục cha trùng nhau một lần.
+func NormalizeWritePaths(ps []string) []string { return state.NormalizeWritePaths(ps) }
+
 // HashBytes trả về sha256 (hex) của data, cùng dạng với HashFile.
 func HashBytes(data []byte) string {
 	sum := sha256.Sum256(data)

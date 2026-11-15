@@ -167,7 +167,7 @@ func (o *AddOptions) FillFromReview(k *KnowledgeWS) error {
 	if !ok {
 		return Usagef("ID phát hiện %q không hợp lệ (dạng <task-id>.<n>)", id)
 	}
-	t, err := task.NewStore(k.Paths.Runtime).Load(taskRef)
+	t, err := taskStore(k.Workspace).Load(taskRef)
 	if err != nil {
 		return err
 	}

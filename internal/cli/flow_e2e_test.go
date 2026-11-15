@@ -74,17 +74,17 @@ func TestFlowCommandsEndToEnd(t *testing.T) {
 		t.Fatalf("flow lint (tất cả): %d\n%s", code, out)
 	}
 
-	// list: bốn flow nhúng + tdd, ở dạng JSON.
+	// list: năm flow nhúng + tdd, ở dạng JSON.
 	out, _ = run(t, root, "", "flow", "list", "--json")
 	var rows []struct {
 		Name, Source, Path string
 		Steps              int
 		OK                 bool
 	}
-	if json.Unmarshal([]byte(out), &rows) != nil || len(rows) != 5 {
+	if json.Unmarshal([]byte(out), &rows) != nil || len(rows) != 6 {
 		t.Fatalf("flow list --json: %s", out)
 	}
-	if last := rows[4]; last.Name != "tdd" || last.Source != "custom" || last.Steps != 4 || !last.OK || last.Path != ".bint/flows/tdd.yml" {
+	if last := rows[5]; last.Name != "tdd" || last.Source != "custom" || last.Steps != 4 || !last.OK || last.Path != ".bint/flows/tdd.yml" {
 		t.Fatalf("dòng tdd: %+v", last)
 	}
 	if out, _ = run(t, root, "", "flow", "list"); !strings.Contains(out, "tdd") || !strings.Contains(out, "Dùng khi muốn viết kiểm thử đỏ") {

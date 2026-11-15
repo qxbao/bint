@@ -78,3 +78,40 @@ func TestRunQuotaStopsAndResumes(t *testing.T) {
 		}
 	}
 }
+
+// Huỷ ctx trong lúc chuẩn bị (kiểm tra commit gốc, BuildLeakInput) ghi đợt là
+// cancelled chứ không phải failed.
+func TestRunCancelDuringPrepareMarksCancelled(t *testing.T) {
+	needSh(t)
+	testutil.Isolate(t)
+	root, solution, _ := fixtureRepo(t)
+	env, st, db := testEnv(t, root)
+	if _, err := Mine(context.Background(), root, env.Cfg.Eval.Mine, st, MineOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	cands, _ := st.Candidates()
+	var good *Case
+	for _, c := range cands {
+		if c.Source.Commit == solution {
+			good = c
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var batch string
+	_, err := Run(ctx, env, db, RunOptions{
+		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
+		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
+		OnBatch: func(id string) error { batch = id; cancel(); return nil },
+	})
+	if err == nil {
+		t.Fatal("mong đợi lỗi khi ctx bị huỷ lúc chuẩn bị")
+	}
+	var status string
+	if qerr := db.QueryRow("SELECT status FROM eval_batches WHERE batch_id = ?", batch).Scan(&status); qerr != nil {
+		t.Fatal(qerr)
+	}
+	if status != "cancelled" {
+		t.Fatalf("trạng thái đợt = %q, muốn cancelled", status)
+	}
+}

@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
 	"bint/internal/state"
 	"bint/internal/task"
@@ -302,7 +303,7 @@ func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 	os.Remove(idx) // git tạo chỉ mục mới
 	defer os.Remove(idx)
 	run := func(args ...string) (string, error) {
-		cmd := exec.CommandContext(ctx, "git", args...)
+		cmd := gitrepo.CommandContext(ctx, args...)
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+idx)
 		out, err := cmd.Output()
@@ -315,7 +316,15 @@ func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
 		}
 		return strings.TrimSpace(string(out)), nil
 	}
+	// Sổ phiếu (.bint/tasks) không thuộc ảnh chụp. Không loại bằng pathspec
+	// ":(exclude).bint/tasks" trong git add: khi đường dẫn đó (hoặc .bint/) bị ignore,
+	// chẳng hạn bint init --git local thêm .bint/ vào .git/info/exclude, git add thoát mã 1
+	// ("paths are ignored") và mọi bước chỉ-đọc bị chặn. Gỡ khỏi chỉ mục tạm sau khi add thì
+	// không phụ thuộc .gitignore.
 	if _, err := run("add", "-A", "--", "."); err != nil {
+		return "", err
+	}
+	if _, err := run("rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", task.LedgerDir); err != nil {
 		return "", err
 	}
 	return run("write-tree")
@@ -344,7 +353,7 @@ type ReadonlyCheck struct {
 // Sửa/xoá mục tri thức có sẵn, hoặc tệp mới tự gán status khác candidate đều là vi phạm. writesLog rỗng:
 // không có miễn trừ nhật ký.
 func ReadonlyViolations(ctx context.Context, root, before, after string, since time.Time, writesLog string) ReadonlyCheck {
-	cmd := exec.CommandContext(ctx, "git", "diff", "--name-status", "--no-renames", "-z", before, after)
+	cmd := gitrepo.CommandContext(ctx, "diff", "--name-status", "--no-renames", "-z", before, after)
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
@@ -363,6 +372,9 @@ func ReadonlyViolations(ctx context.Context, root, before, after string, since t
 	var res ReadonlyCheck
 	for _, ch := range parseNameStatusZ(out) {
 		st, p := ch.status, ch.path
+		if task.IsLedgerPath(p) {
+			continue // sổ phiếu do Bint ghi, kể cả trong bước chỉ-đọc
+		}
 		if newCandidateItem(root, st, p) {
 			continue
 		}
@@ -397,7 +409,7 @@ func newCandidateItem(root, st, p string) bool {
 
 // nonCandidateChanges liệt kê đường dẫn đổi giữa hai ảnh chụp mà không phải thêm mục tri thức candidate mới.
 func nonCandidateChanges(ctx context.Context, root, before, after string) ([]string, error) {
-	cmd := exec.CommandContext(ctx, "git", "-c", "core.quotepath=off", "diff", "--name-status", "--no-renames", "-z", before, after)
+	cmd := gitrepo.CommandContext(ctx, "-c", "core.quotepath=off", "diff", "--name-status", "--no-renames", "-z", before, after)
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
@@ -405,7 +417,7 @@ func nonCandidateChanges(ctx context.Context, root, before, after string) ([]str
 	}
 	var res []string
 	for _, ch := range parseNameStatusZ(out) {
-		if !newCandidateItem(root, ch.status, ch.path) {
+		if !newCandidateItem(root, ch.status, ch.path) && !task.IsLedgerPath(ch.path) {
 			res = append(res, ch.path)
 		}
 	}
@@ -451,7 +463,7 @@ func blobWorktreeHashes(ctx context.Context, root, before, rel string) []string 
 		return nil
 	}
 	hs := []string{HashBytes(filtered)}
-	cmd := exec.CommandContext(ctx, "git", "cat-file", "blob", before+":"+rel)
+	cmd := gitrepo.CommandContext(ctx, "cat-file", "blob", before+":"+rel)
 	cmd.Dir = root
 	if raw, err := cmd.Output(); err == nil && !bytes.Equal(raw, filtered) &&
 		bytes.Equal(bytes.ReplaceAll(filtered, []byte("\r\n"), []byte("\n")), raw) {
@@ -463,7 +475,7 @@ func blobWorktreeHashes(ctx context.Context, root, before, rel string) []string 
 // blobWorktreeBytes là nội dung tệp rel ở cây before sau khi áp bộ lọc làm việc (eol/smudge) — tức đúng
 // byte mà cây làm việc có lúc chụp. Lỗi (kể cả bộ lọc LFS lỗi) trả ok=false: không có chuỗi ⇒ vi phạm.
 func blobWorktreeBytes(ctx context.Context, root, before, rel string) ([]byte, bool) {
-	cmd := exec.CommandContext(ctx, "git", "cat-file", "--filters", before+":"+rel)
+	cmd := gitrepo.CommandContext(ctx, "cat-file", "--filters", before+":"+rel)
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {

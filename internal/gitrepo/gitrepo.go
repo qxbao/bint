@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -87,7 +86,7 @@ func Run(ctx context.Context, dir string, args ...string) (string, error) {
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 	}
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	cmd := CommandContext(ctx, append([]string{"-C", dir}, args...)...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -117,7 +116,7 @@ func Branch(ctx context.Context, dir string) string {
 
 // Version trả về phiên bản git, ví dụ "2.50.1".
 func Version(ctx context.Context) (string, error) {
-	out, err := exec.CommandContext(ctx, "git", "--version").Output()
+	out, err := CommandContext(ctx, "--version").Output()
 	if err != nil {
 		return "", err
 	}

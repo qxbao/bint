@@ -54,7 +54,7 @@ func TestRunFormPicksCustomFlow(t *testing.T) {
 	if out := r.view(140, 34); !strings.Contains(out, "tdd") {
 		t.Fatalf("form run thiếu flow tuỳ biến:\n%s", out)
 	}
-	r.press("right", "right", "right", "right") // b-do → b-req → b-feat → b-review → tdd
+	r.press("right", "right", "right", "right", "right") // b-do → b-req → b-feat → b-review → b-debug → tdd
 	r.press("ctrl+s")
 	req := r.lastReq()
 	ro, ok := req.Opts.(app.RunWorkflowOptions)

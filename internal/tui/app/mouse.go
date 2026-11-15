@@ -208,6 +208,34 @@ type notices struct {
 	dlg  *confirm.Model
 }
 
+// ledgerNoticeSrc là nguồn của cảnh báo sổ phiếu .bint/tasks trong lịch sử Thông báo.
+const ledgerNoticeSrc = "ledger"
+
+// harvestLedgerWarnings lấy cảnh báo sổ phiếu đang chờ (lỗi ghi .bint/tasks, xung đột, thay đổi chờ nhập): mỗi cảnh báo
+// vào lịch sử Thông báo (phím !), cảnh báo cuối hiện ở thanh trên như lỗi. TUI không in được stderr nên đây là nơi
+// người thấy chúng.
+func (m *Model) harvestLedgerWarnings() {
+	if m.opts.LedgerWarnings == nil {
+		return
+	}
+	msgs := m.opts.LedgerWarnings()
+	if len(msgs) == 0 {
+		return
+	}
+	for _, msg := range msgs {
+		m.notes.hist = append(m.notes.hist, note{at: time.Now(), src: ledgerNoticeSrc, text: m.rw().Rewrite(msg), err: true})
+	}
+	if len(m.notes.hist) > maxNotices {
+		m.notes.hist = m.notes.hist[len(m.notes.hist)-maxNotices:]
+	}
+	m.setToast(msgs[len(msgs)-1], true)
+	if m.notes.seen == nil {
+		m.notes.seen = map[string]string{}
+	}
+	// toast này đã vào lịch sử ở trên: harvestNotices không ghi lại lần nữa.
+	m.notes.seen[""] = m.rw().Rewrite(m.toast)
+}
+
 // harvestNotices ghi nhận thông báo mới (khác lần ghi trước của cùng nguồn) sau mỗi lần Update.
 func (m *Model) harvestNotices() {
 	if m.notes.seen == nil {

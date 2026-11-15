@@ -1,0 +1,2 @@
+# Bint: bản chiếu bền của phiếu tác vụ luôn dùng LF để diff/merge ổn định giữa các máy.
+.bint/tasks/** text eol=lf

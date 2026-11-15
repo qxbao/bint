@@ -39,18 +39,19 @@ func newRunCmd(stdio IO) *cobra.Command {
 	var rf runFlags
 	c := &cobra.Command{
 		Use:   "run <workflow> [mô tả]",
-		Short: "Thực thi workflow b-do, b-req, b-feat, b-review hoặc flow tuỳ biến (Bint Core điều phối)",
+		Short: "Thực thi workflow b-do, b-req, b-feat, b-review, b-debug hoặc flow tuỳ biến (Bint Core điều phối)",
 		Long: `Bint Core điều phối workflow theo chương trình (adapter cấp 3): gọi agent cho từng bước
 với nội dung skill gốc + lớp phủ, ghi lượt chạy (cha b-do, con từng bước, liên kết bằng
 task ID) và áp giới hạn vận hành ở tầng chương trình (mục 5):
 
   b-do      Classify → b-req (nếu cần) → b-feat → b-review → Finalize
   b-req     chỉ lập kế hoạch      b-feat   chỉ thực thi      b-review   chỉ review
+  b-debug   tái hiện lỗi bằng test hỏng (b-repro, có cổng đỏ) → sửa (b-fix) → b-review; chạy một bước: --step
   <flow>    flow tuỳ biến trong .bint/flows/<flow>.yml (bint flow list): chạy các bước của flow theo thứ tự,
             bước plan/review chỉ đọc, kiểm phạm vi sau mỗi bước implement, kiểm chứng sau bước implement có
             verify và luôn trước review/done. Flow đổi giữa chừng (khác băm lúc lập phiếu) thì tác vụ blocked.
 
-Độ sâu của b-req (--depth auto|standard|deep, chỉ b-do/b-req): auto chọn một lần lúc tạo tác vụ —
+Độ sâu của b-req (--depth auto|standard|deep, chỉ b-do/b-debug/b-req): auto chọn một lần lúc tạo tác vụ —
 deep khi phạm vi chạm đường dẫn bảo vệ hoặc yêu cầu dài/nhiều ý (không đổi mức rủi ro quyền ghi),
 còn lại standard. --depth standard|deep là ghi đè của người dùng, hàm ý có b-req và không đi cùng
 --no-plan; chỉ nhận khi tác vụ còn created (hoặc b-req --task trên tác vụ planned để lập lại).
@@ -88,7 +89,7 @@ blocked / failed / interrupted.`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return usageError{errors.New("thiếu workflow (b-do | b-req | b-feat | b-review)")}
+				return usageError{errors.New("thiếu workflow (b-do | b-req | b-feat | b-review | b-debug)")}
 			}
 			return runWorkflow(cmd, stdio, rf, func(o *app.RunWorkflowOptions) {
 				o.Workflow, o.Request, o.Task, o.NoReview, o.Step = args[0], strings.Join(args[1:], " "), rf.taskRef, rf.noReview, rf.step
@@ -115,7 +116,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 	f.BoolVar(&rf.asJSON, "json", false, "in kết quả dạng JSON")
 	if full {
 		f.StringVar(&rf.taskRef, "task", "", "chạy trên tác vụ có sẵn")
-		f.StringVar(&rf.step, "step", "", "chỉ với --task và flow tuỳ biến: chạy đúng một bước (phải là bước kế tiếp của tác vụ) rồi dừng; phiên điều phối dùng cho bước gán harness khác Claude")
+		f.StringVar(&rf.step, "step", "", "chỉ với --task và flow tuỳ biến hoặc b-debug: chạy đúng một bước (phải là bước kế tiếp của tác vụ) rồi dừng; phiên điều phối dùng cho bước gán harness khác Claude")
 		f.BoolVar(&rf.plan, "plan", false, "luôn qua b-req")
 		f.BoolVar(&rf.noPlan, "no-plan", false, "bỏ qua b-req")
 		f.StringVar(&rf.depth, "depth", "auto", depthFlagHelp)

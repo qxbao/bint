@@ -249,11 +249,9 @@ và rủi ro.
 trình; mô tả ở `docs/workflows.md`. *Đã làm (phần 3, TUI, chỉ hiển thị):* màn Tác vụ đánh dấu phiếu có `depends_on` (`◇` sẵn sàng theo `task.Ready`, `⧗` chờ),
 hiện `⚑N` phát hiện open ở hàng danh sách (đếm bằng `app.CollectFindings`, dùng chung với `findings list`), thẻ Phiếu có
 mục Quan hệ (cha, phụ thuộc, con kèm trạng thái), phím `P` bật/tắt cây kế hoạch, phím `F` mở hộp chỉ đọc liệt kê phát
-hiện open qua mọi phiếu; `findings set` vẫn chỉ ở CLI. *Còn lại:* xuất phiếu vào Git
-(câu hỏi mở 1).
+hiện open qua mọi phiếu; `findings set` vẫn chỉ ở CLI. *Đã làm (phần 4, xuất phiếu vào Git — B1 xong):* bản chiếu bền của phiếu nằm trong cây làm việc ở `.bint/tasks/<ID>/` (commit cùng mã, mỗi nhánh/worktree một bản), Bint tự nhập bản đã commit mới hơn sau `git pull`/merge như Beads, `bint task sync` ghi bù và gỡ xung đột, khoá `tasks.ledger: git | local`; mô tả ở `docs/workflows.md` mục "Phiếu trong Git". Không còn mục nào của B1.
 
-**Rủi ro.** Phiếu nằm ở thư mục trạng thái ngoài repository nên không chia sẻ giữa các máy. Beads giải
-bằng JSONL trong Git; với Bint đây là câu hỏi mở (mục 6).
+**Rủi ro.** Phiếu từng nằm ở thư mục trạng thái ngoài repository nên không chia sẻ giữa các máy; đã giải bằng `.bint/tasks/` trong Git (phần 4, câu hỏi mở 1). Giới hạn còn lại: phía nào đổi xác định bằng băm so với lần đồng bộ trước, nên đổi cả hai phía (kể cả sửa tay trong cây) là xung đột người phải giải, Bint không tự chọn phía; tác vụ dở dang (worktree, runner, bước subagent) là dữ liệu của máy và không chuyển sang máy khác.
 
 ### B2. Phiếu đã xong thành đề đánh giá, và flow `b-debug`
 
@@ -267,15 +265,18 @@ tất đã có yêu cầu, tiêu chí chấp nhận, lệnh kiểm chứng đã 
 - `bint eval mine --from-tasks`: dựng ứng viên đề từ phiếu `done`, vẫn qua `verify` (fail→pass) và
   `approve` như đề khai thác từ Git.
 - Flow `b-debug`: tái hiện bằng một test hỏng → giả thuyết → sửa → test qua. Mỗi lỗi sửa xong cho ra
-  một đề fail→pass có sẵn kiểm thử.
+  một đề fail→pass có sẵn kiểm thử (đã làm, xem dưới).
 - Tập đánh giá lớn dần theo việc thật, giải quyết dần giới hạn cỡ mẫu.
 
 *Đã làm (phần 1, chỉ CLI):* `bint eval mine --from-tasks` (`internal/eval/mine_tasks.go`) dựng ứng viên từ phiếu `b-do`
 đã `done` có lời giải dựng lại được; ID `t<id phiếu>`, ghi `source.task`/`source.task_runs`; tập con theo
 `eval.AssignSplit` như đề từ Git (ở đây "train" là `build` trong mã); tri thức sinh trong lượt của phiếu hoặc
 nêu ID phiếu bị loại khi chấm đề đó; đề trùng thay đổi kiểm thử giữa hai nguồn bị bỏ. Mô tả ở
-`docs/evaluation.md`. *Còn lại:* flow `b-debug`, và chia sẻ đề từ phiếu giữa các máy (commit tổng hợp chỉ
-sống trong kho cục bộ nhờ ref `refs/bint/eval/`).
+`docs/evaluation.md`. *Đã làm (phần 2, flow `b-debug`):* flow nhúng thứ năm `b-debug` (`b-req` tuỳ chọn → `b-repro` → `b-fix` → `b-review`) với khoá bước
+`expect: fail` (cổng đỏ: sau `b-repro` kiểm chứng phải hỏng, qua thì tác vụ `blocked`; thiếu lệnh kiểm chứng đã xác nhận thì `blocked`
+trước khi gọi agent), ba skill gốc `b-debug`, `b-repro`, `b-fix`; phiếu `b-debug` đã `done` là nguồn đề của `eval mine --from-tasks`
+như phiếu `b-do`. Mô tả ở `docs/workflows.md` (mục "Flow `b-debug`") và `docs/evaluation.md`. *Còn lại:* chỉ chia sẻ đề từ phiếu giữa
+các máy (commit tổng hợp chỉ sống trong kho cục bộ nhờ ref `refs/bint/eval/`), để sau B1 phần xuất phiếu vào Git.
 
 **Rủi ro.**
 
@@ -429,7 +430,7 @@ Công sức là ước lượng thô: S dưới một ngày, M vài ngày, L hơ
 |---|---|---|---|---|
 | 1 | A1 — chốt giả thuyết (Kế hoạch A, B0) | S (mã) | Có, trần $25 | Người viết tri thức |
 | 2 | A3 — sửa `P6-01..03`, phát hành v0.1 | M | Không | — |
-| 3 | B1 — kế hoạch nhiều giai đoạn, kết cục phát hiện | M | Không | — |
+| 3 | B1 — kế hoạch nhiều giai đoạn, kết cục phát hiện (xong) | M | Không | — |
 | 4 | B2 — phiếu thành đề đánh giá | S–M | Chỉ khi verify | — |
 | 5 | B4 — lịch sử theo tệp qua MCP | S–M | Chỉ khi đo | — |
 | 6 | B3 — nhập bộ nhớ harness | M | Không | — |
@@ -457,7 +458,7 @@ Các quy tắc hiện hành của dự án áp cho mọi mục ở trên:
 ## 6. Câu hỏi mở
 
 1. Phiếu tác vụ và phát hiện review có nên xuất được vào Git (như Beads) để dùng chung giữa các máy
-   không, hay giữ ở thư mục trạng thái cục bộ?
+   không, hay giữ ở thư mục trạng thái cục bộ? *Đã trả lời: xuất vào Git, đặt trong cây làm việc ở `.bint/tasks/<ID>/` (không dùng nhánh riêng), commit cùng mã như `.beads/issues.jsonl`; tự nhập sau `git pull` trong phiên người; `tasks.ledger: local` giữ hành vi cũ.*
 2. Đề đánh giá sinh từ phiếu (B2) vào tập nào theo mặc định, và ai duyệt? *Đã trả lời ở phần 1: cùng quy tắc `AssignSplit` theo ID như đề từ Git, người duyệt bằng `bint eval approve`.*
 3. Đặc tả sống (B6) có đáng một loại đối tượng riêng, hay là một `type` mới của mục tri thức?
 4. Plugin Claude Code (A3) là kênh phân phối chính hay phụ so với tệp nhị phân?

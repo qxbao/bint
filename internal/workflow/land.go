@@ -417,7 +417,7 @@ func mergeOne(ctx context.Context, origin, base, snap, rel string) mergeOutcome 
 	if os.WriteFile(bp, []byte(baseBlob), 0o600) != nil || os.WriteFile(tp, []byte(theirs), 0o600) != nil {
 		return mergeSkipped
 	}
-	cmd := exec.CommandContext(ctx, "git", "-C", origin, "merge-file", "-L", mergeLabelOrigin, "-L", mergeLabelBase, "-L", mergeLabelWorktree, ours, bp, tp)
+	cmd := gitrepo.CommandContext(ctx, "-C", origin, "merge-file", "-L", mergeLabelOrigin, "-L", mergeLabelBase, "-L", mergeLabelWorktree, ours, bp, tp)
 	err = cmd.Run()
 	if err == nil {
 		return mergeClean
@@ -458,7 +458,7 @@ func gitApply(ctx context.Context, origin, patch string, extra ...string) error 
 	}
 	f.Close()
 	args := append([]string{"-C", origin, "apply", "--whitespace=nowarn"}, extra...)
-	cmd := exec.CommandContext(ctx, "git", append(args, f.Name())...)
+	cmd := gitrepo.CommandContext(ctx, append(args, f.Name())...)
 	// conflictFiles phân tích thông báo lỗi: ép bản tiếng Anh, git có bản dịch (vi.po...) sẽ không khớp biểu thức.
 	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANGUAGE=")
 	var stderr bytes.Buffer

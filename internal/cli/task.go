@@ -85,7 +85,7 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskReadyCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
-		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio))
+		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
 	return c
 }
 
@@ -194,7 +194,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 		},
 	}
 	addEditFlags(c, &ef, false)
-	c.Flags().StringVar(&wf, "workflow", "b-do", "workflow tạo tác vụ (b-do | b-req | b-feat | b-review)")
+	c.Flags().StringVar(&wf, "workflow", "b-do", "workflow tạo tác vụ (b-do | b-req | b-feat | b-review | b-debug)")
 	c.Flags().BoolVar(&plan, "plan", false, "luôn qua b-req")
 	c.Flags().BoolVar(&noPlan, "no-plan", false, "bỏ qua b-req")
 	c.Flags().StringVar(&depth, "depth", "auto", depthFlagHelp)
@@ -1121,5 +1121,61 @@ gỡ worktree, nhánh bint/<id>, ref base và tệp khoá. Worktree còn thay đ
 	}
 	c.Flags().StringVarP(&o.Reason, "reason", "m", "", "lý do")
 	c.Flags().BoolVar(&o.Discard, "discard", false, "chỉ người: huỷ dù worktree còn thay đổi chưa đưa về (sẽ mất)")
+	return c
+}
+
+func newTaskSyncCmd(stdio IO) *cobra.Command {
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "sync",
+		Short: "Đồng bộ phiếu tác vụ giữa thư mục cục bộ và .bint/tasks/ trong cây làm việc",
+		Long: `Phiếu tác vụ có bản chiếu bền trong cây làm việc ở .bint/tasks/<ID>/ (commit cùng mã, mỗi
+nhánh/worktree một bản); thư mục trạng thái cục bộ giữ dữ liệu riêng của máy. Bint tự ghi ra cây sau mỗi lần ghi
+phiếu và tự nhập bản đã commit mới hơn sau git pull/merge; lệnh này so ba bên (cục bộ, cây, lần đồng bộ trước):
+- phiếu chỉ có trong cây: dựng thư mục cục bộ; chỉ có cục bộ: ghi ra cây;
+- một phía đổi (theo băm so với lần đồng bộ trước): lấy phía đó; sửa chưa commit trong cây chỉ nhập qua lệnh này;
+- chỉ findings.json khác: hợp bản ghi;
+- đổi cả hai phía (kể cả sửa tay trong cây không đổi updated_at): giữ bản cục bộ, không ghi đè, báo xung đột và
+  thoát mã 1; người áp phần cần giữ bằng task set/write, xoá .bint/tasks/<ID> rồi chạy lại.
+Trong phiên agent chỉ ghi ra cây và liệt kê thay đổi chờ người nhập. Bint không tự commit hay push.
+Đặt tasks.ledger: local để tắt hẳn.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ws, err := openTasks(cmd)
+			if err != nil {
+				return err
+			}
+			rep, err := app.TaskSync(cmd.Context(), ws, app.TaskSyncOptions{})
+			if err != nil {
+				return err
+			}
+			conflicts := rep.Count("conflict")
+			if asJSON {
+				if err := writeJSON(stdio.Out, rep); err != nil {
+					return err
+				}
+			} else {
+				changed := 0
+				for _, it := range rep.Items {
+					if it.Action == "unchanged" {
+						continue
+					}
+					changed++
+					fmt.Fprintf(stdio.Out, "%-9s %s %s\n", it.Action, it.ID, it.Detail)
+				}
+				for _, s := range rep.Skipped {
+					fmt.Fprintf(stdio.Err, "bỏ qua: %s\n", s)
+				}
+				if changed == 0 {
+					fmt.Fprintln(stdio.Out, "Phiếu đã đồng bộ, không có gì đổi.")
+				}
+			}
+			if conflicts > 0 {
+				return fmt.Errorf("%w (%d phiếu)", app.ErrLedgerConflict, conflicts)
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&asJSON, "json", false, "in kết quả dạng JSON")
 	return c
 }

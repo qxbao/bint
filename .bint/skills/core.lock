@@ -4,12 +4,12 @@
 bint_version: 0.1.0-dev
 skills:
   b-add-flow:
-    sha256: 4571ee55e3ae6227
+    sha256: ce360c8e0249c09e
     published:
       - .agents/skills/b-add-flow/SKILL.md
       - .claude/skills/b-add-flow/SKILL.md
     variants:
-      agents: e07017aca8cc7230
+      agents: 5478f6353b97c966
   b-add-skill:
     sha256: a0d1625df4d6570d
     published:
@@ -24,6 +24,13 @@ skills:
       - .claude/skills/b-bootstrap/SKILL.md
     variants:
       agents: a9fa9899d0d8addc
+  b-debug:
+    sha256: 7f937513776383aa
+    published:
+      - .agents/skills/b-debug/SKILL.md
+      - .claude/skills/b-debug/SKILL.md
+    variants:
+      agents: d46d28390036987c
   b-do:
     sha256: b3b76d758e6038cd
     published:
@@ -38,6 +45,13 @@ skills:
       - .claude/skills/b-feat/SKILL.md
     variants:
       agents: 81b0410a7ae9509a
+  b-fix:
+    sha256: ee47647d35cb32b9
+    published:
+      - .agents/skills/b-fix/SKILL.md
+      - .claude/skills/b-fix/SKILL.md
+    variants:
+      agents: 61ea4000b69069ae
   b-knowledge:
     sha256: 8b83fb2d6d7d36e6
     published:
@@ -45,6 +59,13 @@ skills:
       - .claude/skills/b-knowledge/SKILL.md
     variants:
       agents: ebe972afe95bc91f
+  b-repro:
+    sha256: 91f25768d2371ad2
+    published:
+      - .agents/skills/b-repro/SKILL.md
+      - .claude/skills/b-repro/SKILL.md
+    variants:
+      agents: b43f900e7803026a
   b-req:
     sha256: e4b1c7829f599173
     published:

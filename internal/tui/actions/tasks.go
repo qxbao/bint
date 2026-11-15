@@ -154,6 +154,11 @@ func taskActions() []Action {
 			withT("tasks.abort", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
 				return app.RunAbort(ctx, ws, o.(app.RunAbortOptions))
 			})),
+		// Đồng bộ phiếu với .bint/tasks (ghi bù, nhập bản mới sau git pull, hợp findings); phiên agent chỉ xuất. Không phím: mở từ bảng lệnh.
+		mk("tasks.sync", "sync", "", false, 0, "task sync", app.TaskSyncOptions{}, true, false,
+			withT("tasks.sync", func(ctx context.Context, ws *app.TaskWS, o any) (any, error) {
+				return app.TaskSync(ctx, ws, o.(app.TaskSyncOptions))
+			})),
 		mk("tasks.transitions", "transitions", "T", false, 9, "task transitions", nil, false, false, nil),
 		mk("tasks.list", "list", "A", true, 7, "task list", app.TaskListOptions{}, false, false, nil),
 		// Chế độ cây kế hoạch (phiếu cha/con thụt lề) bật/tắt bằng P; chỉ đổi cách xếp danh sách.

@@ -8,12 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
+	"bint/internal/gitrepo"
 	"bint/internal/symbols"
 )
 
@@ -129,7 +129,7 @@ func shortSHA(s string) string {
 }
 
 func gitOut(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir, "-c", "core.quotepath=off"}, args...)...)
+	cmd := gitrepo.CommandContext(ctx, append([]string{"-C", dir, "-c", "core.quotepath=off"}, args...)...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

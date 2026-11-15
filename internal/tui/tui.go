@@ -39,8 +39,10 @@ type Options struct {
 	Args []string
 	// Getenv thay được trong kiểm thử; nil = os.Getenv.
 	Getenv func(string) string
-	In     io.Reader
-	Out    io.Writer
+	// LedgerWarnings lấy (và xoá) cảnh báo sổ phiếu .bint/tasks đang chờ hiện; nil = không có.
+	LedgerWarnings func() []string
+	In             io.Reader
+	Out            io.Writer
 }
 
 // ResolveLang chọn ngôn ngữ: --lang > BINT_LANG > ui.language > LC_ALL/LANG > vi.
@@ -93,7 +95,7 @@ func Run(ctx context.Context, o Options) error {
 		model = gallery.New(gallery.Options{Lang: lang, Mode: mode})
 	} else {
 		root = tuiapp.New(ctx, tuiapp.Options{Dir: o.Dir, Version: o.Version, BintPath: o.BintPath, Lang: lang, LangFlag: o.Lang, Mode: mode,
-			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported, ActivePoll: activePoll})
+			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported, ActivePoll: activePoll, LedgerWarnings: o.LedgerWarnings})
 		model = root
 	}
 	opts := []tea.ProgramOption{tea.WithContext(ctx)}

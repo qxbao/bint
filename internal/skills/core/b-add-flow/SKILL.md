@@ -51,6 +51,11 @@ Hỏi từng nhóm, đề xuất mặc định rồi chờ người dùng đồn
   thất bại). **Không** đặt ở bước implement cuối; Bint vẫn luôn kiểm chứng trước review đầu tiên và trước khi done.
 - **`fix`**: chỉ ở bước review; id bước implement mà vòng sửa quay về khi review còn phát hiện nghiêm trọng (bỏ trống thì về bước
   implement cuối).
+- **`expect: fail`**: chỉ ở bước implement **không phải bước cuối**, không đi cùng `verify: false`; cổng đỏ: sau bước đó Bint chạy
+  lệnh kiểm chứng và **mong nó hỏng** (bước viết kiểm thử tái hiện lỗi). Kiểm chứng vẫn qua thì tác vụ `blocked` (test chưa tái hiện
+  lỗi) và `resume` chạy lại bước đó; hỏng thì sang bước kế. Phiếu phải có lệnh kiểm chứng đã được người xác nhận trước bước này,
+  nếu không tác vụ `blocked` trước khi gọi agent. Dùng thay `verify: false` cho bước "đỏ" khi muốn Bint cưỡng chế thay vì chỉ dặn
+  trong skill (flow nhúng `b-debug` dùng đúng cách này).
 
 Khi skill thay **bước plan** (kind `plan`): skill đó phải ghi `requirement.md`, `plan.md`, `tasks.md` bằng `bint task write` theo
 **hợp đồng v1** (mỗi `AC-N` khớp từng chữ tiêu chí của phiếu, mỗi `TSK-N` có `[AC-N]` và `— xong khi: …`, mọi `AC` được `TSK`
@@ -73,7 +78,7 @@ steps:
   - {id: review, kind: review,    skill: b-review, fix: green}
 ```
 
-Chỉ có các khoá `schema`, `name`, `description`, `steps` (mỗi bước: `id`, `kind`, `skill`, `role`, `optional`, `verify`, `fix`); khoá lạ là lỗi.
+Chỉ có các khoá `schema`, `name`, `description`, `steps` (mỗi bước: `id`, `kind`, `skill`, `role`, `optional`, `verify`, `fix`, `expect`); khoá lạ là lỗi.
 
 ```sh
 bint flow lint <tên>

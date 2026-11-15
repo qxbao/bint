@@ -79,7 +79,15 @@ func detectSpec(i int, home string) Harness {
 // lookPathTTL: exec.LookPath trên Windows stat mọi thư mục trong PATH × mọi đuôi PATHEXT (~8 ms với PATH 70+ mục);
 // TUI gọi phát hiện harness ở mỗi lần nạp màn hình. Kết quả được nhớ ngắn hạn theo (PATH, PATHEXT, tên): đổi PATH thì
 // tra lại ngay, cài harness mới thì thấy sau tối đa lookPathTTL.
-const lookPathTTL = 2 * time.Second
+//
+// Kết quả tìm thấy được nhớ lâu hơn (lookPathFoundTTL): đổi PATH đã nằm trong khoá và harness đã cài hiếm khi biến mất;
+// kết quả không thấy chỉ nhớ lookPathTTL. Nhờ vậy kiểm thử (PATH ổn định, harness giả luôn tìm thấy) không dò lại: mỗi
+// lần dò trên Windows là hàng trăm dòng stat trong testlog mà go test băm lại ở lần chạy sau (docs/workflows.md).
+// Gói này không import testing; kiểm thử chỉnh hạn qua export_test.go.
+var (
+	lookPathTTL      = 2 * time.Second
+	lookPathFoundTTL = 10 * time.Minute
+)
 
 type lookPathEntry struct {
 	path string
@@ -97,7 +105,11 @@ func lookPath(name string) string {
 	lookPathMu.Lock()
 	e, ok := lookPathCache[key]
 	lookPathMu.Unlock()
-	if ok && now.Sub(e.at) < lookPathTTL {
+	ttl := lookPathTTL
+	if ok && e.path != "" {
+		ttl = lookPathFoundTTL
+	}
+	if ok && now.Sub(e.at) < ttl {
 		return e.path
 	}
 	p, err := exec.LookPath(name)

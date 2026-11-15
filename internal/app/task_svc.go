@@ -38,7 +38,7 @@ func OpenTasks(ctx context.Context, dir, version string) (*TaskWS, error) {
 	}
 	inAgent, _ := InAgentSession()
 	env := &workflow.Env{
-		Root: k.Repo.Toplevel, ConfigRoot: k.Root, Cfg: k.Config, Tasks: task.NewStore(k.Paths.Runtime),
+		Root: k.Repo.Toplevel, ConfigRoot: k.Root, Cfg: k.Config, Tasks: taskStore(k.Workspace),
 		Spool: k.Paths.Spool, Version: version, Human: !inAgent, Actor: "agent",
 		RunID: strings.TrimSpace(os.Getenv(workflow.EnvRunID)), Now: time.Now,
 	}
@@ -93,7 +93,7 @@ func requireHumanForAutonomy(ed workflow.TicketEdit, op string) error {
 }
 
 // DepthFlagHelp là mô tả cờ --depth dùng chung.
-const DepthFlagHelp = "độ sâu phân tích của b-req: auto | standard | deep (chỉ b-do/b-req; standard|deep hàm ý có b-req)"
+const DepthFlagHelp = "độ sâu phân tích của b-req: auto | standard | deep (chỉ b-do/b-debug/b-req; standard|deep hàm ý có b-req)"
 
 func wfOrDefault(wf string) string {
 	if wf == "" {
@@ -115,7 +115,7 @@ func checkDepth(value string, noPlan bool, wf string) (string, error) {
 		return "", Usagef("--depth standard|deep hàm ý có b-req: không đi cùng --no-plan")
 	}
 	// Flow tuỳ biến có bước plan hay không do NewTask/applyOverrides kiểm (cần đọc flow từ gốc repository).
-	if flow.IsBuiltin(wf) && wf != workflow.StepDo && wf != workflow.StepReq {
+	if fd, ok := flow.GetBuiltin(wf); ok && !fd.HasKind(flow.KindPlan) {
 		return "", Usagef("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", wf)
 	}
 	return d, nil
@@ -145,7 +145,7 @@ type TaskNewOptions struct {
 	Constraints      []string `flag:"constraint" form:"advanced"`
 	Autonomy         string   `flag:"autonomy" form:"advanced,choices=ask_always|ask_on_protected|auto"`
 	ClearScope       bool     `flag:"clear-scope" form:"advanced"`
-	Workflow         string   `flag:"workflow" form:"choices=b-do|b-req|b-feat|b-review"`
+	Workflow         string   `flag:"workflow" form:"choices=b-do|b-req|b-feat|b-review|b-debug"`
 	Plan             bool     `flag:"plan"`
 	NoPlan           bool     `flag:"no-plan"`
 	Depth            string   `flag:"depth" form:"advanced,choices=auto|standard|deep"`

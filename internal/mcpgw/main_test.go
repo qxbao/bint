@@ -1,6 +1,7 @@
 package mcpgw
 
 import (
+	"bint/internal/testutil"
 	"context"
 	"os"
 	"os/signal"
@@ -38,5 +39,7 @@ func TestMain(m *testing.M) {
 			os.Exit(0)
 		}
 	}
-	os.Exit(m.Run())
+	code := m.Run()
+	testutil.CleanupHarness()
+	os.Exit(code)
 }

@@ -124,6 +124,15 @@ func Validate(d Def, file string, skillExists func(string) bool) []string {
 		if s.Optional && s.Kind != KindPlan {
 			add("%s: optional chỉ dùng được ở bước plan", at)
 		}
+		switch {
+		case s.Expect == "":
+		case s.Expect != ExpectFail:
+			add("%s: expect %q không hợp lệ (chỉ có %s)", at, s.Expect, ExpectFail)
+		case s.Kind != KindImplement:
+			add("%s: expect chỉ dùng được ở bước implement", at)
+		case !s.VerifyOn():
+			add("%s: expect: %s không đi cùng verify: false (cổng đỏ cần chạy kiểm chứng)", at, ExpectFail)
+		}
 		if s.Fix != "" {
 			switch {
 			case s.Kind != KindReview:
@@ -146,6 +155,9 @@ func Validate(d Def, file string, skillExists func(string) bool) []string {
 	if lastImplement >= 0 && !d.Steps[lastImplement].VerifyOn() {
 		s := d.Steps[lastImplement]
 		add("bước %q: verify: false không được đặt ở bước implement cuối (kiểm chứng phải chạy trước review và trước khi done)", s.ID)
+	}
+	if lastImplement >= 0 && d.Steps[lastImplement].ExpectsFail() {
+		add("bước %q: expect: %s không được đặt ở bước implement cuối (sau đó phải có bước sửa cho kiểm chứng qua)", d.Steps[lastImplement].ID, ExpectFail)
 	}
 	return errs
 }
