@@ -855,7 +855,7 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
   chạy lại agent; agent sửa thì xem `git diff`, hoàn tác rồi mới resume, hoặc `bint task cancel`. Agent lỗi/quá giờ kèm vi
   phạm vẫn `failed` như cũ.
 - **Thay đổi do Bint ghi thay người không tính là vi phạm** (docs/isolation-subagent-plan.md 4.5, H8).
-  Người đổi cấu hình (`bint config set`/TUI), duyệt-từ chối-xoá tri thức, sinh lại `AGENTS.md`/skill, `init --update`…
+  Người đổi cấu hình (sửa `.bint/config.yml` hoặc qua TUI), duyệt-từ chối-xoá tri thức, sinh lại `AGENTS.md`/skill, `init --update`…
   trong lúc bước chỉ đọc chạy đều đi qua tầng dịch vụ (`internal/app`, dùng chung cho CLI và TUI); mỗi tệp dịch vụ
   ghi được nối một dòng vào `<state>/runtime/writes.jsonl` (`{path, sha256, prev_sha256, at, actor, agent}`, nối bằng
   `O_APPEND` mỗi dòng một lần ghi; tệp bị xoá ghi `sha256` rỗng; `prev_sha256` là băm ngay trước khi Bint ghi, rỗng
