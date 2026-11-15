@@ -466,11 +466,11 @@ func parseAgyJSON(out []byte, res *AgentResult) {
 	}
 }
 
-// codexServerRe khớp lỗi API phía máy chủ trong thông báo Codex tự báo (mã 5xx, quá tải).
-var codexServerRe = regexp.MustCompile(`(?i)\b5\d\d\b|overloaded|internal server error|service unavailable|bad gateway`)
+// codexServerRe khớp lỗi API phía máy chủ trong thông báo Codex tự báo (mã 5xx đi kèm "status/http/code/error" hoặc tên lỗi, quá tải); số 5xx đứng riêng ("512 tokens", "line 503") không tính.
+var codexServerRe = regexp.MustCompile(`(?i)(?:status|http|code|error)[\s:=]+5\d\d\b|\b5\d\d\s+(?:internal server error|bad gateway|service unavailable|gateway timeout)|overloaded|internal server error|service unavailable|bad gateway`)
 
 // codexRateRe khớp mã 429 trong thông báo Codex tự báo.
-var codexRateRe = regexp.MustCompile(`\b429\b|(?i:too many requests)`)
+var codexRateRe = regexp.MustCompile(`(?i:(?:status|http|code|error)[\s:=]+429\b|too many requests)`)
 
 // codexInfra phân loại lỗi Codex tự báo (chỉ có văn bản, không có mã trạng thái riêng): hạn mức/429 → QuotaHit,
 // 5xx/quá tải → lỗi hạ tầng; còn lại không phải hạ tầng.

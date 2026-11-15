@@ -79,6 +79,11 @@ func TestCodexInfra(t *testing.T) {
 		{"codex báo lỗi: Overloaded", true, false},
 		{"codex báo lỗi: ran 5000 tokens", false, false},
 		{"codex báo lỗi: patch failed", false, false},
+		{"codex báo lỗi: exceeded 512 tokens", false, false},
+		{"codex báo lỗi: failed at line 503", false, false},
+		{"codex báo lỗi: line 429 invalid", false, false},
+		{"codex báo lỗi: HTTP 502 Bad Gateway", true, false},
+		{"codex báo lỗi: error: 500", true, false},
 	} {
 		reason, q := codexInfra(tc.msg)
 		if (reason != "") != tc.infra || q != tc.quota {
