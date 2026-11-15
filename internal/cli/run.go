@@ -301,6 +301,9 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 			printDriverLines(w, "  ", t)
 			if len(rows) == 0 {
 				fmt.Fprintln(w, "\nChưa có lượt chạy nào được ghi nhận cho tác vụ này.")
+				if task.Paused(t.State.Status) {
+					fmt.Fprintf(w, "\nTiếp tục: %s\n", t.State.ResumeCommand())
+				}
 				return nil
 			}
 			fmt.Fprintln(w)

@@ -382,7 +382,7 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 	}
 	fmt.Fprintf(w, "  Trạng thái: %s\n", status)
 	if st.ResumeFrom != "" {
-		fmt.Fprintf(w, "  Tiếp tục từ: %s (bint run resume %s)\n", st.ResumeFrom, st.ID)
+		fmt.Fprintf(w, "  Tiếp tục từ: %s (%s)\n", st.ResumeFrom, st.ResumeCommand())
 	}
 	if st.Runner != nil {
 		fmt.Fprintf(w, "  Điều phối:  bint run pid %d, lượt %s\n", st.Runner.PID, st.Runner.RunID)
@@ -826,7 +826,7 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 				fmt.Fprintf(stdio.Out, "✓ Duyệt thay đổi: %s\n", strings.Join(a.Paths, ", "))
 			}
 			if task.Paused(t.State.Status) {
-				fmt.Fprintf(stdio.Out, "Tiếp tục: bint run resume %s\n", t.State.ID)
+				fmt.Fprintf(stdio.Out, "Tiếp tục: %s\n", t.State.ResumeCommand())
 			}
 			return nil
 		},
@@ -896,7 +896,7 @@ bint task write <id> requirement -, rồi bint run resume <id>.`,
 				if len(rep.Errors)+len(rep.Warnings)+len(rep.OpenQuestions) == 0 {
 					fmt.Fprintf(w, "✓ %s: artifact đạt hợp đồng v1\n", t.State.ID)
 				} else if len(rep.OpenQuestions) > 0 {
-					fmt.Fprintf(w, "Ghi câu trả lời vào requirement.md (— Trả lời: …) rồi bint run resume %s\n", t.State.ID)
+					fmt.Fprintf(w, "Ghi câu trả lời vào requirement.md (— Trả lời: …) rồi %s\n", t.State.ResumeCommand())
 				}
 			}
 			if rep.Blocking() || len(rep.OpenQuestions) > 0 {
@@ -1129,7 +1129,7 @@ land không đổi trạng thái tác vụ: sau đó bint run resume <id> hoặc
 				fmt.Fprintf(w, "! %s\n", n)
 			}
 			if !task.Terminal(res.Task.State.Status) {
-				fmt.Fprintf(w, "Tiếp: bint run resume %s (hoặc bint task status %s done)\n", res.Task.State.ID, res.Task.State.ID)
+				fmt.Fprintf(w, "Tiếp: %s (hoặc bint task status %s done)\n", res.Task.State.ResumeCommand(), res.Task.State.ID)
 			}
 			return nil
 		},

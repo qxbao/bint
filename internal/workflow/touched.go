@@ -28,16 +28,21 @@ func (e *Env) RootFor(t *task.Task) (string, error) {
 	if w == "" || samePath(w, e.Root) {
 		return e.Root, nil
 	}
+	// Đã đưa về và worktree đã gỡ (hoặc gỡ dở, còn sót thư mục không còn là gốc worktree Git): về cây gốc (các lệnh
+	// đọc trạng thái dùng bản lưu của Landed). Tác vụ chưa đưa về thì thiếu worktree là lỗi.
+	landedGone := t.State.Landed != nil && t.State.Origin != ""
 	fi, err := os.Stat(w)
 	if err != nil || !fi.IsDir() {
-		if t.State.Landed != nil && t.State.Origin != "" {
-			// Đã đưa về và worktree đã gỡ: về cây gốc (các lệnh đọc trạng thái dùng bản lưu của Landed).
+		if landedGone {
 			return t.State.Origin, nil
 		}
 		return "", fmt.Errorf("%w: %s", ErrWorktreeGone, w)
 	}
 	top, err := gitrepo.Run(context.Background(), w, "rev-parse", "--show-toplevel")
 	if err != nil || !samePath(top, w) {
+		if landedGone {
+			return t.State.Origin, nil
+		}
 		return "", fmt.Errorf("%w: %s (không còn là gốc worktree Git)", ErrWorktreeGone, w)
 	}
 	return w, nil
