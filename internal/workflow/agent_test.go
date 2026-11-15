@@ -3,6 +3,7 @@ package workflow
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"bint/internal/config"
@@ -100,9 +101,7 @@ func ptrStringAgent(s string) *string { return &s }
 func TestHarnessAgentsSavedEmptyClaudeModel(t *testing.T) {
 	cfg := config.Default()
 	binDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(binDir, "claude"), []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeFakeHarness(t, binDir, "claude")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	cfg.Workflow.Agent.Model = ptrStringAgent("new-config-model")
 	f := HarnessAgentsWithChoices(cfg, "", adapters.Selection{Roles: map[string]string{"implementer": "claude"}},
@@ -114,5 +113,17 @@ func TestHarnessAgentsSavedEmptyClaudeModel(t *testing.T) {
 	ca := ag.(*eval.ClaudeAgent)
 	if got := ca.RequestedModel(); got != "" {
 		t.Fatalf("empty snapshot was replaced by config model %q; args %q", got, ca.ArgsFor(eval.AgentRequest{}))
+	}
+}
+
+// writeFakeHarness đặt một chương trình giả tên name trong dir để adapter tìm thấy qua PATH. Windows chỉ tìm tệp có đuôi
+// trong PATHEXT nên tệp giả mang đuôi .exe (nội dung không chạy; adapter chỉ cần tìm thấy).
+func writeFakeHarness(t *testing.T, dir, name string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
 	}
 }
