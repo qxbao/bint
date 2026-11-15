@@ -83,6 +83,7 @@ func idKey(id json.RawMessage) string {
 // kết thúc lời gọi ngay (nhả inflight, semaphore nhóm) thay vì chờ tới CallTimeout.
 type callRef struct {
 	gw     string
+	p      *partition // phân vùng nhận lời gọi (khác s.p khi định tuyến theo projectPath)
 	cancel context.CancelFunc
 }
 
@@ -102,26 +103,26 @@ func (s *session) beginCall(parent context.Context, clientID json.RawMessage) (c
 	}
 }
 
-func (s *session) trackCall(clientID json.RawMessage, gwID string) {
+func (s *session) trackCall(clientID json.RawMessage, gwID string, p *partition) {
 	s.mu.Lock()
 	if c := s.calls[idKey(clientID)]; c != nil {
-		c.gw = gwID
+		c.gw, c.p = gwID, p
 	}
 	s.mu.Unlock()
 }
 
 // cancelCall huỷ lời gọi theo id gốc của client; trả id đã đổi (rỗng nếu chưa gửi) và ok=false nếu không có lời gọi.
-func (s *session) cancelCall(clientID json.RawMessage) (gw string, ok bool) {
+func (s *session) cancelCall(clientID json.RawMessage) (gw string, p *partition, ok bool) {
 	// Huỷ trong khoá: hoặc trackCall đã gán gw trước (người gọi chuyển cancelled tới upstream), hoặc ctx đã bị huỷ trước khi
 	// lệnh vào hàng đợi (vòng ghi bỏ lệnh, waiter.markWritten); không còn khe nào lệnh tới upstream mà không nhận cancelled.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := s.calls[idKey(clientID)]
 	if c == nil {
-		return "", false
+		return "", nil, false
 	}
 	c.cancel()
-	return c.gw, true
+	return c.gw, c.p, true
 }
 
 func (s *session) nextProgressToken() string {

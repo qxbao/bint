@@ -218,8 +218,9 @@ Dựa trên chạy thử bản 1.6.2 (§10, S1).
   Node 24 riêng). **Không** chạy `codegraph install`: lệnh này ghi mục MCP và quyền vào cấu hình của từng
   harness và chèn khối vào `CLAUDE.md`/`AGENTS.md`, chồng lên phần Bint quản lý.
 - **Lập chỉ mục:** `bint mcp index codegraph` chạy `codegraph init -y` (lần đầu) hoặc `codegraph sync`
-  trong worktree hiện tại, rồi thêm `.codegraph/` vào `.git/info/exclude`. Không chạy tự động vì `init`
-  đỉnh RAM ~822 MB (repo Bint). Lý do thêm vào exclude: `init` tạo `.codegraph/.gitignore` bỏ qua mọi tệp
+  trong worktree hiện tại, rồi thêm `.codegraph/` vào `.git/info/exclude`. Lệnh này chỉ dành cho người;
+  riêng worktree tác vụ của Bint được chuẩn bị tự động (xem "Worktree mới" bên dưới). `init` đỉnh RAM
+  ~822 MB (repo Bint). Lý do thêm vào exclude: `init` tạo `.codegraph/.gitignore` bỏ qua mọi tệp
   trong thư mục trừ chính nó, nên tệp này vẫn là tệp chưa theo dõi và sẽ bị tính khi kiểm phạm vi của
   b-feat. `doctor` báo nếu dự án dùng codegraph mà worktree chưa có chỉ mục.
 - **Daemon không thuộc gateway.** codegraph tự chạy một daemon cho mỗi project (watcher, writer duy nhất
@@ -232,12 +233,29 @@ Dựa trên chạy thử bản 1.6.2 (§10, S1).
   - `codegraph.explore` là nhóm mặc định trong ví dụ cấp quyền; nhóm này không bị ảnh hưởng;
   - `bint mcp check codegraph` gọi thử `codegraph_status`; bị từ chối thì báo `degraded` và hướng dẫn dừng
     daemon cũ (`codegraph daemon`, hoặc kill PID trong `.codegraph/daemon.pid`).
-- **Worktree mới** (G2 của [isolation-subagent-plan.md](isolation-subagent-plan.md)): chép
-  `.codegraph/codegraph.db` và `.codegraph/.gitignore` từ worktree gốc, không chép `*.pid`, `daemon.sock`,
-  `daemon.log`, `-wal`/`-shm`; codegraph tự đối chiếu khi có client kết nối. Đo thử: `sync` sau khi chép
-  mất 3,6 s, đỉnh 323 MB, so với `init` 9 s, đỉnh 822 MB. Không có chỉ mục gốc thì để người dùng chạy
-  `bint mcp index codegraph`.
-- Không dùng `projectPath` để một client phục vụ nhiều worktree: chưa rõ đường đó đi qua daemon thế nào.
+- **Worktree mới** (G2 của [isolation-subagent-plan.md](isolation-subagent-plan.md)): khi dự án khai báo
+  codegraph trong `mcp.services`, `ensureWorktree` tự chuẩn bị chỉ mục cho worktree tác vụ. Chép bản nhất
+  quán của `.codegraph/codegraph.db` (`VACUUM INTO` trong một giao dịch đọc, nên gồm cả dữ liệu còn trong
+  WAL của gốc, không phụ thuộc checkpoint) và `.codegraph/.gitignore` từ repo gốc; không chép `*.pid`,
+  `daemon.*`, `-wal`/`-shm`. codegraph tự đối chiếu khi có client kết nối. Đo thử: `sync` sau khi chép
+  mất 3,6 s, đỉnh 323 MB, so với `init` 9 s, đỉnh 822 MB. Repo gốc chưa có chỉ mục thì tự chạy
+  `codegraph init -y` ở gốc đúng một lần (khoá `fslock` trong thư mục trạng thái, kiểm lại sau khi lấy
+  khoá, thêm `.codegraph/` vào `info/exclude`) rồi chép; đường này không qua `RequireHuman` vì workflow chạy
+  trong phiên agent. Mọi lỗi (codegraph chưa đăng ký, không có binary, `init` lỗi, chép lỗi) chỉ thêm ghi
+  chú vào kết quả lượt chạy, tác vụ không `failed`.
+- **Phân vùng theo worktree khi gọi với `projectPath`.** `tools/call` của codegraph có `arguments.projectPath`
+  là đường dẫn tuyệt đối nằm trong một worktree tác vụ của cùng repo với phiên (dưới `<state>/worktrees`) và
+  khác gốc phiên được định tuyến sang phân vùng riêng của worktree đó (khoá theo gốc worktree, upstream có
+  cwd = worktree; dùng chung với phiên mở thẳng ở worktree). Nhờ vậy tiến trình codegraph của repo gốc
+  không mở và không giữ khoá `codegraph.db` của worktree khác (đã thấy trên Windows: gỡ worktree báo
+  `Device or resource busy`). `projectPath` trỏ gốc phiên, ngoài thư mục worktrees, sang repo khác hoặc không
+  giải được thì vẫn dùng phân vùng của phiên. Phân vùng định tuyến không gắn phiên nên dừng theo
+  `idle_timeout`; quyền vẫn theo role của phiên.
+- **`POST /admin/release?worktree=<đường dẫn tuyệt đối>`** (`AdminClient.ReleaseWorktree`): dừng upstream và
+  gỡ mọi phân vùng có gốc là worktree đó, đóng các phiên gắn vào chúng, trả `{"worktree","released"}`; phân
+  vùng của worktree khác không bị ảnh hưởng. `cleanupWorktree` gọi lệnh này trước khi gỡ worktree, giới hạn
+  3 giây; gateway không chạy, daemon bản cũ (404) hoặc lỗi thì bỏ qua, không chặn việc dọn. Daemon riêng của
+  codegraph ở worktree (không thuộc gateway, xem trên) vẫn có thể giữ khoá trên Windows: lúc đó dọn tay như cũ.
 
 **Nghiệm thu M1:** thêm/gỡ/kiểm tra codegraph, specmatic, deepwiki trên máy thật; `index codegraph` tạo
 chỉ mục và cập nhật `.git/info/exclude`; `check` báo `degraded` khi daemon codegraph chạy với env hẹp;
@@ -505,5 +523,5 @@ chạy; mọi lời gọi qua gateway thành công.
 
 Liên quan [isolation-subagent-plan.md](isolation-subagent-plan.md): G3 (subagent trong phiên) dùng chung
 kết nối MCP của phiên cha, nên quyền theo role của subagent phải đặt ở định nghĩa subagent (danh sách tool
-`mcp__bint__*`) chứ không qua env như §7.2. G2 (worktree riêng cho mỗi lượt) chép chỉ mục codegraph theo
-§5.5.
+`mcp__bint__*`) chứ không qua env như §7.2. G2 (worktree riêng cho mỗi lượt) tự chép chỉ mục codegraph và
+định tuyến `projectPath` theo phân vùng worktree (§5.5).

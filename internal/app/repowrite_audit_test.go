@@ -35,7 +35,6 @@ var directWriteAllowed = map[string]string{
 	"doctor_fix.go:FixDoctor":           "xoá thư mục rỗng còn sót của worktree mồ côi; findFixableOrphan giới hạn đường dẫn trong thư mục worktrees của trạng thái",
 	"evolvesvc/cycle.go:Cycle":          "evolve/cycles/<id>.json trong thư mục trạng thái",
 	"gitvis.go:saveGitMode":             "git-mode trong thư mục trạng thái",
-	"mcp_svc.go:ensureGitExclude":       "git info/exclude nằm trong .git (không phải tệp của cây làm việc); chỉ thêm một dòng .codegraph/",
 	"hook_trace.go:startHookTrace":      "runtime/hook-trace/*.in trong thư mục trạng thái (BINT_HOOK_TRACE); hook không dùng repoWriter",
 	"hook_trace.go:finish":              "runtime/hook-trace/*.out trong thư mục trạng thái",
 	"hook_trace.go:pruneHookTrace":      "xoá tệp cũ của runtime/hook-trace trong thư mục trạng thái",

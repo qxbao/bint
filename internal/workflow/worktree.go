@@ -390,6 +390,7 @@ func (r *Runner) ensureWorktree(ctx context.Context, rs *runState) bool {
 		return fail("chép tệp cục bộ sang worktree: %v", err)
 	}
 	rs.res.Notes = append(rs.res.Notes, notes...)
+	rs.res.Notes = append(rs.res.Notes, r.prepareCodegraph(ctx, origin, wt, rs.t.LogPath("worktree-codegraph.log"))...)
 	if cmd := strings.TrimSpace(r.Cfg.Workflow.Worktree.SetupCommand); cmd != "" {
 		log := rs.t.LogPath("worktree-setup.log")
 		os.MkdirAll(filepath.Dir(log), 0o700)
@@ -426,6 +427,7 @@ func (r *Runner) ensureWorktree(ctx context.Context, rs *runState) bool {
 // cleanupWorktree gỡ mọi thứ Bint đã tạo cho tác vụ id: worktree, nhánh bint/<id>, ref base, tệp khoá của
 // worktree. Lỗi không dừng việc dọn; trả các ghi chú lỗi (để người dọn tay). Idempotent.
 func (e *Env) cleanupWorktree(ctx context.Context, id, origin, wt string) []string {
+	e.releaseWorktreeParts(ctx, wt)
 	var notes []string
 	manual := func(what string, err error) {
 		notes = append(notes, fmt.Sprintf("%s lỗi: %v", what, err))
