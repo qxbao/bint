@@ -41,9 +41,8 @@ phán đoán của bạn.
    - việc vừa (một tính năng/sửa lỗi gói gọn trong vài tệp): `--plan` (độ sâu `standard`);
    - việc lớn hoặc nhiều rủi ro (refactor xuyên gói, đổi kiến trúc, kế hoạch nhiều giai đoạn, đổi dữ
      liệu/định dạng lưu trữ): `--depth deep`.
-   - Kế hoạch có nhiều giai đoạn độc lập: **đề nghị người dùng tách mỗi giai đoạn một phiếu** (ví dụ
-     "Thực hiện giai đoạn 0 của docs/x.md") trước khi lập phiếu. Một phiếu cho cả kế hoạch lớn dễ
-     vượt `limits` và khó review.
+   - Kế hoạch có nhiều giai đoạn độc lập: **đề nghị người dùng tách thành phiếu cha + phiếu con có `depends_on`**
+     (xem Bước 1c) trước khi lập phiếu. Một phiếu cho cả kế hoạch lớn dễ vượt `limits` và khó review.
    - Chưa chắc giữa hai mức thì chọn mức cao hơn. Chỉ hỏi người dùng khi lựa chọn thay đổi đáng kể
      chi phí hoặc phạm vi.
 3. Xác định phạm vi được sửa (`--allow`, glob) từ nội dung tài liệu, không từ tên tài liệu. Tài liệu
@@ -90,6 +89,42 @@ chỉ về cây này khi xong, dưới dạng chưa commit). JSON của `bint ta
   phiếu (không đi cùng `--task`); phiếu đã lập thì không đổi chế độ, muốn đổi thì huỷ và lập lại.
 - **Báo người dùng tác vụ chạy ở đâu**: `shared` (cây hiện tại) hay `worktree` (worktree sẽ được tạo ở
   lần `bint run` đầu; đường dẫn, nhánh `bint/<id>` có trong `bint run status <id>`).
+
+## Bước 1c — Kế hoạch nhiều giai đoạn (phiếu cha/con)
+
+**Khi nào tách.** Yêu cầu/khái niệm lớn gồm nhiều giai đoạn có thể giao và kiểm chứng riêng (ví dụ "giai đoạn 0..3"
+của một tài liệu thiết kế, hoặc nhiều thay đổi nối tiếp mà giai đoạn sau cần kết quả giai đoạn trước) thì tách thành
+**một phiếu cha + các phiếu con giai đoạn**, thay vì một phiếu khổng lồ dễ vượt `limits` và khó review. **Không tách**
+khi việc nhỏ, một mạch, hoặc các phần dính vào cùng vài tệp và không kiểm chứng riêng được.
+
+**Cách lập** (đề nghị người dùng trước, chốt số giai đoạn và thứ tự rồi mới lập):
+
+```sh
+bint task new "<mục tiêu cả kế hoạch>" --workflow b-do --no-plan --json            # phiếu cha: chỉ giữ ngữ cảnh
+bint task new "Giai đoạn 1: …" --parent <cha> --workflow b-do --json               # con đầu, không phụ thuộc
+bint task new "Giai đoạn 2: …" --parent <cha> --depends-on <gđ1> --workflow b-do --json
+bint task new "Giai đoạn 3: …" --parent <cha> --depends-on <gđ1>,<gđ2> --workflow b-do --json
+bint task set <id> --depends-on <id>            # thêm phụ thuộc cho phiếu đã lập
+bint task set <id> --clear-depends-on           # xoá phụ thuộc cũ rồi đặt lại
+```
+
+- Phiếu con chép phạm vi, tài liệu tham chiếu và ràng buộc từ phiếu cha lúc lập (một lần); đặt `--allow` riêng cho từng
+  giai đoạn khi phạm vi khác nhau. Giai đoạn đủ lớn hoặc chạm đường dẫn bảo vệ thì để Bint giữ b-req cho riêng nó.
+- Phiếu cha **không** tự phụ thuộc các con. Muốn cha xong sau cùng thì `bint task set <cha> --depends-on <con>`.
+- ID sai, tiền tố mơ hồ hoặc cạnh tạo chu trình làm lệnh thoát 2 và không tạo gì: sửa rồi lập lại, đừng bỏ qua.
+- Các giai đoạn không phụ thuộc nhau, khác tệp: có thể chạy song song, lập với `--worktree` (Bước 1b).
+
+**Vòng chạy lần lượt** (làm việc với phiếu sẵn sàng, không tự chọn thứ tự):
+
+```sh
+bint task ready --parent <cha> --json           # phiếu chưa kết thúc mà mọi phụ thuộc đã done, cũ nhất trước
+bint run b-do --task <id> --json                # chạy phiếu đầu tiên (Bước 2; driver session: Bước 2b)
+```
+
+Lặp lại hai lệnh cho tới khi `bint task ready --parent <cha>` rỗng. **Dừng ngay** khi một phiếu `blocked`/`failed`
+(xử lý như Bước 3, báo người dùng): các phiếu phụ thuộc nó sẽ không bao giờ sẵn sàng, đừng cố chạy chúng. Phiếu
+`done` rồi thì phiếu kế tiếp mới xuất hiện trong `task ready`. Người dùng thấy toàn kế hoạch trong TUI: màn Tác vụ,
+phím `P` (cây) và `R` (đồ thị phụ thuộc).
 
 ## Bước 2 — Giao việc cho các agent
 
@@ -249,3 +284,6 @@ Tác vụ `worktree` báo thêm: worktree đã chạy ở đâu (`worktree`, `br
 **đã đưa về cây gốc chưa** (`landed`, `landed_files`), tệp xung đột còn phải gỡ (nếu có), và kiểm chứng đã
 chạy trên cây cô lập chứ không phải trên cây gốc. Muốn dọn bỏ tác vụ worktree dở thì
 `bint task cancel <id>` (còn thay đổi chưa đưa về thì chỉ người dùng `--discard` được).
+
+Kế hoạch nhiều giai đoạn (Bước 1c): báo phiếu cha, từng phiếu con kèm trạng thái, phiếu đã xong/còn lại và phiếu
+sẵn sàng kế tiếp (`bint task ready --parent <cha> --json`), phiếu nào dừng và vì sao.

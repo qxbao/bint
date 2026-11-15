@@ -62,6 +62,19 @@ bint context "<mục tiêu>"          # quy tắc, điểm dễ sai đã biết 
 mơ hồ thay đổi cách làm, ghi nó vào mục "Câu hỏi mở" (khuôn `- [ ] Q-N: …`, xem Bước 3) thay vì
 tự chọn.
 
+## Yêu cầu lớn và phiếu con
+
+- **Phiếu có `parent`** (`bint task show <id>` in phiếu cha và các phụ thuộc): đọc `requirement.md`/`plan.md` của
+  phiếu cha và của các phụ thuộc đã `done` trước khi lập kế hoạch, rồi **chỉ lập kế hoạch cho giai đoạn của phiếu
+  này**. Không lặp lại phần việc của giai đoạn khác; phần thuộc giai đoạn khác ghi vào "Ngoài phạm vi".
+- **Yêu cầu quá lớn cho một phiếu** (nhiều giai đoạn giao được riêng, vượt `limits`, giai đoạn sau cần kết quả giai
+  đoạn trước): thêm vào `plan.md` mục `## Đề xuất tách giai đoạn` — mỗi giai đoạn một dòng gồm mục tiêu, phạm vi
+  (`--allow`) và phụ thuộc vào giai đoạn nào — kèm lệnh gợi ý, ví dụ
+  `bint task new "<giai đoạn 2>" --parent <id> --depends-on <id giai đoạn 1>`. Rồi chỉ lập kế hoạch chi tiết cho
+  giai đoạn đầu.
+- **Dưới `bint run` (biến `BINT_RUN_ID` có giá trị) không tự lập phiếu con**: chỉ đề xuất trong `plan.md`; người
+  dùng hoặc b-do quyết định lập. Chạy tay ngoài `bint run` thì hỏi người dùng trước khi chạy `bint task new`.
+
 ## Độ sâu phân tích
 
 Bint chọn độ sâu **một lần** lúc tạo tác vụ và không đổi giữa lượt. Dưới `bint run`, đề bài có
