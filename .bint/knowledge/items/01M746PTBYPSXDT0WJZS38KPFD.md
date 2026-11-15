@@ -2,7 +2,7 @@
 schema: 1
 id: 01M746PTBYPSXDT0WJZS38KPFD
 type: warning
-status: verified
+status: deprecated
 title: 'Khoá liên tiến trình: dùng flock/LockFileEx, đừng chép kiểu thu hồi theo PID chết của evolve.AcquireLock'
 scope: {}
 evidence:
@@ -29,9 +29,9 @@ reviewed_at: "2026-11-11T08:31:46Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:24:04Z"
-updated_at: "2026-11-11T08:31:46Z"
+updated_at: "2026-11-15T11:45:54Z"
 verified_at: "2026-11-11T08:31:46Z"
-status_reason: người duyệt chấp nhận
+status_reason: lỗi thời sau V0, thay bằng 01M7FGC944KVT6NY1TZE7MJ0P8
 ---
 
 Commit 755b544 (R1) sửa race của khoá ghi workflow: đọc khoá thấy PID chết rồi xoá/rename có thể gỡ nhầm khoá của chủ mới đang sống. Bản sửa dùng `tryFlock` (build tag unix/windows) để hệ điều hành tự nhả khoá khi tiến trình chết.

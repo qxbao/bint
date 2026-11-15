@@ -11,6 +11,7 @@ import (
 	"bint/internal/i18n"
 	"bint/internal/task"
 	"bint/internal/tui/components/markdown"
+	"bint/internal/tui/components/meter"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
@@ -45,7 +46,7 @@ func (m *Model) tabLines(env ui.Env, t *task.Task, w int) ([]string, int) {
 
 func (m *Model) section(env ui.Env, label string, w int) string {
 	s := "── " + label + " "
-	return env.Th.S(theme.Accent, s+strings.Repeat("─", max(w+1-text.Width(s), 0)))
+	return env.Th.S(theme.Accent, s+strings.Repeat("─", max(w-text.Width(s), 0)))
 }
 
 // kv dựng dòng "nhãn   giá trị" với thụt treo khi giá trị dài.
@@ -79,14 +80,28 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	var l []string
 	add := func(s ...string) { l = append(l, s...) }
 	st, tk := t.State, t.Ticket
-	glyph, role := statusGlyph(st.Status)
-	head := th.S(role, glyph) + " " + m.statusName(st.Status)
-	if st.Reason != "" {
-		head += th.S(theme.Muted, " — "+m.cli(st.Reason))
+	add(m.spotlightLines(env, t, w)...)
+	// Điều cần người xử lý nằm ngay dưới khối nổi bật: câu hỏi, điều chặn done, đường dẫn chờ duyệt.
+	if have && derr == nil {
+		if len(d.Assessment.Questions) > 0 {
+			add("")
+		}
+		for _, q := range d.Assessment.Questions {
+			add(text.WrapHang(q, w, th.S(theme.Accent, "? "), "  ")...)
+		}
+		if len(d.Blockers) > 0 && !task.Terminal(st.Status) {
+			add("", m.section(env, m.t("tk.section.blockers"), w))
+			for _, b := range d.Blockers {
+				add(text.WrapHang(m.cli(b), w, th.S(theme.Warn, "- "), "  ")...)
+			}
+		}
 	}
-	add(th.S(theme.Muted, st.ID), head)
-	for _, s := range text.Wrap(tk.Goal, w) {
-		add(th.Bold(s))
+	if len(st.PendingPaths) > 0 {
+		add("", m.section(env, m.t("tk.section.pending"), w))
+		for _, p := range st.PendingPaths {
+			add(th.S(theme.Warn, "  "+p))
+		}
+		add(th.S(theme.Muted, m.t("tk.pending.hint")))
 	}
 	add("")
 	add(m.kv(env, "workflow", st.Workflow, w)...)
@@ -155,13 +170,6 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	add(m.kv(env, "refs", strings.Join(tk.References, ", "), w)...)
 	add(m.kv(env, "constraints", strings.Join(tk.Constraints, "; "), w)...)
 	add(m.relationLines(env, st, d, w)...)
-	if len(st.PendingPaths) > 0 {
-		add("", m.section(env, m.t("tk.section.pending"), w))
-		for _, p := range st.PendingPaths {
-			add(th.S(theme.Warn, "  "+p))
-		}
-		add(th.S(theme.Muted, m.t("tk.pending.hint")))
-	}
 	if p := st.ProtectedApproval; p != nil {
 		add(m.kv(env, "approved", p.By+": "+strings.Join(p.Paths, ", "), w)...)
 	}
@@ -178,23 +186,9 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 			risk += " · " + strings.Join(a.Protected, ", ")
 		}
 		add(m.kv(env, "risk", risk, w)...)
-		for _, q := range a.Questions {
-			for i, s := range text.WrapHang(q, w, th.S(theme.Accent, "? "), "  ") {
-				_ = i
-				add(s)
-			}
-		}
 		for _, n := range a.Notes {
 			for _, s := range text.WrapHang(m.cli(n), w, th.S(theme.Warn, "! "), "  ") {
 				add(s)
-			}
-		}
-		if len(d.Blockers) > 0 && !task.Terminal(st.Status) {
-			add("", m.section(env, m.t("tk.section.blockers"), w))
-			for _, b := range d.Blockers {
-				for _, s := range text.WrapHang(m.cli(b), w, th.S(theme.Warn, "- "), "  ") {
-					add(s)
-				}
 			}
 		}
 	}
@@ -294,7 +288,12 @@ func (m *Model) criteriaLines(env ui.Env, t *task.Task, w int) []string {
 			met++
 		}
 	}
-	l = append(l, th.S(theme.Muted, m.t("tk.criteria.summary", i18n.A{"met": met, "total": len(crit)})), "")
+	barW := max(min(w-12, 30), 0)
+	bar := ""
+	if barW >= 4 {
+		bar = meter.Bar(th, float64(met)/float64(len(crit)), barW, theme.OK) + " "
+	}
+	l = append(l, text.Truncate(bar+th.S(theme.Muted, m.t("tk.criteria.summary", i18n.A{"met": met, "total": len(crit)})), w), "")
 	for i, c := range crit {
 		mark, role := "?", theme.Muted
 		cs := t.State.CriterionStatus(i + 1)
@@ -431,6 +430,9 @@ func (m *Model) reviewLines(env ui.Env, t *task.Task, d Detail, have bool, derr 
 	fs := sortedFindings(rev)
 	m.find = max(0, min(m.find, max(len(fs)-1, 0)))
 	add("", m.section(env, m.cat.N("tk.review.findings", len(fs)), w))
+	if bl := m.severityBadges(env, fs, w); bl != "" {
+		add(bl)
+	}
 	sel := -1
 	if len(fs) == 0 {
 		add(th.S(theme.OK, "✓ ") + m.t("tk.review.no_findings"))
@@ -543,30 +545,9 @@ func (m *Model) runsLines(env ui.Env, t *task.Task, w int) []string {
 	if len(r.Runs) == 0 {
 		return []string{"", " " + th.S(theme.Muted, m.t("tk.runs.none"))}
 	}
-	var l []string
-	for _, x := range r.Runs {
-		cost := "-"
-		if x.CostUSD != nil {
-			cost = fmt.Sprintf("%.4f", *x.CostUSD)
-		}
-		role := theme.Fg
-		switch x.Status {
-		case "completed":
-			role = theme.OK
-		case "failed":
-			role = theme.Err
-		case "interrupted":
-			role = theme.Warn
-		}
-		wf := x.Workflow
-		if wf == "" {
-			wf = "-"
-		}
-		l = append(l, text.Truncate(th.S(theme.Muted, short(x.RunID))+" "+th.S(role, text.Pad(x.Status, 11))+" "+text.Pad(wf, 9)+" "+text.Pad(x.Duration, 7)+" "+cost, w))
-		if x.Reason != "" {
-			l = append(l, th.S(theme.Muted, "    "+m.cli(x.Reason)))
-		}
-	}
+	l := m.stepCostLines(env, r, w)
+	l = append(l, "", m.section(env, m.t("tk.section.run_list"), w))
+	l = append(l, m.runListLines(env, r.Runs, w)...)
 	if task.Paused(t.State.Status) {
 		l = append(l, "", th.S(theme.Muted, m.t("tk.runs.resume", i18n.A{"cmd": m.cli("bint run resume " + id)})))
 	}

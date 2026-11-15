@@ -102,9 +102,20 @@ func runWithEnv(ctx context.Context, dir string, env []string, args ...string) (
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return "", CommandError(ctx, args, err, stderr.String())
 	}
 	return stdout.String(), nil
+}
+
+// CommandError dựng lỗi của một lệnh git đã chạy bằng CommandContext(ctx, …). Khi ctx đã bị huỷ hoặc hết hạn,
+// tiến trình bị giết nên err chỉ là "exit status 1" (Windows) hay "signal: killed" (Unix); lỗi trả về bọc thêm
+// ctx.Err() để errors.Is(err, context.Canceled) nhận ra việc huỷ trên mọi hệ điều hành.
+func CommandError(ctx context.Context, args []string, err error, stderr string) error {
+	msg := strings.TrimSpace(stderr)
+	if cerr := ctx.Err(); cerr != nil {
+		return fmt.Errorf("git %s: %w (%w): %s", strings.Join(args, " "), cerr, err, msg)
+	}
+	return fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
 }
 
 // HeadCommit trả về commit HEAD, hoặc "" nếu repository chưa có commit.

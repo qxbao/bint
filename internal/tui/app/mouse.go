@@ -25,6 +25,7 @@ import (
 //	tab:<i>   chuyển tab            key:<phím>  như nhấn phím đó (chân phím, nút [Enter]/[Esc] của hộp, thông báo "[!]")
 //	r:<i>     hàng danh sách        t:<i>       thẻ phụ           p:<khung>  khung (focus khi bấm, cuộn khi lăn bánh xe)
 //	pal:<i>   dòng bảng lệnh        dlg         vùng của hộp thoại (bấm ngoài hộp không tác động màn bên dưới)
+//	cf:<i|in> ô chọn/ô nhập của hộp xác nhận        fm:...  hàng/ô/lựa chọn của biểu mẫu (xem components/form)
 
 // wheelStep là số dòng mỗi nấc bánh xe.
 const wheelStep = 3
@@ -113,12 +114,35 @@ func (m *Model) click(mo tea.Mouse) (tea.Model, tea.Cmd) {
 			return m.paletteKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 		}
 	case m.modalOpen():
-		return m, nil
+		return m.dialogClick(id)
 	}
 	if i, ok := tabs.ParseZone(id); ok && i < len(actions.Screens) {
 		return m.run(actions.NavID(actions.Screens[i]))
 	}
 	return m.screenPointer(func(p ui.Pointer) tea.Cmd { return p.Click(id) }, func() tea.Cmd { return m.overviewClick(id) })
+}
+
+// dialogClick chuyển bấm trong hộp thoại tới đúng chủ (cùng thứ tự ưu tiên với đường phím): hộp Thông báo, hộp thoát, hộp câu
+// hỏi việc nền rồi tới hộp/biểu mẫu của màn hình hiện tại. Bấm chỉ đổi trạng thái ô (ô chọn, tiêu điểm); nút [Enter]/[Esc] là vùng key:.
+func (m *Model) dialogClick(id string) (tea.Model, tea.Cmd) {
+	var c *confirm.Model
+	switch {
+	case m.notes.dlg != nil:
+		c = m.notes.dlg
+	case m.exiting:
+		return m, nil
+	case m.exitDlg != nil:
+		c = m.exitDlg
+	case m.prompt != nil:
+		c = &m.prompt.dlg
+	case m.showHelp:
+		return m, nil
+	}
+	if c != nil {
+		c.Click(id)
+		return m, nil
+	}
+	return m.screenPointer(func(p ui.Pointer) tea.Cmd { return p.Click(id) }, func() tea.Cmd { return nil })
 }
 
 // wheel xử lý bánh xe: hộp thoại/bảng phủ cuộn nội dung của nó; còn lại cuộn khung dưới con trỏ.

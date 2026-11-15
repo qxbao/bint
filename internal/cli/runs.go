@@ -11,6 +11,7 @@ import (
 
 	"bint/internal/app"
 	"bint/internal/config"
+	"bint/internal/mcpserver"
 	"bint/internal/runlog"
 )
 
@@ -215,7 +216,7 @@ func newRunsCmd(stdio IO) *cobra.Command {
 		},
 	}
 	show.Flags().BoolVar(&showJSON, "json", false, "xuất JSON")
-	c.AddCommand(list, show, newRunsRateCmd(stdio), newRunsScanCmd(stdio))
+	c.AddCommand(list, show, newRunsHistoryCmd(stdio), newRunsGetCmd(stdio), newRunsRateCmd(stdio), newRunsScanCmd(stdio))
 	return c
 }
 
@@ -274,4 +275,91 @@ nhãn; lượt chỉ có tín hiệu yếu là unlabeled.`,
 	c.Flags().IntVar(&o.Days, "days", o.Days, "xét lượt chạy trong N ngày gần nhất")
 	c.Flags().IntVar(&o.RevertDays, "revert-days", o.RevertDays, "hoàn tác trong N ngày sau commit được tính")
 	return c
+}
+
+// newRunsHistoryCmd: lịch sử lượt chạy theo tệp (B4), cùng hàm dựng với công cụ MCP history_for_paths. Chỉ đọc; không
+// phụ thuộc context.history.enabled (khoá đó chỉ bật công cụ MCP).
+func newRunsHistoryCmd(stdio IO) *cobra.Command {
+	var limit int
+	var reads, asJSON bool
+	c := &cobra.Command{
+		Use:   "history <đường-dẫn>...",
+		Short: "Các lượt chạy trước đây đã sửa (hoặc đọc) tệp/thư mục, mới nhất trước (chỉ đọc)",
+		Long: `Dựng xác định từ CSDL lượt chạy và tệp phiếu, không gọi mô hình. Mỗi lượt: ngày, phiếu, kết quả, kiểm thử hỏng,
+phát hiện review liên quan. Chi tiết một lượt: bint runs get <run-id>. Số lượt mặc định là context.history.max_runs (tối đa 50).`,
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir, err := cwd()
+			if err != nil {
+				return err
+			}
+			b := &app.RepoBackend{Dir: dir}
+			defer b.Close()
+			res, err := b.HistoryForPaths(cmd.Context(), mcpserver.HistoryQuery{Paths: args, Limit: limit, IncludeReads: reads})
+			if err != nil {
+				return err
+			}
+			if res.NoData {
+				if asJSON {
+					return writeIndentedJSON(stdio, map[string]any{"runs": []mcpserver.RunBrief{}, "message": mcpserver.NoHistoryMessage})
+				}
+				fmt.Fprintln(stdio.Out, mcpserver.NoHistoryMessage)
+				return nil
+			}
+			if res.Runs == nil {
+				res.Runs = []mcpserver.RunBrief{}
+			}
+			if asJSON {
+				return writeIndentedJSON(stdio, map[string]any{"runs": res.Runs})
+			}
+			fmt.Fprint(stdio.Out, mcpserver.RenderHistory(args, res.Runs))
+			return nil
+		},
+	}
+	c.Flags().IntVarP(&limit, "limit", "n", 0, "số lượt tối đa (0 = context.history.max_runs, trần 50)")
+	c.Flags().BoolVar(&reads, "include-reads", false, "tính cả lượt chỉ đọc tệp")
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}
+
+// newRunsGetCmd: chi tiết một lượt chạy, cùng hàm dựng với công cụ MCP run_get.
+func newRunsGetCmd(stdio IO) *cobra.Command {
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "get <run-id>",
+		Short: "Chi tiết một lượt chạy cho agent: kết quả, tệp sửa/đọc, kiểm thử, phát hiện review (chỉ đọc)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir, err := cwd()
+			if err != nil {
+				return err
+			}
+			b := &app.RepoBackend{Dir: dir}
+			defer b.Close()
+			info, err := b.RunGet(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			if info.NoData {
+				if asJSON {
+					return writeIndentedJSON(stdio, map[string]any{"message": mcpserver.NoHistoryMessage})
+				}
+				fmt.Fprintln(stdio.Out, mcpserver.NoHistoryMessage)
+				return nil
+			}
+			if asJSON {
+				return writeIndentedJSON(stdio, info)
+			}
+			fmt.Fprint(stdio.Out, mcpserver.RenderRun(info))
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}
+
+func writeIndentedJSON(stdio IO, v any) error {
+	enc := json.NewEncoder(stdio.Out)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
 }

@@ -113,6 +113,11 @@ kết quả RED, chỉ trả lời đúng những lỗi và lời biện minh đ
   ba, dưới 1024 ký tự. **Không tóm tắt cách làm**: agent đọc bản tóm tắt sẽ làm theo nó thay vì đọc skill.
 - Thân: Tổng quan (một hai câu, nguyên tắc cốt lõi), Khi nào dùng (kèm **khi nào không**), Cách làm, Lỗi thường gặp.
   Dưới 500 dòng; một ví dụ tốt hơn nhiều ví dụ vừa vừa; không kể chuyện ("hôm đó chúng tôi gặp…").
+- **Giữ mục "Quy ước dự án"** của mẫu (dặn agent tra tri thức bằng `context_for_task`/`context_for_paths` hoặc
+  `bint context`, và trích dẫn `[k:<id>]` bằng `cite_knowledge` hoặc `bint knowledge cite`), như các skill gốc b-req,
+  b-feat, b-review. Gói tri thức `bint run` chèn đầu bước chỉ khớp mục tiêu và phạm vi của phiếu, và không có khi skill
+  được gọi trực tiếp; thiếu mục này thì agent không tra quy tắc của tệp sắp sửa. Chỉ bỏ khi skill không đọc hay sửa
+  mã của repository (skill tham chiếu thuần). `bint flow lint` cảnh báo bước dùng skill thiếu mục này.
 - Từ khoá để tìm kiếm đặt sớm và lặp lại: thông báo lỗi, triệu chứng, tên công cụ.
 - Chọn **hình thức đúng với kiểu thất bại**: agent lách quy tắc dưới áp lực → lời cấm kèm bảng "biện minh → thực
   tế" lấy từ chính những câu bạn đã ghi; agent làm đúng nhưng sai dạng đầu ra → mô tả dạng đúng gồm những phần nào

@@ -143,6 +143,9 @@ func deterministicSkillProposal(in ProposeInput, o Opportunity, all []*skills.Ev
 		if err != nil {
 			return nil, err
 		}
+		if strings.TrimSpace(d.Body) != strings.TrimSpace(draftFromEvolved(keep).Body) {
+			p.Notes = append(p.Notes, fmt.Sprintf("nội dung chỉ có ở skill %s đã được nối vào cuối thân của skill %s (khối \"Gộp từ skill %s\"): đọc lại để bỏ ý lặp và kiểm tra mâu thuẫn giữa hai bản trước khi áp dụng", drop.Meta.Name, keep.Meta.Name, drop.Meta.Name))
+		}
 		p.ExpectedBenefit = "bớt một skill trùng: harness không còn chọn nhầm giữa hai skill; giữ " + keep.Meta.Name
 		return p, nil
 	}
@@ -158,24 +161,15 @@ func MergeDrafts(a, b *SkillDraft) *SkillDraft {
 	out.Triggers.Keywords = union(a.Triggers.Keywords, b.Triggers.Keywords)
 	out.Evidence = union(a.Evidence, b.Evidence)
 	out.Inputs = union(a.Inputs, b.Inputs)
-	have := map[string]bool{}
-	for _, l := range strings.Split(a.Body, "\n") {
-		have[strings.TrimSpace(l)] = true
-	}
-	var extra []string
-	for _, l := range strings.Split(b.Body, "\n") {
-		if t := strings.TrimSpace(l); t != "" && !have[t] {
-			extra = append(extra, l)
-		}
-	}
+	// Thân của b nối theo cùng cách với gộp tri thức (mergeBodies): đơn vị là khối mã rào, mục danh sách
+	// và câu, so trùng theo dạng chuẩn hoá, nên khối mã/mục danh sách của b được giữ nguyên văn (không
+	// bỏ dòng "trùng" như dấu rào hay dấu ngoặc) và gọi lại trên kết quả không nối thêm.
 	// Mô tả của b mang điều kiện kích hoạt riêng: giữ trong thân để không mất.
-	if bd := strings.TrimSpace(b.Description); bd != "" && !have[bd] && bd != strings.TrimSpace(a.Description) {
-		extra = append([]string{"Dùng khi: " + bd}, extra...)
+	drop := b.Body
+	if bd := strings.TrimSpace(b.Description); bd != "" && bd != strings.TrimSpace(a.Description) {
+		drop = "Dùng khi: " + bd + "\n\n" + drop
 	}
-	out.Body = strings.TrimSpace(a.Body)
-	if len(extra) > 0 {
-		out.Body += "\n\n## Bổ sung từ skill " + b.Name + "\n\n" + strings.TrimSpace(strings.Join(extra, "\n"))
-	}
+	out.Body = strings.TrimSpace(mergeBodies(a.Body, drop, "skill "+b.Name))
 	return &out
 }
 

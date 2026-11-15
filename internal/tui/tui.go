@@ -22,6 +22,9 @@ import (
 // activePoll là chu kỳ thăm dò bước `bint run` đang chạy trên cây làm việc (dòng trạng thái ở thanh trên).
 const activePoll = 3 * time.Second
 
+// dataPoll là chu kỳ thăm dò thay đổi dữ liệu repository để các màn tự nạp lại (chỉ stat tệp).
+const dataPoll = 2 * time.Second
+
 // Options điều khiển một phiên TUI.
 type Options struct {
 	Dir      string
@@ -95,7 +98,7 @@ func Run(ctx context.Context, o Options) error {
 		model = gallery.New(gallery.Options{Lang: lang, Mode: mode})
 	} else {
 		root = tuiapp.New(ctx, tuiapp.Options{Dir: o.Dir, Version: o.Version, BintPath: o.BintPath, Lang: lang, LangFlag: o.Lang, Mode: mode,
-			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported, ActivePoll: activePoll, LedgerWarnings: o.LedgerWarnings})
+			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported, ActivePoll: activePoll, DataPoll: dataPoll, LedgerWarnings: o.LedgerWarnings})
 		model = root
 	}
 	opts := []tea.ProgramOption{tea.WithContext(ctx)}

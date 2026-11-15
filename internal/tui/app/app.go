@@ -20,6 +20,7 @@ import (
 	"bint/internal/detect"
 	"bint/internal/i18n"
 	"bint/internal/tui/actions"
+	"bint/internal/tui/clipboard"
 	"bint/internal/tui/components/confirm"
 	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/frame"
@@ -52,9 +53,11 @@ const (
 
 // Options điều khiển mô hình.
 type Options struct {
-	Dir      string // thư mục repository
-	Version  string
-	BintPath string
+	Dir string // thư mục repository
+	// Clipboard thay được trong kiểm thử (đọc cho Ctrl+V, ghi khi chọn bằng chuột); nil = clipboard hệ thống.
+	Clipboard clipboard.Clipboard
+	Version   string
+	BintPath  string
 	// Lang là ngôn ngữ đã chọn ("vi", "en", hoặc "xx" cho locale giả); rỗng = mặc định.
 	Lang string
 	Mode theme.Mode
@@ -73,6 +76,8 @@ type Options struct {
 	TasksLoader   tkscreen.Loader
 	TasksDetailer tkscreen.Detailer
 	TasksRuns     tkscreen.RunsLoader
+	// TasksRunsDebounce là độ trễ gom lần nạp lượt chạy của thẻ Phiếu khi dời con trỏ (0 = mặc định).
+	TasksRunsDebounce time.Duration
 	// RunsLoader/RunsDetailer/RunsLessons thay được trong kiểm thử; nil = nạp thật.
 	RunsLoader   rnscreen.Loader
 	RunsDetailer rnscreen.Detailer
@@ -116,6 +121,9 @@ type Options struct {
 	// ActivePoll là chu kỳ thăm dò bước `bint run` đang chạy trên cây này (dòng trạng thái ở thanh trên); 0 = không thăm
 	// dò (chỉ nạp lúc nạp dữ liệu). Kiểm thử để 0 để drive() không lặp vô hạn.
 	ActivePoll time.Duration
+	// DataPoll là chu kỳ thăm dò thay đổi dữ liệu repository (stat .bint, SQLite, spool; không mở SQLite, không ghi):
+	// đổi thì Tổng quan và màn đang hiện tự nạp lại, các màn chuyên biệt khác chỉ bị đánh dấu cũ; 0 = tắt (kiểm thử).
+	DataPoll time.Duration
 }
 
 // Model là mô hình gốc.
@@ -167,6 +175,7 @@ type Model struct {
 	initDone bool
 	// reloadPending: có yêu cầu nạp lại trong lúc đang nạp; nạp thêm một lần khi lần này xong.
 	reloadPending bool
+	reloadSoft    bool // lần nạp bù đang chờ chỉ do thăm dò dữ liệu yêu cầu
 
 	// active là các bước `bint run` đang giữ khoá cây làm việc này (đọc từ tệp chủ khoá); activeLoading: đang đọc;
 	// activeTicking: đã hẹn lần thăm dò kế (Options.ActivePoll > 0).
@@ -174,6 +183,12 @@ type Model struct {
 	activeLoading, activeTicking bool
 	// activeWatch dựng ở load() (cả khi nạp lại) để lượt thăm dò chỉ đọc tệp chủ khoá, không mở lại workspace.
 	activeWatch *bintapp.ActiveStepsWatch
+
+	// Thăm dò dữ liệu (Options.DataPoll): dataWatch dựng khi cần; dataSig là chữ ký lần thấy gần nhất (dataSigSet: đã có
+	// nền); dataLoading: đang tính chữ ký; dataTicking: đã hẹn lượt kế; dataPending: có thay đổi chưa nạp (đang Capturing).
+	dataWatch                                         *bintapp.DataWatch
+	dataSig                                           uint64
+	dataSigSet, dataLoading, dataTicking, dataPending bool
 
 	pal      *palette.Model
 	showHelp bool
@@ -186,6 +201,9 @@ type Model struct {
 	zones    []zone.Zone
 	mouseOff bool
 	notes    notices
+	// Chọn/chép bằng chuột (selection.go) và clipboard (paste.go).
+	sel  selection
+	clip clipboard.Clipboard
 }
 
 // New dựng mô hình. ctx là ngữ cảnh của các việc nền.
@@ -204,10 +222,14 @@ func New(ctx context.Context, opts Options) *Model {
 	m := &Model{opts: opts, reg: opts.Registry, cat: i18n.MustLoad(lang), th: theme.New(opts.Mode), ctx: ctx,
 		spin: spinner.New(spinner.WithSpinner(sp)), jobs: &jobs.Table{}, jobCh: make(chan tea.Msg, 1024),
 		wiz: initwizard.New(initwizard.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Detect: opts.DetectHarnesses})}
+	m.clip = opts.Clipboard
+	if m.clip == nil {
+		m.clip = clipboard.System()
+	}
 	m.kn = knscreen.New(knscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Agent: opts.Agent,
 		Loader: opts.KnowledgeLoader, Detailer: opts.KnowledgeDetailer, Gate: m.gate})
 	m.tk = tkscreen.New(tkscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.TasksLoader, Detailer: opts.TasksDetailer,
-		Runs: opts.TasksRuns, Gate: m.gate, Jobs: m.jobs})
+		Runs: opts.TasksRuns, RunsDebounce: opts.TasksRunsDebounce, Gate: m.gate, Jobs: m.jobs})
 	m.rn = rnscreen.New(rnscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.RunsLoader, Detailer: opts.RunsDetailer,
 		Lessons: opts.RunsLessons, Gate: m.gate})
 	m.ev = evscreen.New(evscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.EvolveLoader, Detailer: opts.EvolveDetailer,
@@ -320,8 +342,12 @@ func (m *Model) startTick() tea.Cmd {
 
 // load nạp dữ liệu Tổng quan. Đang nạp thì không khởi thêm goroutine (mỗi lần nạp có thể nạp spool
 // vào SQLite): chỉ đánh dấu để nạp lại một lần khi lần hiện tại xong, nên kết quả cũ không ghi đè mới.
-func (m *Model) load() tea.Cmd {
+func (m *Model) load() tea.Cmd { return m.loadMode(false) }
+
+// loadMode nạp Tổng quan; soft: do thăm dò dữ liệu tự kích hoạt (lỗi không thay dữ liệu đang hiện bằng trang lỗi).
+func (m *Model) loadMode(soft bool) tea.Cmd {
 	if m.ov.Loading {
+		m.reloadSoft = soft && (!m.reloadPending || m.reloadSoft) // một yêu cầu nạp tay làm lần nạp bù thành nạp tay
 		m.reloadPending = true
 		return nil
 	}
@@ -336,7 +362,7 @@ func (m *Model) load() tea.Cmd {
 	ctx, dir := m.ctx, m.opts.Dir
 	load := func() tea.Msg {
 		d, err := loader(ctx, dir)
-		return overview.LoadedMsg{Data: d, Err: err}
+		return overview.LoadedMsg{Data: d, Err: err, Soft: soft}
 	}
 	return tea.Batch(load, m.loadActive(true), m.startTick())
 }
@@ -374,6 +400,95 @@ func (m *Model) loadActive(resolve bool) tea.Cmd {
 	}
 }
 
+// dataTickMsg: tới hạn thăm dò thay đổi dữ liệu.
+type dataTickMsg struct{}
+
+// dataSigMsg: kết quả tính chữ ký dữ liệu; watch != nil khi vừa dựng; ok=false: chưa dựng được watch (chưa init).
+type dataSigMsg struct {
+	sig   uint64
+	watch *bintapp.DataWatch
+	ok    bool
+}
+
+// startDataPoll hẹn lượt thăm dò dữ liệu đầu tiên (không chồng: đã hẹn hoặc đang tính thì thôi).
+func (m *Model) startDataPoll() tea.Cmd {
+	if m.opts.DataPoll <= 0 || m.dataTicking || m.dataLoading {
+		return nil
+	}
+	m.dataTicking = true
+	return tea.Tick(m.opts.DataPoll, func(time.Time) tea.Msg { return dataTickMsg{} })
+}
+
+// sampleData tính chữ ký dữ liệu trong goroutine (chỉ stat). Chuỗi thăm dò không chồng: lượt kế chỉ hẹn khi kết quả về.
+func (m *Model) sampleData() tea.Cmd {
+	if m.dataLoading {
+		return nil
+	}
+	m.dataLoading = true
+	ctx, dir, w := m.ctx, m.opts.Dir, m.dataWatch
+	return func() tea.Msg {
+		if w == nil {
+			nw, ok := bintapp.ResolveDataWatch(ctx, dir)
+			if !ok {
+				return dataSigMsg{}
+			}
+			w = &nw
+		}
+		return dataSigMsg{sig: w.Signature(), watch: w, ok: true}
+	}
+}
+
+// dataCaptured: có thứ đang nhận phím hoặc giữ dữ liệu cần ổn định (form, hộp thoại, ô lọc, bảng lệnh, trợ giúp,
+// khởi tạo); không tự nạp lại lúc đó, thay đổi được hoãn tới lượt thăm dò sau khi đóng.
+func (m *Model) dataCaptured() bool {
+	if m.notes.dlg != nil || m.exitDlg != nil || m.exiting || m.prompt != nil || m.pal != nil || m.showHelp || m.holdInit || m.needsInit() {
+		return true
+	}
+	sc := m.screens[m.Screen()]
+	return sc != nil && sc.Capturing()
+}
+
+func (m *Model) onDataSig(msg dataSigMsg) (tea.Model, tea.Cmd) {
+	m.dataLoading = false
+	next := m.startDataPoll()
+	if !msg.ok {
+		return m, next
+	}
+	m.dataWatch = msg.watch
+	if !m.dataSigSet {
+		m.dataSig, m.dataSigSet = msg.sig, true // lần đầu chỉ ghi nền
+		return m, next
+	}
+	if msg.sig != m.dataSig {
+		m.dataSig, m.dataPending = msg.sig, true
+	}
+	if !m.dataPending || m.dataCaptured() {
+		return m, next
+	}
+	m.dataPending = false
+	return m, tea.Batch(m.reloadData(), next)
+}
+
+// reloadData nạp lại khi dữ liệu đổi: Tổng quan và màn đang hiện nạp mềm, các màn chuyên biệt khác chỉ bị đánh dấu cũ
+// (nạp khi người dùng tới tab).
+func (m *Model) reloadData() tea.Cmd {
+	cmds := []tea.Cmd{m.loadMode(true)}
+	cur := m.Screen()
+	for s, sc := range m.screens {
+		r, ok := sc.(ui.Refresher)
+		if !ok {
+			continue
+		}
+		if s == cur {
+			cmds = append(cmds, r.Refresh())
+		} else {
+			r.MarkStale()
+		}
+	}
+	cmds = append(cmds, m.tickIfBusy())
+	return tea.Batch(cmds...)
+}
+
 // Init nạp dữ liệu ban đầu.
 func (m *Model) Init() tea.Cmd { return m.load() }
 
@@ -388,11 +503,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.MouseClickMsg:
-		return m.click(tea.Mouse(msg))
+		m.selPress(tea.Mouse(msg)) // chỉ ghi điểm neo: hành động của vùng bấm chạy khi thả (selRelease) nếu không kéo
+		return m, nil
+	case tea.MouseMotionMsg:
+		m.selMotion(tea.Mouse(msg))
+		return m, nil
+	case tea.MouseReleaseMsg:
+		return m, m.selRelease(tea.Mouse(msg))
+	case tea.PasteMsg:
+		m.clearSelection()
+		return m.paste(msg.Content)
+	case clipMsg:
+		return m.onClip(msg)
 	case tea.MouseWheelMsg:
+		m.clearSelection() // vùng đã chép nằm ở toạ độ cũ: cuộn làm nó lệch
 		return m.wheel(tea.Mouse(msg))
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
+		m.clearSelection() // đổi kích thước: toạ độ vùng đã chép không còn đúng
 	case spinner.TickMsg:
 		if !m.busy() { // hết việc: dừng chuỗi tick
 			m.ticking = false
@@ -407,10 +535,19 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil && msg.Data.NotInit {
 			m.initDone = false // kết quả đáng tin gần nhất là chưa init: lần nạp lỗi sau đó không được che nó
 		}
+		if msg.Err == nil && msg.Data.NotInit {
+			m.dataWatch, m.dataSigSet = nil, false // chưa init: dựng lại watch khi có .bint
+		}
 		if m.reloadPending {
 			m.reloadPending = false
-			return m, m.load()
+			return m, m.loadMode(m.reloadSoft)
 		}
+		return m, m.startDataPoll()
+	case dataTickMsg:
+		m.dataTicking = false
+		return m, m.sampleData()
+	case dataSigMsg:
+		return m.onDataSig(msg)
 	case activeStepsMsg:
 		m.active, m.activeLoading = msg.steps, false
 		if msg.watch != nil {
@@ -589,6 +726,11 @@ func (m *Model) goTo(s actions.Screen) {
 
 func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := msg.String()
+	m.clearSelection()
+	if s == "ctrl+v" && m.pasteTarget() {
+		m.setToast("", false)
+		return m, m.readClipboard()
+	}
 	if s != "!" { // "!" mở hộp Thông báo: giữ thông báo hiện tại để hộp ghi nhận đủ
 		m.setToast("", false)
 	}
@@ -905,7 +1047,7 @@ func (m *Model) Hints() []footer.Hint {
 
 // View vẽ giao diện.
 func (m *Model) View() tea.View {
-	v := tea.NewView(m.Render())
+	v := tea.NewView(m.highlight(m.Render()))
 	v.AltScreen = true
 	if !m.mouseOff {
 		v.MouseMode = tea.MouseModeCellMotion // chuột bật mặc định (mục 4.3.7); app.mouse tắt/bật trong phiên
@@ -1119,6 +1261,10 @@ func (m *Model) helpGroups() []help.Group {
 		}
 		g.Rows = append(g.Rows, row)
 	}
+	global.Rows = append(global.Rows,
+		help.Row{Key: "Ctrl+V", Title: m.cat.T("help.paste")},
+		help.Row{Key: m.cat.T("help.key.drag"), Title: m.cat.T("help.select")},
+		help.Row{Key: m.cat.T("help.key.shift_drag"), Title: m.cat.T("help.select_native")})
 	// Ngữ cảnh hiện tại (thẻ phụ, giới thiệu, phím của thẻ) đứng đầu, rồi nhóm của màn hình đang xem, rồi toàn cục, rồi các màn hình khác.
 	var groups []help.Group
 	cur := m.Screen()

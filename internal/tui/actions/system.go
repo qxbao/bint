@@ -333,6 +333,12 @@ func systemActions() []Action {
 				v, err := app.PlanSync(ctx, env.Dir, env.Version, opts.(app.SyncOptions))
 				return res("system.sync_plan", opts, v, err)
 			})),
+		// Quick fix của thẻ Doctor: gỡ worktree mồ côi (kiểm lại lúc chạy) hoặc nạp spool. Kết quả về màn System để nạp lại doctor.
+		mk("system.doctor_fix", "doctor_fix", "f", 2, "", app.DoctorFixOptions{}, true, false,
+			func(ctx context.Context, env Env, opts any) tea.Msg {
+				v, err := app.FixDoctor(ctx, env.Dir, opts.(app.DoctorFixOptions))
+				return res("system.doctor_fix", opts, v, err)
+			}),
 		mk("system.sync", "sync", "", 0, "sync", app.SyncOptions{}, true, false,
 			func(ctx context.Context, env Env, opts any) tea.Msg {
 				v, err := app.Sync(ctx, env.Dir, env.Version, opts.(app.SyncOptions))

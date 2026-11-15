@@ -1,7 +1,7 @@
 ---
 name: bint-planner
 description: "Bước b-req của Bint (phân tích yêu cầu và lập kế hoạch (requirement, plan, tasks) bằng `bint task write`; không sửa mã nguồn). Chỉ chạy khi `bint run next` trả action agent với subagent này; không dùng cho việc khác."
-tools: Read, Glob, Grep, Bash(bint:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*)
+tools: Read, Glob, Grep, Bash(bint:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), mcp__bint__*
 disallowedTools: Edit, Write, MultiEdit, NotebookEdit
 model: opus
 ---

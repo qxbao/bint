@@ -11,6 +11,7 @@ import (
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/logview"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 
@@ -268,7 +269,7 @@ func (m *Model) detailBox(env ui.Env, w, h int) string {
 	case m.sub == subLog:
 		content = m.logBody(env, t, iw, ih)
 		if j := m.jobHere(); j != nil {
-			top = th.S(theme.Key, "Esc") + " " + th.S(theme.Muted, m.t("tk.log.cancel"))
+			top = zone.Mark(footer.ZoneID("esc"), th.S(theme.Key, "Esc")+" "+th.S(theme.Muted, m.t("tk.log.cancel")))
 		}
 	default:
 		title += " · " + short(t.State.ID)

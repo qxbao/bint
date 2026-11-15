@@ -75,6 +75,9 @@ type ShimOptions struct {
 	// RetryDelay: lần kết nối đầu không lên được gateway hoặc có service không mở được thì sau ngần này thử lại một lần ở
 	// nền; thêm được tool thì báo harness qua notifications/tools/list_changed. Mặc định 10 giây; âm = không thử lại.
 	RetryDelay time.Duration
+	// ExeModTime là thời điểm sửa binary của shim (ExeModTime()); khác zero thì daemon chạy binary cũ hơn (Info.ExeModTime
+	// trước nó hoặc rỗng) được tắt và khởi động lại bằng Exe khi không có lời gọi dang dở. Zero = không kiểm (kiểm thử).
+	ExeModTime time.Time
 }
 
 // Giá trị mặc định của Shim. Tổng thời gian initialize chờ (StartWait + OpenWait + 1 s ≈ 8 s) phải dưới timeout khởi
@@ -268,10 +271,17 @@ func (s *Shim) addTool(svc mcpcat.Service, raw json.RawMessage) {
 func (s *Shim) discover(ctx context.Context) (Info, error) {
 	if c, err := Connect(s.dir); err == nil {
 		pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		_, serr := c.Status(pctx)
+		st, serr := c.Status(pctx)
 		cancel()
 		if serr == nil {
-			return c.Info, nil
+			if !s.staleDaemon(c.Info, st) {
+				return c.Info, nil
+			}
+			s.logf("gateway PID %d chạy binary cũ hơn bản này: tắt để khởi động bản mới", c.Info.PID)
+			if _, err := Stop(ctx, s.dir); err != nil {
+				s.logf("tắt gateway cũ: %v; dùng tạm bản cũ", err)
+				return c.Info, nil
+			}
 		}
 	}
 	info, err := s.o.Start(ctx, s.dir)
@@ -282,6 +292,21 @@ func (s *Shim) discover(ctx context.Context) (Info, error) {
 		return Info{}, fmt.Errorf("khởi động gateway: %w", err)
 	}
 	return info, nil
+}
+
+// staleDaemon: daemon chạy binary cũ hơn shim (sau `bint update` mà chưa tắt gateway) và đang rảnh. Daemon cũ đọc cấu hình
+// dự án bằng schema cũ: khoá cấu hình mới làm nó từ chối mọi phiên mà agent không hay biết. Chỉ thay khi không có lời gọi
+// dang dở (phiên khác nối lại daemon mới ở lời gọi kế tiếp); shim cũ gặp daemon mới thì dùng luôn, nên không giành nhau.
+func (s *Shim) staleDaemon(i Info, st Status) bool {
+	if s.o.ExeModTime.IsZero() || !(i.ExeModTime.IsZero() || s.o.ExeModTime.After(i.ExeModTime)) {
+		return false
+	}
+	for _, u := range st.Upstreams {
+		if u.Inflight > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // nextID trả id JSON-RPC mới cho một request gửi lên daemon (mỗi lời gọi một id, kể cả khi chạy đồng thời trên một phiên).

@@ -19,6 +19,6 @@
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint                               │ │
-│ │   Enter ⟦submit~~~⟧  Tab ⟦next field~~~~⟧  Ctrl+Y ⟦copy command~~~~~⟧  … │ │
+│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
 └─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘

@@ -3,38 +3,38 @@
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Tasks│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │   Ticket · Documents · Criteria · Verify · Review · Errors · Runs                                                                        │
-│ ┌─│Tasks (4/6)│──────────────────────────────no filter─┐┌─│Details · 01TASK1│──────────────────────────────────────────────────1-32/34─┐ │
-│ │  Waiting for you (2)                                 ││ 01TASK1                                                                      │ │
-│ │ ▸ ! blocked     1TASK1 ·    Thêm cột email           ││ ! blocked — thay đổi cần người duyệt: migrations/002.sql                     │ │
+│ ┌─│Tasks (4/6)│──────────────────────────────no filter─┐┌─│Details · 01TASK1│──────────────────────────────────────────────────────────┐ │
+│ │  Waiting for you (2)                                 ││ [blocked] 01TASK1                                            Total ≥$0.3000  │ │
+│ │ ▸ ! blocked     1TASK1 ·    Thêm cột email           ││ thay đổi cần người duyệt: migrations/002.sql                                 │ │
 │ │   ✗ failed      1TASK2 ·    Đổi cách tính phí        ││ Thêm cột email                                                               │ │
 │ │  In progress (1)                                     ││                                                                              │ │
-│ │   ▶ in progress 1TASK4 ·    Thêm màn Tác vụ          ││ Workflow     b-do                                                            │ │
-│ │  Up next (1)                                         ││ Autonomy     ask_on_protected                                                │ │
-│ │   ◌ planned     1TASK5 ·    Viết tài liệu cài đặt    ││ Updated      2026-11-11 10:00                                                │ │
+│ │   ▶ in progress 1TASK4 ·    Thêm màn Tác vụ          ││ ✓ b-feat $0.3000 → ✓ b-review ?                                              │ │
+│ │  Up next (1)                                         ││                                                                              │ │
+│ │   ◌ planned     1TASK5 ·    Viết tài liệu cài đặt    ││ ? Lệnh kiểm chứng là gì?                                                     │ │
 │ │                         ┌─│Approve task│───────────────────────────────────────────────────────────────────┐                         │ │
-│ │                         │ 01TASK1 Thêm cột email                                                           │                         │ │
-│ │                         │                                                                                  │─────────────────        │ │
+│ │                         │ 01TASK1 Thêm cột email                                                           │───────────────────────  │ │
+│ │                         │                                                                                  │                         │ │
 │ │                         │ Will confirm the verify command (Bint may then run it):                          │                         │ │
-│ │                         │   go test ./...                                                                  │                         │ │
+│ │                         │   go test ./...                                                                  │───────────────────────  │ │
 │ │                         │   Only confirm it if you trust this command.                                     │                         │ │
 │ │                         │                                                                                  │                         │ │
-│ │                         │ Will approve 1 path touching protected/deny/out-of-scope areas:                  │──────                   │ │
+│ │                         │ Will approve 1 path touching protected/deny/out-of-scope areas:                  │                         │ │
 │ │                         │   migrations/002.sql                                                             │                         │ │
 │ │                         │   Review the diff before approving.                                              │                         │ │
 │ │                         │                                                                                  │                         │ │
 │ │                         │ Then continue with key c in Tasks 01TASK1.                                       │                         │ │
-│ │                         │                                                                                  │────────────             │ │
+│ │                         │                                                                                  │───────────────────────  │ │
 │ │                         │ Also approve files (optional, comma-separated): ▏                                │                         │ │
 │ │                         │                                                                                  │                         │ │
 │ │                         │ [Enter] Approve   [Esc] Cancel                                                   │                         │ │
-│ │                         └──────────────────────────────────────────────────────────────────────────────────┘                         │ │
-│ │                                                      ││   ────────────────────────────────────────────────────────────               │ │
-│ │                                                      ││ - chưa có bằng chứng                                                         │ │
+│ │                         └──────────────────────────────────────────────────────────────────────────────────┘───────────────────────  │ │
+│ │                                                      ││ Risk         high · migrations/**                                            │ │
 │ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── Original request                                                          │ │
-│ │                                                      ││   ────────────────────────────────────────────────────────                   │ │
+│ │                                                      ││ ── Original request ───────────────────────────────────────────────────────  │ │
 │ │                                                      ││ Yêu cầu gốc: Thêm cột email                                                  │ │
 │ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── History                                                                   │ │
+│ │                                                      ││ ── History ────────────────────────────────────────────────────────────────  │ │
+│ │                                                      ││ 2026-11-11 10:00  ∅ → created (human)                                        │ │
+│ │                                                      ││                                                                              │ │
 │ └──────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘ │
 └─[Esc→ Leave]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

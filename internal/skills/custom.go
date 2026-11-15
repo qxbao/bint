@@ -386,6 +386,33 @@ func hasUnder(have map[string]bool, dir string) bool {
 	return false
 }
 
+// KnowledgeSection là mục "Quy ước dự án" của mẫu skill tuỳ biến: cùng lời dặn tra và trích dẫn tri thức như các
+// skill gốc (b-req, b-feat, b-review). Gói <bint-context> mà `bint run` chèn đầu bước chỉ khớp mục tiêu và phạm vi
+// của phiếu, và không có khi skill được gọi trực tiếp, nên skill phải tự dặn agent tra theo tệp sắp sửa.
+const KnowledgeSection = "## Quy ước dự án\n\n" +
+	"Có công cụ MCP của Bint (`context_for_task`, `context_for_paths`) thì dùng chúng; không có (phiên không nạp MCP)\n" +
+	"thì chạy CLI:\n\n" +
+	"```sh\n" +
+	"bint context \"<mục tiêu>\"           # quy tắc, điểm dễ sai của dự án\n" +
+	"bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn, trước khi sửa một tệp\n" +
+	"```\n\n" +
+	"Áp dụng một mục tri thức (`[k:<id>]`) thì báo trích dẫn: công cụ MCP `cite_knowledge`, hoặc\n" +
+	"`bint knowledge cite <id>` khi không có MCP. Phát hiện điều bất thường, dễ lặp lại thì ghi bằng\n" +
+	"`report_observation` hoặc `bint knowledge add` (mục chờ người duyệt).\n"
+
+// knowledgeMarkers: một trong các chuỗi này có trong thân nghĩa là skill có dặn agent tra tri thức dự án.
+var knowledgeMarkers = []string{"context_for_task", "context_for_paths", "bint context"}
+
+// MentionsKnowledge cho biết thân skill có dặn agent tra tri thức dự án (MCP hoặc `bint context`) không.
+func MentionsKnowledge(body string) bool {
+	for _, m := range knowledgeMarkers {
+		if strings.Contains(body, m) {
+			return true
+		}
+	}
+	return false
+}
+
 // CustomTemplate dựng SKILL.md mẫu cho `bint skill new`: qua CheckCustom không lỗi và không cảnh báo.
 func CustomTemplate(name string) []byte {
 	return []byte(`---
@@ -406,6 +433,7 @@ Một hai câu: skill này giúp agent làm gì và nguyên tắc cốt lõi là
 
 Không dùng khi: nêu rõ trường hợp tương tự nhưng skill này không áp dụng.
 
+` + KnowledgeSection + `
 ## Cách làm
 
 1. Bước thứ nhất.

@@ -3,6 +3,7 @@ package knowledge
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"bint/internal/tui/components/form"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/ui"
 )
@@ -12,7 +13,24 @@ func (m *Model) Toast() (string, bool) { return m.toast, m.toastErr }
 
 // Click xử lý bấm chuột (ui.Pointer): thẻ phụ, hàng danh sách (bấm lại hàng đang chọn = Enter), focus khung.
 func (m *Model) Click(id string) tea.Cmd {
+	if m.dlg != nil { // hộp xác nhận: bấm ô chọn/ô nhập (nút [Enter]/[Esc] là vùng key:)
+		m.dlg.c.Click(id)
+		return nil
+	}
+	if m.frm != nil { // biểu mẫu: tiêu điểm, ô Bool, lựa chọn (chỉ đổi trạng thái, không gửi)
+		if !m.frmBusy {
+			m.frm.Click(id)
+		}
+		return nil
+	}
 	if m.modalCapture() {
+		return nil
+	}
+	if p := m.cur(); p.form != nil && form.IsZone(id) { // form nhúng trong thẻ phụ
+		if !p.running {
+			p.form.Click(id)
+			p.inForm = true
+		}
 		return nil
 	}
 	m.toast = ""

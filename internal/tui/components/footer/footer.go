@@ -233,7 +233,10 @@ func Render(th theme.Theme, hints []Hint) string {
 }
 
 // RenderPlain vẽ kiểu Plain: " a Duyệt  q Thoát " (đệm một khoảng trắng hai đầu); phím màu key, nhãn muted.
-func RenderPlain(th theme.Theme, hints []Hint) string {
+func RenderPlain(th theme.Theme, hints []Hint) string { return renderPlain(th, hints, true) }
+
+// renderPlain: zones = false vẽ cùng chữ nhưng không có vùng bấm.
+func renderPlain(th theme.Theme, hints []Hint, zones bool) string {
 	if len(hints) == 0 {
 		return ""
 	}
@@ -243,7 +246,7 @@ func RenderPlain(th theme.Theme, hints []Hint) string {
 		if h.Label != "" {
 			s += " " + th.S(theme.Muted, text.NFC(h.Label))
 		}
-		if p := h.press(); p != "" {
+		if p := h.press(); p != "" && zones {
 			s = zone.Mark(ZoneID(p), s)
 		}
 		parts[i] = s
@@ -259,4 +262,9 @@ func Line(th theme.Theme, hints []Hint, maxW int) string {
 // Inline chọn rồi vẽ (Plain): các phím vừa maxW ô, kể cả hai khoảng trắng đệm.
 func Inline(th theme.Theme, hints []Hint, maxW int) string {
 	return RenderPlain(th, FitStyle(hints, maxW, Plain))
+}
+
+// InlineStatic như Inline nhưng không có vùng bấm (chân của thành phần chưa có tiêu điểm: phím chưa có tác dụng).
+func InlineStatic(th theme.Theme, hints []Hint, maxW int) string {
+	return renderPlain(th, FitStyle(hints, maxW, Plain), false)
 }

@@ -142,6 +142,9 @@ và không có cờ giới hạn lượt), các giới hạn này chỉ mang tí
 | `context.freshness.fingerprint` | `"symbol"` | Mức lấy fingerprint bằng chứng: `symbol`, `hunk`, `file`. |
 | `context.lessons.global_k` | `3` | Số bài học phạm vi `global` tối đa chèn vào mỗi lượt (`0..10`; `0` = tắt bài học chung). |
 | `context.lessons.max_tokens` | `600` | Ngân sách token riêng cho phần bài học từ thất bại (`>= 0`; `0` = tắt). |
+| `context.history.enabled` | `false` | Bật hai công cụ MCP chỉ đọc `history_for_paths` và `run_get` (lịch sử lượt chạy theo tệp); không áp cho chế độ đánh giá. Xem [knowledge.md](knowledge.md). |
+| `context.history.max_runs` | `10` | Số lượt chạy mặc định `history_for_paths` trả về (`1..50`; agent có thể nêu `limit` nhỏ hơn hoặc lớn hơn tới 50). |
+| `workflow.agent.allowed_tools` / `readonly_tools` | gồm `mcp__bint__*` | Quy tắc quyền để subagent (`bint-planner`, `bint-reviewer`, `bint-implementer`) gọi công cụ MCP của Bint. Repository đã có cấu hình cũ cần thêm tay vào `.bint/config.yml`. |
 | `knowledge.require_human_approval_for` | `[rule]` | Danh sách loại mục bắt buộc người duyệt (luôn phải chứa `rule`). |
 | `knowledge.agents_md_max_items` | `15` | Số mục `rule`/`warning` tối đa đưa vào khối Bint trong `AGENTS.md` (`1..50`). |
 | `knowledge.stale_deprecate_days` | `30` | Số ngày ở trạng thái `stale` trước khi được đề xuất loại bỏ (`>= 1`). |

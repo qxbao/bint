@@ -56,7 +56,9 @@ type dialog struct {
 
 type slot struct {
 	Loaded, Loading bool
-	Err             error
+	// stale: dữ liệu đã cũ (ui.Refresher.MarkStale); soft: lần nạp đang bay là nạp mềm (lỗi không thay dữ liệu đang hiện).
+	stale, soft bool
+	Err         error
 }
 
 // outPane là kết quả của một hành động đọc (render, nội dung/diff/phiên bản skill, check, regress, sync) hiện ở
@@ -183,6 +185,10 @@ func (m *Model) ensureTab(tab int) tea.Cmd {
 	if tab == TabLanguage { // dùng chung dữ liệu với thẻ Cấu hình
 		tab = TabConfig
 	}
+	if sl := &m.slots[tab]; sl.Loaded && sl.stale && !sl.Loading {
+		sl.soft = true
+		return m.load(tab)
+	}
 	if m.slots[tab].Loaded || m.slots[tab].Loading {
 		if tab == TabHarness && !m.rtSl.Loaded && !m.rtSl.Loading {
 			return m.loadRuntime()
@@ -205,7 +211,7 @@ func (m *Model) load(tab int) tea.Cmd {
 		m.again[tab] = true
 		return nil
 	}
-	m.slots[tab].Loading = true
+	m.slots[tab].Loading, m.slots[tab].stale = true, false
 	ctx, dir, ver, ld := context.Background(), m.o.Dir, m.o.Version, m.ld
 	cmd := func() tea.Msg {
 		var v any
@@ -245,6 +251,32 @@ func (m *Model) loadRuntime() tea.Cmd {
 		st, err := rt(ctx, dir)
 		return RuntimeMsg{Status: st, Err: err}
 	}
+}
+
+// MarkStale đánh dấu các thẻ đã nạp là cũ: Ensure nạp mềm lại khi người dùng tới thẻ (ui.Refresher). Thẻ Cập nhật
+// (hỏi nguồn bên ngoài) không tự nạp lại.
+func (m *Model) MarkStale() {
+	for i := range m.slots {
+		if i != TabUpdate && m.slots[i].Loaded {
+			m.slots[i].stale = true
+		}
+	}
+}
+
+// Refresh nạp mềm thẻ đang hiện, đánh dấu cũ các thẻ còn lại (ui.Refresher).
+func (m *Model) Refresh() tea.Cmd {
+	m.MarkStale()
+	tab := m.tab
+	if tab == TabLanguage {
+		tab = TabConfig
+	}
+	if tab == TabUpdate {
+		return nil
+	}
+	if sl := &m.slots[tab]; sl.Loaded {
+		sl.soft = true
+	}
+	return m.load(tab)
 }
 
 // reload nạp lại thẻ tab; dữ liệu cũ vẫn hiện cho tới khi dữ liệu mới về (không nhấp nháy "đang tải").
@@ -431,7 +463,11 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 
 func (m *Model) onLoaded(msg LoadedMsg) tea.Cmd {
 	s := &m.slots[msg.Tab]
-	s.Loading, s.Err = false, msg.Err
+	soft := s.soft
+	s.Loading, s.soft = false, false
+	if !(soft && msg.Err != nil && s.Loaded) { // nạp mềm lỗi: giữ dữ liệu đang hiện
+		s.Err = msg.Err
+	}
 	var next tea.Cmd
 	if m.again[msg.Tab] {
 		m.again[msg.Tab] = false
@@ -517,6 +553,8 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		return m.onConfigChecked(msg)
 	case "system.config_rebase":
 		return m.onConfigRebased(msg)
+	case "system.doctor_fix":
+		return m.onDoctorFix(msg)
 	case "system.config_save":
 		m.dlg = nil
 		if msg.Err != nil {
@@ -704,7 +742,7 @@ func (m *Model) onResult(msg actions.ResultMsg) tea.Cmd {
 		si, _ := msg.Value.(app.SkillInstall)
 		m.showOut(m.t("sy.sync.result.title"), m.syncResultLines(si))
 		m.setToast(m.t("sy.sync.done", i18n.A{"conflicts": si.Conflicts}), si.Conflicts > 0)
-		return m.reload(TabSkills)
+		return tea.Batch(m.reload(TabSkills), m.reload(TabDoctor)) // thẻ Doctor còn gợi ý sync cũ nếu không nạp lại
 	case "system.index_rebuild":
 		if msg.Err != nil {
 			m.fail(msg.Err)
@@ -1047,6 +1085,8 @@ func (m *Model) tabKey(s string) (tea.Cmd, bool) {
 			m.rebuildDoctor()
 			m.det.Reset()
 			return nil, true
+		case "f":
+			return m.cmdDoctorFix(), true
 		case "enter":
 			m.pane = paneDetail
 			return nil, true
@@ -1283,6 +1323,9 @@ func (m *Model) Command(id string) tea.Cmd {
 		return m.cmdIndexRebuild()
 	case "system.doctor":
 		return m.setTab(TabDoctor)
+	case "system.doctor_fix":
+		m.tab = TabDoctor
+		return tea.Batch(m.ensureTab(TabDoctor), m.cmdDoctorFix())
 	case "system.repo_state":
 		return m.setTab(TabSetup)
 	case "system.repo_plan", "system.repo_apply":

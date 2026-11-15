@@ -335,9 +335,12 @@ func (m *Model) onJobResult(msg actions.ResultMsg) tea.Cmd {
 			m.setToast(m.t("eval.run.completed", i18n.A{"batch": v.BatchID, "done": v.Done, "total": v.Total}), false)
 			return m.refresh()
 		}
-		lines = m.runLines(v)
-		if v.BatchID != "" && m.run != nil {
-			m.run.resume = "bint eval run --resume " + v.BatchID
+		if v.BatchID != "" {
+			// Không có đợt (huỷ trước khi tạo đợt): không có dòng "Đợt -: -" và không có lệnh chạy tiếp.
+			lines = m.runLines(v)
+			if m.run != nil {
+				m.run.resume = "bint eval run --resume " + v.BatchID
+			}
 		}
 	case *app.EvalBootstrapResult:
 		if v != nil {

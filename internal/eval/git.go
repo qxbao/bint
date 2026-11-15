@@ -26,7 +26,7 @@ func git(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return nil, gitrepo.CommandError(ctx, args, err, stderr.String())
 	}
 	return stdout.Bytes(), nil
 }

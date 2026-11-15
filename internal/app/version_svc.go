@@ -19,6 +19,8 @@ type VersionStatus struct {
 	ConfigAdded    []string
 	// LockMismatch: core.lock ghi phiên bản khác binary (skill xuất bản bằng bản Bint khác) → chạy sync.
 	LockMismatch bool
+	// Direction: hướng lệch của binary so với bản đã ghi core.lock (cùng semver thì xét revision/vcs.time).
+	Direction skills.Direction
 }
 
 // VersionInfo đối chiếu binary với repository chứa dir. Repository chưa init trả ErrNotInitialized.
@@ -35,6 +37,9 @@ func VersionInfo(ctx context.Context, dir, binVersion string) (VersionStatus, er
 	}
 	vs.LockVersion = lock.BintVersion
 	vs.LockMismatch = vs.LockVersion != "" && vs.LockVersion != binVersion
+	bin := skills.CurrentBuild()
+	bin.Version = binVersion
+	vs.Direction = skills.CompareBuild(lock, bin)
 	if up, uerr := readUpgrade(root); uerr == nil && up.Changed() {
 		vs.ConfigOutdated, vs.ConfigAdded = true, up.Added
 	}

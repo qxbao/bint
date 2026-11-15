@@ -106,7 +106,8 @@ func Start(opts Options) (*Daemon, error) {
 		sessions: map[string]*session{}, parts: map[string]*partition{}, cache: map[string]cacheEntry{},
 		done: make(chan struct{})}
 	d.ctx, d.cancel = context.WithCancel(context.Background())
-	d.info = Info{PID: os.Getpid(), Port: ln.Addr().(*net.TCPAddr).Port, Token: token, StartedAt: d.started.UTC(), Version: opts.Version}
+	d.info = Info{PID: os.Getpid(), Port: ln.Addr().(*net.TCPAddr).Port, Token: token, StartedAt: d.started.UTC(), Version: opts.Version,
+		ExeModTime: ExeModTime()}
 	if err := writeInfo(dir, d.info); err != nil {
 		ln.Close()
 		lf.Close()
@@ -301,7 +302,8 @@ type repoInfo struct {
 	spool     string // rỗng nếu repo chưa init Bint hoặc không giải được
 	runtime   string // thư mục runtime của repo ("" nếu không giải được): chứa bản ghi lượt chạy (binding.go)
 	cfg       config.Config
-	cfgOK     bool // đọc được cấu hình dự án (cfg.MCP có nghĩa)
+	cfgOK     bool   // đọc được cấu hình dự án (cfg.MCP có nghĩa)
+	cfgErr    string // lỗi đọc cấu hình khi !cfgOK (vd. khoá mới mà daemon chạy binary cũ chưa biết)
 	// runCfg là cấu hình dùng giải quyền cho phiên của một lượt bint run: đọc từ worktree CHÍNH trước (như cấu hình của
 	// Runner, nơi tính allowlist của bước), nên bước trước sửa .bint/config.yml trong worktree tác vụ không đổi được quyền
 	// của bước sau.
@@ -318,6 +320,7 @@ func resolveRepo(ctx context.Context, dir string) (repoInfo, error) {
 	ri := repoInfo{root: repo.Toplevel}
 	cfg, _, err := config.LoadFirst(repo.ConfigRoots(), false) // cùng cách chọn tệp cấu hình với app.OpenWorkspace
 	if err != nil {
+		ri.cfgErr = err.Error()
 		return ri, nil
 	}
 	ri.cfg, ri.cfgOK = cfg, true

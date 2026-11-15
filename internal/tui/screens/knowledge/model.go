@@ -76,6 +76,8 @@ type Model struct {
 	Data    Data
 	Loaded  bool
 	Loading bool
+	// stale: dữ liệu đã cũ (Refresher.MarkStale); soft: lần nạp đang bay là nạp mềm (Refresher.Refresh).
+	stale, soft bool
 	// reloadAgain: có yêu cầu nạp lại trong lúc đang nạp.
 	reloadAgain bool
 	Err         error
@@ -146,9 +148,19 @@ func (m *Model) t(key string, a ...i18n.A) string { return m.cat.T(key, a...) }
 
 // Ensure nạp danh sách lần đầu (ui.Screen).
 func (m *Model) Ensure() tea.Cmd {
-	if m.Loaded || m.Loading {
+	if m.Loading || m.Loaded && !m.stale {
 		return nil
 	}
+	m.soft = m.Loaded // đã có dữ liệu mà cũ: nạp mềm, không về "đang tải"
+	return m.Load()
+}
+
+// MarkStale đánh dấu dữ liệu đã cũ: Ensure kế tiếp nạp mềm lại (ui.Refresher).
+func (m *Model) MarkStale() { m.stale = true }
+
+// Refresh nạp mềm danh sách (ui.Refresher): giữ con trỏ, bộ lọc, chi tiết; lỗi nạp không thay dữ liệu đang hiện.
+func (m *Model) Refresh() tea.Cmd {
+	m.soft = m.Loaded
 	return m.Load()
 }
 
@@ -158,7 +170,7 @@ func (m *Model) Load() tea.Cmd {
 		m.reloadAgain = true // thao tác ghi xong trong lúc đang nạp: nạp thêm một lần để thấy thay đổi đó
 		return nil
 	}
-	m.Loading = true
+	m.Loading, m.stale = true, false
 	ctx, dir, loader := context.Background(), m.o.Dir, m.o.Loader
 	return func() tea.Msg {
 		d, err := loader(ctx, dir)
@@ -284,12 +296,18 @@ func (m *Model) Busy() bool {
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case LoadedMsg:
-		m.Loading = false
-		m.Err = msg.Err
+		soft := m.soft
+		m.Loading, m.soft = false, false
+		if !(soft && msg.Err != nil && m.Loaded) { // nạp mềm lỗi: giữ dữ liệu và trạng thái đang hiện
+			m.Err = msg.Err
+		}
 		var cmds []tea.Cmd
 		if msg.Err == nil {
 			m.Data, m.Loaded = msg.Data, true
-			m.cache, m.cacheErr, m.asked = map[string]app.KnowledgeDetail{}, map[string]error{}, map[string]bool{}
+			if !soft { // nạp mềm giữ cache chi tiết cũ để khung chi tiết không về "đang tải"; asked xoá để nạp lại bản mới
+				m.cache, m.cacheErr = map[string]app.KnowledgeDetail{}, map[string]error{}
+			}
+			m.asked = map[string]bool{}
 			m.refilter()
 			for _, p := range m.pnls {
 				if p != nil && p.form != nil {

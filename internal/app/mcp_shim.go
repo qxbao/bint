@@ -70,6 +70,6 @@ func NewMCPShim(ctx context.Context, dir string, o MCPShimOptions) (*mcpgw.Shim,
 	}
 	return mcpgw.NewShim(mcpgw.ShimOptions{
 		Exe: exe, Services: services, Worktree: ws.Repo.Toplevel, RunID: runID, TaskID: taskID,
-		Log: os.Stderr,
+		Log: os.Stderr, ExeModTime: mcpgw.ExeModTime(),
 	})
 }

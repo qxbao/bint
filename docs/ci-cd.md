@@ -24,7 +24,7 @@ Không workflow nào publish artifact ra ngoài, tạo tag hay deploy ở trạn
 
 ### Các job
 
-Ba job chạy song song trên `ubuntu-24.04`, mỗi job có `timeout-minutes`. Quyền của toàn
+Bốn job chạy song song: Lint, Test (race) và Build trên `ubuntu-24.04`, Test (Windows) trên `windows-2025`; mỗi job có `timeout-minutes`. Quyền của toàn
 workflow: `contents: read`; checkout với `persist-credentials: false`. Không dùng secret nào.
 
 **Lint** (10 phút)
@@ -55,6 +55,18 @@ staticcheck chạy với bộ quy tắc mặc định, không có tệp cấu h�
 - Bước "Môi trường" in phiên bản Go/git và đặt `user.name`/`user.email` toàn cục cho git
   (Bint yêu cầu git >= 2.31; runner Ubuntu 24.04 có bản mới hơn).
 - Bất kỳ test nào fail → `go test` thoát khác 0 → job fail.
+
+**Test (Windows)** (50 phút)
+
+`go test -count=1 -timeout 30m ./...` trên `windows-2025`.
+
+- `GOOS=windows go vet`/`staticcheck` ở job Lint chỉ bắt lỗi biên dịch. Lỗi hành vi riêng của Windows chỉ lộ ra khi
+  chạy thật: tiến trình bị giết trả `exit status 1` thay vì `signal: killed`, CRLF do `core.autocrlf`, khoá
+  `LockFileEx`, và git chậm (mỗi lần gọi khoảng 25 ms) làm lộ race. Ví dụ: `TestEvalRunEscCancelsBatchAndShowsResumeCommand`
+  qua trên Ubuntu nhưng hỏng trên Windows, vì lệnh `git diff` bị huỷ giữa chừng không được nhận là huỷ.
+- Không `-race`: cần CGO và gcc, runner Windows không có sẵn.
+- Hạn 30 phút mỗi gói vì `internal/workflow` mất khoảng 10 phút trên Windows, đúng bằng hạn mặc định của `go test`.
+- Bước "Môi trường" chạy bằng `bash` (Git Bash có sẵn trên runner), giống job Test (race).
 
 **Build (đa nền tảng)** (15 phút)
 

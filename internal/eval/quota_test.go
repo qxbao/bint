@@ -2,6 +2,7 @@ package eval
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -99,16 +100,18 @@ func TestRunCancelDuringPrepareMarksCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var batch string
-	result, err := Run(ctx, env, db, RunOptions{
+	res, err := Run(ctx, env, db, RunOptions{
 		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
 		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
 		OnBatch: func(id string) error { batch = id; cancel(); return nil },
 	})
-	if err == nil {
-		t.Fatal("mong đợi lỗi khi ctx bị huỷ lúc chuẩn bị")
+	// Lệnh git bị giết vì huỷ chỉ báo "exit status 1" trên Windows: lỗi vẫn phải nhận được là huỷ, và res.Status phải
+	// khớp trạng thái đã lưu, để TUI hiện "đã huỷ" như khi huỷ giữa các lượt.
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("lỗi phải nhận được là huỷ: %v", err)
 	}
-	if result.BatchID != batch || result.Status != "cancelled" {
-		t.Fatalf("cancelled preparation lost batch result: %+v", result)
+	if res.BatchID != batch || res.Status != "cancelled" {
+		t.Fatalf("cancelled preparation lost batch result: %+v; want batch %s", res, batch)
 	}
 	var status string
 	if qerr := db.QueryRow("SELECT status FROM eval_batches WHERE batch_id = ?", batch).Scan(&status); qerr != nil {
@@ -116,6 +119,108 @@ func TestRunCancelDuringPrepareMarksCancelled(t *testing.T) {
 	}
 	if status != "cancelled" {
 		t.Fatalf("trạng thái đợt = %q, muốn cancelled", status)
+	}
+}
+
+func goodCase(t *testing.T) (*Env, *sql.DB, *Case) {
+	t.Helper()
+	root, solution, _ := fixtureRepo(t)
+	env, st, db := testEnv(t, root)
+	if _, err := Mine(context.Background(), root, env.Cfg.Eval.Mine, st, MineOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	cands, _ := st.Candidates()
+	for _, c := range cands {
+		if c.Source.Commit == solution {
+			return &env, db, c
+		}
+	}
+	t.Fatal("không có ứng viên")
+	return nil, nil, nil
+}
+
+func batchStatus(t *testing.T, db *sql.DB, id string) string {
+	t.Helper()
+	var status string
+	if err := db.QueryRow("SELECT status FROM eval_batches WHERE batch_id = ?", id).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	return status
+}
+
+// Huỷ sau khi đợt được tạo: Status cancelled, lỗi là context.Canceled (kể cả khi lỗi gốc là lỗi khác), đợt cancelled.
+func TestRunCancelAfterBatchReturnsCancelled(t *testing.T) {
+	needSh(t)
+	testutil.Isolate(t)
+	env, db, good := goodCase(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var batch string
+	res, err := Run(ctx, *env, db, RunOptions{
+		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
+		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
+		OnBatch: func(id string) error { batch = id; cancel(); return errors.New("lỗi khác do huỷ") },
+	})
+	if !errors.Is(err, context.Canceled) || res.Status != "cancelled" {
+		t.Fatalf("status=%q err=%v", res.Status, err)
+	}
+	if batchStatus(t, db, batch) != "cancelled" {
+		t.Fatal("đợt phải cancelled")
+	}
+
+	// Huỷ ngay sau OnBatch (nhánh chuẩn bị tiếp theo): kết quả mang BatchID.
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	res, err = Run(ctx2, *env, db, RunOptions{
+		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
+		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
+		OnBatch: func(id string) error { cancel2(); return nil },
+	})
+	if !errors.Is(err, context.Canceled) || res.Status != "cancelled" || res.BatchID == "" {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	if batchStatus(t, db, res.BatchID) != "cancelled" {
+		t.Fatal("đợt phải cancelled")
+	}
+}
+
+// Lỗi thật khi ctx còn sống: failed.
+func TestRunRealPrepareErrorIsFailed(t *testing.T) {
+	needSh(t)
+	testutil.Isolate(t)
+	env, db, good := goodCase(t)
+	var batch string
+	res, err := Run(context.Background(), *env, db, RunOptions{
+		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
+		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
+		OnBatch: func(id string) error { batch = id; return errors.New("boom") },
+	})
+	if err == nil || errors.Is(err, context.Canceled) || res.Status != "failed" {
+		t.Fatalf("status=%q err=%v", res.Status, err)
+	}
+	if batchStatus(t, db, batch) != "failed" {
+		t.Fatal("đợt phải failed")
+	}
+}
+
+// Huỷ trước khi tạo đợt: không tạo đợt, BatchID rỗng.
+func TestRunCancelledBeforeBatchCreatesNone(t *testing.T) {
+	needSh(t)
+	testutil.Isolate(t)
+	env, db, good := goodCase(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	res, err := Run(ctx, *env, db, RunOptions{
+		Cases: []*Case{good}, Arms: []string{ArmNone}, Repeats: 1, Parallel: 1, LeakageMode: LeakEconomy,
+		Agent: &CommandAgent{Command: "true"}, Seed: 1, Now: testNow,
+	})
+	if !errors.Is(err, context.Canceled) || res.BatchID != "" {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	var n int
+	db.QueryRow("SELECT COUNT(*) FROM eval_batches").Scan(&n)
+	if n != 0 {
+		t.Fatalf("không được tạo đợt, có %d", n)
 	}
 }
 

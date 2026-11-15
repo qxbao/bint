@@ -82,6 +82,8 @@ var baseExclusions = []exclusion{
 
 var litsrUsage = []struct{ file, contains string }{
 	{"app/eval_cases.go", "--from-tasks không đi cùng --rev"},
+	{"app/doctor_version.go", "cập nhật bint (`bint update --pull`)"},
+	{"app/doctor_version.go", "chạy `bint update --pull`; đừng"},
 	{"app/findings_svc.go", "fixed cần --commit"},
 	{"app/task_svc.go", "--parent %q: %v"},
 	{"app/task_svc.go", "--force cần --reason: lý do bỏ qua điều chặn về bằng chứng"},

@@ -24,9 +24,10 @@ Khi làm việc với `internal/config/**`:
 
 ### Điểm dễ sai
 
-- **Khoá liên tiến trình: dùng flock/LockFileEx, đừng chép kiểu thu hồi theo PID chết của evolve.AcquireLock** [k:01M746PTBYPSXDT0WJZS38KPFD]
-  Commit 755b544 (R1) sửa race của khoá ghi workflow: đọc khoá thấy PID chết rồi xoá/rename có thể gỡ nhầm khoá của chủ mới đang sống. Bản sửa dùng `tryFlock` (build tag unix/windows) để hệ điều hành tự nhả khoá khi tiến trình chết.
-  `evolve.AcquireLock` (khoá `evolve.lock`) vẫn dùng mẫu cũ O_EXCL + `task.ProcessAlive` + `os.Remove`, nên cùng loại race. Khoá mới hãy theo `workflow.AcquireWriteLock`, không chép `evolve.AcquireLock`.
+- **Khoá liên tiến trình: dùng fslock.Try (flock/LockFileEx), không tự thu hồi khoá theo PID chết** [k:01M7FGC944KVT6NY1TZE7MJ0P8]
+  Khoá giữa các tiến trình dùng `fslock.Try(f, exclusive)` (gói `internal/fslock`, cặp `internal/fslock/fslock_unix.go`/`internal/fslock/fslock_windows.go`): hệ điều hành tự nhả khoá khi tiến trình chết, nên không có bước thu hồi.
+  Đừng dựng lại mẫu O_EXCL + `task.ProcessAlive` + `os.Remove`: đọc khoá thấy PID chết rồi xoá có thể gỡ nhầm khoá của chủ mới đang sống (race R1, commit 755b544). Nội dung PID/thời điểm trong tệp khoá chỉ để báo lỗi, không dùng để quyết định khoá.
+  Mẫu: `evolve.AcquireLock` (sửa ở V0, NT-P6-01), `workflow` (`internal/workflow/lock_flock.go`), `task`. Thay cho mục 01M746PTBYPSXDT0WJZS38KPFD đã lỗi thời.
 
 Khi làm việc với `**/*_test.go`:
 
@@ -35,10 +36,27 @@ Khi làm việc với `**/*_test.go`:
   `testutil.Isolate` chỉ xoá CLAUDE_CODE_SESSION_ID/BINT_RUN_ID/BINT_TASK_ID/BINT_APPROVED_PATHS, KHÔNG xoá các biến trên. Kiểm thử đóng vai người phải gọi `asHuman(t)` (hoặc đặt rỗng từng biến); nếu không, test qua trên CI nhưng hỏng khi agent chạy `go test`.
   Danh sách biến bị chép tay trong `internal/cli/knowledge_e2e_test.go` và `internal/evolve/evolve_test.go`: thêm biến vào `agentEnvVars` thì sửa cả hai.
 
+Khi làm việc với `internal/**/*_test.go`:
+
+- **go test ./... (có test cache, không -count=1) trên Windows treo hàng chục phút, go.exe không tiến trình con, không in g…** [k:01M7D6WA84MDN32JHM21VZWQ5H]
+  go test ./... (có test cache, không -count=1) trên Windows treo hàng chục phút, go.exe không tiến trình con, không in gì: trước khi chạy mỗi gói, go.exe đọc testlog của lần trước và băm từng dòng stat/open; đường dẫn ngoài module bị filepath.EvalSymlinks hai lần (search.InDir). Mỗi exec.Command('git') gọi LookPath, sinh ~số thư mục PATH x số đuôi PATHEXT dòng stat, nên testlog của internal/tui/app ~477 nghìn dòng (~7000 lần LookPath git), internal/app ~357 nghìn; 56 nghìn dòng đã tốn ~17s mỗi lượt băm. Đo bằng -count=1 sẽ không tái hiện vì cờ này tắt test cache và testlog. Lệnh kiểm chứng nên dùng go test -count=1 ./..., hoặc giảm số lần LookPath git trong test.
+
+Khi làm việc với `internal/**/*_test.go`, `internal/testutil/**`:
+
+- **Git for Windows đặt core.autocrlf=true ở cấu hình hệ thống. testutil.Git chạy với GIT_CONFIG_NOSYSTEM=1 nhưng lệnh git …** [k:01M7B2GCBFCZEE8D2F84FDC8BR]
+  Git for Windows đặt core.autocrlf=true ở cấu hình hệ thống. testutil.Git chạy với GIT_CONFIG_NOSYSTEM=1 nhưng lệnh git do Bint gọi thì không, nên repo test dựng với LF còn checkout/apply/cat-file --filters của Bint ra CRLF: test so nội dung chính xác hỏng trên Windows dù Linux xanh. Test cần môi trường git kín (NOSYSTEM cho cả tiến trình); muốn kiểm hành vi autocrlf thì đặt core.autocrlf ở cấu hình repo để chạy được trên mọi OS.
+- **go test ./... trên Windows chậm (~10 phút) chủ yếu do tiến trình git: mỗi lần spawn git ~25 ms, test không dùng t.Paral…** [k:01M7CJ92ZB2DRYYHGFBQABYM9D]
+  go test ./... trên Windows chậm (~10 phút) chủ yếu do tiến trình git: mỗi lần spawn git ~25 ms, test không dùng t.Parallel (Isolate dùng t.Setenv) và repo tạm nằm trong %TEMP% bị Defender quét thời gian thực. Gói workflow (~600 s) và tui/app (~300 s) là đường găng. Đo trước khi tối ưu: go test -json rồi tính thời gian từng test; profile bằng -test.cpuprofile, thời gian chờ git hiện thành runtime.cgocall/ReadFile. Đừng cache gitrepo.Discover chỉ để test nhanh (đổi hành vi sau khi xoá worktree).
+
 Khi làm việc với `internal/app/**`, `internal/tui/actions/**`:
 
 - **Thêm lệnh CLI mới hoặc thông báo lỗi nêu cờ rời: TestServiceMessageCLIInventory đòi (1) hàng của lệnh trong cliRefs (in…** [k:01M78XP5NXWWRAZQHN5PSHNC13]
   Thêm lệnh CLI mới hoặc thông báo lỗi nêu cờ rời: TestServiceMessageCLIInventory đòi (1) hàng của lệnh trong cliRefs (internal/tui/actions/cliref.go) để Rewriter đổi lời nhắc 'bint <lệnh>' thành phím TUI, (2) cờ rời trong literal lỗi cách dùng phải vào litsrUsage của cliref_inventory_test.go. Quên cả hai thì test đỏ ở cli, không ở actions.
+
+Khi làm việc với `internal/cli/*_test.go`, `internal/eval/shell.go`:
+
+- **Trên Windows, lệnh chạy qua sh -c (eval.RunShell) mà chứa đường dẫn Windows trần có dấu gạch chéo ngược (sh C:\Users\..…** [k:01M7CX9V792957T6MGK6QWEJ7F]
+  Trên Windows, lệnh chạy qua sh -c (eval.RunShell) mà chứa đường dẫn Windows trần có dấu gạch chéo ngược (sh C:\Users\...\agent.sh) bị sh nuốt dấu \ nên thoát mã 127 (command not found); viết đường dẫn bằng / (filepath.ToSlash). Cũng lưu ý lệnh kiểm chứng go test ./... trên Windows chậm/treo có thể do Defender quét tệp thực thi kiểm thử: xem docs/workflows.md mục 'Kiểm chứng chạy qua Bint trên Windows'.
 
 Khi làm việc với `internal/config/**`:
 
@@ -66,28 +84,4 @@ Khi làm việc với `internal/eval/**`, `internal/cli/**`:
 
 - **go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượ…** [k:01M768KJEYSVTCQEJ3JAX3E7S2]
   go test ./... cần ≥ ~1 GB trống ở đĩa chứa TMPDIR: test eval/cli dựng kho đệm commit gốc và dừng với 'không đủ dung lượng đĩa' khi còn dưới ngưỡng eval.min_free_mb (mặc định 1024). Đĩa đầy thì dọn bộ đệm build (go clean -cache) trước khi chạy; lỗi này không liên quan mã đang sửa.
-
-Khi làm việc với `internal/eval/*_test.go`:
-
-- **Fixture dùng chính binary test cần tính thời gian thoát của race detector** [k:01M78968T95MDQSK472NC5XQT9]
-  TestRestrictedRPCProfileCleanupAndRejectsUnknownTools gọi lại binary kiểm thử để đọc catalog trước khi mở app-server. Với go test -race, tiến trình catalog mặc định chờ khoảng 1 giây khi thoát; hạn tổng 1 giây có thể hết trước khi fixture RPC khởi động. Dành đủ hạn cho cả khởi tạo và probe, đồng thời xác nhận đã tới lượt RPC bị chặn để không kiểm nhầm timeout ở giai đoạn khởi tạo.
-
-Khi làm việc với `internal/eval/codex*`:
-
-- **Codex 0.167.2: features.multi_agent=false và features.code_mode=false không đủ tắt công cụ vì metadata model tool_mode/…** [k:01M77BS1E11BFC8C6JSS20Z5VF]
-  Codex 0.167.2: features.multi_agent=false và features.code_mode=false không đủ tắt công cụ vì metadata model tool_mode/multi_agent_version vẫn bật Code Mode/collaboration; apply_patch_tool_type còn mở apply_patch. Adapter evolution cần catalog tạm bỏ các metadata này, environments=[], profile cô lập và probe request thật kiểm cả tools lẫn input.additional_tools trước khi đưa dữ liệu eval. Không suy no-tools từ thread/start hoặc riêng tools cấp cao nhất rỗng.
-
-Khi làm việc với `internal/eval/codex_read_tools.go`:
-
-- **Kiểm Lstat trước rồi mở lại toàn đường dẫn có race symlink: os.Root chỉ chặn thoát root, không chặn chuyển hướng vào .b…** [k:01M77FRYBCKRMTENPFE1XRFHVW]
-  Kiểm Lstat trước rồi mở lại toàn đường dẫn có race symlink: os.Root chỉ chặn thoát root, không chặn chuyển hướng vào .bint/evals. Phải kiểm danh tính từng đối tượng đã mở và dùng handle thư mục đã kiểm.
-
-Khi làm việc với `internal/evolve/**`:
-
-- **CheckLeak chỉ cảnh báo định danh mới; bài học dùng kiểm rò rỉ riêng (định danh mã, định danh mới ở vị trí mã, literal)** [k:01M74D57EZ2HZSQMTB9YP56F3D]
-  CheckLeak xếp định danh mới của lời giải (NewIdents) vào mức warn, chỉ mục solution_code mới là fail. Bài học do reflector soạn không được dùng CheckLeak một mình; evolve.CheckLesson (lesson_check.go) chặn (LessonLeak) khi nội dung bài học chứa:
-  - eval.SolutionIdentifiers: định danh dạng mã (snake/camelCase, có số) của phần thêm mới, trừ tên test;
-  - eval.SolutionNewIdentifiers: MỌI định danh mới ở VỊ TRÍ MÃ (kể cả tên một từ như Reset/Flush), trừ tên test. Từ thường chỉ nằm trong chú thích hoặc nội dung chuỗi (server, cache, timeout...) không bị chặn, vì bài học hay nhắc chúng;
-  - eval.SolutionLiterals: chuỗi literal ≥ 12 ký tự ("...", '...', `...` raw) của phần thêm mới, trừ chuỗi có trong kiểm thử.
-  Thêm ca chặn mới thì sửa TestCheckLessonTable (failure_test.go), kể cả ca chặn nhầm.
 <!-- bint:end -->

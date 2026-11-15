@@ -399,7 +399,7 @@ func TestClaudeReadonlyAllowsCurrentBintExecutable(t *testing.T) {
 		}
 	}
 	// Không sửa slice trong cấu hình gốc.
-	if len(config.Default().Workflow.Agent.ReadonlyTools) != 10 {
+	if len(config.Default().Workflow.Agent.ReadonlyTools) != 11 {
 		t.Fatal("cấu hình mặc định bị đổi")
 	}
 }
@@ -460,9 +460,9 @@ func TestClaudeWorkflowArgsWithMCPConfig(t *testing.T) {
 			t.Errorf("readOnly=%v: --disallowedTools không khớp: %v", readOnly, args)
 		}
 	}
-	// Không MCPConfig thì không có --mcp-config và không thêm tool bint.
+	// Không MCPConfig thì không có --mcp-config (mcp__bint__* chỉ là quy tắc quyền mặc định của cấu hình, không phải cờ MCP).
 	plain := (&eval.ClaudeAgent{Cfg: ClaudeWorkflowArgs(config.Default(), false, nil)}).ArgsFor(eval.AgentRequest{})
-	if slices.Contains(plain, "--mcp-config") || strings.Contains(strings.Join(plain, " "), "mcp__bint__") {
+	if slices.Contains(plain, "--mcp-config") {
 		t.Fatalf("không MCPConfig mà vẫn có MCP: %v", plain)
 	}
 }

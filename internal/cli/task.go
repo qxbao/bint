@@ -83,7 +83,7 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 (bint task approve), đặt autonomy auto, xác nhận hoàn thành khi thiếu bằng chứng (--force).`,
 	}
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskReadyCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
-		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
+		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskDoneCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
 		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
 	return c
@@ -155,6 +155,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 			if err := o.Validate(); err != nil { // lỗi dùng sai (mã 2) thắng lỗi "chưa init", như trước
 				return err
 			}
+			autoResync(cmd, stdio)
 			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
@@ -501,6 +502,7 @@ func passText(ok bool) string {
 
 func newTaskSetCmd(stdio IO) *cobra.Command {
 	var ef editFlags
+	var asJSON bool
 	var depends []string
 	var clearDeps bool
 	c := &cobra.Command{
@@ -525,6 +527,10 @@ không còn hiệu lực. Agent không đặt được autonomy: auto.`,
 			if err != nil {
 				return err
 			}
+			if asJSON {
+				return writeJSON(stdio.Out, map[string]any{"task_id": u.Task.State.ID, "goal": u.Task.Ticket.Goal, "status": u.Task.State.Status,
+					"notes": nonNilSlice(u.Notes), "ticket": u.Task.Ticket})
+			}
 			fmt.Fprintf(stdio.Out, "Đã cập nhật %s: %s\n", u.Task.State.ID, u.Task.Ticket.Goal)
 			for _, n := range u.Notes {
 				fmt.Fprintf(stdio.Out, "  đồng bộ tiêu chí: %s\n", n)
@@ -536,11 +542,13 @@ không còn hiệu lực. Agent không đặt được autonomy: auto.`,
 	addEditFlags(c, &ef, true)
 	c.Flags().StringSliceVar(&depends, "depends-on", nil, "thêm phụ thuộc: phiếu phải done trước khi phiếu này sẵn sàng (ID hoặc tiền tố, lặp lại hoặc dấu phẩy); từ chối nếu tạo chu trình")
 	c.Flags().BoolVar(&clearDeps, "clear-depends-on", false, "xoá mọi phụ thuộc cũ trước khi thêm")
+	c.Flags().BoolVar(&asJSON, "json", false, jsonWriteHelp)
 	return c
 }
 
 func newTaskWriteCmd(stdio IO) *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	c := &cobra.Command{
 		Use:   "write <task-id> <requirement|plan|tasks> [tệp | -]",
 		Short: "Ghi tài liệu của tác vụ (nội dung từ tệp hoặc stdin)",
 		Args:  cobra.RangeArgs(2, 3),
@@ -553,22 +561,36 @@ func newTaskWriteCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p, err := app.WriteTaskArtifact(cmd.Context(), ws, app.TaskWriteOptions{Ref: args[0], Name: args[1], Content: body})
+			t, p, err := app.WriteTaskArtifactFor(cmd.Context(), ws, app.TaskWriteOptions{Ref: args[0], Name: args[1], Content: body})
 			if err != nil {
 				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "name": args[1], "path": p})
 			}
 			fmt.Fprintf(stdio.Out, "Đã ghi %s\n", p)
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&asJSON, "json", false, jsonWriteHelp)
+	return c
 }
 
-func newTaskStatusCmd(stdio IO) *cobra.Command {
+// newTaskStatusCmd là `bint task status <id> <trạng thái>`; newTaskDoneCmd là bí danh `bint task done <id>` (= status done).
+func newTaskStatusCmd(stdio IO) *cobra.Command { return newTaskTransitionCmd(stdio, false) }
+
+func newTaskDoneCmd(stdio IO) *cobra.Command { return newTaskTransitionCmd(stdio, true) }
+
+func newTaskTransitionCmd(stdio IO, done bool) *cobra.Command {
 	var reason string
-	var force bool
+	var force, asJSON bool
+	use, short, minArgs := "status <task-id> <trạng thái>", "Chuyển trạng thái tác vụ theo bảng chuyển (done cần bằng chứng)", 2
+	if done {
+		use, short, minArgs = "done <task-id>", "Bí danh của `bint task status <task-id> done`: hoàn thành tác vụ (cần bằng chứng)", 1
+	}
 	c := &cobra.Command{
-		Use:   "status <task-id> <trạng thái>",
-		Short: "Chuyển trạng thái tác vụ theo bảng chuyển (done cần bằng chứng)",
+		Use:   use,
+		Short: short,
 		Long: `Chuyển trạng thái theo bảng chuyển (bint task transitions). Chuyển sang done cần bằng
 chứng: lệnh kiểm chứng đã được người xác nhận và lần chạy cuối qua trên đúng trạng thái mã
 hiện tại; hoặc (không có lệnh kiểm chứng) mọi tiêu chí đã được đối chiếu là đạt; không có
@@ -576,15 +598,23 @@ thay đổi chạm đường dẫn bảo vệ chưa duyệt; không tiêu chí n
 Chỉ người mới --force được khi thiếu bằng chứng (lý do được ghi vào lịch sử).
 
 Tác vụ đang được ` + "`bint run`" + ` điều phối thì trạng thái do Bint Core chuyển.`,
-		Args: cobra.ExactArgs(2),
+		Args: cobra.ExactArgs(minArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			r, err := app.SetTaskStatus(cmd.Context(), ws, app.TaskStatusOptions{Ref: args[0], To: args[1], Reason: reason, Force: force})
+			to := "done"
+			if !done {
+				to = args[1]
+			}
+			r, err := app.SetTaskStatus(cmd.Context(), ws, app.TaskStatusOptions{Ref: args[0], To: to, Reason: reason, Force: force})
 			if err != nil {
 				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, map[string]any{"task_id": r.Task.State.ID, "status": r.Task.State.Status,
+					"forced": force && len(r.Blockers) > 0, "blockers": nonNilSlice(r.Blockers)})
 			}
 			fmt.Fprintf(stdio.Out, "%s → %s\n", r.Task.State.ID, r.Task.State.Status)
 			if force && len(r.Blockers) > 0 {
@@ -595,6 +625,7 @@ Tác vụ đang được ` + "`bint run`" + ` điều phối thì trạng thái 
 	}
 	c.Flags().StringVarP(&reason, "reason", "m", "", "lý do")
 	c.Flags().BoolVar(&force, "force", false, "người xác nhận hoàn thành dù thiếu bằng chứng")
+	c.Flags().BoolVar(&asJSON, "json", false, jsonWriteHelp)
 	return c
 }
 
@@ -644,6 +675,7 @@ agent đề xuất chưa được người xác nhận thì không được ch�
 
 func newTaskCriteriaCmd(stdio IO) *cobra.Command {
 	var evidence string
+	var asJSON bool
 	c := &cobra.Command{
 		Use:   "criteria <task-id> <số> met|unmet",
 		Short: "Ghi kết quả đối chiếu một tiêu chí chấp nhận (kèm bằng chứng)",
@@ -665,16 +697,21 @@ func newTaskCriteriaCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if asJSON {
+				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "criterion": n, "result": v, "evidence": evidence})
+			}
 			fmt.Fprintf(stdio.Out, "%s tiêu chí %d: %s\n", t.State.ID, n, v)
 			return nil
 		},
 	}
 	c.Flags().StringVarP(&evidence, "evidence", "e", "", "bằng chứng cụ thể (bắt buộc)")
+	c.Flags().BoolVar(&asJSON, "json", false, jsonWriteHelp)
 	return c
 }
 
 func newTaskErrorCmd(stdio IO) *cobra.Command {
 	var step string
+	var asJSON bool
 	c := &cobra.Command{
 		Use:   "error <task-id> <nội dung>",
 		Short: "Ghi một lỗi hoặc lần thử sửa thất bại",
@@ -684,19 +721,25 @@ func newTaskErrorCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := app.RecordTaskError(cmd.Context(), ws, app.TaskErrorOptions{Ref: args[0], Message: args[1], Step: step}); err != nil {
+			t, err := app.RecordTaskError(cmd.Context(), ws, app.TaskErrorOptions{Ref: args[0], Message: args[1], Step: step})
+			if err != nil {
 				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "step": step, "recorded": true})
 			}
 			fmt.Fprintln(stdio.Out, "Đã ghi.")
 			return nil
 		},
 	}
 	c.Flags().StringVar(&step, "step", "", "bước (b-req, b-feat, b-review…)")
+	c.Flags().BoolVar(&asJSON, "json", false, jsonWriteHelp)
 	return c
 }
 
 func newTaskReviewCmd(stdio IO) *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	c := &cobra.Command{
 		Use:   "review <task-id> [tệp | -]",
 		Short: "Ghi một vòng review (JSON: summary + findings)",
 		Long: `Ghi một vòng review từ JSON:
@@ -722,6 +765,10 @@ bint knowledge add --from-review <id>. Báo cáo Markdown: review.md trong thư 
 				return err
 			}
 			t, r := rv.Task, rv.Round
+			if asJSON {
+				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "round": r.Round, "summary": r.Summary,
+					"findings": nonNilSlice(r.Findings), "blocking": len(r.Blocking())})
+			}
 			fmt.Fprintf(stdio.Out, "Review vòng %d của %s: %d phát hiện, %d nghiêm trọng\n", r.Round, t.State.ID, len(r.Findings), len(r.Blocking()))
 			for _, f := range r.Findings {
 				fmt.Fprintf(stdio.Out, "  [%s] %s/%s %s\n", f.ID, f.Kind, f.Severity, f.Title)
@@ -729,6 +776,8 @@ bint knowledge add --from-review <id>. Báo cáo Markdown: review.md trong thư 
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&asJSON, "json", false, jsonWriteHelp)
+	return c
 }
 
 func newTaskApproveCmd(stdio IO) *cobra.Command {
@@ -1179,3 +1228,5 @@ Trong phiên agent chỉ ghi ra cây và liệt kê thay đổi chờ người n
 	c.Flags().BoolVar(&asJSON, "json", false, "in kết quả dạng JSON")
 	return c
 }
+
+const jsonWriteHelp = "in kết quả dạng một JSON object (có task_id) thay cho văn bản"

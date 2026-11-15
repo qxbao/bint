@@ -22,6 +22,11 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
+	// Tên dài thật của thư mục: trên Windows TEMP có thể là dạng ngắn 8.3 (C:\Users\RUNNER~1), còn Bint ghi đường dẫn
+	// đã chuẩn hoá (tên dài) vào cấu hình hook, nên so chuỗi với dạng ngắn sẽ lệch.
+	if long, lerr := filepath.EvalSymlinks(dir); lerr == nil {
+		dir = long
+	}
 	bintBin = filepath.Join(dir, "bint")
 	if runtime.GOOS == "windows" {
 		bintBin += ".exe"

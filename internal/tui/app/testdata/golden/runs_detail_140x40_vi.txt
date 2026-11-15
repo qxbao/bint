@@ -8,6 +8,8 @@
 │ │ ▸ ✗ 000002 failed      codex   11-11 09:00 thất bại              ││ Trạng thái  failed (exit)                                        │ │
 │ │   ✓ 000001 completed   claude  11-11 08:00 thành công            ││ Harness     codex  phiên -                                       │ │
 │ │                                                                  ││ Mô hình     claude-opus-5-5                                      │ │
+│ │                                                                  ││ Chi phí     -                                                    │ │
+│ │                                                                  ││ Token       -                                                    │ │
 │ │                                                                  ││ Git         main @ 46e924d                                       │ │
 │ │                                                                  ││ Worktree    -                                                    │ │
 │ │                                                                  ││ Thời gian   2026-11-11 09:00 → 2026-11-11 09:00 (2m5s)           │ │
@@ -23,8 +25,6 @@
 │ │                                                                  ││ Sự kiện (2)                                                      │ │
 │ │                                                                  ││ 2026-11-11 08:00 session.started {"model":"claude-opus-5-5"}     │ │
 │ │                                                                  ││ 2026-11-11 08:01 file.modified {"path":"internal/db/db.go"}      │ │
-│ │                                                                  ││                                                                  │ │
-│ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │
 │ │                                                                  ││                                                                  │ │

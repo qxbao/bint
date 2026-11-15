@@ -113,6 +113,10 @@ type RunDetail struct {
 	Signals   []runlog.Signal
 	Artifacts []runlog.Artifact
 	Events    []runlog.EventRow
+	// Chi phí và token của lượt; nil khi không có.
+	CostUSD      *float64
+	InputTokens  *int64
+	OutputTokens *int64
 }
 
 // ShowRun đọc chi tiết một lượt chạy.
@@ -135,6 +139,17 @@ func ShowRun(ctx context.Context, r *RunsWS, o RunsShowOptions) (*RunDetail, err
 		return nil, err
 	}
 	d.Label, d.Reason = runlog.Label(d.Signals)
+	if m, merr := runlog.GetRunMeta(ctx, r.Store.DB, run.RunID); merr == nil {
+		if m.CostUSD.Valid {
+			d.CostUSD = &m.CostUSD.Float64
+		}
+		if m.InputTokens.Valid {
+			d.InputTokens = &m.InputTokens.Int64
+		}
+		if m.OutputTokens.Valid {
+			d.OutputTokens = &m.OutputTokens.Int64
+		}
+	}
 	return d, nil
 }
 

@@ -32,6 +32,7 @@ var directWriteAllowed = map[string]string{
 	"config_svc.go:PrepareConfigEdit":   "bản tạm soạn cấu hình trong thư mục tạm của hệ điều hành",
 	"config_svc.go:RebaseConfigEdit":    "ghi lại bản tạm soạn cấu hình (thư mục tạm), không phải tệp lớp cấu hình",
 	"doctor.go:checkWritable":           "tệp thăm dò quyền ghi, tạo rồi xoá ngay",
+	"doctor_fix.go:FixDoctor":           "xoá thư mục rỗng còn sót của worktree mồ côi; findFixableOrphan giới hạn đường dẫn trong thư mục worktrees của trạng thái",
 	"evolvesvc/cycle.go:Cycle":          "evolve/cycles/<id>.json trong thư mục trạng thái",
 	"gitvis.go:saveGitMode":             "git-mode trong thư mục trạng thái",
 	"mcp_svc.go:ensureGitExclude":       "git info/exclude nằm trong .git (không phải tệp của cây làm việc); chỉ thêm một dòng .codegraph/",
@@ -45,6 +46,7 @@ var directWriteAllowed = map[string]string{
 	"skills_svc.go:PlanSync":            "xem trước sync trên bản sao tạm, không chạm repo",
 	"skills_svc.go:copyTree":            "sao cây vào thư mục tạm của PlanSync",
 	"update.go:UpdateSelf":              "thay binary bint đang chạy (ngoài repo)",
+	"update.go:oldBackupPath":           "dọn bản binary cũ <exe>.old* cạnh binary bint (ngoài repo)",
 }
 
 // Các lời gọi ghi trực tiếp bị theo dõi (gói.hàm).

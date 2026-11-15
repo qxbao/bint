@@ -40,6 +40,12 @@ type Pointer interface {
 	Wheel(pane string, dy int) tea.Cmd
 }
 
+// Paster là giao diện tuỳ chọn của màn hình có ô nhập: nhận chữ dán (tea.PasteMsg hoặc Ctrl+V) và chèn vào ô đang nhận phím
+// theo cùng thứ tự với Key (hộp thoại, form, ô lọc). Chỉ gọi khi Capturing đúng.
+type Paster interface {
+	Paste(s string) tea.Cmd
+}
+
 // Toaster là giao diện tuỳ chọn: trả nguyên văn thông báo hiện tại của màn hình (rỗng = không có), để hộp Thông báo của
 // mô hình gốc hiện đủ nội dung dù thanh phụ đã rút gọn bằng "…".
 type Toaster interface {
@@ -55,4 +61,13 @@ type Helper interface {
 // SubTabber là giao diện tuỳ chọn: tên (đã dịch) của thẻ phụ đang chọn, đúng chữ hiện trên thanh thẻ phụ ("" = màn không có thẻ phụ).
 type SubTabber interface {
 	SubTab() string
+}
+
+// Refresher là giao diện tuỳ chọn cho nạp lại tự động khi dữ liệu repository đổi (Options.DataPoll).
+type Refresher interface {
+	// Refresh nạp mềm: giữ con trỏ, bộ lọc, thẻ phụ, mục đã chọn và cache chi tiết; không đổi khung về "đang tải";
+	// lỗi nạp không thay dữ liệu đang hiện bằng trang lỗi.
+	Refresh() tea.Cmd
+	// MarkStale đánh dấu dữ liệu đã cũ: lần Ensure kế tiếp (khi người dùng chuyển tới màn) nạp mềm lại.
+	MarkStale()
 }

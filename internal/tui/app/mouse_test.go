@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -85,7 +86,7 @@ func cellLeftmostRight(t *testing.T, m *Model, needle string) (int, int) {
 
 func clickAt(t *testing.T, m *Model, x, y int) {
 	t.Helper()
-	_, cmd := m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	cmd := clickMsgs(m, x, y)
 	drive(t, m, cmd)
 }
 
@@ -93,7 +94,7 @@ func clickAt(t *testing.T, m *Model, x, y int) {
 func clickNoDrive(t *testing.T, m *Model, needle string) {
 	t.Helper()
 	x, y := cellOf(t, m, needle)
-	m.Update(tea.MouseClickMsg{X: x + 1, Y: y, Button: tea.MouseLeft})
+	clickMsgs(m, x+1, y)
 }
 
 func clickText(t *testing.T, m *Model, needle string, nth ...int) {
@@ -569,4 +570,190 @@ func TestRootToastErrFlag(t *testing.T) {
 	if _, isErr := m.currentNotice(); !isErr {
 		t.Fatal("toast lỗi phải mang cờ lỗi")
 	}
+}
+
+// ---- chuột: form, hộp có ô chọn, wizard, nhãn Esc (đầu-cuối bằng tea.MouseClickMsg) ----
+
+// captureTasks ghi lại tasks.new và tasks.status thay vì gọi dịch vụ thật.
+func captureTasks() (*actions.Registry, *capt) {
+	c := &capt{calls: map[string][]any{}, values: map[string]any{}, release: map[string]chan struct{}{}, started: map[string]chan struct{}{}}
+	var list []actions.Action
+	for _, a := range actions.Default().All() {
+		a := a
+		if a.ID == "tasks.new" || a.ID == "tasks.status" {
+			a.Do = func(_ context.Context, _ actions.Env, o any) tea.Msg {
+				c.record(a.ID, o)
+				return actions.ResultMsg{ID: a.ID, Opts: o}
+			}
+		}
+		list = append(list, a)
+	}
+	return actions.NewRegistry(list), c
+}
+
+// lineWith trả dòng đầu của bản vẽ (đã bỏ mã màu) chứa needle.
+func lineWith(m *Model, needle string) string {
+	for _, l := range lines(plain(m.Render())) {
+		if strings.Contains(l, needle) {
+			return l
+		}
+	}
+	return ""
+}
+
+func TestMouseTaskFormFocusRadioCheckboxAndFooter(t *testing.T) {
+	reg, c := captureTasks()
+	m := newModel(t, Options{Mode: theme.Mono, Lang: "vi", Registry: reg}, sampleData(), 140, 40)
+	press(t, m, "3", "s")
+	hasAll(t, plain(m.Render()), "Đổi trạng thái tác vụ")
+	// Bấm nhãn ô "Lý do" đưa tiêu điểm tới ô đó: chữ gõ sau đó vào ô này.
+	clickText(t, m, "Lý do")
+	if !strings.Contains(lineWith(m, "▸ Lý do"), "Lý do") {
+		t.Fatalf("tiêu điểm phải ở ô Lý do:\n%s", plain(m.Render()))
+	}
+	typeText(t, m, "xong")
+	if l := lineWith(m, "Lý do"); !strings.Contains(l, "xong") {
+		t.Fatalf("chữ gõ phải vào ô Lý do: %q", l)
+	}
+	// Radio: bấm một lựa chọn của ô Trạng thái đích chọn đúng lựa chọn đó và đưa tiêu điểm tới ô.
+	clickText(t, m, "in_progress")
+	l := lineWith(m, "Trạng thái đích")
+	if !strings.Contains(l, "(●) in_progress") || strings.Contains(l, "(●) (để trống)") || !strings.Contains(l, "▸") {
+		t.Fatalf("radio in_progress phải được chọn: %q", l)
+	}
+	// Nút chân "Tab": như nhấn Tab (tiêu điểm dời xuống ô Lý do).
+	clickText(t, m, "Tab")
+	if !strings.Contains(lineWith(m, "▸ Lý do"), "Lý do") {
+		t.Fatalf("nút Tab phải dời tiêu điểm:\n%s", plain(m.Render()))
+	}
+	// Nút chân "Enter": gửi form.
+	clickText(t, m, "Enter gửi")
+	o, ok := c.last(t, "tasks.status").(bintapp.TaskStatusOptions)
+	if !ok || o.To != "in_progress" || o.Reason != "xong" {
+		t.Fatalf("Enter phải gửi form: %+v", c.last(t, "tasks.status"))
+	}
+	// Nút chân "Esc": đóng form.
+	press(t, m, "s")
+	hasAll(t, plain(m.Render()), "Đổi trạng thái tác vụ")
+	clickText(t, m, "Esc thoát")
+	if strings.Contains(plain(m.Render()), "Đổi trạng thái tác vụ") {
+		t.Fatal("nút Esc phải đóng form")
+	}
+}
+
+// Form tạo tác vụ: ô Mô tả nhiều dòng có tiêu điểm thì nút Enter vẫn gửi; ô Bool bấm đảo giá trị.
+func TestMouseTaskNewFormMultilineSubmitAndBool(t *testing.T) {
+	reg, c := captureTasks()
+	m := newModel(t, Options{Mode: theme.Mono, Lang: "vi", Registry: reg}, sampleData(), 140, 40)
+	press(t, m, "3", "n")
+	typeText(t, m, "việc mới") // tiêu điểm ban đầu ở ô Mô tả (nhiều dòng)
+	clickText(t, m, "[ ]", 0)  // ô Bool đầu tiên: Luôn qua b-req
+	if l := lineWith(m, "Luôn qua b-req"); !strings.Contains(l, "[x]") {
+		t.Fatalf("bấm ô Bool phải đảo thành [x]: %q", l)
+	}
+	clickText(t, m, "Mô tả")
+	clickText(t, m, "Enter gửi")
+	o, ok := c.last(t, "tasks.new").(bintapp.TaskNewOptions)
+	if !ok || o.Request != "việc mới" || !o.Plan {
+		t.Fatalf("Enter phải gửi khi ô nhiều dòng có tiêu điểm: %+v", c.last(t, "tasks.new"))
+	}
+}
+
+// Hộp duyệt ứng viên bị chặn có hai ô chọn: bấm ô đảo ô đó, [Enter] gửi cờ đã chọn.
+func TestMouseEvalApproveDialogChecks(t *testing.T) {
+	m, c := newCapModel(t, Options{})
+	goEval(t, m)
+	press(t, m, "j", "a")
+	if open, _, checks := m.el.Dialog(); !open || len(checks) != 2 {
+		t.Fatalf("hộp đỏ hai ô chọn: %v %v", open, checks)
+	}
+	clickText(t, m, "(--unverified)")
+	if _, _, checks := m.el.Dialog(); checks[0] || !checks[1] {
+		t.Fatalf("chỉ ô --unverified được chọn: %v", checks)
+	}
+	clickText(t, m, "(--force)")
+	if _, _, checks := m.el.Dialog(); !checks[0] || !checks[1] {
+		t.Fatalf("cả hai ô được chọn: %v", checks)
+	}
+	clickText(t, m, "(--force)")
+	if _, _, checks := m.el.Dialog(); checks[0] || !checks[1] {
+		t.Fatalf("bấm lại bỏ chọn: %v", checks)
+	}
+	clickText(t, m, "(--force)")
+	clickText(t, m, "[Enter]")
+	if o := c.last(t, "eval.approve").(bintapp.EvalApproveOptions); !o.Force || !o.Unverified {
+		t.Fatalf("[Enter] phải gửi cờ đã chọn: %+v", o)
+	}
+	// Bấm ngoài hộp: không tác động.
+	press(t, m, "a")
+	n := c.count("eval.approve")
+	clickText(t, m, "Tiến hoá") // thanh tab
+	if m.Screen() != actions.Eval || c.count("eval.approve") != n {
+		t.Fatalf("bấm ngoài hộp không được tác động: %s", m.Screen())
+	}
+}
+
+// Wizard khởi tạo: bấm hàng đặt con trỏ và chọn như Space; dòng phím Enter/Esc bấm được như nhấn phím.
+func TestMouseInitWizardRowsAndHints(t *testing.T) {
+	m := newModel(t, Options{Mode: theme.Mono, Lang: "vi"}, notInitData(), 120, 36)
+	if m.Screen() != actions.Init {
+		t.Fatalf("phải ở màn Khởi tạo: %s", m.Screen())
+	}
+	has := func(name string) bool {
+		for _, h := range m.wiz.Options().Harnesses {
+			if h == name {
+				return true
+			}
+		}
+		return false
+	}
+	clickText(t, m, "codex")
+	if !has("codex") || !strings.Contains(lineWith(m, "codex"), "[x]") || !strings.Contains(lineWith(m, "▸"), "codex") {
+		t.Fatalf("bấm hàng harness phải đặt con trỏ và chọn:\n%s", plain(m.Render()))
+	}
+	clickText(t, m, "codex")
+	if has("codex") {
+		t.Fatal("bấm lần hai phải bỏ chọn")
+	}
+	clickText(t, m, "Enter tiếp")
+	if m.wiz.Step() != 1 {
+		t.Fatalf("[Enter] phải sang bước kế: %d", m.wiz.Step())
+	}
+	clickText(t, m, "Không")
+	if !m.wiz.Options().NoHooks {
+		t.Fatal("bấm radio Không phải tắt hook")
+	}
+	clickText(t, m, "project")
+	if got := m.wiz.Options().HooksScope; got != "project" {
+		t.Fatalf("bấm radio phạm vi project: %q", got)
+	}
+	clickText(t, m, "Esc lùi")
+	if m.wiz.Step() != 0 {
+		t.Fatalf("[Esc] phải lùi một bước: %d", m.wiz.Step())
+	}
+}
+
+// Nhãn Esc ở viền khung log của việc đang chạy bấm được, như nhấn Esc (huỷ việc).
+func TestMouseLogEscLabelCancelsJob(t *testing.T) {
+	m, c := newCapModel(t, Options{}, "evolve.cycle")
+	d := newDrv(t, m)
+	d.press("6", "C")
+	d.typeText("5")
+	d.press("ctrl+s")
+	if !d.until(func() bool { return m.jobs.Len() == 1 && len(c.started["evolve.cycle"]) > 0 }) {
+		t.Fatal("cycle phải chạy nền")
+	}
+	x, y := cellOf(t, m, "huỷ việc")
+	cmd := clickMsgs(m, x+1, y)
+	d.settle(cmd)
+	if !d.until(func() bool { return m.jobs.Len() == 0 }) {
+		t.Fatalf("bấm nhãn Esc phải huỷ việc:\n%s", plain(m.Render()))
+	}
+}
+
+// clickMsgs gửi nhấn rồi thả cùng ô (một cú bấm thật): hành động của vùng bấm chạy lúc thả, nên trả Cmd của lúc thả.
+func clickMsgs(m *Model, x, y int) tea.Cmd {
+	m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+	return cmd
 }

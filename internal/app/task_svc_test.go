@@ -332,6 +332,9 @@ func TestRunWorkflowServiceCallbacksAndRuns(t *testing.T) {
 	if err != nil || tr.Task.State.ID != id || len(tr.Runs) != 2 {
 		t.Fatalf("TaskRuns: %v %+v", err, tr)
 	}
+	if len(tr.Steps) == 0 || !tr.Steps[0].InFlow {
+		t.Fatalf("TaskRuns phải trả bảng bước theo flow: %+v", tr.Steps)
+	}
 	byRun, err := TaskRuns(ctx, ws, TaskRunsOptions{Ref: res.RunID, NoIngest: true})
 	if err != nil || byRun.Task.State.ID != id {
 		t.Fatalf("tra theo ID lượt chạy: %v %+v", err, byRun)

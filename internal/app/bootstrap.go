@@ -123,6 +123,11 @@ func Bootstrap(ctx context.Context, dir string, o BootstrapOptions) (*BootstrapR
 
 // InstallSkills xuất bản skill gốc (đã ghép lớp phủ) tới các harness bật.
 func InstallSkills(k *KnowledgeWS, version string, force bool) (SkillInstall, error) {
+	return installSkillsDowngrade(k, version, force, false)
+}
+
+// installSkillsDowngrade như InstallSkills; allowDowngrade cho ghi dù binary cũ hơn bản đã ghi core.lock.
+func installSkillsDowngrade(k *KnowledgeWS, version string, force, allowDowngrade bool) (SkillInstall, error) {
 	var si SkillInstall
 	targets := harness.SkillTargets(k.Config.Harnesses.Enabled)
 	if len(targets) == 0 {
@@ -133,7 +138,7 @@ func InstallSkills(k *KnowledgeWS, version string, force bool) (SkillInstall, er
 	if err != nil {
 		return si, err
 	}
-	outs, err := k.writer("bint sync").InstallSkills(skills.InstallOptions{Root: k.Root, Targets: targets, BintVersion: version, Force: force,
+	outs, err := k.writer("bint sync").InstallSkills(skills.InstallOptions{Root: k.Root, Targets: targets, BintVersion: version, Force: force, Build: buildFor(version), AllowDowngrade: allowDowngrade,
 		BackupDir: k.Paths.Backups, Manifest: m, Now: time.Now(), Files: k.Source().Files(), Agents: harness.SubagentFiles(k.Config)})
 	if err != nil {
 		return si, err

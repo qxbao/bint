@@ -1,6 +1,6 @@
 # PR #8 — kết quả review và kiểm chứng
 
-Cây `duc` đã đồng bộ main `69b3554` qua merge `8b8a90a`.
+Cây `duc` đã đồng bộ main `4bb1cd0` và resolve conflict trước khi cập nhật PR.
 Phiếu Bint: `01M7EBQH6CZ2TZ962EV6QZG8R2` và `01M7EHRRFGBS85RXA06VYRDPJA`.
 
 ## Các sửa đổi
@@ -13,18 +13,13 @@ Phiếu Bint: `01M7EBQH6CZ2TZ962EV6QZG8R2` và `01M7EHRRFGBS85RXA06VYRDPJA`.
 
 ## Kiểm chứng nguồn cuối — 2026-11-15
 
-Full suite, race rộng 14 package, live Codex CLI và phân tích tĩnh đều PASS.
-Review độc lập cuối: 0 phát hiện mở ở mọi mức độ.
+Full suite, race eval/Git, live Codex CLI và phân tích tĩnh sau resolve đều PASS.
+Review trước đó và review phần resolve conflict: 0 phát hiện mở.
 
 ```sh
-go test ./...
-go test -race -count=1 -timeout 20m \
-  ./internal/codexconfig ./internal/gitrepo ./internal/eval \
-  ./internal/harness/codex ./internal/harness/hookcore \
-  ./internal/knowledge ./internal/knowledge/importer ./internal/app ./internal/cli \
-  ./internal/tui/actions ./internal/tui/screens/knowledge \
-  ./internal/tui/screens/initwizard ./internal/tui/screens/overview ./internal/tui/app
-BINT_CODEX_CONFIG_LIVE=1 go test -count=3 -timeout 3m \
+go test -timeout 20m ./...
+go test -race -count=1 -timeout 10m ./internal/eval ./internal/gitrepo
+BINT_CODEX_CONFIG_LIVE=1 go test -count=1 -timeout 3m \
   ./internal/eval -run '^TestCodexMCPConfigLive$' -v
 go vet ./...
 GOOS=windows go vet ./...

@@ -41,7 +41,8 @@ Hỏi từng nhóm, đề xuất mặc định rồi chờ người dùng đồn
   Kind quyết định chế độ chỉ đọc (plan, review không sửa tệp), cổng sau bước và trạng thái tác vụ; không đổi được bằng tên.
 - **`skill`**: tên skill gốc (`b-req`, `b-feat`, `b-review`) hoặc skill tuỳ biến đã qua `bint skill lint`. Chưa có skill cho bước
   đó thì dừng và chạy `/b-add-skill` trước (đừng nhét hướng dẫn vào flow: flow chỉ ghép, nội dung nằm ở skill). Skill tiến hoá
-  không dùng được.
+  không dùng được. Skill tuỳ biến của bước phải có mục "Quy ước dự án" (tra tri thức bằng `context_for_paths`/`bint context`,
+  trích dẫn `[k:<id>]`) như skill gốc; `bint flow lint` cảnh báo khi thiếu, khi đó sửa skill qua `/b-add-skill`.
 - **`role`** (tuỳ chọn, mặc định `planner`/`implementer`/`reviewer` theo kind): đặt tên khác (ví dụ `test-writer`) khi bước cần
   harness hoặc model riêng; cấu hình `roles.<role>`, `harnesses.<h>.models.<role>`, `mcp.grants.<role>` trong `.bint/config.yml` là
   việc của người dùng, bạn chỉ nêu cần đặt gì. Không dùng `interactive`, `evolver`, `reflector`.

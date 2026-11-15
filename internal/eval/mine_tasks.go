@@ -287,7 +287,7 @@ func gitEnv(ctx context.Context, dir string, env []string, stdin []byte, args ..
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return nil, gitrepo.CommandError(ctx, args, err, stderr.String())
 	}
 	return stdout.Bytes(), nil
 }

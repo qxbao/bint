@@ -13,6 +13,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"bint/internal/tui/components/frame"
+	"bint/internal/tui/components/input"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
@@ -68,6 +69,13 @@ func (m Model) Selected() (Item, bool) {
 func (m *Model) Type(s string) {
 	m.Query += s
 	m.refilter()
+}
+
+// Paste thêm chữ dán (một dòng, đã chuẩn hoá) vào ô tìm.
+func (m *Model) Paste(s string) {
+	if s = input.Sanitize(s, false); s != "" {
+		m.Type(s)
+	}
 }
 
 // Backspace xoá ký tự cuối.

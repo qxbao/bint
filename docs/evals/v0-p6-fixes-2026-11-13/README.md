@@ -61,21 +61,31 @@ từ trước (biên bản P6) chuyển từ FAIL sang PASS.
   custom-flow land sau khi phiếu 3 xong). Lối ra hiện tại chỉ có `--force` của người.
 - Review phiếu 1 (7 low) và phiếu 2 (1 medium, 3 low) đã sửa trong phiếu 2 và 3, trừ các mục ghi ở dưới.
 
-## Phát hiện low còn mở (gom vào `NT-P6-06`)
+## Phát hiện low (`NT-P6-06`, đã đóng bằng tác vụ `01M7FGG2H0KZZ6G4CDDPYAE0TT`)
 
-- `mergeBodies` không idempotent khi body mục giữ lại có khối ``` chưa đóng (`splitBlocks` nuốt khối "Gộp từ"),
-  phát hiện `01M79Z83VFMTJ6CM2AJ9PPH0HY.1`.
-- Cùng một câu ở dạng đơn vị khác (mục danh sách so với văn xuôi, thiếu dấu chấm) bị nối trùng (`.2`); an toàn vì
-  không mất ý.
-- `TestEvaluateCandidateCarriesThirdParty` chưa ràng mục giữ lại khác mục mang cờ (`.3`).
-- `repoToplevel` gọi ở cả hai lần chụp; monorepo lớn dễ chạm hạn 2 phút (`.4`).
-- `guardReadOnly` không thấy thay đổi bên trong submodule (phiếu 1, `.5`; đã ghi chú trong mã).
-- Nhánh merge của skill (`deterministicSkillProposal`) chưa giữ chi tiết như nhánh tri thức.
+| Phát hiện | Trạng thái | Sửa / test |
+|---|---|---|
+| `.1` `mergeBodies` không idempotent với khối ``` chưa đóng (`01M79Z83VFMTJ6CM2AJ9PPH0HY.1`) | Đã sửa | `mergeBodies` đóng rào của keep trước khi nối (`splitBlocks` báo `unclosed`); ca "keep có khối mã chưa đóng" trong `TestMergeBodiesTable` |
+| `.2` cùng câu ở dạng đơn vị khác bị nối trùng | Đã sửa | `normUnit` bỏ ký hiệu danh sách và dấu câu cuối khi so; năm ca mới trong `TestMergeBodiesTable`, các ca ranh giới cũ vẫn được nối |
+| `.3` `TestEvaluateCandidateCarriesThirdParty` chưa ràng mục giữ lại khác mục mang cờ | Đã sửa | test khẳng định keep != mục mang cờ và keep ban đầu không có cờ |
+| `.4` `repoToplevel` gọi ở cả hai lần chụp | Đã sửa | `guardReadOnly` tính gốc một lần (biến hàm `repoToplevelFn`); `TestGuardReadOnlyComputesToplevelOnce` |
+| `.5` `guardReadOnly` không thấy thay đổi trong submodule | Đã sửa | mỗi ảnh chụp đệ quy vào submodule đã checkout (gitlink trong cây vừa ghi) và chụp cây làm việc của nó, kể cả tệp vốn đã bẩn; `TestGuardReadOnlyDetectsSubmoduleChange` (kho Git lồng làm submodule). Submodule chưa checkout không có gì để chụp |
+| `.6` nhánh merge skill chưa giữ chi tiết | Đã sửa | `MergeDrafts` dùng `mergeBodies` (khối mã và mục danh sách giữ nguyên văn, gọi lại không nối thêm), đề xuất có ghi chú đọc lại/kiểm mâu thuẫn; `TestMergeDraftsKeepsCodeAndListVerbatim`, `TestSkillOpportunitiesAndMerge` |
+
+Mỗi test đã xác nhận đỏ khi gỡ bản sửa tương ứng.
+
+Review của tác vụ (2 vòng, không có mức medium trở lên) để lại 4 low; sửa sau khi land (2026-11-15):
+
+- `ExpectedBenefit` của đề xuất gộp skill thiếu dấu cách (`trùng:harness`): đã sửa, ghim trong `TestSkillOpportunitiesAndMerge`.
+- `normUnit` bỏ cả `?`/`!` cuối câu nên câu hỏi trùng câu khẳng định: nay chỉ bỏ `. : ;`; hai ca mới trong `TestMergeBodiesTable`.
+- Không sửa: `snapshotTree` chạy `git ls-tree -r` trên toàn cây mỗi lần chụp (đọc kho đối tượng, rẻ so với
+  `WorktreeSnapshot` chạy ngay trước nó); mục danh sách của skill bị gộp nối ở cuối, tách khỏi tiêu đề `##` của nó
+  (bản cũ cũng mất ngữ cảnh này; người duyệt được nhắc đọc lại qua ghi chú của đề xuất).
 
 ## Việc của người
 
-- Mục tri thức `k:01M746PTBYPSXDT0WJZS38KPFD` (và đoạn tương ứng trong `AGENTS.md`) nói `evolve.AcquireLock` còn dùng
-  mẫu PID chết — đã lỗi thời sau vòng này; cần sửa hoặc revalidate.
+- ~~Mục tri thức `k:01M746PTBYPSXDT0WJZS38KPFD` lỗi thời~~: xong 2026-11-15 — mục cũ `deprecated`, mục thay thế
+  `k:01M7FGC944KVT6NY1TZE7MJ0P8` đã duyệt, `AGENTS.md` đã xuất bản lại.
 
 ## Chưa kiểm được và lý do
 
@@ -85,4 +95,4 @@ từ trước (biên bản P6) chuyển từ FAIL sang PASS.
 
 ## Đề xuất kết luận (chờ chủ dự án ký)
 
-`NT-P6-01..05` đạt. P6 vẫn "Một phần": còn `NT-EVO-TEST` (V4) và `NT-P6-06` (low). Điều kiện "V0 xong" của V4 đã thoả.
+`NT-P6-01..05` đạt. P6 vẫn "Một phần": còn `NT-EVO-TEST` (V4); `NT-P6-06` (low) đã đóng. Điều kiện "V0 xong" của V4 đã thoả.

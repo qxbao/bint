@@ -132,6 +132,18 @@ func TestRunsListDetailAndFilter(t *testing.T) {
 	}
 }
 
+// Khung chi tiết hiện chi phí và token vào/ra của lượt; không có thì hiện dấu -.
+func TestRunsDetailShowsCostAndTokens(t *testing.T) {
+	m, _ := newCapModel(t, Options{})
+	press(t, m, "4")
+	hasAll(t, plain(m.Render()), "Chi phí", "Token")
+	if strings.Contains(plain(m.Render()), "$0.4213") {
+		t.Fatal("lượt không có chi phí không được hiện số")
+	}
+	press(t, m, "j", "j")
+	hasAll(t, plain(m.Render()), "$0.4213", "15200 vào · 830 ra")
+}
+
 func TestRunsNarrowSinglePane(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, sampleData(), 80, 24)
 	press(t, m, "4")

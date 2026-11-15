@@ -375,7 +375,7 @@ func TestThirdPartyInput(t *testing.T) {
 func TestValidateImportedOrigin(t *testing.T) {
 	base := func() *Item {
 		return &Item{Schema: SchemaVersion, ID: ulid.New(), Type: TypeWarning, Status: StatusCandidate, Title: "t", Body: "b",
-			Origin: Origin{Kind: OriginImported, Source: ImportClaudeMemory, Inputs: []string{"claude-memory:x.md"}},
+			Origin:   Origin{Kind: OriginImported, Source: ImportClaudeMemory, Inputs: []string{"claude-memory:x.md"}},
 			Evidence: []Evidence{{Path: "a.go", Lines: "1-2"}}, Version: 1}
 	}
 	if errs := base().Validate(); len(errs) != 0 {

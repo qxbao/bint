@@ -15,8 +15,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"bint/internal/tui/components/footer"
 	"bint/internal/tui/components/input"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
@@ -173,6 +175,8 @@ type Model struct {
 	// Err là lỗi chung (kiểm tra Validate) và FieldErr là lỗi theo ô (chỉ số trong Fields).
 	Err      string
 	FieldErr map[int]string
+	// Static: chân phím chỉ để đọc, không có vùng bấm (biểu mẫu nhúng chưa có tiêu điểm: phím chưa gửi tới nó).
+	Static bool
 }
 
 // New dựng biểu mẫu cho hành động actionID từ Options mẫu defaults (giá trị khởi đầu, struct hoặc con trỏ).
@@ -318,6 +322,65 @@ func (m *Model) SelectChoice(name, value string) {
 	}
 }
 
+// Vùng bấm chuột: "fm:<hàng>" là hàng (chỉ số trong rows), "fm:<hàng>:t" đảo ô Bool, "fm:<hàng>:<j>" chọn lựa chọn j của
+// ô Choice (j = 0 là để trống), "fm:<hàng>:prev|next" lùi/tiến ở dạng thu gọn, "fm:adv" là tiêu đề Nâng cao.
+const zonePrefix = "fm:"
+
+func rowZone(ri int) string              { return zonePrefix + strconv.Itoa(ri) }
+func rowSubZone(ri int, s string) string { return zonePrefix + strconv.Itoa(ri) + ":" + s }
+
+// IsZone cho biết id là vùng của biểu mẫu.
+func IsZone(id string) bool { return strings.HasPrefix(id, zonePrefix) }
+
+// Click xử lý bấm vào vùng id: chỉ đổi tiêu điểm/giá trị như phím tương ứng, không bao giờ gửi hay huỷ biểu mẫu. Trả
+// true nếu id thuộc biểu mẫu và đã được xử lý.
+func (m *Model) Click(id string) bool {
+	if !IsZone(id) {
+		return false
+	}
+	rest := strings.TrimPrefix(id, zonePrefix)
+	if rest == "adv" {
+		m.Advanced = !m.Advanced
+		for i, r := range m.rows() {
+			if r.field < 0 {
+				m.Focus = i
+			}
+		}
+		m.clampFocus()
+		return true
+	}
+	rowStr, sub, _ := strings.Cut(rest, ":")
+	ri, err := strconv.Atoi(rowStr)
+	rs := m.rows()
+	if err != nil || ri < 0 || ri >= len(rs) {
+		return false
+	}
+	m.Focus = ri
+	r := rs[ri]
+	if r.field < 0 {
+		return true
+	}
+	delete(m.FieldErr, r.field)
+	m.Err = ""
+	f := m.Fields[r.field]
+	switch {
+	case sub == "t" && f.Kind == Bool:
+		m.bools[r.field] = !m.bools[r.field]
+	case f.Kind == Choice && (sub == "prev" || sub == "next"):
+		n := len(f.Choices) + 1
+		d := 1
+		if sub == "prev" {
+			d = n - 1
+		}
+		m.choice[r.field] = (m.choice[r.field] + d) % n
+	case f.Kind == Choice && sub != "":
+		if j, err := strconv.Atoi(sub); err == nil && j >= 0 && j <= len(f.Choices) {
+			m.choice[r.field] = j
+		}
+	}
+	return true
+}
+
 // Capturing luôn đúng: khi biểu mẫu mở, mọi phím chữ thuộc về ô nhập.
 func (m *Model) Capturing() bool { return true }
 
@@ -391,6 +454,26 @@ func (m *Model) Update(msg tea.KeyPressMsg) Result {
 		m.inputs[r.field].Update(msg)
 	}
 	return None
+}
+
+// Paste chèn chữ dán vào ô đang focus nếu đó là ô chữ hoặc số (String, Strings, Int, Float); các hàng khác
+// (tiêu đề nhóm Nâng cao, Bool, Choice) và form rỗng bỏ qua. Trả true nếu có chữ được chèn.
+func (m *Model) Paste(s string) bool {
+	r, ok := m.cur()
+	if !ok || r.field < 0 {
+		return false
+	}
+	switch m.Fields[r.field].Kind {
+	case String, Strings, Int, Float:
+	default:
+		return false
+	}
+	if !m.inputs[r.field].Paste(s) {
+		return false
+	}
+	delete(m.FieldErr, r.field)
+	m.Err = ""
+	return true
 }
 
 func (m *Model) clampFocus() { m.Focus = max(0, min(m.Focus, len(m.rows())-1)) }
@@ -657,7 +740,7 @@ func (m *Model) View(env ui.Env, labelWidth int) string {
 				l = th.Selected(arrow + " " + env.T("form.advanced"))
 				focusLine = len(lines)
 			}
-			lines = append(lines, "  "+l)
+			lines = append(lines, "  "+zone.Mark(zonePrefix+"adv", l))
 			continue
 		}
 		f := m.Fields[r.field]
@@ -666,6 +749,7 @@ func (m *Model) View(env ui.Env, labelWidth int) string {
 			label += "*"
 		}
 		lab := text.Pad(text.Truncate(label, lw), lw)
+		rz := rowZone(ri)
 		marker := "  "
 		if focused {
 			marker = "▸ "
@@ -674,24 +758,25 @@ func (m *Model) View(env ui.Env, labelWidth int) string {
 		} else {
 			lab = th.S(theme.Accent, lab)
 		}
+		lab = zone.Mark(rz, lab)
 		switch f.Kind {
 		case Bool:
 			box := "[ ]"
 			if m.bools[r.field] {
 				box = "[x]"
 			}
-			lines = append(lines, marker+lab+" "+box)
+			lines = append(lines, marker+lab+" "+zone.Mark(rowSubZone(ri, "t"), box))
 		case Choice:
-			lines = append(lines, marker+lab+" "+m.choiceLine(env, r.field, f, focused, vw))
+			lines = append(lines, marker+lab+" "+m.choiceLine(env, ri, r.field, f, focused, vw))
 		default:
 			if f.Multiline {
 				body := m.inputs[r.field].Lines(th, vw, 4, focused)
-				lines = append(lines, marker+lab+" "+body[0])
+				lines = append(lines, marker+lab+" "+zone.Mark(rz, body[0]))
 				for _, b := range body[1:] {
 					lines = append(lines, strings.Repeat(" ", 2+lw+1)+b)
 				}
 			} else {
-				lines = append(lines, marker+lab+" "+m.inputs[r.field].Line(th, vw, focused))
+				lines = append(lines, marker+lab+" "+zone.Mark(rz, m.inputs[r.field].Line(th, vw, focused)))
 			}
 		}
 		if e, bad := m.FieldErr[r.field]; bad {
@@ -713,8 +798,12 @@ func (m *Model) View(env ui.Env, labelWidth int) string {
 	foot := []string{
 		hint,
 		"  " + th.S(theme.Muted, env.T("form.cli")+" ") + text.Truncate(strings.ReplaceAll(cli, "\n", "⏎"), max(w-4-text.Width(env.T("form.cli")), 8)),
-		"  " + th.S(theme.Key, "Enter") + " " + th.S(theme.Muted, env.T("form.hint.submit")) + "  " + th.S(theme.Key, "Tab") + " " + th.S(theme.Muted, env.T("form.hint.next")) +
-			"  " + th.S(theme.Key, "Ctrl+Y") + " " + th.S(theme.Muted, env.T("form.hint.copy")) + "  " + th.S(theme.Key, "Esc") + " " + th.S(theme.Muted, env.T("form.hint.cancel")),
+		" " + inlineFooter(th, m.Static, []footer.Hint{
+			{Key: "Enter", Label: env.T("form.hint.submit"), Press: "ctrl+s"},
+			{Key: "Tab", Label: env.T("form.hint.next"), Press: "tab"},
+			{Key: "Ctrl+Y", Label: env.T("form.hint.copy"), Press: "ctrl+y"},
+			{Key: "Esc", Label: env.T("form.hint.cancel"), Press: "esc"},
+		}, max(w-1, 1)),
 	}
 	room := max(h-len(foot)-1, 1)
 	top := 0
@@ -732,7 +821,7 @@ func (m *Model) View(env ui.Env, labelWidth int) string {
 	return strings.Join(out, "\n")
 }
 
-func (m *Model) choiceLine(env ui.Env, i int, f Field, focused bool, room int) string {
+func (m *Model) choiceLine(env ui.Env, ri, i int, f Field, focused bool, room int) string {
 	th := env.Th
 	var parts []string
 	none := env.T("form.choice.none")
@@ -748,11 +837,11 @@ func (m *Model) choiceLine(env ui.Env, i int, f Field, focused bool, room int) s
 			if focused {
 				s = th.Selected(s)
 			}
-			parts = append(parts, s)
+			parts = append(parts, zone.Mark(rowSubZone(ri, strconv.Itoa(j)), s))
 		case j == 0 && f.Required:
 			continue // loại bắt buộc: không hiện lựa chọn "để trống"
 		default:
-			parts = append(parts, th.S(theme.Muted, "( ) "+label))
+			parts = append(parts, zone.Mark(rowSubZone(ri, strconv.Itoa(j)), th.S(theme.Muted, "( ) "+label)))
 		}
 	}
 	if line := strings.Join(parts, " "); text.Width(line) <= room {
@@ -763,9 +852,16 @@ func (m *Model) choiceLine(env ui.Env, i int, f Field, focused bool, room int) s
 	if m.choice[i] > 0 && env.Cat.Has("form."+m.ActionID+"."+f.Name+"."+cur) {
 		cur = env.T("form." + m.ActionID + "." + f.Name + "." + cur)
 	}
-	one := "‹ (●) " + cur + " ›"
+	mid := "(●) " + cur
 	if focused {
-		one = th.Selected(one)
+		return zone.Mark(rowSubZone(ri, "prev"), th.Selected("‹")) + th.Selected(" "+mid+" ") + zone.Mark(rowSubZone(ri, "next"), th.Selected("›"))
 	}
-	return one
+	return zone.Mark(rowSubZone(ri, "prev"), "‹") + " " + mid + " " + zone.Mark(rowSubZone(ri, "next"), "›")
+}
+
+func inlineFooter(th theme.Theme, static bool, hints []footer.Hint, maxW int) string {
+	if static {
+		return footer.InlineStatic(th, hints, maxW)
+	}
+	return footer.Inline(th, hints, maxW)
 }

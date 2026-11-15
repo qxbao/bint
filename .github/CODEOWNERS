@@ -1,0 +1,3 @@
+# Chủ sở hữu mã: tự động được yêu cầu review mọi PR. Muốn bắt buộc duyệt thì bật "Require review from Code Owners"
+# trong quy tắc bảo vệ nhánh main.
+* @qxbao

@@ -182,7 +182,7 @@ func TestReadOnlyNeverRunsWritesAnyPath(t *testing.T) {
 				m.Render()
 				for _, z := range m.zones {
 					if z.ID == id {
-						_, cmd := m.Update(tea.MouseClickMsg{X: z.X0, Y: z.Y, Button: tea.MouseLeft})
+						cmd := clickMsgs(m, z.X0, z.Y)
 						drive(t, m, cmd)
 						break
 					}

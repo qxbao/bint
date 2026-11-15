@@ -6,28 +6,28 @@
 │                           │ Tổng quan                                                                        │                           │
 │                           │  Tổng quan: tình trạng repository và hộp thư “Việc cần bạn” (mục chờ duyệt,      │                           │
 │                           │  cảnh báo doctor). Enter ở một dòng mở màn xử lý nó.                             │                           │
-│                           │  r       Làm mới trạng thái repository  bint status                              │                           │
-│                           │          Kiểm tra môi trường (doctor)  bint doctor                               │                           │
+│                           │  r          Làm mới trạng thái repository  bint status                           │                           │
+│                           │             Kiểm tra môi trường (doctor)  bint doctor                            │                           │
 │                           │                                                                                  │                           │
 │                           │ Toàn cục                                                                         │                           │
-│                           │  q       Thoát Bint                                                              │                           │
-│                           │  ?       Mở bảng trợ giúp đầy đủ                                                 │                           │
-│                           │  :       Mở bảng lệnh (tìm mọi hành động)                                        │                           │
-│                           │  L       Đổi ngôn ngữ giao diện (vi ⇄ en)                                        │                           │
-│                           │  !       Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi màn hình     │                           │
-│                           │          Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân trang)      │                           │
-│                           │  ]       Chuyển tới tab kế tiếp                                                  │                           │
-│                           │  [       Chuyển về tab trước                                                     │                           │
-│                           │  1-8     Chuyển nhanh tới một tab                                                │                           │
+│                           │  q          Thoát Bint                                                           │                           │
+│                           │  ?          Mở bảng trợ giúp đầy đủ                                              │                           │
+│                           │  :          Mở bảng lệnh (tìm mọi hành động)                                     │                           │
+│                           │  L          Đổi ngôn ngữ giao diện (vi ⇄ en)                                     │                           │
+│                           │  !          Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi màn hình  │                           │
+│                           │             Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân trang)   │                           │
+│                           │  ]          Chuyển tới tab kế tiếp                                               │                           │
+│                           │  [          Chuyển về tab trước                                                  │                           │
+│                           │  1-8        Chuyển nhanh tới một tab                                             │                           │
+│                           │  Ctrl+V     Dán chữ từ clipboard vào ô nhập đang mở                              │                           │
+│                           │  Kéo chuột  Bôi đen bằng chuột (kéo trái) để chọn và chép vào clipboard          │                           │
+│                           │  Shift+kéo  Chọn bằng terminal (giữ Shift khi kéo, hoặc tắt chuột bằng bảng lện… │                           │
 │                           │                                                                                  │                           │
 │                           │ Tri thức                                                                         │                           │
-│                           │  a       Duyệt mục (candidate/stale → verified); chỉ người dùng  bint knowledg…  │                           │
-│                           │  f       Duyệt và làm mới fingerprint của bằng chứng (mục stale)  bint knowled…  │                           │
-│                           │  r       Từ chối mục chờ duyệt (→ deprecated, hỏi lý do)  bint knowledge reject  │                           │
-│                           │  d       Loại bỏ một mục (→ deprecated, cần lý do)  bint knowledge deprecate     │                           │
-│                           │  A       Duyệt hàng loạt (mục được chọn hoặc cả danh sách đang lọc); mục có lỗi… │                           │
-│                           │  R       Từ chối hàng loạt (mục được chọn hoặc cả danh sách đang lọc)            │                           │
-│                           └───────────────────────────────────────────────────────────────────────1–24/208 ↕─┘                           │
+│                           │  a          Duyệt mục (candidate/stale → verified); chỉ người dùng  bint knowl…  │                           │
+│                           │  f          Duyệt và làm mới fingerprint của bằng chứng (mục stale)  bint know…  │                           │
+│                           │  r          Từ chối mục chờ duyệt (→ deprecated, hỏi lý do)  bint knowledge re…  │                           │
+│                           └───────────────────────────────────────────────────────────────────────1–24/212 ↕─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

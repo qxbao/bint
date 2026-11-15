@@ -571,7 +571,7 @@ func installSkills(rep *InitReport, w *repoWriter, root string, cfg config.Confi
 		return nil
 	}
 	outs, err := w.InstallSkills(skills.InstallOptions{
-		Root: root, Targets: targets, BintVersion: version, Force: force,
+		Root: root, Targets: targets, BintVersion: version, Force: force, Build: buildFor(version),
 		BackupDir: paths.Backups, Manifest: m, Now: now, Agents: harness.SubagentFiles(cfg),
 	})
 	if err != nil {

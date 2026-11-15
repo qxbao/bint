@@ -10,6 +10,7 @@
 package hookcore
 
 import (
+	"bint/internal/skills"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -146,13 +147,17 @@ type Dialect struct {
 	// nó là khác biệt theo harness; nil = harness không hỗ trợ và guardrail đường dẫn worktree (worktree_guard.go) không áp,
 	// kể cả chính sách fail-closed. Không đọc được thì trả ok=false (hook không lỗi, không chờ).
 	SubagentPrompt func(Input) (prompt string, ok bool)
+	// SessionStartOutput dựng đầu ra chèn ngữ cảnh cho sự kiện SessionStart; nil = harness không hỗ trợ (không giả lập).
+	SessionStartOutput func(text string) string
 }
 
 // Env cho phép kiểm thử thay thế đồng hồ và thư mục hiện tại.
 type Env struct {
 	BintVersion string
-	Now         func() time.Time
-	Getwd       func() (string, error)
+	// Build thay dấu build của binary đang chạy (kiểm thử: test binary không có thông tin VCS); nil = skills.CurrentBuild.
+	Build func() skills.BuildStamp
+	Now   func() time.Time
+	Getwd func() (string, error)
 }
 
 // Result mô tả việc hook đã làm (để kiểm thử và chẩn đoán).
@@ -654,7 +659,11 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	return Result{Written: true, SpoolFile: f}, nil
+	res := Result{Written: true, SpoolFile: f}
+	if hi.Event == EvSessionStart && d.SessionStartOutput != nil && cfgSrc.Project != "" {
+		res.Output = staleBinaryReminder(d, filepath.Dir(filepath.Dir(cfgSrc.Project)), env)
+	}
+	return res, nil
 }
 
 func containsDecision(decisions []string, want string) bool {
@@ -921,9 +930,11 @@ func handleEvalPrompt(hi Input, d Dialect, cfgPath string) (Result, error) {
 }
 
 // ClaudeStylePromptOutput dựng JSON hookSpecificOutput cho UserPromptSubmit.
-func ClaudeStylePromptOutput(text string) string {
+func ClaudeStylePromptOutput(text string) string { return claudeStyleContext("UserPromptSubmit", text) }
+
+func claudeStyleContext(event, text string) string {
 	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]any{
-		"hookEventName": "UserPromptSubmit", "additionalContext": text}})
+		"hookEventName": event, "additionalContext": text}})
 	return string(b)
 }
 

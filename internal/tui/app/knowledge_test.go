@@ -472,3 +472,76 @@ func TestInboxOtherKnowledgeFilterExcludesBatchItems(t *testing.T) {
 		t.Fatalf("thanh lọc phải nêu điều kiện:\n%s", out)
 	}
 }
+
+// collectMsgs chạy cmd (và các cmd con của tea.Batch) rồi trả mọi thông điệp, không đưa lại vào Update.
+func collectMsgs(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if b, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range b {
+			out = append(out, collectMsgs(c)...)
+		}
+		return out
+	}
+	if msg == nil {
+		return nil
+	}
+	return []tea.Msg{msg}
+}
+
+// Form nhúng trong thẻ phụ Tri thức: chưa có tiêu điểm thì chân form không bấm được; có tiêu điểm thì Esc ở chân chỉ thoát form
+// (vẫn ở thẻ phụ) và Enter ở chân gửi form đúng một lần.
+func TestKnowledgeSubFormFooterMouse(t *testing.T) {
+	requests := func(cmd tea.Cmd) int {
+		n := 0
+		for _, msg := range collectMsgs(cmd) {
+			if r, ok := msg.(actions.RequestMsg); ok && r.ID == "knowledge.search" {
+				n++
+			}
+		}
+		return n
+	}
+	subOpen := func(m *Model) bool { return strings.Contains(plain(m.Render()), "Nhập truy vấn") }
+
+	t.Run("chưa có tiêu điểm: chân form không có vùng bấm", func(t *testing.T) {
+		m := mouseModel(t, 140, 40, "2", ".", "esc") // thẻ phụ Tìm kiếm mở form có tiêu điểm; Esc rời form, vẫn ở thẻ phụ
+		if !subOpen(m) || strings.Contains(plain(m.Render()), "Enter gửi  Esc Thoát") {
+			t.Fatalf("phải ở thẻ phụ và form chưa có tiêu điểm:\n%s", plain(m.Render()))
+		}
+		for _, label := range []string{"Esc thoát", "Enter gửi"} {
+			x, y := cellOf(t, m, label)
+			if cmd := clickMsgs(m, x+1, y); len(collectMsgs(cmd)) != 0 || requests(cmd) != 0 {
+				t.Fatalf("bấm %q ở chân form chưa có tiêu điểm không được làm gì", label)
+			}
+			if !subOpen(m) || m.Screen() != actions.Knowledge {
+				t.Fatalf("bấm %q làm rời thẻ phụ:\n%s", label, plain(m.Render()))
+			}
+		}
+	})
+
+	t.Run("có tiêu điểm: Esc ở chân chỉ thoát form", func(t *testing.T) {
+		m := mouseModel(t, 140, 40, "2", ".")
+		x, y := cellOf(t, m, "Esc thoát")
+		clickMsgs(m, x+1, y)
+		if m.Screen() != actions.Knowledge || !subOpen(m) {
+			t.Fatalf("Esc ở chân form phải chỉ thoát form, vẫn ở thẻ phụ:\n%s", plain(m.Render()))
+		}
+		if strings.Contains(plain(m.Render()), "Enter gửi  Esc Thoát") {
+			t.Fatal("form phải mất tiêu điểm")
+		}
+	})
+
+	t.Run("có tiêu điểm: Enter ở chân gửi form một lần", func(t *testing.T) {
+		for _, label := range []string{"Enter gửi", "Enter gửi  Esc Thoát"} {
+			m := mouseModel(t, 140, 40, "2", ".", "a", "b")
+			x, y := cellOf(t, m, label)
+			cmd := clickMsgs(m, x+1, y)
+			if n := requests(cmd); n != 1 {
+				t.Fatalf("bấm %q: gửi %d lần, muốn 1", label, n)
+			}
+		}
+	})
+}

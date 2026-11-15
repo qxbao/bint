@@ -7,27 +7,27 @@
 │                           │  ⟦Overview: repository status and the “Needs you” inbox (items awaiting review,  │                           │
 │                           │  doctor warnings). Enter on a row opens the screen that handles                  │                           │
 │                           │  it.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                  │                           │
-│                           │  r       ⟦Refresh the repository status~~~~~~~~~~~~⟧  bint status                │                           │
-│                           │          ⟦Check the environment (doctor)~~~~~~~~~~~~⟧  bint doctor               │                           │
+│                           │  r                 ⟦Refresh the repository status~~~~~~~~~~~~⟧  bint status      │                           │
+│                           │                    ⟦Check the environment (doctor)~~~~~~~~~~~~⟧  bint doctor     │                           │
 │                           │                                                                                  │                           │
 │                           │ ⟦Global~~~⟧                                                                      │                           │
-│                           │  q       ⟦Quit Bint~~~~⟧                                                         │                           │
-│                           │  ?       ⟦Show the full help~~~~~~~~⟧                                            │                           │
-│                           │  :       ⟦Open the command palette (search every action)~~~~~~~~~~~~~~~~~~~⟧     │                           │
-│                           │  L       ⟦Switch interface language (vi ⇄ en)~~~~~~~~~~~~~~⟧                     │                           │
-│                           │  !       ⟦Read the current notice in full plus the last 50 notices from every s… │                           │
-│                           │          ⟦Turn the mouse on/off for this session (scroll, click tabs, rows, foo… │                           │
-│                           │  ]       ⟦Go to the next tab~~~~~~~~⟧                                            │                           │
-│                           │  [       ⟦Go to the previous tab~~~~~~~~~⟧                                       │                           │
-│                           │  1-8     ⟦Jump to a tab~~~~~~⟧                                                   │                           │
+│                           │  q                 ⟦Quit Bint~~~~⟧                                               │                           │
+│                           │  ?                 ⟦Show the full help~~~~~~~~⟧                                  │                           │
+│                           │  :                 ⟦Open the command palette (search every action)~~~~~~~~~~~~~… │                           │
+│                           │  L                 ⟦Switch interface language (vi ⇄ en)~~~~~~~~~~~~~~⟧           │                           │
+│                           │  !                 ⟦Read the current notice in full plus the last 50 notices fr… │                           │
+│                           │                    ⟦Turn the mouse on/off for this session (scroll, click tabs,… │                           │
+│                           │  ]                 ⟦Go to the next tab~~~~~~~~⟧                                  │                           │
+│                           │  [                 ⟦Go to the previous tab~~~~~~~~~⟧                             │                           │
+│                           │  1-8               ⟦Jump to a tab~~~~~~⟧                                         │                           │
+│                           │  Ctrl+V            ⟦Paste clipboard text into the open input~~~~~~~~~~~~~~~~⟧    │                           │
+│                           │  ⟦Drag~~⟧          ⟦Select with the mouse (drag left button) and copy to the cl… │                           │
+│                           │  ⟦Shift+drag~~~~⟧  ⟦Select with the terminal (hold Shift while dragging, or tur… │                           │
 │                           │                                                                                  │                           │
 │                           │ ⟦Knowledge~~~~⟧                                                                  │                           │
-│                           │  a       ⟦Approve the item (candidate/stale → verified); humans only~~~~~~~~~~~… │                           │
-│                           │  f       ⟦Approve and refresh the evidence fingerprint (stale item)~~~~~~~~~~~~… │                           │
-│                           │  r       ⟦Reject a pending item (→ deprecated, asks for a reason)~~~~~~~~~~~~~~… │                           │
-│                           │  d       ⟦Remove an item (→ deprecated, a reason is required)~~~~~~~~~~~~~~~~~~… │                           │
-│                           │  A       ⟦Approve in bulk (selected items or the whole filtered list); items wi… │                           │
-│                           └───────────────────────────────────────────────────────────────────⟦1–24/209 ↕~~⟧─┘                           │
+│                           │  a                 ⟦Approve the item (candidate/stale → verified); humans only~… │                           │
+│                           │  f                 ⟦Approve and refresh the evidence fingerprint (stale item)~~… │                           │
+│                           └───────────────────────────────────────────────────────────────────⟦1–24/213 ↕~~⟧─┘                           │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

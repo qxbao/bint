@@ -7,20 +7,20 @@
 │ │  Chờ bạn (2)                                         ││ Vòng 1/1 · 2026-11-11 09:30 · agent                                          │ │
 │ │ ▸ ! bị chặn     1TASK1 ·    Thêm cột email           ││ Hai điểm cần sửa                                                             │ │
 │ │   ✗ thất bại    1TASK2 ·    Đổi cách tính phí        ││                                                                              │ │
-│ │  Đang làm (1)                                        ││ ── 3 phát hiện                                                               │ │
-│ │   ▶ đang làm    1TASK4 ·    Thêm màn Tác vụ          ││   ─────────────────────────────────────────────────────────────              │ │
+│ │  Đang làm (1)                                        ││ ── 3 phát hiện ────────────────────────────────────────────────────────────  │ │
+│ │   ▶ đang làm    1TASK4 ·    Thêm màn Tác vụ          ││ [nghiêm trọng 1] [vừa 1] [thấp 1]                                            │ │
 │ │  Sắp làm (1)                                         ││ ▸ [nghiêm trọng] Không đóng kết nối  internal/db/db.go:4-5                   │ │
 │ │   ◌ sẵn sàng    1TASK5 ·    Viết tài liệu cài đặt    ││   [vừa]       Khoá ghi quá rộng  README.md:1                                 │ │
 │ │                                                      ││   [thấp]      Đặt tên biến rõ hơn  internal/db/db.go:3                       │ │
 │ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── 01TASK1.2                                                                 │ │
-│ │                                                      ││   ───────────────────────────────────────────────────────────────            │ │
+│ │                                                      ││ ── 01TASK1.2 ──────────────────────────────────────────────────────────────  │ │
 │ │                                                      ││ lỗi · nghiêm trọng                                                           │ │
 │ │                                                      ││ Không đóng kết nối                                                           │ │
 │ │                                                      ││ internal/db/db.go:4-5                                                        │ │
 │ │                                                      ││ Căn cứ       thiếu Close                                                     │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││ Gọi Close() trong defer.                                                     │ │
+│ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │

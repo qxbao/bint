@@ -27,7 +27,8 @@ func newMCPCmd(stdio IO) *cobra.Command {
   claude mcp add bint -- bint mcp serve
 
 Các công cụ chỉ đọc, trừ cite_knowledge và report_observation (ghi nhận; mục do
-agent ghi luôn ở candidate). Truy xuất và trích dẫn được quy về lượt chạy qua hook
+agent ghi luôn ở candidate). Khi context.history.enabled là true, thêm history_for_paths và
+run_get (lịch sử lượt chạy theo tệp, chỉ đọc). Truy xuất và trích dẫn được quy về lượt chạy qua hook
 PostToolUse của Claude Code (bint init --hooks).
 
 Đây cũng là cửa vào duy nhất tới MCP của service ngoài (codegraph, specmatic, ...): tool của các
@@ -59,7 +60,8 @@ interactive. Đặt BINT_MCP_NO_GATEWAY=1 để chỉ còn tool của Bint.`,
 					return err
 				}
 				// Kiểm tra sớm để lỗi cấu hình hiện ra ngay khi harness khởi động server.
-				if _, err := app.OpenKnowledge(ctx, dir); err != nil {
+				k, err := app.OpenKnowledge(ctx, dir)
+				if err != nil {
 					if !notBintWorkspace(err) {
 						return err
 					}
@@ -71,6 +73,10 @@ interactive. Đặt BINT_MCP_NO_GATEWAY=1 để chỉ còn tool của Bint.`,
 				b := &app.RepoBackend{Dir: dir}
 				defer b.Close()
 				mcpserver.RegisterTools(srv, b)
+				// Lịch sử theo tệp (B4): tắt mặc định; không bao giờ có ở chế độ đánh giá (nhánh trên).
+				if h := k.Config.Context.History; h.Enabled {
+					mcpserver.RegisterHistoryTools(srv, b, h.MaxRuns)
+				}
 				// Chế độ đánh giá (--eval-config) không bao giờ chạm gateway; ở đây NewMCPShim trả nil khi không có gì
 				// để chuyển tiếp (BINT_MCP_NO_GATEWAY, dự án không dùng MCP ngoài, role không được cấp service nào).
 				sh, err := app.NewMCPShim(ctx, dir, app.MCPShimOptions{RunID: runID, TaskID: taskID})

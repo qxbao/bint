@@ -1,7 +1,7 @@
 ---
 name: bint-implementer
 description: "Bước b-feat của Bint (thực thi kế hoạch của tác vụ: sửa mã trong phạm vi scope.allow, chạy kiểm thử, ghi bằng chứng cho tiêu chí chấp nhận). Chỉ chạy khi `bint run next` trả action agent với subagent này; không dùng cho việc khác."
-tools: Read, Edit, Write, Glob, Grep, Bash
+tools: Read, Edit, Write, Glob, Grep, Bash, mcp__bint__*
 model: sonnet
 ---
 

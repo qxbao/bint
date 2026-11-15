@@ -157,6 +157,7 @@ func newStatusCmd(stdio IO) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoResync(cmd, stdio)
 			rep, err := app.Status(ctx, dir)
 			if err != nil {
 				return err

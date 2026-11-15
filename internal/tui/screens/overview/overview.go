@@ -17,6 +17,7 @@ import (
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/logo"
+	"bint/internal/tui/components/meter"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
@@ -177,6 +178,8 @@ func (d Data) Inbox() []Inbox {
 type LoadedMsg struct {
 	Data Data
 	Err  error
+	// Soft: lần nạp do thăm dò dữ liệu tự kích hoạt; lỗi không được thay dữ liệu đang hiện bằng trang lỗi.
+	Soft bool
 }
 
 // Load đọc dữ liệu của Tổng quan ở repository chứa dir. Repository chưa init cho Data.NotInit = true
@@ -260,7 +263,11 @@ type Model struct {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case LoadedMsg:
-		m.Loading, m.Err = false, msg.Err
+		m.Loading = false
+		if msg.Soft && msg.Err != nil && m.Loaded {
+			break // nạp nền lỗi: giữ dữ liệu đang hiện (như các màn chuyên biệt)
+		}
+		m.Err = msg.Err
 		if msg.Err == nil {
 			m.Data, m.Loaded = msg.Data, true
 			m.Cursor = min(m.Cursor, max(len(m.Data.Inbox())-1, 0))
@@ -433,16 +440,12 @@ func (m Model) infoBox(env ui.Env) []string {
 	if st == nil {
 		return nil
 	}
-	runs := fmt.Sprintf("%d", st.TotalRuns)
-	if parts := runParts(env, st.Runs); len(parts) > 0 {
-		runs += "  " + th.S(theme.Muted, strings.Join(parts, " · "))
-	}
 	rows := [][2]string{
 		{env.T("overview.repo"), ""},
 		{env.T("overview.state"), ""},
 		{env.T("overview.harness"), strings.Join(st.Harnesses, ", ")},
 		{env.T("overview.schema"), fmt.Sprintf("v%d", st.Schema)},
-		{env.T("overview.runs"), runs},
+		{env.T("overview.runs"), ""},
 	}
 	lw := 0
 	for _, r := range rows {
@@ -455,6 +458,7 @@ func (m Model) infoBox(env ui.Env) []string {
 	rows[1][1] = text.Path(st.StateDir, pathW)
 	// Giá trị dài (như thống kê lượt chạy) ngắt dòng thay vì bị cắt: dòng tiếp thụt theo cột giá trị.
 	vw := max(env.W-2-4-lw-2, 12)
+	rows[4][1] = runsLine(env, st.TotalRuns, st.Runs, vw)
 	var body []string
 	for _, r := range rows {
 		vals := text.WrapHang(r[1], vw, "", "")
@@ -540,32 +544,86 @@ var runStatusOrder = []string{"completed", "failed", "cancelled", "interrupted",
 // runParts dịch số lượt chạy theo trạng thái thành các cụm ngắn ("55 xong", "5 lỗi"...); bỏ trạng thái
 // có số 0. Tên trạng thái lạ (chưa có trong danh mục) hiện nguyên dạng.
 func runParts(env ui.Env, runs map[string]int) []string {
+	var parts []string
+	for _, k := range runKeys(runs) {
+		parts = append(parts, runPart(env, k, runs[k]))
+	}
+	return parts
+}
+
+// runKeys là các trạng thái có số lớn hơn 0, theo thứ tự hiển thị.
+func runKeys(runs map[string]int) []string {
 	seen := map[string]bool{}
 	var keys []string
 	for _, k := range runStatusOrder {
 		seen[k] = true
-		keys = append(keys, k)
+		if runs[k] > 0 {
+			keys = append(keys, k)
+		}
 	}
 	var extra []string
-	for k := range runs {
-		if !seen[k] {
+	for k, n := range runs {
+		if !seen[k] && n > 0 {
 			extra = append(extra, k)
 		}
 	}
 	sort.Strings(extra)
-	keys = append(keys, extra...)
-	var parts []string
-	for _, k := range keys {
-		n := runs[k]
-		if n <= 0 {
-			continue
-		}
-		key := "overview.runstatus." + k
-		if env.Cat.Has(key) {
-			parts = append(parts, env.T(key, map[string]any{"count": n}))
-		} else {
-			parts = append(parts, env.T("overview.runstatus.other", map[string]any{"count": n, "name": k}))
-		}
+	return append(keys, extra...)
+}
+
+func runPart(env ui.Env, k string, n int) string {
+	key := "overview.runstatus." + k
+	if env.Cat.Has(key) {
+		return env.T(key, map[string]any{"count": n})
 	}
-	return parts
+	return env.T("overview.runstatus.other", map[string]any{"count": n, "name": k})
+}
+
+// runSeg là vai trò màu và ký hiệu riêng của từng trạng thái (ký hiệu khác nhau để đơn sắc vẫn phân biệt được).
+func runSeg(k string) (theme.Role, string) {
+	switch k {
+	case "completed":
+		return theme.OK, "█"
+	case "failed":
+		return theme.Err, "▓"
+	case "cancelled":
+		return theme.Muted, "▒"
+	case "interrupted":
+		return theme.Warn, "▚"
+	case "running":
+		return theme.Accent, "▞"
+	}
+	return theme.Key, "▪"
+}
+
+// runsLine là giá trị của dòng Lượt chạy: tổng, thanh xếp chồng theo trạng thái (rộng min(16, vw/4)) rồi chú giải có
+// ký hiệu khớp thanh.
+func runsLine(env ui.Env, total int, runs map[string]int, vw int) string {
+	th := env.Th
+	out := fmt.Sprintf("%d", total)
+	keys := runKeys(runs)
+	if len(keys) == 0 {
+		return out
+	}
+	var segs []meter.Seg
+	var legend, plain []string
+	for _, k := range keys {
+		role, glyph := runSeg(k)
+		segs = append(segs, meter.Seg{N: runs[k], Role: role, Glyph: glyph})
+		part := runPart(env, k, runs[k])
+		legend = append(legend, th.S(role, glyph)+" "+th.S(theme.Muted, part))
+		plain = append(plain, part)
+	}
+	sep := th.S(theme.Muted, " · ")
+	// Giữ trên một dòng (không thêm dòng ở cửa sổ 80×24): thanh co lại theo chỗ còn, hết chỗ thì bỏ thanh, hết chỗ cho
+	// ký hiệu thì chú giải trở về dạng chữ.
+	legW := text.Width(strings.Join(plain, " · ")) + 2*len(plain)
+	room := vw - text.Width(out) - 2
+	if bw := min(16, vw/4, room-1-legW); bw >= 4 {
+		return out + " " + meter.Stacked(th, segs, bw) + "  " + strings.Join(legend, sep)
+	}
+	if room >= legW {
+		return out + "  " + strings.Join(legend, sep)
+	}
+	return out + "  " + th.S(theme.Muted, strings.Join(plain, " · "))
 }

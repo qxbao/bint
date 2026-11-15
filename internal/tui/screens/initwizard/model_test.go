@@ -13,6 +13,7 @@ import (
 	"bint/internal/i18n"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/components/zone"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
@@ -214,5 +215,56 @@ func TestReportKeepsDetailTailAndShortensLoadErr(t *testing.T) {
 		if text.Width(l) > env.W {
 			t.Errorf("dòng rộng quá %d: %q", env.W, l)
 		}
+	}
+}
+
+// Chuột: bấm hàng đặt con trỏ và chọn/đảo như Space; hàng của bước hỏi và dòng phím của bước xem trước có vùng bấm.
+func TestClickRowsPickLikeSpaceAndPreviewHints(t *testing.T) {
+	m := newWiz(false)
+	if cmd := m.Click("r:1"); cmd != nil {
+		t.Fatal("bấm hàng không phát lệnh")
+	}
+	if m.cur != 1 || !m.sel[1] {
+		t.Fatalf("bấm hàng harness: cur=%d sel=%v", m.cur, m.sel)
+	}
+	m.Click("r:1")
+	if m.sel[1] {
+		t.Fatal("bấm lần hai phải bỏ chọn (như Space)")
+	}
+	m.Click("r:99")
+	m.Click("t:0")
+	if m.cur != 1 {
+		t.Fatal("id không hợp lệ không được dời con trỏ")
+	}
+	key(m, "enter") // bước hook
+	m.Click("r:1")  // Không
+	if m.hooks || m.cur != 1 {
+		t.Fatalf("hooks=%v cur=%d", m.hooks, m.cur)
+	}
+	m.Click("r:3") // phạm vi project: radio
+	if m.scope != "project" {
+		t.Fatalf("scope=%q", m.scope)
+	}
+	// Bước xem trước: không nhận bấm hàng; dòng Enter/Esc có vùng key:.
+	m.step = stepPreview
+	m.Click("r:0")
+	zone.Begin()
+	out, zs := zone.Scan(m.View(ui.Env{Th: theme.New(theme.Mono), Cat: i18n.MustLoad("vi"), W: 100, H: 30}))
+	zone.End()
+	if strings.Contains(out, "\x1b_Z") {
+		t.Fatal("dấu vùng lọt ra đầu ra")
+	}
+	ids := map[string]bool{}
+	for _, z := range zs {
+		ids[z.ID] = true
+	}
+	if !ids["key:enter"] || !ids["key:esc"] {
+		t.Fatalf("thiếu vùng Enter/Esc ở bước xem trước: %v", ids)
+	}
+	// Chỉ đọc: bỏ qua mọi bấm.
+	ro := newWiz(true)
+	ro.Click("r:1")
+	if ro.sel[1] {
+		t.Fatal("chế độ chỉ đọc không nhận bấm")
 	}
 }

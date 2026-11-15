@@ -480,7 +480,7 @@ func TestMCPAgentSessionLocksHumanOnlyActions(t *testing.T) {
 	m.Render()
 	for _, z := range m.zones {
 		if strings.HasPrefix(z.ID, "key:") && z.ID != "key:q" {
-			_, cmd := m.Update(tea.MouseClickMsg{X: z.X0, Y: z.Y, Button: tea.MouseLeft})
+			cmd := clickMsgs(m, z.X0, z.Y)
 			drive(t, m, cmd)
 		}
 	}
@@ -657,7 +657,7 @@ func TestMCPReadOnlyNeverRunsWritingActions(t *testing.T) {
 		for _, id := range zs {
 			for _, z := range m.zones {
 				if z.ID == id {
-					_, cmd := m.Update(tea.MouseClickMsg{X: z.X0, Y: z.Y, Button: tea.MouseLeft})
+					cmd := clickMsgs(m, z.X0, z.Y)
 					drive(t, m, cmd)
 					break
 				}

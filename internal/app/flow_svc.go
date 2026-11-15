@@ -31,7 +31,11 @@ func lintFlow(root, file string, d flow.Def) (errs, warns []string) {
 	} else {
 		errs = skills.ValidateFlow(root, d, file)
 	}
-	return errs, flow.Warnings(d)
+	warns = flow.Warnings(d)
+	if file != "" {
+		warns = append(warns, skills.FlowKnowledgeWarnings(root, d)...)
+	}
+	return errs, warns
 }
 
 // ---- list

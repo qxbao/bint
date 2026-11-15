@@ -1,2 +1,7 @@
+# Mọi tệp văn bản checkout ra LF trên mọi máy, kể cả Windows có core.autocrlf=true (mặc định của Git for Windows và
+# runner GitHub). Skill, golden và mã nguồn được nhúng (go:embed) hoặc so từng byte trong test; CRLF làm hỏng định
+# dạng skill và golden.
+* text=auto eol=lf
+
 # Bint: bản chiếu bền của phiếu tác vụ luôn dùng LF để diff/merge ổn định giữa các máy.
 .bint/tasks/** text eol=lf

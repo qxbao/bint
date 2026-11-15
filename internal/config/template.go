@@ -84,6 +84,9 @@ func Render(p InitParams) string {
   lessons:                  # bài học từ thất bại (bint experience show)
     global_k: 3             # số bài học chung luôn chèn mỗi lượt (0 = không chèn)
     max_tokens: 600         # ngân sách token của phần bài học, tách khỏi tri thức (0 = tắt)
+  history:                  # công cụ MCP lịch sử theo tệp: history_for_paths, run_get (không áp cho đánh giá)
+    enabled: false          # true = bint mcp serve thêm hai công cụ chỉ đọc
+    max_runs: 10            # số lượt chạy mặc định history_for_paths trả về (1..50)
 
 knowledge:
   require_human_approval_for: [rule]   # luôn chứa rule: chỉ người mới duyệt được quy tắc bắt buộc
@@ -177,8 +180,8 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   agent:
     model: null
     permission_mode: acceptEdits
-    allowed_tools: [Read, Edit, Write, Glob, Grep, Bash]          # bước có quyền ghi (b-feat)
-    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)"]   # b-req, b-review
+    allowed_tools: [Read, Edit, Write, Glob, Grep, Bash, "mcp__bint__*"]          # bước có quyền ghi (b-feat)
+    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "mcp__bint__*"]   # b-req, b-review
     setting_sources: ""     # rỗng = mặc định của harness (gồm hook ghi nhận)
     extra_args: []
 
