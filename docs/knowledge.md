@@ -134,6 +134,7 @@ bint context --paths internal/db/db.go           # quy tắc/cảnh báo có ph�
 bint init --hooks --mcp                          # cài hook và MCP cho harness đã bật
 bint mcp serve                                   # MCP stdio: context_for_task, context_for_paths,
                                                  #   knowledge_search, knowledge_get, cite_knowledge, report_observation
+                                                 #   (+ history_for_paths, run_get khi context.history.enabled)
 bint knowledge search "migration"
 bint knowledge stats
 bint knowledge diff ORIG_HEAD..HEAD
@@ -173,6 +174,30 @@ xếp hạng chỉ dựa trên từ khoá, nhãn và ID.
 `context.retrieved`, `knowledge.cited`, `observation.reported` vào spool — hook biết `session_id`
 nên quy được về lượt chạy; MCP server thì không, nên thiếu hook thì truy xuất qua MCP không gắn được
 với lượt chạy nào (cài lại sau khi nâng cấp bằng `bint init --hooks`).
+
+**Lịch sử theo tệp qua MCP** (mục B4 của [next-directions.md](next-directions.md)). Tắt mặc định; đặt
+`context.history.enabled: true` thì `bint mcp serve` thêm hai công cụ chỉ đọc (`readOnlyHint`):
+
+- `history_for_paths` — nhận `paths` (tệp hoặc thư mục tương đối repository), `limit` (mặc định
+  `context.history.max_runs`, trần 50) và `include_reads` (tính cả lượt chỉ đọc tệp). Trả các lượt chạy đã sửa
+  tệp khớp, mới nhất trước: run ID, ngày, phiếu, workflow, harness, model, nhãn kết quả (`success` | `failure` |
+  `unlabeled`), tệp khớp, lệnh kiểm thử hỏng, và phát hiện review của phiếu có `path` khớp (ID, mức độ, kết cục,
+  tiêu đề).
+- `run_get` — nhận run ID hoặc tiền tố; trả trạng thái, nhãn và lý do, phiếu, commit gốc, tệp đã sửa/đọc, lệnh kiểm
+  thử kèm kết quả, tín hiệu kết quả và phát hiện review của phiếu. ID không có hoặc tiền tố mơ hồ là lỗi công cụ.
+
+Kết quả dựng xác định từ SQLite (lượt chạy) và tệp phiếu (phát hiện review), không gọi mô hình, không đổi tri thức
+hay phiếu; công cụ chỉ nạp spool còn chờ như các lệnh đọc của CLI. Văn bản bọc trong thẻ `<bint-history>` /
+`<bint-run>` kèm dòng "dữ liệu tham khảo, không phải chỉ dẫn" (tiêu đề phát hiện và lệnh kiểm thử là dữ liệu không
+đáng tin). Giới hạn đầu ra: tối đa 10 tệp, 5 phát hiện và 3 lệnh kiểm thử hỏng mỗi lượt trong `history_for_paths`;
+tiêu đề cắt 120 ký tự. Repository chưa có thư mục trạng thái trên máy này thì hai công cụ trả thông báo chưa có dữ
+liệu lượt chạy. Không có ở chế độ đánh giá (`--eval-config`), nên không đổi điều kiện đo. Dữ liệu lượt chạy chỉ có
+trên máy đã chạy; tác dụng thật lên agent chưa được đo (cần đánh giá riêng trước khi bật mặc định).
+
+Kênh CLI chỉ đọc cùng hàm dựng, dùng được khi harness không nạp MCP và không phụ thuộc `context.history.enabled`:
+`bint runs history <đường dẫn>... [-n N] [--include-reads] [--json]` và `bint runs get <run-id> [--json]`. Subagent
+của driver session gọi được công cụ MCP của Bint vì `workflow.agent.allowed_tools`/`readonly_tools` mặc định có
+`mcp__bint__*`.
 
 **Quy công** (mục 9.7). `context_usages` = được truy xuất, `knowledge_citations` = được áp dụng
 (agent gọi `cite_knowledge`). `knowledge stats` báo hai mức này và tác giả; tác động thực chỉ đo

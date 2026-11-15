@@ -89,6 +89,8 @@ var cliRefs = []cliRef{
 	{path: "events ingest", id: "runs.ingest"},
 	{path: "runs list", id: "runs.list"},
 	{path: "runs show", id: "runs.show"},
+	{path: "runs get", id: "runs.show"},
+	{path: "runs history", id: "runs.list"},
 	{path: "experience digest", id: "runs.lesson_digest", tab: "rn.tab.lessons"},
 	{path: "experience show", id: "runs.lesson_show", tab: "rn.tab.lessons"},
 

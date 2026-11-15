@@ -37,6 +37,8 @@ var Data = Coverage{
 		"run next":         "giao thức của phiên điều phối (orchestrator) chạy bước bằng subagent, không phải thao tác của người; bước đang chạy bằng subagent hiện ở thẻ Phiếu và bảng tác vụ",
 		"run complete":     "giao thức của phiên điều phối (orchestrator) chạy bước bằng subagent, không phải thao tác của người; bước đang chạy bằng subagent hiện ở thẻ Phiếu và bảng tác vụ",
 		"knowledge cite":   "agent báo trích dẫn tri thức trong lượt bint run (gắn BINT_RUN_ID), không phải thao tác của người; trích dẫn được nạp vào knowledge_citations cùng sự kiện của hook",
+		"runs history":     "lịch sử lượt chạy theo tệp cho agent (cùng hàm dựng với công cụ MCP history_for_paths), không phải thao tác của người; lượt chạy hiện ở màn Lượt chạy",
+		"runs get":         "chi tiết một lượt chạy cho agent (cùng hàm dựng với công cụ MCP run_get); người xem bằng runs.show ở màn Lượt chạy",
 		"findings list":    "TUI xem phát hiện open bằng phím F ở màn Tác vụ (hành động đọc không gắn lệnh vì không có ô --task); số phát hiện open hiện ở hàng danh sách",
 		"findings set":     "thao tác chỉ dành cho người (đổi kết cục phát hiện), chưa đưa vào TUI",
 		"task ready":       "TUI đánh dấu phiếu sẵn sàng/chờ phụ thuộc ở danh sách tác vụ và chế độ cây (phím P), dùng task.Ready",

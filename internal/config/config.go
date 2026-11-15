@@ -225,6 +225,19 @@ type Context struct {
 	PathHookTimeoutMS int `yaml:"path_hook_timeout_ms"`
 	// Lessons: thư viện bài học từ thất bại (mục E5), có ngân sách token riêng.
 	Lessons Lessons `yaml:"lessons"`
+	// History: công cụ MCP lịch sử theo tệp (history_for_paths, run_get); tắt mặc định (mục B4).
+	History History `yaml:"history"`
+}
+
+// Khoảng giá trị của context.history.max_runs.
+const MaxHistoryRuns = 50
+
+// History cấu hình công cụ MCP lịch sử lượt chạy theo đường dẫn.
+type History struct {
+	// Enabled: bật hai công cụ history_for_paths và run_get trong bint mcp serve (không áp cho chế độ đánh giá).
+	Enabled bool `yaml:"enabled"`
+	// MaxRuns: số lượt chạy mặc định history_for_paths trả về (1..50).
+	MaxRuns int `yaml:"max_runs"`
 }
 
 // Lessons cấu hình cách chèn bài học từ thất bại vào ngữ cảnh.
@@ -546,6 +559,7 @@ func Default() Config {
 			PathMaxItems:      5,
 			PathHookTimeoutMS: 1500,
 			Lessons:           Lessons{GlobalK: 3, MaxTokens: 600},
+			History:           History{Enabled: false, MaxRuns: 10},
 		},
 		Knowledge: Knowledge{RequireHumanApprovalFor: []string{"rule"}, AgentsMDMaxItems: 15, StaleDeprecateDays: 30},
 		Memory:    Memory{Enabled: true, Scope: "project", RetentionDays: 90},
@@ -585,8 +599,8 @@ func Default() Config {
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Agent: WorkflowAgent{
 				PermissionMode: "acceptEdits",
-				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"},
-				ReadonlyTools:  []string{"Read", "Glob", "Grep", "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)"},
+				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash", "mcp__bint__*"},
+				ReadonlyTools:  []string{"Read", "Glob", "Grep", "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "mcp__bint__*"},
 				ExtraArgs:      []string{},
 			},
 		},
@@ -878,6 +892,9 @@ func (c Config) Validate() error {
 	}
 	if c.Context.Lessons.MaxTokens < 0 {
 		add("context.lessons.max_tokens: không được âm")
+	}
+	if c.Context.History.MaxRuns < 1 || c.Context.History.MaxRuns > MaxHistoryRuns {
+		add("context.history.max_runs: phải trong khoảng 1..%d", MaxHistoryRuns)
 	}
 	if c.Knowledge.StaleDeprecateDays < 1 {
 		add("knowledge.stale_deprecate_days: phải >= 1")

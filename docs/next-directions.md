@@ -323,6 +323,13 @@ chạy đã lưu kèm tệp đọc/sửa, kết quả kiểm thử và nhãn k�
 - Dựng xác định từ SQLite, không gọi mô hình. Chạy trong MCP server, không trong hook, nên không vi
   phạm quy tắc "hook không mở SQLite".
 
+*Đã làm:* `history_for_paths` và `run_get` (`internal/mcpserver/history.go`, `internal/app/mcp_history.go`,
+`internal/runlog/history.go`), bật bằng `context.history.enabled` (mặc định `false`) và `context.history.max_runs`
+(mặc định 10, `1..50`); không có ở chế độ `--eval-config`. Giới hạn mỗi lượt: 10 tệp, 5 phát hiện, 3 lệnh kiểm thử
+hỏng. Phát hiện review đọc từ tệp phiếu (không nằm trong SQLite). Mô tả ở `docs/knowledge.md` và
+`docs/configuration.md`. Kênh CLI chỉ đọc cùng hàm dựng: `bint runs history <đường dẫn>... [-n N] [--include-reads] [--json]` và `bint runs get <run-id>` (không cần bật khoá cấu hình), vì CSDL 2026-11-13..15 có 0 lần gọi `mcp__bint__*` và agent quen dùng CLI; `mcp__bint__*` có trong `allowed_tools`/`readonly_tools` mặc định để subagent của driver session gọi được MCP. *Còn lại:* đo bằng biến thể `bint@…` trước khi bật mặc định; chưa có chỉ mục SQLite theo
+`path` (quét `run_artifacts` có `LIMIT`).
+
 **Giá trị.** Có ích ngay từ ngày đầu mà không cần ai duyệt gì (xem mục 3, bài học thứ nhất).
 
 **Rủi ro.** Tăng token ngữ cảnh; cần giới hạn số dòng và đo bằng biến thể `bint@…` trước khi bật mặc
