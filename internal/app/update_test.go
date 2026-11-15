@@ -78,3 +78,47 @@ func TestUpdateSelfInstalls(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Bản .old của lần update trước còn bị tiến trình khác giữ (bint mcp serve sống lâu): không được thất bại, phải dùng
+// tên khác; bản cũ không còn bị giữ thì được dọn.
+func TestOldBackupPathSkipsHeldBackup(t *testing.T) {
+	dir := t.TempDir()
+	cur := filepath.Join(dir, "bint.exe")
+	if got := oldBackupPath(cur); got != cur+".old" {
+		t.Fatalf("chưa có bản cũ: %q", got)
+	}
+	for _, p := range []string{cur + ".old", cur + ".old.1", cur + ".old.2"} {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := oldBackupPath(cur); got != cur+".old" {
+		t.Fatalf("bản cũ không bị giữ phải được dọn: %q", got)
+	}
+	for _, p := range []string{cur + ".old.1", cur + ".old.2"} {
+		if _, err := os.Stat(p); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%s chưa được dọn: %v", p, err)
+		}
+	}
+	if runtime.GOOS != "windows" {
+		return // chỉ Windows chặn xoá tệp đang mở
+	}
+	if err := os.WriteFile(cur+".old", []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(cur + ".old") // giữ như tiến trình đang chạy từ bản cũ
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	got := oldBackupPath(cur)
+	if got != cur+".old.1" {
+		t.Fatalf("bản .old bị giữ phải chuyển sang .old.1: %q", got)
+	}
+	if err := os.WriteFile(cur, []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(cur, got); err != nil {
+		t.Fatalf("đổi tên sang %s: %v", got, err)
+	}
+}

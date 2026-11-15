@@ -60,9 +60,13 @@ func (g *procGroup) kill() {
 }
 
 // detachCmd khởi động tiến trình tách rời, không gắn với console của lệnh gọi.
+// Dùng CREATE_NO_WINDOW (console riêng, ẩn) thay vì DETACHED_PROCESS (không có console): daemon không console thì mỗi
+// tiến trình console nó sinh ra (upstream stdio, git...) bị Windows cấp console mới, và với Windows Terminal là terminal
+// mặc định thì mỗi lần như vậy bật một cửa sổ (kèm lỗi 0x800700e8 khi con thoát trước lúc cửa sổ kịp gắn vào).
+// Với console ẩn, các con kế thừa nó và không mở cửa sổ nào.
 func detachCmd(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+		CreationFlags: windows.CREATE_NO_WINDOW | windows.CREATE_NEW_PROCESS_GROUP,
 		HideWindow:    true,
 	}
 }

@@ -43,6 +43,26 @@ type Info struct {
 	Token     string    `json:"token"`
 	StartedAt time.Time `json:"started_at"`
 	Version   string    `json:"version,omitempty"`
+	// ExeModTime là thời điểm sửa tệp binary của daemon lúc nó khởi động. Shim mới hơn dựa vào đó để thay daemon chạy
+	// binary cũ (sau `bint update`), vì daemon cũ không đọc được khoá cấu hình mới và từ chối mọi phiên. Rỗng: daemon bản
+	// trước khi có trường này.
+	ExeModTime time.Time `json:"exe_mtime,omitzero"`
+}
+
+// ExeModTime trả thời điểm sửa của binary đang chạy (zero nếu không xác định được).
+func ExeModTime() time.Time {
+	exe, err := os.Executable()
+	if err != nil {
+		return time.Time{}
+	}
+	if r, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = r
+	}
+	fi, err := os.Stat(exe)
+	if err != nil {
+		return time.Time{}
+	}
+	return fi.ModTime().UTC()
 }
 
 // URL là địa chỉ gốc của daemon.

@@ -45,6 +45,7 @@ var directWriteAllowed = map[string]string{
 	"skills_svc.go:PlanSync":            "xem trước sync trên bản sao tạm, không chạm repo",
 	"skills_svc.go:copyTree":            "sao cây vào thư mục tạm của PlanSync",
 	"update.go:UpdateSelf":              "thay binary bint đang chạy (ngoài repo)",
+	"update.go:oldBackupPath":           "dọn bản binary cũ <exe>.old* cạnh binary bint (ngoài repo)",
 }
 
 // Các lời gọi ghi trực tiếp bị theo dõi (gói.hàm).

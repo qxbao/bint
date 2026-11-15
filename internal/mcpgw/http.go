@@ -225,6 +225,12 @@ func (d *Daemon) handleInitialize(w http.ResponseWriter, r *http.Request, m rpcM
 // grantsFor giải quyền của phiên ở service svcID: role (từ bản ghi lượt chạy hoặc interactive) → config.MCP.Resolve của dự án
 // giao service đã đăng ký trên máy. Trả tool được cấp (rỗng nếu không có), role đã giải và lý do khi không có gì.
 func (d *Daemon) grantsFor(ri repoInfo, sc sessCtx, mc config.MachineMCP, svc mcpcat.Service) (grantedTools, string, string) {
+	// Lỗi cấu hình trước: không đọc được cấu hình thì cũng không có thư mục runtime, và lỗi "thiếu thư mục runtime" của
+	// ResolveIdentity che mất nguyên nhân thật.
+	if ri.cfgErr != "" {
+		// Hay gặp nhất: daemon chạy binary cũ (khoá cấu hình mới chưa biết); shim mới thay daemon khi nó rảnh.
+		return nil, "", "không đọc được cấu hình dự án: " + ri.cfgErr + " (daemon chạy binary cũ? tắt gateway để khởi động lại)"
+	}
 	id, err := ResolveIdentity(ri.runtime, sc.RunID, sc.TaskID)
 	if err != nil {
 		return nil, "", err.Error()

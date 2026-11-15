@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"bint/internal/config"
+	"bint/internal/mcpcat"
 	"bint/internal/mcpserver"
 	"bint/internal/testutil"
 )
@@ -684,5 +685,71 @@ func TestShimNoRetryWhenConnectedAndStopsOnClose(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	if n := starts.Load(); n != 1 {
 		t.Fatalf("đã Close mà vẫn thử lại: %d lần khởi động", n)
+	}
+}
+
+// Daemon chạy binary cũ hơn shim (sau bint update) bị thay khi rảnh; shim cũ hơn daemon, hoặc daemon đang có lời gọi
+// dang dở, thì dùng daemon hiện có.
+func TestShimStaleDaemonDecision(t *testing.T) {
+	t0 := time.Date(2026, 11, 15, 10, 0, 0, 0, time.UTC)
+	idle := Status{Upstreams: []UpstreamStatus{{Service: "codegraph"}}}
+	busy := Status{Upstreams: []UpstreamStatus{{Service: "codegraph", Inflight: 1}}}
+	cases := []struct {
+		name   string
+		shim   time.Time
+		daemon time.Time
+		st     Status
+		want   bool
+	}{
+		{"shim không kiểm", time.Time{}, t0, idle, false},
+		{"daemon bản chưa ghi exe_mtime", t0, time.Time{}, idle, true},
+		{"daemon cũ hơn", t0.Add(time.Hour), t0, idle, true},
+		{"cùng binary", t0, t0, idle, false},
+		{"shim cũ hơn daemon", t0, t0.Add(time.Hour), idle, false},
+		{"daemon cũ nhưng đang gọi", t0.Add(time.Hour), t0, busy, false},
+	}
+	for _, c := range cases {
+		s := &Shim{o: ShimOptions{ExeModTime: c.shim}}
+		if got := s.staleDaemon(Info{ExeModTime: c.daemon}, c.st); got != c.want {
+			t.Errorf("%s: %v, muốn %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestShimReplacesStaleDaemon(t *testing.T) {
+	e := newShimEnv(t, "codegraph")
+	c := serveShim(t, e.shim(e.options("codegraph")))
+	c.init()
+	old, err := ReadInfo(e.dir)
+	if err != nil || old.ExeModTime.IsZero() {
+		t.Fatalf("daemon phải ghi exe_mtime: %+v %v", old, err)
+	}
+	c.in.Close()
+	<-c.done
+
+	o := e.options("codegraph")
+	o.ExeModTime = old.ExeModTime.Add(time.Hour) // shim từ binary mới hơn
+	c2 := serveShim(t, e.shim(o))
+	c2.init()
+	if names := c2.toolNames(); !hasAll(names, "cg_explore") {
+		t.Fatalf("tools/list sau khi thay daemon: %v", names)
+	}
+	now, err := ReadInfo(e.dir)
+	if err != nil || now.PID == old.PID || processAlive(old.PID) {
+		t.Fatalf("daemon cũ (PID %d) phải được thay: %+v %v", old.PID, now, err)
+	}
+}
+
+// Daemon không đọc được cấu hình (thường do chạy binary cũ gặp khoá mới) phải nêu lỗi thật, kể cả với phiên của bint run
+// (trước đây bị che bởi "thiếu thư mục runtime").
+func TestGrantsForReportsConfigError(t *testing.T) {
+	d := &Daemon{}
+	svc, _ := mcpcat.Lookup("codegraph")
+	for _, run := range []string{"", "01M7F7X95FSZTKA9WR5D5YVS27"} {
+		_, _, why := d.grantsFor(repoInfo{cfgErr: "field history not found in type config.Context"}, sessCtx{RunID: run},
+			config.MachineMCP{}, svc)
+		if !strings.Contains(why, "field history not found") {
+			t.Errorf("run %q: lý do phải nêu lỗi cấu hình: %q", run, why)
+		}
 	}
 }

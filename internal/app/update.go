@@ -160,8 +160,7 @@ func UpdateSelf(ctx context.Context, opts UpdateOptions) (UpdateResult, error) {
 
 	// Windows không cho ghi đè tệp .exe đang chạy nhưng cho đổi tên.
 	if runtime.GOOS == "windows" && !res.Mismatch && res.Current != "" {
-		old := res.Current + ".old"
-		_ = os.Remove(old)
+		old := oldBackupPath(res.Current)
 		if err := os.Rename(res.Current, old); err != nil {
 			return res, fmt.Errorf("đổi tên bản đang chạy để cài bản mới: %w", err)
 		}
@@ -180,6 +179,30 @@ func UpdateSelf(ctx context.Context, opts UpdateOptions) (UpdateResult, error) {
 	}
 	res.NewRev = binaryRevision(ctx, goBin, res.Target)
 	return res, nil
+}
+
+// oldBackupPath dọn các bản cũ (<exe>.old, <exe>.old.N) không còn chạy rồi trả về một tên trống để đổi tên bản
+// đang chạy. Bản cũ của lần update trước có thể vẫn bị tiến trình sống lâu giữ (bint mcp serve của phiên agent,
+// daemon gateway): Windows không cho xoá hay đổi tên đè lên nó, nên khi đó dùng hậu tố số kế tiếp thay vì thất bại.
+func oldBackupPath(current string) string {
+	base := current + ".old"
+	if matches, err := filepath.Glob(base + "*"); err == nil {
+		for _, m := range matches {
+			if m == base || strings.HasPrefix(m, base+".") {
+				_ = os.Remove(m) // tệp còn bị giữ thì bỏ qua, lần sau dọn
+			}
+		}
+	}
+	for i := range 100 {
+		p := base
+		if i > 0 {
+			p = fmt.Sprintf("%s.%d", base, i)
+		}
+		if _, err := os.Lstat(p); errors.Is(err, os.ErrNotExist) {
+			return p
+		}
+	}
+	return fmt.Sprintf("%s.p%d", base, os.Getpid())
 }
 
 // installTarget trả về tệp `go install ./cmd/bint` sẽ ghi: $GOBIN/bint hoặc
