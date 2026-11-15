@@ -587,7 +587,7 @@ Xem `internal/tui/testdata/vhs/README.md` cho `overview`, `overview-wide`, `init
   dùng màu mặc định của terminal thay vì `white` (để đọc được trên cả nền sáng).
 - **Chân phím** xếp phím riêng của màn hình trước, rồi phím toàn cục, cuối cùng các phím ghim (`?`, `q`). Từ 6a: thiếu chỗ thì rút nhãn trước khi bỏ phím (mục 12.9).
 - **Đổi ngôn ngữ chỉ có hiệu lực trong phiên** (phím `L`): từ giai đoạn 5a, Hệ thống › Ngôn ngữ ghi `ui.language` vào cấu hình (mục 12.7).
-  `.bint/config.yml` của chính repository này chưa có khối `ui`: chạy `bint init --update` hoặc chọn ngôn ngữ ở Hệ thống › Ngôn ngữ (chèn khối `ui`).
+  `.bint/config.yml` của chính repository này đã có khối `ui` (kiểm lại 2026-11-15).
 - **Đổi nhỏ về hành vi CLI** (ngoài phạm vi "không đổi" nên ghi rõ): `knowledge review --status <giá trị lạ>`
   nay là lỗi dùng sai (mã 2) thay vì lặng lẽ không khớp mục nào; với `evolve propose/process`, kiểm tra
   chỉ-dành-cho-người chạy sau khi mở workspace (lỗi "chưa init" thắng lỗi "chỉ dành cho người" nếu cả hai đúng).
@@ -1098,7 +1098,7 @@ Phím: Enter tiếp, Esc/`b` lùi, `j`/`k` di chuyển, **Space chọn** (di chu
 
 **Chỗ lệch so với kế hoạch (người duyệt có thể đổi)**
 - **Mã thoát 1 → 2** cho lỗi dùng sai của `init` (`--git` sai, `--harness` lạ) và `update --source` không phải mã nguồn Bint: chuyển xuống `Validate()` nên là `UsageError`. Không e2e cũ khẳng định mã 1; e2e mới (`init_update_usage_e2e_test.go`) khẳng định mã 2. Thông báo `--harness` có thêm tiền tố `--harness:`.
-- **Doctor thêm một dòng cảnh báo** cho repo theo mẫu cũ (trước đây chỉ `init` báo); repo do `app.Init` tạo theo mẫu hiện tại không có dòng đó. Repo của chính dự án (chưa có khối `ui`) sẽ thấy dòng này tới khi chạy `bint init --update`.
+- **Doctor thêm một dòng cảnh báo** cho repo theo mẫu cũ (trước đây chỉ `init` báo); repo do `app.Init` tạo theo mẫu hiện tại không có dòng đó. Repo của chính dự án nay đã có khối `ui` nên không còn thấy dòng này.
 - **Xem trước init là kế hoạch tĩnh** từ Options + thăm dò chỉ đọc (không chạy trên bản sao tạm như `PlanSync`): không mô phỏng được mọi hệ quả (skip-worktree, hook phạm vi user, bản sao lưu); hộp ghi rõ "dự kiến", báo cáo sau khi chạy mới chính xác.
 - **Hooks là một cờ chung cho mọi harness** (giới hạn của `InitOptions`): form một ô; điền sẵn "bật" khi mọi harness có hook đều đã cài. Codex dùng chung `.codex/hooks.json` cho phạm vi `local` và `project` nên `InitState` tính hook ở tệp đó cho cả hai phạm vi.
   Đổi phạm vi mà hook đang bật thì phần gửi đi gồm cả `--hooks` (nếu không, init chỉ báo "chưa có sự đồng ý").

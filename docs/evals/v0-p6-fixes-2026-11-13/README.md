@@ -75,7 +75,8 @@ từ trước (biên bản P6) chuyển từ FAIL sang PASS.
 ## Việc của người
 
 - Mục tri thức `k:01M746PTBYPSXDT0WJZS38KPFD` (và đoạn tương ứng trong `AGENTS.md`) nói `evolve.AcquireLock` còn dùng
-  mẫu PID chết — đã lỗi thời sau vòng này; cần sửa hoặc revalidate.
+  mẫu PID chết — đã lỗi thời sau vòng này. Mục thay thế `k:01M7FGC944KVT6NY1TZE7MJ0P8` (candidate, 2026-11-15) chờ
+  duyệt; sau đó `deprecate` mục cũ.
 
 ## Chưa kiểm được và lý do
 
