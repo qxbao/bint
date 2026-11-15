@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -67,7 +68,31 @@ func (c Config) trustLevel(dir string) (string, bool) {
 			return p.TrustLevel, true
 		}
 	}
-	return "", false
+	// Khoá viết tay có thể chưa chuẩn hoá (dấu phân cách cuối, "/" thay "\",
+	// khác hoa thường ổ đĩa/thư mục trên Windows): so sau khi Clean. Nhiều khoá
+	// cùng trỏ một thư mục thì mức khác "trusted" thắng, để kết quả không phụ
+	// thuộc thứ tự duyệt map.
+	level, found := "", false
+	for key, p := range c.Projects {
+		if samePath(cleanKey(key), dir) && (!found || level == "trusted") {
+			level, found = p.TrustLevel, true
+		}
+	}
+	return level, found
+}
+
+func cleanKey(key string) string {
+	if key == "" {
+		return ""
+	}
+	return filepath.Clean(filepath.FromSlash(key))
+}
+
+func samePath(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 func (c Config) trusts(dir, root, main string) bool {
@@ -115,8 +140,12 @@ func (c Config) projectRoot(dir string) string {
 	}
 }
 
+// gitTimeout giới hạn lần gọi git rev-parse; spawn git trên Windows có thể chậm
+// (Defender quét), và khi hết hạn repoRoots vẫn dựng lại được từ tệp .git.
+const gitTimeout = 10 * time.Second
+
 func repoRoots(dir string) (root, main string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 	// Codex agent processes strip parent Git identity (e.g. when Bint runs in
 	// a Git hook). Discovery must describe the same repository as that child.
@@ -139,7 +168,46 @@ func repoRoots(dir string) (root, main string) {
 		}
 		return canonical(r.Toplevel), canonical(main)
 	}
-	return dir, ""
+	return dotGitRoots(dir)
+}
+
+// dotGitRoots dựng toplevel/worktree chính từ tệp .git khi không gọi được git
+// (hết hạn, không có git): <top>/.git là thư mục thì top là gốc chính; là tệp
+// "gitdir: <dir>" thì đọc <dir>/commondir để tìm <main>/.git.
+func dotGitRoots(dir string) (root, main string) {
+	for current := dir; ; current = filepath.Dir(current) {
+		dotGit := filepath.Join(current, ".git")
+		st, err := os.Stat(dotGit)
+		if err == nil && st.IsDir() {
+			return current, current
+		}
+		if err == nil {
+			b, err := os.ReadFile(dotGit)
+			gitDir, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir:")
+			if err != nil || !ok {
+				return dir, ""
+			}
+			gitDir = gitrepo.Clean(gitDir)
+			if !filepath.IsAbs(gitDir) {
+				gitDir = filepath.Join(current, gitDir)
+			}
+			common := gitDir
+			if b, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+				common = gitrepo.Clean(string(b))
+				if !filepath.IsAbs(common) {
+					common = filepath.Join(gitDir, common)
+				}
+			}
+			main = current
+			if m := (gitrepo.Repo{CommonDir: filepath.Clean(common)}).MainWorktree(); m != "" {
+				main = m
+			}
+			return canonical(current), canonical(main)
+		}
+		if filepath.Dir(current) == current {
+			return dir, ""
+		}
+	}
 }
 
 func (c Config) Trusted(dir string) bool {

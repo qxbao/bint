@@ -234,6 +234,16 @@ func SubagentHookInstalled(settingsPath string) (bool, error) {
 // HooksPresent cho biết khoá "hooks" của tệp có handler của Bint cho mọi sự kiện
 // trong want.
 func HooksPresent(settingsPath string, want map[string]map[string]any, isOurs func(string) bool) (bool, error) {
+	return hooksMatch(settingsPath, want, isOurs, false)
+}
+
+// HooksCurrent như HooksPresent nhưng còn đòi nhóm chứa handler của Bint có đúng matcher
+// của want: bản cài cũ (matcher thiếu công cụ mới) vẫn "có mặt" nhưng không hiện hành.
+func HooksCurrent(settingsPath string, want map[string]map[string]any, isOurs func(string) bool) (bool, error) {
+	return hooksMatch(settingsPath, want, isOurs, true)
+}
+
+func hooksMatch(settingsPath string, want map[string]map[string]any, isOurs func(string) bool, matcher bool) (bool, error) {
 	raw, err := os.ReadFile(settingsPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -243,15 +253,20 @@ func HooksPresent(settingsPath string, want map[string]map[string]any, isOurs fu
 	}
 	var s struct {
 		Hooks map[string][]struct {
-			Hooks []handler `json:"hooks"`
+			Matcher string    `json:"matcher"`
+			Hooks   []handler `json:"hooks"`
 		} `json:"hooks"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return false, err
 	}
-	for ev := range want {
+	for ev, g := range want {
+		wantMatcher, _ := g["matcher"].(string)
 		found := false
 		for _, g := range s.Hooks[ev] {
+			if matcher && g.Matcher != wantMatcher {
+				continue
+			}
 			for _, h := range g.Hooks {
 				if isOurs(h.Command) {
 					found = true

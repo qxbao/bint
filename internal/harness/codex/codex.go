@@ -228,6 +228,12 @@ func HooksInstalled(path string) (bool, error) {
 	return claude.HooksPresent(path, desiredGroups("x"), isBintHook)
 }
 
+// HooksCurrent cho biết hook của Bint trong path dùng đúng matcher hiện hành (ví dụ bản
+// cài cũ thiếu local_shell thì lệnh shell đó đi qua mà không bị guardrail kiểm).
+func HooksCurrent(path string) (bool, error) {
+	return claude.HooksCurrent(path, desiredGroups("x"), isBintHook)
+}
+
 // HooksTrusted kiểm tra mọi hook Bint trong file bằng metadata/hash của Codex.
 // Caller có root/binary tuỳ chỉnh nên dùng InspectHookTrust để nhận lý do lỗi.
 func HooksTrusted(path string) bool {

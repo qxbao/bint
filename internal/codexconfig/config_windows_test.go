@@ -23,3 +23,12 @@ func TestMarkerPathWindows(t *testing.T) {
 		})
 	}
 }
+
+func TestTrustLevelCaseInsensitiveWindows(t *testing.T) {
+	c := Config{Projects: map[string]struct {
+		TrustLevel string `toml:"trust_level"`
+	}{`d:\projects\bint`: {TrustLevel: "trusted"}}}
+	if level, ok := c.trustLevel(`D:\Projects\bint`); !ok || level != "trusted" {
+		t.Fatalf("level=%q ok=%v", level, ok)
+	}
+}

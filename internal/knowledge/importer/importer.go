@@ -457,6 +457,9 @@ func clip(s string) string {
 }
 
 // splitFrontmatter tách phần đầu YAML đơn giản (khoá: giá trị chuỗi hoặc danh sách) khỏi nội dung.
+// Dòng "---" đầu tệp chỉ mở frontmatter khi dòng khác rỗng kế tiếp có dạng "khoá:"; nếu không đó là đường kẻ Markdown.
+// Frontmatter không đóng hoặc globs hỏng trả lỗi (không đoán ranh giới, tránh lộ siêu dữ liệu riêng tư vào nội dung);
+// YAML không giải mã được thì đọc lỏng từng dòng "khoá: giá trị" và vẫn giữ nội dung.
 func splitFrontmatter(text string) (map[string]string, string, error) {
 	fm := map[string]string{}
 	first, rest, _ := strings.Cut(text, "\n")
@@ -464,6 +467,16 @@ func splitFrontmatter(text string) (map[string]string, string, error) {
 		return fm, text, nil
 	}
 	parts := strings.Split(rest, "\n")
+	opens := false
+	for _, line := range parts {
+		if strings.TrimSpace(line) != "" {
+			opens = fmKeyRe.MatchString(line)
+			break
+		}
+	}
+	if !opens {
+		return fm, text, nil
+	}
 	end := -1
 	for i, line := range parts {
 		if strings.TrimSpace(line) == "---" {
@@ -475,8 +488,7 @@ func splitFrontmatter(text string) (map[string]string, string, error) {
 		return fm, "", errors.New("frontmatter chưa đóng")
 	}
 	head, tail := strings.Join(parts[:end], "\n"), strings.Join(parts[end+1:], "\n")
-	var raw map[string]any
-	// Cursor dùng cả globs: **/*.go và [**/*.go, internal/**], không phải YAML alias.
+	// Cursor dùng cả globs: **/*.go, {src,lib}/**/*.ts và [**/*.go, internal/**], không phải YAML hợp lệ.
 	// Chỉ chuẩn hoá trường globs nếu YAML chuẩn không giải mã được giá trị đó.
 	lines := strings.Split(head, "\n")
 	for i, line := range lines {
@@ -490,28 +502,43 @@ func splitFrontmatter(text string) (map[string]string, string, error) {
 			continue
 		}
 		// Chỉ hỗ trợ cú pháp glob không trích dẫn, không chữa YAML hỏng.
-		if strings.HasPrefix(value, "[") != strings.HasSuffix(value, "]") ||
-			(!strings.HasPrefix(value, "*") && !strings.HasPrefix(value, "[")) {
+		if strings.HasPrefix(value, "[") != strings.HasSuffix(value, "]") || strings.ContainsAny(value, `"'`) {
 			return fm, "", errors.New("globs không hợp lệ")
 		}
-		value = strings.TrimSuffix(strings.TrimPrefix(value, "["), "]")
+		globs, ok := splitGlobs(strings.TrimSuffix(strings.TrimPrefix(value, "["), "]"))
+		if !ok {
+			return fm, "", errors.New("globs không hợp lệ")
+		}
 		var quoted []string
-		for _, glob := range strings.Split(value, ",") {
-			glob = strings.TrimSpace(glob)
-			var decoded string
-			if err := yaml.Unmarshal([]byte(glob), &decoded); err != nil {
-				if !strings.HasPrefix(glob, "*") || strings.ContainsAny(glob, "\"'[]") {
-					return fm, "", errors.New("globs không hợp lệ")
-				}
-				decoded = glob
+		for _, glob := range globs {
+			if strings.ContainsAny(glob, "[]") {
+				return fm, "", errors.New("globs không hợp lệ")
 			}
-			quoted = append(quoted, fmt.Sprintf("%q", decoded))
+			quoted = append(quoted, fmt.Sprintf("%q", glob))
 		}
 		lines[i] = key + ": [" + strings.Join(quoted, ", ") + "]"
 	}
 	head = strings.Join(lines, "\n")
+	var raw map[string]any
 	if err := yaml.Unmarshal([]byte(head), &raw); err != nil {
-		return fm, tail, err
+		// Ví dụ "description: Run tests: use go test" không phải YAML hợp lệ nhưng ý nghĩa rõ ràng.
+		for _, line := range lines {
+			if !fmKeyRe.MatchString(line) {
+				continue
+			}
+			k, v, _ := strings.Cut(line, ":")
+			v = strings.TrimSpace(v)
+			if len(v) >= 2 && (v[0] == '"' || v[0] == '\'') && v[len(v)-1] == v[0] {
+				v = v[1 : len(v)-1]
+			}
+			if k = strings.TrimSpace(k); k == "globs" {
+				v = strings.TrimSuffix(strings.TrimPrefix(v, "["), "]")
+			}
+			if v != "" {
+				fm[k] = v
+			}
+		}
+		return fm, tail, nil
 	}
 	for k, v := range raw {
 		switch x := v.(type) {
@@ -533,16 +560,81 @@ func splitFrontmatter(text string) (map[string]string, string, error) {
 
 // globList đổi giá trị globs của rule Cursor thành danh sách mẫu đường dẫn hợp lệ trong repository.
 func globList(v string) []string {
+	parts, ok := splitGlobs(v)
+	if !ok {
+		return nil
+	}
 	var out []string
-	for _, p := range strings.Split(v, ",") {
-		p = strings.Trim(strings.TrimSpace(p), `"'`)
-		p = strings.TrimPrefix(strings.ReplaceAll(p, `\`, "/"), "./")
-		if p == "" || knowledge.ValidRelPath(p) != nil || slicesContains(out, p) {
-			continue
+	for _, g := range parts {
+		for _, p := range expandBraces(strings.Trim(g, `"'`)) {
+			p = strings.TrimPrefix(strings.ReplaceAll(strings.TrimSpace(p), `\`, "/"), "./")
+			if p == "" || knowledge.ValidRelPath(p) != nil || slicesContains(out, p) {
+				continue
+			}
+			out = append(out, p)
 		}
-		out = append(out, p)
 	}
 	return out
+}
+
+var fmKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*[ \t]*:`)
+
+// splitGlobs tách danh sách glob theo dấu phẩy nằm ngoài cặp {}; ok=false khi ngoặc nhọn không cân.
+func splitGlobs(v string) (out []string, ok bool) {
+	depth, start := 0, 0
+	push := func(s string) {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	for i, c := range v {
+		switch c {
+		case '{':
+			depth++
+		case '}':
+			if depth--; depth < 0 {
+				return nil, false
+			}
+		case ',':
+			if depth == 0 {
+				push(v[start:i])
+				start = i + 1
+			}
+		}
+	}
+	if depth != 0 {
+		return nil, false
+	}
+	push(v[start:])
+	return out, true
+}
+
+// expandBraces mở rộng {a,b} trong glob (lồng nhau được) thành từng mẫu riêng.
+func expandBraces(p string) []string {
+	open := strings.IndexByte(p, '{')
+	if open < 0 {
+		return []string{p}
+	}
+	depth := 0
+	for i := open; i < len(p); i++ {
+		switch p[i] {
+		case '{':
+			depth++
+		case '}':
+			if depth--; depth == 0 {
+				alts, ok := splitGlobs(p[open+1 : i])
+				if !ok || len(alts) == 0 {
+					return []string{p}
+				}
+				var out []string
+				for _, a := range alts {
+					out = append(out, expandBraces(p[:open]+a+p[i+1:])...)
+				}
+				return out
+			}
+		}
+	}
+	return []string{p}
 }
 
 type block struct{ title, text string }

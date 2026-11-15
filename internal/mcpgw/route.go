@@ -15,9 +15,9 @@ import (
 // này nằm trong worktree tác vụ của Bint được định tuyến sang phân vùng của worktree đó (docs/mcp-gateway-plan.md §5.5).
 var rootArgs = map[string]string{"codegraph": "projectPath"}
 
-// samePath giải alias/symlink trước khi so sánh; Windows không phân biệt hoa thường.
+// samePath so hai đường dẫn đã chuẩn hoá bằng canonPath; Windows không phân biệt hoa thường.
 func samePath(a, b string) bool {
-	a, b = pathutil.BestEffort(a), pathutil.BestEffort(b)
+	a, b = filepath.Clean(a), filepath.Clean(b)
 	if isWindows {
 		return strings.EqualFold(a, b)
 	}
@@ -26,17 +26,14 @@ func samePath(a, b string) bool {
 
 // canonPath giải symlink (và trên Windows tên ngắn 8.3) để so đường dẫn: thư mục trạng thái có thể đi qua symlink hoặc
 // dạng ngắn (TEMP của runner CI là C:\Users\RUNNER~1\..., /var → /private/var trên macOS) trong khi đường dẫn từ git hay
-// tham số của tool là dạng thật. Không giải được (chưa tồn tại) thì chỉ Clean.
+// tham số của tool là dạng thật. Phần chưa tồn tại (worktree vừa bị xoá) giữ nguyên sau tiền tố đã giải được.
 func canonPath(p string) string {
-	if r, err := filepath.EvalSymlinks(p); err == nil {
-		return r
-	}
-	return filepath.Clean(p)
+	return pathutil.BestEffort(p)
 }
 
-// underDir cho biết p nằm dưới dir (không tính chính dir).
+// underDir cho biết p nằm dưới dir (không tính chính dir); hai đường dẫn đã qua canonPath.
 func underDir(dir, p string) bool {
-	rel, err := filepath.Rel(pathutil.BestEffort(dir), pathutil.BestEffort(p))
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(p))
 	if err != nil || rel == "." || filepath.IsAbs(rel) {
 		return false
 	}
@@ -77,13 +74,22 @@ func (d *Daemon) routeFor(ctx context.Context, s *session, params map[string]jso
 // chúng; trả số phân vùng đã nhả. Phân vùng của worktree khác giữ nguyên.
 func (d *Daemon) ReleaseWorktree(wt string) int {
 	wt = canonPath(wt)
+	// Giải đường dẫn (I/O đĩa) ngoài d.mu để không chặn các phiên khác.
 	d.mu.Lock()
-	var ps []*partition
+	var all []*partition
 	for _, p := range d.parts {
-		if p.root != "" && samePath(canonPath(p.root), wt) {
+		if p.root != "" {
+			all = append(all, p)
+		}
+	}
+	d.mu.Unlock()
+	var ps []*partition
+	for _, p := range all {
+		if samePath(canonPath(p.root), wt) {
 			ps = append(ps, p)
 		}
 	}
+	d.mu.Lock()
 	var ss []*session
 	for _, s := range d.sessions {
 		for _, p := range ps {

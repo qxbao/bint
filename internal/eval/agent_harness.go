@@ -163,10 +163,20 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	if r.Err != nil {
 		res.Error = r.Err.Error()
 	}
+	// Lỗi Codex tự báo (turn.failed/error) cụ thể hơn mã thoát; lỗi toàn vẹn luồng
+	// (thiếu turn.completed, dòng hỏng) thì kém cụ thể hơn mã thoát kèm phần cuối log.
+	var integrity string
+	if res.Error == "" {
+		res.Error, integrity = codexStreamErrors(stdout.Bytes(), &res)
+	} else {
+		codexStreamErrors(stdout.Bytes(), &res)
+	}
 	if res.Error == "" && r.ExitCode != 0 && !r.TimedOut {
 		res.Error = "codex thoát với mã " + strconv.Itoa(r.ExitCode) + ": " + truncate(strings.TrimSpace(r.Tail), 300)
 	}
-	parseCodexJSONL(stdout.Bytes(), &res)
+	if res.Error == "" {
+		res.Error = integrity
+	}
 	return res
 }
 
@@ -174,12 +184,25 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 // (item.completed / agent_message), token (turn.completed.usage), lỗi
 // (turn.failed, error). Codex không báo chi phí và số lượt.
 func parseCodexJSONL(out []byte, res *AgentResult) {
+	reported, integrity := codexStreamErrors(out, res)
+	if res.Error == "" {
+		res.Error = reported
+	}
+	if res.Error == "" {
+		res.Error = integrity
+	}
+}
+
+// codexStreamErrors điền Text/token vào res và trả riêng lỗi Codex tự báo (lỗi đầu tiên)
+// và lỗi toàn vẹn luồng (thiếu turn.completed hoặc dòng không phải JSON); không ghi res.Error.
+func codexStreamErrors(out []byte, res *AgentResult) (reported, integrity string) {
 	var in, outTok int64
 	haveUsage := false
 	completed := false
+	malformed := ""
 	fail := func(message string) {
-		if res.Error == "" {
-			res.Error = message
+		if reported == "" {
+			reported = message
 		}
 	}
 	// Run already holds stdout in memory. Slice its lines directly: Scanner
@@ -201,14 +224,17 @@ func parseCodexJSONL(out []byte, res *AgentResult) {
 				InputTokens  int64 `json:"input_tokens"`
 				OutputTokens int64 `json:"output_tokens"`
 			} `json:"usage"`
-			Error *struct {
-				Message string `json:"message"`
-			} `json:"error"`
-			Message string `json:"message"`
+			Error   json.RawMessage `json:"error"` // đối tượng {message} hoặc chuỗi tuỳ phiên bản
+			Message string          `json:"message"`
 		}
-		if err := json.Unmarshal(line, &ev); err != nil {
-			fail("codex JSONL không hợp lệ: " + err.Error())
+		if !json.Valid(line) {
+			if malformed == "" {
+				malformed = "codex JSONL không hợp lệ: " + truncate(string(line), 120)
+			}
 			continue
+		}
+		if json.Unmarshal(line, &ev) != nil {
+			continue // JSON hợp lệ nhưng khác lược đồ (sự kiện mới): bỏ qua như loại sự kiện lạ
 		}
 		switch ev.Type {
 		case "turn.started":
@@ -225,25 +251,48 @@ func parseCodexJSONL(out []byte, res *AgentResult) {
 				outTok += ev.Usage.OutputTokens
 			}
 		case "turn.failed":
-			message := "turn.failed"
-			if ev.Error != nil && ev.Error.Message != "" {
-				message = ev.Error.Message
+			message := codexErrorMessage(ev.Error)
+			if message == "" {
+				message = "turn.failed"
 			}
 			fail("codex báo lỗi: " + truncate(message, 300))
 		case "error":
 			message := ev.Message
+			if message == "" {
+				message = codexErrorMessage(ev.Error)
+			}
 			if message == "" {
 				message = "error"
 			}
 			fail("codex báo lỗi: " + truncate(message, 300))
 		}
 	}
+	// Dòng hỏng chỉ đáng báo khi lượt không kết thúc: nó có thể là sự kiện kết thúc bị cắt.
 	if !completed {
-		fail("codex JSONL thiếu turn.completed")
+		integrity = "codex JSONL thiếu turn.completed"
+		if malformed != "" {
+			integrity = malformed
+		}
 	}
 	if haveUsage {
 		res.InputTokens, res.OutputTokens = &in, &outTok
 	}
+	return reported, integrity
+}
+
+// codexErrorMessage đọc trường error dạng {"message": ...} hoặc chuỗi.
+func codexErrorMessage(raw json.RawMessage) string {
+	var obj struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(raw, &obj) == nil && obj.Message != "" {
+		return obj.Message
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	return ""
 }
 
 type mcpServer struct {

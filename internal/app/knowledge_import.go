@@ -249,11 +249,16 @@ func normKey(s string) string { return strings.ToLower(strings.Join(strings.Fiel
 
 // findDuplicate tìm mục đã có cùng tiêu đề hoặc nội dung. Mục còn hiệu lực là trùng; mục imported (kể cả đã bị từ chối,
 // deprecated) là "đã nhập": chạy lại không tạo lại mục người đã từ chối.
-// Ref chỉ ghi vị trí nguồn; thứ tự/ý tại vị trí đó có thể đổi nên không dùng làm khoá trùng.
+// Ref chỉ ghi vị trí nguồn; thứ tự/ý tại vị trí đó có thể đổi nên Ref một mình không là khoá trùng. Cùng Ref và nội
+// dung gần giống (sửa lỗi chính tả, đổi vài từ) thì vẫn là "đã nhập", để sửa nhỏ ở nguồn không hồi sinh mục đã từ chối.
 func findDuplicate(all []*knowledge.Item, idea importer.Idea) (it *knowledge.Item, imported bool) {
 	nt, nb := normKey(idea.Title), normKey(idea.Body)
 	for _, o := range all {
 		same := (nt != "" && normKey(o.Title) == nt) || (nb != "" && normKey(o.Body) == nb)
+		if !same && o.Origin.Kind == knowledge.OriginImported && slices.Contains(o.Origin.Inputs, idea.Ref) &&
+			nearText(o.Body, idea.Body) {
+			return o, true
+		}
 		if !same {
 			continue
 		}
@@ -265,6 +270,27 @@ func findDuplicate(all []*knowledge.Item, idea importer.Idea) (it *knowledge.Ite
 		}
 	}
 	return nil, false
+}
+
+// nearText cho biết hai văn bản gần như cùng một ý: hệ số Jaccard của tập từ (chữ thường) từ 0.75 trở lên.
+func nearText(a, b string) bool {
+	wa, wb := map[string]bool{}, map[string]bool{}
+	for _, w := range strings.Fields(strings.ToLower(a)) {
+		wa[w] = true
+	}
+	for _, w := range strings.Fields(strings.ToLower(b)) {
+		wb[w] = true
+	}
+	if len(wa) == 0 || len(wb) == 0 {
+		return false
+	}
+	inter := 0
+	for w := range wa {
+		if wb[w] {
+			inter++
+		}
+	}
+	return float64(inter) >= 0.75*float64(len(wa)+len(wb)-inter)
 }
 
 func planHash(p *ImportPlan) string {

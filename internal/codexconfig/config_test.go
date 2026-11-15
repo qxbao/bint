@@ -49,3 +49,39 @@ func TestProjectRootAbsoluteMarkers(t *testing.T) {
 		})
 	}
 }
+
+func TestTrustLevelToleratesUncleanKeys(t *testing.T) {
+	dir := canonical(t.TempDir())
+	type proj = struct {
+		TrustLevel string `toml:"trust_level"`
+	}
+	for _, key := range []string{dir + string(filepath.Separator), filepath.ToSlash(dir) + "/"} {
+		c := Config{Projects: map[string]proj{key: {TrustLevel: "trusted"}}}
+		if level, ok := c.trustLevel(dir); !ok || level != "trusted" {
+			t.Fatalf("key %q: level=%q ok=%v", key, level, ok)
+		}
+	}
+	c := Config{Projects: map[string]proj{dir + "/": {TrustLevel: "trusted"}, dir + "//": {TrustLevel: "untrusted"}}}
+	if level, _ := c.trustLevel(dir); level != "untrusted" {
+		t.Fatalf("conflicting keys must deny: %q", level)
+	}
+}
+
+func TestDotGitRootsLinkedWorktree(t *testing.T) {
+	main := canonical(t.TempDir())
+	wt := canonical(t.TempDir())
+	admin := filepath.Join(main, ".git", "worktrees", "wt")
+	if err := os.MkdirAll(admin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(admin, "commondir"), []byte("../..\n"), 0o600)
+	os.WriteFile(filepath.Join(wt, ".git"), []byte("gitdir: "+filepath.ToSlash(admin)+"\n"), 0o600)
+	sub := filepath.Join(wt, "sub")
+	os.Mkdir(sub, 0o700)
+	if root, m := dotGitRoots(sub); root != wt || m != main {
+		t.Fatalf("dotGitRoots = %q, %q; want %q, %q", root, m, wt, main)
+	}
+	if root, m := dotGitRoots(main); root != main || m != main {
+		t.Fatalf("main: %q, %q", root, m)
+	}
+}

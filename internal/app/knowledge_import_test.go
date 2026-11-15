@@ -430,3 +430,23 @@ func TestImportPrivateFrontmatterWhitespaceDelimiter(t *testing.T) {
 		t.Fatalf("private source persisted with whitespace delimiter: result=%+v items=%+v", got, items)
 	}
 }
+
+func TestImportSmallSourceEditStaysImported(t *testing.T) {
+	k, _ := importRepo(t)
+	source := filepath.Join(t.TempDir(), "notes.md")
+	writeFile(t, source, "- Always open SQLite using `OpenStore` to preserve its busy timeout setting.\n")
+	opts := ImportOptions{From: source}
+	first, err := ImportKnowledge(context.Background(), k, opts)
+	if err != nil || len(first.IDs) != 1 {
+		t.Fatalf("first import: %+v, %v", first, err)
+	}
+	// Sửa lỗi chính tả ở nguồn: không tạo lại ý đã nhập (và có thể đã bị người từ chối).
+	writeFile(t, source, "- Always open SQLite using `OpenStore` to preserve its busy-timeout setting.\n")
+	plan, err := PlanImport(context.Background(), k, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Ideas) != 1 || plan.Ideas[0].Reason != importer.SkipAlreadyImported {
+		t.Fatalf("small edit at the same Ref must stay imported: %+v", plan.Ideas)
+	}
+}

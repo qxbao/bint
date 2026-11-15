@@ -339,3 +339,30 @@ func TestWorkStateKeepsDurableStatusAndDeadline(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitFrontmatterLenientKeepsBody(t *testing.T) {
+	const rule = "Always use `OpenStore` for all database operations in this repository."
+	t.Run("claude invalid yaml", func(t *testing.T) {
+		got := Split(knowledge.ImportClaudeMemory, "note.md", []byte("---\nname: tests\ndescription: Run tests: use go test ./...\n---\n"+rule+"\n"))
+		if len(got) != 1 || got[0].Skip == SkipCheckFailed || !strings.Contains(got[0].Body, "OpenStore") {
+			t.Fatalf("invalid YAML must keep body: %+v", got)
+		}
+	})
+	t.Run("cursor brace globs", func(t *testing.T) {
+		got := Split(knowledge.ImportCursorRules, "r.mdc", []byte("---\nglobs: {src,lib}/**/*.ts\n---\n"+rule+"\n"))
+		if len(got) != 1 || got[0].Skip == SkipCheckFailed {
+			t.Fatalf("brace globs must import: %+v", got)
+		}
+		if want := []string{"src/**/*.ts", "lib/**/*.ts"}; strings.Join(got[0].Paths, " ") != strings.Join(want, " ") {
+			t.Fatalf("paths = %v, want %v", got[0].Paths, want)
+		}
+	})
+	t.Run("leading horizontal rule", func(t *testing.T) {
+		for _, data := range []string{"---\n# Notes\n\n" + rule + "\n", "---\n\n" + rule + "\n\n---\n\nSecond paragraph about `OpenStore` usage rules.\n"} {
+			got := Split(knowledge.ImportFile, "notes.md", []byte(data))
+			if len(got) == 0 || got[0].Skip == SkipCheckFailed || !strings.Contains(got[0].Body, "OpenStore") {
+				t.Fatalf("horizontal rule must not be frontmatter: %q -> %+v", data, got)
+			}
+		}
+	})
+}

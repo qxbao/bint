@@ -215,3 +215,34 @@ func TestCitationApprovalConfigured(t *testing.T) {
 		})
 	}
 }
+
+func TestHooksCurrentDetectsStaleMatcher(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.json")
+	stale := `{"hooks":{
+"SessionStart":[{"hooks":[{"type":"command","command":"bint hook codex"}]}],
+"SessionEnd":[{"hooks":[{"type":"command","command":"bint hook codex"}]}],
+"PreToolUse":[{"matcher":"apply_patch|Bash|shell|exec_command","hooks":[{"type":"command","command":"bint hook codex"}]}],
+"PostToolUse":[{"matcher":"apply_patch|Bash|shell|exec_command|mcp__bint__.*","hooks":[{"type":"command","command":"bint hook codex"}]}]}}`
+	if err := os.WriteFile(path, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := HooksInstalled(path); err != nil || !ok {
+		t.Fatalf("stale install must still count as installed: %v %v", ok, err)
+	}
+	if ok, err := HooksCurrent(path); err != nil || ok {
+		t.Fatalf("stale matcher must not be current: %v %v", ok, err)
+	}
+	b, _ := json.Marshal(map[string]any{"hooks": desiredGroupsList("bint hook codex")})
+	os.WriteFile(path, b, 0o644)
+	if ok, err := HooksCurrent(path); err != nil || !ok {
+		t.Fatalf("fresh install must be current: %v %v", ok, err)
+	}
+}
+
+func desiredGroupsList(cmd string) map[string][]map[string]any {
+	out := map[string][]map[string]any{}
+	for ev, g := range desiredGroups(cmd) {
+		out[ev] = []map[string]any{g}
+	}
+	return out
+}
