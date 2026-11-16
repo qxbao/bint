@@ -1,0 +1,5 @@
+01M7H9FPFY3NYKEB3W4MS20FM1: codegraph.db .gitignore 
+01M7H9FZQ6JACTH163E6NSH985: codegraph.db .gitignore 
+codegraph.db
+daemon.log
+.gitignore

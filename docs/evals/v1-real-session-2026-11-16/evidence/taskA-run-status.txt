@@ -1,0 +1,17 @@
+Tác vụ 01M7H9FPFY3NYKEB3W4MS20FM1: done — b-do finalize
+  Thêm test hồi quy cho workflow.CopyCodegraphIndex: thư mục .codegraph của repo gốc có daemon.log (và daemon.sock, *.pid, codegraph.db-wal, codegraph.db-shm) thì worktree đích chỉ nhận .gitignore và c…
+  Cô lập:     worktree (user)
+  Cô lập:       worktree riêng được tạo ở lần chạy đầu (bint run); thay đổi về cây này bằng bint task land 01M7H9FPFY3NYKEB3W4MS20FM1
+  Worktree:    /home/baodq/.local/state/bint/bint-343594b3689e/worktrees/01M7H9FPFY3NYKEB3W4MS20FM1   nhánh bint/01M7H9FPFY3NYKEB3W4MS20FM1
+  Cây gốc:     /mnt/01DCE9A4D6522BD0/Project/Go/bint
+  Đưa về:      đã đưa 1 tệp lúc 2026-11-16 12:02 bởi agent
+  Driver:      session (user) — bint run next 01M7H9FPFY3NYKEB3W4MS20FM1 --json
+
+RUN ID                      WORKFLOW  CHA      TRẠNG THÁI  BẮT ĐẦU           THỜI LƯỢNG  CHI PHÍ  KIỂM CHỨNG
+01M7H8S396J7S5H7H1X72AR8RH  session   …-       running     2026-11-16 11:10  -           -        -
+01M7H9G4WFVNS0D5QYE48BQ9Q0  b-do      …-       completed   2026-11-16 11:22  0s          -        -
+01M7HA7213J8YYK05CVYV4PCA4  b-do      …8BQ9Q0  completed   2026-11-16 11:35  0s          -        -
+01M7HAG51ECM42D9580X85JDFY  b-do      …V4PCA4  completed   2026-11-16 11:40  15m27s      0.5470   failed
+01M7HAG7ZQNT7TKW0RRD06DQYE  b-feat    …85JDFY  completed   2026-11-16 11:40  4m9s        0.1222   -
+01M7HB4XV0MR5C6MJTPRNMSRNX  b-review  …85JDFY  completed   2026-11-16 11:51  4m6s        0.4248   -
+01M7HBEG85P0GFQYQT7X7FPND7  b-do      …NMSRNX  completed   2026-11-16 11:57  5m30s       -        passed

@@ -1,0 +1,5 @@
+# PSS (kB) 2026-11-16T12:03:23+07:00
+gateway daemon 1145874: 14013
+codegraph tree 1342969 (5 proc): 363041
+codegraph tree 1145901 (3 proc): 67390
+bint mcp serve shims (6): 59164

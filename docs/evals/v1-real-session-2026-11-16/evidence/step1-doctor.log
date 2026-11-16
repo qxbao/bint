@@ -1,0 +1,25 @@
+  ✓  git                 2.43.0
+  ✓  repository          /mnt/01DCE9A4D6522BD0/Project/Go/bint (worktree chính)
+  ✓  sqlite fts5         khả dụng (modernc.org/sqlite, không cần CGO)
+  ✓  cấu hình            hợp lệ, schema v1 (/mnt/01DCE9A4D6522BD0/Project/Go/bint/.bint/config.yml → /mnt/01DCE9A4D6522BD0/Project/Go/bint/.bint/local.yml)
+  ✓  thư mục trạng thái  /home/baodq/.local/state/bint/bint-343594b3689e (dùng chung cho mọi worktree)
+  ✓  cơ sở dữ liệu       schema v9/9, journal=wal
+  ✓  spool               0 tệp chờ nạp
+  ✓  harness claude      /home/baodq/.local/bin/claude — cấp 3 (Programmatic Execution), xem `bint harness show claude`
+  ✓  hook claude         phạm vi local
+  ✓  MCP claude          đã đăng ký
+  ✓  harness codex       /home/baodq/.local/bin/codex — cấp 3 (Programmatic Execution), xem `bint harness show codex`
+  ✓  hook codex          phạm vi local
+  ✓  MCP codex           đã đăng ký
+  !  codex sandbox       phiên Codex tương tác (sandbox workspace-write) không ghi được /home/baodq/.local/state/bint/bint-343594b3689e nên lệnh `bint` do agent chạy (task, knowledge, events ingest...) báo Access denied/readonly database; thêm vào ~/.codex/config.toml (gộp vào bảng sẵn có nếu đã có):
+[sandbox_workspace_write]
+writable_roots = ['/home/baodq/.local/state/bint']
+  ✓  harness antigravity        /home/baodq/.local/bin/agy — cấp 3 (Programmatic Execution), xem `bint harness show antigravity`
+  ✓  hook antigravity           phạm vi local
+  ✓  MCP codegraph              đã đăng ký trên máy
+  ✓  MCP deepwiki               đã đăng ký trên máy
+  ✓  MCP specmatic              đã đăng ký trên máy
+  ✓  .gitignore                 có khối bint
+  ✓  lệnh kiểm thử              go test -count=1 -timeout 30m ./...
+  ✓  tri thức                   52 mục: 46 verified, 0 candidate, 0 stale
+  ✓  phiên bản skill            khớp: core.lock 0.1.0-dev (283fc90, 2026-11-16T04:08:32Z, sửa), bint đang chạy 0.1.0-dev (6e84247, 2026-11-16T04:17:49Z)

@@ -1,0 +1,73 @@
+{
+  "running": true,
+  "dir": "/home/baodq/.local/state/bint/gateway",
+  "status": {
+    "pid": 981865,
+    "port": 46317,
+    "version": "0.1.0-dev",
+    "started_at": "2026-11-16T04:40:28.92465109Z",
+    "uptime_sec": 435,
+    "sessions": 14,
+    "dropped_events": 11,
+    "upstreams": [
+      {
+        "service": "codegraph",
+        "partition": "/home/baodq/.local/state/bint/bint-343594b3689e/worktrees/01M7H9FZQ6JACTH163E6NSH985",
+        "share": "worktree",
+        "running": true,
+        "generation": 1,
+        "pid": 992851,
+        "rss_kb": 174444,
+        "pss_kb": 66379,
+        "sessions": 0,
+        "inflight": 0,
+        "restarts": 0,
+        "last_call": {
+          "at": "2026-11-16T04:46:19.709932637Z",
+          "tool": "codegraph_search",
+          "outcome": "ok",
+          "duration_ms": 95
+        }
+      },
+      {
+        "service": "codegraph",
+        "partition": "/mnt/01DCE9A4D6522BD0/Project/Go/bint",
+        "share": "worktree",
+        "running": true,
+        "generation": 1,
+        "pid": 1016554,
+        "rss_kb": 175144,
+        "pss_kb": 66143,
+        "sessions": 5,
+        "inflight": 0,
+        "restarts": 0,
+        "last_call": {
+          "at": "2026-11-16T04:47:15.036113456Z",
+          "tool": "codegraph_status",
+          "outcome": "ok",
+          "duration_ms": 626
+        }
+      },
+      {
+        "service": "deepwiki",
+        "partition": "remote",
+        "share": "remote",
+        "running": false,
+        "generation": 0,
+        "sessions": 5,
+        "inflight": 0,
+        "restarts": 0
+      },
+      {
+        "service": "specmatic",
+        "partition": "/mnt/01DCE9A4D6522BD0/Project/Go/bint",
+        "share": "worktree",
+        "running": false,
+        "generation": 0,
+        "sessions": 4,
+        "inflight": 0,
+        "restarts": 0
+      }
+    ]
+  }
+}

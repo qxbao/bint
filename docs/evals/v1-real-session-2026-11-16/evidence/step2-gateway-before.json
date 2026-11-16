@@ -1,0 +1,35 @@
+{
+  "running": true,
+  "dir": "/home/baodq/.local/state/bint/gateway",
+  "status": {
+    "pid": 846096,
+    "port": 45851,
+    "version": "0.1.0-dev",
+    "started_at": "2026-11-16T04:10:01.549635874Z",
+    "uptime_sec": 740,
+    "sessions": 8,
+    "dropped_events": 0,
+    "upstreams": [
+      {
+        "service": "codegraph",
+        "partition": "/mnt/01DCE9A4D6522BD0/Project/Go/bint",
+        "share": "worktree",
+        "running": false,
+        "generation": 0,
+        "sessions": 4,
+        "inflight": 0,
+        "restarts": 0
+      },
+      {
+        "service": "deepwiki",
+        "partition": "remote",
+        "share": "remote",
+        "running": false,
+        "generation": 0,
+        "sessions": 4,
+        "inflight": 0,
+        "restarts": 0
+      }
+    ]
+  }
+}

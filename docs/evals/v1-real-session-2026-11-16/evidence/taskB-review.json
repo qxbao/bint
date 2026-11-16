@@ -1,0 +1,54 @@
+{
+  "task_id": "01M7H9FZQ6JACTH163E6NSH985",
+  "rounds": [
+    {
+      "round": 1,
+      "at": "2026-11-16T05:09:27Z",
+      "by": "agent",
+      "base": "b91c7d210a6a4e680d2d7d07364c1ea0a16a920c",
+      "summary": "Thay đổi đúng hướng và đạt tiêu chí 1–4 về logic (hạn riêng từng tool, tiến trình gắn ctx cha, phản hồi muộn bị dispatch bỏ qua, nhánh huỷ của người gọi vẫn là lỗi truyền tải); còn rủi ro về trần thời gian tổng, hạn 20 s lệch kế hoạch và test có hạn khởi tạo 2 s dễ chập chờn trên Windows. Tiêu chí 5 chưa đạt do TestDocCommandsExist đỏ sẵn từ commit docs 78dba2c (docs/README.md:37), không do tác vụ này.",
+      "findings": [
+        {
+          "id": "01M7H9FZQ6JACTH163E6NSH985.1",
+          "kind": "risk",
+          "severity": "medium",
+          "title": "Bỏ trần thời gian tổng của check codegraph, trường hợp upstream kẹt kéo dài khoảng 190 s",
+          "path": "internal/app/mcp_svc.go",
+          "lines": "596-613",
+          "evidence": "Trước đây mọi lời gọi chung cctx 30 s. Nay mỗi tool có hạn 20 s từ ctx cha, và cả ba đường gọi (CLI newMCPCheckCmd, MCPAdd, TUI runMCPCheck) đều truyền ctx không có hạn. Codegraph có 8 tool (catalog.go:92-95), nên thời gian xấu nhất là 30 s + 8 x 20 s. Đây đúng là trường hợp hay gặp: upstream xử lý tuần tự đang kẹt (daemon bận hoặc treo) thì yêu cầu đầu treo, và mọi yêu cầu sau xếp hàng sau nó nên cũng treo. Probe không gửi notifications/cancelled nên upstream không biết để bỏ yêu cầu đã quá hạn. bint mcp add sẽ chặn khoảng 3 phút mà không in tiến độ.",
+          "body": "Nên giữ một cận tổng, chẳng hạn ngừng gọi thử sau 2 tool quá hạn liên tiếp rồi báo các tool còn lại là chưa thử, hoặc đặt trần tổng cho cả phần gọi thử. Cũng có thể gửi notifications/cancelled cho yêu cầu quá hạn. Nếu chấp nhận thời gian xấu nhất này thì ghi rõ trong Long của bint mcp check."
+        },
+        {
+          "id": "01M7H9FZQ6JACTH163E6NSH985.2",
+          "kind": "risk",
+          "severity": "low",
+          "title": "mcpProbeToolTimeout = 20 s ngắn hơn ngân sách cũ và lệch kế hoạch (30 s)",
+          "path": "internal/app/mcp_svc.go",
+          "lines": "66-68",
+          "evidence": "plan.md mục 2 chọn 30 s để mọi tool đang qua hôm nay vẫn qua, vì trước đây một tool có trọn 30 s khi các bước khác nhanh. Bản cài đặt dùng 20 s mà không ghi lý do. Một tool trả trong 20–30 s, ví dụ lời gọi đầu tiên khi daemon codegraph còn nạp chỉ mục, trước qua nay thành degraded với nội dung 'quá hạn'.",
+          "body": "Dùng 30 s như kế hoạch, hoặc ghi lý do chọn 20 s trong chú thích và trong tài liệu nghiệm thu."
+        },
+        {
+          "id": "01M7H9FZQ6JACTH163E6NSH985.3",
+          "kind": "risk",
+          "severity": "low",
+          "title": "Test đặt mcpCheckTimeout = 2 s cho cả khởi động bản giả, dễ chập chờn trên Windows hoặc khi chạy -race",
+          "path": "internal/app/mcp_svc_test.go",
+          "lines": "499-502",
+          "evidence": "Bản giả là chính tệp test (fakeExe, os.Executable). Hạn cctx 2 s phải đủ cho lần khởi động tiến trình đầu cùng initialize và tools/list. Trên Windows, tệp thực thi kiểm thử bị Defender quét, và với -race tiến trình khởi động chậm (k:01M7CJ92ZB2DRYYHGFBQABYM9D, k:01M78968T95MDQSK472NC5XQT9). Nếu initialize vượt 2 s thì check trả fail và test đỏ mà không liên quan tới hạn của tool. Các test cũ dùng hạn mặc định 30 s cho bước khởi tạo.",
+          "body": "Tăng cả hai giá trị, giữ điều kiện mcpCheckTimeout \u003c 2 x mcpProbeToolTimeout, ví dụ mcpCheckTimeout = 5 s và mcpProbeToolTimeout = 3 s. Test chạy khoảng 6 s nhưng có dư cho bước khởi tạo."
+        },
+        {
+          "id": "01M7H9FZQ6JACTH163E6NSH985.4",
+          "kind": "suggestion",
+          "severity": "low",
+          "title": "Test một tool treo không kiểm rằng tool đứng sau vẫn được gọi",
+          "path": "internal/app/mcp_svc_test.go",
+          "lines": "526-543",
+          "evidence": "TestMCPCheckCodegraphHungToolNamedOnly chỉ treo codegraph_search và kiểm Detail không nêu tool khác. Việc gọi tiếp các tool sau chỉ được TestMCPCheckCodegraphHungToolHasOwnTimeout phủ, thông qua codegraph_callers bị tắt.",
+          "body": "Có thể thêm BINT_FAKE_DISABLED cho một tool đứng sau codegraph_search, ví dụ codegraph_files, để test này tự phủ cả tiêu chí 2."
+        }
+      ]
+    }
+  ]
+}

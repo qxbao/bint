@@ -1,0 +1,11 @@
+{
+  "action": "done",
+  "task_id": "01M7H9FPFY3NYKEB3W4MS20FM1",
+  "task_status": "done",
+  "reason": "b-do finalize",
+  "notes": [
+    "worktree không đổi kể từ lúc finalize bị chặn: không review lại, chạy lại kiểm chứng một lần",
+    "đã tự kiểm chứng lại một lần (tiếp tục sau khi finalize bị chặn (worktree không đổi, không review lại)) → qua",
+    "đã đưa 1 tệp về cây gốc /mnt/01DCE9A4D6522BD0/Project/Go/bint; kiểm chứng đã chạy trên cây cô lập (worktree), cây gốc có thể còn thay đổi khác chưa được kiểm cùng"
+  ]
+}

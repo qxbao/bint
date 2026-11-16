@@ -1,0 +1,18 @@
+Tác vụ 01M7H9FZQ6JACTH163E6NSH985: done — b-do finalize
+  bint mcp check codegraph: mọi lời gọi thử (initialize, tools/list và từng tool của danh mục) đang dùng chung một hạn mcpCheckTimeout (30 s) tạo ở internal/app/mcp_svc.go, nên một tool chậm làm các lờ…
+  Cô lập:     worktree (user)
+  Cô lập:       worktree riêng được tạo ở lần chạy đầu (bint run); thay đổi về cây này bằng bint task land 01M7H9FZQ6JACTH163E6NSH985
+  Worktree:    /home/baodq/.local/state/bint/bint-343594b3689e/worktrees/01M7H9FZQ6JACTH163E6NSH985   nhánh bint/01M7H9FZQ6JACTH163E6NSH985
+  Cây gốc:     /mnt/01DCE9A4D6522BD0/Project/Go/bint
+  Đưa về:      đã đưa 3 tệp lúc 2026-11-16 12:32 bởi agent
+  Driver:      session (user) — bint run next 01M7H9FZQ6JACTH163E6NSH985 --json
+
+RUN ID                      WORKFLOW  CHA      TRẠNG THÁI  BẮT ĐẦU           THỜI LƯỢNG  CHI PHÍ  KIỂM CHỨNG
+01M7H9G52810AQ48V5SQ6FQ8CY  b-do      …-       completed   2026-11-16 11:22  0s          -        -
+01M7HA727QXH92V4N08T6ESXWD  b-do      …6FQ8CY  completed   2026-11-16 11:35  0s          -        -
+01M7HAG872XFGXT0DPKSA2FSQ0  b-do      …6ESXWD  completed   2026-11-16 11:40  29m21s      2.6460   failed
+01M7HAG9TT7M3BSCYJNJ4629F4  b-req     …A2FSQ0  completed   2026-11-16 11:40  8m50s       1.3462   -
+01M7HB0MYX7YV0J6KC2RJM6H4R  b-feat    …A2FSQ0  completed   2026-11-16 11:49  13m17s      0.4338   -
+01M7HBY0GFBGN3T9FNFWGM1ZW0  b-review  …A2FSQ0  completed   2026-11-16 12:05  4m22s       0.8660   -
+01M7HCYCRSV8STCXJVEG4D4RHC  b-do      …GM1ZW0  completed   2026-11-16 12:23  3m36s       -        failed
+01M7HD7YWY2FGEEFBNST2MW8WK  b-do      …4D4RHC  completed   2026-11-16 12:28  3m58s       -        passed

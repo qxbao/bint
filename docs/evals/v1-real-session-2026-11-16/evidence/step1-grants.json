@@ -1,0 +1,328 @@
+[
+  {
+    "role": "implementer",
+    "tools": [
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "read_wiki_structure",
+        "agent": "wiki_read_wiki_structure"
+      },
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "read_wiki_contents",
+        "agent": "wiki_read_wiki_contents"
+      },
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "ask_wiki_question",
+        "agent": "wiki_ask_wiki_question"
+      },
+      {
+        "service": "codegraph",
+        "group": "explore",
+        "upstream": "codegraph_explore",
+        "agent": "cg_explore"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_node",
+        "agent": "cg_node"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_search",
+        "agent": "cg_search"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_callers",
+        "agent": "cg_callers"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_callees",
+        "agent": "cg_callees"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_impact",
+        "agent": "cg_impact"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_files",
+        "agent": "cg_files"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_status",
+        "agent": "cg_status"
+      },
+      {
+        "service": "specmatic",
+        "group": "compat",
+        "upstream": "backward_compatibility_check",
+        "agent": "spec_backward_compatibility_check"
+      },
+      {
+        "service": "specmatic",
+        "group": "contract",
+        "upstream": "run_contract_test",
+        "agent": "spec_run_contract_test"
+      },
+      {
+        "service": "specmatic",
+        "group": "contract",
+        "upstream": "run_resiliency_test",
+        "agent": "spec_run_resiliency_test"
+      },
+      {
+        "service": "specmatic",
+        "group": "mock",
+        "upstream": "manage_mock_server",
+        "agent": "spec_manage_mock_server"
+      }
+    ]
+  },
+  {
+    "role": "interactive",
+    "tools": [
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "read_wiki_structure",
+        "agent": "wiki_read_wiki_structure"
+      },
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "read_wiki_contents",
+        "agent": "wiki_read_wiki_contents"
+      },
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "ask_wiki_question",
+        "agent": "wiki_ask_wiki_question"
+      },
+      {
+        "service": "codegraph",
+        "group": "explore",
+        "upstream": "codegraph_explore",
+        "agent": "cg_explore"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_node",
+        "agent": "cg_node"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_search",
+        "agent": "cg_search"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_callers",
+        "agent": "cg_callers"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_callees",
+        "agent": "cg_callees"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_impact",
+        "agent": "cg_impact"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_files",
+        "agent": "cg_files"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_status",
+        "agent": "cg_status"
+      },
+      {
+        "service": "specmatic",
+        "group": "compat",
+        "upstream": "backward_compatibility_check",
+        "agent": "spec_backward_compatibility_check"
+      }
+    ]
+  },
+  {
+    "role": "planner",
+    "tools": [
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "read_wiki_structure",
+        "agent": "wiki_read_wiki_structure"
+      },
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "read_wiki_contents",
+        "agent": "wiki_read_wiki_contents"
+      },
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "ask_wiki_question",
+        "agent": "wiki_ask_wiki_question"
+      },
+      {
+        "service": "codegraph",
+        "group": "explore",
+        "upstream": "codegraph_explore",
+        "agent": "cg_explore"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_node",
+        "agent": "cg_node"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_search",
+        "agent": "cg_search"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_callers",
+        "agent": "cg_callers"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_callees",
+        "agent": "cg_callees"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_impact",
+        "agent": "cg_impact"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_files",
+        "agent": "cg_files"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_status",
+        "agent": "cg_status"
+      },
+      {
+        "service": "specmatic",
+        "group": "compat",
+        "upstream": "backward_compatibility_check",
+        "agent": "spec_backward_compatibility_check"
+      }
+    ]
+  },
+  {
+    "role": "reviewer",
+    "tools": [
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "read_wiki_structure",
+        "agent": "wiki_read_wiki_structure"
+      },
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "read_wiki_contents",
+        "agent": "wiki_read_wiki_contents"
+      },
+      {
+        "service": "deepwiki",
+        "group": "read",
+        "upstream": "ask_wiki_question",
+        "agent": "wiki_ask_wiki_question"
+      },
+      {
+        "service": "codegraph",
+        "group": "explore",
+        "upstream": "codegraph_explore",
+        "agent": "cg_explore"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_node",
+        "agent": "cg_node"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_search",
+        "agent": "cg_search"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_callers",
+        "agent": "cg_callers"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_callees",
+        "agent": "cg_callees"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_impact",
+        "agent": "cg_impact"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_files",
+        "agent": "cg_files"
+      },
+      {
+        "service": "codegraph",
+        "group": "query",
+        "upstream": "codegraph_status",
+        "agent": "cg_status"
+      },
+      {
+        "service": "specmatic",
+        "group": "compat",
+        "upstream": "backward_compatibility_check",
+        "agent": "spec_backward_compatibility_check"
+      }
+    ]
+  }
+]

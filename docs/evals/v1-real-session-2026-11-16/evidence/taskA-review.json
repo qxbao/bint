@@ -1,0 +1,34 @@
+{
+  "task_id": "01M7H9FPFY3NYKEB3W4MS20FM1",
+  "rounds": [
+    {
+      "round": 1,
+      "at": "2026-11-16T04:55:22Z",
+      "by": "agent",
+      "base": "23099a9c658c7446e24d81ac76ce82f461db843b",
+      "summary": "Test hồi quy mới TestCopyCodegraphIndexSkipsDaemonFiles đúng yêu cầu, đúng phạm vi (chỉ codegraph_copy_test.go, không đổi mã); kiểm chứng đỏ do TestDocCommandsExist trên docs/README.md của commit base, không do thay đổi này.",
+      "findings": [
+        {
+          "id": "01M7H9FPFY3NYKEB3W4MS20FM1.1",
+          "kind": "risk",
+          "severity": "low",
+          "title": "Kiểm chứng go test ./... đỏ vì docs/README.md trong commit base, không liên quan tác vụ",
+          "path": "docs/README.md",
+          "lines": "37",
+          "evidence": "verify-1.log: --- FAIL: TestDocCommandsExist, docs/README.md:37 `bint flow` không có lệnh con simulate. docs/README.md nằm trong commit base 23099a9 (bint base chụp thay đổi chưa commit của cây gốc), không có trong bint task diff; internal/workflow ok 279s.",
+          "body": "Không sửa trong tác vụ này (ngoài scope). Tác vụ không thể done khi verify còn đỏ: người cần sửa/hoãn dòng docs/README.md:37 ở cây gốc (hoặc thêm lệnh flow simulate) rồi chạy lại kiểm chứng."
+        },
+        {
+          "id": "01M7H9FPFY3NYKEB3W4MS20FM1.2",
+          "kind": "suggestion",
+          "severity": "low",
+          "title": "Mồi -wal/-shm có nhánh âm thầm ghi rác nếu SQLite chưa tạo, nên test không chốt được nguồn có WAL thật",
+          "path": "internal/workflow/codegraph_copy_test.go",
+          "lines": "79-88",
+          "evidence": "Vòng lặp extras bỏ qua tệp đã tồn tại, ngược lại ghi 'rác daemon' cho mọi tên kể cả codegraph.db-wal/-shm; bước chốt nguồn ở dòng 90-94 chỉ kiểm os.Stat nên không phân biệt WAL thật với rác.",
+          "body": "Có thể kiểm riêng codegraph.db-wal và codegraph.db-shm phải tồn tại trước vòng ghi rác (t.Fatalf nếu thiếu) để test luôn mồi bằng WAL thật như chú thích nói. Cũng có thể gộp phần dựng DB WAL trùng với TestCopyCodegraphIndexConsistent thành helper."
+        }
+      ]
+    }
+  ]
+}
