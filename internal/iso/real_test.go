@@ -20,6 +20,7 @@ func TestRealEnvOutsideProfileUnchanged(t *testing.T) {
 }
 
 func TestRealEnvInsideProfile(t *testing.T) {
+	unixLayoutOnly(t)
 	r := newFakeReal(t)
 	set := defaultSettings(t, nil)
 	p := profileAt(filepath.Join(r.Dir, "s"), Claude, "w", set, LB{})

@@ -3,6 +3,7 @@ package iso
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -52,7 +53,21 @@ func newFakeReal(t *testing.T) fakeReal {
 		"BINT_STATE_DIR=" + r.State, "BINT_CONFIG_HOME=" + r.Cfg, "TMPDIR=" + r.Tmp,
 		"XDG_CACHE_HOME=" + filepath.Join(d, "xcache"),
 	}
+	if runtime.GOOS == "windows" {
+		// Home thật trên Windows là USERPROFILE (realHomeOf); thiếu nó thì Sync/Status/OpenStore báo lỗi home.
+		r.Env = append(r.Env, "USERPROFILE="+r.Home)
+	}
 	return r
+}
+
+// unixLayoutOnly bỏ qua test so bảng env/danh mục theo bố cục Unix (đường dẫn viết bằng "/", giá trị như
+// "/real/gomod" phải tuyệt đối). Trên Windows filepath đổi dấu phân cách và coi "/x" là tương đối, nên bảng
+// đó không có nghĩa; nhánh Windows được kiểm ở TestEnvWindowsTable.
+func unixLayoutOnly(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("bảng bố cục Unix; Windows kiểm ở TestEnvWindowsTable")
+	}
 }
 
 // envMap đổi env thành map (khoá nguyên văn).

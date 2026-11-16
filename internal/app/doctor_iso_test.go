@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -68,6 +69,9 @@ func TestDoctorIsoWarnsOnShareConflict(t *testing.T) {
 	root := sysRepo(t, InitOptions{})
 	p := isoTestProfile(t)
 	cache := filepath.Join(p.Home, ".npm")
+	if runtime.GOOS == "windows" {
+		cache = filepath.Join(p.Home, "AppData", "Local", "npm-cache") // chỗ liên kết npm của danh mục Windows
+	}
 	if err := os.MkdirAll(cache, 0o755); err != nil {
 		t.Fatal(err)
 	}

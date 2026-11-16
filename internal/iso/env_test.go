@@ -53,6 +53,7 @@ var credentialKeys = func() []string {
 }()
 
 func TestEnvLinuxTable(t *testing.T) {
+	unixLayoutOnly(t)
 	r := newFakeReal(t)
 	root := filepath.Join(r.Dir, "isoroot")
 	base := append(slices.Clone(r.Env), credentialEnv()...)
@@ -199,6 +200,7 @@ func TestEnvStripListPinned(t *testing.T) {
 }
 
 func TestEnvNestedProfile(t *testing.T) {
+	unixLayoutOnly(t)
 	r := newFakeReal(t)
 	root := filepath.Join(r.Dir, "s")
 	set := defaultSettings(t, nil)
@@ -263,6 +265,7 @@ func TestEnvPinsRelativeStateAndConfig(t *testing.T) {
 }
 
 func TestEnvPinsDefaultsWhenUnset(t *testing.T) {
+	unixLayoutOnly(t)
 	r := newFakeReal(t)
 	p := profileAt(filepath.Join(r.Dir, "s"), Codex, "w", defaultSettings(t, nil), LB{})
 	env, err := buildEnv("linux", p, []string{"HOME=" + r.Home, "XDG_CONFIG_HOME=" + filepath.Join(r.Dir, "xc")})

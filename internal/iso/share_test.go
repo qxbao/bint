@@ -57,6 +57,7 @@ func TestCatalogMatchesConfigNames(t *testing.T) {
 }
 
 func TestCatalogRealPathsFollowRealEnv(t *testing.T) {
+	unixLayoutOnly(t)
 	r := newFakeReal(t)
 	env := append(slices.Clone(r.Env), "XDG_DATA_HOME=/d", "GOMODCACHE=/gm", "CARGO_HOME=/cg", "BUN_INSTALL=/bn")
 	got := map[string]string{}
