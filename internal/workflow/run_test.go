@@ -182,9 +182,16 @@ type fakeAgent struct {
 	cost *float64
 	// turns: số lượt agent báo về mỗi bước.
 	turns *int64
+	// name: tên harness báo về (mặc định "fake"; "claude" để bước nhận --session-id do Bint cấp).
+	name string
 }
 
-func (a *fakeAgent) Name() string                   { return "fake" }
+func (a *fakeAgent) Name() string {
+	if a.name != "" {
+		return a.name
+	}
+	return "fake"
+}
 func (a *fakeAgent) Version(context.Context) string { return "" }
 func (a *fakeAgent) ReportsCost() bool              { return a.cost != nil }
 
@@ -261,6 +268,8 @@ type harness struct {
 	denyNext  []string
 	// mutate (nếu có) sửa kết quả agent giả sau khi chạy: mô phỏng Infra, quá giờ, thiếu kết quả, handle phiên.
 	mutate func(step string, res *eval.AgentResult)
+	// agentName: tên harness của agent giả (rỗng = "fake").
+	agentName string
 	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.
 	costFor func(step string) *float64
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
@@ -345,7 +354,7 @@ func (h *harness) runner() *Runner {
 		if h.costFor != nil {
 			cost = h.costFor(step)
 		}
-		return &fakeAgent{h: h, cost: cost, turns: h.turns}, nil
+		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: h.agentName}, nil
 	}}
 }
 

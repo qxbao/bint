@@ -33,16 +33,32 @@ Có trong mã (đối chiếu theo `tasks.md`):
 - Test: `internal/workflow/continuation_test.go` (bảng quyết định, giới hạn 3 lần, fingerprint đổi, `--fresh`, vòng câu
   hỏi e2e, chi phí delta, phiếu cũ, alias).
 
-Chưa xác nhận / còn phải làm:
+Đã xử lý ở phiếu `01M7H1P2Z7F782Y1ZNHN5VR71F` (giai đoạn A, 2026-11-16):
 
-0. **main đang đỏ ở `internal/workflow`**: `flow_golden_test.go:647` golden không khớp — `next` của bước b-review có
-   thêm note "không nối tiếp phiên cũ: chỉ bước plan chờ người mới nối tiếp phiên; bước b-feat chạy mới". Note này có vẻ
-   sai chỗ (bước đang mở là b-review nhưng nói b-feat; phát ra cả khi không có gì để nối tiếp) — sửa điều kiện phát note
-   trong `internal/workflow/continuation.go` trước, đừng chỉ cập nhật golden. Các gói task, skills, eval, app, cli: qua.
-1. **Chưa có b-review** cho GĐ2. Việc đầu tiên: review diff của commit GĐ2 (xem `git log`).
-2. **Chưa chạy `go test -count=1 ./...` đầy đủ** trên mã GĐ2 (mới build, `go vet` linux+windows, staticcheck sạch trừ
-   S1011 có sẵn, và test các gói bị ảnh hưởng — xem mục "Kiểm chứng" ở commit).
-3. TSK-12: `printLastStepLine` in `via` và số lần nối tiếp — kiểm lại đã có chưa.
+0. ~~main đỏ ở `internal/workflow`~~: sửa gốc ở `continuationDecision` (`internal/workflow/continuation.go`): không có `LastStep`
+   hoặc bước sắp mở khác bước dừng thì `Why` rỗng (kể cả `--fresh`), nên `next` không phát note "không nối tiếp" ở nơi không có gì
+   để nối tiếp. Golden `sessions/protected_then_resume` giữ nguyên; thêm ca vào `TestContinuationDecision`. `docs/workflows.md`
+   đã sửa theo.
+1. ~~Review diff GĐ2~~: đã rà (đúng đắn, tương thích ngược state, i18n, Windows). Phát hiện đã sửa: R-1 (thứ tự điều kiện, mục 0),
+   R-2 (regex hạ tầng khớp nhầm văn bản tự do: `quotaRe`, `codexServerRe`, `codexRateRe` chỉ nhận cụm hạn mức/mã lỗi thật,
+   có ca âm "test đỏ ở internal/quota", "chưa xong rate limiter", "error: 500 dòng log bị cắt"), R-3 (`fillSubagentUsage` chỉ ghi
+   0 USD cho bước nối tiếp có mốc usage cùng transcript; bước thường usage rỗng giữ unknown).
+2. ~~`go test -count=1 ./...` đầy đủ~~: xem kết quả ở mục "Kiểm chứng giai đoạn A" bên dưới; `go vet` và `staticcheck` sạch
+   linux + `GOOS=windows`, kể cả S1011 ở `graph.go`.
+3. ~~TSK-12~~: `printLastStepLine` đã in `via` và `đã nối tiếp N lần` (`internal/cli/task.go`, dùng chung cho `task show` và
+   `run status`); thêm test ở `internal/cli/last_step_e2e_test.go`.
+
+Kiểm chứng giai đoạn A (linux, 2026-11-16): `go test -count=1 -timeout 30m ./...` xanh toàn bộ gói; `go vet ./...` và
+`staticcheck ./...` sạch với `GOOS=linux` và `GOOS=windows`. Chưa chạy test trên Windows thật (chỉ vet/staticcheck chéo).
+
+Phát hiện low đã xử lý: `01M7GD9M0Q….2` (chú thích `heldReason` nay ngay trên `func heldReason`), `….3` (test
+`TestProcessClaudeStepGetsSessionIDAndRecordsHandle`), `….4` (`LastStep` chỉ bị xoá khi bước thật sự bắt đầu: trong cùng lần
+ghi `PendingStep` của `grantPending` ở driver session, ngay trước `agent.Run` ở `runStep`; test
+`TestGrantPendingKeepsLastStepOnFailure`), `01M7GGHJF7….2` (regex), `01M7GHYSEG….1` (`TestCodexRunClassifiesInfraFromTurnFailed`
+là test thuần, không `sh`, tên ca ASCII), S1011 ở `internal/tui/screens/tasks/graph.go`. **Còn lại: `….5` cho GĐ3.**
+
+Còn phải làm:
+
 4. Bản cài skill (`.claude/skills/**`, `.agents/**`, `.bint/skills/core.lock`) chưa sinh lại: chạy `bint init` (người).
 5. Đóng phiếu GĐ2: phiếu vẫn trỏ tới worktree cũ có cùng thay đổi. Cách gọn: `bint task cancel 01M7GD9M9B… --discard`
    (chỉ người; mã đã ở main), rồi bỏ `depends_on` GĐ2 khỏi GĐ3: `bint task set 01M7GD9MKJ… --clear-depends-on
@@ -71,15 +87,12 @@ Việc chính:
 5. Kiểm trường hợp Claude chết trước khi ghi phiên: handle do Bint cấp chưa chắc tồn tại trong `~/.claude/projects`
    (phát hiện low `.5` của GĐ1) — kiểm tồn tại hoặc thử resume rồi lùi về chạy mới khi lỗi "session not found".
 
-## Phát hiện low còn gom (sửa một lần)
+## Phát hiện low còn gom
 
-- `01M7GD9M0Q….2`: chú thích `heldReason` bị gắn nhầm vào `stopFingerprint` (`internal/workflow/run.go`).
-- `01M7GD9M0Q….3`: thiếu test workflow kiểm bước Claude được cấp `--session-id`.
-- `01M7GD9M0Q….4`: `beginStep` xoá `LastStep` trước khi chắc bước thật sự chạy (GĐ2 có thể đã xử lý — kiểm lại).
+Đã sửa ở phiếu `01M7H1P2Z7F782Y1ZNHN5VR71F` (xem mục trên): `01M7GD9M0Q….2`, `….3`, `….4`, `01M7GGHJF7….2`,
+`01M7GHYSEG….1`, và S1011 ở `internal/tui/screens/tasks/graph.go`. Còn lại:
+
 - `01M7GD9M0Q….5`: handle Claude do Bint cấp bị coi là continuable dù tiến trình chết trước khi ghi phiên (thuộc GĐ3 mục 5).
-- `01M7GGHJF7….2`: nhánh `error|code` trước mã 5xx/429 và `quotaRe` vẫn có thể khớp nhầm (`internal/eval/agent_harness.go`).
-- `01M7GHYSEG….1`: test mới của eval bị bỏ qua trên Windows; tên binary giả có ký tự không ASCII (`codex-lỗi thường`).
-- Có sẵn trên main, ngoài các phiếu này: staticcheck S1011 ở `internal/tui/screens/tasks/graph.go:104` (CI đỏ cả hai nền tảng).
 
 ## Môi trường máy nhà (cần dọn)
 

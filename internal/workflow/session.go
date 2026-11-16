@@ -566,7 +566,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 					spec.Role, h, id)}}
 			return a, nil
 		}
-		last := rs.t.State.LastStep // beginStep xoá LastStep: giữ lại để dựng lời nhắn nối tiếp
+		last := rs.t.State.LastStep // grantPending xoá LastStep: chụp trước để dựng lời nhắn nối tiếp
 		dec := r.decideContinuation(ctx, rs, step, o.Fresh)
 		if pre != nil && pre.Step == step {
 			dec = *pre
@@ -623,7 +623,11 @@ func (r *Runner) grantPending(rs *runState, sr *stepRun, ps *task.PendingStep) e
 		At: ps.StartedAt, Until: ps.LeaseUntil})
 	if err == nil {
 		var nt *task.Task
-		nt, err = r.Tasks.Update(id, r.now(), func(t *task.Task) error { t.State.PendingStep = ps; return nil })
+		nt, err = r.Tasks.Update(id, r.now(), func(t *task.Task) error {
+			t.State.PendingStep = ps
+			t.State.LastStep = nil // bước thật sự bắt đầu: bước dừng cũ không còn là "gần nhất" (cùng lần ghi với PendingStep)
+			return nil
+		})
 		if err == nil {
 			rs.t = nt
 			r.writeSessionStep(rs, ps)

@@ -33,7 +33,11 @@ func TestContinuationDecision(t *testing.T) {
 		{"không có LastStep", ContinueFacts{Step: StepFeat, Fingerprint: "fp"}, false, ""},
 		{"Via rỗng (phiếu cũ/driver process)", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "" }), Step: StepFeat, Fingerprint: "fp"}, false, "subagent"},
 		{"không continuable", ContinueFacts{Last: last(func(l *task.StepStop) { l.Continuable = false }), Step: StepFeat, Fingerprint: "fp"}, false, "không nối tiếp được"},
-		{"khác bước", ContinueFacts{Last: last(nil), Step: StepReview, Fingerprint: "fp"}, false, "khác bước"},
+		{"khác bước: không có gì để nối tiếp, Why rỗng", ContinueFacts{Last: last(nil), Step: StepReview, Fingerprint: "fp"}, false, ""},
+		{"fresh nhưng không có LastStep: Why rỗng", ContinueFacts{Step: StepFeat, Fresh: true}, false, ""},
+		{"fresh nhưng khác bước: Why rỗng", ContinueFacts{Last: last(nil), Step: StepReview, Fresh: true}, false, ""},
+		{"Via rỗng và khác bước: Why rỗng", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "" }), Step: StepReview}, false, ""},
+		{"awaiting_human không phải plan, khác bước: Why rỗng", ContinueFacts{Last: last(func(l *task.StepStop) { l.StopClass = StopAwaitingHuman }), Step: StepReview, Fingerprint: "fp"}, false, ""},
 		{"fingerprint đổi", ContinueFacts{Last: last(nil), Step: StepFeat, Fingerprint: "fp2"}, false, "đã đổi"},
 		{"không chụp được fingerprint", ContinueFacts{Last: last(nil), Step: StepFeat}, false, "fingerprint"},
 		{"external lần 3 còn được", ContinueFacts{Last: last(func(l *task.StepStop) { l.Continuations = 2 }), Step: StepFeat, Fingerprint: "fp"}, true, ""},
@@ -53,6 +57,9 @@ func TestContinuationDecision(t *testing.T) {
 			}
 			if !tc.want && !strings.Contains(d.Why, tc.why) {
 				t.Fatalf("Why = %q, muốn chứa %q", d.Why, tc.why)
+			}
+			if !tc.want && tc.why == "" && d.Why != "" {
+				t.Fatalf("Why = %q, muốn rỗng", d.Why)
 			}
 			if tc.want && d.Step != tc.f.Last.Step {
 				t.Fatalf("Step = %q", d.Step)
@@ -487,5 +494,29 @@ func TestSessionContinuationAliasRemovedOnAbortAndCancel(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Usage rỗng (không model): bước thường giữ chi phí unknown (nil) như trước GĐ2; chỉ bước nối tiếp có mốc usage cùng
+// transcript mới là 0 USD (không phát sinh gì sau mốc trước).
+func TestSessionEmptyUsageCostNilUnlessContinued(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	r.SubagentUsage = func(string) (*claude.Usage, string) { return &claude.Usage{Turns: 1}, "" }
+	ctx := context.Background()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	id := tk.State.ID
+	a, _ := r.Next(ctx, NextOptions{TaskRef: id})
+	c1 := completeFailed(t, r, id, a, "A1")
+	if c1.Result.CostUSD != nil {
+		t.Fatalf("bước thường usage rỗng phải unknown, được %v", *c1.Result.CostUSD)
+	}
+	b, _ := r.Next(ctx, NextOptions{TaskRef: id, Resume: true})
+	if b.ContinueAgentID != "A1" {
+		t.Fatalf("%+v", b)
+	}
+	c2 := completeFailed(t, r, id, b, "A1")
+	if c2.Result.CostUSD == nil || *c2.Result.CostUSD != 0 {
+		t.Fatalf("bước nối tiếp không phát sinh thêm phải 0 USD: %v", c2.Result.CostUSD)
 	}
 }

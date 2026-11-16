@@ -1062,7 +1062,10 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
     đủ khi **cả năm điều kiện** đúng: `State.last_step` có `via: "subagent"`, `continuable`, cùng bước sắp mở, fingerprint cây
     hiện tại khớp lúc dừng, và bộ đếm nối tiếp chưa chạm trần (lớp `external` tối đa 3 lần liên tiếp, `timeout` 1 lần;
     `awaiting_human` không tính). Orchestrator gửi `prompt` bằng **SendMessage** tới agent cũ rồi `complete --agent-id <agent cũ>`.
-    Thiếu một điều kiện thì trả đề bài đầy đủ như cũ và `notes` nêu lý do. `bint run next <id> --fresh` bỏ nối tiếp (bước dở đang
+    Thiếu một điều kiện thì trả đề bài đầy đủ như cũ. `notes` chỉ nêu lý do khi **bước sắp mở trùng bước dừng** (có gì để nối
+    tiếp mà không nối tiếp được: `--fresh`, bước dừng không chạy bằng subagent, không `continuable`, `awaiting_human` không phải
+    bước plan, fingerprint đổi, quá giới hạn); không có `last_step` hoặc bước sắp mở khác bước dừng (kể cả khi `--fresh`) thì
+    không có note nào. `bint run next <id> --fresh` bỏ nối tiếp (bước dở đang
     là bước nối tiếp được đổi tại chỗ sang đề bài đầy đủ, giữ `run_id`; không có bước dở thì bước mới dùng đề bài đầy đủ) — dùng
     khi SendMessage không gửi được. `complete --failed "<lý do>"` khớp bộ phân loại lỗi hạ tầng của eval (429/5xx/quá tải) ghi
     `last_step.stop_class: external` (nối tiếp được khi có `--agent-id`); lý do khác là `intrinsic`. Bước nối tiếp vẫn là bước

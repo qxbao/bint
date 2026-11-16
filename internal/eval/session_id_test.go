@@ -84,6 +84,14 @@ func TestCodexInfra(t *testing.T) {
 		{"codex báo lỗi: line 429 invalid", false, false},
 		{"codex báo lỗi: HTTP 502 Bad Gateway", true, false},
 		{"codex báo lỗi: error: 500", true, false},
+		{"codex báo lỗi: stream error: 503.", true, false},
+		{"codex báo lỗi: rate_limit_error", true, true},
+		{"codex báo lỗi: Rate limit exceeded", true, true},
+		{"codex báo lỗi: quota exceeded", true, true},
+		{"codex báo lỗi: test đỏ ở internal/quota", false, false},
+		{"codex báo lỗi: chưa xong rate limiter", false, false},
+		{"codex báo lỗi: error: 500 dòng log bị cắt", false, false},
+		{"codex báo lỗi: error: 429 dòng log bị cắt", false, false},
 	} {
 		reason, q := codexInfra(tc.msg)
 		if (reason != "") != tc.infra || q != tc.quota {
@@ -96,6 +104,9 @@ func TestClassifyInfraMessage(t *testing.T) {
 	for msg, infra := range map[string]bool{
 		"API Error: 529 overloaded": true, "API Error: 500 internal server error": true, "429 Too Many Requests": true,
 		"You've hit your 5-hour limit": true, "test đỏ ở TestFoo": false, "đọc 512 tokens": false,
+		"Claude usage limit reached": true, "Rate limit exceeded": true, "rate_limit_error": true,
+		"test đỏ ở internal/quota": false, "chưa xong rate limiter": false, "error: 500 dòng log bị cắt": false,
+		"cần thêm quota cho tác vụ": false, "đổi usage limit thành cấu hình": false,
 	} {
 		if reason, _ := ClassifyInfraMessage(msg); (reason != "") != infra {
 			t.Errorf("%q: reason=%q, muốn infra=%v", msg, reason, infra)

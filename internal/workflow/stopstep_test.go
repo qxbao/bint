@@ -2,6 +2,9 @@ package workflow
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
@@ -211,5 +214,71 @@ func TestHappyRunHasNoLastStep(t *testing.T) {
 	_, tk := runDo(t, h)
 	if tk.State.LastStep != nil {
 		t.Fatalf("tác vụ chạy thành công không có LastStep: %+v", tk.State.LastStep)
+	}
+}
+
+// Driver process: bước harness claude nhận AgentRequest.SessionID là UUID do Bint cấp, và khi bước dừng không có JSON kết
+// quả (NoResult) thì LastStep.SessionID chính là handle đó.
+func TestProcessClaudeStepGetsSessionIDAndRecordsHandle(t *testing.T) {
+	h := newHarness(t)
+	h.agentName = "claude"
+	h.mutate = func(step string, res *eval.AgentResult) {
+		if step == StepFeat {
+			res.ExitCode, res.Error, res.NoResult, res.SessionID = 1, "chết trước khi in JSON", true, ""
+		}
+	}
+	_, tk := runDo(t, h)
+	var got string
+	for i, c := range h.calls {
+		if c == StepFeat {
+			got = h.reqs[i].SessionID
+		}
+	}
+	if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`).MatchString(got) {
+		t.Fatalf("AgentRequest.SessionID = %q, muốn UUID v4", got)
+	}
+	ls := tk.State.LastStep
+	if ls == nil || ls.Step != StepFeat || ls.StopClass != StopExternal || ls.SessionID != got {
+		t.Fatalf("LastStep.SessionID phải là %q: %+v", got, ls)
+	}
+}
+
+// LastStep chỉ bị xoá khi bước thật sự bắt đầu: grantPending lỗi (tệp hợp đồng thuê hỏng) thì phiếu còn nguyên LastStep;
+// grantPending thành công xoá nó cùng lần ghi PendingStep.
+func TestGrantPendingKeepsLastStepOnFailure(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	id := tk.State.ID
+	failFeatSession(t, h, r, id, "A1")
+	before := loadTask(t, h, id)
+	if before.State.LastStep == nil {
+		t.Fatal("thiếu LastStep sau bước thất bại")
+	}
+	ps := &task.PendingStep{RunID: "run-x", Step: StepFeat, Mode: leaseModeName(LockExclusive), StartedAt: "2026-01-01T00:00:00Z",
+		LeaseUntil: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano)}
+	lockFile := lockPath(r.Tasks.Dir, r.Root)
+	if err := os.MkdirAll(filepath.Dir(lockFile), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(leaseFilePath(lockFile), []byte("{hỏng"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rs := &runState{t: before}
+	if err := r.grantPending(rs, &stepRun{}, ps); err == nil {
+		t.Fatal("grantPending phải lỗi khi tệp hợp đồng hỏng")
+	}
+	if got := loadTask(t, h, id); got.State.LastStep == nil || got.State.PendingStep != nil {
+		t.Fatalf("grantPending lỗi phải giữ LastStep và không ghi PendingStep: %+v / %+v", got.State.LastStep, got.State.PendingStep)
+	}
+	// Gỡ tệp hỏng: cấp được, LastStep bị xoá cùng lần ghi PendingStep.
+	if err := os.Remove(leaseFilePath(lockFile)); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.grantPending(&runState{t: before}, &stepRun{}, ps); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadTask(t, h, id); got.State.LastStep != nil || got.State.PendingStep == nil || got.State.PendingStep.RunID != "run-x" {
+		t.Fatalf("grantPending thành công phải xoá LastStep: %+v / %+v", got.State.LastStep, got.State.PendingStep)
 	}
 }

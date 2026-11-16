@@ -101,9 +101,7 @@ func planOf(ts []*task.Task, id string) []*task.Task {
 				queue = append(queue, c)
 			}
 		}
-		for _, d := range by[n].State.DependsOn {
-			queue = append(queue, d)
-		}
+		queue = append(queue, by[n].State.DependsOn...)
 		if p := by[n].State.Parent; p != "" {
 			queue = append(queue, p)
 		}

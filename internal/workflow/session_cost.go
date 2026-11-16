@@ -96,9 +96,9 @@ func (r *Runner) fillSubagentUsage(rs *runState, res *eval.AgentResult, sr *step
 		return
 	}
 	sr.usage = usageMark(u, transcript)
-	delta := u
+	delta, continued := u, false
 	if b := sr.usageBase; b != nil && b.Transcript == transcript {
-		delta = usageSince(u, b)
+		delta, continued = usageSince(u, b), true
 	}
 	in, out := delta.Totals()
 	turns := int64(delta.Turns)
@@ -108,8 +108,8 @@ func (r *Runner) fillSubagentUsage(rs *runState, res *eval.AgentResult, sr *step
 	} else if m := u.Model(); m != "" {
 		res.Model = m
 	}
-	if len(delta.Models) == 0 {
-		zero := 0.0 // không phát sinh gì sau mốc trước
+	if continued && len(delta.Models) == 0 {
+		zero := 0.0 // bước nối tiếp không phát sinh gì sau mốc trước; bước thường usage rỗng giữ unknown (nil) như trước GĐ2
 		res.CostUSD = &zero
 		return
 	}

@@ -66,6 +66,31 @@ func TestLastStepShownByRunStatusAndTaskShow(t *testing.T) {
 		t.Fatalf("run status --json: %v %+v\n%s", err, st.LastStep, out)
 	}
 
+	// Bước chạy bằng subagent đã nối tiếp 2 lần: dòng nêu cả "via subagent" và "đã nối tiếp 2 lần" ở cả hai lệnh.
+	if _, err := store.Update(id, time.Now(), func(tk *task.Task) error {
+		tk.State.LastStep = &task.StepStop{Step: "b-feat", RunID: "01RUNCHILD", Harness: "claude", StopClass: "external",
+			SessionID: "agent-1", Fingerprint: "abc", Continuable: true, Via: "subagent", Continuations: 2}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"task", "show", id}, {"run", "status", id}} {
+		out, code := run(t, root, "", args...)
+		if code != 0 || !strings.Contains(out, "via subagent") || !strings.Contains(out, "đã nối tiếp 2 lần") {
+			t.Fatalf("%v: %d\n%s", args, code, out)
+		}
+	}
+	// Chưa nối tiếp lần nào và không có via: không in hai cụm này.
+	if _, err := store.Update(id, time.Now(), func(tk *task.Task) error {
+		tk.State.LastStep = &task.StepStop{Step: "b-feat", RunID: "01RUNCHILD", StopClass: "external", Continuable: true}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ := run(t, root, "", "run", "status", id); strings.Contains(out, "via ") || strings.Contains(out, "đã nối tiếp") {
+		t.Fatalf("không có via/nối tiếp thì không in:\n%s", out)
+	}
+
 	// Không nối tiếp được: văn bản nói "không".
 	if _, err := store.Update(id, time.Now(), func(tk *task.Task) error {
 		tk.State.LastStep = &task.StepStop{Step: "b-feat", RunID: "01RUNCHILD", StopClass: "intrinsic"}

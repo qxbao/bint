@@ -45,28 +45,25 @@ type ContinueDecision struct {
 	Why      string
 }
 
-// continuationDecision quyết định có nối tiếp phiên của bước dừng gần nhất không. Thứ tự: fresh → không có LastStep → không
-// phải subagent → không continuable → khác bước → fingerprint khác → quá giới hạn. Thiếu một điều kiện thì chạy đề bài đầy đủ.
+// continuationDecision quyết định có nối tiếp phiên của bước dừng gần nhất không. Thứ tự: không có LastStep hoặc bước sắp mở khác
+// bước dừng (không có gì để nối tiếp: Why rỗng, kể cả khi --fresh, để notes không nhiễu) → fresh → không phải subagent → không
+// continuable → awaiting_human không phải plan → fingerprint khác → quá giới hạn. Thiếu một điều kiện thì chạy đề bài đầy đủ.
 func continuationDecision(f ContinueFacts) ContinueDecision {
 	no := func(why string) ContinueDecision { return ContinueDecision{Why: why} }
 	l := f.Last
 	switch {
+	case l == nil || l.Step != f.Step:
+		return ContinueDecision{}
 	case f.Fresh:
 		return no("--fresh: không nối tiếp phiên cũ, dùng đề bài đầy đủ")
-	case l == nil:
-		return ContinueDecision{}
 	case l.Via != ViaSubagent:
 		return no("bước dừng trước không chạy bằng subagent của driver session (không có agent để nối tiếp)")
 	case !l.Continuable:
 		return no(fmt.Sprintf("bước %s dừng với lớp %s, không nối tiếp được (thiếu agent_id/fingerprint hoặc lỗi nội tại)", l.Step, l.StopClass))
-	}
-	want := l.Step
-	if l.StopClass == StopAwaitingHuman && !f.LastIsPlan {
+	case l.StopClass == StopAwaitingHuman && !f.LastIsPlan:
 		return no("chỉ bước plan chờ người mới nối tiếp phiên; bước " + l.Step + " chạy mới")
 	}
-	if f.Step != want {
-		return no(fmt.Sprintf("bước sắp chạy (%s) khác bước dừng trước (%s)", f.Step, want))
-	}
+	want := l.Step
 	switch {
 	case f.Fingerprint == "" || l.Fingerprint == "":
 		return no("không so được fingerprint cây làm việc")

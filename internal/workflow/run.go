@@ -920,6 +920,10 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	if sr.harness == "claude" {
 		sr.sessionID = eval.NewSessionUUID() // handle bền kể cả khi tiến trình chết trước khi in JSON
 	}
+	// Bước thật sự bắt đầu: bước dừng cũ không còn là "gần nhất" (driver session xoá cùng lần ghi PendingStep, grantPending).
+	if nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LastStep = nil; return nil }); err == nil {
+		rs.t = nt
+	}
 	res := sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: sr.prompt, SessionID: sr.sessionID,
 		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
 		LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
@@ -1076,7 +1080,8 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 		"task_id": rs.t.State.ID})
 	if nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		t.State.LinkRun(sr.child)
-		t.State.LastStep = nil // bước mới bắt đầu: bước dừng cũ không còn là "gần nhất"
+		// LastStep chưa xoá ở đây: bước chỉ "thật sự bắt đầu" khi PendingStep được ghi (grantPending, driver session) hoặc
+		// ngay trước agent.Run (runStep, driver process); lỗi giữa chừng không được làm mất handle nối tiếp.
 		if rs.chain() {
 			t.State.FlowStep = step // bước đang chạy: nguồn của nextStep khi flow có nhiều bước implement/review
 		}
@@ -1306,8 +1311,6 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	return true
 }
 
-// heldReason là lý do chuyển blocked khi bước chỉ đọc kết thúc bình thường nhưng cây đổi trong lúc chạy: nêu tệp đổi,
-// nói rõ kết quả bước được giữ và hai lối ra (người sửa đồng thời → resume; agent sửa → xem lại/hoàn tác rồi resume).
 // stopFingerprint chụp cây làm việc lúc bước dừng. ctx có thể đã huỷ (Ctrl-C) nên tách khỏi huỷ, kèm hạn giờ ngắn.
 func (r *Runner) stopFingerprint(ctx context.Context) (string, error) {
 	c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
@@ -1339,6 +1342,8 @@ func (r *Runner) markAwaitingHuman(rs *runState) {
 		OriginRunID: l.originRunID, Usage: l.usage})
 }
 
+// heldReason là lý do chuyển blocked khi bước chỉ đọc kết thúc bình thường nhưng cây đổi trong lúc chạy: nêu tệp đổi,
+// nói rõ kết quả bước được giữ và hai lối ra (người sửa đồng thời → resume; agent sửa → xem lại/hoàn tác rồi resume).
 func (r *Runner) heldReason(rs *runState, sr *stepRun, files []string) string {
 	id := rs.t.State.ID
 	resume := r.resumeCmd(rs)
