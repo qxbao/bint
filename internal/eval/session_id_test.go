@@ -92,6 +92,10 @@ func TestCodexInfra(t *testing.T) {
 		{"codex báo lỗi: chưa xong rate limiter", false, false},
 		{"codex báo lỗi: error: 500 dòng log bị cắt", false, false},
 		{"codex báo lỗi: error: 429 dòng log bị cắt", false, false},
+		{"codex báo lỗi: API Error: Request rejected (429) · This request would exceed your account rate limit. Please try again later.", true, true},
+		{"codex báo lỗi: You have reached your usage limit.", true, true},
+		{`codex báo lỗi: API Error: 503 {"message":"upstream connect error"}`, true, false},
+		{`codex báo lỗi: API Error: 502 {"type":"error"}`, true, false},
 	} {
 		reason, q := codexInfra(tc.msg)
 		if (reason != "") != tc.infra || q != tc.quota {

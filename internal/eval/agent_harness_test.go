@@ -251,9 +251,14 @@ func TestCodexEvalHookQuotesExecutableLiterally(t *testing.T) {
 }
 
 // Khoá hành vi: lỗi Codex 429/5xx/quá tải là lượt hạ tầng (Infra khác rỗng → không chấm);
-// riêng 429 còn đặt QuotaHit (dừng cả đợt). Đồng nhất với Claude. Test thuần trên luồng JSONL dựng sẵn (không
-// tiến trình con) nên chạy trên mọi hệ điều hành.
+// riêng 429 còn đặt QuotaHit (dừng cả đợt). Đồng nhất với Claude. Chạy qua CodexAgent.Run với tiến trình giả
+// là chính binary kiểm thử (TestMain thấy biến môi trường thì phát luồng turn.failed rồi thoát mã 1), nên chạy được
+// cả Windows và kiểm cả nối dây res.Error/res.Infra/res.QuotaHit.
 func TestCodexRunClassifiesInfraFromTurnFailed(t *testing.T) {
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name, msg string
 		infra     bool
@@ -264,19 +269,20 @@ func TestCodexRunClassifiesInfraFromTurnFailed(t *testing.T) {
 		{"overloaded", "Overloaded", true, false},
 		{"plain_error", "patch failed", false, false},
 	} {
-		line, err := json.Marshal(map[string]any{"type": "turn.failed", "error": map[string]string{"message": tc.msg}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		var res AgentResult
-		reported, _ := codexStreamErrors(append(line, '\n'), &res)
-		if reported != "codex báo lỗi: "+tc.msg {
-			t.Fatalf("%s: lỗi tự báo = %q", tc.name, reported)
-		}
-		reason, quota := codexInfra(reported)
-		if (reason != "") != tc.infra || quota != tc.quota {
-			t.Errorf("%s: Infra=%q QuotaHit=%v, muốn infra=%v quota=%v", tc.name, reason, quota, tc.infra, tc.quota)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			res := (&CodexAgent{Binary: bin}).Run(context.Background(), AgentRequest{
+				Dir: t.TempDir(), Prompt: "x", Timeout: 30 * time.Second,
+				Env: []string{codexFixtureEnv + "=" + tc.msg}})
+			if res.ExitCode != 1 {
+				t.Fatalf("ExitCode = %d, muốn 1 (Error=%q)", res.ExitCode, res.Error)
+			}
+			if res.Error != "codex báo lỗi: "+tc.msg {
+				t.Fatalf("Error = %q", res.Error)
+			}
+			if (res.Infra != "") != tc.infra || res.QuotaHit != tc.quota {
+				t.Errorf("Infra=%q QuotaHit=%v, muốn infra=%v quota=%v", res.Infra, res.QuotaHit, tc.infra, tc.quota)
+			}
+		})
 	}
 }
 

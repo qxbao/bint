@@ -921,8 +921,13 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		sr.sessionID = eval.NewSessionUUID() // handle bền kể cả khi tiến trình chết trước khi in JSON
 	}
 	// Bước thật sự bắt đầu: bước dừng cũ không còn là "gần nhất" (driver session xoá cùng lần ghi PendingStep, grantPending).
-	if nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LastStep = nil; return nil }); err == nil {
-		rs.t = nt
+	// Không có LastStep thì khỏi ghi (tránh một lần Update vô ích mỗi bước); lỗi ghi vào Notes thay vì nuốt im lặng.
+	if rs.t.State.LastStep != nil {
+		if nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LastStep = nil; return nil }); err != nil {
+			rs.res.Notes = append(rs.res.Notes, "không xoá được LastStep của phiếu: "+err.Error())
+		} else {
+			rs.t = nt
+		}
 	}
 	res := sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: sr.prompt, SessionID: sr.sessionID,
 		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,

@@ -321,7 +321,7 @@ func parseClaudeJSON(out []byte, res *AgentResult) {
 // quotaRe khớp thông báo hết hạn mức của Claude Code ("You've hit your 5-hour limit", "usage limit reached", "Rate limit
 // exceeded", "rate_limit_error", "quota exceeded", ...). Chỉ nhận cụm báo hạn mức thật: văn bản tự do của subagent
 // ("chưa xong rate limiter", "test đỏ ở internal/quota") không được coi là lỗi hạ tầng.
-var quotaRe = regexp.MustCompile(`(?i)hit your .{0,40}limit|\b(?:usage|rate|weekly|monthly|\d+-hour) limit(?:ed| reached| exceeded| hit)\b|rate_limit_error|quota exceeded|exceeded .{0,30}quota|insufficient_quota`)
+var quotaRe = regexp.MustCompile(`(?i)\b(?:hit|reached|exceeded) your .{0,40}limit|\bexceed(?:s|ed)? .{0,40}rate limit|\b(?:usage|rate|weekly|monthly|\d+-hour) limit(?:ed| reached| exceeded| hit)\b|rate_limit_error|quota exceeded|exceeded .{0,30}quota|insufficient_quota`)
 
 // classifyInfra phân loại lỗi agent báo: hạn mức (429 hoặc thông báo hết hạn mức) và lỗi
 // API phía máy chủ là lỗi hạ tầng. Trả về lý do rỗng nếu là lỗi bình thường của agent.
