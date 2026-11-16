@@ -943,3 +943,19 @@ func TestImportKeepsHandWrittenTicket(t *testing.T) {
 		t.Fatalf("cây phải sạch: %s", out)
 	}
 }
+
+// Trạng thái chờ người của b-do đi theo bản chiếu: máy nhập phiếu dùng được lệnh --answer/--accept/--fix-round nêu trong lý do
+// blocked (review 01M7JFYDZ07RFN10HF750YZ1VP.3).
+func TestDurableCarriesAwaitingHumanState(t *testing.T) {
+	s := State{ID: "x", Status: StatusBlocked, AwaitingAnswer: true, ReviewExhausted: true, ExtraFixRounds: 1,
+		Questions:     []StepQuestion{{Step: "b-feat", Text: "Giữ bao lâu?", Answer: "30 ngày"}},
+		LastImplement: &StepStop{Step: "b-feat", SessionID: "s1"}}
+	var got State
+	ToDurable(s).ApplyTo(&got)
+	if !got.AwaitingAnswer || !got.ReviewExhausted || got.ExtraFixRounds != 1 || len(got.Questions) != 1 || got.Questions[0].Answer != "30 ngày" {
+		t.Fatalf("trạng thái chờ người phải đi qua bản chiếu: %+v", got)
+	}
+	if got.LastImplement != nil {
+		t.Fatal("phiên harness của máy không được vào bản chiếu")
+	}
+}

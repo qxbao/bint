@@ -744,7 +744,7 @@ b-feat chạy lại trên chính tác vụ đó và nhận câu hỏi cùng câu
 				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "step": step, "recorded": true, "question": question != ""})
 			}
 			if question != "" {
-				fmt.Fprintf(stdio.Out, "Đã ghi câu hỏi. Người trả lời bằng: bint run resume %s --answer \"<trả lời>\"\n", t.State.ID)
+				fmt.Fprintf(stdio.Out, "Đã ghi câu hỏi. Người trả lời bằng: %s --answer \"<trả lời>\"\n", t.State.ResumeCommand())
 				return nil
 			}
 			fmt.Fprintln(stdio.Out, "Đã ghi.")

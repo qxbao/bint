@@ -1275,7 +1275,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 			// Bước implement mới: câu hỏi mở của lượt trước mà người không trả lời bị bỏ (không chặn lượt này); handle của b-feat
 			// trước hết hiệu lực; không còn chờ quyết định sau hết vòng sửa.
 			for i := range t.State.Questions {
-				if t.State.Questions[i].Open() && t.State.Questions[i].Step == step {
+				if q := t.State.Questions[i]; q.Open() && (q.Step == step || q.Step == "") {
 					t.State.Questions[i].Closed = true
 				}
 			}
@@ -1775,6 +1775,8 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		}
 		// Kiểm chứng chạy khi bước khai báo verify (mặc định có), và LUÔN chạy trước bước review đầu tiên và trước khi
 		// done (bước implement cuối): luật này nằm ở Runner chứ không chỉ ở lint, nên flow không nới được cổng.
+		// Dấu vân tay cây ngay trước kiểm chứng: vòng sửa chỉ nối tiếp phiên b-feat khi cây lúc này còn khớp lúc b-feat kết thúc.
+		preVerify := r.preVerifyFingerprint(ctx, rs)
 		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" && (sd.VerifyOn() || !nextImpl) {
 			// Kiểm chứng chạy dưới khoá độc quyền: lệnh kiểm chứng hay ghi tệp (coverage, snapshot, build) nên
 			// không được chạy song song với bước chỉ đọc của tác vụ khác (sẽ bị quy là vi phạm chỉ đọc).
@@ -1806,7 +1808,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 				}
 			}
 		}
-		r.refreshLastImplement(ctx, rs)
+		r.refreshLastImplement(ctx, rs, preVerify)
 		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 			t.State.AwaitingCheck = false
 			if nextImpl {
@@ -1967,7 +1969,8 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 	used := r.reviewRoundsUsed(rs, last)
 	limit := r.fixLimit(rs)
 	fix := rs.reviewFixStep(rv)
-	r.armReviewFix(ctx, rs, fix)
+	// Hết vòng vẫn đặt LastStep để --fix-round sau này nối tiếp được, nhưng không ghi note "vòng sửa chạy…" khi không có vòng sửa nào mở.
+	r.armReviewFix(ctx, rs, fix, used <= limit)
 	if used <= limit {
 		r.setFlowStep(rs, fix)
 		if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa theo review vòng %d (%d phát hiện nghiêm trọng; vòng sửa %d/%d)",

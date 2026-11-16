@@ -143,6 +143,51 @@ func TestFeatQuestionBlocksThenAnswerRerunsFeat(t *testing.T) {
 	}
 }
 
+// Agent ghi câu hỏi mà quên --step: câu hỏi vẫn chặn sau bước (gán cho bước đang chạy) và được đóng khi người trả lời
+// (review 01M7JFYDZ07RFN10HF750YZ1VP.2).
+func TestFeatQuestionWithoutStepStillBlocks(t *testing.T) {
+	h := newHarness(t)
+	asked := false
+	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
+		if step == StepFeat && !asked {
+			asked = true
+			h.write("app.txt", "v2\n")
+			h.write("done.txt", "ok\n")
+			_, err := e.RecordQuestion(id, "", "Giữ nhật ký bao nhiêu ngày?")
+			return err
+		}
+		return h.happy(ctx, step, e, id)
+	}
+	r := h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(false)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := res.TaskID
+	tk := loadTask(t, h, id)
+	if res.Status != task.StatusBlocked || len(tk.State.Verifications) != 0 || strings.Join(h.calls, ",") != "b-feat" {
+		t.Fatalf("câu hỏi thiếu --step vẫn phải dừng trước kiểm chứng/review: %+v calls=%v", res, h.calls)
+	}
+	if q := tk.State.Questions; len(q) != 1 || q[0].Step != StepFeat {
+		t.Fatalf("câu hỏi phải được gán cho bước đang chạy: %+v", q)
+	}
+	res2, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: id, Resume: true, Answer: "30 ngày"})
+	if err != nil || res2.Status != task.StatusDone {
+		t.Fatalf("resume --answer: %+v %v", res2, err)
+	}
+	if got := loadTask(t, h, id); len(got.State.OpenQuestions("")) != 0 {
+		t.Fatalf("câu hỏi phải được trả lời: %+v", got.State.Questions)
+	}
+}
+
+// Câu hỏi không gắn bước (dữ liệu cũ hoặc ghi khi chưa biết bước) vẫn được coi là câu hỏi mở của bước implement.
+func TestStepQuestionWithoutStepMatchesAnyStep(t *testing.T) {
+	s := task.State{Questions: []task.StepQuestion{{Text: "q"}}}
+	if len(s.OpenQuestions(StepFeat)) != 1 {
+		t.Fatal("câu hỏi không gắn bước phải thuộc mọi bước")
+	}
+}
+
 // --answer chỉ dùng khi tiếp tục tác vụ đang chờ.
 func TestAnswerRejectedWhenNotWaiting(t *testing.T) {
 	h := newHarness(t)
@@ -464,5 +509,51 @@ func TestSessionReviewFixRoundContinuesFeatSubagent(t *testing.T) {
 	}
 	if p := feats[1].Prompt; !strings.Contains(p, "Tiếp tục bước b-feat") || !strings.Contains(p, "Phát hiện review vòng 1 cần xử lý") || strings.Contains(p, "<bint-task") {
 		t.Fatalf("lời nhắn nối tiếp:\n%s", p)
+	}
+}
+
+// Cây đổi giữa lúc b-feat kết thúc và lúc kiểm chứng (người sửa tệp giữa lần kiểm chứng bị ngắt và lần resume): vòng sửa không
+// được nối tiếp phiên b-feat cũ (review 01M7JFYDZ07RFN10HF750YZ1VP.5).
+func TestRefreshLastImplementDropsFingerprintWhenTreeChanged(t *testing.T) {
+	h := newHarness(t)
+	r := h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(false)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	fp, err := r.stopFingerprint(ctx)
+	if err != nil || fp == "" {
+		t.Fatalf("fingerprint: %q %v", fp, err)
+	}
+	for _, tc := range []struct {
+		pre  string
+		want bool // còn nối tiếp được
+	}{{fp, true}, {"cây-khác", false}} {
+		tk, err := r.Tasks.Update(res.TaskID, r.now(), func(t *task.Task) error {
+			t.State.LastImplement = &task.StepStop{Step: StepFeat, RunID: "r1", SessionID: "s1", Fingerprint: fp, Continuable: true}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rs := &runState{t: tk}
+		r.refreshLastImplement(ctx, rs, tc.pre)
+		li := loadTask(t, h, res.TaskID).State.LastImplement
+		if got := li.Fingerprint != "" && li.Continuable; got != tc.want {
+			t.Fatalf("pre=%q: nối tiếp=%v, muốn %v (%+v)", tc.pre, got, tc.want, li)
+		}
+	}
+}
+
+// Nội dung có sẵn ``` (SKILL.md, plan.md) không được đóng rào sớm (review 01M7JFYDZ07RFN10HF750YZ1VP.6).
+func TestFencedOutlastsInnerBackticks(t *testing.T) {
+	body := "a\n```sh\nrm -rf x\n```\nb ````` c\n"
+	got := fenced("diff", body)
+	if !strings.HasPrefix(got, "``````diff\n") || !strings.HasSuffix(got, "\n``````\n") {
+		t.Fatalf("rào phải dài hơn chuỗi backtick dài nhất (5):\n%s", got)
+	}
+	if got := fenced("", "x"); got != "```\nx\n```\n" {
+		t.Fatalf("rào tối thiểu ```: %q", got)
 	}
 }

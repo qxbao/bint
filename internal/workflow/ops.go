@@ -934,6 +934,10 @@ func (e *Env) RecordQuestion(ref, step, text string) (*task.Task, error) {
 		return nil, errors.New("thiếu nội dung câu hỏi")
 	}
 	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
+		// Agent quên --step: gán cho bước đang chạy của tác vụ để cổng sau bước và lần trả lời tìm thấy câu hỏi.
+		if step == "" {
+			step = t.State.FlowStep
+		}
 		t.State.Questions = append(t.State.Questions, task.StepQuestion{Step: step, RunID: e.RunID, Text: truncate(text, 2000), At: e.at(), By: e.actor()})
 		return nil
 	})
@@ -955,7 +959,7 @@ func (e *Env) answerQuestions(ref, step, answer string) (*task.Task, error) {
 		hit := false
 		for i := range t.State.Questions {
 			q := &t.State.Questions[i]
-			if q.Open() && q.Step == step {
+			if q.Open() && (q.Step == step || q.Step == "") {
 				q.Answer, q.AnsweredAt, q.AnsweredBy = truncate(answer, 4000), e.at(), e.actor()
 				hit = true
 			}

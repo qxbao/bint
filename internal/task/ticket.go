@@ -118,24 +118,36 @@ func Classify(request string, refs ...string) Classification {
 var (
 	// anchorTermRe: từ khoá kỹ thuật chỉ đích danh một hành vi/lỗi cụ thể.
 	anchorTermRe = wordsRe(`nil|null|panic|npe|segfault|deadlock|timeout|goroutine|stack trace|exit code|race condition`)
-	// anchorUnitRe: số kèm đơn vị ("30 ngày", "500ms", "10 MB", "5%").
-	anchorUnitRe = regexp.MustCompile(`(?i)(?:^|[^\p{L}\p{N}_.,])\d+(?:[.,]\d+)?\s*(?:ms|mb|gb|kb|%|giây|phút|giờ|ngày|tuần|tháng|byte|bytes|dòng|lần)(?:$|[^\p{L}\p{N}_])`)
-	// anchorCodeRe: tệp/đường dẫn, định danh mã, hàm(), cờ --x, mã HTTP/lỗi, chuỗi trích dẫn.
+	// anchorUnitRe: số kèm đơn vị đo ("30 ngày", "500ms", "10 MB", "5%"). Không gồm "lần": "lỗi 2 lần rồi" không phải tiêu chí.
+	anchorUnitRe = regexp.MustCompile(`(?i)(?:^|[^\p{L}\p{N}_.,])\d+(?:[.,]\d+)?\s*(?:ms|mb|gb|kb|%|giây|phút|giờ|ngày|tuần|tháng|byte|bytes|dòng)(?:$|[^\p{L}\p{N}_])`)
+	// anchorCodeRe: tệp/đường dẫn, hàm(), cờ --x, mã HTTP/lỗi có ngữ cảnh, chuỗi trích dẫn, snake_case. Mẫu hẹp có chủ ý:
+	// "v.v.", "Windows/Linux", số trần không phải mỏ neo (review 01M7JFYDZ07RFN10HF750YZ1VP.1).
 	anchorCodeRe = regexp.MustCompile(strings.Join([]string{
-		`[\w.-]+/[\w.-]+`,                         // đường dẫn có dấu gạch chéo
-		`[\p{L}\p{N}_-]+\.[A-Za-z_][A-Za-z0-9_]*`, // tệp (README.md) hoặc a.b
-		`\b[a-z]+[A-Z][A-Za-z0-9]*`,               // camelCase
-		`\b[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*`,       // PascalCase nhiều từ
-		`\b[A-Za-z0-9]+_[A-Za-z0-9_]+`,            // snake_case, BIEN_MOI_TRUONG
-		`\w+\(\)`,                                 // hàm()
-		`(?:^|\s)--[a-z][\w-]*`,                   // cờ dòng lệnh
-		`\b[1-5]\d{2}\b`,                          // mã HTTP / số lỗi
-		`\bE[A-Z]{3,}\b`,                          // errno (ENOENT)
-		"`[^`]+`",                                 // trích trong backtick
-		`"[^"]+"`,                                 // trích trong nháy kép
-		`“[^”]+”`,                                 // trích trong nháy cong
-		`(?:^|\s)'[^']+'`,                         // trích trong nháy đơn
+		`(?:^|[\s(])(?:\.{1,2}/|~/|/)[A-Za-z0-9_.-]+`,                                                                                          // đường dẫn tuyệt đối/tương đối
+		`\b(?:internal|cmd|pkg|src|lib|docs|test|tests|scripts|app|api|web|migrations)/[A-Za-z0-9_.-]+`,                                        // thư mục mã quen thuộc
+		`\b[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+`,                                                                                    // đường dẫn ≥ 2 cấp
+		`\b[A-Za-z0-9_-]+\.(?:go|mod|sum|md|txt|ya?ml|json|toml|py|js|ts|tsx|jsx|rs|java|kt|c|h|cpp|cs|rb|php|sh|sql|html|css|lock|ini|env)\b`, // tệp có phần mở rộng quen thuộc (a.go)
+		`\b[A-Za-z0-9_-]{2,}\.[A-Za-z][A-Za-z0-9_]+\b`,                                                                                         // tệp (README.md, db.go) hoặc a.b
+		`\b[A-Za-z0-9]+_[A-Za-z0-9_]+`,                                                                                                         // snake_case, BIEN_MOI_TRUONG
+		`\w+\(\)`,                                                                                                                              // hàm()
+		`(?:^|\s)--[a-z][\w-]*`,                                                                                                                // cờ dòng lệnh
+		`(?i:mã|code|http|status|lỗi|error)\s+(?i:http\s+|lỗi\s+)?[1-5]\d{2}\b`,                                                                // mã HTTP / số lỗi có ngữ cảnh
+		`\bE[A-Z]{3,}\b`,  // errno (ENOENT)
+		"`[^`]+`",         // trích trong backtick
+		`"[^"]+"`,         // trích trong nháy kép
+		`“[^”]+”`,         // trích trong nháy cong
+		`(?:^|\s)'[^']+'`, // trích trong nháy đơn
 	}, "|"))
+	// anchorIdentRe: định danh mã camelCase (parseTicket) hoặc PascalCase nhiều từ (ParseSubmission). Tên sản phẩm viết hoa giữa
+	// từ (GitHub, macOS, iPhone…) không phải mỏ neo: lọc bằng productNames.
+	anchorIdentRe = regexp.MustCompile(`\b(?:[a-z]{2,}[A-Z][a-z0-9]+[A-Za-z0-9]*|[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*)\b`)
+	productNames  = map[string]bool{
+		"github": true, "gitlab": true, "youtube": true, "javascript": true, "typescript": true, "powershell": true, "macbook": true,
+		"linkedin": true, "wordpress": true, "postgresql": true, "mysql": true, "sqlite": true, "openai": true, "chatgpt": true,
+		"vscode": true, "whatsapp": true, "paypal": true, "devops": true, "iphone": true, "ipad": true, "macos": true, "ios": true,
+		"onedrive": true, "dropbox": true, "facebook": true, "jetbrains": true, "intellij": true, "goland": true, "pycharm": true,
+		"webstorm": true, "nodejs": true, "codex": true, "claudecode": true,
+	}
 )
 
 // hasConcreteAnchor: yêu cầu có nêu điều kiểm được (tệp/đường dẫn, định danh mã, chuỗi trích dẫn,
@@ -143,7 +155,15 @@ var (
 // ("làm cho nó tự dọn bớt mấy thứ cũ đi") phải qua b-req để lộ phạm vi và tiêu chí; yêu cầu ngắn
 // có mỏ neo vẫn bỏ qua b-req.
 func hasConcreteAnchor(request string) bool {
-	return anchorCodeRe.MatchString(request) || anchorTermRe.MatchString(request) || anchorUnitRe.MatchString(request)
+	if anchorCodeRe.MatchString(request) || anchorTermRe.MatchString(request) || anchorUnitRe.MatchString(request) {
+		return true
+	}
+	for _, id := range anchorIdentRe.FindAllString(request, -1) {
+		if !productNames[strings.ToLower(id)] {
+			return true
+		}
+	}
+	return false
 }
 
 // requestSize đếm số dòng không trống và số từ của mô tả; dùng chung cho Classify và

@@ -67,6 +67,14 @@ func TestClassifyShortVagueNeedsPlan(t *testing.T) {
 		"Cải thiện thông báo lỗi cho dễ hiểu hơn":                   true,
 		"Giao diện hơi khó dùng, sửa lại cho người mới dễ làm quen": true,
 		"planner chạy chậm":                                         true,
+		// mẫu từng bị coi nhầm là mỏ neo (review 01M7JFYDZ07RFN10HF750YZ1VP.1)
+		"Dọn bớt log cũ, file tạm v.v. cho gọn":        true,
+		"Bint chạy chậm trên GitHub, làm nhanh hơn":    true,
+		"Trên macOS bint hay treo, xem giúp tôi":       true,
+		"Làm cho bint chạy tốt trên Windows/Linux":     true,
+		"Bint báo lỗi 2 lần rồi, sửa đi":               true,
+		"Tôi có khoảng 300 tác vụ, danh sách rối quá":  true,
+		"Dùng bint với iPhone hotspot thì mất kết nối": true,
 		// rõ → bỏ b-req
 		"Sửa lỗi chính tả trong README":                    false,
 		"đổi tên hàm Foo thành Bar":                        false,
@@ -79,6 +87,11 @@ func TestClassifyShortVagueNeedsPlan(t *testing.T) {
 		"Trả mã 404 khi tác vụ không tồn tại":              false,
 		"Sửa lỗi ở hàm parseTicket khi mô tả rỗng":         false,
 		"Đặt biến BINT_STATE_DIR làm thư mục trạng thái":   false,
+		"Sửa lỗi trong internal/db khi mở kết nối":         false,
+		"Trả HTTP 500 thay vì 404 khi state hỏng":          false,
+		"Gọi workflow.Runner hai lần thì panic":            false,
+		"Giới hạn log còn 200 dòng":                        false,
+		"Sửa hàm A trong a.go":                             false,
 	} {
 		if c := Classify(req); c.Plan != plan {
 			t.Errorf("%q: plan=%v (%s), muốn %v", req, c.Plan, c.Reason, plan)

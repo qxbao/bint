@@ -345,10 +345,10 @@ Bint không chạy kiểm chứng, không mở `b-review` và không chuyển `d
 điều `b-feat` đã ghi bằng `bint task error` (nếu có) và hai lệnh: `bint run resume <id> --answer "<nội dung>"` (driver session:
 `bint run next <id> --resume --answer "<nội dung>"`) và `bint task cancel <id>`. `b-feat` hỏi người bằng
 `bint task error <id> --step b-feat --question "<câu hỏi>"`: câu hỏi mở chặn tác vụ sau bước (kể cả khi đã đổi tệp), lý do và
-`questions` in nguyên văn câu hỏi. `--answer` ghi câu trả lời vào phiếu rồi chạy lại `b-feat` **trên chính tác vụ đó**; đề bài (hoặc lời nhắn
+`questions` in nguyên văn câu hỏi (quên `--step` thì câu hỏi gắn cho bước đang chạy). `--answer` ghi câu trả lời vào phiếu rồi chạy lại `b-feat` **trên chính tác vụ đó**; đề bài (hoặc lời nhắn
 nối tiếp phiên khi nối tiếp được) và đề bài `b-review` chứa nguyên văn câu hỏi và câu trả lời. `--answer` chỉ hợp lệ khi tác vụ đang chờ
-như vậy. Trạng thái này (`questions`, `awaiting_answer`, `review_exhausted`, `extra_fix_rounds`, `last_implement`) nằm ở `state.json` của
-máy, không vào bản chiếu `.bint/tasks`.
+như vậy. `questions`, `awaiting_answer`, `review_exhausted`, `extra_fix_rounds` vào cả bản chiếu `.bint/tasks` (máy nhập phiếu dùng được
+lệnh trong lý do blocked); `last_implement` (phiên harness, dấu vân tay cây) chỉ nằm ở `state.json` của máy.
 
 **Đề bài `b-review`.** Đề bài kèm sẵn danh sách tệp và thống kê diff của tác vụ, diff đầy đủ khi không quá 48 KiB (vượt thì chỉ thống
 kê và lệnh `bint task diff <id>`), `plan.md` (cắt ở 16 KiB), các câu hỏi `b-feat` đã được trả lời và, từ vòng 2, danh sách phát

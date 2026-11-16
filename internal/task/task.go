@@ -435,11 +435,12 @@ type StepQuestion struct {
 // Open: câu hỏi còn chờ trả lời.
 func (q StepQuestion) Open() bool { return q.Answer == "" && !q.Closed }
 
-// OpenQuestions trả câu hỏi còn chờ trả lời của bước step (rỗng = mọi bước).
+// OpenQuestions trả câu hỏi còn chờ trả lời của bước step (rỗng = mọi bước). Câu hỏi không gắn bước (ghi khi chưa biết bước
+// đang chạy) thuộc về mọi bước, để không bị cổng bỏ qua lặng lẽ.
 func (s *State) OpenQuestions(step string) []StepQuestion {
 	var out []StepQuestion
 	for _, q := range s.Questions {
-		if q.Open() && (step == "" || q.Step == step) {
+		if q.Open() && (step == "" || q.Step == step || q.Step == "") {
 			out = append(out, q)
 		}
 	}
@@ -450,7 +451,7 @@ func (s *State) OpenQuestions(step string) []StepQuestion {
 func (s *State) AnsweredQuestions(step string) []StepQuestion {
 	var out []StepQuestion
 	for _, q := range s.Questions {
-		if q.Answer != "" && (step == "" || q.Step == step) {
+		if q.Answer != "" && (step == "" || q.Step == step || q.Step == "") {
 			out = append(out, q)
 		}
 	}

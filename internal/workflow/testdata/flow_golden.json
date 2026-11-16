@@ -8545,7 +8545,7 @@
       "prompts": [
         "12429:7062f6a44310b022",
         "6785:44b5d6173fdc04cc",
-        "9033:75e8acc164b81c52"
+        "9175:17d74580f8c72973"
       ],
       "results": [
         {
@@ -8610,7 +8610,7 @@
       "prompts": [
         "12427:962e4eff13492a65",
         "6785:44b5d6173fdc04cc",
-        "9033:75e8acc164b81c52"
+        "9175:17d74580f8c72973"
       ],
       "results": [
         {
@@ -8646,7 +8646,7 @@
       ],
       "prompts": [
         "6612:d21523f12af0721f",
-        "8729:649d29f46483300b"
+        "8791:f33c2d80ba9f5b9b"
       ],
       "results": [
         {
@@ -8791,7 +8791,7 @@
       ],
       "prompts": [
         "6612:d21523f12af0721f",
-        "8962:0de08fa16f31f3e5"
+        "9024:209d12a7ee66f63f"
       ],
       "results": [
         {
@@ -8840,9 +8840,9 @@
       ],
       "prompts": [
         "6612:d21523f12af0721f",
-        "8729:649d29f46483300b",
+        "8791:f33c2d80ba9f5b9b",
         "6708:24fc39cc2a10c5c0",
-        "8914:db393b6073a0ac96"
+        "8976:ffa57ea3b9628c2c"
       ],
       "results": [
         {
@@ -8857,8 +8857,7 @@
           "notes": [
             "sửa ngoài scope.allow: done.txt",
             "vòng sửa chạy với đề bài đầy đủ: bước b-feat trước không để lại phiên có thể nối tiếp",
-            "sửa ngoài scope.allow: done.txt",
-            "vòng sửa chạy với đề bài đầy đủ: bước b-feat trước không để lại phiên có thể nối tiếp"
+            "sửa ngoài scope.allow: done.txt"
           ]
         }
       ],
@@ -8887,9 +8886,9 @@
       ],
       "prompts": [
         "6612:d21523f12af0721f",
-        "8729:649d29f46483300b",
+        "8791:f33c2d80ba9f5b9b",
         "6708:24fc39cc2a10c5c0",
-        "8914:db393b6073a0ac96"
+        "8976:ffa57ea3b9628c2c"
       ],
       "results": [
         {
@@ -9235,7 +9234,7 @@
       "prompts": [
         "12427:962e4eff13492a65",
         "6785:44b5d6173fdc04cc",
-        "9033:75e8acc164b81c52"
+        "9175:17d74580f8c72973"
       ],
       "results": [
         {
@@ -9280,7 +9279,7 @@
       "prompts": [
         "12427:962e4eff13492a65",
         "6785:44b5d6173fdc04cc",
-        "9033:75e8acc164b81c52"
+        "9175:17d74580f8c72973"
       ],
       "results": [
         {
@@ -9327,7 +9326,7 @@
       ],
       "prompts": [
         "6612:d21523f12af0721f",
-        "8729:649d29f46483300b"
+        "8791:f33c2d80ba9f5b9b"
       ],
       "results": [
         {
@@ -9361,7 +9360,7 @@
       ],
       "prompts": [
         "6612:d21523f12af0721f",
-        "8729:649d29f46483300b"
+        "8791:f33c2d80ba9f5b9b"
       ],
       "results": [
         {
@@ -9400,7 +9399,7 @@
       ],
       "prompts": [
         "6612:d21523f12af0721f",
-        "8729:649d29f46483300b"
+        "8791:f33c2d80ba9f5b9b"
       ],
       "results": [
         {
@@ -9503,7 +9502,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "9216:5419672151a24b01"
+          "prompt": "9358:15a9a08ed2072c92"
         },
         {
           "call": "complete",
@@ -9554,7 +9553,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "8912:9cd3606130ac1239"
+          "prompt": "8974:598399668e9e8d45"
         },
         {
           "call": "complete",
@@ -9760,7 +9759,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "9145:1dd4b5a6296e2c74"
+          "prompt": "9207:170648efae1c07c9"
         },
         {
           "call": "complete",
@@ -9812,7 +9811,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "8912:9cd3606130ac1239"
+          "prompt": "8974:598399668e9e8d45"
         },
         {
           "call": "complete",
@@ -9855,7 +9854,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "9097:4c529864be824aa9"
+          "prompt": "9159:03fd244ab98bf99f"
         },
         {
           "call": "complete",
@@ -9907,7 +9906,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "8912:9cd3606130ac1239"
+          "prompt": "8974:598399668e9e8d45"
         },
         {
           "call": "complete",
@@ -9950,7 +9949,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "9097:4c529864be824aa9"
+          "prompt": "9159:03fd244ab98bf99f"
         },
         {
           "call": "complete",
@@ -10002,7 +10001,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "8912:9cd3606130ac1239"
+          "prompt": "8974:598399668e9e8d45"
         },
         {
           "call": "complete",
