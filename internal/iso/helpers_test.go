@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -57,6 +58,9 @@ func newFakeReal(t *testing.T) fakeReal {
 		// Home thật trên Windows là USERPROFILE (realHomeOf); thiếu nó thì Sync/Status/OpenStore báo lỗi home.
 		r.Env = append(r.Env, "USERPROFILE="+r.Home)
 	}
+	// Cắt capacity: test viết append(r.Env, ...) nhiều lần trong một bảng; còn chỗ trống thì các lần append
+	// dùng chung mảng nền và ghi đè nhau.
+	r.Env = slices.Clip(r.Env)
 	return r
 }
 

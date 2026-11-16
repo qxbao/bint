@@ -406,6 +406,7 @@ func TestEnvSetVarsAreManaged(t *testing.T) {
 // Họ XDG_ không bị gỡ nguyên khối: biến hệ thống/phiên (XDG_RUNTIME_DIR, XDG_DATA_DIRS, XDG_CONFIG_DIRS,
 // XDG_SESSION_*) phải tới được tiến trình con, còn bốn XDG_*_HOME trỏ vào profile.
 func TestEnvKeepsSystemXDG(t *testing.T) {
+	unixLayoutOnly(t)
 	r := newFakeReal(t)
 	p := profileAt(filepath.Join(r.Dir, "s"), Claude, "w", defaultSettings(t, nil), LB{})
 	sys := map[string]string{
