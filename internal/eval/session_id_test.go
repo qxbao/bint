@@ -96,6 +96,12 @@ func TestCodexInfra(t *testing.T) {
 		{"codex báo lỗi: You have reached your usage limit.", true, true},
 		{`codex báo lỗi: API Error: 503 {"message":"upstream connect error"}`, true, false},
 		{`codex báo lỗi: API Error: 502 {"type":"error"}`, true, false},
+		// Ranh giới của phần nới: văn bản tự do của agent không phải lỗi hạ tầng.
+		{"codex báo lỗi: benchmark exceeds the rate limiter budget", false, false},
+		{"codex báo lỗi: error: 500 (dòng log bị cắt)", false, false},
+		{"codex báo lỗi: 3 tests failed (503)", false, false},
+		{"codex báo lỗi: go test failed (500 dòng log)", false, false},
+		{"codex báo lỗi: API Error: Request failed (503)", true, false},
 	} {
 		reason, q := codexInfra(tc.msg)
 		if (reason != "") != tc.infra || q != tc.quota {

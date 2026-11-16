@@ -261,13 +261,16 @@ func TestDebugRunStepAndWorkflowGuards(t *testing.T) {
 func TestProcessCommandDebug(t *testing.T) {
 	do, _ := flow.GetBuiltin("b-do")
 	dbg, _ := flow.GetBuiltin("b-debug")
-	if got := processCommand(do, "b-feat", "T1"); got != "bint run b-feat --task T1 --json" {
+	if got := processCommand(do, "b-feat", "T1", false); got != "bint run b-feat --task T1 --json" {
 		t.Errorf("b-do: %q", got)
 	}
-	if got := processCommand(dbg, "b-fix", "T1"); got != "bint run b-debug --task T1 --step b-fix --json" {
+	if got := processCommand(dbg, "b-fix", "T1", false); got != "bint run b-debug --task T1 --step b-fix --json" {
 		t.Errorf("b-debug: %q", got)
 	}
-	if got := processCommand(tddDef(t), "green", "T1"); got != "bint run tdd --task T1 --step green --json" {
+	if got := processCommand(tddDef(t), "green", "T1", false); got != "bint run tdd --task T1 --step green --json" {
 		t.Errorf("tdd: %q", got)
+	}
+	if got := processCommand(dbg, "b-fix", "T1", true); got != "bint run b-debug --task T1 --step b-fix --fresh --json" {
+		t.Errorf("b-debug --fresh: %q", got)
 	}
 }

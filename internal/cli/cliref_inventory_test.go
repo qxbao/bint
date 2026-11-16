@@ -74,6 +74,7 @@ var baseExclusions = []exclusion{
 	{"workflow/session.go", " --step ", rSession},
 	{"workflow/session.go", " --json", rSession},
 	{"workflow/session.go", " --run ", rSession},
+	{"workflow/session.go", " --fresh", rSession},
 	{"workflow/session.go", " --agent-id ", rSession},
 	{"workflow/session.go", "--fresh: bước ", rSession + " (ghi chú bước nối tiếp phiên: next --fresh)"},
 	{"workflow/continuation.go", "--fresh: không nối tiếp", rSession + " (lý do không nối tiếp phiên của next --fresh)"},

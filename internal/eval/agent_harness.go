@@ -481,19 +481,19 @@ func parseAgyJSON(out []byte, res *AgentResult) {
 }
 
 // httpCodeTail là phần đứng sau mã HTTP trong thông báo lỗi thật: hết dòng, dấu câu, hoặc tên lỗi chuẩn đi kèm. Số đứng
-// trước một từ thường ("error: 500 dòng log bị cắt") không phải mã trạng thái. Thân JSON ("API Error: 503 {...}") hoặc
-// ngoặc đơn theo sau mã cũng là đuôi hợp lệ.
-const httpCodeTail = `(?:\s*$|[.,;:)\]"'}]|\s+[{(]|\s+(?:internal|bad|service|gateway|server|overloaded|upstream|too|from|error)\b)`
+// trước một từ thường ("error: 500 dòng log bị cắt", "error: 500 (dòng log)") không phải mã trạng thái. Thân JSON
+// ("API Error: 503 {...}") theo sau mã là đuôi hợp lệ.
+const httpCodeTail = `(?:\s*$|[.,;:)\]"'}]|\s+\{|\s+(?:internal|bad|service|gateway|server|overloaded|upstream|too|from|error)\b)`
 
 // codexServerRe khớp lỗi API phía máy chủ trong thông báo Codex tự báo: mã 5xx sau "status/status code/http/api error/error"
 // và theo sau là phần cuối của một thông báo lỗi (httpCodeTail), hoặc kèm tên lỗi chuẩn, hoặc quá tải; số 5xx đứng riêng
 // ("512 tokens", "line 503", "error: 500 dòng") không tính.
 var codexServerRe = regexp.MustCompile(`(?im)(?:status(?: code)?|http|code|api error|error)[\s:=]+5\d\d\b` + httpCodeTail +
-	`|\b(?:rejected|failed)\s*\(5\d\d\)|\b5\d\d\s+(?:internal server error|bad gateway|service unavailable|gateway timeout)|overloaded|internal server error|service unavailable|bad gateway`)
+	`|\brequest\s+(?:rejected|failed)\s*\(5\d\d\)|\b5\d\d\s+(?:internal server error|bad gateway|service unavailable|gateway timeout)|overloaded|internal server error|service unavailable|bad gateway`)
 
 // codexRateRe khớp mã 429 trong thông báo Codex tự báo (cùng quy tắc đuôi như codexServerRe) hoặc "too many requests".
 var codexRateRe = regexp.MustCompile(`(?im)(?:status(?: code)?|http|code|api error|error)[\s:=]+429\b` + httpCodeTail +
-	`|\b(?:rejected|failed)\s*\(429\)|too many requests`)
+	`|\brequest\s+(?:rejected|failed)\s*\(429\)|too many requests`)
 
 // codexInfra phân loại lỗi Codex tự báo (chỉ có văn bản, không có mã trạng thái riêng): hạn mức/429 → QuotaHit,
 // 5xx/quá tải → lỗi hạ tầng; còn lại không phải hạ tầng.

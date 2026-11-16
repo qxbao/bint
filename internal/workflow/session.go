@@ -562,7 +562,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		if h != "claude" {
 			// Role gán harness khác Claude: không có subagent cho nó, bước chạy kiểu tiến trình.
 			a := &SessionAction{Action: ActionProcess, TaskID: id, Status: rs.t.State.Status, Step: step, Worktree: rs.t.State.Worktree,
-				Command: processCommand(rs.flow, step, id), Notes: []string{fmt.Sprintf("role %s gán harness %s: chạy lệnh này rồi `bint run next %s --json`",
+				Command: processCommand(rs.flow, step, id, o.Fresh), Notes: []string{fmt.Sprintf("role %s gán harness %s: chạy lệnh này rồi `bint run next %s --json`",
 					spec.Role, h, id)}}
 			return a, nil
 		}
@@ -599,11 +599,16 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 
 // processCommand là lệnh chạy một bước bằng tiến trình (role gán harness khác Claude). Bốn workflow gốc ban đầu: tên bước
 // cũng là tên workflow một bước (`bint run b-feat --task`); flow tuỳ biến và b-debug: chạy đúng một bước của flow bằng --step.
-func processCommand(fd flow.Def, step, id string) string {
-	if flow.Legacy(fd.Name) {
-		return "bint run " + step + " --task " + id + " --json"
+// fresh (`bint run next --fresh`) truyền tiếp thành --fresh để lệnh tiến trình cũng bỏ nối tiếp phiên của bước dừng gần nhất.
+func processCommand(fd flow.Def, step, id string, fresh bool) string {
+	cmd := "bint run " + step + " --task " + id
+	if !flow.Legacy(fd.Name) {
+		cmd = "bint run " + fd.Name + " --task " + id + " --step " + step
 	}
-	return "bint run " + fd.Name + " --task " + id + " --step " + step + " --json"
+	if fresh {
+		cmd += " --fresh"
+	}
+	return cmd + " --json"
 }
 
 // pendingFrom dựng PendingStep từ bước vừa mở.

@@ -1095,10 +1095,12 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
     lúc dừng và lúc nối tiếp, hoặc harness báo không tìm thấy phiên (`No conversation found with session ID`, `no rollout found for thread
     id`), thì chạy lại **một lần** ngay trong bước với đề bài đầy đủ và UUID mới (note "không tìm thấy phiên"). Claude chết trước khi
     ghi phiên ⇒ `continuable: false` lúc dừng (note "chưa được Claude ghi").
-    `bint run resume <id> --fresh` và `bint run <workflow> --task <id> --fresh` (cờ không dùng khi lập phiếu mới) buộc chạy mới.
+    `bint run resume <id> --fresh` và `bint run <workflow> --task <id> --fresh` (cờ không dùng khi lập phiếu mới) buộc chạy mới;
+    `bint run next <id> --fresh` gặp bước gán harness khác Claude thì lệnh `command` của action process cũng mang `--fresh`.
     **Chi phí không tính trùng**: Bint không dùng số harness báo sau resume (`total_cost_usd` của Claude có thể khôi phục chi phí cả phiên;
     usage `turn.completed` của Codex lấy từ bộ đếm thread). Bước nối tiếp đọc tệp phiên (usage cộng dồn theo cả đời phiên) rồi trừ mốc lưu ở
-    `last_step.usage` lúc dừng: Claude cộng `message.usage` của transcript rồi quy USD theo bảng giá (cùng cách với subagent); Codex lấy
+    `last_step.usage` lúc dừng: Claude cộng `message.usage` của transcript rồi quy USD theo bảng giá (cùng cách với subagent; `--resume`
+    ghi sang transcript khác tệp mốc thì `unknown` kèm note vì chưa rõ tệp mới có chép lại lịch sử cũ); Codex lấy
     `total_token_usage` của rollout (không có USD). Không đọc được tệp phiên ⇒ chi phí `unknown` kèm note, `max_cost_usd` chỉ là chỉ dẫn.
     Lưu ý: `--max-budget-usd` của Claude có thể tính trên chi phí cộng dồn cả phiên nên bước nối tiếp có thể dừng sớm vì trần (xem mục nghiệm
     thu resume ở `docs/acceptance.md`).

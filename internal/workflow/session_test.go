@@ -478,6 +478,11 @@ func TestSessionProcessActionForOtherHarness(t *testing.T) {
 	if got := loadTask(t, h, tk.State.ID); got.State.PendingStep != nil {
 		t.Fatal("action process không được tạo bước dở")
 	}
+	// next --fresh truyền tiếp --fresh sang lệnh tiến trình (bỏ nối tiếp phiên cũ ở cả bước harness khác Claude).
+	if a, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID, Fresh: true}); err != nil || a.Action != ActionProcess ||
+		a.Command != "bint run b-feat --task "+tk.State.ID+" --fresh --json" {
+		t.Fatalf("next --fresh: %+v %v", a, err)
+	}
 	// Chạy lệnh được trả (driver process, agent giả): tác vụ sang in_review.
 	res, err := h.runner().Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: tk.State.ID})
 	if err != nil || res.Status != task.StatusInReview {

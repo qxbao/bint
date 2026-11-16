@@ -388,6 +388,49 @@ func TestProcessContinuationClaudeCostFromFixtureTranscript(t *testing.T) {
 	}
 }
 
+// --resume báo session_id mới (transcript khác tệp mốc): chi phí unknown kèm note, không tính cả tệp mới (có thể trùng phần cũ).
+func TestProcessContinuationClaudeCostUnknownOnNewTranscript(t *testing.T) {
+	procSetup(t)
+	const dir = "../harness/claude/testdata/claude-2.1.322/"
+	before, err := os.ReadFile(dir + "transcript-before-resume.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(dir + "transcript-after-resume.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t)
+	h.agentName = "claude"
+	h.mutateReq = func(req eval.AgentRequest, step string, res *eval.AgentResult) {
+		if step != StepFeat {
+			return
+		}
+		huge := 500.0
+		res.CostUSD = &huge
+		if req.ResumeSessionID == "" {
+			os.MkdirAll(filepath.Dir(h.claudeTranscript(req.SessionID)), 0o755)
+			os.WriteFile(h.claudeTranscript(req.SessionID), before, 0o644)
+			res.SessionID = req.SessionID
+			externalFail(res)
+			return
+		}
+		const fork = "0d6f3a52-1c1e-4f53-9d42-6b3f4a1d2e7c" // phiên mới do --resume báo
+		os.WriteFile(h.claudeTranscript(fork), after, 0o644)
+		res.SessionID = fork
+	}
+	_, id := startDo(t, h)
+	res := resumeDo(t, h, id, nil)
+	for _, s := range res.Steps {
+		if s.Step == StepFeat && s.CostUSD != nil {
+			t.Fatalf("transcript khác tệp mốc phải unknown: %+v", s)
+		}
+	}
+	if !hasNote(res.Notes, "transcript khác") {
+		t.Fatalf("notes: %v", res.Notes)
+	}
+}
+
 func TestProcessContinuationClaudeCostUnknownWithoutPricing(t *testing.T) {
 	procSetup(t)
 	h := newHarness(t)

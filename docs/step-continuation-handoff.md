@@ -8,7 +8,7 @@ Kế hoạch gốc: `docs/step-continuation-plan.md`. Phiếu cha `01M7GD9ANV8E0
 |---|---|---|
 | GĐ1 — phân loại lý do dừng, lưu handle | `01M7GD9M0QKYZK1S5J94MRRA7F` | done, commit `810bf2b` (+ fix `fe99cab`, `6426ebe`) |
 | GĐ2 — nối tiếp cho driver session, vòng câu hỏi b-req | `01M7GD9M9BARPG07T1N4QE6A2R` | **mã đã merge tay vào main, chưa qua b-review**; phiếu còn `interrupted` |
-| GĐ3 — nối tiếp cho driver process (Claude, Codex) | `01M7H1PMC59NKZFXZH445VAQZ0` (giai đoạn B) | mã xong (2026-11-16), chờ b-review; còn đo thật `NT-RESUME-CLAUDE`/`NT-RESUME-CODEX` (docs/acceptance.md V1 bước 6) |
+| GĐ3 — nối tiếp cho driver process (Claude, Codex) | `01M7H1PMC59NKZFXZH445VAQZ0` (giai đoạn B) | done, commit `7290b91` (+ sửa low sau review); còn đo thật `NT-RESUME-CLAUDE`/`NT-RESUME-CODEX` (docs/acceptance.md V1 bước 6) |
 
 ## GĐ2 — đã làm gì, còn gì
 
@@ -95,6 +95,18 @@ Còn phải làm:
 `01M7GHYSEG….1`, và S1011 ở `internal/tui/screens/tasks/graph.go`. Còn lại:
 
 - ~~`01M7GD9M0Q….5`~~: đã xử lý ở GĐ3 (kiểm tệp phiên lúc dừng: `continuable=false` khi Claude chưa ghi phiên).
+
+Low của review giai đoạn A/B (2026-11-16, sửa trực tiếp ngoài Bint):
+
+- ~~`01M7H4BT96….1`~~: `quotaRe` neo `\b` sau `limit`/`rate limit` (không khớp "rate limiter").
+- ~~`01M7H4BT96….2`~~: `httpCodeTail` chỉ nhận thân JSON (`{`), không nhận ngoặc đơn; nhánh `(5xx)`/`(429)` đòi tiền tố `request
+  rejected|failed`; thêm ca âm ("3 tests failed (503)", "error: 500 (dòng log bị cắt)"…).
+- `01M7H4BT96….3` (test nhánh lỗi `Update` xoá `LastStep` ghi vào notes): **chưa làm** — `task.Store` là struct, cần cách gây lỗi ghi
+  không phụ thuộc nền tảng.
+- ~~`01M7H1PMC5….1`~~: transcript sau `--resume` khác tệp mốc ⇒ chi phí `unknown` kèm note (trước: tính cả tệp mới, có thể trùng).
+  Đo thật NT-RESUME-CLAUDE sẽ quyết có trừ mốc được không.
+- ~~`01M7H1PMC5….2`~~: `bint run next --fresh` truyền `--fresh` sang `command` của action process.
+- `01M7H1PMC5….3`: fixture trợ giúp Codex vẫn là 0.167 (máy dựng chỉ có 0.167) — xem "Còn phải làm" mục 3.
 
 ## Môi trường máy nhà (cần dọn)
 

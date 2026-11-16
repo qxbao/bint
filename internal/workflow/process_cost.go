@@ -18,8 +18,9 @@ import (
 // rollout của Codex) — usage trong đó cộng dồn theo cả đời phiên — rồi trừ mốc chụp lúc bước dừng (task.StepStop.Usage):
 //
 //   - Claude: usage cộng từ message.usage của transcript (claude.SubagentUsage, khử trùng lặp theo message.id), quy USD theo bảng giá
-//     như chi phí subagent; phần của lần nối tiếp = usageSince(mốc), chỉ khi cùng transcript (khác tệp thì tính cả tệp mới: không
-//     trừ nhầm, có thể thiếu nhưng không trùng).
+//     như chi phí subagent; phần của lần nối tiếp = usageSince(mốc), chỉ khi cùng transcript. Khác tệp (`--resume` báo session_id
+//     mới) thì unknown kèm ghi chú: tệp mới có thể chép lại lịch sử cũ (tính cả tệp thì trùng) hoặc không (trừ mốc thì thiếu), chưa đo
+//     được nên không đoán (NT-RESUME-CLAUDE).
 //   - Codex: bộ đếm total_token_usage của thread (codex.RolloutUsage) trừ mốc; Codex không báo USD nên CostUSD giữ nil.
 //
 // Bước thường (không nối tiếp) giữ nguyên số harness báo. Không đọc được tệp phiên ⇒ unknown (nil) kèm ghi chú, không đoán.
@@ -69,10 +70,11 @@ func (r *Runner) settleClaudeUsage(rs *runState, sr *stepRun, res *eval.AgentRes
 		unknownUsage(rs, res, sr.step, "không có mốc usage lúc bước trước dừng")
 		return
 	}
-	delta := u
-	if base.Transcript == path {
-		delta = usageSince(u, base)
+	if base.Transcript != path {
+		unknownUsage(rs, res, sr.step, "lần nối tiếp ghi sang transcript khác ("+path+"), chưa rõ tệp mới có chép lại phần đã tính hay không")
+		return
 	}
+	delta := usageSince(u, base)
 	in, out := delta.Totals()
 	turns := int64(delta.Turns)
 	res.InputTokens, res.OutputTokens, res.NumTurns = &in, &out, &turns
