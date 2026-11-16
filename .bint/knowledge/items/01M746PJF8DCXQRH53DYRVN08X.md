@@ -13,10 +13,10 @@ evidence:
     lines: 27-30
     fingerprint: lines:28670d388976ccc4
   - path: docs/bint-plan.md
-    lines: "1295"
+    lines: "1319"
     fingerprint: lines:f7fdd4b4c2b07a9d
   - path: docs/bint-plan.md
-    lines: "1448"
+    lines: "1472"
     fingerprint: lines:65f3236baa43a167
 origin:
   kind: agent
@@ -27,12 +27,12 @@ origin:
     - internal/harness/hookcore/hook.go
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-11T02:27:57Z"
+reviewed_at: "2026-11-16T07:18:32Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:56Z"
 updated_at: "2026-11-11T02:27:57Z"
-verified_at: "2026-11-11T02:27:57Z"
+verified_at: "2026-11-16T07:18:32Z"
 status_reason: người duyệt chấp nhận
 ---
 

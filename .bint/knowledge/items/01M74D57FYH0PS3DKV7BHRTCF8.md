@@ -9,7 +9,7 @@ scope:
     - internal/eval/**
 evidence:
   - path: internal/eval/knowledge.go
-    lines: 196-201
+    lines: 213-218
     fingerprint: lines:3fa535a0c6c03af9
 origin:
   kind: agent
@@ -17,11 +17,11 @@ origin:
   commit: 7dd832f666fa77c584f5354e5d1ec02638134543
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-11T06:36:51Z"
+reviewed_at: "2026-11-16T07:18:39Z"
 version: 1
 created_at: "2026-11-11T04:16:48Z"
 updated_at: "2026-11-11T06:36:51Z"
-verified_at: "2026-11-11T06:36:51Z"
+verified_at: "2026-11-16T07:18:39Z"
 status_reason: người duyệt chấp nhận
 ---
 

@@ -10,19 +10,19 @@ scope:
     - internal/testutil/**
 evidence:
   - path: internal/testutil/git.go
-    lines: "31"
+    lines: "34"
     fingerprint: lines:33a589ca175680d8
 origin:
   kind: agent
   session: ea73f6ef-baf8-457c-a530-7b7efac53c94
   commit: 66bfe223b81eec049cb3cba6afeeeea79e51ba0b
 author: orca <dquanbao@gmail.com>
-reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-14T12:14:52Z"
+reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
+reviewed_at: "2026-11-16T07:19:10Z"
 version: 1
 created_at: "2026-11-14T08:20:13Z"
 updated_at: "2026-11-14T12:14:52Z"
-verified_at: "2026-11-14T12:14:52Z"
+verified_at: "2026-11-16T07:19:10Z"
 status_reason: người duyệt chấp nhận
 ---
 

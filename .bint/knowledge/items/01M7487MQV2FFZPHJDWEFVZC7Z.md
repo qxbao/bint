@@ -9,7 +9,7 @@ scope:
     - internal/config/template.go
 evidence:
   - path: internal/config/template.go
-    lines: "148"
+    lines: "158"
     fingerprint: lines:1cc300d3b75f00e2
 origin:
   kind: agent
@@ -17,11 +17,11 @@ origin:
   commit: a8ed16460d746b62255219aecc9f731d8c80fa92
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-11T07:55:08Z"
+reviewed_at: "2026-11-16T07:18:37Z"
 version: 1
 created_at: "2026-11-11T02:50:44Z"
 updated_at: "2026-11-11T07:55:08Z"
-verified_at: "2026-11-11T07:55:08Z"
+verified_at: "2026-11-16T07:18:37Z"
 status_reason: người duyệt chấp nhận
 ---
 

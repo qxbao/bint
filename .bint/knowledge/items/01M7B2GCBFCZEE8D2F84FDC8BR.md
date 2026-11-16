@@ -10,22 +10,22 @@ scope:
     - internal/testutil/**
 evidence:
   - path: internal/testutil/git.go
-    lines: "20"
+    lines: "23"
     fingerprint: lines:fc271feb12d55252
   - path: internal/workflow/isolation.go
     lines: "442"
-    fingerprint: lines:b34122da689ac59f
+    fingerprint: lines:eedc76bd8e0744ac
 origin:
   kind: agent
   session: 90ad2213-bdd5-45d1-913b-958c3658463a
   commit: dd5a45ed7167bfd7ffb0821ef58679f565d77f70
 author: orca <dquanbao@gmail.com>
-reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-14T05:31:48Z"
+reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
+reviewed_at: "2026-11-16T07:19:11Z"
 version: 1
 created_at: "2026-11-13T18:25:20Z"
 updated_at: "2026-11-14T05:31:48Z"
-verified_at: "2026-11-14T05:31:48Z"
+verified_at: "2026-11-16T07:19:11Z"
 status_reason: người duyệt chấp nhận
 ---
 

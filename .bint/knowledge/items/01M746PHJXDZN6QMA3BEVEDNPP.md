@@ -13,7 +13,7 @@ evidence:
     fingerprint: lines:d757a07cafc55751
   - path: internal/testutil/git.go
     lines: 52-78
-    fingerprint: lines:6a2b13084e90182a
+    fingerprint: lines:3a6265490e7bd8a1
   - path: internal/cli/knowledge_e2e_test.go
     lines: 14-25
     fingerprint: lines:9d1570d97e0499c2
@@ -32,12 +32,12 @@ origin:
     - internal/app/context_test.go
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-12T02:15:26Z"
+reviewed_at: "2026-11-16T07:20:06Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:55Z"
 updated_at: "2026-11-12T02:15:26Z"
-verified_at: "2026-11-12T02:15:26Z"
+verified_at: "2026-11-16T07:20:06Z"
 status_reason: người duyệt chấp nhận
 ---
 

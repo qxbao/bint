@@ -9,7 +9,7 @@ scope:
     - internal/eval/**
 evidence:
   - path: internal/eval/codex_mcp.go
-    lines: "97"
+    lines: "94"
     fingerprint: lines:a32a3bb7121485eb
 origin:
   kind: agent
@@ -17,11 +17,11 @@ origin:
   commit: d81ab271f15631839e5ac6aba967563b0878d38a
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-13T03:46:35Z"
+reviewed_at: "2026-11-16T07:19:23Z"
 version: 1
 created_at: "2026-11-12T09:47:36Z"
 updated_at: "2026-11-13T03:46:35Z"
-verified_at: "2026-11-13T03:46:35Z"
+verified_at: "2026-11-16T07:19:23Z"
 status_reason: người duyệt chấp nhận
 ---
 
