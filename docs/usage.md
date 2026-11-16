@@ -72,6 +72,8 @@ bint bootstrap publish                # dựng khối quy tắc đã duyệt và
 bint context "Mô tả tác vụ"            # truy xuất gói ngữ cảnh (FTS5 + phạm vi + bài học)
 bint run b-do "Mô tả thay đổi"         # điều phối Classify → b-req → b-feat → b-review
 bint run status <task-id>             # tiến độ tác vụ và các lượt chạy con
+bint run resume <task-id> --answer "…" # trả lời câu hỏi của b-feat (hoặc nói rõ thêm khi b-feat không đổi tệp), chạy lại trên chính tác vụ
+bint run resume <task-id> --accept     # hết vòng sửa review: chấp nhận như hiện tại (hoặc --fix-round: sửa thêm một vòng; bint task cancel: huỷ)
 bint eval run --arms none --budget 20 # đánh giá trên môi trường Git cô lập
 bint evolve cycle --budget 20         # vòng đề xuất → đối chiếu validation/test → áp dụng
 ```

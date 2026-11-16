@@ -47,7 +47,7 @@ bint task new --driver session "<mô tả>"       # driver session: phiên đang
 bint task lint <id> [--strict] [--json]         # kiểm ba tài liệu b-req theo hợp đồng v1 (AC↔TSK, câu hỏi mở)
 bint task verify <id>                           # chạy lệnh kiểm chứng (chỉ khi người đã xác nhận)
 bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí chấp nhận
-bint task error <id> --step b-feat "…"          # ghi lỗi / lần thử thất bại
+bint task error <id> --step b-feat "…"          # ghi lỗi / lần thử thất bại (--question "…": câu hỏi gửi người, xem dưới)
 bint task review <id> -                         # vòng review (JSON hoặc YAML) → review.json + review.md
 bint task approve <id> [--path <tệp>] [--setup-sha <băm>]  # NGƯỜI: xác nhận lệnh kiểm chứng, lệnh setup worktree (đúng băm đã xem), duyệt đường dẫn bảo vệ
 bint task status <id> done [--force]            # done cần bằng chứng; chỉ người --force được
@@ -78,9 +78,16 @@ cần `bint task write`. TSK còn tham chiếu AC đã bỏ (số lớn hơn s�
 
 **Classify** xác định được (heuristic, chưa gọi mô hình): mục tiêu = dòng đầu mô tả; `scope.allow` =
 đường dẫn và mẫu glob nêu trong mô tả mà tồn tại; `verify.command` = `eval.test_command` đã xác nhận;
-đề xuất bỏ `b-req` cho việc nhỏ/ngắn gọn. Tệp tài liệu (`.md`, `.txt`…) mà mô tả coi là kế hoạch/đặc tả
+đề xuất bỏ `b-req` cho việc nhỏ hoặc việc ngắn mà **rõ** (xem dưới). Tệp tài liệu (`.md`, `.txt`…) mà mô tả coi là kế hoạch/đặc tả
 cần làm theo ("thực hiện plan docs/x.md") vào `references` thay vì `scope.allow` và kéo theo `b-req`.
 `task new` có `--clear-scope` để bỏ phạm vi tự đoán, chỉ giữ `--allow`/`--deny`.
+
+Yêu cầu ngắn (không quá 25 từ) chỉ được bỏ `b-req` khi nêu được điều kiểm được: tệp/đường dẫn, định danh mã
+(`camelCase`, `snake_case`, `a.b`, `hàm()`), cờ `--x`, chuỗi trích dẫn, mã lỗi/HTTP, hành vi kỹ thuật cụ thể (`nil`, `panic`,
+`timeout`…) hoặc giá trị đo được ("30 ngày", "500ms"); lý do ghi "yêu cầu ngắn, rõ: bỏ b-req". Yêu cầu ngắn mà **mơ hồ** — không
+nêu tệp, hành vi hay tiêu chí cụ thể ("Thư mục dữ liệu cứ phình to, làm cho nó tự dọn bớt mấy thứ cũ đi", "Tôi sợ mật khẩu bị lưu lại
+trong log") — đi qua `b-req` (lý do "yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí cụ thể: cần b-req"), vì chọn phạm vi ở đó
+mới đo được mục đích của người dùng. Việc nhỏ (chính tả/đổi tên/định dạng) vẫn bỏ `b-req` như cũ.
 
 Heuristic chỉ là gợi ý: trong `/b-do`, orchestrator tự đánh giá yêu cầu (đọc cả tài liệu được nêu) và
 truyền `--plan`/`--no-plan`/`--depth` tường minh. Khi phạm vi chạm đường dẫn bảo vệ
@@ -313,8 +320,46 @@ EOF_REVIEW
 Mỗi phát hiện có `kind` (`bug`, `risk`, `suggestion`), `severity` (`critical`, `high`, `medium`, `low`),
 `title`, `evidence` (và `path`, `lines`, `body`, `criterion` nếu có), được gán ID `<task-id>.<n>`. Trong
 `b-do`, phát hiện `bug`/`risk` mức `critical`/`high` đưa luồng quay lại `b-feat` (tối đa
-`workflow.max_review_rounds`, mặc định 2 vòng; quá số vòng → `blocked`). Khi chạy lại `b-feat`, đề bài
-nhắc rõ các tiêu chí còn `unmet` để agent hoàn thành và đối chiếu lại.
+`workflow.max_review_rounds`, mặc định 2 — đây là số **vòng sửa** tối đa, nên 2 vòng sửa ứng với tối đa 3 vòng review;
+hết vòng → `blocked`). Khi chạy lại `b-feat`, đề bài nhắc rõ các tiêu chí còn `unmet` để agent hoàn thành và đối chiếu lại.
+
+**Hết vòng sửa: ba lựa chọn.** Còn phát hiện nghiêm trọng sau khi dùng hết vòng sửa, tác vụ `blocked` với lý do nêu số vòng nhất
+quán ("còn 1 phát hiện nghiêm trọng sau 3 vòng review và 2 vòng sửa (tối đa 2 vòng sửa: `workflow.max_review_rounds` = 2)") và kết
+quả lượt chạy (văn bản và `--json`, trường `choices`) in ba lệnh để người không đọc mã chọn:
+
+```sh
+bint run resume <id> --accept       # chấp nhận kết quả như hiện tại: vào thẳng finalize (cổng done, land vẫn áp dụng), không chạy b-feat/b-review
+bint run resume <id> --fix-round    # cho sửa thêm đúng một vòng: một b-feat rồi một b-review; hết lại hiện ba lựa chọn (số vòng +1)
+bint task cancel <id>               # huỷ
+```
+
+Driver session: `bint run next <id> --resume --accept|--fix-round`. `--accept` và `--fix-round` chỉ **người** dùng được
+(`ErrAgentForbidden` trong phiên agent) và chỉ hợp lệ khi tác vụ đang chờ ở trạng thái này; lịch sử chuyển trạng thái ghi "người chấp
+nhận N phát hiện nghiêm trọng còn lại". Vòng sửa **nối tiếp phiên của chính `b-feat` vừa chạy** (lớp dừng `review_fix`: driver process
+dùng `claude --resume`/`codex exec resume`, driver session dùng SendMessage tới subagent cũ) khi cùng harness/profile, harness hỗ trợ
+nối tiếp, có phiên và cây làm việc không đổi kể từ lúc `b-feat` kết thúc; lời nhắn nối tiếp liệt kê phát hiện nghiêm trọng và tiêu chí
+`unmet`. `--fresh` hoặc thiếu điều kiện thì chạy đề bài đầy đủ như cũ, lý do ghi vào `notes`.
+
+**`b-feat` không đổi tệp nào, hoặc hỏi người.** Sau bước implement cuối mà tác vụ không đổi tệp nào (kết quả `scope`/`touched` rỗng),
+Bint không chạy kiểm chứng, không mở `b-review` và không chuyển `done`: tác vụ `blocked` (`LastStep` = `awaiting_human`), lý do nêu
+điều `b-feat` đã ghi bằng `bint task error` (nếu có) và hai lệnh: `bint run resume <id> --answer "<nội dung>"` (driver session:
+`bint run next <id> --resume --answer "<nội dung>"`) và `bint task cancel <id>`. `b-feat` hỏi người bằng
+`bint task error <id> --step b-feat --question "<câu hỏi>"`: câu hỏi mở chặn tác vụ sau bước (kể cả khi đã đổi tệp), lý do và
+`questions` in nguyên văn câu hỏi. `--answer` ghi câu trả lời vào phiếu rồi chạy lại `b-feat` **trên chính tác vụ đó**; đề bài (hoặc lời nhắn
+nối tiếp phiên khi nối tiếp được) và đề bài `b-review` chứa nguyên văn câu hỏi và câu trả lời. `--answer` chỉ hợp lệ khi tác vụ đang chờ
+như vậy. Trạng thái này (`questions`, `awaiting_answer`, `review_exhausted`, `extra_fix_rounds`, `last_implement`) nằm ở `state.json` của
+máy, không vào bản chiếu `.bint/tasks`.
+
+**Đề bài `b-review`.** Đề bài kèm sẵn danh sách tệp và thống kê diff của tác vụ, diff đầy đủ khi không quá 48 KiB (vượt thì chỉ thống
+kê và lệnh `bint task diff <id>`), `plan.md` (cắt ở 16 KiB), các câu hỏi `b-feat` đã được trả lời và, từ vòng 2, danh sách phát
+hiện nghiêm trọng của vòng trước. Reviewer còn phải đối chiếu **yêu cầu gốc**, từng tiêu chí chấp nhận và mục "Bề mặt bị ảnh hưởng" của
+`plan.md` để ghi phát hiện **bỏ sót** (được chỉ tệp ngoài diff, kèm `criterion`), không chỉ lỗi trong phần đã sửa. Kiểm chứng `scope: none`
+(không test nào bị ảnh hưởng) ghi log "không chạy lệnh — không test nào bị ảnh hưởng", không in dòng lệnh như thể đã chạy.
+
+**Mục "Bề mặt bị ảnh hưởng" của `b-req`.** `plan.md` (mức `standard` lẫn `deep`) liệt kê từng nơi dữ liệu/hành vi đi qua (ví dụ với bí
+mật: log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`, SQLite; với dọn dữ liệu: từng loại dữ liệu trong state dir), mỗi nơi gắn một
+AC kiểm được hoặc lý do ngoài phạm vi; mục "Giả định thay người dùng" ghi giá trị mặc định cho quyết định kỹ thuật người không rành
+không trả lời được; kế hoạch không được thu hẹp phạm vi tới mức không đạt mục đích người dùng.
 
 **Kết cục phát hiện (`bint findings`).** Mỗi phát hiện có kết cục `open` (mặc định, kể cả `review.json` cũ),
 `fixed`, `rejected` hoặc `deferred`. Kết cục ghi chỉ-thêm vào `findings.json` trong thư mục tác vụ (kèm `by`,
@@ -424,7 +469,7 @@ gói ngữ cảnh của Context Engine. Giới hạn vận hành (mục 5):
 | `limits.workflows.<wf>.max_turns` | `--max-turns` cho bước trên Claude Code (`b-do` trừ số lượt đã dùng khỏi tổng) |
 | `limits.protected_paths`, `scope.deny` | sau `b-feat`, đối chiếu tệp mà tác vụ đã sửa (`touched`; phiếu cũ: so với commit gốc); có terminal thì hỏi, không thì `blocked` chờ `task approve` |
 | ngoài `scope.allow` | chỉ hỏi khi `autonomy: ask_always` (ngoài ra ghi chú) |
-| `workflow.max_review_rounds` (2) | phát hiện `bug`/`risk` mức `critical`/`high` → quay lại `b-feat`; hết vòng → `blocked` |
+| `workflow.max_review_rounds` (2) | số vòng **sửa** tối đa: phát hiện `bug`/`risk` mức `critical`/`high` → quay lại `b-feat`; hết vòng → `blocked` kèm ba lựa chọn (`--accept`, `--fix-round`, `task cancel`) |
 | `workflow.timeout_minutes` (60), `verify_timeout_minutes` (15) | giới hạn thời gian mỗi bước agent / lệnh kiểm chứng |
 | `workflow.verify.scope` (`full`), `verify.affected_command` | `affected`: kiểm chứng sau implement chỉ chạy test bị ảnh hưởng; done vẫn đòi chạy đầy đủ ([phạm vi kiểm chứng](#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)) |
 

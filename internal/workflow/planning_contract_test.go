@@ -190,6 +190,13 @@ func TestPlanningContractLegacyAndDirectFeatPass(t *testing.T) {
 	if tk2.State.PlanningContractVersion != 1 || tk2.State.Status != task.StatusCreated {
 		t.Fatalf("%+v", tk2.State)
 	}
+	// Lượt trước đã ghi app.txt/done.txt: lượt này ghi tệp khác để tác vụ có thay đổi riêng (không đổi tệp nào thì bị chặn chờ người).
+	h.behave = func(_ context.Context, step string, _ *Env, _ string) error {
+		if step == StepFeat {
+			h.write("direct.txt", "v2\n")
+		}
+		return nil
+	}
 	res2, err := r.Run(ctx, RunOptions{Workflow: StepFeat, TaskRef: tk2.State.ID})
 	if err != nil || res2.Status != task.StatusInReview {
 		t.Fatalf("v1 created: %+v %v", res2, err)

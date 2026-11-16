@@ -926,6 +926,48 @@ func (e *Env) RecordError(ref, step, msg string) (*task.Task, error) {
 	return t, nil
 }
 
+// RecordQuestion ghi câu hỏi của một bước agent gửi người (`bint task error --question`). Câu hỏi mở làm tác vụ dừng chờ
+// người sau bước implement (afterStep); người trả lời bằng `bint run resume <id> --answer`.
+func (e *Env) RecordQuestion(ref, step, text string) (*task.Task, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil, errors.New("thiếu nội dung câu hỏi")
+	}
+	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
+		t.State.Questions = append(t.State.Questions, task.StepQuestion{Step: step, RunID: e.RunID, Text: truncate(text, 2000), At: e.at(), By: e.actor()})
+		return nil
+	})
+	if err != nil {
+		return t, err
+	}
+	e.emit(t, spool.TaskError, map[string]any{"step": step, "message": truncate("câu hỏi: "+text, 300)})
+	return t, nil
+}
+
+// answerQuestions ghi câu trả lời của người cho các câu hỏi mở của bước step (cùng một lời cho mọi câu đang mở); không có
+// câu hỏi mở thì ghi thành mục "người nói rõ thêm" để b-feat chạy lại vẫn nhận được lời đó. Trả tác vụ đã cập nhật.
+func (e *Env) answerQuestions(ref, step, answer string) (*task.Task, error) {
+	answer = strings.TrimSpace(answer)
+	if answer == "" {
+		return nil, errors.New("--answer rỗng")
+	}
+	return e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
+		hit := false
+		for i := range t.State.Questions {
+			q := &t.State.Questions[i]
+			if q.Open() && q.Step == step {
+				q.Answer, q.AnsweredAt, q.AnsweredBy = truncate(answer, 4000), e.at(), e.actor()
+				hit = true
+			}
+		}
+		if !hit {
+			t.State.Questions = append(t.State.Questions, task.StepQuestion{Step: step, Text: "(người nói rõ thêm, không có câu hỏi nào đang mở)",
+				At: e.at(), By: e.actor(), Answer: truncate(answer, 4000), AnsweredAt: e.at(), AnsweredBy: e.actor()})
+		}
+		return nil
+	})
+}
+
 // SubmitReview ghi một vòng review.
 func (e *Env) SubmitReview(ref string, data []byte) (*task.Task, task.ReviewRound, error) {
 	sub, errs := task.ParseSubmission(data, e.Root)

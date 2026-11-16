@@ -412,7 +412,8 @@ var LedgerModes = []string{LedgerGit, LedgerLocal}
 
 // Workflow cấu hình các workflow gốc do Bint điều phối (`bint run`, mục 6).
 type Workflow struct {
-	// MaxReviewRounds: số vòng b-review → b-feat tối đa của b-do trước khi dừng chờ người.
+	// MaxReviewRounds: số vòng SỬA tối đa sau review của b-do (b-review đòi sửa → b-feat chạy lại) trước khi dừng chờ người; n vòng sửa
+	// nghĩa là tối đa n+1 vòng review. Hết vòng, người chọn chấp nhận / cho sửa thêm một vòng / huỷ (bint run resume --accept | --fix-round).
 	MaxReviewRounds int `yaml:"max_review_rounds"`
 	// TimeoutMinutes giới hạn thời gian mỗi bước agent.
 	TimeoutMinutes int `yaml:"timeout_minutes"`

@@ -76,6 +76,7 @@ func printSessionAction(w io.Writer, a *workflow.SessionAction) {
 	for _, n := range a.Notes {
 		fmt.Fprintf(w, "! %s\n", n)
 	}
+	printChoices(w, a.Choices)
 	if a.Prompt != "" {
 		fmt.Fprintf(w, "\n--- prompt cho subagent ---\n%s\n", strings.TrimRight(a.Prompt, "\n"))
 	}
@@ -110,8 +111,10 @@ Mở bước kế tiếp (chuyển trạng thái, giới hạn, khoá worktree, 
       bint run next <id> --fresh để nhận đề bài đầy đủ cho agent mới (cùng run_id)
   {"action":"process","command":"bint run b-feat --task <id> --json"}
       role gán harness khác Claude: chạy lệnh đó (nền được), rồi gọi lại bint run next
-  {"action":"done"|"blocked"|"failed","reason","questions"}
-      dừng và báo người dùng; blocked/failed có mã thoát 1. Người xử lý xong thì bint run next <id> --resume
+  {"action":"done"|"blocked"|"failed","reason","questions","choices"}
+      dừng và báo người dùng; blocked/failed có mã thoát 1. Người xử lý xong thì bint run next <id> --resume. "choices" (nếu có) là
+      các lựa chọn bằng lệnh để chuyển nguyên văn cho người: trả lời b-feat (--resume --answer "<trả lời>"), hoặc sau khi hết vòng
+      sửa review: chấp nhận (--resume --accept), sửa thêm một vòng (--resume --fix-round), huỷ (bint task cancel <id>)
 
 Gọi lại khi bước còn hạn trả đúng bước đó (cùng run_id), không mở bước mới. Bước giữ khoá worktree bằng hợp đồng thuê
 theo thời gian (workflow.timeout_minutes); phiên điều phối chết giữa bước thì bint run abort <id>. Khoá bị bước khác
@@ -137,6 +140,9 @@ giữ thì chờ tối đa workflow.timeout_minutes, --no-wait để dừng ngay
 	c.Flags().BoolVar(&o.Rerun, "rerun", false, "cùng --resume: bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó")
 	c.Flags().BoolVar(&o.NoWait, "no-wait", false, "khoá worktree đang bị bước khác giữ thì dừng ngay (blocked) thay vì chờ")
 	c.Flags().BoolVar(&o.Fresh, "fresh", false, "bỏ nối tiếp phiên cũ: nhận đề bài đầy đủ cho agent mới (bước nối tiếp đang dở được đổi tại chỗ)")
+	c.Flags().StringVar(&o.Answer, "answer", "", "cùng --resume: trả lời b-feat đang chờ (câu hỏi --question hoặc b-feat không đổi tệp); b-feat chạy lại với nguyên văn câu hỏi và câu trả lời")
+	c.Flags().BoolVar(&o.Accept, "accept", false, "cùng --resume, sau khi hết vòng sửa review: chấp nhận kết quả như hiện tại, vào thẳng bước hoàn tất (chỉ người dùng)")
+	c.Flags().BoolVar(&o.FixRound, "fix-round", false, "cùng --resume, sau khi hết vòng sửa review: cho sửa thêm đúng một vòng (chỉ người dùng)")
 	c.Flags().BoolVar(&asJSON, "json", false, "in kết quả dạng JSON")
 	return c
 }

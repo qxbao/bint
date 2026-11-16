@@ -289,13 +289,23 @@ Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task ap
   người lần nữa); hết câu hỏi thì b-do đi tiếp b-feat trong cùng lượt. Cùng điều kiện nối tiếp như trên (cây không đổi, phiên
   còn trên đĩa, cùng harness, chưa quá giới hạn); không nối tiếp được thì vào thẳng b-feat như trước, `notes` nêu lý do.
   `--fresh` (`bint run resume <id> --fresh`, `bint run b-do --task <id> --fresh`) buộc bỏ nối tiếp ở mọi bước dừng.
+- **b-feat hỏi người dùng hoặc không đổi tệp nào** (`reason` bắt đầu bằng `b-feat hỏi người dùng:` hoặc `bước b-feat kết thúc mà
+  không đổi tệp nào`; JSON có `choices`): chuyển **nguyên văn** câu hỏi (`questions`/`reason`) cho người dùng, chờ họ trả lời — đừng tự
+  trả lời thay — rồi `bint run resume <id> --answer "<câu trả lời của họ>" --json` (driver session:
+  `bint run next <id> --resume --answer "<câu trả lời>" --json`). b-feat chạy lại trên chính tác vụ này (nối tiếp phiên cũ khi
+  nối tiếp được) và nhận nguyên văn câu hỏi cùng câu trả lời; đừng mở tác vụ mới. Người dùng muốn bỏ thì `bint task cancel <id>`.
+- **Hết vòng sửa sau review** (`reason` có `vòng review` và `vòng sửa`, `choices` có ba lệnh): đọc `review.md` cho người dùng nghe các
+  phát hiện còn lại bằng lời thường rồi đưa **ba lựa chọn** nguyên văn từ `choices` và chờ họ chọn: chấp nhận kết quả như hiện tại
+  (`bint run resume <id> --accept`), cho sửa thêm đúng một vòng (`bint run resume <id> --fix-round`), hoặc huỷ
+  (`bint task cancel <id>`); driver session dùng `bint run next <id> --resume --accept|--fix-round`. **Không tự chạy `--accept` hay
+  `--fix-round`**: hai cờ này là quyết định của người dùng (Bint từ chối khi chạy trong phiên agent); `workflow.max_review_rounds` là số vòng
+  sửa tối đa.
 - **Artifact b-req lỗi cấu trúc** (`planning_issues`): sửa theo `bint task lint <id>` qua
   `bint task write`, hoặc chạy lại b-req (`bint run b-req --task <id> --json`).
 - **Lệnh kiểm chứng chưa có hoặc chưa xác nhận**: hỏi lệnh rồi `bint task set <id> --verify-command '…'`.
   Việc xác nhận (`bint task approve`) là của người dùng.
-- **Đường dẫn bảo vệ / autonomy ask_always / hết ngân sách / còn phát hiện nghiêm trọng sau đủ
-  vòng review**: không lách. Nói rõ người dùng cần làm gì (duyệt bằng `bint task approve <id>`,
-  tăng `limits`, xem `review.md`…), chờ họ làm xong rồi mới resume.
+- **Đường dẫn bảo vệ / autonomy ask_always / hết ngân sách**: không lách. Nói rõ người dùng cần làm gì (duyệt bằng
+  `bint task approve <id>`, tăng `limits`…), chờ họ làm xong rồi mới resume. (Hết vòng sửa review: xem mục riêng ở trên.)
 
 `failed`/`interrupted`: báo lỗi của bước (`bint task show <id>`, nhật ký trong `steps`). Chỉ
 `bint run resume <id>` khi nguyên nhân đã được xử lý. Agent con không chạy được trong sandbox của

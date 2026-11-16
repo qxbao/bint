@@ -402,6 +402,59 @@ type State struct {
 	SessionSpend *SessionSpend `json:"session_spend,omitempty"`
 	// LastStep là bước dừng gần nhất không hoàn thành (hoặc dừng chờ người ngay sau bước); xoá khi bước mới bắt đầu.
 	LastStep *StepStop `json:"last_step,omitempty"`
+	// Questions là câu hỏi mà bước agent ghi bằng `bint task error --question` và câu trả lời của người
+	// (`bint run resume --answer`). Câu hỏi mở (OpenQuestions) làm tác vụ dừng chờ người sau bước implement.
+	Questions []StepQuestion `json:"questions,omitempty"`
+	// LastImplement là bước implement vừa kết thúc bình thường (handle phiên + fingerprint cây sau bước): vòng sửa sau
+	// review dùng để nối tiếp phiên của chính b-feat đó (lớp dừng review_fix); không xoá khi bước khác bắt đầu.
+	LastImplement *StepStop `json:"last_implement,omitempty"`
+	// ExtraFixRounds là số vòng sửa người cho thêm bằng `bint run resume --fix-round` ngoài workflow.max_review_rounds.
+	ExtraFixRounds int `json:"extra_fix_rounds,omitempty"`
+	// ReviewExhausted: tác vụ đang chờ người sau khi hết vòng sửa (còn phát hiện nghiêm trọng): chỉ khi đó
+	// `bint run resume --accept` / `--fix-round` có hiệu lực.
+	ReviewExhausted bool `json:"review_exhausted,omitempty"`
+	// AwaitingAnswer: b-feat dừng chờ người nói rõ (câu hỏi mở hoặc bước kết thúc mà không đổi tệp nào): chỉ khi đó
+	// `bint run resume --answer` có hiệu lực. Xoá khi tiếp tục.
+	AwaitingAnswer bool `json:"awaiting_answer,omitempty"`
+}
+
+// StepQuestion là câu hỏi của một bước agent gửi người (bint task error --question) và câu trả lời.
+type StepQuestion struct {
+	Step  string `json:"step,omitempty"`
+	RunID string `json:"run_id,omitempty"`
+	Text  string `json:"text"`
+	At    string `json:"at,omitempty"`
+	By    string `json:"by,omitempty"`
+	// Answer khác rỗng: đã được trả lời (AnsweredAt/AnsweredBy). Closed: bỏ qua (bước chạy lại mà người không trả lời).
+	Answer     string `json:"answer,omitempty"`
+	AnsweredAt string `json:"answered_at,omitempty"`
+	AnsweredBy string `json:"answered_by,omitempty"`
+	Closed     bool   `json:"closed,omitempty"`
+}
+
+// Open: câu hỏi còn chờ trả lời.
+func (q StepQuestion) Open() bool { return q.Answer == "" && !q.Closed }
+
+// OpenQuestions trả câu hỏi còn chờ trả lời của bước step (rỗng = mọi bước).
+func (s *State) OpenQuestions(step string) []StepQuestion {
+	var out []StepQuestion
+	for _, q := range s.Questions {
+		if q.Open() && (step == "" || q.Step == step) {
+			out = append(out, q)
+		}
+	}
+	return out
+}
+
+// AnsweredQuestions trả câu hỏi đã được trả lời của bước step (rỗng = mọi bước), theo thứ tự ghi.
+func (s *State) AnsweredQuestions(step string) []StepQuestion {
+	var out []StepQuestion
+	for _, q := range s.Questions {
+		if q.Answer != "" && (step == "" || q.Step == step) {
+			out = append(out, q)
+		}
+	}
+	return out
 }
 
 // HeldStep ghi bước chỉ đọc đang được giữ vì cây đổi trong lúc chạy (State.HeldStep).

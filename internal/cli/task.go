@@ -711,29 +711,48 @@ func newTaskCriteriaCmd(stdio IO) *cobra.Command {
 }
 
 func newTaskErrorCmd(stdio IO) *cobra.Command {
-	var step string
+	var step, question string
 	var asJSON bool
 	c := &cobra.Command{
-		Use:   "error <task-id> <nội dung>",
-		Short: "Ghi một lỗi hoặc lần thử sửa thất bại",
-		Args:  cobra.ExactArgs(2),
+		Use:   "error <task-id> [nội dung]",
+		Short: "Ghi một lỗi, lần thử sửa thất bại hoặc câu hỏi gửi người",
+		Long: `Ghi một lỗi hoặc lần thử sửa thất bại vào phiếu. Với --question "<câu hỏi>" thì ghi câu hỏi gửi người dùng
+(nội dung không bắt buộc): sau bước b-feat, tác vụ chuyển blocked chờ người và in lệnh trả lời; người trả lời bằng
+bint run resume <task-id> --answer "<trả lời>" (driver session: bint run next <task-id> --resume --answer "<trả lời>"),
+b-feat chạy lại trên chính tác vụ đó và nhận câu hỏi cùng câu trả lời.`,
+		Example: `  bint task error 01J… --step b-feat "đã thử đổi sang WAL, kiểm thử vẫn hỏng"
+  bint task error 01J… --step b-feat --question "Giữ nhật ký bao nhiêu ngày?"`,
+		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			t, err := app.RecordTaskError(cmd.Context(), ws, app.TaskErrorOptions{Ref: args[0], Message: args[1], Step: step})
+			msg := ""
+			if len(args) == 2 {
+				msg = args[1]
+			}
+			o := app.TaskErrorOptions{Ref: args[0], Message: msg, Step: step, Question: question}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			t, err := app.RecordTaskError(cmd.Context(), ws, o)
 			if err != nil {
 				return err
 			}
 			if asJSON {
-				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "step": step, "recorded": true})
+				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "step": step, "recorded": true, "question": question != ""})
+			}
+			if question != "" {
+				fmt.Fprintf(stdio.Out, "Đã ghi câu hỏi. Người trả lời bằng: bint run resume %s --answer \"<trả lời>\"\n", t.State.ID)
+				return nil
 			}
 			fmt.Fprintln(stdio.Out, "Đã ghi.")
 			return nil
 		},
 	}
 	c.Flags().StringVar(&step, "step", "", "bước (b-req, b-feat, b-review…)")
+	c.Flags().StringVar(&question, "question", "", "ghi như câu hỏi gửi người: tác vụ dừng chờ người sau bước (trả lời bằng bint run resume --answer)")
 	c.Flags().BoolVar(&asJSON, "json", false, jsonWriteHelp)
 	return c
 }

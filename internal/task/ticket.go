@@ -107,10 +107,43 @@ func Classify(request string, refs ...string) Classification {
 		return Classification{Plan: true, Reason: "mô tả dài hoặc nhiều ý: cần b-req"}
 	case planWords.MatchString(request):
 		return Classification{Plan: true, Reason: "tính năng/thiết kế/thay đổi giao diện: cần b-req"}
-	case words <= 25:
+	case words <= 25 && hasConcreteAnchor(request):
 		return Classification{Plan: false, Reason: "yêu cầu ngắn, rõ: bỏ b-req"}
+	case words <= 25:
+		return Classification{Plan: true, Reason: "yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí cụ thể: cần b-req"}
 	}
 	return Classification{Plan: true, Reason: "mặc định: cần b-req"}
+}
+
+var (
+	// anchorTermRe: từ khoá kỹ thuật chỉ đích danh một hành vi/lỗi cụ thể.
+	anchorTermRe = wordsRe(`nil|null|panic|npe|segfault|deadlock|timeout|goroutine|stack trace|exit code|race condition`)
+	// anchorUnitRe: số kèm đơn vị ("30 ngày", "500ms", "10 MB", "5%").
+	anchorUnitRe = regexp.MustCompile(`(?i)(?:^|[^\p{L}\p{N}_.,])\d+(?:[.,]\d+)?\s*(?:ms|mb|gb|kb|%|giây|phút|giờ|ngày|tuần|tháng|byte|bytes|dòng|lần)(?:$|[^\p{L}\p{N}_])`)
+	// anchorCodeRe: tệp/đường dẫn, định danh mã, hàm(), cờ --x, mã HTTP/lỗi, chuỗi trích dẫn.
+	anchorCodeRe = regexp.MustCompile(strings.Join([]string{
+		`[\w.-]+/[\w.-]+`,                         // đường dẫn có dấu gạch chéo
+		`[\p{L}\p{N}_-]+\.[A-Za-z_][A-Za-z0-9_]*`, // tệp (README.md) hoặc a.b
+		`\b[a-z]+[A-Z][A-Za-z0-9]*`,               // camelCase
+		`\b[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*`,       // PascalCase nhiều từ
+		`\b[A-Za-z0-9]+_[A-Za-z0-9_]+`,            // snake_case, BIEN_MOI_TRUONG
+		`\w+\(\)`,                                 // hàm()
+		`(?:^|\s)--[a-z][\w-]*`,                   // cờ dòng lệnh
+		`\b[1-5]\d{2}\b`,                          // mã HTTP / số lỗi
+		`\bE[A-Z]{3,}\b`,                          // errno (ENOENT)
+		"`[^`]+`",                                 // trích trong backtick
+		`"[^"]+"`,                                 // trích trong nháy kép
+		`“[^”]+”`,                                 // trích trong nháy cong
+		`(?:^|\s)'[^']+'`,                         // trích trong nháy đơn
+	}, "|"))
+)
+
+// hasConcreteAnchor: yêu cầu có nêu điều kiểm được (tệp/đường dẫn, định danh mã, chuỗi trích dẫn,
+// cờ, mã lỗi, hành vi kỹ thuật cụ thể hay giá trị đo được). Yêu cầu ngắn mà thiếu mỏ neo như vậy
+// ("làm cho nó tự dọn bớt mấy thứ cũ đi") phải qua b-req để lộ phạm vi và tiêu chí; yêu cầu ngắn
+// có mỏ neo vẫn bỏ qua b-req.
+func hasConcreteAnchor(request string) bool {
+	return anchorCodeRe.MatchString(request) || anchorTermRe.MatchString(request) || anchorUnitRe.MatchString(request)
 }
 
 // requestSize đếm số dòng không trống và số từ của mô tả; dùng chung cho Classify và

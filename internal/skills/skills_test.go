@@ -110,6 +110,67 @@ func TestCoreSkillsDepthGuidance(t *testing.T) {
 	}
 }
 
+// Benchmark lần 2: người dùng mơ hồ → kế hoạch phải liệt kê mọi bề mặt, nêu giả định thay người dùng và không
+// thu hẹp phạm vi tới mức không đạt mục đích. Một skill cho cả standard lẫn deep.
+func TestCoreSkillBReqSurfacesAndAssumptions(t *testing.T) {
+	s, _ := Get("b-req")
+	body := s.Body()
+	for _, want := range []string{
+		"## Bề mặt bị ảnh hưởng", "## Giả định thay người dùng",
+		"từng nơi", "lý do nằm ngoài phạm vi", "state dir", "mật khẩu", ".bint/tasks", "review.md",
+		"Không thu hẹp phạm vi tới mức không đạt mục đích",
+		"người không rành kỹ", "mọi mức phân tích",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+	// Cả hai mức đều bị ràng buộc: mục nằm trước phần tách standard/deep và cả hai gạch đầu dòng nhắc lại.
+	i := strings.Index(body, "## Bề mặt bị ảnh hưởng")
+	j := strings.Index(body, "## Độ sâu phân tích")
+	if i < 0 || j < 0 || i > j {
+		t.Fatalf("mục bề mặt phải đứng trước phần độ sâu (%d, %d)", i, j)
+	}
+	depth := body[j:]
+	if !strings.Contains(depth, "- **standard**") || !strings.Contains(depth, "`## Bề mặt bị ảnh hưởng`") {
+		t.Error("mức standard phải nhắc mục Bề mặt bị ảnh hưởng")
+	}
+	if !strings.Contains(body[strings.Index(body, "<!-- bint:anchor plan-template -->"):], "Bề mặt bị ảnh hưởng") {
+		t.Error("khuôn plan.md (anchor plan-template) phải nhắc mục Bề mặt bị ảnh hưởng")
+	}
+}
+
+// b-review đối chiếu yêu cầu gốc, tiêu chí và bề mặt của plan.md để tìm chỗ bị bỏ sót ngoài diff.
+func TestCoreSkillBReviewFindsOmissions(t *testing.T) {
+	s, _ := Get("b-review")
+	body := strings.Join(strings.Fields(s.Body()), " ") // gộp xuống dòng để cụm từ không phụ thuộc cách ngắt dòng
+	for _, want := range []string{
+		"yêu cầu gốc", "Bề mặt bị ảnh hưởng", "bỏ sót", "ngoài diff", "`criterion`", "tệp ngoài diff",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("b-review thiếu %q", want)
+		}
+	}
+}
+
+// b-feat hỏi bằng --question (tác vụ dừng chờ người); b-do chuyển câu hỏi và ba lựa chọn tới người, không tự chấp nhận.
+func TestCoreSkillsQuestionAndChoices(t *testing.T) {
+	feat, _ := Get("b-feat")
+	for _, want := range []string{"--question", "bint run resume <id> --answer", "không đổi tệp nào"} {
+		if !strings.Contains(strings.Join(strings.Fields(feat.Body()), " "), want) {
+			t.Errorf("b-feat thiếu %q", want)
+		}
+	}
+	do, _ := Get("b-do")
+	body := strings.Join(strings.Fields(do.Body()), " ")
+	for _, want := range []string{"--answer", "bint run next <id> --resume --answer", "--accept", "--fix-round", "bint task cancel <id>",
+		"Không tự chạy `--accept` hay `--fix-round`", "choices", "workflow.max_review_rounds"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("b-do thiếu %q", want)
+		}
+	}
+}
+
 // b-knowledge giao việc nhập liệu cho agent nhưng không bao giờ thay người duyệt.
 func TestCoreSkillBKnowledgeContract(t *testing.T) {
 	s, ok := Get("b-knowledge")

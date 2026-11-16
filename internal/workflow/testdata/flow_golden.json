@@ -8543,9 +8543,9 @@
         true
       ],
       "prompts": [
-        "9470:0493916226a626e3",
-        "5960:fc2a15e1797a31bf",
-        "6383:9704880364332572"
+        "12429:7062f6a44310b022",
+        "6785:44b5d6173fdc04cc",
+        "9033:75e8acc164b81c52"
       ],
       "results": [
         {
@@ -8578,7 +8578,7 @@
         false
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca"
+        "6612:d21523f12af0721f"
       ],
       "results": [
         {
@@ -8608,9 +8608,9 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d",
-        "5960:fc2a15e1797a31bf",
-        "6383:9704880364332572"
+        "12427:962e4eff13492a65",
+        "6785:44b5d6173fdc04cc",
+        "9033:75e8acc164b81c52"
       ],
       "results": [
         {
@@ -8645,8 +8645,8 @@
         true
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca",
-        "6210:d13594adf15ab520"
+        "6612:d21523f12af0721f",
+        "8729:649d29f46483300b"
       ],
       "results": [
         {
@@ -8677,7 +8677,7 @@
         false
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca"
+        "6612:d21523f12af0721f"
       ],
       "results": [
         {
@@ -8707,7 +8707,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -8736,7 +8736,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -8763,7 +8763,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -8790,8 +8790,8 @@
         true
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca",
-        "6210:d13594adf15ab520"
+        "6612:d21523f12af0721f",
+        "8962:0de08fa16f31f3e5"
       ],
       "results": [
         {
@@ -8839,15 +8839,15 @@
         true
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca",
-        "6210:d13594adf15ab520",
-        "5883:25c50f34f74368cf",
-        "6210:d13594adf15ab520"
+        "6612:d21523f12af0721f",
+        "8729:649d29f46483300b",
+        "6708:24fc39cc2a10c5c0",
+        "8914:db393b6073a0ac96"
       ],
       "results": [
         {
           "status": "blocked",
-          "reason": "còn 1 phát hiện nghiêm trọng sau 2 vòng review (workflow.max_review_rounds = 1): cần người xem review.md",
+          "reason": "còn 1 phát hiện nghiêm trọng sau 2 vòng review và 1 vòng sửa (tối đa 1 vòng sửa: workflow.max_review_rounds = 1). Xem \u003cSTATE\u003e/runtime/tasks/\u003cULID\u003e/review.md rồi chọn một: chấp nhận kết quả như hiện tại `bint run resume \u003cULID\u003e --accept`; cho sửa thêm một vòng `bint run resume \u003cULID\u003e --fix-round`; huỷ `bint task cancel \u003cULID\u003e`",
           "steps": [
             "b-feat:completed",
             "b-review:completed",
@@ -8856,7 +8856,9 @@
           ],
           "notes": [
             "sửa ngoài scope.allow: done.txt",
-            "sửa ngoài scope.allow: done.txt"
+            "vòng sửa chạy với đề bài đầy đủ: bước b-feat trước không để lại phiên có thể nối tiếp",
+            "sửa ngoài scope.allow: done.txt",
+            "vòng sửa chạy với đề bài đầy đủ: bước b-feat trước không để lại phiên có thể nối tiếp"
           ]
         }
       ],
@@ -8884,10 +8886,10 @@
         true
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca",
-        "6210:d13594adf15ab520",
-        "5883:25c50f34f74368cf",
-        "6210:d13594adf15ab520"
+        "6612:d21523f12af0721f",
+        "8729:649d29f46483300b",
+        "6708:24fc39cc2a10c5c0",
+        "8914:db393b6073a0ac96"
       ],
       "results": [
         {
@@ -8901,6 +8903,7 @@
           ],
           "notes": [
             "sửa ngoài scope.allow: done.txt",
+            "vòng sửa chạy với đề bài đầy đủ: bước b-feat trước không để lại phiên có thể nối tiếp",
             "sửa ngoài scope.allow: done.txt"
           ]
         }
@@ -8923,7 +8926,7 @@
         false
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca"
+        "6612:d21523f12af0721f"
       ],
       "results": [
         {
@@ -8949,7 +8952,7 @@
         false
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca"
+        "6612:d21523f12af0721f"
       ],
       "results": [
         {
@@ -8978,7 +8981,7 @@
         false
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca"
+        "6612:d21523f12af0721f"
       ],
       "results": [
         {
@@ -9017,7 +9020,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -9050,7 +9053,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -9076,7 +9079,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -9101,7 +9104,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -9126,7 +9129,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -9154,7 +9157,7 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d"
+        "12427:962e4eff13492a65"
       ],
       "results": [
         {
@@ -9193,8 +9196,8 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d",
-        "9641:1eac6557f4413a2a"
+        "12427:962e4eff13492a65",
+        "12600:feac8be38baaedad"
       ],
       "results": [
         {
@@ -9230,9 +9233,9 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d",
-        "5960:fc2a15e1797a31bf",
-        "6383:9704880364332572"
+        "12427:962e4eff13492a65",
+        "6785:44b5d6173fdc04cc",
+        "9033:75e8acc164b81c52"
       ],
       "results": [
         {
@@ -9275,9 +9278,9 @@
         true
       ],
       "prompts": [
-        "9468:9b6ab02083fa763d",
-        "5960:fc2a15e1797a31bf",
-        "6383:9704880364332572"
+        "12427:962e4eff13492a65",
+        "6785:44b5d6173fdc04cc",
+        "9033:75e8acc164b81c52"
       ],
       "results": [
         {
@@ -9323,8 +9326,8 @@
         true
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca",
-        "6210:d13594adf15ab520"
+        "6612:d21523f12af0721f",
+        "8729:649d29f46483300b"
       ],
       "results": [
         {
@@ -9357,8 +9360,8 @@
         true
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca",
-        "6210:d13594adf15ab520"
+        "6612:d21523f12af0721f",
+        "8729:649d29f46483300b"
       ],
       "results": [
         {
@@ -9396,8 +9399,8 @@
         true
       ],
       "prompts": [
-        "5787:3f09ffc620cefcca",
-        "6210:d13594adf15ab520"
+        "6612:d21523f12af0721f",
+        "8729:649d29f46483300b"
       ],
       "results": [
         {
@@ -9435,7 +9438,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "5970:3451c6775a10f475"
+          "prompt": "6795:53a98ff5b3d24867"
         },
         {
           "call": "abort",
@@ -9460,7 +9463,7 @@
           "step": "b-req",
           "subagent": "bint-planner",
           "readonly": true,
-          "prompt": "9651:144cddb0eac3d960"
+          "prompt": "12610:b6448e41262dba30"
         },
         {
           "call": "complete",
@@ -9479,7 +9482,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "6143:0bc99985deb51010"
+          "prompt": "6968:6bbdc68383008b8d"
         },
         {
           "call": "complete",
@@ -9500,7 +9503,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "6566:67eb50d6f7a4f270"
+          "prompt": "9216:5419672151a24b01"
         },
         {
           "call": "complete",
@@ -9530,7 +9533,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "5970:3451c6775a10f475"
+          "prompt": "6795:53a98ff5b3d24867"
         },
         {
           "call": "complete",
@@ -9551,7 +9554,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "6393:7a217de339ed17a2"
+          "prompt": "8912:9cd3606130ac1239"
         },
         {
           "call": "complete",
@@ -9581,7 +9584,7 @@
           "step": "b-req",
           "subagent": "bint-planner",
           "readonly": true,
-          "prompt": "9651:144cddb0eac3d960"
+          "prompt": "12610:b6448e41262dba30"
         },
         {
           "call": "complete",
@@ -9610,7 +9613,7 @@
           "step": "b-req",
           "subagent": "bint-planner",
           "readonly": true,
-          "prompt": "9651:144cddb0eac3d960"
+          "prompt": "12610:b6448e41262dba30"
         },
         {
           "call": "complete",
@@ -9685,7 +9688,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "5970:3451c6775a10f475"
+          "prompt": "6795:53a98ff5b3d24867"
         },
         {
           "call": "complete",
@@ -9715,7 +9718,10 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "6066:a50a4ddd3d5314cb"
+          "prompt": "618:a7a0b888fec201ba",
+          "notes": [
+            "bước nối tiếp phiên: gửi `prompt` bằng SendMessage tới agent agent-b-feat (KHÔNG gọi Agent mới), rồi `bint run complete \u003cULID\u003e --run \u003cULID\u003e --agent-id agent-b-feat`; SendMessage không gửi được (agent không còn) thì `bint run next \u003cULID\u003e --fresh --json` để nhận đề bài đầy đủ"
+          ]
         }
       ],
       "history": [
@@ -9734,7 +9740,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "5970:3451c6775a10f475"
+          "prompt": "6795:53a98ff5b3d24867"
         },
         {
           "call": "complete",
@@ -9754,7 +9760,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "6393:7a217de339ed17a2"
+          "prompt": "9145:1dd4b5a6296e2c74"
         },
         {
           "call": "complete",
@@ -9785,7 +9791,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "5970:3451c6775a10f475"
+          "prompt": "6795:53a98ff5b3d24867"
         },
         {
           "call": "complete",
@@ -9806,7 +9812,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "6393:7a217de339ed17a2"
+          "prompt": "8912:9cd3606130ac1239"
         },
         {
           "call": "complete",
@@ -9825,7 +9831,10 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "6066:a50a4ddd3d5314cb"
+          "prompt": "618:a7a0b888fec201ba",
+          "notes": [
+            "bước nối tiếp phiên: gửi `prompt` bằng SendMessage tới agent agent-b-feat (KHÔNG gọi Agent mới), rồi `bint run complete \u003cULID\u003e --run \u003cULID\u003e --agent-id agent-b-feat`; SendMessage không gửi được (agent không còn) thì `bint run next \u003cULID\u003e --fresh --json` để nhận đề bài đầy đủ"
+          ]
         },
         {
           "call": "complete",
@@ -9846,13 +9855,13 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "6393:7a217de339ed17a2"
+          "prompt": "9097:4c529864be824aa9"
         },
         {
           "call": "complete",
           "action": "blocked",
           "task_status": "blocked",
-          "reason": "còn 1 phát hiện nghiêm trọng sau 2 vòng review (workflow.max_review_rounds = 1): cần người xem review.md",
+          "reason": "còn 1 phát hiện nghiêm trọng sau 2 vòng review và 1 vòng sửa (tối đa 1 vòng sửa: workflow.max_review_rounds = 1). Xem \u003cSTATE\u003e/runtime/tasks/\u003cULID\u003e/review.md rồi chọn một: chấp nhận kết quả như hiện tại `bint run next \u003cULID\u003e --resume --accept`; cho sửa thêm một vòng `bint run next \u003cULID\u003e --resume --fix-round`; huỷ `bint task cancel \u003cULID\u003e`",
           "notes": [
             "b-review: chi phí của subagent agent-b-review unknown — chưa có SubagentStop của agent-b-review (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)"
           ],
@@ -9877,7 +9886,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "5970:3451c6775a10f475"
+          "prompt": "6795:53a98ff5b3d24867"
         },
         {
           "call": "complete",
@@ -9898,7 +9907,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "6393:7a217de339ed17a2"
+          "prompt": "8912:9cd3606130ac1239"
         },
         {
           "call": "complete",
@@ -9917,7 +9926,10 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "6066:a50a4ddd3d5314cb"
+          "prompt": "618:a7a0b888fec201ba",
+          "notes": [
+            "bước nối tiếp phiên: gửi `prompt` bằng SendMessage tới agent agent-b-feat (KHÔNG gọi Agent mới), rồi `bint run complete \u003cULID\u003e --run \u003cULID\u003e --agent-id agent-b-feat`; SendMessage không gửi được (agent không còn) thì `bint run next \u003cULID\u003e --fresh --json` để nhận đề bài đầy đủ"
+          ]
         },
         {
           "call": "complete",
@@ -9938,7 +9950,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "6393:7a217de339ed17a2"
+          "prompt": "9097:4c529864be824aa9"
         },
         {
           "call": "complete",
@@ -9969,7 +9981,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "5970:3451c6775a10f475"
+          "prompt": "6795:53a98ff5b3d24867"
         },
         {
           "call": "complete",
@@ -9990,7 +10002,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "6393:7a217de339ed17a2"
+          "prompt": "8912:9cd3606130ac1239"
         },
         {
           "call": "complete",

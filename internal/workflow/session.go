@@ -84,6 +84,8 @@ type SessionAction struct {
 	Reason    string   `json:"reason,omitempty"`
 	Questions []string `json:"questions,omitempty"`
 	Notes     []string `json:"notes,omitempty"`
+	// Choices: lựa chọn bằng lệnh cho người khi tác vụ blocked chờ quyết định (orchestrator chuyển nguyên văn cho người dùng).
+	Choices []Choice `json:"choices,omitempty"`
 	// PlanningIssues: lỗi cấu trúc artifact b-req (hợp đồng v1) khiến tác vụ dừng.
 	PlanningIssues []task.ArtifactIssue `json:"planning_issues,omitempty"`
 	// Result: kết quả bước vừa đóng (chỉ ở `complete`).
@@ -95,6 +97,10 @@ type NextOptions struct {
 	TaskRef string
 	// Resume: tiếp tục tác vụ blocked/interrupted/failed (người đã xử lý nguyên nhân).
 	Resume bool
+	// Answer, Accept, FixRound (cùng Resume): như RunOptions — trả lời b-feat đang chờ; chấp nhận kết quả / cho thêm một vòng sửa
+	// sau khi hết vòng sửa review.
+	Answer           string
+	Accept, FixRound bool
 	// NoWait: khoá worktree đang bị giữ thì dừng ngay (blocked) thay vì chờ tới workflow.timeout_minutes.
 	NoWait bool
 	// Rerun (cùng Resume): bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó (như RunOptions.Rerun).
@@ -214,7 +220,7 @@ func (r *Runner) sessionChoice(t *task.Task, spec StepSpec) (string, string, err
 func (r *Runner) stopAction(rs *runState) *SessionAction {
 	st := rs.t.State
 	a := &SessionAction{TaskID: st.ID, Status: st.Status, Reason: st.Reason, Questions: rs.res.Questions,
-		Notes: rs.res.Notes, PlanningIssues: rs.res.PlanningIssues}
+		Notes: rs.res.Notes, PlanningIssues: rs.res.PlanningIssues, Choices: choicesFor(rs.t)}
 	switch st.Status {
 	case task.StatusDone:
 		a.Action = ActionDone
@@ -370,6 +376,12 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	}
 	t = r.Reconcile(t)
 	id := t.State.ID
+	if !o.Resume && (o.Answer != "" || o.Accept || o.FixRound) {
+		return nil, fmt.Errorf("--answer/--accept/--fix-round chỉ dùng cùng --resume (bint run next %s --resume …)", id)
+	}
+	if err := checkResumeFlags(t, o.Answer, o.Accept, o.FixRound); err != nil {
+		return nil, err
+	}
 	switch t.State.Status {
 	case task.StatusDone:
 		return &SessionAction{Action: ActionDone, TaskID: id, Status: t.State.Status, Reason: t.State.Reason}, nil
@@ -443,13 +455,10 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	var pre *ContinueDecision // quyết định nối tiếp tính trước chuyển trạng thái (câu hỏi b-req đã trả lời)
 	var contNotes []string
 	if task.Paused(rs.t.State.Status) { // chỉ tới đây khi o.Resume
-		to := rs.t.State.ResumeFrom
-		if to == "" {
-			to = task.StatusCreated
-		}
+		to, why := r.resumeTarget(rs, o.Accept, o.FixRound)
 		// Câu hỏi mở của b-req đã được trả lời: nối tiếp planner cũ (mở lại bước plan từ created) thay vì vào thẳng b-feat. Không
 		// nối tiếp được (không handle, cây đổi, --fresh) thì giữ hành vi cũ: to = ResumeFrom, vào thẳng bước sau plan.
-		if cd, ok := r.planContinuation(ctx, rs, o.Fresh, true, rs.t.State.ResumeFrom); ok {
+		if cd, ok := r.planContinuation(ctx, rs, o.Fresh, true, rs.t.State.ResumeFrom); ok && !o.Accept && !o.FixRound {
 			if cd.Continue {
 				to, pre = task.StatusCreated, &cd
 			} else if cd.Why != "" {
@@ -485,11 +494,16 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 				}
 			}
 		}
-		if err := r.transition(rs, to, "tiếp tục (bint run next --resume)"); err != nil {
+		if err := r.transition(rs, to, why); err != nil {
 			return stop()
 		}
-		r.markFinalizeResume(ctx, rs, to, o.Rerun)
-		r.markVerifiedFixResume(ctx, rs, to, o.Rerun)
+		r.applyResume(rs, o.Answer, o.FixRound, rs.reviewFixStep(rs.currentReview()))
+		if o.Accept {
+			rs.acceptReview = true
+		} else {
+			r.markFinalizeResume(ctx, rs, to, o.Rerun)
+			r.markVerifiedFixResume(ctx, rs, to, o.Rerun)
+		}
 	}
 	// Bước dở đã hết hạn (claimSession đã loại bước còn hạn dưới khoá phiếu): đóng như bước quá giờ (vẫn kiểm chỉ đọc để báo vi phạm).
 	if ps := rs.t.State.PendingStep; ps != nil {
@@ -521,7 +535,13 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		}
 	}
 
-	for guard := 0; guard < rs.loopGuard(r.Cfg.Workflow.MaxReviewRounds); guard++ {
+	if rs.acceptReview {
+		rs.acceptReview = false // --accept: vào thẳng finalize (như Run)
+		if !r.finalize(ctx, rs) {
+			return stop()
+		}
+	}
+	for guard := 0; guard < rs.loopGuard(r.fixLimit(rs)); guard++ {
 		if ctx.Err() != nil {
 			r.interrupt(rs, "người dùng huỷ")
 			return stop()

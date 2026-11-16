@@ -62,6 +62,13 @@ func TestPlanOnlyContinuedToWriteStepBlocksOnSharedTask(t *testing.T) {
 	if _, _, err := r.SetStatus(ctx, bid, task.StatusCancelled, TransitionOptions{Reason: "xong", Discard: true}); err != nil {
 		t.Fatal(err)
 	}
+	// B đã ghi app.txt/done.txt cùng nội dung: A ghi tệp riêng để có thay đổi của chính nó (không đổi tệp nào thì bị chặn chờ người).
+	h.behave = func(_ context.Context, step string, _ *Env, _ string) error {
+		if step == StepFeat {
+			h.write("a-only.txt", "A\n")
+		}
+		return nil
+	}
 	res, err = r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: a, Resume: true})
 	if err != nil || res.Status == task.StatusBlocked || implementCalls(h) == 0 {
 		t.Fatalf("A resume sau khi B xong phải chạy tiếp: %+v %v calls=%v", res, err, h.calls)

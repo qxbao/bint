@@ -597,8 +597,11 @@ func CheckTaskCriterion(_ context.Context, ws *TaskWS, o TaskCriteriaOptions) (*
 // TaskErrorOptions: `bint task error <task-id> <nội dung>`.
 type TaskErrorOptions struct {
 	Ref     string `arg:"task-id" form:"required,suggest=tasks"`
-	Message string `arg:"message" form:"required,multiline"`
+	Message string `arg:"message" form:"multiline"`
 	Step    string `flag:"step" form:"choices=b-req|b-feat|b-review"`
+	// Question: ghi nội dung như câu hỏi gửi người (tác vụ dừng chờ người sau bước; trả lời bằng `bint run resume --answer`).
+	// Không có Message thì câu hỏi là nội dung duy nhất.
+	Question string `flag:"question" form:"multiline"`
 }
 
 func TaskErrorDefaults(config.Config) TaskErrorOptions { return TaskErrorOptions{} }
@@ -606,11 +609,20 @@ func (o TaskErrorOptions) Validate() error {
 	if strings.TrimSpace(o.Ref) == "" {
 		return Usagef("cần ID tác vụ")
 	}
+	if strings.TrimSpace(o.Message) == "" && strings.TrimSpace(o.Question) == "" {
+		return Usagef("cần nội dung lỗi hoặc --question \"<câu hỏi>\"")
+	}
 	return nil
 }
 
-// RecordTaskError ghi một lỗi hoặc lần thử sửa thất bại.
+// RecordTaskError ghi một lỗi hoặc lần thử sửa thất bại; có Question thì ghi câu hỏi gửi người.
 func RecordTaskError(_ context.Context, ws *TaskWS, o TaskErrorOptions) (*task.Task, error) {
+	if q := strings.TrimSpace(o.Question); q != "" {
+		if m := strings.TrimSpace(o.Message); m != "" {
+			q = m + "\n" + q
+		}
+		return ws.RecordQuestion(o.Ref, o.Step, q)
+	}
 	return ws.RecordError(o.Ref, o.Step, o.Message)
 }
 

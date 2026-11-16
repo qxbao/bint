@@ -17,6 +17,9 @@ import (
 )
 
 type runFlags struct {
+	answer       string
+	accept       bool
+	fixRound     bool
 	taskRef      string
 	step         string
 	depth        string
@@ -66,7 +69,10 @@ Giới hạn:
     tổng của mọi bước. Agent không báo chi phí thì giới hạn chi phí chỉ là chỉ dẫn.
   - Tệp đã sửa chạm limits.protected_paths hoặc scope.deny (và ngoài scope.allow khi
     autonomy ask_always) cần người duyệt: có terminal thì hỏi, không thì tác vụ chuyển blocked.
-  - workflow.max_review_rounds: số vòng review → sửa tối đa.
+  - workflow.max_review_rounds: số vòng sửa tối đa sau review (n vòng sửa ⇒ tối đa n+1 vòng review). Hết vòng mà còn phát hiện
+    nghiêm trọng thì tác vụ blocked và in ba lựa chọn: bint run resume <id> --accept | --fix-round, hoặc bint task cancel <id>.
+  - Bước b-feat không đổi tệp nào (hoặc hỏi người bằng bint task error --question) thì tác vụ blocked chờ người, không kiểm chứng,
+    không review, không done; trả lời bằng bint run resume <id> --answer "<nội dung>".
   - Lệnh kiểm chứng chỉ chạy khi người đã xác nhận (bint task approve).
   - Hoàn thành (done) chỉ khi có bằng chứng; thiếu thì blocked kèm lý do.
   - Cô lập: --worktree chạy tác vụ mới trong worktree riêng (song song với tác vụ khác), --shared sửa thẳng trên
@@ -145,6 +151,7 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 	if resume != nil {
 		ro = app.RunResumeDefaults(config.Default())
 		ro.Ref, ro.NoReview, ro.NoWait, ro.Rerun, ro.Fresh, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.rerun, rf.fresh, rf.harness, rf.roles, rf.model, rf.agentCommand
+		ro.Answer, ro.Accept, ro.FixRound = rf.answer, rf.accept, rf.fixRound
 		if err := ro.Validate(); err != nil {
 			return err
 		}
@@ -242,7 +249,19 @@ func printRunResult(w io.Writer, res *workflow.Result) {
 	for _, n := range res.Notes {
 		fmt.Fprintf(w, "! %s\n", n)
 	}
+	printChoices(w, res.Choices)
 	fmt.Fprintf(w, "Chi tiết: bint task show %s   ·   bint run status %s\n", res.TaskID, res.TaskID)
+}
+
+// printChoices in khối "Lựa chọn:" (lệnh cụ thể cho người không đọc mã) khi tác vụ dừng chờ quyết định.
+func printChoices(w io.Writer, cs []workflow.Choice) {
+	if len(cs) == 0 {
+		return
+	}
+	fmt.Fprintln(w, "Lựa chọn:")
+	for i, c := range cs {
+		fmt.Fprintf(w, "  %d. %s:\n     %s\n", i+1, c.Label, c.Command)
+	}
 }
 
 func newRunResumeCmd(stdio IO) *cobra.Command {
@@ -255,7 +274,15 @@ parent_run_id là lượt trước. Thay đổi đang chờ duyệt phải đư�
 
 Bước chỉ đọc (b-req, b-review, bước plan/review của flow tuỳ biến) kết thúc mà cây đổi trong lúc chạy thì tác vụ dừng
 blocked và kết quả bước được giữ; resume áp kết quả đó (không chạy lại). Đã hoàn tác thay đổi lạ và muốn chạy lại bước:
---rerun bỏ kết quả giữ rồi chạy lại bước (lỗi nếu tác vụ không có bước giữ).`,
+--rerun bỏ kết quả giữ rồi chạy lại bước (lỗi nếu tác vụ không có bước giữ).
+
+Tác vụ dừng vì b-feat hỏi người (bint task error --question) hoặc b-feat kết thúc mà không đổi tệp nào: trả lời hay nói rõ thêm bằng
+--answer "<nội dung>" — b-feat chạy lại trên chính tác vụ này (nối tiếp phiên cũ khi nối tiếp được) và nhận nguyên văn câu hỏi
+cùng câu trả lời.
+
+Tác vụ dừng sau khi hết vòng sửa review (workflow.max_review_rounds là số vòng sửa tối đa) in ba lựa chọn: --accept chấp nhận kết
+quả như hiện tại (vào thẳng bước hoàn tất, bỏ qua phát hiện còn lại), --fix-round cho sửa thêm đúng một vòng (b-feat rồi b-review),
+hoặc bint task cancel. --accept và --fix-round chỉ người dùng chạy được (không phải phiên agent).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWorkflow(cmd, stdio, rf, nil, &args[0])
@@ -263,6 +290,9 @@ blocked và kết quả bước được giữ; resume áp kết quả đó (kh�
 	}
 	addRunFlags(c, &rf, false)
 	c.Flags().BoolVar(&rf.rerun, "rerun", false, "bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó (thay vì áp kết quả đã giữ)")
+	c.Flags().StringVar(&rf.answer, "answer", "", "trả lời b-feat đang chờ (câu hỏi --question hoặc b-feat không đổi tệp): b-feat chạy lại với nguyên văn câu hỏi và câu trả lời")
+	c.Flags().BoolVar(&rf.accept, "accept", false, "sau khi hết vòng sửa review: chấp nhận kết quả như hiện tại, vào thẳng bước hoàn tất (chỉ người dùng)")
+	c.Flags().BoolVar(&rf.fixRound, "fix-round", false, "sau khi hết vòng sửa review: cho sửa thêm đúng một vòng (b-feat rồi b-review; chỉ người dùng)")
 	return c
 }
 

@@ -45,7 +45,7 @@ func TestClassifyVietnameseAndPlanWords(t *testing.T) {
 		"đổi tên hàm Foo thành Bar\nở cả hai gói\nvà kiểm thử": false, // smallWords bắt đầu bằng chữ có dấu
 		"Sửa lỗi chính tả\ntrong README\nvà docs":              false, // smallWords kết thúc bằng chữ có dấu
 		"Sửa lỗi nil trong handler":                            false,
-		"planner chạy chậm":                                    false, // "plan" phải là từ trọn vẹn
+		"planner chạy chậm khi gặp timeout":                    false, // "plan" phải là từ trọn vẹn (có mỏ neo "timeout")
 	} {
 		if c := Classify(req); c.Plan != plan {
 			t.Errorf("%q: plan=%v (%s), muốn %v", req, c.Plan, c.Reason, plan)
@@ -53,6 +53,39 @@ func TestClassifyVietnameseAndPlanWords(t *testing.T) {
 	}
 	if c := Classify("Làm tiếp", "docs/p.md"); !c.Plan {
 		t.Fatalf("có tài liệu đầu vào thì cần b-req: %+v", c)
+	}
+}
+
+// TestClassifyShortVagueNeedsPlan: yêu cầu ngắn mà không nêu tệp/hành vi/tiêu chí cụ thể phải qua b-req
+// (benchmark lần 2: T1, T2); yêu cầu ngắn có mỏ neo vẫn bỏ b-req.
+func TestClassifyShortVagueNeedsPlan(t *testing.T) {
+	for req, plan := range map[string]bool{
+		// mơ hồ → b-req
+		"Thư mục dữ liệu của bint cứ phình to mãi, làm cho nó tự dọn bớt mấy thứ cũ đi": true,
+		"Tôi sợ mật khẩu với token bị lưu lại trong log của bint, xử lý giúp tôi":       true,
+		"Làm cho bint chạy nhanh hơn":                               true,
+		"Cải thiện thông báo lỗi cho dễ hiểu hơn":                   true,
+		"Giao diện hơi khó dùng, sửa lại cho người mới dễ làm quen": true,
+		"planner chạy chậm":                                         true,
+		// rõ → bỏ b-req
+		"Sửa lỗi chính tả trong README":                    false,
+		"đổi tên hàm Foo thành Bar":                        false,
+		"Sửa lỗi nil trong handler":                        false,
+		"Sửa panic trong ParseSubmission":                  false,
+		"Thêm cờ --json cho bint task show":                false,
+		"Sửa lỗi ở internal/db/db.go khi mở kết nối":       false,
+		"Đặt thời gian chờ mặc định là 30 giây":            false,
+		`Đổi thông báo "không tìm thấy" thành "not found"`: false,
+		"Trả mã 404 khi tác vụ không tồn tại":              false,
+		"Sửa lỗi ở hàm parseTicket khi mô tả rỗng":         false,
+		"Đặt biến BINT_STATE_DIR làm thư mục trạng thái":   false,
+	} {
+		if c := Classify(req); c.Plan != plan {
+			t.Errorf("%q: plan=%v (%s), muốn %v", req, c.Plan, c.Reason, plan)
+		}
+	}
+	if c := Classify("Làm cho bint chạy nhanh hơn"); !strings.Contains(c.Reason, "chưa nêu tệp") {
+		t.Fatalf("lý do phải nói vì sao cần b-req: %q", c.Reason)
 	}
 }
 
@@ -519,5 +552,24 @@ func TestBlockerKindForceableAllowlist(t *testing.T) {
 	}
 	if (BlockCriterionUnchecked + 1).Forceable() {
 		t.Error("loại mới chưa khai báo phải là điều chặn cứng")
+	}
+}
+
+func TestStepQuestionOpenAndAnswered(t *testing.T) {
+	var st State
+	st.Questions = []StepQuestion{
+		{Step: "b-feat", Text: "a?"},
+		{Step: "b-feat", Text: "b?", Answer: "có"},
+		{Step: "b-feat", Text: "c?", Closed: true},
+		{Step: "b-req", Text: "d?"},
+	}
+	if got := st.OpenQuestions("b-feat"); len(got) != 1 || got[0].Text != "a?" {
+		t.Fatalf("open b-feat: %+v", got)
+	}
+	if got := st.OpenQuestions(""); len(got) != 2 {
+		t.Fatalf("open mọi bước: %+v", got)
+	}
+	if got := st.AnsweredQuestions("b-feat"); len(got) != 1 || got[0].Answer != "có" {
+		t.Fatalf("answered: %+v", got)
 	}
 }
