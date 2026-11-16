@@ -209,7 +209,13 @@ type runState struct {
 }
 
 // endedStep là handle phiên của bước vừa kết thúc, giữ để cổng sau bước ghi awaiting_human vào State.LastStep.
-type endedStep struct{ step, runID, harness, handle string }
+type endedStep struct {
+	step, runID, harness, handle string
+	// Nối tiếp phiên (driver session): số lần nối tiếp, lượt đầu của agent, usage cộng dồn lúc đóng.
+	continuations int
+	originRunID   string
+	usage         *task.UsageMark
+}
 
 // afterStepUnlock là seam kiểm thử (nil ở sản phẩm): gọi ngay sau khi runStep nhả khoá worktree của bước,
 // tức thời điểm một b-feat của tác vụ khác có thể giành khoá.
@@ -873,6 +879,12 @@ type stepRun struct {
 	sessionID string
 	// agentFailed: subagent báo thất bại qua `bint run complete --failed`.
 	agentFailed bool
+	// Nối tiếp phiên (driver session, dựng lại từ PendingStep): số lần nối tiếp tính cả lần này, lượt đầu của agent, mốc usage
+	// trước đó (chi phí chỉ tính phần vượt mốc) và usage cộng dồn đọc được lúc đóng (mốc cho lần nối tiếp sau).
+	continuations int
+	originRunID   string
+	usageBase     *task.UsageMark
+	usage         *task.UsageMark
 	// isoLeak: lý do hậu kiểm cô lập thấy subagent đã chạy lời gọi ngoài worktree (auditIsolation); khác rỗng ⇒ bước blocked.
 	isoLeak string
 }
@@ -1183,7 +1195,8 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		ProtectedDenied: len(deniedPaths) > 0,
 	})
 	handle := cmp.Or(sr.agentID, res.SessionID, sr.sessionID)
-	rs.last = &endedStep{step: step, runID: child, harness: sr.harness, handle: handle}
+	rs.last = &endedStep{step: step, runID: child, harness: sr.harness, handle: handle, continuations: sr.continuations,
+		originRunID: sr.originRunID, usage: sr.usage}
 	var stop *task.StepStop
 	if class != "" {
 		fp := afterSnap
@@ -1194,7 +1207,11 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 			}
 		}
 		stop = &task.StepStop{Step: step, RunID: child, Harness: sr.harness, StopClass: class, SessionID: handle, Fingerprint: fp,
-			Continuable: stopContinuable(class, handle, fp), At: r.at()}
+			Continuable: stopContinuable(class, handle, fp), At: r.at(), Continuations: sr.continuations,
+			OriginRunID: sr.originRunID, Usage: sr.usage}
+		if rs.session {
+			stop.Via = ViaSubagent
+		}
 		srr.StopClass, srr.Continuable, srr.SessionID = class, stop.Continuable, handle
 	} else {
 		srr.SessionID = handle
@@ -1313,8 +1330,13 @@ func (r *Runner) markAwaitingHuman(rs *runState) {
 		return
 	}
 	fp, _ := r.stopFingerprint(context.Background())
+	via := ""
+	if rs.session {
+		via = ViaSubagent
+	}
 	r.setLastStep(rs, &task.StepStop{Step: l.step, RunID: l.runID, Harness: l.harness, StopClass: StopAwaitingHuman, SessionID: l.handle,
-		Fingerprint: fp, Continuable: stopContinuable(StopAwaitingHuman, l.handle, fp), At: r.at()})
+		Fingerprint: fp, Continuable: stopContinuable(StopAwaitingHuman, l.handle, fp), At: r.at(), Via: via, Continuations: l.continuations,
+		OriginRunID: l.originRunID, Usage: l.usage})
 }
 
 func (r *Runner) heldReason(rs *runState, sr *stepRun, files []string) string {
@@ -2333,6 +2355,11 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	}
 	switch stepDef.Kind {
 	case flow.KindImplement:
+		// Quyết định của người ở requirement.md (câu hỏi b-req đã trả lời): đưa nguyên văn vào đề bài, vì plan.md/tasks.md có
+		// thể chưa phản ánh hết và agent không nên phải đoán từ đường dẫn.
+		if qs := answeredFor(t); len(qs) > 0 {
+			fmt.Fprintf(&b, "\nCâu hỏi đã trả lời trong requirement.md (nguyên văn; đây là quyết định của người dùng, làm theo):\n%s\n", strings.Join(qs, "\n"))
+		}
 		// Chạy lại sau khi bị chặn: tiêu chí còn unmet mang bằng chứng cũ; agent phải ghi lại.
 		var unmet []string
 		for i, c := range t.Ticket.Verify.Criteria {

@@ -91,3 +91,17 @@ func TestCodexInfra(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyInfraMessage(t *testing.T) {
+	for msg, infra := range map[string]bool{
+		"API Error: 529 overloaded": true, "API Error: 500 internal server error": true, "429 Too Many Requests": true,
+		"You've hit your 5-hour limit": true, "test đỏ ở TestFoo": false, "đọc 512 tokens": false,
+	} {
+		if reason, _ := ClassifyInfraMessage(msg); (reason != "") != infra {
+			t.Errorf("%q: reason=%q, muốn infra=%v", msg, reason, infra)
+		}
+	}
+	if _, quota := ClassifyInfraMessage("429 Too Many Requests"); !quota {
+		t.Error("429 phải là QuotaHit")
+	}
+}

@@ -39,19 +39,20 @@ func (r *Runner) subagentTranscript(agentID string) (string, string) {
 }
 
 // subagentUsage tìm token của subagent: seam kiểm thử, rồi transcript (subagentTranscript). Trả lý do khi không đọc được.
-func (r *Runner) subagentUsage(agentID string) (*claude.Usage, string) {
+func (r *Runner) subagentUsage(agentID string) (*claude.Usage, string, string) {
 	if r.SubagentUsage != nil {
-		return r.SubagentUsage(agentID)
+		u, why := r.SubagentUsage(agentID)
+		return u, "seam:" + agentID, why // seam không có đường dẫn: coi như một transcript cố định theo agent
 	}
 	transcript, why := r.subagentTranscript(agentID)
 	if transcript == "" {
-		return nil, why
+		return nil, "", why
 	}
 	u := claude.SubagentUsage(transcript)
 	if u == nil {
-		return nil, "transcript " + transcript + " không có dòng usage"
+		return nil, transcript, "transcript " + transcript + " không có dòng usage"
 	}
-	return u, ""
+	return u, transcript, ""
 }
 
 // transcriptFromSpool tìm agent_transcript_path của subagent.stopped trong các tệp spool còn chờ.
@@ -81,28 +82,75 @@ func transcriptFromSpool(spoolDir, agentID string) string {
 }
 
 // fillSubagentUsage điền chi phí/token/lượt/model của subagent vào kết quả bước. Thiếu --agent-id hoặc không đọc được ⇒
-// để nil (unknown) và ghi chú.
-func (r *Runner) fillSubagentUsage(rs *runState, res *eval.AgentResult, step, agentID string) {
+// để nil (unknown) và ghi chú. Bước nối tiếp (sr.usageBase cùng transcript) chỉ tính phần phát sinh sau lần đóng trước của
+// cùng agent: usage trong transcript là cộng dồn cả đời agent. Mốc cộng dồn mới được lưu vào sr.usage cho lần nối tiếp sau.
+func (r *Runner) fillSubagentUsage(rs *runState, res *eval.AgentResult, sr *stepRun, agentID string) {
+	step := sr.step
 	if agentID == "" {
 		rs.res.Notes = append(rs.res.Notes, step+": thiếu --agent-id nên chi phí của subagent unknown (max_cost_usd chỉ là chỉ dẫn)")
 		return
 	}
-	u, why := r.subagentUsage(agentID)
+	u, transcript, why := r.subagentUsage(agentID)
 	if u == nil {
 		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("%s: chi phí của subagent %s unknown — %s (max_cost_usd chỉ là chỉ dẫn)", step, agentID, why))
 		return
 	}
-	in, out := u.Totals()
-	turns := int64(u.Turns)
+	sr.usage = usageMark(u, transcript)
+	delta := u
+	if b := sr.usageBase; b != nil && b.Transcript == transcript {
+		delta = usageSince(u, b)
+	}
+	in, out := delta.Totals()
+	turns := int64(delta.Turns)
 	res.InputTokens, res.OutputTokens, res.NumTurns = &in, &out, &turns
-	if m := u.Model(); m != "" {
+	if m := delta.Model(); m != "" {
+		res.Model = m
+	} else if m := u.Model(); m != "" {
 		res.Model = m
 	}
-	res.CostUSD = u.Cost(r.Cfg.Harnesses.Claude.Pricing)
+	if len(delta.Models) == 0 {
+		zero := 0.0 // không phát sinh gì sau mốc trước
+		res.CostUSD = &zero
+		return
+	}
+	res.CostUSD = delta.Cost(r.Cfg.Harnesses.Claude.Pricing)
 	if res.CostUSD == nil {
 		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("%s: model %q của subagent %s không có giá nên chi phí unknown — đặt harnesses.claude.pricing để tính",
 			step, u.Model(), agentID))
 	}
+}
+
+// usageMark chụp usage cộng dồn của agent thành mốc lưu vào phiếu.
+func usageMark(u *claude.Usage, transcript string) *task.UsageMark {
+	m := &task.UsageMark{Transcript: transcript, Turns: u.Turns}
+	for _, mu := range u.Models {
+		m.Models = append(m.Models, task.UsageModel{Model: mu.Model, Long: mu.Long, Input: mu.Input, Output: mu.Output,
+			CacheWrite: mu.CacheWrite, CacheRead: mu.CacheRead})
+	}
+	return m
+}
+
+// usageSince trả phần usage của u vượt mốc base (theo từng model/bậc giá, sàn 0: không bao giờ ra giá trị âm dù transcript
+// bị cắt ngắn), bỏ các dòng không còn gì.
+func usageSince(u *claude.Usage, base *task.UsageMark) *claude.Usage {
+	type key struct {
+		model string
+		long  bool
+	}
+	old := map[key]task.UsageModel{}
+	for _, m := range base.Models {
+		old[key{m.Model, m.Long}] = m
+	}
+	d := &claude.Usage{Turns: max(u.Turns-base.Turns, 0)}
+	for _, m := range u.Models {
+		b := old[key{m.Model, m.Long}]
+		n := claude.ModelUsage{Model: m.Model, Long: m.Long, Input: max(m.Input-b.Input, 0), Output: max(m.Output-b.Output, 0),
+			CacheWrite: max(m.CacheWrite-b.CacheWrite, 0), CacheRead: max(m.CacheRead-b.CacheRead, 0)}
+		if n.Input+n.Output+n.CacheWrite+n.CacheRead > 0 {
+			d.Models = append(d.Models, n)
+		}
+	}
+	return d
 }
 
 // saveSessionSpend ghi phần ngân sách b-do đã dùng của lượt cha vào phiếu, để `next` ở tiến trình khác thấy.

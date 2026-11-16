@@ -84,6 +84,19 @@ handle của bước vừa kết thúc **trong cùng lượt**; resume không c�
 
 ### Giai đoạn 2 — Nối tiếp cho driver session + vòng câu hỏi nhiều lượt
 
+**Đã làm (2026-11-16).** `continuationDecision` (`internal/workflow/continuation.go`, hàm thuần) quyết định ở `Runner.Next` trước chỗ
+mở bước: fresh → không `LastStep` → `Via != "subagent"` → không continuable → khác bước → fingerprint khác → quá giới hạn (external 3,
+timeout 1; `awaiting_human` không tính). Bước nối tiếp vẫn đi qua `beginStep`/`pendingFrom`/`grantPending`; `PendingStep` thêm
+`ContinueAgentID`, `FullPrompt`, `Continuations`, `OriginRunID`, `UsageBase`; `StepStop` thêm `Via`, `Continuations`, `OriginRunID`, `Usage`
+(đều `omitempty`). `SessionAction.continue_agent_id` + notes (SendMessage / `--fresh`). Vòng hỏi b-req chọn **trạng thái chờ** (không
+gia hạn lease; mỗi vòng là một lượt con mới): `next --resume` sau khi người đã trả lời hết câu hỏi mở đặt tác vụ về `created` để mở
+lại bước plan dạng nối tiếp; không nối tiếp được thì `to = ResumeFrom` như cũ. `complete --failed` chạy `eval.ClassifyInfraMessage`
+(`codexInfra` bọc `classifyInfra`): 429/5xx/quá tải ⇒ `external`. Chi phí: transcript của agent là cộng dồn nên bước nối tiếp trừ mốc
+`UsageBase` (theo model/bậc giá, sàn 0, chỉ khi cùng transcript). Guardrail worktree: `writeSessionStep` ghi thêm bản ghi alias cho run
+gốc (prompt đầu của subagent nêu run ID đó), gỡ ở `closePending`/`discardPending`/huỷ/`--fresh`; không sửa `hookcore`. Đề bài b-feat
+chèn khối `task.AnsweredQuestions`. Giả định chưa kiểm được trong `go test`: SendMessage thật của Claude Code nối tiếp được subagent đã xong
+và `agentId` trùng `agent_id` của hook; chưa biết transcript nối tiếp là cùng tệp hay tệp mới (mốc kèm đường dẫn nên không tính trùng/âm).
+
 - `bint run next --resume` (và `next` thường khi gặp bước dừng loại nối tiếp được): trả `action: "agent"` kèm
   `continue_agent_id` (agent ID cũ) và `prompt` = lời nhắn nối tiếp; orchestrator dùng **SendMessage** tới agent đó thay
   vì gọi Agent mới. Không gửi được (agent không còn) thì orchestrator báo lại bằng cờ/lệnh để Bint cấp prompt đầy đủ

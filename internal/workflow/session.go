@@ -76,6 +76,9 @@ type SessionAction struct {
 	ReadOnly   bool   `json:"readonly,omitempty"`
 	MaxTurns   *int   `json:"max_turns,omitempty"`
 	LeaseUntil string `json:"lease_until,omitempty"`
+	// ContinueAgentID khác rỗng: bước nối tiếp phiên của agent này — gửi Prompt (lời nhắn nối tiếp) bằng SendMessage tới agent đó
+	// thay vì gọi Agent mới; không gửi được thì `bint run next <id> --fresh` để nhận đề bài đầy đủ.
+	ContinueAgentID string `json:"continue_agent_id,omitempty"`
 	// Command của action "process" (hoặc lệnh kế tiếp ở `complete` khi tác vụ còn tiếp tục).
 	Command   string   `json:"command,omitempty"`
 	Reason    string   `json:"reason,omitempty"`
@@ -96,6 +99,9 @@ type NextOptions struct {
 	NoWait bool
 	// Rerun (cùng Resume): bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó (như RunOptions.Rerun).
 	Rerun bool
+	// Fresh: bỏ nối tiếp phiên cũ. Bước dở còn hạn đang là bước nối tiếp được đổi tại chỗ sang đề bài đầy đủ (giữ run_id);
+	// không có bước dở thì bước mới dùng đề bài đầy đủ dù bước dừng trước nối tiếp được.
+	Fresh bool
 }
 
 // CompleteOptions điều khiển Runner.Complete.
@@ -173,7 +179,12 @@ func (r *Runner) sessionState(t *task.Task, runID string, resume, noWait bool) *
 func sessionAgentAction(t *task.Task, ps *task.PendingStep) *SessionAction {
 	a := &SessionAction{Action: ActionAgent, TaskID: t.State.ID, Status: t.State.Status, Step: ps.Step, RunID: ps.RunID,
 		Subagent: subagentOf(kindOfPending(ps)), Model: ps.Model, Prompt: ps.Prompt, Worktree: t.State.Worktree,
-		ReadOnly: readOnlyKind(kindOfPending(ps)), MaxTurns: ps.MaxTurns, LeaseUntil: ps.LeaseUntil}
+		ReadOnly: readOnlyKind(kindOfPending(ps)), MaxTurns: ps.MaxTurns, LeaseUntil: ps.LeaseUntil, ContinueAgentID: ps.ContinueAgentID}
+	if ps.ContinueAgentID != "" {
+		a.Notes = append(a.Notes, "bước nối tiếp phiên: gửi `prompt` bằng SendMessage tới agent "+ps.ContinueAgentID+" (KHÔNG gọi Agent mới), rồi `bint run complete "+
+			t.State.ID+" --run "+ps.RunID+" --agent-id "+ps.ContinueAgentID+"`; SendMessage không gửi được (agent không còn) thì `bint run next "+t.State.ID+
+			" --fresh --json` để nhận đề bài đầy đủ")
+	}
 	return a
 }
 
@@ -365,8 +376,18 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	case task.StatusCancelled:
 		return nil, fmt.Errorf("tác vụ %s đã %s", id, t.State.Status)
 	}
+	freshNote := ""
+	if o.Fresh {
+		if nt := r.freshenPending(t); nt != nil {
+			t = nt
+			freshNote = "--fresh: bước " + t.State.PendingStep.Step + " (lượt " + t.State.PendingStep.RunID + ") đổi sang đề bài đầy đủ; gọi Agent mới với `prompt`, không SendMessage"
+		}
+	}
 	// Bước còn hạn: trả lại đúng nó (gọi lại an toàn); tác vụ đang dừng thì chỉ lệnh đóng bước.
 	if a := pendingAction(t); a != nil {
+		if freshNote != "" {
+			a.Notes = append(a.Notes, freshNote)
+		}
 		return a, nil
 	}
 	if nextAfterLoad != nil {
@@ -419,10 +440,21 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 	}
 
 	rerunMsg := ""
+	var pre *ContinueDecision // quyết định nối tiếp tính trước chuyển trạng thái (câu hỏi b-req đã trả lời)
+	var contNotes []string
 	if task.Paused(rs.t.State.Status) { // chỉ tới đây khi o.Resume
 		to := rs.t.State.ResumeFrom
 		if to == "" {
 			to = task.StatusCreated
+		}
+		// Câu hỏi mở của b-req đã được trả lời: nối tiếp planner cũ (mở lại bước plan từ created) thay vì vào thẳng b-feat. Không
+		// nối tiếp được (không handle, cây đổi, --fresh) thì giữ hành vi cũ: to = ResumeFrom, vào thẳng bước sau plan.
+		if cd, ok := r.planContinuation(ctx, rs, o.Fresh); ok {
+			if cd.Continue {
+				to, pre = task.StatusCreated, &cd
+			} else if cd.Why != "" {
+				contNotes = append(contNotes, "không nối tiếp planner cũ: "+cd.Why)
+			}
 		}
 		if o.Rerun {
 			// Bỏ kết quả bước giữ trước (kể cả vòng review của nó: không áp lại quyết định đó, review sẽ chạy lại).
@@ -534,17 +566,28 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 					spec.Role, h, id)}}
 			return a, nil
 		}
+		last := rs.t.State.LastStep // beginStep xoá LastStep: giữ lại để dựng lời nhắn nối tiếp
+		dec := r.decideContinuation(ctx, rs, step, o.Fresh)
+		if pre != nil && pre.Step == step {
+			dec = *pre
+		}
 		sr, ok := r.beginStep(ctx, rs, step, true)
 		if !ok {
 			return stop()
 		}
 		ps := r.pendingFrom(rs, sr)
+		if dec.Continue {
+			r.armContinuation(rs, ps, last)
+		} else if dec.Why != "" {
+			contNotes = append(contNotes, "không nối tiếp phiên cũ: "+dec.Why)
+		}
 		if err := r.grantPending(rs, sr, ps); err != nil {
 			r.fail(rs, step, "ghi bước dở và hợp đồng thuê khoá: "+err.Error())
 			return stop()
 		}
 		sr.release() // trả flock: từ đây hợp đồng thuê giữ chỗ
 		act := sessionAgentAction(rs.t, ps)
+		act.Notes = append(act.Notes, contNotes...)
 		if rerunMsg != "" {
 			act.Notes = append(act.Notes, rerunMsg)
 		}
@@ -588,7 +631,7 @@ func (r *Runner) grantPending(rs *runState, sr *stepRun, ps *task.PendingStep) e
 		}
 		releaseLease(r.Tasks.Dir, r.Root, id, ps.RunID, false)
 	}
-	removeSessionStep(r.Tasks.Dir, ps.RunID)
+	removeSessionSteps(r.Tasks.Dir, ps)
 	sr.release()
 	return err
 }
@@ -606,8 +649,14 @@ func (r *Runner) writeSessionStep(rs *runState, ps *task.PendingStep) {
 	if err != nil {
 		wt = r.Root
 	}
-	err = hookcore.WriteSessionStep(runtimeDir, hookcore.SessionStepRecord{RunID: ps.RunID, TaskID: rs.t.State.ID, Step: ps.Step,
-		Subagent: ps.Subagent, Worktree: wt, Isolated: rs.t.State.Origin != "", Until: ps.LeaseUntil})
+	rec := hookcore.SessionStepRecord{RunID: ps.RunID, TaskID: rs.t.State.ID, Step: ps.Step,
+		Subagent: ps.Subagent, Worktree: wt, Isolated: rs.t.State.Origin != "", Until: ps.LeaseUntil}
+	err = hookcore.WriteSessionStep(runtimeDir, rec)
+	if err == nil && ps.OriginRunID != "" {
+		// Bước nối tiếp: prompt đầu của subagent nêu run ID của lượt gốc, nên hook tra theo run ID đó (bản ghi alias).
+		rec.RunID = ps.OriginRunID
+		err = hookcore.WriteSessionStep(runtimeDir, rec)
+	}
 	if err != nil {
 		rs.res.Notes = append(rs.res.Notes, "không ghi được tệp ánh xạ worktree cho hook ("+err.Error()+"): rào chắn đường dẫn rơi về chính sách fail-closed")
 	}
@@ -619,6 +668,12 @@ func removeSessionStep(tasksDir, runID string) {
 	if runID != "" {
 		hookcore.RemoveSessionStep(filepath.Dir(tasksDir), runID)
 	}
+}
+
+// removeSessionSteps gỡ tệp session-steps của bước dở và bản ghi alias của lượt gốc (bước nối tiếp).
+func removeSessionSteps(tasksDir string, ps *task.PendingStep) {
+	removeSessionStep(tasksDir, ps.RunID)
+	removeSessionStep(tasksDir, ps.OriginRunID)
 }
 
 // closeArgs là thông tin đóng một bước dở.
@@ -651,7 +706,8 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 	sr := &stepRun{step: ps.Step, kind: kind, child: ps.RunID, stepID: "st_" + ps.RunID, readOnly: readOnlyKind(kind), mode: mode,
 		snapBefore: ps.Snapshot, featBefore: ps.FeatBefore, firstFeat: ps.FirstFeat, started: started, maxTurns: ps.MaxTurns,
 		reqModel: ps.Model, harness: ps.Harness, stepLog: rs.t.LogPath(ps.Step + "-" + ps.RunID + ".log"), lock: lock,
-		agentID: a.agentID, timedOut: a.timedOut, agentFailed: a.failed != ""}
+		agentID: a.agentID, timedOut: a.timedOut, agentFailed: a.failed != "", continuations: ps.Continuations,
+		originRunID: ps.OriginRunID, usageBase: ps.UsageBase}
 	root := r.Root
 	sr.onEnd = func() {
 		r.Tasks.Update(id, r.now(), func(t *task.Task) error {
@@ -661,16 +717,18 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 			return nil
 		})
 		releaseLease(r.Tasks.Dir, root, id, ps.RunID, false)
-		removeSessionStep(r.Tasks.Dir, ps.RunID)
+		removeSessionSteps(r.Tasks.Dir, ps)
 	}
 	res := eval.AgentResult{Duration: max(leaseNow().Sub(started), 0), TimedOut: a.timedOut, Model: ps.Model}
 	switch {
 	case a.failed != "":
 		res.ExitCode, res.Error = 1, a.failed
+		// Lý do khớp bộ phân loại lỗi hạ tầng của eval (429/5xx/quá tải): bước dừng vì nguyên nhân ngoại cảnh, nối tiếp được.
+		res.Infra, res.QuotaHit = eval.ClassifyInfraMessage(a.failed)
 	case a.timedOut && a.reason != "":
 		res.Error = a.reason
 	}
-	r.fillSubagentUsage(rs, &res, ps.Step, a.agentID)
+	r.fillSubagentUsage(rs, &res, sr, a.agentID)
 	sr.isoLeak = r.auditIsolation(rs, ps, a.agentID)
 	ok = r.endStep(ctx, rs, sr, res)
 	r.saveSessionSpend(rs)
@@ -871,7 +929,7 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 		}); err == nil {
 			rs.t = t
 		}
-		removeSessionStep(r.Tasks.Dir, ps.RunID)
+		removeSessionSteps(r.Tasks.Dir, ps)
 	}
 	// Hợp đồng của tác vụ bị xoá kể cả khi phiếu không còn bước dở (trạng thái hỏng): không để khoá kẹt tới hết hạn.
 	if err := releaseLease(r.Tasks.Dir, r.Root, id, "", len(r.otherPendingOnRoot(id, r.Root)) == 0); err != nil {
@@ -890,7 +948,7 @@ func (e *Env) discardPendingForCancel(t *task.Task) {
 	if ps := t.State.PendingStep; ps != nil {
 		e.emitRun(ps.RunID, spool.WorkflowFinished, map[string]any{"status": "interrupted", "end_reason": "tác vụ bị huỷ", "task_id": t.State.ID})
 		e.Tasks.Update(t.State.ID, e.now(), func(t *task.Task) error { t.State.PendingStep = nil; return nil })
-		removeSessionStep(e.Tasks.Dir, ps.RunID)
+		removeSessionSteps(e.Tasks.Dir, ps)
 	}
 	releaseLease(e.Tasks.Dir, root, t.State.ID, "", len(e.otherPendingOnRoot(t.State.ID, root)) == 0)
 }

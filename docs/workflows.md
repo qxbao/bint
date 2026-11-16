@@ -1057,6 +1057,24 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
   bint run abort <id> [--reason …]                             ← phiên orchestrator chết giữa bước
   ```
 
+  - **Nối tiếp phiên (giai đoạn 2 của `docs/step-continuation-plan.md`).** `next --resume` (và `next` khi gặp bước dừng loại nối
+    tiếp được) trả `{"action":"agent","continue_agent_id":"<agentId cũ>","prompt":"<lời nhắn nối tiếp>"}` thay cho đề bài đầy
+    đủ khi **cả năm điều kiện** đúng: `State.last_step` có `via: "subagent"`, `continuable`, cùng bước sắp mở, fingerprint cây
+    hiện tại khớp lúc dừng, và bộ đếm nối tiếp chưa chạm trần (lớp `external` tối đa 3 lần liên tiếp, `timeout` 1 lần;
+    `awaiting_human` không tính). Orchestrator gửi `prompt` bằng **SendMessage** tới agent cũ rồi `complete --agent-id <agent cũ>`.
+    Thiếu một điều kiện thì trả đề bài đầy đủ như cũ và `notes` nêu lý do. `bint run next <id> --fresh` bỏ nối tiếp (bước dở đang
+    là bước nối tiếp được đổi tại chỗ sang đề bài đầy đủ, giữ `run_id`; không có bước dở thì bước mới dùng đề bài đầy đủ) — dùng
+    khi SendMessage không gửi được. `complete --failed "<lý do>"` khớp bộ phân loại lỗi hạ tầng của eval (429/5xx/quá tải) ghi
+    `last_step.stop_class: external` (nối tiếp được khi có `--agent-id`); lý do khác là `intrinsic`. Bước nối tiếp vẫn là bước
+    mới (`beginStep`: run con mới, khoá, hợp đồng thuê, ngân sách); chi phí/token/lượt chỉ tính phần phát sinh sau lần đóng trước
+    của cùng agent (mốc `usage` lưu ở `last_step`, trừ khi cùng transcript); guardrail worktree thấy tệp session-steps của run gốc
+    (bản ghi alias) trong suốt bước nối tiếp, gỡ khi bước đóng, abort hoặc tác vụ bị huỷ.
+  - **Vòng câu hỏi nhiều lượt của b-req.** Planner xong mà `requirement.md` còn câu hỏi mở: `complete` đặt tác vụ `blocked`
+    (`last_step`: `awaiting_human`, handle = agent_id). Người ghi trả lời (`bint task write <id> requirement -`) rồi
+    `next --resume`: nếu nối tiếp được thì mở lại **bước plan** dạng nối tiếp tới planner cũ, lời nhắn chứa nguyên văn các dòng
+    `Q-N … — Trả lời: …`; planner cập nhật requirement/plan/tasks, có thể thêm câu hỏi mới (`complete` lại chặn) — lặp tới khi hết câu hỏi
+    mở thì tác vụ đi tiếp sang b-feat. Không nối tiếp được (không handle, cây đổi, `--fresh`) thì giữ hành vi cũ: vào thẳng b-feat,
+    không chạy lại b-req. Đề bài b-feat (cả driver process và driver session) chứa nguyên văn mọi dòng câu hỏi đã trả lời.
   - *`next`* mở bước (chuyển trạng thái, giới hạn, khoá worktree, ảnh chụp trước, đề bài, sự kiện bắt đầu), ghi
     `State.pending_step` (lượt, bước, ảnh chụp, đề bài, `lease_until`) rồi trả flock; **gọi lại khi bước còn hạn trả đúng
     bước đó** (cùng `run_id`, cùng prompt), không mở bước mới. Phần việc không cần agent chạy ngay trong `next`: kiểm

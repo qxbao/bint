@@ -417,3 +417,8 @@ func (a *CommandAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	}
 	return res
 }
+
+// ClassifyInfraMessage phân loại một thông báo lỗi dạng văn bản (không có mã trạng thái riêng, ví dụ lý do subagent báo qua
+// `bint run complete --failed`): hạn mức/429, API 5xx, quá tải là lỗi hạ tầng. Trả lý do rỗng nếu là lỗi bình thường của
+// agent; quota=true khi là hạn mức (dừng cả đợt ở eval).
+func ClassifyInfraMessage(msg string) (reason string, quota bool) { return codexInfra(msg) }

@@ -280,6 +280,7 @@ type RunNextOptions struct {
 	Resume bool   `flag:"resume"`
 	Rerun  bool   `flag:"rerun" form:"advanced"`
 	NoWait bool   `flag:"no-wait" form:"advanced"`
+	Fresh  bool   `flag:"fresh" form:"advanced"`
 }
 
 func RunNextDefaults(config.Config) RunNextOptions { return RunNextOptions{} }
@@ -369,7 +370,7 @@ func RunNext(ctx context.Context, ws *TaskWS, o RunNextOptions) (*workflow.Sessi
 	if err != nil {
 		return nil, err
 	}
-	a, err := r.Next(ctx, workflow.NextOptions{TaskRef: o.Ref, Resume: o.Resume, Rerun: o.Rerun, NoWait: o.NoWait})
+	a, err := r.Next(ctx, workflow.NextOptions{TaskRef: o.Ref, Resume: o.Resume, Rerun: o.Rerun, NoWait: o.NoWait, Fresh: o.Fresh})
 	if err != nil {
 		return nil, err
 	}

@@ -428,6 +428,14 @@ type StepStop struct {
 	// Continuable: lớp dừng cho phép nối tiếp, có handle và có fingerprint.
 	Continuable bool   `json:"continuable"`
 	At          string `json:"at,omitempty"`
+	// Via: "subagent" khi bước chạy bằng subagent của driver session (SessionID là agent_id, nối tiếp bằng SendMessage);
+	// rỗng ở driver process và ở phiếu cũ (không nối tiếp được ở giai đoạn 2).
+	Via string `json:"via,omitempty"`
+	// Continuations: số lần nối tiếp external/timeout liên tiếp đã dùng cho bước này; OriginRunID: lượt đầu của agent.
+	Continuations int    `json:"continuations,omitempty"`
+	OriginRunID   string `json:"origin_run_id,omitempty"`
+	// Usage là usage cộng dồn của agent lúc dừng (mốc để bước nối tiếp không tính trùng).
+	Usage *UsageMark `json:"usage,omitempty"`
 }
 
 // SessionSpend là phần ngân sách b-do đã dùng trong một lượt cha của driver session.
@@ -463,6 +471,33 @@ type PendingStep struct {
 	// StartedAt, LeaseUntil: RFC 3339 UTC. Quá LeaseUntil là bước hết hạn (hợp đồng thuê khoá cũng hết).
 	StartedAt  string `json:"started_at"`
 	LeaseUntil string `json:"lease_until"`
+	// Nối tiếp phiên (docs/step-continuation-plan.md GĐ2): ContinueAgentID khác rỗng ⇒ Prompt là lời nhắn nối tiếp để
+	// orchestrator SendMessage tới agent cũ; FullPrompt là đề bài đầy đủ (`bint run next --fresh` đổi sang nó).
+	ContinueAgentID string `json:"continue_agent_id,omitempty"`
+	FullPrompt      string `json:"full_prompt,omitempty"`
+	// Continuations: số lần nối tiếp liên tiếp (external/timeout) tính cả lần này; OriginRunID: lượt đầu của agent (chuỗi nối
+	// tiếp), nơi prompt đầu của subagent nêu run ID mà guardrail worktree ánh xạ về tác vụ.
+	Continuations int    `json:"continuations,omitempty"`
+	OriginRunID   string `json:"origin_run_id,omitempty"`
+	// UsageBase là usage cộng dồn của agent lúc bước trước đóng: chi phí của bước nối tiếp chỉ tính phần vượt mốc này.
+	UsageBase *UsageMark `json:"usage_base,omitempty"`
+}
+
+// UsageMark là usage cộng dồn của một agent tại một thời điểm, kèm transcript nó được đọc ra (chỉ trừ khi cùng transcript).
+type UsageMark struct {
+	Transcript string       `json:"transcript,omitempty"`
+	Turns      int          `json:"turns,omitempty"`
+	Models     []UsageModel `json:"models,omitempty"`
+}
+
+// UsageModel là token của một model (một bậc giá) trong UsageMark.
+type UsageModel struct {
+	Model      string `json:"model"`
+	Long       bool   `json:"long,omitempty"`
+	Input      int64  `json:"input_tokens,omitempty"`
+	Output     int64  `json:"output_tokens,omitempty"`
+	CacheWrite int64  `json:"cache_creation_input_tokens,omitempty"`
+	CacheRead  int64  `json:"cache_read_input_tokens,omitempty"`
 }
 
 // AgentRun ghép agent_id của một subagent với lượt chạy của bước nó đã làm.

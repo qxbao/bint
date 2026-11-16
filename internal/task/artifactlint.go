@@ -459,3 +459,28 @@ func LintPlanningTask(t *Task, strict bool) ArtifactReport {
 	}
 	return lintPlanning(t.Ticket, docs, bad, strict)
 }
+
+// AnsweredQuestions trả nguyên văn (đã cắt khoảng trắng hai đầu) các dòng câu hỏi đã trả lời của requirement.md:
+// `- [x] Q-N: … — Trả lời: …` dưới mục câu hỏi mở, ngoài code fence, có nội dung trả lời. Dùng chung bộ duyệt dòng/fence với lint
+// nên hai nơi hiểu cùng một cấu trúc tệp. Câu chưa trả lời (chưa [x] hoặc [x] không có nội dung) bị bỏ.
+func AnsweredQuestions(requirement string) []string {
+	var out []string
+	scanLines(requirement, func(section, line string) {
+		if section != secQ {
+			return
+		}
+		cb := lintCheckboxRe.FindStringSubmatch(line)
+		if cb == nil || cb[1] == " " {
+			return
+		}
+		if lintQRe.FindStringSubmatch(cb[2]) == nil {
+			return
+		}
+		am := lintAnswerRe.FindStringSubmatch(" " + cb[2])
+		if am == nil || strings.TrimSpace(am[1]) == "" {
+			return
+		}
+		out = append(out, strings.TrimSpace(line))
+	})
+	return out
+}

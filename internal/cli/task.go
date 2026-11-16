@@ -1008,7 +1008,7 @@ func printDriverLines(w io.Writer, indent string, t *task.Task) {
 	}
 }
 
-// printLastStepLine in bước dừng gần nhất (State.LastStep): lớp dừng và có nối tiếp được không (chỉ ghi nhận; resume chưa dùng).
+// printLastStepLine in bước dừng gần nhất (State.LastStep): lớp dừng và có nối tiếp được không và cách chạy (via subagent: bint run next --resume nối tiếp phiên bằng SendMessage khi đủ điều kiện).
 func printLastStepLine(w io.Writer, indent string, t *task.Task) {
 	ls := t.State.LastStep
 	if ls == nil {
@@ -1021,6 +1021,12 @@ func printLastStepLine(w io.Writer, indent string, t *task.Task) {
 	fmt.Fprintf(w, "%sBước dừng:   %s (lượt %s) — lớp dừng %s, nối tiếp được: %s", indent, ls.Step, ls.RunID, ls.StopClass, cont)
 	if ls.Harness != "" {
 		fmt.Fprintf(w, ", harness %s", ls.Harness)
+	}
+	if ls.Via != "" {
+		fmt.Fprintf(w, ", via %s", ls.Via)
+	}
+	if ls.Continuations > 0 {
+		fmt.Fprintf(w, ", đã nối tiếp %d lần", ls.Continuations)
 	}
 	fmt.Fprintln(w)
 }

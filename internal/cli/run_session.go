@@ -48,6 +48,9 @@ func printSessionAction(w io.Writer, a *workflow.SessionAction) {
 	if a.RunID != "" {
 		fmt.Fprintf(w, "  Lượt:      %s (hết hạn %s)\n", a.RunID, orDash(fmtRFC(a.LeaseUntil)))
 	}
+	if a.ContinueAgentID != "" {
+		fmt.Fprintf(w, "  Nối tiếp:  SendMessage tới agent %s (không gọi Agent mới)\n", a.ContinueAgentID)
+	}
 	if a.Worktree != "" && a.Action == workflow.ActionAgent {
 		fmt.Fprintf(w, "  Thư mục:   %s\n", a.Worktree)
 	}
@@ -101,8 +104,10 @@ func newRunNextCmd(stdio IO) *cobra.Command {
 		Long: `Dành cho phiên điều phối (orchestrator) chạy các bước của tác vụ bằng subagent thay vì để bint run gọi harness.
 Mở bước kế tiếp (chuyển trạng thái, giới hạn, khoá worktree, ảnh chụp, đề bài) và trả hành động dạng JSON (--json):
 
-  {"action":"agent","step","run_id","subagent","model","prompt","worktree","readonly","max_turns","lease_until"}
-      chạy subagent với prompt rồi gọi bint run complete <id> --run <run_id>
+  {"action":"agent","step","run_id","subagent","model","prompt","worktree","readonly","max_turns","lease_until","continue_agent_id"}
+      chạy subagent với prompt rồi gọi bint run complete <id> --run <run_id>. Có continue_agent_id: bước nối tiếp phiên của agent
+      cũ — gửi prompt (lời nhắn nối tiếp) bằng SendMessage tới agent đó thay vì gọi Agent mới; gửi không được thì chạy lại
+      bint run next <id> --fresh để nhận đề bài đầy đủ cho agent mới (cùng run_id)
   {"action":"process","command":"bint run b-feat --task <id> --json"}
       role gán harness khác Claude: chạy lệnh đó (nền được), rồi gọi lại bint run next
   {"action":"done"|"blocked"|"failed","reason","questions"}
@@ -131,6 +136,7 @@ giữ thì chờ tối đa workflow.timeout_minutes, --no-wait để dừng ngay
 	c.Flags().BoolVar(&o.Resume, "resume", false, "tiếp tục tác vụ blocked/interrupted/failed sau khi đã xử lý nguyên nhân")
 	c.Flags().BoolVar(&o.Rerun, "rerun", false, "cùng --resume: bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó")
 	c.Flags().BoolVar(&o.NoWait, "no-wait", false, "khoá worktree đang bị bước khác giữ thì dừng ngay (blocked) thay vì chờ")
+	c.Flags().BoolVar(&o.Fresh, "fresh", false, "bỏ nối tiếp phiên cũ: nhận đề bài đầy đủ cho agent mới (bước nối tiếp đang dở được đổi tại chỗ)")
 	c.Flags().BoolVar(&asJSON, "json", false, "in kết quả dạng JSON")
 	return c
 }
