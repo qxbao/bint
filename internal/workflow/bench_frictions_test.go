@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -20,7 +21,13 @@ import (
 func TestVerifyUsesPrivateTempDir(t *testing.T) {
 	h := newHarness(t)
 	out := filepath.Join(t.TempDir(), "tmpdir.txt")
-	cmd := `test -f done.txt && test -d "$TMPDIR" && printf %s "$TMPDIR" > ` + filepath.ToSlash(out)
+	capture := `printf %s "$TMPDIR"`
+	if runtime.GOOS == "windows" {
+		// Git Bash chuyển TMPDIR sang dạng POSIX; đổi về đường dẫn Windows
+		// trước khi so với filepath của tiến trình Go và kiểm thư mục đã dọn.
+		capture = `cygpath -m "$TMPDIR"`
+	}
+	cmd := `test -f done.txt && test -d "$TMPDIR" && ` + capture + ` > '` + strings.ReplaceAll(filepath.ToSlash(out), "'", "'\\''") + `'`
 	h.cfg.Eval.TestCommand = &cmd
 	id := h.finishFeat() // b-feat → kiểm chứng của Runner
 	ran := func() string {
@@ -30,7 +37,7 @@ func TestVerifyUsesPrivateTempDir(t *testing.T) {
 			t.Fatalf("lệnh kiểm chứng không chạy hoặc thiếu TMPDIR: %v (%+v)", err, h.load(id).State.LastVerification())
 		}
 		os.Remove(out)
-		return string(b)
+		return strings.TrimSpace(string(b))
 	}
 	base := state.TmpDirFor(h.tasks.Dir)
 	check := func(who, dir string) {
