@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"bint/internal/iso"
 )
 
 // Harness mô tả một harness được phát hiện trên máy.
@@ -33,9 +35,19 @@ var harnessSpecs = []struct {
 	{"antigravity", []string{"agy", "antigravity"}, []string{".gemini/antigravity-cli", ".gemini/antigravity", ".antigravity"}},
 }
 
+// realHome là thư mục home thật: iso.RealHome() (chạy trong profile `bint iso` thì HOME của tiến trình là HOME giả, nhưng harness
+// đã cài thật nằm ở ~/.claude, ~/.codex của máy), lỗi thì os.UserHomeDir.
+func realHome() string {
+	if h, err := iso.RealHome(); err == nil && h != "" {
+		return h
+	}
+	h, _ := os.UserHomeDir()
+	return h
+}
+
 // Harnesses phát hiện các harness Bint biết.
 func Harnesses() []Harness {
-	home, _ := os.UserHomeDir()
+	home := realHome()
 	out := make([]Harness, 0, len(harnessSpecs))
 	for i := range harnessSpecs {
 		out = append(out, detectSpec(i, home))
@@ -48,8 +60,7 @@ func Harnesses() []Harness {
 func Find(name string) Harness {
 	for i, s := range harnessSpecs {
 		if s.name == name {
-			home, _ := os.UserHomeDir()
-			return detectSpec(i, home)
+			return detectSpec(i, realHome())
 		}
 	}
 	return Harness{Name: name}

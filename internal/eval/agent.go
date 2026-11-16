@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"bint/internal/config"
+	"bint/internal/iso"
 )
 
 // AgentRequest là một lần giao tác vụ cho agent.
@@ -60,6 +61,9 @@ type AgentRequest struct {
 	// nhắn nối tiếp. Claude chạy `--resume <id>` thay `--session-id` (giữ mọi cờ quyền/MCP/model của bước gốc); Codex chạy
 	// `exec … resume <id> -`. Loại trừ SessionID (nối tiếp không cấp UUID mới). `bint eval` không đặt trường này.
 	ResumeSessionID string
+	// Profile khác nil: chạy harness trong profile `bint iso` này (ghi đè profile mặc định của agent). Env dựng bằng
+	// iso.Begin: HOME/CODEX_HOME hoặc CLAUDE_CONFIG_DIR của profile, BINT_STATE_DIR/BINT_CONFIG_HOME thật.
+	Profile *iso.Profile
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
@@ -125,6 +129,8 @@ type ClaudeAgent struct {
 	// Claude Code (Read/Glob/Grep có thể chạy không cần duyệt). Dùng cho agent chỉ suy luận trên
 	// đầu vào đã lọc (reflector): không có công cụ nghĩa là không đọc được tệp nào khác.
 	NoTools bool
+	// Profile là profile `bint iso` mặc định của agent (harnesses.claude.profile); nil = tài khoản thật.
+	Profile *iso.Profile
 }
 
 // ModelNamer là agent cho biết model được yêu cầu cho lượt chạy ("" = mặc định của harness).
@@ -238,8 +244,13 @@ func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 
 // Run giao đề bài qua stdin và đọc kết quả JSON.
 func (a *ClaudeAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
+	senv, err := agentEnv(ctx, req, a.Profile)
+	if err != nil {
+		return profileFailure(err)
+	}
+	defer senv.End()
 	var stdout bytes.Buffer
-	r := runProcess(ctx, req.Dir, a.bin(), a.ArgsFor(req), req.Timeout, req.LogPath, cleanEnv(req.Env...), strings.NewReader(req.Prompt), &stdout)
+	r := runProcess(ctx, req.Dir, a.bin(), a.ArgsFor(req), req.Timeout, req.LogPath, senv.Env, strings.NewReader(req.Prompt), &stdout)
 	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, SessionID: cmp.Or(req.SessionID, req.ResumeSessionID)}
 	if r.Err != nil {
 		res.Error = r.Err.Error()

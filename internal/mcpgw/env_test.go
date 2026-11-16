@@ -106,3 +106,44 @@ func startEnv(t *testing.T, h *harness, svc string, idx int) map[string]string {
 }
 
 var _ = config.MachineMCP{}
+
+// Biến BaseEnv của upstream lấy từ env THẬT: env của profile `bint iso` (HOME/TMPDIR giả, BINT_ISO_REAL_* giữ bản thật) cho ra
+// HOME/TMPDIR thật; ngoài profile thì giữ nguyên.
+func TestEnvFromUsesRealEnvInsideProfile(t *testing.T) {
+	svc, _ := mcpcat.Lookup("jira")
+	get := func(env []string, k string) string {
+		for _, kv := range env {
+			if v, ok := strings.CutPrefix(kv, k+"="); ok {
+				return v
+			}
+		}
+		return ""
+	}
+	inProfile := []string{
+		"PATH=/usr/bin", "LANG=C",
+		"HOME=/store/profiles/codex--work/home", "TMPDIR=/tmp/bint-iso-1000/codex--work", "TMP=/tmp/bint-iso-1000/codex--work", "TEMP=/tmp/bint-iso-1000/codex--work",
+		"BINT_ISO_PROFILE=codex/work", "BINT_ISO_HOME=/store",
+		"BINT_ISO_REAL_HOME=/home/real", "BINT_ISO_REAL_TMPDIR=/tmp/real",
+	}
+	env, _, _ := envFrom(inProfile, svc, config.Registration{}, nil)
+	if get(env, "HOME") != "/home/real" || get(env, "TMPDIR") != "/tmp/real" {
+		t.Fatalf("HOME/TMPDIR của upstream phải là bản thật: %v", env)
+	}
+	if get(env, "TMP") != "" || get(env, "TEMP") != "" {
+		t.Fatalf("biến temp không có bản thật phải bị gỡ chứ không giữ của profile: %v", env)
+	}
+	if get(env, "PATH") != "/usr/bin" || get(env, "LANG") != "C" {
+		t.Fatalf("PATH/LANG giữ nguyên: %v", env)
+	}
+	for _, kv := range env {
+		if strings.Contains(kv, "bint-iso") || strings.Contains(kv, "/store/") || strings.HasPrefix(kv, "BINT_ISO_") {
+			t.Fatalf("env profile lọt sang upstream: %s", kv)
+		}
+	}
+
+	outside := []string{"PATH=/usr/bin", "HOME=/home/real", "TMPDIR=/tmp/real"}
+	env2, _, _ := envFrom(outside, svc, config.Registration{}, nil)
+	if get(env2, "HOME") != "/home/real" || get(env2, "TMPDIR") != "/tmp/real" {
+		t.Fatalf("ngoài profile giữ nguyên: %v", env2)
+	}
+}

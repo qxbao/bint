@@ -98,7 +98,7 @@ func testCodexProfileKeepsRuntimeWithoutUserContext(t *testing.T, symlinkHome bo
 			filepath.Join(targetDir, "SKILL.md")}
 	}
 	os.WriteFile(filepath.Join(source, "AGENTS.md"), []byte("USER_ONLY"), 0o600)
-	env, cleanup, err := codexEvalProfile(AgentRequest{Dir: t.TempDir()}, os.Environ())
+	env, cleanup, err := codexEvalProfile(AgentRequest{Dir: t.TempDir()}, os.Environ(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestCodexProfileDisablesEverySkillAlias(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("CODEX_HOME", source)
-	env, cleanup, err := codexEvalProfile(AgentRequest{Dir: t.TempDir()}, os.Environ())
+	env, cleanup, err := codexEvalProfile(AgentRequest{Dir: t.TempDir()}, os.Environ(), false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -74,7 +74,7 @@ func (a *CodexRestrictedAgent) Run(ctx context.Context, req AgentRequest) (res A
 	defer os.RemoveAll(cwd)
 	isolated := req
 	isolated.Dir = cwd
-	env, cleanup, err := codexEvalProfile(isolated, cleanEnv(req.Env...))
+	env, cleanup, err := codexEvalProfile(isolated, cleanEnv(req.Env...), false)
 	if err != nil {
 		res.Error = err.Error()
 		return

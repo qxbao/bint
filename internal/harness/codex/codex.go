@@ -168,12 +168,26 @@ func HooksPath(scope claude.Scope, repoRoot string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(h, "hooks.json"), nil
+		return UserHooksPathIn(h), nil
 	}
 	return filepath.Join(repoRoot, ".codex", "hooks.json"), nil
 }
 
+// UserHooksPathIn là hooks.json cấp user dưới thư mục cấu hình Codex cho trước (`bint iso sync` cài hook vào
+// CODEX_HOME của profile).
+func UserHooksPathIn(codexHome string) string { return filepath.Join(codexHome, "hooks.json") }
+
 const hookSubcommand = "hook codex"
+
+// InstalledHookCommand trả lệnh của handler hook Bint đầu tiên trong hooks.json (ok=false nếu chưa cài).
+func InstalledHookCommand(path string) (string, bool, error) {
+	return claude.FirstHookCommand(path, isBintHook)
+}
+
+// BintPathFromCommand đảo HookCommand: `"/x/bint" hook codex` → /x/bint.
+func BintPathFromCommand(cmd string) string {
+	return claude.BintPathFromHookCommand(cmd, hookSubcommand)
+}
 
 // HookCommand dựng lệnh hook từ đường dẫn chương trình bint.
 func HookCommand(bintPath string) string {
@@ -182,6 +196,9 @@ func HookCommand(bintPath string) string {
 	}
 	return `"` + filepath.ToSlash(bintPath) + `" ` + hookSubcommand
 }
+
+// IsBintHookCommand cho biết lệnh hook là hook `hook codex` của Bint.
+func IsBintHookCommand(cmd string) bool { return isBintHook(cmd) }
 
 func isBintHook(cmd string) bool {
 	return strings.Contains(cmd, "bint") && strings.HasSuffix(strings.TrimSpace(cmd), hookSubcommand)

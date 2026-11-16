@@ -65,6 +65,12 @@ func TestContinuationDecision(t *testing.T) {
 			l.Via, l.StopClass, l.Continuations = "codex", StopTimeout, 1
 		}), Step: StepFeat, Via: "codex", Fingerprint: "fp"}, false, "quá giờ"},
 		{"process: external quá 3 lần", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via, l.Continuations = "claude", 3 }), Step: StepFeat, Via: "claude", Fingerprint: "fp"}, false, "tối đa 3"},
+		{"process: cùng profile", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via, l.Profile = "codex", "codex/work" }), Step: StepFeat, Via: "codex", Profile: "codex/work", Fingerprint: "fp"}, true, ""},
+		{"process: khác profile", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via, l.Profile = "codex", "codex/work" }), Step: StepFeat, Via: "codex", Profile: "codex/other", Fingerprint: "fp"}, false, "codex/work"},
+		{"process: khác profile nêu cả profile mới", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via, l.Profile = "codex", "codex/work" }), Step: StepFeat, Via: "codex", Profile: "codex/other", Fingerprint: "fp"}, false, "codex/other"},
+		{"process: profile → không profile", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via, l.Profile = "codex", "codex/work" }), Step: StepFeat, Via: "codex", Fingerprint: "fp"}, false, "không có profile"},
+		{"process: không profile → profile", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "codex" }), Step: StepFeat, Via: "codex", Profile: "codex/work", Fingerprint: "fp"}, false, "ở profile codex/work"},
+		{"khác profile nhưng khác bước: Why rỗng", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via, l.Profile = "codex", "codex/work" }), Step: StepReview, Via: "codex", Profile: "codex/other"}, false, ""},
 		{"intrinsic", ContinueFacts{Last: last(func(l *task.StepStop) { l.StopClass, l.Continuable = StopIntrinsic, false }), Step: StepFeat, Fingerprint: "fp"}, false, "intrinsic"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

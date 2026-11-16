@@ -282,6 +282,28 @@ func TestGoSourceNeverNarrows(t *testing.T) {
 	wantFull("không go", run(sampleModule(t), "a/a.go"), ReasonSourceUnavailable)
 }
 
+// Thư mục cha của module có .git rỗng (vd sandbox gắn /tmp/.git): go list không được đòi dấu VCS, nếu không gói main
+// làm nó lỗi 'error obtaining VCS status' và Select nới full.
+func TestGoSourceIgnoresBrokenParentVCS(t *testing.T) {
+	parent := t.TempDir()
+	if err := os.Mkdir(filepath.Join(parent, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(parent, "m")
+	writeFiles(t, root, map[string]string{
+		"go.mod":             "module example.com/m\n\ngo 1.21\n",
+		"cmd/m/main.go":      "package main\n\nfunc main() {}\n",
+		"cmd/m/main_test.go": "package main\n\nimport \"testing\"\n\nfunc TestM(t *testing.T) {}\n",
+	})
+	s := Select(context.Background(), Input{Root: root, Changed: []string{"cmd/m/main.go"}})
+	if s.Scope != TierGraph || s.Source != "go" {
+		t.Fatalf("go list phải chạy được dù cha có .git rỗng: %+v", s)
+	}
+	if !slices.Equal(s.TestDirs, []string{"./cmd/m"}) {
+		t.Errorf("test_dirs = %v", s.TestDirs)
+	}
+}
+
 func TestGoSourceListFailureWidens(t *testing.T) {
 	root := sampleModule(t)
 	// go.mod hỏng: go list lỗi.

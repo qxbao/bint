@@ -5,6 +5,7 @@ import (
 	"context"
 	"time"
 
+	"bint/internal/eval"
 	"bint/internal/flow"
 	"fmt"
 	"os"
@@ -55,6 +56,9 @@ type ContinueFacts struct {
 	// Via là cách chạy của bước sắp mở: ViaSubagent (driver session, mặc định khi để trống) hoặc tên harness của driver process.
 	// Phải khớp Last.Via (không nối tiếp chéo subagent/harness hay claude/codex) và hỗ trợ nối tiếp (resumableVia).
 	Via string
+	// Profile là profile `bint iso` (<tool>/<tên>, "" = không dùng) của bước sắp mở; phải bằng Last.Profile: phiên nằm trong thư
+	// mục cấu hình của profile (tài khoản khác không thấy phiên đó), nên đổi profile giữa hai lượt thì chạy mới.
+	Profile string
 	// Fingerprint là fingerprint cây hiện tại ("" = không chụp được); Fresh: người yêu cầu bỏ nối tiếp (--fresh).
 	Fingerprint string
 	Fresh       bool
@@ -90,6 +94,9 @@ func continuationDecision(f ContinueFacts) ContinueDecision {
 			return no("bước dừng trước không chạy bằng " + viaDesc(via) + " (không ghi cách chạy: phiếu cũ hoặc bước chưa có phiên để nối tiếp)")
 		}
 		return no(fmt.Sprintf("bước dừng trước chạy bằng %s, bước sắp mở chạy bằng %s: không nối tiếp chéo", viaDesc(l.Via), viaDesc(via)))
+	case l.Profile != f.Profile:
+		return no(fmt.Sprintf("bước dừng trước chạy %s, bước sắp mở chạy %s: phiên cũ nằm ở tài khoản khác, chạy mới với đề bài đầy đủ",
+			profileDesc(l.Profile), profileDesc(f.Profile)))
 	case !l.Continuable:
 		return no(fmt.Sprintf("bước %s dừng với lớp %s, không nối tiếp được (thiếu phiên/fingerprint hoặc lỗi nội tại)", l.Step, l.StopClass))
 	case l.StopClass == StopAwaitingHuman && !f.LastIsPlan:
@@ -115,6 +122,14 @@ func continuationDecision(f ContinueFacts) ContinueDecision {
 		}
 	}
 	return ContinueDecision{Continue: true, Step: want}
+}
+
+// profileDesc mô tả profile trong lý do không nối tiếp.
+func profileDesc(id string) string {
+	if id == "" {
+		return "không có profile (tài khoản thật)"
+	}
+	return "ở profile " + id
 }
 
 // continuationCount là số lần nối tiếp của bước mới mở: +1 khi nối tiếp sau lớp external/timeout, giữ nguyên sau awaiting_human.
@@ -176,15 +191,15 @@ func planResumeWhy(t *task.Task) string {
 
 // decideContinuation dựng dữ kiện (kể cả chụp fingerprint cây, chỉ khi cần) rồi quyết định nối tiếp cho bước sắp mở chạy bằng
 // via (ViaSubagent hoặc tên harness của driver process).
-func (r *Runner) decideContinuation(ctx context.Context, rs *runState, step string, fresh bool, via string) ContinueDecision {
+func (r *Runner) decideContinuation(ctx context.Context, rs *runState, step string, fresh bool, via, profile string) ContinueDecision {
 	last := rs.t.State.LastStep
-	f := ContinueFacts{Last: last, Step: step, Fresh: fresh, Via: via}
+	f := ContinueFacts{Last: last, Step: step, Fresh: fresh, Via: via, Profile: profile}
 	if last != nil {
 		f.LastIsPlan = rs.kindOf(last.Step) == flow.KindPlan
 		if f.LastIsPlan && last.StopClass == StopAwaitingHuman {
 			f.PlanNotReady = planResumeWhy(rs.t)
 		}
-		if !fresh && last.Via == via && last.Continuable && resumableVia(via) {
+		if !fresh && last.Via == via && last.Profile == profile && last.Continuable && resumableVia(via) {
 			f.Fingerprint, _ = r.stopFingerprint(ctx)
 		}
 	}
@@ -202,14 +217,14 @@ func (r *Runner) planContinuation(ctx context.Context, rs *runState, fresh, sess
 		planResumeWhy(t) != "" {
 		return ContinueDecision{}, false
 	}
-	via := ViaSubagent
+	via, profile := ViaSubagent, ""
 	if !session {
-		if via = r.processHarness(rs, last.Step); via == "" {
+		if via, profile = r.processHarness(rs, last.Step); via == "" {
 			return ContinueDecision{}, false
 		}
 	}
-	f := ContinueFacts{Last: last, Step: last.Step, LastIsPlan: true, Fresh: fresh, Via: via}
-	if !fresh && last.Via == via && last.Continuable && resumableVia(via) {
+	f := ContinueFacts{Last: last, Step: last.Step, LastIsPlan: true, Fresh: fresh, Via: via, Profile: profile}
+	if !fresh && last.Via == via && last.Profile == profile && last.Continuable && resumableVia(via) {
 		if root, err := r.RootFor(t); err == nil {
 			c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 			f.Fingerprint, _ = WorktreeSnapshot(c, root)
@@ -219,17 +234,21 @@ func (r *Runner) planContinuation(ctx context.Context, rs *runState, fresh, sess
 	return continuationDecision(f), true
 }
 
-// processHarness là harness mà bước step sẽ chạy ở driver process (tên agent của factory; "" nếu không dựng được). Chỉ để quyết
-// định nối tiếp trước khi mở bước: agent dựng ở đây bị bỏ, không chạy.
-func (r *Runner) processHarness(rs *runState, step string) string {
+// processHarness là harness mà bước step sẽ chạy ở driver process (tên agent của factory; "" nếu không dựng được) cùng profile
+// `bint iso` của agent đó (<tool>/<tên>, "" nếu không dùng). Chỉ để quyết định nối tiếp trước khi mở bước: agent dựng ở đây bị
+// bỏ, không chạy.
+func (r *Runner) processHarness(rs *runState, step string) (harness, profile string) {
 	if r.Agent == nil {
-		return ""
+		return "", ""
 	}
 	a, err := r.Agent(rs.spec(step), nil, nil)
 	if err != nil || a == nil {
-		return ""
+		return "", ""
 	}
-	return a.Name()
+	if p := eval.EffectiveProfile(a, eval.AgentRequest{}); p != nil {
+		profile = p.ID()
+	}
+	return a.Name(), profile
 }
 
 // armContinuation biến bước vừa mở (ps, đề bài đầy đủ trong ps.Prompt) thành bước nối tiếp phiên của last: lời nhắn nối tiếp

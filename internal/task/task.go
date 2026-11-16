@@ -431,6 +431,9 @@ type StepStop struct {
 	// Via: "subagent" khi bước chạy bằng subagent của driver session (SessionID là agent_id, nối tiếp bằng SendMessage);
 	// rỗng ở driver process và ở phiếu cũ (không nối tiếp được ở giai đoạn 2).
 	Via string `json:"via,omitempty"`
+	// Profile là profile `bint iso` mà bước chạy trong đó, dạng <tool>/<tên> (vd codex/work); rỗng = tài khoản thật (hoặc
+	// subagent, phiếu cũ). Phiên harness nằm trong thư mục cấu hình của profile nên chỉ nối tiếp được khi profile không đổi.
+	Profile string `json:"profile,omitempty"`
 	// Continuations: số lần nối tiếp external/timeout liên tiếp đã dùng cho bước này; OriginRunID: lượt đầu của agent.
 	Continuations int    `json:"continuations,omitempty"`
 	OriginRunID   string `json:"origin_run_id,omitempty"`
@@ -462,9 +465,11 @@ type PendingStep struct {
 	Snapshot   string `json:"snapshot,omitempty"`
 	FeatBefore string `json:"feat_before,omitempty"`
 	FirstFeat  bool   `json:"first_feat,omitempty"`
-	Harness    string `json:"harness,omitempty"`
-	Model      string `json:"model,omitempty"`
-	Subagent   string `json:"subagent,omitempty"`
+	// TasksBefore: tasks.md trước bước implement (tác vụ v1 đang đạt hợp đồng); Runner phục hồi khi bước làm hỏng hợp đồng.
+	TasksBefore string `json:"tasks_before,omitempty"`
+	Harness     string `json:"harness,omitempty"`
+	Model       string `json:"model,omitempty"`
+	Subagent    string `json:"subagent,omitempty"`
 	// Prompt là đề bài đã dựng lúc `next` (gọi lại `next` trả đúng nó, không dựng lại).
 	Prompt   string `json:"prompt"`
 	MaxTurns *int   `json:"max_turns,omitempty"`

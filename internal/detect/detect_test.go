@@ -91,3 +91,38 @@ func TestSuggestCommands(t *testing.T) {
 		}
 	}
 }
+
+// Chạy trong profile `bint iso` (HOME giả): vẫn báo cấu hình ~/.claude, ~/.codex của máy thật (iso.RealHome), không phải của profile.
+func TestHarnessesUseRealHomeInsideProfile(t *testing.T) {
+	real, fake := t.TempDir(), t.TempDir()
+	for _, d := range []string{".claude", ".codex"} {
+		if err := os.MkdirAll(filepath.Join(real, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(fake, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, k := range []string{"HOME", "USERPROFILE"} {
+		t.Setenv(k, fake)
+		t.Setenv("BINT_ISO_REAL_"+k, real)
+	}
+	t.Setenv("BINT_ISO_PROFILE", "codex/work")
+	want := map[string]string{"claude": filepath.Join(real, ".claude"), "codex": filepath.Join(real, ".codex")}
+	for _, h := range Harnesses() {
+		if w, ok := want[h.Name]; ok && h.Home != w {
+			t.Errorf("Harnesses()[%s].Home = %q, muốn %q", h.Name, h.Home, w)
+		}
+	}
+	for name, w := range want {
+		if got := Find(name).Home; got != w {
+			t.Errorf("Find(%s).Home = %q, muốn %q", name, got, w)
+		}
+	}
+
+	// Ngoài profile: HOME như trước.
+	t.Setenv("BINT_ISO_PROFILE", "")
+	if got := Find("claude").Home; got != filepath.Join(fake, ".claude") {
+		t.Errorf("ngoài profile: Find(claude).Home = %q, muốn %q", got, filepath.Join(fake, ".claude"))
+	}
+}

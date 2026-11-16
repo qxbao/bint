@@ -58,7 +58,9 @@ bint context --paths <các tệp trong diff>
 1. Tính đúng đắn và nghiệp vụ; đối chiếu từng tiêu chí chấp nhận.
 2. Kiến trúc, bảo mật, hiệu năng.
 3. Kiểm thử: có bao phủ thay đổi không, có lỗi hồi quy không, thay đổi có vượt phạm vi
-   `scope` của phiếu không.
+   `scope` của phiếu không. Lệnh không chạy được trong sandbox (socket, mạng, quyền hệ thống...) không
+   phải bằng chứng lỗi: `verify.command` của phiếu do Bint chạy ngoài sandbox, xem kết quả ở
+   `bint task show <id>`.
 
 <!-- bint:anchor review-checklist -->
 <!-- bint:anchor-end review-checklist -->

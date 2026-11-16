@@ -461,7 +461,13 @@ func TestProcessContinuationClaudeCostUnknownWithoutPricing(t *testing.T) {
 // writeRollout ghi rollout Codex của thread với bộ đếm token cộng dồn (cùng cấu trúc fixture testdata của harness/codex).
 func writeRollout(t *testing.T, thread string, in, cached, out int) {
 	t.Helper()
-	dir := filepath.Join(os.Getenv("CODEX_HOME"), "sessions", "2026", "11", "16")
+	writeRolloutIn(t, os.Getenv("CODEX_HOME"), thread, in, cached, out)
+}
+
+// writeRolloutIn ghi rollout của thread vào thư mục cấu hình Codex codexHome.
+func writeRolloutIn(t *testing.T, codexHome, thread string, in, cached, out int) {
+	t.Helper()
+	dir := filepath.Join(codexHome, "sessions", "2026", "11", "16")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

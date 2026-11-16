@@ -427,7 +427,7 @@ func TestCodexExclusiveMCPIgnoresParentGitEnvironment(t *testing.T) {
 	}
 	if os.Getenv("BINT_CODEX_CONFIG_LIVE") == "1" {
 		req := AgentRequest{Dir: child, Env: []string{"CODEX_HOME=" + home}}
-		off, err := codexDisableMCPArgs(req)
+		off, err := codexDisableMCPArgs(req, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

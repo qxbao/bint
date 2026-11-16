@@ -10,9 +10,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"bint/internal/iso"
 )
 
 // ArmChecker là giao diện tuỳ chọn: agent báo nhánh đánh giá nào nó không chạy
@@ -60,6 +63,8 @@ type CodexAgent struct {
 	Binary    string
 	Model     string
 	ExtraArgs []string
+	// Profile là profile `bint iso` mặc định của agent (harnesses.codex.profile); nil = tài khoản thật.
+	Profile *iso.Profile
 }
 
 func (a *CodexAgent) Name() string           { return "codex" }
@@ -95,6 +100,17 @@ var codexResumeMissingRe = regexp.MustCompile(`(?i)no rollout found for thread|n
 // '--sandbox'"), nên toàn bộ cờ của bước gốc đứng ở cấp `exec`, TRƯỚC `resume`, đúng thứ tự như bước gốc (bảng nội tuyến tắt
 // MCP vẫn đứng trước mọi -c mcp_servers.*): dãy -c của bước nối tiếp trùng bước gốc.
 func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
+	return a.argsFor(req, nil, nil)
+}
+
+// argsFor là ArgsFor với env đã dựng của lượt (nil = đọc CODEX_HOME từ req.Env rồi tiến trình) và bộ cờ Codex LB (lb) của
+// profile linked. Có profile hiệu lực (req.Profile hoặc a.Profile) thì bảng MCP của bint mang env (BINT_STATE_DIR,
+// BINT_CONFIG_HOME thật): Codex chỉ chuyển HOME/PATH/TMPDIR cho MCP stdio, thiếu bảng này `bint mcp` rơi về state giả.
+func (a *CodexAgent) argsFor(req AgentRequest, env []string, lb []string) ([]string, error) {
+	prof := req.Profile
+	if prof == nil {
+		prof = a.Profile
+	}
 	args := []string{"exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"}
 	if req.Dir != "" {
 		args = append(args, "--cd", req.Dir)
@@ -112,15 +128,22 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 		}
 		if req.ExclusiveMCP {
 			// Phải đứng trước mọi -c mcp_servers.* khác (xem codexDisableMCPArgs).
-			off, err := codexDisableMCPArgs(req)
+			off, err := codexDisableMCPArgs(req, env)
 			if err != nil {
 				return nil, err
 			}
 			args = append(args, off...)
 		}
 		args = append(args, "-c", "mcp_servers.bint.command="+tomlString(srv.Command),
-			"-c", "mcp_servers.bint.args="+tomlStrings(srv.Args),
-			"-c", `mcp_servers.bint.tools.cite_knowledge.approval_mode="approve"`)
+			"-c", "mcp_servers.bint.args="+tomlStrings(srv.Args))
+		if prof != nil {
+			benv, err := iso.BintMCPEnv(cleanEnv(req.Env...))
+			if err != nil {
+				return nil, fmt.Errorf("profile %s: %w", prof.ID(), err)
+			}
+			args = append(args, "-c", "mcp_servers.bint.env="+tomlInlineTable(benv))
+		}
+		args = append(args, "-c", `mcp_servers.bint.tools.cite_knowledge.approval_mode="approve"`)
 		// Tool của service ngoài được cấp cho bước (tên chỉ gồm chữ, số, gạch dưới, gạch ngang: không có dấu chấm nên không
 		// vướng việc -c tách khoá theo dấu chấm).
 		for _, t := range req.MCPTools {
@@ -140,6 +163,8 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 			args = append(args, "-c", "hooks.PreToolUse="+hooks)
 		}
 	}
+	// Cờ Codex LB ở cấp exec, trước ExtraArgs và trước `resume` (lệnh con resume không nhận -c riêng của nó).
+	args = append(args, lb...)
 	args = append(args, a.ExtraArgs...)
 	if req.ResumeSessionID != "" {
 		return append(args, "resume", req.ResumeSessionID, "-"), nil
@@ -148,11 +173,16 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 }
 
 func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
-	args, err := a.ArgsFor(req)
+	senv, err := agentEnv(ctx, req, a.Profile)
+	if err != nil {
+		return profileFailure(err)
+	}
+	defer senv.End()
+	args, err := a.argsFor(req, senv.Env, senv.LB)
 	if err != nil {
 		return AgentResult{ExitCode: -1, Error: err.Error()}
 	}
-	env := cleanEnv(req.Env...)
+	env := senv.Env
 	if req.Arm != "" {
 		for _, arg := range a.ExtraArgs {
 			if arg == "--ignore-user-config" {
@@ -160,7 +190,7 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 			}
 		}
 		var cleanup func()
-		env, cleanup, err = codexEvalProfile(req, env)
+		env, cleanup, err = codexEvalProfile(req, env, len(senv.LB) > 0)
 		if err != nil {
 			return AgentResult{ExitCode: -1, Error: err.Error()}
 		}
@@ -349,6 +379,20 @@ func tomlString(s string) string {
 	return string(b)
 }
 
+// tomlInlineTable dựng bảng nội tuyến TOML {k="v",…} theo thứ tự khoá (giá trị chuỗi).
+func tomlInlineTable(m map[string]string) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = k + "=" + tomlString(m[k])
+	}
+	return "{" + strings.Join(parts, ",") + "}"
+}
+
 func tomlStrings(ss []string) string {
 	parts := make([]string, len(ss))
 	for i, s := range ss {
@@ -431,8 +475,13 @@ func (a *AgyAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	if err != nil {
 		return AgentResult{ExitCode: -1, Error: err.Error()}
 	}
+	senv, err := agentEnv(ctx, req, nil)
+	if err != nil {
+		return profileFailure(err)
+	}
+	defer senv.End()
 	var stdout bytes.Buffer
-	r := runProcess(ctx, req.Dir, a.bin(), args, req.Timeout, req.LogPath, cleanEnv(req.Env...), strings.NewReader(""), &stdout)
+	r := runProcess(ctx, req.Dir, a.bin(), args, req.Timeout, req.LogPath, senv.Env, strings.NewReader(""), &stdout)
 	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, Model: a.Model}
 	if r.Err != nil {
 		res.Error = r.Err.Error()

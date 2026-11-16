@@ -5,11 +5,13 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
 	"bint/internal/config"
 	"bint/internal/detect"
+	"bint/internal/iso"
 	"bint/internal/mcpcat"
 	"bint/internal/state"
 )
@@ -20,9 +22,30 @@ var BaseEnv = []string{"PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA",
 
 // Env dựng env cho tiến trình upstream: env tối thiểu, env mặc định của danh mục và biến credential từ secrets.
 // Trả thêm tên biến credential còn thiếu và các giá trị bí mật (để che khỏi đầu ra).
+//
+// BaseEnv lấy từ env THẬT của máy: tiến trình chạy trong profile `bint iso` (docs/iso-plan.md mục 5.7) có HOME/TMPDIR/XDG giả,
+// còn daemon dùng chung và upstream của nó phải thấy home và temp thật, không giữ env của profile đầu tiên khởi động daemon.
 func Env(svc mcpcat.Service, reg config.Registration, secrets map[string]string) (env, missing, secretVals []string) {
+	return envFrom(os.Environ(), svc, reg, secrets)
+}
+
+// envFrom như Env với environ cho trước (kiểm thử).
+func envFrom(environ []string, svc mcpcat.Service, reg config.Registration, secrets map[string]string) (env, missing, secretVals []string) {
+	real := map[string]string{}
+	for _, kv := range iso.RealEnv(environ) {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			if runtime.GOOS == "windows" {
+				k = strings.ToUpper(k)
+			}
+			real[k] = v
+		}
+	}
 	for _, k := range BaseEnv {
-		if v := os.Getenv(k); v != "" {
+		key := k
+		if runtime.GOOS == "windows" {
+			key = strings.ToUpper(k)
+		}
+		if v := real[key]; v != "" {
 			env = append(env, k+"="+v)
 		}
 	}

@@ -86,3 +86,39 @@ func TestResolve(t *testing.T) {
 		t.Fatalf("custom dir: %v %v", p.Root, err)
 	}
 }
+
+// BaseDirFrom(os.LookupEnv) phải trùng BaseDir() với mọi tổ hợp env, và đọc từ lookup chứ không từ env tiến trình.
+func TestBaseDirFromMatchesBaseDir(t *testing.T) {
+	root := t.TempDir()
+	cases := []map[string]string{
+		{"BINT_STATE_DIR": filepath.Join(root, "s")},
+		{"BINT_STATE_DIR": "tuong-doi"},
+		{"XDG_STATE_HOME": filepath.Join(root, "xdg")},
+		{"XDG_STATE_HOME": "tuong-doi"},
+		{},
+	}
+	for _, env := range cases {
+		for _, k := range []string{"BINT_STATE_DIR", "XDG_STATE_HOME"} {
+			t.Setenv(k, "")
+		}
+		home := filepath.Join(root, "home")
+		t.Setenv("HOME", home)
+		t.Setenv("USERPROFILE", home)
+		for k, v := range env {
+			t.Setenv(k, v)
+		}
+		want, werr := BaseDir()
+		got, gerr := BaseDirFrom(os.LookupEnv)
+		if got != want || (werr == nil) != (gerr == nil) {
+			t.Errorf("env %v: BaseDirFrom = %q,%v; BaseDir = %q,%v", env, got, gerr, want, werr)
+		}
+	}
+	m := map[string]string{"BINT_STATE_DIR": "rel"}
+	got, err := BaseDirFrom(func(k string) (string, bool) { v, ok := m[k]; return v, ok })
+	if err != nil || !filepath.IsAbs(got) || filepath.Base(got) != "rel" {
+		t.Errorf("BINT_STATE_DIR tương đối phải thành tuyệt đối: %q %v", got, err)
+	}
+	if _, err := BaseDirFrom(func(string) (string, bool) { return "", false }); err == nil {
+		t.Error("không có home thì phải lỗi")
+	}
+}

@@ -53,7 +53,7 @@ func TestSystemActionsWritesFlags(t *testing.T) {
 func TestSystemReadActionsWithRealServices(t *testing.T) {
 	root, _ := seed(t)
 	env := actions.Env{Dir: root, Version: "test"}
-	if r := do(t, "system.config_view", env, nil); r.Err != nil || len(r.Value.(app.ConfigViewData).Groups) != 15 {
+	if r := do(t, "system.config_view", env, nil); r.Err != nil || len(r.Value.(app.ConfigViewData).Groups) != 16 {
 		t.Fatalf("config_view: %+v", r)
 	}
 	if r := do(t, "system.harness_list", env, app.HarnessListOptions{NoVersion: true}); r.Err != nil {

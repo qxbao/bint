@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -47,10 +48,14 @@ func SettingsPath(scope Scope, repoRoot string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(home, ".claude", "settings.json"), nil
+		return UserSettingsPathIn(home), nil
 	}
 	return "", fmt.Errorf("phạm vi không hợp lệ %q", scope)
 }
+
+// UserSettingsPathIn là settings.json cấp user dưới thư mục home cho trước (`bint iso sync` cài hook vào HOME
+// giả của profile mà không đổi biến môi trường của tiến trình).
+func UserSettingsPathIn(home string) string { return filepath.Join(home, ".claude", "settings.json") }
 
 // HookTimeoutSeconds giới hạn thời gian mỗi lần chạy hook; hook chỉ ghi một tệp nhỏ.
 const HookTimeoutSeconds = 10
@@ -71,6 +76,9 @@ func HookCommand(bintPath string) string {
 	}
 	return `"` + filepath.ToSlash(bintPath) + `" ` + hookSubcommand
 }
+
+// BintPathFromCommand là BintPathFromHookCommand cho hook của Claude.
+func BintPathFromCommand(cmd string) string { return BintPathFromHookCommand(cmd, hookSubcommand) }
 
 func isBintHook(cmd string) bool {
 	return strings.Contains(cmd, "bint") && strings.HasSuffix(strings.TrimSpace(cmd), hookSubcommand)
@@ -222,6 +230,61 @@ func EditHooks(path, backupDir, backupRel string, now time.Time, desired map[str
 // HooksInstalled cho biết tệp settings có chứa đủ hook của Bint không.
 func HooksInstalled(settingsPath string) (bool, error) {
 	return HooksPresent(settingsPath, desiredGroups("x"), isBintHook)
+}
+
+// HooksUpToDate cho biết settings có hook của Bint với matcher hiện hành (bản cài cũ thì false).
+func HooksUpToDate(settingsPath string) (bool, error) {
+	return HooksCurrent(settingsPath, desiredGroups("x"), isBintHook)
+}
+
+// InstalledHookCommand trả lệnh của handler hook Bint đầu tiên trong settings (ok=false nếu chưa cài).
+func InstalledHookCommand(settingsPath string) (cmd string, ok bool, err error) {
+	return FirstHookCommand(settingsPath, isBintHook)
+}
+
+// FirstHookCommand trả lệnh của handler đầu tiên (theo sự kiện sắp tăng dần, rồi thứ tự trong tệp) mà isOurs
+// nhận; các handler của Bint cùng dùng một lệnh nên kết quả không phụ thuộc thứ tự.
+func FirstHookCommand(path string, isOurs func(string) bool) (string, bool, error) {
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	var s struct {
+		Hooks map[string][]struct {
+			Hooks []handler `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return "", false, fmt.Errorf("%s: %w", path, err)
+	}
+	events := make([]string, 0, len(s.Hooks))
+	for ev := range s.Hooks {
+		events = append(events, ev)
+	}
+	sort.Strings(events)
+	for _, ev := range events {
+		for _, g := range s.Hooks[ev] {
+			for _, h := range g.Hooks {
+				if isOurs(h.Command) {
+					return h.Command, true, nil
+				}
+			}
+		}
+	}
+	return "", false, nil
+}
+
+// BintPathFromHookCommand đảo HookCommand: `"/x/bint" hook claude` → /x/bint, `bint hook claude` → bint.
+// subcommand là phần đuôi ("hook claude" hoặc "hook codex").
+func BintPathFromHookCommand(cmd, subcommand string) string {
+	p := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(cmd), subcommand))
+	if len(p) >= 2 && strings.HasPrefix(p, `"`) && strings.HasSuffix(p, `"`) {
+		p = p[1 : len(p)-1]
+	}
+	return p
 }
 
 // SubagentHookInstalled cho biết tệp settings có handler SubagentStop của Bint không (hook này ghi đường dẫn

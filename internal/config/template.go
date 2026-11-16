@@ -51,12 +51,15 @@ func Render(p InitParams) string {
 	w("    pricing: {}             # giá model ghi đè bảng dựng sẵn khi tính chi phí bước chạy bằng subagent (USD/triệu token); ví dụ:\n")
 	w("                            #   claude-sonnet-5-5: { input_usd_per_mtok: 2, output_usd_per_mtok: 10, cache_write_usd_per_mtok: 2.5, cache_read_usd_per_mtok: 0.1 }\n")
 	w("                            # cache để 0 = suy từ giá input (ghi 1,25 lần, đọc 0,1 lần); model không có giá thì chi phí là unknown\n")
+	w("    profile: \"\"             # tên profile bint iso (bint iso create claude --name <tên>); rỗng = tài khoản thật. Nên đặt ở .bint/local.yml hoặc cấu hình toàn cục (tên là của máy)\n")
 	w(`  codex:                    # bint run / bint eval với Codex (codex exec --json, sandbox workspace-write)
     binary: ""              # rỗng = tìm trong PATH
     model: null             # model chung khi role không đặt model riêng
     extra_args: []
 `)
 	writeModels(&b, p, "codex")
+	w(`    profile: ""             # tên profile bint iso (bint iso create codex --name <tên>); rỗng = tài khoản thật. Nên đặt ở .bint/local.yml hoặc cấu hình toàn cục
+`)
 	w(`  antigravity:              # bint run / bint eval với Antigravity CLI (agy -p --output-format json)
     binary: ""
     model: null
@@ -214,6 +217,17 @@ mcp:                        # MCP dự án dùng và cấp cho agent (bint mcp l
 
 ui:
   language: auto            # giao diện TUI: auto | vi | en (auto: theo BINT_LANG, LANG; mặc định vi)
+
+iso:                        # profile tài khoản của harness (bint iso); cài đặt của máy: nên đặt ở cấu hình toàn cục hoặc .bint/local.yml
+  home: auto                # auto = <thư mục dữ liệu người dùng>/bint/iso, hoặc đường dẫn tuyệt đối; BINT_ISO_HOME ghi đè
+  cache: shared             # shared (dùng chung cache thật của máy) | private (giữ cache trong profile, dọn theo cache_ttl)
+  share: [cache, npm, pnpm-store, uv-data, go-mod, cargo-registry, bun]   # mục chia sẻ khi cache: shared
+  cache_ttl: 720h           # tuổi tối đa của cache riêng (chỉ khi cache: private)
+  sessions_ttl: 2160h       # tuổi tối đa của lịch sử phiên trong profile (90 ngày); 0 = không dọn
+  gc_interval: 6h           # chu kỳ dọn nhẹ tự động khi chạy profile
+  tmp_ttl: 24h              # tuổi tối đa của mục trong thư mục tạm khi profile còn daemon sống
+  pass_env: []              # biến môi trường giữ lại cho harness dù iso gỡ theo mặc định (vd credential)
+  drop_env: []              # biến môi trường gỡ thêm
 `)
 	return b.String()
 }

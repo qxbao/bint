@@ -72,3 +72,39 @@ func TestCodexHookMetadataLive(t *testing.T) {
 		t.Fatalf("new fixture hooks must remain untrusted: %+v", report)
 	}
 }
+
+func TestListHooksPassesEnvAndReturnsKeyHash(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("stub giao thức POSIX, không chạy Codex model")
+	}
+	root := t.TempDir()
+	bin := t.TempDir()
+	raw, err := os.ReadFile("testdata/codex-0.167/trust-trusted.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := filepath.Join(bin, "response.json")
+	os.WriteFile(fixture, []byte(strings.ReplaceAll(string(raw), "/repo", filepath.ToSlash(root))), 0o600)
+	// Stub ghi lại CODEX_HOME nó nhận được để chứng minh env truyền tới tiến trình Codex.
+	seen := filepath.Join(bin, "seen-home")
+	stub := fmt.Sprintf("#!/bin/sh\nprintf '%%s' \"$CODEX_HOME\" > %q\nwhile IFS= read -r line; do\ncase \"$line\" in\n*'\"method\":\"initialize\"'*) printf '%%s\\n' '{\"id\":1,\"result\":{}}';;\n*'\"method\":\"hooks/list\"'*) cat %q;;\nesac\ndone\n", seen, fixture)
+	codexBin := filepath.Join(bin, "codex")
+	os.WriteFile(codexBin, []byte(stub), 0o755)
+
+	profileHome := t.TempDir()
+	list, err := ListHooks(context.Background(), codexBin, root, append(os.Environ(), "CODEX_HOME="+profileHome))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(seen); string(got) != profileHome {
+		t.Fatalf("env phải tới tiến trình Codex: CODEX_HOME=%q", got)
+	}
+	if len(list.Hooks) != 4 {
+		t.Fatalf("hooks = %+v", list.Hooks)
+	}
+	h := list.Hooks[0]
+	wantKey := filepath.ToSlash(root) + "/.codex/hooks.json:pre_tool_use:0:0"
+	if h.Key != wantKey || h.EventName != "preToolUse" || !strings.HasPrefix(h.CurrentHash, "sha256:") || h.TrustStatus != "trusted" || !h.Enabled {
+		t.Fatalf("hook đầu = %+v (muốn key %s)", h, wantKey)
+	}
+}

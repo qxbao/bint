@@ -69,7 +69,7 @@ func MCPGatewayStart(ctx context.Context, version string, o MCPGatewayStartOptio
 	if err != nil {
 		return res, fmt.Errorf("không xác định được tệp thực thi của bint: %w", err)
 	}
-	info, started, err := mcpgw.StartDetached(ctx, dir, exe, []string{"mcp", "gateway", "start", "--foreground"}, nil)
+	info, started, err := mcpgw.StartDetached(ctx, dir, exe, []string{"mcp", "gateway", "start", "--foreground"}, daemonEnv())
 	if err != nil {
 		return res, err
 	}

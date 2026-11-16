@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"bint/internal/config"
 	"bint/internal/gitrepo"
+	"bint/internal/iso"
 	"bint/internal/knowledge"
 	"bint/internal/knowledge/importer"
 )
@@ -25,8 +27,11 @@ type ImportOptions struct {
 	// Path ghi đè thư mục/tệp nguồn (bắt buộc với file).
 	Path string `flag:"path" form:"suggest=files"`
 	// Type ghi đè loại mục; rỗng = theo loại gợi ý của nguồn (mặc định warning).
-	Type   string `flag:"type" form:"advanced,choices=rule|warning|pattern|fact|decision|lesson"`
-	DryRun bool   `flag:"dry-run" form:"hidden"`
+	Type string `flag:"type" form:"advanced,choices=rule|warning|pattern|fact|decision|lesson"`
+	// Profile: profile `bint iso` có bộ nhớ cần đọc (<tool>/<tên> như codex/work, hoặc chỉ <tên>: tool theo nguồn). Chỉ cho
+	// claude-memory và codex-memory. Rỗng: dùng profile của phiên khi cùng tool với nguồn, ngược lại gốc thật.
+	Profile string `flag:"profile" form:"advanced"`
+	DryRun  bool   `flag:"dry-run" form:"hidden"`
 	// Expect là băm kế hoạch người đã xem (ImportPlan.Hash). Khác kế hoạch dựng lại lúc ghi thì không ghi gì
 	// (ErrImportPlanChanged), như Xuất bản.
 	Expect string
@@ -43,10 +48,100 @@ func (o ImportOptions) Validate() error {
 	if o.Type != "" && !slices.Contains(knowledge.Types, o.Type) {
 		return Usagef("--type phải là một trong: %s", strings.Join(knowledge.Types, ", "))
 	}
-	if _, _, err := importer.ParseFrom(o.From, o.Path); err != nil {
+	source, _, err := importer.ParseFrom(o.From, o.Path)
+	if err != nil {
 		return Usagef("%v", err)
 	}
+	if o.Profile != "" {
+		if _, _, err := parseImportProfile(source, o.Profile); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// importTool là tool có profile ứng với nguồn nhập (claude-memory → claude, codex-memory → codex).
+func importTool(source string) (iso.Tool, bool) {
+	switch source {
+	case knowledge.ImportClaudeMemory:
+		return iso.Claude, true
+	case knowledge.ImportCodexMemory:
+		return iso.Codex, true
+	}
+	return "", false
+}
+
+// parseImportProfile tách --profile (<tool>/<tên> hoặc <tên>) và đối chiếu với nguồn: chỉ claude-memory/codex-memory có profile,
+// tool trong giá trị phải khớp tool của nguồn. Lỗi là UsageError.
+func parseImportProfile(source, profile string) (iso.Tool, string, error) {
+	want, ok := importTool(source)
+	if !ok {
+		return "", "", Usagef("--profile chỉ dùng với --from claude-memory hoặc codex-memory (nguồn %s không nằm trong profile)", source)
+	}
+	if !strings.Contains(profile, "/") {
+		if err := iso.ValidName(profile); err != nil {
+			return "", "", Usagef("--profile: %v", err)
+		}
+		return want, profile, nil
+	}
+	t, name, err := iso.ParseID(profile)
+	if err != nil {
+		return "", "", Usagef("--profile: %v", err)
+	}
+	if t != want {
+		return "", "", Usagef("--profile %s là profile của %s nhưng nguồn %s đọc bộ nhớ của %s", profile, t, source, want)
+	}
+	return t, name, nil
+}
+
+// importHome chọn nơi đọc bộ nhớ của nguồn: (getenv, home) cho importer.LocateOptions. Có --profile: HOME giả và thư mục cấu hình của
+// profile đó (lỗi nếu profile chưa có). Không có: profile của phiên khi cùng tool với nguồn (env của tiến trình đã trỏ vào nó,
+// trả nil để dùng nguyên), ngược lại gốc thật (đang ở trong profile của tool khác thì khôi phục env thật).
+func (k *KnowledgeWS) importHome(source, profile string) (getenv func(string) string, home string, err error) {
+	tool, hasTool := importTool(source)
+	if !hasTool {
+		return nil, "", nil
+	}
+	if profile != "" {
+		t, name, err := parseImportProfile(source, profile)
+		if err != nil {
+			return nil, "", err
+		}
+		st, err := iso.OpenStore(k.Config.Iso, os.Environ())
+		if err != nil {
+			return nil, "", err
+		}
+		p, err := st.LoadHinted(t, name)
+		if err != nil {
+			return nil, "", err
+		}
+		confEnv := map[string]string{}
+		switch t {
+		case iso.Codex:
+			confEnv["CODEX_HOME"] = p.ConfigDir()
+		case iso.Claude:
+			confEnv["CLAUDE_CONFIG_DIR"] = p.ConfigDir()
+		}
+		return func(key string) string { return confEnv[key] }, p.Home, nil
+	}
+	env := os.Environ()
+	if !iso.InProfile(env) {
+		return nil, "", nil
+	}
+	if st, _, perr := iso.ParseID(os.Getenv(iso.EnvProfile)); perr == nil && st == tool {
+		return nil, "", nil // phiên đang ở profile cùng tool: HOME/CODEX_HOME/CLAUDE_CONFIG_DIR của tiến trình đã là của profile
+	}
+	real := map[string]string{}
+	for _, kv := range iso.RealEnv(env) {
+		if key, v, ok := strings.Cut(kv, "="); ok {
+			real[key] = v
+		}
+	}
+	h, err := iso.RealHomeOf(env)
+	if err != nil {
+		return nil, "", err
+	}
+	return func(key string) string { return real[key] }, h, nil
 }
 
 // ErrImportPlanChanged: kế hoạch lúc ghi khác bản người đã xem (nguồn hoặc kho đã đổi).
@@ -120,7 +215,11 @@ func (k *KnowledgeWS) importLocate(opts ImportOptions) (source string, files []i
 	if err != nil {
 		return "", nil, Usagef("%v", err)
 	}
-	lo := importer.LocateOptions{Root: k.Repo.Toplevel, MainRoot: k.Repo.MainWorktree(), Path: path}
+	getenv, home, err := k.importHome(source, opts.Profile)
+	if err != nil {
+		return "", nil, err
+	}
+	lo := importer.LocateOptions{Root: k.Repo.Toplevel, MainRoot: k.Repo.MainWorktree(), Path: path, Getenv: getenv, Home: home}
 	if lo.Root == "" {
 		lo.Root = k.Root
 	}

@@ -131,6 +131,13 @@ func scanApp(t *testing.T) (sites []callSite, funcBodies map[string]map[string]b
 	return sites, funcBodies
 }
 
+// profileWriteFiles: tệp app cài hook vào HOME giả của một profile `bint iso` (ngoài repo, không thuộc nhật ký ghi repo).
+// Chỉ miễn cho InstallHooks/UninstallHooks; mọi lệnh ghi trực tiếp khác trong các tệp này vẫn bị kiểm.
+var profileWriteFiles = map[string]string{
+	"iso_sync.go":   "đồng bộ hook user vào profile bint iso (HOME giả của profile), không ghi tệp repo",
+	"iso_import.go": "gỡ hook bint chép từ ai-isolator khỏi settings.json trong HOME giả của profile vừa nhập, không ghi tệp repo",
+}
+
 func TestRepoWritesGoThroughRepoWriter(t *testing.T) {
 	sites, bodies := scanApp(t)
 
@@ -144,6 +151,9 @@ func TestRepoWritesGoThroughRepoWriter(t *testing.T) {
 		}
 		switch s.call {
 		case "evolve.Apply", "evolve.Rollback", "InstallHooks", "UninstallHooks", "InstallMCP":
+			if _, ok := profileWriteFiles[s.file]; ok && s.call != "evolve.Apply" && s.call != "evolve.Rollback" && s.call != "InstallMCP" {
+				continue
+			}
 			// Gói/adapter thấp hơn tự ghi: hàm gọi phải ghi nhận ngay trong cùng thân.
 			if !bodies[key]["Record"] && !bodies[key]["record"] && !bodies[key]["recordFiles"] && !bodies[key]["recordHooks"] && !bodies[key]["RecordRepoWrites"] {
 				bad = append(bad, fmt.Sprintf("%s gọi %s nhưng không ghi nhận (Record/record/recordFiles/recordHooks/RecordRepoWrites) trong cùng hàm", key, s.call))

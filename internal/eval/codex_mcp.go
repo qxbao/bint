@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -21,19 +22,39 @@ var tomlBareKey = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 // Không đọc TOML dự án chưa tin cậy: Codex bỏ qua nó và tắt tên server không tồn
 // tại có thể làm CLI báo invalid transport.
 func codexOtherMCPServers(req AgentRequest) ([]string, error) {
-	home := ""
-	for _, kv := range req.Env {
+	return codexOtherMCPServersIn(req, nil)
+}
+
+// codexOtherMCPServersIn như codexOtherMCPServers nhưng đọc CODEX_HOME từ env đã dựng của lượt chạy (env khác nil): bước
+// chạy trong profile phải đọc config.toml của profile chứ không phải của tiến trình bint. env nil: req.Env rồi tiến trình.
+func codexOtherMCPServersIn(req AgentRequest, env []string) ([]string, error) {
+	built := env != nil
+	if !built {
+		env = req.Env
+	}
+	home, userHome := "", ""
+	homeKey := "HOME="
+	if runtime.GOOS == "windows" {
+		homeKey = "USERPROFILE="
+	}
+	for _, kv := range env {
 		if v, ok := strings.CutPrefix(kv, "CODEX_HOME="); ok {
 			home = v
 		}
+		if v, ok := strings.CutPrefix(kv, homeKey); ok {
+			userHome = v
+		}
 	}
-	if home == "" {
+	if home == "" && !built {
 		home = os.Getenv("CODEX_HOME")
 	}
-	if home == "" {
+	if home == "" && (!built || userHome == "") {
 		if uh, err := os.UserHomeDir(); err == nil {
-			home = filepath.Join(uh, ".codex")
+			userHome = uh
 		}
+	}
+	if home == "" && userHome != "" {
+		home = filepath.Join(userHome, ".codex")
 	}
 	seen := map[string]bool{}
 	add := func(c codexconfig.Config) {
@@ -72,8 +93,8 @@ func codexOtherMCPServers(req AgentRequest) ([]string, error) {
 // theo dấu chấm mà không hiểu dấu trích dẫn (`mcp_servers."a.b".enabled` báo lỗi), nên tên cần trích dẫn (có dấu chấm,
 // khoảng trắng...) gộp vào một bảng nội tuyến `-c mcp_servers={"a.b"={enabled=false}}`. Bảng nội tuyến thay thế mọi
 // khoá mcp_servers.* đặt bằng -c trước nó, nên các cặp này phải đứng TRƯỚC mọi `-c mcp_servers.*` khác (kể cả của bint).
-func codexDisableMCPArgs(req AgentRequest) ([]string, error) {
-	names, err := codexOtherMCPServers(req)
+func codexDisableMCPArgs(req AgentRequest, env []string) ([]string, error) {
+	names, err := codexOtherMCPServersIn(req, env)
 	if err != nil {
 		return nil, err
 	}
