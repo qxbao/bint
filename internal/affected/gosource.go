@@ -46,7 +46,9 @@ func (GoSource) Load(ctx context.Context, root string) (Graph, error) {
 	if err != nil {
 		return nil, fmt.Errorf("không tìm thấy go trên PATH: %w", err)
 	}
-	cmd := exec.CommandContext(ctx, goBin, "list", "-e", "-test", "-json", "./...")
+	// -buildvcs=false: đồ thị phụ thuộc không cần dấu VCS; nếu không, gói main khiến go gọi git/hg trên thư mục cha
+	// và lỗi 'error obtaining VCS status: exit status 128' khi .git ở trên (rỗng/hỏng, vd sandbox gắn /tmp/.git).
+	cmd := exec.CommandContext(ctx, goBin, "list", "-e", "-test", "-buildvcs=false", "-json", "./...")
 	cmd.Dir = root
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
