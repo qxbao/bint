@@ -1,7 +1,7 @@
 # Nghiệm thu Bint — trạng thái, kế hoạch và hướng dẫn
 
 Cập nhật: 2026-11-16, sau V1 chạy lại (buổi A, một phần, trên repo chính). Việc kế tiếp: sửa `NT-MCP-CALLED`, rồi chạy
-phần còn lại của V1 trên bản clone (mục 4.4).
+phần còn lại của V1 trên bản clone (mục 4.4). Kế hoạch profile harness (`bint iso`, GĐ6) thêm mã `NT-ISO-PROF-*` vào V1 (bước 7) và V2.
 
 **Đây là nguồn chuẩn duy nhất về nghiệm thu.** Tài liệu này giữ:
 
@@ -60,6 +60,7 @@ Ký hiệu: **Đủ điều kiện** = mọi phát hiện đã đóng, có bằn
 | [H — thành phần quy trình](p8-harness-evolution-plan.md) | H1–H4 | Chưa đo | `NT-H1-STOP`, `NT-H5` |
 | [Thử nghiệm A, B](p8-next-experiments.md) | B có đủ mã; A thiếu `eval snapshot import` | Chưa đo | `NT-EXP-A`, `NT-EXP-B` |
 | [Cô lập và driver session](isolation-subagent-plan.md) | G1–G4 và việc tồn | G1–G3 đạt (G3 chạy thật 2026-11-12, mục 12.16); G4 chạy lại ở [V1 2026-11-16](evals/v1-real-session-2026-11-16/README.md): đạt kèm điều kiện, chờ ký | `NT-WT-BASE`, `NT-ISO-RO-FP`, `NT-ISO-BYPASS` (vế Bash), `NT-ISO-MAXTURNS`, `NT-WIN-*` |
+| [Profile harness](iso-plan.md) | GĐ1–GĐ6 (`bint iso`: lõi, CLI, cache/GC, sync, tích hợp `bint run`/`eval`, nhập từ ai-isolator) | Test tự động đạt (harness giả, store ai-isolator giả, không gọi mạng hay tài khoản thật); chưa chạy Codex/Claude thật trong profile | `NT-ISO-PROF-CODEX`, `NT-ISO-PROF-CLAUDE`, `NT-ISO-PROF-CACHE`, `NT-ISO-PROF-IMPORT`, `NT-ISO-PROF-MAC`, `NT-ISO-PROF-WIN` |
 | [Gateway MCP](mcp-gateway-plan.md) | M0–M4; M5 đã đo bộ nhớ | Test tự động đạt cho M0–M4; M1 đạt với service thật ([V1](evals/v1-real-session-2026-11-13/README.md)); M2 đạt, M3/S3 một phần, M5-WT đã đo ([V1 2026-11-16](evals/v1-real-session-2026-11-16/README.md)) | `NT-MCP-CALLED`, `NT-MCP-M0`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-QUAL` |
 | [TUI](tui-plan.md) | Giai đoạn 0–6, màn MCP | Golden và test phủ lệnh đạt; chưa thử với người và terminal thật | `NT-TUI-*` |
 | [Nối tiếp phiên của bước](step-continuation-plan.md) | GĐ1 (`810bf2b`), GĐ2 (`d7b59e1`, `f68b41f`), GĐ3 (driver process: Claude `--resume`, Codex `exec resume`) | Tiêu chí bằng test của GĐ1–3 đạt (agent giả/fixture, không gọi harness thật); chưa chạy `claude --resume`/`codex exec resume` thật | `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` |
@@ -99,6 +100,11 @@ Các mục đã đóng (chờ ký):
 |---|---|---|---|
 | `NT-ISO-BYPASS` | isolation 12.9 (S1, S3) | Vế hook `deny` đã đạt ở V1. Còn: ghi nhận `Bash(<mẫu>)` trong frontmatter subagent chỉ đọc có giới hạn lệnh dưới `bypassPermissions` hay không | V1 (lần sau) |
 | `NT-ISO-MAXTURNS` | isolation 12.13 | `maxTurns` trong frontmatter subagent được Claude Code áp (bước dừng đúng trần) | V1 |
+| `NT-ISO-PROF-CODEX` | iso-plan GĐ5, mục 5.7 | `bint run` một tác vụ với Codex thật ở profile `work` (`harnesses.codex.profile: work`, Codex LB `linked` hoặc đăng nhập tài khoản thật): hook ghi vào state thật (không phải state giả), chi phí đọc được từ `CODEX_HOME` của profile, resume nối tiếp đúng phiên; đổi profile giữa hai lượt thì lượt chạy mới có ghi lý do. Ghi thêm: Codex có đòi trust cho hook `-c hooks.PreToolUse` ở lớp `-c` trong profile không (hook dự án đã trusted bằng `bint iso sync` thì không bị ảnh hưởng); `bint mcp` do Codex khởi chạy trong profile mở đúng `state.sqlite` thật (bảng `env` của mục MCP) | V1 |
+| `NT-ISO-PROF-CLAUDE` | iso-plan GĐ2, mục 5.2 | `bint iso login claude --name work` đăng nhập lại được trong profile (credential không chép từ máy thật); `bint run` với Claude ở profile: hook `PreToolUse` của bint chạy và ghi spool vào state thật; `DISABLE_UPDATES`/`DISABLE_AUTOUPDATER` chặn tự cập nhật khi có bản mới (không tạo `versions/` riêng trong profile) | V1 |
+| `NT-ISO-PROF-CACHE` | iso-plan GĐ3 | Profile mới sau một phiên thật có MCP `uv`/`npx`: không tạo bản cache riêng nào (`bint iso du` không có nhóm cache riêng, thư mục `.cache`/`.npm` là liên kết); `bint iso du` khớp `du -sh` thư mục profile (TỔNG = `du -s`) | V1 |
+| `NT-ISO-PROF-IMPORT` | iso-plan GĐ6 | Nhập `codex--personal` thật bằng `bint iso import --from-ai-isolator` (trước đó `--dry-run`): `bint iso run codex --name personal` chạy được **không đăng nhập lại**, LB `linked` đúng URL; `--with-sessions` thì `codex resume` thấy và nối tiếp được rollout đã chép dù không chép `state_*.sqlite` (nếu không thấy, ghi lại và đổi quyết định: chép sqlite hay dựng lại chỉ mục); store ai-isolator nguồn không đổi (so `find … -type f | sort` và `sha256sum` trước/sau); `bint iso sync --check` thoát 0 ngay sau import; hook trong `hooks.json` symlink của nguồn không bị ghi xuyên | V1 |
+| `NT-ISO-PROF-MAC` | iso-plan S6 | Trên macOS: Claude lưu credential ở Keychain theo khoá nào khi đổi `CLAUDE_CONFIG_DIR` (có tách theo profile không); từ đó kết luận `bint iso import` cho Claude có chuyển được đăng nhập không hay phải `bint iso login claude`; `bint iso create/run` Codex và Claude chạy được, `~/Library/Caches` chia sẻ đúng | V1 (cần máy macOS; chưa có máy) |
 | `NT-MCP-M0` | mcp §4 | Một lượt `bint run b-do` thật ghi ≥ 1 dòng `knowledge_citations` từ bước con trên Claude **và** trên Codex (`codex exec` thật); bước Codex không thấy server MCP toàn cục | V1 |
 | `NT-MCP-M3` | mcp §7 | Còn lại sau V1 2026-11-16: `b-review` không thấy `spec_manage_mock_server`; lời gọi ngoài quyền bị từ chối (`mcp.called` có `outcome: denied`); spool có `mcp.called` đúng run/role cho từng bước (dùng `bint run`, sau `NT-MCP-CALLED`); một jira cho cả máy (nếu cấu hình jira). Đã đạt: một client codegraph cho mọi phiên cùng worktree, shim khởi động lại daemon sau `gateway stop` | V1 (lần sau) |
 | `NT-MCP-S3` | mcp §10 | Còn lại: Codex có chuyển env tới server MCP stdio không; Codex có nhận `approval_mode` cho tool chuyển tiếp không; cách khôi phục trong Codex khi shim chết. Đã ghi: cả Claude Code lẫn Codex không tự khởi động lại server stdio, Claude khôi phục bằng `/mcp` → Reconnect | V1 (lần sau) |
@@ -133,6 +139,7 @@ nên kiểm role/`mcp.called` phải dùng `bint run` (process driver).
 | `NT-WIN-MCP` | mcp §6–8 | Gateway: Job Object/detach, RSS trong `gateway status`, shim khởi động lại daemon | V2 |
 | `NT-WIN-TUI` | tui 12.10 | TUI trong Windows Terminal: màu, chuột, chế độ hẹp | V2 |
 | `NT-WIN-CODEX` | Codex 2026-11-12 | Runtime Codex trên Windows (reader, profile cô lập) | V2 |
+| `NT-ISO-PROF-WIN` | iso-plan S5 | `bint iso create/run/sync/gc/remove` trên Windows thật: `claude`/`codex` đọc `USERPROFILE`/`APPDATA`/`LOCALAPPDATA` hay API shell folder (đường dẫn cấu hình có theo HOME giả không); junction cho `.cache`/`.npm` tạo và gỡ đúng (`remove` không xoá dữ liệu đích); temp ngắn dưới `MAX_PATH`; `bint iso import --from-ai-isolator` với `--source` trỏ một bản chép store ai-isolator (đường dẫn Windows trong `hooks.state` bị bỏ đúng) | V2 |
 
 ### 3.4. Phép đo tốn token
 
@@ -155,8 +162,8 @@ nên kiểm role/`mcp.called` phải dùng `bint run` (process driver).
 |---|---|---|---|---|---|
 | **V0** | Sửa mã P6 và hồi quy tự động — **xong 2026-11-13** | `NT-P6-01..05` | 0 | Duyệt phiếu | — |
 | **V0b** | Sửa các low workflow (`NT-WF-BASELINE` .2–.4, `NT-ISO-LEAK` dựng `paths`) và lỗi C1–C3 của driver session — phiếu `01M7FKMZDVQ3XFR0EC1H5P2AXM`, **xong 2026-11-15** | low của `NT-WF-BASELINE`, `NT-ISO-LEAK` | 0 | Duyệt phiếu | — |
-| **V1** | Chạy thật trên máy, hai buổi (~4–6 giờ): G4 + MCP + TUI + Antigravity + nối tiếp phiên — **một phần 2026-11-13; buổi A chạy lại 2026-11-16 (G4, M2, M5-WT xong); phần còn lại chạy trên bản clone** | `NT-ISO-*`, `NT-MCP-M0`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-H1-STOP`, `NT-TUI-REAL`, `NT-TUI-VHS`, `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` | 0 (phiên agent ước $15–30) | Ở từng điểm, ~1–1,5 giờ (mục 4.4) | Service MCP cài trên máy |
-| **V2** | Một lượt trên máy Windows | `NT-WIN-*` | 0 | Có | Máy Windows |
+| **V1** | Chạy thật trên máy, hai buổi (~4–6 giờ): G4 + MCP + TUI + Antigravity + nối tiếp phiên — **một phần 2026-11-13; buổi A chạy lại 2026-11-16 (G4, M2, M5-WT xong); phần còn lại chạy trên bản clone** | `NT-ISO-BYPASS`, `NT-ISO-MAXTURNS`, `NT-ISO-RO-FP`, `NT-ISO-PROF-CODEX`, `NT-ISO-PROF-CLAUDE`, `NT-ISO-PROF-CACHE`, `NT-ISO-PROF-IMPORT`, `NT-ISO-PROF-MAC` (cần máy macOS), `NT-MCP-M0`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-H1-STOP`, `NT-TUI-REAL`, `NT-TUI-VHS`, `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` | 0 (phiên agent ước $15–30) | Ở từng điểm, ~1–1,5 giờ (mục 4.4) | Service MCP cài trên máy |
+| **V2** | Một lượt trên máy Windows | `NT-WIN-*`, `NT-ISO-PROF-WIN` | 0 | Có | Máy Windows |
 | **V3** | Một đợt eval trên `validation` với model rẻ, ba nhánh | `NT-EXP-B` (B0, B1), bước 1 của `NT-E6`, bước 1 của `NT-H5` | ~$15 | Duyệt ngân sách | Guardrail `test-before-stop` ở `candidate` |
 | **V4** | Một vòng `evolve cycle` rồi xác nhận trên `test` | `NT-EVO-TEST`, `NT-E6`, `NT-H5` (bước 2), B2–B3 | ≤ $35 | Duyệt ngân sách | V0, V3 qua cổng B0 |
 | **V5** | Kế hoạch A: tri thức do người viết | `NT-EXP-A` | ≤ $20 | Viết 10–20 mục tri thức | Lệnh `eval snapshot import` |
@@ -303,6 +310,13 @@ tiếp phiên …" sau. Lặp với: (a) phiên bị xoá trước resume (note 
 Ghi cho từng harness: số liệu của `NT-RESUME-CLAUDE`/`NT-RESUME-CODEX`, chi phí Bint tính cho bước nối tiếp so với phần chênh của
 tệp phiên, và việc agent có làm lại phần đã xong không. Đóng `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX`.
 
+**Bước 7 — Profile harness (`bint iso`).** (người ở bước đăng nhập) Trong bản clone: `bint iso import --from-ai-isolator --dry-run`
+rồi nhập `codex--personal` (`NT-ISO-PROF-IMPORT`; thêm `--with-sessions` và `codex resume` trong profile); `bint iso create codex --name work`
+rồi `bint run b-do --task <id>` với `harnesses.codex.profile: work` trong `.bint/local.yml` (`NT-ISO-PROF-CODEX`); `bint iso login claude
+--name work` rồi một bước Claude trong profile (`NT-ISO-PROF-CLAUDE`); sau đó `bint iso du` và `du -sh` thư mục profile, kiểm không có cache
+riêng sau phiên có MCP `uv`/`npx` (`NT-ISO-PROF-CACHE`). Lưu `bint iso status --json`, `bint iso du --json`, `bint iso sync --check`, `sha256sum` store
+ai-isolator trước/sau. `NT-ISO-PROF-MAC` chỉ chạy được trên máy macOS: cùng các lệnh `create`/`login claude`/`import`.
+
 **Bằng chứng.** `docs/evals/v1-real-session-<ngày>/`: `gateway status --json`, trích spool cho từng kiểm,
 `runs show`, bảng PSS, ghi chú S3, ảnh VHS, số liệu nối tiếp phiên.
 
@@ -319,6 +333,8 @@ Rồi chạy tay: hai `bint run` song song trên cùng repo (`NT-WIN-LOCK`); m�
 phiếu `cancel`, một repo có đường dẫn dài (`NT-WIN-WT`); `bint mcp gateway start`, `status`, kill daemon rồi
 gọi lại (`NT-WIN-MCP`); `bint tui` trong Windows Terminal (`NT-WIN-TUI`); một `bint run b-feat` với Codex
 (`NT-WIN-CODEX`).
+
+Thêm `bint iso create/run/sync/gc/remove` và `bint iso import --from-ai-isolator --source <bản chép store>` (`NT-ISO-PROF-WIN`).
 
 **Bằng chứng.** `docs/evals/v2-windows-<ngày>/`: phiên bản Windows, Go, git; đầu ra test; ghi chú từng kiểm.
 

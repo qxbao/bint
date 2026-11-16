@@ -167,12 +167,15 @@ Nguồn (--from):
   cursor-rules    .cursor/rules/**/*.mdc và .cursorrules trong repository
   <tệp.md>        một tệp Markdown cục bộ (không nhận URL); --from file --path <tệp.md> cũng được
 --path chỉ thẳng thư mục hoặc tệp nguồn (khi tên dự án của Claude không khớp quy tắc đặt tên thư mục).
+--profile <tool>/<tên> (hoặc chỉ <tên>) đọc bộ nhớ trong HOME giả của profile bint iso (claude-memory, codex-memory); không có cờ
+thì dùng profile của phiên khi cùng tool với nguồn, ngược lại đọc gốc thật.
 
 Mỗi ý phải có bằng chứng: đường dẫn hoặc mã nội tuyến trong ý được đối chiếu với tệp của repository (tối đa 3 bằng chứng,
 có fingerprint). Bỏ qua, kèm lý do trong báo cáo: không có bằng chứng, trùng mục đã có (kể cả mục imported đã bị từ chối),
 ghi chú trạng thái công việc, bộ nhớ Claude loại user (riêng tư), MEMORY.md, nội dung do Bint sinh ra.
 Chạy lại không tạo mục mới. Mục nhập có nhãn lô nguon:import-<nguồn> để duyệt theo lô (bint knowledge review).`,
 		Example: `  bint knowledge import --from claude-memory --dry-run
+  bint knowledge import --from codex-memory --profile work --dry-run
   bint knowledge import --from cursor-rules --type rule
   bint knowledge import --from notes/lessons.md`,
 		Args: cobra.NoArgs,
@@ -198,6 +201,7 @@ Chạy lại không tạo mục mới. Mục nhập có nhãn lô nguon:import-<
 	f := c.Flags()
 	f.StringVar(&o.From, "from", "", "claude-memory | codex-memory | cursor-rules | đường dẫn tệp Markdown (bắt buộc)")
 	f.StringVar(&o.Path, "path", "", "thư mục hoặc tệp nguồn (ghi đè vị trí mặc định)")
+	f.StringVar(&o.Profile, "profile", "", "profile bint iso có bộ nhớ cần đọc: <tool>/<tên> hoặc <tên> (chỉ claude-memory, codex-memory; mặc định: profile của phiên nếu cùng tool, không thì gốc thật)")
 	f.StringVarP(&o.Type, "type", "t", "", "loại mục: rule | warning | pattern | fact | decision | lesson (mặc định theo nguồn, thường warning)")
 	f.BoolVar(&o.DryRun, "dry-run", false, "chỉ liệt kê từng ý và kết cục dự kiến, không ghi gì")
 	f.BoolVar(&asJSON, "json", false, "xuất JSON")

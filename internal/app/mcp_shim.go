@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bint/internal/config"
+	"bint/internal/iso"
 	"bint/internal/mcpgw"
 	"bint/internal/workflow"
 )
@@ -70,6 +71,15 @@ func NewMCPShim(ctx context.Context, dir string, o MCPShimOptions) (*mcpgw.Shim,
 	}
 	return mcpgw.NewShim(mcpgw.ShimOptions{
 		Exe: exe, Services: services, Worktree: ws.Repo.Toplevel, RunID: runID, TaskID: taskID,
-		Log: os.Stderr, ExeModTime: mcpgw.ExeModTime(),
+		Log: os.Stderr, ExeModTime: mcpgw.ExeModTime(), Env: daemonEnv(),
 	})
+}
+
+// daemonEnv là env để khởi động daemon gateway: trong profile `bint iso` thì iso.RealEnv(os.Environ()) (HOME/TMPDIR/XDG thật,
+// không giữ env của profile đầu tiên cho một daemon dùng chung); ngoài profile thì nil (kế thừa như trước).
+func daemonEnv() []string {
+	if env := os.Environ(); iso.InProfile(env) {
+		return iso.RealEnv(env)
+	}
+	return nil
 }

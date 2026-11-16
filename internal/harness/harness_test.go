@@ -17,7 +17,9 @@ import (
 	"bint/internal/eval"
 	"bint/internal/fsafe"
 	"bint/internal/harness/claude"
+	"bint/internal/iso"
 	"bint/internal/skills"
+	"bint/internal/testutil"
 )
 
 // Hợp đồng adapter (mục 17): báo cáo khả năng đầy đủ và nhất quán.
@@ -464,5 +466,62 @@ func TestClaudeWorkflowArgsWithMCPConfig(t *testing.T) {
 	plain := (&eval.ClaudeAgent{Cfg: ClaudeWorkflowArgs(config.Default(), false, nil)}).ArgsFor(eval.AgentRequest{})
 	if slices.Contains(plain, "--mcp-config") {
 		t.Fatalf("không MCPConfig mà vẫn có MCP: %v", plain)
+	}
+}
+
+// harnesses.<h>.profile: agent mang profile đã nạp; profile chưa tạo thì NewAgent lỗi nêu bint iso create (bước thất bại,
+// không âm thầm dùng tài khoản thật); không cấu hình thì agent không có profile.
+func TestNewAgentResolvesProfile(t *testing.T) {
+	testutil.Isolate(t)
+	cfg := config.Default()
+	bin := filepath.Join(t.TempDir(), "codex")
+	os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755)
+	cfg.Harnesses.Codex.Binary = bin
+	cfg.Harnesses.Codex.Profile = "work"
+
+	_, err := NewAgent("codex", AgentOptions{Config: cfg, Step: "b-feat"})
+	if err == nil || !errors.Is(err, iso.ErrNotFound) || !strings.Contains(err.Error(), "bint iso create codex --name work") {
+		t.Fatalf("profile chưa có: err = %v", err)
+	}
+
+	st, err := iso.OpenStore(cfg.Iso, os.Environ())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Create(iso.Codex, "work"); err != nil {
+		t.Fatal(err)
+	}
+	ag, err := NewAgent("codex", AgentOptions{Config: cfg, Step: "b-feat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := ag.(*eval.CodexAgent).AgentProfile(); p == nil || p.ID() != "codex/work" {
+		t.Fatalf("profile của agent = %v", p)
+	}
+
+	cfg.Harnesses.Codex.Profile = ""
+	ag, err = NewAgent("codex", AgentOptions{Config: cfg, Step: "b-feat"})
+	if err != nil || ag.(*eval.CodexAgent).AgentProfile() != nil {
+		t.Fatalf("không cấu hình thì không có profile: %v %v", ag, err)
+	}
+}
+
+func TestNewAgentClaudeProfile(t *testing.T) {
+	testutil.Isolate(t)
+	cfg := config.Default()
+	cfg.Harnesses.Claude.Profile = "w"
+	if _, err := NewAgent("claude", AgentOptions{Config: cfg, Step: "b-feat"}); err == nil || !strings.Contains(err.Error(), "bint iso create claude --name w") {
+		t.Fatalf("err = %v", err)
+	}
+	st, _ := iso.OpenStore(cfg.Iso, os.Environ())
+	if _, err := st.Create(iso.Claude, "w"); err != nil {
+		t.Fatal(err)
+	}
+	ag, err := NewAgent("claude", AgentOptions{Config: cfg, Step: "b-feat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := ag.(*eval.ClaudeAgent).AgentProfile(); p == nil || p.ID() != "claude/w" {
+		t.Fatalf("profile = %v", p)
 	}
 }

@@ -3,10 +3,12 @@ package workflow
 import (
 	"cmp"
 	"fmt"
+	"os"
 
 	"bint/internal/eval"
 	"bint/internal/harness/claude"
 	"bint/internal/harness/codex"
+	"bint/internal/iso"
 	"bint/internal/task"
 )
 
@@ -43,8 +45,26 @@ func unknownUsage(rs *runState, res *eval.AgentResult, step, why string) {
 	rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("%s: chi phí của lần nối tiếp unknown — %s (max_cost_usd chỉ là chỉ dẫn)", step, why))
 }
 
+// stepConfigDir là thư mục cấu hình của harness mà bước chạy ghi tệp phiên vào: của profile `bint iso` khi bước chạy trong
+// profile (CODEX_HOME/CLAUDE_CONFIG_DIR của tiến trình Bint không phải chỗ đó), không thì của máy thật (iso.RealCodexHome/
+// RealClaudeDir: bước không có profile chạy bằng iso.RealEnv nên không theo profile của phiên chủ). "" nếu không xác định được
+// (hàm đọc tệp phiên rơi về mặc định của chúng).
+func stepConfigDir(harness string, prof *iso.Profile) string {
+	if prof != nil {
+		return prof.ConfigDir()
+	}
+	var dir string
+	switch harness {
+	case "claude":
+		dir, _ = iso.RealClaudeDir(os.Environ())
+	case "codex":
+		dir, _ = iso.RealCodexHome(os.Environ())
+	}
+	return dir
+}
+
 func (r *Runner) settleClaudeUsage(rs *runState, sr *stepRun, res *eval.AgentResult, handle string, resumed bool) {
-	path := claude.SessionTranscriptPath("", r.Root, handle)
+	path := claude.SessionTranscriptPath(stepConfigDir("claude", sr.prof), r.Root, handle)
 	if path == "" {
 		sr.noSession = fmt.Sprintf("phiên %s chưa được Claude ghi vào thư mục dự án của %s (tiến trình dừng trước khi ghi phiên)", shortID(handle), r.Root)
 		if resumed {
@@ -93,7 +113,7 @@ func (r *Runner) settleClaudeUsage(rs *runState, sr *stepRun, res *eval.AgentRes
 }
 
 func (r *Runner) settleCodexUsage(rs *runState, sr *stepRun, res *eval.AgentResult, handle string, resumed bool) {
-	path := codex.RolloutPath("", handle)
+	path := codex.RolloutPath(stepConfigDir("codex", sr.prof), handle)
 	if path == "" {
 		sr.noSession = fmt.Sprintf("thread %s chưa có rollout của Codex (tiến trình dừng trước khi ghi phiên)", shortID(handle))
 		if resumed {

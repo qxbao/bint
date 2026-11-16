@@ -210,6 +210,35 @@ khi bạn chép sang `eval.test_command`.
 | `evolution.evaluation.delivery` | `"bint"` | Kênh đưa tri thức khi đối chiếu: `bint` hoặc `minimal`. |
 | `evolution.evaluation.leakage_mode` | `"economy"` | Chế độ chống rò rỉ khi đối chiếu đề xuất (`strict` hoặc `economy`). |
 
+## Profile harness (`iso`)
+
+Khối `iso` cấu hình `bint iso` ([usage.md](usage.md#profile-harness-bint-iso)). Là **cài đặt của máy**: `bint iso` đọc cấu hình toàn cục
+(mặc định + `config.yml` của máy), không đọc `.bint/` của repo; vì vậy đặt ở cấu hình toàn cục hoặc `.bint/local.yml` (với `bint run`/`bint eval`).
+Thêm khoá mới theo đủ bốn chỗ: struct, `Default()`, `Validate()` và mẫu `Render`.
+
+| Khoá | Mặc định | Ý nghĩa |
+|---|---|---|
+| `iso.home` | `"auto"` | Gốc store profile: `auto` = `<thư mục dữ liệu người dùng>/bint/iso` (Linux `~/.local/share/bint/iso`, macOS `~/Library/Application Support/bint/iso`, Windows `%LOCALAPPDATA%\bint\iso`) hoặc đường dẫn tuyệt đối. Biến `BINT_ISO_HOME` ghi đè. |
+| `iso.cache` | `"shared"` | `shared`: dùng chung cache thật của máy (liên kết); `private`: giữ cache trong profile, dọn theo `cache_ttl`. |
+| `iso.share` | `[cache, npm, pnpm-store, uv-data, go-mod, cargo-registry, bun]` | Mục chia sẻ khi `cache: shared`; chỉ nhận các tên này, không trùng. |
+| `iso.cache_ttl` | `"720h"` | Tuổi tối đa của cache riêng (chỉ `cache: private`). Dạng `time.ParseDuration`, không âm. |
+| `iso.sessions_ttl` | `"2160h"` | Tuổi tối đa của lịch sử phiên **trong profile** (90 ngày); `0` = không dọn. Phiên mà tác vụ chưa kết thúc còn tham chiếu được giữ. |
+| `iso.gc_interval` | `"6h"` | Chu kỳ dọn nhẹ tự động khi chạy profile. |
+| `iso.tmp_ttl` | `"24h"` | Tuổi tối đa của mục trong thư mục temp khi profile còn daemon sống (và của temp mồ côi). |
+| `iso.pass_env` | `[]` | Biến môi trường giữ lại cho harness dù `bint iso` gỡ theo mặc định (credential như `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). Không được nêu biến do `iso` tự đặt (`HOME`, `XDG_*`, `TMPDIR`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`…). |
+| `iso.drop_env` | `[]` | Biến gỡ thêm khỏi env của harness. |
+| `harnesses.claude.profile` | `""` | Tên profile `bint iso` (tool `claude`) mà `bint run`/`bint eval` dùng; rỗng = tài khoản thật. |
+| `harnesses.codex.profile` | `""` | Như trên cho `codex`. |
+
+- `harnesses.antigravity.profile` phải để rỗng (chưa hỗ trợ profile cho Antigravity); `Validate` báo lỗi nếu đặt. Tên profile theo mẫu
+  `^[A-Za-z0-9._-]{1,64}$`, không phải `.` hay `..`.
+- **Biến môi trường:** `BINT_ISO_HOME` (gốc store), `BINT_ISO_CODEX_LB_URL` (URL Codex LB cho `create`/`run`, thứ tự dò: `--lb` → biến này →
+  `base_url` trong `~/.codex/config.toml` thật → `http://127.0.0.1:2455`), `CODEX_LB_API_KEY` (chỉ chuyển cho harness khi profile Codex `linked`
+  hoặc nêu trong `iso.pass_env`), `AI_ISOLATOR_HOME` (nguồn của `bint iso import --from-ai-isolator`). `BINT_ISO_PROFILE` và `BINT_ISO_REAL_*` do
+  `bint iso` đặt bên trong tiến trình con, không cấu hình tay.
+- Chia sẻ cache là liên kết trong HOME giả tới thư mục thật; đổi `iso.share`/`iso.cache` có hiệu lực ở lần `create`/`run` kế tiếp (thư mục
+  riêng đã có dữ liệu ở chỗ liên kết được giữ và báo, không bị thay).
+
 ## Bảo mật (`security`)
 
 - `security.require_approval_for_commands` (mặc định `true`): yêu cầu người dùng xác nhận

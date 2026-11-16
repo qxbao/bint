@@ -17,6 +17,7 @@ import (
 	"bint/internal/config"
 	"bint/internal/eval"
 	adapters "bint/internal/harness"
+	"bint/internal/iso"
 	"bint/internal/knowledge"
 	"bint/internal/mcpgw"
 	"bint/internal/runlog"
@@ -187,7 +188,11 @@ type fakeAgent struct {
 	turns *int64
 	// name: tên harness báo về (mặc định "fake"; "claude" để bước nhận --session-id do Bint cấp).
 	name string
+	// profile: profile mặc định của agent (eval.ProfileAgent).
+	profile *iso.Profile
 }
+
+func (a *fakeAgent) AgentProfile() *iso.Profile { return a.profile }
 
 func (a *fakeAgent) Name() string {
 	if a.name != "" {
@@ -286,6 +291,8 @@ type harness struct {
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
 	turns      *int64
 	turnLimits []*int
+	// profile (nếu có) là profile `bint iso` mà agent giả báo (eval.ProfileAgent); đổi giữa hai lượt để mô phỏng đổi harnesses.<h>.profile.
+	profile *iso.Profile
 }
 
 func newHarness(t *testing.T) *harness {
@@ -365,7 +372,7 @@ func (h *harness) runner() *Runner {
 		if h.costFor != nil {
 			cost = h.costFor(step)
 		}
-		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: h.agentName}, nil
+		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: h.agentName, profile: h.profile}, nil
 	}}
 }
 

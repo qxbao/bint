@@ -17,8 +17,11 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	"bint/internal/flow"
 	"gopkg.in/yaml.v3"
@@ -58,6 +61,7 @@ type Config struct {
 	Security  Security  `yaml:"security"`
 	UI        UI        `yaml:"ui"`
 	MCP       MCP       `yaml:"mcp"`
+	Iso       Iso       `yaml:"iso"`
 
 	// contextBase: Context khi KHÔNG có strategy.yml (nil nếu không có strategy được áp).
 	// Đo lường (eval) cần cấu hình gốc để nhánh không-strategy không bị strategy chi phối.
@@ -141,6 +145,9 @@ type ClaudeHarness struct {
 	// Pricing: giá theo model (khoá = id model, ví dụ claude-sonnet-5-5) ghi đè bảng giá dựng sẵn khi tính chi phí bước
 	// chạy bằng subagent của driver session (docs/isolation-subagent-plan.md mục 6.6). Rỗng = chỉ dùng bảng dựng sẵn.
 	Pricing map[string]ModelPrice `yaml:"pricing"`
+	// Profile là tên profile `bint iso` mà bước bint run / lượt bint eval của Claude chạy trong ("" = không dùng
+	// profile, docs/iso-plan.md mục 5.7). Nên đặt ở cấu hình toàn cục hoặc local.yml (tên profile là của máy).
+	Profile string `yaml:"profile"`
 }
 
 // ModelPrice là giá một model, USD cho mỗi triệu token. Giá cache để 0 thì suy từ giá input (ghi bộ nhớ đệm 1,25 lần,
@@ -174,7 +181,29 @@ type HarnessAgent struct {
 	ExtraArgs []string `yaml:"extra_args"`
 	// Models: model theo role (ưu tiên hơn Model).
 	Models RoleModels `yaml:"models"`
+	// Profile là tên profile `bint iso` (cùng tool) mà bint run / bint eval chạy harness trong ("" = không dùng
+	// profile). Antigravity chưa hỗ trợ profile: Validate bắt buộc rỗng.
+	Profile string `yaml:"profile"`
 }
+
+// ProfileFor trả tên profile `bint iso` đã cấu hình cho harness name ("" = không dùng profile).
+func (h Harnesses) ProfileFor(name string) string {
+	switch name {
+	case "claude":
+		return h.Claude.Profile
+	case "codex":
+		return h.Codex.Profile
+	case "antigravity":
+		return h.Antigravity.Profile
+	}
+	return ""
+}
+
+// ProfileNameRE là mẫu tên profile; bản chép của iso.ValidName (iso import config nên không dùng chung được, test so hai bản).
+var ProfileNameRE = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+
+// ValidProfileName kiểm tên profile: ProfileNameRE, không phải "." hay "..".
+func ValidProfileName(s string) bool { return s != "." && s != ".." && ProfileNameRE.MatchString(s) }
 
 // Agent trả về tham số của harness h (rỗng với claude).
 func (h Harnesses) Agent(name string) HarnessAgent {
@@ -543,6 +572,47 @@ type UI struct {
 	Language string `yaml:"language"`
 }
 
+// IsoShareNames là các mục chia sẻ cache mà iso.share chấp nhận (docs/iso-plan.md mục 5.4).
+// Danh mục chi tiết (đường dẫn, biến env) nằm ở internal/iso; test của iso buộc hai nơi khớp nhau
+// (config không import iso để tránh vòng).
+var IsoShareNames = []string{"cache", "npm", "pnpm-store", "uv-data", "go-mod", "cargo-registry", "bun"}
+
+// IsoCacheModes là các giá trị hợp lệ của iso.cache.
+var IsoCacheModes = []string{"shared", "private"}
+
+// IsoManagedEnv là các biến môi trường do `bint iso` tự đặt cho tiến trình con; iso.pass_env không
+// được nêu chúng (iso đặt lại sau cùng nên pass_env vô nghĩa và dễ gây hiểu lầm). Test của iso buộc
+// tập này chứa mọi biến mà iso.Env đặt.
+var IsoManagedEnv = []string{
+	"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA",
+	"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME",
+	"TMPDIR", "TMP", "TEMP", "CODEX_HOME", "CLAUDE_CONFIG_DIR",
+	"DISABLE_UPDATES", "DISABLE_AUTOUPDATER",
+	"BINT_STATE_DIR", "BINT_CONFIG_HOME",
+	"BINT_ISO_HOME", "BINT_ISO_PROFILE", "BINT_ISO_REAL_HOME",
+	"npm_config_cache", "npm_config_store_dir", "GOMODCACHE", "BUN_INSTALL_CACHE_DIR",
+}
+
+// Iso là cấu hình profile tài khoản/cấu hình của harness (`bint iso`, docs/iso-plan.md mục 5.9).
+// Là cài đặt của máy: nên đặt ở cấu hình toàn cục hoặc .bint/local.yml.
+type Iso struct {
+	// Home là "auto" (<thư mục dữ liệu người dùng>/bint/iso) hoặc đường dẫn tuyệt đối; BINT_ISO_HOME ghi đè.
+	Home string `yaml:"home"`
+	// Cache: "shared" dùng chung cache thật, "private" giữ cache trong profile.
+	Cache string `yaml:"cache"`
+	// Share là các mục chia sẻ (chỉ có tác dụng khi cache là shared); xem IsoShareNames.
+	Share []string `yaml:"share"`
+	// CacheTTL, SessionsTTL, GCInterval, TmpTTL là khoảng thời gian dạng time.ParseDuration ("720h"); không âm.
+	// SessionsTTL "0" nghĩa là không dọn lịch sử phiên.
+	CacheTTL    string `yaml:"cache_ttl"`
+	SessionsTTL string `yaml:"sessions_ttl"`
+	GCInterval  string `yaml:"gc_interval"`
+	TmpTTL      string `yaml:"tmp_ttl"`
+	// PassEnv giữ lại các biến mà iso gỡ theo mặc định (credential); DropEnv gỡ thêm biến.
+	PassEnv []string `yaml:"pass_env"`
+	DropEnv []string `yaml:"drop_env"`
+}
+
 // DefaultRoleModels là model mặc định theo role của từng harness: bước suy luận nặng
 // (lập kế hoạch, review, tiến hoá, rút bài học) dùng model mạnh nhất, bước thực thi dùng
 // model cân bằng (sonnet; haiku rẻ hơn nhưng yếu hơn ở các bước sửa mã). Tên model theo bậc chính thức của nhà cung cấp; đổi trong .bint/config.yml.
@@ -632,6 +702,9 @@ func Default() Config {
 		Security: Security{RequireApprovalForCommands: true},
 		UI:       UI{Language: "auto"},
 		MCP:      MCP{Services: map[string]MCPService{}, Grants: map[string][]string{}},
+		Iso: Iso{Home: "auto", Cache: "shared", Share: slices.Clone(IsoShareNames),
+			CacheTTL: "720h", SessionsTTL: "2160h", GCInterval: "6h", TmpTTL: "24h",
+			PassEnv: []string{}, DropEnv: []string{}},
 	}
 }
 
@@ -661,15 +734,48 @@ func ProjectPath(root string) string { return filepath.Join(root, DirName, FileN
 func LocalPath(root string) string { return filepath.Join(root, DirName, LocalFileName) }
 
 // GlobalPath trả về đường dẫn cấu hình toàn cục. BINT_CONFIG_HOME ghi đè thư mục.
-func GlobalPath() string {
-	if d := os.Getenv("BINT_CONFIG_HOME"); d != "" {
+func GlobalPath() string { return GlobalPathFrom(os.LookupEnv) }
+
+// GlobalPathFrom như GlobalPath nhưng đọc biến môi trường qua lookup (env của tiến trình con sắp
+// chạy, không phải của tiến trình này): `bint iso` dùng nó để ghim BINT_CONFIG_HOME. Thư mục cấu
+// hình người dùng tính như os.UserConfigDir (test đối chiếu); chuỗi rỗng khi không xác định được.
+func GlobalPathFrom(lookup func(string) (string, bool)) string {
+	if d, _ := lookup("BINT_CONFIG_HOME"); d != "" {
 		return filepath.Join(d, FileName)
 	}
-	d, err := os.UserConfigDir()
-	if err != nil {
+	d := userConfigDir(runtime.GOOS, lookup)
+	if d == "" {
 		return ""
 	}
 	return filepath.Join(d, "bint", FileName)
+}
+
+// userConfigDir là os.UserConfigDir theo goos và lookup cho trước.
+func userConfigDir(goos string, lookup func(string) (string, bool)) string {
+	get := func(k string) string { v, _ := lookup(k); return v }
+	switch goos {
+	case "windows":
+		return get("AppData")
+	case "darwin", "ios":
+		if h := get("HOME"); h != "" {
+			return h + "/Library/Application Support"
+		}
+	case "plan9":
+		if h := get("home"); h != "" {
+			return h + "/lib"
+		}
+	default:
+		if d := get("XDG_CONFIG_HOME"); d != "" {
+			if !filepath.IsAbs(d) {
+				return "" // như os.UserConfigDir: đường dẫn tương đối là lỗi
+			}
+			return d
+		}
+		if h := get("HOME"); h != "" {
+			return h + "/.config"
+		}
+	}
+	return ""
 }
 
 // ErrNoProjectConfig: repository chưa được khởi tạo Bint.
@@ -739,6 +845,19 @@ func load(root string, requireProject, withStrategy, validate bool, over map[str
 		}
 	}
 	return cfg, src, nil
+}
+
+// LoadGlobal nạp cấu hình mặc định ghép với tệp toàn cục của máy (GlobalPath) rồi Validate, bỏ qua
+// .bint/config.yml và local.yml của repository. Dùng cho thiết lập thuộc về máy, không thuộc về dự án
+// (khối `iso:` của `bint iso`, chạy được ngoài repository).
+func LoadGlobal() (Config, error) {
+	cfg := Default()
+	if g := GlobalPath(); g != "" {
+		if _, err := mergeFile(&cfg, g, nil); err != nil {
+			return cfg, err
+		}
+	}
+	return cfg, cfg.Validate()
 }
 
 // LoadFirst giống Load nhưng dùng thư mục đầu tiên trong roots có
@@ -1084,11 +1203,69 @@ func (c Config) Validate() error {
 		add("ui.language: phải là %s, nhận %q", strings.Join(UILanguages, " | "), c.UI.Language)
 	}
 	errs = append(errs, validateMCP(c.MCP)...)
+	errs = append(errs, validateIso(c.Iso)...)
+	for _, h := range []struct{ name, profile string }{
+		{"claude", c.Harnesses.Claude.Profile}, {"codex", c.Harnesses.Codex.Profile}, {"antigravity", c.Harnesses.Antigravity.Profile},
+	} {
+		switch {
+		case h.profile == "":
+		case h.name == "antigravity":
+			add("harnesses.antigravity.profile: chưa hỗ trợ profile cho antigravity, để rỗng (nhận %q)", h.profile)
+		case !ValidProfileName(h.profile):
+			add("harnesses.%s.profile: tên profile không hợp lệ %q (chỉ chữ, số, '.', '_', '-', 1–64 ký tự, không phải . hay ..)", h.name, h.profile)
+		}
+	}
 	if len(errs) > 0 {
 		slices.Sort(errs)
 		return &ValidationError{Problems: errs}
 	}
 	return nil
+}
+
+// validateIso kiểm tra khối iso.
+func validateIso(v Iso) []string {
+	var errs []string
+	add := func(format string, a ...any) { errs = append(errs, fmt.Sprintf(format, a...)) }
+	switch {
+	case v.Home == "":
+		add(`iso.home: không được rỗng (dùng "auto" hoặc đường dẫn tuyệt đối)`)
+	case v.Home != "auto" && !filepath.IsAbs(v.Home):
+		add(`iso.home: phải là "auto" hoặc đường dẫn tuyệt đối, nhận %q`, v.Home)
+	}
+	if !slices.Contains(IsoCacheModes, v.Cache) {
+		add("iso.cache: phải là %s, nhận %q", strings.Join(IsoCacheModes, " | "), v.Cache)
+	}
+	seen := map[string]bool{}
+	for _, s := range v.Share {
+		switch {
+		case !slices.Contains(IsoShareNames, s):
+			add("iso.share: mục không hỗ trợ %q (hỗ trợ: %s)", s, strings.Join(IsoShareNames, ", "))
+		case seen[s]:
+			add("iso.share: trùng mục %q", s)
+		}
+		seen[s] = true
+	}
+	for _, d := range []struct{ name, v string }{
+		{"cache_ttl", v.CacheTTL}, {"sessions_ttl", v.SessionsTTL}, {"gc_interval", v.GCInterval}, {"tmp_ttl", v.TmpTTL},
+	} {
+		if dur, err := time.ParseDuration(d.v); err != nil || dur < 0 {
+			add("iso.%s: %q không phải khoảng thời gian không âm (vd 720h)", d.name, d.v)
+		}
+	}
+	for _, e := range v.PassEnv {
+		if e == "" || strings.ContainsAny(e, "= \t\n") {
+			add("iso.pass_env: tên biến không hợp lệ %q", e)
+		} else if strings.HasPrefix(strings.ToUpper(e), "BINT_ISO_") ||
+			slices.ContainsFunc(IsoManagedEnv, func(m string) bool { return strings.EqualFold(m, e) }) {
+			add("iso.pass_env: %q do bint iso tự đặt, không giữ lại được", e)
+		}
+	}
+	for _, e := range v.DropEnv {
+		if e == "" || strings.ContainsAny(e, "= \t\n") {
+			add("iso.drop_env: tên biến không hợp lệ %q", e)
+		}
+	}
+	return errs
 }
 
 // ValidationError liệt kê mọi vấn đề của cấu hình.

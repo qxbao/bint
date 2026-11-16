@@ -172,3 +172,29 @@ func TestInstallAddsSubagentStopHook(t *testing.T) {
 		t.Fatalf("bản cài mới phải đủ: %v %v", ok, err)
 	}
 }
+
+func TestInstalledHookCommandRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := UserSettingsPathIn(dir)
+	if _, ok, err := InstalledHookCommand(path); ok || err != nil {
+		t.Fatalf("chưa có tệp: ok=%v err=%v", ok, err)
+	}
+	for _, bint := range []string{"bint", "/opt/my tools/bint"} {
+		if _, err := InstallHooks(path, bint, filepath.Join(dir, "bk"), time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		cmd, ok, err := InstalledHookCommand(path)
+		if !ok || err != nil || cmd != HookCommand(bint) {
+			t.Fatalf("cmd=%q ok=%v err=%v, muốn %q", cmd, ok, err, HookCommand(bint))
+		}
+		if got := BintPathFromCommand(cmd); got != bint {
+			t.Fatalf("BintPathFromCommand(%q) = %q, muốn %q", cmd, got, bint)
+		}
+		if up, err := HooksUpToDate(path); !up || err != nil {
+			t.Fatalf("up=%v err=%v", up, err)
+		}
+	}
+	if filepath.Base(filepath.Dir(path)) != ".claude" || filepath.Base(path) != "settings.json" {
+		t.Fatalf("path = %s", path)
+	}
+}

@@ -30,18 +30,27 @@ const (
 	ExitUsage          = 2
 	ExitNotImplemented = 3
 	ExitNotInitialized = 4
+	// ExitUnavailable (69, EX_UNAVAILABLE của sysexits): dịch vụ phụ thuộc không sẵn sàng (Codex LB của bint iso).
+	ExitUnavailable = 69
 )
 
 // ExitError mang mã thoát cụ thể.
 type exitError struct {
 	code int
 	err  error
+	// quiet: mã thoát được chuyển nguyên từ tiến trình con (bint iso run), Execute không in thêm dòng "lỗi:".
+	quiet bool
 }
 
 func (e *exitError) Error() string { return e.err.Error() }
 func (e *exitError) Unwrap() error { return e.err }
 
 func withCode(code int, err error) error { return &exitError{code: code, err: err} }
+
+// quietExit trả mã thoát code mà không in gì (mã của tiến trình con).
+func quietExit(code int) error {
+	return &exitError{code: code, err: fmt.Errorf("thoát với mã %d", code), quiet: true}
+}
 
 // IO gom các luồng vào/ra để kiểm thử.
 type IO struct {
@@ -71,10 +80,13 @@ func Execute(ctx context.Context, args []string, stdio IO) int {
 	if err == nil {
 		return ExitOK
 	}
-	fmt.Fprintln(stdio.Err, "lỗi:", err)
 	var ee *exitError
+	asExit := errors.As(err, &ee)
+	if !asExit || !ee.quiet {
+		fmt.Fprintln(stdio.Err, "lỗi:", err)
+	}
 	switch {
-	case errors.As(err, &ee):
+	case asExit:
 		return ee.code
 	case errors.Is(err, gitrepo.ErrNotRepo), errors.Is(err, app.ErrNotInitialized), errors.Is(err, config.ErrNoProjectConfig):
 		return ExitNotInitialized
@@ -133,6 +145,7 @@ func NewRoot(stdio IO) *cobra.Command {
 		newTUICmd(stdio))
 	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
 		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
+	add("project", newIsoCmd(stdio))
 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newTestCmd(stdio), newFindingsCmd(stdio), newSkillCmd(stdio), newFlowCmd(stdio))
 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
 	add("eval", newEvalCmd(stdio))

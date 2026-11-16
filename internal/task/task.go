@@ -431,6 +431,9 @@ type StepStop struct {
 	// Via: "subagent" khi bước chạy bằng subagent của driver session (SessionID là agent_id, nối tiếp bằng SendMessage);
 	// rỗng ở driver process và ở phiếu cũ (không nối tiếp được ở giai đoạn 2).
 	Via string `json:"via,omitempty"`
+	// Profile là profile `bint iso` mà bước chạy trong đó, dạng <tool>/<tên> (vd codex/work); rỗng = tài khoản thật (hoặc
+	// subagent, phiếu cũ). Phiên harness nằm trong thư mục cấu hình của profile nên chỉ nối tiếp được khi profile không đổi.
+	Profile string `json:"profile,omitempty"`
 	// Continuations: số lần nối tiếp external/timeout liên tiếp đã dùng cho bước này; OriginRunID: lượt đầu của agent.
 	Continuations int    `json:"continuations,omitempty"`
 	OriginRunID   string `json:"origin_run_id,omitempty"`

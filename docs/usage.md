@@ -80,6 +80,79 @@ Trong phiên tương tác của harness có hỗ trợ skill, gọi `/b-bootstra
 `/b-req`, `/b-feat`, `/b-review`, `/b-do`. Mọi mục tri thức do agent tạo đều ở trạng thái
 `candidate` chờ người duyệt; với Codex cần duyệt hook trong `/hooks` (kiểm tra bằng `bint doctor`).
 
+## Profile harness (`bint iso`)
+
+Mỗi profile là một **HOME giả** riêng cho `claude` hoặc `codex` (đăng nhập, cấu hình, lịch sử phiên của harness), nên chạy được
+nhiều tài khoản song song trên một máy (vd `codex` cá nhân và `codex` công ty). Cache gói (`~/.cache`, npm, uv…) dùng chung với
+máy thật, thư mục temp nằm ở temp hệ thống và được dọn khi hết phiên; `bint` chạy trong profile vẫn đọc đúng state/config thật của
+máy. Kế hoạch thiết kế và quyết định: [iso-plan.md](iso-plan.md); khoá cấu hình `iso.*`: [configuration.md](configuration.md).
+
+> **Không phải sandbox.** Tiến trình con chạy cùng UID, quyền tệp không đổi; profile chỉ tách tài khoản/cấu hình/lịch sử, không
+> ngăn harness đọc tệp khác của người dùng hay gọi mạng.
+
+Profile nằm ở `<thư mục dữ liệu người dùng>/bint/iso/profiles/<tool>--<tên>/` (Linux `~/.local/share/bint/iso`; `iso.home` hoặc
+`BINT_ISO_HOME` đổi gốc). Tên mặc định `default`; chỉ chữ, số, `.`, `_`, `-` (1–64 ký tự).
+
+```sh
+bint iso create codex --name work      # tạo profile (Codex: chốt Codex LB linked|direct; --lb URL, --no-lb)
+bint iso login  codex --name work      # đăng nhập trong profile (claude auth login / codex login)
+bint iso run    codex --name work -- exec "tóm tắt repo"   # cờ của harness đặt sau --
+bint iso status [--json]               # profile: đăng nhập, LB, phiên đang chạy, temp, dung lượng, cảnh báo
+bint iso du [--profile codex/work]     # dung lượng theo nhóm (auth/config, phiên, cache riêng, bản cài, temp, dữ liệu người dùng)
+bint iso gc [--dry-run] [--deep]       # dọn temp, cache riêng và phiên quá iso.sessions_ttl; --deep thêm bản cài thừa (chỉ người)
+bint iso sync [--check] [--profile codex/work]   # đồng bộ skill, MCP, trust và hook từ máy thật
+bint iso remove codex --name work      # xoá profile (chỉ người; cần --yes khi không có terminal)
+bint iso shell-init zsh                # in hàm codex-work, claude-… cho RC của shell (bint không tự sửa RC)
+bint iso import --from-ai-isolator     # nhập profile từ ai-isolator (xem dưới)
+```
+
+- **`create`** tạo bố cục HOME giả, liên kết thư mục cache chia sẻ (`iso.share`), liên kết bản cài harness rồi tự `sync`. Profile đã có
+  thì báo lỗi, không ghi đè. Codex dò Codex LB một lần (`--lb`, `BINT_ISO_CODEX_LB_URL`, `base_url` trong `~/.codex/config.toml` thật,
+  `http://127.0.0.1:2455`, mỗi nguồn kiểm `GET /health/ready`) và lưu `linked`/`direct` vào `profile.json`; `--lb`/biến môi trường mà
+  LB không sẵn sàng thì thoát mã 69 và không để lại profile.
+- **`run`** không tự tạo profile (gõ sai tên sẽ báo lệnh `create`). Harness được tìm trên `PATH` thật, chạy với `HOME`/`XDG_*`/`TMPDIR`
+  của profile, `CODEX_HOME`/`CLAUDE_CONFIG_DIR`, `BINT_STATE_DIR`/`BINT_CONFIG_HOME` ghim về của máy, và biến credential của máy bị gỡ
+  (giữ lại bằng `iso.pass_env`). Codex `linked` thêm `-c model_provider=codex-lb` và thoát 69 khi LB không sẵn sàng. Mã thoát của
+  harness được trả lại (chết vì tín hiệu `n` thì `128+n`).
+- **`status`/`du`** chỉ đọc. `du` đếm số khối như `du` và không đi qua liên kết chia sẻ; mục ở gốc HOME giả không bắt đầu bằng dấu chấm
+  và không thuộc cache (vd `Projects/`) được báo là dữ liệu người dùng và **không bao giờ tự xoá**.
+- **`gc`** dọn theo `iso.tmp_ttl`, `iso.cache_ttl` (chỉ cache `private`), `iso.sessions_ttl` (trừ phiên mà tác vụ chưa kết thúc còn
+  tham chiếu); cũng tự chạy nhẹ mỗi `iso.gc_interval` khi chạy profile. Profile đang có phiên thì bị bỏ qua.
+- **`sync`** ghi receipt (`sync-receipt.json`) nên khoá bị sửa tay ở profile là **xung đột**: báo tên khoá và tệp, không ghi đè.
+  `--check` không ghi gì, thoát 1 khi lệch hoặc xung đột. Không bao giờ chép `auth.json`, `.credentials.json` hay khoá tài khoản của
+  `.claude.json`.
+- **Dùng profile cho `bint run`/`bint eval`:** đặt `harnesses.claude.profile` / `harnesses.codex.profile` (nên ở `.bint/local.yml` hoặc
+  cấu hình toàn cục vì tên profile là của máy); bước agent chạy trong profile đó và profile được ghi vào log bước. Profile chưa có
+  thì bước báo lỗi và nêu lệnh `bint iso create`.
+- **Mã thoát:** 0 thành công; 1 lỗi (hoặc `sync --check` lệch, `import` có profile lỗi); 2 sai cú pháp; 69 Codex LB không sẵn sàng.
+
+### Nhập profile từ ai-isolator
+
+```sh
+bint iso import --from-ai-isolator --dry-run                 # liệt kê tệp, dung lượng, nhóm bị bỏ; không ghi gì
+bint iso import --from-ai-isolator                           # mọi profile claude/codex trong store ai-isolator
+bint iso import --from-ai-isolator codex--personal --with-sessions
+```
+
+Tạo profile bint **cùng `<tool>/<tên>`** từ store ai-isolator (`--source`, rồi `AI_ISOLATOR_HOME`, mặc định
+`~/.local/share/ai-isolator` của home thật). Chỉ người dùng chạy được (không chạy từ phiên agent). Import chép theo **danh sách cho phép**
+và chỉ tệp thường (symlink bị bỏ), tệp đích 0600, store ai-isolator không bị sửa:
+
+| Tool | Được chép | Chỉ khi `--with-sessions` |
+|---|---|---|
+| Codex | `.codex/auth.json`, `.codex/config.toml`, `.codex/rules/`, `.gitconfig`; `codex-lb.mode`/`codex-lb.url` thành LB của `profile.json` (không gọi mạng) | `.codex/sessions/`, `archived_sessions/`, `session_index.jsonl`, `history.jsonl` |
+| Claude | `.claude/.credentials.json`, `.claude/.claude.json`, `.claude/settings.json`, `.claude/CLAUDE.md`, `.gitconfig` | `.claude/projects/`, `.claude/history.jsonl` |
+
+**Không** chép: `cache/`, `tmp/`, `data/`, `state/`, `config/` ở gốc profile ai-isolator; bản cài (`.local/share/claude/versions`,
+`.codex/packages`); temp/log/sqlite của harness (`.codex/.tmp`, `tmp/`, `*.sqlite*`); symlink (vd `hooks.json` trỏ tệp thật); mọi dữ liệu người
+dùng ở gốc HOME (`Projects/`, `.gemini/`, `.docker/`…). Lịch sử phiên có thể rất lớn (cả GB): xem trước bằng `--dry-run`. `agy--*` chưa hỗ trợ
+(bị bỏ qua và báo).
+
+Sau khi chép, import chạy cùng bước hoàn thiện như `create` (liên kết cache, bản cài, `sync`). Mục MCP trùng tên bản thật và khoá
+`hooks.state` trỏ vào thư mục profile ai-isolator bị bỏ khỏi cấu hình đã chép để `sync` dựng lại, không báo xung đột. Profile bint đã có thì bỏ qua và
+báo (không ghi đè); lỗi giữa chừng thì gỡ profile vừa tạo; thoát 1 khi có profile lỗi. Trên macOS Claude có thể lưu đăng nhập ở Keychain thay vì
+`.credentials.json` nên import không chuyển được: khi đó đăng nhập lại bằng `bint iso login claude` (chưa đo, xem [acceptance.md](acceptance.md) `NT-ISO-PROF-MAC`).
+
 ## Giao diện terminal (TUI)
 
 Bint có giao diện terminal để xem và duyệt thay cho việc gõ lệnh: tri thức chờ duyệt, tác vụ, lượt chạy,

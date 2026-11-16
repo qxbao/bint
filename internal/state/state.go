@@ -50,20 +50,29 @@ type Paths struct {
 }
 
 // BaseDir trả về thư mục gốc chứa trạng thái của mọi repository.
-func BaseDir() (string, error) {
-	if d := os.Getenv(EnvStateDir); d != "" {
+func BaseDir() (string, error) { return BaseDirFrom(os.LookupEnv) }
+
+// BaseDirFrom như BaseDir nhưng đọc biến môi trường qua lookup (env của tiến trình con sắp chạy, không
+// phải của tiến trình này): `bint iso` dùng nó để ghim BINT_STATE_DIR trước khi đổi HOME. Thư mục home
+// lấy từ lookup theo OS đang chạy (HOME, hoặc USERPROFILE trên Windows) như os.UserHomeDir.
+func BaseDirFrom(lookup func(string) (string, bool)) (string, error) {
+	get := func(k string) string { v, _ := lookup(k); return v }
+	if d := get(EnvStateDir); d != "" {
 		return filepath.Abs(d)
 	}
-	if d := os.Getenv("XDG_STATE_HOME"); d != "" && filepath.IsAbs(d) {
+	if d := get("XDG_STATE_HOME"); d != "" && filepath.IsAbs(d) {
 		return filepath.Join(d, "bint"), nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("không xác định được thư mục home: %w", err)
+	home := get("HOME")
+	if runtime.GOOS == "windows" {
+		home = get("USERPROFILE")
+	}
+	if home == "" {
+		return "", errors.New("không xác định được thư mục home (HOME/USERPROFILE rỗng)")
 	}
 	switch runtime.GOOS {
 	case "windows":
-		if d := os.Getenv("LOCALAPPDATA"); d != "" {
+		if d := get("LOCALAPPDATA"); d != "" {
 			return filepath.Join(d, "bint", "state"), nil
 		}
 		return filepath.Join(home, "AppData", "Local", "bint", "state"), nil

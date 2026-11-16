@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -17,7 +18,10 @@ import (
 // nhân. Chỉ áp cho eval (req.Arm khác rỗng), không đổi môi trường bint run/Claude.
 // Profile không nằm trong worktree hay thư mục log được xuất; auth mode 0600,
 // xoá bằng defer ngay cả khi agent thất bại/timeout/huỷ.
-func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), error) {
+//
+// authOptional: profile `bint iso` ở chế độ Codex LB (linked) đi qua LB nên không cần auth.json; thiếu tệp thì bỏ qua thay vì
+// báo lỗi. Thư mục home dùng cho user skill lấy từ HOME của baseEnv (home của profile khi chạy trong profile).
+func codexEvalProfile(req AgentRequest, baseEnv []string, authOptional bool) ([]string, func(), error) {
 	profile, err := os.MkdirTemp("", "bint-codex-profile-")
 	if err != nil {
 		return nil, nil, err
@@ -34,19 +38,28 @@ func codexEvalProfile(req AgentRequest, baseEnv []string) ([]string, func(), err
 		values[k] = v
 	}
 	source := values["CODEX_HOME"]
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		return nil, nil, err
+	userHome := values["HOME"]
+	if runtime.GOOS == "windows" {
+		userHome = values["USERPROFILE"]
+	}
+	if userHome == "" {
+		var err error
+		if userHome, err = os.UserHomeDir(); err != nil {
+			return nil, nil, err
+		}
 	}
 	if source == "" {
 		source = filepath.Join(userHome, ".codex")
 	}
 	auth, err := os.ReadFile(filepath.Join(source, "auth.json"))
-	if err != nil {
+	switch {
+	case err == nil:
+		if err = os.WriteFile(filepath.Join(profile, "auth.json"), auth, 0o600); err != nil {
+			return nil, nil, err
+		}
+	case authOptional && os.IsNotExist(err):
+	default:
 		return nil, nil, fmt.Errorf("eval cô lập Codex cần auth.json dạng tệp của profile đã đăng nhập; không lấy được thông tin đăng nhập (%w)", err)
-	}
-	if err = os.WriteFile(filepath.Join(profile, "auth.json"), auth, 0o600); err != nil {
-		return nil, nil, err
 	}
 	var original map[string]any
 	raw, err := os.ReadFile(filepath.Join(source, "config.toml"))

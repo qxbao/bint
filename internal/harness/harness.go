@@ -25,6 +25,7 @@ import (
 	"bint/internal/harness/antigravity"
 	"bint/internal/harness/claude"
 	"bint/internal/harness/codex"
+	"bint/internal/iso"
 	"bint/internal/skills"
 )
 
@@ -412,7 +413,38 @@ func NewAgent(name string, o AgentOptions) (eval.Agent, error) {
 	if !Available(name, o.Config) {
 		return nil, &UnavailableError{Harness: name, Title: a.Title()}
 	}
-	return ex.NewAgent(o), nil
+	prof, err := resolveProfile(name, o.Config)
+	if err != nil {
+		return nil, err
+	}
+	ag := ex.NewAgent(o)
+	if prof != nil {
+		switch x := ag.(type) {
+		case *eval.ClaudeAgent:
+			x.Profile = prof
+		case *eval.CodexAgent:
+			x.Profile = prof
+		}
+	}
+	return ag, nil
+}
+
+// resolveProfile nạp profile `bint iso` của harness theo harnesses.<h>.profile (docs/iso-plan.md mục 5.7). Không cấu hình
+// thì nil. Đã cấu hình mà không nạp được (chưa tạo, store hỏng) thì lỗi: bước thất bại thay vì âm thầm dùng tài khoản thật.
+func resolveProfile(name string, cfg config.Config) (*iso.Profile, error) {
+	pn := cfg.Harnesses.ProfileFor(name)
+	if pn == "" {
+		return nil, nil
+	}
+	t, err := iso.ParseTool(name)
+	if err != nil {
+		return nil, fmt.Errorf("harnesses.%s.profile: %w", name, err)
+	}
+	p, err := iso.ResolveProfile(cfg.Iso, t, pn, os.Environ())
+	if err != nil {
+		return nil, fmt.Errorf("harnesses.%s.profile %q: %w", name, pn, err)
+	}
+	return &p, nil
 }
 
 // UnavailableError: chương trình của harness không có trên máy.

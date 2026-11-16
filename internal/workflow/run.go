@@ -21,6 +21,7 @@ import (
 	"bint/internal/harness/claude"
 	"bint/internal/harness/codex"
 	"bint/internal/harness/hookcore"
+	"bint/internal/iso"
 	"bint/internal/skills"
 	"bint/internal/spool"
 	"bint/internal/task"
@@ -147,6 +148,8 @@ type StepResult struct {
 	StopClass   string `json:"stop_class,omitempty"`
 	Continuable bool   `json:"continuable,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
+	// Profile là profile `bint iso` của bước (<tool>/<tên>); rỗng = không dùng profile.
+	Profile string `json:"profile,omitempty"`
 }
 
 // Result là kết quả một lượt điều phối.
@@ -218,6 +221,8 @@ type runState struct {
 // endedStep là handle phiên của bước vừa kết thúc, giữ để cổng sau bước ghi awaiting_human vào State.LastStep.
 type endedStep struct {
 	step, runID, harness, handle string
+	// profile: profile `bint iso` của bước (<tool>/<tên>), rỗng nếu không dùng.
+	profile string
 	// Nối tiếp phiên (driver session): số lần nối tiếp, lượt đầu của agent, usage cộng dồn lúc đóng.
 	continuations int
 	originRunID   string
@@ -897,7 +902,10 @@ type stepRun struct {
 	maxTurns          *int
 	reqModel, harness string
 	// agent chỉ có ở driver process; driver session không gọi harness từ tiến trình Bint.
-	agent   eval.Agent
+	agent eval.Agent
+	// prof: profile `bint iso` hiệu lực của agent (driver process; nil = không dùng). Ghi vào handle phiên và quyết định thư mục
+	// chứa tệp phiên (prof.ConfigDir()).
+	prof    *iso.Profile
 	stepLog string
 	prompt  string
 	lock    *Lock
@@ -924,6 +932,14 @@ type stepRun struct {
 	noSession string
 	// isoLeak: lý do hậu kiểm cô lập thấy subagent đã chạy lời gọi ngoài worktree (auditIsolation); khác rỗng ⇒ bước blocked.
 	isoLeak string
+}
+
+// profileID là <tool>/<tên> của profile `bint iso` của bước ("" nếu không dùng profile).
+func (sr *stepRun) profileID() string {
+	if sr.prof == nil {
+		return ""
+	}
+	return sr.prof.ID()
 }
 
 // release nhả khoá worktree của bước (và seam kiểm thử): gọi đúng một lần khi bước kết thúc hoặc không bắt đầu được.
@@ -976,7 +992,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		}
 	}
 	runAgent := func(prompt, sessionID, resume string) eval.AgentResult {
-		return sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt, SessionID: sessionID, ResumeSessionID: resume,
+		return sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt, SessionID: sessionID, ResumeSessionID: resume, Profile: sr.prof,
 			Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
 			LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
 			MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools})
@@ -1010,9 +1026,9 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 // (bộ đếm, lượt gốc, mốc usage, handle phiên), đổi sr.prompt thành lời nhắn nối tiếp (đề bài đầy đủ giữ ở sr.fullPrompt) và trả
 // phiên cần resume; không thì ghi lý do vào notes và trả "".
 func (r *Runner) armProcessContinuation(ctx context.Context, rs *runState, sr *stepRun, last *task.StepStop) string {
-	dec := r.decideContinuation(ctx, rs, sr.step, rs.opts.Fresh, sr.harness)
+	dec := r.decideContinuation(ctx, rs, sr.step, rs.opts.Fresh, sr.harness, sr.profileID())
 	if dec.Continue {
-		if why := r.processSessionMissing(sr.harness, last.SessionID); why != "" {
+		if why := r.processSessionMissing(sr.harness, last.SessionID, sr.prof); why != "" {
 			dec = ContinueDecision{Why: why}
 		}
 	}
@@ -1050,14 +1066,14 @@ func (r *Runner) disarmProcessContinuation(sr *stepRun) {
 
 // processSessionMissing kiểm tệp phiên còn trên đĩa ngay trước khi nối tiếp (Claude: transcript ở thư mục dự án của cwd của bước;
 // Codex: rollout của thread). Trả lý do khi mất ("" nếu còn hoặc harness không có tệp phiên để kiểm).
-func (r *Runner) processSessionMissing(harness, id string) string {
+func (r *Runner) processSessionMissing(harness, id string, prof *iso.Profile) string {
 	switch harness {
 	case "claude":
-		if claude.SessionTranscriptPath("", r.Root, id) == "" {
+		if claude.SessionTranscriptPath(stepConfigDir(harness, prof), r.Root, id) == "" {
 			return fmt.Sprintf("transcript của phiên %s không còn ở thư mục dự án của %s", shortID(id), r.Root)
 		}
 	case "codex":
-		if codex.RolloutPath("", id) == "" {
+		if codex.RolloutPath(stepConfigDir(harness, prof), id) == "" {
 			return fmt.Sprintf("rollout của thread %s không còn", shortID(id))
 		}
 	}
@@ -1169,6 +1185,10 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 		}
 		sr.agent, sr.harness = agent, agent.Name()
 		who = agent.Name()
+		if p := eval.EffectiveProfile(agent, eval.AgentRequest{}); p != nil {
+			sr.prof = p
+			who += "@" + p.ID()
+		}
 	}
 	if sr.reqModel != "" {
 		who += " · " + sr.reqModel
@@ -1274,7 +1294,8 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	if model == "" {
 		model = sr.reqModel
 	}
-	srr := StepResult{Step: step, RunID: child, Harness: sr.harness, Model: model, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error, HumanWrites: humanWrites}
+	srr := StepResult{Step: step, RunID: child, Harness: sr.harness, Model: model, CostUSD: res.CostUSD, Duration: res.Duration.Round(time.Second).String(), Error: res.Error, HumanWrites: humanWrites,
+		Profile: sr.profileID()}
 	if res.CostUSD != nil {
 		rs.spent += *res.CostUSD
 		rs.costKnown = true
@@ -1333,7 +1354,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		ProtectedDenied: len(deniedPaths) > 0,
 	})
 	handle := cmp.Or(sr.agentID, res.SessionID, sr.sessionID)
-	rs.last = &endedStep{step: step, runID: child, harness: sr.harness, handle: handle, continuations: sr.continuations,
+	rs.last = &endedStep{step: step, runID: child, harness: sr.harness, profile: sr.profileID(), handle: handle, continuations: sr.continuations,
 		originRunID: sr.originRunID, usage: sr.usage, noSession: sr.noSession}
 	var stop *task.StepStop
 	if class != "" {
@@ -1344,7 +1365,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 				rs.res.Notes = append(rs.res.Notes, step+": không chụp được fingerprint cây lúc dừng (không nối tiếp được): "+err.Error())
 			}
 		}
-		stop = &task.StepStop{Step: step, RunID: child, Harness: sr.harness, StopClass: class, SessionID: handle, Fingerprint: fp,
+		stop = &task.StepStop{Step: step, RunID: child, Harness: sr.harness, Profile: sr.profileID(), StopClass: class, SessionID: handle, Fingerprint: fp,
 			Continuable: stopContinuable(class, handleIf(sr.noSession, handle), fp), At: r.at(), Continuations: sr.continuations,
 			OriginRunID: sr.originRunID, Usage: sr.usage, Via: viaOf(rs, sr.harness)}
 		if sr.noSession != "" && stopContinuable(class, handle, fp) {
@@ -1466,7 +1487,7 @@ func (r *Runner) markAwaitingHuman(rs *runState) {
 		return
 	}
 	fp, _ := r.stopFingerprint(context.Background())
-	r.setLastStep(rs, &task.StepStop{Step: l.step, RunID: l.runID, Harness: l.harness, StopClass: StopAwaitingHuman, SessionID: l.handle,
+	r.setLastStep(rs, &task.StepStop{Step: l.step, RunID: l.runID, Harness: l.harness, Profile: l.profile, StopClass: StopAwaitingHuman, SessionID: l.handle,
 		Fingerprint: fp, Continuable: stopContinuable(StopAwaitingHuman, handleIf(l.noSession, l.handle), fp), At: r.at(), Via: viaOf(rs, l.harness),
 		Continuations: l.continuations, OriginRunID: l.originRunID, Usage: l.usage})
 }

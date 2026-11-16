@@ -317,3 +317,39 @@ func TestWorkflowVerifyScope(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateHarnessProfile(t *testing.T) {
+	ok := Default()
+	ok.Harnesses.Claude.Profile = "work"
+	ok.Harnesses.Codex.Profile = "a.b_c-1"
+	if err := ok.Validate(); err != nil {
+		t.Fatalf("tên hợp lệ bị từ chối: %v", err)
+	}
+	if ok.Harnesses.ProfileFor("claude") != "work" || ok.Harnesses.ProfileFor("codex") != "a.b_c-1" || ok.Harnesses.ProfileFor("x") != "" {
+		t.Fatalf("ProfileFor sai: %+v", ok.Harnesses)
+	}
+	for _, tc := range []struct {
+		name, field, val, want string
+	}{
+		{"claude khoảng trắng", "claude", "a b", "harnesses.claude.profile"},
+		{"codex chấm", "codex", ".", "harnesses.codex.profile"},
+		{"codex chấm đôi", "codex", "..", "harnesses.codex.profile"},
+		{"codex quá dài", "codex", strings.Repeat("a", 65), "harnesses.codex.profile"},
+		{"codex dấu gạch chéo", "codex", "a/b", "harnesses.codex.profile"},
+		{"antigravity", "antigravity", "work", "harnesses.antigravity.profile"},
+	} {
+		c := Default()
+		switch tc.field {
+		case "claude":
+			c.Harnesses.Claude.Profile = tc.val
+		case "codex":
+			c.Harnesses.Codex.Profile = tc.val
+		default:
+			c.Harnesses.Antigravity.Profile = tc.val
+		}
+		err := c.Validate()
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: want lỗi %q, got %v", tc.name, tc.want, err)
+		}
+	}
+}

@@ -100,7 +100,7 @@ func checkCodexMCPConfigLive(t *testing.T, bin, repo string) {
 			if got, err := codexOtherMCPServers(req); err != nil || !slices.Equal(got, tc.want) {
 				t.Errorf("Bint discovered servers = %v, %v; want %v", got, err, tc.want)
 			}
-			off, err := codexDisableMCPArgs(req)
+			off, err := codexDisableMCPArgs(req, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -167,7 +167,7 @@ func TestCodexMCPRootTrustLive(t *testing.T) {
 					if got, err := codexOtherMCPServers(req); err != nil || !slices.Equal(got, tc.want) {
 						t.Errorf("Bint discovered servers = %v, %v; want %v", got, err, tc.want)
 					}
-					off, err := codexDisableMCPArgs(req)
+					off, err := codexDisableMCPArgs(req, nil)
 					if err != nil {
 						t.Fatal(err)
 					}

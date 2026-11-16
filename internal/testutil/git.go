@@ -71,6 +71,12 @@ func Isolate(t *testing.T) (stateDir string) {
 	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS"} {
 		t.Setenv(k, "")
 	}
+	// Store profile của `bint iso` (internal/iso) nằm trong thư mục tạm và kiểm thử không bao giờ ở trong
+	// một profile. Tên biến chép tay vì testutil không import iso (test nội bộ package iso dùng testutil).
+	t.Setenv("BINT_ISO_HOME", t.TempDir())
+	for _, k := range []string{"BINT_ISO_PROFILE", "BINT_ISO_REAL_HOME"} {
+		t.Setenv(k, "")
+	}
 	return stateDir
 }
 
