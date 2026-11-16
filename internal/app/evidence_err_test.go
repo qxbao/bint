@@ -289,6 +289,32 @@ func TestRefreshInPlaceChangeWithCopies(t *testing.T) {
 	}
 }
 
+// Mục verified có bằng chứng đổi tại chỗ nhưng chưa bị chuyển sang stale: --refresh làm mới
+// fingerprint, giữ verified (trước đây lỗi "verified → verified: mục đã ở trạng thái này").
+func TestRefreshVerifiedNotStale(t *testing.T) {
+	f := newEvFixture(t, knowledge.TypeWarning)
+	ctx := context.Background()
+	if outs, err := ApproveKnowledge(ctx, f.k, ApproveOptions{Refs: []string{f.id}}); err != nil || outs[0].Err != nil {
+		t.Fatalf("%v %+v", err, outs)
+	}
+	fp := f.item(t).Evidence[0].Fingerprint
+	f.write(t, "internal/cli/eval.go", evFiller(10, "cli")+"\t\t\tif cfg.Khac() {\n"+evFiller(5, "cli2"))
+	if ee, _ := approveErr(t, f, false); ee == nil {
+		t.Fatal("approve không --refresh phải báo bằng chứng đổi")
+	}
+	outs, err := ApproveKnowledge(ctx, f.k, ApproveOptions{Refs: []string{f.id}, Refresh: true})
+	if err != nil || len(outs) != 1 || outs[0].Err != nil {
+		t.Fatalf("%v %+v", err, outs)
+	}
+	it := f.item(t)
+	if it.Status != knowledge.StatusVerified || it.Evidence[0].Fingerprint == fp || it.Evidence[0].Fingerprint == "" {
+		t.Fatalf("%s %+v (fp cũ %s)", it.Status, it.Evidence[0], fp)
+	}
+	if r := (knowledge.Verifier{Src: f.k.Source()}).Verify(it); r.Has(knowledge.CodeFingerprint) {
+		t.Fatalf("fingerprint vẫn lệch: %+v", r.Findings)
+	}
+}
+
 // Mục verified có bằng chứng đổi tại chỗ, khối cũ còn ở đúng một tệp khác cùng đuôi: --apply
 // chuyển mục sang stale, path giữ nguyên, không có finding moved (phát hiện .4).
 func TestVerifyApplyInPlaceChangeGoesStale(t *testing.T) {

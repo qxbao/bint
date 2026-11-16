@@ -619,6 +619,24 @@ func ReviewKnowledge(ctx context.Context, k *KnowledgeWS, act ReviewAction) ([]R
 			if in.Reason == "" {
 				in.Reason = "người duyệt chấp nhận"
 			}
+			if act.Refresh && o.From == knowledge.StatusVerified {
+				// Mục verified mà bằng chứng đã đổi nhưng chưa bị `verify --apply` chuyển sang stale:
+				// người xác nhận bằng chứng hiện tại vẫn đúng, chỉ lưu fingerprint mới, không chuyển
+				// trạng thái (verified → verified bị Transition từ chối).
+				if !in.ChecksPassed {
+					o.Err = fmt.Errorf("%w %s → %s: kiểm tra xác định được chưa qua (`bint knowledge verify %s`)",
+						knowledge.ErrTransition, it.Status, act.To, it.ID)
+					outs = append(outs, o)
+					continue
+				}
+				it.ReviewedBy, it.ReviewedAt = who, knowledge.Now(act.Now)
+				it.VerifiedAt = knowledge.Now(act.Now)
+				if err := w.SaveItem(k.Store, it); err != nil {
+					o.Err = err
+				}
+				outs = append(outs, o)
+				continue
+			}
 		}
 		if err := knowledge.Transition(it, in); err != nil {
 			o.Err = err
