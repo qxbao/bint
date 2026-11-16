@@ -9022,7 +9022,7 @@
       "results": [
         {
           "status": "planned",
-          "reason": "artifact b-req chưa đạt hợp đồng v1: [artifact_missing] tasks.md: chưa có tệp; ghi bằng `bint task write \u003cid\u003e tasks -` — sửa bằng `bint task write \u003cULID\u003e \u003crequirement|plan|tasks\u003e -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (hoặc `bint run b-feat --task \u003cULID\u003e`; không dùng `resume` vì sẽ chạy lại b-req)",
+          "reason": "artifact b-req chưa đạt hợp đồng v1: [artifact_missing] tasks.md: chưa có tệp; ghi bằng `bint task write \u003cid\u003e tasks -` — sửa bằng `bint task write \u003cULID\u003e \u003crequirement|plan|tasks\u003e -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (nối tiếp planner cũ nếu được rồi sang b-feat; hoặc `bint run b-feat --task \u003cULID\u003e` vào thẳng b-feat; không dùng `resume` vì khi chưa nối tiếp được sẽ chạy lại b-req)",
           "steps": [
             "b-req:completed"
           ],
@@ -9055,7 +9055,7 @@
       "results": [
         {
           "status": "planned",
-          "reason": "artifact b-req chưa đạt hợp đồng v1: [artifact_missing] tasks.md: chưa có tệp; ghi bằng `bint task write \u003cid\u003e tasks -` — sửa bằng `bint task write \u003cULID\u003e \u003crequirement|plan|tasks\u003e -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (hoặc `bint run b-feat --task \u003cULID\u003e`; không dùng `resume` vì sẽ chạy lại b-req)",
+          "reason": "artifact b-req chưa đạt hợp đồng v1: [artifact_missing] tasks.md: chưa có tệp; ghi bằng `bint task write \u003cid\u003e tasks -` — sửa bằng `bint task write \u003cULID\u003e \u003crequirement|plan|tasks\u003e -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (nối tiếp planner cũ nếu được rồi sang b-feat; hoặc `bint run b-feat --task \u003cULID\u003e` vào thẳng b-feat; không dùng `resume` vì khi chưa nối tiếp được sẽ chạy lại b-req)",
           "steps": [
             "b-req:completed"
           ],
@@ -9131,7 +9131,7 @@
       "results": [
         {
           "status": "planned",
-          "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (hoặc `bint run b-feat --task \u003cULID\u003e`; không dùng `resume` vì sẽ chạy lại b-req)",
+          "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (nối tiếp planner cũ nếu được rồi sang b-feat; hoặc `bint run b-feat --task \u003cULID\u003e` vào thẳng b-feat; không dùng `resume` vì khi chưa nối tiếp được sẽ chạy lại b-req)",
           "steps": [
             "b-req:completed"
           ],
@@ -9159,7 +9159,7 @@
       "results": [
         {
           "status": "planned",
-          "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (hoặc `bint run b-feat --task \u003cULID\u003e`; không dùng `resume` vì sẽ chạy lại b-req)",
+          "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (nối tiếp planner cũ nếu được rồi sang b-feat; hoặc `bint run b-feat --task \u003cULID\u003e` vào thẳng b-feat; không dùng `resume` vì khi chưa nối tiếp được sẽ chạy lại b-req)",
           "steps": [
             "b-req:completed"
           ],

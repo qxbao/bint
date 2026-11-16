@@ -19,6 +19,7 @@ import (
 	"bint/internal/flow"
 	"bint/internal/gitrepo"
 	"bint/internal/harness/claude"
+	"bint/internal/harness/codex"
 	"bint/internal/harness/hookcore"
 	"bint/internal/skills"
 	"bint/internal/spool"
@@ -113,6 +114,9 @@ type RunOptions struct {
 	// Rerun (cùng Resume): bỏ kết quả bước chỉ đọc đang giữ (HeldStep) và chạy lại bước đó thay vì chỉ áp cổng sau bước
 	// của nó (`bint run resume --rerun`). Lỗi nếu phiếu không có bước giữ.
 	Rerun bool
+	// Fresh: bỏ nối tiếp phiên cũ của bước dừng gần nhất (driver process: `--fresh` của resume và run <workflow> --task): bước chạy
+	// mới với đề bài đầy đủ dù nối tiếp được.
+	Fresh bool
 	// Isolation: chế độ cô lập khi tự lập phiếu (""/auto | shared | worktree); không dùng cùng TaskRef.
 	Isolation string
 	// Driver: process|session khi tự lập phiếu (--driver); không dùng cùng TaskRef. session ⇒ lập phiếu rồi dừng
@@ -206,6 +210,9 @@ type runState struct {
 	finalizeResume bool
 	// last là bước vừa kết thúc trong lượt này (endStep ghi): cổng chờ người sau bước (markAwaitingHuman) dùng lại handle.
 	last *endedStep
+	// planCont: tác vụ planned đang chờ câu trả lời của b-req và planner cũ nối tiếp được (planContinuation): pickStep trả bước
+	// plan thay vì bước implement; xoá khi bước plan mở.
+	planCont bool
 }
 
 // endedStep là handle phiên của bước vừa kết thúc, giữ để cổng sau bước ghi awaiting_human vào State.LastStep.
@@ -215,6 +222,8 @@ type endedStep struct {
 	continuations int
 	originRunID   string
 	usage         *task.UsageMark
+	// noSession khác rỗng: tệp phiên của harness không có trên đĩa lúc bước dừng ⇒ không nối tiếp được (lý do).
+	noSession string
 }
 
 // afterStepUnlock là seam kiểm thử (nil ở sản phẩm): gọi ngay sau khi runStep nhả khoá worktree của bước,
@@ -460,6 +469,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	if !r.ensureWorktree(ctx, rs) {
 		return rs.res, nil
 	}
+	r.armPlanContinuation(ctx, rs)
 
 	// Chỉ hỏi lại khi thiếu trường quan trọng cho tác vụ rủi ro cao (mục 6.7).
 	if len(assess.Questions) > 0 && strings.TrimSpace(rs.t.Ticket.Verify.Command) == "" {
@@ -671,6 +681,25 @@ func hasEdit(e TicketEdit) bool {
 		len(e.Deny) > 0 || e.ClearScope || len(e.Constraints) > 0 || e.Autonomy != nil
 }
 
+// armPlanContinuation: tác vụ planned đang chờ câu trả lời của b-req (LastStep awaiting_human của bước plan, requirement.md đã có
+// câu trả lời, hết câu hỏi mở) chạy bằng flow nhiều bước (b-do): planner cũ được nối tiếp trước khi sang bước implement
+// (rs.planCont ⇒ pickStep trả bước plan) thay vì vào thẳng b-feat. Không nối tiếp được thì giữ hành vi cũ và ghi lý do. Workflow chỉ
+// có bước plan (b-req --task) không cần cờ: runStep tự quyết định nối tiếp.
+func (r *Runner) armPlanContinuation(ctx context.Context, rs *runState) {
+	plan, ok := rs.flow.FirstOfKind(flow.KindPlan)
+	if !ok || !rs.chain() || (rs.opts.Step != "" && rs.opts.Step != plan.ID) {
+		return
+	}
+	cd, ok := r.planContinuation(ctx, rs, rs.opts.Fresh, false, rs.t.State.Status)
+	switch {
+	case !ok:
+	case cd.Continue:
+		rs.planCont = true
+	case cd.Why != "":
+		rs.res.Notes = append(rs.res.Notes, "không nối tiếp planner cũ: "+cd.Why)
+	}
+}
+
 // nextStep chọn bước tiếp theo theo trạng thái tác vụ và cấu trúc của flow đang chạy (kind của bước, bước plan có thể
 // bỏ qua, flow một hay nhiều bước, bước implement/review đang chạy theo State.FlowStep). Trả "" khi không còn bước agent
 // nào (kể cả sau khi finalize), stepCheck khi bước implement vừa chạy chỉ còn cổng sau bước.
@@ -729,6 +758,9 @@ func (rs *runState) pickStep() (step string, finalize bool) {
 		}
 		return impl.ID, false
 	case task.StatusPlanned, task.StatusInProgress:
+		if rs.planCont && st == task.StatusPlanned && hasPlan {
+			return plan.ID, false // planner cũ nối tiếp được: nhận câu trả lời trước khi sang bước implement
+		}
 		if rs.t.State.AwaitingCheck && st == task.StatusInProgress {
 			return stepCheck, false
 		}
@@ -885,6 +917,11 @@ type stepRun struct {
 	originRunID   string
 	usageBase     *task.UsageMark
 	usage         *task.UsageMark
+	// fullPrompt: đề bài đầy đủ của bước nối tiếp phiên (driver process; prompt là lời nhắn nối tiếp). Dùng khi harness báo
+	// không còn phiên để nối tiếp.
+	fullPrompt string
+	// noSession: xem endedStep.noSession (driver process, harness claude/codex).
+	noSession string
 	// isoLeak: lý do hậu kiểm cô lập thấy subagent đã chạy lời gọi ngoài worktree (auditIsolation); khác rỗng ⇒ bước blocked.
 	isoLeak string
 }
@@ -905,19 +942,28 @@ func (sr *stepRun) release() {
 	}
 }
 
-// runStep chạy một bước agent (driver process): beginStep → agent.Run → endStep. Trả false nếu workflow phải dừng.
+// runStep chạy một bước agent (driver process): beginStep → quyết định nối tiếp phiên → agent.Run → endStep. Trả false nếu
+// workflow phải dừng.
+//
+// Nối tiếp phiên (docs/step-continuation-plan.md giai đoạn 3): bước dừng gần nhất cùng bước, cùng harness (Via = tên harness),
+// lớp dừng cho phép, cây không đổi, chưa quá giới hạn và người không yêu cầu --fresh thì gọi harness ở chế độ resume với lời nhắn
+// nối tiếp (BINT_RUN_ID vẫn là lượt con mới, bộ đếm và lượt gốc kế thừa); thiếu một điều kiện, hoặc phiên không còn trên đĩa, thì
+// chạy mới với đề bài đầy đủ và ghi lý do vào notes. Harness báo không tìm thấy phiên thì chạy lại một lần với đề bài đầy đủ.
 func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	sr, ok := r.beginStep(ctx, rs, step, false)
 	if !ok {
 		return false
 	}
+	rs.planCont = false
 	env := []string{EnvRunID + "=" + sr.child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
 		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
 	// Mọi bước driver process có đúng một MCP server là bint (M0 của docs/mcp-gateway-plan.md).
 	mcpPath, mcpTools, cleanMCP := r.stepMCP(sr, rs.t.State.ID)
 	defer cleanMCP()
-	if sr.harness == "claude" {
+	last := rs.t.State.LastStep // chụp trước khi xoá (bước thật sự bắt đầu ngay dưới)
+	resumeID := r.armProcessContinuation(ctx, rs, sr, last)
+	if resumeID == "" && sr.harness == "claude" {
 		sr.sessionID = eval.NewSessionUUID() // handle bền kể cả khi tiến trình chết trước khi in JSON
 	}
 	// Bước thật sự bắt đầu: bước dừng cũ không còn là "gần nhất" (driver session xoá cùng lần ghi PendingStep, grantPending).
@@ -929,11 +975,93 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 			rs.t = nt
 		}
 	}
-	res := sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: sr.prompt, SessionID: sr.sessionID,
-		Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
-		LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
-		MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools})
+	runAgent := func(prompt, sessionID, resume string) eval.AgentResult {
+		return sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt, SessionID: sessionID, ResumeSessionID: resume,
+			Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
+			LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
+			MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools})
+	}
+	var res eval.AgentResult
+	if resumeID != "" {
+		res = runAgent(sr.prompt, "", resumeID)
+		if res.ResumeMissing && ctx.Err() == nil {
+			// Phiên biến mất giữa lúc kiểm và lúc gọi (hoặc harness tìm theo cách khác): chạy lại một lần với đề bài đầy đủ.
+			msg := fmt.Sprintf("harness không tìm thấy phiên %s để nối tiếp bước %s: chạy mới với đề bài đầy đủ", shortID(resumeID), step)
+			r.logf("! %s", msg)
+			rs.res.Notes = append(rs.res.Notes, msg)
+			first := res
+			r.disarmProcessContinuation(sr)
+			resumeID = ""
+			res = runAgent(sr.prompt, sr.sessionID, "")
+			res.Duration += first.Duration
+			if first.CostUSD != nil && res.CostUSD != nil {
+				sum := *first.CostUSD + *res.CostUSD
+				res.CostUSD = &sum
+			}
+		}
+	} else {
+		res = runAgent(sr.prompt, sr.sessionID, "")
+	}
+	r.settleProcessUsage(rs, sr, &res, cmp.Or(res.SessionID, sr.sessionID), resumeID != "")
 	return r.endStep(ctx, rs, sr, res)
+}
+
+// armProcessContinuation quyết định nối tiếp cho bước driver process vừa mở. Nối tiếp được thì đặt các trường nối tiếp của sr
+// (bộ đếm, lượt gốc, mốc usage, handle phiên), đổi sr.prompt thành lời nhắn nối tiếp (đề bài đầy đủ giữ ở sr.fullPrompt) và trả
+// phiên cần resume; không thì ghi lý do vào notes và trả "".
+func (r *Runner) armProcessContinuation(ctx context.Context, rs *runState, sr *stepRun, last *task.StepStop) string {
+	dec := r.decideContinuation(ctx, rs, sr.step, rs.opts.Fresh, sr.harness)
+	if dec.Continue {
+		if why := r.processSessionMissing(sr.harness, last.SessionID); why != "" {
+			dec = ContinueDecision{Why: why}
+		}
+	}
+	if !dec.Continue {
+		if dec.Why != "" {
+			rs.res.Notes = append(rs.res.Notes, "không nối tiếp phiên cũ: "+dec.Why)
+		}
+		return ""
+	}
+	var answered []string
+	if last.StopClass == StopAwaitingHuman && rs.kindOf(last.Step) == flow.KindPlan {
+		answered = answeredFor(rs.t)
+	}
+	sr.fullPrompt = sr.prompt
+	sr.prompt = continuationPrompt(rs.t.State.ID, sr.step, sr.child, last, answered)
+	sr.continuations = continuationCount(last)
+	sr.originRunID = cmp.Or(last.OriginRunID, last.RunID)
+	sr.usageBase = last.Usage
+	sr.sessionID = last.SessionID
+	msg := fmt.Sprintf("nối tiếp phiên %s của bước %s (lớp dừng %s, lần %d)", shortID(last.SessionID), sr.step, last.StopClass, sr.continuations)
+	r.logf("↻ %s", msg)
+	rs.res.Notes = append(rs.res.Notes, msg)
+	return last.SessionID
+}
+
+// disarmProcessContinuation đưa bước nối tiếp về bước chạy mới (đề bài đầy đủ, UUID phiên mới, không kế thừa bộ đếm/mốc usage).
+func (r *Runner) disarmProcessContinuation(sr *stepRun) {
+	sr.prompt, sr.fullPrompt = sr.fullPrompt, ""
+	sr.continuations, sr.originRunID, sr.usageBase = 0, "", nil
+	sr.sessionID = ""
+	if sr.harness == "claude" {
+		sr.sessionID = eval.NewSessionUUID()
+	}
+}
+
+// processSessionMissing kiểm tệp phiên còn trên đĩa ngay trước khi nối tiếp (Claude: transcript ở thư mục dự án của cwd của bước;
+// Codex: rollout của thread). Trả lý do khi mất ("" nếu còn hoặc harness không có tệp phiên để kiểm).
+func (r *Runner) processSessionMissing(harness, id string) string {
+	switch harness {
+	case "claude":
+		if claude.SessionTranscriptPath("", r.Root, id) == "" {
+			return fmt.Sprintf("transcript của phiên %s không còn ở thư mục dự án của %s", shortID(id), r.Root)
+		}
+	case "codex":
+		if codex.RolloutPath("", id) == "" {
+			return fmt.Sprintf("rollout của thread %s không còn", shortID(id))
+		}
+	}
+	return ""
 }
 
 // beginStep là nửa trước của một bước: chuyển trạng thái, giới hạn, khoá, ảnh chụp trước, sự kiện bắt đầu, đề bài.
@@ -1206,7 +1334,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	})
 	handle := cmp.Or(sr.agentID, res.SessionID, sr.sessionID)
 	rs.last = &endedStep{step: step, runID: child, harness: sr.harness, handle: handle, continuations: sr.continuations,
-		originRunID: sr.originRunID, usage: sr.usage}
+		originRunID: sr.originRunID, usage: sr.usage, noSession: sr.noSession}
 	var stop *task.StepStop
 	if class != "" {
 		fp := afterSnap
@@ -1217,10 +1345,10 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 			}
 		}
 		stop = &task.StepStop{Step: step, RunID: child, Harness: sr.harness, StopClass: class, SessionID: handle, Fingerprint: fp,
-			Continuable: stopContinuable(class, handle, fp), At: r.at(), Continuations: sr.continuations,
-			OriginRunID: sr.originRunID, Usage: sr.usage}
-		if rs.session {
-			stop.Via = ViaSubagent
+			Continuable: stopContinuable(class, handleIf(sr.noSession, handle), fp), At: r.at(), Continuations: sr.continuations,
+			OriginRunID: sr.originRunID, Usage: sr.usage, Via: viaOf(rs, sr.harness)}
+		if sr.noSession != "" && stopContinuable(class, handle, fp) {
+			rs.res.Notes = append(rs.res.Notes, step+": không nối tiếp được ở lần sau — "+sr.noSession)
 		}
 		srr.StopClass, srr.Continuable, srr.SessionID = class, stop.Continuable, handle
 	} else {
@@ -1338,13 +1466,25 @@ func (r *Runner) markAwaitingHuman(rs *runState) {
 		return
 	}
 	fp, _ := r.stopFingerprint(context.Background())
-	via := ""
-	if rs.session {
-		via = ViaSubagent
-	}
 	r.setLastStep(rs, &task.StepStop{Step: l.step, RunID: l.runID, Harness: l.harness, StopClass: StopAwaitingHuman, SessionID: l.handle,
-		Fingerprint: fp, Continuable: stopContinuable(StopAwaitingHuman, l.handle, fp), At: r.at(), Via: via, Continuations: l.continuations,
-		OriginRunID: l.originRunID, Usage: l.usage})
+		Fingerprint: fp, Continuable: stopContinuable(StopAwaitingHuman, handleIf(l.noSession, l.handle), fp), At: r.at(), Via: viaOf(rs, l.harness),
+		Continuations: l.continuations, OriginRunID: l.originRunID, Usage: l.usage})
+}
+
+// viaOf là State.LastStep.Via của bước: ViaSubagent ở driver session, tên harness ở driver process.
+func viaOf(rs *runState, harness string) string {
+	if rs.session {
+		return ViaSubagent
+	}
+	return harness
+}
+
+// handleIf trả "" (không có handle để nối tiếp) khi phiên không có trên đĩa (noSession khác rỗng), ngược lại handle.
+func handleIf(noSession, handle string) string {
+	if noSession != "" {
+		return ""
+	}
+	return handle
 }
 
 // heldReason là lý do chuyển blocked khi bước chỉ đọc kết thúc bình thường nhưng cây đổi trong lúc chạy: nêu tệp đổi,
@@ -1823,16 +1963,18 @@ func (r *Runner) stopOnPlanning(rs *runState, rep task.ArtifactReport) bool {
 }
 
 // continueHint là lệnh tiếp tục sau khi người sửa artifact/trả lời câu hỏi. b-do/b-feat chuyển tác vụ
-// sang blocked nên `bint run resume` vào thẳng bước kế tiếp (không chạy lại b-req). Workflow b-req chạy
-// riêng giữ tác vụ ở `planned` và KHÔNG được dùng resume — resume của b-req sẽ gọi lại agent b-req và
-// ghi đè bản người vừa sửa; tiếp tục bằng b-do/b-feat. (Quyết định theo workflow, không theo trạng thái
-// hiện tại, vì lúc dựng lý do tác vụ chưa được chuyển sang blocked.)
+// sang blocked nên `bint run resume` vào thẳng bước kế tiếp (không chạy lại b-req); riêng câu hỏi đã trả lời của b-req thì
+// resume (và b-do --task) nối tiếp phiên planner cũ khi nối tiếp được (docs/step-continuation-plan.md giai đoạn 3). Workflow
+// b-req chạy riêng giữ tác vụ ở `planned` và KHÔNG được dùng resume — khi chưa nối tiếp được, resume của b-req gọi lại agent b-req
+// và ghi đè bản người vừa sửa; tiếp tục bằng b-do (nối tiếp planner rồi sang b-feat) hoặc b-feat. (Quyết định theo workflow,
+// không theo trạng thái hiện tại, vì lúc dựng lý do tác vụ chưa được chuyển sang blocked.)
 func (r *Runner) continueHint(rs *runState) string {
 	id := rs.t.State.ID
 	if rs.flow.HasKind(flow.KindImplement) {
 		return "`" + r.resumeCmd(rs) + "`"
 	}
-	return "`bint run b-do --task " + id + "` (hoặc `bint run b-feat --task " + id + "`; không dùng `resume` vì sẽ chạy lại b-req)"
+	return "`bint run b-do --task " + id + "` (nối tiếp planner cũ nếu được rồi sang b-feat; hoặc `bint run b-feat --task " + id +
+		"` vào thẳng b-feat; không dùng `resume` vì khi chưa nối tiếp được sẽ chạy lại b-req)"
 }
 
 // preflightFeat lint lại artifact trước mỗi lần gọi agent b-feat trên tác vụ v1 đã qua b-req

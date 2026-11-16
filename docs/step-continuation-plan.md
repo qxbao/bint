@@ -116,6 +116,19 @@ và `agentId` trùng `agent_id` của hook; chưa biết transcript nối tiếp
 
 ### Giai đoạn 3 — Nối tiếp cho driver process (Claude, rồi Codex)
 
+**Đã làm (2026-11-16, phiếu `01M7H1PMC59NKZFXZH445VAQZ0`).** `eval.AgentRequest.ResumeSessionID` + `AgentResult.ResumeMissing`; Claude
+`--resume <id>` thay `--session-id` (mọi cờ khác giữ nguyên), Codex `codex exec <cờ bước gốc> resume <id> -` (`resume` không nhận
+`--sandbox/--cd/--add-dir` — đo trên 0.167 — nên cờ đứng trước `resume`; fixture trợ giúp `internal/eval/testdata/codex-0.167/`; máy dựng
+chỉ có 0.167, không phải 0.169). `continuationDecision` nhận `Via` mong đợi (mặc định subagent): bước driver process ghi `last_step.via` =
+tên harness; `runStep` quyết định sau `beginStep` (`armProcessContinuation`), nối tiếp thì BINT_RUN_ID vẫn là lượt con mới, bộ đếm/lượt gốc
+kế thừa. Vòng câu hỏi b-req: `armPlanContinuation` (cờ `rs.planCont` cho `pickStep`) cho `resume` và `b-do --task`; `b-req --task` do chính
+`runStep` quyết định; `planResumeWhy` (có câu trả lời, hết câu hỏi mở, artifact hợp lệ) dùng chung. Chi phí: `process_cost.go` đọc tệp phiên
+(transcript Claude, rollout Codex) và trừ mốc `last_step.usage`, không dùng `total_cost_usd`/usage JSONL của lần resume. Phiên mất:
+`claude.SessionTranscriptPath`/`codex.RolloutPath` kiểm lúc dừng (`continuable=false`, note) và ngay trước khi nối tiếp; `ResumeMissing` ⇒ chạy lại
+một lần với đề bài đầy đủ. Cờ `--fresh` cho `bint run resume` và `bint run <wf> --task`. Việc đo thật (A1–A3, `--max-budget-usd` sau
+resume) là `NT-RESUME-CLAUDE`/`NT-RESUME-CODEX` ở `docs/acceptance.md`. Kết luận về "cộng dồn hay chỉ phần mới": chưa đo thật; chọn cách tính
+độc lập với ngữ nghĩa đó (transcript Claude có dòng `cost-state` để `--resume` khôi phục chi phí phiên — dấu hiệu `total_cost_usd` cộng dồn).
+
 - `bint run resume` / `bint run b-do --task` gặp bước dừng loại nối tiếp được: gọi harness ở chế độ resume với lời nhắn
   nối tiếp:
   - Claude: `claude -p --resume <session_id> …` (cùng cờ quyền/MCP/max-turns/model như bước gốc; kiểm `claude --help`

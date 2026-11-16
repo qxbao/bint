@@ -48,6 +48,23 @@ func TestContinuationDecision(t *testing.T) {
 			l.Step, l.StopClass, l.Continuations = StepReq, StopAwaitingHuman, 9
 		}), Step: StepReq, LastIsPlan: true, Fingerprint: "fp"}, true, ""},
 		{"awaiting_human không phải plan", ContinueFacts{Last: last(func(l *task.StepStop) { l.StopClass = StopAwaitingHuman }), Step: StepFeat, Fingerprint: "fp"}, false, "chỉ bước plan"},
+		{"driver process: cùng harness", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "claude" }), Step: StepFeat, Via: "claude", Fingerprint: "fp"}, true, ""},
+		{"driver process codex: cùng harness", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "codex" }), Step: StepFeat, Via: "codex", Fingerprint: "fp"}, true, ""},
+		{"khác harness", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "claude" }), Step: StepFeat, Via: "codex", Fingerprint: "fp"}, false, "không nối tiếp chéo"},
+		{"subagent → process", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "claude", Fingerprint: "fp"}, false, "không nối tiếp chéo"},
+		{"process → subagent", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "claude" }), Step: StepFeat, Fingerprint: "fp"}, false, "không nối tiếp chéo"},
+		{"process: LastStep không Via", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "" }), Step: StepFeat, Via: "claude", Fingerprint: "fp"}, false, "không ghi cách chạy"},
+		{"harness không hỗ trợ nối tiếp", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "antigravity" }), Step: StepFeat, Via: "antigravity", Fingerprint: "fp"}, false, "không hỗ trợ"},
+		{"process: awaiting_human của plan chưa sẵn sàng", ContinueFacts{Last: last(func(l *task.StepStop) {
+			l.Via, l.Step, l.StopClass = "claude", StepReq, StopAwaitingHuman
+		}), Step: StepReq, Via: "claude", LastIsPlan: true, Fingerprint: "fp", PlanNotReady: "còn câu hỏi mở"}, false, "còn câu hỏi mở"},
+		{"process: awaiting_human của plan sẵn sàng", ContinueFacts{Last: last(func(l *task.StepStop) {
+			l.Via, l.Step, l.StopClass = "claude", StepReq, StopAwaitingHuman
+		}), Step: StepReq, Via: "claude", LastIsPlan: true, Fingerprint: "fp"}, true, ""},
+		{"process: timeout đã nối tiếp một lần", ContinueFacts{Last: last(func(l *task.StepStop) {
+			l.Via, l.StopClass, l.Continuations = "codex", StopTimeout, 1
+		}), Step: StepFeat, Via: "codex", Fingerprint: "fp"}, false, "quá giờ"},
+		{"process: external quá 3 lần", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via, l.Continuations = "claude", 3 }), Step: StepFeat, Via: "claude", Fingerprint: "fp"}, false, "tối đa 3"},
 		{"intrinsic", ContinueFacts{Last: last(func(l *task.StepStop) { l.StopClass, l.Continuable = StopIntrinsic, false }), Step: StepFeat, Fingerprint: "fp"}, false, "intrinsic"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

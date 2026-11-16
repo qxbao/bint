@@ -1,0 +1,9 @@
+{"type": "mode", "mode": "normal", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11"}
+{"type": "user", "uuid": "u-0", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11", "message": {"role": "user", "content": "(đề bài đã lược)"}}
+{"type": "assistant", "uuid": "u-1", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11", "message": {"id": "msg_1", "role": "assistant", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 1200, "output_tokens": 300, "cache_creation_input_tokens": 5000, "cache_read_input_tokens": 0}}}
+{"type": "assistant", "uuid": "u-2", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11", "message": {"id": "msg_2", "role": "assistant", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 300, "output_tokens": 900, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 6200}}}
+{"type": "cost-state", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11", "totalCostUSD": 0.0412, "totalAPIDuration": 9000}
+{"type": "user", "uuid": "u-3", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11", "message": {"role": "user", "content": "(lời nhắn nối tiếp đã lược)"}}
+{"type": "assistant", "uuid": "u-3", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11", "message": {"id": "msg_3", "role": "assistant", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 400, "output_tokens": 1100, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 7000}}}
+{"type": "assistant", "uuid": "u-4", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11", "message": {"id": "msg_4", "role": "assistant", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 250, "output_tokens": 600, "cache_creation_input_tokens": 2000, "cache_read_input_tokens": 7400}}}
+{"type": "cost-state", "sessionId": "3f1c0f3e-5a1b-4c1e-9a55-2d1f6f0a7b11", "totalCostUSD": 0.0968, "totalAPIDuration": 21000}

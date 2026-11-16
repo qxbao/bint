@@ -2,6 +2,7 @@ package eval
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -55,6 +56,10 @@ type AgentRequest struct {
 	// SessionID khác rỗng: Bint cấp UUID phiên (bước workflow, để nối tiếp sau này). Claude chạy với --session-id và giữ
 	// phiên trên đĩa (bỏ --no-session-persistence); rỗng (lượt đánh giá) thì đối số không đổi.
 	SessionID string
+	// ResumeSessionID khác rỗng: lần chạy NỐI TIẾP phiên harness đó (docs/step-continuation-plan.md giai đoạn 3); Prompt là lời
+	// nhắn nối tiếp. Claude chạy `--resume <id>` thay `--session-id` (giữ mọi cờ quyền/MCP/model của bước gốc); Codex chạy
+	// `exec … resume <id> -`. Loại trừ SessionID (nối tiếp không cấp UUID mới). `bint eval` không đặt trường này.
+	ResumeSessionID string
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
@@ -84,6 +89,9 @@ type AgentResult struct {
 	// NoResult: harness thoát mà không có kết quả đọc được (Claude không có đối tượng result, Codex thiếu turn.completed
 	// hoặc luồng hỏng). Khác với agent tự báo lỗi kèm kết quả.
 	NoResult bool
+	// ResumeMissing: lần chạy nối tiếp (AgentRequest.ResumeSessionID) bị harness từ chối vì không còn phiên/thread đó. Không phải
+	// lỗi hạ tầng và không phải lỗi của agent: người gọi chạy lại bằng đề bài đầy đủ.
+	ResumeMissing bool
 }
 
 // NewSessionUUID sinh UUID v4 làm định danh phiên cho harness nhận --session-id.
@@ -171,10 +179,15 @@ func (a *ClaudeAgent) Args() []string { return a.ArgsFor(AgentRequest{}) }
 func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 	args := []string{"-p", "--output-format", "json", "--no-session-persistence", "--strict-mcp-config",
 		"--permission-mode", a.Cfg.PermissionMode}
-	if req.SessionID != "" {
+	if req.SessionID != "" || req.ResumeSessionID != "" {
 		// Phiên phải được lưu để `claude --resume <id>` nối tiếp được: bỏ --no-session-persistence (vị trí 3).
 		args = slices.Delete(args, 3, 4)
-		args = append(args, "--session-id", req.SessionID)
+		if req.ResumeSessionID != "" {
+			// Nối tiếp phiên cũ: cùng session ID (không --fork-session), mọi cờ còn lại giữ nguyên như bước gốc.
+			args = append(args, "--resume", req.ResumeSessionID)
+		} else {
+			args = append(args, "--session-id", req.SessionID)
+		}
 	}
 	tools := append([]string{}, a.Cfg.AllowedTools...)
 	if req.HasSkills || req.Trace {
@@ -227,11 +240,12 @@ func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 func (a *ClaudeAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	var stdout bytes.Buffer
 	r := runProcess(ctx, req.Dir, a.bin(), a.ArgsFor(req), req.Timeout, req.LogPath, cleanEnv(req.Env...), strings.NewReader(req.Prompt), &stdout)
-	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, SessionID: req.SessionID}
+	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, SessionID: cmp.Or(req.SessionID, req.ResumeSessionID)}
 	if r.Err != nil {
 		res.Error = r.Err.Error()
 	}
 	parseClaudeJSON(stdout.Bytes(), &res)
+	res.ResumeMissing = req.ResumeSessionID != "" && res.NoResult && r.ExitCode != 0 && claudeResumeMissingRe.MatchString(r.Tail)
 	if req.HasSkills {
 		res.SkillsActivated = parseClaudeSkills(stdout.Bytes())
 	}
@@ -240,6 +254,10 @@ func (a *ClaudeAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	}
 	return res
 }
+
+// claudeResumeMissingRe khớp thông báo của `claude --resume <id>` khi phiên không còn (đo trên claude 2.x: "No conversation found
+// with session ID: <uuid>", thoát mã 1, không in JSON). Chỉ xét khi lần chạy là nối tiếp và không có đối tượng result.
+var claudeResumeMissingRe = regexp.MustCompile(`(?i)no conversation found with session id`)
 
 // parseClaudeJSON đọc kết quả `--output-format json` của Claude Code. Chấp nhận
 // cả đầu ra có dòng log phía trước: lấy đối tượng JSON cuối cùng có type=result.

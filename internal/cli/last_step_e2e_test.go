@@ -102,3 +102,19 @@ func TestLastStepShownByRunStatusAndTaskShow(t *testing.T) {
 		t.Fatalf("%s", out)
 	}
 }
+
+// GĐ3: --fresh có ở `bint run <wf>` (chỉ cùng --task) và `bint run resume`; cờ được CLI nhận (không phải "unknown flag").
+func TestRunFreshFlagAccepted(t *testing.T) {
+	root := newLintRepo(t)
+	out, code := run(t, root, "", "run", "b-do", "--fresh", "Đổi app.txt")
+	if code != 2 || !strings.Contains(out, "--fresh chỉ dùng cùng --task") {
+		t.Fatalf("--fresh không có --task phải là lỗi cách dùng: %d\n%s", code, out)
+	}
+	id := newTaskID(t, root, "--no-plan", "Đổi app.txt")
+	for _, args := range [][]string{{"run", "resume", id, "--fresh"}, {"run", "b-feat", "--task", id, "--fresh"}} {
+		out, _ := run(t, root, "", args...)
+		if strings.Contains(out, "unknown flag") {
+			t.Fatalf("%v: cờ --fresh chưa được nhận\n%s", args, out)
+		}
+	}
+}

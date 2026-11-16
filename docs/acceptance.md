@@ -61,6 +61,7 @@ Ký hiệu: **Đủ điều kiện** = mọi phát hiện đã đóng, có bằn
 | [Cô lập và driver session](isolation-subagent-plan.md) | G1–G4 và việc tồn | G1–G3 đạt (G3 chạy thật 2026-11-12, mục 12.16); G4 chạy thật ở [V1](evals/v1-real-session-2026-11-13/README.md): không đạt (một lần ghi lọt ra cây gốc) | `NT-ISO-G4`, `NT-ISO-BYPASS` (vế Bash), `NT-ISO-MAXTURNS`, `NT-WIN-*` |
 | [Gateway MCP](mcp-gateway-plan.md) | M0–M4; M5 đã đo bộ nhớ | Test tự động đạt cho M0–M4; M1 đạt với service thật ([V1](evals/v1-real-session-2026-11-13/README.md)) | `NT-MCP-SEED`, `NT-MCP-M0`, `NT-MCP-M2`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-*` |
 | [TUI](tui-plan.md) | Giai đoạn 0–6, màn MCP | Golden và test phủ lệnh đạt; chưa thử với người và terminal thật | `NT-TUI-*` |
+| [Nối tiếp phiên của bước](step-continuation-plan.md) | GĐ1 (`810bf2b`), GĐ2 (`d7b59e1`, `f68b41f`), GĐ3 (driver process: Claude `--resume`, Codex `exec resume`) | Tiêu chí bằng test của GĐ1–3 đạt (agent giả/fixture, không gọi harness thật); chưa chạy `claude --resume`/`codex exec resume` thật | `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` |
 | [Custom skill/flow](custom-flow-plan.md) | GĐ1 (`21171cb`), GĐ2 (`f77ae19`), GĐ3 (`f124cd7`), GĐ4 (`7925e7d`), GĐ5 (`1c727f8`), GĐ6 (`25afb78`); sửa review `99083d0`, `b313ec1`, `5ce48e2` | Tiêu chí bằng test của GĐ1–6 đạt; chưa chạy với harness thật | `NT-CF-MANUAL` |
 
 ## 3. Danh mục tiêu chí còn mở
@@ -94,6 +95,8 @@ Cột "Vòng" trỏ tới mục 4. "Token" là token đo (eval/evolve), không t
 | `NT-H1-STOP` | plan H, H1 | Guardrail `on: stop` (`when: edited`, `unless: ran test`) với Claude Code thật, mỗi lần một `action`: `remind`/`ask` chặn một lần rồi không chặn lại khi `stop_hook_active=true`; `deny` chặn tới `MaxStopDenies` lần rồi bỏ qua; chạy test trước khi dừng thì không chặn. Lưu input Stop thô, phản hồi hook và spool | V1 |
 | `NT-TUI-REAL` | tui 12.10 | Terminal thật: `NO_COLOR=1 bint tui`, `bint tui --read-only`, phím `?` ở từng thẻ phụ; màn MCP với service thật | V1 |
 | `NT-TUI-VHS` | tui 12.10 | Ảnh VHS các màn chính | V1 |
+| `NT-RESUME-CLAUDE` | step-continuation GĐ3 | `claude -p --resume` thật cho một bước driver process (xem V1 bước 6). Đo và ghi: (1) `--resume <id>` giữ nguyên session ID và ghi tiếp vào CÙNG `<id>.jsonl` ở thư mục dự án của cwd (giả định A1; nếu tạo tệp/ID mới thì ghi lại, mốc chi phí khác transcript nên Bint tính cả tệp mới); (2) `total_cost_usd`/`usage` trong JSON của lần resume là cộng dồn cả phiên hay chỉ phần mới (so với phần usage vượt mốc của transcript: Bint không dùng số này nên chỉ để biết); (3) `--max-budget-usd` sau resume tính trên chi phí cộng dồn hay chỉ tiến trình mới (nếu cộng dồn thì bước nối tiếp dừng sớm vì trần: quyết định có hạ trần/bỏ cờ khi nối tiếp); (4) thông báo khi phiên không còn (`No conversation found with session ID`) và mã thoát; (5) đổi cwd (worktree khác) thì `--resume` không thấy phiên; (6) hook/guardrail của lượt con mới thấy `BINT_RUN_ID` mới (nhật ký deny đọc theo lượt mới); (7) Ctrl-C giữa bước rồi `bint run resume` nối tiếp được, agent không làm lại phần đã xong | V1 (bước 6) |
+| `NT-RESUME-CODEX` | step-continuation GĐ3 | `codex exec resume` thật (codex-cli ≥ 0.167; kế hoạch ghi 0.169, máy dựng bản này chỉ có 0.167: fixture trợ giúp ở `internal/eval/testdata/codex-0.167/`). Đo và ghi: (1) mọi cờ của bước gốc đặt TRƯỚC `resume` (`--sandbox`, `--cd`, `--add-dir`, `-c mcp_servers.*`, `hooks.PreToolUse`, `--model`) có còn hiệu lực ở lượt resume không (sandbox thật, MCP độc quyền, hook `apply_patch`); (2) `resume` ghi tiếp vào cùng rollout hay tạo tệp mới, `total_token_usage` có cộng dồn theo thread không (giả định A2: Bint trừ mốc bất kể tệp); (3) thông báo khi thread không còn (`no rollout found for thread id`) và mã thoát; (4) `turn.completed.usage` của lần resume là cộng dồn hay chỉ lượt mới; (5) thread id trong `thread.started` của lượt resume có giữ nguyên không | V1 (bước 6) |
 | `NT-CF-MANUAL` | custom-flow §7 | GĐ1–6 đã commit. `b-add-skill`, `b-add-flow` và skill điều phối chạy với harness thật; ghi chi phí thật của `bint skill test` | V1 (lần sau) |
 
 `NT-MCP-M0`: theo ghi chú phiên làm việc 2026-11-12, Claude đã đạt và Codex mới kiểm ở mức `codex mcp list`;
@@ -136,7 +139,7 @@ nên kiểm role/`mcp.called` phải dùng `bint run` (process driver).
 |---|---|---|---|---|---|
 | **V0** | Sửa mã P6 và hồi quy tự động — **xong 2026-11-13** | `NT-P6-01..05` | 0 | Duyệt phiếu | — |
 | **V0b** | Sửa các low workflow (`NT-WF-BASELINE` .2–.4, `NT-ISO-LEAK` dựng `paths`) và lỗi C1–C3 của driver session — phiếu `01M7FKMZDVQ3XFR0EC1H5P2AXM`, **xong 2026-11-15** | low của `NT-WF-BASELINE`, `NT-ISO-LEAK` | 0 | Duyệt phiếu | — |
-| **V1** | Một phiên chạy thật trên máy: G4 + MCP + TUI + Antigravity — **một phần 2026-11-13, dừng sớm** | `NT-ISO-*`, `NT-MCP-M0..M3`, `NT-MCP-S3`, `NT-MCP-M5-WT`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-H1-STOP`, `NT-TUI-*` | 0 (chỉ token phiên agent) | Có, suốt vòng | Service MCP cài trên máy |
+| **V1** | Một phiên chạy thật trên máy: G4 + MCP + TUI + Antigravity — **một phần 2026-11-13, dừng sớm** | `NT-ISO-*`, `NT-MCP-M0..M3`, `NT-MCP-S3`, `NT-MCP-M5-WT`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-H1-STOP`, `NT-TUI-*`, `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` | 0 (chỉ token phiên agent) | Có, suốt vòng | Service MCP cài trên máy |
 | **V2** | Một lượt trên máy Windows | `NT-WIN-*` | 0 | Có | Máy Windows |
 | **V3** | Một đợt eval trên `validation` với model rẻ, ba nhánh | `NT-EXP-B` (B0, B1), bước 1 của `NT-E6`, bước 1 của `NT-H5` | ~$15 | Duyệt ngân sách | Guardrail `test-before-stop` ở `candidate` |
 | **V4** | Một vòng `evolve cycle` rồi xác nhận trên `test` | `NT-EVO-TEST`, `NT-E6`, `NT-H5` (bước 2), B2–B3 | ≤ $35 | Duyệt ngân sách | V0, V3 qua cổng B0 |
@@ -245,6 +248,14 @@ một `b-do` nhỏ. Lưu một payload hook thật để so với adapter. Đón
 **Bước 5 — TUI với người dùng (người).** Hai đến ba người không quen CLI làm ba kịch bản của `NT-TUI-USER`
 trên repo mới; ghi thời gian và chỗ họ kẹt. Chạy `NO_COLOR=1 bint tui`, `bint tui --read-only`, phím `?` ở
 từng thẻ phụ. Chụp VHS các màn chính.
+
+**Bước 6 — Nối tiếp phiên của bước, driver process (người).** Một phiếu nhỏ `bint run b-do --task <id>` (một lần với
+`roles.implementer: claude`, một lần với `codex`). Giữa b-feat, Ctrl-C (hoặc `kill` harness) rồi `bint run resume <id>`;
+kiểm `bint run status <id>` hiện `last_step` (`via claude|codex`, `stop_class: external`, `continuable`) trước và `notes` "nối
+tiếp phiên …" sau. Lặp với: (a) phiên bị xoá trước resume (note "không còn"), (b) `--fresh`, (c) một vòng câu hỏi mở b-req
+(`bint task write <id> requirement -` ghi trả lời rồi `bint run resume <id>`: planner được nối tiếp, thêm Q-2 thì dừng lần nữa).
+Ghi cho từng harness: số liệu của `NT-RESUME-CLAUDE`/`NT-RESUME-CODEX`, chi phí Bint tính cho bước nối tiếp so với phần chênh của
+tệp phiên, và việc agent có làm lại phần đã xong không. Đóng `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX`.
 
 **Bằng chứng.** `docs/evals/v1-real-session-<ngày>/`: `gateway status --json`, trích spool cho từng kiểm,
 `runs show`, bảng PSS, ghi chú S3, ảnh VHS, phiếu quan sát người dùng.

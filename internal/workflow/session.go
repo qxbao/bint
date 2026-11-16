@@ -449,7 +449,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		}
 		// Câu hỏi mở của b-req đã được trả lời: nối tiếp planner cũ (mở lại bước plan từ created) thay vì vào thẳng b-feat. Không
 		// nối tiếp được (không handle, cây đổi, --fresh) thì giữ hành vi cũ: to = ResumeFrom, vào thẳng bước sau plan.
-		if cd, ok := r.planContinuation(ctx, rs, o.Fresh); ok {
+		if cd, ok := r.planContinuation(ctx, rs, o.Fresh, true, rs.t.State.ResumeFrom); ok {
 			if cd.Continue {
 				to, pre = task.StatusCreated, &cd
 			} else if cd.Why != "" {
@@ -567,7 +567,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			return a, nil
 		}
 		last := rs.t.State.LastStep // grantPending xoá LastStep: chụp trước để dựng lời nhắn nối tiếp
-		dec := r.decideContinuation(ctx, rs, step, o.Fresh)
+		dec := r.decideContinuation(ctx, rs, step, o.Fresh, ViaSubagent)
 		if pre != nil && pre.Step == step {
 			dec = *pre
 		}

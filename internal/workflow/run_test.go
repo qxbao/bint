@@ -175,6 +175,9 @@ func TestBusyRunnerDoesNotPersistRejectedAgentChoices(t *testing.T) {
 
 var stepRe = regexp.MustCompile(`step="([a-z-]+)"`)
 
+// contStepRe: lời nhắn nối tiếp (không có khối <bint-task step=…>) nêu bước ở dòng đầu.
+var contStepRe = regexp.MustCompile(`Tiếp tục bước ([a-z-]+) của tác vụ`)
+
 // fakeAgent mô phỏng agent: đọc bước từ đề bài, gọi thao tác tác vụ như khi chạy
 // `bint task …` với BINT_RUN_ID/BINT_TASK_ID của bước.
 type fakeAgent struct {
@@ -197,6 +200,9 @@ func (a *fakeAgent) ReportsCost() bool              { return a.cost != nil }
 
 func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentResult {
 	m := stepRe.FindStringSubmatch(req.Prompt)
+	if m == nil {
+		m = contStepRe.FindStringSubmatch(req.Prompt)
+	}
 	envs := map[string]string{}
 	for _, kv := range req.Env {
 		k, v, _ := strings.Cut(kv, "=")
@@ -240,6 +246,9 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 	if ctx.Err() != nil {
 		res.ExitCode, res.Error = -1, ctx.Err().Error()
 	}
+	if a.h.mutateReq != nil {
+		a.h.mutateReq(req, step, &res)
+	}
 	if a.h.mutate != nil {
 		a.h.mutate(step, &res)
 	}
@@ -268,6 +277,8 @@ type harness struct {
 	denyNext  []string
 	// mutate (nếu có) sửa kết quả agent giả sau khi chạy: mô phỏng Infra, quá giờ, thiếu kết quả, handle phiên.
 	mutate func(step string, res *eval.AgentResult)
+	// mutateReq như mutate nhưng thấy cả yêu cầu giao cho agent (phiên cần nối tiếp, đề bài): mô phỏng harness ghi tệp phiên.
+	mutateReq func(req eval.AgentRequest, step string, res *eval.AgentResult)
 	// agentName: tên harness của agent giả (rỗng = "fake").
 	agentName string
 	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.

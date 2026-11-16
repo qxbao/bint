@@ -89,6 +89,7 @@ var litsrUsage = []struct{ file, contains string }{
 	{"app/doctor_version.go", "cập nhật bint (`bint update --pull`)"},
 	{"app/doctor_version.go", "chạy `bint update --pull`; đừng"},
 	{"app/findings_svc.go", "fixed cần --commit"},
+	{"app/run_svc.go", "--fresh chỉ dùng cùng --task"},
 	{"app/task_svc.go", "--parent %q: %v"},
 	{"app/task_svc.go", "--force cần --reason: lý do bỏ qua điều chặn về bằng chứng"},
 	{"app/task_svc.go", "--reason chỉ dùng cùng --force"},

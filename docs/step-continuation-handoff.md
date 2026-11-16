@@ -8,7 +8,7 @@ Kế hoạch gốc: `docs/step-continuation-plan.md`. Phiếu cha `01M7GD9ANV8E0
 |---|---|---|
 | GĐ1 — phân loại lý do dừng, lưu handle | `01M7GD9M0QKYZK1S5J94MRRA7F` | done, commit `810bf2b` (+ fix `fe99cab`, `6426ebe`) |
 | GĐ2 — nối tiếp cho driver session, vòng câu hỏi b-req | `01M7GD9M9BARPG07T1N4QE6A2R` | **mã đã merge tay vào main, chưa qua b-review**; phiếu còn `interrupted` |
-| GĐ3 — nối tiếp cho driver process (Claude, Codex) | `01M7GD9MKJY1GWSAGF3FF6BW0V` | chưa bắt đầu (`created`, phụ thuộc GĐ1+GĐ2) |
+| GĐ3 — nối tiếp cho driver process (Claude, Codex) | `01M7H1PMC59NKZFXZH445VAQZ0` (giai đoạn B) | mã xong (2026-11-16), chờ b-review; còn đo thật `NT-RESUME-CLAUDE`/`NT-RESUME-CODEX` (docs/acceptance.md V1 bước 6) |
 
 ## GĐ2 — đã làm gì, còn gì
 
@@ -55,7 +55,7 @@ Phát hiện low đã xử lý: `01M7GD9M0Q….2` (chú thích `heldReason` nay 
 `TestProcessClaudeStepGetsSessionIDAndRecordsHandle`), `….4` (`LastStep` chỉ bị xoá khi bước thật sự bắt đầu: trong cùng lần
 ghi `PendingStep` của `grantPending` ở driver session, ngay trước `agent.Run` ở `runStep`; test
 `TestGrantPendingKeepsLastStepOnFailure`), `01M7GGHJF7….2` (regex), `01M7GHYSEG….1` (`TestCodexRunClassifiesInfraFromTurnFailed`
-là test thuần, không `sh`, tên ca ASCII), S1011 ở `internal/tui/screens/tasks/graph.go`. **Còn lại: `….5` cho GĐ3.**
+là test thuần, không `sh`, tên ca ASCII), S1011 ở `internal/tui/screens/tasks/graph.go`. `….5` đã xử lý ở GĐ3.
 
 Còn phải làm:
 
@@ -64,35 +64,37 @@ Còn phải làm:
    (chỉ người; mã đã ở main), rồi bỏ `depends_on` GĐ2 khỏi GĐ3: `bint task set 01M7GD9MKJ… --clear-depends-on
    --depends-on 01M7GD9M0Q…`. Hoặc review xong thì `bint task status 01M7GD9M9B… done --force` (người).
 
-## GĐ3 — việc cần làm
+## GĐ3 — đã làm gì, còn gì
 
-Phạm vi trong `docs/step-continuation-plan.md` mục "Giai đoạn 3". Điểm tựa đã có sau GĐ1/GĐ2:
+Đã làm (2026-11-16): xem "Giai đoạn 3 — Đã làm" ở `docs/step-continuation-plan.md` và mục "Nối tiếp phiên ở driver process" ở
+`docs/workflows.md`. Tóm tắt điểm tựa cho người đọc sau:
 
-- Bước Claude workflow chạy với `--session-id <uuid>` do Bint cấp và **không** còn `--no-session-persistence`
-  (`internal/eval/agent.go`, `ArgsFor`); handle lưu ở `task.State.LastStep.SessionID`, lớp dừng ở `StopClass`.
-- Codex: thread id lấy từ `codex exec --json` (GĐ1, `internal/eval/agent_harness.go`). `codex exec resume
-  [SESSION_ID] [PROMPT]` có ở codex-cli 0.169.0 (đã kiểm `--help`); giữ nguyên các `-c` của bước gốc (xem tri thức về
-  `-c mcp_servers`).
-- Quyết định nối tiếp (`continuationDecision`) và lời nhắn (`continuationPrompt`) của GĐ2 dùng lại được; GĐ3 cần nhánh
-  driver process: `Via` = harness thay vì `subagent`, chạy harness ở chế độ resume trong `runStep`.
+- Eval: `AgentRequest.ResumeSessionID`, `AgentResult.ResumeMissing`; `ClaudeAgent.ArgsFor` (`--resume`), `CodexAgent.ArgsFor`
+  (`… resume <id> -`, cờ của bước gốc đứng trước `resume`). Test: `internal/eval/resume_test.go` (so đối số gốc/nối tiếp, đối chiếu cờ với
+  `testdata/codex-0.167/exec*-help.txt`, `ResumeMissing` bằng tiến trình giả).
+- Workflow: `runStep` → `armProcessContinuation`; `armPlanContinuation` + `rs.planCont`; `process_cost.go` (chi phí/mốc từ tệp phiên);
+  `LastStep.Via` = harness. Test: `internal/workflow/process_continuation_test.go` (external, timeout một lần, trần 3, cây đổi, khác harness,
+  không Via, `--fresh`, phiên chưa ghi, phiên bị xoá, `ResumeMissing`, chi phí Claude từ fixture, token Codex từ rollout, vòng câu hỏi b-req
+  qua resume / `b-do --task` / `b-req --task`).
+- Tệp phiên: `claude.SessionTranscriptPath` (`CLAUDE_CONFIG_DIR`), `codex.RolloutPath`/`RolloutUsage` (`CODEX_HOME`); fixture
+  `internal/harness/claude/testdata/claude-2.1.322/transcript-*-resume.jsonl`, `internal/harness/codex/testdata/rollout-*.jsonl` (do tay dựng
+  theo cấu trúc thật, không phải bản chụp).
+- Cờ `--fresh`: `bint run resume --fresh`, `bint run <wf> --task <id> --fresh` (cliRefs/inventory, i18n vi/en).
 
-Việc chính:
+Còn phải làm:
 
-1. `eval.AgentRequest` thêm trường resume (session id + prompt nối tiếp); Claude: `claude -p --resume <id>`; Codex:
-   `codex exec resume <id> <prompt>`. Test bằng agent giả/fixture, không gọi harness thật.
-2. `runStep`/`bint run resume`: dùng `continuationDecision` cho driver process; không nối tiếp được thì chạy mới như cũ.
-3. Câu hỏi mở b-req ở driver process: resume sau câu trả lời nối tiếp planner (giống GĐ2) thay vì vào thẳng b-feat.
-4. **Chi phí**: đo xem `total_cost_usd`/usage sau `--resume` của Claude và Codex là cộng dồn hay chỉ phần mới; không
-   tính trùng (fixture theo phiên bản như testdata hiện có).
-5. Kiểm trường hợp Claude chết trước khi ghi phiên: handle do Bint cấp chưa chắc tồn tại trong `~/.claude/projects`
-   (phát hiện low `.5` của GĐ1) — kiểm tồn tại hoặc thử resume rồi lùi về chạy mới khi lỗi "session not found".
+1. Đo thật `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` (người, V1 bước 6): A1–A3, ngữ nghĩa `total_cost_usd`/usage sau resume, `--max-budget-usd` sau
+   resume (có thể làm bước nối tiếp dừng sớm), cờ trước `resume` của Codex còn hiệu lực không.
+2. `bint init` để sinh lại bản cài skill (skill b-do đổi); đóng phiếu GĐ2 như mục trên.
+3. Codex 0.169: kế hoạch ghi 0.169 nhưng máy dựng chỉ có 0.167; chạy lại `codex exec --help`/`exec resume --help` bằng bản mới và cập nhật
+   fixture nếu khác.
 
 ## Phát hiện low còn gom
 
 Đã sửa ở phiếu `01M7H1P2Z7F782Y1ZNHN5VR71F` (xem mục trên): `01M7GD9M0Q….2`, `….3`, `….4`, `01M7GGHJF7….2`,
 `01M7GHYSEG….1`, và S1011 ở `internal/tui/screens/tasks/graph.go`. Còn lại:
 
-- `01M7GD9M0Q….5`: handle Claude do Bint cấp bị coi là continuable dù tiến trình chết trước khi ghi phiên (thuộc GĐ3 mục 5).
+- ~~`01M7GD9M0Q….5`~~: đã xử lý ở GĐ3 (kiểm tệp phiên lúc dừng: `continuable=false` khi Claude chưa ghi phiên).
 
 ## Môi trường máy nhà (cần dọn)
 

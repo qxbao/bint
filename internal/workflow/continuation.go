@@ -13,11 +13,30 @@ import (
 	"bint/internal/task"
 )
 
-// Nối tiếp phiên của bước ở driver session (docs/step-continuation-plan.md giai đoạn 2). Quyết định là hàm thuần; việc mở
-// bước nối tiếp vẫn đi qua beginStep/pendingFrom/grantPending nên mọi cổng (khoá, lease, ngân sách) giữ nguyên.
+// Nối tiếp phiên của bước (docs/step-continuation-plan.md giai đoạn 2 và 3). Quyết định là hàm thuần dùng chung cho driver
+// session (Via = ViaSubagent, nối tiếp bằng SendMessage; việc mở bước đi qua beginStep/pendingFrom/grantPending nên mọi cổng
+// khoá, lease, ngân sách giữ nguyên) và driver process (Via = tên harness, runStep gọi lại harness ở chế độ resume).
 
-// ViaSubagent là State.LastStep.Via của bước chạy bằng subagent (nối tiếp bằng SendMessage tới agent cũ).
+// ViaSubagent là State.LastStep.Via của bước chạy bằng subagent (nối tiếp bằng SendMessage tới agent cũ). Bước driver process
+// ghi Via = tên harness ("claude", "codex").
 const ViaSubagent = "subagent"
+
+// resumableVia: cách chạy có đường nối tiếp phiên (subagent: SendMessage; claude: `--resume`; codex: `exec resume`).
+func resumableVia(via string) bool {
+	switch via {
+	case ViaSubagent, "claude", "codex":
+		return true
+	}
+	return false
+}
+
+// viaDesc mô tả cách chạy trong lý do không nối tiếp.
+func viaDesc(via string) string {
+	if via == ViaSubagent {
+		return "subagent của driver session"
+	}
+	return "harness " + via
+}
 
 // Giới hạn số lần nối tiếp liên tiếp của một bước theo lớp dừng. awaiting_human không tính vào giới hạn (mỗi vòng cần người).
 const (
@@ -33,9 +52,15 @@ type ContinueFacts struct {
 	// LastIsPlan: Last.Step là bước plan của flow (chỉ awaiting_human của bước plan được nối tiếp: sau duyệt đường dẫn bảo
 	// vệ, resume không cần agent).
 	LastIsPlan bool
+	// Via là cách chạy của bước sắp mở: ViaSubagent (driver session, mặc định khi để trống) hoặc tên harness của driver process.
+	// Phải khớp Last.Via (không nối tiếp chéo subagent/harness hay claude/codex) và hỗ trợ nối tiếp (resumableVia).
+	Via string
 	// Fingerprint là fingerprint cây hiện tại ("" = không chụp được); Fresh: người yêu cầu bỏ nối tiếp (--fresh).
 	Fingerprint string
 	Fresh       bool
+	// PlanNotReady khác rỗng: Last là awaiting_human của bước plan nhưng planner chưa nên được nối tiếp (chưa có câu trả lời,
+	// còn câu hỏi mở hoặc artifact lỗi cấu trúc); giá trị là lý do (planResumeWhy).
+	PlanNotReady string
 }
 
 // ContinueDecision là kết quả: Continue=true thì mở lại Step dạng nối tiếp; Why giải thích khi không nối tiếp (vào notes).
@@ -46,22 +71,31 @@ type ContinueDecision struct {
 }
 
 // continuationDecision quyết định có nối tiếp phiên của bước dừng gần nhất không. Thứ tự: không có LastStep hoặc bước sắp mở khác
-// bước dừng (không có gì để nối tiếp: Why rỗng, kể cả khi --fresh, để notes không nhiễu) → fresh → không phải subagent → không
-// continuable → awaiting_human không phải plan → fingerprint khác → quá giới hạn. Thiếu một điều kiện thì chạy đề bài đầy đủ.
+// bước dừng (không có gì để nối tiếp: Why rỗng, kể cả khi --fresh, để notes không nhiễu) → fresh → harness không hỗ trợ → khác
+// cách chạy (Via) → không continuable → awaiting_human không phải plan / plan chưa sẵn sàng → fingerprint khác → quá giới hạn.
+// Thiếu một điều kiện thì chạy đề bài đầy đủ.
 func continuationDecision(f ContinueFacts) ContinueDecision {
 	no := func(why string) ContinueDecision { return ContinueDecision{Why: why} }
 	l := f.Last
+	via := cmp.Or(f.Via, ViaSubagent)
 	switch {
 	case l == nil || l.Step != f.Step:
 		return ContinueDecision{}
 	case f.Fresh:
 		return no("--fresh: không nối tiếp phiên cũ, dùng đề bài đầy đủ")
-	case l.Via != ViaSubagent:
-		return no("bước dừng trước không chạy bằng subagent của driver session (không có agent để nối tiếp)")
+	case !resumableVia(via):
+		return no(viaDesc(via) + " không hỗ trợ nối tiếp phiên")
+	case l.Via != via:
+		if l.Via == "" {
+			return no("bước dừng trước không chạy bằng " + viaDesc(via) + " (không ghi cách chạy: phiếu cũ hoặc bước chưa có phiên để nối tiếp)")
+		}
+		return no(fmt.Sprintf("bước dừng trước chạy bằng %s, bước sắp mở chạy bằng %s: không nối tiếp chéo", viaDesc(l.Via), viaDesc(via)))
 	case !l.Continuable:
-		return no(fmt.Sprintf("bước %s dừng với lớp %s, không nối tiếp được (thiếu agent_id/fingerprint hoặc lỗi nội tại)", l.Step, l.StopClass))
+		return no(fmt.Sprintf("bước %s dừng với lớp %s, không nối tiếp được (thiếu phiên/fingerprint hoặc lỗi nội tại)", l.Step, l.StopClass))
 	case l.StopClass == StopAwaitingHuman && !f.LastIsPlan:
 		return no("chỉ bước plan chờ người mới nối tiếp phiên; bước " + l.Step + " chạy mới")
+	case l.StopClass == StopAwaitingHuman && f.PlanNotReady != "":
+		return no(f.PlanNotReady)
 	}
 	want := l.Step
 	switch {
@@ -126,34 +160,56 @@ func answeredFor(t *task.Task) []string {
 	return task.AnsweredQuestions(string(b))
 }
 
-// decideContinuation dựng dữ kiện (kể cả chụp fingerprint cây, chỉ khi cần) rồi quyết định nối tiếp cho bước sắp mở.
-func (r *Runner) decideContinuation(ctx context.Context, rs *runState, step string, fresh bool) ContinueDecision {
+// planResumeWhy trả lý do planner chưa nên được nối tiếp ("" = sẵn sàng): requirement.md phải có câu hỏi đã trả lời, không còn
+// câu hỏi mở và artifact không lỗi cấu trúc (không thì hành vi cũ tự chặn lại). Dùng chung cho driver session và driver process.
+func planResumeWhy(t *task.Task) string {
+	if len(answeredFor(t)) == 0 {
+		return "requirement.md chưa có câu hỏi nào được trả lời"
+	}
+	if rep := task.LintPlanningTask(t, true); rep.Blocking() {
+		return "artifact b-req còn lỗi cấu trúc, chưa nối tiếp planner"
+	} else if len(rep.OpenQuestions) > 0 {
+		return "requirement.md còn câu hỏi mở chưa trả lời, chưa nối tiếp planner"
+	}
+	return ""
+}
+
+// decideContinuation dựng dữ kiện (kể cả chụp fingerprint cây, chỉ khi cần) rồi quyết định nối tiếp cho bước sắp mở chạy bằng
+// via (ViaSubagent hoặc tên harness của driver process).
+func (r *Runner) decideContinuation(ctx context.Context, rs *runState, step string, fresh bool, via string) ContinueDecision {
 	last := rs.t.State.LastStep
-	f := ContinueFacts{Last: last, Step: step, Fresh: fresh}
+	f := ContinueFacts{Last: last, Step: step, Fresh: fresh, Via: via}
 	if last != nil {
 		f.LastIsPlan = rs.kindOf(last.Step) == flow.KindPlan
-		if !fresh && last.Via == ViaSubagent && last.Continuable {
+		if f.LastIsPlan && last.StopClass == StopAwaitingHuman {
+			f.PlanNotReady = planResumeWhy(rs.t)
+		}
+		if !fresh && last.Via == via && last.Continuable && resumableVia(via) {
 			f.Fingerprint, _ = r.stopFingerprint(ctx)
 		}
 	}
 	return continuationDecision(f)
 }
 
-// planContinuation: resume tác vụ đang chờ câu trả lời của b-req. ok=false khi không thuộc ca này (không có LastStep
-// awaiting_human của bước plan, hoặc requirement.md chưa có câu trả lời / còn câu hỏi mở / artifact lỗi cấu trúc: hành vi cũ
-// tự chặn lại). ok=true thì quyết định nối tiếp planner cũ ở thư mục của tác vụ (Root chưa đổi ở thời điểm này).
-func (r *Runner) planContinuation(ctx context.Context, rs *runState, fresh bool) (ContinueDecision, bool) {
+// planContinuation: resume/chạy tiếp tác vụ đang chờ câu trả lời của b-req. ok=false khi không thuộc ca này (tác vụ không ở
+// trạng thái planned (status), không có LastStep awaiting_human của bước plan, hoặc requirement.md chưa có câu trả lời / còn câu
+// hỏi mở / artifact lỗi cấu trúc: hành vi cũ tự chặn lại). ok=true thì quyết định nối tiếp planner cũ ở thư mục của tác vụ (Root
+// chưa đổi ở thời điểm này). session=false (driver process): via là harness mà role của bước plan sẽ chạy.
+func (r *Runner) planContinuation(ctx context.Context, rs *runState, fresh, session bool, status string) (ContinueDecision, bool) {
 	t := rs.t
 	last := t.State.LastStep
-	if last == nil || last.StopClass != StopAwaitingHuman || rs.kindOf(last.Step) != flow.KindPlan ||
-		t.State.ResumeFrom != task.StatusPlanned || len(answeredFor(t)) == 0 {
+	if last == nil || last.StopClass != StopAwaitingHuman || rs.kindOf(last.Step) != flow.KindPlan || status != task.StatusPlanned ||
+		planResumeWhy(t) != "" {
 		return ContinueDecision{}, false
 	}
-	if rep := task.LintPlanningTask(t, true); rep.Blocking() || len(rep.OpenQuestions) > 0 {
-		return ContinueDecision{}, false
+	via := ViaSubagent
+	if !session {
+		if via = r.processHarness(rs, last.Step); via == "" {
+			return ContinueDecision{}, false
+		}
 	}
-	f := ContinueFacts{Last: last, Step: last.Step, LastIsPlan: true, Fresh: fresh}
-	if !fresh && last.Via == ViaSubagent && last.Continuable {
+	f := ContinueFacts{Last: last, Step: last.Step, LastIsPlan: true, Fresh: fresh, Via: via}
+	if !fresh && last.Via == via && last.Continuable && resumableVia(via) {
 		if root, err := r.RootFor(t); err == nil {
 			c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 			f.Fingerprint, _ = WorktreeSnapshot(c, root)
@@ -161,6 +217,19 @@ func (r *Runner) planContinuation(ctx context.Context, rs *runState, fresh bool)
 		}
 	}
 	return continuationDecision(f), true
+}
+
+// processHarness là harness mà bước step sẽ chạy ở driver process (tên agent của factory; "" nếu không dựng được). Chỉ để quyết
+// định nối tiếp trước khi mở bước: agent dựng ở đây bị bỏ, không chạy.
+func (r *Runner) processHarness(rs *runState, step string) string {
+	if r.Agent == nil {
+		return ""
+	}
+	a, err := r.Agent(rs.spec(step), nil, nil)
+	if err != nil || a == nil {
+		return ""
+	}
+	return a.Name()
 }
 
 // armContinuation biến bước vừa mở (ps, đề bài đầy đủ trong ps.Prompt) thành bước nối tiếp phiên của last: lời nhắn nối tiếp

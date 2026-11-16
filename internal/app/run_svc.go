@@ -49,6 +49,7 @@ type RunWorkflowOptions struct {
 	Depth         string   `flag:"depth" form:"choices=auto|standard|deep"`
 	NoReview      bool     `flag:"no-review"`
 	NoWait        bool     `flag:"no-wait" form:"advanced"`
+	Fresh         bool     `flag:"fresh" form:"advanced"`
 	Worktree      bool     `flag:"worktree" form:"advanced"`
 	Shared        bool     `flag:"shared" form:"advanced"`
 	Driver        string   `flag:"driver" form:"advanced,choices=auto|process|session"`
@@ -86,6 +87,9 @@ func (o RunWorkflowOptions) Validate() error {
 			return Usagef("--step chỉ dùng với flow tuỳ biến hoặc b-debug: workflow gốc %s đã chạy theo tên (bint run %s --task <id>)", o.Workflow, o.Workflow)
 		}
 	}
+	if o.Fresh && strings.TrimSpace(o.Task) == "" {
+		return Usagef("--fresh chỉ dùng cùng --task (bỏ nối tiếp phiên cũ của tác vụ có sẵn)")
+	}
 	if o.Plan && o.NoPlan {
 		return Usagef("--plan và --no-plan loại trừ nhau")
 	}
@@ -113,6 +117,7 @@ type RunResumeOptions struct {
 	NoReview     bool     `flag:"no-review"`
 	NoWait       bool     `flag:"no-wait" form:"advanced"`
 	Rerun        bool     `flag:"rerun" form:"advanced"`
+	Fresh        bool     `flag:"fresh" form:"advanced"`
 	Harness      string   `flag:"harness" form:"choices=claude|codex|antigravity"`
 	Roles        []string `flag:"role"`
 	Model        string   `flag:"model"`
@@ -137,7 +142,7 @@ func RunWorkflow(ctx context.Context, ws *TaskWS, o RunWorkflowOptions) (*workfl
 		return nil, err
 	}
 	wo := workflow.RunOptions{Workflow: o.Workflow, Request: strings.TrimSpace(o.Request), TaskRef: o.Task, Step: o.Step,
-		NoReview: o.NoReview, NoWait: o.NoWait, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
+		NoReview: o.NoReview, NoWait: o.NoWait, Fresh: o.Fresh, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	if o.Plan || o.NoPlan {
 		p := o.Plan
@@ -171,7 +176,7 @@ func ResumeWorkflow(ctx context.Context, ws *TaskWS, o RunResumeOptions) (*workf
 	if o.Rerun && t.State.HeldStep == nil {
 		return nil, Usagef("--rerun: tác vụ %s không có bước chỉ đọc nào đang được giữ để chạy lại", t.State.ID)
 	}
-	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait, Rerun: o.Rerun}
+	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait, Rerun: o.Rerun, Fresh: o.Fresh}
 	return runWith(ctx, ws, wo, o.Harness, o.Roles, o.AgentCommand, o.Model, o.RunCallbacks)
 }
 

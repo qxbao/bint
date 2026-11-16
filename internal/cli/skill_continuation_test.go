@@ -32,9 +32,20 @@ func TestSkillsDescribeSessionContinuation(t *testing.T) {
 	if !strings.Contains(string(b), "Yêu cầu mơ hồ") {
 		t.Error("b-do thiếu quy tắc định tuyến yêu cầu mơ hồ")
 	}
+	// GĐ3: driver process cũng nối tiếp planner cũ sau khi người trả lời (không còn "vào thẳng b-feat").
+	for _, want := range []string{"nối tiếp phiên planner cũ", "bint run resume <id> --fresh", "bint run b-do --task <id> --fresh"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("b-do thiếu mô tả nối tiếp của driver process: %q", want)
+		}
+	}
+	if strings.Contains(string(b), "`bint run resume <id>` như cũ, vào thẳng b-feat") {
+		t.Error("b-do còn câu cũ: driver process resume vào thẳng b-feat")
+	}
 	for _, cmd := range []string{
 		"bint run next <id> --fresh --json",
 		"bint run next <id> --resume --fresh --json",
+		"bint run resume <id> --fresh",
+		"bint run b-do --task <id> --fresh",
 		"bint run complete <id> --run <run_id> --agent-id <agentId> --json",
 	} {
 		if msg := checkDocCommand(rootCmd, cmd); msg != "" {

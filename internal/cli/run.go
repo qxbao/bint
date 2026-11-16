@@ -24,6 +24,7 @@ type runFlags struct {
 	noReview     bool
 	noWait       bool
 	rerun        bool
+	fresh        bool
 	worktree     bool
 	shared       bool
 	driver       string
@@ -34,6 +35,9 @@ type runFlags struct {
 	asJSON       bool
 	ef           editFlags
 }
+
+// freshFlagHelp: --fresh của run <workflow> --task và run resume (driver process).
+const freshFlagHelp = "bỏ nối tiếp phiên của bước dừng gần nhất (hết hạn mức, quá giờ, Ctrl-C, chờ câu trả lời): bước chạy mới với đề bài đầy đủ"
 
 func newRunCmd(stdio IO) *cobra.Command {
 	var rf runFlags
@@ -114,6 +118,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 	f.StringVar(&rf.model, "model", "", "mô hình cho mọi bước (ghi đè harnesses.<h>.models.<role>, workflow.agent.model, harnesses.<h>.model)")
 	f.StringVar(&rf.harness, "harness", "", "harness cho mọi bước của lượt này (claude | codex | antigravity; phải có trong harnesses.enabled)")
 	f.StringArrayVar(&rf.roles, "role", nil, "harness cho một role, dạng role=harness (planner|implementer|reviewer hoặc b-req|b-feat|b-review); lặp lại được")
+	f.BoolVar(&rf.fresh, "fresh", false, freshFlagHelp)
 	f.BoolVar(&rf.asJSON, "json", false, "in kết quả dạng JSON")
 	if full {
 		f.StringVar(&rf.taskRef, "task", "", "chạy trên tác vụ có sẵn")
@@ -139,14 +144,14 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 	)
 	if resume != nil {
 		ro = app.RunResumeDefaults(config.Default())
-		ro.Ref, ro.NoReview, ro.NoWait, ro.Rerun, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.rerun, rf.harness, rf.roles, rf.model, rf.agentCommand
+		ro.Ref, ro.NoReview, ro.NoWait, ro.Rerun, ro.Fresh, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.rerun, rf.fresh, rf.harness, rf.roles, rf.model, rf.agentCommand
 		if err := ro.Validate(); err != nil {
 			return err
 		}
 	} else {
 		o = app.RunWorkflowDefaults(config.Default())
 		fillRun(&o)
-		o.Harness, o.Roles, o.Model, o.AgentCommand, o.NoWait = rf.harness, rf.roles, rf.model, rf.agentCommand, rf.noWait
+		o.Harness, o.Roles, o.Model, o.AgentCommand, o.NoWait, o.Fresh = rf.harness, rf.roles, rf.model, rf.agentCommand, rf.noWait, rf.fresh
 		o.Worktree, o.Shared, o.Driver = rf.worktree, rf.shared, rf.driver
 		if err := o.Validate(); err != nil {
 			return err

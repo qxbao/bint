@@ -1077,7 +1077,37 @@ hàm giải quyền (`config.MCP.Resolve`) cho daemon, `bint mcp grants` và all
     `next --resume`: nếu nối tiếp được thì mở lại **bước plan** dạng nối tiếp tới planner cũ, lời nhắn chứa nguyên văn các dòng
     `Q-N … — Trả lời: …`; planner cập nhật requirement/plan/tasks, có thể thêm câu hỏi mới (`complete` lại chặn) — lặp tới khi hết câu hỏi
     mở thì tác vụ đi tiếp sang b-feat. Không nối tiếp được (không handle, cây đổi, `--fresh`) thì giữ hành vi cũ: vào thẳng b-feat,
-    không chạy lại b-req. Đề bài b-feat (cả driver process và driver session) chứa nguyên văn mọi dòng câu hỏi đã trả lời.
+    không chạy lại b-req (driver process: xem "Câu hỏi mở của b-req ở driver process" bên dưới). Đề bài b-feat (cả driver process và driver
+    session) chứa nguyên văn mọi dòng câu hỏi đã trả lời.
+  - **Nối tiếp phiên ở driver process (giai đoạn 3 của `docs/step-continuation-plan.md`).** `bint run resume <id>`,
+    `bint run <workflow> --task <id>` và `bint run next` cho bước gán harness khác Claude (`action: "process"`) cũng nối tiếp phiên
+    của bước dừng gần nhất thay vì dựng agent mới. Bước driver process ghi `last_step.via` bằng **tên harness** (`claude`, `codex`; harness
+    khác không nối tiếp được). Điều kiện (thiếu một thì chạy mới với đề bài đầy đủ và `notes` nêu lý do): `last_step` cùng bước
+    sắp mở và `via` khớp harness của bước (không nối tiếp chéo subagent/harness, claude/codex), `continuable` (lớp `external`,
+    `timeout`, `awaiting_human`; có handle **và có tệp phiên trên đĩa**: transcript Claude ở `<CLAUDE_CONFIG_DIR|~/.claude>/projects/<thư mục
+    dự án của cwd>/<session>.jsonl`, rollout Codex `<CODEX_HOME|~/.codex>/sessions/*/*/*/rollout-*-<thread>.jsonl`), fingerprint cây khớp lúc dừng,
+    bộ đếm chưa chạm trần (`external` tối đa 3 lần liên tiếp, `timeout` 1 lần, `awaiting_human` không tính), và không có `--fresh`. Lệnh:
+    Claude `claude -p --resume <session> …` (cùng cờ quyền/MCP/settings/model/`--max-budget-usd`/ExtraArgs như bước gốc, không
+    `--session-id`, không `--no-session-persistence`, không `--fork-session`); Codex `codex exec <cờ của bước gốc> resume <thread> -` (lệnh con
+    `resume` không nhận `--sandbox`/`--cd`/`--add-dir` nên mọi cờ của bước gốc đứng trước `resume`; dãy `-c` giữ nguyên). Đề bài là lời nhắn
+    nối tiếp ngắn (lý do dừng, lượt con mới, "tiếp tục từ chỗ dở, kiểm lại cây", và với `awaiting_human` nguyên văn các dòng
+    `Q-N … — Trả lời: …`); `BINT_RUN_ID` là lượt con mới (hook/nhật ký deny theo lượt mới), bộ đếm/lượt gốc kế thừa. Tệp phiên mất giữa
+    lúc dừng và lúc nối tiếp, hoặc harness báo không tìm thấy phiên (`No conversation found with session ID`, `no rollout found for thread
+    id`), thì chạy lại **một lần** ngay trong bước với đề bài đầy đủ và UUID mới (note "không tìm thấy phiên"). Claude chết trước khi
+    ghi phiên ⇒ `continuable: false` lúc dừng (note "chưa được Claude ghi").
+    `bint run resume <id> --fresh` và `bint run <workflow> --task <id> --fresh` (cờ không dùng khi lập phiếu mới) buộc chạy mới.
+    **Chi phí không tính trùng**: Bint không dùng số harness báo sau resume (`total_cost_usd` của Claude có thể khôi phục chi phí cả phiên;
+    usage `turn.completed` của Codex lấy từ bộ đếm thread). Bước nối tiếp đọc tệp phiên (usage cộng dồn theo cả đời phiên) rồi trừ mốc lưu ở
+    `last_step.usage` lúc dừng: Claude cộng `message.usage` của transcript rồi quy USD theo bảng giá (cùng cách với subagent); Codex lấy
+    `total_token_usage` của rollout (không có USD). Không đọc được tệp phiên ⇒ chi phí `unknown` kèm note, `max_cost_usd` chỉ là chỉ dẫn.
+    Lưu ý: `--max-budget-usd` của Claude có thể tính trên chi phí cộng dồn cả phiên nên bước nối tiếp có thể dừng sớm vì trần (xem mục nghiệm
+    thu resume ở `docs/acceptance.md`).
+  - **Câu hỏi mở của b-req ở driver process.** b-do dừng vì câu hỏi mở (hoặc `bint run b-req --task`, tác vụ giữ `planned`) ghi
+    `last_step`: `awaiting_human`. Sau khi người ghi câu trả lời hết các câu hỏi mở, `bint run resume <id>`, `bint run b-do --task <id>` và
+    `bint run b-req --task <id>` **nối tiếp planner cũ** với nguyên văn các dòng đã trả lời (planner cập nhật requirement/plan/tasks; thêm
+    câu hỏi mới thì tác vụ dừng chờ người lần nữa); hết câu hỏi thì b-do đi tiếp b-feat trong cùng lượt. Chưa trả lời hết, artifact lỗi cấu
+    trúc, hoặc không nối tiếp được (cây đổi, `--fresh`, không có phiên…) thì giữ hành vi cũ: b-do vào thẳng b-feat (không chạy lại b-req từ
+    đầu, `notes` nêu lý do), `b-req --task` chạy planner mới.
   - *`next`* mở bước (chuyển trạng thái, giới hạn, khoá worktree, ảnh chụp trước, đề bài, sự kiện bắt đầu), ghi
     `State.pending_step` (lượt, bước, ảnh chụp, đề bài, `lease_until`) rồi trả flock; **gọi lại khi bước còn hạn trả đúng
     bước đó** (cùng `run_id`, cùng prompt), không mở bước mới. Phần việc không cần agent chạy ngay trong `next`: kiểm

@@ -86,7 +86,14 @@ func (a *CodexAgent) ArmUnavailable(string) string { return "" }
 // codexToolNameRE là khoá TOML trần hợp lệ: tên tool đặt trong `-c mcp_servers.bint.tools.<tên>.…` (không dấu chấm).
 var codexToolNameRE = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
-// ArgsFor dựng đối số dòng lệnh cho một yêu cầu.
+// codexResumeMissingRe khớp thông báo của `codex exec resume <id>` khi thread không còn (đo trên codex-cli 0.167: "Error:
+// thread/resume: thread/resume failed: no rollout found for thread id <uuid> (code -32600)"; bản cũ: "No saved session found").
+var codexResumeMissingRe = regexp.MustCompile(`(?i)no rollout found for thread|no saved session found`)
+
+// ArgsFor dựng đối số dòng lệnh cho một yêu cầu. req.ResumeSessionID khác rỗng: nối tiếp thread đó bằng
+// `codex exec <cờ> resume <id> -`. Lệnh con `resume` KHÔNG nhận --sandbox/--cd/--add-dir (đo trên 0.167: "unexpected argument
+// '--sandbox'"), nên toàn bộ cờ của bước gốc đứng ở cấp `exec`, TRƯỚC `resume`, đúng thứ tự như bước gốc (bảng nội tuyến tắt
+// MCP vẫn đứng trước mọi -c mcp_servers.*): dãy -c của bước nối tiếp trùng bước gốc.
 func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 	args := []string{"exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"}
 	if req.Dir != "" {
@@ -134,6 +141,9 @@ func (a *CodexAgent) ArgsFor(req AgentRequest) ([]string, error) {
 		}
 	}
 	args = append(args, a.ExtraArgs...)
+	if req.ResumeSessionID != "" {
+		return append(args, "resume", req.ResumeSessionID, "-"), nil
+	}
 	return append(args, "-"), nil
 }
 
@@ -159,7 +169,7 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	}
 	var stdout bytes.Buffer
 	r := runProcess(ctx, req.Dir, a.bin(), args, req.Timeout, req.LogPath, env, strings.NewReader(req.Prompt), &stdout)
-	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, Model: a.Model}
+	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, Model: a.Model, SessionID: req.ResumeSessionID}
 	if r.Err != nil {
 		res.Error = r.Err.Error()
 	}
@@ -179,6 +189,10 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	}
 	if res.Error == "" {
 		res.Error = integrity
+	}
+	res.ResumeMissing = req.ResumeSessionID != "" && res.NoResult && r.ExitCode != 0 && codexResumeMissingRe.MatchString(r.Tail)
+	if res.ResumeMissing {
+		res.Infra, res.QuotaHit = "", false // thiếu thread không phải lỗi hạ tầng
 	}
 	return res
 }

@@ -15,6 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"bint/internal/harness/claude"
 	"bint/internal/knowledge"
 )
 
@@ -111,15 +112,7 @@ func ParseFrom(from, path string) (source, p string, err error) {
 }
 
 // SlugOf là tên thư mục dự án của Claude Code: đường dẫn tuyệt đối với mọi ký tự không phải chữ/số ASCII thành '-'.
-func SlugOf(abs string) string {
-	b := []byte(abs)
-	for i, c := range b {
-		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
-			b[i] = '-'
-		}
-	}
-	return string(b)
-}
+func SlugOf(abs string) string { return claude.ProjectSlug(abs) }
 
 // Locate liệt kê tệp của nguồn. Chưa đọc nội dung.
 func Locate(source string, o LocateOptions) (files []File, err error) {
