@@ -493,6 +493,55 @@ func TestMCPCheckCodegraphDisabledDetailQuotesError(t *testing.T) {
 	}
 }
 
+// Low còn lại của NT-MCP-PROBE: mỗi lời gọi thử tool có hạn riêng (mcpProbeToolTimeout), độc lập với mcpCheckTimeout.
+// Hai tool treo (explore, node) cộng hạn vượt mcpCheckTimeout; tool đứng sau (callers) bị tắt vẫn được gọi và báo,
+// tool khác không bị gán quá hạn hay lỗi truyền tải, tiến trình upstream không bị giết giữa chừng.
+func TestMCPCheckCodegraphHungToolHasOwnTimeout(t *testing.T) {
+	oldCheck, oldTool := mcpCheckTimeout, mcpProbeToolTimeout
+	mcpCheckTimeout, mcpProbeToolTimeout = 2*time.Second, 1200*time.Millisecond
+	defer func() { mcpCheckTimeout, mcpProbeToolTimeout = oldCheck, oldTool }()
+	f := newMCPFx(t, "")
+	f.secrets(t, "ok", codegraphTools())
+	f.secretsExtra(t, probetest.EnvHangOn, "codegraph_explore,codegraph_node", probetest.EnvDisabled, "codegraph_callers")
+	start := time.Now()
+	c := f.register(t, "codegraph", probetest.EnvHangOn, probetest.EnvDisabled).Check
+	if c.Status != MCPStatusDegraded {
+		t.Fatalf("phải degraded: %+v", c)
+	}
+	for _, w := range []string{"quá hạn", "codegraph_explore", "codegraph_node", "query (codegraph_callers)"} {
+		if !strings.Contains(c.Detail, w) {
+			t.Errorf("Detail thiếu %q: %q", w, c.Detail)
+		}
+	}
+	for _, w := range []string{"codegraph_search", "codegraph_status", "initialize", "tools/list", "upstream đã đóng", "context deadline"} {
+		if strings.Contains(c.Detail, w) {
+			t.Errorf("Detail không được nêu %q: %q", w, c.Detail)
+		}
+	}
+	if el := time.Since(start); el < 2*mcpProbeToolTimeout {
+		t.Errorf("hai tool treo phải mỗi tool dùng hạn riêng, chỉ mất %v", el)
+	}
+}
+
+// Một tool treo duy nhất: chỉ tool đó bị nêu là quá hạn.
+func TestMCPCheckCodegraphHungToolNamedOnly(t *testing.T) {
+	oldTool := mcpProbeToolTimeout
+	mcpProbeToolTimeout = 800 * time.Millisecond
+	defer func() { mcpProbeToolTimeout = oldTool }()
+	f := newMCPFx(t, "")
+	f.secrets(t, "ok", codegraphTools())
+	f.secretsExtra(t, probetest.EnvHangOn, "codegraph_search")
+	c := f.register(t, "codegraph", probetest.EnvHangOn).Check
+	if c.Status != MCPStatusDegraded || !strings.Contains(c.Detail, "quá hạn") || !strings.Contains(c.Detail, "codegraph_search") {
+		t.Fatalf("check: %+v", c)
+	}
+	for _, w := range []string{"codegraph_explore", "codegraph_node", "codegraph_status", "disabled"} {
+		if strings.Contains(c.Detail, w) {
+			t.Errorf("Detail không được nêu %q: %q", w, c.Detail)
+		}
+	}
+}
+
 func TestMCPCheckTimeout(t *testing.T) {
 	old := mcpCheckTimeout
 	mcpCheckTimeout = 600 * time.Millisecond

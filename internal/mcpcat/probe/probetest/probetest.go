@@ -8,6 +8,7 @@
 //	BINT_FAKE_DISABLED tên tool bị tắt theo tên, phân tách bằng dấu phẩy: gọi các tool này trả lỗi JSON-RPC "tool X is disabled" (các tool khác chạy bình thường)
 //	BINT_FAKE_FAILOTHER tên tool phân tách bằng dấu phẩy: gọi các tool này trả isError "missing required parameter" (lỗi không phải tool bị tắt)
 //	BINT_FAKE_CRASHON tên tool: gọi tool này làm tiến trình thoát ngay (lỗi truyền tải, không phải lỗi của tool)
+//	BINT_FAKE_HANGON  tên tool phân tách bằng dấu phẩy: gọi các tool này không bao giờ được trả lời (các tool khác vẫn chạy bình thường)
 //	BINT_FAKE_DUMP    tệp ghi {cwd, args, env} lúc khởi động (và đối số lệnh con init/sync)
 //	BINT_FAKE_VERSION phiên bản in ra với --version (mặc định 1.6.2; không ghi dump)
 //
@@ -32,6 +33,8 @@ const (
 	EnvDisabled  = "BINT_FAKE_DISABLED"
 	EnvFailOther = "BINT_FAKE_FAILOTHER"
 	EnvCrashOn   = "BINT_FAKE_CRASHON"
+	// EnvHangOn: xem mô tả gói.
+	EnvHangOn = "BINT_FAKE_HANGON"
 	// EnvVersion là phiên bản bản giả in ra với --version.
 	EnvVersion = "BINT_FAKE_VERSION"
 )
@@ -172,6 +175,9 @@ func serve(mode string) {
 			_ = json.Unmarshal(m.Params, &cp)
 			if inList(os.Getenv(EnvCrashOn), cp.Name) {
 				os.Exit(3)
+			}
+			if inList(os.Getenv(EnvHangOn), cp.Name) {
+				continue // không trả lời; vòng đọc vẫn chạy nên lời gọi sau được phục vụ
 			}
 			if inList(os.Getenv(EnvDisabled), cp.Name) {
 				send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32000, "message": "tool " + cp.Name + " is disabled"}})

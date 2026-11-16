@@ -59,8 +59,13 @@ const (
 	MCPStatusFail     = "fail"
 )
 
-// mcpCheckTimeout là thời gian tối đa cho check một service (khởi động, initialize, tools/list, gọi thử).
+// mcpCheckTimeout là thời gian tối đa cho phần khởi tạo của check một service (initialize, tools/list). Các lời gọi
+// thử tool có hạn riêng mcpProbeToolTimeout, không bị hạn này cắt.
 var mcpCheckTimeout = 30 * time.Second
+
+// mcpProbeToolTimeout là hạn của MỖI lời gọi thử tool (tools/call). Một tool chậm chỉ làm chính nó quá hạn; các tool đứng
+// sau vẫn được gọi với hạn mới (trước đây chung hạn mcpCheckTimeout nên tool chậm làm lời gọi sau bị báo sai là lỗi truyền tải).
+var mcpProbeToolTimeout = 20 * time.Second
 
 // mcpProject nạp cấu hình dự án nếu dir nằm trong repository đã init; ngược lại (ok=false) trả cấu hình mặc định.
 func mcpProject(ctx context.Context, dir string) (cfg config.Config, ok bool, err error) {
@@ -492,6 +497,8 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 			return fail("thiếu biến credential trong secrets.env: %s (không khởi động service)", strings.Join(missing, ", "))
 		}
 	}
+	// cctx chỉ bao initialize và tools/list. Tiến trình upstream gắn với ctx (không phải cctx) để hết hạn khởi tạo
+	// không giết nó giữa chừng khi đang gọi thử các tool (mỗi lời gọi có hạn riêng); cl.Close dừng nó khi xong.
 	cctx, cancel := context.WithTimeout(ctx, mcpCheckTimeout)
 	defer cancel()
 
@@ -511,7 +518,7 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 		if cwd, err = mcpCwd(ctx, dir, svc); err != nil {
 			return fail("%v", err)
 		}
-		cmd := exec.CommandContext(cctx, path, reg.Args...)
+		cmd := exec.CommandContext(ctx, path, reg.Args...)
 		cmd.Dir, cmd.Env = cwd, env
 		if cl, err = probe.Stdio(cmd); err != nil {
 			return fail("không khởi động được %q: %v", reg.Command, err)
@@ -554,7 +561,7 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 		r.Detail = "upstream thiếu tool của nhóm thao tác: " + strings.Join(r.Missing, ", ") + " (danh mục lệch phiên bản upstream?)"
 	}
 	if svc.ID == "codegraph" {
-		mcpCodegraphProbe(cctx, cl, svc, have, cwd, secretVals, &r)
+		mcpCodegraphProbe(ctx, cl, svc, have, cwd, secretVals, &r)
 	}
 	return r
 }
@@ -570,16 +577,39 @@ var codegraphDisabledRE = regexp.MustCompile(`(?i)\b(disabled|not enabled)\b`)
 func mcpCodegraphProbe(ctx context.Context, cl *probe.Client, svc mcpcat.Service, have map[string]bool, cwd string, secretVals []string, r *MCPCheckResult) {
 	disabled := map[string]string{} // tool -> lý do (đã che)
 	var statusOther string
+	var hung []string // tool quá hạn riêng mcpProbeToolTimeout
+	// finish gộp phần báo tool quá hạn vào Detail cuối cùng (Status tối thiểu degraded).
+	finish := func() {
+		if len(hung) == 0 {
+			return
+		}
+		d := "tool codegraph quá hạn " + mcpProbeToolTimeout.String() + " khi gọi thử: " + strings.Join(hung, ", ")
+		if r.Detail != "" {
+			d += "; " + r.Detail
+		}
+		r.Detail = d
+		if r.Status == MCPStatusOK {
+			r.Status = MCPStatusDegraded
+		}
+	}
+	defer finish()
 	for _, name := range svc.Tools() {
 		if !have[name] {
 			continue
 		}
-		res, err := cl.CallTool(ctx, name, nil)
+		tctx, cancel := context.WithTimeout(ctx, mcpProbeToolTimeout)
+		res, err := cl.CallTool(tctx, name, nil)
+		toolExpired := tctx.Err() != nil && ctx.Err() == nil // hạn riêng của tool, không phải ctx của check
+		cancel()
 		var rpc *probe.RPCError
 		var reason string
 		switch {
 		case errors.As(err, &rpc):
 			reason = rpc.Error()
+		case err != nil && toolExpired && errors.Is(err, context.DeadlineExceeded):
+			// Chỉ tool này quá hạn: ghi lại rồi gọi tiếp các tool sau (phản hồi muộn của nó, nếu có, bị client bỏ qua).
+			hung = append(hung, name)
+			continue
 		case err != nil:
 			// Lỗi truyền tải (hết hạn, daemon chết) của bất kỳ tool nào: dừng và nêu đúng tool gây lỗi; bỏ qua thì
 			// lời gọi sau (thường là codegraph_status) hỏng theo và bị gán nhầm nguyên nhân.
