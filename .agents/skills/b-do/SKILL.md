@@ -36,6 +36,10 @@ phán đoán của bạn.
 
 1. Đọc yêu cầu và **mọi tài liệu nó trỏ tới** (kế hoạch, đặc tả, ticket): xem lướt độ lớn, số giai
    đoạn, gói/tệp bị chạm. Đừng sửa gì.
+   **Yêu cầu mơ hồ** (chung chung, không nói rõ làm gì, thiếu tiêu chí để biết thế nào là xong, nhiều cách hiểu khác
+   nhau): **hỏi người dùng trước khi lập phiếu** (một vài câu ngắn về kết quả mong muốn và phạm vi), hoặc lập phiếu
+   với `--plan` để b-req đặt câu hỏi mở (vòng hỏi–đáp ở Bước 3). Đừng đoán rồi chạy `--no-plan`: việc nhỏ chỉ được
+   `--no-plan` khi yêu cầu đã đủ rõ.
 2. Chọn đường đi:
    - việc nhỏ, rõ ràng (sửa chính tả, đổi tên, sửa lỗi đã chỉ rõ chỗ): `--no-plan`;
    - việc vừa (một tính năng/sửa lỗi gói gọn trong vài tệp): `--plan` (độ sâu `standard`);
@@ -204,6 +208,16 @@ bint run complete <id> --run <run_id> --agent-id <agentId> --json
      nếu công cụ Bash có giới hạn thời gian. Kết quả JSON có `result` (kể cả `cost_usd`; `null` nghĩa là chưa
      biết) và `notes`. Thiếu `--agent-id` thì lượt vẫn hợp lệ nhưng sự kiện/chi phí của subagent không gắn được:
      đừng bỏ. `complete` trả `command` thì gọi tiếp `bint run next`.
+   - `action: "agent"` có `continue_agent_id`: **bước nối tiếp phiên** của agent cũ (sau lỗi ngoại cảnh như hạn mức/API
+     quá tải, hoặc sau khi người dùng trả lời câu hỏi của b-req). **Không gọi Agent mới**: gọi công cụ **SendMessage** với
+     `to` = `continue_agent_id`, `message` = `prompt` **nguyên văn** (đó là lời nhắn nối tiếp, ngắn, không phải đề bài đầy đủ).
+     Chờ agent xong rồi `bint run complete <id> --run <run_id> --agent-id <continue_agent_id> --json` như thường (dùng đúng
+     agent ID cũ). SendMessage không gửi được (agent không còn, lỗi công cụ) thì chạy
+     `bint run next <id> --fresh --json`: Bint đổi bước dở sang **đề bài đầy đủ** (cùng `run_id`, không còn
+     `continue_agent_id`) rồi gọi công cụ Agent với `prompt` mới như `action: "agent"` thường. `notes` giải thích khi
+     Bint không nối tiếp (cây đổi, quá 3 lần nối tiếp, không có handle…): khi đó `action: "agent"` không có
+     `continue_agent_id` và `prompt` là đề bài đầy đủ, gọi Agent mới như bình thường. Muốn bỏ hẳn nối tiếp khi resume:
+     `bint run next <id> --resume --fresh --json`.
    - `action: "process"` (role gán harness khác Claude): chạy đúng `command` (nền được, như Bước 2), xong gọi
      lại `bint run next`.
    - `action: "blocked"`: xử lý như Bước 3. Có `command` là lệnh `bint run complete …` (bước còn hạn mà
@@ -261,6 +275,14 @@ Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task ap
   Finalize, không chạy lại review. Không tự sửa tệp ở cây gốc để "gỡ" xung đột.
 - **Câu hỏi mở của b-req** (`bint task lint <id>` báo `open_questions`): ghi câu trả lời vào
   `requirement.md` (`- [x] Q-1: … — Trả lời: …`) qua `bint task write <id> requirement -`.
+  **Vòng hỏi–đáp nhiều lượt** (driver session): sau khi ghi câu trả lời, `bint run next <id> --resume --json` mở lại
+  bước b-req dạng nối tiếp tới planner cũ (`continue_agent_id`, `prompt` chứa nguyên văn các dòng `Q-N … — Trả lời: …`):
+  SendMessage `prompt` tới planner, rồi `bint run complete … --agent-id <continue_agent_id>`. Planner cập nhật
+  `requirement.md`/`plan.md`/`tasks.md` và có thể thêm câu hỏi mới: khi đó `complete` lại trả `blocked` kèm `questions`;
+  hỏi người dùng, ghi trả lời, `next --resume` tiếp. Lặp tới khi hết câu hỏi mở thì tác vụ tự đi sang b-feat (đề bài
+  b-feat chứa nguyên văn các câu đã trả lời). Không nối tiếp được (cây đổi, planner không còn, `--fresh`): Bint vào thẳng
+  b-feat với các câu trả lời trong đề bài, không chạy lại b-req từ đầu. Mỗi lượt cần người trả lời; đừng tự trả lời thay.
+  Tiến trình ngoài (driver process): `bint run resume <id>` như cũ, vào thẳng b-feat.
 - **Artifact b-req lỗi cấu trúc** (`planning_issues`): sửa theo `bint task lint <id>` qua
   `bint task write`, hoặc chạy lại b-req (`bint run b-req --task <id> --json`).
 - **Lệnh kiểm chứng chưa có hoặc chưa xác nhận**: hỏi lệnh rồi `bint task set <id> --verify-command '…'`.
