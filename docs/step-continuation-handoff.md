@@ -35,6 +35,10 @@ Có trong mã (đối chiếu theo `tasks.md`):
 
 Chưa xác nhận / còn phải làm:
 
+0. **main đang đỏ ở `internal/workflow`**: `flow_golden_test.go:647` golden không khớp — `next` của bước b-review có
+   thêm note "không nối tiếp phiên cũ: chỉ bước plan chờ người mới nối tiếp phiên; bước b-feat chạy mới". Note này có vẻ
+   sai chỗ (bước đang mở là b-review nhưng nói b-feat; phát ra cả khi không có gì để nối tiếp) — sửa điều kiện phát note
+   trong `internal/workflow/continuation.go` trước, đừng chỉ cập nhật golden. Các gói task, skills, eval, app, cli: qua.
 1. **Chưa có b-review** cho GĐ2. Việc đầu tiên: review diff của commit GĐ2 (xem `git log`).
 2. **Chưa chạy `go test -count=1 ./...` đầy đủ** trên mã GĐ2 (mới build, `go vet` linux+windows, staticcheck sạch trừ
    S1011 có sẵn, và test các gói bị ảnh hưởng — xem mục "Kiểm chứng" ở commit).
