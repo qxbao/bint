@@ -9,8 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -23,6 +26,7 @@ import (
 	"bint/internal/gitrepo"
 	"bint/internal/knowledge"
 	"bint/internal/spool"
+	"bint/internal/state"
 	"bint/internal/task"
 	"bint/internal/ulid"
 )
@@ -790,7 +794,13 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 	}
 	var r eval.CmdResult
 	if run {
-		r = eval.RunShell(ctx, root, ran, timeout, log, eval.VerifyEnvFrom(verifyEnviron()))
+		env := eval.VerifyEnvFrom(verifyEnviron())
+		tmp, cleanup := e.verifyTempDir()
+		if tmp != "" {
+			env = append(env, verifyTempEnv(tmp)...)
+		}
+		r = eval.RunShell(ctx, root, ran, timeout, log, env)
+		cleanup()
 		if r.Err != nil && ctx.Err() != nil {
 			return t, res, ctx.Err()
 		}
@@ -833,6 +843,51 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 
 // verifyEnviron là môi trường nguồn của lệnh kiểm chứng (đổi được trong kiểm thử).
 var verifyEnviron = os.Environ
+
+// verifyTempDir tạo thư mục tạm riêng cho một lần chạy lệnh kiểm chứng trong thư mục trạng thái (state.TmpDirFor), không
+// dùng TMPDIR chung với sandbox của harness (Codex workspace-write để lại /tmp/.git làm điểm mount, `go` chạy trong thư
+// mục tạm dưới /tmp khi đó báo "error obtaining VCS status" và kiểm chứng đỏ giả). Trả "" khi không tạo được: lần kiểm
+// chứng vẫn chạy với TMPDIR kế thừa. cleanup luôn gọi được; lỗi dọn bị bỏ qua.
+func (e *Env) verifyTempDir() (dir string, cleanup func()) {
+	cleanup = func() {}
+	if e.Tasks.Dir == "" {
+		return "", cleanup
+	}
+	base := state.TmpDirFor(e.Tasks.Dir)
+	if err := os.MkdirAll(base, 0o700); err != nil {
+		return "", cleanup
+	}
+	dir, err := os.MkdirTemp(base, "verify-")
+	if err != nil {
+		return "", cleanup
+	}
+	return dir, func() { removeAllForce(dir) }
+}
+
+// verifyTempEnv là các biến thư mục tạm trỏ tới dir: TMPDIR (Unix, Git for Windows sh), thêm TMP/TEMP trên Windows
+// (os.TempDir của Go và công cụ Windows đọc chúng). Nối vào cuối môi trường: exec dùng giá trị cuối của khoá trùng.
+func verifyTempEnv(dir string) []string {
+	env := []string{"TMPDIR=" + dir}
+	if runtime.GOOS == "windows" {
+		env = append(env, "TMP="+dir, "TEMP="+dir)
+	}
+	return env
+}
+
+// removeAllForce xoá dir, kể cả khi test để lại thư mục chỉ đọc (bộ đệm module Go ghi 0555): lần đầu lỗi thì cấp lại
+// quyền ghi cho chủ rồi thử lại. Lỗi bị bỏ qua (thư mục tạm còn sót không làm hỏng lần kiểm chứng).
+func removeAllForce(dir string) {
+	if os.RemoveAll(dir) == nil {
+		return
+	}
+	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && d.IsDir() {
+			os.Chmod(p, 0o700)
+		}
+		return nil
+	})
+	os.RemoveAll(dir)
+}
 
 // CheckCriterion ghi kết quả đối chiếu một tiêu chí (tự đánh giá; tín hiệu trung bình).
 func (e *Env) CheckCriterion(ref string, index int, met bool, evidence string) (*task.Task, error) {

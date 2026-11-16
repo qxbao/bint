@@ -134,6 +134,14 @@ func WorktreesDirFor(tasksDir string) string {
 	return filepath.Join(filepath.Dir(filepath.Dir(tasksDir)), worktreesName)
 }
 
+// TmpDirFor trả thư mục tạm riêng của Bint (<Root>/tmp) ứng với thư mục tác vụ tasksDir (<Root>/runtime/tasks). Lệnh
+// kiểm chứng chạy với TMPDIR trỏ vào một thư mục con mới tạo ở đây thay vì /tmp dùng chung: sandbox của harness (Codex
+// workspace-write) có thể để lại /tmp/.git làm điểm mount, khiến `go` chạy trong thư mục tạm dưới /tmp báo lỗi VCS.
+// Thư mục này nằm ngoài cây mà DataWatch theo dõi (spool, runtime/tasks) nên test ghi tệp tạm không kích hoạt nạp lại.
+func TmpDirFor(tasksDir string) string {
+	return filepath.Join(filepath.Dir(filepath.Dir(tasksDir)), "tmp")
+}
+
 // At dựng Paths cho thư mục gốc root.
 func At(id, root string) Paths {
 	return Paths{
