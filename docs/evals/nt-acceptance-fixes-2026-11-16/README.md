@@ -136,3 +136,22 @@ Lệnh làm mới giữ nguyên khối `.gitignore` đã sửa ngoài Bint và k
 `.bint/local.yml` được giữ nguyên. Việc triển khai hook không tự trust hoặc chứng minh
 nguồn session Codex được chuyển tới MCP. Các mã NT chạy thật, Code Mode và chữ ký
 nghiệm thu vẫn giữ mở theo `docs/acceptance.md`.
+
+## Tích hợp trước khi xuất bản
+
+Khi chuẩn bị PR, bản vá được gộp với `main` mới đã có `bint iso`. Xung đột shim
+được giải bằng cách giữ cả Harness/SessionID và Env=daemonEnv(), cùng hai hàm
+phục vụ attribution và môi trường thật. Các test MCP xuyên lớp, resolver,
+daemonEnv trong profile, readonly, hookStatus, config và CLI được chọn đã qua
+trên bản kết hợp; gofmt, go mod tidy -diff, go mod verify, vet/staticcheck hai
+nền tảng cũng qua.
+
+Test golden workflow ban đầu đỏ vì hai mục step_props còn thiếu rule git ls-files.
+Golden được sinh lại qua BINT_UPDATE_GOLDEN=1; diff JSON chỉ đổi agent_args của
+planner và reviewer. Chạy lại không bật biến này: TestFlowGoldenRunnerBehaviour
+qua. Bộ CI đầy đủ Linux race/Windows/build/lint được dùng để xác minh commit
+xuất bản; kết quả hiện hành được dẫn trong PR.
+
+Hai test evolve lock trên máy phát triển vẫn tái hiện EPERM khi open tệp; đó là
+blocker môi trường đã có bộ tái hiện Python độc lập, không được biến thành skip
+hoặc ErrLocked để có kết quả xanh. CI sạch kiểm toàn bộ suite riêng.
