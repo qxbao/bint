@@ -3,12 +3,17 @@
 package iso
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"bint/internal/config"
 )
 
 // harnessEnv dựng store, profile và PATH chỉ có harness giả `<tool>` chạy script body (sh).
@@ -258,5 +263,148 @@ func TestRunWarnsOnShareConflictAndCreatesTempBeforeSpawn(t *testing.T) {
 	}
 	if strings.TrimSpace(h.read(t, "tmp")) != "yes" {
 		t.Fatal("TMPDIR phải tồn tại trước khi spawn")
+	}
+}
+
+// bint bị kill -9: khoá S mất nhưng harness con còn chạy. Hồ sơ runs/ giữ profile bận cho tới khi con thoát.
+func TestOrphanHarnessKeepsProfileBusy(t *testing.T) {
+	s := testStore(t, func(c *config.Iso) { c.GCInterval = "0s" })
+	real := newFakeReal(t)
+	p := mustCreate(t, s, Codex, "w")
+	env := append([]string{}, real.Env...)
+
+	sess, err := Begin(p, env, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command("sleep", "60")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	reaped := false
+	defer func() {
+		if !reaped {
+			_ = child.Process.Kill()
+			_, _ = child.Process.Wait()
+		}
+	}()
+	if err := sess.Track(child.Process.Pid); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(sess.Temp, "dang-dung")
+	if err := os.WriteFile(marker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Giả lập bint chết: khoá S mất, hồ sơ runs/ còn.
+	if err := sess.release(); err != nil {
+		t.Fatal(err)
+	}
+
+	rep, err := GC(s, GCOptions{Env: env})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Actions) != 1 || rep.Actions[0].Kind != GCBusy {
+		t.Fatalf("gc phải bỏ qua profile: %+v", rep.Actions)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("gc xoá TMPDIR của harness còn chạy: %v", err)
+	}
+	if err := RemoveProfile(p); !errors.Is(err, ErrBusy) {
+		t.Fatalf("RemoveProfile = %v, muốn ErrBusy", err)
+	}
+	if active, err := p.SessionActive(); err != nil || !active {
+		t.Fatalf("SessionActive = %v %v, muốn true", active, err)
+	}
+	// Phiên khác cùng profile bắt đầu rồi kết thúc: phiên đó không phải phiên cuối, TMPDIR còn.
+	other, err := Begin(p, env, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other.End()
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("phiên khác kết thúc đã xoá TMPDIR của harness còn chạy: %v", err)
+	}
+	if _, err := os.Stat(p.Home); err != nil {
+		t.Fatal(err)
+	}
+
+	// Harness thoát: gc xoá TMPDIR và hồ sơ.
+	_ = child.Process.Kill()
+	_, _ = child.Process.Wait()
+	reaped = true
+	if _, err := GC(s, GCOptions{Env: env}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(sess.Temp); !os.IsNotExist(err) {
+		t.Fatalf("harness đã thoát: TMPDIR phải bị xoá: %v", err)
+	}
+	if _, err := os.Stat(p.runPath(child.Process.Pid)); !os.IsNotExist(err) {
+		t.Fatalf("hồ sơ của tiến trình đã chết phải bị xoá: %v", err)
+	}
+	sess.untrack()
+}
+
+// Hồ sơ của tiến trình đã chết (hoặc pid bị dùng lại: start_ticks lệch) không làm profile bận và bị xoá.
+func TestLockDropsDeadRunRecord(t *testing.T) {
+	s := testStore(t, nil)
+	p := mustCreate(t, s, Codex, "w")
+	if err := os.MkdirAll(p.RunsDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name string, rec runRecord) string {
+		data, _ := json.Marshal(rec)
+		path := filepath.Join(p.RunsDir(), name)
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	dead := exec.Command("true")
+	if err := dead.Run(); err != nil {
+		t.Fatal(err)
+	}
+	files := []string{
+		write("dead.json", runRecord{PID: dead.Process.Pid, BintPID: 1}),
+		write("garbage.json", runRecord{}), // pid 0
+	}
+	if err := os.WriteFile(filepath.Join(p.RunsDir(), "broken.json"), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	files = append(files, filepath.Join(p.RunsDir(), "broken.json"))
+	if ticks, ok := procStartTicks(os.Getpid()); ok {
+		files = append(files, write("reused.json", runRecord{PID: os.Getpid(), StartTicks: ticks + 1}))
+	}
+	rel, busy, err := p.Lock(true)
+	if err != nil || busy {
+		t.Fatalf("hồ sơ của tiến trình đã chết không được làm bận: busy=%v err=%v", busy, err)
+	}
+	rel()
+	for _, f := range files {
+		if _, err := os.Stat(f); !os.IsNotExist(err) {
+			t.Errorf("%s phải bị xoá: %v", f, err)
+		}
+	}
+	// Tiến trình đang sống (chính test này) thì bận, hồ sơ còn.
+	live := write("live.json", runRecord{PID: os.Getpid()})
+	if _, busy, err := p.Lock(true); err != nil || !busy {
+		t.Fatalf("hồ sơ của tiến trình sống phải bận: busy=%v err=%v", busy, err)
+	}
+	if _, err := os.Stat(live); err != nil {
+		t.Fatalf("hồ sơ sống không được xoá: %v", err)
+	}
+}
+
+// Run ghi hồ sơ trong lúc harness chạy và xoá khi kết thúc.
+func TestRunTracksHarness(t *testing.T) {
+	h := newHarness(t, Codex, `for i in $(seq 200); do ls "$BINT_ISO_HOME/profiles/codex--w/runs" > "$OUT/runs.txt" 2>/dev/null && [ -s "$OUT/runs.txt" ] && break; sleep 0.05; done`)
+	if code, err := h.run(t); err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := strings.TrimSpace(h.read(t, "runs.txt")); !strings.HasSuffix(got, ".json") {
+		t.Fatalf("lúc chạy phải có hồ sơ runs/<pid>.json, ls = %q", got)
+	}
+	if ents, _ := os.ReadDir(h.P.RunsDir()); len(ents) != 0 {
+		t.Fatalf("hết phiên hồ sơ phải bị xoá: %v", ents)
 	}
 }

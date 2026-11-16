@@ -106,7 +106,7 @@ Phi mục tiêu:
 | D1 | Store mới `<UserDataDir>/bint/iso` (Linux `${XDG_DATA_HOME:-~/.local/share}/bint/iso`, macOS `~/Library/Application Support/bint/iso`, Windows `%LOCALAPPDATA%\bint\iso`); đè bằng `BINT_ISO_HOME`. Có `bint iso import --from-ai-isolator` | Dùng chung store với ai-isolator buộc giữ bố cục gây lỗi (`cache/`, `tmp/` riêng); import chỉ mang đăng nhập/cấu hình, bỏ 5+ GB rác |
 | D2 | Profile chỉ có **`home/`** + `profile.json`; XDG trỏ vào vị trí chuẩn **bên trong HOME giả** (`home/.config`, `home/.local/share`, `home/.local/state`) | Tiến trình con bỏ biến XDG vẫn rơi đúng chỗ ⇒ hết hai bản cache |
 | D3 | Cache: mặc định **`shared`** — `XDG_CACHE_HOME` = cache thật, `home/.cache` là symlink (Windows: junction) tới cache thật; các cache ngoài `.cache` (npm, pnpm store, go mod, cargo registry, uv data…) chia sẻ theo danh sách `share`. Chế độ `private` giữ cache trong profile và GC theo tuổi | Cache gói là dữ liệu dẫn xuất, không chứa tài khoản; profile vốn không phải ranh giới bảo mật (cùng UID) nên chia sẻ không làm yếu đi |
-| D4 | Temp: `TMPDIR`/`TMP`/`TEMP` = `<os.TempDir()>/bint-iso-<uid>/<tool>--<name>`; khoá phiên `fslock` dùng chung (S); phiên cuối thoát thì xoá sạch **nếu profile không còn daemon sống**; GC dọn thư mục mồ côi khi lấy được khoá X (S3: thư mục phải tồn tại trước mỗi lần spawn, Codex không tự tạo lại) | `/tmp` thật vẫn được OS dọn; bint dọn ngay khi hết phiên; theo quy tắc k:01M7FGC944KVT6NY1TZE7MJ0P8 (không thu hồi theo PID) |
+| D4 | Temp: `TMPDIR`/`TMP`/`TEMP` = `<os.TempDir()>/bint-iso-<uid>/<storeKey>/<tool>--<name>` (`storeKey` = 10 hex đầu của sha256 gốc store đã chuẩn hoá: hai store cùng `codex/default` không dùng chung TMPDIR); khoá phiên `fslock` dùng chung (S), cộng hồ sơ `runs/<pid>.json` giữ profile bận khi bint bị kill -9 mà harness con còn chạy; phiên cuối thoát thì xoá sạch **nếu profile không còn daemon sống**; GC dọn thư mục mồ côi khi lấy được khoá X (S3: thư mục phải tồn tại trước mỗi lần spawn, Codex không tự tạo lại) | `/tmp` thật vẫn được OS dọn; bint dọn ngay khi hết phiên; theo quy tắc k:01M7FGC944KVT6NY1TZE7MJ0P8 (không thu hồi theo PID) |
 | D5 | Không để harness tự cập nhật trong profile: Claude chạy với **`DISABLE_UPDATES=1`** (cùng `DISABLE_AUTOUPDATER=1`; chỉ `DISABLE_AUTOUPDATER` không chặn `claude update`, S4) và binary tuyệt đối lấy từ PATH thật; Codex `packages/` là symlink tới `~/.codex/packages` thật (S2 đạt khi bản cài đã có sẵn) | Hết 1,2 GB/profile và hết lệch phiên bản |
 | D6 | Env ghim đường dẫn của bint: `BINT_STATE_DIR`, `BINT_CONFIG_HOME` = giá trị thật (chỉ đặt nếu chưa có), `BINT_ISO_REAL_HOME`, `BINT_ISO_PROFILE=<tool>/<name>`. **Với MCP stdio của Codex phải ghi vào bảng `env` của chính mục `[mcp_servers.*]` (S1: Codex chỉ chuyển `HOME`, `PATH`, `TMPDIR`)** | Hook/MCP/`bint` lồng nhau dùng đúng state và tìm lại gốc thật |
 | D7 | Skill/agent/command cấp người dùng: **symlink** (junction) tới bản gốc thay vì chép; MCP và trust Codex: đồng bộ khoá được quản lý bằng go-toml, có receipt | Không còn `sync-skills` tay; giữ được cấu hình riêng của profile |
@@ -131,7 +131,8 @@ Phi mục tiêu:
 │       ├── .claude/{.credentials.json,settings.json,projects/,skills -> …,agents -> …,commands -> …}
 │       ├── .config/  .local/share/  .local/state/
 └── gc.stamp                  # lần GC tự động gần nhất
-<os.TempDir()>/bint-iso-<uid>/<tool>--<name>/   # TMPDIR của profile (0700)
+<os.TempDir()>/bint-iso-<uid>/<storeKey>/<tool>--<name>/   # TMPDIR của profile (0700)
+<store>/profiles/<tool>--<name>/runs/<pid>.json            # harness đang chạy (mục 5.3)
 ```
 
 Tên profile: `^[A-Za-z0-9._-]{1,64}$`, không `.`/`..`. Mọi đường dẫn đều kiểm chứa trong store sau `EvalSymlinks`
@@ -140,8 +141,8 @@ Tên profile: `^[A-Za-z0-9._-]{1,64}$`, không `.`/`..`. Mọi đường dẫn �
 ### 5.2 Env (một hàm duy nhất `iso.Env(p Profile, base []string) []string`)
 
 Thứ tự: lấy `base` → gỡ danh sách credential/override (ghim bằng test, gồm danh sách của ai-isolator + `CLAUDE_CODE_OAUTH_TOKEN`,
-`AWS_BEARER_TOKEN_BEDROCK`, `CLAUDE_CODE_USE_BEDROCK|VERTEX`, `XDG_*`, `TMPDIR/TMP/TEMP`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`,
-`GEMINI_*`, `AGY_*`) → đặt:
+`AWS_BEARER_TOKEN_BEDROCK`, `CLAUDE_CODE_USE_BEDROCK|VERTEX`, `TMPDIR/TMP/TEMP`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`,
+`GEMINI_*`, `AGY_*`; bốn `XDG_{CONFIG,DATA,STATE,CACHE}_HOME` bị gỡ rồi đặt lại bên dưới, còn `XDG_RUNTIME_DIR`, `XDG_DATA_DIRS`, `XDG_CONFIG_DIRS`, `XDG_SESSION_*` là biến hệ thống/phiên — socket Wayland, podman, `systemd --user` — nên **chuyển nguyên**, gỡ được bằng `iso.drop_env`) → đặt:
 
 | Biến | Giá trị |
 |---|---|
@@ -178,11 +179,12 @@ Thứ tự: lấy `base` → gỡ danh sách credential/override (ghim bằng te
 
 ### 5.3 Vòng đời temp
 
-1. `bint iso run`: mở `session.lock` khoá **S** (`fslock.Try` không chờ; lỗi thì chờ có giới hạn), `MkdirAll` temp 0700.
+1. `bint iso run`: mở `session.lock` khoá **S** (`fslock.Try` không chờ; lỗi thì chờ có giới hạn), tạo temp 0700 (từng cấp `bint-iso-<uid>`, `<storeKey>`, `<tool>--<name>` kiểm `Lstat`, đúng chủ, không quyền nhóm/người khác); sau `Start` ghi hồ sơ `runs/<pid>.json` (pid, start_ticks Linux, bint_pid).
 2. Chạy con; chuyển tiếp SIGINT/SIGTERM/SIGHUP (Unix: con cùng process group, cha bỏ qua SIGINT trong lúc chờ; Windows: Ctrl-C
    tự tới console group, cha chỉ chờ). Trả đúng mã thoát của con.
 3. Con thoát: nhả S, thử **X** không chờ; được X ⇒ không còn phiên nào ⇒ nếu profile không có daemon sống thì
-   `RemoveAll(temp)` rồi nhả X. Không được X ⇒ phiên khác còn dùng, để nguyên.
+   `RemoveAll(temp)` rồi nhả X. Không được X ⇒ phiên khác còn dùng, để nguyên. Hồ sơ `runs/` của phiên bị xoá **trước** khi nhả S.
+   **Harness mồ côi (bint bị kill -9):** khoá S nằm trên fd của bint nên mất khi bint chết dù con còn chạy. `Profile.Lock(true)` (gc, `cleanProfileTemp`, `remove`, `sync` ghi, `SessionActive`) lấy được X còn đọc `runs/`: còn hồ sơ của tiến trình sống (`task.ProcessAlive` và start_ticks khớp, không phải zombie; không kiểm được danh tính thì coi là sống) ⇒ nhả X và báo bận; hồ sơ của tiến trình đã chết/hỏng bị xoá khi đang giữ X. Hợp với k:01M7FGC944KVT6NY1TZE7MJ0P8: quyết định khoá vẫn do `fslock`, hồ sơ PID chỉ **thêm** trạng thái bận (PID bị dùng lại ⇒ chỉ bận lâu hơn), không thu hồi khoá của ai. Không truyền fd khoá cho con (`ExtraFiles`): cháu của harness thừa kế và giữ S vô thời hạn, và Windows không hỗ trợ. Phiên của eval/workflow (`Begin/End`) chưa gọi `Session.Track` nên chưa được bảo vệ kiểu này.
 4. GC (5.5) xử lý thư mục mồ côi khi bint bị kill -9: lấy được X (và không có daemon sống) thì xoá.
 5. **Kết quả S3:** Codex không tự tạo lại `TMPDIR` đã bị xoá; lệnh shell kế tiếp trong sandbox panic
    (`failed to resolve synthetic mount registry temp directory`). Daemon app-server rảnh vẫn sống nhưng không tạo lại thư mục.
@@ -202,8 +204,8 @@ Thứ tự: lấy `base` → gỡ danh sách credential/override (ghim bằng te
 - Mã thoát của con đi qua `exitError{quiet}`: `Execute` không in "lỗi:" cho nó. Mã 2 = cú pháp/tên sai, 69 = Codex LB không sẵn sàng.
 - `daemonAlive` theo 11.3 (`daemon.pid`, không theo khoá). Sai lệch cố ý theo hướng an toàn: không đọc/parse được ⇒ coi là còn sống.
 - `CollectTemp` (cho `bint iso gc [--dry-run] [--profile P]`): profile đang có khoá S ⇒ bỏ qua; có X ⇒ xoá cả thư mục hoặc (còn
-  daemon) chỉ mục cũ. Thư mục `bint-iso-<uid>/<tool>--<name>` mà store hiện tại không có profile đó chỉ bị xoá khi cũ hơn `tmp_ttl`
-  (thư mục cha dùng chung cho mọi store của người dùng nên một store không được xoá temp phiên đang chạy của store khác).
+  daemon) chỉ mục cũ. Thư mục `bint-iso-<uid>/<storeKey>/<tool>--<name>` mà store hiện tại không có profile đó chỉ bị xoá khi cũ hơn `tmp_ttl`;
+  GC chỉ quét `<storeKey>` của chính store mình (temp của store khác không thuộc quyền của nó) và, đường chuyển tiếp, mục bố cục cũ `bint-iso-<uid>/<tool>--<name>` (không có `<storeKey>`) khi cũ hơn `tmp_ttl`.
   `gc` ở GĐ2 chỉ dọn temp; cache/phiên/`--deep`/GC tự động đã thêm ở GĐ3 (xem 5.5).
 - `remove` từ chối khi có phiên (`ErrBusy`) hoặc còn daemon Codex (`ErrDaemonAlive`); tự duyệt cây bằng `Lstat` và gỡ liên kết
   mà không đi vào (junction Windows), giữ `session.lock` tới cuối vì Windows không xoá được tệp đang mở.
@@ -268,7 +270,7 @@ Trên Linux temp vẫn nằm dưới `/tmp` nên `systemd-tmpfiles` là lưới 
 - **Dữ liệu người dùng** = mục ở gốc HOME giả không bắt đầu bằng "." và không thuộc danh mục đã biết (`go`, `Library`, `AppData`, thành phần đầu của
   mọi InHome), vd `Projects/`. `du`, `status`, doctor báo (`!`); GC không bao giờ chạm.
 - `gc`: mỗi profile lấy khoá X không chờ (đang có phiên ⇒ bỏ qua cả profile; còn daemon Codex ⇒ bỏ qua phiên và bản cài, cache vẫn dọn).
-  Tệp cache riêng cũ hơn `cache_ttl` (mọi InHome của danh mục là thư mục thật, trừ `uv-data`: tool/Python đã cài không phải cache); tệp phiên cũ hơn `sessions_ttl` (Codex `sessions|archived_sessions/**/rollout-*.jsonl`, Claude
+  Cache riêng cũ hơn `cache_ttl` **theo khối** (mọi InHome của danh mục là thư mục thật, trừ `uv-data`: tool/Python đã cài không phải cache): khối chỉ bị xoá khi mọi mục trong nó (tệp, thư mục, liên kết; `Lstat`, không đi theo liên kết) cũ hơn `cache_ttl`, vì xoá từng tệp theo mtime để lại gói dở (nội dung cũ mất, `.cargo-ok`/`node_modules/.package-lock.json` mới ở lại) mà trình quản lý gói coi là đủ. Khối là mỗi mục con trực tiếp của `.cache`, `Library/Caches`, `.npm`, `AppData\Local\npm-cache` (vd `.cache/uv`, `.npm/_npx`); với các gốc còn lại (`go/pkg/mod`, `.cargo/registry`, kho pnpm/bun…) toàn bộ nội dung gốc là một khối (xoá hết mục con, giữ thư mục gốc). mtime là lúc ghi chứ không phải lần dùng cuối: cache chỉ đọc lâu ngày bị xoá cả khối rồi tải lại (tăng `cache_ttl` hoặc dùng `cache: shared`). `removeTree` cấp lại quyền cho chủ trên thư mục/tệp thật thiếu quyền ghi (cây module Go 0555/0444), không chạm liên kết hay đích của liên kết; tệp phiên cũ hơn `sessions_ttl` (Codex `sessions|archived_sessions/**/rollout-*.jsonl`, Claude
   `projects/*/<uuid>.jsonl` kèm `<uuid>/`; `sessions_ttl: 0` ⇒ không xoá tệp phiên nào, kể cả của `--deep`) trừ phiên là `LastStep.session_id` của tác vụ chưa
   kết thúc. `--deep` thêm `claude/versions/*` (trừ bản `bin/claude` trỏ tới), `codex packages/*/releases/*` (trừ đích `current`; chỉ khi `packages` không
   phải liên kết) và `.claude/projects/<slug>` mà thư mục nguồn (đọc từ `cwd` trong `.jsonl`) không còn — chỉ khi thư mục cha của nguồn còn (tránh nhầm ổ
@@ -516,8 +518,10 @@ sẵn (phiên chạy tay + máy Windows), theo quy ước nghiệm thu một ngu
 - **Không chép sqlite của Codex** (`state_*.sqlite`, `logs_*.sqlite`: hàng chục–trăm MB, có thể đang được phiên thật ghi). Codex có liệt kê/resume rollout đã chép
   khi thiếu `state_*.sqlite` không: đo ở `NT-ISO-PROF-IMPORT`. Copy, không hardlink: harness ghi nối vào rollout khi resume, hardlink sẽ sửa store nguồn.
 - **Làm sạch cấu hình đã chép** để `IsoSync` dựng lại theo receipt mà không rơi vào nhánh xung đột "C có, R vắng, C ≠ D" (5.6): bỏ mục MCP trùng tên bản thật
-  (`app.IsoImport` tính danh sách từ `config.toml`/`.claude.json` thật) và khoá `hooks.state` trỏ vào thư mục profile ai-isolator (đường dẫn cũ, vô hiệu). MCP riêng
-  và `[projects.*]` giữ nguyên.
+  (`app.IsoImport` tính danh sách từ `config.toml`/`.claude.json` thật), khoá `hooks.state` trỏ vào thư mục profile ai-isolator (đường dẫn cũ, vô hiệu; so theo vị trí của chính
+  `hooks.json`, không giải symlink thành phần cuối — `home/.codex/hooks.json` của ai-isolator là symlink), khoá `[projects.*]`/`[hooks.state.*]` mà `config.toml` thật cũng có trong phạm vi
+  trust của repo hiện tại (`ImportOptions.DropCodexProjects/DropCodexHookState`; IsoSync dựng lại từ bản thật, nên không thành xung đột "mục riêng của profile" dù giá trị khác), và với Claude
+  hook bint trong `settings.json` đã chép có lệnh khác bản thật (`UninstallHooks` chỉ gỡ hook của bint, sao lưu vào `sync-backups`). MCP riêng, trust của repo khác và hook user khác giữ nguyên.
 - **Hoàn thiện dùng chung với `create`:** `app.IsoFinalize` (EnsureShares, EnsureInstall, InstallIssues, IsoSync); cả hai lệnh in qua `printIsoFinalize`.
 - **An toàn:** store nguồn chỉ đọc (test so sha256 + danh sách tệp trước/sau); profile bint đã có thì `skipped`, không ghi đè; lỗi giữa chừng gọi `RemoveProfile` (điểm chèn lỗi
   `importFault` cho test); nguồn và store bint không được trùng/lồng nhau; `app.RequireHuman` ở cả CLI và `app.IsoImport` (`ErrAgentForbidden`). Thoát 1 khi có profile lỗi.

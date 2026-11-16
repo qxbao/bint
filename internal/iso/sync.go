@@ -50,6 +50,9 @@ type SyncSource struct {
 	Hooks []HookTarget
 	// Late chạy sau khi các khoá của Entries đã ghi (không chạy khi Check) và trả thêm Entries Kind=KindHookState
 	// (trust hook user, cần hooks/list với env profile nên không tính trước được). Ghi chú trả về nối vào báo cáo.
+	// Hợp đồng: không tính được (không có harness, đọc cấu hình thật lỗi, hooks/list lỗi) thì PHẢI trả error —
+	// Sync ghi chú và không đụng khoá nào. Trả nil error với danh sách rỗng nghĩa là "bản thật không có khoá
+	// nào", và Sync gỡ khoá hook-state đã có trong receipt.
 	Late  func() ([]Entry, []string, error)
 	Notes []string
 }

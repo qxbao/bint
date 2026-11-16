@@ -144,3 +144,37 @@ func TestHarnessArgs(t *testing.T) {
 		t.Fatalf("muốn ErrLBUnavailable, nhận %v", err)
 	}
 }
+
+// Hai store cùng codex/default chạy đồng thời: phiên cuối của store A kết thúc không được xoá TMPDIR của B
+// (khoá S nằm trong từng store, TMPDIR phải tách theo store).
+func TestFinishSessionOtherStoreKeepsTemp(t *testing.T) {
+	a := testStore(t, func(c *config.Iso) { c.GCInterval = "0s" })
+	real := newFakeReal(t)
+	b := &Store{Root: filepath.Join(real.Dir, "storeB"), Settings: a.Settings}
+	pa := mustCreate(t, a, Codex, "default")
+	pb := mustCreate(t, b, Codex, "default")
+
+	sb, err := Begin(pb, real.Env, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sb.End()
+	sa, err := Begin(pa, real.Env, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sa.Temp == sb.Temp {
+		t.Fatalf("hai store dùng chung TMPDIR %q", sa.Temp)
+	}
+	marker := filepath.Join(sb.Temp, "dang-dung")
+	if err := os.WriteFile(marker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sa.End()
+	if _, err := os.Stat(sa.Temp); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("TMPDIR của A phải bị dọn: %v", err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("phiên cuối của store A đã xoá TMPDIR của store B: %v", err)
+	}
+}

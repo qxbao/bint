@@ -445,3 +445,87 @@ func isoSyncProfile2(t *testing.T, tool iso.Tool, name string) iso.Profile {
 	}
 	return p
 }
+
+// Pha Late không tính được (không có codex trên PATH, config.toml thật hỏng) không được coi là "bản thật đã
+// bỏ": khoá hooks.state của hook user đã có trong receipt phải giữ nguyên, không có mục remove.
+func TestIsoSyncLateUnavailableKeepsUserHookState(t *testing.T) {
+	testutil.Isolate(t)
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	repo := testutil.NewRepo(t, map[string]string{"README.md": "x\n"})
+	repo, _ = filepath.EvalSymlinks(repo)
+	realHome := filepath.Join(os.Getenv("HOME"), ".codex")
+	realHooks := codex.UserHooksPathIn(realHome)
+	if _, err := codex.InstallHooks(realHooks, "/real/bint", t.TempDir(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	realCfg := filepath.Join(realHome, "config.toml")
+	writeTOML(t, realCfg, map[string]any{
+		"hooks": map[string]any{"state": map[string]any{
+			realHooks + ":pre_tool_use:0:0": map[string]any{"trusted_hash": "sha256:USER-PRE"},
+		}},
+	})
+	p := isoSyncProfile(t, iso.Codex)
+	profHooks := codex.UserHooksPathIn(filepath.Join(p.Home, ".codex"))
+	profCfg := filepath.Join(p.Home, ".codex", "config.toml")
+	key := profHooks + ":pre_tool_use:0:0"
+	stubCodex(t, hooksListJSON(hookRow(key, "preToolUse", profHooks, "sha256:USER-PRE", "untrusted")))
+	pathWithCodex := os.Getenv("PATH")
+
+	hasState := func() bool {
+		return tomlSub(tomlSub(readTOML(t, profCfg), "hooks"), "state")[key] != nil
+	}
+	if _, err := IsoSync(context.Background(), p, IsoSyncOptions{Dir: repo}); err != nil {
+		t.Fatal(err)
+	}
+	if !hasState() {
+		t.Fatal("sync đầu phải chép trust hook user")
+	}
+	noRemove := func(t *testing.T, rep iso.SyncReport) {
+		t.Helper()
+		for _, it := range rep.Items {
+			if it.Action == iso.ActRemove {
+				t.Errorf("không được gỡ khi không tính được: %+v", it)
+			}
+		}
+	}
+
+	t.Run("không có codex trên PATH", func(t *testing.T) {
+		var keep []string
+		for _, d := range filepath.SplitList(pathWithCodex) {
+			if _, err := os.Stat(filepath.Join(d, "codex")); err != nil {
+				keep = append(keep, d)
+			}
+		}
+		t.Setenv("PATH", strings.Join(keep, string(os.PathListSeparator)))
+		rep, err := IsoSync(context.Background(), p, IsoSyncOptions{Dir: repo})
+		if err != nil {
+			t.Fatal(err)
+		}
+		noRemove(t, rep)
+		if !hasState() {
+			t.Fatal("khoá hooks.state của hook user bị gỡ khi không có codex")
+		}
+		if n := strings.Join(rep.Notes, "\n"); !strings.Contains(n, "không xác minh được trust hook") {
+			t.Errorf("thiếu ghi chú:\n%s", n)
+		}
+	})
+
+	t.Run("config.toml thật hỏng", func(t *testing.T) {
+		t.Setenv("PATH", pathWithCodex)
+		if err := os.WriteFile(realCfg, []byte("đây không phải [toml"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		rep, err := IsoSync(context.Background(), p, IsoSyncOptions{Dir: repo})
+		if err != nil {
+			t.Fatal(err)
+		}
+		noRemove(t, rep)
+		if !hasState() {
+			t.Fatal("khoá hooks.state của hook user bị gỡ khi config.toml thật hỏng")
+		}
+		if n := strings.Join(rep.Notes, "\n"); !strings.Contains(n, "bỏ qua trust hook user") {
+			t.Errorf("thiếu ghi chú:\n%s", n)
+		}
+	})
+}

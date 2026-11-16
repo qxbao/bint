@@ -24,7 +24,7 @@ func TestEnsureTempCreates0700(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(base, tempParentName(), "codex--w"); dir != want {
+	if want := filepath.Join(base, tempParentName(), StoreKey(p.StoreRoot), "codex--w"); dir != want {
 		t.Fatalf("dir = %q, muốn %q", dir, want)
 	}
 	for _, d := range []string{dir, filepath.Dir(dir)} {
@@ -89,13 +89,32 @@ func TestEnsureTempRejectsFileParent(t *testing.T) {
 func TestEnsureTempRejectsSymlinkProfileDir(t *testing.T) {
 	p, base := tempProfile(t)
 	parent := filepath.Join(base, tempParentName())
-	if err := os.Mkdir(parent, 0o700); err != nil {
+	store := filepath.Join(parent, StoreKey(p.StoreRoot))
+	if err := os.MkdirAll(store, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(t.TempDir(), filepath.Join(parent, "codex--w")); err != nil {
+	if err := os.Symlink(t.TempDir(), filepath.Join(store, "codex--w")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := p.EnsureTemp(); err == nil {
 		t.Fatal("thư mục temp của profile là symlink phải bị từ chối")
+	}
+}
+
+func TestEnsureTempRejectsSymlinkStoreDir(t *testing.T) {
+	p, base := tempProfile(t)
+	parent := filepath.Join(base, tempParentName())
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	evil := t.TempDir()
+	if err := os.Symlink(evil, filepath.Join(parent, StoreKey(p.StoreRoot))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.EnsureTemp(); err == nil {
+		t.Fatal("thư mục temp của store là symlink phải bị từ chối")
+	}
+	if ents, _ := os.ReadDir(evil); len(ents) != 0 {
+		t.Fatalf("không được ghi qua symlink: %v", ents)
 	}
 }

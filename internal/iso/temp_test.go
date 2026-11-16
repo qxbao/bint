@@ -16,7 +16,7 @@ func TestTempDirLayout(t *testing.T) {
 	t.Setenv("TMPDIR", r.Tmp)
 	t.Setenv("TMP", r.Tmp)
 	t.Setenv("TEMP", r.Tmp)
-	want := filepath.Join(r.Tmp, tempParentName(), "codex--w")
+	want := filepath.Join(r.Tmp, tempParentName(), StoreKey(p.StoreRoot), "codex--w")
 	if got := p.TempDir(); got != want {
 		t.Fatalf("TempDir = %q, muốn %q", got, want)
 	}
@@ -45,5 +45,31 @@ func TestTempBaseDefaults(t *testing.T) {
 	}
 	if got := tempBase(newEnvList("windows", []string{"USERPROFILE=C:\\u"})); got != "C:\\u" {
 		t.Errorf("windows USERPROFILE: %q", got)
+	}
+}
+
+// Hai store khác gốc nhưng cùng codex/default phải nhận TMPDIR khác nhau (khoá S nằm trong từng store).
+func TestTempDirDiffersPerStore(t *testing.T) {
+	r := newFakeReal(t)
+	t.Setenv("TMPDIR", r.Tmp)
+	t.Setenv(EnvProfile, "")
+	a := profileAt(filepath.Join(r.Dir, "storeA"), Codex, "default", defaultSettings(t, nil), LB{})
+	b := profileAt(filepath.Join(r.Dir, "storeB"), Codex, "default", defaultSettings(t, nil), LB{})
+	if a.tempDirIn(r.Tmp) == b.tempDirIn(r.Tmp) {
+		t.Fatalf("hai store dùng chung TMPDIR %q", a.tempDirIn(r.Tmp))
+	}
+	if again := profileAt(filepath.Join(r.Dir, "storeA"), Codex, "default", defaultSettings(t, nil), LB{}); again.tempDirIn(r.Tmp) != a.tempDirIn(r.Tmp) {
+		t.Fatal("cùng store phải ra cùng TMPDIR")
+	}
+	ea, err := buildEnv("linux", a, r.Env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eb, err := buildEnv("linux", b, r.Env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envMap(ea)["TMPDIR"] == envMap(eb)["TMPDIR"] {
+		t.Fatalf("Env của hai store có cùng TMPDIR %q", envMap(ea)["TMPDIR"])
 	}
 }

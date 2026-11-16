@@ -26,8 +26,10 @@ var stripNames = []string{
 	"CODEX_LB_API_KEY", // chỉ chuyển tiếp khi profile linked (hoặc iso.pass_env)
 }
 
-// stripPrefixes gỡ cả họ biến.
-var stripPrefixes = []string{"XDG_", "GEMINI_", "AGY_", "ANTHROPIC_", realPrefix}
+// stripPrefixes gỡ cả họ biến. Không có XDG_: bốn XDG_*_HOME nằm trong ownedVars (bị gỡ rồi đặt lại về
+// profile), còn XDG_RUNTIME_DIR, XDG_DATA_DIRS, XDG_CONFIG_DIRS, XDG_SESSION_* là biến của hệ thống/phiên
+// (socket Wayland, podman, systemd --user, đường tìm hệ thống), không phải credential nên chuyển nguyên.
+var stripPrefixes = []string{"GEMINI_", "AGY_", "ANTHROPIC_", realPrefix}
 
 // StripNames và StripPrefixes là bản sao danh sách gỡ mặc định (cho `bint iso status`, tài liệu).
 func StripNames() []string    { return append([]string{}, stripNames...) }

@@ -22,6 +22,12 @@ func (p Profile) Lock(exclusive bool) (release func() error, busy bool, err erro
 		f.Close()
 		return nil, busy, err
 	}
+	// Đang giữ X nghĩa là không có phiên nào giữ S, nhưng bint của phiên đó có thể đã chết (kill -9) trong khi
+	// harness con còn chạy: hồ sơ runs/ (runs.go) chỉ thêm trạng thái bận, không thu hồi khoá.
+	if exclusive && len(p.liveRuns()) > 0 {
+		f.Close()
+		return nil, true, nil
+	}
 	var once sync.Once
 	var cerr error
 	return func() error {

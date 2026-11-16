@@ -218,7 +218,15 @@ func removeTree(path string) error {
 		return removeLink(path)
 	}
 	if !fi.IsDir() {
-		return os.Remove(path)
+		return removeFile(path, fi)
+	}
+	// Cây chỉ đọc (cây module Go giải nén: thư mục 0555, tệp 0444) không xoá được mục con nếu thư mục cha thiếu
+	// quyền ghi/duyệt: cấp lại cho chủ trước. Chỉ chạm thư mục thật vừa Lstat (liên kết đã xử lý ở trên),
+	// không bao giờ chạm đích của liên kết.
+	if fi.Mode().Perm()&0o700 != 0o700 {
+		if err := os.Chmod(path, fi.Mode().Perm()|0o700); err != nil {
+			return err
+		}
 	}
 	ents, err := os.ReadDir(path)
 	if err != nil {
@@ -234,6 +242,21 @@ func removeTree(path string) error {
 		return err
 	}
 	return os.Remove(path)
+}
+
+// removeFile xoá tệp (không phải thư mục, không phải liên kết): Windows không xoá được tệp có thuộc tính
+// read-only, nên cấp lại quyền ghi cho chủ khi thiếu (Unix không cần nhưng vô hại).
+func removeFile(path string, fi os.FileInfo) error {
+	err := os.Remove(path)
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if fi.Mode().Perm()&0o200 == 0 {
+		if cerr := os.Chmod(path, fi.Mode().Perm()|0o200); cerr == nil {
+			return os.Remove(path)
+		}
+	}
+	return err
 }
 
 // CollectTemp dọn temp của mọi profile (hoặc một profile theo opts.Only): profile đang có phiên (khoá S) bị
@@ -266,28 +289,53 @@ func CollectTemp(s *Store, o TempOptions) ([]TempAction, error) {
 	if o.Only != "" {
 		return out, errors.Join(errs...)
 	}
-	// Mồ côi: tên thư mục có dạng <tool>--<name> hợp lệ mà store này không có profile đó.
-	parent := orphanParent(s, o.envOrProcess())
-	ents, err := os.ReadDir(parent)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
+	// Mồ côi: tên thư mục có dạng <tool>--<name> hợp lệ mà store này không có profile đó. Chỉ quét thư mục
+	// của chính store này (<bint-iso-uid>/<StoreKey>); thư mục của store khác không thuộc quyền của nó.
+	// Thêm bố cục cũ (<bint-iso-uid>/<tool>--<name>, trước khi temp gắn với store): đường chuyển tiếp, chỉ
+	// xoá khi cũ hơn tmp_ttl.
+	env := o.envOrProcess()
+	dir := storeTempDir(s, env)
+	// Bố cục cũ không phân biệt store, nên mục của profile có trong store này cũng được dọn khi đã cũ.
+	for _, sc := range []struct {
+		dir  string
+		seen map[string]bool
+	}{{dir, seen}, {filepath.Dir(dir), nil}} {
+		acts, err := sweepOrphans(sc.dir, sc.seen, s.Settings.TmpTTL, o.DryRun)
+		out = append(out, acts...)
+		if err != nil {
 			errs = append(errs, err)
 		}
-		return out, errors.Join(errs...)
 	}
-	cutoff := time.Now().Add(-s.Settings.TmpTTL)
+	slices.SortFunc(out, func(a, b TempAction) int { return strings.Compare(a.Path, b.Path) })
+	return out, errors.Join(errs...)
+}
+
+// sweepOrphans xoá mục con <tool>--<name> của dir mà profile không có trong seen và cũ hơn ttl.
+func sweepOrphans(dir string, seen map[string]bool, ttl time.Duration, dry bool) ([]TempAction, error) {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var (
+		out  []TempAction
+		errs []error
+	)
+	cutoff := time.Now().Add(-ttl)
 	for _, de := range ents {
 		t, name, perr := parseDirName(de.Name())
-		if perr != nil || seen[de.Name()] || s.Settings.TmpTTL <= 0 {
+		if perr != nil || seen[de.Name()] || ttl <= 0 {
 			continue
 		}
-		path := filepath.Join(parent, de.Name())
+		path := filepath.Join(dir, de.Name())
 		fi, err := os.Lstat(path)
 		if err != nil || !fi.IsDir() || !fi.ModTime().Before(cutoff) {
 			continue
 		}
 		act := TempAction{Profile: string(t) + "/" + name, Path: path, Kind: TempOrphan}
-		if !o.DryRun {
+		if !dry {
 			if err := removeTree(path); err != nil {
 				errs = append(errs, err)
 			} else {
@@ -296,13 +344,14 @@ func CollectTemp(s *Store, o TempOptions) ([]TempAction, error) {
 		}
 		out = append(out, act)
 	}
-	slices.SortFunc(out, func(a, b TempAction) int { return strings.Compare(a.Path, b.Path) })
 	return out, errors.Join(errs...)
 }
 
-// orphanParent là thư mục bint-iso-<uid> chứa temp của mọi profile (theo temp thật của máy).
-func orphanParent(s *Store, env []string) string {
-	return filepath.Dir(Profile{Tool: Codex, Name: "x", Settings: s.Settings}.tempDirFrom(env))
+// storeTempDir là thư mục chứa temp của mọi profile thuộc store s (theo temp thật của máy).
+func storeTempDir(s *Store, env []string) string {
+	e := newEnvList(runtime.GOOS, env)
+	restoreReal(e)
+	return Profile{StoreRoot: s.Root}.storeTempDirIn(tempBase(e))
 }
 
 func (o TempOptions) envOrProcess() []string {

@@ -13,23 +13,23 @@ import (
 
 func tempParentName() string { return "bint-iso-" + strconv.Itoa(os.Getuid()) }
 
-// ensureTempDir tạo <parent>/<profile> với parent là bint-iso-<uid> đã được kiểm (xem EnsureTemp).
+// ensureTempDir tạo <parent>/<StoreKey>/<profile> với parent là bint-iso-<uid>; từng cấp được tạo bằng
+// os.Mkdir 0700 và kiểm bằng Lstat (không theo symlink, đúng chủ, không quyền nhóm/người khác) — xem EnsureTemp.
 func ensureTempDir(dir string) error {
-	parent := filepath.Dir(dir)
+	store := filepath.Dir(dir)
+	parent := filepath.Dir(store)
 	if err := os.MkdirAll(filepath.Dir(parent), 0o700); err != nil {
 		return err
 	}
-	if err := os.Mkdir(parent, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
-		return err
+	for _, d := range []string{parent, store, dir} {
+		if err := os.Mkdir(d, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+		if err := checkPrivateDir(d); err != nil {
+			return err
+		}
 	}
-	if err := checkPrivateDir(parent); err != nil {
-		return err
-	}
-	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
-		return err
-	}
-	// Mục con nằm trong thư mục riêng đã kiểm, vẫn Lstat để không đi theo symlink đặt sẵn.
-	return checkPrivateDir(dir)
+	return nil
 }
 
 // checkPrivateDir: thư mục thật (Lstat, không theo symlink), của người dùng hiện tại, mode không có bit

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"bint/internal/config"
+	"bint/internal/iso"
 )
 
 // GĐ3 của bint iso (docs/iso-plan.md mục 5.4, 5.5): chia sẻ cache, bản cài Codex, du, gc, GC tự động, doctor.
@@ -313,7 +314,7 @@ func TestIsoGCSessionsTTLZeroAndOpenTaskSession(t *testing.T) {
 
 func orphanTemp(t *testing.T, e isoEnv, name string) string {
 	t.Helper()
-	parent := filepath.Join(e.Tmp, "bint-iso-"+itoa(os.Getuid()))
+	parent := filepath.Join(e.Tmp, "bint-iso-"+itoa(os.Getuid()), iso.StoreKey(e.Store))
 	if err := os.MkdirAll(parent, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -399,10 +400,13 @@ func TestIsoGCListsEveryActionAndDryRunMatches(t *testing.T) {
 	home := filepath.Join(e.profileDir("claude", "c"), "home")
 	var files []string
 	for _, n := range []string{"a", "b", "c"} {
-		f := filepath.Join(home, ".cache", "uv", n)
+		// GC cache theo khối: mỗi khối là một mục con trực tiếp của .cache, xoá cả khối khi mọi mục đều cũ.
+		blk := filepath.Join(home, ".cache", "blk-"+n)
+		f := filepath.Join(blk, "pkg")
 		put(t, f, strings.Repeat("x", 5000))
 		age(t, f, 1000*time.Hour)
-		files = append(files, f)
+		age(t, blk, 1000*time.Hour)
+		files = append(files, blk)
 	}
 	dry, code := run(t, dir, "", "iso", "gc", "--dry-run")
 	if code != 0 {

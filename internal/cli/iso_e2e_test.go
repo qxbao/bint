@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"bint/internal/iso"
 	"bint/internal/testutil"
 )
 
@@ -233,7 +234,7 @@ func TestIsoRunEnvArgsAndExitCode(t *testing.T) {
 	}
 	r := runs[0]
 	home := filepath.Join(e.profileDir("claude", "w"), "home")
-	tmp := filepath.Join(e.Tmp, "bint-iso-"+itoa(os.Getuid()), "claude--w")
+	tmp := filepath.Join(e.Tmp, "bint-iso-"+itoa(os.Getuid()), iso.StoreKey(e.Store), "claude--w")
 	for _, want := range []string{"HOME=" + home, "TMPDIR=" + tmp, "STATE=" + os.Getenv("BINT_STATE_DIR"), "PROFILE=claude/w", "TMP_EXISTS"} {
 		if !strings.Contains(r, want+"\n") {
 			t.Errorf("thiếu %q:\n%s", want, r)

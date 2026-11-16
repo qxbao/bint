@@ -83,6 +83,9 @@ func Run(p Profile, spec Spec) (int, error) {
 		return 0, fmt.Errorf("không chạy được %s: %w", bin, err)
 	}
 	attach(cmd.Process)
+	if err := sess.Track(cmd.Process.Pid); err != nil {
+		spec.logf("không ghi được hồ sơ harness của %s: %v", p.ID(), err)
+	}
 	werr := cmd.Wait()
 	stop()
 	code := 0
@@ -110,6 +113,7 @@ type Session struct {
 	base    []string
 	logf    func(format string, args ...any)
 	release func() error
+	tracked []int // pid harness đã ghi hồ sơ runs/ (Track)
 	once    sync.Once
 }
 
@@ -170,6 +174,7 @@ func begin(p Profile, base []string, wait time.Duration, logf func(format string
 // động khi đến hạn. Gọi nhiều lần cũng được (chỉ lần đầu có tác dụng); lỗi chỉ thành cảnh báo qua logf.
 func (s *Session) End() {
 	s.once.Do(func() {
+		s.untrack() // trước khi nhả S: hồ sơ chỉ bị xoá khi còn giữ S
 		_ = s.release()
 		spec := Spec{Logf: s.logf}
 		if err := finishSession(s.Profile, s.Temp); err != nil {

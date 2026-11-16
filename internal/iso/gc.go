@@ -252,7 +252,23 @@ func (g *gcRun) sweep(kind, root string, want func(path string, fi os.FileInfo) 
 	return remaining
 }
 
-// cache xoá tệp cache riêng (InHome của danh mục khi là thư mục thật, kể cả khi cache private) cũ hơn cache_ttl.
+// cacheUnitDepth cho biết khối xoá của một gốc cache (InHome, dùng "/"): 1 = mỗi mục con trực tiếp là một khối
+// (.cache/uv, .npm/_npx, .npm/_cacache…: các thư mục dùng chung của nhiều công cụ), 0 = toàn bộ nội dung gốc là
+// một khối (go/pkg/mod, .cargo/registry, kho pnpm/bun, cache pip/uv/go-build của Windows: một gốc của MỘT trình
+// quản lý gói, có tệp đánh dấu phụ thuộc lẫn nhau giữa các thư mục con).
+func cacheUnitDepth(inHome string) int {
+	switch strings.ReplaceAll(inHome, `\`, "/") {
+	case ".cache", "Library/Caches", ".npm", "AppData/Local/npm-cache":
+		return 1
+	}
+	return 0
+}
+
+// cache xoá cache riêng (InHome của danh mục khi là thư mục thật, kể cả khi cache private) theo KHỐI: một khối
+// chỉ bị xoá khi mọi mục trong nó (tệp, thư mục, liên kết) đều cũ hơn cache_ttl. Xoá từng tệp theo mtime sẽ để
+// lại gói dở dang (tệp nội dung cũ mất, tệp đánh dấu như .cargo-ok hay node_modules/.package-lock.json còn mới),
+// và trình quản lý gói coi gói đó là đủ. mtime là lúc ghi (hoặc mốc trong archive), không phải lần dùng cuối:
+// cache chỉ đọc lâu ngày vẫn bị xoá cả khối rồi tải lại — chấp nhận để không bao giờ có gói dở.
 func (g *gcRun) cache() {
 	ttl := g.p.Settings.CacheTTL
 	if ttl <= 0 {
@@ -274,8 +290,118 @@ func (g *gcRun) cache() {
 		if !ok {
 			continue
 		}
-		g.sweep(GCCache, root, func(_ string, fi os.FileInfo) bool { return fi.ModTime().Before(cutoff) })
+		if cacheUnitDepth(in) == 0 {
+			g.cacheBlock(root, root, cutoff)
+			continue
+		}
+		ents, err := os.ReadDir(root)
+		if err != nil {
+			g.fail(err)
+			continue
+		}
+		for _, de := range ents {
+			g.cacheBlock(root, filepath.Join(root, de.Name()), cutoff)
+		}
 	}
+}
+
+// cacheBlock xoá khối ở path nếu mọi mục trong nó cũ hơn cutoff. path == root: khối là toàn bộ nội dung của
+// root (giữ lại thư mục root). Khối là liên kết thì giữ nguyên. Mỗi khối một GCAction và tối đa một lỗi.
+func (g *gcRun) cacheBlock(root, path string, cutoff time.Time) {
+	if !within(path, g.p.Dir) {
+		g.fail(fmt.Errorf("từ chối xoá %q: nằm ngoài thư mục profile", path))
+		return
+	}
+	if path != root {
+		if isl, err := isLink(path); err != nil {
+			g.fail(err)
+			return
+		} else if isl {
+			return
+		}
+	}
+	old, err := allOlderThan(path, cutoff)
+	if err != nil {
+		g.fail(err)
+		return
+	}
+	if !old {
+		return
+	}
+	var victims []string
+	if path == root {
+		ents, err := os.ReadDir(root)
+		if err != nil {
+			g.fail(err)
+			return
+		}
+		for _, de := range ents {
+			victims = append(victims, filepath.Join(root, de.Name()))
+		}
+	} else {
+		victims = []string{path}
+	}
+	if len(victims) == 0 {
+		return
+	}
+	var size int64
+	for _, v := range victims {
+		n, _ := treeSize(v)
+		size += n
+	}
+	act := GCAction{Profile: g.p.ID(), Kind: GCCache, Path: path, Bytes: size}
+	if !g.o.DryRun {
+		var errs []error
+		for _, v := range victims {
+			if err := removeTree(v); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if err := errors.Join(errs...); err != nil {
+			g.fail(err)
+		} else {
+			act.Removed = true
+		}
+	}
+	g.rep.Actions = append(g.rep.Actions, act)
+}
+
+// errNewer dừng allOlderThan ngay khi gặp mục mới.
+var errNewer = errors.New("có mục mới hơn")
+
+// allOlderThan: mọi mục dưới path (kể cả chính path) có mtime trước cutoff. Dùng Lstat, không đi theo liên
+// kết (symlink hay junction chỉ tính mtime của chính nó) và dừng sớm khi gặp mục mới.
+func allOlderThan(path string, cutoff time.Time) (bool, error) {
+	err := filepath.WalkDir(path, func(p string, de os.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		fi, err := de.Info()
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		if !fi.ModTime().Before(cutoff) {
+			return errNewer
+		}
+		if de.IsDir() && p != path {
+			if isl, err := isLink(p); err != nil {
+				return err
+			} else if isl {
+				return filepath.SkipDir
+			}
+		}
+		return nil
+	})
+	if errors.Is(err, errNewer) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // cacheSweepRoots là InHome của các mục danh mục mà GC được dọn theo tuổi: mọi mục trừ uv-data

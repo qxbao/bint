@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"bint/internal/iso"
 )
 
 // Harness giả chờ tới khi $OUT/release.<id> xuất hiện (id = đối số đầu), báo $OUT/started.<id>.
@@ -39,7 +41,7 @@ func isoRelease(t *testing.T, e isoEnv, id string) {
 }
 
 func tempDirOf(e isoEnv, tool, name string) string {
-	return filepath.Join(e.Tmp, "bint-iso-"+itoa(os.Getuid()), tool+"--"+name)
+	return filepath.Join(e.Tmp, "bint-iso-"+itoa(os.Getuid()), iso.StoreKey(e.Store), tool+"--"+name)
 }
 
 func TestIsoSignalSIGTERMForwardedAndSIGINTSwallowed(t *testing.T) {
@@ -144,12 +146,41 @@ func TestIsoKillParentLeavesTempAndGCCleans(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Hồ sơ runs/ được ghi ngay sau Start (có thể sau khi con đã in started): chờ nó trước khi giết bint.
+	runs := filepath.Join(e.profileDir("claude", "w"), "runs")
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if m, _ := filepath.Glob(filepath.Join(runs, "*.json")); len(m) > 0 { // bỏ qua tệp tạm của WriteAtomic
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if err := a.cmd.Process.Kill(); err != nil { // SIGKILL: bint không kịp dọn
 		t.Fatal(err)
 	}
+	// Con (mồ côi) vẫn chạy mà bint không còn giữ khoá S: hồ sơ runs/ phải giữ profile bận.
+	time.Sleep(300 * time.Millisecond)
+	if out, code := run(t, dir, "", "iso", "gc"); code != 0 || !strings.Contains(out, "bỏ qua (đang có phiên)") {
+		ents, _ := os.ReadDir(runs)
+		for _, en := range ents {
+			b, _ := os.ReadFile(filepath.Join(runs, en.Name()))
+			t.Logf("run %s: %s", en.Name(), b)
+		}
+		t.Fatalf("gc khi harness mồ côi còn chạy: %d (runs=%d)\n%s", code, len(ents), out)
+	}
+	if _, err := os.Stat(filepath.Join(tmp, "scratch")); err != nil {
+		t.Fatalf("gc xoá TMPDIR của harness còn chạy: %v", err)
+	}
+	if out, code := run(t, dir, "", "iso", "remove", "claude", "--name", "w", "--yes"); code == 0 || !strings.Contains(out, "đang có phiên") {
+		t.Fatalf("remove khi harness mồ côi còn chạy: %d\n%s", code, out)
+	}
+	if _, err := os.Stat(tmp); err != nil {
+		t.Fatalf("remove xoá TMPDIR của harness còn chạy: %v", err)
+	}
+
 	isoRelease(t, e, "K") // con (mồ côi) thoát; phải làm trước Wait vì nó còn giữ đầu ghi của pipe stdout
 	_ = a.cmd.Wait()
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(600 * time.Millisecond) // con kiểm release mỗi 50 ms rồi thoát
 	if _, err := os.Stat(tmp); err != nil {
 		t.Fatalf("kill -9 cha phải để lại temp: %v", err)
 	}

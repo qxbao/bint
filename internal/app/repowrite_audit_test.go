@@ -134,7 +134,8 @@ func scanApp(t *testing.T) (sites []callSite, funcBodies map[string]map[string]b
 // profileWriteFiles: tệp app cài hook vào HOME giả của một profile `bint iso` (ngoài repo, không thuộc nhật ký ghi repo).
 // Chỉ miễn cho InstallHooks/UninstallHooks; mọi lệnh ghi trực tiếp khác trong các tệp này vẫn bị kiểm.
 var profileWriteFiles = map[string]string{
-	"iso_sync.go": "đồng bộ hook user vào profile bint iso (HOME giả của profile), không ghi tệp repo",
+	"iso_sync.go":   "đồng bộ hook user vào profile bint iso (HOME giả của profile), không ghi tệp repo",
+	"iso_import.go": "gỡ hook bint chép từ ai-isolator khỏi settings.json trong HOME giả của profile vừa nhập, không ghi tệp repo",
 }
 
 func TestRepoWritesGoThroughRepoWriter(t *testing.T) {

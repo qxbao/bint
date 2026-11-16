@@ -220,22 +220,22 @@ func TestPruneOldDoesNotFollowSymlinks(t *testing.T) {
 }
 
 func TestCollectTempDryRunBusyAndOrphan(t *testing.T) {
-	s, p, base := tmpProfile(t, Codex, "w")
+	s, p, _ := tmpProfile(t, Codex, "w")
 	other := mustCreate(t, s, Claude, "c")
 	tmp, _ := p.EnsureTemp()
 	tmp2, _ := other.EnsureTemp()
 	if err := os.WriteFile(filepath.Join(tmp, "f"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	orphan := filepath.Join(base, tempParentName(), "codex--gone")
+	orphan := filepath.Join(filepath.Dir(tmp), "codex--gone")
 	if err := os.MkdirAll(orphan, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	fresh := filepath.Join(base, tempParentName(), "codex--fresh")
+	fresh := filepath.Join(filepath.Dir(tmp), "codex--fresh")
 	if err := os.MkdirAll(fresh, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	stranger := filepath.Join(base, tempParentName(), "không-phải-profile")
+	stranger := filepath.Join(filepath.Dir(tmp), "không-phải-profile")
 	if err := os.MkdirAll(stranger, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -310,5 +310,34 @@ func TestCollectTempDryRunBusyAndOrphan(t *testing.T) {
 	}
 	if _, err := os.Lstat(tmp); !os.IsNotExist(err) {
 		t.Fatalf("hết phiên thì gc xoá temp: %v", err)
+	}
+}
+
+// Thư mục temp bố cục cũ (<bint-iso-uid>/<tool>--<name>, trước khi gắn với store) được dọn khi cũ hơn tmp_ttl.
+func TestCollectTempLegacyOrphan(t *testing.T) {
+	s, p, base := tmpProfile(t, Codex, "w")
+	legacyOld := filepath.Join(base, tempParentName(), "codex--w")
+	legacyFresh := filepath.Join(base, tempParentName(), "claude--fresh")
+	for _, d := range []string{legacyOld, legacyFresh} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	age(t, legacyOld, 48*time.Hour)
+	if _, err := p.EnsureTemp(); err != nil {
+		t.Fatal(err)
+	}
+	acts, err := CollectTemp(s, TempOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(legacyOld); !os.IsNotExist(err) {
+		t.Fatalf("mục bố cục cũ quá tmp_ttl phải bị xoá: %v (%+v)", err, acts)
+	}
+	if _, err := os.Lstat(legacyFresh); err != nil {
+		t.Fatalf("mục bố cục cũ còn mới phải được giữ: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(base, tempParentName(), StoreKey(s.Root))); err != nil {
+		t.Fatalf("thư mục của store không được bị xoá: %v", err)
 	}
 }

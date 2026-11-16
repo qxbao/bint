@@ -38,7 +38,7 @@ func credentialEnv() []string {
 		"ANTIGRAVITY_API_KEY=k11", "ANTIGRAVITY_AUTH_TOKEN=k12",
 		"AWS_BEARER_TOKEN_BEDROCK=k13", "CLAUDE_CODE_USE_BEDROCK=1", "CLAUDE_CODE_USE_VERTEX=1",
 		"CODEX_HOME=/real/codex", "CLAUDE_CONFIG_DIR=/real/claude", "CODEX_LB_API_KEY=lbk",
-		"XDG_CONFIG_HOME=/real/xc", "XDG_DATA_HOME=/real/xd", "XDG_STATE_HOME=/real/xs", "XDG_RUNTIME_DIR=/run/u",
+		"XDG_CONFIG_HOME=/real/xc", "XDG_DATA_HOME=/real/xd", "XDG_STATE_HOME=/real/xs",
 		"TMP=/real/tmp", "TEMP=/real/tmp",
 	}
 }
@@ -125,7 +125,7 @@ func TestEnvLinuxTable(t *testing.T) {
 				"BINT_ISO_REAL_HOME": r.Home, "BINT_ISO_HOME": root, "BINT_ISO_PROFILE": string(c.tool) + "/w",
 				"BINT_ISO_REAL_TMPDIR": r.Tmp, "BINT_ISO_REAL_XDG_CONFIG_HOME": "/real/xc",
 			}
-			tmp := filepath.Join(r.Tmp, tempParentName(), string(c.tool)+"--w")
+			tmp := filepath.Join(r.Tmp, tempParentName(), StoreKey(root), string(c.tool)+"--w")
 			for _, k := range []string{"TMPDIR", "TMP", "TEMP"} {
 				fixed[k] = tmp
 			}
@@ -150,9 +150,6 @@ func TestEnvLinuxTable(t *testing.T) {
 					t.Errorf("%s phải còn", k)
 				}
 			}
-			if _, ok := m["XDG_RUNTIME_DIR"]; ok {
-				t.Error("XDG_* phải bị gỡ hết")
-			}
 		})
 	}
 }
@@ -170,7 +167,7 @@ func TestEnvStripListPinned(t *testing.T) {
 	if !slices.Equal(StripNames(), want) {
 		t.Errorf("stripNames đổi:\n got %v\nwant %v", StripNames(), want)
 	}
-	if !slices.Equal(StripPrefixes(), []string{"XDG_", "GEMINI_", "AGY_", "ANTHROPIC_", "BINT_ISO_REAL_"}) {
+	if !slices.Equal(StripPrefixes(), []string{"GEMINI_", "AGY_", "ANTHROPIC_", "BINT_ISO_REAL_"}) {
 		t.Errorf("stripPrefixes đổi: %v", StripPrefixes())
 	}
 	// Mọi biến trong yêu cầu (phiếu GĐ1) phải bị gỡ.
@@ -178,7 +175,7 @@ func TestEnvStripListPinned(t *testing.T) {
 	p := profileAt(filepath.Join(r.Dir, "s"), Claude, "w", defaultSettings(t, nil), LB{})
 	var base []string
 	for _, k := range []string{"CLAUDE_CODE_OAUTH_TOKEN", "AWS_BEARER_TOKEN_BEDROCK", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
-		"XDG_FOO", "TMPDIR", "TMP", "TEMP", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "GEMINI_X", "AGY_X", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"} {
+		"TMPDIR", "TMP", "TEMP", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "GEMINI_X", "AGY_X", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"} {
 		base = append(base, k+"=secret")
 	}
 	env, err := buildEnv("linux", p, append(base, r.Env...))
@@ -400,5 +397,58 @@ func TestEnvSetVarsAreManaged(t *testing.T) {
 		if !slices.Contains(ownedVars(), m) && !strings.HasPrefix(m, "BINT_") {
 			t.Errorf("config.IsoManagedEnv có %s mà iso không quản lý", m)
 		}
+	}
+}
+
+// Họ XDG_ không bị gỡ nguyên khối: biến hệ thống/phiên (XDG_RUNTIME_DIR, XDG_DATA_DIRS, XDG_CONFIG_DIRS,
+// XDG_SESSION_*) phải tới được tiến trình con, còn bốn XDG_*_HOME trỏ vào profile.
+func TestEnvKeepsSystemXDG(t *testing.T) {
+	r := newFakeReal(t)
+	p := profileAt(filepath.Join(r.Dir, "s"), Claude, "w", defaultSettings(t, nil), LB{})
+	sys := map[string]string{
+		"XDG_RUNTIME_DIR": "/run/user/1000", "XDG_DATA_DIRS": "/usr/share:/usr/local/share",
+		"XDG_CONFIG_DIRS": "/etc/xdg", "XDG_SESSION_TYPE": "wayland", "XDG_SESSION_ID": "3",
+	}
+	base := slices.Clone(r.Env)
+	for k, v := range sys {
+		base = append(base, k+"="+v)
+	}
+	base = append(base, "XDG_CONFIG_HOME=/real/xc", "XDG_DATA_HOME=/real/xd", "XDG_STATE_HOME=/real/xs")
+	env, err := buildEnv("linux", p, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := envMap(env)
+	for k, v := range sys {
+		if m[k] != v {
+			t.Errorf("%s = %q, muốn giữ %q", k, m[k], v)
+		}
+	}
+	for k, v := range map[string]string{
+		"XDG_CONFIG_HOME": p.Home + "/.config", "XDG_DATA_HOME": p.Home + "/.local/share",
+		"XDG_STATE_HOME": p.Home + "/.local/state",
+	} {
+		if m[k] != v {
+			t.Errorf("%s = %q, muốn %q", k, m[k], v)
+		}
+	}
+	// lồng profile: RealEnv không làm mất biến hệ thống.
+	back := envMap(RealEnv(env))
+	for k, v := range sys {
+		if back[k] != v {
+			t.Errorf("RealEnv: %s = %q, muốn %q", k, back[k], v)
+		}
+	}
+	if back["XDG_CONFIG_HOME"] != "/real/xc" {
+		t.Errorf("RealEnv: XDG_CONFIG_HOME = %q", back["XDG_CONFIG_HOME"])
+	}
+	// iso.drop_env vẫn gỡ được.
+	p2 := profileAt(filepath.Join(r.Dir, "s"), Claude, "w", defaultSettings(t, func(c *config.Iso) { c.DropEnv = []string{"XDG_RUNTIME_DIR"} }), LB{})
+	env2, err := buildEnv("linux", p2, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := envMap(env2)["XDG_RUNTIME_DIR"]; ok {
+		t.Error("drop_env phải gỡ XDG_RUNTIME_DIR")
 	}
 }

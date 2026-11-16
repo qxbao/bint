@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"bint/internal/harness/claude"
 	"bint/internal/iso"
 	"bint/internal/jsondoc"
 )
@@ -70,9 +72,11 @@ func IsoImport(ctx context.Context, st *iso.Store, o IsoImportOptions) ([]IsoImp
 	if env == nil {
 		env = os.Environ()
 	}
-	drop, notes := isoRealMCPNames(env)
+	rd := isoRealDropsOf(ctx, env)
+	notes := rd.Notes
 	results, err := iso.Import(st, iso.ImportOptions{
-		Source: o.Source, Only: o.Only, WithSessions: o.WithSessions, DryRun: o.DryRun, DropMCP: drop, Env: env,
+		Source: o.Source, Only: o.Only, WithSessions: o.WithSessions, DryRun: o.DryRun, DropMCP: rd.MCP,
+		DropCodexProjects: rd.Projects, DropCodexHookState: rd.HookState, Env: env,
 	})
 	if err != nil {
 		return nil, err
@@ -84,6 +88,9 @@ func IsoImport(ctx context.Context, st *iso.Store, o IsoImportOptions) ([]IsoImp
 			oc.Notes = append(oc.Notes, notes[tool]...)
 		}
 		if r.Status == iso.ImportImported {
+			if r.Profile.Tool == iso.Claude {
+				oc.Notes = append(oc.Notes, dropDivergentClaudeHook(r.Profile, env)...)
+			}
 			fin := IsoFinalize(ctx, r.Profile, env)
 			oc.Final = &fin
 		}
@@ -97,12 +104,24 @@ func splitToolID(id string) (iso.Tool, string, bool) {
 	return t, name, err == nil
 }
 
-// isoRealMCPNames là tên mục MCP có ở cấu hình thật của từng tool (Codex: [mcp_servers.*] của config.toml;
-// Claude: mcpServers của .claude.json): trùng tên với bản đã chép thì phải bỏ bản chép. Không đọc được thì
-// không bỏ gì và ghi chú (IsoSync sẽ báo lại).
-func isoRealMCPNames(env []string) (map[iso.Tool][]string, map[iso.Tool][]string) {
-	drop := map[iso.Tool][]string{}
-	notes := map[iso.Tool][]string{}
+// isoRealDrops là những gì bản thật đã có và IsoSync sẽ tự dựng cho profile mới, nên phải bỏ khỏi bản chép từ
+// ai-isolator (profile mới chưa có receipt: khoá chép sẵn mà khác bản thật sẽ thành xung đột "mục riêng của
+// profile").
+type isoRealDrops struct {
+	// MCP là tên mục MCP có ở cấu hình thật của từng tool (Codex: [mcp_servers.*] của config.toml; Claude:
+	// mcpServers của .claude.json).
+	MCP map[iso.Tool][]string
+	// Projects và HookState là khoá [projects.*] và [hooks.state.*] của config.toml Codex thật thuộc phạm vi
+	// trust IsoSync nhân bản cho repo hiện tại (codexTrustScope). Ngoài repo thì rỗng: IsoSync cũng không dựng
+	// trust dự án. Khoá của repo khác không nằm trong đây nên bản chép được giữ.
+	Projects, HookState []string
+	// Notes là ghi chú theo tool khi không đọc được bản thật (không bỏ gì; IsoSync sẽ báo lại).
+	Notes map[iso.Tool][]string
+}
+
+func isoRealDropsOf(ctx context.Context, env []string) isoRealDrops {
+	d := isoRealDrops{MCP: map[iso.Tool][]string{}, Notes: map[iso.Tool][]string{}}
+	drop, notes := d.MCP, d.Notes
 	if home, err := iso.RealCodexHome(env); err != nil {
 		notes[iso.Codex] = append(notes[iso.Codex], fmt.Sprintf("không xác định được CODEX_HOME thật: %v (không bỏ MCP trùng)", err))
 	} else if cfg, err := readTOMLMap(filepath.Join(home, "config.toml")); err != nil {
@@ -111,15 +130,28 @@ func isoRealMCPNames(env []string) (map[iso.Tool][]string, map[iso.Tool][]string
 		for name := range tomlSub(cfg, "mcp_servers") {
 			drop[iso.Codex] = append(drop[iso.Codex], name)
 		}
+		// Cùng thư mục làm việc mà IsoFinalize dùng cho IsoSync ("" = thư mục hiện tại).
+		if sc, err := codexTrustScope(ctx, "."); err == nil {
+			for key := range tomlSub(cfg, "projects") {
+				if sc.project(key) {
+					d.Projects = append(d.Projects, key)
+				}
+			}
+			for key := range tomlSub(tomlSubMap(cfg, "hooks"), "state") {
+				if sc.hookState(key) {
+					d.HookState = append(d.HookState, key)
+				}
+			}
+		}
 	}
 	path, err := iso.RealClaudeJSON(env)
 	if err != nil {
 		notes[iso.Claude] = append(notes[iso.Claude], fmt.Sprintf("không xác định được .claude.json thật: %v (không bỏ MCP trùng)", err))
-		return drop, notes
+		return d
 	}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return drop, notes
+		return d
 	}
 	var servers map[string]json.RawMessage
 	if err == nil {
@@ -132,10 +164,37 @@ func isoRealMCPNames(env []string) (map[iso.Tool][]string, map[iso.Tool][]string
 	}
 	if err != nil {
 		notes[iso.Claude] = append(notes[iso.Claude], fmt.Sprintf("không đọc được mcpServers của %s: %v (không bỏ MCP trùng)", path, err))
-		return drop, notes
+		return d
 	}
 	for name := range servers {
 		drop[iso.Claude] = append(drop[iso.Claude], name)
 	}
-	return drop, notes
+	return d
+}
+
+// dropDivergentClaudeHook gỡ hook bint khỏi settings.json đã chép của profile Claude khi lệnh của nó khác lệnh ở
+// settings.json thật: IsoSync sẽ cài lại lệnh của bản thật. Để nguyên thì profile mới (chưa có receipt) có mục
+// hook "riêng" khác bản thật và IsoSync báo xung đột. UninstallHooks chỉ gỡ hook của bint, hook user khác giữ
+// nguyên. Lỗi chỉ thành ghi chú.
+func dropDivergentClaudeHook(p iso.Profile, env []string) []string {
+	home, err := iso.RealHomeOf(env)
+	if err != nil {
+		return nil
+	}
+	realCmd, realOK, err := claude.InstalledHookCommand(claude.UserSettingsPathIn(home))
+	if err != nil || !realOK {
+		return nil
+	}
+	profPath := claude.UserSettingsPathIn(p.Home)
+	cmd, ok, err := claude.InstalledHookCommand(profPath)
+	if err != nil {
+		return []string{fmt.Sprintf("không đọc được hook bint trong settings.json đã chép: %v", err)}
+	}
+	if !ok || cmd == realCmd {
+		return nil
+	}
+	if _, err := claude.UninstallHooks(profPath, filepath.Join(p.Dir, "sync-backups"), time.Now()); err != nil {
+		return []string{fmt.Sprintf("không gỡ được hook bint cũ trong settings.json đã chép: %v", err)}
+	}
+	return []string{"đã gỡ hook bint chép từ ai-isolator (lệnh khác bản thật); đồng bộ sẽ cài lại theo bản thật"}
 }

@@ -644,3 +644,78 @@ func TestImportSymlinkInsideAllowedDirSkipped(t *testing.T) {
 		t.Errorf("phải báo 2 symlink bị bỏ, nhận %d (%+v)", n, res.Skipped)
 	}
 }
+
+// Bố cục ai-isolator thật: home/.codex/hooks.json là symlink tới ~/.codex/hooks.json. Khoá hooks.state của
+// đường dẫn trong profile nguồn vẫn phải bị bỏ (không giải liên kết thành phần cuối), khoá trỏ thẳng tệp thật
+// được giữ và tệp nguồn không bị đổi.
+func TestImportDropsHookStateOfSymlinkedHooksJSON(t *testing.T) {
+	st := testStore(t, nil)
+	src := newFakeAISource(t)
+	srcDir := filepath.Join(src.Root, "profiles", "codex--personal")
+	realHooks := filepath.Join(t.TempDir(), ".codex", "hooks.json")
+	writeFileMode(t, realHooks, `{"hooks":{}}`, 0o644)
+	link := filepath.Join(srcDir, "home", ".codex", "hooks.json")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(realHooks, link); err != nil {
+		t.Skipf("không tạo được symlink: %v", err)
+	}
+	viaLink := filepath.ToSlash(link) + ":pre_tool_use:0:0"
+	direct := filepath.ToSlash(realHooks) + ":pre_tool_use:0:0"
+	cfg := "[hooks.state.\"" + viaLink + "\"]\ntrusted_hash = \"sha256:a\"\n[hooks.state.\"" + direct + "\"]\ntrusted_hash = \"sha256:b\"\n"
+	src.profile(t, "codex", "personal", map[string]string{"home/.codex/config.toml": cfg})
+	res := importOne1(t, st, src, ImportOptions{})
+	if res.Status != ImportImported {
+		t.Fatalf("%+v", res)
+	}
+	f, err := openTOML(filepath.Join(res.Profile.ConfigDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := f.get([]string{"hooks", "state"}, viaLink); ok {
+		t.Error("khoá hooks.state của hooks.json symlink trong profile nguồn phải bị bỏ")
+	}
+	if _, ok, _ := f.get([]string{"hooks", "state"}, direct); !ok {
+		t.Error("khoá trỏ thẳng tệp thật (ngoài profile nguồn) phải giữ")
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("symlink nguồn bị đổi: %v", err)
+	}
+	if b, _ := os.ReadFile(realHooks); string(b) != `{"hooks":{}}` {
+		t.Errorf("tệp thật bị đổi: %s", b)
+	}
+}
+
+// Khoá projects/hooks.state mà bản thật cũng có (IsoSync dựng lại) bị bỏ khỏi bản chép dù giá trị khác; khoá
+// của repo khác giữ nguyên.
+func TestImportDropsRealTrustKeys(t *testing.T) {
+	st := testStore(t, nil)
+	src := newFakeAISource(t)
+	repo := filepath.ToSlash(t.TempDir())
+	hk := repo + "/.codex/hooks.json:pre_tool_use:0:0"
+	cfg := "[projects.\"" + repo + "\"]\ntrust_level = \"untrusted\"\n[projects.\"/other/repo\"]\ntrust_level = \"trusted\"\n" +
+		"[hooks.state.\"" + hk + "\"]\ntrusted_hash = \"sha256:old\"\n" +
+		"[hooks.state.\"/other/repo/.codex/hooks.json:stop:0:0\"]\ntrusted_hash = \"sha256:o\"\n"
+	src.profile(t, "codex", "personal", map[string]string{"home/.codex/config.toml": cfg})
+	res := importOne1(t, st, src, ImportOptions{DropCodexProjects: []string{repo}, DropCodexHookState: []string{hk}})
+	if res.Status != ImportImported {
+		t.Fatalf("%+v", res)
+	}
+	f, err := openTOML(filepath.Join(res.Profile.ConfigDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := f.get([]string{"projects"}, repo); ok {
+		t.Error("trust dự án trùng bản thật phải bị bỏ")
+	}
+	if _, ok, _ := f.get([]string{"projects"}, "/other/repo"); !ok {
+		t.Error("trust repo khác phải giữ")
+	}
+	if _, ok, _ := f.get([]string{"hooks", "state"}, hk); ok {
+		t.Error("hooks.state trùng bản thật phải bị bỏ")
+	}
+	if _, ok, _ := f.get([]string{"hooks", "state"}, "/other/repo/.codex/hooks.json:stop:0:0"); !ok {
+		t.Error("hooks.state của repo khác phải giữ")
+	}
+}

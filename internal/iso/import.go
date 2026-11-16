@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -96,6 +97,13 @@ type ImportOptions struct {
 	DryRun       bool
 	// DropMCP là tên mục MCP bị bỏ khỏi cấu hình đã chép (trùng bản thật: để IsoSync dựng lại, không xung đột).
 	DropMCP map[Tool][]string
+	// DropCodexProjects là khoá [projects."<đường dẫn>"] và DropCodexHookState là khoá [hooks.state."<hooks.json>:
+	// <sự kiện>:<i>:<j>"] mà cấu hình Codex thật đã có và IsoSync sẽ tự dựng cho repo hiện tại: bản đã chép
+	// (giá trị có thể khác bản thật) bị bỏ để profile mới, chưa có receipt, không rơi vào xung đột. Khoá không
+	// có trong danh sách (trust repo khác) được giữ. So đường dẫn theo dạng chuẩn hoá (không giải liên kết
+	// thành phần cuối).
+	DropCodexProjects  []string
+	DropCodexHookState []string
 	// Env là env của tiến trình (mặc định os.Environ()).
 	Env []string
 }
@@ -322,7 +330,7 @@ func importOne(st *Store, srcDir, dn string, o ImportOptions) (res ImportResult)
 	if err := copyImport(p, filepath.Join(srcDir, "home"), files, dirs); err != nil {
 		return fail(err)
 	}
-	if err := cleanImported(p, srcDir, o.DropMCP[t]); err != nil {
+	if err := cleanImported(p, srcDir, o.DropMCP[t], o.DropCodexProjects, o.DropCodexHookState); err != nil {
 		return fail(err)
 	}
 	p.Meta.LB = res.LB
@@ -623,8 +631,9 @@ func copyRegular(src, dst string) error {
 }
 
 // cleanImported bỏ khỏi cấu hình đã chép những gì làm sync xung đột hoặc vô hiệu: mục MCP trùng tên bản thật
-// (drop) và, với Codex, khoá hooks.state trỏ vào thư mục profile ai-isolator (đường dẫn cũ, vô hiệu).
-func cleanImported(p Profile, srcDir string, dropMCP []string) error {
+// (dropMCP), với Codex khoá hooks.state trỏ vào thư mục profile ai-isolator (đường dẫn cũ, vô hiệu) và khoá
+// projects/hooks.state mà bản thật cũng có (dropProjects, dropHookState: IsoSync dựng lại từ bản thật).
+func cleanImported(p Profile, srcDir string, dropMCP, dropProjects, dropHookState []string) error {
 	bak, err := os.MkdirTemp("", "bint-iso-import-bak-")
 	if err != nil {
 		return err
@@ -646,11 +655,30 @@ func cleanImported(p Profile, srcDir string, dropMCP []string) error {
 				return err
 			}
 		}
+		if ps, ok, _ := f.get([]string{}, "projects"); ok && len(dropProjects) > 0 {
+			if m, isMap := ps.(map[string]any); isMap {
+				drop := map[string]bool{}
+				for _, k := range dropProjects {
+					drop[normKeyPath(k)] = true
+				}
+				for key := range m {
+					if drop[normKeyPath(key)] {
+						if err := f.del([]string{"projects"}, key); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
 		if hs, ok, _ := f.get([]string{"hooks"}, "state"); ok {
 			if m, isMap := hs.(map[string]any); isMap {
 				dirs := sourceDirs(srcDir)
+				drop := map[string]bool{}
+				for _, k := range dropHookState {
+					drop[normHookKey(k)] = true
+				}
 				for key := range m {
-					if hookStateInside(key, dirs) {
+					if hookStateInside(key, dirs) || drop[normHookKey(key)] {
 						if err := f.del([]string{"hooks", "state"}, key); err != nil {
 							return err
 						}
@@ -689,14 +717,48 @@ func sourceDirs(srcDir string) []string {
 	return out
 }
 
-// hookStateInside: khoá hooks.state có dạng "<đường dẫn hooks.json>:<sự kiện>:<i>:<j>" (tách từ bên phải vì
-// đường dẫn Windows có ':'); đúng khi đường dẫn nằm dưới một trong dirs.
-func hookStateInside(key string, dirs []string) bool {
+// normKeyPath chuẩn hoá đường dẫn trong khoá TOML để so sánh: giải liên kết thư mục cha nhưng KHÔNG giải thành
+// phần cuối (khác state.NormalizePath, vốn chạy EvalSymlinks trên cả đường dẫn). Trong profile ai-isolator thật
+// home/.codex/hooks.json là symlink tới ~/.codex/hooks.json: giải thành phần cuối làm khoá của nó trông như nằm
+// ngoài thư mục nguồn. Dấu '/', không phân biệt hoa thường trên Windows/macOS (như state.NormalizePath).
+func normKeyPath(p string) string {
+	p = filepath.Clean(p)
+	q := filepath.ToSlash(filepath.Join(pathutil.BestEffort(filepath.Dir(p)), filepath.Base(p)))
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		q = strings.ToLower(q)
+	}
+	return q
+}
+
+// splitHookStateKey tách khoá hooks.state "<đường dẫn hooks.json>:<sự kiện>:<i>:<j>" từ bên phải (đường dẫn
+// Windows có ':'): path và phần đuôi "<sự kiện>:<i>:<j>".
+func splitHookStateKey(key string) (path, tail string, ok bool) {
 	parts := strings.Split(key, ":")
 	if len(parts) < 4 {
+		return "", "", false
+	}
+	n := len(parts) - 3
+	return strings.Join(parts[:n], ":"), strings.Join(parts[n:], ":"), true
+}
+
+// normHookKey là dạng chuẩn hoá của khoá hooks.state (đường dẫn theo normKeyPath, giữ nguyên phần đuôi).
+func normHookKey(key string) string {
+	path, tail, ok := splitHookStateKey(key)
+	if !ok {
+		return key
+	}
+	return normKeyPath(path) + ":" + tail
+}
+
+// hookStateInside: khoá hooks.state có dạng "<đường dẫn hooks.json>:<sự kiện>:<i>:<j>" (tách từ bên phải vì
+// đường dẫn Windows có ':'); đúng khi đường dẫn nằm dưới một trong dirs. Đường dẫn là symlink (hooks.json của
+// ai-isolator) vẫn tính theo vị trí của chính liên kết, không theo đích.
+func hookStateInside(key string, dirs []string) bool {
+	path, _, ok := splitHookStateKey(key)
+	if !ok {
 		return false
 	}
-	np := state.NormalizePath(strings.Join(parts[:len(parts)-3], ":"))
+	np := normKeyPath(path)
 	for _, d := range dirs {
 		nd := strings.TrimSuffix(state.NormalizePath(d), "/")
 		if np == nd || strings.HasPrefix(np, nd+"/") {

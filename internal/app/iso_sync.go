@@ -125,25 +125,16 @@ func (b *isoSyncBuilder) codexTrust(cfg map[string]any) {
 	if dir == "" {
 		dir = "."
 	}
-	ws, err := OpenWorkspace(b.ctx, dir, false)
+	sc, err := codexTrustScope(b.ctx, dir)
 	if err != nil {
 		b.note("không xác định được repo của %s: bỏ qua trust dự án của Codex (%v)", dir, err)
 		b.skip(iso.KindTrust)
 		return
 	}
-	b.root = ws.Repo.Toplevel
-	exact := []string{ws.Repo.Toplevel}
-	if m := ws.Repo.MainWorktree(); m != "" {
-		exact = append(exact, m)
-	}
-	under := []string{ws.Repo.Toplevel}
-	if m := ws.Repo.MainWorktree(); m != "" {
-		under = append(under, m)
-	}
-	under = append(under, ws.Paths.Worktrees)
+	b.root = sc.toplevel
 	for key, v := range tomlSub(cfg, "projects") {
 		e := iso.Entry{Kind: iso.KindTrust, File: isoCodexConfig, Section: []string{"projects"}, Name: key, Value: v}
-		if pathIn(key, exact, false) || pathIn(key, []string{ws.Paths.Worktrees}, true) {
+		if sc.project(key) {
 			b.src.Entries = append(b.src.Entries, e)
 		} else {
 			// Profile dùng chung nhiều repo: trust của repo khác không phải "bản thật đã bỏ", đừng gỡ.
@@ -152,12 +143,48 @@ func (b *isoSyncBuilder) codexTrust(cfg map[string]any) {
 	}
 	for key, v := range tomlSub(tomlSubMap(cfg, "hooks"), "state") {
 		e := iso.Entry{Kind: iso.KindTrust, File: isoCodexConfig, Section: []string{"hooks", "state"}, Name: key, Value: v}
-		if path, _, ok := splitHookKey(key); ok && pathIn(path, under, true) {
+		if sc.hookState(key) {
 			b.src.Entries = append(b.src.Entries, e)
 		} else {
 			b.src.Retain = append(b.src.Retain, e)
 		}
 	}
+}
+
+// trustScope là phạm vi trust Codex mà IsoSync nhân bản cho một repo: [projects.*] của gốc repo, gốc Git main
+// và thư mục worktree của bint, cùng [hooks.state.*] của các hooks.json nằm trong những thư mục đó.
+type trustScope struct {
+	toplevel  string
+	exact     []string // [projects.K] khớp đúng
+	worktrees string   // [projects.K] nằm dưới (cả thư mục worktree của bint)
+	under     []string // [hooks.state] của hooks.json nằm dưới
+}
+
+func codexTrustScope(ctx context.Context, dir string) (trustScope, error) {
+	ws, err := OpenWorkspace(ctx, dir, false)
+	if err != nil {
+		return trustScope{}, err
+	}
+	sc := trustScope{toplevel: ws.Repo.Toplevel, worktrees: ws.Paths.Worktrees}
+	sc.exact = []string{ws.Repo.Toplevel}
+	sc.under = []string{ws.Repo.Toplevel}
+	if m := ws.Repo.MainWorktree(); m != "" {
+		sc.exact = append(sc.exact, m)
+		sc.under = append(sc.under, m)
+	}
+	sc.under = append(sc.under, ws.Paths.Worktrees)
+	return sc, nil
+}
+
+// project: khoá [projects.K] thuộc phạm vi sync.
+func (sc trustScope) project(key string) bool {
+	return pathIn(key, sc.exact, false) || pathIn(key, []string{sc.worktrees}, true)
+}
+
+// hookState: khoá [hooks.state.K] thuộc phạm vi sync.
+func (sc trustScope) hookState(key string) bool {
+	path, _, ok := splitHookKey(key)
+	return ok && pathIn(path, sc.under, true)
 }
 
 func (b *isoSyncBuilder) codexUserHook(realHome string, cfg map[string]any) {
@@ -199,6 +226,12 @@ func (b *isoSyncBuilder) codexUserHook(realHome string, cfg map[string]any) {
 	if b.o.Check || b.o.Static || (!ok && b.root == "") {
 		return
 	}
+	// config.toml thật không đọc/giải mã được: không có trạng thái trust thật để so, mà Late coi mục vắng là "bản
+	// thật đã bỏ" và sẽ gỡ trust hook user khỏi profile. Không chạy Late (khoá hooks.state giữ nguyên).
+	if cfg == nil {
+		b.note("không đọc được config.toml thật: bỏ qua trust hook user (giữ nguyên khoá hooks.state trong profile)")
+		return
+	}
 	b.src.Late = func() ([]iso.Entry, []string, error) { return b.codexLate(realPath, profPath, cfg) }
 }
 
@@ -207,7 +240,9 @@ func (b *isoSyncBuilder) codexUserHook(realHome string, cfg map[string]any) {
 func (b *isoSyncBuilder) codexLate(realHooks, profHooks string, cfg map[string]any) ([]iso.Entry, []string, error) {
 	bin, err := iso.LookHarness(iso.Codex, b.env, b.p.StoreRoot)
 	if err != nil {
-		return nil, []string{fmt.Sprintf("không xác minh được trust hook (hooks/list): %v", err)}, nil
+		// Phải trả lỗi, không phải nil: nil error với danh sách rỗng nghĩa là "bản thật không có khoá nào" và
+		// làm iso.Sync gỡ trust hook user đã có trong receipt.
+		return nil, nil, fmt.Errorf("không xác minh được trust hook (hooks/list): %w", err)
 	}
 	penv, cleanup, err := iso.ProbeEnv(b.p, b.env)
 	if err != nil {

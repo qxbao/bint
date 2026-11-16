@@ -477,6 +477,33 @@ func TestSyncLateHookState(t *testing.T) {
 	if !strings.Contains(readFile(t, filepath.Join(p.Home, codexCfg)), "sha256:abc") {
 		t.Fatal("kind bị Skip phải giữ nguyên")
 	}
+	// Late không tính được (trả error): khoá đã có trong receipt giữ nguyên, ghi chú báo lý do, không có remove.
+	failing := SyncSource{Skip: []string{KindHookState}, Late: func() ([]Entry, []string, error) {
+		return nil, nil, errors.New("không có codex")
+	}}
+	rep, err = Sync(p, failing, syncOpts(r, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range rep.Items {
+		if it.Action == ActRemove {
+			t.Fatalf("Late lỗi không được gỡ khoá: %+v", it)
+		}
+	}
+	if !strings.Contains(strings.Join(rep.Notes, "\n"), "không có codex") {
+		t.Fatalf("thiếu ghi chú lỗi Late: %v", rep.Notes)
+	}
+	if !strings.Contains(readFile(t, filepath.Join(p.Home, codexCfg)), "sha256:abc") {
+		t.Fatal("Late lỗi phải giữ khoá hook-state")
+	}
+	// Ngược lại, Late trả nil error với danh sách rỗng nghĩa là bản thật không còn khoá: gỡ.
+	empty := SyncSource{Skip: []string{KindHookState}, Late: func() ([]Entry, []string, error) { return nil, nil, nil }}
+	if _, err := Sync(p, empty, syncOpts(r, false)); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readFile(t, filepath.Join(p.Home, codexCfg)), "sha256:abc") {
+		t.Fatal("Late rỗng không lỗi: bản thật đã bỏ, phải gỡ")
+	}
 }
 
 func TestSyncCorruptReceiptIsEmptyNoOverwrite(t *testing.T) {
