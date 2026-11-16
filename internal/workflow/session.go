@@ -489,6 +489,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			return stop()
 		}
 		r.markFinalizeResume(ctx, rs, to, o.Rerun)
+		r.markVerifiedFixResume(ctx, rs, to, o.Rerun)
 	}
 	// Bước dở đã hết hạn (claimSession đã loại bước còn hạn dưới khoá phiếu): đóng như bước quá giờ (vẫn kiểm chỉ đọc để báo vi phạm).
 	if ps := rs.t.State.PendingStep; ps != nil {
@@ -616,7 +617,7 @@ func (r *Runner) pendingFrom(rs *runState, sr *stepRun) *task.PendingStep {
 	now := leaseNow()
 	until := now.Add(time.Duration(r.Cfg.Workflow.TimeoutMinutes) * lockWaitUnit)
 	return &task.PendingStep{RunID: sr.child, ParentRunID: rs.runID, Step: sr.step, Mode: leaseModeName(sr.mode),
-		Snapshot: sr.snapBefore, FeatBefore: sr.featBefore, FirstFeat: sr.firstFeat, Harness: sr.harness, Model: sr.reqModel,
+		Snapshot: sr.snapBefore, FeatBefore: sr.featBefore, TasksBefore: sr.tasksBefore, FirstFeat: sr.firstFeat, Harness: sr.harness, Model: sr.reqModel,
 		Kind: string(sr.kind), Subagent: subagentOf(sr.kind), Prompt: sr.prompt, MaxTurns: sr.maxTurns,
 		StartedAt: sr.started.UTC().Format(time.RFC3339Nano), LeaseUntil: until.UTC().Format(time.RFC3339Nano)}
 }
@@ -713,7 +714,7 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
 	id := rs.t.State.ID
 	kind := kindOfPending(ps)
 	sr := &stepRun{step: ps.Step, kind: kind, child: ps.RunID, stepID: "st_" + ps.RunID, readOnly: readOnlyKind(kind), mode: mode,
-		snapBefore: ps.Snapshot, featBefore: ps.FeatBefore, firstFeat: ps.FirstFeat, started: started, maxTurns: ps.MaxTurns,
+		snapBefore: ps.Snapshot, featBefore: ps.FeatBefore, tasksBefore: ps.TasksBefore, firstFeat: ps.FirstFeat, started: started, maxTurns: ps.MaxTurns,
 		reqModel: ps.Model, harness: ps.Harness, stepLog: rs.t.LogPath(ps.Step + "-" + ps.RunID + ".log"), lock: lock,
 		agentID: a.agentID, timedOut: a.timedOut, agentFailed: a.failed != "", continuations: ps.Continuations,
 		originRunID: ps.OriginRunID, usageBase: ps.UsageBase}

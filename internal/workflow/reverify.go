@@ -121,3 +121,77 @@ const partialReasonPrefix = "lần kiểm chứng trước chỉ chạy test b�
 func partialReason(scope string) string {
 	return partialReasonPrefix + scope + "): chạy đầy đủ trước khi done"
 }
+
+// fixVerifyReasonPrefix mở đầu lý do chuyển in_review → in_progress của fixAfterFullVerify (vòng sửa vì kiểm chứng đầy
+// đủ ở finalize hỏng); markVerifiedFixResume nhận ra vòng sửa đó qua lịch sử trạng thái.
+const fixVerifyReasonPrefix = "sửa: kiểm chứng đầy đủ ở finalize hỏng"
+
+// freshFullPass: lần kiểm chứng mới nhất của t (của Runner hay do người chạy `bint task verify`) đã được xác nhận, qua,
+// chạy đầy đủ, đúng lệnh hiện tại và trên đúng cây hiện tại (vân tay worktree trùng). Khi đó kiểm chứng lại chỉ lặp kết
+// quả đã có.
+func (e *Env) freshFullPass(ctx context.Context, t *task.Task) bool {
+	cmd := strings.TrimSpace(t.Ticket.Verify.Command)
+	if cmd == "" || !e.VerifyConfirmed(t) {
+		return false
+	}
+	v := t.State.LastVerification()
+	if v == nil || !v.Passed || !v.Confirmed || !v.Full() || v.Command != cmd || v.Worktree == "" {
+		return false
+	}
+	root, err := e.RootFor(t)
+	if err != nil {
+		return false
+	}
+	return task.WorktreeFingerprint(ctx, root) == v.Worktree
+}
+
+// inVerifyFix: tác vụ đang ở vòng sửa do fixAfterFullVerify mở, tức lần rời in_review gần nhất là chuyển sang in_progress
+// với lý do fixVerifyReasonPrefix (có thể bị chặn/ngắt sau đó rồi resume về in_progress).
+func inVerifyFix(t *task.Task) bool {
+	h := t.State.History
+	for i := len(h) - 1; i >= 0; i-- {
+		if h[i].From == task.StatusInReview {
+			return h[i].To == task.StatusInProgress && strings.HasPrefix(h[i].Reason, fixVerifyReasonPrefix)
+		}
+	}
+	return false
+}
+
+// markVerifiedFixResume: resume (về in_progress) một tác vụ đang ở vòng sửa vì kiểm chứng đầy đủ ở finalize hỏng, trong khi
+// người đã chạy lại kiểm chứng và lần mới nhất qua đầy đủ trên đúng cây hiện tại, và cây vẫn y như lúc lần đầy đủ hỏng
+// (chưa có sửa nào; review trước finalize vẫn đúng cây này). Vòng sửa không còn lý do: đưa tác vụ về in_review và vào thẳng
+// finalize (không chạy lại b-feat/b-review, không kiểm chứng lại) như khi kiểm chứng ở finalize đã xanh. Gọi sau khi đã
+// chuyển trạng thái. Không áp với --rerun.
+func (r *Runner) markVerifiedFixResume(ctx context.Context, rs *runState, to string, rerun bool) {
+	st := &rs.t.State
+	if rerun || to != task.StatusInProgress || !rs.chain() || st.HeldStep != nil || st.Landed != nil || st.AwaitingCheck ||
+		!inVerifyFix(rs.t) {
+		return
+	}
+	vs := st.Verifications
+	if len(vs) < 2 {
+		return
+	}
+	last := vs[len(vs)-1]
+	var failed *task.Verification
+	for i := len(vs) - 2; i >= 0; i-- {
+		if !vs[i].Passed {
+			failed = &vs[i]
+			break
+		}
+	}
+	if failed == nil || !failed.Full() || !strings.HasPrefix(failed.Reason, partialReasonPrefix) || failed.Worktree != last.Worktree {
+		return
+	}
+	if !r.freshFullPass(ctx, rs.t) {
+		return
+	}
+	if err := r.transition(rs, task.StatusInReview, "bỏ vòng sửa: lần kiểm chứng đầy đủ mới nhất đã qua trên đúng cây hiện tại"); err != nil {
+		r.logf("! %v", err)
+		return
+	}
+	rs.verifiedResume = true
+	note := "lần kiểm chứng đầy đủ mới nhất (" + last.At + ") đã qua trên đúng cây hiện tại: bỏ vòng sửa, vào thẳng finalize"
+	r.logf("  %s", note)
+	rs.res.Notes = append(rs.res.Notes, note)
+}
