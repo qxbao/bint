@@ -1,6 +1,7 @@
 # Nghiệm thu Bint — trạng thái, kế hoạch và hướng dẫn
 
-Cập nhật: 2026-11-13, sau vòng V0 (commit sửa mã `f1467a0`) và V1 một phần.
+Cập nhật: 2026-11-16, sau V0, V0b và các phiếu sửa sau V1 một phần. Việc kế tiếp: chạy lại V1 theo hai buổi
+(mục 4.4).
 
 **Đây là nguồn chuẩn duy nhất về nghiệm thu.** Tài liệu này giữ:
 
@@ -59,7 +60,7 @@ Ký hiệu: **Đủ điều kiện** = mọi phát hiện đã đóng, có bằn
 | [H — thành phần quy trình](p8-harness-evolution-plan.md) | H1–H4 | Chưa đo | `NT-H1-STOP`, `NT-H5` |
 | [Thử nghiệm A, B](p8-next-experiments.md) | B có đủ mã; A thiếu `eval snapshot import` | Chưa đo | `NT-EXP-A`, `NT-EXP-B` |
 | [Cô lập và driver session](isolation-subagent-plan.md) | G1–G4 và việc tồn | G1–G3 đạt (G3 chạy thật 2026-11-12, mục 12.16); G4 chạy thật ở [V1](evals/v1-real-session-2026-11-13/README.md): không đạt (một lần ghi lọt ra cây gốc) | `NT-ISO-G4`, `NT-ISO-BYPASS` (vế Bash), `NT-ISO-MAXTURNS`, `NT-WIN-*` |
-| [Gateway MCP](mcp-gateway-plan.md) | M0–M4; M5 đã đo bộ nhớ | Test tự động đạt cho M0–M4; M1 đạt với service thật ([V1](evals/v1-real-session-2026-11-13/README.md)) | `NT-MCP-SEED`, `NT-MCP-M0`, `NT-MCP-M2`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-*` |
+| [Gateway MCP](mcp-gateway-plan.md) | M0–M4; M5 đã đo bộ nhớ | Test tự động đạt cho M0–M4; M1 đạt với service thật ([V1](evals/v1-real-session-2026-11-13/README.md)) | `NT-MCP-M0`, `NT-MCP-M2`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-*` |
 | [TUI](tui-plan.md) | Giai đoạn 0–6, màn MCP | Golden và test phủ lệnh đạt; chưa thử với người và terminal thật | `NT-TUI-*` |
 | [Nối tiếp phiên của bước](step-continuation-plan.md) | GĐ1 (`810bf2b`), GĐ2 (`d7b59e1`, `f68b41f`), GĐ3 (driver process: Claude `--resume`, Codex `exec resume`) | Tiêu chí bằng test của GĐ1–3 đạt (agent giả/fixture, không gọi harness thật); chưa chạy `claude --resume`/`codex exec resume` thật | `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` |
 | [Custom skill/flow](custom-flow-plan.md) | GĐ1 (`21171cb`), GĐ2 (`f77ae19`), GĐ3 (`f124cd7`), GĐ4 (`7925e7d`), GĐ5 (`1c727f8`), GĐ6 (`25afb78`); sửa review `99083d0`, `b313ec1`, `5ce48e2` | Tiêu chí bằng test của GĐ1–6 đạt; chưa chạy với harness thật | `NT-CF-MANUAL` |
@@ -70,10 +71,16 @@ Cột "Vòng" trỏ tới mục 4. "Token" là token đo (eval/evolve), không t
 
 ### 3.1. Sửa mã trước khi nghiệm thu (không token)
 
-| Mã | Mức | Điều kiện đóng | Vòng |
-|---|---|---|---|
-| `NT-MCP-SEED` | Thấp | Worktree mới chép `.codegraph/codegraph.db` và `.codegraph/.gitignore` từ worktree gốc, không chép `*.pid`, `daemon.sock`, `daemon.log`, `-wal`/`-shm` (mcp §5.5). Hiện chưa có mã: `bint mcp index codegraph` chỉ chạy `init`/`sync` trong worktree hiện tại. Cần test cho tệp được chép và tệp bị loại | Phiếu riêng |
-| `NT-P6-06` | Thấp | Các phát hiện low còn lại sau V0 (`mergeBodies` không idempotent với khối mã chưa đóng, nối trùng câu khác dạng, test `third_party` chưa chặt, `repoToplevel` gọi hai lần, submodule, nhánh merge của skill); danh sách ở [biên bản V0](evals/v0-p6-fixes-2026-11-13/README.md) | Đã đóng: tác vụ `01M7FGG2H0KZZ6G4CDDPYAE0TT`, trạng thái từng phát hiện ở biên bản V0 |
+Không còn mục mở. Các mục đã đóng (chờ ký):
+
+- `NT-MCP-SEED` đóng 2026-11-15 (`8fe0577`, tác vụ `01M7FMB6G78VTCCTRPW8R4F545`). `ensureWorktree` gọi
+  `workflow.CopyCodegraphIndex`. Hàm này chép `.codegraph/codegraph.db` từ repo gốc bằng `VACUUM INTO` (gồm cả trang
+  còn trong WAL) cùng `.codegraph/.gitignore`. Gốc chưa có chỉ mục thì chạy `codegraph init -y` một lần. Test
+  `TestCopyCodegraphIndexConsistent` dựng nguồn có `-wal`/`-shm`, `codegraph.pid`, `daemon.sock` và đòi worktree chỉ có
+  `.gitignore`, `codegraph.db`. `daemon.log` bị loại vì hàm chỉ chép hai tệp đó; chưa có test riêng cho tệp này.
+  Phần chạy thật kiểm ở bước 2 của V1.
+- `NT-P6-06` đóng 2026-11-15 (`61222e8`, tác vụ `01M7FGG2H0KZZ6G4CDDPYAE0TT`). Đây là các low còn lại sau V0;
+  trạng thái từng phát hiện ở [biên bản V0](evals/v0-p6-fixes-2026-11-13/README.md).
 
 `NT-P6-01..05` đóng ở V0 (2026-11-13), chờ ký. `NT-ISO-LEAK` đóng 2026-11-13 (`e143459` + phiếu sửa review `01M7AC1XXEEG0SWVY75SQJ4XKV`): hậu kiểm transcript ở `bint run complete` đã kiểm trên transcript thật của V1 (bắt đúng lần ghi lọt, không tính lần bị hook chặn); `BINT_HOOK_TRACE` có tài liệu. Hai low còn lại đã đóng: lời nhắc `bint run next <id> --resume` không còn bị TUI đổi nhầm sang phím Chạy (đã loại trừ trong `cliref_inventory_test.go`), và low dựng `paths` đóng 2026-11-15 (tác vụ `01M7FKMZDVQ3XFR0EC1H5P2AXM`) bằng `TestIsolationAuditPathsPayloadIsRedactedList`: payload `paths` của `missed_by_hook` là danh sách đúng từng đường dẫn của lời gọi, mỗi phần tử qua `detect.Redact`, đường dẫn quá 300 ký tự bị cắt kèm dấu ba chấm. Phần chạy thật nằm ở lần chạy lại `NT-ISO-G4`. `NT-ISO-LEAK-FP` đóng 2026-11-13 (tác vụ `01M7AQSQ89E8Z6YHBPCM08ENKT`): hậu kiểm không tính lời gọi bị chặn trước khi chạy (`hookcore.IsPreExecDenial`: hook của Bint, `<tool_use_error>`, từ chối quyền, người dùng từ chối); `Exit code N` và dạng lạ vẫn tính. Còn 1 low: "The user doesn't want to take this action right now" có thể xuất hiện khi người dùng ngắt một lệnh đã bắt đầu chạy (chưa xác định trên transcript thật). Trong lúc sửa, bước b-feat của chính phiếu này cũng bị chặn nhầm một lần vì binary đang cài chưa có bản sửa. `NT-WF-BASELINE` đóng 2026-11-13 (tác vụ `01M7AJMTHSJPN53DRYQN1PR4M8`). Hiểu lại điều kiện: chặn ở Finalize là đúng (kiểm chứng phải chạy trên mã hiện tại), phần hỏng là trải nghiệm; bản sửa: Finalize tự chạy lại lệnh kiểm chứng đã xác nhận đúng một lần khi chỉ tệp ngoài `touched` đổi sau lần kiểm chứng (và không còn lý do chặn khác), `bint task diff` của tác vụ shared mặc định chỉ hiện tệp `touched` (`--all` xem hết; tác vụ worktree luôn hiện toàn bộ — sửa phát hiện review .1), lời nhắc tiếp tục theo driver (`bint run next <id> --resume` cho session). Ba low còn lại của review đã đóng 2026-11-15 (tác vụ `01M7FKMZDVQ3XFR0EC1H5P2AXM`): .2 `bint task diff --all` của tác vụ shared hiện mọi tệp khác `BaseTree`, kể cả tệp `Touched` của tác vụ shared khác đang chạy (`TestDiffTaskAllShowsOtherRunningTaskFiles`); .3 commit chỉ đổi HEAD mà cây giữ nguyên không còn làm Finalize chặn (`DoneInputDetailed` coi lần kiểm chứng còn mới khi ảnh chụp cây trùng `Verification.Tree`; `TestFinalizeIgnoresHeadOnlyChange`); .4 lời nhắc tiếp tục của CLI theo driver (`bint run status`, `bint task show`, `bint task approve`, `bint task land` đều dùng `State.ResumeCommand()`; `TestResumeHintFollowsDriverCLI`, `TestLandResumeHintFollowsDriverCLI` cho cả hai driver). Cùng tác vụ đó sửa ba lỗi gặp khi chạy tác vụ `01M7FGG2H0KZZ6G4CDDPYAE0TT` (driver session, tác vụ worktree): C1 Finalize tự chạy lại lệnh kiểm chứng đã xác nhận đúng một lần khi lần kiểm chứng cuối không qua mà nội dung mã đã đổi kể từ đó (commit cherry-pick vào nhánh tác vụ) và không còn điều chặn khác (`TestFinalizeReverifiesAfterFailedVerifyAndFix`, `TestSessionWorktreeFinalizeReverifiesAfterFix`, `TestFinalizeDoesNotReverifyFailedVerifyWhenGuarded`); C2 `land` không báo xung đột cho tệp mà cây gốc đã giống hệt bản của tác vụ (kể cả cả hai phía cùng xoá): bỏ qua tệp đó khi áp, `Landed.Files` vẫn liệt kê và kết quả có ghi chú; khác quyền thực thi (khi `core.fileMode` bật) vẫn là xung đột — phát hiện review .1 (medium), sửa sau khi land (`TestLandSkipsFilesIdenticalAtOrigin`, `TestLandSkipsFileDeletedOnBothSides`); C3 tác vụ đã đưa về mà thư mục worktree đã gỡ hoặc còn sót nhưng không còn là gốc worktree Git đi tiếp tới done qua cổng done như Finalize (vẫn chặn khi còn dấu xung đột của `land --3way`), không chuyển failed (`TestLandedTaskResumesToDoneWhenWorktreeGone`; tác vụ chưa đưa về vẫn failed, `TestRootForWorktreeGoneFails`). Chưa thử trên phiên điều phối thật. `NT-MCP-CAT` đóng 2026-11-13 (tác vụ `01M7A80F2X6A803CFR491X14GR`); gợi ý low còn lại đóng 2026-11-15 (tác vụ `01M7FSQACD3XBT79JEWYC958YK`): `TestCatalogSpecifics` ghim `Install` của specmatic (`npm i -g specmatic-mcp@1.2.0`) và nhóm `deepwiki.read` đúng ba tool kể cả `ask_wiki_question`. `NT-MCP-PROBE` đóng cùng tác vụ: `bint mcp check codegraph` gọi thử mọi tool của danh mục có trong `tools/list`, tool báo bị tắt làm `degraded` kèm nhóm, tên tool và nguyên văn lỗi; lỗi truyền tải ở bất kỳ tool nào là `fail` nêu đúng tool đó — sửa review .1, .4 sau khi land (`TestMCPCheckCodegraphNarrowEnv`, `TestMCPCheckCodegraphNonStatusOtherErrorIgnored`, `TestMCPCheckCodegraphTransportErrorNamesTool`, `TestMCPCheckCodegraphDisabledDetailQuotesError`). Còn low: tám lời gọi chung hạn `mcpCheckTimeout`, chưa kiểm với daemon codegraph thật chạy env hẹp. Mục tri thức `k:01M746PTBYPSXDT0WJZS38KPFD` lỗi thời sau V0 đã được thay bằng
 `k:01M7FGC944KVT6NY1TZE7MJ0P8` (2026-11-15; mục cũ `deprecated`).
@@ -139,7 +146,7 @@ nên kiểm role/`mcp.called` phải dùng `bint run` (process driver).
 |---|---|---|---|---|---|
 | **V0** | Sửa mã P6 và hồi quy tự động — **xong 2026-11-13** | `NT-P6-01..05` | 0 | Duyệt phiếu | — |
 | **V0b** | Sửa các low workflow (`NT-WF-BASELINE` .2–.4, `NT-ISO-LEAK` dựng `paths`) và lỗi C1–C3 của driver session — phiếu `01M7FKMZDVQ3XFR0EC1H5P2AXM`, **xong 2026-11-15** | low của `NT-WF-BASELINE`, `NT-ISO-LEAK` | 0 | Duyệt phiếu | — |
-| **V1** | Một phiên chạy thật trên máy: G4 + MCP + TUI + Antigravity — **một phần 2026-11-13, dừng sớm** | `NT-ISO-*`, `NT-MCP-M0..M3`, `NT-MCP-S3`, `NT-MCP-M5-WT`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-H1-STOP`, `NT-TUI-*`, `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` | 0 (chỉ token phiên agent) | Có, suốt vòng | Service MCP cài trên máy |
+| **V1** | Chạy thật trên máy, hai buổi (~4–6 giờ): G4 + MCP + TUI + Antigravity + nối tiếp phiên — **một phần 2026-11-13, dừng sớm; kế tiếp chạy lại** | `NT-ISO-*`, `NT-MCP-M0`, `NT-MCP-M2`, `NT-MCP-M3`, `NT-MCP-S3`, `NT-MCP-M5-WT`, `NT-AGY-REAL`, `NT-HOOK-COMPACT`, `NT-H1-STOP`, `NT-TUI-REAL`, `NT-TUI-VHS`, `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX` | 0 (phiên agent ước $15–30) | Ở từng điểm, ~1–1,5 giờ (mục 4.4) | Service MCP cài trên máy |
 | **V2** | Một lượt trên máy Windows | `NT-WIN-*` | 0 | Có | Máy Windows |
 | **V3** | Một đợt eval trên `validation` với model rẻ, ba nhánh | `NT-EXP-B` (B0, B1), bước 1 của `NT-E6`, bước 1 của `NT-H5` | ~$15 | Duyệt ngân sách | Guardrail `test-before-stop` ở `candidate` |
 | **V4** | Một vòng `evolve cycle` rồi xác nhận trên `test` | `NT-EVO-TEST`, `NT-E6`, `NT-H5` (bước 2), B2–B3 | ≤ $35 | Duyệt ngân sách | V0, V3 qua cổng B0 |
@@ -188,8 +195,33 @@ GOOS=windows go vet ./...          # staticcheck cho windows: binary đã cài, 
 
 ### 4.4. V1 — Phiên chạy thật trên máy
 
-Một buổi, một repository thử (bản sao của Bint là đủ), Claude Code và Codex đã đăng nhập. Agent không làm
-được các bước đánh dấu **(người)** vì `bint mcp add|remove|index` là thao tác chỉ dành cho người.
+Một repository thử (bản sao của Bint là đủ), Claude Code và Codex đã đăng nhập. Agent chạy vòng và ghi bằng
+chứng; người chỉ cần có mặt ở các điểm đánh dấu **(người)**.
+
+**Vì sao cần người ở các điểm đó.**
+
+- Thao tác chỉ dành cho người: mã chặn bằng `RequireHuman` (`ErrAgentForbidden` trong phiên agent). V1 dùng
+  `bint mcp add|remove|index`, `bint mcp gateway stop|restart`, `bint task approve` (khi phiếu dừng ở cổng duyệt),
+  `bint task land --3way|--force` (khi land xung đột). Người gõ trong phiên bằng `! <lệnh>`.
+- Việc agent không với tới: mở thêm phiên Claude/Codex tương tác (subagent dùng chung role `interactive` của phiên
+  cha nên không thay được), dùng Antigravity (ứng dụng có giao diện), xem TUI trên terminal thật, quan sát harness
+  làm gì khi shim của chính phiên đó chết.
+
+**Lịch hai buổi.** Thời lượng ước theo các lượt `b-do` nhỏ đã chạy (25–45 phút một phiếu).
+
+| Buổi | Bước | Thời lượng | Người |
+|---|---|---|---|
+| A (~2,5 giờ) | 1. Chuẩn bị MCP | 10–15 phút | Cả bước |
+| | 2. G4 + MCP | 60–90 phút | ~15 phút: mở thêm phiên, `gateway stop`, xem phiên có shim bị kill |
+| | 3. `bypassPermissions` | 15–20 phút | Không, nếu phiên điều phối đã chạy ở chế độ này |
+| | 5. TUI thật, VHS | 15–20 phút | ~10 phút xem TUI |
+| B (~2,5 giờ) | 6. Nối tiếp phiên (Claude, Codex) | 1,5–2,5 giờ | Không, trừ `task approve` |
+| | 4. Antigravity | 20–30 phút | Cả bước |
+| | Biên bản | 30 phút | Không |
+
+Rủi ro kéo dài: lỗi 403 của API (V1 lần trước); `go test ./...` hỏng vì đầy đĩa khi hai worktree chạy song song
+(chạy lại gói hỏng với `-p 1`); lỗi mức cao thì dừng vòng (xem "Dừng khi"). Tới cuối buổi A mà phiên chưa nén ngữ
+cảnh thì người gõ `/compact` để kiểm `NT-HOOK-COMPACT`.
 
 **Bước 1 — Chuẩn bị (người).**
 
@@ -211,8 +243,8 @@ bint task new --driver session --worktree "<việc 1>"
 bint task new --driver session --worktree "<việc 2>"
 ```
 
-Chạy cả hai bằng `/b-do --subagent …` cùng lúc. Mở thêm 2 phiên Claude và 1 phiên Codex cùng repo (gọi một
-công cụ `mcp__bint__*` mỗi phiên) để đủ 4 Claude + 1 Codex.
+Chạy cả hai bằng `/b-do --subagent …` cùng lúc. (người) Mở thêm 2 phiên Claude và 1 phiên Codex cùng repo (gọi
+một công cụ `mcp__bint__*` mỗi phiên) để đủ 4 Claude + 1 Codex.
 
 Trong lúc chạy, ở terminal khác:
 
@@ -226,30 +258,32 @@ Kiểm và ghi:
 | Kiểm | Đóng |
 |---|---|
 | Cả hai phiếu tới `done`, cây gốc có đủ thay đổi | `NT-ISO-G4` |
+| Worktree tác vụ có `.codegraph/codegraph.db`, `.codegraph/.gitignore`; không có `*.pid`, `daemon.*`, `-wal`/`-shm` chép từ gốc | chạy thật của `NT-MCP-SEED` |
 | Yêu cầu một subagent sửa tệp ở cây gốc: bị `deny`, `bint runs show <run>` có `guardrail.triggered` | `NT-ISO-G4` |
 | `gateway status`: hai phân vùng `worktree` khác PID | `NT-MCP-M2` |
 | `kill <PID upstream codegraph>` rồi gọi lại: generation tăng, lời gọi thành công | `NT-MCP-M2` |
 | Bước `b-review` không liệt kê `spec_manage_mock_server`; gọi thẳng thì bị từ chối, `mcp.called` có `outcome: denied` | `NT-MCP-M3` |
 | `mcp.called` trong spool đúng run/role cho từng bước | `NT-MCP-M3` |
-| `bint mcp gateway stop` giữa phiên: lời gọi sau vẫn thành công (shim khởi động lại daemon) | `NT-MCP-M3` |
-| Kill tiến trình shim của một phiên Claude và một phiên Codex: ghi lại harness làm gì | `NT-MCP-S3` |
+| (người) `bint mcp gateway stop` giữa phiên: lời gọi sau vẫn thành công (shim khởi động lại daemon) | `NT-MCP-M3` |
+| Kill tiến trình shim của một phiên Claude và một phiên Codex (không phải phiên điều phối); (người) ghi lại harness làm gì | `NT-MCP-S3` |
 | Bước con của Claude và của Codex (`roles.implementer: codex` cho một phiếu) có dòng `knowledge_citations` | `NT-MCP-M0` |
 | Đo PSS mọi tiến trình MCP (`/proc/<pid>/smaps_rollup`) với hai worktree | `NT-MCP-M5-WT` |
 | Một bước có `maxTurns` thấp dừng đúng trần | `NT-ISO-MAXTURNS` |
 | Phiên đủ dài để nén ngữ cảnh: spool có `session.started` với `source=compact` | `NT-HOOK-COMPACT` |
 
-**Bước 3 — `bypassPermissions` (người).** Mở một phiên Claude Code ở chế độ `bypassPermissions`, chạy một
-phiếu `--driver session` nhỏ, yêu cầu planner sửa tệp và chạy lệnh ngoài `readonly_tools`. Ghi hook `deny`
-còn áp không, kể cả với subagent chạy nền. Đóng `NT-ISO-BYPASS`.
+**Bước 3 — `bypassPermissions`.** Phiên Claude Code ở chế độ `bypassPermissions` (người chọn chế độ khi mở phiên;
+nếu phiên điều phối đã ở chế độ này thì agent tự chạy). Chạy một phiếu `--driver session` nhỏ, yêu cầu planner sửa
+tệp và chạy lệnh ngoài `readonly_tools`. Vế hook `deny` đã đạt ở V1 lần trước; còn ghi `Bash(<mẫu>)` trong frontmatter
+subagent chỉ đọc có giới hạn lệnh không, kể cả với subagent chạy nền. Đóng `NT-ISO-BYPASS`.
 
 **Bước 4 — Antigravity (người).** `bint init --mcp-user`, mở `agy` trong workspace, gọi một công cụ Bint, chạy
 một `b-do` nhỏ. Lưu một payload hook thật để so với adapter. Đóng `NT-AGY-REAL`.
 
-**Bước 5 — TUI với người dùng (người).** Hai đến ba người không quen CLI làm ba kịch bản của `NT-TUI-USER`
-trên repo mới; ghi thời gian và chỗ họ kẹt. Chạy `NO_COLOR=1 bint tui`, `bint tui --read-only`, phím `?` ở
-từng thẻ phụ. Chụp VHS các màn chính.
+**Bước 5 — TUI thật.** (người) Chạy `NO_COLOR=1 bint tui`, `bint tui --read-only`, phím `?` ở từng thẻ phụ, màn
+MCP với service thật (`NT-TUI-REAL`). Agent chụp VHS các màn chính (`NT-TUI-VHS`). `NT-TUI-USER` đã bỏ (mục 3.2).
 
-**Bước 6 — Nối tiếp phiên của bước, driver process (người).** Một phiếu nhỏ `bint run b-do --task <id>` (một lần với
+**Bước 6 — Nối tiếp phiên của bước, driver process.** Agent chạy; dùng `kill` harness thay cho Ctrl-C. Người chỉ
+cần khi phiếu dừng ở `bint task approve`. Một phiếu nhỏ `bint run b-do --task <id>` (một lần với
 `roles.implementer: claude`, một lần với `codex`). Giữa b-feat, Ctrl-C (hoặc `kill` harness) rồi `bint run resume <id>`;
 kiểm `bint run status <id>` hiện `last_step` (`via claude|codex`, `stop_class: external`, `continuable`) trước và `notes` "nối
 tiếp phiên …" sau. Lặp với: (a) phiên bị xoá trước resume (note "không còn"), (b) `--fresh`, (c) một vòng câu hỏi mở b-req
@@ -258,7 +292,7 @@ Ghi cho từng harness: số liệu của `NT-RESUME-CLAUDE`/`NT-RESUME-CODEX`, 
 tệp phiên, và việc agent có làm lại phần đã xong không. Đóng `NT-RESUME-CLAUDE`, `NT-RESUME-CODEX`.
 
 **Bằng chứng.** `docs/evals/v1-real-session-<ngày>/`: `gateway status --json`, trích spool cho từng kiểm,
-`runs show`, bảng PSS, ghi chú S3, ảnh VHS, phiếu quan sát người dùng.
+`runs show`, bảng PSS, ghi chú S3, ảnh VHS, số liệu nối tiếp phiên.
 
 **Dừng khi.** Một kiểm lộ lỗi mức cao: dừng vòng, lập phiếu sửa, chạy lại riêng kiểm đó.
 
@@ -390,6 +424,11 @@ Thêm một dòng sau mỗi vòng. Kết luận do chủ dự án ký.
 | 2026-11-10 | (trước khi có tài liệu này) | `8b5cc9f` | R1–R3, F1, F3, F7, F8 (một phần), F11, F12 | — | [open-findings](bint-acceptance-open-findings.md) | 0 | |
 | 2026-11-12 | (trước khi có tài liệu này) | `2d1d901` | G3 chạy thật | G4, bypassPermissions, Windows | [isolation 12.16](isolation-subagent-plan.md) | — | |
 | 2026-11-13 | (trước khi có tài liệu này) | `b958512` | M5 bộ nhớ (một worktree) | M5 chất lượng, nhiều worktree | [mcp §11](mcp-gateway-plan.md) | 0 | |
+| 2026-11-16 | Cập nhật tài liệu | (commit này) | — (ghi nhận `NT-MCP-SEED`, `NT-P6-06` đã đóng; chia V1 thành hai buổi) | V1 còn lại, V2–V6 | mục 3.1, 4.4 | 0 | |
+| 2026-11-15 | Phiếu `NT-MCP-PROBE` | `2ac7e13` | `NT-MCP-PROBE`; low của `NT-MCP-CAT` | low: hạn chung `mcpCheckTimeout`, chưa kiểm daemon thật env hẹp | tác vụ `01M7FSQACD3XBT79JEWYC958YK` | 0 token đo | |
+| 2026-11-15 | Phiếu chỉ mục codegraph cho worktree | `8fe0577` | `NT-MCP-SEED` (test; chạy thật ở V1) | — | tác vụ `01M7FMB6G78VTCCTRPW8R4F545` | 0 token đo | |
+| 2026-11-15 | V0b | `765ae91` | low của `NT-WF-BASELINE` (.2–.4), `NT-ISO-LEAK` (dựng `paths`); lỗi C1–C3 driver session | C1–C3 chưa thử trên phiên điều phối thật | tác vụ `01M7FKMZDVQ3XFR0EC1H5P2AXM` | 0 token đo | |
+| 2026-11-15 | Phiếu `NT-P6-06` | `61222e8` | `NT-P6-06` | — | tác vụ `01M7FGG2H0KZZ6G4CDDPYAE0TT`, [biên bản V0](evals/v0-p6-fixes-2026-11-13/README.md) | 0 token đo | |
 | 2026-11-13 | Phiếu sửa `NT-ISO-LEAK-FP` | (commit này) | `NT-ISO-LEAK-FP` | `NT-ISO-G4` (chạy lại), `NT-MCP-PROBE`, `NT-P6-06` | tác vụ `01M7AQSQ89E8Z6YHBPCM08ENKT` | 0 token đo; phiên agent $1,01 (b-feat 0,25 bị chặn nhầm + 0,18, b-review 0,59) | |
 | 2026-11-13 | Phiếu sửa `NT-WF-BASELINE` | (commit này) | `NT-WF-BASELINE` | `NT-ISO-LEAK-FP` (mới), `NT-ISO-G4` (chạy lại), `NT-MCP-PROBE`, `NT-P6-06` | tác vụ `01M7AJMTHSJPN53DRYQN1PR4M8` | 0 token đo; phiên agent $6,04 (b-req 2,68, b-feat 1,77 + 0,15 chạy lại do `NT-ISO-LEAK-FP`, b-review 1,44) | |
 | 2026-11-13 | Phiếu sửa sau V1 | `4419157`, `e143459`, (commit này) | `NT-MCP-CAT`, `NT-ISO-LEAK` | `NT-ISO-G4` (chạy lại), `NT-WF-BASELINE`, `NT-MCP-PROBE` | tác vụ `01M7A80F2X6A803CFR491X14GR`, `01M7A9HJX8164HVWP2VKKWP0FG`, `01M7AC1XXEEG0SWVY75SQJ4XKV` | 0 token đo; phiên agent ≈ $9 | |
