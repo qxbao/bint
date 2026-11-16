@@ -208,6 +208,9 @@ type runState struct {
 	// finalizeResume: resume sau khi finalize bị chặn vì thiếu bằng chứng và worktree không đổi kể từ lúc chặn: vào thẳng
 	// finalize (không mở b-review mới) và chạy lại lệnh kiểm chứng đúng một lần.
 	finalizeResume bool
+	// verifiedResume: resume vòng sửa vì kiểm chứng đầy đủ ở finalize hỏng khi lần kiểm chứng mới nhất đã qua đầy đủ trên
+	// đúng cây hiện tại (markVerifiedFixResume): vào thẳng finalize, không kiểm chứng lại.
+	verifiedResume bool
 	// last là bước vừa kết thúc trong lượt này (endStep ghi): cổng chờ người sau bước (markAwaitingHuman) dùng lại handle.
 	last *endedStep
 	// planCont: tác vụ planned đang chờ câu trả lời của b-req và planner cũ nối tiếp được (planContinuation): pickStep trả bước
@@ -454,6 +457,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 			return rs.res, err
 		}
 		r.markFinalizeResume(ctx, rs, to, o.Rerun)
+		r.markVerifiedFixResume(ctx, rs, to, o.Rerun)
 	}
 	if rs.flowBlock != "" {
 		// Flow đã đổi giữa chừng (hoặc không còn dùng được): không chạy bước nào, người khôi phục flow rồi resume.
@@ -769,7 +773,7 @@ func (rs *runState) pickStep() (step string, finalize bool) {
 		}
 		return impl.ID, false
 	case task.StatusInReview:
-		if rs.t.State.AwaitingLand || rs.t.State.Landed != nil || rs.finalizeResume {
+		if rs.t.State.AwaitingLand || rs.t.State.Landed != nil || rs.finalizeResume || rs.verifiedResume {
 			// Đã qua review và cổng done ở worktree, chỉ còn đưa về (xung đột/lỗi lần trước): không review lại.
 			return "", true
 		}
@@ -886,11 +890,13 @@ type stepRun struct {
 	kind flow.Kind
 	// role, base: role của bước và role gốc theo kind (chọn quyền MCP của bước driver process); rỗng ở bước dựng lại từ
 	// PendingStep (driver session không cấp MCP theo role cho subagent).
-	role, base        string
-	readOnly          bool
-	mode              LockMode
-	snapBefore        string
-	featBefore        string
+	role, base string
+	readOnly   bool
+	mode       LockMode
+	snapBefore string
+	featBefore string
+	// tasksBefore: tasks.md trước bước implement khi tác vụ v1 đang đạt hợp đồng (guardTasks phục hồi nếu bước làm hỏng).
+	tasksBefore       string
 	firstFeat         bool
 	started           time.Time
 	maxCost           *float64
@@ -1140,6 +1146,9 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 		return nil, false
 	}
 	sr = &stepRun{step: step, kind: kind, role: spec.Role, base: spec.Base, firstFeat: firstFeat, maxCost: maxCost, maxTurns: maxTurns}
+	if kind == flow.KindImplement {
+		sr.tasksBefore = tasksSnapshot(rs.t)
+	}
 	var who string
 	if session {
 		h, model, err := r.sessionChoice(rs.t, spec)
@@ -1240,6 +1249,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	step, child := sr.step, sr.child
 	r.endTouched(ctx, rs, sr.featBefore)
 	if sr.kind == flow.KindImplement && ctx.Err() == nil {
+		r.guardTasks(rs, step, sr.tasksBefore) // tasks.md nằm ở thư mục trạng thái, không vào phạm vi tệp
 		// Tính phạm vi khi còn giữ khoá độc quyền: sau khi nhả, b-feat của tác vụ khác có thể ghi tệp dở
 		// dang vào cây và bị quy nhầm cho tác vụ này. Chỉ tính ở đây; hỏi người (checkScope) làm sau khi
 		// nhả khoá để không chặn tác vụ khác trong lúc chờ.
@@ -2207,7 +2217,7 @@ func (r *Runner) fixAfterFullVerify(rs *runState, how string) bool {
 	}
 	r.setFinalizeFP(rs, "")
 	r.setFlowStep(rs, rs.lastImplement().ID)
-	if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa: kiểm chứng đầy đủ ở finalize hỏng (%s) sau lần kiểm chứng chỉ test bị ảnh hưởng (vòng %d/%d)",
+	if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf(fixVerifyReasonPrefix+" (%s) sau lần kiểm chứng chỉ test bị ảnh hưởng (vòng %d/%d)",
 		how, used, r.Cfg.Workflow.MaxReviewRounds)); err != nil {
 		r.fail(rs, "finalize", err.Error())
 		return false
@@ -2222,13 +2232,19 @@ func (r *Runner) fixAfterFullVerify(rs *runState, how string) bool {
 // quyết định như cũ (kể cả khi lệnh bị bỏ qua).
 func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) reverifyResult {
 	forced := rs.finalizeResume
-	rs.finalizeResume = false
+	rs.finalizeResume, rs.verifiedResume = false, false
 	files, ok := r.staleVerifyOnly(ctx, rs.t)
 	partial := false
 	if !ok {
 		partial = r.partialVerifyOnly(ctx, rs.t)
 	}
 	if !ok && !partial && !forced {
+		return reverifyOK
+	}
+	if forced && !ok && !partial && r.freshFullPass(ctx, rs.t) {
+		// Người đã chạy lại kiểm chứng (bint task verify) sau lúc chặn và lần đó qua đầy đủ trên đúng cây hiện tại.
+		r.setFinalizeFP(rs, "")
+		rs.res.Notes = append(rs.res.Notes, "lần kiểm chứng mới nhất đã qua đầy đủ trên đúng cây hiện tại: không chạy lại")
 		return reverifyOK
 	}
 	id := rs.t.State.ID

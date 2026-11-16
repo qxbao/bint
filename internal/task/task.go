@@ -462,9 +462,11 @@ type PendingStep struct {
 	Snapshot   string `json:"snapshot,omitempty"`
 	FeatBefore string `json:"feat_before,omitempty"`
 	FirstFeat  bool   `json:"first_feat,omitempty"`
-	Harness    string `json:"harness,omitempty"`
-	Model      string `json:"model,omitempty"`
-	Subagent   string `json:"subagent,omitempty"`
+	// TasksBefore: tasks.md trước bước implement (tác vụ v1 đang đạt hợp đồng); Runner phục hồi khi bước làm hỏng hợp đồng.
+	TasksBefore string `json:"tasks_before,omitempty"`
+	Harness     string `json:"harness,omitempty"`
+	Model       string `json:"model,omitempty"`
+	Subagent    string `json:"subagent,omitempty"`
 	// Prompt là đề bài đã dựng lúc `next` (gọi lại `next` trả đúng nó, không dựng lại).
 	Prompt   string `json:"prompt"`
 	MaxTurns *int   `json:"max_turns,omitempty"`
