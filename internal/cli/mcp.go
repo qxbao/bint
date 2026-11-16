@@ -17,7 +17,7 @@ import (
 
 func newMCPCmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{Use: "mcp", Short: "MCP server của Context Engine; danh mục, đăng ký và quyền MCP của service ngoài"}
-	var evalCfg, runID, taskID string
+	var evalCfg, runID, taskID, harness, sessionID string
 	serve := &cobra.Command{
 		Use:   "serve",
 		Short: "Chạy MCP server qua stdio (context_for_task, context_for_paths, knowledge_search, knowledge_get, cite_knowledge, report_observation)",
@@ -79,7 +79,7 @@ interactive. Đặt BINT_MCP_NO_GATEWAY=1 để chỉ còn tool của Bint.`,
 				}
 				// Chế độ đánh giá (--eval-config) không bao giờ chạm gateway; ở đây NewMCPShim trả nil khi không có gì
 				// để chuyển tiếp (BINT_MCP_NO_GATEWAY, dự án không dùng MCP ngoài, role không được cấp service nào).
-				sh, err := app.NewMCPShim(ctx, dir, app.MCPShimOptions{RunID: runID, TaskID: taskID})
+				sh, err := app.NewMCPShim(ctx, dir, app.MCPShimOptions{RunID: runID, TaskID: taskID, Harness: harness, SessionID: sessionID})
 				if err != nil {
 					return err
 				}
@@ -96,8 +96,12 @@ interactive. Đặt BINT_MCP_NO_GATEWAY=1 để chỉ còn tool của Bint.`,
 	serve.Flags().MarkHidden("eval-config")
 	serve.Flags().StringVar(&runID, "run-id", "", "lượt chạy của bước bint run (nội bộ; mặc định $BINT_RUN_ID)")
 	serve.Flags().StringVar(&taskID, "task-id", "", "tác vụ của bước bint run (nội bộ; mặc định $BINT_TASK_ID)")
+	serve.Flags().StringVar(&harness, "harness", "", "harness của phiên MCP (nội bộ)")
+	serve.Flags().StringVar(&sessionID, "session-id", "", "định danh phiên harness (nội bộ)")
 	serve.Flags().MarkHidden("run-id")
 	serve.Flags().MarkHidden("task-id")
+	serve.Flags().MarkHidden("harness")
+	serve.Flags().MarkHidden("session-id")
 	tools := &cobra.Command{
 		Use:   "tools",
 		Short: "Liệt kê công cụ MCP",

@@ -1,0 +1,11 @@
+ok  	bint/internal/app	189.127s
+ok  	bint/internal/mcpgw	29.482s
+ok  	bint/internal/harness	0.539s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	0.581s
+ok  	bint/internal/harness/codex	1.796s
+ok  	bint/internal/harness/hookcore	1.235s
+ok  	bint/internal/config	0.373s
+ok  	bint/internal/mcpserver	0.158s
+ok  	bint/internal/cli	171.238s
+ok  	bint/internal/tui/actions	24.083s

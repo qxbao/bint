@@ -1,0 +1,32 @@
+[
+  {
+    "event_type": "context.retrieved",
+    "count": 16,
+    "latest": "2026-11-16T06:43:30.136Z"
+  },
+  {
+    "event_type": "file.modified",
+    "count": 40,
+    "latest": "2026-11-16T04:37:12.491Z"
+  },
+  {
+    "event_type": "knowledge.cited",
+    "count": 5,
+    "latest": "2026-11-16T06:45:38.906Z"
+  },
+  {
+    "event_type": "session.ended",
+    "count": 7,
+    "latest": "2026-11-16T06:49:39.267Z"
+  },
+  {
+    "event_type": "session.started",
+    "count": 16,
+    "latest": "2026-11-16T07:08:21.573Z"
+  },
+  {
+    "event_type": "test.completed",
+    "count": 11,
+    "latest": "2026-11-16T04:34:49.084Z"
+  }
+]

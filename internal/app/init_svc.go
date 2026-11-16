@@ -455,7 +455,7 @@ func PlanInit(ctx context.Context, dir string, o InitFlagOptions) (InitPlan, err
 		case o.Update && cfgRoot != root:
 			add(".bint/config.yml", PlanKeep, "cấu hình nằm ở worktree chính %s — chạy ở đó", cfgRoot)
 		case o.Update && up.Changed():
-			add(".bint/config.yml", PlanUpdate, "thêm: %s (bản cũ được sao lưu)", orDash(config.SummarizeAdded(up.Added)))
+			add(".bint/config.yml", PlanUpdate, "thêm: %s; nâng mẫu: %s (bản cũ được sao lưu)", orDash(config.SummarizeAdded(up.Added)), orDash(strings.Join(up.Migrated, ", ")))
 			old, _ := os.ReadFile(cfgPath)
 			p.ConfigDiff = UnifiedDiff(".bint/config.yml", ".bint/config.yml (mẫu mới)", string(old), string(up.Content))
 			p.Notes = up.Notes

@@ -1,0 +1,39 @@
+{
+  "binary_version": "codex-cli 0.169.0",
+  "queried_at": "2026-11-16T07:44:24Z",
+  "hooks": [
+    {
+      "eventName": "preToolUse",
+      "matcher": "apply_patch|Bash|shell|exec_command",
+      "enabled": true,
+      "trustStatus": "trusted",
+      "sourcePath": "<repo>/.codex/hooks.json",
+      "command": "bint hook codex"
+    },
+    {
+      "eventName": "postToolUse",
+      "matcher": "apply_patch|Bash|shell|exec_command|mcp__bint__.*",
+      "enabled": true,
+      "trustStatus": "trusted",
+      "sourcePath": "<repo>/.codex/hooks.json",
+      "command": "bint hook codex"
+    },
+    {
+      "eventName": "sessionStart",
+      "matcher": null,
+      "enabled": true,
+      "trustStatus": "trusted",
+      "sourcePath": "<repo>/.codex/hooks.json",
+      "command": "bint hook codex"
+    },
+    {
+      "eventName": "sessionEnd",
+      "matcher": null,
+      "enabled": true,
+      "trustStatus": "trusted",
+      "sourcePath": "<repo>/.codex/hooks.json",
+      "command": "bint hook codex"
+    }
+  ],
+  "errors": []
+}

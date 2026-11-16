@@ -1,0 +1,44 @@
+{
+  "unit": "bint-diag-nt-acceptance-verify-3431d74a.service",
+  "cwd": ".",
+  "command": [
+    "/bin/bash",
+    "-c",
+    "go test -count=1 -timeout 15m ./internal/app ./internal/mcpgw ./internal/harness/... ./internal/config ./internal/mcpserver ./internal/cli ./internal/tui/actions && go vet ./... && GOOS=windows go vet ./... && <staticcheck> ./... && GOOS=windows <staticcheck> ./..."
+  ],
+  "properties": [
+    "MemoryHigh=1536M",
+    "MemoryMax=2048M",
+    "MemorySwapMax=0",
+    "TasksMax=256",
+    "CPUQuota=200%",
+    "OOMPolicy=stop",
+    "KillMode=control-group",
+    "TimeoutStopSec=10s",
+    "RuntimeMaxSec=1500s",
+    "WorkingDirectory=<worktree>"
+  ],
+  "env": [
+    "BINT_AGENT=codex",
+    "GOMAXPROCS=2",
+    "GOFLAGS=-buildvcs=false -p=2",
+    "GOCACHE=<cache-dir>/gocache",
+    "XDG_CACHE_HOME=<cache-dir>/xdg"
+  ],
+  "host_before": {
+    "MemAvailable_KiB": 7076408,
+    "SwapFree_KiB": 16504596
+  },
+  "sha": "08040da602467bc3180f5708a2d19c5325a5531d",
+  "diff_stat": ".bint/config.yml                           |  2 +-\n docs/README.md                             |  2 +-\n docs/acceptance.md                         |  7 ++-\n internal/app/harness_svc.go                |  6 +-\n internal/app/init.go                       |  9 ++-\n internal/app/init_svc.go                   |  2 +-\n internal/app/init_svc_test.go              | 32 +++++++++++\n internal/app/init_update_test.go           |  7 ++-\n internal/app/mcp_shim.go                   | 30 +++++++++-\n internal/app/subagent_hook_test.go         | 36 ++++++++++++\n internal/cli/commands.go                   | 12 ++--\n internal/cli/mcp.go                        |  8 ++-\n internal/config/config.go                  |  2 +-\n internal/config/template.go                |  2 +-\n internal/config/upgrade.go                 | 91 ++++++++++++++++++++++++++++--\n internal/config/upgrade_test.go            | 86 ++++++++++++++++++++++++++++\n internal/harness/codex/codex_test.go       | 43 ++++++++++++++\n internal/harness/harness_test.go           |  8 +--\n internal/harness/hookcore/readonly.go      | 61 ++++++++++++++++++--\n internal/harness/hookcore/readonly_test.go | 15 +++++\n internal/harness/testdata/flow_golden.json |  4 +-\n 21 files changed, 427 insertions(+), 38 deletions(-)",
+  "diff_sha256_before": "da8ffb8418debe6ce9efc8ecff0758dde2df8c6463e32eaad55587be5fdcbd32",
+  "diff_sha256_after": "da8ffb8418debe6ce9efc8ecff0758dde2df8c6463e32eaad55587be5fdcbd32",
+  "exit_code": 0,
+  "stop_reason": null,
+  "elapsed_s": 307.564,
+  "systemd_status": "Result=success\nExecMainStatus=0\nControlGroup=\nMemoryPeak=[not set]\nTasksCurrent=[not set]",
+  "host_after": {
+    "MemAvailable_KiB": 7022592,
+    "SwapFree_KiB": 16505404
+  }
+}

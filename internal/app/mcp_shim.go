@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
+	"unicode"
 
 	"bint/internal/config"
 	"bint/internal/mcpgw"
@@ -18,6 +20,8 @@ type MCPShimOptions struct {
 	// RunID, TaskID: lượt chạy của bước (cờ ẩn --run-id/--task-id của `serve`); rỗng thì lấy từ BINT_RUN_ID/BINT_TASK_ID.
 	// Cờ được ưu tiên vì Codex lọc env của server MCP stdio, nên env có thể không tới shim.
 	RunID, TaskID string
+	// Harness và SessionID chỉ dùng ghi nhận; quyền lấy từ run binding.
+	Harness, SessionID string
 	// Exe là binary Bint để khởi động daemon (rỗng = os.Executable()).
 	Exe string
 }
@@ -28,6 +32,10 @@ type MCPShimOptions struct {
 //
 // Đây chỉ là bước tính tập ứng viên để khỏi khởi động daemon vô ích; daemon tự giải role lần nữa và là nơi quyết định.
 func NewMCPShim(ctx context.Context, dir string, o MCPShimOptions) (*mcpgw.Shim, error) {
+	harness, sessionID, err := mcpShimSessionIdentity(o.Harness, o.SessionID)
+	if err != nil {
+		return nil, err
+	}
 	if v := strings.TrimSpace(os.Getenv(EnvMCPNoGateway)); v != "" && v != "0" && !strings.EqualFold(v, "false") {
 		return nil, nil
 	}
@@ -69,7 +77,27 @@ func NewMCPShim(ctx context.Context, dir string, o MCPShimOptions) (*mcpgw.Shim,
 		}
 	}
 	return mcpgw.NewShim(mcpgw.ShimOptions{
-		Exe: exe, Services: services, Worktree: ws.Repo.Toplevel, RunID: runID, TaskID: taskID,
+		Exe: exe, Services: services, Worktree: ws.Repo.Toplevel, RunID: runID, TaskID: taskID, Harness: harness, SessionID: sessionID,
 		Log: os.Stderr, ExeModTime: mcpgw.ExeModTime(),
 	})
+}
+
+// Chỉ CLAUDE_CODE_SESSION_ID đã có nguồn đối chiếu trong workflow/ops.go.
+// Không trộn nửa cặp tường minh với môi trường hoặc suy session từ transport.
+func mcpShimSessionIdentity(harness, session string) (string, string, error) {
+	if harness == "" && session == "" {
+		session = os.Getenv("CLAUDE_CODE_SESSION_ID")
+		if session == "" {
+			return "", "", nil
+		}
+		harness = "claude"
+	}
+	if strings.IndexFunc(harness, unicode.IsControl) >= 0 || strings.IndexFunc(session, unicode.IsControl) >= 0 {
+		return "", "", fmt.Errorf("định danh phiên MCP không hợp lệ")
+	}
+	harness, session = strings.TrimSpace(harness), strings.TrimSpace(session)
+	if (harness != "claude" && harness != "codex" && harness != "antigravity") || session == "" {
+		return "", "", fmt.Errorf("định danh phiên MCP không hợp lệ")
+	}
+	return harness, session, nil
 }

@@ -687,9 +687,9 @@ func upgradeConfig(rep *InitReport, w *repoWriter, update bool, cfgRoot, cfgPath
 		return cfg, nil
 	}
 	if !update {
-		rep.add(name, StepSkipped, "theo mẫu cũ, thiếu: %s — chạy `bint init --update` để thêm (giữ nguyên giá trị đang có)",
-			orDash(config.SummarizeAdded(up.Added)))
-		rep.NextSteps = append(rep.NextSteps, "Nâng cấu hình lên mẫu mới (model theo role…): bint init --update")
+		rep.add(name, StepSkipped, "cấu hình có cập nhật mẫu (thêm: %s; nâng: %s) — xem diff trong TUI, thẻ Cấu hình, phím U",
+			orDash(config.SummarizeAdded(up.Added)), orDash(strings.Join(up.Migrated, ", ")))
+		rep.NextSteps = append(rep.NextSteps, "Áp dụng nâng cấu hình (có sao lưu; cũng làm mới hook và skill đã cài): bint init --update")
 		return cfg, nil
 	}
 	bak, err := fsafe.Backup(cfgPath, backups, name, now)
@@ -700,6 +700,9 @@ func upgradeConfig(rep *InitReport, w *repoWriter, update bool, cfgRoot, cfgPath
 		return cfg, err
 	}
 	detail := "thêm: " + orDash(config.SummarizeAdded(up.Added))
+	if len(up.Migrated) > 0 {
+		detail += "; nâng mẫu: " + strings.Join(up.Migrated, ", ")
+	}
 	if up.Fixed > 0 {
 		detail += fmt.Sprintf("; sửa %d dòng chú thích hỏng", up.Fixed)
 	}

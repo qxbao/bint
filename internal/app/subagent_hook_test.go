@@ -57,6 +57,42 @@ func preTool(root, agentType, agentID, tool string, in map[string]any, id string
 	return hookInput("sess-sub", "PreToolUse", root, extra)
 }
 
+func TestReadonlyGuardrailProjectRules(t *testing.T) {
+	root, _ := subagentRepo(t)
+	// Nạp chính cấu hình dự án được theo dõi, thay vì chỉ kiểm mẫu init mới.
+	project, err := os.ReadFile(filepath.Join("..", "..", ".bint", "config.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".bint", "config.yml"), project, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range []string{"bint-planner", "bint-reviewer"} {
+		for _, tc := range []struct {
+			cmd  string
+			deny bool
+		}{
+			{`grep -n "mcpCheckTimeout\|context.With" internal/app/mcp_svc.go`, false},
+			{`grep -n -E '^(--- FAIL|FAIL|ok|panic)|CopyCodegraph' task.log`, false},
+			{"git ls-files internal/mcpcat/probe", false},
+			{`grep -n "NT-MCP-PROBE" docs/acceptance.md`, false},
+			{"grep -n FAIL task.log", false},
+			{"grep -rn foo internal", false},
+			{"git log | sh", true},
+			{`grep "$(touch x)" file`, true},
+			{"git grep -Ovim foo", true},
+			{"go test ./...", true},
+		} {
+			out := runHook(t, preTool(root, role, "agent", "Bash", map[string]any{"command": tc.cmd}, "tool")).Output
+			d := decision(t, out)
+			denied := d != nil && d["permissionDecision"] == "deny"
+			if denied != tc.deny {
+				t.Errorf("%s %q: %s", role, tc.cmd, out)
+			}
+		}
+	}
+}
+
 // Guardrail chỉ đọc 6.4a: reviewer + touch x ⇒ deny kèm lý do và sự kiện guardrail.triggered; lệnh khớp readonly_tools hoặc
 // agent_type khác/không có ⇒ không can thiệp; Edit/Write của planner ⇒ deny; không mở SQLite, không trả lỗi.
 func TestReadonlyGuardrailForSubagents(t *testing.T) {

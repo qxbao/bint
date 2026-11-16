@@ -70,7 +70,7 @@ var (
 	// Dấu hiệu heredoc bất kỳ (kể cả dạng heredocRe không nhận): còn sót sau khi bỏ token hợp lệ ⇒ chặn.
 	heredocAnyRe = regexp.MustCompile(`<<`)
 	// Chuyển hướng vô hại được phép: 2>&1, >/dev/null, 2>/dev/null.
-	harmlessRedirectRe = regexp.MustCompile(`\s*(?:\d?>\s*/dev/null|2>&1)`)
+	harmlessRedirectRe = regexp.MustCompile(`\s*(?:\d?>\s*/dev/null|2>&1)(?:[ \t]|$)`)
 	// Tiền tố `cd MỘT_TOKEN && ` (prompt của bước chạy trên worktree riêng bắt buộc nó).
 	// Dạng nháy kép nhận `\` (đường dẫn Windows, xem CdPrefix/cdTargetRe ở worktree_guard.go).
 	cdPrefixRe = regexp.MustCompile(`^\s*cd\s+(?:"[^"$` + "`" + `]*"|'[^']*'|[^\s;&|<>$` + "`" + `()\\"']+)\s*&&\s*`)
@@ -139,9 +139,17 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 			return false, "nhiều heredoc"
 		}
 	}
-	rest := harmlessRedirectRe.ReplaceAllString(first, "")
-	rest = cdPrefixRe.ReplaceAllString(rest, "")
-	if strings.ContainsAny(rest, ";&|<>`\n\r") || strings.Contains(rest, "$(") {
+	rest := cdPrefixRe.ReplaceAllString(first, "")
+	masked, valid := readonlyShellMask(rest)
+	if !valid {
+		return false, "dấu nháy, escape hoặc thay thế lệnh không hợp lệ"
+	}
+	// Chỉ loại redirect ở ngoài nháy; giữ các vị trí byte để không đổi ranh giới shell.
+	for _, loc := range harmlessRedirectRe.FindAllStringIndex(masked, -1) {
+		rest = rest[:loc[0]] + strings.Repeat(" ", loc[1]-loc[0]) + rest[loc[1]:]
+		masked = masked[:loc[0]] + strings.Repeat(" ", loc[1]-loc[0]) + masked[loc[1]:]
+	}
+	if strings.ContainsAny(masked, ";&|<>`\n\r") {
 		return false, "có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"
 	}
 	if strings.Contains(rest, "$'") {
@@ -180,6 +188,51 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 		return false, "không khớp workflow.agent.readonly_tools"
 	}
 	return true, ""
+}
+
+// readonlyShellMask che chữ literal trong nháy và escape, nhưng vẫn từ chối
+// substitution hoạt động trong nháy kép. Bảo toàn vị trí byte cho redirect.
+func readonlyShellMask(s string) (string, bool) {
+	b := []byte(s)
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote == '\'' {
+			b[i] = 'x'
+			if c == '\'' {
+				quote = 0
+			}
+			continue
+		}
+		if c == '\\' {
+			if i+1 == len(s) {
+				return "", false
+			}
+			// Trong nháy kép, chỉ một số ký tự thực sự được shell escape.
+			if quote != '"' || strings.ContainsRune("$`\"\\\n", rune(s[i+1])) {
+				b[i], b[i+1] = 'x', 'x'
+				i++
+				continue
+			}
+			b[i] = 'x'
+			continue
+		}
+		if c == '`' || (c == '$' && i+1 < len(s) && (s[i+1] == '(' || (quote == 0 && s[i+1] == '\''))) {
+			return "", false
+		}
+		if quote == '"' {
+			b[i] = 'x'
+			if c == '"' {
+				quote = 0
+			}
+			continue
+		}
+		if c == '\'' || c == '"' {
+			quote = c
+			b[i] = 'x'
+		}
+	}
+	return string(b), quote == 0
 }
 
 // gitGrepRunsProgram trả lý do (rỗng = không có) khi lệnh `git grep …` có thể chạy chương trình tuỳ ý: tuỳ chọn
