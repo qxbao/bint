@@ -58,8 +58,9 @@ bint context "<mục tiêu>"          # quy tắc, điểm dễ sai đã biết 
 `bint knowledge cite <id>` khi không có MCP.
 
 Đọc mã ở các khu vực liên quan. Tìm yêu cầu còn thiếu hoặc mâu thuẫn; nếu một điểm
-mơ hồ thay đổi cách làm, ghi nó vào mục "Câu hỏi mở" (khuôn `- [ ] Q-N: …`, xem Bước 3) thay vì
-tự chọn.
+mơ hồ thay đổi cách làm **và chỉ người dùng mới trả lời được**, ghi nó vào mục "Câu hỏi mở" (khuôn
+`- [ ] Q-N: …`, xem Bước 3) thay vì tự chọn; điểm kỹ thuật người không rành không trả lời được thì bạn chọn
+và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ảnh hưởng và phạm vi đạt mục đích").
 
 ## Yêu cầu lớn và phiếu con
 
@@ -74,6 +75,26 @@ tự chọn.
 - **Dưới `bint run` (biến `BINT_RUN_ID` có giá trị) không tự lập phiếu con**: chỉ đề xuất trong `plan.md`; người
   dùng hoặc b-do quyết định lập. Chạy tay ngoài `bint run` thì hỏi người dùng trước khi chạy `bint task new`.
 
+## Bề mặt bị ảnh hưởng và phạm vi đạt mục đích (mọi mức phân tích)
+
+Người dùng thường mô tả mục đích ("sợ lộ mật khẩu", "thư mục dữ liệu phình to"), không mô tả nơi phải sửa.
+Kế hoạch phải đo theo **mục đích**, không theo phần dễ làm nhất:
+
+- **`## Bề mặt bị ảnh hưởng`** trong `plan.md` (bắt buộc, cả `standard` lẫn `deep`): liệt kê **từng nơi** dữ liệu
+  hoặc hành vi đi qua, mỗi nơi một dòng, và gắn một `AC-N` kiểm được **hoặc** lý do nằm ngoài phạm vi. Cách tìm
+  nơi: lần theo đường đi của dữ liệu từ lúc vào tới lúc ra (ghi, lưu, hiển thị, xuất, sao chép). Ví dụ gợi ý, không
+  đủ cho mọi việc: với *bí mật* (mật khẩu, token) là nhật ký/log, mô tả phiếu, `review.md`, bản chiếu
+  `.bint/tasks`, SQLite, spool, bản xuất; với *dọn dữ liệu* là **từng loại dữ liệu** trong thư mục trạng thái
+  (state dir) — mỗi loại một dòng: có tự dọn không, giữ bao lâu, ai được xoá.
+  Dòng không có AC và không có lý do ngoài phạm vi là kế hoạch chưa xong.
+- **`## Giả định thay người dùng`** trong `plan.md` (bắt buộc): mỗi quyết định kỹ thuật mà người không rành kỹ
+  thuật không trả lời được (mốc thời gian, ngưỡng, cái gì được xoá, mức che) thì **bạn chọn một giá trị mặc
+  định hợp lý, ghi rõ là giả định, nêu cách đổi** — không đẩy sang "Câu hỏi mở". Chỉ hỏi (`## Câu hỏi mở`) điều
+  người dùng thực sự biết và trả lời được: họ muốn đạt điều gì, điều gì tuyệt đối không được mất.
+- **Không thu hẹp phạm vi tới mức không đạt mục đích**: tiêu chí chấp nhận phải bảo đảm mục đích người dùng nói
+  ra được đạt trên mọi bề mặt đã liệt kê. Chọn "phạm vi tối thiểu" chỉ khi nó vẫn đạt mục đích; nếu phần còn
+  lại để sau, ghi vào "Ngoài phạm vi" kèm hậu quả người dùng sẽ thấy, không im lặng bỏ.
+
 ## Độ sâu phân tích
 
 Bint chọn độ sâu **một lần** lúc tạo tác vụ và không đổi giữa lượt. Dưới `bint run`, đề bài có
@@ -82,11 +103,13 @@ dòng `Phân tích: standard|deep` và `Lý do:`; chạy tay thì đọc `classi
 bảo vệ (`protected_paths`), khi yêu cầu dài/nhiều ý (`complex_request`), hoặc khi người dùng chỉ định
 (`user_override`). Độ sâu không đổi quyền ghi hay cách duyệt.
 
-- **standard**: ba tài liệu ngắn như ở Bước 3.
+- **standard**: ba tài liệu ngắn như ở Bước 3, trong đó `plan.md` vẫn có `## Bề mặt bị ảnh hưởng` và
+  `## Giả định thay người dùng` (xem mục trên).
 - **deep**: **cùng** ba tài liệu và cùng hợp đồng v1, nhưng `plan.md` (và `requirement.md` khi hợp)
   phải làm thêm, mỗi mục một đoạn ngắn:
   1. *Giả định và mâu thuẫn*: điều bạn đang dựa vào; chỗ yêu cầu, mã và tri thức dự án mâu thuẫn nhau.
-     Giả định nào làm đổi cách làm thì ghi thành câu hỏi mở thay vì tự chọn.
+     Giả định kỹ thuật mà người dùng không trả lời được thì tự chọn và ghi vào `## Giả định thay người dùng`;
+     chỉ giả định mà người dùng mới biết (mục đích, điều không được mất) mới thành câu hỏi mở.
   2. *Lựa chọn và lý do*: ít nhất hai hướng khả dĩ và vì sao chọn hướng này.
   3. *Vùng ảnh hưởng*: module, API, dữ liệu, người dùng bị chạm; nơi gọi tới.
   4. *Rủi ro và rollback*: điều gì có thể hỏng, phát hiện bằng cách nào, quay lại ra sao.
@@ -133,7 +156,8 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
   tự bịa câu trả lời). Điểm không cản trở thì ghi trong văn xuôi.
 
 <!-- bint:anchor plan-template -->
-`plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, rủi ro,
+`plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Bề mặt bị ảnh hưởng`
+(từng nơi, mỗi nơi một AC hoặc lý do ngoài phạm vi), `## Giả định thay người dùng`, rủi ro,
 chiến lược kiểm thử. `tasks.md`: danh sách `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`.
 <!-- bint:anchor-end plan-template -->
 

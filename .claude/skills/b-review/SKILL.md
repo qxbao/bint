@@ -41,9 +41,13 @@ rõ nhánh, `A..B` hoặc commit (không phải tác vụ) thì dùng git cho ph
 git diff <A>..<B>
 ```
 
+Dưới `bint run`, đề bài đã kèm sẵn danh sách tệp, thống kê diff (và diff đầy đủ khi không quá lớn) cùng nội
+dung `plan.md`: dùng chúng trước, chỉ chạy lại `bint task diff <id>` khi đề bài nói diff bị lược.
+
 ## Bước 2 — Yêu cầu và quy tắc
 
-Đọc tiêu chí chấp nhận và tài liệu của tác vụ (`bint task show <id>`). Truy xuất quy tắc: có công cụ MCP của Bint (`context_for_paths`) thì dùng nó;
+Đọc **yêu cầu gốc** của người dùng (`request` trong `bint task show <id>`), tiêu chí chấp nhận và tài liệu của tác vụ, kể cả
+mục `## Bề mặt bị ảnh hưởng` của `plan.md`. Truy xuất quy tắc: có công cụ MCP của Bint (`context_for_paths`) thì dùng nó;
 không có (Antigravity, phiên không nạp MCP) thì chạy CLI:
 
 ```sh
@@ -55,10 +59,19 @@ bint context --paths <các tệp trong diff>
 
 ## Bước 3 — Kiểm tra
 
+0. **Tìm chỗ bị bỏ sót, không chỉ lỗi trong phần đã sửa.** Đối chiếu yêu cầu gốc, từng tiêu chí chấp nhận và
+   từng dòng của `## Bề mặt bị ảnh hưởng` (plan.md) với diff: nơi nào yêu cầu hoặc kế hoạch nói tới mà diff **không
+   đụng tới** (ví dụ log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`, SQLite; hay một loại dữ liệu trong
+   state dir)? Đọc mã **ngoài diff** để xác minh nơi đó còn xử lý hay chưa (grep đường đi của dữ liệu). Mục đích của
+   người dùng chưa đạt vì thiếu một bề mặt là phát hiện `bug` hoặc `risk` mức `high`: ghi `path` là **tệp
+   ngoài diff** chưa được xử lý, `criterion` là số tiêu chí liên quan, `evidence` là lệnh/dòng mã chứng minh dữ liệu
+   vẫn đi qua đó. Tiêu chí bị bỏ trống (không có thay đổi nào tương ứng) cũng là phát hiện.
 1. Tính đúng đắn và nghiệp vụ; đối chiếu từng tiêu chí chấp nhận.
 2. Kiến trúc, bảo mật, hiệu năng.
 3. Kiểm thử: có bao phủ thay đổi không, có lỗi hồi quy không, thay đổi có vượt phạm vi
-   `scope` của phiếu không.
+   `scope` của phiếu không. Lệnh không chạy được trong sandbox (socket, mạng, quyền hệ thống...) không
+   phải bằng chứng lỗi: `verify.command` của phiếu do Bint chạy ngoài sandbox, xem kết quả ở
+   `bint task show <id>`.
 
 <!-- bint:anchor review-checklist -->
 <!-- bint:anchor-end review-checklist -->
@@ -75,7 +88,7 @@ Mức độ: `critical` | `high` | `medium` | `low`. Chỉ dùng `critical`/`hig
 ## Bước 4 — Ghi phát hiện
 
 Một lần ghi cho cả vòng review (JSON qua stdin). Mỗi phát hiện cần `path` và `lines` khi
-chỉ ra được vị trí, và `evidence` là lập luận hoặc đầu ra kiểm chứng được:
+chỉ ra được vị trí, `criterion` (số tiêu chí, từ 1) khi gắn được với một tiêu chí, và `evidence` là lập luận hoặc đầu ra kiểm chứng được:
 
 ```sh
 bint task review <id> - <<'EOF'
@@ -83,7 +96,7 @@ bint task review <id> - <<'EOF'
   "summary": "Một câu về chất lượng thay đổi",
   "findings": [
     {"kind": "bug", "severity": "high", "title": "Không đóng rows khi lỗi",
-     "path": "internal/db/q.go", "lines": "40-52",
+     "path": "internal/db/q.go", "lines": "40-52", "criterion": 2,
      "evidence": "rows.Close() chỉ gọi ở nhánh thành công; lỗi ở dòng 45 làm rò kết nối",
      "body": "Dùng defer rows.Close() ngay sau QueryContext."}
   ]
@@ -104,6 +117,7 @@ findings:
     title: Không đóng rows khi lỗi
     path: internal/db/q.go
     lines: "40-52"
+    criterion: 2
     evidence: "rows.Close() chỉ gọi ở nhánh thành công; lỗi ở dòng 45 làm rò kết nối"
     body: Dùng defer rows.Close() ngay sau QueryContext.
 EOF

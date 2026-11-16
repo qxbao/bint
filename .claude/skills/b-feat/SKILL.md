@@ -31,7 +31,15 @@ Bint tạo worktree; làm tay ngoài `bint run` thì chạy ở cây gốc, khô
 
 Đọc `requirement.md`, `plan.md`, `tasks.md` nếu có (đường dẫn trong `bint task show`).
 Nếu một tiêu chí chưa rõ tới mức không biết thế nào là xong, hỏi người dùng (khi chạy
-dưới `bint run`: ghi `bint task error <id> --step b-feat "<câu hỏi>"` rồi dừng).
+dưới `bint run`: ghi `bint task error <id> --step b-feat --question "<câu hỏi>"` rồi dừng). Với
+`--question`, Bint chuyển tác vụ sang chờ người sau bước này và in lệnh trả lời; người trả lời bằng
+`bint run resume <id> --answer "<trả lời>"` và b-feat chạy lại trên chính tác vụ, đề bài (hoặc lời nhắn
+nối tiếp) mang nguyên văn câu hỏi và câu trả lời. Không ghi câu hỏi bằng `bint task error` thường: nó chỉ
+là lỗi, không dừng tác vụ chờ trả lời.
+
+**Bước kết thúc mà không đổi tệp nào thì tác vụ không hoàn thành** (Bint không kiểm chứng, không review,
+không đánh `done`; tác vụ chờ người). Nếu bạn nhận ra không thể làm gì thêm, nói rõ lý do trong báo cáo
+(và ghi `--question` nếu cần thông tin từ người dùng) thay vì kết thúc im lặng.
 
 Nếu **không** chạy dưới `bint run` (`BINT_RUN_ID` trống):
 `bint task status <id> in_progress --reason "bắt đầu thực thi"`.
@@ -86,6 +94,14 @@ bint task criteria <id> 2 unmet --evidence "chưa xử lý trường hợp …"
 
 Không đánh dấu `met` khi chưa có bằng chứng. Đây là tự đánh giá (tín hiệu trung bình);
 lệnh kiểm chứng đã được người xác nhận mới là bằng chứng mạnh.
+
+`unmet` chặn tác vụ hoàn thành kể cả khi lệnh kiểm chứng của Bint qua, nên chỉ ghi `unmet` khi có
+bằng chứng phần việc còn thiếu hoặc sai. Nếu phần chưa có bằng chứng của một tiêu chí chỉ là lệnh
+mà `verify.command` của phiếu bao phủ (ví dụ "go test toàn bộ đạt") và bạn không chạy được nó
+trong sandbox (socket, mạng, quyền hệ thống...): **đừng** ghi `unmet` vì lý do đó. Để tiêu chí
+chưa ghi, nêu lý do trong báo cáo; Bint tự chạy lệnh kiểm chứng ngoài sandbox sau bước này.
+Không sửa tệp `tasks.md` ngoài việc đánh dấu `[x]`: giữ nguyên nội dung từng dòng TSK, kể cả
+`— xong khi: …`.
 
 ## Bước 5 — Kết thúc
 
