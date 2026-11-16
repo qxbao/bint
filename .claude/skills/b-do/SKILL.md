@@ -283,7 +283,12 @@ Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task ap
   hỏi người dùng, ghi trả lời, `next --resume` tiếp. Lặp tới khi hết câu hỏi mở thì tác vụ tự đi sang b-feat (đề bài
   b-feat chứa nguyên văn các câu đã trả lời). Không nối tiếp được (cây đổi, planner không còn, `--fresh`): Bint vào thẳng
   b-feat với các câu trả lời trong đề bài, không chạy lại b-req từ đầu. Mỗi lượt cần người trả lời; đừng tự trả lời thay.
-  Tiến trình ngoài (driver process): `bint run resume <id>` như cũ, vào thẳng b-feat.
+  Tiến trình ngoài (driver process): sau khi ghi trả lời, `bint run resume <id>` (hoặc `bint run b-do --task <id>` / `bint run b-req
+  --task <id>` với tác vụ b-req chạy riêng đã `planned`) **nối tiếp phiên planner cũ** (Claude `--resume`, Codex `exec resume`):
+  Bint gửi nguyên văn các dòng đã trả lời, planner cập nhật requirement/plan/tasks và có thể thêm câu hỏi mới (tác vụ dừng chờ
+  người lần nữa); hết câu hỏi thì b-do đi tiếp b-feat trong cùng lượt. Cùng điều kiện nối tiếp như trên (cây không đổi, phiên
+  còn trên đĩa, cùng harness, chưa quá giới hạn); không nối tiếp được thì vào thẳng b-feat như trước, `notes` nêu lý do.
+  `--fresh` (`bint run resume <id> --fresh`, `bint run b-do --task <id> --fresh`) buộc bỏ nối tiếp ở mọi bước dừng.
 - **Artifact b-req lỗi cấu trúc** (`planning_issues`): sửa theo `bint task lint <id>` qua
   `bint task write`, hoặc chạy lại b-req (`bint run b-req --task <id> --json`).
 - **Lệnh kiểm chứng chưa có hoặc chưa xác nhận**: hỏi lệnh rồi `bint task set <id> --verify-command '…'`.
