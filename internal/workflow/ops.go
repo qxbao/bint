@@ -826,6 +826,7 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 		return t, res, err
 	}
 	res.Verification = v
+	e.pinGreen(ctx, root, t.State.ID, v)
 	payload := map[string]any{"command": cmd, "passed": v.Passed, "confirmed": confirmed,
 		"exit_code": v.ExitCode, "timed_out": v.TimedOut, "scope": string(affected.TierFull)}
 	if v.Scope != "" {

@@ -185,6 +185,10 @@ type Result struct {
 	Origin      string   `json:"origin,omitempty"`
 	Landed      bool     `json:"landed,omitempty"`
 	LandedFiles []string `json:"landed_files,omitempty"`
+	// LastGreen và OpenFindings chỉ có khi tác vụ dừng (blocked/interrupted/failed): điểm verify xanh cuối kèm tệp đã đổi từ đó,
+	// và phát hiện còn mở của vòng review mới nhất, để người quyết định giao hay quay về (bint task restore-green).
+	LastGreen    *GreenInfo    `json:"last_green,omitempty"`
+	OpenFindings []OpenFinding `json:"open_findings,omitempty"`
 }
 
 type runState struct {
@@ -1969,9 +1973,12 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 	used := r.reviewRoundsUsed(rs, last)
 	limit := r.fixLimit(rs)
 	fix := rs.reviewFixStep(rv)
+	prev, stalled := r.reviewStalled(rs, last)
+	stalled = stalled && used <= limit // hết ngân sách vòng sửa thì báo như hết vòng sửa (thông điệp cũ), không phải không hội tụ
+	canFix := used <= limit && !stalled
 	// Hết vòng vẫn đặt LastStep để --fix-round sau này nối tiếp được, nhưng không ghi note "vòng sửa chạy…" khi không có vòng sửa nào mở.
-	r.armReviewFix(ctx, rs, fix, used <= limit)
-	if used <= limit {
+	r.armReviewFix(ctx, rs, fix, canFix)
+	if canFix {
 		r.setFlowStep(rs, fix)
 		if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa theo review vòng %d (%d phát hiện nghiêm trọng; vòng sửa %d/%d)",
 			last.Round, len(blocking), used, limit)); err != nil {
@@ -1980,7 +1987,7 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 		}
 		return true
 	}
-	// Hết vòng sửa: người chọn (chấp nhận / sửa thêm một vòng / huỷ). used vòng review nghĩa là đã sửa used-1 vòng.
+	// Hết vòng sửa hoặc review không hội tụ: người chọn (chấp nhận / sửa thêm một vòng / huỷ). used vòng review nghĩa là đã sửa used-1 vòng.
 	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.ReviewExhausted = true; return nil }); err == nil {
 		rs.t = t
 	}
@@ -1989,11 +1996,39 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 	if n := rs.t.State.ExtraFixRounds; n > 0 {
 		extra = fmt.Sprintf(" + %d vòng người cho thêm", n)
 	}
-	r.block(rs, fmt.Sprintf("còn %d phát hiện nghiêm trọng sau %d vòng review và %d vòng sửa (tối đa %d vòng sửa: workflow.max_review_rounds = %d%s). "+
-		"Xem %s rồi chọn một: chấp nhận kết quả như hiện tại `%s`; cho sửa thêm một vòng `%s`; huỷ `bint task cancel %s`",
-		len(blocking), used, used-1, limit, r.Cfg.Workflow.MaxReviewRounds, extra, filepath.Join(filepath.Dir(rs.t.ArtifactPath("plan")), task.ReviewMD),
+	head := fmt.Sprintf("còn %d phát hiện nghiêm trọng sau %d vòng review và %d vòng sửa (tối đa %d vòng sửa: workflow.max_review_rounds = %d%s).",
+		len(blocking), used, used-1, limit, r.Cfg.Workflow.MaxReviewRounds, extra)
+	if stalled {
+		head = fmt.Sprintf("review không hội tụ: vòng review %d còn %d phát hiện nghiêm trọng, không giảm so với vòng review %d (%d) sau %d vòng sửa nên dừng thay vì sửa tiếp (còn %d vòng sửa trong workflow.max_review_rounds = %d).",
+			last.Round, len(blocking), prev.Round, len(prev.Blocking()), used-1, max(limit-(used-1), 0), r.Cfg.Workflow.MaxReviewRounds)
+	}
+	r.block(rs, fmt.Sprintf("%s Xem %s rồi chọn một: chấp nhận kết quả như hiện tại `%s`; cho sửa thêm một vòng `%s`; huỷ `bint task cancel %s`",
+		head, filepath.Join(filepath.Dir(rs.t.ArtifactPath("plan")), task.ReviewMD),
 		r.resumeWith(rs, "--accept"), r.resumeWith(rs, "--fix-round"), id))
 	return false
+}
+
+// reviewStalled cho biết review không hội tụ: từ vòng 2, số phát hiện nghiêm trọng của vòng last không giảm so với vòng review
+// liền trước (prev, vòng đó cũng phải có phát hiện nghiêm trọng). Chỉ áp cho flow có một bước review (flow nhiều bước review xen
+// kẽ các reviewer nên số hai vòng liền kề không so sánh được). Sau --fix-round vẫn so như thường: người cho thêm đúng một vòng sửa,
+// vòng đó có giảm thì chạy tiếp, không giảm thì dừng lại hỏi người.
+func (r *Runner) reviewStalled(rs *runState, last *task.ReviewRound) (prev *task.ReviewRound, stalled bool) {
+	if last.Round < 2 || rs.countKind(flow.KindReview) > 1 {
+		return nil, false
+	}
+	rev, err := rs.t.LoadReview()
+	if err != nil {
+		return nil, false
+	}
+	for i := range rev.Rounds {
+		if rd := &rev.Rounds[i]; rd.Round < last.Round && (prev == nil || rd.Round > prev.Round) {
+			prev = rd
+		}
+	}
+	if prev == nil || len(prev.Blocking()) == 0 {
+		return nil, false
+	}
+	return prev, len(last.Blocking()) >= len(prev.Blocking())
 }
 
 // reviewRoundsUsed là số vòng review đã dùng để so với workflow.max_review_rounds. Flow có một bước review (b-do, flow
@@ -2515,6 +2550,7 @@ func (r *Runner) finish(rs *runState) {
 	if len(rs.res.Choices) == 0 {
 		rs.res.Choices = choicesFor(rs.t)
 	}
+	r.attachGreen(rs)
 }
 
 func reasonSuffix(s string) string {

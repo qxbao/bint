@@ -169,6 +169,14 @@ func TestNewAgentUnavailable(t *testing.T) {
 	if ca.Binary != bin || ca.Model != "gpt-x" || ca.ExtraArgs[0] != "--foo" {
 		t.Fatalf("%+v", ca)
 	}
+	if !ca.NoSubagents {
+		t.Fatal("bước workflow (Step khác rỗng) của Codex phải tắt agent con")
+	}
+	for _, o := range []AgentOptions{{Config: cfg}, {Config: cfg, Eval: true}, {Config: cfg, Step: "b-feat", Eval: true}} {
+		if g, _ := NewAgent("codex", o); g.(*eval.CodexAgent).NoSubagents {
+			t.Fatalf("lượt đánh giá/skill test không được đổi hành vi: %+v", o)
+		}
+	}
 	ag, _ = NewAgent("codex", AgentOptions{Config: cfg, Model: "cli-model"})
 	if ag.(*eval.CodexAgent).Model != "cli-model" {
 		t.Fatal("--model phải ưu tiên hơn cấu hình")

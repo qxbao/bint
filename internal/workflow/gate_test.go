@@ -245,7 +245,7 @@ func TestAnswerResumesFeatSession(t *testing.T) {
 func TestReviewExhaustedChoicesAcceptAndFixRound(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Workflow.MaxReviewRounds = 2
-	h.behave = h.blockingReview(99)
+	h.behave = h.decliningReview(9)
 	r := h.runner()
 	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(false)})
 	if err != nil {
@@ -305,7 +305,7 @@ func TestReviewExhaustedChoicesAcceptAndFixRound(t *testing.T) {
 func TestSessionReviewExhaustedAccept(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Workflow.MaxReviewRounds = 1
-	h.behave = h.blockingReview(99)
+	h.behave = h.decliningReview(9)
 	r := h.runner()
 	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
 	steps, last := h.drive(r, tk.State.ID, false)

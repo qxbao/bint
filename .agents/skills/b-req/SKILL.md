@@ -60,7 +60,7 @@ bint context "<mục tiêu>"          # quy tắc, điểm dễ sai đã biết 
 Đọc mã ở các khu vực liên quan. Tìm yêu cầu còn thiếu hoặc mâu thuẫn; nếu một điểm
 mơ hồ thay đổi cách làm **và chỉ người dùng mới trả lời được**, ghi nó vào mục "Câu hỏi mở" (khuôn
 `- [ ] Q-N: …`, xem Bước 3) thay vì tự chọn; điểm kỹ thuật người không rành không trả lời được thì bạn chọn
-và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ảnh hưởng và phạm vi đạt mục đích").
+và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ảnh hưởng, ngân sách và giả định").
 
 ## Yêu cầu lớn và phiếu con
 
@@ -75,25 +75,31 @@ và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ả
 - **Dưới `bint run` (biến `BINT_RUN_ID` có giá trị) không tự lập phiếu con**: chỉ đề xuất trong `plan.md`; người
   dùng hoặc b-do quyết định lập. Chạy tay ngoài `bint run` thì hỏi người dùng trước khi chạy `bint task new`.
 
-## Bề mặt bị ảnh hưởng và phạm vi đạt mục đích (mọi mức phân tích)
+## Bề mặt bị ảnh hưởng, ngân sách và giả định (mọi mức phân tích)
 
-Người dùng thường mô tả mục đích ("sợ lộ mật khẩu", "thư mục dữ liệu phình to"), không mô tả nơi phải sửa.
-Kế hoạch phải đo theo **mục đích**, không theo phần dễ làm nhất:
+Người dùng thường mô tả mục đích ("sợ lộ mật khẩu", "thư mục dữ liệu phình to"), không mô tả nơi phải sửa. Đo kế hoạch
+theo **mục đích**, nhưng chọn **bản nhỏ nhất vẫn đạt mục đích**: mỗi bề mặt hay hạng mục thêm vào phải gắn với lời người dùng
+hoặc một rủi ro cụ thể. Kế hoạch càng phình thì diff càng lớn và lỗi mới càng nhiều.
 
-- **`## Bề mặt bị ảnh hưởng`** trong `plan.md` (bắt buộc, cả `standard` lẫn `deep`): liệt kê **từng nơi** dữ liệu
-  hoặc hành vi đi qua, mỗi nơi một dòng, và gắn một `AC-N` kiểm được **hoặc** lý do nằm ngoài phạm vi. Cách tìm
-  nơi: lần theo đường đi của dữ liệu từ lúc vào tới lúc ra (ghi, lưu, hiển thị, xuất, sao chép). Ví dụ gợi ý, không
-  đủ cho mọi việc: với *bí mật* (mật khẩu, token) là nhật ký/log, mô tả phiếu, `review.md`, bản chiếu
-  `.bint/tasks`, SQLite, spool, bản xuất; với *dọn dữ liệu* là **từng loại dữ liệu** trong thư mục trạng thái
-  (state dir) — mỗi loại một dòng: có tự dọn không, giữ bao lâu, ai được xoá.
-  Dòng không có AC và không có lý do ngoài phạm vi là kế hoạch chưa xong.
-- **`## Giả định thay người dùng`** trong `plan.md` (bắt buộc): mỗi quyết định kỹ thuật mà người không rành kỹ
-  thuật không trả lời được (mốc thời gian, ngưỡng, cái gì được xoá, mức che) thì **bạn chọn một giá trị mặc
-  định hợp lý, ghi rõ là giả định, nêu cách đổi** — không đẩy sang "Câu hỏi mở". Chỉ hỏi (`## Câu hỏi mở`) điều
-  người dùng thực sự biết và trả lời được: họ muốn đạt điều gì, điều gì tuyệt đối không được mất.
-- **Không thu hẹp phạm vi tới mức không đạt mục đích**: tiêu chí chấp nhận phải bảo đảm mục đích người dùng nói
-  ra được đạt trên mọi bề mặt đã liệt kê. Chọn "phạm vi tối thiểu" chỉ khi nó vẫn đạt mục đích; nếu phần còn
-  lại để sau, ghi vào "Ngoài phạm vi" kèm hậu quả người dùng sẽ thấy, không im lặng bỏ.
+- **Ngân sách**: yêu cầu mơ hồ hoặc rộng thì giai đoạn đầu khoảng ≤ 5 `AC` và ≤ 5 `TSK`; phần còn lại vào
+  `## Đề xuất tách giai đoạn`.
+- **`## Bề mặt bị ảnh hưởng`** trong `plan.md` (bắt buộc, cả `standard` lẫn `deep`): lần theo từng nơi dữ liệu hoặc hành vi
+  đi qua (ghi, lưu, hiển thị, xuất, sao chép) rồi **gộp theo nhóm**, khoảng ≤ 8–10 dòng, mỗi dòng một nhóm kèm vài ví dụ.
+  Mỗi nhóm gắn một `AC-N` kiểm được **hoặc** vào `## Ngoài phạm vi` với lý do nằm ngoài phạm vi và **hậu quả người dùng
+  sẽ thấy**; không im lặng bỏ phần để sau. Gợi ý: với *bí mật* là nhật ký/log, mô tả phiếu, `review.md`, bản chiếu
+  `.bint/tasks`, SQLite, spool, bản xuất; với *dọn dữ liệu* là loại dữ liệu trong thư mục trạng thái (state dir): có tự dọn
+  không, giữ bao lâu, ai được xoá.
+- **`## Giả định thay người dùng`** trong `plan.md` (bắt buộc): quyết định kỹ thuật mà người không rành kỹ thuật không trả
+  lời được (mốc thời gian, ngưỡng, mức che) thì chọn giá trị mặc định hợp lý, ghi rõ là giả định và cách đổi. Giả định
+  **không đảo ngược được hoặc đổi hành vi/dữ liệu hiện có** (xoá vĩnh viễn không xem trước, từ chối lệnh đang chạy được, ghi
+  đè hay đổi giá trị dữ liệu, che cả giá trị ngắn như `1`) thì mặc định chọn phương án đảo ngược được, ít xâm lấn: xem
+  trước/`--dry-run` hoặc bật tay, cảnh báo thay vì từ chối, chỉ che khi có nhãn rõ. Không chọn thiết kế có thể làm hỏng dữ
+  liệu hay hiệu năng hiện có, và không giả định ngược điều người dùng đã nói ("xem trước thì tốt", "đừng làm chậm").
+- **Yêu cầu mơ hồ (chỉ nêu mục đích)**: hỏi tối đa 2–3 câu về **kết quả mong muốn** trong `## Câu hỏi mở` (có cần xem
+  trước/bật tay không; điều gì không được mất, hỏng hay chậm; mức độ/thời hạn nếu họ biết), không hỏi điều kỹ thuật, và
+  chưa lập kế hoạch đầy đủ: ghi bản phác hợp lệ (≥ 1 `AC`, `plan.md` vài dòng, ≥ 1 `TSK`) rồi dừng. Bint chuyển tác vụ sang
+  chờ người (không treo); người trả lời xong thì nối tiếp phiên này để lập kế hoạch đầy đủ. Điều đã nói rõ hoặc đã có câu
+  trả lời trong đề bài thì không hỏi lại.
 
 ## Độ sâu phân tích
 
@@ -108,8 +114,7 @@ bảo vệ (`protected_paths`), khi yêu cầu dài/nhiều ý (`complex_request
 - **deep**: **cùng** ba tài liệu và cùng hợp đồng v1, nhưng `plan.md` (và `requirement.md` khi hợp)
   phải làm thêm, mỗi mục một đoạn ngắn:
   1. *Giả định và mâu thuẫn*: điều bạn đang dựa vào; chỗ yêu cầu, mã và tri thức dự án mâu thuẫn nhau.
-     Giả định kỹ thuật mà người dùng không trả lời được thì tự chọn và ghi vào `## Giả định thay người dùng`;
-     chỉ giả định mà người dùng mới biết (mục đích, điều không được mất) mới thành câu hỏi mở.
+     Chia giả định/câu hỏi như mục trên.
   2. *Lựa chọn và lý do*: ít nhất hai hướng khả dĩ và vì sao chọn hướng này.
   3. *Vùng ảnh hưởng*: module, API, dữ liệu, người dùng bị chạm; nơi gọi tới.
   4. *Rủi ro và rollback*: điều gì có thể hỏng, phát hiện bằng cách nào, quay lại ra sao.
@@ -157,7 +162,7 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
 
 <!-- bint:anchor plan-template -->
 `plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Bề mặt bị ảnh hưởng`
-(từng nơi, mỗi nơi một AC hoặc lý do ngoài phạm vi), `## Giả định thay người dùng`, rủi ro,
+(theo nhóm, ≤ 8–10 dòng, mỗi nhóm một AC hoặc lý do ngoài phạm vi), `## Giả định thay người dùng`, rủi ro,
 chiến lược kiểm thử. `tasks.md`: danh sách `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`.
 <!-- bint:anchor-end plan-template -->
 

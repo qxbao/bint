@@ -250,6 +250,7 @@ func printRunResult(w io.Writer, res *workflow.Result) {
 		fmt.Fprintf(w, "! %s\n", n)
 	}
 	printChoices(w, res.Choices)
+	printGreen(w, res.TaskID, res.LastGreen, res.OpenFindings)
 	fmt.Fprintf(w, "Chi tiết: bint task show %s   ·   bint run status %s\n", res.TaskID, res.TaskID)
 }
 

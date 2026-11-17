@@ -150,7 +150,8 @@ bint run b-do --task <id> --json            # đường đi đã chốt ở phi�
   bước và chờ người dùng đồng ý trước bước sau. Khi chạy từng bước, vòng sửa theo review và bước
   hoàn thành do bạn gọi: còn phát hiện `bug` mức `critical`/`high` thì
   `bint task status <id> in_progress --reason "sửa theo review"` rồi chạy lại b-feat, tối đa
-  `workflow.max_review_rounds` vòng. Hết vòng thì dừng. Xong: tác vụ `worktree` thì
+  `workflow.max_review_rounds` vòng. Hết vòng, hoặc `summary` của review mở đầu `KHÔNG HỘI TỤ` (số phát hiện nghiêm trọng không giảm sau
+  một vòng sửa; `bint run` tự dừng ở trường hợp này), thì dừng, kể các phát hiện còn lại cho người dùng và hỏi họ chấp nhận, sửa thêm hay huỷ (như "Hết vòng sửa" ở Bước 3). Xong: tác vụ `worktree` thì
   `bint task land <id> --json` trước (đưa về cây gốc; xung đột xem Bước 3), rồi
   `bint task status <id> done --reason "…"`; tác vụ `shared` thì `bint task status <id> done --reason "…"`.
 
@@ -293,7 +294,8 @@ Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task ap
   trả lời thay — rồi `bint run resume <id> --answer "<câu trả lời của họ>" --json` (driver session:
   `bint run next <id> --resume --answer "<câu trả lời>" --json`). b-feat chạy lại trên chính tác vụ này (nối tiếp phiên cũ khi
   nối tiếp được) và nhận nguyên văn câu hỏi cùng câu trả lời; đừng mở tác vụ mới. Người dùng muốn bỏ thì `bint task cancel <id>`.
-- **Hết vòng sửa sau review** (`reason` có `vòng review` và `vòng sửa`, `choices` có ba lệnh): đọc `review.md` cho người dùng nghe các
+- **Hết vòng sửa sau review** (`reason` có `vòng review` và `vòng sửa`, `choices` có ba lệnh; `reason` bắt đầu `review không hội tụ` nghĩa là số phát hiện
+  nghiêm trọng không giảm sau một vòng sửa nên Bint dừng sớm, chưa hết `workflow.max_review_rounds`): đọc `review.md` cho người dùng nghe các
   phát hiện còn lại bằng lời thường rồi đưa **ba lựa chọn** nguyên văn từ `choices` và chờ họ chọn: chấp nhận kết quả như hiện tại
   (`bint run resume <id> --accept`), cho sửa thêm đúng một vòng (`bint run resume <id> --fix-round`), hoặc huỷ
   (`bint task cancel <id>`); driver session dùng `bint run next <id> --resume --accept|--fix-round`. **Không tự chạy `--accept` hay
@@ -305,6 +307,10 @@ Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task ap
   Việc xác nhận (`bint task approve`) là của người dùng.
 - **Đường dẫn bảo vệ / autonomy ask_always / hết ngân sách**: không lách. Nói rõ người dùng cần làm gì (duyệt bằng
   `bint task approve <id>`, tăng `limits`…), chờ họ làm xong rồi mới resume. (Hết vòng sửa review: xem mục riêng ở trên.)
+
+Tác vụ dừng (`blocked`/`failed`/`interrupted`) mà kết quả có `last_green` (điểm verify xanh cuối, `changed_since` là tệp đã đổi từ đó) và
+`open_findings`: báo cho người dùng cả hai, để họ quyết định giao hay quay về. `bint task restore-green <id>` (mặc định chỉ xem trước,
+`--apply` mới ghi) **chỉ người dùng chạy**: đừng chạy, chỉ nêu lệnh.
 
 `failed`/`interrupted`: báo lỗi của bước (`bint task show <id>`, nhật ký trong `steps`). Chỉ
 `bint run resume <id>` khi nguyên nhân đã được xử lý. Agent con không chạy được trong sandbox của

@@ -88,6 +88,9 @@ type SessionAction struct {
 	Choices []Choice `json:"choices,omitempty"`
 	// PlanningIssues: lỗi cấu trúc artifact b-req (hợp đồng v1) khiến tác vụ dừng.
 	PlanningIssues []task.ArtifactIssue `json:"planning_issues,omitempty"`
+	// LastGreen, OpenFindings: như Result (chỉ khi tác vụ dừng blocked/failed).
+	LastGreen    *GreenInfo    `json:"last_green,omitempty"`
+	OpenFindings []OpenFinding `json:"open_findings,omitempty"`
 	// Result: kết quả bước vừa đóng (chỉ ở `complete`).
 	Result *StepResult `json:"result,omitempty"`
 }
@@ -231,6 +234,9 @@ func (r *Runner) stopAction(rs *runState) *SessionAction {
 		if a.Reason == "" {
 			a.Reason = rs.res.Reason
 		}
+	}
+	if st.Status == task.StatusBlocked || st.Status == task.StatusFailed {
+		a.LastGreen, a.OpenFindings = r.Env.GreenReport(context.Background(), rs.t)
 	}
 	return a
 }

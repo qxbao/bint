@@ -115,13 +115,17 @@ func TestCoreSkillsDepthGuidance(t *testing.T) {
 func TestCoreSkillBReqSurfacesAndAssumptions(t *testing.T) {
 	s, _ := Get("b-req")
 	body := s.Body()
+	flat := strings.Join(strings.Fields(body), " ") // gộp xuống dòng để cụm từ không phụ thuộc cách ngắt dòng
 	for _, want := range []string{
 		"## Bề mặt bị ảnh hưởng", "## Giả định thay người dùng",
-		"từng nơi", "lý do nằm ngoài phạm vi", "state dir", "mật khẩu", ".bint/tasks", "review.md",
-		"Không thu hẹp phạm vi tới mức không đạt mục đích",
+		"từng nơi", "gộp theo nhóm", "lý do nằm ngoài phạm vi", "state dir", "mật khẩu", ".bint/tasks", "review.md",
+		"bản nhỏ nhất vẫn đạt mục đích", "không im lặng bỏ", "hậu quả người dùng sẽ thấy",
+		"≤ 5 `AC`", "≤ 5 `TSK`", "## Đề xuất tách giai đoạn",
+		"không đảo ngược được", "đảo ngược được, ít xâm lấn", "`--dry-run`", "cảnh báo thay vì từ chối",
+		"tối đa 2–3 câu", "kết quả mong muốn", "## Câu hỏi mở",
 		"người không rành kỹ", "mọi mức phân tích",
 	} {
-		if !strings.Contains(body, want) {
+		if !strings.Contains(flat, want) {
 			t.Errorf("b-req thiếu %q", want)
 		}
 	}
@@ -146,6 +150,8 @@ func TestCoreSkillBReviewFindsOmissions(t *testing.T) {
 	body := strings.Join(strings.Fields(s.Body()), " ") // gộp xuống dòng để cụm từ không phụ thuộc cách ngắt dòng
 	for _, want := range []string{
 		"yêu cầu gốc", "Bề mặt bị ảnh hưởng", "bỏ sót", "ngoài diff", "`criterion`", "tệp ngoài diff",
+		// Benchmark lần 3: bề mặt ngoài AC chỉ là low; high dành cho AC chưa đạt/hồi quy/lỗi đúng đắn; có điều kiện dừng.
+		"ngoài kế hoạch hoặc ngoài mọi AC", "chỉ là `low`", "AC chưa đạt, hồi quy", "KHÔNG HỘI TỤ", "không giảm", "Bint tự dừng",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("b-review thiếu %q", want)
@@ -381,5 +387,22 @@ func TestCoreSkillBAddFlowContract(t *testing.T) {
 	}
 	if errs := flow.Validate(def, "tdd", func(n string) bool { _, ok := Get(n); return ok || n == "viet-kiem-thu-do" }); len(errs) != 0 {
 		t.Fatalf("ví dụ flow không qua lint: %v", errs)
+	}
+}
+
+// Benchmark lần 3: b-feat dặn không sinh agent con; b-do biết dừng vòng sửa khi review báo không hội tụ.
+func TestCoreSkillsNoSubagentsAndNonConvergence(t *testing.T) {
+	feat, _ := Get("b-feat")
+	if !strings.Contains(feat.Body(), "không sinh agent con") {
+		t.Error("b-feat phải dặn không sinh agent con")
+	}
+	do, _ := Get("b-do")
+	if !strings.Contains(do.Body(), "KHÔNG HỘI TỤ") {
+		t.Error("b-do phải nêu điều kiện dừng khi review báo KHÔNG HỘI TỤ")
+	}
+	for _, want := range []string{"last_green", "open_findings", "bint task restore-green", "chỉ người dùng chạy"} {
+		if !strings.Contains(strings.Join(strings.Fields(do.Body()), " "), want) {
+			t.Errorf("b-do thiếu %q (điểm verify xanh)", want)
+		}
 	}
 }

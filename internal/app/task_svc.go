@@ -303,6 +303,10 @@ type TaskDetail struct {
 	Parent   *RelatedTask
 	Deps     []RelatedTask
 	Children []RelatedTask
+	// LastGreen, OpenFindings: điểm verify xanh cuối (kèm tệp đã đổi từ đó) và phát hiện còn mở của vòng review mới nhất; chỉ có khi
+	// tác vụ dừng (blocked/interrupted/failed).
+	LastGreen    *workflow.GreenInfo
+	OpenFindings []workflow.OpenFinding
 }
 
 // ShowTask dựng chi tiết tác vụ: phiếu, đánh giá, review, điều chặn done, tài liệu và kết quả lint.
@@ -334,6 +338,9 @@ func ShowTask(ctx context.Context, ws *TaskWS, o TaskShowOptions) (TaskDetail, e
 		d.Artifacts = append(d.Artifacts, a)
 	}
 	d.Parent, d.Deps, d.Children = relations(ws, t)
+	if task.Paused(t.State.Status) {
+		d.LastGreen, d.OpenFindings = ws.GreenReport(ctx, t)
+	}
 	if any {
 		rep := task.LintPlanningTask(t, t.State.PlanningContractVersion >= task.PlanningContractV1)
 		d.Lint = &rep
@@ -816,6 +823,36 @@ func LandTask(ctx context.Context, ws *TaskWS, o TaskLandOptions) (*workflow.Lan
 		}
 	}
 	return ws.Land(ctx, o.Ref, workflow.LandOptions{ThreeWay: o.ThreeWay, Keep: o.Keep, Force: o.Force, Reason: o.Reason})
+}
+
+// ---- task restore-green ----
+
+// TaskRestoreGreenOptions: `bint task restore-green <task-id> [--apply]`. Chỉ dành cho người (RequireHuman).
+type TaskRestoreGreenOptions struct {
+	Ref   string `arg:"task-id" form:"required,suggest=tasks"`
+	Apply bool   `flag:"apply"`
+}
+
+func TaskRestoreGreenDefaults(config.Config) TaskRestoreGreenOptions {
+	return TaskRestoreGreenOptions{}
+}
+func (o TaskRestoreGreenOptions) Validate() error {
+	if strings.TrimSpace(o.Ref) == "" {
+		return Usagef("cần ID tác vụ")
+	}
+	return nil
+}
+
+// RestoreGreenTask đưa tệp của tác vụ về điểm verify xanh cuối (xem workflow.Env.RestoreGreen). Chỉ dành cho người: nó ghi đè
+// tệp ở cây làm việc, nên phiên agent bị từ chối kể cả khi chỉ xem trước (agent không cần biết kế hoạch ghi đè).
+func RestoreGreenTask(ctx context.Context, ws *TaskWS, o TaskRestoreGreenOptions) (*workflow.RestoreResult, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	if err := RequireHuman("bint task restore-green"); err != nil {
+		return nil, err
+	}
+	return ws.RestoreGreen(ctx, o.Ref, o.Apply)
 }
 
 // ---- task cancel ----

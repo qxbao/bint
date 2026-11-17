@@ -221,6 +221,7 @@ var litsrSplit = []struct{ file, contains string }{
 
 var litsrAgentGate = []struct{ file, contains string }{
 	{"app/task_svc.go", " --autonomy auto"},
+	{"app/task_svc.go", "bint task restore-green"},
 	{"workflow/ops.go", "%w: --force"},
 	{"workflow/ops.go", "%w: --discard"},
 }

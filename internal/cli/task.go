@@ -85,7 +85,7 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskReadyCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskDoneCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
-		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
+		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskRestoreGreenCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
 	return c
 }
 
@@ -347,7 +347,7 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 						arts[x.Name] = x.Path
 					}
 				}
-				out := map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
+				out := map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "last_green": d.LastGreen, "open_findings": d.OpenFindings, "classification": t.State.Classification, "assessment": a,
 					"verify_confirmed": d.VerifyConfirmed, "setup_command": d.Setup.Command, "setup_confirmed": d.Setup.Confirmed,
 					"setup_required": d.Setup.Required, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers),
 					"isolation": t.State.Isolation(), "isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t)),
@@ -358,6 +358,7 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 				return writeJSON(stdio.Out, out)
 			}
 			printTask(stdio.Out, ws.Env, t, a, rev, blockers)
+			printGreen(stdio.Out, t.State.ID, d.LastGreen, d.OpenFindings)
 			printRelations(stdio.Out, d)
 			return nil
 		},
@@ -1273,3 +1274,84 @@ Trong phiên agent chỉ ghi ra cây và liệt kê thay đổi chờ người n
 }
 
 const jsonWriteHelp = "in kết quả dạng một JSON object (có task_id) thay cho văn bản"
+
+// printGreen in điểm verify xanh cuối và phát hiện còn mở của tác vụ đang dừng (không in gì khi cả hai rỗng).
+func printGreen(w io.Writer, id string, g *workflow.GreenInfo, open []workflow.OpenFinding) {
+	if g != nil {
+		fmt.Fprintf(w, "\nĐiểm verify xanh cuối: %s  %s", g.Command, fmtRFC(g.At))
+		if g.Scope != "" {
+			fmt.Fprintf(w, " (phạm vi %s)", g.Scope)
+		}
+		fmt.Fprintln(w)
+		switch {
+		case g.Note != "":
+			fmt.Fprintf(w, "  không so được với cây hiện tại: %s\n", g.Note)
+		case len(g.ChangedSince) == 0:
+			fmt.Fprintln(w, "  cây hiện tại vẫn như lúc xanh")
+		default:
+			fmt.Fprintf(w, "  %d tệp đã đổi kể từ đó: %s\n", len(g.ChangedSince), strings.Join(g.ChangedSince, ", "))
+		}
+		if g.Pinned && len(g.ChangedSince) > 0 {
+			fmt.Fprintf(w, "  xem trước việc quay về (chỉ người chạy được): bint task restore-green %s\n", id)
+		}
+	}
+	if len(open) > 0 {
+		fmt.Fprintf(w, "\nPhát hiện còn mở (review vòng %d):\n", open[0].Round)
+		for _, f := range open {
+			fmt.Fprintf(w, "  [%s] %s/%s %s  %s\n", f.ID, f.Kind, f.Severity, f.Title, f.Path)
+		}
+	}
+}
+
+func newTaskRestoreGreenCmd(stdio IO) *cobra.Command {
+	var o app.TaskRestoreGreenOptions
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "restore-green <task-id>",
+		Short: "Chỉ người: đưa tệp của tác vụ dừng về điểm verify xanh cuối (mặc định chỉ xem trước)",
+		Long: `Khi tác vụ dừng (blocked, interrupted, failed) giữa vòng sửa, cây làm việc có thể ở trạng thái dở. Mỗi lần kiểm chứng qua,
+Bint ghim ảnh chụp cây; lệnh này đưa các tệp CỦA TÁC VỤ về đúng nội dung ảnh chụp xanh cuối (tệp tạo sau đó bị xoá).
+
+Mặc định chỉ liệt kê tệp sẽ đổi. --apply mới ghi: chỉ đụng tệp khác điểm xanh mà thuộc tác vụ (tệp tác vụ đã sửa, hoặc mọi tệp
+của worktree riêng của tác vụ); tệp khác giữ nguyên và được liệt kê là bỏ qua. Trước khi ghi, ảnh chụp cây hiện tại được ghim ở
+ref refs/bint/tasks/<id>/before-restore để lùi lại (git restore --source=<ref> -- <tệp>). Không đụng chỉ mục, HEAD hay trạng thái
+tác vụ. Chỉ người chạy được: phiên agent bị từ chối.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Ref = args[0]
+			ws, err := openTasks(cmd)
+			if err != nil {
+				return err
+			}
+			ws.Env.Out = stdio.Out
+			res, err := app.RestoreGreenTask(cmd.Context(), ws, o)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, res)
+			}
+			w := stdio.Out
+			verb := "sẽ đưa về"
+			if res.Applied {
+				verb = "đã đưa về"
+			}
+			fmt.Fprintf(w, "Điểm xanh %s: %s %d tệp của tác vụ %s\n", res.Tree[:min(12, len(res.Tree))], verb, len(res.Restore), res.TaskID)
+			for _, f := range res.Restore {
+				fmt.Fprintf(w, "  %s\n", f)
+			}
+			if len(res.Skipped) > 0 {
+				fmt.Fprintf(w, "Bỏ qua (không thuộc tác vụ, giữ nguyên): %s\n", strings.Join(res.Skipped, ", "))
+			}
+			if res.Backup != "" {
+				fmt.Fprintf(w, "Đường lui: %s\n", res.Backup)
+			} else if !res.Applied && len(res.Restore) > 0 {
+				fmt.Fprintln(w, "Chưa ghi gì; thêm --apply để thực hiện.")
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&o.Apply, "apply", false, "ghi đè tệp (mặc định chỉ xem trước)")
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}

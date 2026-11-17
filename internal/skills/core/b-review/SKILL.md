@@ -59,13 +59,14 @@ bint context --paths <các tệp trong diff>
 
 ## Bước 3 — Kiểm tra
 
-0. **Tìm chỗ bị bỏ sót, không chỉ lỗi trong phần đã sửa.** Đối chiếu yêu cầu gốc, từng tiêu chí chấp nhận và
-   từng dòng của `## Bề mặt bị ảnh hưởng` (plan.md) với diff: nơi nào yêu cầu hoặc kế hoạch nói tới mà diff **không
-   đụng tới** (ví dụ log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`, SQLite; hay một loại dữ liệu trong
-   state dir)? Đọc mã **ngoài diff** để xác minh nơi đó còn xử lý hay chưa (grep đường đi của dữ liệu). Mục đích của
-   người dùng chưa đạt vì thiếu một bề mặt là phát hiện `bug` hoặc `risk` mức `high`: ghi `path` là **tệp
-   ngoài diff** chưa được xử lý, `criterion` là số tiêu chí liên quan, `evidence` là lệnh/dòng mã chứng minh dữ liệu
-   vẫn đi qua đó. Tiêu chí bị bỏ trống (không có thay đổi nào tương ứng) cũng là phát hiện.
+0. **Tìm chỗ bị bỏ sót trong phạm vi AC của kế hoạch, không chỉ lỗi trong phần đã sửa.** Đối chiếu yêu cầu gốc, từng tiêu
+   chí chấp nhận và từng dòng của `## Bề mặt bị ảnh hưởng` (plan.md) với diff: nơi nào một **AC** (hoặc dòng bề mặt gắn
+   AC) nói tới mà diff **không đụng tới** (ví dụ log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`, SQLite; hay một
+   loại dữ liệu trong state dir)? Đọc mã **ngoài diff** để xác minh nơi đó còn xử lý hay chưa (grep đường đi của dữ liệu).
+   AC chưa đạt vì thiếu một bề mặt là phát hiện `bug` hoặc `risk` mức `high`: ghi `path` là **tệp ngoài diff** chưa được
+   xử lý, `criterion` là số tiêu chí liên quan, `evidence` là lệnh/dòng mã chứng minh dữ liệu vẫn đi qua đó. Tiêu chí bị
+   bỏ trống (không có thay đổi nào tương ứng) cũng là phát hiện. Bề mặt **ngoài kế hoạch hoặc ngoài mọi AC** (kể cả dòng đã
+   ghi "ngoài phạm vi") chỉ là `low`/ghi chú, không `high`, dù đúng là còn sót; đừng nâng mức vì "có thể còn sót thêm".
 1. Tính đúng đắn và nghiệp vụ; đối chiếu từng tiêu chí chấp nhận.
 2. Kiến trúc, bảo mật, hiệu năng.
 3. Kiểm thử: có bao phủ thay đổi không, có lỗi hồi quy không, thay đổi có vượt phạm vi
@@ -82,8 +83,8 @@ Phân biệt rõ:
 - `risk` — rủi ro có căn cứ nhưng chưa chứng minh được là sai;
 - `suggestion` — đề xuất cải thiện.
 
-Mức độ: `critical` | `high` | `medium` | `low`. Chỉ dùng `critical`/`high` cho `bug` hoặc
-`risk` có bằng chứng cụ thể.
+Mức độ: `critical` | `high` | `medium` | `low`. `critical`/`high` dành cho AC chưa đạt, hồi quy và lỗi đúng đắn thực
+sự (chỉ ra được đầu vào/trạng thái gây sai) trong mã đã sửa, luôn kèm bằng chứng cụ thể.
 
 ## Bước 4 — Ghi phát hiện
 
@@ -122,6 +123,10 @@ findings:
     body: Dùng defer rows.Close() ngay sau QueryContext.
 EOF
 ```
+
+**Điều kiện dừng.** Từ vòng 2, số phát hiện `critical`/`high` **không giảm** so với vòng trước thì Bint tự dừng vòng sửa và giao
+người dùng (lối "hết vòng sửa"); bạn chỉ cần xếp mức đúng, đừng hạ mức để cho qua. Trong `summary` mở đầu bằng
+`KHÔNG HỘI TỤ: <n> nghiêm trọng (vòng trước <m>)` và nói phần lớn là lỗi mới trong mã vừa sửa hay lỗi cũ chưa xử lý.
 
 Không có phát hiện thì ghi `"findings": []` (YAML: `findings: []`) kèm `summary`. Bint ghi nhận "không phát hiện
 vấn đề nghiêm trọng", nhưng đó **không** phải bằng chứng thay đổi an toàn — nói rõ phần

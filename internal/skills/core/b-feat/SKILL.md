@@ -65,6 +65,7 @@ bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
 - Chỉ sửa trong phạm vi `scope.allow` của phiếu; **không** chạm `scope.deny`. Đường dẫn
   được bảo vệ (`limits.protected_paths`) cần người duyệt — nếu buộc phải sửa, nói rõ lý do.
 - Làm theo từng nhóm thay đổi nhỏ; sau mỗi nhóm chạy kiểm thử phù hợp.
+- Tự làm tuần tự trong phiên này; **không sinh agent con** để chia việc (mỗi con nạp lại ngữ cảnh, tốn token gấp bội).
 - Thao tác có nguy cơ mất dữ liệu (xoá, ghi đè, migration, `git reset`/`push`) phải được
   người đồng ý trước.
 

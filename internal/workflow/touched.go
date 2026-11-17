@@ -109,11 +109,11 @@ func baseRef(id string) string { return "refs/bint/tasks/" + id + "/base" }
 
 func baseTreeRef(id string) string { return "refs/bint/tasks/" + id + "/base-tree" }
 
-// deleteTaskRefs xoá mọi ref giữ cây/commit của tác vụ (base và base-tree). Ref không tồn tại không phải lỗi
+// deleteTaskRefs xoá mọi ref giữ cây/commit của tác vụ (base, base-tree, green và before-restore: green.go). Ref không tồn tại không phải lỗi
 // (update-ref -d bỏ qua); trả lỗi đầu tiên gặp.
 func deleteTaskRefs(ctx context.Context, root, id string) error {
 	var first error
-	for _, ref := range []string{baseRef(id), baseTreeRef(id)} {
+	for _, ref := range []string{baseRef(id), baseTreeRef(id), greenRef(id), beforeRestoreRef(id)} {
 		if _, err := gitrepo.Run(ctx, root, "update-ref", "-d", ref); err != nil && first == nil {
 			first = fmt.Errorf("xoá ref %s: %w", ref, err)
 		}

@@ -356,10 +356,35 @@ hiện nghiêm trọng của vòng trước. Reviewer còn phải đối chiếu
 `plan.md` để ghi phát hiện **bỏ sót** (được chỉ tệp ngoài diff, kèm `criterion`), không chỉ lỗi trong phần đã sửa. Kiểm chứng `scope: none`
 (không test nào bị ảnh hưởng) ghi log "không chạy lệnh — không test nào bị ảnh hưởng", không in dòng lệnh như thể đã chạy.
 
-**Mục "Bề mặt bị ảnh hưởng" của `b-req`.** `plan.md` (mức `standard` lẫn `deep`) liệt kê từng nơi dữ liệu/hành vi đi qua (ví dụ với bí
-mật: log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`, SQLite; với dọn dữ liệu: từng loại dữ liệu trong state dir), mỗi nơi gắn một
-AC kiểm được hoặc lý do ngoài phạm vi; mục "Giả định thay người dùng" ghi giá trị mặc định cho quyết định kỹ thuật người không rành
-không trả lời được; kế hoạch không được thu hẹp phạm vi tới mức không đạt mục đích người dùng.
+**Mục "Bề mặt bị ảnh hưởng" của `b-req`.** `plan.md` (mức `standard` lẫn `deep`) lần theo từng nơi dữ liệu/hành vi đi qua rồi gộp theo
+nhóm (≤ 8–10 dòng; ví dụ với bí mật: log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`, SQLite; với dọn dữ liệu: loại dữ liệu trong
+state dir), mỗi nhóm gắn một AC kiểm được hoặc lý do ngoài phạm vi kèm hậu quả người dùng sẽ thấy. Ngân sách giai đoạn đầu cho yêu cầu mơ
+hồ khoảng ≤ 5 AC và ≤ 5 TSK, phần còn lại vào "Đề xuất tách giai đoạn" (benchmark lần 3: kế hoạch 12–14 KB, 7–8 AC làm diff gấp ~6 lần).
+Mục "Giả định thay người dùng" ghi giá trị mặc định cho quyết định kỹ thuật người không rành không trả lời được; giả định không đảo ngược
+được hoặc đổi hành vi/dữ liệu hiện có mặc định chọn phương án đảo ngược được (xem trước/`--dry-run`, cảnh báo thay vì từ chối, chỉ che khi
+có nhãn rõ). Yêu cầu mơ hồ: `b-req` hỏi tối đa 2–3 câu về kết quả mong muốn qua `## Câu hỏi mở` (bản phác hợp lệ rồi dừng; tác vụ chờ
+người, trả lời thì nối tiếp planner) thay vì tự giả định hết.
+
+**Mức độ review và dừng khi không hội tụ.** Bề mặt ngoài kế hoạch hoặc ngoài mọi AC chỉ là `low`; `critical`/`high` dành cho AC chưa đạt,
+hồi quy và lỗi đúng đắn trong mã đã sửa. Từ vòng review 2, nếu số phát hiện nghiêm trọng (`Blocking`) không giảm so với vòng liền trước
+(vòng đó cũng có phát hiện nghiêm trọng) và còn ngân sách vòng sửa thì `reviewDecision` không sửa tiếp mà vào nhánh `ReviewExhausted` sẵn
+có: tác vụ `blocked`, `reason` bắt đầu `review không hội tụ`, ba lựa chọn `--accept` / `--fix-round` / huỷ như khi hết vòng sửa. Áp cho cả
+`bint run` lẫn driver session; không áp cho flow có nhiều bước review. `--fix-round` cho đúng một vòng sửa: giảm thì chạy tiếp, không giảm
+thì dừng lại. Hết `workflow.max_review_rounds` vẫn dừng theo thông điệp cũ.
+
+**Điểm verify xanh (`last_green`).** Mỗi lần kiểm chứng qua (không tính scope `none`) mà có ảnh chụp cây (`Verification.Tree`, tác vụ có theo
+dõi tệp riêng) thì Bint ghim ảnh chụp bằng ref `refs/bint/tasks/<id>/green` (commit-tree, như base-tree) để `git gc` không dọn; ref xoá cùng
+base khi tác vụ kết thúc. Không thêm trường vào `state.json`: điểm xanh cuối suy ra từ `Verifications`. Khi tác vụ dừng (`blocked`,
+`interrupted`, `failed`), kết quả `bint run` (JSON và text, cả driver session), `bint task show` và `--json` có `last_green` (lúc, lệnh, phạm vi,
+`pinned`, `changed_since`: tệp đã đổi từ điểm xanh) và `open_findings` (phát hiện kết cục open của vòng review mới nhất). Tác vụ cũ chưa có `Tree`
+thì không có `last_green`. `bint task restore-green <id>` (chỉ người, RequireHuman): mặc định liệt kê tệp của tác vụ sẽ được đưa về nội dung điểm xanh;
+`--apply` mới ghi, chỉ đụng tệp thuộc tác vụ (Touched, hoặc mọi tệp của worktree riêng), tệp khác giữ nguyên (liệt kê ở bỏ qua), tệp tạo sau
+điểm xanh bị xoá, không đụng chỉ mục/HEAD/trạng thái tác vụ; trước khi ghi, cây hiện tại được ghim ở `refs/bint/tasks/<id>/before-restore`
+(đường lui: `git restore --source=<ref> -- <tệp>`) và lấy khoá độc quyền của cây. Chỉ tác vụ đang dừng.
+
+**Agent con của Codex.** Bước workflow chạy `codex exec` thêm `-c features.multi_agent_v2.disable_native_tools=true` (đo trên codex-cli 0.169:
+model gpt-6.x có `multi_agent_version: v2` trong danh mục nên `features.multi_agent[_v2]=false` không tắt được). Lượt `bint eval` và skill
+test không thêm cờ. Muốn bật lại cho bước workflow: đặt `-c features.multi_agent_v2.disable_native_tools=false` trong `harnesses.codex.extra_args`.
 
 **Kết cục phát hiện (`bint findings`).** Mỗi phát hiện có kết cục `open` (mặc định, kể cả `review.json` cũ),
 `fixed`, `rejected` hoặc `deferred`. Kết cục ghi chỉ-thêm vào `findings.json` trong thư mục tác vụ (kèm `by`,

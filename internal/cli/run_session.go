@@ -77,6 +77,7 @@ func printSessionAction(w io.Writer, a *workflow.SessionAction) {
 		fmt.Fprintf(w, "! %s\n", n)
 	}
 	printChoices(w, a.Choices)
+	printGreen(w, a.TaskID, a.LastGreen, a.OpenFindings)
 	if a.Prompt != "" {
 		fmt.Fprintf(w, "\n--- prompt cho subagent ---\n%s\n", strings.TrimRight(a.Prompt, "\n"))
 	}
