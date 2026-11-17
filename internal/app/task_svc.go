@@ -160,6 +160,8 @@ type TaskNewOptions struct {
 	// Parent, DependsOn: phiếu cha và phiếu phụ thuộc (`--parent`, `--depends-on`, chỉ CLI; không có thẻ flag).
 	Parent    string
 	DependsOn []string
+	// Fast: người dùng chọn đường nhanh của b-do (`--fast`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
+	Fast bool
 }
 
 // TaskNewDefaults: workflow b-do, độ sâu và driver tự chọn (như mặc định của cờ).
@@ -186,8 +188,26 @@ func (o TaskNewOptions) Validate() error {
 	if _, err := workflow.NormalizeDriverFlag(o.Driver); err != nil {
 		return UsageError{err}
 	}
-	_, err := checkDepth(o.Depth, o.NoPlan, wfOrDefault(o.Workflow))
-	return err
+	depth, err := checkDepth(o.Depth, o.NoPlan, wfOrDefault(o.Workflow))
+	if err != nil {
+		return err
+	}
+	return checkFast(o.Fast, wfOrDefault(o.Workflow), o.Plan || o.NoPlan, depth)
+}
+
+// checkFast kiểm lỗi dùng sai của --fast (chỉ b-do, không đi cùng --plan/--no-plan/--depth). Runner kiểm lại cùng luật.
+func checkFast(fast bool, wf string, planFlag bool, depth string) error {
+	switch {
+	case !fast:
+		return nil
+	case wf != workflow.StepDo:
+		return Usagef("--fast chỉ dùng với workflow b-do (không dùng với %s)", wf)
+	case planFlag:
+		return Usagef("--fast không đi cùng --plan/--no-plan: đường nhanh là không có b-req")
+	case depth != "":
+		return Usagef("--fast không đi cùng --depth: đường nhanh không có b-req nên không có độ sâu phân tích")
+	}
+	return nil
 }
 
 // TaskCreated là kết quả lập phiếu.
@@ -207,6 +227,7 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 	wo.FromFindings = o.FromFindings
 	wo.Parent, wo.DependsOn = o.Parent, o.DependsOn
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
+	wo.Fast = o.Fast
 	if o.Plan || o.NoPlan {
 		p := o.Plan
 		wo.Plan = &p

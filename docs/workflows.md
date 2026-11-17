@@ -404,7 +404,10 @@ vì không hội tụ. Chỉ áp cho flow có một bước review; `max_review_
 nghiêm trọng của một phát hiện cũng được tính là giảm. Phát biểu "vòng sửa tối đa" ở trên là ngân sách *thường*; trần hội tụ chỉ mở thêm khi
 số đang giảm.
 
-**Đường nhanh của `b-do` (`workflow.fast_path`, mặc định bật).** Yêu cầu **ngắn, mơ hồ, rủi ro thấp** không đi `b-req → b-feat → b-review`
+**Đường nhanh của `b-do` (tuỳ chọn có chủ đích: `--fast`, skill `/b-do-fast`).** Mặc định `workflow.fast_path` **tắt** và `task.Classify` không tự chọn đường nhanh: yêu cầu **mơ hồ** (ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí) đi `b-req → b-feat → b-review`.
+**Giả định đã chốt (quyết định của người dùng):** hai nhánh bỏ `b-req` của `Classify` được giữ — việc nhỏ (chính tả/đổi tên/định dạng) và yêu cầu ngắn nêu rõ chỗ sửa (có mỏ neo cụ thể như tên lỗi) — chỉ yêu cầu mơ hồ mới bắt buộc qua `b-req`; muốn bỏ `b-req` cho yêu cầu khác thì chọn `--fast` hoặc `--no-plan`. Người dùng chủ động chọn đường nhanh bằng
+`bint run b-do --fast "<yêu cầu>"`, `bint task new --fast` (rồi `bint run b-do --task <id>`) hoặc `bint run b-do --task <id> --fast` trên phiếu còn
+`created`; skill mỏng **`/b-do-fast`** lập phiếu `--workflow b-do --fast` rồi điều phối như `/b-do`. Đường nhanh không đi `b-req → b-feat → b-review`
 thành nhiều phiên mà chạy một phiên liên tục kiểu plain: bỏ `b-req`, `b-feat` một phiên (tự xác định phạm vi tối thiểu, chọn giả định đảo
 ngược được, hỏi người bằng `bint task error --question` khi điều chưa rõ đổi cách làm), cổng kiểm chứng của Bint, rồi **đúng một vòng
 `b-review`**. Còn phát hiện nghiêm trọng thì **đúng một vòng sửa** nối tiếp phiên `b-feat` (lớp `review_fix`), kiểm chứng rồi `finalize`
@@ -412,19 +415,32 @@ ngược được, hỏi người bằng `bint task error --question` khi điề
 `bint run b-review --task <id>`). Đường nhanh chỉ áp ở review **vòng 1** (vòng review sau `--fix-round` đi luật thường: ngân sách, hội tụ). Review vòng 1
 sạch mà kiểm chứng đỏ cũng dùng đúng vòng sửa nhanh đó. **Kiểm chứng đỏ sau vòng sửa duy nhất** dừng tác vụ `blocked` với ba lựa chọn `--accept` /
 `--fix-round` / huỷ (`reason` bắt đầu "đường nhanh: kiểm chứng sau vòng sửa duy nhất không qua", kèm lệnh, mã thoát, log); `--fix-round` rời đường nhanh: `b-feat`
-rồi `b-review` lại như nhãn lựa chọn. `bint run b-req --task` trên phiếu `created` bỏ cờ `Fast` (b-req là đường đầy đủ). Skill `/b-do` lập phiếu **không cờ** cho
-yêu cầu ngắn, mơ hồ, rủi ro thấp để Bint chọn đường nhanh. Mục tiêu: thời gian gần plain (20–30 phút)
-cho yêu cầu mơ hồ đơn giản; đo ở `docs/acceptance.md` (NT-FAST-BENCH).
+rồi `b-review` lại như nhãn lựa chọn. `bint run b-req --task` trên phiếu `created` bỏ cờ `Fast` (b-req là đường đầy đủ). Mục tiêu: thời gian gần plain (20–30 phút)
+cho yêu cầu mơ hồ đơn giản; đo ở `docs/acceptance.md` (`NT-FAST-BENCH`, đo bằng `--fast`).
 
-Điều kiện lúc lập phiếu (`task.Classify` rơi vào nhánh "yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí cụ thể" — ≤ 25 từ, không
-mỏ neo, không từ khoá kế hoạch): workflow `b-do`, không tài liệu tham chiếu, rủi ro `low` (scope không chạm `limits.protected_paths`),
-không `--plan`/`--no-plan`/`--depth`, `workflow.fast_path` bật. `Classification.Fast` ghi đường nhanh (dòng `Classify:` nêu "đường nhanh").
-Đi **đường đầy đủ** như cũ khi: mô tả dài/nhiều ý, có tài liệu tham chiếu, rủi ro `high` — kể cả khi scope được **sửa sau lúc lập phiếu**
-(`bint run --task … --allow`, `bint task set --allow`) làm chạm đường dẫn bảo vệ, lúc đó đường nhanh bị bỏ và `b-req` bắt buộc — có cờ chỉ
-định (`--plan`, `--no-plan`, `--depth`), flow tuỳ biến/`b-feat`/`b-req`, hoặc `workflow.fast_path: false`. Yêu cầu ngắn **đã rõ** (nhánh
-"yêu cầu ngắn, rõ: bỏ b-req") và việc nhỏ giữ vòng review–sửa như cũ (ngân sách `max_review_rounds` và hội tụ). `max_review_rounds: 0`
-tắt vòng sửa tự động của đường nhanh. Tắt đường nhanh: `workflow.fast_path: false` trong `.bint/config.yml` (không cần build lại), hoặc từng
-tác vụ bằng `--plan`/`--depth`. Chạy cho cả driver process và driver session (cùng `reviewDecision`).
+Quy tắc của `--fast` (`workflow.checkFastFlag`, `task new` và `run`): chỉ workflow `b-do` gốc; **không** đi cùng `--plan`/`--no-plan`/`--depth` hay workflow khác
+(lỗi, mã thoát 2, không chạy agent); với `--task` chỉ nhận khi phiếu còn `created`; độc lập với `workflow.fast_path`; `Classification.Fast` ghi đường nhanh, `reason`
+nêu "chỉ định đường nhanh (--fast)". Phạm vi chạm `limits.protected_paths` (rủi ro `high`, kể cả khi scope **sửa cùng lượt hay sau lúc lập phiếu** bằng `--allow`/`task set
+--allow`) thì đường nhanh bị bỏ: `b-req` bắt buộc, `reason` nêu đường dẫn bảo vệ và việc đường nhanh không áp dụng được.
+
+`workflow.fast_path: true` (bật tay, opt-in) giữ hành vi chọn **tự động** cũ lúc lập phiếu: `task.Classify` rơi vào nhánh "yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay
+tiêu chí cụ thể" (≤ 25 từ, không mỏ neo, không từ khoá kế hoạch), workflow `b-do`, không tài liệu tham chiếu, rủi ro `low`, không `--plan`/`--no-plan`/`--depth`.
+Đi **đường đầy đủ** khi: mô tả dài/nhiều ý, có tài liệu tham chiếu, rủi ro `high`, có cờ chỉ định (`--plan`, `--no-plan`, `--depth`), flow tuỳ biến/`b-feat`/`b-req`.
+Yêu cầu ngắn **đã rõ** (nhánh "yêu cầu ngắn, rõ: bỏ b-req") và việc nhỏ giữ vòng review–sửa như cũ (ngân sách `max_review_rounds` và hội tụ). `max_review_rounds: 0`
+tắt vòng sửa tự động của đường nhanh. Chạy cho cả driver process và driver session (cùng `reviewDecision`).
+
+**Cổng cỡ kế hoạch của `b-do` (`workflow.small_plan_max_files`).** Sau `b-req` (và các cổng lint, câu hỏi mở, lệnh kiểm chứng), Bint đo kế hoạch trên tài liệu
+(`internal/workflow/plansize.go`, chung cho driver process và session) rồi quyết định có dừng giữa `b-req` và `b-feat` không. `b-req` ghi mục `## Cỡ kế hoạch` trong
+`plan.md`: dòng `Kết luận: nhỏ` hoặc `Kết luận: lớn` và mỗi tệp sẽ sửa trong một dòng bullet (đường dẫn trong backtick; một dòng nhiều đường dẫn thì Bint đếm đủ từng đường dẫn). Bint **không tin** kết luận "nhỏ": kế hoạch là **nhỏ** khi
+và chỉ khi đủ cả: (1) plan ghi `Kết luận: nhỏ`; (2) không có dòng `G-N` nào dưới `## Đề xuất tách giai đoạn` (giai đoạn hoãn/tách ⇒ luôn lớn, "nhỏ" không dùng để cắt phạm vi);
+(3) 1 ≤ số tệp liệt kê ≤ `workflow.small_plan_max_files` (mặc định 5; `0` = không kế hoạch nào là nhỏ); (4) `## Bề mặt bị ảnh hưởng` có ít nhất một nhóm bullet cấp ngoài và số nhóm ≤ cùng ngưỡng (thiếu mục hoặc 0 nhóm là lớn);
+(5) `## Kiểm tra mục tiêu` của `requirement.md` không rỗng và nêu ít nhất một tên trong backtick (tên test); (6) rủi ro không `high`, không tệp liệt kê nào khớp
+`limits.protected_paths` và không đường dẫn nào chứa ký tự glob (`*`, `?`, `[`: không đếm được số tệp thật). Thiếu mục, kết luận lớn hoặc trượt một điều kiện là **lớn** (plan cũ không có mục luôn lớn). **Nhỏ**: `b-feat` chạy ngay trong cùng lượt, vẫn là
+phiên riêng nối tiếp từ `b-req`; `notes` ghi "cỡ kế hoạch: nhỏ"; kiểm chứng, review và kiểm tra mục tiêu giữ như đường đầy đủ. **Lớn**: có `Confirm` tương tác (terminal)
+thì hỏi có/không (đồng ý ⇒ đi tiếp, `notes` ghi người đã đồng ý); không thì tác vụ `blocked` ở `planned` với `reason` mở đầu `kế hoạch lớn:` nêu từng lý do và lệnh
+`bint run resume <id>` (driver session: `bint run next <id> --resume`); resume chạy `b-feat`, **không chạy lại `b-req`** (cổng không đặt `awaiting_human` và giữ
+`State.LastPlan`). Cổng không bị bỏ qua bởi lần dừng khác đặt trước nó (lint `b-req`, lệnh kiểm chứng, câu hỏi mở): dấu `State.PlanSize` ghi cổng đã áp chưa, và `b-feat` đầu tiên sau `b-req` (`preflightFeat`) áp cổng nếu chưa — người/agent sửa lint rồi resume vẫn gặp cổng với kế hoạch lớn. Skill `/b-do` Bước 3 dặn orchestrator tóm tắt kế hoạch cho người dùng và chỉ resume khi họ đồng ý. Cổng chỉ áp cho `b-do` gốc: flow tuỳ biến chạy tiếp
+như cũ và `b-req` chạy riêng vẫn dừng ở `planned`.
 
 **Không tự cắt phạm vi: dòng `G-N` và "mới xong 1/N".** Khi thật sự tách, `plan.md` ghi mỗi giai đoạn đúng một dòng `- G-N: mục tiêu — phạm vi — phụ thuộc` dưới
 `## Đề xuất tách giai đoạn` (`G-1` là phiếu này; cho phép `[ ]`/`[x]`, bỏ dòng trong code fence). Bint đọc các dòng này (`task.PlanPhases`): từ hai giai đoạn thì
@@ -565,7 +581,8 @@ gói ngữ cảnh của Context Engine. Giới hạn vận hành (mục 5):
 | `limits.protected_paths`, `scope.deny` | sau `b-feat`, đối chiếu tệp mà tác vụ đã sửa (`touched`; phiếu cũ: so với commit gốc); có terminal thì hỏi, không thì `blocked` chờ `task approve` |
 | ngoài `scope.allow` | chỉ hỏi khi `autonomy: ask_always` (ngoài ra ghi chú) |
 | `workflow.max_review_rounds` (2) | số vòng **sửa** tối đa: phát hiện `bug`/`risk` mức `critical`/`high` → quay lại `b-feat`; hết vòng → `blocked` kèm ba lựa chọn (`--accept`, `--fix-round`, `task cancel`); review còn giảm thì sửa tiếp tới trần `2 ×` số này (+ vòng người cho thêm) |
-| `workflow.fast_path` (`true`) | đường nhanh của `b-do` cho yêu cầu ngắn, mơ hồ, rủi ro thấp: bỏ `b-req`, một phiên `b-feat`, cổng kiểm chứng, một vòng review (+ một vòng sửa rồi xong, không review lại); `false` = luôn qua `b-req` |
+| `workflow.fast_path` (`false`) | `true` = Bint tự chọn đường nhanh của `b-do` cho yêu cầu ngắn, mơ hồ, rủi ro thấp: bỏ `b-req`, một phiên `b-feat`, cổng kiểm chứng, một vòng review (+ một vòng sửa rồi xong, không review lại); `false` (mặc định) = `Classify` quyết như thường (yêu cầu mơ hồ vào `b-req`; việc nhỏ hoặc yêu cầu ngắn nêu rõ chỗ sửa có thể bỏ `b-req`), đường nhanh chỉ chạy khi người dùng chọn `--fast` / `/b-do-fast` |
+| `workflow.small_plan_max_files` (`5`) | cổng cỡ kế hoạch sau `b-req` của `b-do`: kế hoạch nhỏ (số tệp và số nhóm bề mặt không quá ngưỡng, không giai đoạn hoãn, có kiểm tra mục tiêu nêu tên test, không chạm đường dẫn bảo vệ) chạy thẳng `b-feat`; còn lại `blocked` chờ người (`kế hoạch lớn: …`); `0` = mọi kế hoạch dừng chờ người |
 | `workflow.timeout_minutes` (60), `verify_timeout_minutes` (15) | giới hạn thời gian mỗi bước agent / lệnh kiểm chứng |
 | `workflow.verify.scope` (`full`), `verify.affected_command` | `affected`: kiểm chứng sau implement chỉ chạy test bị ảnh hưởng; done vẫn đòi chạy đầy đủ ([phạm vi kiểm chứng](#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)) |
 

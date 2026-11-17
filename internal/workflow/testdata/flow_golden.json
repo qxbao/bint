@@ -8543,9 +8543,9 @@
         true
       ],
       "prompts": [
-        "16782:a6dab9ae62503524",
-        "8139:ae3ab8d5a63bd06b",
-        "11449:22b6786909d97634"
+        "18420:b52288bd308356eb",
+        "8657:b17563df75b0ad71",
+        "11864:eef59e431981f96b"
       ],
       "results": [
         {
@@ -8557,7 +8557,7 @@
             "b-review:completed"
           ],
           "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)",
+            "cỡ kế hoạch: nhỏ (kết luận của b-req khớp số đo của Bint; tối đa 5 tệp/nhóm bề mặt): chạy b-feat ngay, kiểm chứng, review và Kiểm tra mục tiêu giữ như đường đầy đủ",
             "sửa ngoài scope.allow: done.txt"
           ]
         }
@@ -8609,9 +8609,9 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a",
-        "8139:ae3ab8d5a63bd06b",
-        "11449:22b6786909d97634"
+        "18418:c87ab41a1e0e22ff",
+        "8657:b17563df75b0ad71",
+        "11864:eef59e431981f96b"
       ],
       "results": [
         {
@@ -8623,7 +8623,7 @@
             "b-review:completed"
           ],
           "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)",
+            "cỡ kế hoạch: nhỏ (kết luận của b-req khớp số đo của Bint; tối đa 5 tệp/nhóm bề mặt): chạy b-feat ngay, kiểm chứng, review và Kiểm tra mục tiêu giữ như đường đầy đủ",
             "sửa ngoài scope.allow: done.txt"
           ]
         }
@@ -8709,7 +8709,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -8717,9 +8717,6 @@
           "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run resume \u003cULID\u003e`",
           "steps": [
             "b-req:completed"
-          ],
-          "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
           ],
           "questions": [
             "Q-1: dùng bảng nào?"
@@ -8741,7 +8738,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -8768,7 +8765,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -9024,7 +9021,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -9057,7 +9054,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -9083,7 +9080,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -9108,7 +9105,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -9116,9 +9113,6 @@
           "reason": "b-req xong",
           "steps": [
             "b-req:completed"
-          ],
-          "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
           ]
         }
       ],
@@ -9136,7 +9130,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -9144,9 +9138,6 @@
           "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (nối tiếp planner cũ nếu được rồi sang b-feat; hoặc `bint run b-feat --task \u003cULID\u003e` vào thẳng b-feat; không dùng `resume` vì khi chưa nối tiếp được sẽ chạy lại b-req)",
           "steps": [
             "b-req:completed"
-          ],
-          "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
           ],
           "questions": [
             "Q-1: dùng bảng nào?"
@@ -9167,7 +9158,7 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a"
+        "18418:c87ab41a1e0e22ff"
       ],
       "results": [
         {
@@ -9175,9 +9166,6 @@
           "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run b-do --task \u003cULID\u003e` (nối tiếp planner cũ nếu được rồi sang b-feat; hoặc `bint run b-feat --task \u003cULID\u003e` vào thẳng b-feat; không dùng `resume` vì khi chưa nối tiếp được sẽ chạy lại b-req)",
           "steps": [
             "b-req:completed"
-          ],
-          "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
           ],
           "questions": [
             "Q-1: dùng bảng nào?"
@@ -9209,8 +9197,8 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a",
-        "16953:2418b85c7b0f1afe"
+        "18418:c87ab41a1e0e22ff",
+        "18591:e9a23d827b76b7d0"
       ],
       "results": [
         {
@@ -9218,9 +9206,6 @@
           "reason": "b-req xong",
           "steps": [
             "b-req:completed"
-          ],
-          "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
           ]
         },
         {
@@ -9228,9 +9213,6 @@
           "reason": "b-req xong",
           "steps": [
             "b-req:completed"
-          ],
-          "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
           ]
         }
       ],
@@ -9252,9 +9234,9 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a",
-        "8139:ae3ab8d5a63bd06b",
-        "11449:22b6786909d97634"
+        "18418:c87ab41a1e0e22ff",
+        "8657:b17563df75b0ad71",
+        "11864:eef59e431981f96b"
       ],
       "results": [
         {
@@ -9262,9 +9244,6 @@
           "reason": "b-req xong",
           "steps": [
             "b-req:completed"
-          ],
-          "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
           ]
         },
         {
@@ -9300,9 +9279,9 @@
         true
       ],
       "prompts": [
-        "16780:2e1df1371fe4e74a",
-        "8139:ae3ab8d5a63bd06b",
-        "11449:22b6786909d97634"
+        "18418:c87ab41a1e0e22ff",
+        "8657:b17563df75b0ad71",
+        "11864:eef59e431981f96b"
       ],
       "results": [
         {
@@ -9310,9 +9289,6 @@
           "reason": "b-req xong",
           "steps": [
             "b-req:completed"
-          ],
-          "notes": [
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
           ]
         },
         {
@@ -9488,7 +9464,7 @@
           "step": "b-req",
           "subagent": "bint-planner",
           "readonly": true,
-          "prompt": "16963:4119cae13606638b"
+          "prompt": "18601:6e1c767992a3387d"
         },
         {
           "call": "complete",
@@ -9497,7 +9473,7 @@
           "command": "bint run next \u003cULID\u003e --json",
           "notes": [
             "b-req: chi phí của subagent agent-b-req unknown — chưa có SubagentStop của agent-b-req (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)",
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)",
+            "cỡ kế hoạch: nhỏ (kết luận của b-req khớp số đo của Bint; tối đa 5 tệp/nhóm bề mặt): chạy b-feat ngay, kiểm chứng, review và Kiểm tra mục tiêu giữ như đường đầy đủ",
             "gọi `bint run next \u003cULID\u003e --json` để lấy bước tiếp theo"
           ],
           "result": "b-req:completed"
@@ -9508,7 +9484,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "8322:4957442848905778"
+          "prompt": "8840:91ca4c11acfa0cac"
         },
         {
           "call": "complete",
@@ -9529,7 +9505,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "11632:d0e4efe19902e7d9"
+          "prompt": "12047:15ea2b1d2235841f"
         },
         {
           "call": "complete",
@@ -9610,7 +9586,7 @@
           "step": "b-req",
           "subagent": "bint-planner",
           "readonly": true,
-          "prompt": "16963:4119cae13606638b"
+          "prompt": "18601:6e1c767992a3387d"
         },
         {
           "call": "complete",
@@ -9618,8 +9594,7 @@
           "task_status": "blocked",
           "reason": "còn 1 câu hỏi mở trong requirement.md: Q-1: dùng bảng nào? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write \u003cULID\u003e requirement -`, kiểm bằng `bint task lint \u003cULID\u003e`, rồi `bint run next \u003cULID\u003e --resume`",
           "notes": [
-            "b-req: chi phí của subagent agent-b-req unknown — chưa có SubagentStop của agent-b-req (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)",
-            "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng (bổ sung bằng `bint task write \u003cULID\u003e requirement -` rồi `bint task lint \u003cULID\u003e`)"
+            "b-req: chi phí của subagent agent-b-req unknown — chưa có SubagentStop của agent-b-req (hook chưa cài hoặc chưa tới) (max_cost_usd chỉ là chỉ dẫn)"
           ],
           "result": "b-req:completed"
         }
@@ -9640,7 +9615,7 @@
           "step": "b-req",
           "subagent": "bint-planner",
           "readonly": true,
-          "prompt": "16963:4119cae13606638b"
+          "prompt": "18601:6e1c767992a3387d"
         },
         {
           "call": "complete",

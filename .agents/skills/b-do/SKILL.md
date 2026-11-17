@@ -40,12 +40,9 @@ phán đoán của bạn.
    nhau): **hỏi người dùng trước khi lập phiếu** (một vài câu ngắn về kết quả mong muốn và phạm vi), hoặc lập phiếu
    với `--plan` để b-req đặt câu hỏi mở (vòng hỏi–đáp ở Bước 3). Đừng đoán rồi chạy `--no-plan`: việc nhỏ chỉ được
    `--no-plan` khi yêu cầu đã đủ rõ.
-   **Ngoại lệ — yêu cầu ngắn, mơ hồ, rủi ro thấp** (một hai câu ngắn, không tài liệu tham chiếu, không chạm đường dẫn bảo vệ, không
-   nói "mọi"/"toàn bộ"/nhiều nơi lưu; ví dụ "làm cho nó gọn gàng hơn"): lập phiếu **không kèm** `--plan`/`--no-plan`/`--depth` để
-   Bint tự chọn **đường nhanh** (JSON `classification.fast: true`, `classification.reason` nêu "đường nhanh"): một phiên b-feat
-   (tự viết kiểm tra mục tiêu trước khi sửa), kiểm chứng, một lượt b-review, tối đa một vòng sửa, không b-req. Kiểm
-   `classification.reason`; Bint không chọn đường nhanh (thấy rủi ro, quá dài, có tài liệu) thì theo phán đoán ở trên. Việc rộng hoặc
-   nhiều bề mặt vẫn hỏi người dùng hoặc `--plan`.
+   Người dùng muốn **đường nhanh** (không b-req, một phiên b-feat, kiểm chứng, một lượt b-review, tối đa một vòng sửa) thì họ gọi
+   `/b-do-fast`; đường nhanh là lựa chọn của người dùng, Bint không tự chọn nó từ câu chữ (`workflow.fast_path` mặc định tắt). Bạn
+   không tự đẩy yêu cầu sang đường nhanh.
 2. Chọn đường đi:
    - việc nhỏ, rõ ràng (sửa chính tả, đổi tên, sửa lỗi đã chỉ rõ chỗ): `--no-plan`;
    - việc vừa (một tính năng/sửa lỗi gói gọn trong vài tệp): `--plan` (độ sâu `standard`);
@@ -280,6 +277,14 @@ Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task ap
   `bint task land <id>`); (2) họ tự chạy `bint task land <id> --3way` trong terminal (để lại dấu xung đột
   trong tệp để họ gỡ; **chỉ người** dùng được `--3way`, bạn không chạy nó). `resume` sau đó vào thẳng
   Finalize, không chạy lại review. Không tự sửa tệp ở cây gốc để "gỡ" xung đột.
+- **Kế hoạch lớn** (`reason` bắt đầu bằng `kế hoạch lớn:`; b-req đã xong, b-feat chưa chạy): sau b-req Bint tự đo kế hoạch; kế hoạch
+  nhỏ (plan.md ghi `Kết luận: nhỏ`, không giai đoạn hoãn, số tệp và số nhóm bề mặt không quá `workflow.small_plan_max_files`, có
+  `## Kiểm tra mục tiêu` nêu tên test, không chạm đường dẫn bảo vệ) chạy thẳng b-feat; còn lại dừng ở đây. Đọc `requirement.md`,
+  `plan.md`, `tasks.md` (`bint task show <id>`), **tóm tắt kế hoạch cho người dùng** (làm gì, sửa những tệp nào, vì sao Bint coi là
+  lớn: nêu từng lý do trong `reason`) rồi hỏi họ có chạy b-feat không. **Chỉ khi họ đồng ý** mới `bint run resume <id> --json` (driver
+  session: `bint run next <id> --resume --json`); resume chạy b-feat, không chạy lại b-req. Họ muốn sửa kế hoạch thì ghi lại bằng
+  `bint task write <id> <requirement|plan|tasks> -` trước khi resume. Kế hoạch có giai đoạn hoãn (`G-N`): đề nghị tách phiếu con như
+  Bước 1c. Người dùng không muốn làm thì `bint task cancel <id>`.
 - **Câu hỏi mở của b-req** (`bint task lint <id>` báo `open_questions`): ghi câu trả lời vào
   `requirement.md` (`- [x] Q-1: … — Trả lời: …`) qua `bint task write <id> requirement -`.
   **Vòng hỏi–đáp nhiều lượt** (driver session): sau khi ghi câu trả lời, `bint run next <id> --resume --json` mở lại

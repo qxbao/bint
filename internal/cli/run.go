@@ -24,6 +24,7 @@ type runFlags struct {
 	step         string
 	depth        string
 	plan, noPlan bool
+	fast         bool
 	noReview     bool
 	noWait       bool
 	rerun        bool
@@ -72,9 +73,14 @@ Giới hạn:
   - workflow.max_review_rounds: số vòng sửa tối đa sau review (n vòng sửa ⇒ tối đa n+1 vòng review). Review còn đang giảm số phát hiện
     nghiêm trọng thì sửa tiếp ngoài n tới trần 2n (+ vòng --fix-round); không giảm thì dừng ngay. Hết vòng mà còn phát hiện
     nghiêm trọng thì tác vụ blocked và in ba lựa chọn: bint run resume <id> --accept | --fix-round, hoặc bint task cancel <id>.
-  - workflow.fast_path (mặc định bật): yêu cầu ngắn, mơ hồ, rủi ro thấp của b-do đi đường nhanh: không b-req, một phiên b-feat,
-    kiểm chứng, một vòng b-review (còn phát hiện nghiêm trọng thì một vòng sửa rồi xong, không review lại). --plan/--no-plan/--depth
-    hoặc workflow.fast_path: false đi đường đầy đủ.
+  - --fast (chỉ b-do, lập phiếu mới hoặc --task trên phiếu created): đường nhanh do người dùng chọn: không b-req, một phiên b-feat,
+    kiểm chứng, một vòng b-review (còn phát hiện nghiêm trọng thì một vòng sửa rồi xong, không review lại). Không đi cùng
+    --plan/--no-plan/--depth; phạm vi chạm đường dẫn bảo vệ thì vẫn qua b-req. Không có --fast thì Classify quyết như thường: yêu cầu mơ hồ vào b-req, việc nhỏ hay yêu cầu ngắn nêu rõ chỗ sửa vẫn có thể bỏ b-req
+    (workflow.fast_path mặc định tắt; bật true thì Bint tự chọn đường nhanh cho yêu cầu ngắn, mơ hồ, rủi ro thấp).
+  - Cỡ kế hoạch (b-do): sau b-req, kế hoạch chỉ là "nhỏ" — b-feat chạy ngay, không dừng — khi plan.md ghi Kết luận: nhỏ, không có
+    giai đoạn hoãn (G-N), số tệp và số nhóm bề mặt không quá workflow.small_plan_max_files (mặc định 5), requirement.md có
+    Kiểm tra mục tiêu nêu tên test và không chạm đường dẫn bảo vệ. Còn lại là "lớn": tác vụ blocked ("kế hoạch lớn: …", có terminal
+    thì hỏi) cho người xem kế hoạch rồi bint run resume <id>; resume chạy b-feat, không chạy lại b-req.
   - Bước b-feat không đổi tệp nào (hoặc hỏi người bằng bint task error --question) thì tác vụ blocked chờ người, không kiểm chứng,
     không review, không done; trả lời bằng bint run resume <id> --answer "<nội dung>".
   - Lệnh kiểm chứng chỉ chạy khi người đã xác nhận (bint task approve).
@@ -96,6 +102,7 @@ blocked / failed / interrupted.`,
 		Example: `  bint run b-do "Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db"
   bint run b-req --task 01J…   # chỉ lập kế hoạch cho tác vụ có sẵn
   bint run b-do --depth deep "Đổi cách tính phí trong internal/billing"   # phân tích sâu hơn ở b-req
+  bint run b-do --fast "Đổi thông báo lỗi khi thiếu config trong internal/config"   # đường nhanh: không b-req
   bint run b-do --agent-command ./my-agent.sh "…"
   bint run b-do --role implementer=codex "…"   # b-feat bằng Codex, các bước khác theo roles
   bint run b-review --harness antigravity --task 01J…
@@ -108,7 +115,7 @@ blocked / failed / interrupted.`,
 			autoResync(cmd, stdio)
 			return runWorkflow(cmd, stdio, rf, func(o *app.RunWorkflowOptions) {
 				o.Workflow, o.Request, o.Task, o.NoReview, o.Step = args[0], strings.Join(args[1:], " "), rf.taskRef, rf.noReview, rf.step
-				o.Plan, o.NoPlan, o.Depth = rf.plan, rf.noPlan, rf.depth
+				o.Plan, o.NoPlan, o.Depth, o.Fast = rf.plan, rf.noPlan, rf.depth, rf.fast
 				o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = rf.ef.goal, rf.ef.verify, rf.ef.autonomy, rf.ef.criteria, rf.ef.allow, rf.ef.deny
 				o.Constraints, o.ClearScope = rf.ef.constraints, rf.ef.clearScope
 				o.GoalSet, o.VerifyCommandSet, o.AutonomySet = rf.ef.changed(cmd)
@@ -135,6 +142,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 		f.StringVar(&rf.step, "step", "", "chỉ với --task và flow tuỳ biến hoặc b-debug: chạy đúng một bước (phải là bước kế tiếp của tác vụ) rồi dừng; phiên điều phối dùng cho bước gán harness khác Claude")
 		f.BoolVar(&rf.plan, "plan", false, "luôn qua b-req")
 		f.BoolVar(&rf.noPlan, "no-plan", false, "bỏ qua b-req")
+		f.BoolVar(&rf.fast, "fast", false, fastFlagHelp)
 		f.StringVar(&rf.depth, "depth", "auto", depthFlagHelp)
 		f.BoolVar(&rf.worktree, "worktree", false, "tác vụ mới chạy trong worktree riêng (song song với tác vụ khác); loại trừ --shared, không đi cùng --task")
 		f.BoolVar(&rf.shared, "shared", false, "tác vụ mới sửa thẳng trên cây đang làm; loại trừ --worktree, không đi cùng --task")

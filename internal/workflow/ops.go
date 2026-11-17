@@ -111,6 +111,9 @@ type NewTaskOptions struct {
 	Plan *bool
 	// Depth: ""/auto = tự chọn; standard|deep = người dùng chỉ định (hàm ý có b-req; chỉ b-do/b-req).
 	Depth string
+	// Fast: người dùng chủ động chọn đường nhanh (--fast): không b-req, một phiên b-feat, cổng kiểm chứng, một lượt review, tối đa một
+	// vòng sửa. Chỉ b-do gốc; không đi cùng Plan/Depth; chạm đường dẫn bảo vệ thì giữ b-req. Độc lập với workflow.fast_path.
+	Fast bool
 	// Isolation: ""/auto = theo workflow.isolation; shared|worktree = người dùng chỉ định (--shared/--worktree).
 	Isolation string
 	// Driver: ""/auto = theo workflow.driver; process|session = người dùng chỉ định (--driver).
@@ -185,6 +188,9 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 		return nil, task.Assessment{}, err
 	}
 	planning := fd.HasKind(flow.KindPlan)
+	if err := checkFastFlag(o.Fast, o.Workflow, fd.IsBuiltin(), o.Plan, depth); err != nil {
+		return nil, task.Assessment{}, err
+	}
 	if depth != "" {
 		if !planning {
 			return nil, task.Assessment{}, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
@@ -216,7 +222,12 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	case planning && !cls.Plan && assess.Risk == "high" && (o.Plan == nil || !e.Human):
 		cls = protectedPlan(assess.Protected, o.Plan != nil)
 	}
-	if fastEligible(e.Cfg.Workflow.FastPath, o.Workflow, fd.IsBuiltin(), cls, o.Plan, depth, assess.Risk) {
+	switch {
+	case o.Fast && assess.Risk == "high":
+		cls = fastProtectedPlan(assess.Protected)
+	case o.Fast:
+		cls = task.Classification{Plan: false, Fast: true, Reason: fastFlagReason(e.Human)}
+	case fastEligible(e.Cfg.Workflow.FastPath, o.Workflow, fd.IsBuiltin(), cls, o.Plan, depth, assess.Risk):
 		cls.Plan, cls.Fast, cls.Reason = false, true, fastReason
 	}
 	if planning && cls.Plan {

@@ -70,6 +70,8 @@ var Data = Coverage{
 		"task new --depends-on":       "B1 phần 2 chỉ làm CLI: quan hệ depends_on giữa các phiếu; form TUI chưa có lựa chọn phiếu phụ thuộc",
 		"task set --depends-on":       "B1 phần 2 chỉ làm CLI: quan hệ depends_on giữa các phiếu",
 		"task set --clear-depends-on": "B1 phần 2 chỉ làm CLI: quan hệ depends_on giữa các phiếu",
+		"task new --fast":             "đường nhanh do người dùng chọn bằng CLI (`bint task new --fast`) hoặc skill /b-do-fast; form TUI chưa có ô chọn",
+		"run --fast":                  "đường nhanh do người dùng chọn bằng CLI (`bint run b-do --fast`) hoặc skill /b-do-fast; form TUI chưa có ô chọn",
 		"task new --file":             "TUI soạn mô tả trong ô nhiều dòng thay vì đọc từ tệp",
 	},
 	Pending:        map[string]int{},

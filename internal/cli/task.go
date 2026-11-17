@@ -95,6 +95,7 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		wf       string
 		plan     bool
 		noPlan   bool
+		fast     bool
 		asJSON   bool
 		fromFile string
 		depth    string
@@ -114,9 +115,13 @@ không, và đánh giá rủi ro. Bint chỉ hỏi lại khi thiếu trường q
 ro cao (chạm đường dẫn bảo vệ mà không có cách kiểm chứng).
 
 Tệp tài liệu (.md, .txt…) mà mô tả coi là kế hoạch/đặc tả cần làm theo ("thực hiện plan
-docs/x.md") được ghi vào references thay vì scope.allow. Đề xuất b-req chỉ là heuristic:
-orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và sửa phạm vi bằng
+docs/x.md") được ghi vào references thay vì scope.allow. Mặc định (workflow.fast_path tắt) Classify đề xuất như thường: yêu cầu mơ hồ đi b-req, việc nhỏ hay yêu cầu ngắn nêu rõ chỗ sửa có thể bỏ b-req; chỉ khi bật tay fast_path thì Bint còn tự chọn đường nhanh.
+Orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và sửa phạm vi bằng
 --clear-scope --allow. Agent không bỏ được b-req (--no-plan) khi tác vụ chạm đường dẫn bảo vệ.
+
+--fast chọn đường nhanh của b-do (chỉ b-do; không đi cùng --plan/--no-plan/--depth): không b-req, một phiên b-feat,
+cổng kiểm chứng, một lượt review, tối đa một vòng sửa. Phạm vi chạm đường dẫn bảo vệ thì vẫn qua b-req. Không có --fast
+thì Classify quyết như thường (yêu cầu mơ hồ vào b-req; trừ khi workflow.fast_path: true cho Bint tự chọn đường nhanh từ câu chữ).
 
 Cô lập (chọn một lần lúc lập phiếu, ghi vào phiếu): workflow.isolation = auto sửa thẳng trên cây
 đang làm, và tự chuyển tác vụ vào worktree riêng khi cây đó đang có tác vụ khác chưa kết thúc
@@ -145,7 +150,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 				req = args[0]
 			}
 			o := app.TaskNewDefaults(config.Default())
-			o.Request, o.Workflow, o.Plan, o.NoPlan, o.Depth = req, wf, plan, noPlan, depth
+			o.Request, o.Workflow, o.Plan, o.NoPlan, o.Depth, o.Fast = req, wf, plan, noPlan, depth, fast
 			o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = ef.goal, ef.verify, ef.autonomy, ef.criteria, ef.allow, ef.deny
 			o.Constraints, o.ClearScope = ef.constraints, ef.clearScope
 			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
@@ -198,6 +203,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 	c.Flags().StringVar(&wf, "workflow", "b-do", "workflow tạo tác vụ (b-do | b-req | b-feat | b-review | b-debug)")
 	c.Flags().BoolVar(&plan, "plan", false, "luôn qua b-req")
 	c.Flags().BoolVar(&noPlan, "no-plan", false, "bỏ qua b-req")
+	c.Flags().BoolVar(&fast, "fast", false, fastFlagHelp)
 	c.Flags().StringVar(&depth, "depth", "auto", depthFlagHelp)
 	c.Flags().BoolVar(&worktree, "worktree", false, "chạy tác vụ trong worktree riêng (song song với tác vụ khác); loại trừ --shared")
 	c.Flags().BoolVar(&shared, "shared", false, "sửa thẳng trên cây đang làm, không vào worktree riêng; loại trừ --worktree")
@@ -932,6 +938,9 @@ bint task write <id> requirement -, rồi bint run resume <id>.`,
 }
 
 const depthFlagHelp = app.DepthFlagHelp
+
+// fastFlagHelp là mô tả cờ --fast dùng chung cho `bint task new` và `bint run`.
+const fastFlagHelp = "đường nhanh của b-do: không b-req, một phiên b-feat, kiểm chứng, một lượt review, tối đa một vòng sửa (chỉ b-do; không đi cùng --plan/--no-plan/--depth; chạm đường dẫn bảo vệ thì vẫn qua b-req)"
 
 // printDepthLine in độ sâu phân tích của b-req (chỉ khi tác vụ có b-req).
 func printDepthLine(w io.Writer, prefix string, c *task.Classification) {

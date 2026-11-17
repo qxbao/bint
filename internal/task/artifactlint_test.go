@@ -407,3 +407,51 @@ func TestPlanPhases(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanSizeDecl(t *testing.T) {
+	cases := []struct {
+		name, plan  string
+		wantVerdict string
+		wantFiles   []string
+	}{
+		{"không có mục", "# K\n## Hướng\nKết luận: nhỏ\n- `a.go`\n", "", nil},
+		{"nhỏ hai tệp", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `a.go` — sửa\n- `b/c.go`\n", "nhỏ", []string{"a.go", "b/c.go"}},
+		{"lớn kèm lý do", "# K\n## Cỡ kế hoạch\nKết luận: lớn (hơn 5 tệp)\n- `a.go`\n", "lớn", []string{"a.go"}},
+		{"in đậm, bullet, hoa thường", "# K\n## Cỡ kế hoạch\n- **Kết luận**: NHỎ\n* `x.go`\n", "nhỏ", []string{"x.go"}},
+		{"từ dính liền không phải kết luận", "# K\n## Cỡ kế hoạch\nKết luận: nhỏxíu\n", "", nil},
+		{"có cả nhỏ và lớn thì lớn", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\nKết luận: lớn\n", "lớn", nil},
+		{"lớn trước nhỏ vẫn lớn", "# K\n## Cỡ kế hoạch\nKết luận: lớn\nKết luận: nhỏ\n", "lớn", nil},
+		{"bỏ trùng và dòng không có backtick", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `a.go`\n- `a.go`\n- tệp khác không backtick\n", "nhỏ", []string{"a.go"}},
+		{"trong code fence bị bỏ", "# K\n## Cỡ kế hoạch\n```\nKết luận: nhỏ\n- `a.go`\n```\n", "", nil},
+		{"CRLF", "# K\r\n## Cỡ kế hoạch\r\nKết luận: nhỏ\r\n- `a.go`\r\n", "nhỏ", []string{"a.go"}},
+		{"ngoài mục không tính", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `a.go`\n## Rủi ro\n- `z.go`\n", "nhỏ", []string{"a.go"}},
+		{"nhiều tệp một dòng đếm đủ", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `a.go`, `b.go`, `c.go` và `d.go`\n", "nhỏ", []string{"a.go", "b.go", "c.go", "d.go"}},
+		{"glob được giữ nguyên để cổng xử lý", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `internal/workflow/**`\n", "nhỏ", []string{"internal/workflow/**"}},
+	}
+	for _, tc := range cases {
+		v, files := PlanSizeDecl(tc.plan)
+		if v != tc.wantVerdict || strings.Join(files, "|") != strings.Join(tc.wantFiles, "|") {
+			t.Errorf("%s: PlanSizeDecl = %q %q, muốn %q %q", tc.name, v, files, tc.wantVerdict, tc.wantFiles)
+		}
+	}
+}
+
+func TestPlanSurfaces(t *testing.T) {
+	cases := []struct {
+		name, plan string
+		want       int
+	}{
+		{"không có mục", "# K\n## Hướng\n- a\n", 0},
+		{"hai nhóm", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-1\n- B\n", 2},
+		{"bullet thụt vào là chi tiết", "# K\n## Bề mặt bị ảnh hưởng\n- A\n  - chi tiết\n\t- chi tiết\n- B\n", 2},
+		{"dòng văn xuôi không tính", "# K\n## Bề mặt bị ảnh hưởng\nGhi chú\n- A\n", 1},
+		{"trong code fence bị bỏ", "# K\n## Bề mặt bị ảnh hưởng\n```\n- A\n- B\n```\n- C\n", 1},
+		{"CRLF", "# K\r\n## Bề mặt bị ảnh hưởng\r\n- A\r\n- B\r\n", 2},
+		{"ngoài mục không tính", "# K\n## Bề mặt bị ảnh hưởng\n- A\n## Rủi ro\n- B\n", 1},
+	}
+	for _, tc := range cases {
+		if got := PlanSurfaces(tc.plan); got != tc.want {
+			t.Errorf("%s: PlanSurfaces = %d, muốn %d", tc.name, got, tc.want)
+		}
+	}
+}

@@ -353,3 +353,26 @@ func TestValidateHarnessProfile(t *testing.T) {
 		}
 	}
 }
+
+// Đường nhanh chỉ chạy khi người dùng chọn (--fast): mặc định không tự chọn; ngưỡng kế hoạch nhỏ có mặc định và bị Validate chặn khi âm.
+func TestWorkflowFastPathAndSmallPlanDefaults(t *testing.T) {
+	d := Default()
+	if d.Workflow.FastPath || d.Workflow.SmallPlanMaxFiles != 5 {
+		t.Fatalf("mặc định fast_path=%v small_plan_max_files=%d, muốn false và 5", d.Workflow.FastPath, d.Workflow.SmallPlanMaxFiles)
+	}
+	cfg := Config{}
+	if err := Decode(strings.NewReader(Render(InitParams{ProjectName: "p"})), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Workflow.FastPath || cfg.Workflow.SmallPlanMaxFiles != 5 {
+		t.Fatalf("mẫu Render: fast_path=%v small_plan_max_files=%d", cfg.Workflow.FastPath, cfg.Workflow.SmallPlanMaxFiles)
+	}
+	d.Workflow.SmallPlanMaxFiles = 0
+	if err := d.Validate(); err != nil {
+		t.Fatalf("0 hợp lệ (không kế hoạch nào nhỏ): %v", err)
+	}
+	d.Workflow.SmallPlanMaxFiles = -1
+	if err := d.Validate(); err == nil || !strings.Contains(err.Error(), "workflow.small_plan_max_files") {
+		t.Fatalf("số âm phải bị từ chối: %v", err)
+	}
+}

@@ -129,6 +129,26 @@ Thêm **đúng một AC** cho kiểm tra này ("kiểm tra mục tiêu `<tên te
 nó. Việc thuần nội bộ không có hành vi quan sát được thì vẫn giữ mục, ghi lý do ngắn không có kiểm tra chạy được. Thiếu mục này,
 `bint task lint` cảnh báo `goal_check_missing` (không chặn) và b-review chấm theo mục tiêu mà không có đặc tả để đối chiếu.
 
+## Cỡ kế hoạch (mọi mức phân tích)
+
+`plan.md` **bắt buộc** có mục `## Cỡ kế hoạch` (cấp 2) để Bint biết có dừng chờ người giữa b-req và b-feat không:
+
+```markdown
+## Cỡ kế hoạch
+Kết luận: nhỏ
+- `internal/x/a.go` — sửa hàm A
+- `internal/x/a_test.go` — test mới
+```
+
+- Dòng `Kết luận: nhỏ` hoặc `Kết luận: lớn`, rồi **mỗi tệp sẽ sửa một dòng bullet**, đường dẫn trong backtick (tệp mới cũng ghi).
+- Chỉ ghi `nhỏ` khi **đủ cả**: không có giai đoạn nào bị hoãn/tách ra (không có dòng `G-N` trong `## Đề xuất tách giai đoạn`); số tệp
+  liệt kê và số nhóm của `## Bề mặt bị ảnh hưởng` không quá `workflow.small_plan_max_files` (mặc định 5; xem `.bint/config.yml`);
+  `## Kiểm tra mục tiêu` của `requirement.md` nêu **tên test cụ thể trong backtick**; không tệp nào chạm `limits.protected_paths`.
+  Thiếu một điều kiện thì ghi `lớn`.
+- **Không dùng `nhỏ` để cắt phạm vi**: việc cần nhiều giai đoạn thì ghi `lớn` và tách giai đoạn, đừng bỏ bớt việc để kế hoạch lọt
+  ngưỡng. Bint không tin kết luận của bạn: nó tự đo lại trên tài liệu (kết luận `nhỏ` mà số đo vượt ngưỡng vẫn là kế hoạch lớn, dừng
+  chờ người; thiếu mục thì luôn là lớn). Kế hoạch nhỏ thì b-feat chạy ngay; lớn thì người xem kế hoạch rồi mới cho chạy b-feat.
+
 ## Độ sâu phân tích
 
 Bint chọn độ sâu **một lần** lúc tạo tác vụ và không đổi giữa lượt. Dưới `bint run`, đề bài có
@@ -171,7 +191,7 @@ bint task write <id> requirement - <<'EOF'
 - [ ] AC-2: <đúng nội dung tiêu chí thứ 2>
 - [ ] AC-3: <kiểm tra mục tiêu (tên test) xanh>
 ## Kiểm tra mục tiêu
-Chuẩn bị / Hành động / Quét-đo / Điều kiện đạt / Tên test và tệp dự kiến (xem mục "Kiểm tra mục tiêu").
+Chuẩn bị / Hành động / Quét-đo / Điều kiện đạt / Tên test và tệp dự kiến, tên test trong backtick (xem mục "Kiểm tra mục tiêu").
 ## Ngoài phạm vi
 ## Câu hỏi mở
 - [ ] Q-1: <câu hỏi thực sự cản trở triển khai>
@@ -192,7 +212,7 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
   tự bịa câu trả lời). Điểm không cản trở thì ghi trong văn xuôi.
 
 <!-- bint:anchor plan-template -->
-`plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Bề mặt bị ảnh hưởng`
+`plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Cỡ kế hoạch` (`Kết luận: nhỏ|lớn` + tệp), `## Bề mặt bị ảnh hưởng`
 (theo nhóm, ≤ 8–10 dòng, mỗi nhóm một AC hoặc lý do ngoài phạm vi), `## Giả định thay người dùng`, rủi ro,
 chiến lược kiểm thử (gồm kiểm tra mục tiêu của `requirement.md`), `## Đề xuất tách giai đoạn` khi thật sự tách (mỗi giai đoạn
 một dòng `- G-N: …`). `tasks.md`: danh sách `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`.

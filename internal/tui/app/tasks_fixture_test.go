@@ -122,8 +122,8 @@ func (f *fixture) happy(_ context.Context, step string, e *workflow.Env, id, _ s
 			return err
 		}
 		docs := map[string]string{
-			"requirement": "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + crit + "\n## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n",
-			"plan":        "# Kế hoạch\nSửa app.txt\n",
+			"requirement": "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + crit + "\n## Ngoài phạm vi\nKhông có\n## Kiểm tra mục tiêu\n`TestAppV2` quét app.txt\n## Câu hỏi mở\n",
+			"plan":        "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `done.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt\n",
 			"tasks":       "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: " + crit + "\n",
 		}
 		for n, body := range docs {

@@ -205,6 +205,9 @@ const (
 	secQ     = "câu hỏi mở"
 	secGoal  = "kiểm tra mục tiêu"
 	secPhase = "đề xuất tách giai đoạn"
+	// secSize/secSurface: mục của plan.md mà cổng cỡ kế hoạch của b-do đọc (PlanSizeDecl, PlanSurfaces).
+	secSize    = "cỡ kế hoạch"
+	secSurface = "bề mặt bị ảnh hưởng"
 )
 
 // LintPlanningText kiểm ba artifact (key requirement|plan|tasks; thiếu key = thiếu tệp)
@@ -339,6 +342,64 @@ func PlanPhases(plan string) []string {
 		out[i] = p.text
 	}
 	return out
+}
+
+// Kết luận cỡ kế hoạch ghi trong `## Cỡ kế hoạch` của plan.md (PlanSizeDecl).
+const (
+	PlanSizeSmall = "nhỏ"
+	PlanSizeLarge = "lớn"
+)
+
+var (
+	planVerdictRe  = regexp.MustCompile(`(?i)^\s*(?:[-*+]\s+)?\**\s*kết luận\s*\**\s*:\s*\**\s*(nhỏ|lớn)(?:$|[^\p{L}\p{N}_])`)
+	planFileLineRe = regexp.MustCompile(`^\s*[-*+]\s+(?:\[[ xX]\]\s+)?(.*)$`)
+	planFileRe     = regexp.MustCompile("`([^`\\s]+)`")
+)
+
+// PlanSizeDecl đọc mục `## Cỡ kế hoạch` của plan.md (ngoài code fence): kết luận ("nhỏ" | "lớn" | "" khi thiếu mục hay không có dòng
+// `Kết luận: nhỏ|lớn`) và danh sách tệp sẽ sửa (mỗi dòng bullet tính MỌI đường dẫn trong backtick, một dòng nhiều tệp cũng đếm đủ; bỏ trùng, giữ thứ tự).
+// Có cả "nhỏ" lẫn "lớn" thì là "lớn": cổng cỡ kế hoạch chỉ được làm kế hoạch lớn hơn, không bao giờ nhỏ đi.
+func PlanSizeDecl(plan string) (verdict string, files []string) {
+	seen := map[string]bool{}
+	scanLines(plan, func(section, line string) {
+		if section != secSize {
+			return
+		}
+		if m := planVerdictRe.FindStringSubmatch(line); m != nil {
+			v := strings.ToLower(m[1])
+			if verdict == "" || v == PlanSizeLarge {
+				verdict = v
+			}
+			return
+		}
+		if lm := planFileLineRe.FindStringSubmatch(line); lm != nil {
+			for _, m := range planFileRe.FindAllStringSubmatch(lm[1], -1) {
+				if !seen[m[1]] {
+					seen[m[1]] = true
+					files = append(files, m[1])
+				}
+			}
+		}
+	})
+	return verdict, files
+}
+
+// PlanSurfaces đếm số nhóm của `## Bề mặt bị ảnh hưởng` trong plan.md: dòng bullet ở cấp ngoài cùng (ngoài code fence); bullet thụt
+// vào là chi tiết của nhóm trước, không tính. 0 khi thiếu mục.
+func PlanSurfaces(plan string) int {
+	n := 0
+	scanLines(plan, func(section, line string) {
+		if section != secSurface {
+			return
+		}
+		if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "  ") {
+			return
+		}
+		if t := strings.TrimSpace(line); len(t) > 1 && strings.ContainsRune("-*+", rune(t[0])) && (t[1] == ' ' || t[1] == '\t') {
+			n++
+		}
+	})
+	return n
 }
 
 func lintRequirement(b *reportBuilder, text string) []acItem {

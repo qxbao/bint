@@ -102,7 +102,7 @@ func TestPlanningContractMissingArtifactBlocksThenResume(t *testing.T) {
 		t.Fatalf("issues: %+v reason=%s", res.PlanningIssues, res.Reason)
 	}
 	// Người ghi lại plan.md rồi resume: đi thẳng b-feat, không b-req mới.
-	if _, _, err := r.WriteArtifact(res.TaskID, "plan", "# Kế hoạch\nSửa app.txt\n"); err != nil {
+	if _, _, err := r.WriteArtifact(res.TaskID, "plan", validDocs("app.txt ghi v2", "")["plan"]); err != nil {
 		t.Fatal(err)
 	}
 	res2, err := r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true})

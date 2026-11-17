@@ -417,10 +417,15 @@ type Workflow struct {
 	// Review còn đang hội tụ (số phát hiện nghiêm trọng giảm hẳn so với vòng trước) thì vòng sửa tiếp tục ngoài n, tới trần 2n (+ vòng người
 	// cho thêm); review không giảm thì dừng ngay như cũ.
 	MaxReviewRounds int `yaml:"max_review_rounds"`
-	// FastPath bật đường nhanh của b-do cho yêu cầu ngắn, mơ hồ, rủi ro thấp: bỏ b-req, một phiên b-feat, cổng kiểm chứng, đúng
-	// một vòng b-review (còn phát hiện nghiêm trọng thì một vòng sửa nối tiếp phiên rồi finalize, không review lại). false = luôn
-	// qua b-req như trước.
+	// FastPath bật việc Bint TỰ chọn đường nhanh của b-do cho yêu cầu ngắn, mơ hồ, rủi ro thấp: bỏ b-req, một phiên b-feat, cổng
+	// kiểm chứng, đúng một vòng b-review (còn phát hiện nghiêm trọng thì một vòng sửa nối tiếp phiên rồi finalize, không review lại).
+	// Mặc định false: Classify không tự chọn đường nhanh (yêu cầu mơ hồ đi b-req; việc nhỏ hay yêu cầu ngắn nêu rõ chỗ sửa có thể bỏ b-req); người dùng chủ động chọn đường nhanh bằng `bint run b-do --fast` (hoặc `bint task new
+	// --fast`, skill /b-do-fast), độc lập với khoá này.
 	FastPath bool `yaml:"fast_path"`
+	// SmallPlanMaxFiles là ngưỡng "kế hoạch nhỏ" của b-do: sau b-req, kế hoạch chỉ là nhỏ (b-feat chạy ngay, không dừng chờ người)
+	// khi số tệp liệt kê trong plan.md và số nhóm của `## Bề mặt bị ảnh hưởng` đều không quá ngưỡng này (và các điều kiện khác của
+	// cổng cỡ kế hoạch đều đạt). 0 = không kế hoạch nào là nhỏ (luôn dừng chờ người sau b-req).
+	SmallPlanMaxFiles int `yaml:"small_plan_max_files"`
 	// TimeoutMinutes giới hạn thời gian mỗi bước agent.
 	TimeoutMinutes int `yaml:"timeout_minutes"`
 	// VerifyTimeoutMinutes giới hạn thời gian lệnh kiểm chứng của phiếu tác vụ.
@@ -695,7 +700,7 @@ func Default() Config {
 		},
 		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
-			MaxReviewRounds: 2, FastPath: true, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
+			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Verify: WorkflowVerify{Scope: VerifyScopeFull},
 			Agent: WorkflowAgent{
@@ -1130,6 +1135,9 @@ func (c Config) Validate() error {
 	}
 	if !slices.Contains(LedgerModes, c.Tasks.Ledger) {
 		add("tasks.ledger: phải là " + strings.Join(LedgerModes, " | "))
+	}
+	if c.Workflow.SmallPlanMaxFiles < 0 {
+		add("workflow.small_plan_max_files: phải >= 0")
 	}
 	if c.Workflow.MaxReviewRounds < 0 || c.Workflow.MaxReviewRounds > 10 {
 		add("workflow.max_review_rounds: phải trong khoảng 0..10")

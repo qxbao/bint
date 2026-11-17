@@ -58,6 +58,9 @@ type RunWorkflowOptions struct {
 	Model         string   `flag:"model"`
 	AgentCommand  string   `flag:"agent-command" form:"advanced"`
 
+	// Fast: chọn đường nhanh của b-do (`--fast`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
+	Fast bool
+
 	GoalSet, VerifyCommandSet, AutonomySet bool
 	RunCallbacks
 }
@@ -104,10 +107,14 @@ func (o RunWorkflowOptions) Validate() error {
 	} else if drv != "" && strings.TrimSpace(o.Task) != "" {
 		return Usagef("--driver chỉ chọn lúc lập phiếu: không dùng cùng --task (driver đã ghi trong phiếu)")
 	}
-	if _, err := checkDepth(o.Depth, o.NoPlan, o.Workflow); err != nil {
+	depth, err := checkDepth(o.Depth, o.NoPlan, o.Workflow)
+	if err != nil {
 		return err
 	}
-	_, err := harnessSelection(o.Harness, o.Roles, o.AgentCommand)
+	if err := checkFast(o.Fast, o.Workflow, o.Plan || o.NoPlan, depth); err != nil {
+		return err
+	}
+	_, err = harnessSelection(o.Harness, o.Roles, o.AgentCommand)
 	return err
 }
 
@@ -167,7 +174,7 @@ func RunWorkflow(ctx context.Context, ws *TaskWS, o RunWorkflowOptions) (*workfl
 		return nil, err
 	}
 	wo := workflow.RunOptions{Workflow: o.Workflow, Request: strings.TrimSpace(o.Request), TaskRef: o.Task, Step: o.Step,
-		NoReview: o.NoReview, NoWait: o.NoWait, Fresh: o.Fresh, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
+		NoReview: o.NoReview, NoWait: o.NoWait, Fresh: o.Fresh, Fast: o.Fast, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	if o.Plan || o.NoPlan {
 		p := o.Plan

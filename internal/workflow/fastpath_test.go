@@ -18,7 +18,7 @@ const fastReq = "Làm cho nó gọn gàng hơn một chút"
 func TestFastPathProcessCleanReviewIsDoneAfterOneReview(t *testing.T) {
 	h := newHarness(t)
 	h.behave = h.reviewCounts(0)
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq})
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq, Fast: true})
 	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-review" {
 		t.Fatalf("phải b-feat → b-review → done: %+v %v calls=%v", res, err, h.calls)
 	}
@@ -34,7 +34,7 @@ func TestFastPathProcessCleanReviewIsDoneAfterOneReview(t *testing.T) {
 func TestFastPathProcessOneFixRoundThenFinalizeWithoutReReview(t *testing.T) {
 	h := newHarness(t)
 	h.behave = h.reviewCounts(2, 0) // nếu review lại, vòng 2 sẽ sạch: không được chạy
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq})
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq, Fast: true})
 	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-review,b-feat" {
 		t.Fatalf("phải b-feat → b-review → b-feat (sửa) → done, không review lại: %+v %v calls=%v", res, err, h.calls)
 	}
@@ -64,7 +64,7 @@ func TestFastPathFixRoundVerifyRedBlocksAtFinalize(t *testing.T) {
 		}
 		return rc(ctx, step, e, id)
 	}
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq})
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq, Fast: true})
 	if err != nil || res.Status == task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-review,b-feat" {
 		t.Fatalf("kiểm chứng đỏ sau vòng sửa phải chặn done, không review lại: %+v %v calls=%v", res, err, h.calls)
 	}
@@ -83,7 +83,7 @@ func TestFastPathSessionDriver(t *testing.T) {
 			h := newHarness(t)
 			h.behave = h.reviewCounts(tc.counts...)
 			r := h.runner()
-			tk := h.newSession(r, NewTaskOptions{Request: fastReq})
+			tk := h.newSession(r, NewTaskOptions{Request: fastReq, Fast: true})
 			if c := tk.State.Classification; c == nil || !c.Fast {
 				t.Fatalf("Classification: %+v", c)
 			}
@@ -95,62 +95,13 @@ func TestFastPathSessionDriver(t *testing.T) {
 	}
 }
 
-// Mọi điều kiện đi đường đầy đủ: fast_path tắt, cờ chỉ định, tài liệu tham chiếu, mô tả dài, rủi ro high, workflow khác b-do.
-func TestFastPathEligibilityTable(t *testing.T) {
-	cases := []struct {
-		name string
-		cfg  func(h *harness)
-		o    NewTaskOptions
-		fast bool
-		plan bool
-	}{
-		{"mặc định", nil, NewTaskOptions{Request: fastReq}, true, false},
-		{"fast_path: false", func(h *harness) { h.cfg.Workflow.FastPath = false }, NewTaskOptions{Request: fastReq}, false, true},
-		{"--plan", nil, NewTaskOptions{Request: fastReq, Plan: ptr(true)}, false, true},
-		{"--no-plan", nil, NewTaskOptions{Request: fastReq, Plan: ptr(false)}, false, false},
-		{"--depth deep", nil, NewTaskOptions{Request: fastReq, Depth: "deep"}, false, true},
-		{"tài liệu tham chiếu", func(h *harness) { h.write("docs/spec.md", "# spec\n") }, NewTaskOptions{Request: "làm theo docs/spec.md"}, false, true},
-		{"mô tả dài nhiều ý", nil, NewTaskOptions{Request: fastReq + "\nvà cả cái kia\nvà cái nữa"}, false, true},
-		{"rủi ro high (scope chạm đường dẫn bảo vệ)", nil, NewTaskOptions{Request: fastReq, Edit: TicketEdit{Allow: []string{"migrations/**"}}}, false, true},
-		{"yêu cầu rõ (bỏ b-req nhưng không đường nhanh)", nil, NewTaskOptions{Request: "Sửa lỗi nil trong parseTicket"}, false, false},
-		{"workflow b-feat", nil, NewTaskOptions{Request: fastReq, Workflow: "b-feat"}, false, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newHarness(t)
-			h.cfg.Workflow.Isolation = "shared"
-			h.cfg.Limits.ProtectedPaths = []string{"migrations/**"}
-			if tc.cfg != nil {
-				tc.cfg(h)
-			}
-			if tc.o.Workflow == "" {
-				tc.o.Workflow = StepDo
-			}
-			tk, _, err := h.runner().NewTask(context.Background(), tc.o)
-			if err != nil {
-				t.Fatal(err)
-			}
-			c := tk.State.Classification
-			if tc.o.Workflow == "b-feat" {
-				if c.Fast {
-					t.Fatalf("b-feat không có đường nhanh: %+v", c)
-				}
-				return
-			}
-			if c.Fast != tc.fast || c.Plan != tc.plan {
-				t.Fatalf("Fast=%v Plan=%v (%s), muốn Fast=%v Plan=%v", c.Fast, c.Plan, c.Reason, tc.fast, tc.plan)
-			}
-		})
-	}
-}
-
 // Scope sửa sau lúc lập phiếu (bint run --task … --allow) chạm đường dẫn bảo vệ: bỏ đường nhanh, buộc b-req.
 func TestFastPathDroppedWhenScopeEditedToProtected(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Limits.ProtectedPaths = []string{"migrations/**"}
 	h.behave = h.reviewCounts(0)
 	r := h.runner()
-	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: fastReq, Workflow: StepDo})
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: fastReq, Workflow: StepDo, Fast: true})
 	if err != nil || !tk.State.Classification.Fast {
 		t.Fatalf("phải lập đường nhanh: %v %+v", err, tk.State.Classification)
 	}
@@ -171,7 +122,7 @@ func TestFastPathDroppedBySetTicketToProtected(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Limits.ProtectedPaths = []string{"migrations/**"}
 	r := h.runner()
-	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: fastReq, Workflow: StepDo})
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: fastReq, Workflow: StepDo, Fast: true})
 	if err != nil || !tk.State.Classification.Fast {
 		t.Fatalf("phải lập đường nhanh: %v %+v", err, tk.State.Classification)
 	}
@@ -188,7 +139,7 @@ func TestFastPathNoFixWhenMaxReviewRoundsZero(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Workflow.MaxReviewRounds = 0
 	h.behave = h.reviewCounts(2, 0)
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq})
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq, Fast: true})
 	if err != nil || res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-feat,b-review" {
 		t.Fatalf("%+v %v calls=%v", res, err, h.calls)
 	}
@@ -201,7 +152,7 @@ func TestFastPathFixRoundAfterNoBudgetFollowsNormalRules(t *testing.T) {
 	h.cfg.Workflow.MaxReviewRounds = 0
 	h.behave = h.reviewCounts(2, 2)
 	r := h.runner()
-	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq})
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq, Fast: true})
 	if err != nil || res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-feat,b-review" || len(res.Choices) != 3 {
 		t.Fatalf("vòng 1 phải dừng với ba lựa chọn: %+v %v calls=%v", res, err, h.calls)
 	}
@@ -230,7 +181,7 @@ func TestFastPathFixRoundVerifyRedOffersThreeChoices(t *testing.T) {
 		return rc(ctx, step, e, id)
 	}
 	r := h.runner()
-	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq})
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq, Fast: true})
 	if err != nil || res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-feat,b-review,b-feat" {
 		t.Fatalf("kiểm chứng đỏ sau vòng sửa phải dừng chờ người, không review lại: %+v %v calls=%v", res, err, h.calls)
 	}
@@ -253,7 +204,7 @@ func TestFastPathFixRoundVerifyRedOffersThreeChoices(t *testing.T) {
 func TestFastPathDroppedWhenBReqRunsOnCreatedTask(t *testing.T) {
 	h := newHarness(t)
 	r := h.runner()
-	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: fastReq, Workflow: StepDo})
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: fastReq, Workflow: StepDo, Fast: true})
 	if err != nil || !tk.State.Classification.Fast {
 		t.Fatalf("phải lập đường nhanh: %v %+v", err, tk.State.Classification)
 	}
@@ -280,7 +231,7 @@ func TestFastPathCleanReviewVerifyRedUsesFastFix(t *testing.T) {
 		}
 		return rc(ctx, step, e, id)
 	}
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq})
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq, Fast: true})
 	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-feat,b-review,b-feat" {
 		t.Fatalf("review sạch + kiểm chứng đỏ phải sửa một vòng rồi done: %+v %v calls=%v", res, err, h.calls)
 	}

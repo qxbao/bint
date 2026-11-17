@@ -415,6 +415,9 @@ type State struct {
 	// LastPlan là bước plan (b-req) vừa kết thúc bình thường ở driver process (handle phiên + fingerprint cây + model): b-feat
 	// đầu tiên nối tiếp phiên đó (lớp dừng plan_handoff). Xoá khi b-feat thực sự bắt đầu.
 	LastPlan *StepStop `json:"last_plan,omitempty"`
+	// PlanSize là dấu của cổng cỡ kế hoạch (b-do): "" = chưa áp (b-req vừa xong hoặc bị chặn lint/câu hỏi trước cổng), "passed" = kế hoạch
+	// nhỏ hoặc người đã đồng ý, "blocked" = cổng dừng chờ người (resume sau đó là quyết định của người, đi tiếp). Chạy lại b-req đặt lại "".
+	PlanSize string `json:"plan_size,omitempty"`
 	// FastFixed: đường nhanh đã mở vòng sửa duy nhất sau review vòng 1; sau kiểm chứng của vòng sửa tác vụ finalize, không review lại.
 	FastFixed bool `json:"fast_fixed,omitempty"`
 	// ExtraFixRounds là số vòng sửa người cho thêm bằng `bint run resume --fix-round` ngoài workflow.max_review_rounds.

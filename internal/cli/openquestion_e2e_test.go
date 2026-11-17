@@ -42,7 +42,7 @@ func TestOpenQuestionEndToEnd(t *testing.T) {
 		t.Fatalf("resume khi chưa trả lời: %d\n%s", code, out)
 	}
 	// Ghi câu trả lời → resume vào thẳng b-feat, b-req không chạy lại.
-	answered := "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n- [x] Q-1: giữ v1 không? — Trả lời: không\n"
+	answered := "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Kiểm tra mục tiêu\n`TestAppV2` quét app.txt, đạt khi chứa v2\n## Câu hỏi mở\n- [x] Q-1: giữ v1 không? — Trả lời: không\n"
 	if out, code := run(t, root, answered, "task", "write", id, "requirement", "-"); code != 0 {
 		t.Fatalf("write: %d\n%s", code, out)
 	}

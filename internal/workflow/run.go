@@ -105,6 +105,9 @@ type RunOptions struct {
 	// dừng. Driver session dùng cho bước gán harness khác Claude (`bint run <flow> --task <id> --step <bước>`).
 	Step string
 	Plan *bool
+	// Fast: chọn đường nhanh của b-do (--fast): lúc tự lập phiếu, hoặc với TaskRef khi phiếu còn created. Chỉ b-do gốc; không đi cùng
+	// Plan/Depth. Phạm vi chạm đường dẫn bảo vệ thì giữ b-req.
+	Fast bool
 	// Depth: ""/auto = tự chọn (hoặc giữ độ sâu đã lưu); standard|deep = người dùng chỉ định.
 	Depth    string
 	NoReview bool
@@ -299,7 +302,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		saved := r.RunID
 		r.RunID = ""
-		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth,
+		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth, Fast: o.Fast,
 			Isolation: o.Isolation, Driver: o.Driver, DriverFlagOnly: true})
 		r.RunID = saved
 		if err != nil {
@@ -632,6 +635,12 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions, fd flow.Def) (*task.
 	}
 	explicit := depth != ""
 	planning, planOnly := fd.HasKind(flow.KindPlan), fd.OnlyKind(flow.KindPlan)
+	if err := checkFastFlag(o.Fast, o.Workflow, fd.IsBuiltin(), o.Plan, depth); err != nil {
+		return t, err
+	}
+	if o.Fast && t.State.Status != task.StatusCreated {
+		return t, fmt.Errorf("--fast chỉ nhận khi tác vụ còn created (đang %s): đường nhanh được chọn một lần lúc lập phiếu", t.State.Status)
+	}
 	if explicit {
 		if !planning {
 			return t, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
@@ -644,7 +653,7 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions, fd flow.Def) (*task.
 				"hoặc để lập kế hoạch lại bằng `bint run b-req --task %s --depth %s` trên tác vụ planned", st, t.State.ID, depth)
 		}
 	}
-	if !explicit && o.Plan == nil && !(planOnly && t.State.Status == task.StatusCreated) && !hasEdit(o.Edit) {
+	if !explicit && o.Plan == nil && !o.Fast && !(planOnly && t.State.Status == task.StatusCreated) && !hasEdit(o.Edit) {
 		return t, nil
 	}
 	var sync criteriaSync
@@ -663,6 +672,9 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions, fd flow.Def) (*task.
 			if err := r.syncCriteria(t, before, &sync); err != nil {
 				return err
 			}
+		}
+		if o.Fast {
+			r.setFastFlag(t)
 		}
 		if hasEdit(o.Edit) && o.Plan == nil && !explicit {
 			r.dropFastIfProtected(t)
@@ -1769,7 +1781,15 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		}
 		// Agent đã kết thúc: từ đây tác vụ theo hợp đồng v1 (task cũ chạy lại b-req được nâng ở đây,
 		// không nâng sớm để agent lỗi giữa chừng không biến task cũ thành v1).
-		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { ensurePlanningContract(t); return nil }); err == nil {
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+			ensurePlanningContract(t)
+			// Kế hoạch mới: b-do gốc phải áp lại cổng cỡ kế hoạch; b-req chạy riêng (người xem kế hoạch rồi mới chạy tiếp) và flow tuỳ biến giữ hành vi cũ.
+			t.State.PlanSize = ""
+			if !rs.planSizeGated() {
+				t.State.PlanSize = planSizePassed
+			}
+			return nil
+		}); err == nil {
 			rs.t = t
 		}
 		rep := task.LintPlanningTask(rs.t, true)
@@ -1796,6 +1816,9 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		}
 		if len(rep.OpenQuestions) > 0 {
 			return r.stopOnQuestions(rs, rep)
+		}
+		if !r.planSizeGate(rs) { // b-do gốc: kế hoạch lớn dừng chờ người, nhỏ chạy thẳng b-feat (plansize.go)
+			return false
 		}
 		return rs.chain() // flow nhiều bước đi tiếp sang bước sau plan; plan chạy riêng thì dừng
 	case flow.KindImplement:
@@ -2295,7 +2318,7 @@ func (r *Runner) preflightFeat(rs *runState) bool {
 	if len(rep.OpenQuestions) > 0 {
 		return r.stopOnQuestions(rs, rep)
 	}
-	return true
+	return r.preflightPlanSize(rs)
 }
 
 // stopOnQuestions dừng vì requirement.md còn câu hỏi cản trở triển khai. Tác vụ đã ở `planned`;

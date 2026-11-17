@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 // GĐ2 nhóm 2: kiểm tra theo mục tiêu người dùng (b-req sinh, b-feat viết thành test và chạy tới khi xanh, b-review chấm theo mục tiêu)
 // và không tự cắt phạm vi (plan.md chia giai đoạn G-N thì kết quả cuối ghi thẳng "mới xong 1/N giai đoạn").
 
-const goalCheckSection = "TestMucTieu (internal/x/goal_test.go): cài bí mật giả vào mọi đường nhập rồi quét toàn bộ thư mục trạng thái và repo; đạt khi không còn tệp nào chứa dấu giả"
+const goalCheckSection = "`TestMucTieu` (internal/x/goal_test.go): cài bí mật giả vào mọi đường nhập rồi quét toàn bộ thư mục trạng thái và repo; đạt khi không còn tệp nào chứa dấu giả"
 
 // goalDocs là bộ artifact hợp lệ của một tiêu chí, requirement.md có mục `## Kiểm tra mục tiêu` (khi goal != "") và plan.md có phần
 // `## Đề xuất tách giai đoạn` (khi phases != "").
@@ -22,7 +23,7 @@ func goalDocs(goal, phases string) map[string]string {
 		req += "## Kiểm tra mục tiêu\n" + goal + "\n"
 	}
 	req += "## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n"
-	plan := "# Kế hoạch\nSửa app.txt\n"
+	plan := "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `done.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n"
 	if phases != "" {
 		plan += "## Đề xuất tách giai đoạn\n" + phases
 	}
@@ -66,10 +67,16 @@ func TestGoalCheckLoopAndPhaseNote(t *testing.T) {
 	h := newHarness(t)
 	phases := "- G-1: kiểm tra mục tiêu và review theo mục tiêu — internal/workflow/**\n- G-2: nhóm bề mặt log `internal/log/**` $HOME it's — internal/log/** — phụ thuộc G-1\n- G-3: nhóm bề mặt spool — internal/spool/** — phụ thuộc G-1\n"
 	h.behave = h.goalBehave(goalDocs(goalCheckSection, phases), 0)
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
+	r := h.runner()
+	res0, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
+	if err != nil || res0.Status != task.StatusBlocked || !strings.HasPrefix(res0.Reason, "kế hoạch lớn:") {
+		t.Fatalf("kế hoạch có giai đoạn hoãn là lớn, phải dừng sau b-req: %+v %v calls=%v", res0, err, h.calls)
+	}
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: res0.TaskID, Resume: true})
 	if err != nil || res.Status != task.StatusDone {
 		t.Fatalf("%+v %v calls=%v", res, err, h.calls)
 	}
+	res.Notes = append(slices.Clone(res0.Notes), res.Notes...) // ghi chú sau b-req (kế hoạch chia N giai đoạn) nằm ở lượt đầu
 	if got := strings.Join(h.calls, ","); got != "b-req,b-feat,b-review,b-feat,b-review" {
 		t.Fatalf("review sạch mà kiểm chứng đỏ phải mở vòng sửa: %s", got)
 	}
@@ -97,15 +104,21 @@ func TestGoalCheckLoopAndPhaseNote(t *testing.T) {
 	}
 }
 
-// Không có dòng G-N (hoặc chỉ một) thì không có ghi chú; thiếu mục kiểm tra mục tiêu thì có note nhắc (cảnh báo goal_check_missing).
+// Không có dòng G-N (hoặc chỉ một) thì không có ghi chú giai đoạn; thiếu mục kiểm tra mục tiêu thì có note nhắc (cảnh báo goal_check_missing).
+// Cả hai đều làm kế hoạch lớn (cổng cỡ kế hoạch): tác vụ dừng sau b-req, resume chạy b-feat.
 func TestGoalCheckMissingNoteAndNoPhaseNote(t *testing.T) {
 	h := newHarness(t)
 	h.behave = h.goalBehave(goalDocs("", "- G-1: làm hết — internal/**\n"), 0)
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
-	if err != nil || res.Status != task.StatusDone {
-		t.Fatalf("%+v %v", res, err)
+	r := h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
+	if err != nil || res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req" || !strings.HasPrefix(res.Reason, "kế hoạch lớn:") {
+		t.Fatalf("%+v %v calls=%v", res, err, h.calls)
 	}
-	notes := strings.Join(res.Notes, "\n")
+	res2, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true})
+	if err != nil || res2.Status != task.StatusDone {
+		t.Fatalf("%+v %v", res2, err)
+	}
+	notes := strings.Join(res.Notes, "\n") + "\n" + strings.Join(res2.Notes, "\n")
 	if strings.Contains(notes, "mới xong") || strings.Contains(notes, "giai đoạn, phiếu này") {
 		t.Errorf("một giai đoạn thì không báo mới xong:\n%s", notes)
 	}
@@ -120,7 +133,7 @@ func TestGoalCheckMissingNoteAndNoPhaseNote(t *testing.T) {
 // Review không còn phát hiện nghiêm trọng nhưng kiểm chứng cuối đỏ: trong ngân sách mở vòng sửa; đề bài vòng sửa nêu log kiểm chứng đỏ.
 func TestReviewCleanButVerifyRedOpensFixRound(t *testing.T) {
 	h := newHarness(t)
-	h.behave = h.goalBehave(goalDocs("", ""), 0)
+	h.behave = h.goalBehave(goalDocs(goalCheckSection, ""), 0)
 	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
 	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review,b-feat,b-review" {
 		t.Fatalf("%+v %v calls=%v", res, err, h.calls)
@@ -135,7 +148,7 @@ func TestReviewCleanButVerifyRedOpensFixRound(t *testing.T) {
 func TestReviewCleanButVerifyRedBlocksOutsideBudget(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Workflow.MaxReviewRounds = 0
-	h.behave = h.goalBehave(goalDocs("", ""), 0)
+	h.behave = h.goalBehave(goalDocs(goalCheckSection, ""), 0)
 	r := h.runner()
 	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
 	if err != nil || res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" {
@@ -176,7 +189,7 @@ func TestSessionReviewCleanButVerifyRedOpensFixRound(t *testing.T) {
 func TestFastPromptAsksForGoalCheck(t *testing.T) {
 	h := newHarness(t)
 	h.behave = h.reviewCounts(0)
-	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq})
+	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: fastReq, Fast: true})
 	if err != nil || res.Status != task.StatusDone {
 		t.Fatalf("%+v %v", res, err)
 	}
@@ -258,7 +271,7 @@ func TestMultiReviewFlowRedVerifyCountsFixRounds(t *testing.T) {
 func TestReviewBlockingAndVerifyRedReasonNamesVerification(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Workflow.MaxReviewRounds = 0
-	h.behave = h.goalBehave(goalDocs("", ""), 2)
+	h.behave = h.goalBehave(goalDocs(goalCheckSection, ""), 2)
 	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
 	if err != nil || res.Status != task.StatusBlocked {
 		t.Fatalf("%+v %v calls=%v", res, err, h.calls)

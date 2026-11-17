@@ -3,6 +3,7 @@ package workflow
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,11 +12,44 @@ import (
 	"bint/internal/task"
 )
 
-// Đường nhanh của b-do (task.Classification.Fast): yêu cầu ngắn, mơ hồ, rủi ro thấp đi qua đúng một phiên b-feat (không b-req),
-// cổng kiểm chứng của Bint, rồi đúng một vòng b-review. Review còn phát hiện nghiêm trọng thì một vòng sửa nối tiếp phiên b-feat
-// (armReviewFix), kiểm chứng rồi finalize, không review lại. Việc lớn/rủi ro cao/có cờ chỉ định đi đường đầy đủ như cũ.
+// Đường nhanh của b-do (task.Classification.Fast): tác vụ đi qua đúng một phiên b-feat (không b-req), cổng kiểm chứng của Bint, rồi
+// đúng một vòng b-review. Review còn phát hiện nghiêm trọng thì một vòng sửa nối tiếp phiên b-feat (armReviewFix), kiểm chứng rồi
+// finalize, không review lại. Đường nhanh là lựa chọn CÓ CHỦ ĐÍCH của người dùng (cờ --fast, skill /b-do-fast); Bint chỉ tự chọn nó
+// từ câu chữ khi người dùng bật workflow.fast_path (mặc định tắt). Việc rủi ro cao hoặc có cờ chỉ định khác đi đường đầy đủ.
 
-// fastEligible là điều kiện lập phiếu để chọn đường nhanh (NewTask): mọi điều kiện đều phải đúng.
+// checkFastFlag kiểm --fast: chỉ b-do gốc, không đi cùng --plan/--no-plan/--depth. Dùng chung cho lập phiếu và `--task` trên phiếu created.
+func checkFastFlag(fast bool, workflowName string, builtin bool, plan *bool, depth string) error {
+	switch {
+	case !fast:
+		return nil
+	case !builtin || workflowName != StepDo:
+		return fmt.Errorf("--fast chỉ dùng với workflow b-do (không dùng với %s)", workflowName)
+	case plan != nil:
+		return errors.New("--fast không đi cùng --plan/--no-plan: đường nhanh là không có b-req")
+	case depth != "":
+		return errors.New("--fast không đi cùng --depth: đường nhanh không có b-req nên không có độ sâu phân tích")
+	}
+	return nil
+}
+
+// fastFlagReason là lý do ghi vào Classification khi người dùng chỉ định đường nhanh (--fast). Agent (orchestrator) gọi --fast thay
+// người dùng (skill /b-do-fast) thì ghi đúng bên chỉ định.
+func fastFlagReason(human bool) string {
+	who := "orchestrator"
+	if human {
+		who = "người dùng"
+	}
+	return who + " chỉ định đường nhanh (--fast): một phiên b-feat, cổng kiểm chứng, một lượt review, tối đa một vòng sửa"
+}
+
+// fastProtectedPlan: đường nhanh (--fast hoặc tự chọn) mà phạm vi chạm đường dẫn bảo vệ thì giữ b-req (như protectedPlan) và nói rõ vì sao cờ không có tác dụng.
+func fastProtectedPlan(protected []string) task.Classification {
+	c := protectedPlan(protected, false)
+	c.Reason += "; đường nhanh (bỏ b-req) không áp dụng được cho phạm vi này"
+	return c
+}
+
+// fastEligible là điều kiện để Bint TỰ chọn đường nhanh lúc lập phiếu (NewTask, chỉ khi workflow.fast_path bật): mọi điều kiện đều phải đúng.
 //   - workflow gốc b-do (flow tuỳ biến, b-feat, b-req... không có đường nhanh);
 //   - Classify rơi vào nhánh mơ hồ ngắn (không tài liệu tham chiếu, không từ khoá kế hoạch, ≤ 25 từ, không mỏ neo);
 //   - người/agent không chỉ định --plan/--no-plan/--depth;
@@ -170,7 +204,7 @@ func (e *Env) dropFastIfProtected(t *task.Task) {
 	if a.Risk != "high" {
 		return
 	}
-	protected := protectedPlan(a.Protected, false)
+	protected := fastProtectedPlan(a.Protected)
 	cls := *c
 	cls.Fast, cls.Plan, cls.Reason = false, protected.Plan, protected.Reason
 	req := strings.TrimSpace(t.Ticket.Request)
@@ -180,4 +214,19 @@ func (e *Env) dropFastIfProtected(t *task.Task) {
 	cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(req, a)
 	t.State.Classification = &cls
 	ensurePlanningContract(t)
+}
+
+// setFastFlag áp --fast lên phiếu created có sẵn (`bint run b-do --task <id> --fast`): đường nhanh không có b-req nên hạ hợp đồng
+// artifact và độ sâu phân tích. Phạm vi chạm đường dẫn bảo vệ (kể cả sau --allow của cùng lượt: dropFastIfProtected chạy sau) thì
+// giữ b-req.
+func (r *Runner) setFastFlag(t *task.Task) {
+	cls := task.Classification{}
+	if c := t.State.Classification; c != nil {
+		cls = *c
+	}
+	cls.Plan, cls.Fast, cls.Reason = false, true, fastFlagReason(r.Human)
+	cls.Depth, cls.DepthReason = "", ""
+	t.State.Classification = &cls
+	t.State.PlanningContractVersion = 0
+	r.dropFastIfProtected(t)
 }

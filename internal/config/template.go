@@ -175,7 +175,8 @@ tasks:
 
 workflow:                   # workflow gốc do Bint điều phối (bint run)
   max_review_rounds: 2      # số vòng sửa tối đa sau review của b-do (n vòng sửa = tối đa n+1 vòng review); hết vòng thì người chọn chấp nhận / sửa thêm một vòng / huỷ; review còn giảm số phát hiện nghiêm trọng thì sửa tiếp tới trần 2 lần số này, không giảm thì dừng
-  fast_path: true           # đường nhanh của b-do cho yêu cầu ngắn, mơ hồ, rủi ro thấp: bỏ b-req, một phiên b-feat, cổng kiểm chứng, một vòng review (còn lỗi nghiêm trọng thì một vòng sửa rồi xong, không review lại); false = luôn qua b-req
+  fast_path: false          # true = Bint tự chọn đường nhanh của b-do cho yêu cầu ngắn, mơ hồ, rủi ro thấp (bỏ b-req, một phiên b-feat, cổng kiểm chứng, một vòng review, tối đa một vòng sửa); false = Classify quyết như thường (yêu cầu mơ hồ vào b-req; việc nhỏ hoặc yêu cầu ngắn nêu rõ chỗ sửa có thể bỏ b-req), đường nhanh chỉ chạy khi người dùng chọn (bint run b-do --fast, /b-do-fast)
+  small_plan_max_files: 5   # kế hoạch b-req là nhỏ (b-feat chạy ngay, không dừng chờ người) khi số tệp và số nhóm bề mặt trong plan không quá ngưỡng này và các điều kiện khác đạt (không giai đoạn hoãn, có kiểm tra mục tiêu, không chạm đường dẫn bảo vệ); 0 = mọi kế hoạch dừng chờ người
   timeout_minutes: 60       # mỗi bước agent
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree

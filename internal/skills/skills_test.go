@@ -205,16 +205,46 @@ func TestCoreSkillBFeatRunsGoalCheckUntilGreen(t *testing.T) {
 	}
 }
 
-// GĐ1 nhóm 2 (finding .2) và GĐ2 nhóm 2: b-do lập phiếu không cờ cho yêu cầu ngắn mơ hồ rủi ro thấp, báo "mới xong 1/N giai đoạn" nguyên văn.
+// b-do không còn dặn lập phiếu không cờ để Bint tự chọn đường nhanh (người dùng chọn bằng /b-do-fast); vẫn báo "mới xong 1/N giai đoạn"
+// nguyên văn và dặn tóm tắt kế hoạch lớn cho người dùng, chỉ resume khi họ đồng ý.
 func TestCoreSkillBDoFastPathAndPhaseReport(t *testing.T) {
 	s, _ := Get("b-do")
 	flat := strings.Join(strings.Fields(s.Body()), " ")
 	for _, want := range []string{
-		"yêu cầu ngắn, mơ hồ, rủi ro thấp", "**không kèm** `--plan`/`--no-plan`/`--depth`", "đường nhanh", "classification.fast",
-		"mới xong 1/N giai đoạn", "nguyên văn", "Bước 1c", "kiểm chứng cuối không qua",
+		"/b-do-fast", "mới xong 1/N giai đoạn", "nguyên văn", "Bước 1c", "kiểm chứng cuối không qua",
+		"`kế hoạch lớn:`", "tóm tắt kế hoạch cho người dùng", "Chỉ khi họ đồng ý", "workflow.small_plan_max_files",
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("b-do thiếu %q", want)
+		}
+	}
+	for _, gone := range []string{"**Ngoại lệ — yêu cầu ngắn, mơ hồ, rủi ro thấp**", "**không kèm** `--plan`/`--no-plan`/`--depth`", "classification.fast: true"} {
+		if strings.Contains(flat, gone) {
+			t.Errorf("b-do còn dặn tự chọn đường nhanh: %q", gone)
+		}
+	}
+}
+
+// b-do-fast là skill mỏng gọi `--fast`; b-req dặn ghi mục `## Cỡ kế hoạch`.
+func TestCoreSkillBDoFastAndPlanSize(t *testing.T) {
+	s, ok := Get("b-do-fast")
+	if !ok {
+		t.Fatal("thiếu skill b-do-fast")
+	}
+	if !strings.Contains(string(s.Content), "disable-model-invocation: true") {
+		t.Error("b-do-fast chỉ do người gọi")
+	}
+	flat := strings.Join(strings.Fields(s.Body()), " ")
+	for _, want := range []string{"bint task new", "--workflow b-do --fast", "bint run b-do --task <id> --fast", "classification.fast", "/b-do", "bỏ b-req"} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-do-fast thiếu %q", want)
+		}
+	}
+	req, _ := Get("b-req")
+	rflat := strings.Join(strings.Fields(req.Body()), " ")
+	for _, want := range []string{"## Cỡ kế hoạch", "Kết luận: nhỏ", "Kết luận: lớn", "workflow.small_plan_max_files", "Không dùng `nhỏ` để cắt phạm vi", "G-N"} {
+		if !strings.Contains(rflat, want) {
+			t.Errorf("b-req thiếu %q", want)
 		}
 	}
 }

@@ -431,7 +431,7 @@ func TestReviewPromptLargeDiffAndPlanTruncated(t *testing.T) {
 			if err := h.writePlan(e, id, nil); err != nil {
 				return err
 			}
-			_, _, err := e.WriteArtifact(id, "plan", "# Kế hoạch\n"+strings.Repeat("ý rất dài trong kế hoạch\n", 2000))
+			_, _, err := e.WriteArtifact(id, "plan", validDocs("", "")["plan"]+strings.Repeat("ý rất dài trong kế hoạch\n", 2000))
 			return err
 		}
 		return h.happy(ctx, step, e, id)
