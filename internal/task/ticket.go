@@ -93,6 +93,12 @@ var (
 	refDocWords = wordsRe(`plan|roadmap|spec|specification|kế hoạch|đặc tả|làm theo|implement\w*|thực hiện|triển khai`)
 )
 
+// ReasonVagueShort là lý do của nhánh "yêu cầu ngắn nhưng mơ hồ" của Classify: ứng viên của đường nhanh (Classification.Fast).
+const ReasonVagueShort = "yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí cụ thể: cần b-req"
+
+// VagueShort cho biết Classify rơi vào nhánh mơ hồ ngắn (không tài liệu tham chiếu, không từ khoá kế hoạch, không mỏ neo).
+func (c Classification) VagueShort() bool { return c.Plan && c.Reason == ReasonVagueShort }
+
 // Classify quyết định có cần b-req không (mục 6.4: bỏ qua bước không cần thiết).
 // Heuristic xác định được, chỉ là đề xuất: orchestrator hoặc người ghi đè bằng --plan/--no-plan.
 // refs là tài liệu đầu vào (Ticket.References): mô tả ngắn trỏ tới một kế hoạch vẫn là việc lớn.
@@ -110,7 +116,7 @@ func Classify(request string, refs ...string) Classification {
 	case words <= 25 && hasConcreteAnchor(request):
 		return Classification{Plan: false, Reason: "yêu cầu ngắn, rõ: bỏ b-req"}
 	case words <= 25:
-		return Classification{Plan: true, Reason: "yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí cụ thể: cần b-req"}
+		return Classification{Plan: true, Reason: ReasonVagueShort}
 	}
 	return Classification{Plan: true, Reason: "mặc định: cần b-req"}
 }

@@ -414,7 +414,13 @@ var LedgerModes = []string{LedgerGit, LedgerLocal}
 type Workflow struct {
 	// MaxReviewRounds: số vòng SỬA tối đa sau review của b-do (b-review đòi sửa → b-feat chạy lại) trước khi dừng chờ người; n vòng sửa
 	// nghĩa là tối đa n+1 vòng review. Hết vòng, người chọn chấp nhận / cho sửa thêm một vòng / huỷ (bint run resume --accept | --fix-round).
+	// Review còn đang hội tụ (số phát hiện nghiêm trọng giảm hẳn so với vòng trước) thì vòng sửa tiếp tục ngoài n, tới trần 2n (+ vòng người
+	// cho thêm); review không giảm thì dừng ngay như cũ.
 	MaxReviewRounds int `yaml:"max_review_rounds"`
+	// FastPath bật đường nhanh của b-do cho yêu cầu ngắn, mơ hồ, rủi ro thấp: bỏ b-req, một phiên b-feat, cổng kiểm chứng, đúng
+	// một vòng b-review (còn phát hiện nghiêm trọng thì một vòng sửa nối tiếp phiên rồi finalize, không review lại). false = luôn
+	// qua b-req như trước.
+	FastPath bool `yaml:"fast_path"`
 	// TimeoutMinutes giới hạn thời gian mỗi bước agent.
 	TimeoutMinutes int `yaml:"timeout_minutes"`
 	// VerifyTimeoutMinutes giới hạn thời gian lệnh kiểm chứng của phiếu tác vụ.
@@ -689,7 +695,7 @@ func Default() Config {
 		},
 		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
-			MaxReviewRounds: 2, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
+			MaxReviewRounds: 2, FastPath: true, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Verify: WorkflowVerify{Scope: VerifyScopeFull},
 			Agent: WorkflowAgent{

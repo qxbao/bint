@@ -27,16 +27,6 @@ func (h *harness) reviewCounts(counts ...int) func(context.Context, string, *Env
 	}
 }
 
-// decliningReview: số phát hiện nghiêm trọng giảm dần start, start-1, ... tới 1 rồi đứng yên (không bao giờ sạch): dùng để thử
-// ngân sách vòng sửa (workflow.max_review_rounds) khi review vẫn "hội tụ".
-func (h *harness) decliningReview(start int) func(context.Context, string, *Env, string) error {
-	counts := make([]int, 0, start)
-	for n := start; n >= 1; n-- {
-		counts = append(counts, n)
-	}
-	return h.reviewCounts(counts...)
-}
-
 // D2: review không hội tụ thì b-do tự dừng ở nhánh ReviewExhausted, không đợi hết workflow.max_review_rounds.
 func TestReviewStopsWhenBlockingCountNotDecreasing(t *testing.T) {
 	h := newHarness(t)
@@ -99,6 +89,79 @@ func TestSessionReviewStopsWhenNotConverging(t *testing.T) {
 	steps, last := h.drive(r, tk.State.ID, false)
 	if strings.Join(steps, ",") != "b-feat,b-review,b-feat,b-review" || last.Action != ActionBlocked ||
 		!strings.Contains(last.Reason, "review không hội tụ") || len(last.Choices) != 3 {
+		t.Fatalf("bước %v, dừng %+v", steps, last)
+	}
+}
+
+// Hội tụ (mục 3 của GĐ1 nhóm 1): vòng review giảm hẳn được sửa tiếp ngoài workflow.max_review_rounds tới trần
+// 2 × max_review_rounds (+ vòng người cho thêm); không giảm thì dừng.
+func TestReviewConvergingFixesBeyondBudgetUpToCeiling(t *testing.T) {
+	const fix, rev = "b-feat,", "b-review,"
+	cases := []struct {
+		name   string
+		counts []int
+		status string
+		rounds int    // số vòng review đã chạy
+		reason string // đoạn lý do khi dừng
+	}{
+		{"5→4→3→2→0 tới done", []int{5, 4, 3, 2, 0}, task.StatusDone, 5, ""},
+		{"5→4→3→2→1 dừng ở trần", []int{5, 4, 3, 2, 1}, task.StatusBlocked, 5, "chạm trần 4 vòng sửa"},
+		{"4→3→3 dừng ở vòng review 3", []int{4, 3, 3}, task.StatusBlocked, 3, "còn 3 phát hiện nghiêm trọng sau 3 vòng review và 2 vòng sửa"},
+		{"4→4 không hội tụ", []int{4, 4}, task.StatusBlocked, 2, "review không hội tụ"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.cfg.Workflow.MaxReviewRounds = 2
+			h.behave = h.reviewCounts(tc.counts...)
+			res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(false)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := strings.Repeat(fix+rev, tc.rounds)
+			if got := strings.Join(h.calls, ",") + ","; got != want || res.Status != tc.status {
+				t.Fatalf("calls=%s want %s, status %s: %s", got, want, res.Status, res.Reason)
+			}
+			if tc.status == task.StatusBlocked {
+				if !strings.Contains(res.Reason, tc.reason) || len(res.Choices) != 3 || !loadTask(t, h, res.TaskID).State.ReviewExhausted {
+					t.Fatalf("lý do/lựa chọn: %s %v", res.Reason, res.Choices)
+				}
+			}
+		})
+	}
+}
+
+// --fix-round nâng cả trần: 2 × 2 + 1 = 5 vòng sửa khi review vẫn giảm.
+func TestReviewConvergingCeilingGrowsWithExtraFixRound(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Workflow.MaxReviewRounds = 2
+	h.behave = h.reviewCounts(7, 6, 5, 4, 3, 2, 1)
+	r := h.runner()
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(false)})
+	if err != nil || res.Status != task.StatusBlocked || len(h.calls) != 10 {
+		t.Fatalf("phải dừng ở trần 4 vòng sửa: %+v %v calls=%v", res, err, h.calls)
+	}
+	n := len(h.calls)
+	res2, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true, FixRound: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// --fix-round nâng trần thêm một (4 → 5 vòng sửa) nên được đúng một vòng sửa nữa (b-feat, b-review) rồi dừng ở trần mới.
+	if got := strings.Join(h.calls[n:], ","); got != "b-feat,b-review" || res2.Status != task.StatusBlocked ||
+		!strings.Contains(res2.Reason, "chạm trần 5 vòng sửa") {
+		t.Fatalf("--fix-round: %v %s", h.calls[n:], res2.Reason)
+	}
+}
+
+// Driver session đi qua cùng reviewDecision: hội tụ thì sửa tiếp ngoài ngân sách.
+func TestSessionReviewConvergingFixesBeyondBudget(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Workflow.MaxReviewRounds = 1
+	h.behave = h.reviewCounts(3, 2, 0)
+	r := h.runner()
+	tk := h.newSession(r, NewTaskOptions{Plan: ptr(false)})
+	steps, last := h.drive(r, tk.State.ID, false)
+	if strings.Join(steps, ",") != "b-feat,b-review,b-feat,b-review,b-feat,b-review" || last.Action != ActionDone {
 		t.Fatalf("bước %v, dừng %+v", steps, last)
 	}
 }

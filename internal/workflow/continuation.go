@@ -65,6 +65,8 @@ type ContinueFacts struct {
 	// PlanNotReady khác rỗng: Last là awaiting_human của bước plan nhưng planner chưa nên được nối tiếp (chưa có câu trả lời,
 	// còn câu hỏi mở hoặc artifact lỗi cấu trúc); giá trị là lý do (planResumeWhy).
 	PlanNotReady string
+	// Model là model yêu cầu của bước sắp mở; lớp plan_handoff chỉ nối tiếp khi bằng Last.Model (b-req và b-feat cùng model).
+	Model string
 	// ImplAnswered: Last là awaiting_human của bước implement (câu hỏi của b-feat hoặc b-feat không đổi tệp) và người đã trả lời
 	// sau lúc dừng (`--answer`): b-feat được nối tiếp với câu trả lời. Không có câu trả lời thì bước implement chờ người vẫn chạy mới.
 	ImplAnswered bool
@@ -100,6 +102,9 @@ func continuationDecision(f ContinueFacts) ContinueDecision {
 	case l.Profile != f.Profile:
 		return no(fmt.Sprintf("bước dừng trước chạy %s, bước sắp mở chạy %s: phiên cũ nằm ở tài khoản khác, chạy mới với đề bài đầy đủ",
 			profileDesc(l.Profile), profileDesc(f.Profile)))
+	case l.StopClass == StopPlanHandoff && l.Model != f.Model:
+		return no(fmt.Sprintf("b-req chạy model %s, bước %s chạy model %s: phiên b-req không nối tiếp sang model khác, dùng đề bài đầy đủ",
+			modelDesc(l.Model), l.Step, modelDesc(f.Model)))
 	case !l.Continuable:
 		return no(fmt.Sprintf("bước %s dừng với lớp %s, không nối tiếp được (thiếu phiên/fingerprint hoặc lỗi nội tại)", l.Step, l.StopClass))
 	case l.StopClass == StopAwaitingHuman && !f.LastIsPlan && !f.ImplAnswered:
@@ -125,6 +130,14 @@ func continuationDecision(f ContinueFacts) ContinueDecision {
 		}
 	}
 	return ContinueDecision{Continue: true, Step: want}
+}
+
+// modelDesc mô tả model trong lý do không nối tiếp.
+func modelDesc(m string) string {
+	if m == "" {
+		return "mặc định của harness"
+	}
+	return m
 }
 
 // profileDesc mô tả profile trong lý do không nối tiếp.
@@ -155,7 +168,7 @@ func continuationPrompt(id, step, run string, l *task.StepStop, answered []strin
 	case StopAwaitingHuman:
 		b.WriteString("Lý do lượt trước dừng: chờ người trả lời.\n")
 	case StopReviewFix:
-		b.WriteString("Lý do nối tiếp: lượt trước đã xong và đã qua kiểm chứng, nhưng b-review tìm thấy phát hiện nghiêm trọng cần sửa (xem bên dưới).\n")
+		b.WriteString("Lý do nối tiếp: lượt trước đã xong, nhưng cần sửa tiếp: b-review tìm thấy phát hiện nghiêm trọng và/hoặc lần kiểm chứng cuối không qua (xem bên dưới).\n")
 	}
 	fmt.Fprintf(&b, "Tiếp tục từ chỗ dở, đừng làm lại phần đã xong; kiểm lại trạng thái cây làm việc trước khi sửa. Mọi quy tắc của đề bài "+
 		"ban đầu vẫn áp dụng; mọi lệnh `bint task …` truyền ID tác vụ %s.\n", id)
@@ -196,9 +209,9 @@ func planResumeWhy(t *task.Task) string {
 
 // decideContinuation dựng dữ kiện (kể cả chụp fingerprint cây, chỉ khi cần) rồi quyết định nối tiếp cho bước sắp mở chạy bằng
 // via (ViaSubagent hoặc tên harness của driver process).
-func (r *Runner) decideContinuation(ctx context.Context, rs *runState, step string, fresh bool, via, profile string) ContinueDecision {
+func (r *Runner) decideContinuation(ctx context.Context, rs *runState, step string, fresh bool, via, profile, model string) ContinueDecision {
 	last := rs.t.State.LastStep
-	f := ContinueFacts{Last: last, Step: step, Fresh: fresh, Via: via, Profile: profile}
+	f := ContinueFacts{Last: last, Step: step, Fresh: fresh, Via: via, Profile: profile, Model: model}
 	if last != nil {
 		f.LastIsPlan = rs.kindOf(last.Step) == flow.KindPlan
 		if f.LastIsPlan && last.StopClass == StopAwaitingHuman {

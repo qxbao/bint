@@ -190,7 +190,11 @@ type fakeAgent struct {
 	name string
 	// profile: profile mặc định của agent (eval.ProfileAgent).
 	profile *iso.Profile
+	// model: model yêu cầu của bước (eval.ModelNamer); rỗng = không báo.
+	model string
 }
+
+func (a *fakeAgent) RequestedModel() string { return a.model }
 
 func (a *fakeAgent) AgentProfile() *iso.Profile { return a.profile }
 
@@ -284,8 +288,11 @@ type harness struct {
 	mutate func(step string, res *eval.AgentResult)
 	// mutateReq như mutate nhưng thấy cả yêu cầu giao cho agent (phiên cần nối tiếp, đề bài): mô phỏng harness ghi tệp phiên.
 	mutateReq func(req eval.AgentRequest, step string, res *eval.AgentResult)
-	// agentName: tên harness của agent giả (rỗng = "fake").
-	agentName string
+	// agentName: tên harness của agent giả (rỗng = "fake"); agentNameFor (nếu có) đổi tên theo bước (mô phỏng role gán harness khác nhau).
+	agentName    string
+	agentNameFor func(step string) string
+	// models: model yêu cầu theo bước (rỗng = không báo); đổi giữa b-req và b-feat để thử nối tiếp chéo model.
+	models map[string]string
 	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.
 	costFor func(step string) *float64
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
@@ -372,7 +379,14 @@ func (h *harness) runner() *Runner {
 		if h.costFor != nil {
 			cost = h.costFor(step)
 		}
-		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: h.agentName, profile: h.profile}, nil
+		h.mu.Lock()
+		model := h.models[step]
+		h.mu.Unlock()
+		name := h.agentName
+		if h.agentNameFor != nil {
+			name = h.agentNameFor(step)
+		}
+		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: name, profile: h.profile, model: model}, nil
 	}}
 }
 

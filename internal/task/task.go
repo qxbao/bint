@@ -182,6 +182,10 @@ type Classification struct {
 	Driver string `json:"driver,omitempty"`
 	// DriverReason: user | config | default (cùng nghĩa với IsolationReason).
 	DriverReason string `json:"driver_reason,omitempty"`
+	// Fast: đường nhanh của b-do cho yêu cầu mơ hồ đơn giản (ReasonVagueShort, rủi ro low, workflow.fast_path bật): bỏ b-req,
+	// b-feat một phiên, cổng kiểm chứng, đúng một vòng b-review rồi (nếu còn phát hiện nghiêm trọng) một vòng sửa nối tiếp
+	// phiên b-feat và finalize không review lại. Rỗng (phiếu cũ) = false = đường đầy đủ.
+	Fast bool `json:"fast,omitempty"`
 }
 
 // Driver của tác vụ (docs/isolation-subagent-plan.md mục 6): ai chạy các bước agent.
@@ -408,6 +412,11 @@ type State struct {
 	// LastImplement là bước implement vừa kết thúc bình thường (handle phiên + fingerprint cây sau bước): vòng sửa sau
 	// review dùng để nối tiếp phiên của chính b-feat đó (lớp dừng review_fix); không xoá khi bước khác bắt đầu.
 	LastImplement *StepStop `json:"last_implement,omitempty"`
+	// LastPlan là bước plan (b-req) vừa kết thúc bình thường ở driver process (handle phiên + fingerprint cây + model): b-feat
+	// đầu tiên nối tiếp phiên đó (lớp dừng plan_handoff). Xoá khi b-feat thực sự bắt đầu.
+	LastPlan *StepStop `json:"last_plan,omitempty"`
+	// FastFixed: đường nhanh đã mở vòng sửa duy nhất sau review vòng 1; sau kiểm chứng của vòng sửa tác vụ finalize, không review lại.
+	FastFixed bool `json:"fast_fixed,omitempty"`
 	// ExtraFixRounds là số vòng sửa người cho thêm bằng `bint run resume --fix-round` ngoài workflow.max_review_rounds.
 	ExtraFixRounds int `json:"extra_fix_rounds,omitempty"`
 	// ReviewExhausted: tác vụ đang chờ người sau khi hết vòng sửa (còn phát hiện nghiêm trọng): chỉ khi đó
@@ -488,6 +497,8 @@ type StepStop struct {
 	// Profile là profile `bint iso` mà bước chạy trong đó, dạng <tool>/<tên> (vd codex/work); rỗng = tài khoản thật (hoặc
 	// subagent, phiếu cũ). Phiên harness nằm trong thư mục cấu hình của profile nên chỉ nối tiếp được khi profile không đổi.
 	Profile string `json:"profile,omitempty"`
+	// Model là model yêu cầu của bước (harness chạy theo role); chỉ dùng để quyết định nối tiếp b-req → b-feat (cùng model mới nối tiếp).
+	Model string `json:"model,omitempty"`
 	// Continuations: số lần nối tiếp external/timeout liên tiếp đã dùng cho bước này; OriginRunID: lượt đầu của agent.
 	Continuations int    `json:"continuations,omitempty"`
 	OriginRunID   string `json:"origin_run_id,omitempty"`

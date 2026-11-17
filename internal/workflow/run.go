@@ -520,7 +520,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 			return rs.res, nil
 		}
 	}
-	for guard := 0; guard < rs.loopGuard(r.fixLimit(rs)); guard++ {
+	for guard := 0; guard < rs.loopGuard(r.fixCeiling(rs)); guard++ {
 		if ctx.Err() != nil {
 			r.interrupt(rs, "người dùng huỷ")
 			return rs.res, nil
@@ -664,6 +664,9 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions, fd flow.Def) (*task.
 				return err
 			}
 		}
+		if hasEdit(o.Edit) && o.Plan == nil && !explicit {
+			r.dropFastIfProtected(t)
+		}
 		if !explicit && o.Plan == nil && !(planOnly && t.State.Status == task.StatusCreated) {
 			return nil
 		}
@@ -671,6 +674,9 @@ func (r *Runner) applyOverrides(t *task.Task, o RunOptions, fd flow.Def) (*task.
 		cls := task.Classification{Plan: true, Reason: "mặc định"}
 		if t.State.Classification != nil {
 			cls = *t.State.Classification
+		}
+		if o.Plan != nil || explicit || (planOnly && created) {
+			cls.Fast = false // cờ chỉ định (--plan/--no-plan/--depth) hoặc b-req chạy trên phiếu created: đường đầy đủ (không phải đường nhanh)
 		}
 		if o.Plan != nil {
 			cls.Plan, cls.Reason = *o.Plan, r.chooser()+" chỉ định"
@@ -815,7 +821,7 @@ func (rs *runState) pickStep() (step string, finalize bool) {
 			// Đã qua review và cổng done ở worktree, chỉ còn đưa về (xung đột/lỗi lần trước): không review lại.
 			return "", true
 		}
-		if rs.opts.NoReview || !hasReview {
+		if rs.opts.NoReview || !hasReview || rs.t.State.FastFixed {
 			return "", true
 		}
 		return rs.currentReview().ID, false
@@ -1016,6 +1022,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	// Mọi bước driver process có đúng một MCP server là bint (M0 của docs/mcp-gateway-plan.md).
 	mcpPath, mcpTools, cleanMCP := r.stepMCP(sr, rs.t.State.ID)
 	defer cleanMCP()
+	r.armPlanHandoff(ctx, rs, sr)
 	last := rs.t.State.LastStep // chụp trước khi xoá (bước thật sự bắt đầu ngay dưới)
 	resumeID := r.armProcessContinuation(ctx, rs, sr, last)
 	if resumeID == "" && sr.harness == "claude" {
@@ -1023,8 +1030,14 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	}
 	// Bước thật sự bắt đầu: bước dừng cũ không còn là "gần nhất" (driver session xoá cùng lần ghi PendingStep, grantPending).
 	// Không có LastStep thì khỏi ghi (tránh một lần Update vô ích mỗi bước); lỗi ghi vào Notes thay vì nuốt im lặng.
-	if rs.t.State.LastStep != nil {
-		if nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.LastStep = nil; return nil }); err != nil {
+	if rs.t.State.LastStep != nil || (sr.kind == flow.KindImplement && rs.t.State.LastPlan != nil) {
+		if nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+			t.State.LastStep = nil
+			if sr.kind == flow.KindImplement {
+				t.State.LastPlan = nil // b-feat thật sự bắt đầu: kế hoạch đã được giao (hoặc không nối tiếp được, đã ghi lý do)
+			}
+			return nil
+		}); err != nil {
 			rs.res.Notes = append(rs.res.Notes, "không xoá được LastStep của phiếu: "+err.Error())
 		} else {
 			rs.t = nt
@@ -1065,7 +1078,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 // (bộ đếm, lượt gốc, mốc usage, handle phiên), đổi sr.prompt thành lời nhắn nối tiếp (đề bài đầy đủ giữ ở sr.fullPrompt) và trả
 // phiên cần resume; không thì ghi lý do vào notes và trả "".
 func (r *Runner) armProcessContinuation(ctx context.Context, rs *runState, sr *stepRun, last *task.StepStop) string {
-	dec := r.decideContinuation(ctx, rs, sr.step, rs.opts.Fresh, sr.harness, sr.profileID())
+	dec := r.decideContinuation(ctx, rs, sr.step, rs.opts.Fresh, sr.harness, sr.profileID(), sr.reqModel)
 	if dec.Continue {
 		if why := r.processSessionMissing(sr.harness, last.SessionID, sr.prof); why != "" {
 			dec = ContinueDecision{Why: why}
@@ -1082,12 +1095,20 @@ func (r *Runner) armProcessContinuation(ctx context.Context, rs *runState, sr *s
 		answered = answeredFor(rs.t)
 	}
 	sr.fullPrompt = sr.prompt
-	sr.prompt = continuationPrompt(rs.t.State.ID, sr.step, sr.child, last, answered) + r.continuationExtra(rs, last)
-	sr.continuations = continuationCount(last)
-	sr.originRunID = cmp.Or(last.OriginRunID, last.RunID)
 	sr.usageBase = last.Usage
 	sr.sessionID = last.SessionID
-	msg := fmt.Sprintf("nối tiếp phiên %s của bước %s (lớp dừng %s, lần %d)", shortID(last.SessionID), sr.step, last.StopClass, sr.continuations)
+	msg := ""
+	if last.StopClass == StopPlanHandoff {
+		// b-feat đầu tiên nối tiếp phiên b-req: lời nhắn gồm skill b-feat và kế hoạch rút gọn; bộ đếm/lượt gốc không kế thừa.
+		sr.prompt = r.planHandoffPrompt(rs, sr, last)
+		sr.continuations, sr.originRunID = 0, ""
+		msg = fmt.Sprintf("b-feat nối tiếp phiên %s của b-req (kế hoạch rút gọn, không nạp lại ngữ cảnh từ đầu)", shortID(last.SessionID))
+	} else {
+		sr.prompt = continuationPrompt(rs.t.State.ID, sr.step, sr.child, last, answered) + r.continuationExtra(rs, last)
+		sr.continuations = continuationCount(last)
+		sr.originRunID = cmp.Or(last.OriginRunID, last.RunID)
+		msg = fmt.Sprintf("nối tiếp phiên %s của bước %s (lớp dừng %s, lần %d)", shortID(last.SessionID), sr.step, last.StopClass, sr.continuations)
+	}
 	r.logf("↻ %s", msg)
 	rs.res.Notes = append(rs.res.Notes, msg)
 	return last.SessionID
@@ -1504,6 +1525,12 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 			r.recordLastImplement(ctx, rs, sr, handle) // vòng sửa sau review nối tiếp phiên của b-feat này (armReviewFix)
 		}
 	}
+	if status == "completed" && sr.kind == flow.KindPlan && class == "" && !rs.session {
+		r.recordLastPlan(ctx, rs, sr, handleIf(sr.noSession, handle), afterSnap) // b-feat đầu tiên nối tiếp phiên này (plan_handoff)
+		if sr.noSession != "" {
+			rs.res.Notes = append(rs.res.Notes, step+": b-feat không nối tiếp được phiên b-req — "+sr.noSession)
+		}
+	}
 	switch status {
 	case "interrupted":
 		r.interrupt(rs, "người dùng huỷ trong bước "+step)
@@ -1753,6 +1780,15 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		if rep.Blocking() {
 			return r.stopOnPlanning(rs, rep)
 		}
+		for _, w := range rep.Warnings {
+			if w.Code == "goal_check_missing" {
+				rs.res.Notes = append(rs.res.Notes, "requirement.md thiếu mục `## Kiểm tra mục tiêu`: b-feat và b-review không có đặc tả kiểm tra theo mục tiêu người dùng "+
+					"(bổ sung bằng `bint task write "+rs.t.State.ID+" requirement -` rồi `bint task lint "+rs.t.State.ID+"`)")
+			}
+		}
+		if n := phaseNote(rs.t, false); n != "" {
+			rs.res.Notes = append(rs.res.Notes, n)
+		}
 		if a := r.Assess(rs.t); len(a.Questions) > 0 && strings.TrimSpace(rs.t.Ticket.Verify.Command) == "" {
 			if !r.askVerify(rs, a) {
 				return false
@@ -1833,6 +1869,19 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			return false
 		}
 		if rs.opts.NoReview {
+			return r.finalize(ctx, rs)
+		}
+		if rs.t.State.FastFixed {
+			// Đường nhanh: vòng sửa duy nhất đã chạy xong; kiểm chứng ở trên là cổng. Finalize không review lại.
+			if n := fastFixNote(rs.t); n != "" {
+				rs.res.Notes = append(rs.res.Notes, n)
+			}
+			if v := redVerification(rs.t); v != nil {
+				// Kiểm chứng sau vòng sửa duy nhất không qua: không có vòng nào nữa, nên dừng với ba lựa chọn thay vì để finalize chặn không lối ra.
+				r.blockExhausted(rs, fmt.Sprintf("đường nhanh: kiểm chứng sau vòng sửa duy nhất không qua (`%s`, mã thoát %d, log %s).",
+					v.Command, v.ExitCode, cmpStr(v.Log, "(không có)")))
+				return false
+			}
 			return r.finalize(ctx, rs)
 		}
 		return true
@@ -1963,49 +2012,153 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
 	}); err == nil {
 		rs.t = t
 	}
+	red := redVerification(rs.t)
 	if len(blocking) == 0 {
 		if next, ok := rs.nextReview(rv.ID); ok { // flow có nhiều bước review: sạch thì sang bước review kế tiếp
 			r.setFlowStep(rs, next.ID)
 			return true
 		}
-		return r.finalize(ctx, rs)
+		if red == nil {
+			return r.finalize(ctx, rs)
+		}
+		// Review không còn phát hiện nghiêm trọng nhưng lần kiểm chứng cuối không qua (thường là test kiểm tra mục tiêu còn đỏ): không finalize
+		// (cổng done sẽ chặn không lối ra) mà mở vòng sửa trong ngân sách; hết ngân sách thì dừng với ba lựa chọn.
+		return r.reviewRedVerify(ctx, rs, rv, last, red)
 	}
 	used := r.reviewRoundsUsed(rs, last)
 	limit := r.fixLimit(rs)
 	fix := rs.reviewFixStep(rv)
 	prev, stalled := r.reviewStalled(rs, last)
-	stalled = stalled && used <= limit // hết ngân sách vòng sửa thì báo như hết vòng sửa (thông điệp cũ), không phải không hội tụ
-	canFix := used <= limit && !stalled
+	converging := prev != nil && !stalled // có vòng trước để so và số phát hiện nghiêm trọng giảm hẳn
+	stalled = stalled && used <= limit    // hết ngân sách vòng sửa thì báo như hết vòng sửa (thông điệp cũ), không phải không hội tụ
+	ceiling := r.fixCeiling(rs)
+	// Đường nhanh: đúng một vòng sửa sau review đầu tiên, rồi finalize (không review lại); ngân sách/hội tụ không áp.
+	// Chỉ ở review vòng 1: vòng review sau --fix-round (người cho thêm vòng sửa) đi luật thường (ngân sách, hội tụ), không mở thêm vòng nhanh.
+	if rs.fastPath() && last.Round == 1 && limit > 0 {
+		return r.fastFix(ctx, rs, fix, last, blocking)
+	}
+	// Trong ngân sách: sửa nếu không đứng yên. Ngoài ngân sách (used > limit): chỉ sửa tiếp khi review đang hội tụ, tới trần
+	// 2 × max_review_rounds + số vòng người cho thêm.
+	extended := used > limit && converging && used <= ceiling
+	canFix := (used <= limit && !stalled) || extended
 	// Hết vòng vẫn đặt LastStep để --fix-round sau này nối tiếp được, nhưng không ghi note "vòng sửa chạy…" khi không có vòng sửa nào mở.
 	r.armReviewFix(ctx, rs, fix, canFix)
 	if canFix {
 		r.setFlowStep(rs, fix)
-		if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa theo review vòng %d (%d phát hiện nghiêm trọng; vòng sửa %d/%d)",
-			last.Round, len(blocking), used, limit)); err != nil {
+		reason := fmt.Sprintf("sửa theo review vòng %d (%d phát hiện nghiêm trọng; vòng sửa %d/%d)", last.Round, len(blocking), used, limit)
+		if extended {
+			reason = fmt.Sprintf("sửa theo review vòng %d (%d phát hiện nghiêm trọng; vòng sửa %d, ngoài ngân sách %d vì review đang hội tụ %d→%d, trần %d)",
+				last.Round, len(blocking), used, limit, len(prev.Blocking()), len(blocking), ceiling)
+			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("vòng sửa %d chạy ngoài workflow.max_review_rounds vì review đang hội tụ (%d→%d phát hiện nghiêm trọng)",
+				used, len(prev.Blocking()), len(blocking)))
+		}
+		if err := r.transition(rs, task.StatusInProgress, reason); err != nil {
 			r.fail(rs, rv.ID, err.Error())
 			return false
 		}
 		return true
 	}
 	// Hết vòng sửa hoặc review không hội tụ: người chọn (chấp nhận / sửa thêm một vòng / huỷ). used vòng review nghĩa là đã sửa used-1 vòng.
-	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.ReviewExhausted = true; return nil }); err == nil {
-		rs.t = t
-	}
-	id := rs.t.State.ID
 	extra := ""
 	if n := rs.t.State.ExtraFixRounds; n > 0 {
 		extra = fmt.Sprintf(" + %d vòng người cho thêm", n)
 	}
 	head := fmt.Sprintf("còn %d phát hiện nghiêm trọng sau %d vòng review và %d vòng sửa (tối đa %d vòng sửa: workflow.max_review_rounds = %d%s).",
 		len(blocking), used, used-1, limit, r.Cfg.Workflow.MaxReviewRounds, extra)
+	if converging && used > ceiling {
+		head += fmt.Sprintf(" Review vẫn đang giảm (%d→%d) nhưng đã chạm trần %d vòng sửa (2 × workflow.max_review_rounds%s).",
+			len(prev.Blocking()), len(blocking), ceiling, extra)
+	}
 	if stalled {
 		head = fmt.Sprintf("review không hội tụ: vòng review %d còn %d phát hiện nghiêm trọng, không giảm so với vòng review %d (%d) sau %d vòng sửa nên dừng thay vì sửa tiếp (còn %d vòng sửa trong workflow.max_review_rounds = %d).",
 			last.Round, len(blocking), prev.Round, len(prev.Blocking()), used-1, max(limit-(used-1), 0), r.Cfg.Workflow.MaxReviewRounds)
 	}
+	if red != nil { // vừa còn phát hiện nghiêm trọng vừa kiểm chứng đỏ: nêu cả kiểm chứng đỏ để người biết test nào đỏ
+		how := fmt.Sprintf("mã thoát %d", red.ExitCode)
+		if red.TimedOut {
+			how = "quá giờ"
+		}
+		head += fmt.Sprintf(" Kiểm chứng cuối cũng không qua (`%s`, %s, log %s).", red.Command, how, cmpStr(red.Log, "(không có)"))
+	}
+	r.blockExhausted(rs, head)
+	return false
+}
+
+// blockExhausted dừng tác vụ chờ người với ba lựa chọn (chấp nhận / sửa thêm một vòng / huỷ): đặt ReviewExhausted (nguồn của
+// choicesFor và điều kiện của --accept/--fix-round) rồi chặn với lý do head.
+func (r *Runner) blockExhausted(rs *runState, head string) {
+	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.ReviewExhausted = true; return nil }); err == nil {
+		rs.t = t
+	}
+	id := rs.t.State.ID
 	r.block(rs, fmt.Sprintf("%s Xem %s rồi chọn một: chấp nhận kết quả như hiện tại `%s`; cho sửa thêm một vòng `%s`; huỷ `bint task cancel %s`",
 		head, filepath.Join(filepath.Dir(rs.t.ArtifactPath("plan")), task.ReviewMD),
 		r.resumeWith(rs, "--accept"), r.resumeWith(rs, "--fix-round"), id))
-	return false
+}
+
+// reviewRedVerify áp quyết định khi review không còn phát hiện nghiêm trọng nhưng lần kiểm chứng cuối red không qua. Trong ngân sách vòng sửa
+// (workflow.max_review_rounds + vòng người cho thêm): mở vòng sửa (đường nhanh vòng 1 dùng đúng một vòng sửa như fastFix). Ngoài ngân sách:
+// dừng với ba lựa chọn, câu đầu nêu kiểm chứng đỏ (không dùng thông điệp "không hội tụ": 0 phát hiện không phải review đứng yên).
+func (r *Runner) reviewRedVerify(ctx context.Context, rs *runState, rv flow.Step, last *task.ReviewRound, red *task.Verification) bool {
+	used := r.redFixRounds(rs, last)
+	limit := r.fixLimit(rs)
+	fix := rs.reviewFixStep(rv)
+	how := fmt.Sprintf("mã thoát %d", red.ExitCode)
+	if red.TimedOut {
+		how = "quá giờ"
+	}
+	what := fmt.Sprintf("review vòng %d không còn phát hiện nghiêm trọng nhưng kiểm chứng cuối không qua (`%s`, %s, log %s)",
+		last.Round, red.Command, how, cmpStr(red.Log, "(không có)"))
+	if rs.fastPath() && last.Round == 1 && limit > 0 {
+		return r.fastFix(ctx, rs, fix, last, nil)
+	}
+	if used > limit {
+		r.blockExhausted(rs, fmt.Sprintf("%s; đã dùng hết vòng sửa (%d vòng sửa trong workflow.max_review_rounds = %d%s).", what, used-1, r.Cfg.Workflow.MaxReviewRounds,
+			extraRoundsNote(rs)))
+		return false
+	}
+	r.armReviewFix(ctx, rs, fix, true)
+	r.setFlowStep(rs, fix)
+	if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa vì %s (vòng sửa %d/%d)", what, used, limit)); err != nil {
+		r.fail(rs, rv.ID, err.Error())
+		return false
+	}
+	return true
+}
+
+// extraRoundsNote nêu số vòng người cho thêm (--fix-round) trong lý do hết vòng sửa; rỗng khi không có.
+func extraRoundsNote(rs *runState) string {
+	if n := rs.t.State.ExtraFixRounds; n > 0 {
+		return fmt.Sprintf(" + %d vòng người cho thêm", n)
+	}
+	return ""
+}
+
+// redFixReasonPrefix mở đầu lý do chuyển in_progress của vòng sửa mở vì kiểm chứng đỏ (reviewRedVerify): dùng để đếm các vòng đó.
+const redFixReasonPrefix = "sửa vì review vòng"
+
+// redFixRounds là số thứ tự vòng sửa sắp mở khi review sạch mà kiểm chứng đỏ (để so với ngân sách): flow một bước review là last.Round.
+// Flow nhiều bước review: mỗi bước thêm một vòng vào review.json dù sạch nên last.Round không đếm được vòng sửa; đếm các vòng review trước
+// có phát hiện nghiêm trọng (mỗi vòng là một lần quay về sửa) cộng các vòng sửa đã mở vì kiểm chứng đỏ (các vòng review của chúng sạch nên
+// không có trong số trước) cộng vòng này.
+func (r *Runner) redFixRounds(rs *runState, last *task.ReviewRound) int {
+	if rs.countKind(flow.KindReview) <= 1 {
+		return last.Round
+	}
+	n := 1
+	if rev, err := rs.t.LoadReview(); err == nil {
+		for _, rd := range rev.Rounds {
+			if rd.Round < last.Round && len(rd.Blocking()) > 0 {
+				n++
+			}
+		}
+	}
+	for _, tr := range rs.t.State.History {
+		if tr.To == task.StatusInProgress && strings.HasPrefix(tr.Reason, redFixReasonPrefix) {
+			n++
+		}
+	}
+	return n
 }
 
 // reviewStalled cho biết review không hội tụ: từ vòng 2, số phát hiện nghiêm trọng của vòng last không giảm so với vòng review
@@ -2046,6 +2199,11 @@ func (r *Runner) reviewRoundsUsed(rs *runState, last *task.ReviewRound) int {
 	n := 0
 	for _, rd := range rev.Rounds {
 		if rd.Round <= last.Round && len(rd.Blocking()) > 0 {
+			n++
+		}
+	}
+	for _, tr := range rs.t.State.History { // vòng sửa đã mở vì kiểm chứng đỏ dùng chung ngân sách
+		if tr.To == task.StatusInProgress && strings.HasPrefix(tr.Reason, redFixReasonPrefix) {
 			n++
 		}
 	}
@@ -2298,6 +2456,9 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) bool {
 	}
 	if err == nil {
 		r.logf("✓ Hoàn thành")
+		if n := phaseNote(rs.t, true); n != "" {
+			rs.res.Notes = append(rs.res.Notes, n)
+		}
 		return false
 	}
 	var nd *NotDoneError
@@ -2611,8 +2772,7 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 			"— Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định hoàn thành. Task ID cũng có trong biến BINT_TASK_ID.\n\n")
 	}
 	if t.State.Origin != "" {
-		fmt.Fprintf(&b, "Thư mục làm việc: %s — worktree riêng của tác vụ (nhánh %s), tách từ cây gốc %s. Chỉ sửa trong thư mục này; "+
-			"Bint đưa thay đổi về cây gốc khi tác vụ hoàn tất (bint task land), đừng sửa cây gốc.\n", r.Root, t.State.Branch, t.State.Origin)
+		b.WriteString(r.worktreeNote(t))
 		if session {
 			// Công cụ Agent không nhận thư mục làm việc: subagent bắt đầu ở thư mục của phiên cha.
 			// Tiền tố cd trích dẫn sẵn (hookcore.CdPrefix): đường dẫn có dấu cách (macOS) hoặc `\` (Windows) vẫn đúng cú pháp và
@@ -2648,11 +2808,17 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	}
 	switch stepDef.Kind {
 	case flow.KindImplement:
+		if c := t.State.Classification; c != nil && c.Fast {
+			if _, err := os.Stat(t.ArtifactPath("requirement")); err != nil {
+				b.WriteString(fastPrompt()) // đường nhanh, chưa có kế hoạch b-req
+			}
+		}
 		// Quyết định của người ở requirement.md (câu hỏi b-req đã trả lời): đưa nguyên văn vào đề bài, vì plan.md/tasks.md có
 		// thể chưa phản ánh hết và agent không nên phải đoán từ đường dẫn.
 		if qs := answeredFor(t); len(qs) > 0 {
 			fmt.Fprintf(&b, "\nCâu hỏi đã trả lời trong requirement.md (nguyên văn; đây là quyết định của người dùng, làm theo):\n%s\n", strings.Join(qs, "\n"))
 		}
+		b.WriteString(goalCheckBlock(t))
 		// Chạy lại sau khi bị chặn: tiêu chí còn unmet mang bằng chứng cũ; agent phải ghi lại.
 		b.WriteString(qaBlock(t.State.AnsweredQuestions(step)))
 		if u := unmetCriteriaBlock(t); u != "" {
@@ -2686,4 +2852,10 @@ func cmpStr(a, b string) string {
 		return a
 	}
 	return b
+}
+
+// worktreeNote là dòng nêu thư mục làm việc của tác vụ chạy trong worktree riêng (đề bài đầy đủ và lời nhắn nối tiếp b-req → b-feat).
+func (r *Runner) worktreeNote(t *task.Task) string {
+	return fmt.Sprintf("Thư mục làm việc: %s — worktree riêng của tác vụ (nhánh %s), tách từ cây gốc %s. Chỉ sửa trong thư mục này; "+
+		"Bint đưa thay đổi về cây gốc khi tác vụ hoàn tất (bint task land), đừng sửa cây gốc.\n", r.Root, t.State.Branch, t.State.Origin)
 }

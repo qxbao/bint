@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const goodReq = "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n"
+const goodReq = "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Ngoài phạm vi\nKhông có\n## Kiểm tra mục tiêu\nTestApp: cài app.txt giả rồi quét, đạt khi chứa v2\n## Câu hỏi mở\n"
 const goodTasks = "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: app.txt chứa v2\n"
 
 func goodTicket() Ticket {
@@ -341,5 +341,69 @@ func TestLintPlaceholderDottedIdentInACAndTSK(t *testing.T) {
 	tk.Verify.Criteria = []string{"limits.workflows.<flow> và `<x>` đọc được"}
 	if r := LintPlanningText(tk, d, true); hasCode(r.Errors, "placeholder_text") {
 		t.Fatalf("định danh có dấu chấm/code span không được bắt: %s", codes(r.Errors))
+	}
+}
+
+func TestGoalCheck(t *testing.T) {
+	cases := []struct {
+		name, req, want string
+	}{
+		{"có mục", goodReq, "TestApp: cài app.txt giả rồi quét, đạt khi chứa v2"},
+		{"thiếu mục", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: a\n", ""},
+		{"mục rỗng", "# Y\n## Kiểm tra mục tiêu\n  \n## Câu hỏi mở\n", ""},
+		{"chỉ trong code fence", "# Y\n```\n## Kiểm tra mục tiêu\nx\n```\n", ""},
+		{"heading ### con nằm trong mục", "# Y\n## Kiểm tra mục tiêu\n### Chuẩn bị\ncài dữ liệu giả\n## Câu hỏi mở\nq\n", "### Chuẩn bị\ncài dữ liệu giả"},
+		{"hậu tố mô tả vẫn là mục khác", "# Y\n## Kiểm tra mục tiêu (T2)\nx\n", ""},
+		{"CRLF", "# Y\r\n## Kiểm tra mục tiêu\r\nTestX\r\n", "TestX"},
+	}
+	for _, tc := range cases {
+		if got := GoalCheck(tc.req); got != tc.want {
+			t.Errorf("%s: GoalCheck = %q, muốn %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// goal_check_missing luôn là cảnh báo (không chặn), kể cả strict; có mục thì không cảnh báo.
+func TestLintPlanningGoalCheckMissingIsWarning(t *testing.T) {
+	d := goodDocs()
+	d["requirement"] = strings.Replace(goodReq, "## Kiểm tra mục tiêu\nTestApp: cài app.txt giả rồi quét, đạt khi chứa v2\n", "", 1)
+	for _, strict := range []bool{true, false} {
+		r := LintPlanningText(goodTicket(), d, strict)
+		if r.Blocking() || !hasCode(r.Warnings, "goal_check_missing") || hasCode(r.Errors, "goal_check_missing") {
+			t.Fatalf("strict=%v: phải chỉ cảnh báo goal_check_missing: %+v", strict, r)
+		}
+	}
+	d["requirement"] = strings.Replace(goodReq, "TestApp: cài app.txt giả rồi quét, đạt khi chứa v2", "   ", 1)
+	if r := LintPlanningText(goodTicket(), d, true); !hasCode(r.Warnings, "goal_check_missing") {
+		t.Fatalf("mục rỗng cũng phải cảnh báo: %+v", r)
+	}
+	if r := LintPlanningText(goodTicket(), goodDocs(), true); hasCode(r.Warnings, "goal_check_missing") {
+		t.Fatalf("có mục thì không cảnh báo: %+v", r)
+	}
+	// Thiếu requirement.md: lỗi artifact_missing, không thêm cảnh báo goal_check_missing.
+	d = goodDocs()
+	delete(d, "requirement")
+	if r := LintPlanningText(goodTicket(), d, true); hasCode(r.Warnings, "goal_check_missing") {
+		t.Fatalf("không có requirement thì không cảnh báo: %+v", r)
+	}
+}
+
+func TestPlanPhases(t *testing.T) {
+	cases := []struct {
+		name, plan string
+		want       []string
+	}{
+		{"không có mục", "# K\n## Hướng\n- G-1: x\n", nil},
+		{"mục không dòng G-N", "# K\n## Đề xuất tách giai đoạn\nKhông tách: một mục tiêu.\n", nil},
+		{"một dòng", "# K\n## Đề xuất tách giai đoạn\n- G-1: làm hết — phạm vi A\n", []string{"G-1: làm hết — phạm vi A"}},
+		{"ba dòng theo N, có [x]", "# K\n## Đề xuất tách giai đoạn\n- [x] G-1: a\n- G-3: c — phụ thuộc G-2\n* [ ] G-2: b\n", []string{"G-1: a", "G-2: b", "G-3: c — phụ thuộc G-2"}},
+		{"trong code fence bị bỏ", "# K\n## Đề xuất tách giai đoạn\n```\n- G-1: a\n- G-2: b\n```\n", nil},
+		{"ngoài mục không tính", "# K\n## Đề xuất tách giai đoạn\n- G-1: a\n## Rủi ro\n- G-2: b\n", []string{"G-1: a"}},
+	}
+	for _, tc := range cases {
+		got := PlanPhases(tc.plan)
+		if strings.Join(got, "|") != strings.Join(tc.want, "|") {
+			t.Errorf("%s: PlanPhases = %q, muốn %q", tc.name, got, tc.want)
+		}
 	}
 }

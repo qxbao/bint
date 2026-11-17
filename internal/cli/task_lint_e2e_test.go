@@ -77,7 +77,16 @@ func TestTaskLint(t *testing.T) {
 		t.Fatalf("câu hỏi mở: %d\n%s", code, out)
 	}
 	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n- [x] Q-1: giữ v1 không? — Trả lời: không\n")
-	if out, code := run(t, root, "", "task", "lint", id); code != 0 || !strings.Contains(out, "✓") {
+	// Thiếu mục `## Kiểm tra mục tiêu`: chỉ cảnh báo goal_check_missing, không chặn (kể cả --strict), thoát 0.
+	for _, extra := range [][]string{nil, {"--strict"}} {
+		out, code := run(t, root, "", append([]string{"task", "lint", id, "--json"}, extra...)...)
+		r = lintJSON{}
+		if code != 0 || json.Unmarshal(jsonPart(out), &r) != nil || len(r.Errors) != 0 || !strings.Contains(out, "goal_check_missing") {
+			t.Fatalf("thiếu kiểm tra mục tiêu chỉ cảnh báo %v: %d\n%s", extra, code, out)
+		}
+	}
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Kiểm tra mục tiêu\nTestApp: cài app.txt giả rồi quét, đạt khi chứa v2\n## Câu hỏi mở\n- [x] Q-1: giữ v1 không? — Trả lời: không\n")
+	if out, code := run(t, root, "", "task", "lint", id); code != 0 || !strings.Contains(out, "✓") || strings.Contains(out, "goal_check_missing") {
 		t.Fatalf("hợp lệ: %d\n%s", code, out)
 	}
 }

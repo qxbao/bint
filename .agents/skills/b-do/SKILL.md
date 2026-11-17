@@ -40,6 +40,12 @@ phán đoán của bạn.
    nhau): **hỏi người dùng trước khi lập phiếu** (một vài câu ngắn về kết quả mong muốn và phạm vi), hoặc lập phiếu
    với `--plan` để b-req đặt câu hỏi mở (vòng hỏi–đáp ở Bước 3). Đừng đoán rồi chạy `--no-plan`: việc nhỏ chỉ được
    `--no-plan` khi yêu cầu đã đủ rõ.
+   **Ngoại lệ — yêu cầu ngắn, mơ hồ, rủi ro thấp** (một hai câu ngắn, không tài liệu tham chiếu, không chạm đường dẫn bảo vệ, không
+   nói "mọi"/"toàn bộ"/nhiều nơi lưu; ví dụ "làm cho nó gọn gàng hơn"): lập phiếu **không kèm** `--plan`/`--no-plan`/`--depth` để
+   Bint tự chọn **đường nhanh** (JSON `classification.fast: true`, `classification.reason` nêu "đường nhanh"): một phiên b-feat
+   (tự viết kiểm tra mục tiêu trước khi sửa), kiểm chứng, một lượt b-review, tối đa một vòng sửa, không b-req. Kiểm
+   `classification.reason`; Bint không chọn đường nhanh (thấy rủi ro, quá dài, có tài liệu) thì theo phán đoán ở trên. Việc rộng hoặc
+   nhiều bề mặt vẫn hỏi người dùng hoặc `--plan`.
 2. Chọn đường đi:
    - việc nhỏ, rõ ràng (sửa chính tả, đổi tên, sửa lỗi đã chỉ rõ chỗ): `--no-plan`;
    - việc vừa (một tính năng/sửa lỗi gói gọn trong vài tệp): `--plan` (độ sâu `standard`);
@@ -300,7 +306,9 @@ Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task ap
   (`bint run resume <id> --accept`), cho sửa thêm đúng một vòng (`bint run resume <id> --fix-round`), hoặc huỷ
   (`bint task cancel <id>`); driver session dùng `bint run next <id> --resume --accept|--fix-round`. **Không tự chạy `--accept` hay
   `--fix-round`**: hai cờ này là quyết định của người dùng (Bint từ chối khi chạy trong phiên agent); `workflow.max_review_rounds` là số vòng
-  sửa tối đa.
+  sửa tối đa. `reason` nêu **kiểm chứng cuối không qua** (review không còn phát hiện nghiêm trọng nhưng test, thường là kiểm tra mục tiêu,
+  còn đỏ; hoặc đường nhanh: kiểm chứng sau vòng sửa duy nhất không qua) thì cũng ba lựa chọn đó: kể cho người dùng test nào đỏ (log trong `reason`);
+  `--fix-round` ở đường nhanh cho b-feat rồi b-review lại như thường.
 - **Artifact b-req lỗi cấu trúc** (`planning_issues`): sửa theo `bint task lint <id>` qua
   `bint task write`, hoặc chạy lại b-req (`bint run b-req --task <id> --json`).
 - **Lệnh kiểm chứng chưa có hoặc chưa xác nhận**: hỏi lệnh rồi `bint task set <id> --verify-command '…'`.
@@ -327,6 +335,11 @@ Tác vụ `worktree` báo thêm: worktree đã chạy ở đâu (`worktree`, `br
 **đã đưa về cây gốc chưa** (`landed`, `landed_files`), tệp xung đột còn phải gỡ (nếu có), và kiểm chứng đã
 chạy trên cây cô lập chứ không phải trên cây gốc. Muốn dọn bỏ tác vụ worktree dở thì
 `bint task cancel <id>` (còn thay đổi chưa đưa về thì chỉ người dùng `--discard` được).
+
+**Mục tiêu có thể chưa đạt đủ.** `notes` của kết quả có dòng chứa `mới xong 1/N giai đoạn` (plan.md chia N ≥ 2 giai đoạn `G-N`,
+phiếu này chỉ làm G-1) thì **mở đầu báo cáo bằng chính dòng đó, nguyên văn** (kèm các giai đoạn chưa làm và lệnh lập phiếu con
+Bint nêu), rồi đề nghị người dùng lập/chạy phiếu con theo Bước 1c. Không báo "xong" chung chung khi mục tiêu của người dùng
+chưa đạt hết; không tự lập hay chạy phiếu con khi người dùng chưa đồng ý.
 
 Kế hoạch nhiều giai đoạn (Bước 1c): báo phiếu cha, từng phiếu con kèm trạng thái, phiếu đã xong/còn lại và phiếu
 sẵn sàng kế tiếp (`bint task ready --parent <cha> --json`), phiếu nào dừng và vì sao.

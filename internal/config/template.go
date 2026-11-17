@@ -174,7 +174,8 @@ tasks:
   ledger: git               # nơi lưu phiếu tác vụ: git (bản chiếu bền ở .bint/tasks/<ID>/ trong cây làm việc, commit cùng mã, tự nhập sau git pull; Bint không tự commit) | local (chỉ thư mục trạng thái cục bộ)
 
 workflow:                   # workflow gốc do Bint điều phối (bint run)
-  max_review_rounds: 2      # số vòng sửa tối đa sau review của b-do (n vòng sửa = tối đa n+1 vòng review); hết vòng thì người chọn chấp nhận / sửa thêm một vòng / huỷ
+  max_review_rounds: 2      # số vòng sửa tối đa sau review của b-do (n vòng sửa = tối đa n+1 vòng review); hết vòng thì người chọn chấp nhận / sửa thêm một vòng / huỷ; review còn giảm số phát hiện nghiêm trọng thì sửa tiếp tới trần 2 lần số này, không giảm thì dừng
+  fast_path: true           # đường nhanh của b-do cho yêu cầu ngắn, mơ hồ, rủi ro thấp: bỏ b-req, một phiên b-feat, cổng kiểm chứng, một vòng review (còn lỗi nghiêm trọng thì một vòng sửa rồi xong, không review lại); false = luôn qua b-req
   timeout_minutes: 60       # mỗi bước agent
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree

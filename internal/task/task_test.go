@@ -586,3 +586,25 @@ func TestStepQuestionOpenAndAnswered(t *testing.T) {
 		t.Fatalf("answered: %+v", got)
 	}
 }
+
+// VagueShort chỉ đúng cho nhánh "yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí cụ thể" (ứng viên của đường nhanh).
+func TestClassifyVagueShortMarker(t *testing.T) {
+	cases := []struct {
+		req  string
+		refs []string
+		want bool
+	}{
+		{"Làm cho nó gọn gàng hơn một chút", nil, true},
+		{"tự dọn bớt mấy thứ cũ đi", nil, true},
+		{"Làm cho nó gọn gàng hơn một chút", []string{"docs/plan.md"}, false}, // có tài liệu tham chiếu
+		{"Thêm tính năng phiên bản v2 cho app.txt", nil, false},               // từ khoá kế hoạch
+		{"Sửa lỗi nil trong parseTicket", nil, false},                         // có mỏ neo: bỏ b-req, không phải mơ hồ
+		{"Sửa lỗi chính tả trong README", nil, false},                         // việc nhỏ
+		{strings.Repeat("làm cho gọn hơn ", 20), nil, false},                  // dài
+	}
+	for _, tc := range cases {
+		if got := Classify(tc.req, tc.refs...).VagueShort(); got != tc.want {
+			t.Errorf("Classify(%q, %v).VagueShort() = %v, muốn %v", tc.req, tc.refs, got, tc.want)
+		}
+	}
+}

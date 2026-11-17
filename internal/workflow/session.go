@@ -547,7 +547,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			return stop()
 		}
 	}
-	for guard := 0; guard < rs.loopGuard(r.fixLimit(rs)); guard++ {
+	for guard := 0; guard < rs.loopGuard(r.fixCeiling(rs)); guard++ {
 		if ctx.Err() != nil {
 			r.interrupt(rs, "người dùng huỷ")
 			return stop()
@@ -594,7 +594,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			return a, nil
 		}
 		last := rs.t.State.LastStep // grantPending xoá LastStep: chụp trước để dựng lời nhắn nối tiếp
-		dec := r.decideContinuation(ctx, rs, step, o.Fresh, ViaSubagent, "")
+		dec := r.decideContinuation(ctx, rs, step, o.Fresh, ViaSubagent, "", "")
 		if pre != nil && pre.Step == step {
 			dec = *pre
 		}

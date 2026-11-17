@@ -201,8 +201,10 @@ func walkLines(lines []string, fn func(i int, section string, line string), head
 }
 
 const (
-	secAC = "tiêu chí chấp nhận"
-	secQ  = "câu hỏi mở"
+	secAC    = "tiêu chí chấp nhận"
+	secQ     = "câu hỏi mở"
+	secGoal  = "kiểm tra mục tiêu"
+	secPhase = "đề xuất tách giai đoạn"
 )
 
 // LintPlanningText kiểm ba artifact (key requirement|plan|tasks; thiếu key = thiếu tệp)
@@ -286,7 +288,57 @@ func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]e
 		b.r.Warnings = append(b.r.Warnings, b.r.Errors...)
 		b.r.Errors = []ArtifactIssue{}
 	}
+	// Luôn là cảnh báo (kể cả strict): phiếu cũ và việc nhỏ không bị chặn, nhưng planner bỏ mục thì thấy ngay (GĐ2 nhóm 2).
+	if usable["requirement"] && GoalCheck(docs["requirement"]) == "" {
+		b.r.Warnings = append(b.r.Warnings, ArtifactIssue{Code: "goal_check_missing", Artifact: artReq,
+			Detail: "requirement.md thiếu mục `## Kiểm tra mục tiêu` (hoặc mục rỗng): mô tả một kiểm tra chạy được suy từ mục tiêu người dùng và từng nhóm của `## Bề mặt bị ảnh hưởng`, kèm một AC cho kiểm tra đó"})
+	}
 	return b.r
+}
+
+// GoalCheck trả thân mục `## Kiểm tra mục tiêu` của requirement.md (đã cắt khoảng trắng hai đầu; ngoài code fence, gồm cả heading
+// `###` con); rỗng khi thiếu mục hoặc mục không có nội dung. Cùng bộ duyệt dòng/fence với lint.
+func GoalCheck(requirement string) string {
+	lines := strings.Split(strings.ReplaceAll(requirement, "\r\n", "\n"), "\n")
+	var out []string
+	walkLines(lines, func(i int, section, _ string) {
+		if section == secGoal {
+			out = append(out, strings.TrimRight(lines[i], " \t\r"))
+		}
+	}, nil)
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+var planPhaseRe = regexp.MustCompile(`^\s*[-*+]\s+(?:\[[ xX]\]\s+)?G-(\d+)\s*:\s*(.*\S)\s*$`)
+
+// PlanPhases trả các giai đoạn của plan.md: dòng `- G-N: …` (cho phép `[ ]`/`[x]` trước G-N) dưới `## Đề xuất tách giai đoạn`, ngoài
+// code fence, sắp theo N tăng dần; mỗi phần tử có dạng "G-N: …". Không có mục hoặc không có dòng G-N thì nil (plan cũ).
+func PlanPhases(plan string) []string {
+	type ph struct {
+		n    int
+		text string
+	}
+	var phases []ph
+	scanLines(plan, func(section, line string) {
+		if section != secPhase {
+			return
+		}
+		m := planPhaseRe.FindStringSubmatch(line)
+		if m == nil {
+			return
+		}
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			return
+		}
+		phases = append(phases, ph{n, fmt.Sprintf("G-%d: %s", n, m[2])})
+	})
+	sort.SliceStable(phases, func(i, j int) bool { return phases[i].n < phases[j].n })
+	out := make([]string, len(phases))
+	for i, p := range phases {
+		out[i] = p.text
+	}
+	return out
 }
 
 func lintRequirement(b *reportBuilder, text string) []acItem {

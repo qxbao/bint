@@ -59,14 +59,20 @@ bint context --paths <các tệp trong diff>
 
 ## Bước 3 — Kiểm tra
 
-0. **Tìm chỗ bị bỏ sót trong phạm vi AC của kế hoạch, không chỉ lỗi trong phần đã sửa.** Đối chiếu yêu cầu gốc, từng tiêu
-   chí chấp nhận và từng dòng của `## Bề mặt bị ảnh hưởng` (plan.md) với diff: nơi nào một **AC** (hoặc dòng bề mặt gắn
-   AC) nói tới mà diff **không đụng tới** (ví dụ log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`, SQLite; hay một
-   loại dữ liệu trong state dir)? Đọc mã **ngoài diff** để xác minh nơi đó còn xử lý hay chưa (grep đường đi của dữ liệu).
-   AC chưa đạt vì thiếu một bề mặt là phát hiện `bug` hoặc `risk` mức `high`: ghi `path` là **tệp ngoài diff** chưa được
-   xử lý, `criterion` là số tiêu chí liên quan, `evidence` là lệnh/dòng mã chứng minh dữ liệu vẫn đi qua đó. Tiêu chí bị
-   bỏ trống (không có thay đổi nào tương ứng) cũng là phát hiện. Bề mặt **ngoài kế hoạch hoặc ngoài mọi AC** (kể cả dòng đã
-   ghi "ngoài phạm vi") chỉ là `low`/ghi chú, không `high`, dù đúng là còn sót; đừng nâng mức vì "có thể còn sót thêm".
+0. **Chấm theo MỤC TIÊU của người dùng, không chỉ theo kế hoạch của agent; tìm chỗ bị bỏ sót, không chỉ lỗi trong phần đã sửa.**
+   Nguồn đối chiếu theo thứ tự: yêu cầu gốc của người dùng và mục `## Kiểm tra mục tiêu` của `requirement.md` (đề bài dưới
+   `bint run` chép sẵn), rồi từng tiêu chí chấp nhận, rồi từng dòng của `## Bề mặt bị ảnh hưởng` (plan.md). Nơi nào mục tiêu,
+   một **AC** hay dòng bề mặt nói tới mà diff **không đụng tới** (ví dụ log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`,
+   SQLite; hay một loại dữ liệu trong state dir)? Đọc mã **ngoài diff** để xác minh nơi đó còn xử lý hay chưa (grep đường đi của
+   dữ liệu). Kiểm test mục tiêu mà b-feat viết có **đúng đặc tả** (đủ đường nhập, quét đủ nơi lưu, không bị nới cho dễ qua). Nếu
+   đề bài nêu kiểm chứng cuối **không qua**, đọc log và ghi một phát hiện `high` cho nguyên nhân.
+   - Chỗ sót mà **kiểm tra mục tiêu hoặc bằng chứng cụ thể** (lần theo dữ liệu tới tệp:dòng còn thô, lệnh tái hiện, test mục tiêu
+     đỏ) cho thấy mục tiêu người dùng chưa đạt là phát hiện `bug` hoặc `risk` mức `high`, **kể cả khi nằm ngoài kế hoạch** hay
+     trong dòng đã ghi "ngoài phạm vi" của plan: ghi `path` là **tệp ngoài diff** chưa được xử lý, `criterion` là số tiêu chí của
+     kiểm tra mục tiêu (hoặc tiêu chí gần nhất), `evidence` là lệnh/dòng mã chứng minh dữ liệu vẫn đi qua đó. Tiêu chí bị bỏ trống
+     (không có thay đổi nào tương ứng) cũng là phát hiện.
+   - Chỉ giữ `low`/ghi chú cho chỗ sót **ngoài mục tiêu** của người dùng, hoặc suy đoán "có thể còn sót thêm" **không có bằng
+     chứng**; đừng nâng mức vì suy đoán.
 1. Tính đúng đắn và nghiệp vụ; đối chiếu từng tiêu chí chấp nhận.
 2. Kiến trúc, bảo mật, hiệu năng.
 3. Kiểm thử: có bao phủ thay đổi không, có lỗi hồi quy không, thay đổi có vượt phạm vi
@@ -83,7 +89,7 @@ Phân biệt rõ:
 - `risk` — rủi ro có căn cứ nhưng chưa chứng minh được là sai;
 - `suggestion` — đề xuất cải thiện.
 
-Mức độ: `critical` | `high` | `medium` | `low`. `critical`/`high` dành cho AC chưa đạt, hồi quy và lỗi đúng đắn thực
+Mức độ: `critical` | `high` | `medium` | `low`. `critical`/`high` dành cho mục tiêu người dùng hoặc AC chưa đạt, hồi quy và lỗi đúng đắn thực
 sự (chỉ ra được đầu vào/trạng thái gây sai) trong mã đã sửa, luôn kèm bằng chứng cụ thể.
 
 ## Bước 4 — Ghi phát hiện

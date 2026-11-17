@@ -638,8 +638,10 @@ func TestProcessRequirementQuestionLoopResume(t *testing.T) {
 		t.Fatalf("hết câu hỏi phải đi tiếp b-feat: %s %v", res3.Status, h.calls)
 	}
 	f := lastReq(h, StepFeat)
-	if f.ResumeSessionID != "" || !strings.Contains(f.Prompt, strings.TrimSpace(answeredQ)) || !strings.Contains(f.Prompt, strings.TrimSpace(answeredQ2)) {
-		t.Fatalf("b-feat chạy mới với các dòng Q đã trả lời: %+v", f)
+	// b-feat đầu tiên nối tiếp chính phiên planner (plan_handoff) và mang các dòng Q đã trả lời trong kế hoạch rút gọn.
+	if f.ResumeSessionID != planner || !strings.Contains(f.Prompt, strings.TrimSpace(answeredQ)) || !strings.Contains(f.Prompt, strings.TrimSpace(answeredQ2)) ||
+		strings.Contains(f.Prompt, "Phiếu tác vụ (task.yml)") {
+		t.Fatalf("b-feat nối tiếp phiên planner với các dòng Q đã trả lời: %+v", f)
 	}
 }
 

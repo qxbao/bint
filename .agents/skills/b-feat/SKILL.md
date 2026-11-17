@@ -63,6 +63,10 @@ bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
 
 - Chỉ sửa trong phạm vi `scope.allow` của phiếu; **không** chạm `scope.deny`. Đường dẫn
   được bảo vệ (`limits.protected_paths`) cần người duyệt — nếu buộc phải sửa, nói rõ lý do.
+- **Kiểm tra mục tiêu trước.** Nếu `requirement.md` có mục `## Kiểm tra mục tiêu` (đề bài dưới `bint run` chép nguyên văn nó), hoặc
+  đề bài đường nhanh dặn: viết nó thành **test tự động** nằm trong bộ test mà `verify.command` của phiếu chạy, **trước khi sửa**
+  (đỏ lúc này là bình thường). Test đo MỤC TIÊU của người dùng (cài dữ liệu giả vào mọi đường nhập, quét/đo mọi nơi lưu liên
+  quan), không chỉ phần bạn định sửa. Chạy riêng test này sau mỗi nhóm sửa; còn đỏ thì sửa tiếp. Không nới hay xoá test cho dễ qua.
 - Làm theo từng nhóm thay đổi nhỏ; sau mỗi nhóm chạy kiểm thử phù hợp.
 - Tự làm tuần tự trong phiên này; **không sinh agent con** để chia việc (mỗi con nạp lại ngữ cảnh, tốn token gấp bội).
 - Thao tác có nguy cơ mất dữ liệu (xoá, ghi đè, migration, `git reset`/`push`) phải được
@@ -91,6 +95,11 @@ cụ thể (lệnh + kết quả, tệp:dòng):
 bint task criteria <id> 1 met --evidence "go test ./internal/db/... qua 5 lần với -count=5"
 bint task criteria <id> 2 unmet --evidence "chưa xử lý trường hợp …"
 ```
+
+**Không kết thúc khi kiểm tra mục tiêu còn đỏ.** Hết cách sau khi đã thử thì ghi tiêu chí của kiểm tra mục tiêu là `unmet` kèm
+đầu ra của test (`bint task criteria <id> <số> unmet --evidence "<lệnh + đầu ra>"`) và nói rõ trong báo cáo; đừng ghi `met` hay
+báo xong. Bint cũng chạy lại `verify.command` sau bước này: còn đỏ thì mở vòng sửa (trong `workflow.max_review_rounds`) hoặc dừng
+chờ người, kể cả khi review không còn phát hiện nghiêm trọng.
 
 Không đánh dấu `met` khi chưa có bằng chứng. Đây là tự đánh giá (tín hiệu trung bình);
 lệnh kiểm chứng đã được người xác nhận mới là bằng chứng mạnh.

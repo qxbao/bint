@@ -216,6 +216,9 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	case planning && !cls.Plan && assess.Risk == "high" && (o.Plan == nil || !e.Human):
 		cls = protectedPlan(assess.Protected, o.Plan != nil)
 	}
+	if fastEligible(e.Cfg.Workflow.FastPath, o.Workflow, fd.IsBuiltin(), cls, o.Plan, depth, assess.Risk) {
+		cls.Plan, cls.Fast, cls.Reason = false, true, fastReason
+	}
 	if planning && cls.Plan {
 		if depth != "" {
 			cls.Depth, cls.DepthReason = depth, task.DepthReasonUser
@@ -393,6 +396,7 @@ func (e *Env) SetTicketSynced(ref string, ed TicketEdit) (*task.Task, task.Asses
 		if err := ed.apply(&t.Ticket); err != nil {
 			return err
 		}
+		e.dropFastIfProtected(t)
 		return e.syncCriteria(t, before, &sync)
 	})
 	if err != nil {

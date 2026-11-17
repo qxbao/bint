@@ -69,10 +69,15 @@ và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ả
   phiếu cha và của các phụ thuộc đã `done` trước khi lập kế hoạch, rồi **chỉ lập kế hoạch cho giai đoạn của phiếu
   này**. Không lặp lại phần việc của giai đoạn khác; phần thuộc giai đoạn khác ghi vào "Ngoài phạm vi".
 - **Yêu cầu quá lớn cho một phiếu** (nhiều giai đoạn giao được riêng, vượt `limits`, giai đoạn sau cần kết quả giai
-  đoạn trước): thêm vào `plan.md` mục `## Đề xuất tách giai đoạn` — mỗi giai đoạn một dòng gồm mục tiêu, phạm vi
-  (`--allow`) và phụ thuộc vào giai đoạn nào — kèm lệnh gợi ý, ví dụ
-  `bint task new "<giai đoạn 2>" --parent <id> --depends-on <id giai đoạn 1>`. Rồi chỉ lập kế hoạch chi tiết cho
-  giai đoạn đầu.
+  đoạn trước): thêm vào `plan.md` mục `## Đề xuất tách giai đoạn` — **mỗi giai đoạn đúng một dòng** dạng
+  `- G-N: <mục tiêu> — <phạm vi (--allow)> — <phụ thuộc giai đoạn nào>` (`G-1` là phiếu này; Bint đọc các dòng `G-N` này) —
+  kèm lệnh gợi ý, ví dụ `bint task new "<giai đoạn 2>" --parent <id> --depends-on <id giai đoạn 1>`. Rồi chỉ lập kế hoạch
+  chi tiết cho giai đoạn đầu. Từ hai dòng `G-N`, Bint ghi thẳng vào kết quả cuối `mới xong 1/N giai đoạn` kèm phần chưa làm:
+  người dùng sẽ thấy mục tiêu của họ **chưa đạt đủ**.
+- **Không tự cắt phạm vi.** Chỉ tách khi người dùng đã tự chia giai đoạn, hoặc phần sau là việc khác có giá trị riêng. Khi mục
+  tiêu của người dùng là **toàn bộ** ("không nơi nào lưu bí mật", "dọn mọi dữ liệu cũ") thì **cấm tách giai đoạn chỉ vì ngân
+  sách AC/TSK** hay vì "bề mặt còn nhiều": mọi nhóm bề mặt nằm trong AC của phiếu này (gộp theo nhóm, xem "Ngân sách") và
+  kiểm tra mục tiêu phải đạt ngay trong phiếu này.
 - **Dưới `bint run` (biến `BINT_RUN_ID` có giá trị) không tự lập phiếu con**: chỉ đề xuất trong `plan.md`; người
   dùng hoặc b-do quyết định lập. Chạy tay ngoài `bint run` thì hỏi người dùng trước khi chạy `bint task new`.
 
@@ -82,8 +87,9 @@ Người dùng thường mô tả mục đích ("sợ lộ mật khẩu", "thư 
 theo **mục đích**, nhưng chọn **bản nhỏ nhất vẫn đạt mục đích**: mỗi bề mặt hay hạng mục thêm vào phải gắn với lời người dùng
 hoặc một rủi ro cụ thể. Kế hoạch càng phình thì diff càng lớn và lỗi mới càng nhiều.
 
-- **Ngân sách**: yêu cầu mơ hồ hoặc rộng thì giai đoạn đầu khoảng ≤ 5 `AC` và ≤ 5 `TSK`; phần còn lại vào
-  `## Đề xuất tách giai đoạn`.
+- **Ngân sách**: yêu cầu mơ hồ hoặc rộng thì khoảng ≤ 5 `AC` và ≤ 5 `TSK`. Ngân sách là để **gộp** bề mặt theo nhóm (một AC
+  phủ cả nhóm, một TSK phủ nhiều nơi cùng kiểu), **không để cắt mục tiêu**: chỉ phần việc khác có giá trị riêng mới vào
+  `## Đề xuất tách giai đoạn` (xem "Yêu cầu lớn và phiếu con").
 - **`## Bề mặt bị ảnh hưởng`** trong `plan.md` (bắt buộc, cả `standard` lẫn `deep`): lần theo từng nơi dữ liệu hoặc hành vi
   đi qua (ghi, lưu, hiển thị, xuất, sao chép) rồi **gộp theo nhóm**, khoảng ≤ 8–10 dòng, mỗi dòng một nhóm kèm vài ví dụ.
   Mỗi nhóm gắn một `AC-N` kiểm được **hoặc** vào `## Ngoài phạm vi` với lý do nằm ngoài phạm vi và **hậu quả người dùng
@@ -101,6 +107,27 @@ hoặc một rủi ro cụ thể. Kế hoạch càng phình thì diff càng lớ
   chưa lập kế hoạch đầy đủ: ghi bản phác hợp lệ (≥ 1 `AC`, `plan.md` vài dòng, ≥ 1 `TSK`) rồi dừng. Bint chuyển tác vụ sang
   chờ người (không treo); người trả lời xong thì nối tiếp phiên này để lập kế hoạch đầy đủ. Điều đã nói rõ hoặc đã có câu
   trả lời trong đề bài thì không hỏi lại.
+
+## Kiểm tra mục tiêu (mọi mức phân tích)
+
+Kế hoạch của bạn có thể đủ AC mà vẫn bỏ sót điều người dùng cần. Vì vậy `requirement.md` **bắt buộc** có mục
+`## Kiểm tra mục tiêu` (cấp 2): mô tả **một kiểm tra chạy được** đo MỤC TIÊU của người dùng, suy từ cả lời họ lẫn **từng nhóm**
+của `## Bề mặt bị ảnh hưởng` (mỗi nhóm có ít nhất một đường nhập được cài dữ liệu giả hoặc một điểm đo). Gồm:
+
+- **Chuẩn bị**: dữ liệu giả cài vào mọi đường nhập/nơi lưu theo từng nhóm bề mặt;
+- **Hành động**: thao tác của người dùng hoặc của Bint cần chạy;
+- **Quét/đo**: chỗ phải quét hoặc đo sau hành động (toàn bộ nơi lưu, không chỉ phần định sửa);
+- **Điều kiện đạt**: kết quả đo được, báo rõ từng chỗ còn sót;
+- **Tên test và tệp dự kiến**: b-feat sẽ viết thành test tự động nằm trong bộ test mà `verify.command` chạy (b-req chỉ đọc, không
+  viết được mã; Bint không chạy lệnh agent đề xuất khi chưa có người xác nhận).
+
+Ví dụ: *không lưu bí mật* — cài bí mật giả có dấu dễ grep vào mọi đường nhập (mô tả phiếu, tiêu chí, lệnh kiểm chứng, đầu ra
+agent, log, hook), chạy lại luồng rồi quét toàn bộ state dir và repo, báo từng tệp còn thô. *Dọn dữ liệu cũ* — dựng dữ liệu cũ
+giả mỗi loại trong state dir, kiểm preview liệt kê đủ và clean giải phóng dung lượng đo được, không đụng việc đang dở.
+
+Thêm **đúng một AC** cho kiểm tra này ("kiểm tra mục tiêu `<tên test>` xanh") vào phiếu và `requirement.md`, cùng một `TSK` phủ
+nó. Việc thuần nội bộ không có hành vi quan sát được thì vẫn giữ mục, ghi lý do ngắn không có kiểm tra chạy được. Thiếu mục này,
+`bint task lint` cảnh báo `goal_check_missing` (không chặn) và b-review chấm theo mục tiêu mà không có đặc tả để đối chiếu.
 
 ## Độ sâu phân tích
 
@@ -142,6 +169,9 @@ bint task write <id> requirement - <<'EOF'
 ## Tiêu chí chấp nhận
 - [ ] AC-1: <đúng nội dung tiêu chí thứ 1 trong phiếu>
 - [ ] AC-2: <đúng nội dung tiêu chí thứ 2>
+- [ ] AC-3: <kiểm tra mục tiêu (tên test) xanh>
+## Kiểm tra mục tiêu
+Chuẩn bị / Hành động / Quét-đo / Điều kiện đạt / Tên test và tệp dự kiến (xem mục "Kiểm tra mục tiêu").
 ## Ngoài phạm vi
 ## Câu hỏi mở
 - [ ] Q-1: <câu hỏi thực sự cản trở triển khai>
@@ -164,7 +194,8 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
 <!-- bint:anchor plan-template -->
 `plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Bề mặt bị ảnh hưởng`
 (theo nhóm, ≤ 8–10 dòng, mỗi nhóm một AC hoặc lý do ngoài phạm vi), `## Giả định thay người dùng`, rủi ro,
-chiến lược kiểm thử. `tasks.md`: danh sách `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`.
+chiến lược kiểm thử (gồm kiểm tra mục tiêu của `requirement.md`), `## Đề xuất tách giai đoạn` khi thật sự tách (mỗi giai đoạn
+một dòng `- G-N: …`). `tasks.md`: danh sách `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`.
 <!-- bint:anchor-end plan-template -->
 
 Kiểm lại bất cứ lúc nào: `bint task lint <id>` (mã lỗi ổn định, thoát 1 khi có lỗi hoặc câu hỏi mở).

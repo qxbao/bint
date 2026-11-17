@@ -69,8 +69,12 @@ Giới hạn:
     tổng của mọi bước. Agent không báo chi phí thì giới hạn chi phí chỉ là chỉ dẫn.
   - Tệp đã sửa chạm limits.protected_paths hoặc scope.deny (và ngoài scope.allow khi
     autonomy ask_always) cần người duyệt: có terminal thì hỏi, không thì tác vụ chuyển blocked.
-  - workflow.max_review_rounds: số vòng sửa tối đa sau review (n vòng sửa ⇒ tối đa n+1 vòng review). Hết vòng mà còn phát hiện
+  - workflow.max_review_rounds: số vòng sửa tối đa sau review (n vòng sửa ⇒ tối đa n+1 vòng review). Review còn đang giảm số phát hiện
+    nghiêm trọng thì sửa tiếp ngoài n tới trần 2n (+ vòng --fix-round); không giảm thì dừng ngay. Hết vòng mà còn phát hiện
     nghiêm trọng thì tác vụ blocked và in ba lựa chọn: bint run resume <id> --accept | --fix-round, hoặc bint task cancel <id>.
+  - workflow.fast_path (mặc định bật): yêu cầu ngắn, mơ hồ, rủi ro thấp của b-do đi đường nhanh: không b-req, một phiên b-feat,
+    kiểm chứng, một vòng b-review (còn phát hiện nghiêm trọng thì một vòng sửa rồi xong, không review lại). --plan/--no-plan/--depth
+    hoặc workflow.fast_path: false đi đường đầy đủ.
   - Bước b-feat không đổi tệp nào (hoặc hỏi người bằng bint task error --question) thì tác vụ blocked chờ người, không kiểm chứng,
     không review, không done; trả lời bằng bint run resume <id> --answer "<nội dung>".
   - Lệnh kiểm chứng chỉ chạy khi người đã xác nhận (bint task approve).

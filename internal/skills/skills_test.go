@@ -150,11 +150,71 @@ func TestCoreSkillBReviewFindsOmissions(t *testing.T) {
 	body := strings.Join(strings.Fields(s.Body()), " ") // gộp xuống dòng để cụm từ không phụ thuộc cách ngắt dòng
 	for _, want := range []string{
 		"yêu cầu gốc", "Bề mặt bị ảnh hưởng", "bỏ sót", "ngoài diff", "`criterion`", "tệp ngoài diff",
-		// Benchmark lần 3: bề mặt ngoài AC chỉ là low; high dành cho AC chưa đạt/hồi quy/lỗi đúng đắn; có điều kiện dừng.
-		"ngoài kế hoạch hoặc ngoài mọi AC", "chỉ là `low`", "AC chưa đạt, hồi quy", "KHÔNG HỘI TỤ", "không giảm", "Bint tự dừng",
+		// GĐ2 nhóm 2: chấm theo MỤC TIÊU người dùng; high cho chỗ sót có bằng chứng kể cả ngoài kế hoạch, low chỉ cho ngoài mục tiêu/suy đoán;
+		// high cũng dành cho AC chưa đạt/hồi quy/lỗi đúng đắn; có điều kiện dừng.
+		"MỤC TIÊU của người dùng", "## Kiểm tra mục tiêu", "kể cả khi nằm ngoài kế hoạch", "Chỉ giữ `low`", "suy đoán",
+		"kiểm chứng cuối", "không bị nới", "AC chưa đạt, hồi quy", "KHÔNG HỘI TỤ", "không giảm", "Bint tự dừng",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("b-review thiếu %q", want)
+		}
+	}
+	// Luật cũ (benchmark lần 3) hạ chỗ sót ngoài kế hoạch thành low dù kiểm tra mục tiêu bắt được: đã bỏ.
+	for _, not := range []string{"ngoài kế hoạch hoặc ngoài mọi AC", "chỉ là `low`/ghi chú, không `high`"} {
+		if strings.Contains(body, not) {
+			t.Errorf("b-review còn luật cũ %q", not)
+		}
+	}
+}
+
+// GĐ2 nhóm 2: b-req sinh kiểm tra mục tiêu, không tự cắt phạm vi, mỗi giai đoạn một dòng G-N.
+func TestCoreSkillBReqGoalCheckAndNoScopeCut(t *testing.T) {
+	s, _ := Get("b-req")
+	flat := strings.Join(strings.Fields(s.Body()), " ")
+	for _, want := range []string{
+		"## Kiểm tra mục tiêu", "một kiểm tra chạy được", "từng nhóm", "Chuẩn bị", "Hành động", "Quét/đo", "Điều kiện đạt", "Tên test",
+		"bí mật giả", "Dọn dữ liệu cũ", "preview liệt kê đủ", "giải phóng dung lượng", "đúng một AC", "goal_check_missing",
+		"bộ test mà `verify.command` chạy",
+		"Không tự cắt phạm vi", "cấm tách giai đoạn chỉ vì ngân sách AC/TSK", "toàn bộ", "`- G-N:", "`G-1` là phiếu này", "mới xong 1/N giai đoạn",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+	// Mục kiểm tra mục tiêu đứng trước phần độ sâu (áp mọi mức) và có trong khuôn requirement.md.
+	body := s.Body()
+	if i, j := strings.Index(body, "## Kiểm tra mục tiêu (mọi mức phân tích)"), strings.Index(body, "## Độ sâu phân tích"); i < 0 || j < 0 || i > j {
+		t.Errorf("mục kiểm tra mục tiêu phải đứng trước phần độ sâu (%d, %d)", i, j)
+	}
+	if !strings.Contains(body[strings.Index(body, "bint task write <id> requirement"):], "## Kiểm tra mục tiêu") {
+		t.Error("khuôn requirement.md phải có mục ## Kiểm tra mục tiêu")
+	}
+}
+
+// GĐ2 nhóm 2: b-feat viết kiểm tra mục tiêu thành test tự động trước khi sửa và không kết thúc khi còn đỏ.
+func TestCoreSkillBFeatRunsGoalCheckUntilGreen(t *testing.T) {
+	s, _ := Get("b-feat")
+	flat := strings.Join(strings.Fields(s.Body()), " ")
+	for _, want := range []string{
+		"Kiểm tra mục tiêu trước", "`## Kiểm tra mục tiêu`", "test tự động", "bộ test mà `verify.command` của phiếu chạy", "trước khi sửa",
+		"sau mỗi nhóm sửa", "Không nới", "Không kết thúc khi kiểm tra mục tiêu còn đỏ", "`unmet`", "đầu ra của test", "workflow.max_review_rounds",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-feat thiếu %q", want)
+		}
+	}
+}
+
+// GĐ1 nhóm 2 (finding .2) và GĐ2 nhóm 2: b-do lập phiếu không cờ cho yêu cầu ngắn mơ hồ rủi ro thấp, báo "mới xong 1/N giai đoạn" nguyên văn.
+func TestCoreSkillBDoFastPathAndPhaseReport(t *testing.T) {
+	s, _ := Get("b-do")
+	flat := strings.Join(strings.Fields(s.Body()), " ")
+	for _, want := range []string{
+		"yêu cầu ngắn, mơ hồ, rủi ro thấp", "**không kèm** `--plan`/`--no-plan`/`--depth`", "đường nhanh", "classification.fast",
+		"mới xong 1/N giai đoạn", "nguyên văn", "Bước 1c", "kiểm chứng cuối không qua",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-do thiếu %q", want)
 		}
 	}
 }
