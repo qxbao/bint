@@ -450,10 +450,13 @@ phiếu con theo Bước 1c; Bint không tự lập hay chạy phiếu con (cầ
 
 **Nối tiếp phiên `b-req` → `b-feat` (driver process).** `b-req` kết thúc bình thường (không dừng chờ người) thì Bint ghi `last_plan`
 (phiên, dấu vân tay cây, model); `b-feat` **đầu tiên** của tác vụ nối tiếp phiên đó (lớp dừng `plan_handoff`, `claude --resume` /
-`codex exec resume`) khi **cùng harness, model và profile `bint iso`, cây làm việc không đổi, phiên còn trên đĩa** và không `--fresh`.
+`codex exec resume`) khi **cùng harness và profile `bint iso`, cây làm việc không đổi, phiên còn trên đĩa** và không `--fresh`. **Khác model vẫn nối tiếp** với
+claude và codex (đã kiểm thật: `claude -p --model sonnet --resume <id>` trên phiên mở bằng opus; `codex exec -m gpt-6-luna … resume <id> -` trên phiên
+mở bằng gpt-6-astra; xem `NT-CONT-CLAUDE-MODEL`, `NT-CONT-CODEX-MODEL` ở `docs/acceptance.md`): ngữ cảnh được giữ, cache prompt mất ở lượt đầu
+sau khi đổi model nên `notes` có thêm một dòng nêu model cũ → mới và việc cache được dựng lại. Harness khác chưa kiểm thì khác model vẫn chạy đề bài đầy đủ.
 Lời nhắn nối tiếp gồm thân skill `b-feat` (gốc + lớp phủ), thư mục làm việc/đường dẫn bảo vệ và **kế hoạch rút gọn** — các dòng `AC-N` của
 `requirement.md`, các dòng `TSK-N` của `tasks.md`, câu hỏi đã trả lời, đường dẫn tài liệu để tra `plan.md` khi cần — và **không chép lại
-`task.yml` lẫn khối tri thức** mà phiên đã nạp ở `b-req`. Usage của `b-feat` chỉ tính phần tăng thêm so với `b-req`. Khác harness/model/profile,
+`task.yml` lẫn khối tri thức** mà phiên đã nạp ở `b-req`. Usage của `b-feat` chỉ tính phần tăng thêm so với `b-req`. Khác harness/profile,
 mất phiên, cây đổi hoặc `--fresh` thì `b-feat` chạy đề bài đầy đủ như cũ, lý do ghi vào `notes`. Chưa áp cho driver session: subagent
 `bint-planner` chỉ có công cụ đọc nên không làm implementer qua SendMessage (b-feat ở session vẫn nạp lại ngữ cảnh). Giả định chưa đo thật:
 cờ chỉ đọc/ghi áp theo từng lần gọi harness, và nối tiếp làm giảm lượt khám phá lại mã (NT-FAST-BENCH).

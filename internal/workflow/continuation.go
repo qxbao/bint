@@ -31,6 +31,12 @@ func resumableVia(via string) bool {
 	return false
 }
 
+// modelSwitchVia: cách chạy đã kiểm thật việc nối tiếp phiên sang model khác (docs/acceptance.md NT-CONT-CLAUDE-MODEL,
+// NT-CONT-CODEX-MODEL). Cách chạy khác (subagent...) giữ chặn khác-model cho tới khi được kiểm.
+func modelSwitchVia(via string) bool {
+	return via == "claude" || via == "codex"
+}
+
 // viaDesc mô tả cách chạy trong lý do không nối tiếp.
 func viaDesc(via string) string {
 	if via == ViaSubagent {
@@ -65,7 +71,7 @@ type ContinueFacts struct {
 	// PlanNotReady khác rỗng: Last là awaiting_human của bước plan nhưng planner chưa nên được nối tiếp (chưa có câu trả lời,
 	// còn câu hỏi mở hoặc artifact lỗi cấu trúc); giá trị là lý do (planResumeWhy).
 	PlanNotReady string
-	// Model là model yêu cầu của bước sắp mở; lớp plan_handoff chỉ nối tiếp khi bằng Last.Model (b-req và b-feat cùng model).
+	// Model là model yêu cầu của bước sắp mở; lớp plan_handoff nối tiếp được khi khác Last.Model chỉ với cách chạy đã kiểm (modelSwitchVia: claude, codex).
 	Model string
 	// ImplAnswered: Last là awaiting_human của bước implement (câu hỏi của b-feat hoặc b-feat không đổi tệp) và người đã trả lời
 	// sau lúc dừng (`--answer`): b-feat được nối tiếp với câu trả lời. Không có câu trả lời thì bước implement chờ người vẫn chạy mới.
@@ -102,9 +108,9 @@ func continuationDecision(f ContinueFacts) ContinueDecision {
 	case l.Profile != f.Profile:
 		return no(fmt.Sprintf("bước dừng trước chạy %s, bước sắp mở chạy %s: phiên cũ nằm ở tài khoản khác, chạy mới với đề bài đầy đủ",
 			profileDesc(l.Profile), profileDesc(f.Profile)))
-	case l.StopClass == StopPlanHandoff && l.Model != f.Model:
-		return no(fmt.Sprintf("b-req chạy model %s, bước %s chạy model %s: phiên b-req không nối tiếp sang model khác, dùng đề bài đầy đủ",
-			modelDesc(l.Model), l.Step, modelDesc(f.Model)))
+	case l.StopClass == StopPlanHandoff && l.Model != f.Model && !modelSwitchVia(via):
+		return no(fmt.Sprintf("b-req chạy model %s, bước %s chạy model %s: %s chưa được kiểm việc nối tiếp phiên sang model khác, dùng đề bài đầy đủ",
+			modelDesc(l.Model), l.Step, modelDesc(f.Model), viaDesc(via)))
 	case !l.Continuable:
 		return no(fmt.Sprintf("bước %s dừng với lớp %s, không nối tiếp được (thiếu phiên/fingerprint hoặc lỗi nội tại)", l.Step, l.StopClass))
 	case l.StopClass == StopAwaitingHuman && !f.LastIsPlan && !f.ImplAnswered:
