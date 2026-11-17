@@ -1103,6 +1103,10 @@ func (r *Runner) armProcessContinuation(ctx context.Context, rs *runState, sr *s
 		sr.prompt = r.planHandoffPrompt(rs, sr, last)
 		sr.continuations, sr.originRunID = 0, ""
 		msg = fmt.Sprintf("b-feat nối tiếp phiên %s của b-req (kế hoạch rút gọn, không nạp lại ngữ cảnh từ đầu)", shortID(last.SessionID))
+		if last.Model != sr.reqModel {
+			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("b-feat đổi model khi nối tiếp phiên b-req: %s → %s; cache prompt sẽ được dựng lại ở lượt đầu, ngữ cảnh phiên được giữ",
+				modelDesc(last.Model), modelDesc(sr.reqModel)))
+		}
 	} else {
 		sr.prompt = continuationPrompt(rs.t.State.ID, sr.step, sr.child, last, answered) + r.continuationExtra(rs, last)
 		sr.continuations = continuationCount(last)

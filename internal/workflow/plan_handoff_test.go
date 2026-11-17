@@ -154,7 +154,6 @@ func TestPlanHandoffFallbacks(t *testing.T) {
 				return "codex"
 			}
 		}, nil, nil, "không nối tiếp chéo"},
-		{"khác model", func(h *harness) { h.models = map[string]string{StepReq: "model-a", StepFeat: "model-b"} }, nil, nil, "model model-a"},
 		{"cây đổi sau b-req", nil, nil, func(h *harness) { h.write("app.txt", "người sửa chen vào\n") }, "cây làm việc đã đổi"},
 		{"mất phiên sau b-req", nil, nil, func(h *harness) {
 			if err := os.Remove(h.claudeTranscript(h.lastPlanSession())); err != nil {
@@ -222,6 +221,72 @@ func TestPlanHandoffSameModelResumes(t *testing.T) {
 	}
 }
 
+// Đổi model giữa b-req và b-feat (cùng harness claudeLike): b-feat vẫn resume phiên b-req, agent dựng với model mới, notes ghi
+// model cũ → mới và việc cache prompt dựng lại; cùng model thì không có dòng cache.
+func TestPlanHandoffModelSwitchResumes(t *testing.T) {
+	procSetup(t)
+	h := newHarness(t)
+	h.claudeLike(nil)
+	h.models = map[string]string{StepReq: "model-a", StepFeat: "model-b"}
+	// Bọc factory để đo model mà agent mỗi bước được dựng.
+	r := handoffRunner(h)
+	built := map[string]string{}
+	inner := r.Agent
+	r.Agent = func(spec StepSpec, maxCost *float64, maxTurns *int) (eval.Agent, error) {
+		a, err := inner(spec, maxCost, maxTurns)
+		if mn, ok := a.(eval.ModelNamer); ok {
+			built[spec.ID] = mn.RequestedModel()
+		}
+		return a, err
+	}
+	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" {
+		t.Fatalf("%+v calls=%v", res, h.calls)
+	}
+	plan, feat := planReqs(h)
+	if plan.SessionID == "" || feat.ResumeSessionID != plan.SessionID {
+		t.Fatalf("b-feat phải resume phiên b-req %q: %+v", plan.SessionID, feat)
+	}
+	if strings.Contains(feat.Prompt, "Phiếu tác vụ (task.yml)") {
+		t.Fatalf("prompt phải là lời nhắn handoff:\n%s", feat.Prompt)
+	}
+	notes := strings.Join(res.Notes, "\n")
+	if !strings.Contains(notes, "b-feat nối tiếp phiên") {
+		t.Fatalf("notes thiếu dòng nối tiếp: %v", res.Notes)
+	}
+	cacheLine := ""
+	for _, n := range res.Notes {
+		if strings.Contains(n, "model-a") && strings.Contains(n, "model-b") && strings.Contains(n, "cache") {
+			cacheLine = n
+		}
+	}
+	if cacheLine == "" {
+		t.Fatalf("notes thiếu dòng model-a → model-b kèm cache: %v", res.Notes)
+	}
+	if got := built[StepFeat]; got != "model-b" {
+		t.Fatalf("agent b-feat dựng với model %q, muốn model-b", got)
+	}
+}
+
+// Cùng model: không có dòng cache trong notes.
+func TestPlanHandoffSameModelNoCacheNote(t *testing.T) {
+	procSetup(t)
+	h := newHarness(t)
+	h.claudeLike(nil)
+	h.models = map[string]string{StepReq: "model-a", StepFeat: "model-a"}
+	res := runPlanned(t, h, nil)
+	_, feat := planReqs(h)
+	if feat.ResumeSessionID == "" {
+		t.Fatalf("cùng model phải nối tiếp: %+v", feat)
+	}
+	if strings.Contains(strings.Join(res.Notes, "\n"), "cache") {
+		t.Fatalf("cùng model không được có dòng cache: %v", res.Notes)
+	}
+}
+
 // Bảng quyết định thuần cho lớp plan_handoff.
 func TestContinuationDecisionPlanHandoff(t *testing.T) {
 	last := func(mod func(*task.StepStop)) *task.StepStop {
@@ -238,8 +303,15 @@ func TestContinuationDecisionPlanHandoff(t *testing.T) {
 		why  string
 	}{
 		{"cùng harness/model/profile", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "claude", Model: "m", Fingerprint: "fp"}, true, ""},
-		{"khác model", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "claude", Model: "n", Fingerprint: "fp"}, false, "model m"},
-		{"model rỗng → có model", ContinueFacts{Last: last(func(l *task.StepStop) { l.Model = "" }), Step: StepFeat, Via: "claude", Model: "n", Fingerprint: "fp"}, false, "mặc định của harness"},
+		{"khác model (claude)", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "claude", Model: "n", Fingerprint: "fp"}, true, ""},
+		{"khác model (codex)", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = "codex" }), Step: StepFeat, Via: "codex", Model: "n", Fingerprint: "fp"}, true, ""},
+		{"model rỗng → có model", ContinueFacts{Last: last(func(l *task.StepStop) { l.Model = "" }), Step: StepFeat, Via: "claude", Model: "n", Fingerprint: "fp"}, true, ""},
+		{"model có → rỗng", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "claude", Model: "", Fingerprint: "fp"}, true, ""},
+		{"khác model, subagent (chưa kiểm) vẫn chặn", ContinueFacts{Last: last(func(l *task.StepStop) { l.Via = ViaSubagent }), Step: StepFeat, Via: ViaSubagent, Model: "n", Fingerprint: "fp"}, false, "model m"},
+		{"khác model + khác profile", ContinueFacts{Last: last(func(l *task.StepStop) { l.Profile = "claude/a" }), Step: StepFeat, Via: "claude", Model: "n", Profile: "claude/b", Fingerprint: "fp"}, false, "claude/a"},
+		{"khác model + khác harness", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "codex", Model: "n", Fingerprint: "fp"}, false, "không nối tiếp chéo"},
+		{"khác model + cây đổi", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "claude", Model: "n", Fingerprint: "fp2"}, false, "đã đổi"},
+		{"khác model + --fresh", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "claude", Model: "n", Fingerprint: "fp", Fresh: true}, false, "--fresh"},
 		{"khác harness", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "codex", Model: "m", Fingerprint: "fp"}, false, "không nối tiếp chéo"},
 		{"khác profile", ContinueFacts{Last: last(func(l *task.StepStop) { l.Profile = "claude/a" }), Step: StepFeat, Via: "claude", Model: "m", Profile: "claude/b", Fingerprint: "fp"}, false, "claude/a"},
 		{"cây đổi", ContinueFacts{Last: last(nil), Step: StepFeat, Via: "claude", Model: "m", Fingerprint: "fp2"}, false, "đã đổi"},
