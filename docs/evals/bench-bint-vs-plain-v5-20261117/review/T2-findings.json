@@ -1,0 +1,276 @@
+{
+ "W": [
+  {
+   "id": "W1",
+   "severity": "critical",
+   "title": "task.yml (mô tả/mục tiêu/tiêu chí/lệnh kiểm chứng) lưu bí mật nguyên văn, kể cả bản chép trong .bint/tasks của cây làm việc",
+   "where": "internal/task/task.go:735, internal/task/task.go:882 (không đổi trong diff), internal/task/ledger.go:406",
+   "scenario": "bint task new --shared --no-plan \"<mô tả có password=XxGOALpw1, Bearer XxGOALbr2, ghp_..., AKIA..., sk-proj-..., https://bob:XxGOALurl6@..., PEM>\"; bint task set <id> --goal \"... password=XxSETGpw1 ...\" --criteria \"... --token XxCRITfl7\"; bint task set <id2> --verify-command \"API_PASSWORD=XxVCMDpw1 sh v.sh --password XxVCMDfl2\"; bint task sync; grep -raF Xx <state> <repo>",
+   "evidence": "runtime/tasks/<id>/task.yml và repo/.bint/tasks/<id>/task.yml chứa: XxGOALpw1 XxGOALbr2 XxGOALurl6 XxGOALfl7 XxGOALpem5 AKIA<FIXTURE> ghp_<FIXTURE>... sk-proj-<FIXTURE>... XxSETGpw1 XxCRITfl7 ...; task.yml của phiếu 2 chứa XxVCMDpw1 XxVCMDfl2. Diff không đụng tới gói task.",
+   "ran": true
+  },
+  {
+   "id": "W2",
+   "severity": "critical",
+   "title": "Tài liệu phiếu requirement.md/plan.md/tasks.md lưu bí mật nguyên văn (cả bản .bint/tasks)",
+   "where": "internal/task/task.go:923 (WriteArtifact không đổi)",
+   "scenario": "printf '<khối bí mật DOC>' | bint task write <id> plan - (tương tự requirement, tasks); bint task sync; grep",
+   "evidence": "runtime/tasks/<id>/plan.md và repo/.bint/tasks/<id>/plan.md => XxDOCplanpw1 XxDOCplanbr2 XxDOCplanurl6 XxDOCplanfl7 XxDOCplanjs8 XxDOCplanpem5 ghp_<FIXTURE>... sk-proj-<FIXTURE>... (requirement.md, tasks.md tương tự)",
+   "ran": true
+  },
+  {
+   "id": "W3",
+   "severity": "critical",
+   "title": "Review (review.json, review.md) lưu bí mật nguyên văn",
+   "where": "internal/task/review.go:232 (không đổi)",
+   "scenario": "bint task review <id> review.json với summary/evidence chứa khối bí mật REV; grep",
+   "evidence": "runtime/tasks/<id>/review.json, review.md và repo/.bint/tasks/<id>/review.json => XxREVpw1 XxREVbr2 XxREVurl6 XxREVfl7 XxREVjs8 XxREVpem5 AKIAXXREV... ghp_XxREV... sk-proj-<FIXTURE>...",
+   "ran": true
+  },
+  {
+   "id": "W4",
+   "severity": "critical",
+   "title": "state.json lưu nguyên văn ghi chú task error, bằng chứng task criteria -e và lệnh kiểm chứng có bí mật (cả bản .bint/tasks)",
+   "where": "internal/task/task.go:752 (writeState không đổi)",
+   "scenario": "bint task error <id> --step b-feat \"<khối ERR>\"; bint task criteria <id> 1 met -e \"<khối CRI>\"; grep state.json",
+   "evidence": "runtime/tasks/<id>/state.json và repo/.bint/tasks/<id>/state.json => XxERRpw1 XxERRbr2 XxERRurl6 XxERRpem5 AKIAXXERR... XxCRIpw1 XxCRIbr2 ...; state.json phiếu 2 => XxVCMDpw1 XxVCMDfl2",
+   "ran": true
+  },
+  {
+   "id": "W5",
+   "severity": "critical",
+   "title": "Log kiểm chứng: chỉ che giá trị có nhãn; token/khoá API không nhãn (ghp_, AKIA, sk-proj-, sk-ant-), PEM, SECRET_KEY=, giá trị trong dấu nháy chưa đóng và phần sau dấu , ; & vẫn thô",
+   "where": "internal/redact/redact.go:13-21 (valuePattern/keyPattern chỉ theo nhãn, không có mẫu định dạng), internal/eval/shell.go:96",
+   "scenario": "verify.command = cat tệp in khối VER và các dòng: 'password=Ab1,XxQ1b;XxQ1c&XxQ1d', 'password=\"XxQ2unclosed', 'SECRET_KEY=XxQ14', 'sk-ant-<FIXTURE>...', 'xoxb-...', 'glpat-...'; bint task approve; bint task verify; cat logs/verify-1.log",
+   "evidence": "verify-1.log chứa: ghp_<FIXTURE>..., AKIA<FIXTURE>, sk-proj-<FIXTURE>..., MIIEXxVERpem5Body...; 'L1 password=***,XxQ1b;XxQ1c&XxQ1d', 'L2 password=\"XxQ2unclosed', 'L14 SECRET_KEY=XxQ14', 'L16 sk-ant-<FIXTURE>...' (giá trị có nhãn password=/Bearer/URL/biến env được che đúng)",
+   "ran": true
+  },
+  {
+   "id": "W6",
+   "severity": "critical",
+   "title": "Log lượt agent: b-feat-*.log còn token không nhãn/PEM; logs/prompt.txt ghi nguyên văn mô tả tác vụ có bí mật",
+   "where": "internal/eval/agent.go:429 (prompt.txt không che), internal/redact/redact.go:16-21",
+   "scenario": "bint run b-feat --shared --agent-command 'sh agent.sh' \"Cập nhật app.txt <mk1 RUNDESC>\" với agent in khối AGT và $MY_API_TOKEN; grep logs/",
+   "evidence": "logs/b-feat-<run>.log => ghp_XxAGT..., AKIA<FIXTURE>, sk-proj-<FIXTURE>..., XxAGTpem5; logs/prompt.txt => XxRUNDESCpw1 XxRUNDESCbr2 XxRUNDESCurl6 XxRUNDESCfl7 ghp_<FIXTURE>... (XxENVtok11value từ env được che đúng)",
+   "ran": true
+  },
+  {
+   "id": "W7",
+   "severity": "critical",
+   "title": "state.sqlite (bảng events): result_summary của workflow.finished lưu nguyên văn câu trả lời agent có bí mật",
+   "where": "internal/workflow/run.go:1440, internal/spool/spool.go:142 (không đổi)",
+   "scenario": "agent in dòng kết quả {\"type\":\"result\",...,\"result\":\"xong password=XxAGTres9 Bearer XxAGTres10\"}; bint status (ingest); sqlite3 state.sqlite .dump | grep",
+   "evidence": "...'workflow.finished','bint-run',...,'{\"cost_usd\":0.01,...,\"result_summary\":\"xong password=XxAGTres9 Bearer XxAGTres10\",\"status\":\"completed\",...",
+   "ran": true
+  },
+  {
+   "id": "W8",
+   "severity": "medium",
+   "title": "Hook trace (.in, chỉ khi BINT_HOOK_TRACE=1) còn token/khoá API không nhãn",
+   "where": "internal/app/hook_trace.go:70",
+   "scenario": "BINT_HOOK_TRACE=1 bint hook claude < hook.json (tool_input.command chứa ghp_..., AKIA..., sk-proj-...); cat runtime/hook-trace/*.in",
+   "evidence": "\"command\":\"curl password=*** Authorization: *** *** ghp_<FIXTURE>... AKIA<FIXTURE> sk-proj-<FIXTURE>... https://***@example.com --token ***\"",
+   "ran": true
+  },
+  {
+   "id": "W9",
+   "severity": "low",
+   "title": "Dòng đầu ra dài hơn 1 MiB bị bỏ toàn bộ khỏi log kiểm chứng và Tail chẩn đoán",
+   "where": "internal/redact/writer.go:9, internal/redact/writer.go:78",
+   "scenario": "verify.command = cat tệp 20 MB base64 một dòng không xuống dòng; bint task verify",
+   "evidence": "W f2: 0.06s log=109B (toàn bộ 20 MB thay bằng '[bint: oversized log line omitted]'); có ghi trong tài liệu nhưng mất dữ liệu chẩn đoán",
+   "ran": true
+  },
+  {
+   "id": "W10",
+   "severity": "low",
+   "title": "Che quá tay nhẹ: trường JSON boolean tên nhạy cảm đổi kiểu thành chuỗi, 'token: refreshed' bị che, dòng JSON bị sắp lại khoá",
+   "where": "internal/redact/redact.go:154",
+   "scenario": "verify in các dòng lành tính (count=12, GOFLAGS=-mod=mod, sha, uuid, ULID, input_tokens, ...); diff log với đầu vào",
+   "evidence": "'{\"type\":\"token_count\",\"has_token\":true,\"auth\":true,\"token_type\":\"bearer\"}' -> '{\"auth\":\"***\",\"has_token\":\"***\",\"token_type\":\"bearer\",\"type\":\"token_count\"}'; 'token: refreshed' -> 'token: ***'. Hash/UUID/ULID/count=12/GOFLAGS/input_tokens giữ nguyên.",
+   "ran": true
+  }
+ ],
+ "Z": [
+  {
+   "id": "Z1",
+   "severity": "critical",
+   "title": "Lưu mục tri thức có chuỗi giống bí mật làm hỏng tệp: mất dấu '---' và toàn bộ thân, mục không đọc được",
+   "where": "internal/knowledge/store.go:102, internal/redact/structured.go:28",
+   "scenario": "bint knowledge add --type warning --paths app.txt --evidence app.txt:1 \"Kiểm thử tích hợp cần đặt API_TOKEN=dummy-value-123 trong môi trường...\"; cat tệp; bint knowledge list; bint knowledge show <id>",
+   "evidence": "Tệp chỉ còn 'schema: 1\\nid: ...\\ntitle: ... API_TOKEN=*** ...\\n...verified_at: ...' (không còn '---', không còn thân); knowledge list: '✗ không đọc được 01M7N3CQSD37FVHNRW28W0BH49.md: thiếu phần đầu YAML (tệp phải bắt đầu bằng ---)'; knowledge show: 'lỗi: không có mục tri thức ...'",
+   "ran": true
+  },
+  {
+   "id": "Z2",
+   "severity": "critical",
+   "title": "Tài liệu Markdown có đường kẻ '---': phần sau bị xoá khi phần đầu có bí mật (đường YAML chỉ giải mã tài liệu đầu)",
+   "where": "internal/redact/structured.go:28-38, internal/task/task.go:978",
+   "scenario": "printf 'Tóm tắt: dùng token=abc12345xyz\\n---\\n## Bước 1\\nPhần sau quan trọng: sửa app.txt\\n' | bint task write <id> plan -; cat plan.md",
+   "evidence": "plan.md sau khi ghi chỉ còn: 'Tóm tắt: dùng token=***' (mất '---', '## Bước 1', 'Phần sau quan trọng...')",
+   "ran": true
+  },
+  {
+   "id": "Z3",
+   "severity": "critical",
+   "title": "Lệnh kiểm chứng dùng biến môi trường bị ghi đè thành '***' trong task.yml, lần chạy verify dùng chuỗi '***' nên hỏng",
+   "where": "internal/task/task.go:928 (WriteDiagnosticAtomic che cả verify.command), internal/redact/redact.go:14",
+   "scenario": "bint task set <id> --verify-command 'env TOKEN=$CI_TOKEN sh -c \"test \\$TOKEN = abcdefgh123\"'; bint task approve <id>; CI_TOKEN=abcdefgh123 bint task verify <id> (bản W cùng kịch bản kiểu này qua mã 0)",
+   "evidence": "task.yml: 'command: env TOKEN=*** sh -c \"test \\$TOKEN = abcdefgh123\"'; verify: 'lỗi: kiểm chứng không qua', log: '$ sh -c \"env TOKEN=*** sh -c ...\"' / 'sh: 1: test: app.txt: unexpected operator'. Tương tự 'make test TOKEN=$CI_TOKEN' lưu thành 'make test TOKEN=***'.",
+   "ran": true
+  },
+  {
+   "id": "Z4",
+   "severity": "medium",
+   "title": "Từ chối lệnh kiểm chứng thông dụng, kể cả lệnh đã dùng tham chiếu biến môi trường như hướng dẫn",
+   "where": "internal/redact/command.go:41, internal/task/task.go:124",
+   "scenario": "bint task set <id> --verify-command 'PGPASSWORD=postgres go test ./...'; ... 'curl -fsS -H \"Authorization: Bearer $API_TOKEN\" http://localhost:8080/health'",
+   "evidence": "Cả hai: 'lỗi: secret in executable command: use an existing credential environment variable' (W chấp nhận và chạy được lệnh có literal)",
+   "ran": true
+  },
+  {
+   "id": "Z5",
+   "severity": "critical",
+   "title": "Lần mở workspace đầu tiên tự sửa profile iso: xoá credential đang dùng (primaryApiKey, experimental_bearer_token), viết lại TOML mất chú thích",
+   "where": "internal/privacy/scrub.go:311, internal/app/workspace.go:76",
+   "scenario": "Tạo $BINT_ISO_HOME/profiles/claude--work/home/.claude/.claude.json có primaryApiKey và profiles/codex--work/home/.codex/config.toml có [model_providers.corp] experimental_bearer_token + dòng chú thích; xoá privacy-v1.json; bint status",
+   "evidence": ".claude.json sau: '{...,\"numStartups\":3,\"primaryApiKey\":\"***\"}'; config.toml sau: chú thích '# Cấu hình codex của tôi - đừng xoá chú thích này' biến mất, 'experimental_bearer_token = '***''. Đăng nhập bằng API key/provider của profile hỏng, không hỏi người dùng.",
+   "ran": true
+  },
+  {
+   "id": "Z6",
+   "severity": "medium",
+   "title": "Một tệp cấu hình profile iso rỗng/không hợp lệ làm mọi lệnh bint thông thường lỗi",
+   "where": "internal/privacy/scrub.go:101, internal/privacy/scrub.go:393, internal/app/workspace.go:76",
+   "scenario": ": > $BINT_ISO_HOME/profiles/claude--bad/home/.claude/settings.json; bint status; bint task list; bint knowledge list; bint task new ...; bint run b-feat ...",
+   "evidence": "Mọi lệnh: 'lỗi: privacy migration: privacy: invalid authentication document' (credentials() chạy trước kiểm checkpoint nên lỗi cả sau khi đã làm sạch xong)",
+   "ran": true
+  },
+  {
+   "id": "Z7",
+   "severity": "critical",
+   "title": "task.yml (mục tiêu/tiêu chí/mô tả) còn lộ: token sau 'Authorization: Bearer', giá trị sau '<nhãn>: password=', tiền tố mật khẩu URL bị cắt, PEM (cả bản .bint/tasks)",
+   "where": "internal/redact/redact.go:14 (assignment nuốt 'Bearer' làm giá trị, hoặc nuốt 'password=...' làm giá trị của nhãn đứng trước), internal/task/task.go:928",
+   "scenario": "bint task new --shared \"<khối GOAL>\"; bint task set <id> --goal 'Mục tiêu password=... Authorization: Bearer XxSETGbr2 ...' --criteria '...Authorization: Bearer XxCRITbr2...'; bint run b-feat ... \"Cập nhật app.txt ... https://bob:XxRUNDESCurl6@...\"; grep",
+   "evidence": "task.yml: \"goal: 'Mục tiêu password=*** Authorization: *** XxSETGbr2 *** ...'\", \"- 'tiêu chí password=*** Authorization: *** XxCRITbr2 ...'\", \"goal: '... https://bob:XxRUNDESCu…'\"; ngoài ra XxGOALpw1 ('Cấu hình: password=XxGOALpw1'), XxGOALpem5; repo/.bint/tasks/<id>/task.yml giống hệt",
+   "ran": true
+  },
+  {
+   "id": "Z8",
+   "severity": "critical",
+   "title": "Tài liệu phiếu requirement/plan/tasks còn lộ '<nhãn>: password=/token=', token sau 'Authorization: Bearer', bí mật sau đường kẻ '---', PEM (cả bản .bint/tasks)",
+   "where": "internal/redact/redact.go:14, internal/redact/structured.go:28-31, internal/task/task.go:978",
+   "scenario": "printf 'Ghi chú\\nCấu hình kết nối: token=nat4tokvalue\\nheader Authorization: Bearer nat5bearer\\n' | bint task write <id> plan -; printf 'Tóm tắt: không có gì\\n---\\n## Bước 1\\nDB lỗi: password=hrleak99secret\\n' | bint task write <id> tasks -",
+   "evidence": "plan.md: 'Cấu hình kết nối: token=nat4tokvalue' / 'header Authorization: *** nat5bearer'; tasks.md: 'DB lỗi: password=hrleak99secret'; kịch bản chính: plan.md/requirement.md/tasks.md (và .bint/tasks) chứa XxDOCplanpw1, XxDOCplanpem5",
+   "ran": true
+  },
+  {
+   "id": "Z9",
+   "severity": "critical",
+   "title": "Review (review.json, review.md, bản .bint/tasks) còn lộ giá trị sau '<nhãn>: password=' và PEM",
+   "where": "internal/task/review.go:232, internal/redact/redact.go:14",
+   "scenario": "bint task review <id> review.json (summary/evidence chứa 'Cấu hình: password=XxREVpw1' và khối PEM)",
+   "evidence": "runtime/tasks/<id>/review.json, review.md, repo/.bint/tasks/<id>/review.json => XxREVpw1 XxREVpem5",
+   "ran": true
+  },
+  {
+   "id": "Z10",
+   "severity": "critical",
+   "title": "state.json (task error, bằng chứng tiêu chí; cả bản .bint/tasks) còn lộ giá trị sau '<nhãn>: password=' và PEM",
+   "where": "internal/task/task.go:799, internal/redact/redact.go:14",
+   "scenario": "bint task error <id> --step b-feat \"kết nối DB lỗi: password=hunter2abc bị từ chối\"; bint task criteria <id> 1 met -e \"<khối CRI>\"; grep state.json",
+   "evidence": "state.json: 'lỗi: password=hunter2abc'; kịch bản chính: state.json + repo/.bint/tasks/<id>/state.json => XxERRpw1 XxERRpem5 XxCRIpw1 XxCRIpem5",
+   "ran": true
+  },
+  {
+   "id": "Z11",
+   "severity": "critical",
+   "title": "Log kiểm chứng còn lộ khoá có nhãn ngoài danh sách (aws_secret_access_key, private_key, credentials, SECRET_KEY), PEM và phần sau dấu , ; &",
+   "where": "internal/redact/redact.go:22 (Sensitive chỉ nhận đuôi password/passwd/token/secret/apikey/authorization), internal/eval/shell.go:79",
+   "scenario": "verify.command = cat edge2.txt (các dòng aws_secret_access_key = ..., private_key: ..., credentials=..., SECRET_KEY=..., password=Ab1,XxQ1b;XxQ1c&XxQ1d) và khối VER; bint task verify",
+   "evidence": "verify-1.log: 'L8 aws_secret_access_key = XxQ8wJalrXUtnFEMIK7MDENGbPxRfiCY', 'L9 private_key: XxQ9', 'L13 credentials=XxQ13', 'L14 SECRET_KEY=XxQ14', 'L1 password=***,XxQ1b;XxQ1c&XxQ1d'; khối VER: MIIEXxVERpem5Body... (ghp_/AKIA/sk- được che)",
+   "ran": true
+  },
+  {
+   "id": "Z12",
+   "severity": "critical",
+   "title": "Log lượt agent và prompt.txt còn lộ: khoá có nhãn ngoài danh sách, PEM, token sau 'Authorization: Bearer', tiền tố mật khẩu URL",
+   "where": "internal/eval/shell.go:79, internal/eval/agent.go:432, internal/redact/redact.go:14,22",
+   "scenario": "bint run b-feat --shared --agent-command 'sh agent2.sh' (agent cat edge2.txt) và kịch bản chính với mô tả RUNDESC; grep logs/",
+   "evidence": "b-feat-<run>.log: 'L8 aws_secret_access_key = XxQ8wJalr...', 'L9 private_key: XxQ9', 'L14 SECRET_KEY=XxQ14'; kịch bản chính: XxAGTpem5; logs/prompt.txt: \"... Authorization: *** XxRUNDESCbr2 ... https://bob:XxRUNDESCu…\"",
+   "ran": true
+  },
+  {
+   "id": "Z13",
+   "severity": "critical",
+   "title": "state.sqlite (events.result_summary) lưu nguyên văn khoá có nhãn ngoài danh sách",
+   "where": "internal/safesql/safesql.go:21, internal/redact/redact.go:22",
+   "scenario": "agent in kết quả {\"type\":\"result\",...,\"result\":\"xong aws_secret_access_key=XxQ8res\"}; sqlite3 state.sqlite \"select count(*) from events where payload like '%XxQ8res%'\"",
+   "evidence": "1",
+   "ran": true
+  },
+  {
+   "id": "Z14",
+   "severity": "medium",
+   "title": "Hook trace (chỉ khi BINT_HOOK_TRACE=1): đầu vào >1 MiB bị cắt từ bản thô nên ghi nguyên bí mật; token sau 'Authorization: Bearer' lộ",
+   "where": "internal/app/hook_trace.go:72",
+   "scenario": "BINT_HOOK_TRACE=1 bint hook claude < hook.json có tool_input.command 'psql password=XxBIGpw1secret' và stdout 1,1 MB; grep -c trong .in. Kịch bản chính: command chứa 'Authorization: Bearer XxHOOKbr2'",
+   "evidence": "Z: 1048633 bytes, raw secret count: 1 (W cùng kịch bản: 0); .in kịch bản chính còn XxHOOKbr2",
+   "ran": true
+  },
+  {
+   "id": "Z15",
+   "severity": "medium",
+   "title": "Giá trị trong dấu nháy chưa đóng sau nhãn nhạy cảm làm mất toàn bộ phần còn lại của log (kể cả dòng lỗi)",
+   "where": "internal/redact/stream.go:176 (secretPrefix bỏ dữ liệu tới dấu nháy đóng)",
+   "scenario": "verify.command = 'cat edge3.txt; exit 1' với nội dung 'before\\ntoken=\"abc\\nline3 important failure detail\\nline4 FAIL TestX'",
+   "evidence": "verify-1.log chỉ còn: '$ sh -c ...' / 'before' / 'token=\"***' — mất 'line3 important failure detail', 'line4 FAIL TestX'. Với edge.txt, mọi dòng sau 'L2 password=\"XxQ2unclosed' (L5..L18) biến mất.",
+   "ran": true
+  },
+  {
+   "id": "Z16",
+   "severity": "medium",
+   "title": "Dòng JSON bị che được ghi lại mất ký tự xuống dòng, dính vào dòng sau (hỏng JSONL của log agent)",
+   "where": "internal/redact/redact.go:120",
+   "scenario": "verify in '{\"type\":\"token_count\",\"has_token\":true,\"auth\":true,\"token_type\":\"bearer\"}' rồi 'author: Nguyen Van A'; diff log",
+   "evidence": "log: '{\"auth\":true,\"has_token\":\"***\",\"token_type\":\"bearer\",\"type\":\"token_count\"}author: Nguyen Van A' (hai dòng dính làm một; evolve ParseTraceReader đọc agent.log theo dòng)",
+   "ran": true
+  },
+  {
+   "id": "Z17",
+   "severity": "medium",
+   "title": "Lời nhắc tương tác bị đệm tới khi có xuống dòng: người dùng không thấy câu hỏi của bint knowledge review (và confirm của eval/bootstrap)",
+   "where": "internal/cli/root.go:77",
+   "scenario": "Tạo mục tri thức chờ duyệt; chạy bint knowledge review với stdin là fifo; xem stdout sau 2 giây rồi mới gửi 'q'",
+   "evidence": "Sau 2 s, Z chưa in '[a]chấp nhận [r]từ chối [e]sửa ... [q]dừng > ' (chỉ hiện sau khi gõ q); W in lời nhắc ngay",
+   "ran": true
+  },
+  {
+   "id": "Z18",
+   "severity": "medium",
+   "title": "Lần mở workspace đầu tiên sau nâng cấp quét lại toàn bộ dữ liệu cũ, chặn lệnh hàng chục giây tới vài phút",
+   "where": "internal/app/workspace.go:76, internal/privacy/scrub.go:227",
+   "scenario": "Chép 40 MB log cũ vào <state>/runtime/oldlogs, xoá privacy-v1.json, đo thời gian bint status",
+   "evidence": "first open: 34.42s, second open: 0.03s (~1,2 MB/s; thư mục trạng thái thật của máy này ~128 MB/repo, tổng 773 MB)",
+   "ran": true
+  },
+  {
+   "id": "Z19",
+   "severity": "low",
+   "title": "Che luồng chậm hơn rõ: 20 MB đầu ra kiểm chứng mất 16-17 s (bản kia 3,6 s)",
+   "where": "internal/redact/stream.go, internal/redact/structured.go (mỗi dòng ứng viên thử JSON/TOML/YAML)",
+   "scenario": "verify.command = cat tệp 20 MB (f1: log test có token/api, f2: một dòng base64, f3: dòng key=value có ':'); đo bint task verify",
+   "evidence": "Z f1: 17.06s, f2: 7.66s, f3: 16.05s; W f1: 3.67s, f3: 3.56s",
+   "ran": true
+  },
+  {
+   "id": "Z20",
+   "severity": "low",
+   "title": "Che quá tay nhẹ: 'token: refreshed' bị che, trường boolean has_token đổi thành chuỗi",
+   "where": "internal/redact/redact.go:14,149",
+   "scenario": "verify in các dòng lành tính; diff",
+   "evidence": "'token: refreshed' -> \"token: '***'\"; '\"has_token\":true' -> '\"has_token\":\"***\"'. Hash/UUID/ULID/count=12/GOFLAGS/input_tokens giữ nguyên.",
+   "ran": true
+  }
+ ]
+}

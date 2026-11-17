@@ -1,0 +1,7 @@
+Tôi chạy bint gc --dry-run thì nó báo:
+lỗi: lệnh lạ "gc" cho "bint"
+
+Ý bạn là:
+  bint mcp
+Xem `bint --help`
+Chạy thế này thì nó báo vậy.

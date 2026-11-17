@@ -1,0 +1,27 @@
+PASS  FX-ledger-clean  cảnh báo sổ phiếu: []
+PASS  FX-OLD_DONE1  01KQF2HRYD99VTHC60DZS9EE92 status=done (cần done) updated=2026-04-30T11:31:56Z
+PASS  FX-OLD_DONE2  01KQF2HV0WYBHK8BVB6D9GVGD4 status=done (cần done) updated=2026-04-30T11:31:58Z
+PASS  FX-NEW_DONE  01M75622021JB151F5CDSP2D77 status=done (cần done) updated=2026-11-11T11:32:00Z
+PASS  FX-OLD_CANCELLED  01KQF2HYJ47DE0PYPFCTS17S72 status=cancelled (cần cancelled) updated=2026-04-30T11:32:01Z
+PASS  FX-OLD_BLOCKED  01KQF2HZN7FVEVM92J3MM28TBJ status=blocked (cần blocked) updated=2026-04-30T11:32:05Z
+PASS  FX-OLD_INTERRUPTED  01KQF2J4JVJA6SD1CB2DSX43DV status=interrupted (cần interrupted) updated=2026-04-30T11:32:11Z
+PASS  FX-OLD_FAILED_WT  01KQF2J9KFXPX0EH2RM1M1YX7A status=failed (cần failed) updated=2026-04-30T11:32:13Z
+PASS  FX-NEW_RUN  01M7J2235Q2D70797RK48JPXGR status=created (cần created) updated=2026-11-16T11:32:13Z
+PASS  FX-WT-dirty  worktree=/home/baodq/bench-bint-v2-20261116/tmp/hidden-T1-Y/hidden2-t1-kng_bbxz/state/repo-9e34d02168ce/worktrees/01KQF2J9KFXPX0EH2RM1M1YX7A status='M a.go\n?? wip_notes.txt'
+PASS  FX-old-bytes  log phiếu kết thúc cũ = 3309354 B
+FIXTURE {"OLD_DONE1": "01KQF2HRYD99VTHC60DZS9EE92", "OLD_DONE2": "01KQF2HV0WYBHK8BVB6D9GVGD4", "NEW_DONE": "01M75622021JB151F5CDSP2D77", "OLD_CANCELLED": "01KQF2HYJ47DE0PYPFCTS17S72", "OLD_BLOCKED": "01KQF2HZN7FVEVM92J3MM28TBJ", "OLD_INTERRUPTED": "01KQF2J4JVJA6SD1CB2DSX43DV", "OLD_FAILED_WT": "01KQF2J9KFXPX0EH2RM1M1YX7A", "NEW_RUN": "01M7J2235Q2D70797RK48JPXGR"}
+PASS  D8-preview-no-change  exit=0 tệp đổi=[] sqlite đổi=False
+PASS  D8i-preview-lists-old  đầu ra nêu phiếu cũ: True; trích: 'runtime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/b-feat-01KQF2HSDW7DWJEFFB7JR0NWNK.log\nruntime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/prompt.txt\nruntime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/verify-1.log\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/prompt.txt\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/verify-1.log\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/b-feat-01KQF2HVH20JZXJAV7VBWZYC7M.log\n'
+PASS  D5-concurrent-run  lượt chạy exit=0 status=in_review logs=['b-feat-01M7J225VEGAJ6QF1JTCQ017V7.log', 'prompt.txt'] slow.txt=True | dọn#1 exit=0 0.0s '/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/verify-1.log\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/b-feat-01KQF2HVH20JZXJAV7VBWZYC7M.log\nruntime/tasks/01KQF2HYJ47DE0PYPFCTS17S72/logs/b-feat-01KQF2HZ292QVAFCJX8C2THAYE.log\nruntime/tasks/01KQF2HYJ47DE0PYPFCTS17S72/logs/prompt.txt\nĐã dọn 8 tệp (3301609 byte).\n' | run: 'mpleted  15s        -\n! chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác\n! chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành\nChi tiết: bint task show 01M7J2235Q2D70797RK48JPXGR   ·   bint run status 01M7J2235Q2D70797RK48JPXGR\n'
+PASS  D1-OLD_BLOCKED  01KQF2HZN7FVEVM92J3MM28TBJ thư mục còn=True tệp đổi/mất=[]
+PASS  D1-OLD_INTERRUPTED  01KQF2J4JVJA6SD1CB2DSX43DV thư mục còn=True tệp đổi/mất=[]
+PASS  D2-worktree-kept  worktree còn=True status giữ=True nhánh còn=True tệp phiếu đổi/mất=[]
+PASS  D3-symlink-target  tệp ngoài bị đổi/mất=[]
+PASS  D4-outside-state  tệp ngoài thư mục trạng thái bị đổi=[]
+INFO  D4i-ledger-in-repo  sổ phiếu .bint/tasks (đã commit) bị đổi/xoá: 0 tệp []
+PASS  D6-old-finished-cleaned  log phiếu kết thúc cũ 3309354 B → còn 7745 B (giải phóng 3301609); dọn#1 exit=0
+INFO  D6i-total-bytes  tổng thư mục trạng thái (bỏ sqlite, NEW_RUN) sau = 2245026 B
+PASS  D7-new-finished-kept  01M75622021JB151F5CDSP2D77 tệp đổi/mất=[]
+PASS  D9-after-clean-healthy  doctor 0->0 ✗mới=[] task list 0->0 runs list 0->0 show lỗi=[] show phiếu đã dọn=[] dọn#1/2/3 exit=0/0/0
+INFO  T-clean-output  dọn#1: 'B7JR0NWNK.log\nruntime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/prompt.txt\nruntime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/verify-1.log\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/prompt.txt\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/verify-1.log\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/b-feat-01KQF2HVH20JZXJAV7VBWZYC7M.log\nruntime/tasks/01KQF2HYJ47DE0PYPFCTS17S72/logs/b-feat-01KQF2HZ292QVAFCJX8C2THAYE.log\nruntime/tasks/01KQF2HYJ47DE0PYPFCTS17S72/logs/prompt.txt\nĐã dọn 8 tệp (3301609 byte).\n' | dọn#2: 'Đã dọn 0 tệp (0 byte).\n'
+TÓM TẮT {"cmd": "t1", "fail": [], "fixture_ok": true, "critical": [], "medium": []}

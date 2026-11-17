@@ -1,0 +1,67 @@
+{
+ "what": "big",
+ "passed": 10,
+ "total": 12,
+ "results": [
+  {
+   "id": "B1a-progress-text-exit0",
+   "pass": true,
+   "detail": "exit=0 Tiến triển tác vụ (chỉ đọc)\n01M7HR2HT27TXA79PKARSQ72AZ  created  rounds=2  first_would_stop_round=unknown  extra_rounds=unknown\n  no_progress round=1 checkpoint"
+  },
+  {
+   "id": "B1b-progress-json-exit0-valid",
+   "pass": true,
+   "detail": "exit=0  {\n  \"tasks\": [\n    {\n      \"id\": \"01M7HR2HT27TXA79PKARSQ72AZ\",\n      \"status\": \"created\",\n      \"source\": \"runtime\",\n      \"round_count\": 2,\n      \"rounds\": [\n "
+  },
+  {
+   "id": "B1c-json-has-all-ids",
+   "pass": true,
+   "detail": "X=True Y=True Z=True"
+  },
+  {
+   "id": "B2a-X-has-signal",
+   "pass": false,
+   "detail": "phiếu X (hai vòng giống nhau)"
+  },
+  {
+   "id": "B2b-Y-no-signal",
+   "pass": true,
+   "detail": "phiếu Y (cây và đầu ra đổi)"
+  },
+  {
+   "id": "B3-Z-ok",
+   "pass": true,
+   "detail": "phiếu Z chưa có vòng nào"
+  },
+  {
+   "id": "B4-read-only",
+   "pass": true,
+   "detail": "tệp đổi: "
+  },
+  {
+   "id": "B5a-mode-off-accepted",
+   "pass": true,
+   "detail": "exit=0 TASK ID                     TRẠNG THÁI  WORKFLOW  CẬP NHẬT          MỤC TIÊU\n01M7HR2VT7XDMAQ0FY8268S256  created     b-do      2026-11-16 15:37  Phiếu Z: chưa c"
+  },
+  {
+   "id": "B5a-mode-shadow-accepted",
+   "pass": true,
+   "detail": "exit=0 TASK ID                     TRẠNG THÁI  WORKFLOW  CẬP NHẬT          MỤC TIÊU\n01M7HR2VT7XDMAQ0FY8268S256  created     b-do      2026-11-16 15:37  Phiếu Z: chưa c"
+  },
+  {
+   "id": "B5a-mode-stop-accepted",
+   "pass": false,
+   "detail": "exit=1 lỗi: cấu hình không hợp lệ:\n  - workflow.no_progress.mode: stop chưa được hỗ trợ (off | shadow)"
+  },
+  {
+   "id": "B5b-mode-bogus-rejected",
+   "pass": true,
+   "detail": "exit=1 lỗi: cấu hình không hợp lệ:\n  - workflow.no_progress.mode: phải là off | shadow"
+  },
+  {
+   "id": "B5c-default-off",
+   "pass": true,
+   "detail": "mẫu config: no_progress:\n    mode: off"
+  }
+ ]
+}

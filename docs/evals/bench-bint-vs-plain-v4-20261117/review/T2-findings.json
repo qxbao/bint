@@ -1,0 +1,240 @@
+{
+ "W": [
+  {
+   "id": "W1",
+   "severity": "critical",
+   "title": "Mô tả/mục tiêu/tiêu chí/lệnh kiểm chứng của phiếu lưu thô trong task.yml",
+   "where": "internal/task/ledger.go:590 (ghi task.yml, không qua redact)",
+   "scenario": "HOME/XDG_STATE_HOME tạm (/home/baodq/bench-bint-v4-20261117/tmp/review-T2/h-<nhãn>), git init + bint init --git track; tạo phiếu bằng `task new` + `task set --goal/--criteria`, `task write plan|requirement|tasks -`, `task review <json>`, `task error`, `task criteria 1 met -e`, `task set --verify-command` + `task approve` + `task verify`, `bint hook claude` + `events ingest`, `bint run b-feat --agent-command` (agent in bí mật), `task sync`; mỗi nơi dùng bí mật giả có nhãn riêng (XPW<nơi>, XBR.., ghp_XGH.., AKIAXAK.., XAP.., XUR.., PEM MIIXPK.., XFL.., XAW.., XBA.., XXK.., sk-XOA..) rồi `grep -raoE 'X(PW|BR|GH|...)' <state> <repo>` kèm `sqlite3 .dump`. Bước `task new \"... password=XPWDESCpw ...\"`, `task set --goal ... --criteria ...`.",
+   "evidence": "runtime/tasks/01M7M61S5R51ZKNFBRMM0SDSQ2/task.yml: XPWDESCpw XBRDESCbearer XGHDESC... XAWDESCawssecret XPWSETGpw XPWCRDEFpw ... (đủ 12 loại bí mật, không mục nào bị che); tương tự runtime/tasks/01M7M61T0CFJ606BYA6HK8T8DP/task.yml chứa *DESC2*",
+   "ran": true
+  },
+  {
+   "id": "W2",
+   "severity": "critical",
+   "title": "Tài liệu phiếu plan.md/requirement.md/tasks.md lưu thô",
+   "where": "internal/task/task.go:923 (WriteArtifact)",
+   "scenario": "`printf 'password=XPWPLANpw\\n...' | bint task write <id> plan -` (tương tự requirement, tasks) rồi grep thư mục tác vụ.",
+   "evidence": "runtime/tasks/01M7M61S5R51ZKNFBRMM0SDSQ2/plan.md: XPWPLANpw XBRPLANbearer XGHPLAN... XAKPLAN... XAPPLANapikey XURPLANurl XPKPLANpem ...; requirement.md: XPWREQpw...; tasks.md: XPWTASKSpw...",
+   "ran": true
+  },
+  {
+   "id": "W3",
+   "severity": "critical",
+   "title": "Review (summary, evidence của phát hiện) lưu thô trong review.json và review.md",
+   "where": "internal/task/ledger.go:613 (review.md), internal/task/review.go (review.json)",
+   "scenario": "`bint task review <id> review.json` với summary/evidence chứa bí mật nhãn REVS/REVE.",
+   "evidence": "runtime/tasks/01M7M61S5R51ZKNFBRMM0SDSQ2/review.json và review.md: XPWREVSpw XPWREVEpw XBRREVSbearer XAWREVEawssecret ... (24 nhãn, không che)",
+   "ran": true
+  },
+  {
+   "id": "W4",
+   "severity": "critical",
+   "title": "`task error` và bằng chứng `task criteria -e` lưu thô trong state.json",
+   "where": "internal/task/ledger.go:622 (ghi state.json)",
+   "scenario": "`bint task error <id> --step b-feat \"lỗi password=XPWERRpw ...\"`; `bint task criteria <id> 1 met -e \"bằng chứng password=XPWCRITpw ...\"`.",
+   "evidence": "runtime/tasks/01M7M61S5R51ZKNFBRMM0SDSQ2/state.json: XPWERRpw XBRERRbearer XAWERRawssecret XPWCRITpw XBRCRITbearer ... (không che)",
+   "ran": true
+  },
+  {
+   "id": "W5",
+   "severity": "critical",
+   "title": "Sổ phiếu .bint/tasks/<id>/ trong cây làm việc (thiết kế để commit cùng mã) chứa bí mật thô",
+   "where": "internal/task/ledger.go:26-43 (LedgerDir .bint/tasks, ledgerFiles)",
+   "scenario": "Sau các bước trên chạy `bint task sync`; grep repo/.bint/tasks; `git status` cho thấy .bint/ chưa bị ignore.",
+   "evidence": "repo/.bint/tasks/01M7M61S5R51ZKNFBRMM0SDSQ2/task.yml, state.json, plan.md, requirement.md, tasks.md, review.json đều chứa XPW*/XBR*/XGH*/XAW*...; `git status --short` → `?? .bint/` (một `git add .` là đưa bí mật vào lịch sử Git)",
+   "ran": true
+  },
+  {
+   "id": "W6",
+   "severity": "critical",
+   "title": "Đề bài gửi agent lưu thô ở logs/prompt.txt",
+   "where": "internal/eval/agent.go:427-429 (os.WriteFile(promptFile, req.Prompt))",
+   "scenario": "`bint task new \"Việc hai password=XPWDESC2pw ...\"` rồi `bint run b-feat --task <id> --agent-command 'sh agent.sh'`.",
+   "evidence": "runtime/tasks/01M7M61T0CFJ606BYA6HK8T8DP/logs/prompt.txt: XPWDESC2pw XBRDESC2bearer XGHDESC2... XAWDESC2awssecret ... (không che)",
+   "ran": true
+  },
+  {
+   "id": "W7",
+   "severity": "critical",
+   "title": "Kết quả agent (result_summary) lưu thô trong state.sqlite",
+   "where": "internal/workflow/run.go:1440 (result_summary = res.Text, không che)",
+   "scenario": "Agent tuỳ biến in dòng JSON `{\"type\":\"result\",\"result\":\"done password=XPWARESpw ghp_<FIXTURE>...\"}`; `bint run b-feat --agent-command ...`; `sqlite3 state.sqlite .dump`.",
+   "evidence": "state.sqlite (bảng runs.result_summary và events workflow.finished): '\"result_summary\":\"done password=XPWARESpw ghp_<FIXTURE>...\"'. Sự kiện hook test.completed thì đã che đúng: 'GITHUB_TOKEN=*** go test ./... --password *** -H ''Authorization: *** ***'' AWS_SECRET_ACCESS_KEY=***'.",
+   "ran": true
+  },
+  {
+   "id": "W8",
+   "severity": "critical",
+   "title": "Log kiểm chứng (verify-N.log) còn lộ token không nhãn: ghp_/gho_/github_pat_/xoxb-/glpat-, AKIA..., thân PEM, token làm username trong URL, password=\"... không đóng ngoặc",
+   "where": "internal/redact/redact.go:13-20 (chỉ có mẫu theo nhãn key=value, flag, Bearer/Basic, user:pass@; không có mẫu tiền tố token)",
+   "scenario": "verify.sh in khối bí mật nhãn VER/VERE ra stdout/stderr, cùng các dòng `https://ghp_<FIXTURE>...@github.com/o/r.git`, `gho_XGOCE3... github_pat_XGPCE4... xox<FIXTURE>... glpat-<FIXTURE>...`, `error: password=\"XPWCC1 unterminated`, `DB_PASS=XDPCJ1`; `bint task approve` + `bint task verify`.",
+   "evidence": "verify-1.log: 'bare github ghp_<FIXTURE>...', 'aws id AKIA<FIXTURE>', 'MIIXPKVERpemBODY' (giữa BEGIN/END PRIVATE KEY), 'CASEE https://ghp_<FIXTURE>...@github.com/o/r.git', 'CASEE3 gho_XGOCE3... github_pat_XGPCE4... xox<FIXTURE>... glpat-<FIXTURE>...', 'error: password=\"XPWCC1 unterminated', 'DB_PASS=XDPCJ1'. (Các dạng có nhãn password=/Bearer/Basic/api_key/X-Api-Key/AWS_SECRET_ACCESS_KEY/biến môi trường thì đã che.)",
+   "ran": true
+  },
+  {
+   "id": "W9",
+   "severity": "critical",
+   "title": "Log lượt agent (logs/b-feat-*.log) còn lộ ghp_, AKIA, thân PEM, kể cả token trong dòng JSON result",
+   "where": "internal/redact/redact.go:13-20; internal/eval/shell.go:75-95",
+   "scenario": "Agent tuỳ biến (--agent-command) in khối bí mật AGO ra stdout, AGE ra stderr và dòng result JSON chứa ghp_<FIXTURE>...",
+   "evidence": "b-feat-01M7M61T4JTQ8HJT50TR4QRK4G.log: 'bare github ghp_<FIXTURE>...', 'aws id AKIA<FIXTURE>', 'MIIXPKAGOpemBODY', (tương tự *AGE*), '{\"num_turns\":1,\"result\":\"done password=*** ghp_<FIXTURE>...\",...}'",
+   "ran": true
+  },
+  {
+   "id": "W10",
+   "severity": "medium",
+   "title": "Biến môi trường tên nhạy cảm nhưng giá trị ngắn (SKIP_AUTH=1, USE_TOKEN=true) làm che mọi chữ số/từ trùng trong log",
+   "where": "internal/redact/redact.go:36-45 (EnvValues không đặt độ dài tối thiểu), internal/eval/shell.go:75",
+   "scenario": "`env SKIP_AUTH=1 USE_TOKEN=true bint task verify <id>` với verify in `ok  bint/internal/x 1.012s coverage: 81.1%` và `PASS: 10 tests, 1 skipped, true`.",
+   "evidence": "verify-1.log: '$ sh -c \"sh /home/baodq/bench-bint-v4-2026***7/tmp/...\"', 'ok  \tbint/internal/x\t***.0***2s\tcoverage: 8***.***% of statements', 'PASS: ***0 tests, *** skipped, ***' — số liệu kiểm thử và đường dẫn bị phá (Z với cùng env giữ nguyên).",
+   "ran": true
+  },
+  {
+   "id": "W11",
+   "severity": "low",
+   "title": "Che quá tay chữ thường không phải bí mật: 'basic <từ>', 'token: <từ>', PWD=, 'auth: ok'",
+   "where": "internal/redact/redact.go:14-19 (keyPattern có pwd/auth, mẫu auth bắt mọi từ sau 'basic')",
+   "scenario": "verify in các dòng lành tính: 'Running basic tests now', '    parse.go:12: token: unexpected EOF', 'count=12 GOFLAGS=-mod=mod PWD=/home/u/proj', 'auth: ok'.",
+   "evidence": "verify-1.log: 'Running basic *** now', 'parse.go:12: token: *** EOF', 'count=12 GOFLAGS=-mod=mod PWD=***', 'auth: ***'. Hash sha256, commit SHA, ULID, UUID, count=12, GOFLAGS, đường dẫn /home/u/token/secret_test.go được giữ nguyên.",
+   "ran": true
+  },
+  {
+   "id": "W12",
+   "severity": "low",
+   "title": "Dòng JSON có che bị mã hoá lại: đổi thứ tự khoá và thoát <>& thành \\u003c…",
+   "where": "internal/redact/redact.go:140 (json.Marshal sau walk)",
+   "scenario": "verify in `{\"msg\":\"a<b>&c\",\"password\":\"XPWCF1\"}` và dòng stream-json Claude có 'Authorization: Bearer'.",
+   "evidence": "verify-1.log: '{\"msg\":\"a\\u003cb\\u003e\\u0026c\",\"password\":\"***\"}'; '{\"message\":{...},\"type\":\"assistant\"}' (khoá type bị dời xuống cuối). JSON vẫn hợp lệ, nhưng log không còn đúng nguyên văn.",
+   "ran": true
+  },
+  {
+   "id": "W13",
+   "severity": "low",
+   "title": "Dòng dài hơn 1 MiB bị bỏ trọn trong log (kể cả phần không có bí mật)",
+   "where": "internal/redact/writer.go:9,46-56,78",
+   "scenario": "verify in 'before-line', một dòng 20 MiB không có xuống dòng chứa 'BIGLINE-START ... password=XPWBL1 tail-marker-BL', rồi 'after-line'.",
+   "evidence": "verify-1.log (140 byte): 'before-line', '[bint: oversized log line omitted]', 'after-line' — không lộ bí mật, nhưng mất toàn bộ nội dung dòng (Z giữ BIGLINE-START/tail-marker-BL và che password).",
+   "ran": true
+  },
+  {
+   "id": "W14",
+   "severity": "low",
+   "title": "Bộ che chậm hơn rõ trên log lớn (tuyến tính, không thảm hoạ)",
+   "where": "internal/redact/redact.go:130-235 (mỗi dòng: json.Valid/Decode + 4 regex + quét giá trị đã biết)",
+   "scenario": "verify in 20 MiB log go test/text (mode big) và 20 MiB JSONL kiểu stream-json (mode jsonl).",
+   "evidence": "W: 4.36 s (text 20 MiB) và 4.34 s (JSONL 20 MiB); Z: 0.84 s / 0.73 s; `sh big.sh > file` thô: 0.04 s. Nhị phân 5 MB: 0.84 s, không hỏng; đầu ra không có xuống dòng cuối vẫn được che ('password=***').",
+   "ran": true
+  }
+ ],
+ "Z": [
+  {
+   "id": "Z1",
+   "severity": "critical",
+   "title": "Mô tả/mục tiêu/tiêu chí/lệnh kiểm chứng của phiếu lưu thô trong task.yml",
+   "where": "internal/task/ledger.go:590 (ghi task.yml, không qua redact)",
+   "scenario": "HOME/XDG_STATE_HOME tạm (/home/baodq/bench-bint-v4-20261117/tmp/review-T2/h-<nhãn>), git init + bint init --git track; tạo phiếu bằng `task new` + `task set --goal/--criteria`, `task write plan|requirement|tasks -`, `task review <json>`, `task error`, `task criteria 1 met -e`, `task set --verify-command` + `task approve` + `task verify`, `bint hook claude` + `events ingest`, `bint run b-feat --agent-command` (agent in bí mật), `task sync`; mỗi nơi dùng bí mật giả có nhãn riêng (XPW<nơi>, XBR.., ghp_XGH.., AKIAXAK.., XAP.., XUR.., PEM MIIXPK.., XFL.., XAW.., XBA.., XXK.., sk-XOA..) rồi `grep -raoE 'X(PW|BR|GH|...)' <state> <repo>` kèm `sqlite3 .dump`. Bước `task new \"... password=XPWDESCpw ...\"`, `task set --goal ... --criteria ...`.",
+   "evidence": "runtime/tasks/01M7M61ZXEFG257N702NDKJHJN/task.yml: XPWDESCpw XBRDESCbearer XGHDESC... XAWDESCawssecret XPWSETGpw XPWCRDEFpw ... (đủ 12 loại bí mật, không mục nào bị che); tương tự runtime/tasks/01M7M6211TVT9MF405C66KG4MZ/task.yml chứa *DESC2*",
+   "ran": true
+  },
+  {
+   "id": "Z2",
+   "severity": "critical",
+   "title": "Tài liệu phiếu plan.md/requirement.md/tasks.md lưu thô",
+   "where": "internal/task/task.go:923 (WriteArtifact)",
+   "scenario": "`printf 'password=XPWPLANpw\\n...' | bint task write <id> plan -` (tương tự requirement, tasks) rồi grep thư mục tác vụ.",
+   "evidence": "runtime/tasks/01M7M61ZXEFG257N702NDKJHJN/plan.md: XPWPLANpw XBRPLANbearer XGHPLAN... XAKPLAN... XAPPLANapikey XURPLANurl XPKPLANpem ...; requirement.md: XPWREQpw...; tasks.md: XPWTASKSpw...",
+   "ran": true
+  },
+  {
+   "id": "Z3",
+   "severity": "critical",
+   "title": "Review (summary, evidence của phát hiện) lưu thô trong review.json và review.md",
+   "where": "internal/task/ledger.go:613 (review.md), internal/task/review.go (review.json)",
+   "scenario": "`bint task review <id> review.json` với summary/evidence chứa bí mật nhãn REVS/REVE.",
+   "evidence": "runtime/tasks/01M7M61ZXEFG257N702NDKJHJN/review.json và review.md: XPWREVSpw XPWREVEpw XBRREVSbearer XAWREVEawssecret ... (24 nhãn, không che)",
+   "ran": true
+  },
+  {
+   "id": "Z4",
+   "severity": "critical",
+   "title": "`task error` và bằng chứng `task criteria -e` lưu thô trong state.json",
+   "where": "internal/task/ledger.go:622 (ghi state.json)",
+   "scenario": "`bint task error <id> --step b-feat \"lỗi password=XPWERRpw ...\"`; `bint task criteria <id> 1 met -e \"bằng chứng password=XPWCRITpw ...\"`.",
+   "evidence": "runtime/tasks/01M7M61ZXEFG257N702NDKJHJN/state.json: XPWERRpw XBRERRbearer XAWERRawssecret XPWCRITpw XBRCRITbearer ... (không che)",
+   "ran": true
+  },
+  {
+   "id": "Z5",
+   "severity": "critical",
+   "title": "Sổ phiếu .bint/tasks/<id>/ trong cây làm việc (thiết kế để commit cùng mã) chứa bí mật thô",
+   "where": "internal/task/ledger.go:26-43 (LedgerDir .bint/tasks, ledgerFiles)",
+   "scenario": "Sau các bước trên chạy `bint task sync`; grep repo/.bint/tasks; `git status` cho thấy .bint/ chưa bị ignore.",
+   "evidence": "repo/.bint/tasks/01M7M61ZXEFG257N702NDKJHJN/task.yml, state.json, plan.md, requirement.md, tasks.md, review.json đều chứa XPW*/XBR*/XGH*/XAW*...; `git status --short` → `?? .bint/` (một `git add .` là đưa bí mật vào lịch sử Git)",
+   "ran": true
+  },
+  {
+   "id": "Z6",
+   "severity": "critical",
+   "title": "Đề bài gửi agent lưu thô ở logs/prompt.txt",
+   "where": "internal/eval/agent.go:427-429 (os.WriteFile(promptFile, req.Prompt))",
+   "scenario": "`bint task new \"Việc hai password=XPWDESC2pw ...\"` rồi `bint run b-feat --task <id> --agent-command 'sh agent.sh'`.",
+   "evidence": "runtime/tasks/01M7M6211TVT9MF405C66KG4MZ/logs/prompt.txt: XPWDESC2pw XBRDESC2bearer XGHDESC2... XAWDESC2awssecret ... (không che)",
+   "ran": true
+  },
+  {
+   "id": "Z7",
+   "severity": "critical",
+   "title": "state.sqlite lưu thô kết quả agent (result_summary) và — hồi quy so với gốc — lệnh kiểm thử trong sự kiện hook có cờ --access-token/--github-token/--db-password/--client-secret",
+   "where": "internal/workflow/run.go:1440 (result_summary); internal/detect/detect.go:271 (bỏ secretFlags gốc, chỉ còn redact.Text) + internal/redact/text.go:54-68 (secretKey chỉ nhận đúng tên hoặc hậu tố _token/_password/_secret)",
+   "scenario": "(1) Agent tuỳ biến in result JSON có 'password=XPWARESpw ghp_<FIXTURE>...'; (2) `bint hook claude` với PostToolUse Bash command 'go test ./... --access-token XATHK1 --github-token XGTHK2 --db-password XDPHK3 --client-secret XCSHK4' rồi `bint events ingest`; đối chứng: chạy nguyên văn 4 regex của detect.Redact gốc (8757340) bằng go run.",
+   "evidence": "state.sqlite events: '{\"command\":\"go test ./... --access-token XATHK1 --github-token XGTHK2 --db-password XDPHK3 --client-secret XCSHK4\",...}' (W cùng đầu vào: '--access-token *** --github-token *** --db-password *** --client-secret ***'); regex gốc cho: 'go test ./... --access-token *** --github-token *** --db-password *** --client-secret ***' ⇒ hồi quy. Bảng runs/events workflow.finished: 'result_summary\":\"done password=XPWARESpw ghp_<FIXTURE>...'.",
+   "ran": true
+  },
+  {
+   "id": "Z8",
+   "severity": "critical",
+   "title": "Log kiểm chứng (verify-N.log) còn lộ khoá API có nhãn và giá trị từ môi trường: AWS_SECRET_ACCESS_KEY=, Authorization: Basic, X-Api-Key:, PRIVATE_KEY=, ACCESS_KEY=, Cookie:, PGPASSWORD=, biến *_TOKEN/*_PASSWORD in trần, AKIA, PEM, gho_/xoxb-/glpat-",
+   "where": "internal/redact/text.go:7 (chỉ 3 tiền tố ghp_/github_pat_/sk-proj-), internal/redact/text.go:54-68 (danh sách khoá hẹp), internal/eval/shell.go:86 (không lấy giá trị bí mật từ env)",
+   "scenario": "verify.sh in khối bí mật VER/VERE và dòng 'CASEJ export DB_PASS=XDPCJ1 PRIVATE_KEY=XPKCJ2 ACCESS_KEY=XACCJ3 ... Cookie: session=XCKCJ6', 'PGPASSWORD=XPGCK2 psql', 'echo \"env value is $MY_SERVICE_TOKEN and $DB_PASSWORD\"' với MY_SERVICE_TOKEN=XENVCI1plain DB_PASSWORD=XENVCI2plain trong env.",
+   "evidence": "verify-1.log: 'AWS_SECRET_ACCESS_KEY=XAWVERawssecret', 'Authorization: Basic XBAVERbasic', 'X-Api-Key: XXKVERxapikey', 'aws id AKIA<FIXTURE>', 'MIIXPKVERpemBODY', 'PRIVATE_KEY=XPKCJ2 ACCESS_KEY=XACCJ3 ... Cookie: session=XCKCJ6', 'PGPASSWORD=XPGCK2', 'CASEI env value is XENVCI1plain and XENVCI2plain', 'gho_XGOCE3... xox<FIXTURE>... glpat-<FIXTURE>...'. (password=, Bearer, api_key:, --token, ghp_, URL user:pass, OPENAI_API_KEY=sk-... thì đã che.)",
+   "ran": true
+  },
+  {
+   "id": "Z9",
+   "severity": "critical",
+   "title": "Log lượt agent (logs/b-feat-*.log) còn lộ AWS_SECRET_ACCESS_KEY, Basic, X-Api-Key, AKIA, PEM",
+   "where": "internal/redact/text.go:7,54-68; internal/eval/shell.go:86",
+   "scenario": "Agent tuỳ biến (--agent-command) in khối bí mật AGO ra stdout và AGE ra stderr.",
+   "evidence": "b-feat-01M7M62188QNHV000RXEX3KFY1.log: 'AWS_SECRET_ACCESS_KEY=XAWAGOawssecret', 'Authorization: Basic XBAAGObasic', 'X-Api-Key: XXKAGOxapikey', 'aws id AKIA<FIXTURE>', 'MIIXPKAGOpemBODY' (và bản *AGE* từ stderr).",
+   "ran": true
+  },
+  {
+   "id": "Z10",
+   "severity": "critical",
+   "title": "Che sai làm mất dữ liệu: sau giá trị Bearer trong ngoặc đơn hoặc password=\"… không đóng, Writer coi dấu nháy kế tiếp là mở chuỗi bí mật và nuốt toàn bộ đầu ra phía sau tới dấu nháy cùng loại tiếp theo",
+   "where": "internal/redact/writer.go:258-283 (unquoted gặp ' hoặc \" thì chuyển sang quoted và bỏ mọi byte), writer.go:Close không xả phần đang nuốt",
+   "scenario": "verify in 'CASEA-START', \"+ curl -H 'Authorization: Bearer XBRCA1tok' https://api.example.com/v1\", 'caseA line after 1', '--- FAIL: TestImportantA (0.01s)', ... rồi ~25 dòng khác (log 1290 byte ở W). Biến thể bỏ dòng Bearer: 'error: password=\"XPWCC1 unterminated' theo sau là các dòng FAIL. Thêm: hook PostToolUse với lệnh \"... -H 'Authorization: Bearer XBRHOOKbearer' AWS_SECRET_ACCESS_KEY=XAWHOOKaws\".",
+   "evidence": "verify-1.log chỉ còn 144 byte: \"CASEA-START\\n+ curl -H 'Authorization: Bearer ***'' Bearer ***'\" — mất '--- FAIL: TestImportantA', mọi dòng sau và cả dòng cuối. Biến thể: 'error: password=\"***\"\"\"\"\"\"\"\"\"\"\"\"\"\"\" done\"}]}}' — mất 'caseC line after 1', '--- FAIL: TestImportantC', CASEC-END và 2 dòng JSONL. sqlite test.command bị cắt: \"GITHUB_TOKEN=*** go test ./... --password *** -H ''Authorization: Bearer ***''\" (mất phần sau). Tail dùng cho thông báo lỗi agent/phân loại lỗi hạ tầng cũng bị cắt theo.",
+   "ran": true
+  },
+  {
+   "id": "Z11",
+   "severity": "medium",
+   "title": "Dòng dạng 'token:/secret:/password: …' làm ẩn phần còn lại của dòng và mọi dòng thụt sâu hơn phía sau (chi tiết lỗi kiểm thử)",
+   "where": "internal/redact/writer.go:368-395 (blockStart/blockBody/yamlPlain coi log như YAML)",
+   "scenario": "verify in '--- FAIL: TestTokenParse (0.00s)', '    parse.go:12: token: unexpected EOF', '        at line 3 col 4 detail', '    parse.go:13: second failure detail'.",
+   "evidence": "verify-1.log: '    parse.go:12: token: ***' rồi nhảy thẳng tới '    parse.go:13: second failure detail' — dòng '        at line 3 col 4 detail' biến mất, 'unexpected EOF' bị che. Hash, ULID, UUID, count=12, GOFLAGS, PWD, 'Running basic tests now' thì giữ nguyên.",
+   "ran": true
+  },
+  {
+   "id": "Z12",
+   "severity": "medium",
+   "title": "Hook trace (BINT_HOOK_TRACE=1) vẫn ghi đầu vào hook nguyên văn",
+   "where": "internal/app/hook_trace.go:67-69 (body := data, không che)",
+   "scenario": "`BINT_HOOK_TRACE=1 bint hook claude < hook1.json` với tool_input.command chứa GITHUB_TOKEN=ghp_..., --password, Bearer, AWS_SECRET_ACCESS_KEY và tool_response.stdout 'password=XPWHOOKOUT'.",
+   "evidence": "runtime/hook-trace/20261117T072034.489488650Z-claude-PostToolUse.in: '\"command\": \"GITHUB_TOKEN=ghp_<FIXTURE>... go test ./... --password XPWHOOKpw -H 'Authorization: Bearer XBRHOOKbearer' AWS_SECRET_ACCESS_KEY=XAWHOOKaws\"', '\"stdout\": \"password=XPWHOOKOUT\"' (W cùng kịch bản: .in đã che hết). Chỉ ghi khi bật biến chẩn đoán nên mức medium.",
+   "ran": true
+  }
+ ]
+}

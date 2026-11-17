@@ -1,0 +1,123 @@
+{
+ "W": [
+  {
+   "id": "W1",
+   "severity": "critical",
+   "title": "Tự động xoá ngầm bản sao lưu (backups/) sau 30 ngày, bật sẵn, không xem trước, không báo",
+   "where": "internal/app/workspace.go:66; internal/stategc/gc.go:81; internal/config/config.go:641",
+   "scenario": "HOME/XDG_STATE_HOME tạm, git init + `bint init --no-hooks`. Tạo <state>/backups/20261001T000000.000Z/.claude/settings.json (mô phỏng bản fsafe.Backup do init/config ghi trước khi sửa tệp người dùng), đặt mtime 45 ngày trước. Chạy lệnh thường `bint runs list` (đi qua Workspace.Ingest).",
+   "evidence": "`bint runs list` chỉ in 'Chưa có lượt chạy nào được ghi nhận.', rc=0, không báo gì; sau đó `find <state>/backups` chỉ còn thư mục rỗng `backups`, và <state>/gc.lock được ghi '2026-11-17T15:36:54Z'. backups/ là nơi init, config set, publish, gitvis... lưu bản gốc của CLAUDE.md/AGENTS.md/.claude/settings.json/~/.claude.json/config.yml trước khi Bint ghi đè (fsafe.Backup), tức thường là bản gốc duy nhất. Cấu hình cũ không có khoá vẫn nhận mặc định 30, nên nâng cấp xong là bật xoá, người dùng không được hỏi. Mức giữ 30 ngày cũng ngắn hơn ý người dùng ('vài tháng'). Dung lượng lấy lại không đáng kể (vài KB) mà mất hẳn khả năng khôi phục.",
+   "ran": true
+  },
+  {
+   "id": "W2",
+   "severity": "medium",
+   "title": "Xoá log đánh giá mà SQLite vẫn trỏ tới (log_dir), cửa sổ 30 ngày ngắn hơn cửa sổ 90 ngày mà evolve đọc các log này",
+   "where": "internal/stategc/gc.go:99-121,192; so với internal/evolve/failure.go:441-456 (gốc), config Memory.RetentionDays=90",
+   "scenario": "Thêm vào state.sqlite đợt eval 'b-old' (status interrupted, finished_at 45 ngày trước), lượt a1 failed với log_dir=<state>/eval-work/logs/b-old/c1-bint-0 có agent.log, test.log, cùng runs/b-old. Chạy `bint gc --dry-run` rồi `bint gc`.",
+   "evidence": "Bản xem trước và lệnh thật đều liệt kê eval-work/runs/b-old và eval-work/logs/b-old, và thực sự xoá ('Đã dọn 2 mục, 18 byte'). Sau đó `select log_dir from evaluation_runs` vẫn trả <state>/eval-work/logs/b-old/c1-bint-0, nhưng thư mục này không còn: SQLite lệch với tệp. evolve (cửa sổ mặc định memory.retention_days=90) mở a.LogDir/agent.log, files list, test.log để phân loại thất bại; với lượt 31–90 ngày tuổi, các đọc này lặng lẽ không thấy gì, nên Trace/Modified/TestFails rỗng. Đợt 'interrupted' (hết hạn mức) là đợt có thể --resume, vậy mà vẫn bị xoá. Phần ảnh hưởng tới evolve là suy luận từ mã, chưa chạy evolve.",
+   "ran": true
+  },
+  {
+   "id": "W3",
+   "severity": "low",
+   "title": "`bint gc` không cờ xoá ngay, không hỏi xác nhận; xem trước chỉ là tuỳ chọn",
+   "where": "internal/cli/gc.go:26-41",
+   "scenario": "Chạy `bint gc` trong repo có mục quá hạn.",
+   "evidence": "Lệnh xoá ngay, in 'Đã dọn 2 mục, 18 byte.', không có bước xác nhận. Đường tự động trong Ingest còn không in gì (xem W1).",
+   "ran": true
+  },
+  {
+   "id": "W4",
+   "severity": "low",
+   "title": "Trên Windows, RemoveAll gặp tệp bị khoá sẽ xoá dở một cây rồi dừng cả lượt dọn; đường tự động nuốt lỗi rồi thử lại toàn bộ mỗi lần nạp",
+   "where": "internal/stategc/gc.go:128-131,192-194; internal/app/workspace.go:66",
+   "scenario": "Suy luận: một tệp trong eval-work/logs/<batch> đang mở (antivirus, trình xem log) trên Windows thì r.RemoveAll trả lỗi sau khi đã xoá một phần cây, Collect return ngay nên bỏ qua các ứng viên còn lại; trong Ingest lỗi bị bỏ (`_, _ =`), không ghi mốc thời gian, nên mỗi lần `bint runs/status` lại quét lại toàn bộ.",
+   "evidence": "Chỉ đọc mã; không có máy Windows để chạy.",
+   "ran": false
+  },
+  {
+   "id": "W5",
+   "severity": "low",
+   "title": "Giữ khoá ghi SQLite (BEGIN IMMEDIATE) suốt lúc RemoveAll cây đánh giá; tiến trình ghi khác chờ tối đa busy_timeout 10 s; `bint gc` tự mở DB với busy_timeout 1 s thay vì store.Open",
+   "where": "internal/stategc/gc.go:172-176,192; internal/app/gc.go:27",
+   "scenario": "Suy luận: workdir giữ lại bằng KeepWorkdirs có thể là bản clone lớn; xoá trên NTFS/Windows có thể quá 10 s, làm `bint run`/`eval` song song lỗi 'database is locked'. Ngược lại, `bint gc` gặp ghi đồng thời quá 1 s là thất bại.",
+   "evidence": "Chỉ đọc mã; không dựng được cây đủ lớn trong giới hạn đĩa.",
+   "ran": false
+  },
+  {
+   "id": "W6",
+   "severity": "low",
+   "title": "Đưa tệp kế hoạch nội bộ của agent vào repo",
+   "where": "docs/superpowers/plans/2026-11-17-state-gc.md",
+   "scenario": "Đọc diff.",
+   "evidence": "Tệp chứa ghi chú quy trình riêng của agent ('Work in the supplied clean bench checkout', danh sách test lỗi sandbox), không phải tài liệu người dùng.",
+   "ran": true
+  },
+  {
+   "id": "W7",
+   "severity": "medium",
+   "title": "Bỏ sót: chưa hỏi hay tôn trọng mức giữ, và để ngoài phạm vi những nguồn phình chính",
+   "where": "internal/stategc/gc.go:81 (danh sách thư mục); internal/config/config.go:641",
+   "scenario": "Đối chiếu risk-spec T1: các nguồn phình là runtime/tasks, log, worktrees, spool.",
+   "evidence": "Không dọn log của phiếu đã xong trong runtime/tasks, không dọn worktree của tác vụ đã xong và đã đưa về, không dọn eval-work/bases còn sót. Ngược lại, lại dọn backups (W1). Mặc định 30 ngày đặt tuỳ ý, trong khi người dùng muốn 'vài tháng'. Các rủi ro symlink, khoá liên tiến trình và xem trước đều đã xử lý: symlink trong backups/, spool/rejected/ hay bên trong cây con đều được giữ nguyên, tệp đích bên ngoài còn nguyên, dry-run khớp với lần xoá thật.",
+   "ran": true
+  }
+ ],
+ "Z": [
+  {
+   "id": "Z1",
+   "severity": "medium",
+   "title": "Gần như không lấy lại được dung lượng: chỉ dọn cache base eval (vốn đã tự xoá khi keep_bases=false) và thư mục tmp/verify-* đã đánh dấu xong; mọi nguồn phình chính đều bị giữ",
+   "where": "internal/cleanup/cleanup.go:111-153; internal/app/cleanup_alternates.go:34-41; internal/app/cleanup.go:178",
+   "scenario": "Repo tạm + `bint init --no-hooks`. Thêm eval-work/logs/b-old (200 KB), runs/b-old, tmp/verify-crashed (marker completed=false), một cache base hợp lệ eval-work/bases/<sha>.git, tất cả mtime 120 ngày trước. Chạy `bint clean`. Sau đó (B) thêm worktree tác vụ `git worktree add <state>/worktrees/01TASK`; (C) thêm một symlink bất kỳ <state>/runtime/somelink; (D) thêm runtime/tasks/01OPEN/state.json có status in_progress và không có base.",
+   "evidence": "(A) chỉ cache base 'eligible'; eval-work/logs 200000 bytes, backups, runtime, spool đều 'kept: history, recovery or unmanaged data'; tmp/verify-crashed 'kept: missing or incomplete lifecycle marker'. (B), (C), (D): cache base đổi thành 'kept: source or references not proven safe', 'Eligible: 0 bytes'. Như vậy chỉ cần một worktree tác vụ (.git là gitfile), một symlink bất kỳ trong state, hoặc một phiếu đang mở là không dọn được gì. Thư mục verify sót lại do crash (completed=false) và loại cũ không có marker thì giữ mãi. Mặc định eval.keep_bases=false nên cache base vốn đã được releaseBase xoá sau mỗi lần dùng, và `bint eval clean` đã có sẵn. Mục tiêu 'lấy lại dung lượng' gần như không đạt.",
+   "ran": true
+  },
+  {
+   "id": "Z2",
+   "severity": "medium",
+   "title": "Hồi quy: releaseBase/PruneBases/`bint eval clean` lặng lẽ bỏ qua việc dọn khi có bên giữ cổng chia sẻ (ví dụ đang chạy kiểm chứng), mà vẫn báo 'Đã xoá 0' với rc=0",
+   "where": "internal/eval/basecache.go:40-42,76-79,136-139",
+   "scenario": "Có cache base trong eval-work/bases. Giữ khoá chia sẻ như verifyTempDir làm: `flock -s <state>/runtime/cleanup-locks/lifecycle.lock sleep 8 &`. Trong lúc đó chạy `bint eval clean`.",
+   "evidence": "`bint eval clean` in 'Đã xoá 0 kho đệm, giải phóng 0.0 MB.', rc=0, cache vẫn còn. Nhả khoá rồi chạy lại thì 'Đã xoá 1 kho đệm'. Theo cùng nhánh mã, releaseBase (keep_bases=false, sau mỗi đợt eval hay verify case) gặp ErrBusy cũng return mà không xoá, nên một eval chạy song song với b-feat verify sẽ để lại cache base mãi (khoảng 60 MB mỗi base theo chú thích cấu hình), làm thư mục phình thêm, ngược với mục tiêu. Riêng releaseBase là suy luận từ cùng nhánh mã.",
+   "ran": true
+  },
+  {
+   "id": "Z3",
+   "severity": "low",
+   "title": "Khi `bint clean` (kể cả xem trước) hay releaseBase đang giữ cổng độc quyền, verify bắt đầu lúc đó mất TMPDIR riêng",
+   "where": "internal/workflow/ops.go:862-864",
+   "scenario": "Suy luận: verifyTempDir gọi Guard(shared) dạng thử, không chờ. Nếu đúng lúc đó cổng độc quyền đang bị giữ (clean đang đo một cache base, hoặc releaseBase đang xoá), hàm trả \"\" và lệnh kiểm chứng chạy với TMPDIR kế thừa. Đây chính là lỗi đỏ giả /tmp/.git mà TMPDIR riêng được thêm vào để tránh. Lẽ ra phải dùng cleanup.Use (có chờ) như prepareWorkdir.",
+   "evidence": "Chỉ đọc mã; chưa dựng lượt b-feat thật.",
+   "ran": false
+  },
+  {
+   "id": "Z4",
+   "severity": "low",
+   "title": "Xem trước vẫn ghi vào state và khoá độc quyền từng tệp của cache; giao diện bằng tiếng Anh cho người dùng Việt",
+   "where": "internal/cleanup/lock.go:42-55; internal/cleanup/cleanup.go:113-118,1240; internal/cli/clean.go:31-48",
+   "scenario": "Chạy `bint clean` (chế độ xem trước).",
+   "evidence": "Sau lần xem trước có runtime/cleanup-locks/lifecycle.lock. Đầu ra là 'Preview only; no data deleted.', 'kept: history, recovery or unmanaged data'..., toàn tiếng Anh với một người dùng không rành kỹ thuật.",
+   "ran": true
+  },
+  {
+   "id": "Z5",
+   "severity": "low",
+   "title": "Cờ tuổi không được nhớ giữa lần xem trước và lần --apply",
+   "where": "internal/cli/clean.go:12,52",
+   "scenario": "Suy luận: `bint clean --older-than-days 180` (xem trước) rồi `bint clean --apply` (quên cờ) thì apply theo 90 ngày, xoá nhiều hơn những gì đã xem. Tài liệu có nhắc, nhưng mã không kiểm.",
+   "evidence": "Chỉ đọc mã: mặc định cứng 90; phạm vi bị ảnh hưởng hẹp vì chỉ dọn cache base và tmp tái tạo được.",
+   "ran": false
+  },
+  {
+   "id": "Z6",
+   "severity": "medium",
+   "title": "Bỏ sót: không có đường dọn cho log eval, runs giữ lại, log phiếu đã xong, worktree đã đưa về, spool/rejected, backups cũ",
+   "where": "internal/cleanup/cleanup.go:1081 (chỉ đi vào eval-work, eval-work/bases, tmp)",
+   "scenario": "Đối chiếu risk-spec T1 và yêu cầu 'tự dọn bớt mấy thứ cũ'.",
+   "evidence": "Tất cả các nhóm này được in 'kept' (xem Z1). Về an toàn thì tốt: không xoá phiếu đang mở, worktree hay SQLite; symlink làm cả cây được giữ; dùng khoá fslock; xem trước là mặc định. Nhưng thành phần mà yêu cầu cần, là dọn chính những thứ phình, thì thiếu.",
+   "ran": true
+  }
+ ]
+}

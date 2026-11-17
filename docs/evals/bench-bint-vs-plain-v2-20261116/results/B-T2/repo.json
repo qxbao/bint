@@ -1,0 +1,53 @@
+{
+ "summary": {
+  "cmd": "repo",
+  "fail": [],
+  "fixture_ok": true,
+  "critical": [],
+  "medium": []
+ },
+ "results": [
+  {
+   "id": "C1-build",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  },
+  {
+   "id": "C2-vet",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  },
+  {
+   "id": "C3-vet-windows",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  },
+  {
+   "id": "C4-staticcheck",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  },
+  {
+   "id": "C5-staticcheck-windows",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  },
+  {
+   "id": "C6-go-test",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  }
+ ]
+}

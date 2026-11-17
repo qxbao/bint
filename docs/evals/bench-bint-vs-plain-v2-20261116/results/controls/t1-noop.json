@@ -1,0 +1,185 @@
+{
+ "summary": {
+  "cmd": "t1",
+  "fail": [
+   "D8-preview-no-change",
+   "D6-old-finished-cleaned"
+  ],
+  "fixture_ok": true,
+  "critical": [],
+  "medium": [
+   "D8-preview-no-change",
+   "D6-old-finished-cleaned"
+  ]
+ },
+ "results": [
+  {
+   "id": "FX-ledger-clean",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "cảnh báo sổ phiếu: []"
+  },
+  {
+   "id": "FX-OLD_DONE1",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQEXCDYG16Z2HMQH34ZR8N6R status=done (cần done) updated=2026-04-30T10:01:37Z"
+  },
+  {
+   "id": "FX-OLD_DONE2",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQEXCEHFK2WM7XPVW5RHZH26 status=done (cần done) updated=2026-04-30T10:01:38Z"
+  },
+  {
+   "id": "FX-NEW_DONE",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01M750WM4RMYSKG6CZ9T3H2B46 status=done (cần done) updated=2026-11-11T10:01:38Z"
+  },
+  {
+   "id": "FX-OLD_CANCELLED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQEXCFS84FBCYBYQMVSR60TW status=cancelled (cần cancelled) updated=2026-04-30T10:01:39Z"
+  },
+  {
+   "id": "FX-OLD_BLOCKED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQEXCG7BXBZ9R5EE7E05YV3K status=blocked (cần blocked) updated=2026-04-30T10:01:39Z"
+  },
+  {
+   "id": "FX-OLD_INTERRUPTED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQEXCGQ65RQYM441C1M7ZXFQ status=interrupted (cần interrupted) updated=2026-04-30T10:01:43Z"
+  },
+  {
+   "id": "FX-OLD_FAILED_WT",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQEXCMXYHSV4J9E8BYMYKQ8B status=failed (cần failed) updated=2026-04-30T10:01:44Z"
+  },
+  {
+   "id": "FX-NEW_RUN",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01M7HWWDDCJ54B3EJGKRP1S96F status=created (cần created) updated=2026-11-16T10:01:44Z"
+  },
+  {
+   "id": "FX-WT-dirty",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "worktree=/home/baodq/bench-bint-v2-20261116/tmp/hidden/hidden2-t1-brcksqkw/state/repo-154138823aab/worktrees/01KQEXCMXYHSV4J9E8BYMYKQ8B status='M a.go\\n?? wip_notes.txt'"
+  },
+  {
+   "id": "FX-old-bytes",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "log phiếu kết thúc cũ = 3309294 B"
+  },
+  {
+   "id": "D8-preview-no-change",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "medium",
+   "detail": "không có cách xem trước"
+  },
+  {
+   "id": "D5-concurrent-run",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "lượt chạy exit=0 status=in_review logs=['prompt.txt', 'b-feat-01M7HWWET3ZXJ51X3BP8ZXHQQM.log'] slow.txt=True | dọn#1 exit=0 0.0s '' | run: 'mpleted  15s        -\\n! chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác\\n! chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành\\nChi tiết: bint task show 01M7HWWDDCJ54B3EJGKRP1S96F   ·   bint run status 01M7HWWDDCJ54B3EJGKRP1S96F\\n'"
+  },
+  {
+   "id": "D1-OLD_BLOCKED",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "01KQEXCG7BXBZ9R5EE7E05YV3K thư mục còn=True tệp đổi/mất=[]"
+  },
+  {
+   "id": "D1-OLD_INTERRUPTED",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "01KQEXCGQ65RQYM441C1M7ZXFQ thư mục còn=True tệp đổi/mất=[]"
+  },
+  {
+   "id": "D2-worktree-kept",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "worktree còn=True status giữ=True nhánh còn=True tệp phiếu đổi/mất=[]"
+  },
+  {
+   "id": "D3-symlink-target",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "tệp ngoài bị đổi/mất=[]"
+  },
+  {
+   "id": "D4-outside-state",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "tệp ngoài thư mục trạng thái bị đổi=[]"
+  },
+  {
+   "id": "D4i-ledger-in-repo",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "sổ phiếu .bint/tasks (đã commit) bị đổi/xoá: 0 tệp []"
+  },
+  {
+   "id": "D6-old-finished-cleaned",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "medium",
+   "detail": "log phiếu kết thúc cũ 3309294 B → còn 3309294 B (giải phóng 0); dọn#1 exit=0"
+  },
+  {
+   "id": "D6i-total-bytes",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "tổng thư mục trạng thái (bỏ sqlite, NEW_RUN) sau = 5546350 B"
+  },
+  {
+   "id": "D7-new-finished-kept",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "01M750WM4RMYSKG6CZ9T3H2B46 tệp đổi/mất=[]"
+  },
+  {
+   "id": "D9-after-clean-healthy",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "doctor 0->0 ✗mới=[] task list 0->0 runs list 0->0 show lỗi=[] show phiếu đã dọn=[] dọn#1/2/3 exit=0/0/0"
+  },
+  {
+   "id": "T-clean-output",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "dọn#1: '' | dọn#2: ''"
+  }
+ ]
+}

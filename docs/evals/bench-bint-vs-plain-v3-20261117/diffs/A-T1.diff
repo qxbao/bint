@@ -1,0 +1,1098 @@
+ docs/architecture.md                          |  20 ++
+ docs/configuration.md                         |   1 +
+ docs/superpowers/plans/2026-11-17-state-gc.md |  69 +++++++
+ docs/usage.md                                 |   2 +
+ internal/app/gc.go                            |  37 ++++
+ internal/app/gc_test.go                       |  95 +++++++++
+ internal/app/workspace.go                     |   4 +
+ internal/cli/gc.go                            |  50 +++++
+ internal/cli/gc_e2e_test.go                   |  81 ++++++++
+ internal/cli/root.go                          |   2 +-
+ internal/config/config.go                     |   7 +-
+ internal/config/retention_test.go             |  32 +++
+ internal/config/template.go                   |   2 +-
+ internal/stategc/gc.go                        | 243 +++++++++++++++++++++++
+ internal/stategc/gc_test.go                   | 270 ++++++++++++++++++++++++++
+ internal/tui/actions/coverage.go              |   2 +
+ 16 files changed, 914 insertions(+), 3 deletions(-)
+
+diff --git a/docs/architecture.md b/docs/architecture.md
+index 020245b..99cf9d5 100644
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -80,6 +80,26 @@ ignore). Khi có guardrail kích hoạt, hook ghi thêm `guardrail.triggered`. S
+ | Theo dõi phiên cho guardrail | `<state>/runtime/harness/` | Tệp JSONL nối thêm (lệnh và tệp đã sửa trong phiên), do hook ghi; không khoá, dòng hỏng bị bỏ qua |
+ | Kho đệm, thư mục làm việc và nhật ký đánh giá | `<state>/eval-work/` | Dữ liệu cô lập phục vụ `bint eval` và `bint evolve evaluate` |
+ 
++Bint tự dọn dữ liệu phụ tối đa mỗi 24 giờ sau khi nạp spool thành công (`runs`, `status`,
++TUI có ghi, truy vấn lịch sử MCP…). Mặc định giữ 30 ngày, chỉnh bằng
++`state.retention_days` trong `.bint/local.yml`; `0` tắt dọn. Phạm vi gồm `backups/`,
++`spool/rejected/`, `runtime/hook-trace/` và `eval-work/{runs,logs}/<batch-id>/` của
++đợt đã kết thúc quá hạn, không còn lượt đánh giá đang chạy. Mọi mục con cũng phải
++quá hạn; bỏ qua symlink và đợt không biết trạng thái. Khoá hệ điều hành ngăn hai
++tiến trình dọn đồng thời. Khi xoá cây đánh giá, giao dịch SQLite giữ khoá ghi qua
++lần kiểm tra trạng thái cuối và thao tác xoá, nên đợt được tiếp tục đồng thời phải
++chờ dọn xong trước khi chuyển sang chạy. Lỗi dọn không chặn nạp sự kiện và sẽ được thử lại.
++Chỉ dọn trạng thái của repository hiện tại khi có hoạt động, không chạy daemon.
++
++`bint gc --dry-run` liệt kê đường dẫn tương đối và dung lượng tệp có thể dọn;
++`bint gc` dọn ngay, `--json` xuất kết quả có cấu trúc. Lệnh thủ công không nạp spool
++đang chờ. Việc dọn không xoá SQLite (lượt chạy, kết quả đánh giá và kiểm toán),
++tri thức, phiếu tác vụ, worktree, profile iso, snapshot hoặc cache Git base.
++Nhật ký đánh giá quá hạn sẽ không còn ở `evaluation_runs.log_dir`; số đo vẫn giữ
++để báo cáo, nhưng cần sao lưu nhật ký muốn lưu lâu hơn. Dung lượng lịch sử SQLite
++vẫn có thể tăng; cơ chế này chỉ dọn các tệp phụ kể trên. TUI chỉ đọc và hook không
++chạy cơ chế dọn này; profile iso có cơ chế riêng qua `bint iso gc`.
++
+ ## Điều phối và tương thích nền tảng
+ 
+ - **Workflow (`internal/workflow`):** điều phối `b-req → b-feat → b-review`, gắn `task_id` và
+diff --git a/docs/configuration.md b/docs/configuration.md
+index fcde7b1..af55567 100644
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -40,6 +40,7 @@ hình trước đó.
+ | `project.name` | `""` (`init` điền tên thư mục) | Tên dự án. |
+ | `project.root` | `"auto"` | Trường dự phòng trong schema; gốc repository luôn xác định qua Git. |
+ | `state.dir` | `"auto"` | Đường dẫn tuyệt đối tới thư mục trạng thái của repository (ngoài repository), hoặc `"auto"`. |
++| `state.retention_days` | `30` | Giữ dữ liệu phụ trong N ngày (`0` = tắt dọn, tối đa `36500`). Khi nạp sự kiện, tự dọn tối đa mỗi 24 giờ: bản sao lưu, spool bị từ chối, dấu vết hook, thư mục và nhật ký của đợt đánh giá đã kết thúc. Giữ lịch sử SQLite, tri thức, phiếu tác vụ, worktree, profile iso và snapshot. Xem trước bằng `bint gc --dry-run`. |
+ 
+ Với `state.dir: auto`, thư mục trạng thái là `<gốc>/<repo-id>` (trong đó `<repo-id>` tính từ
+ `git-common-dir` nên mọi worktree của cùng một repository dùng chung trạng thái). Thứ tự chọn `<gốc>`:
+diff --git a/docs/superpowers/plans/2026-11-17-state-gc.md b/docs/superpowers/plans/2026-11-17-state-gc.md
+new file mode 100644
+index 0000000..b67f0e1
+--- /dev/null
++++ b/docs/superpowers/plans/2026-11-17-state-gc.md
+@@ -0,0 +1,69 @@
++# State cleanup implementation plan
++
++**Goal:** Automatically remove old disposable state without losing task, knowledge,
++run history, or evaluation metrics.
++
++**Design:** Add `state.retention_days` (default 30; 0 disables cleanup; range
++0–36500). A filesystem collector handles backups, rejected spool files, hook
++traces, and work/log directories for terminal evaluation batches whose finish
++time is older than the cutoff. Every descendant must also be older than the
++cutoff. Unknown/running batches and batches with running attempts are preserved.
++SQLite, tasks, worktrees, isolation profiles, snapshots and base caches remain.
++
++Use `os.Root` for confinement and skip symbolic links in candidate paths/trees.
++Serialize cleanup using an OS file lock; record the last successful automatic
++cleanup in that file. Invoke after successful spool ingestion, at most daily;
++failures must not prevent ordinary work. Explicit `bint gc` reports errors and
++`--dry-run` lists candidates/bytes without deleting, ingesting or changing the
++cleanup schedule. Scope is the current repository's state only.
++
++**Tech stack:** Existing Go 1.25, SQLite, Cobra and fslock; no new dependencies.
++
++## Implementation
++
++- [x] Write collector tests covering age boundaries, recent descendants, active
++  and unknown batches, symlinks, protected state, dry run, disabled retention,
++  daily scheduling, locking and retry after errors; observe missing-feature failure.
++- [x] Implement `internal/stategc` and config defaults/template/validation.
++- [x] Connect automatic collection to `Workspace.Ingest`; add `bint gc
++  [--dry-run] [--json]` with an app service and CLI integration tests.
++- [x] Document retention scope, manual commands, automatic trigger and disabling.
++- [x] Run affected package tests, full suite, vet and diff checks; review safety
++  and report any verification limits.
++
++## Decisions
++
++- Retention of 30 days is an implementation default, pending optional user input.
++- Preserve SQLite history and task/evolution evidence; this change targets
++  disposable files and completed evaluation work/log directories.
++- Work in the supplied clean `bench` checkout; no integration/commit requested.
++- Review fix: terminal evaluation batches can resume concurrently. Hold a SQLite
++  writer reservation through the final eligibility check and filesystem removal,
++  serializing with the runner's status update. Dry runs remain read-only.
++
++## Verification
++
++- New collector, configuration, app integration and CLI end-to-end tests pass,
++  along with CLI/TUI coverage and documentation command checks.
++- Concurrent-resume regression fails when the writer reservation is removed,
++  then passes with it restored.
++- `go vet ./...` passes; Windows cross-check (`GOOS=windows go vet` for
++  stategc/app/cli) passes. Formatting and `git diff --check` pass.
++- `go test ./...` encounters sandbox restrictions on localhost listeners
++  (`socket: operation not permitted`). Observed failing tests:
++  - app: `TestMCPGatewayLogWithDaemon`, `TestMCPGatewayLogOldDaemon404`.
++  - cli: `TestIsoCreateCodexLinkedAndDeadLB`.
++  - eval: `TestCodexProfileLinkedLBArgsBeforeResume`.
++  - iso: `TestHarnessArgs`.
++  - mcpcat/probe: `TestHTTPJSONAndSSE/sse=false`.
++  - mcpgw: `TestSecondDaemonRejected`, `TestInfoFile`, `TestAuthTable`,
++    `TestAdminStopShutsDown`, `TestUpstreamEnv`, `TestUpstreamEnvDefaultsAndMissing`,
++    `TestSecretsScrubbedFromStatus`, `TestReviewerDoesNotSeeWriteTools`,
++    `TestDeniedCallsNeverReachUpstream`, `TestRoleResolutionFailsClosed`,
++    `TestInteractiveIsProjectScoped`, `TestToolsCacheSurvivesDaemonRestart`,
++    `TestExclusiveGroup`, `TestGroupMaxConcurrent`, `TestHTTPUpstreamSharedHandshake`.
++  Packages that panic stop before their remaining tests, so this is not a
++  complete green suite. No production data was collected during verification.
++- The workflow package reached the suite's cumulative 10-minute timeout while
++  `TestSessionCompleteStepOverMaxCostRecordsError` was running (for 3 seconds).
++  That test passes on its own (`-count=1 -timeout=60s`, 2.465 seconds).
+diff --git a/docs/usage.md b/docs/usage.md
+index 3496e34..a03fe11 100644
+--- a/docs/usage.md
++++ b/docs/usage.md
+@@ -25,6 +25,8 @@ bint runs list           # lượt chạy đã ghi nhận (tự nạp spool trư
+ bint runs show <id>      # chi tiết, chấp nhận tiền tố ID
+ bint status
+ bint events ingest       # nạp spool thủ công
++bint gc --dry-run        # xem dữ liệu phụ quá 30 ngày sẽ được dọn
++bint gc                  # dọn ngay theo state.retention_days
+ ```
+ 
+ **Hiện diện trong Git** (`--git`, nhớ theo máy, lần init đầu thì hỏi): `track` (mặc định) để tệp
+diff --git a/internal/app/gc.go b/internal/app/gc.go
+new file mode 100644
+index 0000000..e81cac3
+--- /dev/null
++++ b/internal/app/gc.go
+@@ -0,0 +1,37 @@
++package app
++
++import (
++	"context"
++	"database/sql"
++	"net/url"
++	"path/filepath"
++	"strings"
++	"time"
++
++	"bint/internal/stategc"
++)
++
++// CollectState dọn dữ liệu phụ của repository hiện tại, không nạp/xoá spool
++// đang chờ. dry chỉ liệt kê; không cập nhật lịch dọn tự động.
++func CollectState(ctx context.Context, dir string, dry bool) (stategc.Result, error) {
++	w, err := OpenWorkspace(ctx, dir, true)
++	if err != nil {
++		return stategc.Result{}, err
++	}
++	// Không migration, nạp spool hay chuyển journal trong cả chế độ xem trước.
++	dbPath := filepath.ToSlash(w.Paths.DB)
++	if !strings.HasPrefix(dbPath, "/") {
++		dbPath = "/" + dbPath
++	}
++	query := "mode=ro&_pragma=query_only(1)&_pragma=busy_timeout(1000)"
++	if !dry {
++		query = "mode=rw&_pragma=busy_timeout(1000)"
++	}
++	u := url.URL{Scheme: "file", Path: dbPath, RawQuery: query}
++	db, err := sql.Open("sqlite", u.String())
++	if err != nil {
++		return stategc.Result{}, err
++	}
++	defer db.Close()
++	return stategc.Collect(ctx, db, w.Paths, time.Now(), w.Config.State.RetentionDays, dry, false)
++}
+diff --git a/internal/app/gc_test.go b/internal/app/gc_test.go
+new file mode 100644
+index 0000000..4374f53
+--- /dev/null
++++ b/internal/app/gc_test.go
+@@ -0,0 +1,95 @@
++package app
++
++import (
++	"context"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++)
++
++func TestIngestAutomaticallyCleansOldState(t *testing.T) {
++	root, _ := runsRepo(t)
++	ctx := context.Background()
++	w, err := OpenWorkspace(ctx, root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	old := filepath.Join(w.Paths.Backups, "old.bak")
++	if err := os.WriteFile(old, []byte("old"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	at := time.Now().AddDate(0, 0, -31)
++	if err := os.Chtimes(old, at, at); err != nil {
++		t.Fatal(err)
++	}
++	ro, err := OpenRuns(ctx, root, false)
++	if err != nil {
++		t.Fatal(err)
++	}
++	ro.Close()
++	if _, err := os.Stat(old); err != nil {
++		t.Fatal("read-only open removed backup", err)
++	}
++	rw, err := OpenRuns(ctx, root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer rw.Close()
++	if rw.Ingest.Events != 3 {
++		t.Fatalf("ingest changed: %+v", rw.Ingest)
++	}
++	if _, err := os.Stat(old); !os.IsNotExist(err) {
++		t.Fatalf("old backup not cleaned: %v", err)
++	}
++}
++
++func TestCleanupFailureDoesNotBreakIngest(t *testing.T) {
++	root, _ := runsRepo(t)
++	w, err := OpenWorkspace(context.Background(), root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	// A bad lock path prevents cleanup but must not stop event ingestion.
++	if err := os.Mkdir(filepath.Join(w.Paths.Root, "gc.lock"), 0o700); err != nil {
++		t.Fatal(err)
++	}
++	r, err := OpenRuns(context.Background(), root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer r.Close()
++	if r.Ingest.Events != 3 {
++		t.Fatalf("ingest: %+v", r.Ingest)
++	}
++}
++
++func TestGCPreviewDoesNotMigrateStore(t *testing.T) {
++	root, _ := runsRepo(t)
++	ctx := context.Background()
++	w, err := OpenWorkspace(ctx, root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	s, err := w.OpenStore(ctx)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer s.Close()
++	// Mô phỏng schema cũ: mở Store theo đường ghi sẽ thử áp lại migration
++	// và lỗi do bảng đã có; xem trước phải chỉ truy vấn và giữ nguyên version.
++	if _, err := s.DB.Exec(`DELETE FROM schema_migrations WHERE version=(SELECT MAX(version) FROM schema_migrations)`); err != nil {
++		t.Fatal(err)
++	}
++	before, err := s.Version(ctx)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err := CollectState(ctx, root, true); err != nil {
++		t.Fatal(err)
++	}
++	after, err := s.Version(ctx)
++	if err != nil || before != after {
++		t.Fatalf("preview migrated schema: %d -> %d (%v)", before, after, err)
++	}
++}
+diff --git a/internal/app/workspace.go b/internal/app/workspace.go
+index ae2e227..3d4bda0 100644
+--- a/internal/app/workspace.go
++++ b/internal/app/workspace.go
+@@ -11,6 +11,7 @@ import (
+ 	"bint/internal/gitrepo"
+ 	"bint/internal/runlog"
+ 	"bint/internal/state"
++	"bint/internal/stategc"
+ 	"bint/internal/store"
+ )
+ 
+@@ -60,5 +61,8 @@ func (w *Workspace) Ingest(ctx context.Context, s *store.Store, now time.Time) (
+ 	if err != nil {
+ 		return res, fmt.Errorf("nạp spool: %w", err)
+ 	}
++	// Dọn là việc phụ, không được ngăn ghi nhận sự kiện. Hook không mở SQLite
++	// và không gọi Ingest; TUI chỉ đọc cũng không đi qua đường này.
++	_, _ = stategc.Collect(ctx, s.DB, w.Paths, now, w.Config.State.RetentionDays, false, true)
+ 	return res, nil
+ }
+diff --git a/internal/cli/gc.go b/internal/cli/gc.go
+new file mode 100644
+index 0000000..cad7b9c
+--- /dev/null
++++ b/internal/cli/gc.go
+@@ -0,0 +1,50 @@
++package cli
++
++import (
++	"fmt"
++
++	"bint/internal/app"
++	"github.com/spf13/cobra"
++)
++
++func newGCCmd(stdio IO) *cobra.Command {
++	var dry, asJSON bool
++	c := &cobra.Command{
++		Use:   "gc",
++		Short: "Dọn dữ liệu phụ quá hạn của repository hiện tại",
++		Long: `Dọn bản sao lưu, spool bị từ chối, dấu vết hook và thư mục/nhật ký của đợt đánh giá đã kết thúc.
++Tuổi giữ theo state.retention_days (mặc định 30; 0 = tắt). Giữ nguyên SQLite,
++tri thức, phiếu tác vụ, worktree, profile iso và snapshot. Không nạp spool đang chờ.
++Tự dọn tối đa mỗi 24 giờ khi nạp sự kiện; --dry-run liệt kê trước khi xoá.`,
++		Args: cobra.NoArgs,
++		RunE: func(cmd *cobra.Command, _ []string) error {
++			dir, err := cwd()
++			if err != nil {
++				return err
++			}
++			res, err := app.CollectState(cmd.Context(), dir, dry)
++			if err != nil {
++				return err
++			}
++			if asJSON {
++				return writeIndentedJSON(stdio, res)
++			}
++			if res.Disabled {
++				fmt.Fprintln(stdio.Out, "Đã tắt dọn dữ liệu phụ (state.retention_days: 0).")
++				return nil
++			}
++			for _, item := range res.Items {
++				fmt.Fprintf(stdio.Out, "  %s (%d byte)\n", item.Path, item.Bytes)
++			}
++			if dry {
++				fmt.Fprintf(stdio.Out, "Sẽ dọn %d mục, %d byte; chưa xoá dữ liệu.\n", len(res.Items), res.Bytes)
++			} else {
++				fmt.Fprintf(stdio.Out, "Đã dọn %d mục, %d byte.\n", len(res.Items), res.Bytes)
++			}
++			return nil
++		},
++	}
++	c.Flags().BoolVar(&dry, "dry-run", false, "chỉ liệt kê, không xoá dữ liệu")
++	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
++	return c
++}
+diff --git a/internal/cli/gc_e2e_test.go b/internal/cli/gc_e2e_test.go
+new file mode 100644
+index 0000000..9a1504d
+--- /dev/null
++++ b/internal/cli/gc_e2e_test.go
+@@ -0,0 +1,81 @@
++package cli_test
++
++import (
++	"context"
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"bint/internal/app"
++	"bint/internal/spool"
++	"bint/internal/stategc"
++	"bint/internal/testutil"
++)
++
++func TestGCPreviewAndCollect(t *testing.T) {
++	testutil.Isolate(t)
++	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
++	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
++		t.Fatalf("init: %d %s", code, out)
++	}
++	w, err := app.OpenWorkspace(context.Background(), root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	p := filepath.Join(w.Paths.Backups, "old.bak")
++	if err := os.WriteFile(p, []byte("old"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	old := time.Now().AddDate(0, 0, -31)
++	if err := os.Chtimes(p, old, old); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := spool.Write(w.Paths.Spool, spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "pending",
++		Type: spool.SessionStarted, Source: "hook:claude", Harness: "claude", SessionID: "s", Timestamp: old}); err != nil {
++		t.Fatal(err)
++	}
++	for _, dry := range []bool{true, false} {
++		args := []string{"gc", "--json"}
++		if dry {
++			args = append(args, "--dry-run")
++		}
++		out, code := run(t, root, "", args...)
++		var res stategc.Result
++		if code != 0 || json.Unmarshal([]byte(out), &res) != nil {
++			t.Fatalf("gc: %d %s", code, out)
++		}
++		if len(res.Items) != 1 || res.Bytes != 3 || res.DryRun != dry {
++			t.Fatalf("result: %+v", res)
++		}
++		_, err := os.Stat(p)
++		if dry && err != nil {
++			t.Fatal("preview removed backup", err)
++		}
++		if !dry && !os.IsNotExist(err) {
++			t.Fatalf("backup not removed: %v", err)
++		}
++		pending, err := spool.Pending(w.Paths.Spool)
++		if err != nil || len(pending) != 1 {
++			t.Fatalf("gc consumed spool: %v %v", pending, err)
++		}
++	}
++	if out, code := run(t, root, "", "gc", "unexpected"); code != 2 {
++		t.Fatalf("arguments: %d %s", code, out)
++	}
++	if out, code := run(t, t.TempDir(), "", "gc"); code != 4 {
++		t.Fatalf("outside repo: %d %s", code, out)
++	}
++	if err := os.WriteFile(filepath.Join(root, ".bint/local.yml"), []byte("state:\n  retention_days: 0\n"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	if out, code := run(t, root, "", "gc", "--json"); code != 0 {
++		t.Fatalf("disabled: %d %s", code, out)
++	} else {
++		var res stategc.Result
++		if err := json.Unmarshal([]byte(out), &res); err != nil || !res.Disabled {
++			t.Fatalf("disabled result: %s %v", out, err)
++		}
++	}
++}
+diff --git a/internal/cli/root.go b/internal/cli/root.go
+index d5f3fe3..26e40fd 100644
+--- a/internal/cli/root.go
++++ b/internal/cli/root.go
+@@ -145,7 +145,7 @@ func NewRoot(stdio IO) *cobra.Command {
+ 		newTUICmd(stdio))
+ 	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
+ 		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
+-	add("project", newIsoCmd(stdio))
++	add("project", newIsoCmd(stdio), newGCCmd(stdio))
+ 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newTestCmd(stdio), newFindingsCmd(stdio), newSkillCmd(stdio), newFlowCmd(stdio))
+ 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
+ 	add("eval", newEvalCmd(stdio))
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 0b39436..f35f107 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -85,6 +85,8 @@ type Project struct {
+ type State struct {
+ 	// Dir là "auto" hoặc đường dẫn tuyệt đối tới thư mục trạng thái của repository này.
+ 	Dir string `yaml:"dir"`
++	// RetentionDays: tuổi dữ liệu phụ được tự dọn; 0 tắt, không xoá lịch sử SQLite.
++	RetentionDays int `yaml:"retention_days"`
+ }
+ 
+ type Harnesses struct {
+@@ -636,7 +638,7 @@ func Default() Config {
+ 	return Config{
+ 		Version: SchemaVersion,
+ 		Project: Project{Root: "auto"},
+-		State:   State{Dir: "auto"},
++		State:   State{Dir: "auto", RetentionDays: 30},
+ 		Harnesses: Harnesses{
+ 			Enabled:     []string{"claude"},
+ 			Default:     "claude",
+@@ -962,6 +964,9 @@ func (c Config) Validate() error {
+ 	} else if c.State.Dir != "auto" && !filepath.IsAbs(c.State.Dir) {
+ 		add(`state.dir: phải là "auto" hoặc đường dẫn tuyệt đối, nhận %q`, c.State.Dir)
+ 	}
++	if c.State.RetentionDays < 0 || c.State.RetentionDays > 36500 {
++		add("state.retention_days: cần từ 0 đến 36500 (0 = tắt dọn dữ liệu phụ)")
++	}
+ 	if len(c.Harnesses.Enabled) == 0 {
+ 		add("harnesses.enabled: cần ít nhất một harness")
+ 	}
+diff --git a/internal/config/retention_test.go b/internal/config/retention_test.go
+new file mode 100644
+index 0000000..417dad7
+--- /dev/null
++++ b/internal/config/retention_test.go
+@@ -0,0 +1,32 @@
++package config
++
++import (
++	"strings"
++	"testing"
++)
++
++func TestStateRetentionConfig(t *testing.T) {
++	cfg := Default()
++	if cfg.State.RetentionDays != 30 {
++		t.Fatalf("default retention: %+v", cfg.State)
++	}
++	for _, days := range []int{-1, 36501} {
++		cfg.State.RetentionDays = days
++		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "state.retention_days") {
++			t.Fatalf("invalid %d: %v", days, err)
++		}
++	}
++	for _, days := range []int{0, 7, 30, 36500} {
++		cfg.State.RetentionDays = days
++		if err := cfg.Validate(); err != nil {
++			t.Fatal(err)
++		}
++	}
++	cfg = Default()
++	if err := Decode(strings.NewReader("state:\n  retention_days: 0\n"), &cfg); err != nil {
++		t.Fatal(err)
++	}
++	if cfg.State.RetentionDays != 0 {
++		t.Fatal("cannot disable retention")
++	}
++}
+diff --git a/internal/config/template.go b/internal/config/template.go
+index 48608d9..20ebf04 100644
+--- a/internal/config/template.go
++++ b/internal/config/template.go
+@@ -37,7 +37,7 @@ func Render(p InitParams) string {
+ 	w("# đặt trong .bint/local.yml (không commit). Xem `bint doctor` để kiểm tra.\n")
+ 	w("version: %d\n\n", SchemaVersion)
+ 	w("project:\n  name: %s\n  root: auto\n\n", quote(p.ProjectName))
+-	w("state:\n  dir: auto                 # mặc định: ${XDG_STATE_HOME}/bint/<repo-id>, nằm ngoài repository\n\n")
++	w("state:\n  dir: auto                 # mặc định: ${XDG_STATE_HOME}/bint/<repo-id>, nằm ngoài repository\n  retention_days: 30         # tự dọn dữ liệu phụ quá hạn; 0 = tắt (giữ lịch sử SQLite)\n\n")
+ 	w("harnesses:\n  enabled:\n")
+ 	for _, e := range p.Harnesses {
+ 		w("    - %s\n", e)
+diff --git a/internal/stategc/gc.go b/internal/stategc/gc.go
+new file mode 100644
+index 0000000..952d61f
+--- /dev/null
++++ b/internal/stategc/gc.go
+@@ -0,0 +1,243 @@
++// Package stategc dọn dữ liệu phụ trong thư mục trạng thái của một repository.
++package stategc
++
++import (
++	"context"
++	"database/sql"
++	"errors"
++	"fmt"
++	"io/fs"
++	"os"
++	"path"
++	"strings"
++	"time"
++
++	"bint/internal/fslock"
++	"bint/internal/state"
++	"bint/internal/store"
++)
++
++var ErrBusy = errors.New("đang có tiến trình khác dọn dữ liệu")
++
++type Item struct {
++	Path  string `json:"path"` // tương đối với thư mục trạng thái
++	Bytes int64  `json:"bytes"`
++}
++
++type Result struct {
++	Items    []Item `json:"items"`
++	Bytes    int64  `json:"bytes"`
++	DryRun   bool   `json:"dry_run"`
++	Disabled bool   `json:"disabled"`
++}
++
++// Collect chỉ dọn những cây đã biết là dữ liệu phụ. auto giới hạn một lần mỗi
++// 24 giờ; dry không ghi tệp khoá, thời điểm dọn hay nạp spool.
++func Collect(ctx context.Context, db *sql.DB, p state.Paths, now time.Time, days int, dry, auto bool) (Result, error) {
++	res := Result{Items: []Item{}, DryRun: dry, Disabled: days == 0}
++	if days < 0 || days > 36500 {
++		return res, fmt.Errorf("state.retention_days: cần từ 0 đến 36500")
++	}
++	if days == 0 {
++		return res, nil
++	}
++	r, err := os.OpenRoot(p.Root)
++	if err != nil {
++		return res, err
++	}
++	defer r.Close()
++	var lock *os.File
++	if !dry {
++		// Không theo symlink ở tệp khoá, kể cả liên kết tới một tệp khác trong state.
++		if info, err := r.Lstat("gc.lock"); err == nil && !info.Mode().IsRegular() {
++			return res, fmt.Errorf("gc.lock không phải tệp thường")
++		} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
++			return res, err
++		}
++		lock, err = r.OpenFile("gc.lock", os.O_CREATE|os.O_RDWR, 0o600)
++		if err != nil {
++			return res, err
++		}
++		defer lock.Close()
++		busy, err := fslock.Try(lock, true)
++		if err != nil {
++			return res, err
++		}
++		if busy {
++			return res, ErrBusy
++		}
++		if auto {
++			buf := make([]byte, 128)
++			n, _ := lock.ReadAt(buf, 0)
++			if last, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(string(buf[:n]))); err == nil && now.Sub(last) < 24*time.Hour {
++				return res, nil
++			}
++		}
++	}
++	cutoff := now.AddDate(0, 0, -days)
++	type candidate struct{ name, batchID string }
++	var candidates []candidate
++	for _, dir := range []string{"backups", "spool/rejected", "runtime/hook-trace"} {
++		ok, err := plainPath(r, dir)
++		if err != nil {
++			return res, err
++		}
++		if !ok {
++			continue
++		}
++		entries, err := fs.ReadDir(r.FS(), dir)
++		if err != nil {
++			return res, err
++		}
++		for _, e := range entries {
++			candidates = append(candidates, candidate{name: path.Join(dir, e.Name())})
++		}
++	}
++	// Né thư mục bootstrap/snapshot; chỉ ID đợt có trạng thái kết thúc rõ ràng
++	// mới đủ điều kiện. Không lấy log_dir tuyệt đối từ cơ sở dữ liệu để xoá.
++	rows, err := db.QueryContext(ctx, `SELECT batch_id FROM eval_batches b
++		WHERE status IN ('completed','failed','cancelled','interrupted','budget_exhausted')
++		AND finished_at < ? AND finished_at != ''
++		AND NOT EXISTS (SELECT 1 FROM evaluation_runs a WHERE a.batch_id=b.batch_id AND a.status='running')
++		ORDER BY batch_id`, store.FormatTime(cutoff))
++	if err != nil {
++		return res, err
++	}
++	for rows.Next() {
++		var id string
++		if err := rows.Scan(&id); err != nil {
++			rows.Close()
++			return res, err
++		}
++		if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\:") {
++			continue
++		}
++		for _, dir := range []string{"eval-work/runs", "eval-work/logs"} {
++			// "bootstrap" là vùng tên riêng của eval, không phải ID đợt.
++			if id != "bootstrap" {
++				candidates = append(candidates, candidate{name: path.Join(dir, id), batchID: id})
++			}
++		}
++	}
++	err = rows.Err()
++	rows.Close()
++	if err != nil {
++		return res, err
++	}
++	for _, item := range candidates {
++		name := item.name
++		if err := ctx.Err(); err != nil {
++			return res, err
++		}
++		ok, err := plainPath(r, name)
++		if err != nil {
++			return res, err
++		}
++		if !ok {
++			continue
++		}
++		bytes, old, err := collectTree(ctx, db, r, name, item.batchID, cutoff, dry)
++		if err != nil {
++			return res, err
++		}
++		if !old {
++			continue
++		}
++		res.Items = append(res.Items, Item{Path: name, Bytes: bytes})
++		res.Bytes += bytes
++	}
++	if auto && !dry {
++		if err := lock.Truncate(0); err != nil {
++			return res, err
++		}
++		if _, err := lock.WriteAt([]byte(now.UTC().Format(time.RFC3339Nano)+"\n"), 0); err != nil {
++			return res, err
++		}
++	}
++	return res, nil
++}
++
++// collectTree giữ khoá ghi SQLite trong lúc kiểm tra lại và xoá cây đánh giá.
++// Resume phải UPDATE trạng thái trước khi chạy agent, nên không thể chen giữa
++// lần kiểm tra cuối và RemoveAll. Dry-run chỉ đọc, không cần khoá ghi.
++func collectTree(ctx context.Context, db *sql.DB, r *os.Root, name, batchID string, cutoff time.Time, dry bool) (int64, bool, error) {
++	if batchID != "" {
++		conn, err := db.Conn(ctx)
++		if err != nil {
++			return 0, false, err
++		}
++		defer conn.Close()
++		if !dry {
++			if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
++				return 0, false, err
++			}
++			defer conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
++		}
++		var eligible bool
++		err = conn.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM eval_batches b
++			WHERE batch_id=? AND status IN ('completed','failed','cancelled','interrupted','budget_exhausted')
++			AND finished_at < ? AND finished_at != ''
++			AND NOT EXISTS (SELECT 1 FROM evaluation_runs a WHERE a.batch_id=b.batch_id AND a.status='running'))`,
++			batchID, store.FormatTime(cutoff)).Scan(&eligible)
++		if err != nil || !eligible {
++			return 0, false, err
++		}
++	}
++	bytes, old, err := oldTree(ctx, r, name, cutoff)
++	if err != nil || !old {
++		return 0, false, err
++	}
++	if !dry {
++		if err := r.RemoveAll(name); err != nil {
++			return 0, false, err
++		}
++	}
++	return bytes, true, nil
++}
++
++// plainPath từ chối mọi symlink trong đường dẫn, không chỉ mục cuối.
++func plainPath(r *os.Root, name string) (bool, error) {
++	parts := strings.Split(name, "/")
++	for i := range parts {
++		info, err := r.Lstat(strings.Join(parts[:i+1], "/"))
++		if errors.Is(err, fs.ErrNotExist) {
++			return false, nil
++		}
++		if err != nil {
++			return false, err
++		}
++		if info.Mode()&os.ModeSymlink != 0 {
++			return false, nil
++		}
++	}
++	return true, nil
++}
++
++// oldTree yêu cầu cả thư mục lẫn mọi mục con đều cũ; không đi theo symlink.
++func oldTree(ctx context.Context, r *os.Root, name string, cutoff time.Time) (int64, bool, error) {
++	var bytes int64
++	stop := errors.New("còn dữ liệu mới hoặc liên kết")
++	err := fs.WalkDir(r.FS(), name, func(_ string, d fs.DirEntry, err error) error {
++		if err != nil {
++			return err
++		}
++		if err := ctx.Err(); err != nil {
++			return err
++		}
++		info, err := d.Info()
++		if err != nil {
++			return err
++		}
++		if (!info.IsDir() && !info.Mode().IsRegular()) || !info.ModTime().Before(cutoff) {
++			return stop
++		}
++		if info.Mode().IsRegular() {
++			bytes += info.Size()
++		}
++		return nil
++	})
++	if errors.Is(err, stop) || errors.Is(err, fs.ErrNotExist) {
++		return 0, false, nil
++	}
++	return bytes, err == nil, err
++}
+diff --git a/internal/stategc/gc_test.go b/internal/stategc/gc_test.go
+new file mode 100644
+index 0000000..8b166a4
+--- /dev/null
++++ b/internal/stategc/gc_test.go
+@@ -0,0 +1,270 @@
++package stategc
++
++import (
++	"context"
++	"errors"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"bint/internal/fslock"
++	"bint/internal/state"
++	"bint/internal/store"
++)
++
++func fixture(t *testing.T) (state.Paths, *store.Store, time.Time) {
++	t.Helper()
++	p := state.At("test", t.TempDir())
++	s, err := store.Open(context.Background(), p.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(func() { s.Close() })
++	return p, s, time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
++}
++
++func file(t *testing.T, root, rel string, at time.Time) {
++	t.Helper()
++	p := filepath.Join(root, rel)
++	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(p, []byte("data"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(p, at, at); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func batch(t *testing.T, s *store.Store, id, status string, at time.Time) {
++	t.Helper()
++	_, err := s.DB.Exec(`INSERT INTO eval_batches
++	(batch_id,status,harness,leakage_mode,arms,repeats,case_ids,prompt_version,seed,started_at,finished_at)
++	VALUES (?,?,'claude','strict','[]',1,'[]',1,1,?,?)`, id, status, store.FormatTime(at), store.FormatTime(at))
++	if err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestCollectDryRunAndProtectedState(t *testing.T) {
++	p, s, now := fixture(t)
++	old := now.AddDate(0, 0, -31)
++	batch(t, s, "done", "completed", old)
++	batch(t, s, "active", "running", old)
++	batch(t, s, "recent", "completed", now)
++	batch(t, s, "attempt-active", "completed", old)
++	_, err := s.DB.Exec(`INSERT INTO evaluation_runs
++	(attempt_id,batch_id,case_id,case_fingerprint,arm,repeat_index,status,harness,started_at)
++	VALUES ('a','attempt-active','c','f','none',1,'running','claude',?)`, store.FormatTime(old))
++	if err != nil {
++		t.Fatal(err)
++	}
++	remove := []string{"backups/config.bak", "spool/rejected/bad.jsonl", "runtime/hook-trace/old.in",
++		"eval-work/runs/done/a/work", "eval-work/logs/done/a/agent.log"}
++	keep := []string{"spool/pending.jsonl", "runtime/tasks/t/task.yml", "worktrees/t/code.go",
++		"eval-work/runs/active/a/work", "eval-work/logs/recent/a/log", "eval-work/logs/unknown/log",
++		"eval-work/runs/attempt-active/a/work", "eval-work/snapshots/s/knowledge.json", "generated/inspect.json"}
++	for _, rel := range append(append([]string{}, remove...), keep...) {
++		file(t, p.Root, rel, old)
++	}
++	// Directory timestamps alone are insufficient, but must be old for eligible trees.
++	for _, rel := range []string{"eval-work/runs/done", "eval-work/runs/done/a", "eval-work/logs/done", "eval-work/logs/done/a"} {
++		if err := os.Chtimes(filepath.Join(p.Root, rel), old, old); err != nil {
++			t.Fatal(err)
++		}
++	}
++	file(t, p.Root, "backups/new.bak", now)
++	file(t, p.Root, "backups/boundary.bak", now.AddDate(0, 0, -30))
++	keep = append(keep, "backups/new.bak", "backups/boundary.bak")
++	r, err := Collect(context.Background(), s.DB, p, now, 30, true, false)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(r.Items) != 5 || r.Bytes != 20 {
++		t.Fatalf("dry run: %+v", r)
++	}
++	for _, rel := range remove {
++		if _, err := os.Stat(filepath.Join(p.Root, rel)); err != nil {
++			t.Fatal(err)
++		}
++	}
++	if _, err := os.Stat(filepath.Join(p.Root, "gc.lock")); !errors.Is(err, os.ErrNotExist) {
++		t.Fatalf("dry run created lock: %v", err)
++	}
++	r, err = Collect(context.Background(), s.DB, p, now, 30, false, false)
++	if err != nil || len(r.Items) != 5 {
++		t.Fatalf("collect: %+v %v", r, err)
++	}
++	for _, rel := range remove {
++		if _, err := os.Stat(filepath.Join(p.Root, rel)); !errors.Is(err, os.ErrNotExist) {
++			t.Errorf("not removed %s: %v", rel, err)
++		}
++	}
++	for _, rel := range keep {
++		if _, err := os.Stat(filepath.Join(p.Root, rel)); err != nil {
++			t.Errorf("not preserved %s: %v", rel, err)
++		}
++	}
++	var n int
++	if err := s.DB.QueryRow(`SELECT count(*) FROM eval_batches`).Scan(&n); err != nil || n != 4 {
++		t.Fatalf("metrics changed: %d %v", n, err)
++	}
++}
++
++func TestRecentDescendantPreservesBatchTree(t *testing.T) {
++	p, s, now := fixture(t)
++	old := now.AddDate(0, 0, -31)
++	batch(t, s, "done", "completed", old)
++	file(t, p.Root, "eval-work/runs/done/new.txt", now)
++	if err := os.Chtimes(filepath.Join(p.Root, "eval-work/runs/done"), old, old); err != nil {
++		t.Fatal(err)
++	}
++	r, err := Collect(context.Background(), s.DB, p, now, 30, false, false)
++	if err != nil || len(r.Items) != 0 {
++		t.Fatalf("recent descendant: %+v %v", r, err)
++	}
++}
++
++func TestCollectDoesNotFollowSymlinks(t *testing.T) {
++	p, s, now := fixture(t)
++	out := t.TempDir()
++	old := now.AddDate(0, 0, -31)
++	file(t, out, "old.bak", old)
++	if err := os.Symlink(out, p.Backups); err != nil {
++		t.Skip(err)
++	}
++	if err := os.MkdirAll(filepath.Join(p.Runtime, "hook-trace"), 0o700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Symlink(filepath.Join(out, "old.bak"), filepath.Join(p.Runtime, "hook-trace", "link")); err != nil {
++		t.Fatal(err)
++	}
++	r, err := Collect(context.Background(), s.DB, p, now, 30, false, false)
++	if err != nil || len(r.Items) != 0 {
++		t.Fatalf("symlinks: %+v %v", r, err)
++	}
++	if _, err := os.Stat(filepath.Join(out, "old.bak")); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestAutomaticScheduleDisableAndLock(t *testing.T) {
++	p, s, now := fixture(t)
++	old := now.AddDate(0, 0, -31)
++	file(t, p.Root, "backups/one", old)
++	if _, err := Collect(context.Background(), s.DB, p, now, 0, false, true); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(filepath.Join(p.Root, "gc.lock")); !errors.Is(err, os.ErrNotExist) {
++		t.Fatalf("disabled cleanup wrote lock: %v", err)
++	}
++	if _, err := Collect(context.Background(), s.DB, p, now, 30, false, true); err != nil {
++		t.Fatal(err)
++	}
++	file(t, p.Root, "backups/two", old)
++	r, err := Collect(context.Background(), s.DB, p, now.Add(time.Hour), 30, false, true)
++	if err != nil || len(r.Items) != 0 {
++		t.Fatalf("daily limit: %+v %v", r, err)
++	}
++	r, err = Collect(context.Background(), s.DB, p, now.Add(24*time.Hour), 30, false, true)
++	if err != nil || len(r.Items) != 1 {
++		t.Fatalf("next day: %+v %v", r, err)
++	}
++	f, err := os.OpenFile(filepath.Join(p.Root, "gc.lock"), os.O_RDWR, 0o600)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer f.Close()
++	if busy, err := fslock.Try(f, true); busy || err != nil {
++		t.Fatalf("lock: %v %v", busy, err)
++	}
++	if _, err := Collect(context.Background(), s.DB, p, now, 30, false, false); !errors.Is(err, ErrBusy) {
++		t.Fatalf("busy = %v", err)
++	}
++}
++
++func TestCollectionFailureDoesNotAdvanceSchedule(t *testing.T) {
++	p, s, now := fixture(t)
++	if err := os.WriteFile(p.Backups, []byte("not a directory"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := Collect(context.Background(), s.DB, p, now, 30, false, true); err == nil {
++		t.Fatal("expected collection error")
++	}
++	if err := os.Remove(p.Backups); err != nil {
++		t.Fatal(err)
++	}
++	file(t, p.Root, "backups/retry", now.AddDate(0, 0, -31))
++	r, err := Collect(context.Background(), s.DB, p, now, 30, false, true)
++	if err != nil || len(r.Items) != 1 {
++		t.Fatalf("retry: %+v %v", r, err)
++	}
++}
++
++func TestResumedBatchIsRecheckedBeforeRemoval(t *testing.T) {
++	p, s, now := fixture(t)
++	old := now.AddDate(0, 0, -31)
++	batch(t, s, "done", "completed", old)
++	file(t, p.Root, "eval-work/runs/done/old", old)
++	name := "eval-work/runs/done"
++	if err := os.Chtimes(filepath.Join(p.Root, name), old, old); err != nil {
++		t.Fatal(err)
++	}
++	// The candidate was selected while terminal, then resumed before deletion.
++	if _, err := s.DB.Exec(`UPDATE eval_batches SET status='running' WHERE batch_id='done'`); err != nil {
++		t.Fatal(err)
++	}
++	r, err := os.OpenRoot(p.Root)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer r.Close()
++	_, removed, err := collectTree(context.Background(), s.DB, r, name, "done", now.AddDate(0, 0, -30), false)
++	if err != nil || removed {
++		t.Fatalf("resumed batch: removed=%v err=%v", removed, err)
++	}
++	if _, err := os.Stat(filepath.Join(p.Root, name, "old")); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestCollectorSerializesWithConcurrentResume(t *testing.T) {
++	p, s, now := fixture(t)
++	old := now.AddDate(0, 0, -31)
++	batch(t, s, "done", "completed", old)
++	file(t, p.Root, "eval-work/runs/done/old", old)
++	name := "eval-work/runs/done"
++	if err := os.Chtimes(filepath.Join(p.Root, name), old, old); err != nil {
++		t.Fatal(err)
++	}
++	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
++	defer cancel()
++	// BEGIN IMMEDIATE reserves the writer slot. Readers can still see the old
++	// terminal status in WAL mode; GC must wait before deleting that candidate.
++	tx, err := s.DB.BeginTx(ctx, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer tx.Rollback()
++	finished := make(chan error, 1)
++	go func() { _, err := Collect(ctx, s.DB, p, now, 30, false, false); finished <- err }()
++	select {
++	case err := <-finished:
++		t.Fatalf("collector did not wait for concurrent resume: %v", err)
++	case <-time.After(100 * time.Millisecond):
++	}
++	if _, err := tx.ExecContext(ctx, `UPDATE eval_batches SET status='running' WHERE batch_id='done'`); err != nil {
++		t.Fatal(err)
++	}
++	if err := tx.Commit(); err != nil {
++		t.Fatal(err)
++	}
++	if err := <-finished; err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(filepath.Join(p.Root, name, "old")); err != nil {
++		t.Fatalf("removed concurrently resumed batch: %v", err)
++	}
++}
+diff --git a/internal/tui/actions/coverage.go b/internal/tui/actions/coverage.go
+index d4530b6..d4e41fa 100644
+--- a/internal/tui/actions/coverage.go
++++ b/internal/tui/actions/coverage.go
+@@ -30,6 +30,7 @@ const CurrentPhase = 6
+ // Data là dữ liệu phủ hiện hành.
+ var Data = Coverage{
+ 	Excluded: map[string]string{
++		"gc":               "dọn trạng thái tự động khi nạp sự kiện; lệnh CLI dành cho xem trước và dọn thủ công, chưa có màn TUI",
+ 		"docs":             "lệnh dự kiến (P3 của kế hoạch Bint), chưa được triển khai nên chưa có gì để hiển thị",
+ 		"hook antigravity": "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+ 		"hook claude":      "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+@@ -62,6 +63,7 @@ var Data = Coverage{
+ 		"--yes":  "thay bằng hộp xác nhận (callback Confirm của dịch vụ)",
+ 	},
+ 	ExcludedCmdFlags: map[string]string{
++		"gc --dry-run":                "xem trước dữ liệu phụ sẽ dọn bằng lệnh CLI",
+ 		"eval report --cases":         "chỉ định dạng đầu ra văn bản (bảng theo từng tác vụ); TUI luôn hiện cả hai",
+ 		"knowledge add --body-file":   "TUI soạn nội dung trong ô nhiều dòng thay vì đọc từ tệp",
+ 		"task new --from-findings":    "B1 phần 1 chỉ làm CLI: lập phiếu sửa từ phát hiện review; form TUI chưa có lựa chọn phát hiện",

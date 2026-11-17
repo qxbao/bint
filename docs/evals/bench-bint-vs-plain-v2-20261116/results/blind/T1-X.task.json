@@ -1,0 +1,185 @@
+{
+ "summary": {
+  "cmd": "t1",
+  "fail": [
+   "D8-preview-no-change",
+   "D6-old-finished-cleaned"
+  ],
+  "fixture_ok": true,
+  "critical": [],
+  "medium": [
+   "D8-preview-no-change",
+   "D6-old-finished-cleaned"
+  ]
+ },
+ "results": [
+  {
+   "id": "FX-ledger-clean",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "cảnh báo sổ phiếu: []"
+  },
+  {
+   "id": "FX-OLD_DONE1",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2GWZGKY7AMMTPDXD77Z0F status=done (cần done) updated=2026-04-30T11:31:27Z"
+  },
+  {
+   "id": "FX-OLD_DONE2",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2GY49PDKDG7ET1YT9PRZ0 status=done (cần done) updated=2026-04-30T11:31:27Z"
+  },
+  {
+   "id": "FX-NEW_DONE",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01M75613NB0R99M80HCV0MQ819 status=done (cần done) updated=2026-11-11T11:31:28Z"
+  },
+  {
+   "id": "FX-OLD_CANCELLED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2GZ8QZ1TDVTWHTGKBRK11 status=cancelled (cần cancelled) updated=2026-04-30T11:31:29Z"
+  },
+  {
+   "id": "FX-OLD_BLOCKED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2GZRYS7H7G7BQVGAZX068 status=blocked (cần blocked) updated=2026-04-30T11:31:29Z"
+  },
+  {
+   "id": "FX-OLD_INTERRUPTED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2H0FANFR6S47MJPKC5ZNG status=interrupted (cần interrupted) updated=2026-04-30T11:31:34Z"
+  },
+  {
+   "id": "FX-OLD_FAILED_WT",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2H4WCVVJZQ4EMKF0T6NMM status=failed (cần failed) updated=2026-04-30T11:31:35Z"
+  },
+  {
+   "id": "FX-NEW_RUN",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01M7J20Y6EFP3CVDY0GTHY6FK5 status=created (cần created) updated=2026-11-16T11:31:35Z"
+  },
+  {
+   "id": "FX-WT-dirty",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "worktree=/home/baodq/bench-bint-v2-20261116/tmp/hidden-T1-X/hidden2-t1-i2to_zp0/state/repo-7078e5577b1b/worktrees/01KQF2H4WCVVJZQ4EMKF0T6NMM status='M a.go\\n?? wip_notes.txt'"
+  },
+  {
+   "id": "FX-old-bytes",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "log phiếu kết thúc cũ = 3309354 B"
+  },
+  {
+   "id": "D8-preview-no-change",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "medium",
+   "detail": "không có cách xem trước"
+  },
+  {
+   "id": "D5-concurrent-run",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "lượt chạy exit=0 status=in_review logs=['b-feat-01M7J210KBC4XNN2Q85AW2SY3X.log', 'prompt.txt'] slow.txt=True | dọn#1 exit=0 0.4s '61116/tmp/hidden-T1-X/hidden2-t1-i2to_zp0/state/repo-7078e5577b1b\\nSchema:         v9\\nDọn dữ liệu:    2026-11-16T11:31:27Z — 0 tệp, 0 byte đã xoá; bỏ qua: map[]\\nHarness:        codex\\nLượt chạy:      16 completed=10 failed=2 interrupted=2 running=2\\nVừa nạp:        4 sự kiện, 0 lượt chuyển interrupted\\n' | run: 'mpleted  15s        -\\n! chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác\\n! chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành\\nChi tiết: bint task show 01M7J20Y6EFP3CVDY0GTHY6FK5   ·   bint run status 01M7J20Y6EFP3CVDY0GTHY6FK5\\n'"
+  },
+  {
+   "id": "D1-OLD_BLOCKED",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "01KQF2GZRYS7H7G7BQVGAZX068 thư mục còn=True tệp đổi/mất=[]"
+  },
+  {
+   "id": "D1-OLD_INTERRUPTED",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "01KQF2H0FANFR6S47MJPKC5ZNG thư mục còn=True tệp đổi/mất=[]"
+  },
+  {
+   "id": "D2-worktree-kept",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "worktree còn=True status giữ=True nhánh còn=True tệp phiếu đổi/mất=[]"
+  },
+  {
+   "id": "D3-symlink-target",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "tệp ngoài bị đổi/mất=[]"
+  },
+  {
+   "id": "D4-outside-state",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "tệp ngoài thư mục trạng thái bị đổi=[]"
+  },
+  {
+   "id": "D4i-ledger-in-repo",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "sổ phiếu .bint/tasks (đã commit) bị đổi/xoá: 0 tệp []"
+  },
+  {
+   "id": "D6-old-finished-cleaned",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "medium",
+   "detail": "log phiếu kết thúc cũ 3309354 B → còn 3309354 B (giải phóng 0); dọn#1 exit=0"
+  },
+  {
+   "id": "D6i-total-bytes",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "tổng thư mục trạng thái (bỏ sqlite, NEW_RUN) sau = 5546763 B"
+  },
+  {
+   "id": "D7-new-finished-kept",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "01M75613NB0R99M80HCV0MQ819 tệp đổi/mất=[]"
+  },
+  {
+   "id": "D9-after-clean-healthy",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "doctor 0->0 ✗mới=[] task list 0->0 runs list 0->0 show lỗi=[] show phiếu đã dọn=[] dọn#1/2/3 exit=0/0/0"
+  },
+  {
+   "id": "T-clean-output",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "dọn#1: 'Repository:     /home/baodq/bench-bint-v2-20261116/tmp/hidden-T1-X/hidden2-t1-i2to_zp0/repo\\nRepo ID:        repo-7078e5577b1b\\nTrạng thái:     /home/baodq/bench-bint-v2-20261116/tmp/hidden-T1-X/hidden2-t1-i2to_zp0/state/repo-7078e5577b1b\\nSchema:         v9\\nDọn dữ liệu:    2026-11-16T11:31:27Z — 0 tệp, 0 byte đã xoá; bỏ qua: map[]\\nHarness:        codex\\nLượt chạy:      16 completed=10 failed=2 interrupted=2 running=2\\nVừa nạp:        4 sự kiện, 0 lượt chuyển interrupted\\n' | dọn#2: '_zp0/state/repo-7078e5577b1b\\nSchema:         v9\\nDọn dữ liệu:    2026-11-16T11:31:27Z — 0 tệp, 0 byte đã xoá; bỏ qua: map[]\\nHarness:        codex\\nLượt chạy:      16 completed=12 failed=2 interrupted=2\\n'"
+  }
+ ]
+}

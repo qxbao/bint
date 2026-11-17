@@ -1,0 +1,7 @@
+2026-11-16T10:03:11Z start #0 
+2026-11-16T10:20:20Z end #0 exit=0
+2026-11-16T10:20:58Z start #1 resume 01a1e3cf-89e3-7212-b0b1-751762341778: Tôi chạy bint clean --dry-run thì nó báo:
+lỗi: lệnh lạ "clean" cho "bint"
+Xem `bint --help`
+Chạy thế này thì nó báo vậy.
+2026-11-16T10:22:33Z end #1 exit=0

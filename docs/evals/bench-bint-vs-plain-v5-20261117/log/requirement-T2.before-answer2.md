@@ -1,0 +1,26 @@
+# Yêu cầu
+## Mục tiêu và phạm vi
+Tự động bảo vệ mật khẩu, token và khoá API ở mọi nơi Bint lưu, gồm dữ liệu cũ, bản sao phiếu và bản xuất. Không chia giai đoạn để bỏ bề mặt. Quyết định về dữ liệu xác thực dùng để chạy còn chờ Q-3; chưa sẵn sàng triển khai.
+## Yêu cầu chức năng
+1. Bộ che chung mặc định bật, áp dụng trước ghi đầu tiên, kể cả tệp tạm/backup, dữ liệu cấu trúc và luồng stdout/stderr. Che trường password/passwd/token/secret/api_key/authorization, cờ tương ứng, Bearer, URL credentials và định dạng khoá phổ biến có tiền tố xác định; không tuyên bố nhận diện mọi chuỗi tuỳ ý không có dấu hiệu.
+2. Bảo vệ goal, criteria, lệnh verify ghi lại, tài liệu requirement/plan/tasks/review và finding, log agent/verify, hook-errors, trace, spool, SQLite/FTS/WAL, generated, bản sao eval/profile, backup, bản chiếu .bint và đầu ra xem/xuất. Không chỉ che màn hình sau khi đã lưu thô.
+3. Tự làm sạch lịch sử Bint có khoá và checkpoint tiến độ, không lưu backup thô mới; giữ cấu trúc dữ liệu và định danh, xử lý lại an toàn sau crash. Không sửa tệp đang được tiến trình khác sử dụng; báo số nơi còn chờ, tự thử lại lúc an toàn, chỉ báo hoàn tất khi quét sạch.
+4. Không thay bí mật bằng dấu che trong lệnh thực thi hay tệp đăng nhập rồi báo thành công. Phân biệt bản chẩn đoán với dữ liệu chức năng; phương án di chuyển bí mật chức năng chờ Q-3. Không đọc toàn bộ kho ở mỗi hook, không gọi mô hình hay mạng để nhận diện.
+## Tiêu chí chấp nhận
+- [ ] AC-1: Mặc định che mật khẩu, token và khoá API nhận diện được trước mọi lần Bint ghi log, trace, spool, SQLite, tài liệu phiếu, bản chiếu và bản xuất; không cần bật tay.
+- [ ] AC-2: Dữ liệu Bint đã lưu, gồm backup và tệp tạm, được làm sạch có khoá, nguyên tử và tiếp tục được sau gián đoạn; SQLite, WAL và chỉ mục không còn bản thô sau khi hoàn tất; báo rõ nơi chưa xử lý.
+- [ ] AC-3: Đầu vào thực thi và nội dung thường không bị che nhầm; hook không chặn agent, không mở SQLite; bộ che dùng bộ nhớ hữu hạn và không quét toàn bộ dữ liệu ở mỗi thao tác.
+- [ ] AC-4: Bản sao cấu hình và thông tin đăng nhập do Bint quản lý được xử lý theo quyết định Q-3; không âm thầm phá đăng nhập hay lệnh đang dùng và không lưu thêm bản thô dự phòng.
+- [ ] AC-5: Kiểm tra mục tiêu TestBintSecretPersistenceGoal xanh.
+## Kiểm tra mục tiêu
+Chuẩn bị: repo/state/profile cô lập; mỗi nhóm bề mặt của plan có bí mật giả phân biệt riêng. Cài qua goal/criteria/verify, tài liệu và review, stdout/stderr agent giả, lỗi hook/trace bật, payload spool, DB/FTS. Dựng dữ liệu cũ ở runtime, generated, backups, tmp, eval-work, profile/session nhập, bản chiếu .bint/tasks và bản xuất. Đặt dữ liệu thường đối chứng cùng tệp ngoài quyền quản lý; không dùng bí mật thật.
+Hành động: chạy tạo/sửa phiếu, workflow với agent giả, verify giả, hook và ingest, xem/xuất/đồng bộ, mở lại kho để kích hoạt làm sạch cũ. Tiêm crash giữa các lần ghi, khoá một tệp rồi nhả và chạy tiếp; khởi chạy đồng thời hai tiến trình. Nhánh xác thực dùng fixture theo câu trả lời Q-3.
+Quét/đo: đọc logic mọi bảng/cột văn bản và FTS; quét byte toàn bộ state/profile Bint và mọi bản chiếu/bản xuất do fixture tạo trong repo, cả SQLite/WAL/journal, tệp tạm/backup. Theo dõi tệp trung gian tại điểm ghi để bắt lưu thô rồi xoá; quét cả sau mở lại, ingest và đồng bộ để bắt tái xuất hiện. Báo đường dẫn/bảng còn sót, không in bí mật.
+Điều kiện đạt: không dấu bí mật nhận diện được ở mọi nhóm sau hoàn tất, không bản ghi mới nào từng ghi thô; nơi bận/lỗi được báo chưa xong và sạch sau retry. Nội dung thường, JSON/YAML hợp lệ, quyền duyệt, đăng nhập và đầu vào thực thi đúng theo Q-3; hook giữ hợp đồng không chặn. Không sửa tệp đối chứng ngoài quyền quản lý.
+Tên test và tệp dự kiến: `TestBintSecretPersistenceGoal` trong `internal/cli/secret_persistence_e2e_test.go`, chạy bởi verify đã xác nhận `go test -count=1 -timeout 30m ./...`. Không chạy kiểm chứng hay viết test ở b-req.
+## Ngoài phạm vi
+Không xoá credential gốc thuộc nhà cung cấp, shell history, bản xuất người dùng đã chuyển ra ngoài quyền quản lý hay lịch sử Git/backup của hệ thống; chúng có thể vẫn chứa dữ liệu cũ, cần nêu trong báo cáo. Bản sao do Bint giữ, kể cả backup/profile, vẫn trong phạm vi. Không sửa mã nguồn dự án đích hay toàn bộ .git để làm phép quét xanh; không cam kết xoá pháp y block đĩa/snapshot đã xoá.
+## Câu hỏi mở
+- [x] Q-1: Bạn muốn bảo vệ cả dữ liệu Bint đã lưu trước đây và các bản sao trong phiếu/bản xuất, hay chỉ log được tạo từ nay? — Trả lời: Bảo vệ hết, cả dữ liệu đã lưu trước đây lẫn các bản sao trong phiếu và bản xuất. Tôi không muốn bí mật nằm ở bất kỳ chỗ nào bint lưu.
+- [x] Q-2: Bạn muốn tự động che ngay khi ghi, hay được xem trước và chủ động bật; thông tin nào cần giữ nguyên để công việc và việc chẩn đoán không bị ảnh hưởng? — Trả lời: Tự động che ngay khi ghi, mặc định bật, tôi không muốn phải bật tay. Che mấy loại hay gặp như mật khẩu, token, khoá API. Giữ lại gì thì bạn tự quyết, miễn bint không chạy hỏng hay chậm hẳn đi.
+- [ ] Q-3: Bint có giữ bản đăng nhập Codex/Claude trong profile để chạy agent; bạn muốn bỏ các bản này và chấp nhận cần cung cấp đăng nhập từ bên ngoài khi chạy, hay cho phép giữ riêng dữ liệu đăng nhập cần thiết và chỉ che chúng khỏi mọi log, phiếu, bản xuất và bản sao chẩn đoán?

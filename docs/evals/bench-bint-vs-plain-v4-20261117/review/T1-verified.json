@@ -1,0 +1,72 @@
+{
+  "W1": {
+    "verdict": "confirmed-downgrade",
+    "final_severity": "medium",
+    "reason": "Tái hiện đúng: Ingest gọi stategc.Collect ở chế độ auto, nuốt mọi lỗi; `bint runs list` (một lệnh xem) xoá hết backups/<ts> có mtime quá 30 ngày mà không in gì. Bản sửa tay bị `init --force` ghi đè chỉ còn trong backups và bị mất vĩnh viễn. Mặc định 30 ngày ngắn hơn mong muốn 'vài tháng' của người dùng; agent không hỏi; thu được gần như 0 dung lượng (backups vài KB). Hạ xuống medium vì: backups là lưới an toàn có hạn (kiểu thùng rác tự đổ sau 30 ngày), hạn được ghi trong mẫu config và `bint gc --help`, chỉ có mã sinh ra bản sao lưu chứ không có mã nào đọc lại để khôi phục; nội dung bị xoá là thứ người dùng đã tự chọn ghi đè bằng --force, còn settings.local.json vẫn giữ nội dung gốc trong tệp đang dùng vì bint gộp hook vào. Không phá việc đang làm. Đây là chính sách giữ quá ngắn, chạy ngầm và không báo, chứ không phải xoá nhầm thứ đang dùng.",
+    "how": "Binary T1-W, HOME/BINT_STATE_DIR tạm. git init; tạo .claude/settings.local.json riêng; `bint init --hooks`; thêm 'MY HAND-WRITTEN NOTE' vào .claude/skills/b-add-flow/SKILL.md; `bint init --force --hooks` (tệp đang dùng mất ghi chú, chỉ backups còn). `touch -d '35 days ago'` toàn cây backups (không có gc.lock). `bint gc --dry-run` liệt kê 2 snapshot; `bint runs list` in 'Chưa có lượt chạy nào', exit 0; sau đó backups/ rỗng, gc.lock được ghi thời điểm. Đọc fsafe.Backup: chỉ ghi, không có đường khôi phục.",
+    "duplicate_of": null
+  },
+  "W2": {
+    "verdict": "confirmed-downgrade",
+    "final_severity": "low",
+    "reason": "Đúng: gc xoá eval-work/runs/<batch> và eval-work/logs/<batch> của đợt đã kết thúc quá 30 ngày, còn evaluation_runs.log_dir vẫn trỏ tới thư mục đã mất. evolve (memory.retention_days 90) đọc agent.log/test.log/files list qua os.Open/readOptional và bỏ qua khi lỗi, nên chỉ mất Trace/TestFails của lượt eval thất bại 30–90 ngày tuổi. Không crash, khung eval là tính năng tuỳ chọn, và log có thể sinh lại bằng cách chạy lại eval. Lệch giữa hai cửa sổ giữ là có thật nhưng tác động nhỏ, nên hạ xuống low.",
+    "how": "Binary T1-W. Chèn eval_batches B1 (completed, finished_at 40 ngày trước) và evaluation_runs A1 (failed, log_dir=<state>/eval-work/logs/B1/c1-none-1); tạo agent.log, test.log, runs/B1/c1/f, mtime 40 ngày. `bint gc --dry-run` liệt kê 2 mục; `bint gc` báo 'Đã dọn 2 mục, 13 byte.'; SQLite vẫn trả A1|failed|<log_dir>, còn `ls log_dir` báo No such file. Đọc evolve/failure.go:441-456 (lỗi đọc log bị bỏ qua) và evolve/scan.go:175 (cửa sổ memory.retention_days).",
+    "duplicate_of": null
+  },
+  "W3": {
+    "verdict": "confirmed",
+    "final_severity": "low",
+    "reason": "Đúng: collectTree trả lỗi ngay khi RemoveAll lỗi, nên Collect dừng giữa chừng. Mục đã xoá trước đó không được báo, mục sau không được xét, exit 1. Ở chế độ auto lỗi bị nuốt và gc.lock không được ghi thời điểm, nên mỗi lần Ingest đều quét lại. Không mất thêm dữ liệu; chỉ là xử lý lỗi kém, có ý nghĩa trên Windows khi tệp bị khoá.",
+    "how": "Binary T1-W. Tạo backups/20260101T000000.000Z/x/a, backups/20260201T000000.000Z/locked/b (chmod 500 locked), spool/rejected/bad.jsonl, mtime 40 ngày. Dry-run liệt kê 3 mục; `bint gc` chỉ in 'lỗi: RemoveAll backups/20260201T000000.000Z: permission denied', exit 1. Sau đó 20260101T000000.000Z đã mất (không được báo), spool/rejected/bad.jsonl vẫn còn.",
+    "duplicate_of": null
+  },
+  "W4": {
+    "verdict": "confirmed",
+    "final_severity": "low",
+    "reason": "Đúng sự thật: `bint gc` không cờ thì xoá ngay, không hỏi xác nhận. Vẫn có --dry-run để xem trước, nên yêu cầu 'có thì tốt' được đáp ứng ở mức tối thiểu; người dùng không rành sẽ khó biết cờ này. Ý nghĩa thực tế nhỏ vì đường chính là tự dọn ngầm, mà đường đó thì không có bước xem trước nào (đã tính trong W1). Giữ low.",
+    "how": "Đọc internal/cli/gc.go: không có bước xác nhận; khi chạy W3, `bint gc` xoá ngay mà không hỏi.",
+    "duplicate_of": null
+  },
+  "W5": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Đúng: phạm vi cố định chỉ có backups, spool/rejected, runtime/hook-trace (chỉ có khi đặt BINT_HOOK_TRACE=1 và đã giới hạn 500 tệp) và eval-work runs/logs của đợt đã kết thúc. Đặc tả rủi ro nêu rõ hiện trạng 'không có cơ chế dọn runtime/tasks, log, worktrees, spool', và các rủi ro chính đều xoay quanh worktree/phiếu, tức yêu cầu thật sự nhắm vào các nhóm đó. Mỗi worktree là một bản checkout đầy đủ (cây nguồn bint ~25 MB), nên phần phình chính không được dọn và mục tiêu 'lấy lại dung lượng' gần như không đạt. Gốc có `bint doctor --fix` cho worktree mồ côi, nhưng W không nối gì vào đó. Thiếu thành phần mà yêu cầu thật sự cần, nên giữ medium.",
+    "how": "Đọc internal/stategc/gc.go:80 và :115 (danh sách cố định); hook_trace.go:24,32 (biến BINT_HOOK_TRACE, trần 500 tệp); `du -sh` cây nguồn ở 8757340 = 25M. Không chạy du trên ~/.local/state/bint thật (tuân thủ cô lập); số liệu 87 MB worktrees của reviewer khớp với ước lượng 25 MB mỗi worktree.",
+    "duplicate_of": null
+  },
+  "Z1": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Tái hiện đúng: khoá 'bản mới nhất của tệp gốc' là đường dẫn tương đối trong snapshot (clean_collect.go:187). claude.InstallHooks đặt tên 'claude/'+Base(settingsPath) cho cả ~/.claude/settings.json (scope user) lẫn .claude/settings.json (scope project); codex/hooks.json cũng vậy. Kết quả là bản sao lưu duy nhất của settings toàn cục bị coi là 'dư' và bị xoá, trái với bất biến mà chính bên này tuyên bố. Đây là lỗi logic rõ ràng trong cơ chế bảo vệ. Tác hại thực tế có giới hạn: nội dung gốc vẫn nằm trong tệp đang dùng (bint gộp hook vào), cần dùng cả hai scope, quá 90 ngày, và người dùng đã xem trước rồi --apply. Vì vậy medium, không phải critical.",
+    "how": "Binary T1-Z, HOME tạm có ~/.claude/settings.json {\"note\":\"MY GLOBAL PERSONAL SETTINGS\"}; repo có .claude/settings.json {\"note\":\"TEAM PROJECT SETTINGS\"}. `bint init --hooks --hooks-scope user` rồi `--hooks-scope project`, tạo 2 snapshot đều tên claude/settings.json. Đổi tên thành 20260101…/20260301…, touch 200 ngày. `bint clean` chọn bản 20260101 là 'backup dư quá hạn'; `bint clean --apply` báo 'đã dọn', exit 0; chỉ còn bản TEAM PROJECT. ~/.claude/settings.json vẫn có note gốc cộng hook.",
+    "duplicate_of": null
+  },
+  "Z2": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Tái hiện đúng: cleanReferences quét toàn bộ state (trừ backups, bases, sqlite), kể cả worktrees/ và eval-work/runs. Chỉ cần một tệp không phải UTF-8, một tệp lớn hơn 8 MiB, JSON hỏng, phiếu lỗi, hoặc SQLite đang đổi trong lúc khảo sát là mọi mục bị giữ. Riêng cây nguồn bint đã có 56 tệp nhị phân, nên mọi worktree của chính repo này đều chặn dọn. Ngoài ra, chuỗi 'backups' trong bất kỳ văn bản nào (docs của bint nhắc `<state>/backups/`) giữ toàn bộ nhóm backup. An toàn (fail-closed) nhưng trên state thật tính năng gần như không bao giờ dọn được gì: sai hành vi rõ ràng, giữ medium.",
+    "how": "Binary T1-Z với 3 backup dư 200 ngày: `bint clean` báo 'Dự kiến: 2 mục'. Thêm worktrees/01TASK/logo.png (8 byte header PNG): cả hai thành 'giữ … bằng chứng không phải văn bản: worktrees/01TASK/logo.png', 'Dự kiến: 0 mục'. Thay bằng README.md chứa 'see <state>/backups/ for old files': cả hai thành 'giữ … còn được tài liệu hoặc bằng chứng giữ tham chiếu', 0 mục. Trong cây nguồn 8757340, `grep -rlI` cho 2179/2235 tệp là văn bản, tức 56 tệp nhị phân.",
+    "duplicate_of": null
+  },
+  "Z3": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Tái hiện đúng: clean_svc.go:128 gọi lại collectClean (quét cả state, chép SQLite+WAL ra TMPDIR, đọc mọi bảng) cho TỪNG mục được chọn. Bản thân collectClean đã là O(mục × dung lượng văn bản), vì cleanReferenced chạy regex/tách token trên mọi văn bản cho mỗi mục, nên --apply thành bậc hai theo số mục. Với state.sqlite 20 MB, xem trước 42 mục mất 56,6 s; 10 mục thì xem trước 13 s, apply 88 s để dọn 20 byte. Mỗi vòng còn cần chỗ trống bằng kích thước DB trong TMPDIR. Hiệu năng tệ đáng kể đúng ở trường hợp state đã phình, nên giữ medium.",
+    "how": "Binary T1-Z, chèn 20 events payload ~1 MB (state.sqlite 20 357 120 byte). 42 snapshot backup dư 200 ngày: `/usr/bin/time bint clean` = 56,64 s. Giảm còn 10 mục chọn: preview 13,05 s, `bint clean --apply` 88,10 s, 'Đã dọn: 10 mục, 20 byte'. Đọc cleanup_sqlite.go:136 (MkdirTemp + chép DB).",
+    "duplicate_of": null
+  },
+  "Z4": {
+    "verdict": "confirmed",
+    "final_severity": "low",
+    "reason": "Đúng theo mã: releaseBase, PruneBases và CleanBases nay dùng acquireBaseLock(try=true); gặp errBaseBusy thì return/continue nên kho đệm không bị xoá ở lần đó dù keep_bases=false (trước đây chờ mutex rồi mới xoá). eval-work/bases/.locks/<sha>.git.lock không bao giờ bị xoá, và test của chính diff (workdir_test.go) xác nhận .locks còn lại. Đổi lại, khoá flock liên tiến trình an toàn hơn mutex trong tiến trình. Rò rỉ chỉ xảy ra khi có eval chạy song song; tệp khoá rỗng, rất nhỏ. Hồi quy nhỏ, low.",
+    "how": "Đọc diff internal/eval/basecache.go, cleanup.go:43-117 (try → errBaseBusy) và workdir_test.go (kỳ vọng .locks còn lại). Chưa tái hiện rò rỉ khi khoá bận bằng tiến trình thật.",
+    "duplicate_of": null
+  },
+  "Z5": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Đúng: chỉ có 3 nhóm (backup dư, cặp hook-trace, eval-work/bases), và chính lệnh in ra 'Chưa dọn: tác vụ, lịch sử/log workflow và eval, SQLite/WAL/SHM, spool, worktree/nhánh Git, tmp…'. hook-trace chỉ có khi BINT_HOOK_TRACE=1 và đã giới hạn 500 tệp; bases đã tự xoá khi keep_bases=false (mặc định). Đặc tả rủi ro cho thấy yêu cầu nhắm vào worktrees, runtime/tasks, log, spool. Mục tiêu 'lấy lại dung lượng' gần như không đạt (lại còn bị Z2 chặn). Thiếu thành phần mà yêu cầu thật sự cần, nên medium. Phạm vi còn hẹp hơn W (W ít nhất có dọn eval-work runs/logs và spool/rejected).",
+    "how": "Chạy `bint clean` (T1-Z): dòng 'Chưa dọn: …' liệt kê các nhóm bị bỏ. Đọc clean_collect.go (chỉ 3 nhóm), template.go:121 (keep_bases: false), hook_trace.go:24,32. Không chạy du trên state thật (tuân thủ cô lập).",
+    "duplicate_of": null
+  }
+}

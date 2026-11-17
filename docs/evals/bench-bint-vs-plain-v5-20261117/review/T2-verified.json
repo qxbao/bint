@@ -1,0 +1,212 @@
+{
+ "W1": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "task.yml (cả runtime lẫn repo/.bint/tasks sau task sync) chứa nguyên văn mọi bí mật của mô tả, --goal, --criteria; diff W không đụng gói task.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. bint task new --shared --no-plan \"<khối TNEW>\"; task set --goal/--criteria; task sync. task.yml chứa TNEWpw1, TNEWbr2, ghp_TNEW…, TNEWurl6, TNEWfl7, PEM, GOALpw1x, CRITfl7x…",
+  "duplicate_of": null
+ },
+ "W2": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "requirement.md/plan.md/tasks.md (runtime và .bint/tasks) lưu nguyên văn toàn bộ khối bí mật.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. printf khối | bint task write <id> plan|requirement|tasks -; mọi mã DPLAN*/DREQ*/DTSK* còn thô.",
+  "duplicate_of": null
+ },
+ "W3": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "review.json, review.md (runtime và .bint/tasks) lưu nguyên văn bí mật trong summary/evidence.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. bint task review <id> review.json (summary/evidence = khối REV); mọi mã REV* còn thô.",
+  "duplicate_of": null
+ },
+ "W4": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "state.json (runtime và .bint/tasks) lưu nguyên văn ghi chú task error và bằng chứng task criteria -e.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. bint task error --step b-feat \"<khối ERR>\"; bint task criteria <id> 1 met -e \"<khối CRI>\"; mọi mã ERR*/CRI* còn thô trong state.json.",
+  "duplicate_of": null
+ },
+ "W5": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "verify-N.log che giá trị có nhãn nhưng để thô ghp_…, sk-proj-…, sk-ant-…, xoxb-, glpat-, thân PEM, SECRET_KEY=…, giá trị trong nháy chưa đóng (token=\"abc), phần sau dấu , ; & của mật khẩu.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. verify.command = cat tệp khối VER và tệp biên; task approve; task verify. Log còn VERgh3, VERsk5, VERpem9, VERsk11, 'sk-ant-<FIXTURE>…', 'token=\"abc' thô.",
+  "duplicate_of": null
+ },
+ "W6": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "Log lượt agent b-feat-*.log còn token không nhãn/PEM/SECRET_KEY; logs/prompt.txt ghi nguyên văn mô tả tác vụ (mọi bí mật). Nơi lưu khác log kiểm chứng.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. bint run b-feat --shared --agent-command 'sh agent.sh' \"Cap nhat app.txt <khối RUNDESC>\" (agent in khối AGT); b-feat log còn AGTgh3/AGTsk5/AGTpem9/AGTsk11, prompt.txt còn toàn bộ RUNDESC*.",
+  "duplicate_of": null
+ },
+ "W7": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "state.sqlite: bảng runs và events lưu nguyên văn result của agent (password=…, Bearer …, aws_secret_access_key=…, ghp_…).",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. agent in dòng {\"type\":\"result\",…,\"result\":\"xong password=AGTres9 Authorization: Bearer AGTresbr10 …\"}; bint status; đọc mọi bảng sqlite: runs và events chứa AGTres9, AGTresbr10, AGTresaws11, AGTresgh12.",
+  "duplicate_of": null
+ },
+ "W8": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Hook trace .in (chỉ khi BINT_HOOK_TRACE=1) che giá trị có nhãn nhưng còn ghp_…, sk-proj-…, SECRET_KEY=…; tính năng chẩn đoán phải bật tay nên là nơi lưu ít quan trọng.",
+  "how": "BINT_HOOK_TRACE=1 bint hook claude < PreToolUse JSON có tool_input.command chứa bí mật; .in còn ghp_HOOK…, sk-proj-<FIXTURE>…, SECRET_KEY=HOOKsk11.",
+  "duplicate_of": null
+ },
+ "W9": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "Dòng > 1 MiB bị thay hoàn toàn bằng '[bint: oversized log line omitted]': mất dữ liệu chẩn đoán của riêng dòng đó, không lộ bí mật, các dòng sau vẫn còn.",
+  "how": "verify = cat tệp một dòng 2 MB + ' password=LONGpw1'; log W chỉ còn dòng thông báo bỏ qua và 'short tail line'.",
+  "duplicate_of": null
+ },
+ "W10": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "Che quá tay nhẹ: '\"auth\":true', '\"has_token\":true' đổi thành \"***\" (đổi kiểu), khoá JSON bị sắp lại, 'token: refreshed' bị che; hash/UUID/ULID/count=12/GOFLAGS/input_tokens giữ nguyên.",
+  "how": "verify in các dòng lành tính; log W: {\"auth\":\"***\",\"has_token\":\"***\",\"token_type\":\"bearer\",\"type\":\"token_count\"}, 'token: ***'.",
+  "duplicate_of": null
+ },
+ "Z1": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "bint knowledge add với tiêu đề có 'API_TOKEN=dummy-value-123' ghi tệp mất dấu '---' và toàn bộ thân; knowledge list báo không đọc được. Nguyên nhân: structured.go đi đường YAML, yaml.Unmarshal chỉ lấy tài liệu đầu (frontmatter) rồi mã hoá lại. Đầu vào hợp lý (ghi chú tri thức về biến môi trường kiểm thử).",
+  "how": "bint knowledge add --type warning --paths app.txt --evidence app.txt:1 \"Kiem thu tich hop can dat API_TOKEN=dummy-value-123 ...\"; tệp bắt đầu bằng 'schema: 1', không còn '---'/thân; knowledge list: '✗ không đọc được … thiếu phần đầu YAML'. W cùng kịch bản ghi đúng.",
+  "duplicate_of": null
+ },
+ "Z2": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Đúng: plan.md 'Tom tat: dung token=…\\n---\\n## Buoc 1…' chỉ còn dòng đầu. Cùng nguyên nhân gốc với Z1 (đường YAML chỉ giữ tài liệu đầu). Chỉ xảy ra khi phần trước '---' toàn là dòng 'khoá: giá trị' có bí mật; tài liệu bắt đầu bằng tiêu đề/đoạn văn/danh sách thì không mất, nên tự nó chỉ ở mức medium.",
+  "how": "bint task write <id> plan - với 4 biến thể: bản 'Tom tat: …token=…\\n---' và 'Muc tieu: …\\nDB: password=…\\n\\n---' mất phần sau; bản '# Ke hoach … PGPASSWORD=… --- …' và '- Dat API_TOKEN=… ---' giữ nguyên.",
+  "duplicate_of": "Z1"
+ },
+ "Z3": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "verify.command 'TOKEN=$CI_TOKEN sh -c …' / 'env TOKEN=$CI_TOKEN …' bị lưu thành 'TOKEN=***' trong task.yml và chạy với '***' nên kiểm chứng hỏng. Mẫu truyền biến bí mật qua tham chiếu env rất phổ biến.",
+  "how": "bint task set <id> --verify-command 'env TOKEN=$CI_TOKEN sh -c \"test \\$TOKEN = abcdefgh123\"'; approve; CI_TOKEN=abcdefgh123 bint task verify: Z rc=1, task.yml 'env TOKEN=*** …'; W rc=0. Dạng 'sh -c \"test \\\"$CI_TOKEN\\\" = …\"' thì Z vẫn qua.",
+  "duplicate_of": null
+ },
+ "Z4": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Z từ chối 'PGPASSWORD=postgres go test ./...', 'docker compose run -e DB_PASSWORD=test …' và cả 'curl -H \"Authorization: Bearer $API_TOKEN\" …' (đã dùng biến môi trường) với lỗi 'secret in executable command'. Người dùng phải đổi cách viết lệnh; có thông báo rõ nên không làm hỏng âm thầm.",
+  "how": "bint task set <id> --verify-command '<lệnh>': Z rc=1 cho 3 lệnh trên, rc=0 cho 'npm test -- --token=$NPM_TOKEN'; W nhận mọi lệnh.",
+  "duplicate_of": null
+ },
+ "Z5": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "Lần mở đầu (privacy-v1.json chưa có) quét $BINT_ISO_HOME/profiles và thay credential đang dùng: .claude.json primaryApiKey → \"***\", codex config.toml experimental_bearer_token → '***', TOML viết lại mất chú thích. Đăng nhập API key/provider của profile hỏng, không hỏi người dùng.",
+  "how": "Tạo profiles/claude--work/home/.claude/.claude.json có primaryApiKey và profiles/codex--work/home/.codex/config.toml có [model_providers.corp] experimental_bearer_token + chú thích; xoá privacy-v1.json; bint status. Kết quả đúng như mô tả; W để nguyên.",
+  "duplicate_of": null
+ },
+ "Z6": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Một settings.json rỗng (hoặc JSON hỏng) trong profile iso bất kỳ làm mọi lệnh bint (status, task list, knowledge list) lỗi 'privacy migration: privacy: invalid authentication document' (không nêu tệp), kể cả khi đã làm sạch xong. Trạng thái tệp rỗng/hỏng ít gặp nên medium.",
+  "how": ": > profiles/claude--bad/home/.claude/settings.json; bint status / task list / knowledge list đều lỗi; xoá profile thì chạy lại được.",
+  "duplicate_of": null
+ },
+ "Z7": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "task.yml (runtime và .bint/tasks) vẫn lộ: 'Cau hinh: password=X' (regex assignment nuốt 'password=X' làm giá trị của nhãn 'hinh'), token sau 'Authorization: Bearer' (chỉ chữ 'Bearer' bị che), PEM, aws_secret_access_key, SECRET_KEY, private_key.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. task.yml Z: request còn TNEWpw1, TNEWbr2tok, MIIETNEWpem9…, TNEWaws10, TNEWsk11, TNEWpk12; goal 'password=*** Authorization: *** GOALbr2x ***'; tiêu chí 'Cau hinh: password=CRITcol8x'.",
+  "duplicate_of": null
+ },
+ "Z8": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "requirement.md/plan.md/tasks.md (runtime và .bint/tasks) vẫn lộ 'nhãn: password=…', token sau Bearer, PEM, aws_secret_access_key, SECRET_KEY, private_key; bí mật sau '---' cũng không được che khi phần đầu là YAML không có bí mật.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. task write với khối DPLAN/DREQ/DTSK: còn *pw1, *br2, *pem9, *aws10, *sk11, *pk12.",
+  "duplicate_of": null
+ },
+ "Z9": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "review.json, review.md (runtime và .bint/tasks) vẫn lộ password sau nhãn, Bearer token, PEM, aws/SECRET_KEY/private_key.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. task review với khối REV: còn REVpw1, REVbr2, REVpem9, REVaws10, REVsk11, REVpk12.",
+  "duplicate_of": null
+ },
+ "Z10": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "state.json (runtime và .bint/tasks) vẫn lộ các dạng trên trong ghi chú task error và bằng chứng tiêu chí.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. task error/criteria với khối ERR/CRI: còn ERRpw1, ERRbr2, ERRpem9, ERRaws10, ERRsk11, ERRpk12, CRI* tương tự.",
+  "duplicate_of": null
+ },
+ "Z11": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "verify-N.log vẫn lộ aws_secret_access_key, private_key, SECRET_KEY, thân PEM, xoxb-/glpat-, phần sau dấu , ; & (ghp_/sk-/AKIA được che).",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. verify = cat khối VER + tệp biên: log còn VERaws10, VERpk12, VERsk11, MIIEVERpem9…, 'password=***,Q1b;Q1c&Q1d'.",
+  "duplicate_of": null
+ },
+ "Z12": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "b-feat-*.log còn aws_secret_access_key, private_key, SECRET_KEY, PEM, token sau Bearer trong dòng result; logs/prompt.txt còn password sau nhãn, Bearer token, PEM, aws, SECRET_KEY, private_key.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. bint run b-feat --agent-command; b-feat log còn AGTaws10/AGTpem9/AGTpk12/AGTsk11/AGTresbr10/AGTresaws11; prompt.txt còn RUNDESCpw1/br2/pem9/aws10/sk11/pk12.",
+  "duplicate_of": null
+ },
+ "Z13": {
+  "verdict": "confirmed",
+  "final_severity": "critical",
+  "reason": "state.sqlite bảng runs/events lưu thô aws_secret_access_key=… và token sau 'Authorization: Bearer' trong result_summary.",
+  "how": "Tái hiện độc lập bằng binary blind/T2-<nhãn>/bint trong môi trường env -i cô lập (HOME/XDG_STATE_HOME/BINT_ISO_HOME tạm), repo git tạm, khối bí mật có mã đánh dấu riêng cho từng nơi lưu (password=, Authorization: Bearer, ghp_, AKIA, sk-proj-, URL userinfo, --token, PEM, aws_secret_access_key, SECRET_KEY, private_key, api_key), rồi grep mã đánh dấu trong thư mục trạng thái, .bint/tasks và state.sqlite. agent result 'xong password=AGTres9 Authorization: Bearer AGTresbr10 aws_secret_access_key=AGTresaws11 ghp_…'; sqlite Z còn AGTresbr10, AGTresaws11 (password và ghp_ được che).",
+  "duplicate_of": null
+ },
+ "Z14": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Đầu vào hook > 1 MiB bị cắt từ bản thô nên .in chứa bí mật thô (W che trước khi cắt); còn SECRET_KEY/aws_secret_access_key thô. Chỉ khi BINT_HOOK_TRACE=1 nên medium. Phần 'Bearer lộ' không tái hiện được với lệnh trong nháy (Z che), nhưng kết luận chính đúng.",
+  "how": "BINT_HOOK_TRACE=1 bint hook claude < PostToolUse JSON (command 'psql password=HOOKbig1secret', stdout 1,1 MB): .in Z chứa HOOKbig1secret (W: 0); PreToolUse nhỏ: Z còn HOOKsk11, HOOKaws10.",
+  "duplicate_of": null
+ },
+ "Z15": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Giá trị trong nháy chưa đóng sau nhãn nhạy cảm (token=\"abc) làm Writer bỏ toàn bộ phần còn lại của luồng, mất cả dòng FAIL: hại thật cho chẩn đoán.",
+  "how": "verify = 'cat edgeB.txt; exit 1' với 'before\\ntoken=\"abc\\nline3 important failure detail\\nline4 FAIL TestX': log Z chỉ còn 'before' và 'token=\"***'; W giữ đủ (nhưng để lộ abc).",
+  "duplicate_of": null
+ },
+ "Z16": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Dòng JSON có bí mật/khóa nhạy cảm được Marshal lại mất '\\n' và dính vào dòng sau, làm hỏng JSONL (log agent stream-json, verify log) cho mọi dòng JSON có bí mật.",
+  "how": "verify in '{\"type\":\"token_count\",\"has_token\":true,…}' rồi '{\"type\":\"assistant\",…}': log Z ghép hai đối tượng thành một dòng; dòng result cuối của b-feat log cũng mất '\\n'. W giữ xuống dòng.",
+  "duplicate_of": null
+ },
+ "Z17": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "root.go bọc stdout của task/knowledge/eval/bootstrap… bằng DisplayWriter đệm theo dòng: lời nhắc không có '\\n' của bint knowledge review không hiện cho tới khi người gõ.",
+  "how": "Tạo mục chờ duyệt (CLAUDECODE=1 knowledge add); bint knowledge review với stdin là fifo; sau 2 s Z chưa in '[a]chấp nhận … [q]dừng > ', W đã in; gửi q thì Z mới in.",
+  "duplicate_of": null
+ },
+ "Z18": {
+  "verdict": "confirmed-downgrade",
+  "final_severity": "low",
+  "reason": "Đúng là lần mở đầu sau nâng cấp quét lại dữ liệu cũ và chặn lệnh, nhưng chỉ một lần cho mỗi thư mục trạng thái (lần sau 0,02 s) và là để làm sạch log cũ, đúng mục tiêu người dùng. Đo lại: 9,6 MB log kiểu go test/stream-json 1,64 s; 4,8 MB key=value 0,48 s; 4,8 MB dày bí mật 1,24 s (~4–10 MB/s, nhanh hơn nhiều mức 1,2 MB/s của reviewer).",
+  "how": "Tạo runtime/oldlogs, xoá privacy-v1.json, đo bint status lần 1 và lần 2.",
+  "duplicate_of": null
+ },
+ "Z19": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "Che luồng của Z chậm hơn W 4–5 lần: 10 MB đầu ra kiểm chứng mất 6,5–9,2 s (W 1,7–1,8 s). Đầu ra kiểm chứng thường nhỏ hơn nhiều nên mức low hợp lý.",
+  "how": "verify = cat tệp 10 MB (go test -v giả; dòng key=value có ':'), đo thời gian bint task verify cho cả hai.",
+  "duplicate_of": null
+ },
+ "Z20": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "'token: refreshed' → \"token: '***'\"; '\"has_token\":true' → \"***\"; khoá JSON bị sắp lại; hash/UUID/ULID/count=12/GOFLAGS/input_tokens giữ nguyên. Che quá tay nhẹ.",
+  "how": "verify in edgeA/edgeJ; so log với đầu vào.",
+  "duplicate_of": null
+ }
+}

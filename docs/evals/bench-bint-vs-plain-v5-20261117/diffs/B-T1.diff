@@ -1,0 +1,2100 @@
+ docs/workflows.md                         |  41 ++
+ internal/app/cleanup.go                   | 186 +++++++++
+ internal/app/cleanup_alternates.go        |  58 +++
+ internal/app/cleanup_goal_test.go         | 664 ++++++++++++++++++++++++++++++
+ internal/cleanup/cleanup.go               | 365 ++++++++++++++++
+ internal/cleanup/cleanup_test.go          | 300 ++++++++++++++
+ internal/cleanup/lock.go                  |  95 +++++
+ internal/cli/clean.go                     |  54 +++
+ internal/cli/clean_test.go                |  63 +++
+ internal/cli/root.go                      |   2 +-
+ internal/eval/basecache.go                |  23 ++
+ internal/eval/workdir.go                  |   7 +
+ internal/tui/actions/coverage.go          |   1 +
+ internal/workflow/bench_frictions_test.go |  32 ++
+ internal/workflow/ops.go                  |  21 +-
+ 15 files changed, 1909 insertions(+), 3 deletions(-)
+
+diff --git a/docs/workflows.md b/docs/workflows.md
+index 2124327..6f55810 100644
+--- a/docs/workflows.md
++++ b/docs/workflows.md
+@@ -1431,3 +1431,44 @@ xoá khi dừng), `gateway.log`, `tools-cache/` (M3).
+   harness + session thì không ghi (đếm trong `dropped_events`). Daemon không mở SQLite.
+ 
+ Chưa kiểm với service thật trên máy và Job Object trên Windows thật (CI chỉ biên dịch và vet cho Windows).
++
++
++## Thu hồi dung lượng dữ liệu cũ
++
++`bint clean` xem trước theo repository hiện tại: từng đường dẫn, nhóm dữ liệu,
++byte và lý do giữ hoặc được dọn. Mặc định giữ ít nhất 90 ngày; đổi cho lần chạy bằng
++`bint clean --older-than-days 180`. Sau khi xem danh sách, chạy
++`bint clean --apply` (kèm cùng cờ tuổi nếu đã đổi) để dọn. Lệnh kiểm tra lại trạng thái
++thực tế, không áp dụng mù danh sách xem trước. Không tự dọn nền hay quét trong hook.
++
++Chỉ cache base eval tái tạo được và tmp kiểm chứng có marker hoàn tất hợp lệ mới
++được dọn. Mục đang dùng, bị khóa, còn tham chiếu, thiếu nguồn, không đọc được hoặc
++có symlink được giữ. Ứng viên chứa tệp khóa (`.lock`, `.lk`, `.lck`, `LOCK`)
++được giữ nguyên cả cây, kể cả khi khóa đã nhả; khóa hệ điều hành đang giữ trên
++tệp tên khác cũng được kiểm tra, không suy luận quyền xóa từ tuổi tệp hay PID.
++Tmp legacy không có marker và phiên bị ngắt chưa ghi hoàn tất
++được giữ để tránh mất dữ liệu chưa rõ chủ. Khóa liên tiến trình bảo vệ lúc clone
++base và suốt lúc dùng tmp; khóa bận khiến clean bỏ qua mục, không chờ tiến trình đó.
++Clone eval hiện dùng hardlink, không dùng Git alternates: sau clone, workspace
++không còn cần giữ khóa cache nguồn. Tiến trình Bint cũ chưa tham gia giao thức khóa
++không được bảo vệ bởi khóa mới; hãy kết thúc chúng trước khi dùng apply. Các run
++running/lease không xác định được vẫn khiến cache được giữ.
++
++Repository được giữ lại có thể còn phụ thuộc cache dù run đã kết thúc, ví dụ clone
++bằng Git alternates. Khi thấy `objects/info/alternates`, gitfile (`.git` là tệp), `commondir`,
++symlink hoặc metadata không kiểm tra được trong toàn bộ cây trạng thái (kể cả tmp legacy và thư mục chưa được nhận diện), clean giữ cache base thay vì
++đoán dependency. Chính sách này có thể giữ cả base không liên quan; tmp độc lập
++đủ điều kiện vẫn được dọn. Kiểm tra được chạy lại khi apply, không chỉ khi preview.
++
++Lịch sử SQLite, phiếu/log tác vụ, spool, worktree (kể cả sửa chưa commit),
++generated và backup được giữ và báo dung lượng. Profile iso có GC riêng và không bị
++clean thay đổi; profile nằm ngoài state không được quét hoặc tính dung lượng.
++Nếu dữ liệu giữ lại chiếm đa số, lệnh này chỉ thu hồi phần cache/tmp đủ điều kiện,
++không bảo đảm trần dung lượng cho toàn bộ state. Không xóa thủ công các tệp WAL/SHM.
++
++Báo cáo byte là tổng kích thước tệp logic đã gỡ, không phải số block vật lý:
++hardlink/sparse file có thể khiến dung lượng đĩa giải phóng khác con số báo cáo.
++Lỗi từng mục được in cùng đường dẫn và kết quả một phần; các mục độc lập vẫn được
++xử lý, mã thoát khác 0 nếu có lỗi. Xóa tmp không thể hoàn tác; cache được nạp lại
++khi dùng. Xem trước không nạp spool hay áp migration; đọc SQLite có thể cập nhật
++byte khóa tạm trong SHM nhưng không sửa dữ liệu lịch sử.
+diff --git a/internal/app/cleanup.go b/internal/app/cleanup.go
+new file mode 100644
+index 0000000..203f0d0
+--- /dev/null
++++ b/internal/app/cleanup.go
+@@ -0,0 +1,186 @@
++package app
++
++import (
++	"context"
++	"database/sql"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net/url"
++	"os"
++	"path/filepath"
++	"regexp"
++	"strings"
++	"time"
++
++	"bint/internal/cleanup"
++	"bint/internal/gitrepo"
++	"bint/internal/state"
++)
++
++type CleanOptions struct {
++	Apply         bool
++	OlderThanDays int
++	Now           time.Time
++}
++
++var cleanBaseName = regexp.MustCompile(`^([0-9a-f]{40}|[0-9a-f]{64})\.git$`)
++
++// Clean never opens Workspace.OpenStore: preview must neither migrate nor ingest.
++func Clean(ctx context.Context, w *Workspace, o CleanOptions) (cleanup.Report, error) {
++	var empty cleanup.Report
++	info, err := w.Paths.ReadRepoInfo()
++	if err != nil {
++		return empty, err
++	}
++	if state.NormalizePath(info.CommonDir) != state.NormalizePath(w.Repo.CommonDir) {
++		return empty, state.ErrForeignState
++	}
++	return cleanup.Run(ctx, w.Paths.Root, cleanup.Options{Apply: o.Apply, OlderThanDays: o.OlderThanDays, Now: o.Now,
++		BaseSafe: func(ctx context.Context, name string) (bool, error) {
++			if !cleanBaseName.MatchString(name) {
++				return false, nil
++			}
++			sha := strings.TrimSuffix(name, ".git")
++			safe, err := cleanReferences(ctx, w, sha)
++			if err != nil || !safe {
++				return false, err
++			}
++			// Both the original repository and cached ref must still contain this base.
++			for _, q := range []struct{ dir, ref string }{{w.Repo.Toplevel, sha + "^{commit}"}, {filepath.Join(w.Paths.EvalWork, "bases", name), "refs/heads/eval-base^{commit}"}} {
++				cmd := gitrepo.CommandContext(ctx, "-c", "core.fsmonitor=false", "-C", q.dir, "rev-parse", "--verify", q.ref)
++				out, err := cmd.Output()
++				if err != nil {
++					return false, nil
++				}
++				if strings.TrimSpace(string(out)) != sha {
++					return false, nil
++				}
++			}
++			cmd := gitrepo.CommandContext(ctx, "-c", "core.fsmonitor=false", "-C", filepath.Join(w.Paths.EvalWork, "bases", name), "for-each-ref", "--format=%(refname) %(objectname)")
++			out, err := cmd.Output()
++			if err != nil {
++				return false, nil
++			}
++			if strings.TrimSpace(string(out)) != "refs/heads/eval-base "+sha {
++				return false, nil
++			}
++			return true, nil
++		}})
++}
++
++func cleanReferences(ctx context.Context, w *Workspace, sha string) (bool, error) {
++	r, err := os.OpenRoot(w.Paths.Root)
++	if err != nil {
++		return false, err
++	}
++	defer r.Close()
++	// Read raw state only: task.Store.List may synchronize projections on read.
++	f, err := r.Open(filepath.Join("runtime", "tasks"))
++	if err == nil {
++		entries, e := f.ReadDir(-1)
++		f.Close()
++		if e != nil {
++			return false, e
++		}
++		for _, entry := range entries {
++			if entry.Type()&os.ModeSymlink != 0 {
++				return false, nil
++			}
++			if !entry.IsDir() {
++				continue
++			}
++			b, e := r.ReadFile(filepath.Join("runtime", "tasks", entry.Name(), "state.json"))
++			if e != nil {
++				return false, nil
++			}
++			var st struct {
++				Status string `json:"status"`
++				Base   string `json:"base"`
++			}
++			if json.Unmarshal(b, &st) != nil || st.Status == "" {
++				return false, nil
++			}
++			// Open tasks can depend on a base even without a currently held runner lock.
++			if st.Status != "done" && st.Status != "cancelled" && st.Status != "canceled" && (st.Base == sha || st.Base == "") {
++				return false, nil
++			}
++		}
++	} else if !os.IsNotExist(err) {
++		return false, err
++	}
++	// Unknown leases are retained conservatively, regardless of reported PID.
++	for _, name := range []string{"runtime/leases", "runtime/locks"} {
++		f, e := r.Open(filepath.FromSlash(name))
++		if e == nil {
++			es, e := f.ReadDir(-1)
++			f.Close()
++			if e != nil {
++				return false, e
++			}
++			for _, de := range es {
++				if de.Type()&os.ModeSymlink != 0 {
++					return false, nil
++				}
++				if strings.HasSuffix(de.Name(), ".json") {
++					return false, nil
++				}
++				if de.IsDir() {
++					sub, e := r.Open(filepath.Join(filepath.FromSlash(name), de.Name()))
++					if e != nil {
++						return false, e
++					}
++					children, e := sub.ReadDir(1)
++					sub.Close()
++					if e != nil && !errors.Is(e, io.EOF) {
++						return false, e
++					}
++					if len(children) > 0 {
++						return false, nil
++					}
++				}
++			}
++		} else if !os.IsNotExist(e) {
++			return false, e
++		}
++	}
++	if fi, err := r.Lstat("state.sqlite"); err == nil && !fi.Mode().IsRegular() {
++		return false, nil
++	}
++	if _, err := r.Stat("state.sqlite"); err != nil {
++		if os.IsNotExist(err) {
++			return false, nil
++		}
++		return false, err
++	}
++	dbPath := filepath.ToSlash(w.Paths.DB)
++	if !strings.HasPrefix(dbPath, "/") {
++		dbPath = "/" + dbPath
++	}
++	u := url.URL{Scheme: "file", Path: dbPath}
++	db, err := sql.Open("sqlite", u.String()+"?mode=ro")
++	if err != nil {
++		return false, err
++	}
++	defer db.Close()
++	var n int
++	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM eval_batches WHERE status = 'running'`).Scan(&n); err != nil {
++		return false, fmt.Errorf("read evaluation references: %w", err)
++	}
++	if n != 0 {
++		return false, nil
++	}
++	if err := ctx.Err(); err != nil {
++		return false, err
++	}
++	return cleanRetainedRepositories(ctx, r)
++}
++
++// ValidateCleanOptions is shared by CLI and callers; zero selects the default.
++func ValidateCleanOptions(o CleanOptions) error {
++	if o.OlderThanDays < 0 || o.OlderThanDays > 365000 {
++		return errors.New("retention must be between 1 and 365000 days")
++	}
++	return nil
++}
+diff --git a/internal/app/cleanup_alternates.go b/internal/app/cleanup_alternates.go
+new file mode 100644
+index 0000000..1cec615
+--- /dev/null
++++ b/internal/app/cleanup_alternates.go
+@@ -0,0 +1,58 @@
++package app
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"io/fs"
++	"os"
++	"strings"
++)
++
++var errRetainedGitDependency = errors.New("retained Git dependency cannot be ruled out")
++
++// cleanRetainedRepositories runs under cleanup's lifecycle gate for each base,
++// rather than caching the preview result. A completed run's shared clone can
++// still need its source object store, even with no running task or eval batch.
++//
++// Conservatively retain all bases when alternates or indirect Git metadata is
++// present. This avoids guessing about relative/quoted paths, transitive object
++// stores, gitfiles and shared common directories. No external paths are followed.
++func cleanRetainedRepositories(ctx context.Context, r *os.Root) (bool, error) {
++	// Every retained directory can contain a repository, including legacy tmp
++	// and directories not recognized by the cleanup allowlist. Scan the whole
++	// rooted inventory rather than maintaining another incomplete root list.
++	err := fs.WalkDir(r.FS(), ".", func(p string, d fs.DirEntry, err error) error {
++		if err != nil {
++			return err
++		}
++		if err := ctx.Err(); err != nil {
++			return err
++		}
++		// A link can hide a repository or an alternate file. Keep caches instead
++		// of walking it, including links that happen to stay within the state dir.
++		if d.Type()&os.ModeSymlink != 0 {
++			return errRetainedGitDependency
++		}
++		if strings.EqualFold(d.Name(), ".git") && !d.IsDir() {
++			return errRetainedGitDependency
++		}
++		if strings.EqualFold(d.Name(), "commondir") {
++			return errRetainedGitDependency
++		}
++		if strings.HasSuffix(strings.ToLower(p), "/objects/info/alternates") {
++			return errRetainedGitDependency
++		}
++		if !d.IsDir() && !d.Type().IsRegular() {
++			return errRetainedGitDependency
++		}
++		return nil
++	})
++	if errors.Is(err, errRetainedGitDependency) {
++		return false, nil
++	}
++	if err != nil {
++		return false, fmt.Errorf("inspect retained state: %w", err)
++	}
++	return true, nil
++}
+diff --git a/internal/app/cleanup_goal_test.go b/internal/app/cleanup_goal_test.go
+new file mode 100644
+index 0000000..11c3679
+--- /dev/null
++++ b/internal/app/cleanup_goal_test.go
+@@ -0,0 +1,664 @@
++package app
++
++import (
++	"bufio"
++	"context"
++	"crypto/sha256"
++	"errors"
++	"fmt"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"reflect"
++	"runtime"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/cleanup"
++	"bint/internal/config"
++	"bint/internal/eval"
++	"bint/internal/state"
++	"bint/internal/store"
++	"bint/internal/task"
++	"bint/internal/testutil"
++	"bint/internal/workflow"
++)
++
++func TestAutoCleanupStateGoal(t *testing.T) {
++	testutil.Isolate(t)
++	ctx := context.Background()
++	repo := testutil.NewRepo(t, map[string]string{"a": "source"})
++	paths := state.At("test", t.TempDir())
++	ws := &Workspace{Paths: paths}
++	// Use the same repository discovery/identity checks as production.
++	real, err := OpenWorkspace(ctx, repo, false)
++	if err != nil {
++		t.Fatal(err)
++	}
++	ws.Repo = real.Repo
++	if err := paths.Ensure(ws.Repo); err != nil {
++		t.Fatal(err)
++	}
++	db, err := store.Open(ctx, paths.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	if _, err := db.DB.Exec(`CREATE TABLE cleanup_sentinel (value TEXT); INSERT INTO cleanup_sentinel VALUES ('keep')`); err != nil {
++		t.Fatal(err)
++	}
++	now := time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
++	old := now.Add(-120 * 24 * time.Hour)
++	sha := strings.TrimSpace(testutil.Git(t, repo, "rev-parse", "HEAD"))
++	base := filepath.Join(paths.EvalWork, "bases", sha+".git")
++	testutil.Git(t, repo, "clone", "--bare", "--no-hardlinks", repo, base)
++	testutil.Git(t, base, "update-ref", "refs/heads/eval-base", sha)
++	testutil.Git(t, base, "update-ref", "-d", "refs/heads/main")
++	testutil.Git(t, base, "update-ref", "-d", "refs/heads/master")
++	if err := filepath.WalkDir(base, func(p string, d os.DirEntry, e error) error {
++		if e != nil {
++			return e
++		}
++		return os.Chtimes(p, old, old)
++	}); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(base, old, old); err != nil {
++		t.Fatal(err)
++	}
++	// Independent commits exercise source availability, retention and open-task references.
++	activeSHA := ""
++	for _, kind := range []string{"new", "boundary", "active", "missing"} {
++		testutil.Git(t, repo, "commit", "--allow-empty", "-m", kind)
++		hash := testutil.Git(t, repo, "rev-parse", "HEAD")
++		if kind == "active" {
++			activeSHA = hash
++		}
++		name := hash
++		if kind == "missing" {
++			name = strings.Repeat("0", 40)
++		}
++		d := filepath.Join(paths.EvalWork, "bases", name+".git")
++		testutil.Git(t, repo, "clone", "--bare", "--no-hardlinks", repo, d)
++		testutil.Git(t, d, "update-ref", "refs/heads/eval-base", hash)
++		// Remove clone's main branch: these caches have a single eval-base ref.
++		testutil.Git(t, d, "update-ref", "-d", "refs/heads/main")
++		testutil.Git(t, d, "update-ref", "-d", "refs/heads/master")
++		at := old
++		if kind == "new" {
++			at = now.Add(-10 * 24 * time.Hour)
++		}
++		if kind == "boundary" {
++			at = now.Add(-90 * 24 * time.Hour)
++		}
++		if err := filepath.WalkDir(d, func(p string, entry os.DirEntry, e error) error {
++			if e != nil {
++				return e
++			}
++			return os.Chtimes(p, at, at)
++		}); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Chtimes(d, at, at); err != nil {
++			t.Fatal(err)
++		}
++	}
++	write := func(rel string) string {
++		t.Helper()
++		p := filepath.Join(paths.Root, filepath.FromSlash(rel))
++		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.WriteFile(p, []byte("keep-or-clean-"+rel), 0600); err != nil {
++			t.Fatal(err)
++		}
++		return p
++	}
++	tmp := filepath.Join(paths.Root, "tmp", "verify-old")
++	oldPayload := write("tmp/verify-old/payload")
++	if err := os.Chtimes(oldPayload, old, old); err != nil {
++		t.Fatal(err)
++	}
++	if err := cleanup.MarkTemp(tmp, old, true); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(tmp, old, old); err != nil {
++		t.Fatal(err)
++	}
++	for _, name := range []string{"new", "boundary", "running", "legacy"} {
++		d := filepath.Join(paths.Root, "tmp", "verify-"+name)
++		write("tmp/verify-" + name + "/payload")
++		at := old
++		if name == "new" {
++			at = now.Add(-10 * 24 * time.Hour)
++		}
++		if name == "boundary" {
++			at = now.Add(-90 * 24 * time.Hour)
++		}
++		if err := os.Chtimes(filepath.Join(d, "payload"), at, at); err != nil {
++			t.Fatal(err)
++		}
++		if name != "legacy" {
++			if err := cleanup.MarkTemp(d, at, name != "running"); err != nil {
++				t.Fatal(err)
++			}
++		}
++		if err := os.Chtimes(d, at, at); err != nil {
++			t.Fatal(err)
++		}
++	}
++	tasks := task.NewStore(paths.Runtime)
++	command := "git rev-parse --verify HEAD"
++	open, err := tasks.Create(task.Ticket{Goal: "Continue unfinished user work", Verify: task.Verify{Command: command}}, task.State{Status: task.StatusInProgress, Base: activeSHA, Worktree: repo}, now)
++	if err != nil {
++		t.Fatal(err)
++	}
++	relOpen := filepath.ToSlash(filepath.Join("runtime", "tasks", open.State.ID))
++	for _, rel := range []string{relOpen + "/logs/agent.log", relOpen + "/requirement.md", "runtime/context/seen", "runtime/subagents/a.json", "runtime/leases/live", "spool/pending.jsonl", "spool/rejected/bad.jsonl", "spool/denials/run/deny.jsonl", "eval-work/runs/unfinished/edit", "eval-work/logs/evidence", "eval-work/verify/evidence", "worktrees/open/uncommitted", "generated/config", "backups/config", "managed.json"} {
++		write(rel)
++	}
++	if _, err := tasks.Load(open.State.ID); err != nil {
++		t.Fatalf("task fixture not readable: %v", err)
++	}
++
++	outside := t.TempDir()
++	sentinel := filepath.Join(outside, "sentinel")
++	if err := os.WriteFile(sentinel, []byte("outside-and-profile"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Symlink(outside, filepath.Join(paths.Root, "tmp", "verify-link")); err != nil {
++		t.Logf("symlink unavailable: %v", err)
++	}
++	// SQLite readers update SHM lock bytes; compare logical rows/integrity below.
++	snapshot := func() map[string][32]byte {
++		t.Helper()
++		m := map[string][32]byte{}
++		err := filepath.WalkDir(paths.Root, func(p string, d os.DirEntry, e error) error {
++			if e != nil {
++				return e
++			}
++			r, _ := filepath.Rel(paths.Root, p)
++			if strings.HasPrefix(filepath.ToSlash(r), "runtime/cleanup-locks/") {
++				return nil
++			}
++			if r == "state.sqlite" || r == "state.sqlite-wal" || r == "state.sqlite-shm" {
++				return nil
++			}
++			if d.Type().IsRegular() {
++				b, e := os.ReadFile(p)
++				if e != nil {
++					return e
++				}
++				m[r] = sha256.Sum256(b)
++			}
++			return nil
++		})
++		if err != nil {
++			t.Fatal(err)
++		}
++		return m
++	}
++	logicalSize := func() int64 {
++		t.Helper()
++		var n int64
++		err := filepath.WalkDir(paths.Root, func(p string, d os.DirEntry, e error) error {
++			if e != nil {
++				return e
++			}
++			rel, _ := filepath.Rel(paths.Root, p)
++			if strings.HasPrefix(filepath.ToSlash(rel), "runtime/cleanup-locks/") || strings.HasPrefix(rel, "state.sqlite") {
++				return nil
++			}
++			if d.Type().IsRegular() {
++				fi, e := d.Info()
++				if e != nil {
++					return e
++				}
++				n += fi.Size()
++			}
++			return nil
++		})
++		if err != nil {
++			t.Fatal(err)
++		}
++		return n
++	}
++	beforeBytes := logicalSize()
++	before := snapshot()
++	opts := CleanOptions{Now: now, OlderThanDays: 90}
++	preview, err := Clean(ctx, ws, opts)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if after := snapshot(); !reflect.DeepEqual(before, after) {
++		for p, h := range before {
++			if after[p] != h {
++				t.Logf("changed: %s", p)
++			}
++		}
++		for p := range after {
++			if _, ok := before[p]; !ok {
++				t.Logf("added: %s", p)
++			}
++		}
++		t.Fatal("preview mutated state")
++	}
++	if preview.EligibleBytes <= 0 {
++		t.Fatalf("nothing reclaimable: %+v", preview)
++	}
++	// The external symlink in this all-surfaces fixture makes dependency
++	// inspection uncertain: retain base caches, while still reclaiming tmp.
++	if goalItemEligible(preview, filepath.Join("eval-work", "bases", sha+".git")) {
++		t.Fatal("base eligible despite opaque symlink")
++	}
++	opts.Apply = true
++	report, err := Clean(ctx, ws, opts)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if report.RemovedBytes != preview.EligibleBytes {
++		t.Fatalf("removed=%d eligible=%d", report.RemovedBytes, preview.EligibleBytes)
++	}
++	for _, p := range []string{tmp} {
++		if _, err := os.Lstat(p); !os.IsNotExist(err) {
++			t.Fatalf("eligible remains %s: %v", p, err)
++		}
++	}
++	after := snapshot()
++	if delta := beforeBytes - logicalSize(); delta != report.RemovedBytes {
++		t.Fatalf("measured reclaimed bytes=%d reported=%d", delta, report.RemovedBytes)
++	}
++	for rel, hash := range before {
++		if strings.HasPrefix(filepath.ToSlash(rel), "tmp/verify-old/") {
++			continue
++		}
++		if after[rel] != hash {
++			t.Errorf("preserved data changed: %s", rel)
++		}
++	}
++	var value, integrity string
++	if err := db.DB.QueryRow(`SELECT value FROM cleanup_sentinel`).Scan(&value); err != nil || value != "keep" {
++		t.Fatalf("database data: %q %v", value, err)
++	}
++	if err := db.DB.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil || integrity != "ok" {
++		t.Fatalf("integrity: %s %v", integrity, err)
++	}
++	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "outside-and-profile" {
++		t.Fatal("outside data changed")
++	}
++	again, err := Clean(ctx, ws, opts)
++	if err != nil || again.RemovedBytes != 0 {
++		t.Fatalf("repeat: %+v %v", again, err)
++	}
++	cfg := config.Default()
++	cfg.Eval.TestCommand = &command
++	env := workflow.Env{Root: repo, Cfg: cfg, Tasks: tasks}
++	continued, result, err := env.Verify(ctx, open.State.ID)
++	if err != nil || continued == nil || !result.Verification.Passed || !result.Verification.Confirmed {
++		t.Fatalf("cannot continue task after cleanup: %+v %v", result, err)
++	}
++	reloaded, err := tasks.Load(open.State.ID)
++	if err != nil || reloaded.State.LastVerification() == nil || !reloaded.State.LastVerification().Passed {
++		t.Fatalf("verification was not persisted: %v", err)
++	}
++	testCleanupGoalTransitions(t)
++
++}
++
++// Each transition runs through the app service, including its task/lease/SQLite
++// reference checks, rather than testing cleanup.Run with a synthetic predicate.
++func testCleanupGoalTransitions(t *testing.T) {
++	for _, where := range []string{"eval-work/runs/retained", "eval-work/verify/retained", "worktrees/retained", "tmp/verify-legacy/retained", "custom-retained/retained"} {
++		t.Run("retained alternate dependency/"+where, func(t *testing.T) {
++			f := newCleanupGoalFixture(t)
++			preview, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now})
++			if err != nil || !goalItemEligible(preview, f.base) {
++				t.Fatalf("before dependency: %+v %v", preview, err)
++			}
++			consumer := filepath.Join(f.ws.Paths.Root, filepath.FromSlash(where))
++			testutil.Git(t, f.repo, "clone", "--shared", "--branch", "eval-base", filepath.Join(f.ws.Paths.Root, f.base), consumer)
++			testutil.Git(t, consumer, "cat-file", "-e", "HEAD^{commit}")
++			// Creating the dependency after preview must invalidate its eligibility.
++			preview, err = Clean(f.ctx, f.ws, CleanOptions{Now: f.now})
++			if err != nil || goalItemEligible(preview, f.base) {
++				t.Fatalf("preview ignored dependency: %+v %v", preview, err)
++			}
++			rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now, Apply: true})
++			if err != nil {
++				t.Fatal(err)
++			}
++			if goalItemRemoved(rep, f.base) || goalItemEligible(rep, f.base) {
++				t.Fatalf("dependent base selected: %+v", rep)
++			}
++			testutil.Git(t, consumer, "cat-file", "-e", "HEAD^{commit}")
++			testutil.Git(t, consumer, "status", "--porcelain")
++			if _, err := os.Stat(filepath.Join(f.ws.Paths.Root, f.base)); err != nil {
++				t.Fatal(err)
++			}
++			// Safety does not disable reclamation of the independent expired tmp.
++			if !goalItemRemoved(rep, f.tmp) {
++				t.Fatalf("unrelated temp not reclaimed: %+v", rep)
++			}
++		})
++	}
++
++	t.Run("writer starts after preview", func(t *testing.T) {
++		f := newCleanupGoalFixture(t)
++		preview, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now})
++		if err != nil || preview.EligibleBytes == 0 {
++			t.Fatalf("preview: %+v %v", preview, err)
++		}
++		stop := startCleanupGoalWriter(t, f.ws.Paths.Root)
++		rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now, Apply: true})
++		if err != nil || rep.RemovedBytes != 0 {
++			t.Fatalf("active writer: %+v %v", rep, err)
++		}
++		f.assertCandidates(t)
++		stop()
++		rep, err = Clean(f.ctx, f.ws, CleanOptions{Now: f.now, Apply: true})
++		if err != nil || rep.RemovedBytes != preview.EligibleBytes {
++			t.Fatalf("after writer released: %+v %v", rep, err)
++		}
++	})
++	t.Run("evaluation run starts after preview", func(t *testing.T) {
++		f := newCleanupGoalFixture(t)
++		if rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now}); err != nil || !goalItemEligible(rep, f.base) {
++			t.Fatalf("preview: %+v %v", rep, err)
++		}
++		// OnBatch pauses a real Run immediately after its SQLite running row exists.
++		// No cases or agent work are dispatched by this lifecycle test.
++		result, err := eval.Run(f.ctx, eval.Env{RepoDir: f.repo, WorkRoot: f.ws.Paths.EvalWork, Cfg: config.Default()}, f.db.DB, eval.RunOptions{Agent: &eval.CommandAgent{Command: "unused"}, Repeats: 1, OnBatch: func(id string) error {
++			batch, e := eval.GetBatch(f.ctx, f.db.DB, id)
++			if e != nil {
++				return e
++			}
++			if batch.Status != "running" {
++				return fmt.Errorf("not running: %s", batch.Status)
++			}
++			rep, e := Clean(f.ctx, f.ws, CleanOptions{Now: f.now, Apply: true})
++			if e != nil {
++				return e
++			}
++			if goalItemRemoved(rep, f.base) {
++				return fmt.Errorf("running eval base removed: %+v", rep)
++			}
++			if _, e := os.Stat(filepath.Join(f.ws.Paths.Root, f.base)); e != nil {
++				return e
++			}
++			return nil
++		}})
++		if err != nil || result.Status != "completed" {
++			t.Fatalf("eval lifecycle: %+v %v", result, err)
++		}
++	})
++	t.Run("workflow lease starts after preview", func(t *testing.T) {
++		f := newCleanupGoalFixture(t)
++		if rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now}); err != nil || !goalItemEligible(rep, f.base) {
++			t.Fatalf("preview: %+v %v", rep, err)
++		}
++		// The task is based on a different commit: retaining the old cache must depend
++		// on the real live lease, not merely on matching task.State.Base.
++		testutil.Git(t, f.repo, "commit", "--allow-empty", "-m", "ongoing workflow")
++		cfg := config.Default()
++		command := "git rev-parse --verify HEAD"
++		cfg.Eval.TestCommand = &command
++		env := &workflow.Env{Root: f.repo, Cfg: cfg, Tasks: task.NewStore(f.ws.Paths.Runtime), Spool: f.ws.Paths.Spool, Human: true}
++		r := workflow.Runner{Env: env}
++		yes := true
++		tk, _, err := r.NewTask(f.ctx, workflow.NewTaskOptions{Request: "Inspect a safely", Workflow: workflow.StepDo, Driver: task.DriverSession, Isolation: task.IsolationShared, Plan: &yes})
++		if err != nil {
++			t.Fatal(err)
++		}
++		action, err := r.Next(f.ctx, workflow.NextOptions{TaskRef: tk.State.ID, NoWait: true})
++		if err != nil || action == nil || action.Action != workflow.ActionAgent {
++			t.Fatalf("open lease: %+v %v", action, err)
++		}
++		defer func() { _, _ = r.Abort(f.ctx, tk.State.ID, "fixture finished") }()
++		if steps := workflow.ActiveSteps(env.Tasks.Dir, f.repo); len(steps) == 0 {
++			t.Fatal("workflow did not issue a live lease")
++		}
++		rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now, Apply: true})
++		if err != nil || goalItemRemoved(rep, f.base) {
++			t.Fatalf("live lease lost its base: %+v %v", rep, err)
++		}
++		if _, err := os.Stat(filepath.Join(f.ws.Paths.Root, f.base)); err != nil {
++			t.Fatal(err)
++		}
++		// Resume the same pending step after cleanup; its run and lease must survive.
++		resumed, err := r.Next(f.ctx, workflow.NextOptions{TaskRef: tk.State.ID, NoWait: true})
++		if err != nil || resumed == nil || resumed.RunID != action.RunID {
++			t.Fatalf("cannot continue leased task: %+v %v", resumed, err)
++		}
++	})
++	t.Run("candidate becomes symlink after preview", func(t *testing.T) {
++		f := newCleanupGoalFixture(t)
++		preview, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now})
++		if err != nil || !goalItemEligible(preview, f.tmp) {
++			t.Fatalf("preview: %+v %v", preview, err)
++		}
++		dir := filepath.Join(f.ws.Paths.Root, f.tmp)
++		saved := filepath.Join(t.TempDir(), "saved-temp")
++		if err := os.Rename(dir, saved); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Symlink(saved, dir); err != nil {
++			t.Skipf("symlinks unavailable: %v", err)
++		}
++		rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now, Apply: true})
++		if err != nil || goalItemRemoved(rep, f.tmp) {
++			t.Fatalf("replacement: %+v %v", rep, err)
++		}
++		if fi, e := os.Lstat(dir); e != nil || fi.Mode()&os.ModeSymlink == 0 {
++			t.Fatalf("replacement link was removed: %v", e)
++		}
++		if b, e := os.ReadFile(filepath.Join(saved, "payload")); e != nil || string(b) != "disposable" {
++			t.Fatal("symlink target modified")
++		}
++	})
++	t.Run("IO failure after preview", func(t *testing.T) {
++		if runtime.GOOS == "windows" {
++			t.Skip("POSIX directory permission fixture; Windows does not implement these mode bits")
++		}
++		f := newCleanupGoalFixture(t)
++		if rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now}); err != nil || !goalItemEligible(rep, f.tmp) {
++			t.Fatalf("preview: %+v %v", rep, err)
++		}
++		dir := filepath.Join(f.ws.Paths.Root, f.tmp)
++		if err := os.Chmod(dir, 0); err != nil {
++			t.Fatal(err)
++		}
++		t.Cleanup(func() { _ = os.Chmod(dir, 0700) })
++		// Root/CAP_DAC_OVERRIDE cannot model EACCES with chmod.
++		if es, err := os.ReadDir(dir); err == nil {
++			_ = es
++			t.Skip("filesystem permissions do not deny this process")
++		}
++		rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now, Apply: true})
++		if err == nil || !errors.Is(err, os.ErrPermission) {
++			t.Fatalf("missing I/O error: %+v %v", rep, err)
++		}
++		found := false
++		for _, item := range rep.Items {
++			if item.Path == f.tmp && item.Error != "" && !item.Removed {
++				found = true
++			}
++		}
++		if !found {
++			t.Fatalf("missing failed path: %+v", rep)
++		}
++		if err := os.Chmod(dir, 0700); err != nil {
++			t.Fatal(err)
++		}
++		if b, e := os.ReadFile(filepath.Join(dir, "payload")); e != nil || string(b) != "disposable" {
++			t.Fatal("unreadable work lost")
++		}
++	})
++}
++
++type cleanupGoalFixture struct {
++	ctx       context.Context
++	ws        *Workspace
++	repo      string
++	db        *store.Store
++	now       time.Time
++	base, tmp string
++}
++
++func newCleanupGoalFixture(t *testing.T) *cleanupGoalFixture {
++	t.Helper()
++	testutil.Isolate(t)
++	ctx := context.Background()
++	repo := testutil.NewRepo(t, map[string]string{"a": "source"})
++	real, err := OpenWorkspace(ctx, repo, false)
++	if err != nil {
++		t.Fatal(err)
++	}
++	paths := state.At("transition", t.TempDir())
++	ws := &Workspace{Repo: real.Repo, Paths: paths}
++	if err := paths.Ensure(ws.Repo); err != nil {
++		t.Fatal(err)
++	}
++	db, err := store.Open(ctx, paths.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(func() { _ = db.Close() })
++	now := time.Now().UTC()
++	old := now.AddDate(0, 0, -120)
++	sha := testutil.Git(t, repo, "rev-parse", "HEAD")
++	base := filepath.Join("eval-work", "bases", sha+".git")
++	bdir := filepath.Join(paths.Root, base)
++	testutil.Git(t, repo, "clone", "--bare", "--no-hardlinks", repo, bdir)
++	testutil.Git(t, bdir, "update-ref", "refs/heads/eval-base", sha)
++	testutil.Git(t, bdir, "update-ref", "-d", "refs/heads/main")
++	testutil.Git(t, bdir, "update-ref", "-d", "refs/heads/master")
++	tmp := filepath.Join("tmp", "verify-transition")
++	dir := filepath.Join(paths.Root, tmp)
++	if err := os.MkdirAll(dir, 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(dir, "payload"), []byte("disposable"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := cleanup.MarkTemp(dir, old, true); err != nil {
++		t.Fatal(err)
++	}
++	for _, tree := range []string{bdir, dir} {
++		if err := filepath.WalkDir(tree, func(p string, d os.DirEntry, e error) error {
++			if e != nil {
++				return e
++			}
++			return os.Chtimes(p, old, old)
++		}); err != nil {
++			t.Fatal(err)
++		}
++	}
++	return &cleanupGoalFixture{ctx, ws, repo, db, now, base, tmp}
++}
++func (f *cleanupGoalFixture) assertCandidates(t *testing.T) {
++	t.Helper()
++	for _, rel := range []string{f.base, f.tmp} {
++		if _, err := os.Stat(filepath.Join(f.ws.Paths.Root, rel)); err != nil {
++			t.Fatalf("active candidate lost %s: %v", rel, err)
++		}
++	}
++}
++func goalItemEligible(rep cleanup.Report, rel string) bool {
++	for _, i := range rep.Items {
++		if i.Path == rel {
++			return i.Eligible
++		}
++	}
++	return false
++}
++func goalItemRemoved(rep cleanup.Report, rel string) bool {
++	for _, i := range rep.Items {
++		if i.Path == rel {
++			return i.Removed
++		}
++	}
++	return false
++}
++
++func TestCleanupGoalWriterProcess(t *testing.T) {
++	root := os.Getenv("BINT_CLEAN_GOAL_WRITER")
++	if root == "" {
++		return
++	}
++	release, err := cleanup.Guard(root, false)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer release()
++	fmt.Println("writer-ready")
++	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
++}
++func startCleanupGoalWriter(t *testing.T, root string) func() {
++	t.Helper()
++	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
++	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCleanupGoalWriterProcess$")
++	cmd.Env = append(os.Environ(), "BINT_CLEAN_GOAL_WRITER="+root)
++	in, err := cmd.StdinPipe()
++	if err != nil {
++		cancel()
++		t.Fatal(err)
++	}
++	out, err := cmd.StdoutPipe()
++	if err != nil {
++		cancel()
++		t.Fatal(err)
++	}
++	if err := cmd.Start(); err != nil {
++		cancel()
++		t.Fatal(err)
++	}
++	stopped := false
++	stop := func() {
++		if !stopped {
++			stopped = true
++			in.Close()
++			if err := cmd.Wait(); err != nil {
++				t.Errorf("writer: %v", err)
++			}
++			cancel()
++		}
++	}
++	t.Cleanup(stop)
++	scanner := bufio.NewScanner(out)
++	if !scanner.Scan() || scanner.Text() != "writer-ready" {
++		t.Fatal("writer did not acquire lifecycle gate")
++	}
++	return stop
++}
++
++// Indirect or opaque Git metadata must fail closed without following external
++// paths or trying to interpret quoted/relative alternate object-store syntax.
++func TestCleanupOpaqueGitMetadata(t *testing.T) {
++	for _, rel := range []string{"eval-work/runs/retained/.git", "eval-work/verify/retained.git/objects/info/alternates", "worktrees/retained.git/commondir"} {
++		t.Run(rel, func(t *testing.T) {
++			f := newCleanupGoalFixture(t)
++			before, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now})
++			if err != nil || !goalItemEligible(before, f.base) {
++				t.Fatalf("before metadata: %+v %v", before, err)
++			}
++			file := filepath.Join(f.ws.Paths.Root, filepath.FromSlash(rel))
++			if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
++				t.Fatal(err)
++			}
++			if err := os.WriteFile(file, []byte("external metadata not safe to resolve"), 0600); err != nil {
++				t.Fatal(err)
++			}
++			rep, err := Clean(f.ctx, f.ws, CleanOptions{Now: f.now, Apply: true})
++			if err != nil || goalItemRemoved(rep, f.base) || goalItemEligible(rep, f.base) {
++				t.Fatalf("opaque dependency selected: %+v %v", rep, err)
++			}
++			if _, err := os.Stat(filepath.Join(f.ws.Paths.Root, f.base)); err != nil {
++				t.Fatal(err)
++			}
++			if !goalItemRemoved(rep, f.tmp) {
++				t.Fatalf("independent temp retained: %+v", rep)
++			}
++		})
++	}
++}
+diff --git a/internal/cleanup/cleanup.go b/internal/cleanup/cleanup.go
+new file mode 100644
+index 0000000..7fa77ca
+--- /dev/null
++++ b/internal/cleanup/cleanup.go
+@@ -0,0 +1,365 @@
++package cleanup
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io/fs"
++	"os"
++	"path/filepath"
++	"strings"
++	"time"
++
++	"bint/internal/fslock"
++)
++
++var errContainsLock = errors.New("contains lock file")
++
++// Lock age and PID are not evidence of ownership. Keep the containing tree,
++// including unlocked lock files, to avoid splitting a live lock's inode.
++func lockName(name string) bool {
++	name = strings.ToLower(name)
++	return name == "lock" || name == ".lock" || name == "lockfile" || strings.HasSuffix(name, ".lock") || strings.HasSuffix(name, ".lk") || strings.HasSuffix(name, ".lck") || strings.HasSuffix(name, ".lockfile")
++}
++
++type Options struct {
++	Apply         bool
++	OlderThanDays int
++	Now           time.Time
++	// BaseSafe must verify source availability and absence of live references.
++	BaseSafe func(context.Context, string) (bool, error)
++}
++type Item struct {
++	Path         string
++	Group        string
++	Bytes        int64
++	Eligible     bool
++	Removed      bool
++	RemovedBytes int64
++	Reason       string
++	Error        string
++}
++type Report struct {
++	Items         []Item
++	EligibleBytes int64
++	RemovedBytes  int64
++}
++
++// Run always inventories and reselects from current state; it never accepts an
++// old preview as deletion authority. The lifecycle gate covers selection/delete.
++func Run(ctx context.Context, root string, o Options) (Report, error) {
++	var rep Report
++	if o.OlderThanDays == 0 {
++		o.OlderThanDays = 90
++	}
++	if o.OlderThanDays < 1 || o.OlderThanDays > 365000 {
++		return rep, errors.New("cleanup: retention must be between 1 and 365000 days")
++	}
++	if o.Now.IsZero() {
++		o.Now = time.Now()
++	}
++	r, err := os.OpenRoot(root)
++	if err != nil {
++		return rep, err
++	}
++	defer r.Close()
++	cutoff := o.Now.AddDate(0, 0, -o.OlderThanDays)
++	var errs []error
++	var visit func(string, string) error
++	visit = func(rel, group string) error {
++		if err := ctx.Err(); err != nil {
++			return err
++		}
++		fi, err := r.Lstat(rel)
++		if err != nil {
++			return err
++		}
++		if fi.Mode()&os.ModeSymlink != 0 {
++			rep.Items = append(rep.Items, Item{Path: rel, Group: group, Reason: "kept: symlink"})
++			return nil
++		}
++		logical := filepath.ToSlash(rel)
++		if logical == "eval-work" || logical == "eval-work/bases" || logical == "tmp" {
++			if !fi.IsDir() {
++				rep.Items = append(rep.Items, Item{Path: rel, Group: group, Reason: "kept: not a directory"})
++				return nil
++			}
++			f, err := r.Open(rel)
++			if err != nil {
++				return err
++			}
++			es, err := f.ReadDir(-1)
++			f.Close()
++			if err != nil {
++				return err
++			}
++			for _, e := range es {
++				child := filepath.Join(rel, e.Name())
++				g := group
++				if rel == "eval-work" {
++					g = "eval-work/" + e.Name()
++				}
++				if err := visit(child, g); err != nil {
++					rep.Items = append(rep.Items, Item{Path: child, Group: g, Reason: "kept: inventory incomplete", Error: err.Error()})
++					errs = append(errs, err)
++				}
++			}
++			return nil
++		}
++		item := Item{Path: rel, Group: group, Reason: "kept: history, recovery or unmanaged data"}
++		base := filepath.Dir(rel) == filepath.Join("eval-work", "bases")
++		temp := filepath.Dir(rel) == "tmp" && strings.HasPrefix(filepath.Base(rel), "verify-")
++		var gateErr error
++		if base || temp {
++			var release func()
++			release, gateErr = Guard(root, true)
++			if gateErr == nil {
++				defer release()
++			}
++		}
++		n, newest, scanErr := measure(ctx, r, rel, base || temp)
++		item.Bytes = n
++		if errors.Is(scanErr, errContainsLock) {
++			item.Reason = "kept: " + scanErr.Error()
++		} else if scanErr != nil {
++			item.Error = scanErr.Error()
++			errs = append(errs, fmt.Errorf("%s: %w", rel, scanErr))
++		}
++		if (base || temp) && scanErr == nil && fi.IsDir() {
++			at := fi.ModTime()
++			if base && newest.After(at) {
++				at = newest
++			}
++			safe := false
++			if base && strings.HasSuffix(rel, ".git") && o.BaseSafe != nil {
++				safe, err = o.BaseSafe(ctx, filepath.Base(rel))
++				if err != nil {
++					item.Error = err.Error()
++					errs = append(errs, err)
++				}
++				item.Reason = "kept: source or references not proven safe"
++			}
++			if temp {
++				b, e := r.ReadFile(filepath.Join(rel, TempMarker))
++				var m TempState
++				safe = e == nil && json.Unmarshal(b, &m) == nil && m.Version == 1 && m.Completed && !m.At.IsZero() && !m.At.After(o.Now)
++				at = m.At
++				item.Reason = "kept: missing or incomplete lifecycle marker"
++				// New payload after completion invalidates an old completion timestamp.
++				// Marker mtime itself reflects when it was written, not the simulated clock.
++				if safe && newest.After(at) {
++					safe = false
++					item.Reason = "kept: contents changed after completion"
++				}
++			}
++			if safe {
++				item.Reason = "kept: within retention"
++				if at.Before(cutoff) {
++					item.Reason = "eligible: expired disposable data"
++					if gateErr != nil {
++						item.Reason = "kept: lifecycle gate unavailable"
++						if !errors.Is(gateErr, ErrBusy) {
++							item.Error = gateErr.Error()
++							errs = append(errs, gateErr)
++						}
++					} else {
++						item.Eligible = true
++						rep.EligibleBytes += n
++						if o.Apply {
++							// Reject replacement after inventory; rooted recursion pins
++							// directories and refuses symlinks and lock files.
++							current, e := r.Lstat(rel)
++							if e == nil && !os.SameFile(fi, current) {
++								e = errors.New("identity changed during cleanup")
++							}
++							var removed int64
++							if e == nil {
++								removed, e = removeTree(ctx, r, rel)
++							}
++							rep.RemovedBytes += removed
++							item.RemovedBytes = removed
++							if e != nil {
++								item.Error = e.Error()
++								item.Reason = "partial: removal failed"
++								errs = append(errs, e)
++							} else {
++								item.Removed = true
++								item.Reason = "removed"
++							}
++						}
++					}
++				}
++			}
++		}
++		rep.Items = append(rep.Items, item)
++		return nil
++	}
++	es, err := os.ReadDir(root)
++	if err != nil {
++		return rep, err
++	}
++	for _, e := range es {
++		if err := visit(e.Name(), e.Name()); err != nil {
++			rep.Items = append(rep.Items, Item{Path: e.Name(), Group: e.Name(), Reason: "kept: inventory incomplete", Error: err.Error()})
++			errs = append(errs, err)
++		}
++	}
++	return rep, errors.Join(errs...)
++}
++
++// measure does not follow symlinks or count their targets, and checks cancellation.
++func measure(ctx context.Context, r *os.Root, rel string, strict bool) (int64, time.Time, error) {
++	var bytes int64
++	var newest time.Time
++	var protected string
++	err := fs.WalkDir(r.FS(), filepath.ToSlash(rel), func(p string, d fs.DirEntry, err error) error {
++		if err != nil {
++			return err
++		}
++		if err := ctx.Err(); err != nil {
++			return err
++		}
++		if d.Type()&os.ModeSymlink != 0 {
++			if strict {
++				return fmt.Errorf("symlink in %s", p)
++			}
++			return nil
++		}
++		if strict && lockName(d.Name()) && protected == "" {
++			protected = p
++		}
++		if strict && !d.IsDir() && !d.Type().IsRegular() {
++			return fmt.Errorf("special file in %s", p)
++		}
++		fi, e := d.Info()
++		if e != nil {
++			return e
++		}
++		if d.Type().IsRegular() {
++			bytes += fi.Size()
++			if strict && !lockName(d.Name()) {
++				f, e := lockDisposableFile(r, filepath.FromSlash(p))
++				if errors.Is(e, errContainsLock) {
++					protected = p
++				} else if e != nil {
++					return e
++				} else {
++					f.Close()
++				}
++			}
++		}
++		if d.Name() != TempMarker && fi.ModTime().After(newest) {
++			newest = fi.ModTime()
++		}
++		return nil
++	})
++	if err == nil && protected != "" {
++		err = fmt.Errorf("%w: %s", errContainsLock, protected)
++	}
++	return bytes, newest, err
++}
++
++// removeTree pins each directory before descending and never follows a link.
++// Count only successful file unlinks, including when a later operation fails.
++func removeTree(ctx context.Context, r *os.Root, name string) (int64, error) {
++	if err := ctx.Err(); err != nil {
++		return 0, err
++	}
++	fi, err := r.Lstat(name)
++	if err != nil {
++		return 0, err
++	}
++	if fi.Mode()&os.ModeSymlink != 0 {
++		return 0, fmt.Errorf("refuse symlink: %s", name)
++	}
++	if lockName(filepath.Base(name)) {
++		return 0, fmt.Errorf("%w: %s", errContainsLock, name)
++	}
++	if fi.Mode().IsRegular() {
++		// Recheck kernel ownership immediately before unlinking, holding our
++		// handle until the operation ends. Filename checks alone miss locks on
++		// ordinary data files.
++		f, err := lockDisposableFile(r, name)
++		if err != nil {
++			return 0, err
++		}
++		defer f.Close()
++		if err := r.Remove(name); err != nil {
++			return 0, err
++		}
++		return fi.Size(), nil
++	}
++	if !fi.IsDir() {
++		return 0, fmt.Errorf("refuse special file: %s", name)
++	}
++	sub, err := r.OpenRoot(name)
++	if err != nil {
++		return 0, err
++	}
++	current, err := sub.Lstat(".")
++	if err != nil || !os.SameFile(fi, current) {
++		sub.Close()
++		return 0, fmt.Errorf("directory replaced: %s", name)
++	}
++	f, err := sub.Open(".")
++	if err != nil {
++		sub.Close()
++		return 0, err
++	}
++	entries, err := f.ReadDir(-1)
++	f.Close()
++	if err != nil {
++		sub.Close()
++		return 0, err
++	}
++	var removed int64
++	for _, de := range entries {
++		n, e := removeTree(ctx, sub, de.Name())
++		removed += n
++		if e != nil {
++			sub.Close()
++			return removed, e
++		}
++	}
++	sub.Close()
++	// Do not remove a replacement directory/link introduced during recursion.
++	current, err = r.Lstat(name)
++	if err != nil {
++		return removed, err
++	}
++	if !os.SameFile(fi, current) {
++		return removed, fmt.Errorf("directory replaced: %s", name)
++	}
++	return removed, r.Remove(name)
++}
++
++// lockDisposableFile probes real OS ownership without changing file contents.
++// Permission or identity uncertainty keeps the file; callers close the handle.
++func lockDisposableFile(r *os.Root, name string) (*os.File, error) {
++	before, err := r.Lstat(name)
++	if err != nil {
++		return nil, err
++	}
++	if !before.Mode().IsRegular() {
++		return nil, fmt.Errorf("file changed: %s", name)
++	}
++	f, err := r.Open(name)
++	if err != nil {
++		return nil, err
++	}
++	actual, err := f.Stat()
++	if err != nil || !os.SameFile(before, actual) {
++		f.Close()
++		return nil, fmt.Errorf("file replaced: %s", name)
++	}
++	busy, err := fslock.Try(f, true)
++	if busy || err != nil {
++		f.Close()
++		if busy {
++			return nil, fmt.Errorf("%w: %s", errContainsLock, name)
++		}
++		return nil, err
++	}
++	return f, nil
++}
+diff --git a/internal/cleanup/cleanup_test.go b/internal/cleanup/cleanup_test.go
+new file mode 100644
+index 0000000..aadfba6
+--- /dev/null
++++ b/internal/cleanup/cleanup_test.go
+@@ -0,0 +1,300 @@
++package cleanup
++
++import (
++	"bufio"
++	"context"
++	"errors"
++	"fmt"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/fslock"
++)
++
++func oldTemp(t *testing.T, root, name string, now time.Time) string {
++	t.Helper()
++	d := filepath.Join(root, "tmp", name)
++	if err := os.MkdirAll(d, 0700); err != nil {
++		t.Fatal(err)
++	}
++	old := now.Add(-120 * 24 * time.Hour)
++	p := filepath.Join(d, "payload")
++	if err := os.WriteFile(p, []byte("disposable"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(p, old, old); err != nil {
++		t.Fatal(err)
++	}
++	if err := MarkTemp(d, old, true); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(d, old, old); err != nil {
++		t.Fatal(err)
++	}
++	return d
++}
++
++func TestCleanupLockProcess(t *testing.T) {
++	if os.Getenv("BINT_TEST_CLEAN_LOCK") == "" {
++		return
++	}
++	release, err := Guard(os.Getenv("BINT_TEST_CLEAN_LOCK"), false)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer release()
++	fmt.Println("locked")
++	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
++}
++
++func TestCleanupSubprocessAndRecheck(t *testing.T) {
++	root := t.TempDir()
++	now := time.Now().UTC()
++	dir := oldTemp(t, root, "verify-expired", now)
++	o := Options{Now: now, Apply: true}
++	preview, err := Run(context.Background(), root, Options{Now: now})
++	if err != nil || preview.EligibleBytes == 0 {
++		t.Fatalf("preview: %+v %v", preview, err)
++	}
++	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
++	defer cancel()
++	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCleanupLockProcess$")
++	cmd.Env = append(os.Environ(), "BINT_TEST_CLEAN_LOCK="+root)
++	in, err := cmd.StdinPipe()
++	if err != nil {
++		t.Fatal(err)
++	}
++	out, err := cmd.StdoutPipe()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := cmd.Start(); err != nil {
++		t.Fatal(err)
++	}
++	defer func() { in.Close(); _ = cmd.Wait() }()
++	scanner := bufio.NewScanner(out)
++	if !scanner.Scan() || scanner.Text() != "locked" {
++		t.Fatal("child did not acquire lock")
++	}
++	rep, err := Run(context.Background(), root, o)
++	if err != nil || rep.RemovedBytes != 0 {
++		t.Fatalf("busy: %+v %v", rep, err)
++	}
++	if _, err := os.Stat(dir); err != nil {
++		t.Fatal("busy directory removed")
++	}
++	// The OS releases ownership when the process exits. The inode stays.
++	in.Close()
++	if err := cmd.Wait(); err != nil {
++		t.Fatal(err)
++	}
++	lockPath := filepath.Join(root, "runtime", "cleanup-locks", "lifecycle.lock")
++	if _, err := os.Stat(lockPath); err != nil {
++		t.Fatal(err)
++	}
++	if err := MarkTemp(dir, now, true); err != nil {
++		t.Fatal(err)
++	}
++	rep, err = Run(context.Background(), root, o)
++	if err != nil || rep.RemovedBytes != 0 {
++		t.Fatalf("new completion after preview: %+v %v", rep, err)
++	}
++	if _, err := os.Stat(dir); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestCleanupSymlinkAndPartial(t *testing.T) {
++	root := t.TempDir()
++	now := time.Now()
++	good := oldTemp(t, root, "verify-good", now)
++	bad := oldTemp(t, root, "verify-bad", now)
++	outside := t.TempDir()
++	sentinel := filepath.Join(outside, "sentinel")
++	if err := os.WriteFile(sentinel, []byte("keep"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Symlink(outside, filepath.Join(bad, "link")); err != nil {
++		t.Skipf("symlinks unavailable: %v", err)
++	}
++	rep, err := Run(context.Background(), root, Options{Now: now, Apply: true})
++	if err == nil || rep.RemovedBytes == 0 {
++		t.Fatalf("partial: %+v %v", rep, err)
++	}
++	if _, err := os.Stat(good); !os.IsNotExist(err) {
++		t.Fatal("independent eligible item not removed")
++	}
++	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "keep" {
++		t.Fatal("external data modified")
++	}
++	if _, err := os.Stat(bad); err != nil {
++		t.Fatal("unsafe tree removed")
++	}
++	found := false
++	for _, i := range rep.Items {
++		if strings.Contains(i.Path, "verify-bad") && i.Error != "" {
++			found = true
++		}
++	}
++	if !found {
++		t.Fatal("missing item error")
++	}
++}
++
++func TestCleanupReplacementAndCancellation(t *testing.T) {
++	root := t.TempDir()
++	now := time.Now()
++	dir := oldTemp(t, root, "verify-replace", now)
++	if _, err := Run(context.Background(), root, Options{Now: now}); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(dir, "new-user-data"), []byte("keep"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	rep, err := Run(context.Background(), root, Options{Now: now, Apply: true})
++	if err != nil || rep.RemovedBytes != 0 {
++		t.Fatalf("changed data: %+v %v", rep, err)
++	}
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++	_, err = Run(ctx, root, Options{Now: now, Apply: true})
++	if !errors.Is(err, context.Canceled) {
++		t.Fatalf("cancel: %v", err)
++	}
++}
++
++func TestCleanupSymlinkReplacementAfterPreview(t *testing.T) {
++	root := t.TempDir()
++	now := time.Now()
++	dir := oldTemp(t, root, "verify-replaced", now)
++	if _, err := Run(context.Background(), root, Options{Now: now}); err != nil {
++		t.Fatal(err)
++	}
++	// Rename, rather than delete, the old candidate to preserve its contents.
++	moved := dir + "-saved"
++	if err := os.Rename(dir, moved); err != nil {
++		t.Fatal(err)
++	}
++	outside := t.TempDir()
++	p := filepath.Join(outside, "keep")
++	if err := os.WriteFile(p, []byte("keep"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Symlink(outside, dir); err != nil {
++		t.Skipf("symlink unavailable: %v", err)
++	}
++	rep, err := Run(context.Background(), root, Options{Now: now, Apply: true})
++	if err != nil {
++		t.Fatal(err)
++	}
++	// The saved directory is still a managed expired candidate and may be removed;
++	// the replacement link and its target must survive.
++	if _, err := os.Lstat(dir); err != nil {
++		t.Fatal(err)
++	}
++	if b, err := os.ReadFile(p); err != nil || string(b) != "keep" {
++		t.Fatalf("target changed: %+v %v", rep, err)
++	}
++}
++
++func TestCleanupLargeRetentionDoesNotOverflow(t *testing.T) {
++	root := t.TempDir()
++	now := time.Now()
++	dir := oldTemp(t, root, "verify-old", now)
++	rep, err := Run(context.Background(), root, Options{Now: now, Apply: true, OlderThanDays: 365000})
++	if err != nil || rep.RemovedBytes != 0 {
++		t.Fatalf("large retention: %+v %v", rep, err)
++	}
++	if _, err := os.Stat(dir); err != nil {
++		t.Fatal(err)
++	}
++}
++
++// A held flock does not refresh timestamps: expiry cannot authorize unlinking it.
++func TestCleanupRetainsHeldLock(t *testing.T) {
++	for _, name := range []string{"writer.lock", "lease.lk", "LOCK", "nested/writer.lck", "writer.data", "reader.data"} {
++		t.Run(name, func(t *testing.T) {
++			root := t.TempDir()
++			now := time.Now()
++			old := now.Add(-120 * 24 * time.Hour)
++			dir := oldTemp(t, root, "verify-held-lock", now)
++			lock := filepath.Join(dir, filepath.FromSlash(name))
++			if err := os.MkdirAll(filepath.Dir(lock), 0700); err != nil {
++				t.Fatal(err)
++			}
++			f, err := os.OpenFile(lock, os.O_CREATE|os.O_RDWR, 0600)
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer f.Close()
++			if busy, err := fslock.Try(f, name != "reader.data"); err != nil || busy {
++				t.Fatalf("lock: busy=%v err=%v", busy, err)
++			}
++			fi, err := f.Stat()
++			if err != nil {
++				t.Fatal(err)
++			}
++			if err := filepath.WalkDir(dir, func(p string, d os.DirEntry, e error) error {
++				if e != nil {
++					return e
++				}
++				return os.Chtimes(p, old, old)
++			}); err != nil {
++				t.Fatal(err)
++			}
++			for _, apply := range []bool{true, false} {
++				rep, err := Run(context.Background(), root, Options{Now: now, Apply: apply})
++				if err != nil {
++					t.Fatal(err)
++				}
++				after, e := os.Stat(lock)
++				if e != nil || !os.SameFile(fi, after) {
++					t.Fatalf("held lock was unlinked: apply=%v removed=%d err=%v", apply, rep.RemovedBytes, e)
++				}
++				if _, e := os.Stat(filepath.Join(dir, "payload")); e != nil {
++					t.Fatal("lock's containing candidate was partially removed")
++				}
++				if rep.RemovedBytes != 0 || rep.EligibleBytes != 0 {
++					t.Fatalf("locked candidate eligible: %+v", rep)
++				}
++				found := false
++				for _, item := range rep.Items {
++					if item.Path == filepath.Join("tmp", "verify-held-lock") && strings.Contains(item.Reason, "lock") {
++						found = true
++					}
++				}
++				if !found {
++					t.Fatalf("missing lock retention reason: %+v", rep)
++				}
++			}
++		})
++	}
++}
++
++func TestCleanupRetainsUnlockedLockFile(t *testing.T) {
++	root := t.TempDir()
++	now := time.Now()
++	old := now.Add(-120 * 24 * time.Hour)
++	dir := oldTemp(t, root, "verify-unlocked-lock", now)
++	p := filepath.Join(dir, "writer.lock")
++	if err := os.WriteFile(p, []byte("owner metadata"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(p, old, old); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(dir, old, old); err != nil {
++		t.Fatal(err)
++	}
++	rep, err := Run(context.Background(), root, Options{Now: now, Apply: true})
++	if err != nil || rep.EligibleBytes != 0 || rep.RemovedBytes != 0 {
++		t.Fatalf("unlocked lock: %+v %v", rep, err)
++	}
++	if b, err := os.ReadFile(p); err != nil || string(b) != "owner metadata" {
++		t.Fatalf("lock file lost: %v", err)
++	}
++}
+diff --git a/internal/cleanup/lock.go b/internal/cleanup/lock.go
+new file mode 100644
+index 0000000..5b975d5
+--- /dev/null
++++ b/internal/cleanup/lock.go
+@@ -0,0 +1,95 @@
++// Package cleanup implements conservative, opt-in reclamation of disposable Bint data.
++package cleanup
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"os"
++	"path/filepath"
++	"time"
++
++	"bint/internal/fslock"
++)
++
++var ErrBusy = errors.New("cleanup: data is in use")
++
++// Guard holds the repository-wide lifecycle gate. Writers use shared handles,
++// reclamation uses an exclusive handle. Never unlink the lock file on release.
++func Guard(root string, exclusive bool) (func(), error) {
++	r, err := os.OpenRoot(root)
++	if err != nil {
++		return nil, err
++	}
++	defer r.Close()
++	dir := filepath.Join("runtime", "cleanup-locks")
++	// Refuse symlink components, including links that stay within the state tree.
++	for _, d := range []string{"runtime", dir} {
++		if fi, e := r.Lstat(d); e == nil {
++			if !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 {
++				return nil, errors.New("cleanup: unsafe lock directory")
++			}
++		} else if !os.IsNotExist(e) {
++			return nil, e
++		}
++		if e := r.MkdirAll(d, 0700); e != nil {
++			return nil, e
++		}
++	}
++	name := filepath.Join(dir, "lifecycle.lock")
++	if fi, e := r.Lstat(name); e == nil && !fi.Mode().IsRegular() {
++		return nil, errors.New("cleanup: unsafe lock file")
++	}
++	f, err := r.OpenFile(name, os.O_CREATE|os.O_RDWR, 0600)
++	if err != nil {
++		return nil, err
++	}
++	busy, err := fslock.Try(f, exclusive)
++	if err != nil || busy {
++		f.Close()
++		if busy {
++			return nil, ErrBusy
++		}
++		return nil, err
++	}
++	return func() { _ = f.Close() }, nil
++}
++
++const TempMarker = ".bint-cleanup.json"
++
++type TempState struct {
++	Version   int       `json:"version"`
++	Completed bool      `json:"completed"`
++	At        time.Time `json:"at"`
++}
++
++// MarkTemp records a managed verification directory. Call with a shared Guard
++// held throughout its lifetime. Incomplete/crashed directories are retained.
++func MarkTemp(dir string, at time.Time, completed bool) error {
++	b, err := json.Marshal(TempState{1, completed, at.UTC()})
++	if err != nil {
++		return err
++	}
++	r, err := os.OpenRoot(dir)
++	if err != nil {
++		return err
++	}
++	defer r.Close()
++	return r.WriteFile(TempMarker, b, 0600)
++}
++
++// Use waits only while a concurrent cleanup holds the lifecycle gate. A writer
++// never proceeds unprotected, and cancellation remains effective.
++func Use(ctx context.Context, root string) (func(), error) {
++	for {
++		release, err := Guard(root, false)
++		if !errors.Is(err, ErrBusy) {
++			return release, err
++		}
++		select {
++		case <-ctx.Done():
++			return nil, ctx.Err()
++		case <-time.After(10 * time.Millisecond):
++		}
++	}
++}
+diff --git a/internal/cli/clean.go b/internal/cli/clean.go
+new file mode 100644
+index 0000000..d0c8862
+--- /dev/null
++++ b/internal/cli/clean.go
+@@ -0,0 +1,54 @@
++package cli
++
++import (
++	"fmt"
++
++	"github.com/spf13/cobra"
++
++	"bint/internal/app"
++)
++
++func newCleanCmd(stdio IO) *cobra.Command {
++	o := app.CleanOptions{OlderThanDays: 90}
++	c := &cobra.Command{Use: "clean", Short: "Xem trước hoặc dọn cache và thư mục kiểm chứng cũ", Args: cobra.NoArgs,
++		RunE: func(cmd *cobra.Command, _ []string) error {
++			if o.OlderThanDays <= 0 {
++				return usageError{fmt.Errorf("older-than-days must be positive")}
++			}
++			if err := app.ValidateCleanOptions(o); err != nil {
++				return usageError{err}
++			}
++			dir, err := cwd()
++			if err != nil {
++				return err
++			}
++			ws, err := app.OpenWorkspace(cmd.Context(), dir, true)
++			if err != nil {
++				return err
++			}
++			rep, err := app.Clean(cmd.Context(), ws, o)
++			if !o.Apply {
++				fmt.Fprintln(stdio.Out, "Preview only; no data deleted.")
++			}
++			for _, item := range rep.Items {
++				fmt.Fprintf(stdio.Out, "%s\t%d bytes\t%s\t%s\n", item.Group, item.Bytes, item.Path, item.Reason)
++				if item.Error != "" {
++					fmt.Fprintf(stdio.Out, "  error: %s\n", item.Error)
++				}
++			}
++			var kept int64
++			for _, item := range rep.Items {
++				if o.Apply {
++					kept += item.Bytes - item.RemovedBytes
++				} else if !item.Eligible {
++					kept += item.Bytes
++				}
++			}
++			fmt.Fprintf(stdio.Out, "Eligible: %d bytes; removed: %d bytes; kept: %d bytes (logical file sizes; hardlinks may retain disk blocks).\n", rep.EligibleBytes, rep.RemovedBytes, kept)
++			fmt.Fprintln(stdio.Out, "History, backups, worktrees and iso profiles are retained; external iso profiles are not measured.")
++			return err
++		}}
++	c.Flags().BoolVar(&o.Apply, "apply", false, "Xóa dữ liệu đủ điều kiện (mặc định chỉ xem trước)")
++	c.Flags().IntVar(&o.OlderThanDays, "older-than-days", 90, "Giữ dữ liệu ít nhất số ngày này")
++	return c
++}
+diff --git a/internal/cli/clean_test.go b/internal/cli/clean_test.go
+new file mode 100644
+index 0000000..47c6090
+--- /dev/null
++++ b/internal/cli/clean_test.go
+@@ -0,0 +1,63 @@
++package cli_test
++
++import (
++	"context"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/app"
++	"bint/internal/cleanup"
++	"bint/internal/testutil"
++)
++
++func TestCleanPreviewApplyAndInvalidAge(t *testing.T) {
++	testutil.Isolate(t)
++	repo := testutil.NewRepo(t, map[string]string{"a": "keep"})
++	if out, code := run(t, repo, "", "init", "--no-hooks", "--no-skills"); code != 0 {
++		t.Fatalf("init: %s", out)
++	}
++	ws, err := app.OpenWorkspace(context.Background(), repo, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	dir := filepath.Join(ws.Paths.Root, "tmp", "verify-expired")
++	if err := os.MkdirAll(dir, 0700); err != nil {
++		t.Fatal(err)
++	}
++	p := filepath.Join(dir, "payload")
++	if err := os.WriteFile(p, []byte("disposable"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	old := time.Now().Add(-120 * 24 * time.Hour)
++	if err := os.Chtimes(p, old, old); err != nil {
++		t.Fatal(err)
++	}
++	if err := cleanup.MarkTemp(dir, old, true); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(dir, old, old); err != nil {
++		t.Fatal(err)
++	}
++	out, code := run(t, repo, "", "clean")
++	if code != 0 || !strings.Contains(out, "Preview only") || !strings.Contains(out, "eligible:") {
++		t.Fatalf("preview %d: %s", code, out)
++	}
++	if _, err := os.Stat(p); err != nil {
++		t.Fatal("default deleted data")
++	}
++	for _, age := range []string{"0", "-1", "999999999", "invalid"} {
++		if out, code := run(t, repo, "", "clean", "--older-than-days", age); code == 0 {
++			t.Fatalf("accepted %s: %s", age, out)
++		}
++	}
++	out, code = run(t, repo, "", "clean", "--apply")
++	if code != 0 || !strings.Contains(out, "removed") {
++		t.Fatalf("apply %d: %s", code, out)
++	}
++	if _, err := os.Stat(dir); !os.IsNotExist(err) {
++		t.Fatal("apply did not remove expired data")
++	}
++}
+diff --git a/internal/cli/root.go b/internal/cli/root.go
+index d5f3fe3..c39dbba 100644
+--- a/internal/cli/root.go
++++ b/internal/cli/root.go
+@@ -145,7 +145,7 @@ func NewRoot(stdio IO) *cobra.Command {
+ 		newTUICmd(stdio))
+ 	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
+ 		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
+-	add("project", newIsoCmd(stdio))
++	add("project", newIsoCmd(stdio), newCleanCmd(stdio))
+ 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newTestCmd(stdio), newFindingsCmd(stdio), newSkillCmd(stdio), newFlowCmd(stdio))
+ 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
+ 	add("eval", newEvalCmd(stdio))
+diff --git a/internal/eval/basecache.go b/internal/eval/basecache.go
+index 6bd40bf..62d6b3a 100644
+--- a/internal/eval/basecache.go
++++ b/internal/eval/basecache.go
+@@ -10,6 +10,8 @@ import (
+ 	"strconv"
+ 	"strings"
+ 	"sync"
++
++	"bint/internal/cleanup"
+ )
+ 
+ // Vòng đời kho đệm commit gốc (<eval-work>/bases/<sha>.git).
+@@ -35,6 +37,11 @@ func basesDir(workRoot string) string { return filepath.Join(workRoot, "bases")
+ func releaseBase(env Env, base string) {
+ 	dir := filepath.Join(basesDir(env.WorkRoot), base+".git")
+ 	if !env.Cfg.Eval.KeepBases {
++		release, err := cleanup.Guard(filepath.Dir(env.WorkRoot), true)
++		if err != nil {
++			return
++		}
++		defer release()
+ 		unlock := lockBase(dir)
+ 		os.RemoveAll(dir)
+ 		unlock()
+@@ -66,6 +73,14 @@ func PruneBases(workRoot string, maxBytes int64, protect map[string]bool) (remov
+ 	if maxBytes <= 0 {
+ 		return 0, 0, nil
+ 	}
++	release, gateErr := cleanup.Guard(filepath.Dir(workRoot), true)
++	if gateErr != nil {
++		if gateErr == cleanup.ErrBusy {
++			return 0, 0, nil
++		}
++		return 0, 0, gateErr
++	}
++	defer release()
+ 	ents, err := os.ReadDir(basesDir(workRoot))
+ 	if err != nil {
+ 		if os.IsNotExist(err) {
+@@ -118,6 +133,14 @@ func PruneBases(workRoot string, maxBytes int64, protect map[string]bool) (remov
+ // CleanBases xoá toàn bộ kho đệm commit gốc (và thư mục .tmp bỏ dở). An toàn: kho sẽ
+ // được nạp lại khi cần. Trả về số mục đã xoá và dung lượng giải phóng.
+ func CleanBases(workRoot string) (removed int, freed int64, err error) {
++	release, gateErr := cleanup.Guard(filepath.Dir(workRoot), true)
++	if gateErr != nil {
++		if gateErr == cleanup.ErrBusy {
++			return 0, 0, nil
++		}
++		return 0, 0, gateErr
++	}
++	defer release()
+ 	ents, err := os.ReadDir(basesDir(workRoot))
+ 	if err != nil {
+ 		if os.IsNotExist(err) {
+diff --git a/internal/eval/workdir.go b/internal/eval/workdir.go
+index e204cd7..fa585d3 100644
+--- a/internal/eval/workdir.go
++++ b/internal/eval/workdir.go
+@@ -10,6 +10,8 @@ import (
+ 	"strings"
+ 	"sync"
+ 	"time"
++
++	"bint/internal/cleanup"
+ )
+ 
+ // Môi trường làm việc của một lượt đánh giá là một repository Git MỚI chỉ chứa
+@@ -90,6 +92,11 @@ func checkBaseCommit(ctx context.Context, repoDir, base string) error {
+ // prepareWorkdir tạo thư mục làm việc tại commit base trong dest. Giữ khoá của kho đệm
+ // suốt lúc nạp và clone nên dọn kho song song (releaseBase) không phá clone đang chạy.
+ func prepareWorkdir(ctx context.Context, env Env, base, dest string) error {
++	release, err := cleanup.Use(ctx, filepath.Dir(env.WorkRoot))
++	if err != nil {
++		return err
++	}
++	defer release()
+ 	unlock := lockBase(filepath.Join(basesDir(env.WorkRoot), base+".git"))
+ 	defer unlock()
+ 	cache, err := ensureBaseLocked(ctx, env, base)
+diff --git a/internal/tui/actions/coverage.go b/internal/tui/actions/coverage.go
+index d4530b6..aa22981 100644
+--- a/internal/tui/actions/coverage.go
++++ b/internal/tui/actions/coverage.go
+@@ -30,6 +30,7 @@ const CurrentPhase = 6
+ // Data là dữ liệu phủ hiện hành.
+ var Data = Coverage{
+ 	Excluded: map[string]string{
++		"clean":            "dọn cache/tmp theo từng repository bằng CLI, có xem trước và áp dụng tường minh; chưa có màn TUI",
+ 		"docs":             "lệnh dự kiến (P3 của kế hoạch Bint), chưa được triển khai nên chưa có gì để hiển thị",
+ 		"hook antigravity": "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+ 		"hook claude":      "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+diff --git a/internal/workflow/bench_frictions_test.go b/internal/workflow/bench_frictions_test.go
+index d381d1f..ff6bdc3 100644
+--- a/internal/workflow/bench_frictions_test.go
++++ b/internal/workflow/bench_frictions_test.go
+@@ -2,6 +2,7 @@ package workflow
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"os"
+ 	"path/filepath"
+ 	"slices"
+@@ -9,6 +10,7 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	"bint/internal/cleanup"
+ 	"bint/internal/state"
+ 	"bint/internal/task"
+ )
+@@ -230,3 +232,33 @@ func TestFinalizeResumeSkipsReverifyWhenLatestPassed(t *testing.T) {
+ 		t.Fatalf("không được kiểm chứng lại: %d → %d", nv, n)
+ 	}
+ }
++
++func TestVerifyTempDirHoldsCleanupGate(t *testing.T) {
++	h := newHarness(t)
++	dir, finish := h.runner().verifyTempDir()
++	if dir == "" {
++		t.Fatal("private temp was not created")
++	}
++	t.Cleanup(finish)
++	root := filepath.Dir(state.TmpDirFor(h.tasks.Dir))
++	release, err := cleanup.Guard(root, true)
++	if err == nil {
++		release()
++		t.Fatal("cleanup acquired gate while verification temp is in use")
++	}
++	if !errors.Is(err, cleanup.ErrBusy) {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(filepath.Join(dir, cleanup.TempMarker)); err != nil {
++		t.Fatal(err)
++	}
++	finish()
++	release, err = cleanup.Guard(root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	release()
++	if _, err := os.Stat(filepath.Join(root, "runtime", "cleanup-locks", "lifecycle.lock")); err != nil {
++		t.Fatal("lock inode removed")
++	}
++}
+diff --git a/internal/workflow/ops.go b/internal/workflow/ops.go
+index 3c2e9c8..2bdbbb9 100644
+--- a/internal/workflow/ops.go
++++ b/internal/workflow/ops.go
+@@ -19,6 +19,7 @@ import (
+ 	"time"
+ 
+ 	"bint/internal/affected"
++	statecleanup "bint/internal/cleanup"
+ 	"bint/internal/config"
+ 	"bint/internal/ctxengine"
+ 	"bint/internal/eval"
+@@ -857,11 +858,27 @@ func (e *Env) verifyTempDir() (dir string, cleanup func()) {
+ 	if err := os.MkdirAll(base, 0o700); err != nil {
+ 		return "", cleanup
+ 	}
+-	dir, err := os.MkdirTemp(base, "verify-")
++	release, err := statecleanup.Guard(filepath.Dir(base), false)
+ 	if err != nil {
+ 		return "", cleanup
+ 	}
+-	return dir, func() { removeAllForce(dir) }
++	dir, err = os.MkdirTemp(base, "verify-")
++	if err != nil {
++		release()
++		return "", cleanup
++	}
++	if err := statecleanup.MarkTemp(dir, time.Now(), false); err != nil {
++		removeAllForce(dir)
++		release()
++		return "", cleanup
++	}
++	return dir, func() {
++		defer release()
++		removeAllForce(dir)
++		if _, err := os.Lstat(dir); err == nil {
++			_ = statecleanup.MarkTemp(dir, time.Now(), true)
++		}
++	}
+ }
+ 
+ // verifyTempEnv là các biến thư mục tạm trỏ tới dir: TMPDIR (Unix, Git for Windows sh), thêm TMP/TEMP trên Windows

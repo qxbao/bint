@@ -1,0 +1,7 @@
+PASS  C1-build  exit=0 
+PASS  C2-vet  exit=0 
+PASS  C3-vet-windows  exit=0 
+PASS  C4-staticcheck  exit=0 
+PASS  C5-staticcheck-windows  exit=0 
+PASS  C6-go-test  exit=0 
+TÓM TẮT {"cmd": "repo", "fail": [], "fixture_ok": true, "critical": [], "medium": []}

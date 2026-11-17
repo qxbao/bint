@@ -1,0 +1,1441 @@
+ docs/harness-components.md           |   9 +-
+ docs/workflows.md                    |  18 ++
+ internal/app/hook.go                 |   2 +
+ internal/app/hook_trace.go           |  10 +-
+ internal/app/hook_trace_test.go      |  66 ++++++
+ internal/detect/detect.go            |  14 +-
+ internal/detect/detect_test.go       |  20 ++
+ internal/eval/shell.go               |  28 ++-
+ internal/eval/shell_test.go          |  75 +++++++
+ internal/mcpgw/codegraph_index.go    |  26 ++-
+ internal/mcpgw/daemon.go             |   4 +-
+ internal/mcpgw/log_redact_test.go    |  61 ++++++
+ internal/mcpgw/shim.go               |   4 +-
+ internal/redact/redact.go            | 380 +++++++++++++++++++++++++++++++++++
+ internal/redact/redact_test.go       | 248 +++++++++++++++++++++++
+ internal/workflow/log_redact_test.go | 103 ++++++++++
+ internal/workflow/run.go             |   5 +-
+ internal/workflow/session.go         |  17 ++
+ 18 files changed, 1059 insertions(+), 31 deletions(-)
+
+diff --git a/docs/harness-components.md b/docs/harness-components.md
+index 5eb6056..8b37f4d 100644
+--- a/docs/harness-components.md
++++ b/docs/harness-components.md
+@@ -90,10 +90,11 @@ và thành phần vẫn vào ở `candidate` chờ người duyệt. Phần đo
+ Chẩn đoán "hook có được gọi không, nhận gì, trả gì". Đặt `BINT_HOOK_TRACE=1` **trước khi mở harness** (hook kế thừa môi trường
+ của harness); mỗi lần `bint hook <harness>` chạy ghi một cặp tệp dưới `<thư mục trạng thái>/runtime/hook-trace/`:
+ 
+-- `<thời điểm UTC>-<harness>-<sự kiện>.in`: đầu vào nguyên văn (cắt ở 1 MiB kèm dòng đánh dấu), ghi **trước** khi xử lý;
+-- `<cùng tên>.out`: JSON `output` (thứ in ra stdout cho harness), `duration_ms`, `skipped`, `written`, `spool_file`, `error`.
++- `<thời điểm UTC>-<harness>-<sự kiện>.in`: bản sao đầu vào đã che bí mật (cắt ở 1 MiB kèm dòng đánh dấu), ghi **trước** khi xử lý;
++- `<cùng tên>.out`: JSON `output` (bản sao đầu ra đã che bí mật), `duration_ms`, `skipped`, `written`, `spool_file`, `error`.
+ 
+ Có `.in` mà không có `.out` nghĩa là hook chết hoặc quá hạn giữa chừng; không có `.in` nghĩa là harness không gọi hook. Chỉ giữ 500
+ tệp mới nhất (cũ nhất bị xoá). Không đặt biến (hoặc giá trị khác `1`) thì không ghi gì. Lỗi ghi vết bị bỏ qua: hook không bao giờ
+-chặn agent, không đổi đầu ra, không mở SQLite. **Cảnh báo:** `.in` chứa nguyên văn lệnh, đường dẫn và nội dung tệp của agent (tệp
+-0600, trong thư mục trạng thái ngoài repository); tắt biến và xoá thư mục khi chẩn đoán xong.
++chặn agent, không đổi đầu ra, không mở SQLite. Che bí mật trước khi cắt đầu vào; JSON lồng nhau vẫn được xử lý.
++Trace vẫn có thể chứa đường dẫn, nội dung tệp và dữ liệu riêng tư chưa nhận diện được (tệp 0600, trong thư mục trạng thái
++ngoài repository); tắt biến và xoá thư mục khi chẩn đoán xong. Xem [giới hạn che bí mật](workflows.md#che-bí-mật-trong-log).
+diff --git a/docs/workflows.md b/docs/workflows.md
+index b0a7cf8..103231a 100644
+--- a/docs/workflows.md
++++ b/docs/workflows.md
+@@ -4,6 +4,24 @@
+ đa harness (mục 5, 6, 7 của [đặc tả thiết kế](bint-plan.md); cấu hình chi tiết tại
+ [docs/configuration.md](configuration.md)).
+ 
++## Che bí mật trong log
++
++Log tiến trình (agent, setup, kiểm chứng), phần đuôi chẩn đoán, thông báo và tóm tắt kết quả trong lịch sử workflow, lỗi/trace hook và thông báo gateway
++che mật khẩu, token, API key qua tên trường, cờ lệnh, Authorization Basic/Bearer, thông tin xác thực trong URL và một số
++định dạng token phổ biến bằng `***`. Log tiến trình còn che giá trị credential lấy từ biến môi trường và đối số lệnh;
++log lập chỉ mục codegraph che các credential đã truyền cho tiến trình. Lệnh thực thi và stdout dùng để giải mã giao thức
++agent giữ nguyên dữ liệu; chỉ bản sao chẩn đoán bị che.
++
++Stdout và stderr được gom riêng theo dòng hoặc theo object/array JSON hoàn chỉnh trước khi che và gộp, kể cả JSON
++nhiều dòng. Dòng cuối không có xuống dòng được ghi khi tiến trình kết thúc. Dòng hoặc bản ghi JSON dài hơn 64 KiB
++bị bỏ toàn bộ, kèm dấu `[bint: oversized log line omitted]`, rồi tiếp tục ở bản ghi sau. JSON chưa hoàn chỉnh lúc
++tiến trình kết thúc được bỏ với dấu `[bint: incomplete JSON log record omitted]`. Tóm tắt kết quả workflow được che
++trước khi cắt ngắn và ghi spool/lịch sử SQLite. Đầu vào trace hook được che trước khi cắt ở 1 MiB.
++
++Đây là nhận diện theo mẫu và các giá trị đã biết: bí mật không có nhãn, nằm ngoài các mẫu hoặc đã được biến đổi vẫn có
++thể không được nhận ra. Cơ chế này áp dụng cho log mới, không tẩy log cũ hoặc transcript do harness tự ghi. Trước khi
++chia sẻ log/trace, vẫn kiểm tra dữ liệu riêng tư; nếu bí mật đã lộ, thu hồi hoặc thay credential đó.
++
+ ## Workflow tối thiểu (P4)
+ 
+ Bốn skill gốc — `b-req` (phân tích, lập kế hoạch), `b-feat` (thực thi), `b-review` (đánh giá
+diff --git a/internal/app/hook.go b/internal/app/hook.go
+index 3729eb8..f361f20 100644
+--- a/internal/app/hook.go
++++ b/internal/app/hook.go
+@@ -14,6 +14,7 @@ import (
+ 	"bint/internal/harness/claude"
+ 	"bint/internal/harness/codex"
+ 	"bint/internal/harness/hookcore"
++	"bint/internal/redact"
+ )
+ 
+ // RunClaudeHook xử lý một lần gọi hook của Claude Code. Không bao giờ trả lỗi
+@@ -69,6 +70,7 @@ func RunHook(ctx context.Context, harness, event string, stdin io.Reader, stdout
+ 		name = event
+ 	}
+ 	line := fmt.Sprintf("%s %s %s: %v\n", time.Now().UTC().Format(time.RFC3339), harness, name, err)
++	line = redact.WithSecrets(line, redact.EnvSecrets(os.Environ()))
+ 	if ws := hookWorkspace(in.Cwd, in.WorkspacePaths); ws != nil {
+ 		f, ferr := os.OpenFile(filepath.Join(ws.Paths.Root, HookErrorLog), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+ 		if ferr == nil {
+diff --git a/internal/app/hook_trace.go b/internal/app/hook_trace.go
+index 9f09bfa..b248a56 100644
+--- a/internal/app/hook_trace.go
++++ b/internal/app/hook_trace.go
+@@ -11,10 +11,11 @@ import (
+ 	"time"
+ 
+ 	"bint/internal/harness/hookcore"
++	"bint/internal/redact"
+ )
+ 
+ // Ghi vết hook để chẩn đoán (NT-ISO-LEAK): BINT_HOOK_TRACE=1 ⇒ mỗi lần `bint hook <harness>` chạy ghi một cặp tệp dưới
+-// <state>/runtime/hook-trace/: <thời điểm>-<harness>-<sự kiện>.in (đầu vào nguyên văn, cắt ở maxHookTraceInput) và .out (đầu ra,
++// <state>/runtime/hook-trace/: <thời điểm>-<harness>-<sự kiện>.in (đầu vào đã che bí mật, cắt ở maxHookTraceInput) và .out (đầu ra,
+ // thời lượng, kết quả). Có .in mà không có .out nghĩa là hook chết hoặc quá hạn giữa chừng; không có .in nghĩa là hook không được
+ // gọi. Hook không bao giờ chặn agent (tri thức k:<ID>): mọi lỗi ghi vết (kể cả panic) bị nuốt, không đổi
+ // stdout/stderr/hook-errors.log, không mở SQLite. Đầu vào hook có thể chứa nội dung nhạy cảm (lệnh, đường dẫn, nội dung tệp):
+@@ -64,9 +65,11 @@ func startHookTrace(harness, event string, data []byte) (tr *hookTrace) {
+ 	if os.MkdirAll(dir, 0o700) != nil {
+ 		return nil
+ 	}
+-	body := data
++	// Sanitize before truncation so a credential crossing the cap cannot leak
++	// a prefix. Only the trace copy changes; the hook still receives raw data.
++	body := redact.JSON(data, redact.EnvSecrets(os.Environ())...)
+ 	if len(body) > maxHookTraceInput {
+-		body = append(append([]byte{}, data[:maxHookTraceInput]...),
++		body = append(append([]byte{}, body[:maxHookTraceInput]...),
+ 			fmt.Sprintf("\n[bint: đầu vào đã bị cắt, gốc %d byte]\n", len(data))...)
+ 	}
+ 	label := "-" + traceLabel(harness) + "-" + traceLabel(name)
+@@ -103,6 +106,7 @@ func (t *hookTrace) finish(res hookcore.Result, err error, dur time.Duration) {
+ 		out["error"] = err.Error()
+ 	}
+ 	if b, merr := json.MarshalIndent(out, "", "  "); merr == nil {
++		b = redact.JSON(b, redact.EnvSecrets(os.Environ())...)
+ 		if f, ferr := os.OpenFile(t.base+".out", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600); ferr == nil {
+ 			f.Write(append(b, '\n'))
+ 			f.Close()
+diff --git a/internal/app/hook_trace_test.go b/internal/app/hook_trace_test.go
+index 9b67357..5beafd5 100644
+--- a/internal/app/hook_trace_test.go
++++ b/internal/app/hook_trace_test.go
+@@ -4,11 +4,15 @@ import (
+ 	"bytes"
+ 	"context"
+ 	"encoding/json"
++	"errors"
+ 	"os"
+ 	"path/filepath"
+ 	"runtime"
+ 	"strings"
+ 	"testing"
++	"time"
++
++	"bint/internal/harness/hookcore"
+ )
+ 
+ // BINT_HOOK_TRACE (NT-ISO-LEAK): cặp tệp .in/.out cho mỗi lần `bint hook` chạy; tắt thì không ghi gì; lỗi ghi vết không đổi
+@@ -74,6 +78,68 @@ func TestHookTraceOffWritesNothing(t *testing.T) {
+ 	}
+ }
+ 
++// Sanitizing diagnostic copies must not alter the hook response or leave secrets
++// in nested JSON/commands, including an unterminated value at the trace size cap.
++func TestHookTraceRedactsSecrets(t *testing.T) {
++	root, ws := subagentRepo(t)
++	t.Setenv(HookTraceEnv, "1")
++	input := hookInput("sess-trace", "PostToolUse", root, map[string]any{
++		"tool_name": "Bash", "tool_use_id": "secret-trace",
++		"tool_input": map[string]any{"command": `curl --password "fixture command password"`, "token": "fixture-json-token"},
++	})
++	tr := startHookTrace("claude", "PostToolUse", []byte(input))
++	if tr == nil {
++		t.Fatal("trace not created")
++	}
++	tr.finish(hookcore.Result{Output: `{"access_token":"fixture-output-token"}`}, errors.New("password: fixture-error-password"), time.Millisecond)
++	for _, ext := range []string{".in", ".out"} {
++		b, err := os.ReadFile(tr.base + ext)
++		if err != nil {
++			t.Fatal(err)
++		}
++		if !json.Valid(b) || bytes.Contains(b, []byte("fixture")) || !bytes.Contains(b, []byte("***")) {
++			t.Fatalf("unsafe trace %s: %s", ext, b)
++		}
++	}
++	if len(traceFiles(t, ws)) != 2 {
++		t.Fatal("missing trace pair")
++	}
++	// A credential crossing the old size cap must be masked as a whole before
++	// the trace is truncated, rather than persisting its opening fragment.
++	big := hookInput("sess-trace", "PostToolUse", root, map[string]any{
++		"token": "fixture-prefix-" + strings.Repeat("x", maxHookTraceInput),
++	})
++	bigTrace := startHookTrace("claude", "PostToolUse", []byte(big))
++	if bigTrace == nil {
++		t.Fatal("large trace not created")
++	}
++	b, err := os.ReadFile(bigTrace.base + ".in")
++	if err != nil || !json.Valid(b) || len(b) > 1024 || bytes.Contains(b, []byte("fixture-prefix")) {
++		t.Fatalf("credential was truncated before redaction: len=%d, err=%v", len(b), err)
++	}
++	bigTrace.finish(hookcore.Result{}, nil, time.Millisecond)
++}
++
++type hookSecretErrorReader struct{}
++
++func (hookSecretErrorReader) Read([]byte) (int, error) {
++	return 0, errors.New("password: fixture-hook-error")
++}
++
++func TestHookErrorLogRedactsSecrets(t *testing.T) {
++	root, ws := subagentRepo(t)
++	t.Chdir(root)
++	var out, stderr bytes.Buffer
++	RunHook(context.Background(), "claude", "", hookSecretErrorReader{}, &out, &stderr, "test")
++	b, err := os.ReadFile(filepath.Join(ws.Paths.Root, HookErrorLog))
++	if err != nil {
++		t.Fatal(err)
++	}
++	if bytes.Contains(b, []byte("fixture")) || !bytes.Contains(b, []byte("***")) || out.Len() != 0 || stderr.Len() != 0 {
++		t.Fatalf("unsafe error log or changed hook output: %s / %s / %s", b, &out, &stderr)
++	}
++}
++
+ // Lỗi ghi vết (hook-trace là tệp thường; thư mục chỉ đọc) ⇒ stdout/stderr giống hệt khi tắt, không có hook-errors.log.
+ func TestHookTraceWriteFailureDoesNotChangeOutput(t *testing.T) {
+ 	root, ws := subagentRepo(t)
+diff --git a/internal/detect/detect.go b/internal/detect/detect.go
+index b8c0c60..85ff5f3 100644
+--- a/internal/detect/detect.go
++++ b/internal/detect/detect.go
+@@ -12,6 +12,8 @@ import (
+ 	"strings"
+ 	"sync"
+ 	"time"
++
++	"bint/internal/redact"
+ )
+ 
+ // Harness mô tả một harness được phát hiện trên máy.
+@@ -249,20 +251,12 @@ func IsTestCommand(cmd string, configured ...string) bool {
+ 	return testRunner.MatchString(c)
+ }
+ 
+-var (
+-	envAssign   = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S+)`)
+-	secretFlags = regexp.MustCompile(`(?i)(--?(token|password|passwd|secret|api[-_]?key|auth)[= ])("[^"]*"|'[^']*'|\S+)`)
+-	bearer      = regexp.MustCompile(`(?i)(bearer\s+)\S+`)
+-	urlCreds    = regexp.MustCompile(`(://)[^/\s:@]+:[^/\s@]+@`)
+-)
++var envAssign = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S+)`)
+ 
+ // Redact che các giá trị có thể là bí mật trong một lệnh trước khi ghi lại, và
+ // cắt ngắn tới maxLen ký tự.
+ func Redact(cmd string, maxLen int) string {
+-	s := envAssign.ReplaceAllString(cmd, "$1=***")
+-	s = secretFlags.ReplaceAllString(s, "$1***")
+-	s = bearer.ReplaceAllString(s, "$1***")
+-	s = urlCreds.ReplaceAllString(s, "$1***@")
++	s := envAssign.ReplaceAllString(redact.String(cmd), "$1=***")
+ 	if maxLen > 0 && len([]rune(s)) > maxLen {
+ 		s = string([]rune(s)[:maxLen]) + "…"
+ 	}
+diff --git a/internal/detect/detect_test.go b/internal/detect/detect_test.go
+index 676d788..9c1d600 100644
+--- a/internal/detect/detect_test.go
++++ b/internal/detect/detect_test.go
+@@ -58,6 +58,26 @@ func TestRedact(t *testing.T) {
+ 	}
+ }
+ 
++// Secrets in structured tool output and headers must be hidden as well as CLI flags.
++func TestRedactStructuredSecrets(t *testing.T) {
++	for _, in := range []string{
++		`{"password":"fixture password with spaces","status":"failed"}`,
++		`{"access_token": "fixture-token", "count": 2}`,
++		`password: fixture-password`,
++		`--api-key   fixture-api-key --verbose`,
++		`Authorization: Basic Zml4dHVyZTpwYXNzd29yZA==`,
++		`https://host/path?access_token=fixture-token&mode=read`,
++	} {
++		got := Redact(in, 0)
++		if strings.Contains(got, "fixture") || strings.Contains(got, "Zml4dHVyZTpwYXNzd29yZA") {
++			t.Errorf("secret retained: %q", got)
++		}
++		if !strings.Contains(got, "***") {
++			t.Errorf("missing redaction marker: %q", got)
++		}
++	}
++}
++
+ func TestSuggestCommands(t *testing.T) {
+ 	cases := []struct {
+ 		files map[string]string
+diff --git a/internal/eval/shell.go b/internal/eval/shell.go
+index ac4b6b3..9103d0a 100644
+--- a/internal/eval/shell.go
++++ b/internal/eval/shell.go
+@@ -13,6 +13,9 @@ import (
+ 	"strings"
+ 	"sync"
+ 	"time"
++
++	"bint/internal/detect"
++	"bint/internal/redact"
+ )
+ 
+ // CmdResult là kết quả chạy một lệnh.
+@@ -68,25 +71,39 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
+ 	cmd.WaitDelay = 5 * time.Second
+ 
+ 	tail := &tailBuffer{max: tailBytes}
++	processEnv := env
++	if processEnv == nil {
++		processEnv = os.Environ()
++	}
++	secrets := append(redact.EnvSecrets(processEnv), redact.ArgSecrets(args)...)
+ 	writers := []io.Writer{tail}
+ 	if logPath != "" {
+ 		if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err == nil {
+ 			if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+ 				defer f.Close()
+-				fmt.Fprintf(f, "$ %s %s\n", filepath.Base(prog), strings.Join(quoteArgs(args), " "))
++				// Redact before truncating: cutting a quoted value first can
++				// otherwise leave a credential fragment in the command header.
++				header := redact.WithSecrets(filepath.Base(prog)+" "+strings.Join(quoteArgs(args), " "), secrets)
++				fmt.Fprintf(f, "$ %s\n", detect.Redact(header, 4096))
+ 				writers = append(writers, f)
+ 			}
+ 		}
+ 	}
+ 	combined := io.MultiWriter(writers...)
++	// Keep streams separate until each has been sanitized: stderr must not
++	// interrupt a credential split across stdout writes (or vice versa).
++	outLog := redact.NewWriter(combined, secrets)
++	errLog := redact.NewWriter(combined, secrets)
+ 	if stdout != nil {
+-		cmd.Stdout = io.MultiWriter(stdout, combined)
++		cmd.Stdout = io.MultiWriter(stdout, outLog)
+ 	} else {
+-		cmd.Stdout = combined
++		cmd.Stdout = outLog
+ 	}
+-	cmd.Stderr = combined
++	cmd.Stderr = errLog
+ 
+ 	err := cmd.Run()
++	_ = outLog.Close()
++	_ = errLog.Close()
+ 	res := CmdResult{Duration: time.Since(start), Tail: tail.String()}
+ 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+ 		res.TimedOut = true
+@@ -115,9 +132,6 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
+ func quoteArgs(args []string) []string {
+ 	out := make([]string, len(args))
+ 	for i, a := range args {
+-		if len(a) > 200 {
+-			a = a[:200] + "…"
+-		}
+ 		if strings.ContainsAny(a, " \t\n\"'") {
+ 			a = fmt.Sprintf("%q", a)
+ 		}
+diff --git a/internal/eval/shell_test.go b/internal/eval/shell_test.go
+index 600f72b..fb4b06e 100644
+--- a/internal/eval/shell_test.go
++++ b/internal/eval/shell_test.go
+@@ -78,3 +78,78 @@ func TestRunProcessConcurrentOutput(t *testing.T) {
+ 		t.Fatalf("invalid diagnostic tail length: %d", len(res.Tail))
+ 	}
+ }
++
++// A regression at the log sink must fail even if raw stdout is still needed to
++// decode the agent's protocol. The fixture also splits a credential over writes.
++func TestRunProcessRedactsLogsButPreservesStdout(t *testing.T) {
++	if os.Getenv("BINT_REDACT_FIXTURE") == "1" {
++		os.Stdout.WriteString(`{"password":"fixture password with spaces","status":"ok"}` + "\n")
++		os.Stdout.WriteString("Authorization: Bea")
++		os.Stdout.WriteString("rer fixture-bearer\n")
++		os.Stdout.WriteString(`{"message":"run --password \"fixture embedded password\""}` + "\n")
++		os.Stdout.WriteString(`{"type":"item.completed","item":{"text":"{\"password\":{\"value\":\"fixture-private-password\"}}"}}` + "\n")
++		os.Stderr.WriteString(`{"content":"{\"access_token\":[\"fixture-private-token\"]}"}` + "\n")
++		os.Stdout.WriteString("plain argument: fixture-argument-token\n")
++		os.Stderr.WriteString("plain credential: " + os.Getenv("BINT_FIXTURE_TOKEN") + "\n")
++		os.Stderr.WriteString("plain argument password: fixture-argument-password spaces-canary\n")
++		os.Stderr.WriteString("password: fixture-final-password") // no trailing newline
++		os.Exit(7)
++	}
++	bin, err := os.Executable()
++	if err != nil {
++		t.Fatal(err)
++	}
++	var stdout bytes.Buffer
++	path := filepath.Join(t.TempDir(), "redacted.log")
++	res := runProcess(context.Background(), t.TempDir(), bin,
++		[]string{"-test.run=^TestRunProcessRedactsLogsButPreservesStdout$", "--", "--token", "fixture-argument-token", "--password", "fixture-argument-password spaces-canary"},
++		30*time.Second, path, append(os.Environ(), "BINT_REDACT_FIXTURE=1", "BINT_FIXTURE_TOKEN=fixture-env-credential"), nil, &stdout)
++	if res.Err != nil || res.ExitCode != 7 {
++		t.Fatalf("execution changed: %+v", res)
++	}
++	want := "{\"password\":\"fixture password with spaces\",\"status\":\"ok\"}\nAuthorization: Bearer fixture-bearer\n" + `{"message":"run --password \"fixture embedded password\""}` + "\n" + `{"type":"item.completed","item":{"text":"{\"password\":{\"value\":\"fixture-private-password\"}}"}}` + "\nplain argument: fixture-argument-token\n"
++	if stdout.String() != want {
++		t.Fatalf("raw stdout changed: %q", stdout.String())
++	}
++	log, err := os.ReadFile(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	for name, got := range map[string]string{"log": string(log), "tail": res.Tail} {
++		for _, secret := range []string{"fixture password", "fixture embedded password", "fixture-bearer", "fixture-env-credential", "fixture-final-password", "fixture-argument-token", "fixture-argument-password", "spaces-canary", "fixture-private-password", "fixture-private-token"} {
++			if strings.Contains(got, secret) {
++				t.Errorf("%s leaked %q", name, secret)
++			}
++		}
++		if !strings.Contains(got, `"status":"ok"`) || !strings.Contains(got, "***") {
++			t.Errorf("%s lost useful diagnostics: %q", name, got)
++		}
++	}
++}
++
++func TestRunShellRedactsStructuredCredentials(t *testing.T) {
++	for _, tc := range []struct {
++		name, command, secret string
++	}{
++		{"multiline JSON", `printf '{\n"password":\n"fixture-private-password"\n}\n'`, "fixture-private-password"},
++		{"shell comma", `set -- --password=fixture-prefix,fixture-suffix; printf '%s\n' "${1#*=}"`, "fixture-suffix"},
++		{"numeric JSON", `printf '{"value":%s,"count":42}\n' "$DB_PASSWORD"`, "123456789"},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			log := filepath.Join(t.TempDir(), "output.log")
++			res := RunShell(context.Background(), t.TempDir(), tc.command, 10*time.Second, log, append(os.Environ(), "DB_PASSWORD=123456789"))
++			if !res.OK() {
++				t.Fatalf("fixture command failed: %+v", res)
++			}
++			data, err := os.ReadFile(log)
++			if err != nil {
++				t.Fatal(err)
++			}
++			for name, got := range map[string]string{"log": string(data), "tail": res.Tail} {
++				if strings.Contains(got, tc.secret) || !strings.Contains(got, "***") {
++					t.Errorf("%s leaked credential or lost redaction: %q", name, got)
++				}
++			}
++		})
++	}
++}
+diff --git a/internal/mcpgw/codegraph_index.go b/internal/mcpgw/codegraph_index.go
+index 705c003..5fb00ec 100644
+--- a/internal/mcpgw/codegraph_index.go
++++ b/internal/mcpgw/codegraph_index.go
+@@ -9,11 +9,13 @@ import (
+ 	"os/exec"
+ 	"path/filepath"
+ 	"strings"
++	"sync"
+ 	"time"
+ 
+ 	"bint/internal/config"
+ 	"bint/internal/gitrepo"
+ 	"bint/internal/mcpcat"
++	"bint/internal/redact"
+ )
+ 
+ // CodegraphDir là thư mục chỉ mục codegraph so với gốc worktree.
+@@ -118,7 +120,7 @@ func CodegraphInit(ctx context.Context, root string, out io.Writer) (CodegraphIn
+ 	if err != nil {
+ 		return res, fmt.Errorf("đọc secrets.env: %w", err)
+ 	}
+-	env, _, _ := Env(svc, reg, secrets)
++	env, _, secretVals := Env(svc, reg, secrets)
+ 	path, err := CodegraphIndexBinary(svc, reg)
+ 	if err != nil {
+ 		return res, err
+@@ -130,12 +132,19 @@ func CodegraphInit(ctx context.Context, root string, out io.Writer) (CodegraphIn
+ 	if out == nil {
+ 		out = io.Discard
+ 	}
++	// exec copies stdout and stderr concurrently. Share only the synchronized
++	// destination; each stream must assemble and redact its own records first.
++	dst := &indexOutput{dst: out}
++	stdout := redact.NewWriter(dst, secretVals)
++	stderr := redact.NewWriter(dst, secretVals)
++	defer stdout.Close()
++	defer stderr.Close()
+ 	warning := CodegraphVersionWarning(ctx, path, reg, env)
+ 	if warning != "" {
+-		fmt.Fprintln(out, "cảnh báo: "+warning)
++		fmt.Fprintln(stdout, "cảnh báo: "+warning)
+ 	}
+ 	cmd := exec.CommandContext(ctx, path, args...)
+-	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = root, env, out, out
++	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = root, env, stdout, stderr
+ 	if err := cmd.Run(); err != nil {
+ 		return res, fmt.Errorf("codegraph %s: %w", strings.Join(args, " "), err)
+ 	}
+@@ -146,6 +155,17 @@ func CodegraphInit(ctx context.Context, root string, out io.Writer) (CodegraphIn
+ 	return CodegraphInitResult{Action: args[0], Binary: path, ExcludeFile: file, ExcludeAdded: added, Warning: warning}, nil
+ }
+ 
++type indexOutput struct {
++	mu  sync.Mutex
++	dst io.Writer
++}
++
++func (w *indexOutput) Write(p []byte) (int, error) {
++	w.mu.Lock()
++	defer w.mu.Unlock()
++	return w.dst.Write(p)
++}
++
+ // CodegraphVersionWarning: index dùng binary trên PATH thay cho lệnh bọc đã đăng ký (npx/node...) thì so `<bin> --version` với
+ // phiên bản đã ghim (reg.Version); khác hoặc không đọc được thì trả cảnh báo. Lệnh đã đăng ký chính là binary thì không cảnh báo.
+ func CodegraphVersionWarning(ctx context.Context, bin string, reg config.Registration, env []string) string {
+diff --git a/internal/mcpgw/daemon.go b/internal/mcpgw/daemon.go
+index a357068..030b4c8 100644
+--- a/internal/mcpgw/daemon.go
++++ b/internal/mcpgw/daemon.go
+@@ -24,6 +24,7 @@ import (
+ 	"bint/internal/config"
+ 	"bint/internal/gitrepo"
+ 	"bint/internal/mcpcat"
++	"bint/internal/redact"
+ 	"bint/internal/state"
+ )
+ 
+@@ -196,7 +197,8 @@ func (d *Daemon) requestStop() { go d.Close() }
+ func (d *Daemon) logf(format string, a ...any) {
+ 	d.logMu.Lock()
+ 	defer d.logMu.Unlock()
+-	fmt.Fprintf(d.opts.Log, time.Now().Format(time.RFC3339)+" "+format+"\n", a...)
++	line := time.Now().Format(time.RFC3339) + " " + fmt.Sprintf(format, a...) + "\n"
++	fmt.Fprint(d.opts.Log, redact.WithSecrets(line, append(redact.EnvSecrets(os.Environ()), d.token)))
+ }
+ 
+ func (d *Daemon) cachePut(svc, rev string, init, tools []byte) {
+diff --git a/internal/mcpgw/log_redact_test.go b/internal/mcpgw/log_redact_test.go
+new file mode 100644
+index 0000000..2c6395c
+--- /dev/null
++++ b/internal/mcpgw/log_redact_test.go
+@@ -0,0 +1,61 @@
++package mcpgw
++
++import (
++	"bytes"
++	"context"
++	"os"
++	"path/filepath"
++	"runtime"
++	"strings"
++	"testing"
++
++	"bint/internal/config"
++	"bint/internal/testutil"
++)
++
++func TestDaemonLogRedactsCredentials(t *testing.T) {
++	var out bytes.Buffer
++	d := &Daemon{opts: Options{Log: &out}, token: "fixture-gateway-credential"}
++	d.logf("upstream failed: %s", `{"password":"fixture-password","status":"failed"} fixture-gateway-credential`)
++	if got := out.String(); strings.Contains(got, "fixture") || !strings.Contains(got, "failed") || !strings.Contains(got, "***") {
++		t.Fatalf("unsafe daemon log: %q", got)
++	}
++}
++
++func TestCodegraphRedactsStreamsBeforeMerging(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("fixture requires an executable POSIX shell script")
++	}
++	testutil.Isolate(t)
++	bin := filepath.Join(t.TempDir(), "codegraph")
++	script := "#!/bin/sh\nprintf '%s' 'fixture-private-'\nprintf '%s\\n' 'index-progress' >&2\nprintf '%s\\n' 'token'\nexit 1\n"
++	if err := os.WriteFile(bin, []byte(script), 0o700); err != nil {
++		t.Fatal(err)
++	}
++	secrets := filepath.Join(t.TempDir(), "secrets.env")
++	if err := os.WriteFile(secrets, []byte("CODEGRAPH_TOKEN=fixture-private-token\n"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	m := config.MachineMCP{Version: 1, SecretsFile: secrets, Services: map[string]config.Registration{
++		"codegraph": {Command: bin, EnvNames: []string{"CODEGRAPH_TOKEN"}},
++	}}
++	if err := config.SaveMachineMCP(m); err != nil {
++		t.Fatal(err)
++	}
++	var out bytes.Buffer
++	if _, err := CodegraphInit(context.Background(), t.TempDir(), &out); err == nil {
++		t.Fatal("expected fixture command to fail")
++	}
++	if got := out.String(); strings.Contains(got, "fixture-private-") || !strings.Contains(got, "index-progress") || !strings.Contains(got, "***") {
++		t.Fatalf("unsafe or missing codegraph diagnostics: %q", got)
++	}
++}
++
++func TestShimLogRedactsCredentials(t *testing.T) {
++	var out bytes.Buffer
++	s := &Shim{o: ShimOptions{Log: &out}}
++	s.logf("failed: %s", "password: fixture-password")
++	if got := out.String(); strings.Contains(got, "fixture") || !strings.Contains(got, "failed") || !strings.Contains(got, "***") {
++		t.Fatalf("unsafe shim log: %q", got)
++	}
++}
+diff --git a/internal/mcpgw/shim.go b/internal/mcpgw/shim.go
+index 534bd98..52190ad 100644
+--- a/internal/mcpgw/shim.go
++++ b/internal/mcpgw/shim.go
+@@ -9,6 +9,7 @@ import (
+ 	"io"
+ 	"net"
+ 	"net/http"
++	"os"
+ 	"path/filepath"
+ 	"slices"
+ 	"sort"
+@@ -18,6 +19,7 @@ import (
+ 	"time"
+ 
+ 	"bint/internal/mcpcat"
++	"bint/internal/redact"
+ )
+ 
+ // Shim là phía client của gateway trong `bint mcp serve` (docs/mcp-gateway-plan.md mục 7, D6): cửa vào gộp. Nó chuyển
+@@ -183,7 +185,7 @@ func (s *Shim) Ready(ctx context.Context) {
+ }
+ 
+ func (s *Shim) logf(format string, a ...any) {
+-	fmt.Fprintf(s.o.Log, "bint mcp serve: "+format+"\n", a...)
++	fmt.Fprintln(s.o.Log, "bint mcp serve: "+redact.WithSecrets(fmt.Sprintf(format, a...), redact.EnvSecrets(os.Environ())))
+ }
+ 
+ // connect: tìm hoặc khởi động daemon, mở phiên từng service và lấy tools/list.
+diff --git a/internal/redact/redact.go b/internal/redact/redact.go
+new file mode 100644
+index 0000000..b3ae3e1
+--- /dev/null
++++ b/internal/redact/redact.go
+@@ -0,0 +1,380 @@
++// Package redact removes recognizable credentials from diagnostic copies of data.
++// It must never be used on the input to a command or an agent protocol decoder.
++package redact
++
++import (
++	"bytes"
++	"encoding/json"
++	"io"
++	"regexp"
++	"slices"
++	"strings"
++	"sync"
++)
++
++const Marker = "***"
++
++const key = `(?:[a-z0-9]+[-_])*(?:password|passwd|pwd|(?:access|refresh|id)?[-_]?token|(?:client)?[-_]?secret|api[-_]?key|auth(?:orization)?|credentials?|private[-_]?key|access[-_]?key)(?:[-_](?:secret|token))?`
++const value = `"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;&}"']+|"[^\r\n]*|'[^\r\n]*`
++
++// Commas and closing braces delimit JSON values, but are ordinary shell word
++// characters. Keep both interpretations when collecting credentials to scrub.
++const shellValue = `"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s;&"']+`
++
++var (
++	sensitive       = regexp.MustCompile(`(?i)^` + key + `$`)
++	assignment      = regexp.MustCompile(`(?i)(\b` + key + `["']?\s*[:=]\s*)(` + value + `)`)
++	flag            = regexp.MustCompile(`(?i)(--?` + key + `[\t ]+)(` + value + `)`)
++	auth            = regexp.MustCompile(`(?i)(\b(?:bearer|basic)[\t ]+)([^\s"',;\\]+)`)
++	urlUser         = regexp.MustCompile(`(://)[^/\s@]+@`)
++	quoted          = regexp.MustCompile(`"(?:\\.|[^"\\])*"`)
++	shellAssignment = regexp.MustCompile(`(?i)(\b` + key + `[\t ]*=[\t ]*)(` + shellValue + `)`)
++	shellFlag       = regexp.MustCompile(`(?i)(--?` + key + `[\t ]+)(` + shellValue + `)`)
++	// Common standalone tokens, including those copied without a key name.
++	token = regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b`)
++)
++
++// String preserves diagnostic structure while masking common credential fields,
++// flags, Authorization values, URL credentials and recognizable token formats.
++func String(s string) string {
++	return text(s, 0)
++}
++
++func text(s string, depth int) string {
++	// Agent JSON often embeds commands in escaped strings. If such a field
++	// contains a credential, mask the whole field; rescanning re-encoded quotes
++	// as shell syntax could otherwise expose fragments or corrupt the JSON.
++	s = quoted.ReplaceAllStringFunc(s, func(q string) string {
++		if !strings.Contains(q, `\`) {
++			return q
++		}
++		if depth >= 8 {
++			return `"***"`
++		}
++		var decoded string
++		if json.Unmarshal([]byte(q), &decoded) != nil {
++			return q
++		}
++		clean := text(decoded, depth+1)
++		if clean == decoded {
++			return q
++		}
++		return `"***"`
++	})
++	s = auth.ReplaceAllString(s, "${1}"+Marker)
++	for _, re := range []*regexp.Regexp{shellAssignment, shellFlag, assignment, flag} {
++		s = re.ReplaceAllStringFunc(s, func(m string) string {
++			parts := re.FindStringSubmatch(m)
++			v := Marker
++			if parts[2][0] == '"' || parts[2][0] == '\'' {
++				v = string(parts[2][0]) + Marker + string(parts[2][0])
++			}
++			return parts[1] + v
++		})
++	}
++	s = urlUser.ReplaceAllString(s, "${1}"+Marker+"@")
++	return token.ReplaceAllString(s, Marker)
++}
++
++// Values extracts labeled credentials from the original command solely for
++// masking later unlabeled echoes. It never changes the command being executed.
++func Values(s string) []string {
++	var out []string
++	for _, re := range []*regexp.Regexp{assignment, flag, auth, shellAssignment, shellFlag} {
++		for _, match := range re.FindAllStringSubmatch(s, -1) {
++			v := match[2]
++			if strings.HasPrefix(v, `"`) {
++				var decoded string
++				if json.Unmarshal([]byte(v), &decoded) == nil {
++					v = decoded
++				}
++			} else if strings.HasPrefix(v, "'") {
++				v = strings.Trim(v, "'")
++			}
++			if v != "" && v != Marker && !strings.EqualFold(v, "Bearer") && !strings.EqualFold(v, "Basic") {
++				out = append(out, v)
++			}
++		}
++	}
++	return out
++}
++
++// ArgSecrets also respects argv boundaries: an entire argument following a
++// sensitive flag is a credential, including any spaces or punctuation in it.
++func ArgSecrets(args []string) []string {
++	var out []string
++	for i, arg := range args {
++		out = append(out, Values(arg)...)
++		name, val, assigned := strings.Cut(strings.TrimLeft(arg, "-"), "=")
++		if assigned && sensitive.MatchString(name) {
++			out = append(out, val)
++		} else if strings.HasPrefix(arg, "-") && sensitive.MatchString(name) && i+1 < len(args) {
++			out = append(out, args[i+1])
++		}
++	}
++	return out
++}
++
++// EnvSecrets returns credential values from the effective child environment.
++// Matching is by name; ordinary variables (PATH, model names, etc.) stay useful.
++func EnvSecrets(env []string) []string {
++	var out []string
++	for _, kv := range env {
++		k, v, ok := strings.Cut(kv, "=")
++		if ok && v != "" && sensitive.MatchString(k) {
++			out = append(out, v)
++		}
++	}
++	return out
++}
++
++// WithSecrets also masks exact credential values, even when output has no label.
++func WithSecrets(s string, secrets []string) string {
++	// Match labels before literal replacement: a short credential could itself
++	// occur inside "token" or "password" and otherwise hide the label.
++	s = String(s)
++	// Longest first: one credential may be a prefix of another.
++	vals := slices.Clone(secrets)
++	// A multiline credential is written as several log lines. Mask its pieces
++	// as well, since the writer deliberately never persists an unchecked line.
++	for _, v := range secrets {
++		if strings.ContainsAny(v, "\r\n") {
++			vals = append(vals, strings.FieldsFunc(v, func(r rune) bool { return r == '\r' || r == '\n' })...)
++		}
++	}
++	slices.SortFunc(vals, func(a, b string) int { return len(b) - len(a) })
++	for _, v := range vals {
++		if v == "" {
++			continue
++		}
++		s = strings.ReplaceAll(s, v, Marker)
++		// Credentials can appear in JSON strings with escaped quotes/newlines.
++		b, _ := json.Marshal(v)
++		if escaped := string(b[1 : len(b)-1]); escaped != v {
++			s = strings.ReplaceAll(s, escaped, Marker)
++		}
++		// A labeled unquoted value may have been masked up to a delimiter by
++		// String. Remove the rest of that known value adjacent to the marker,
++		// rather than leaving a password suffix after a space or comma.
++		for i, r := range v {
++			if strings.ContainsRune(" \t\r\n,;&}\"'", r) {
++				s = strings.ReplaceAll(s, Marker+v[i:], Marker)
++			}
++		}
++	}
++	return s
++}
++
++// JSON sanitizes keys and nested strings without breaking JSON quoting. Clean
++// input is returned verbatim so existing trace readers retain their formatting.
++func JSON(data []byte, secrets ...string) []byte {
++	return jsonAtDepth(data, secrets, 0)
++}
++
++func jsonAtDepth(data []byte, secrets []string, depth int) []byte {
++	var v any
++	dec := json.NewDecoder(bytes.NewReader(data))
++	dec.UseNumber()
++	if !json.Valid(data) || dec.Decode(&v) != nil {
++		return []byte(WithSecrets(string(data), secrets))
++	}
++	if depth >= 8 {
++		// Bound decoding of JSON embedded in strings. Omit the whole value
++		// rather than falling back to regexes that cannot mask containers.
++		return []byte(`"***"`)
++	}
++	var walk func(any) (any, bool)
++	walk = func(v any) (any, bool) {
++		changed := false
++		switch x := v.(type) {
++		case map[string]any:
++			for k, child := range x {
++				if sensitive.MatchString(k) {
++					x[k], changed = Marker, true
++				} else {
++					var c bool
++					x[k], c = walk(child)
++					changed = changed || c
++				}
++			}
++		case []any:
++			for i, child := range x {
++				var c bool
++				x[i], c = walk(child)
++				changed = changed || c
++			}
++		case string:
++			// Agent/tool text can itself be serialized JSON, including object
++			// or array credentials. Decode it before applying text patterns.
++			s := x
++			if trimmed := strings.TrimSpace(x); len(trimmed) > 0 && strings.ContainsRune(`{["`, rune(trimmed[0])) {
++				s = string(jsonAtDepth([]byte(x), secrets, depth+1))
++			}
++			s = WithSecrets(s, secrets)
++			return s, s != x
++		case json.Number:
++			if WithSecrets(x.String(), secrets) != x.String() {
++				// Replacing digits with a marker must produce a JSON string,
++				// while unrelated numbers keep their original precision.
++				return Marker, true
++			}
++		}
++		return v, changed
++	}
++	v, changed := walk(v)
++	if !changed {
++		return data
++	}
++	b, _ := json.Marshal(v)
++	return b
++}
++
++// Writer buffers lines and complete JSON objects/arrays before redaction, so
++// secrets spanning writes or JSON lines are never partially persisted. Each
++// independent stream needs its own Writer. Close does not close the destination.
++type Writer struct {
++	mu         sync.Mutex
++	dst        io.Writer
++	secrets    []string
++	needles    [][]byte
++	buf        []byte
++	dropping   bool
++	started    bool
++	structured bool
++	depth      int
++	quoted     bool
++	escaped    bool
++}
++
++const maxLine = 64 << 10
++
++func NewWriter(dst io.Writer, secrets []string) *Writer {
++	w := &Writer{dst: dst, secrets: slices.Clone(secrets)}
++	for _, v := range secrets {
++		if v == "" {
++			continue
++		}
++		w.needles = append(w.needles, []byte(v))
++		for _, line := range strings.FieldsFunc(v, func(r rune) bool { return r == '\r' || r == '\n' }) {
++			w.needles = append(w.needles, []byte(line))
++		}
++		b, _ := json.Marshal(v)
++		w.needles = append(w.needles, bytes.Clone(b[1:len(b)-1]))
++	}
++	return w
++}
++
++func (w *Writer) Write(p []byte) (int, error) {
++	w.mu.Lock()
++	defer w.mu.Unlock()
++	n := len(p)
++	for len(p) > 0 {
++		i := bytes.IndexByte(p, '\n')
++		end := len(p)
++		if i >= 0 {
++			end = i + 1
++		}
++		w.frame(p[:end])
++		if !w.dropping && len(w.buf)+end > maxLine {
++			// Omit the whole record, including all remaining JSON lines.
++			w.buf = nil
++			w.dropping = true
++			if _, err := io.WriteString(w.dst, "[bint: oversized log line omitted]\n"); err != nil {
++				return 0, err
++			}
++		}
++		if !w.dropping {
++			w.buf = append(w.buf, p[:end]...)
++		}
++		p = p[end:]
++		if i >= 0 && (!w.structured || w.depth == 0) {
++			if err := w.flush(); err != nil {
++				return 0, err
++			}
++			w.dropping = false
++			w.started, w.structured, w.quoted, w.escaped = false, false, false, false
++		}
++	}
++	return n, nil
++}
++
++// frame tracks only record boundaries; JSON performs validation and redaction.
++// Quotes and escapes prevent braces inside strings from ending a record early.
++func (w *Writer) frame(p []byte) {
++	for _, c := range p {
++		if !w.started {
++			if c == ' ' || c == '\t' || c == '\r' || c == '\n' {
++				continue
++			}
++			w.started = true
++			w.structured = c == '{' || c == '['
++		}
++		if !w.structured {
++			return
++		}
++		if w.quoted {
++			if w.escaped {
++				w.escaped = false
++			} else if c == '\\' {
++				w.escaped = true
++			} else if c == '"' {
++				w.quoted = false
++			}
++			continue
++		}
++		switch c {
++		case '"':
++			w.quoted = true
++		case '{', '[':
++			w.depth++
++		case '}', ']':
++			if w.depth > 0 {
++				w.depth--
++			}
++		}
++	}
++}
++
++func (w *Writer) flush() error {
++	if len(w.buf) == 0 {
++		return nil
++	}
++	payload := w.buf
++	// Ordinary progress rows need no JSON/regex passes. Every labeled pattern
++	// requires a separator; standalone tokens and known (also JSON-escaped or
++	// multiline) values are checked separately before taking this fast path.
++	check := bytes.ContainsAny(payload, "=: \t") || token.Match(payload)
++	if !check {
++		for _, v := range w.needles {
++			if bytes.Contains(payload, v) {
++				check = true
++				break
++			}
++		}
++	}
++	if check {
++		payload = JSON(payload, w.secrets...)
++		if w.buf[len(w.buf)-1] == '\n' && (len(payload) == 0 || payload[len(payload)-1] != '\n') {
++			payload = append(payload, '\n')
++		}
++	}
++	n, err := w.dst.Write(payload)
++	if err == nil && n < len(payload) {
++		err = io.ErrShortWrite
++	}
++	w.buf = w.buf[:0]
++	return err
++}
++
++func (w *Writer) Close() error {
++	w.mu.Lock()
++	defer w.mu.Unlock()
++	if w.structured && w.depth > 0 && !w.dropping {
++		// A truncated object may contain a credential whose label was on an
++		// earlier line. Do not persist a fragment without a complete parse.
++		w.buf = nil
++		_, err := io.WriteString(w.dst, "[bint: incomplete JSON log record omitted]\n")
++		return err
++	}
++	return w.flush()
++}
+diff --git a/internal/redact/redact_test.go b/internal/redact/redact_test.go
+new file mode 100644
+index 0000000..76efdc0
+--- /dev/null
++++ b/internal/redact/redact_test.go
+@@ -0,0 +1,248 @@
++package redact
++
++import (
++	"bytes"
++	"encoding/json"
++	"strings"
++	"testing"
++)
++
++func TestString(t *testing.T) {
++	for _, tc := range []struct{ in, want string }{
++		{`{"password":"a\"b c","status":"ok"}`, `{"password":"***","status":"ok"}`},
++		{`--token   "one two" --verbose`, `--token   "***" --verbose`},
++		{`OPENAI_API_KEY=fixture-key count=3`, `OPENAI_API_KEY=*** count=3`},
++		{`password=fixture-prefix,fixture-suffix; status=ok`, `password=***; status=ok`},
++		{`--password fixture-prefix,fixture-suffix --verbose`, `--password *** --verbose`},
++		{`https://user:pass@host/path?access_token=abc&mode=read`, `https://***@host/path?access_token=***&mode=read`},
++		{`https://fixture-token@host/path`, `https://***@host/path`},
++		{`Bearer abc.def-ghi`, `Bearer ***`},
++		{`Basic dXNlcjpwYXNz`, `Basic ***`},
++		{`password: "unfinished secret`, `password: "***"`},
++		{`exit_code=1 input_tokens=128 src/main.go:42`, `exit_code=1 input_tokens=128 src/main.go:42`},
++		{`{"accessToken":"camel-case-secret"}`, `{"accessToken":"***"}`},
++		{`failed: {"message":"run --password \"fixture password\""}`, `failed: {"message":"***"}`},
++	} {
++		if got := String(tc.in); got != tc.want {
++			t.Errorf("String(%q) = %q, want %q", tc.in, got, tc.want)
++		}
++	}
++}
++
++func TestWriterEverySplit(t *testing.T) {
++	const in = "status=ok\npassword=\"fixture secret\"\nAuthorization: Bearer fixture-token\nfinal fixture-env-value"
++	for split := 0; split <= len(in); split++ {
++		var out bytes.Buffer
++		w := NewWriter(&out, []string{"fixture-env-value"})
++		for _, part := range []string{in[:split], in[split:]} {
++			if n, err := w.Write([]byte(part)); err != nil || n != len(part) {
++				t.Fatalf("Write at %d: %d, %v", split, n, err)
++			}
++		}
++		if err := w.Close(); err != nil {
++			t.Fatal(err)
++		}
++		if got := out.String(); strings.Contains(got, "fixture") || !strings.HasPrefix(got, "status=ok\n") || !strings.HasSuffix(got, "final ***") {
++			t.Fatalf("split %d: %q", split, got)
++		}
++	}
++}
++
++func TestWriterOversizedLine(t *testing.T) {
++	var out bytes.Buffer
++	w := NewWriter(&out, nil)
++	// No part of this oversized quoted value may reach the destination.
++	w.Write([]byte(`password="` + strings.Repeat("private", maxLine)))
++	w.Write([]byte("private-suffix\"\nnext line\n"))
++	w.Close()
++	if got := out.String(); strings.Contains(got, "private") || !strings.HasSuffix(got, "next line\n") || len(got) > 100 {
++		t.Fatalf("oversized line leaked or lost following line: %q", got)
++	}
++}
++
++func TestWriterKnownMultilineSecret(t *testing.T) {
++	var out bytes.Buffer
++	w := NewWriter(&out, []string{"first-private-line\nsecond-private-line"})
++	w.Write([]byte("first-private-line\nsecond-private-line\nstatus=ok\n"))
++	w.Close()
++	if got := out.String(); strings.Contains(got, "private") || !strings.Contains(got, "status=ok") {
++		t.Fatalf("multiline credential leaked: %q", got)
++	}
++}
++
++func TestWriterKnownEscapedSecret(t *testing.T) {
++	var out bytes.Buffer
++	w := NewWriter(&out, []string{"first\nsecond"})
++	w.Write([]byte(`"first\nsecond"` + "\n"))
++	w.Close()
++	if got := strings.TrimSpace(out.String()); got != `"***"` {
++		t.Fatalf("escaped bare credential leaked: %q", got)
++	}
++}
++
++func TestJSON(t *testing.T) {
++	in := []byte(`{"password":{"nested":"secret"},"tool_input":{"command":"curl --token 'fixture secret'"},"count":9007199254740993}`)
++	got := JSON(in)
++	if !json.Valid(got) || strings.Contains(string(got), "secret") || !bytes.Contains(got, []byte("9007199254740993")) {
++		t.Fatalf("unsafe or invalid JSON: %s", got)
++	}
++	clean := []byte("{ \"status\" : \"ok\" }\n")
++	if !bytes.Equal(JSON(clean), clean) {
++		t.Fatal("clean trace formatting changed")
++	}
++}
++
++func TestWriterEmbeddedJSONCredentials(t *testing.T) {
++	for _, in := range []string{
++		`{"type":"item.completed","item":{"text":"{\"password\":{\"value\":\"fixture-private-password\"}}"},"status":"ok"}`,
++		`{"content":"{\"access_token\":[\"fixture-private-token\"]}","status":"ok"}`,
++		`{"content":"[{\"credentials\":{\"value\":\"fixture-private-password\"}}]","status":"ok"}`,
++		`{"content":"{\"text\":\"{\\\"password\\\":{\\\"value\\\":\\\"fixture-private-password\\\"}}\"}","status":"ok"}`,
++	} {
++		for split := 0; split <= len(in); split++ {
++			var out bytes.Buffer
++			w := NewWriter(&out, nil)
++			for _, part := range []string{in[:split], in[split:]} {
++				if _, err := w.Write([]byte(part)); err != nil {
++					t.Fatal(err)
++				}
++			}
++			if err := w.Close(); err != nil {
++				t.Fatal(err)
++			}
++			got := out.Bytes()
++			if !json.Valid(got) || bytes.Contains(got, []byte("fixture-private")) || !bytes.Contains(got, []byte(`"status":"ok"`)) || !bytes.Contains(got, []byte(Marker)) {
++				t.Fatalf("split %d: embedded credential leaked or diagnostics lost: %s", split, got)
++			}
++		}
++	}
++}
++
++func TestJSONEmbeddedCleanFormatting(t *testing.T) {
++	in := []byte(`{ "text": "{ \"count\": 9007199254740993, \"status\": \"ok\" }", "content": "[1, 2]" }`)
++	if got := JSON(in); !bytes.Equal(got, in) {
++		t.Fatalf("clean embedded JSON changed: %s", got)
++	}
++}
++
++func TestJSONEmbeddedDepthLimit(t *testing.T) {
++	in := []byte(`{"password":{"value":"fixture-private-password"}}`)
++	for range 12 {
++		var err error
++		in, err = json.Marshal(map[string]string{"content": string(in)})
++		if err != nil {
++			t.Fatal(err)
++		}
++	}
++	got := JSON(in)
++	if !json.Valid(got) || bytes.Contains(got, []byte("fixture-private-password")) || !bytes.Contains(got, []byte(Marker)) {
++		t.Fatalf("deeply embedded credential leaked or invalid JSON: %s", got)
++	}
++}
++
++func TestJSONKnownStringCredential(t *testing.T) {
++	for _, secret := range []string{"true", "null", "123456789", `{"value":"private"}`} {
++		in, err := json.Marshal(map[string]string{"text": secret, "status": "ok"})
++		if err != nil {
++			t.Fatal(err)
++		}
++		got := JSON(in, secret)
++		if string(got) != `{"status":"ok","text":"***"}` {
++			t.Errorf("known credential %q leaked or diagnostics changed: %s", secret, got)
++		}
++	}
++}
++
++func TestKnownSecrets(t *testing.T) {
++	secrets := EnvSecrets([]string{"PATH=/usr/bin", "BINT_FIXTURE_TOKEN=longer-secret", "DB_PASSWORD=longer", "EMPTY_SECRET="})
++	got := WithSecrets("longer-secret longer /usr/bin", secrets)
++	if got != "*** *** /usr/bin" {
++		t.Fatalf("known credentials: %q", got)
++	}
++	// A short known value must not destroy the label before pattern matching.
++	if got := WithSecrets("token=unrelated-secret", []string{"ok"}); strings.Contains(got, "unrelated-secret") {
++		t.Fatalf("known value obscured a credential label: %q", got)
++	}
++	for _, secret := range []string{"prefix suffix", "prefix,suffix"} {
++		if got := WithSecrets("password="+secret, []string{secret}); got != "password=***" {
++			t.Fatalf("known credential suffix leaked: %q", got)
++		}
++	}
++}
++
++func TestArgSecretsKeepsValueBoundaries(t *testing.T) {
++	secrets := ArgSecrets([]string{"--password=prefix suffix", "--token", "one,two", "-c", `curl --api-key "three four"`})
++	if got := WithSecrets("prefix suffix / one,two / three four", secrets); got != "*** / *** / ***" {
++		t.Fatalf("argument value boundary lost: %q", got)
++	}
++}
++
++func TestWriterMultilineJSONEverySplit(t *testing.T) {
++	const in = "{\n\"password\":\n{\"nested\":[\"fixture-private-password\"]},\n\"status\":\"ok\"\n}\nnext row\n"
++	for split := 0; split <= len(in); split++ {
++		var out bytes.Buffer
++		w := NewWriter(&out, nil)
++		for _, part := range []string{in[:split], in[split:]} {
++			if _, err := w.Write([]byte(part)); err != nil {
++				t.Fatal(err)
++			}
++			if strings.Contains(out.String(), "fixture-private-password") {
++				t.Fatalf("split %d persisted a credential before Close", split)
++			}
++		}
++		if err := w.Close(); err != nil {
++			t.Fatal(err)
++		}
++		if got := out.String(); strings.Contains(got, "fixture-private-password") || !strings.Contains(got, `"status":"ok"`) || !strings.HasSuffix(got, "next row\n") {
++			t.Fatalf("split %d: unsafe or missing diagnostics: %q", split, got)
++		}
++	}
++}
++
++func TestJSONKnownNumericCredential(t *testing.T) {
++	in := []byte(`{"value":123456789,"count":42}`)
++	got := JSON(in, "123456789")
++	if !json.Valid(got) || bytes.Contains(got, []byte("123456789")) || !bytes.Contains(got, []byte(`"count":42`)) {
++		t.Fatalf("numeric credential leaked or unrelated count changed: %s", got)
++	}
++}
++
++func TestWriterJSONRecordBoundaries(t *testing.T) {
++	for _, tc := range []struct {
++		name, input string
++		omitted     bool
++	}{
++		{"array with quoted braces", "[\n{\"status\":\"brace } and quote \\\" [\",\n\"password\":\n\"fixture-private-password\"}\n]\nnext row\n", false},
++		{"oversized", "{\n\"filler\":\"" + strings.Repeat("x", maxLine) + "\",\n\"password\":\n\"fixture-private-password\"\n}\nnext row\n", true},
++		{"incomplete", "{\n\"password\":\n{\"value\":\"fixture-private-password\"}\n", true},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			var out bytes.Buffer
++			w := NewWriter(&out, nil)
++			// Include boundaries inside quotes and escapes, as real pipe reads do.
++			for i := 0; i < len(tc.input); i += 7 {
++				if _, err := w.Write([]byte(tc.input[i:min(i+7, len(tc.input))])); err != nil {
++					t.Fatal(err)
++				}
++			}
++			if err := w.Close(); err != nil {
++				t.Fatal(err)
++			}
++			got := out.String()
++			if strings.Contains(got, "fixture-private-password") || strings.Contains(got, "omitted") != tc.omitted {
++				t.Fatalf("unsafe or unexpected JSON log: %q", got)
++			}
++			if strings.HasSuffix(tc.input, "next row\n") && !strings.HasSuffix(got, "next row\n") {
++				t.Fatalf("lost next record: %q", got)
++			}
++		})
++	}
++}
++
++func TestShellSecretsKeepsCommaInValue(t *testing.T) {
++	for _, command := range []string{`set -- --password=fixture-prefix,fixture-suffix; echo "$1"`, `tool --password fixture-prefix,fixture-suffix`} {
++		if got := WithSecrets("fixture-prefix,fixture-suffix", Values(command)); got != Marker {
++			t.Fatalf("shell credential boundary lost: %q", got)
++		}
++	}
++}
+diff --git a/internal/workflow/log_redact_test.go b/internal/workflow/log_redact_test.go
+new file mode 100644
+index 0000000..a41fe81
+--- /dev/null
++++ b/internal/workflow/log_redact_test.go
+@@ -0,0 +1,103 @@
++package workflow
++
++import (
++	"bytes"
++	"context"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"bint/internal/eval"
++	"bint/internal/spool"
++)
++
++func TestRunnerLogRedactsCommandCredentials(t *testing.T) {
++	var out bytes.Buffer
++	r := &Runner{Logf: func(format string, args ...any) { fmt.Fprintf(&out, format, args...) }}
++	r.logf("verify: %s → failed", `test --password "fixture password" --token=fixture-token`)
++	if got := out.String(); strings.Contains(got, "fixture") || !strings.Contains(got, "failed") || !strings.Contains(got, "***") {
++		t.Fatalf("unsafe workflow log: %q", got)
++	}
++}
++
++func TestWorkflowSummaryRedactedBeforePersistence(t *testing.T) {
++	h := newHarness(t)
++	t.Setenv("BINT_FIXTURE_TOKEN", "fixture-unlabeled-private")
++	h.mutate = func(_ string, res *eval.AgentResult) {
++		// Redaction must precede truncation: the label fits in the summary,
++		// but the credential extends beyond its 500-character limit.
++		res.Text = "status=ok fixture-unlabeled-private password=\"" + strings.Repeat("fixture-private-", 60) + "\""
++	}
++	ctx := context.Background()
++	res, err := h.runner().Run(ctx, RunOptions{Workflow: StepFeat, Request: "Update app.txt"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	files, err := filepath.Glob(filepath.Join(h.spool, "*.jsonl"))
++	if err != nil {
++		t.Fatal(err)
++	}
++	seen := false
++	for _, file := range files {
++		data, err := os.ReadFile(file)
++		if err != nil {
++			t.Fatal(err)
++		}
++		if strings.Contains(string(data), "fixture-private-") || strings.Contains(string(data), "fixture-unlabeled-private") {
++			t.Fatal("credential persisted in workflow spool")
++		}
++		events, err := spool.ReadFile(file)
++		if err != nil {
++			t.Fatal(err)
++		}
++		for _, ev := range events {
++			if ev.Type == spool.WorkflowFinished && ev.RunID != res.RunID && ev.Payload["result_summary"] != nil {
++				seen = true
++				if got := ev.Payload["result_summary"]; got != `status=ok *** password="***"` {
++					t.Errorf("unexpected persisted summary: %v", got)
++				}
++			}
++		}
++	}
++	if !seen {
++		t.Fatal("missing workflow result summary")
++	}
++	s := h.ingest()
++	var summary string
++	if err := s.DB.QueryRowContext(ctx, `SELECT result_summary FROM runs WHERE parent_run_id = ? AND result_summary IS NOT NULL`, res.RunID).Scan(&summary); err != nil {
++		t.Fatal(err)
++	}
++	if summary != `status=ok *** password="***"` {
++		t.Fatalf("unsafe summary in run history: %q", summary)
++	}
++}
++
++func TestWorkflowEventRedactsDiagnosticCopies(t *testing.T) {
++	e := &Env{Root: t.TempDir(), Spool: t.TempDir()}
++	payload := map[string]any{
++		"result_summary": "{\n\"password\":\n{\"value\":\"fixture-summary-private\"}\n}",
++		"end_reason":     "failed: --token fixture-prefix,fixture-suffix",
++		"task_id":        "task-fixture",
++		"cost_usd":       0.25,
++	}
++	if err := e.emitRun("run-fixture", spool.WorkflowFinished, payload); err != nil {
++		t.Fatal(err)
++	}
++	if !strings.Contains(payload["result_summary"].(string), "fixture-summary-private") || !strings.Contains(payload["end_reason"].(string), "fixture-suffix") {
++		t.Fatal("redaction changed the caller's result")
++	}
++	files, err := filepath.Glob(filepath.Join(e.Spool, "*.jsonl"))
++	if err != nil || len(files) != 1 {
++		t.Fatalf("expected one spool file, got %v: %v", files, err)
++	}
++	events, err := spool.ReadFile(files[0])
++	if err != nil || len(events) != 1 {
++		t.Fatalf("expected one event, got %v: %v", events, err)
++	}
++	got := events[0].Payload
++	if got["result_summary"] != `{"password":"***"}` || got["end_reason"] != "failed: --token ***" || got["task_id"] != "task-fixture" || got["cost_usd"] != 0.25 {
++		t.Fatalf("unsafe diagnostics or changed metadata: %v", got)
++	}
++}
+diff --git a/internal/workflow/run.go b/internal/workflow/run.go
+index 295a4d0..d5dee0c 100644
+--- a/internal/workflow/run.go
++++ b/internal/workflow/run.go
+@@ -21,6 +21,7 @@ import (
+ 	"bint/internal/harness/claude"
+ 	"bint/internal/harness/codex"
+ 	"bint/internal/harness/hookcore"
++	"bint/internal/redact"
+ 	"bint/internal/skills"
+ 	"bint/internal/spool"
+ 	"bint/internal/task"
+@@ -235,7 +236,7 @@ var afterStepUnlock func(step string)
+ 
+ func (r *Runner) logf(format string, a ...any) {
+ 	if r.Logf != nil {
+-		r.Logf(format, a...)
++		r.Logf("%s", redact.WithSecrets(fmt.Sprintf(format, a...), redact.EnvSecrets(os.Environ())))
+ 	}
+ }
+ 
+@@ -1377,7 +1378,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
+ 		r.OnStep(StepEvent{TaskID: rs.t.State.ID, Step: step, RunID: child, Log: sr.stepLog, Done: true, Status: status})
+ 	}
+ 	payload := map[string]any{"status": status, "end_reason": endReason, "model": res.Model,
+-		"result_summary": truncate(strings.TrimSpace(res.Text), 500), "task_id": rs.t.State.ID}
++		"result_summary": strings.TrimSpace(res.Text), "task_id": rs.t.State.ID}
+ 	if len(humanWrites) > 0 {
+ 		payload["human_writes"] = humanWrites
+ 	}
+diff --git a/internal/workflow/session.go b/internal/workflow/session.go
+index cf6602c..ad03e77 100644
+--- a/internal/workflow/session.go
++++ b/internal/workflow/session.go
+@@ -4,6 +4,8 @@ import (
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"maps"
++	"os"
+ 	"path/filepath"
+ 	"strings"
+ 	"time"
+@@ -12,6 +14,7 @@ import (
+ 	"bint/internal/flow"
+ 	adapters "bint/internal/harness"
+ 	"bint/internal/harness/hookcore"
++	"bint/internal/redact"
+ 	"bint/internal/spool"
+ 	"bint/internal/task"
+ 	"bint/internal/ulid"
+@@ -965,6 +968,20 @@ func (e *Env) discardPendingForCancel(t *task.Task) {
+ 
+ // emitRun ghi sự kiện của một lượt chạy do Bint cấp (Runner có bản gắn nhật ký lỗi ghi).
+ func (e *Env) emitRun(runID, typ string, payload map[string]any) error {
++	// Sanitize diagnostic copies at the persistence boundary, before the spool
++	// and SQLite history can see them. Keep routing IDs and the caller's data.
++	payload = maps.Clone(payload)
++	secrets := redact.EnvSecrets(os.Environ())
++	for _, key := range []string{"result_summary", "end_reason"} {
++		if s, ok := payload[key].(string); ok {
++			s = string(redact.JSON([]byte(s), secrets...))
++			if key == "result_summary" {
++				// A truncated value can lose its closing quote or label.
++				s = truncate(s, 500)
++			}
++			payload[key] = s
++		}
++	}
+ 	ev := spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "ev_wf_" + ulid.New(), Type: typ, Source: "bint-run",
+ 		Timestamp: e.now().UTC(), RunID: runID, Worktree: e.Root, Payload: payload}
+ 	_, err := spool.Write(e.Spool, ev)

@@ -1,0 +1,731 @@
+ docs/harness-components.md        |  16 +++-
+ internal/app/hook_trace.go        |   8 +-
+ internal/app/hook_trace_test.go   |  30 +++++++
+ internal/app/mcp_svc_test.go      |  28 +++++-
+ internal/detect/detect.go         |  12 +--
+ internal/detect/detect_test.go    |  19 ++++
+ internal/detect/log.go            | 180 ++++++++++++++++++++++++++++++++++++++
+ internal/detect/log_test.go       | 102 +++++++++++++++++++++
+ internal/eval/shell.go            |  30 +++++--
+ internal/eval/shell_test.go       |  40 +++++++++
+ internal/mcpgw/codegraph_index.go |  14 ++-
+ internal/mcpgw/env.go             |   6 +-
+ internal/mcpgw/env_test.go        |   7 ++
+ 13 files changed, 462 insertions(+), 30 deletions(-)
+
+diff --git a/docs/harness-components.md b/docs/harness-components.md
+index 5eb6056..3f43d91 100644
+--- a/docs/harness-components.md
++++ b/docs/harness-components.md
+@@ -90,10 +90,20 @@ và thành phần vẫn vào ở `candidate` chờ người duyệt. Phần đo
+ Chẩn đoán "hook có được gọi không, nhận gì, trả gì". Đặt `BINT_HOOK_TRACE=1` **trước khi mở harness** (hook kế thừa môi trường
+ của harness); mỗi lần `bint hook <harness>` chạy ghi một cặp tệp dưới `<thư mục trạng thái>/runtime/hook-trace/`:
+ 
+-- `<thời điểm UTC>-<harness>-<sự kiện>.in`: đầu vào nguyên văn (cắt ở 1 MiB kèm dòng đánh dấu), ghi **trước** khi xử lý;
++- `<thời điểm UTC>-<harness>-<sự kiện>.in`: đầu vào đã che credential (cắt ở 1 MiB kèm dòng đánh dấu), ghi **trước** khi xử lý;
+ - `<cùng tên>.out`: JSON `output` (thứ in ra stdout cho harness), `duration_ms`, `skipped`, `written`, `spool_file`, `error`.
+ 
+ Có `.in` mà không có `.out` nghĩa là hook chết hoặc quá hạn giữa chừng; không có `.in` nghĩa là harness không gọi hook. Chỉ giữ 500
+ tệp mới nhất (cũ nhất bị xoá). Không đặt biến (hoặc giá trị khác `1`) thì không ghi gì. Lỗi ghi vết bị bỏ qua: hook không bao giờ
+-chặn agent, không đổi đầu ra, không mở SQLite. **Cảnh báo:** `.in` chứa nguyên văn lệnh, đường dẫn và nội dung tệp của agent (tệp
+-0600, trong thư mục trạng thái ngoài repository); tắt biến và xoá thư mục khi chẩn đoán xong.
++chặn agent, không đổi đầu ra, không mở SQLite. Cả `.in` và `.out` che các trường password/token/API key,
++header xác thực/cookie, URL chứa `user:password` và giá trị biến môi trường có tên nhận diện là bí mật trước khi ghi.
++JSON hợp lệ vẫn giữ được cấu trúc; dữ liệu trao đổi trực tiếp với harness không bị sửa.
++
++Log tiến trình (workflow, kiểm chứng, eval) và đầu ra lập chỉ mục codegraph cũng được lọc trước khi ghi;
++token bị chia giữa nhiều lần ghi vẫn được che. Dòng log tiến trình dài hơn 64 KiB được thay bằng dấu bỏ dòng,
++tránh lưu một phần credential khi cắt. Các tệp log dùng quyền 0600.
++
++Bộ lọc dựa vào tên trường, mẫu cú pháp và giá trị credential đã biết; không nhận diện chắc chắn bí mật nằm trong
++văn bản tự do hoặc đã được mã hoá. Trace vẫn có thể chứa nội dung tệp và thông tin riêng tư khác, nên tắt biến
++và dọn trace khi chẩn đoán xong. Thay đổi này chỉ bảo vệ log mới; log cũ không tự được làm sạch.
++Nếu credential đã xuất hiện trong log cũ, thu hồi/đổi credential đó và xử lý cả bản sao log đã chia sẻ.
+diff --git a/internal/app/hook_trace.go b/internal/app/hook_trace.go
+index 9f09bfa..6e9ab49 100644
+--- a/internal/app/hook_trace.go
++++ b/internal/app/hook_trace.go
+@@ -10,11 +10,12 @@ import (
+ 	"strings"
+ 	"time"
+ 
++	"bint/internal/detect"
+ 	"bint/internal/harness/hookcore"
+ )
+ 
+ // Ghi vết hook để chẩn đoán (NT-ISO-LEAK): BINT_HOOK_TRACE=1 ⇒ mỗi lần `bint hook <harness>` chạy ghi một cặp tệp dưới
+-// <state>/runtime/hook-trace/: <thời điểm>-<harness>-<sự kiện>.in (đầu vào nguyên văn, cắt ở maxHookTraceInput) và .out (đầu ra,
++// <state>/runtime/hook-trace/: <thời điểm>-<harness>-<sự kiện>.in (đầu vào đã che credential, cắt ở maxHookTraceInput) và .out (đầu ra,
+ // thời lượng, kết quả). Có .in mà không có .out nghĩa là hook chết hoặc quá hạn giữa chừng; không có .in nghĩa là hook không được
+ // gọi. Hook không bao giờ chặn agent (tri thức k:<ID>): mọi lỗi ghi vết (kể cả panic) bị nuốt, không đổi
+ // stdout/stderr/hook-errors.log, không mở SQLite. Đầu vào hook có thể chứa nội dung nhạy cảm (lệnh, đường dẫn, nội dung tệp):
+@@ -64,9 +65,9 @@ func startHookTrace(harness, event string, data []byte) (tr *hookTrace) {
+ 	if os.MkdirAll(dir, 0o700) != nil {
+ 		return nil
+ 	}
+-	body := data
++	body := []byte(detect.RedactLog(string(data), detect.SecretValues(os.Environ())))
+ 	if len(body) > maxHookTraceInput {
+-		body = append(append([]byte{}, data[:maxHookTraceInput]...),
++		body = append(append([]byte{}, body[:maxHookTraceInput]...),
+ 			fmt.Sprintf("\n[bint: đầu vào đã bị cắt, gốc %d byte]\n", len(data))...)
+ 	}
+ 	label := "-" + traceLabel(harness) + "-" + traceLabel(name)
+@@ -103,6 +104,7 @@ func (t *hookTrace) finish(res hookcore.Result, err error, dur time.Duration) {
+ 		out["error"] = err.Error()
+ 	}
+ 	if b, merr := json.MarshalIndent(out, "", "  "); merr == nil {
++		b = []byte(detect.RedactLog(string(b), detect.SecretValues(os.Environ())))
+ 		if f, ferr := os.OpenFile(t.base+".out", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600); ferr == nil {
+ 			f.Write(append(b, '\n'))
+ 			f.Close()
+diff --git a/internal/app/hook_trace_test.go b/internal/app/hook_trace_test.go
+index 9b67357..8749cc7 100644
+--- a/internal/app/hook_trace_test.go
++++ b/internal/app/hook_trace_test.go
+@@ -9,8 +9,38 @@ import (
+ 	"runtime"
+ 	"strings"
+ 	"testing"
++	"time"
++
++	"bint/internal/harness/hookcore"
+ )
+ 
++func TestHookTraceRedactsCredentials(t *testing.T) {
++	root, ws := subagentRepo(t)
++	t.Setenv(HookTraceEnv, "1")
++	in := hookInput("sess-trace", "PostToolUse", root, map[string]any{
++		"tool_name": "Bash", "tool_input": map[string]any{
++			"command": `curl --password fixture-command-secret`, "password": "fixture-field-secret"}})
++	tr := startHookTrace("claude", "", []byte(in))
++	if tr == nil {
++		t.Fatal("trace did not start")
++	}
++	tr.finish(hookcore.Result{Output: `{"access_token":"fixture-output-secret"}`}, nil, time.Millisecond)
++	for _, name := range traceFiles(t, ws) {
++		b, err := os.ReadFile(filepath.Join(ws.Paths.Runtime, hookTraceDir, name))
++		if err != nil {
++			t.Fatal(err)
++		}
++		for _, secret := range []string{"fixture-command-secret", "fixture-field-secret", "fixture-output-secret"} {
++			if bytes.Contains(b, []byte(secret)) {
++				t.Errorf("credential leaked into %s", name)
++			}
++		}
++		if !json.Valid(b) {
++			t.Errorf("redaction broke trace JSON: %s", name)
++		}
++	}
++}
++
+ // BINT_HOOK_TRACE (NT-ISO-LEAK): cặp tệp .in/.out cho mỗi lần `bint hook` chạy; tắt thì không ghi gì; lỗi ghi vết không đổi
+ // đầu ra của hook.
+ 
+diff --git a/internal/app/mcp_svc_test.go b/internal/app/mcp_svc_test.go
+index 5994254..3068d3d 100644
+--- a/internal/app/mcp_svc_test.go
++++ b/internal/app/mcp_svc_test.go
+@@ -727,6 +727,31 @@ func TestMCPIndex(t *testing.T) {
+ 	}
+ }
+ 
++func TestMCPIndexRedactsOutput(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("POSIX shell fixture")
++	}
++	f := newMCPFx(t, "  services: {codegraph: {}}\n")
++	f.secrets(t, "ok", codegraphTools())
++	f.secretsExtra(t, "INDEX_TOKEN", "fixture-index-secret")
++	bin := filepath.Join(t.TempDir(), "codegraph")
++	if err := os.WriteFile(bin, []byte("#!/bin/sh\nprintf '%s\\n' \"$INDEX_TOKEN\"\nprintf '%s\\n' 'Authorization: Basic fixture-index-basic' >&2\n"), 0o700); err != nil {
++		t.Fatal(err)
++	}
++	if err := config.SaveMachineMCP(config.MachineMCP{Services: map[string]config.Registration{
++		"codegraph": {Command: bin, EnvNames: []string{"INDEX_TOKEN"}},
++	}}); err != nil {
++		t.Fatal(err)
++	}
++	var out bytes.Buffer
++	if _, err := MCPIndex(t.Context(), f.root, MCPIndexOptions{Service: "codegraph"}, &out); err != nil {
++		t.Fatal(err)
++	}
++	if strings.Contains(out.String(), "fixture-index-secret") || strings.Contains(out.String(), "fixture-index-basic") {
++		t.Fatal("index output leaks credentials into caller's log writer")
++	}
++}
++
+ // Phát hiện .1: lệnh đã đăng ký là lệnh bọc (npx/node/uvx) thì index không được chạy `<lệnh> init -y`.
+ func TestMCPIndexIgnoresWrapperLauncher(t *testing.T) {
+ 	f := newMCPFx(t, "")
+@@ -776,7 +801,8 @@ func TestMCPIndexIgnoresWrapperLauncher(t *testing.T) {
+ 	f.secrets(t, "ok", codegraphTools(), "1.7.0")
+ 	var out bytes.Buffer
+ 	res, err = MCPIndex(ctx, f.root, MCPIndexOptions{Service: "codegraph"}, &out)
+-	if err != nil || !strings.Contains(res.Warning, "1.7.0") || !strings.Contains(res.Warning, "1.6.2") || !strings.Contains(out.String(), "cảnh báo:") {
++	// Phiên bản giả được truyền qua EnvNames/secrets.env nên giá trị đó cũng phải được che.
++	if err != nil || strings.Contains(res.Warning, "1.7.0") || !strings.Contains(res.Warning, "***") || !strings.Contains(res.Warning, "1.6.2") || !strings.Contains(out.String(), "cảnh báo:") {
+ 		t.Fatalf("khác phiên bản phải cảnh báo: %+v %v %q", res, err, out.String())
+ 	}
+ 	after, _ = probetest.ReadDumps(f.dump)
+diff --git a/internal/detect/detect.go b/internal/detect/detect.go
+index b8c0c60..a0df6d9 100644
+--- a/internal/detect/detect.go
++++ b/internal/detect/detect.go
+@@ -250,8 +250,8 @@ func IsTestCommand(cmd string, configured ...string) bool {
+ }
+ 
+ var (
+-	envAssign   = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S+)`)
+-	secretFlags = regexp.MustCompile(`(?i)(--?(token|password|passwd|secret|api[-_]?key|auth)[= ])("[^"]*"|'[^']*'|\S+)`)
++	envAssign   = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)=("(?:\\.|[^"\\])*"|'[^']*'|\S+)`)
++	secretFlags = regexp.MustCompile(`(?i)(--?[\w-]*(token|password|passwd|secret|api[-_]?key|auth)(?:=|\s+))("(?:\\.|[^"\\])*"|'[^']*'|\S+)`)
+ 	bearer      = regexp.MustCompile(`(?i)(bearer\s+)\S+`)
+ 	urlCreds    = regexp.MustCompile(`(://)[^/\s:@]+:[^/\s@]+@`)
+ )
+@@ -259,10 +259,10 @@ var (
+ // Redact che các giá trị có thể là bí mật trong một lệnh trước khi ghi lại, và
+ // cắt ngắn tới maxLen ký tự.
+ func Redact(cmd string, maxLen int) string {
+-	s := envAssign.ReplaceAllString(cmd, "$1=***")
+-	s = secretFlags.ReplaceAllString(s, "$1***")
+-	s = bearer.ReplaceAllString(s, "$1***")
+-	s = urlCreds.ReplaceAllString(s, "$1***@")
++	s := RedactLog(cmd, nil)
++	// Recorded commands historically hide all environment assignments. General
++	// process diagnostics only hide assignments whose names identify credentials.
++	s = envAssign.ReplaceAllString(s, "${1}=***")
+ 	if maxLen > 0 && len([]rune(s)) > maxLen {
+ 		s = string([]rune(s)[:maxLen]) + "…"
+ 	}
+diff --git a/internal/detect/detect_test.go b/internal/detect/detect_test.go
+index 676d788..20502dc 100644
+--- a/internal/detect/detect_test.go
++++ b/internal/detect/detect_test.go
+@@ -91,3 +91,22 @@ func TestSuggestCommands(t *testing.T) {
+ 		}
+ 	}
+ }
++
++func TestRedactCredentialsInLogs(t *testing.T) {
++	for _, in := range []string{
++		`{"password":"fixture-secret","ok":true}`,
++		`{"access_token": "fixture-secret", "nested":{"api_key":"fixture-secret"}}`,
++		`Authorization: Basic fixture-secret`,
++		`Cookie: session=fixture-secret; other=value`,
++		`https://example.test/?access_token=fixture-secret&ok=true`,
++		`tool --client-secret fixture-secret --refresh-token=fixture-secret`,
++		`password: 'fixture-secret'`,
++	} {
++		if got := Redact(in, 0); strings.Contains(got, "fixture-secret") {
++			t.Errorf("credential survived redaction for fixture: %q", in)
++		}
++	}
++	if got := Redact("test passed: 12 cases\nstatus: ready", 0); got != "test passed: 12 cases\nstatus: ready" {
++		t.Fatal("ordinary diagnostics changed")
++	}
++}
+diff --git a/internal/detect/log.go b/internal/detect/log.go
+new file mode 100644
+index 0000000..7d2a286
+--- /dev/null
++++ b/internal/detect/log.go
+@@ -0,0 +1,180 @@
++package detect
++
++import (
++	"bytes"
++	"encoding/json"
++	"io"
++	"regexp"
++	"sort"
++	"strings"
++	"sync"
++)
++
++var (
++	credentialKey   = regexp.MustCompile(`(?i)(^|[_-])(password|passwd|pwd|token|secret|api[_-]?key|private[_-]?key|auth|authorization|cookie|credentials?)([_-]|$)|^(access[_-]?token|refresh[_-]?token|client[_-]?secret|apikey|set-cookie)$`)
++	credentialField = regexp.MustCompile(`(?i)(\b[\w-]*(?:password|passwd|pwd|token|secret|api[_-]?key|private[_-]?key|auth|authorization|cookie|credentials?)["']?\s*[:=]\s*)("(?:\\.|[^"\\])*"|'[^']*'|[^\s&,;]+)`)
++	authHeader      = regexp.MustCompile(`(?im)(\b(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*)[^\r\n]+`)
++)
++
++// SecretValues selects credential values from the effective child environment.
++// It never changes that environment. Longest values are replaced first.
++func SecretValues(env []string) []string {
++	var values []string
++	for _, kv := range env {
++		k, v, ok := strings.Cut(kv, "=")
++		if ok && v != "" && credentialKey.MatchString(k) {
++			values = append(values, v)
++		}
++	}
++	return logSecrets(values)
++}
++
++func logSecrets(values []string) []string {
++	var out []string
++	for _, v := range values {
++		if v == "" {
++			continue
++		}
++		out = append(out, v)
++		if strings.ContainsAny(v, "\r\n") {
++			out = append(out, strings.FieldsFunc(v, func(r rune) bool { return r == '\r' || r == '\n' })...)
++		}
++	}
++	sort.Slice(out, func(i, j int) bool { return len(out[i]) > len(out[j]) })
++	return out
++}
++
++// RedactLog preserves valid JSON, including JSON embedded in string fields.
++// Scrub before truncating so that a partial credential cannot survive the cut.
++func RedactLog(s string, values []string) string {
++	return redactLog(s, logSecrets(values))
++}
++
++func redactLog(s string, values []string) string {
++	trimmed := strings.TrimSpace(s)
++	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
++		var value any
++		d := json.NewDecoder(strings.NewReader(s))
++		d.UseNumber()
++		if d.Decode(&value) == nil && json.Valid([]byte(s)) {
++			if safe, changed := redactJSON(value, values); changed {
++				if b, err := json.Marshal(safe); err == nil {
++					return string(b)
++				}
++			}
++			return s
++		}
++	}
++	for _, v := range values {
++		if v != "" {
++			s = strings.ReplaceAll(s, v, "***")
++		}
++	}
++	s = authHeader.ReplaceAllString(s, "${1}***")
++	s = envAssign.ReplaceAllStringFunc(s, func(assignment string) string {
++		k, _, _ := strings.Cut(assignment, "=")
++		if credentialKey.MatchString(k) {
++			return k + "=***"
++		}
++		return assignment
++	})
++	s = secretFlags.ReplaceAllString(s, "${1}***")
++	s = credentialField.ReplaceAllString(s, "${1}***")
++	s = bearer.ReplaceAllString(s, "${1}***")
++	return urlCreds.ReplaceAllString(s, "${1}***@")
++}
++
++func redactJSON(v any, values []string) (any, bool) {
++	changed := false
++	switch x := v.(type) {
++	case string:
++		s := redactLog(x, values)
++		return s, s != x
++	case json.Number:
++		if redactLog(string(x), values) != string(x) {
++			return "***", true
++		}
++	case map[string]any:
++		for k, val := range x {
++			if credentialKey.MatchString(k) {
++				if s, ok := val.(string); !ok || s != "***" {
++					x[k], changed = "***", true
++				}
++			} else if safe, c := redactJSON(val, values); c {
++				x[k], changed = safe, true
++			}
++		}
++	case []any:
++		for i, val := range x {
++			if safe, c := redactJSON(val, values); c {
++				x[i], changed = safe, true
++			}
++		}
++	}
++	return v, changed
++}
++
++const maxLogLine = 64 << 10
++
++// LogWriter buffers a complete line before redaction, so split writes cannot
++// leak credentials. Oversized lines are omitted rather than partially logged.
++// Use separate writers for stdout and stderr and Flush after the process exits.
++type LogWriter struct {
++	mu       sync.Mutex
++	out      io.Writer
++	values   []string
++	buf      []byte
++	dropping bool
++}
++
++func NewLogWriter(out io.Writer, values []string) *LogWriter {
++	return &LogWriter{out: out, values: logSecrets(values)}
++}
++
++func (w *LogWriter) Write(p []byte) (int, error) {
++	w.mu.Lock()
++	defer w.mu.Unlock()
++	n := len(p)
++	for len(p) > 0 {
++		i := bytes.IndexByte(p, '\n')
++		end := len(p)
++		if i >= 0 {
++			end = i
++		}
++		if !w.dropping {
++			if len(w.buf)+end > maxLogLine {
++				w.buf = nil
++				w.dropping = true
++			} else {
++				w.buf = append(w.buf, p[:end]...)
++			}
++		}
++		if i < 0 {
++			break
++		}
++		if err := w.flush(true); err != nil {
++			return n, err
++		}
++		p = p[i+1:]
++	}
++	return n, nil
++}
++
++func (w *LogWriter) Flush() error {
++	w.mu.Lock()
++	defer w.mu.Unlock()
++	return w.flush(false)
++}
++
++func (w *LogWriter) flush(newline bool) error {
++	s := redactLog(string(w.buf), w.values)
++	if w.dropping {
++		s = "[bint: oversized log line omitted]"
++	}
++	if newline {
++		s += "\n"
++	}
++	w.buf, w.dropping = nil, false
++	_, err := io.WriteString(w.out, s)
++	return err
++}
+diff --git a/internal/detect/log_test.go b/internal/detect/log_test.go
+new file mode 100644
+index 0000000..e84f989
+--- /dev/null
++++ b/internal/detect/log_test.go
+@@ -0,0 +1,102 @@
++package detect
++
++import (
++	"bytes"
++	"encoding/json"
++	"strings"
++	"testing"
++)
++
++func TestLogWriterRedactsAtEveryChunkBoundary(t *testing.T) {
++	const input = "ready\n{\"password\":\"fixture-secret\",\"count\":9007199254740993}\nfixture-env-secret"
++	for split := 0; split <= len(input); split++ {
++		var out bytes.Buffer
++		w := NewLogWriter(&out, []string{"fixture-env-secret"})
++		if _, err := w.Write([]byte(input[:split])); err != nil {
++			t.Fatal(err)
++		}
++		if _, err := w.Write([]byte(input[split:])); err != nil {
++			t.Fatal(err)
++		}
++		if err := w.Flush(); err != nil {
++			t.Fatal(err)
++		}
++		got := out.String()
++		if strings.Contains(got, "fixture-secret") || strings.Contains(got, "fixture-env-secret") {
++			t.Fatalf("credential leaked at split %d", split)
++		}
++		lines := strings.Split(got, "\n")
++		if len(lines) != 3 || lines[0] != "ready" || !json.Valid([]byte(lines[1])) ||
++			!strings.Contains(lines[1], "9007199254740993") || lines[2] != "***" {
++			t.Fatalf("log content lost at split %d: %q", split, got)
++		}
++	}
++}
++
++func TestLogWriterOmitsOversizedLine(t *testing.T) {
++	for _, ending := range []string{"", "\nready\n"} {
++		var out bytes.Buffer
++		w := NewLogWriter(&out, nil)
++		w.Write([]byte("password=" + strings.Repeat("s", maxLogLine)))
++		w.Write([]byte("secret-suffix" + ending))
++		w.Flush()
++		if strings.Contains(out.String(), "secret-suffix") || strings.Contains(out.String(), "ssss") {
++			t.Fatal("partial oversized credential was logged")
++		}
++		if !strings.Contains(out.String(), "omitted") || (ending != "" && !strings.Contains(out.String(), "ready")) {
++			t.Fatal("missing omission marker or subsequent diagnostic")
++		}
++	}
++}
++
++func TestSecretValuesRecognizesCredentialNames(t *testing.T) {
++	values := SecretValues([]string{"PATH=/safe/bin", "OUTPUT_TOKENS=1200", "AWS_SECRET_ACCESS_KEY=fixture-aws-secret",
++		"MY_TOKEN=fixture-token", "PRIVATE_KEY=fixture-private-key", "DB_PASSWORD=fixture-password", "EMPTY_TOKEN="})
++	got := RedactLog("/safe/bin 1200 fixture-aws-secret fixture-token fixture-private-key fixture-password", values)
++	if got != "/safe/bin 1200 *** *** *** ***" {
++		t.Fatal("environment credentials not scrubbed, or ordinary environment masked")
++	}
++}
++
++func TestLogRedactionPreservesOrdinaryAssignments(t *testing.T) {
++	const in = "BINT_RUN_ID=unset\nBINT_AGENT=1\nstatus=ready"
++	if got := RedactLog(in, nil); got != in {
++		t.Fatal("ordinary process diagnostics were masked")
++	}
++	if got := RedactLog("AWS_SECRET_ACCESS_KEY=fixture-secret", nil); strings.Contains(got, "fixture-secret") {
++		t.Fatal("credential assignment survived")
++	}
++}
++
++func TestRedactPrettyJSONLineAndMalformedJSON(t *testing.T) {
++	for _, in := range []string{`  "password": "fixture-secret",`, `{"access_token":"fixture-secret"`, `{"password":{"value":"fixture-secret"}}`, `  "private_key": "fixture-secret",`, `pwd: fixture-secret`, `credentials: fixture-secret`} {
++		if strings.Contains(RedactLog(in, nil), "fixture-secret") {
++			t.Error("credential leaked from JSON diagnostic")
++		}
++	}
++}
++
++func TestRedactLogOverlappingSecrets(t *testing.T) {
++	if got := RedactLog("abcdef", []string{"abc", "abcdef"}); got != "***" {
++		t.Fatalf("credential suffix survived: %q", got)
++	}
++}
++
++func TestLogWriterNormalizesKnownSecrets(t *testing.T) {
++	var out bytes.Buffer
++	w := NewLogWriter(&out, []string{"abc", "abcdef", "fixture-first-line\nfixture-second-line"})
++	w.Write([]byte("abcdef\nfixture-first-line\nfixture-second-line\n"))
++	w.Flush()
++	if out.String() != "***\n***\n***\n" {
++		t.Fatal("overlapping or multiline credential leaked")
++	}
++}
++
++func TestRedactKnownNumericCredentialInJSON(t *testing.T) {
++	for _, in := range []string{`{"ordinary":123456789}`, `[123456789]`} {
++		got := RedactLog(in, []string{"123456789"})
++		if strings.Contains(got, "123456789") || !json.Valid([]byte(got)) {
++			t.Fatal("numeric credential survived or JSON damaged")
++		}
++	}
++}
+diff --git a/internal/eval/shell.go b/internal/eval/shell.go
+index ac4b6b3..fc2f44b 100644
+--- a/internal/eval/shell.go
++++ b/internal/eval/shell.go
+@@ -13,6 +13,8 @@ import (
+ 	"strings"
+ 	"sync"
+ 	"time"
++
++	"bint/internal/detect"
+ )
+ 
+ // CmdResult là kết quả chạy một lệnh.
+@@ -43,7 +45,7 @@ func shellCommand(command string) (string, []string) {
+ }
+ 
+ // RunShell chạy command trong dir với giới hạn thời gian. Toàn bộ đầu ra được ghi
+-// vào logPath (nếu khác rỗng). Hết giờ thì giết cả cây tiến trình.
++// vào logPath (nếu khác rỗng), sau khi che credential. Hết giờ thì giết cả cây tiến trình.
+ func RunShell(ctx context.Context, dir, command string, timeout time.Duration, logPath string, env []string) CmdResult {
+ 	prog, args := shellCommand(command)
+ 	return runProcess(ctx, dir, prog, args, timeout, logPath, env, nil, nil)
+@@ -68,25 +70,40 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
+ 	cmd.WaitDelay = 5 * time.Second
+ 
+ 	tail := &tailBuffer{max: tailBytes}
++	effectiveEnv := env
++	if effectiveEnv == nil {
++		effectiveEnv = os.Environ()
++	}
++	secrets := detect.SecretValues(effectiveEnv)
+ 	writers := []io.Writer{tail}
+ 	if logPath != "" {
+ 		if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err == nil {
+ 			if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+ 				defer f.Close()
+-				fmt.Fprintf(f, "$ %s %s\n", filepath.Base(prog), strings.Join(quoteArgs(args), " "))
++				// Redact before argument truncation/quoting can split a credential.
++				safeArgs := make([]string, len(args))
++				for i, arg := range args {
++					safeArgs[i] = detect.RedactLog(arg, secrets)
++				}
++				header := detect.RedactLog(filepath.Base(prog)+" "+strings.Join(quoteArgs(safeArgs), " "), secrets)
++				fmt.Fprintf(f, "$ %s\n", detect.Redact(header, 2048))
+ 				writers = append(writers, f)
+ 			}
+ 		}
+ 	}
+ 	combined := io.MultiWriter(writers...)
++	stdoutLog := detect.NewLogWriter(combined, secrets)
++	stderrLog := detect.NewLogWriter(combined, secrets)
+ 	if stdout != nil {
+-		cmd.Stdout = io.MultiWriter(stdout, combined)
++		cmd.Stdout = io.MultiWriter(stdout, stdoutLog)
+ 	} else {
+-		cmd.Stdout = combined
++		cmd.Stdout = stdoutLog
+ 	}
+-	cmd.Stderr = combined
++	cmd.Stderr = stderrLog
+ 
+ 	err := cmd.Run()
++	stdoutLog.Flush()
++	stderrLog.Flush()
+ 	res := CmdResult{Duration: time.Since(start), Tail: tail.String()}
+ 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+ 		res.TimedOut = true
+@@ -115,9 +132,6 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
+ func quoteArgs(args []string) []string {
+ 	out := make([]string, len(args))
+ 	for i, a := range args {
+-		if len(a) > 200 {
+-			a = a[:200] + "…"
+-		}
+ 		if strings.ContainsAny(a, " \t\n\"'") {
+ 			a = fmt.Sprintf("%q", a)
+ 		}
+diff --git a/internal/eval/shell_test.go b/internal/eval/shell_test.go
+index 600f72b..f25bbf5 100644
+--- a/internal/eval/shell_test.go
++++ b/internal/eval/shell_test.go
+@@ -3,6 +3,7 @@ package eval
+ import (
+ 	"bytes"
+ 	"context"
++	"fmt"
+ 	"os"
+ 	"path/filepath"
+ 	"strings"
+@@ -11,6 +12,45 @@ import (
+ 	"time"
+ )
+ 
++func TestRunProcessRedactsDiagnosticsOnly(t *testing.T) {
++	if os.Getenv("BINT_REDACTION_FIXTURE") == "1" {
++		fmt.Fprintln(os.Stdout, "ready")
++		fmt.Fprint(os.Stdout, `{"password":"fixture-`)
++		fmt.Fprintln(os.Stdout, `json-secret"}`)
++		fmt.Fprintln(os.Stderr, "Authorization: Basic fixture-basic-secret")
++		fmt.Fprint(os.Stdout, os.Getenv("BINT_TEST_TOKEN"))
++		os.Exit(0)
++	}
++	bin, err := os.Executable()
++	if err != nil {
++		t.Fatal(err)
++	}
++	logPath := filepath.Join(t.TempDir(), "agent.log")
++	var stdout bytes.Buffer
++	res := runProcess(t.Context(), t.TempDir(), bin,
++		[]string{"-test.run=^TestRunProcessRedactsDiagnosticsOnly$", "--", "--password", "fixture-argument-secret with-space and \"quoted-secret\""},
++		10*time.Second, logPath,
++		append(os.Environ(), "BINT_REDACTION_FIXTURE=1", "BINT_TEST_TOKEN=fixture-env-secret"), nil, &stdout)
++	if !res.OK() {
++		t.Fatalf("fixture failed: %v", res.Err)
++	}
++	raw, err := os.ReadFile(logPath)
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, secret := range []string{"fixture-json-secret", "fixture-basic-secret", "fixture-env-secret", "fixture-argument-secret", "with-space", "quoted-secret"} {
++		if strings.Contains(string(raw), secret) || strings.Contains(res.Tail, secret) {
++			t.Error("credential leaked into persisted log or diagnostic tail")
++		}
++	}
++	if !strings.Contains(string(raw), "ready") || !strings.Contains(res.Tail, "ready") {
++		t.Error("ordinary diagnostics lost")
++	}
++	if !strings.Contains(stdout.String(), "fixture-json-secret") || !strings.Contains(stdout.String(), "fixture-env-secret") {
++		t.Error("agent protocol stdout must remain unchanged")
++	}
++}
++
+ // Removing synchronization from the shared diagnostic tail must fail under
+ // -race when exec copies the captured stdout and stderr through separate pipes.
+ func TestRunProcessConcurrentOutput(t *testing.T) {
+diff --git a/internal/mcpgw/codegraph_index.go b/internal/mcpgw/codegraph_index.go
+index 705c003..55f6bfe 100644
+--- a/internal/mcpgw/codegraph_index.go
++++ b/internal/mcpgw/codegraph_index.go
+@@ -12,6 +12,7 @@ import (
+ 	"time"
+ 
+ 	"bint/internal/config"
++	"bint/internal/detect"
+ 	"bint/internal/gitrepo"
+ 	"bint/internal/mcpcat"
+ )
+@@ -118,7 +119,7 @@ func CodegraphInit(ctx context.Context, root string, out io.Writer) (CodegraphIn
+ 	if err != nil {
+ 		return res, fmt.Errorf("đọc secrets.env: %w", err)
+ 	}
+-	env, _, _ := Env(svc, reg, secrets)
++	env, _, secretVals := Env(svc, reg, secrets)
+ 	path, err := CodegraphIndexBinary(svc, reg)
+ 	if err != nil {
+ 		return res, err
+@@ -130,13 +131,18 @@ func CodegraphInit(ctx context.Context, root string, out io.Writer) (CodegraphIn
+ 	if out == nil {
+ 		out = io.Discard
+ 	}
+-	warning := CodegraphVersionWarning(ctx, path, reg, env)
++	warning := detect.RedactLog(CodegraphVersionWarning(ctx, path, reg, env), secretVals)
+ 	if warning != "" {
+ 		fmt.Fprintln(out, "cảnh báo: "+warning)
+ 	}
+ 	cmd := exec.CommandContext(ctx, path, args...)
+-	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = root, env, out, out
+-	if err := cmd.Run(); err != nil {
++	log := detect.NewLogWriter(out, secretVals)
++	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = root, env, log, log
++	err = cmd.Run()
++	if flushErr := log.Flush(); err == nil {
++		err = flushErr
++	}
++	if err != nil {
+ 		return res, fmt.Errorf("codegraph %s: %w", strings.Join(args, " "), err)
+ 	}
+ 	file, added, err := EnsureGitExclude(ctx, root, CodegraphDir+"/")
+diff --git a/internal/mcpgw/env.go b/internal/mcpgw/env.go
+index a74d7a2..6af0627 100644
+--- a/internal/mcpgw/env.go
++++ b/internal/mcpgw/env.go
+@@ -49,11 +49,7 @@ func Env(svc mcpcat.Service, reg config.Registration, secrets map[string]string)
+ 
+ // ScrubSecrets che mọi giá trị bí mật còn sót trong s, cắt gọn thành một dòng ≤ max ký tự.
+ func ScrubSecrets(s string, secretVals []string, max int) string {
+-	for _, v := range secretVals {
+-		if len(v) >= 3 {
+-			s = strings.ReplaceAll(s, v, "***")
+-		}
+-	}
++	s = detect.RedactLog(s, secretVals)
+ 	return detect.Redact(strings.Join(strings.Fields(s), " "), max)
+ }
+ 
+diff --git a/internal/mcpgw/env_test.go b/internal/mcpgw/env_test.go
+index 0209c6b..d644dd0 100644
+--- a/internal/mcpgw/env_test.go
++++ b/internal/mcpgw/env_test.go
+@@ -106,3 +106,10 @@ func startEnv(t *testing.T, h *harness, svc string, idx int) map[string]string {
+ }
+ 
+ var _ = config.MachineMCP{}
++
++func TestScrubSecretsIncludesShortAndOverlappingValues(t *testing.T) {
++	got := ScrubSecrets("failure abcdef xy", []string{"abc", "abcdef", "xy"}, 300)
++	if strings.Contains(got, "def") || strings.Contains(got, "xy") || !strings.Contains(got, "failure") {
++		t.Fatal("partial or short credential survived scrubbing")
++	}
++}

@@ -1,0 +1,7 @@
+B-T2-1 PASS  N2-perf  verify 20 MB: bản kiểm 1.1s (exit 0) / gốc 1.0s (exit 0)
+B-T2-green-1 PASS  N2-perf  verify 20 MB: bản kiểm 1.1s (exit 0) / gốc 1.2s (exit 0)
+B-T2-2 PASS  N2-perf  verify 20 MB: bản kiểm 1.2s (exit 0) / gốc 1.0s (exit 0)
+B-T2-green-2 PASS  N2-perf  verify 20 MB: bản kiểm 1.1s (exit 0) / gốc 0.9s (exit 0)
+B-T2-3 PASS  N2-perf  verify 20 MB: bản kiểm 1.5s (exit 0) / gốc 1.0s (exit 0)
+B-T2-green-3 PASS  N2-perf  verify 20 MB: bản kiểm 1.1s (exit 0) / gốc 1.1s (exit 0)
+done

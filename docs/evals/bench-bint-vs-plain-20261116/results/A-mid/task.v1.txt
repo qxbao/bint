@@ -1,0 +1,14 @@
+PASS  M1a-publish-dryrun-exit0  exit=0
+PASS  M1b-publish-prints-cap  trần 1024 B
+PASS  M1c-publish-prints-size  kích thước khối gốc ≈ 10647 B (±25%)
+PASS  M1d-publish-warns  dòng chỉ có khi trần thấp: Cảnh báo: khối vượt knowledge.publish.max_bytes; chỉ cảnh báo, không chặn hay tự cắt. Rút gọn hoặc hạ trạng thái các mục lớn nếu cần.
+PASS  M2-doctor-warns  exit=0; dòng chỉ có khi trần thấp: ! kích thước khối tri thức Khối Bint: # bytes (~# token ước tính); knowledge.publish.max_bytes: # bytes ‖ Cảnh báo: khối vượt knowledge.publish.max_bytes; chỉ cảnh báo, không chặn hay tự cắt. Rút gọn hoặc hạ trạng thái các mục lớn nếu cần.
+PASS  M3a-high-no-warning  publish exit=0 doctor exit=0; dòng cảnh báo lọt: []
+PASS  M3b-null-no-warning  publish exit=0 doctor exit=0; dòng cảnh báo lọt: []
+PASS  M4-default-no-warning  publish exit=0; dòng cảnh báo lọt: []
+PASS  M5a-publish-same-low-cap  exit=0 sha=d9039306065e gốc=d9039306065e
+PASS  M5b-publish-same-default  exit=0 sha=d9039306065e gốc=d9039306065e
+PASS  M6-negative-rejected  exit=1 lỗi: cấu hình không hợp lệ:
+  - knowledge.publish.max_bytes: phải >= 0 hoặc null
+PASS  M7-template-has-key(phụ)  khoá knowledge.publish.max_bytes trong .bint/config.yml mới
+== 12/12 PASS

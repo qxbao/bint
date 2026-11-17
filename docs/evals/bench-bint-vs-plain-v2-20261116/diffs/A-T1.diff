@@ -1,0 +1,911 @@
+ docs/architecture.md              |   5 +
+ docs/configuration.md             |  23 ++++
+ docs/usage.md                     |   2 +
+ internal/app/cleanup.go           | 236 ++++++++++++++++++++++++++++++++++++
+ internal/app/cleanup_test.go      | 246 ++++++++++++++++++++++++++++++++++++++
+ internal/app/workspace.go         |   4 +
+ internal/cli/clean.go             |  53 ++++++++
+ internal/cli/clean_e2e_test.go    |  51 ++++++++
+ internal/cli/root.go              |   2 +-
+ internal/config/config.go         |   7 +-
+ internal/config/retention_test.go |  14 +++
+ internal/config/template.go       |   2 +-
+ internal/eval/maintenance.go      |  36 ++++++
+ internal/eval/maintenance_test.go |  25 ++++
+ internal/eval/runner.go           |  17 +++
+ internal/tui/actions/coverage.go  |   2 +
+ 16 files changed, 722 insertions(+), 3 deletions(-)
+
+diff --git a/docs/architecture.md b/docs/architecture.md
+index 020245b..8e6b256 100644
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -80,6 +80,11 @@ ignore). Khi có guardrail kích hoạt, hook ghi thêm `guardrail.triggered`. S
+ | Theo dõi phiên cho guardrail | `<state>/runtime/harness/` | Tệp JSONL nối thêm (lệnh và tệp đã sửa trong phiên), do hook ghi; không khoá, dòng hỏng bị bỏ qua |
+ | Kho đệm, thư mục làm việc và nhật ký đánh giá | `<state>/eval-work/` | Dữ liệu cô lập phục vụ `bint eval` và `bint evolve evaluate` |
+ 
++**Dọn dữ liệu phụ:** `state.retention_days` mặc định 30 ngày; sau nạp sự kiện, Bint thử dọn tối đa
++một lần mỗi ngày. `bint clean --dry-run` xem trước, `bint clean` dọn ngay. Chỉ log/cache/backup thuộc
++phạm vi đã biết được dọn; lịch sử SQLite, tài liệu tác vụ và dữ liệu đang dùng được giữ.
++Chi tiết phạm vi và cách tắt: [cấu hình trạng thái](configuration.md#dự-án-và-thư-mục-trạng-thái).
++
+ ## Điều phối và tương thích nền tảng
+ 
+ - **Workflow (`internal/workflow`):** điều phối `b-req → b-feat → b-review`, gắn `task_id` và
+diff --git a/docs/configuration.md b/docs/configuration.md
+index d27fbe5..bb46cd2 100644
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -40,6 +40,7 @@ hình trước đó.
+ | `project.name` | `""` (`init` điền tên thư mục) | Tên dự án. |
+ | `project.root` | `"auto"` | Trường dự phòng trong schema; gốc repository luôn xác định qua Git. |
+ | `state.dir` | `"auto"` | Đường dẫn tuyệt đối tới thư mục trạng thái của repository (ngoài repository), hoặc `"auto"`. |
++| `state.retention_days` | `30` | Tự dọn dữ liệu phụ quá số ngày này; `0` = tắt, tối đa `36500`. Độc lập với `memory.retention_days` (chỉ là cửa sổ phân tích). |
+ 
+ Với `state.dir: auto`, thư mục trạng thái là `<gốc>/<repo-id>` (trong đó `<repo-id>` tính từ
+ `git-common-dir` nên mọi worktree của cùng một repository dùng chung trạng thái). Thứ tự chọn `<gốc>`:
+@@ -48,6 +49,28 @@ Linux, `~/Library/Application Support/bint/state` trên macOS, `%LOCALAPPDATA%\b
+ Nếu đặt `state.dir` là đường dẫn tuyệt đối (thường trong `.bint/local.yml`), Bint dùng thẳng đường dẫn
+ đó mà không nối thêm `<repo-id>`.
+ 
++Sau mỗi lần nạp sự kiện thành công (ví dụ `bint status`, `bint runs list`, hoặc TUI cập nhật),
++Bint thử dọn dữ liệu phụ, tối đa một lần mỗi 24 giờ cho mỗi repository. Hook không chạy dọn;
++chế độ chỉ đọc của TUI không chạy dọn. Không có daemon hay lịch chạy khi Bint không được dùng.
++Mặc định áp dụng cả khi cấu hình cũ chưa có `state.retention_days`; có thể đặt trong
++`.bint/local.yml` để đổi riêng trên máy này.
++
++Phạm vi: tệp cũ trong `backups/`, `spool/rejected/`, `runtime/hook-trace/`, `runtime/revalidate/`;
++log của tác vụ `done`/`cancelled` đã kết thúc quá hạn; log và thư mục làm việc của đợt đánh giá
++đã kết thúc quá hạn, không còn lượt đang chạy. Tuổi tệp tính theo thời gian sửa cuối; tệp mới
++trong thư mục cũ vẫn được giữ. Không đi theo symlink. Bint giữ nguyên SQLite và lịch sử kết quả,
++tri thức, tài liệu tác vụ, tác vụ còn tiếp tục được, worktree, sự kiện chưa nạp và kho base đánh giá
++(kho base có chính sách riêng qua `eval.keep_bases`/`eval.base_cache_max_mb`).
++
++```sh
++bint clean --dry-run        # xem trước danh sách và tổng byte, không nạp spool hay xoá tệp
++bint clean                 # dọn ngay, dùng cùng chính sách, bỏ qua lịch 24 giờ
++bint clean --dry-run --json # xuất danh sách và số liệu có cấu trúc
++```
++
++Lỗi dọn tự động không chặn thao tác chính; dùng `bint clean` để nhận lỗi trực tiếp.
++Số byte là tổng kích thước tệp logic, có thể khác dung lượng đĩa thực thu hồi nếu có hardlink.
++
+ ## Harness, role và mô hình
+ 
+ `harnesses.enabled` mặc định là `[claude]` (nhận các giá trị `claude`, `codex`, `antigravity`);
+diff --git a/docs/usage.md b/docs/usage.md
+index 2b7912c..7ad44d0 100644
+--- a/docs/usage.md
++++ b/docs/usage.md
+@@ -25,6 +25,8 @@ bint runs list           # lượt chạy đã ghi nhận (tự nạp spool trư
+ bint runs show <id>      # chi tiết, chấp nhận tiền tố ID
+ bint status
+ bint events ingest       # nạp spool thủ công
++bint clean --dry-run     # xem trước log/cache/backup quá hạn (mặc định 30 ngày)
++bint clean               # dọn ngay; bình thường Bint tự dọn sau nạp sự kiện, tối đa mỗi ngày
+ ```
+ 
+ **Hiện diện trong Git** (`--git`, nhớ theo máy, lần init đầu thì hỏi): `track` (mặc định) để tệp
+diff --git a/internal/app/cleanup.go b/internal/app/cleanup.go
+new file mode 100644
+index 0000000..08353e3
+--- /dev/null
++++ b/internal/app/cleanup.go
+@@ -0,0 +1,236 @@
++package app
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io/fs"
++	"os"
++	"path/filepath"
++	"strings"
++	"time"
++
++	"bint/internal/eval"
++	"bint/internal/fslock"
++	"bint/internal/store"
++	"bint/internal/task"
++	"bint/internal/ulid"
++)
++
++// CleanResult counts regular files, using logical sizes (hardlinks may share disk blocks).
++type CleanResult struct {
++	Files int      `json:"files"`
++	Bytes int64    `json:"bytes"`
++	Paths []string `json:"paths,omitempty"`
++}
++
++// Clean removes only disposable files in known state subdirectories. SQLite,
++// task documents, resumable tasks, worktrees and pending spool are never expired.
++// dryRun neither ingests events nor writes files, locks or scheduling metadata.
++func (w *Workspace) Clean(ctx context.Context, s *store.Store, now time.Time, dryRun bool) (CleanResult, error) {
++	return w.clean(ctx, s, now, dryRun, false)
++}
++
++func (w *Workspace) clean(ctx context.Context, s *store.Store, now time.Time, dryRun, automatic bool) (res CleanResult, err error) {
++	days := w.Config.State.RetentionDays
++	if days == 0 {
++		return res, nil
++	}
++	if days < 0 || days > 36500 {
++		return res, Usagef("state.retention_days: phải trong khoảng 0–36500")
++	}
++	root, err := os.OpenRoot(w.Paths.Root)
++	if err != nil {
++		return res, err
++	}
++	defer root.Close()
++	if !dryRun {
++		if info, err := root.Lstat("cleanup.lock"); err == nil && !info.Mode().IsRegular() {
++			return res, fmt.Errorf("cleanup.lock không phải tệp thường")
++		}
++		lock, err := root.OpenFile("cleanup.lock", os.O_CREATE|os.O_RDWR, 0600)
++		if err != nil {
++			return res, err
++		}
++		defer lock.Close()
++		busy, err := fslock.Try(lock, true)
++		if err != nil {
++			return res, err
++		}
++		if busy {
++			if automatic {
++				return res, nil
++			}
++			return res, fmt.Errorf("đang có tiến trình dọn dữ liệu")
++		}
++	}
++	if automatic {
++		if data, err := root.ReadFile("cleanup.last"); err == nil {
++			if last, err := time.Parse(time.RFC3339Nano, string(data)); err == nil && !last.After(now) && now.Sub(last) < 24*time.Hour {
++				return res, nil
++			}
++		}
++	}
++	cutoff := now.AddDate(0, 0, -days)
++	// Check every ancestor: WalkDir alone would follow a symlink used as its root.
++	safe := func(rel string) bool {
++		if !filepath.IsLocal(rel) {
++			return false
++		}
++		var path string
++		for _, part := range strings.Split(filepath.Clean(rel), string(filepath.Separator)) {
++			path = filepath.Join(path, part)
++			info, err := root.Lstat(path)
++			if err != nil || info.Mode()&os.ModeSymlink != 0 {
++				return false
++			}
++		}
++		return true
++	}
++	var sweep func(string) error
++	sweep = func(rel string) error {
++		if err := ctx.Err(); err != nil {
++			return err
++		}
++		if !safe(rel) {
++			return nil
++		}
++		info, err := root.Lstat(rel)
++		if err != nil {
++			return err
++		}
++		if info.IsDir() {
++			f, err := root.Open(rel)
++			if err != nil {
++				return err
++			}
++			entries, err := f.ReadDir(-1)
++			f.Close()
++			if err != nil {
++				return err
++			}
++			for _, entry := range entries {
++				if err := sweep(filepath.Join(rel, entry.Name())); err != nil {
++					return err
++				}
++			}
++			// Remove empty directories only; a directory containing a fresh or linked
++			// file remains. Never recursively remove an uninspected directory.
++			if !dryRun {
++				_ = root.Remove(rel)
++			}
++			return nil
++		}
++		if !info.Mode().IsRegular() || !info.ModTime().Before(cutoff) {
++			return nil
++		}
++		if !dryRun {
++			if err := root.Remove(rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
++				return err
++			}
++		}
++		res.Files++
++		res.Bytes += info.Size()
++		if !automatic {
++			res.Paths = append(res.Paths, filepath.ToSlash(rel))
++		}
++		return nil
++	}
++	for _, rel := range []string{"backups", "spool/rejected", "runtime/hook-trace", "runtime/revalidate"} {
++		if err := sweep(filepath.FromSlash(rel)); err != nil {
++			return res, err
++		}
++	}
++	// Only terminal tasks: failed/interrupted/blocked tasks may be resumed.
++	if safe(filepath.FromSlash("runtime/tasks")) {
++		entries, err := fs.ReadDir(root.FS(), "runtime/tasks")
++		if err != nil {
++			return res, err
++		}
++		for _, entry := range entries {
++			if !entry.IsDir() {
++				continue
++			}
++			base := filepath.Join("runtime", "tasks", entry.Name())
++			stateFile := filepath.Join(base, task.StateFile)
++			if !safe(stateFile) {
++				continue
++			}
++			data, err := root.ReadFile(stateFile)
++			var st task.State
++			if err != nil || json.Unmarshal(data, &st) != nil || !task.Terminal(st.Status) {
++				continue
++			}
++			at, err := time.Parse(time.RFC3339Nano, st.UpdatedAt)
++			if err != nil || !at.Before(cutoff) {
++				continue
++			}
++			if err := sweep(filepath.Join(base, task.LogsDir)); err != nil {
++				return res, err
++			}
++		}
++	}
++	// Exclude writers before querying status, including eval resume in another
++	// process. A busy eval is skipped until a later maintenance pass.
++	cleanEval := safe("eval-work")
++	if cleanEval && !dryRun {
++		release, busy, err := eval.TryMaintenanceLock(w.Paths.EvalWork, true)
++		if err != nil {
++			return res, err
++		}
++		cleanEval = !busy
++		if !busy {
++			defer release()
++		}
++	}
++	// Derive paths from a validated batch ID, never from stored absolute log_dir.
++	rows, err := s.DB.QueryContext(ctx, `SELECT batch_id FROM eval_batches b
++		WHERE status <> 'running' AND finished_at IS NOT NULL AND finished_at < ?
++		AND NOT EXISTS (SELECT 1 FROM evaluation_runs r WHERE r.batch_id = b.batch_id AND r.status = 'running')`, cutoff.UTC().Format("2006-01-02T15:04:05.000Z"))
++	if err != nil {
++		return res, err
++	}
++	var batches []string
++	for rows.Next() {
++		var id string
++		if err := rows.Scan(&id); err != nil {
++			rows.Close()
++			return res, err
++		}
++		if id != "." && filepath.IsLocal(id) && !strings.ContainsAny(id, `/\`) {
++			batches = append(batches, id)
++		}
++	}
++	err = rows.Err()
++	rows.Close()
++	if err != nil {
++		return res, err
++	}
++	for _, id := range batches {
++		if !cleanEval {
++			break
++		}
++		for _, kind := range []string{"logs", "runs"} {
++			if err := sweep(filepath.Join("eval-work", kind, id)); err != nil {
++				return res, err
++			}
++		}
++	}
++	if !dryRun {
++		// Atomic replacement never follows an existing cleanup.last symlink.
++		name := ".cleanup-" + ulid.New()
++		f, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
++		if err != nil {
++			return res, err
++		}
++		defer func() { _ = root.Remove(name) }()
++		_, writeErr := f.WriteString(now.UTC().Format(time.RFC3339Nano))
++		closeErr := f.Close()
++		if err := errors.Join(writeErr, closeErr); err != nil {
++			return res, err
++		}
++		err = root.Rename(name, "cleanup.last")
++	}
++	return res, err
++}
+diff --git a/internal/app/cleanup_test.go b/internal/app/cleanup_test.go
+new file mode 100644
+index 0000000..aab139f
+--- /dev/null
++++ b/internal/app/cleanup_test.go
+@@ -0,0 +1,246 @@
++package app
++
++import (
++	"context"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"bint/internal/eval"
++)
++
++func TestCleanDryRunDisabledAndSchedule(t *testing.T) {
++	repo, _ := runsRepo(t)
++	ctx := context.Background()
++	w, err := OpenWorkspace(ctx, repo, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	s, err := w.OpenStore(ctx)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer s.Close()
++	now := time.Now().UTC()
++	old := now.AddDate(0, 0, -40)
++	path := filepath.Join(w.Paths.Backups, "old.txt")
++	write := func() {
++		t.Helper()
++		if err := os.MkdirAll(w.Paths.Backups, 0700); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.WriteFile(path, []byte("abc"), 0600); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Chtimes(path, old, old); err != nil {
++			t.Fatal(err)
++		}
++	}
++	write()
++	res, err := w.Clean(ctx, s, now, true)
++	if err != nil || res.Files != 1 || res.Bytes != 3 {
++		t.Fatalf("preview: %+v %v", res, err)
++	}
++	for _, p := range []string{path} {
++		if _, err := os.Stat(p); err != nil {
++			t.Fatal(err)
++		}
++	}
++	for _, name := range []string{"cleanup.lock", "cleanup.last"} {
++		if _, err := os.Stat(filepath.Join(w.Paths.Root, name)); !os.IsNotExist(err) {
++			t.Fatalf("preview wrote %s: %v", name, err)
++		}
++	}
++	w.Config.State.RetentionDays = 0
++	if res, err := w.Clean(ctx, s, now, false); err != nil || res.Files != 0 {
++		t.Fatalf("disabled: %+v %v", res, err)
++	}
++	if _, err := os.Stat(path); err != nil {
++		t.Fatal(err)
++	}
++	w.Config.State.RetentionDays = 30
++	if _, err := w.Ingest(ctx, s, now); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(path); !os.IsNotExist(err) {
++		t.Fatalf("first cleanup: %v", err)
++	}
++	write()
++	if _, err := w.Ingest(ctx, s, now.Add(time.Hour)); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(path); err != nil {
++		t.Fatalf("cleanup ran twice in a day: %v", err)
++	}
++	if _, err := w.Ingest(ctx, s, now.Add(24*time.Hour)); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(path); !os.IsNotExist(err) {
++		t.Fatalf("next day's cleanup: %v", err)
++	}
++}
++
++func TestCleanEvalKeepsRunningAndUnknownBatches(t *testing.T) {
++	repo, _ := runsRepo(t)
++	ctx := context.Background()
++	w, err := OpenWorkspace(ctx, repo, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	s, err := w.OpenStore(ctx)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer s.Close()
++	now := time.Now().UTC()
++	old := now.AddDate(0, 0, -40)
++	for _, row := range []struct {
++		id, status string
++		at         time.Time
++	}{
++		{"old", "completed", old}, {"active", "running", old}, {"recent", "completed", now},
++	} {
++		_, err := s.DB.ExecContext(ctx, `INSERT INTO eval_batches
++			(batch_id,status,harness,leakage_mode,arms,repeats,case_ids,prompt_version,seed,started_at,finished_at)
++			VALUES (?,?,'claude','strict','[]',1,'[]',1,1,?,?)`, row.id, row.status, old.Format(time.RFC3339Nano), row.at.Format(time.RFC3339Nano))
++		if err != nil {
++			t.Fatal(err)
++		}
++	}
++	for _, id := range []string{"old", "active", "recent", "unknown"} {
++		p := filepath.Join(w.Paths.EvalWork, "logs", id, "agent.log")
++		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.WriteFile(p, []byte(id), 0600); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Chtimes(p, old, old); err != nil {
++			t.Fatal(err)
++		}
++	}
++	// A resumed evaluation holds this shared lease before changing DB status.
++	// Even a stale completed status must not permit cleanup while it is held.
++	release, busy, err := eval.TryMaintenanceLock(w.Paths.EvalWork, false)
++	if err != nil || busy {
++		t.Fatalf("evaluation lease: busy=%v err=%v", busy, err)
++	}
++	res, err := w.Clean(ctx, s, now, false)
++	release()
++	if err != nil || res.Files != 0 {
++		t.Fatalf("cleaned during evaluation resume: %+v %v", res, err)
++	}
++	res, err = w.Clean(ctx, s, now, false)
++	if err != nil || res.Files != 1 {
++		t.Fatalf("cleanup: %+v %v", res, err)
++	}
++	for _, id := range []string{"active", "recent", "unknown"} {
++		if _, err := os.Stat(filepath.Join(w.Paths.EvalWork, "logs", id, "agent.log")); err != nil {
++			t.Fatal(err)
++		}
++	}
++	var count int
++	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM eval_batches`).Scan(&count); err != nil || count != 3 {
++		t.Fatalf("history lost: %d %v", count, err)
++	}
++}
++
++func TestCleanMetadataSymlinkCannotOverwriteDatabase(t *testing.T) {
++	repo, _ := runsRepo(t)
++	ctx := context.Background()
++	w, err := OpenWorkspace(ctx, repo, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	s, err := w.OpenStore(ctx)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer s.Close()
++	if err := os.Symlink("state.sqlite", filepath.Join(w.Paths.Root, "cleanup.last")); err != nil {
++		t.Skipf("symlinks unavailable: %v", err)
++	}
++	if _, err := w.Clean(ctx, s, time.Now(), false); err != nil {
++		t.Fatal(err)
++	}
++	var n int
++	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs`).Scan(&n); err != nil {
++		t.Fatalf("database damaged by metadata write: %v", err)
++	}
++	info, err := os.Lstat(filepath.Join(w.Paths.Root, "cleanup.last"))
++	if err != nil || !info.Mode().IsRegular() {
++		t.Fatalf("metadata symlink not replaced: %v %v", info, err)
++	}
++}
++
++// Expiring files must not remove pending events, task documents, active task logs,
++// or files reached through a symlink, even when all have an old modification time.
++func TestIngestCleansExpiredFiles(t *testing.T) {
++	repo, _ := runsRepo(t)
++	w, err := OpenWorkspace(context.Background(), repo, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	now := time.Now().UTC()
++	old := now.AddDate(0, 0, -40)
++	write := func(rel, content string, at time.Time) {
++		t.Helper()
++		p := filepath.Join(w.Paths.Root, rel)
++		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.WriteFile(p, []byte(content), 0600); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Chtimes(p, at, at); err != nil {
++			t.Fatal(err)
++		}
++	}
++	write("backups/old/config.yml", "old", old)
++	write("backups/new/config.yml", "new", now)
++	write("spool/rejected/bad.jsonl", "bad", old)
++	write("runtime/hook-trace/old.in", "trace", old)
++	write("runtime/tasks/done/state.json", `{"status":"done","updated_at":"`+old.Format(time.RFC3339Nano)+`"}`, old)
++	write("runtime/tasks/done/logs/agent.log", "done", old)
++	write("runtime/tasks/done/plan.md", "plan", old)
++	write("runtime/tasks/active/state.json", `{"status":"in_progress"}`, old)
++	write("runtime/tasks/active/logs/agent.log", "active", old)
++	write("runtime/tasks/paused/state.json", `{"status":"interrupted"}`, old)
++	write("runtime/tasks/paused/logs/agent.log", "paused", old)
++	write("runtime/tasks/unknown/logs/agent.log", "unknown", old)
++	write("runtime/harness/session.jsonl", "guardrail", old)
++	write("worktrees/task/source.go", "source", old)
++	write("generated/inspect.json", "index", old)
++	outside := t.TempDir()
++	victim := filepath.Join(outside, "keep")
++	if err := os.WriteFile(victim, []byte("keep"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(victim, old, old); err != nil {
++		t.Fatal(err)
++	}
++	// Symlink creation can be unavailable on Windows.
++	_ = os.Symlink(outside, filepath.Join(w.Paths.Backups, "link"))
++	s, err := w.OpenStore(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer s.Close()
++	if _, err := w.Ingest(context.Background(), s, now); err != nil {
++		t.Fatal(err)
++	}
++	for _, rel := range []string{"backups/old/config.yml", "spool/rejected/bad.jsonl", "runtime/hook-trace/old.in", "runtime/tasks/done/logs/agent.log"} {
++		if _, err := os.Stat(filepath.Join(w.Paths.Root, rel)); !os.IsNotExist(err) {
++			t.Errorf("expired file remains: %s (%v)", rel, err)
++		}
++	}
++	for _, rel := range []string{"backups/new/config.yml", "runtime/tasks/done/plan.md", "runtime/tasks/active/logs/agent.log", "runtime/tasks/paused/logs/agent.log", "runtime/tasks/unknown/logs/agent.log", "runtime/harness/session.jsonl", "worktrees/task/source.go", "generated/inspect.json"} {
++		if _, err := os.Stat(filepath.Join(w.Paths.Root, rel)); err != nil {
++			t.Errorf("protected file lost: %s (%v)", rel, err)
++		}
++	}
++	if _, err := os.Stat(victim); err != nil {
++		t.Fatal(err)
++	}
++}
+diff --git a/internal/app/workspace.go b/internal/app/workspace.go
+index ae2e227..d4a8de1 100644
+--- a/internal/app/workspace.go
++++ b/internal/app/workspace.go
+@@ -60,5 +60,9 @@ func (w *Workspace) Ingest(ctx context.Context, s *store.Store, now time.Time) (
+ 	if err != nil {
+ 		return res, fmt.Errorf("nạp spool: %w", err)
+ 	}
++	// Best effort maintenance after successful ingestion, at most once a day.
++	// Hooks and read-only workspaces never enter here; a cleanup failure must not
++	// prevent normal commands. Explicit Clean reports filesystem errors to users.
++	_, _ = w.clean(ctx, s, now, false, true)
+ 	return res, nil
+ }
+diff --git a/internal/cli/clean.go b/internal/cli/clean.go
+new file mode 100644
+index 0000000..fee6332
+--- /dev/null
++++ b/internal/cli/clean.go
+@@ -0,0 +1,53 @@
++package cli
++
++import (
++	"encoding/json"
++	"fmt"
++	"time"
++
++	"bint/internal/app"
++	"github.com/spf13/cobra"
++)
++
++func newCleanCmd(stdio IO) *cobra.Command {
++	var dryRun, asJSON bool
++	c := &cobra.Command{
++		Use: "clean", Short: "Dọn log, bộ đệm đánh giá và bản sao lưu đã hết hạn",
++		Long: "Dọn dữ liệu phụ cũ theo state.retention_days (mặc định 30 ngày; 0 = tắt). Giữ lịch sử SQLite, tài liệu tác vụ và dữ liệu đang dùng. Dùng --dry-run để xem trước.",
++		Args: cobra.NoArgs,
++		RunE: func(cmd *cobra.Command, _ []string) error {
++			dir, err := cwd()
++			if err != nil {
++				return err
++			}
++			ws, err := app.OpenWorkspace(cmd.Context(), dir, true)
++			if err != nil {
++				return err
++			}
++			s, err := ws.OpenStore(cmd.Context())
++			if err != nil {
++				return err
++			}
++			defer s.Close()
++			res, err := ws.Clean(cmd.Context(), s, time.Now(), dryRun)
++			if err != nil {
++				return err
++			}
++			if asJSON {
++				return json.NewEncoder(stdio.Out).Encode(res)
++			}
++			for _, p := range res.Paths {
++				fmt.Fprintln(stdio.Out, p)
++			}
++			verb := "Đã dọn"
++			if dryRun {
++				verb = "Sẽ dọn"
++			}
++			fmt.Fprintf(stdio.Out, "%s %d tệp (%d byte).\n", verb, res.Files, res.Bytes)
++			return nil
++		},
++	}
++	c.Flags().BoolVar(&dryRun, "dry-run", false, "chỉ liệt kê tệp hết hạn, không xoá")
++	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
++	return c
++}
+diff --git a/internal/cli/clean_e2e_test.go b/internal/cli/clean_e2e_test.go
+new file mode 100644
+index 0000000..aa3ba19
+--- /dev/null
++++ b/internal/cli/clean_e2e_test.go
+@@ -0,0 +1,51 @@
++package cli_test
++
++import (
++	"context"
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"bint/internal/app"
++	"bint/internal/testutil"
++)
++
++func TestCleanPreviewAndApply(t *testing.T) {
++	testutil.Isolate(t)
++	repo := testutil.NewRepo(t, map[string]string{"README.md": "demo"})
++	if out, code := run(t, repo, "", "init", "--no-hooks", "--no-skills"); code != 0 {
++		t.Fatalf("init: %d %s", code, out)
++	}
++	w, err := app.OpenWorkspace(context.Background(), repo, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	path := filepath.Join(w.Paths.Backups, "old.txt")
++	if err := os.WriteFile(path, []byte("abc"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	old := time.Now().AddDate(0, 0, -40)
++	if err := os.Chtimes(path, old, old); err != nil {
++		t.Fatal(err)
++	}
++	for _, dry := range []bool{true, false} {
++		args := []string{"clean", "--json"}
++		if dry {
++			args = append(args, "--dry-run")
++		}
++		out, code := run(t, repo, "", args...)
++		var result app.CleanResult
++		if code != 0 || json.Unmarshal([]byte(out), &result) != nil || result.Files != 1 || result.Bytes != 3 {
++			t.Fatalf("dry=%v: code=%d %s", dry, code, out)
++		}
++		_, err := os.Stat(path)
++		if dry && err != nil {
++			t.Fatal(err)
++		}
++		if !dry && !os.IsNotExist(err) {
++			t.Fatalf("not removed: %v", err)
++		}
++	}
++}
+diff --git a/internal/cli/root.go b/internal/cli/root.go
+index c007697..a29d5d1 100644
+--- a/internal/cli/root.go
++++ b/internal/cli/root.go
+@@ -130,7 +130,7 @@ func NewRoot(stdio IO) *cobra.Command {
+ 		}
+ 	}
+ 	add("project", newInitCmd(stdio), newDoctorCmd(stdio), newStatusCmd(stdio), newSyncCmd(stdio), newHarnessCmd(stdio), newUpdateCmd(stdio),
+-		newTUICmd(stdio))
++		newTUICmd(stdio), newCleanCmd(stdio))
+ 	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
+ 		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
+ 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newTestCmd(stdio), newFindingsCmd(stdio), newSkillCmd(stdio), newFlowCmd(stdio))
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 5144b6c..90783a5 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -81,6 +81,8 @@ type Project struct {
+ type State struct {
+ 	// Dir là "auto" hoặc đường dẫn tuyệt đối tới thư mục trạng thái của repository này.
+ 	Dir string `yaml:"dir"`
++	// RetentionDays: tự dọn log/cache cũ; 0 tắt dọn, không ảnh hưởng lịch sử SQLite.
++	RetentionDays int `yaml:"retention_days"`
+ }
+ 
+ type Harnesses struct {
+@@ -565,7 +567,7 @@ func Default() Config {
+ 	return Config{
+ 		Version: SchemaVersion,
+ 		Project: Project{Root: "auto"},
+-		State:   State{Dir: "auto"},
++		State:   State{Dir: "auto", RetentionDays: 30},
+ 		Harnesses: Harnesses{
+ 			Enabled:     []string{"claude"},
+ 			Default:     "claude",
+@@ -837,6 +839,9 @@ func (c Config) Validate() error {
+ 	if c.Version != SchemaVersion {
+ 		add("version: cần %d, nhận %d", SchemaVersion, c.Version)
+ 	}
++	if c.State.RetentionDays < 0 || c.State.RetentionDays > 36500 {
++		add("state.retention_days: phải trong khoảng 0–36500 (0 = tắt dọn)")
++	}
+ 	if c.State.Dir == "" {
+ 		add(`state.dir: không được rỗng (dùng "auto" hoặc đường dẫn tuyệt đối)`)
+ 	} else if c.State.Dir != "auto" && !filepath.IsAbs(c.State.Dir) {
+diff --git a/internal/config/retention_test.go b/internal/config/retention_test.go
+new file mode 100644
+index 0000000..b2875a1
+--- /dev/null
++++ b/internal/config/retention_test.go
+@@ -0,0 +1,14 @@
++package config
++
++import "testing"
++
++func TestRetentionConfiguration(t *testing.T) {
++	for _, days := range []int{-1, 0, 7, 30, 36500, 36501} {
++		cfg := Default()
++		cfg.State.RetentionDays = days
++		err := cfg.Validate()
++		if wantErr := days < 0 || days > 36500; (err != nil) != wantErr {
++			t.Errorf("days=%d: %v", days, err)
++		}
++	}
++}
+diff --git a/internal/config/template.go b/internal/config/template.go
+index fd65313..8a665d4 100644
+--- a/internal/config/template.go
++++ b/internal/config/template.go
+@@ -37,7 +37,7 @@ func Render(p InitParams) string {
+ 	w("# đặt trong .bint/local.yml (không commit). Xem `bint doctor` để kiểm tra.\n")
+ 	w("version: %d\n\n", SchemaVersion)
+ 	w("project:\n  name: %s\n  root: auto\n\n", quote(p.ProjectName))
+-	w("state:\n  dir: auto                 # mặc định: ${XDG_STATE_HOME}/bint/<repo-id>, nằm ngoài repository\n\n")
++	w("state:\n  dir: auto                 # mặc định: ${XDG_STATE_HOME}/bint/<repo-id>, nằm ngoài repository\n  retention_days: 30         # tự dọn log/cache/backup cũ; 0 = tắt; giữ lịch sử SQLite\n\n")
+ 	w("harnesses:\n  enabled:\n")
+ 	for _, e := range p.Harnesses {
+ 		w("    - %s\n", e)
+diff --git a/internal/eval/maintenance.go b/internal/eval/maintenance.go
+new file mode 100644
+index 0000000..a9cbf58
+--- /dev/null
++++ b/internal/eval/maintenance.go
+@@ -0,0 +1,36 @@
++package eval
++
++import (
++	"fmt"
++	"os"
++	"path/filepath"
++
++	"bint/internal/fslock"
++)
++
++// TryMaintenanceLock excludes cleanup from evaluations, including resumed batches.
++// Evaluations share the lock; maintenance takes it exclusively. Never remove the
++// lock file: OS locks attach to the open file, not to its name.
++func TryMaintenanceLock(workRoot string, exclusive bool) (release func(), busy bool, err error) {
++	if err := os.MkdirAll(workRoot, 0700); err != nil {
++		return nil, false, err
++	}
++	root, err := os.OpenRoot(workRoot)
++	if err != nil {
++		return nil, false, err
++	}
++	defer root.Close()
++	if info, err := root.Lstat(".maintenance.lock"); err == nil && !info.Mode().IsRegular() {
++		return nil, false, fmt.Errorf("%s không phải tệp thường", filepath.Join(workRoot, ".maintenance.lock"))
++	}
++	f, err := root.OpenFile(".maintenance.lock", os.O_CREATE|os.O_RDWR, 0600)
++	if err != nil {
++		return nil, false, err
++	}
++	busy, err = fslock.Try(f, exclusive)
++	if busy || err != nil {
++		f.Close()
++		return nil, busy, err
++	}
++	return func() { _ = f.Close() }, false, nil
++}
+diff --git a/internal/eval/maintenance_test.go b/internal/eval/maintenance_test.go
+new file mode 100644
+index 0000000..20039a9
+--- /dev/null
++++ b/internal/eval/maintenance_test.go
+@@ -0,0 +1,25 @@
++package eval
++
++import (
++	"context"
++	"errors"
++	"testing"
++	"time"
++)
++
++func TestResumeWaitsForMaintenance(t *testing.T) {
++	workRoot := t.TempDir()
++	release, busy, err := TryMaintenanceLock(workRoot, true)
++	if err != nil || busy {
++		t.Fatalf("maintenance lock: busy=%v err=%v", busy, err)
++	}
++	defer release()
++	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
++	defer cancel()
++	// Nil DB/agent are deliberately unreachable: no batch or artifact access is
++	// allowed before maintenance finishes, even when resuming an existing batch.
++	_, err = Run(ctx, Env{WorkRoot: workRoot}, nil, RunOptions{ResumeBatch: "old"})
++	if !errors.Is(err, context.DeadlineExceeded) {
++		t.Fatalf("resume bypassed maintenance: %v", err)
++	}
++}
+diff --git a/internal/eval/runner.go b/internal/eval/runner.go
+index d6c778d..f6dad6c 100644
+--- a/internal/eval/runner.go
++++ b/internal/eval/runner.go
+@@ -130,6 +130,23 @@ var ErrBudget = errors.New("vượt ngân sách")
+ 
+ // Run chạy một đợt đánh giá và ghi mọi lượt vào cơ sở dữ liệu.
+ func Run(ctx context.Context, env Env, db *sql.DB, opts RunOptions) (RunResult, error) {
++	// Hold a shared filesystem lease before changing batch status or reading
++	// artifacts. Cleanup uses the exclusive side, so resume cannot race expiry.
++	for {
++		release, busy, err := TryMaintenanceLock(env.WorkRoot, false)
++		if err != nil {
++			return RunResult{}, err
++		}
++		if !busy {
++			defer release()
++			break
++		}
++		select {
++		case <-ctx.Done():
++			return RunResult{}, ctx.Err()
++		case <-time.After(50 * time.Millisecond):
++		}
++	}
+ 	if opts.Now == nil {
+ 		opts.Now = time.Now
+ 	}
+diff --git a/internal/tui/actions/coverage.go b/internal/tui/actions/coverage.go
+index e205ca7..2ab057c 100644
+--- a/internal/tui/actions/coverage.go
++++ b/internal/tui/actions/coverage.go
+@@ -30,6 +30,7 @@ const CurrentPhase = 6
+ // Data là dữ liệu phủ hiện hành.
+ var Data = Coverage{
+ 	Excluded: map[string]string{
++		"clean":            "bảo trì dữ liệu tự động sau nạp sự kiện; CLI cho xem trước và chạy dọn ngay, chưa có form TUI",
+ 		"docs":             "lệnh dự kiến (P3 của kế hoạch Bint), chưa được triển khai nên chưa có gì để hiển thị",
+ 		"hook antigravity": "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+ 		"hook claude":      "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+@@ -52,6 +53,7 @@ var Data = Coverage{
+ 		"--yes":  "thay bằng hộp xác nhận (callback Confirm của dịch vụ)",
+ 	},
+ 	ExcludedCmdFlags: map[string]string{
++		"clean --dry-run":             "xem trước việc bảo trì qua CLI; TUI dùng lịch dọn tự động",
+ 		"eval report --cases":         "chỉ định dạng đầu ra văn bản (bảng theo từng tác vụ); TUI luôn hiện cả hai",
+ 		"knowledge add --body-file":   "TUI soạn nội dung trong ô nhiều dòng thay vì đọc từ tệp",
+ 		"task new --from-findings":    "B1 phần 1 chỉ làm CLI: lập phiếu sửa từ phát hiện review; form TUI chưa có lựa chọn phát hiện",

@@ -1,0 +1,67 @@
+{
+ "what": "mid",
+ "passed": 12,
+ "total": 12,
+ "results": [
+  {
+   "id": "M1a-publish-dryrun-exit0",
+   "pass": true,
+   "detail": "exit=0"
+  },
+  {
+   "id": "M1b-publish-prints-cap",
+   "pass": true,
+   "detail": "trần 1024 B"
+  },
+  {
+   "id": "M1c-publish-prints-size",
+   "pass": true,
+   "detail": "kích thước khối gốc ≈ 10647 B (±25%)"
+  },
+  {
+   "id": "M1d-publish-warns",
+   "pass": true,
+   "detail": "dòng chỉ có khi trần thấp: Cảnh báo: khối vượt knowledge.publish.max_bytes; chỉ cảnh báo, không chặn hay tự cắt. Rút gọn hoặc hạ trạng thái các mục lớn nếu cần."
+  },
+  {
+   "id": "M2-doctor-warns",
+   "pass": true,
+   "detail": "exit=0; dòng chỉ có khi trần thấp: ! kích thước khối tri thức Khối Bint: # bytes (~# token ước tính); knowledge.publish.max_bytes: # bytes ‖ Cảnh báo: khối vượt knowledge.publish.max_bytes; chỉ cảnh báo, không chặn hay tự cắt. Rút gọn hoặc hạ trạng thái các mục lớn nếu cần."
+  },
+  {
+   "id": "M3a-high-no-warning",
+   "pass": true,
+   "detail": "publish exit=0 doctor exit=0; dòng cảnh báo lọt: []"
+  },
+  {
+   "id": "M3b-null-no-warning",
+   "pass": true,
+   "detail": "publish exit=0 doctor exit=0; dòng cảnh báo lọt: []"
+  },
+  {
+   "id": "M4-default-no-warning",
+   "pass": true,
+   "detail": "publish exit=0; dòng cảnh báo lọt: []"
+  },
+  {
+   "id": "M5a-publish-same-low-cap",
+   "pass": true,
+   "detail": "exit=0 sha=d9039306065e gốc=d9039306065e"
+  },
+  {
+   "id": "M5b-publish-same-default",
+   "pass": true,
+   "detail": "exit=0 sha=d9039306065e gốc=d9039306065e"
+  },
+  {
+   "id": "M6-negative-rejected",
+   "pass": true,
+   "detail": "exit=1 lỗi: cấu hình không hợp lệ:\n  - knowledge.publish.max_bytes: phải >= 0 hoặc null"
+  },
+  {
+   "id": "M7-template-has-key(phụ)",
+   "pass": true,
+   "detail": "khoá knowledge.publish.max_bytes trong .bint/config.yml mới"
+  }
+ ]
+}

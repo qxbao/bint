@@ -1,0 +1,1 @@
+{"setup": null, "preview": "bint clean", "clean": "bint clean --apply", "note": "Theo bint clean --help: mặc định chỉ xem trước, --apply xóa dữ liệu đủ điều kiện; --older-than-days mặc định 90. Điền bởi điều phối viên (lệnh nêu thẳng trong --help)."}

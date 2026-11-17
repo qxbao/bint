@@ -1,0 +1,1 @@
+Tôi sợ mật khẩu với token bị lưu lại trong log của bint, xử lý giúp tôi.

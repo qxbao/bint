@@ -1,0 +1,26 @@
+PASS  FX-ledger-clean  cảnh báo sổ phiếu: []
+PASS  FX-OLD_DONE1  01KQFPYNJYH5JX7TFGYPVZFPHK status=done (cần done) updated=2026-04-30T17:28:29Z
+PASS  FX-OLD_DONE2  01KQFPYP1NZERB4E5E13MS1ZWX status=done (cần done) updated=2026-04-30T17:28:29Z
+PASS  FX-NEW_DONE  01M75TEVFHWBZ3D812N94TJ87S status=done (cần done) updated=2026-11-11T17:28:30Z
+PASS  FX-OLD_CANCELLED  01KQFPYPXFNM2T3YYXASQEP7J7 status=cancelled (cần cancelled) updated=2026-04-30T17:28:30Z
+PASS  FX-OLD_BLOCKED  01KQFPYQ873PGWD2B4AY2G33K8 status=blocked (cần blocked) updated=2026-04-30T17:28:31Z
+PASS  FX-OLD_INTERRUPTED  01KQFPYQKHAQCMSXSNJ8VHTK99 status=interrupted (cần interrupted) updated=2026-04-30T17:28:35Z
+PASS  FX-OLD_FAILED_WT  01KQFPYVP9H2CWNZ6JAP4M2FY1 status=failed (cần failed) updated=2026-04-30T17:28:35Z
+PASS  FX-NEW_RUN  01M7JPEKZKTYJFY9N2247F8FFQ status=created (cần created) updated=2026-11-16T17:28:35Z
+PASS  FX-WT-dirty  worktree=/home/baodq/bench-bint-v3-20261117/tmp/ctl-noop/hidden2-t1-onl6pzwt/state/repo-702eb3f00c35/worktrees/01KQFPYVP9H2CWNZ6JAP4M2FY1 status='M a.go\n?? wip_notes.txt'
+PASS  FX-old-bytes  log phiếu kết thúc cũ = 3311793 B
+FIXTURE {"OLD_DONE1": "01KQFPYNJYH5JX7TFGYPVZFPHK", "OLD_DONE2": "01KQFPYP1NZERB4E5E13MS1ZWX", "NEW_DONE": "01M75TEVFHWBZ3D812N94TJ87S", "OLD_CANCELLED": "01KQFPYPXFNM2T3YYXASQEP7J7", "OLD_BLOCKED": "01KQFPYQ873PGWD2B4AY2G33K8", "OLD_INTERRUPTED": "01KQFPYQKHAQCMSXSNJ8VHTK99", "OLD_FAILED_WT": "01KQFPYVP9H2CWNZ6JAP4M2FY1", "NEW_RUN": "01M7JPEKZKTYJFY9N2247F8FFQ"}
+FAIL  D8-preview-no-change  không có cách xem trước
+FAIL  D5-concurrent-run  lượt chạy exit=1 status=blocked logs=['b-feat-01M7JPEMYTZ4MQMEQJPGWJ4775.log', 'prompt.txt'] slow.txt=True | dọn#1 exit=0 0.0s '' | run: 'nh tác vụ này:\n     bint run resume 01M7JPEKZKTYJFY9N2247F8FFQ --answer "<nội dung>"\n  2. huỷ tác vụ:\n     bint task cancel 01M7JPEKZKTYJFY9N2247F8FFQ\nChi tiết: bint task show 01M7JPEKZKTYJFY9N2247F8FFQ   ·   bint run status 01M7JPEKZKTYJFY9N2247F8FFQ\nlỗi: tác vụ 01M7JPEKZKTYJFY9N2247F8FFQ: blocked\n'
+PASS  D1-OLD_BLOCKED  01KQFPYQ873PGWD2B4AY2G33K8 thư mục còn=True tệp đổi/mất=[]
+PASS  D1-OLD_INTERRUPTED  01KQFPYQKHAQCMSXSNJ8VHTK99 thư mục còn=True tệp đổi/mất=[]
+PASS  D2-worktree-kept  worktree còn=True status giữ=True nhánh còn=True tệp phiếu đổi/mất=[]
+PASS  D3-symlink-target  tệp ngoài bị đổi/mất=[]
+PASS  D4-outside-state  tệp ngoài thư mục trạng thái bị đổi=[]
+INFO  D4i-ledger-in-repo  sổ phiếu .bint/tasks (đã commit) bị đổi/xoá: 0 tệp []
+FAIL  D6-old-finished-cleaned  log phiếu kết thúc cũ 3311793 B → còn 3311793 B (giải phóng 0); dọn#1 exit=0
+INFO  D6i-total-bytes  tổng thư mục trạng thái (bỏ sqlite, NEW_RUN) sau = 5553855 B
+PASS  D7-new-finished-kept  01M75TEVFHWBZ3D812N94TJ87S tệp đổi/mất=[]
+PASS  D9-after-clean-healthy  doctor 0->0 ✗mới=[] task list 0->0 runs list 0->0 show lỗi=[] show phiếu đã dọn=[] dọn#1/2/3 exit=0/0/0
+INFO  T-clean-output  dọn#1: '' | dọn#2: ''
+TÓM TẮT {"cmd": "t1", "fail": ["D8-preview-no-change", "D5-concurrent-run", "D6-old-finished-cleaned"], "fixture_ok": true, "critical": ["D5-concurrent-run"], "medium": ["D8-preview-no-change", "D6-old-finished-cleaned"]}

@@ -1,0 +1,141 @@
+{
+  "X": [
+    {
+      "id": "X1",
+      "severity": "critical",
+      "title": "Không che bí mật trong phiếu (task.yml: request/goal), tài liệu phiếu (plan/requirement/tasks.md), review.json/review.md và state.json (lỗi, bằng chứng tiêu chí); cả bản sổ cái .bint/tasks trong cây làm việc",
+      "where": "internal/task/task.go:923 (WriteArtifact), internal/task/review.go:212 (AddRound), internal/task/ticket.go:33 (FromRequest); diff X không sửa gói task",
+      "scenario": "Dựng repo tạm, `bint init`; `bint task new 'Mật khẩu DB: password=ReqPw5555, token ghp_ReqI…, Authorization: Bearer ReqBearer6666' --shared --no-plan`; `bint task write <id> plan -` với 'api_key=DocKey7777'; `bint task review <id> -` với summary 'password=RevPw8888', body 'Authorization: Bearer RevBearer9999'; `bint task error <id> --step b-feat 'password=ErrPw1212'`; `bint task criteria <id> 1 met -e \"curl -H 'Authorization: Bearer CritBearer3434'\"`; rồi grep thư mục trạng thái và .bint/tasks.",
+      "evidence": "grep -rlaF trên run-X: ReqPw5555/ReqBearer6666 -> runtime/tasks/<id>/task.yml và repo/.bint/tasks/<id>/task.yml; DocKey7777 -> plan.md (cả hai nơi); RevPw8888/RevBearer9999/RevEv2020 -> review.md, review.json (cả hai nơi); ErrPw1212, CritBearer3434 -> state.json (cả hai nơi). Y che được các mục có nhãn này trong cùng kịch bản.",
+      "ran": true
+    },
+    {
+      "id": "X2",
+      "severity": "critical",
+      "title": "Câu trả lời cuối của agent (result_summary) vào SQLite thô: bảng runs.result_summary và events.payload của workflow.finished",
+      "where": "internal/workflow/run.go:1440 (payload result_summary = truncate(res.Text)) -> spool -> runlog ingest; diff X không che spool/runlog",
+      "scenario": "agent.sh in JSON kết quả có result 'Đã xong. Mật khẩu: password=AgentPw3131, Authorization: Bearer AgentBearer3232'; `bint run b-review --task <id> --agent-command agent.sh`; `bint events ingest`; truy vấn state.sqlite.",
+      "evidence": "sqlite3 state.sqlite \"select result_summary from runs\" -> 'Đã xong. Mật khẩu: password=AgentPw3131, Authorization: Bearer AgentBearer3232'; events: workflow.finished|{...\"result_summary\":\"Đã xong. Mật khẩu: password=AgentPw3131, Authorization: Bearer AgentBearer3232\"...}. (Log bước b-review-<run>.log thì đã che; Y che cả result_summary: 'password=*** Authorization: ***'.)",
+      "ran": true
+    },
+    {
+      "id": "X3",
+      "severity": "critical",
+      "title": "Không nhận diện token/khoá không có nhãn: token GitHub làm userinfo trong URL (https://ghp_…@github.com), ghp_ trần, AKIA…, khối khoá riêng PEM vẫn ghi thô vào log kiểm chứng/lượt chạy",
+      "where": "internal/redact/redact.go:20 (url chỉ khớp user:pass@), :14-19 (chỉ có mẫu theo nhãn, không có mẫu định dạng ghp_/AKIA/-----BEGIN … PRIVATE KEY-----)",
+      "scenario": "Lệnh kiểm chứng `sh leak.sh` in: 'remote: https://ghp_<FIXTURE>…@github.com/o/r.git' (dạng git in khi push bằng token), 'found key ghp_BareC… in config', 'aws_access_key_id AKIA<FIXTURE>', và `cat key.pem` (RSA PRIVATE KEY); `bint task approve` + `bint task verify`.",
+      "evidence": "verify-1.log của X còn nguyên: 'remote: https://ghp_<FIXTURE>…@github.com/o/r.git', 'found key ghp_<FIXTURE>… in config', 'aws_access_key_id AKIA<FIXTURE>', '-----BEGIN RSA PRIVATE KEY-----\\nMIIEpAIBAAKCAQEAPemBodyLineOne…\\nPemBodyLineTwo…'. Hook PostToolUse với 'git push https://ghp_<FIXTURE>…@github.com/o/r' cũng vào SQLite events nguyên văn.",
+      "ran": true
+    },
+    {
+      "id": "X4",
+      "severity": "medium",
+      "title": "Giá trị biến môi trường 'nhạy cảm' ngắn (1, true) được che như literal ở mọi chỗ: log kiểm chứng/agent bị nát, số JSON bị đổi thành chuỗi \"***\"",
+      "where": "internal/redact/redact.go:36 (EnvValues không có độ dài tối thiểu), :102 (New thay literal mọi giá trị khác rỗng), walk() đổi json.Number thành \"***\"",
+      "scenario": "Môi trường có biến thật kiểu HF_HUB_DISABLE_IMPLICIT_TOKEN=1 hoặc NPM_CONFIG_ALWAYS_AUTH=true; lệnh kiểm chứng in 'ok example.com/pkg 1.031s', '--- FAIL: TestLogin (0.10s) login_test.go:41: true != false', và dòng go test -json.",
+      "evidence": "verify log X: 'ok   example.com/pkg ***.03***s' / '--- FAIL: TestLogin (0.***0s) login_test.go:4***: *** != false' / '{\"Action\":\"pass\",\"Elapsed\":\"***\",…}' (Elapsed từ số 1.1 thành chuỗi).",
+      "ran": true
+    },
+    {
+      "id": "X5",
+      "severity": "low",
+      "title": "Che log kiểm chứng chậm ~18 lần trên log lớn",
+      "where": "internal/redact/writer.go:93 (Write) + redact.go plain()",
+      "scenario": "Lệnh kiểm chứng in 600k dòng kiểu go test -v (26 MB); đo `bint task verify`.",
+      "evidence": "base 0.30 s, X 5.45 s (Y 26.35 s); nội dung log giống hệt base (diff 0 dòng).",
+      "ran": true
+    }
+  ],
+  "Y": [
+    {
+      "id": "Y1",
+      "severity": "critical",
+      "title": "Che dữ liệu vận hành rồi ghi lại xuống đĩa: state.json bị hỏng vĩnh viễn (commit base, đường dẫn worktree, thời điểm) khi môi trường có biến 'nhạy cảm' giá trị ngắn; tác vụ không chạy được nữa kể cả khi đã bỏ biến",
+      "where": "internal/task/task.go:760 (writeState: t.State = redact.Copy(t.State)), :788 (loadDir), :726 (Create); internal/redact/redact.go:20,54 (New/FromEnv không có độ dài tối thiểu)",
+      "scenario": "Tác vụ khoẻ (state.json không có '***'). Chạy `HF_HUB_DISABLE_IMPLICIT_TOKEN=1 bint task error <id> --step b-feat 'thử'` (biến môi trường có thật của HuggingFace). Sau đó, không còn biến đó, chạy `bint task verify <id>`.",
+      "evidence": "diff state.json: \"base\": \"a91ef4ce7236353d75660e290375b13f6c2b627e\" -> \"a9***ef4ce7236353d75660e290375b***3f6c2b627e\"; \"worktree\": \"/tmp/claude-1000/t2rev/run-Y/repo\" -> \"/tmp/claude-***000/t2rev/run-Y/repo\"; \"at\": \"2026-******-***6T***9:37:43Z\". `bint task verify` sau đó: 'lỗi: thư mục làm việc của tác vụ không còn: /tmp/claude-***000/t2rev/run-Y/repo'. Bản sổ cái repo/.bint/tasks/<id>/state.json cũng bị ghi bản hỏng. Cùng nguyên nhân, `bint task criteria <id> 1 …` báo 'tiêu chí *** không tồn tại'.",
+      "ran": true
+    },
+    {
+      "id": "Y2",
+      "severity": "critical",
+      "title": "Hồi quy: lệnh trong sự kiện hook (SQLite events) không còn che biến môi trường dạng PGPASSWORD=, AWS_SECRET_ACCESS_KEY=, GITHUB_PAT= (bản gốc che mọi VAR=value); log kiểm chứng cũng để thô AWS_SECRET_ACCESS_KEY= và PGPASSWORD=",
+      "where": "internal/detect/detect.go:267 (bỏ envAssign, chỉ còn redact.Text); internal/redact/redact.go:44 (SensitiveName đòi tên == khoá hoặc hậu tố '_'+khoá, nên PGPASSWORD, AWS_SECRET_ACCESS_KEY, GITHUB_PAT không khớp)",
+      "scenario": "printf hook PostToolUse Bash command 'PGPASSWORD=HookPg1313 AWS_SECRET_ACCESS_KEY=HookAws1414 GITHUB_PAT=HookPat1515 go test ./... && git push …' | bint hook claude PostToolUse; bint events ingest; sqlite3 'select payload from events where event_type like \"test%\"'. Và lệnh kiểm chứng in 'AWS_SECRET_ACCESS_KEY=AwsSecretD…', 'PGPASSWORD=PgPwFFFF psql -h db'.",
+      "evidence": "base và X: {\"command\":\"PGPASSWORD=*** AWS_SECRET_ACCESS_KEY=*** GITHUB_PAT=*** go test ./... …\"}; Y: {\"command\":\"PGPASSWORD=HookPg1313 AWS_SECRET_ACCESS_KEY=HookAws1414 GITHUB_PAT=HookPat1515 go test ./... …\"}. verify-1.log của Y: 'AWS_SECRET_ACCESS_KEY=AwsSecretDDDD…' và 'PGPASSWORD=PgPwFFFF psql -h db' nguyên văn (X che cả hai).",
+      "ran": true
+    },
+    {
+      "id": "Y3",
+      "severity": "critical",
+      "title": "Không nhận diện token/khoá không có nhãn (ghp_ trần, token GitHub làm userinfo URL không có ':', AKIA…, khối PEM) ở log kiểm chứng lẫn task.yml/plan.md/review.json",
+      "where": "internal/redact/redact.go:75 và nhánh userinfo trong labelled() (bỏ qua userinfo không chứa ':'); không có mẫu định dạng token",
+      "scenario": "Như X3: verify in 'remote: https://ghp_<FIXTURE>…@github.com/o/r.git', 'found key ghp_BareC…', 'AKIAEEEE…', cat key.pem; và `bint task new '… token GitHub ghp_ReqI…'`, plan.md có 'ghp_DocJ…', review title 'lộ token ghp_RevK…'.",
+      "evidence": "grep trên run-Y: ghp_<FIXTURE>, ghp_BareC, AKIAEEEE, PemBodyLineOne/Two -> verify-1.log; ghp_ReqI -> task.yml (state và .bint/tasks); ghp_DocJ -> plan.md; ghp_RevK -> review.md, review.json. Hook với 'git push https://ghp_<FIXTURE>…@github.com/o/r' vào SQLite events nguyên văn.",
+      "ran": true
+    },
+    {
+      "id": "Y4",
+      "severity": "medium",
+      "title": "Log bị nuốt mất phần còn lại: một dấu nháy không đóng sau khoá nhạy cảm (vd 'auth: can't …') che hết mọi dòng sau; một dòng JSON > 64 KiB (dòng stream-json của agent đọc tệp lớn) làm bỏ TOÀN BỘ đầu ra sau nó",
+      "where": "internal/redact/shell.go:81 (shellWord trả incomplete khi nháy mở), :142 (incompleteShellValue); internal/redact/writer.go:58 (discardRest = true), :11 (MaxLine 64 KiB)",
+      "scenario": "(a) verify in 'error: auth: can't reach server', rồi 'keep line A', 'keep line B', 'keep line C', 'PASS ok'. (b) verify in một dòng JSON 70 KB, 'error: token: it's broken', 7000 dòng 'filler line', 'FINAL: 3 tests failed'.",
+      "evidence": "(a) verify-1.log Y kết thúc ở 'error: auth: ***' — mất keep line A/B/C và 'PASS ok' (X giữ đủ). (b) log Y chỉ còn 2 dòng: '$ sh -c \"sh big.sh\"' và '[redacted: diagnostic line exceeds 64 KiB]' (63 byte); X giữ 7004 dòng gồm 'FINAL: 3 tests failed'.",
+      "ran": true
+    },
+    {
+      "id": "Y5",
+      "severity": "medium",
+      "title": "Che quá tay: mọi dòng log bắt đầu bằng '[' + chữ số/dấu (tiến trình '[1/3]', dấu thời gian '[2026-11-17 …]') bị thay bằng '[redacted: incomplete or invalid JSON diagnostic]'",
+      "where": "internal/redact/json.go:11 (jsonRecord coi '[1…' là JSON), :31 (recordText thay cả dòng khi không phải JSON hợp lệ)",
+      "scenario": "Lệnh kiểm chứng in '[1/3] building module alpha' và '[2026-11-17 10:00:00] INFO server started'.",
+      "evidence": "verify-1.log Y: hai dòng đó thành '[redacted: incomplete or invalid JSON diagnostic]' (X và base giữ nguyên).",
+      "ran": true
+    },
+    {
+      "id": "Y6",
+      "severity": "medium",
+      "title": "CLI đệm stdout/stderr theo dòng cho mọi lệnh (trừ hook/mcp/iso/tui): câu hỏi tương tác không xuống dòng (vd '[y/N] ' của bint init) chỉ hiện SAU khi người đã gõ trả lời — lệnh trông như treo",
+      "where": "internal/cli/root.go:74-93 (redact.NewWriter bọc stdio.Out/stdio.Err)",
+      "scenario": "Trong pty: `script -qfec 'bint init' ts.txt` với stdin trả lời 'n' sau 4 s; xem ts.txt sau 2 s.",
+      "evidence": "Sau 2 s: base 228 byte (đã hiện 'Chỉ dùng Bint riêng trên máy này…? [y/N]'), X 246 byte, Y 0 byte. Bản cuối của Y: các 'n' người gõ xuất hiện trước, rồi mới tới cả loạt câu hỏi '… [y/N] Cài hook … [y/N] …'.",
+      "ran": true
+    },
+    {
+      "id": "Y7",
+      "severity": "medium",
+      "title": "Từ chối lệnh kiểm chứng chứa credential giả dùng cho test (DB_PASSWORD=postgres go test) và làm tác vụ cũ có lệnh như vậy không dùng được nữa (approve/error/verify đều lỗi, sync bỏ qua phiếu)",
+      "where": "internal/task/task.go:100 (Validate gọi redact.CommandSafe), internal/app/task_svc.go (VerifyTask/ApproveTask gọi Validate)",
+      "scenario": "Tạo tác vụ bằng bản gốc với --verify-command 'DB_PASSWORD=postgres sh short.sh', rồi dùng binary Y: `bint task approve <id>`, `bint task error <id> …`, `bint task verify <id>`; và `bint task new … --verify-command 'DB_PASSWORD=postgres go test ./...'`.",
+      "evidence": "Mọi lệnh đều: 'lỗi: phiếu tác vụ không hợp lệ: verify.command: chứa credential trực tiếp; hãy tham chiếu biến môi trường' kèm 'bint: bỏ qua .bint/tasks/<id>: task.yml: …'.",
+      "ran": true
+    },
+    {
+      "id": "Y8",
+      "severity": "medium",
+      "title": "Che log rất chậm: ~88 lần so với bản gốc trên log kiểm chứng lớn (~1 MB/s)",
+      "where": "internal/redact/writer.go (incomplete() quét lại bộ đệm mỗi lần ghi), redact.go Text (documentText/yamlText thử phân tích YAML từng dòng có ':', labelled nhiều lượt)",
+      "scenario": "Lệnh kiểm chứng in 600k dòng kiểu go test -v (26 MB); đo `bint task verify`.",
+      "evidence": "base 0.30 s, X 5.45 s, Y 26.35 s; nội dung log Y giống base (diff 0 dòng), nên toàn bộ phần chênh là chi phí che.",
+      "ran": true
+    },
+    {
+      "id": "Y9",
+      "severity": "low",
+      "title": "Mã chưa gofmt: bước gofmt của CI sẽ đỏ",
+      "where": "internal/redact/json.go, redact.go, shell.go, shell_expansion.go, writer.go, yaml.go (+ round2_test.go, task/redaction_test.go, tui/screens/tasks/redaction_test.go); .github/workflows/ci.yml:40-44",
+      "scenario": "`gofmt -l .` trong bản đã áp diff Y.",
+      "evidence": "gofmt -l liệt kê internal/redact/json.go, redact.go, shell.go, shell_expansion.go, writer.go, yaml.go…; X sạch.",
+      "ran": true
+    },
+    {
+      "id": "Y10",
+      "severity": "low",
+      "title": "Mẫu header Authorization nuốt hết phần còn lại của dòng; mẫu 'id-token:' nuốt cả từ sau",
+      "where": "internal/redact/redact.go:73 (header: [^\\r\\n\"']+)",
+      "scenario": "Chạy redact.New().Text trên docs của repo (kiểm thử thăm dò tạm trong bản sao).",
+      "evidence": "'  `Authorization: Bearer <token>` (thiếu/sai → 401); Host không phải loopback …' -> '  `Authorization: ***'; 'cần `id-token: write`, `attestations: write`), …' -> 'cần `id-token: *** write`), …'.",
+      "ran": true
+    }
+  ]
+}

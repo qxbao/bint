@@ -1,0 +1,38 @@
+{
+  "X": [
+    {
+      "id": "X1",
+      "severity": "medium",
+      "title": "Phạm vi dọn quá hẹp: trên máy đang dùng gần như không lấy lại được dung lượng nào",
+      "where": "internal/state/cleanup.go:409",
+      "scenario": "Người dùng nâng cấp Bint, thư mục trạng thái đã phình to vì log eval-work/logs|runs, log phiếu runtime/tasks/*/logs, backups, spool, log evolve cũ → MaybeCleanup chỉ quét revalidate/evolve/hook-trace; mọi log revalidate/evolve có sẵn trước khi nâng cấp không có trong sổ Completed nên bị giữ mãi ('unconfirmed'); log do evolve/reflector.go:174 và evolve/generate.go:462 ghi (hai nguồn log evolve chính) không bao giờ được RecordCompletedDiagnostic nên cũng giữ mãi; hook-trace chỉ có khi bật BINT_HOOK_TRACE=1 và mã gốc đã tự cắt ở 500 tệp (app/hook_trace.go:33,113). Kết quả: lệnh dọn chạy nhưng hầu như không xoá gì, thư mục vẫn tiếp tục phình, trái mục tiêu chính của người dùng (chính tài liệu thừa nhận ở docs/configuration.md:239).",
+      "evidence": "for _, group := range []string{\"revalidate\", \"evolve\", \"hook-trace\"} { ... stamp, ok := l.Completed[key]; if !ok { rep.keep(\"unconfirmed\"); return }  // docs: \"Vì vậy chính sách này không giới hạn tổng dung lượng thư mục trạng thái.\""
+    },
+    {
+      "id": "X2",
+      "severity": "medium",
+      "title": "Không có cách xem trước (hay chạy tay) trước khi xoá; việc xoá diễn ra ngầm trong mọi lần nạp spool",
+      "where": "internal/app/workspace.go:65",
+      "scenario": "Người dùng muốn xem trước sẽ xoá gì → không có lệnh/cờ dry-run nào; dọn tự động bật mặc định (90 ngày) và chạy ngầm trong Workspace.Ingest (bint status, runs list, TUI, MCP history, bint run...). Người dùng chỉ thấy số tệp/byte SAU khi đã xoá qua bint status, không có danh sách đường dẫn, không có cách xem trước như yêu cầu.",
+      "evidence": "cleanupCtx, cancel := context.WithTimeout(ctx, 2*time.Second)\n...\ncleanupRep, cleanupErr := state.MaybeCleanup(cleanupCtx, w.Paths, w.Config.State.CleanupRetentionDays, now)"
+    }
+  ],
+  "Y": [
+    {
+      "id": "Y1",
+      "severity": "critical",
+      "title": "Tự động xoá vĩnh viễn thư mục backups/ — bản sao lưu duy nhất của tệp người dùng bị Bint ghi đè",
+      "where": "internal/app/cleanup.go:140",
+      "scenario": "backups/ chứa bản sao do fsafe.Backup chép trước khi Bint ghi đè tệp của người dùng (settings.json, CLAUDE.md/AGENTS.md, .gitignore, cấu hình MCP, .bint/config.yml qua config set/init --update, skill bị publish --force ghi đè; base: internal/fsafe/fsafe.go:55, internal/app/init.go:234-617, internal/app/config_svc.go:294). Sau khi nâng cấp, lần đầu chạy bất kỳ lệnh nạp spool (bint status, TUI, MCP history) → clean(automatic=true) xoá mọi bản sao lưu cũ hơn 30 ngày, không hỏi, không ghi lại đường dẫn (Paths chỉ ghi khi !automatic), lỗi bị nuốt (workspace.go:66). Người dùng mất vĩnh viễn nội dung gốc mà Bint đã hứa 'có sao lưu' — đúng loại 'xoá không thể khôi phục mà người dùng không lường trước'; xem trước bằng --dry-run không cứu được vì dọn tự động chạy trước.",
+      "evidence": "for _, rel := range []string{\"backups\", \"spool/rejected\", \"runtime/hook-trace\", \"runtime/revalidate\"} {\n\tif err := sweep(filepath.FromSlash(rel)); err != nil {\n// workspace.go:66: _, _ = w.clean(ctx, s, now, false, true)"
+    },
+    {
+      "id": "Y2",
+      "severity": "medium",
+      "title": "Mặc định 30 ngày xoá log/thư mục đợt eval còn nằm trong cửa sổ phân tích 90 ngày của evolve (hồi quy), và ngắn hơn 'vài tháng' người dùng muốn",
+      "where": "internal/app/cleanup.go:188",
+      "scenario": "memory.retention_days mặc định 90 (base config.go:588) là cửa sổ evolve.Scan/LoadFailures; evalFailure đọc <LogDir>/agent.log, files list, test.log của lượt eval (base internal/evolve/failure.go:441-455). Y đặt state.retention_days mặc định 30 (config.go:571) và xoá eval-work/logs/<batch> + runs/<batch> của đợt kết thúc >30 ngày → thất bại eval 30–90 ngày tuổi mất Trace/Measured/TestFails, phân loại tín hiệu và bài học từ thất bại của bint evolve suy giảm im lặng; đồng thời cùng ngưỡng 30 ngày xoá log phiếu đã xong, hook-trace, backups sớm hơn nhiều so với 'khoảng vài tháng' người dùng muốn giữ.",
+      "evidence": "State:   State{Dir: \"auto\", RetentionDays: 30},\n...\nSELECT batch_id FROM eval_batches b WHERE status <> 'running' AND finished_at IS NOT NULL AND finished_at < ?\n...\nfor _, kind := range []string{\"logs\", \"runs\"} { sweep(filepath.Join(\"eval-work\", kind, id)) }"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"setup": null, "preview": "bint gc --dry-run", "clean": "bint gc", "note": "bint gc --help: 'bint gc' dọn dữ liệu phụ quá state.retention_days (mặc định 30), --dry-run để xem trước; docs/usage.md thêm 'bint gc --dry-run' và 'bint gc', không cần cờ xác nhận."}

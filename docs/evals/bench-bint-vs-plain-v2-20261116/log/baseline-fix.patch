@@ -1,0 +1,91 @@
+diff --git a/docs/README.md b/docs/README.md
+index 851ffbf..d3d353d 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -34,7 +34,7 @@ Cài đặt và khởi tạo nhanh xem tại [README.md](../README.md).
+ | [Kế hoạch gateway MCP](mcp-gateway-plan.md) | Gateway MCP dùng chung cho mọi harness, danh mục và quản lý MCP (API/CLI/TUI), cấp MCP theo role, cấp MCP cho các bước `bint run` (M0–M4 đã triển khai, M5 đã đo bộ nhớ) |
+ | [Kế hoạch cô lập và driver session](isolation-subagent-plan.md) | Cô lập tác vụ chạy song song (khoá, worktree), điều phối `b-do` bằng subagent trong phiên (G1–G4 đã triển khai) |
+ | [Kế hoạch custom skill/flow](custom-flow-plan.md) | Skill tuỳ biến, flow tuỳ biến, `b-add-skill`/`b-add-flow`, `bint skill test` (GĐ1–6 đã triển khai; chờ nghiệm thu thủ công `NT-CF-MANUAL`) |
+-| [Kế hoạch vòng chạy dự đoán được](run-predictability-plan.md) | `bint flow simulate` và ước lượng từ lịch sử, phát hiện vòng sửa không tiến triển (đo offline và chế độ bóng trước khi dừng sớm), trần kích thước khối `AGENTS.md`, thử nghiệm effort (bản đề xuất, chưa có phiếu) |
++| [Kế hoạch vòng chạy dự đoán được](run-predictability-plan.md) | Mô phỏng flow (simulate) và ước lượng từ lịch sử, phát hiện vòng sửa không tiến triển (đo offline và chế độ bóng trước khi dừng sớm), trần kích thước khối `AGENTS.md`, thử nghiệm effort (bản đề xuất, chưa có phiếu) |
+ 
+ ## Nghiệm thu và thực nghiệm
+ 
+diff --git a/internal/tui/app/testdata/golden/system_skill_detail_140x40_en.txt b/internal/tui/app/testdata/golden/system_skill_detail_140x40_en.txt
+index 9a7df00..29dd6b4 100644
+--- a/internal/tui/app/testdata/golden/system_skill_detail_140x40_en.txt
++++ b/internal/tui/app/testdata/golden/system_skill_detail_140x40_en.txt
+@@ -3,7 +3,7 @@
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+ ┌─│System│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │   Config · Harness · Components · Skills · Index · Language · Doctor · Setup · Update                                                    │
+-│ ┌─│Skills (3)│───────────────────────────────────────────────┐┌─│Content of b-feat│───────────────────────────────────────────1-32/126─┐ │
++│ ┌─│Skills (3)│───────────────────────────────────────────────┐┌─│Content of b-feat│───────────────────────────────────────────1-32/140─┐ │
+ │ │   core  b-do                       aaaa1111  published     ││ ---                                                                    │ │
+ │ │ ▸ core  b-feat                     bbbb2222  differs       ││ name: b-feat                                                           │ │
+ │ │   evol… api-guide                  v2        missing       ││ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai   │ │
+diff --git a/internal/tui/app/testdata/golden/system_skill_detail_140x40_vi.txt b/internal/tui/app/testdata/golden/system_skill_detail_140x40_vi.txt
+index 66eb1c7..30ad236 100644
+--- a/internal/tui/app/testdata/golden/system_skill_detail_140x40_vi.txt
++++ b/internal/tui/app/testdata/golden/system_skill_detail_140x40_vi.txt
+@@ -3,7 +3,7 @@
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+ ┌─│Hệ thống│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                             │
+-│ ┌─│Skill (3)│────────────────────────────────────────────────┐┌─│Nội dung b-feat│─────────────────────────────────────────────1-32/126─┐ │
++│ ┌─│Skill (3)│────────────────────────────────────────────────┐┌─│Nội dung b-feat│─────────────────────────────────────────────1-32/140─┐ │
+ │ │   gốc   b-do                       aaaa1111  đã xuất bản   ││ ---                                                                    │ │
+ │ │ ▸ gốc   b-feat                     bbbb2222  khác bản Bint ││ name: b-feat                                                           │ │
+ │ │   t.hoá api-guide                  v2        chưa xuất bản ││ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai   │ │
+diff --git a/internal/tui/app/testdata/golden/system_skill_detail_140x40_xx.txt b/internal/tui/app/testdata/golden/system_skill_detail_140x40_xx.txt
+index 3df7c65..2e8034f 100644
+--- a/internal/tui/app/testdata/golden/system_skill_detail_140x40_xx.txt
++++ b/internal/tui/app/testdata/golden/system_skill_detail_140x40_xx.txt
+@@ -3,7 +3,7 @@
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
+ ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧ · ⟦Setup~~⟧ · ⟦Update~~~⟧       │
+-│ ┌─│⟦Skills (3)~~~~⟧│─────────────────────────────────────────┐┌─│⟦Content of b-feat~~~~~⟧│────────────────────────────────────1-32/126─┐ │
++│ ┌─│⟦Skills (3)~~~~⟧│─────────────────────────────────────────┐┌─│⟦Content of b-feat~~~~~⟧│────────────────────────────────────1-32/140─┐ │
+ │ │   ⟦cor… b-do                       aaaa1111  ⟦published~~… ││ ---                                                                    │ │
+ │ │ ▸ ⟦cor… b-feat                     bbbb2222  ⟦differs~~~⟧  ││ name: b-feat                                                           │ │
+ │ │   ⟦evo… api-guide                  v2        ⟦missing~~~⟧  ││ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai   │ │
+diff --git a/internal/tui/app/testdata/golden/system_skill_detail_80x24_en.txt b/internal/tui/app/testdata/golden/system_skill_detail_80x24_en.txt
+index feb3520..1f029f6 100644
+--- a/internal/tui/app/testdata/golden/system_skill_detail_80x24_en.txt
++++ b/internal/tui/app/testdata/golden/system_skill_detail_80x24_en.txt
+@@ -3,7 +3,7 @@
+ └───────────────────────────────────────────────────────────────── /work/demo ─┘
+ ┌─│System│─────────────────────────────────────────────────────────────────────┐
+ │  Config Harness Components  Skills  Index Language Doctor Setup Update       │
+-│ ┌─│Content of b-feat│─────────────────────────────────────────────1-16/124─┐ │
++│ ┌─│Content of b-feat│─────────────────────────────────────────────1-16/138─┐ │
+ │ │ ---                                                                      │ │
+ │ │ name: b-feat                                                             │ │
+ │ │ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai     │ │
+diff --git a/internal/tui/app/testdata/golden/system_skill_detail_80x24_vi.txt b/internal/tui/app/testdata/golden/system_skill_detail_80x24_vi.txt
+index 91a1d07..103ff4d 100644
+--- a/internal/tui/app/testdata/golden/system_skill_detail_80x24_vi.txt
++++ b/internal/tui/app/testdata/golden/system_skill_detail_80x24_vi.txt
+@@ -3,7 +3,7 @@
+ └───────────────────────────────────────────────────────────────── /work/demo ─┘
+ ┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
+ │   Cấu hình Harness Thành phần  Skill  Chỉ mục Ngôn ngữ Doctor Cài đặt ›      │
+-│ ┌─│Nội dung b-feat│───────────────────────────────────────────────1-16/124─┐ │
++│ ┌─│Nội dung b-feat│───────────────────────────────────────────────1-16/138─┐ │
+ │ │ ---                                                                      │ │
+ │ │ name: b-feat                                                             │ │
+ │ │ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai     │ │
+diff --git a/internal/tui/app/testdata/golden/system_skill_detail_80x24_xx.txt b/internal/tui/app/testdata/golden/system_skill_detail_80x24_xx.txt
+index b5a1eb2..41058b0 100644
+--- a/internal/tui/app/testdata/golden/system_skill_detail_80x24_xx.txt
++++ b/internal/tui/app/testdata/golden/system_skill_detail_80x24_xx.txt
+@@ -3,7 +3,7 @@
+ └───────────────────────────────────────────────────────────────── /work/demo ─┘
+ ┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
+ │ ‹ ⟦Harness~~~⟧ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦Language~~~~⟧ ›     │
+-│ ┌─│⟦Content of b-feat~~~~~⟧│──────────────────────────────────────1-16/124─┐ │
++│ ┌─│⟦Content of b-feat~~~~~⟧│──────────────────────────────────────1-16/138─┐ │
+ │ │ ---                                                                      │ │
+ │ │ name: b-feat                                                             │ │
+ │ │ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai     │ │

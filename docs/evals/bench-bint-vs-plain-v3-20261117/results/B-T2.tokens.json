@@ -1,0 +1,150 @@
+{
+ "repo": "/home/baodq/bench-bint-v3-20261117/B-T2",
+ "sessions": 8,
+ "total": {
+  "input_tokens": 69987551,
+  "cached_input_tokens": 66437504,
+  "output_tokens": 238856,
+  "reasoning_output_tokens": 79131,
+  "total_tokens": 70226407,
+  "uncached_input_tokens": 3550047
+ },
+ "detail": [
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T00-51-58-01a1e57c-b9f4-7f73-a076-d141bd2db07e.jsonl",
+   "cwd": "/home/baodq/bench-bint-v3-20261117/B-T2",
+   "start": "2026-11-16T17:51:58.976Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 1,
+   "usage": {
+    "input_tokens": 1744986,
+    "cached_input_tokens": 1641216,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 13209,
+    "reasoning_output_tokens": 3617,
+    "total_tokens": 1758195
+   }
+  },
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T00-58-43-01a1e582-e69c-7340-be34-0aff73ace4d5.jsonl",
+   "cwd": "/home/baodq/bench-bint-v3-20261117/B-T2",
+   "start": "2026-11-16T17:58:43.621Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 3,
+   "usage": {
+    "input_tokens": 25597228,
+    "cached_input_tokens": 24154624,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 100174,
+    "reasoning_output_tokens": 36747,
+    "total_tokens": 25697402
+   }
+  },
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T01-00-02-01a1e584-17ad-7e30-b090-cbfd706e8c11.jsonl",
+   "cwd": "/home/baodq/bench-bint-v3-20261117/B-T2",
+   "start": "2026-11-16T18:00:02.081Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 2,
+   "usage": {
+    "input_tokens": 16029363,
+    "cached_input_tokens": 15142528,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 36462,
+    "reasoning_output_tokens": 8637,
+    "total_tokens": 16065825
+   }
+  },
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T01-00-13-01a1e584-468a-7481-8234-c2f62f4b8ff7.jsonl",
+   "cwd": "/home/baodq/bench-bint-v3-20261117/B-T2",
+   "start": "2026-11-16T18:00:13.720Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 2,
+   "usage": {
+    "input_tokens": 9774563,
+    "cached_input_tokens": 9623936,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 25357,
+    "reasoning_output_tokens": 9707,
+    "total_tokens": 9799920
+   }
+  },
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T01-00-23-01a1e584-6c6f-7471-9ddb-ec13cd693ab3.jsonl",
+   "cwd": "/home/baodq/bench-bint-v3-20261117/B-T2",
+   "start": "2026-11-16T18:00:23.446Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 2,
+   "usage": {
+    "input_tokens": 6157077,
+    "cached_input_tokens": 5684096,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 23218,
+    "reasoning_output_tokens": 5910,
+    "total_tokens": 6180295
+   }
+  },
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T01-15-42-01a1e592-72b8-73f1-b84a-dd7379a5be9e.jsonl",
+   "cwd": "/home/baodq/bench-bint-v3-20261117/B-T2",
+   "start": "2026-11-16T18:15:42.665Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 1,
+   "usage": {
+    "input_tokens": 1927887,
+    "cached_input_tokens": 1829376,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 8430,
+    "reasoning_output_tokens": 3086,
+    "total_tokens": 1936317
+   }
+  },
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T01-39-12-01a1e5a7-f83f-7261-a968-ad3174b703b4.jsonl",
+   "cwd": "/home/baodq/bench-bint-v3-20261117/B-T2",
+   "start": "2026-11-16T18:39:12.970Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 1,
+   "usage": {
+    "input_tokens": 4915545,
+    "cached_input_tokens": 4712448,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 16357,
+    "reasoning_output_tokens": 6376,
+    "total_tokens": 4931902
+   }
+  },
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T02-08-46-01a1e5c3-07e3-7772-aee2-4d292767a22e.jsonl",
+   "cwd": "/home/baodq/bench-bint-v3-20261117/B-T2",
+   "start": "2026-11-16T19:08:46.444Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 1,
+   "usage": {
+    "input_tokens": 3840902,
+    "cached_input_tokens": 3649280,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 15649,
+    "reasoning_output_tokens": 5051,
+    "total_tokens": 3856551
+   }
+  }
+ ]
+}

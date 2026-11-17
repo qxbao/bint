@@ -1,0 +1,1 @@
+{"setup": null, "preview": null, "clean": "bint status", "note": "Không có lệnh dọn riêng; diff thêm w.cleanup() vào cuối Workspace.Ingest (internal/app/workspace.go), mặc định enabled/90 ngày, và test cleanup_e2e_test.go chạy `bint status` để kích hoạt (status chỉ đọc StatusNoIngest/hook không dọn)."}

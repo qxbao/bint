@@ -1,0 +1,138 @@
+{
+ "summary": {
+  "cmd": "t2",
+  "fail": [
+   "S1-verify-output",
+   "S2-agent-output",
+   "S3-task-description",
+   "S4-review",
+   "S5-hook-events",
+   "S6-task-docs"
+  ],
+  "fixture_ok": true,
+  "critical": [
+   "S1-verify-output",
+   "S2-agent-output",
+   "S3-task-description",
+   "S4-review",
+   "S5-hook-events"
+  ],
+  "medium": [
+   "S6-task-docs"
+  ]
+ },
+ "results": [
+  {
+   "id": "FX-S1-verify-ran",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "exit=0 'sh leak.sh → qua (mã 0)\\nlog: /home/baodq/bench-bint-v3-20261117/tmp/n2-A3/hidden2-t2-86j3pojw/c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/logs/verify-1.log\\n'"
+  },
+  {
+   "id": "FX-S2-run",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "exit=0 'd  0s         -\\n! chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành\\nChi tiết: bint task show 01M7JZCZTE35Z61WPF9CEQ0YXY   ·   bint run status 01M7JZCZTE35Z61WPF9CEQ0YXY\\n'"
+  },
+  {
+   "id": "FX-S3-new",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "exit=0 'eria\": null\\n    },\\n    \"Scope\": {\\n      \"Allow\": null,\\n      \"Deny\": null\\n    },\\n    \"References\": null,\\n    \"Constraints\": null,\\n    \"Autonomy\": \"ask_on_protected\"\\n  },\\n  \"verify_confirmed\": false\\n}\\n'"
+  },
+  {
+   "id": "INFO-S3-set-goal",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "task set --goal exit=0"
+  },
+  {
+   "id": "FX-S4-review",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "exit=0 'Review vòng 1 của 01M7JZCZMPY8VMCXXKMAZ8ZZ31: 1 phát hiện, 1 nghiêm trọng\\n  [01M7JZCZMPY8VMCXXKMAZ8ZZ31.1] bug/high Token nằm trong mã: export GITHUB_TOKEN=ghp_<FIXTURE>\\n'"
+  },
+  {
+   "id": "FX-S5-hook",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "exit=[0, 0, 0, 0, 0, 0, 0, 0, 0] sự kiện có nội dung: ['test.completed', 'observation', 'context.retrieved']"
+  },
+  {
+   "id": "FX-S6-write",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "exit=0 'Đã ghi /home/baodq/bench-bint-v3-20261117/tmp/n2-A3/hidden2-t2-86j3pojw/c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md\\n'"
+  },
+  {
+   "id": "S1-verify-output",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "critical",
+   "detail": "private_key@c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/logs/verify-1.log"
+  },
+  {
+   "id": "S2-agent-output",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "critical",
+   "detail": "private_key@c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/logs/b-feat-01M7JZCZXZX0CFBGSBMGWZYAEW.log"
+  },
+  {
+   "id": "S3-task-description",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "critical",
+   "detail": "github_token@c/repo/.bint/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/task.yml,c/repo/.bint/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/task.yml,c/state/repo-04cc25de3867/runtime/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml; aws_key_id@c/repo/.bint/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml,c/state/repo-04cc25de3867/runtime/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml; aws_secret@c/repo/.bint/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml,c/state/repo-04cc25de3867/runtime/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml; bearer@c/repo/.bint/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml,c/state/repo-04cc25de3867/runtime/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml; url_creds@c/repo/.bint/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml,c/state/repo-04cc25de3867/runtime/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml; password@c/repo/.bint/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml,c/state/repo-04cc25de3867/runtime/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml; private_key@c/repo/.bint/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml,c/state/repo-04cc25de3867/runtime/tasks/01M7JZD02NZ7BWSM26GHD9CGT3/task.yml"
+  },
+  {
+   "id": "S4-review",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "critical",
+   "detail": "github_token@c/repo/.bint/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.md; aws_key_id@c/repo/.bint/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.md; aws_secret@c/repo/.bint/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.md; bearer@c/repo/.bint/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.md; url_creds@c/repo/.bint/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.md; password@c/repo/.bint/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.md; private_key@c/repo/.bint/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.json,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZMPY8VMCXXKMAZ8ZZ31/review.md"
+  },
+  {
+   "id": "S5-hook-events",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "critical",
+   "detail": "github_token@c/state/repo-04cc25de3867/state.sqlite,sqlite-dump; aws_key_id@c/state/repo-04cc25de3867/state.sqlite,sqlite-dump; private_key@c/state/repo-04cc25de3867/state.sqlite,sqlite-dump"
+  },
+  {
+   "id": "S6-task-docs",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "medium",
+   "detail": "github_token@c/repo/.bint/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md; aws_key_id@c/repo/.bint/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md; aws_secret@c/repo/.bint/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md; bearer@c/repo/.bint/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md; url_creds@c/repo/.bint/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md; password@c/repo/.bint/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md; private_key@c/repo/.bint/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md,c/state/repo-04cc25de3867/runtime/tasks/01M7JZCZTE35Z61WPF9CEQ0YXY/requirement.md"
+  },
+  {
+   "id": "N1-no-over-redaction",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "verify exit=0 thiếu=[] done exit=0 '01M7JZD0NE1NMPS7Q8HX2TSH6J → done\\n' base giữ=True"
+  },
+  {
+   "id": "N1i-key-value",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "'count=12' còn nguyên: True; 'GOFLAGS=-mod=mod': True"
+  },
+  {
+   "id": "N2-perf",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "verify 20 MB: bản kiểm 3.4s (exit 0) / gốc 0.9s (exit 0)"
+  }
+ ]
+}

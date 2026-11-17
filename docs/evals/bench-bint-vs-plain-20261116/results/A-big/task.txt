@@ -1,0 +1,27 @@
+PASS  B1a-progress-text-exit0  exit=0 Progress: 3 tasks; 1 would-stop events; 0 later reached done with a clean review
+01M7HQT6MVMHTE0ACQE2SRB3JG: created; 2 rounds
+  review round 1: no_change=unkno
+PASS  B1b-progress-json-exit0-valid  exit=0  {
+  "tasks": [
+    {
+      "task_id": "01M7HQT6MVMHTE0ACQE2SRB3JG",
+      "status": "created",
+      "rounds": 2,
+      "review_rounds": 2,
+      "full_verify_r
+PASS  B1c-json-has-all-ids  X=True Y=True Z=True
+PASS  B2a-X-has-signal  phiếu X (hai vòng giống nhau)
+PASS  B2b-Y-no-signal  phiếu Y (cây và đầu ra đổi)
+PASS  B3-Z-ok  phiếu Z chưa có vòng nào
+PASS  B4-read-only  tệp đổi: 
+PASS  B5a-mode-off-accepted  exit=0 TASK ID                     TRẠNG THÁI  WORKFLOW  CẬP NHẬT          MỤC TIÊU
+01M7HQTGR84ERKK9AJKSS9H2TH  created     b-do      2026-11-16 15:33  Phiếu Z: chưa c
+PASS  B5a-mode-shadow-accepted  exit=0 TASK ID                     TRẠNG THÁI  WORKFLOW  CẬP NHẬT          MỤC TIÊU
+01M7HQTGR84ERKK9AJKSS9H2TH  created     b-do      2026-11-16 15:33  Phiếu Z: chưa c
+FAIL  B5a-mode-stop-accepted  exit=1 lỗi: cấu hình không hợp lệ:
+  - workflow.no_progress.mode: phải là off | shadow (stop chưa triển khai, dành cho GĐ2c)
+PASS  B5b-mode-bogus-rejected  exit=1 lỗi: cấu hình không hợp lệ:
+  - workflow.no_progress.mode: phải là off | shadow (stop chưa triển khai, dành cho GĐ2c)
+PASS  B5c-default-off  mẫu config: no_progress:
+    mode: off
+== 11/12 PASS
