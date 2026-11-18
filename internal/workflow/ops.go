@@ -868,21 +868,35 @@ var verifyEnviron = os.Environ
 // verifyTempDir tạo thư mục tạm riêng cho một lần chạy lệnh kiểm chứng trong thư mục trạng thái (state.TmpDirFor), không
 // dùng TMPDIR chung với sandbox của harness (Codex workspace-write để lại /tmp/.git làm điểm mount, `go` chạy trong thư
 // mục tạm dưới /tmp khi đó báo "error obtaining VCS status" và kiểm chứng đỏ giả). Trả "" khi không tạo được: lần kiểm
-// chứng vẫn chạy với TMPDIR kế thừa. cleanup luôn gọi được; lỗi dọn bị bỏ qua.
+// chứng vẫn chạy với TMPDIR kế thừa. cleanup luôn gọi được; lỗi dọn bị bỏ qua. Vị trí cha: verifyTempBase (Windows rút ngắn).
 func (e *Env) verifyTempDir() (dir string, cleanup func()) {
 	cleanup = func() {}
 	if e.Tasks.Dir == "" {
 		return "", cleanup
 	}
-	base := state.TmpDirFor(e.Tasks.Dir)
+	base := verifyTempBase(e.Tasks.Dir)
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		return "", cleanup
 	}
-	dir, err := os.MkdirTemp(base, "verify-")
+	pattern := "verify-"
+	if runtime.GOOS == "windows" {
+		pattern = "" // tên chỉ là số: giữ đường dẫn ngắn
+	}
+	dir, err := os.MkdirTemp(base, pattern)
 	if err != nil {
 		return "", cleanup
 	}
 	return dir, func() { removeAllForce(dir) }
+}
+
+// verifyTempBase là thư mục cha của các thư mục tạm kiểm chứng. Unix: <state>/tmp (state.TmpDirFor). Windows:
+// <os.TempDir()>/bv: đường dẫn dưới thư mục trạng thái (~80 ký tự) cộng tên thư mục test và cây git của test eval vượt
+// MAX_PATH 260 ("Filename too long"), còn lý do tách khỏi /tmp (sandbox Codex để /tmp/.git) chỉ có trên Unix.
+func verifyTempBase(tasksDir string) string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(os.TempDir(), "bv")
+	}
+	return state.TmpDirFor(tasksDir)
 }
 
 // verifyTempEnv là các biến thư mục tạm trỏ tới dir: TMPDIR (Unix, Git for Windows sh), thêm TMP/TEMP trên Windows

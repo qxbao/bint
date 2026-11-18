@@ -208,6 +208,13 @@ GOFLAGS=-count=1` (biến môi trường `GOFLAGS` rỗng không ghi đè đư�
 `go test ./internal/tui/app` chạy thật 327 s, lần sau trả `(cached)` trong 19 s. `eval.test_command` vẫn giữ `-count=1`: lần
 kiểm chứng full không dựa vào cache (cache không theo dõi tệp mà tiến trình con như git đọc).
 
+*Thư mục tạm của lệnh kiểm chứng trên Windows (tác vụ 01M7NWDTRN29QFP1AFAKGB87XS, 2026-11-18).* Unix dùng
+`<state>/tmp/verify-*`; Windows dùng `%TEMP%\bv\<số>` (`verifyTempBase`, `internal/workflow/ops.go`): đường dẫn dưới thư mục
+trạng thái (~80 ký tự) làm git trong test eval/evolve vượt MAX_PATH ("Filename too long", lượt "lỗi hạ tầng"). TMPDIR/TMP/TEMP
+vẫn truyền dạng Windows; `sh.exe` (MSYS) chỉ in TMPDIR dạng `/c/...` hoặc `/tmp/...`, còn tiến trình Go con nhận đúng đường dẫn
+Windows (`cygpath -w` đổi lại trong test; hồi quy `TestVerifyChildProcessTempDir`). Thư mục `bv\*` sót lại khi bint bị giết không
+có GC riêng.
+
 *Test cache không dùng chung giữa các worktree.* Khoá cache của bước biên dịch chứa thư mục gói (trừ khi `-trimpath`), mà
 worktree của mỗi tác vụ có đường dẫn riêng, nên lần kiểm chứng đầu của mỗi tác vụ chạy thật mọi gói; từ lần thứ hai trong cùng
 worktree mới được cache. Với `-trimpath`, gói thuần (`ulid`, `config`) dùng chung được, nhưng gói mở tệp theo đường dẫn

@@ -4,12 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"bint/internal/state"
 	"bint/internal/task"
 )
 
@@ -20,7 +20,12 @@ import (
 func TestVerifyUsesPrivateTempDir(t *testing.T) {
 	h := newHarness(t)
 	out := filepath.Join(t.TempDir(), "tmpdir.txt")
-	cmd := `test -f done.txt && test -d "$TMPDIR" && printf %s "$TMPDIR" > ` + filepath.ToSlash(out)
+	// Windows: sh.exe (MSYS) in TMPDIR dạng /c/Users/... hoặc /tmp/...; cygpath -w đổi về đường dẫn Windows.
+	show := `printf %s "$TMPDIR"`
+	if runtime.GOOS == "windows" {
+		show = `printf %s "$(cygpath -w "$TMPDIR")"`
+	}
+	cmd := `test -f done.txt && test -d "$TMPDIR" && ` + show + ` > ` + filepath.ToSlash(out)
 	h.cfg.Eval.TestCommand = &cmd
 	id := h.finishFeat() // b-feat → kiểm chứng của Runner
 	ran := func() string {
@@ -32,9 +37,10 @@ func TestVerifyUsesPrivateTempDir(t *testing.T) {
 		os.Remove(out)
 		return string(b)
 	}
-	base := state.TmpDirFor(h.tasks.Dir)
+	base := verifyTempBase(h.tasks.Dir)
 	check := func(who, dir string) {
 		t.Helper()
+		dir = nativePath(dir) // phòng khi cygpath không có: /c/Users/... → C:\Users\...
 		if dir == "" || dir == os.TempDir() || filepath.Dir(filepath.Clean(dir)) != base {
 			t.Fatalf("%s: TMPDIR=%q, muốn thư mục con riêng của %s", who, dir, base)
 		}
@@ -55,12 +61,80 @@ func TestVerifyUsesPrivateTempDir(t *testing.T) {
 	}
 }
 
+// nativePath đổi dạng MSYS "/c/Users/x" mà sh.exe in ra về "C:\Users\x" trên Windows; nơi khác giữ nguyên.
+func nativePath(p string) string {
+	if runtime.GOOS == "windows" && len(p) >= 3 && p[0] == '/' && p[2] == '/' &&
+		(p[1] >= 'a' && p[1] <= 'z' || p[1] >= 'A' && p[1] <= 'Z') {
+		return filepath.FromSlash(strings.ToUpper(p[1:2]) + ":" + p[2:])
+	}
+	return p
+}
+
+// TestHelperPrintTempDir là tiến trình Go con của TestVerifyChildProcessTempDir: ghi os.TempDir() mà nó thấy.
+func TestHelperPrintTempDir(t *testing.T) {
+	out := os.Getenv("BINT_HELPER_TMPOUT")
+	if out == "" {
+		t.Skip("chỉ chạy như tiến trình con của TestVerifyChildProcessTempDir")
+	}
+	if err := os.WriteFile(out, []byte(os.TempDir()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Kiểm tra mục tiêu: tiến trình Go con của lệnh kiểm chứng (qua sh) thấy os.TempDir() là thư mục riêng, dạng đường dẫn
+// gốc của hệ điều hành, nằm dưới base của nền tảng, ngắn trên Windows (MAX_PATH), mỗi lần một thư mục, và được dọn.
+func TestVerifyChildProcessTempDir(t *testing.T) {
+	h := newHarness(t)
+	out := filepath.Join(t.TempDir(), "childtmp.txt")
+	cmd := `test -f done.txt && BINT_HELPER_TMPOUT="` + filepath.ToSlash(out) + `" "` + filepath.ToSlash(os.Args[0]) +
+		`" -test.run='^TestHelperPrintTempDir$'`
+	h.cfg.Eval.TestCommand = &cmd
+	id := h.finishFeat()
+	base := verifyTempBase(h.tasks.Dir)
+	read := func(who string) string {
+		t.Helper()
+		b, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatalf("%s: tiến trình con không ghi os.TempDir(): %v (%+v)", who, err, h.load(id).State.LastVerification())
+		}
+		os.Remove(out)
+		dir := string(b)
+		if !filepath.IsAbs(dir) || strings.HasPrefix(dir, "/c/") || strings.HasPrefix(dir, "/C/") {
+			t.Fatalf("%s: os.TempDir()=%q không phải đường dẫn gốc của hệ điều hành", who, dir)
+		}
+		if filepath.Dir(filepath.Clean(dir)) != base {
+			t.Fatalf("%s: os.TempDir()=%q, muốn thư mục con của %s", who, dir, base)
+		}
+		if runtime.GOOS == "windows" {
+			if max := len(os.TempDir()) + 16; len(dir) > max {
+				t.Fatalf("%s: thư mục tạm %q dài %d > %d ký tự", who, dir, len(dir), max)
+			}
+		} else if !strings.HasPrefix(filepath.Base(dir), "verify-") {
+			t.Fatalf("%s: tên %q muốn verify-*", who, dir)
+		}
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Fatalf("%s: thư mục tạm %s phải được dọn (%v)", who, dir, err)
+		}
+		return dir
+	}
+	first := read("Runner")
+	if _, vr, err := h.runner().Verify(context.Background(), id); err != nil || !vr.Verification.Passed {
+		t.Fatalf("verify: %+v %v", vr, err)
+	}
+	if second := read("bint task verify"); second == first {
+		t.Fatalf("mỗi lần kiểm chứng cần thư mục tạm mới: %q", first)
+	}
+}
+
 // Không tạo được thư mục tạm riêng thì lần kiểm chứng vẫn chạy (TMPDIR kế thừa), không hỏng.
 func TestVerifyTempDirFailureDoesNotBreakVerify(t *testing.T) {
 	h := newHarness(t)
 	id := h.finishFeat()
-	// Chiếm chỗ <state>/tmp bằng một tệp: MkdirAll lỗi.
-	base := state.TmpDirFor(h.tasks.Dir)
+	// Chiếm chỗ thư mục cha bằng một tệp: MkdirAll lỗi. Windows: base nằm trong os.TempDir() nên trỏ nó vào thư mục riêng.
+	t.Setenv("TMP", t.TempDir())
+	t.Setenv("TEMP", t.TempDir())
+	t.Setenv("TMPDIR", t.TempDir())
+	base := verifyTempBase(h.tasks.Dir)
 	os.RemoveAll(base)
 	if err := os.WriteFile(base, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
