@@ -191,12 +191,13 @@ func TestCoreSkillBReqGoalCheckAndNoScopeCut(t *testing.T) {
 	}
 }
 
-// GĐ2 nhóm 2: b-feat viết kiểm tra mục tiêu thành test tự động trước khi sửa và không kết thúc khi còn đỏ.
+// GĐ2 nhóm 2: b-feat viết kiểm tra mục tiêu thành test tự động trước khi sửa (khi chưa có bản b-goal đóng băng; có thì không viết lại)
+// và không kết thúc khi còn đỏ.
 func TestCoreSkillBFeatRunsGoalCheckUntilGreen(t *testing.T) {
 	s, _ := Get("b-feat")
 	flat := strings.Join(strings.Fields(s.Body()), " ")
 	for _, want := range []string{
-		"Kiểm tra mục tiêu trước", "`## Kiểm tra mục tiêu`", "test tự động", "bộ test mà `verify.command` của phiếu chạy", "trước khi sửa",
+		"Chưa có kiểm tra mục tiêu đóng băng", "Kiểm tra mục tiêu đã đóng băng thì không viết lại", "ĐÃ ĐƯỢC VIẾT độc lập", "không viết, sửa, xoá hay đổi tên", "`## Kiểm tra mục tiêu`", "test tự động", "bộ test mà `verify.command` của phiếu chạy", "trước khi sửa",
 		"sau mỗi nhóm sửa", "Không nới", "Không kết thúc khi kiểm tra mục tiêu còn đỏ", "`unmet`", "đầu ra của test", "workflow.max_review_rounds",
 	} {
 		if !strings.Contains(flat, want) {

@@ -64,10 +64,14 @@ bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
 
 - Chỉ sửa trong phạm vi `scope.allow` của phiếu; **không** chạm `scope.deny`. Đường dẫn
   được bảo vệ (`limits.protected_paths`) cần người duyệt — nếu buộc phải sửa, nói rõ lý do.
-- **Kiểm tra mục tiêu trước.** Nếu `requirement.md` có mục `## Kiểm tra mục tiêu` (đề bài dưới `bint run` chép nguyên văn nó), hoặc
-  đề bài đường nhanh dặn: viết nó thành **test tự động** nằm trong bộ test mà `verify.command` của phiếu chạy, **trước khi sửa**
-  (đỏ lúc này là bình thường). Test đo MỤC TIÊU của người dùng (cài dữ liệu giả vào mọi đường nhập, quét/đo mọi nơi lưu liên
-  quan), không chỉ phần bạn định sửa. Chạy riêng test này sau mỗi nhóm sửa; còn đỏ thì sửa tiếp. Không nới hay xoá test cho dễ qua.
+- **Kiểm tra mục tiêu đã đóng băng thì không viết lại.** Nếu đề bài nêu "Kiểm tra mục tiêu ĐÃ ĐƯỢC VIẾT độc lập" (b-do chạy b-goal
+  trước b-feat: một phiên khác viết test hộp đen từ `requirement.md`, Bint đóng băng tệp và chạy chúng làm cổng riêng): **không viết,
+  sửa, xoá hay đổi tên** các tệp đó (sửa thì tác vụ bị chặn). Việc của bạn là làm mã sản phẩm cho chúng xanh theo đúng đặc tả; chạy riêng
+  chúng sau mỗi nhóm sửa. Tin test sai (mâu thuẫn `requirement.md`) thì ghi tiêu chí kiểm tra mục tiêu là `unmet` kèm đầu ra, đừng sửa test.
+- **Chưa có kiểm tra mục tiêu đóng băng** (đường nhanh, hoặc phiếu không qua b-goal) mà `requirement.md` có mục `## Kiểm tra mục tiêu`
+  (đề bài chép nguyên văn), hoặc đề bài đường nhanh dặn: viết nó thành **test tự động** nằm trong bộ test mà `verify.command` của phiếu
+  chạy, **trước khi sửa** (đỏ lúc này là bình thường). Test đo MỤC TIÊU của người dùng (cài dữ liệu giả vào mọi đường nhập, quét/đo mọi
+  nơi lưu liên quan), không chỉ phần bạn định sửa. Chạy riêng test này sau mỗi nhóm sửa; còn đỏ thì sửa tiếp. Không nới hay xoá test cho dễ qua.
 - Làm theo từng nhóm thay đổi nhỏ; sau mỗi nhóm chạy kiểm thử phù hợp.
 - Tự làm tuần tự trong phiên này; **không sinh agent con** để chia việc (mỗi con nạp lại ngữ cảnh, tốn token gấp bội).
 - Thao tác có nguy cơ mất dữ liệu (xoá, ghi đè, migration, `git reset`/`push`) phải được

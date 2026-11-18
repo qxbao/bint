@@ -827,6 +827,10 @@ func (rs *runState) pickStep() (step string, finalize bool) {
 		if st == task.StatusInProgress {
 			return rs.currentImplement().ID, false // bước implement đang dở hoặc kế tiếp (nhiều bước implement)
 		}
+		if rs.goalPending() { // b-do: kiểm tra mục tiêu độc lập viết trước b-feat (goalfreeze.go)
+			g, _ := fd.FirstOfKind(flow.KindGoal)
+			return g.ID, false
+		}
 		return impl.ID, false
 	case task.StatusInReview:
 		if rs.t.State.AwaitingLand || rs.t.State.Landed != nil || rs.finalizeResume || rs.verifiedResume {
@@ -1165,7 +1169,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 	firstFeat := false
 	kind := rs.kindOf(step)
 	switch kind {
-	case flow.KindImplement:
+	case flow.KindImplement, flow.KindGoal:
 		if sd, _ := rs.flow.StepByID(step); sd.ExpectsFail() && !r.preflightRepro(rs, step) {
 			return nil, false
 		}
@@ -1188,7 +1192,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 				return nil, false
 			}
 		}
-		if rs.t.State.Status != task.StatusInProgress {
+		if kind == flow.KindImplement && rs.t.State.Status != task.StatusInProgress { // b-goal giữ trạng thái planned
 			if err := r.transition(rs, task.StatusInProgress, step+" bắt đầu"); err != nil {
 				r.fail(rs, step, err.Error())
 				return nil, false
@@ -1299,8 +1303,9 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 			return nil, false
 		}
 		sr.snapBefore = snap
-	} else if kind == flow.KindImplement {
-		sr.featBefore = r.beginTouched(ctx, rs, firstFeat)
+	} else if kind == flow.KindImplement || kind == flow.KindGoal {
+		// b-goal ghi tệp trước b-feat: đặt BaseTree ở đây (firstFeat) để tệp test vào Touched; b-feat sau đó giữ BaseTree đã có.
+		sr.featBefore = r.beginTouched(ctx, rs, firstFeat || kind == flow.KindGoal)
 	}
 
 	sr.child = ulid.New()
@@ -1348,8 +1353,10 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	defer sr.release()
 	step, child := sr.step, sr.child
 	r.endTouched(ctx, rs, sr.featBefore)
-	if sr.kind == flow.KindImplement && ctx.Err() == nil {
-		r.guardTasks(rs, step, sr.tasksBefore) // tasks.md nằm ở thư mục trạng thái, không vào phạm vi tệp
+	if (sr.kind == flow.KindImplement || sr.kind == flow.KindGoal) && ctx.Err() == nil {
+		if sr.kind == flow.KindImplement {
+			r.guardTasks(rs, step, sr.tasksBefore) // tasks.md nằm ở thư mục trạng thái, không vào phạm vi tệp
+		}
 		// Tính phạm vi khi còn giữ khoá độc quyền: sau khi nhả, b-feat của tác vụ khác có thể ghi tệp dở
 		// dang vào cây và bị quy nhầm cho tác vụ này. Chỉ tính ở đây; hỏi người (checkScope) làm sau khi
 		// nhả khoá để không chặn tác vụ khác trong lúc chờ.
@@ -1825,7 +1832,12 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			return false
 		}
 		return rs.chain() // flow nhiều bước đi tiếp sang bước sau plan; plan chạy riêng thì dừng
+	case flow.KindGoal:
+		return r.afterGoal(ctx, rs)
 	case flow.KindImplement:
+		if !r.freezeGate(rs) {
+			return false // tệp kiểm tra mục tiêu đóng băng bị sửa: chặn trước kiểm phạm vi, kiểm chứng và review (goalfreeze.go)
+		}
 		if !r.checkScope(ctx, rs) {
 			return false // kiểm phạm vi sau MỖI bước implement, kể cả khi sau nó còn bước implement khác
 		}
@@ -1874,6 +1886,9 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 					r.logf("  kiểm chứng: %s → %s", v.Command, passWord(v.Passed))
 				}
 			}
+		}
+		if !r.goalGate(ctx, rs, "") { // cổng mục tiêu riêng (log goal-N.log); đỏ vào vòng sửa qua redVerification
+			return false
 		}
 		r.refreshLastImplement(ctx, rs, preVerify)
 		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
@@ -2373,6 +2388,7 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 		r.fail(rs, "scope", "không xác định được tệp đã sửa: "+err.Error())
 		return false
 	}
+	files = r.withoutIntactGoal(r.Root, rs.t, files) // tệp kiểm tra mục tiêu đóng băng còn nguyên: không phải thay đổi cần duyệt/đếm
 	rs.scopeFiles = files
 	sc := task.CheckScope(files, rs.t.Ticket, r.Cfg.Limits.ProtectedPaths)
 	approved := ApprovedPaths(rs.t)
@@ -2471,6 +2487,9 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) bool {
 		return false
 	case reverifyFix:
 		return true
+	}
+	if !r.goalFinal(ctx, rs) { // cổng mục tiêu: lần chạy cuối phải qua trên đúng cây cuối
+		return false
 	}
 	if rs.t.State.NeedsLand() {
 		if !r.landStep(ctx, rs) {
@@ -2825,6 +2844,9 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	ticket, _ := yaml.Marshal(t.Ticket)
 	fmt.Fprintf(&b, "Phiếu tác vụ (task.yml):\n```yaml\n%s```\n", ticket)
 	for _, n := range task.ArtifactNames() {
+		if stepDef.Kind == flow.KindGoal && n != "requirement" {
+			continue // b-goal chỉ thấy requirement.md: không nêu đường dẫn plan.md/tasks.md
+		}
 		p := t.ArtifactPath(n)
 		if _, err := os.Stat(p); err == nil {
 			fmt.Fprintf(&b, "- %s: %s\n", n, p)
@@ -2834,6 +2856,8 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		fmt.Fprintf(&b, "\nĐường dẫn được bảo vệ (cần người duyệt): %s\n", strings.Join(r.Cfg.Limits.ProtectedPaths, ", "))
 	}
 	switch stepDef.Kind {
+	case flow.KindGoal:
+		b.WriteString(goalPromptBlock(t))
 	case flow.KindImplement:
 		if c := t.State.Classification; c != nil && c.Fast {
 			if _, err := os.Stat(t.ArtifactPath("requirement")); err != nil {

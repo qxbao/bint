@@ -401,7 +401,7 @@ func TestReviewPromptCarriesDiffPlanAndOmissionTask(t *testing.T) {
 		t.Fatalf("%+v %v prompts=%d", res, err, len(reviewPrompts))
 	}
 	p := reviewPrompts[0]
-	for _, want := range []string{"Diff của tác vụ (đã có sẵn, 2 tệp", "- app.txt", "- done.txt", "Thống kê:", "Diff đầy đủ:", "+v2", "Kế hoạch của tác vụ (plan.md",
+	for _, want := range []string{"Diff của tác vụ (đã có sẵn, 3 tệp", "- app.txt", "- done.txt", "- goal_check.sh", "Thống kê:", "Diff đầy đủ:", "+v2", "Kế hoạch của tác vụ (plan.md",
 		"Sửa app.txt", "BỊ BỎ SÓT", "YÊU CẦU GỐC", "Bề mặt bị ảnh hưởng", "tệp ngoài diff", "bint task diff " + res.TaskID} {
 		if !strings.Contains(p, want) {
 			t.Errorf("đề bài review thiếu %q", want)

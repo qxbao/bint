@@ -447,6 +447,12 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 		}
 		fmt.Fprintf(w, "\nKiểm chứng gần nhất: %s → %s (mã %d)%s  %s\n  log: %s\n", v.Command, passText(v.Passed), v.ExitCode, conf, fmtRFC(v.At), v.Log)
 	}
+	if gt := st.GoalTest; gt != nil {
+		fmt.Fprintf(w, "\nKiểm tra mục tiêu đóng băng (b-goal, viết độc lập từ requirement.md; b-feat không được sửa): %s\n", strings.Join(gt.Paths(), ", "))
+		if g := st.LastGoalCheck(); g != nil {
+			fmt.Fprintf(w, "Cổng mục tiêu gần nhất (%d lần): %s → %s (mã %d)  %s\n  log: %s\n", len(st.GoalChecks), g.Command, passText(g.Passed), g.ExitCode, fmtRFC(g.At), g.Log)
+		}
+	}
 	if len(st.PendingPaths) > 0 {
 		fmt.Fprintf(w, "\nChờ người duyệt (bint task approve %s):\n  %s\n", st.ID, strings.Join(st.PendingPaths, "\n  "))
 	}

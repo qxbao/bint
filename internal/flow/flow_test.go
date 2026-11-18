@@ -147,7 +147,7 @@ func TestDecodeRejectsUnknownKeys(t *testing.T) {
 }
 
 func TestBuiltinPassValidate(t *testing.T) {
-	core := skillSet("b-req", "b-feat", "b-review", "b-do", "b-debug", "b-repro", "b-fix")
+	core := skillSet("b-req", "b-goal", "b-feat", "b-review", "b-do", "b-debug", "b-repro", "b-fix")
 	got := Builtin()
 	if len(got) != 5 {
 		t.Fatalf("Builtin trả %d flow, muốn 5", len(got))
@@ -165,11 +165,11 @@ func TestBuiltinPassValidate(t *testing.T) {
 	for _, s := range do.Steps {
 		ids = append(ids, s.ID)
 	}
-	if strings.Join(ids, ",") != "b-req,b-feat,b-review" {
+	if strings.Join(ids, ",") != "b-req,b-goal,b-feat,b-review" {
 		t.Errorf("b-do có bước %v", ids)
 	}
-	if !do.Steps[0].Optional || do.Steps[2].Fix != "b-feat" {
-		t.Errorf("b-do: plan optional=%v, fix=%q", do.Steps[0].Optional, do.Steps[2].Fix)
+	if !do.Steps[0].Optional || !do.Steps[1].Optional || do.Steps[1].Kind != KindGoal || do.Steps[3].Fix != "b-feat" {
+		t.Errorf("b-do: plan optional=%v, goal=%+v, fix=%q", do.Steps[0].Optional, do.Steps[1], do.Steps[3].Fix)
 	}
 }
 
@@ -266,7 +266,7 @@ func TestBuiltinReturnsFreshCopy(t *testing.T) {
 	a[0].Steps[0].ID = "hỏng"
 	a[0].Steps = append(a[0].Steps, Step{ID: "x"})
 	b := Builtin()
-	if b[0].Steps[0].ID != "b-req" || len(b[0].Steps) != 3 {
+	if b[0].Steps[0].ID != "b-req" || len(b[0].Steps) != 4 {
 		t.Fatalf("Builtin chia sẻ trạng thái giữa các lần gọi: %+v", b[0].Steps)
 	}
 	if d, ok := GetBuiltin("b-feat"); !ok || d.Steps[0].Role != "implementer" {
@@ -457,5 +457,24 @@ func TestWarnings(t *testing.T) {
 	}
 	if len(Warnings(mustDecode(t, tddYAML))) != 0 {
 		t.Error("flow mẫu không được có cảnh báo")
+	}
+}
+
+// Kind goal chỉ dành cho flow nhúng b-do: flow tuỳ biến dùng kind này bị từ chối.
+func TestGoalKindOnlyForBuiltinDo(t *testing.T) {
+	core := skillSet("b-req", "b-goal", "b-feat", "b-review", "b-do")
+	custom := Def{Schema: Schema, Name: "tdd-goal", Steps: []Step{
+		{ID: "mine-goal", Kind: KindGoal, Skill: "b-goal"},
+		{ID: "mine-feat", Kind: KindImplement, Skill: "b-feat"},
+	}}
+	errs := Validate(custom, "", core)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e, "kind goal chỉ dành cho flow nhúng") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("flow tuỳ biến dùng kind goal phải bị từ chối, được %v", errs)
 	}
 }

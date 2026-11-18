@@ -606,6 +606,11 @@ func (e *Env) UnapprovedChanges(ctx context.Context, t *task.Task) ([]string, er
 			return nil, err
 		}
 	}
+	if t.State.Landed != nil {
+		files = e.withoutIntactGoal("", t, files) // freezeGate đã kiểm trước khi đưa về
+	} else if root, err := e.RootFor(t); err == nil {
+		files = e.withoutIntactGoal(root, t, files)
+	}
 	sc := task.CheckScope(files, t.Ticket, e.Cfg.Limits.ProtectedPaths)
 	approved := ApprovedPaths(t)
 	need := sc.NeedsApproval()

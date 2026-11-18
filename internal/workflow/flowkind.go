@@ -133,7 +133,12 @@ func kindOfPending(ps *task.PendingStep) flow.Kind {
 
 // subagentOf trả tên subagent theo kind của bước ("" nếu kind lạ): subagent là theo kind (planner/implementer/reviewer),
 // không theo role tuỳ biến, vì Bint chỉ cài ba subagent.
-func subagentOf(k flow.Kind) string { return adapters.SubagentName(flow.DefaultRole(k)) }
+func subagentOf(k flow.Kind) string {
+	if k == flow.KindGoal {
+		k = flow.KindImplement // b-goal ghi tệp test: cần subagent có quyền ghi (model vẫn theo role planner)
+	}
+	return adapters.SubagentName(flow.DefaultRole(k))
+}
 
 // ---- nạp và kiểm flow
 

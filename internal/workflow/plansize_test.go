@@ -217,7 +217,11 @@ func TestPlanSizeAndFastGoal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if res2.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" || count(h.calls, StepReq) != 1 {
+			want := "b-req,b-goal,b-feat,b-review" // có mục Kiểm tra mục tiêu thì b-goal chạy giữa b-req và b-feat
+			if strings.Contains(v.name, "thiếu Kiểm tra mục tiêu") {
+				want = "b-req,b-feat,b-review" // phiếu không có mục này giữ hành vi cũ
+			}
+			if res2.Status != task.StatusDone || strings.Join(h.calls, ",") != want || count(h.calls, StepReq) != 1 {
 				t.Fatalf("%s: resume phải chạy b-feat và b-review, không chạy lại b-req: %s calls=%v (%s)", v.name, res2.Status, h.calls, res2.Reason)
 			}
 		})
@@ -254,7 +258,7 @@ func TestPlanSizeAndFastGoal(t *testing.T) {
 				t.Errorf("%s: lịch sử phải có blocked giữa planned và in_progress", v.name)
 			}
 			steps2, last2 := h.drive(r, tk.State.ID, true)
-			if strings.Join(steps2, ",") != "b-feat,b-review" || last2.Action != ActionDone || count(h.calls, StepReq) != 1 {
+			if strings.Join(steps2, ",") != "b-goal,b-feat,b-review" || last2.Action != ActionDone || count(h.calls, StepReq) != 1 {
 				t.Fatalf("%s: resume phải chạy b-feat,b-review rồi done, không chạy lại b-req: %v %+v calls=%v", v.name, steps2, last2, h.calls)
 			}
 		})
@@ -264,8 +268,8 @@ func TestPlanSizeAndFastGoal(t *testing.T) {
 // checkSmall kiểm kế hoạch nhỏ: không blocked giữa b-req và b-feat, kiểm chứng và review vẫn chạy, tác vụ done.
 func checkSmall(t *testing.T, h *harness, name, id, status, reason string, notes, calls []string) {
 	t.Helper()
-	if status != task.StatusDone || strings.Join(calls, ",") != "b-req,b-feat,b-review" {
-		t.Fatalf("%s: kế hoạch nhỏ phải chạy b-req,b-feat,b-review rồi done: %s calls=%v (%s)", name, status, calls, reason)
+	if status != task.StatusDone || strings.Join(calls, ",") != "b-req,b-goal,b-feat,b-review" {
+		t.Fatalf("%s: kế hoạch nhỏ phải chạy b-req,b-goal,b-feat,b-review rồi done: %s calls=%v (%s)", name, status, calls, reason)
 	}
 	if h.historyHasBlockedBetween(id, task.StatusPlanned, task.StatusInProgress) {
 		t.Errorf("%s: kế hoạch nhỏ không được blocked giữa b-req và b-feat", name)
@@ -490,7 +494,7 @@ func TestPlanSizeConfirm(t *testing.T) {
 				t.Fatalf("phải hỏi đúng một lần: %+v", asked)
 			}
 			if yes {
-				if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" ||
+				if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-goal,b-feat,b-review" ||
 					!strings.Contains(strings.Join(res.Notes, "\n"), "người đã đồng ý") {
 					t.Fatalf("đồng ý thì đi tiếp: %+v calls=%v", res, h.calls)
 				}

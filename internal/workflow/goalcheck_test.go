@@ -77,11 +77,15 @@ func TestGoalCheckLoopAndPhaseNote(t *testing.T) {
 		t.Fatalf("%+v %v calls=%v", res, err, h.calls)
 	}
 	res.Notes = append(slices.Clone(res0.Notes), res.Notes...) // ghi chú sau b-req (kế hoạch chia N giai đoạn) nằm ở lượt đầu
-	if got := strings.Join(h.calls, ","); got != "b-req,b-feat,b-review,b-feat,b-review" {
+	if got := strings.Join(h.calls, ","); got != "b-req,b-goal,b-feat,b-review,b-feat,b-review" {
 		t.Fatalf("review sạch mà kiểm chứng đỏ phải mở vòng sửa: %s", got)
 	}
-	if p := h.prompts[StepFeat]; !strings.Contains(p, goalCheckSection) || !strings.Contains(p, "Kiểm tra mục tiêu (requirement.md") {
-		t.Errorf("đề bài b-feat phải chép nguyên văn mục kiểm tra mục tiêu:\n%s", p)
+	// Có b-goal: mục kiểm tra mục tiêu đi vào đề bài b-goal (requirement.md nguyên văn), b-feat chỉ nhận khối test đóng băng.
+	if p := h.prompts[StepGoal]; !strings.Contains(p, goalCheckSection) {
+		t.Errorf("đề bài b-goal phải chép nguyên văn requirement.md có mục kiểm tra mục tiêu:\n%s", p)
+	}
+	if p := h.prompts[StepFeat]; !strings.Contains(p, "ĐÃ ĐƯỢC VIẾT độc lập") || strings.Contains(p, "viết thành test tự động") {
+		t.Errorf("đề bài b-feat phải nêu test đóng băng thay vì bảo tự viết:\n%s", p)
 	}
 	notes := strings.Join(res.Notes, "\n")
 	for _, want := range []string{"mới xong 1/3 giai đoạn", "G-2: nhóm bề mặt log", "G-3: nhóm bề mặt spool", "bint task new", "--parent", "--depends-on"} {
@@ -135,7 +139,7 @@ func TestReviewCleanButVerifyRedOpensFixRound(t *testing.T) {
 	h := newHarness(t)
 	h.behave = h.goalBehave(goalDocs(goalCheckSection, ""), 0)
 	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
-	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review,b-feat,b-review" {
+	if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-goal,b-feat,b-review,b-feat,b-review" {
 		t.Fatalf("%+v %v calls=%v", res, err, h.calls)
 	}
 	p := h.prompts[StepFeat] // đề bài b-feat lần cuối = vòng sửa
@@ -151,7 +155,7 @@ func TestReviewCleanButVerifyRedBlocksOutsideBudget(t *testing.T) {
 	h.behave = h.goalBehave(goalDocs(goalCheckSection, ""), 0)
 	r := h.runner()
 	res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(true)})
-	if err != nil || res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" {
+	if err != nil || res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-goal,b-feat,b-review" {
 		t.Fatalf("%+v %v calls=%v", res, err, h.calls)
 	}
 	for _, want := range []string{"không còn phát hiện nghiêm trọng nhưng kiểm chứng cuối không qua", "test -f done.txt", "--accept", "--fix-round", "bint task cancel"} {
@@ -180,7 +184,7 @@ func TestSessionReviewCleanButVerifyRedOpensFixRound(t *testing.T) {
 	r := h.runner()
 	tk := h.newSession(r, NewTaskOptions{Plan: ptr(true)})
 	steps, last := h.drive(r, tk.State.ID, false)
-	if strings.Join(steps, ",") != "b-req,b-feat,b-review,b-feat,b-review" || last.Action != ActionDone {
+	if strings.Join(steps, ",") != "b-req,b-goal,b-feat,b-review,b-feat,b-review" || last.Action != ActionDone {
 		t.Fatalf("bước %v, dừng %+v", steps, last)
 	}
 }
@@ -236,8 +240,8 @@ func TestPlanHandoffCarriesGoalCheck(t *testing.T) {
 	h.behave = inner
 	res := runPlanned(t, h, nil)
 	_, feat := planReqs(h)
-	if res.Status != task.StatusDone || feat.ResumeSessionID == "" || !strings.Contains(feat.Prompt, goalCheckSection) {
-		t.Fatalf("lời nhắn nối tiếp phải chép mục kiểm tra mục tiêu: %v\n%s", res.Status, feat.Prompt)
+	if res.Status != task.StatusDone || feat.ResumeSessionID == "" || !strings.Contains(feat.Prompt, "ĐÃ ĐƯỢC VIẾT độc lập") {
+		t.Fatalf("lời nhắn nối tiếp phải nêu kiểm tra mục tiêu đóng băng: %v\n%s", res.Status, feat.Prompt)
 	}
 }
 

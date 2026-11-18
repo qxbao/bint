@@ -24,8 +24,8 @@ func TestRunStepGrantsBintMCP(t *testing.T) {
 	if err != nil || res.Status != task.StatusDone {
 		t.Fatalf("b-do: %+v %v", res, err)
 	}
-	if len(h.reqs) != 3 || len(h.mcpBodies) != 3 {
-		t.Fatalf("muốn 3 bước (b-req, b-feat, b-review) có MCP, được %d yêu cầu, %d tệp", len(h.reqs), len(h.mcpBodies))
+	if len(h.reqs) != 4 || len(h.mcpBodies) != 4 {
+		t.Fatalf("muốn 4 bước (b-req, b-goal, b-feat, b-review) có MCP, được %d yêu cầu, %d tệp", len(h.reqs), len(h.mcpBodies))
 	}
 	runtimeDir := filepath.Dir(h.spool)
 	for i, req := range h.reqs {
@@ -43,7 +43,7 @@ func TestRunStepGrantsBintMCP(t *testing.T) {
 		if runID == "" || req.MCPConfig != want || !req.ExclusiveMCP {
 			t.Fatalf("%s: MCPConfig=%q exclusive=%v, muốn %q", step, req.MCPConfig, req.ExclusiveMCP, want)
 		}
-		wantRO := step != StepFeat
+		wantRO := step != StepFeat && step != StepGoal
 		if req.ReadOnly != wantRO {
 			t.Fatalf("%s: ReadOnly=%v", step, req.ReadOnly)
 		}
@@ -105,17 +105,17 @@ func TestRunStepWritesBindingAndTools(t *testing.T) {
 	if res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng phiên bản v2 cho app.txt"}); err != nil || res.Status != task.StatusDone {
 		t.Fatalf("b-do: %+v %v", res, err)
 	}
-	if len(h.bindings) != 3 {
-		t.Fatalf("%d bản ghi lượt chạy, muốn 3", len(h.bindings))
+	if len(h.bindings) != 4 {
+		t.Fatalf("%d bản ghi lượt chạy, muốn 4", len(h.bindings))
 	}
 	runtimeDir := filepath.Join(filepath.Dir(h.spool), "runtime")
-	roles := map[string]string{StepReq: "planner", StepFeat: "implementer", StepReview: "reviewer"}
+	roles := map[string]string{StepReq: "planner", StepGoal: "planner", StepFeat: "implementer", StepReview: "reviewer"}
 	for i, step := range h.calls {
 		var b mcpgw.RunBinding
 		if err := json.Unmarshal(h.bindings[i], &b); err != nil {
 			t.Fatalf("%s: không có bản ghi lúc agent chạy: %q", step, h.bindings[i])
 		}
-		if b.Step != step || b.Role != roles[step] || b.ReadOnly != (step != StepFeat) || b.TaskID == "" || b.RunID == "" {
+		if b.Step != step || b.Role != roles[step] || b.ReadOnly != (step != StepFeat && step != StepGoal) || b.TaskID == "" || b.RunID == "" {
 			t.Errorf("%s: bản ghi %+v", step, b)
 		}
 		if _, err := mcpgw.ReadRunBinding(runtimeDir, b.RunID); err == nil {
@@ -128,10 +128,10 @@ func TestRunStepWritesBindingAndTools(t *testing.T) {
 				hasWrite = true
 			}
 		}
-		if step == StepFeat && (!hasWrite || len(tools) != 4) {
+		if (step == StepFeat || step == StepGoal) && (!hasWrite || len(tools) != 4) {
 			t.Errorf("%s: MCPTools=%v, muốn đủ 4 tool specmatic", step, tools)
 		}
-		if step != StepFeat && (hasWrite || len(tools) != 1 || tools[0] != "spec_backward_compatibility_check") {
+		if step != StepFeat && step != StepGoal && (hasWrite || len(tools) != 1 || tools[0] != "spec_backward_compatibility_check") {
 			t.Errorf("%s: MCPTools=%v, muốn chỉ spec_backward_compatibility_check", step, tools)
 		}
 	}

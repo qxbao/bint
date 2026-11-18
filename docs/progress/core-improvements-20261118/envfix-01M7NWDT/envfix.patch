@@ -1,0 +1,190 @@
+diff --git a/docs/workflows.md b/docs/workflows.md
+index 1b0775e..479a694 100644
+--- a/docs/workflows.md
++++ b/docs/workflows.md
+@@ -208,6 +208,13 @@ GOFLAGS=-count=1` (biến môi trường `GOFLAGS` rỗng không ghi đè đư
+ `go test ./internal/tui/app` chạy thật 327 s, lần sau trả `(cached)` trong 19 s. `eval.test_command` vẫn giữ `-count=1`: lần
+ kiểm chứng full không dựa vào cache (cache không theo dõi tệp mà tiến trình con như git đọc).
+ 
++*Thư mục tạm của lệnh kiểm chứng trên Windows (tác vụ 01M7NWDTRN29QFP1AFAKGB87XS, 2026-11-18).* Unix dùng
++`<state>/tmp/verify-*`; Windows dùng `%TEMP%\bv\<số>` (`verifyTempBase`, `internal/workflow/ops.go`): đường dẫn dưới thư mục
++trạng thái (~80 ký tự) làm git trong test eval/evolve vượt MAX_PATH ("Filename too long", lượt "lỗi hạ tầng"). TMPDIR/TMP/TEMP
++vẫn truyền dạng Windows; `sh.exe` (MSYS) chỉ in TMPDIR dạng `/c/...` hoặc `/tmp/...`, còn tiến trình Go con nhận đúng đường dẫn
++Windows (`cygpath -w` đổi lại trong test; hồi quy `TestVerifyChildProcessTempDir`). Thư mục `bv\*` sót lại khi bint bị giết không
++có GC riêng.
++
+ *Test cache không dùng chung giữa các worktree.* Khoá cache của bước biên dịch chứa thư mục gói (trừ khi `-trimpath`), mà
+ worktree của mỗi tác vụ có đường dẫn riêng, nên lần kiểm chứng đầu của mỗi tác vụ chạy thật mọi gói; từ lần thứ hai trong cùng
+ worktree mới được cache. Với `-trimpath`, gói thuần (`ulid`, `config`) dùng chung được, nhưng gói mở tệp theo đường dẫn
+diff --git a/internal/workflow/bench_frictions_test.go b/internal/workflow/bench_frictions_test.go
+index d381d1f..2c9041a 100644
+--- a/internal/workflow/bench_frictions_test.go
++++ b/internal/workflow/bench_frictions_test.go
+@@ -4,12 +4,12 @@ import (
+ 	"context"
+ 	"os"
+ 	"path/filepath"
++	"runtime"
+ 	"slices"
+ 	"strings"
+ 	"testing"
+ 	"time"
+ 
+-	"bint/internal/state"
+ 	"bint/internal/task"
+ )
+ 
+@@ -20,7 +20,12 @@ import (
+ func TestVerifyUsesPrivateTempDir(t *testing.T) {
+ 	h := newHarness(t)
+ 	out := filepath.Join(t.TempDir(), "tmpdir.txt")
+-	cmd := `test -f done.txt && test -d "$TMPDIR" && printf %s "$TMPDIR" > ` + filepath.ToSlash(out)
++	// Windows: sh.exe (MSYS) in TMPDIR dạng /c/Users/... hoặc /tmp/...; cygpath -w đổi về đường dẫn Windows.
++	show := `printf %s "$TMPDIR"`
++	if runtime.GOOS == "windows" {
++		show = `printf %s "$(cygpath -w "$TMPDIR")"`
++	}
++	cmd := `test -f done.txt && test -d "$TMPDIR" && ` + show + ` > ` + filepath.ToSlash(out)
+ 	h.cfg.Eval.TestCommand = &cmd
+ 	id := h.finishFeat() // b-feat → kiểm chứng của Runner
+ 	ran := func() string {
+@@ -32,9 +37,10 @@ func TestVerifyUsesPrivateTempDir(t *testing.T) {
+ 		os.Remove(out)
+ 		return string(b)
+ 	}
+-	base := state.TmpDirFor(h.tasks.Dir)
++	base := verifyTempBase(h.tasks.Dir)
+ 	check := func(who, dir string) {
+ 		t.Helper()
++		dir = nativePath(dir) // phòng khi cygpath không có: /c/Users/... → C:\Users\...
+ 		if dir == "" || dir == os.TempDir() || filepath.Dir(filepath.Clean(dir)) != base {
+ 			t.Fatalf("%s: TMPDIR=%q, muốn thư mục con riêng của %s", who, dir, base)
+ 		}
+@@ -55,12 +61,80 @@ func TestVerifyUsesPrivateTempDir(t *testing.T) {
+ 	}
+ }
+ 
++// nativePath đổi dạng MSYS "/c/Users/x" mà sh.exe in ra về "C:\Users\x" trên Windows; nơi khác giữ nguyên.
++func nativePath(p string) string {
++	if runtime.GOOS == "windows" && len(p) >= 3 && p[0] == '/' && p[2] == '/' &&
++		(p[1] >= 'a' && p[1] <= 'z' || p[1] >= 'A' && p[1] <= 'Z') {
++		return filepath.FromSlash(strings.ToUpper(p[1:2]) + ":" + p[2:])
++	}
++	return p
++}
++
++// TestHelperPrintTempDir là tiến trình Go con của TestVerifyChildProcessTempDir: ghi os.TempDir() mà nó thấy.
++func TestHelperPrintTempDir(t *testing.T) {
++	out := os.Getenv("BINT_HELPER_TMPOUT")
++	if out == "" {
++		t.Skip("chỉ chạy như tiến trình con của TestVerifyChildProcessTempDir")
++	}
++	if err := os.WriteFile(out, []byte(os.TempDir()), 0o600); err != nil {
++		t.Fatal(err)
++	}
++}
++
++// Kiểm tra mục tiêu: tiến trình Go con của lệnh kiểm chứng (qua sh) thấy os.TempDir() là thư mục riêng, dạng đường dẫn
++// gốc của hệ điều hành, nằm dưới base của nền tảng, ngắn trên Windows (MAX_PATH), mỗi lần một thư mục, và được dọn.
++func TestVerifyChildProcessTempDir(t *testing.T) {
++	h := newHarness(t)
++	out := filepath.Join(t.TempDir(), "childtmp.txt")
++	cmd := `test -f done.txt && BINT_HELPER_TMPOUT="` + filepath.ToSlash(out) + `" "` + filepath.ToSlash(os.Args[0]) +
++		`" -test.run='^TestHelperPrintTempDir$'`
++	h.cfg.Eval.TestCommand = &cmd
++	id := h.finishFeat()
++	base := verifyTempBase(h.tasks.Dir)
++	read := func(who string) string {
++		t.Helper()
++		b, err := os.ReadFile(out)
++		if err != nil {
++			t.Fatalf("%s: tiến trình con không ghi os.TempDir(): %v (%+v)", who, err, h.load(id).State.LastVerification())
++		}
++		os.Remove(out)
++		dir := string(b)
++		if !filepath.IsAbs(dir) || strings.HasPrefix(dir, "/c/") || strings.HasPrefix(dir, "/C/") {
++			t.Fatalf("%s: os.TempDir()=%q không phải đường dẫn gốc của hệ điều hành", who, dir)
++		}
++		if filepath.Dir(filepath.Clean(dir)) != base {
++			t.Fatalf("%s: os.TempDir()=%q, muốn thư mục con của %s", who, dir, base)
++		}
++		if runtime.GOOS == "windows" {
++			if max := len(os.TempDir()) + 16; len(dir) > max {
++				t.Fatalf("%s: thư mục tạm %q dài %d > %d ký tự", who, dir, len(dir), max)
++			}
++		} else if !strings.HasPrefix(filepath.Base(dir), "verify-") {
++			t.Fatalf("%s: tên %q muốn verify-*", who, dir)
++		}
++		if _, err := os.Stat(dir); !os.IsNotExist(err) {
++			t.Fatalf("%s: thư mục tạm %s phải được dọn (%v)", who, dir, err)
++		}
++		return dir
++	}
++	first := read("Runner")
++	if _, vr, err := h.runner().Verify(context.Background(), id); err != nil || !vr.Verification.Passed {
++		t.Fatalf("verify: %+v %v", vr, err)
++	}
++	if second := read("bint task verify"); second == first {
++		t.Fatalf("mỗi lần kiểm chứng cần thư mục tạm mới: %q", first)
++	}
++}
++
+ // Không tạo được thư mục tạm riêng thì lần kiểm chứng vẫn chạy (TMPDIR kế thừa), không hỏng.
+ func TestVerifyTempDirFailureDoesNotBreakVerify(t *testing.T) {
+ 	h := newHarness(t)
+ 	id := h.finishFeat()
+-	// Chiếm chỗ <state>/tmp bằng một tệp: MkdirAll lỗi.
+-	base := state.TmpDirFor(h.tasks.Dir)
++	// Chiếm chỗ thư mục cha bằng một tệp: MkdirAll lỗi. Windows: base nằm trong os.TempDir() nên trỏ nó vào thư mục riêng.
++	t.Setenv("TMP", t.TempDir())
++	t.Setenv("TEMP", t.TempDir())
++	t.Setenv("TMPDIR", t.TempDir())
++	base := verifyTempBase(h.tasks.Dir)
+ 	os.RemoveAll(base)
+ 	if err := os.WriteFile(base, []byte("x"), 0o600); err != nil {
+ 		t.Fatal(err)
+diff --git a/internal/workflow/ops.go b/internal/workflow/ops.go
+index 4971a28..8cdb268 100644
+--- a/internal/workflow/ops.go
++++ b/internal/workflow/ops.go
+@@ -868,23 +868,37 @@ var verifyEnviron = os.Environ
+ // verifyTempDir tạo thư mục tạm riêng cho một lần chạy lệnh kiểm chứng trong thư mục trạng thái (state.TmpDirFor), không
+ // dùng TMPDIR chung với sandbox của harness (Codex workspace-write để lại /tmp/.git làm điểm mount, `go` chạy trong thư
+ // mục tạm dưới /tmp khi đó báo "error obtaining VCS status" và kiểm chứng đỏ giả). Trả "" khi không tạo được: lần kiểm
+-// chứng vẫn chạy với TMPDIR kế thừa. cleanup luôn gọi được; lỗi dọn bị bỏ qua.
++// chứng vẫn chạy với TMPDIR kế thừa. cleanup luôn gọi được; lỗi dọn bị bỏ qua. Vị trí cha: verifyTempBase (Windows rút ngắn).
+ func (e *Env) verifyTempDir() (dir string, cleanup func()) {
+ 	cleanup = func() {}
+ 	if e.Tasks.Dir == "" {
+ 		return "", cleanup
+ 	}
+-	base := state.TmpDirFor(e.Tasks.Dir)
++	base := verifyTempBase(e.Tasks.Dir)
+ 	if err := os.MkdirAll(base, 0o700); err != nil {
+ 		return "", cleanup
+ 	}
+-	dir, err := os.MkdirTemp(base, "verify-")
++	pattern := "verify-"
++	if runtime.GOOS == "windows" {
++		pattern = "" // tên chỉ là số: giữ đường dẫn ngắn
++	}
++	dir, err := os.MkdirTemp(base, pattern)
+ 	if err != nil {
+ 		return "", cleanup
+ 	}
+ 	return dir, func() { removeAllForce(dir) }
+ }
+ 
++// verifyTempBase là thư mục cha của các thư mục tạm kiểm chứng. Unix: <state>/tmp (state.TmpDirFor). Windows:
++// <os.TempDir()>/bv: đường dẫn dưới thư mục trạng thái (~80 ký tự) cộng tên thư mục test và cây git của test eval vượt
++// MAX_PATH 260 ("Filename too long"), còn lý do tách khỏi /tmp (sandbox Codex để /tmp/.git) chỉ có trên Unix.
++func verifyTempBase(tasksDir string) string {
++	if runtime.GOOS == "windows" {
++		return filepath.Join(os.TempDir(), "bv")
++	}
++	return state.TmpDirFor(tasksDir)
++}
++
+ // verifyTempEnv là các biến thư mục tạm trỏ tới dir: TMPDIR (Unix, Git for Windows sh), thêm TMP/TEMP trên Windows
+ // (os.TempDir của Go và công cụ Windows đọc chúng). Nối vào cuối môi trường: exec dùng giá trị cuối của khoá trùng.
+ func verifyTempEnv(dir string) []string {

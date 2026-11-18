@@ -143,6 +143,8 @@ const (
 	BlockNoEvidence                            // phiếu không có lệnh kiểm chứng lẫn tiêu chí
 	BlockCriterionUnmet                        // tiêu chí đã đánh dấu chưa đạt
 	BlockCriterionUnchecked                    // tiêu chí chưa đối chiếu
+	BlockGoalMissing                           // có kiểm tra mục tiêu đóng băng nhưng chưa chạy cổng mục tiêu (điều chặn cứng)
+	BlockGoalFailed                            // lần chạy cổng mục tiêu cuối không qua (điều chặn cứng)
 )
 
 // Forceable cho biết người có thể bỏ qua điều chặn loại k bằng land --force: chỉ danh sách cho phép tường minh (kiểm
@@ -215,6 +217,14 @@ func DoneBlockersTyped(t *Task, in DoneInput) []Blocker {
 			}
 		case !v.Full():
 			add(BlockVerifyPartial, "lần kiểm chứng cuối chỉ chạy test bị ảnh hưởng (scope "+v.Scope+"): cần chạy đầy đủ (bint task verify "+st.ID+")")
+		}
+	}
+	if st.GoalTest != nil && cmd != "" && in.VerifyConfirmed {
+		switch g := st.LastGoalCheck(); {
+		case g == nil:
+			add(BlockGoalMissing, "chưa chạy cổng mục tiêu (kiểm tra mục tiêu đóng băng: "+strings.Join(st.GoalTest.Paths(), ", ")+")")
+		case !g.Passed:
+			add(BlockGoalFailed, "lần chạy cổng mục tiêu cuối không qua (log "+g.Log+")")
 		}
 	}
 	crit := t.Ticket.Verify.Criteria

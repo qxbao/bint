@@ -377,6 +377,23 @@ tiếp `b-req` → `b-feat`) chép **nguyên văn** mục này (cắt ở 4 KiB)
 khi sửa. Kiểm tra là **test tự động nằm trong bộ test của `verify.command`** (`b-req` chỉ đọc; Bint không chạy lệnh do agent đề xuất khi chưa có người
 xác nhận): `b-feat` viết trước khi sửa, chạy sau mỗi nhóm sửa, không kết thúc khi còn đỏ trừ khi ghi tiêu chí `unmet` kèm đầu ra.
 
+**Kiểm tra mục tiêu độc lập và đóng băng (`b-goal`).** Test do chính `b-feat` viết có cùng điểm mù với mã của nó (docs/evals/bench-bint-vs-plain-tong-hop.md
+mục 4), nên ở `b-do` gốc đầy đủ Bint chạy thêm bước `b-goal` (kind `goal`, role `planner`, chỉ có trong flow nhúng `b-do`) **giữa `b-req` và `b-feat`**,
+sau cổng cỡ kế hoạch, khi `requirement.md` có mục `## Kiểm tra mục tiêu` và phiếu có `verify.command`:
+- **Phiên riêng, chỉ thấy `requirement.md`**: luôn là phiên mới (không dùng cơ chế nối tiếp khác model của `b-req` → `b-feat`: phiên `b-req` đã thấy
+  plan/tasks nên nối tiếp sẽ làm lộ chúng); model theo `roles.planner`/`models.planner` (mặc định khác implementer). Đề bài chỉ gồm skill `b-goal`, phiếu và
+  nguyên văn `requirement.md`, không có `plan.md`/`tasks.md` hay đường dẫn của chúng (Bint chưa chặn cứng việc agent tự đi đọc chúng trên đĩa). `b-feat`
+  sau đó vẫn nối tiếp phiên `b-req` (Bint làm mới dấu vân tay cây sau `b-goal`). Driver session: subagent `bint-implementer` (cần quyền ghi), model theo planner.
+- **Đóng băng**: Bint tự đo tệp `b-goal` đã tạo/sửa (không tin khai báo của agent), ghi `{đường dẫn, sha256}` vào `State.GoalTest`, thêm chúng vào `scope.deny`.
+  Sau **mỗi** bước implement, trước kiểm phạm vi, kiểm chứng và review, `freezeGate` so băm: tệp bị sửa/xoá/đổi tên thì tác vụ `blocked` nêu tệp; `bint task
+  approve` không bỏ qua cổng này (người khôi phục tệp, ví dụ `git restore`, rồi `resume`). Tệp còn nguyên không bị hỏi duyệt dù khớp `scope.deny` và không
+  được tính là việc `b-feat` đã làm (cổng "không đổi tệp nào"). Chưa có đường bỏ đóng băng khi chính test sai: người huỷ phiếu hoặc `b-feat` ghi tiêu chí `unmet`.
+- **Cổng riêng**: lệnh là `workflow.verify.affected_command` mở rộng trên tệp đóng băng khi đã đặt, không thì `verify.command`; chạy một lần ngay sau `b-goal`
+  (mốc, không chặn; xanh ngay thì ghi chú "test có thể quá yếu") và sau kiểm chứng của mỗi bước implement. Log `goal-N.log`, kết quả ở `State.GoalChecks`, hiện ở
+  `bint task show`. Đỏ được xử lý như kiểm chứng đỏ (`redVerification`: review thấy, vòng sửa); `finalize` chạy lại khi cây đổi và không `done` khi lần mới nhất đỏ.
+- `b-feat` không còn tự viết test mục tiêu khi đã có tệp đóng băng (đề bài nêu tệp đó, cấm sửa). **Giữ hành vi cũ**: `--fast`, phiếu không có mục Kiểm tra mục
+  tiêu hay không có `verify.command`, flow tuỳ biến và workflow `b-feat` riêng không chạy `b-goal`. Phiếu cũ còn `planned` sẽ chạy `b-goal` khi resume.
+
 **Vòng sửa khi kiểm chứng đỏ.** Review không còn phát hiện nghiêm trọng nhưng lần kiểm chứng cuối (cổng sau `b-feat`, do một lượt điều phối chạy) **không
 qua** — thường là test kiểm tra mục tiêu còn đỏ — thì `reviewDecision` không `finalize` (cổng done sẽ chặn không lối ra) mà mở vòng sửa trong cùng ngân
 sách `workflow.max_review_rounds` (đề bài vòng sửa nêu lệnh, mã thoát và log của lần kiểm chứng đỏ). Hết ngân sách (hoặc `max_review_rounds: 0`) thì

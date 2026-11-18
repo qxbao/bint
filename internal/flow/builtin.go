@@ -40,6 +40,7 @@ func Builtin() []Def {
 	doPlan.Optional = true
 	doReview := review
 	doReview.Fix = "b-feat"
+	doGoal := Step{ID: "b-goal", Kind: KindGoal, Skill: "b-goal", Role: DefaultRole(KindGoal), Optional: true}
 
 	repro := Step{ID: "b-repro", Kind: KindImplement, Skill: "b-repro", Role: DefaultRole(KindImplement), Expect: ExpectFail}
 	fix := Step{ID: "b-fix", Kind: KindImplement, Skill: "b-fix", Role: DefaultRole(KindImplement)}
@@ -48,8 +49,8 @@ func Builtin() []Def {
 
 	return []Def{
 		{Schema: Schema, Name: "b-do", builtin: true,
-			Description: "Phân loại tác vụ, lập kế hoạch (nếu cần), thực thi rồi review",
-			Steps:       []Step{doPlan, feat, doReview}},
+			Description: "Phân loại tác vụ, lập kế hoạch (nếu cần), viết kiểm tra mục tiêu độc lập (nếu có), thực thi rồi review",
+			Steps:       []Step{doPlan, doGoal, feat, doReview}},
 		{Schema: Schema, Name: "b-req", builtin: true,
 			Description: "Phân tích yêu cầu và lập kế hoạch (requirement, plan, tasks)",
 			Steps:       []Step{plan}},

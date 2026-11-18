@@ -131,6 +131,8 @@ func (f *fixture) happy(_ context.Context, step string, e *workflow.Env, id, _ s
 				return err
 			}
 		}
+	case workflow.StepGoal:
+		f.write("goal_check.sh", "true\n") // kiểm tra mục tiêu độc lập (b-goal)
 	case workflow.StepFeat:
 		f.write("app.txt", "v2\n")
 		if _, err := e.CheckCriterion(id, 1, true, "app.txt chứa v2"); err != nil && !strings.Contains(err.Error(), "không tồn tại") {

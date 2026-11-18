@@ -44,7 +44,7 @@ func TestBuiltinFlowsMatchConfigWorkflows(t *testing.T) {
 	for _, s := range do.Steps {
 		ids = append(ids, s.ID)
 	}
-	if strings.Join(ids, ",") != "b-req,b-feat,b-review" {
+	if strings.Join(ids, ",") != "b-req,b-goal,b-feat,b-review" {
 		t.Fatalf("bước của b-do: %v", ids)
 	}
 }
@@ -63,7 +63,7 @@ func TestFlowServices(t *testing.T) {
 			t.Errorf("dòng nhúng %d: %+v", i, r)
 		}
 	}
-	if rows[0].Steps != 3 || rows[1].Steps != 1 {
+	if rows[0].Steps != 4 || rows[1].Steps != 1 {
 		t.Errorf("số bước: %+v", rows)
 	}
 	if res, err := LintFlows(ctx, root, FlowLintOptions{}); err != nil || len(res) != 0 {
@@ -156,7 +156,7 @@ func TestShowFlow(t *testing.T) {
 			t.Errorf("YAML của b-do thiếu %q:\n%s", want, do.YAML)
 		}
 	}
-	if !strings.HasPrefix(do.Hash, "sha256:") || len(do.Def.Steps) != 3 {
+	if !strings.HasPrefix(do.Hash, "sha256:") || len(do.Def.Steps) != 4 {
 		t.Errorf("%+v", do)
 	}
 

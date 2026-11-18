@@ -134,8 +134,12 @@ func fastPrompt() string {
 const goalCheckMax = 4 << 10
 
 // goalCheckBlock chép nguyên văn mục `## Kiểm tra mục tiêu` của requirement.md vào đề bài b-feat (đầy đủ và nối tiếp b-req → b-feat), để
-// b-feat viết nó thành test tự động trước khi sửa. Rỗng khi tác vụ không có requirement.md hay thiếu mục (cảnh báo goal_check_missing).
+// b-feat viết nó thành test tự động trước khi sửa. Khi b-goal đã viết và Bint đã đóng băng test (State.GoalTest) thì thay bằng
+// frozenGoalBlock: b-feat không tự viết test mục tiêu. Rỗng khi tác vụ không có requirement.md hay thiếu mục (cảnh báo goal_check_missing).
 func goalCheckBlock(t *task.Task) string {
+	if t.State.GoalTest != nil {
+		return frozenGoalBlock(t) // đã có kiểm tra mục tiêu độc lập, đóng băng: b-feat không tự viết (goalfreeze.go)
+	}
 	data, err := os.ReadFile(t.ArtifactPath("requirement"))
 	if err != nil {
 		return ""

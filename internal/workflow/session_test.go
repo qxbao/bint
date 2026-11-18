@@ -27,7 +27,7 @@ func (h *harness) subagent(act *SessionAction) {
 	h.prompts[act.Step] = act.Prompt
 	h.mu.Unlock()
 	env := &Env{Root: act.Worktree, Cfg: h.cfg, Tasks: h.tasks, Spool: h.spool, Actor: "agent"}
-	if err := h.behave(context.Background(), act.Step, env, act.TaskID); err != nil {
+	if err := h.stepBehave(context.Background(), act.Step, env, act.TaskID); err != nil {
 		h.t.Fatalf("subagent %s: %v", act.Step, err)
 	}
 }
@@ -89,7 +89,7 @@ func TestSessionFullSequenceToDone(t *testing.T) {
 		t.Fatalf("driver: %+v", c)
 	}
 	steps, last := h.drive(r, tk.State.ID, false)
-	if strings.Join(steps, ",") != "b-req,b-feat,b-review" || last.Action != ActionDone || last.Status != task.StatusDone {
+	if strings.Join(steps, ",") != "b-req,b-goal,b-feat,b-review" || last.Action != ActionDone || last.Status != task.StatusDone {
 		t.Fatalf("bước %v, dừng: %+v", steps, last)
 	}
 	if last.Result == nil || last.Result.Step != StepReview || last.Result.Status != "completed" {
@@ -99,7 +99,7 @@ func TestSessionFullSequenceToDone(t *testing.T) {
 	if got.State.PendingStep != nil || got.State.Runner != nil || got.State.SessionRun != "" {
 		t.Fatalf("sót trạng thái session: pending=%v runner=%v session=%q", got.State.PendingStep, got.State.Runner, got.State.SessionRun)
 	}
-	if len(got.State.AgentRuns) != 3 || got.State.AgentRuns[0].AgentID != "agent-b-req" {
+	if len(got.State.AgentRuns) != 4 || got.State.AgentRuns[0].AgentID != "agent-b-req" {
 		t.Fatalf("AgentRuns: %+v", got.State.AgentRuns)
 	}
 	if v := got.State.LastVerification(); v == nil || !v.Passed || !v.Confirmed {
@@ -138,7 +138,7 @@ func TestSessionFullSequenceToDone(t *testing.T) {
 			finished++
 		}
 	}
-	if started != 1 || finished != 1 || agents != 3 {
+	if started != 1 || finished != 1 || agents != 4 {
 		t.Fatalf("sự kiện: started=%d finished=%d agent_id=%d", started, finished, agents)
 	}
 }

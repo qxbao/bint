@@ -69,6 +69,9 @@ func SubagentFiles(cfg config.Config) []skills.AgentFile {
 	var defs []def
 	if bdo, ok := flow.GetBuiltin("b-do"); ok {
 		for _, s := range bdo.Steps {
+			if s.Kind == flow.KindGoal {
+				continue // b-goal ghi tệp test: chạy bằng subagent implementer (subagentOf), không có subagent riêng
+			}
 			defs = append(defs, def{role: s.EffectiveRole(), step: s.ID, skill: s.Skill, what: subagentWhat[s.Kind], kind: s.Kind})
 		}
 	}

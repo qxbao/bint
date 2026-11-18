@@ -59,7 +59,7 @@ func TestPlanHandoffResumesPlannerSession(t *testing.T) {
 	h := newHarness(t)
 	h.claudeLike(nil)
 	res := runPlanned(t, h, nil)
-	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" {
+	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-goal,b-feat,b-review" {
 		t.Fatalf("%+v calls=%v", res, h.calls)
 	}
 	plan, feat := planReqs(h)
@@ -243,7 +243,7 @@ func TestPlanHandoffModelSwitchResumes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" {
+	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-goal,b-feat,b-review" {
 		t.Fatalf("%+v calls=%v", res, h.calls)
 	}
 	plan, feat := planReqs(h)

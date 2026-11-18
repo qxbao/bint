@@ -276,6 +276,39 @@ type Verification struct {
 	Selection *affected.Selection `json:"selection,omitempty"`
 }
 
+// GoalFile là một tệp đóng băng của kiểm tra mục tiêu: đường dẫn tương đối (dấu /) và sha256 nội dung lúc b-goal xong.
+type GoalFile struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+// GoalTest là tập tệp b-goal tạo/sửa, được Bint đóng băng.
+type GoalTest struct {
+	Files []GoalFile `json:"files"`
+	RunID string     `json:"run_id,omitempty"`
+	At    string     `json:"at,omitempty"`
+}
+
+// Paths trả đường dẫn các tệp đóng băng.
+func (g *GoalTest) Paths() []string {
+	if g == nil {
+		return nil
+	}
+	out := make([]string, len(g.Files))
+	for i, f := range g.Files {
+		out[i] = f.Path
+	}
+	return out
+}
+
+// LastGoalCheck là lần chạy cổng mục tiêu gần nhất (nil khi chưa có).
+func (s *State) LastGoalCheck() *Verification {
+	if len(s.GoalChecks) == 0 {
+		return nil
+	}
+	return &s.GoalChecks[len(s.GoalChecks)-1]
+}
+
 // Full cho biết lần kiểm chứng đã chạy verify.command đầy đủ.
 func (v *Verification) Full() bool { return v.Scope == "" || v.Scope == string(affected.TierFull) }
 
@@ -418,6 +451,11 @@ type State struct {
 	// PlanSize là dấu của cổng cỡ kế hoạch (b-do): "" = chưa áp (b-req vừa xong hoặc bị chặn lint/câu hỏi trước cổng), "passed" = kế hoạch
 	// nhỏ hoặc người đã đồng ý, "blocked" = cổng dừng chờ người (resume sau đó là quyết định của người, đi tiếp). Chạy lại b-req đặt lại "".
 	PlanSize string `json:"plan_size,omitempty"`
+	// GoalTest là kiểm tra mục tiêu độc lập do bước b-goal viết (chỉ thấy requirement.md) và Bint đóng băng: tệp và băm lúc b-goal xong.
+	// Nil = chưa có (phiếu cũ, --fast, thiếu mục Kiểm tra mục tiêu, b-goal chưa chạy).
+	GoalTest *GoalTest `json:"goal_test,omitempty"`
+	// GoalChecks là các lần chạy cổng mục tiêu riêng (log goal-N.log); lần cuối quyết định điều kiện done.
+	GoalChecks []Verification `json:"goal_checks,omitempty"`
 	// FastFixed: đường nhanh đã mở vòng sửa duy nhất sau review vòng 1; sau kiểm chứng của vòng sửa tác vụ finalize, không review lại.
 	FastFixed bool `json:"fast_fixed,omitempty"`
 	// ExtraFixRounds là số vòng sửa người cho thêm bằng `bint run resume --fix-round` ngoài workflow.max_review_rounds.

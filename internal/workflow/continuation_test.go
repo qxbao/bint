@@ -344,6 +344,7 @@ func TestSessionRequirementQuestionLoopReturnsToPlanner(t *testing.T) {
 	if c, err = r.Complete(ctx, CompleteOptions{TaskRef: id, RunID: d.RunID, AgentID: "P1"}); err != nil || c.Action != "" {
 		t.Fatalf("hết câu hỏi: %+v %v", c, err)
 	}
+	sessionGoal(t, h, r, id, NextOptions{TaskRef: id}) // b-goal (phiên mới) chen giữa b-req và b-feat
 	f, err := r.Next(ctx, NextOptions{TaskRef: id})
 	if err != nil || f.Step != StepFeat || f.ContinueAgentID != "" ||
 		!strings.Contains(f.Prompt, strings.TrimSpace(answeredQ)) || !strings.Contains(f.Prompt, strings.TrimSpace(answeredQ2)) {
@@ -382,7 +383,8 @@ func TestSessionAnsweredQuestionNoContinuationGoesToFeat(t *testing.T) {
 			if c.mutate != nil {
 				c.mutate(h)
 			}
-			b, err := r.Next(ctx, NextOptions{TaskRef: id, Resume: true, Fresh: c.fresh})
+			sessionGoal(t, h, r, id, NextOptions{TaskRef: id, Resume: true, Fresh: c.fresh})
+			b, err := r.Next(ctx, NextOptions{TaskRef: id, Fresh: c.fresh})
 			if err != nil || b.Action != ActionAgent || b.Step != StepFeat || b.ContinueAgentID != "" {
 				t.Fatalf("phải vào thẳng b-feat: %+v %v", b, err)
 			}

@@ -128,7 +128,7 @@ func TestSessionFinalizeReverifiesAndResumeHint(t *testing.T) {
 	tk := h.newSession(r, NewTaskOptions{})
 	id := tk.State.ID
 	// b-req và b-feat (kiểm chứng chạy ở Complete của b-feat), rồi người khác đổi tệp ngoài Touched trước b-review.
-	for _, want := range []string{StepReq, StepFeat} {
+	for _, want := range []string{StepReq, StepGoal, StepFeat} {
 		act, err := r.Next(context.Background(), NextOptions{TaskRef: id})
 		if err != nil || act.Step != want {
 			t.Fatalf("next: %+v %v", act, err)
@@ -156,7 +156,7 @@ func TestResumeHintFollowsDriver(t *testing.T) {
 		r := h.runner()
 		tk := h.newSession(r, NewTaskOptions{})
 		id := tk.State.ID
-		for _, want := range []string{StepReq, StepFeat} {
+		for _, want := range []string{StepReq, StepGoal, StepFeat} {
 			act, err := r.Next(context.Background(), NextOptions{TaskRef: id})
 			if err != nil || act.Step != want {
 				t.Fatalf("next: %+v %v", act, err)

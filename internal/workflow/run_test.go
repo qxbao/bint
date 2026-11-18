@@ -249,7 +249,7 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 		if err != nil {
 			res.ExitCode, res.Error = 1, err.Error()
 		}
-	} else if err := a.h.behave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
+	} else if err := a.h.stepBehave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
 		res.ExitCode, res.Error = 1, err.Error()
 	}
 	if ctx.Err() != nil {
@@ -284,6 +284,8 @@ type harness struct {
 	limits    []*float64
 	cost      *float64
 	denyNext  []string
+	// goal (nếu có) thay hành vi mặc định của b-goal (ghi goal_check.sh); b-goal không đi qua behave.
+	goal func(ctx context.Context, e *Env, taskID string) error
 	// mutate (nếu có) sửa kết quả agent giả sau khi chạy: mô phỏng Infra, quá giờ, thiếu kết quả, handle phiên.
 	mutate func(step string, res *eval.AgentResult)
 	// mutateReq như mutate nhưng thấy cả yêu cầu giao cho agent (phiên cần nối tiếp, đề bài): mô phỏng harness ghi tệp phiên.
@@ -300,6 +302,18 @@ type harness struct {
 	turnLimits []*int
 	// profile (nếu có) là profile `bint iso` mà agent giả báo (eval.ProfileAgent); đổi giữa hai lượt để mô phỏng đổi harnesses.<h>.profile.
 	profile *iso.Profile
+}
+
+// stepBehave chạy hành vi giả của một bước. b-goal không đi qua h.behave: mặc định ghi một test hộp đen đỏ tới khi b-feat ghi done.txt
+// (khớp lệnh kiểm chứng `test -f done.txt`) vào thư mục chạy của bước; test đặt h.goal để đổi.
+func (h *harness) stepBehave(ctx context.Context, step string, e *Env, id string) error {
+	if step != StepGoal {
+		return h.behave(ctx, step, e, id)
+	}
+	if h.goal != nil {
+		return h.goal(ctx, e, id)
+	}
+	return os.WriteFile(filepath.Join(e.Root, "goal_check.sh"), []byte("test -f done.txt\n"), 0o644)
 }
 
 func newHarness(t *testing.T) *harness {
@@ -411,7 +425,7 @@ func TestBDoHappyPathLinksRunsByTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" {
+	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-goal,b-feat,b-review" {
 		t.Fatalf("kết quả: %+v, bước %v", res, h.calls)
 	}
 	// Đề bài: nội dung skill + khối tác vụ + phạm vi.
@@ -427,7 +441,7 @@ func TestBDoHappyPathLinksRunsByTask(t *testing.T) {
 
 	s := h.ingest()
 	runs, err := runlog.RunsForTask(ctx, s.DB, res.TaskID)
-	if err != nil || len(runs) != 4 {
+	if err != nil || len(runs) != 5 {
 		t.Fatalf("lượt chạy theo task: %d %v", len(runs), err)
 	}
 	var parent runlog.Run
@@ -443,11 +457,11 @@ func TestBDoHappyPathLinksRunsByTask(t *testing.T) {
 			t.Fatalf("lượt con: %+v %+v", r, m)
 		}
 	}
-	if parent.RunID != res.RunID || parent.Status != "completed" || children != 3 {
+	if parent.RunID != res.RunID || parent.Status != "completed" || children != 4 {
 		t.Fatalf("lượt cha: %+v", parent)
 	}
 	steps, _ := runlog.RunSteps(ctx, s.DB, res.RunID)
-	if len(steps) != 3 || steps[0].Name != StepReq || steps[2].Status != "completed" {
+	if len(steps) != 4 || steps[0].Name != StepReq || steps[3].Status != "completed" {
 		t.Fatalf("run_steps: %+v", steps)
 	}
 	sigs, _ := runlog.RunSignals(ctx, s.DB, res.RunID)
@@ -594,7 +608,7 @@ func TestBudgetLimitStopsBeforeNextStep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat" || !strings.Contains(res.Reason, "hết ngân sách") {
+	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-goal" || !strings.Contains(res.Reason, "hết ngân sách") {
 		t.Fatalf("%+v %v", res, h.calls)
 	}
 	if h.limits[0] == nil || *h.limits[0] != 1.0 || h.limits[1] == nil || *h.limits[1] < 0.39 || *h.limits[1] > 0.41 {
@@ -925,7 +939,7 @@ func TestBDoMaxTurnsIsTotalBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat" || !strings.Contains(res.Reason, "max_turns") {
+	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-goal" || !strings.Contains(res.Reason, "max_turns") {
 		t.Fatalf("%+v %v", res, h.calls)
 	}
 	if len(h.turnLimits) != 2 || h.turnLimits[0] == nil || *h.turnLimits[0] != 3 || h.turnLimits[1] == nil || *h.turnLimits[1] != 1 {
@@ -942,7 +956,7 @@ func TestBDoMaxTurnsFromPerRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat" {
+	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-goal" {
 		t.Fatalf("%+v %v", res, h.calls)
 	}
 }
@@ -1007,7 +1021,7 @@ func TestBDoCostIsNullWhenAStepDoesNotReportCost(t *testing.T) {
 	if res.CostUSD != nil {
 		t.Fatalf("tổng một phần bị trình bày như tổng thật: %v", *res.CostUSD)
 	}
-	if res.CostPartialUSD == nil || *res.CostPartialUSD < 0.59 || *res.CostPartialUSD > 0.61 {
+	if res.CostPartialUSD == nil || *res.CostPartialUSD < 0.89 || *res.CostPartialUSD > 0.91 {
 		t.Fatalf("chi phí đã biết: %v", res.CostPartialUSD)
 	}
 	for _, st := range res.Steps {

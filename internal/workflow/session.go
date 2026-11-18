@@ -925,7 +925,7 @@ func (r *Runner) discardPending(ctx context.Context, rs *runState, reason string
 	ps := rs.t.State.PendingStep
 	var notes []string
 	if ps != nil {
-		if kindOfPending(ps) == flow.KindImplement && ps.FeatBefore != "" {
+		if k := kindOfPending(ps); (k == flow.KindImplement || k == flow.KindGoal) && ps.FeatBefore != "" {
 			// Tệp subagent đã sửa trước khi bị bỏ vẫn thuộc tác vụ: ghi vào Touched (dưới khoá độc quyền nếu lấy được).
 			l, err := AcquireLock(r.Tasks.Dir, r.Root, id+" "+ps.Step, LockExclusive)
 			if err != nil && errors.Is(err, errLeaseUnreadable) {

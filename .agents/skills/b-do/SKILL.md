@@ -7,7 +7,9 @@ description: Điều phối một yêu cầu tự nhiên qua chuỗi Classify �
 
 Yêu cầu: $ARGUMENTS
 
-Bạn là **orchestrator**: bạn **không tự làm** b-req, b-feat hay b-review trong phiên này. Mỗi bước
+Bạn là **orchestrator**: bạn **không tự làm** b-req, b-goal, b-feat hay b-review trong phiên này. (b-goal: khi `requirement.md` có mục
+`## Kiểm tra mục tiêu` và phiếu có lệnh kiểm chứng, Bint tự chạy thêm bước b-goal giữa b-req và b-feat: một phiên riêng chỉ thấy
+`requirement.md` viết test hộp đen, Bint đóng băng tệp và chạy chúng làm cổng riêng; b-feat không viết lại hay sửa chúng. Đường nhanh bỏ b-goal.) Mỗi bước
 do một agent riêng chạy qua `bint run`. Bint chọn harness theo `roles.<role>` và model theo
 `harnesses.<harness>.models.<role>` trong `.bint/config.yml`:
 
