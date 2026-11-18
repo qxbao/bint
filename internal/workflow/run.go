@@ -196,6 +196,8 @@ type Result struct {
 	// và phát hiện còn mở của vòng review mới nhất, để người quyết định giao hay quay về (bint task restore-green).
 	LastGreen    *GreenInfo    `json:"last_green,omitempty"`
 	OpenFindings []OpenFinding `json:"open_findings,omitempty"`
+	// Slices là các lát mỏng của kế hoạch lớn (slice.go) với trạng thái cuối lượt: đã chốt, đã bỏ (lý do, ref lấy lại), chưa làm.
+	Slices []task.Slice `json:"slices,omitempty"`
 }
 
 type runState struct {
@@ -243,6 +245,9 @@ type runState struct {
 	scopeFiles []string
 	// acceptReview: resume --accept: vào thẳng finalize, không chạy bước nào.
 	acceptReview bool
+	// sliceFail khác rỗng: agent của lát đang chạy vừa lỗi hoặc quá trần (endStep đặt); afterStep xử lý ở sliceSettleFailure thay vì failed.
+	sliceFail     string
+	sliceTimedOut bool
 }
 
 // endedStep là handle phiên của bước vừa kết thúc, giữ để cổng sau bước ghi awaiting_human vào State.LastStep.
@@ -582,7 +587,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 // loopGuard là trần số vòng của vòng điều phối (chống vòng lặp vô hạn do lỗi): mỗi vòng sửa sau review có thể chạy lại
 // mọi bước implement và review.
 func (rs *runState) loopGuard(maxReviewRounds int) int {
-	return 4 + max(3, 2*rs.countKind(flow.KindImplement)+rs.countKind(flow.KindReview))*(maxReviewRounds+1)
+	return 4 + len(rs.t.State.Slices) + max(3, 2*rs.countKind(flow.KindImplement)+rs.countKind(flow.KindReview))*(maxReviewRounds+1)
 }
 
 // checkFlowSwitch kiểm luật đổi workflow khi chạy tác vụ có sẵn: tác vụ lập cho flow gắn phiếu (flow tuỳ biến, b-debug;
@@ -1084,7 +1089,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	}
 	runAgent := func(prompt, sessionID, resume string) eval.AgentResult {
 		return sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt, SessionID: sessionID, ResumeSessionID: resume, Profile: sr.prof,
-			Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
+			Timeout: r.sliceTimeoutFor(rs, sr.kind == flow.KindImplement),
 			LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
 			MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools, Settings: denySettings})
 	}
@@ -1221,6 +1226,9 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 				return nil, false
 			}
 		}
+		if kind == flow.KindImplement && !session {
+			r.initSlices(rs, firstFeat) // kế hoạch lớn: chia lát mỏng ở b-feat đầu tiên (slice.go)
+		}
 	case flow.KindReview:
 		if rs.t.State.Status != task.StatusInReview {
 			if err := r.transition(rs, task.StatusInReview, step+" bắt đầu"); err != nil {
@@ -1236,7 +1244,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 	if rs.chain() { // ngân sách chung của cả chuỗi bước (limits.workflows.<flow>)
 		rem := rs.remaining()
 		if rem != nil && *rem <= 0 {
-			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.%s.max_cost_usd (đã tiêu %.2f USD)", rs.flow.Name, rs.spent))
+			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.%s.max_cost_usd (đã tiêu %.2f USD)", rs.flow.Name, rs.spent)+r.sliceTail(rs))
 			return nil, false
 		}
 		maxCost = minPtr(maxCost, rem)
@@ -1245,7 +1253,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 	if rs.chain() && rs.limit.MaxTurns != nil {
 		rem := int64(*rs.limit.MaxTurns) - rs.turns
 		if rem <= 0 {
-			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.%s.max_turns (đã dùng %d lượt)", rs.flow.Name, rs.turns))
+			r.block(rs, fmt.Sprintf("hết ngân sách limits.workflows.%s.max_turns (đã dùng %d lượt)", rs.flow.Name, rs.turns)+r.sliceTail(rs))
 			return nil, false
 		}
 		if maxTurns == nil || int64(*maxTurns) > rem {
@@ -1329,6 +1337,10 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 	} else if kind == flow.KindImplement || kind == flow.KindGoal {
 		// b-goal ghi tệp trước b-feat: đặt BaseTree ở đây (firstFeat) để tệp test vào Touched; b-feat sau đó giữ BaseTree đã có.
 		sr.featBefore = r.beginTouched(ctx, rs, firstFeat || kind == flow.KindGoal)
+	}
+
+	if kind == flow.KindImplement && rs.activeSlice() != nil {
+		r.sliceStart(ctx, rs) // lát đầu: ghim điểm xanh đầu (cây sau b-goal) khi đã giữ khoá độc quyền
 	}
 
 	sr.child = ulid.New()
@@ -1582,6 +1594,13 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		r.interrupt(rs, "người dùng huỷ trong bước "+step)
 		return false
 	case "failed":
+		if sr.kind == flow.KindImplement && rs.activeSlice() != nil {
+			// Lát mỏng: lỗi/quá trần không làm tác vụ failed. afterStep (sliceSettleFailure) bỏ lát dở, đưa cây về điểm xanh rồi chạy lát kế
+			// (quá trần) hoặc dừng blocked kèm danh sách lát (lỗi khác), để có gì đó giao thay vì cây dở dang.
+			r.RecordError(rs.t.State.ID, step, step+": "+endReason)
+			rs.sliceFail, rs.sliceTimedOut = cmp.Or(endReason, "lỗi không rõ"), res.TimedOut
+			return true
+		}
 		if sr.maxCost != nil && res.CostUSD != nil && *res.CostUSD >= *sr.maxCost*0.98 {
 			r.RecordError(rs.t.State.ID, step, endReason)
 			r.block(rs, fmt.Sprintf("bước %s chạm giới hạn chi phí %.2f USD", step, *sr.maxCost))
@@ -1858,6 +1877,16 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 	case flow.KindGoal:
 		return r.afterGoal(ctx, rs)
 	case flow.KindImplement:
+		if rs.sliceFail != "" {
+			// Agent của lát lỗi/quá trần (endStep): bỏ lát dở, cây về điểm xanh, không qua kiểm phạm vi/kiểm chứng của phần dở dang.
+			switch r.sliceSettleFailure(ctx, rs) {
+			case sliceNext:
+				return true
+			case sliceStop:
+				return false
+			}
+			return r.implementDone(ctx, rs, step, false) // hết lát: cây ở điểm xanh cuối, sang review
+		}
 		if !r.freezeGate(rs) {
 			return false // tệp kiểm tra mục tiêu đóng băng bị sửa: chặn trước kiểm phạm vi, kiểm chứng và review (goalfreeze.go)
 		}
@@ -1923,33 +1952,16 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		}); err == nil {
 			rs.t = t
 		}
-		if nextImpl {
-			return true
-		}
-		if err := r.transition(rs, task.StatusInReview, step+" xong"); err != nil {
-			r.fail(rs, step, err.Error())
-			return false
-		}
-		if !rs.chain() {
-			return false
-		}
-		if rs.opts.NoReview {
-			return r.finalize(ctx, rs)
-		}
-		if rs.t.State.FastFixed {
-			// Đường nhanh: vòng sửa duy nhất đã chạy xong; kiểm chứng ở trên là cổng. Finalize không review lại.
-			if n := fastFixNote(rs.t); n != "" {
-				rs.res.Notes = append(rs.res.Notes, n)
-			}
-			if v := redVerification(rs.t); v != nil {
-				// Kiểm chứng sau vòng sửa duy nhất không qua: không có vòng nào nữa, nên dừng với ba lựa chọn thay vì để finalize chặn không lối ra.
-				r.blockExhausted(rs, fmt.Sprintf("đường nhanh: kiểm chứng sau vòng sửa duy nhất không qua (`%s`, mã thoát %d, log %s).",
-					v.Command, v.ExitCode, cmpStr(v.Log, "(không có)")))
+		if rs.activeSlice() != nil {
+			// Lát mỏng (slice.go): đo cổng mục tiêu rồi chốt hoặc bỏ lát; còn lát thì chạy lát kế, hết lát mới sang review.
+			switch r.sliceGate(ctx, rs) {
+			case sliceNext:
+				return true
+			case sliceStop:
 				return false
 			}
-			return r.finalize(ctx, rs)
 		}
-		return true
+		return r.implementDone(ctx, rs, step, nextImpl)
 	case flow.KindReview:
 		rev, err := rs.t.LoadReview()
 		if err != nil {
@@ -1964,6 +1976,38 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		return r.reviewDecision(ctx, rs, last)
 	}
 	return false
+}
+
+// implementDone là phần cuối của cổng sau bước implement (sau kiểm chứng, cổng mục tiêu và, với kế hoạch chia lát, chốt lát cuối): bước
+// implement kế tiếp của flow, hoặc chuyển in_review và đi tiếp review/finalize.
+func (r *Runner) implementDone(ctx context.Context, rs *runState, step string, nextImpl bool) bool {
+	if nextImpl {
+		return true
+	}
+	if err := r.transition(rs, task.StatusInReview, step+" xong"); err != nil {
+		r.fail(rs, step, err.Error())
+		return false
+	}
+	if !rs.chain() {
+		return false
+	}
+	if rs.opts.NoReview {
+		return r.finalize(ctx, rs)
+	}
+	if rs.t.State.FastFixed {
+		// Đường nhanh: vòng sửa duy nhất đã chạy xong; kiểm chứng ở trên là cổng. Finalize không review lại.
+		if n := fastFixNote(rs.t); n != "" {
+			rs.res.Notes = append(rs.res.Notes, n)
+		}
+		if v := redVerification(rs.t); v != nil {
+			// Kiểm chứng sau vòng sửa duy nhất không qua: không có vòng nào nữa, nên dừng với ba lựa chọn thay vì để finalize chặn không lối ra.
+			r.blockExhausted(rs, fmt.Sprintf("đường nhanh: kiểm chứng sau vòng sửa duy nhất không qua (`%s`, mã thoát %d, log %s).",
+				v.Command, v.ExitCode, cmpStr(v.Log, "(không có)")))
+			return false
+		}
+		return r.finalize(ctx, rs)
+	}
+	return true
 }
 
 // preflightRepro chặn trước bước implement có expect: fail khi cổng đỏ không thể chạy: phiếu thiếu verify.command, hoặc
@@ -2777,6 +2821,10 @@ func (r *Runner) finish(rs *runState) {
 	if rs.res.Reason == "" {
 		rs.res.Reason = st.Reason
 	}
+	if len(st.Slices) > 0 && !rs.session {
+		rs.res.Slices = slices.Clone(st.Slices)
+		rs.res.Notes = append(rs.res.Notes, sliceSummary(rs.t))
+	}
 	if len(rs.res.Choices) == 0 {
 		rs.res.Choices = choicesFor(rs.t)
 	}
@@ -2863,6 +2911,9 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 			}
 		}
 		fmt.Fprintf(&b, "Phân tích: %s\nLý do: %s\n(Độ sâu do Bint Core chọn một lần lúc tạo tác vụ; làm theo mục \"Độ sâu phân tích\" của skill.)\n\n", depth, reason)
+		if !session && rs.planSizeGated() && r.Cfg.Workflow.SliceTimeoutMinutes > 0 {
+			b.WriteString(sliceGuideBlock)
+		}
 	}
 	ticket, _ := yaml.Marshal(t.Ticket)
 	fmt.Fprintf(&b, "Phiếu tác vụ (task.yml):\n```yaml\n%s```\n", ticket)
@@ -2893,6 +2944,9 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 			fmt.Fprintf(&b, "\nCâu hỏi đã trả lời trong requirement.md (nguyên văn; đây là quyết định của người dùng, làm theo):\n%s\n", strings.Join(qs, "\n"))
 		}
 		b.WriteString(goalCheckBlock(t))
+		if !session {
+			b.WriteString(sliceBlock(t)) // kế hoạch lớn chạy theo lát: lần này chỉ một nhóm (slice.go)
+		}
 		// Chạy lại sau khi bị chặn: tiêu chí còn unmet mang bằng chứng cũ; agent phải ghi lại.
 		b.WriteString(qaBlock(t.State.AnsweredQuestions(step)))
 		if u := unmetCriteriaBlock(t); u != "" {

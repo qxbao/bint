@@ -143,6 +143,9 @@ func (r *Runner) planSizeGate(rs *runState) bool {
 	}
 	id := rs.t.State.ID
 	list := strings.Join(why, "; ")
+	if pv := r.slicePreview(rs); pv != "" {
+		list += "; " + pv // kế hoạch lớn không chỉ dừng báo: nêu các lát Bint sẽ chạy khi người cho chạy b-feat (slice.go)
+	}
 	if r.Confirm != nil {
 		q := Question{Key: QConfirmPlanSize, Params: map[string]any{"task": id, "reasons": list},
 			Text: fmt.Sprintf("Kế hoạch của tác vụ %s là lớn (%s). Xem plan.md (bint task show %s) rồi chọn: chạy b-feat luôn?", id, list, id)}

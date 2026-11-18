@@ -376,3 +376,26 @@ func TestWorkflowFastPathAndSmallPlanDefaults(t *testing.T) {
 		t.Fatalf("số âm phải bị từ chối: %v", err)
 	}
 }
+
+// Lát mỏng của b-do (slice.go): trần thời gian mỗi lát mặc định 30 phút, có trong mẫu Render, 0 = tắt, âm bị Validate chặn.
+func TestWorkflowSliceTimeoutMinutes(t *testing.T) {
+	d := Default()
+	if d.Workflow.SliceTimeoutMinutes != 30 {
+		t.Fatalf("mặc định slice_timeout_minutes = %d, muốn 30", d.Workflow.SliceTimeoutMinutes)
+	}
+	cfg := Config{}
+	if err := Decode(strings.NewReader(Render(InitParams{ProjectName: "p"})), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Workflow.SliceTimeoutMinutes != 30 {
+		t.Fatalf("mẫu Render: slice_timeout_minutes = %d, muốn 30", cfg.Workflow.SliceTimeoutMinutes)
+	}
+	d.Workflow.SliceTimeoutMinutes = 0
+	if err := d.Validate(); err != nil {
+		t.Fatalf("0 hợp lệ (tắt lát mỏng): %v", err)
+	}
+	d.Workflow.SliceTimeoutMinutes = -1
+	if err := d.Validate(); err == nil || !strings.Contains(err.Error(), "workflow.slice_timeout_minutes") {
+		t.Fatalf("số âm phải bị từ chối: %v", err)
+	}
+}

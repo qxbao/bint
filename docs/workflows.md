@@ -477,6 +477,36 @@ thì hỏi có/không (đồng ý ⇒ đi tiếp, `notes` ghi người đã đ�
 `State.LastPlan`). Cổng không bị bỏ qua bởi lần dừng khác đặt trước nó (lint `b-req`, lệnh kiểm chứng, câu hỏi mở): dấu `State.PlanSize` ghi cổng đã áp chưa, và `b-feat` đầu tiên sau `b-req` (`preflightFeat`) áp cổng nếu chưa — người/agent sửa lint rồi resume vẫn gặp cổng với kế hoạch lớn. Skill `/b-do` Bước 3 dặn orchestrator tóm tắt kế hoạch cho người dùng và chỉ resume khi họ đồng ý. Cổng chỉ áp cho `b-do` gốc: flow tuỳ biến chạy tiếp
 như cũ và `b-req` chạy riêng vẫn dừng ở `planned`.
 
+**Lát mỏng và chốt một chiều (`workflow.slice_timeout_minutes`).** Benchmark Bint-vs-plain cho thấy `b-feat` một khối kéo 20–47 phút, bị cắt giữa chừng thì không có gì
+để giao, và review không hội tụ là cách dừng duy nhất. Kế hoạch **lớn** của `b-do` gốc vì thế không chỉ dừng báo: khi người cho chạy `b-feat`, Runner tự chia việc
+thành **lát** (`internal/workflow/slice.go`), mỗi lát một lượt `b-feat` riêng có trần thời gian, và chỉ giữ lát nào đo được là tiến.
+
+- **Điều kiện bật** (kiểm ở `b-feat` đầu tiên; thiếu một thì chạy một `b-feat` như cũ): `b-do` gốc chạy bằng `bint run` (driver process; driver session `bint run next`
+  không chia lát), không đường nhanh, kế hoạch lớn theo cổng cỡ kế hoạch, đã có kiểm tra mục tiêu đóng băng (`b-goal`, `State.GoalTest`) và lệnh kiểm chứng đã được xác nhận,
+  theo dõi được tệp của tác vụ (hoặc tác vụ ở worktree riêng), `plan.md` có **≥ 2 nhóm** cấp ngoài cùng dưới `## Bề mặt bị ảnh hưởng` có nêu `AC-N` (nhóm không nêu AC,
+  như dòng "Ngoài phạm vi", không thành lát), và `workflow.slice_timeout_minutes > 0`. Danh sách lát ghi một lần vào `State.Slices` (theo thứ tự dòng; sửa `plan.md` sau đó
+  không chia lại). Lý do chặn của cổng cỡ kế hoạch liệt kê các lát ("Bint sẽ chạy N lát: lát 1/N: …"); đề bài `b-req` của `b-do` dặn xếp nhóm đầu là bản nhỏ nhất vẫn làm giảm
+  số ô đỏ của kiểm tra mục tiêu (luật nằm trong đề bài do Bint dựng, không phải skill).
+- **Mỗi lát một `b-feat`**: đề bài nêu "lát k/N", nguyên văn dòng nhóm, các lát đã chốt (đừng làm lại), đã bỏ và lát sau (đừng làm trước); phiên mới, không nối tiếp lát
+  trước. Thời gian agent của lát là `min(workflow.timeout_minutes, workflow.slice_timeout_minutes)` (mặc định 30; kiểm chứng không tính).
+- **Đo và chốt**: sau mỗi lát (qua kiểm phạm vi, kiểm chứng và cổng mục tiêu như thường) Runner đọc log. *Tập ô đỏ* là tên các dòng `--- FAIL: <tên>` là lá; log
+  *không đo được* khi quá giờ, có `[build failed]`/`[setup failed]`/`panic:`, hoặc thoát khác 0 mà không có dòng FAIL; mã thoát 0 là tập rỗng. Lát **chốt** khi
+  (a) test cũ vẫn xanh: kiểm chứng của lát qua, hoặc scope `none`, hoặc log đo được và mọi ô đỏ thuộc test mục tiêu (hàm `Test*` của tệp đóng băng, hoặc tên cấp đầu của ô
+  đỏ trong log cổng mục tiêu); **và** (b) tập ô đỏ của cổng mục tiêu là **tập con thực sự** của tập ở điểm xanh trước (giảm, không ô xanh nào chuyển đỏ); điểm xanh trước chưa đo
+  được (vd. biên dịch hỏng) thì lát chỉ cần làm cho đo được; điểm xanh đã 0 ô đỏ thì lát phải giữ 0. Điểm xanh đầu là cây ngay sau `b-goal` (số đo của cổng mốc). Lát chốt ghim
+  cây ở `refs/bint/tasks/<id>/slice-green` (điểm xanh chỉ tiến) và ghi tập ô đỏ vào `State.Slices`; `LastGreen` và `bint task restore-green` dùng điểm xanh mới hơn
+  giữa lần kiểm chứng xanh cuối và điểm xanh lát.
+- **Bỏ lát** (không đạt (a)/(b), hoặc agent quá trần): Runner ghim cây hiện tại ở `refs/bint/tasks/<id>/slice-<N>-discarded`, đưa **tệp của tác vụ** về điểm xanh dưới khoá độc quyền
+  (cùng luật với `restore-green`: tệp tạo sau đó bị xoá; tệp ngoài tác vụ giữ nguyên, ghi chú liệt kê), ghi lát `discarded` kèm số đo ("ô đỏ 3→3 không giảm", "test cũ đỏ: TestX",
+  "quá trần thời gian lát (30 phút)") rồi chạy lát kế. Lát 1 bị bỏ thì tác vụ `blocked` (không có gì để giao ngoài điểm xanh đầu); resume chạy tiếp lát chưa làm kế tiếp (không chạy lại lát đã bỏ).
+  **Lấy lại lát bị bỏ**: `git restore --source=refs/bint/tasks/<id>/slice-<N>-discarded -- <tệp>`. Các ref lát xoá cùng `base` khi tác vụ kết thúc. Hết lát (còn ít nhất lát 1 chốt) thì
+  sang `b-review`, vòng sửa, finalize như cũ; vòng sửa **không** chốt một chiều (vẫn theo `reviewStalled` và ngân sách vòng sửa).
+- **Hết ngân sách hoặc lỗi**: hết `limits.workflows.b-do` (`max_cost_usd`, `max_turns`) trước lát kế thì `blocked` với lý do nối danh sách lát; agent lỗi (hết quota/chi phí của bước, hạ tầng; không phải quá trần, không phải
+  người huỷ) giữa lát thì cây về điểm xanh (phần dở ghim ở `slice-<N>-discarded`), lát **giữ trạng thái chưa làm** (không bị coi là bỏ) và tác vụ `blocked` (không `failed`). Kết luận (`reason`, `notes` và `slices` trong JSON của `bint run --json`)
+  nêu lát đã chốt, lát đã bỏ (lý do, ref lấy lại) và lát chưa làm; `resume` chạy tiếp lát chưa làm đầu tiên (lát dở vì lỗi thì chạy lại đúng lát đó), không chạy lại lát đã chốt hay đã bỏ (muốn làm lại lát đã bỏ thì lấy cây của nó bằng `git restore --source`, hoặc lập phiếu mới).
+- **Tắt**: `workflow.slice_timeout_minutes: 0`. Hạn chế đã biết: driver session không chia lát; hiển thị lát trong TUI và `bint task show` chưa có (xem `slices` trong JSON kết quả,
+  `state.json`).
+
 **Không tự cắt phạm vi: dòng `G-N` và "mới xong 1/N".** Khi thật sự tách, `plan.md` ghi mỗi giai đoạn đúng một dòng `- G-N: mục tiêu — phạm vi — phụ thuộc` dưới
 `## Đề xuất tách giai đoạn` (`G-1` là phiếu này; cho phép `[ ]`/`[x]`, bỏ dòng trong code fence). Bint đọc các dòng này (`task.PlanPhases`): từ hai giai đoạn thì
 `notes` sau `b-req` ghi "kế hoạch chia N giai đoạn, phiếu này chỉ làm G-1" và `notes` lúc hoàn tất (JSON và bản in của `bint run`) ghi **`mới xong 1/N giai đoạn`**
@@ -622,6 +652,7 @@ gói ngữ cảnh của Context Engine. Giới hạn vận hành (mục 5):
 | `workflow.fast_path` (`false`) | `true` = Bint tự chọn đường nhanh của `b-do` cho yêu cầu ngắn, mơ hồ, rủi ro thấp: bỏ `b-req`, một phiên `b-feat`, cổng kiểm chứng, một vòng review (+ một vòng sửa rồi xong, không review lại); `false` (mặc định) = `Classify` quyết như thường (yêu cầu mơ hồ vào `b-req`; việc nhỏ hoặc yêu cầu ngắn nêu rõ chỗ sửa có thể bỏ `b-req`), đường nhanh chỉ chạy khi người dùng chọn `--fast` / `/b-do-fast` |
 | `workflow.small_plan_max_files` (`5`) | cổng cỡ kế hoạch sau `b-req` của `b-do`: kế hoạch nhỏ (số tệp và số nhóm bề mặt không quá ngưỡng, không giai đoạn hoãn, có kiểm tra mục tiêu nêu tên test, không chạm đường dẫn bảo vệ) chạy thẳng `b-feat`; còn lại `blocked` chờ người (`kế hoạch lớn: …`); `0` = mọi kế hoạch dừng chờ người |
 | `workflow.timeout_minutes` (60), `verify_timeout_minutes` (15) | giới hạn thời gian mỗi bước agent / lệnh kiểm chứng |
+| `workflow.slice_timeout_minutes` (`30`) | kế hoạch lớn của `b-do` chạy theo lát mỏng (mục "Lát mỏng và chốt một chiều"): mỗi nhóm bề mặt gắn AC một `b-feat` tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì bị bỏ và cây về điểm xanh; `0` = tắt (một `b-feat`) |
 | `workflow.verify.scope` (`full`), `verify.affected_command` | `affected`: kiểm chứng sau implement chỉ chạy test bị ảnh hưởng; done vẫn đòi chạy đầy đủ ([phạm vi kiểm chứng](#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)) |
 
 **Dừng, duyệt đường dẫn bảo vệ và chạy tiếp (`resume`).** Ctrl-C trong `bint run` chuyển tác vụ sang

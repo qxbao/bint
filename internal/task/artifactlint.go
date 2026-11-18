@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -400,6 +401,43 @@ func PlanSurfaces(plan string) int {
 		}
 	})
 	return n
+}
+
+// PlanSlice là một nhóm của `## Bề mặt bị ảnh hưởng` có nêu tiêu chí: một lát mỏng của b-do chạy kế hoạch lớn.
+type PlanSlice struct {
+	// Text là nguyên văn dòng nhóm (không dấu bullet, bỏ khoảng trắng hai đầu).
+	Text string
+	// ACs là các số N của AC-N nêu trong dòng, theo thứ tự xuất hiện, bỏ trùng.
+	ACs []int
+}
+
+var planACRe = regexp.MustCompile(`\bAC-(\d+)\b`)
+
+// PlanSlices trả các nhóm của `## Bề mặt bị ảnh hưởng` có nêu ít nhất một AC-N, theo thứ tự dòng (cùng luật nhóm với PlanSurfaces: bullet
+// cấp ngoài cùng, ngoài code fence). Nhóm không nêu AC (dòng "Ngoài phạm vi", ghi chú) không phải lát. Không có mục thì nil.
+func PlanSlices(plan string) []PlanSlice {
+	var out []PlanSlice
+	scanLines(plan, func(section, line string) {
+		if section != secSurface || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "  ") {
+			return
+		}
+		t := strings.TrimSpace(line)
+		if len(t) < 2 || !strings.ContainsRune("-*+", rune(t[0])) || (t[1] != ' ' && t[1] != '\t') {
+			return
+		}
+		text := strings.TrimSpace(t[1:])
+		var acs []int
+		for _, m := range planACRe.FindAllStringSubmatch(text, -1) {
+			n, err := strconv.Atoi(m[1])
+			if err == nil && !slices.Contains(acs, n) {
+				acs = append(acs, n)
+			}
+		}
+		if len(acs) > 0 {
+			out = append(out, PlanSlice{Text: text, ACs: acs})
+		}
+	})
+	return out
 }
 
 func lintRequirement(b *reportBuilder, text string) []acItem {

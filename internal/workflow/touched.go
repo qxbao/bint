@@ -113,7 +113,16 @@ func baseTreeRef(id string) string { return "refs/bint/tasks/" + id + "/base-tre
 // (update-ref -d bỏ qua); trả lỗi đầu tiên gặp.
 func deleteTaskRefs(ctx context.Context, root, id string) error {
 	var first error
-	for _, ref := range []string{baseRef(id), baseTreeRef(id), greenRef(id), beforeRestoreRef(id)} {
+	refs := []string{baseRef(id), baseTreeRef(id), greenRef(id), beforeRestoreRef(id), sliceGreenRef(id)}
+	// Cây của các lát bị bỏ (slice-<N>-discarded, slice.go): số lát không biết trước nên liệt kê theo tiền tố.
+	if out, err := gitrepo.Run(ctx, root, "for-each-ref", "--format=%(refname)", "refs/bint/tasks/"+id+"/slice-"); err == nil {
+		for ref := range strings.SplitSeq(out, "\n") {
+			if ref = strings.TrimSpace(ref); ref != "" && !slices.Contains(refs, ref) {
+				refs = append(refs, ref)
+			}
+		}
+	}
+	for _, ref := range refs {
 		if _, err := gitrepo.Run(ctx, root, "update-ref", "-d", ref); err != nil && first == nil {
 			first = fmt.Errorf("xoá ref %s: %w", ref, err)
 		}

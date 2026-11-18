@@ -301,6 +301,56 @@ func (g *GoalTest) Paths() []string {
 	return out
 }
 
+// Trạng thái của một lát mỏng (State.Slices).
+const (
+	SlicePending   = "pending"   // chưa tới lượt
+	SliceActive    = "active"    // đang là lát được chạy (đúng một lát tại một thời điểm)
+	SliceAccepted  = "accepted"  // đã chốt: ô đỏ của kiểm tra mục tiêu giảm, test cũ vẫn xanh, điểm xanh đã tiến
+	SliceDiscarded = "discarded" // đã bỏ: cây quay về điểm xanh, Backup giữ nội dung lát
+)
+
+// Slice là một lát mỏng của b-do chạy kế hoạch lớn: một nhóm `## Bề mặt bị ảnh hưởng` của plan.md, chạy bằng một lượt b-feat riêng.
+type Slice struct {
+	N int `json:"n"`
+	// Text là nguyên văn dòng nhóm trong plan.md (không dấu gạch đầu dòng); ACs là các AC-N nhóm nêu.
+	Text   string `json:"text"`
+	ACs    []int  `json:"acs,omitempty"`
+	Status string `json:"status"`
+	// Reason: lý do bỏ (có số đo) hoặc ghi chú chốt.
+	Reason string `json:"reason,omitempty"`
+	// Red là tập ô đỏ của cổng mục tiêu sau lát (chỉ khi đo được: lát đã chốt, hoặc bị bỏ vì không đạt điều kiện chốt).
+	Red []string `json:"red,omitempty"`
+	// Tree là ảnh chụp cây lúc chốt; Backup là ref giữ nội dung lát bị bỏ (git restore --source=<ref> -- <tệp>).
+	Tree   string `json:"tree,omitempty"`
+	Backup string `json:"backup,omitempty"`
+	RunID  string `json:"run_id,omitempty"`
+}
+
+// SliceGreen là điểm xanh của lát: ảnh chụp cây gần nhất mà số đo của cổng mục tiêu được chốt một chiều (chỉ tiến, không lùi).
+type SliceGreen struct {
+	Tree string `json:"tree"`
+	At   string `json:"at,omitempty"`
+	// Measured: cổng mục tiêu ở điểm này đo được tập ô đỏ (Red); false là chưa đo được (vd. biên dịch hỏng): lát chỉ cần làm cho đo được.
+	Measured bool     `json:"measured"`
+	Red      []string `json:"red,omitempty"`
+}
+
+// SliceMark ghi số lần kiểm chứng và số lần chạy cổng mục tiêu lúc lát hiện tại bắt đầu: kết quả của lát là các lần sau mốc này.
+type SliceMark struct {
+	VerifyN int `json:"verify_n"`
+	GoalN   int `json:"goal_n"`
+}
+
+// ActiveSlice trả lát đang chạy (nil khi không có).
+func (s *State) ActiveSlice() *Slice {
+	for i := range s.Slices {
+		if s.Slices[i].Status == SliceActive {
+			return &s.Slices[i]
+		}
+	}
+	return nil
+}
+
 // LastGoalCheck là lần chạy cổng mục tiêu gần nhất (nil khi chưa có).
 func (s *State) LastGoalCheck() *Verification {
 	if len(s.GoalChecks) == 0 {
@@ -459,6 +509,11 @@ type State struct {
 	// GoalAwaitingCheck: agent b-goal đã xong nhưng kiểm phạm vi dừng chờ người (tệp test chạm đường dẫn bảo vệ/deny...) nên chưa đóng băng
 	// (GoalTest nil). Resume chỉ chạy phần sau kiểm phạm vi (đóng băng đúng nội dung đã duyệt), không gọi lại agent b-goal, tương tự AwaitingCheck.
 	GoalAwaitingCheck bool `json:"goal_awaiting_check,omitempty"`
+	// Slices là các lát mỏng khi b-do chạy kế hoạch lớn theo lát (workflow.slice_timeout_minutes > 0; slice.go): theo thứ tự nhóm trong plan.md,
+	// ghi một lần ở b-feat đầu tiên. SliceGreen là điểm xanh của lát (nil trước lát 1); SliceMark là mốc đếm của lát đang chạy.
+	Slices     []Slice     `json:"slices,omitempty"`
+	SliceGreen *SliceGreen `json:"slice_green,omitempty"`
+	SliceMark  *SliceMark  `json:"slice_mark,omitempty"`
 	// FastFixed: đường nhanh đã mở vòng sửa duy nhất sau review vòng 1; sau kiểm chứng của vòng sửa tác vụ finalize, không review lại.
 	FastFixed bool `json:"fast_fixed,omitempty"`
 	// ExtraFixRounds là số vòng sửa người cho thêm bằng `bint run resume --fix-round` ngoài workflow.max_review_rounds.

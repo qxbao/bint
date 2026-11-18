@@ -25,6 +25,31 @@ import (
 func greenRef(id string) string         { return "refs/bint/tasks/" + id + "/green" }
 func beforeRestoreRef(id string) string { return "refs/bint/tasks/" + id + "/before-restore" }
 
+// sliceGreenRef giữ điểm xanh của lát mỏng (slice.go); sliceDiscardRef giữ cây của lát N bị bỏ (git restore --source=<ref> -- <tệp> để lấy lại).
+func sliceGreenRef(id string) string { return "refs/bint/tasks/" + id + "/slice-green" }
+func sliceDiscardRef(id string, n int) string {
+	return fmt.Sprintf("refs/bint/tasks/%s/slice-%d-discarded", id, n)
+}
+
+// greenPoint là điểm quay về của tác vụ: lần kiểm chứng xanh cuối hoặc điểm xanh của lát mỏng, cái nào mới hơn.
+type greenPoint struct {
+	At, Command, Scope, Tree string
+	Ref                      string // ref giữ ảnh chụp
+}
+
+// lastGreenPoint chọn điểm xanh mới hơn giữa greenVerification và State.SliceGreen (nil nếu chưa có cái nào). Lát mỏng chốt trước khi
+// kiểm chứng đầy đủ xanh nên điểm của lát thường mới hơn; kiểm chứng xanh sau đó (vòng sửa) thì điểm của nó mới hơn.
+func lastGreenPoint(t *task.Task) *greenPoint {
+	var p *greenPoint
+	if v := greenVerification(t); v != nil {
+		p = &greenPoint{At: v.At, Command: v.Command, Scope: v.Scope, Tree: v.Tree, Ref: greenRef(t.State.ID)}
+	}
+	if sg := t.State.SliceGreen; sg != nil && sg.Tree != "" && (p == nil || sg.At >= p.At) {
+		p = &greenPoint{At: sg.At, Command: "lát mỏng (ô đỏ của kiểm tra mục tiêu giảm, test cũ xanh)", Tree: sg.Tree, Ref: sliceGreenRef(t.State.ID)}
+	}
+	return p
+}
+
 // greenVerification trả lần kiểm chứng xanh cuối có ảnh chụp cây (nil nếu chưa có). Lần không chạy lệnh nào (scope none) không tính.
 func greenVerification(t *task.Task) *task.Verification {
 	for i := len(t.State.Verifications) - 1; i >= 0; i-- {
@@ -76,7 +101,7 @@ func (e *Env) GreenReport(ctx context.Context, t *task.Task) (*GreenInfo, []Open
 }
 
 func (e *Env) greenInfo(ctx context.Context, t *task.Task) *GreenInfo {
-	v := greenVerification(t)
+	v := lastGreenPoint(t)
 	if v == nil {
 		return nil
 	}
@@ -88,7 +113,7 @@ func (e *Env) greenInfo(ctx context.Context, t *task.Task) *GreenInfo {
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
 	defer cancel()
-	if got, err := gitrepo.Run(ctx, root, "rev-parse", "--verify", "-q", greenRef(t.State.ID)+"^{tree}"); err == nil && strings.TrimSpace(got) == v.Tree {
+	if got, err := gitrepo.Run(ctx, root, "rev-parse", "--verify", "-q", v.Ref+"^{tree}"); err == nil && strings.TrimSpace(got) == v.Tree {
 		g.Pinned = true
 	}
 	cur, err := WorktreeSnapshot(ctx, root)
@@ -165,7 +190,7 @@ func (e *Env) RestoreGreen(ctx context.Context, ref string, apply bool) (*Restor
 	if !task.Paused(t.State.Status) {
 		return nil, fmt.Errorf("tác vụ %s đang %s: chỉ quay về điểm xanh khi tác vụ dừng (blocked, interrupted hoặc failed)", id, t.State.Status)
 	}
-	v := greenVerification(t)
+	v := lastGreenPoint(t)
 	if v == nil {
 		return nil, ErrNoGreen
 	}
@@ -183,15 +208,21 @@ func (e *Env) RestoreGreen(ctx context.Context, ref string, apply bool) (*Restor
 		}
 		defer lock.Release()
 	}
+	return restoreTree(ctx, root, t, v.Tree, apply, beforeRestoreRef(id))
+}
+
+// restoreTree đưa các tệp CỦA TÁC VỤ t về nội dung ở cây tree (luật chọn tệp: xem RestoreGreen). Người gọi giữ khoá độc quyền của cây khi
+// apply. backupRef khác rỗng thì ghim cây hiện tại ở đó trước khi ghi (chỉ khi có tệp để khôi phục); rỗng thì người gọi đã tự ghim.
+func restoreTree(ctx context.Context, root string, t *task.Task, tree string, apply bool, backupRef string) (*RestoreResult, error) {
 	cur, err := WorktreeSnapshot(ctx, root)
 	if err != nil {
 		return nil, err
 	}
-	changed, err := DiffPaths(ctx, root, v.Tree, cur)
+	changed, err := DiffPaths(ctx, root, tree, cur)
 	if err != nil {
 		return nil, err
 	}
-	res := &RestoreResult{TaskID: id, Tree: v.Tree, Restore: []string{}, Skipped: []string{}}
+	res := &RestoreResult{TaskID: t.State.ID, Tree: tree, Restore: []string{}, Skipped: []string{}}
 	isolated := t.State.Origin != "" && t.State.Worktree != ""
 	for _, f := range changed {
 		if isolated || (t.State.TracksTouched() && slices.Contains(t.State.Touched, f)) {
@@ -203,13 +234,15 @@ func (e *Env) RestoreGreen(ctx context.Context, ref string, apply bool) (*Restor
 	if !apply || len(res.Restore) == 0 {
 		return res, nil
 	}
-	if err := pinTree(ctx, root, cur, beforeRestoreRef(id), "bint: cây trước khi quay về điểm xanh của tác vụ "+id); err != nil {
-		return nil, fmt.Errorf("không ghim được cây hiện tại làm đường lui, không ghi đè gì: %w", err)
+	if backupRef != "" {
+		if err := pinTree(ctx, root, cur, backupRef, "bint: cây trước khi quay về điểm xanh của tác vụ "+t.State.ID); err != nil {
+			return nil, fmt.Errorf("không ghim được cây hiện tại làm đường lui, không ghi đè gì: %w", err)
+		}
+		res.Backup = backupRef
 	}
-	res.Backup = beforeRestoreRef(id)
 	for _, f := range res.Restore {
 		abs := filepath.Join(root, filepath.FromSlash(f))
-		if _, err := gitrepo.Run(ctx, root, "--literal-pathspecs", "cat-file", "-e", v.Tree+":"+f); err != nil {
+		if _, err := gitrepo.Run(ctx, root, "--literal-pathspecs", "cat-file", "-e", tree+":"+f); err != nil {
 			// Không có ở điểm xanh: tệp tạo sau đó.
 			if rerr := os.Remove(abs); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
 				return res, fmt.Errorf("xoá %s: %w (đường lui: %s)", f, rerr, res.Backup)
@@ -217,7 +250,7 @@ func (e *Env) RestoreGreen(ctx context.Context, ref string, apply bool) (*Restor
 			continue
 		}
 		// --worktree (mặc định của restore): không đụng chỉ mục của người dùng.
-		if _, err := gitrepo.Run(ctx, root, "--literal-pathspecs", "restore", "--source="+v.Tree, "--worktree", "--", f); err != nil {
+		if _, err := gitrepo.Run(ctx, root, "--literal-pathspecs", "restore", "--source="+tree, "--worktree", "--", f); err != nil {
 			return res, fmt.Errorf("khôi phục %s: %w (đường lui: %s)", f, err, res.Backup)
 		}
 	}

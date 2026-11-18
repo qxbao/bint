@@ -1,6 +1,7 @@
 package task
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -452,6 +453,39 @@ func TestPlanSurfaces(t *testing.T) {
 	for _, tc := range cases {
 		if got := PlanSurfaces(tc.plan); got != tc.want {
 			t.Errorf("%s: PlanSurfaces = %d, muốn %d", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestPlanSlices(t *testing.T) {
+	cases := []struct {
+		name, plan string
+		texts      []string
+		acs        [][]int
+	}{
+		{"không có mục", "# K\n## Hướng\n- A — AC-1\n", nil, nil},
+		{"nhóm có AC theo thứ tự dòng", "# K\n## Bề mặt bị ảnh hưởng\n- A: `a.go` — AC-1\n- B: `b.go` — AC-2, AC-3\n",
+			[]string{"A: `a.go` — AC-1", "B: `b.go` — AC-2, AC-3"}, [][]int{{1}, {2, 3}}},
+		{"nhóm không AC (ngoài phạm vi) không phải lát", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-1\n- Ngoài phạm vi: docs\n- B — AC-2\n",
+			[]string{"A — AC-1", "B — AC-2"}, [][]int{{1}, {2}}},
+		{"bullet thụt vào là chi tiết", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-1\n  - chi tiết AC-9\n- B — AC-2\n",
+			[]string{"A — AC-1", "B — AC-2"}, [][]int{{1}, {2}}},
+		{"AC lặp chỉ tính một lần, AC-10 không lẫn AC-1", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-10, AC-1, AC-10\n",
+			[]string{"A — AC-10, AC-1, AC-10"}, [][]int{{10, 1}}},
+		{"trong code fence bị bỏ", "# K\n## Bề mặt bị ảnh hưởng\n```\n- A — AC-1\n```\n- B — AC-2\n", []string{"B — AC-2"}, [][]int{{2}}},
+		{"CRLF", "# K\r\n## Bề mặt bị ảnh hưởng\r\n- A — AC-1\r\n- B — AC-2\r\n", []string{"A — AC-1", "B — AC-2"}, [][]int{{1}, {2}}},
+		{"ngoài mục không tính", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-1\n## Rủi ro\n- B — AC-2\n", []string{"A — AC-1"}, [][]int{{1}}},
+	}
+	for _, tc := range cases {
+		got := PlanSlices(tc.plan)
+		if len(got) != len(tc.texts) {
+			t.Errorf("%s: %d lát, muốn %d: %+v", tc.name, len(got), len(tc.texts), got)
+			continue
+		}
+		for i, g := range got {
+			if g.Text != tc.texts[i] || !slices.Equal(g.ACs, tc.acs[i]) {
+				t.Errorf("%s: lát %d = %q %v, muốn %q %v", tc.name, i+1, g.Text, g.ACs, tc.texts[i], tc.acs[i])
+			}
 		}
 	}
 }

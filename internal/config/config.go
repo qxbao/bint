@@ -428,6 +428,10 @@ type Workflow struct {
 	SmallPlanMaxFiles int `yaml:"small_plan_max_files"`
 	// TimeoutMinutes giới hạn thời gian mỗi bước agent.
 	TimeoutMinutes int `yaml:"timeout_minutes"`
+	// SliceTimeoutMinutes là trần thời gian của MỘT lát khi b-do chạy kế hoạch lớn theo lát mỏng (mỗi nhóm `## Bề mặt bị ảnh hưởng` là một
+	// lượt b-feat riêng; thời gian agent của lát là min(timeout_minutes, khoá này)). Lát quá trần bị bỏ và cây quay về điểm xanh. 0 = tắt lát
+	// mỏng (kế hoạch lớn chạy một b-feat như trước).
+	SliceTimeoutMinutes int `yaml:"slice_timeout_minutes"`
 	// VerifyTimeoutMinutes giới hạn thời gian lệnh kiểm chứng của phiếu tác vụ.
 	VerifyTimeoutMinutes int `yaml:"verify_timeout_minutes"`
 	// Isolation chọn nơi tác vụ chạy, một lần lúc lập phiếu: auto | shared | worktree
@@ -700,7 +704,7 @@ func Default() Config {
 		},
 		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
-			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
+			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Verify: WorkflowVerify{Scope: VerifyScopeFull},
 			Agent: WorkflowAgent{
@@ -1144,6 +1148,9 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.TimeoutMinutes < 1 || c.Workflow.VerifyTimeoutMinutes < 1 {
 		add("workflow.timeout_minutes, workflow.verify_timeout_minutes: phải >= 1")
+	}
+	if c.Workflow.SliceTimeoutMinutes < 0 {
+		add("workflow.slice_timeout_minutes: phải >= 0 (0 = tắt lát mỏng)")
 	}
 	if !slices.Contains(VerifyScopes, c.Workflow.Verify.Scope) {
 		add("workflow.verify.scope: phải là %s", strings.Join(VerifyScopes, " | "))
