@@ -1118,9 +1118,12 @@ func (e *Env) ApproveWith(ref string, in ApproveInput) (*task.Task, Approval, er
 			a.Paths = pending
 			t.State.PendingPaths = nil
 		}
-		if len(explicit) > 0 && task.Paused(t.State.Status) {
+		if len(explicit) > 0 && task.Paused(t.State.Status) && t.State.ResumeFrom != task.StatusPlanned {
 			// Hook deny trước khi sửa nên không có diff và b-feat chưa thực hiện
 			// phần việc này. Chỉ lựa chọn --path mới yêu cầu chạy lại b-feat.
+			// Tác vụ dừng ở `planned` thì b-feat chưa bắt đầu (b-feat chuyển in_progress ngay khi chạy): lần dừng là của b-goal
+			// (hook deny tệp test, hoặc chờ duyệt phạm vi) hay cổng cỡ kế hoạch; giữ `planned` để resume chạy lại b-goal (hoặc
+			// phần sau kiểm phạm vi của nó) thay vì nhảy thẳng sang b-feat và bỏ kiểm tra mục tiêu độc lập.
 			t.State.ResumeFrom = task.StatusInProgress
 			t.State.AwaitingCheck = false
 		}

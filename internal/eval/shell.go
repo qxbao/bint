@@ -162,7 +162,7 @@ func cleanEnv(extra ...string) []string {
 		case "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT",
 			"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "BINT_EVAL_CONTEXT",
 			// Định danh lượt chạy/tác vụ của phiên chủ: lượt eval không thuộc tác vụ đó.
-			"BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS", "CLAUDE_CODE_SESSION_ID":
+			"BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS", "BINT_DENY_READ", "CLAUDE_CODE_SESSION_ID":
 			continue
 		}
 		out = append(out, kv)
@@ -175,7 +175,7 @@ func cleanEnv(extra ...string) []string {
 // đọc nhầm kho git của worktree. Biến đánh dấu agent (BINT_AGENT, CLAUDECODE, AI_AGENT, CODEX_SANDBOX, GEMINI_CLI)
 // được GIỮ để thao tác chỉ dành cho người vẫn bị từ chối trong kiểm thử.
 var verifyStripped = map[string]bool{
-	"BINT_RUN_ID": true, "BINT_TASK_ID": true, "BINT_APPROVED_PATHS": true, "BINT_RUNNER_PID": true,
+	"BINT_RUN_ID": true, "BINT_TASK_ID": true, "BINT_APPROVED_PATHS": true, "BINT_DENY_READ": true, "BINT_RUNNER_PID": true,
 	"CLAUDE_CODE_SESSION_ID": true, "CLAUDE_CODE_SSE_PORT": true,
 	"GIT_DIR": true, "GIT_WORK_TREE": true, "GIT_INDEX_FILE": true, "GIT_COMMON_DIR": true,
 }

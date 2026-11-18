@@ -144,15 +144,16 @@ const (
 	BlockCriterionUnmet                        // tiêu chí đã đánh dấu chưa đạt
 	BlockCriterionUnchecked                    // tiêu chí chưa đối chiếu
 	BlockGoalMissing                           // có kiểm tra mục tiêu đóng băng nhưng chưa chạy cổng mục tiêu (điều chặn cứng)
-	BlockGoalFailed                            // lần chạy cổng mục tiêu cuối không qua (điều chặn cứng)
+	BlockGoalFailed                            // lần chạy cổng mục tiêu cuối không qua (người ép bỏ qua được: lối thoát khi chính test đóng băng sai)
 )
 
 // Forceable cho biết người có thể bỏ qua điều chặn loại k bằng land --force: chỉ danh sách cho phép tường minh (kiểm
-// chứng không qua/cũ/chưa chạy/đổi lệnh, tiêu chí chưa đối chiếu, thiếu bằng chứng). Mọi loại khác, kể cả loại thêm
-// sau này, KHÔNG bỏ qua được.
+// chứng không qua/cũ/chưa chạy/đổi lệnh, cổng mục tiêu đỏ, tiêu chí chưa đối chiếu, thiếu bằng chứng). Mọi loại khác, kể cả
+// loại thêm sau này, KHÔNG bỏ qua được. BlockGoalFailed là lối thoát của người khi chính test đóng băng sai; BlockGoalMissing
+// (chưa chạy cổng) vẫn cứng: chạy lại được nên không cần ép.
 func (k BlockerKind) Forceable() bool {
 	switch k {
-	case BlockVerifyMissing, BlockVerifyChanged, BlockVerifyFailed, BlockVerifyStale, BlockVerifyPartial, BlockNoEvidence, BlockCriterionUnchecked:
+	case BlockVerifyMissing, BlockVerifyChanged, BlockVerifyFailed, BlockVerifyStale, BlockVerifyPartial, BlockGoalFailed, BlockNoEvidence, BlockCriterionUnchecked:
 		return true
 	}
 	return false

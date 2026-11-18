@@ -389,13 +389,24 @@ mục 4), nên ở `b-do` gốc đầy đủ Bint chạy thêm bước `b-goal` 
 sau cổng cỡ kế hoạch, khi `requirement.md` có mục `## Kiểm tra mục tiêu` và phiếu có `verify.command`:
 - **Phiên riêng, chỉ thấy `requirement.md`**: luôn là phiên mới (không dùng cơ chế nối tiếp khác model của `b-req` → `b-feat`: phiên `b-req` đã thấy
   plan/tasks nên nối tiếp sẽ làm lộ chúng); model theo `roles.planner`/`models.planner` (mặc định khác implementer). Đề bài chỉ gồm skill `b-goal`, phiếu và
-  nguyên văn `requirement.md`, không có `plan.md`/`tasks.md` hay đường dẫn của chúng (Bint chưa chặn cứng việc agent tự đi đọc chúng trên đĩa). `b-feat`
+  nguyên văn `requirement.md`, không có `plan.md`/`tasks.md` hay đường dẫn của chúng. Rào thực thi: với bước `b-goal` do `bint run` khởi chạy, Bint đặt
+  biến `BINT_DENY_READ` (đường dẫn tuyệt đối `plan.md`, `tasks.md`, mỗi dòng một đường; không bước nào khác có biến này) và hook PreToolUse trả `deny` cho công cụ
+  đọc trỏ tới các tệp đó và lệnh shell nhắc tới chúng (lệnh cố tình né bằng ghép chuỗi/biến không bị bắt: chặn đọc nhầm, không chặn cố ý). Hook Claude đã cài
+  chỉ đăng ký `Read|Edit|Write|MultiEdit|NotebookEdit|Bash`, không có `Grep`/`Glob`, nên với b-goal chạy bằng Claude Bint cấp thêm settings riêng của bước (`--settings`, xoá
+  sau bước) đăng ký `bint hook claude` cho `Grep|Glob`; harness khác không nhận. Rào Read/Bash vẫn dựa vào hook đã cài (`bint init` không có `--no-hooks`). Ở driver session
+  (`bint run next`) subagent chạy trong phiên Claude chính nên Bint không đặt được biến này: rào vẫn chỉ là lời dặn trong đề bài. `b-feat`
   sau đó vẫn nối tiếp phiên `b-req` (Bint làm mới dấu vân tay cây sau `b-goal`). Driver session: subagent `bint-implementer` (cần quyền ghi), model theo planner.
+  Tệp `b-goal` viết cần người duyệt phạm vi (đường dẫn bảo vệ, `scope.deny`…): tác vụ dừng chờ duyệt, và sau `bint task approve` rồi `resume` Bint chỉ chạy phần
+  còn lại của bước (đóng băng đúng nội dung đã duyệt, cổng mốc), **không** gọi lại agent `b-goal`.
 - **Đóng băng**: Bint tự đo tệp `b-goal` đã tạo/sửa (không tin khai báo của agent), ghi `{đường dẫn, sha256}` vào `State.GoalTest`, thêm chúng vào `scope.deny`.
   Sau **mỗi** bước implement, trước kiểm phạm vi, kiểm chứng và review, `freezeGate` so băm: tệp bị sửa/xoá/đổi tên thì tác vụ `blocked` nêu tệp; `bint task
   approve` không bỏ qua cổng này (người khôi phục tệp, ví dụ `git restore`, rồi `resume`). Tệp còn nguyên không bị hỏi duyệt dù khớp `scope.deny` và không
-  được tính là việc `b-feat` đã làm (cổng "không đổi tệp nào"). Chưa có đường bỏ đóng băng khi chính test sai: người huỷ phiếu hoặc `b-feat` ghi tiêu chí `unmet`.
-- **Cổng riêng**: lệnh là `workflow.verify.affected_command` mở rộng trên tệp đóng băng khi đã đặt, không thì `verify.command`; chạy một lần ngay sau `b-goal`
+  được tính là việc `b-feat` đã làm (cổng "không đổi tệp nào"). Lối thoát khi chính test đóng băng sai: cổng mục tiêu đỏ là điều chặn người bỏ qua được như kiểm chứng đỏ, tức
+  `bint task land <id> --force --reason "<lý do>"` (tác vụ worktree) hoặc `bint task status <id> done --force` (tác vụ shared); lý do và điều chặn được ghi vào
+  `Landed.Bypassed`. Chỉ người dùng được cờ ép (agent bị từ chối). "Chưa chạy cổng mục tiêu" vẫn là điều chặn cứng. Chưa có lệnh chạy lại `b-goal` hay đóng băng lại.
+- **Cổng riêng**: lệnh là `workflow.verify.affected_command` mở rộng trên tệp đóng băng khi đã đặt, không thì `verify.command`. Khi lệnh bắt đầu bằng `go test`, chưa có
+  `-run` và tệp đóng băng là `*_test.go`, Bint thêm `-run '^(TestA|TestB)$'` gồm đúng các hàm `Test*` của tệp đóng băng để cổng không chạy cả gói (tệp khác Go,
+  tệp không có hàm `Test*` hay lệnh đã có `-run` giữ lệnh cũ); chạy một lần ngay sau `b-goal`
   (mốc, không chặn; xanh ngay thì ghi chú "test có thể quá yếu") và sau kiểm chứng của mỗi bước implement. Log `goal-N.log`, kết quả ở `State.GoalChecks`, hiện ở
   `bint task show`. Đỏ được xử lý như kiểm chứng đỏ (`redVerification`: review thấy, vòng sửa); `finalize` chạy lại khi cây đổi và không `done` khi lần mới nhất đỏ.
 - `b-feat` không còn tự viết test mục tiêu khi đã có tệp đóng băng (đề bài nêu tệp đó, cấm sửa). **Giữ hành vi cũ**: `--fast`, phiếu không có mục Kiểm tra mục

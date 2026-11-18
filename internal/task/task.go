@@ -456,6 +456,9 @@ type State struct {
 	GoalTest *GoalTest `json:"goal_test,omitempty"`
 	// GoalChecks là các lần chạy cổng mục tiêu riêng (log goal-N.log); lần cuối quyết định điều kiện done.
 	GoalChecks []Verification `json:"goal_checks,omitempty"`
+	// GoalAwaitingCheck: agent b-goal đã xong nhưng kiểm phạm vi dừng chờ người (tệp test chạm đường dẫn bảo vệ/deny...) nên chưa đóng băng
+	// (GoalTest nil). Resume chỉ chạy phần sau kiểm phạm vi (đóng băng đúng nội dung đã duyệt), không gọi lại agent b-goal, tương tự AwaitingCheck.
+	GoalAwaitingCheck bool `json:"goal_awaiting_check,omitempty"`
 	// FastFixed: đường nhanh đã mở vòng sửa duy nhất sau review vòng 1; sau kiểm chứng của vòng sửa tác vụ finalize, không review lại.
 	FastFixed bool `json:"fast_fixed,omitempty"`
 	// ExtraFixRounds là số vòng sửa người cho thêm bằng `bint run resume --fix-round` ngoài workflow.max_review_rounds.

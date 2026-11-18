@@ -33,6 +33,10 @@ import (
 // stepCheck: bước giả — kiểm tra phạm vi và kiểm chứng sau b-feat (không gọi agent).
 const stepCheck = "post-feat"
 
+// stepGoalCheck: bước giả — b-goal đã chạy nhưng kiểm phạm vi dừng chờ người (State.GoalAwaitingCheck); resume chỉ áp phần sau kiểm phạm vi
+// (đóng băng, cổng mốc, goalfreeze.go), không chạy lại agent b-goal.
+const stepGoalCheck = "post-goal"
+
 // stepHeld: bước giả — bước chỉ đọc đã kết thúc nhưng bị giữ vì cây đổi trong lúc chạy (State.HeldStep); resume chỉ áp
 // cổng sau bước của nó (lint + planned cho plan, quyết định cho review), không chạy lại agent.
 const stepHeld = "held-step"
@@ -542,6 +546,16 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 			}
 			continue
 		}
+		if step == stepGoalCheck {
+			// b-goal đã chạy ở lượt trước (người vừa duyệt phạm vi); chỉ còn đóng băng và cổng mốc.
+			if !r.afterGoal(ctx, rs) {
+				break
+			}
+			if o.Step != "" {
+				break
+			}
+			continue
+		}
 		if step == stepCheck {
 			// Bước implement đã chạy ở lượt trước; chỉ còn kiểm tra phạm vi và kiểm chứng.
 			if !r.afterStep(ctx, rs, rs.currentImplement().ID) {
@@ -604,7 +618,7 @@ func (r *Runner) checkStepRequest(rs *runState, o RunOptions) error {
 	probe := *rs
 	probe.t = &cp
 	if want, _ := probe.pickStep(); want != o.Step {
-		if want == "" || want == stepCheck {
+		if want == "" || want == stepCheck || want == stepGoalCheck {
 			want = "(chưa có bước agent nào: " + rs.t.State.Status + ")"
 		}
 		return fmt.Errorf("--step %s: bước kế tiếp của tác vụ %s là %s", o.Step, rs.t.State.ID, want)
@@ -827,6 +841,9 @@ func (rs *runState) pickStep() (step string, finalize bool) {
 		if st == task.StatusInProgress {
 			return rs.currentImplement().ID, false // bước implement đang dở hoặc kế tiếp (nhiều bước implement)
 		}
+		if rs.t.State.GoalAwaitingCheck && rs.t.State.GoalTest == nil && st == task.StatusPlanned {
+			return stepGoalCheck, false // b-goal đã chạy, chỉ còn kiểm phạm vi + đóng băng (goalfreeze.go)
+		}
 		if rs.goalPending() { // b-do: kiểm tra mục tiêu độc lập viết trước b-feat (goalfreeze.go)
 			g, _ := fd.FirstOfKind(flow.KindGoal)
 			return g.ID, false
@@ -1035,9 +1052,15 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	env := []string{EnvRunID + "=" + sr.child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
 		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
+	if sr.kind == flow.KindGoal {
+		// Rào thực thi của b-goal (goalfreeze.go): hook không cho đọc plan.md/tasks.md; chỉ bước này có biến.
+		env = append(env, hookcore.EnvDenyRead+"="+strings.Join([]string{rs.t.ArtifactPath("plan"), rs.t.ArtifactPath("tasks")}, "\n"))
+	}
 	// Mọi bước driver process có đúng một MCP server là bint (M0 của docs/mcp-gateway-plan.md).
 	mcpPath, mcpTools, cleanMCP := r.stepMCP(sr, rs.t.State.ID)
 	defer cleanMCP()
+	denySettings, cleanDeny := r.stepDenyReadSettings(sr) // b-goal (Claude): hook cho Grep/Glob để rào BINT_DENY_READ chặn được (mcp.go)
+	defer cleanDeny()
 	r.armPlanHandoff(ctx, rs, sr)
 	last := rs.t.State.LastStep // chụp trước khi xoá (bước thật sự bắt đầu ngay dưới)
 	resumeID := r.armProcessContinuation(ctx, rs, sr, last)
@@ -1063,7 +1086,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		return sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt, SessionID: sessionID, ResumeSessionID: resume, Profile: sr.prof,
 			Timeout: time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute,
 			LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
-			MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools})
+			MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools, Settings: denySettings})
 	}
 	var res eval.AgentResult
 	if resumeID != "" {

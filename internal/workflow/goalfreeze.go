@@ -5,10 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"bint/internal/eval"
 	"bint/internal/flow"
@@ -90,6 +96,10 @@ func (e *Env) withoutIntactGoal(root string, t *task.Task, files []string) []str
 // fingerprint của LastPlan để b-feat vẫn nối tiếp phiên b-req (cây đổi chỉ vì tệp test).
 func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 	if !r.checkScope(ctx, rs) {
+		// Dừng chờ duyệt (hoặc huỷ/lỗi) khi agent b-goal đã xong: resume chạy lại từ đây (stepGoalCheck), không gọi lại agent.
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.GoalAwaitingCheck = true; return nil }); err == nil {
+			rs.t = t
+		}
 		return false
 	}
 	var files []task.GoalFile
@@ -99,6 +109,10 @@ func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 		}
 	}
 	if len(files) == 0 {
+		// Không có tệp để đóng băng: resume phải chạy lại b-goal (agent), không phải phần sau kiểm phạm vi.
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.GoalAwaitingCheck = false; return nil }); err == nil {
+			rs.t = t
+		}
 		r.markAwaitingHuman(rs)
 		r.block(rs, "b-goal kết thúc mà không tạo hay sửa tệp nào (hoặc Bint không xác định được tệp đã viết): không có kiểm tra mục tiêu để đóng băng. "+
 			"Xem requirement.md mục `## Kiểm tra mục tiêu`, rồi `"+r.resumeCmd(rs)+"` để chạy lại b-goal")
@@ -114,6 +128,7 @@ func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 	}
 	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		t.State.GoalTest = &task.GoalTest{Files: files, RunID: runID, At: r.at()}
+		t.State.GoalAwaitingCheck = false
 		t.Ticket.Scope.Deny = appendUnique(t.Ticket.Scope.Deny, paths...)
 		return nil
 	}); err != nil {
@@ -184,13 +199,82 @@ func (r *Runner) freezeGate(rs *runState) bool {
 }
 
 // goalCommand là lệnh cổng mục tiêu: workflow.verify.affected_command mở rộng trên tệp đóng băng khi đã đặt (có {test_files}/{test_dirs}),
-// không thì verify.command của phiếu.
-func (r *Runner) goalCommand(t *task.Task) string {
+// không thì verify.command của phiếu. Lệnh `go test` trên tệp đóng băng `*_test.go` được thu hẹp bằng -run (goalRunOnly) để cổng chỉ chạy
+// test mục tiêu, không chạy cả gói. root là cây chứa tệp đóng băng (rỗng thì không thu hẹp).
+func (r *Runner) goalCommand(t *task.Task, root string) string {
+	cmd := strings.TrimSpace(t.Ticket.Verify.Command)
 	if ac := strings.TrimSpace(r.Cfg.Workflow.Verify.AffectedCommand); ac != "" &&
 		(strings.Contains(ac, "{test_files}") || strings.Contains(ac, "{test_dirs}")) {
-		return eval.ExpandTestCommand(ac, t.State.GoalTest.Paths())
+		cmd = eval.ExpandTestCommand(ac, t.State.GoalTest.Paths())
 	}
-	return strings.TrimSpace(t.Ticket.Verify.Command)
+	return goalRunOnly(cmd, root, t.State.GoalTest.Paths())
+}
+
+var (
+	goTestPrefixRe = regexp.MustCompile(`^go test(\s|$)`)
+	goalHasRunRe   = regexp.MustCompile(`(^|\s)-{1,2}(test\.)?run(=|\s|$)`)
+)
+
+// goalRunOnly chèn `-run '^(TestA|TestB)$'` ngay sau `go test` khi lệnh chưa có -run và mọi tệp đóng băng là `*_test.go` đọc được, chỉ khai
+// báo hàm Test* (ít nhất một). Tệp không phải Go, tệp không đọc/phân tích được, hoặc có Fuzz*/Example* (cũng chạy dưới -run) thì giữ lệnh cũ:
+// thà chạy rộng hơn còn hơn bỏ sót test.
+func goalRunOnly(cmd, root string, files []string) string {
+	if root == "" || !goTestPrefixRe.MatchString(cmd) || goalHasRunRe.MatchString(cmd) {
+		return cmd
+	}
+	var names []string
+	for _, rel := range files {
+		if !strings.HasSuffix(rel, "_test.go") {
+			return cmd
+		}
+		ns, ok := goTestFuncs(filepath.Join(root, filepath.FromSlash(rel)))
+		if !ok {
+			return cmd
+		}
+		names = append(names, ns...)
+	}
+	if len(names) == 0 {
+		return cmd
+	}
+	slices.Sort(names)
+	names = slices.Compact(names)
+	return "go test -run '^(" + strings.Join(names, "|") + ")$'" + strings.TrimPrefix(cmd, "go test")
+}
+
+// goTestFuncs liệt kê hàm `func TestXxx(t *testing.T)` cấp gói của tệp; ok=false khi không phân tích được hoặc tệp có hàm Fuzz*/Example*.
+func goTestFuncs(path string) (names []string, ok bool) {
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, false
+	}
+	for _, d := range f.Decls {
+		fn, isFn := d.(*ast.FuncDecl)
+		if !isFn || fn.Recv != nil {
+			continue
+		}
+		n := fn.Name.Name
+		if strings.HasPrefix(n, "Fuzz") || strings.HasPrefix(n, "Example") {
+			return nil, false
+		}
+		if !strings.HasPrefix(n, "Test") || (len(n) > 4 && unicode.IsLower(rune(n[4]))) || !isTestingT(fn) {
+			continue
+		}
+		names = append(names, n)
+	}
+	return names, true
+}
+
+// isTestingT: hàm có đúng một tham số kiểu *testing.T và không có tham số kiểu.
+func isTestingT(fn *ast.FuncDecl) bool {
+	if fn.Type.TypeParams != nil || fn.Type.Params == nil || len(fn.Type.Params.List) != 1 || len(fn.Type.Params.List[0].Names) > 1 {
+		return false
+	}
+	star, ok := fn.Type.Params.List[0].Type.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := star.X.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == "T"
 }
 
 // goalGate chạy cổng mục tiêu riêng (dưới khoá độc quyền như kiểm chứng) và ghi kết quả vào State.GoalChecks với log goal-N.log. Chỉ chạy
@@ -210,7 +294,7 @@ func (r *Runner) goalGate(ctx context.Context, rs *runState, reason string) bool
 		r.fail(rs, "goal", err.Error())
 		return false
 	}
-	cmd := r.goalCommand(t)
+	cmd := r.goalCommand(t, root)
 	lock, ok := r.lockStep(ctx, rs, "goal", LockExclusive)
 	if !ok {
 		return false

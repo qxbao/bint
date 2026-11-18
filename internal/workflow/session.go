@@ -573,6 +573,13 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		if step == "" {
 			return stop()
 		}
+		if step == stepGoalCheck {
+			// b-goal đã xong ở lượt trước và người vừa duyệt phạm vi; chỉ còn đóng băng và cổng mốc.
+			if !r.afterGoal(ctx, rs) {
+				return stop()
+			}
+			continue
+		}
 		if step == stepCheck {
 			// Bước implement đã xong (kể cả chạy riêng bằng tiến trình); chỉ còn kiểm phạm vi và kiểm chứng.
 			if !r.afterStep(ctx, rs, rs.currentImplement().ID) {

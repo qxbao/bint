@@ -74,7 +74,7 @@ func TestMilestoneTaskToDone(t *testing.T) {
 		t.Fatal("xem kế hoạch duyệt không được ghi gì")
 	}
 	f.press("enter")
-	f.pump(func() bool { return f.task(id).State.VerifyApproval != nil }, nil)
+	f.pump(func() bool { tk := f.tryTask(id); return tk != nil && tk.State.VerifyApproval != nil }, nil) // đọc trùng lúc action ghi: thử lại, không Fatal
 	if va := f.task(id).State.VerifyApproval; va.Command != "git --version" || !strings.Contains(va.By, "Rev") {
 		t.Fatalf("VerifyApproval: %+v", va)
 	}

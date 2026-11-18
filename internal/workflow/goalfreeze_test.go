@@ -211,7 +211,12 @@ func TestGoalFreezeBlackBox(t *testing.T) {
 				t.Errorf("chặn phải đứng trước kiểm chứng và cổng mục tiêu: verify=%d goal=%d", len(tk.State.Verifications), len(tk.State.GoalChecks))
 			}
 			// Duyệt đường dẫn không bỏ qua cổng.
-			r.Approve(res.TaskID) // duyệt mọi thay đổi đang chờ (đọc diff hiện tại, gồm tệp đóng băng nếu bị sửa)
+			if _, _, err := r.Approve(res.TaskID); err != nil { // duyệt mọi thay đổi đang chờ (đọc diff hiện tại, gồm tệp đóng băng nếu bị sửa)
+				t.Fatalf("người duyệt: %v", err)
+			}
+			if ap := ApprovedPaths(loadTask(t, h, res.TaskID)); !slices.Contains(ap, frozenRel) {
+				t.Fatalf("tệp đóng băng phải nằm trong ApprovedPaths (nếu không ca 'approve không bỏ qua' vô nghĩa): %v", ap)
+			}
 			res2, err := r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true})
 			if err != nil || res2.Status != task.StatusBlocked || !strings.Contains(res2.Reason, frozenRel) {
 				t.Fatalf("approve không được bỏ qua cổng đóng băng: %+v %v", res2, err)
@@ -281,16 +286,54 @@ func TestGoalFreezeBlackBox(t *testing.T) {
 		if err != nil || res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" {
 			t.Fatalf("%+v %v calls=%v", res, err, h.calls)
 		}
-		if tk := loadTask(t, h, res.TaskID); tk.State.GoalTest != nil || len(tk.State.GoalChecks) != 0 {
+		tk := loadTask(t, h, res.TaskID)
+		if tk.State.GoalTest != nil || len(tk.State.GoalChecks) != 0 {
 			t.Errorf("không có b-goal: %+v", tk.State)
+		}
+		if _, err := os.Stat(tk.LogPath("goal-1.log")); err == nil {
+			t.Errorf("không có b-goal thì không được có goal-1.log")
+		}
+		// Skill b-feat có nhắc quy tắc chung nên so khối riêng của tác vụ (frozenGoalBlock: nêu tệp và "Bint đã đóng băng, KHÔNG viết lại").
+		if fp := h.prompts[StepFeat]; strings.Contains(fp, "Bint đã đóng băng, KHÔNG viết lại") || strings.Contains(fp, frozenRel) {
+			t.Errorf("đề bài b-feat không được có khối kiểm tra mục tiêu đóng băng:\n%s", fp)
 		}
 	})
 
 	t.Run("driver session", func(t *testing.T) {
+		const plannerModel = "model-planner-5733"
 		h := goalBox(t, true, nil)
+		h.cfg.Harnesses.Claude.Models.Planner = plannerModel // driver session = subagent Claude
 		r := h.runner()
 		tk := h.newSession(r, NewTaskOptions{Plan: ptr(true)})
-		steps, last := h.drive(r, tk.State.ID, false)
+		var goalModel string
+		var steps []string
+		var last *SessionAction
+		for i := 0; i < 20; i++ { // như h.drive nhưng giữ model của hành động b-goal
+			act, err := r.Next(ctx, NextOptions{TaskRef: tk.State.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if act.Action != ActionAgent {
+				last = act
+				break
+			}
+			if act.Step == StepGoal {
+				goalModel = act.Model
+			}
+			steps = append(steps, act.Step)
+			h.subagent(act)
+			c, err := r.Complete(ctx, CompleteOptions{TaskRef: tk.State.ID, RunID: act.RunID, AgentID: "agent-" + act.Step})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Action != "" {
+				last = c
+				break
+			}
+		}
+		if goalModel != plannerModel {
+			t.Errorf("b-goal của driver session phải theo models.planner %q, được %q", plannerModel, goalModel)
+		}
 		if strings.Join(steps, ",") != "b-req,b-goal,b-feat,b-review" || last.Action != ActionDone {
 			t.Fatalf("bước %v, dừng %+v", steps, last)
 		}

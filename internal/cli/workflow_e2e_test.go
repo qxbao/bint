@@ -20,6 +20,9 @@ case "$P" in
   printf '# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- \140app.txt\140\n- \140done.txt\140\n## Bề mặt bị ảnh hưởng\n- app.txt\n' | "$BINT" task write "$BINT_TASK_ID" plan -
   printf -- '- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n' | "$BINT" task write "$BINT_TASK_ID" tasks -
   ;;
+*'step="b-goal"'*)
+  mkdir -p goal && printf '# kiểm tra mục tiêu giả\ntest -f done.txt\n' > goal/check.sh
+  ;;
 *'step="b-feat"'*)
   echo v2 > app.txt
   echo ok > done.txt

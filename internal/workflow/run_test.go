@@ -241,6 +241,10 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 		paths = append([]string{}, a.h.denyNext...)
 		a.h.denyNext = nil
 	}
+	if step == StepGoal && len(a.h.denyGoal) > 0 { // hook Codex chặn b-goal ghi tệp test vào đường dẫn bảo vệ (trước khi có diff)
+		paths = append([]string{}, a.h.denyGoal...)
+		a.h.denyGoal = nil
+	}
 	a.h.mu.Unlock()
 	if len(paths) > 0 {
 		err := spool.WriteDenial(a.h.spool, spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "test-denial-" + envs[EnvRunID],
@@ -284,6 +288,7 @@ type harness struct {
 	limits    []*float64
 	cost      *float64
 	denyNext  []string
+	denyGoal  []string // như denyNext nhưng cho bước b-goal
 	// goal (nếu có) thay hành vi mặc định của b-goal (ghi goal_check.sh); b-goal không đi qua behave.
 	goal func(ctx context.Context, e *Env, taskID string) error
 	// mutate (nếu có) sửa kết quả agent giả sau khi chạy: mô phỏng Infra, quá giờ, thiếu kết quả, handle phiên.

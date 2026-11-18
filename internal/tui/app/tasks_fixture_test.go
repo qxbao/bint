@@ -169,6 +169,16 @@ func (f *fixture) task(id string) *task.Task {
 	return tk
 }
 
+// tryTask như task nhưng lỗi đọc (vd Windows: state.json đang bị action ghi giữ khoá) trả nil thay vì Fatal, để điều kiện chờ của pump
+// thử lại ở vòng sau; chỉ dùng trong until() của pump (đọc ngoài pump dùng task).
+func (f *fixture) tryTask(id string) *task.Task {
+	tk, err := f.ws.Tasks.Load(id)
+	if err != nil {
+		return nil
+	}
+	return tk
+}
+
 // pump chạy cmd và mọi lệnh phát sinh trong goroutine riêng, đưa thông điệp về Update (trong goroutine của kiểm
 // thử) tới khi until() đúng; quá hạn thì báo lỗi kèm màn hình hiện tại.
 func (f *fixture) pump(until func() bool, cmd tea.Cmd) {

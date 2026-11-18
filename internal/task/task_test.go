@@ -557,13 +557,14 @@ func TestBlockerKindForceableAllowlist(t *testing.T) {
 	want := map[BlockerKind]bool{
 		BlockVerifyMissing: true, BlockVerifyChanged: true, BlockVerifyFailed: true, BlockVerifyStale: true, BlockVerifyPartial: true,
 		BlockNoEvidence: true, BlockCriterionUnchecked: true,
+		BlockGoalFailed: true, // lối thoát của người khi chính test đóng băng sai; BlockGoalMissing vẫn cứng
 	}
-	for k := BlockLand; k <= BlockCriterionUnchecked; k++ {
+	for k := BlockLand; k <= BlockGoalFailed; k++ {
 		if k.Forceable() != want[k] {
 			t.Errorf("loại %d: Forceable=%v, muốn %v", k, k.Forceable(), want[k])
 		}
 	}
-	if (BlockCriterionUnchecked + 1).Forceable() {
+	if (BlockGoalFailed + 1).Forceable() {
 		t.Error("loại mới chưa khai báo phải là điều chặn cứng")
 	}
 }
