@@ -4,6 +4,51 @@ Tài liệu bàn giao để chạy tiếp ở máy khác. Phiếu Bint (ticket, 
 (`%LOCALAPPDATA%\bint\state\…`), **không đi theo git**: máy mới phải lập lại phiếu (mục 5). Artifact của các phiếu
 đã chép vào thư mục này.
 
+## 0. Cập nhật mới nhất (2026-11-18, phiên 2 trên máy Linux) — ĐỌC MỤC NÀY TRƯỚC
+
+Mục 2–5 bên dưới là bản bàn giao đầu tiên (máy Windows); mục này thay thế phần trạng thái và việc kế tiếp của chúng.
+
+**Đã vào mã (đã commit trên `main`):**
+
+| Commit | Nội dung | Phiếu (máy Linux, cục bộ) |
+|---|---|---|
+| `856802f` | Env-fix: thư mục tạm kiểm chứng trên Windows (`%TEMP%\bv`); `workflow.verify_timeout_minutes` 30 → 60 | — (áp `envfix.patch`) |
+| `6ed58aa` | GĐ1 sửa tiếp: #7, #4, #3, #8, #9, #5 (resume sau duyệt phạm vi b-goal, lối thoát `BlockGoalFailed`, `-run` chỉ test mục tiêu, rào đọc plan/tasks bằng `BINT_DENY_READ`, settings hook riêng cho b-goal, test milestone) | `01M7PD9T2ASG8XXMEM7SJ2G6C1` done |
+| `32707b2` | GĐ2: lát mỏng và chốt một chiều (`internal/workflow/slice.go`, khoá `workflow.slice_timeout_minutes`, mặc định 30, 0 = tắt) | `01M7PD9T5R587EKT2Z82GJVZAJ` done |
+
+Artifact: `gd1-fix-01M7PD9T/`, `gd2-01M7PD9T/` (requirement, plan, tasks, review). Chi phí phiên này khoảng $38 (GĐ1 sửa ≈ $17, GĐ2 ≈ $17, b-req GĐ3 ≈ $4).
+
+**GĐ3: b-req đã xong, b-feat CHƯA chạy.** Phiếu `01M7PD9T916W3AH14MXV2N653N` dừng `blocked` ở cổng cỡ kế hoạch (20 tệp, 6 nhóm bề mặt).
+Kế hoạch đã đọc, bám đúng mô tả GĐ3 ở mục 5: `gd3-plan-01M7PD9T/` (requirement, plan, tasks). Tóm tắt: (1) `Finding.Repro`/`DowngradedFrom`, bug/risk
+high/critical thiếu repro hợp lệ bị hạ xuống medium lúc ghi vòng (`Blocking()` không đổi), sửa đề bài `reviewPrompt` và skill b-review;
+(2) `workflow.max_diff_lines` (git numstat, cộng dồn, trừ test đóng băng); (3) `workflow.perf.command`/`max_slowdown` (mốc 3 lần lấy nhỏ nhất,
+sàn nhiễu 0,1 s). Hai cổng mới mặc định tắt. Người dùng chưa duyệt kế hoạch này (dừng theo yêu cầu để đổi máy). GĐ4 chưa lập b-req.
+
+**Phát hiện review còn mở (không chặn, chưa sửa):**
+
+| Nguồn | Mức | Nội dung |
+|---|---|---|
+| GĐ1 .10 | medium | `-run '^(A\|B)$'` nháy đơn vỡ khi Windows chạy qua `cmd /C` không có `sh` (`goalfreeze.go` `goalRunOnly`); sửa bằng nháy kép, cập nhật `TestGoalRunOnly` + docs |
+| GĐ1 .9 | medium | Rào `BINT_DENY_READ` không chặn đọc theo thư mục tác vụ (đề bài b-goal in đường dẫn `requirement.md`) |
+| GĐ1 .11–.13 | low | docs `status done --force` (shared) sai; `GoalTest.RunID` rỗng khi đóng băng qua `stepGoalCheck`; rào đọc tắt im lặng khi hook lỗi nạp cấu hình |
+| GĐ2 .9 | medium | `deleteTaskRefs` (`touched.go`) dùng `for-each-ref …/slice-` không khớp → ref `slice-N-discarded` không bị xoá; dùng glob `slice-*` + test |
+| GĐ2 .10 | medium | Bỏ lát cuối rồi sang review: `redVerification` dùng log của cây đã bỏ → mở vòng sửa nhầm; chạy lại kiểm chứng/cổng mục tiêu trên cây điểm xanh hoặc vô hiệu hoá hai lần chạy của lát bỏ |
+| GĐ2 .11 | medium | Test đóng băng tham chiếu API của nhóm sau → `[build failed]` → lát 1 luôn bị bỏ; dặn lát 1 làm test đóng băng biên dịch được (`sliceGuideBlock`/`sliceBlock`) hoặc ghi vào docs |
+| GĐ2 .12 | low | `planHandoffPrompt` thiếu `sliceBlock` |
+
+Mục tri thức `candidate` do agent ghi, **chờ người duyệt**: `.bint/knowledge/items/01M7PSHW3Z1V1CXH064GASK201.md` (golden TUI khi đổi đề bài b-req/b-feat).
+
+**Việc kế tiếp trên máy mới** (phiếu không đi theo git, nên lập lại; GĐ1 và GĐ2 đã trong mã, không lập lại):
+
+1. `git pull`, cài lại bint từ mã mới (`go build -o "$(command -v bint)" ./cmd/bint`), `bint doctor`.
+2. Lập phiếu cha mới, GĐ3 và GĐ4 theo mục 5 (mô tả GĐ3/GĐ4 giữ nguyên; bỏ `--depends-on` tới GĐ1/GĐ2 vì đã xong; GĐ4 `--depends-on <GĐ3>`; `--workflow b-do --plan --depth deep --shared`;
+   `bint task set <id> $S`). b-req của GĐ3 chạy lại (≈ $4) hoặc tham khảo `gd3-plan-01M7PD9T/`; kế hoạch lớn bị cổng cỡ kế hoạch chặn: duyệt rồi `bint run resume <id>`.
+3. Sau GĐ4: một phiếu sửa gộp cho bảng phát hiện còn mở ở trên (ưu tiên hai medium của GĐ2 và GĐ1 .10), rồi nghiệm thu bằng benchmark.
+4. Duyệt mục tri thức candidate ở trên (`bint knowledge approve`, của người).
+
+Ghi chú: binary bint dùng cho GĐ1–GĐ3 trên máy Linux là bản trước GĐ2 (chưa có logic lát mỏng); logic lát chưa được chạy trên tác vụ thật.
+Phiếu cũ trên máy Linux không liên quan (`01M7MPZSNATRP3756F00WSX89V` interrupted, `01M7MHWPT8E8NR27XC30SV6S94` failed, `01M7M90JBJ2FWYGPPPYYXTFPBW`, `01M7HDFSQFGFCZYWXN891HVCE8` created) chưa dọn.
+
 ## 1. Bối cảnh
 
 Phân tích 5 đợt benchmark (`docs/evals/bench-bint-vs-plain-tong-hop.md`, commit 3743e8d): Bint (B) không tốt hơn
