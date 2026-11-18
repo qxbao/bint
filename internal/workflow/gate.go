@@ -314,7 +314,11 @@ func blockingFindingsBlock(t *task.Task) string {
 			if f.Criterion > 0 {
 				crit = fmt.Sprintf(" [tiêu chí %d]", f.Criterion)
 			}
-			fmt.Fprintf(&b, "- [%s] %s/%s %s%s — %s — %s\n", f.ID, f.Kind, f.Severity, f.Title, crit, loc, f.Evidence)
+			repro := ""
+			if f.Repro != "" {
+				repro = " — Tái hiện: " + f.Repro
+			}
+			fmt.Fprintf(&b, "- [%s] %s/%s %s%s — %s — %s%s\n", f.ID, f.Kind, f.Severity, f.Title, crit, loc, f.Evidence, repro)
 		}
 	}
 	b.WriteString(verifyRedBlock(t))
@@ -336,6 +340,14 @@ func verifyRedBlock(t *task.Task) string {
 	if v.Log != "" {
 		log = ", log " + v.Log
 	}
+	if isPerfCheck(t, v) {
+		return fmt.Sprintf("\nCổng hiệu năng không qua (coi như kiểm chứng không qua): %s. Sửa hồi quy hiệu năng (perf) tới khi lệnh đo qua và không chậm quá trần; đọc log perf.\n",
+			strings.TrimPrefix(v.Command, "hiệu năng (perf): "))
+	}
+	if isBudgetCheck(t, v) {
+		return fmt.Sprintf("\nNgân sách diff bị vượt (coi như kiểm chứng không qua): %s. Thu gọn thay đổi (bỏ phần không cần, tách việc ra tác vụ khác) tới khi dưới trần.\n",
+			strings.TrimPrefix(v.Command, "ngân sách diff: "))
+	}
 	if isGoalCheck(t, v) {
 		return fmt.Sprintf("\nCổng kiểm tra mục tiêu (test đóng băng do b-goal viết độc lập) không qua: `%s` (%s%s). Đọc log và sửa MÃ SẢN PHẨM tới khi nó qua; "+
 			"không sửa, xoá hay nới các tệp test đóng băng.\n", v.Command, how, log)
@@ -355,6 +367,13 @@ func redVerification(t *task.Task) *task.Verification {
 	// Cổng mục tiêu riêng (kiểm tra mục tiêu đóng băng) đỏ sau bước implement: cùng cách xử lý (review thấy, vòng sửa, không finalize).
 	if g := t.State.LastGoalCheck(); g != nil && !g.Passed && g.Reason == "" && g.RunID != "" {
 		return g
+	}
+	// Ngân sách diff (budget.go) đỏ sau bước b-feat: cùng cách xử lý.
+	if b := t.State.LastBudgetCheck(); b != nil && !b.Passed && b.Reason == "" && b.RunID != "" {
+		return b
+	}
+	if p := t.State.LastPerfCheck(); p != nil && !p.Passed && p.Reason == "" && p.RunID != "" {
+		return p
 	}
 	return nil
 }
@@ -506,7 +525,10 @@ func (r *Runner) reviewPrompt(ctx context.Context, rs *runState, b *strings.Buil
 		"từng TIÊU CHÍ CHẤP NHẬN và mục \"Bề mặt bị ảnh hưởng\" của plan.md với diff để tìm chỗ BỊ BỎ SÓT — nơi mục tiêu, một AC hay dòng bề mặt nói tới mà diff không đụng tới. " +
 		"Được chỉ tệp ngoài diff: ghi phát hiện với `path` là tệp chưa được xử lý và `criterion` là số tiêu chí liên quan (tiêu chí của kiểm tra mục tiêu, hoặc tiêu chí gần nhất). " +
 		"Chỗ sót mà kiểm tra mục tiêu hoặc bằng chứng cụ thể (lần theo dữ liệu tới tệp:dòng còn thô, lệnh tái hiện) cho thấy mục tiêu người dùng chưa đạt là `high` " +
-		"kể cả khi nằm ngoài kế hoạch hay trong \"ngoài phạm vi\" của plan; chỉ giữ `low` cho chỗ sót ngoài mục tiêu hoặc suy đoán \"có thể còn sót\" không bằng chứng (xem skill b-review).\n")
+		"kể cả khi nằm ngoài kế hoạch hay trong \"ngoài phạm vi\" của plan; chỉ giữ `low` cho chỗ sót ngoài mục tiêu hoặc suy đoán \"có thể còn sót\" không bằng chứng (xem skill b-review).\n" +
+		"LUẬT BẰNG CHỨNG: phát hiện bug/risk mức high/critical phải kèm trường `repro` — lệnh trong dấu backtick (ví dụ \"`go test -run TestX ./internal/a`\" chạy ra lỗi) " +
+		"hoặc tệp:dòng có thật nơi dữ liệu còn sai (ví dụ \"internal/a/b.go:45\"). Thiếu repro hợp lệ thì Bint ghi mức medium kèm downgraded_from, không mở vòng sửa " +
+		"và không tính vào đếm hội tụ; \"bỏ sót bề mặt\" chỉ dựa trên lập luận là mức không chặn.\n")
 	if data, err := os.ReadFile(t.ArtifactPath("requirement")); err == nil {
 		if gc := task.GoalCheck(string(data)); gc != "" {
 			if len(gc) > goalCheckMax {

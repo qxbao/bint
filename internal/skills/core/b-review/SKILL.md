@@ -92,10 +92,12 @@ Phân biệt rõ:
 Mức độ: `critical` | `high` | `medium` | `low`. `critical`/`high` dành cho mục tiêu người dùng hoặc AC chưa đạt, hồi quy và lỗi đúng đắn thực
 sự (chỉ ra được đầu vào/trạng thái gây sai) trong mã đã sửa, luôn kèm bằng chứng cụ thể.
 
+**Mức chặn cần bằng chứng tái hiện.** Phát hiện `bug`/`risk` mức `high`/`critical` phải có trường `repro`: **lệnh trong dấu backtick** (ví dụ `` `go test -run TestX ./internal/db` `` chạy ra lỗi) hoặc **`tệp:dòng` có thật** nơi dữ liệu còn sai (ví dụ `internal/db/q.go:45`). Thiếu `repro` hợp lệ thì Bint tự ghi mức `medium` kèm `downgraded_from` (mức gốc), không mở vòng sửa và không tính vào đếm hội tụ. Vì vậy "bỏ sót bề mặt" chỉ dựa trên lập luận ("có thể còn nơi khác") là mức không chặn (`medium`/`low`); muốn giữ mức chặn, lần theo dữ liệu tới tệp:dòng còn thô hoặc chạy lệnh cho thấy lỗi rồi ghi vào `repro`.
+
 ## Bước 4 — Ghi phát hiện
 
 Một lần ghi cho cả vòng review (JSON qua stdin). Mỗi phát hiện cần `path` và `lines` khi
-chỉ ra được vị trí, `criterion` (số tiêu chí, từ 1) khi gắn được với một tiêu chí, và `evidence` là lập luận hoặc đầu ra kiểm chứng được:
+chỉ ra được vị trí, `criterion` (số tiêu chí, từ 1) khi gắn được với một tiêu chí, và `evidence` là lập luận hoặc đầu ra kiểm chứng được, và `repro` (bắt buộc cho `high`/`critical`, xem trên):
 
 ```sh
 bint task review <id> - <<'EOF'
@@ -104,6 +106,7 @@ bint task review <id> - <<'EOF'
   "findings": [
     {"kind": "bug", "severity": "high", "title": "Không đóng rows khi lỗi",
      "path": "internal/db/q.go", "lines": "40-52", "criterion": 2,
+     "repro": "`go test -run TestRowsClose ./internal/db` báo rò kết nối; internal/db/q.go:45",
      "evidence": "rows.Close() chỉ gọi ở nhánh thành công; lỗi ở dòng 45 làm rò kết nối",
      "body": "Dùng defer rows.Close() ngay sau QueryContext."}
   ]
@@ -125,6 +128,7 @@ findings:
     path: internal/db/q.go
     lines: "40-52"
     criterion: 2
+    repro: "`go test -run TestRowsClose ./internal/db` báo rò kết nối; internal/db/q.go:45"
     evidence: "rows.Close() chỉ gọi ở nhánh thành công; lỗi ở dòng 45 làm rò kết nối"
     body: Dùng defer rows.Close() ngay sau QueryContext.
 EOF

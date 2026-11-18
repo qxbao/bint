@@ -8548,7 +8548,7 @@
         "19122:b40f71ff9ebac714",
         "4464:2a70c10e0c47ec27",
         "9573:81e447b7c2f1bd16",
-        "12155:487b78f6d0cf0ff3"
+        "13681:f369db92c22e6c85"
       ],
       "results": [
         {
@@ -8620,7 +8620,7 @@
         "19120:f05449c2033060ae",
         "4464:2a70c10e0c47ec27",
         "9573:81e447b7c2f1bd16",
-        "12155:487b78f6d0cf0ff3"
+        "13681:f369db92c22e6c85"
       ],
       "results": [
         {
@@ -8660,7 +8660,7 @@
       ],
       "prompts": [
         "8696:ee217d1b28241ca2",
-        "11065:269506b4ac3c6129"
+        "12591:759bb24e0d8176e9"
       ],
       "results": [
         {
@@ -8805,7 +8805,7 @@
       ],
       "prompts": [
         "8696:ee217d1b28241ca2",
-        "11298:783c86f732ffe443"
+        "12824:5b15978f1651b6a3"
       ],
       "results": [
         {
@@ -8854,9 +8854,9 @@
       ],
       "prompts": [
         "8696:ee217d1b28241ca2",
-        "11065:269506b4ac3c6129",
-        "8792:7e4f73e9789905bd",
-        "11250:3a01fd98e2e32a9b"
+        "12591:759bb24e0d8176e9",
+        "8819:2d3eb6d7ae3eb456",
+        "12776:6b61c92e8e23db40"
       ],
       "results": [
         {
@@ -8900,9 +8900,9 @@
       ],
       "prompts": [
         "8696:ee217d1b28241ca2",
-        "11065:269506b4ac3c6129",
-        "8792:7e4f73e9789905bd",
-        "11250:3a01fd98e2e32a9b"
+        "12591:759bb24e0d8176e9",
+        "8819:2d3eb6d7ae3eb456",
+        "12776:6b61c92e8e23db40"
       ],
       "results": [
         {
@@ -9251,7 +9251,7 @@
         "18418:c87ab41a1e0e22ff",
         "4464:2a70c10e0c47ec27",
         "9573:81e447b7c2f1bd16",
-        "12155:487b78f6d0cf0ff3"
+        "13681:f369db92c22e6c85"
       ],
       "results": [
         {
@@ -9299,7 +9299,7 @@
       "prompts": [
         "18418:c87ab41a1e0e22ff",
         "9387:7b733c6bb52fd689",
-        "11864:eef59e431981f96b"
+        "13390:1093808b2b4067e3"
       ],
       "results": [
         {
@@ -9346,7 +9346,7 @@
       ],
       "prompts": [
         "8696:ee217d1b28241ca2",
-        "11065:269506b4ac3c6129"
+        "12591:759bb24e0d8176e9"
       ],
       "results": [
         {
@@ -9380,7 +9380,7 @@
       ],
       "prompts": [
         "8696:ee217d1b28241ca2",
-        "11065:269506b4ac3c6129"
+        "12591:759bb24e0d8176e9"
       ],
       "results": [
         {
@@ -9419,7 +9419,7 @@
       ],
       "prompts": [
         "8696:ee217d1b28241ca2",
-        "11065:269506b4ac3c6129"
+        "12591:759bb24e0d8176e9"
       ],
       "results": [
         {
@@ -9544,7 +9544,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "12338:f64d79a4efe1a38a"
+          "prompt": "13864:4b7af7b499ffff03"
         },
         {
           "call": "complete",
@@ -9595,7 +9595,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "11248:b5da9fc705d59d41"
+          "prompt": "12774:bc1ce2a71ee4877d"
         },
         {
           "call": "complete",
@@ -9759,7 +9759,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "648:563cd9bb125ec827",
+          "prompt": "675:012be138d9991f5d",
           "notes": [
             "bước nối tiếp phiên: gửi `prompt` bằng SendMessage tới agent agent-b-feat (KHÔNG gọi Agent mới), rồi `bint run complete \u003cULID\u003e --run \u003cULID\u003e --agent-id agent-b-feat`; SendMessage không gửi được (agent không còn) thì `bint run next \u003cULID\u003e --fresh --json` để nhận đề bài đầy đủ"
           ]
@@ -9801,7 +9801,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "11481:5e244c276cf53be9"
+          "prompt": "13007:70f947fc8589d8d2"
         },
         {
           "call": "complete",
@@ -9853,7 +9853,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "11248:b5da9fc705d59d41"
+          "prompt": "12774:bc1ce2a71ee4877d"
         },
         {
           "call": "complete",
@@ -9872,7 +9872,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "648:563cd9bb125ec827",
+          "prompt": "675:012be138d9991f5d",
           "notes": [
             "bước nối tiếp phiên: gửi `prompt` bằng SendMessage tới agent agent-b-feat (KHÔNG gọi Agent mới), rồi `bint run complete \u003cULID\u003e --run \u003cULID\u003e --agent-id agent-b-feat`; SendMessage không gửi được (agent không còn) thì `bint run next \u003cULID\u003e --fresh --json` để nhận đề bài đầy đủ"
           ]
@@ -9896,7 +9896,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "11433:d319e2bc09b3794d"
+          "prompt": "12959:89a5fb4514290ac4"
         },
         {
           "call": "complete",
@@ -9948,7 +9948,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "11248:b5da9fc705d59d41"
+          "prompt": "12774:bc1ce2a71ee4877d"
         },
         {
           "call": "complete",
@@ -9967,7 +9967,7 @@
           "task_status": "in_progress",
           "step": "b-feat",
           "subagent": "bint-implementer",
-          "prompt": "648:563cd9bb125ec827",
+          "prompt": "675:012be138d9991f5d",
           "notes": [
             "bước nối tiếp phiên: gửi `prompt` bằng SendMessage tới agent agent-b-feat (KHÔNG gọi Agent mới), rồi `bint run complete \u003cULID\u003e --run \u003cULID\u003e --agent-id agent-b-feat`; SendMessage không gửi được (agent không còn) thì `bint run next \u003cULID\u003e --fresh --json` để nhận đề bài đầy đủ"
           ]
@@ -9991,7 +9991,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "11433:d319e2bc09b3794d"
+          "prompt": "12959:89a5fb4514290ac4"
         },
         {
           "call": "complete",
@@ -10043,7 +10043,7 @@
           "step": "b-review",
           "subagent": "bint-reviewer",
           "readonly": true,
-          "prompt": "11248:b5da9fc705d59d41"
+          "prompt": "12774:bc1ce2a71ee4877d"
         },
         {
           "call": "complete",

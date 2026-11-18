@@ -507,6 +507,22 @@ thành **lát** (`internal/workflow/slice.go`), mỗi lát một lượt `b-feat
 - **Tắt**: `workflow.slice_timeout_minutes: 0`. Hạn chế đã biết: driver session không chia lát; hiển thị lát trong TUI và `bint task show` chưa có (xem `slices` trong JSON kết quả,
   `state.json`).
 
+**Ngân sách diff mỗi lát/bước b-feat (`workflow.max_diff_lines`).** Mặc định `0` = tắt (`Validate` từ chối số âm). Bật thì Bint đếm số dòng thêm+xoá (`git diff --numstat`) trên tệp của tác vụ,
+**không tính tệp kiểm tra mục tiêu đóng băng**:
+- Chia lát: đo mỗi lát so với **điểm xanh** ngay sau `b-feat`, trước kiểm chứng. Vượt trần thì lát bị bỏ (lý do ghi số đo, ví dụ "61 dòng thêm+xoá so với điểm xanh, trần … = 20"), cây về điểm xanh và lát kế chạy.
+- Không chia lát: đo phần `b-feat` đã làm so với **mốc tác vụ** (cây chụp trước `b-feat` đầu). Vượt trần thì ghi kết quả đỏ có số đo vào `State.BudgetChecks`, coi như kiểm chứng không qua: vào vòng sửa
+  (đề bài nêu số đo), không finalize. Lối ra như kiểm chứng đỏ: hết vòng sửa thì `bint run resume --accept`/`--fix-round`/huỷ.
+
+**Cổng hồi quy hiệu năng (`workflow.perf.command`, `workflow.perf.max_slowdown`).** Mặc định `command: ""` = tắt; `max_slowdown` mặc định `1.5` (`Validate` từ chối < 1). Bật khi lệnh kiểm chứng của phiếu đã được người xác nhận:
+- **Đơn vị và mốc**: thời gian chạy lệnh đo (giây), mỗi lần đo chạy 3 lần lấy **nhỏ nhất**. Mốc đo ngay trước `b-feat` đầu tiên (`perf_baseline` trong `state.json`), đo lại sau mỗi `b-feat` (`perf_checks`, log `perf-N.log` trong thư mục tác vụ).
+- **Đỏ** khi chậm hơn mốc quá `max_slowdown` lần **và** quá sàn nhiễu 0,1 giây, hoặc lệnh đo thoát khác 0/hết giờ. Kết quả đỏ ghi số đo, coi như kiểm chứng không qua như ngân sách diff: chia lát thì lát bị bỏ (cây về điểm xanh);
+  không chia lát thì vào vòng sửa (đề bài nêu số đo và log), không finalize.
+- **Lối ra**: sửa hồi quy; hết vòng sửa thì `bint run resume <id> --accept` (chấp nhận kết quả hiện tại)/`--fix-round`/huỷ, giống kiểm chứng đỏ.
+
+**Phát hiện review chặn cần bằng chứng tái hiện (`repro`).** Phát hiện `bug`/`risk` mức `high`/`critical` gửi qua `bint task review` phải có trường `repro`: lệnh trong dấu backtick
+hoặc `tệp:dòng` có thật. Thiếu `repro` hợp lệ thì Bint ghi mức `medium` kèm `downgraded_from` (mức gốc) trong `review.json`/`review.md`/đầu ra lệnh, không mở vòng sửa và không tính vào đếm hội tụ;
+"bỏ sót bề mặt" chỉ dựa trên lập luận là mức không chặn. Phát hiện có `repro` hợp lệ giữ mức chặn và `repro` được đưa vào đề bài vòng sửa của `b-feat`. Vòng review cũ không bị tính lại.
+
 **Không tự cắt phạm vi: dòng `G-N` và "mới xong 1/N".** Khi thật sự tách, `plan.md` ghi mỗi giai đoạn đúng một dòng `- G-N: mục tiêu — phạm vi — phụ thuộc` dưới
 `## Đề xuất tách giai đoạn` (`G-1` là phiếu này; cho phép `[ ]`/`[x]`, bỏ dòng trong code fence). Bint đọc các dòng này (`task.PlanPhases`): từ hai giai đoạn thì
 `notes` sau `b-req` ghi "kế hoạch chia N giai đoạn, phiếu này chỉ làm G-1" và `notes` lúc hoàn tất (JSON và bản in của `bint run`) ghi **`mới xong 1/N giai đoạn`**
@@ -653,6 +669,8 @@ gói ngữ cảnh của Context Engine. Giới hạn vận hành (mục 5):
 | `workflow.small_plan_max_files` (`5`) | cổng cỡ kế hoạch sau `b-req` của `b-do`: kế hoạch nhỏ (số tệp và số nhóm bề mặt không quá ngưỡng, không giai đoạn hoãn, có kiểm tra mục tiêu nêu tên test, không chạm đường dẫn bảo vệ) chạy thẳng `b-feat`; còn lại `blocked` chờ người (`kế hoạch lớn: …`); `0` = mọi kế hoạch dừng chờ người |
 | `workflow.timeout_minutes` (60), `verify_timeout_minutes` (15) | giới hạn thời gian mỗi bước agent / lệnh kiểm chứng |
 | `workflow.slice_timeout_minutes` (`30`) | kế hoạch lớn của `b-do` chạy theo lát mỏng (mục "Lát mỏng và chốt một chiều"): mỗi nhóm bề mặt gắn AC một `b-feat` tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì bị bỏ và cây về điểm xanh; `0` = tắt (một `b-feat`) |
+| `workflow.max_diff_lines` (`0`) | trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần `b-feat` đã làm so với mốc tác vụ khi không chia lát; vượt thì coi như kiểm chứng không qua (lát bị bỏ / vào vòng sửa); `0` = tắt |
+| `workflow.perf.command` (`""`), `workflow.perf.max_slowdown` (`1.5`) | cổng hiệu năng: đo mốc trước `b-feat` đầu và sau mỗi `b-feat` (nhỏ nhất của 3 lần); chậm quá `max_slowdown` lần và quá sàn nhiễu 0,1 giây, hoặc lệnh thoát khác 0, thì coi như kiểm chứng không qua; rỗng = tắt |
 | `workflow.verify.scope` (`full`), `verify.affected_command` | `affected`: kiểm chứng sau implement chỉ chạy test bị ảnh hưởng; done vẫn đòi chạy đầy đủ ([phạm vi kiểm chứng](#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)) |
 
 **Dừng, duyệt đường dẫn bảo vệ và chạy tiếp (`resume`).** Ctrl-C trong `bint run` chuyển tác vụ sang

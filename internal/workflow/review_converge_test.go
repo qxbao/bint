@@ -20,7 +20,7 @@ func (h *harness) reviewCounts(counts ...int) func(context.Context, string, *Env
 		n := counts[min(rounds, len(counts))-1]
 		fs := make([]string, n)
 		for i := range fs {
-			fs[i] = fmt.Sprintf(`{"kind":"bug","severity":"high","title":"sai %d","path":"app.txt","lines":"1","evidence":"v2 sai"}`, i+1)
+			fs[i] = fmt.Sprintf(`{"kind":"bug","severity":"high","title":"sai %d","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}`, i+1)
 		}
 		_, _, err := e.SubmitReview(id, []byte(`{"summary":"x","findings":[`+strings.Join(fs, ",")+`]}`))
 		return err

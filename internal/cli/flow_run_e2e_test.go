@@ -40,7 +40,7 @@ review)
   N="$(grep -c '^review$' "$STEPLOG")"
   if [ "$N" = 1 ]; then
     "$BINT" task review "$BINT_TASK_ID" - <<'EOF'
-{"summary":"cần sửa","findings":[{"kind":"bug","severity":"high","title":"Thiếu xử lý","path":"app.txt","lines":"1","evidence":"app.txt chưa đủ","body":"Sửa lại."}]}
+{"summary":"cần sửa","findings":[{"kind":"bug","severity":"high","title":"Thiếu xử lý","path":"app.txt","lines":"1","evidence":"app.txt chưa đủ","repro":"app.txt:1","body":"Sửa lại."}]}
 EOF
   else
     printf '{"summary":"ổn","findings":[]}' | "$BINT" task review "$BINT_TASK_ID" -
@@ -369,7 +369,7 @@ func TestFlowSessionTDDEndToEnd(t *testing.T) {
 	if code != 0 || a.Step != "review" || a.Subagent != "bint-reviewer" || !a.ReadOnly {
 		t.Fatalf("next review: %d\n%s", code, out)
 	}
-	if o, c := run(t, root, `{"summary":"cần sửa","findings":[{"kind":"bug","severity":"high","title":"Thiếu xử lý","path":"app.txt","lines":"1","evidence":"app.txt chưa đủ","body":"Sửa lại."}]}`,
+	if o, c := run(t, root, `{"summary":"cần sửa","findings":[{"kind":"bug","severity":"high","title":"Thiếu xử lý","path":"app.txt","lines":"1","evidence":"app.txt chưa đủ","repro":"app.txt:1","body":"Sửa lại."}]}`,
 		"task", "review", id, "-"); c != 0 {
 		t.Fatalf("task review: %d\n%s", c, o)
 	}

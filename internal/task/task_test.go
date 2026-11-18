@@ -253,7 +253,7 @@ func TestStoreUpdateResolveAndReconcile(t *testing.T) {
 func TestReviewSubmission(t *testing.T) {
 	root := testutil.NewRepo(t, map[string]string{"a.go": "l1\nl2\nl3\n"})
 	sub, errs := ParseSubmission([]byte(`{"summary":"ok","findings":[
-		{"kind":"bug","severity":"high","title":"t","path":"a.go","lines":"2-3","evidence":"e"},
+		{"kind":"bug","severity":"high","title":"t","path":"a.go","lines":"2-3","evidence":"e","repro":"a.go:2"},
 		{"kind":"suggestion","severity":"low","title":"s","evidence":"e"}]}`), root)
 	if len(errs) != 0 || len(sub.Findings) != 2 {
 		t.Fatalf("%v", errs)

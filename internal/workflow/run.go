@@ -245,6 +245,8 @@ type runState struct {
 	scopeFiles []string
 	// acceptReview: resume --accept: vào thẳng finalize, không chạy bước nào.
 	acceptReview bool
+	// accepted: người đã chấp nhận kết quả hiện tại (--accept); finalize không chặn vì ngân sách diff/hiệu năng đỏ lần cuối (lối ra của hai cổng).
+	accepted bool
 	// sliceFail khác rỗng: agent của lát đang chạy vừa lỗi hoặc quá trần (endStep đặt); afterStep xử lý ở sliceSettleFailure thay vì failed.
 	sliceFail     string
 	sliceTimedOut bool
@@ -495,7 +497,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		r.applyResume(rs, o.Answer, o.FixRound, rs.reviewFixStep(rs.currentReview()))
 		if o.Accept {
-			rs.acceptReview = true
+			rs.acceptReview, rs.accepted = true, true
 		} else {
 			r.markFinalizeResume(ctx, rs, to, o.Rerun)
 			r.markVerifiedFixResume(ctx, rs, to, o.Rerun)
@@ -1339,6 +1341,9 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 		sr.featBefore = r.beginTouched(ctx, rs, firstFeat || kind == flow.KindGoal)
 	}
 
+	if kind == flow.KindImplement {
+		r.perfBaseline(ctx, rs) // mốc hiệu năng trước b-feat đầu tiên (perf.go), khi đã giữ khoá độc quyền
+	}
 	if kind == flow.KindImplement && rs.activeSlice() != nil {
 		r.sliceStart(ctx, rs) // lát đầu: ghim điểm xanh đầu (cây sau b-goal) khi đã giữ khoá độc quyền
 	}
@@ -1907,6 +1912,29 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		// Kiểm chứng chạy khi bước khai báo verify (mặc định có), và LUÔN chạy trước bước review đầu tiên và trước khi
 		// done (bước implement cuối): luật này nằm ở Runner chứ không chỉ ở lint, nên flow không nới được cổng.
 		// Dấu vân tay cây ngay trước kiểm chứng: vòng sửa chỉ nối tiếp phiên b-feat khi cây lúc này còn khớp lúc b-feat kết thúc.
+		if sg := rs.t.State.SliceGreen; rs.activeSlice() != nil && sg != nil {
+			// Ngân sách diff của lát (budget.go): đo ngay sau b-feat, trước kiểm chứng; vượt thì bỏ lát (cây về điểm xanh) mà không chạy kiểm chứng.
+			if over, msg := r.budgetOver(ctx, rs, sg.Tree, "so với điểm xanh"); over {
+				switch r.discardSlice(ctx, rs, "ngân sách diff: "+msg, nil, false) {
+				case sliceNext:
+					return true
+				case sliceStop:
+					return false
+				}
+				return r.implementDone(ctx, rs, step, nextImpl)
+			}
+		}
+		if rs.activeSlice() != nil && rs.t.State.SliceGreen != nil {
+			if over, msg := r.perfCheck(ctx, rs, false); over {
+				switch r.discardSlice(ctx, rs, "hiệu năng: "+msg, nil, false) {
+				case sliceNext:
+					return true
+				case sliceStop:
+					return false
+				}
+				return r.implementDone(ctx, rs, step, nextImpl)
+			}
+		}
 		preVerify := r.preVerifyFingerprint(ctx, rs)
 		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" && (sd.VerifyOn() || !nextImpl) {
 			// Kiểm chứng chạy dưới khoá độc quyền: lệnh kiểm chứng hay ghi tệp (coverage, snapshot, build) nên
@@ -1941,6 +1969,10 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		}
 		if !r.goalGate(ctx, rs, "") { // cổng mục tiêu riêng (log goal-N.log); đỏ vào vòng sửa qua redVerification
 			return false
+		}
+		r.budgetGate(ctx, rs) // ngân sách diff (không chia lát); đỏ vào vòng sửa qua redVerification
+		if rs.activeSlice() == nil {
+			r.perfCheck(ctx, rs, true) // cổng hiệu năng (không chia lát); đỏ vào vòng sửa qua redVerification
 		}
 		r.refreshLastImplement(ctx, rs, preVerify)
 		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
@@ -2556,6 +2588,14 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) bool {
 		return true
 	}
 	if !r.goalFinal(ctx, rs) { // cổng mục tiêu: lần chạy cuối phải qua trên đúng cây cuối
+		return false
+	}
+	if b := rs.t.State.LastBudgetCheck(); b != nil && !b.Passed && !rs.accepted {
+		r.blockFinalize(ctx, rs, fmt.Sprintf("%s; xử lý xong thì `%s`", b.Command, r.resumeCmd(rs)))
+		return false
+	}
+	if p := rs.t.State.LastPerfCheck(); p != nil && !p.Passed && !rs.accepted {
+		r.blockFinalize(ctx, rs, fmt.Sprintf("%s; xử lý xong thì `%s`", p.Command, r.resumeCmd(rs)))
 		return false
 	}
 	if rs.t.State.NeedsLand() {

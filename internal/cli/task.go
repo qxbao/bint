@@ -804,7 +804,11 @@ bint knowledge add --from-review <id>. Báo cáo Markdown: review.md trong thư 
 			}
 			fmt.Fprintf(stdio.Out, "Review vòng %d của %s: %d phát hiện, %d nghiêm trọng\n", r.Round, t.State.ID, len(r.Findings), len(r.Blocking()))
 			for _, f := range r.Findings {
-				fmt.Fprintf(stdio.Out, "  [%s] %s/%s %s\n", f.ID, f.Kind, f.Severity, f.Title)
+				note := ""
+				if f.DowngradedFrom != "" {
+					note = " (hạ từ " + f.DowngradedFrom + ": thiếu repro hợp lệ)"
+				}
+				fmt.Fprintf(stdio.Out, "  [%s] %s/%s %s%s\n", f.ID, f.Kind, f.Severity, f.Title, note)
 			}
 			return nil
 		},

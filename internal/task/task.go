@@ -272,6 +272,9 @@ type Verification struct {
 	Scope string `json:"scope,omitempty"`
 	// Ran là lệnh thực chạy khi khác Command (scope affected); rỗng khi không chạy gì (none) hay chạy Command.
 	Ran string `json:"ran,omitempty"`
+	// Seconds và BaselineSeconds là số đo của cổng hiệu năng (nhỏ nhất của 3 lần, giây) và mốc trước b-feat đầu; chỉ có ở PerfChecks.
+	Seconds         float64 `json:"seconds,omitempty"`
+	BaselineSeconds float64 `json:"baseline_seconds,omitempty"`
 	// Selection là bằng chứng chọn phạm vi (base, head, tệp đổi, lý do nới) của lần kiểm chứng affected.
 	Selection *affected.Selection `json:"selection,omitempty"`
 }
@@ -349,6 +352,22 @@ func (s *State) ActiveSlice() *Slice {
 		}
 	}
 	return nil
+}
+
+// LastPerfCheck là lần đo hiệu năng gần nhất (nil khi chưa có).
+func (s *State) LastPerfCheck() *Verification {
+	if len(s.PerfChecks) == 0 {
+		return nil
+	}
+	return &s.PerfChecks[len(s.PerfChecks)-1]
+}
+
+// LastBudgetCheck là lần đo ngân sách diff gần nhất (nil khi chưa có).
+func (s *State) LastBudgetCheck() *Verification {
+	if len(s.BudgetChecks) == 0 {
+		return nil
+	}
+	return &s.BudgetChecks[len(s.BudgetChecks)-1]
 }
 
 // LastGoalCheck là lần chạy cổng mục tiêu gần nhất (nil khi chưa có).
@@ -506,6 +525,12 @@ type State struct {
 	GoalTest *GoalTest `json:"goal_test,omitempty"`
 	// GoalChecks là các lần chạy cổng mục tiêu riêng (log goal-N.log); lần cuối quyết định điều kiện done.
 	GoalChecks []Verification `json:"goal_checks,omitempty"`
+	// BudgetChecks là các lần đo ngân sách diff sau bước b-feat khi không chia lát (workflow.max_diff_lines > 0); Command mô tả số đo, đỏ (Passed=false)
+	// coi như kiểm chứng không qua (redVerification).
+	BudgetChecks []Verification `json:"budget_checks,omitempty"`
+	// PerfBaseline là mốc hiệu năng (giây, nhỏ nhất của 3 lần) đo trước b-feat đầu tiên khi workflow.perf.command bật; PerfChecks là các lần đo sau mỗi b-feat (log perf-N.log).
+	PerfBaseline *float64       `json:"perf_baseline,omitempty"`
+	PerfChecks   []Verification `json:"perf_checks,omitempty"`
 	// GoalAwaitingCheck: agent b-goal đã xong nhưng kiểm phạm vi dừng chờ người (tệp test chạm đường dẫn bảo vệ/deny...) nên chưa đóng băng
 	// (GoalTest nil). Resume chỉ chạy phần sau kiểm phạm vi (đóng băng đúng nội dung đã duyệt), không gọi lại agent b-goal, tương tự AwaitingCheck.
 	GoalAwaitingCheck bool `json:"goal_awaiting_check,omitempty"`

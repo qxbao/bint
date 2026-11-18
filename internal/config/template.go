@@ -179,6 +179,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   small_plan_max_files: 5   # kế hoạch b-req là nhỏ (b-feat chạy ngay, không dừng chờ người) khi số tệp và số nhóm bề mặt trong plan không quá ngưỡng này và các điều kiện khác đạt (không giai đoạn hoãn, có kiểm tra mục tiêu, không chạm đường dẫn bảo vệ); 0 = mọi kế hoạch dừng chờ người
   timeout_minutes: 60       # mỗi bước agent
   slice_timeout_minutes: 30    # kế hoạch lớn của b-do chạy theo lát mỏng (mỗi nhóm bề mặt một b-feat, tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì bị bỏ, cây về điểm xanh); 0 = tắt, chạy một b-feat
+  max_diff_lines: 0            # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát bị bỏ / vào vòng sửa); 0 = tắt
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
@@ -189,7 +190,10 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
 	if p.SuggestedAffectedCommand != "" {
 		w("    suggested_affected_command: %s   # phát hiện khi init, chưa xác nhận: chép sang affected_command và đặt scope: affected để bật\n", quote(p.SuggestedAffectedCommand))
 	}
-	w(`  worktree:                # chỉ dùng khi tác vụ chạy trong worktree riêng
+	w(`  perf:                     # cổng hồi quy hiệu năng (tuỳ chọn): đo mốc trước b-feat đầu tiên và đo lại sau mỗi b-feat (nhỏ nhất của 3 lần, giây)
+    command: ""             # lệnh đo, ví dụ "go test -run xxx -bench Hot ./..."; rỗng = tắt; chỉ chạy khi lệnh kiểm chứng đã được xác nhận
+    max_slowdown: 1.5       # chậm hơn mốc quá số lần này (và quá sàn nhiễu 0,1 giây) hoặc lệnh thoát khác 0 thì coi như kiểm chứng không qua
+  worktree:                # chỉ dùng khi tác vụ chạy trong worktree riêng
     copy: []                # glob (tương đối với gốc repo) của tệp bị gitignore cần chép vào worktree, ví dụ [".env", "config/*.local.json"]
     setup_command: ""       # chạy trong worktree mới tạo, ví dụ "npm ci"; lỗi thì tác vụ failed
   agent:

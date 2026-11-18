@@ -36,6 +36,11 @@ type Finding struct {
 	Body     string `json:"body,omitempty" yaml:"body"`
 	// Criterion là tiêu chí chấp nhận liên quan (từ 1), nếu có.
 	Criterion int `json:"criterion,omitempty" yaml:"criterion"`
+	// Repro là bằng chứng tái hiện của phát hiện mức chặn (high/critical): lệnh trong dấu backtick, hoặc `tệp:dòng` có thật. Thiếu repro hợp lệ
+	// thì ParseSubmission hạ phát hiện bug/risk xuống medium và ghi mức gốc vào DowngradedFrom.
+	Repro string `json:"repro,omitempty" yaml:"repro"`
+	// DowngradedFrom là mức gốc (high | critical) khi phát hiện bị hạ vì thiếu repro hợp lệ.
+	DowngradedFrom string `json:"downgraded_from,omitempty" yaml:"downgraded_from"`
 }
 
 // Blocking: phát hiện nghiêm trọng (lỗi hoặc rủi ro mức critical/high) — b-do quay
@@ -137,7 +142,7 @@ func ParseSubmission(data []byte, root string) (Submission, []string) {
 	s, err := decodeSubmission(data)
 	if err != nil {
 		return s, []string{"JSON/YAML không hợp lệ: " + err.Error() +
-			` (cần {"summary": "...", "findings": [{"kind","severity","title","path","lines","evidence","body"}]}, hoặc cùng cấu trúc dạng YAML block)`}
+			` (cần {"summary": "...", "findings": [{"kind","severity","title","path","lines","evidence","repro","body"}]}, hoặc cùng cấu trúc dạng YAML block)`}
 	}
 	var errs []string
 	if strings.TrimSpace(s.Summary) == "" {
@@ -146,7 +151,8 @@ func ParseSubmission(data []byte, root string) (Submission, []string) {
 	for i := range s.Findings {
 		f := &s.Findings[i]
 		at := fmt.Sprintf("findings[%d]", i)
-		f.ID = ""
+		f.ID, f.DowngradedFrom = "", "" // DowngradedFrom do Bint đặt, không nhận từ người gửi
+		f.Repro = strings.TrimSpace(f.Repro)
 		f.Kind, f.Severity = strings.ToLower(strings.TrimSpace(f.Kind)), strings.ToLower(strings.TrimSpace(f.Severity))
 		// Tiêu đề một dòng: tiêu đề được chèn vào yêu cầu của phiếu sửa (--from-findings) dưới dạng dòng danh sách.
 		f.Title, f.Evidence = strings.Join(strings.Fields(f.Title), " "), strings.TrimSpace(f.Evidence)
@@ -204,6 +210,9 @@ func ParseSubmission(data []byte, root string) (Submission, []string) {
 			}
 		}
 	}
+	if len(errs) == 0 {
+		downgradeUnproven(s.Findings, root)
+	}
 	return s, errs
 }
 
@@ -255,6 +264,12 @@ func RenderReview(rev *Review) string {
 				fmt.Fprintf(&b, "- Vị trí: `%s`\n", loc)
 			}
 			fmt.Fprintf(&b, "- Bằng chứng: %s\n", f.Evidence)
+			if f.Repro != "" {
+				fmt.Fprintf(&b, "- Repro: %s\n", f.Repro)
+			}
+			if f.DowngradedFrom != "" {
+				fmt.Fprintf(&b, "- Hạ mức: %s → %s (thiếu repro hợp lệ: lệnh trong backtick hoặc tệp:dòng có thật); không chặn, không tính vào đếm hội tụ\n", f.DowngradedFrom, f.Severity)
+			}
 			if f.Criterion > 0 {
 				fmt.Fprintf(&b, "- Tiêu chí: %d\n", f.Criterion)
 			}

@@ -432,6 +432,9 @@ type Workflow struct {
 	// lượt b-feat riêng; thời gian agent của lát là min(timeout_minutes, khoá này)). Lát quá trần bị bỏ và cây quay về điểm xanh. 0 = tắt lát
 	// mỏng (kế hoạch lớn chạy một b-feat như trước).
 	SliceTimeoutMinutes int `yaml:"slice_timeout_minutes"`
+	// MaxDiffLines là trần số dòng thêm+xoá (git diff --numstat, bỏ tệp kiểm tra mục tiêu đóng băng) trên tệp của tác vụ: của mỗi lát so với điểm
+	// xanh, hoặc của phần b-feat đã làm so với mốc tác vụ khi không chia lát. Vượt sau một bước b-feat thì coi như kiểm chứng không qua. 0 = tắt.
+	MaxDiffLines int `yaml:"max_diff_lines"`
 	// VerifyTimeoutMinutes giới hạn thời gian lệnh kiểm chứng của phiếu tác vụ.
 	VerifyTimeoutMinutes int `yaml:"verify_timeout_minutes"`
 	// Isolation chọn nơi tác vụ chạy, một lần lúc lập phiếu: auto | shared | worktree
@@ -444,6 +447,8 @@ type Workflow struct {
 	Agent    WorkflowAgent    `yaml:"agent"`
 	// Verify chọn phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (sau bước implement).
 	Verify WorkflowVerify `yaml:"verify"`
+	// Perf là cổng hồi quy hiệu năng tuỳ chọn (Command rỗng = tắt).
+	Perf WorkflowPerf `yaml:"perf"`
 }
 
 // Phạm vi kiểm chứng (workflow.verify.scope).
@@ -454,6 +459,13 @@ const (
 
 // VerifyScopes là các giá trị hợp lệ của workflow.verify.scope.
 var VerifyScopes = []string{VerifyScopeFull, VerifyScopeAffected}
+
+// WorkflowPerf cấu hình cổng hồi quy hiệu năng: Bint đo Command trước b-feat đầu tiên (mốc) và sau mỗi b-feat (nhỏ nhất của 3 lần);
+// chậm hơn mốc quá MaxSlowdown lần (và quá sàn nhiễu 0,1 giây) hoặc lệnh thoát khác 0 thì coi như kiểm chứng không qua.
+type WorkflowPerf struct {
+	Command     string  `yaml:"command"`
+	MaxSlowdown float64 `yaml:"max_slowdown"`
+}
 
 // WorkflowVerify cấu hình phạm vi kiểm chứng của tác vụ. Cổng done và `bint task verify` luôn chạy đầy đủ.
 type WorkflowVerify struct {
@@ -704,9 +716,9 @@ func Default() Config {
 		},
 		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
-			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, VerifyTimeoutMinutes: 15,
+			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
-			Verify: WorkflowVerify{Scope: VerifyScopeFull},
+			Verify: WorkflowVerify{Scope: VerifyScopeFull}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
 			Agent: WorkflowAgent{
 				PermissionMode: "acceptEdits",
 				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash", "mcp__bint__*"},
@@ -1151,6 +1163,12 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.SliceTimeoutMinutes < 0 {
 		add("workflow.slice_timeout_minutes: phải >= 0 (0 = tắt lát mỏng)")
+	}
+	if c.Workflow.MaxDiffLines < 0 {
+		add("workflow.max_diff_lines: phải >= 0 (0 = tắt ngân sách diff)")
+	}
+	if c.Workflow.Perf.MaxSlowdown < 1 {
+		add("workflow.perf.max_slowdown: phải >= 1 (tỷ lệ chậm tối đa so với mốc)")
 	}
 	if !slices.Contains(VerifyScopes, c.Workflow.Verify.Scope) {
 		add("workflow.verify.scope: phải là %s", strings.Join(VerifyScopes, " | "))

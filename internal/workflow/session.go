@@ -505,7 +505,7 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 		}
 		r.applyResume(rs, o.Answer, o.FixRound, rs.reviewFixStep(rs.currentReview()))
 		if o.Accept {
-			rs.acceptReview = true
+			rs.acceptReview, rs.accepted = true, true
 		} else {
 			r.markFinalizeResume(ctx, rs, to, o.Rerun)
 			r.markVerifiedFixResume(ctx, rs, to, o.Rerun)

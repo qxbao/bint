@@ -227,7 +227,7 @@ func TestSessionReviewLoopStopsAtMaxRounds(t *testing.T) {
 	base := h.happy
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 		if step == StepReview {
-			_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`))
+			_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}]}`))
 			return err
 		}
 		return base(ctx, step, e, id)
@@ -514,7 +514,7 @@ func TestSessionProcessReviewWithBlockingFindingsStartsFixRound(t *testing.T) {
 	base := featWrites(h, nil)
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 		if step == StepReview {
-			_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`))
+			_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}]}`))
 			return err
 		}
 		return base(ctx, step, e, id)
