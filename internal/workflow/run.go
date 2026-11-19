@@ -89,8 +89,8 @@ type Runner struct {
 	// BintExe là đường dẫn binary Bint đặt vào cấu hình MCP của bước (rỗng = os.Executable()).
 	BintExe string
 	// CLISkewCheck kiểm `bint` trên PATH của agent có đọc được cấu hình của tác vụ không (nil = chạy `bint task show`); trả đường dẫn binary và
-	// lỗi (rỗng = ổn). Seam cho kiểm thử (config_preflight.go).
-	CLISkewCheck func(ctx context.Context, root, taskID string) (exe, msg string)
+	// lỗi (rỗng = ổn), kèm lý do bỏ qua kiểm (skipped, ghi vào Notes). Seam cho kiểm thử (config_preflight.go).
+	CLISkewCheck func(ctx context.Context, root, taskID string) (exe, msg, skipped string)
 }
 
 // StepEvent báo một bước agent của lượt điều phối. Log là đường dẫn log của bước (ghi dần khi agent chạy).

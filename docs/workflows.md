@@ -182,17 +182,28 @@ bị chặn vì thiếu bằng chứng (thường là kiểm chứng cuối khô
 (`State.finalize_fp`). `bint run next <id> --resume` (driver session) và `bint run resume <id>` (driver process) mà
 worktree không đổi kể từ lúc đó thì KHÔNG mở lượt b-review mới: chạy lại lệnh kiểm chứng đã xác nhận đúng một lần (ghi
 `verification` có `reason` "tiếp tục sau khi finalize bị chặn…") rồi áp cổng `done`. Worktree đã đổi, hoặc `--rerun`, thì
-review lại như cũ. Dấu vân tay bị xoá khi lần kiểm chứng chạy lại xong hoặc khi tác vụ bị chặn vì lý do khác lần kiểm
-chứng hỏng (ví dụ tiêu chí `unmet`), để lần resume sau không bỏ review nhầm.
+review lại như cũ. Dấu vân tay bị xoá khi lần kiểm chứng chạy lại xong hoặc khi tác vụ bị chặn vì lý do khác.
 
-Cùng cơ chế áp cho finalize bị chặn vì **chưa có lần kiểm chứng nào** (lệnh kiểm chứng chưa được người xác nhận nên Bint không chạy):
-sau `bint task approve` rồi `bint run resume`, cây không đổi thì Bint chạy `verify.command` đúng một lần và không mở lượt b-review
-mới (không tính thêm vòng review); cây đã đổi thì review lại như cũ.
+Dấu vân tay chỉ được nhớ khi lần kiểm chứng cuối không qua, hoặc **chưa có lần kiểm chứng nào** VÀ lý do chặn duy nhất là lệnh kiểm
+chứng chưa được người xác nhận (Bint không chạy; `blockedOnlyByUnconfirmedVerify` trong `run.go`): sau `bint task approve` rồi
+`bint run resume`, cây không đổi thì Bint chạy `verify.command` đúng một lần và không mở lượt b-review mới (không tính thêm vòng
+review). Chặn vì lý do khác (tiêu chí `unmet`, lát còn mở, đường dẫn chờ duyệt, ngân sách diff/perf đỏ, cổng mục tiêu) thì xoá dấu vân
+tay và resume review lại như cũ.
+
+**Kiểm chứng đầy đủ ở finalize quá giờ.** Tác vụ **blocked** kèm log, không mở vòng sửa (hết giờ không phải lỗi mã). Lý do gợi ý
+tăng `workflow.verify_timeout_minutes` rồi chạy lại `bint run resume <id>`, hoặc người xác nhận bỏ qua bằng `bint task land <id> --force`.
+
+**Finalize dùng lại lần kiểm chứng affected.** Nếu lần kiểm chứng cuối là affected đã qua (tầng `graph`/`package`) trên đúng cây hiện
+tại, đã xác nhận, và `verify.command` là `go test` thuần (không ký tự shell, cờ chỉ `-race -v -short -failfast -cover` hoặc dạng
+`-cờ=giá trị`, mẫu gói bắt đầu bằng `./` hay `.`) cùng tập cờ với lần affected, mà mọi gói có test mà mẫu chọn đều nằm trong tập gói
+affected đã chạy (`verifycover.go`), thì finalize ghi nhận nó thay vì chạy lại. Lệnh dạng khác thì chạy lại đầy đủ.
 
 **Binary cũ hơn cấu hình.** Trước mỗi bước review (và khi review không ghi kết quả), Bint nạp lại `.bint/config.yml` của tác vụ bằng
 binary đang chạy, và chạy `bint task show <id>` của `bint` trên PATH khi nó là tệp khác. Không đọc được (khoá cấu hình `b-feat` vừa
 thêm mà binary chưa biết, `field … not found`) thì tác vụ **blocked** (không failed) với lý do nêu binary, lỗi giải mã và hướng dẫn
-build lại `bint` (`go install ./cmd/bint`) rồi `bint run resume <id>`; không tốn lượt b-review.
+build lại `bint` (`go install ./cmd/bint`) rồi `bint run resume <id>`; không tốn lượt b-review. Khi kiểm `bint` trên PATH bị bỏ qua
+(không tìm thấy, quá 10 giây, hoặc lỗi không phải lỗi giải mã cấu hình) thì không chặn nhưng ghi một dòng vào `Notes` của kết quả
+lượt chạy nêu lý do bỏ qua.
 
 **Kiểm chứng chạy qua Bint trên Windows chậm hoặc treo (tác vụ 01M7C3CBN5JKTMVJV97TXDR5DK, 2026-11-14).** Trạng thái: **nguyên nhân đã được xác nhận bằng phép đo** (2026-11-14, Go 1.25.1, phiếu 01M7CZR838A68TT47THCCPWH9A); các phần
 đo và giả thuyết cũ bên dưới giữ làm lịch sử.
@@ -400,7 +411,7 @@ sau cổng cỡ kế hoạch, khi `requirement.md` có mục `## Kiểm tra mụ
   plan/tasks nên nối tiếp sẽ làm lộ chúng); model theo `roles.planner`/`models.planner` (mặc định khác implementer). Đề bài chỉ gồm skill `b-goal`, phiếu và
   nguyên văn `requirement.md`, không có `plan.md`/`tasks.md` hay đường dẫn của chúng. Rào thực thi: với bước `b-goal` do `bint run` khởi chạy, Bint đặt
   biến `BINT_DENY_READ` (đường dẫn tuyệt đối `plan.md`, `tasks.md`, mỗi dòng một đường; không bước nào khác có biến này) và hook PreToolUse trả `deny` cho công cụ
-  đọc trỏ tới các tệp đó và lệnh shell nhắc tới chúng (lệnh cố tình né bằng ghép chuỗi/biến không bị bắt: chặn đọc nhầm, không chặn cố ý). Hook Claude đã cài
+  đọc trỏ tới các tệp đó và lệnh shell nhắc tới chúng; biến còn chặn cả thư mục tác vụ trừ `requirement.md`, và rào vẫn áp khi hook lỗi nạp cấu hình (fail closed hẹp: chỉ lời gọi chạm đường dẫn cấm bị deny, các lời gọi khác chạy bình thường) (lệnh cố tình né bằng ghép chuỗi/biến không bị bắt: chặn đọc nhầm, không chặn cố ý). Hook Claude đã cài
   chỉ đăng ký `Read|Edit|Write|MultiEdit|NotebookEdit|Bash`, không có `Grep`/`Glob`, nên với b-goal chạy bằng Claude Bint cấp thêm settings riêng của bước (`--settings`, xoá
   sau bước) đăng ký `bint hook claude` cho `Grep|Glob`; harness khác không nhận. Rào Read/Bash vẫn dựa vào hook đã cài (`bint init` không có `--no-hooks`). Ở driver session
   (`bint run next`) subagent chạy trong phiên Claude chính nên Bint không đặt được biến này: rào vẫn chỉ là lời dặn trong đề bài. `b-feat`
@@ -414,7 +425,7 @@ sau cổng cỡ kế hoạch, khi `requirement.md` có mục `## Kiểm tra mụ
   `bint task land <id> --force --reason "<lý do>"` (tác vụ worktree) hoặc `bint task status <id> done --force` (tác vụ shared); với `land --force` lý do và điều chặn ghi vào
   `Landed.Bypassed`, còn `status done --force` (không cần `--reason`, không giới hạn theo `Forceable`) ghi các điều chặn đã bỏ qua vào lý do của lịch sử trạng thái ("người xác nhận dù thiếu bằng chứng: …"). Chỉ người dùng được cờ ép (agent bị từ chối). "Chưa chạy cổng mục tiêu" vẫn là điều chặn cứng. Chưa có lệnh chạy lại `b-goal` hay đóng băng lại.
 - **Cổng riêng**: lệnh là `workflow.verify.affected_command` mở rộng trên tệp đóng băng khi đã đặt, không thì `verify.command`. Khi lệnh bắt đầu bằng `go test`, chưa có
-  `-run` và tệp đóng băng là `*_test.go`, Bint thêm `-run '^(TestA|TestB)$'` gồm đúng các hàm `Test*` của tệp đóng băng để cổng không chạy cả gói (tệp khác Go,
+  `-run` và tệp đóng băng là `*_test.go`, Bint thêm `-run "^(TestA|TestB)$"` (nháy kép, chạy được dưới `sh` và `cmd /C`) gồm đúng các hàm `Test*` của tệp đóng băng để cổng không chạy cả gói (tệp khác Go,
   tệp không có hàm `Test*` hay lệnh đã có `-run` giữ lệnh cũ); chạy một lần ngay sau `b-goal`
   (mốc, không chặn; xanh ngay thì ghi chú "test có thể quá yếu") và sau kiểm chứng của mỗi bước implement. Log `goal-N.log`, kết quả ở `State.GoalChecks`, hiện ở
   `bint task show`. Đỏ được xử lý như kiểm chứng đỏ (`redVerification`: review thấy, vòng sửa); `finalize` chạy lại khi cây đổi và không `done` khi lần mới nhất đỏ.
@@ -495,7 +506,7 @@ thành **lát** (`internal/workflow/slice.go`), mỗi lát một lượt `b-feat
   theo dõi được tệp của tác vụ (hoặc tác vụ ở worktree riêng), `plan.md` có **≥ 2 nhóm** cấp ngoài cùng dưới `## Bề mặt bị ảnh hưởng` có nêu `AC-N` (nhóm không nêu AC,
   như dòng "Ngoài phạm vi", không thành lát), `workflow.slice_timeout_minutes > 0`, `workflow.slicing` không `off` và (với `auto`) `plan.md` ghi `Chia lát: có`, b-goal chạy được (`workflow.goal_check` không `off`, plan không ghi `b-goal: không`). Danh sách lát ghi một lần vào `State.Slices` (theo thứ tự dòng; sửa `plan.md` sau đó
   không chia lại). Lý do chặn của cổng cỡ kế hoạch liệt kê các lát ("Bint sẽ chạy N lát: lát 1/N: …"); đề bài `b-req` của `b-do` dặn xếp nhóm đầu là bản nhỏ nhất vẫn làm giảm
-  số ô đỏ của kiểm tra mục tiêu (luật nằm trong đề bài do Bint dựng, không phải skill).
+  số ô đỏ của kiểm tra mục tiêu (luật nằm trong đề bài do Bint dựng, không phải skill). Lát 1 phải làm cho test đóng băng **biên dịch được** (stub API mà test gọi) trước khi nhắm tới ô đỏ. Lời bàn giao kế hoạch sang `b-feat` (`planHandoffPrompt`) có khối nêu các lát.
 - **Mỗi lát một `b-feat`**: đề bài nêu "lát k/N", nguyên văn dòng nhóm, các lát đã chốt (đừng làm lại), đã bỏ và lát sau (đừng làm trước); phiên mới, không nối tiếp lát
   trước. Thời gian agent của lát là `min(workflow.timeout_minutes, workflow.slice_timeout_minutes)` (mặc định 30; kiểm chứng không tính).
 - **Đo và chốt**: sau mỗi lát (qua kiểm phạm vi, kiểm chứng và cổng mục tiêu như thường) Runner đọc log. *Tập ô đỏ* là tên các dòng `--- FAIL: <tên>` là lá; log
@@ -525,12 +536,12 @@ thành **lát** (`internal/workflow/slice.go`), mỗi lát một lượt `b-feat
 
 **Ngân sách diff mỗi lát/bước b-feat (`workflow.max_diff_lines`).** Mặc định `0` = tắt (`Validate` từ chối số âm). Bật thì Bint đếm số dòng thêm+xoá (`git diff --numstat`) trên tệp của tác vụ,
 **không tính tệp kiểm tra mục tiêu đóng băng**:
-- Chia lát: đo mỗi lát so với **điểm xanh** ngay sau `b-feat`, trước kiểm chứng. Vượt trần thì lát được giữ cây và tác vụ dừng blocked (lý do ghi số đo, ví dụ "61 dòng thêm+xoá so với điểm xanh, trần … = 20"); người chọn `bint run resume <id> --slice keep|discard|more` (chỉ `discard` mới đưa tệp của tác vụ về điểm xanh).
+- Chia lát: đo mỗi lát so với **điểm xanh** ngay sau `b-feat`, trước kiểm chứng. Vượt trần thì lát được giữ cây và tác vụ dừng blocked (lý do ghi số đo, ví dụ "61 dòng thêm+xoá so với điểm xanh, trần … = 20"); người chọn `bint run resume <id> --slice keep|discard|more` (chỉ `discard` mới đưa tệp của tác vụ về điểm xanh). Sau `discard`, các lần kiểm đỏ (kiểm chứng, cổng mục tiêu, ngân sách, perf) của lát bị bỏ được đánh dấu `voided` và không mở vòng sửa.
 - Không chia lát: đo phần `b-feat` đã làm so với **mốc tác vụ** (cây chụp trước `b-feat` đầu). Vượt trần thì ghi kết quả đỏ có số đo vào `State.BudgetChecks`, coi như kiểm chứng không qua: vào vòng sửa
-  (đề bài nêu số đo), không finalize. Lối ra như kiểm chứng đỏ: hết vòng sửa thì `bint run resume --accept`/`--fix-round`/huỷ.
+  (đề bài nêu số đo), không finalize. Lối ra như kiểm chứng đỏ: hết vòng sửa thì `bint run resume --accept`/`--fix-round`/huỷ. Không đo được diff thì ghi `Notes` và bỏ qua cổng.
 
-**Cổng hồi quy hiệu năng (`workflow.perf.command`, `workflow.perf.max_slowdown`).** Mặc định `command: ""` = tắt; `max_slowdown` mặc định `1.5` (`Validate` từ chối < 1). Bật khi lệnh kiểm chứng của phiếu đã được người xác nhận:
-- **Đơn vị và mốc**: thời gian chạy lệnh đo (giây), mỗi lần đo chạy 3 lần lấy **nhỏ nhất**. Mốc đo ngay trước `b-feat` đầu tiên (`perf_baseline` trong `state.json`), đo lại sau mỗi `b-feat` (`perf_checks`, log `perf-N.log` trong thư mục tác vụ).
+**Cổng hồi quy hiệu năng (`workflow.perf.command`, `workflow.perf.max_slowdown`).** Mặc định `command: ""` = tắt; `max_slowdown` mặc định `1.5` (`Validate` từ chối < 1). Chỉ chạy sau khi người `bint task approve` xác nhận đúng `perf.command` hiện tại (băm lưu ở `perf_approval` trong `state.json`); đổi lệnh sau khi duyệt thì không chạy tới khi duyệt lại (chỉ ghi `Notes`):
+- **Đơn vị và mốc**: thời gian chạy lệnh đo (giây), mỗi lần đo chạy 3 lần lấy **nhỏ nhất**. Mốc đo ngay trước `b-feat` đầu tiên (`perf_baseline` trong `state.json`), đo lại sau mỗi `b-feat` (`perf_checks`, log `perf-N.log` trong thư mục tác vụ, đánh số theo tệp có sẵn nên không đè nhau). Mốc chỉ đo một lần (`perf_baseline_tried`, kể cả khi lệnh hỏng) để không rơi vào cây đã sửa.
 - **Đỏ** khi chậm hơn mốc quá `max_slowdown` lần **và** quá sàn nhiễu 0,1 giây, hoặc lệnh đo thoát khác 0/hết giờ. Kết quả đỏ ghi số đo, coi như kiểm chứng không qua như ngân sách diff: chia lát thì lát được giữ cây và tác vụ dừng blocked chờ người (`--slice keep|discard|more`);
   không chia lát thì vào vòng sửa (đề bài nêu số đo và log), không finalize.
 - **Lối ra**: sửa hồi quy; hết vòng sửa thì `bint run resume <id> --accept` (chấp nhận kết quả hiện tại)/`--fix-round`/huỷ, giống kiểm chứng đỏ.
@@ -541,7 +552,7 @@ của `requirement.md` phải có số đo hoặc đúng một dòng `Không đo
 mới: lỗi ở hợp đồng v2 khi `--strict`, chỉ cảnh báo ở v1, bỏ qua ở v0: `baseline_missing` (thiếu `## Hiện trạng` hoặc không có số/`Không đo được:`),
 `ac_without_measure` (không AC nào có số đo mục tiêu), `surface_missing` (thiếu `## Bề mặt bị ảnh hưởng` hoặc không có nhóm nào),
 `surface_unmapped` (nhóm bề mặt không nêu `AC-N` có thật hay `ngoài phạm vi`), `assumptions_missing` (thiếu/rỗng `## Giả định thay người dùng`; ghi
-`Không có` nếu không có) và `plan_file_out_of_scope` (tệp nêu trong `## Cỡ kế hoạch` nằm ngoài `scope.allow` hoặc khớp `scope.deny`). **Cổng `BINT_RUN_ID`:** `bint task new` từ chối khi `BINT_RUN_ID` khác rỗng
+`Không có` nếu không có) và `plan_file_out_of_scope` (tệp nêu trong `## Cỡ kế hoạch` nằm ngoài `scope.allow` hoặc khớp `scope.deny`; tệp kiểm tra mục tiêu `b-goal` đã đóng băng được miễn, vì `LintPlanningTask` truyền `State.GoalTest.Paths()` vào `lintPlanning`). **Cổng `BINT_RUN_ID`:** `bint task new` từ chối khi `BINT_RUN_ID` khác rỗng
 (`internal/app/task_svc.go`), nên agent trong bước `bint run` không lập phiếu con được; agent con của phiên điều phối không có biến này, do đó
 skill `b-req` còn cấm tường minh việc tự lập phiếu con và đổi trạng thái phiếu.
 

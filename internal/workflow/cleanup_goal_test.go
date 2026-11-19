@@ -116,15 +116,15 @@ func TestCleanupAfterSliceTaskGoal(t *testing.T) {
 }
 
 // noCLISkew là CLISkewCheck của harness: kiểm thử không chạy `bint` thật trên PATH của máy.
-func noCLISkew(context.Context, string, string) (string, string) { return "", "" }
+func noCLISkew(context.Context, string, string) (string, string, string) { return "", "", "" }
 
 // `bint` trên PATH (khác binary đang chạy) không đọc được cấu hình: blocked trước b-review, lý do nêu đường dẫn binary và lỗi.
 func TestConfigSkewFromPathBinaryBlocksBeforeReview(t *testing.T) {
 	h := newHarness(t)
 	res := h.runFeat("Thêm tính năng phiên bản v2 cho app.txt", "")
 	r := h.runner()
-	r.CLISkewCheck = func(context.Context, string, string) (string, string) {
-		return "/old/bint", "line 3: field khoa_moi_xyz not found in type config.Workflow"
+	r.CLISkewCheck = func(context.Context, string, string) (string, string, string) {
+		return "/old/bint", "line 3: field khoa_moi_xyz not found in type config.Workflow", ""
 	}
 	out, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true})
 	if err != nil {
@@ -137,5 +137,31 @@ func TestConfigSkewFromPathBinaryBlocksBeforeReview(t *testing.T) {
 		if !strings.Contains(out.Reason, want) {
 			t.Errorf("lý do thiếu %q: %s", want, out.Reason)
 		}
+	}
+}
+
+// Kiểm `bint` trên PATH bị bỏ qua: không chặn nhưng ghi lý do vào Notes.
+func TestConfigSkewSkippedCheckAddsNote(t *testing.T) {
+	h := newHarness(t)
+	res := h.runFeat("Thêm tính năng phiên bản v2 cho app.txt", "")
+	r := h.runner()
+	r.CLISkewCheck = func(context.Context, string, string) (string, string, string) {
+		return "", "", "`bint task show` quá 10s"
+	}
+	out, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: res.TaskID, Resume: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Status == task.StatusBlocked && strings.Contains(out.Reason, "không đọc được .bint/config.yml") {
+		t.Fatalf("kiểm bị bỏ qua không được chặn: %+v", out)
+	}
+	found := false
+	for _, n := range out.Notes {
+		if strings.Contains(n, "bỏ qua kiểm `bint` trên PATH") && strings.Contains(n, "quá 10s") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("thiếu Notes về kiểm bị bỏ qua: %v", out.Notes)
 	}
 }

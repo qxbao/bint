@@ -34,8 +34,12 @@ func (r *Runner) configSkew(ctx context.Context, rs *runState) string {
 	if check == nil {
 		check = cliSkewCheck
 	}
-	if exe, msg := check(ctx, root, id); msg != "" {
+	exe, msg, skipped := check(ctx, root, id)
+	if msg != "" {
 		return skewMessage(exe, msg, id, r.resumeCmd(rs))
+	}
+	if skipped != "" {
+		rs.res.Notes = append(rs.res.Notes, "bỏ qua kiểm `bint` trên PATH trước b-review: "+skipped)
 	}
 	return ""
 }
@@ -54,14 +58,14 @@ func selfExe() string {
 }
 
 // cliSkewCheck chạy `bint task show <id>` của PATH (chỉ khi khác binary đang chạy) trong root: lỗi giải mã cấu hình ("not found")
-// nghĩa là binary đó cũ hơn cấu hình. Không tìm thấy, hết giờ hoặc lỗi khác: bỏ qua (không chặn).
-func cliSkewCheck(ctx context.Context, root, id string) (exe, msg string) {
+// nghĩa là binary đó cũ hơn cấu hình. Không tìm thấy, hết giờ hoặc lỗi khác: không chặn, trả lý do bỏ qua (skipped) để ghi Notes.
+func cliSkewCheck(ctx context.Context, root, id string) (exe, msg, skipped string) {
 	p, err := exec.LookPath("bint")
 	if err != nil {
-		return "", ""
+		return "", "", "không tìm thấy `bint` trên PATH"
 	}
 	if self, err := os.Executable(); err == nil && sameBinary(self, p) {
-		return "", "" // cùng binary: lần nạp ở trên đã kiểm
+		return "", "", "" // cùng binary: lần nạp ở trên đã kiểm
 	}
 	cctx, cancel := context.WithTimeout(ctx, cliSkewTimeout)
 	defer cancel()
@@ -69,8 +73,9 @@ func cliSkewCheck(ctx context.Context, root, id string) (exe, msg string) {
 	cmd.Dir = root
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Run(); err == nil {
-		return "", ""
+	runErr := cmd.Run()
+	if runErr == nil {
+		return "", "", ""
 	}
 	text := out.String()
 	if strings.Contains(text, "not found in type") {
@@ -81,9 +86,12 @@ func cliSkewCheck(ctx context.Context, root, id string) (exe, msg string) {
 				break
 			}
 		}
-		return p, line
+		return p, line, ""
 	}
-	return "", ""
+	if cctx.Err() == context.DeadlineExceeded {
+		return "", "", fmt.Sprintf("`%s task show` quá %s", p, cliSkewTimeout)
+	}
+	return "", "", fmt.Sprintf("`%s task show` lỗi không phải lỗi giải mã cấu hình (%v)", p, runErr)
 }
 
 func sameBinary(a, b string) bool {
