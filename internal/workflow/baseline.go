@@ -53,14 +53,75 @@ func walkStat(root string, deadline time.Time, left *int) baselineStat {
 	return s
 }
 
+// trackedFiles liệt kê tệp git theo dõi (biến để test thay bằng danh sách giả).
+var trackedFiles = func(ctx context.Context, root string) ([]string, error) {
+	out, err := gitrepo.Run(ctx, root, "ls-files", "-z")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strings.TrimRight(out, "\x00"), "\x00"), nil
+}
+
 // BuildBaseline đo hiện trạng: dung lượng/số tệp từng mục cấp một của thư mục trạng thái và số tệp/byte được git theo dõi
-// khớp từng mẫu scope.allow. Có trần thời gian và số tệp; không bao giờ lỗi (mục đo không được ghi rõ lý do).
-func BuildBaseline(ctx context.Context, stateDir, root string, allow []string) string {
-	deadline := time.Now().Add(baselineBudget)
-	left := baselineMaxFiles
+// khớp từng mẫu scope.allow (trừ tệp khớp scope.deny). Hai phép đo có trần thời gian riêng và trần số tệp; không bao giờ lỗi
+// (mục đo không được ghi rõ lý do).
+func BuildBaseline(ctx context.Context, stateDir, root string, allow, deny []string) string {
+	return buildBaseline(ctx, stateDir, root, allow, deny, baselineBudget, baselineMaxFiles)
+}
+
+func buildBaseline(ctx context.Context, stateDir, root string, allow, deny []string, budget time.Duration, maxFiles int) string {
 	var b strings.Builder
 	b.WriteString("# Hiện trạng (Bint đo tự động trước b-req)\n\n")
 	b.WriteString("Số đo thô để lập kế hoạch; chép các số liên quan vào mục `## Hiện trạng` của requirement.md.\n\n")
+
+	// scope.allow đo trước (git ls-files rẻ) với deadline riêng, để thư mục trạng thái lớn không làm nó hết hạn.
+	var scopeB strings.Builder
+	scopeB.WriteString("\n## Tệp được git theo dõi khớp scope.allow\n\n")
+	files, gerr := trackedFiles(ctx, root)
+	switch {
+	case gerr != nil:
+		fmt.Fprintf(&scopeB, "- Không đo được: %v\n", gerr)
+	case len(allow) == 0:
+		fmt.Fprintf(&scopeB, "- Phiếu chưa có scope.allow; toàn kho có %d tệp được git theo dõi\n", len(files))
+	default:
+		scopeDeadline := time.Now().Add(budget)
+		denyC := make([]pathglob.Pattern, 0, len(deny))
+		for _, d := range deny {
+			denyC = append(denyC, pathglob.Compile(d))
+		}
+		denied := func(f string) bool {
+			for _, c := range denyC {
+				if c.Match(f) {
+					return true
+				}
+			}
+			return false
+		}
+		if len(deny) > 0 {
+			scopeB.WriteString("(đã trừ tệp khớp scope.deny)\n\n")
+		}
+		for _, pat := range allow {
+			var s baselineStat
+			c := pathglob.Compile(pat)
+			for i, f := range files {
+				if i%512 == 0 && time.Now().After(scopeDeadline) {
+					s.capped = true
+					break
+				}
+				if f == "" || !c.Match(f) || denied(f) {
+					continue
+				}
+				s.files++
+				if info, serr := os.Stat(filepath.Join(root, filepath.FromSlash(f))); serr == nil {
+					s.bytes += info.Size()
+				}
+			}
+			fmt.Fprintf(&scopeB, "- `%s`: %d tệp, %d byte%s\n", pat, s.files, s.bytes, cappedNote(s.capped))
+		}
+	}
+
+	deadline := time.Now().Add(budget)
+	left := maxFiles
 	fmt.Fprintf(&b, "## Thư mục trạng thái `%s`\n\n", filepath.ToSlash(stateDir))
 	entries, err := os.ReadDir(stateDir)
 	if err != nil {
@@ -80,36 +141,7 @@ func BuildBaseline(ctx context.Context, stateDir, root string, allow []string) s
 		s := walkStat(p, deadline, &left)
 		fmt.Fprintf(&b, "- `%s/`: %d tệp, %d byte%s\n", e.Name(), s.files, s.bytes, cappedNote(s.capped))
 	}
-
-	b.WriteString("\n## Tệp được git theo dõi khớp scope.allow\n\n")
-	out, gerr := gitrepo.Run(ctx, root, "ls-files", "-z")
-	if gerr != nil {
-		fmt.Fprintf(&b, "- Không đo được: %v\n", gerr)
-		return b.String()
-	}
-	files := strings.Split(strings.TrimRight(out, "\x00"), "\x00")
-	if len(allow) == 0 {
-		fmt.Fprintf(&b, "- Phiếu chưa có scope.allow; toàn kho có %d tệp được git theo dõi\n", len(files))
-		return b.String()
-	}
-	for _, pat := range allow {
-		var s baselineStat
-		c := pathglob.Compile(pat)
-		for i, f := range files {
-			if i%512 == 0 && time.Now().After(deadline) {
-				s.capped = true
-				break
-			}
-			if f == "" || !c.Match(f) {
-				continue
-			}
-			s.files++
-			if info, serr := os.Stat(filepath.Join(root, filepath.FromSlash(f))); serr == nil {
-				s.bytes += info.Size()
-			}
-		}
-		fmt.Fprintf(&b, "- `%s`: %d tệp, %d byte%s\n", pat, s.files, s.bytes, cappedNote(s.capped))
-	}
+	b.WriteString(scopeB.String())
 	return b.String()
 }
 
@@ -125,7 +157,7 @@ func (r *Runner) writeBaseline(ctx context.Context, t *task.Task) string {
 	taskDir := filepath.Dir(t.ArtifactPath("requirement"))
 	stateDir := filepath.Dir(filepath.Dir(filepath.Dir(taskDir)))
 	path := filepath.Join(taskDir, BaselineFile)
-	body := BuildBaseline(ctx, stateDir, r.Root, t.Ticket.Scope.Allow)
+	body := BuildBaseline(ctx, stateDir, r.Root, t.Ticket.Scope.Allow, t.Ticket.Scope.Deny)
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		r.logf("  ! không ghi được %s: %v", BaselineFile, err)
 		return ""

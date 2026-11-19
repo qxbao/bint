@@ -348,7 +348,10 @@ func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]e
 	if version >= PlanningContractV1 {
 		v2 := &reportBuilder{}
 		if usable["requirement"] {
-			lintBaseline(v2, docs["requirement"], acs)
+			if lintBaseline(v2, docs["requirement"], acs) {
+				b.r.Warnings = append(b.r.Warnings, ArtifactIssue{Code: "baseline_exempt", Artifact: artReq,
+					Detail: "`## Hiện trạng` dùng lối thoát `Không đo được: <lý do>` thay cho số đo: chỉ dùng khi thật sự không đo được; người duyệt sẽ xem lý do"})
+			}
 		}
 		if usable["plan"] {
 			lintPlanV2(v2, ticket, docs["plan"], acs, frozen)
@@ -688,9 +691,15 @@ var (
 	lintOutOfScopeRe   = regexp.MustCompile(`(?i)ngoài phạm vi`)
 )
 
-// lintBaseline: requirement.md phải có `## Hiện trạng` chứa số đo (có chữ số) hoặc dòng `Không đo được: <lý do>`, và ít nhất một AC có số đo.
-func lintBaseline(b *reportBuilder, req string, acs []acItem) {
-	ok, has := false, false
+// hasMeasure: dòng có số đo thật: chữ số nằm ngoài code span (`TestGoal2`, `internal/v2/x.go` không tính).
+func hasMeasure(line string) bool {
+	return strings.ContainsAny(stripCodeSpans(line), "0123456789")
+}
+
+// lintBaseline: requirement.md phải có `## Hiện trạng` chứa số đo (chữ số ngoài code span) hoặc dòng `Không đo được: <lý do>`,
+// và ít nhất một AC có số đo. Trả true khi mục chỉ đạt nhờ lối thoát `Không đo được:` (nơi gọi phát cảnh báo baseline_exempt).
+func lintBaseline(b *reportBuilder, req string, acs []acItem) (exempt bool) {
+	measured, unmeasurable, has := false, false, false
 	scanLines(req, func(section, line string) {
 		if section != secBaseline {
 			return
@@ -698,26 +707,31 @@ func lintBaseline(b *reportBuilder, req string, acs []acItem) {
 		if strings.TrimSpace(line) != "" {
 			has = true
 		}
-		if strings.ContainsAny(line, "0123456789") || lintUnmeasurableRe.MatchString(line) {
-			ok = true
+		switch {
+		case lintUnmeasurableRe.MatchString(line):
+			unmeasurable = true
+		case hasMeasure(line):
+			measured = true
 		}
 	})
-	if !ok {
+	if !measured && !unmeasurable {
 		why := "thiếu mục `## Hiện trạng`"
 		if has {
-			why = "mục `## Hiện trạng` không có số đo nào (số tệp, byte, dung lượng...)"
+			why = "mục `## Hiện trạng` không có số đo nào (số tệp, byte, dung lượng...; tên trong dấu backtick không tính)"
 		}
 		b.err("baseline_missing", artReq, "%s; đọc baseline.md của tác vụ, ghi số đo hiện trạng, hoặc một dòng `Không đo được: <lý do>`", why)
 	}
+	exempt = !measured && unmeasurable
 	if len(acs) == 0 {
-		return
+		return exempt
 	}
 	for _, a := range acs {
-		if strings.ContainsAny(a.Text, "0123456789") {
-			return
+		if hasMeasure(a.Text) {
+			return exempt
 		}
 	}
 	b.err("ac_without_measure", artReq, "không dòng AC nào có số đo mục tiêu người dùng; ít nhất một AC phải nêu một con số kiểm được")
+	return exempt
 }
 
 // lintPlanV2: bề mặt ảnh hưởng ánh xạ vào AC, có giả định, và tệp nêu trong `## Cỡ kế hoạch` nằm trong phạm vi phiếu.
