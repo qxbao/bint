@@ -1,0 +1,112 @@
+{
+  "X1": {
+    "verdict": "confirmed",
+    "final_severity": "critical",
+    "reason": "Diff X không chạm internal/task hay đường tạo phiếu; task.FromRequest/Ticket ghi nguyên văn mô tả và goal vào task.yml trong thư mục trạng thái, rồi bản chiếu ledger git ghi tiếp ra .bint/tasks/<id>/task.yml trong cây làm việc. Mô tả phiếu là nơi lưu chính, cấu hình mặc định.",
+    "how": "Đọc diff (danh sách tệp không có internal/task, internal/workflow/ops.go). Test ẩn S3 trên binary X: github_token, aws_key_id, aws_secret, bearer, url_creds, password đều nằm rõ trong state/.../task.yml và repo/.bint/tasks/<id>/task.yml (cả qua `task new -` lẫn `task set --goal`). Chạy lại x4.sh: verify-command chứa API_TOKEN=... cũng nằm rõ trong task.yml ở cả hai nơi."
+  },
+  "X2": {
+    "verdict": "confirmed",
+    "final_severity": "critical",
+    "reason": "AddRound ghi summary/title/evidence/body nguyên văn vào review.json, review.md và bản chiếu ledger; X không che ở đường này.",
+    "how": "Test ẩn S4 trên binary X: mọi loại bí mật có trong review.json, review.md (state) và repo/.bint/tasks/<id>/review.json."
+  },
+  "X3": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "WriteArtifact ghi requirement/plan/tasks nguyên văn, kèm bản chiếu .bint/tasks/<id>/; X không che. Đây là nơi phụ nên giữ mức medium.",
+    "how": "Test ẩn S6 trên binary X: requirement.md trong state và repo/.bint/tasks/ chứa rõ github_token, aws, bearer, url_creds, password."
+  },
+  "X4": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Env.emit (task.*) và state.json không qua lớp che; X chỉ che result_summary/end_reason trong emitRun. Bằng chứng tiêu chí và lệnh kiểm chứng nằm rõ trong state.json (cả bản chiếu repo/.bint) và trong bảng events. Sự kiện task.* chỉ phát khi có RunID/phiên agent (luồng b-feat thông thường) và cần bí mật nằm trong bằng chứng/lệnh, nên giữ mức medium.",
+    "how": "Chạy x4.sh với binary X: task new --criteria + --verify-command 'API_TOKEN=tokx4VERIFYCMD... sh -c ...', task criteria -e \"curl -H 'Authorization: Bearer EVIDBEARERx4...'; password=EVIDPASSx4...\". grep: tokx4VERIFYCMD có trong task.yml và state.json (state lẫn repo/.bint), EVIDBEARER và EVIDPASS có trong state.json. Chạy lại `task criteria` với CLAUDE_CODE_SESSION_ID rồi `bint events ingest`: bảng events có task.criteria với evidence nguyên văn (Bearer và password rõ)."
+  },
+  "X5": {
+    "verdict": "confirmed-downgrade",
+    "final_severity": "low",
+    "reason": "Có thật: Writer bỏ nguyên dòng/bản ghi > 64 KiB và thay bằng dấu, trong khi ParseTraceReader gốc đọc dòng tới 4 MiB và không đặt Truncated cho dòng dấu (không bắt đầu bằng '{'). Nhưng tác động thực tế nhỏ: stdout thô dùng giải mã giao thức (skills, result) không bị đổi; vết Writes được bù bằng Modified (danh sách tệp từ git) trong failure_digest/classifySignals; một dòng assistant chứa lệnh Bash > 64 KiB, cái có thể làm no_test báo sai, gần như không gặp. Chỉ còn là mất chẩn đoán trong phân tích evolve, nên hạ xuống low.",
+    "how": "Đọc redact.go (maxLine, dropping) trong mã X sau khi áp diff; đọc base internal/evolve/failure.go (ParseTraceReader, skippedMayHoldToolUse, parseTraceLine) và failure.go:488-491, failure_digest.go:151 (Writes gộp với Modified); agent.go:428 cho thấy stdout thô được giữ riêng."
+  },
+  "X6": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Dòng bắt đầu bằng '[' hoặc '{' mà ngoặc không cân làm Writer gom mọi dòng sau của luồng đó; tới cuối tiến trình thì bỏ hết với dấu 'incomplete JSON log record omitted'. Toàn bộ phần đuôi của log kiểm chứng (gồm '--- FAIL:') và tail chẩn đoán đều mất. Đây là che quá tay làm hỏng log chẩn đoán, và là hồi quy so với bản gốc.",
+    "how": "Chạy x6.sh với binary X: lệnh kiểm chứng in '[ERROR] config.go:12: unexpected '{' near line 3' rồi '--- FAIL: TestA' và 'FAIL'. verify-1.log chỉ còn '=== RUN TestA' cùng '[bint: incomplete JSON log record omitted]'. Trường hợp JSON log bị cắt '{\"level\":\"error\",\"msg\":\"...{\\\"data\\\":[1,2' cũng vậy. Binary Y và binary gốc giữ đủ các dòng."
+  },
+  "X7": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Cả năm dạng đều lọt thật vào log kiểm chứng: SECRET_KEY=..., STRIPE_SECRET_KEY=sk_live_..., 'Authorization: token X' (chỉ che chữ 'token', giá trị còn lại), Cookie: session=..., curl -u admin:pass và khối PEM. Ngoài ra 'SECRET_KEY = ...' và 'secret_key: ...' cũng lọt. PEM còn lọt cả vào log agent và sự kiện hook trong SQLite (test ẩn S1/S2/S5). Mỗi dạng chỉ là một phần trong số bí mật, các dạng chính như password=, Bearer, URL creds, ghp_ đã được che, nên giữ mức medium.",
+    "how": "Chạy forms.sh với binary X: lệnh kiểm chứng `cat forms.txt` gồm 26 dạng. Lọt: F01 SECRET_KEY=, F02 sk_live_, F03 'Authorization: *** F03token...', F04 Cookie, F05 curl -u, F11, F12, F23 PEM (ngoài ra F13/F14 AKIA và F24 npm_). Test ẩn: private_key lọt ở S1 verify-1.log, S2 b-feat-*.log và S5 state.sqlite."
+  },
+  "Y1": {
+    "verdict": "confirmed",
+    "final_severity": "critical",
+    "reason": "Y không sửa internal/workflow: res.Text, câu trả lời cuối của agent, đi thẳng vào payload workflow.finished (spool), bảng events và runs.result_summary trong SQLite ở dạng rõ. Đây là lịch sử lượt chạy, nơi lưu chính, cấu hình mặc định. Test ẩn S2 không bắt được vì --agent-command không sinh res.Text.",
+    "how": "Chạy y1.sh: claude giả trên PATH in stream-json result 'Tôi đã đặt GITHUB_TOKEN=ghp_<FIXTURE>... và password: RESSUMpw...', rồi `bint run b-feat --task <id> --harness claude` và `bint events ingest`. Với Y: runs.result_summary và events(workflow.finished).payload chứa nguyên ghp_ và mật khẩu. Với X (đối chứng): 'GITHUB_TOKEN=*** và password: ***', không còn chuỗi bí mật ở đâu."
+  },
+  "Y2": {
+    "verdict": "confirmed",
+    "final_severity": "critical",
+    "reason": "Giống X1: diff Y không chạm đường tạo phiếu; mô tả và goal được ghi rõ vào task.yml ở state và bản chiếu .bint/tasks.",
+    "how": "Test ẩn S3 trên binary Y: mọi loại bí mật có trong task.yml ở state và repo/.bint/tasks. x4.sh: verify-command có API_TOKEN nằm rõ trong task.yml và state.json."
+  },
+  "Y3": {
+    "verdict": "confirmed",
+    "final_severity": "critical",
+    "reason": "Giống X2: review.json, review.md và bản chiếu ledger ghi nguyên văn.",
+    "how": "Test ẩn S4 trên binary Y: mọi loại bí mật có trong review.json/review.md ở state và repo/.bint."
+  },
+  "Y4": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Giống X3: requirement.md (và plan/tasks) ghi nguyên văn kèm bản chiếu repo.",
+    "how": "Test ẩn S6 trên binary Y: requirement.md ở state và repo/.bint/tasks chứa rõ bí mật."
+  },
+  "Y5": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Giống X4: state.json và sự kiện task.* không được che. Y không che cả emitRun (xem Y1).",
+    "how": "x4.sh với binary Y: tokx4VERIFYCMD có trong task.yml/state.json, EVIDBEARER và EVIDPASS có trong state.json (state và repo/.bint). Sự kiện task.criteria (phát dưới CLAUDE_CODE_SESSION_ID) trong bảng events chứa evidence nguyên văn."
+  },
+  "Y6": {
+    "verdict": "confirmed-downgrade",
+    "final_severity": "low",
+    "reason": "Giống X5: LogWriter của Y cũng thay dòng > 64 KiB bằng dấu, nên ParseTraceReader của evolve mất dòng đó mà không đặt Truncated. Tác động thực tế nhỏ vì Writes được bù bằng Modified, stdout thô vẫn dùng để giải mã giao thức, và lệnh Bash > 64 KiB gần như không gặp. Hạ xuống low.",
+    "how": "Đọc internal/detect/log.go (maxLogLine, dropping, flush) trong mã Y sau khi áp diff; đối chiếu base evolve/failure.go và failure_digest.go như X5."
+  },
+  "Y7": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "Mọi dạng nêu ra đều lọt thật: token trần ghp_/github_pat_/sk-ant- (cùng xoxb-, npm_), token làm username trong URL (https://ghp_...@github.com), 'aws_secret_access_key = ...' có dấu cách, SECRET_KEY = '...', secret_key: ..., curl -u admin:pass và PEM. Theo test ẩn S5, ghp_ trần trong lệnh test còn lọt vào sự kiện hook trong SQLite (bản X che được nhờ mẫu token). Các dạng có nhãn thông dụng (password=, GITHUB_TOKEN=, Bearer, user:pass@, Cookie) đã được che, nên giữ mức medium.",
+    "how": "forms.sh với binary Y: lọt F05 curl -u, F06 ghp_ trần, F07 sk-ant-, F08 github_pat_, F09 token trong URL, F10 'aws_secret_access_key = ', F11, F12, F23 PEM (ngoài ra F13/F14 AKIA, F24 npm_, F25 xoxb-). Test ẩn S5 Y: github_token, aws_key_id, private_key có trong state.sqlite."
+  },
+  "extra": {
+    "X-H1": {
+      "verdict": "confirmed",
+      "final_severity": "medium",
+      "reason": "Mã truy cập AWS (AKIA..., access key ID) không được che, dù trần hay có nhãn 'aws_access_key_id=AKIA...', vì mẫu khoá 'access[-_]?key' không chấp nhận hậu tố '_id' và không có mẫu AKIA. Mã này lọt vào log kiểm chứng, log agent và sự kiện hook trong SQLite. Phần aws_secret_access_key= đã được che, nên đây là lọt một phần hoặc một dạng: medium.",
+      "how": "Test ẩn: aws_key_id lọt ở S1 verify-1.log, S2 b-feat-*.log, S5 state.sqlite. forms.sh với binary X: F13 'AKIAF13...' và F14 'aws_access_key_id=AKIAF14...' còn nguyên trong verify-1.log."
+    },
+    "X-H2": {
+      "verdict": "confirmed-downgrade",
+      "final_severity": "low",
+      "reason": "Test ẩn N2 báo X chậm (5.8s so với 0.9s cho 20 MB đầu ra kiểm chứng). Đo lại thấy chậm thật nhưng tuyến tính, khoảng 0.24 s/MB, không phải regex thảm hoạ. Bản Y chậm gần như y hệt; X trượt ngưỡng 3x+2s còn Y lọt ngưỡng chỉ do nhiễu. Với đầu ra kiểm chứng/agent thông thường (dưới vài MB), chi phí thêm dưới 1s, không làm bint 'chậm hẳn đi', nên chỉ ở mức low.",
+      "how": "perf.sh: tệp 23 MB như BIG_SH, `bint task verify` 3 lần. Bản gốc 0.10-0.14s; X 5.4-5.9s; Y 5.0-5.5s."
+    },
+    "Y-H1": {
+      "verdict": "confirmed",
+      "final_severity": "medium",
+      "reason": "Giống X-H1: AKIA... (trần và 'aws_access_key_id=AKIA...') không được che vì credentialKey không khớp 'access_key_id' và không có mẫu AKIA. Mã lọt vào log kiểm chứng, log agent và sự kiện hook trong SQLite.",
+      "how": "Test ẩn: aws_key_id lọt ở S1 verify-1.log, S2 b-feat-*.log, S5 state.sqlite. forms.sh với binary Y: F13 và F14 còn nguyên."
+    },
+    "Y-H2": {
+      "verdict": "confirmed-downgrade",
+      "final_severity": "low",
+      "reason": "Đối xử như X-H2: Y cũng chậm tuyến tính khoảng 0.2 s/MB khi lọc log (test ẩn 4.8s so với 1.0s, qua ngưỡng sát nút). Không phải regex thảm hoạ, không đáng kể với đầu ra thông thường.",
+      "how": "perf.sh: Y 5.0-5.5s so với bản gốc 0.1s trên 23 MB."
+    }
+  }
+}

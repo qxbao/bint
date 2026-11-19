@@ -63,6 +63,10 @@ type CodexAgent struct {
 	Binary    string
 	Model     string
 	ExtraArgs []string
+	// NoSubagents: tắt công cụ agent con của Codex (spawn_agent, wait_agent...) bằng
+	// -c features.multi_agent_v2.disable_native_tools=true. Bước workflow đặt true: benchmark Bint-vs-plain lần 3 đo
+	// agent con chiếm ~25% token của b-feat. Đứng trước ExtraArgs nên người dùng ghi đè được bằng extra_args.
+	NoSubagents bool
 	// Profile là profile `bint iso` mặc định của agent (harnesses.codex.profile); nil = tài khoản thật.
 	Profile *iso.Profile
 }
@@ -87,6 +91,13 @@ func (a *CodexAgent) bin() string {
 // Hook vẫn cần trust của Codex; tác vụ tự động phải chủ động chọn cách duyệt hook
 // đã kiểm tra (ExtraArgs), adapter không tự bỏ qua trust của người dùng.
 func (a *CodexAgent) ArmUnavailable(string) string { return "" }
+
+// CodexNoSubagentsConfig là giá trị -c tắt công cụ agent con của Codex. Đo trên codex-cli 0.169 (model có
+// multi_agent_version v2 trong danh mục): `codex debug prompt-input` không còn spawn_agent/wait_agent/list_agents/
+// send_message/followup_task/interrupt_agent, và `codex exec` thật báo không có công cụ nào chứa "agent". Khoá
+// features.multi_agent / features.multi_agent_v2 = false KHÔNG tắt được với các model này. Khoá không có dấu chấm
+// trong tên và không dấu trích dẫn nên không vướng việc -c tách khoá theo dấu chấm.
+const CodexNoSubagentsConfig = "features.multi_agent_v2.disable_native_tools=true"
 
 // codexToolNameRE là khoá TOML trần hợp lệ: tên tool đặt trong `-c mcp_servers.bint.tools.<tên>.…` (không dấu chấm).
 var codexToolNameRE = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -165,6 +176,9 @@ func (a *CodexAgent) argsFor(req AgentRequest, env []string, lb []string) ([]str
 	}
 	// Cờ Codex LB ở cấp exec, trước ExtraArgs và trước `resume` (lệnh con resume không nhận -c riêng của nó).
 	args = append(args, lb...)
+	if a.NoSubagents {
+		args = append(args, "-c", CodexNoSubagentsConfig)
+	}
 	args = append(args, a.ExtraArgs...)
 	if req.ResumeSessionID != "" {
 		return append(args, "resume", req.ResumeSessionID, "-"), nil

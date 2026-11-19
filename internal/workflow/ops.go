@@ -111,6 +111,9 @@ type NewTaskOptions struct {
 	Plan *bool
 	// Depth: ""/auto = tự chọn; standard|deep = người dùng chỉ định (hàm ý có b-req; chỉ b-do/b-req).
 	Depth string
+	// Fast: người dùng chủ động chọn đường nhanh (--fast): không b-req, một phiên b-feat, cổng kiểm chứng, một lượt review, tối đa một
+	// vòng sửa. Chỉ b-do gốc; không đi cùng Plan/Depth; chạm đường dẫn bảo vệ thì giữ b-req. Độc lập với workflow.fast_path.
+	Fast bool
 	// Isolation: ""/auto = theo workflow.isolation; shared|worktree = người dùng chỉ định (--shared/--worktree).
 	Isolation string
 	// Driver: ""/auto = theo workflow.driver; process|session = người dùng chỉ định (--driver).
@@ -185,6 +188,9 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 		return nil, task.Assessment{}, err
 	}
 	planning := fd.HasKind(flow.KindPlan)
+	if err := checkFastFlag(o.Fast, o.Workflow, fd.IsBuiltin(), o.Plan, depth); err != nil {
+		return nil, task.Assessment{}, err
+	}
 	if depth != "" {
 		if !planning {
 			return nil, task.Assessment{}, fmt.Errorf("--depth chỉ dùng với workflow b-do hoặc b-req (không dùng với %s)", o.Workflow)
@@ -216,6 +222,14 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	case planning && !cls.Plan && assess.Risk == "high" && (o.Plan == nil || !e.Human):
 		cls = protectedPlan(assess.Protected, o.Plan != nil)
 	}
+	switch {
+	case o.Fast && assess.Risk == "high":
+		cls = fastProtectedPlan(assess.Protected)
+	case o.Fast:
+		cls = task.Classification{Plan: false, Fast: true, Reason: fastFlagReason(e.Human)}
+	case fastEligible(e.Cfg.Workflow.FastPath, o.Workflow, fd.IsBuiltin(), cls, o.Plan, depth, assess.Risk):
+		cls.Plan, cls.Fast, cls.Reason = false, true, fastReason
+	}
 	if planning && cls.Plan {
 		if depth != "" {
 			cls.Depth, cls.DepthReason = depth, task.DepthReasonUser
@@ -236,7 +250,7 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
 	if planning && (!fd.PlanOptional() || cls.Plan) {
-		st.PlanningContractVersion = task.PlanningContractV1
+		st.PlanningContractVersion = task.PlanningContractV2
 	}
 	if !fd.IsBuiltin() {
 		st.FlowSHA = flow.Hash(fd) // flow đổi giữa chừng thì tác vụ bị chặn (flowGate)
@@ -331,8 +345,8 @@ func appendUnique(xs []string, add ...string) []string {
 // ensurePlanningContract nâng task lên hợp đồng artifact v1 (không bao giờ hạ). Dùng chung
 // cho mọi chỗ Plan chuyển false→true hoặc b-req được chọn chạy.
 func ensurePlanningContract(t *task.Task) {
-	if t.State.PlanningContractVersion < task.PlanningContractV1 {
-		t.State.PlanningContractVersion = task.PlanningContractV1
+	if t.State.PlanningContractVersion < task.PlanningContractV2 {
+		t.State.PlanningContractVersion = task.PlanningContractV2
 	}
 }
 
@@ -393,6 +407,7 @@ func (e *Env) SetTicketSynced(ref string, ed TicketEdit) (*task.Task, task.Asses
 		if err := ed.apply(&t.Ticket); err != nil {
 			return err
 		}
+		e.dropFastIfProtected(t)
 		return e.syncCriteria(t, before, &sync)
 	})
 	if err != nil {
@@ -591,6 +606,11 @@ func (e *Env) UnapprovedChanges(ctx context.Context, t *task.Task) ([]string, er
 			return nil, err
 		}
 	}
+	if t.State.Landed != nil {
+		files = e.withoutIntactGoal("", t, files) // freezeGate đã kiểm trước khi đưa về
+	} else if root, err := e.RootFor(t); err == nil {
+		files = e.withoutIntactGoal(root, t, files)
+	}
 	sc := task.CheckScope(files, t.Ticket, e.Cfg.Limits.ProtectedPaths)
 	approved := ApprovedPaths(t)
 	need := sc.NeedsApproval()
@@ -722,6 +742,19 @@ func (e *Env) SetupStatus(t *task.Task) SetupStatus {
 	return st
 }
 
+// PerfConfirmed: workflow.perf.command hiện tại đã được người xác nhận (băm trùng PerfApproval) hoặc trùng eval.test_command đã xác nhận.
+func (e *Env) PerfConfirmed(t *task.Task) bool {
+	cmd := strings.TrimSpace(e.Cfg.Workflow.Perf.Command)
+	if cmd == "" {
+		return false
+	}
+	if e.commandConfirmed(cmd) {
+		return true
+	}
+	a := t.State.PerfApproval
+	return a != nil && a.SHA256 == task.CommandSHA256(cmd)
+}
+
 // commandConfirmed: lệnh trùng eval.test_command đã xác nhận trong cấu hình.
 func (e *Env) commandConfirmed(cmd string) bool {
 	cmd = strings.TrimSpace(cmd)
@@ -777,12 +810,12 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 	}
 	n := len(t.State.Verifications) + 1
 	log := t.LogPath(fmt.Sprintf("verify-%d.log", n))
-	timeout := time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes) * time.Minute
+	timeout := time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes) * verifyTimeoutUnit
 	ran, scope := cmd, ""
 	var sel *affected.Selection
 	run := true
 	if vc := e.Cfg.Workflow.Verify; scoped && confirmed && vc.Scope == config.VerifyScopeAffected && strings.TrimSpace(vc.AffectedCommand) != "" {
-		s := SelectAffected(ctx, root, t.State.Base)
+		s := SelectAffectedCfg(ctx, root, t.State.Base, vc.BintConfigFull)
 		sel, scope = &s, string(s.Scope)
 		switch s.Scope {
 		case affected.TierNone:
@@ -826,6 +859,7 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 		return t, res, err
 	}
 	res.Verification = v
+	e.pinGreen(ctx, root, t.State.ID, v)
 	payload := map[string]any{"command": cmd, "passed": v.Passed, "confirmed": confirmed,
 		"exit_code": v.ExitCode, "timed_out": v.TimedOut, "scope": string(affected.TierFull)}
 	if v.Scope != "" {
@@ -847,21 +881,35 @@ var verifyEnviron = os.Environ
 // verifyTempDir tạo thư mục tạm riêng cho một lần chạy lệnh kiểm chứng trong thư mục trạng thái (state.TmpDirFor), không
 // dùng TMPDIR chung với sandbox của harness (Codex workspace-write để lại /tmp/.git làm điểm mount, `go` chạy trong thư
 // mục tạm dưới /tmp khi đó báo "error obtaining VCS status" và kiểm chứng đỏ giả). Trả "" khi không tạo được: lần kiểm
-// chứng vẫn chạy với TMPDIR kế thừa. cleanup luôn gọi được; lỗi dọn bị bỏ qua.
+// chứng vẫn chạy với TMPDIR kế thừa. cleanup luôn gọi được; lỗi dọn bị bỏ qua. Vị trí cha: verifyTempBase (Windows rút ngắn).
 func (e *Env) verifyTempDir() (dir string, cleanup func()) {
 	cleanup = func() {}
 	if e.Tasks.Dir == "" {
 		return "", cleanup
 	}
-	base := state.TmpDirFor(e.Tasks.Dir)
+	base := verifyTempBase(e.Tasks.Dir)
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		return "", cleanup
 	}
-	dir, err := os.MkdirTemp(base, "verify-")
+	pattern := "verify-"
+	if runtime.GOOS == "windows" {
+		pattern = "" // tên chỉ là số: giữ đường dẫn ngắn
+	}
+	dir, err := os.MkdirTemp(base, pattern)
 	if err != nil {
 		return "", cleanup
 	}
 	return dir, func() { removeAllForce(dir) }
+}
+
+// verifyTempBase là thư mục cha của các thư mục tạm kiểm chứng. Unix: <state>/tmp (state.TmpDirFor). Windows:
+// <os.TempDir()>/bv: đường dẫn dưới thư mục trạng thái (~80 ký tự) cộng tên thư mục test và cây git của test eval vượt
+// MAX_PATH 260 ("Filename too long"), còn lý do tách khỏi /tmp (sandbox Codex để /tmp/.git) chỉ có trên Unix.
+func verifyTempBase(tasksDir string) string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(os.TempDir(), "bv")
+	}
+	return state.TmpDirFor(tasksDir)
 }
 
 // verifyTempEnv là các biến thư mục tạm trỏ tới dir: TMPDIR (Unix, Git for Windows sh), thêm TMP/TEMP trên Windows
@@ -926,6 +974,52 @@ func (e *Env) RecordError(ref, step, msg string) (*task.Task, error) {
 	return t, nil
 }
 
+// RecordQuestion ghi câu hỏi của một bước agent gửi người (`bint task error --question`). Câu hỏi mở làm tác vụ dừng chờ
+// người sau bước implement (afterStep); người trả lời bằng `bint run resume <id> --answer`.
+func (e *Env) RecordQuestion(ref, step, text string) (*task.Task, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil, errors.New("thiếu nội dung câu hỏi")
+	}
+	t, err := e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
+		// Agent quên --step: gán cho bước đang chạy của tác vụ để cổng sau bước và lần trả lời tìm thấy câu hỏi.
+		if step == "" {
+			step = t.State.FlowStep
+		}
+		t.State.Questions = append(t.State.Questions, task.StepQuestion{Step: step, RunID: e.RunID, Text: truncate(text, 2000), At: e.at(), By: e.actor()})
+		return nil
+	})
+	if err != nil {
+		return t, err
+	}
+	e.emit(t, spool.TaskError, map[string]any{"step": step, "message": truncate("câu hỏi: "+text, 300)})
+	return t, nil
+}
+
+// answerQuestions ghi câu trả lời của người cho các câu hỏi mở của bước step (cùng một lời cho mọi câu đang mở); không có
+// câu hỏi mở thì ghi thành mục "người nói rõ thêm" để b-feat chạy lại vẫn nhận được lời đó. Trả tác vụ đã cập nhật.
+func (e *Env) answerQuestions(ref, step, answer string) (*task.Task, error) {
+	answer = strings.TrimSpace(answer)
+	if answer == "" {
+		return nil, errors.New("--answer rỗng")
+	}
+	return e.Tasks.Update(ref, e.now(), func(t *task.Task) error {
+		hit := false
+		for i := range t.State.Questions {
+			q := &t.State.Questions[i]
+			if q.Open() && (q.Step == step || q.Step == "") {
+				q.Answer, q.AnsweredAt, q.AnsweredBy = truncate(answer, 4000), e.at(), e.actor()
+				hit = true
+			}
+		}
+		if !hit {
+			t.State.Questions = append(t.State.Questions, task.StepQuestion{Step: step, Text: "(người nói rõ thêm, không có câu hỏi nào đang mở)",
+				At: e.at(), By: e.actor(), Answer: truncate(answer, 4000), AnsweredAt: e.at(), AnsweredBy: e.actor()})
+		}
+		return nil
+	})
+}
+
 // SubmitReview ghi một vòng review.
 func (e *Env) SubmitReview(ref string, data []byte) (*task.Task, task.ReviewRound, error) {
 	sub, errs := task.ParseSubmission(data, e.Root)
@@ -950,7 +1044,9 @@ func (e *Env) SubmitReview(ref string, data []byte) (*task.Task, task.ReviewRoun
 type Approval struct {
 	VerifyCommand string
 	SetupCommand  string
-	Paths         []string
+	// PerfCommand: workflow.perf.command vừa được xác nhận (cổng hiệu năng chạy lệnh này ngoài sandbox).
+	PerfCommand string
+	Paths       []string
 	// SetupWaiting: lệnh setup còn chờ xác nhận vì người chưa đưa băm của lệnh đã xem (ApproveInput.SetupSHA rỗng);
 	// SetupWaitingSHA là băm đầy đủ của lệnh đó để in lệnh xác nhận.
 	SetupWaiting    string
@@ -1010,6 +1106,10 @@ func (e *Env) ApproveWith(ref string, in ApproveInput) (*task.Task, Approval, er
 			t.State.VerifyApproval = &task.Approval{Command: cmd, By: e.actor(), At: e.at()}
 			a.VerifyCommand = cmd
 		}
+		if pc := strings.TrimSpace(e.Cfg.Workflow.Perf.Command); pc != "" && !e.PerfConfirmed(t) {
+			t.State.PerfApproval = &task.Approval{Command: pc, SHA256: task.CommandSHA256(pc), By: e.actor(), At: e.at()}
+			a.PerfCommand = pc
+		}
 		if ss := e.SetupStatus(t); ss.Pending() {
 			switch {
 			case strings.TrimSpace(in.SetupSHA) == "":
@@ -1037,9 +1137,12 @@ func (e *Env) ApproveWith(ref string, in ApproveInput) (*task.Task, Approval, er
 			a.Paths = pending
 			t.State.PendingPaths = nil
 		}
-		if len(explicit) > 0 && task.Paused(t.State.Status) {
+		if len(explicit) > 0 && task.Paused(t.State.Status) && t.State.ResumeFrom != task.StatusPlanned {
 			// Hook deny trước khi sửa nên không có diff và b-feat chưa thực hiện
 			// phần việc này. Chỉ lựa chọn --path mới yêu cầu chạy lại b-feat.
+			// Tác vụ dừng ở `planned` thì b-feat chưa bắt đầu (b-feat chuyển in_progress ngay khi chạy): lần dừng là của b-goal
+			// (hook deny tệp test, hoặc chờ duyệt phạm vi) hay cổng cỡ kế hoạch; giữ `planned` để resume chạy lại b-goal (hoặc
+			// phần sau kiểm phạm vi của nó) thay vì nhảy thẳng sang b-feat và bỏ kiểm tra mục tiêu độc lập.
 			t.State.ResumeFrom = task.StatusInProgress
 			t.State.AwaitingCheck = false
 		}
@@ -1099,3 +1202,6 @@ func truncate(s string, n int) string {
 	}
 	return string(r[:n-1]) + "…"
 }
+
+// verifyTimeoutUnit là đơn vị của workflow.verify_timeout_minutes (biến để test rút ngắn).
+var verifyTimeoutUnit = time.Minute

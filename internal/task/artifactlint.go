@@ -5,16 +5,23 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"bint/internal/pathglob"
 )
 
 // PlanningContractV1 là phiên bản hợp đồng artifact của b-req (AC/TSK/Q có cấu trúc).
 // State.PlanningContractVersion = 0 là task cũ: không bị chặn tự động.
 const PlanningContractV1 = 1
+
+// PlanningContractV2 thêm luật đo hiện trạng/bề mặt/giả định/tệp trong phạm vi (baseline_missing, ac_without_measure,
+// surface_missing, surface_unmapped, assumptions_missing, plan_file_out_of_scope): lỗi ở v2, cảnh báo ở v1.
+const PlanningContractV2 = 2
 
 // ArtifactIssue là một phát hiện của bộ kiểm artifact. Code ổn định (dùng cho CLI/agent).
 type ArtifactIssue struct {
@@ -201,18 +208,69 @@ func walkLines(lines []string, fn func(i int, section string, line string), head
 }
 
 const (
-	secAC = "tiêu chí chấp nhận"
-	secQ  = "câu hỏi mở"
+	secAC    = "tiêu chí chấp nhận"
+	secQ     = "câu hỏi mở"
+	secGoal  = "kiểm tra mục tiêu"
+	secPhase = "đề xuất tách giai đoạn"
+	// secSize/secSurface: mục của plan.md mà cổng cỡ kế hoạch của b-do đọc (PlanSizeDecl, PlanSurfaces).
+	secSize    = "cỡ kế hoạch"
+	secSurface = "bề mặt bị ảnh hưởng"
+	// secStrategy: mục `## Chiến lược thực thi` của plan.md (Chia lát, b-goal) mà Runner và lint đọc (PlanStrategy).
+	secStrategy = "chiến lược thực thi"
 )
+
+// Lựa chọn của một dòng trong `## Chiến lược thực thi`.
+const (
+	StrategyYes     = "có"
+	StrategyNo      = "không"
+	StrategyMissing = "" // thiếu mục, thiếu dòng, sai giá trị hoặc thiếu lý do
+)
+
+var (
+	strategySliceRe = regexp.MustCompile(`(?i)^\s*(?:[-*+]\s+)?Chia lát\s*:\s*(có|không)\s*(?:[—–-]+\s*(\S.*))?$`)
+	strategyGoalRe  = regexp.MustCompile(`(?i)^\s*(?:[-*+]\s+)?Kiểm tra mục tiêu độc lập\s*\(b-goal\)\s*:\s*(có|không)\s*(?:[—–-]+\s*(\S.*))?$`)
+)
+
+// PlanStrategy đọc mục `## Chiến lược thực thi` của plan.md (ngoài code fence): lựa chọn "Chia lát: có|không" và
+// "Kiểm tra mục tiêu độc lập (b-goal): có|không" (mỗi dòng cần lý do sau dấu gạch ngang). Dòng thiếu/sai/không có lý do trả StrategyMissing.
+// Dòng đầu hợp lệ của mỗi loại là kết quả.
+func PlanStrategy(plan string) (slice, goal string) {
+	scanLines(plan, func(section, line string) {
+		if section != secStrategy {
+			return
+		}
+		for _, d := range []struct {
+			re  *regexp.Regexp
+			out *string
+		}{{strategySliceRe, &slice}, {strategyGoalRe, &goal}} {
+			if m := d.re.FindStringSubmatch(line); m != nil && strings.TrimSpace(m[2]) != "" && *d.out == StrategyMissing {
+				*d.out = strings.ToLower(m[1])
+			}
+		}
+	})
+	return slice, goal
+}
 
 // LintPlanningText kiểm ba artifact (key requirement|plan|tasks; thiếu key = thiếu tệp)
 // so với phiếu. Không I/O. strict=false hạ mọi lỗi định dạng thành cảnh báo nhưng vẫn
 // liệt kê câu hỏi mở.
+// Không áp luật v2 (version 0); dùng LintPlanningTextV khi biết phiên bản hợp đồng.
 func LintPlanningText(ticket Ticket, docs map[string]string, strict bool) ArtifactReport {
-	return lintPlanning(ticket, docs, nil, strict)
+	return lintPlanning(ticket, docs, nil, strict, 0, nil)
 }
 
-func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]error, strict bool) ArtifactReport {
+// LintPlanningTextFrozen như LintPlanningTextV nhưng nhận danh sách tệp kiểm tra mục tiêu đã đóng băng (State.GoalTest.Paths()):
+// plan.md được nêu các tệp này trong `## Cỡ kế hoạch` dù chúng nằm ngoài scope.allow hoặc trong scope.deny.
+func LintPlanningTextFrozen(ticket Ticket, docs map[string]string, strict bool, version int, frozen []string) ArtifactReport {
+	return lintPlanning(ticket, docs, nil, strict, version, frozen)
+}
+
+// LintPlanningTextV như LintPlanningText nhưng theo phiên bản hợp đồng của tác vụ.
+func LintPlanningTextV(ticket Ticket, docs map[string]string, strict bool, version int) ArtifactReport {
+	return lintPlanning(ticket, docs, nil, strict, version, nil)
+}
+
+func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]error, strict bool, version int, frozen []string) ArtifactReport {
 	b := &reportBuilder{r: ArtifactReport{Errors: []ArtifactIssue{}, Warnings: []ArtifactIssue{}, OpenQuestions: []ArtifactIssue{}}}
 	usable := map[string]bool{}
 	for _, n := range ArtifactNames() {
@@ -286,7 +344,170 @@ func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]e
 		b.r.Warnings = append(b.r.Warnings, b.r.Errors...)
 		b.r.Errors = []ArtifactIssue{}
 	}
+	// Luật hợp đồng v2 (hiện trạng đo được, bề mặt, giả định, tệp trong phạm vi): lỗi ở v2, chỉ cảnh báo ở v1; v0 bỏ qua.
+	if version >= PlanningContractV1 {
+		v2 := &reportBuilder{}
+		if usable["requirement"] {
+			if lintBaseline(v2, docs["requirement"], acs) {
+				b.r.Warnings = append(b.r.Warnings, ArtifactIssue{Code: "baseline_exempt", Artifact: artReq,
+					Detail: "`## Hiện trạng` dùng lối thoát `Không đo được: <lý do>` thay cho số đo: chỉ dùng khi thật sự không đo được; người duyệt sẽ xem lý do"})
+			}
+		}
+		if usable["plan"] {
+			lintPlanV2(v2, ticket, docs["plan"], acs, frozen)
+		}
+		if version >= PlanningContractV2 && strict {
+			b.r.Errors = append(b.r.Errors, v2.r.Errors...)
+		} else {
+			b.r.Warnings = append(b.r.Warnings, v2.r.Errors...)
+		}
+	}
+	// Luôn là cảnh báo (kể cả strict): phiếu cũ và việc nhỏ không bị chặn, nhưng planner bỏ mục thì thấy ngay (GĐ2 nhóm 2).
+	if usable["requirement"] && GoalCheck(docs["requirement"]) == "" {
+		b.r.Warnings = append(b.r.Warnings, ArtifactIssue{Code: "goal_check_missing", Artifact: artReq,
+			Detail: "requirement.md thiếu mục `## Kiểm tra mục tiêu` (hoặc mục rỗng): mô tả một kiểm tra chạy được suy từ mục tiêu người dùng và từng nhóm của `## Bề mặt bị ảnh hưởng`, kèm một AC cho kiểm tra đó"})
+	}
 	return b.r
+}
+
+// GoalCheck trả thân mục `## Kiểm tra mục tiêu` của requirement.md (đã cắt khoảng trắng hai đầu; ngoài code fence, gồm cả heading
+// `###` con); rỗng khi thiếu mục hoặc mục không có nội dung. Cùng bộ duyệt dòng/fence với lint.
+func GoalCheck(requirement string) string {
+	lines := strings.Split(strings.ReplaceAll(requirement, "\r\n", "\n"), "\n")
+	var out []string
+	walkLines(lines, func(i int, section, _ string) {
+		if section == secGoal {
+			out = append(out, strings.TrimRight(lines[i], " \t\r"))
+		}
+	}, nil)
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+var planPhaseRe = regexp.MustCompile(`^\s*[-*+]\s+(?:\[[ xX]\]\s+)?G-(\d+)\s*:\s*(.*\S)\s*$`)
+
+// PlanPhases trả các giai đoạn của plan.md: dòng `- G-N: …` (cho phép `[ ]`/`[x]` trước G-N) dưới `## Đề xuất tách giai đoạn`, ngoài
+// code fence, sắp theo N tăng dần; mỗi phần tử có dạng "G-N: …". Không có mục hoặc không có dòng G-N thì nil (plan cũ).
+func PlanPhases(plan string) []string {
+	type ph struct {
+		n    int
+		text string
+	}
+	var phases []ph
+	scanLines(plan, func(section, line string) {
+		if section != secPhase {
+			return
+		}
+		m := planPhaseRe.FindStringSubmatch(line)
+		if m == nil {
+			return
+		}
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			return
+		}
+		phases = append(phases, ph{n, fmt.Sprintf("G-%d: %s", n, m[2])})
+	})
+	sort.SliceStable(phases, func(i, j int) bool { return phases[i].n < phases[j].n })
+	out := make([]string, len(phases))
+	for i, p := range phases {
+		out[i] = p.text
+	}
+	return out
+}
+
+// Kết luận cỡ kế hoạch ghi trong `## Cỡ kế hoạch` của plan.md (PlanSizeDecl).
+const (
+	PlanSizeSmall = "nhỏ"
+	PlanSizeLarge = "lớn"
+)
+
+var (
+	planVerdictRe  = regexp.MustCompile(`(?i)^\s*(?:[-*+]\s+)?\**\s*kết luận\s*\**\s*:\s*\**\s*(nhỏ|lớn)(?:$|[^\p{L}\p{N}_])`)
+	planFileLineRe = regexp.MustCompile(`^\s*[-*+]\s+(?:\[[ xX]\]\s+)?(.*)$`)
+	planFileRe     = regexp.MustCompile("`([^`\\s]+)`")
+)
+
+// PlanSizeDecl đọc mục `## Cỡ kế hoạch` của plan.md (ngoài code fence): kết luận ("nhỏ" | "lớn" | "" khi thiếu mục hay không có dòng
+// `Kết luận: nhỏ|lớn`) và danh sách tệp sẽ sửa (mỗi dòng bullet tính MỌI đường dẫn trong backtick, một dòng nhiều tệp cũng đếm đủ; bỏ trùng, giữ thứ tự).
+// Có cả "nhỏ" lẫn "lớn" thì là "lớn": cổng cỡ kế hoạch chỉ được làm kế hoạch lớn hơn, không bao giờ nhỏ đi.
+func PlanSizeDecl(plan string) (verdict string, files []string) {
+	seen := map[string]bool{}
+	scanLines(plan, func(section, line string) {
+		if section != secSize {
+			return
+		}
+		if m := planVerdictRe.FindStringSubmatch(line); m != nil {
+			v := strings.ToLower(m[1])
+			if verdict == "" || v == PlanSizeLarge {
+				verdict = v
+			}
+			return
+		}
+		if lm := planFileLineRe.FindStringSubmatch(line); lm != nil {
+			for _, m := range planFileRe.FindAllStringSubmatch(lm[1], -1) {
+				if !seen[m[1]] {
+					seen[m[1]] = true
+					files = append(files, m[1])
+				}
+			}
+		}
+	})
+	return verdict, files
+}
+
+// PlanSurfaces đếm số nhóm của `## Bề mặt bị ảnh hưởng` trong plan.md: dòng bullet ở cấp ngoài cùng (ngoài code fence); bullet thụt
+// vào là chi tiết của nhóm trước, không tính. 0 khi thiếu mục.
+func PlanSurfaces(plan string) int {
+	n := 0
+	scanLines(plan, func(section, line string) {
+		if section != secSurface {
+			return
+		}
+		if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "  ") {
+			return
+		}
+		if t := strings.TrimSpace(line); len(t) > 1 && strings.ContainsRune("-*+", rune(t[0])) && (t[1] == ' ' || t[1] == '\t') {
+			n++
+		}
+	})
+	return n
+}
+
+// PlanSlice là một nhóm của `## Bề mặt bị ảnh hưởng` có nêu tiêu chí: một lát mỏng của b-do chạy kế hoạch lớn.
+type PlanSlice struct {
+	// Text là nguyên văn dòng nhóm (không dấu bullet, bỏ khoảng trắng hai đầu).
+	Text string
+	// ACs là các số N của AC-N nêu trong dòng, theo thứ tự xuất hiện, bỏ trùng.
+	ACs []int
+}
+
+var planACRe = regexp.MustCompile(`\bAC-(\d+)\b`)
+
+// PlanSlices trả các nhóm của `## Bề mặt bị ảnh hưởng` có nêu ít nhất một AC-N, theo thứ tự dòng (cùng luật nhóm với PlanSurfaces: bullet
+// cấp ngoài cùng, ngoài code fence). Nhóm không nêu AC (dòng "Ngoài phạm vi", ghi chú) không phải lát. Không có mục thì nil.
+func PlanSlices(plan string) []PlanSlice {
+	var out []PlanSlice
+	scanLines(plan, func(section, line string) {
+		if section != secSurface || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "  ") {
+			return
+		}
+		t := strings.TrimSpace(line)
+		if len(t) < 2 || !strings.ContainsRune("-*+", rune(t[0])) || (t[1] != ' ' && t[1] != '\t') {
+			return
+		}
+		text := strings.TrimSpace(t[1:])
+		var acs []int
+		for _, m := range planACRe.FindAllStringSubmatch(text, -1) {
+			n, err := strconv.Atoi(m[1])
+			if err == nil && !slices.Contains(acs, n) {
+				acs = append(acs, n)
+			}
+		}
+		if len(acs) > 0 {
+			out = append(out, PlanSlice{Text: text, ACs: acs})
+		}
+	})
+	return out
 }
 
 func lintRequirement(b *reportBuilder, text string) []acItem {
@@ -457,7 +678,119 @@ func LintPlanningTask(t *Task, strict bool) ArtifactReport {
 			bad[n] = err
 		}
 	}
-	return lintPlanning(t.Ticket, docs, bad, strict)
+	return lintPlanning(t.Ticket, docs, bad, strict, t.State.PlanningContractVersion, t.State.GoalTest.Paths())
+}
+
+const (
+	secBaseline    = "hiện trạng"
+	secAssumptions = "giả định thay người dùng"
+)
+
+var (
+	lintUnmeasurableRe = regexp.MustCompile(`(?i)^\s*(?:[-*+]\s+)?\**\s*không đo được\s*\**\s*:\s*(.*\S)`)
+	lintOutOfScopeRe   = regexp.MustCompile(`(?i)ngoài phạm vi`)
+)
+
+// hasMeasure: dòng có số đo thật: chữ số nằm ngoài code span (`TestGoal2`, `internal/v2/x.go` không tính).
+func hasMeasure(line string) bool {
+	return strings.ContainsAny(stripCodeSpans(line), "0123456789")
+}
+
+// lintBaseline: requirement.md phải có `## Hiện trạng` chứa số đo (chữ số ngoài code span) hoặc dòng `Không đo được: <lý do>`,
+// và ít nhất một AC có số đo. Trả true khi mục chỉ đạt nhờ lối thoát `Không đo được:` (nơi gọi phát cảnh báo baseline_exempt).
+func lintBaseline(b *reportBuilder, req string, acs []acItem) (exempt bool) {
+	measured, unmeasurable, has := false, false, false
+	scanLines(req, func(section, line string) {
+		if section != secBaseline {
+			return
+		}
+		if strings.TrimSpace(line) != "" {
+			has = true
+		}
+		switch {
+		case lintUnmeasurableRe.MatchString(line):
+			unmeasurable = true
+		case hasMeasure(line):
+			measured = true
+		}
+	})
+	if !measured && !unmeasurable {
+		why := "thiếu mục `## Hiện trạng`"
+		if has {
+			why = "mục `## Hiện trạng` không có số đo nào (số tệp, byte, dung lượng...; tên trong dấu backtick không tính)"
+		}
+		b.err("baseline_missing", artReq, "%s; đọc baseline.md của tác vụ, ghi số đo hiện trạng, hoặc một dòng `Không đo được: <lý do>`", why)
+	}
+	exempt = !measured && unmeasurable
+	if len(acs) == 0 {
+		return exempt
+	}
+	for _, a := range acs {
+		if hasMeasure(a.Text) {
+			return exempt
+		}
+	}
+	b.err("ac_without_measure", artReq, "không dòng AC nào có số đo mục tiêu người dùng; ít nhất một AC phải nêu một con số kiểm được")
+	return exempt
+}
+
+// lintPlanV2: bề mặt ảnh hưởng ánh xạ vào AC, có giả định, và tệp nêu trong `## Cỡ kế hoạch` nằm trong phạm vi phiếu.
+func lintPlanV2(b *reportBuilder, ticket Ticket, plan string, acs []acItem, frozen []string) {
+	known := map[int]bool{}
+	for _, a := range acs {
+		known[a.N] = true
+	}
+	groups := 0
+	assumptions := false
+	scanLines(plan, func(section, line string) {
+		switch section {
+		case secAssumptions:
+			if strings.TrimSpace(line) != "" {
+				assumptions = true
+			}
+		case secSurface:
+			if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "  ") {
+				return
+			}
+			t := strings.TrimSpace(line)
+			if len(t) < 2 || !strings.ContainsRune("-*+", rune(t[0])) || (t[1] != ' ' && t[1] != '\t') {
+				return
+			}
+			groups++
+			text := strings.TrimSpace(t[1:])
+			refs := planACRe.FindAllStringSubmatch(text, -1)
+			bad := len(refs) == 0 && !lintOutOfScopeRe.MatchString(text)
+			for _, m := range refs {
+				if n, err := strconv.Atoi(m[1]); err != nil || !known[n] {
+					bad = true
+				}
+			}
+			if bad {
+				b.err("surface_unmapped", artPlan, "nhóm bề mặt %q phải nêu AC-N có thật trong requirement.md hoặc ghi `ngoài phạm vi`", text)
+			}
+		}
+	})
+	if groups == 0 {
+		b.err("surface_missing", artPlan, "thiếu mục `## Bề mặt bị ảnh hưởng` (hoặc không có nhóm nào); liệt kê mọi nơi mục tiêu chạm tới")
+	}
+	if !assumptions {
+		b.err("assumptions_missing", artPlan, "thiếu mục `## Giả định thay người dùng` (hoặc mục rỗng); ghi các giả định, hoặc `Không có`")
+	}
+	if sl, gl := PlanStrategy(plan); sl == StrategyMissing || gl == StrategyMissing {
+		b.err("strategy_missing", artPlan, "thiếu mục `## Chiến lược thực thi` hoặc thiếu/sai một dòng `Chia lát: có|không — <lý do>` và "+
+			"`Kiểm tra mục tiêu độc lập (b-goal): có|không — <lý do>` (mỗi dòng cần giá trị có|không và lý do)")
+	}
+	_, files := PlanSizeDecl(plan)
+	for _, f := range files {
+		rel := strings.TrimPrefix(strings.ReplaceAll(f, "\\", "/"), "./")
+		if slices.ContainsFunc(frozen, func(p string) bool { return strings.TrimPrefix(strings.ReplaceAll(p, "\\", "/"), "./") == rel }) {
+			continue // kiểm tra mục tiêu do b-goal viết và đóng băng: nằm ngoài scope.allow là bình thường
+		}
+		denied := pathglob.MatchAny(ticket.Scope.Deny, rel)
+		if denied || (len(ticket.Scope.Allow) > 0 && !pathglob.MatchAny(ticket.Scope.Allow, rel)) {
+			b.err("plan_file_out_of_scope", artPlan, "tệp %q trong `## Cỡ kế hoạch` nằm ngoài scope.allow hoặc khớp scope.deny của phiếu", f)
+		}
+	}
 }
 
 // AnsweredQuestions trả nguyên văn (đã cắt khoảng trắng hai đầu) các dòng câu hỏi đã trả lời của requirement.md:

@@ -9,7 +9,7 @@ import (
 )
 
 const findingsReview = `{"summary":"r","findings":[
- {"kind":"bug","severity":"high","title":"lỗi một","path":"b.go","evidence":"e1"},
+ {"kind":"bug","severity":"high","title":"lỗi một","path":"b.go","evidence":"e1","repro":"b.go:1"},
  {"kind":"risk","severity":"low","title":"lỗi hai","path":"a.go","evidence":"e2"},
  {"kind":"suggestion","severity":"low","title":"không path","evidence":"e3"}]}`
 

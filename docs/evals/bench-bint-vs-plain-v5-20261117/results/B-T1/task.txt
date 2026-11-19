@@ -1,0 +1,27 @@
+PASS  FX-ledger-clean  cảnh báo sổ phiếu: []
+PASS  FX-OLD_DONE1  01KQJ268DKA50735APM1TCE38D status=done (cần done) updated=2026-05-01T15:23:21Z
+PASS  FX-OLD_DONE2  01KQJ2693BYW9N3DX86QZC7SRB status=done (cần done) updated=2026-05-01T15:23:22Z
+PASS  FX-NEW_DONE  01M785PERAC09GNPKXXXA50QY9 status=done (cần done) updated=2026-11-12T15:23:22Z
+PASS  FX-OLD_CANCELLED  01KQJ26AD0YGMH39KACGXKXDRJ status=cancelled (cần cancelled) updated=2026-05-01T15:23:23Z
+PASS  FX-OLD_BLOCKED  01KQJ26B289SF9GQJASCVSVKZ9 status=blocked (cần blocked) updated=2026-05-01T15:23:24Z
+PASS  FX-OLD_INTERRUPTED  01KQJ26BTPXADB25W3JXGCG89X status=interrupted (cần interrupted) updated=2026-05-01T15:23:28Z
+PASS  FX-OLD_FAILED_WT  01KQJ26G8R3APZBHT2NRDJ5VKR status=failed (cần failed) updated=2026-05-01T15:23:29Z
+PASS  FX-NEW_RUN  01M7N1P904H6VEGW0CMMAQTT07 status=created (cần created) updated=2026-11-17T15:23:29Z
+PASS  FX-WT-dirty  worktree=/home/baodq/bench-bint-v5-20261117/tmp/hidden-B-T1/hidden2-t1-u0a_gf7e/state/repo-88b29d4acfc7/worktrees/01KQJ26G8R3APZBHT2NRDJ5VKR status='M a.go\n?? wip_notes.txt'
+PASS  FX-old-bytes  log phiếu kết thúc cũ = 3311829 B
+FIXTURE {"OLD_DONE1": "01KQJ268DKA50735APM1TCE38D", "OLD_DONE2": "01KQJ2693BYW9N3DX86QZC7SRB", "NEW_DONE": "01M785PERAC09GNPKXXXA50QY9", "OLD_CANCELLED": "01KQJ26AD0YGMH39KACGXKXDRJ", "OLD_BLOCKED": "01KQJ26B289SF9GQJASCVSVKZ9", "OLD_INTERRUPTED": "01KQJ26BTPXADB25W3JXGCG89X", "OLD_FAILED_WT": "01KQJ26G8R3APZBHT2NRDJ5VKR", "NEW_RUN": "01M7N1P904H6VEGW0CMMAQTT07"}
+PASS  D8-preview-no-change  exit=0 tệp đổi=[] sqlite đổi=False
+FAIL  D8i-preview-lists-old  đầu ra nêu phiếu cũ: False; trích: 'Preview only; no data deleted.\nbackups\t9 bytes\tbackups\tkept: history, recovery or unmanaged data\ngenerated\t0 bytes\tgenerated\tkept: history, recovery or unmanaged data\ngit-mode\t6 bytes\tgit-mode\tkept: history, recovery or unmanaged data\nmanaged.json\t113 bytes\tmanaged.json\tkept: history, recovery or unmanaged data\nmcp\t0 bytes\tmcp\tkept: history, recovery or unmanaged data\nrepo.json\t202 bytes\trepo.json'
+PASS  D5-concurrent-run  lượt chạy exit=0 status=in_review logs=['b-feat-01M7N1PA5VXV8SHKCJRQJGPJ90.log', 'prompt.txt'] slow.txt=True | dọn#1 exit=0 0.0s 'nmanaged data\nworktrees\t14469 bytes\tworktrees\tkept: history, recovery or unmanaged data\nEligible: 0 bytes; removed: 0 bytes; kept: 5921520 bytes (logical file sizes; hardlinks may retain disk blocks).\nHistory, backups, worktrees and iso profiles are retained; external iso profiles are not measured.\n' | run: 'mpleted  15s        -\n! chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác\n! chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành\nChi tiết: bint task show 01M7N1P904H6VEGW0CMMAQTT07   ·   bint run status 01M7N1P904H6VEGW0CMMAQTT07\n'
+PASS  D1-OLD_BLOCKED  01KQJ26B289SF9GQJASCVSVKZ9 thư mục còn=True tệp đổi/mất=[]
+PASS  D1-OLD_INTERRUPTED  01KQJ26BTPXADB25W3JXGCG89X thư mục còn=True tệp đổi/mất=[]
+PASS  D2-worktree-kept  worktree còn=True status giữ=True nhánh còn=True tệp phiếu đổi/mất=[]
+PASS  D3-symlink-target  tệp ngoài bị đổi/mất=[]
+PASS  D4-outside-state  tệp ngoài thư mục trạng thái bị đổi=[]
+INFO  D4i-ledger-in-repo  sổ phiếu .bint/tasks (đã commit) bị đổi/xoá: 0 tệp []
+FAIL  D6-old-finished-cleaned  log phiếu kết thúc cũ 3311829 B → còn 3311829 B (giải phóng 0); dọn#1 exit=0
+INFO  D6i-total-bytes  tổng thư mục trạng thái (bỏ sqlite, NEW_RUN) sau = 5553994 B
+PASS  D7-new-finished-kept  01M785PERAC09GNPKXXXA50QY9 tệp đổi/mất=[]
+PASS  D9-after-clean-healthy  doctor 0->0 ✗mới=[] task list 0->0 runs list 0->0 show lỗi=[] show phiếu đã dọn=[] dọn#1/2/3 exit=0/0/0
+INFO  T-clean-output  dọn#1: 'ime\t5548278 bytes\truntime\tkept: history, recovery or unmanaged data\nspool\t1804 bytes\tspool\tkept: history, recovery or unmanaged data\nstate.sqlite\t356352 bytes\tstate.sqlite\tkept: history, recovery or unmanaged data\nworktrees\t14469 bytes\tworktrees\tkept: history, recovery or unmanaged data\nEligible: 0 bytes; removed: 0 bytes; kept: 5921520 bytes (logical file sizes; hardlinks may retain disk blocks).\nHistory, backups, worktrees and iso profiles are retained; external iso profiles are not measured.\n' | dọn#2: 'bytes; removed: 0 bytes; kept: 5931313 bytes (logical file sizes; hardlinks may retain disk blocks).\nHistory, backups, worktrees and iso profiles are retained; external iso profiles are not measured.\n'
+TÓM TẮT {"cmd": "t1", "fail": ["D8i-preview-lists-old", "D6-old-finished-cleaned"], "fixture_ok": true, "critical": [], "medium": ["D6-old-finished-cleaned"]}

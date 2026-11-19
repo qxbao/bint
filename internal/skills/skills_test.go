@@ -110,6 +110,164 @@ func TestCoreSkillsDepthGuidance(t *testing.T) {
 	}
 }
 
+// Benchmark lần 2: người dùng mơ hồ → kế hoạch phải liệt kê mọi bề mặt, nêu giả định thay người dùng và không
+// thu hẹp phạm vi tới mức không đạt mục đích. Một skill cho cả standard lẫn deep.
+func TestCoreSkillBReqSurfacesAndAssumptions(t *testing.T) {
+	s, _ := Get("b-req")
+	body := s.Body()
+	flat := strings.Join(strings.Fields(body), " ") // gộp xuống dòng để cụm từ không phụ thuộc cách ngắt dòng
+	for _, want := range []string{
+		"## Bề mặt bị ảnh hưởng", "## Giả định thay người dùng",
+		"từng nơi", "gộp theo nhóm", "lý do nằm ngoài phạm vi", "state dir", "mật khẩu", ".bint/tasks", "review.md",
+		"bản nhỏ nhất vẫn đạt mục đích", "không im lặng bỏ", "hậu quả người dùng sẽ thấy",
+		"≤ 5 `AC`", "≤ 5 `TSK`", "## Đề xuất tách giai đoạn",
+		"không đảo ngược được", "đảo ngược được, ít xâm lấn", "`--dry-run`", "cảnh báo thay vì từ chối",
+		"tối đa 2–3 câu", "kết quả mong muốn", "## Câu hỏi mở",
+		"người không rành kỹ", "mọi mức phân tích",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+	// Cả hai mức đều bị ràng buộc: mục nằm trước phần tách standard/deep và cả hai gạch đầu dòng nhắc lại.
+	i := strings.Index(body, "## Bề mặt bị ảnh hưởng")
+	j := strings.Index(body, "## Độ sâu phân tích")
+	if i < 0 || j < 0 || i > j {
+		t.Fatalf("mục bề mặt phải đứng trước phần độ sâu (%d, %d)", i, j)
+	}
+	depth := body[j:]
+	if !strings.Contains(depth, "- **standard**") || !strings.Contains(depth, "`## Bề mặt bị ảnh hưởng`") {
+		t.Error("mức standard phải nhắc mục Bề mặt bị ảnh hưởng")
+	}
+	if !strings.Contains(body[strings.Index(body, "<!-- bint:anchor plan-template -->"):], "Bề mặt bị ảnh hưởng") {
+		t.Error("khuôn plan.md (anchor plan-template) phải nhắc mục Bề mặt bị ảnh hưởng")
+	}
+}
+
+// b-review đối chiếu yêu cầu gốc, tiêu chí và bề mặt của plan.md để tìm chỗ bị bỏ sót ngoài diff.
+func TestCoreSkillBReviewFindsOmissions(t *testing.T) {
+	s, _ := Get("b-review")
+	body := strings.Join(strings.Fields(s.Body()), " ") // gộp xuống dòng để cụm từ không phụ thuộc cách ngắt dòng
+	for _, want := range []string{
+		"yêu cầu gốc", "Bề mặt bị ảnh hưởng", "bỏ sót", "ngoài diff", "`criterion`", "tệp ngoài diff",
+		// GĐ2 nhóm 2: chấm theo MỤC TIÊU người dùng; high cho chỗ sót có bằng chứng kể cả ngoài kế hoạch, low chỉ cho ngoài mục tiêu/suy đoán;
+		// high cũng dành cho AC chưa đạt/hồi quy/lỗi đúng đắn; có điều kiện dừng.
+		"MỤC TIÊU của người dùng", "## Kiểm tra mục tiêu", "kể cả khi nằm ngoài kế hoạch", "Chỉ giữ `low`", "suy đoán",
+		"kiểm chứng cuối", "không bị nới", "AC chưa đạt, hồi quy", "KHÔNG HỘI TỤ", "không giảm", "Bint tự dừng",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("b-review thiếu %q", want)
+		}
+	}
+	// Luật cũ (benchmark lần 3) hạ chỗ sót ngoài kế hoạch thành low dù kiểm tra mục tiêu bắt được: đã bỏ.
+	for _, not := range []string{"ngoài kế hoạch hoặc ngoài mọi AC", "chỉ là `low`/ghi chú, không `high`"} {
+		if strings.Contains(body, not) {
+			t.Errorf("b-review còn luật cũ %q", not)
+		}
+	}
+}
+
+// GĐ2 nhóm 2: b-req sinh kiểm tra mục tiêu, không tự cắt phạm vi, mỗi giai đoạn một dòng G-N.
+func TestCoreSkillBReqGoalCheckAndNoScopeCut(t *testing.T) {
+	s, _ := Get("b-req")
+	flat := strings.Join(strings.Fields(s.Body()), " ")
+	for _, want := range []string{
+		"## Kiểm tra mục tiêu", "một kiểm tra chạy được", "từng nhóm", "Chuẩn bị", "Hành động", "Quét/đo", "Điều kiện đạt", "Tên test",
+		"bí mật giả", "Dọn dữ liệu cũ", "preview liệt kê đủ", "giải phóng dung lượng", "đúng một AC", "goal_check_missing",
+		"bộ test mà `verify.command` chạy",
+		"Không tự cắt phạm vi", "cấm tách giai đoạn chỉ vì ngân sách AC/TSK", "toàn bộ", "`- G-N:", "`G-1` là phiếu này", "mới xong 1/N giai đoạn",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+	// Mục kiểm tra mục tiêu đứng trước phần độ sâu (áp mọi mức) và có trong khuôn requirement.md.
+	body := s.Body()
+	if i, j := strings.Index(body, "## Kiểm tra mục tiêu (mọi mức phân tích)"), strings.Index(body, "## Độ sâu phân tích"); i < 0 || j < 0 || i > j {
+		t.Errorf("mục kiểm tra mục tiêu phải đứng trước phần độ sâu (%d, %d)", i, j)
+	}
+	if !strings.Contains(body[strings.Index(body, "bint task write <id> requirement"):], "## Kiểm tra mục tiêu") {
+		t.Error("khuôn requirement.md phải có mục ## Kiểm tra mục tiêu")
+	}
+}
+
+// GĐ2 nhóm 2: b-feat viết kiểm tra mục tiêu thành test tự động trước khi sửa (khi chưa có bản b-goal đóng băng; có thì không viết lại)
+// và không kết thúc khi còn đỏ.
+func TestCoreSkillBFeatRunsGoalCheckUntilGreen(t *testing.T) {
+	s, _ := Get("b-feat")
+	flat := strings.Join(strings.Fields(s.Body()), " ")
+	for _, want := range []string{
+		"Chưa có kiểm tra mục tiêu đóng băng", "Kiểm tra mục tiêu đã đóng băng thì không viết lại", "ĐÃ ĐƯỢC VIẾT độc lập", "không viết, sửa, xoá hay đổi tên", "`## Kiểm tra mục tiêu`", "test tự động", "bộ test mà `verify.command` của phiếu chạy", "trước khi sửa",
+		"sau mỗi nhóm sửa", "Không nới", "Không kết thúc khi kiểm tra mục tiêu còn đỏ", "`unmet`", "đầu ra của test", "workflow.max_review_rounds",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-feat thiếu %q", want)
+		}
+	}
+}
+
+// b-do không còn dặn lập phiếu không cờ để Bint tự chọn đường nhanh (người dùng chọn bằng /b-do-fast); vẫn báo "mới xong 1/N giai đoạn"
+// nguyên văn và dặn tóm tắt kế hoạch lớn cho người dùng, chỉ resume khi họ đồng ý.
+func TestCoreSkillBDoFastPathAndPhaseReport(t *testing.T) {
+	s, _ := Get("b-do")
+	flat := strings.Join(strings.Fields(s.Body()), " ")
+	for _, want := range []string{
+		"/b-do-fast", "mới xong 1/N giai đoạn", "nguyên văn", "Bước 1c", "kiểm chứng cuối không qua",
+		"`kế hoạch lớn:`", "tóm tắt kế hoạch cho người dùng", "Chỉ khi họ đồng ý", "workflow.small_plan_max_files",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-do thiếu %q", want)
+		}
+	}
+	for _, gone := range []string{"**Ngoại lệ — yêu cầu ngắn, mơ hồ, rủi ro thấp**", "**không kèm** `--plan`/`--no-plan`/`--depth`", "classification.fast: true"} {
+		if strings.Contains(flat, gone) {
+			t.Errorf("b-do còn dặn tự chọn đường nhanh: %q", gone)
+		}
+	}
+}
+
+// b-do-fast là skill mỏng gọi `--fast`; b-req dặn ghi mục `## Cỡ kế hoạch`.
+func TestCoreSkillBDoFastAndPlanSize(t *testing.T) {
+	s, ok := Get("b-do-fast")
+	if !ok {
+		t.Fatal("thiếu skill b-do-fast")
+	}
+	if !strings.Contains(string(s.Content), "disable-model-invocation: true") {
+		t.Error("b-do-fast chỉ do người gọi")
+	}
+	flat := strings.Join(strings.Fields(s.Body()), " ")
+	for _, want := range []string{"bint task new", "--workflow b-do --fast", "bint run b-do --task <id> --fast", "classification.fast", "/b-do", "bỏ b-req"} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("b-do-fast thiếu %q", want)
+		}
+	}
+	req, _ := Get("b-req")
+	rflat := strings.Join(strings.Fields(req.Body()), " ")
+	for _, want := range []string{"## Cỡ kế hoạch", "Kết luận: nhỏ", "Kết luận: lớn", "workflow.small_plan_max_files", "Không dùng `nhỏ` để cắt phạm vi", "G-N"} {
+		if !strings.Contains(rflat, want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+}
+
+// b-feat hỏi bằng --question (tác vụ dừng chờ người); b-do chuyển câu hỏi và ba lựa chọn tới người, không tự chấp nhận.
+func TestCoreSkillsQuestionAndChoices(t *testing.T) {
+	feat, _ := Get("b-feat")
+	for _, want := range []string{"--question", "bint run resume <id> --answer", "không đổi tệp nào"} {
+		if !strings.Contains(strings.Join(strings.Fields(feat.Body()), " "), want) {
+			t.Errorf("b-feat thiếu %q", want)
+		}
+	}
+	do, _ := Get("b-do")
+	body := strings.Join(strings.Fields(do.Body()), " ")
+	for _, want := range []string{"--answer", "bint run next <id> --resume --answer", "--accept", "--fix-round", "bint task cancel <id>",
+		"Không tự chạy `--accept` hay `--fix-round`", "choices", "workflow.max_review_rounds"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("b-do thiếu %q", want)
+		}
+	}
+}
+
 // b-knowledge giao việc nhập liệu cho agent nhưng không bao giờ thay người duyệt.
 func TestCoreSkillBKnowledgeContract(t *testing.T) {
 	s, ok := Get("b-knowledge")
@@ -320,5 +478,22 @@ func TestCoreSkillBAddFlowContract(t *testing.T) {
 	}
 	if errs := flow.Validate(def, "tdd", func(n string) bool { _, ok := Get(n); return ok || n == "viet-kiem-thu-do" }); len(errs) != 0 {
 		t.Fatalf("ví dụ flow không qua lint: %v", errs)
+	}
+}
+
+// Benchmark lần 3: b-feat dặn không sinh agent con; b-do biết dừng vòng sửa khi review báo không hội tụ.
+func TestCoreSkillsNoSubagentsAndNonConvergence(t *testing.T) {
+	feat, _ := Get("b-feat")
+	if !strings.Contains(feat.Body(), "không sinh agent con") {
+		t.Error("b-feat phải dặn không sinh agent con")
+	}
+	do, _ := Get("b-do")
+	if !strings.Contains(do.Body(), "KHÔNG HỘI TỤ") {
+		t.Error("b-do phải nêu điều kiện dừng khi review báo KHÔNG HỘI TỤ")
+	}
+	for _, want := range []string{"last_green", "open_findings", "bint task restore-green", "chỉ người dùng chạy"} {
+		if !strings.Contains(strings.Join(strings.Fields(do.Body()), " "), want) {
+			t.Errorf("b-do thiếu %q (điểm verify xanh)", want)
+		}
 	}
 }

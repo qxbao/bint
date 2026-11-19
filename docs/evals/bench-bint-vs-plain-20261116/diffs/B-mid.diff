@@ -1,0 +1,838 @@
+ docs/acceptance.md                             |  45 +++++++++
+ docs/configuration.md                          |   1 +
+ docs/knowledge.md                              |  27 +++++
+ internal/app/doctor.go                         |   9 ++
+ internal/app/doctor_publish_size_test.go       |  66 ++++++++++++
+ internal/app/publish.go                        |  16 +--
+ internal/app/publish_size.go                   |  42 ++++++++
+ internal/app/publish_size_test.go              | 133 +++++++++++++++++++++++++
+ internal/cli/bootstrap.go                      |   1 +
+ internal/cli/knowledge_publish_cap_e2e_test.go |  92 +++++++++++++++++
+ internal/config/config.go                      |  13 ++-
+ internal/config/publish.go                     |  30 ++++++
+ internal/config/publish_size_test.go           |  69 +++++++++++++
+ internal/config/template.go                    |   2 +
+ internal/knowledge/size.go                     |  49 +++++++++
+ internal/knowledge/size_test.go                |  51 ++++++++++
+ 16 files changed, 637 insertions(+), 9 deletions(-)
+
+diff --git a/docs/acceptance.md b/docs/acceptance.md
+index cef471f..3b71c2d 100644
+--- a/docs/acceptance.md
++++ b/docs/acceptance.md
+@@ -73,6 +73,7 @@ Cột "Vòng" trỏ tới mục 4. "Token" là token đo (eval/evolve), không t
+ 
+ | Mã | Mức | Điều kiện đóng | Vòng |
+ |---|---|---|---|
++| `NT-PUBCAP-WARN` | Thấp | Publish dry-run và doctor cùng đo khối mới kể cả guidance/UTF-8; chỉ cảnh báo khi byte > `knowledge.publish.max_bytes`; trần thấp/bằng/cao/null không đổi byte xuất bản, không thêm xác nhận hay mã thoát lỗi. Cách tái hiện và bằng chứng ở mục 3.1.1; chờ chủ dự án nghiệm thu. | Phiếu `<ID>` |
+ | `NT-MCP-CALLED` | Trung bình | Lời gọi MCP qua gateway của phiên tương tác và subagent driver session ghi được `mcp.called` (shim gửi Harness + SessionID, hoặc bỏ nhánh chết trong `record()` và ghi rõ giới hạn). Hiện `internal/app/mcp_shim.go:71` không đặt hai trường này nên `internal/mcpgw/record.go:29` bỏ mọi sự kiện ([V1 2026-11-16](evals/v1-real-session-2026-11-16/README.md), lỗi 1) | Phiếu riêng, trước khi đo lại `NT-MCP-M3` |
+ | `NT-ISO-RO-FP` | Thấp–trung bình | `bint-readonly` không chặn lệnh chỉ đọc có `\|` trong chuỗi trích dẫn, `git ls-files`, `grep` trên tệp của tác vụ (lỗi 2); có test cho từng mẫu | Phiếu riêng |
+ | `NT-WT-BASE` | Thiết kế | Quyết định: base của worktree có nên chụp thay đổi chưa commit của cây gốc không, và driver session có nên chờ khoá thay vì trả `blocked` (lỗi 3). Ghi quyết định vào isolation-subagent-plan.md | Chủ dự án quyết |
+@@ -96,6 +97,50 @@ Các mục đã đóng (chờ ký):
+ `NT-P6-01..05` đóng ở V0 (2026-11-13), chờ ký. `NT-ISO-LEAK` đóng 2026-11-13 (`e143459` + phiếu sửa review `<ID>`): hậu kiểm transcript ở `bint run complete` đã kiểm trên transcript thật của V1 (bắt đúng lần ghi lọt, không tính lần bị hook chặn); `BINT_HOOK_TRACE` có tài liệu. Hai low còn lại đã đóng: lời nhắc `bint run next <id> --resume` không còn bị TUI đổi nhầm sang phím Chạy (đã loại trừ trong `cliref_inventory_test.go`), và low dựng `paths` đóng 2026-11-15 (tác vụ `<ID>`) bằng `TestIsolationAuditPathsPayloadIsRedactedList`: payload `paths` của `missed_by_hook` là danh sách đúng từng đường dẫn của lời gọi, mỗi phần tử qua `detect.Redact`, đường dẫn quá 300 ký tự bị cắt kèm dấu ba chấm. Phần chạy thật nằm ở lần chạy lại `NT-ISO-G4`. `NT-ISO-LEAK-FP` đóng 2026-11-13 (tác vụ `<ID>`): hậu kiểm không tính lời gọi bị chặn trước khi chạy (`hookcore.IsPreExecDenial`: hook của Bint, `<tool_use_error>`, từ chối quyền, người dùng từ chối); `Exit code N` và dạng lạ vẫn tính. Còn 1 low: "The user doesn't want to take this action right now" có thể xuất hiện khi người dùng ngắt một lệnh đã bắt đầu chạy (chưa xác định trên transcript thật). Trong lúc sửa, bước b-feat của chính phiếu này cũng bị chặn nhầm một lần vì binary đang cài chưa có bản sửa. `NT-WF-BASELINE` đóng 2026-11-13 (tác vụ `<ID>`). Hiểu lại điều kiện: chặn ở Finalize là đúng (kiểm chứng phải chạy trên mã hiện tại), phần hỏng là trải nghiệm; bản sửa: Finalize tự chạy lại lệnh kiểm chứng đã xác nhận đúng một lần khi chỉ tệp ngoài `touched` đổi sau lần kiểm chứng (và không còn lý do chặn khác), `bint task diff` của tác vụ shared mặc định chỉ hiện tệp `touched` (`--all` xem hết; tác vụ worktree luôn hiện toàn bộ — sửa phát hiện review .1), lời nhắc tiếp tục theo driver (`bint run next <id> --resume` cho session). Ba low còn lại của review đã đóng 2026-11-15 (tác vụ `<ID>`): .2 `bint task diff --all` của tác vụ shared hiện mọi tệp khác `BaseTree`, kể cả tệp `Touched` của tác vụ shared khác đang chạy (`TestDiffTaskAllShowsOtherRunningTaskFiles`); .3 commit chỉ đổi HEAD mà cây giữ nguyên không còn làm Finalize chặn (`DoneInputDetailed` coi lần kiểm chứng còn mới khi ảnh chụp cây trùng `Verification.Tree`; `TestFinalizeIgnoresHeadOnlyChange`); .4 lời nhắc tiếp tục của CLI theo driver (`bint run status`, `bint task show`, `bint task approve`, `bint task land` đều dùng `State.ResumeCommand()`; `TestResumeHintFollowsDriverCLI`, `TestLandResumeHintFollowsDriverCLI` cho cả hai driver). Cùng tác vụ đó sửa ba lỗi gặp khi chạy tác vụ `<ID>` (driver session, tác vụ worktree): C1 Finalize tự chạy lại lệnh kiểm chứng đã xác nhận đúng một lần khi lần kiểm chứng cuối không qua mà nội dung mã đã đổi kể từ đó (commit cherry-pick vào nhánh tác vụ) và không còn điều chặn khác (`TestFinalizeReverifiesAfterFailedVerifyAndFix`, `TestSessionWorktreeFinalizeReverifiesAfterFix`, `TestFinalizeDoesNotReverifyFailedVerifyWhenGuarded`); C2 `land` không báo xung đột cho tệp mà cây gốc đã giống hệt bản của tác vụ (kể cả cả hai phía cùng xoá): bỏ qua tệp đó khi áp, `Landed.Files` vẫn liệt kê và kết quả có ghi chú; khác quyền thực thi (khi `core.fileMode` bật) vẫn là xung đột — phát hiện review .1 (medium), sửa sau khi land (`TestLandSkipsFilesIdenticalAtOrigin`, `TestLandSkipsFileDeletedOnBothSides`); C3 tác vụ đã đưa về mà thư mục worktree đã gỡ hoặc còn sót nhưng không còn là gốc worktree Git đi tiếp tới done qua cổng done như Finalize (vẫn chặn khi còn dấu xung đột của `land --3way`), không chuyển failed (`TestLandedTaskResumesToDoneWhenWorktreeGone`; tác vụ chưa đưa về vẫn failed, `TestRootForWorktreeGoneFails`). Chưa thử trên phiên điều phối thật. `NT-MCP-CAT` đóng 2026-11-13 (tác vụ `<ID>`); gợi ý low còn lại đóng 2026-11-15 (tác vụ `<ID>`): `TestCatalogSpecifics` ghim `Install` của specmatic (`npm i -g specmatic-mcp@1.2.0`) và nhóm `deepwiki.read` đúng ba tool kể cả `ask_wiki_question`. `NT-MCP-PROBE` đóng cùng tác vụ: `bint mcp check codegraph` gọi thử mọi tool của danh mục có trong `tools/list`, tool báo bị tắt làm `degraded` kèm nhóm, tên tool và nguyên văn lỗi; lỗi truyền tải ở bất kỳ tool nào là `fail` nêu đúng tool đó — sửa review .1, .4 sau khi land (`TestMCPCheckCodegraphNarrowEnv`, `TestMCPCheckCodegraphNonStatusOtherErrorIgnored`, `TestMCPCheckCodegraphTransportErrorNamesTool`, `TestMCPCheckCodegraphDisabledDetailQuotesError`). Còn low: tám lời gọi chung hạn `mcpCheckTimeout`, chưa kiểm với daemon codegraph thật chạy env hẹp. Mục tri thức `k:<ID>` lỗi thời sau V0 đã được thay bằng
+ `k:<ID>` (2026-11-15; mục cũ `deprecated`).
+ 
++### 3.1.1. NT-PUBCAP-WARN — cách tái hiện và bằng chứng
++
++Trong repository thử nghiệm đã `bint init --no-hooks`, thêm mục warning tiếng Việt/emoji và
++guidance verified trong `.bint/harness/guidance/`. Ghi `knowledge.publish.max_bytes: 1` vào
++`.bint/local.yml`, chạy `bint bootstrap publish --dry-run` và `bint doctor --json`: cả hai phải
++báo cùng số byte khối mới; doctor có check `kích thước khối Bint` mức `warn`, không có `fix`.
++Danh sách tối đa 5 mục có ID, tiêu đề, byte sau render; thứ tự byte giảm/ID tăng khi hòa.
++
++Lấy số byte báo cáo làm trần: không còn cảnh báo vượt trần. Lặp với số lớn hơn và `null`:
++không cảnh báo (null hiện “không đặt”). Chụp byte AGENTS.md, CLAUDE.md, config/local và items
++trước/sau dry-run/đo doctor: không đổi. Chạy publish `--yes` ở trần 1 vẫn thành công; so byte
++AGENTS.md/CLAUDE.md giữa các trần: giống nhau. Dry-run khi không có diff vẫn hiện báo cáo.
++Đừng coi cảnh báo doctor khác của môi trường là cảnh báo kích thước.
++
++Bằng chứng tự động của phiếu (kết quả thực thi ghi khi chạy kiểm thử, chưa phải chữ ký nghiệm thu):
++
++```sh
++go test -count=1 ./internal/config ./internal/knowledge
++go test -count=1 ./internal/app -run 'TestPublishSize|TestDoctorPublishSize'
++go test -count=1 ./internal/cli -run '^TestKnowledgePublishCapEndToEnd$'
++```
++
++Các test nằm ở `internal/config/publish_size_test.go`, `internal/knowledge/size_test.go`,
++`internal/app/publish_size_test.go`, `internal/app/doctor_publish_size_test.go` và
++`internal/cli/knowledge_publish_cap_e2e_test.go`. Chúng kiểm các biên trần, byte UTF-8, token ước
++tính, guidance, cắt dòng, hòa thứ tự, JSON/mã thoát và nội dung bất biến. Kết luận đóng mã này
++do chủ dự án ký; không tự ký từ kết quả test.
++
++Kết quả tại bước b-feat ngày 2026-11-16: config/knowledge qua; test dịch vụ kích thước qua
++(`internal/app`, 2,273 giây), test CLI riêng qua (9,665 giây). `go vet ./...` và staticcheck
++qua cho Linux và `GOOS=windows` (dùng binary staticcheck đã cài). Lượt test rộng bốn gói
++dừng ở `TestMCPGatewayLogWithDaemon` và `TestMCPGatewayLogOldDaemon404`: sandbox cấm bind
++socket (`operation not permitted`); không dùng kết quả này để tuyên bố toàn bộ suite xanh.
++Core đã chạy `go test -count=1 -timeout 30m ./...` theo phiếu đã xác nhận và ghi nhận qua
++(mã thoát 0, ngày 2026-11-16 lúc 15:31; log tác vụ `logs/verify-3.log`). Lượt finalize
++trước đó (`logs/verify-2.log`) hỏng ở `internal/affected` do không lấy được VCS status;
++lượt kiểm chứng sau đã qua cả gói này. Khi tiếp tục b-feat, các lệnh test hẹp ở trên và
++`TestServiceMessageCLIInventory` được chạy lại đều qua; `bint task lint` cũng qua.
++
++Đo dry-run ngay trên repository này: **10.610 byte UTF-8**, **3.051 token ước tính**, trần
++`null`, không có cảnh báo kích thước. Mục lớn nhất 899 byte (ID `<ID>`).
++Đây là chuỗi dựng mới, không phải toàn bộ AGENTS.md trên đĩa. Chưa có tập repository mẫu độc
++lập nên giữ mặc định null, chưa suy ra trần số từ phép đo đơn lẻ.
++
+ ### 3.2. Chạy thật trên máy (cần người, không token đo)
+ 
+ | Mã | Nguồn | Điều kiện đóng | Vòng |
+diff --git a/docs/configuration.md b/docs/configuration.md
+index d27fbe5..ad9a8dc 100644
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -150,6 +150,7 @@ và không có cờ giới hạn lượt), các giới hạn này chỉ mang tí
+ | `workflow.agent.allowed_tools` / `readonly_tools` | gồm `mcp__bint__*` | Quy tắc quyền để subagent (`bint-planner`, `bint-reviewer`, `bint-implementer`) gọi công cụ MCP của Bint. Repository đã có cấu hình cũ cần thêm tay vào `.bint/config.yml`. |
+ | `knowledge.require_human_approval_for` | `[rule]` | Danh sách loại mục bắt buộc người duyệt (luôn phải chứa `rule`). |
+ | `knowledge.agents_md_max_items` | `15` | Số mục `rule`/`warning` tối đa đưa vào khối Bint trong `AGENTS.md` (`1..50`). |
++| `knowledge.publish.max_bytes` | `null` | Trần byte UTF-8 của nội dung khối Bint mới (kể cả guidance harness, không tính marker/phần ngoài khối). `null` tắt so trần; số nguyên dương chỉ cảnh báo khi vượt, không cắt hay chặn xuất bản; `0`/âm không hợp lệ. `bootstrap publish --dry-run` và `doctor` luôn hiển thị số đo và tối đa 5 mục lớn nhất sau render. |
+ | `knowledge.stale_deprecate_days` | `30` | Số ngày ở trạng thái `stale` trước khi được đề xuất loại bỏ (`>= 1`). |
+ | `memory.scope` | `"project"` | Phạm vi bộ nhớ (schema v1 chỉ nhận `project`). |
+ | `memory.retention_days` | `90` | Cửa sổ lịch sử (ngày) khi quét cơ hội tiến hoá (`>= 0`; `0` = không giới hạn). |
+diff --git a/docs/knowledge.md b/docs/knowledge.md
+index 3646c42..13562a6 100644
+--- a/docs/knowledge.md
++++ b/docs/knowledge.md
+@@ -64,6 +64,33 @@ dẫn; bỏ mục `stale` và mục bên thứ ba chưa duyệt; tối đa `know
+ in bản thay đổi; không có terminal thì chỉ xem trước (`--yes` để ghi). `CLAUDE.md` nhập lại
+ `@AGENTS.md`. Nội dung ngoài khối không bị chạm; khối bị sửa tay → xung đột.
+ 
++`bootstrap publish --dry-run` và `doctor` đo toàn bộ khối mới do `AgentsBlock` dựng, kể cả guidance
++harness, không tính marker `bint:begin`/`bint:end` hoặc phần ngoài khối. Byte là độ dài UTF-8;
++token là **ước tính** `(số rune + 2) / 3`, không phải kết quả tokenizer. Báo cáo luôn hiện số đo,
++trần và tối đa 5 mục đã chọn lớn nhất (ID, tiêu đề, byte), giảm dần theo byte, hòa thì tăng theo ID.
++Byte từng mục tính từ tiêu đề và thân sau giới hạn dòng; tổng khối còn có tiêu đề nhóm, chú thích
++và guidance nên không bằng tổng byte các mục.
++
++```yaml
++knowledge:
++  publish:
++    max_bytes: null   # mặc định không đặt trần; thay bằng số nguyên dương để chỉ cảnh báo
++```
++
++Chỉ khi byte **lớn hơn** `knowledge.publish.max_bytes` mới cảnh báo; bằng trần không cảnh báo.
++`null` tắt so trần, `0`/số âm bị từ chối. Mặc định giữ `null` cho tới khi có tập repository mẫu
++độc lập để chọn trần số có căn cứ. Trần không đổi Selection, thứ tự, số mục/dòng hay byte xuất
++bản; không thêm xác nhận, mã thoát lỗi hoặc bước tự sửa. Dry-run và phép đo của doctor không ghi
++cấu hình, mục tri thức hay tài liệu agent. Doctor hiện cảnh báo mức `warn` (cũng có trong JSON),
++không kèm hành động sửa. Ví dụ định dạng (số minh họa):
++
++```text
++Kích thước khối Bint: 12345 byte UTF-8, khoảng 3456 token (ước tính); trần: 10000 byte
++Mục đã chọn lớn nhất (tối đa 5, sau render):
++  - <id> | <tiêu đề> | 1200 byte
++Cảnh báo: kích thước khối Bint vượt trần knowledge.publish.max_bytes (12345 > 10000 byte); chỉ cảnh báo, không cắt hay chặn xuất bản.
++```
++
+ **Nhập bộ nhớ của harness** (`bint knowledge import`, mục B3 của `next-directions.md`). Claude Code, Codex và
+ Cursor đã ghi sẵn ghi chú về dự án nhưng không kiểm chứng; lệnh này nhập chúng thành mục `candidate` (`origin:
+ imported`) để người duyệt như mọi mục khác. Xác định, không gọi mô hình, không dùng mạng.
+diff --git a/internal/app/doctor.go b/internal/app/doctor.go
+index 8cbbd34..1c6abed 100644
+--- a/internal/app/doctor.go
++++ b/internal/app/doctor.go
+@@ -420,6 +420,15 @@ func knowledgeChecks(r *DoctorReport, root string, cfg config.Config) {
+ 			lvl, detail = LevelInfo, detail+" — duyệt: `bint knowledge review`"
+ 		}
+ 		r.add("tri thức", lvl, "%s", detail)
++		if _, rep, err := agentsPublication(root, cfg); err != nil {
++			r.add("kích thước khối Bint", LevelFail, "%v", err)
++		} else {
++			level := LevelOK
++			if rep.OverBudget {
++				level = LevelWarn
++			}
++			r.add("kích thước khối Bint", level, "%s", rep.SizeDetail())
++		}
+ 	}
+ 	evolvedChecks(r, root)
+ 	targets := harness.SkillTargets(cfg.Harnesses.Enabled)
+diff --git a/internal/app/doctor_publish_size_test.go b/internal/app/doctor_publish_size_test.go
+new file mode 100644
+index 0000000..5ac0805
+--- /dev/null
++++ b/internal/app/doctor_publish_size_test.go
+@@ -0,0 +1,66 @@
++package app
++
++import (
++	"fmt"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strings"
++	"testing"
++
++	"bint/internal/config"
++)
++
++func TestDoctorPublishSizeBoundaries(t *testing.T) {
++	root := publishSizeRepo(t)
++	cfg, _, err := config.Load(root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	inner, _, err := AgentsBlock(root, cfg)
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, delta := range []int{-1, 0, 1, 2} {
++		capBytes := len(inner) + delta
++		cfg.Knowledge.Publish.MaxBytes = &capBytes
++		if delta == 2 {
++			cfg.Knowledge.Publish.MaxBytes = nil
++		}
++		before := publishSourceSnapshot(t, root)
++		r := &DoctorReport{}
++		knowledgeChecks(r, root, cfg)
++		c, ok := checkOf(r, "kích thước khối Bint")
++		if !ok {
++			t.Fatal("missing size check")
++		}
++		want := LevelOK
++		if delta < 0 {
++			want = LevelWarn
++		}
++		if c.Level != want || c.Fix != nil || (&DoctorReport{Checks: []Check{c}}).Failed() {
++			t.Fatalf("check: %+v", c)
++		}
++		if !strings.Contains(c.Detail, fmt.Sprintf("%d byte", len(inner))) || !strings.Contains(c.Detail, "Tiếng Việt 🙂") || !strings.Contains(c.Detail, "ước tính") {
++			t.Fatalf("details: %+v", c)
++		}
++		if !reflect.DeepEqual(before, publishSourceSnapshot(t, root)) {
++			t.Fatal("doctor measurement changed source")
++		}
++	}
++}
++
++func TestDoctorPublishSizeDoesNotInventMeasurementOnReadError(t *testing.T) {
++	root := publishSizeRepo(t)
++	if err := os.WriteFile(filepath.Join(root, ".bint", "knowledge", "items", "bad.md"), []byte("broken"), 0644); err != nil {
++		t.Fatal(err)
++	}
++	r := &DoctorReport{}
++	knowledgeChecks(r, root, config.Default())
++	if _, ok := checkOf(r, "kích thước khối Bint"); ok {
++		t.Fatal("reported size despite unreadable item")
++	}
++	if !r.Failed() {
++		t.Fatal("missing knowledge read error")
++	}
++}
+diff --git a/internal/app/publish.go b/internal/app/publish.go
+index b9368e1..b5a2b7f 100644
+--- a/internal/app/publish.go
++++ b/internal/app/publish.go
+@@ -64,11 +64,14 @@ const ConfirmPublishKey = "bootstrap.publish.confirm"
+ 
+ // PublishReport là kết quả xuất bản.
+ type PublishReport struct {
+-	Diff      string
+-	Selection knowledge.Selection
+-	Steps     []Step
+-	Written   bool
+-	Changed   bool
++	Size       knowledge.AgentsSize
++	MaxBytes   *int
++	OverBudget bool
++	Diff       string
++	Selection  knowledge.Selection
++	Steps      []Step
++	Written    bool
++	Changed    bool
+ }
+ 
+ // PublishAgents cập nhật khối Bint trong AGENTS.md (và dòng nhập lại trong
+@@ -86,11 +89,10 @@ func PublishAgents(ctx context.Context, opts PublishOptions) (*PublishReport, er
+ 		return nil, err
+ 	}
+ 	root := filepath.Dir(filepath.Dir(ws.Sources.Project))
+-	inner, sel, err := AgentsBlock(root, ws.Config)
++	inner, rep, err := agentsPublication(root, ws.Config)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	rep := &PublishReport{Selection: sel}
+ 	agentsPath := filepath.Join(root, "AGENTS.md")
+ 	old, err := fsafe.ReadBlock(agentsPath, fsafe.HTMLMarkers)
+ 	if err != nil {
+diff --git a/internal/app/publish_size.go b/internal/app/publish_size.go
+new file mode 100644
+index 0000000..82f128e
+--- /dev/null
++++ b/internal/app/publish_size.go
+@@ -0,0 +1,42 @@
++package app
++
++import (
++	"fmt"
++	"strings"
++
++	"bint/internal/config"
++	"bint/internal/knowledge"
++)
++
++// agentsPublication là nguồn chung cho publish và doctor: đo sau khi ghép guidance.
++// Không áp trần vào lựa chọn, render hay luồng ghi.
++func agentsPublication(root string, cfg config.Config) (string, *PublishReport, error) {
++	inner, sel, err := AgentsBlock(root, cfg)
++	if err != nil {
++		return "", nil, err
++	}
++	r := &PublishReport{Selection: sel, Size: knowledge.MeasureAgents(inner, sel, knowledge.RenderOptions{}), MaxBytes: cfg.Knowledge.Publish.MaxBytes}
++	r.OverBudget = r.MaxBytes != nil && r.Size.Bytes > *r.MaxBytes
++	return inner, r, nil
++}
++
++// SizeDetail dùng chung cho CLI và doctor (kể cả JSON); số token chỉ là ước tính.
++func (r *PublishReport) SizeDetail() string {
++	var b strings.Builder
++	fmt.Fprintf(&b, "Kích thước khối Bint: %d byte UTF-8, khoảng %d token (ước tính); trần: ", r.Size.Bytes, r.Size.EstimatedTokens)
++	if r.MaxBytes == nil {
++		b.WriteString("không đặt (null)")
++	} else {
++		fmt.Fprintf(&b, "%d byte", *r.MaxBytes)
++	}
++	if len(r.Size.LargestItems) > 0 {
++		b.WriteString("\nMục đã chọn lớn nhất (tối đa 5, sau render):")
++		for _, it := range r.Size.LargestItems {
++			fmt.Fprintf(&b, "\n  - %s | %s | %d byte", it.ID, it.Title, it.Bytes)
++		}
++	}
++	if r.OverBudget {
++		fmt.Fprintf(&b, "\nCảnh báo: kích thước khối Bint vượt trần knowledge.publish.max_bytes (%d > %d byte); chỉ cảnh báo, không cắt hay chặn xuất bản.", r.Size.Bytes, *r.MaxBytes)
++	}
++	return b.String()
++}
+diff --git a/internal/app/publish_size_test.go b/internal/app/publish_size_test.go
+new file mode 100644
+index 0000000..bed136f
+--- /dev/null
++++ b/internal/app/publish_size_test.go
+@@ -0,0 +1,133 @@
++package app
++
++import (
++	"context"
++	"fmt"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strings"
++	"testing"
++	"unicode/utf8"
++
++	"bint/internal/config"
++	"bint/internal/knowledge"
++)
++
++func publishSizeRepo(t *testing.T) string {
++	t.Helper()
++	root := sysRepo(t, InitOptions{})
++	ws, err := OpenKnowledge(context.Background(), root)
++	if err != nil {
++		t.Fatal(err)
++	}
++	res, err := AddKnowledge(context.Background(), ws, AddOptions{Type: knowledge.TypeWarning, Title: "Tiếng Việt 🙂", Body: strings.Repeat("Nội dung UTF-8\n", 12), Origin: knowledge.OriginHuman})
++	if err != nil || !res.Saved {
++		t.Fatalf("add: %v %+v", err, res)
++	}
++	dir := filepath.Join(root, ".bint", "harness", "guidance")
++	if err := os.MkdirAll(dir, 0755); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(dir, "size.md"), []byte("---\nid: size\nscope: global\nstatus: verified\norigin: human\nversion: 1\ntitle: Guidance\n---\n"+strings.Repeat("Hướng dẫn 🙂\n", 50)), 0644); err != nil {
++		t.Fatal(err)
++	}
++	return root
++}
++
++// Snapshot only source documents, not the derived DB/index touched by existing workspace opening.
++func publishSourceSnapshot(t *testing.T, root string) map[string]string {
++	t.Helper()
++	out := map[string]string{}
++	for _, rel := range []string{"AGENTS.md", "CLAUDE.md", ".bint/config.yml", ".bint/local.yml", ".bint/knowledge/items", ".bint/harness"} {
++		err := filepath.WalkDir(filepath.Join(root, rel), func(path string, d os.DirEntry, err error) error {
++			if os.IsNotExist(err) {
++				return nil
++			}
++			if err != nil {
++				return err
++			}
++			if d.IsDir() {
++				return nil
++			}
++			b, err := os.ReadFile(path)
++			if err != nil {
++				return err
++			}
++			out[path] = string(b)
++			return nil
++		})
++		if err != nil {
++			t.Fatal(err)
++		}
++	}
++	return out
++}
++
++func TestPublishSizeBoundariesAndInvariance(t *testing.T) {
++	root := publishSizeRepo(t)
++	cfg, _, err := config.Load(root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	inner, sel, err := AgentsBlock(root, cfg)
++	if err != nil {
++		t.Fatal(err)
++	}
++	base, _ := knowledge.RenderAgents(sel.Warnings, knowledge.RenderOptions{MaxItems: cfg.Knowledge.AgentsMDMaxItems})
++	if !strings.Contains(inner, "Hướng dẫn 🙂") || len(inner) <= len(base) {
++		t.Fatal("guidance fixture missing")
++	}
++	ctx := context.Background()
++	var published map[string]string
++	for _, tt := range []struct {
++		name, cap string
++		over      bool
++	}{
++		{"below", fmt.Sprint(len(inner) - 1), true}, {"equal", fmt.Sprint(len(inner)), false}, {"above", fmt.Sprint(len(inner) + 1), false}, {"unset", "null", false},
++	} {
++		t.Run(tt.name, func(t *testing.T) {
++			if err := os.WriteFile(config.LocalPath(root), []byte("knowledge:\n  publish:\n    max_bytes: "+tt.cap+"\n"), 0644); err != nil {
++				t.Fatal(err)
++			}
++			before := publishSourceSnapshot(t, root)
++			rep, err := PublishAgents(ctx, PublishOptions{Dir: root, DryRun: true})
++			if err != nil {
++				t.Fatal(err)
++			}
++			if rep.Size.Bytes != len(inner) || rep.Size.EstimatedTokens != (utf8.RuneCountInString(inner)+2)/3 || rep.OverBudget != tt.over || rep.Written {
++				t.Fatalf("report: %+v", rep)
++			}
++			if !reflect.DeepEqual(rep.Selection, sel) || len(rep.Size.LargestItems) != 1 {
++				t.Fatalf("selection changed: %+v", rep)
++			}
++			if !reflect.DeepEqual(before, publishSourceSnapshot(t, root)) {
++				t.Fatal("dry-run changed source files")
++			}
++			written, err := PublishAgents(ctx, PublishOptions{Dir: root, Yes: true})
++			if err != nil {
++				t.Fatal(err)
++			}
++			if tt.over && !written.Written {
++				t.Fatal("low cap blocked publication")
++			}
++			docs := map[string]string{}
++			for _, name := range []string{"AGENTS.md", "CLAUDE.md"} {
++				b, err := os.ReadFile(filepath.Join(root, name))
++				if err != nil {
++					t.Fatal(err)
++				}
++				docs[name] = string(b)
++			}
++			if published == nil {
++				published = docs
++			} else if !reflect.DeepEqual(docs, published) {
++				t.Fatal("cap changed published bytes")
++			}
++			rep, err = PublishAgents(ctx, PublishOptions{Dir: root, DryRun: true})
++			if err != nil || rep.Changed || rep.Size.Bytes != len(inner) || rep.OverBudget != tt.over {
++				t.Fatalf("no-change report: %+v %v", rep, err)
++			}
++		})
++	}
++}
+diff --git a/internal/cli/bootstrap.go b/internal/cli/bootstrap.go
+index 3bdad51..99e5ce4 100644
+--- a/internal/cli/bootstrap.go
++++ b/internal/cli/bootstrap.go
+@@ -315,6 +315,7 @@ Luôn in bản thay đổi trước; hỏi xác nhận khi chạy trong terminal
+ 			}
+ 			sel := rep.Selection
+ 			fmt.Fprintf(stdio.Out, "Khối Bint: %d quy tắc, %d điểm dễ sai\n", len(sel.Rules), len(sel.Warnings))
++			fmt.Fprintln(stdio.Out, rep.SizeDetail())
+ 			for _, o := range sel.Omitted {
+ 				fmt.Fprintf(stdio.Out, "  - bỏ %s: %s\n", o.ID, o.Reason)
+ 			}
+diff --git a/internal/cli/knowledge_publish_cap_e2e_test.go b/internal/cli/knowledge_publish_cap_e2e_test.go
+new file mode 100644
+index 0000000..8142149
+--- /dev/null
++++ b/internal/cli/knowledge_publish_cap_e2e_test.go
+@@ -0,0 +1,92 @@
++package cli_test
++
++import (
++	"encoding/json"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"bint/internal/app"
++	"bint/internal/config"
++	"bint/internal/testutil"
++)
++
++func TestKnowledgePublishCapEndToEnd(t *testing.T) {
++	testutil.Isolate(t)
++	asHuman(t)
++	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "AGENTS.md": "# Nhóm 🙂\nGiữ phần ngoài khối.\n"})
++	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
++		t.Fatalf("init: %d %s", code, out)
++	}
++	for i := 0; i < 7; i++ {
++		if out, code := run(t, root, "", "knowledge", "add", "--type", "warning", "--title", fmt.Sprintf("Mục UTF-8 %d 🙂", i), "Nội dung đo kích thước."); code != 0 {
++			t.Fatalf("add: %d %s", code, out)
++		}
++	}
++	e2eWrite(t, root, ".bint/harness/guidance/size.md", "---\nid: size\nscope: global\nstatus: verified\norigin: human\nversion: 1\ntitle: Guidance\n---\n"+strings.Repeat("Chỉ dẫn 🙂\n", 20))
++	cfg, _, err := config.Load(root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	inner, _, err := app.AgentsBlock(root, cfg)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var baseline []byte
++	for _, tt := range []struct {
++		cap  string
++		warn bool
++	}{{"1", true}, {fmt.Sprint(len(inner)), false}, {fmt.Sprint(len(inner) + 1), false}, {"null", false}} {
++		e2eWrite(t, root, ".bint/local.yml", "knowledge:\n  publish:\n    max_bytes: "+tt.cap+"\n")
++		before, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
++		if err != nil {
++			t.Fatal(err)
++		}
++		out, code := run(t, root, "", "bootstrap", "publish", "--dry-run")
++		if code != 0 || !strings.Contains(out, fmt.Sprintf("%d byte UTF-8", len(inner))) || !strings.Contains(out, "ước tính") || strings.Contains(out, "Cảnh báo: kích thước") != tt.warn {
++			t.Fatalf("dry-run cap=%s: %d %s", tt.cap, code, out)
++		}
++		if strings.Count(out, " | ") != 10 {
++			t.Fatalf("want five largest item rows: %s", out)
++		}
++		if tt.cap == "null" && !strings.Contains(out, "không đặt (null)") {
++			t.Fatalf("null cap: %s", out)
++		}
++		after, _ := os.ReadFile(filepath.Join(root, "AGENTS.md"))
++		if string(before) != string(after) {
++			t.Fatal("dry-run wrote AGENTS.md")
++		}
++		out, code = run(t, root, "", "doctor", "--json")
++		var checks []app.Check
++		if code != 0 || json.Unmarshal([]byte(out), &checks) != nil {
++			t.Fatalf("doctor cap=%s: %d %s", tt.cap, code, out)
++		}
++		found := false
++		for _, c := range checks {
++			if c.Name == "kích thước khối Bint" {
++				found = true
++				if (c.Level == app.LevelWarn) != tt.warn || c.Fix != nil || !strings.Contains(c.Detail, fmt.Sprintf("%d byte UTF-8", len(inner))) {
++					t.Fatalf("doctor size: %+v", c)
++				}
++			}
++		}
++		if !found {
++			t.Fatal("missing doctor size JSON")
++		}
++		if out, code = run(t, root, "", "bootstrap", "publish", "--yes"); code != 0 {
++			t.Fatalf("publish: %d %s", code, out)
++		}
++		after, _ = os.ReadFile(filepath.Join(root, "AGENTS.md"))
++		if baseline == nil {
++			baseline = after
++		} else if string(baseline) != string(after) {
++			t.Fatal("cap altered published content")
++		}
++		out, code = run(t, root, "", "bootstrap", "publish", "--dry-run")
++		if code != 0 || !strings.Contains(out, fmt.Sprintf("%d byte UTF-8", len(inner))) || strings.Contains(out, "Cảnh báo: kích thước") != tt.warn || strings.Contains(out, "+++ ") {
++			t.Fatalf("no-diff report: %d %s", code, out)
++		}
++	}
++}
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 5144b6c..160a464 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -267,7 +267,8 @@ type Freshness struct {
+ }
+ 
+ type Knowledge struct {
+-	RequireHumanApprovalFor []string `yaml:"require_human_approval_for"`
++	Publish                 KnowledgePublish `yaml:"publish"`
++	RequireHumanApprovalFor []string         `yaml:"require_human_approval_for"`
+ 	// AgentsMDMaxItems giới hạn số mục tri thức trong khối Bint của AGENTS.md (mục 8.5).
+ 	AgentsMDMaxItems int `yaml:"agents_md_max_items"`
+ 	// StaleDeprecateDays: mục stale quá số ngày này mà chưa được xác thực lại thì
+@@ -275,6 +276,11 @@ type Knowledge struct {
+ 	StaleDeprecateDays int `yaml:"stale_deprecate_days"`
+ }
+ 
++// KnowledgePublish chỉ quan sát kích thước, không thay đổi nội dung xuất bản.
++type KnowledgePublish struct {
++	MaxBytes *int `yaml:"max_bytes"` // nil: không đặt trần; số dương: chỉ cảnh báo
++}
++
+ type Memory struct {
+ 	Enabled       bool   `yaml:"enabled"`
+ 	Scope         string `yaml:"scope"`
+@@ -584,7 +590,7 @@ func Default() Config {
+ 			Lessons:           Lessons{GlobalK: 3, MaxTokens: 600},
+ 			History:           History{Enabled: false, MaxRuns: 10},
+ 		},
+-		Knowledge: Knowledge{RequireHumanApprovalFor: []string{"rule"}, AgentsMDMaxItems: 15, StaleDeprecateDays: 30},
++		Knowledge: Knowledge{Publish: KnowledgePublish{MaxBytes: nil}, RequireHumanApprovalFor: []string{"rule"}, AgentsMDMaxItems: 15, StaleDeprecateDays: 30},
+ 		Memory:    Memory{Enabled: true, Scope: "project", RetentionDays: 90},
+ 		Eval: Eval{
+ 			Repeats:        3,
+@@ -923,6 +929,9 @@ func (c Config) Validate() error {
+ 	if c.Knowledge.StaleDeprecateDays < 1 {
+ 		add("knowledge.stale_deprecate_days: phải >= 1")
+ 	}
++	if n := c.Knowledge.Publish.MaxBytes; n != nil && *n <= 0 {
++		add("knowledge.publish.max_bytes: phải là null hoặc số nguyên dương")
++	}
+ 	if !slices.Contains([]string{"symbol", "hunk", "file"}, c.Context.Freshness.Fingerprint) {
+ 		add("context.freshness.fingerprint: phải là symbol | hunk | file")
+ 	}
+diff --git a/internal/config/publish.go b/internal/config/publish.go
+new file mode 100644
+index 0000000..8f63d7e
+--- /dev/null
++++ b/internal/config/publish.go
+@@ -0,0 +1,30 @@
++package config
++
++import (
++	"fmt"
++
++	"gopkg.in/yaml.v3"
++)
++
++// UnmarshalYAML giữ max_bytes là số nguyên: yaml.v3 mặc định cắt float thành int.
++// Kiểm cả khoá lạ vì Node.Decode không kế thừa KnownFields của decoder ngoài.
++func (p *KnowledgePublish) UnmarshalYAML(node *yaml.Node) error {
++	var fields map[string]yaml.Node
++	if err := node.Decode(&fields); err != nil {
++		return err
++	}
++	for key, value := range fields {
++		if key != "max_bytes" {
++			return fmt.Errorf("knowledge.publish: field %s not found in type config.KnowledgePublish", key)
++		}
++		v := &value
++		for v.Kind == yaml.AliasNode {
++			v = v.Alias
++		}
++		if v.Tag != "!!int" && v.Tag != "!!null" {
++			return fmt.Errorf("knowledge.publish.max_bytes: phải là null hoặc số nguyên dương")
++		}
++	}
++	type plain KnowledgePublish
++	return node.Decode((*plain)(p))
++}
+diff --git a/internal/config/publish_size_test.go b/internal/config/publish_size_test.go
+new file mode 100644
+index 0000000..33bda98
+--- /dev/null
++++ b/internal/config/publish_size_test.go
+@@ -0,0 +1,69 @@
++package config
++
++import (
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++)
++
++func TestKnowledgePublishMaxBytes(t *testing.T) {
++	for _, tt := range []struct {
++		value string
++		valid bool
++	}{
++		{"null", true}, {"1", true}, {"12000", true}, {"0", false}, {"-1", false},
++	} {
++		t.Run(tt.value, func(t *testing.T) {
++			cfg := Default()
++			if err := Decode(strings.NewReader("knowledge:\n  publish:\n    max_bytes: "+tt.value+"\n"), &cfg); err != nil {
++				t.Fatal(err)
++			}
++			if err := cfg.Validate(); (err == nil) != tt.valid {
++				t.Fatalf("Validate = %v, valid=%v", err, tt.valid)
++			}
++		})
++	}
++}
++
++func TestKnowledgePublishMaxBytesLayers(t *testing.T) {
++	t.Setenv("BINT_CONFIG_HOME", t.TempDir())
++	root := t.TempDir()
++	if err := os.MkdirAll(filepath.Join(root, ".bint"), 0755); err != nil {
++		t.Fatal(err)
++	}
++	write := func(path, value string) {
++		t.Helper()
++		if err := os.WriteFile(path, []byte(value), 0644); err != nil {
++			t.Fatal(err)
++		}
++	}
++	write(ProjectPath(root), "version: 1\n")
++	cfg, _, err := Load(root, true)
++	if err != nil || cfg.Knowledge.Publish.MaxBytes != nil {
++		t.Fatalf("legacy: %+v %v", cfg.Knowledge.Publish, err)
++	}
++	write(ProjectPath(root), "knowledge:\n  publish:\n    max_bytes: 123\n")
++	cfg, _, err = Load(root, true)
++	if err != nil || cfg.Knowledge.Publish.MaxBytes == nil || *cfg.Knowledge.Publish.MaxBytes != 123 {
++		t.Fatalf("project: %+v %v", cfg.Knowledge.Publish, err)
++	}
++	write(LocalPath(root), "knowledge:\n  publish:\n    max_bytes: null\n")
++	cfg, _, err = Load(root, true)
++	if err != nil || cfg.Knowledge.Publish.MaxBytes != nil {
++		t.Fatalf("null override: %+v %v", cfg.Knowledge.Publish, err)
++	}
++}
++
++func TestKnowledgePublishMaxBytesRejectsNonIntegers(t *testing.T) {
++	for _, value := range []string{"1.5", "true", "[1]", "{x: 1}", "\"100\""} {
++		cfg := Default()
++		if err := Decode(strings.NewReader("knowledge:\n  publish:\n    max_bytes: "+value+"\n"), &cfg); err == nil {
++			t.Errorf("max_bytes accepted non-integer %s", value)
++		}
++	}
++	cfg := Default()
++	if err := Decode(strings.NewReader("knowledge:\n  publish:\n    max_byte: 100\n"), &cfg); err == nil {
++		t.Fatal("publish accepted unknown field")
++	}
++}
+diff --git a/internal/config/template.go b/internal/config/template.go
+index fd65313..41529d4 100644
+--- a/internal/config/template.go
++++ b/internal/config/template.go
+@@ -91,6 +91,8 @@ func Render(p InitParams) string {
+     max_runs: 10            # số lượt chạy mặc định history_for_paths trả về (1..50)
+ 
+ knowledge:
++  publish:
++    max_bytes: null                  # trần byte UTF-8 của khối Bint; null = không đặt trần, chỉ cảnh báo khi vượt
+   require_human_approval_for: [rule]   # luôn chứa rule: chỉ người mới duyệt được quy tắc bắt buộc
+   agents_md_max_items: 15              # số mục tối đa trong khối Bint của AGENTS.md
+   stale_deprecate_days: 30             # stale quá hạn → đề xuất deprecated (không tự chuyển)
+diff --git a/internal/knowledge/size.go b/internal/knowledge/size.go
+new file mode 100644
+index 0000000..c6f583c
+--- /dev/null
++++ b/internal/knowledge/size.go
+@@ -0,0 +1,49 @@
++package knowledge
++
++import (
++	"sort"
++	"strings"
++	"unicode/utf8"
++)
++
++// AgentsSize đo nội dung khối mới, không gồm marker hoặc phần ngoài khối.
++type AgentsSize struct {
++	Bytes           int
++	EstimatedTokens int
++	LargestItems    []AgentsItemSize
++}
++
++// AgentsItemSize là byte tiêu đề/thân thực sự xuất bản, sau giới hạn dòng.
++type AgentsItemSize struct {
++	ID    string
++	Title string
++	Bytes int
++}
++
++// MeasureAgents nhận toàn bộ AgentsBlock (kể cả guidance) và selection của nó.
++// Token là ước tính theo (số rune + 2) / 3, như ctxengine; không phải tokenizer.
++// Chỉ xếp hạng bản sao số đo, không đổi Selection hay nội dung render.
++func MeasureAgents(inner string, sel Selection, opts RenderOptions) AgentsSize {
++	if opts.MaxBodyLines <= 0 {
++		opts.MaxBodyLines = 8
++	}
++	s := AgentsSize{Bytes: len(inner), EstimatedTokens: (utf8.RuneCountInString(inner) + 2) / 3}
++	for _, group := range [][]*Item{sel.Rules, sel.Warnings, sel.Reference} {
++		for _, it := range group {
++			var b strings.Builder
++			writeItem(&b, it, opts.MaxBodyLines)
++			s.LargestItems = append(s.LargestItems, AgentsItemSize{ID: it.ID, Title: strings.TrimSpace(it.Title), Bytes: b.Len()})
++		}
++	}
++	sort.Slice(s.LargestItems, func(i, j int) bool {
++		a, b := s.LargestItems[i], s.LargestItems[j]
++		if a.Bytes != b.Bytes {
++			return a.Bytes > b.Bytes
++		}
++		return a.ID < b.ID
++	})
++	if len(s.LargestItems) > 5 {
++		s.LargestItems = s.LargestItems[:5]
++	}
++	return s
++}
+diff --git a/internal/knowledge/size_test.go b/internal/knowledge/size_test.go
+new file mode 100644
+index 0000000..d9812cb
+--- /dev/null
++++ b/internal/knowledge/size_test.go
+@@ -0,0 +1,51 @@
++package knowledge
++
++import (
++	"reflect"
++	"strings"
++	"testing"
++)
++
++func TestMeasureAgentsUTF8AndRenderedItems(t *testing.T) {
++	// The long original body must not outweigh an item with larger rendered text.
++	a := &Item{ID: "a", Title: "A", Body: "x\n" + strings.Repeat("long body\n", 20)}
++	b := &Item{ID: "b", Title: "B", Body: strings.Repeat("y", 100)}
++	sel := Selection{Rules: []*Item{a, b}}
++	before := append([]*Item(nil), sel.Rules...)
++	got := MeasureAgents("á🙂\n", sel, RenderOptions{MaxBodyLines: 1})
++	if got.Bytes != 7 || got.EstimatedTokens != 1 {
++		t.Fatalf("UTF-8: %+v", got)
++	}
++	if len(got.LargestItems) != 2 || got.LargestItems[0].ID != "b" || got.LargestItems[0].Bytes != 117 {
++		t.Fatalf("rendered sizes: %+v", got.LargestItems)
++	}
++	if !reflect.DeepEqual(sel.Rules, before) {
++		t.Fatal("measurement reordered selection")
++	}
++	if MeasureAgents("abcd", Selection{}, RenderOptions{}).EstimatedTokens != 2 {
++		t.Fatal("token rounding")
++	}
++}
++
++func TestMeasureAgentsTopFiveAndDefaultLines(t *testing.T) {
++	var sel Selection
++	for _, id := range []string{"g", "f", "e", "d", "c", "b", "a"} {
++		sel.Warnings = append(sel.Warnings, &Item{ID: id, Title: "T", Body: strings.Repeat("x\n", 9)})
++	}
++	got := MeasureAgents("", sel, RenderOptions{})
++	if len(got.LargestItems) != 5 {
++		t.Fatalf("top five: %+v", got)
++	}
++	for i, it := range got.LargestItems {
++		if it.ID != string(rune('a'+i)) {
++			t.Fatalf("tie order: %+v", got)
++		}
++	}
++	// Explicit 8 lines and default rendering must measure the same truncated item.
++	if !reflect.DeepEqual(got, MeasureAgents("", sel, RenderOptions{MaxBodyLines: 8})) {
++		t.Fatal("default lines differ")
++	}
++	if len(MeasureAgents("guidance", Selection{}, RenderOptions{}).LargestItems) != 0 {
++		t.Fatal("empty selection")
++	}
++}

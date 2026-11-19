@@ -122,8 +122,8 @@ func (f *fixture) happy(_ context.Context, step string, e *workflow.Env, id, _ s
 			return err
 		}
 		docs := map[string]string{
-			"requirement": "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + crit + "\n## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n",
-			"plan":        "# Kế hoạch\nSửa app.txt\n",
+			"requirement": "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + crit + "\n## Ngoài phạm vi\nKhông có\n## Kiểm tra mục tiêu\n`TestAppV2` quét app.txt\n## Câu hỏi mở\n",
+			"plan":        "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n",
 			"tasks":       "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: " + crit + "\n",
 		}
 		for n, body := range docs {
@@ -131,6 +131,8 @@ func (f *fixture) happy(_ context.Context, step string, e *workflow.Env, id, _ s
 				return err
 			}
 		}
+	case workflow.StepGoal:
+		f.write("goal_check.sh", "true\n") // kiểm tra mục tiêu độc lập (b-goal)
 	case workflow.StepFeat:
 		f.write("app.txt", "v2\n")
 		if _, err := e.CheckCriterion(id, 1, true, "app.txt chứa v2"); err != nil && !strings.Contains(err.Error(), "không tồn tại") {
@@ -167,6 +169,16 @@ func (f *fixture) task(id string) *task.Task {
 	return tk
 }
 
+// tryTask như task nhưng lỗi đọc (vd Windows: state.json đang bị action ghi giữ khoá) trả nil thay vì Fatal, để điều kiện chờ của pump
+// thử lại ở vòng sau; chỉ dùng trong until() của pump (đọc ngoài pump dùng task).
+func (f *fixture) tryTask(id string) *task.Task {
+	tk, err := f.ws.Tasks.Load(id)
+	if err != nil {
+		return nil
+	}
+	return tk
+}
+
 // pump chạy cmd và mọi lệnh phát sinh trong goroutine riêng, đưa thông điệp về Update (trong goroutine của kiểm
 // thử) tới khi until() đúng; quá hạn thì báo lỗi kèm màn hình hiện tại.
 func (f *fixture) pump(until func() bool, cmd tea.Cmd) {
@@ -189,7 +201,9 @@ func (f *fixture) pump(until func() bool, cmd tea.Cmd) {
 		}()
 	}
 	run(cmd)
-	deadline := time.After(20 * time.Second)
+	// Hạn chỉ để chặn treo, không đo tốc độ: trên Windows mỗi lệnh git/sh tốn 20–70 ms, và khi go test ./... chạy
+	// nhiều gói cùng lúc (mỗi gói lại chia nhiều tiến trình, testutil.RunTests) một bước init/b-do có thể quá 20 s.
+	deadline := time.After(90 * time.Second)
 	for !until() {
 		select {
 		case msg := <-f.msgs:

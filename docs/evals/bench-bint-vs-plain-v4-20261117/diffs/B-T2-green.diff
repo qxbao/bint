@@ -1,0 +1,1368 @@
+ internal/detect/detect.go                    |  15 +-
+ internal/detect/detect_test.go               |  15 +
+ internal/eval/shell.go                       |  35 +-
+ internal/eval/shell_redact_benchmark_test.go |  36 ++
+ internal/eval/shell_redact_test.go           | 250 +++++++++++++
+ internal/redact/redact_benchmark_test.go     |  66 ++++
+ internal/redact/text.go                      |  72 ++++
+ internal/redact/text_test.go                 | 137 +++++++
+ internal/redact/writer.go                    | 512 +++++++++++++++++++++++++++
+ internal/redact/writer_test.go               | 102 ++++++
+ 10 files changed, 1223 insertions(+), 17 deletions(-)
+
+diff --git a/internal/detect/detect.go b/internal/detect/detect.go
+index 69945bc..51538d2 100644
+--- a/internal/detect/detect.go
++++ b/internal/detect/detect.go
+@@ -14,6 +14,7 @@ import (
+ 	"time"
+ 
+ 	"bint/internal/iso"
++	"bint/internal/redact"
+ )
+ 
+ // Harness mô tả một harness được phát hiện trên máy.
+@@ -260,20 +261,14 @@ func IsTestCommand(cmd string, configured ...string) bool {
+ 	return testRunner.MatchString(c)
+ }
+ 
+-var (
+-	envAssign   = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S+)`)
+-	secretFlags = regexp.MustCompile(`(?i)(--?(token|password|passwd|secret|api[-_]?key|auth)[= ])("[^"]*"|'[^']*'|\S+)`)
+-	bearer      = regexp.MustCompile(`(?i)(bearer\s+)\S+`)
+-	urlCreds    = regexp.MustCompile(`(://)[^/\s:@]+:[^/\s@]+@`)
+-)
++var envAssign = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S+)`)
+ 
+ // Redact che các giá trị có thể là bí mật trong một lệnh trước khi ghi lại, và
+ // cắt ngắn tới maxLen ký tự.
+ func Redact(cmd string, maxLen int) string {
+-	s := envAssign.ReplaceAllString(cmd, "$1=***")
+-	s = secretFlags.ReplaceAllString(s, "$1***")
+-	s = bearer.ReplaceAllString(s, "$1***")
+-	s = urlCreds.ReplaceAllString(s, "$1***@")
++	// Parse labelled credentials before the legacy broad assignment regexp can
++	// consume part of an escaped quoted value and detach its remaining bytes.
++	s := envAssign.ReplaceAllString(redact.Text(cmd), "$1=***")
+ 	if maxLen > 0 && len([]rune(s)) > maxLen {
+ 		s = string([]rune(s)[:maxLen]) + "…"
+ 	}
+diff --git a/internal/detect/detect_test.go b/internal/detect/detect_test.go
+index 4ad5a01..b58f836 100644
+--- a/internal/detect/detect_test.go
++++ b/internal/detect/detect_test.go
+@@ -58,6 +58,21 @@ func TestRedact(t *testing.T) {
+ 	}
+ }
+ 
++func TestRedactSharedPolicyAndLegacyAssignments(t *testing.T) {
++	if got := Redact(`ordinary=value --refresh_token value ghp_<FIXTURE>`, 0); got != `ordinary=*** --refresh_token *** ***` {
++		t.Fatalf("Redact = %q", got)
++	}
++	if got := Redact(`password=`+strings.Repeat("s", 1000)+` visible`, 20); strings.Contains(got, "sss") || !strings.Contains(got, "visible") {
++		t.Fatalf("truncate before redact: %q", got)
++	}
++	for _, in := range []string{`--apikey fake-value`, `PASSWORD="first\" escaped-fake-secret" visible`} {
++		got := Redact(in, 0)
++		if strings.Contains(got, "fake-value") || strings.Contains(got, "escaped-fake-secret") {
++			t.Fatalf("legacy wrapper leaked: %q", got)
++		}
++	}
++}
++
+ func TestSuggestCommands(t *testing.T) {
+ 	cases := []struct {
+ 		files map[string]string
+diff --git a/internal/eval/shell.go b/internal/eval/shell.go
+index ac4b6b3..6504cf2 100644
+--- a/internal/eval/shell.go
++++ b/internal/eval/shell.go
+@@ -13,6 +13,8 @@ import (
+ 	"strings"
+ 	"sync"
+ 	"time"
++
++	"bint/internal/redact"
+ )
+ 
+ // CmdResult là kết quả chạy một lệnh.
+@@ -73,20 +75,28 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
+ 		if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err == nil {
+ 			if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+ 				defer f.Close()
+-				fmt.Fprintf(f, "$ %s %s\n", filepath.Base(prog), strings.Join(quoteArgs(args), " "))
++				fmt.Fprintf(f, "$ %s %s\n", redact.Text(filepath.Base(prog)), strings.Join(quoteArgs(args), " "))
+ 				writers = append(writers, f)
+ 			}
+ 		}
+ 	}
+-	combined := io.MultiWriter(writers...)
++	// exec can copy the pipes concurrently. Redact before they merge, and before
++	// the diagnostic tail truncates anything; parsing still receives raw stdout.
++	combined := &diagnosticWriter{dst: io.MultiWriter(writers...)}
++	stdoutLog, stderrLog := redact.NewWriter(combined), redact.NewWriter(combined)
+ 	if stdout != nil {
+-		cmd.Stdout = io.MultiWriter(stdout, combined)
++		cmd.Stdout = io.MultiWriter(stdout, stdoutLog)
+ 	} else {
+-		cmd.Stdout = combined
++		cmd.Stdout = stdoutLog
+ 	}
+-	cmd.Stderr = combined
++	cmd.Stderr = stderrLog
+ 
+ 	err := cmd.Run()
++	// Run has joined the copy goroutines (also after cancellation/WaitDelay).
++	// Flush incomplete diagnostics before taking Tail; log errors retain the
++	// existing best-effort behavior and never cause a raw-output fallback.
++	_ = stdoutLog.Close()
++	_ = stderrLog.Close()
+ 	res := CmdResult{Duration: time.Since(start), Tail: tail.String()}
+ 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+ 		res.TimedOut = true
+@@ -113,8 +123,8 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
+ }
+ 
+ func quoteArgs(args []string) []string {
+-	out := make([]string, len(args))
+-	for i, a := range args {
++	out := redact.Args(args)
++	for i, a := range out {
+ 		if len(a) > 200 {
+ 			a = a[:200] + "…"
+ 		}
+@@ -126,6 +136,17 @@ func quoteArgs(args []string) []string {
+ 	return out
+ }
+ 
++type diagnosticWriter struct {
++	mu  sync.Mutex
++	dst io.Writer
++}
++
++func (w *diagnosticWriter) Write(p []byte) (int, error) {
++	w.mu.Lock()
++	defer w.mu.Unlock()
++	return w.dst.Write(p)
++}
++
+ type tailBuffer struct {
+ 	mu  sync.Mutex // stdout and stderr can be copied by separate goroutines
+ 	max int
+diff --git a/internal/eval/shell_redact_benchmark_test.go b/internal/eval/shell_redact_benchmark_test.go
+new file mode 100644
+index 0000000..e4729f4
+--- /dev/null
++++ b/internal/eval/shell_redact_benchmark_test.go
+@@ -0,0 +1,36 @@
++package eval
++
++import (
++	"fmt"
++	"io"
++	"strings"
++	"testing"
++
++	"bint/internal/redact"
++)
++
++// Compare the original diagnostic path to the redacted path on this machine.
++func BenchmarkDiagnosticOutput(b *testing.B) {
++	data := []byte(strings.Repeat(strings.Repeat("ordinary build output OK ", 9)+"token=benchmark-fake-secret ", 5000))[:1<<20]
++	for _, mask := range []bool{false, true} {
++		b.Run(fmt.Sprintf("redact=%v", mask), func(b *testing.B) {
++			b.SetBytes(int64(len(data)))
++			b.ReportAllocs()
++			for range b.N {
++				tail := &tailBuffer{max: tailBytes}
++				var sink io.Writer = &diagnosticWriter{dst: io.MultiWriter(tail, io.Discard)}
++				var w *redact.Writer
++				if mask {
++					w = redact.NewWriter(sink)
++					sink = w
++				}
++				for pos := 0; pos < len(data); pos += 4096 {
++					_, _ = sink.Write(data[pos:min(pos+4096, len(data))])
++				}
++				if w != nil {
++					_ = w.Close()
++				}
++			}
++		})
++	}
++}
+diff --git a/internal/eval/shell_redact_test.go b/internal/eval/shell_redact_test.go
+new file mode 100644
+index 0000000..f2d62a0
+--- /dev/null
++++ b/internal/eval/shell_redact_test.go
+@@ -0,0 +1,250 @@
++package eval
++
++import (
++	"bytes"
++	"context"
++	"errors"
++	"io"
++	"os"
++	"path/filepath"
++	"strings"
++	"sync"
++	"testing"
++	"time"
++)
++
++const fixtureArgSecret = "argv-fake-secret-123"
++const fixtureInputSecret = "stdin-fake-secret-456"
++const fixtureEnvSecret = "env-fake-secret-789"
++const fixtureRawOutput = `{"api_key":"argv-fake-secret-123","password":"stdin-fake-secret-456","token":"env-fake-secret-789","name":"世界"}`
++
++// The real child validates execution inputs, then produces diagnostic copies.
++func TestRedactionProcessFixture(t *testing.T) {
++	mode := os.Getenv("BINT_REDACT_FIXTURE")
++	if mode == "" {
++		return
++	}
++	if mode == "boundary-stdout" || mode == "boundary-stderr" {
++		dst := os.Stdout
++		if mode == "boundary-stderr" {
++			dst = os.Stderr
++		}
++		input, err := io.ReadAll(os.Stdin)
++		if err != nil {
++			os.Exit(14)
++		}
++		for _, b := range input {
++			if _, err := dst.Write([]byte{b}); err != nil {
++				os.Exit(15)
++			}
++		}
++		os.Exit(0)
++	}
++	if mode == "wait" {
++		_, _ = io.WriteString(os.Stdout, "password=\"cancel-fake-secret-123")
++		if err := os.WriteFile(os.Getenv("BINT_REDACT_READY"), []byte("ready"), 0o600); err != nil {
++			os.Exit(10)
++		}
++		time.Sleep(time.Minute)
++		os.Exit(11)
++	}
++	input, err := io.ReadAll(os.Stdin)
++	if err != nil || string(input) != fixtureInputSecret || os.Getenv("BINT_REDACT_INPUT") != fixtureEnvSecret {
++		os.Exit(12)
++	}
++	if len(os.Args) < 3 || os.Args[len(os.Args)-2] != "--token" || os.Args[len(os.Args)-1] != fixtureArgSecret {
++		os.Exit(13)
++	}
++	var wg sync.WaitGroup
++	wg.Add(2)
++	go func() {
++		defer wg.Done()
++		for i := range len(fixtureRawOutput) {
++			_, _ = os.Stdout.Write([]byte{fixtureRawOutput[i]})
++		}
++	}()
++	go func() {
++		defer wg.Done()
++		for _, part := range []string{"client_", "secret=\"", strings.Repeat("long-fake-secret-", 10000), "\"\nnormal stderr\n"} {
++			_, _ = io.WriteString(os.Stderr, part)
++		}
++	}()
++	wg.Wait()
++	os.Exit(7)
++}
++
++func TestRunProcessRedactsWithoutChangingExecution(t *testing.T) {
++	bin, err := os.Executable()
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, capture := range []bool{true, false} {
++		t.Run(map[bool]string{true: "capture", false: "no-capture"}[capture], func(t *testing.T) {
++			dir := t.TempDir()
++			log := filepath.Join(dir, "process.log")
++			const history = "history token=old-fake-secret\n"
++			if err := os.WriteFile(log, []byte(history), 0o600); err != nil {
++				t.Fatal(err)
++			}
++			var raw bytes.Buffer
++			var stdout *bytes.Buffer
++			if capture {
++				stdout = &raw
++			}
++			res := runProcess(context.Background(), dir, bin,
++				[]string{"-test.run=^TestRedactionProcessFixture$", "--", "--token", fixtureArgSecret},
++				15*time.Second, log, append(os.Environ(), "BINT_REDACT_FIXTURE=output", "BINT_REDACT_INPUT="+fixtureEnvSecret),
++				strings.NewReader(fixtureInputSecret), stdout)
++			if res.ExitCode != 7 || res.TimedOut || res.Err != nil {
++				t.Fatalf("execution changed: %+v", res)
++			}
++			if capture && raw.String() != fixtureRawOutput {
++				t.Fatalf("raw stdout changed: %q", raw.String())
++			}
++			data, err := os.ReadFile(log)
++			if err != nil {
++				t.Fatal(err)
++			}
++			if !bytes.HasPrefix(data, []byte(history)) {
++				t.Fatal("history was changed")
++			}
++			for _, diagnostic := range []string{string(data[len(history):]), res.Tail} {
++				for _, secret := range []string{fixtureArgSecret, fixtureInputSecret, fixtureEnvSecret, "long-fake-secret-"} {
++					if strings.Contains(diagnostic, secret) {
++						t.Fatalf("diagnostic leaked %q", secret)
++					}
++				}
++			}
++			if !bytes.Contains(data, []byte("normal stderr")) || !bytes.Contains(data, []byte("世界")) || !bytes.Contains(data, []byte("***")) {
++				t.Fatal("ordinary output or mask lost")
++			}
++			entries, err := os.ReadDir(dir)
++			if err != nil || len(entries) != 1 {
++				t.Fatalf("unexpected backup/raw logs: %v, %v", entries, err)
++			}
++		})
++	}
++}
++
++func TestRunProcessRedactsOnCancellation(t *testing.T) {
++	bin, err := os.Executable()
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, timeout := range []bool{false, true} {
++		t.Run(map[bool]string{false: "cancel", true: "timeout"}[timeout], func(t *testing.T) {
++			dir := t.TempDir()
++			ready, log := filepath.Join(dir, "ready"), filepath.Join(dir, "process.log")
++			ctx, cancel := context.WithCancel(context.Background())
++			defer cancel()
++			// Cancel only once the child has emitted an unterminated credential.
++			finished := make(chan struct{})
++			defer close(finished)
++			if !timeout {
++				go func() {
++					for {
++						if _, err := os.Stat(ready); err == nil {
++							cancel()
++							return
++						}
++						select {
++						case <-finished:
++							return
++						case <-time.After(10 * time.Millisecond):
++						}
++					}
++				}()
++			}
++			limit := 10 * time.Second
++			if timeout {
++				limit = 3 * time.Second
++			}
++			res := runProcess(ctx, dir, bin, []string{"-test.run=^TestRedactionProcessFixture$"}, limit, log,
++				append(os.Environ(), "BINT_REDACT_FIXTURE=wait", "BINT_REDACT_READY="+ready), nil, nil)
++			if _, err := os.Stat(ready); err != nil {
++				t.Fatal("child never reached output")
++			}
++			if timeout {
++				if !res.TimedOut || res.ExitCode != -1 {
++					t.Fatalf("timeout changed: %+v", res)
++				}
++			} else if !errors.Is(res.Err, context.Canceled) {
++				t.Fatalf("cancel changed: %+v", res)
++			}
++			data, err := os.ReadFile(log)
++			if err != nil {
++				t.Fatal(err)
++			}
++			for _, diagnostic := range []string{string(data), res.Tail} {
++				if strings.Contains(diagnostic, "cancel-fake-secret-123") || !strings.Contains(diagnostic, `password="***`) {
++					t.Fatalf("incomplete secret not hidden: %q", diagnostic)
++				}
++			}
++		})
++	}
++}
++
++func TestCommandHeaderRedactsBeforeTruncationAndQuoting(t *testing.T) {
++	args := []string{"--token", strings.Repeat("s", 10000), `{"password":"quoted-fake-secret"}`}
++	got := strings.Join(quoteArgs(args), " ")
++	for _, secret := range []string{"sss", "quoted-fake-secret"} {
++		if strings.Contains(got, secret) {
++			t.Fatalf("header leaked %q", secret)
++		}
++	}
++	if args[1] != strings.Repeat("s", 10000) {
++		t.Fatal("mutated argv")
++	}
++}
++
++func TestRunProcessReviewBoundaries(t *testing.T) {
++	bin, err := os.Executable()
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, c := range []struct{ name, input, secret, visible string }{
++		{"shell_comma", "PASSWORD=first,second-fake-secret visible\n", "second-fake-secret", "visible"},
++		{"shell_brackets", "PASSWORD=first}second-fake-secret] visible\n", "second-fake-secret", "visible"},
++		{"yaml_plain", "password: first second-fake-secret\nname: normal\n", "second-fake-secret", "name: normal"},
++		{"yaml_plain_multiline", "password: first\n  second-fake-secret\nname: normal\n", "second-fake-secret", "name: normal"},
++		{"encoded_json", `{"type":"result","result":"{\"password\":\"nested-fake-secret\"}","name":"normal"}`, "nested-fake-secret", "normal"},
++		{"yaml_sequence", "- password: |\n    first-fake-secret\n  name: normal\n- name: second\n", "first-fake-secret", "name: normal"},
++	} {
++		for _, stream := range []string{"stdout", "stderr"} {
++			t.Run(c.name+"/"+stream, func(t *testing.T) {
++				dir := t.TempDir()
++				log := filepath.Join(dir, "process.log")
++				var raw bytes.Buffer
++				res := runProcess(context.Background(), dir, bin, []string{"-test.run=^TestRedactionProcessFixture$"},
++					10*time.Second, log, append(os.Environ(), "BINT_REDACT_FIXTURE=boundary-"+stream), strings.NewReader(c.input), &raw)
++				if !res.OK() {
++					t.Fatalf("fixture failed: %+v", res)
++				}
++				if stream == "stdout" && raw.String() != c.input {
++					t.Fatal("raw stdout changed")
++				}
++				data, err := os.ReadFile(log)
++				if err != nil {
++					t.Fatal(err)
++				}
++				for _, diagnostic := range []string{string(data), res.Tail} {
++					if strings.Contains(diagnostic, c.secret) || !strings.Contains(diagnostic, "***") {
++						t.Fatalf("secret escaped masking: %q", diagnostic)
++					}
++					if !strings.Contains(diagnostic, c.visible) {
++						t.Fatalf("ordinary field lost: %q", diagnostic)
++					}
++				}
++			})
++		}
++	}
++}
++
++func TestCommandHeaderReviewShellBoundaries(t *testing.T) {
++	for _, value := range []string{"first,second-fake-secret", "first}second-fake-secret", "first]second-fake-secret"} {
++		got := strings.Join(quoteArgs([]string{"-c", "PASSWORD=" + value + " true"}), " ")
++		if strings.Contains(got, "second-fake-secret") || !strings.Contains(got, "true") {
++			t.Fatalf("header: %s", got)
++		}
++	}
++}
+diff --git a/internal/redact/redact_benchmark_test.go b/internal/redact/redact_benchmark_test.go
+new file mode 100644
+index 0000000..966b50c
+--- /dev/null
++++ b/internal/redact/redact_benchmark_test.go
+@@ -0,0 +1,66 @@
++package redact
++
++import (
++	"fmt"
++	"io"
++	"strings"
++	"testing"
++	"unsafe"
++)
++
++// Exactly 1 MiB: nine ordinary rows for each credential row. Alternating
++// newline/no-newline blocks exercises both log shapes. All credentials are fake.
++func benchmarkText() string {
++	var s strings.Builder
++	ordinary := strings.Repeat("ordinary build output succeeded. ", 30)[:900]
++	secret := `token="benchmark-fake-secret" api_key=benchmark-fake-key `
++	secret += strings.Repeat(" ", 100-len(secret))
++	block := 0
++	for s.Len() < 1<<20 {
++		s.WriteString(ordinary)
++		s.WriteString(secret[:99])
++		if block%2 == 0 {
++			s.WriteByte('\n')
++		} else {
++			s.WriteByte(' ')
++		}
++		block++
++	}
++	return s.String()[:1<<20]
++}
++
++func BenchmarkText(b *testing.B) {
++	text := benchmarkText()
++	b.SetBytes(int64(len(text)))
++	b.ReportAllocs()
++	b.ResetTimer()
++	for range b.N {
++		_ = Text(text)
++	}
++}
++
++func BenchmarkWriter(b *testing.B) {
++	data := []byte(benchmarkText())
++	for _, chunk := range []int{1, 4096, 65536} {
++		b.Run(fmt.Sprint(chunk), func(b *testing.B) {
++			b.SetBytes(int64(len(data)))
++			b.ReportAllocs()
++			b.ResetTimer()
++			for range b.N {
++				w := NewWriter(io.Discard)
++				for pos := 0; pos < len(data); pos += chunk {
++					_, _ = w.Write(data[pos:min(pos+chunk, len(data))])
++				}
++				_ = w.Close()
++			}
++		})
++	}
++}
++
++// The writer has no dynamically growing buffers: account for the entire struct,
++// including metadata, rather than just inspecting one allocation snapshot.
++func TestWriterStorageBudget(t *testing.T) {
++	if n := unsafe.Sizeof(Writer{}); n > 64<<10 {
++		t.Fatalf("retained storage %d exceeds 64 KiB", n)
++	}
++}
+diff --git a/internal/redact/text.go b/internal/redact/text.go
+new file mode 100644
+index 0000000..04200d2
+--- /dev/null
++++ b/internal/redact/text.go
+@@ -0,0 +1,72 @@
++// Package redact removes common labelled credentials from diagnostic copies.
++// It is deliberately not a detector for arbitrary unlabelled passwords.
++package redact
++
++import "strings"
++
++var credentialPrefixes = [...]string{"ghp_", "github_pat_", "sk-proj-"}
++
++func prefixByte(c byte, wide bool) bool { return c < 128 && wordByte(c) && (c != '-' || wide) }
++
++// Text applies the same policy as Writer, including at an incomplete EOF.
++func Text(s string) string {
++	var out strings.Builder
++	out.Grow(len(s))
++	w := NewWriter(&out)
++	_, _ = w.Write([]byte(s)) // strings.Builder cannot fail
++	_ = w.Close()
++	return out.String()
++}
++
++// Args redacts a diagnostic argv copy before quoting or truncation. Argument
++// boundaries matter: the whole argument following --token is its value even
++// when it contains whitespace or quotes. The caller's argv is never modified.
++func Args(args []string) []string {
++	out := make([]string, len(args))
++	nextSecret := false
++	for i, a := range args {
++		switch {
++		case nextSecret:
++			out[i], nextSecret = "***", false
++		case strings.HasPrefix(a, "-"):
++			key, _, assigned := strings.Cut(a, "=")
++			if secretKey(key, true) {
++				if assigned {
++					out[i] = key + "=***"
++				} else {
++					out[i], nextSecret = a, true
++				}
++			} else {
++				out[i] = Text(a)
++			}
++		default:
++			out[i] = Text(a)
++		}
++	}
++	return out
++}
++
++func secretKey(s string, whole bool) bool {
++	s = strings.ToLower(s)
++	if whole {
++		switch strings.TrimLeft(s, "-") {
++		case "password", "passwd", "token", "access_token", "refresh_token", "api_key", "api-key", "apikey", "secret", "client_secret", "auth":
++			return true
++		}
++	}
++	for _, suffix := range []string{"_password", "_token", "_api_key", "_secret"} {
++		if strings.HasSuffix(s, suffix) {
++			return true
++		}
++	}
++	return false
++}
++
++func wordByte(c byte) bool {
++	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-' || c >= 128
++}
++
++func space(c byte) bool        { return c == ' ' || c == '\t' || c == '\r' || c == '\n' }
++func shellEnd(c byte) bool     { return space(c) || strings.IndexByte(";|&)<>\"'`", c) >= 0 }
++func flowEnd(c byte) bool      { return c == ',' || c == '}' || c == ']' }
++func authorityEnd(c byte) bool { return space(c) || strings.IndexByte("/?#\"'<>)}]", c) >= 0 }
+diff --git a/internal/redact/text_test.go b/internal/redact/text_test.go
+new file mode 100644
+index 0000000..bc618a5
+--- /dev/null
++++ b/internal/redact/text_test.go
+@@ -0,0 +1,137 @@
++package redact
++
++import (
++	"bytes"
++	"encoding/json"
++	"strings"
++	"testing"
++)
++
++func redactionCases() [][2]string {
++	return [][2]string{
++		{`password=hunter2 ordinary=1`, `password=*** ordinary=1`},
++		{`passwd='two words'`, `passwd='***'`},
++		{`TOKEN="a\"b"`, `TOKEN="***"`},
++		{`--access_token abc --refresh_token=def`, `--access_token *** --refresh_token=***`},
++		{`--api-key abc --api_key=def --secret ghi --client_secret=jkl`, `--api-key *** --api_key=*** --secret *** --client_secret=***`},
++		{`SERVICE_PASSWORD=x SERVICE_TOKEN=y SERVICE_API_KEY=z SERVICE_SECRET=w`, `SERVICE_PASSWORD=*** SERVICE_TOKEN=*** SERVICE_API_KEY=*** SERVICE_SECRET=***`},
++		{`{"password":"a\"b","token":1,"name":"Bao"}`, `{"password":"***","token":***,"name":"Bao"}`},
++		{"api_key: 'line1\nline2'\r\nname: Bao", "api_key: '***'\r\nname: Bao"},
++		{`Authorization: Bearer abc.def==`, `Authorization: Bearer ***`},
++		{`https://user:pass@host:8080/path`, `https://user:***@host:8080/path`},
++		{`ghp_<FIXTURE> github_pat_12345678901234567890 sk-proj-<FIXTURE>`, `*** *** ***`},
++		{`token=1 number=1`, `token=*** number=1`},
++		{"password=\"chưa đóng\n", "password=\"***"},
++		{`token=unfinished`, `token=***`},
++		{`password=first"second"'third'fourth visible`, `password=***""'' visible`},
++		{`prefix-ghp_<FIXTURE>-suffix`, `prefix-***-suffix`},
++		{`https://user:unfinished`, `https://user:***`},
++		{`https://user:unfinished/path`, `https://user:***/path`},
++		{`https://ghp_<FIXTURE>@host/path`, `https://***@host/path`},
++		{`https://password:8080/path https://[::1]:8080/`, `https://password:8080/path https://[::1]:8080/`},
++		{`password=first\ second visible`, `password=*** visible`},
++		{"password: |\n  line one\n  line two\nname: normal\n", "password: ***\nname: normal\n"},
++		{"nested:\n  token: >-\r\n    secret one\r\n    secret two\r\n  name: normal\r\n", "nested:\n  token: ***\r\n  name: normal\r\n"},
++		{`ghp_<FIXTURE> github_pat_1234567890123456789 sk-proj-<FIXTURE>`, `ghp_<FIXTURE> github_pat_1234567890123456789 sk-proj-<FIXTURE>`},
++		{`hello 世界 ordinary=abc tokenization=xyz ghp_short sk-proj-<FIXTURE> https://host:8080/path`, `hello 世界 ordinary=abc tokenization=xyz ghp_short sk-proj-<FIXTURE> https://host:8080/path`},
++		{`a password question; name: normal; https://example.org/`, `a password question; name: normal; https://example.org/`},
++		{`PASSWORD=first,second-fake-secret visible`, `PASSWORD=*** visible`},
++		{`--token=first}second]third visible`, `--token=*** visible`},
++		{"password: first second-fake-secret\nname: normal\n", "password: ***\nname: normal\n"},
++		{"password: first\n  second-fake-secret\nname: normal\n", "password: ***\nname: normal\n"},
++		{`{"type":"result","result":"{\"password\":\"nested-fake-secret\"}"}`, `{"type":"result","result":"{\"password\":\"***\"}"}`},
++		{"- password: |\n    first-fake-secret\n  name: normal\n- name: second\n", "- password: ***\n  name: normal\n- name: second\n"},
++		{"- 'password': |\n    first-fake-secret\n  name: normal\n", "- 'password': ***\n  name: normal\n"},
++		{"- password: first second-fake-secret\r\n    continued-fake-secret\r\n  name: normal\r\n", "- password: ***\r\n  name: normal\r\n"},
++		{"password:\nname: normal\n", "password:***\nname: normal\n"},
++		{`{"password":1,"name":"normal"}`, `{"password":***,"name":"normal"}`},
++		{`{password: first second, name: normal}`, `{password: ***, name: normal}`},
++		{`{password: first'second secret, name: normal}`, `{password: ***, name: normal}`},
++	}
++}
++
++func TestNestedJSONEscapes(t *testing.T) {
++	for _, raw := range []string{
++		`{"password":"nested-fake-secret\"quoted\\tail","name":"normal"}`,
++		`{"password":"nested-fake-secret\\","name":"normal"}`,
++	} {
++		input, want := raw, `{"password":"***","name":"normal"}`
++		for depth := 0; depth <= 3; depth++ {
++			if got := Text(input); got != want {
++				t.Fatalf("depth %d: %q, want %q", depth, got, want)
++			}
++			if got := Text(want); got != want {
++				t.Fatalf("depth %d not idempotent: %q", depth, got)
++			}
++			for split := 0; split <= len(input); split++ {
++				var out bytes.Buffer
++				w := NewWriter(&out)
++				for _, part := range []string{input[:split], input[split:]} {
++					if _, err := w.Write([]byte(part)); err != nil {
++						t.Fatal(err)
++					}
++				}
++				if err := w.Close(); err != nil {
++					t.Fatal(err)
++				}
++				if out.String() != want {
++					t.Fatalf("depth %d split %d: %q", depth, split, out.String())
++				}
++			}
++			encodedInput, err := json.Marshal(struct {
++				Result string `json:"result"`
++			}{input})
++			if err != nil {
++				t.Fatal(err)
++			}
++			encodedWant, err := json.Marshal(struct {
++				Result string `json:"result"`
++			}{want})
++			if err != nil {
++				t.Fatal(err)
++			}
++			input, want = string(encodedInput), string(encodedWant)
++		}
++	}
++}
++
++func TestArgsPreservesBoundaries(t *testing.T) {
++	in := []string{"--token", "secret with spaces and \"quotes\"", "--password=two words", "normal", `{"api_key":"fake-value"}`}
++	want := []string{"--token", "***", "--password=***", "normal", `{"api_key":"***"}`}
++	got := Args(in)
++	for i := range want {
++		if got[i] != want[i] {
++			t.Fatalf("arg %d: %q, want %q", i, got[i], want[i])
++		}
++	}
++	if in[1] != "secret with spaces and \"quotes\"" {
++		t.Fatal("mutated argv")
++	}
++}
++
++func TestText(t *testing.T) {
++	for _, c := range redactionCases() {
++		if got := Text(c[0]); got != c[1] {
++			t.Errorf("Text(%q) = %q, want %q", c[0], got, c[1])
++		}
++		if got := Text(c[1]); got != c[1] {
++			t.Errorf("not idempotent: %q -> %q", c[1], got)
++		}
++	}
++}
++
++func TestTextLongSecrets(t *testing.T) {
++	secret := strings.Repeat("s", 128<<10)
++	for _, c := range [][2]string{
++		{"password=" + secret + " visible", "password=*** visible"},
++		{"token=\"" + secret + "\" visible", "token=\"***\" visible"},
++		{"ghp_" + secret + " visible", "*** visible"},
++		{"https://user:" + secret + "@host/path", "https://user:***@host/path"},
++		{`{\"password\":\"` + secret + `\"}`, `{\"password\":\"***\"}`},
++		{"password: first " + secret + "\n  continued-secret\nname: normal\n", "password: ***\nname: normal\n"},
++	} {
++		if got := Text(c[0]); got != c[1] {
++			t.Errorf("long secret: output len %d, want %q", len(got), c[1])
++		}
++	}
++}
+diff --git a/internal/redact/writer.go b/internal/redact/writer.go
+new file mode 100644
+index 0000000..192c687
+--- /dev/null
++++ b/internal/redact/writer.go
+@@ -0,0 +1,512 @@
++package redact
++
++import (
++	"bytes"
++	"io"
++	"strings"
++)
++
++type mode uint8
++
++const (
++	plain mode = iota
++	word
++	afterKey
++	beforeValue
++	unquoted
++	quoted
++	afterQuoted
++	prefixed
++	slash1
++	slash2
++	authority
++	longAuthority
++	blockHeader
++	blockStart
++	blockBody
++	yamlPlain
++	valueQuoteProbe
++	flowPlain
++)
++
++// Writer redacts one stream. It never mutates input or closes the destination.
++// Use a separate Writer for each stream; callers synchronize a shared sink.
++// Fixed arrays bound retained storage to less than 16 KiB regardless of input
++// length. Values are discarded as they arrive, not accumulated in memory.
++// Ambiguous URL authorities beyond 4 KiB are conservatively hidden: arbitrarily
++// long credentials cannot be buffered while waiting for their final '@'.
++type Writer struct {
++	dst                                    io.Writer
++	state                                  mode
++	keyFlag, escaped, widePrefix, overflow bool
++	quote                                  byte
++	wordBuf                                [256]byte
++	wordN                                  int
++	url                                    [4096]byte
++	urlN                                   int
++	out                                    [8192]byte
++	outN                                   int
++	err                                    error
++	closed                                 bool
++	column, wordColumn, quoteColumn        int
++	keyIndent, blockIndent                 int
++	quoteBeforeWord, yamlValue             bool
++	flowDepth                              int
++	flowValue                              bool
++	quoteSlashes, slashRun                 int
++}
++
++func NewWriter(dst io.Writer) *Writer { return &Writer{dst: dst} }
++
++func (w *Writer) flush() {
++	if w.err != nil || w.outN == 0 {
++		return
++	}
++	n, err := w.dst.Write(w.out[:w.outN])
++	if err == nil && n != w.outN {
++		err = io.ErrShortWrite
++	}
++	w.err = err
++	w.outN = 0
++}
++
++func (w *Writer) emit(p []byte) {
++	for len(p) > 0 && w.err == nil {
++		n := copy(w.out[w.outN:], p)
++		w.outN += n
++		p = p[n:]
++		if w.outN == len(w.out) {
++			w.flush()
++		}
++	}
++}
++func (w *Writer) char(c byte) {
++	if w.err != nil {
++		return
++	}
++	w.out[w.outN] = c
++	w.outN++
++	if w.outN == len(w.out) {
++		w.flush()
++	}
++}
++func (w *Writer) mask() { w.emit([]byte("***")) }
++
++func (w *Writer) Write(p []byte) (int, error) {
++	if w.err != nil {
++		return 0, w.err
++	}
++	if w.closed {
++		return 0, io.ErrClosedPipe
++	}
++	for i, c := range p {
++		w.step(c)
++		w.column++
++		if c == '\n' {
++			w.column = 0
++		}
++		if w.err != nil {
++			return i + 1, w.err
++		}
++	}
++	w.flush()
++	return len(p), w.err
++}
++
++func (w *Writer) step(c byte) {
++	for {
++		switch w.state {
++		case plain:
++			if wordByte(c) {
++				w.state, w.wordN, w.overflow = word, 1, false
++				// The key column includes sequence markers ("- password"),
++				// unlike leading whitespace alone. A quoted key starts at its quote.
++				w.wordColumn = w.column
++				if w.quoteBeforeWord {
++					w.wordColumn = w.quoteColumn
++				}
++				w.quoteBeforeWord = false
++				w.wordBuf[0] = c
++			} else {
++				w.quoteBeforeWord = c == '"' || c == '\''
++				if w.quoteBeforeWord {
++					w.quoteColumn = w.column
++				}
++				// Flow punctuation delimits JSON/YAML values, but commas and
++				// closing braces/brackets are ordinary bytes in shell words.
++				switch c {
++				case '{', '[':
++					w.flowDepth++
++				case '}', ']':
++					if w.flowDepth > 0 {
++						w.flowDepth--
++					}
++				}
++				w.char(c)
++			}
++			return
++		case word:
++			if wordByte(c) {
++				if w.wordN == len(w.wordBuf) {
++					// Retain a suffix for arbitrarily long environment variable names.
++					w.emit(w.wordBuf[:w.wordN-64])
++					copy(w.wordBuf[:], w.wordBuf[w.wordN-64:w.wordN])
++					w.wordN, w.overflow = 64, true
++				}
++				w.wordBuf[w.wordN] = c
++				w.wordN++
++				{
++					s := w.wordBuf[:w.wordN]
++					for _, prefix := range credentialPrefixes {
++						start := len(s) - len(prefix) - 20
++						if start >= 0 && bytes.HasPrefix(s[start:], []byte(prefix)) {
++							valid := true
++							for _, b := range s[start+len(prefix):] {
++								if b >= 128 || b == '-' && prefix != "sk-proj-" {
++									valid = false
++								}
++							}
++							if valid {
++								w.emit(s[:start])
++								w.mask()
++								w.state, w.widePrefix, w.wordN = prefixed, prefix == "sk-proj-", 0
++								break
++							}
++						}
++					}
++				}
++				return
++			}
++			s := string(w.wordBuf[:w.wordN])
++			w.emit(w.wordBuf[:w.wordN])
++			w.wordN = 0
++			w.state = plain
++			if secretKey(s, !w.overflow) || !w.overflow && strings.EqualFold(s, "bearer") {
++				w.state = afterKey
++				w.keyFlag = strings.HasPrefix(s, "-") || strings.EqualFold(s, "bearer")
++				w.keyIndent, w.yamlValue = w.wordColumn, false
++				w.flowValue = false
++			} else if c == ':' {
++				w.char(c)
++				w.state = slash1
++				return
++			}
++		case afterKey:
++			switch {
++			case c == '\\':
++				// JSON output can carry another JSON document in a string.
++				// Its key-closing quote is escaped, even across Write calls.
++				w.char(c)
++				return
++			case c == '"' || c == '\'':
++				w.char(c)
++				return
++			case space(c):
++				w.char(c)
++				if w.keyFlag {
++					w.state = beforeValue
++				}
++				return
++			case c == '=' || c == ':':
++				w.char(c)
++				w.yamlValue = c == ':'
++				w.flowValue = c == ':' && w.flowDepth > 0
++				w.state = beforeValue
++				return
++			default:
++				w.state = plain
++			}
++		case beforeValue:
++			if space(c) {
++				if w.yamlValue && !w.flowValue && (c == '\r' || c == '\n') {
++					w.mask()
++					w.state = blockHeader
++					continue
++				}
++				w.char(c)
++				return
++			}
++			if c == '\'' || c == '"' {
++				w.char(c)
++				w.mask()
++				w.quote, w.escaped, w.state = c, false, quoted
++				w.quoteSlashes, w.slashRun = 0, 0
++				return
++			}
++			if c == '\\' {
++				w.slashRun, w.state = 1, valueQuoteProbe
++				return
++			}
++			if w.yamlValue && !w.flowValue && (c == '|' || c == '>') {
++				w.mask()
++				w.state = blockHeader
++				return
++			}
++			if w.yamlValue && !w.flowValue {
++				// YAML plain scalars include spaces and may continue on
++				// indented lines. Reuse the block indentation boundary.
++				w.mask()
++				w.state = yamlPlain
++				continue
++			}
++			if w.flowValue && !flowEnd(c) {
++				w.mask()
++				w.state = flowPlain
++				continue
++			}
++			if w.valueEnd(c) {
++				w.state = plain
++				continue
++			}
++			w.mask()
++			w.state, w.escaped = unquoted, false
++		case unquoted:
++			if w.escaped {
++				w.escaped = false
++				return
++			}
++			if c == '\\' {
++				w.escaped = true
++				return
++			}
++			if c == '\'' || c == '"' {
++				w.char(c)
++				w.quote, w.escaped, w.state = c, false, quoted
++				w.quoteSlashes, w.slashRun = 0, 0
++				return
++			}
++			if !w.valueEnd(c) {
++				return
++			}
++			w.state = plain
++		case quoted:
++			if c == '\\' && w.quote == '"' {
++				w.slashRun++
++				return
++			}
++			// At encoding depth n the delimiter has 2^n-1 backslashes.
++			// An escaped quote inside the value has an additional 2^n;
++			// escaped trailing backslashes add multiples of 2^(n+1).
++			if c == w.quote && (w.quote != '"' || w.slashRun >= w.quoteSlashes &&
++				(w.slashRun-w.quoteSlashes)%(2*(w.quoteSlashes+1)) == 0) {
++				for range w.quoteSlashes {
++					w.char('\\')
++				}
++				w.char(c)
++				w.state = afterQuoted
++			}
++			w.slashRun = 0
++			return
++		case afterQuoted:
++			if c == '\'' || c == '"' {
++				w.char(c)
++				w.quote, w.escaped, w.state = c, false, quoted
++				w.quoteSlashes, w.slashRun = 0, 0
++				return
++			}
++			if !w.valueEnd(c) {
++				w.state, w.escaped = unquoted, false
++				continue
++			}
++			w.state = plain
++		case prefixed:
++			if prefixByte(c, w.widePrefix) {
++				return
++			}
++			w.state = plain
++		case slash1:
++			w.state = plain
++			if c == '/' {
++				w.state = slash2
++				w.char(c)
++				return
++			}
++		case slash2:
++			w.state = plain
++			if c == '/' {
++				w.char(c)
++				w.state, w.urlN = authority, 0
++				return
++			}
++		case authority:
++			if c == '@' {
++				w.emitAuthority(true)
++				w.char(c)
++				w.state = plain
++				return
++			}
++			if authorityEnd(c) {
++				w.emitAuthority(false)
++				w.state = plain
++				continue
++			}
++			if w.urlN == len(w.url) {
++				if colon := bytes.IndexByte(w.url[:w.urlN], ':'); colon >= 0 {
++					w.publicAuthority(w.url[:colon+1])
++				}
++				w.mask()
++				w.urlN, w.state = 0, longAuthority
++				continue
++			}
++			w.url[w.urlN] = c
++			w.urlN++
++			return
++		case longAuthority:
++			if c == '@' {
++				w.char(c)
++				w.state = plain
++				return
++			}
++			if !authorityEnd(c) {
++				return
++			}
++			w.state = plain
++		case blockHeader:
++			if c == '\r' {
++				w.char(c)
++			}
++			if c == '\n' {
++				w.char(c)
++				w.state, w.blockIndent = blockStart, 0
++			}
++			return
++		case blockStart:
++			if c == ' ' || c == '\t' {
++				w.blockIndent++
++				return
++			}
++			if c == '\r' || c == '\n' {
++				w.blockIndent = 0
++				return
++			}
++			if w.blockIndent > w.keyIndent {
++				w.state = blockBody
++				return
++			}
++			for range w.blockIndent {
++				w.char(' ')
++			}
++			w.state = plain
++		case blockBody:
++			if c == '\n' {
++				w.state, w.blockIndent = blockStart, 0
++			}
++			return
++		case yamlPlain:
++			if c == '\r' {
++				w.char(c)
++			}
++			if c == '\n' {
++				w.char(c)
++				w.state, w.blockIndent = blockStart, 0
++			}
++			return
++		case flowPlain:
++			if flowEnd(c) {
++				w.state = plain
++				continue
++			}
++			if c == '\r' || c == '\n' {
++				w.char(c)
++			}
++			return
++		case valueQuoteProbe:
++			if c == '\\' {
++				w.slashRun++
++				return
++			}
++			if c == '"' {
++				for range w.slashRun {
++					w.char('\\')
++				}
++				w.char(c)
++				w.mask()
++				w.quote, w.quoteSlashes, w.slashRun, w.state = c, w.slashRun, 0, quoted
++				return
++			}
++			w.mask()
++			w.escaped, w.slashRun, w.state = w.slashRun%2 == 1, 0, unquoted
++			if w.yamlValue && !w.flowValue {
++				w.state = yamlPlain
++			}
++			if w.flowValue {
++				w.state = flowPlain
++			}
++		}
++	}
++}
++
++func (w *Writer) valueEnd(c byte) bool {
++	if w.flowValue {
++		return space(c) || flowEnd(c)
++	}
++	return shellEnd(c)
++}
++
++func (w *Writer) emitAuthority(credential bool) {
++	p := w.url[:w.urlN]
++	// Preserve ordinary host:port URLs, but fail closed for incomplete user:pass
++	// authorities. A nonnumeric port cannot be a valid ordinary URL port.
++	i := bytes.IndexByte(p, ':')
++	if !credential && i >= 0 && len(p) > 0 && p[0] != '[' {
++		for _, c := range p[i+1:] {
++			if c < '0' || c > '9' {
++				credential = true
++				break
++			}
++		}
++	}
++	if credential && i >= 0 {
++		w.publicAuthority(p[:i+1])
++		w.mask()
++	} else {
++		w.publicAuthority(p)
++	}
++	w.urlN = 0
++}
++
++// An authority may carry a prefixed credential as the username alone.
++func (w *Writer) publicAuthority(p []byte) {
++	// Prefixes are the only patterns meaningful in a host/user portion. Scan
++	// those directly to avoid treating a hostname such as password:8080 as a key.
++	start := 0
++	for i := 0; i < len(p); i++ {
++		for _, prefix := range credentialPrefixes {
++			if !bytes.HasPrefix(p[i:], []byte(prefix)) {
++				continue
++			}
++			end := i + len(prefix)
++			for end < len(p) && prefixByte(p[end], prefix == "sk-proj-") {
++				end++
++			}
++			if end-i-len(prefix) < 20 {
++				continue
++			}
++			w.emit(p[start:i])
++			w.mask()
++			start, i = end, end-1
++			break
++		}
++	}
++	w.emit(p[start:])
++}
++
++// Close flushes an incomplete token. Unterminated secret values stay hidden.
++// Errors are sticky; there is no fallback to an unredacted destination.
++func (w *Writer) Close() error {
++	if !w.closed {
++		w.closed = true
++		if w.state == word {
++			w.emit(w.wordBuf[:w.wordN])
++			w.wordN = 0
++		}
++		if w.state == authority {
++			w.emitAuthority(false)
++		}
++		if w.state == valueQuoteProbe {
++			w.mask()
++		}
++		w.flush()
++	}
++	return w.err
++}
+diff --git a/internal/redact/writer_test.go b/internal/redact/writer_test.go
+new file mode 100644
+index 0000000..0821e3a
+--- /dev/null
++++ b/internal/redact/writer_test.go
+@@ -0,0 +1,102 @@
++package redact
++
++import (
++	"bytes"
++	"errors"
++	"io"
++	"strings"
++	"testing"
++)
++
++func TestWriterEveryBoundary(t *testing.T) {
++	for _, c := range redactionCases() {
++		for split := 0; split <= len(c[0]); split++ {
++			var dst bytes.Buffer
++			w := NewWriter(&dst)
++			for _, part := range []string{c[0][:split], c[0][split:]} {
++				p := []byte(part)
++				before := bytes.Clone(p)
++				if n, err := w.Write(p); err != nil || n != len(p) {
++					t.Fatalf("Write = %d, %v", n, err)
++				}
++				if !bytes.Equal(p, before) {
++					t.Fatal("mutated caller's buffer")
++				}
++			}
++			if err := w.Close(); err != nil {
++				t.Fatal(err)
++			}
++			if err := w.Close(); err != nil {
++				t.Fatal(err)
++			}
++			if got := dst.String(); got != c[1] {
++				t.Fatalf("split %d of %q: %q, want %q", split, c[0], got, c[1])
++			}
++		}
++		var dst bytes.Buffer
++		w := NewWriter(&dst)
++		for i := range len(c[0]) {
++			if _, err := w.Write([]byte{c[0][i]}); err != nil {
++				t.Fatal(err)
++			}
++		}
++		if err := w.Close(); err != nil {
++			t.Fatal(err)
++		}
++		if dst.String() != c[1] {
++			t.Fatalf("byte writes: %q", dst.String())
++		}
++	}
++}
++
++type brokenWriter struct{ short bool }
++
++func (b brokenWriter) Write(p []byte) (int, error) {
++	if b.short {
++		return 0, nil
++	}
++	return 0, io.ErrClosedPipe
++}
++
++func TestWriterErrors(t *testing.T) {
++	for _, c := range []struct {
++		dst io.Writer
++		err error
++	}{{brokenWriter{}, io.ErrClosedPipe}, {brokenWriter{true}, io.ErrShortWrite}} {
++		w := NewWriter(c.dst)
++		_, err := w.Write([]byte("normal text\n"))
++		if !errors.Is(err, c.err) {
++			t.Fatalf("Write: %v", err)
++		}
++		if !errors.Is(w.Close(), c.err) {
++			t.Fatal("lost sink error")
++		}
++	}
++	w := NewWriter(io.Discard)
++	if err := w.Close(); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := w.Write([]byte("after close")); !errors.Is(err, io.ErrClosedPipe) {
++		t.Fatalf("Write after Close: %v", err)
++	}
++}
++
++func TestWriterBoundedMemory(t *testing.T) {
++	for _, size := range []int{1 << 20, 16 << 20} {
++		for _, start := range []string{"token=\"", "token=", "ghp_", "https://user:", "ordinary", "password: ", `{\"password\":\"`} {
++			w := NewWriter(io.Discard)
++			if _, err := io.WriteString(w, start); err != nil {
++				t.Fatal(err)
++			}
++			block := []byte(strings.Repeat("x", 4096))
++			for sent := 0; sent < size; sent += len(block) {
++				if _, err := w.Write(block); err != nil {
++					t.Fatal(err)
++				}
++			}
++			if err := w.Close(); err != nil {
++				t.Fatal(err)
++			}
++		}
++	}
++}

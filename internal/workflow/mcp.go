@@ -10,8 +10,61 @@ import (
 	"time"
 
 	"bint/internal/config"
+	"bint/internal/flow"
+	"bint/internal/harness/claude"
 	"bint/internal/mcpgw"
 )
+
+// denyReadMatcher là matcher PreToolUse bổ sung cho bước b-goal của Claude: hook Bint đã cài chỉ đăng ký Read|Edit|Write|MultiEdit|
+// NotebookEdit|Bash (claude.pathMatcher) nên Grep/Glob không bao giờ tới hookcore.Handle; thiếu hook này rào BINT_DENY_READ (hookcore/
+// deny_read.go) không chặn được Grep vào plan.md/tasks.md. Không lặp Read/Bash để khỏi chạy hook hai lần mỗi lời gọi.
+const denyReadMatcher = "Grep|Glob"
+
+// writeStepDenyReadSettings ghi <stateRoot>/mcp/<runID>-settings.json: settings bổ sung (--settings của Claude, hợp nhất với settings đã cài)
+// đăng ký `bint hook claude` cho denyReadMatcher. exe là đường dẫn tuyệt đối của binary Bint.
+func writeStepDenyReadSettings(stateRoot, runID, exe string) (string, error) {
+	if exe == "" {
+		return "", fmt.Errorf("thiếu đường dẫn binary Bint")
+	}
+	dir := filepath.Join(stateRoot, "mcp")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	hook := map[string]any{"type": "command", "command": claude.HookCommand(exe), "timeout": claude.HookTimeoutSeconds}
+	b, err := json.MarshalIndent(map[string]any{"hooks": map[string]any{
+		"PreToolUse": []any{map[string]any{"matcher": denyReadMatcher, "hooks": []any{hook}}},
+	}}, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, runID+"-settings.json")
+	if err := os.WriteFile(path, append(b, '\n'), 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// stepDenyReadSettings cấp settings của rào đọc cho bước b-goal chạy bằng Claude (harness khác không dùng --settings theo nghĩa này:
+// Codex không có công cụ Grep/Glob riêng, đọc qua shell). path rỗng = không cấp (bước vẫn chạy, rào chỉ còn Read/Bash của hook đã cài).
+func (r *Runner) stepDenyReadSettings(sr *stepRun) (path string, cleanup func()) {
+	if sr.kind != flow.KindGoal || sr.harness != "claude" || r.Spool == "" {
+		return "", func() {}
+	}
+	exe := r.BintExe
+	if exe == "" {
+		var err error
+		if exe, err = os.Executable(); err != nil {
+			r.logf("bước %s: không xác định được binary Bint, rào đọc Grep/Glob của b-goal không bật: %v", sr.child, err)
+			return "", func() {}
+		}
+	}
+	path, err := writeStepDenyReadSettings(filepath.Dir(r.Spool), sr.child, exe)
+	if err != nil {
+		r.logf("bước %s: không ghi được settings rào đọc, Grep/Glob của b-goal không bị chặn: %v", sr.child, err)
+		return "", func() {}
+	}
+	return path, func() { _ = os.Remove(path) }
+}
 
 // writeStepMCPConfig ghi <stateRoot>/mcp/<runID>.json chỉ chứa server MCP của Bint và trả đường dẫn. Server là cửa vào gộp
 // `bint mcp serve`; run/task đặt vào ĐỐI SỐ (--run-id, --task-id) chứ không chỉ env, vì Codex lọc env của server MCP stdio.

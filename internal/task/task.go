@@ -182,6 +182,10 @@ type Classification struct {
 	Driver string `json:"driver,omitempty"`
 	// DriverReason: user | config | default (cùng nghĩa với IsolationReason).
 	DriverReason string `json:"driver_reason,omitempty"`
+	// Fast: đường nhanh của b-do cho yêu cầu mơ hồ đơn giản (ReasonVagueShort, rủi ro low, workflow.fast_path bật): bỏ b-req,
+	// b-feat một phiên, cổng kiểm chứng, đúng một vòng b-review rồi (nếu còn phát hiện nghiêm trọng) một vòng sửa nối tiếp
+	// phiên b-feat và finalize không review lại. Rỗng (phiếu cũ) = false = đường đầy đủ.
+	Fast bool `json:"fast,omitempty"`
 }
 
 // Driver của tác vụ (docs/isolation-subagent-plan.md mục 6): ai chạy các bước agent.
@@ -252,7 +256,9 @@ type Verification struct {
 	ExitCode  int    `json:"exit_code"`
 	Passed    bool   `json:"passed"`
 	TimedOut  bool   `json:"timed_out,omitempty"`
-	Log       string `json:"log,omitempty"`
+	// Voided: lần đo đỏ thuộc cây của lát đã bị bỏ (--slice discard); redVerification bỏ qua nó (cây đã quay về điểm xanh).
+	Voided bool   `json:"voided,omitempty"`
+	Log    string `json:"log,omitempty"`
 	// Worktree là fingerprint trạng thái mã lúc kiểm chứng (HEAD + thay đổi chưa commit).
 	Worktree string `json:"worktree,omitempty"`
 	// Tree là mã cây ảnh chụp cây làm việc sau lệnh kiểm chứng ("" nếu không chụp được); dùng để
@@ -268,8 +274,133 @@ type Verification struct {
 	Scope string `json:"scope,omitempty"`
 	// Ran là lệnh thực chạy khi khác Command (scope affected); rỗng khi không chạy gì (none) hay chạy Command.
 	Ran string `json:"ran,omitempty"`
+	// Seconds và BaselineSeconds là số đo của cổng hiệu năng (nhỏ nhất của 3 lần, giây) và mốc trước b-feat đầu; chỉ có ở PerfChecks.
+	Seconds         float64 `json:"seconds,omitempty"`
+	BaselineSeconds float64 `json:"baseline_seconds,omitempty"`
 	// Selection là bằng chứng chọn phạm vi (base, head, tệp đổi, lý do nới) của lần kiểm chứng affected.
 	Selection *affected.Selection `json:"selection,omitempty"`
+}
+
+// GoalFile là một tệp đóng băng của kiểm tra mục tiêu: đường dẫn tương đối (dấu /) và sha256 nội dung lúc b-goal xong.
+type GoalFile struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+// GoalTest là tập tệp b-goal tạo/sửa, được Bint đóng băng.
+type GoalTest struct {
+	Files []GoalFile `json:"files"`
+	RunID string     `json:"run_id,omitempty"`
+	At    string     `json:"at,omitempty"`
+}
+
+// Paths trả đường dẫn các tệp đóng băng.
+func (g *GoalTest) Paths() []string {
+	if g == nil {
+		return nil
+	}
+	out := make([]string, len(g.Files))
+	for i, f := range g.Files {
+		out[i] = f.Path
+	}
+	return out
+}
+
+// Trạng thái của một lát mỏng (State.Slices).
+const (
+	SlicePending   = "pending"   // chưa tới lượt
+	SliceActive    = "active"    // đang là lát được chạy (đúng một lát tại một thời điểm)
+	SliceAccepted  = "accepted"  // đã chốt: ô đỏ của kiểm tra mục tiêu giảm, test cũ vẫn xanh, điểm xanh đã tiến
+	SliceDiscarded = "discarded" // đã bỏ: cây quay về điểm xanh, Backup giữ nội dung lát
+	SliceUnsliced  = "unsliced"  // thôi chia lát giữa chừng (slicing off / slice_timeout_minutes 0): phần còn lại chạy một b-feat thường
+)
+
+// Slice là một lát mỏng của b-do chạy kế hoạch lớn: một nhóm `## Bề mặt bị ảnh hưởng` của plan.md, chạy bằng một lượt b-feat riêng.
+type Slice struct {
+	N int `json:"n"`
+	// Text là nguyên văn dòng nhóm trong plan.md (không dấu gạch đầu dòng); ACs là các AC-N nhóm nêu.
+	Text   string `json:"text"`
+	ACs    []int  `json:"acs,omitempty"`
+	Status string `json:"status"`
+	// Reason: lý do bỏ (có số đo) hoặc ghi chú chốt.
+	Reason string `json:"reason,omitempty"`
+	// Red là tập ô đỏ của cổng mục tiêu sau lát (chỉ khi đo được: lát đã chốt, hoặc bị bỏ vì không đạt điều kiện chốt).
+	Red []string `json:"red,omitempty"`
+	// Tree là ảnh chụp cây lúc chốt; Backup là ref giữ nội dung lát bị bỏ (git restore --source=<ref> -- <tệp>).
+	Tree   string `json:"tree,omitempty"`
+	Backup string `json:"backup,omitempty"`
+	RunID  string `json:"run_id,omitempty"`
+	// Held: lát đang active nhưng dừng chờ người (quá trần, không đạt số đo, vượt ngân sách, agent lỗi): cây của lát được GIỮ nguyên (Backup là ref
+	// ghim nó); người chọn `bint run resume --slice keep|discard|more`.
+	Held bool `json:"held,omitempty"`
+}
+
+// OpenSlices trả các lát chưa chốt (pending hoặc active, kể cả lát đang giữ chờ người).
+func (s *State) OpenSlices() []Slice {
+	var out []Slice
+	for _, sl := range s.Slices {
+		if sl.Status == SlicePending || sl.Status == SliceActive {
+			out = append(out, sl)
+		}
+	}
+	return out
+}
+
+// HeldSlice trả lát đang giữ chờ người chọn (nil khi không có).
+func (s *State) HeldSlice() *Slice {
+	if a := s.ActiveSlice(); a != nil && a.Held {
+		return a
+	}
+	return nil
+}
+
+// SliceGreen là điểm xanh của lát: ảnh chụp cây gần nhất mà số đo của cổng mục tiêu được chốt một chiều (chỉ tiến, không lùi).
+type SliceGreen struct {
+	Tree string `json:"tree"`
+	At   string `json:"at,omitempty"`
+	// Measured: cổng mục tiêu ở điểm này đo được tập ô đỏ (Red); false là chưa đo được (vd. biên dịch hỏng): lát chỉ cần làm cho đo được.
+	Measured bool     `json:"measured"`
+	Red      []string `json:"red,omitempty"`
+}
+
+// SliceMark ghi số lần kiểm chứng và số lần chạy cổng mục tiêu lúc lát hiện tại bắt đầu: kết quả của lát là các lần sau mốc này.
+type SliceMark struct {
+	VerifyN int `json:"verify_n"`
+	GoalN   int `json:"goal_n"`
+}
+
+// ActiveSlice trả lát đang chạy (nil khi không có).
+func (s *State) ActiveSlice() *Slice {
+	for i := range s.Slices {
+		if s.Slices[i].Status == SliceActive {
+			return &s.Slices[i]
+		}
+	}
+	return nil
+}
+
+// LastPerfCheck là lần đo hiệu năng gần nhất (nil khi chưa có).
+func (s *State) LastPerfCheck() *Verification {
+	if len(s.PerfChecks) == 0 {
+		return nil
+	}
+	return &s.PerfChecks[len(s.PerfChecks)-1]
+}
+
+// LastBudgetCheck là lần đo ngân sách diff gần nhất (nil khi chưa có).
+func (s *State) LastBudgetCheck() *Verification {
+	if len(s.BudgetChecks) == 0 {
+		return nil
+	}
+	return &s.BudgetChecks[len(s.BudgetChecks)-1]
+}
+
+// LastGoalCheck là lần chạy cổng mục tiêu gần nhất (nil khi chưa có).
+func (s *State) LastGoalCheck() *Verification {
+	if len(s.GoalChecks) == 0 {
+		return nil
+	}
+	return &s.GoalChecks[len(s.GoalChecks)-1]
 }
 
 // Full cho biết lần kiểm chứng đã chạy verify.command đầy đủ.
@@ -361,6 +492,11 @@ type State struct {
 	// SetupApproval là lần người xác nhận workflow.worktree.setup_command cho tác vụ worktree này
 	// (bint task approve); so theo băm SHA256 của lệnh, lệnh đổi thì phải xác nhận lại.
 	SetupApproval *Approval `json:"setup_approval,omitempty"`
+	// PerfApproval là lần người xác nhận workflow.perf.command (bint task approve); so theo băm SHA256 của lệnh,
+	// lệnh đổi thì cổng hiệu năng không chạy cho tới khi xác nhận lại.
+	PerfApproval *Approval `json:"perf_approval,omitempty"`
+	// PerfBaselineTried: đã thử đo mốc hiệu năng một lần (kể cả khi lệnh hỏng); không đo lại để mốc không rơi vào cây đã sửa.
+	PerfBaselineTried bool `json:"perf_baseline_tried,omitempty"`
 	// PendingPaths là tệp đã sửa chạm đường dẫn bảo vệ/deny đang chờ người duyệt.
 	PendingPaths []string      `json:"pending_paths,omitempty"`
 	Errors       []ErrorRecord `json:"errors,omitempty"`
@@ -402,6 +538,90 @@ type State struct {
 	SessionSpend *SessionSpend `json:"session_spend,omitempty"`
 	// LastStep là bước dừng gần nhất không hoàn thành (hoặc dừng chờ người ngay sau bước); xoá khi bước mới bắt đầu.
 	LastStep *StepStop `json:"last_step,omitempty"`
+	// Questions là câu hỏi mà bước agent ghi bằng `bint task error --question` và câu trả lời của người
+	// (`bint run resume --answer`). Câu hỏi mở (OpenQuestions) làm tác vụ dừng chờ người sau bước implement.
+	Questions []StepQuestion `json:"questions,omitempty"`
+	// LastImplement là bước implement vừa kết thúc bình thường (handle phiên + fingerprint cây sau bước): vòng sửa sau
+	// review dùng để nối tiếp phiên của chính b-feat đó (lớp dừng review_fix); không xoá khi bước khác bắt đầu.
+	LastImplement *StepStop `json:"last_implement,omitempty"`
+	// LastPlan là bước plan (b-req) vừa kết thúc bình thường ở driver process (handle phiên + fingerprint cây + model): b-feat
+	// đầu tiên nối tiếp phiên đó (lớp dừng plan_handoff). Xoá khi b-feat thực sự bắt đầu.
+	LastPlan *StepStop `json:"last_plan,omitempty"`
+	// PlanSize là dấu của cổng cỡ kế hoạch (b-do): "" = chưa áp (b-req vừa xong hoặc bị chặn lint/câu hỏi trước cổng), "passed" = kế hoạch
+	// nhỏ hoặc người đã đồng ý, "blocked" = cổng dừng chờ người (resume sau đó là quyết định của người, đi tiếp). Chạy lại b-req đặt lại "".
+	PlanSize string `json:"plan_size,omitempty"`
+	// GoalTest là kiểm tra mục tiêu độc lập do bước b-goal viết (chỉ thấy requirement.md) và Bint đóng băng: tệp và băm lúc b-goal xong.
+	// Nil = chưa có (phiếu cũ, --fast, thiếu mục Kiểm tra mục tiêu, b-goal chưa chạy).
+	GoalTest *GoalTest `json:"goal_test,omitempty"`
+	// GoalChecks là các lần chạy cổng mục tiêu riêng (log goal-N.log); lần cuối quyết định điều kiện done.
+	GoalChecks []Verification `json:"goal_checks,omitempty"`
+	// BudgetChecks là các lần đo ngân sách diff sau bước b-feat khi không chia lát (workflow.max_diff_lines > 0); Command mô tả số đo, đỏ (Passed=false)
+	// coi như kiểm chứng không qua (redVerification).
+	BudgetChecks []Verification `json:"budget_checks,omitempty"`
+	// PerfBaseline là mốc hiệu năng (giây, nhỏ nhất của 3 lần) đo trước b-feat đầu tiên khi workflow.perf.command bật; PerfChecks là các lần đo sau mỗi b-feat (log perf-N.log).
+	PerfBaseline *float64       `json:"perf_baseline,omitempty"`
+	PerfChecks   []Verification `json:"perf_checks,omitempty"`
+	// GoalAwaitingCheck: agent b-goal đã xong nhưng kiểm phạm vi dừng chờ người (tệp test chạm đường dẫn bảo vệ/deny...) nên chưa đóng băng
+	// (GoalTest nil). Resume chỉ chạy phần sau kiểm phạm vi (đóng băng đúng nội dung đã duyệt), không gọi lại agent b-goal, tương tự AwaitingCheck.
+	GoalAwaitingCheck bool `json:"goal_awaiting_check,omitempty"`
+	// GoalCheckRunID là lượt con của agent b-goal đã xong khi GoalAwaitingCheck được đặt; resume (stepGoalCheck) không còn rs.res.Steps
+	// nên GoalTest.RunID lấy từ đây.
+	GoalCheckRunID string `json:"goal_check_run_id,omitempty"`
+	// Slices là các lát mỏng khi b-do chạy kế hoạch lớn theo lát (workflow.slice_timeout_minutes > 0; slice.go): theo thứ tự nhóm trong plan.md,
+	// ghi một lần ở b-feat đầu tiên. SliceGreen là điểm xanh của lát (nil trước lát 1); SliceMark là mốc đếm của lát đang chạy.
+	Slices     []Slice     `json:"slices,omitempty"`
+	SliceGreen *SliceGreen `json:"slice_green,omitempty"`
+	SliceMark  *SliceMark  `json:"slice_mark,omitempty"`
+	// FastFixed: đường nhanh đã mở vòng sửa duy nhất sau review vòng 1; sau kiểm chứng của vòng sửa tác vụ finalize, không review lại.
+	FastFixed bool `json:"fast_fixed,omitempty"`
+	// ExtraFixRounds là số vòng sửa người cho thêm bằng `bint run resume --fix-round` ngoài workflow.max_review_rounds.
+	ExtraFixRounds int `json:"extra_fix_rounds,omitempty"`
+	// ReviewExhausted: tác vụ đang chờ người sau khi hết vòng sửa (còn phát hiện nghiêm trọng): chỉ khi đó
+	// `bint run resume --accept` / `--fix-round` có hiệu lực.
+	ReviewExhausted bool `json:"review_exhausted,omitempty"`
+	// AwaitingAnswer: b-feat dừng chờ người nói rõ (câu hỏi mở hoặc bước kết thúc mà không đổi tệp nào): chỉ khi đó
+	// `bint run resume --answer` có hiệu lực. Xoá khi tiếp tục.
+	AwaitingAnswer bool `json:"awaiting_answer,omitempty"`
+}
+
+// StepQuestion là câu hỏi của một bước agent gửi người (bint task error --question) và câu trả lời.
+type StepQuestion struct {
+	Step  string `json:"step,omitempty"`
+	RunID string `json:"run_id,omitempty"`
+	Text  string `json:"text"`
+	At    string `json:"at,omitempty"`
+	By    string `json:"by,omitempty"`
+	// Answer khác rỗng: đã được trả lời (AnsweredAt/AnsweredBy). Closed: bỏ qua (bước chạy lại mà người không trả lời).
+	Answer     string `json:"answer,omitempty"`
+	AnsweredAt string `json:"answered_at,omitempty"`
+	AnsweredBy string `json:"answered_by,omitempty"`
+	Closed     bool   `json:"closed,omitempty"`
+}
+
+// Open: câu hỏi còn chờ trả lời.
+func (q StepQuestion) Open() bool { return q.Answer == "" && !q.Closed }
+
+// OpenQuestions trả câu hỏi còn chờ trả lời của bước step (rỗng = mọi bước). Câu hỏi không gắn bước (ghi khi chưa biết bước
+// đang chạy) thuộc về mọi bước, để không bị cổng bỏ qua lặng lẽ.
+func (s *State) OpenQuestions(step string) []StepQuestion {
+	var out []StepQuestion
+	for _, q := range s.Questions {
+		if q.Open() && (step == "" || q.Step == step || q.Step == "") {
+			out = append(out, q)
+		}
+	}
+	return out
+}
+
+// AnsweredQuestions trả câu hỏi đã được trả lời của bước step (rỗng = mọi bước), theo thứ tự ghi.
+func (s *State) AnsweredQuestions(step string) []StepQuestion {
+	var out []StepQuestion
+	for _, q := range s.Questions {
+		if q.Answer != "" && (step == "" || q.Step == step || q.Step == "") {
+			out = append(out, q)
+		}
+	}
+	return out
 }
 
 // HeldStep ghi bước chỉ đọc đang được giữ vì cây đổi trong lúc chạy (State.HeldStep).
@@ -434,6 +654,8 @@ type StepStop struct {
 	// Profile là profile `bint iso` mà bước chạy trong đó, dạng <tool>/<tên> (vd codex/work); rỗng = tài khoản thật (hoặc
 	// subagent, phiếu cũ). Phiên harness nằm trong thư mục cấu hình của profile nên chỉ nối tiếp được khi profile không đổi.
 	Profile string `json:"profile,omitempty"`
+	// Model là model yêu cầu của bước (harness chạy theo role); chỉ dùng để quyết định nối tiếp b-req → b-feat (cùng model mới nối tiếp).
+	Model string `json:"model,omitempty"`
 	// Continuations: số lần nối tiếp external/timeout liên tiếp đã dùng cho bước này; OriginRunID: lượt đầu của agent.
 	Continuations int    `json:"continuations,omitempty"`
 	OriginRunID   string `json:"origin_run_id,omitempty"`

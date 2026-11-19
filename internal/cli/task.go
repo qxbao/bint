@@ -85,7 +85,7 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskReadyCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskDoneCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
-		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
+		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskRestoreGreenCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
 	return c
 }
 
@@ -95,6 +95,7 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		wf       string
 		plan     bool
 		noPlan   bool
+		fast     bool
 		asJSON   bool
 		fromFile string
 		depth    string
@@ -114,9 +115,13 @@ không, và đánh giá rủi ro. Bint chỉ hỏi lại khi thiếu trường q
 ro cao (chạm đường dẫn bảo vệ mà không có cách kiểm chứng).
 
 Tệp tài liệu (.md, .txt…) mà mô tả coi là kế hoạch/đặc tả cần làm theo ("thực hiện plan
-docs/x.md") được ghi vào references thay vì scope.allow. Đề xuất b-req chỉ là heuristic:
-orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và sửa phạm vi bằng
+docs/x.md") được ghi vào references thay vì scope.allow. Mặc định (workflow.fast_path tắt) Classify đề xuất như thường: yêu cầu mơ hồ đi b-req, việc nhỏ hay yêu cầu ngắn nêu rõ chỗ sửa có thể bỏ b-req; chỉ khi bật tay fast_path thì Bint còn tự chọn đường nhanh.
+Orchestrator hoặc người quyết định bằng --plan/--no-plan/--depth và sửa phạm vi bằng
 --clear-scope --allow. Agent không bỏ được b-req (--no-plan) khi tác vụ chạm đường dẫn bảo vệ.
+
+--fast chọn đường nhanh của b-do (chỉ b-do; không đi cùng --plan/--no-plan/--depth): không b-req, một phiên b-feat,
+cổng kiểm chứng, một lượt review, tối đa một vòng sửa. Phạm vi chạm đường dẫn bảo vệ thì vẫn qua b-req. Không có --fast
+thì Classify quyết như thường (yêu cầu mơ hồ vào b-req; trừ khi workflow.fast_path: true cho Bint tự chọn đường nhanh từ câu chữ).
 
 Cô lập (chọn một lần lúc lập phiếu, ghi vào phiếu): workflow.isolation = auto sửa thẳng trên cây
 đang làm, và tự chuyển tác vụ vào worktree riêng khi cây đó đang có tác vụ khác chưa kết thúc
@@ -145,7 +150,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 				req = args[0]
 			}
 			o := app.TaskNewDefaults(config.Default())
-			o.Request, o.Workflow, o.Plan, o.NoPlan, o.Depth = req, wf, plan, noPlan, depth
+			o.Request, o.Workflow, o.Plan, o.NoPlan, o.Depth, o.Fast = req, wf, plan, noPlan, depth, fast
 			o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = ef.goal, ef.verify, ef.autonomy, ef.criteria, ef.allow, ef.deny
 			o.Constraints, o.ClearScope = ef.constraints, ef.clearScope
 			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
@@ -198,6 +203,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 	c.Flags().StringVar(&wf, "workflow", "b-do", "workflow tạo tác vụ (b-do | b-req | b-feat | b-review | b-debug)")
 	c.Flags().BoolVar(&plan, "plan", false, "luôn qua b-req")
 	c.Flags().BoolVar(&noPlan, "no-plan", false, "bỏ qua b-req")
+	c.Flags().BoolVar(&fast, "fast", false, fastFlagHelp)
 	c.Flags().StringVar(&depth, "depth", "auto", depthFlagHelp)
 	c.Flags().BoolVar(&worktree, "worktree", false, "chạy tác vụ trong worktree riêng (song song với tác vụ khác); loại trừ --shared")
 	c.Flags().BoolVar(&shared, "shared", false, "sửa thẳng trên cây đang làm, không vào worktree riêng; loại trừ --worktree")
@@ -347,7 +353,7 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 						arts[x.Name] = x.Path
 					}
 				}
-				out := map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "classification": t.State.Classification, "assessment": a,
+				out := map[string]any{"dir": t.Dir, "ticket": t.Ticket, "state": t.State, "last_green": d.LastGreen, "open_findings": d.OpenFindings, "classification": t.State.Classification, "assessment": a,
 					"verify_confirmed": d.VerifyConfirmed, "setup_command": d.Setup.Command, "setup_confirmed": d.Setup.Confirmed,
 					"setup_required": d.Setup.Required, "artifacts": arts, "review": rev, "done_blockers": nonNil(blockers),
 					"isolation": t.State.Isolation(), "isolation_reason": isolationReason(t), "isolation_tasks": nonNil(isolationTasks(t)),
@@ -358,6 +364,7 @@ func newTaskShowCmd(stdio IO) *cobra.Command {
 				return writeJSON(stdio.Out, out)
 			}
 			printTask(stdio.Out, ws.Env, t, a, rev, blockers)
+			printGreen(stdio.Out, t.State.ID, d.LastGreen, d.OpenFindings)
 			printRelations(stdio.Out, d)
 			return nil
 		},
@@ -439,6 +446,12 @@ func printTask(w io.Writer, env *workflow.Env, t *task.Task, a task.Assessment, 
 			conf = " (chưa xác nhận)"
 		}
 		fmt.Fprintf(w, "\nKiểm chứng gần nhất: %s → %s (mã %d)%s  %s\n  log: %s\n", v.Command, passText(v.Passed), v.ExitCode, conf, fmtRFC(v.At), v.Log)
+	}
+	if gt := st.GoalTest; gt != nil {
+		fmt.Fprintf(w, "\nKiểm tra mục tiêu đóng băng (b-goal, viết độc lập từ requirement.md; b-feat không được sửa): %s\n", strings.Join(gt.Paths(), ", "))
+		if g := st.LastGoalCheck(); g != nil {
+			fmt.Fprintf(w, "Cổng mục tiêu gần nhất (%d lần): %s → %s (mã %d)  %s\n  log: %s\n", len(st.GoalChecks), g.Command, passText(g.Passed), g.ExitCode, fmtRFC(g.At), g.Log)
+		}
 	}
 	if len(st.PendingPaths) > 0 {
 		fmt.Fprintf(w, "\nChờ người duyệt (bint task approve %s):\n  %s\n", st.ID, strings.Join(st.PendingPaths, "\n  "))
@@ -711,29 +724,48 @@ func newTaskCriteriaCmd(stdio IO) *cobra.Command {
 }
 
 func newTaskErrorCmd(stdio IO) *cobra.Command {
-	var step string
+	var step, question string
 	var asJSON bool
 	c := &cobra.Command{
-		Use:   "error <task-id> <nội dung>",
-		Short: "Ghi một lỗi hoặc lần thử sửa thất bại",
-		Args:  cobra.ExactArgs(2),
+		Use:   "error <task-id> [nội dung]",
+		Short: "Ghi một lỗi, lần thử sửa thất bại hoặc câu hỏi gửi người",
+		Long: `Ghi một lỗi hoặc lần thử sửa thất bại vào phiếu. Với --question "<câu hỏi>" thì ghi câu hỏi gửi người dùng
+(nội dung không bắt buộc): sau bước b-feat, tác vụ chuyển blocked chờ người và in lệnh trả lời; người trả lời bằng
+bint run resume <task-id> --answer "<trả lời>" (driver session: bint run next <task-id> --resume --answer "<trả lời>"),
+b-feat chạy lại trên chính tác vụ đó và nhận câu hỏi cùng câu trả lời.`,
+		Example: `  bint task error 01J… --step b-feat "đã thử đổi sang WAL, kiểm thử vẫn hỏng"
+  bint task error 01J… --step b-feat --question "Giữ nhật ký bao nhiêu ngày?"`,
+		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ws, err := openTasks(cmd)
 			if err != nil {
 				return err
 			}
-			t, err := app.RecordTaskError(cmd.Context(), ws, app.TaskErrorOptions{Ref: args[0], Message: args[1], Step: step})
+			msg := ""
+			if len(args) == 2 {
+				msg = args[1]
+			}
+			o := app.TaskErrorOptions{Ref: args[0], Message: msg, Step: step, Question: question}
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			t, err := app.RecordTaskError(cmd.Context(), ws, o)
 			if err != nil {
 				return err
 			}
 			if asJSON {
-				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "step": step, "recorded": true})
+				return writeJSON(stdio.Out, map[string]any{"task_id": t.State.ID, "step": step, "recorded": true, "question": question != ""})
+			}
+			if question != "" {
+				fmt.Fprintf(stdio.Out, "Đã ghi câu hỏi. Người trả lời bằng: %s --answer \"<trả lời>\"\n", t.State.ResumeCommand())
+				return nil
 			}
 			fmt.Fprintln(stdio.Out, "Đã ghi.")
 			return nil
 		},
 	}
 	c.Flags().StringVar(&step, "step", "", "bước (b-req, b-feat, b-review…)")
+	c.Flags().StringVar(&question, "question", "", "ghi như câu hỏi gửi người: tác vụ dừng chờ người sau bước (trả lời bằng bint run resume --answer)")
 	c.Flags().BoolVar(&asJSON, "json", false, jsonWriteHelp)
 	return c
 }
@@ -772,7 +804,11 @@ bint knowledge add --from-review <id>. Báo cáo Markdown: review.md trong thư 
 			}
 			fmt.Fprintf(stdio.Out, "Review vòng %d của %s: %d phát hiện, %d nghiêm trọng\n", r.Round, t.State.ID, len(r.Findings), len(r.Blocking()))
 			for _, f := range r.Findings {
-				fmt.Fprintf(stdio.Out, "  [%s] %s/%s %s\n", f.ID, f.Kind, f.Severity, f.Title)
+				note := ""
+				if f.DowngradedFrom != "" {
+					note = " (hạ từ " + f.DowngradedFrom + ": thiếu repro hợp lệ)"
+				}
+				fmt.Fprintf(stdio.Out, "  [%s] %s/%s %s%s\n", f.ID, f.Kind, f.Severity, f.Title, note)
 			}
 			return nil
 		},
@@ -810,7 +846,7 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 				fmt.Fprintf(stdio.Out, "! Lệnh setup worktree CHƯA được xác nhận: %s\n  Lệnh chạy với quyền của bạn khi tạo worktree. Xem kỹ rồi xác nhận: bint task approve %s --setup-sha %s\n",
 					a.SetupWaiting, t.State.ID, a.SetupWaitingSHA[:workflow.MinSetupSHAPrefix])
 			}
-			if a.VerifyCommand == "" && a.SetupCommand == "" && len(a.Paths) == 0 {
+			if a.VerifyCommand == "" && a.SetupCommand == "" && a.PerfCommand == "" && len(a.Paths) == 0 {
 				if a.SetupWaiting != "" {
 					return nil
 				}
@@ -822,6 +858,9 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 			}
 			if a.SetupCommand != "" {
 				fmt.Fprintf(stdio.Out, "✓ Xác nhận lệnh setup worktree: %s\n", a.SetupCommand)
+			}
+			if a.PerfCommand != "" {
+				fmt.Fprintf(stdio.Out, "✓ Xác nhận lệnh đo hiệu năng (workflow.perf.command): %s\n", a.PerfCommand)
 			}
 			if len(a.Paths) > 0 {
 				fmt.Fprintf(stdio.Out, "✓ Duyệt thay đổi: %s\n", strings.Join(a.Paths, ", "))
@@ -912,6 +951,9 @@ bint task write <id> requirement -, rồi bint run resume <id>.`,
 }
 
 const depthFlagHelp = app.DepthFlagHelp
+
+// fastFlagHelp là mô tả cờ --fast dùng chung cho `bint task new` và `bint run`.
+const fastFlagHelp = "đường nhanh của b-do: không b-req, một phiên b-feat, kiểm chứng, một lượt review, tối đa một vòng sửa (chỉ b-do; không đi cùng --plan/--no-plan/--depth; chạm đường dẫn bảo vệ thì vẫn qua b-req)"
 
 // printDepthLine in độ sâu phân tích của b-req (chỉ khi tác vụ có b-req).
 func printDepthLine(w io.Writer, prefix string, c *task.Classification) {
@@ -1254,3 +1296,84 @@ Trong phiên agent chỉ ghi ra cây và liệt kê thay đổi chờ người n
 }
 
 const jsonWriteHelp = "in kết quả dạng một JSON object (có task_id) thay cho văn bản"
+
+// printGreen in điểm verify xanh cuối và phát hiện còn mở của tác vụ đang dừng (không in gì khi cả hai rỗng).
+func printGreen(w io.Writer, id string, g *workflow.GreenInfo, open []workflow.OpenFinding) {
+	if g != nil {
+		fmt.Fprintf(w, "\nĐiểm verify xanh cuối: %s  %s", g.Command, fmtRFC(g.At))
+		if g.Scope != "" {
+			fmt.Fprintf(w, " (phạm vi %s)", g.Scope)
+		}
+		fmt.Fprintln(w)
+		switch {
+		case g.Note != "":
+			fmt.Fprintf(w, "  không so được với cây hiện tại: %s\n", g.Note)
+		case len(g.ChangedSince) == 0:
+			fmt.Fprintln(w, "  cây hiện tại vẫn như lúc xanh")
+		default:
+			fmt.Fprintf(w, "  %d tệp đã đổi kể từ đó: %s\n", len(g.ChangedSince), strings.Join(g.ChangedSince, ", "))
+		}
+		if g.Pinned && len(g.ChangedSince) > 0 {
+			fmt.Fprintf(w, "  xem trước việc quay về (chỉ người chạy được): bint task restore-green %s\n", id)
+		}
+	}
+	if len(open) > 0 {
+		fmt.Fprintf(w, "\nPhát hiện còn mở (review vòng %d):\n", open[0].Round)
+		for _, f := range open {
+			fmt.Fprintf(w, "  [%s] %s/%s %s  %s\n", f.ID, f.Kind, f.Severity, f.Title, f.Path)
+		}
+	}
+}
+
+func newTaskRestoreGreenCmd(stdio IO) *cobra.Command {
+	var o app.TaskRestoreGreenOptions
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "restore-green <task-id>",
+		Short: "Chỉ người: đưa tệp của tác vụ dừng về điểm verify xanh cuối (mặc định chỉ xem trước)",
+		Long: `Khi tác vụ dừng (blocked, interrupted, failed) giữa vòng sửa, cây làm việc có thể ở trạng thái dở. Mỗi lần kiểm chứng qua,
+Bint ghim ảnh chụp cây; lệnh này đưa các tệp CỦA TÁC VỤ về đúng nội dung ảnh chụp xanh cuối (tệp tạo sau đó bị xoá).
+
+Mặc định chỉ liệt kê tệp sẽ đổi. --apply mới ghi: chỉ đụng tệp khác điểm xanh mà thuộc tác vụ (tệp tác vụ đã sửa, hoặc mọi tệp
+của worktree riêng của tác vụ); tệp khác giữ nguyên và được liệt kê là bỏ qua. Trước khi ghi, ảnh chụp cây hiện tại được ghim ở
+ref refs/bint/tasks/<id>/before-restore để lùi lại (git restore --source=<ref> -- <tệp>). Không đụng chỉ mục, HEAD hay trạng thái
+tác vụ. Chỉ người chạy được: phiên agent bị từ chối.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Ref = args[0]
+			ws, err := openTasks(cmd)
+			if err != nil {
+				return err
+			}
+			ws.Env.Out = stdio.Out
+			res, err := app.RestoreGreenTask(cmd.Context(), ws, o)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return writeJSON(stdio.Out, res)
+			}
+			w := stdio.Out
+			verb := "sẽ đưa về"
+			if res.Applied {
+				verb = "đã đưa về"
+			}
+			fmt.Fprintf(w, "Điểm xanh %s: %s %d tệp của tác vụ %s\n", res.Tree[:min(12, len(res.Tree))], verb, len(res.Restore), res.TaskID)
+			for _, f := range res.Restore {
+				fmt.Fprintf(w, "  %s\n", f)
+			}
+			if len(res.Skipped) > 0 {
+				fmt.Fprintf(w, "Bỏ qua (không thuộc tác vụ, giữ nguyên): %s\n", strings.Join(res.Skipped, ", "))
+			}
+			if res.Backup != "" {
+				fmt.Fprintf(w, "Đường lui: %s\n", res.Backup)
+			} else if !res.Applied && len(res.Restore) > 0 {
+				fmt.Fprintln(w, "Chưa ghi gì; thêm --apply để thực hiện.")
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&o.Apply, "apply", false, "ghi đè tệp (mặc định chỉ xem trước)")
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}

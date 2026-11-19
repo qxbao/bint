@@ -142,7 +142,7 @@ func TestSessionResumeAfterFinalizeBlock(t *testing.T) {
 		_, flag := h.flagCommand()
 		r := h.runner()
 		id := h.newSession(r, NewTaskOptions{}).State.ID
-		for _, want := range []string{StepReq, StepFeat} {
+		for _, want := range []string{StepReq, StepGoal, StepFeat} {
 			act, err := r.Next(ctx, NextOptions{TaskRef: id})
 			if err != nil || act.Step != want {
 				t.Fatalf("next: %+v %v", act, err)

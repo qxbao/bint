@@ -1,0 +1,67 @@
+{
+ "what": "big",
+ "passed": 11,
+ "total": 12,
+ "results": [
+  {
+   "id": "B1a-progress-text-exit0",
+   "pass": true,
+   "detail": "exit=0 Progress: 3 tasks; 1 would-stop events; 0 later reached done with a clean review\n01M7HQT6MVMHTE0ACQE2SRB3JG: created; 2 rounds\n  review round 1: no_change=unkno"
+  },
+  {
+   "id": "B1b-progress-json-exit0-valid",
+   "pass": true,
+   "detail": "exit=0  {\n  \"tasks\": [\n    {\n      \"task_id\": \"01M7HQT6MVMHTE0ACQE2SRB3JG\",\n      \"status\": \"created\",\n      \"rounds\": 2,\n      \"review_rounds\": 2,\n      \"full_verify_r"
+  },
+  {
+   "id": "B1c-json-has-all-ids",
+   "pass": true,
+   "detail": "X=True Y=True Z=True"
+  },
+  {
+   "id": "B2a-X-has-signal",
+   "pass": true,
+   "detail": "phiếu X (hai vòng giống nhau)"
+  },
+  {
+   "id": "B2b-Y-no-signal",
+   "pass": true,
+   "detail": "phiếu Y (cây và đầu ra đổi)"
+  },
+  {
+   "id": "B3-Z-ok",
+   "pass": true,
+   "detail": "phiếu Z chưa có vòng nào"
+  },
+  {
+   "id": "B4-read-only",
+   "pass": true,
+   "detail": "tệp đổi: "
+  },
+  {
+   "id": "B5a-mode-off-accepted",
+   "pass": true,
+   "detail": "exit=0 TASK ID                     TRẠNG THÁI  WORKFLOW  CẬP NHẬT          MỤC TIÊU\n01M7HQTGR84ERKK9AJKSS9H2TH  created     b-do      2026-11-16 15:33  Phiếu Z: chưa c"
+  },
+  {
+   "id": "B5a-mode-shadow-accepted",
+   "pass": true,
+   "detail": "exit=0 TASK ID                     TRẠNG THÁI  WORKFLOW  CẬP NHẬT          MỤC TIÊU\n01M7HQTGR84ERKK9AJKSS9H2TH  created     b-do      2026-11-16 15:33  Phiếu Z: chưa c"
+  },
+  {
+   "id": "B5a-mode-stop-accepted",
+   "pass": false,
+   "detail": "exit=1 lỗi: cấu hình không hợp lệ:\n  - workflow.no_progress.mode: phải là off | shadow (stop chưa triển khai, dành cho GĐ2c)"
+  },
+  {
+   "id": "B5b-mode-bogus-rejected",
+   "pass": true,
+   "detail": "exit=1 lỗi: cấu hình không hợp lệ:\n  - workflow.no_progress.mode: phải là off | shadow (stop chưa triển khai, dành cho GĐ2c)"
+  },
+  {
+   "id": "B5c-default-off",
+   "pass": true,
+   "detail": "mẫu config: no_progress:\n    mode: off"
+  }
+ ]
+}

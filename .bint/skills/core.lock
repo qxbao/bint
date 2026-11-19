@@ -2,8 +2,8 @@
 # tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (lớp phủ) hoặc .bint/skills/<tên>/ (skill tuỳ biến)
 # rồi chạy `bint sync`.
 bint_version: 0.1.0-dev
-bint_revision: 283fc90a5708ab63f2c93a78983bfd7608eb6de3
-bint_revision_time: "2026-11-16T04:08:32Z"
+bint_revision: 1a02000bd9501b6f0f6f73d4ad0501c930a6a16c
+bint_revision_time: "2026-11-19T16:26:00Z"
 bint_modified: true
 skills:
   b-add-flow:
@@ -35,26 +35,40 @@ skills:
     variants:
       agents: f2b29ca509e142d6
   b-do:
-    sha256: 04a7f05ad0333ffa
+    sha256: f312b6ced1605fcc
     published:
       - .agents/skills/b-do/SKILL.md
       - .claude/skills/b-do/SKILL.md
     variants:
-      agents: dcd461faa5c8c1f1
+      agents: 032339e11a978faf
+  b-do-fast:
+    sha256: 10e767abfefbb9c5
+    published:
+      - .agents/skills/b-do-fast/SKILL.md
+      - .claude/skills/b-do-fast/SKILL.md
+    variants:
+      agents: 14fe9940baf73088
   b-feat:
-    sha256: 641a6cfa604687b3
+    sha256: 8035e1345d9ea3a0
     published:
       - .agents/skills/b-feat/SKILL.md
       - .claude/skills/b-feat/SKILL.md
     variants:
-      agents: 81b0410a7ae9509a
+      agents: 179d795bb7a62a11
   b-fix:
-    sha256: ee47647d35cb32b9
+    sha256: 3134a8c1195539c7
     published:
       - .agents/skills/b-fix/SKILL.md
       - .claude/skills/b-fix/SKILL.md
     variants:
-      agents: 61ea4000b69069ae
+      agents: 183a804ea303fb3b
+  b-goal:
+    sha256: 6c205b7fd54cda7a
+    published:
+      - .agents/skills/b-goal/SKILL.md
+      - .claude/skills/b-goal/SKILL.md
+    variants:
+      agents: 3e78a74f48a67da9
   b-knowledge:
     sha256: 8b83fb2d6d7d36e6
     published:
@@ -70,19 +84,19 @@ skills:
     variants:
       agents: b43f900e7803026a
   b-req:
-    sha256: 7a344db90c8c0ae5
+    sha256: 282718e4b72fa871
     published:
       - .agents/skills/b-req/SKILL.md
       - .claude/skills/b-req/SKILL.md
     variants:
-      agents: db33d90fae75fbea
+      agents: 2d94c6184c7d9220
   b-review:
-    sha256: c445892dc817ee71
+    sha256: 48b726a2007de138
     published:
       - .agents/skills/b-review/SKILL.md
       - .claude/skills/b-review/SKILL.md
     variants:
-      agents: a2a6e3679c13a393
+      agents: ed14c4633821b388
 agents:
   bint-implementer:
     sha256: 0100c78c477c64c7

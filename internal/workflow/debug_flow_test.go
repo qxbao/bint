@@ -46,7 +46,7 @@ func (h *harness) debugBehave(blockingRounds, reproPasses int) func(context.Cont
 			rounds++
 			body := `{"summary":"ổn","findings":[]}`
 			if rounds <= blockingRounds {
-				body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`
+				body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}]}`
 			}
 			_, _, err := e.SubmitReview(id, []byte(body))
 			return err

@@ -1,0 +1,8 @@
+/home/baodq/bench-bint-v3-20261117/B-T1/.codex/hooks.json:pre_tool_use:0:0 sha256:75300545f2ad7de87444aa07af48d232a4f2b9f8e2574f6c0087f86f73eb8c08 untrusted
+/home/baodq/bench-bint-v3-20261117/B-T1/.codex/hooks.json:post_tool_use:0:0 sha256:3a2db0aa385f23f337bb82e889e6465a84620049093164808ee543f522c88c5d untrusted
+/home/baodq/bench-bint-v3-20261117/B-T1/.codex/hooks.json:session_start:0:0 sha256:323b447496dd3950326363abe95cdb3a40a163c7331e116d7f18123c73edd17b untrusted
+/home/baodq/bench-bint-v3-20261117/B-T1/.codex/hooks.json:session_end:0:0 sha256:191865163f41270ffddebc97189e304b5fe80f5794c03f8999e1b9c5b6858160 untrusted
+/home/baodq/bench-bint-v3-20261117/B-T2/.codex/hooks.json:pre_tool_use:0:0 sha256:75300545f2ad7de87444aa07af48d232a4f2b9f8e2574f6c0087f86f73eb8c08 untrusted
+/home/baodq/bench-bint-v3-20261117/B-T2/.codex/hooks.json:post_tool_use:0:0 sha256:3a2db0aa385f23f337bb82e889e6465a84620049093164808ee543f522c88c5d untrusted
+/home/baodq/bench-bint-v3-20261117/B-T2/.codex/hooks.json:session_start:0:0 sha256:323b447496dd3950326363abe95cdb3a40a163c7331e116d7f18123c73edd17b untrusted
+/home/baodq/bench-bint-v3-20261117/B-T2/.codex/hooks.json:session_end:0:0 sha256:191865163f41270ffddebc97189e304b5fe80f5794c03f8999e1b9c5b6858160 untrusted

@@ -160,6 +160,8 @@ type TaskNewOptions struct {
 	// Parent, DependsOn: phiếu cha và phiếu phụ thuộc (`--parent`, `--depends-on`, chỉ CLI; không có thẻ flag).
 	Parent    string
 	DependsOn []string
+	// Fast: người dùng chọn đường nhanh của b-do (`--fast`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
+	Fast bool
 }
 
 // TaskNewDefaults: workflow b-do, độ sâu và driver tự chọn (như mặc định của cờ).
@@ -186,8 +188,26 @@ func (o TaskNewOptions) Validate() error {
 	if _, err := workflow.NormalizeDriverFlag(o.Driver); err != nil {
 		return UsageError{err}
 	}
-	_, err := checkDepth(o.Depth, o.NoPlan, wfOrDefault(o.Workflow))
-	return err
+	depth, err := checkDepth(o.Depth, o.NoPlan, wfOrDefault(o.Workflow))
+	if err != nil {
+		return err
+	}
+	return checkFast(o.Fast, wfOrDefault(o.Workflow), o.Plan || o.NoPlan, depth)
+}
+
+// checkFast kiểm lỗi dùng sai của --fast (chỉ b-do, không đi cùng --plan/--no-plan/--depth). Runner kiểm lại cùng luật.
+func checkFast(fast bool, wf string, planFlag bool, depth string) error {
+	switch {
+	case !fast:
+		return nil
+	case wf != workflow.StepDo:
+		return Usagef("--fast chỉ dùng với workflow b-do (không dùng với %s)", wf)
+	case planFlag:
+		return Usagef("--fast không đi cùng --plan/--no-plan: đường nhanh là không có b-req")
+	case depth != "":
+		return Usagef("--fast không đi cùng --depth: đường nhanh không có b-req nên không có độ sâu phân tích")
+	}
+	return nil
 }
 
 // TaskCreated là kết quả lập phiếu.
@@ -200,6 +220,9 @@ type TaskCreated struct {
 // NewTask lập phiếu tác vụ từ mô tả (bước Classify). Đặt autonomy: auto chỉ dành cho người.
 func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, error) {
 	var res TaskCreated
+	if ws.RunID != "" {
+		return res, fmt.Errorf("không chạy `bint task new` trong một bước workflow (BINT_RUN_ID=%s): tác vụ do người hoặc orchestrator ngoài bint run lập", ws.RunID)
+	}
 	if err := o.Validate(); err != nil {
 		return res, err
 	}
@@ -207,6 +230,7 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 	wo.FromFindings = o.FromFindings
 	wo.Parent, wo.DependsOn = o.Parent, o.DependsOn
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
+	wo.Fast = o.Fast
 	if o.Plan || o.NoPlan {
 		p := o.Plan
 		wo.Plan = &p
@@ -303,6 +327,10 @@ type TaskDetail struct {
 	Parent   *RelatedTask
 	Deps     []RelatedTask
 	Children []RelatedTask
+	// LastGreen, OpenFindings: điểm verify xanh cuối (kèm tệp đã đổi từ đó) và phát hiện còn mở của vòng review mới nhất; chỉ có khi
+	// tác vụ dừng (blocked/interrupted/failed).
+	LastGreen    *workflow.GreenInfo
+	OpenFindings []workflow.OpenFinding
 }
 
 // ShowTask dựng chi tiết tác vụ: phiếu, đánh giá, review, điều chặn done, tài liệu và kết quả lint.
@@ -334,6 +362,9 @@ func ShowTask(ctx context.Context, ws *TaskWS, o TaskShowOptions) (TaskDetail, e
 		d.Artifacts = append(d.Artifacts, a)
 	}
 	d.Parent, d.Deps, d.Children = relations(ws, t)
+	if task.Paused(t.State.Status) {
+		d.LastGreen, d.OpenFindings = ws.GreenReport(ctx, t)
+	}
 	if any {
 		rep := task.LintPlanningTask(t, t.State.PlanningContractVersion >= task.PlanningContractV1)
 		d.Lint = &rep
@@ -517,6 +548,9 @@ type TaskStatusResult struct {
 
 // SetTaskStatus chuyển trạng thái theo bảng chuyển. --force chỉ dành cho người (kiểm ở dịch vụ).
 func SetTaskStatus(ctx context.Context, ws *TaskWS, o TaskStatusOptions) (TaskStatusResult, error) {
+	if ws.RunID != "" {
+		return TaskStatusResult{}, fmt.Errorf("không chạy `bint task status` trong một bước workflow (BINT_RUN_ID=%s): Bint Core chuyển trạng thái", ws.RunID)
+	}
 	if o.Force {
 		if err := RequireHuman("bint task status --force"); err != nil {
 			return TaskStatusResult{}, err
@@ -597,8 +631,11 @@ func CheckTaskCriterion(_ context.Context, ws *TaskWS, o TaskCriteriaOptions) (*
 // TaskErrorOptions: `bint task error <task-id> <nội dung>`.
 type TaskErrorOptions struct {
 	Ref     string `arg:"task-id" form:"required,suggest=tasks"`
-	Message string `arg:"message" form:"required,multiline"`
+	Message string `arg:"message" form:"multiline"`
 	Step    string `flag:"step" form:"choices=b-req|b-feat|b-review"`
+	// Question: ghi nội dung như câu hỏi gửi người (tác vụ dừng chờ người sau bước; trả lời bằng `bint run resume --answer`).
+	// Không có Message thì câu hỏi là nội dung duy nhất.
+	Question string `flag:"question" form:"multiline"`
 }
 
 func TaskErrorDefaults(config.Config) TaskErrorOptions { return TaskErrorOptions{} }
@@ -606,11 +643,20 @@ func (o TaskErrorOptions) Validate() error {
 	if strings.TrimSpace(o.Ref) == "" {
 		return Usagef("cần ID tác vụ")
 	}
+	if strings.TrimSpace(o.Message) == "" && strings.TrimSpace(o.Question) == "" {
+		return Usagef("cần nội dung lỗi hoặc --question \"<câu hỏi>\"")
+	}
 	return nil
 }
 
-// RecordTaskError ghi một lỗi hoặc lần thử sửa thất bại.
+// RecordTaskError ghi một lỗi hoặc lần thử sửa thất bại; có Question thì ghi câu hỏi gửi người.
 func RecordTaskError(_ context.Context, ws *TaskWS, o TaskErrorOptions) (*task.Task, error) {
+	if q := strings.TrimSpace(o.Question); q != "" {
+		if m := strings.TrimSpace(o.Message); m != "" {
+			q = m + "\n" + q
+		}
+		return ws.RecordQuestion(o.Ref, o.Step, q)
+	}
 	return ws.RecordError(o.Ref, o.Step, o.Message)
 }
 
@@ -711,6 +757,8 @@ type ApprovePlan struct {
 	// SetupSHA là băm của đúng lệnh đó, gửi kèm lúc ghi để Approve từ chối nếu cấu hình đổi sau khi người xem.
 	SetupCommand string
 	SetupSHA     string
+	// PerfCommand là workflow.perf.command sẽ được xác nhận ("" nếu không có lệnh hoặc đã xác nhận).
+	PerfCommand string
 	// Paths là các đường dẫn sẽ được duyệt: đang chờ (PendingPaths), thay đổi chưa duyệt tính từ diff hiện tại,
 	// và đường dẫn --path.
 	Paths []string
@@ -720,7 +768,7 @@ type ApprovePlan struct {
 
 // Empty: không có gì để duyệt.
 func (p ApprovePlan) Empty() bool {
-	return p.VerifyCommand == "" && p.SetupCommand == "" && len(p.Paths) == 0
+	return p.VerifyCommand == "" && p.SetupCommand == "" && p.PerfCommand == "" && len(p.Paths) == 0
 }
 
 // PlanTaskApprove tính điều sẽ được duyệt mà không ghi gì (không đổi state.json). Cùng quy tắc với Approve.
@@ -736,6 +784,9 @@ func PlanTaskApprove(ctx context.Context, ws *TaskWS, o TaskApproveOptions) (App
 	}
 	if ss := ws.SetupStatus(t); ss.Pending() {
 		p.SetupCommand, p.SetupSHA = ss.Command, ss.SHA256
+	}
+	if pc := strings.TrimSpace(ws.Cfg.Workflow.Perf.Command); pc != "" && !ws.PerfConfirmed(t) {
+		p.PerfCommand = pc
 	}
 	add := func(xs ...string) {
 		for _, x := range xs {
@@ -804,6 +855,36 @@ func LandTask(ctx context.Context, ws *TaskWS, o TaskLandOptions) (*workflow.Lan
 		}
 	}
 	return ws.Land(ctx, o.Ref, workflow.LandOptions{ThreeWay: o.ThreeWay, Keep: o.Keep, Force: o.Force, Reason: o.Reason})
+}
+
+// ---- task restore-green ----
+
+// TaskRestoreGreenOptions: `bint task restore-green <task-id> [--apply]`. Chỉ dành cho người (RequireHuman).
+type TaskRestoreGreenOptions struct {
+	Ref   string `arg:"task-id" form:"required,suggest=tasks"`
+	Apply bool   `flag:"apply"`
+}
+
+func TaskRestoreGreenDefaults(config.Config) TaskRestoreGreenOptions {
+	return TaskRestoreGreenOptions{}
+}
+func (o TaskRestoreGreenOptions) Validate() error {
+	if strings.TrimSpace(o.Ref) == "" {
+		return Usagef("cần ID tác vụ")
+	}
+	return nil
+}
+
+// RestoreGreenTask đưa tệp của tác vụ về điểm verify xanh cuối (xem workflow.Env.RestoreGreen). Chỉ dành cho người: nó ghi đè
+// tệp ở cây làm việc, nên phiên agent bị từ chối kể cả khi chỉ xem trước (agent không cần biết kế hoạch ghi đè).
+func RestoreGreenTask(ctx context.Context, ws *TaskWS, o TaskRestoreGreenOptions) (*workflow.RestoreResult, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	if err := RequireHuman("bint task restore-green"); err != nil {
+		return nil, err
+	}
+	return ws.RestoreGreen(ctx, o.Ref, o.Apply)
 }
 
 // ---- task cancel ----

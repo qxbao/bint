@@ -190,7 +190,11 @@ type fakeAgent struct {
 	name string
 	// profile: profile mặc định của agent (eval.ProfileAgent).
 	profile *iso.Profile
+	// model: model yêu cầu của bước (eval.ModelNamer); rỗng = không báo.
+	model string
 }
+
+func (a *fakeAgent) RequestedModel() string { return a.model }
 
 func (a *fakeAgent) AgentProfile() *iso.Profile { return a.profile }
 
@@ -237,6 +241,10 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 		paths = append([]string{}, a.h.denyNext...)
 		a.h.denyNext = nil
 	}
+	if step == StepGoal && len(a.h.denyGoal) > 0 { // hook Codex chặn b-goal ghi tệp test vào đường dẫn bảo vệ (trước khi có diff)
+		paths = append([]string{}, a.h.denyGoal...)
+		a.h.denyGoal = nil
+	}
 	a.h.mu.Unlock()
 	if len(paths) > 0 {
 		err := spool.WriteDenial(a.h.spool, spool.Event{SchemaVersion: spool.SchemaVersion, EventID: "test-denial-" + envs[EnvRunID],
@@ -245,7 +253,7 @@ func (a *fakeAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentRe
 		if err != nil {
 			res.ExitCode, res.Error = 1, err.Error()
 		}
-	} else if err := a.h.behave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
+	} else if err := a.h.stepBehave(ctx, step, agentEnv, envs[EnvTaskID]); err != nil {
 		res.ExitCode, res.Error = 1, err.Error()
 	}
 	if ctx.Err() != nil {
@@ -280,12 +288,18 @@ type harness struct {
 	limits    []*float64
 	cost      *float64
 	denyNext  []string
+	denyGoal  []string // như denyNext nhưng cho bước b-goal
+	// goal (nếu có) thay hành vi mặc định của b-goal (ghi goal_check.sh); b-goal không đi qua behave.
+	goal func(ctx context.Context, e *Env, taskID string) error
 	// mutate (nếu có) sửa kết quả agent giả sau khi chạy: mô phỏng Infra, quá giờ, thiếu kết quả, handle phiên.
 	mutate func(step string, res *eval.AgentResult)
 	// mutateReq như mutate nhưng thấy cả yêu cầu giao cho agent (phiên cần nối tiếp, đề bài): mô phỏng harness ghi tệp phiên.
 	mutateReq func(req eval.AgentRequest, step string, res *eval.AgentResult)
-	// agentName: tên harness của agent giả (rỗng = "fake").
-	agentName string
+	// agentName: tên harness của agent giả (rỗng = "fake"); agentNameFor (nếu có) đổi tên theo bước (mô phỏng role gán harness khác nhau).
+	agentName    string
+	agentNameFor func(step string) string
+	// models: model yêu cầu theo bước (rỗng = không báo); đổi giữa b-req và b-feat để thử nối tiếp chéo model.
+	models map[string]string
 	// costFor (nếu có) thay h.cost theo từng bước: mô phỏng harness khi báo khi không báo chi phí.
 	costFor func(step string) *float64
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
@@ -293,6 +307,18 @@ type harness struct {
 	turnLimits []*int
 	// profile (nếu có) là profile `bint iso` mà agent giả báo (eval.ProfileAgent); đổi giữa hai lượt để mô phỏng đổi harnesses.<h>.profile.
 	profile *iso.Profile
+}
+
+// stepBehave chạy hành vi giả của một bước. b-goal không đi qua h.behave: mặc định ghi một test hộp đen đỏ tới khi b-feat ghi done.txt
+// (khớp lệnh kiểm chứng `test -f done.txt`) vào thư mục chạy của bước; test đặt h.goal để đổi.
+func (h *harness) stepBehave(ctx context.Context, step string, e *Env, id string) error {
+	if step != StepGoal {
+		return h.behave(ctx, step, e, id)
+	}
+	if h.goal != nil {
+		return h.goal(ctx, e, id)
+	}
+	return os.WriteFile(filepath.Join(e.Root, "goal_check.sh"), []byte("test -f done.txt\n"), 0o644)
 }
 
 func newHarness(t *testing.T) *harness {
@@ -333,12 +359,14 @@ func (h *harness) happy(_ context.Context, step string, e *Env, id string) error
 	return nil
 }
 
-// validDocs là bộ artifact hợp đồng v1 hợp lệ cho một tiêu chí; extra nối vào requirement.md.
+// validDocs là bộ artifact hợp đồng v1 hợp lệ cho một tiêu chí; extra nối vào requirement.md. Kế hoạch là NHỎ hợp lệ theo cổng cỡ
+// kế hoạch (plansize.go): Kết luận: nhỏ, hai tệp, hai nhóm bề mặt, Kiểm tra mục tiêu nêu tên test, không giai đoạn hoãn.
 func validDocs(criterion, extra string) map[string]string {
 	return map[string]string{
-		"requirement": "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + criterion + "\n## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n" + extra,
-		"plan":        "# Kế hoạch\nSửa app.txt\n",
-		"tasks":       "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: " + criterion + "\n",
+		"requirement": "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + criterion + "\n## Ngoài phạm vi\nKhông có\n" +
+			"## Kiểm tra mục tiêu\n`TestAppV2` quét app.txt, đạt khi ghi v2\n## Câu hỏi mở\n" + extra,
+		"plan":  "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n- done.txt: ngoài phạm vi\n## Giả định thay người dùng\n- Giữ nguyên định dạng hiện tại.\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n",
+		"tasks": "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: " + criterion + "\n",
 	}
 }
 
@@ -346,7 +374,7 @@ func validDocs(criterion, extra string) map[string]string {
 // skip là tên artifact bỏ qua.
 func (h *harness) writePlan(e *Env, id string, skip map[string]bool) error {
 	const crit = "app.txt ghi v2"
-	if _, _, err := e.SetTicket(id, TicketEdit{ClearCriteria: true, Criteria: []string{crit}}); err != nil {
+	if _, _, err := e.SetTicket(id, TicketEdit{ClearCriteria: true, Criteria: []string{crit}, Allow: []string{"app.txt"}}); err != nil {
 		return err
 	}
 	for n, body := range validDocs(crit, "") {
@@ -372,8 +400,15 @@ func (h *harness) runner() *Runner {
 		if h.costFor != nil {
 			cost = h.costFor(step)
 		}
-		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: h.agentName, profile: h.profile}, nil
-	}}
+		h.mu.Lock()
+		model := h.models[step]
+		h.mu.Unlock()
+		name := h.agentName
+		if h.agentNameFor != nil {
+			name = h.agentNameFor(step)
+		}
+		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: name, profile: h.profile, model: model}, nil
+	}, CLISkewCheck: noCLISkew}
 }
 
 func (h *harness) ingest() *store.Store {
@@ -395,7 +430,7 @@ func TestBDoHappyPathLinksRunsByTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-feat,b-review" {
+	if res.Status != task.StatusDone || strings.Join(h.calls, ",") != "b-req,b-goal,b-feat,b-review" {
 		t.Fatalf("kết quả: %+v, bước %v", res, h.calls)
 	}
 	// Đề bài: nội dung skill + khối tác vụ + phạm vi.
@@ -411,7 +446,7 @@ func TestBDoHappyPathLinksRunsByTask(t *testing.T) {
 
 	s := h.ingest()
 	runs, err := runlog.RunsForTask(ctx, s.DB, res.TaskID)
-	if err != nil || len(runs) != 4 {
+	if err != nil || len(runs) != 5 {
 		t.Fatalf("lượt chạy theo task: %d %v", len(runs), err)
 	}
 	var parent runlog.Run
@@ -427,11 +462,11 @@ func TestBDoHappyPathLinksRunsByTask(t *testing.T) {
 			t.Fatalf("lượt con: %+v %+v", r, m)
 		}
 	}
-	if parent.RunID != res.RunID || parent.Status != "completed" || children != 3 {
+	if parent.RunID != res.RunID || parent.Status != "completed" || children != 4 {
 		t.Fatalf("lượt cha: %+v", parent)
 	}
 	steps, _ := runlog.RunSteps(ctx, s.DB, res.RunID)
-	if len(steps) != 3 || steps[0].Name != StepReq || steps[2].Status != "completed" {
+	if len(steps) != 4 || steps[0].Name != StepReq || steps[3].Status != "completed" {
 		t.Fatalf("run_steps: %+v", steps)
 	}
 	sigs, _ := runlog.RunSignals(ctx, s.DB, res.RunID)
@@ -550,7 +585,7 @@ func TestReviewLoopStopsAfterMaxRounds(t *testing.T) {
 	base := h.happy
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 		if step == StepReview {
-			_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`))
+			_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}]}`))
 			return err
 		}
 		return base(ctx, step, e, id)
@@ -578,7 +613,7 @@ func TestBudgetLimitStopsBeforeNextStep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat" || !strings.Contains(res.Reason, "hết ngân sách") {
+	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-goal" || !strings.Contains(res.Reason, "hết ngân sách") {
 		t.Fatalf("%+v %v", res, h.calls)
 	}
 	if h.limits[0] == nil || *h.limits[0] != 1.0 || h.limits[1] == nil || *h.limits[1] < 0.39 || *h.limits[1] > 0.41 {
@@ -909,7 +944,7 @@ func TestBDoMaxTurnsIsTotalBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat" || !strings.Contains(res.Reason, "max_turns") {
+	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-goal" || !strings.Contains(res.Reason, "max_turns") {
 		t.Fatalf("%+v %v", res, h.calls)
 	}
 	if len(h.turnLimits) != 2 || h.turnLimits[0] == nil || *h.turnLimits[0] != 3 || h.turnLimits[1] == nil || *h.turnLimits[1] != 1 {
@@ -926,7 +961,7 @@ func TestBDoMaxTurnsFromPerRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-feat" {
+	if res.Status != task.StatusBlocked || strings.Join(h.calls, ",") != "b-req,b-goal" {
 		t.Fatalf("%+v %v", res, h.calls)
 	}
 }
@@ -991,7 +1026,7 @@ func TestBDoCostIsNullWhenAStepDoesNotReportCost(t *testing.T) {
 	if res.CostUSD != nil {
 		t.Fatalf("tổng một phần bị trình bày như tổng thật: %v", *res.CostUSD)
 	}
-	if res.CostPartialUSD == nil || *res.CostPartialUSD < 0.59 || *res.CostPartialUSD > 0.61 {
+	if res.CostPartialUSD == nil || *res.CostPartialUSD < 0.89 || *res.CostPartialUSD > 0.91 {
 		t.Fatalf("chi phí đã biết: %v", res.CostPartialUSD)
 	}
 	for _, st := range res.Steps {

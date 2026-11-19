@@ -1,0 +1,6 @@
+{
+ "setup": null,
+ "preview": null,
+ "clean": "bint status",
+ "note": "Bản X không có lệnh dọn tay (bint --help không có clean; 'bint clean' báo lệnh lạ) và không có xem trước. docs/configuration.md (diff): 'Dọn dữ liệu trạng thái chạy sau khi nạp spool thành công, tối đa một lần mỗi 24 giờ... bint status hiển thị thời điểm, số tệp/byte đã xoá'. Mặc định state.cleanup_retention_days=90 (bật sẵn, 0 = tắt). bint status nạp spool rồi gọi state.MaybeCleanup (internal/app/workspace.go Ingest); e2e TestCleanupStatusDeletesExpiredLogAndReports dùng đúng 'bint status'. Chạy thử trong thư mục tạm: in 'Dọn dữ liệu: <thời điểm> — 0 tệp, 0 byte đã xoá'."
+}

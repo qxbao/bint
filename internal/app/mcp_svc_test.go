@@ -25,7 +25,7 @@ import (
 
 func TestMain(m *testing.M) {
 	probetest.MaybeRun() // MCP/codegraph giả: chạy lại chính tệp test (xem probetest)
-	code := m.Run()
+	code := testutil.RunTests(m)
 	testutil.CleanupHarness()
 	os.Exit(code)
 }

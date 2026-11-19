@@ -1,0 +1,118 @@
+{
+  "X": [
+    {
+      "id": "X1",
+      "severity": "critical",
+      "title": "Mô tả phiếu (goal/request) vẫn lưu bản rõ ở task.yml và bản chiếu .bint/tasks/<id>/ trong repo",
+      "where": "base/internal/workflow/ops.go:167; base/internal/task/ticket.go:35; base/internal/task/task.go:678; base/internal/task/ledger.go:43",
+      "scenario": "Người dùng chạy `bint run b-do \"gọi API bằng token ghp_... / mật khẩu DB là ...\"` → task.FromRequest chép nguyên văn vào Ticket.Request/Goal → ghi task.yml trong thư mục trạng thái, và với tasks.ledger mặc định = git còn xuất sang .bint/tasks/<id>/task.yml trong cây làm việc (dễ bị commit). Diff X không chạm internal/task hay đường tạo phiếu.",
+      "evidence": "t := task.FromRequest(e.Root, o.Request, confirmed) ... t := Ticket{Request: request, ...} ... fsafe.WriteAtomic(filepath.Join(dir, TicketFile), data, 0o600)"
+    },
+    {
+      "id": "X2",
+      "severity": "critical",
+      "title": "Review (review.json / review.md: summary, title, evidence của phát hiện) ghi bản rõ",
+      "where": "base/internal/task/review.go:229-233",
+      "scenario": "Bước b-review (agent) gọi `bint task review` với bằng chứng trích đầu ra lệnh/tệp cấu hình có `password: ...` hoặc `Authorization: Bearer ...` → AddRound ghi nguyên văn vào review.json và review.md, rồi bản chiếu ledger (ReviewFile nằm trong ledgerFiles). X không che ở đây.",
+      "evidence": "r := ReviewRound{... Summary: strings.TrimSpace(sub.Summary), Findings: sub.Findings} ... fsafe.WriteAtomic(filepath.Join(t.Dir, ReviewFile), ...); fsafe.WriteAtomic(filepath.Join(t.Dir, ReviewMD), []byte(RenderReview(rev)), 0o600)"
+    },
+    {
+      "id": "X3",
+      "severity": "medium",
+      "title": "Tài liệu phiếu requirement.md / plan.md / tasks.md ghi bản rõ",
+      "where": "base/internal/task/task.go:866-877",
+      "scenario": "b-req chép yêu cầu có token/mật khẩu (hoặc trích .env) vào requirement/plan qua `bint task write` → WriteArtifact ghi nguyên văn, kèm bản chiếu .bint/tasks/<id>/ trong repo.",
+      "evidence": "return p, fsafe.WriteAtomic(p, []byte(strings.TrimRight(content, \"\\n\")+\"\\n\"), 0o600)"
+    },
+    {
+      "id": "X4",
+      "severity": "medium",
+      "title": "state.json và sự kiện task.* (spool → SQLite) lưu bản rõ bằng chứng tiêu chí, lý do chuyển trạng thái và lệnh kiểm chứng",
+      "where": "base/internal/workflow/ops.go:908, 573, 811, 829; base/internal/task/task.go:242",
+      "scenario": "Agent ghi bằng chứng tiêu chí kiểu `curl -H 'Authorization: Bearer abc' → 200`, hoặc lệnh kiểm chứng là `API_TOKEN=... npm test` → Criterion.Evidence/Verification.Command vào state.json, và payload evidence/reason/command vào spool rồi bảng events. X chỉ che trong Env.emitRun (result_summary/end_reason), còn Env.emit (sự kiện task.*) và state.json thì không.",
+      "evidence": "e.emit(t, spool.TaskCriteria, map[string]any{\"index\": index, \"met\": met, \"evidence\": truncate(evidence, 300)}); payload := map[string]any{\"command\": cmd, ...}"
+    },
+    {
+      "id": "X5",
+      "severity": "medium",
+      "title": "Bỏ nguyên dòng log > 64 KiB làm hỏng phân tích vết agent.log của evolve (trước đây đọc dòng tới 4 MiB và đánh dấu Truncated)",
+      "where": "internal/redact/redact.go:249, 278-283 (mới); base/internal/evolve/failure.go:119, 131-133, 442-445",
+      "scenario": "Lượt eval mà agent Claude Write/Bash một nội dung lớn → dòng stream-json `assistant` chứa tool_use > 64 KiB bị thay bằng `[bint: oversized log line omitted]` trong agent.log. ParseTraceReader bỏ qua dòng không bắt đầu bằng `{` và không đặt Truncated (cơ chế skippedMayHoldToolUse chỉ áp cho dòng > 4 MiB) → Trace.Writes/Commands thiếu mà vẫn coi là đủ → tín hiệu/bài học thất bại sai. Đây là hồi quy hành vi có sẵn.",
+      "evidence": "const maxLine = 64 << 10 ... if !w.dropping && len(w.buf)+end > maxLine { w.buf = nil; w.dropping = true; io.WriteString(w.dst, \"[bint: oversized log line omitted]\\n\")"
+    },
+    {
+      "id": "X6",
+      "severity": "medium",
+      "title": "Dòng bắt đầu bằng `{`/`[` mà ngoặc không cân làm nuốt phần còn lại của log và tail",
+      "where": "internal/redact/redact.go:290, 310, 374-377 (mới)",
+      "scenario": "Lệnh kiểm chứng in một dòng như `[ERROR] unexpected '{' in config` hoặc một body JSON bị cắt `{\"error\":\"...` → frame() để depth > 0 nên Writer không flush ở cuối dòng, gom mọi dòng sau của luồng đó; quá 64 KiB thì bỏ hết và tiếp tục bỏ tới khi depth về 0; hết tiến trình thì ghi `[bint: incomplete JSON log record omitted]`. Toàn bộ phần đuôi (gồm `--- FAIL:` mà evolve testFailureLines đọc, và tail dùng làm res.Error) mất khỏi logs/*.log.",
+      "evidence": "w.structured = c == '{' || c == '[' ... if i >= 0 && (!w.structured || w.depth == 0) { w.flush() ... } ... if w.structured && w.depth > 0 && !w.dropping { w.buf = nil; io.WriteString(w.dst, \"[bint: incomplete JSON log record omitted]\\n\")"
+    },
+    {
+      "id": "X7",
+      "severity": "medium",
+      "title": "Một số dạng bí mật thông dụng vẫn lọt: SECRET_KEY/STRIPE_SECRET_KEY, `Authorization: token ...`, Cookie, `curl -u user:pass`, khoá riêng PEM",
+      "where": "internal/redact/redact.go:17, 25-34 (mới)",
+      "scenario": "(a) `SECRET_KEY=...` hoặc `STRIPE_SECRET_KEY=sk_live_...`: tên phải KẾT THÚC bằng từ khoá nên `secret_key` không khớp key/sensitive, sk_live_ (gạch dưới) không khớp mẫu `sk-` → lọt cả dạng văn bản lẫn giá trị biến môi trường. (b) `Authorization: token abc123` chỉ che chữ `token`, còn abc123 lọt. (c) `Cookie: session=...` không che. (d) `curl -u admin:hunter2` không che. (e) `-----BEGIN ... PRIVATE KEY-----` không có mẫu. Các dạng này lọt vào log kiểm chứng/agent.",
+      "evidence": "const key = `(?:[a-z0-9]+[-_])*(?:password|...|(?:client)?[-_]?secret|api[-_]?key|...)(?:[-_](?:secret|token))?`; auth = `(\\b(?:bearer|basic)[\\t ]+)...`; token = `...|sk-[A-Za-z0-9_-]{20,}|...`"
+    }
+  ],
+  "Y": [
+    {
+      "id": "Y1",
+      "severity": "critical",
+      "title": "Tóm tắt kết quả agent (result_summary) ghi bản rõ vào spool và runs.result_summary trong SQLite",
+      "where": "base/internal/workflow/run.go:1380; base/internal/workflow/session.go:967-970 (Y không sửa internal/workflow)",
+      "scenario": "Câu trả lời cuối của agent ở một bước (ví dụ `đã đặt GITHUB_TOKEN=ghp_...` hoặc dán chuỗi kết nối có mật khẩu) → res.Text cắt 500 ký tự → payload workflow.finished → spool.Write → nạp vào bảng runs. Không qua lớp che nào. Đây là đầu ra agent nằm ở nơi lưu chính, theo cấu hình mặc định.",
+      "evidence": "\"result_summary\": truncate(strings.TrimSpace(res.Text), 500) ... ev := spool.Event{... Payload: payload}; _, err := spool.Write(e.Spool, ev)"
+    },
+    {
+      "id": "Y2",
+      "severity": "critical",
+      "title": "Mô tả phiếu (goal/request) vẫn lưu bản rõ ở task.yml và bản chiếu .bint/tasks/<id>/ trong repo",
+      "where": "base/internal/workflow/ops.go:167; base/internal/task/ticket.go:35; base/internal/task/task.go:678; base/internal/task/ledger.go:43",
+      "scenario": "Người dùng chạy `bint run b-do \"gọi API bằng token ghp_... / mật khẩu DB là ...\"` → task.FromRequest chép nguyên văn vào Ticket.Request/Goal → ghi task.yml trong thư mục trạng thái, và với tasks.ledger mặc định = git còn xuất sang .bint/tasks/<id>/task.yml trong cây làm việc (dễ bị commit). Diff Y không chạm internal/task hay đường tạo phiếu.",
+      "evidence": "t := task.FromRequest(e.Root, o.Request, confirmed) ... t := Ticket{Request: request, ...} ... fsafe.WriteAtomic(filepath.Join(dir, TicketFile), data, 0o600)"
+    },
+    {
+      "id": "Y3",
+      "severity": "critical",
+      "title": "Review (review.json / review.md: summary, title, evidence của phát hiện) ghi bản rõ",
+      "where": "base/internal/task/review.go:229-233",
+      "scenario": "Bước b-review (agent) gọi `bint task review` với bằng chứng trích đầu ra lệnh/tệp cấu hình có `password: ...` hoặc `Authorization: Bearer ...` → AddRound ghi nguyên văn vào review.json và review.md, rồi bản chiếu ledger. Y không che ở đây.",
+      "evidence": "r := ReviewRound{... Summary: strings.TrimSpace(sub.Summary), Findings: sub.Findings} ... fsafe.WriteAtomic(filepath.Join(t.Dir, ReviewFile), ...); fsafe.WriteAtomic(filepath.Join(t.Dir, ReviewMD), []byte(RenderReview(rev)), 0o600)"
+    },
+    {
+      "id": "Y4",
+      "severity": "medium",
+      "title": "Tài liệu phiếu requirement.md / plan.md / tasks.md ghi bản rõ",
+      "where": "base/internal/task/task.go:866-877",
+      "scenario": "b-req chép yêu cầu có token/mật khẩu (hoặc trích .env) vào requirement/plan qua `bint task write` → WriteArtifact ghi nguyên văn, kèm bản chiếu .bint/tasks/<id>/ trong repo.",
+      "evidence": "return p, fsafe.WriteAtomic(p, []byte(strings.TrimRight(content, \"\\n\")+\"\\n\"), 0o600)"
+    },
+    {
+      "id": "Y5",
+      "severity": "medium",
+      "title": "state.json và sự kiện task.* (spool → SQLite) lưu bản rõ bằng chứng tiêu chí, lý do chuyển trạng thái và lệnh kiểm chứng",
+      "where": "base/internal/workflow/ops.go:908, 573, 811, 829; base/internal/task/task.go:242",
+      "scenario": "Agent ghi bằng chứng tiêu chí kiểu `curl -H 'Authorization: Bearer abc' → 200`, hoặc lệnh kiểm chứng là `API_TOKEN=... npm test` → Criterion.Evidence/Verification.Command vào state.json, và payload evidence/reason/command vào spool rồi bảng events. Y không che đường nào trong internal/workflow.",
+      "evidence": "e.emit(t, spool.TaskCriteria, map[string]any{\"index\": index, \"met\": met, \"evidence\": truncate(evidence, 300)}); payload := map[string]any{\"command\": cmd, ...}"
+    },
+    {
+      "id": "Y6",
+      "severity": "medium",
+      "title": "Bỏ nguyên dòng log > 64 KiB làm hỏng phân tích vết agent.log của evolve (trước đây đọc dòng tới 4 MiB và đánh dấu Truncated)",
+      "where": "internal/detect/log.go:117, 145-148, 171-173 (mới); base/internal/evolve/failure.go:119, 131-133, 442-445",
+      "scenario": "Lượt eval mà agent Claude Write/Bash một nội dung lớn → dòng stream-json `assistant` chứa tool_use > 64 KiB bị thay bằng `[bint: oversized log line omitted]` trong agent.log. ParseTraceReader bỏ qua dòng này và không đặt Truncated → Trace.Writes/Commands thiếu mà vẫn coi là đủ → tín hiệu/bài học thất bại sai. Đây là hồi quy hành vi có sẵn.",
+      "evidence": "const maxLogLine = 64 << 10 ... if len(w.buf)+end > maxLogLine { w.buf = nil; w.dropping = true } ... s = \"[bint: oversized log line omitted]\""
+    },
+    {
+      "id": "Y7",
+      "severity": "medium",
+      "title": "Một số dạng bí mật thông dụng vẫn lọt: token không có nhãn (ghp_, github_pat_, sk-…), token làm username trong URL, nhãn mà từ khoá không đứng cuối (aws_secret_access_key = …, secret_key: …), `curl -u user:pass`, khoá riêng PEM",
+      "where": "internal/detect/log.go:14-16, 68-84 (mới); internal/detect/detect.go:255-256",
+      "scenario": "(a) Agent chạy `gh auth token` hoặc in `ghp_…`/`sk-ant-…` không kèm nhãn → không có mẫu định dạng token nên lọt vào log agent/kiểm chứng (trừ khi đúng giá trị nằm trong env). (b) `git remote -v` in `https://ghp_xxx@github.com/...`: urlCreds đòi dạng user:pass nên không che. (c) `aws_secret_access_key = wJalr...` (tệp ~/.aws/credentials) hoặc `SECRET_KEY = '...'`/`secret_key: ...`: credentialField đòi từ khoá đứng ngay trước dấu :/= nên lọt. (d) `curl -u admin:hunter2` lọt. (e) khối `-----BEGIN ... PRIVATE KEY-----` lọt.",
+      "evidence": "credentialField = `(\\b[\\w-]*(?:password|...|secret|...)[\"']?\\s*[:=]\\s*)...`; urlCreds = `(://)[^/\\s:@]+:[^/\\s@]+@`"
+    }
+  ]
+}

@@ -17,7 +17,15 @@ import (
 
 var bintBin string
 
+// envE2EBin: binary bint đã build của tiến trình cha, để các tiến trình con (testutil.RunTests) không build lại.
+const envE2EBin = "BINT_TEST_E2E_BIN"
+
 func TestMain(m *testing.M) {
+	if bintBin = os.Getenv(envE2EBin); bintBin != "" {
+		code := testutil.RunTests(m)
+		testutil.CleanupHarness()
+		os.Exit(code)
+	}
 	dir, err := os.MkdirTemp("", "bint-e2e-")
 	if err != nil {
 		panic(err)
@@ -36,7 +44,8 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "build: %v\n%s", err, out)
 		os.Exit(1)
 	}
-	code := m.Run()
+	os.Setenv(envE2EBin, bintBin)
+	code := testutil.RunTests(m)
 	os.RemoveAll(dir)
 	testutil.CleanupHarness()
 	os.Exit(code)

@@ -109,11 +109,22 @@ func baseRef(id string) string { return "refs/bint/tasks/" + id + "/base" }
 
 func baseTreeRef(id string) string { return "refs/bint/tasks/" + id + "/base-tree" }
 
-// deleteTaskRefs xoá mọi ref giữ cây/commit của tác vụ (base và base-tree). Ref không tồn tại không phải lỗi
+// deleteTaskRefs xoá mọi ref giữ cây/commit của tác vụ (base, base-tree, green và before-restore: green.go). Ref không tồn tại không phải lỗi
 // (update-ref -d bỏ qua); trả lỗi đầu tiên gặp.
 func deleteTaskRefs(ctx context.Context, root, id string) error {
 	var first error
-	for _, ref := range []string{baseRef(id), baseTreeRef(id)} {
+	refs := []string{baseRef(id), baseTreeRef(id), greenRef(id), beforeRestoreRef(id), sliceGreenRef(id)}
+	// Cây của các lát bị bỏ (slice-<N>-discarded, slice.go): số lát không biết trước nên liệt kê mọi ref dưới thư mục của tác vụ rồi lọc tiền
+	// tố slice-. (for-each-ref khớp theo thành phần đường dẫn: mẫu ".../slice-" không khớp ".../slice-1-discarded".)
+	prefix := "refs/bint/tasks/" + id + "/"
+	if out, err := gitrepo.Run(ctx, root, "for-each-ref", "--format=%(refname)", prefix); err == nil {
+		for ref := range strings.SplitSeq(out, "\n") {
+			if ref = strings.TrimSpace(ref); strings.HasPrefix(ref, prefix+"slice-") && !slices.Contains(refs, ref) {
+				refs = append(refs, ref)
+			}
+		}
+	}
+	for _, ref := range refs {
 		if _, err := gitrepo.Run(ctx, root, "update-ref", "-d", ref); err != nil && first == nil {
 			first = fmt.Errorf("xoá ref %s: %w", ref, err)
 		}

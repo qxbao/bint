@@ -6,6 +6,12 @@ const (
 	StopAwaitingHuman = "awaiting_human" // chờ người (câu hỏi mở, đường dẫn bảo vệ)
 	StopIntrinsic     = "intrinsic"      // lỗi của chính bước: chạy mới như cũ
 	StopTimeout       = "timeout"        // quá workflow.timeout_minutes
+	// StopReviewFix: b-feat đã xong bình thường, b-review đòi sửa; vòng sửa nối tiếp phiên của chính b-feat đó (Runner ghi
+	// ở quyết định review, không phải lớp dừng do ClassifyStop tính).
+	StopReviewFix = "review_fix"
+	// StopPlanHandoff: b-req đã xong bình thường (driver process); b-feat đầu tiên nối tiếp phiên của chính b-req đó với kế hoạch
+	// rút gọn thay vì nạp lại ngữ cảnh từ đầu (Runner ghi khi mở b-feat, từ State.LastPlan).
+	StopPlanHandoff = "plan_handoff"
 )
 
 // StopFacts là các dữ kiện endStep gom được về cách một bước kết thúc.
@@ -54,7 +60,7 @@ func ClassifyStop(f StopFacts) string {
 // stopContinuable: lớp cho phép nối tiếp, có handle phiên và có dấu vân tay cây lúc dừng.
 func stopContinuable(class, handle, fingerprint string) bool {
 	switch class {
-	case StopExternal, StopAwaitingHuman, StopTimeout:
+	case StopExternal, StopAwaitingHuman, StopTimeout, StopReviewFix, StopPlanHandoff:
 		return handle != "" && fingerprint != ""
 	}
 	return false

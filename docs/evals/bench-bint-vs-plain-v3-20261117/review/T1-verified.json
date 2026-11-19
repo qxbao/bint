@@ -1,0 +1,81 @@
+{
+ "X1": {
+  "verdict": "confirmed-downgrade",
+  "final_severity": "low",
+  "reason": "Tái hiện được: fixture backups/20250101T000000.000Z/{codex/hooks.json,.gitignore} (bản duy nhất) cùng 4 snapshot AGENTS.md, mtime 200 ngày; `bint gc --dry-run` liệt kê cả 5 thư mục snapshot, `bint gc` xoá hết, backups/ rỗng. Nhánh tự động (stategc.Collect gọi trong Workspace.Ingest, mỗi 24h) cũng xoá như vậy. Hạ xuống low vì tệp đang dùng của người dùng vẫn nguyên; chỉ mất bản sao lưu đã quá hạn (đúng loại 'đồ cũ' được yêu cầu dọn), không chạm phiếu/worktree/việc dở.",
+  "how": "bash mkfx.sh (repo tạm, HOME/BINT_STATE_DIR tạm, tạo backups/<stamp>/... rồi touch -d '200 days ago'); bint gc --dry-run; bint gc; find state/repo-*/backups -type f => rỗng"
+ },
+ "X2": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Fixture 685 KB gồm log phiếu done/cancelled 200 ngày, runtime/context/old-pack.json 200 ngày, state.sqlite: `bint gc` chỉ lấy lại 144 byte (backups, spool/rejected, hook-trace); log phiếu đã kết thúc, runtime/context và SQLite không bị động tới (đọc stategc.Collect: chỉ quét backups, spool/rejected, runtime/hook-trace và eval-work/{runs,logs}/<batch>). Mục tiêu chính 'lấy lại dung lượng' không đạt với các nguồn phình chính.",
+  "how": "Fixture X: du -sb trước 685111, sau 684967; runtime/tasks/*/logs/verify-1.log (done/cancelled, 200 ngày) và runtime/context/old-pack.json vẫn còn sau `bint gc`"
+ },
+ "X3": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "config.Default() đặt State{RetentionDays: 30}; `bint gc --help` ghi 'mặc định 30'. Ngắn hơn 'khoảng vài tháng' của người dùng nhưng chỉ áp cho dữ liệu phụ (backups, spool bị từ chối, eval-work), cấu hình được, nên giữ low.",
+  "how": "grep RetentionDays internal/config/config.go trong bản áp diff X; bint gc --help"
+ },
+ "X4": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "`bint gc --dry-run` chỉ in '  backups/20250101T000000.000Z (30 byte)', không nêu bên trong là codex/hooks.json và .gitignore; Item chỉ có Path thư mục và Bytes. Đây là chất lượng xem trước, không phải lỗi an toàn.",
+  "how": "Fixture X: bint gc --dry-run"
+ },
+ "X5": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "app.CollectState mở OpenWorkspace(cwd) và Ingest chỉ chạy cho repo hiện tại; không có đường quét state của repo khác/đã xoá. Phạm vi thiếu, không gây hại.",
+  "how": "Đọc internal/app/gc.go và internal/app/workspace.go (bản X)"
+ },
+ "Y1": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "Không có lệnh/cờ xem trước (grep dry/preview trong internal/maintenance, cli: không có). Lần `bint status` đầu tiên trên fixture lập tức xoá snapshot AGENTS.md gốc và spool/rejected/old.jsonl, chỉ in 'Tự dọn: ...; 2 mục, 8192 byte đã xoá', không nói đã xoá gì. Đặc tả rủi ro coi việc không có cách xem trước là rủi ro chính, nên giữ medium.",
+  "how": "bash mkfx.sh Y; bint status => dòng 'Tự dọn' 2 mục; backups/20250115.../AGENTS.md mất"
+ },
+ "Y2": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "Test tạm: một run done cũ 200 ngày có 3000 event (~2 KB mỗi cái); sau khi collector xoá hết dòng, state.sqlite vẫn 11649024 byte trước và sau (sau wal_checkpoint TRUNCATE). retention.go không VACUUM, tài liệu cũng nói vậy. DB ngừng tăng nhờ tái dùng trang nên low.",
+  "how": "Test tạm zz_verify_test.go TestZZVerifyY2Y4 trong internal/maintenance (bản Y): before size=11649024, after size=11649024"
+ },
+ "Y3": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "Mô phỏng 200 tick cách nhau 1h với hơn 128 phiếu (owner scan Limit 128) và hơn 1000 dòng DB bị giữ (event của run thuộc phiếu cancelled): trong 3/4 cấu hình LastSuccess không bao giờ được đặt, skip='budget', cursor owner/DB lệch pha xen kẽ ('oc=task/T0127 db=\"\"' rồi 'oc=\"\" db=0:1000'). Việc xoá vẫn diễn ra, chỉ có báo cáo và lịch thử lại mỗi giờ bị sai, nên low.",
+  "how": "TestZZVerifyY3 tạm: {200 phiếu,1500 dòng giữ} -> first success tick -1; {140,1100} -> -1; {300,2500} -> -1"
+ },
+ "Y4": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "PruneDetailsAfter chỉ miễn task.linked/task.status/workflow.finished/subagent.stopped, nên test.completed bị xoá; runlog.runSelect đếm TestsOK/Events từ bảng events. Test tạm: ListRuns trước dọn testsOK=300 events=3000, sau dọn testsOK=0 events=0. Chỉ ảnh hưởng hiển thị lịch sử của run hơn 90 ngày.",
+  "how": "TestZZVerifyY2Y4: log before/after testsOK"
+ },
+ "Y5": {
+  "verdict": "confirmed",
+  "final_severity": "medium",
+  "reason": "`go test -count=5 -run TestCollectDenialBatchAndSymlinks ./internal/maintenance` thất bại 5/5 ('removed 2/3 want4'), và cũng thất bại khi chạy cả gói (FAIL bint/internal/maintenance). Test mới của chính ứng viên đỏ nghĩa là CI đỏ, nên theo thang mức nâng lên medium; lỗi gốc (báo xong khi còn ứng viên) tự nó chỉ là low.",
+  "how": "cd clone Y; env -u CLAUDECODE -u AI_AGENT go test -count=5 -run TestCollectDenialBatchAndSymlinks ./internal/maintenance"
+ },
+ "Y6": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "Fixture: phiếu done và phiếu cancelled cùng updated_at 2026-04-01, log 200 ngày; sau `bint status` chỉ log phiếu done bị xoá, log phiếu cancelled còn. owners.go taskState chỉ chấp nhận Status=='done'. Bỏ sót theo hướng an toàn, nên low.",
+  "how": "Sửa updated_at trong runtime/tasks/<id>/state.json về 2026-04-01; bint status; find runtime/tasks -name '*.log'"
+ },
+ "Y7": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "Fixture 4 snapshot AGENTS.md (20250115 = bản gốc trước Bint, 0201/0301/0401 có khối bint): `bint status` xoá 20250115 và giữ 3 bản mới nhất. Bản sao duy nhất của hooks.json/.gitignore được giữ. Tệp đang dùng vẫn nguyên nên low.",
+  "how": "Fixture Y; bint status; ls backups => 20250101, 20250201, 20250301, 20250401"
+ },
+ "Y8": {
+  "verdict": "confirmed",
+  "final_severity": "low",
+  "reason": "Workspace.cleanup chỉ chạy trong Ingest của repo hiện tại; docs/workflows.md bản Y ghi rõ state của repository khác và state root cũ không bị quét. Phạm vi thiếu, không gây hại.",
+  "how": "Đọc internal/app/maintenance.go, internal/app/workspace.go và mục 'Tự dọn thư mục dữ liệu' trong docs/workflows.md (bản Y)"
+ },
+ "extra": []
+}

@@ -1,0 +1,7 @@
+PASS  C1-build  exit=0 
+PASS  C2-vet  exit=0 
+PASS  C3-vet-windows  exit=0 
+FAIL  C4-staticcheck  exit=1 internal/app/cleanup.go:233:3: this value of err is never used (SA4006)
+FAIL  C5-staticcheck-windows  exit=1 internal/app/cleanup.go:233:3: this value of err is never used (SA4006)
+PASS  C6-go-test  exit=0 
+TÓM TẮT {"cmd": "repo", "fail": ["C4-staticcheck", "C5-staticcheck-windows"], "fixture_ok": true, "critical": [], "medium": ["C4-staticcheck", "C5-staticcheck-windows"]}

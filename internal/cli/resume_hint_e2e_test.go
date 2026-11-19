@@ -146,3 +146,40 @@ func TestLandResumeHintFollowsDriverCLI(t *testing.T) {
 		})
 	}
 }
+
+// Điểm verify xanh: bint task show --json luôn có khoá last_green/open_findings (null khi chưa có); restore-green chỉ người chạy được
+// và báo rõ khi tác vụ chưa có điểm xanh.
+func TestRestoreGreenCLI(t *testing.T) {
+	asHuman(t)
+	root := initIsolationRepo(t)
+	out, code := run(t, root, "", "task", "new", "--no-plan", "--json", "--verify-command", "echo pending", "Thêm tính năng v2 cho app.txt")
+	var c struct {
+		ID string `json:"id"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &c) != nil || c.ID == "" {
+		t.Fatalf("task new: %d\n%s", code, out)
+	}
+	id := c.ID
+	if out, code := run(t, root, "", "task", "status", id, "blocked", "--reason", "thử điểm xanh"); code != 0 {
+		t.Fatalf("task status: %d\n%s", code, out)
+	}
+	out, code = run(t, root, "", "task", "show", id, "--json")
+	var shown map[string]json.RawMessage
+	if code != 0 || json.Unmarshal([]byte(out), &shown) != nil {
+		t.Fatalf("task show --json: %d\n%s", code, out)
+	}
+	for _, k := range []string{"last_green", "open_findings"} {
+		if _, ok := shown[k]; !ok {
+			t.Errorf("thiếu khoá %q trong task show --json", k)
+		}
+	}
+	out, code = run(t, root, "", "task", "restore-green", id)
+	if code == 0 || !strings.Contains(out, "chưa có điểm verify xanh") {
+		t.Fatalf("tác vụ chưa xanh lần nào: %d\n%s", code, out)
+	}
+	t.Setenv("CLAUDECODE", "1")
+	out, code = run(t, root, "", "task", "restore-green", id, "--apply")
+	if code == 0 || !strings.Contains(out, "chỉ dành cho người dùng") {
+		t.Fatalf("phiên agent phải bị từ chối: %d\n%s", code, out)
+	}
+}

@@ -1,0 +1,10 @@
+A1 PASS  N2-perf  verify 20 MB: bản kiểm 3.5s (exit 0) / gốc 0.9s (exit 0)
+B1 FAIL  N2-perf  verify 20 MB: bản kiểm 13.5s (exit 0) / gốc 0.9s (exit 0)
+B1 TÓM TẮT {"cmd": "t2", "fail": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events", "S6-task-docs", "N2-perf"], "fixture_ok": true, "critical": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events"], "medium": ["S6-task-docs", "N2-perf"]}
+A2 PASS  N2-perf  verify 20 MB: bản kiểm 3.4s (exit 0) / gốc 0.9s (exit 0)
+B2 FAIL  N2-perf  verify 20 MB: bản kiểm 13.4s (exit 0) / gốc 1.0s (exit 0)
+B2 TÓM TẮT {"cmd": "t2", "fail": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events", "S6-task-docs", "N2-perf"], "fixture_ok": true, "critical": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events"], "medium": ["S6-task-docs", "N2-perf"]}
+A3 PASS  N2-perf  verify 20 MB: bản kiểm 3.4s (exit 0) / gốc 0.9s (exit 0)
+B3 FAIL  N2-perf  verify 20 MB: bản kiểm 13.6s (exit 0) / gốc 0.9s (exit 0)
+B3 TÓM TẮT {"cmd": "t2", "fail": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events", "S6-task-docs", "N2-perf"], "fixture_ok": true, "critical": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events"], "medium": ["S6-task-docs", "N2-perf"]}
+done

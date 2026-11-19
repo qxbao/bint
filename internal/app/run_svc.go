@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -58,6 +59,9 @@ type RunWorkflowOptions struct {
 	Model         string   `flag:"model"`
 	AgentCommand  string   `flag:"agent-command" form:"advanced"`
 
+	// Fast: chọn đường nhanh của b-do (`--fast`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
+	Fast bool
+
 	GoalSet, VerifyCommandSet, AutonomySet bool
 	RunCallbacks
 }
@@ -104,10 +108,14 @@ func (o RunWorkflowOptions) Validate() error {
 	} else if drv != "" && strings.TrimSpace(o.Task) != "" {
 		return Usagef("--driver chỉ chọn lúc lập phiếu: không dùng cùng --task (driver đã ghi trong phiếu)")
 	}
-	if _, err := checkDepth(o.Depth, o.NoPlan, o.Workflow); err != nil {
+	depth, err := checkDepth(o.Depth, o.NoPlan, o.Workflow)
+	if err != nil {
 		return err
 	}
-	_, err := harnessSelection(o.Harness, o.Roles, o.AgentCommand)
+	if err := checkFast(o.Fast, o.Workflow, o.Plan || o.NoPlan, depth); err != nil {
+		return err
+	}
+	_, err = harnessSelection(o.Harness, o.Roles, o.AgentCommand)
 	return err
 }
 
@@ -122,6 +130,16 @@ type RunResumeOptions struct {
 	Roles        []string `flag:"role"`
 	Model        string   `flag:"model"`
 	AgentCommand string   `flag:"agent-command" form:"advanced"`
+	// Answer: câu trả lời cho b-feat đang chờ (câu hỏi `bint task error --question` hoặc b-feat không đổi tệp nào): b-feat chạy lại
+	// trên chính tác vụ với nguyên văn câu hỏi và câu trả lời.
+	Answer string `flag:"answer" form:"multiline"`
+	// Accept / FixRound: tác vụ đang chờ sau khi hết vòng sửa review — chấp nhận như hiện tại / cho thêm đúng một vòng sửa. Chỉ
+	// người dùng (không phải phiên agent).
+	Accept   bool `flag:"accept"`
+	FixRound bool `flag:"fix-round"`
+	// Slice: lựa chọn với lát b-do đang giữ chờ người (quá trần, không đạt, vượt ngân sách, agent lỗi): keep (chốt cây hiện tại) | discard
+	// (đưa tệp của tác vụ về điểm xanh) | more (chạy lại lát từ cây hiện tại). Chỉ người dùng (không phải phiên agent).
+	Slice string `flag:"slice" form:"advanced"`
 	RunCallbacks
 }
 
@@ -131,8 +149,34 @@ func (o RunResumeOptions) Validate() error {
 	if strings.TrimSpace(o.Ref) == "" {
 		return Usagef("cần ID tác vụ")
 	}
+	if o.Slice != "" {
+		if !slices.Contains(workflow.SliceChoices, o.Slice) {
+			return Usagef("--slice %q không hợp lệ: chọn %s", o.Slice, strings.Join(workflow.SliceChoices, " | "))
+		}
+		if err := RequireHuman("bint run resume --slice"); err != nil {
+			return err
+		}
+	}
+	if err := validateResumeDecision(o.Accept, o.FixRound); err != nil {
+		return err
+	}
 	_, err := harnessSelection(o.Harness, o.Roles, o.AgentCommand)
 	return err
+}
+
+// validateResumeDecision: --accept và --fix-round loại trừ nhau và chỉ dành cho người (quyết định chấp nhận rủi ro còn lại hay cho
+// chạy thêm vòng tốn chi phí thuộc về người dùng, không phải agent điều phối).
+func validateResumeDecision(accept, fixRound bool) error {
+	if accept && fixRound {
+		return Usagef("--accept và --fix-round loại trừ nhau")
+	}
+	switch {
+	case accept:
+		return RequireHuman("bint run resume --accept")
+	case fixRound:
+		return RequireHuman("bint run resume --fix-round")
+	}
+	return nil
 }
 
 // RunWorkflow điều phối một workflow (b-do, b-req, b-feat, b-review, b-debug). Kết quả blocked/failed/interrupted là
@@ -142,7 +186,7 @@ func RunWorkflow(ctx context.Context, ws *TaskWS, o RunWorkflowOptions) (*workfl
 		return nil, err
 	}
 	wo := workflow.RunOptions{Workflow: o.Workflow, Request: strings.TrimSpace(o.Request), TaskRef: o.Task, Step: o.Step,
-		NoReview: o.NoReview, NoWait: o.NoWait, Fresh: o.Fresh, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
+		NoReview: o.NoReview, NoWait: o.NoWait, Fresh: o.Fresh, Fast: o.Fast, Edit: o.fields().edit(), Isolation: isolationFlag(o.Worktree, o.Shared)}
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	if o.Plan || o.NoPlan {
 		p := o.Plan
@@ -176,7 +220,8 @@ func ResumeWorkflow(ctx context.Context, ws *TaskWS, o RunResumeOptions) (*workf
 	if o.Rerun && t.State.HeldStep == nil {
 		return nil, Usagef("--rerun: tác vụ %s không có bước chỉ đọc nào đang được giữ để chạy lại", t.State.ID)
 	}
-	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait, Rerun: o.Rerun, Fresh: o.Fresh}
+	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait, Rerun: o.Rerun, Fresh: o.Fresh,
+		Answer: o.Answer, Accept: o.Accept, FixRound: o.FixRound, Slice: o.Slice}
 	return runWith(ctx, ws, wo, o.Harness, o.Roles, o.AgentCommand, o.Model, o.RunCallbacks)
 }
 
@@ -286,6 +331,10 @@ type RunNextOptions struct {
 	Rerun  bool   `flag:"rerun" form:"advanced"`
 	NoWait bool   `flag:"no-wait" form:"advanced"`
 	Fresh  bool   `flag:"fresh" form:"advanced"`
+	// Answer, Accept, FixRound (cùng --resume): như RunResumeOptions.
+	Answer   string `flag:"answer" form:"multiline"`
+	Accept   bool   `flag:"accept"`
+	FixRound bool   `flag:"fix-round"`
 }
 
 func RunNextDefaults(config.Config) RunNextOptions { return RunNextOptions{} }
@@ -297,7 +346,10 @@ func (o RunNextOptions) Validate() error {
 	if o.Rerun && !o.Resume {
 		return Usagef("--rerun chỉ dùng cùng --resume")
 	}
-	return nil
+	if (o.Answer != "" || o.Accept || o.FixRound) && !o.Resume {
+		return Usagef("--answer/--accept/--fix-round chỉ dùng cùng --resume")
+	}
+	return validateResumeDecision(o.Accept, o.FixRound)
 }
 
 // RunCompleteOptions: `bint run complete <task-id> --run <run_id>` — đóng bước subagent vừa chạy.
@@ -375,7 +427,8 @@ func RunNext(ctx context.Context, ws *TaskWS, o RunNextOptions) (*workflow.Sessi
 	if err != nil {
 		return nil, err
 	}
-	a, err := r.Next(ctx, workflow.NextOptions{TaskRef: o.Ref, Resume: o.Resume, Rerun: o.Rerun, NoWait: o.NoWait, Fresh: o.Fresh})
+	a, err := r.Next(ctx, workflow.NextOptions{TaskRef: o.Ref, Resume: o.Resume, Rerun: o.Rerun, NoWait: o.NoWait, Fresh: o.Fresh,
+		Answer: o.Answer, Accept: o.Accept, FixRound: o.FixRound})
 	if err != nil {
 		return nil, err
 	}

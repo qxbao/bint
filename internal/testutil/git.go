@@ -68,7 +68,7 @@ func Isolate(t *testing.T) (stateDir string) {
 	bin := fakeHarnessDir(t)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	// Kiểm thử có thể đang chạy trong một phiên agent/lượt workflow thật.
-	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS"} {
+	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "BINT_RUN_ID", "BINT_TASK_ID", "BINT_APPROVED_PATHS", "BINT_DENY_READ"} {
 		t.Setenv(k, "")
 	}
 	// Store profile của `bint iso` (internal/iso) nằm trong thư mục tạm và kiểm thử không bao giờ ở trong
@@ -146,9 +146,10 @@ func CleanupHarness() {
 	}
 }
 
-// Main chạy m.Run rồi dọn thư mục harness giả; dùng trong TestMain của gói gọi Isolate.
+// Main chạy test (RunTests: chia nhiều tiến trình khi được) rồi dọn thư mục harness giả; dùng trong TestMain của
+// gói gọi Isolate.
 func Main(m *testing.M) {
-	code := m.Run()
+	code := RunTests(m)
 	CleanupHarness()
 	os.Exit(code)
 }

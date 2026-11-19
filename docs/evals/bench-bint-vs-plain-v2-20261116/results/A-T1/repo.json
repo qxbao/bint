@@ -1,0 +1,59 @@
+{
+ "summary": {
+  "cmd": "repo",
+  "fail": [
+   "C4-staticcheck",
+   "C5-staticcheck-windows"
+  ],
+  "fixture_ok": true,
+  "critical": [],
+  "medium": [
+   "C4-staticcheck",
+   "C5-staticcheck-windows"
+  ]
+ },
+ "results": [
+  {
+   "id": "C1-build",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  },
+  {
+   "id": "C2-vet",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  },
+  {
+   "id": "C3-vet-windows",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  },
+  {
+   "id": "C4-staticcheck",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "medium",
+   "detail": "exit=1 internal/app/cleanup.go:233:3: this value of err is never used (SA4006)"
+  },
+  {
+   "id": "C5-staticcheck-windows",
+   "status": "FAIL",
+   "pass": false,
+   "severity": "medium",
+   "detail": "exit=1 internal/app/cleanup.go:233:3: this value of err is never used (SA4006)"
+  },
+  {
+   "id": "C6-go-test",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 "
+  }
+ ]
+}

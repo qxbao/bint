@@ -1,0 +1,1790 @@
+ docs/configuration.md                  |  20 ++
+ internal/app/cleanup_test.go           | 176 ++++++++++++
+ internal/app/revalidate.go             |   5 +-
+ internal/app/status.go                 |  16 +-
+ internal/app/workspace.go              |  18 +-
+ internal/cli/cleanup_e2e_test.go       |  56 ++++
+ internal/cli/commands.go               |  18 ++
+ internal/config/cleanup_test.go        |  74 +++++
+ internal/config/config.go              |   8 +-
+ internal/config/template.go            |   2 +-
+ internal/evolve/cleanup_test.go        |  91 ++++++
+ internal/evolve/harness_propose.go     |   5 +-
+ internal/evolve/skill_generate.go      |   5 +-
+ internal/state/cleanup.go              | 503 +++++++++++++++++++++++++++++++++
+ internal/state/cleanup_test.go         | 472 +++++++++++++++++++++++++++++++
+ internal/state/cleanup_unix.go         |  13 +
+ internal/state/cleanup_windows.go      |  20 ++
+ internal/state/cleanup_windows_test.go |  54 ++++
+ 18 files changed, 1543 insertions(+), 13 deletions(-)
+
+diff --git a/docs/configuration.md b/docs/configuration.md
+index d27fbe5..bf707f6 100644
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -40,6 +40,7 @@ hình trước đó.
+ | `project.name` | `""` (`init` điền tên thư mục) | Tên dự án. |
+ | `project.root` | `"auto"` | Trường dự phòng trong schema; gốc repository luôn xác định qua Git. |
+ | `state.dir` | `"auto"` | Đường dẫn tuyệt đối tới thư mục trạng thái của repository (ngoài repository), hoặc `"auto"`. |
++| `state.cleanup_retention_days` | `90` | Số ngày giữ log chẩn đoán đã hoàn tất; `0` tắt tự dọn, nhận 0–106751. |
+ 
+ Với `state.dir: auto`, thư mục trạng thái là `<gốc>/<repo-id>` (trong đó `<repo-id>` tính từ
+ `git-common-dir` nên mọi worktree của cùng một repository dùng chung trạng thái). Thứ tự chọn `<gốc>`:
+@@ -226,3 +227,22 @@ khi bạn chép sang `eval.test_command`.
+   ngôn ngữ ngay trong phiên (không cần khởi động lại) nhưng **chưa lưu** vào cấu hình; màn Hệ thống ›
+   Ngôn ngữ để lưu `ui.language` thuộc giai đoạn 5 của kế hoạch TUI. Repository có cấu hình cũ chưa có khối `ui`
+   được thêm bằng `bint init --update`.
++
++Dọn dữ liệu trạng thái chạy sau khi nạp spool thành công, tối đa một lần mỗi 24 giờ
++cho các worktree dùng chung trạng thái. Không có tiến trình nền khi Bint không chạy.
++Chỉ xoá log riêng từng lượt trong `runtime/revalidate/*.log`, `runtime/evolve/*.log`
++có ghi nhận đã đóng và cặp `runtime/hook-trace/*.in`/`*.out` hoàn tất, cũ hơn
++số ngày giữ (mtime; tệp đúng mốc được giữ). Log legacy chưa có ghi nhận hoàn tất,
++tệp đã thay đổi, liên kết và trace thiếu cặp được giữ lại.
++SQLite/WAL/SHM, spool, hồ sơ và log tác vụ, bằng chứng eval, tri thức, worktree,
++backups, log dùng chung như `hook-errors.log`/`gateway.log` không thuộc phạm vi dọn.
++Vì vậy chính sách này không giới hạn tổng dung lượng thư mục trạng thái.
++`bint status` hiển thị thời điểm, số tệp/byte đã xoá và lỗi/lý do bỏ qua gần nhất.
++
++Ghi nhận hoàn tất hiện được thực hiện cho các lượt revalidate, đề xuất cấu hình
++harness và sinh skill evolve. Các log evolve khác chưa có ghi nhận cũng được giữ,
++kể cả khi đã cũ. Khi khoá bận hoặc không ghi được sổ hoàn tất, log được giữ lâu hơn.
++
++Nếu một mục bị thay thế đồng thời lúc dọn và không thể phục hồi tên cũ an toàn,
++Bint giữ dữ liệu dưới tên `.cleanup-*.retained` trong chính thư mục log và ghi
++đường dẫn đó vào lỗi của báo cáo; các mục này không bị tự xoá ở lượt sau.
+diff --git a/internal/app/cleanup_test.go b/internal/app/cleanup_test.go
+new file mode 100644
+index 0000000..3fa7dfe
+--- /dev/null
++++ b/internal/app/cleanup_test.go
+@@ -0,0 +1,176 @@
++package app
++
++import (
++	"context"
++	"errors"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"bint/internal/eval"
++	"bint/internal/knowledge"
++	"bint/internal/state"
++)
++
++func appCleanupLog(t *testing.T, ws *Workspace) string {
++	t.Helper()
++	p := filepath.Join(ws.Paths.Runtime, "evolve", "old.log")
++	if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(p, []byte("old diagnostic"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	old := time.Now().Add(-100 * 24 * time.Hour)
++	if err := os.Chtimes(p, old, old); err != nil {
++		t.Fatal(err)
++	}
++	if err := state.RecordCompletedDiagnostic(ws.Paths, p); err != nil {
++		t.Fatal(err)
++	}
++	return p
++}
++func TestCleanupRunsOnlyAfterSuccessfulIngest(t *testing.T) {
++	root, ws := subagentRepo(t)
++	path := appCleanupLog(t, ws)
++	ctx := context.Background()
++	if _, err := OpenWorkspace(ctx, root, true); err != nil {
++		t.Fatal(err)
++	}
++	traceRun(t, root, traceInput(root))
++	if _, err := StatusNoIngest(ctx, root); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(path); err != nil {
++		t.Fatalf("read/hook removed log: %v", err)
++	}
++	// A failed ingest must leave the diagnostic untouched.
++	s, err := ws.OpenStore(ctx)
++	if err != nil {
++		t.Fatal(err)
++	}
++	s.Close()
++	if _, err := ws.Ingest(ctx, s, time.Now()); err == nil {
++		t.Fatal("closed store accepted")
++	}
++	if _, err := os.Stat(path); err != nil {
++		t.Fatalf("failed ingest removed log: %v", err)
++	}
++	if _, err := Status(ctx, root); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
++		t.Fatalf("successful ingest did not delete old log: %v", err)
++	}
++	rep, err := state.ReadCleanupReport(ws.Paths)
++	if err != nil || rep == nil || rep.DeletedFiles != 1 || rep.DeletedBytes != 14 {
++		t.Fatalf("report %+v %v", rep, err)
++	}
++	// A new Workspace/process uses the same persisted throttle.
++	path = appCleanupLog(t, ws)
++	if _, err := Status(ctx, root); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(path); err != nil {
++		t.Fatalf("throttle lost: %v", err)
++	}
++}
++func TestCleanupFailureDoesNotFailStatus(t *testing.T) {
++	root, ws := subagentRepo(t)
++	if err := os.WriteFile(filepath.Join(ws.Paths.Runtime, "cleanup.json"), []byte("broken"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := Status(context.Background(), root); err != nil {
++		t.Fatalf("cleanup failed main command: %v", err)
++	}
++}
++
++type cleanupRevalidator struct {
++	t           *testing.T
++	path        string
++	breakLedger bool
++}
++
++func (a *cleanupRevalidator) Name() string                   { return "cleanup-revalidator" }
++func (a *cleanupRevalidator) Version(context.Context) string { return "" }
++func (a *cleanupRevalidator) ReportsCost() bool              { return false }
++func (a *cleanupRevalidator) Run(_ context.Context, req eval.AgentRequest) eval.AgentResult {
++	a.path = req.LogPath
++	if err := os.WriteFile(req.LogPath, []byte("failed diagnostic"), 0600); err != nil {
++		a.t.Fatal(err)
++	}
++	old := time.Now().Add(-100 * 24 * time.Hour)
++	if err := os.Chtimes(req.LogPath, old, old); err != nil {
++		a.t.Fatal(err)
++	}
++	if a.breakLedger {
++		if err := os.WriteFile(filepath.Join(filepath.Dir(filepath.Dir(req.LogPath)), "cleanup.json"), []byte("corrupt"), 0600); err != nil {
++			a.t.Fatal(err)
++		}
++	}
++	return eval.AgentResult{Error: "agent failed"}
++}
++func TestCleanupRevalidateRecordsFailedAgent(t *testing.T) {
++	root, ids, _ := seedKnowledge(t, 1, "cleanup")
++	ctx := context.Background()
++	k, err := OpenKnowledge(ctx, root)
++	if err != nil {
++		t.Fatal(err)
++	}
++	all, _, err := k.Items()
++	if err != nil {
++		t.Fatal(err)
++	}
++	var it *knowledge.Item
++	for _, item := range all {
++		if item.ID == ids[0] {
++			it = item
++		}
++	}
++	if it == nil {
++		t.Fatal("missing fixture item")
++	}
++	it.Status = knowledge.StatusStale
++	if err := k.Store.Save(it); err != nil {
++		t.Fatal(err)
++	}
++	a := &cleanupRevalidator{t: t}
++	rep, err := RevalidateKnowledge(ctx, k, RevalidateOptions{Refs: ids, Agent: a})
++	if err != nil || len(rep.Results) != 1 || a.path == "" {
++		t.Fatalf("revalidation %+v %v", rep, err)
++	}
++	cleaned, err := state.MaybeCleanup(ctx, k.Paths, 90, time.Now())
++	if err != nil || cleaned.DeletedFiles != 1 {
++		t.Fatalf("completed revalidation log retained: %+v %v", cleaned, err)
++	}
++}
++
++func TestCleanupRevalidateLedgerFailureRetainsLog(t *testing.T) {
++	root, ids, _ := seedKnowledge(t, 1, "cleanup-ledger-failure")
++	ctx := context.Background()
++	k, err := OpenKnowledge(ctx, root)
++	if err != nil {
++		t.Fatal(err)
++	}
++	all, _, err := k.Items()
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, it := range all {
++		if it.ID == ids[0] {
++			it.Status = knowledge.StatusStale
++			if err := k.Store.Save(it); err != nil {
++				t.Fatal(err)
++			}
++		}
++	}
++	a := &cleanupRevalidator{t: t, breakLedger: true}
++	rep, err := RevalidateKnowledge(ctx, k, RevalidateOptions{Refs: ids, Agent: a})
++	if err != nil || len(rep.Results) != 1 || rep.Results[0].Verdict != "unsure" {
++		t.Fatalf("main result changed: %+v %v", rep, err)
++	}
++	if _, err := os.Stat(a.path); err != nil {
++		t.Fatalf("log lost on ledger failure: %v", err)
++	}
++}
+diff --git a/internal/app/revalidate.go b/internal/app/revalidate.go
+index 327c132..1cfabf0 100644
+--- a/internal/app/revalidate.go
++++ b/internal/app/revalidate.go
+@@ -14,6 +14,7 @@ import (
+ 	"bint/internal/config"
+ 	"bint/internal/eval"
+ 	"bint/internal/knowledge"
++	"bint/internal/state"
+ 	"bint/internal/store"
+ 	"bint/internal/symbols"
+ 	"bint/internal/ulid"
+@@ -185,10 +186,12 @@ func RevalidateKnowledge(ctx context.Context, k *KnowledgeWS, opts RevalidateOpt
+ 			r := remaining
+ 			ca.MaxCostUSD = &r
+ 		}
++		logPath := filepath.Join(logDir, ulid.New()+".log")
+ 		res := opts.Agent.Run(ctx, eval.AgentRequest{
+ 			Dir: k.Root, Prompt: revalidatePrompt(batch, src), Timeout: opts.Timeout,
+-			LogPath: filepath.Join(logDir, ulid.New()+".log"), Env: []string{"BINT_AGENT=1"},
++			LogPath: logPath, Env: []string{"BINT_AGENT=1"},
+ 		})
++		_ = state.RecordCompletedDiagnostic(k.Paths, logPath) // failure retains the log
+ 		cost := res.CostUSD
+ 		if cost != nil {
+ 			rep.SpentUSD += *cost
+diff --git a/internal/app/status.go b/internal/app/status.go
+index 8178921..69e0861 100644
+--- a/internal/app/status.go
++++ b/internal/app/status.go
+@@ -7,13 +7,17 @@ import (
+ 
+ 	"bint/internal/config"
+ 	"bint/internal/runlog"
++	"bint/internal/state"
+ )
+ 
+ // StatusReport là trạng thái Bint của repository (`bint status`, màn Tổng quan của TUI).
+ type StatusReport struct {
+-	Repo     string
+-	RepoID   string
+-	StateDir string
++	Cleanup        *state.CleanupReport
++	CleanupError   string
++	CleanupSkipped string
++	Repo           string
++	RepoID         string
++	StateDir       string
+ 	// Schema là phiên bản schema cơ sở dữ liệu trạng thái.
+ 	Schema    int
+ 	Harnesses []string
+@@ -71,6 +75,12 @@ func status(ctx context.Context, dir string, ingest bool) (*StatusReport, error)
+ 	for _, n := range counts {
+ 		rep.TotalRuns += n
+ 	}
++	rep.Cleanup, err = state.ReadCleanupReport(ws.Paths)
++	rep.CleanupError = ws.cleanupError
++	rep.CleanupSkipped = ws.cleanupSkipped
++	if err != nil {
++		rep.CleanupError = err.Error()
++	}
+ 	rep.PendingProposals = countPendingProposals(ctx, s.DB)
+ 	return rep, nil
+ }
+diff --git a/internal/app/workspace.go b/internal/app/workspace.go
+index ae2e227..82a214d 100644
+--- a/internal/app/workspace.go
++++ b/internal/app/workspace.go
+@@ -19,10 +19,12 @@ var ErrNotInitialized = errors.New("repository chưa được khởi tạo Bint
+ 
+ // Workspace gom các thông tin đã giải quyết cho repository hiện tại.
+ type Workspace struct {
+-	Repo    gitrepo.Repo
+-	Config  config.Config
+-	Sources config.Sources
+-	Paths   state.Paths
++	Repo           gitrepo.Repo
++	Config         config.Config
++	Sources        config.Sources
++	Paths          state.Paths
++	cleanupError   string
++	cleanupSkipped string
+ }
+ 
+ // OpenWorkspace xác định repository chứa dir và nạp cấu hình. Nếu requireInit,
+@@ -60,5 +62,13 @@ func (w *Workspace) Ingest(ctx context.Context, s *store.Store, now time.Time) (
+ 	if err != nil {
+ 		return res, fmt.Errorf("nạp spool: %w", err)
+ 	}
++	cleanupCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
++	defer cancel()
++	cleanupRep, cleanupErr := state.MaybeCleanup(cleanupCtx, w.Paths, w.Config.State.CleanupRetentionDays, now)
++	w.cleanupError = ""
++	w.cleanupSkipped = cleanupRep.Skipped
++	if cleanupErr != nil {
++		w.cleanupError = cleanupErr.Error()
++	}
+ 	return res, nil
+ }
+diff --git a/internal/cli/cleanup_e2e_test.go b/internal/cli/cleanup_e2e_test.go
+new file mode 100644
+index 0000000..af99609
+--- /dev/null
++++ b/internal/cli/cleanup_e2e_test.go
+@@ -0,0 +1,56 @@
++package cli_test
++
++import (
++	"context"
++	"errors"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/app"
++	"bint/internal/state"
++	"bint/internal/testutil"
++)
++
++func TestCleanupStatusDeletesExpiredLogAndReports(t *testing.T) {
++	testutil.Isolate(t)
++	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
++	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
++		t.Fatal(out)
++	}
++	ws, err := app.OpenWorkspace(context.Background(), root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	path := filepath.Join(ws.Paths.Runtime, "evolve", "old.log")
++	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(path, []byte("diagnostic"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	old := time.Now().Add(-100 * 24 * time.Hour)
++	if err := os.Chtimes(path, old, old); err != nil {
++		t.Fatal(err)
++	}
++	if err := state.RecordCompletedDiagnostic(ws.Paths, path); err != nil {
++		t.Fatal(err)
++	}
++	out, code := run(t, root, "", "status")
++	if code != 0 {
++		t.Fatal(out)
++	}
++	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
++		t.Fatalf("old log still exists: %v\n%s", err, out)
++	}
++	if !strings.Contains(out, "1 tệp, 10 byte") {
++		t.Fatalf("missing actual deletion report: %s", out)
++	}
++	// A separate CLI process must see the same report/throttle.
++	out, code = run(t, root, "", "status")
++	if code != 0 || !strings.Contains(out, "1 tệp, 10 byte") {
++		t.Fatal(out)
++	}
++}
+diff --git a/internal/cli/commands.go b/internal/cli/commands.go
+index 414d193..3e2ddca 100644
+--- a/internal/cli/commands.go
++++ b/internal/cli/commands.go
+@@ -167,6 +167,24 @@ func newStatusCmd(stdio IO) *cobra.Command {
+ 			fmt.Fprintf(w, "Repo ID:        %s\n", rep.RepoID)
+ 			fmt.Fprintf(w, "Trạng thái:     %s\n", rep.StateDir)
+ 			fmt.Fprintf(w, "Schema:         v%d\n", rep.Schema)
++			if rep.Cleanup != nil {
++				c := rep.Cleanup
++				fmt.Fprintf(w, "Dọn dữ liệu:    %s — %d tệp, %d byte đã xoá; bỏ qua: %v\n", c.At.Format(time.RFC3339), c.DeletedFiles, c.DeletedBytes, c.Reasons)
++				for _, warning := range c.Errors {
++					fmt.Fprintf(w, "  Dọn dữ liệu: %s\n", warning)
++				}
++			} else {
++				fmt.Fprintln(w, "Dọn dữ liệu:    chưa có lần dọn hoàn tất")
++			}
++			if rep.Config.State.CleanupRetentionDays == 0 {
++				fmt.Fprintln(w, "  Dọn tự động: tắt")
++			}
++			if rep.CleanupSkipped == "busy" {
++				fmt.Fprintln(w, "  Dọn tự động: bỏ qua vì tiến trình khác đang giữ khoá")
++			}
++			if rep.CleanupError != "" {
++				fmt.Fprintf(w, "  Dọn dữ liệu: %s\n", rep.CleanupError)
++			}
+ 			fmt.Fprintf(w, "Harness:        %s\n", strings.Join(rep.Harnesses, ", "))
+ 			var parts []string
+ 			keys := make([]string, 0, len(rep.Runs))
+diff --git a/internal/config/cleanup_test.go b/internal/config/cleanup_test.go
+new file mode 100644
+index 0000000..d31d1c2
+--- /dev/null
++++ b/internal/config/cleanup_test.go
+@@ -0,0 +1,74 @@
++package config
++
++import (
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++)
++
++func TestCleanupRetention(t *testing.T) {
++	for _, tc := range []struct {
++		yaml    string
++		want    int
++		invalid bool
++	}{
++		{"state:\n  dir: auto\n", 90, false},
++		{"state:\n  cleanup_retention_days: 0\n", 0, false},
++		{"state:\n  cleanup_retention_days: 120\n", 120, false},
++		{"state:\n  cleanup_retention_days: -1\n", -1, true},
++		{"state:\n  cleanup_retention_days: 106752\n", 106752, true},
++	} {
++		c := Default()
++		if err := Decode(strings.NewReader(tc.yaml), &c); err != nil {
++			t.Fatal(err)
++		}
++		if c.State.CleanupRetentionDays != tc.want {
++			t.Fatalf("got %d want %d", c.State.CleanupRetentionDays, tc.want)
++		}
++		if err := c.Validate(); (err != nil) != tc.invalid {
++			t.Fatalf("Validate: %v", err)
++		}
++	}
++}
++
++func TestCleanupRetentionUpgradeAndLocalLayer(t *testing.T) {
++	template := Render(InitParams{ProjectName: "cleanup"})
++	var lines []string
++	for _, line := range strings.Split(template, "\n") {
++		if !strings.Contains(line, "cleanup_retention_days:") {
++			lines = append(lines, line)
++		}
++	}
++	old := strings.Join(lines, "\n")
++	upgraded, err := Upgrade([]byte(old))
++	if err != nil {
++		t.Fatal(err)
++	}
++	if !upgraded.Changed() {
++		t.Fatal("missing key not added")
++	}
++	cfg := Default()
++	if err := Decode(strings.NewReader(string(upgraded.Content)), &cfg); err != nil || cfg.State.CleanupRetentionDays != 90 {
++		t.Fatalf("upgrade: %+v %v", cfg.State, err)
++	}
++	t.Setenv("BINT_CONFIG_HOME", t.TempDir())
++	root := t.TempDir()
++	if err := os.Mkdir(filepath.Join(root, DirName), 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(ProjectPath(root), []byte(old), 0600); err != nil {
++		t.Fatal(err)
++	}
++	loaded, _, err := Load(root, true)
++	if err != nil || loaded.State.CleanupRetentionDays != 90 {
++		t.Fatalf("legacy load: %+v %v", loaded.State, err)
++	}
++	if err := os.WriteFile(LocalPath(root), []byte("state:\n  cleanup_retention_days: 0\n"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	loaded, _, err = Load(root, true)
++	if err != nil || loaded.State.CleanupRetentionDays != 0 {
++		t.Fatalf("local override: %+v %v", loaded.State, err)
++	}
++}
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 5144b6c..346720b 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -80,7 +80,8 @@ type Project struct {
+ 
+ type State struct {
+ 	// Dir là "auto" hoặc đường dẫn tuyệt đối tới thư mục trạng thái của repository này.
+-	Dir string `yaml:"dir"`
++	Dir                  string `yaml:"dir"`
++	CleanupRetentionDays int    `yaml:"cleanup_retention_days"`
+ }
+ 
+ type Harnesses struct {
+@@ -565,7 +566,7 @@ func Default() Config {
+ 	return Config{
+ 		Version: SchemaVersion,
+ 		Project: Project{Root: "auto"},
+-		State:   State{Dir: "auto"},
++		State:   State{Dir: "auto", CleanupRetentionDays: 90},
+ 		Harnesses: Harnesses{
+ 			Enabled:     []string{"claude"},
+ 			Default:     "claude",
+@@ -837,6 +838,9 @@ func (c Config) Validate() error {
+ 	if c.Version != SchemaVersion {
+ 		add("version: cần %d, nhận %d", SchemaVersion, c.Version)
+ 	}
++	if c.State.CleanupRetentionDays < 0 || c.State.CleanupRetentionDays > 106751 {
++		add("state.cleanup_retention_days: cần từ 0 đến 106751 (0 tắt dọn)")
++	}
+ 	if c.State.Dir == "" {
+ 		add(`state.dir: không được rỗng (dùng "auto" hoặc đường dẫn tuyệt đối)`)
+ 	} else if c.State.Dir != "auto" && !filepath.IsAbs(c.State.Dir) {
+diff --git a/internal/config/template.go b/internal/config/template.go
+index fd65313..05a3cb1 100644
+--- a/internal/config/template.go
++++ b/internal/config/template.go
+@@ -37,7 +37,7 @@ func Render(p InitParams) string {
+ 	w("# đặt trong .bint/local.yml (không commit). Xem `bint doctor` để kiểm tra.\n")
+ 	w("version: %d\n\n", SchemaVersion)
+ 	w("project:\n  name: %s\n  root: auto\n\n", quote(p.ProjectName))
+-	w("state:\n  dir: auto                 # mặc định: ${XDG_STATE_HOME}/bint/<repo-id>, nằm ngoài repository\n\n")
++	w("state:\n  dir: auto                 # mặc định: ${XDG_STATE_HOME}/bint/<repo-id>, nằm ngoài repository\n  cleanup_retention_days: 90 # giữ log chẩn đoán đã hoàn tất; 0 tắt dọn tự động\n\n")
+ 	w("harnesses:\n  enabled:\n")
+ 	for _, e := range p.Harnesses {
+ 		w("    - %s\n", e)
+diff --git a/internal/evolve/cleanup_test.go b/internal/evolve/cleanup_test.go
+new file mode 100644
+index 0000000..30c7d54
+--- /dev/null
++++ b/internal/evolve/cleanup_test.go
+@@ -0,0 +1,91 @@
++package evolve
++
++import (
++	"context"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/eval"
++	"bint/internal/state"
++)
++
++type cleanupAgent struct {
++	t           *testing.T
++	paths       state.Paths
++	log         string
++	during      bool
++	breakLedger bool
++}
++
++func (a *cleanupAgent) Name() string                   { return "cleanup-fixture" }
++func (a *cleanupAgent) Version(context.Context) string { return "" }
++func (a *cleanupAgent) ReportsCost() bool              { return false }
++func (a *cleanupAgent) Run(ctx context.Context, req eval.AgentRequest) eval.AgentResult {
++	a.log = req.LogPath
++	if err := os.WriteFile(req.LogPath, []byte("closed diagnostic"), 0600); err != nil {
++		a.t.Fatal(err)
++	}
++	old := time.Now().Add(-100 * 24 * time.Hour)
++	if err := os.Chtimes(req.LogPath, old, old); err != nil {
++		a.t.Fatal(err)
++	}
++	rep, err := state.MaybeCleanup(ctx, a.paths, 90, time.Now())
++	if err != nil {
++		a.t.Fatal(err)
++	}
++	a.during = rep.DeletedFiles > 0
++	if a.breakLedger {
++		if err := os.WriteFile(filepath.Join(a.paths.Runtime, "cleanup.json"), []byte("corrupt"), 0600); err != nil {
++			a.t.Fatal(err)
++		}
++	}
++	return eval.AgentResult{Error: "agent failed"}
++}
++func TestCleanupEvolveRecordsAfterRunEvenOnError(t *testing.T) {
++	for _, kind := range []string{"skill", "harness"} {
++		t.Run(kind, func(t *testing.T) {
++			f := setup(t)
++			ctx := context.Background()
++			a := &cleanupAgent{t: t, paths: f.k.Paths}
++			if kind == "skill" {
++				_, h := f.scan(t)
++				_, _, _, _ = agentSkillProposal(ctx, ProposeInput{K: f.k, DB: f.db, Agent: a, History: h}, Opportunity{Kind: KindSkillCandidate}, nil, 1)
++			} else {
++				cases, scan, h := seedLessonFailures(t, f)
++				var opp Opportunity
++				for _, o := range scan.Opportunities {
++					if o.Key == harnessSignalPrefix+SigNoTest {
++						opp = o
++					}
++				}
++				_, _ = Propose(ctx, ProposeInput{K: f.k, DB: f.db, Scan: scan, History: h, Refs: []string{opp.ID}, Max: 1, HarnessProposer: a, Cases: cases, RepoDir: f.root, Now: now})
++			}
++			if a.log == "" {
++				t.Fatal("agent was not run")
++			}
++			if a.during {
++				t.Fatal("log deleted while agent was running")
++			}
++			rep, err := state.MaybeCleanup(ctx, f.k.Paths, 90, time.Now().Add(25*time.Hour))
++			if err != nil || rep.DeletedFiles != 1 {
++				t.Fatalf("completed failed-agent log not deleted: %+v %v", rep, err)
++			}
++		})
++	}
++}
++
++func TestCleanupSkillLedgerFailurePreservesMainError(t *testing.T) {
++	f := setup(t)
++	_, h := f.scan(t)
++	a := &cleanupAgent{t: t, paths: f.k.Paths, breakLedger: true}
++	_, _, _, err := agentSkillProposal(context.Background(), ProposeInput{K: f.k, DB: f.db, Agent: a, History: h}, Opportunity{Kind: KindSkillCandidate}, nil, 1)
++	if err == nil || !strings.Contains(err.Error(), "agent failed") {
++		t.Fatalf("main error lost: %v", err)
++	}
++	if _, err := os.Stat(a.log); err != nil {
++		t.Fatalf("log lost: %v", err)
++	}
++}
+diff --git a/internal/evolve/harness_propose.go b/internal/evolve/harness_propose.go
+index 9d65ac2..1abc6ef 100644
+--- a/internal/evolve/harness_propose.go
++++ b/internal/evolve/harness_propose.go
+@@ -15,6 +15,7 @@ import (
+ 	"bint/internal/hcomp"
+ 	"bint/internal/knowledge"
+ 	"bint/internal/runlog"
++	"bint/internal/state"
+ 	"bint/internal/store"
+ 	"bint/internal/ulid"
+ )
+@@ -224,8 +225,10 @@ func harnessProposals(ctx context.Context, in ProposeInput, o Opportunity, remai
+ 	if timeout <= 0 {
+ 		timeout = 15 * time.Minute
+ 	}
++	logPath := filepath.Join(logDir, ulid.New()+".log")
+ 	res := in.HarnessProposer.Run(ctx, eval.AgentRequest{Dir: dir, Prompt: prompt, Timeout: timeout, ReadOnly: true,
+-		LogPath: filepath.Join(logDir, ulid.New()+".log"), Env: []string{"BINT_AGENT=1"}})
++		LogPath: logPath, Env: []string{"BINT_AGENT=1"}})
++	_ = state.RecordCompletedDiagnostic(in.K.Paths, logPath) // failure retains the log
+ 	if !strings.Contains(res.Text, `"proposals"`) && res.Error != "" {
+ 		return nil, nil, res.CostUSD, fmt.Errorf("agent đề xuất quy trình lỗi: %s", res.Error)
+ 	}
+diff --git a/internal/evolve/skill_generate.go b/internal/evolve/skill_generate.go
+index 3f33d6f..fa9e383 100644
+--- a/internal/evolve/skill_generate.go
++++ b/internal/evolve/skill_generate.go
+@@ -15,6 +15,7 @@ import (
+ 	"bint/internal/eval"
+ 	"bint/internal/knowledge"
+ 	"bint/internal/skills"
++	"bint/internal/state"
+ 	"bint/internal/store"
+ 	"bint/internal/task"
+ 	"bint/internal/ulid"
+@@ -209,8 +210,10 @@ func agentSkillProposal(ctx context.Context, in ProposeInput, o Opportunity, all
+ 	}
+ 	var res eval.AgentResult
+ 	if err := guardReadOnly(ctx, in.K.Root, func() {
++		logPath := filepath.Join(logDir, ulid.New()+".log")
+ 		res = in.Agent.Run(ctx, eval.AgentRequest{Dir: in.K.Root, Prompt: prompt, Timeout: timeout, ReadOnly: true,
+-			LogPath: filepath.Join(logDir, ulid.New()+".log"), Env: []string{"BINT_AGENT=1"}})
++			LogPath: logPath, Env: []string{"BINT_AGENT=1"}})
++		_ = state.RecordCompletedDiagnostic(in.K.Paths, logPath) // after Run closes the log
+ 	}); err != nil {
+ 		return nil, nil, res.CostUSD, err
+ 	}
+diff --git a/internal/state/cleanup.go b/internal/state/cleanup.go
+new file mode 100644
+index 0000000..28e9013
+--- /dev/null
++++ b/internal/state/cleanup.go
+@@ -0,0 +1,503 @@
++package state
++
++import (
++	"context"
++	"crypto/rand"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"os"
++	"path/filepath"
++	"strings"
++	"time"
++
++	"bint/internal/fslock"
++)
++
++const cleanupLedgerLimit = 8 << 20
++
++// CleanupReport counts only successful removals. Skipped describes a whole skipped
++// attempt; Reasons counts files/pairs retained during the last completed scan.
++type CleanupReport struct {
++	At           time.Time      `json:"at"`
++	DeletedFiles int            `json:"deleted_files"`
++	DeletedBytes int64          `json:"deleted_bytes"`
++	Skipped      string         `json:"skipped,omitempty"`
++	Reasons      map[string]int `json:"reasons,omitempty"`
++	Errors       []string       `json:"errors,omitempty"`
++}
++type diagnosticStamp struct {
++	Size  int64     `json:"size"`
++	Mtime time.Time `json:"mtime"`
++}
++type cleanupLedger struct {
++	Version   int                        `json:"version"`
++	LastScan  time.Time                  `json:"last_scan"`
++	Report    *CleanupReport             `json:"report,omitempty"`
++	Completed map[string]diagnosticStamp `json:"completed"`
++}
++
++type cleanupDirectoryOpener interface {
++	Lstat(string) (os.FileInfo, error)
++	OpenRoot(string) (*os.Root, error)
++}
++type cleanupFileOpener interface {
++	Lstat(string) (os.FileInfo, error)
++	OpenFile(string, int, os.FileMode) (*os.File, error)
++}
++
++// openCleanupDir pins a directory and rejects redirects before using its handle.
++func openCleanupDir(parent cleanupDirectoryOpener, name string) (*os.Root, error) {
++	before, err := parent.Lstat(name)
++	if err != nil {
++		return nil, err
++	}
++	if !before.IsDir() || cleanupLink(before) {
++		return nil, fmt.Errorf("unsafe directory: %s", name)
++	}
++	child, err := parent.OpenRoot(name + string(os.PathSeparator) + ".")
++	if err != nil {
++		return nil, err
++	}
++	after, err := child.Stat(".")
++	entry, entryErr := parent.Lstat(name)
++	if err != nil || entryErr != nil || cleanupLink(entry) || !entry.IsDir() || !os.SameFile(before, entry) || !os.SameFile(before, after) {
++		child.Close()
++		return nil, fmt.Errorf("directory changed: %s", name)
++	}
++	return child, nil
++}
++func cleanupRuntime(p Paths) (*os.Root, error) {
++	root, err := os.OpenRoot(p.Root) // A state-root alias is allowed.
++	if err != nil {
++		return nil, err
++	}
++	defer root.Close()
++	return openCleanupDir(root, "runtime")
++}
++func cleanupRegular(r interface {
++	Lstat(string) (os.FileInfo, error)
++}, name string) (os.FileInfo, error) {
++	fi, err := r.Lstat(name)
++	if err != nil {
++		return nil, err
++	}
++	if !fi.Mode().IsRegular() || cleanupLink(fi) {
++		return nil, fmt.Errorf("unsafe file: %s", name)
++	}
++	return fi, nil
++}
++func openCleanupFile(r cleanupFileOpener, name string, flags int) (*os.File, error) {
++	before, err := cleanupRegular(r, name)
++	if errors.Is(err, os.ErrNotExist) && flags&os.O_CREATE != 0 {
++		return r.OpenFile(name, flags|os.O_EXCL, 0600)
++	}
++	if err != nil {
++		return nil, err
++	}
++	f, err := r.OpenFile(name, cleanupOpenFlags(flags), 0600)
++	if err != nil {
++		return nil, err
++	}
++	after, err := f.Stat()
++	entry, entryErr := r.Lstat(name)
++	if err != nil || entryErr != nil || cleanupLink(entry) || !entry.Mode().IsRegular() || !os.SameFile(before, entry) || !os.SameFile(before, after) {
++		f.Close()
++		return nil, fmt.Errorf("file changed: %s", name)
++	}
++	return f, nil
++}
++func cleanupLock(r *os.Root) (*os.File, error) {
++	f, err := openCleanupFile(r, "cleanup.lock", os.O_RDWR|os.O_CREATE)
++	if err != nil {
++		return nil, err
++	}
++	busy, err := fslock.Try(f, true)
++	if busy || err != nil {
++		f.Close()
++		if busy {
++			err = errCleanupBusy
++		}
++		return nil, err
++	}
++	return f, nil
++}
++
++var errCleanupBusy = errors.New("cleanup busy")
++
++func diagnosticName(name string) bool {
++	parts := strings.Split(name, "/")
++	return len(parts) == 2 && (parts[0] == "evolve" || parts[0] == "revalidate") &&
++		parts[1] != ".log" && strings.HasSuffix(parts[1], ".log") &&
++		!strings.ContainsAny(parts[1], `\:`) && filepath.Base(parts[1]) == parts[1]
++}
++func readCleanupLedger(r *os.Root) (cleanupLedger, error) {
++	empty := cleanupLedger{Version: 1, Completed: map[string]diagnosticStamp{}}
++	f, err := openCleanupFile(r, "cleanup.json", os.O_RDONLY)
++	if errors.Is(err, os.ErrNotExist) {
++		return empty, nil
++	}
++	if err != nil {
++		return empty, err
++	}
++	defer f.Close()
++	data, err := io.ReadAll(io.LimitReader(f, cleanupLedgerLimit+1))
++	if err != nil {
++		return empty, err
++	}
++	if len(data) > cleanupLedgerLimit {
++		return empty, errors.New("cleanup ledger too large")
++	}
++	var l cleanupLedger
++	if err = json.Unmarshal(data, &l); err != nil {
++		return empty, fmt.Errorf("cleanup ledger: %w", err)
++	}
++	if l.Version != 1 {
++		return empty, errors.New("unknown cleanup ledger version")
++	}
++	for name, stamp := range l.Completed {
++		if !diagnosticName(name) || stamp.Size < 0 || stamp.Mtime.IsZero() {
++			return empty, errors.New("invalid completed diagnostic")
++		}
++	}
++	if l.Completed == nil {
++		l.Completed = empty.Completed
++	}
++	return l, nil
++}
++func writeCleanupLedger(r *os.Root, l cleanupLedger) error {
++	// Never open/truncate the destination: a symlink is an error, including links
++	// whose targets are protected files within the root.
++	if _, err := cleanupRegular(r, "cleanup.json"); err != nil && !errors.Is(err, os.ErrNotExist) {
++		return err
++	}
++	data, err := json.Marshal(l)
++	if err != nil {
++		return err
++	}
++	if len(data) > cleanupLedgerLimit {
++		return errors.New("cleanup ledger too large")
++	}
++	tmp := ".cleanup-" + rand.Text() + ".tmp"
++	f, err := r.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
++	if err != nil {
++		return err
++	}
++	defer r.Remove(tmp)
++	_, err = f.Write(data)
++	if err == nil {
++		err = f.Sync()
++	}
++	cerr := f.Close()
++	if err == nil {
++		err = cerr
++	}
++	if err != nil {
++		return err
++	}
++	return r.Rename(tmp, "cleanup.json")
++}
++
++// RecordCompletedDiagnostic must be called only after Agent.Run returns and has
++// closed its log. Busy/error means retaining the log, never guessing completion.
++func RecordCompletedDiagnostic(p Paths, logPath string) error {
++	rel, err := filepath.Rel(p.Runtime, logPath)
++	if err != nil {
++		return err
++	}
++	name := filepath.ToSlash(rel)
++	if !diagnosticName(name) {
++		return errors.New("diagnostic outside cleanup allowlist")
++	}
++	r, err := cleanupRuntime(p)
++	if err != nil {
++		return err
++	}
++	defer r.Close()
++	lock, err := cleanupLock(r)
++	if err != nil {
++		return err
++	}
++	defer lock.Close()
++	l, err := readCleanupLedger(r)
++	if err != nil {
++		return err
++	}
++	dir, err := openCleanupDir(r, filepath.Dir(rel))
++	if err != nil {
++		return err
++	}
++	defer dir.Close()
++	fi, err := cleanupRegular(dir, filepath.Base(rel))
++	if err != nil {
++		return err
++	}
++	l.Completed[name] = diagnosticStamp{Size: fi.Size(), Mtime: fi.ModTime().UTC()}
++	return writeCleanupLedger(r, l)
++}
++
++// ReadCleanupReport reads without creating files or starting cleanup.
++func ReadCleanupReport(p Paths) (*CleanupReport, error) {
++	r, err := cleanupRuntime(p)
++	if errors.Is(err, os.ErrNotExist) {
++		return nil, nil
++	}
++	if err != nil {
++		return nil, err
++	}
++	defer r.Close()
++	l, err := readCleanupLedger(r)
++	return l.Report, err
++}
++func (rep *CleanupReport) keep(reason string) { rep.Reasons[reason]++ }
++func (rep *CleanupReport) fail(err error) {
++	if len(rep.Errors) < 32 {
++		rep.Errors = append(rep.Errors, err.Error())
++	}
++	rep.keep("error")
++}
++func sameCleanupFile(a, b os.FileInfo) bool {
++	return b != nil && b.Mode().IsRegular() && !cleanupLink(b) && os.SameFile(a, b) && a.Size() == b.Size() && a.ModTime().Equal(b.ModTime())
++}
++
++// cleanupRemovalDir contains the operations needed to capture and restore entries.
++type cleanupRemovalDir interface {
++	Lstat(string) (os.FileInfo, error)
++	Rename(string, string) error
++	Link(string, string) error
++	Remove(string) error
++}
++
++// Capture the entry under an unpredictable quarantine name before validating it.
++// Replacement of the original name cannot redirect the destructive operation.
++// A changed entry is restored with an exclusive hard link; if another writer has
++// reused the original name, preserve the quarantine and report its location.
++func removeCleanupFile(dir cleanupRemovalDir, name string, fi os.FileInfo, rep *CleanupReport) bool {
++	current, err := dir.Lstat(name)
++	if err != nil {
++		rep.fail(err)
++		return false
++	}
++	if !sameCleanupFile(fi, current) {
++		rep.keep("changed")
++		return false
++	}
++	quarantine := ".cleanup-" + rand.Text() + ".retained"
++	if err := dir.Rename(name, quarantine); err != nil {
++		rep.fail(err)
++		return false
++	}
++	restore := func() {
++		if err := dir.Link(quarantine, name); err != nil {
++			rep.fail(fmt.Errorf("preserved %s as %s: %w", name, quarantine, err))
++			return
++		}
++		if err := dir.Remove(quarantine); err != nil {
++			rep.fail(fmt.Errorf("preserved %s: %w", quarantine, err))
++		}
++	}
++	captured, err := dir.Lstat(quarantine)
++	if err != nil || !sameCleanupFile(fi, captured) {
++		rep.keep("changed")
++		restore()
++		return false
++	}
++	if err := dir.Remove(quarantine); err != nil {
++		rep.fail(err)
++		restore()
++		return false
++	}
++	rep.DeletedFiles++
++	rep.DeletedBytes += fi.Size()
++	return true
++}
++func scanCleanupDir(ctx context.Context, r *os.Root, name string, visit func(*os.Root, string)) error {
++	dir, err := openCleanupDir(r, name)
++	if errors.Is(err, os.ErrNotExist) {
++		return nil
++	}
++	if err != nil {
++		return err
++	}
++	defer dir.Close()
++	f, err := dir.Open(".")
++	if err != nil {
++		return err
++	}
++	defer f.Close()
++	for {
++		if err := ctx.Err(); err != nil {
++			return err
++		}
++		entries, err := f.ReadDir(128)
++		for _, e := range entries {
++			if ctx.Err() != nil {
++				return ctx.Err()
++			}
++			visit(dir, e.Name())
++		}
++		if errors.Is(err, io.EOF) {
++			return nil
++		}
++		if err != nil {
++			return err
++		}
++	}
++}
++func completeHookOutput(dir *os.Root, name string, fi os.FileInfo) bool {
++	if fi.Size() > 2<<20 {
++		return false
++	}
++	f, err := openCleanupFile(dir, name, os.O_RDONLY)
++	if err != nil {
++		return false
++	}
++	defer f.Close()
++	current, err := f.Stat()
++	if err != nil || !sameCleanupFile(fi, current) {
++		return false
++	}
++	data, err := io.ReadAll(io.LimitReader(f, 2<<20+1))
++	if err != nil {
++		return false
++	}
++	var out struct {
++		Output   *string `json:"output"`
++		Duration *int64  `json:"duration_ms"`
++	}
++	return json.Unmarshal(data, &out) == nil && out.Output != nil && out.Duration != nil
++}
++
++// MaybeCleanup performs at most one completed scan per 24 hours for a shared
++// state directory. Errors are deliberately separate from spool ingestion errors.
++func MaybeCleanup(ctx context.Context, p Paths, retentionDays int, now time.Time) (CleanupReport, error) {
++	rep := CleanupReport{At: now.UTC(), Reasons: map[string]int{}}
++	if retentionDays == 0 {
++		rep.Skipped = "disabled"
++		return rep, nil
++	}
++	if retentionDays < 0 || retentionDays > 106751 {
++		return rep, errors.New("invalid cleanup retention")
++	}
++	if err := ctx.Err(); err != nil {
++		return rep, err
++	}
++	r, err := cleanupRuntime(p)
++	if err != nil {
++		return rep, err
++	}
++	defer r.Close()
++	lock, err := cleanupLock(r)
++	if errors.Is(err, errCleanupBusy) {
++		rep.Skipped = "busy"
++		return rep, nil
++	}
++	if err != nil {
++		return rep, err
++	}
++	defer lock.Close()
++	l, err := readCleanupLedger(r)
++	if err != nil {
++		return rep, err
++	}
++	if !l.LastScan.IsZero() && now.Sub(l.LastScan) < 24*time.Hour {
++		rep.Skipped = "not_due"
++		return rep, nil
++	}
++	cutoff := now.Add(-time.Duration(retentionDays) * 24 * time.Hour)
++	for _, group := range []string{"revalidate", "evolve", "hook-trace"} {
++		err := scanCleanupDir(ctx, r, group, func(dir *os.Root, name string) {
++			if group == "hook-trace" {
++				if !strings.HasSuffix(name, ".in") {
++					return
++				}
++				in, err := cleanupRegular(dir, name)
++				if err != nil {
++					rep.keep("unsafe")
++					return
++				}
++				outName := strings.TrimSuffix(name, ".in") + ".out"
++				out, err := cleanupRegular(dir, outName)
++				if err != nil {
++					rep.keep("incomplete")
++					return
++				}
++				if !in.ModTime().Before(cutoff) || !out.ModTime().Before(cutoff) {
++					rep.keep("retained")
++					return
++				}
++				if !completeHookOutput(dir, outName, out) {
++					rep.keep("incomplete")
++					return
++				}
++				// Check both snapshots again before deleting either side.
++				a, e1 := dir.Lstat(name)
++				b, e2 := dir.Lstat(outName)
++				if e1 != nil || e2 != nil || !sameCleanupFile(in, a) || !sameCleanupFile(out, b) {
++					rep.keep("changed")
++					return
++				}
++				if removeCleanupFile(dir, name, in, &rep) {
++					removeCleanupFile(dir, outName, out, &rep)
++				}
++				return
++			}
++			if !strings.HasSuffix(name, ".log") {
++				return
++			}
++			key := group + "/" + name
++			stamp, ok := l.Completed[key]
++			if !ok {
++				rep.keep("unconfirmed")
++				return
++			}
++			fi, err := cleanupRegular(dir, name)
++			if err != nil {
++				rep.keep("unsafe")
++				return
++			}
++			if stamp.Size != fi.Size() || !stamp.Mtime.Equal(fi.ModTime()) {
++				rep.keep("changed")
++				delete(l.Completed, key)
++				return
++			}
++			if !fi.ModTime().Before(cutoff) {
++				rep.keep("retained")
++				return
++			}
++			if removeCleanupFile(dir, name, fi, &rep) {
++				delete(l.Completed, key)
++			}
++		})
++		if err != nil {
++			rep.fail(err)
++		}
++	}
++	// Remove stale completion entries, never promote unknown logs to completed.
++	for key := range l.Completed {
++		if ctx.Err() != nil {
++			break
++		}
++		parts := strings.Split(key, "/")
++		dir, err := openCleanupDir(r, parts[0])
++		if err != nil {
++			continue
++		}
++		_, err = dir.Lstat(parts[1])
++		dir.Close()
++		if errors.Is(err, os.ErrNotExist) {
++			delete(l.Completed, key)
++		}
++	}
++	if err := ctx.Err(); err != nil {
++		rep.fail(err)
++	} else {
++		l.LastScan = now.UTC()
++	}
++	l.Report = &rep
++	if err := writeCleanupLedger(r, l); err != nil {
++		return rep, err
++	}
++	return rep, nil
++}
+diff --git a/internal/state/cleanup_test.go b/internal/state/cleanup_test.go
+new file mode 100644
+index 0000000..b996241
+--- /dev/null
++++ b/internal/state/cleanup_test.go
+@@ -0,0 +1,472 @@
++package state
++
++import (
++	"context"
++	"errors"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/fslock"
++)
++
++func cleanupFixture(t *testing.T) (Paths, time.Time) {
++	t.Helper()
++	p := At("test", t.TempDir())
++	if err := os.Mkdir(p.Runtime, 0700); err != nil {
++		t.Fatal(err)
++	}
++	return p, time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
++}
++func cleanupFile(t *testing.T, p Paths, name, body string, mt time.Time, completed bool) string {
++	t.Helper()
++	path := filepath.Join(p.Root, filepath.FromSlash(name))
++	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(path, mt, mt); err != nil {
++		t.Fatal(err)
++	}
++	if completed {
++		if err := RecordCompletedDiagnostic(p, path); err != nil {
++			t.Fatal(err)
++		}
++	}
++	return path
++}
++func TestCleanupAllowlistAndCutoff(t *testing.T) {
++	p, now := cleanupFixture(t)
++	old := now.Add(-91 * 24 * time.Hour)
++	for _, tc := range []struct {
++		name               string
++		days               int
++		completed, deleted bool
++	}{
++		{"runtime/evolve/old.log", 91, true, true},
++		{"runtime/revalidate/old.log", 91, true, true},
++		{"runtime/evolve/boundary.log", 90, true, false},
++		{"runtime/evolve/new.log", 89, true, false},
++		{"runtime/evolve/future.log", -1, true, false},
++		{"runtime/evolve/legacy.log", 91, false, false},
++	} {
++		cleanupFile(t, p, tc.name, "log", now.Add(-time.Duration(tc.days)*24*time.Hour), tc.completed)
++	}
++	removed := []string{"runtime/evolve/old.log", "runtime/revalidate/old.log", "runtime/hook-trace/pair.in", "runtime/hook-trace/pair.out"}
++	cleanupFile(t, p, "runtime/hook-trace/pair.in", "input", old, false)
++	cleanupFile(t, p, "runtime/hook-trace/pair.out", `{"output":"ok","duration_ms":1}`, old, false)
++	kept := []string{"state.sqlite", "state.sqlite-wal", "state.sqlite-shm", "spool/event.json", "runtime/tasks/id/logs/agent.log", "eval-work/proof.log", "backups/old.log", "worktrees/file.log", "runtime/evolve/nested/a.log", "runtime/evolve/other.txt", "hook-errors.log", "runtime/gateway.log", "runtime/hook-trace/orphan.in", "runtime/hook-trace/bad.in", "runtime/hook-trace/bad.out", "runtime/hook-trace/new.in", "runtime/hook-trace/new.out"}
++	for _, s := range kept {
++		cleanupFile(t, p, s, "keep", old, false)
++	}
++	cleanupFile(t, p, "runtime/hook-trace/new.out", `{"output":"ok","duration_ms":1}`, now, false)
++	changed := cleanupFile(t, p, "runtime/evolve/changed.log", "before", old, true)
++	if err := os.WriteFile(changed, []byte("after"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	rep, err := MaybeCleanup(context.Background(), p, 90, now)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if rep.DeletedFiles != 4 || rep.DeletedBytes != 42 {
++		t.Fatalf("report: %+v", rep)
++	}
++	for _, s := range removed {
++		if _, err := os.Stat(filepath.Join(p.Root, s)); !errors.Is(err, os.ErrNotExist) {
++			t.Errorf("not deleted: %s: %v", s, err)
++		}
++	}
++	kept = append(kept, "runtime/evolve/boundary.log", "runtime/evolve/new.log", "runtime/evolve/future.log", "runtime/evolve/legacy.log", "runtime/evolve/changed.log")
++	for _, s := range kept {
++		if _, err := os.Stat(filepath.Join(p.Root, s)); err != nil {
++			t.Errorf("lost %s: %v", s, err)
++		}
++	}
++	saved, err := ReadCleanupReport(p)
++	if err != nil || saved == nil || saved.DeletedFiles != 4 {
++		t.Fatalf("saved %+v %v", saved, err)
++	}
++}
++func TestCleanupThrottleDisableBusyAndCorrupt(t *testing.T) {
++	p, now := cleanupFixture(t)
++	path := cleanupFile(t, p, "runtime/evolve/a.log", "abc", now.Add(-100*24*time.Hour), true)
++	rep, err := MaybeCleanup(context.Background(), p, 0, now)
++	if err != nil || rep.Skipped != "disabled" {
++		t.Fatalf("disabled %+v %v", rep, err)
++	}
++	lock, err := os.OpenFile(filepath.Join(p.Runtime, "cleanup.lock"), os.O_RDWR, 0600)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if busy, err := fslock.Try(lock, true); busy || err != nil {
++		t.Fatal(busy, err)
++	}
++	rep, err = MaybeCleanup(context.Background(), p, 90, now)
++	if err != nil || rep.Skipped != "busy" {
++		t.Fatalf("busy %+v %v", rep, err)
++	}
++	lock.Close()
++	if _, err := MaybeCleanup(context.Background(), p, 90, now); err != nil {
++		t.Fatal(err)
++	}
++	cleanupFile(t, p, "runtime/evolve/a.log", "abc", now.Add(-100*24*time.Hour), true)
++	rep, err = MaybeCleanup(context.Background(), p, 90, now.Add(23*time.Hour))
++	if err != nil || rep.Skipped != "not_due" {
++		t.Fatal(rep, err)
++	}
++	if _, err := os.Stat(path); err != nil {
++		t.Fatal(err)
++	}
++	rep, err = MaybeCleanup(context.Background(), p, 90, now.Add(24*time.Hour))
++	if err != nil || rep.DeletedFiles != 1 {
++		t.Fatal(rep, err)
++	}
++	if _, err := os.Stat(filepath.Join(p.Runtime, "cleanup.lock")); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(p.Runtime, "cleanup.json"), []byte("broken"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	cleanupFile(t, p, "runtime/evolve/legacy.log", "keep", now.Add(-100*24*time.Hour), false)
++	if _, err := MaybeCleanup(context.Background(), p, 90, now.Add(48*time.Hour)); err == nil {
++		t.Fatal("corrupt ledger accepted")
++	}
++}
++func TestCleanupRejectsSymlinks(t *testing.T) {
++	for _, target := range []string{"outside", "protected"} {
++		t.Run(target, func(t *testing.T) {
++			p, now := cleanupFixture(t)
++			dst := t.TempDir()
++			if target == "protected" {
++				dst = filepath.Join(p.Runtime, "tasks")
++				if err := os.Mkdir(dst, 0700); err != nil {
++					t.Fatal(err)
++				}
++			}
++			sentinel := filepath.Join(dst, "a.in")
++			if err := os.WriteFile(sentinel, []byte("keep"), 0600); err != nil {
++				t.Fatal(err)
++			}
++			if err := os.Symlink(dst, filepath.Join(p.Runtime, "hook-trace")); err != nil {
++				t.Skip(err)
++			}
++			rep, _ := MaybeCleanup(context.Background(), p, 90, now)
++			if len(rep.Errors) == 0 {
++				t.Fatal("missing unsafe-path error")
++			}
++			if b, err := os.ReadFile(sentinel); err != nil || string(b) != "keep" {
++				t.Fatal("sentinel changed")
++			}
++		})
++	}
++}
++
++func TestCleanupMetadataLinksAndStateAlias(t *testing.T) {
++	for _, name := range []string{"cleanup.lock", "cleanup.json"} {
++		t.Run(name, func(t *testing.T) {
++			p, now := cleanupFixture(t)
++			sentinel := filepath.Join(p.Root, "state.sqlite")
++			if err := os.WriteFile(sentinel, []byte("database sentinel"), 0600); err != nil {
++				t.Fatal(err)
++			}
++			if err := os.Symlink(sentinel, filepath.Join(p.Runtime, name)); err != nil {
++				t.Skip(err)
++			}
++			if _, err := MaybeCleanup(context.Background(), p, 90, now); err == nil {
++				t.Fatal("metadata link accepted")
++			}
++			if b, err := os.ReadFile(sentinel); err != nil || string(b) != "database sentinel" {
++				t.Fatal("metadata link modified target")
++			}
++		})
++	}
++	p, now := cleanupFixture(t)
++	cleanupFile(t, p, "runtime/evolve/a.log", "old", now.Add(-100*24*time.Hour), true)
++	alias := filepath.Join(t.TempDir(), "state-alias")
++	if err := os.Symlink(p.Root, alias); err != nil {
++		t.Skip(err)
++	}
++	rep, err := MaybeCleanup(context.Background(), At("test", alias), 90, now)
++	if err != nil || rep.DeletedFiles != 1 {
++		t.Fatalf("root alias: %+v %v", rep, err)
++	}
++}
++func TestCleanupChangedSinceScanAndPinnedDirectory(t *testing.T) {
++	p, now := cleanupFixture(t)
++	path := cleanupFile(t, p, "runtime/evolve/a.log", "old", now.Add(-100*24*time.Hour), true)
++	root, err := cleanupRuntime(p)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer root.Close()
++	dir, err := openCleanupDir(root, "evolve")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer dir.Close()
++	before, err := dir.Lstat("a.log")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(path, []byte("actively appended"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	rep := CleanupReport{Reasons: map[string]int{}}
++	if removeCleanupFile(dir, "a.log", before, &rep) || rep.DeletedFiles != 0 || rep.Reasons["changed"] != 1 {
++		t.Fatalf("changed file deleted: %+v", rep)
++	}
++	protected := filepath.Join(p.Runtime, "tasks")
++	if err := os.Mkdir(protected, 0700); err != nil {
++		t.Fatal(err)
++	}
++	sentinel := filepath.Join(protected, "a.log")
++	if err := os.WriteFile(sentinel, []byte("task sentinel"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	// Redirect the path after the directory has been checked and opened.
++	if err := os.Rename(filepath.Dir(path), filepath.Join(p.Runtime, "evolve-moved")); err != nil {
++		t.Skip(err)
++	}
++	if err := os.Symlink(protected, filepath.Dir(path)); err != nil {
++		t.Skip(err)
++	}
++	current, err := dir.Lstat("a.log")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if !removeCleanupFile(dir, "a.log", current, &rep) {
++		t.Fatal(rep)
++	}
++	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "task sentinel" {
++		t.Fatal("directory substitution reached task data")
++	}
++}
++func TestCleanupCancellationAndRemovalError(t *testing.T) {
++	p, now := cleanupFixture(t)
++	path := cleanupFile(t, p, "runtime/evolve/a.log", "old", now.Add(-100*24*time.Hour), true)
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++	if _, err := MaybeCleanup(ctx, p, 90, now); !errors.Is(err, context.Canceled) {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(path); err != nil {
++		t.Fatal(err)
++	}
++	r, err := cleanupRuntime(p)
++	if err != nil {
++		t.Fatal(err)
++	}
++	dir, err := openCleanupDir(r, "evolve")
++	if err != nil {
++		t.Fatal(err)
++	}
++	r.Close()
++	fi, err := dir.Lstat("a.log")
++	if err != nil {
++		t.Fatal(err)
++	}
++	dir.Close() // deterministic I/O failure even when tests run as root
++	rep := CleanupReport{Reasons: map[string]int{}}
++	if removeCleanupFile(dir, "a.log", fi, &rep) || rep.DeletedFiles != 0 || rep.DeletedBytes != 0 || len(rep.Errors) == 0 {
++		t.Fatal(rep)
++	}
++}
++func TestCleanupBusyAcrossProcesses(t *testing.T) {
++	if root := os.Getenv("BINT_CLEANUP_TEST_ROOT"); root != "" {
++		rep, err := MaybeCleanup(context.Background(), At("test", root), 90, time.Now())
++		if err != nil || rep.Skipped != "busy" {
++			t.Fatalf("process lock: %+v %v", rep, err)
++		}
++		return
++	}
++	p, _ := cleanupFixture(t)
++	r, err := cleanupRuntime(p)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer r.Close()
++	lock, err := cleanupLock(r)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer lock.Close()
++	cmd := exec.Command(os.Args[0], "-test.run=^TestCleanupBusyAcrossProcesses$")
++	cmd.Env = append(os.Environ(), "BINT_CLEANUP_TEST_ROOT="+p.Root)
++	if out, err := cmd.CombinedOutput(); err != nil {
++		t.Fatalf("child: %s %v", out, err)
++	}
++}
++func TestCleanupLinkedLogAndInvalidLedgerPaths(t *testing.T) {
++	p, now := cleanupFixture(t)
++	path := cleanupFile(t, p, "runtime/evolve/a.log", "old", now.Add(-100*24*time.Hour), true)
++	sentinel := cleanupFile(t, p, "runtime/tasks/a.log", "task", now.Add(-100*24*time.Hour), false)
++	if err := os.Remove(path); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Symlink(sentinel, path); err != nil {
++		t.Skip(err)
++	}
++	rep, err := MaybeCleanup(context.Background(), p, 90, now)
++	if err != nil || rep.DeletedFiles != 0 {
++		t.Fatal(rep, err)
++	}
++	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "task" {
++		t.Fatal("linked task log modified")
++	}
++	data := `{"version":1,"completed":{"../tasks/a.log":{"size":4,"mtime":"2026-01-01T00:00:00Z"}}}`
++	if err := os.WriteFile(filepath.Join(p.Runtime, "cleanup.json"), []byte(data), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := MaybeCleanup(context.Background(), p, 90, now.Add(25*time.Hour)); err == nil || !strings.Contains(err.Error(), "invalid completed") {
++		t.Fatal(err)
++	}
++}
++
++type swappingCleanupDir struct {
++	*os.Root
++	beforeRename func()
++}
++
++func (d *swappingCleanupDir) Rename(from, to string) error {
++	if d.beforeRename != nil {
++		f := d.beforeRename
++		d.beforeRename = nil
++		f()
++	}
++	return d.Root.Rename(from, to)
++}
++func TestCleanupReplacementAtRemovalBoundary(t *testing.T) {
++	for _, kind := range []string{"append", "replace", "directory", "symlink"} {
++		t.Run(kind, func(t *testing.T) {
++			p, now := cleanupFixture(t)
++			path := cleanupFile(t, p, "runtime/evolve/a.log", "old", now.Add(-100*24*time.Hour), true)
++			root, err := cleanupRuntime(p)
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer root.Close()
++			dir, err := openCleanupDir(root, "evolve")
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer dir.Close()
++			before, err := dir.Lstat("a.log")
++			if err != nil {
++				t.Fatal(err)
++			}
++			fs := &swappingCleanupDir{Root: dir, beforeRename: func() {
++				if kind == "append" {
++					if err := os.WriteFile(path, []byte("still being written"), 0600); err != nil {
++						t.Fatal(err)
++					}
++					return
++				}
++				if err := os.Rename(path, path+".original"); err != nil {
++					t.Fatal(err)
++				}
++				switch kind {
++				case "replace":
++					if err := os.WriteFile(path, []byte("replacement"), 0600); err != nil {
++						t.Fatal(err)
++					}
++				case "directory":
++					if err := os.Mkdir(path, 0700); err != nil {
++						t.Fatal(err)
++					}
++				case "symlink":
++					if err := os.Symlink(path+".original", path); err != nil {
++						t.Skip(err)
++					}
++				}
++			}}
++			rep := CleanupReport{Reasons: map[string]int{}}
++			if removeCleanupFile(fs, "a.log", before, &rep) || rep.DeletedFiles != 0 || rep.DeletedBytes != 0 {
++				t.Fatalf("replacement deleted: %+v", rep)
++			}
++			if kind == "append" || kind == "replace" {
++				b, err := os.ReadFile(path)
++				if err != nil || len(b) < 10 {
++					t.Fatalf("replacement not restored: %q %v %+v", b, err, rep)
++				}
++			} else if kind == "directory" {
++				entries, err := os.ReadDir(filepath.Dir(path))
++				if err != nil {
++					t.Fatal(err)
++				}
++				preserved := false
++				for _, e := range entries {
++					if e.IsDir() && strings.HasPrefix(e.Name(), ".cleanup-") {
++						preserved = true
++					}
++				}
++				if !preserved || len(rep.Errors) == 0 {
++					t.Fatalf("directory replacement not preserved: %+v", rep)
++				}
++			} else {
++				if _, err := os.Lstat(path); err != nil {
++					t.Fatal(err)
++				}
++			}
++		})
++	}
++}
++
++type swappingCleanupOpener struct {
++	*os.Root
++	swap func()
++}
++
++func (d *swappingCleanupOpener) OpenRoot(name string) (*os.Root, error) {
++	d.swap()
++	return d.Root.OpenRoot(name)
++}
++func (d *swappingCleanupOpener) OpenFile(name string, flags int, mode os.FileMode) (*os.File, error) {
++	d.swap()
++	return d.Root.OpenFile(name, flags, mode)
++}
++func TestCleanupRejectsSameInodeRedirectDuringOpen(t *testing.T) {
++	for _, kind := range []string{"directory", "file"} {
++		t.Run(kind, func(t *testing.T) {
++			p, now := cleanupFixture(t)
++			cleanupFile(t, p, "runtime/evolve/a.log", "old", now.Add(-100*24*time.Hour), true)
++			r, err := cleanupRuntime(p)
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer r.Close()
++			if err := r.Mkdir("tasks", 0700); err != nil {
++				t.Fatal(err)
++			}
++			name := "evolve"
++			target := "tasks/moved"
++			if kind == "file" {
++				name = "cleanup.json"
++				target = "tasks/moved.json"
++			}
++			opener := &swappingCleanupOpener{Root: r, swap: func() {
++				if err := r.Rename(name, target); err != nil {
++					t.Fatal(err)
++				}
++				if err := r.Symlink(target, name); err != nil {
++					t.Skip(err)
++				}
++			}}
++			if kind == "directory" {
++				if child, err := openCleanupDir(opener, name); err == nil {
++					child.Close()
++					t.Fatal("directory redirect accepted")
++				}
++			} else {
++				if f, err := openCleanupFile(opener, name, os.O_RDONLY); err == nil {
++					f.Close()
++					t.Fatal("file redirect accepted")
++				}
++			}
++		})
++	}
++}
+diff --git a/internal/state/cleanup_unix.go b/internal/state/cleanup_unix.go
+new file mode 100644
+index 0000000..f1f25c8
+--- /dev/null
++++ b/internal/state/cleanup_unix.go
+@@ -0,0 +1,13 @@
++//go:build !windows
++
++package state
++
++import (
++	"os"
++	"syscall"
++)
++
++func cleanupLink(fi os.FileInfo) bool { return fi.Mode()&os.ModeSymlink != 0 }
++
++// A swapped FIFO must not stall a main command while metadata is checked.
++func cleanupOpenFlags(flags int) int { return flags | syscall.O_NONBLOCK }
+diff --git a/internal/state/cleanup_windows.go b/internal/state/cleanup_windows.go
+new file mode 100644
+index 0000000..3da09c8
+--- /dev/null
++++ b/internal/state/cleanup_windows.go
+@@ -0,0 +1,20 @@
++//go:build windows
++
++package state
++
++import (
++	"os"
++	"syscall"
++)
++
++func cleanupLink(fi os.FileInfo) bool {
++	if fi.Mode()&os.ModeSymlink != 0 {
++		return true
++	}
++	if data, ok := fi.Sys().(*syscall.Win32FileAttributeData); ok {
++		return data.FileAttributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT != 0
++	}
++	return true // Unknown metadata cannot establish that a junction is absent.
++}
++
++func cleanupOpenFlags(flags int) int { return flags }
+diff --git a/internal/state/cleanup_windows_test.go b/internal/state/cleanup_windows_test.go
+new file mode 100644
+index 0000000..a776c33
+--- /dev/null
++++ b/internal/state/cleanup_windows_test.go
+@@ -0,0 +1,54 @@
++//go:build windows
++
++package state
++
++import (
++	"context"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"testing"
++	"time"
++)
++
++func TestCleanupRejectsJunctions(t *testing.T) {
++	for _, kind := range []string{"outside", "protected"} {
++		t.Run(kind, func(t *testing.T) {
++			p, now := cleanupFixture(t)
++			target := t.TempDir()
++			if kind == "protected" {
++				target = filepath.Join(p.Runtime, "tasks")
++				if err := os.Mkdir(target, 0700); err != nil {
++					t.Fatal(err)
++				}
++			}
++			for _, name := range []string{"a.in", "a.out"} {
++				file := filepath.Join(target, name)
++				body := "input"
++				if name == "a.out" {
++					body = `{"output":"ok","duration_ms":1}`
++				}
++				if err := os.WriteFile(file, []byte(body), 0600); err != nil {
++					t.Fatal(err)
++				}
++				old := now.Add(-100 * 24 * time.Hour)
++				if err := os.Chtimes(file, old, old); err != nil {
++					t.Fatal(err)
++				}
++			}
++			link := filepath.Join(p.Runtime, "hook-trace")
++			if out, err := exec.Command("cmd", "/c", "mklink", "/J", link, target).CombinedOutput(); err != nil {
++				t.Skipf("junction unavailable: %s %v", out, err)
++			}
++			rep, err := MaybeCleanup(context.Background(), p, 90, now)
++			if err != nil || rep.DeletedFiles != 0 || len(rep.Errors) == 0 {
++				t.Fatalf("junction accepted: %+v %v", rep, err)
++			}
++			for _, name := range []string{"a.in", "a.out"} {
++				if _, err := os.Stat(filepath.Join(target, name)); err != nil {
++					t.Fatal(err)
++				}
++			}
++		})
++	}
++}

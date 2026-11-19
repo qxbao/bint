@@ -38,6 +38,14 @@ type Durable struct {
 	NextFinding             int                    `json:"next_finding"`
 	Artifacts               map[string]string      `json:"artifacts,omitempty"`
 	ReviewDecided           int                    `json:"review_decided,omitempty"`
+	// Trạng thái chờ người của b-do (câu hỏi b-feat và câu trả lời, hết vòng sửa): là quyết định nghiệp vụ như Errors, và lý do
+	// blocked đã chiếu nêu lệnh --answer/--accept/--fix-round cần các cờ này để dùng được trên máy nhập phiếu.
+	Questions       []StepQuestion `json:"questions,omitempty"`
+	AwaitingAnswer  bool           `json:"awaiting_answer,omitempty"`
+	ReviewExhausted bool           `json:"review_exhausted,omitempty"`
+	ExtraFixRounds  int            `json:"extra_fix_rounds,omitempty"`
+	// FastFixed: đường nhanh đã dùng vòng sửa duy nhất; máy nhập phiếu tiếp tục ở finalize, không review lại.
+	FastFixed bool `json:"fast_fixed,omitempty"`
 }
 
 // DurableVerification là một lần kiểm chứng không kèm log và dấu vân tay/cây của máy.
@@ -74,6 +82,7 @@ func ToDurable(s State) Durable {
 		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, Base: s.Base, Reason: s.Reason, ResumeFrom: s.ResumeFrom,
 		PlanningContractVersion: s.PlanningContractVersion, ReviewRounds: s.ReviewRounds, Parent: s.Parent,
 		NextFinding: s.NextFinding, ReviewDecided: s.ReviewDecided,
+		Questions: slices.Clone(s.Questions), AwaitingAnswer: s.AwaitingAnswer, ReviewExhausted: s.ReviewExhausted, ExtraFixRounds: s.ExtraFixRounds, FastFixed: s.FastFixed,
 		History:       append([]Transition{}, s.History...),
 		Criteria:      slices.Clone(s.Criteria),
 		Errors:        slices.Clone(s.Errors),
@@ -116,6 +125,8 @@ func (d Durable) ApplyTo(s *State) {
 	s.CreatedAt, s.UpdatedAt, s.Base, s.Reason, s.ResumeFrom = d.CreatedAt, d.UpdatedAt, d.Base, d.Reason, d.ResumeFrom
 	s.PlanningContractVersion, s.ReviewRounds, s.Parent = d.PlanningContractVersion, d.ReviewRounds, d.Parent
 	s.NextFinding, s.ReviewDecided = d.NextFinding, d.ReviewDecided
+	s.Questions, s.AwaitingAnswer, s.ReviewExhausted, s.ExtraFixRounds = slices.Clone(d.Questions), d.AwaitingAnswer, d.ReviewExhausted, d.ExtraFixRounds
+	s.FastFixed = d.FastFixed
 	s.AgentChoices, s.Artifacts = cloneMap(d.AgentChoices), cloneMap(d.Artifacts)
 	s.History, s.Criteria, s.Errors, s.Runs = append([]Transition{}, d.History...), slices.Clone(d.Criteria), slices.Clone(d.Errors), slices.Clone(d.Runs)
 	s.FromFindings, s.DependsOn, s.Inherited = slices.Clone(d.FromFindings), slices.Clone(d.DependsOn), slices.Clone(d.Inherited)

@@ -45,7 +45,7 @@ func TestMilestoneTaskToDone(t *testing.T) {
 	if tk.State.Status != task.StatusBlocked || !strings.Contains(tk.State.Reason, "xác nhận") {
 		t.Fatalf("phải blocked vì lệnh kiểm chứng chưa được xác nhận: %s — %s", tk.State.Status, tk.State.Reason)
 	}
-	if strings.Join(f.calls, ",") != "b-req,b-feat,b-review" {
+	if strings.Join(f.calls, ",") != "b-req,b-goal,b-feat,b-review" {
 		t.Fatalf("các bước đã chạy: %v", f.calls)
 	}
 	if tk.State.VerifyApproval != nil {
@@ -74,7 +74,7 @@ func TestMilestoneTaskToDone(t *testing.T) {
 		t.Fatal("xem kế hoạch duyệt không được ghi gì")
 	}
 	f.press("enter")
-	f.pump(func() bool { return f.task(id).State.VerifyApproval != nil }, nil)
+	f.pump(func() bool { tk := f.tryTask(id); return tk != nil && tk.State.VerifyApproval != nil }, nil) // đọc trùng lúc action ghi: thử lại, không Fatal
 	if va := f.task(id).State.VerifyApproval; va.Command != "git --version" || !strings.Contains(va.By, "Rev") {
 		t.Fatalf("VerifyApproval: %+v", va)
 	}
@@ -89,7 +89,7 @@ func TestMilestoneTaskToDone(t *testing.T) {
 		t.Fatalf("thông báo khi xong việc kiểm chứng: %q", f.m.toast)
 	}
 
-	// 5. Tiếp tục (c): b-review chạy lại một vòng rồi tác vụ tới done nhờ bằng chứng.
+	// 5. Tiếp tục (c): mã không đổi nên không review lại, tác vụ tới done nhờ bằng chứng.
 	f.press("esc", "c")
 	if out := plain(f.m.Render()); !strings.Contains(out, "bint run resume "+id) {
 		t.Fatalf("form tiếp tục phải hiện dòng lệnh tương đương:\n%s", out)
@@ -100,8 +100,8 @@ func TestMilestoneTaskToDone(t *testing.T) {
 	if tk.State.Status != task.StatusDone {
 		t.Fatalf("phải done sau khi duyệt và tiếp tục: %s — %s", tk.State.Status, tk.State.Reason)
 	}
-	if strings.Join(f.calls, ",") != "b-req,b-feat,b-review,b-review" {
-		t.Fatalf("tiếp tục không được chạy lại b-feat, chỉ review lại: %v", f.calls)
+	if strings.Join(f.calls, ",") != "b-req,b-goal,b-feat,b-review" {
+		t.Fatalf("tiếp tục không được chạy lại b-feat, không review lại khi mã không đổi: %v", f.calls)
 	}
 
 	// 6. Xem review: thẻ Review hiện vòng của b-review kèm phát hiện của nó.
@@ -111,7 +111,7 @@ func TestMilestoneTaskToDone(t *testing.T) {
 		return c != nil && c.State.ID == id && c.State.Status == task.StatusDone
 	}, f.m.tk.Focus(id))
 	f.press("esc", ".", ".", ".", ".")
-	f.pump(func() bool { return strings.Contains(plain(f.m.Render()), "Vòng 2/2") }, nil)
+	f.pump(func() bool { return strings.Contains(plain(f.m.Render()), "Vòng 1/1") }, nil)
 	out = plain(f.m.Render())
 	for _, want := range []string{"Thay đổi nhỏ, đúng yêu cầu", "Đặt tên rõ hơn", "app.txt:1", "Chi tiết · "} {
 		if !strings.Contains(out, want) {
@@ -121,7 +121,7 @@ func TestMilestoneTaskToDone(t *testing.T) {
 	if !strings.Contains(plain(f.m.Render()), "Đã xong (1)") {
 		t.Errorf("nhóm Đã xong:\n%s", plain(f.m.Render()))
 	}
-	if tk.State.ReviewRounds != 2 {
+	if tk.State.ReviewRounds != 1 {
 		t.Fatalf("số vòng review: %d", tk.State.ReviewRounds)
 	}
 }

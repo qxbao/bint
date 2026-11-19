@@ -1,0 +1,6 @@
+{
+ "setup": null,
+ "preview": "bint clean --dry-run",
+ "clean": "bint clean",
+ "note": "bint --help có 'clean  Dọn log, bộ đệm đánh giá và bản sao lưu đã hết hạn'; bint clean --help: 'theo state.retention_days (mặc định 30 ngày; 0 = tắt)... Dùng --dry-run để xem trước'. docs/configuration.md và docs/usage.md (diff): 'bint clean --dry-run # xem trước...', 'bint clean # dọn ngay, dùng cùng chính sách, bỏ qua lịch 24 giờ'; ngoài ra tự dọn sau nạp sự kiện (bint status, bint runs list, TUI) tối đa mỗi 24 giờ. Không hỏi xác nhận, không cần cờ --yes. Chạy thử trong thư mục tạm: 'Sẽ dọn 0 tệp (0 byte).' / 'Đã dọn 0 tệp (0 byte).'"
+}

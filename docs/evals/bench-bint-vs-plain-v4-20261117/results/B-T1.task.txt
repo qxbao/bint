@@ -1,0 +1,27 @@
+PASS  FX-ledger-clean  cảnh báo sổ phiếu: []
+PASS  FX-OLD_DONE1  01KQH0XA4SCV9HS0TNP4WAJY0A status=done (cần done) updated=2026-05-01T05:41:45Z
+PASS  FX-OLD_DONE2  01KQH0XAH914PCMK67ZARW552N status=done (cần done) updated=2026-05-01T05:41:45Z
+PASS  FX-NEW_DONE  01M774DFXRZTAREA04P43QSCFY status=done (cần done) updated=2026-11-12T05:41:45Z
+PASS  FX-OLD_CANCELLED  01KQH0XBA8RQ7DJCYKQWSC7YXS status=cancelled (cần cancelled) updated=2026-05-01T05:41:46Z
+PASS  FX-OLD_BLOCKED  01KQH0XBMVCR1SVNAEB0DMKXK3 status=blocked (cần blocked) updated=2026-05-01T05:41:46Z
+PASS  FX-OLD_INTERRUPTED  01KQH0XC0PFFD72XF7X5884A7G status=interrupted (cần interrupted) updated=2026-05-01T05:41:50Z
+PASS  FX-OLD_FAILED_WT  01KQH0XG86APZ55T49A4Q0SMCW status=failed (cần failed) updated=2026-05-01T05:41:51Z
+PASS  FX-NEW_RUN  01M7M0D93VJGP7NN8SZYHQEN1Z status=created (cần created) updated=2026-11-17T05:41:51Z
+PASS  FX-WT-dirty  worktree=/home/baodq/bench-bint-v4-20261117/tmp/hidden-B-T1/hidden2-t1-nai246lb/state/repo-589edaade690/worktrees/01KQH0XG86APZ55T49A4Q0SMCW status='M a.go\n?? wip_notes.txt'
+PASS  FX-old-bytes  log phiếu kết thúc cũ = 3311829 B
+FIXTURE {"OLD_DONE1": "01KQH0XA4SCV9HS0TNP4WAJY0A", "OLD_DONE2": "01KQH0XAH914PCMK67ZARW552N", "NEW_DONE": "01M774DFXRZTAREA04P43QSCFY", "OLD_CANCELLED": "01KQH0XBA8RQ7DJCYKQWSC7YXS", "OLD_BLOCKED": "01KQH0XBMVCR1SVNAEB0DMKXK3", "OLD_INTERRUPTED": "01KQH0XC0PFFD72XF7X5884A7G", "OLD_FAILED_WT": "01KQH0XG86APZ55T49A4Q0SMCW", "NEW_RUN": "01M7M0D93VJGP7NN8SZYHQEN1Z"}
+PASS  D8-preview-no-change  exit=0 tệp đổi=[] sqlite đổi=False
+FAIL  D8i-preview-lists-old  đầu ra nêu phiếu cũ: False; trích: 'State: /home/baodq/bench-bint-v4-20261117/tmp/hidden-B-T1/hidden2-t1-nai246lb/state/repo-589edaade690\nXem trước — chưa xoá dữ liệu.\nKết quả  Nhóm    Ước tính  Đường dẫn                                                                                                                                 Lý do\ngiữ      backup  9 byte    "/home/baodq/bench-bint-v4-20261117/tmp/hidden-B-T1/hidden2-t1-nai246l'
+PASS  D5-concurrent-run  lượt chạy exit=0 status=in_review logs=['prompt.txt', 'b-feat-01M7M0DAEYNW153E7KFHVEACGW.log'] slow.txt=True | dọn#1 exit=0 0.0s '  backup mới nhất của tệp gốc\nDự kiến: 0 mục, 0 byte (ước tính logic).\nĐã dọn: 0 mục, 0 byte (ước tính logic).\nChưa dọn: tác vụ, lịch sử/log workflow và eval, SQLite/WAL/SHM, spool, worktree/nhánh Git, tmp, generated/metadata, subagent/binding MCP và profile iso. Tệp khoá và liên kết luôn được giữ.\n' | run: 'mpleted  15s        -\n! chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác\n! chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành\nChi tiết: bint task show 01M7M0D93VJGP7NN8SZYHQEN1Z   ·   bint run status 01M7M0D93VJGP7NN8SZYHQEN1Z\n'
+PASS  D1-OLD_BLOCKED  01KQH0XBMVCR1SVNAEB0DMKXK3 thư mục còn=True tệp đổi/mất=[]
+PASS  D1-OLD_INTERRUPTED  01KQH0XC0PFFD72XF7X5884A7G thư mục còn=True tệp đổi/mất=[]
+PASS  D2-worktree-kept  worktree còn=True status giữ=True nhánh còn=True tệp phiếu đổi/mất=[]
+PASS  D3-symlink-target  tệp ngoài bị đổi/mất=[]
+PASS  D4-outside-state  tệp ngoài thư mục trạng thái bị đổi=[]
+INFO  D4i-ledger-in-repo  sổ phiếu .bint/tasks (đã commit) bị đổi/xoá: 0 tệp []
+FAIL  D6-old-finished-cleaned  log phiếu kết thúc cũ 3311829 B → còn 3311829 B (giải phóng 0); dọn#1 exit=0
+INFO  D6i-total-bytes  tổng thư mục trạng thái (bỏ sqlite, NEW_RUN) sau = 5553993 B
+PASS  D7-new-finished-kept  01M774DFXRZTAREA04P43QSCFY tệp đổi/mất=[]
+PASS  D9-after-clean-healthy  doctor 0->0 ✗mới=[] task list 0->0 runs list 0->0 show lỗi=[] show phiếu đã dọn=[] dọn#1/2/3 exit=0/0/0
+INFO  T-clean-output  dọn#1: '                               Lý do\ngiữ      backup  9 byte    "/home/baodq/bench-bint-v4-20261117/tmp/hidden-B-T1/hidden2-t1-nai246lb/state/repo-589edaade690/backups/20261117T054144.648Z/.gitignore"  backup mới nhất của tệp gốc\nDự kiến: 0 mục, 0 byte (ước tính logic).\nĐã dọn: 0 mục, 0 byte (ước tính logic).\nChưa dọn: tác vụ, lịch sử/log workflow và eval, SQLite/WAL/SHM, spool, worktree/nhánh Git, tmp, generated/metadata, subagent/binding MCP và profile iso. Tệp khoá và liên kết luôn được giữ.\n' | dọn#2: 'nh logic).\nChưa dọn: tác vụ, lịch sử/log workflow và eval, SQLite/WAL/SHM, spool, worktree/nhánh Git, tmp, generated/metadata, subagent/binding MCP và profile iso. Tệp khoá và liên kết luôn được giữ.\n'
+TÓM TẮT {"cmd": "t1", "fail": ["D8i-preview-lists-old", "D6-old-finished-cleaned"], "fixture_ok": true, "critical": [], "medium": ["D6-old-finished-cleaned"]}

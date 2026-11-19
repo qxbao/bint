@@ -82,3 +82,29 @@ func TestUsageErrorBeatsNotInitialized(t *testing.T) {
 		t.Errorf("lệnh hợp lệ trên repo chưa init phải mã 4: %d", code)
 	}
 }
+
+// `bint task error --question`: ghi câu hỏi (không cần nội dung), in lệnh trả lời; thiếu cả hai là lỗi dùng (mã 2).
+// `run resume --accept|--fix-round` bị từ chối trong phiên agent (lỗi) và khi tác vụ chưa hết vòng sửa.
+func TestTaskErrorQuestionAndResumeDecisionFlags(t *testing.T) {
+	root := newLintRepo(t)
+	id := newTaskID(t, root, "--no-plan", "Đổi app.txt")
+	out, code := run(t, root, "", "task", "error", id, "--step", "b-feat", "--question", "Giữ nhật ký bao nhiêu ngày?")
+	if code != 0 || !strings.Contains(out, "bint run resume "+id+` --answer`) {
+		t.Fatalf("--question: mã %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "task", "error", id); code != 2 || !strings.Contains(out, "--question") {
+		t.Errorf("thiếu nội dung và --question: mã %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "run", "resume", id, "--accept", "--fix-round"); code != 2 || !strings.Contains(out, "loại trừ nhau") {
+		t.Errorf("--accept với --fix-round: mã %d\n%s", code, out)
+	}
+	if out, code := run(t, root, "", "run", "resume", id, "--accept"); code == 0 || !strings.Contains(out, "--accept/--fix-round") {
+		t.Errorf("--accept khi chưa hết vòng sửa: mã %d\n%s", code, out)
+	}
+	t.Setenv("CLAUDECODE", "1")
+	for _, flag := range []string{"--accept", "--fix-round"} {
+		if out, code := run(t, root, "", "run", "resume", id, flag); code == 0 || !strings.Contains(out, "chỉ dành cho người") {
+			t.Errorf("%s trong phiên agent: mã %d\n%s", flag, code, out)
+		}
+	}
+}

@@ -1,0 +1,2910 @@
+ docs/usage.md                     |  40 ++++
+ internal/app/clean_collect.go     | 340 +++++++++++++++++++++++++++
+ internal/app/clean_refs.go        | 192 ++++++++++++++++
+ internal/app/clean_refs_test.go   | 200 ++++++++++++++++
+ internal/app/clean_review_test.go | 270 ++++++++++++++++++++++
+ internal/app/clean_svc.go         | 223 ++++++++++++++++++
+ internal/app/clean_svc_test.go    | 473 ++++++++++++++++++++++++++++++++++++++
+ internal/cli/clean.go             |  58 +++++
+ internal/cli/clean_paths_test.go  |  17 ++
+ internal/cli/clean_test.go        | 100 ++++++++
+ internal/cli/root.go              |   2 +-
+ internal/eval/basecache.go        |  33 ++-
+ internal/eval/cleanup.go          | 117 ++++++++++
+ internal/eval/cleanup_fs.go       | 175 ++++++++++++++
+ internal/eval/cleanup_sqlite.go   | 271 ++++++++++++++++++++++
+ internal/eval/cleanup_test.go     | 156 +++++++++++++
+ internal/eval/workdir.go          |  10 +-
+ internal/eval/workdir_test.go     |   4 +-
+ internal/tui/actions/coverage.go  |   1 +
+ 19 files changed, 2662 insertions(+), 20 deletions(-)
+
+diff --git a/docs/usage.md b/docs/usage.md
+index 3496e34..482ea90 100644
+--- a/docs/usage.md
++++ b/docs/usage.md
+@@ -213,3 +213,43 @@ Phím `L` đổi tạm trong phiên; Hệ thống › Ngôn ngữ lưu vào cấ
+ Thông điệp của tầng dịch vụ nhắc lệnh CLI (ví dụ "chạy `bint sync`") được TUI hiển thị bằng phím hoặc hành
+ động tương ứng của TUI; CLI giữ nguyên chữ.
+ 
++## Dọn dữ liệu cũ trong state
++
++`bint clean` chỉ xem trước state của repository hiện tại, không nạp spool hoặc mở
++SQLite để ghi. Xem đường dẫn, nhóm, lý do chọn/giữ và số byte ước tính trước khi dọn:
++
++```sh
++bint clean
++bint clean --dry-run --older-than 180
++bint clean --apply --older-than 180
++```
++
++Thời hạn mặc định là **90 ngày**, mỗi ngày bằng 24 giờ. `--older-than` nhận số
++nguyên dương (tối đa 106751); mục đúng ranh giới hoặc có mốc tương lai được giữ.
++`--apply` và `--dry-run` không dùng cùng nhau. Chỉ `--apply` mới xoá; dữ liệu đã
++xoá không khôi phục được. Lệnh luôn khảo sát lại và kiểm tra điều kiện trước từng
++mục, vì tình trạng có thể đổi sau lần xem trước.
++
++Ba nhóm được xét là cache `eval-work/bases/<sha>.git` còn commit nguồn để dựng
++lại, tệp backup dư trong `backups/<timestamp>/<tệp gốc>`, và cặp hook trace `.in`/
++`.out` đã hoàn tất hợp lệ. Luôn giữ backup có timestamp mới nhất của từng tệp gốc,
++cache đang bận, tệp khoá, liên kết và mục còn được tài liệu/bằng chứng tham chiếu.
++Tuổi backup/trace dùng mốc mới hơn giữa timestamp và thời gian sửa tệp; cache dùng
++thời điểm dùng cuối. Khi bằng chứng thiếu, hỏng, không đọc được hoặc tham chiếu
++mơ hồ, lệnh giữ dữ liệu và nêu lý do. Xem trước không tạo tệp khoá.
++
++Tham chiếu được đọc cả từ spool, tài liệu/log, hook trace và dữ liệu đã nạp vào
++SQLite. Lệnh chỉ mở bản chụp tạm của DB cùng WAL; không mở DB gốc qua SQLite,
++không tạo WAL/SHM, checkpoint hoặc migration trên dữ liệu gốc. Nếu DB/WAL đang
++thay đổi, bị hỏng, không đọc được hoặc phần văn bản cần khảo sát vượt 64 MiB,
++lệnh giữ các mục và báo lý do. Các trace đang có trên đĩa đều được xét làm bằng
++chứng; một mục được chúng tham chiếu có thể được dọn ở lần sau khi trace đã mất.
++
++Chưa dọn tác vụ, lịch sử/log workflow và eval, SQLite cùng WAL/SHM, spool, worktree
++và nhánh Git, tmp kiểm chứng, generated/metadata, dữ liệu subagent/binding MCP hay
++profile iso. Những nhóm này vẫn chiếm dung lượng; profile iso có vòng đời dọn riêng.
++Lệnh này chạy thủ công, không thêm lịch tự dọn hay thay đổi chính sách dọn nền hiện
++có. Dung lượng báo là kích thước logic của tệp thường, có thể khác số byte đĩa
++thực thu hồi do hardlink. Mục bận/được bảo vệ được báo giữ; lỗi xoá từng mục được
++báo riêng và trả mã 1, đối số sai trả mã 2.
++
+diff --git a/internal/app/clean_collect.go b/internal/app/clean_collect.go
+new file mode 100644
+index 0000000..14ec2ed
+--- /dev/null
++++ b/internal/app/clean_collect.go
+@@ -0,0 +1,340 @@
++package app
++
++import (
++	"context"
++	"encoding/json"
++	"fmt"
++	"io"
++	"os"
++	"path/filepath"
++	"regexp"
++	"sort"
++	"strings"
++	"time"
++
++	"bint/internal/eval"
++)
++
++const cleanBackupTime = "20060102T150405.000Z"
++const cleanTraceTime = "20060102T150405.000000000Z"
++
++var cleanTraceName = regexp.MustCompile(`^(\d{8}T\d{6}\.\d{9}Z)-[A-Za-z0-9_-]+\.(in|out)$`)
++
++func cleanReadDir(root *os.Root, rel string) ([]os.DirEntry, error) {
++	r, err := eval.OpenCleanupDir(root, filepath.FromSlash(rel))
++	if err != nil {
++		return nil, err
++	}
++	defer r.Close()
++	f, err := r.Open(".")
++	if err != nil {
++		return nil, err
++	}
++	defer f.Close()
++	entries, err := f.ReadDir(-1)
++	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
++	return entries, err
++}
++
++func cleanInspect(root *os.Root, rel string) (cleanPart, error) {
++	rel = filepath.FromSlash(rel)
++	part := cleanPart{rel: rel}
++	parent, err := eval.OpenCleanupDir(root, filepath.Dir(rel))
++	if err != nil {
++		return part, err
++	}
++	defer parent.Close()
++	part.tree, err = eval.InspectCleanupTree(parent, filepath.Base(rel))
++	return part, err
++}
++
++func cleanRead(root *os.Root, rel string) ([]byte, error) {
++	parent, err := eval.OpenCleanupDir(root, filepath.Dir(rel))
++	if err != nil {
++		return nil, err
++	}
++	defer parent.Close()
++	name := filepath.Base(rel)
++	info, err := parent.Lstat(name)
++	if err != nil {
++		return nil, err
++	}
++	if !info.Mode().IsRegular() || info.Size() > 8<<20 {
++		return nil, fmt.Errorf("tệp không thể đọc an toàn: %s", rel)
++	}
++	f, err := parent.Open(name)
++	if err != nil {
++		return nil, err
++	}
++	defer f.Close()
++	opened, err := f.Stat()
++	if err != nil {
++		return nil, err
++	}
++	if !os.SameFile(info, opened) {
++		return nil, fmt.Errorf("tệp đổi danh tính: %s", rel)
++	}
++	// A bounded read also covers files growing while being read.
++	return cleanReadOpened(f, info)
++}
++
++func cleanReadOpened(f *os.File, info os.FileInfo) ([]byte, error) {
++	b, err := io.ReadAll(io.LimitReader(f, (8<<20)+1))
++	if err != nil {
++		return nil, err
++	}
++	after, err := f.Stat()
++	if err != nil {
++		return nil, err
++	}
++	if len(b) > 8<<20 || !os.SameFile(info, after) || info.Size() != after.Size() || !info.ModTime().Equal(after.ModTime()) {
++		return nil, fmt.Errorf("tệp tham chiếu đang thay đổi hoặc quá lớn")
++	}
++	return b, nil
++}
++
++func collectClean(ctx context.Context, ws *Workspace, root *os.Root, cutoff time.Time, checkBusy bool) ([]CleanItem, error) {
++	var out []CleanItem
++	keep := func(rel, kind, reason string) {
++		part, _ := cleanInspect(root, rel)
++		out = append(out, CleanItem{Path: filepath.Join(ws.Paths.Root, filepath.FromSlash(rel)), Kind: kind, Reason: reason, Outcome: "keep", EstimatedBytes: part.tree.Bytes()})
++	}
++	add := func(rel, kind, reason string, parts []cleanPart, selected bool) {
++		item := CleanItem{Path: filepath.Join(ws.Paths.Root, filepath.FromSlash(rel)), Kind: kind, Reason: reason, Outcome: "keep", parts: parts}
++		for _, p := range parts {
++			item.EstimatedBytes += p.tree.Bytes()
++		}
++		if selected {
++			item.Outcome = "selected"
++		}
++		out = append(out, item)
++	}
++	// Only exact SHA cache names can be newly selected by clean.
++	bases, err := cleanReadDir(root, "eval-work/bases")
++	if err != nil && !os.IsNotExist(err) {
++		keep("eval-work/bases", "cache", err.Error())
++	}
++	for _, entry := range bases {
++		if err := ctx.Err(); err != nil {
++			return nil, err
++		}
++		rel := "eval-work/bases/" + entry.Name()
++		if entry.Name() == ".locks" {
++			keep(rel, "cache", "tệp khoá được giữ vĩnh viễn")
++			continue
++		}
++		part, e := cleanInspect(root, rel)
++		if e != nil {
++			keep(rel, "cache", e.Error())
++			continue
++		}
++		i := part.tree["."]
++		ok, reason := eval.CleanupBaseEligible(ctx, ws.Repo.Toplevel, entry.Name(), i.ModTime(), cutoff)
++		if !i.IsDir() {
++			ok = false
++			reason = "cache không phải thư mục"
++		}
++		if ok && !cleanBaseComplete(root, rel, entry.Name()) {
++			ok = false
++			reason = "không nhận diện được cache Bint hoàn tất"
++		}
++		if ok && checkBusy {
++			parent, e := eval.OpenCleanupDir(root, filepath.FromSlash("eval-work/bases"))
++			if e != nil {
++				ok = false
++				reason = e.Error()
++			} else {
++				unlock, e := eval.TryCleanupBaseAt(parent, entry.Name(), false)
++				parent.Close()
++				if e != nil {
++					ok = false
++					reason = e.Error()
++				} else {
++					unlock()
++				}
++			}
++		}
++		add(rel, "cache", reason, []cleanPart{part}, ok)
++	}
++	snapshots, err := cleanReadDir(root, "backups")
++	if err != nil && !os.IsNotExist(err) {
++		keep("backups", "backup", err.Error())
++	}
++	type backup struct {
++		rel, key string
++		stamp    time.Time
++		part     cleanPart
++		err      error
++	}
++	var backups []backup
++	newest := map[string]time.Time{}
++	for _, entry := range snapshots {
++		rel := "backups/" + entry.Name()
++		stamp, e := time.Parse(cleanBackupTime, entry.Name())
++		if e != nil || stamp.Format(cleanBackupTime) != entry.Name() || !entry.IsDir() {
++			keep(rel, "backup", "snapshot không đúng định dạng Bint")
++			continue
++		}
++		// Walk using verified handles, never filepath.Walk through a replaced parent.
++		var walk func(string, string) error
++		walk = func(dir, key string) error {
++			entries, e := cleanReadDir(root, dir)
++			if e != nil {
++				return e
++			}
++			for _, child := range entries {
++				r := dir + "/" + child.Name()
++				k := filepath.Join(key, child.Name())
++				if child.IsDir() {
++					if e := walk(r, k); e != nil {
++						keep(r, "backup", e.Error())
++					}
++					continue
++				}
++				part, e := cleanInspect(root, r)
++				backups = append(backups, backup{r, k, stamp, part, e})
++				// Only a verified regular backup can replace the last usable copy.
++				// A broken link or special file is retained but is not a backup.
++				if e == nil && part.tree["."].Mode().IsRegular() && stamp.After(newest[k]) {
++					newest[k] = stamp
++				}
++			}
++			return nil
++		}
++		if e := walk(rel, ""); e != nil {
++			keep(rel, "backup", e.Error())
++		}
++	}
++	for _, b := range backups {
++		if b.err != nil {
++			keep(b.rel, "backup", b.err.Error())
++			continue
++		}
++		age := b.stamp
++		if mt := b.part.tree["."].ModTime(); mt.After(age) {
++			age = mt
++		}
++		ok := age.Before(cutoff) && b.stamp.Before(newest[b.key])
++		reason := "backup dư quá hạn"
++		if !b.stamp.Before(newest[b.key]) {
++			reason = "backup mới nhất của tệp gốc"
++		} else if !age.Before(cutoff) {
++			reason = "chưa quá hạn"
++		}
++		add(b.rel, "backup", reason, []cleanPart{b.part}, ok)
++	}
++	traces, err := cleanReadDir(root, "runtime/hook-trace")
++	if err != nil && !os.IsNotExist(err) {
++		keep("runtime/hook-trace", "hook-trace", err.Error())
++	}
++	seen := map[string]bool{}
++	for _, entry := range traces {
++		rel := "runtime/hook-trace/" + entry.Name()
++		m := cleanTraceName.FindStringSubmatch(entry.Name())
++		if m == nil {
++			keep(rel, "hook-trace", "tên trace không xác định")
++			continue
++		}
++		stem := strings.TrimSuffix(rel, filepath.Ext(rel))
++		if seen[stem] {
++			continue
++		}
++		seen[stem] = true
++		stamp, e := time.Parse(cleanTraceTime, m[1])
++		if e != nil || stamp.Format(cleanTraceTime) != m[1] {
++			keep(rel, "hook-trace", "thời điểm trace không hợp lệ")
++			continue
++		}
++		in, e1 := cleanInspect(root, stem+".in")
++		outPart, e2 := cleanInspect(root, stem+".out")
++		if e1 != nil || e2 != nil {
++			keep(rel, "hook-trace", "cặp trace thiếu hoặc có liên kết")
++			continue
++		}
++		if !in.tree["."].Mode().IsRegular() || !outPart.tree["."].Mode().IsRegular() {
++			keep(rel, "hook-trace", "cặp trace phải gồm hai tệp thường")
++			continue
++		}
++		data, e := cleanRead(root, filepath.FromSlash(stem+".out"))
++		if e != nil || !cleanTraceComplete(data) {
++			add(stem+".in", "hook-trace", "trace chưa có kết quả hoàn tất hợp lệ", []cleanPart{in, outPart}, false)
++			continue
++		}
++		age := stamp
++		for _, p := range []cleanPart{in, outPart} {
++			if mt := p.tree["."].ModTime(); mt.After(age) {
++				age = mt
++			}
++		}
++		ok := age.Before(cutoff)
++		reason := "cặp trace hoàn tất quá hạn"
++		if !ok {
++			reason = "chưa quá hạn"
++		}
++		add(stem+".in", "hook-trace", reason, []cleanPart{in, outPart}, ok)
++	}
++	refs, problem := cleanReferences(ctx, ws, root)
++	for i := range out {
++		item := &out[i]
++		if item.Outcome != "selected" {
++			continue
++		}
++		if problem != "" {
++			item.Outcome = "keep"
++			item.Reason = problem
++			continue
++		}
++		if cleanReferenced(ws, *item, refs) {
++			item.Outcome = "keep"
++			item.Reason = "còn được tài liệu hoặc bằng chứng giữ tham chiếu"
++		}
++	}
++	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
++	return out, ctx.Err()
++}
++
++// A SHA-shaped directory is insufficient proof of ownership. Completed Bint
++// caches have a bare object directory and HEAD pointing at this exact eval-base.
++func cleanBaseComplete(root *os.Root, rel, name string) bool {
++	data, err := cleanRead(root, filepath.FromSlash(rel+"/HEAD"))
++	if err != nil || strings.TrimSpace(string(data)) != "ref: refs/heads/eval-base" {
++		return false
++	}
++	sha := strings.TrimSuffix(name, ".git")
++	data, err = cleanRead(root, filepath.FromSlash(rel+"/refs/heads/eval-base"))
++	if err != nil {
++		data, err = cleanRead(root, filepath.FromSlash(rel+"/packed-refs"))
++		if err != nil {
++			return false
++		}
++		found := false
++		for _, line := range strings.Split(string(data), "\n") {
++			if line == sha+" refs/heads/eval-base" {
++				found = true
++				break
++			}
++		}
++		if !found {
++			return false
++		}
++	} else if strings.TrimSpace(string(data)) != sha {
++		return false
++	}
++	objects, err := eval.OpenCleanupDir(root, filepath.FromSlash(rel+"/objects"))
++	if err != nil {
++		return false
++	}
++	objects.Close()
++	return true
++}
++
++func cleanTraceComplete(data []byte) bool {
++	var record struct {
++		Output    *string `json:"output"`
++		Duration  *int64  `json:"duration_ms"`
++		Skipped   *string `json:"skipped"`
++		Written   *bool   `json:"written"`
++		SpoolFile *string `json:"spool_file"`
++	}
++	return json.Unmarshal(data, &record) == nil && record.Output != nil && record.Duration != nil && *record.Duration >= 0 && record.Skipped != nil && record.Written != nil && record.SpoolFile != nil
++}
+diff --git a/internal/app/clean_refs.go b/internal/app/clean_refs.go
+new file mode 100644
+index 0000000..7ad79a0
+--- /dev/null
++++ b/internal/app/clean_refs.go
+@@ -0,0 +1,192 @@
++package app
++
++import (
++	"context"
++	"encoding/json"
++	"fmt"
++	"os"
++	"path/filepath"
++	"regexp"
++	"slices"
++	"strings"
++	"unicode/utf8"
++
++	"gopkg.in/yaml.v3"
++
++	"bint/internal/eval"
++	"bint/internal/state"
++	"bint/internal/task"
++)
++
++// Scan retained text and an isolated SQLite snapshot, without task ledger sync.
++// Unreadable, opaque or changing evidence fails closed for this invocation.
++func cleanReferences(ctx context.Context, ws *Workspace, root *os.Root) ([]string, string) {
++	var texts []string
++	var scan func(*os.Root, string, bool) error
++	scan = func(r *os.Root, dir string, inState bool) error {
++		if err := ctx.Err(); err != nil {
++			return err
++		}
++		entries, err := cleanReadDir(r, dir)
++		if os.IsNotExist(err) {
++			return nil
++		}
++		if err != nil {
++			return err
++		}
++		for _, entry := range entries {
++			if err := ctx.Err(); err != nil {
++				return err
++			}
++			rel := filepath.Join(dir, entry.Name())
++			slash := filepath.ToSlash(rel)
++			if inState && (slash == "backups" || slash == "eval-work/bases") {
++				continue
++			}
++			// SQLite's binary files are read through a private snapshot below.
++			if inState && (slash == "state.sqlite" || slash == "state.sqlite-wal" || slash == "state.sqlite-shm") {
++				continue
++			}
++			if entry.Name() == ".git" || strings.HasSuffix(entry.Name(), ".lock") || entry.Name() == ".locks" {
++				continue
++			}
++			if entry.IsDir() {
++				if err := scan(r, rel, inState); err != nil {
++					return err
++				}
++				continue
++			}
++			b, err := cleanRead(r, rel)
++			if err != nil {
++				return err
++			}
++			if !utf8.Valid(b) || strings.IndexByte(string(b), 0) >= 0 {
++				return fmt.Errorf("bằng chứng không phải văn bản: %s", rel)
++			}
++			// Decode both native separators and JSON-escaped Windows separators.
++			text := strings.ReplaceAll(string(b), `\\`, `/`)
++			texts = append(texts, strings.ReplaceAll(text, `\`, `/`))
++			if entry.Name() == task.TicketFile {
++				var ticket task.Ticket
++				if err := yaml.Unmarshal(b, &ticket); err != nil {
++					return err
++				}
++				if err := ticket.Validate(); err != nil {
++					return err
++				}
++				raw, err := cleanRead(r, filepath.Join(filepath.Dir(rel), task.StateFile))
++				if err != nil {
++					return err
++				}
++				var st task.State
++				if err := json.Unmarshal(raw, &st); err != nil {
++					return err
++				}
++				if ticket.ID != st.ID || ticket.ID != filepath.Base(filepath.Dir(rel)) || !slices.Contains(task.Statuses, st.Status) {
++					return fmt.Errorf("tác vụ không khớp định danh")
++				}
++			}
++			if strings.HasSuffix(entry.Name(), ".json") && !json.Valid(b) {
++				return fmt.Errorf("bằng chứng JSON hỏng: %s", rel)
++			}
++		}
++		return nil
++	}
++	if err := scan(root, ".", true); err != nil {
++		return nil, "không đọc đủ tham chiếu; giữ để an toàn: " + err.Error()
++	}
++	dbRefs, err := eval.CleanupSQLiteReferences(ctx, root)
++	if err != nil {
++		return nil, "không đọc đủ tham chiếu SQLite; giữ để an toàn: " + err.Error()
++	}
++	for _, text := range dbRefs {
++		text = strings.ReplaceAll(text, `\\`, `/`)
++		texts = append(texts, strings.ReplaceAll(text, `\`, `/`))
++	}
++	// Include versioned task documents and knowledge/eval evidence from every
++	// configuration root, without importing them into runtime/tasks.
++	for _, repo := range ws.Repo.ConfigRoots() {
++		r, err := os.OpenRoot(repo)
++		if err != nil {
++			return nil, "không đọc được repository tham chiếu: " + err.Error()
++		}
++		err = scan(r, ".bint", false)
++		r.Close()
++		if err != nil {
++			return nil, "không đọc đủ tài liệu repository; giữ để an toàn: " + err.Error()
++		}
++	}
++	return texts, ""
++}
++
++var cleanConcreteReference = map[string]*regexp.Regexp{
++	"cache":      regexp.MustCompile(`eval-work/bases/(?:[0-9a-f]{40}|[0-9a-f]{64})\.git`),
++	"backup":     regexp.MustCompile(`backups/\d{8}T\d{6}\.\d{3}Z`),
++	"hook-trace": regexp.MustCompile(`(?:runtime/)?hook-trace/\d{8}T\d{6}\.\d{9}Z`),
++}
++
++var cleanQuotedReference = regexp.MustCompile("\"[^\"\r\n]*\"|'[^'\r\n]*'|`[^`\r\n]*`")
++
++func cleanReferenceTokens(text string) []string {
++	tokens := strings.FieldsFunc(text, func(r rune) bool { return strings.ContainsRune("\n\r\t \"'`<>()[]{}=,;", r) })
++	// Quoted paths may contain whitespace; keep them intact as well as the
++	// ordinary tokens so an external alias with spaces is still recognized.
++	for _, quoted := range cleanQuotedReference.FindAllString(text, -1) {
++		tokens = append(tokens, quoted[1:len(quoted)-1])
++	}
++	return tokens
++}
++
++// Arguments are normalized by state.NormalizePath, including physical aliases.
++// Rel enforces component boundaries: a prefix sibling is not a containing path.
++func cleanPathContains(parent, child string) bool {
++	rel, err := filepath.Rel(parent, child)
++	return err == nil && (rel == "." || filepath.IsLocal(rel))
++}
++
++func cleanReferenced(ws *Workspace, item CleanItem, texts []string) bool {
++	group := map[string]string{"cache": "eval-work/bases", "backup": "backups", "hook-trace": "runtime/hook-trace"}[item.Kind]
++	stateRoot := state.NormalizePath(ws.Paths.Root)
++	for _, text := range texts {
++		// Classify each group occurrence independently. Concrete paths account
++		// only for their own mentions, never a separate reference to the group.
++		unresolved := cleanConcreteReference[item.Kind].ReplaceAllString(text, "")
++		if strings.Contains(unresolved, group) {
++			return true
++		}
++		tokens := cleanReferenceTokens(text)
++		for _, part := range item.parts {
++			rel := filepath.ToSlash(part.rel)
++			// Protect references to the item OR any ancestor of it within its group.
++			for p := rel; p != "." && p != group; p = filepath.ToSlash(filepath.Dir(p)) {
++				if strings.Contains(text, p) {
++					return true
++				}
++			}
++			abs := filepath.Join(ws.Paths.Root, part.rel)
++			physical := state.NormalizePath(abs)
++			if strings.Contains(text, physical) {
++				return true
++			}
++			// A reference to an ancestor protects this item. A reference inside a
++			// directory item also protects it, since cleanup removes that whole tree.
++			rootInfo := part.tree["."]
++			for _, token := range tokens {
++				if !filepath.IsAbs(token) {
++					continue
++				}
++				reference := state.NormalizePath(token)
++				// Resolve first, so aliases outside state can name its contents.
++				// References are scoped to state; prose separators such as "/"
++				// must not protect every cleanup item via a filesystem ancestor.
++				if !cleanPathContains(stateRoot, reference) {
++					continue
++				}
++				if cleanPathContains(reference, physical) || (rootInfo != nil && rootInfo.IsDir() && cleanPathContains(physical, reference)) {
++					return true
++				}
++			}
++		}
++	}
++	return false
++}
+diff --git a/internal/app/clean_refs_test.go b/internal/app/clean_refs_test.go
+new file mode 100644
+index 0000000..2c420ab
+--- /dev/null
++++ b/internal/app/clean_refs_test.go
+@@ -0,0 +1,200 @@
++package app
++
++import (
++	"context"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strconv"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/testutil"
++)
++
++func TestCleanMixedGroupAndConcreteReference(t *testing.T) {
++	ws, now, _ := cleanReviewBackups(t)
++	cleanWrite(t, ws.Paths.Root, "runtime/logs/retained.log", ws.Paths.Backups+"/ must be retained for restoration. Example of a newer backup: backups/20260802T120000.000Z/config.yml", now)
++	before := cleanSnapshot(t, ws.Paths.Root)
++	for _, apply := range []bool{false, true} {
++		result, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: apply}, now, nil)
++		if err != nil {
++			t.Fatal(err)
++		}
++		if result.Selected != 0 || result.Removed != 0 {
++			t.Fatalf("group reference lost: selected=%d removed=%d", result.Selected, result.Removed)
++		}
++		if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++			t.Fatal("changed data referenced by its group")
++		}
++	}
++}
++
++func TestCleanReferenceOccurrences(t *testing.T) {
++	for _, group := range []struct{ kind, root, target, other string }{
++		{"backup", "backups", "backups/20260801T120000.000Z/config.yml", "backups/20260802T120000.000Z/config.yml"},
++		{"cache", "eval-work/bases", "eval-work/bases/" + strings.Repeat("a", 40) + ".git", "eval-work/bases/" + strings.Repeat("b", 40) + ".git"},
++		{"hook-trace", "runtime/hook-trace", "runtime/hook-trace/20260801T120000.000000000Z-codex-tool.in", "runtime/hook-trace/20260802T120000.000000000Z-codex-tool.in"},
++	} {
++		t.Run(group.kind, func(t *testing.T) {
++			ws, _ := cleanFixture(t)
++			item := CleanItem{Kind: group.kind, parts: []cleanPart{{rel: filepath.FromSlash(group.target)}}}
++			for _, tc := range []struct {
++				name, text string
++				want       bool
++			}{
++				{"unrelated_concrete", group.other, false},
++				{"multiple_concrete", group.other + "\n" + group.other, false},
++				{"target", group.target, true},
++				{"group_only", group.root, true},
++				{"group_before_concrete", group.root + "/ is retained. Example: " + group.other, true},
++				{"group_after_concrete", group.other + "; keep " + group.root + "/", true},
++				{"absolute_group", filepath.ToSlash(filepath.Join(ws.Paths.Root, filepath.FromSlash(group.root))) + "/ is retained. Example: " + group.other, true},
++				{"bare_group", group.other + "\nretain `" + group.root + "`", true},
++				{"json_array", `["` + group.other + `","` + group.root + `/"]`, true},
++				{"unresolved_path", group.root + "/unknown; example: " + group.other, true},
++			} {
++				t.Run(tc.name, func(t *testing.T) {
++					if got := cleanReferenced(ws, item, []string{tc.text}); got != tc.want {
++						t.Fatalf("referenced=%v want %v for %q", got, tc.want, tc.text)
++					}
++				})
++			}
++		})
++	}
++}
++
++func TestCleanRetainedAliasReference(t *testing.T) {
++	for _, kind := range []string{"file", "snapshot", "group", "state", "quoted_snapshot", "quoted_group", "sibling", "prefix_sibling"} {
++		t.Run(kind, func(t *testing.T) {
++			ws, now, target := cleanReviewBackups(t)
++			destination := target
++			protected := true
++			switch kind {
++			case "snapshot", "quoted_snapshot":
++				destination = filepath.Dir(target)
++			case "group", "quoted_group":
++				destination = ws.Paths.Backups
++			case "state":
++				destination = ws.Paths.Root
++			case "sibling":
++				destination = filepath.Join(ws.Paths.Backups, "20260802T120000.000Z", "config.yml")
++				protected = false
++			case "prefix_sibling":
++				destination = filepath.Dir(target) + "-other"
++				if err := os.Mkdir(destination, 0700); err != nil {
++					t.Fatal(err)
++				}
++				protected = false
++			}
++			alias := filepath.Join(t.TempDir(), "restore-source")
++			if strings.HasPrefix(kind, "quoted_") {
++				alias = filepath.Join(t.TempDir(), "restore source")
++			}
++			if err := os.Symlink(destination, alias); err != nil {
++				t.Skipf("symlink unavailable: %v", err)
++			}
++			reference := filepath.ToSlash(alias)
++			if strings.HasPrefix(kind, "quoted_") {
++				reference = strconv.Quote(reference)
++			}
++			cleanWrite(t, ws.Paths.Root, "runtime/logs/retained.log", "Restore retained data from "+reference, now)
++			before := cleanSnapshot(t, ws.Paths.Root)
++			preview, err := cleanWorkspace(context.Background(), ws, CleanOptions{}, now, nil)
++			if err != nil {
++				t.Fatal(err)
++			}
++			want := 1
++			if protected {
++				want = 0
++			}
++			if preview.Selected != want {
++				t.Fatalf("selected=%d want %d for alias to %s", preview.Selected, want, kind)
++			}
++			if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++				t.Fatal("preview modified state")
++			}
++			for run := 0; run < 2; run++ {
++				result, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++				if err != nil {
++					t.Fatal(err)
++				}
++				if protected {
++					if result.Removed != 0 || !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++						t.Fatal("modified data referenced by alias")
++					}
++				} else if run == 0 && result.Removed != 1 {
++					t.Fatalf("unrelated alias prevented cleanup: %+v", result)
++				} else if run > 0 && result.Removed != 0 {
++					t.Fatal("second cleanup removed more data")
++				}
++			}
++			if got, err := os.Readlink(alias); err != nil || got != destination {
++				t.Fatal("modified external alias")
++			}
++		})
++	}
++}
++
++func TestCleanCacheAliasReferences(t *testing.T) {
++	for _, kind := range []string{"base", "member_directory", "member_file", "group"} {
++		t.Run(kind, func(t *testing.T) {
++			testutil.Isolate(t)
++			ws, now := cleanFixture(t)
++			ws.Repo.Toplevel = testutil.NewRepo(t, nil)
++			name := testutil.Git(t, ws.Repo.Toplevel, "rev-parse", "HEAD") + ".git"
++			old := now.Add(-100 * 24 * time.Hour)
++			cleanCompleteBase(t, ws, name, old)
++			member := cleanWrite(t, ws.Paths.Root, "eval-work/bases/"+name+"/objects/retained-object", "retained data", old)
++			destination := filepath.Join(ws.Paths.EvalWork, "bases", name)
++			switch kind {
++			case "member_directory":
++				destination = filepath.Dir(member)
++			case "member_file":
++				destination = member
++			case "group":
++				destination = filepath.Dir(destination)
++			}
++			alias := filepath.Join(t.TempDir(), "retained-source")
++			if err := os.Symlink(destination, alias); err != nil {
++				t.Skipf("symlink unavailable: %v", err)
++			}
++			cleanWrite(t, ws.Paths.Root, "runtime/logs/retained.log", filepath.ToSlash(alias), now)
++			before := cleanSnapshot(t, ws.Paths.Root)
++			for _, apply := range []bool{false, true} {
++				r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: apply}, now, nil)
++				if err != nil || r.Selected != 0 || r.Removed != 0 {
++					t.Fatalf("cache reference through %s: selected=%d removed=%d err=%v", kind, r.Selected, r.Removed, err)
++				}
++				if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++					t.Fatal("modified cache referenced through alias")
++				}
++			}
++		})
++	}
++}
++
++func TestCleanInitializedWorkspaceCanSelectUnusedBackup(t *testing.T) {
++	testutil.Isolate(t)
++	repo := testutil.NewRepo(t, nil)
++	mustInit(t, InitOptions{Dir: repo, Hooks: no()})
++	ws, err := OpenWorkspace(context.Background(), repo, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	now := time.Now().UTC()
++	old := now.Add(-100 * 24 * time.Hour)
++	target := cleanWrite(t, ws.Paths.Root, "backups/20260101T120000.000Z/config.yml", "old", old)
++	cleanWrite(t, ws.Paths.Root, "backups/20260102T120000.000Z/config.yml", "new", old)
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{}, now, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if r.Selected != 1 {
++		t.Fatalf("selected=%d, want unused backup", r.Selected)
++	}
++	if _, err := os.Stat(target); err != nil {
++		t.Fatal("preview removed unused backup")
++	}
++}
+diff --git a/internal/app/clean_review_test.go b/internal/app/clean_review_test.go
+new file mode 100644
+index 0000000..4afffe3
+--- /dev/null
++++ b/internal/app/clean_review_test.go
+@@ -0,0 +1,270 @@
++package app
++
++import (
++	"context"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/runlog"
++	"bint/internal/spool"
++	"bint/internal/store"
++)
++
++func cleanReviewBackups(t *testing.T) (*Workspace, time.Time, string) {
++	ws, now := cleanFixture(t)
++	old := now.Add(-100 * 24 * time.Hour)
++	target := cleanWrite(t, ws.Paths.Root, "backups/20260801T120000.000Z/config.yml", "old backup", old)
++	cleanWrite(t, ws.Paths.Root, "backups/20260802T120000.000Z/config.yml", "new backup", old)
++	return ws, now, target
++}
++
++func TestCleanReviewSQLiteReference(t *testing.T) {
++	ws, now, target := cleanReviewBackups(t)
++	ctx := context.Background()
++	if err := os.MkdirAll(ws.Paths.Spool, 0700); err != nil {
++		t.Fatal(err)
++	}
++	db, err := store.Open(ctx, ws.Paths.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	_, err = spool.Write(ws.Paths.Spool, spool.Event{EventID: "review-ref", Type: spool.FileRead, Source: "hook:claude", Timestamp: now, Harness: "claude", SessionID: "review-session", Payload: map[string]any{"paths": []string{target}}})
++	if err != nil {
++		t.Fatal(err)
++	}
++	before, err := cleanWorkspace(ctx, ws, CleanOptions{}, now, nil)
++	if err != nil || before.Selected != 0 {
++		t.Fatalf("pending ref not protected: %+v %v", before, err)
++	}
++	if _, err := runlog.Ingest(ctx, db, ws.Paths.Spool, now, 0); err != nil {
++		t.Fatal(err)
++	}
++	var count int
++	if err := db.DB.QueryRow("SELECT count(*) FROM run_artifacts WHERE path = ?", target).Scan(&count); err != nil || count != 1 {
++		t.Fatalf("artifact not retained: %d %v", count, err)
++	}
++	if err := db.Close(); err != nil {
++		t.Fatal(err)
++	}
++	result, err := cleanWorkspace(ctx, ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(target); os.IsNotExist(err) {
++		t.Fatalf("deleted backup still referenced by run_artifacts/events after spool ingestion; removed=%d", result.Removed)
++	}
++}
++
++func TestCleanReviewNewestBackupIsSymlink(t *testing.T) {
++	ws, now, target := cleanReviewBackups(t)
++	latest := filepath.Join(ws.Paths.Backups, "20260802T120000.000Z/config.yml")
++	if err := os.Remove(latest); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Symlink(filepath.Join(t.TempDir(), "missing"), latest); err != nil {
++		t.Skip(err)
++	}
++	result, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(target); os.IsNotExist(err) {
++		t.Fatalf("deleted sole regular backup because newer invalid symlink counted as newest; removed=%d", result.Removed)
++	}
++}
++
++func TestCleanReviewTraceInputIsDirectory(t *testing.T) {
++	ws, now := cleanFixture(t)
++	old := now.Add(-100 * 24 * time.Hour)
++	stem := "runtime/hook-trace/20260801T120000.000000000Z-codex-tool"
++	target := cleanWrite(t, ws.Paths.Root, stem+".in/valuable.txt", "new retained data", now)
++	cleanWrite(t, ws.Paths.Root, stem+".out", `{"output":"","duration_ms":1,"skipped":"","written":true,"spool_file":""}`, old)
++	dir := filepath.Dir(target)
++	if err := os.Chtimes(dir, old, old); err != nil {
++		t.Fatal(err)
++	}
++	result, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(target); os.IsNotExist(err) {
++		t.Fatalf("recursively deleted non-file trace input including fresh data; removed=%d", result.Removed)
++	}
++}
++
++func TestCleanReviewRetainedTraceReference(t *testing.T) {
++	ws, now, target := cleanReviewBackups(t)
++	stem := "runtime/hook-trace/20261117T120000.000000000Z-codex-tool"
++	cleanWrite(t, ws.Paths.Root, stem+".in", target, now)
++	cleanWrite(t, ws.Paths.Root, stem+".out", `{"output":"","duration_ms":1,"skipped":"","written":true,"spool_file":""}`, now)
++	result, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err := os.Stat(target); os.IsNotExist(err) {
++		t.Fatalf("deleted backup referenced by retained recent hook trace; removed=%d", result.Removed)
++	}
++}
++
++func TestCleanSQLiteWALAndEventReferencesDoNotMutateSource(t *testing.T) {
++	ws, now, target := cleanReviewBackups(t)
++	ctx := context.Background()
++	db, err := store.Open(ctx, ws.Paths.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	if _, err := db.DB.Exec(`PRAGMA wal_autocheckpoint=0`); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := db.DB.Exec(`INSERT INTO knowledge_fts(item_id,title,body) VALUES('cleanup-test','retained index','unrelated text')`); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.MkdirAll(ws.Paths.Spool, 0700); err != nil {
++		t.Fatal(err)
++	}
++	_, err = spool.Write(ws.Paths.Spool, spool.Event{EventID: "clean-wal-ref", Type: spool.FileRead, Source: "hook:claude", Timestamp: now, Harness: "claude", SessionID: "clean-wal-session", Payload: map[string]any{"paths": []string{target}}})
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err := runlog.Ingest(ctx, db, ws.Paths.Spool, now, 0); err != nil {
++		t.Fatal(err)
++	}
++	if i, err := os.Stat(ws.Paths.DB + "-wal"); err != nil || i.Size() == 0 {
++		t.Fatalf("need active WAL: %v", err)
++	}
++	check := func(selected int) {
++		t.Helper()
++		before := cleanSnapshot(t, ws.Paths.Root)
++		r, err := cleanWorkspace(ctx, ws, CleanOptions{}, now, nil)
++		if err != nil || r.Selected != selected {
++			t.Fatalf("preview selected=%d want %d: %v", r.Selected, selected, err)
++		}
++		if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++			t.Fatal("preview modified source SQLite/WAL/SHM or state")
++		}
++	}
++	check(0)
++	// With the derived artifact removed, the original event payload must still
++	// protect the backup, including while the event exists only in WAL pages.
++	if _, err := db.DB.Exec(`DELETE FROM run_artifacts WHERE path=?`, target); err != nil {
++		t.Fatal(err)
++	}
++	check(0)
++	if _, err := db.DB.Exec(`DELETE FROM events WHERE event_id='clean-wal-ref'`); err != nil {
++		t.Fatal(err)
++	}
++	check(1) // A usable SQLite DB is not a blanket reason to skip all cleanup.
++}
++
++func TestCleanSQLiteWithoutSidecarsPreviewDoesNotCreateThem(t *testing.T) {
++	ws, now, _ := cleanReviewBackups(t)
++	db, err := store.Open(context.Background(), ws.Paths.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := db.Close(); err != nil {
++		t.Fatal(err)
++	}
++	for _, suffix := range []string{"-wal", "-shm"} {
++		if _, err := os.Stat(ws.Paths.DB + suffix); !os.IsNotExist(err) {
++			t.Fatalf("expected absent %s", suffix)
++		}
++	}
++	before := cleanSnapshot(t, ws.Paths.Root)
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{}, now, nil)
++	if err != nil || r.Selected != 1 {
++		t.Fatalf("closed DB preview: %+v %v", r, err)
++	}
++	if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++		t.Fatal("preview created sidecars or changed DB")
++	}
++}
++
++func TestCleanSQLiteRechecksReferenceBeforeApply(t *testing.T) {
++	ws, now, target := cleanReviewBackups(t)
++	ctx := context.Background()
++	db, err := store.Open(ctx, ws.Paths.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	hook := func() {
++		_, err := db.DB.Exec(`INSERT INTO events(event_id,event_type,source,timestamp,payload,schema_version,ingested_at) VALUES('new-ref','file.read','hook:claude','2026-11-17',?,1,'2026-11-17')`, `{"paths":["`+filepath.ToSlash(target)+`"]}`)
++		if err != nil {
++			t.Fatal(err)
++		}
++	}
++	r, err := cleanWorkspace(ctx, ws, CleanOptions{Apply: true}, now, hook)
++	if err != nil || r.Selected != 1 || r.Removed != 0 {
++		t.Fatalf("DB recheck: %+v %v", r, err)
++	}
++	if _, err := os.Stat(target); err != nil {
++		t.Fatal("referenced backup lost")
++	}
++}
++
++func TestCleanSQLiteInvalidDBKeepsCandidates(t *testing.T) {
++	ws, now, target := cleanReviewBackups(t)
++	cleanWrite(t, ws.Paths.Root, "state.sqlite", "not a database", now)
++	before := cleanSnapshot(t, ws.Paths.Root)
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || r.Removed != 0 {
++		t.Fatalf("invalid DB: %d %v", r.Removed, err)
++	}
++	found := false
++	for _, i := range r.Items {
++		if i.Path == target && strings.Contains(i.Reason, "SQLite") {
++			found = true
++		}
++	}
++	if !found {
++		t.Fatal("missing SQLite safety reason")
++	}
++	if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++		t.Fatal("modified invalid DB or candidate")
++	}
++}
++
++func TestCleanIncompleteTraceReference(t *testing.T) {
++	ws, now, target := cleanReviewBackups(t)
++	cleanWrite(t, ws.Paths.Root, "runtime/hook-trace/20260801T120000.000000000Z-codex-tool.in", target, now.Add(-100*24*time.Hour))
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || r.Removed != 0 {
++		t.Fatalf("incomplete trace reference: %d %v", r.Removed, err)
++	}
++}
++
++func TestCleanSQLiteLinkedWALKeepsData(t *testing.T) {
++	ws, now, target := cleanReviewBackups(t)
++	db, err := store.Open(context.Background(), ws.Paths.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := db.Close(); err != nil {
++		t.Fatal(err)
++	}
++	outside := t.TempDir()
++	sentinel := cleanWrite(t, outside, "wal", "outside sentinel", now)
++	if err := os.Symlink(sentinel, ws.Paths.DB+"-wal"); err != nil {
++		t.Skip(err)
++	}
++	before := cleanSnapshot(t, ws.Paths.Root)
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || r.Removed != 0 {
++		t.Fatalf("linked WAL: %d %v", r.Removed, err)
++	}
++	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "outside sentinel" {
++		t.Fatal("outside data changed")
++	}
++	if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++		t.Fatal("followed or removed linked WAL")
++	}
++	if _, err := os.Stat(target); err != nil {
++		t.Fatal(err)
++	}
++}
+diff --git a/internal/app/clean_svc.go b/internal/app/clean_svc.go
+new file mode 100644
+index 0000000..280b796
+--- /dev/null
++++ b/internal/app/clean_svc.go
+@@ -0,0 +1,223 @@
++package app
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"os"
++	"path/filepath"
++	"time"
++
++	"bint/internal/eval"
++	"bint/internal/state"
++)
++
++// CleanOptions only permits deletion when Apply is explicitly set.
++type CleanOptions struct {
++	Dir           string
++	Apply         bool `flag:"apply"`
++	DryRun        bool `flag:"dry-run"`
++	OlderThanDays int  `flag:"older-than"`
++}
++
++type CleanItem struct {
++	Path           string
++	Kind           string
++	Reason         string
++	EstimatedBytes int64
++	Outcome        string // keep, selected, removed, error
++	parts          []cleanPart
++}
++type cleanPart struct {
++	rel  string
++	tree eval.CleanupTree
++}
++type CleanResult struct {
++	Root                        string
++	Items                       []CleanItem
++	Selected, Removed           int
++	SelectedBytes, RemovedBytes int64
++}
++
++// Clean never opens SQLite, ingests spool, or synchronizes task documents.
++func Clean(ctx context.Context, opt CleanOptions) (CleanResult, error) {
++	ws, err := OpenWorkspace(ctx, opt.Dir, true)
++	if err != nil {
++		return CleanResult{}, err
++	}
++	info, err := ws.Paths.ReadRepoInfo()
++	if err != nil {
++		return CleanResult{}, err
++	}
++	if state.NormalizePath(info.CommonDir) != state.NormalizePath(ws.Repo.CommonDir) {
++		return CleanResult{}, state.ErrForeignState
++	}
++	return cleanWorkspace(ctx, ws, opt, time.Now().UTC(), nil)
++}
++
++func cleanWorkspace(ctx context.Context, ws *Workspace, opt CleanOptions, now time.Time, beforeApply func()) (CleanResult, error) {
++	result := CleanResult{Root: ws.Paths.Root}
++	if opt.Apply && opt.DryRun {
++		return result, fmt.Errorf("apply và dry-run không dùng cùng nhau")
++	}
++	days := opt.OlderThanDays
++	if days == 0 {
++		days = 90
++	}
++	if days < 1 || days > 106751 {
++		return result, fmt.Errorf("thời hạn phải từ 1 đến 106751 ngày")
++	}
++	// Resolve a legitimate state alias once. Every descendant is opened separately
++	// and checked without following links by OpenCleanupDir.
++	physical, err := filepath.EvalSymlinks(ws.Paths.Root)
++	if err != nil {
++		return result, err
++	}
++	root, err := os.OpenRoot(physical)
++	if err != nil {
++		return result, err
++	}
++	defer root.Close()
++	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour)
++	items, err := collectClean(ctx, ws, root, cutoff, true)
++	if err != nil {
++		return result, err
++	}
++	result.Items = items
++	for _, item := range items {
++		if item.Outcome == "selected" {
++			result.Selected++
++			result.SelectedBytes += item.EstimatedBytes
++		}
++	}
++	if !opt.Apply {
++		return result, nil
++	}
++	if beforeApply != nil {
++		beforeApply()
++	}
++	var failures []error
++	for n := range result.Items {
++		item := &result.Items[n]
++		if item.Outcome != "selected" {
++			continue
++		}
++		if err := ctx.Err(); err != nil {
++			return result, errors.Join(append(failures, err)...)
++		}
++		unlock := func() {}
++		if item.Kind == "cache" {
++			parent, e := eval.OpenCleanupDir(root, filepath.FromSlash("eval-work/bases"))
++			if e != nil {
++				item.Outcome = "keep"
++				item.Reason = e.Error()
++				continue
++			}
++			unlock, err = eval.TryCleanupBaseAt(parent, filepath.Base(item.parts[0].rel), true)
++			parent.Close()
++			if err != nil {
++				item.Outcome = "keep"
++				item.Reason = err.Error()
++				continue
++			}
++		}
++		func() {
++			defer unlock()
++			// Re-read retained evidence and all selection conditions immediately before
++			// EACH item. Never consume a plan saved by an earlier preview invocation.
++			fresh, e := collectClean(ctx, ws, root, cutoff, false)
++			if e != nil {
++				item.Outcome = "error"
++				item.Reason = e.Error()
++				failures = append(failures, e)
++				return
++			}
++			var match *CleanItem
++			for i := range fresh {
++				if fresh[i].Path == item.Path && fresh[i].Kind == item.Kind {
++					match = &fresh[i]
++					break
++				}
++			}
++			if match == nil || match.Outcome != "selected" || !sameCleanParts(item.parts, match.parts) {
++				item.Outcome = "keep"
++				item.Reason = "điều kiện hoặc danh tính đã thay đổi"
++				if match != nil && match.Outcome != "selected" {
++					item.Reason = match.Reason
++				}
++				return
++			}
++			// Verify all members of a trace pair before removing either member.
++			parents := make([]*os.Root, 0, len(item.parts))
++			defer func() {
++				for _, p := range parents {
++					p.Close()
++				}
++			}()
++			for _, part := range item.parts {
++				parent, e := eval.OpenCleanupDir(root, filepath.Dir(part.rel))
++				if e != nil {
++					item.Outcome = "keep"
++					item.Reason = e.Error()
++					return
++				}
++				parents = append(parents, parent)
++				tree, e := eval.InspectCleanupTree(parent, filepath.Base(part.rel))
++				if e != nil || !eval.SameCleanupTree(part.tree, tree) {
++					item.Outcome = "keep"
++					item.Reason = "mục đang thay đổi hoặc có liên kết"
++					return
++				}
++			}
++			for i, part := range item.parts {
++				if e := eval.RemoveCleanupTree(parents[i], filepath.Base(part.rel), part.tree); e != nil {
++					item.Outcome = "error"
++					item.Reason = e.Error()
++					failures = append(failures, fmt.Errorf("%s: %w", item.Path, e))
++					return
++				}
++			}
++			item.Outcome = "removed"
++			result.Removed++
++			result.RemovedBytes += item.EstimatedBytes
++			if item.Kind == "backup" {
++				cleanEmptyBackupDirs(root, filepath.Dir(item.parts[0].rel))
++			}
++		}()
++	}
++	return result, errors.Join(failures...)
++}
++
++func cleanEmptyBackupDirs(root *os.Root, dir string) {
++	for dir != "backups" && dir != "." {
++		parent, err := eval.OpenCleanupDir(root, filepath.Dir(dir))
++		if err != nil {
++			return
++		}
++		// Remove only empty directories, never recursive removal of a snapshot.
++		info, err := parent.Lstat(filepath.Base(dir))
++		if err == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
++			err = parent.Remove(filepath.Base(dir))
++		} else {
++			parent.Close()
++			return
++		}
++		parent.Close()
++		if err != nil {
++			return
++		}
++		dir = filepath.Dir(dir)
++	}
++}
++
++func sameCleanParts(a, b []cleanPart) bool {
++	if len(a) != len(b) {
++		return false
++	}
++	for i := range a {
++		if a[i].rel != b[i].rel || !eval.SameCleanupTree(a[i].tree, b[i].tree) {
++			return false
++		}
++	}
++	return true
++}
+diff --git a/internal/app/clean_svc_test.go b/internal/app/clean_svc_test.go
+new file mode 100644
+index 0000000..3f54895
+--- /dev/null
++++ b/internal/app/clean_svc_test.go
+@@ -0,0 +1,473 @@
++package app
++
++import (
++	"context"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"reflect"
++	"runtime"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/eval"
++	"bint/internal/gitrepo"
++	"bint/internal/state"
++	"bint/internal/store"
++	"bint/internal/task"
++	"bint/internal/testutil"
++)
++
++func cleanFixture(t *testing.T) (*Workspace, time.Time) {
++	t.Helper()
++	return &Workspace{Paths: state.At("test", t.TempDir()), Repo: gitrepo.Repo{Toplevel: t.TempDir()}}, time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
++}
++
++func cleanWrite(t *testing.T, root, rel, body string, when time.Time) string {
++	t.Helper()
++	p := filepath.Join(root, filepath.FromSlash(rel))
++	if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Chtimes(p, when, when); err != nil {
++		t.Fatal(err)
++	}
++	return p
++}
++
++func cleanCompleteBase(t *testing.T, ws *Workspace, name string, when time.Time) {
++	t.Helper()
++	rel := "eval-work/bases/" + name
++	cleanWrite(t, ws.Paths.Root, rel+"/HEAD", "ref: refs/heads/eval-base\n", when)
++	cleanWrite(t, ws.Paths.Root, rel+"/refs/heads/eval-base", strings.TrimSuffix(name, ".git")+"\n", when)
++	if err := os.MkdirAll(filepath.Join(ws.Paths.EvalWork, "bases", name, "objects"), 0700); err != nil {
++		t.Fatal(err)
++	}
++	dir := filepath.Join(ws.Paths.EvalWork, "bases", name)
++	if err := os.Chtimes(dir, when, when); err != nil {
++		t.Fatal(err)
++	}
++}
++
++type cleanFileState struct {
++	Mode     os.FileMode
++	Size     int64
++	Modified time.Time
++	Body     string
++}
++
++func cleanSnapshot(t *testing.T, root string) map[string]cleanFileState {
++	t.Helper()
++	out := map[string]cleanFileState{}
++	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
++		if err != nil {
++			return err
++		}
++		i, err := d.Info()
++		if err != nil {
++			return err
++		}
++		body := ""
++		if i.Mode().IsRegular() {
++			b, e := os.ReadFile(p)
++			if e != nil {
++				return e
++			}
++			body = string(b)
++		}
++		out[p] = cleanFileState{i.Mode(), i.Size(), i.ModTime(), body}
++		return nil
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	return out
++}
++
++func TestCleanPreviewAndApplyRetention(t *testing.T) {
++	ws, now := cleanFixture(t)
++	old := now.Add(-91 * 24 * time.Hour)
++	oldBackup := cleanWrite(t, ws.Paths.Root, "backups/20260818T120000.000Z/config.yml", "old", old)
++	latest := cleanWrite(t, ws.Paths.Root, "backups/20260818T130000.000Z/config.yml", "latest", old)
++	only := cleanWrite(t, ws.Paths.Root, "backups/20260818T120000.000Z/only.yml", "only", old)
++	for _, days := range []int{89, 90, 91, -1} {
++		when := now.Add(-time.Duration(days) * 24 * time.Hour)
++		base := "runtime/hook-trace/" + when.Format("20060102T150405.000000000Z") + "-codex-tool"
++		cleanWrite(t, ws.Paths.Root, base+".in", "{}", when)
++		cleanWrite(t, ws.Paths.Root, base+".out", `{"output":"","duration_ms":1,"skipped":"","written":true,"spool_file":""}`, when)
++	}
++	incomplete := cleanWrite(t, ws.Paths.Root, "runtime/hook-trace/20260818T120000.000000000Z-codex-stop.in", "{}", old)
++	invalid := cleanWrite(t, ws.Paths.Root, "runtime/hook-trace/20260818T130000.000000000Z-codex-stop.out", "{}", old)
++	cleanWrite(t, ws.Paths.Root, "runtime/hook-trace/20260818T130000.000000000Z-codex-stop.in", "{}", old)
++	cleanWrite(t, ws.Paths.Root, "spool/pending.json", `{"pending":true}`, old)
++	db, err := store.Open(context.Background(), ws.Paths.DB)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := db.Close(); err != nil {
++		t.Fatal(err)
++	}
++	before := cleanSnapshot(t, ws.Paths.Root)
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{}, now, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if r.Selected != 2 {
++		t.Fatalf("selected=%d, items=%+v", r.Selected, r.Items)
++	}
++	if after := cleanSnapshot(t, ws.Paths.Root); !reflect.DeepEqual(before, after) {
++		t.Fatal("preview changed state")
++	}
++	r, err = cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if r.Removed != 2 || r.RemovedBytes != r.SelectedBytes {
++		t.Fatalf("result=%+v", r)
++	}
++	if _, err := os.Lstat(oldBackup); !os.IsNotExist(err) {
++		t.Fatalf("old backup exists: %v", err)
++	}
++	for _, p := range []string{latest, only, incomplete, invalid} {
++		if _, err := os.Lstat(p); err != nil {
++			t.Fatalf("kept %s: %v", p, err)
++		}
++	}
++	r, err = cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || r.Removed != 0 {
++		t.Fatalf("second apply: %+v %v", r, err)
++	}
++}
++
++func TestCleanReferencesAndUnreadableTask(t *testing.T) {
++	for _, bad := range []bool{false, true} {
++		t.Run(map[bool]string{false: "reference", true: "broken-task"}[bad], func(t *testing.T) {
++			ws, now := cleanFixture(t)
++			old := now.Add(-100 * 24 * time.Hour)
++			p := cleanWrite(t, ws.Paths.Root, "backups/20260801T120000.000Z/config.yml", "old", old)
++			cleanWrite(t, ws.Paths.Root, "backups/20260802T120000.000Z/config.yml", "new", old)
++			if bad {
++				cleanWrite(t, ws.Paths.Root, "runtime/tasks/broken/task.yml", "[invalid", old)
++			} else {
++				cleanWrite(t, ws.Paths.Root, "runtime/logs/kept.log", p, old)
++			}
++			r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++			if err != nil {
++				t.Fatal(err)
++			}
++			if r.Removed != 0 {
++				t.Fatalf("removed protected data: %+v", r)
++			}
++		})
++	}
++}
++
++func TestCleanKeepsReferencesFromCompletedTask(t *testing.T) {
++	ws, now := cleanFixture(t)
++	old := now.Add(-100 * 24 * time.Hour)
++	target := cleanWrite(t, ws.Paths.Root, "backups/20260801T120000.000Z/config.yml", "old", old)
++	cleanWrite(t, ws.Paths.Root, "backups/20260802T120000.000Z/config.yml", "new", old)
++	ticket, err := task.NewStore(ws.Paths.Runtime).Create(task.Ticket{Goal: "retained evidence"}, task.State{Status: task.StatusDone}, old)
++	if err != nil {
++		t.Fatal(err)
++	}
++	cleanWrite(t, ticket.Dir, "review.md", target, old)
++	before := cleanSnapshot(t, ws.Paths.Root)
++	result, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || result.Removed != 0 {
++		t.Fatalf("retained task: %d %v", result.Removed, err)
++	}
++	found := false
++	for _, i := range result.Items {
++		if i.Path == target && strings.Contains(i.Reason, "tham chiếu") {
++			found = true
++		}
++	}
++	if !found {
++		t.Fatal("task reference not recognized")
++	}
++	if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++		t.Fatal("task/evidence changed")
++	}
++}
++
++func TestCleanStateAlias(t *testing.T) {
++	ws, now := cleanFixture(t)
++	physical := ws.Paths.Root
++	old := now.Add(-100 * 24 * time.Hour)
++	target := cleanWrite(t, physical, "backups/20260801T120000.000Z/config.yml", "old", old)
++	cleanWrite(t, physical, "backups/20260802T120000.000Z/config.yml", "new", old)
++	alias := filepath.Join(t.TempDir(), "state")
++	if err := os.Symlink(physical, alias); err != nil {
++		t.Skip(err)
++	}
++	ws.Paths = state.At("test", alias)
++	result, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || result.Removed != 1 {
++		t.Fatalf("state alias: %d %v", result.Removed, err)
++	}
++	if _, err := os.Stat(target); !os.IsNotExist(err) {
++		t.Fatalf("target not cleaned: %v", err)
++	}
++}
++
++func TestCleanRechecksReplacedParent(t *testing.T) {
++	ws, now := cleanFixture(t)
++	old := now.Add(-100 * 24 * time.Hour)
++	rel := "backups/20260801T120000.000Z/config.yml"
++	cleanWrite(t, ws.Paths.Root, rel, "old", old)
++	cleanWrite(t, ws.Paths.Root, "backups/20260802T120000.000Z/config.yml", "new", old)
++	outside := t.TempDir()
++	sentinel := cleanWrite(t, outside, "config.yml", "sentinel", old)
++	hook := func() {
++		dir := filepath.Dir(filepath.Join(ws.Paths.Root, rel))
++		if err := os.Rename(dir, dir+"-moved"); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Symlink(outside, dir); err != nil {
++			t.Skipf("symlink unavailable: %v", err)
++		}
++	}
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, hook)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if r.Removed != 0 {
++		t.Fatal("removed changed item")
++	}
++	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "sentinel" {
++		t.Fatal("outside data changed")
++	}
++}
++
++func TestCleanRechecksAgeReferencesAndNewest(t *testing.T) {
++	for _, change := range []string{"mtime", "reference", "latest-removed", "file-replaced"} {
++		t.Run(change, func(t *testing.T) {
++			ws, now := cleanFixture(t)
++			old := now.Add(-100 * 24 * time.Hour)
++			rel := "backups/20260801T120000.000Z/config.yml"
++			target := cleanWrite(t, ws.Paths.Root, rel, "old", old)
++			latest := cleanWrite(t, ws.Paths.Root, "backups/20260802T120000.000Z/config.yml", "new", old)
++			hook := func() {
++				switch change {
++				case "mtime":
++					if err := os.Chtimes(target, now, now); err != nil {
++						t.Fatal(err)
++					}
++				case "reference":
++					cleanWrite(t, ws.Paths.Root, "runtime/review.md", target, now)
++				case "latest-removed":
++					if err := os.Remove(latest); err != nil {
++						t.Fatal(err)
++					}
++				case "file-replaced":
++					if err := os.Rename(target, target+".old"); err != nil {
++						t.Fatal(err)
++					}
++					cleanWrite(t, ws.Paths.Root, rel, "replacement", old)
++				}
++			}
++			r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, hook)
++			if err != nil || r.Removed != 0 {
++				t.Fatalf("recheck: %d %v", r.Removed, err)
++			}
++			if _, err := os.Stat(target); err != nil {
++				t.Fatalf("target lost: %v", err)
++			}
++		})
++	}
++}
++
++func TestCleanApplyReportsItemFailure(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("chmod does not remove delete rights on Windows")
++	}
++	ws, now := cleanFixture(t)
++	old := now.Add(-100 * 24 * time.Hour)
++	target := cleanWrite(t, ws.Paths.Root, "backups/20260801T120000.000Z/config.yml", "old", old)
++	cleanWrite(t, ws.Paths.Root, "backups/20260802T120000.000Z/config.yml", "new", old)
++	parent := filepath.Dir(target)
++	defer os.Chmod(parent, 0700)
++	hook := func() {
++		if err := os.Chmod(parent, 0500); err != nil {
++			t.Fatal(err)
++		}
++	}
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, hook)
++	if err == nil {
++		t.Fatal("deletion failure not returned")
++	}
++	if r.Removed != 0 || r.RemovedBytes != 0 {
++		t.Fatal("failed removal counted")
++	}
++	found := false
++	for _, i := range r.Items {
++		if i.Path == target && i.Outcome == "error" {
++			found = true
++		}
++	}
++	if !found {
++		t.Fatal("missing per-item error")
++	}
++}
++
++func TestCleanCacheAndSymlinks(t *testing.T) {
++	testutil.Isolate(t)
++	ws, now := cleanFixture(t)
++	ws.Repo.Toplevel = testutil.NewRepo(t, nil)
++	sha := testutil.Git(t, ws.Repo.Toplevel, "rev-parse", "HEAD")
++	old := now.Add(-100 * 24 * time.Hour)
++	for _, name := range []string{sha + ".git", strings.Repeat("0", 40) + ".git", sha + ".git.tmp", "unknown"} {
++		p := cleanWrite(t, ws.Paths.Root, "eval-work/bases/"+name+"/data", "cache", old)
++		if err := os.Chtimes(filepath.Dir(p), old, old); err != nil {
++			t.Fatal(err)
++		}
++	}
++	cleanCompleteBase(t, ws, sha+".git", old)
++	lock := cleanWrite(t, ws.Paths.Root, "eval-work/bases/.locks/keep.lock", "pid", old)
++	outside := t.TempDir()
++	sentinel := cleanWrite(t, outside, "sentinel", "keep", old)
++	linked := filepath.Join(ws.Paths.Backups, "20260101T120000.000Z")
++	if err := os.MkdirAll(ws.Paths.Backups, 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Symlink(outside, linked); err != nil {
++		t.Logf("symlink unavailable: %v", err)
++	}
++	before := cleanSnapshot(t, ws.Paths.Root)
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{}, now, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if !reflect.DeepEqual(before, cleanSnapshot(t, ws.Paths.Root)) {
++		t.Fatal("cache preview created a lock or modified state")
++	}
++	if r.Selected != 1 {
++		t.Fatalf("selected=%d", r.Selected)
++	}
++	r, err = cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || r.Removed != 1 {
++		t.Fatalf("cache cleanup: %d %v", r.Removed, err)
++	}
++	for _, p := range []string{lock, sentinel, filepath.Join(ws.Paths.EvalWork, "bases", sha+".git.tmp", "data")} {
++		if _, err := os.Stat(p); err != nil {
++			t.Fatalf("kept %s: %v", p, err)
++		}
++	}
++}
++
++func TestCleanKeepsUnrecognizedBase(t *testing.T) {
++	testutil.Isolate(t)
++	ws, now := cleanFixture(t)
++	ws.Repo.Toplevel = testutil.NewRepo(t, nil)
++	name := testutil.Git(t, ws.Repo.Toplevel, "rev-parse", "HEAD") + ".git"
++	old := now.Add(-100 * 24 * time.Hour)
++	target := cleanWrite(t, ws.Paths.Root, "eval-work/bases/"+name+"/valuable.txt", "not a completed Bint cache", old)
++	if err := os.Chtimes(filepath.Dir(target), old, old); err != nil {
++		t.Fatal(err)
++	}
++	result, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || result.Removed != 0 {
++		t.Fatalf("unrecognized base removed: %d %v", result.Removed, err)
++	}
++	if _, err := os.Stat(target); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestCleanDoesNotFollowGroupLink(t *testing.T) {
++	ws, now := cleanFixture(t)
++	outside := t.TempDir()
++	old := now.Add(-100 * 24 * time.Hour)
++	sentinel := cleanWrite(t, outside, "20260101T120000.000Z/config.yml", "keep", old)
++	cleanWrite(t, outside, "20260102T120000.000Z/config.yml", "new", old)
++	if err := os.Symlink(outside, ws.Paths.Backups); err != nil {
++		t.Skip(err)
++	}
++	r, err := cleanWorkspace(context.Background(), ws, CleanOptions{Apply: true}, now, nil)
++	if err != nil || r.Removed != 0 {
++		t.Fatalf("symlink: %d %v", r.Removed, err)
++	}
++	if _, err := os.Stat(sentinel); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestCleanCacheBusyInOtherProcess(t *testing.T) {
++	if bases := os.Getenv("BINT_TEST_APP_CLEAN_BASES"); bases != "" {
++		r, err := os.OpenRoot(bases)
++		if err != nil {
++			t.Fatal(err)
++		}
++		defer r.Close()
++		unlock, err := eval.TryCleanupBaseAt(r, os.Getenv("BINT_TEST_APP_CLEAN_NAME"), true)
++		if err != nil {
++			t.Fatal(err)
++		}
++		defer unlock()
++		if err := os.WriteFile(os.Getenv("BINT_TEST_APP_CLEAN_READY"), nil, 0600); err != nil {
++			t.Fatal(err)
++		}
++		for {
++			if _, err := os.Stat(os.Getenv("BINT_TEST_APP_CLEAN_RELEASE")); err == nil {
++				return
++			}
++			time.Sleep(10 * time.Millisecond)
++		}
++	}
++	testutil.Isolate(t)
++	ws, now := cleanFixture(t)
++	ws.Repo.Toplevel = testutil.NewRepo(t, nil)
++	name := testutil.Git(t, ws.Repo.Toplevel, "rev-parse", "HEAD") + ".git"
++	old := now.Add(-100 * 24 * time.Hour)
++	target := cleanWrite(t, ws.Paths.Root, "eval-work/bases/"+name+"/data", "cache", old)
++	cleanCompleteBase(t, ws, name, old)
++	if err := os.Chtimes(filepath.Dir(target), old, old); err != nil {
++		t.Fatal(err)
++	}
++	ready, release := filepath.Join(ws.Paths.Root, "ready"), filepath.Join(ws.Paths.Root, "release")
++	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
++	defer cancel()
++	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCleanCacheBusyInOtherProcess$")
++	cmd.Env = append(os.Environ(), "BINT_TEST_APP_CLEAN_BASES="+filepath.Join(ws.Paths.EvalWork, "bases"), "BINT_TEST_APP_CLEAN_NAME="+name, "BINT_TEST_APP_CLEAN_READY="+ready, "BINT_TEST_APP_CLEAN_RELEASE="+release)
++	if err := cmd.Start(); err != nil {
++		t.Fatal(err)
++	}
++	defer func() {
++		_ = os.WriteFile(release, nil, 0600)
++		if err := cmd.Wait(); err != nil {
++			t.Error(err)
++		}
++	}()
++	for {
++		if _, err := os.Stat(ready); err == nil {
++			break
++		}
++		if ctx.Err() != nil {
++			t.Fatal(ctx.Err())
++		}
++		time.Sleep(10 * time.Millisecond)
++	}
++	for _, apply := range []bool{false, true} {
++		result, err := cleanWorkspace(ctx, ws, CleanOptions{Apply: apply}, now, nil)
++		if err != nil || result.Selected != 0 || result.Removed != 0 {
++			t.Fatalf("busy cache: %+v %v", result, err)
++		}
++		found := false
++		for _, i := range result.Items {
++			if strings.Contains(i.Reason, "bận") {
++				found = true
++			}
++		}
++		if !found {
++			t.Fatal("missing busy reason")
++		}
++	}
++	if _, err := os.Stat(target); err != nil {
++		t.Fatal(err)
++	}
++}
+diff --git a/internal/cli/clean.go b/internal/cli/clean.go
+new file mode 100644
+index 0000000..5d5d4bf
+--- /dev/null
++++ b/internal/cli/clean.go
+@@ -0,0 +1,58 @@
++package cli
++
++import (
++	"fmt"
++	"text/tabwriter"
++
++	"github.com/spf13/cobra"
++
++	"bint/internal/app"
++)
++
++func newCleanCmd(stdio IO) *cobra.Command {
++	var opt app.CleanOptions
++	cmd := &cobra.Command{
++		Use: "clean", Short: "Xem trước hoặc dọn dữ liệu state cũ của repository hiện tại",
++		Long: "Mặc định chỉ xem trước, giữ 90 ngày. Chỉ --apply mới xoá vĩnh viễn cache tái tạo được, backup dư và cặp hook trace hoàn tất.",
++		Args: cobra.NoArgs,
++		RunE: func(cmd *cobra.Command, args []string) error {
++			if opt.OlderThanDays < 1 || opt.OlderThanDays > 106751 {
++				return usageError{fmt.Errorf("--older-than phải là số ngày nguyên dương, tối đa 106751")}
++			}
++			if opt.Apply && opt.DryRun {
++				return usageError{fmt.Errorf("--apply và --dry-run không dùng cùng nhau")}
++			}
++			dir, err := cwd()
++			if err != nil {
++				return err
++			}
++			opt.Dir = dir
++			result, cleanErr := app.Clean(cmd.Context(), opt)
++			if result.Root != "" {
++				fmt.Fprintf(stdio.Out, "State: %s\n", result.Root)
++				if !opt.Apply {
++					fmt.Fprintln(stdio.Out, "Xem trước — chưa xoá dữ liệu.")
++				}
++				w := tabwriter.NewWriter(stdio.Out, 0, 4, 2, ' ', 0)
++				fmt.Fprintln(w, "Kết quả\tNhóm\tƯớc tính\tĐường dẫn\tLý do")
++				labels := map[string]string{"keep": "giữ", "selected": "chọn", "removed": "đã dọn", "error": "lỗi"}
++				for _, item := range result.Items {
++					fmt.Fprintf(w, "%s\t%s\t%d byte\t%q\t%s\n", labels[item.Outcome], item.Kind, item.EstimatedBytes, item.Path, item.Reason)
++				}
++				_ = w.Flush()
++				fmt.Fprintf(stdio.Out, "Dự kiến: %d mục, %d byte (ước tính logic).\n", result.Selected, result.SelectedBytes)
++				if opt.Apply {
++					fmt.Fprintf(stdio.Out, "Đã dọn: %d mục, %d byte (ước tính logic).\n", result.Removed, result.RemovedBytes)
++				} else {
++					fmt.Fprintln(stdio.Out, "Sau khi xem danh sách, chạy bint clean --apply với cùng --older-than để dọn.")
++				}
++				fmt.Fprintln(stdio.Out, "Chưa dọn: tác vụ, lịch sử/log workflow và eval, SQLite/WAL/SHM, spool, worktree/nhánh Git, tmp, generated/metadata, subagent/binding MCP và profile iso. Tệp khoá và liên kết luôn được giữ.")
++			}
++			return cleanErr
++		},
++	}
++	cmd.Flags().BoolVar(&opt.Apply, "apply", false, "Xoá vĩnh viễn các mục được chọn sau khi kiểm tra lại")
++	cmd.Flags().BoolVar(&opt.DryRun, "dry-run", false, "Chỉ xem trước (mặc định)")
++	cmd.Flags().IntVar(&opt.OlderThanDays, "older-than", 90, "Giữ dữ liệu ít nhất số ngày này (số nguyên dương)")
++	return cmd
++}
+diff --git a/internal/cli/clean_paths_test.go b/internal/cli/clean_paths_test.go
+new file mode 100644
+index 0000000..731e049
+--- /dev/null
++++ b/internal/cli/clean_paths_test.go
+@@ -0,0 +1,17 @@
++package cli_test
++
++import (
++	"context"
++	"testing"
++
++	"bint/internal/app"
++)
++
++func cliCleanPaths(t *testing.T, repo string) string {
++	t.Helper()
++	ws, err := app.OpenWorkspace(context.Background(), repo, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return ws.Paths.Root
++}
+diff --git a/internal/cli/clean_test.go b/internal/cli/clean_test.go
+new file mode 100644
+index 0000000..078af73
+--- /dev/null
++++ b/internal/cli/clean_test.go
+@@ -0,0 +1,100 @@
++package cli_test
++
++import (
++	"os"
++	"path/filepath"
++	"runtime"
++	"strconv"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/testutil"
++)
++
++func TestCleanCLI(t *testing.T) {
++	testutil.Isolate(t)
++	repo := testutil.NewRepo(t, nil)
++	if out, code := run(t, repo, "", "init", "--no-hooks"); code != 0 {
++		t.Fatalf("init: %d %s", code, out)
++	}
++	// Query the same resolver as the CLI, so overrides and repo IDs are covered.
++	paths := cliCleanPaths(t, repo)
++	old := time.Now().Add(-100 * 24 * time.Hour)
++	for _, stamp := range []string{"20260101T120000.000Z", "20260102T120000.000Z"} {
++		p := filepath.Join(paths, "backups", stamp, "config.yml")
++		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.WriteFile(p, []byte("backup"), 0600); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Chtimes(p, old, old); err != nil {
++			t.Fatal(err)
++		}
++	}
++	target := filepath.Join(paths, "backups", "20260101T120000.000Z", "config.yml")
++	for _, args := range [][]string{{"clean"}, {"clean", "--dry-run"}} {
++		out, code := run(t, repo, "", args...)
++		if code != 0 || !strings.Contains(out, strconv.Quote(target)) || !strings.Contains(out, "6 byte") || !strings.Contains(out, "SQLite") {
++			t.Fatalf("preview: %d %s", code, out)
++		}
++		if _, err := os.Stat(target); err != nil {
++			t.Fatal("preview removed backup")
++		}
++	}
++	for _, args := range [][]string{{"clean", "--older-than", "0"}, {"clean", "--older-than", "-1"}, {"clean", "--older-than", "abc"}, {"clean", "--older-than", "999999999"}, {"clean", "--apply", "--dry-run"}, {"clean", "extra"}} {
++		if out, code := run(t, repo, "", args...); code != 2 {
++			t.Fatalf("invalid %v: %d %s", args, code, out)
++		}
++	}
++	if out, code := run(t, repo, "", "clean", "--older-than", "180"); code != 0 || !strings.Contains(out, "Dự kiến: 0 mục") {
++		t.Fatalf("custom age: %d %s", code, out)
++	}
++	if out, code := run(t, repo, "", "clean", "--apply"); code != 0 || !strings.Contains(out, "Đã dọn: 1 mục") {
++		t.Fatalf("apply: %d %s", code, out)
++	}
++	if _, err := os.Stat(target); !os.IsNotExist(err) {
++		t.Fatalf("not removed: %v", err)
++	}
++	if out, code := run(t, repo, "", "clean", "--apply"); code != 0 || !strings.Contains(out, "Đã dọn: 0 mục") {
++		t.Fatalf("second apply: %d %s", code, out)
++	}
++}
++
++func TestCleanCLIApplyFailure(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("chmod does not remove Windows delete permissions")
++	}
++	testutil.Isolate(t)
++	repo := testutil.NewRepo(t, nil)
++	if out, code := run(t, repo, "", "init", "--no-hooks"); code != 0 {
++		t.Fatalf("init: %d %s", code, out)
++	}
++	paths := cliCleanPaths(t, repo)
++	old := time.Now().Add(-100 * 24 * time.Hour)
++	var denied string
++	for _, rel := range []string{"20260101T120000.000Z/config.yml", "20260102T120000.000Z/other.yml", "20260103T120000.000Z/config.yml", "20260103T120000.000Z/other.yml"} {
++		p := filepath.Join(paths, "backups", filepath.FromSlash(rel))
++		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.WriteFile(p, []byte("backup"), 0600); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Chtimes(p, old, old); err != nil {
++			t.Fatal(err)
++		}
++		if strings.HasPrefix(rel, "20260101") {
++			denied = filepath.Dir(p)
++		}
++	}
++	defer os.Chmod(denied, 0700)
++	if err := os.Chmod(denied, 0500); err != nil {
++		t.Fatal(err)
++	}
++	out, code := run(t, repo, "", "clean", "--apply")
++	if code != 1 || !strings.Contains(out, "Đã dọn: 1 mục, 6 byte") || !strings.Contains(out, "permission denied") {
++		t.Fatalf("partial failure: %d %s", code, out)
++	}
++}
+diff --git a/internal/cli/root.go b/internal/cli/root.go
+index d5f3fe3..c39dbba 100644
+--- a/internal/cli/root.go
++++ b/internal/cli/root.go
+@@ -145,7 +145,7 @@ func NewRoot(stdio IO) *cobra.Command {
+ 		newTUICmd(stdio))
+ 	add("knowledge", newInspectCmd(stdio), newBootstrapCmd(stdio), newKnowledgeCmd(stdio),
+ 		newContextCmd(stdio), newIndexCmd(stdio), newMCPCmd(stdio))
+-	add("project", newIsoCmd(stdio))
++	add("project", newIsoCmd(stdio), newCleanCmd(stdio))
+ 	add("workflow", newRunCmd(stdio), newTaskCmd(stdio), newTestCmd(stdio), newFindingsCmd(stdio), newSkillCmd(stdio), newFlowCmd(stdio))
+ 	add("runs", newRunsCmd(stdio), newEventsCmd(stdio))
+ 	add("eval", newEvalCmd(stdio))
+diff --git a/internal/eval/basecache.go b/internal/eval/basecache.go
+index 6bd40bf..6b45e85 100644
+--- a/internal/eval/basecache.go
++++ b/internal/eval/basecache.go
+@@ -9,7 +9,6 @@ import (
+ 	"sort"
+ 	"strconv"
+ 	"strings"
+-	"sync"
+ )
+ 
+ // Vòng đời kho đệm commit gốc (<eval-work>/bases/<sha>.git).
+@@ -19,14 +18,6 @@ import (
+ // alternates), nên tệp đối tượng của thư mục làm việc độc lập với kho đệm. Kho bị xoá
+ // sẽ được nạp lại ở lần dùng sau (ensureBase kiểm tra eval-base mỗi lần).
+ 
+-// lockBase khoá kho đệm của một thư mục base; trả hàm mở khoá.
+-func lockBase(dir string) func() {
+-	muAny, _ := baseLocks.LoadOrStore(dir, &sync.Mutex{})
+-	mu := muAny.(*sync.Mutex)
+-	mu.Lock()
+-	return mu.Unlock
+-}
+-
+ func basesDir(workRoot string) string { return filepath.Join(workRoot, "bases") }
+ 
+ // releaseBase dọn kho đệm của base khi bên gọi đã dùng xong (mọi lượt cần base đó đã
+@@ -35,7 +26,10 @@ func basesDir(workRoot string) string { return filepath.Join(workRoot, "bases")
+ func releaseBase(env Env, base string) {
+ 	dir := filepath.Join(basesDir(env.WorkRoot), base+".git")
+ 	if !env.Cfg.Eval.KeepBases {
+-		unlock := lockBase(dir)
++		unlock, err := acquireBaseLock(context.Background(), dir, true, true)
++		if err != nil {
++			return
++		}
+ 		os.RemoveAll(dir)
+ 		unlock()
+ 		return
+@@ -81,6 +75,9 @@ func PruneBases(workRoot string, maxBytes int64, protect map[string]bool) (remov
+ 	var all []base
+ 	var total int64
+ 	for _, e := range ents {
++		if e.Name() == ".locks" {
++			continue
++		}
+ 		if !e.IsDir() {
+ 			continue
+ 		}
+@@ -101,7 +98,10 @@ func PruneBases(workRoot string, maxBytes int64, protect map[string]bool) (remov
+ 		if protect[b.dir] {
+ 			continue
+ 		}
+-		unlock := lockBase(b.dir)
++		unlock, lerr := acquireBaseLock(context.Background(), b.dir, true, true)
++		if lerr != nil {
++			continue
++		}
+ 		rerr := os.RemoveAll(b.dir)
+ 		unlock()
+ 		if rerr != nil {
+@@ -126,9 +126,15 @@ func CleanBases(workRoot string) (removed int, freed int64, err error) {
+ 		return 0, 0, err
+ 	}
+ 	for _, e := range ents {
++		if e.Name() == ".locks" {
++			continue
++		}
+ 		dir := filepath.Join(basesDir(workRoot), e.Name())
+ 		size := dirSize(dir)
+-		unlock := lockBase(dir)
++		unlock, lerr := acquireBaseLock(context.Background(), dir, true, true)
++		if lerr != nil {
++			continue
++		}
+ 		rerr := os.RemoveAll(dir)
+ 		unlock()
+ 		if rerr != nil {
+@@ -145,6 +151,9 @@ func CleanBases(workRoot string) (removed int, freed int64, err error) {
+ func BasesSize(workRoot string) (count int, bytes int64) {
+ 	ents, _ := os.ReadDir(basesDir(workRoot))
+ 	for _, e := range ents {
++		if e.Name() == ".locks" {
++			continue
++		}
+ 		if e.IsDir() {
+ 			count++
+ 			bytes += dirSize(filepath.Join(basesDir(workRoot), e.Name()))
+diff --git a/internal/eval/cleanup.go b/internal/eval/cleanup.go
+new file mode 100644
+index 0000000..795edba
+--- /dev/null
++++ b/internal/eval/cleanup.go
+@@ -0,0 +1,117 @@
++package eval
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"os"
++	"path/filepath"
++	"regexp"
++	"strings"
++	"time"
++
++	"bint/internal/fslock"
++)
++
++var errBaseBusy = errors.New("cache đang bận")
++var cleanupBaseName = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})\.git$`)
++
++// CleanupBaseEligible requires both an expired last-use time and a source commit.
++func CleanupBaseEligible(ctx context.Context, repo, name string, used, cutoff time.Time) (bool, string) {
++	if !cleanupBaseName.MatchString(name) {
++		return false, "tên cache không xác định"
++	}
++	if used.IsZero() || !used.Before(cutoff) {
++		return false, "chưa quá hạn"
++	}
++	if err := checkBaseCommit(ctx, repo, strings.TrimSuffix(name, ".git")); err != nil {
++		return false, "không chứng minh được cache tái tạo được"
++	}
++	return true, "cache quá hạn, commit nguồn còn tồn tại"
++}
++
++// TryCleanupBaseAt shares the clone/release/prune lock, using a verified bases
++// handle so replacing eval-work with a link cannot redirect even lock creation.
++// A preview never creates a directory or file.
++func TryCleanupBaseAt(bases *os.Root, name string, create bool) (func(), error) {
++	if filepath.Base(name) != name || !cleanupBaseName.MatchString(name) {
++		return nil, errors.New("tên cache không hợp lệ")
++	}
++	return acquireBaseLockAt(context.Background(), bases, name, true, create)
++}
++
++func acquireBaseLock(ctx context.Context, dir string, try, create bool) (func(), error) {
++	// Temporary fetch trees and their final base have the SAME lock.
++	dir = strings.TrimSuffix(dir, ".tmp")
++	baseDir := filepath.Dir(dir)
++	if create {
++		if err := os.MkdirAll(baseDir, 0700); err != nil {
++			return nil, err
++		}
++	}
++	r, err := os.OpenRoot(baseDir)
++	if err != nil {
++		return nil, err
++	}
++	defer r.Close()
++	return acquireBaseLockAt(ctx, r, filepath.Base(dir), try, create)
++}
++
++func acquireBaseLockAt(ctx context.Context, r *os.Root, base string, try, create bool) (func(), error) {
++	if create {
++		if err := r.Mkdir(".locks", 0700); err != nil && !os.IsExist(err) {
++			return nil, err
++		}
++	}
++	locks, err := OpenCleanupDir(r, ".locks")
++	if os.IsNotExist(err) && !create {
++		return func() {}, nil
++	}
++	if err != nil {
++		return nil, err
++	}
++	defer locks.Close()
++	name := base + ".lock"
++	flag := os.O_RDONLY
++	if create {
++		flag = os.O_RDWR | os.O_CREATE
++	}
++	if info, e := locks.Lstat(name); e == nil && !info.Mode().IsRegular() {
++		return nil, fmt.Errorf("khoá không phải tệp thường: %s", name)
++	} else if e != nil && !os.IsNotExist(e) {
++		return nil, e
++	}
++	f, err := locks.OpenFile(name, flag, 0600)
++	if os.IsNotExist(err) && !create {
++		return func() {}, nil
++	}
++	if err != nil {
++		return nil, err
++	}
++	info, err := locks.Lstat(name)
++	opened, e := f.Stat()
++	if err != nil || e != nil || !info.Mode().IsRegular() || !os.SameFile(info, opened) {
++		f.Close()
++		return nil, errors.New("tệp khoá thay đổi")
++	}
++	for {
++		busy, err := fslock.Try(f, true)
++		if err != nil {
++			f.Close()
++			return nil, err
++		}
++		if !busy {
++			return func() { _ = f.Close() }, nil
++		}
++		if try {
++			f.Close()
++			return nil, errBaseBusy
++		}
++		select {
++		case <-ctx.Done():
++			f.Close()
++			return nil, ctx.Err()
++		case <-time.After(20 * time.Millisecond):
++		}
++	}
++}
+diff --git a/internal/eval/cleanup_fs.go b/internal/eval/cleanup_fs.go
+new file mode 100644
+index 0000000..f21f986
+--- /dev/null
++++ b/internal/eval/cleanup_fs.go
+@@ -0,0 +1,175 @@
++package eval
++
++import (
++	"errors"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strings"
++)
++
++// OpenCleanupDir pins and verifies EVERY directory component. os.Root alone
++// confines links to the root but would still follow a link to other retained data.
++func OpenCleanupDir(root *os.Root, rel string) (*os.Root, error) {
++	if rel != "." && !filepath.IsLocal(rel) {
++		return nil, errors.New("đường dẫn ngoài state")
++	}
++	current, err := root.OpenRoot(".")
++	if err != nil {
++		return nil, err
++	}
++	for _, part := range strings.Split(filepath.Clean(rel), string(filepath.Separator)) {
++		if part == "." {
++			continue
++		}
++		info, e := current.Lstat(part)
++		if e != nil {
++			current.Close()
++			return nil, e
++		}
++		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
++			current.Close()
++			return nil, fmt.Errorf("giữ liên kết hoặc mục không phải thư mục: %s", part)
++		}
++		next, e := current.OpenRoot(part)
++		if e != nil {
++			current.Close()
++			return nil, e
++		}
++		opened, e := next.Stat(".")
++		again, e2 := current.Lstat(part)
++		current.Close()
++		if e != nil || e2 != nil || !os.SameFile(info, opened) || !os.SameFile(info, again) {
++			next.Close()
++			return nil, errors.New("thư mục thay đổi")
++		}
++		current = next
++	}
++	return current, nil
++}
++
++// CleanupTree is an immutable inventory used to reject changes before deletion.
++type CleanupTree map[string]os.FileInfo
++
++func (tree CleanupTree) Bytes() int64 {
++	var n int64
++	for _, i := range tree {
++		if i.Mode().IsRegular() {
++			n += i.Size()
++		}
++	}
++	return n
++}
++
++// InspectCleanupTree refuses links, special files and locks, including inside bases.
++func InspectCleanupTree(parent *os.Root, name string) (CleanupTree, error) {
++	tree := CleanupTree{}
++	var walk func(*os.Root, string, string) error
++	walk = func(r *os.Root, n, key string) error {
++		i, err := r.Lstat(n)
++		if err != nil {
++			return err
++		}
++		if strings.HasSuffix(n, ".lock") || strings.HasSuffix(n, ".locks") || i.Mode()&os.ModeSymlink != 0 || (!i.IsDir() && !i.Mode().IsRegular()) {
++			return errors.New("giữ liên kết, khoá hoặc tệp đặc biệt")
++		}
++		tree[key] = i
++		if !i.IsDir() {
++			return nil
++		}
++		sub, err := OpenCleanupDir(r, n)
++		if err != nil {
++			return err
++		}
++		defer sub.Close()
++		f, err := sub.Open(".")
++		if err != nil {
++			return err
++		}
++		names, err := f.Readdirnames(-1)
++		f.Close()
++		if err != nil {
++			return err
++		}
++		for _, child := range names {
++			if err := walk(sub, child, filepath.Join(key, child)); err != nil {
++				return err
++			}
++		}
++		return nil
++	}
++	err := walk(parent, name, ".")
++	return tree, err
++}
++
++// SameCleanupTree checks identity, type, size and time, rather than just names.
++func SameCleanupTree(a, b CleanupTree) bool {
++	if len(a) != len(b) {
++		return false
++	}
++	for p, i := range a {
++		j := b[p]
++		if j == nil || !os.SameFile(i, j) || i.Mode() != j.Mode() || i.Size() != j.Size() || !i.ModTime().Equal(j.ModTime()) {
++			return false
++		}
++	}
++	return true
++}
++
++// RemoveCleanupTree operates through verified directory handles; it never uses
++// RemoveAll on a path whose intermediate components could have become links.
++func RemoveCleanupTree(parent *os.Root, name string, expected CleanupTree) error {
++	actual, err := InspectCleanupTree(parent, name)
++	if err != nil {
++		return err
++	}
++	if !SameCleanupTree(expected, actual) {
++		return errors.New("mục thay đổi trước khi xoá")
++	}
++	var remove func(*os.Root, string, string) error
++	remove = func(r *os.Root, n, key string) error {
++		old := expected[key]
++		i, err := r.Lstat(n)
++		if err != nil {
++			return err
++		}
++		if old == nil || !os.SameFile(old, i) || i.Mode() != old.Mode() {
++			return errors.New("danh tính mục thay đổi")
++		}
++		if i.IsDir() {
++			sub, err := OpenCleanupDir(r, n)
++			if err != nil {
++				return err
++			}
++			f, err := sub.Open(".")
++			if err != nil {
++				sub.Close()
++				return err
++			}
++			names, err := f.Readdirnames(-1)
++			f.Close()
++			if err == nil {
++				for _, child := range names {
++					if err = remove(sub, child, filepath.Join(key, child)); err != nil {
++						break
++					}
++				}
++			}
++			sub.Close()
++			if err != nil {
++				return err
++			}
++		} else if i.Size() != old.Size() || !i.ModTime().Equal(old.ModTime()) {
++			return errors.New("tệp đang thay đổi")
++		}
++		again, err := r.Lstat(n)
++		if err != nil {
++			return err
++		}
++		if !os.SameFile(i, again) || again.Mode() != i.Mode() {
++			return errors.New("mục vừa bị thay thế")
++		}
++		return r.Remove(n)
++	}
++	return remove(parent, name, ".")
++}
+diff --git a/internal/eval/cleanup_sqlite.go b/internal/eval/cleanup_sqlite.go
+new file mode 100644
+index 0000000..237e5de
+--- /dev/null
++++ b/internal/eval/cleanup_sqlite.go
+@@ -0,0 +1,271 @@
++package eval
++
++import (
++	"context"
++	"crypto/sha256"
++	"database/sql"
++	"errors"
++	"fmt"
++	"io"
++	"net/url"
++	"os"
++	"path/filepath"
++	"strings"
++	"unicode/utf8"
++
++	_ "modernc.org/sqlite"
++)
++
++type cleanupDBFile struct {
++	info os.FileInfo
++	sum  [sha256.Size]byte
++}
++
++type cleanupContextReader struct {
++	ctx    context.Context
++	reader io.Reader
++}
++
++func (r cleanupContextReader) Read(b []byte) (int, error) {
++	if err := r.ctx.Err(); err != nil {
++		return 0, err
++	}
++	return r.reader.Read(b)
++}
++
++// cleanupReadDBFile uses a pinned root and verifies the opened file before AND
++// after reading. Missing files are represented explicitly, including an absent WAL.
++func cleanupReadDBFile(ctx context.Context, root *os.Root, name string, dst io.Writer) (cleanupDBFile, error) {
++	var result cleanupDBFile
++	info, err := root.Lstat(name)
++	if os.IsNotExist(err) {
++		return result, nil
++	}
++	if err != nil {
++		return result, err
++	}
++	if !info.Mode().IsRegular() {
++		return result, fmt.Errorf("SQLite không phải tệp thường: %s", name)
++	}
++	f, err := root.Open(name)
++	if err != nil {
++		return result, err
++	}
++	defer f.Close()
++	opened, err := f.Stat()
++	if err != nil {
++		return result, err
++	}
++	if !os.SameFile(info, opened) {
++		return result, errors.New("SQLite đổi danh tính")
++	}
++	hash := sha256.New()
++	if dst == nil {
++		dst = io.Discard
++	}
++	n, err := io.Copy(io.MultiWriter(dst, hash), cleanupContextReader{ctx, io.LimitReader(f, info.Size()+1)})
++	if err != nil {
++		return result, err
++	}
++	after, err := f.Stat()
++	if err != nil {
++		return result, err
++	}
++	named, err := root.Lstat(name)
++	if err != nil {
++		return result, err
++	}
++	if n != info.Size() || !os.SameFile(info, after) || !os.SameFile(info, named) || !named.Mode().IsRegular() || info.Size() != after.Size() || !info.ModTime().Equal(after.ModTime()) || !info.ModTime().Equal(named.ModTime()) {
++		return result, errors.New("SQLite đang thay đổi; giữ dữ liệu để an toàn")
++	}
++	result.info = info
++	copy(result.sum[:], hash.Sum(nil))
++	return result, nil
++}
++
++func sameCleanupDBFile(a, b cleanupDBFile) bool {
++	if a.info == nil || b.info == nil {
++		return a.info == nil && b.info == nil
++	}
++	return os.SameFile(a.info, b.info) && a.info.Size() == b.info.Size() && a.info.ModTime().Equal(b.info.ModTime()) && a.sum == b.sum
++}
++
++// CleanupSQLiteReferences reads a private copy of the DB and its WAL. SQLite
++// never opens the surveyed files, so preview cannot create SHM/WAL, checkpoint,
++// migrate, or update them. A concurrent writer or any unreadable input fails closed.
++func CleanupSQLiteReferences(ctx context.Context, root *os.Root) ([]string, error) {
++	info, err := root.Lstat("state.sqlite")
++	if os.IsNotExist(err) {
++		for _, name := range []string{"state.sqlite-wal", "state.sqlite-shm"} {
++			if _, e := root.Lstat(name); !os.IsNotExist(e) {
++				return nil, errors.New("SQLite thiếu DB nhưng còn WAL/SHM")
++			}
++		}
++		return nil, nil
++	}
++	if err != nil {
++		return nil, err
++	}
++	if !info.Mode().IsRegular() {
++		return nil, errors.New("SQLite là liên kết hoặc tệp đặc biệt")
++	}
++	for _, name := range []string{"state.sqlite-shm", "state.sqlite-journal"} {
++		i, e := root.Lstat(name)
++		if os.IsNotExist(e) {
++			continue
++		}
++		if e != nil {
++			return nil, e
++		}
++		if !i.Mode().IsRegular() || name == "state.sqlite-journal" && i.Size() > 0 {
++			return nil, fmt.Errorf("SQLite có mục chưa thể đọc an toàn: %s", name)
++		}
++	}
++	// A caller may put TMPDIR inside state. Do not create survey-visible files there.
++	tempBase, err := filepath.EvalSymlinks(os.TempDir())
++	if err != nil {
++		return nil, err
++	}
++	physical, err := filepath.EvalSymlinks(root.Name())
++	if err != nil {
++		return nil, err
++	}
++	if rel, e := filepath.Rel(physical, tempBase); e == nil && (rel == "." || filepath.IsLocal(rel)) {
++		return nil, errors.New("thư mục tạm nằm trong state; không tạo snapshot ở đó")
++	}
++	tmp, err := os.MkdirTemp(tempBase, "bint-clean-sqlite-*")
++	if err != nil {
++		return nil, err
++	}
++	defer os.RemoveAll(tmp)
++	files := map[string]cleanupDBFile{}
++	for _, name := range []string{"state.sqlite", "state.sqlite-wal"} {
++		f, e := os.OpenFile(filepath.Join(tmp, name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
++		if e != nil {
++			return nil, e
++		}
++		copied, e := cleanupReadDBFile(ctx, root, name, f)
++		closeErr := f.Close()
++		if e != nil {
++			return nil, e
++		}
++		if closeErr != nil {
++			return nil, closeErr
++		}
++		if copied.info == nil {
++			if name == "state.sqlite" {
++				return nil, errors.New("SQLite biến mất khi khảo sát")
++			}
++			if e := os.Remove(filepath.Join(tmp, name)); e != nil {
++				return nil, e
++			}
++		}
++		files[name] = copied
++	}
++	check := func() error {
++		for _, name := range []string{"state.sqlite", "state.sqlite-wal"} {
++			current, e := cleanupReadDBFile(ctx, root, name, nil)
++			if e != nil {
++				return e
++			}
++			if !sameCleanupDBFile(files[name], current) {
++				return errors.New("SQLite/WAL đang thay đổi; không đủ bằng chứng tham chiếu")
++			}
++		}
++		return nil
++	}
++	if err := check(); err != nil {
++		return nil, err
++	}
++	path := filepath.ToSlash(filepath.Join(tmp, "state.sqlite"))
++	if !strings.HasPrefix(path, "/") {
++		path = "/" + path
++	}
++	u := url.URL{Scheme: "file", Path: path}
++	db, err := sql.Open("sqlite", u.String()+"?mode=ro&_pragma=query_only(1)&_pragma=trusted_schema(0)&_pragma=busy_timeout(50)")
++	if err != nil {
++		return nil, err
++	}
++	defer db.Close()
++	db.SetMaxOpenConns(1)
++	// Logical tables include all retained text (events, artifacts, logs, proposals
++	// and future metadata); skip SQLite internals and FTS shadow storage.
++	rows, err := db.QueryContext(ctx, `SELECT name FROM pragma_table_list WHERE "schema"='main' AND type IN ('table','virtual') AND name NOT LIKE 'sqlite_%' ORDER BY name`)
++	if err != nil {
++		return nil, err
++	}
++	var tables []string
++	hasEvents, hasArtifacts := false, false
++	for rows.Next() {
++		var name string
++		if err := rows.Scan(&name); err != nil {
++			rows.Close()
++			return nil, err
++		}
++		tables = append(tables, name)
++		hasEvents = hasEvents || name == "events"
++		hasArtifacts = hasArtifacts || name == "run_artifacts"
++	}
++	err = rows.Err()
++	rows.Close()
++	if err != nil {
++		return nil, err
++	}
++	if !hasEvents || !hasArtifacts {
++		return nil, errors.New("không nhận diện được schema SQLite lưu tham chiếu")
++	}
++	var refs []string
++	var total int
++	for _, table := range tables {
++		r, err := db.QueryContext(ctx, `SELECT * FROM "`+strings.ReplaceAll(table, `"`, `""`)+`"`)
++		if err != nil {
++			return nil, err
++		}
++		columns, err := r.Columns()
++		if err != nil {
++			r.Close()
++			return nil, err
++		}
++		values := make([]any, len(columns))
++		targets := make([]any, len(columns))
++		for i := range values {
++			targets[i] = &values[i]
++		}
++		for r.Next() {
++			if err := r.Scan(targets...); err != nil {
++				r.Close()
++				return nil, err
++			}
++			for _, value := range values {
++				var text string
++				switch v := value.(type) {
++				case string:
++					text = v
++				case []byte:
++					text = string(v)
++				default:
++					continue
++				}
++				if !utf8.ValidString(text) || strings.IndexByte(text, 0) >= 0 {
++					r.Close()
++					return nil, errors.New("tham chiếu SQLite không phải văn bản")
++				}
++				total += len(text)
++				if total > 64<<20 {
++					r.Close()
++					return nil, errors.New("tham chiếu SQLite vượt giới hạn khảo sát 64 MiB")
++				}
++				refs = append(refs, text)
++			}
++		}
++		err = r.Err()
++		r.Close()
++		if err != nil {
++			return nil, err
++		}
++	}
++	if err := check(); err != nil {
++		return nil, err
++	}
++	return refs, nil
++}
+diff --git a/internal/eval/cleanup_test.go b/internal/eval/cleanup_test.go
+new file mode 100644
+index 0000000..aa8fd25
+--- /dev/null
++++ b/internal/eval/cleanup_test.go
+@@ -0,0 +1,156 @@
++package eval
++
++import (
++	"context"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"bint/internal/testutil"
++)
++
++func TestCleanupLockProcess(t *testing.T) {
++	if dir := os.Getenv("BINT_TEST_CLEANUP_LOCK"); dir != "" {
++		unlock, err := acquireBaseLock(context.Background(), dir, false, true)
++		if err != nil {
++			t.Fatal(err)
++		}
++		defer unlock()
++		if err := os.WriteFile(os.Getenv("BINT_TEST_CLEANUP_READY"), []byte("ready"), 0600); err != nil {
++			t.Fatal(err)
++		}
++		for {
++			if _, err := os.Stat(os.Getenv("BINT_TEST_CLEANUP_RELEASE")); err == nil {
++				return
++			}
++			time.Sleep(10 * time.Millisecond)
++		}
++	}
++	root := t.TempDir()
++	dir := filepath.Join(root, "bases", "abc.git")
++	if err := os.MkdirAll(dir, 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(dir, "data"), make([]byte, 100), 0600); err != nil {
++		t.Fatal(err)
++	}
++	ready, release := filepath.Join(root, "ready"), filepath.Join(root, "release")
++	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
++	defer cancel()
++	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCleanupLockProcess$")
++	cmd.Env = append(os.Environ(), "BINT_TEST_CLEANUP_LOCK="+dir, "BINT_TEST_CLEANUP_READY="+ready, "BINT_TEST_CLEANUP_RELEASE="+release)
++	if err := cmd.Start(); err != nil {
++		t.Fatal(err)
++	}
++	defer func() {
++		_ = os.WriteFile(release, nil, 0600)
++		if err := cmd.Wait(); err != nil {
++			t.Error(err)
++		}
++	}()
++	for {
++		if _, err := os.Stat(ready); err == nil {
++			break
++		}
++		if ctx.Err() != nil {
++			t.Fatal(ctx.Err())
++		}
++		time.Sleep(10 * time.Millisecond)
++	}
++	unlock, err := acquireBaseLock(ctx, dir, true, false)
++	if unlock != nil {
++		unlock()
++		t.Fatal("lock acquired while held in another process")
++	}
++	if err == nil {
++		t.Fatal("expected busy")
++	}
++	n, _, err := CleanBases(root)
++	if err != nil || n != 0 {
++		t.Fatalf("clean busy: %d %v", n, err)
++	}
++	n, _, err = PruneBases(root, 1, nil)
++	if err != nil || n != 0 {
++		t.Fatalf("prune busy: %d %v", n, err)
++	}
++	waitCtx, stop := context.WithTimeout(ctx, 30*time.Millisecond)
++	defer stop()
++	if unlock, err := acquireBaseLock(waitCtx, dir, false, true); err == nil {
++		unlock()
++		t.Fatal("waiting lock ignored context")
++	}
++}
++
++func TestCleanupPinnedDirectorySurvivesParentReplacement(t *testing.T) {
++	state := t.TempDir()
++	outside := t.TempDir()
++	if err := os.Mkdir(filepath.Join(state, "parent"), 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(state, "parent", "file"), []byte("old"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	sentinel := filepath.Join(outside, "file")
++	if err := os.WriteFile(sentinel, []byte("sentinel"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	root, err := os.OpenRoot(state)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer root.Close()
++	pinned, err := OpenCleanupDir(root, "parent")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer pinned.Close()
++	tree, err := InspectCleanupTree(pinned, "file")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Rename(filepath.Join(state, "parent"), filepath.Join(state, "moved")); err != nil {
++		t.Skipf("open directory rename not available: %v", err)
++	}
++	if err := os.Symlink(outside, filepath.Join(state, "parent")); err != nil {
++		t.Skip(err)
++	}
++	if err := RemoveCleanupTree(pinned, "file", tree); err != nil {
++		t.Fatal(err)
++	}
++	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "sentinel" {
++		t.Fatal("followed replaced parent")
++	}
++	if _, err := OpenCleanupDir(root, "parent"); err == nil {
++		t.Fatal("followed symlink")
++	}
++}
++
++func TestCleanupBaseRequiresSourceAndAge(t *testing.T) {
++	testutil.Isolate(t)
++	repo := testutil.NewRepo(t, nil)
++	sha := testutil.Git(t, repo, "rev-parse", "HEAD")
++	root := t.TempDir()
++	name := sha + ".git"
++	dir := filepath.Join(root, "bases", name)
++	if err := os.MkdirAll(dir, 0700); err != nil {
++		t.Fatal(err)
++	}
++	old := time.Now().Add(-100 * 24 * time.Hour)
++	if err := os.Chtimes(dir, old, old); err != nil {
++		t.Fatal(err)
++	}
++	eligible, reason := CleanupBaseEligible(context.Background(), repo, name, old, time.Now().Add(-90*24*time.Hour))
++	if !eligible {
++		t.Fatal(reason)
++	}
++	eligible, _ = CleanupBaseEligible(context.Background(), repo, "0000000000000000000000000000000000000000.git", old, time.Now())
++	if eligible {
++		t.Fatal("missing source commit selected")
++	}
++	eligible, _ = CleanupBaseEligible(context.Background(), repo, name, old, old)
++	if eligible {
++		t.Fatal("exact cutoff selected")
++	}
++}
+diff --git a/internal/eval/workdir.go b/internal/eval/workdir.go
+index e204cd7..ad9044e 100644
+--- a/internal/eval/workdir.go
++++ b/internal/eval/workdir.go
+@@ -8,7 +8,6 @@ import (
+ 	"sort"
+ 	"strconv"
+ 	"strings"
+-	"sync"
+ 	"time"
+ )
+ 
+@@ -24,10 +23,8 @@ import (
+ // Kho đệm chỉ là bộ nhớ tạm: được dọn khi mọi lượt dùng base đó đã xong (releaseBase),
+ // giới hạn theo LRU (eval.base_cache_max_mb) và xoá tay bằng `bint eval clean`.
+ 
+-var baseLocks sync.Map
+-
+ // ensureBaseLocked tạo kho đệm cho commit base nếu chưa có. Bên gọi giữ khoá của kho
+-// (lockBase) trong suốt thời gian dùng kho, nên releaseBase/PruneBases không xoá giữa chừng.
++// (acquireBaseLock) trong suốt thời gian dùng kho, nên releaseBase/PruneBases không xoá giữa chừng.
+ func ensureBaseLocked(ctx context.Context, env Env, base string) (string, error) {
+ 	dir := filepath.Join(basesDir(env.WorkRoot), base+".git")
+ 	if out, err := gitString(ctx, dir, "rev-parse", "--verify", "-q", "refs/heads/eval-base"); err == nil && out == base {
+@@ -90,7 +87,10 @@ func checkBaseCommit(ctx context.Context, repoDir, base string) error {
+ // prepareWorkdir tạo thư mục làm việc tại commit base trong dest. Giữ khoá của kho đệm
+ // suốt lúc nạp và clone nên dọn kho song song (releaseBase) không phá clone đang chạy.
+ func prepareWorkdir(ctx context.Context, env Env, base, dest string) error {
+-	unlock := lockBase(filepath.Join(basesDir(env.WorkRoot), base+".git"))
++	unlock, err := acquireBaseLock(ctx, filepath.Join(basesDir(env.WorkRoot), base+".git"), false, true)
++	if err != nil {
++		return err
++	}
+ 	defer unlock()
+ 	cache, err := ensureBaseLocked(ctx, env, base)
+ 	if err != nil {
+diff --git a/internal/eval/workdir_test.go b/internal/eval/workdir_test.go
+index 1565937..152546c 100644
+--- a/internal/eval/workdir_test.go
++++ b/internal/eval/workdir_test.go
+@@ -183,7 +183,7 @@ func TestCleanBases(t *testing.T) {
+ 	if n != 3 || freed < 1200 {
+ 		t.Fatalf("xoá %d, giải phóng %d", n, freed)
+ 	}
+-	if ents, _ := os.ReadDir(filepath.Join(root, "bases")); len(ents) != 0 {
++	if ents, _ := os.ReadDir(filepath.Join(root, "bases")); len(ents) != 1 || ents[0].Name() != ".locks" {
+ 		t.Fatalf("còn %d mục", len(ents))
+ 	}
+ 	// Thư mục chưa có: không lỗi.
+@@ -247,7 +247,7 @@ func TestRunReleasesBases(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if ents, _ := os.ReadDir(filepath.Join(env.WorkRoot, "bases")); len(ents) != 0 {
++	if ents, _ := os.ReadDir(filepath.Join(env.WorkRoot, "bases")); len(ents) != 1 || ents[0].Name() != ".locks" {
+ 		t.Fatalf("kho đệm phải được dọn sau đợt, còn %d", len(ents))
+ 	}
+ }
+diff --git a/internal/tui/actions/coverage.go b/internal/tui/actions/coverage.go
+index d4530b6..015954f 100644
+--- a/internal/tui/actions/coverage.go
++++ b/internal/tui/actions/coverage.go
+@@ -30,6 +30,7 @@ const CurrentPhase = 6
+ // Data là dữ liệu phủ hiện hành.
+ var Data = Coverage{
+ 	Excluded: map[string]string{
++		"clean":            "dọn đĩa của repository qua CLI với xem trước; chưa có màn TUI",
+ 		"docs":             "lệnh dự kiến (P3 của kế hoạch Bint), chưa được triển khai nên chưa có gì để hiển thị",
+ 		"hook antigravity": "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+ 		"hook claude":      "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",

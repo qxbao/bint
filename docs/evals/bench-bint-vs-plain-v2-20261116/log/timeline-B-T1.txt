@@ -1,0 +1,4 @@
+2026-11-16T10:03:13Z start #0  
+2026-11-16T10:15:13Z end #0 exit=0
+2026-11-16T10:20:06Z start #1 cmd bint run b-do --harness codex --model gpt-6.1-sol --autonomy auto "$(cat /home/baodq/bench-bint-v2-20261116/log/msg-B-T1-1.txt)"
+2026-11-16T11:11:23Z end #1 exit=0

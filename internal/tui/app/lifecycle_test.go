@@ -124,7 +124,8 @@ func TestSetupTabOnlySendsWhatChanged(t *testing.T) {
 	}
 	f.press("esc")
 	// Đổi MCP: tab tới ô "Đăng ký MCP" (ô thứ 6) rồi Space.
-	f.press("e", "tab", "tab", "tab", "tab", "tab", " ", "ctrl+s")
+	f.openSetupForm()
+	f.press("tab", "tab", "tab", "tab", "tab", " ", "ctrl+s")
 	f.waitFor("Xem trước init")
 	out = f.screen()
 	for _, want := range []string{".mcp.json", "bint init --mcp", "Chạy init"} {
@@ -617,7 +618,8 @@ func TestSetupTabHookScopeMove(t *testing.T) {
 	installClaudeHook(t, root, claude.ScopeLocal)
 	f.sysTab(syscreen.TabSetup)
 	f.waitFor("Mẫu cấu hình")
-	f.press("e", "tab", "tab", "tab", " ", "ctrl+s") // phạm vi: local → project
+	f.openSetupForm()
+	f.press("tab", "tab", "tab", " ", "ctrl+s") // phạm vi: local → project
 	f.waitFor("Xem trước init")
 	out := f.screen()
 	// Phạm vi local là mặc định của --hooks-scope nên dòng CLI của bước gỡ không ghi ra.
@@ -727,4 +729,14 @@ func TestSetupFormWaitsForLoad(t *testing.T) {
 			t.Fatal("bảng lệnh sau nạp lỗi cũng không được mở form")
 		}
 	})
+}
+
+// openSetupForm chờ màn hình hết việc nền, bấm e ở thẻ Cài đặt rồi chờ form mở. Phím e gọi action
+// system.repo_plan chạy nền; press chỉ chờ 40 ms yên lặng, nên khi máy bận (go test chạy nhiều tiến trình) phím e
+// có thể tới lúc lần chạy trước chưa xong, và các phím sau rơi vào màn hình chưa có form.
+func (f *fixture) openSetupForm() {
+	f.t.Helper()
+	f.pump(func() bool { return !f.m.busy() }, nil)
+	f.press("e")
+	f.pump(func() bool { return f.m.sy.Capturing() }, nil)
 }

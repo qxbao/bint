@@ -44,7 +44,7 @@ func WriteAtomic(path string, data []byte, perm os.FileMode) error {
 		os.Remove(name)
 		return err
 	}
-	if err := os.Rename(name, path); err != nil {
+	if err := rename(name, path); err != nil {
 		os.Remove(name)
 		return err
 	}

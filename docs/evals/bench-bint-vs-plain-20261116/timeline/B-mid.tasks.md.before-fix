@@ -1,0 +1,7 @@
+# Công việc
+- [x] TSK-1 [AC-1, AC-6]: Thêm schema/default/template/Validate cho knowledge.publish.max_bytes. Test cấu hình qua: legacy, null/số dương, merge null ghi đè, 0/âm, float/khóa lạ, RenderMatchesDefaults.
+- [x] TSK-2 [AC-2, AC-3, AC-5, AC-6]: MeasureAgents đo UTF-8, rune token ước tính, top 5 theo byte sau render/ID; test knowledge qua, không đổi Selection.
+- [x] TSK-3 [AC-2, AC-3, AC-4, AC-5, AC-6]: PublishReport và CLI có báo cáo cả khi không diff; test app/CLI qua, trần thấp không chặn ghi, dry-run không ghi nguồn.
+- [x] TSK-4 [AC-2, AC-3, AC-4, AC-5, AC-6]: Doctor dùng chung phép dựng/đo, warn đúng biên, không Fix/mã thoát lỗi; test app và doctor JSON CLI qua, snapshot nguồn không đổi.
+- [x] TSK-5 [AC-1, AC-6]: Cập nhật configuration/knowledge/acceptance; NT-PUBCAP-WARN có cách tái hiện và bằng chứng thực đo repository 10.610 byte/3.051 token, trần null; chưa tự ký nghiệm thu.
+- [ ] TSK-6 [AC-6]: Test hẹp config/knowledge/app/CLI và inventory qua; go vet/staticcheck Linux và GOOS=windows qua; review độc lập không phát hiện lỗi. Lượt test rộng app bị sandbox cấm socket ở TestMCPGatewayLogWithDaemon và TestMCPGatewayLogOldDaemon404; chờ Core chạy go test -count=1 -timeout 30m ./... đã xác nhận. AC được ghi tự đánh giá kèm bằng chứng, không tự chuyển trạng thái/done.

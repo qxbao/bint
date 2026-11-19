@@ -40,9 +40,13 @@ rõ nhánh, `A..B` hoặc commit (không phải tác vụ) thì dùng git cho ph
 git diff <A>..<B>
 ```
 
+Dưới `bint run`, đề bài đã kèm sẵn danh sách tệp, thống kê diff (và diff đầy đủ khi không quá lớn) cùng nội
+dung `plan.md`: dùng chúng trước, chỉ chạy lại `bint task diff <id>` khi đề bài nói diff bị lược.
+
 ## Bước 2 — Yêu cầu và quy tắc
 
-Đọc tiêu chí chấp nhận và tài liệu của tác vụ (`bint task show <id>`). Truy xuất quy tắc: có công cụ MCP của Bint (`context_for_paths`) thì dùng nó;
+Đọc **yêu cầu gốc** của người dùng (`request` trong `bint task show <id>`), tiêu chí chấp nhận và tài liệu của tác vụ, kể cả
+mục `## Bề mặt bị ảnh hưởng` của `plan.md`. Truy xuất quy tắc: có công cụ MCP của Bint (`context_for_paths`) thì dùng nó;
 không có (Antigravity, phiên không nạp MCP) thì chạy CLI:
 
 ```sh
@@ -54,10 +58,26 @@ bint context --paths <các tệp trong diff>
 
 ## Bước 3 — Kiểm tra
 
+0. **Chấm theo MỤC TIÊU của người dùng, không chỉ theo kế hoạch của agent; tìm chỗ bị bỏ sót, không chỉ lỗi trong phần đã sửa.**
+   Nguồn đối chiếu theo thứ tự: yêu cầu gốc của người dùng và mục `## Kiểm tra mục tiêu` của `requirement.md` (đề bài dưới
+   `bint run` chép sẵn), rồi từng tiêu chí chấp nhận, rồi từng dòng của `## Bề mặt bị ảnh hưởng` (plan.md). Nơi nào mục tiêu,
+   một **AC** hay dòng bề mặt nói tới mà diff **không đụng tới** (ví dụ log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`,
+   SQLite; hay một loại dữ liệu trong state dir)? Đọc mã **ngoài diff** để xác minh nơi đó còn xử lý hay chưa (grep đường đi của
+   dữ liệu). Kiểm test mục tiêu mà b-feat viết có **đúng đặc tả** (đủ đường nhập, quét đủ nơi lưu, không bị nới cho dễ qua). Nếu
+   đề bài nêu kiểm chứng cuối **không qua**, đọc log và ghi một phát hiện `high` cho nguyên nhân.
+   - Chỗ sót mà **kiểm tra mục tiêu hoặc bằng chứng cụ thể** (lần theo dữ liệu tới tệp:dòng còn thô, lệnh tái hiện, test mục tiêu
+     đỏ) cho thấy mục tiêu người dùng chưa đạt là phát hiện `bug` hoặc `risk` mức `high`, **kể cả khi nằm ngoài kế hoạch** hay
+     trong dòng đã ghi "ngoài phạm vi" của plan: ghi `path` là **tệp ngoài diff** chưa được xử lý, `criterion` là số tiêu chí của
+     kiểm tra mục tiêu (hoặc tiêu chí gần nhất), `evidence` là lệnh/dòng mã chứng minh dữ liệu vẫn đi qua đó. Tiêu chí bị bỏ trống
+     (không có thay đổi nào tương ứng) cũng là phát hiện.
+   - Chỉ giữ `low`/ghi chú cho chỗ sót **ngoài mục tiêu** của người dùng, hoặc suy đoán "có thể còn sót thêm" **không có bằng
+     chứng**; đừng nâng mức vì suy đoán.
 1. Tính đúng đắn và nghiệp vụ; đối chiếu từng tiêu chí chấp nhận.
 2. Kiến trúc, bảo mật, hiệu năng.
 3. Kiểm thử: có bao phủ thay đổi không, có lỗi hồi quy không, thay đổi có vượt phạm vi
-   `scope` của phiếu không.
+   `scope` của phiếu không. Lệnh không chạy được trong sandbox (socket, mạng, quyền hệ thống...) không
+   phải bằng chứng lỗi: `verify.command` của phiếu do Bint chạy ngoài sandbox, xem kết quả ở
+   `bint task show <id>`.
 
 <!-- bint:anchor review-checklist -->
 <!-- bint:anchor-end review-checklist -->
@@ -68,13 +88,15 @@ Phân biệt rõ:
 - `risk` — rủi ro có căn cứ nhưng chưa chứng minh được là sai;
 - `suggestion` — đề xuất cải thiện.
 
-Mức độ: `critical` | `high` | `medium` | `low`. Chỉ dùng `critical`/`high` cho `bug` hoặc
-`risk` có bằng chứng cụ thể.
+Mức độ: `critical` | `high` | `medium` | `low`. `critical`/`high` dành cho mục tiêu người dùng hoặc AC chưa đạt, hồi quy và lỗi đúng đắn thực
+sự (chỉ ra được đầu vào/trạng thái gây sai) trong mã đã sửa, luôn kèm bằng chứng cụ thể.
+
+**Mức chặn cần bằng chứng tái hiện.** Phát hiện `bug`/`risk` mức `high`/`critical` phải có trường `repro`: **lệnh chạy được trong dấu backtick** (từ hai từ trở lên hoặc bắt đầu bằng tên chương trình như `go`, `sh`, `bash`, `bint`, `git`, `npm`, `make`, `python`, `curl`; tên hàm hay tệp đơn trong backtick không đủ; ví dụ `` `go test -run TestX ./internal/db` `` chạy ra lỗi) hoặc **`tệp:dòng` có thật** nơi dữ liệu còn sai (ví dụ `internal/db/q.go:45`). Thiếu `repro` hợp lệ thì Bint tự ghi mức `medium` kèm `downgraded_from` (mức gốc), không mở vòng sửa và không tính vào đếm hội tụ. Vì vậy "bỏ sót bề mặt" chỉ dựa trên lập luận ("có thể còn nơi khác") là mức không chặn (`medium`/`low`); muốn giữ mức chặn, lần theo dữ liệu tới tệp:dòng còn thô hoặc chạy lệnh cho thấy lỗi rồi ghi vào `repro`.
 
 ## Bước 4 — Ghi phát hiện
 
 Một lần ghi cho cả vòng review (JSON qua stdin). Mỗi phát hiện cần `path` và `lines` khi
-chỉ ra được vị trí, và `evidence` là lập luận hoặc đầu ra kiểm chứng được:
+chỉ ra được vị trí, `criterion` (số tiêu chí, từ 1) khi gắn được với một tiêu chí, và `evidence` là lập luận hoặc đầu ra kiểm chứng được, và `repro` (bắt buộc cho `high`/`critical`, xem trên):
 
 ```sh
 bint task review <id> - <<'EOF'
@@ -82,7 +104,8 @@ bint task review <id> - <<'EOF'
   "summary": "Một câu về chất lượng thay đổi",
   "findings": [
     {"kind": "bug", "severity": "high", "title": "Không đóng rows khi lỗi",
-     "path": "internal/db/q.go", "lines": "40-52",
+     "path": "internal/db/q.go", "lines": "40-52", "criterion": 2,
+     "repro": "`go test -run TestRowsClose ./internal/db` báo rò kết nối; internal/db/q.go:45",
      "evidence": "rows.Close() chỉ gọi ở nhánh thành công; lỗi ở dòng 45 làm rò kết nối",
      "body": "Dùng defer rows.Close() ngay sau QueryContext."}
   ]
@@ -103,10 +126,16 @@ findings:
     title: Không đóng rows khi lỗi
     path: internal/db/q.go
     lines: "40-52"
+    criterion: 2
+    repro: "`go test -run TestRowsClose ./internal/db` báo rò kết nối; internal/db/q.go:45"
     evidence: "rows.Close() chỉ gọi ở nhánh thành công; lỗi ở dòng 45 làm rò kết nối"
     body: Dùng defer rows.Close() ngay sau QueryContext.
 EOF
 ```
+
+**Điều kiện dừng.** Từ vòng 2, số phát hiện `critical`/`high` **không giảm** so với vòng trước thì Bint tự dừng vòng sửa và giao
+người dùng (lối "hết vòng sửa"); bạn chỉ cần xếp mức đúng, đừng hạ mức để cho qua. Trong `summary` mở đầu bằng
+`KHÔNG HỘI TỤ: <n> nghiêm trọng (vòng trước <m>)` và nói phần lớn là lỗi mới trong mã vừa sửa hay lỗi cũ chưa xử lý.
 
 Không có phát hiện thì ghi `"findings": []` (YAML: `findings: []`) kèm `summary`. Bint ghi nhận "không phát hiện
 vấn đề nghiêm trọng", nhưng đó **không** phải bằng chứng thay đổi an toàn — nói rõ phần

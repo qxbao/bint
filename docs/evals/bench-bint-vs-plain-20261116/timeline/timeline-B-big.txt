@@ -1,0 +1,8 @@
+2026-11-16T07:37:02Z start #0  
+2026-11-16T08:25:50Z CAN THIỆP (môi trường): kiểm chứng đầy đủ verify-1 hỏng chỉ do /tmp/.git → chạy lại bint task verify với TMPDIR riêng trong lúc b-review chạy
+2026-11-16T08:31:24Z verify thủ công exit=0
+2026-11-16T08:31:45Z end #0 exit=1
+2026-11-16T08:32:10Z CAN THIỆP #2: tiêu chí 8 agent ghi unmet vì go test toàn bộ không chạy được trong sandbox; người ghi met với bằng chứng verify-2 (go test ./... qua ngoài sandbox), rồi resume
+2026-11-16T08:32:10Z start #1 resume 01M7HMKENSS9VG48H8J0NNKKT8
+2026-11-16T08:37:28Z end #1 exit=0
+2026-11-16T08:37:40Z KẾT THÚC lượt B-big (done)

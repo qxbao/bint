@@ -23,8 +23,8 @@ flag() { test -e "$FLAGS/$1"; }
 case "$STEP" in
 plan)
   if flag plan-writes; then echo oops > plan-wrote.txt; fi
-  printf '# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n' | "$BINT" task write "$BINT_TASK_ID" requirement -
-  printf '# Kế hoạch\nSửa app.txt\n' | "$BINT" task write "$BINT_TASK_ID" plan -
+  printf '# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n' | "$BINT" task write "$BINT_TASK_ID" requirement -
+  printf '# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n' | "$BINT" task write "$BINT_TASK_ID" plan -
   printf -- '- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n' | "$BINT" task write "$BINT_TASK_ID" tasks -
   ;;
 red)
@@ -40,7 +40,7 @@ review)
   N="$(grep -c '^review$' "$STEPLOG")"
   if [ "$N" = 1 ]; then
     "$BINT" task review "$BINT_TASK_ID" - <<'EOF'
-{"summary":"cần sửa","findings":[{"kind":"bug","severity":"high","title":"Thiếu xử lý","path":"app.txt","lines":"1","evidence":"app.txt chưa đủ","body":"Sửa lại."}]}
+{"summary":"cần sửa","findings":[{"kind":"bug","severity":"high","title":"Thiếu xử lý","path":"app.txt","lines":"1","evidence":"app.txt chưa đủ","repro":"app.txt:1","body":"Sửa lại."}]}
 EOF
   else
     printf '{"summary":"ổn","findings":[]}' | "$BINT" task review "$BINT_TASK_ID" -
@@ -320,8 +320,8 @@ func TestFlowSessionTDDEndToEnd(t *testing.T) {
 	if code != 0 || a.Action != "agent" || a.Step != "plan" || a.Subagent != "bint-planner" || !a.ReadOnly {
 		t.Fatalf("next plan: %d\n%s", code, out)
 	}
-	for _, d := range []struct{ name, body string }{{"requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n"},
-		{"plan", "# Kế hoạch\nSửa app.txt\n"}, {"tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n"}} {
+	for _, d := range []struct{ name, body string }{{"requirement", "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n"},
+		{"plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n"}, {"tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n"}} {
 		if o, c := run(t, root, d.body, "task", "write", id, d.name, "-"); c != 0 {
 			t.Fatalf("task write %s: %d\n%s", d.name, c, o)
 		}
@@ -369,7 +369,7 @@ func TestFlowSessionTDDEndToEnd(t *testing.T) {
 	if code != 0 || a.Step != "review" || a.Subagent != "bint-reviewer" || !a.ReadOnly {
 		t.Fatalf("next review: %d\n%s", code, out)
 	}
-	if o, c := run(t, root, `{"summary":"cần sửa","findings":[{"kind":"bug","severity":"high","title":"Thiếu xử lý","path":"app.txt","lines":"1","evidence":"app.txt chưa đủ","body":"Sửa lại."}]}`,
+	if o, c := run(t, root, `{"summary":"cần sửa","findings":[{"kind":"bug","severity":"high","title":"Thiếu xử lý","path":"app.txt","lines":"1","evidence":"app.txt chưa đủ","repro":"app.txt:1","body":"Sửa lại."}]}`,
 		"task", "review", id, "-"); c != 0 {
 		t.Fatalf("task review: %d\n%s", c, o)
 	}

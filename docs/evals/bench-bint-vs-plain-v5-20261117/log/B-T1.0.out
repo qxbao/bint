@@ -1,0 +1,17 @@
+Tác vụ 01M7MX5RWPHPK8XV0MKGBJ6196: Thư mục dữ liệu của bint trên máy tôi cứ phình to mãi, làm cho nó tự dọn bớt mấy thứ cũ đi.
+Classify: yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí cụ thể: cần b-req
+Phân tích b-req: standard (default)
+Cô lập: shared (default)
+▶ b-req [codex · gpt-6.1-sol] (lượt 01M7MX5S1DKV15SEYJ6YP51GQZ)…
+✓ b-req xong (1m32s)
+⏸ Tác vụ chờ người: còn 2 câu hỏi mở trong requirement.md: Q-1: Bạn cần giữ lại những dữ liệu nào (chẳng hạn lịch sử tác vụ, log, bản sao lưu), và muốn giữ chúng trong bao lâu nếu đã có mốc mong muốn?; Q-2: Lần đầu áp dụng cho dữ liệu đang có, bạn muốn xem trước rồi bật tự dọn, hay cho phép tự dọn ngay theo chính sách đã chốt; có công việc nào tuyệt đối không được chậm hoặc gián đoạn? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write 01M7MX5RWPHPK8XV0MKGBJ6196 requirement -`, kiểm bằng `bint task lint 01M7MX5RWPHPK8XV0MKGBJ6196`, rồi `bint run resume 01M7MX5RWPHPK8XV0MKGBJ6196`
+
+Tác vụ 01M7MX5RWPHPK8XV0MKGBJ6196: blocked — còn 2 câu hỏi mở trong requirement.md: Q-1: Bạn cần giữ lại những dữ liệu nào (chẳng hạn lịch sử tác vụ, log, bản sao lưu), và muốn giữ chúng trong bao lâu nếu đã có mốc mong muốn?; Q-2: Lần đầu áp dụng cho dữ liệu đang có, bạn muốn xem trước rồi bật tự dọn, hay cho phép tự dọn ngay theo chính sách đã chốt; có công việc nào tuyệt đối không được chậm hoặc gián đoạn? — ghi câu trả lời (`- [x] Q-N: … — Trả lời: …`) bằng `bint task write 01M7MX5RWPHPK8XV0MKGBJ6196 requirement -`, kiểm bằng `bint task lint 01M7MX5RWPHPK8XV0MKGBJ6196`, rồi `bint run resume 01M7MX5RWPHPK8XV0MKGBJ6196`
+Lượt chạy: 01M7MX5RWPP72K8BXCB1XQC38G
+  BƯỚC   AGENT              LƯỢT                        KẾT QUẢ    THỜI GIAN  CHI PHÍ
+  b-req  codex/gpt-6.1-sol  01M7MX5S1DKV15SEYJ6YP51GQZ  completed  1m32s      -
+? Q-1: Bạn cần giữ lại những dữ liệu nào (chẳng hạn lịch sử tác vụ, log, bản sao lưu), và muốn giữ chúng trong bao lâu nếu đã có mốc mong muốn?
+? Q-2: Lần đầu áp dụng cho dữ liệu đang có, bạn muốn xem trước rồi bật tự dọn, hay cho phép tự dọn ngay theo chính sách đã chốt; có công việc nào tuyệt đối không được chậm hoặc gián đoạn?
+! chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác
+Chi tiết: bint task show 01M7MX5RWPHPK8XV0MKGBJ6196   ·   bint run status 01M7MX5RWPHPK8XV0MKGBJ6196
+lỗi: tác vụ 01M7MX5RWPHPK8XV0MKGBJ6196: blocked

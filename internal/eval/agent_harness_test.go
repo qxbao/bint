@@ -338,3 +338,39 @@ exit 1
 		t.Fatalf("bad: %+v", r)
 	}
 }
+
+// Bước workflow của Codex tắt agent con bằng -c features.multi_agent_v2.disable_native_tools=true (đo trên 0.169); cờ đứng
+// ở cấp exec, trước extra_args của người dùng (để họ ghi đè) và trước `resume`; mặc định (eval) không thêm.
+func TestCodexNoSubagentsArgs(t *testing.T) {
+	plain, err := (&CodexAgent{ExtraArgs: []string{"-c", "k=v"}}).ArgsFor(AgentRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(plain, " "), "disable_native_tools") {
+		t.Fatalf("mặc định không được thêm cờ: %v", plain)
+	}
+	a := &CodexAgent{NoSubagents: true, ExtraArgs: []string{"-c", "k=v"}}
+	for _, req := range []AgentRequest{{}, {ResumeSessionID: "tid"}} {
+		args, err := a.ArgsFor(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		at, user, resume := -1, -1, -1
+		for i, x := range args {
+			switch {
+			case x == CodexNoSubagentsConfig && i > 0 && args[i-1] == "-c":
+				at = i
+			case x == "k=v":
+				user = i
+			case x == "resume":
+				resume = i
+			}
+		}
+		if at < 0 || user < at || (req.ResumeSessionID != "" && resume < user) {
+			t.Fatalf("thứ tự cờ sai (cờ=%d user=%d resume=%d): %v", at, user, resume, args)
+		}
+	}
+	if CodexNoSubagentsConfig != "features.multi_agent_v2.disable_native_tools=true" {
+		t.Fatal("khoá cấu hình đã đo trên codex-cli 0.169")
+	}
+}

@@ -159,6 +159,30 @@ func TestSelectTiersAndFallbacks(t *testing.T) {
 	}
 }
 
+// TestSelectIgnoreBintConfig: bint_config_full: false (IgnoreBintConfig) thì .bint/** không nới full nhưng vẫn nằm trong Changed;
+// mặc định (true) vẫn nới ra full vì ReasonBintConfig.
+func TestSelectIgnoreBintConfig(t *testing.T) {
+	ctx := context.Background()
+	g := fakeGraph{pkgs: map[string]bool{"a": true}, hasCode: map[string]bool{"a": true}}
+	sel := func(ignore bool, changed ...string) Selection {
+		return Select(ctx, Input{Root: t.TempDir(), Base: "B", Head: "H", Changed: changed, Sources: []Source{fakeSource{detect: true, g: g}}, IgnoreBintConfig: ignore})
+	}
+	if s := sel(false, ".bint/config.yml"); s.Scope != TierFull || len(s.Widening) != 1 || s.Widening[0].Reason != ReasonBintConfig {
+		t.Errorf("mặc định phải nới full vì bint_config: %+v", s)
+	}
+	s := sel(true, ".bint/config.yml")
+	if s.Scope != TierNone || len(s.Widening) != 0 || !slices.Equal(s.Changed, []string{".bint/config.yml"}) {
+		t.Errorf("chỉ .bint đổi, bỏ qua: muốn none, Changed giữ tệp, không widening: %+v", s)
+	}
+	s = sel(true, ".bint/config.yml", "a/a.go")
+	if s.Scope != TierGraph || !slices.Equal(s.TestDirs, []string{"./a"}) || !slices.Contains(s.Changed, ".bint/config.yml") {
+		t.Errorf(".bint + mã: chỉ tầng của mã: %+v", s)
+	}
+	if s := sel(true, "go.mod", ".bint/config.yml"); s.Scope != TierFull || s.Widening[0].Reason != ReasonRootConfig {
+		t.Errorf("go.mod vẫn nới full: %+v", s)
+	}
+}
+
 func TestSelectTruncatesChanged(t *testing.T) {
 	var ch []string
 	for i := range MaxChanged + 5 {

@@ -14,6 +14,11 @@ const ReasonNoBase = "no_base"
 // thay đổi đã commit, chưa commit và tệp chưa theo dõi (không bị .gitignore loại). Không tính được tập thay đổi thì nới
 // ra full kèm lý do, không bao giờ thu hẹp.
 func SelectAffected(ctx context.Context, root, base string) affected.Selection {
+	return SelectAffectedCfg(ctx, root, base, true)
+}
+
+// SelectAffectedCfg như SelectAffected; bintConfigFull là workflow.verify.bint_config_full: false thì thay đổi chỉ trong .bint/** không nới ra full.
+func SelectAffectedCfg(ctx context.Context, root, base string, bintConfigFull bool) affected.Selection {
 	full := func(head, reason, detail string) affected.Selection {
 		return affected.Selection{Scope: affected.TierFull, Base: base, Head: head, Changed: []string{},
 			Widening: []affected.Widening{{Tier: affected.TierFull, Reason: reason, Detail: detail}}}
@@ -29,5 +34,5 @@ func SelectAffected(ctx context.Context, root, base string) affected.Selection {
 	if err != nil {
 		return full(head, affected.ReasonSourceUnavailable, "không tính được tệp đổi so với "+base+": "+err.Error())
 	}
-	return affected.Select(ctx, affected.Input{Root: root, Base: base, Head: head, Changed: changed})
+	return affected.Select(ctx, affected.Input{Root: root, Base: base, Head: head, Changed: changed, IgnoreBintConfig: !bintConfigFull})
 }

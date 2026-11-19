@@ -1,0 +1,186 @@
+{
+ "summary": {
+  "cmd": "t1",
+  "fail": [],
+  "fixture_ok": true,
+  "critical": [],
+  "medium": []
+ },
+ "results": [
+  {
+   "id": "FX-ledger-clean",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "cảnh báo sổ phiếu: []"
+  },
+  {
+   "id": "FX-OLD_DONE1",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2HRYD99VTHC60DZS9EE92 status=done (cần done) updated=2026-04-30T11:31:56Z"
+  },
+  {
+   "id": "FX-OLD_DONE2",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2HV0WYBHK8BVB6D9GVGD4 status=done (cần done) updated=2026-04-30T11:31:58Z"
+  },
+  {
+   "id": "FX-NEW_DONE",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01M75622021JB151F5CDSP2D77 status=done (cần done) updated=2026-11-11T11:32:00Z"
+  },
+  {
+   "id": "FX-OLD_CANCELLED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2HYJ47DE0PYPFCTS17S72 status=cancelled (cần cancelled) updated=2026-04-30T11:32:01Z"
+  },
+  {
+   "id": "FX-OLD_BLOCKED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2HZN7FVEVM92J3MM28TBJ status=blocked (cần blocked) updated=2026-04-30T11:32:05Z"
+  },
+  {
+   "id": "FX-OLD_INTERRUPTED",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2J4JVJA6SD1CB2DSX43DV status=interrupted (cần interrupted) updated=2026-04-30T11:32:11Z"
+  },
+  {
+   "id": "FX-OLD_FAILED_WT",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01KQF2J9KFXPX0EH2RM1M1YX7A status=failed (cần failed) updated=2026-04-30T11:32:13Z"
+  },
+  {
+   "id": "FX-NEW_RUN",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "01M7J2235Q2D70797RK48JPXGR status=created (cần created) updated=2026-11-16T11:32:13Z"
+  },
+  {
+   "id": "FX-WT-dirty",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "worktree=/home/baodq/bench-bint-v2-20261116/tmp/hidden-T1-Y/hidden2-t1-kng_bbxz/state/repo-9e34d02168ce/worktrees/01KQF2J9KFXPX0EH2RM1M1YX7A status='M a.go\\n?? wip_notes.txt'"
+  },
+  {
+   "id": "FX-old-bytes",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "log phiếu kết thúc cũ = 3309354 B"
+  },
+  {
+   "id": "D8-preview-no-change",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "exit=0 tệp đổi=[] sqlite đổi=False"
+  },
+  {
+   "id": "D8i-preview-lists-old",
+   "status": "PASS",
+   "pass": true,
+   "severity": null,
+   "detail": "đầu ra nêu phiếu cũ: True; trích: 'runtime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/b-feat-01KQF2HSDW7DWJEFFB7JR0NWNK.log\\nruntime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/prompt.txt\\nruntime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/verify-1.log\\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/prompt.txt\\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/verify-1.log\\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/b-feat-01KQF2HVH20JZXJAV7VBWZYC7M.log\\n'"
+  },
+  {
+   "id": "D5-concurrent-run",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "lượt chạy exit=0 status=in_review logs=['b-feat-01M7J225VEGAJ6QF1JTCQ017V7.log', 'prompt.txt'] slow.txt=True | dọn#1 exit=0 0.0s '/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/verify-1.log\\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/b-feat-01KQF2HVH20JZXJAV7VBWZYC7M.log\\nruntime/tasks/01KQF2HYJ47DE0PYPFCTS17S72/logs/b-feat-01KQF2HZ292QVAFCJX8C2THAYE.log\\nruntime/tasks/01KQF2HYJ47DE0PYPFCTS17S72/logs/prompt.txt\\nĐã dọn 8 tệp (3301609 byte).\\n' | run: 'mpleted  15s        -\\n! chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác\\n! chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành\\nChi tiết: bint task show 01M7J2235Q2D70797RK48JPXGR   ·   bint run status 01M7J2235Q2D70797RK48JPXGR\\n'"
+  },
+  {
+   "id": "D1-OLD_BLOCKED",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "01KQF2HZN7FVEVM92J3MM28TBJ thư mục còn=True tệp đổi/mất=[]"
+  },
+  {
+   "id": "D1-OLD_INTERRUPTED",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "01KQF2J4JVJA6SD1CB2DSX43DV thư mục còn=True tệp đổi/mất=[]"
+  },
+  {
+   "id": "D2-worktree-kept",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "worktree còn=True status giữ=True nhánh còn=True tệp phiếu đổi/mất=[]"
+  },
+  {
+   "id": "D3-symlink-target",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "tệp ngoài bị đổi/mất=[]"
+  },
+  {
+   "id": "D4-outside-state",
+   "status": "PASS",
+   "pass": true,
+   "severity": "critical",
+   "detail": "tệp ngoài thư mục trạng thái bị đổi=[]"
+  },
+  {
+   "id": "D4i-ledger-in-repo",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "sổ phiếu .bint/tasks (đã commit) bị đổi/xoá: 0 tệp []"
+  },
+  {
+   "id": "D6-old-finished-cleaned",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "log phiếu kết thúc cũ 3309354 B → còn 7745 B (giải phóng 3301609); dọn#1 exit=0"
+  },
+  {
+   "id": "D6i-total-bytes",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "tổng thư mục trạng thái (bỏ sqlite, NEW_RUN) sau = 2245026 B"
+  },
+  {
+   "id": "D7-new-finished-kept",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "01M75622021JB151F5CDSP2D77 tệp đổi/mất=[]"
+  },
+  {
+   "id": "D9-after-clean-healthy",
+   "status": "PASS",
+   "pass": true,
+   "severity": "medium",
+   "detail": "doctor 0->0 ✗mới=[] task list 0->0 runs list 0->0 show lỗi=[] show phiếu đã dọn=[] dọn#1/2/3 exit=0/0/0"
+  },
+  {
+   "id": "T-clean-output",
+   "status": "INFO",
+   "pass": null,
+   "severity": null,
+   "detail": "dọn#1: 'B7JR0NWNK.log\\nruntime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/prompt.txt\\nruntime/tasks/01KQF2HRYD99VTHC60DZS9EE92/logs/verify-1.log\\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/prompt.txt\\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/verify-1.log\\nruntime/tasks/01KQF2HV0WYBHK8BVB6D9GVGD4/logs/b-feat-01KQF2HVH20JZXJAV7VBWZYC7M.log\\nruntime/tasks/01KQF2HYJ47DE0PYPFCTS17S72/logs/b-feat-01KQF2HZ292QVAFCJX8C2THAYE.log\\nruntime/tasks/01KQF2HYJ47DE0PYPFCTS17S72/logs/prompt.txt\\nĐã dọn 8 tệp (3301609 byte).\\n' | dọn#2: 'Đã dọn 0 tệp (0 byte).\\n'"
+  }
+ ]
+}

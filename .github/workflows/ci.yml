@@ -114,8 +114,9 @@ jobs:
           git config --global user.name "bint-ci"
           git config --global user.email "bint-ci@users.noreply.github.com"
 
-      # Không -race (cần CGO và gcc, runner Windows không có sẵn). Gói internal/workflow mất khoảng 10 phút trên
-      # Windows nên hạn mỗi gói là 30 phút, không dùng mặc định 10 phút của go test.
+      # Không -race (cần CGO và gcc, runner Windows không có sẵn). Test E2E bị chặn bởi việc sinh tiến trình git
+      # (chậm trên Windows); testutil.RunTests chia test của gói ra nhiều tiến trình con (BINT_TEST_PROCS, mặc định
+      # min(số CPU, 8)). Hạn mỗi gói vẫn 30 phút, không dùng mặc định 10 phút của go test.
       - name: go test
         shell: bash
         run: go test -count=1 -timeout 30m ./...

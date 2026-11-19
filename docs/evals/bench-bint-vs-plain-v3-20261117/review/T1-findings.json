@@ -1,0 +1,123 @@
+{
+ "X": [
+  {
+   "id": "X1",
+   "severity": "medium",
+   "title": "Xoá cả bản sao lưu DUY NHẤT của tệp người dùng sau 30 ngày (không giữ bản nào)",
+   "where": "internal/stategc/gc.go:639",
+   "scenario": "backups/<stamp>/ chứa bản gốc trước khi Bint sửa (.gitignore, codex/hooks.json, claude/settings.local.json, AGENTS.md...). Chỉ cần thư mục snapshot và mọi tệp con cũ hơn 30 ngày là bị RemoveAll, kể cả khi đó là bản sao lưu duy nhất của tệp đó; Bint không có lệnh khôi phục nên đây là đường lui thủ công duy nhất của người dùng. Tự chạy mỗi 24h khi nạp spool (bint runs/status/...), không hỏi.",
+   "evidence": "Fixture: backups/20250101T000000.000Z/{codex/hooks.json,.gitignore} (bản duy nhất, mtime 100 ngày) -> `bint gc --dry-run`: '  backups/20250101T000000.000Z (31 byte) / Sẽ dọn 1 mục, 31 byte'; `bint gc`: 'Đã dọn 1 mục, 31 byte.'; `ls -R backups` rỗng. Trên bản sao state thật, toàn bộ 28 snapshot (gồm bản .gitignore duy nhất, 2 bản codex/hooks.json) bị chọn xoá.",
+   "ran": true
+  },
+  {
+   "id": "X2",
+   "severity": "medium",
+   "title": "Trên dữ liệu thật hầu như không lấy lại được dung lượng: bỏ sót log phiếu, SQLite, runtime/*",
+   "where": "internal/stategc/gc.go:639-680",
+   "scenario": "Chỉ dọn backups/, spool/rejected/, runtime/hook-trace/ (vốn đã được pruneHookTrace dọn sẵn) và eval-work/{runs,logs}/<batch>. Những phần thực sự phình: runtime/tasks/*/logs của phiếu đã xong, state.sqlite (bảng events), runtime/context, runtime/subagents, runtime/session-steps, eval-work/verify|bootstrap đều không được động tới, nên thư mục vẫn tăng mãi.",
+   "evidence": "Chép state thật (33M: state.sqlite 21M, runtime/tasks 8.9M, backups 1.3M) rồi gọi stategc.Collect với now=+120 ngày: 'err=<nil> items=28 bytes=555073' (toàn bộ là backups/*); du sau dọn: 32M. Cùng dữ liệu, ứng viên còn lại xoá 357 tệp/3.79MB + 21107 dòng DB.",
+   "ran": true
+  },
+  {
+   "id": "X3",
+   "severity": "low",
+   "title": "Mặc định giữ 30 ngày, ngắn hơn 'vài tháng' mà người dùng muốn",
+   "where": "internal/config/config.go:641 (Default: RetentionDays: 30)",
+   "scenario": "Người dùng muốn giữ khoảng vài tháng; mặc định 30 ngày bật sẵn cho mọi repo đã có (Default() phủ lên config cũ), nên bản sao lưu/log đánh giá bị xoá sau 1 tháng. Kế hoạch tự ghi 'pending optional user input'.",
+   "evidence": "State{Dir: \"auto\", RetentionDays: 30}; docs/superpowers/plans/...: 'Retention of 30 days is an implementation default, pending optional user input.'",
+   "ran": false
+  },
+  {
+   "id": "X4",
+   "severity": "low",
+   "title": "Xem trước chỉ liệt kê thư mục snapshot, không cho biết tệp người dùng nào sẽ mất",
+   "where": "internal/stategc/gc.go:705 (Item{Path: name})",
+   "scenario": "--dry-run in 'backups/<thời điểm> (N byte)'; người dùng không thấy bên trong là bản sao hooks.json/.gitignore/settings nên không đánh giá được có nên giữ.",
+   "evidence": "`bint gc --dry-run` -> '  backups/20250101T000000.000Z (31 byte)' trong khi bên trong có codex/hooks.json và .gitignore.",
+   "ran": true
+  },
+  {
+   "id": "X5",
+   "severity": "low",
+   "title": "Không dọn state của repository đã bị xoá (chỉ dọn repo hiện tại)",
+   "where": "internal/app/gc.go:16",
+   "scenario": "Thư mục dữ liệu bint chứa state của nhiều repo; repo đã xoá (common_dir không còn) không bao giờ còn chạy bint ở đó nên state của nó nằm mãi.",
+   "evidence": "Trên máy: 4 thư mục state có repo.json.common_dir không tồn tại (2.7M, 3.1M, 2.6M, 48K) — không có đường nào để X dọn chúng.",
+   "ran": true
+  }
+ ],
+ "Y": [
+  {
+   "id": "Y1",
+   "severity": "medium",
+   "title": "Không có cách xem trước; xoá vĩnh viễn tự chạy ngay lần đầu khi gọi lệnh tưởng chỉ đọc (bint status)",
+   "where": "internal/app/workspace.go:65 (w.cleanup trong Ingest); internal/maintenance/collector.go:141",
+   "scenario": "Sau khi nâng cấp, cleanup bật mặc định (enabled: true) cho mọi repo, lần đầu chạy ngay. Chỉ cần `bint status`/`bint runs list` là log phiếu, backup, dòng SQLite bị xoá; không có --dry-run hay lệnh liệt kê trước, và status chỉ báo số đếm chứ không nói đã xoá gì. Đặc tả rủi ro coi 'không có cách xem trước' là rủi ro chính; người dùng nói xem trước 'có thì tốt'.",
+   "evidence": "Fixture: runtime/tasks/<done>/logs/verify-1.log (200 ngày) + 4 snapshot AGENTS.md -> `bint status` in 'Tự dọn: 2026-11-17T02:34:36+07:00; 1 mục, 4096 byte đã xoá; ...' và tệp đã mất; không có lệnh/cờ nào để xem trước (trigger.json: preview=null).",
+   "ran": true
+  },
+  {
+   "id": "Y2",
+   "severity": "low",
+   "title": "SQLite (phần lớn nhất) không co lại trên đĩa",
+   "where": "internal/store/retention.go:52-53",
+   "scenario": "Chỉ DELETE dòng, không VACUUM/incremental_vacuum: trang trống được tái dùng nên DB ngừng tăng, nhưng dung lượng hiện có không được trả lại, trái với mục tiêu 'lấy lại dung lượng'.",
+   "evidence": "Bản sao state thật, now=+120 ngày: events 19658 -> 6397 dòng (21107 dòng chi tiết bị xoá), nhưng state.sqlite vẫn 21340160 byte trước và sau; reusable=9347072.",
+   "ran": true
+  },
+  {
+   "id": "Y3",
+   "severity": "low",
+   "title": "Trên dữ liệu thật collector không bao giờ đạt 'thành công': kẹt skip=budget, thử lại mỗi giờ mãi",
+   "where": "internal/maintenance/collector.go:277-303",
+   "scenario": "Owner scan (Limit 128) và PruneAfter (đếm cả dòng bị validator giữ lại vào limit) báo 'more' lệch pha nhau: lượt này owner xong thì DB còn, lượt sau ngược lại, nên 'more' luôn true. LastSuccess không bao giờ được đặt, `bint status` mãi báo 'chưa có' + 'Bỏ qua: budget', collector chạy mỗi giờ thay vì 24h.",
+   "evidence": "Mô phỏng 200 lượt (now +1h mỗi lượt) trên bản sao state thật: từ lượt 25 xen kẽ 'oc=\"task/01M7H8XVRDEREMDZ2JY1CT722H\" db=\"\"' và 'oc=\"\" db=\"0:12574\"', removed=0 rows=0 skip=\"budget\" success=false đến hết 200 lượt; cleanup.json: last_success 0001-01-01.",
+   "ran": true
+  },
+  {
+   "id": "Y4",
+   "severity": "low",
+   "title": "Xoá events test.completed làm lịch sử lượt chạy cũ báo sai số test",
+   "where": "internal/store/retention.go:150-161",
+   "scenario": "runlog runSelect tính TestsOK/TestsFailed/Events và FailedTestCommands từ bảng events; sau khi dọn, `bint runs list/show` của lượt >90 ngày hiện 0 test dù tài liệu nói 'giữ nguyên bản tóm tắt run/step'.",
+   "evidence": "sqlite trên bản sao trước/sau dọn: run 01M745VDXNJFB7B5HF014WNYYR có 44 -> 0 sự kiện test.completed; tổng test.completed 2257 -> 424.",
+   "ran": true
+  },
+  {
+   "id": "Y5",
+   "severity": "low",
+   "title": "Kiểm thử mới của chính ứng viên hỏng ổn định; phân trang báo xong khi còn ứng viên",
+   "where": "internal/maintenance/denials_test.go:154; internal/maintenance/collector.go:256-282",
+   "scenario": "Với Limit nhỏ, lượt thứ 3 đặt LastSuccess (skip=\"\") sau khi mới xoá 3/4 tệp denial; tệp còn lại phải chờ thêm một interval (24h). `go test ./internal/maintenance` đỏ.",
+   "evidence": "go test -run TestCollectDenialBatchAndSymlinks -count=5: 'denial pagination removed 2 want4' / 'removed 3 want4' (5/5 FAIL); log thêm: pass0 removed=1 skip=budget, pass1 removed=1 skip=budget, pass2 removed=1 skip=\"\" (đã coi là xong).",
+   "ran": true
+  },
+  {
+   "id": "Y6",
+   "severity": "low",
+   "title": "Bỏ sót log của phiếu 'cancelled' (trạng thái kết thúc)",
+   "where": "internal/maintenance/owners.go:179",
+   "scenario": "taskState chỉ coi status==\"done\" là xong; task.Terminal gồm cả cancelled nên log phiếu đã huỷ nằm mãi (dữ liệu thật: 16/95 phiếu cancelled).",
+   "evidence": "Fixture 4 phiếu cùng 200 ngày tuổi: chỉ log phiếu done bị xoá; runtime/tasks/01CCC.../logs/verify-1.log (cancelled) còn nguyên sau `bint status`.",
+   "ran": true
+  },
+  {
+   "id": "Y7",
+   "severity": "low",
+   "title": "Giữ 3 bản mới nhất nhưng vẫn xoá bản gốc trước khi Bint sửa lần đầu",
+   "where": "internal/maintenance/files.go:441-493",
+   "scenario": "Khi một tệp (AGENTS.md, .bint/config.yml) có >=4 snapshot cũ hơn 30 ngày, snapshot cổ nhất — thường là bản gốc của người dùng trước khi Bint chèn khối quản lý — bị xoá; 3 bản còn lại đều là bản đã qua Bint.",
+   "evidence": "Fixture 4 snapshot AGENTS.md (v1 = bản gốc) -> `bint status`: backups còn 20250201/20250301/20250401, v1 mất.",
+   "ran": true
+  },
+  {
+   "id": "Y8",
+   "severity": "low",
+   "title": "Không dọn state của repository đã bị xoá (chỉ dọn repo hiện tại)",
+   "where": "internal/app/maintenance.go:14",
+   "scenario": "Collector chỉ chạy trong Ingest của repo đang dùng; tài liệu ghi rõ state root cũ không còn resolve không bị quét, nên state của repo đã xoá nằm mãi.",
+   "evidence": "Trên máy: 4 thư mục state có repo.json.common_dir không tồn tại (2.7M, 3.1M, 2.6M, 48K).",
+   "ran": true
+  }
+ ]
+}

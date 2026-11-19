@@ -174,19 +174,29 @@ tasks:
   ledger: git               # nơi lưu phiếu tác vụ: git (bản chiếu bền ở .bint/tasks/<ID>/ trong cây làm việc, commit cùng mã, tự nhập sau git pull; Bint không tự commit) | local (chỉ thư mục trạng thái cục bộ)
 
 workflow:                   # workflow gốc do Bint điều phối (bint run)
-  max_review_rounds: 2      # số vòng review → sửa tối đa của b-do
+  max_review_rounds: 2      # số vòng sửa tối đa sau review của b-do (n vòng sửa = tối đa n+1 vòng review); hết vòng thì người chọn chấp nhận / sửa thêm một vòng / huỷ; review còn giảm số phát hiện nghiêm trọng thì sửa tiếp tới trần 2 lần số này, không giảm thì dừng
+  fast_path: false          # true = Bint tự chọn đường nhanh của b-do cho yêu cầu ngắn, mơ hồ, rủi ro thấp (bỏ b-req, một phiên b-feat, cổng kiểm chứng, một vòng review, tối đa một vòng sửa); false = Classify quyết như thường (yêu cầu mơ hồ vào b-req; việc nhỏ hoặc yêu cầu ngắn nêu rõ chỗ sửa có thể bỏ b-req), đường nhanh chỉ chạy khi người dùng chọn (bint run b-do --fast, /b-do-fast)
+  small_plan_max_files: 5   # kế hoạch b-req là nhỏ (b-feat chạy ngay, không dừng chờ người) khi số tệp và số nhóm bề mặt trong plan không quá ngưỡng này và các điều kiện khác đạt (không giai đoạn hoãn, có kiểm tra mục tiêu, không chạm đường dẫn bảo vệ); 0 = mọi kế hoạch dừng chờ người
   timeout_minutes: 60       # mỗi bước agent
+  slice_timeout_minutes: 30    # kế hoạch lớn của b-do chạy theo lát mỏng (mỗi nhóm bề mặt một b-feat, tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì được giữ cây và dừng blocked chờ người: resume --slice keep|discard|more); 0 = tắt, chạy một b-feat
+  slicing: auto                # khi nào chia kế hoạch lớn thành lát mỏng: auto (theo dòng "Chia lát" trong mục Chiến lược thực thi của plan.md) | off (không bao giờ) | always (như cũ, không cần plan chọn); cần slice_timeout_minutes > 0
+  goal_check: auto             # khi nào chạy b-goal (kiểm tra mục tiêu độc lập): auto (theo dòng "Kiểm tra mục tiêu độc lập" trong plan.md) | off | always; --fast bỏ cả hai
+  max_diff_lines: 0            # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát được giữ cây chờ người / vào vòng sửa); 0 = tắt
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
   verify:                   # phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (cổng done và bint task verify luôn chạy đầy đủ)
     scope: full             # full (chạy verify.command của phiếu) | affected (chỉ chạy test bị ảnh hưởng bởi thay đổi; thay đổi lạ thì tự nới ra full)
     affected_command: ""    # lệnh cho scope affected, có {test_dirs} hoặc {test_files}, ví dụ "go test -count=1 {test_dirs}"
+    bint_config_full: true  # true = thay đổi trong .bint/** nới kiểm chứng ra full; false = không nới (cổng done vẫn chạy đầy đủ một lần)
 `)
 	if p.SuggestedAffectedCommand != "" {
 		w("    suggested_affected_command: %s   # phát hiện khi init, chưa xác nhận: chép sang affected_command và đặt scope: affected để bật\n", quote(p.SuggestedAffectedCommand))
 	}
-	w(`  worktree:                # chỉ dùng khi tác vụ chạy trong worktree riêng
+	w(`  perf:                     # cổng hồi quy hiệu năng (tuỳ chọn): đo mốc trước b-feat đầu tiên và đo lại sau mỗi b-feat (nhỏ nhất của 3 lần, giây)
+    command: ""             # lệnh đo, ví dụ "go test -run xxx -bench Hot ./..."; rỗng = tắt; chỉ chạy khi lệnh kiểm chứng đã được xác nhận
+    max_slowdown: 1.5       # chậm hơn mốc quá số lần này (và quá sàn nhiễu 0,1 giây) hoặc lệnh thoát khác 0 thì coi như kiểm chứng không qua
+  worktree:                # chỉ dùng khi tác vụ chạy trong worktree riêng
     copy: []                # glob (tương đối với gốc repo) của tệp bị gitignore cần chép vào worktree, ví dụ [".env", "config/*.local.json"]
     setup_command: ""       # chạy trong worktree mới tạo, ví dụ "npm ci"; lỗi thì tác vụ failed
   agent:

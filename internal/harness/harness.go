@@ -641,7 +641,9 @@ func (Codex) NewAgent(o AgentOptions) eval.Agent {
 	if o.ModelSet {
 		modelName = o.Model
 	}
-	return &eval.CodexAgent{Binary: h.Binary, Model: modelName, ExtraArgs: h.ExtraArgs}
+	// Bước workflow (b-req/b-feat/b-review và bước của flow tuỳ biến) không sinh agent con; lượt đánh giá (Eval) và
+	// skill test (Step rỗng) giữ hành vi cũ để số đo không đổi.
+	return &eval.CodexAgent{Binary: h.Binary, Model: modelName, ExtraArgs: h.ExtraArgs, NoSubagents: o.Step != "" && !o.Eval}
 }
 
 // ---------------------------------------------------------------------------

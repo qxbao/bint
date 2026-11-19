@@ -1,11 +1,12 @@
 package task
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
 
-const goodReq = "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n"
+const goodReq = "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Ngoài phạm vi\nKhông có\n## Kiểm tra mục tiêu\nTestApp: cài app.txt giả rồi quét, đạt khi chứa v2\n## Câu hỏi mở\n"
 const goodTasks = "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: app.txt chứa v2\n"
 
 func goodTicket() Ticket {
@@ -341,5 +342,189 @@ func TestLintPlaceholderDottedIdentInACAndTSK(t *testing.T) {
 	tk.Verify.Criteria = []string{"limits.workflows.<flow> và `<x>` đọc được"}
 	if r := LintPlanningText(tk, d, true); hasCode(r.Errors, "placeholder_text") {
 		t.Fatalf("định danh có dấu chấm/code span không được bắt: %s", codes(r.Errors))
+	}
+}
+
+func TestGoalCheck(t *testing.T) {
+	cases := []struct {
+		name, req, want string
+	}{
+		{"có mục", goodReq, "TestApp: cài app.txt giả rồi quét, đạt khi chứa v2"},
+		{"thiếu mục", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: a\n", ""},
+		{"mục rỗng", "# Y\n## Kiểm tra mục tiêu\n  \n## Câu hỏi mở\n", ""},
+		{"chỉ trong code fence", "# Y\n```\n## Kiểm tra mục tiêu\nx\n```\n", ""},
+		{"heading ### con nằm trong mục", "# Y\n## Kiểm tra mục tiêu\n### Chuẩn bị\ncài dữ liệu giả\n## Câu hỏi mở\nq\n", "### Chuẩn bị\ncài dữ liệu giả"},
+		{"hậu tố mô tả vẫn là mục khác", "# Y\n## Kiểm tra mục tiêu (T2)\nx\n", ""},
+		{"CRLF", "# Y\r\n## Kiểm tra mục tiêu\r\nTestX\r\n", "TestX"},
+	}
+	for _, tc := range cases {
+		if got := GoalCheck(tc.req); got != tc.want {
+			t.Errorf("%s: GoalCheck = %q, muốn %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// goal_check_missing luôn là cảnh báo (không chặn), kể cả strict; có mục thì không cảnh báo.
+func TestLintPlanningGoalCheckMissingIsWarning(t *testing.T) {
+	d := goodDocs()
+	d["requirement"] = strings.Replace(goodReq, "## Kiểm tra mục tiêu\nTestApp: cài app.txt giả rồi quét, đạt khi chứa v2\n", "", 1)
+	for _, strict := range []bool{true, false} {
+		r := LintPlanningText(goodTicket(), d, strict)
+		if r.Blocking() || !hasCode(r.Warnings, "goal_check_missing") || hasCode(r.Errors, "goal_check_missing") {
+			t.Fatalf("strict=%v: phải chỉ cảnh báo goal_check_missing: %+v", strict, r)
+		}
+	}
+	d["requirement"] = strings.Replace(goodReq, "TestApp: cài app.txt giả rồi quét, đạt khi chứa v2", "   ", 1)
+	if r := LintPlanningText(goodTicket(), d, true); !hasCode(r.Warnings, "goal_check_missing") {
+		t.Fatalf("mục rỗng cũng phải cảnh báo: %+v", r)
+	}
+	if r := LintPlanningText(goodTicket(), goodDocs(), true); hasCode(r.Warnings, "goal_check_missing") {
+		t.Fatalf("có mục thì không cảnh báo: %+v", r)
+	}
+	// Thiếu requirement.md: lỗi artifact_missing, không thêm cảnh báo goal_check_missing.
+	d = goodDocs()
+	delete(d, "requirement")
+	if r := LintPlanningText(goodTicket(), d, true); hasCode(r.Warnings, "goal_check_missing") {
+		t.Fatalf("không có requirement thì không cảnh báo: %+v", r)
+	}
+}
+
+func TestPlanPhases(t *testing.T) {
+	cases := []struct {
+		name, plan string
+		want       []string
+	}{
+		{"không có mục", "# K\n## Hướng\n- G-1: x\n", nil},
+		{"mục không dòng G-N", "# K\n## Đề xuất tách giai đoạn\nKhông tách: một mục tiêu.\n", nil},
+		{"một dòng", "# K\n## Đề xuất tách giai đoạn\n- G-1: làm hết — phạm vi A\n", []string{"G-1: làm hết — phạm vi A"}},
+		{"ba dòng theo N, có [x]", "# K\n## Đề xuất tách giai đoạn\n- [x] G-1: a\n- G-3: c — phụ thuộc G-2\n* [ ] G-2: b\n", []string{"G-1: a", "G-2: b", "G-3: c — phụ thuộc G-2"}},
+		{"trong code fence bị bỏ", "# K\n## Đề xuất tách giai đoạn\n```\n- G-1: a\n- G-2: b\n```\n", nil},
+		{"ngoài mục không tính", "# K\n## Đề xuất tách giai đoạn\n- G-1: a\n## Rủi ro\n- G-2: b\n", []string{"G-1: a"}},
+	}
+	for _, tc := range cases {
+		got := PlanPhases(tc.plan)
+		if strings.Join(got, "|") != strings.Join(tc.want, "|") {
+			t.Errorf("%s: PlanPhases = %q, muốn %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestPlanSizeDecl(t *testing.T) {
+	cases := []struct {
+		name, plan  string
+		wantVerdict string
+		wantFiles   []string
+	}{
+		{"không có mục", "# K\n## Hướng\nKết luận: nhỏ\n- `a.go`\n", "", nil},
+		{"nhỏ hai tệp", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `a.go` — sửa\n- `b/c.go`\n", "nhỏ", []string{"a.go", "b/c.go"}},
+		{"lớn kèm lý do", "# K\n## Cỡ kế hoạch\nKết luận: lớn (hơn 5 tệp)\n- `a.go`\n", "lớn", []string{"a.go"}},
+		{"in đậm, bullet, hoa thường", "# K\n## Cỡ kế hoạch\n- **Kết luận**: NHỎ\n* `x.go`\n", "nhỏ", []string{"x.go"}},
+		{"từ dính liền không phải kết luận", "# K\n## Cỡ kế hoạch\nKết luận: nhỏxíu\n", "", nil},
+		{"có cả nhỏ và lớn thì lớn", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\nKết luận: lớn\n", "lớn", nil},
+		{"lớn trước nhỏ vẫn lớn", "# K\n## Cỡ kế hoạch\nKết luận: lớn\nKết luận: nhỏ\n", "lớn", nil},
+		{"bỏ trùng và dòng không có backtick", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `a.go`\n- `a.go`\n- tệp khác không backtick\n", "nhỏ", []string{"a.go"}},
+		{"trong code fence bị bỏ", "# K\n## Cỡ kế hoạch\n```\nKết luận: nhỏ\n- `a.go`\n```\n", "", nil},
+		{"CRLF", "# K\r\n## Cỡ kế hoạch\r\nKết luận: nhỏ\r\n- `a.go`\r\n", "nhỏ", []string{"a.go"}},
+		{"ngoài mục không tính", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `a.go`\n## Rủi ro\n- `z.go`\n", "nhỏ", []string{"a.go"}},
+		{"nhiều tệp một dòng đếm đủ", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `a.go`, `b.go`, `c.go` và `d.go`\n", "nhỏ", []string{"a.go", "b.go", "c.go", "d.go"}},
+		{"glob được giữ nguyên để cổng xử lý", "# K\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `internal/workflow/**`\n", "nhỏ", []string{"internal/workflow/**"}},
+	}
+	for _, tc := range cases {
+		v, files := PlanSizeDecl(tc.plan)
+		if v != tc.wantVerdict || strings.Join(files, "|") != strings.Join(tc.wantFiles, "|") {
+			t.Errorf("%s: PlanSizeDecl = %q %q, muốn %q %q", tc.name, v, files, tc.wantVerdict, tc.wantFiles)
+		}
+	}
+}
+
+func TestPlanSurfaces(t *testing.T) {
+	cases := []struct {
+		name, plan string
+		want       int
+	}{
+		{"không có mục", "# K\n## Hướng\n- a\n", 0},
+		{"hai nhóm", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-1\n- B\n", 2},
+		{"bullet thụt vào là chi tiết", "# K\n## Bề mặt bị ảnh hưởng\n- A\n  - chi tiết\n\t- chi tiết\n- B\n", 2},
+		{"dòng văn xuôi không tính", "# K\n## Bề mặt bị ảnh hưởng\nGhi chú\n- A\n", 1},
+		{"trong code fence bị bỏ", "# K\n## Bề mặt bị ảnh hưởng\n```\n- A\n- B\n```\n- C\n", 1},
+		{"CRLF", "# K\r\n## Bề mặt bị ảnh hưởng\r\n- A\r\n- B\r\n", 2},
+		{"ngoài mục không tính", "# K\n## Bề mặt bị ảnh hưởng\n- A\n## Rủi ro\n- B\n", 1},
+	}
+	for _, tc := range cases {
+		if got := PlanSurfaces(tc.plan); got != tc.want {
+			t.Errorf("%s: PlanSurfaces = %d, muốn %d", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestPlanStrategy(t *testing.T) {
+	cases := []struct {
+		name, plan  string
+		slice, goal string
+	}{
+		{"không có mục", "# K\n## Hướng\n- a\n", "", ""},
+		{"đủ hai dòng", "# K\n## Chiến lược thực thi\nChia lát: không — một tệp\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n", "không", "có"},
+		{"gạch đầu dòng và hoa thường", "# K\n## Chiến lược thực thi\n- chia lát: Có - hai bề mặt\n* Kiểm tra mục tiêu độc lập (B-goal): KHÔNG – sửa một dòng\n", "có", "không"},
+		{"thiếu lý do", "# K\n## Chiến lược thực thi\nChia lát: không\nKiểm tra mục tiêu độc lập (b-goal): có —  \n", "", ""},
+		{"giá trị lạ", "# K\n## Chiến lược thực thi\nChia lát: tuỳ — chưa rõ\n", "", ""},
+		{"ngoài mục không tính", "# K\n## Rủi ro\nChia lát: có — x\n", "", ""},
+		{"trong code fence bị bỏ", "# K\n## Chiến lược thực thi\n```\nChia lát: có — x\n```\n", "", ""},
+		{"dòng đầu hợp lệ thắng", "# K\n## Chiến lược thực thi\nChia lát: có — a\nChia lát: không — b\n", "có", ""},
+	}
+	for _, tc := range cases {
+		if s, g := PlanStrategy(tc.plan); s != tc.slice || g != tc.goal {
+			t.Errorf("%s: PlanStrategy = (%q, %q), muốn (%q, %q)", tc.name, s, g, tc.slice, tc.goal)
+		}
+	}
+}
+
+func TestPlanSlices(t *testing.T) {
+	cases := []struct {
+		name, plan string
+		texts      []string
+		acs        [][]int
+	}{
+		{"không có mục", "# K\n## Hướng\n- A — AC-1\n", nil, nil},
+		{"nhóm có AC theo thứ tự dòng", "# K\n## Bề mặt bị ảnh hưởng\n- A: `a.go` — AC-1\n- B: `b.go` — AC-2, AC-3\n",
+			[]string{"A: `a.go` — AC-1", "B: `b.go` — AC-2, AC-3"}, [][]int{{1}, {2, 3}}},
+		{"nhóm không AC (ngoài phạm vi) không phải lát", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-1\n- Ngoài phạm vi: docs\n- B — AC-2\n",
+			[]string{"A — AC-1", "B — AC-2"}, [][]int{{1}, {2}}},
+		{"bullet thụt vào là chi tiết", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-1\n  - chi tiết AC-9\n- B — AC-2\n",
+			[]string{"A — AC-1", "B — AC-2"}, [][]int{{1}, {2}}},
+		{"AC lặp chỉ tính một lần, AC-10 không lẫn AC-1", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-10, AC-1, AC-10\n",
+			[]string{"A — AC-10, AC-1, AC-10"}, [][]int{{10, 1}}},
+		{"trong code fence bị bỏ", "# K\n## Bề mặt bị ảnh hưởng\n```\n- A — AC-1\n```\n- B — AC-2\n", []string{"B — AC-2"}, [][]int{{2}}},
+		{"CRLF", "# K\r\n## Bề mặt bị ảnh hưởng\r\n- A — AC-1\r\n- B — AC-2\r\n", []string{"A — AC-1", "B — AC-2"}, [][]int{{1}, {2}}},
+		{"ngoài mục không tính", "# K\n## Bề mặt bị ảnh hưởng\n- A — AC-1\n## Rủi ro\n- B — AC-2\n", []string{"A — AC-1"}, [][]int{{1}}},
+	}
+	for _, tc := range cases {
+		got := PlanSlices(tc.plan)
+		if len(got) != len(tc.texts) {
+			t.Errorf("%s: %d lát, muốn %d: %+v", tc.name, len(got), len(tc.texts), got)
+			continue
+		}
+		for i, g := range got {
+			if g.Text != tc.texts[i] || !slices.Equal(g.ACs, tc.acs[i]) {
+				t.Errorf("%s: lát %d = %q %v, muốn %q %v", tc.name, i+1, g.Text, g.ACs, tc.texts[i], tc.acs[i])
+			}
+		}
+	}
+}
+
+func TestLintPlanFileOutOfScopeSkipsFrozenGoalTests(t *testing.T) {
+	tk := goodTicket()
+	tk.Scope = Scope{Allow: []string{"app.txt"}, Deny: []string{"goal_test.go"}}
+	d := goodDocs()
+	d["plan"] = "# Kế hoạch\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `goal_test.go`\n"
+	if r := LintPlanningTextV(tk, d, true, PlanningContractV2); !hasCode(r.Errors, "plan_file_out_of_scope") {
+		t.Fatalf("không có tệp đóng băng: muốn plan_file_out_of_scope, được %s", codes(r.Errors))
+	}
+	r := LintPlanningTextFrozen(tk, d, true, PlanningContractV2, []string{"./goal_test.go"})
+	if hasCode(r.Errors, "plan_file_out_of_scope") {
+		t.Fatalf("tệp b-goal đóng băng không được bị chặn: %s", codes(r.Errors))
+	}
+	d["plan"] += "- `other.go`\n"
+	if r := LintPlanningTextFrozen(tk, d, true, PlanningContractV2, []string{"goal_test.go"}); !hasCode(r.Errors, "plan_file_out_of_scope") {
+		t.Fatalf("tệp thường ngoài scope vẫn phải bị chặn: %s", codes(r.Errors))
 	}
 }

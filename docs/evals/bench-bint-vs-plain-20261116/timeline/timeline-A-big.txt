@@ -1,0 +1,5 @@
+2026-11-16T07:37:02Z start #0 
+2026-11-16T08:08:26Z end #0 exit=0
+2026-11-16T08:08:52Z người dùng kiểm: go build ./... && go test ./... (TMPDIR riêng)
+2026-11-16T08:15:56Z kiểm xong exit=0
+2026-11-16T08:16:04Z KẾT THÚC lượt A-big (xanh, không nhắc)

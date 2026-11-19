@@ -1,0 +1,26 @@
+{
+  "X1": {
+    "verdict": "confirmed",
+    "final_severity": "medium",
+    "reason": "MaybeCleanup (internal/state/cleanup.go:409) chỉ quét runtime/revalidate, runtime/evolve và runtime/hook-trace. Tệp .log chỉ bị xoá khi có mục trong sổ Completed (dòng 450, không có thì 'unconfirmed'). RecordCompletedDiagnostic chỉ được gọi ở 3 nơi: revalidate.go:194, harness_propose.go:231, skill_generate.go:216. reflector.go:174 và generate.go:462 cũng ghi log vào runtime/evolve nhưng không bao giờ ghi nhận, nên các log đó bị giữ mãi; log có sẵn trước khi nâng cấp cũng bị giữ mãi. eval-work, log tác vụ, backups, spool nằm ngoài phạm vi, và chính tài liệu của bản này thừa nhận ('không giới hạn tổng dung lượng'). Trên thực tế lệnh dọn hầu như không lấy lại được dung lượng, trái mục tiêu chính của người dùng.",
+    "how": "chạy thử: HOME/BINT_STATE_DIR dưới tmp/verify-T1/runX, bint init --no-hooks --no-skills; tạo runtime/evolve/legacy-reflector.log và runtime/revalidate/legacy.log (200KB mỗi tệp, 200 ngày tuổi), log tác vụ done 500KB, eval-work 1MB, backups; chạy 'bint status' → 'Dọn dữ liệu: ... 0 tệp, 0 byte đã xoá; bỏ qua: map[unconfirmed:2]', mọi tệp còn nguyên. Đọc mã: grep RecordCompletedDiagnostic."
+  },
+  "X2": {
+    "verdict": "confirmed-downgrade",
+    "final_severity": "low",
+    "reason": "Lỗi có thật: X không có lệnh clean hay dry-run, việc dọn tự động chạy trong Workspace.Ingest, bint status chỉ báo số tệp/byte sau khi đã xoá, không liệt kê đường dẫn. Nhưng mức thấp: thẻ người dùng chỉ nói xem trước là 'có thì tốt'. Phạm vi tự xoá của X rất hẹp và thận trọng: chỉ log revalidate/evolve đã được xác nhận đóng (so size và mtime với sổ) và cũ hơn 90 ngày, cộng các cặp hook-trace hoàn tất. Thiếu xem trước không làm người dùng mất thứ còn cần, nên không phải chức năng chính hỏng hay rủi ro an toàn đáng kể.",
+    "how": "đọc mã internal/app/workspace.go (diff), internal/cli/commands.go (chỉ thêm dòng vào status), trigger.json ghi 'bint clean' báo lệnh lạ; chạy thử bint status như X1"
+  },
+  "Y1": {
+    "verdict": "confirmed-downgrade",
+    "final_severity": "medium",
+    "reason": "Lỗi có thật: clean() quét 'backups' (internal/app/cleanup.go:140). Lời gọi tự động trong Ingest (workspace.go: '_, _ = w.clean(ctx, s, now, false, true)') chạy khi bint status, không hỏi, không ghi đường dẫn và nuốt lỗi. backups/ chứa bản sao do fsafe.Backup chép trước khi Bint ghi đè tệp của người dùng (settings.json, cấu hình MCP, .gitignore, config.yml, skill khi --force). Sau khi nâng cấp, chỉ một lần 'bint status' là xoá mọi bản sao lưu có mtime cũ hơn 30 ngày. Không xếp critical vì: đây là bản sao lưu chứ không phải dữ liệu chính; phần lớn thao tác ghi của Bint là gộp hoặc chỉ sửa khối do Bint quản lý, nên nội dung người dùng thường vẫn còn trong tệp đang dùng. Bản sao lưu chỉ chứa nội dung không khôi phục được ở trường hợp --force hoặc ghi đè cấu hình, và chỉ khi đã quá 30 ngày kể từ lần ghi đè. Việc xoá bản sao lưu cũ theo hạn giữ cũng được Y nêu trong --help/docs ('bản sao lưu đã hết hạn'). Phần còn lại vẫn là mất lưới an toàn thật: tự động, không có xem trước trước đó, và ở mốc 30 ngày, ngắn hơn 'vài tháng' người dùng muốn. Vì vậy hợp mức medium (rủi ro an toàn nhỏ hơn).",
+    "how": "chạy thử: tmp/verify-T1/runY, tạo backups/20260101T000000.000Z/claude/settings.json (200 ngày tuổi), chạy 'bint status' → sau đó thư mục backups/ biến mất hoàn toàn (find: 'backups: No such file or directory'). Đọc mã cleanup.go:140, workspace.go Ingest, base internal/fsafe/fsafe.go:55 và các nơi gọi fsafe.Backup."
+  },
+  "Y2": {
+    "verdict": "confirmed-downgrade",
+    "final_severity": "low",
+    "reason": "Hành vi có thật: với mặc định 30 ngày, Y xoá eval-work/logs/<batch> và runs/<batch> của đợt đã kết thúc quá 30 ngày. evolve.evalFailure (base failure.go:441-455) đọc agent.log, danh sách tệp và test.log trong LogDir, trong cửa sổ Memory.RetentionDays=90 (scan.go:175). Do đó thất bại 30–90 ngày tuổi mất Trace/Measured/Modified/TestFails và phần lớn tín hiệu. Tuy vậy: evolve là nơi duy nhất đọc các log này; nó suy giảm êm (readOptional, lỗi os.Open được bỏ qua, không gây hỏng); kết quả và lịch sử eval vẫn còn trong SQLite. Eval là đường tuỳ chọn ('chỉ cần khi muốn đo'), không phải đường thông dụng của người dùng này. Tài liệu của Y nói rõ state.retention_days độc lập với memory.retention_days, và mốc 30 ngày đổi được trong cấu hình. Đây là suy giảm chất lượng của một tính năng nâng cao, không phải chức năng chính hỏng hay mất việc của người dùng.",
+    "how": "chạy thử: tmp/verify-T1/runY, chèn eval_batches B1 status=completed finished_at 2026-09-16 (~60 ngày), tệp eval-work/logs/B1/{agent.log,test.log}, runs/B1/k1/big.bin 60 ngày tuổi; 'bint status' → cả logs/B1 và runs/B1 bị xoá. Đọc mã base internal/evolve/failure.go:417-460, scan.go:170-180; grep agent.log/LogDir: chỉ evolve đọc."
+  }
+}

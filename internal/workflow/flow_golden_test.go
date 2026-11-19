@@ -231,7 +231,7 @@ func (h *harness) blockingReview(n int) func(context.Context, string, *Env, stri
 			rounds++
 			body := `{"summary":"ổn","findings":[]}`
 			if rounds <= n {
-				body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`
+				body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}]}`
 			}
 			_, _, err := e.SubmitReview(id, []byte(body))
 			return err
@@ -557,7 +557,7 @@ func goldenSessionScenarios(t *testing.T) map[string]sessTrace {
 		h.cfg.Roles.Reviewer = "codex"
 		h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 			if step == StepReview {
-				_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`))
+				_, _, err := e.SubmitReview(id, []byte(`{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}]}`))
 				return err
 			}
 			return featWrites(h, nil)(ctx, step, e, id)

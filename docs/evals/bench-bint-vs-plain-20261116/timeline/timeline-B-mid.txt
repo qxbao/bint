@@ -1,0 +1,11 @@
+2026-11-16T07:37:02Z start #0  
+2026-11-16T07:43:15Z end #0 exit=1
+2026-11-16T07:43:59Z CAN THIỆP #1: trả lời Q-1 của planner: 'Tự quyết theo kế hoạch.'
+2026-11-16T07:43:59Z start #1 resume 01M7HMKENS93WCB96SS52PZ931
+2026-11-16T08:24:07Z end #1 exit=1
+2026-11-16T08:25:31Z CAN THIỆP #2: (a) tasks.md bị b-feat ghi mất '— xong khi' → thêm '— xong khi: như mô tả.' cho từng TSK (bản cũ: log/B-mid.tasks.md.before-fix); (b) kiểm chứng đầy đủ hỏng do /tmp/.git (môi trường) → chạy lại bint task verify với TMPDIR riêng
+2026-11-16T08:31:17Z verify thủ công exit=0
+2026-11-16T08:31:29Z resume sau can thiệp #2 (TMPDIR riêng từ đây)
+2026-11-16T08:31:29Z start #2 resume 01M7HMKENS93WCB96SS52PZ931
+2026-11-16T08:44:54Z end #2 exit=0
+2026-11-16T08:45:26Z KẾT THÚC lượt B-mid (done)

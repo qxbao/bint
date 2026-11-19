@@ -989,8 +989,8 @@ func TestTaskRefsRemovedOnEnd(t *testing.T) {
 		if res, err := r.Run(context.Background(), RunOptions{Workflow: StepFeat, TaskRef: id}); err != nil || res.Status != task.StatusInReview {
 			t.Fatalf("%+v %v", res, err)
 		}
-		if got := refsOf(h, id); strings.Count(got, "\n") != 1 {
-			t.Fatalf("trước land phải có đúng hai ref (base, base-tree): %q", got)
+		if got := refsOf(h, id); strings.Count(got, "\n") != 2 || !strings.Contains(got, "/green") {
+			t.Fatalf("trước land phải có đúng ba ref (base, base-tree, green): %q", got)
 		}
 		if _, err := r.Land(context.Background(), id, LandOptions{}); err != nil {
 			t.Fatal(err)

@@ -27,6 +27,9 @@ harnesses:
     pricing: {}             # giá model ghi đè bảng dựng sẵn khi tính chi phí bước chạy bằng subagent (USD/triệu token); ví dụ:
                             #   claude-sonnet-5-5: { input_usd_per_mtok: 2, output_usd_per_mtok: 10, cache_write_usd_per_mtok: 2.5, cache_read_usd_per_mtok: 0.1 }
                             # cache để 0 = suy từ giá input (ghi 1,25 lần, đọc 0,1 lần); model không có giá thì chi phí là unknown
+                            #   claude-sonnet-5-5: { input_usd_per_mtok: 2, output_usd_per_mtok: 10, cache_write_usd_per_mtok: 2.5, cache_read_usd_per_mtok: 0.1 }
+                            # cache để 0 = suy từ giá input (ghi 1,25 lần, đọc 0,1 lần); model không có giá thì chi phí là unknown
+    profile: ""             # tên profile bint iso (bint iso create claude --name <tên>); rỗng = tài khoản thật. Nên đặt ở .bint/local.yml hoặc cấu hình toàn cục (tên là của máy)
   codex:                    # bint run / bint eval với Codex (codex exec --json, sandbox workspace-write)
     binary: ""              # rỗng = tìm trong PATH
     model: null
@@ -37,6 +40,7 @@ harnesses:
       reviewer:     "gpt-6-astra"
       evolver:      "gpt-6-astra"
       reflector:    "gpt-6-astra"
+    profile: ""             # tên profile bint iso (bint iso create codex --name <tên>); rỗng = tài khoản thật. Nên đặt ở .bint/local.yml hoặc cấu hình toàn cục
   antigravity:              # bint run / bint eval với Antigravity CLI (agy -p --output-format json)
     binary: ""
     model: null
@@ -89,7 +93,7 @@ memory:
 
 eval:
   # Bint không chạy lệnh nào cho tới khi bạn xác nhận bằng cách điền hai khoá dưới.
-  test_command: "go test -count=1 -timeout 30m ./..."
+  test_command: "go test -timeout 30m ./..."
   setup_command: "go mod download"
   suggested_test_command: "go test ./..."   # phát hiện khi init, chưa xác nhận
   suggested_setup_command: "go mod download"  # phát hiện khi init, chưa xác nhận
@@ -155,10 +159,20 @@ tasks:
 workflow:                   # workflow gốc do Bint điều phối (bint run)
   verify:
     scope: affected
-    affected_command: "go test -count=1 -timeout 30m {test_dirs}"
+    affected_command: "go test -timeout 30m {test_dirs}"
+    bint_config_full: false # đổi .bint/** không nới kiểm chứng ra full (cổng done vẫn chạy đầy đủ một lần)
+  perf:
+    command: ""
+    max_slowdown: 1.5
   max_review_rounds: 2      # số vòng review → sửa tối đa của b-do
-  timeout_minutes: 90       # mỗi bước agent
-  verify_timeout_minutes: 30   # lệnh kiểm chứng của phiếu tác vụ
+  fast_path: false          # true = Bint tự chọn đường nhanh của b-do cho yêu cầu ngắn, mơ hồ, rủi ro thấp (bỏ b-req, một phiên b-feat, cổng kiểm chứng, một vòng review, tối đa một vòng sửa); false = Classify quyết như thường (yêu cầu mơ hồ vào b-req; việc nhỏ hoặc yêu cầu ngắn nêu rõ chỗ sửa có thể bỏ b-req), đường nhanh chỉ chạy khi người dùng chọn (bint run b-do --fast, /b-do-fast)
+  small_plan_max_files: 5   # kế hoạch b-req là nhỏ (b-feat chạy ngay, không dừng chờ người) khi số tệp và số nhóm bề mặt trong plan không quá ngưỡng này và các điều kiện khác đạt (không giai đoạn hoãn, có kiểm tra mục tiêu, không chạm đường dẫn bảo vệ); 0 = mọi kế hoạch dừng chờ người
+  timeout_minutes: 180      # mỗi bước agent
+  slice_timeout_minutes: 0  # kế hoạch lớn của b-do chạy theo lát mỏng (mỗi nhóm bề mặt một b-feat, tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì được giữ cây và dừng blocked chờ người: resume --slice keep|discard|more); 0 = tắt, chạy một b-feat
+  slicing: auto             # khi nào chia kế hoạch lớn thành lát mỏng: auto (theo "Chia lát" trong mục Chiến lược thực thi của plan.md) | off | always; cần slice_timeout_minutes > 0
+  goal_check: auto          # khi nào chạy b-goal: auto (theo "Kiểm tra mục tiêu độc lập" trong plan.md) | off | always; --fast bỏ cả hai
+  max_diff_lines: 0            # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát được giữ cây chờ người / vào vòng sửa); 0 = tắt
+  verify_timeout_minutes: 60  # lệnh kiểm chứng của phiếu tác vụ
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
   worktree:                 # chỉ dùng khi tác vụ chạy trong worktree riêng
@@ -198,3 +212,14 @@ mcp:                        # MCP dự án dùng và cấp cho agent (bint mcp l
 
 ui:
   language: vi            # giao diện TUI: auto | vi | en (auto: theo BINT_LANG, LANG; mặc định vi)
+
+iso:                        # profile tài khoản của harness (bint iso); cài đặt của máy: nên đặt ở cấu hình toàn cục hoặc .bint/local.yml
+  home: auto                # auto = <thư mục dữ liệu người dùng>/bint/iso, hoặc đường dẫn tuyệt đối; BINT_ISO_HOME ghi đè
+  cache: shared             # shared (dùng chung cache thật của máy) | private (giữ cache trong profile, dọn theo cache_ttl)
+  share: [cache, npm, pnpm-store, uv-data, go-mod, cargo-registry, bun]   # mục chia sẻ khi cache: shared
+  cache_ttl: 720h           # tuổi tối đa của cache riêng (chỉ khi cache: private)
+  sessions_ttl: 2160h       # tuổi tối đa của lịch sử phiên trong profile (90 ngày); 0 = không dọn
+  gc_interval: 6h           # chu kỳ dọn nhẹ tự động khi chạy profile
+  tmp_ttl: 24h              # tuổi tối đa của mục trong thư mục tạm khi profile còn daemon sống
+  pass_env: []              # biến môi trường giữ lại cho harness dù iso gỡ theo mặc định (vd credential)
+  drop_env: []              # biến môi trường gỡ thêm

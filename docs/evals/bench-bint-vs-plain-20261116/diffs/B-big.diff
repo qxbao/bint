@@ -1,0 +1,1995 @@
+ docs/acceptance.md                     |  30 +++
+ docs/workflows.md                      |  52 ++++
+ internal/app/task_progress.go          |  20 ++
+ internal/app/task_progress_test.go     |  19 ++
+ internal/cli/run.go                    |   4 +
+ internal/cli/task.go                   |   2 +-
+ internal/cli/task_progress.go          |  79 ++++++
+ internal/cli/task_progress_e2e_test.go | 113 ++++++++
+ internal/config/config.go              |  11 +
+ internal/config/no_progress_test.go    |  23 ++
+ internal/config/template.go            |   2 +
+ internal/i18n/locales/en.yaml          |   3 +
+ internal/i18n/locales/vi.yaml          |   3 +
+ internal/task/progress.go              | 178 +++++++++++++
+ internal/task/progress_read.go         | 458 +++++++++++++++++++++++++++++++++
+ internal/task/progress_read_test.go    | 174 +++++++++++++
+ internal/task/progress_test.go         |  94 +++++++
+ internal/task/task.go                  |  24 +-
+ internal/tui/actions/cliref.go         |   2 +
+ internal/tui/actions/coverage.go       |   6 +
+ internal/workflow/no_progress.go       | 180 +++++++++++++
+ internal/workflow/no_progress_test.go  | 214 +++++++++++++++
+ internal/workflow/run.go               |  10 +
+ internal/workflow/session.go           |   4 +-
+ 24 files changed, 1692 insertions(+), 13 deletions(-)
+
+diff --git a/docs/acceptance.md b/docs/acceptance.md
+index cef471f..67f93b5 100644
+--- a/docs/acceptance.md
++++ b/docs/acceptance.md
+@@ -480,3 +480,33 @@ Bản ghi bất biến; hiện trạng lấy ở mục 2 và 3.
+ | [Đóng lỗi còn mở](bint-acceptance-open-findings.md) | `8b5cc9f` | Đóng R1–R3 và F1, F3, F7, F8 (một phần), F11, F12 |
+ | [P6](bint-acceptance-p6-dff6570.md) | `dff6570` | Chưa đủ điều kiện; P6-01..05 |
+ | [Các đợt chạy harness thật](evals/README.md) | theo đợt | Pilot Codex, Claude 30 tác vụ, flow Codex, hỗn hợp, nghiệm thu Codex 2026-11-12 |
++
++## 8. Tiến triển vòng sửa — GĐ2a/GĐ2b (2026-11-16)
++
++| Mã | Cách kiểm tra | Bằng chứng |
++|---|---|---|
++| NT-NOPROG-OFFLINE | Chạy `bint task progress --json` trên toàn kho; báo cả mẫu và thiếu dữ liệu. Fixture local/git so băm repository/runtime/SQLite trước-sau, phiếu done, phiếu hỏng cạnh phiếu tốt, Git-only chưa nhập, log mất và đường dẫn không hợp lệ. | `TestTaskProgressReadOnly`, `TestProgressReadOnlyLedgerAndBroken`, `TestProgressLogTailAndUnsafePaths`, `TestProgressHistoricalAmbiguityAndShadowDedup`, `TestProgressLogCannotEscapeThroughSymlink` |
++| NT-NOPROG-SHADOW | Agent giả chạy cùng kịch bản off/shadow cho process/session ở cả checkpoint review và full_verify; so bước, trạng thái, vòng sửa; kiểm off không tạo dữ liệu và lỗi ghi chỉ thêm Notes. | `TestNoProgressOffShadowProcessSession`, `TestNoProgressFullVerifyOffShadow`, `TestNoProgressMissingLogAndWriteFailure`, `TestRunStatusShowsShadowWithoutRuns` |
++
++Bằng chứng chạy thực tế và kiểm tra tĩnh ghi dưới đây. Các ca shadow dùng
++agent giả, không phát sinh lượt harness hoặc mô hình thật. Windows được kiểm tra chéo bằng
++vet/staticcheck; chưa chạy bộ test native Windows. Chưa nghiệm thu GĐ2c hoặc cổng bật stop.
++
++Kết quả offline toàn kho lúc triển khai: **1 phiếu runtime, 0 vòng, 0 vòng đo được,
++0 sự kiện would_stop, n=0 cho số vòng thêm**, 1 phiếu thiếu dữ liệu và 1 lỗi đọc
++(`review.json` chưa tồn tại ở phiếu đang triển khai). Không có mẫu để kết luận về stop.
++Chạy bằng binary build từ cây thay đổi với cả text/JSON; fixture read-only qua cho ledger local/git.
++
++Bộ kiểm thử hẹp đã qua detector/reader, cấu hình và Render, dịch vụ app, CLI read-only/status,
++CLI inventory và catalog TUI. Agent giả off/shadow qua cả process/session, review/full_verify;
++Notes/log/state được kiểm cùng các ca lỗi ghi, chu kỳ nhiều implement, continuation và lịch sử
++trộn off/shadow. Bốn lệnh `go vet ./...`, `GOOS=windows go vet ./...`, `staticcheck ./...`,
++`GOOS=windows staticcheck ./...` qua (binary staticcheck Linux; cache tạm ngoài repository).
++Golden flow off và cấu hình repository giữ nguyên.
++
++`go test -count=1 -timeout 30m ./...` đã chạy nhưng **chưa đạt toàn bộ** trong sandbox này:
++nhóm MCP gateway/probe cần mở socket localhost bị `operation not permitted`. Bộ affected còn
++vướng VCS stamping trong môi trường test; chạy lại riêng với `GOFLAGS=-buildvcs=false` qua.
++Catalog TUI phát hiện hai khoá CLI chưa kê khai ở lượt đầu; đã sửa và kiểm lại qua.
++Không bỏ hoặc làm yếu các test cần socket; Bint Core cần chạy lại lệnh kiểm chứng đã xác nhận
++trong môi trường cho phép localhost. Vì vậy tiêu chí bộ test toàn bộ của phiếu còn chưa đạt.
+diff --git a/docs/workflows.md b/docs/workflows.md
+index b0a7cf8..96f479a 100644
+--- a/docs/workflows.md
++++ b/docs/workflows.md
+@@ -1386,3 +1386,55 @@ xoá khi dừng), `gateway.log`, `tools-cache/` (M3).
+   harness + session thì không ghi (đếm trong `dropped_events`). Daemon không mở SQLite.
+ 
+ Chưa kiểm với service thật trên máy và Job Object trên Windows thật (CI chỉ biên dịch và vet cho Windows).
++
++## Phân tích tiến triển vòng sửa
++
++`bint task progress` và `bint task progress --json` phân tích mọi phiếu trong kho hiện hành,
++bao gồm phiếu đã kết thúc và phiếu chỉ có trong `.bint/tasks` khi `tasks.ledger: git`.
++Lệnh chỉ đọc: không nhập sổ Git, reconcile, mở SQLite, gọi harness/mô hình hoặc chạy kiểm chứng.
++Một phiếu hỏng được báo riêng trong `warnings`; các phiếu đọc được vẫn có kết quả.
++Khi runtime và sổ khác nhau, báo cảnh báo và dùng runtime, không tự đồng bộ.
++
++JSON có `tasks`, `warnings`, `summary`. Mỗi phiếu có `id`, `status`, `source`, `round_count`,
++`rounds`, `first_would_stop_round`, `extra_rounds` và `missing_reasons`. `rounds` chứa các
++checkpoint review/full_verify; `review_round` giữ số review gốc khi có, còn `round` trong báo cáo
++đánh số checkpoint theo thứ tự lịch sử. Quan sát shadow gốc đếm chu kỳ sửa theo loại checkpoint;
++chu kỳ nhiều bước implement dùng cây trước bước đầu và sau bước cuối, cùng chuỗi ID bước.
++`extra_rounds` chỉ đếm các chu kỳ implement hoàn tất sau checkpoint
++đầu tiên lẽ ra dừng, không đếm reviewer sạch. Giá trị không tính được là `null` (text: `unknown`),
++kèm lý do; `summary` ghi số mẫu đo được, số vòng thiếu dữ liệu, phiếu không có vòng, lỗi đọc,
++số sự kiện `would_stop`, số vòng thêm với mẫu số và số phiếu done có review sạch về sau.
++
++Bộ phát hiện dùng tối đa 64 KiB cuối log `<state>/runtime/tasks/<id>/logs/verify-N.log`,
++chuẩn hoá timestamp, thời lượng, đường dẫn tạm Unix/Windows, hex và khoảng trắng rồi băm SHA-256.
++Log rỗng, mất hoặc không đọc được không tạo bằng chứng lỗi lặp. `no_change` so ảnh cây trước/sau
++cùng bước implement, cùng loại tree/fingerprint; không so HEAD/diff với Git tree.
++`same_failure` cần hai lần kiểm chứng hỏng trong cùng miền lệnh/phạm vi, chữ ký không rỗng và
++cùng tập khoá phát hiện blocking (path + criterion, hoặc tiêu đề chuẩn hoá nếu không có path).
++`new_scope` chỉ ghi chú. Vòng đầu không có quyết định lẽ ra dừng. Một tín hiệu thiếu bằng chứng
++không vô hiệu tín hiệu khác có bằng chứng độc lập.
++
++Phiếu cũ thường thiếu ảnh trước/sau từng bước sửa. Việc ghép lịch sử chỉ được làm khi có duy nhất
++một lần hoàn tất implement và một verification trong khoảng giữa hai review; nhiều verification,
++nhiều reviewer hoặc thời điểm không rõ dẫn tới `unknown`. Sổ Git cố ý bỏ log và dấu cây cục bộ,
++nên phiếu Git-only không đủ bằng chứng cho các tín hiệu này. Không dùng cây mã hiện tại để đoán
++lịch sử. Quan sát shadow đã lưu được ưu tiên và không đếm trùng review tương ứng.
++
++```yaml
++workflow:
++  no_progress:
++    mode: off      # mặc định; shadow để chỉ quan sát
++```
++
++Người dùng tự đặt `shadow` nếu muốn tích luỹ mẫu. Tại review còn phát hiện blocking và kiểm chứng
++đầy đủ ở finalize hỏng, Runner ghi vào Notes, log và `state.json` (`no_progress`,
++`progress_repairs`, trường tuỳ chọn, chỉ cục bộ). Bước nối tiếp sau gián đoạn mà thiếu
++ảnh gốc thì `no_change` là unknown; đổi mode giữa các vòng có thể làm số vòng thêm unknown.
++Hai driver process/session dùng cùng điểm ghi;
++`bint task show --json` và `bint run status [--json]` hiển thị quan sát đã lưu, kể cả chưa có rows
++lượt chạy. Dữ liệu sống qua session next/resume; cùng checkpoint/bước sửa không ghi trùng.
++`off` không thu thập mới và vẫn đọc được dữ liệu đã lưu. Lỗi quan sát chỉ tạo ghi chú;
++shadow giữ nguyên nhánh điều phối, hạn mức, số vòng sửa và kết cục.
++
++`stop` hiện bị từ chối là chưa hỗ trợ. Giai đoạn này chưa dừng sớm, chưa có migration SQLite,
++chưa chứng minh cổng bật stop bằng mẫu chạy thật và không tự bật shadow trong cấu hình repository.
+diff --git a/internal/app/task_progress.go b/internal/app/task_progress.go
+new file mode 100644
+index 0000000..98a14cd
+--- /dev/null
++++ b/internal/app/task_progress.go
+@@ -0,0 +1,20 @@
++package app
++
++import (
++	"bint/internal/config"
++	"bint/internal/task"
++	"context"
++)
++
++type TaskProgressOptions struct{}
++
++func (o TaskProgressOptions) Defaults(_ config.Config) TaskProgressOptions { return o }
++func (o TaskProgressOptions) Validate() error                              { return nil }
++
++// TaskProgress bypasses reconciliation, ledger import, SQLite and all execution services.
++func TaskProgress(_ context.Context, ws *TaskWS, o TaskProgressOptions) (task.ProgressReport, error) {
++	if err := o.Validate(); err != nil {
++		return task.ProgressReport{}, err
++	}
++	return ws.Tasks.Progress()
++}
+diff --git a/internal/app/task_progress_test.go b/internal/app/task_progress_test.go
+new file mode 100644
+index 0000000..ac68ab3
+--- /dev/null
++++ b/internal/app/task_progress_test.go
+@@ -0,0 +1,19 @@
++package app
++
++import (
++	"bint/internal/config"
++	"context"
++	"testing"
++)
++
++func TestTaskProgressService(t *testing.T) {
++	ws, _, _ := taskRepo(t)
++	opts := TaskProgressOptions{}.Defaults(config.Default())
++	if err := opts.Validate(); err != nil {
++		t.Fatal(err)
++	}
++	report, err := TaskProgress(context.Background(), ws, opts)
++	if err != nil || report.Tasks == nil || report.Warnings == nil {
++		t.Fatalf("%+v %v", report, err)
++	}
++}
+diff --git a/internal/cli/run.go b/internal/cli/run.go
+index ad22c40..ef1f3d3 100644
+--- a/internal/cli/run.go
++++ b/internal/cli/run.go
+@@ -286,6 +286,9 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
+ 				out := map[string]any{"task_id": t.State.ID, "status": t.State.Status, "reason": t.State.Reason,
+ 					"resume_from": t.State.ResumeFrom, "runs": rows, "isolation": t.State.Isolation(),
+ 					"isolation_reason": isolationReason(t), "driver": taskDriver(t)}
++				if len(t.State.NoProgress) > 0 {
++					out["no_progress"] = t.State.NoProgress
++				}
+ 				if ls := t.State.LastStep; ls != nil {
+ 					out["last_step"] = ls
+ 				}
+@@ -308,6 +311,7 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
+ 			printIsolationLines(w, "  ", t)
+ 			printDriverLines(w, "  ", t)
+ 			printLastStepLine(w, "  ", t)
++			printProgressObservations(w, t.State.NoProgress)
+ 			if len(rows) == 0 {
+ 				fmt.Fprintln(w, "\nChưa có lượt chạy nào được ghi nhận cho tác vụ này.")
+ 				if task.Paused(t.State.Status) {
+diff --git a/internal/cli/task.go b/internal/cli/task.go
+index 5346534..42bf73c 100644
+--- a/internal/cli/task.go
++++ b/internal/cli/task.go
+@@ -85,7 +85,7 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi
+ 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskReadyCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
+ 		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskDoneCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
+ 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
+-		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
++		newTaskProgressCmd(stdio), newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
+ 	return c
+ }
+ 
+diff --git a/internal/cli/task_progress.go b/internal/cli/task_progress.go
+new file mode 100644
+index 0000000..4ef9304
+--- /dev/null
++++ b/internal/cli/task_progress.go
+@@ -0,0 +1,79 @@
++package cli
++
++import (
++	"fmt"
++	"io"
++	"strconv"
++
++	"bint/internal/app"
++	"bint/internal/i18n"
++	"bint/internal/task"
++	"bint/internal/tui/actions"
++	"github.com/spf13/cobra"
++)
++
++func newTaskProgressCmd(stdio IO) *cobra.Command {
++	var asJSON bool
++	c := &cobra.Command{Use: "progress", Short: "Phân tích tiến triển các vòng sửa (chỉ đọc)", Args: cobra.NoArgs,
++		RunE: func(cmd *cobra.Command, _ []string) error {
++			ws, err := openTasks(cmd)
++			if err != nil {
++				return err
++			}
++			report, err := app.TaskProgress(cmd.Context(), ws, app.TaskProgressOptions{})
++			if err != nil {
++				return err
++			}
++			if asJSON {
++				return writeJSON(stdio.Out, report)
++			}
++			lang := ws.Cfg.UI.Language
++			if !i18n.Supported(lang) {
++				lang = i18n.Default
++			}
++			cat, err := i18n.Load(lang)
++			if err != nil {
++				return err
++			}
++			printTaskProgress(stdio.Out, cat, report)
++			return nil
++		}}
++	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
++	return c
++}
++
++func progressBool(b *bool) string {
++	if b == nil {
++		return "unknown"
++	}
++	return strconv.FormatBool(*b)
++}
++func progressInt(n *int) string {
++	if n == nil {
++		return "unknown"
++	}
++	return strconv.Itoa(*n)
++}
++func printTaskProgress(w io.Writer, cat *i18n.Catalog, r task.ProgressReport) {
++	fmt.Fprintln(w, cat.T(actions.TaskProgressTitleKey, nil))
++	for _, t := range r.Tasks {
++		fmt.Fprintf(w, "%s  %s  rounds=%d  first_would_stop_round=%s  extra_rounds=%s\n", t.ID, t.Status, t.RoundCount, progressInt(t.FirstWouldStopRound), progressInt(t.ExtraRounds))
++		printProgressObservations(w, t.Rounds)
++		for _, reason := range t.MissingReasons {
++			fmt.Fprintf(w, "  unknown: %s\n", reason)
++		}
++	}
++	s := r.Summary
++	fmt.Fprintln(w, cat.T(actions.TaskProgressSummaryKey, i18n.A{"tasks": s.Tasks, "rounds": s.Rounds, "comparable": s.ComparableRounds, "unknown": s.UnknownRounds, "stops": s.WouldStop, "extra": s.ExtraRounds, "samples": s.ExtraRoundsSamples, "missing": s.TasksWithMissingData, "errors": s.ReadErrors, "clean": s.DoneAfterStopWithCleanReview}))
++	for _, warning := range r.Warnings {
++		fmt.Fprintf(w, "! %s\n", warning)
++	}
++}
++func printProgressObservations(w io.Writer, observations []task.ProgressObservation) {
++	for _, o := range observations {
++		fmt.Fprintf(w, "  no_progress round=%d checkpoint=%s no_change=%s same_failure=%s new_scope=%s would_stop=%t\n", o.Round, o.Checkpoint, progressBool(o.NoChange), progressBool(o.SameFailure), progressBool(o.NewScope), o.WouldStop)
++		for _, reason := range o.MissingReasons {
++			fmt.Fprintf(w, "    unknown: %s\n", reason)
++		}
++	}
++}
+diff --git a/internal/cli/task_progress_e2e_test.go b/internal/cli/task_progress_e2e_test.go
+new file mode 100644
+index 0000000..d05b940
+--- /dev/null
++++ b/internal/cli/task_progress_e2e_test.go
+@@ -0,0 +1,113 @@
++package cli_test
++
++import (
++	"context"
++	"crypto/sha256"
++	"encoding/json"
++	"fmt"
++	"io/fs"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strings"
++	"testing"
++	"time"
++
++	"bint/internal/app"
++	"bint/internal/task"
++)
++
++func progressTree(t *testing.T, roots ...string) map[string]string {
++	t.Helper()
++	out := map[string]string{}
++	for _, root := range roots {
++		err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
++			if err != nil {
++				return err
++			}
++			if d.IsDir() {
++				return nil
++			}
++			b, err := os.ReadFile(p)
++			if err != nil {
++				return err
++			}
++			out[p] = fmt.Sprintf("%x", sha256.Sum256(b))
++			return nil
++		})
++		if err != nil {
++			t.Fatal(err)
++		}
++	}
++	return out
++}
++
++func TestTaskProgressReadOnly(t *testing.T) {
++	for _, ledger := range []string{"git", "local"} {
++		t.Run(ledger, func(t *testing.T) {
++			root := newLintRepo(t)
++			id := newTaskID(t, root, "--no-plan", "Đổi app.txt")
++			cfg := filepath.Join(root, ".bint", "config.yml")
++			b, err := os.ReadFile(cfg)
++			if err != nil {
++				t.Fatal(err)
++			}
++			if ledger == "local" {
++				b = []byte(strings.Replace(string(b), "ledger: git", "ledger: local", 1))
++				if err = os.WriteFile(cfg, b, 0600); err != nil {
++					t.Fatal(err)
++				}
++			}
++			ws, err := app.OpenWorkspace(context.Background(), root, true)
++			if err != nil {
++				t.Fatal(err)
++			}
++			s := task.NewStore(ws.Paths.Runtime)
++			// Supply both a valid finished ticket and a corrupt neighbor, without executing any agent.
++			if _, err = s.Update(id, time.Now(), func(tk *task.Task) error { tk.State.Status = task.StatusDone; return nil }); err != nil {
++				t.Fatal(err)
++			}
++			bad := filepath.Join(s.Dir, "BROKEN")
++			os.MkdirAll(bad, 0700)
++			os.WriteFile(filepath.Join(bad, task.StateFile), []byte("broken"), 0600)
++			before := progressTree(t, root, ws.Paths.Root)
++			for _, args := range [][]string{{"task", "progress"}, {"task", "progress", "--json"}} {
++				out, code := run(t, root, "", args...)
++				if code != 0 || !strings.Contains(out, id) || !strings.Contains(out, "BROKEN") {
++					t.Fatalf("%v: %d %s", args, code, out)
++				}
++				if args[len(args)-1] == "--json" {
++					var report task.ProgressReport
++					if err := json.Unmarshal([]byte(out), &report); err != nil || len(report.Tasks) == 0 || report.Tasks[0].Status != task.StatusDone {
++						t.Fatalf("%v %s", err, out)
++					}
++				}
++			}
++			if after := progressTree(t, root, ws.Paths.Root); !reflect.DeepEqual(before, after) {
++				t.Fatal("progress changed repository/runtime/SQLite")
++			}
++		})
++	}
++}
++
++func TestRunStatusShowsShadowWithoutRuns(t *testing.T) {
++	root := newLintRepo(t)
++	id := newTaskID(t, root, "--no-plan", "Đổi app.txt")
++	ws, err := app.OpenWorkspace(context.Background(), root, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	s := task.NewStore(ws.Paths.Runtime)
++	if _, err = s.Update(id, time.Now(), func(tk *task.Task) error {
++		tk.State.NoProgress = []task.ProgressObservation{{ProgressEvidence: task.ProgressEvidence{Round: 2, Checkpoint: "review"}, WouldStop: true}}
++		return nil
++	}); err != nil {
++		t.Fatal(err)
++	}
++	for _, args := range [][]string{{"run", "status", id}, {"run", "status", id, "--json"}, {"task", "show", id, "--json"}} {
++		out, code := run(t, root, "", args...)
++		if code != 0 || !strings.Contains(out, "no_progress") {
++			t.Fatalf("%v %d %s", args, code, out)
++		}
++	}
++}
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 5144b6c..53b705c 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -382,7 +382,12 @@ const (
+ var LedgerModes = []string{LedgerGit, LedgerLocal}
+ 
+ // Workflow cấu hình các workflow gốc do Bint điều phối (`bint run`, mục 6).
++type WorkflowNoProgress struct {
++	Mode string `yaml:"mode"`
++}
++
+ type Workflow struct {
++	NoProgress WorkflowNoProgress `yaml:"no_progress"`
+ 	// MaxReviewRounds: số vòng b-review → b-feat tối đa của b-do trước khi dừng chờ người.
+ 	MaxReviewRounds int `yaml:"max_review_rounds"`
+ 	// TimeoutMinutes giới hạn thời gian mỗi bước agent.
+@@ -618,6 +623,7 @@ func Default() Config {
+ 		},
+ 		Tasks: Tasks{Ledger: LedgerGit},
+ 		Workflow: Workflow{
++			NoProgress:      WorkflowNoProgress{Mode: "off"},
+ 			MaxReviewRounds: 2, TimeoutMinutes: 60, VerifyTimeoutMinutes: 15,
+ 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
+ 			Verify: WorkflowVerify{Scope: VerifyScopeFull},
+@@ -1005,6 +1011,11 @@ func (c Config) Validate() error {
+ 	if !slices.Contains(LedgerModes, c.Tasks.Ledger) {
+ 		add("tasks.ledger: phải là " + strings.Join(LedgerModes, " | "))
+ 	}
++	if c.Workflow.NoProgress.Mode == "stop" {
++		errs = append(errs, "workflow.no_progress.mode: stop chưa được hỗ trợ (off | shadow)")
++	} else if !slices.Contains([]string{"off", "shadow"}, c.Workflow.NoProgress.Mode) {
++		errs = append(errs, "workflow.no_progress.mode: phải là off | shadow")
++	}
+ 	if c.Workflow.MaxReviewRounds < 0 || c.Workflow.MaxReviewRounds > 10 {
+ 		add("workflow.max_review_rounds: phải trong khoảng 0..10")
+ 	}
+diff --git a/internal/config/no_progress_test.go b/internal/config/no_progress_test.go
+new file mode 100644
+index 0000000..174dc36
+--- /dev/null
++++ b/internal/config/no_progress_test.go
+@@ -0,0 +1,23 @@
++package config
++
++import (
++	"strings"
++	"testing"
++)
++
++func TestNoProgressModes(t *testing.T) {
++	if Default().Workflow.NoProgress.Mode != "off" {
++		t.Fatal("default not off")
++	}
++	for _, mode := range []string{"off", "shadow", "stop", "bogus", ""} {
++		c := Default()
++		c.Workflow.NoProgress.Mode = mode
++		err := c.Validate()
++		if (mode == "off" || mode == "shadow") != (err == nil) {
++			t.Fatalf("%q: %v", mode, err)
++		}
++		if mode == "stop" && !strings.Contains(err.Error(), "stop") {
++			t.Fatal(err)
++		}
++	}
++}
+diff --git a/internal/config/template.go b/internal/config/template.go
+index fd65313..36d5ba4 100644
+--- a/internal/config/template.go
++++ b/internal/config/template.go
+@@ -171,6 +171,8 @@ tasks:
+   ledger: git               # nơi lưu phiếu tác vụ: git (bản chiếu bền ở .bint/tasks/<ID>/ trong cây làm việc, commit cùng mã, tự nhập sau git pull; Bint không tự commit) | local (chỉ thư mục trạng thái cục bộ)
+ 
+ workflow:                   # workflow gốc do Bint điều phối (bint run)
++  no_progress:
++    mode: off               # off | shadow (chỉ quan sát, không dừng sớm); stop chưa hỗ trợ
+   max_review_rounds: 2      # số vòng review → sửa tối đa của b-do
+   timeout_minutes: 60       # mỗi bước agent
+   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
+diff --git a/internal/i18n/locales/en.yaml b/internal/i18n/locales/en.yaml
+index b255cb6..36f5ede 100644
+--- a/internal/i18n/locales/en.yaml
++++ b/internal/i18n/locales/en.yaml
+@@ -2635,3 +2635,6 @@ tk.runs.tokens: "{in} in · {out} out"
+ rn.f.cost: "Cost"
+ rn.f.tokens: "Tokens"
+ rn.tokens: "{in} in · {out} out"
++
++task_progress.title: "Task progress (read only)"
++task_progress.summary: "Tasks={tasks}, rounds={rounds}, measurable={comparable}, unknown={unknown}, would_stop={stops}, extra rounds={extra} (n={samples}), missing data={missing}, read errors={errors}, done with later clean review={clean}"
+diff --git a/internal/i18n/locales/vi.yaml b/internal/i18n/locales/vi.yaml
+index 5248c6c..b67f64f 100644
+--- a/internal/i18n/locales/vi.yaml
++++ b/internal/i18n/locales/vi.yaml
+@@ -2636,3 +2636,6 @@ tk.runs.tokens: "{in} vào · {out} ra"
+ rn.f.cost: "Chi phí"
+ rn.f.tokens: "Token"
+ rn.tokens: "{in} vào · {out} ra"
++
++task_progress.title: "Tiến triển tác vụ (chỉ đọc)"
++task_progress.summary: "Phiếu={tasks}, vòng={rounds}, đo được={comparable}, unknown={unknown}, would_stop={stops}, vòng thêm={extra} (n={samples}), thiếu dữ liệu={missing}, lỗi đọc={errors}, done với review sạch sau dừng={clean}"
+diff --git a/internal/task/progress.go b/internal/task/progress.go
+new file mode 100644
+index 0000000..b25590c
+--- /dev/null
++++ b/internal/task/progress.go
+@@ -0,0 +1,178 @@
++package task
++
++import (
++	"crypto/sha256"
++	"encoding/hex"
++	"path"
++	"regexp"
++	"slices"
++	"strconv"
++	"strings"
++)
++
++// ProgressLogLimit bounds both offline and live signature inputs.
++const ProgressLogLimit = 64 << 10
++
++var progressNoise = []*regexp.Regexp{
++	regexp.MustCompile(`\b\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?`),
++	regexp.MustCompile(`\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b`),
++	regexp.MustCompile(`(?i)[a-z]:[\\/](?:[^\s"'<>]*[\\/])?temp[\\/][^\s"'<>]*|/(?:private/)?(?:tmp|var/tmp|var/folders)/[^\s"'<>]*`),
++	regexp.MustCompile(`\b(?:\d+(?:\.\d+)?(?:ns|µs|μs|us|ms|s|m|h))+\b`),
++	regexp.MustCompile(`(?i)\b(?:0x[0-9a-f]+|[0-9a-f]{12,})\b`),
++}
++
++// ProgressSignature is pure. It preserves line order and error text after removing volatile noise.
++func ProgressSignature(data []byte) string {
++	if len(data) > ProgressLogLimit {
++		data = data[len(data)-ProgressLogLimit:]
++	}
++	s := strings.ReplaceAll(string(data), "\r\n", "\n")
++	for i, re := range progressNoise {
++		replacement := ""
++		if i == 2 {
++			replacement = "<temp>"
++		}
++		s = re.ReplaceAllString(s, replacement)
++	}
++	var lines []string
++	for _, line := range strings.Split(s, "\n") {
++		if line = strings.Join(strings.Fields(line), " "); line != "" {
++			lines = append(lines, line)
++		}
++	}
++	if len(lines) == 0 {
++		return ""
++	}
++	sum := sha256.Sum256([]byte(strings.Join(lines, "\n")))
++	return hex.EncodeToString(sum[:])
++}
++
++// TreeMark never compares a Git tree with a HEAD/diff fingerprint.
++type TreeMark struct {
++	Kind  string `json:"kind"`
++	Value string `json:"value"`
++}
++
++type ProgressRepair struct {
++	Step        string   `json:"step,omitempty"`
++	VerifyStart int      `json:"verify_start"`
++	RunID       string   `json:"run_id"`
++	Before      TreeMark `json:"before"`
++	After       TreeMark `json:"after"`
++	At          string   `json:"at"`
++}
++
++type ProgressVerification struct {
++	Command   string `json:"command"`
++	Ran       string `json:"ran,omitempty"`
++	Scope     string `json:"scope"`
++	Signature string `json:"signature,omitempty"`
++	Passed    bool   `json:"passed"`
++	TimedOut  bool   `json:"timed_out,omitempty"`
++	ExitCode  int    `json:"exit_code"`
++	// Selection identifies the exact affected-test domain, not just its tier.
++	Selection string `json:"selection,omitempty"`
++}
++
++// ProgressEvidence is local machine evidence, deliberately excluded from Durable.
++type ProgressEvidence struct {
++	CompletionAt   string                `json:"completion_at,omitempty"`
++	Domain         string                `json:"domain,omitempty"`
++	At             string                `json:"at,omitempty"`
++	ReviewRound    int                   `json:"review_round,omitempty"`
++	Round          int                   `json:"round"`
++	Checkpoint     string                `json:"checkpoint"`
++	RunID          string                `json:"run_id,omitempty"`
++	RepairRunID    string                `json:"repair_run_id,omitempty"`
++	Completed      bool                  `json:"completed"`
++	Before         TreeMark              `json:"before"`
++	After          TreeMark              `json:"after"`
++	Verification   *ProgressVerification `json:"verification,omitempty"`
++	FindingsKnown  bool                  `json:"findings_known"`
++	Findings       []Finding             `json:"findings,omitempty"`
++	MissingReasons []string              `json:"missing_reasons,omitempty"`
++}
++
++type ProgressObservation struct {
++	ProgressEvidence
++	NoChange     *bool    `json:"no_change"`
++	SameFailure  *bool    `json:"same_failure"`
++	NewScope     *bool    `json:"new_scope"`
++	BlockingKeys []string `json:"blocking_keys"`
++	WouldStop    bool     `json:"would_stop"`
++}
++
++func progressPath(s string) string {
++	s = strings.ReplaceAll(strings.TrimSpace(s), "\\", "/")
++	if s == "" {
++		return ""
++	}
++	return path.Clean(s)
++}
++func progressPaths(fs []Finding) []string {
++	var out []string
++	for _, f := range fs {
++		if p := progressPath(f.Path); p != "" {
++			out = append(out, p)
++		}
++	}
++	slices.Sort(out)
++	return slices.Compact(out)
++}
++
++func ProgressBlockingKeys(fs []Finding) []string {
++	out := []string{}
++	for _, f := range fs {
++		if !f.Blocking() {
++			continue
++		}
++		p := progressPath(f.Path)
++		key := "path:" + p
++		if p == "" {
++			key = "title:" + strings.ToLower(strings.Join(strings.Fields(f.Title), " "))
++		}
++		out = append(out, key+"#"+strconv.Itoa(f.Criterion))
++	}
++	slices.Sort(out)
++	return slices.Compact(out)
++}
++
++// DetectProgress does no I/O, clock or Git calls. Unknown signals are null, with explicit reasons.
++func DetectProgress(cur ProgressEvidence, prev *ProgressEvidence, seenPaths []string) ProgressObservation {
++	o := ProgressObservation{ProgressEvidence: cur, BlockingKeys: ProgressBlockingKeys(cur.Findings)}
++	o.MissingReasons = slices.Clone(cur.MissingReasons)
++	known := func(b bool) *bool { return &b }
++	if cur.Completed && cur.Before.Value != "" && cur.After.Value != "" && cur.Before.Kind == cur.After.Kind && (cur.Before.Kind == "tree" || cur.Before.Kind == "fingerprint") {
++		o.NoChange = known(cur.Before.Value == cur.After.Value)
++	} else {
++		o.MissingReasons = append(o.MissingReasons, "repair tree evidence unavailable or incompatible")
++	}
++	prior := prev != nil && prev.Checkpoint == cur.Checkpoint && prev.Domain == cur.Domain && prev.Round < cur.Round && prev.Completed && cur.Completed && prev.RepairRunID != "" && cur.RepairRunID != "" && prev.RepairRunID != cur.RepairRunID
++	if !prior {
++		o.MissingReasons = append(o.MissingReasons, "no previous comparable completed repair")
++	}
++	if prior && prev.FindingsKnown && cur.FindingsKnown && comparableProgressVerify(cur.Verification, prev.Verification) {
++		a, b := cur.Verification, prev.Verification
++		o.SameFailure = known(!a.Passed && !b.Passed && !a.TimedOut && !b.TimedOut && a.ExitCode != 0 && b.ExitCode != 0 && a.Signature == b.Signature && slices.Equal(o.BlockingKeys, ProgressBlockingKeys(prev.Findings)))
++	} else {
++		o.MissingReasons = append(o.MissingReasons, "verification output, domain or blocking findings unavailable")
++	}
++	if prior && cur.FindingsKnown && prev.FindingsKnown {
++		fresh := false
++		for _, p := range progressPaths(cur.Findings) {
++			if !slices.Contains(seenPaths, p) {
++				fresh = true
++			}
++		}
++		o.NewScope = known(fresh)
++	}
++	o.WouldStop = prior && ((o.NoChange != nil && *o.NoChange) || (o.SameFailure != nil && *o.SameFailure))
++	return o
++}
++
++func comparableProgressVerify(a, b *ProgressVerification) bool {
++	if a == nil || b == nil || a.Command == "" || b.Command == "" || a.Signature == "" || b.Signature == "" {
++		return false
++	}
++	return a.Command == b.Command && a.Ran == b.Ran && a.Scope == b.Scope && a.Scope != "none" && a.Selection == b.Selection
++}
+diff --git a/internal/task/progress_read.go b/internal/task/progress_read.go
+new file mode 100644
+index 0000000..8c038f9
+--- /dev/null
++++ b/internal/task/progress_read.go
+@@ -0,0 +1,458 @@
++package task
++
++import (
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"os"
++	"path/filepath"
++	"slices"
++	"strings"
++	"time"
++)
++
++// ReadProgressSignature only reads regular local log files beneath this task's logs directory.
++// os.Root also prevents symlinks from escaping that directory.
++func ReadProgressSignature(taskDir, log string) (string, error) {
++	if log == "" {
++		return "", fmt.Errorf("verification log missing")
++	}
++	logs := filepath.Join(taskDir, "logs")
++	rel, err := filepath.Rel(logs, log)
++	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
++		return "", fmt.Errorf("verification log outside local logs directory")
++	}
++	root, err := os.OpenRoot(logs)
++	if err != nil {
++		return "", err
++	}
++	defer root.Close()
++	st, err := root.Stat(rel)
++	if err != nil {
++		return "", err
++	}
++	if !st.Mode().IsRegular() {
++		return "", fmt.Errorf("verification log is not regular")
++	}
++	f, err := root.Open(rel)
++	if err != nil {
++		return "", err
++	}
++	defer f.Close()
++	st, err = f.Stat()
++	if err != nil {
++		return "", err
++	}
++	if !st.Mode().IsRegular() {
++		return "", fmt.Errorf("verification log is not regular")
++	}
++	n := min(st.Size(), int64(ProgressLogLimit))
++	data := make([]byte, n)
++	read, err := f.ReadAt(data, max(0, st.Size()-n))
++	if err != nil && !errors.Is(err, io.EOF) {
++		return "", err
++	}
++	return ProgressSignature(data[:read]), nil
++}
++
++// ProgressVerifyEvidence separates bounded file I/O from the pure detector.
++func ProgressVerifyEvidence(taskDir string, v *Verification) (*ProgressVerification, error) {
++	if v == nil {
++		return nil, fmt.Errorf("verification missing or ambiguous")
++	}
++	sig, err := ReadProgressSignature(taskDir, v.Log)
++	scope := v.Scope
++	if scope == "" {
++		scope = "full"
++	}
++	ran := v.Ran
++	if ran == "" {
++		ran = v.Command
++	}
++	selection := ""
++	if scope != "full" {
++		if v.Selection == nil {
++			return nil, fmt.Errorf("affected verification selection missing")
++		}
++		b, _ := json.Marshal(v.Selection)
++		selection = string(b)
++	}
++	return &ProgressVerification{Command: v.Command, Ran: ran, Scope: scope, Signature: sig, Passed: v.Passed, TimedOut: v.TimedOut, ExitCode: v.ExitCode, Selection: selection}, err
++}
++
++type TaskProgress struct {
++	ID                           string                `json:"id"`
++	Status                       string                `json:"status"`
++	Source                       string                `json:"source"`
++	RoundCount                   int                   `json:"round_count"`
++	Rounds                       []ProgressObservation `json:"rounds"`
++	FirstWouldStopRound          *int                  `json:"first_would_stop_round"`
++	ExtraRounds                  *int                  `json:"extra_rounds"`
++	DoneAfterStopWithCleanReview bool                  `json:"done_after_stop_with_clean_review"`
++	MissingReasons               []string              `json:"missing_reasons,omitempty"`
++}
++
++type ProgressSummary struct {
++	Tasks                        int `json:"tasks"`
++	Rounds                       int `json:"rounds"`
++	ComparableRounds             int `json:"comparable_rounds"`
++	WouldStop                    int `json:"would_stop"`
++	TasksWouldStop               int `json:"tasks_would_stop"`
++	ExtraRounds                  int `json:"extra_rounds"`
++	ExtraRoundsSamples           int `json:"extra_rounds_samples"`
++	DoneAfterStopWithCleanReview int `json:"done_after_stop_with_clean_review"`
++	UnknownRounds                int `json:"unknown_rounds"`
++	TasksWithoutRounds           int `json:"tasks_without_rounds"`
++	TasksWithMissingData         int `json:"tasks_with_missing_data"`
++	ReadErrors                   int `json:"read_errors"`
++}
++
++type ProgressReport struct {
++	Tasks    []TaskProgress  `json:"tasks"`
++	Warnings []string        `json:"warnings"`
++	Summary  ProgressSummary `json:"summary"`
++}
++
++// Progress deliberately bypasses Store.List/Load (which can import a Git ledger).
++// It does not create directories, reconcile, open SQLite, invoke Git, or run commands.
++func (s Store) Progress() (ProgressReport, error) {
++	out := ProgressReport{Tasks: []TaskProgress{}, Warnings: []string{}}
++	dirs := []struct{ path, source string }{{s.Dir, "runtime"}}
++	if s.Ledger {
++		dirs = append(dirs, struct{ path, source string }{filepath.Join(s.Root, LedgerDir), "git"})
++	}
++	loaded := map[string]*Task{}
++	sources := map[string]string{}
++	for _, base := range dirs {
++		entries, err := os.ReadDir(base.path)
++		if errors.Is(err, os.ErrNotExist) {
++			continue
++		}
++		if err != nil {
++			return out, err
++		}
++		for _, entry := range entries {
++			if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
++				continue
++			}
++			dir := filepath.Join(base.path, entry.Name())
++			tk, err := readProgressTask(dir, entry.Name(), base.source == "git")
++			if err != nil {
++				out.Warnings = append(out.Warnings, fmt.Sprintf("%s/%s: %v", base.source, entry.Name(), err))
++				out.Summary.ReadErrors++
++				continue
++			}
++			if old, ok := loaded[entry.Name()]; ok {
++				a, _ := json.Marshal(ToDurable(old.State))
++				b, _ := json.Marshal(ToDurable(tk.State))
++				if string(a) != string(b) {
++					out.Warnings = append(out.Warnings, entry.Name()+": runtime/ledger differ; runtime selected")
++				}
++				continue
++			}
++			loaded[entry.Name()], sources[entry.Name()] = tk, base.source
++		}
++	}
++	ids := make([]string, 0, len(loaded))
++	for id := range loaded {
++		ids = append(ids, id)
++	}
++	slices.Sort(ids)
++	for _, id := range ids {
++		tk := loaded[id]
++		rev := &Review{}
++		data, err := readProgressFile(tk.Dir, ReviewFile)
++		if err == nil {
++			err = json.Unmarshal(data, rev)
++		}
++		warnings := []string{}
++		if err != nil {
++			warnings = append(warnings, "review unavailable: "+err.Error())
++			out.Summary.ReadErrors++
++			out.Warnings = append(out.Warnings, id+": "+warnings[0])
++		}
++		p := analyzeProgress(tk, rev, sources[id], warnings)
++		out.Tasks = append(out.Tasks, p)
++		out.Summary.Tasks++
++		out.Summary.Rounds += p.RoundCount
++		missing := len(p.MissingReasons) > 0
++		if p.RoundCount == 0 {
++			out.Summary.TasksWithoutRounds++
++		}
++		for _, o := range p.Rounds {
++			if o.NoChange == nil && o.SameFailure == nil {
++				out.Summary.UnknownRounds++
++			} else {
++				out.Summary.ComparableRounds++
++			}
++			if o.WouldStop {
++				out.Summary.WouldStop++
++			}
++			missing = missing || len(o.MissingReasons) > 0
++		}
++		if missing {
++			out.Summary.TasksWithMissingData++
++		}
++		if p.FirstWouldStopRound != nil {
++			out.Summary.TasksWouldStop++
++		}
++		if p.ExtraRounds != nil {
++			out.Summary.ExtraRoundsSamples++
++			out.Summary.ExtraRounds += *p.ExtraRounds
++		}
++		if p.DoneAfterStopWithCleanReview {
++			out.Summary.DoneAfterStopWithCleanReview++
++		}
++	}
++	return out, nil
++}
++
++func readProgressFile(dir, name string) ([]byte, error) {
++	root, err := os.OpenRoot(dir)
++	if err != nil {
++		return nil, err
++	}
++	defer root.Close()
++	st, err := root.Stat(name)
++	if err != nil {
++		return nil, err
++	}
++	if !st.Mode().IsRegular() || st.Size() > 8<<20 {
++		return nil, fmt.Errorf("%s: not regular or too large", name)
++	}
++	f, err := root.Open(name)
++	if err != nil {
++		return nil, err
++	}
++	defer f.Close()
++	return io.ReadAll(io.LimitReader(f, (8<<20)+1))
++}
++func readProgressTask(dir, id string, durable bool) (*Task, error) {
++	data, err := readProgressFile(dir, StateFile)
++	if err != nil {
++		return nil, err
++	}
++	tk := &Task{Dir: dir}
++	if durable {
++		var d Durable
++		if err = json.Unmarshal(data, &d); err != nil {
++			return nil, err
++		}
++		d.ApplyTo(&tk.State)
++	} else if err = json.Unmarshal(data, &tk.State); err != nil {
++		return nil, err
++	}
++	if tk.State.ID != id {
++		return nil, fmt.Errorf("state ID does not match directory")
++	}
++	data, err = readProgressFile(dir, TicketFile)
++	if err != nil {
++		return nil, err
++	}
++	tk.Ticket, err = decodeTicket(data)
++	if err != nil {
++		return nil, err
++	}
++	if tk.Ticket.ID != id {
++		return nil, fmt.Errorf("ticket ID does not match directory")
++	}
++	return tk, nil
++}
++
++func analyzeProgress(tk *Task, rev *Review, source string, warnings []string) TaskProgress {
++	p := TaskProgress{ID: tk.State.ID, Status: tk.State.Status, Source: source, Rounds: []ProgressObservation{}, MissingReasons: warnings}
++	if source == "git" {
++		p.MissingReasons = append(p.MissingReasons, "Git ledger has no local logs or repair tree evidence")
++	}
++	// Saved shadow checkpoints are authoritative local evidence. Historical reviews not represented
++	// by those checkpoints remain visible; never pair verification slices by index.
++	covered := map[int]ProgressObservation{}
++	for _, saved := range tk.State.NoProgress {
++		p.Rounds = append(p.Rounds, saved)
++		if saved.ReviewRound > 0 {
++			covered[saved.ReviewRound] = saved
++		}
++	}
++	var prev *ProgressEvidence
++	seen := []string{}
++	lower := ""
++	for _, rd := range rev.Rounds {
++		if saved, ok := covered[rd.Round]; ok {
++			copy := saved.ProgressEvidence
++			if saved.Checkpoint == "review" {
++				prev = &copy
++			} else {
++				prev = nil
++			}
++			lower = rd.At
++			seen = append(seen, progressPaths(rd.Findings)...)
++			continue
++		}
++		e := ProgressEvidence{Round: rd.Round, ReviewRound: rd.Round, At: rd.At, Checkpoint: "review", RunID: rd.RunID, FindingsKnown: true, Findings: rd.Findings}
++		// Exactly one completed implement transition and one verification inside the review interval
++		// is the minimum historical linkage. Missing/invalid times and multiple reviewers stay unknown.
++		upper, upErr := time.Parse(time.RFC3339Nano, rd.At)
++		lo, loErr := time.Parse(time.RFC3339Nano, lower)
++		var vs []*Verification
++		var completions []string
++		if upErr == nil && (lower == "" || loErr == nil) {
++			for _, h := range tk.State.History {
++				at, err := time.Parse(time.RFC3339Nano, h.At)
++				if err == nil && !at.After(upper) && (lower == "" || at.After(lo)) && h.From == StatusInProgress && h.To == StatusInReview {
++					completions = append(completions, h.At)
++				}
++			}
++			for i := range tk.State.Verifications {
++				v := &tk.State.Verifications[i]
++				at, err := time.Parse(time.RFC3339Nano, v.At)
++				if err == nil && !at.After(upper) && (lower == "" || at.After(lo)) {
++					vs = append(vs, v)
++				}
++			}
++		}
++		if len(completions) == 1 {
++			e.Completed = true
++			e.RepairRunID = "history:" + completions[0]
++			e.CompletionAt = completions[0]
++			// A clean review has no live shadow checkpoint. Recover its repair boundary
++			// only from completed repairs uniquely inside this same historical interval.
++			var repairs []ProgressRepair
++			for _, repair := range tk.State.ProgressRepairs {
++				at, err := time.Parse(time.RFC3339Nano, repair.At)
++				if err == nil && !at.After(upper) && (lower == "" || at.After(lo)) {
++					repairs = append(repairs, repair)
++				}
++			}
++			if len(repairs) > 0 {
++				first, last := repairs[0], repairs[len(repairs)-1]
++				e.Before, e.After, e.RepairRunID = first.Before, last.After, last.RunID
++				var domain []string
++				for _, repair := range repairs {
++					domain = append(domain, repair.Step)
++					if repair.Before.Value == "" || repair.After.Value == "" {
++						e.Before.Value = ""
++					}
++				}
++				e.Domain = strings.Join(domain, "/")
++			}
++		}
++		if len(vs) == 1 && e.Completed && source == "runtime" {
++			var err error
++			e.Verification, err = ProgressVerifyEvidence(tk.Dir, vs[0])
++			if err != nil {
++				e.MissingReasons = append(e.MissingReasons, err.Error())
++			}
++		} else {
++			e.MissingReasons = append(e.MissingReasons, "historical verification/repair linkage unavailable or ambiguous")
++		}
++		o := DetectProgress(e, prev, seen)
++		if len(rd.Blocking()) == 0 {
++			o.WouldStop = false
++		} // a clean review never requests another fix
++		p.Rounds = append(p.Rounds, o)
++		copy := e
++		prev = &copy
++		seen = append(seen, progressPaths(rd.Findings)...)
++		lower = rd.At
++	}
++	slices.SortStableFunc(p.Rounds, func(a, b ProgressObservation) int {
++		if a.ReviewRound > 0 && b.ReviewRound > 0 && a.ReviewRound != b.ReviewRound {
++			return a.ReviewRound - b.ReviewRound
++		}
++		if a.At != "" && b.At != "" && a.At != b.At {
++			return strings.Compare(a.At, b.At)
++		}
++		return a.Round - b.Round
++	})
++	// Report rounds have one chronological numbering; review_round retains the source number.
++	for i := range p.Rounds {
++		p.Rounds[i].Round = i + 1
++	}
++	p.RoundCount = len(p.Rounds)
++	stopIndex := -1
++	for i, o := range p.Rounds {
++		if o.WouldStop {
++			n := o.Round
++			p.FirstWouldStopRound = &n
++			stopIndex = i
++			break
++		}
++	}
++	if stopIndex >= 0 {
++		stop := p.Rounds[stopIndex]
++		index := -1
++		for i, repair := range tk.State.ProgressRepairs {
++			if repair.RunID == stop.RepairRunID {
++				index = i
++			}
++		}
++		unrecorded := false
++		for _, o := range p.Rounds[stopIndex+1:] {
++			if o.RepairRunID == "" || strings.HasPrefix(o.RepairRunID, "history:") {
++				unrecorded = true
++			}
++		}
++		// A mode-off completion or later unlinked clean review cannot prove zero extra repairs.
++		if stop.At != "" {
++			stopAt, err := time.Parse(time.RFC3339Nano, stop.At)
++			if err != nil {
++				unrecorded = true
++			} else {
++				for _, h := range tk.State.History {
++					at, err := time.Parse(time.RFC3339Nano, h.At)
++					if err == nil && at.After(stopAt) && h.From == StatusInProgress && h.To == StatusInReview {
++						matched := false
++						for _, o := range p.Rounds[stopIndex+1:] {
++							// Historical reconstruction associates the completion with its persisted repair ID.
++							if o.Completed && !strings.HasPrefix(o.RepairRunID, "history:") && o.RepairRunID != "" && o.CompletionAt == h.At {
++								matched = true
++								break
++							}
++						}
++						if !matched {
++							unrecorded = true
++						}
++					}
++				}
++			}
++		}
++		if index >= 0 && !unrecorded {
++			n := 0
++			valid := true
++			later := tk.State.ProgressRepairs[index+1:]
++			domain := strings.Split(stop.Domain, "/")
++			if len(later) > 0 && stop.Domain == "" {
++				valid = false
++			}
++			if len(later)%len(domain) != 0 {
++				valid = false
++			}
++			if valid {
++				for i, repair := range later {
++					if repair.Step != domain[i%len(domain)] {
++						valid = false
++						break
++					}
++				}
++				n = len(later) / len(domain)
++			}
++			if valid {
++				p.ExtraRounds = &n
++			} else {
++				p.MissingReasons = append(p.MissingReasons, "later repair cycle boundaries unavailable")
++			}
++		} else {
++			p.MissingReasons = append(p.MissingReasons, "extra repair count unavailable")
++		}
++
++		if tk.State.Status == StatusDone && stop.ReviewRound > 0 {
++			for _, rd := range rev.Rounds {
++				if rd.Round > stop.ReviewRound && len(rd.Blocking()) == 0 {
++					p.DoneAfterStopWithCleanReview = true
++				}
++			}
++		}
++	}
++	return p
++}
+diff --git a/internal/task/progress_read_test.go b/internal/task/progress_read_test.go
+new file mode 100644
+index 0000000..e1a1faf
+--- /dev/null
++++ b/internal/task/progress_read_test.go
+@@ -0,0 +1,174 @@
++package task
++
++import (
++	"encoding/json"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++)
++
++func TestProgressReadOnlyLedgerAndBroken(t *testing.T) {
++	root := t.TempDir()
++	e := newEnv(t, root)
++	tk := newTask(t, e, "done ticket")
++	if _, err := e.s.Update(tk.State.ID, t0, func(tk *Task) error { tk.State.Status = StatusDone; return nil }); err != nil {
++		t.Fatal(err)
++	}
++	local := NewStore(t.TempDir())
++	local.Root = root
++	local.Ledger = true
++	local.Import = true
++	bad := filepath.Join(local.Dir, "BROKEN")
++	if err := os.MkdirAll(bad, 0700); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(bad, StateFile), []byte("{bad"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	report, err := local.Progress()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(report.Tasks) != 1 || report.Tasks[0].Status != StatusDone || len(report.Warnings) == 0 {
++		t.Fatalf("%+v", report)
++	}
++	if _, err := os.Stat(filepath.Join(local.Dir, tk.State.ID)); !os.IsNotExist(err) {
++		t.Fatal("imported ledger")
++	}
++	data, _ := json.Marshal(report)
++	if !json.Valid(data) {
++		t.Fatal("invalid JSON")
++	}
++}
++
++func TestProgressLogTailAndUnsafePaths(t *testing.T) {
++	dir := t.TempDir()
++	logs := filepath.Join(dir, "logs")
++	os.MkdirAll(logs, 0700)
++	log := filepath.Join(logs, "verify-1.log")
++	os.WriteFile(log, []byte("failure"), 0600)
++	sig, err := ReadProgressSignature(dir, log)
++	if err != nil || sig == "" {
++		t.Fatal(sig, err)
++	}
++	for _, p := range []string{"", filepath.Join(dir, "state.json"), filepath.Join(dir, "..", "other.log")} {
++		if _, err := ReadProgressSignature(dir, p); err == nil {
++			t.Fatal("unsafe path", p)
++		}
++	}
++}
++
++func TestProgressHistoricalAmbiguityAndShadowDedup(t *testing.T) {
++	fs := []Finding{{Kind: "bug", Severity: "high", Path: "a.go"}}
++	rev := &Review{Rounds: []ReviewRound{{Round: 1, At: "2026-11-16T10:01:00Z", Findings: fs}, {Round: 2, At: "2026-11-16T10:02:00Z", Findings: fs}}}
++	tk := &Task{Dir: t.TempDir(), State: State{ID: "x", Status: StatusBlocked}}
++	// Adjacent verification entries alone are never proof of two completed repairs.
++	tk.State.Verifications = []Verification{{At: "2026-11-16T10:00:30Z", Command: "false", ExitCode: 1}, {At: "2026-11-16T10:01:30Z", Command: "false", ExitCode: 1}}
++	p := analyzeProgress(tk, rev, "runtime", nil)
++	for _, o := range p.Rounds {
++		if o.WouldStop || o.NoChange != nil {
++			t.Fatal(o)
++		}
++	}
++	e := ProgressEvidence{Domain: "b-feat", Round: 1, ReviewRound: 1, Checkpoint: "review", RepairRunID: "one", Completed: true, FindingsKnown: true, Findings: fs}
++	first := DetectProgress(e, nil, nil)
++	e.Round, e.ReviewRound, e.RepairRunID = 2, 2, "two"
++	e.Before = TreeMark{"tree", "same"}
++	e.After = e.Before
++	second := DetectProgress(e, &first.ProgressEvidence, []string{"a.go"})
++	tk.State.NoProgress = []ProgressObservation{first, second}
++	tk.State.ProgressRepairs = []ProgressRepair{{RunID: "one", Step: "b-feat"}, {RunID: "two", Step: "b-feat"}, {RunID: "three", Step: "b-feat"}}
++	p = analyzeProgress(tk, rev, "runtime", nil)
++	if len(p.Rounds) != 2 || p.FirstWouldStopRound == nil || *p.FirstWouldStopRound != 2 || p.ExtraRounds == nil || *p.ExtraRounds != 1 {
++		t.Fatalf("%+v", p)
++	}
++}
++
++func TestProgressLogCannotEscapeThroughSymlink(t *testing.T) {
++	dir := t.TempDir()
++	logs := filepath.Join(dir, "logs")
++	os.MkdirAll(logs, 0700)
++	outside := filepath.Join(t.TempDir(), "secret.log")
++	os.WriteFile(outside, []byte("private"), 0600)
++	link := filepath.Join(logs, "verify-1.log")
++	if err := os.Symlink(outside, link); err != nil {
++		t.Skip(err)
++	}
++	if _, err := ReadProgressSignature(dir, link); err == nil {
++		t.Fatal("followed external log symlink")
++	}
++}
++
++func TestProgressSavedFullVerifyDoesNotDoubleCountCleanReview(t *testing.T) {
++	tk := &Task{State: State{NoProgress: []ProgressObservation{
++		{ProgressEvidence: ProgressEvidence{Round: 1, ReviewRound: 1, Checkpoint: "full_verify", RepairRunID: "a", Completed: true}},
++		{ProgressEvidence: ProgressEvidence{Round: 2, ReviewRound: 2, Checkpoint: "full_verify", RepairRunID: "b", Completed: true}, WouldStop: true},
++	}, Status: StatusDone}}
++	rev := &Review{Rounds: []ReviewRound{{Round: 1}, {Round: 2}}}
++	p := analyzeProgress(tk, rev, "runtime", nil)
++	if p.RoundCount != 2 || p.DoneAfterStopWithCleanReview {
++		t.Fatalf("double-counted or earlier review counted: %+v", p)
++	}
++}
++
++func TestProgressUnrecordedExtraRepairsAreUnknown(t *testing.T) {
++	tk := &Task{State: State{Status: StatusDone, ProgressRepairs: []ProgressRepair{{RunID: "stop"}}, NoProgress: []ProgressObservation{{ProgressEvidence: ProgressEvidence{Round: 2, ReviewRound: 2, RepairRunID: "stop", Checkpoint: "review"}, WouldStop: true}}}}
++	rev := &Review{Rounds: []ReviewRound{{Round: 3}}}
++	if p := analyzeProgress(tk, rev, "runtime", nil); p.ExtraRounds != nil {
++		t.Fatalf("fabricated zero: %+v", p)
++	}
++}
++
++func TestProgressLocalFieldsOmittedFromDurable(t *testing.T) {
++	old, err := json.Marshal(State{ID: "old"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, key := range []string{"no_progress", "progress_repairs", "progress_before"} {
++		if strings.Contains(string(old), key) {
++			t.Fatal("old state grew optional fields")
++		}
++	}
++	st := State{ID: "x", NoProgress: []ProgressObservation{{ProgressEvidence: ProgressEvidence{RepairRunID: "local"}}}, ProgressRepairs: []ProgressRepair{{RunID: "local"}}}
++	durable, err := json.Marshal(ToDurable(st))
++	if err != nil {
++		t.Fatal(err)
++	}
++	if strings.Contains(string(durable), "local") || strings.Contains(string(durable), "progress") {
++		t.Fatal(string(durable))
++	}
++}
++
++func TestProgressMixedShadowUsesImmediateBaseline(t *testing.T) {
++	dir := t.TempDir()
++	os.MkdirAll(filepath.Join(dir, "logs"), 0700)
++	fs := []Finding{{Kind: "bug", Severity: "high", Path: "a.go"}}
++	tk := &Task{Dir: dir, State: State{ID: "mixed"}}
++	rev := &Review{}
++	for i := 1; i <= 3; i++ {
++		at := fmt.Sprintf("2026-11-16T10:0%d:00Z", i)
++		rev.Rounds = append(rev.Rounds, ReviewRound{Round: i, At: at, Findings: fs})
++		tk.State.History = append(tk.State.History, Transition{From: StatusInProgress, To: StatusInReview, At: fmt.Sprintf("2026-11-16T10:0%d:30Z", i-1)})
++		log := filepath.Join(dir, "logs", fmt.Sprintf("verify-%d.log", i))
++		os.WriteFile(log, []byte("failure A"), 0600)
++		tk.State.Verifications = append(tk.State.Verifications, Verification{Command: "test", ExitCode: 1, Log: log, At: fmt.Sprintf("2026-11-16T10:0%d:40Z", i-1)})
++	}
++	tk.State.NoProgress = []ProgressObservation{{ProgressEvidence: ProgressEvidence{Round: 2, ReviewRound: 2, Checkpoint: "review", Completed: true, RepairRunID: "middle", FindingsKnown: true, Findings: fs, Verification: &ProgressVerification{Command: "test", Ran: "test", Scope: "full", Signature: ProgressSignature([]byte("failure B")), ExitCode: 1}}}}
++	p := analyzeProgress(tk, rev, "runtime", nil)
++	if len(p.Rounds) != 3 || p.Rounds[2].WouldStop || p.Rounds[2].SameFailure == nil || *p.Rounds[2].SameFailure {
++		t.Fatalf("stale baseline: %+v", p)
++	}
++}
++
++func TestProgressCountsRecordedRepairBeforeCleanReview(t *testing.T) {
++	fs := []Finding{{Kind: "bug", Severity: "high", Path: "a.go"}}
++	e := ProgressEvidence{Domain: "b-feat", Round: 2, ReviewRound: 2, Checkpoint: "review", RepairRunID: "stop", Completed: true, FindingsKnown: true, Findings: fs, At: "2026-11-16T10:02:00Z"}
++	tk := &Task{State: State{Status: StatusDone, NoProgress: []ProgressObservation{{ProgressEvidence: e, WouldStop: true}}, ProgressRepairs: []ProgressRepair{{RunID: "stop", Step: "b-feat"}, {RunID: "later", Step: "b-feat", At: "2026-11-16T10:02:30Z", Before: TreeMark{"tree", "a"}, After: TreeMark{"tree", "b"}}}, History: []Transition{{From: StatusInProgress, To: StatusInReview, At: "2026-11-16T10:02:40Z"}}}}
++	rev := &Review{Rounds: []ReviewRound{{Round: 2, At: e.At, Findings: fs}, {Round: 3, At: "2026-11-16T10:03:00Z"}}}
++	p := analyzeProgress(tk, rev, "runtime", nil)
++	if p.ExtraRounds == nil || *p.ExtraRounds != 1 || !p.DoneAfterStopWithCleanReview {
++		t.Fatalf("recorded later repair lost: %+v", p)
++	}
++}
+diff --git a/internal/task/progress_test.go b/internal/task/progress_test.go
+new file mode 100644
+index 0000000..e803de0
+--- /dev/null
++++ b/internal/task/progress_test.go
+@@ -0,0 +1,94 @@
++package task
++
++import (
++	"slices"
++	"strings"
++	"testing"
++)
++
++func TestProgressSignature(t *testing.T) {
++	a := "2026-11-16T12:30:01.123Z FAIL /tmp/go-build123/a.go 12ms 0x123abc abcdef1234567890\r\n  bad   value\n\n"
++	b := "2025-01-02T01:02:03Z FAIL C:\\Users\\bob\\AppData\\Local\\Temp\\go-build999\\a.go 0.3s 0x999def 1234567890abcdef\n bad value\n"
++	if ProgressSignature([]byte(a)) != ProgressSignature([]byte(b)) {
++		t.Fatal("noise changed signature")
++	}
++	if ProgressSignature([]byte(a)) == ProgressSignature([]byte(a+"different error")) {
++		t.Fatal("error ignored")
++	}
++	if ProgressSignature([]byte(" \r\n\t")) != "" {
++		t.Fatal("empty log has signature")
++	}
++	tail := strings.Repeat("x", ProgressLogLimit)
++	if ProgressSignature([]byte("ignored"+tail)) != ProgressSignature([]byte(tail)) {
++		t.Fatal("not tail bounded")
++	}
++}
++
++func TestDetectProgress(t *testing.T) {
++	v := &ProgressVerification{Command: "test", Scope: "full", Signature: "failure", ExitCode: 1}
++	prev := ProgressEvidence{Round: 1, Checkpoint: "review", RepairRunID: "one", Completed: true, FindingsKnown: true, Verification: v,
++		Findings: []Finding{{Kind: "bug", Severity: "high", Path: "./a.go", Criterion: 1}}}
++	cur := prev
++	cur.Round, cur.RepairRunID, cur.Before, cur.After = 2, "two", TreeMark{"tree", "abc"}, TreeMark{"tree", "abc"}
++	cur.Findings = []Finding{{Kind: "bug", Severity: "high", Path: "a.go", Criterion: 1, ID: "different", Lines: "99"}, prev.Findings[0]}
++	got := DetectProgress(cur, &prev, []string{"a.go"})
++	if !got.WouldStop || got.NoChange == nil || !*got.NoChange || got.SameFailure == nil || !*got.SameFailure {
++		t.Fatalf("%+v", got)
++	}
++	for _, tc := range []struct {
++		name   string
++		change func(*ProgressEvidence)
++	}{
++		{"missing", func(e *ProgressEvidence) { e.Before = TreeMark{}; e.Verification = nil }},
++		{"types", func(e *ProgressEvidence) { e.Before.Kind = "fingerprint"; e.Verification = nil }},
++		{"timeout", func(e *ProgressEvidence) { e.Before = TreeMark{}; x := *v; x.TimedOut = true; e.Verification = &x }},
++		{"domain", func(e *ProgressEvidence) { e.Before = TreeMark{}; x := *v; x.Scope = "package"; e.Verification = &x }},
++		{"incomplete", func(e *ProgressEvidence) { e.Completed = false }},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			e := cur
++			tc.change(&e)
++			if DetectProgress(e, &prev, nil).WouldStop {
++				t.Fatal("unsafe decision")
++			}
++		})
++	}
++	if DetectProgress(cur, nil, nil).WouldStop {
++		t.Fatal("first round stopped")
++	}
++	cur.Before = TreeMark{}
++	cur.Findings[0].Criterion = 2
++	if DetectProgress(cur, &prev, []string{"a.go"}).WouldStop {
++		t.Fatal("different criteria matched")
++	}
++	cur.Findings = []Finding{{Kind: "suggestion", Severity: "low", Path: "new.go"}}
++	cur.Verification = nil
++	got = DetectProgress(cur, &prev, []string{"a.go"})
++	if got.NewScope == nil || !*got.NewScope || got.WouldStop {
++		t.Fatalf("new_scope blocks: %+v", got)
++	}
++}
++
++func TestProgressNoiseAloneIsEmpty(t *testing.T) {
++	if ProgressSignature([]byte("2026-11-16T12:30:00Z 123ms 0xabcdef\n")) != "" {
++		t.Fatal("noise alone must not establish failure")
++	}
++}
++
++func TestProgressCompoundDuration(t *testing.T) {
++	if ProgressSignature([]byte("FAIL took 1m2.3s")) != ProgressSignature([]byte("FAIL took 3m4.5s")) {
++		t.Fatal("compound duration not normalized")
++	}
++}
++
++func TestProgressBlockingKeys(t *testing.T) {
++	a := []Finding{{Kind: "bug", Severity: "high", Path: " ", Title: "  SAME  Problem ", Criterion: 2}, {Kind: "suggestion", Severity: "high", Path: "ignored.go"}}
++	b := []Finding{{Kind: "risk", Severity: "critical", Title: "same problem", Criterion: 2, ID: "changed", Lines: "8"}}
++	if !slices.Equal(ProgressBlockingKeys(a), ProgressBlockingKeys(b)) {
++		t.Fatal("missing path/title normalization")
++	}
++	b[0].Criterion = 3
++	if slices.Equal(ProgressBlockingKeys(a), ProgressBlockingKeys(b)) {
++		t.Fatal("criterion ignored")
++	}
++}
+diff --git a/internal/task/task.go b/internal/task/task.go
+index f0325c5..2c6cf1f 100644
+--- a/internal/task/task.go
++++ b/internal/task/task.go
+@@ -310,10 +310,13 @@ type Runner struct {
+ 
+ // State là trạng thái tác vụ (state.json), chỉ Bint ghi.
+ type State struct {
+-	Schema   int    `json:"schema"`
+-	ID       string `json:"id"`
+-	Status   string `json:"status"`
+-	Workflow string `json:"workflow"`
++	// NoProgress is local shadow evidence; never exported through Durable.
++	NoProgress      []ProgressObservation `json:"no_progress,omitempty"`
++	ProgressRepairs []ProgressRepair      `json:"progress_repairs,omitempty"`
++	Schema          int                   `json:"schema"`
++	ID              string                `json:"id"`
++	Status          string                `json:"status"`
++	Workflow        string                `json:"workflow"`
+ 	// FlowStep là id bước của flow đang chạy hoặc kế tiếp (Runner ghi khi mở bước và khi chuyển bước; rỗng = chưa theo
+ 	// dõi, Runner suy từ trạng thái như flow nhúng). FlowSHA là băm định nghĩa flow lúc lập phiếu (flow.Hash), chỉ với
+ 	// flow tuỳ biến: khác băm hiện tại nghĩa là flow đã đổi giữa chừng và tác vụ bị chặn.
+@@ -459,12 +462,13 @@ type PendingStep struct {
+ 	// Mode: chế độ khoá của bước ("shared" | "exclusive").
+ 	Mode string `json:"mode"`
+ 	// Snapshot: cây làm việc trước bước chỉ đọc; FeatBefore: cây trước b-feat (cho Touched); FirstFeat: lần b-feat đầu.
+-	Snapshot   string `json:"snapshot,omitempty"`
+-	FeatBefore string `json:"feat_before,omitempty"`
+-	FirstFeat  bool   `json:"first_feat,omitempty"`
+-	Harness    string `json:"harness,omitempty"`
+-	Model      string `json:"model,omitempty"`
+-	Subagent   string `json:"subagent,omitempty"`
++	Snapshot       string `json:"snapshot,omitempty"`
++	FeatBefore     string `json:"feat_before,omitempty"`
++	ProgressBefore string `json:"progress_before,omitempty"`
++	FirstFeat      bool   `json:"first_feat,omitempty"`
++	Harness        string `json:"harness,omitempty"`
++	Model          string `json:"model,omitempty"`
++	Subagent       string `json:"subagent,omitempty"`
+ 	// Prompt là đề bài đã dựng lúc `next` (gọi lại `next` trả đúng nó, không dựng lại).
+ 	Prompt   string `json:"prompt"`
+ 	MaxTurns *int   `json:"max_turns,omitempty"`
+diff --git a/internal/tui/actions/cliref.go b/internal/tui/actions/cliref.go
+index 31d7c7d..f44daf1 100644
+--- a/internal/tui/actions/cliref.go
++++ b/internal/tui/actions/cliref.go
+@@ -84,6 +84,8 @@ var cliRefs = []cliRef{
+ 	{path: "task transitions", id: "tasks.transitions"},
+ 	{path: "task list", id: "tasks.list"},
+ 	{path: "task show", id: "tasks.show"},
++	// task progress is explicitly CLI-only in coverage.go: there is no equivalent TUI action.
++	// Do not rewrite its command into tasks.list, which cannot show this analysis.
+ 
+ 	{path: "runs rate", id: "runs.rate"},
+ 	{path: "runs scan", id: "runs.scan"},
+diff --git a/internal/tui/actions/coverage.go b/internal/tui/actions/coverage.go
+index e205ca7..1e97422 100644
+--- a/internal/tui/actions/coverage.go
++++ b/internal/tui/actions/coverage.go
+@@ -27,9 +27,15 @@ type Coverage struct {
+ // CurrentPhase là giai đoạn của kế hoạch TUI đã làm xong (docs/tui-plan.md mục 9).
+ const CurrentPhase = 6
+ 
++// CLI-only report keys are declared with their coverage metadata so catalog usage
++// remains explicit even though this report has no TUI screen.
++const TaskProgressTitleKey = "task_progress.title"
++const TaskProgressSummaryKey = "task_progress.summary"
++
+ // Data là dữ liệu phủ hiện hành.
+ var Data = Coverage{
+ 	Excluded: map[string]string{
++		"task progress":    "phân tích offline chỉ đọc, chưa có màn TUI; dùng CLI text/JSON",
+ 		"docs":             "lệnh dự kiến (P3 của kế hoạch Bint), chưa được triển khai nên chưa có gì để hiển thị",
+ 		"hook antigravity": "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+ 		"hook claude":      "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
+diff --git a/internal/workflow/no_progress.go b/internal/workflow/no_progress.go
+new file mode 100644
+index 0000000..4a261ee
+--- /dev/null
++++ b/internal/workflow/no_progress.go
+@@ -0,0 +1,180 @@
++package workflow
++
++import (
++	"context"
++	"fmt"
++	"slices"
++	"strings"
++
++	"bint/internal/task"
++)
++
++// recordProgressRepair runs under the existing implement lock, only for a completed step.
++// Observation errors never enter fail/block or change the workflow's branch decisions.
++func (r *Runner) recordProgressRepair(ctx context.Context, rs *runState, sr *stepRun) {
++	if r.Cfg.Workflow.NoProgress.Mode != "shadow" {
++		return
++	}
++	after, err := WorktreeSnapshot(ctx, r.Root)
++	if err != nil {
++		r.progressNote(rs, "repair snapshot unavailable: "+err.Error())
++	}
++	before := sr.progressBefore
++	if sr.originRunID != "" || sr.continuations > 0 {
++		before = ""
++	} // original pre-interruption tree is unavailable
++	repair := task.ProgressRepair{Step: sr.step, RunID: sr.child, Before: task.TreeMark{Kind: "tree", Value: before}, After: task.TreeMark{Kind: "tree", Value: after}, At: r.at(), VerifyStart: len(rs.t.State.Verifications)}
++	nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
++		for _, old := range t.State.ProgressRepairs {
++			if old.RunID == repair.RunID {
++				return nil
++			}
++		}
++		t.State.ProgressRepairs = append(t.State.ProgressRepairs, repair)
++		return nil
++	})
++	if err != nil {
++		r.progressNote(rs, "repair evidence not saved: "+err.Error())
++		return
++	}
++	rs.t = nt
++}
++
++func (r *Runner) progressNote(rs *runState, message string) {
++	message = "no_progress shadow: " + message
++	rs.res.Notes = append(rs.res.Notes, message)
++	r.logf("  %s", message)
++}
++
++func (r *Runner) observeProgress(rs *runState, checkpoint string, review *task.ReviewRound) {
++	if r.Cfg.Workflow.NoProgress.Mode != "shadow" {
++		return
++	}
++	repairs := rs.t.State.ProgressRepairs
++	e := task.ProgressEvidence{Round: len(repairs), Checkpoint: checkpoint, RunID: rs.runID, At: r.at()}
++	start := -1
++	cycleStart := 0
++	if len(rs.t.State.NoProgress) > 0 {
++		last := rs.t.State.NoProgress[len(rs.t.State.NoProgress)-1]
++		for i, repair := range repairs {
++			if repair.RunID == last.RepairRunID {
++				cycleStart = i + 1
++			}
++		}
++	}
++	if len(repairs) > 0 && cycleStart < len(repairs) {
++		first, last := repairs[cycleStart], repairs[len(repairs)-1]
++		e.RepairRunID = last.RunID
++		e.Completed = true
++		e.Before, e.After = first.Before, last.After
++		start = first.VerifyStart
++		var domain []string
++		for _, repair := range repairs[cycleStart:] {
++			domain = append(domain, repair.Step)
++			if repair.Before.Value == "" || repair.After.Value == "" {
++				e.Before.Value = ""
++			}
++		}
++		e.Domain = strings.Join(domain, "/")
++	} else if len(repairs) > 0 {
++		// Same cycle revisited at another checkpoint: use its last persisted boundary.
++		last := repairs[len(repairs)-1]
++		e.RepairRunID = last.RunID
++		for i := len(rs.t.State.NoProgress) - 1; i >= 0; i-- {
++			old := rs.t.State.NoProgress[i]
++			if old.RepairRunID == last.RunID {
++				e.Before, e.After, e.Completed, e.Domain = old.Before, old.After, old.Completed, old.Domain
++				break
++			}
++		}
++		start = last.VerifyStart
++	} else {
++		e.MissingReasons = append(e.MissingReasons, "completed repair evidence missing")
++	}
++	e.Round = 1
++	for _, old := range rs.t.State.NoProgress {
++		if old.Checkpoint == checkpoint {
++			e.Round = max(e.Round, old.Round+1)
++		}
++	}
++
++	if review != nil {
++		e.ReviewRound = review.Round
++		e.FindingsKnown = true
++		e.Findings = review.Findings
++	} else {
++		rev, err := rs.t.LoadReview()
++		if err == nil && rev.Last() != nil {
++			e.FindingsKnown = true
++			e.Findings = rev.Last().Findings
++			e.ReviewRound = rev.Last().Round
++		} else {
++			e.MissingReasons = append(e.MissingReasons, "review evidence missing")
++		}
++	}
++	// A checkpoint is recorded once per completed repair, including across session next/resume.
++	// Multiple clean reviewers do not create extra repair rounds.
++	for _, old := range rs.t.State.NoProgress {
++		if old.Checkpoint == checkpoint && old.RepairRunID == e.RepairRunID {
++			return
++		}
++	}
++	var candidates []*task.Verification
++	if start >= 0 && start <= len(rs.t.State.Verifications) {
++		for i := start; i < len(rs.t.State.Verifications); i++ {
++			v := &rs.t.State.Verifications[i]
++			if checkpoint == "full_verify" {
++				if !v.Full() || !strings.HasPrefix(v.Reason, partialReasonPrefix) {
++					continue
++				}
++			}
++			candidates = append(candidates, v)
++		}
++	}
++	if len(candidates) == 1 {
++		var err error
++		e.Verification, err = task.ProgressVerifyEvidence(rs.t.Dir, candidates[0])
++		if err != nil {
++			e.MissingReasons = append(e.MissingReasons, err.Error())
++		}
++	} else {
++		e.MissingReasons = append(e.MissingReasons, "verification missing or ambiguous for repair")
++	}
++	var prev *task.ProgressEvidence
++	seen := []string{}
++	for i := range rs.t.State.NoProgress {
++		old := &rs.t.State.NoProgress[i]
++		for _, finding := range old.Findings {
++			p := strings.TrimPrefix(strings.ReplaceAll(finding.Path, "\\", "/"), "./")
++			if p != "" {
++				seen = append(seen, p)
++			}
++		}
++		if old.Checkpoint == checkpoint {
++			copy := old.ProgressEvidence
++			prev = &copy
++		}
++	}
++	o := task.DetectProgress(e, prev, seen)
++	r.progressNote(rs, fmt.Sprintf("round=%d checkpoint=%s no_change=%s same_failure=%s new_scope=%s would_stop=%t", o.Round, checkpoint, progressSignal(o.NoChange), progressSignal(o.SameFailure), progressSignal(o.NewScope), o.WouldStop))
++	nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
++		if slices.ContainsFunc(t.State.NoProgress, func(old task.ProgressObservation) bool {
++			return old.Checkpoint == checkpoint && old.RepairRunID == o.RepairRunID
++		}) {
++			return nil
++		}
++		t.State.NoProgress = append(t.State.NoProgress, o)
++		return nil
++	})
++	if err != nil {
++		r.progressNote(rs, "observation not saved: "+err.Error())
++		return
++	}
++	rs.t = nt
++}
++func progressSignal(b *bool) string {
++	if b == nil {
++		return "unknown"
++	}
++	return fmt.Sprint(*b)
++}
+diff --git a/internal/workflow/no_progress_test.go b/internal/workflow/no_progress_test.go
+new file mode 100644
+index 0000000..73bfa10
+--- /dev/null
++++ b/internal/workflow/no_progress_test.go
+@@ -0,0 +1,214 @@
++package workflow
++
++import (
++	"context"
++	"fmt"
++	"reflect"
++	"strings"
++	"testing"
++
++	"bint/internal/task"
++)
++
++func TestNoProgressOffShadowProcessSession(t *testing.T) {
++	for _, session := range []bool{false, true} {
++		var baseline []string
++		var status string
++		for _, mode := range []string{"off", "shadow"} {
++			t.Run(mode+map[bool]string{false: "_process", true: "_session"}[session], func(t *testing.T) {
++				h := newHarness(t)
++				h.cfg.Workflow.NoProgress.Mode = mode
++				h.behave = h.blockingReview(2)
++				r := h.runner()
++				var logs strings.Builder
++				r.Logf = func(format string, args ...any) { fmt.Fprintf(&logs, format, args...) }
++				var tk *task.Task
++				var steps []string
++				var resultStatus string
++				if session {
++					tk = h.newSession(r, NewTaskOptions{})
++					steps, act := h.drive(r, tk.State.ID, false)
++					resultStatus = act.Status
++					_ = steps
++					// h.calls records the same fake-agent sequence for both drivers.
++				} else {
++					var err error
++					tk, _, err = r.NewTask(context.Background(), NewTaskOptions{Workflow: StepDo, Request: "Thêm tính năng app.txt"})
++					if err != nil {
++						t.Fatal(err)
++					}
++					res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: tk.State.ID})
++					if err != nil {
++						t.Fatal(err)
++					}
++					resultStatus = res.Status
++					if mode == "shadow" && !strings.Contains(strings.Join(res.Notes, " "), "no_progress shadow") {
++						t.Fatal("Result.Notes missing shadow")
++					}
++				}
++				steps = append(steps, h.calls...)
++				saved := loadTask(t, h, tk.State.ID)
++				if mode == "off" {
++					baseline = steps
++					status = resultStatus
++					if len(saved.State.NoProgress) != 0 || len(saved.State.ProgressRepairs) != 0 {
++						t.Fatal("off wrote observations")
++					}
++				} else {
++					if !reflect.DeepEqual(steps, baseline) || status != resultStatus {
++						t.Fatalf("changed flow: %v %s / %v %s", steps, resultStatus, baseline, status)
++					}
++					if !strings.Contains(logs.String(), "no_progress shadow") {
++						t.Fatal("shadow missing from Runner log")
++					}
++					if len(saved.State.NoProgress) != 2 || saved.State.NoProgress[0].WouldStop || !saved.State.NoProgress[1].WouldStop {
++						t.Fatalf("want first round conservative then no-change: %+v", saved.State.NoProgress)
++					}
++					if len(saved.State.NoProgress) == 0 || len(saved.State.ProgressRepairs) == 0 {
++						t.Fatal("no shadow evidence")
++					}
++					for _, o := range saved.State.NoProgress {
++						if o.Checkpoint != "review" {
++							t.Fatal(o)
++						}
++					}
++				}
++			})
++		}
++	}
++}
++
++func TestNoProgressObservationPureFailure(t *testing.T) {
++	h := newHarness(t)
++	h.cfg.Workflow.NoProgress.Mode = "shadow"
++	r := h.runner()
++	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Workflow: StepDo, Request: "app.txt"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	rs := &runState{t: tk, res: &Result{}}
++	r.observeProgress(rs, "full_verify", nil)
++	if len(rs.res.Notes) == 0 || !strings.Contains(rs.res.Notes[0], "shadow") {
++		t.Fatal(rs.res.Notes)
++	}
++}
++
++func TestNoProgressFullVerifyOffShadow(t *testing.T) {
++	for _, session := range []bool{false, true} {
++		var baseline []string
++		var baselineStatus string
++		for _, mode := range []string{"off", "shadow"} {
++			t.Run(mode+map[bool]string{false: "_process", true: "_session"}[session], func(t *testing.T) {
++				h := goHarness(t)
++				h.cfg.Workflow.NoProgress.Mode = mode
++				h.cfg.Workflow.MaxReviewRounds = 1
++				full := "echo stable_failure; test ! -f broken.txt"
++				h.cfg.Eval.TestCommand = &full
++				h.behaveFeat(func() {
++					h.write("a/a.go", "package a\n\nfunc A() int {return 2}\n")
++					h.write("broken.txt", "x\n")
++					h.write("done.txt", "ok\n")
++				})
++				r := h.runner()
++				var tk *task.Task
++				var status string
++				var notes []string
++				if session {
++					tk = h.newSession(r, NewTaskOptions{Plan: ptr(false), Request: "Thêm tính năng cho gói a"})
++					_, act := h.drive(r, tk.State.ID, false)
++					status = act.Status
++					notes = act.Notes
++				} else {
++					res, err := r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng cho gói a", Plan: ptr(false)})
++					if err != nil {
++						t.Fatal(err)
++					}
++					status = res.Status
++					tk = h.load(res.TaskID)
++					notes = res.Notes
++				}
++				saved := h.load(tk.State.ID)
++				if mode == "off" {
++					baseline = append([]string{}, h.calls...)
++					baselineStatus = status
++					if len(saved.State.NoProgress) != 0 {
++						t.Fatal("off observed")
++					}
++				} else {
++					if !reflect.DeepEqual(baseline, h.calls) || status != baselineStatus {
++						t.Fatalf("flow changed: %v %s / %v %s", h.calls, status, baseline, baselineStatus)
++					}
++					if len(saved.State.NoProgress) != 2 {
++						t.Fatalf("want two checkpoints: %+v notes=%v", saved.State.NoProgress, notes)
++					}
++					a, b := saved.State.NoProgress[0], saved.State.NoProgress[1]
++					if a.Checkpoint != "full_verify" || a.WouldStop || b.Checkpoint != "full_verify" || !b.WouldStop || b.SameFailure == nil || !*b.SameFailure {
++						t.Fatalf("%+v %+v", a, b)
++					}
++				}
++			})
++		}
++	}
++}
++
++func TestNoProgressMissingLogAndWriteFailure(t *testing.T) {
++	h := newHarness(t)
++	h.cfg.Workflow.NoProgress.Mode = "shadow"
++	r := h.runner()
++	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Workflow: StepDo, Request: "app.txt"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	tk.State.ProgressRepairs = []task.ProgressRepair{{RunID: "first"}, {RunID: "second", Before: task.TreeMark{Kind: "tree", Value: "same"}, After: task.TreeMark{Kind: "tree", Value: "same"}}}
++	tk.State.NoProgress = []task.ProgressObservation{{ProgressEvidence: task.ProgressEvidence{Round: 1, Checkpoint: "review", Completed: true, RepairRunID: "first"}}}
++	// Fail only the diagnostics update, without touching the workflow's normal task store.
++	r.Tasks.Dir = t.TempDir()
++	rs := &runState{t: tk, res: &Result{Status: task.StatusInReview}}
++	r.observeProgress(rs, "review", &task.ReviewRound{Round: 2})
++	if rs.res.Status != task.StatusInReview || len(rs.res.Notes) < 2 || !strings.Contains(strings.Join(rs.res.Notes, " "), "would_stop=true") || !strings.Contains(strings.Join(rs.res.Notes, " "), "not saved") {
++		t.Fatalf("%+v", rs.res)
++	}
++}
++
++func TestNoProgressContinuationHasUnknownTree(t *testing.T) {
++	h := newHarness(t)
++	h.cfg.Workflow.NoProgress.Mode = "shadow"
++	r := h.runner()
++	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Workflow: StepDo, Request: "app.txt"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	rs := &runState{t: tk, res: &Result{}}
++	r.recordProgressRepair(context.Background(), rs, &stepRun{child: "continued", step: StepFeat, progressBefore: "same", originRunID: "original"})
++	if len(rs.t.State.ProgressRepairs) != 1 || rs.t.State.ProgressRepairs[0].Before.Value != "" {
++		t.Fatal("continuation baseline treated as original repair", rs.t.State.ProgressRepairs)
++	}
++}
++
++func TestNoProgressWholeRepairSequence(t *testing.T) {
++	h := newHarness(t)
++	h.cfg.Workflow.NoProgress.Mode = "shadow"
++	r := h.runner()
++	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Workflow: StepDo, Request: "app.txt"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	rs := &runState{t: tk, res: &Result{}}
++	// Two implement steps belong to each repair cycle; the final step is a no-op.
++	first := task.ProgressRepair{RunID: "a1", Step: "impl-a", Before: task.TreeMark{Kind: "tree", Value: "original"}, After: task.TreeMark{Kind: "tree", Value: "changed"}}
++	last := task.ProgressRepair{RunID: "b1", Step: "impl-b", Before: first.After, After: first.After}
++	rs.t.State.ProgressRepairs = []task.ProgressRepair{first, last}
++	r.observeProgress(rs, "review", &task.ReviewRound{Round: 1})
++	first.RunID = "a2"
++	first.Before = first.After
++	first.After.Value = "changed-again"
++	last.RunID = "b2"
++	last.Before = first.After
++	last.After = first.After
++	rs.t.State.ProgressRepairs = append(rs.t.State.ProgressRepairs, first, last)
++	r.observeProgress(rs, "review", &task.ReviewRound{Round: 2})
++	got := rs.t.State.NoProgress[len(rs.t.State.NoProgress)-1]
++	if got.NoChange == nil || *got.NoChange || got.WouldStop || got.Domain != "impl-a/impl-b" {
++		t.Fatalf("not whole repair: %+v", got)
++	}
++}
+diff --git a/internal/workflow/run.go b/internal/workflow/run.go
+index d51e8af..2380876 100644
+--- a/internal/workflow/run.go
++++ b/internal/workflow/run.go
+@@ -890,6 +890,7 @@ type stepRun struct {
+ 	readOnly          bool
+ 	mode              LockMode
+ 	snapBefore        string
++	progressBefore    string
+ 	featBefore        string
+ 	firstFeat         bool
+ 	started           time.Time
+@@ -1202,6 +1203,12 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
+ 		sr.snapBefore = snap
+ 	} else if kind == flow.KindImplement {
+ 		sr.featBefore = r.beginTouched(ctx, rs, firstFeat)
++		if r.Cfg.Workflow.NoProgress.Mode == "shadow" {
++			sr.progressBefore = sr.featBefore
++			if sr.progressBefore == "" {
++				sr.progressBefore, _ = WorktreeSnapshot(ctx, r.Root)
++			}
++		}
+ 	}
+ 
+ 	sr.child = ulid.New()
+@@ -1423,6 +1430,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
+ 		return false
+ 	}
+ 	if status == "completed" && sr.kind == flow.KindImplement {
++		r.recordProgressRepair(ctx, rs, sr)
+ 		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.AwaitingCheck = true; return nil }); err == nil {
+ 			rs.t = t
+ 		}
+@@ -1883,6 +1891,7 @@ func (r *Runner) reviewDecision(ctx context.Context, rs *runState, last *task.Re
+ 		}
+ 		return r.finalize(ctx, rs)
+ 	}
++	r.observeProgress(rs, "review", last)
+ 	used := r.reviewRoundsUsed(rs, last)
+ 	if used <= r.Cfg.Workflow.MaxReviewRounds {
+ 		fix := rv.Fix
+@@ -2201,6 +2210,7 @@ func fullVerifyFailRounds(t *task.Task) int {
+ // fixAfterFullVerify đưa tác vụ về bước sửa khi kiểm chứng đầy đủ ở finalize hỏng và còn vòng trong
+ // workflow.max_review_rounds (cùng ngân sách với vòng sửa sau review). Trả false khi hết vòng hoặc chuyển trạng thái lỗi.
+ func (r *Runner) fixAfterFullVerify(rs *runState, how string) bool {
++	r.observeProgress(rs, "full_verify", nil)
+ 	used := fullVerifyFailRounds(rs.t)
+ 	if used > r.Cfg.Workflow.MaxReviewRounds {
+ 		return false
+diff --git a/internal/workflow/session.go b/internal/workflow/session.go
+index 55c488a..cf4ffb8 100644
+--- a/internal/workflow/session.go
++++ b/internal/workflow/session.go
+@@ -616,7 +616,7 @@ func (r *Runner) pendingFrom(rs *runState, sr *stepRun) *task.PendingStep {
+ 	now := leaseNow()
+ 	until := now.Add(time.Duration(r.Cfg.Workflow.TimeoutMinutes) * lockWaitUnit)
+ 	return &task.PendingStep{RunID: sr.child, ParentRunID: rs.runID, Step: sr.step, Mode: leaseModeName(sr.mode),
+-		Snapshot: sr.snapBefore, FeatBefore: sr.featBefore, FirstFeat: sr.firstFeat, Harness: sr.harness, Model: sr.reqModel,
++		Snapshot: sr.snapBefore, FeatBefore: sr.featBefore, ProgressBefore: sr.progressBefore, FirstFeat: sr.firstFeat, Harness: sr.harness, Model: sr.reqModel,
+ 		Kind: string(sr.kind), Subagent: subagentOf(sr.kind), Prompt: sr.prompt, MaxTurns: sr.maxTurns,
+ 		StartedAt: sr.started.UTC().Format(time.RFC3339Nano), LeaseUntil: until.UTC().Format(time.RFC3339Nano)}
+ }
+@@ -713,7 +713,7 @@ func (r *Runner) closePending(ctx context.Context, rs *runState, ps *task.Pendin
+ 	id := rs.t.State.ID
+ 	kind := kindOfPending(ps)
+ 	sr := &stepRun{step: ps.Step, kind: kind, child: ps.RunID, stepID: "st_" + ps.RunID, readOnly: readOnlyKind(kind), mode: mode,
+-		snapBefore: ps.Snapshot, featBefore: ps.FeatBefore, firstFeat: ps.FirstFeat, started: started, maxTurns: ps.MaxTurns,
++		snapBefore: ps.Snapshot, featBefore: ps.FeatBefore, progressBefore: ps.ProgressBefore, firstFeat: ps.FirstFeat, started: started, maxTurns: ps.MaxTurns,
+ 		reqModel: ps.Model, harness: ps.Harness, stepLog: rs.t.LogPath(ps.Step + "-" + ps.RunID + ".log"), lock: lock,
+ 		agentID: a.agentID, timedOut: a.timedOut, agentFailed: a.failed != "", continuations: ps.Continuations,
+ 		originRunID: ps.OriginRunID, usageBase: ps.UsageBase}

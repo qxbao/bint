@@ -37,7 +37,7 @@ func TestDepthSelectionProtectedPathsPromotesPlan(t *testing.T) {
 	req := "rename cột trong migrations/001.sql"
 	tk, a := newTaskWith(t, h, NewTaskOptions{Request: req, Workflow: "b-do"})
 	c := tk.State.Classification
-	if a.Risk != "high" || !c.Plan || c.Depth != task.DepthDeep || c.DepthReason != task.DepthReasonProtected || tk.State.PlanningContractVersion != 1 {
+	if a.Risk != "high" || !c.Plan || c.Depth != task.DepthDeep || c.DepthReason != task.DepthReasonProtected || tk.State.PlanningContractVersion != 2 {
 		t.Fatalf("auto: %+v %+v v=%d", a, c, tk.State.PlanningContractVersion)
 	}
 	tk, _ = newTaskWith(t, h, NewTaskOptions{Request: req, Workflow: "b-do", Plan: ptr(false)})
@@ -58,7 +58,7 @@ func TestAgentNoPlanOnProtectedKeepsPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := tk.State.Classification
-	if !c.Plan || c.Depth != task.DepthDeep || !strings.Contains(c.Reason, "agent không bỏ được b-req") || tk.State.PlanningContractVersion != 1 {
+	if !c.Plan || c.Depth != task.DepthDeep || !strings.Contains(c.Reason, "agent không bỏ được b-req") || tk.State.PlanningContractVersion != 2 {
 		t.Fatalf("agent --no-plan trên đường dẫn bảo vệ: %+v v=%d", c, tk.State.PlanningContractVersion)
 	}
 	// Không chạm đường dẫn bảo vệ: quyết định của orchestrator được tôn trọng, ghi rõ ai chỉ định.
@@ -132,7 +132,7 @@ func TestDepthSelectionExplicitDepth(t *testing.T) {
 	h := newHarness(t)
 	tk, _ := newTaskWith(t, h, NewTaskOptions{Request: "Đổi app.txt", Workflow: "b-do", Depth: "deep"})
 	c := tk.State.Classification
-	if !c.Plan || c.Depth != task.DepthDeep || c.DepthReason != task.DepthReasonUser || tk.State.PlanningContractVersion != 1 {
+	if !c.Plan || c.Depth != task.DepthDeep || c.DepthReason != task.DepthReasonUser || tk.State.PlanningContractVersion != 2 {
 		t.Fatalf("%+v", c)
 	}
 	// auto = tự chọn, không ép Plan.
@@ -185,7 +185,7 @@ func TestDepthSelectionExplicitOnCreatedTask(t *testing.T) {
 	}
 	got := loadTask(t, h, tk.State.ID)
 	c := got.State.Classification
-	if !c.Plan || c.Depth != task.DepthDeep || got.State.PlanningContractVersion != 1 {
+	if !c.Plan || c.Depth != task.DepthDeep || got.State.PlanningContractVersion != 2 {
 		t.Fatalf("%+v v=%d", c, got.State.PlanningContractVersion)
 	}
 	if countCalls(h, StepReq) != 1 {
@@ -330,7 +330,7 @@ func TestAgentNoPlanWithNewProtectedScope(t *testing.T) {
 	}
 	got := loadTask(t, h, tk.State.ID)
 	c := got.State.Classification
-	if !c.Plan || c.Depth != task.DepthDeep || c.DepthReason != task.DepthReasonProtected || !strings.Contains(c.Reason, "agent không bỏ được b-req") || got.State.PlanningContractVersion != 1 || len(h.calls) == 0 || h.calls[0] != StepReq {
+	if !c.Plan || c.Depth != task.DepthDeep || c.DepthReason != task.DepthReasonProtected || !strings.Contains(c.Reason, "agent không bỏ được b-req") || got.State.PlanningContractVersion != 2 || len(h.calls) == 0 || h.calls[0] != StepReq {
 		t.Fatalf("expected b-req on updated protected scope: classification=%+v contract=%d steps=%v", c, got.State.PlanningContractVersion, h.calls)
 	}
 }

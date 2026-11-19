@@ -58,7 +58,7 @@ func (h *harness) tddBehave(blockingRounds int) func(context.Context, string, *E
 			rounds++
 			body := `{"summary":"ổn","findings":[]}`
 			if rounds <= blockingRounds {
-				body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`
+				body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}]}`
 			}
 			_, _, err := e.SubmitReview(id, []byte(body))
 			return err
@@ -218,7 +218,7 @@ func (h *harness) twoReviewBehave(verdict func(step string, n int) bool) func(co
 		calls[step]++
 		body := `{"summary":"ổn","findings":[]}`
 		if verdict(step, calls[step]) {
-			body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai"}]}`
+			body = `{"summary":"lỗi","findings":[{"kind":"bug","severity":"high","title":"sai","path":"app.txt","lines":"1","evidence":"v2 sai","repro":"app.txt:1"}]}`
 		}
 		_, _, err := e.SubmitReview(id, []byte(body))
 		return err
@@ -646,7 +646,7 @@ func TestNewTaskCustomFlowRequiredPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c := tk.State.Classification; c == nil || !c.Plan || tk.State.PlanningContractVersion != task.PlanningContractV1 {
+	if c := tk.State.Classification; c == nil || !c.Plan || tk.State.PlanningContractVersion != task.PlanningContractV2 {
 		t.Fatalf("phân loại: %+v v%d", c, tk.State.PlanningContractVersion)
 	}
 }

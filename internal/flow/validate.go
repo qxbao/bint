@@ -88,6 +88,9 @@ func Validate(d Def, file string, skillExists func(string) bool) []string {
 		if rank < 0 {
 			add("%s: kind %q không hợp lệ (plan, implement hoặc review)", at, s.Kind)
 		} else {
+			if s.Kind == KindGoal && !d.IsBuiltin() {
+				add("%s: kind goal chỉ dành cho flow nhúng b-do của Bint", at)
+			}
 			if rank < prevRank {
 				add("%s: kind %s đứng sau %s; thứ tự bắt buộc là plan → implement → review", at, s.Kind, Kinds[prevRank])
 			} else {
@@ -121,7 +124,7 @@ func Validate(d Def, file string, skillExists func(string) bool) []string {
 		}
 
 		// khoá riêng theo kind
-		if s.Optional && s.Kind != KindPlan {
+		if s.Optional && s.Kind != KindPlan && s.Kind != KindGoal {
 			add("%s: optional chỉ dùng được ở bước plan", at)
 		}
 		switch {

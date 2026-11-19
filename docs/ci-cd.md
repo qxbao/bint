@@ -65,7 +65,17 @@ staticcheck chạy với bộ quy tắc mặc định, không có tệp cấu h�
   `LockFileEx`, và git chậm (mỗi lần gọi khoảng 25 ms) làm lộ race. Ví dụ: `TestEvalRunEscCancelsBatchAndShowsResumeCommand`
   qua trên Ubuntu nhưng hỏng trên Windows, vì lệnh `git diff` bị huỷ giữa chừng không được nhận là huỷ.
 - Không `-race`: cần CGO và gcc, runner Windows không có sẵn.
-- Hạn 30 phút mỗi gói vì `internal/workflow` mất khoảng 10 phút trên Windows, đúng bằng hạn mặc định của `go test`.
+- Hạn 30 phút mỗi gói: chạy tuần tự, `internal/workflow` từng mất ~28 phút trên runner này.
+- Test E2E bị chặn bởi việc sinh tiến trình (git, sh, cmd: 20–70 ms mỗi lần trên Windows), tiến trình test gần như
+  không dùng CPU, và không dùng được `t.Parallel` vì `testutil.Isolate` gọi `t.Setenv`. Vì vậy `testutil.RunTests`
+  (gọi từ `testutil.Main` và TestMain của `cli`, `app`) chạy chính binary test thành nhiều tiến trình con, mỗi con
+  một mẻ test top-level. Số tiến trình: `BINT_TEST_PROCS` (mặc định `min(số CPU, 8)`, `1` để tắt). Không chia khi
+  có `-run`, `-skip`, `-bench`, cover hay profile. Nhật ký đầu vào (`-test.testlogfile`) của các mẻ được gộp lại,
+  nên bộ nhớ đệm kết quả của `go test` vẫn đúng. Đo trên máy dev 32 lõi: `internal/workflow` giảm từ 1748 s
+  xuống 305 s.
+- Trên Windows ngoài Git Bash, `git` trong PATH là trình bọc `Git\cmd\git.exe`; trình này sinh thêm
+  `mingw64\bin\git.exe`, nên mỗi lệnh tốn gấp đôi thời gian. `RunTests` đưa `mingw64\bin` lên đầu PATH của tiến
+  trình test.
 - Bước "Môi trường" chạy bằng `bash` (Git Bash có sẵn trên runner), giống job Test (race).
 
 **Build (đa nền tảng)** (15 phút)

@@ -1,0 +1,96 @@
+{
+  "W": [
+    {
+      "id": "W1",
+      "severity": "critical",
+      "title": "Tự dọn ngầm, bật sẵn cho mọi người dùng, xoá cả thư mục backups/<thời điểm> quá 30 ngày, kể cả bản sao lưu duy nhất chứa chỉnh sửa tay của người dùng; không báo gì",
+      "where": "internal/app/workspace.go:66 (Collect trong Ingest, lỗi bị nuốt); internal/stategc/gc.go:80 (backups là ứng viên nguyên cây); internal/config/config.go:641 (mặc định RetentionDays 30)",
+      "scenario": "HOME/XDG_STATE_HOME/BINT_STATE_DIR đặt vào thư mục tạm. git init; bint init --hooks (bint sao lưu .claude/settings.local.json gốc của người dùng vào backups/). Viết thêm một dòng ghi chú tay vào .claude/skills/b-add-flow/SKILL.md, chạy `bint init --force --hooks`: chỉnh sửa tay chỉ còn trong backups/<ts>/.claude/skills/b-add-flow/SKILL.md. Đặt mtime cây backups về 35 ngày trước (giả lập thời gian trôi) và ghi gc.lock là 2 ngày trước. Chạy một lệnh chỉ đọc là `bint runs list` (hoặc `bint status`), không chạy gc.",
+      "evidence": "`bint runs list` in 'Chưa có lượt chạy nào được ghi nhận.', exit 0, không có dòng nào về việc dọn. Sau đó `grep -rl 'MY HAND-WRITTEN' backups` không còn kết quả (exit 1): bản duy nhất của chỉnh sửa tay đã mất. Với `bint status`, backups/20261117T072020.792Z/claude/settings.local.json (bản gốc {\"note\":\"USER ORIGINAL LOCAL\"} trước khi bint ghi hook) cũng bị xoá; `bint status | grep -iE 'dọn|gc|backup|sao lưu'` không có kết quả. Người dùng hiện có sẽ nhận mặc định 30 ngày khi nâng cấp (khoá thiếu trong config thì lấy từ Default()), trong khi thẻ người dùng muốn giữ 'vài tháng' và agent không hỏi.",
+      "ran": true
+    },
+    {
+      "id": "W2",
+      "severity": "medium",
+      "title": "Xoá eval-work/logs và runs của đợt đánh giá sau 30 ngày nhưng SQLite vẫn trỏ log_dir; evolve (memory.retention_days mặc định 90) mất agent.log/test.log của các lượt 30–90 ngày",
+      "where": "internal/stategc/gc.go:115 (eval-work/runs, eval-work/logs); dữ liệu bị mất được đọc ở internal/evolve/failure.go:442-455",
+      "scenario": "Chèn vào state.sqlite một eval_batches 'B1' (completed, finished_at 40 ngày trước) và một evaluation_runs 'A1' (failed, log_dir=<state>/eval-work/logs/B1/c1-none-1). Tạo agent.log, test.log và runs/B1/... rồi đặt mtime về 40 ngày trước. Chạy `bint gc --dry-run`, rồi `bint gc`.",
+      "evidence": "Dry-run: 'eval-work/runs/B1 (5 byte) / eval-work/logs/B1 (41 byte)'. `bint gc`: 'Đã dọn 2 mục, 46 byte.' Sau đó `select ... from evaluation_runs` vẫn trả A1|failed|.../eval-work/logs/B1/c1-none-1, còn `ls` thư mục đó báo No such file or directory. Config cùng repo có memory.retention_days: 90, nên evolve vẫn xét lượt này nhưng evalFailure không còn Trace/TestFails (đây là suy luận từ mã failure.go; chưa chạy evolve).",
+      "ran": true
+    },
+    {
+      "id": "W3",
+      "severity": "low",
+      "title": "Một mục không xoá được (tệp bị khoá/không có quyền) làm dừng cả lượt dọn; các mục sau không được xét, mục đã xoá trước đó không được báo; ở chế độ tự động lỗi bị nuốt nên mọi lệnh sau đều quét lại",
+      "where": "internal/stategc/gc.go:191 (RemoveAll lỗi thì trả về ngay); internal/app/workspace.go:66",
+      "scenario": "Tạo backups/20260101T000000.000Z/x/a (xoá được), backups/20260201T000000.000Z/locked/b với `chmod 500 locked` (giả lập tệp bị khoá trên Windows) và spool/rejected/bad.jsonl, tất cả cũ 40 ngày. Chạy `bint gc --dry-run`, rồi `bint gc`.",
+      "evidence": "Dry-run liệt kê 3 mục. `bint gc` chỉ in 'lỗi: RemoveAll backups/20260201T000000.000Z: permission denied', exit 1, không liệt kê gì. Sau đó 20260101T000000.000Z đã bị xoá mà không được báo, còn spool/rejected/bad.jsonl vẫn còn vì vòng lặp dừng giữa chừng.",
+      "ran": true
+    },
+    {
+      "id": "W4",
+      "severity": "low",
+      "title": "`bint gc` không có cờ thì xoá ngay, không hỏi xác nhận; xem trước chỉ có khi người dùng tự biết thêm --dry-run",
+      "where": "internal/cli/gc.go:345-363",
+      "scenario": "Trong repo thử, chạy `bint gc` khi có mục quá hạn.",
+      "evidence": "In thẳng 'Đã dọn 2 mục, 46 byte.' mà không có bước xác nhận. trigger.json của chính bên này ghi 'không cần cờ xác nhận'.",
+      "ran": true
+    },
+    {
+      "id": "W5",
+      "severity": "medium",
+      "title": "Bỏ sót: không dọn worktrees/, runtime/tasks, log workflow (runtime/evolve, runtime/harness) và spool, trong khi đây là phần làm thư mục phình chính; phạm vi chỉ có backups, spool/rejected, hook-trace (vốn chỉ bật khi đặt biến và đã giới hạn 500 tệp) và eval-work của đợt đã xong",
+      "where": "internal/stategc/gc.go:80 và :115 (danh sách phạm vi cố định); lẽ ra cần một nhóm worktree/phiếu của tác vụ đã kết thúc, đã đưa về hoặc không còn thay đổi, có kiểm tra khoá task/workflow",
+      "scenario": "Chạy `du` (chỉ đọc) trên một thư mục trạng thái thật của bint trên máy: ~/.local/state/bint/bint-683968601bd8.",
+      "evidence": "worktrees chiếm 87060 KB, backups 28 KB, runtime 328 KB, eval-work 4 KB, tức hơn 98% dung lượng nằm ở phần W không dọn. Với trạng thái này, lệnh gc chỉ lấy lại được vài chục KB.",
+      "ran": true
+    }
+  ],
+  "Z": [
+    {
+      "id": "Z1",
+      "severity": "medium",
+      "title": "Quy tắc 'luôn giữ backup mới nhất của từng tệp gốc' dùng đường dẫn tương đối trong snapshot làm khoá, nên hai tệp khác nhau trùng tên backup (claude/settings.json của ~/.claude ở scope user và của dự án ở scope project; codex/hooks.json cũng vậy). Kết quả: bản sao lưu duy nhất của settings toàn cục bị xoá",
+      "where": "internal/app/clean_collect.go:187,199 (k := filepath.Join(key, child.Name()); newest[k]); nguồn tên trùng ở internal/harness/claude/install.go:132",
+      "scenario": "HOME tạm có ~/.claude/settings.json với nội dung cá nhân. Chạy `bint init --hooks --hooks-scope user` (sao lưu settings toàn cục thành backups/T1/claude/settings.json), rồi `bint init --hooks --hooks-scope project` (sao lưu .claude/settings.json của dự án thành backups/T2/claude/settings.json). Đổi tên T1 thành 20260101T000000.000Z, T2 thành 20260301T000000.000Z và đặt mtime về 200 ngày trước để giả lập thời gian. Chạy `bint clean`, rồi `bint clean --apply`.",
+      "evidence": "Xem trước: 'chọn backup 78 byte …/backups/20260101T000000.000Z/claude/settings.json backup dư quá hạn' và 'giữ … 20260301…/claude/settings.json backup mới nhất của tệp gốc'. Apply: 'đã dọn … 20260101T000000.000Z/claude/settings.json', exit 0. Chỉ còn {\"note\":\"TEAM PROJECT SETTINGS\"}; bản gốc {\"note\":\"MY GLOBAL PERSONAL SETTINGS\",...} của ~/.claude/settings.json không còn bản sao lưu nào. Tệp đang dùng vẫn giữ nội dung đó cộng hook bint, nên mức là medium chứ không phải critical.",
+      "ran": true
+    },
+    {
+      "id": "Z2",
+      "severity": "medium",
+      "title": "Chặn toàn cục: một tệp nhị phân, tệp không phải UTF-8, tệp lớn hơn 8 MiB, JSON hỏng hoặc phiếu lỗi ở bất kỳ đâu trong state (kể cả mã nguồn trong worktrees/, eval-work/runs) làm mọi mục bị giữ. Văn bản SQLite vượt 64 MiB cũng làm mọi mục bị giữ. Trên state thật gần như không bao giờ dọn được gì",
+      "where": "internal/app/clean_refs.go:64 (bằng chứng không phải văn bản), :95 (quét toàn bộ state); internal/app/clean_collect.go:276-284 (problem thì giữ tất cả); internal/eval/cleanup_sqlite.go:254 (64 MiB)",
+      "scenario": "Trong state thử có 2 backup dư cũ 200 ngày; `bint clean` chọn được cả 2. Thêm một tệp PNG nhỏ vào <state>/worktrees/01TASK/logo.png (worktree tác vụ nào có ảnh hoặc binary cũng vậy) rồi chạy lại `bint clean`.",
+      "evidence": "Trước khi thêm PNG: 'Dự kiến: 2 mục, 46 byte'. Sau khi thêm: cả hai thành 'giữ … không đọc đủ tham chiếu; giữ để an toàn: bằng chứng không phải văn bản: worktrees/01TASK/logo.png', 'Dự kiến: 0 mục, 0 byte'. Ngoài ra, chuỗi 'backups' hay 'eval-work/bases' xuất hiện ở bất kỳ văn bản nào (ví dụ docs trong worktree của repo bint) cũng giữ toàn bộ nhóm. Điểm này suy từ cleanReferenced, chưa chạy riêng.",
+      "ran": true
+    },
+    {
+      "id": "Z3",
+      "severity": "medium",
+      "title": "Hiệu năng bậc hai: mỗi mục được chọn lại chạy toàn bộ khảo sát, gồm quét cả state, chép nguyên SQLite+WAL vào TMPDIR và so regex trên toàn bộ văn bản. Trên state lớn (đúng trường hợp người dùng gặp), xem trước mất vài phút, apply có thể mất hàng giờ và cần chỗ trống bằng kích thước DB trên ổ đĩa vốn đang đầy",
+      "where": "internal/app/clean_svc.go:128 (collectClean trong vòng lặp từng mục); internal/eval/cleanup_sqlite.go:136 (MkdirTemp + chép DB); internal/app/clean_refs.go cleanReferenced (mục × văn bản)",
+      "scenario": "Thêm 20 sự kiện, mỗi sự kiện có payload 1 MB, vào bảng events (state.sqlite 20 MB). Tạo 120 snapshot backup dư cũ 200 ngày, đo `bint clean`. Sau đó giảm còn 10 mục, đo `bint clean` và `bint clean --apply`.",
+      "evidence": "120 mục: 'Dự kiến: 121 mục, 641 byte', mất 171.41 s. 10 mục: xem trước 13.60 s, apply 87.13 s, dọn được 86 byte. Ngoại suy: apply 121 mục mất cỡ vài giờ (suy luận, chưa chạy).",
+      "ran": true
+    },
+    {
+      "id": "Z4",
+      "severity": "low",
+      "title": "Đổi khoá kho đệm eval từ mutex sang flock 'try' ở releaseBase/PruneBases/CleanBases: khoá bận (một tiến trình eval khác, hoặc chính `bint clean` xem trước đang giữ khoá) thì kho đệm bị bỏ qua dù eval.keep_bases=false; tệp khoá trong eval-work/bases/.locks tích luỹ mãi và lệnh clean luôn giữ chúng",
+      "where": "internal/eval/basecache.go:29 và :134 (acquireBaseLock try=true; lỗi thì return/continue)",
+      "scenario": "Suy luận từ mã: trước đây releaseBase chờ khoá rồi RemoveAll; nay gặp errBaseBusy thì return luôn nên kho không được dọn ở lần đó. Test của chính diff (workdir_test.go) xác nhận .locks còn lại sau CleanBases.",
+      "evidence": "Bộ test eval liên quan (Base|Clean|Workdir|Release|Prune) qua khi chạy với -p 1. Hành vi rò rỉ khi khoá bận chưa được tái hiện.",
+      "ran": false
+    },
+    {
+      "id": "Z5",
+      "severity": "medium",
+      "title": "Bỏ sót: chỉ xét backup dư, cặp hook-trace (chỉ có khi đặt BINT_HOOK_TRACE=1 và đã giới hạn 500 tệp) và kho đệm eval-work/bases (vốn được eval tự xoá khi keep_bases=false). Không dọn worktrees/, runtime/tasks, log workflow/eval và spool, là nguồn phình chính; lệnh có tự nêu rõ là chưa dọn các nhóm này",
+      "where": "internal/app/clean_collect.go (chỉ 3 nhóm); lẽ ra cần nhóm worktree/phiếu của tác vụ đã kết thúc, sạch hoặc đã đưa về, có kiểm tra khoá task/workflow",
+      "scenario": "Chạy `du` (chỉ đọc) trên thư mục trạng thái thật ~/.local/state/bint/bint-683968601bd8.",
+      "evidence": "worktrees 87060 KB trên tổng khoảng 88 MB; backups 28 KB (2 snapshot của 2 tệp khác nhau, nên không có bản dư); không có hook-trace hay bases. Áp quy tắc của bên này, số dung lượng lấy lại được gần như bằng 0.",
+      "ran": true
+    }
+  ]
+}

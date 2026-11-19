@@ -1,0 +1,7 @@
+PASS  C1-build  exit=0 
+PASS  C2-vet  exit=0 
+PASS  C3-vet-windows  exit=0 
+PASS  C4-staticcheck  exit=0 
+PASS  C5-staticcheck-windows  exit=0 
+FAIL  C6-go-test  exit=1 --- FAIL: TestCollectDenialBatchAndSymlinks (0.27s) | FAIL | FAIL	bint/internal/maintenance	29.362s | FAIL
+TÓM TẮT {"cmd": "repo", "fail": ["C6-go-test"], "fixture_ok": true, "critical": [], "medium": ["C6-go-test"]}

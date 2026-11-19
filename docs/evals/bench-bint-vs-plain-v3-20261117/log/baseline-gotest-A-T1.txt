@@ -1,0 +1,5 @@
+--- FAIL: TestDocCommandsExist (0.00s)
+    doc_commands_test.go:259: AGENTS.md: lstat /home/baodq/bench-bint-v3-20261117/A-T1/AGENTS.md: no such file or directory
+FAIL
+FAIL	bint/internal/cli	307.846s
+FAIL

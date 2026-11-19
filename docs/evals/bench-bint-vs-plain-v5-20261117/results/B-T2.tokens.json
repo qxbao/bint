@@ -1,0 +1,48 @@
+{
+ "repo": "/home/baodq/bench-bint-v5-20261117/B-T2",
+ "sessions": 2,
+ "total": {
+  "input_tokens": 47095431,
+  "cached_input_tokens": 45871232,
+  "output_tokens": 146973,
+  "reasoning_output_tokens": 53204,
+  "total_tokens": 47242404,
+  "uncached_input_tokens": 1224199
+ },
+ "detail": [
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T21-04-35-01a1e9d2-e881-7521-a67d-fbea143950d2.jsonl",
+   "cwd": "/home/baodq/bench-bint-v5-20261117/B-T2",
+   "start": "2026-11-17T14:04:35.854Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 6,
+   "usage": {
+    "input_tokens": 46079113,
+    "cached_input_tokens": 44948992,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 141960,
+    "reasoning_output_tokens": 52771,
+    "total_tokens": 46221073
+   }
+  },
+  {
+   "file": "/home/baodq/.codex/sessions/2026/11/17/rollout-2026-11-17T22-19-51-01a1ea17-cff9-7771-97d9-ff23544253cb.jsonl",
+   "cwd": "/home/baodq/bench-bint-v5-20261117/B-T2",
+   "start": "2026-11-17T15:19:51.570Z",
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "turns": 1,
+   "usage": {
+    "input_tokens": 1016318,
+    "cached_input_tokens": 922240,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 5013,
+    "reasoning_output_tokens": 433,
+    "total_tokens": 1021331
+   }
+  }
+ ]
+}

@@ -17,10 +17,15 @@ import (
 )
 
 type runFlags struct {
+	answer       string
+	slice        string
+	accept       bool
+	fixRound     bool
 	taskRef      string
 	step         string
 	depth        string
 	plan, noPlan bool
+	fast         bool
 	noReview     bool
 	noWait       bool
 	rerun        bool
@@ -66,7 +71,19 @@ Giới hạn:
     tổng của mọi bước. Agent không báo chi phí thì giới hạn chi phí chỉ là chỉ dẫn.
   - Tệp đã sửa chạm limits.protected_paths hoặc scope.deny (và ngoài scope.allow khi
     autonomy ask_always) cần người duyệt: có terminal thì hỏi, không thì tác vụ chuyển blocked.
-  - workflow.max_review_rounds: số vòng review → sửa tối đa.
+  - workflow.max_review_rounds: số vòng sửa tối đa sau review (n vòng sửa ⇒ tối đa n+1 vòng review). Review còn đang giảm số phát hiện
+    nghiêm trọng thì sửa tiếp ngoài n tới trần 2n (+ vòng --fix-round); không giảm thì dừng ngay. Hết vòng mà còn phát hiện
+    nghiêm trọng thì tác vụ blocked và in ba lựa chọn: bint run resume <id> --accept | --fix-round, hoặc bint task cancel <id>.
+  - --fast (chỉ b-do, lập phiếu mới hoặc --task trên phiếu created): đường nhanh do người dùng chọn: không b-req, một phiên b-feat,
+    kiểm chứng, một vòng b-review (còn phát hiện nghiêm trọng thì một vòng sửa rồi xong, không review lại). Không đi cùng
+    --plan/--no-plan/--depth; phạm vi chạm đường dẫn bảo vệ thì vẫn qua b-req. Không có --fast thì Classify quyết như thường: yêu cầu mơ hồ vào b-req, việc nhỏ hay yêu cầu ngắn nêu rõ chỗ sửa vẫn có thể bỏ b-req
+    (workflow.fast_path mặc định tắt; bật true thì Bint tự chọn đường nhanh cho yêu cầu ngắn, mơ hồ, rủi ro thấp).
+  - Cỡ kế hoạch (b-do): sau b-req, kế hoạch chỉ là "nhỏ" — b-feat chạy ngay, không dừng — khi plan.md ghi Kết luận: nhỏ, không có
+    giai đoạn hoãn (G-N), số tệp và số nhóm bề mặt không quá workflow.small_plan_max_files (mặc định 5), requirement.md có
+    Kiểm tra mục tiêu nêu tên test và không chạm đường dẫn bảo vệ. Còn lại là "lớn": tác vụ blocked ("kế hoạch lớn: …", có terminal
+    thì hỏi) cho người xem kế hoạch rồi bint run resume <id>; resume chạy b-feat, không chạy lại b-req.
+  - Bước b-feat không đổi tệp nào (hoặc hỏi người bằng bint task error --question) thì tác vụ blocked chờ người, không kiểm chứng,
+    không review, không done; trả lời bằng bint run resume <id> --answer "<nội dung>".
   - Lệnh kiểm chứng chỉ chạy khi người đã xác nhận (bint task approve).
   - Hoàn thành (done) chỉ khi có bằng chứng; thiếu thì blocked kèm lý do.
   - Cô lập: --worktree chạy tác vụ mới trong worktree riêng (song song với tác vụ khác), --shared sửa thẳng trên
@@ -86,6 +103,7 @@ blocked / failed / interrupted.`,
 		Example: `  bint run b-do "Sửa lỗi database is locked khi chạy kiểm thử song song trong internal/db"
   bint run b-req --task 01J…   # chỉ lập kế hoạch cho tác vụ có sẵn
   bint run b-do --depth deep "Đổi cách tính phí trong internal/billing"   # phân tích sâu hơn ở b-req
+  bint run b-do --fast "Đổi thông báo lỗi khi thiếu config trong internal/config"   # đường nhanh: không b-req
   bint run b-do --agent-command ./my-agent.sh "…"
   bint run b-do --role implementer=codex "…"   # b-feat bằng Codex, các bước khác theo roles
   bint run b-review --harness antigravity --task 01J…
@@ -98,7 +116,7 @@ blocked / failed / interrupted.`,
 			autoResync(cmd, stdio)
 			return runWorkflow(cmd, stdio, rf, func(o *app.RunWorkflowOptions) {
 				o.Workflow, o.Request, o.Task, o.NoReview, o.Step = args[0], strings.Join(args[1:], " "), rf.taskRef, rf.noReview, rf.step
-				o.Plan, o.NoPlan, o.Depth = rf.plan, rf.noPlan, rf.depth
+				o.Plan, o.NoPlan, o.Depth, o.Fast = rf.plan, rf.noPlan, rf.depth, rf.fast
 				o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = rf.ef.goal, rf.ef.verify, rf.ef.autonomy, rf.ef.criteria, rf.ef.allow, rf.ef.deny
 				o.Constraints, o.ClearScope = rf.ef.constraints, rf.ef.clearScope
 				o.GoalSet, o.VerifyCommandSet, o.AutonomySet = rf.ef.changed(cmd)
@@ -125,6 +143,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 		f.StringVar(&rf.step, "step", "", "chỉ với --task và flow tuỳ biến hoặc b-debug: chạy đúng một bước (phải là bước kế tiếp của tác vụ) rồi dừng; phiên điều phối dùng cho bước gán harness khác Claude")
 		f.BoolVar(&rf.plan, "plan", false, "luôn qua b-req")
 		f.BoolVar(&rf.noPlan, "no-plan", false, "bỏ qua b-req")
+		f.BoolVar(&rf.fast, "fast", false, fastFlagHelp)
 		f.StringVar(&rf.depth, "depth", "auto", depthFlagHelp)
 		f.BoolVar(&rf.worktree, "worktree", false, "tác vụ mới chạy trong worktree riêng (song song với tác vụ khác); loại trừ --shared, không đi cùng --task")
 		f.BoolVar(&rf.shared, "shared", false, "tác vụ mới sửa thẳng trên cây đang làm; loại trừ --worktree, không đi cùng --task")
@@ -145,6 +164,7 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 	if resume != nil {
 		ro = app.RunResumeDefaults(config.Default())
 		ro.Ref, ro.NoReview, ro.NoWait, ro.Rerun, ro.Fresh, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.rerun, rf.fresh, rf.harness, rf.roles, rf.model, rf.agentCommand
+		ro.Answer, ro.Accept, ro.FixRound, ro.Slice = rf.answer, rf.accept, rf.fixRound, rf.slice
 		if err := ro.Validate(); err != nil {
 			return err
 		}
@@ -242,7 +262,20 @@ func printRunResult(w io.Writer, res *workflow.Result) {
 	for _, n := range res.Notes {
 		fmt.Fprintf(w, "! %s\n", n)
 	}
+	printChoices(w, res.Choices)
+	printGreen(w, res.TaskID, res.LastGreen, res.OpenFindings)
 	fmt.Fprintf(w, "Chi tiết: bint task show %s   ·   bint run status %s\n", res.TaskID, res.TaskID)
+}
+
+// printChoices in khối "Lựa chọn:" (lệnh cụ thể cho người không đọc mã) khi tác vụ dừng chờ quyết định.
+func printChoices(w io.Writer, cs []workflow.Choice) {
+	if len(cs) == 0 {
+		return
+	}
+	fmt.Fprintln(w, "Lựa chọn:")
+	for i, c := range cs {
+		fmt.Fprintf(w, "  %d. %s:\n     %s\n", i+1, c.Label, c.Command)
+	}
 }
 
 func newRunResumeCmd(stdio IO) *cobra.Command {
@@ -255,7 +288,20 @@ parent_run_id là lượt trước. Thay đổi đang chờ duyệt phải đư�
 
 Bước chỉ đọc (b-req, b-review, bước plan/review của flow tuỳ biến) kết thúc mà cây đổi trong lúc chạy thì tác vụ dừng
 blocked và kết quả bước được giữ; resume áp kết quả đó (không chạy lại). Đã hoàn tác thay đổi lạ và muốn chạy lại bước:
---rerun bỏ kết quả giữ rồi chạy lại bước (lỗi nếu tác vụ không có bước giữ).`,
+--rerun bỏ kết quả giữ rồi chạy lại bước (lỗi nếu tác vụ không có bước giữ).
+
+Tác vụ dừng vì b-feat hỏi người (bint task error --question) hoặc b-feat kết thúc mà không đổi tệp nào: trả lời hay nói rõ thêm bằng
+--answer "<nội dung>" — b-feat chạy lại trên chính tác vụ này (nối tiếp phiên cũ khi nối tiếp được) và nhận nguyên văn câu hỏi
+cùng câu trả lời.
+
+Tác vụ dừng sau khi hết vòng sửa review (workflow.max_review_rounds là số vòng sửa tối đa) in ba lựa chọn: --accept chấp nhận kết
+quả như hiện tại (vào thẳng bước hoàn tất, bỏ qua phát hiện còn lại), --fix-round cho sửa thêm đúng một vòng (b-feat rồi b-review),
+hoặc bint task cancel. --accept và --fix-round chỉ người dùng chạy được (không phải phiên agent).
+
+Tác vụ chạy theo lát mỏng dừng khi một lát quá trần thời gian agent, không đạt số đo, vượt ngân sách diff/hiệu năng hoặc agent lỗi: Bint GIỮ
+cây của lát (không tự quay về điểm xanh) và in ba lựa chọn: --slice keep (chốt cây hiện tại làm điểm xanh, sang lát kế), --slice discard
+(đưa tệp của tác vụ về điểm xanh, sang lát kế), --slice more (chạy lại lát từ cây hiện tại, thêm một trần thời gian; mặc định khi không nêu
+--slice). --slice chỉ người dùng chạy được. Đặt workflow.slicing: off hoặc slice_timeout_minutes: 0 thì lát chưa chốt gộp vào một b-feat thường.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWorkflow(cmd, stdio, rf, nil, &args[0])
@@ -263,6 +309,10 @@ blocked và kết quả bước được giữ; resume áp kết quả đó (kh�
 	}
 	addRunFlags(c, &rf, false)
 	c.Flags().BoolVar(&rf.rerun, "rerun", false, "bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó (thay vì áp kết quả đã giữ)")
+	c.Flags().StringVar(&rf.answer, "answer", "", "trả lời b-feat đang chờ (câu hỏi --question hoặc b-feat không đổi tệp): b-feat chạy lại với nguyên văn câu hỏi và câu trả lời")
+	c.Flags().StringVar(&rf.slice, "slice", "", "lát đang giữ chờ người: keep (chốt cây hiện tại) | discard (đưa tệp của tác vụ về điểm xanh) | more (chạy lại lát từ cây hiện tại); chỉ người dùng")
+	c.Flags().BoolVar(&rf.accept, "accept", false, "sau khi hết vòng sửa review: chấp nhận kết quả như hiện tại, vào thẳng bước hoàn tất (chỉ người dùng)")
+	c.Flags().BoolVar(&rf.fixRound, "fix-round", false, "sau khi hết vòng sửa review: cho sửa thêm đúng một vòng (b-feat rồi b-review; chỉ người dùng)")
 	return c
 }
 

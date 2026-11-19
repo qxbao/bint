@@ -1,0 +1,26 @@
+PASS  FX-ledger-clean  cảnh báo sổ phiếu: []
+PASS  FX-OLD_DONE1  01KQFXJKJWJQ7WVHMNVAJVH1YY status=done (cần done) updated=2026-04-30T19:24:15Z
+PASS  FX-OLD_DONE2  01KQFXJNKXJGZ6BSKZ41YJJYS9 status=done (cần done) updated=2026-04-30T19:24:17Z
+PASS  FX-NEW_DONE  01M7612W5SAH9E5HF4W8G0AP6Y status=done (cần done) updated=2026-11-11T19:24:18Z
+PASS  FX-OLD_CANCELLED  01KQFXJS46Q0NQSWMYWP7KA23Q status=cancelled (cần cancelled) updated=2026-04-30T19:24:21Z
+PASS  FX-OLD_BLOCKED  01KQFXJVHS25XVTN9SSXPEZDC1 status=blocked (cần blocked) updated=2026-04-30T19:24:23Z
+PASS  FX-OLD_INTERRUPTED  01KQFXJX26M8HV0WGR0K26BZTG status=interrupted (cần interrupted) updated=2026-04-30T19:24:27Z
+PASS  FX-OLD_FAILED_WT  01KQFXK1MHKVKD5REHJ4PAD1H1 status=failed (cần failed) updated=2026-04-30T19:24:29Z
+PASS  FX-NEW_RUN  01M7JX2TSVMNSGYBGC0B1QFY42 status=created (cần created) updated=2026-11-16T19:24:29Z
+PASS  FX-WT-dirty  worktree=/home/baodq/bench-bint-v3-20261117/tmp/hid-T1-Y/hidden2-t1-_b7xi_zr/state/repo-207b7f97ab56/worktrees/01KQFXK1MHKVKD5REHJ4PAD1H1 status='M a.go\n?? wip_notes.txt'
+PASS  FX-old-bytes  log phiếu kết thúc cũ = 3311793 B
+FIXTURE {"OLD_DONE1": "01KQFXJKJWJQ7WVHMNVAJVH1YY", "OLD_DONE2": "01KQFXJNKXJGZ6BSKZ41YJJYS9", "NEW_DONE": "01M7612W5SAH9E5HF4W8G0AP6Y", "OLD_CANCELLED": "01KQFXJS46Q0NQSWMYWP7KA23Q", "OLD_BLOCKED": "01KQFXJVHS25XVTN9SSXPEZDC1", "OLD_INTERRUPTED": "01KQFXJX26M8HV0WGR0K26BZTG", "OLD_FAILED_WT": "01KQFXK1MHKVKD5REHJ4PAD1H1", "NEW_RUN": "01M7JX2TSVMNSGYBGC0B1QFY42"}
+FAIL  D8-preview-no-change  không có cách xem trước
+PASS  D5-concurrent-run  lượt chạy exit=0 status=in_review logs=['b-feat-01M7JX31106KBBBVA7Q6AEG0RV.log', 'prompt.txt'] slow.txt=True | dọn#1 exit=0 0.2s 'te/repo-207b7f97ab56\nSchema:         v9\nHarness:        codex\nLượt chạy:      16 completed=10 failed=2 interrupted=2 running=2\nTự dọn:        2026-11-17T02:24:15+07:00; 0 mục, 0 byte đã xoá; 0 dòng DB, 0 byte DB tái sử dụng\n  Bỏ qua:      not_due\nVừa nạp:        4 sự kiện, 0 lượt chuyển interrupted\n' | run: 'mpleted  15s        -\n! chưa xác định phạm vi (scope.allow): truy xuất theo đường dẫn và giới hạn ghi kém chính xác\n! chưa có lệnh kiểm chứng hay tiêu chí chấp nhận: không thể tự xác nhận hoàn thành\nChi tiết: bint task show 01M7JX2TSVMNSGYBGC0B1QFY42   ·   bint run status 01M7JX2TSVMNSGYBGC0B1QFY42\n'
+PASS  D1-OLD_BLOCKED  01KQFXJVHS25XVTN9SSXPEZDC1 thư mục còn=True tệp đổi/mất=[]
+PASS  D1-OLD_INTERRUPTED  01KQFXJX26M8HV0WGR0K26BZTG thư mục còn=True tệp đổi/mất=[]
+PASS  D2-worktree-kept  worktree còn=True status giữ=True nhánh còn=True tệp phiếu đổi/mất=[]
+PASS  D3-symlink-target  tệp ngoài bị đổi/mất=[]
+PASS  D4-outside-state  tệp ngoài thư mục trạng thái bị đổi=[]
+INFO  D4i-ledger-in-repo  sổ phiếu .bint/tasks (đã commit) bị đổi/xoá: 0 tệp []
+FAIL  D6-old-finished-cleaned  log phiếu kết thúc cũ 3311793 B → còn 3311793 B (giải phóng 0); dọn#1 exit=0
+INFO  D6i-total-bytes  tổng thư mục trạng thái (bỏ sqlite, NEW_RUN) sau = 5554915 B
+PASS  D7-new-finished-kept  01M7612W5SAH9E5HF4W8G0AP6Y tệp đổi/mất=[]
+PASS  D9-after-clean-healthy  doctor 0->0 ✗mới=[] task list 0->0 runs list 0->0 show lỗi=[] show phiếu đã dọn=[] dọn#1/2/3 exit=0/0/0
+INFO  T-clean-output  dọn#1: ':     /home/baodq/bench-bint-v3-20261117/tmp/hid-T1-Y/hidden2-t1-_b7xi_zr/repo\nRepo ID:        repo-207b7f97ab56\nTrạng thái:     /home/baodq/bench-bint-v3-20261117/tmp/hid-T1-Y/hidden2-t1-_b7xi_zr/state/repo-207b7f97ab56\nSchema:         v9\nHarness:        codex\nLượt chạy:      16 completed=10 failed=2 interrupted=2 running=2\nTự dọn:        2026-11-17T02:24:15+07:00; 0 mục, 0 byte đã xoá; 0 dòng DB, 0 byte DB tái sử dụng\n  Bỏ qua:      not_due\nVừa nạp:        4 sự kiện, 0 lượt chuyển interrupted\n' | dọn#2: 'v9\nHarness:        codex\nLượt chạy:      16 completed=12 failed=2 interrupted=2\nTự dọn:        2026-11-17T02:24:15+07:00; 0 mục, 0 byte đã xoá; 0 dòng DB, 0 byte DB tái sử dụng\n  Bỏ qua:      not_due\n'
+TÓM TẮT {"cmd": "t1", "fail": ["D8-preview-no-change", "D6-old-finished-cleaned"], "fixture_ok": true, "critical": [], "medium": ["D8-preview-no-change", "D6-old-finished-cleaned"]}

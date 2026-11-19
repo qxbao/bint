@@ -45,7 +45,7 @@ func TestClassifyVietnameseAndPlanWords(t *testing.T) {
 		"đổi tên hàm Foo thành Bar\nở cả hai gói\nvà kiểm thử": false, // smallWords bắt đầu bằng chữ có dấu
 		"Sửa lỗi chính tả\ntrong README\nvà docs":              false, // smallWords kết thúc bằng chữ có dấu
 		"Sửa lỗi nil trong handler":                            false,
-		"planner chạy chậm":                                    false, // "plan" phải là từ trọn vẹn
+		"planner chạy chậm khi gặp timeout":                    false, // "plan" phải là từ trọn vẹn (có mỏ neo "timeout")
 	} {
 		if c := Classify(req); c.Plan != plan {
 			t.Errorf("%q: plan=%v (%s), muốn %v", req, c.Plan, c.Reason, plan)
@@ -53,6 +53,52 @@ func TestClassifyVietnameseAndPlanWords(t *testing.T) {
 	}
 	if c := Classify("Làm tiếp", "docs/p.md"); !c.Plan {
 		t.Fatalf("có tài liệu đầu vào thì cần b-req: %+v", c)
+	}
+}
+
+// TestClassifyShortVagueNeedsPlan: yêu cầu ngắn mà không nêu tệp/hành vi/tiêu chí cụ thể phải qua b-req
+// (benchmark lần 2: T1, T2); yêu cầu ngắn có mỏ neo vẫn bỏ b-req.
+func TestClassifyShortVagueNeedsPlan(t *testing.T) {
+	for req, plan := range map[string]bool{
+		// mơ hồ → b-req
+		"Thư mục dữ liệu của bint cứ phình to mãi, làm cho nó tự dọn bớt mấy thứ cũ đi": true,
+		"Tôi sợ mật khẩu với token bị lưu lại trong log của bint, xử lý giúp tôi":       true,
+		"Làm cho bint chạy nhanh hơn":                               true,
+		"Cải thiện thông báo lỗi cho dễ hiểu hơn":                   true,
+		"Giao diện hơi khó dùng, sửa lại cho người mới dễ làm quen": true,
+		"planner chạy chậm":                                         true,
+		// mẫu từng bị coi nhầm là mỏ neo (review 01M7JFYDZ07RFN10HF750YZ1VP.1)
+		"Dọn bớt log cũ, file tạm v.v. cho gọn":        true,
+		"Bint chạy chậm trên GitHub, làm nhanh hơn":    true,
+		"Trên macOS bint hay treo, xem giúp tôi":       true,
+		"Làm cho bint chạy tốt trên Windows/Linux":     true,
+		"Bint báo lỗi 2 lần rồi, sửa đi":               true,
+		"Tôi có khoảng 300 tác vụ, danh sách rối quá":  true,
+		"Dùng bint với iPhone hotspot thì mất kết nối": true,
+		// rõ → bỏ b-req
+		"Sửa lỗi chính tả trong README":                    false,
+		"đổi tên hàm Foo thành Bar":                        false,
+		"Sửa lỗi nil trong handler":                        false,
+		"Sửa panic trong ParseSubmission":                  false,
+		"Thêm cờ --json cho bint task show":                false,
+		"Sửa lỗi ở internal/db/db.go khi mở kết nối":       false,
+		"Đặt thời gian chờ mặc định là 30 giây":            false,
+		`Đổi thông báo "không tìm thấy" thành "not found"`: false,
+		"Trả mã 404 khi tác vụ không tồn tại":              false,
+		"Sửa lỗi ở hàm parseTicket khi mô tả rỗng":         false,
+		"Đặt biến BINT_STATE_DIR làm thư mục trạng thái":   false,
+		"Sửa lỗi trong internal/db khi mở kết nối":         false,
+		"Trả HTTP 500 thay vì 404 khi state hỏng":          false,
+		"Gọi workflow.Runner hai lần thì panic":            false,
+		"Giới hạn log còn 200 dòng":                        false,
+		"Sửa hàm A trong a.go":                             false,
+	} {
+		if c := Classify(req); c.Plan != plan {
+			t.Errorf("%q: plan=%v (%s), muốn %v", req, c.Plan, c.Reason, plan)
+		}
+	}
+	if c := Classify("Làm cho bint chạy nhanh hơn"); !strings.Contains(c.Reason, "chưa nêu tệp") {
+		t.Fatalf("lý do phải nói vì sao cần b-req: %q", c.Reason)
 	}
 }
 
@@ -207,7 +253,7 @@ func TestStoreUpdateResolveAndReconcile(t *testing.T) {
 func TestReviewSubmission(t *testing.T) {
 	root := testutil.NewRepo(t, map[string]string{"a.go": "l1\nl2\nl3\n"})
 	sub, errs := ParseSubmission([]byte(`{"summary":"ok","findings":[
-		{"kind":"bug","severity":"high","title":"t","path":"a.go","lines":"2-3","evidence":"e"},
+		{"kind":"bug","severity":"high","title":"t","path":"a.go","lines":"2-3","evidence":"e","repro":"a.go:2"},
 		{"kind":"suggestion","severity":"low","title":"s","evidence":"e"}]}`), root)
 	if len(errs) != 0 || len(sub.Findings) != 2 {
 		t.Fatalf("%v", errs)
@@ -511,13 +557,55 @@ func TestBlockerKindForceableAllowlist(t *testing.T) {
 	want := map[BlockerKind]bool{
 		BlockVerifyMissing: true, BlockVerifyChanged: true, BlockVerifyFailed: true, BlockVerifyStale: true, BlockVerifyPartial: true,
 		BlockNoEvidence: true, BlockCriterionUnchecked: true,
+		BlockGoalFailed: true, // lối thoát của người khi chính test đóng băng sai; BlockGoalMissing vẫn cứng
 	}
-	for k := BlockLand; k <= BlockCriterionUnchecked; k++ {
+	for k := BlockLand; k <= BlockGoalFailed; k++ {
 		if k.Forceable() != want[k] {
 			t.Errorf("loại %d: Forceable=%v, muốn %v", k, k.Forceable(), want[k])
 		}
 	}
-	if (BlockCriterionUnchecked + 1).Forceable() {
+	if (BlockGoalFailed + 1).Forceable() {
 		t.Error("loại mới chưa khai báo phải là điều chặn cứng")
+	}
+}
+
+func TestStepQuestionOpenAndAnswered(t *testing.T) {
+	var st State
+	st.Questions = []StepQuestion{
+		{Step: "b-feat", Text: "a?"},
+		{Step: "b-feat", Text: "b?", Answer: "có"},
+		{Step: "b-feat", Text: "c?", Closed: true},
+		{Step: "b-req", Text: "d?"},
+	}
+	if got := st.OpenQuestions("b-feat"); len(got) != 1 || got[0].Text != "a?" {
+		t.Fatalf("open b-feat: %+v", got)
+	}
+	if got := st.OpenQuestions(""); len(got) != 2 {
+		t.Fatalf("open mọi bước: %+v", got)
+	}
+	if got := st.AnsweredQuestions("b-feat"); len(got) != 1 || got[0].Answer != "có" {
+		t.Fatalf("answered: %+v", got)
+	}
+}
+
+// VagueShort chỉ đúng cho nhánh "yêu cầu ngắn nhưng chưa nêu tệp, hành vi hay tiêu chí cụ thể" (ứng viên của đường nhanh).
+func TestClassifyVagueShortMarker(t *testing.T) {
+	cases := []struct {
+		req  string
+		refs []string
+		want bool
+	}{
+		{"Làm cho nó gọn gàng hơn một chút", nil, true},
+		{"tự dọn bớt mấy thứ cũ đi", nil, true},
+		{"Làm cho nó gọn gàng hơn một chút", []string{"docs/plan.md"}, false}, // có tài liệu tham chiếu
+		{"Thêm tính năng phiên bản v2 cho app.txt", nil, false},               // từ khoá kế hoạch
+		{"Sửa lỗi nil trong parseTicket", nil, false},                         // có mỏ neo: bỏ b-req, không phải mơ hồ
+		{"Sửa lỗi chính tả trong README", nil, false},                         // việc nhỏ
+		{strings.Repeat("làm cho gọn hơn ", 20), nil, false},                  // dài
+	}
+	for _, tc := range cases {
+		if got := Classify(tc.req, tc.refs...).VagueShort(); got != tc.want {
+			t.Errorf("Classify(%q, %v).VagueShort() = %v, muốn %v", tc.req, tc.refs, got, tc.want)
+		}
 	}
 }

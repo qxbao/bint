@@ -1,0 +1,7 @@
+B-T2-1 FAIL  N2-perf  verify 20 MB: bản kiểm 14.4s (exit 0) / gốc 0.9s (exit 0)
+B-T2-1 TÓM TẮT {"cmd": "t2", "fail": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events", "S6-task-docs", "N2-perf"], "fixture_ok": true, "critical": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events"], "medium": ["S6-task-docs", "N2-perf"]}
+B-T2-2 FAIL  N2-perf  verify 20 MB: bản kiểm 14.4s (exit 0) / gốc 0.9s (exit 0)
+B-T2-2 TÓM TẮT {"cmd": "t2", "fail": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events", "S6-task-docs", "N2-perf"], "fixture_ok": true, "critical": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events"], "medium": ["S6-task-docs", "N2-perf"]}
+B-T2-3 FAIL  N2-perf  verify 20 MB: bản kiểm 14.3s (exit 0) / gốc 0.9s (exit 0)
+B-T2-3 TÓM TẮT {"cmd": "t2", "fail": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events", "S6-task-docs", "N2-perf"], "fixture_ok": true, "critical": ["S1-verify-output", "S2-agent-output", "S3-task-description", "S4-review", "S5-hook-events"], "medium": ["S6-task-docs", "N2-perf"]}
+done

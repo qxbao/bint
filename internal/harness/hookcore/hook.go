@@ -371,6 +371,22 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 				return Result{Written: f != "", SpoolFile: f, Output: d.PreToolDecide("", hcomp.ActDeny, reason)}, nil
 			}
 		}
+		// Rào đọc của bước b-goal (deny_read.go): chỉ khi Runner đặt BINT_DENY_READ cho tiến trình này; plan.md/tasks.md nằm ngoài
+		// repository nên phải chặn trước bộ lọc "tệp ngoài repository" bên dưới.
+		if env := os.Getenv(EnvDenyRead); env != "" && d.PreToolDecide != nil && containsDecision(d.PreToolDecisions, "deny") {
+			if hit, deny := denyReadDecision(env, hi.ToolInput); deny {
+				ge := ev
+				ge.Type = spool.GuardrailTriggered
+				ge.Payload = map[string]any{"guardrail": GuardrailDenyRead, "outcome": "fired", "on": hcomp.OnPreBash, "action": hcomp.ActDeny,
+					"requested": hcomp.ActDeny, "blocked": true, "agent_type": hi.AgentType, "tool": hi.ToolName}
+				if info.Kind == ToolShell {
+					ge.Payload["command"] = detect.Redact(info.Command, 300)
+				}
+				ge.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), "guardrail", GuardrailDenyRead, "fired")
+				f, _ := spool.Write(paths.Spool, ge) // lỗi ghi spool không được làm mất quyết định deny
+				return Result{Written: f != "", SpoolFile: f, Output: d.PreToolDecide("", hcomp.ActDeny, denyReadReason(hit))}, nil
+			}
+		}
 		// Guardrail đường dẫn worktree cho bint-implementer của driver session (mục 7): trước bộ lọc "tệp ngoài repository"
 		// vì worktree của tác vụ nằm ngoài cây gốc.
 		if d.SubagentPrompt != nil && d.PreToolDecide != nil && hi.AgentType == SubagentImplementer &&
@@ -1146,6 +1162,13 @@ func isConfirmedTest(tc *string, command string) bool {
 // đầu ra" là cho phép. Với subagent chỉ đọc, guardrail dựng sẵn vẫn phải có hiệu lực: quyết định theo readonly_tools
 // mặc định và trả deny nếu lệnh/công cụ không thuộc bước chỉ đọc. Các trường hợp khác giữ hành vi cũ (Result rỗng).
 func readonlyFailClosed(hi Input, d Dialect) Result {
+	// Rào đọc của b-goal (deny_read.go) chỉ cần biến môi trường, không cần cấu hình: lỗi nạp cấu hình không được làm nó tắt im lặng.
+	// Chỉ chặn lời gọi thực sự nhắc tới đường dẫn bị cấm nên không ảnh hưởng lệnh khác (an toàn, ít rủi ro hơn chặn toàn bộ).
+	if env := os.Getenv(EnvDenyRead); env != "" && hi.Event == EvPreTool && d.PreToolDecide != nil && containsDecision(d.PreToolDecisions, "deny") {
+		if hit, deny := denyReadDecision(env, hi.ToolInput); deny {
+			return Result{Output: d.PreToolDecide("", hcomp.ActDeny, denyReadReason(hit))}
+		}
+	}
 	if hi.Event != EvPreTool || !d.SubagentReadonly || d.PreToolDecide == nil || d.Classify == nil {
 		return Result{}
 	}

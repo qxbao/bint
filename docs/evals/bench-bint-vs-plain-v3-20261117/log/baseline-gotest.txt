@@ -1,0 +1,4 @@
+A-T2 exit=1
+A-T1 exit=1
+B-T1 exit=0
+B-T2 exit=0

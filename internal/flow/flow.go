@@ -24,13 +24,16 @@ const Rel = ".bint/flows"
 type Kind string
 
 const (
-	KindPlan      Kind = "plan"
+	KindPlan Kind = "plan"
+	// KindGoal: bước viết kiểm tra mục tiêu độc lập (chỉ thấy requirement.md) giữa plan và implement. Chỉ flow nhúng b-do có
+	// (Validate từ chối ở flow tuỳ biến): Bint đóng băng tệp nó viết và chạy làm cổng riêng.
+	KindGoal      Kind = "goal"
 	KindImplement Kind = "implement"
 	KindReview    Kind = "review"
 )
 
-// Kinds là các kind hợp lệ theo thứ tự bắt buộc của flow (plan → implement → review).
-var Kinds = []Kind{KindPlan, KindImplement, KindReview}
+// Kinds là các kind hợp lệ theo thứ tự bắt buộc của flow (plan → goal → implement → review).
+var Kinds = []Kind{KindPlan, KindGoal, KindImplement, KindReview}
 
 // rank là vị trí của kind trong thứ tự bắt buộc; -1 nếu kind không hợp lệ.
 func (k Kind) rank() int {
@@ -45,7 +48,7 @@ func (k Kind) rank() int {
 // DefaultRole là role mặc định của bước theo kind (role nhận harness/model/quyền MCP từ cấu hình).
 func DefaultRole(k Kind) string {
 	switch k {
-	case KindPlan:
+	case KindPlan, KindGoal:
 		return "planner"
 	case KindImplement:
 		return "implementer"
@@ -62,7 +65,7 @@ type Step struct {
 	Skill string `yaml:"skill" json:"skill"`
 	// Role rỗng nhận DefaultRole(Kind).
 	Role string `yaml:"role,omitempty" json:"role,omitempty"`
-	// Optional: chỉ ở bước plan; bước có thể bỏ qua theo phân loại tác vụ.
+	// Optional: chỉ ở bước plan và goal; bước có thể bỏ qua (plan: theo phân loại tác vụ; goal: khi phiếu không có kiểm tra mục tiêu).
 	Optional bool `yaml:"optional,omitempty" json:"optional,omitempty"`
 	// Verify: có chạy lệnh kiểm chứng sau bước implement hay không; nil = có.
 	Verify *bool `yaml:"verify,omitempty" json:"verify,omitempty"`
