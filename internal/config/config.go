@@ -429,7 +429,7 @@ type Workflow struct {
 	// TimeoutMinutes giới hạn thời gian mỗi bước agent.
 	TimeoutMinutes int `yaml:"timeout_minutes"`
 	// SliceTimeoutMinutes là trần thời gian của MỘT lát khi b-do chạy kế hoạch lớn theo lát mỏng (mỗi nhóm `## Bề mặt bị ảnh hưởng` là một
-	// lượt b-feat riêng; thời gian agent của lát là min(timeout_minutes, khoá này)). Lát quá trần bị bỏ và cây quay về điểm xanh. 0 = tắt lát
+	// lượt b-feat riêng; thời gian agent của lát là min(timeout_minutes, khoá này)). Lát quá trần được giữ cây và tác vụ blocked chờ người (resume --slice keep|discard|more). 0 = tắt lát
 	// mỏng (kế hoạch lớn chạy một b-feat như trước).
 	SliceTimeoutMinutes int `yaml:"slice_timeout_minutes"`
 	// Slicing chọn khi nào b-do chia kế hoạch lớn thành lát mỏng: auto (theo dòng `Chia lát:` của `## Chiến lược thực thi` trong plan.md;

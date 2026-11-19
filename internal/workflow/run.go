@@ -528,10 +528,11 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		return rs.res, nil
 	}
 	if !rs.session {
-		r.dropSlicesIfOff(rs) // tắt chia lát giữa chừng: lát chưa chốt thành một b-feat thường (slice.go)
+		// Lựa chọn của người với lát đang giữ (--slice keep|discard|more) áp TRƯỚC khi thôi chia lát: discard vẫn khôi phục cây về điểm xanh.
 		if !r.applySliceChoice(ctx, rs, o.Slice) {
-			return rs.res, nil // lựa chọn của người với lát đang giữ (--slice keep|discard|more)
+			return rs.res, nil
 		}
+		r.dropSlicesIfOff(rs) // tắt chia lát giữa chừng: lát chưa chốt thành một b-feat thường (slice.go)
 	}
 	r.armPlanContinuation(ctx, rs)
 

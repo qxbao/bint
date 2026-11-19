@@ -89,8 +89,10 @@ bint task error <id> --step b-feat "<điều đã thử và vì sao không đư�
 
 ## Bước 4 — Kiểm chứng và đối chiếu
 
+Chỉ khi **không** chạy dưới `bint run` (`BINT_RUN_ID` trống) mới chạy lệnh dưới; dưới `bint run`, Bint tự chạy kiểm chứng sau bước này, đừng gọi `bint task verify`.
+
 ```sh
-bint task verify <id>      # chạy verify.command của phiếu nếu đã được người xác nhận
+bint task verify <id>      # chạy verify.command của phiếu nếu đã được người xác nhận (chỉ ngoài bint run)
 ```
 
 Với từng tiêu chí chấp nhận (đánh số từ 1 theo `bint task show`), ghi nhận kèm bằng chứng

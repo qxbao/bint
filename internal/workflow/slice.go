@@ -19,8 +19,9 @@ import (
 // gì để giao, và review không hội tụ là cách dừng duy nhất. Với kế hoạch lớn dưới `bint run` (driver process), b-feat đầu tiên chia việc theo
 // nhóm `## Bề mặt bị ảnh hưởng` của plan.md (nhóm có AC-N): mỗi lát là một lượt b-feat riêng có trần thời gian (workflow.slice_timeout_minutes).
 // Sau mỗi lát Runner đo cổng mục tiêu đóng băng (goalfreeze.go): lát chỉ được CHỐT khi test cũ vẫn xanh và tập ô đỏ của cổng mục tiêu là tập
-// con thực sự của tập ở điểm xanh trước; chốt thì ghim cây làm điểm xanh mới (refs/bint/tasks/<id>/slice-green), không thì ghim cây của lát
-// (slice-<N>-discarded), đưa tệp của tác vụ về điểm xanh và bỏ lát. Hết ngân sách hoặc agent lỗi thì giao điểm xanh cuối kèm lát chưa làm.
+// con thực sự của tập ở điểm xanh trước; chốt thì ghim cây làm điểm xanh mới (refs/bint/tasks/<id>/slice-green), không thì GIỮ NGUYÊN cây của lát
+// (holdSlice: ghim slice-<N>-discarded làm đường lui, tác vụ blocked) và người chọn `resume --slice keep|discard|more`. Hết ngân sách hoặc agent lỗi
+// cũng dừng chờ người như vậy, không tự quay về điểm xanh.
 // Flow không đổi: lát là các lần chạy lặp của bước implement; quyết định nằm ở sliceGate (afterStep) và sliceSettleFailure (lát lỗi/quá trần).
 
 // sliceOutcome là kết quả một cổng lát: tiếp tục lát kế, hết lát (đi tiếp review), hoặc dừng (tác vụ đã blocked/failed).
@@ -151,7 +152,7 @@ func (r *Runner) slicePreview(rs *runState) string {
 	for i, p := range ps {
 		parts[i] = fmt.Sprintf("lát %d/%d: %s", i+1, len(ps), truncate(p.Text, 100))
 	}
-	return fmt.Sprintf("Bint sẽ chạy %d lát (mỗi lát một b-feat tối đa %d phút; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ bị bỏ và cây về điểm xanh): %s",
+	return fmt.Sprintf("Bint sẽ chạy %d lát (mỗi lát một b-feat tối đa %d phút; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì được giữ cây và dừng chờ người quyết định): %s",
 		len(ps), r.Cfg.Workflow.SliceTimeoutMinutes, strings.Join(parts, "; "))
 }
 
@@ -232,7 +233,7 @@ const sliceGuideBlock = "\nLát mỏng: Bint chỉ chia lát khi plan.md ghi `Ch
 	"bề mặt độc lập, mỗi nhóm đo riêng được bằng kiểm tra mục tiêu, và cần `Kiểm tra mục tiêu độc lập (b-goal): có`). Khi chia lát, kế hoạch lớn được Bint chạy theo từng lát, mỗi nhóm cấp ngoài cùng của `## Bề mặt bị ảnh hưởng` có nêu `AC-N` là MỘT lát " +
 	"(một lượt b-feat riêng, có trần thời gian). Hãy xếp các nhóm theo thứ tự chạy: nhóm ĐẦU là bản nhỏ nhất vẫn làm giảm số ô đỏ của " +
 	"`## Kiểm tra mục tiêu`; mỗi nhóm sau độc lập đủ để chạy riêng; phần tài liệu/cấu hình gộp vào nhóm cần nó hoặc đặt cuối. Nhóm không nêu AC " +
-	"(ghi \"Ngoài phạm vi\") không thành lát. Bint chốt lát khi ô đỏ của kiểm tra mục tiêu giảm và test cũ vẫn xanh, không thì bỏ lát đó.\n\n"
+	"(ghi \"Ngoài phạm vi\") không thành lát. Bint chốt lát khi ô đỏ của kiểm tra mục tiêu giảm và test cũ vẫn xanh, không thì giữ cây của lát và dừng chờ người quyết định.\n\n"
 
 // sliceBlock là đề bài riêng của lát đang chạy (rỗng khi không có lát).
 func sliceBlock(t *task.Task) string {
@@ -273,7 +274,7 @@ func sliceBlock(t *task.Task) string {
 			fmt.Fprintf(&b, "%s: %s\n", g.head, strings.Join(g.items, " | "))
 		}
 	}
-	b.WriteString("Sau lát này Bint đo cổng mục tiêu: lát chỉ được chốt khi số ô đỏ giảm (không ô xanh nào chuyển đỏ) và test cũ vẫn xanh; không thì lát bị bỏ.\n")
+	b.WriteString("Sau lát này Bint đo cổng mục tiêu: lát chỉ được chốt khi số ô đỏ giảm (không ô xanh nào chuyển đỏ) và test cũ vẫn xanh; không thì Bint giữ cây của lát và dừng chờ người quyết định.\n")
 	return b.String()
 }
 
@@ -659,6 +660,11 @@ func (r *Runner) applySliceChoice(ctx context.Context, rs *runState, choice stri
 		}
 	}
 	red, measured := heldMeasure(st)
+	var prevGreen *task.SliceGreen
+	if st.SliceGreen != nil {
+		pg := *st.SliceGreen
+		prevGreen = &pg
+	}
 	next := false
 	t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
 		s := &t.State.Slices[idx]
@@ -667,7 +673,12 @@ func (r *Runner) applySliceChoice(ctx context.Context, rs *runState, choice stri
 		if choice == SliceKeep {
 			s.Status, s.Reason, s.Tree = task.SliceAccepted, "người giữ cây của lát ("+old+")", snap
 			s.Red = append([]string{}, red...)
-			t.State.SliceGreen = &task.SliceGreen{Tree: snap, At: r.at(), Measured: measured, Red: append([]string{}, red...)}
+			gRed, gMeasured := red, measured
+			if !measured && prevGreen != nil {
+				// Lát chưa đo (quá trần/agent lỗi): giữ số đo của điểm xanh trước để sliceVerdict không bị chốt thành "chưa đo được".
+				gRed, gMeasured = prevGreen.Red, prevGreen.Measured
+			}
+			t.State.SliceGreen = &task.SliceGreen{Tree: snap, At: r.at(), Measured: gMeasured, Red: append([]string{}, gRed...)}
 		} else {
 			s.Status, s.Reason = task.SliceDiscarded, "người bỏ lát ("+old+")"
 		}

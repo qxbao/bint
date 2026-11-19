@@ -256,15 +256,21 @@ func PlanStrategy(plan string) (slice, goal string) {
 // liệt kê câu hỏi mở.
 // Không áp luật v2 (version 0); dùng LintPlanningTextV khi biết phiên bản hợp đồng.
 func LintPlanningText(ticket Ticket, docs map[string]string, strict bool) ArtifactReport {
-	return lintPlanning(ticket, docs, nil, strict, 0)
+	return lintPlanning(ticket, docs, nil, strict, 0, nil)
+}
+
+// LintPlanningTextFrozen như LintPlanningTextV nhưng nhận danh sách tệp kiểm tra mục tiêu đã đóng băng (State.GoalTest.Paths()):
+// plan.md được nêu các tệp này trong `## Cỡ kế hoạch` dù chúng nằm ngoài scope.allow hoặc trong scope.deny.
+func LintPlanningTextFrozen(ticket Ticket, docs map[string]string, strict bool, version int, frozen []string) ArtifactReport {
+	return lintPlanning(ticket, docs, nil, strict, version, frozen)
 }
 
 // LintPlanningTextV như LintPlanningText nhưng theo phiên bản hợp đồng của tác vụ.
 func LintPlanningTextV(ticket Ticket, docs map[string]string, strict bool, version int) ArtifactReport {
-	return lintPlanning(ticket, docs, nil, strict, version)
+	return lintPlanning(ticket, docs, nil, strict, version, nil)
 }
 
-func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]error, strict bool, version int) ArtifactReport {
+func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]error, strict bool, version int, frozen []string) ArtifactReport {
 	b := &reportBuilder{r: ArtifactReport{Errors: []ArtifactIssue{}, Warnings: []ArtifactIssue{}, OpenQuestions: []ArtifactIssue{}}}
 	usable := map[string]bool{}
 	for _, n := range ArtifactNames() {
@@ -345,7 +351,7 @@ func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]e
 			lintBaseline(v2, docs["requirement"], acs)
 		}
 		if usable["plan"] {
-			lintPlanV2(v2, ticket, docs["plan"], acs)
+			lintPlanV2(v2, ticket, docs["plan"], acs, frozen)
 		}
 		if version >= PlanningContractV2 && strict {
 			b.r.Errors = append(b.r.Errors, v2.r.Errors...)
@@ -669,7 +675,7 @@ func LintPlanningTask(t *Task, strict bool) ArtifactReport {
 			bad[n] = err
 		}
 	}
-	return lintPlanning(t.Ticket, docs, bad, strict, t.State.PlanningContractVersion)
+	return lintPlanning(t.Ticket, docs, bad, strict, t.State.PlanningContractVersion, t.State.GoalTest.Paths())
 }
 
 const (
@@ -715,7 +721,7 @@ func lintBaseline(b *reportBuilder, req string, acs []acItem) {
 }
 
 // lintPlanV2: bề mặt ảnh hưởng ánh xạ vào AC, có giả định, và tệp nêu trong `## Cỡ kế hoạch` nằm trong phạm vi phiếu.
-func lintPlanV2(b *reportBuilder, ticket Ticket, plan string, acs []acItem) {
+func lintPlanV2(b *reportBuilder, ticket Ticket, plan string, acs []acItem, frozen []string) {
 	known := map[int]bool{}
 	for _, a := range acs {
 		known[a.N] = true
@@ -763,6 +769,9 @@ func lintPlanV2(b *reportBuilder, ticket Ticket, plan string, acs []acItem) {
 	_, files := PlanSizeDecl(plan)
 	for _, f := range files {
 		rel := strings.TrimPrefix(strings.ReplaceAll(f, "\\", "/"), "./")
+		if slices.ContainsFunc(frozen, func(p string) bool { return strings.TrimPrefix(strings.ReplaceAll(p, "\\", "/"), "./") == rel }) {
+			continue // kiểm tra mục tiêu do b-goal viết và đóng băng: nằm ngoài scope.allow là bình thường
+		}
 		denied := pathglob.MatchAny(ticket.Scope.Deny, rel)
 		if denied || (len(ticket.Scope.Allow) > 0 && !pathglob.MatchAny(ticket.Scope.Allow, rel)) {
 			b.err("plan_file_out_of_scope", artPlan, "tệp %q trong `## Cỡ kế hoạch` nằm ngoài scope.allow hoặc khớp scope.deny của phiếu", f)

@@ -510,3 +510,21 @@ func TestPlanSlices(t *testing.T) {
 		}
 	}
 }
+
+func TestLintPlanFileOutOfScopeSkipsFrozenGoalTests(t *testing.T) {
+	tk := goodTicket()
+	tk.Scope = Scope{Allow: []string{"app.txt"}, Deny: []string{"goal_test.go"}}
+	d := goodDocs()
+	d["plan"] = "# Kế hoạch\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `goal_test.go`\n"
+	if r := LintPlanningTextV(tk, d, true, PlanningContractV2); !hasCode(r.Errors, "plan_file_out_of_scope") {
+		t.Fatalf("không có tệp đóng băng: muốn plan_file_out_of_scope, được %s", codes(r.Errors))
+	}
+	r := LintPlanningTextFrozen(tk, d, true, PlanningContractV2, []string{"./goal_test.go"})
+	if hasCode(r.Errors, "plan_file_out_of_scope") {
+		t.Fatalf("tệp b-goal đóng băng không được bị chặn: %s", codes(r.Errors))
+	}
+	d["plan"] += "- `other.go`\n"
+	if r := LintPlanningTextFrozen(tk, d, true, PlanningContractV2, []string{"goal_test.go"}); !hasCode(r.Errors, "plan_file_out_of_scope") {
+		t.Fatalf("tệp thường ngoài scope vẫn phải bị chặn: %s", codes(r.Errors))
+	}
+}
