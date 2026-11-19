@@ -35,16 +35,6 @@ func (g *goalCalls) writer(rel string, bodies ...string) func(ctx context.Contex
 	}
 }
 
-func countStep(calls []string, step string) int {
-	n := 0
-	for _, c := range calls {
-		if c == step {
-			n++
-		}
-	}
-	return n
-}
-
 // runFlagRe bắt đối số của cờ -run trong lệnh go test (dạng `-run X`, `-run=X`, có hoặc không nháy).
 var runFlagRe = regexp.MustCompile(`(?:^|\s)-{1,2}run(?:=|\s+)('[^']*'|"[^"]*"|\S+)`)
 

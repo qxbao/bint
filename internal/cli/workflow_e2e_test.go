@@ -16,8 +16,8 @@ const agentScript = `set -e
 P="$(cat "$BINT_EVAL_PROMPT_FILE")"
 case "$P" in
 *'step="b-req"'*)
-  printf '# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Kiểm tra mục tiêu\n\140TestAppV2\140 quét app.txt, đạt khi chứa v2\n## Câu hỏi mở\n' | "$BINT" task write "$BINT_TASK_ID" requirement -
-  printf '# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- \140app.txt\140\n- \140done.txt\140\n## Bề mặt bị ảnh hưởng\n- app.txt\n' | "$BINT" task write "$BINT_TASK_ID" plan -
+  printf '# Yêu cầu\n## Hiện trạng\nKhông đo được: app.txt chỉ có một dòng v1\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Kiểm tra mục tiêu\n\140TestAppV2\140 quét app.txt, đạt khi chứa v2\n## Câu hỏi mở\n' | "$BINT" task write "$BINT_TASK_ID" requirement -
+  printf '# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- \140app.txt\140\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n## Chiến lược thực thi\nChia lát: không — một tệp\nKiểm tra mục tiêu độc lập (b-goal): không — sửa một dòng\n## Giả định thay người dùng\nKhông có\n' | "$BINT" task write "$BINT_TASK_ID" plan -
   printf -- '- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n' | "$BINT" task write "$BINT_TASK_ID" tasks -
   ;;
 *'step="b-goal"'*)
