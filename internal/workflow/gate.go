@@ -368,18 +368,18 @@ func verifyRedBlock(t *task.Task) string {
 // finalize (chặn "chưa đủ bằng chứng" kèm dấu vân tay để resume không review lại, không đốt vòng sửa): lần Bint tự kiểm chứng lại có lý
 // do (tệp ngoài tác vụ đổi, chỉ test bị ảnh hưởng) và lần người chạy tay `bint task verify` (thường sau sự cố môi trường).
 func redVerification(t *task.Task) *task.Verification {
-	if v := t.State.LastVerification(); v != nil && !v.Passed && v.Reason == "" && v.RunID != "" {
+	if v := t.State.LastVerification(); v != nil && !v.Passed && !v.Voided && v.Reason == "" && v.RunID != "" {
 		return v
 	}
 	// Cổng mục tiêu riêng (kiểm tra mục tiêu đóng băng) đỏ sau bước implement: cùng cách xử lý (review thấy, vòng sửa, không finalize).
-	if g := t.State.LastGoalCheck(); g != nil && !g.Passed && g.Reason == "" && g.RunID != "" {
+	if g := t.State.LastGoalCheck(); g != nil && !g.Passed && !g.Voided && g.Reason == "" && g.RunID != "" {
 		return g
 	}
 	// Ngân sách diff (budget.go) đỏ sau bước b-feat: cùng cách xử lý.
-	if b := t.State.LastBudgetCheck(); b != nil && !b.Passed && b.Reason == "" && b.RunID != "" {
+	if b := t.State.LastBudgetCheck(); b != nil && !b.Passed && !b.Voided && b.Reason == "" && b.RunID != "" {
 		return b
 	}
-	if p := t.State.LastPerfCheck(); p != nil && !p.Passed && p.Reason == "" && p.RunID != "" {
+	if p := t.State.LastPerfCheck(); p != nil && !p.Passed && !p.Voided && p.Reason == "" && p.RunID != "" {
 		return p
 	}
 	return nil

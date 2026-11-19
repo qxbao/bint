@@ -256,7 +256,9 @@ type Verification struct {
 	ExitCode  int    `json:"exit_code"`
 	Passed    bool   `json:"passed"`
 	TimedOut  bool   `json:"timed_out,omitempty"`
-	Log       string `json:"log,omitempty"`
+	// Voided: lần đo đỏ thuộc cây của lát đã bị bỏ (--slice discard); redVerification bỏ qua nó (cây đã quay về điểm xanh).
+	Voided bool   `json:"voided,omitempty"`
+	Log    string `json:"log,omitempty"`
 	// Worktree là fingerprint trạng thái mã lúc kiểm chứng (HEAD + thay đổi chưa commit).
 	Worktree string `json:"worktree,omitempty"`
 	// Tree là mã cây ảnh chụp cây làm việc sau lệnh kiểm chứng ("" nếu không chụp được); dùng để
