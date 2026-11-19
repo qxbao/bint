@@ -185,6 +185,15 @@ worktree không đổi kể từ lúc đó thì KHÔNG mở lượt b-review m�
 review lại như cũ. Dấu vân tay bị xoá khi lần kiểm chứng chạy lại xong hoặc khi tác vụ bị chặn vì lý do khác lần kiểm
 chứng hỏng (ví dụ tiêu chí `unmet`), để lần resume sau không bỏ review nhầm.
 
+Cùng cơ chế áp cho finalize bị chặn vì **chưa có lần kiểm chứng nào** (lệnh kiểm chứng chưa được người xác nhận nên Bint không chạy):
+sau `bint task approve` rồi `bint run resume`, cây không đổi thì Bint chạy `verify.command` đúng một lần và không mở lượt b-review
+mới (không tính thêm vòng review); cây đã đổi thì review lại như cũ.
+
+**Binary cũ hơn cấu hình.** Trước mỗi bước review (và khi review không ghi kết quả), Bint nạp lại `.bint/config.yml` của tác vụ bằng
+binary đang chạy, và chạy `bint task show <id>` của `bint` trên PATH khi nó là tệp khác. Không đọc được (khoá cấu hình `b-feat` vừa
+thêm mà binary chưa biết, `field … not found`) thì tác vụ **blocked** (không failed) với lý do nêu binary, lỗi giải mã và hướng dẫn
+build lại `bint` (`go install ./cmd/bint`) rồi `bint run resume <id>`; không tốn lượt b-review.
+
 **Kiểm chứng chạy qua Bint trên Windows chậm hoặc treo (tác vụ 01M7C3CBN5JKTMVJV97TXDR5DK, 2026-11-14).** Trạng thái: **nguyên nhân đã được xác nhận bằng phép đo** (2026-11-14, Go 1.25.1, phiếu 01M7CZR838A68TT47THCCPWH9A); các phần
 đo và giả thuyết cũ bên dưới giữ làm lịch sử.
 
@@ -516,13 +525,13 @@ thành **lát** (`internal/workflow/slice.go`), mỗi lát một lượt `b-feat
 
 **Ngân sách diff mỗi lát/bước b-feat (`workflow.max_diff_lines`).** Mặc định `0` = tắt (`Validate` từ chối số âm). Bật thì Bint đếm số dòng thêm+xoá (`git diff --numstat`) trên tệp của tác vụ,
 **không tính tệp kiểm tra mục tiêu đóng băng**:
-- Chia lát: đo mỗi lát so với **điểm xanh** ngay sau `b-feat`, trước kiểm chứng. Vượt trần thì lát bị bỏ (lý do ghi số đo, ví dụ "61 dòng thêm+xoá so với điểm xanh, trần … = 20"), cây về điểm xanh và lát kế chạy.
+- Chia lát: đo mỗi lát so với **điểm xanh** ngay sau `b-feat`, trước kiểm chứng. Vượt trần thì lát được giữ cây và tác vụ dừng blocked (lý do ghi số đo, ví dụ "61 dòng thêm+xoá so với điểm xanh, trần … = 20"); người chọn `bint run resume <id> --slice keep|discard|more` (chỉ `discard` mới đưa tệp của tác vụ về điểm xanh).
 - Không chia lát: đo phần `b-feat` đã làm so với **mốc tác vụ** (cây chụp trước `b-feat` đầu). Vượt trần thì ghi kết quả đỏ có số đo vào `State.BudgetChecks`, coi như kiểm chứng không qua: vào vòng sửa
   (đề bài nêu số đo), không finalize. Lối ra như kiểm chứng đỏ: hết vòng sửa thì `bint run resume --accept`/`--fix-round`/huỷ.
 
 **Cổng hồi quy hiệu năng (`workflow.perf.command`, `workflow.perf.max_slowdown`).** Mặc định `command: ""` = tắt; `max_slowdown` mặc định `1.5` (`Validate` từ chối < 1). Bật khi lệnh kiểm chứng của phiếu đã được người xác nhận:
 - **Đơn vị và mốc**: thời gian chạy lệnh đo (giây), mỗi lần đo chạy 3 lần lấy **nhỏ nhất**. Mốc đo ngay trước `b-feat` đầu tiên (`perf_baseline` trong `state.json`), đo lại sau mỗi `b-feat` (`perf_checks`, log `perf-N.log` trong thư mục tác vụ).
-- **Đỏ** khi chậm hơn mốc quá `max_slowdown` lần **và** quá sàn nhiễu 0,1 giây, hoặc lệnh đo thoát khác 0/hết giờ. Kết quả đỏ ghi số đo, coi như kiểm chứng không qua như ngân sách diff: chia lát thì lát bị bỏ (cây về điểm xanh);
+- **Đỏ** khi chậm hơn mốc quá `max_slowdown` lần **và** quá sàn nhiễu 0,1 giây, hoặc lệnh đo thoát khác 0/hết giờ. Kết quả đỏ ghi số đo, coi như kiểm chứng không qua như ngân sách diff: chia lát thì lát được giữ cây và tác vụ dừng blocked chờ người (`--slice keep|discard|more`);
   không chia lát thì vào vòng sửa (đề bài nêu số đo và log), không finalize.
 - **Lối ra**: sửa hồi quy; hết vòng sửa thì `bint run resume <id> --accept` (chấp nhận kết quả hiện tại)/`--fix-round`/huỷ, giống kiểm chứng đỏ.
 

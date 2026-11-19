@@ -384,7 +384,7 @@ func oldTestsGreen(v *task.Verification, goal map[string]bool) (ok bool, why str
 	return true, ""
 }
 
-// sliceVerdict quyết định chốt (ok) hay bỏ lát theo số đo: test cũ xanh VÀ ô đỏ của cổng mục tiêu giảm so với điểm xanh trước. Điểm xanh trước
+// sliceVerdict quyết định chốt (ok) hay giữ lát chờ người theo số đo: test cũ xanh VÀ ô đỏ của cổng mục tiêu giảm so với điểm xanh trước. Điểm xanh trước
 // không đo được thì lát chỉ cần làm cho đo được; điểm xanh đã 0 ô đỏ thì lát phải giữ 0. why là số đo làm lý do (cả khi chốt).
 func sliceVerdict(prev *task.SliceGreen, red []string, measured, oldOK bool, oldWhy string) (ok bool, why string) {
 	switch {
@@ -415,9 +415,9 @@ func sliceVerdict(prev *task.SliceGreen, red []string, measured, oldOK bool, old
 	return true, fmt.Sprintf("ô đỏ %d→%d", len(prev.Red), len(red))
 }
 
-// ---- chốt / bỏ ----
+// ---- chốt / giữ chờ người ----
 
-// sliceGate chạy sau bước implement của lát (đã qua kiểm phạm vi, kiểm chứng và cổng mục tiêu): đo, rồi chốt hoặc bỏ lát.
+// sliceGate chạy sau bước implement của lát (đã qua kiểm phạm vi, kiểm chứng và cổng mục tiêu): đo, rồi chốt lát (đạt) hoặc giữ cây chờ người (không đạt, holdSlice).
 func (r *Runner) sliceGate(ctx context.Context, rs *runState) sliceOutcome {
 	st := &rs.t.State
 	cur := st.ActiveSlice()
@@ -614,7 +614,12 @@ func (r *Runner) applySliceChoice(ctx context.Context, rs *runState, choice stri
 	n, total, id, idx := cur.N, len(st.Slices), st.ID, cur.N-1
 	if choice == "" {
 		choice = SliceMore
-		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("lát %d đang giữ chờ người mà không có --slice: chạy lại lát từ cây hiện tại (--slice more)", n))
+		if r.slicingEnabled() {
+			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("lát %d đang giữ chờ người mà không có --slice: chạy lại lát từ cây hiện tại (--slice more)", n))
+		} else {
+			// Chia lát đã tắt: dropSlicesIfOff ngay sau đây gộp lát vào một b-feat thường, không có "chạy lại lát" nào.
+			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("lát %d đang giữ chờ người, người không chọn gì và chia lát đã tắt: lát gộp vào một b-feat thường trên cây hiện tại", n))
+		}
 	}
 	if choice == SliceMore {
 		t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {

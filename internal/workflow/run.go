@@ -88,6 +88,9 @@ type Runner struct {
 	SubagentUsage func(agentID string) (*claude.Usage, string)
 	// BintExe là đường dẫn binary Bint đặt vào cấu hình MCP của bước (rỗng = os.Executable()).
 	BintExe string
+	// CLISkewCheck kiểm `bint` trên PATH của agent có đọc được cấu hình của tác vụ không (nil = chạy `bint task show`); trả đường dẫn binary và
+	// lỗi (rỗng = ổn). Seam cho kiểm thử (config_preflight.go).
+	CLISkewCheck func(ctx context.Context, root, taskID string) (exe, msg string)
 }
 
 // StepEvent báo một bước agent của lượt điều phối. Log là đường dẫn log của bước (ghi dần khi agent chạy).
@@ -1251,6 +1254,10 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 			r.initSlices(rs, firstFeat) // kế hoạch lớn: chia lát mỏng ở b-feat đầu tiên (slice.go)
 		}
 	case flow.KindReview:
+		if why := r.configSkew(ctx, rs); why != "" {
+			r.block(rs, why) // trước khi tốn lượt review: agent sẽ không chạy được `bint task review`
+			return nil, false
+		}
 		if rs.t.State.Status != task.StatusInReview {
 			if err := r.transition(rs, task.StatusInReview, step+" bắt đầu"); err != nil {
 				r.fail(rs, step, err.Error())
@@ -1619,8 +1626,8 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		return false
 	case "failed":
 		if sr.kind == flow.KindImplement && rs.activeSlice() != nil {
-			// Lát mỏng: lỗi/quá trần không làm tác vụ failed. afterStep (sliceSettleFailure) bỏ lát dở, đưa cây về điểm xanh rồi chạy lát kế
-			// (quá trần) hoặc dừng blocked kèm danh sách lát (lỗi khác), để có gì đó giao thay vì cây dở dang.
+			// Lát mỏng: lỗi/quá trần không làm tác vụ failed. afterStep (sliceSettleFailure) giữ nguyên cây của lát (holdSlice) và dừng blocked
+			// chờ người chọn `--slice keep|discard|more`; Bint không tự bỏ lát hay đưa cây về điểm xanh.
 			r.RecordError(rs.t.State.ID, step, step+": "+endReason)
 			rs.sliceFail, rs.sliceTimedOut = cmp.Or(endReason, "lỗi không rõ"), res.TimedOut
 			return true
@@ -1902,14 +1909,14 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		return r.afterGoal(ctx, rs)
 	case flow.KindImplement:
 		if rs.sliceFail != "" {
-			// Agent của lát lỗi/quá trần (endStep): bỏ lát dở, cây về điểm xanh, không qua kiểm phạm vi/kiểm chứng của phần dở dang.
+			// Agent của lát lỗi/quá trần (endStep): giữ cây của lát và dừng blocked chờ người (holdSlice), không qua kiểm phạm vi/kiểm chứng của phần dở dang.
 			switch r.sliceSettleFailure(ctx, rs) {
 			case sliceNext:
 				return true
 			case sliceStop:
 				return false
 			}
-			return r.implementDone(ctx, rs, step, false) // hết lát: cây ở điểm xanh cuối, sang review
+			return r.implementDone(ctx, rs, step, false) // hết lát: cây ở lát cuối, sang review
 		}
 		if !r.freezeGate(rs) {
 			return false // tệp kiểm tra mục tiêu đóng băng bị sửa: chặn trước kiểm phạm vi, kiểm chứng và review (goalfreeze.go)
@@ -1932,7 +1939,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		// done (bước implement cuối): luật này nằm ở Runner chứ không chỉ ở lint, nên flow không nới được cổng.
 		// Dấu vân tay cây ngay trước kiểm chứng: vòng sửa chỉ nối tiếp phiên b-feat khi cây lúc này còn khớp lúc b-feat kết thúc.
 		if sg := rs.t.State.SliceGreen; rs.activeSlice() != nil && sg != nil {
-			// Ngân sách diff của lát (budget.go): đo ngay sau b-feat, trước kiểm chứng; vượt thì bỏ lát (cây về điểm xanh) mà không chạy kiểm chứng.
+			// Ngân sách diff của lát (budget.go): đo ngay sau b-feat, trước kiểm chứng; vượt thì giữ cây của lát và dừng blocked chờ người (holdSlice) mà không chạy kiểm chứng.
 			if over, msg := r.budgetOver(ctx, rs, sg.Tree, "so với điểm xanh"); over {
 				switch r.holdSlice(ctx, rs, "ngân sách diff: "+msg, nil) {
 				case sliceNext:
@@ -2004,7 +2011,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			rs.t = t
 		}
 		if rs.activeSlice() != nil {
-			// Lát mỏng (slice.go): đo cổng mục tiêu rồi chốt hoặc bỏ lát; còn lát thì chạy lát kế, hết lát mới sang review.
+			// Lát mỏng (slice.go): đo cổng mục tiêu rồi chốt lát nếu đạt, không đạt thì giữ cây và dừng chờ người (holdSlice); còn lát thì chạy lát kế, hết lát mới sang review.
 			switch r.sliceGate(ctx, rs) {
 			case sliceNext:
 				return true
@@ -2021,6 +2028,10 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		}
 		last := rev.Last()
 		if !r.reviewIsFresh(rs, last) {
+			if why := r.configSkew(ctx, rs); why != "" {
+				r.block(rs, why) // review không ghi được vì binary cũ hơn cấu hình: báo rõ, resume sau khi build lại
+				return false
+			}
 			r.fail(rs, step, step+" không ghi kết quả ở lượt này (bint task review)")
 			return false
 		}
@@ -2763,7 +2774,9 @@ func (r *Runner) blockFinalize(ctx context.Context, rs *runState, reason string)
 	// Chỉ khi lần kiểm chứng cuối không qua (kiểm chứng hỏng, có thể do lý do ngoài mã); chặn vì lý do khác (lệnh chưa
 	// xác nhận, tiêu chí chưa đạt...) thì xoá dấu vân tay: resume vẫn review lại như cũ.
 	fp := ""
-	if v := rs.t.State.LastVerification(); v != nil && !v.Passed {
+	// Chưa có lần kiểm chứng nào (lệnh chưa được xác nhận nên Bint không chạy): cây đã qua review, chỉ thiếu bằng chứng kiểm chứng.
+	// Cũng nhớ dấu vân tay để resume sau `bint task approve` chạy kiểm chứng thay vì review lại (cây đổi thì vẫn review lại).
+	if v := rs.t.State.LastVerification(); v == nil || !v.Passed {
 		if root, err := r.RootFor(rs.t); err == nil {
 			fp = task.WorktreeFingerprint(ctx, root)
 		}

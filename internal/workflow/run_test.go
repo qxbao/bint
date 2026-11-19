@@ -408,7 +408,7 @@ func (h *harness) runner() *Runner {
 			name = h.agentNameFor(step)
 		}
 		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: name, profile: h.profile, model: model}, nil
-	}}
+	}, CLISkewCheck: noCLISkew}
 }
 
 func (h *harness) ingest() *store.Store {

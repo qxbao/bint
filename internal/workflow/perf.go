@@ -83,7 +83,7 @@ func (r *Runner) perfBaseline(ctx context.Context, rs *runState) {
 }
 
 // perfCheck đo lại sau b-feat. over=true khi đỏ; msg là số đo (rỗng khi cổng tắt/không có mốc). record: ghi vào State.PerfChecks
-// (không chia lát; đỏ vào vòng sửa qua redVerification). Lát thì không ghi: lát đỏ bị bỏ, cây về điểm xanh.
+// (không chia lát; đỏ vào vòng sửa qua redVerification). Lát thì không ghi: lát đỏ được giữ cây và dừng blocked chờ người (holdSlice, `--slice keep|discard|more`).
 func (r *Runner) perfCheck(ctx context.Context, rs *runState, record bool) (over bool, msg string) {
 	if !r.perfEnabled(rs.t) || rs.t.State.PerfBaseline == nil {
 		return false, ""
