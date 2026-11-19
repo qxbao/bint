@@ -114,7 +114,12 @@ type Input struct {
 	Head    string
 	Changed []string // đường dẫn tương đối gốc
 	Sources []Source // nil = DefaultSources()
+	// IgnoreBintConfig: tệp dưới .bint/ không nới ra full (workflow.verify.bint_config_full: false); vẫn nằm trong Changed. Mặc định false:
+	// thay đổi .bint/** nới ra full (ReasonBintConfig).
+	IgnoreBintConfig bool
 }
+
+func isBintPath(p string) bool { return p == ".bint" || strings.HasPrefix(p, ".bint/") }
 
 // DefaultSources là các nguồn hỗ trợ.
 func DefaultSources() []Source { return []Source{GoSource{}} }
@@ -141,8 +146,20 @@ func Select(ctx context.Context, in Input) Selection {
 	if len(changed) == 0 {
 		return sel
 	}
+	classify := changed
+	if in.IgnoreBintConfig {
+		classify = make([]string, 0, len(changed))
+		for _, c := range changed {
+			if !isBintPath(c) {
+				classify = append(classify, c)
+			}
+		}
+		if len(classify) == 0 {
+			return sel // chỉ .bint/** đổi và khoá cho phép không nới: không test nào bị ảnh hưởng
+		}
+	}
 	// Tệp cấu hình/CI quyết định full mà không cần nguồn.
-	if ws := configWidenings(changed); len(ws) > 0 {
+	if ws := configWidenings(classify); len(ws) > 0 {
 		sel.Widening, sel.Scope = ws, TierFull
 		return sel
 	}
@@ -165,7 +182,7 @@ func Select(ctx context.Context, in Input) Selection {
 	if err != nil {
 		return sel.full(Widening{Tier: TierFull, Reason: ReasonSourceUnavailable, Detail: err.Error()})
 	}
-	res := Classify(changed, g)
+	res := Classify(classify, g)
 	sel.Widening = res.Widening
 	switch res.Tier {
 	case TierFull:

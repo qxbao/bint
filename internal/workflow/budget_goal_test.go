@@ -610,6 +610,12 @@ func bgCheckDiffSlice(t *testing.T) {
 			t.Fatalf("resume sau cổng cỡ kế hoạch: %v", err)
 		}
 	}
+	// Lát vượt trần giữ cây và dừng chờ người; người chọn --slice discard thì lát bị bỏ, cây về điểm xanh, lát kế chạy.
+	if res.Status == task.StatusBlocked && slicesRun == 2 {
+		if res, err = r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: id, Resume: true, Slice: SliceDiscard}); err != nil {
+			t.Fatalf("resume --slice discard: %v", err)
+		}
+	}
 	if slicesRun < 2 {
 		t.Fatalf("kịch bản phải chạy theo lát (ít nhất 2 lát), chạy %d lát; chuỗi bước %v, kết quả %s %q", slicesRun, h.calls, res.Status, res.Reason)
 	}

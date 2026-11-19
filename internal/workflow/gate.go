@@ -38,6 +38,13 @@ func choicesFor(t *task.Task) []Choice {
 	resume := st.ResumeCommand()
 	cancel := Choice{Label: "huỷ tác vụ", Command: "bint task cancel " + st.ID}
 	switch {
+	case st.HeldSlice() != nil:
+		return []Choice{
+			{Label: "giữ cây hiện tại của lát: chốt làm điểm xanh rồi sang lát kế", Command: resume + " --slice keep"},
+			{Label: "bỏ lát: đưa tệp của tác vụ về điểm xanh rồi sang lát kế", Command: resume + " --slice discard"},
+			{Label: "thêm giờ: chạy lại lát từ cây hiện tại với thêm một trần thời gian", Command: resume + " --slice more"},
+			cancel,
+		}
 	case st.ReviewExhausted:
 		return []Choice{
 			{Label: "chấp nhận kết quả như hiện tại (bỏ qua các phát hiện còn lại, vào thẳng bước hoàn tất)", Command: resume + " --accept"},

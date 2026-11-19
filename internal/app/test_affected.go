@@ -57,8 +57,8 @@ func TestAffected(ctx context.Context, dir string, o TestAffectedOptions) (TestA
 	if mb, err := gitrepo.Run(ctx, root, "merge-base", commit, "HEAD"); err == nil && strings.TrimSpace(mb) != "" {
 		commit = strings.TrimSpace(mb)
 	}
-	res.Selection = workflow.SelectAffected(ctx, root, commit)
 	cfg := ws.Config
+	res.Selection = workflow.SelectAffectedCfg(ctx, root, commit, cfg.Workflow.Verify.BintConfigFull)
 	vc := cfg.Workflow.Verify
 	sel := res.Selection
 	switch sel.Scope {

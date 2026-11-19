@@ -117,7 +117,8 @@ func normEOL(b []byte) string { return strings.ReplaceAll(string(b), "\r\n", "\n
 func TestGoalBReqBaselineAndSkillGates(t *testing.T) {
 	// --- Skill: cỡ và bản xuất bản (không cần repo tạm). ---
 	t.Run("skill_size", func(t *testing.T) {
-		limits := map[string]int{"b-do": 26000, "b-req": 15500}
+		// Nâng trần (26000→26400, 15500→16800) cho mục Chiến lược thực thi, lựa chọn --slice và luật test hẹp (phiếu 01M7RZQ7).
+		limits := map[string]int{"b-do": 26400, "b-req": 16800}
 		for _, name := range []string{"b-do", "b-req"} {
 			s, ok := skills.Get(name)
 			if !ok {
@@ -175,7 +176,9 @@ func TestGoalBReqBaselineAndSkillGates(t *testing.T) {
 	mt := goalNewTask(t, root, goalCritMeasured, goalCritGoal)
 
 	t.Run("lint_valid_set_has_no_errors", func(t *testing.T) {
-		goalWriteDocs(t, root, mt.ID, goalValidDocs())
+		d := goalValidDocs()
+		d.plan += bdoStrategyValid // hợp đồng v2 bắt buộc `## Chiến lược thực thi`
+		goalWriteDocs(t, root, mt.ID, d)
 		errs, _, ver, raw := goalLint(t, root, mt.ID)
 		if ver < 2 {
 			t.Errorf("tác vụ mới phải theo hợp đồng v2 trở lên, có contract_version=%d", ver)
@@ -294,7 +297,9 @@ func TestGoalBReqBaselineAndSkillGates(t *testing.T) {
 	t.Run("run_id_blocks_task_status", func(t *testing.T) {
 		// Tài liệu hợp lệ để chuyển created → planned chỉ có thể bị chặn bởi BINT_RUN_ID.
 		tk := goalNewTask(t, root, goalCritMeasured, goalCritGoal)
-		goalWriteDocs(t, root, tk.ID, goalValidDocs())
+		d := goalValidDocs()
+		d.plan += bdoStrategyValid
+		goalWriteDocs(t, root, tk.ID, d)
 		before := goalShowStatus(t, root, tk.ID)
 		t.Setenv("BINT_RUN_ID", "run-x")
 		out, code := run(t, root, "", "task", "status", tk.ID, "planned")
@@ -318,7 +323,7 @@ func TestGoalBReqBaselineAndSkillGates(t *testing.T) {
 		}
 		tk := goalNewTask(t, root, goalCritMeasured, goalCritGoal)
 		docs := t.TempDir()
-		for name, body := range map[string]string{"requirement.md": goalReqValid, "plan.md": goalPlanValid, "tasks.md": goalTasksValid} {
+		for name, body := range map[string]string{"requirement.md": goalReqValid, "plan.md": goalPlanValid + bdoStrategyValid, "tasks.md": goalTasksValid} {
 			if err := os.WriteFile(filepath.Join(docs, name), []byte(body), 0o644); err != nil {
 				t.Fatal(err)
 			}

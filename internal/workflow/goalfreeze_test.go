@@ -33,7 +33,7 @@ func goalBoxDocs(withGoal bool) map[string]string {
 	req += "## Câu hỏi mở\n"
 	return map[string]string{
 		"requirement": req,
-		"plan":        "# Kế hoạch\nSửa app.txt " + planOnlyMark + "\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n- done.txt: ngoài phạm vi\n## Giả định thay người dùng\nKhông có\n",
+		"plan":        "# Kế hoạch\nSửa app.txt " + planOnlyMark + "\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n- done.txt: ngoài phạm vi\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n",
 		"tasks":       "- [ ] TSK-1 [AC-1]: sửa app.txt " + planOnlyMark + " — xong khi: " + crit + "\n",
 	}
 }

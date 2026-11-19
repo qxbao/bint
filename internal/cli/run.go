@@ -18,6 +18,7 @@ import (
 
 type runFlags struct {
 	answer       string
+	slice        string
 	accept       bool
 	fixRound     bool
 	taskRef      string
@@ -163,7 +164,7 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 	if resume != nil {
 		ro = app.RunResumeDefaults(config.Default())
 		ro.Ref, ro.NoReview, ro.NoWait, ro.Rerun, ro.Fresh, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.rerun, rf.fresh, rf.harness, rf.roles, rf.model, rf.agentCommand
-		ro.Answer, ro.Accept, ro.FixRound = rf.answer, rf.accept, rf.fixRound
+		ro.Answer, ro.Accept, ro.FixRound, ro.Slice = rf.answer, rf.accept, rf.fixRound, rf.slice
 		if err := ro.Validate(); err != nil {
 			return err
 		}
@@ -295,7 +296,12 @@ cùng câu trả lời.
 
 Tác vụ dừng sau khi hết vòng sửa review (workflow.max_review_rounds là số vòng sửa tối đa) in ba lựa chọn: --accept chấp nhận kết
 quả như hiện tại (vào thẳng bước hoàn tất, bỏ qua phát hiện còn lại), --fix-round cho sửa thêm đúng một vòng (b-feat rồi b-review),
-hoặc bint task cancel. --accept và --fix-round chỉ người dùng chạy được (không phải phiên agent).`,
+hoặc bint task cancel. --accept và --fix-round chỉ người dùng chạy được (không phải phiên agent).
+
+Tác vụ chạy theo lát mỏng dừng khi một lát quá trần thời gian agent, không đạt số đo, vượt ngân sách diff/hiệu năng hoặc agent lỗi: Bint GIỮ
+cây của lát (không tự quay về điểm xanh) và in ba lựa chọn: --slice keep (chốt cây hiện tại làm điểm xanh, sang lát kế), --slice discard
+(đưa tệp của tác vụ về điểm xanh, sang lát kế), --slice more (chạy lại lát từ cây hiện tại, thêm một trần thời gian; mặc định khi không nêu
+--slice). --slice chỉ người dùng chạy được. Đặt workflow.slicing: off hoặc slice_timeout_minutes: 0 thì lát chưa chốt gộp vào một b-feat thường.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWorkflow(cmd, stdio, rf, nil, &args[0])
@@ -304,6 +310,7 @@ hoặc bint task cancel. --accept và --fix-round chỉ người dùng chạy đ
 	addRunFlags(c, &rf, false)
 	c.Flags().BoolVar(&rf.rerun, "rerun", false, "bỏ kết quả bước chỉ đọc đang giữ và chạy lại bước đó (thay vì áp kết quả đã giữ)")
 	c.Flags().StringVar(&rf.answer, "answer", "", "trả lời b-feat đang chờ (câu hỏi --question hoặc b-feat không đổi tệp): b-feat chạy lại với nguyên văn câu hỏi và câu trả lời")
+	c.Flags().StringVar(&rf.slice, "slice", "", "lát đang giữ chờ người: keep (chốt cây hiện tại) | discard (đưa tệp của tác vụ về điểm xanh) | more (chạy lại lát từ cây hiện tại); chỉ người dùng")
 	c.Flags().BoolVar(&rf.accept, "accept", false, "sau khi hết vòng sửa review: chấp nhận kết quả như hiện tại, vào thẳng bước hoàn tất (chỉ người dùng)")
 	c.Flags().BoolVar(&rf.fixRound, "fix-round", false, "sau khi hết vòng sửa review: cho sửa thêm đúng một vòng (b-feat rồi b-review; chỉ người dùng)")
 	return c

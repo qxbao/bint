@@ -78,6 +78,7 @@ type slOpts struct {
 	l1NoProgress bool     // (f) L1 không làm giảm ô đỏ
 	l2TimedOut   bool     // (d) agent L2 trả TimedOut
 	budget       *float64 // (e) limits.workflows.b-do.max_cost_usd (chỉ b-feat tốn 1 USD)
+	hold         bool     // không mô phỏng người chọn --slice discard: để tác vụ dừng ở lát bị giữ
 }
 
 // slSnap là quan sát tại một thời điểm giữa chừng (đầu một bước agent).
@@ -175,7 +176,7 @@ func slDocs(o slOpts) map[string]string {
 	if o.oneAC {
 		surf = "- " + slOneAC + "\n- " + slOut + "\n"
 	}
-	plan := "# Kế hoạch\nBa lát cho c1..c3; lát 1 là bản nhỏ nhất đạt mục tiêu.\n## Cỡ kế hoạch\n" + size + "## Bề mặt bị ảnh hưởng\n" + surf + "## Giả định thay người dùng\nKhông có\n"
+	plan := "# Kế hoạch\nBa lát cho c1..c3; lát 1 là bản nhỏ nhất đạt mục tiêu.\n## Cỡ kế hoạch\n" + size + "## Bề mặt bị ảnh hưởng\n" + surf + "## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: có — các nhóm độc lập\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n"
 	tasks := "- [ ] TSK-1 [AC-1]: ghi c1.txt — xong khi: c1.txt ghi ok-c1\n" +
 		"- [ ] TSK-2 [AC-2]: ghi c2.txt — xong khi: c2.txt ghi ok-c2\n" +
 		"- [ ] TSK-3 [AC-3]: ghi c3.txt — xong khi: c3.txt ghi ok-c3\n"
@@ -322,6 +323,17 @@ func slBox(t *testing.T, o slOpts) *slRun {
 		res, err = r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: s.id, Resume: true})
 		if err != nil {
 			s.errs = append(s.errs, "resume sau cổng cỡ kế hoạch: "+err.Error())
+			return s
+		}
+		s.runs = append(s.runs, res)
+	}
+	// Lát hỏng giờ dừng blocked giữ cây (--slice keep|discard|more): kịch bản cũ (bỏ lát rồi chạy lát kế) mô phỏng người chọn discard.
+	for i := 0; !o.hold && i < 4 && res.Status == task.StatusBlocked; i++ {
+		if tk, lerr := h.tasks.Load(s.id); lerr != nil || tk.State.HeldSlice() == nil {
+			break
+		}
+		if res, err = h.runner().Run(ctx, RunOptions{Workflow: StepDo, TaskRef: s.id, Resume: true, Slice: SliceDiscard}); err != nil {
+			s.errs = append(s.errs, "resume --slice discard: "+err.Error())
 			return s
 		}
 		s.runs = append(s.runs, res)
@@ -648,22 +660,35 @@ func slDiscardVariants(t *testing.T) {
 	})
 
 	t.Run("(f) L1 không làm giảm ô đỏ", func(t *testing.T) {
-		f := slBox(t, slOpts{timeoutMin: 45, l1NoProgress: true})
+		f := slBox(t, slOpts{timeoutMin: 45, l1NoProgress: true, hold: true})
 		f.need(t)
 		res := f.last()
 		if res.Status != task.StatusBlocked {
-			t.Errorf("lát 1 bị bỏ thì tác vụ phải blocked: %s %q", res.Status, res.Reason)
+			t.Errorf("lát 1 không đạt thì tác vụ phải blocked: %s %q", res.Status, res.Reason)
 		}
 		feats, _, _ := f.featReqs()
 		if len(feats) != 1 {
-			t.Errorf("lát 1 bị bỏ: không được có b-feat thứ hai, chuỗi bước %v", f.h.calls)
+			t.Errorf("lát 1 không đạt: không được có b-feat thứ hai, chuỗi bước %v", f.h.calls)
+		}
+		if !strings.Contains(res.Reason, "ô đỏ 3→3 không giảm") {
+			t.Errorf("lý do phải nêu số đo ô đỏ 3→3: %q", res.Reason)
+		}
+		if got := f.h.read("c1.txt"); got != "sai\n" {
+			t.Errorf("cây của lát 1 phải được GIỮ (c1.txt = sai), còn %q", got)
+		}
+		if tk := loadTask(t, f.h, f.id); tk.State.HeldSlice() == nil {
+			t.Errorf("lát 1 phải ở trạng thái giữ chờ người")
+		}
+		// Người chọn discard: tệp của tác vụ về điểm xanh, lát 1 discarded.
+		if _, err := f.h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, TaskRef: f.id, Resume: true, Slice: SliceDiscard}); err != nil {
+			t.Fatal(err)
 		}
 		items, ok := stateSlices(loadTask(t, f.h, f.id))
 		if !ok || len(items) == 0 || slStatus(items[0]) != "discarded" {
-			t.Errorf("L1 phải discarded (ô đỏ 3→3 không giảm): %s", slDump(items))
+			t.Errorf("L1 phải discarded sau --slice discard (ô đỏ 3→3 không giảm): %s", slDump(items))
 		}
-		if got := f.h.read("c1.txt"); got != "<không có>" {
-			t.Errorf("c1.txt do L1 tạo phải bị xoá khi quay về điểm xanh, còn %q", got)
+		if got := f.h.read("c1.txt"); got == "sai\n" {
+			t.Errorf("c1.txt do L1 tạo phải được đưa về điểm xanh sau --slice discard, còn %q", got)
 		}
 	})
 }
@@ -703,6 +728,12 @@ func slCheckDeliver(t *testing.T) {
 	res2, err := e.h.runner().Run(ctx, RunOptions{Workflow: StepDo, TaskRef: e.id, Resume: true})
 	if err != nil {
 		t.Fatalf("resume sau khi nâng ngân sách: %v", err)
+	}
+	if tk := loadTask(t, e.h, e.id); res2.Status == task.StatusBlocked && tk.State.HeldSlice() != nil {
+		// L2 làm đỏ test cũ nên giữ chờ người; người chọn --slice discard thì L3 chạy tiếp.
+		if _, err := e.h.runner().Run(ctx, RunOptions{Workflow: StepDo, TaskRef: e.id, Resume: true, Slice: SliceDiscard}); err != nil {
+			t.Fatalf("resume --slice discard: %v", err)
+		}
 	}
 	var next *eval.AgentRequest
 	for i := before; i < len(e.h.calls); i++ {

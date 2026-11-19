@@ -263,6 +263,8 @@ Ranh giới tin cậy giữ nguyên: không tự sửa mã, không `bint task ap
   hoặc huỷ (`bint task cancel <id>`); driver session dùng `bint run next <id> --resume --accept|--fix-round`. **Không tự chạy `--accept` hay
   `--fix-round`**: là quyết định của người dùng. `reason` nêu **kiểm chứng cuối không qua** (test, thường là kiểm tra mục tiêu, còn đỏ) thì
   cũng ba lựa chọn đó: kể cho người dùng test nào đỏ (log trong `reason`).
+- **Lát mỏng dừng chờ người** (`reason` có `lát N/M dừng chờ bạn`; Bint giữ cây của lát): đưa nguyên văn ba lựa chọn trong `choices`
+  (`bint run resume <id> --slice keep|discard|more`: chốt cây / về điểm xanh / chạy lại lát). **Không tự chọn** (`--slice` chỉ người chạy được).
 - **Artifact b-req lỗi cấu trúc** (`planning_issues`): sửa theo `bint task lint <id>` qua
   `bint task write`, hoặc chạy lại b-req (`bint run b-req --task <id> --json`).
 - **Lệnh kiểm chứng chưa có hoặc chưa xác nhận**: hỏi lệnh rồi `bint task set <id> --verify-command '…'`.

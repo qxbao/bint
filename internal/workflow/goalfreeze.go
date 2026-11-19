@@ -41,7 +41,7 @@ const (
 // goalPending cho biết b-goal cần chạy ở bước kế tiếp: b-do gốc đã qua b-req (planned), không đường nhanh, requirement.md có mục
 // Kiểm tra mục tiêu, phiếu có lệnh kiểm chứng (không có thì cổng không chạy được: giữ đường cũ) và chưa có tệp đóng băng.
 func (rs *runState) goalPending() bool {
-	if !rs.flow.IsBuiltin() || rs.flow.Name != StepDo || !rs.flow.HasKind(flow.KindGoal) {
+	if rs.goalOff || !rs.flow.IsBuiltin() || rs.flow.Name != StepDo || !rs.flow.HasKind(flow.KindGoal) {
 		return false
 	}
 	st := &rs.t.State

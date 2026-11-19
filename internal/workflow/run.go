@@ -132,6 +132,8 @@ type RunOptions struct {
 	// Accept (cùng Resume): tác vụ đang chờ sau khi hết vòng sửa — chấp nhận kết quả như hiện tại, vào thẳng finalize.
 	// FixRound: cho thêm đúng một vòng sửa (b-feat rồi b-review). Chỉ người dùng được (app kiểm), loại trừ nhau.
 	Accept, FixRound bool
+	// Slice (cùng Resume): lựa chọn của người với lát đang giữ chờ người (keep | discard | more); rỗng = more. Chỉ người dùng được (app kiểm).
+	Slice string
 	// Isolation: chế độ cô lập khi tự lập phiếu (""/auto | shared | worktree); không dùng cùng TaskRef.
 	Isolation string
 	// Driver: process|session khi tự lập phiếu (--driver); không dùng cùng TaskRef. session ⇒ lập phiếu rồi dừng
@@ -250,6 +252,8 @@ type runState struct {
 	// sliceFail khác rỗng: agent của lát đang chạy vừa lỗi hoặc quá trần (endStep đặt); afterStep xử lý ở sliceSettleFailure thay vì failed.
 	sliceFail     string
 	sliceTimedOut bool
+	// goalOff: workflow.goal_check / plan.md không cho chạy b-goal ở tác vụ này (nextStep đặt trước pickStep; zero = như cũ).
+	goalOff bool
 }
 
 // endedStep là handle phiên của bước vừa kết thúc, giữ để cổng sau bước ghi awaiting_human vào State.LastStep.
@@ -391,6 +395,12 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if err := checkResumeFlags(t, o.Answer, o.Accept, o.FixRound); err != nil {
 			return nil, err
 		}
+		if o.Slice != "" && !o.Resume {
+			return nil, errors.New("--slice chỉ dùng khi tiếp tục tác vụ (bint run resume <id> --slice keep|discard|more)")
+		}
+		if err := checkSliceFlag(t, o.Slice); err != nil {
+			return nil, err
+		}
 		if rs.flowBlock == "" {
 			if t, err = r.applyOverrides(t, o, fd); err != nil {
 				return nil, err
@@ -517,6 +527,12 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 	if !r.ensureWorktree(ctx, rs) {
 		return rs.res, nil
 	}
+	if !rs.session {
+		r.dropSlicesIfOff(rs) // tắt chia lát giữa chừng: lát chưa chốt thành một b-feat thường (slice.go)
+		if !r.applySliceChoice(ctx, rs, o.Slice) {
+			return rs.res, nil // lựa chọn của người với lát đang giữ (--slice keep|discard|more)
+		}
+	}
 	r.armPlanContinuation(ctx, rs)
 
 	// Chỉ hỏi lại khi thiếu trường quan trọng cho tác vụ rủi ro cao (mục 6.7).
@@ -622,6 +638,7 @@ func (r *Runner) checkStepRequest(rs *runState, o RunOptions) error {
 			cp.State.Status = task.StatusCreated
 		}
 	}
+	rs.goalOff = !r.wantGoal(&cp)
 	probe := *rs
 	probe.t = &cp
 	if want, _ := probe.pickStep(); want != o.Step {
@@ -788,6 +805,7 @@ func (r *Runner) nextStep(rs *runState) string {
 	if rs.t.State.HeldStep != nil && rs.heldStepOf() == nil {
 		r.takeHeld(rs) // bước giữ của flow khác: bỏ kèm ghi chú
 	}
+	rs.goalOff = !r.wantGoal(rs.t)
 	step, fin := rs.pickStep()
 	if fin {
 		if r.finalize(context.Background(), rs) {
@@ -1915,7 +1933,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		if sg := rs.t.State.SliceGreen; rs.activeSlice() != nil && sg != nil {
 			// Ngân sách diff của lát (budget.go): đo ngay sau b-feat, trước kiểm chứng; vượt thì bỏ lát (cây về điểm xanh) mà không chạy kiểm chứng.
 			if over, msg := r.budgetOver(ctx, rs, sg.Tree, "so với điểm xanh"); over {
-				switch r.discardSlice(ctx, rs, "ngân sách diff: "+msg, nil, false) {
+				switch r.holdSlice(ctx, rs, "ngân sách diff: "+msg, nil) {
 				case sliceNext:
 					return true
 				case sliceStop:
@@ -1926,7 +1944,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		}
 		if rs.activeSlice() != nil && rs.t.State.SliceGreen != nil {
 			if over, msg := r.perfCheck(ctx, rs, false); over {
-				switch r.discardSlice(ctx, rs, "hiệu năng: "+msg, nil, false) {
+				switch r.holdSlice(ctx, rs, "hiệu năng: "+msg, nil) {
 				case sliceNext:
 					return true
 				case sliceStop:
@@ -2581,6 +2599,12 @@ func (r *Runner) checkScope(ctx context.Context, rs *runState) bool {
 // điều kiện done (ở worktree) → đưa về cây gốc (Land) → done. Xung đột ⇒ blocked "xung đột khi đưa về: …".
 // Trả true khi tác vụ quay về bước sửa (kiểm chứng đầy đủ hỏng sau lần kiểm chứng affected, còn vòng): workflow đi tiếp.
 func (r *Runner) finalize(ctx context.Context, rs *runState) bool {
+	if open := rs.t.State.OpenSlices(); len(open) > 0 && !rs.session {
+		// Không done im lặng khi còn lát chưa chốt: người quyết (keep/discard/more) hoặc tắt chia lát.
+		r.blockFinalize(ctx, rs, fmt.Sprintf("còn %d lát chưa chốt, tác vụ chưa thể hoàn thành: %s; xử lý (`%s --slice keep|discard|more`, hoặc tắt chia lát) rồi tiếp tục",
+			len(open), sliceSummary(rs.t), r.resumeCmd(rs)))
+		return false
+	}
 	switch r.reverifyIfStale(ctx, rs) {
 	case reverifyStop:
 		return false
@@ -2954,7 +2978,7 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		if bp := r.writeBaseline(ctx, t); bp != "" {
 			fmt.Fprintf(&b, "Hiện trạng đã đo sẵn (dung lượng thư mục trạng thái, số tệp khớp scope.allow): %s\nĐọc tệp này trước khi lập kế hoạch; requirement.md phải có mục `## Hiện trạng` với số đo và ít nhất một AC có số đo (`bint task lint` chặn nếu thiếu).\n\n", bp)
 		}
-		if !session && rs.planSizeGated() && r.Cfg.Workflow.SliceTimeoutMinutes > 0 {
+		if !session && rs.planSizeGated() && r.slicingEnabled() {
 			b.WriteString(sliceGuideBlock)
 		}
 	}

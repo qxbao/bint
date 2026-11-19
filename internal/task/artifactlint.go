@@ -215,7 +215,41 @@ const (
 	// secSize/secSurface: mục của plan.md mà cổng cỡ kế hoạch của b-do đọc (PlanSizeDecl, PlanSurfaces).
 	secSize    = "cỡ kế hoạch"
 	secSurface = "bề mặt bị ảnh hưởng"
+	// secStrategy: mục `## Chiến lược thực thi` của plan.md (Chia lát, b-goal) mà Runner và lint đọc (PlanStrategy).
+	secStrategy = "chiến lược thực thi"
 )
+
+// Lựa chọn của một dòng trong `## Chiến lược thực thi`.
+const (
+	StrategyYes     = "có"
+	StrategyNo      = "không"
+	StrategyMissing = "" // thiếu mục, thiếu dòng, sai giá trị hoặc thiếu lý do
+)
+
+var (
+	strategySliceRe = regexp.MustCompile(`(?i)^\s*(?:[-*+]\s+)?Chia lát\s*:\s*(có|không)\s*(?:[—–-]+\s*(\S.*))?$`)
+	strategyGoalRe  = regexp.MustCompile(`(?i)^\s*(?:[-*+]\s+)?Kiểm tra mục tiêu độc lập\s*\(b-goal\)\s*:\s*(có|không)\s*(?:[—–-]+\s*(\S.*))?$`)
+)
+
+// PlanStrategy đọc mục `## Chiến lược thực thi` của plan.md (ngoài code fence): lựa chọn "Chia lát: có|không" và
+// "Kiểm tra mục tiêu độc lập (b-goal): có|không" (mỗi dòng cần lý do sau dấu gạch ngang). Dòng thiếu/sai/không có lý do trả StrategyMissing.
+// Dòng đầu hợp lệ của mỗi loại là kết quả.
+func PlanStrategy(plan string) (slice, goal string) {
+	scanLines(plan, func(section, line string) {
+		if section != secStrategy {
+			return
+		}
+		for _, d := range []struct {
+			re  *regexp.Regexp
+			out *string
+		}{{strategySliceRe, &slice}, {strategyGoalRe, &goal}} {
+			if m := d.re.FindStringSubmatch(line); m != nil && strings.TrimSpace(m[2]) != "" && *d.out == StrategyMissing {
+				*d.out = strings.ToLower(m[1])
+			}
+		}
+	})
+	return slice, goal
+}
 
 // LintPlanningText kiểm ba artifact (key requirement|plan|tasks; thiếu key = thiếu tệp)
 // so với phiếu. Không I/O. strict=false hạ mọi lỗi định dạng thành cảnh báo nhưng vẫn
@@ -721,6 +755,10 @@ func lintPlanV2(b *reportBuilder, ticket Ticket, plan string, acs []acItem) {
 	}
 	if !assumptions {
 		b.err("assumptions_missing", artPlan, "thiếu mục `## Giả định thay người dùng` (hoặc mục rỗng); ghi các giả định, hoặc `Không có`")
+	}
+	if sl, gl := PlanStrategy(plan); sl == StrategyMissing || gl == StrategyMissing {
+		b.err("strategy_missing", artPlan, "thiếu mục `## Chiến lược thực thi` hoặc thiếu/sai một dòng `Chia lát: có|không — <lý do>` và "+
+			"`Kiểm tra mục tiêu độc lập (b-goal): có|không — <lý do>` (mỗi dòng cần giá trị có|không và lý do)")
 	}
 	_, files := PlanSizeDecl(plan)
 	for _, f := range files {

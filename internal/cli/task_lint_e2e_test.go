@@ -68,7 +68,7 @@ func TestTaskLint(t *testing.T) {
 	}
 
 	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n- [ ] Q-1: giữ v1 không?\n")
-	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n")
+	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n")
 	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n")
 	// Câu hỏi mở: không phải lỗi cấu trúc nhưng vẫn thoát 1.
 	out, code = run(t, root, "", "task", "lint", id, "--json")
@@ -117,7 +117,7 @@ func TestTaskSetSyncsCriteriaThenLintPasses(t *testing.T) {
 	root := newLintRepo(t)
 	id := newTaskID(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n")
-	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n")
+	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n")
 	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n")
 	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
 		t.Fatalf("lint ban đầu: %d\n%s", code, out)

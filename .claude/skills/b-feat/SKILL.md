@@ -78,7 +78,8 @@ bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
   người đồng ý trước.
 
 <!-- bint:anchor test-strategy -->
-Ưu tiên kiểm thử hẹp nhất bao phủ thay đổi, rồi mới tới bộ kiểm thử rộng hơn.
+Ưu tiên kiểm thử hẹp nhất bao phủ thay đổi: chỉ chạy test của gói đã sửa (ví dụ `go test ./internal/x/...`) và kiểm tra mục tiêu; **không** chạy
+`go test ./...` hay `verify.command` đầy đủ (rất chậm trên Windows). Bint tự chạy kiểm chứng sau bước này và chạy đầy đủ một lần ở cổng done.
 <!-- bint:anchor-end test-strategy -->
 
 Mỗi lần thử sửa thất bại đáng kể (kiểm thử đỏ sau khi sửa, hướng làm phải bỏ), ghi lại:

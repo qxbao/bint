@@ -179,6 +179,8 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   small_plan_max_files: 5   # kế hoạch b-req là nhỏ (b-feat chạy ngay, không dừng chờ người) khi số tệp và số nhóm bề mặt trong plan không quá ngưỡng này và các điều kiện khác đạt (không giai đoạn hoãn, có kiểm tra mục tiêu, không chạm đường dẫn bảo vệ); 0 = mọi kế hoạch dừng chờ người
   timeout_minutes: 60       # mỗi bước agent
   slice_timeout_minutes: 30    # kế hoạch lớn của b-do chạy theo lát mỏng (mỗi nhóm bề mặt một b-feat, tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì bị bỏ, cây về điểm xanh); 0 = tắt, chạy một b-feat
+  slicing: auto                # khi nào chia kế hoạch lớn thành lát mỏng: auto (theo dòng "Chia lát" trong mục Chiến lược thực thi của plan.md) | off (không bao giờ) | always (như cũ, không cần plan chọn); cần slice_timeout_minutes > 0
+  goal_check: auto             # khi nào chạy b-goal (kiểm tra mục tiêu độc lập): auto (theo dòng "Kiểm tra mục tiêu độc lập" trong plan.md) | off | always; --fast bỏ cả hai
   max_diff_lines: 0            # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát bị bỏ / vào vòng sửa); 0 = tắt
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
@@ -186,6 +188,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   verify:                   # phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (cổng done và bint task verify luôn chạy đầy đủ)
     scope: full             # full (chạy verify.command của phiếu) | affected (chỉ chạy test bị ảnh hưởng bởi thay đổi; thay đổi lạ thì tự nới ra full)
     affected_command: ""    # lệnh cho scope affected, có {test_dirs} hoặc {test_files}, ví dụ "go test -count=1 {test_dirs}"
+    bint_config_full: true  # true = thay đổi trong .bint/** nới kiểm chứng ra full; false = không nới (cổng done vẫn chạy đầy đủ một lần)
 `)
 	if p.SuggestedAffectedCommand != "" {
 		w("    suggested_affected_command: %s   # phát hiện khi init, chưa xác nhận: chép sang affected_command và đặt scope: affected để bật\n", quote(p.SuggestedAffectedCommand))

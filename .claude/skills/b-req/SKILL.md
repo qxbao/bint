@@ -122,6 +122,20 @@ Kết luận: nhỏ
 - **Không dùng `nhỏ` để cắt phạm vi**: việc cần nhiều giai đoạn thì ghi `lớn` và tách giai đoạn. Bint tự đo lại trên tài liệu (thiếu
   mục thì luôn là lớn); kế hoạch lớn thì người xem rồi mới cho chạy b-feat.
 
+## Chiến lược thực thi (mọi mức phân tích)
+
+`plan.md` **bắt buộc** có `## Chiến lược thực thi`: Runner chỉ chia lát / chạy b-goal khi plan chọn `có` (khoá `workflow.slicing`/`goal_check` = `auto`).
+
+```markdown
+## Chiến lược thực thi
+Chia lát: không — một nhóm bề mặt, một b-feat là đủ
+Kiểm tra mục tiêu độc lập (b-goal): có — đo được từ ngoài bằng test hộp đen
+```
+
+- Mỗi dòng `có|không — <lý do>` (thiếu lý do hoặc sai giá trị: lỗi `strategy_missing`).
+- `Chia lát: có` chỉ khi kế hoạch lớn, ≥ 2 nhóm bề mặt độc lập có AC và `b-goal: có`; mặc định `không` (lát tốn thời gian chờ, dễ bỏ phí công).
+- `b-goal: có` khi mục tiêu đo được từ ngoài và việc đủ lớn để b-feat tự chấm test là rủi ro; việc nhỏ thì `không`.
+
 ## Độ sâu phân tích
 
 Bint chọn độ sâu **một lần** lúc tạo tác vụ và không đổi giữa lượt. Dưới `bint run`, đề bài có
@@ -173,12 +187,14 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
 
 - `AC-N` liên tục từ 1, khớp từng chữ với tiêu chí thứ N của phiếu; mỗi `TSK` có `[AC-N]` hợp lệ và `— xong khi:` có nội dung; mọi
   `AC-N` có `TSK` bao phủ; không placeholder (`<…>`, `…`, `TODO`, `TBD`) trong dòng AC/TSK.
+- `tasks.md` không đòi `go test ./...` (bộ test toàn bộ) trong "xong khi": mỗi TSK nêu test hẹp của gói đã sửa (ví dụ `go test ./internal/x/...`);
+  Bint chạy `verify.command` đầy đủ một lần ở cổng done.
 - `## Hiện trạng` (requirement.md, đọc `baseline.md` Bint đã đo) có số đo, và ít nhất một AC có số đo mục tiêu người dùng.
 - `## Câu hỏi mở` chỉ chứa câu hỏi **cản trở triển khai**, dạng `- [ ] Q-1: …`; còn dòng chưa trả lời thì b-feat bị chặn. Người dùng
   trả lời thì ghi `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>` (không tự bịa câu trả lời).
 
 <!-- bint:anchor plan-template -->
-`plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Cỡ kế hoạch` (`Kết luận: nhỏ|lớn` + tệp), `## Bề mặt bị ảnh hưởng`
+`plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Chiến lược thực thi` (`Chia lát:` và `Kiểm tra mục tiêu độc lập (b-goal):`, mỗi dòng có|không kèm lý do), `## Cỡ kế hoạch` (`Kết luận: nhỏ|lớn` + tệp), `## Bề mặt bị ảnh hưởng`
 (theo nhóm, ≤ 8–10 dòng, mỗi nhóm một AC hoặc lý do ngoài phạm vi), `## Giả định thay người dùng`, rủi ro,
 chiến lược kiểm thử (gồm kiểm tra mục tiêu của `requirement.md`), `## Đề xuất tách giai đoạn` khi thật sự tách (mỗi giai đoạn
 một dòng `- G-N: …`). `tasks.md`: danh sách `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`.

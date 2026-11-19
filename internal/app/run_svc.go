@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -136,6 +137,9 @@ type RunResumeOptions struct {
 	// người dùng (không phải phiên agent).
 	Accept   bool `flag:"accept"`
 	FixRound bool `flag:"fix-round"`
+	// Slice: lựa chọn với lát b-do đang giữ chờ người (quá trần, không đạt, vượt ngân sách, agent lỗi): keep (chốt cây hiện tại) | discard
+	// (đưa tệp của tác vụ về điểm xanh) | more (chạy lại lát từ cây hiện tại). Chỉ người dùng (không phải phiên agent).
+	Slice string `flag:"slice" form:"advanced"`
 	RunCallbacks
 }
 
@@ -144,6 +148,14 @@ func RunResumeDefaults(config.Config) RunResumeOptions { return RunResumeOptions
 func (o RunResumeOptions) Validate() error {
 	if strings.TrimSpace(o.Ref) == "" {
 		return Usagef("cần ID tác vụ")
+	}
+	if o.Slice != "" {
+		if !slices.Contains(workflow.SliceChoices, o.Slice) {
+			return Usagef("--slice %q không hợp lệ: chọn %s", o.Slice, strings.Join(workflow.SliceChoices, " | "))
+		}
+		if err := RequireHuman("bint run resume --slice"); err != nil {
+			return err
+		}
 	}
 	if err := validateResumeDecision(o.Accept, o.FixRound); err != nil {
 		return err
@@ -209,7 +221,7 @@ func ResumeWorkflow(ctx context.Context, ws *TaskWS, o RunResumeOptions) (*workf
 		return nil, Usagef("--rerun: tác vụ %s không có bước chỉ đọc nào đang được giữ để chạy lại", t.State.ID)
 	}
 	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait, Rerun: o.Rerun, Fresh: o.Fresh,
-		Answer: o.Answer, Accept: o.Accept, FixRound: o.FixRound}
+		Answer: o.Answer, Accept: o.Accept, FixRound: o.FixRound, Slice: o.Slice}
 	return runWith(ctx, ws, wo, o.Harness, o.Roles, o.AgentCommand, o.Model, o.RunCallbacks)
 }
 

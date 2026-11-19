@@ -90,15 +90,15 @@ func TestSliceAgentFailureKeepsSlicePending(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "lát 2/3") || !strings.Contains(res.Reason, "chạy lại lát này") {
+	if res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "lát 2/3") || !strings.Contains(res.Reason, "--slice more") {
 		t.Fatalf("agent chết giữa lát 2: tác vụ phải blocked, nêu lát 2 sẽ chạy lại: %s %q", res.Status, res.Reason)
 	}
 	checkSliceList(t, "Result.Slices sau khi agent lỗi giữa lát 2", resultSlices(res), []string{"accepted", "", ""})
-	if got := h.read("c2.txt"); got != "<không có>" {
-		t.Errorf("c2.txt do lát dở tạo phải bị xoá khi về điểm xanh, còn %q", got)
+	if got := h.read("c2.txt"); got != "ok-c2\n" {
+		t.Errorf("c2.txt do lát dở tạo phải được GIỮ (Bint không tự về điểm xanh), còn %q", got)
 	}
-	if got := h.read("l2-extra.txt"); got != "<không có>" {
-		t.Errorf("l2-extra.txt do lát dở tạo phải bị xoá, còn %q", got)
+	if got := h.read("l2-extra.txt"); got != "phụ của L2\n" {
+		t.Errorf("l2-extra.txt do lát dở tạo phải được giữ, còn %q", got)
 	}
 	if got := h.read("c1.txt"); got != "ok-c1\n" {
 		t.Errorf("c1.txt (lát 1 đã chốt) phải còn nguyên: %q", got)

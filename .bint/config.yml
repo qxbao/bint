@@ -160,6 +160,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   verify:
     scope: affected
     affected_command: "go test -timeout 30m {test_dirs}"
+    bint_config_full: false # đổi .bint/** không nới kiểm chứng ra full (cổng done vẫn chạy đầy đủ một lần)
   perf:
     command: ""
     max_slowdown: 1.5
@@ -168,6 +169,8 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   small_plan_max_files: 5   # kế hoạch b-req là nhỏ (b-feat chạy ngay, không dừng chờ người) khi số tệp và số nhóm bề mặt trong plan không quá ngưỡng này và các điều kiện khác đạt (không giai đoạn hoãn, có kiểm tra mục tiêu, không chạm đường dẫn bảo vệ); 0 = mọi kế hoạch dừng chờ người
   timeout_minutes: 180      # mỗi bước agent
   slice_timeout_minutes: 0  # kế hoạch lớn của b-do chạy theo lát mỏng (mỗi nhóm bề mặt một b-feat, tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì bị bỏ, cây về điểm xanh); 0 = tắt, chạy một b-feat
+  slicing: auto             # khi nào chia kế hoạch lớn thành lát mỏng: auto (theo "Chia lát" trong mục Chiến lược thực thi của plan.md) | off | always; cần slice_timeout_minutes > 0
+  goal_check: auto          # khi nào chạy b-goal: auto (theo "Kiểm tra mục tiêu độc lập" trong plan.md) | off | always; --fast bỏ cả hai
   verify_timeout_minutes: 60  # lệnh kiểm chứng của phiếu tác vụ
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)

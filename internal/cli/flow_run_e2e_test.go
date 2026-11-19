@@ -24,7 +24,7 @@ case "$STEP" in
 plan)
   if flag plan-writes; then echo oops > plan-wrote.txt; fi
   printf '# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n' | "$BINT" task write "$BINT_TASK_ID" requirement -
-  printf '# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n' | "$BINT" task write "$BINT_TASK_ID" plan -
+  printf '# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n' | "$BINT" task write "$BINT_TASK_ID" plan -
   printf -- '- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n' | "$BINT" task write "$BINT_TASK_ID" tasks -
   ;;
 red)
@@ -321,7 +321,7 @@ func TestFlowSessionTDDEndToEnd(t *testing.T) {
 		t.Fatalf("next plan: %d\n%s", code, out)
 	}
 	for _, d := range []struct{ name, body string }{{"requirement", "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n"},
-		{"plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n"}, {"tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n"}} {
+		{"plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n"}, {"tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n"}} {
 		if o, c := run(t, root, d.body, "task", "write", id, d.name, "-"); c != 0 {
 			t.Fatalf("task write %s: %d\n%s", d.name, c, o)
 		}

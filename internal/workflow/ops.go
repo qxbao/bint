@@ -802,7 +802,7 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 	var sel *affected.Selection
 	run := true
 	if vc := e.Cfg.Workflow.Verify; scoped && confirmed && vc.Scope == config.VerifyScopeAffected && strings.TrimSpace(vc.AffectedCommand) != "" {
-		s := SelectAffected(ctx, root, t.State.Base)
+		s := SelectAffectedCfg(ctx, root, t.State.Base, vc.BintConfigFull)
 		sel, scope = &s, string(s.Scope)
 		switch s.Scope {
 		case affected.TierNone:

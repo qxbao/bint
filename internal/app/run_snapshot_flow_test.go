@@ -27,7 +27,7 @@ func (a planningAgent) Run(_ context.Context, req eval.AgentRequest) eval.AgentR
 	}
 	docs := map[string]string{
 		"requirement": "# Yêu cầu\n## Hiện trạng\n- a.go: 1 tệp\n## Mục tiêu và phạm vi\nĐổi a.go\n## Tiêu chí chấp nhận\n- [ ] AC-1: A đúng 1\n## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n",
-		"plan":        "# Kế hoạch\nSửa a.go\n## Bề mặt bị ảnh hưởng\n- a.go: AC-1\n## Giả định thay người dùng\nKhông có\n",
+		"plan":        "# Kế hoạch\nSửa a.go\n## Bề mặt bị ảnh hưởng\n- a.go: AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n",
 		"tasks":       "- [ ] TSK-1 [AC-1]: sửa a.go — xong khi: A đúng 1\n",
 	}
 	for n, body := range docs {

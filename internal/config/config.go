@@ -432,6 +432,13 @@ type Workflow struct {
 	// lượt b-feat riêng; thời gian agent của lát là min(timeout_minutes, khoá này)). Lát quá trần bị bỏ và cây quay về điểm xanh. 0 = tắt lát
 	// mỏng (kế hoạch lớn chạy một b-feat như trước).
 	SliceTimeoutMinutes int `yaml:"slice_timeout_minutes"`
+	// Slicing chọn khi nào b-do chia kế hoạch lớn thành lát mỏng: auto (theo dòng `Chia lát:` của `## Chiến lược thực thi` trong plan.md;
+	// plan không ghi thì không chia) | off (không bao giờ; tác vụ đang chia lát thì thôi chia) | always (như hành vi cũ, không cần plan chọn).
+	// Chia lát còn cần slice_timeout_minutes > 0.
+	Slicing string `yaml:"slicing"`
+	// GoalCheck chọn khi nào b-do chạy b-goal (kiểm tra mục tiêu độc lập): auto (theo dòng `Kiểm tra mục tiêu độc lập (b-goal):` trong plan.md;
+	// plan không ghi thì chạy như cũ) | off (không bao giờ) | always (như hành vi cũ). `--fast` bỏ cả hai.
+	GoalCheck string `yaml:"goal_check"`
 	// MaxDiffLines là trần số dòng thêm+xoá (git diff --numstat, bỏ tệp kiểm tra mục tiêu đóng băng) trên tệp của tác vụ: của mỗi lát so với điểm
 	// xanh, hoặc của phần b-feat đã làm so với mốc tác vụ khi không chia lát. Vượt sau một bước b-feat thì coi như kiểm chứng không qua. 0 = tắt.
 	MaxDiffLines int `yaml:"max_diff_lines"`
@@ -477,7 +484,20 @@ type WorkflowVerify struct {
 	// SuggestedAffectedCommand: lệnh `bint init` đề xuất cho AffectedCommand (chưa xác nhận, Bint không dùng). Người
 	// dùng chép sang affected_command và đặt scope affected để bật.
 	SuggestedAffectedCommand *string `yaml:"suggested_affected_command,omitempty"`
+	// BintConfigFull: true (mặc định) thì thay đổi trong .bint/** nới kiểm chứng ra full (affected.ReasonBintConfig); false thì thay đổi
+	// chỉ trong .bint/** không nới (cổng done vẫn chạy đầy đủ một lần).
+	BintConfigFull bool `yaml:"bint_config_full"`
 }
+
+// Giá trị của workflow.slicing và workflow.goal_check.
+const (
+	GateAuto   = "auto"   // theo plan.md của tác vụ
+	GateOff    = "off"    // không bao giờ
+	GateAlways = "always" // luôn (hành vi cũ)
+)
+
+// GateModes là các giá trị hợp lệ của workflow.slicing và workflow.goal_check.
+var GateModes = []string{GateAuto, GateOff, GateAlways}
 
 // Giá trị của workflow.isolation.
 const (
@@ -716,9 +736,9 @@ func Default() Config {
 		},
 		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
-			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
+			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, Slicing: GateAuto, GoalCheck: GateAuto, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
-			Verify: WorkflowVerify{Scope: VerifyScopeFull}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
+			Verify: WorkflowVerify{Scope: VerifyScopeFull, BintConfigFull: true}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
 			Agent: WorkflowAgent{
 				PermissionMode: "acceptEdits",
 				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash", "mcp__bint__*"},
@@ -1163,6 +1183,12 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.SliceTimeoutMinutes < 0 {
 		add("workflow.slice_timeout_minutes: phải >= 0 (0 = tắt lát mỏng)")
+	}
+	if !slices.Contains(GateModes, c.Workflow.Slicing) {
+		add("workflow.slicing: phải là %s", strings.Join(GateModes, " | "))
+	}
+	if !slices.Contains(GateModes, c.Workflow.GoalCheck) {
+		add("workflow.goal_check: phải là %s", strings.Join(GateModes, " | "))
 	}
 	if c.Workflow.MaxDiffLines < 0 {
 		add("workflow.max_diff_lines: phải >= 0 (0 = tắt ngân sách diff)")

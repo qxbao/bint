@@ -457,6 +457,27 @@ func TestPlanSurfaces(t *testing.T) {
 	}
 }
 
+func TestPlanStrategy(t *testing.T) {
+	cases := []struct {
+		name, plan  string
+		slice, goal string
+	}{
+		{"không có mục", "# K\n## Hướng\n- a\n", "", ""},
+		{"đủ hai dòng", "# K\n## Chiến lược thực thi\nChia lát: không — một tệp\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n", "không", "có"},
+		{"gạch đầu dòng và hoa thường", "# K\n## Chiến lược thực thi\n- chia lát: Có - hai bề mặt\n* Kiểm tra mục tiêu độc lập (B-goal): KHÔNG – sửa một dòng\n", "có", "không"},
+		{"thiếu lý do", "# K\n## Chiến lược thực thi\nChia lát: không\nKiểm tra mục tiêu độc lập (b-goal): có —  \n", "", ""},
+		{"giá trị lạ", "# K\n## Chiến lược thực thi\nChia lát: tuỳ — chưa rõ\n", "", ""},
+		{"ngoài mục không tính", "# K\n## Rủi ro\nChia lát: có — x\n", "", ""},
+		{"trong code fence bị bỏ", "# K\n## Chiến lược thực thi\n```\nChia lát: có — x\n```\n", "", ""},
+		{"dòng đầu hợp lệ thắng", "# K\n## Chiến lược thực thi\nChia lát: có — a\nChia lát: không — b\n", "có", ""},
+	}
+	for _, tc := range cases {
+		if s, g := PlanStrategy(tc.plan); s != tc.slice || g != tc.goal {
+			t.Errorf("%s: PlanStrategy = (%q, %q), muốn (%q, %q)", tc.name, s, g, tc.slice, tc.goal)
+		}
+	}
+}
+
 func TestPlanSlices(t *testing.T) {
 	cases := []struct {
 		name, plan string

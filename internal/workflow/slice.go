@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"bint/internal/config"
 	"bint/internal/task"
 )
 
@@ -50,12 +51,75 @@ func (r *Runner) sliceTimeoutFor(rs *runState, implement bool) time.Duration {
 	return d
 }
 
+// planStrategy đọc `## Chiến lược thực thi` của plan.md của tác vụ ("có" | "không" | "" khi thiếu/sai).
+func planStrategy(t *task.Task) (slice, goal string) {
+	data, err := os.ReadFile(t.ArtifactPath("plan"))
+	if err != nil {
+		return task.StrategyMissing, task.StrategyMissing
+	}
+	return task.PlanStrategy(string(data))
+}
+
+// slicingEnabled: cấu hình cho phép chia lát (slice_timeout_minutes > 0 và workflow.slicing không off), chưa xét plan.md.
+func (r *Runner) slicingEnabled() bool {
+	return r.Cfg.Workflow.SliceTimeoutMinutes > 0 && r.Cfg.Workflow.Slicing != config.GateOff
+}
+
+// wantSlices: tác vụ này được chia lát không. always: như cũ; auto: khi plan.md ghi `Chia lát: có`; off hoặc slice_timeout_minutes 0: không.
+func (r *Runner) wantSlices(t *task.Task) bool {
+	if !r.slicingEnabled() {
+		return false
+	}
+	if r.Cfg.Workflow.Slicing == config.GateAlways {
+		return true
+	}
+	sl, _ := planStrategy(t)
+	return sl == task.StrategyYes
+}
+
+// wantGoal: tác vụ này chạy b-goal không. off: không; always: như cũ; auto: không khi plan.md ghi `b-goal: không` (thiếu mục thì chạy như cũ).
+func (r *Runner) wantGoal(t *task.Task) bool {
+	switch r.Cfg.Workflow.GoalCheck {
+	case config.GateOff:
+		return false
+	case config.GateAlways:
+		return true
+	}
+	_, g := planStrategy(t)
+	return g != task.StrategyNo
+}
+
+// dropSlicesIfOff: tắt chia lát (slicing off hoặc slice_timeout_minutes 0) khi tác vụ đang chia lát thì các lát chưa chốt thành `unsliced`
+// (cây giữ nguyên, lát chốt giữ nguyên): phần còn lại chạy một b-feat thường.
+func (r *Runner) dropSlicesIfOff(rs *runState) {
+	st := &rs.t.State
+	if r.slicingEnabled() || len(st.OpenSlices()) == 0 {
+		return
+	}
+	n := len(st.OpenSlices())
+	t, err := r.Tasks.Update(st.ID, r.now(), func(t *task.Task) error {
+		for i := range t.State.Slices {
+			if s := &t.State.Slices[i]; s.Status == task.SlicePending || s.Status == task.SliceActive {
+				s.Status, s.Held = task.SliceUnsliced, false
+			}
+		}
+		t.State.SliceMark = nil
+		return nil
+	})
+	if err != nil {
+		rs.res.Notes = append(rs.res.Notes, "không ghi được việc thôi chia lát: "+err.Error())
+		return
+	}
+	rs.t = t
+	rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("chia lát đã tắt (workflow.slicing hoặc slice_timeout_minutes): %d lát chưa chốt gộp vào một b-feat thường, cây giữ nguyên", n))
+}
+
 // sliceCandidates đọc plan.md và trả các nhóm có AC-N khi tác vụ đủ điều kiện chạy theo lát, trừ điều kiện cần b-goal đã chạy (GoalTest) và
 // cỡ kế hoạch (người gọi kiểm). Rỗng = không chia lát.
 func (r *Runner) sliceCandidates(rs *runState) []task.PlanSlice {
 	t := rs.t
-	if rs.session || r.Cfg.Workflow.SliceTimeoutMinutes <= 0 || !rs.planSizeGated() {
-		return nil
+	if rs.session || !r.wantSlices(t) || !r.wantGoal(t) || !rs.planSizeGated() {
+		return nil // lát cần kiểm tra mục tiêu đóng băng để đo: b-goal không chạy thì không chia lát
 	}
 	if c := t.State.Classification; c != nil && c.Fast {
 		return nil
@@ -164,7 +228,8 @@ func (r *Runner) sliceStart(ctx context.Context, rs *runState) {
 // ---- đề bài ----
 
 // sliceGuideBlock là luật của b-req (b-do gốc): thứ tự nhóm bề mặt là thứ tự lát mà Bint chạy.
-const sliceGuideBlock = "\nLát mỏng: kế hoạch lớn được Bint chạy theo từng lát, mỗi nhóm cấp ngoài cùng của `## Bề mặt bị ảnh hưởng` có nêu `AC-N` là MỘT lát " +
+const sliceGuideBlock = "\nLát mỏng: Bint chỉ chia lát khi plan.md ghi `Chia lát: có — <lý do>` trong `## Chiến lược thực thi` (mặc định `không`; chỉ chọn `có` khi ≥ 2 nhóm " +
+	"bề mặt độc lập, mỗi nhóm đo riêng được bằng kiểm tra mục tiêu, và cần `Kiểm tra mục tiêu độc lập (b-goal): có`). Khi chia lát, kế hoạch lớn được Bint chạy theo từng lát, mỗi nhóm cấp ngoài cùng của `## Bề mặt bị ảnh hưởng` có nêu `AC-N` là MỘT lát " +
 	"(một lượt b-feat riêng, có trần thời gian). Hãy xếp các nhóm theo thứ tự chạy: nhóm ĐẦU là bản nhỏ nhất vẫn làm giảm số ô đỏ của " +
 	"`## Kiểm tra mục tiêu`; mỗi nhóm sau độc lập đủ để chạy riêng; phần tài liệu/cấu hình gộp vào nhóm cần nó hoặc đặt cuối. Nhóm không nêu AC " +
 	"(ghi \"Ngoài phạm vi\") không thành lát. Bint chốt lát khi ô đỏ của kiểm tra mục tiêu giảm và test cũ vẫn xanh, không thì bỏ lát đó.\n\n"
@@ -180,12 +245,14 @@ func sliceBlock(t *task.Task) string {
 	fmt.Fprintf(&b, "\nLát mỏng: Bint chạy kế hoạch này theo %d lát, mỗi lát một lượt b-feat riêng có trần thời gian. LẦN NÀY CHỈ LÀM lát %d/%d, nguyên văn nhóm trong plan.md:\n%s\n",
 		n, cur.N, n, cur.Text)
 	if cur.Reason != "" {
-		fmt.Fprintf(&b, "Lần chạy trước của lát này dừng giữa chừng (%s); cây đã quay về điểm xanh, phần dở ghim ở %s. Làm lại từ điểm xanh.\n", cur.Reason, cur.Backup)
+		fmt.Fprintf(&b, "Lần chạy trước của lát này dừng giữa chừng (%s); cây của lát được GIỮ NGUYÊN (phần dở ghim ở %s): làm tiếp từ cây hiện tại, đừng làm lại từ đầu.\n", cur.Reason, cur.Backup)
 	}
+	b.WriteString("Giữ trong phạm vi lát: chỉ sửa tệp thuộc nhóm này, không làm trước phần của lát sau. Chỉ chạy test của gói đã sửa (ví dụ `go test ./internal/<gói>/...`), " +
+		"không chạy `go test ./...` hay lệnh kiểm chứng đầy đủ: Bint chạy kiểm chứng sau lát và chạy đầy đủ một lần ở cổng done.\n")
 	var done, later, dropped []string
 	for _, s := range t.State.Slices {
 		switch {
-		case s.N == cur.N:
+		case s.N == cur.N, s.Status == task.SliceUnsliced:
 		case s.Status == task.SliceAccepted:
 			done = append(done, fmt.Sprintf("lát %d/%d: %s", s.N, n, truncate(s.Text, 100)))
 		case s.Status == task.SliceDiscarded:
@@ -199,7 +266,7 @@ func sliceBlock(t *task.Task) string {
 		items []string
 	}{
 		{"Đã chốt, đừng làm lại", done},
-		{"Đã bỏ (cây đã quay về điểm xanh, làm lại nếu cần cho lát này, tránh lỗi cũ)", dropped},
+		{"Đã bỏ (cây đã quay về điểm xanh theo lựa chọn của người, làm lại nếu cần cho lát này, tránh lỗi cũ)", dropped},
 		{"Lát sau, đừng làm trước", later},
 	} {
 		if len(g.items) > 0 {
@@ -379,7 +446,7 @@ func (r *Runner) sliceGate(ctx context.Context, rs *runState) sliceOutcome {
 		if measured {
 			rd = red
 		}
-		return r.discardSlice(ctx, rs, why, rd, false)
+		return r.holdSlice(ctx, rs, why, rd)
 	}
 	snap, err := WorktreeSnapshot(ctx, r.Root)
 	if err == nil {
@@ -425,8 +492,8 @@ func activateNext(st *task.State) bool {
 	return false
 }
 
-// sliceSettleFailure xử lý lát có agent lỗi hoặc quá trần (endStep đặt rs.sliceFail): quá trần thì bỏ lát và đi tiếp; lỗi khác (kể cả chạm
-// ngân sách/quota, hạ tầng) thì đưa cây về điểm xanh, giữ lát ở trạng thái chưa làm và dừng blocked kèm danh sách lát.
+// sliceSettleFailure xử lý lát có agent lỗi hoặc quá trần (endStep đặt rs.sliceFail): cả hai giữ cây của lát và dừng blocked hỏi người
+// (holdSlice), không tự quay về điểm xanh.
 func (r *Runner) sliceSettleFailure(ctx context.Context, rs *runState) sliceOutcome {
 	reason, timedOut := rs.sliceFail, rs.sliceTimedOut
 	rs.sliceFail, rs.sliceTimedOut = "", false
@@ -435,26 +502,21 @@ func (r *Runner) sliceSettleFailure(ctx context.Context, rs *runState) sliceOutc
 		if sm := r.Cfg.Workflow.SliceTimeoutMinutes; sm > 0 && sm < mins {
 			mins = sm
 		}
-		return r.discardSlice(ctx, rs, fmt.Sprintf("quá trần thời gian lát (%d phút)", mins), nil, false)
+		return r.holdSlice(ctx, rs, fmt.Sprintf("quá trần thời gian agent của lát (%d phút)", mins), nil)
 	}
-	return r.discardSlice(ctx, rs, "agent lỗi: "+reason, nil, true)
+	return r.holdSlice(ctx, rs, "agent lỗi: "+reason, nil)
 }
 
-// discardSlice bỏ lát đang chạy: ghim cây hiện tại ở slice-<N>-discarded (đường lui), đưa tệp của tác vụ về điểm xanh dưới khoá độc quyền,
-// ghi lát discarded kèm lý do. Sau đó: lát 1 thì tác vụ blocked kèm danh sách lát; ngược lại chạy lát kế (hoặc sliceDone khi hết lát). stop=true
-// (agent lỗi giữa lát) là ca khác: lát không bị đánh dấu discarded mà giữ active kèm lý do, tác vụ blocked, resume chạy lại lát đó.
-// red là tập ô đỏ đo được của lát (nil nếu không đo được).
-func (r *Runner) discardSlice(ctx context.Context, rs *runState, why string, red []string, stop bool) sliceOutcome {
+// holdSlice giữ lát đang chạy chờ người quyết (quá trần, không đạt số đo, vượt ngân sách diff/hiệu năng, agent lỗi): ghim cây hiện tại ở
+// slice-<N>-discarded (đường lui), KHÔNG đưa tệp về điểm xanh, đánh dấu lát Held kèm lý do và dừng tác vụ blocked với ba lựa chọn
+// `resume --slice keep|discard|more`. red là tập ô đỏ đo được của lát (nil nếu không đo được).
+func (r *Runner) holdSlice(ctx context.Context, rs *runState, why string, red []string) sliceOutcome {
 	st := &rs.t.State
 	cur := st.ActiveSlice()
 	if cur == nil {
 		return sliceDone
 	}
-	if st.SliceGreen == nil || st.SliceGreen.Tree == "" {
-		r.block(rs, fmt.Sprintf("lát %d/%d phải dừng (%s) nhưng không có điểm xanh để quay về; xem Notes rồi %s", cur.N, len(st.Slices), why, r.resumeCmd(rs)))
-		return sliceStop
-	}
-	n, total, id, green := cur.N, len(st.Slices), st.ID, st.SliceGreen.Tree
+	n, total, id := cur.N, len(st.Slices), st.ID
 	lock, ok := r.lockStep(ctx, rs, "slice", LockExclusive)
 	if !ok {
 		return sliceStop
@@ -463,39 +525,21 @@ func (r *Runner) discardSlice(ctx context.Context, rs *runState, why string, red
 	backup := sliceDiscardRef(id, n)
 	snap, err := WorktreeSnapshot(ctx, r.Root)
 	if err == nil {
-		err = pinTree(ctx, r.Root, snap, backup, fmt.Sprintf("bint: cây của lát %d bị bỏ, tác vụ %s", n, id))
+		err = pinTree(ctx, r.Root, snap, backup, fmt.Sprintf("bint: cây của lát %d đang giữ chờ người, tác vụ %s", n, id))
 	}
 	if err != nil {
-		r.block(rs, fmt.Sprintf("lát %d/%d phải bỏ (%s) nhưng không ghim được cây làm đường lui nên không ghi đè gì: %v; xử lý rồi %s", n, total, why, err, r.resumeCmd(rs)))
-		return sliceStop
+		// Cây vẫn được giữ nguyên (không ghi đè gì); chỉ không có ref đường lui.
+		backup = ""
+		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("lát %d: không ghim được cây làm đường lui (cây vẫn giữ nguyên): %v", n, err))
 	}
-	res, rerr := restoreTree(ctx, r.Root, rs.t, green, true, "")
-	if res != nil && len(res.Skipped) > 0 {
-		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("lát %d bị bỏ: tệp khác điểm xanh nhưng không thuộc tác vụ nên giữ nguyên: %s", n, strings.Join(res.Skipped, ", ")))
-	}
-	if rerr != nil {
-		r.block(rs, fmt.Sprintf("lát %d/%d bị bỏ (%s) nhưng quay về điểm xanh dở dang: %v; cây của lát giữ ở %s, điểm xanh %s", n, total, why, rerr, backup, green))
-		return sliceStop
-	}
-	next := false
 	t, uerr := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
 		s := &t.State.Slices[n-1]
-		if stop {
-			// Agent lỗi/hết quota/hết ngân sách giữa lát: lát CHƯA làm xong chứ không bị đo là kém. Giữ nó active (kèm lý do và cây dở để lấy lại);
-			// resume chạy lại đúng lát này. Chỉ lát quá trần hoặc không đạt số đo mới là "bỏ".
-			s.Reason, s.Backup = why, backup
-		} else {
-			s.Status, s.Reason, s.Backup = task.SliceDiscarded, why, backup
-			if len(red) > 0 {
-				s.Red = append([]string{}, red...)
-			}
+		s.Held, s.Reason, s.Backup = true, why, backup
+		if len(red) > 0 {
+			s.Red = append([]string{}, red...)
 		}
-		// Phiên của lát dở/bị bỏ mang ngữ cảnh sai: lát sau và vòng sửa chạy đề bài đầy đủ, không nối tiếp.
+		// Phiên của lát dở mang ngữ cảnh sai: lần chạy sau chạy đề bài đầy đủ, không nối tiếp.
 		t.State.LastStep, t.State.LastImplement, t.State.AwaitingCheck = nil, nil, false
-		// Lát kế được kích hoạt cả khi tác vụ dừng blocked (lát 1 bị bỏ): resume chạy tiếp các lát chưa làm, không chạy lại lát đã bỏ.
-		if !stop {
-			next = activateNext(&t.State)
-		}
 		return nil
 	})
 	if uerr != nil {
@@ -503,26 +547,142 @@ func (r *Runner) discardSlice(ctx context.Context, rs *runState, why string, red
 		return sliceStop
 	}
 	rs.t = t
-	if stop {
-		r.logf("  lát %d/%d dừng giữa chừng (%s); cây dở: %s", n, total, why, backup)
-	} else {
-		r.logf("  lát %d/%d bỏ (%s); cây của lát: %s", n, total, why, backup)
+	r.logf("  lát %d/%d dừng chờ người (%s); cây của lát giữ nguyên, ghim ở %s", n, total, why, cmpStr(backup, "(không ghim được)"))
+	resume := r.resumeCmd(rs)
+	r.block(rs, fmt.Sprintf("lát %d/%d dừng chờ bạn (%s); cây của lát được GIỮ NGUYÊN, Bint không tự quay về điểm xanh%s. Chọn: "+
+		"`%s --slice keep` (chốt cây hiện tại làm điểm xanh rồi sang lát kế) | `%s --slice discard` (đưa tệp của tác vụ về điểm xanh rồi sang lát kế) | "+
+		"`%s --slice more` (chạy lại lát từ cây hiện tại, thêm một trần thời gian); %s",
+		n, total, why, ifSet(backup, ", ghim ở ", ""), resume, resume, resume, sliceSummary(rs.t)))
+	return sliceStop
+}
+
+// ifSet là prefix+s+suffix khi s không rỗng, ngược lại rỗng.
+func ifSet(s, prefix, suffix string) string {
+	if s == "" {
+		return ""
 	}
-	switch {
-	case stop || n == 1:
-		var head string
-		switch {
-		case stop:
-			head = fmt.Sprintf("lát %d/%d dừng giữa chừng (%s); cây đã về điểm xanh, phần dở ghim ở %s; resume chạy lại lát này", n, total, why, backup)
-		default:
-			head = fmt.Sprintf("lát 1/%d (bản nhỏ nhất đạt mục tiêu) bị bỏ (%s); không có gì để giao ngoài điểm xanh đầu", total, why)
+	return prefix + s + suffix
+}
+
+// Lựa chọn của người với lát đang giữ (resume --slice).
+const (
+	SliceKeep    = "keep"
+	SliceDiscard = "discard"
+	SliceMore    = "more"
+)
+
+// SliceChoices là các giá trị hợp lệ của `bint run resume --slice`.
+var SliceChoices = []string{SliceKeep, SliceDiscard, SliceMore}
+
+// checkSliceFlag kiểm --slice trên phiếu t trước khi nhận quyền điều phối: chỉ khi tác vụ đang chờ người ở một lát giữ.
+func checkSliceFlag(t *task.Task, choice string) error {
+	if choice == "" {
+		return nil
+	}
+	if !slices.Contains(SliceChoices, choice) {
+		return fmt.Errorf("--slice %q không hợp lệ: chọn %s", choice, strings.Join(SliceChoices, " | "))
+	}
+	if !task.Paused(t.State.Status) || t.State.HeldSlice() == nil {
+		return fmt.Errorf("--slice chỉ dùng khi tác vụ %s đang chờ người ở một lát bị giữ (quá trần, không đạt, vượt ngân sách hoặc agent lỗi); đang %s (bint task show %s)",
+			t.State.ID, t.State.Status, t.State.ID)
+	}
+	return nil
+}
+
+// heldMeasure đo cổng mục tiêu ở lần chạy gần nhất của lát đang giữ (sau mốc đầu lát): measured=false khi chưa có lần chạy nào hoặc không đo được.
+func heldMeasure(st *task.State) (red []string, measured bool) {
+	mark := task.SliceMark{}
+	if st.SliceMark != nil {
+		mark = *st.SliceMark
+	}
+	if n := len(st.GoalChecks); n > mark.GoalN {
+		return failSetOf(&st.GoalChecks[n-1])
+	}
+	return nil, false
+}
+
+// applySliceChoice áp lựa chọn của người với lát đang giữ khi resume: keep chốt cây hiện tại, discard đưa tệp của tác vụ về điểm xanh,
+// more (mặc định khi không nêu --slice, không mất công) chạy lại lát từ cây hiện tại. Trả false khi workflow phải dừng (đã đặt trạng thái).
+// Hết lát sau keep/discard thì đặt AwaitingCheck để bước kiểm tra sau implement (kiểm phạm vi, kiểm chứng, cổng mục tiêu) chạy trên cây cuối.
+func (r *Runner) applySliceChoice(ctx context.Context, rs *runState, choice string) bool {
+	st := &rs.t.State
+	cur := st.HeldSlice()
+	if cur == nil {
+		return true
+	}
+	n, total, id, idx := cur.N, len(st.Slices), st.ID, cur.N-1
+	if choice == "" {
+		choice = SliceMore
+		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("lát %d đang giữ chờ người mà không có --slice: chạy lại lát từ cây hiện tại (--slice more)", n))
+	}
+	if choice == SliceMore {
+		t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
+			t.State.Slices[idx].Held = false
+			activateSlice(&t.State, idx) // mốc đếm mới: kết quả của lần chạy lại là các lần sau mốc
+			return nil
+		})
+		if err != nil {
+			r.fail(rs, "slice", "ghi lựa chọn lát: "+err.Error())
+			return false
 		}
-		r.block(rs, head+"; "+sliceSummary(rs.t)+"; xử lý rồi "+r.resumeCmd(rs))
-		return sliceStop
-	case next:
-		return sliceNext
+		rs.t = t
+		return true
 	}
-	return sliceDone
+	lock, ok := r.lockStep(ctx, rs, "slice", LockExclusive)
+	if !ok {
+		return false
+	}
+	defer lock.Release()
+	var snap string
+	switch choice {
+	case SliceKeep:
+		var err error
+		if snap, err = WorktreeSnapshot(ctx, r.Root); err == nil {
+			err = pinTree(ctx, r.Root, snap, sliceGreenRef(id), fmt.Sprintf("bint: điểm xanh sau lát %d (người giữ), tác vụ %s", n, id))
+		}
+		if err != nil {
+			r.block(rs, fmt.Sprintf("lát %d/%d: không ghim được cây để chốt (--slice keep): %v; xử lý rồi %s --slice keep", n, total, err, r.resumeCmd(rs)))
+			return false
+		}
+	case SliceDiscard:
+		if st.SliceGreen == nil || st.SliceGreen.Tree == "" {
+			r.block(rs, fmt.Sprintf("lát %d/%d: không có điểm xanh để quay về (--slice discard); chọn --slice keep hoặc more", n, total))
+			return false
+		}
+		res, rerr := restoreTree(ctx, r.Root, rs.t, st.SliceGreen.Tree, true, "")
+		if res != nil && len(res.Skipped) > 0 {
+			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("lát %d bỏ theo lựa chọn của người: tệp khác điểm xanh nhưng không thuộc tác vụ nên giữ nguyên: %s", n, strings.Join(res.Skipped, ", ")))
+		}
+		if rerr != nil {
+			r.block(rs, fmt.Sprintf("lát %d/%d: quay về điểm xanh dở dang (--slice discard): %v; cây của lát giữ ở %s", n, total, rerr, cur.Backup))
+			return false
+		}
+	}
+	red, measured := heldMeasure(st)
+	next := false
+	t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
+		s := &t.State.Slices[idx]
+		old := s.Reason
+		s.Held = false
+		if choice == SliceKeep {
+			s.Status, s.Reason, s.Tree = task.SliceAccepted, "người giữ cây của lát ("+old+")", snap
+			s.Red = append([]string{}, red...)
+			t.State.SliceGreen = &task.SliceGreen{Tree: snap, At: r.at(), Measured: measured, Red: append([]string{}, red...)}
+		} else {
+			s.Status, s.Reason = task.SliceDiscarded, "người bỏ lát ("+old+")"
+		}
+		t.State.LastStep, t.State.LastImplement = nil, nil
+		next = activateNext(&t.State)
+		t.State.AwaitingCheck = !next // hết lát: chạy cổng sau bước implement trên cây cuối
+		return nil
+	})
+	if err != nil {
+		r.fail(rs, "slice", "ghi lựa chọn lát: "+err.Error())
+		return false
+	}
+	rs.t = t
+	r.logf("  lát %d/%d: người chọn %s", n, total, choice)
+	return true
 }
 
 // ---- kết luận ----
@@ -536,6 +696,8 @@ func sliceSummary(t *task.Task) string {
 	var acc, disc, todo []string
 	for _, s := range t.State.Slices {
 		switch s.Status {
+		case task.SliceUnsliced:
+			// thôi chia lát giữa chừng: gộp vào b-feat thường, không còn là lát chưa làm
 		case task.SliceAccepted:
 			acc = append(acc, fmt.Sprintf("lát %d/%d (%s)", s.N, n, truncate(s.Text, 60)))
 		case task.SliceDiscarded:

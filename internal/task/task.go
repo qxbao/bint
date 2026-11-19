@@ -310,6 +310,7 @@ const (
 	SliceActive    = "active"    // đang là lát được chạy (đúng một lát tại một thời điểm)
 	SliceAccepted  = "accepted"  // đã chốt: ô đỏ của kiểm tra mục tiêu giảm, test cũ vẫn xanh, điểm xanh đã tiến
 	SliceDiscarded = "discarded" // đã bỏ: cây quay về điểm xanh, Backup giữ nội dung lát
+	SliceUnsliced  = "unsliced"  // thôi chia lát giữa chừng (slicing off / slice_timeout_minutes 0): phần còn lại chạy một b-feat thường
 )
 
 // Slice là một lát mỏng của b-do chạy kế hoạch lớn: một nhóm `## Bề mặt bị ảnh hưởng` của plan.md, chạy bằng một lượt b-feat riêng.
@@ -327,6 +328,28 @@ type Slice struct {
 	Tree   string `json:"tree,omitempty"`
 	Backup string `json:"backup,omitempty"`
 	RunID  string `json:"run_id,omitempty"`
+	// Held: lát đang active nhưng dừng chờ người (quá trần, không đạt số đo, vượt ngân sách, agent lỗi): cây của lát được GIỮ nguyên (Backup là ref
+	// ghim nó); người chọn `bint run resume --slice keep|discard|more`.
+	Held bool `json:"held,omitempty"`
+}
+
+// OpenSlices trả các lát chưa chốt (pending hoặc active, kể cả lát đang giữ chờ người).
+func (s *State) OpenSlices() []Slice {
+	var out []Slice
+	for _, sl := range s.Slices {
+		if sl.Status == SlicePending || sl.Status == SliceActive {
+			out = append(out, sl)
+		}
+	}
+	return out
+}
+
+// HeldSlice trả lát đang giữ chờ người chọn (nil khi không có).
+func (s *State) HeldSlice() *Slice {
+	if a := s.ActiveSlice(); a != nil && a.Held {
+		return a
+	}
+	return nil
 }
 
 // SliceGreen là điểm xanh của lát: ảnh chụp cây gần nhất mà số đo của cổng mục tiêu được chốt một chiều (chỉ tiến, không lùi).

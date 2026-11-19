@@ -23,7 +23,7 @@ func goalDocs(goal, phases string) map[string]string {
 		req += "## Kiểm tra mục tiêu\n" + goal + "\n"
 	}
 	req += "## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n"
-	plan := "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n## Giả định thay người dùng\nKhông có\n"
+	plan := "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n## Giả định thay người dùng\nKhông có\n## Chiến lược thực thi\nChia lát: không — một nhóm\nKiểm tra mục tiêu độc lập (b-goal): có — đo từ ngoài\n"
 	if phases != "" {
 		plan += "## Đề xuất tách giai đoạn\n" + phases
 	}
