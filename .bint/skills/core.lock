@@ -84,19 +84,19 @@ skills:
     variants:
       agents: b43f900e7803026a
   b-req:
-    sha256: 9cca038d88c968f4
+    sha256: 9fb46f09e7a2bd56
     published:
       - .agents/skills/b-req/SKILL.md
       - .claude/skills/b-req/SKILL.md
     variants:
-      agents: 7db01226e2ed54b3
+      agents: 158cac972328224b
   b-review:
-    sha256: a7443eb8d41d79a7
+    sha256: 48b726a2007de138
     published:
       - .agents/skills/b-review/SKILL.md
       - .claude/skills/b-review/SKILL.md
     variants:
-      agents: 555949f466f1008c
+      agents: ed14c4633821b388
 agents:
   bint-implementer:
     sha256: 0100c78c477c64c7

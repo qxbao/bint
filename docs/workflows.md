@@ -527,8 +527,8 @@ thành **lát** (`internal/workflow/slice.go`), mỗi lát một lượt `b-feat
 - **Lối ra**: sửa hồi quy; hết vòng sửa thì `bint run resume <id> --accept` (chấp nhận kết quả hiện tại)/`--fix-round`/huỷ, giống kiểm chứng đỏ.
 
 **`baseline.md` và luật lint hợp đồng v2 (b-req).** Trước bước `b-req` Bint tự đo hiện trạng (số tệp/byte dưới thư mục trạng thái và các tệp
-git theo dõi khớp `scope.allow`; có trần thời gian và số tệp, mục không đo được ghi rõ lý do) và ghi `baseline.md` vào thư mục tác vụ. `## Hiện trạng`
-của `requirement.md` phải có số đo hoặc đúng một dòng `Không đo được: <lý do>` (việc thuần nội bộ; cấm bịa số). `bint task lint` có sáu mã
+git theo dõi khớp `scope.allow` đã trừ phần khớp `scope.deny`; `scope.allow` và thư mục trạng thái có trần thời gian riêng, cùng trần số tệp; mục không đo được ghi rõ lý do) và ghi `baseline.md` vào thư mục tác vụ. `## Hiện trạng`
+của `requirement.md` phải có số đo hoặc đúng một dòng `Không đo được: <lý do>` (việc thuần nội bộ; cấm bịa số). "Số đo" là chữ số **ngoài code span**: tên có chữ số trong backtick (`TestGoal2`, `internal/v2/x.go`) không tính, cho cả `baseline_missing` lẫn `ac_without_measure`. Lối `Không đo được:` mà không kèm số đo thật phát cảnh báo `baseline_exempt` (luôn là cảnh báo, không chặn). `bint task lint` có sáu mã
 mới: lỗi ở hợp đồng v2 khi `--strict`, chỉ cảnh báo ở v1, bỏ qua ở v0: `baseline_missing` (thiếu `## Hiện trạng` hoặc không có số/`Không đo được:`),
 `ac_without_measure` (không AC nào có số đo mục tiêu), `surface_missing` (thiếu `## Bề mặt bị ảnh hưởng` hoặc không có nhóm nào),
 `surface_unmapped` (nhóm bề mặt không nêu `AC-N` có thật hay `ngoài phạm vi`), `assumptions_missing` (thiếu/rỗng `## Giả định thay người dùng`; ghi
@@ -536,7 +536,8 @@ mới: lỗi ở hợp đồng v2 khi `--strict`, chỉ cảnh báo ở v1, bỏ
 (`internal/app/task_svc.go`), nên agent trong bước `bint run` không lập phiếu con được; agent con của phiên điều phối không có biến này, do đó
 skill `b-req` còn cấm tường minh việc tự lập phiếu con và đổi trạng thái phiếu.
 
-**Phát hiện review chặn cần bằng chứng tái hiện (`repro`).** Phát hiện `bug`/`risk` mức `high`/`critical` gửi qua `bint task review` phải có trường `repro`: lệnh trong dấu backtick
+**Phát hiện review chặn cần bằng chứng tái hiện (`repro`).** Phát hiện `bug`/`risk` mức `high`/`critical` gửi qua `bint task review` phải có trường `repro`: lệnh chạy được trong dấu backtick
+(từ hai từ trở lên hoặc bắt đầu bằng tên chương trình như `go`, `sh`, `bash`, `bint`, `git`, `npm`, `make`, `python`, `curl`; tên hàm/tệp đơn trong backtick không đủ)
 hoặc `tệp:dòng` có thật. Thiếu `repro` hợp lệ thì Bint ghi mức `medium` kèm `downgraded_from` (mức gốc) trong `review.json`/`review.md`/đầu ra lệnh, không mở vòng sửa và không tính vào đếm hội tụ;
 "bỏ sót bề mặt" chỉ dựa trên lập luận là mức không chặn. Phát hiện có `repro` hợp lệ giữ mức chặn và `repro` được đưa vào đề bài vòng sửa của `b-feat`. Vòng review cũ không bị tính lại.
 

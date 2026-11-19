@@ -92,7 +92,7 @@ Phân biệt rõ:
 Mức độ: `critical` | `high` | `medium` | `low`. `critical`/`high` dành cho mục tiêu người dùng hoặc AC chưa đạt, hồi quy và lỗi đúng đắn thực
 sự (chỉ ra được đầu vào/trạng thái gây sai) trong mã đã sửa, luôn kèm bằng chứng cụ thể.
 
-**Mức chặn cần bằng chứng tái hiện.** Phát hiện `bug`/`risk` mức `high`/`critical` phải có trường `repro`: **lệnh trong dấu backtick** (ví dụ `` `go test -run TestX ./internal/db` `` chạy ra lỗi) hoặc **`tệp:dòng` có thật** nơi dữ liệu còn sai (ví dụ `internal/db/q.go:45`). Thiếu `repro` hợp lệ thì Bint tự ghi mức `medium` kèm `downgraded_from` (mức gốc), không mở vòng sửa và không tính vào đếm hội tụ. Vì vậy "bỏ sót bề mặt" chỉ dựa trên lập luận ("có thể còn nơi khác") là mức không chặn (`medium`/`low`); muốn giữ mức chặn, lần theo dữ liệu tới tệp:dòng còn thô hoặc chạy lệnh cho thấy lỗi rồi ghi vào `repro`.
+**Mức chặn cần bằng chứng tái hiện.** Phát hiện `bug`/`risk` mức `high`/`critical` phải có trường `repro`: **lệnh chạy được trong dấu backtick** (từ hai từ trở lên hoặc bắt đầu bằng tên chương trình như `go`, `sh`, `bash`, `bint`, `git`, `npm`, `make`, `python`, `curl`; tên hàm hay tệp đơn trong backtick không đủ; ví dụ `` `go test -run TestX ./internal/db` `` chạy ra lỗi) hoặc **`tệp:dòng` có thật** nơi dữ liệu còn sai (ví dụ `internal/db/q.go:45`). Thiếu `repro` hợp lệ thì Bint tự ghi mức `medium` kèm `downgraded_from` (mức gốc), không mở vòng sửa và không tính vào đếm hội tụ. Vì vậy "bỏ sót bề mặt" chỉ dựa trên lập luận ("có thể còn nơi khác") là mức không chặn (`medium`/`low`); muốn giữ mức chặn, lần theo dữ liệu tới tệp:dòng còn thô hoặc chạy lệnh cho thấy lỗi rồi ghi vào `repro`.
 
 ## Bước 4 — Ghi phát hiện
 

@@ -189,7 +189,7 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
 - `tasks.md` không đòi `go test ./...` (bộ test toàn bộ) trong "xong khi": mỗi TSK nêu test hẹp của gói đã sửa (ví dụ `go test ./internal/x/...`);
   Bint chạy `verify.command` đầy đủ một lần ở cổng done.
 - `## Hiện trạng` (requirement.md, đọc `baseline.md` Bint đã đo) có số đo, và ít nhất một AC có số đo mục tiêu người dùng. Việc thuần nội bộ
-  không có số đo người dùng thì ghi đúng một dòng `Không đo được: <lý do>` thay cho số; **cấm bịa số**.
+  không có số đo người dùng thì ghi đúng một dòng `Không đo được: <lý do>` thay cho số; **cấm bịa số**. Số đo là chữ số ngoài code span (tên như `TestGoal2` không tính); `Không đo được:` mà không có số đo thật chỉ bị cảnh báo `baseline_exempt`.
 - `## Câu hỏi mở` chỉ chứa câu hỏi **cản trở triển khai**, dạng `- [ ] Q-1: …`; còn dòng chưa trả lời thì b-feat bị chặn. Người dùng
   trả lời thì ghi `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>` (không tự bịa câu trả lời).
 
