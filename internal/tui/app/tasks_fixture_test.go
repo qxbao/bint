@@ -201,7 +201,9 @@ func (f *fixture) pump(until func() bool, cmd tea.Cmd) {
 		}()
 	}
 	run(cmd)
-	deadline := time.After(20 * time.Second)
+	// Hạn chỉ để chặn treo, không đo tốc độ: trên Windows mỗi lệnh git/sh tốn 20–70 ms, và khi go test ./... chạy
+	// nhiều gói cùng lúc (mỗi gói lại chia nhiều tiến trình, testutil.RunTests) một bước init/b-do có thể quá 20 s.
+	deadline := time.After(90 * time.Second)
 	for !until() {
 		select {
 		case msg := <-f.msgs:

@@ -146,9 +146,10 @@ func CleanupHarness() {
 	}
 }
 
-// Main chạy m.Run rồi dọn thư mục harness giả; dùng trong TestMain của gói gọi Isolate.
+// Main chạy test (RunTests: chia nhiều tiến trình khi được) rồi dọn thư mục harness giả; dùng trong TestMain của
+// gói gọi Isolate.
 func Main(m *testing.M) {
-	code := m.Run()
+	code := RunTests(m)
 	CleanupHarness()
 	os.Exit(code)
 }
