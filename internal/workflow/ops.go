@@ -742,6 +742,19 @@ func (e *Env) SetupStatus(t *task.Task) SetupStatus {
 	return st
 }
 
+// PerfConfirmed: workflow.perf.command hiện tại đã được người xác nhận (băm trùng PerfApproval) hoặc trùng eval.test_command đã xác nhận.
+func (e *Env) PerfConfirmed(t *task.Task) bool {
+	cmd := strings.TrimSpace(e.Cfg.Workflow.Perf.Command)
+	if cmd == "" {
+		return false
+	}
+	if e.commandConfirmed(cmd) {
+		return true
+	}
+	a := t.State.PerfApproval
+	return a != nil && a.SHA256 == task.CommandSHA256(cmd)
+}
+
 // commandConfirmed: lệnh trùng eval.test_command đã xác nhận trong cấu hình.
 func (e *Env) commandConfirmed(cmd string) bool {
 	cmd = strings.TrimSpace(cmd)
@@ -1031,7 +1044,9 @@ func (e *Env) SubmitReview(ref string, data []byte) (*task.Task, task.ReviewRoun
 type Approval struct {
 	VerifyCommand string
 	SetupCommand  string
-	Paths         []string
+	// PerfCommand: workflow.perf.command vừa được xác nhận (cổng hiệu năng chạy lệnh này ngoài sandbox).
+	PerfCommand string
+	Paths       []string
 	// SetupWaiting: lệnh setup còn chờ xác nhận vì người chưa đưa băm của lệnh đã xem (ApproveInput.SetupSHA rỗng);
 	// SetupWaitingSHA là băm đầy đủ của lệnh đó để in lệnh xác nhận.
 	SetupWaiting    string
@@ -1090,6 +1105,10 @@ func (e *Env) ApproveWith(ref string, in ApproveInput) (*task.Task, Approval, er
 		if cmd := strings.TrimSpace(t.Ticket.Verify.Command); cmd != "" && !e.VerifyConfirmed(t) {
 			t.State.VerifyApproval = &task.Approval{Command: cmd, By: e.actor(), At: e.at()}
 			a.VerifyCommand = cmd
+		}
+		if pc := strings.TrimSpace(e.Cfg.Workflow.Perf.Command); pc != "" && !e.PerfConfirmed(t) {
+			t.State.PerfApproval = &task.Approval{Command: pc, SHA256: task.CommandSHA256(pc), By: e.actor(), At: e.at()}
+			a.PerfCommand = pc
 		}
 		if ss := e.SetupStatus(t); ss.Pending() {
 			switch {

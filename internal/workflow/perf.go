@@ -19,12 +19,13 @@ const (
 	perfNoiseFloor = 100 * time.Millisecond
 )
 
-// perfEnabled: lệnh đo đã khai báo và lệnh kiểm chứng đã được xác nhận (hoặc dự án không đòi duyệt lệnh).
+// perfEnabled: lệnh đo đã khai báo và chính lệnh đó đã được người xác nhận (bint task approve ghi băm vào PerfApproval;
+// lệnh đổi sau đó thì không chạy), hoặc dự án không đòi duyệt lệnh.
 func (r *Runner) perfEnabled(t *task.Task) bool {
 	if strings.TrimSpace(r.Cfg.Workflow.Perf.Command) == "" {
 		return false
 	}
-	return r.VerifyConfirmed(t) || !r.Cfg.Security.RequireApprovalForCommands
+	return r.PerfConfirmed(t) || !r.Cfg.Security.RequireApprovalForCommands
 }
 
 // perfMeasure chạy lệnh đo perfRuns lần, trả thời gian nhỏ nhất. Dừng ở lần đầu thoát khác 0 (ok=false); log của lần đó (hoặc lần đầu) ở logPath.
@@ -60,8 +61,19 @@ func (r *Runner) perfMeasure(ctx context.Context, root, logPath string) (best ti
 
 // perfBaseline đo mốc trước b-feat đầu tiên (gọi khi đã giữ khoá bước). Lỗi hoặc lệnh đo hỏng thì không có mốc (cổng bỏ qua, ghi Notes).
 func (r *Runner) perfBaseline(ctx context.Context, rs *runState) {
-	if !r.perfEnabled(rs.t) || rs.t.State.PerfBaseline != nil || len(rs.t.State.PerfChecks) > 0 {
+	if strings.TrimSpace(r.Cfg.Workflow.Perf.Command) == "" || rs.t.State.PerfBaseline != nil || rs.t.State.PerfBaselineTried || len(rs.t.State.PerfChecks) > 0 {
 		return
+	}
+	if !r.perfEnabled(rs.t) {
+		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("cổng hiệu năng: workflow.perf.command chưa được người xác nhận (hoặc đã đổi sau khi duyệt), không chạy: %s — bint task approve %s", r.Cfg.Workflow.Perf.Command, rs.t.State.ID))
+		return
+	}
+	// Đánh dấu đã thử trước khi đo: ở chế độ lát PerfChecks không bao giờ được ghi nên không có dấu này thì mốc có thể đo muộn trên cây đã sửa.
+	if nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+		t.State.PerfBaselineTried = true
+		return nil
+	}); err == nil {
+		rs.t = nt
 	}
 	root, err := r.RootFor(rs.t)
 	if err != nil {
@@ -97,7 +109,14 @@ func (r *Runner) perfCheck(ctx context.Context, rs *runState, record bool) (over
 	if !ok {
 		return false, ""
 	}
+	// Đánh số theo tệp log có sẵn: ở chế độ lát PerfChecks không được ghi nên len(PerfChecks)+1 luôn là 1 và đè perf-1.log.
 	n := len(rs.t.State.PerfChecks) + 1
+	for {
+		if _, err := os.Stat(rs.t.LogPath(fmt.Sprintf("perf-%d.log", n))); err != nil {
+			break
+		}
+		n++
+	}
 	log := rs.t.LogPath(fmt.Sprintf("perf-%d.log", n))
 	best, res, passedRun := r.perfMeasure(ctx, root, log)
 	lock.Release()

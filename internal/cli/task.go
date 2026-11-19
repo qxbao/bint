@@ -846,7 +846,7 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 				fmt.Fprintf(stdio.Out, "! Lệnh setup worktree CHƯA được xác nhận: %s\n  Lệnh chạy với quyền của bạn khi tạo worktree. Xem kỹ rồi xác nhận: bint task approve %s --setup-sha %s\n",
 					a.SetupWaiting, t.State.ID, a.SetupWaitingSHA[:workflow.MinSetupSHAPrefix])
 			}
-			if a.VerifyCommand == "" && a.SetupCommand == "" && len(a.Paths) == 0 {
+			if a.VerifyCommand == "" && a.SetupCommand == "" && a.PerfCommand == "" && len(a.Paths) == 0 {
 				if a.SetupWaiting != "" {
 					return nil
 				}
@@ -858,6 +858,9 @@ Không đổi trạng thái; tiếp tục bằng bint run resume <task-id>. Xem 
 			}
 			if a.SetupCommand != "" {
 				fmt.Fprintf(stdio.Out, "✓ Xác nhận lệnh setup worktree: %s\n", a.SetupCommand)
+			}
+			if a.PerfCommand != "" {
+				fmt.Fprintf(stdio.Out, "✓ Xác nhận lệnh đo hiệu năng (workflow.perf.command): %s\n", a.PerfCommand)
 			}
 			if len(a.Paths) > 0 {
 				fmt.Fprintf(stdio.Out, "✓ Duyệt thay đổi: %s\n", strings.Join(a.Paths, ", "))

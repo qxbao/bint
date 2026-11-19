@@ -490,6 +490,11 @@ type State struct {
 	// SetupApproval là lần người xác nhận workflow.worktree.setup_command cho tác vụ worktree này
 	// (bint task approve); so theo băm SHA256 của lệnh, lệnh đổi thì phải xác nhận lại.
 	SetupApproval *Approval `json:"setup_approval,omitempty"`
+	// PerfApproval là lần người xác nhận workflow.perf.command (bint task approve); so theo băm SHA256 của lệnh,
+	// lệnh đổi thì cổng hiệu năng không chạy cho tới khi xác nhận lại.
+	PerfApproval *Approval `json:"perf_approval,omitempty"`
+	// PerfBaselineTried: đã thử đo mốc hiệu năng một lần (kể cả khi lệnh hỏng); không đo lại để mốc không rơi vào cây đã sửa.
+	PerfBaselineTried bool `json:"perf_baseline_tried,omitempty"`
 	// PendingPaths là tệp đã sửa chạm đường dẫn bảo vệ/deny đang chờ người duyệt.
 	PendingPaths []string      `json:"pending_paths,omitempty"`
 	Errors       []ErrorRecord `json:"errors,omitempty"`
