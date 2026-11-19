@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -97,7 +98,10 @@ func (e *Env) withoutIntactGoal(root string, t *task.Task, files []string) []str
 func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 	if !r.checkScope(ctx, rs) {
 		// Dừng chờ duyệt (hoặc huỷ/lỗi) khi agent b-goal đã xong: resume chạy lại từ đây (stepGoalCheck), không gọi lại agent.
-		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.GoalAwaitingCheck = true; return nil }); err == nil {
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+			t.State.GoalAwaitingCheck, t.State.GoalCheckRunID = true, lastStepRunID(rs)
+			return nil
+		}); err == nil {
 			rs.t = t
 		}
 		return false
@@ -122,13 +126,10 @@ func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 	for i, f := range files {
 		paths[i] = f.Path
 	}
-	runID := ""
-	if len(rs.res.Steps) > 0 {
-		runID = rs.res.Steps[len(rs.res.Steps)-1].RunID
-	}
+	runID := cmp.Or(lastStepRunID(rs), rs.t.State.GoalCheckRunID) // resume qua stepGoalCheck: rs.res.Steps rỗng, lấy lượt đã lưu lúc dừng
 	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		t.State.GoalTest = &task.GoalTest{Files: files, RunID: runID, At: r.at()}
-		t.State.GoalAwaitingCheck = false
+		t.State.GoalAwaitingCheck, t.State.GoalCheckRunID = false, ""
 		t.Ticket.Scope.Deny = appendUnique(t.Ticket.Scope.Deny, paths...)
 		return nil
 	}); err != nil {
@@ -215,7 +216,7 @@ var (
 	goalHasRunRe   = regexp.MustCompile(`(^|\s)-{1,2}(test\.)?run(=|\s|$)`)
 )
 
-// goalRunOnly chèn `-run '^(TestA|TestB)$'` ngay sau `go test` khi lệnh chưa có -run và mọi tệp đóng băng là `*_test.go` đọc được, chỉ khai
+// goalRunOnly chèn `-run "^(TestA|TestB)$"` (nháy kép: chạy được cả dưới sh lẫn cmd /C) ngay sau `go test` khi lệnh chưa có -run và mọi tệp đóng băng là `*_test.go` đọc được, chỉ khai
 // báo hàm Test* (ít nhất một). Tệp không phải Go, tệp không đọc/phân tích được, hoặc có Fuzz*/Example* (cũng chạy dưới -run) thì giữ lệnh cũ:
 // thà chạy rộng hơn còn hơn bỏ sót test.
 func goalRunOnly(cmd, root string, files []string) string {
@@ -238,7 +239,7 @@ func goalRunOnly(cmd, root string, files []string) string {
 	}
 	slices.Sort(names)
 	names = slices.Compact(names)
-	return "go test -run '^(" + strings.Join(names, "|") + ")$'" + strings.TrimPrefix(cmd, "go test")
+	return `go test -run "^(` + strings.Join(names, "|") + `)$"` + strings.TrimPrefix(cmd, "go test")
 }
 
 // goTestFuncs liệt kê hàm `func TestXxx(t *testing.T)` cấp gói của tệp; ok=false khi không phân tích được hoặc tệp có hàm Fuzz*/Example*.
@@ -386,4 +387,12 @@ func frozenGoalBlock(t *task.Task) string {
 // isGoalCheck cho biết v là lần chạy cổng mục tiêu gần nhất của t (verifyRedBlock nêu riêng khi cổng mục tiêu đỏ).
 func isGoalCheck(t *task.Task, v *task.Verification) bool {
 	return v != nil && t.State.GoalTest != nil && v == t.State.LastGoalCheck()
+}
+
+// lastStepRunID là lượt con của bước vừa chạy trong lượt này; rỗng khi lượt này chưa chạy bước nào (resume từ bước giả).
+func lastStepRunID(rs *runState) string {
+	if n := len(rs.res.Steps); n > 0 {
+		return rs.res.Steps[n-1].RunID
+	}
+	return ""
 }

@@ -232,8 +232,14 @@ func (r *Runner) sliceStart(ctx context.Context, rs *runState) {
 const sliceGuideBlock = "\nLát mỏng: Bint chỉ chia lát khi plan.md ghi `Chia lát: có — <lý do>` trong `## Chiến lược thực thi` (mặc định `không`; chỉ chọn `có` khi ≥ 2 nhóm " +
 	"bề mặt độc lập, mỗi nhóm đo riêng được bằng kiểm tra mục tiêu, và cần `Kiểm tra mục tiêu độc lập (b-goal): có`). Khi chia lát, kế hoạch lớn được Bint chạy theo từng lát, mỗi nhóm cấp ngoài cùng của `## Bề mặt bị ảnh hưởng` có nêu `AC-N` là MỘT lát " +
 	"(một lượt b-feat riêng, có trần thời gian). Hãy xếp các nhóm theo thứ tự chạy: nhóm ĐẦU là bản nhỏ nhất vẫn làm giảm số ô đỏ của " +
-	"`## Kiểm tra mục tiêu`; mỗi nhóm sau độc lập đủ để chạy riêng; phần tài liệu/cấu hình gộp vào nhóm cần nó hoặc đặt cuối. Nhóm không nêu AC " +
+	"`## Kiểm tra mục tiêu` VÀ làm cho test đóng băng biên dịch được (nếu test gọi API của nhóm sau thì nhóm đầu thêm stub: `[build failed]` làm lát đầu luôn đỏ); mỗi nhóm sau độc lập đủ để chạy riêng; phần tài liệu/cấu hình gộp vào nhóm cần nó hoặc đặt cuối. Nhóm không nêu AC " +
 	"(ghi \"Ngoài phạm vi\") không thành lát. Bint chốt lát khi ô đỏ của kiểm tra mục tiêu giảm và test cũ vẫn xanh, không thì giữ cây của lát và dừng chờ người quyết định.\n\n"
+
+// sliceFirstStubNote: test đóng băng của b-goal thường gọi API mà các nhóm/lát sau mới tạo; nếu lát 1 không làm cho gói biên dịch được thì
+// cổng đo ra `[build failed]` (không đo được) và lát 1 luôn đỏ.
+const sliceFirstStubNote = "Lát đầu tiên PHẢI làm cho kiểm tra mục tiêu đóng băng BIÊN DỊCH ĐƯỢC: nếu test đó gọi API (hàm, kiểu, cờ) mà các lát sau mới cài đặt, " +
+	"hãy thêm bản stub tối thiểu (chữ ký đúng, thân trả giá trị rỗng/lỗi chưa cài) ngay trong lát này. Nếu không, cổng đo ra `[build failed]`, " +
+	"không đếm được ô đỏ và lát dừng chờ người quyết định. Ô đỏ còn lại sau stub là việc của các lát sau.\n"
 
 // sliceBlock là đề bài riêng của lát đang chạy (rỗng khi không có lát).
 func sliceBlock(t *task.Task) string {
@@ -250,6 +256,9 @@ func sliceBlock(t *task.Task) string {
 	}
 	b.WriteString("Giữ trong phạm vi lát: chỉ sửa tệp thuộc nhóm này, không làm trước phần của lát sau. Chỉ chạy test của gói đã sửa (ví dụ `go test ./internal/<gói>/...`), " +
 		"không chạy `go test ./...` hay lệnh kiểm chứng đầy đủ: Bint chạy kiểm chứng sau lát và chạy đầy đủ một lần ở cổng done.\n")
+	if t.State.GoalTest != nil && cur.N == t.State.Slices[0].N {
+		b.WriteString(sliceFirstStubNote)
+	}
 	var done, later, dropped []string
 	for _, s := range t.State.Slices {
 		switch {

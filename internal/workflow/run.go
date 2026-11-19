@@ -1083,7 +1083,10 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
 	if sr.kind == flow.KindGoal {
 		// Rào thực thi của b-goal (goalfreeze.go): hook không cho đọc plan.md/tasks.md; chỉ bước này có biến.
-		env = append(env, hookcore.EnvDenyRead+"="+strings.Join([]string{rs.t.ArtifactPath("plan"), rs.t.ArtifactPath("tasks")}, "\n"))
+		// Cấm cả thư mục tác vụ (plan.md, tasks.md, review.md, logs... nằm cạnh requirement.md mà đề bài in đường dẫn), chỉ chừa requirement.md
+		// ("!" = ngoại lệ, hookcore/deny_read.go); plan.md/tasks.md liệt kê riêng để thông báo từ chối nêu đúng tên tệp.
+		env = append(env, hookcore.EnvDenyRead+"="+strings.Join([]string{rs.t.ArtifactPath("plan"), rs.t.ArtifactPath("tasks"), rs.t.Dir,
+			"!" + rs.t.ArtifactPath("requirement")}, "\n"))
 	}
 	// Mọi bước driver process có đúng một MCP server là bint (M0 của docs/mcp-gateway-plan.md).
 	mcpPath, mcpTools, cleanMCP := r.stepMCP(sr, rs.t.State.ID)

@@ -1162,6 +1162,13 @@ func isConfirmedTest(tc *string, command string) bool {
 // đầu ra" là cho phép. Với subagent chỉ đọc, guardrail dựng sẵn vẫn phải có hiệu lực: quyết định theo readonly_tools
 // mặc định và trả deny nếu lệnh/công cụ không thuộc bước chỉ đọc. Các trường hợp khác giữ hành vi cũ (Result rỗng).
 func readonlyFailClosed(hi Input, d Dialect) Result {
+	// Rào đọc của b-goal (deny_read.go) chỉ cần biến môi trường, không cần cấu hình: lỗi nạp cấu hình không được làm nó tắt im lặng.
+	// Chỉ chặn lời gọi thực sự nhắc tới đường dẫn bị cấm nên không ảnh hưởng lệnh khác (an toàn, ít rủi ro hơn chặn toàn bộ).
+	if env := os.Getenv(EnvDenyRead); env != "" && hi.Event == EvPreTool && d.PreToolDecide != nil && containsDecision(d.PreToolDecisions, "deny") {
+		if hit, deny := denyReadDecision(env, hi.ToolInput); deny {
+			return Result{Output: d.PreToolDecide("", hcomp.ActDeny, denyReadReason(hit))}
+		}
+	}
 	if hi.Event != EvPreTool || !d.SubagentReadonly || d.PreToolDecide == nil || d.Classify == nil {
 		return Result{}
 	}

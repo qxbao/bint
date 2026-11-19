@@ -34,9 +34,9 @@ func TestGoalRunOnly(t *testing.T) {
 		files []string
 		want  string
 	}{
-		{"một tệp, tên sắp xếp, bỏ hàm không phải Test", base, []string{"x/a_test.go"}, "go test -run '^(TestA|TestB)$' -timeout 30m ./x"},
-		{"nhiều tệp, bỏ trùng", base, []string{"x/a_test.go", "x/b_test.go"}, "go test -run '^(TestA|TestB|TestC)$' -timeout 30m ./x"},
-		{"lệnh chỉ có go test", "go test", []string{"x/b_test.go"}, "go test -run '^(TestA|TestC)$'"},
+		{"một tệp, tên sắp xếp, bỏ hàm không phải Test", base, []string{"x/a_test.go"}, `go test -run "^(TestA|TestB)$" -timeout 30m ./x`},
+		{"nhiều tệp, bỏ trùng", base, []string{"x/a_test.go", "x/b_test.go"}, `go test -run "^(TestA|TestB|TestC)$" -timeout 30m ./x`},
+		{"lệnh chỉ có go test", "go test", []string{"x/b_test.go"}, `go test -run "^(TestA|TestC)$"`},
 		{"đã có -run", "go test -run TestOnly " + "./x", []string{"x/a_test.go"}, "go test -run TestOnly ./x"},
 		{"đã có -test.run", "go test -test.run=Only ./x", []string{"x/a_test.go"}, "go test -test.run=Only ./x"},
 		{"không phải go test", "sh x/check.sh", []string{"x/a_test.go"}, "sh x/check.sh"},
