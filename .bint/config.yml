@@ -171,6 +171,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   slice_timeout_minutes: 0  # kế hoạch lớn của b-do chạy theo lát mỏng (mỗi nhóm bề mặt một b-feat, tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì được giữ cây và dừng blocked chờ người: resume --slice keep|discard|more); 0 = tắt, chạy một b-feat
   slicing: auto             # khi nào chia kế hoạch lớn thành lát mỏng: auto (theo "Chia lát" trong mục Chiến lược thực thi của plan.md) | off | always; cần slice_timeout_minutes > 0
   goal_check: auto          # khi nào chạy b-goal: auto (theo "Kiểm tra mục tiêu độc lập" trong plan.md) | off | always; --fast bỏ cả hai
+  max_diff_lines: 0            # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát được giữ cây chờ người / vào vòng sửa); 0 = tắt
   verify_timeout_minutes: 60  # lệnh kiểm chứng của phiếu tác vụ
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)

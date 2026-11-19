@@ -2,6 +2,8 @@
 # tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (lớp phủ) hoặc .bint/skills/<tên>/ (skill tuỳ biến)
 # rồi chạy `bint sync`.
 bint_version: 0.1.0-dev
+bint_revision: 81faa9185ea413239466468bfaea8d3c4adad613
+bint_revision_time: "2026-11-19T15:50:05Z"
 skills:
   b-add-flow:
     sha256: 8f3fc4c9f47c552f
