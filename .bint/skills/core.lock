@@ -2,8 +2,8 @@
 # tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (lớp phủ) hoặc .bint/skills/<tên>/ (skill tuỳ biến)
 # rồi chạy `bint sync`.
 bint_version: 0.1.0-dev
-bint_revision: 8d2f6c95a423caa454c825598245aa9fd635bd97
-bint_revision_time: "2026-11-19T16:23:59Z"
+bint_revision: 1a02000bd9501b6f0f6f73d4ad0501c930a6a16c
+bint_revision_time: "2026-11-19T16:26:00Z"
 bint_modified: true
 skills:
   b-add-flow:
@@ -84,12 +84,12 @@ skills:
     variants:
       agents: b43f900e7803026a
   b-req:
-    sha256: 9fb46f09e7a2bd56
+    sha256: 282718e4b72fa871
     published:
       - .agents/skills/b-req/SKILL.md
       - .claude/skills/b-req/SKILL.md
     variants:
-      agents: 158cac972328224b
+      agents: 2d94c6184c7d9220
   b-review:
     sha256: 48b726a2007de138
     published:

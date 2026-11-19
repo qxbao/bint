@@ -60,7 +60,7 @@ và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ả
   tiêu của người dùng là **toàn bộ** ("không nơi nào lưu bí mật", "dọn mọi dữ liệu cũ") thì **cấm tách giai đoạn chỉ vì ngân
   sách AC/TSK** hay vì "bề mặt còn nhiều": mọi nhóm bề mặt nằm trong AC của phiếu này (gộp theo nhóm, xem "Ngân sách") và
   kiểm tra mục tiêu phải đạt ngay trong phiếu này.
-- Trong lượt này (kể cả agent con của phiên điều phối) **không tự lập phiếu con** (`bint task new`) và **không đổi trạng thái phiếu**: chỉ đề xuất phiếu con trong `plan.md`. Cổng mã chỉ chặn khi có `BINT_RUN_ID`, nên đây là luật của skill, không dựa vào cổng. Chạy tay ngoài `bint run` thì hỏi người dùng trước.
+- **Không tự lập phiếu con** (`bint task new`), kể cả khi là agent con của phiên điều phối (cổng mã chỉ chặn khi có `BINT_RUN_ID`): đề xuất trong `plan.md`. Chạy tay thì hỏi người dùng.
 
 ## Bề mặt bị ảnh hưởng, ngân sách và giả định (mọi mức phân tích)
 
@@ -123,7 +123,7 @@ Kết luận: nhỏ
 
 ## Chiến lược thực thi (mọi mức phân tích)
 
-`plan.md` **bắt buộc** có `## Chiến lược thực thi`: Runner chỉ chia lát / chạy b-goal khi plan chọn `có` (khoá `workflow.slicing`/`goal_check` = `auto`).
+Bắt buộc. Với `workflow.slicing`/`goal_check` = `auto`, Bint chỉ chia lát / chạy b-goal khi plan chọn `có`.
 
 ```markdown
 ## Chiến lược thực thi
@@ -132,8 +132,8 @@ Kiểm tra mục tiêu độc lập (b-goal): có — đo được từ ngoài b
 ```
 
 - Mỗi dòng `có|không — <lý do>` (thiếu lý do hoặc sai giá trị: lỗi `strategy_missing`).
-- `Chia lát: có` chỉ khi kế hoạch lớn, ≥ 2 nhóm bề mặt độc lập có AC và `b-goal: có`; mặc định `không` (lát tốn thời gian chờ, dễ bỏ phí công).
-- `b-goal: có` khi mục tiêu đo được từ ngoài và việc đủ lớn để b-feat tự chấm test là rủi ro; việc nhỏ thì `không`.
+- `Chia lát: có` chỉ khi kế hoạch lớn, ≥ 2 nhóm bề mặt độc lập có AC và `b-goal: có`; mặc định `không`.
+- `b-goal: có` khi mục tiêu đo được từ ngoài và việc đủ lớn; việc nhỏ thì `không`.
 
 ## Độ sâu phân tích
 
@@ -186,10 +186,9 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
 
 - `AC-N` liên tục từ 1, khớp từng chữ với tiêu chí thứ N của phiếu; mỗi `TSK` có `[AC-N]` hợp lệ và `— xong khi:` có nội dung; mọi
   `AC-N` có `TSK` bao phủ; không placeholder (`<…>`, `…`, `TODO`, `TBD`) trong dòng AC/TSK.
-- `tasks.md` không đòi `go test ./...` (bộ test toàn bộ) trong "xong khi": mỗi TSK nêu test hẹp của gói đã sửa (ví dụ `go test ./internal/x/...`);
-  Bint chạy `verify.command` đầy đủ một lần ở cổng done.
-- `## Hiện trạng` (requirement.md, đọc `baseline.md` Bint đã đo) có số đo, và ít nhất một AC có số đo mục tiêu người dùng. Việc thuần nội bộ
-  không có số đo người dùng thì ghi đúng một dòng `Không đo được: <lý do>` thay cho số; **cấm bịa số**. Số đo là chữ số ngoài code span (tên như `TestGoal2` không tính); `Không đo được:` mà không có số đo thật chỉ bị cảnh báo `baseline_exempt`.
+- "xong khi" của TSK nêu test hẹp của gói đã sửa, không đòi `go test ./...` (Bint chạy `verify.command` đầy đủ ở cổng done).
+- `## Hiện trạng` (requirement.md, đọc `baseline.md` Bint đã đo) có số đo, và ít nhất một AC có số đo mục tiêu người dùng. Số đo là chữ số
+  ngoài code span. Việc thuần nội bộ thì ghi một dòng `Không đo được: <lý do>` (cảnh báo `baseline_exempt`); **cấm bịa số**.
 - `## Câu hỏi mở` chỉ chứa câu hỏi **cản trở triển khai**, dạng `- [ ] Q-1: …`; còn dòng chưa trả lời thì b-feat bị chặn. Người dùng
   trả lời thì ghi `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>` (không tự bịa câu trả lời).
 
@@ -205,7 +204,7 @@ Kiểm lại bất cứ lúc nào: `bint task lint <id>` (mã lỗi ổn định
 ## Bước 4 — Kết thúc
 
 Nếu **không** chạy dưới `bint run` (`BINT_RUN_ID` trống): `bint task lint <id> --strict` (sửa mọi lỗi), rồi
-`bint task status <id> planned --reason "đã lập kế hoạch"` (agent con của phiên điều phối cũng không tự đổi trạng thái; Bint từ chối lệnh này dưới `bint run`).
+`bint task status <id> planned --reason "đã lập kế hoạch"` (chỉ khi chạy tay, không phải agent con của phiên điều phối).
 
 Báo người dùng: task ID, các tiêu chí chấp nhận, câu hỏi mở, và bước tiếp
 (`/b-feat <id>` hoặc `bint run b-feat --task <id>`).
