@@ -211,9 +211,11 @@ type InitState struct {
 	// AgentsBlock: AGENTS.md đã có khối bint. ClaudeImport: CLAUDE.md đã nhập AGENTS.md.
 	AgentsBlock  bool
 	ClaudeImport bool
-	// ConfigOutdated: cấu hình theo mẫu cũ (config.Upgrade có gì để đổi); ConfigAdded là các khoá còn thiếu.
+	// ConfigOutdated: cấu hình theo mẫu cũ (config.Upgrade có gì để đổi); ConfigAdded là các khoá còn thiếu,
+	// ConfigMigrated là khoá đã có nhưng giá trị theo mẫu cũ sẽ được nâng (config.UpgradeResult.Migrated).
 	ConfigOutdated bool
 	ConfigAdded    []string
+	ConfigMigrated []string
 	ConfigFixed    int
 }
 
@@ -309,7 +311,7 @@ func ReadInitState(ctx context.Context, dir string) (InitState, error) {
 		}
 	}
 	if up, err := readUpgrade(cfgRoot); err == nil && up.Changed() {
-		st.ConfigOutdated, st.ConfigAdded, st.ConfigFixed = true, up.Added, up.Fixed
+		st.ConfigOutdated, st.ConfigAdded, st.ConfigMigrated, st.ConfigFixed = true, up.Added, up.Migrated, up.Fixed
 	}
 	return st, nil
 }
@@ -597,13 +599,14 @@ func mcpRel(h string) string {
 // ConfigUpgradePlan là bản nâng cấu hình theo mẫu hiện tại (xem trước của `bint init --update`).
 type ConfigUpgradePlan struct {
 	Path string
-	// Changed: có gì để nâng. Diff là so sánh nội dung cũ/mới; Added/Notes/Fixed theo config.Upgrade.
-	Changed bool
-	Diff    string
-	Added   []string
-	Notes   []string
-	Fixed   int
-	Content []byte
+	// Changed: có gì để nâng. Diff là so sánh nội dung cũ/mới; Added/Migrated/Notes/Fixed theo config.Upgrade.
+	Changed  bool
+	Diff     string
+	Added    []string
+	Migrated []string
+	Notes    []string
+	Fixed    int
+	Content  []byte
 }
 
 // PlanConfigUpgrade tính bản nâng cấu hình bằng config.Upgrade, không ghi gì. Ở worktree phụ trả
@@ -627,7 +630,7 @@ func PlanConfigUpgrade(ctx context.Context, dir string) (ConfigUpgradePlan, erro
 	if err != nil {
 		return pl, fmt.Errorf("nâng %s: %w", pl.Path, err)
 	}
-	pl.Changed, pl.Added, pl.Notes, pl.Fixed, pl.Content = up.Changed(), up.Added, up.Notes, up.Fixed, up.Content
+	pl.Changed, pl.Added, pl.Migrated, pl.Notes, pl.Fixed, pl.Content = up.Changed(), up.Added, up.Migrated, up.Notes, up.Fixed, up.Content
 	if pl.Changed {
 		pl.Diff = UnifiedDiff(".bint/config.yml", ".bint/config.yml (mẫu mới)", string(old), string(up.Content))
 	}

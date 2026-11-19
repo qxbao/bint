@@ -316,3 +316,40 @@ func TestSuggestedAffectedCommand(t *testing.T) {
 		t.Fatalf("đã đặt affected_command thì không thêm đề xuất: changed=%v err=%v added=%v", res.Changed(), err, res.Added)
 	}
 }
+
+// Tệp CRLF: dòng chèn vào danh sách block phải giữ CRLF, không trộn LF.
+func TestUpgradeReadonlyBlockCRLF(t *testing.T) {
+	current := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}})
+	flow := `    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)", "mcp__bint__*"]   # b-req, b-review`
+	block := "    readonly_tools:\n      - Read\n      - Glob\n      - Grep\n      - 'Bash(bint:*)'\n      - 'Bash(git diff:*)'\n      - 'Bash(git log:*)'\n      - 'Bash(git show:*)'\n      - 'Bash(git status:*)'\n      - 'mcp__bint__*'"
+	old := strings.ReplaceAll(strings.Replace(current, flow, block, 1), "\n", "\r\n")
+	result, err := Upgrade([]byte(old))
+	if err != nil || len(result.Migrated) == 0 {
+		t.Fatalf("not migrated: %v %v", result.Migrated, err)
+	}
+	out := string(result.Content)
+	if n := strings.Count(out, "\n"); n != strings.Count(out, "\r\n") {
+		t.Fatalf("mixed line endings: %d LF, %d CRLF", n, strings.Count(out, "\r\n"))
+	}
+}
+
+// Danh sách mẫu cũ có bố cục không tự sửa được (flow trải nhiều dòng): giữ nguyên nhưng phải có ghi chú.
+func TestUpgradeReadonlyUnrewritableNotes(t *testing.T) {
+	current := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}})
+	flow := `    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)", "mcp__bint__*"]   # b-req, b-review`
+	wrapped := "    readonly_tools: [Read, Glob, Grep,\n      \"Bash(bint:*)\", \"Bash(git diff:*)\", \"Bash(git log:*)\", \"Bash(git show:*)\", \"Bash(git status:*)\", \"mcp__bint__*\"]"
+	old := strings.Replace(current, flow, wrapped, 1)
+	if old == current {
+		t.Fatal("fixture did not replace sequence")
+	}
+	result, err := Upgrade([]byte(old))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Migrated) != 0 || string(result.Content) != old {
+		t.Fatalf("unexpected rewrite: %v", result.Migrated)
+	}
+	if !slices.ContainsFunc(result.Notes, func(n string) bool { return strings.Contains(n, "readonly_tools") }) {
+		t.Fatalf("missing note: %v", result.Notes)
+	}
+}

@@ -151,38 +151,49 @@ func (u *upgrader) upgradeReadonlySequence(root *yaml.Node) bool {
 	if !slices.Equal(got, legacy) && !slices.Equal(got, legacyGrep) {
 		return false
 	}
+	// Danh sách khớp mẫu cũ nhưng bố cục không sửa tự động được: báo để người dùng tự nâng, không im lặng bỏ qua.
+	manual := func() bool {
+		u.notes = append(u.notes, "workflow.agent.readonly_tools theo mẫu cũ nhưng bố cục không tự sửa được — thêm tay "+
+			`"Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)" (thiếu thì b-req/b-review bị chặn các lệnh này)`)
+		return false
+	}
 	if n.Style&yaml.FlowStyle == 0 {
 		last := n.Content[len(n.Content)-1]
 		if last.Line < 1 || last.Line > len(lines) {
-			return false
+			return manual()
 		}
 		line := lines[last.Line-1]
 		indent := len(line) - len(strings.TrimLeft(line, " "))
 		if !strings.HasPrefix(line[indent:], "- ") {
-			return false
+			return manual()
+		}
+		// Giữ kiểu xuống dòng của tệp: apply() nối bằng \n, dòng cũ CRLF còn giữ \r.
+		eol := ""
+		if strings.HasSuffix(line, "\r") {
+			eol = "\r"
 		}
 		prefix := strings.Repeat(" ", indent) + "- "
 		var add []string
 		if slices.Equal(got, legacy) {
-			add = append(add, prefix+`"Bash(grep:*)"`, prefix+`"Bash(git grep:*)"`)
+			add = append(add, prefix+`"Bash(grep:*)"`+eol, prefix+`"Bash(git grep:*)"`+eol)
 		}
-		add = append(add, prefix+`"Bash(git ls-files:*)"`)
+		add = append(add, prefix+`"Bash(git ls-files:*)"`+eol)
 		u.inserts[last.Line-1] = append(u.inserts[last.Line-1], add...)
 		return true
 	}
 	for _, item := range n.Content {
 		if item.Line != n.Line {
-			return false
+			return manual()
 		}
 	}
 	line := lines[n.Line-1]
 	start := n.Column - 1
 	if start < 0 || start >= len(line) || line[start] != '[' {
-		return false
+		return manual()
 	}
 	end := strings.IndexByte(line[start:], ']')
 	if end < 0 {
-		return false
+		return manual()
 	}
 	const replacement = `[Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)", "mcp__bint__*"]`
 	lines[n.Line-1] = line[:start] + replacement + line[start+end+1:]

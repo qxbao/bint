@@ -91,7 +91,16 @@ func (m *Model) setupView(env ui.Env) string {
 	out = append(out, kv(th, lw, "AGENTS.md", agents))
 	tpl := th.S(theme.OK, "✓ "+m.t("sy.setup.template.ok"))
 	if st.ConfigOutdated {
-		tpl = th.S(theme.Warn, "! "+m.t("sy.setup.template.old", i18n.A{"keys": orDash(strings.Join(st.ConfigAdded, ", "))}))
+		msg := m.t("sy.setup.template.old", i18n.A{"keys": orDash(strings.Join(st.ConfigAdded, ", "))})
+		if len(st.ConfigMigrated) > 0 {
+			up := m.t("sy.setup.template.migrated", i18n.A{"keys": strings.Join(st.ConfigMigrated, ", ")})
+			if len(st.ConfigAdded) == 0 {
+				msg = up
+			} else {
+				msg += "; " + up
+			}
+		}
+		tpl = th.S(theme.Warn, "! "+msg)
 	}
 	out = append(out, kv(th, lw, m.t("sy.setup.template"), tpl), "")
 	for _, l := range text.Wrap(m.t("sy.setup.about"), max(iw-2, 10)) {

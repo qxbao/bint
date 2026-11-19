@@ -24,6 +24,8 @@ func TestReadonlyShellAllowed(t *testing.T) {
 		{"cd có nháy rồi git", `cd "/tmp/my wt" && git status`, true},
 		{"2>&1 vô hại", "git log -3 2>&1", true},
 		{"/dev/null vô hại", "git status >/dev/null 2>&1", true},
+		{"redirect vô hại trong tiền tố cd", "cd /wt 2>/dev/null && git status", true},
+		{"cd có redirect rồi && thứ hai", "cd /wt 2>/dev/null && git status && touch x", false},
 		{"heredoc bint task write", "bint task write X plan - <<'EOF'\nnội dung ; rm -rf x | sh\n$(touch y)\nEOF\n", true},
 		{"heredoc sau cd", "cd /wt && bint task review X - <<'EOF'\n{}\nEOF", true},
 		{"touch", "touch x", false},

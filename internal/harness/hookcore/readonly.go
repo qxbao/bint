@@ -139,15 +139,19 @@ func readonlyShellAllowed(cmd string, readonlyTools []string) (bool, string) {
 			return false, "nhiều heredoc"
 		}
 	}
-	rest := cdPrefixRe.ReplaceAllString(first, "")
+	rest := first
 	masked, valid := readonlyShellMask(rest)
 	if !valid {
 		return false, "dấu nháy, escape hoặc thay thế lệnh không hợp lệ"
 	}
-	// Chỉ loại redirect ở ngoài nháy; giữ các vị trí byte để không đổi ranh giới shell.
+	// Chỉ loại redirect ở ngoài nháy; giữ các vị trí byte để không đổi ranh giới shell. Loại TRƯỚC khi bỏ tiền tố cd
+	// để `cd <dir> 2>/dev/null && …` vẫn nhận ra tiền tố như trước.
 	for _, loc := range harmlessRedirectRe.FindAllStringIndex(masked, -1) {
 		rest = rest[:loc[0]] + strings.Repeat(" ", loc[1]-loc[0]) + rest[loc[1]:]
 		masked = masked[:loc[0]] + strings.Repeat(" ", loc[1]-loc[0]) + masked[loc[1]:]
+	}
+	if cut := cdPrefixRe.FindStringIndex(rest); cut != nil {
+		rest, masked = rest[cut[1]:], masked[cut[1]:]
 	}
 	if strings.ContainsAny(masked, ";&|<>`\n\r") {
 		return false, "có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"

@@ -47,6 +47,10 @@ func TestMCPShimIdentityToSpool(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("CLAUDE_CODE_SESSION_ID", "")
+			t.Setenv("CLAUDECODE", "1")
+			for _, k := range otherHarnessEnv {
+				t.Setenv(k, "")
+			}
 			o := MCPShimOptions{Harness: tc.harness, SessionID: tc.session}
 			if tc.env {
 				t.Setenv("CLAUDE_CODE_SESSION_ID", tc.session)
@@ -161,6 +165,10 @@ func TestMCPShimIdentityToSpool(t *testing.T) {
 
 func TestMCPShimSessionIdentity(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "claude-session")
+	t.Setenv("CLAUDECODE", "1")
+	for _, k := range otherHarnessEnv {
+		t.Setenv(k, "")
+	}
 	for _, tc := range []struct {
 		name, harness, session, wantHarness, wantSession string
 		wantErr                                          bool
@@ -179,8 +187,32 @@ func TestMCPShimSessionIdentity(t *testing.T) {
 			}
 		})
 	}
+	// Codex mở từ shell trong Claude Code thừa hưởng CLAUDE_CODE_SESSION_ID: không được ghi harness=claude.
+	t.Setenv("CODEX_THREAD_ID", "thread-x")
+	if h, s, err := mcpShimSessionIdentity("", ""); h != "" || s != "" || err != nil {
+		t.Fatalf("inherited from Claude in Codex: %q %q %v", h, s, err)
+	}
+	t.Setenv("CODEX_THREAD_ID", "")
+	t.Setenv("CLAUDECODE", "")
+	if h, s, err := mcpShimSessionIdentity("", ""); h != "" || s != "" || err != nil {
+		t.Fatalf("not launched by Claude: %q %q %v", h, s, err)
+	}
+	t.Setenv("CLAUDECODE", "1")
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "   ")
+	if h, s, err := mcpShimSessionIdentity("", ""); h != "" || s != "" || err != nil {
+		t.Fatalf("blank env session: %q %q %v", h, s, err)
+	}
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
 	if h, s, err := mcpShimSessionIdentity("", ""); h != "" || s != "" || err != nil {
 		t.Fatalf("missing identity: %q %q %v", h, s, err)
+	}
+}
+
+// Định danh phiên sai chỉ bị bỏ qua: `bint mcp serve` không được thoát lỗi vì dữ liệu ghi nhận.
+func TestNewMCPShimIgnoresBadIdentity(t *testing.T) {
+	for _, o := range []MCPShimOptions{{Harness: "gemini", SessionID: "s"}, {SessionID: "s"}, {Harness: "claude", SessionID: "a\nb"}} {
+		if _, err := NewMCPShim(context.Background(), t.TempDir(), o); err != nil {
+			t.Fatalf("%+v: %v", o, err)
+		}
 	}
 }
