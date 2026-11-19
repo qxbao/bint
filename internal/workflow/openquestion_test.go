@@ -172,7 +172,7 @@ func TestPlanningContractDirectFeatThenSecondFeatNotGated(t *testing.T) {
 	ctx := context.Background()
 	r := h.runner()
 	tk, _, _ := r.NewTask(ctx, NewTaskOptions{Request: "Thêm tính năng v2", Workflow: "b-do"})
-	if tk.State.PlanningContractVersion != 1 {
+	if tk.State.PlanningContractVersion != 2 {
 		t.Fatal("tiền điều kiện v1")
 	}
 	h.behave = func(context.Context, string, *Env, string) error { return os.ErrPermission }

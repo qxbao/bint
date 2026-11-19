@@ -32,7 +32,7 @@ func taskRepo(t *testing.T) (*TaskWS, string, string) {
 		t.Fatal(err)
 	}
 	o := TaskNewDefaults(ws.K.Config)
-	o.Request, o.VerifyCommand, o.Criteria = "Sửa hàm A trong a.go", "git --version", []string{"A đúng"}
+	o.Request, o.VerifyCommand, o.Criteria = "Sửa hàm A trong a.go", "git --version", []string{"A đúng 1"}
 	c, err := NewTask(ctx, ws, o)
 	if err != nil {
 		t.Fatal(err)

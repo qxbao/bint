@@ -26,14 +26,14 @@ const (
 // goalBoxDocs là bộ artifact NHỎ hợp lệ; withGoal=false bỏ mục Kiểm tra mục tiêu (phiếu cũ).
 func goalBoxDocs(withGoal bool) map[string]string {
 	const crit = "app.txt ghi v2"
-	req := "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + crit + "\n## Ngoài phạm vi\nKhông có\n"
+	req := "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + crit + "\n## Ngoài phạm vi\nKhông có\n"
 	if withGoal {
 		req += "## Kiểm tra mục tiêu\n`TestAppV2` quét app.txt (" + goalSpecMark + "), đạt khi ghi v2\n"
 	}
 	req += "## Câu hỏi mở\n"
 	return map[string]string{
 		"requirement": req,
-		"plan":        "# Kế hoạch\nSửa app.txt " + planOnlyMark + "\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `done.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n- done.txt\n",
+		"plan":        "# Kế hoạch\nSửa app.txt " + planOnlyMark + "\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n- done.txt: ngoài phạm vi\n## Giả định thay người dùng\nKhông có\n",
 		"tasks":       "- [ ] TSK-1 [AC-1]: sửa app.txt " + planOnlyMark + " — xong khi: " + crit + "\n",
 	}
 }

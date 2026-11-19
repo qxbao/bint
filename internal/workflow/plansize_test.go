@@ -28,7 +28,7 @@ type sizeVariant struct {
 
 const (
 	goalSection = "## Kiểm tra mục tiêu\n`TestAppV2` quét app.txt, đạt khi ghi v2\n"
-	sizeSection = "## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `done.txt`\n"
+	sizeSection = "## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n"
 )
 
 func files(n int) string {
@@ -49,33 +49,30 @@ func sizeVariants() []sizeVariant {
 		{name: "b' một dòng G-1", want: []string{"giai đoạn"},
 			plan: func(p string) string { return p + "## Đề xuất tách giai đoạn\n- G-1: làm hết\n" }},
 		{name: "c sáu tệp", want: []string{"6 tệp", "ngưỡng"},
-			plan: func(p string) string { return strings.Replace(p, "- `app.txt`\n- `done.txt`\n", files(6), 1) }},
+			plan: func(p string) string { return strings.Replace(p, "- `app.txt`\n- `./app.txt`\n", files(6), 1) }},
 		{name: "c' sáu nhóm bề mặt", want: []string{"6 nhóm bề mặt", "ngưỡng"},
 			plan: func(p string) string {
-				return strings.Replace(p, "- app.txt — AC-1\n- done.txt\n", "- a\n- b\n- c\n- d\n- e\n- f\n", 1)
+				return strings.Replace(p, "- app.txt — AC-1\n- done.txt: ngoài phạm vi\n", "- a: ngoài phạm vi\n- b: ngoài phạm vi\n- c: ngoài phạm vi\n- d: ngoài phạm vi\n- e: ngoài phạm vi\n- f: ngoài phạm vi\n", 1)
 			}},
 		{name: "d thiếu Kiểm tra mục tiêu", want: []string{"Kiểm tra mục tiêu"},
 			req: func(r string) string { return strings.Replace(r, goalSection, "", 1) }},
 		{name: "d' Kiểm tra mục tiêu không nêu tên test", want: []string{"Kiểm tra mục tiêu", "tên test"},
 			req: func(r string) string { return strings.Replace(r, "`TestAppV2` quét", "Quét", 1) }},
 		{name: "e chạm migrations/**", want: []string{"bảo vệ", "migrations/**"},
-			plan: func(p string) string { return strings.Replace(p, "- `done.txt`\n", "- `migrations/002.sql`\n", 1) }},
+			plan: func(p string) string { return strings.Replace(p, "- `./app.txt`\n", "- `migrations/002.sql`\n", 1) }},
 		{name: "f thiếu mục Cỡ kế hoạch", want: []string{"thiếu mục"},
 			plan: func(p string) string { return strings.Replace(p, sizeSection, "", 1) }},
 		{name: "f' kết luận lớn", want: []string{"kết luận kế hoạch lớn"},
 			plan: func(p string) string { return strings.Replace(p, "Kết luận: nhỏ", "Kết luận: lớn", 1) }},
 		{name: "f'' không liệt kê tệp", want: []string{"không liệt kê tệp"},
-			plan: func(p string) string { return strings.Replace(p, "- `app.txt`\n- `done.txt`\n", "", 1) }},
+			plan: func(p string) string { return strings.Replace(p, "- `app.txt`\n- `./app.txt`\n", "", 1) }},
 		{name: "c2 sáu tệp trên một dòng", want: []string{"6 tệp", "ngưỡng"},
 			plan: func(p string) string {
-				return strings.Replace(p, "- `app.txt`\n- `done.txt`\n", "- `a.go`, `b.go`, `c.go`, `d.go`, `e.go`, `f.go`\n", 1)
+				return strings.Replace(p, "- `app.txt`\n- `./app.txt`\n", "- `a.go`, `b.go`, `c.go`, `d.go`, `e.go`, `f.go`\n", 1)
 			}},
 		{name: "c3 glob không đếm được", want: []string{"glob"},
-			plan: func(p string) string { return strings.Replace(p, "- `done.txt`\n", "- `internal/workflow/**`\n", 1) }},
-		{name: "i thiếu mục Bề mặt bị ảnh hưởng", want: []string{"Bề mặt bị ảnh hưởng"},
-			plan: func(p string) string {
-				return strings.Replace(p, "## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n- done.txt\n", "", 1)
-			}},
+			plan: func(p string) string { return strings.Replace(p, "- `./app.txt`\n", "- `internal/workflow/**`\n", 1) }},
+		// "i thiếu mục Bề mặt" đã chuyển sang lint v2 (surface_missing, chặn ngay sau b-req): xem internal/task và breq_baseline_goal_test.
 		{name: "g ngưỡng 0", want: []string{"ngưỡng"}, cfg: func(h *harness) { h.cfg.Workflow.SmallPlanMaxFiles = 0 }},
 		{name: "h ngưỡng 2 đủ cho hai tệp, hai nhóm"},
 	}
@@ -88,16 +85,18 @@ func (h *harness) variantPlanner(v sizeVariant) func(context.Context, string, *E
 			return h.happy(ctx, step, e, id)
 		}
 		const crit = "app.txt ghi v2"
-		if _, _, err := e.SetTicket(id, TicketEdit{ClearCriteria: true, Criteria: []string{crit}}); err != nil {
+		docs := validDocs(crit, "")
+		if v.plan != nil {
+			docs["plan"] = v.plan(docs["plan"])
+		}
+		if v.req != nil {
+			docs["requirement"] = v.req(docs["requirement"])
+		}
+		_, planned := task.PlanSizeDecl(docs["plan"]) // phạm vi phiếu gồm mọi tệp kế hoạch nêu: luật plan_file_out_of_scope không nhiễu biến thể
+		if _, _, err := e.SetTicket(id, TicketEdit{ClearCriteria: true, Criteria: []string{crit}, Allow: planned}); err != nil {
 			return err
 		}
-		for n, body := range validDocs(crit, "") {
-			switch {
-			case n == "plan" && v.plan != nil:
-				body = v.plan(body)
-			case n == "requirement" && v.req != nil:
-				body = v.req(body)
-			}
+		for n, body := range docs {
 			if _, _, err := e.WriteArtifact(id, n, body); err != nil {
 				return err
 			}
@@ -297,7 +296,7 @@ func TestFastPathOffByDefault(t *testing.T) {
 	if c.Fast || !c.Plan || c.Reason != task.ReasonVagueShort {
 		t.Fatalf("không cờ phải đi b-req, không Fast: %+v", c)
 	}
-	if tk.State.PlanningContractVersion != task.PlanningContractV1 {
+	if tk.State.PlanningContractVersion != task.PlanningContractV2 {
 		t.Fatalf("đi b-req thì tác vụ theo hợp đồng v1: %d", tk.State.PlanningContractVersion)
 	}
 	// Bật tay workflow.fast_path: Bint lại tự chọn từ câu chữ (opt-in giữ hành vi cũ).
@@ -479,7 +478,7 @@ func TestFastPathAutoSelectionTable(t *testing.T) {
 func TestPlanSizeConfirm(t *testing.T) {
 	ctx := context.Background()
 	large := sizeVariant{name: "c sáu tệp", want: []string{"6 tệp"},
-		plan: func(p string) string { return strings.Replace(p, "- `app.txt`\n- `done.txt`\n", files(6), 1) }}
+		plan: func(p string) string { return strings.Replace(p, "- `app.txt`\n- `./app.txt`\n", files(6), 1) }}
 	for _, yes := range []bool{true, false} {
 		t.Run(fmt.Sprintf("trả lời %v", yes), func(t *testing.T) {
 			h := newSizeHarness(t, large)

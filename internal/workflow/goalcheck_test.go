@@ -18,12 +18,12 @@ const goalCheckSection = "`TestMucTieu` (internal/x/goal_test.go): cài bí mậ
 // `## Đề xuất tách giai đoạn` (khi phases != "").
 func goalDocs(goal, phases string) map[string]string {
 	const crit = "app.txt ghi v2"
-	req := "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + crit + "\n"
+	req := "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + crit + "\n"
 	if goal != "" {
 		req += "## Kiểm tra mục tiêu\n" + goal + "\n"
 	}
 	req += "## Ngoài phạm vi\nKhông có\n## Câu hỏi mở\n"
-	plan := "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `done.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n"
+	plan := "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n## Giả định thay người dùng\nKhông có\n"
 	if phases != "" {
 		plan += "## Đề xuất tách giai đoạn\n" + phases
 	}

@@ -363,9 +363,9 @@ func (h *harness) happy(_ context.Context, step string, e *Env, id string) error
 // kế hoạch (plansize.go): Kết luận: nhỏ, hai tệp, hai nhóm bề mặt, Kiểm tra mục tiêu nêu tên test, không giai đoạn hoãn.
 func validDocs(criterion, extra string) map[string]string {
 	return map[string]string{
-		"requirement": "# Yêu cầu\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + criterion + "\n## Ngoài phạm vi\nKhông có\n" +
+		"requirement": "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Mục tiêu và phạm vi\nĐổi app.txt\n## Tiêu chí chấp nhận\n- [ ] AC-1: " + criterion + "\n## Ngoài phạm vi\nKhông có\n" +
 			"## Kiểm tra mục tiêu\n`TestAppV2` quét app.txt, đạt khi ghi v2\n## Câu hỏi mở\n" + extra,
-		"plan":  "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `done.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n- done.txt\n",
+		"plan":  "# Kế hoạch\nSửa app.txt\n## Cỡ kế hoạch\nKết luận: nhỏ\n- `app.txt`\n- `./app.txt`\n## Bề mặt bị ảnh hưởng\n- app.txt — AC-1\n- done.txt: ngoài phạm vi\n## Giả định thay người dùng\n- Giữ nguyên định dạng hiện tại.\n",
 		"tasks": "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: " + criterion + "\n",
 	}
 }
@@ -374,7 +374,7 @@ func validDocs(criterion, extra string) map[string]string {
 // skip là tên artifact bỏ qua.
 func (h *harness) writePlan(e *Env, id string, skip map[string]bool) error {
 	const crit = "app.txt ghi v2"
-	if _, _, err := e.SetTicket(id, TicketEdit{ClearCriteria: true, Criteria: []string{crit}}); err != nil {
+	if _, _, err := e.SetTicket(id, TicketEdit{ClearCriteria: true, Criteria: []string{crit}, Allow: []string{"app.txt"}}); err != nil {
 		return err
 	}
 	for n, body := range validDocs(crit, "") {

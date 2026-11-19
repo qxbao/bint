@@ -11,11 +11,17 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"bint/internal/pathglob"
 )
 
 // PlanningContractV1 là phiên bản hợp đồng artifact của b-req (AC/TSK/Q có cấu trúc).
 // State.PlanningContractVersion = 0 là task cũ: không bị chặn tự động.
 const PlanningContractV1 = 1
+
+// PlanningContractV2 thêm luật đo hiện trạng/bề mặt/giả định/tệp trong phạm vi (baseline_missing, ac_without_measure,
+// surface_missing, surface_unmapped, assumptions_missing, plan_file_out_of_scope): lỗi ở v2, cảnh báo ở v1.
+const PlanningContractV2 = 2
 
 // ArtifactIssue là một phát hiện của bộ kiểm artifact. Code ổn định (dùng cho CLI/agent).
 type ArtifactIssue struct {
@@ -214,11 +220,17 @@ const (
 // LintPlanningText kiểm ba artifact (key requirement|plan|tasks; thiếu key = thiếu tệp)
 // so với phiếu. Không I/O. strict=false hạ mọi lỗi định dạng thành cảnh báo nhưng vẫn
 // liệt kê câu hỏi mở.
+// Không áp luật v2 (version 0); dùng LintPlanningTextV khi biết phiên bản hợp đồng.
 func LintPlanningText(ticket Ticket, docs map[string]string, strict bool) ArtifactReport {
-	return lintPlanning(ticket, docs, nil, strict)
+	return lintPlanning(ticket, docs, nil, strict, 0)
 }
 
-func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]error, strict bool) ArtifactReport {
+// LintPlanningTextV như LintPlanningText nhưng theo phiên bản hợp đồng của tác vụ.
+func LintPlanningTextV(ticket Ticket, docs map[string]string, strict bool, version int) ArtifactReport {
+	return lintPlanning(ticket, docs, nil, strict, version)
+}
+
+func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]error, strict bool, version int) ArtifactReport {
 	b := &reportBuilder{r: ArtifactReport{Errors: []ArtifactIssue{}, Warnings: []ArtifactIssue{}, OpenQuestions: []ArtifactIssue{}}}
 	usable := map[string]bool{}
 	for _, n := range ArtifactNames() {
@@ -291,6 +303,21 @@ func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]e
 	if !strict {
 		b.r.Warnings = append(b.r.Warnings, b.r.Errors...)
 		b.r.Errors = []ArtifactIssue{}
+	}
+	// Luật hợp đồng v2 (hiện trạng đo được, bề mặt, giả định, tệp trong phạm vi): lỗi ở v2, chỉ cảnh báo ở v1; v0 bỏ qua.
+	if version >= PlanningContractV1 {
+		v2 := &reportBuilder{}
+		if usable["requirement"] {
+			lintBaseline(v2, docs["requirement"], acs)
+		}
+		if usable["plan"] {
+			lintPlanV2(v2, ticket, docs["plan"], acs)
+		}
+		if version >= PlanningContractV2 && strict {
+			b.r.Errors = append(b.r.Errors, v2.r.Errors...)
+		} else {
+			b.r.Warnings = append(b.r.Warnings, v2.r.Errors...)
+		}
 	}
 	// Luôn là cảnh báo (kể cả strict): phiếu cũ và việc nhỏ không bị chặn, nhưng planner bỏ mục thì thấy ngay (GĐ2 nhóm 2).
 	if usable["requirement"] && GoalCheck(docs["requirement"]) == "" {
@@ -608,7 +635,101 @@ func LintPlanningTask(t *Task, strict bool) ArtifactReport {
 			bad[n] = err
 		}
 	}
-	return lintPlanning(t.Ticket, docs, bad, strict)
+	return lintPlanning(t.Ticket, docs, bad, strict, t.State.PlanningContractVersion)
+}
+
+const (
+	secBaseline    = "hiện trạng"
+	secAssumptions = "giả định thay người dùng"
+)
+
+var (
+	lintUnmeasurableRe = regexp.MustCompile(`(?i)^\s*(?:[-*+]\s+)?\**\s*không đo được\s*\**\s*:\s*(.*\S)`)
+	lintOutOfScopeRe   = regexp.MustCompile(`(?i)ngoài phạm vi`)
+)
+
+// lintBaseline: requirement.md phải có `## Hiện trạng` chứa số đo (có chữ số) hoặc dòng `Không đo được: <lý do>`, và ít nhất một AC có số đo.
+func lintBaseline(b *reportBuilder, req string, acs []acItem) {
+	ok, has := false, false
+	scanLines(req, func(section, line string) {
+		if section != secBaseline {
+			return
+		}
+		if strings.TrimSpace(line) != "" {
+			has = true
+		}
+		if strings.ContainsAny(line, "0123456789") || lintUnmeasurableRe.MatchString(line) {
+			ok = true
+		}
+	})
+	if !ok {
+		why := "thiếu mục `## Hiện trạng`"
+		if has {
+			why = "mục `## Hiện trạng` không có số đo nào (số tệp, byte, dung lượng...)"
+		}
+		b.err("baseline_missing", artReq, "%s; đọc baseline.md của tác vụ, ghi số đo hiện trạng, hoặc một dòng `Không đo được: <lý do>`", why)
+	}
+	if len(acs) == 0 {
+		return
+	}
+	for _, a := range acs {
+		if strings.ContainsAny(a.Text, "0123456789") {
+			return
+		}
+	}
+	b.err("ac_without_measure", artReq, "không dòng AC nào có số đo mục tiêu người dùng; ít nhất một AC phải nêu một con số kiểm được")
+}
+
+// lintPlanV2: bề mặt ảnh hưởng ánh xạ vào AC, có giả định, và tệp nêu trong `## Cỡ kế hoạch` nằm trong phạm vi phiếu.
+func lintPlanV2(b *reportBuilder, ticket Ticket, plan string, acs []acItem) {
+	known := map[int]bool{}
+	for _, a := range acs {
+		known[a.N] = true
+	}
+	groups := 0
+	assumptions := false
+	scanLines(plan, func(section, line string) {
+		switch section {
+		case secAssumptions:
+			if strings.TrimSpace(line) != "" {
+				assumptions = true
+			}
+		case secSurface:
+			if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "  ") {
+				return
+			}
+			t := strings.TrimSpace(line)
+			if len(t) < 2 || !strings.ContainsRune("-*+", rune(t[0])) || (t[1] != ' ' && t[1] != '\t') {
+				return
+			}
+			groups++
+			text := strings.TrimSpace(t[1:])
+			refs := planACRe.FindAllStringSubmatch(text, -1)
+			bad := len(refs) == 0 && !lintOutOfScopeRe.MatchString(text)
+			for _, m := range refs {
+				if n, err := strconv.Atoi(m[1]); err != nil || !known[n] {
+					bad = true
+				}
+			}
+			if bad {
+				b.err("surface_unmapped", artPlan, "nhóm bề mặt %q phải nêu AC-N có thật trong requirement.md hoặc ghi `ngoài phạm vi`", text)
+			}
+		}
+	})
+	if groups == 0 {
+		b.err("surface_missing", artPlan, "thiếu mục `## Bề mặt bị ảnh hưởng` (hoặc không có nhóm nào); liệt kê mọi nơi mục tiêu chạm tới")
+	}
+	if !assumptions {
+		b.err("assumptions_missing", artPlan, "thiếu mục `## Giả định thay người dùng` (hoặc mục rỗng); ghi các giả định, hoặc `Không có`")
+	}
+	_, files := PlanSizeDecl(plan)
+	for _, f := range files {
+		rel := strings.TrimPrefix(strings.ReplaceAll(f, "\\", "/"), "./")
+		denied := pathglob.MatchAny(ticket.Scope.Deny, rel)
+		if denied || (len(ticket.Scope.Allow) > 0 && !pathglob.MatchAny(ticket.Scope.Allow, rel)) {
+			b.err("plan_file_out_of_scope", artPlan, "tệp %q trong `## Cỡ kế hoạch` nằm ngoài scope.allow hoặc khớp scope.deny của phiếu", f)
+		}
+	}
 }
 
 // AnsweredQuestions trả nguyên văn (đã cắt khoảng trắng hai đầu) các dòng câu hỏi đã trả lời của requirement.md:

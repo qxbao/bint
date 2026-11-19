@@ -160,7 +160,7 @@ func getSliceTimeout(cfg config.Config) (int, bool) {
 
 // slDocs dựng requirement/plan/tasks; plan có 3 nhóm gắn AC + một dòng Ngoài phạm vi (hoặc 1 nhóm AC khi oneAC).
 func slDocs(o slOpts) map[string]string {
-	req := "# Yêu cầu\n## Mục tiêu và phạm vi\nBa ô c1..c3\n## Tiêu chí chấp nhận\n" +
+	req := "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Mục tiêu và phạm vi\nBa ô c1..c3\n## Tiêu chí chấp nhận\n" +
 		"- [ ] AC-1: c1.txt ghi ok-c1\n- [ ] AC-2: c2.txt ghi ok-c2\n- [ ] AC-3: c3.txt ghi ok-c3\n" +
 		"## Ngoài phạm vi\nKhông có\n## Kiểm tra mục tiêu\n`TestGoal` có ba ô c1..c3, đạt khi cả ba xanh\n## Câu hỏi mở\n"
 	size := "Kết luận: lớn\n"
@@ -175,7 +175,7 @@ func slDocs(o slOpts) map[string]string {
 	if o.oneAC {
 		surf = "- " + slOneAC + "\n- " + slOut + "\n"
 	}
-	plan := "# Kế hoạch\nBa lát cho c1..c3; lát 1 là bản nhỏ nhất đạt mục tiêu.\n## Cỡ kế hoạch\n" + size + "## Bề mặt bị ảnh hưởng\n" + surf
+	plan := "# Kế hoạch\nBa lát cho c1..c3; lát 1 là bản nhỏ nhất đạt mục tiêu.\n## Cỡ kế hoạch\n" + size + "## Bề mặt bị ảnh hưởng\n" + surf + "## Giả định thay người dùng\nKhông có\n"
 	tasks := "- [ ] TSK-1 [AC-1]: ghi c1.txt — xong khi: c1.txt ghi ok-c1\n" +
 		"- [ ] TSK-2 [AC-2]: ghi c2.txt — xong khi: c2.txt ghi ok-c2\n" +
 		"- [ ] TSK-3 [AC-3]: ghi c3.txt — xong khi: c3.txt ghi ok-c3\n"

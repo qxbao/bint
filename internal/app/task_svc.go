@@ -220,6 +220,9 @@ type TaskCreated struct {
 // NewTask lập phiếu tác vụ từ mô tả (bước Classify). Đặt autonomy: auto chỉ dành cho người.
 func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, error) {
 	var res TaskCreated
+	if ws.RunID != "" {
+		return res, fmt.Errorf("không chạy `bint task new` trong một bước workflow (BINT_RUN_ID=%s): tác vụ do người hoặc orchestrator ngoài bint run lập", ws.RunID)
+	}
 	if err := o.Validate(); err != nil {
 		return res, err
 	}
@@ -545,6 +548,9 @@ type TaskStatusResult struct {
 
 // SetTaskStatus chuyển trạng thái theo bảng chuyển. --force chỉ dành cho người (kiểm ở dịch vụ).
 func SetTaskStatus(ctx context.Context, ws *TaskWS, o TaskStatusOptions) (TaskStatusResult, error) {
+	if ws.RunID != "" {
+		return TaskStatusResult{}, fmt.Errorf("không chạy `bint task status` trong một bước workflow (BINT_RUN_ID=%s): Bint Core chuyển trạng thái", ws.RunID)
+	}
 	if o.Force {
 		if err := RequireHuman("bint task status --force"); err != nil {
 			return TaskStatusResult{}, err

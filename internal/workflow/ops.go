@@ -250,7 +250,7 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 	st := task.State{Workflow: o.Workflow, Base: gitrepo.HeadCommit(ctx, e.Root), Branch: gitrepo.Branch(ctx, e.Root),
 		Worktree: e.Root, Classification: &cls}
 	if planning && (!fd.PlanOptional() || cls.Plan) {
-		st.PlanningContractVersion = task.PlanningContractV1
+		st.PlanningContractVersion = task.PlanningContractV2
 	}
 	if !fd.IsBuiltin() {
 		st.FlowSHA = flow.Hash(fd) // flow đổi giữa chừng thì tác vụ bị chặn (flowGate)
@@ -345,8 +345,8 @@ func appendUnique(xs []string, add ...string) []string {
 // ensurePlanningContract nâng task lên hợp đồng artifact v1 (không bao giờ hạ). Dùng chung
 // cho mọi chỗ Plan chuyển false→true hoặc b-req được chọn chạy.
 func ensurePlanningContract(t *task.Task) {
-	if t.State.PlanningContractVersion < task.PlanningContractV1 {
-		t.State.PlanningContractVersion = task.PlanningContractV1
+	if t.State.PlanningContractVersion < task.PlanningContractV2 {
+		t.State.PlanningContractVersion = task.PlanningContractV2
 	}
 }
 

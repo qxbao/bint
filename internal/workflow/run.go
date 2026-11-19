@@ -2951,6 +2951,9 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 			}
 		}
 		fmt.Fprintf(&b, "Phân tích: %s\nLý do: %s\n(Độ sâu do Bint Core chọn một lần lúc tạo tác vụ; làm theo mục \"Độ sâu phân tích\" của skill.)\n\n", depth, reason)
+		if bp := r.writeBaseline(ctx, t); bp != "" {
+			fmt.Fprintf(&b, "Hiện trạng đã đo sẵn (dung lượng thư mục trạng thái, số tệp khớp scope.allow): %s\nĐọc tệp này trước khi lập kế hoạch; requirement.md phải có mục `## Hiện trạng` với số đo và ít nhất một AC có số đo (`bint task lint` chặn nếu thiếu).\n\n", bp)
+		}
 		if !session && rs.planSizeGated() && r.Cfg.Workflow.SliceTimeoutMinutes > 0 {
 			b.WriteString(sliceGuideBlock)
 		}

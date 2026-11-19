@@ -646,7 +646,7 @@ func TestNewTaskCustomFlowRequiredPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c := tk.State.Classification; c == nil || !c.Plan || tk.State.PlanningContractVersion != task.PlanningContractV1 {
+	if c := tk.State.Classification; c == nil || !c.Plan || tk.State.PlanningContractVersion != task.PlanningContractV2 {
 		t.Fatalf("phân loại: %+v v%d", c, tk.State.PlanningContractVersion)
 	}
 }

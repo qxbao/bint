@@ -38,9 +38,9 @@ func TestPlanningContractVersionAtCreation(t *testing.T) {
 		o    NewTaskOptions
 		want int
 	}{
-		{"b-do có plan", NewTaskOptions{Request: "Thêm tính năng phiên bản v2 cho app.txt", Workflow: "b-do"}, 1},
+		{"b-do có plan", NewTaskOptions{Request: "Thêm tính năng phiên bản v2 cho app.txt", Workflow: "b-do"}, 2},
 		{"b-do --no-plan", NewTaskOptions{Request: "Thêm tính năng v2", Workflow: "b-do", Plan: ptr(false)}, 0},
-		{"b-req trực tiếp", NewTaskOptions{Request: "Đổi app.txt", Workflow: "b-req"}, 1},
+		{"b-req trực tiếp", NewTaskOptions{Request: "Đổi app.txt", Workflow: "b-req"}, 2},
 		{"b-feat trực tiếp", NewTaskOptions{Request: "Thêm tính năng v2", Workflow: "b-feat"}, 0},
 	}
 	for _, c := range cases {
@@ -65,12 +65,12 @@ func TestPlanningContractPlanOverrideOnCreated(t *testing.T) {
 	// b-do --task <created> --plan nâng lên 1 (b-do dừng ở bước b-req vì agent không ghi gì).
 	h.behave = func(context.Context, string, *Env, string) error { return nil }
 	h.runner().Run(ctx, RunOptions{Workflow: StepDo, TaskRef: tk.State.ID, Plan: ptr(true)})
-	if v := loadTask(t, h, tk.State.ID).State.PlanningContractVersion; v != 1 {
+	if v := loadTask(t, h, tk.State.ID).State.PlanningContractVersion; v != 2 {
 		t.Fatalf("--plan trên created phải nâng lên 1, được %d", v)
 	}
 	// --no-plan trên task created hạ về 0.
 	tk2, _, _ := env.NewTask(ctx, NewTaskOptions{Request: "Thêm tính năng v2", Workflow: "b-do"})
-	if tk2.State.PlanningContractVersion != 1 {
+	if tk2.State.PlanningContractVersion != 2 {
 		t.Fatal("tk2 phải v1")
 	}
 	h.runner().Run(ctx, RunOptions{Workflow: StepDo, TaskRef: tk2.State.ID, Plan: ptr(false)})
@@ -187,7 +187,7 @@ func TestPlanningContractLegacyAndDirectFeatPass(t *testing.T) {
 	}
 	// Task v1 còn created gọi thẳng b-feat: không bị gate.
 	tk2, _, _ := r.NewTask(ctx, NewTaskOptions{Request: "Thêm tính năng v2", Workflow: "b-do"})
-	if tk2.State.PlanningContractVersion != 1 || tk2.State.Status != task.StatusCreated {
+	if tk2.State.PlanningContractVersion != 2 || tk2.State.Status != task.StatusCreated {
 		t.Fatalf("%+v", tk2.State)
 	}
 	// Lượt trước đã ghi app.txt/done.txt: lượt này ghi tệp khác để tác vụ có thay đổi riêng (không đổi tệp nào thì bị chặn chờ người).
@@ -247,7 +247,7 @@ func TestPlanningContractLegacyPlannedRerunUpgradesAfterAgent(t *testing.T) {
 	r.Tasks.Update(tk.State.ID, time.Now(), func(t *task.Task) error { t.State.Status = task.StatusPlanned; return nil })
 	h.behave = h.happy
 	res, _ = r.Run(ctx, RunOptions{Workflow: StepReq, TaskRef: tk.State.ID})
-	if res.Status != task.StatusPlanned || loadTask(t, h, tk.State.ID).State.PlanningContractVersion != 1 {
+	if res.Status != task.StatusPlanned || loadTask(t, h, tk.State.ID).State.PlanningContractVersion != 2 {
 		t.Fatalf("%+v", res)
 	}
 }
@@ -308,7 +308,7 @@ func TestSetTicketSyncsCriteriaToArtifacts(t *testing.T) {
 		t.Fatalf("requirement.md thiếu AC mới:\n%s", reqBody)
 	}
 	// clear + đặt lại: dựng lại danh sách, vẫn lint sạch.
-	if _, _, err := r.SetTicket(res.TaskID, TicketEdit{ClearCriteria: true, Criteria: []string{"một", "hai", "ba"}}); err != nil {
+	if _, _, err := r.SetTicket(res.TaskID, TicketEdit{ClearCriteria: true, Criteria: []string{"một 1", "hai", "ba"}}); err != nil {
 		t.Fatal(err)
 	}
 	if rep := task.LintPlanningTask(loadTask(t, h, res.TaskID), true); rep.Blocking() {

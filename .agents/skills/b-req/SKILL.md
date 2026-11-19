@@ -18,14 +18,8 @@ bao giờ chạy `bint task approve` hay `bint knowledge approve` — chỉ ngư
 
 ## Bước 1 — Phiếu tác vụ
 
-Nếu biến môi trường `BINT_TASK_ID` có giá trị, dùng tác vụ đó. Nếu không:
-
-```sh
-bint task new "<mô tả tự do của người dùng>" --workflow b-req --json
-```
-
-Xem phiếu: `bint task show <id>`. Hoàn thiện những trường còn thiếu (không bắt buộc
-điền đủ — chỉ những gì suy ra được có căn cứ):
+Nếu `BINT_TASK_ID` có giá trị, dùng tác vụ đó; không thì `bint task new "<mô tả>" --workflow b-req --json`.
+Xem phiếu: `bint task show <id>`. Hoàn thiện trường còn thiếu (chỉ những gì suy ra được có căn cứ):
 
 ```sh
 bint task set <id> --verify-command "<lệnh kiểm chứng>" \
@@ -33,26 +27,17 @@ bint task set <id> --verify-command "<lệnh kiểm chứng>" \
   --allow 'internal/db/**' --deny 'migrations/**'
 ```
 
-- `--verify-command`: một lệnh chứng minh tác vụ xong (thường là kiểm thử hẹp). Lệnh
-  do agent đề xuất **chưa được chạy** cho tới khi người xác nhận (`bint task approve`),
-  trừ khi trùng `eval.test_command` đã xác nhận.
-- `--criteria`: tiêu chí chấp nhận kiểm tra được, không viết chung chung. Cờ này **chỉ nối
-  thêm** (và bỏ trùng đúng từng ký tự): khi lập kế hoạch lại trên tác vụ đã có tiêu chí, dùng
-  `bint task set <id> --clear-criteria --criteria "…"` để thay cả danh sách, nếu không `AC-N` sẽ
-  lệch tiêu chí thứ N trong phiếu (tiêu chí đã đối chiếu theo số thứ tự cũ cũng mất ý nghĩa).
-- `--allow`/`--deny`: phạm vi được sửa; Bint dùng nó cho truy xuất và giới hạn ghi.
+- `--verify-command`: một lệnh chứng minh tác vụ xong (thường là kiểm thử hẹp); **chưa được chạy** cho tới khi người xác nhận
+  (`bint task approve`), trừ khi trùng `eval.test_command` đã xác nhận.
+- `--criteria`: tiêu chí kiểm tra được (có số đo), chỉ **nối thêm**; lập kế hoạch lại trên tác vụ đã có tiêu chí thì dùng
+  `bint task set <id> --clear-criteria --criteria "…"` để `AC-N` không lệch tiêu chí thứ N.
+- `--allow`/`--deny`: phạm vi được sửa (truy xuất, giới hạn ghi, và `lint` kiểm tệp trong kế hoạch).
 
-Nếu `bint task show` báo **câu hỏi** (tác vụ rủi ro cao thiếu cách kiểm chứng), hỏi
-người dùng đúng câu đó rồi dừng — đừng đoán.
+Nếu `bint task show` báo **câu hỏi** (tác vụ rủi ro cao thiếu cách kiểm chứng), hỏi người dùng đúng câu đó rồi dừng.
 
 ## Bước 2 — Tri thức và khu vực mã
 
-Có công cụ MCP của Bint (`context_for_task`) thì dùng nó; không có (Antigravity, phiên không nạp MCP)
-thì chạy CLI:
-
-```sh
-bint context "<mục tiêu>"          # quy tắc, điểm dễ sai đã biết của dự án
-```
+Dùng MCP `context_for_task`, hoặc `bint context "<mục tiêu>"` nếu không có MCP.
 
 Áp dụng một mục tri thức (`[k:<id>]`) thì báo trích dẫn: công cụ MCP `cite_knowledge`, hoặc
 `bint knowledge cite <id>` khi không có MCP.
@@ -64,69 +49,59 @@ và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ả
 
 ## Yêu cầu lớn và phiếu con
 
-- **Phiếu có `parent`** (`bint task show <id>` in phiếu cha và các phụ thuộc): đọc `requirement.md`/`plan.md` của
-  phiếu cha và của các phụ thuộc đã `done` trước khi lập kế hoạch, rồi **chỉ lập kế hoạch cho giai đoạn của phiếu
-  này**. Không lặp lại phần việc của giai đoạn khác; phần thuộc giai đoạn khác ghi vào "Ngoài phạm vi".
+- **Phiếu có `parent`** (`bint task show <id>` in phiếu cha và phụ thuộc): đọc `requirement.md`/`plan.md` của phiếu cha và các phụ
+  thuộc đã `done`, rồi **chỉ lập kế hoạch cho giai đoạn của phiếu này**; phần của giai đoạn khác ghi vào "Ngoài phạm vi".
 - **Yêu cầu quá lớn cho một phiếu** (nhiều giai đoạn giao được riêng, vượt `limits`, giai đoạn sau cần kết quả giai
   đoạn trước): thêm vào `plan.md` mục `## Đề xuất tách giai đoạn` — **mỗi giai đoạn đúng một dòng** dạng
   `- G-N: <mục tiêu> — <phạm vi (--allow)> — <phụ thuộc giai đoạn nào>` (`G-1` là phiếu này; Bint đọc các dòng `G-N` này) —
   kèm lệnh gợi ý, ví dụ `bint task new "<giai đoạn 2>" --parent <id> --depends-on <id giai đoạn 1>`. Rồi chỉ lập kế hoạch
-  chi tiết cho giai đoạn đầu. Từ hai dòng `G-N`, Bint ghi thẳng vào kết quả cuối `mới xong 1/N giai đoạn` kèm phần chưa làm:
-  người dùng sẽ thấy mục tiêu của họ **chưa đạt đủ**.
-- **Không tự cắt phạm vi.** Chỉ tách khi người dùng đã tự chia giai đoạn, hoặc phần sau là việc khác có giá trị riêng. Khi mục
+  chi tiết cho giai đoạn đầu. Từ hai dòng `G-N`, Bint ghi vào kết quả cuối `mới xong 1/N giai đoạn`: người dùng thấy mục tiêu **chưa đạt đủ**.
+- **Không tự cắt phạm vi.** Chỉ tách khi người dùng đã chia giai đoạn hoặc phần sau có giá trị riêng. Khi mục
   tiêu của người dùng là **toàn bộ** ("không nơi nào lưu bí mật", "dọn mọi dữ liệu cũ") thì **cấm tách giai đoạn chỉ vì ngân
   sách AC/TSK** hay vì "bề mặt còn nhiều": mọi nhóm bề mặt nằm trong AC của phiếu này (gộp theo nhóm, xem "Ngân sách") và
   kiểm tra mục tiêu phải đạt ngay trong phiếu này.
-- **Dưới `bint run` (biến `BINT_RUN_ID` có giá trị) không tự lập phiếu con**: chỉ đề xuất trong `plan.md`; người
-  dùng hoặc b-do quyết định lập. Chạy tay ngoài `bint run` thì hỏi người dùng trước khi chạy `bint task new`.
+- Dưới `bint run`, `bint task new` bị Bint từ chối: chỉ đề xuất phiếu con trong `plan.md`. Chạy tay thì hỏi người dùng trước.
 
 ## Bề mặt bị ảnh hưởng, ngân sách và giả định (mọi mức phân tích)
 
 Người dùng thường mô tả mục đích ("sợ lộ mật khẩu", "thư mục dữ liệu phình to"), không mô tả nơi phải sửa. Đo kế hoạch
-theo **mục đích**, nhưng chọn **bản nhỏ nhất vẫn đạt mục đích**: mỗi bề mặt hay hạng mục thêm vào phải gắn với lời người dùng
-hoặc một rủi ro cụ thể. Kế hoạch càng phình thì diff càng lớn và lỗi mới càng nhiều.
+theo **mục đích**, nhưng chọn **bản nhỏ nhất vẫn đạt mục đích**: mỗi bề mặt thêm vào phải gắn với lời người dùng hoặc một rủi ro cụ thể.
 
-- **Ngân sách**: yêu cầu mơ hồ hoặc rộng thì khoảng ≤ 5 `AC` và ≤ 5 `TSK`. Ngân sách là để **gộp** bề mặt theo nhóm (một AC
-  phủ cả nhóm, một TSK phủ nhiều nơi cùng kiểu), **không để cắt mục tiêu**: chỉ phần việc khác có giá trị riêng mới vào
-  `## Đề xuất tách giai đoạn` (xem "Yêu cầu lớn và phiếu con").
+- **Ngân sách**: yêu cầu mơ hồ hoặc rộng thì khoảng ≤ 5 `AC` và ≤ 5 `TSK`. Ngân sách là để **gộp** bề mặt theo nhóm, **không để cắt mục tiêu**
+  (chỉ phần việc khác có giá trị riêng mới vào `## Đề xuất tách giai đoạn`).
 - **`## Bề mặt bị ảnh hưởng`** trong `plan.md` (bắt buộc, cả `standard` lẫn `deep`): lần theo từng nơi dữ liệu hoặc hành vi
   đi qua (ghi, lưu, hiển thị, xuất, sao chép) rồi **gộp theo nhóm**, khoảng ≤ 8–10 dòng, mỗi dòng một nhóm kèm vài ví dụ.
   Mỗi nhóm gắn một `AC-N` kiểm được **hoặc** vào `## Ngoài phạm vi` với lý do nằm ngoài phạm vi và **hậu quả người dùng
-  sẽ thấy**; không im lặng bỏ phần để sau. Gợi ý: với *bí mật* là nhật ký/log, mô tả phiếu, `review.md`, bản chiếu
-  `.bint/tasks`, SQLite, spool, bản xuất; với *dọn dữ liệu* là loại dữ liệu trong thư mục trạng thái (state dir): có tự dọn
-  không, giữ bao lâu, ai được xoá.
+  sẽ thấy**; không im lặng bỏ phần để sau. Gợi ý: *bí mật* là log, mô tả phiếu, `review.md`, bản chiếu
+  `.bint/tasks`, SQLite, spool, bản xuất; *dọn dữ liệu* là các loại dữ liệu trong state dir (tự dọn không, giữ bao lâu, ai xoá).
+  Lint chặn `surface_missing`/`surface_unmapped` nếu thiếu mục hoặc nhóm không nêu AC-N có thật.
 - **`## Giả định thay người dùng`** trong `plan.md` (bắt buộc): quyết định kỹ thuật mà người không rành kỹ thuật không trả
   lời được (mốc thời gian, ngưỡng, mức che) thì chọn giá trị mặc định hợp lý, ghi rõ là giả định và cách đổi. Giả định
   **không đảo ngược được hoặc đổi hành vi/dữ liệu hiện có** (xoá vĩnh viễn không xem trước, từ chối lệnh đang chạy được, ghi
-  đè hay đổi giá trị dữ liệu, che cả giá trị ngắn như `1`) thì mặc định chọn phương án đảo ngược được, ít xâm lấn: xem
-  trước/`--dry-run` hoặc bật tay, cảnh báo thay vì từ chối, chỉ che khi có nhãn rõ. Không chọn thiết kế có thể làm hỏng dữ
-  liệu hay hiệu năng hiện có, và không giả định ngược điều người dùng đã nói ("xem trước thì tốt", "đừng làm chậm").
+  đè dữ liệu, che cả giá trị ngắn như `1`) thì chọn phương án đảo ngược được, ít xâm lấn: xem trước/`--dry-run` hoặc bật tay,
+  cảnh báo thay vì từ chối. Không giả định ngược điều người dùng đã nói ("xem trước thì tốt", "đừng làm chậm").
 - **Yêu cầu mơ hồ (chỉ nêu mục đích)**: hỏi tối đa 2–3 câu về **kết quả mong muốn** trong `## Câu hỏi mở` (có cần xem
-  trước/bật tay không; điều gì không được mất, hỏng hay chậm; mức độ/thời hạn nếu họ biết), không hỏi điều kỹ thuật, và
-  chưa lập kế hoạch đầy đủ: ghi bản phác hợp lệ (≥ 1 `AC`, `plan.md` vài dòng, ≥ 1 `TSK`) rồi dừng. Bint chuyển tác vụ sang
-  chờ người (không treo); người trả lời xong thì nối tiếp phiên này để lập kế hoạch đầy đủ. Điều đã nói rõ hoặc đã có câu
-  trả lời trong đề bài thì không hỏi lại.
+  trước/bật tay không; điều gì không được mất, hỏng hay chậm), không hỏi điều kỹ thuật, và chưa lập kế hoạch đầy đủ: ghi bản
+  phác hợp lệ (≥ 1 `AC`, `plan.md` vài dòng, ≥ 1 `TSK`) rồi dừng; Bint chuyển tác vụ sang chờ người, trả lời xong thì nối tiếp
+  phiên này. Điều đã có câu trả lời trong đề bài thì không hỏi lại.
 
 ## Kiểm tra mục tiêu (mọi mức phân tích)
 
-Kế hoạch của bạn có thể đủ AC mà vẫn bỏ sót điều người dùng cần. Vì vậy `requirement.md` **bắt buộc** có mục
-`## Kiểm tra mục tiêu` (cấp 2): mô tả **một kiểm tra chạy được** đo MỤC TIÊU của người dùng, suy từ cả lời họ lẫn **từng nhóm**
-của `## Bề mặt bị ảnh hưởng` (mỗi nhóm có ít nhất một đường nhập được cài dữ liệu giả hoặc một điểm đo). Gồm:
+`requirement.md` **bắt buộc** có mục `## Kiểm tra mục tiêu` (cấp 2): mô tả **một kiểm tra chạy được** đo MỤC TIÊU của người dùng,
+suy từ lời họ lẫn **từng nhóm** của `## Bề mặt bị ảnh hưởng` (mỗi nhóm có một đường nhập cài dữ liệu giả hoặc một điểm đo). Gồm:
 
 - **Chuẩn bị**: dữ liệu giả cài vào mọi đường nhập/nơi lưu theo từng nhóm bề mặt;
-- **Hành động**: thao tác của người dùng hoặc của Bint cần chạy;
+- **Hành động**: thao tác cần chạy;
 - **Quét/đo**: chỗ phải quét hoặc đo sau hành động (toàn bộ nơi lưu, không chỉ phần định sửa);
 - **Điều kiện đạt**: kết quả đo được, báo rõ từng chỗ còn sót;
-- **Tên test và tệp dự kiến**: b-feat sẽ viết thành test tự động nằm trong bộ test mà `verify.command` chạy (b-req chỉ đọc, không
-  viết được mã; Bint không chạy lệnh agent đề xuất khi chưa có người xác nhận).
+- **Tên test và tệp dự kiến**: b-feat viết thành test tự động nằm trong bộ test mà `verify.command` chạy (b-req chỉ đọc).
 
-Ví dụ: *không lưu bí mật* — cài bí mật giả có dấu dễ grep vào mọi đường nhập (mô tả phiếu, tiêu chí, lệnh kiểm chứng, đầu ra
+Ví dụ: *không lưu bí mật* — cài bí mật giả có dấu dễ grep vào mọi đường nhập (phiếu, tiêu chí, lệnh kiểm chứng, đầu ra
 agent, log, hook), chạy lại luồng rồi quét toàn bộ state dir và repo, báo từng tệp còn thô. *Dọn dữ liệu cũ* — dựng dữ liệu cũ
 giả mỗi loại trong state dir, kiểm preview liệt kê đủ và clean giải phóng dung lượng đo được, không đụng việc đang dở.
 
 Thêm **đúng một AC** cho kiểm tra này ("kiểm tra mục tiêu `<tên test>` xanh") vào phiếu và `requirement.md`, cùng một `TSK` phủ
-nó. Việc thuần nội bộ không có hành vi quan sát được thì vẫn giữ mục, ghi lý do ngắn không có kiểm tra chạy được. Thiếu mục này,
-`bint task lint` cảnh báo `goal_check_missing` (không chặn) và b-review chấm theo mục tiêu mà không có đặc tả để đối chiếu.
+nó. Việc thuần nội bộ thì giữ mục, ghi lý do ngắn không có kiểm tra chạy được. Thiếu mục, `bint task lint` cảnh báo `goal_check_missing`.
 
 ## Cỡ kế hoạch (mọi mức phân tích)
 
@@ -139,14 +114,12 @@ Kết luận: nhỏ
 - `internal/x/a_test.go` — test mới
 ```
 
-- Dòng `Kết luận: nhỏ` hoặc `Kết luận: lớn`, rồi **mỗi tệp sẽ sửa một dòng bullet**, đường dẫn trong backtick (tệp mới cũng ghi).
-- Chỉ ghi `nhỏ` khi **đủ cả**: không có giai đoạn nào bị hoãn/tách ra (không có dòng `G-N` trong `## Đề xuất tách giai đoạn`); số tệp
-  liệt kê và số nhóm của `## Bề mặt bị ảnh hưởng` không quá `workflow.small_plan_max_files` (mặc định 5; xem `.bint/config.yml`);
-  `## Kiểm tra mục tiêu` của `requirement.md` nêu **tên test cụ thể trong backtick**; không tệp nào chạm `limits.protected_paths`.
-  Thiếu một điều kiện thì ghi `lớn`.
-- **Không dùng `nhỏ` để cắt phạm vi**: việc cần nhiều giai đoạn thì ghi `lớn` và tách giai đoạn, đừng bỏ bớt việc để kế hoạch lọt
-  ngưỡng. Bint không tin kết luận của bạn: nó tự đo lại trên tài liệu (kết luận `nhỏ` mà số đo vượt ngưỡng vẫn là kế hoạch lớn, dừng
-  chờ người; thiếu mục thì luôn là lớn). Kế hoạch nhỏ thì b-feat chạy ngay; lớn thì người xem kế hoạch rồi mới cho chạy b-feat.
+- Dòng `Kết luận: nhỏ` hoặc `Kết luận: lớn`, rồi **mỗi tệp sẽ sửa một dòng bullet**, đường dẫn trong backtick (tệp mới cũng ghi);
+  mọi tệp phải nằm trong `scope.allow` và không khớp `scope.deny` (lint chặn `plan_file_out_of_scope`).
+- Chỉ ghi `nhỏ` khi không có giai đoạn hoãn (`G-N`), số tệp và số nhóm bề mặt không quá `workflow.small_plan_max_files`, kiểm tra mục
+  tiêu nêu tên test trong backtick và không tệp nào chạm `limits.protected_paths`; thiếu một điều kiện thì ghi `lớn`.
+- **Không dùng `nhỏ` để cắt phạm vi**: việc cần nhiều giai đoạn thì ghi `lớn` và tách giai đoạn. Bint tự đo lại trên tài liệu (thiếu
+  mục thì luôn là lớn); kế hoạch lớn thì người xem rồi mới cho chạy b-feat.
 
 ## Độ sâu phân tích
 
@@ -156,20 +129,16 @@ dòng `Phân tích: standard|deep` và `Lý do:`; chạy tay thì đọc `classi
 bảo vệ (`protected_paths`), khi yêu cầu dài/nhiều ý (`complex_request`), hoặc khi người dùng chỉ định
 (`user_override`). Độ sâu không đổi quyền ghi hay cách duyệt.
 
-- **standard**: ba tài liệu ngắn như ở Bước 3, trong đó `plan.md` vẫn có `## Bề mặt bị ảnh hưởng` và
-  `## Giả định thay người dùng` (xem mục trên).
-- **deep**: **cùng** ba tài liệu và cùng hợp đồng v1, nhưng `plan.md` (và `requirement.md` khi hợp)
-  phải làm thêm, mỗi mục một đoạn ngắn:
-  1. *Giả định và mâu thuẫn*: điều bạn đang dựa vào; chỗ yêu cầu, mã và tri thức dự án mâu thuẫn nhau.
-     Chia giả định/câu hỏi như mục trên.
+- **standard**: ba tài liệu ngắn như ở Bước 3, `plan.md` vẫn có `## Bề mặt bị ảnh hưởng` và `## Giả định thay người dùng`.
+- **deep**: cùng ba tài liệu và hợp đồng, nhưng `plan.md` làm thêm, mỗi mục một đoạn ngắn:
+  1. *Giả định và mâu thuẫn*: điều bạn dựa vào; chỗ yêu cầu, mã và tri thức dự án mâu thuẫn nhau.
   2. *Lựa chọn và lý do*: ít nhất hai hướng khả dĩ và vì sao chọn hướng này.
   3. *Vùng ảnh hưởng*: module, API, dữ liệu, người dùng bị chạm; nơi gọi tới.
-  4. *Rủi ro và rollback*: điều gì có thể hỏng, phát hiện bằng cách nào, quay lại ra sao.
+  4. *Rủi ro và rollback*: điều gì có thể hỏng, phát hiện thế nào, quay lại ra sao.
   5. *Chiến lược kiểm thử*: kiểm thử sẽ thêm/chạy và phần chưa kiểm được.
-  6. *Checklist nhất quán*: mỗi `AC-N` có `TSK` bao phủ, mỗi `TSK` có điều kiện "xong khi" đo được,
-     `--allow` đủ cho mọi tệp trong kế hoạch.
+  6. *Checklist nhất quán*: mỗi `AC-N` có `TSK`, mỗi `TSK` có "xong khi" đo được, `--allow` đủ cho mọi tệp trong kế hoạch.
 
-Không thêm tệp, trạng thái hay bước duyệt mới; chỉ hỏi người khi có Q thật sự cản trở triển khai.
+Không thêm tệp, trạng thái hay bước duyệt mới; hỏi người chỉ khi Q cản trở.
 
 <!-- bint:anchor project-rules -->
 <!-- bint:anchor-end project-rules -->
@@ -201,14 +170,11 @@ bint task write <id> tasks -         # mỗi dòng: - [ ] TSK-1 [AC-1]: <việc>
 
 Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lượng nội dung):
 
-- `AC-N` liên tục từ 1, mỗi dòng khớp từng chữ (sau khi gộp khoảng trắng) với tiêu chí thứ N của
-  phiếu; số `AC` bằng số tiêu chí của phiếu. Dòng nằm trong code fence bị bỏ qua.
-- `TSK-N` duy nhất; mỗi dòng có ít nhất một `[AC-N]` hợp lệ, mô tả việc và `— xong khi:` có nội dung;
-  mọi `AC-N` được ít nhất một `TSK` bao phủ.
-- Không để placeholder (`<…>`, `…`, `TODO`, `TBD`) trong dòng AC/TSK.
-- `## Câu hỏi mở` chỉ chứa câu hỏi **cản trở triển khai**, dạng `- [ ] Q-1: …`. Còn dòng chưa trả lời
-  thì b-feat bị chặn; người dùng trả lời thì ghi `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>` (không
-  tự bịa câu trả lời). Điểm không cản trở thì ghi trong văn xuôi.
+- `AC-N` liên tục từ 1, khớp từng chữ với tiêu chí thứ N của phiếu; mỗi `TSK` có `[AC-N]` hợp lệ và `— xong khi:` có nội dung; mọi
+  `AC-N` có `TSK` bao phủ; không placeholder (`<…>`, `…`, `TODO`, `TBD`) trong dòng AC/TSK.
+- `## Hiện trạng` (requirement.md, đọc `baseline.md` Bint đã đo) có số đo, và ít nhất một AC có số đo mục tiêu người dùng.
+- `## Câu hỏi mở` chỉ chứa câu hỏi **cản trở triển khai**, dạng `- [ ] Q-1: …`; còn dòng chưa trả lời thì b-feat bị chặn. Người dùng
+  trả lời thì ghi `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>` (không tự bịa câu trả lời).
 
 <!-- bint:anchor plan-template -->
 `plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Cỡ kế hoạch` (`Kết luận: nhỏ|lớn` + tệp), `## Bề mặt bị ảnh hưởng`
@@ -221,12 +187,8 @@ Kiểm lại bất cứ lúc nào: `bint task lint <id>` (mã lỗi ổn định
 
 ## Bước 4 — Kết thúc
 
-Nếu **không** chạy dưới `bint run` (biến `BINT_RUN_ID` trống):
-
-```sh
-bint task lint <id> --strict             # sửa mọi lỗi trước khi sang bước sau
-bint task status <id> planned --reason "đã lập kế hoạch"
-```
+Nếu **không** chạy dưới `bint run` (`BINT_RUN_ID` trống): `bint task lint <id> --strict` (sửa mọi lỗi), rồi
+`bint task status <id> planned --reason "đã lập kế hoạch"` (Bint từ chối lệnh này dưới `bint run`).
 
 Báo người dùng: task ID, các tiêu chí chấp nhận, câu hỏi mở, và bước tiếp
 (`/b-feat <id>` hoặc `bint run b-feat --task <id>`).

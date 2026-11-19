@@ -60,15 +60,15 @@ func TestTaskLint(t *testing.T) {
 	// v1 thiếu artifact: mã 1, JSON có mã lỗi ổn định và mảng rỗng (không null).
 	out, code := run(t, root, "", "task", "lint", id, "--json")
 	var r lintJSON
-	if code != 1 || json.Unmarshal(jsonPart(out), &r) != nil || r.ContractVersion != 1 || len(r.Errors) != 3 || r.Errors[0].Code != "artifact_missing" {
+	if code != 1 || json.Unmarshal(jsonPart(out), &r) != nil || r.ContractVersion != 2 || len(r.Errors) != 3 || r.Errors[0].Code != "artifact_missing" {
 		t.Fatalf("lint v1 lỗi: %d\n%s", code, out)
 	}
 	if !strings.Contains(out, `"warnings": []`) || !strings.Contains(out, `"open_questions": []`) {
 		t.Fatalf("JSON phải chứa mảng rỗng:\n%s", out)
 	}
 
-	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n- [ ] Q-1: giữ v1 không?\n")
-	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n")
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n- [ ] Q-1: giữ v1 không?\n")
+	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n")
 	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n")
 	// Câu hỏi mở: không phải lỗi cấu trúc nhưng vẫn thoát 1.
 	out, code = run(t, root, "", "task", "lint", id, "--json")
@@ -76,7 +76,7 @@ func TestTaskLint(t *testing.T) {
 	if code != 1 || json.Unmarshal(jsonPart(out), &r) != nil || len(r.Errors) != 0 || len(r.OpenQuestions) != 1 {
 		t.Fatalf("câu hỏi mở: %d\n%s", code, out)
 	}
-	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n- [x] Q-1: giữ v1 không? — Trả lời: không\n")
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n- [x] Q-1: giữ v1 không? — Trả lời: không\n")
 	// Thiếu mục `## Kiểm tra mục tiêu`: chỉ cảnh báo goal_check_missing, không chặn (kể cả --strict), thoát 0.
 	for _, extra := range [][]string{nil, {"--strict"}} {
 		out, code := run(t, root, "", append([]string{"task", "lint", id, "--json"}, extra...)...)
@@ -85,7 +85,7 @@ func TestTaskLint(t *testing.T) {
 			t.Fatalf("thiếu kiểm tra mục tiêu chỉ cảnh báo %v: %d\n%s", extra, code, out)
 		}
 	}
-	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Kiểm tra mục tiêu\nTestApp: cài app.txt giả rồi quét, đạt khi chứa v2\n## Câu hỏi mở\n- [x] Q-1: giữ v1 không? — Trả lời: không\n")
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Kiểm tra mục tiêu\nTestApp: cài app.txt giả rồi quét, đạt khi chứa v2\n## Câu hỏi mở\n- [x] Q-1: giữ v1 không? — Trả lời: không\n")
 	if out, code := run(t, root, "", "task", "lint", id); code != 0 || !strings.Contains(out, "✓") || strings.Contains(out, "goal_check_missing") {
 		t.Fatalf("hợp lệ: %d\n%s", code, out)
 	}
@@ -116,8 +116,8 @@ func TestTaskLintLegacyIsAdvisoryUnlessStrict(t *testing.T) {
 func TestTaskSetSyncsCriteriaThenLintPasses(t *testing.T) {
 	root := newLintRepo(t)
 	id := newTaskID(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
-	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n")
-	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n")
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Hiện trạng\n- app.txt: 1 tệp\n## Tiêu chí chấp nhận\n- [ ] AC-1: app.txt chứa v2\n## Câu hỏi mở\n")
+	writeDoc(t, root, id, "plan", "# Kế hoạch\nSửa app.txt\n## Bề mặt bị ảnh hưởng\n- app.txt: AC-1\n## Giả định thay người dùng\nKhông có\n")
 	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1]: sửa app.txt — xong khi: chứa v2\n")
 	if out, code := run(t, root, "", "task", "lint", id, "--strict"); code != 0 {
 		t.Fatalf("lint ban đầu: %d\n%s", code, out)
@@ -131,7 +131,7 @@ func TestTaskSetSyncsCriteriaThenLintPasses(t *testing.T) {
 		t.Fatalf("lint sau --criteria: %d\n%s", code, out)
 	}
 
-	out, code = run(t, root, "", "task", "set", id, "--clear-criteria", "--criteria", "một", "--criteria", "hai", "--criteria", "ba")
+	out, code = run(t, root, "", "task", "set", id, "--clear-criteria", "--criteria", "một 1", "--criteria", "hai", "--criteria", "ba")
 	if code != 0 {
 		t.Fatalf("task set --clear-criteria: %d\n%s", code, out)
 	}
@@ -140,9 +140,9 @@ func TestTaskSetSyncsCriteriaThenLintPasses(t *testing.T) {
 	}
 
 	// Thu gọn 3 → 1: TSK [AC-1, AC-3]... được gỡ AC đã bỏ; TSK chỉ còn AC đã bỏ giữ và lint báo đúng dòng đó.
-	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: một\n- [ ] AC-2: hai\n- [ ] AC-3: ba\n## Câu hỏi mở\n")
+	writeDoc(t, root, id, "requirement", "# Yêu cầu\n## Tiêu chí chấp nhận\n- [ ] AC-1: một 1\n- [ ] AC-2: hai\n- [ ] AC-3: ba\n## Câu hỏi mở\n")
 	writeDoc(t, root, id, "tasks", "- [ ] TSK-1 [AC-1, AC-3]: việc một — xong khi: một\n- [ ] TSK-2 [AC-2]: việc hai — xong khi: hai\n- [ ] TSK-3 [AC-3]: việc ba — xong khi: ba\n")
-	out, code = run(t, root, "", "task", "set", id, "--clear-criteria", "--criteria", "một", "--criteria", "hai")
+	out, code = run(t, root, "", "task", "set", id, "--clear-criteria", "--criteria", "một 1", "--criteria", "hai")
 	if code != 0 || !strings.Contains(out, "đã gỡ AC-3 khỏi TSK-1") || !strings.Contains(out, "TSK-3") || !strings.Contains(out, "unknown_ac") {
 		t.Fatalf("task set thu gọn phải in ghi chú: %d\n%s", code, out)
 	}
