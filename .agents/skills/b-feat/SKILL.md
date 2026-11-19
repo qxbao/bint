@@ -81,6 +81,8 @@ bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
 `go test ./...` hay `verify.command` đầy đủ (rất chậm trên Windows). Bint tự chạy kiểm chứng sau bước này và chạy đầy đủ một lần ở cổng done.
 <!-- bint:anchor-end test-strategy -->
 
+Trong `bint run` chỉ chạy test nhắm đúng phần vừa sửa (`go test ./pkg -run '<TênTest>'`); không chạy cả gói, cả repo hay `verify.command` (gói `internal/workflow` mất ~20 phút trên Windows, quá giới hạn Bash). Kiểm chứng đầy đủ là việc của Bint.
+
 Mỗi lần thử sửa thất bại đáng kể (kiểm thử đỏ sau khi sửa, hướng làm phải bỏ), ghi lại:
 
 ```sh

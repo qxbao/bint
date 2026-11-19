@@ -50,7 +50,7 @@ bint task criteria <id> <n> met|unmet -e "…"    # đối chiếu tiêu chí ch
 bint task error <id> --step b-feat "…"          # ghi lỗi / lần thử thất bại (--question "…": câu hỏi gửi người, xem dưới)
 bint task review <id> -                         # vòng review (JSON hoặc YAML) → review.json + review.md
 bint task approve <id> [--path <tệp>] [--setup-sha <băm>]  # NGƯỜI: xác nhận lệnh kiểm chứng, lệnh setup worktree (đúng băm đã xem), duyệt đường dẫn bảo vệ
-bint task status <id> done [--force]            # done cần bằng chứng; chỉ người --force được
+bint task status <id> done [--force]            # done cần bằng chứng; chỉ người --force được (bỏ qua mọi điều chặn bằng chứng, KHÔNG bỏ qua việc chưa đưa về)
 bint task done <id> [--force] [-m "…"]          # bí danh của bint task status <id> done
 
 bint skill list
@@ -411,8 +411,8 @@ sau cổng cỡ kế hoạch, khi `requirement.md` có mục `## Kiểm tra mụ
   Sau **mỗi** bước implement, trước kiểm phạm vi, kiểm chứng và review, `freezeGate` so băm: tệp bị sửa/xoá/đổi tên thì tác vụ `blocked` nêu tệp; `bint task
   approve` không bỏ qua cổng này (người khôi phục tệp, ví dụ `git restore`, rồi `resume`). Tệp còn nguyên không bị hỏi duyệt dù khớp `scope.deny` và không
   được tính là việc `b-feat` đã làm (cổng "không đổi tệp nào"). Lối thoát khi chính test đóng băng sai: cổng mục tiêu đỏ là điều chặn người bỏ qua được như kiểm chứng đỏ, tức
-  `bint task land <id> --force --reason "<lý do>"` (tác vụ worktree) hoặc `bint task status <id> done --force` (tác vụ shared); lý do và điều chặn được ghi vào
-  `Landed.Bypassed`. Chỉ người dùng được cờ ép (agent bị từ chối). "Chưa chạy cổng mục tiêu" vẫn là điều chặn cứng. Chưa có lệnh chạy lại `b-goal` hay đóng băng lại.
+  `bint task land <id> --force --reason "<lý do>"` (tác vụ worktree) hoặc `bint task status <id> done --force` (tác vụ shared); với `land --force` lý do và điều chặn ghi vào
+  `Landed.Bypassed`, còn `status done --force` (không cần `--reason`, không giới hạn theo `Forceable`) ghi các điều chặn đã bỏ qua vào lý do của lịch sử trạng thái ("người xác nhận dù thiếu bằng chứng: …"). Chỉ người dùng được cờ ép (agent bị từ chối). "Chưa chạy cổng mục tiêu" vẫn là điều chặn cứng. Chưa có lệnh chạy lại `b-goal` hay đóng băng lại.
 - **Cổng riêng**: lệnh là `workflow.verify.affected_command` mở rộng trên tệp đóng băng khi đã đặt, không thì `verify.command`. Khi lệnh bắt đầu bằng `go test`, chưa có
   `-run` và tệp đóng băng là `*_test.go`, Bint thêm `-run '^(TestA|TestB)$'` gồm đúng các hàm `Test*` của tệp đóng băng để cổng không chạy cả gói (tệp khác Go,
   tệp không có hàm `Test*` hay lệnh đã có `-run` giữ lệnh cũ); chạy một lần ngay sau `b-goal`
@@ -535,7 +535,18 @@ thành **lát** (`internal/workflow/slice.go`), mỗi lát một lượt `b-feat
   không chia lát thì vào vòng sửa (đề bài nêu số đo và log), không finalize.
 - **Lối ra**: sửa hồi quy; hết vòng sửa thì `bint run resume <id> --accept` (chấp nhận kết quả hiện tại)/`--fix-round`/huỷ, giống kiểm chứng đỏ.
 
-**Phát hiện review chặn cần bằng chứng tái hiện (`repro`).** Phát hiện `bug`/`risk` mức `high`/`critical` gửi qua `bint task review` phải có trường `repro`: lệnh trong dấu backtick
+**`baseline.md` và luật lint hợp đồng v2 (b-req).** Trước bước `b-req` Bint tự đo hiện trạng (số tệp/byte dưới thư mục trạng thái và các tệp
+git theo dõi khớp `scope.allow` đã trừ phần khớp `scope.deny`; `scope.allow` và thư mục trạng thái có trần thời gian riêng, cùng trần số tệp; mục không đo được ghi rõ lý do) và ghi `baseline.md` vào thư mục tác vụ. `## Hiện trạng`
+của `requirement.md` phải có số đo hoặc đúng một dòng `Không đo được: <lý do>` (việc thuần nội bộ; cấm bịa số). "Số đo" là chữ số **ngoài code span**: tên có chữ số trong backtick (`TestGoal2`, `internal/v2/x.go`) không tính, cho cả `baseline_missing` lẫn `ac_without_measure`. Lối `Không đo được:` mà không kèm số đo thật phát cảnh báo `baseline_exempt` (luôn là cảnh báo, không chặn). `bint task lint` có sáu mã
+mới: lỗi ở hợp đồng v2 khi `--strict`, chỉ cảnh báo ở v1, bỏ qua ở v0: `baseline_missing` (thiếu `## Hiện trạng` hoặc không có số/`Không đo được:`),
+`ac_without_measure` (không AC nào có số đo mục tiêu), `surface_missing` (thiếu `## Bề mặt bị ảnh hưởng` hoặc không có nhóm nào),
+`surface_unmapped` (nhóm bề mặt không nêu `AC-N` có thật hay `ngoài phạm vi`), `assumptions_missing` (thiếu/rỗng `## Giả định thay người dùng`; ghi
+`Không có` nếu không có) và `plan_file_out_of_scope` (tệp nêu trong `## Cỡ kế hoạch` nằm ngoài `scope.allow` hoặc khớp `scope.deny`). **Cổng `BINT_RUN_ID`:** `bint task new` từ chối khi `BINT_RUN_ID` khác rỗng
+(`internal/app/task_svc.go`), nên agent trong bước `bint run` không lập phiếu con được; agent con của phiên điều phối không có biến này, do đó
+skill `b-req` còn cấm tường minh việc tự lập phiếu con và đổi trạng thái phiếu.
+
+**Phát hiện review chặn cần bằng chứng tái hiện (`repro`).** Phát hiện `bug`/`risk` mức `high`/`critical` gửi qua `bint task review` phải có trường `repro`: lệnh chạy được trong dấu backtick
+(từ hai từ trở lên hoặc bắt đầu bằng tên chương trình như `go`, `sh`, `bash`, `bint`, `git`, `npm`, `make`, `python`, `curl`; tên hàm/tệp đơn trong backtick không đủ)
 hoặc `tệp:dòng` có thật. Thiếu `repro` hợp lệ thì Bint ghi mức `medium` kèm `downgraded_from` (mức gốc) trong `review.json`/`review.md`/đầu ra lệnh, không mở vòng sửa và không tính vào đếm hội tụ;
 "bỏ sót bề mặt" chỉ dựa trên lập luận là mức không chặn. Phát hiện có `repro` hợp lệ giữ mức chặn và `repro` được đưa vào đề bài vòng sửa của `b-feat`. Vòng review cũ không bị tính lại.
 
