@@ -39,10 +39,12 @@ cục bộ ngoài repository (dùng chung cho mọi worktree) cùng SQLite, cài
 nhận lượt chạy nếu được đồng ý, và thêm khối bint vào .gitignore.
 
 Repository đã init bằng bản Bint cũ: ` + "`bint init --update`" + ` thêm vào .bint/config.yml các khoá
-mới của mẫu hiện tại (ví dụ harnesses.<h>.models: model theo role) kèm chú thích. Chỉ
-chèn dòng: giá trị, chú thích và định dạng sẵn có giữ nguyên; bản cũ được sao lưu vào
-thư mục trạng thái. Harness đã đặt tay model chung thì khối models được để trống để
-giữ hành vi cũ.
+mới của mẫu hiện tại (ví dụ harnesses.<h>.models: model theo role) kèm chú thích,
+sửa chú thích mẫu cũ bị hỏng và nâng danh sách readonly_tools nếu khớp mẫu lịch sử.
+Danh sách tuỳ biến được giữ nguyên; bản cũ được sao lưu vào thư mục trạng thái.
+Lệnh áp dụng thay đổi và cũng làm mới hook, skill đã cài. Xem diff cấu hình trước
+trong TUI, thẻ Cấu hình, phím U. Harness đã đặt tay model chung thì khối models được
+để trống để giữ hành vi cũ.
 
 Hiện diện trong Git (--git, lựa chọn được nhớ cho máy này; lần init đầu thì hỏi):
   track  (mặc định) tệp của Bint được commit cho cả nhóm; tệp riêng của máy vào .gitignore.
@@ -107,7 +109,7 @@ Không gọi mô hình, không cài phần mềm, không chạy lệnh của d�
 	f.BoolVar(&flags.NoMCP, "no-mcp", false, "gỡ MCP server của Bint khỏi cấu hình harness")
 	f.BoolVar(&flags.MCPUser, "mcp-user", false, "ghi mục `bint mcp serve` vào cấu hình MCP cấp người dùng của harness chỉ có MCP cấp user (Antigravity: ~/.gemini/config/mcp_config.json; có sao lưu)")
 	f.StringVar(&flags.GitMode, "git", "", "hiện diện trong Git: track (commit cho nhóm) | local (riêng máy: .git/info/exclude + skip-worktree)")
-	f.BoolVar(&flags.Update, "update", false, "nâng .bint/config.yml đã có lên mẫu hiện tại: thêm khoá còn thiếu, giữ nguyên giá trị (có sao lưu)")
+	f.BoolVar(&flags.Update, "update", false, "áp dụng nâng cấu hình (có sao lưu), gồm nâng readonly_tools theo mẫu cũ; làm mới hook và skill đã cài")
 	return c
 }
 

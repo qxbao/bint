@@ -1,0 +1,81 @@
+{
+  "sha": "339f13400f3d3150607c79924ccc8ab952eb71aa",
+  "command": [
+    "/usr/bin/go",
+    "test",
+    "-overlay",
+    "<probe-dir>/overlay.json",
+    "-count=1",
+    "-timeout",
+    "3m",
+    "-json",
+    "./internal/harness/hookcore",
+    "./internal/harness/codex",
+    "-run",
+    "^(TestAcceptanceInvestigation.*|TestReadonlyShellAllowed|TestInstalledHooksMatchSupportedShellTools|TestHooksTrustedUsesCurrentCodexDefinition)$"
+  ],
+  "env": [
+    "BINT_AGENT=codex",
+    "GOMAXPROCS=2",
+    "GOFLAGS=-buildvcs=false -p=2",
+    "GOCACHE=<cache-dir>/gocache",
+    "XDG_CACHE_HOME=<cache-dir>/xdg"
+  ],
+  "properties": [
+    "MemoryHigh=1536M",
+    "MemoryMax=2G",
+    "MemorySwapMax=0",
+    "TasksMax=256",
+    "CPUQuota=200%",
+    "OOMPolicy=stop",
+    "KillMode=control-group",
+    "TimeoutStopSec=10s",
+    "RuntimeMaxSec=420s",
+    "WorkingDirectory=<repo>"
+  ],
+  "exit_code": 0,
+  "stop_reason": null,
+  "elapsed_s": 4.109,
+  "diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+
+=== RUN   TestAcceptanceInvestigationReadonly
+=== RUN   TestAcceptanceInvestigationReadonly/literal-pipe
+    acceptance_investigation_test.go:15: default allow=false reason="có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"; project allow=false reason="có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"; command=grep -n "mcpCheckTimeout\|context.With" internal/app/mcp_svc.go
+--- PASS: TestAcceptanceInvestigationReadonly/literal-pipe (0.00s)
+=== RUN   TestAcceptanceInvestigationReadonly/ls-files
+    acceptance_investigation_test.go:15: default allow=false reason="không khớp workflow.agent.readonly_tools"; project allow=false reason="không khớp workflow.agent.readonly_tools"; command=git ls-files internal/mcpcat/probe
+--- PASS: TestAcceptanceInvestigationReadonly/ls-files (0.00s)
+=== RUN   TestAcceptanceInvestigationReadonly/plain-grep
+    acceptance_investigation_test.go:15: default allow=true reason=""; project allow=false reason="không khớp workflow.agent.readonly_tools"; command=grep -n "NT-MCP-PROBE" docs/acceptance.md
+--- PASS: TestAcceptanceInvestigationReadonly/plain-grep (0.00s)
+=== RUN   TestAcceptanceInvestigationReadonly/log-regex
+    acceptance_investigation_test.go:15: default allow=false reason="có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"; project allow=false reason="có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"; command=grep -n -E "^(--- FAIL|FAIL|ok|panic)|CopyCodegraph" /tmp/task/verify-1.log
+--- PASS: TestAcceptanceInvestigationReadonly/log-regex (0.00s)
+=== RUN   TestAcceptanceInvestigationReadonly/log-simple
+    acceptance_investigation_test.go:15: default allow=true reason=""; project allow=false reason="không khớp workflow.agent.readonly_tools"; command=grep -n FAIL /tmp/task/verify-1.log
+--- PASS: TestAcceptanceInvestigationReadonly/log-simple (0.00s)
+=== RUN   TestAcceptanceInvestigationReadonly/actual-pipe
+    acceptance_investigation_test.go:15: default allow=false reason="có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"; project allow=false reason="có `;`, `&`, `|`, chuyển hướng hoặc thay thế lệnh"; command=git log | sh
+--- PASS: TestAcceptanceInvestigationReadonly/actual-pipe (0.00s)
+--- PASS: TestAcceptanceInvestigationReadonly (0.00s)
+{"Package": "bint/internal/harness/hookcore", "Test": "TestReadonlyShellAllowed", "Action": "pass", "Elapsed": 0}
+PASS
+ok  	bint/internal/harness/hookcore	0.021s
+{"Package": "bint/internal/harness/hookcore", "Action": "pass", "Elapsed": 0.021}
+=== RUN   TestAcceptanceInvestigationCodexTools
+    acceptance_investigation_test.go:10: tool=exec_command installed_match=[PreToolUse PostToolUse] classify_kind=3
+    acceptance_investigation_test.go:10: tool=local_shell installed_match=[] classify_kind=3
+    acceptance_investigation_test.go:10: tool=apply_patch installed_match=[PreToolUse PostToolUse] classify_kind=2
+    acceptance_investigation_test.go:10: tool=mcp__bint__context_for_task installed_match=[PostToolUse] classify_kind=4
+    acceptance_investigation_test.go:10: tool=mcp__bint__cg_explore installed_match=[PostToolUse] classify_kind=4
+    acceptance_investigation_test.go:10: tool=exec installed_match=[] classify_kind=0
+    acceptance_investigation_test.go:10: tool=functions.exec installed_match=[] classify_kind=0
+    acceptance_investigation_test.go:12: installed hook matchers current=false
+--- PASS: TestAcceptanceInvestigationCodexTools (0.00s)
+{"Package": "bint/internal/harness/codex", "Test": "TestInstalledHooksMatchSupportedShellTools", "Action": "pass", "Elapsed": 0.02}
+{"Package": "bint/internal/harness/codex", "Test": "TestHooksTrustedUsesCurrentCodexDefinition", "Action": "pass", "Elapsed": 0.05}
+PASS
+ok  	bint/internal/harness/codex	0.083s
+{"Package": "bint/internal/harness/codex", "Action": "pass", "Elapsed": 0.083}

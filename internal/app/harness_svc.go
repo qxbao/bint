@@ -170,12 +170,16 @@ func hookStatus(ctx context.Context, ad harness.Adapter, hi harness.HookInstalle
 		if ok, _ := hi.HooksInstalled(p); ok {
 			found = append(found, string(sc))
 			if ad.Name() == codex.HarnessName {
-				if current, err := codex.HooksCurrent(p); err == nil && !current {
+				current, err := codex.HooksCurrent(p)
+				if err != nil {
+					return HookStatus{LevelWarn, "đã cài ở " + p + " nhưng chưa xác minh matcher: " + err.Error(), found}
+				}
+				if !current {
 					return HookStatus{LevelWarn, "đã cài ở " + p + " nhưng matcher đã cũ (thiếu công cụ mới); chạy bint init để làm mới", found}
 				}
 				trust, err := codex.InspectHookTrust(ctx, codexBinary, root, p)
 				if err != nil {
-					return HookStatus{LevelWarn, "đã cài nhưng chưa xác minh trust: " + err.Error(), found}
+					return HookStatus{LevelWarn, "đã cài ở " + p + " nhưng chưa xác minh trust: " + err.Error(), found}
 				}
 				if !trust.AllTrusted() {
 					return HookStatus{LevelWarn, "đã cài ở " + p + ": " + trust.String() + "; mở codex, /hooks để duyệt định nghĩa hiện hành", found}

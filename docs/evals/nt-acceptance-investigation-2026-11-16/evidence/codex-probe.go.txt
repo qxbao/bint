@@ -1,0 +1,13 @@
+package codex
+import("testing";"os";"encoding/json";"regexp")
+func TestAcceptanceInvestigationCodexTools(t *testing.T){
+ raw,err:=os.ReadFile("<repo>/.codex/hooks.json");if err!=nil{t.Fatal(err)}
+ var cfg struct{Hooks map[string][]struct{Matcher string `json:"matcher"`} `json:"hooks"`};if err=json.Unmarshal(raw,&cfg);err!=nil{t.Fatal(err)}
+ for _,name:=range []string{"exec_command","local_shell","apply_patch","mcp__bint__context_for_task","mcp__bint__cg_explore","exec","functions.exec"}{
+  var matched []string
+  for _,ev:=range []string{"PreToolUse","PostToolUse"}{for _,g:=range cfg.Hooks[ev]{if regexp.MustCompile("^(?:"+g.Matcher+")$").MatchString(name){matched=append(matched,ev)}}}
+  info:=Classify(name,map[string]any{"cmd":"git status","command":"git status"})
+  t.Logf("tool=%s installed_match=%v classify_kind=%v",name,matched,info.Kind)
+ }
+ current,err:=HooksCurrent("<repo>/.codex/hooks.json");if err!=nil{t.Fatal(err)};t.Logf("installed hook matchers current=%v",current)
+}

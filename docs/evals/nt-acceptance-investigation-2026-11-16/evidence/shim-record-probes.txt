@@ -1,0 +1,57 @@
+{
+  "sha": "339f13400f3d3150607c79924ccc8ab952eb71aa",
+  "command": [
+    "/usr/bin/go",
+    "test",
+    "-overlay",
+    "<probe-dir>/overlay.json",
+    "-count=1",
+    "-timeout",
+    "3m",
+    "-json",
+    "./internal/app",
+    "./internal/mcpgw",
+    "-run",
+    "^(TestAcceptanceInvestigation.*|TestNewMCPShimCandidates|TestRecordMCPCalled|TestRecordSkips)$"
+  ],
+  "env": [
+    "BINT_AGENT=codex",
+    "GOMAXPROCS=2",
+    "GOFLAGS=-buildvcs=false -p=2",
+    "GOCACHE=<cache-dir>/gocache",
+    "XDG_CACHE_HOME=<cache-dir>/xdg"
+  ],
+  "properties": [
+    "MemoryHigh=1536M",
+    "MemoryMax=2G",
+    "MemorySwapMax=0",
+    "TasksMax=256",
+    "CPUQuota=200%",
+    "OOMPolicy=stop",
+    "KillMode=control-group",
+    "TimeoutStopSec=10s",
+    "RuntimeMaxSec=420s",
+    "WorkingDirectory=<repo>"
+  ],
+  "exit_code": 0,
+  "stop_reason": null,
+  "elapsed_s": 10.122,
+  "diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+
+=== RUN   TestAcceptanceInvestigationShimIdentity
+{"Package": "bint/internal/mcpgw", "Test": "TestRecordMCPCalled", "Action": "pass", "Elapsed": 0.36}
+    acceptance_investigation_test.go:10: ShimOptions.RunID=""
+    acceptance_investigation_test.go:10: ShimOptions.TaskID=""
+    acceptance_investigation_test.go:10: ShimOptions.Harness=""
+    acceptance_investigation_test.go:10: ShimOptions.SessionID=""
+--- PASS: TestAcceptanceInvestigationShimIdentity (0.69s)
+{"Package": "bint/internal/mcpgw", "Test": "TestRecordSkips", "Action": "pass", "Elapsed": 0.57}
+PASS
+ok  	bint/internal/mcpgw	0.940s
+{"Package": "bint/internal/mcpgw", "Action": "pass", "Elapsed": 0.94}
+{"Package": "bint/internal/app", "Test": "TestNewMCPShimCandidates", "Action": "pass", "Elapsed": 0.56}
+PASS
+ok  	bint/internal/app	1.264s
+{"Package": "bint/internal/app", "Action": "pass", "Elapsed": 1.264}

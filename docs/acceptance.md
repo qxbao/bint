@@ -1,6 +1,6 @@
 # Nghiệm thu Bint — trạng thái, kế hoạch và hướng dẫn
 
-Cập nhật: 2026-11-16, sau V1 chạy lại (buổi A, một phần, trên repo chính). Việc kế tiếp: sửa `NT-MCP-CALLED`, rồi chạy
+Cập nhật: 2026-11-16, sau V1 chạy lại và kiểm fixture bản sửa trong worktree. Việc kế tiếp: kiểm `NT-MCP-CALLED` trên harness thật, rồi chạy
 phần còn lại của V1 trên bản clone (mục 4.4). Kế hoạch profile harness (`bint iso`, GĐ6) thêm mã `NT-ISO-PROF-*` vào V1 (bước 7) và V2.
 
 **Đây là nguồn chuẩn duy nhất về nghiệm thu.** Tài liệu này giữ:
@@ -74,8 +74,9 @@ Cột "Vòng" trỏ tới mục 4. "Token" là token đo (eval/evolve), không t
 
 | Mã | Mức | Điều kiện đóng | Vòng |
 |---|---|---|---|
-| `NT-MCP-CALLED` | Trung bình | Lời gọi MCP qua gateway của phiên tương tác và subagent driver session ghi được `mcp.called` (shim gửi Harness + SessionID, hoặc bỏ nhánh chết trong `record()` và ghi rõ giới hạn). Hiện `internal/app/mcp_shim.go:71` không đặt hai trường này nên `internal/mcpgw/record.go:29` bỏ mọi sự kiện ([V1 2026-11-16](evals/v1-real-session-2026-11-16/README.md), lỗi 1) | Phiếu riêng, trước khi đo lại `NT-MCP-M3` |
-| `NT-ISO-RO-FP` | Thấp–trung bình | `bint-readonly` không chặn lệnh chỉ đọc có `\|` trong chuỗi trích dẫn, `git ls-files`, `grep` trên tệp của tác vụ (lỗi 2); có test cho từng mẫu | Phiếu riêng |
+| `NT-MCP-CALLED` | Trung bình | Lời gọi MCP qua gateway của phiên tương tác và subagent driver session ghi được `mcp.called`. V1 phát hiện shim không truyền Harness + SessionID ([V1 2026-11-16](evals/v1-real-session-2026-11-16/README.md), lỗi 1); fixture xuyên lớp của bản sửa đã qua trên host, còn thiếu bằng chứng harness thật chuyển định danh và ghi sự kiện. | Còn mở, trước khi đo lại `NT-MCP-M3` |
+| `NT-ISO-RO-FP` | Thấp–trung bình | `bint-readonly` không chặn lệnh chỉ đọc có `\|` trong chuỗi trích dẫn, `git ls-files`, `grep` trên tệp của tác vụ (lỗi 2); bản sửa và migration đã qua test trong worktree, chưa nghiệm thu trên phiên thật. | Còn mở |
+| `NT-CODEX-HOOK` | Trung bình | Phát hiện và nâng matcher cũ thiếu `local_shell`, phân biệt hook đã cài/current với trust. Bốn hook khảo sát trước đã enabled/trusted; chưa xác minh binary và hook sau nâng trên phiên thật. Code Mode chưa có payload để xác nhận tên công cụ. | Còn mở; xem [biên bản sửa](evals/nt-acceptance-fixes-2026-11-16/README.md) |
 | `NT-WT-BASE` | Thiết kế | Quyết định: base của worktree có nên chụp thay đổi chưa commit của cây gốc không, và driver session có nên chờ khoá thay vì trả `blocked` (lỗi 3). Ghi quyết định vào isolation-subagent-plan.md | Chủ dự án quyết |
 | `NT-MCP-PROBE-CAP` | Trung bình | `bint mcp check codegraph` có trần thời gian tổng cho phần gọi thử tool (review phiếu `01M7H9FZQ6JACTH163E6NSH985` .1), cùng .2–.4 và A.2; phiếu sửa `01M7HDFSQFGFCZYWXN891HVCE8` | Phiếu riêng |
 

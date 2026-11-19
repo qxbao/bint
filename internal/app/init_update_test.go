@@ -31,8 +31,11 @@ func TestInitUpdateUpgradesOldConfig(t *testing.T) {
 	}
 
 	rep := mustInit(t, InitOptions{Dir: root, Hooks: no(), NoSkills: true})
-	if s := lastStep(rep, ".bint/config.yml"); s.Status != StepSkipped || !strings.Contains(s.Detail, "--update") {
-		t.Fatalf("init thường phải gợi ý --update: %+v", s)
+	if s := lastStep(rep, ".bint/config.yml"); s.Status != StepSkipped || !strings.Contains(s.Detail, "xem diff trong TUI") {
+		t.Fatalf("init thường phải chỉ nơi xem diff: %+v", s)
+	}
+	if next := strings.Join(rep.NextSteps, "\n"); !strings.Contains(next, "Áp dụng") || !strings.Contains(next, "bint init --update") {
+		t.Fatalf("lời nhắc phải nói rõ lệnh áp dụng cập nhật: %s", next)
 	}
 	if read(t, cfgPath) != old {
 		t.Fatal("init thường không được sửa cấu hình")

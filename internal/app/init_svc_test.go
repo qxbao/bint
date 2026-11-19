@@ -189,6 +189,38 @@ func oldTemplate(t *testing.T, root string) string {
 	return old
 }
 
+func TestReadonlyUpgradePreviewAndBackup(t *testing.T) {
+	testutil.Isolate(t)
+	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
+	ctx := context.Background()
+	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"claude"}, Hooks: no(), NoSkills: true})
+	p := config.ProjectPath(root)
+	cur := read(t, p)
+	old := strings.Replace(cur, `, "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)"`, "", 1)
+	if old == cur {
+		t.Fatal("legacy fixture did not change")
+	}
+	if err := os.WriteFile(p, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pl, err := PlanConfigUpgrade(ctx, root)
+	if err != nil || !pl.Changed || !strings.Contains(pl.Diff, "Bash(git ls-files:*)") || read(t, p) != old {
+		t.Fatalf("preview: %+v %v", pl, err)
+	}
+	rep, err := UpgradeConfig(ctx, root, ConfigUpgradeOptions{BintPath: "bint", Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(ConfigBackupPath(rep))
+	if err != nil || string(b) != old || read(t, p) != string(pl.Content) {
+		t.Fatalf("backup/apply: %v", err)
+	}
+	pl, err = PlanConfigUpgrade(ctx, root)
+	if err != nil || pl.Changed {
+		t.Fatalf("second preview: %+v %v", pl, err)
+	}
+}
+
 func TestDoctorAndStateReportOldConfigTemplate(t *testing.T) {
 	testutil.Isolate(t)
 	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})

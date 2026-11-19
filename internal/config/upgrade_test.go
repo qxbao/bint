@@ -1,11 +1,97 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestUpgradeReadonlyLoadProjectAndLocal(t *testing.T) {
+	t.Setenv("BINT_CONFIG_HOME", t.TempDir())
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Dir(ProjectPath(root)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	current := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}})
+	old := strings.Replace(current, `, "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)"`, "", 1)
+	up, err := Upgrade([]byte(old))
+	if err != nil || !up.Changed() {
+		t.Fatalf("upgrade: %v", err)
+	}
+	if err := os.WriteFile(ProjectPath(root), up.Content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err := Load(root, true)
+	if err != nil || !slices.Contains(cfg.Workflow.Agent.ReadonlyTools, "Bash(git ls-files:*)") {
+		t.Fatalf("project load: %v %v", cfg.Workflow.Agent.ReadonlyTools, err)
+	}
+	local := "workflow:\n  agent:\n    readonly_tools: [Read]\n"
+	if err := os.WriteFile(LocalPath(root), []byte(local), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err = Load(root, true)
+	if err != nil || !slices.Equal(cfg.Workflow.Agent.ReadonlyTools, []string{"Read"}) {
+		t.Fatalf("local override: %v %v", cfg.Workflow.Agent.ReadonlyTools, err)
+	}
+	b, err := os.ReadFile(LocalPath(root))
+	if err != nil || string(b) != local {
+		t.Fatalf("local modified: %v", err)
+	}
+}
+
+func TestUpgradeReadonlyLegacyAndCustom(t *testing.T) {
+	current := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}})
+	old := strings.Replace(current, `, "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)"`, "", 1)
+	result, err := Upgrade([]byte(old))
+	if err != nil || !result.Changed() || string(result.Content) != current {
+		t.Fatalf("legacy upgrade: changed=%v err=%v", result.Changed(), err)
+	}
+	again, err := Upgrade(result.Content)
+	if err != nil || again.Changed() {
+		t.Fatalf("second upgrade: %v %v", again.Changed(), err)
+	}
+	custom := strings.Replace(old, `"Bash(git status:*)"`, `"Bash(git status:*)", "Bash(custom:*)"`, 1)
+	result, err = Upgrade([]byte(custom))
+	if err != nil || string(result.Content) != custom {
+		t.Fatalf("custom config changed: %v", err)
+	}
+}
+
+func TestUpgradeReadonlyBlockLegacy(t *testing.T) {
+	current := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}})
+	flow := `    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)", "mcp__bint__*"]   # b-req, b-review`
+	block := "    readonly_tools: # keep header\n      - Read\n      - Glob\n      - Grep\n      - 'Bash(bint:*)'\n      - 'Bash(git diff:*)'\n      - 'Bash(git log:*)'\n      - 'Bash(git show:*)'\n      - 'Bash(git status:*)' # keep comment\n      - 'mcp__bint__*'"
+	old := strings.Replace(current, flow, block, 1)
+	if old == current {
+		t.Fatal("fixture did not replace sequence")
+	}
+	result, err := Upgrade([]byte(old))
+	if err != nil || !result.Changed() {
+		t.Fatalf("legacy block not migrated: %v", err)
+	}
+	if !strings.Contains(string(result.Content), "# keep header") || !strings.Contains(string(result.Content), "# keep comment") {
+		t.Fatal("comments lost")
+	}
+	var cfg = Default()
+	if err := Decode(strings.NewReader(string(result.Content)), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(cfg.Workflow.Agent.ReadonlyTools, "Bash(git ls-files:*)") {
+		t.Fatal("missing ls-files")
+	}
+	again, err := Upgrade(result.Content)
+	if err != nil || again.Changed() {
+		t.Fatalf("not idempotent: %v", err)
+	}
+	custom := strings.Replace(old, "      - 'mcp__bint__*'", "      - 'custom'\n      - 'mcp__bint__*'", 1)
+	res, err := Upgrade([]byte(custom))
+	if err != nil || string(res.Content) != custom {
+		t.Fatalf("custom modified: %v", err)
+	}
+}
 
 // oldConfig mô phỏng .bint/config.yml do bản Bint trước khi có models theo role sinh ra.
 func oldConfig(t *testing.T, edit func(string) string) string {
@@ -228,5 +314,42 @@ func TestSuggestedAffectedCommand(t *testing.T) {
 	res, err = UpgradeWith([]byte(set), UpgradeSuggestions{AffectedCommand: sug})
 	if err != nil || res.Changed() {
 		t.Fatalf("đã đặt affected_command thì không thêm đề xuất: changed=%v err=%v added=%v", res.Changed(), err, res.Added)
+	}
+}
+
+// Tệp CRLF: dòng chèn vào danh sách block phải giữ CRLF, không trộn LF.
+func TestUpgradeReadonlyBlockCRLF(t *testing.T) {
+	current := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}})
+	flow := `    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)", "mcp__bint__*"]   # b-req, b-review`
+	block := "    readonly_tools:\n      - Read\n      - Glob\n      - Grep\n      - 'Bash(bint:*)'\n      - 'Bash(git diff:*)'\n      - 'Bash(git log:*)'\n      - 'Bash(git show:*)'\n      - 'Bash(git status:*)'\n      - 'mcp__bint__*'"
+	old := strings.ReplaceAll(strings.Replace(current, flow, block, 1), "\n", "\r\n")
+	result, err := Upgrade([]byte(old))
+	if err != nil || len(result.Migrated) == 0 {
+		t.Fatalf("not migrated: %v %v", result.Migrated, err)
+	}
+	out := string(result.Content)
+	if n := strings.Count(out, "\n"); n != strings.Count(out, "\r\n") {
+		t.Fatalf("mixed line endings: %d LF, %d CRLF", n, strings.Count(out, "\r\n"))
+	}
+}
+
+// Danh sách mẫu cũ có bố cục không tự sửa được (flow trải nhiều dòng): giữ nguyên nhưng phải có ghi chú.
+func TestUpgradeReadonlyUnrewritableNotes(t *testing.T) {
+	current := Render(InitParams{ProjectName: "demo", Harnesses: []string{"claude"}})
+	flow := `    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)", "mcp__bint__*"]   # b-req, b-review`
+	wrapped := "    readonly_tools: [Read, Glob, Grep,\n      \"Bash(bint:*)\", \"Bash(git diff:*)\", \"Bash(git log:*)\", \"Bash(git show:*)\", \"Bash(git status:*)\", \"mcp__bint__*\"]"
+	old := strings.Replace(current, flow, wrapped, 1)
+	if old == current {
+		t.Fatal("fixture did not replace sequence")
+	}
+	result, err := Upgrade([]byte(old))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Migrated) != 0 || string(result.Content) != old {
+		t.Fatalf("unexpected rewrite: %v", result.Migrated)
+	}
+	if !slices.ContainsFunc(result.Notes, func(n string) bool { return strings.Contains(n, "readonly_tools") }) {
+		t.Fatalf("missing note: %v", result.Notes)
 	}
 }

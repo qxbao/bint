@@ -1,0 +1,11 @@
+package app
+import("testing";"context";"reflect";"bint/internal/config")
+func TestAcceptanceInvestigationShimIdentity(t *testing.T){
+ f:=newMCPFx(t,"  services: {specmatic: {}}\n")
+ if err:=config.SaveMachineMCP(config.MachineMCP{Services:map[string]config.Registration{"specmatic":{Command:"unused-fixture"}}});err!=nil{t.Fatal(err)}
+ t.Setenv("BINT_RUN_ID","");t.Setenv("BINT_TASK_ID","");t.Setenv("BINT_MCP_NO_GATEWAY","")
+ t.Setenv("CODEX_THREAD_ID","fixture-session");t.Setenv("CODEX_SESSION_ID","fixture-session");t.Setenv("CLAUDE_CODE_SESSION_ID","fixture-session")
+ sh,err:=NewMCPShim(context.Background(),f.root,MCPShimOptions{Exe:"/unused-fixture/bint"});if err!=nil||sh==nil{t.Fatalf("shim missing %v",err)};defer sh.Close()
+ o:=reflect.ValueOf(sh).Elem().FieldByName("o")
+ for _,name:=range []string{"RunID","TaskID","Harness","SessionID"}{got:=o.FieldByName(name).String();t.Logf("ShimOptions.%s=%q",name,got);if got!=""{t.Errorf("unexpected identity %s=%q",name,got)}}
+}

@@ -144,11 +144,24 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 	}
 	r.add("cấu hình", LevelOK, "hợp lệ, schema v%d (%s)", cfg.Version, strings.Join(layers, " → "))
 	if up, err := readUpgrade(filepath.Dir(filepath.Dir(src.Project))); err == nil && up.Changed() {
-		detail := "theo mẫu cũ, thiếu: " + orDash(config.SummarizeAdded(up.Added))
-		if up.Fixed > 0 {
-			detail += fmt.Sprintf("; %d dòng chú thích hỏng", up.Fixed)
+		var parts []string
+		if len(up.Added) > 0 {
+			parts = append(parts, "thiếu: "+config.SummarizeAdded(up.Added))
 		}
-		r.addFix(DoctorFix{Kind: FixConfigTemplate}, CheckConfigTemplate, LevelWarn, "%s — chạy `bint init --update` (giữ nguyên giá trị đang có)", detail)
+		if len(up.Migrated) > 0 {
+			parts = append(parts, "giá trị theo mẫu cũ sẽ được nâng: "+strings.Join(up.Migrated, ", "))
+		}
+		if up.Fixed > 0 {
+			parts = append(parts, fmt.Sprintf("%d dòng chú thích hỏng", up.Fixed))
+		}
+		keep := "giữ nguyên giá trị đang có"
+		if len(up.Migrated) > 0 {
+			keep = "giá trị khác giữ nguyên; có sao lưu"
+		}
+		r.addFix(DoctorFix{Kind: FixConfigTemplate}, CheckConfigTemplate, LevelWarn, "theo mẫu cũ, %s — chạy `bint init --update` (%s)", strings.Join(parts, "; "), keep)
+	} else if err == nil && len(up.Notes) > 0 {
+		// Không có gì tự nâng được nhưng có việc phải sửa tay (vd. readonly_tools mẫu cũ với bố cục không tự sửa được).
+		r.add(CheckConfigTemplate, LevelWarn, "cần sửa tay: %s", strings.Join(up.Notes, "; "))
 	}
 	if src.StrategyProblem != "" {
 		r.add("strategy", LevelWarn, "strategy.yml (verified) bị bỏ qua ở phiên thật: %s", src.StrategyProblem)

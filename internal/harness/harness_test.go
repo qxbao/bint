@@ -379,8 +379,12 @@ func TestClaudeReadonlyAllowsCurrentBintExecutable(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := config.Default()
+	originalReadonly := slices.Clone(cfg.Workflow.Agent.ReadonlyTools)
 	readonly := ClaudeWorkflowArgs(cfg, true, nil).AllowedTools
 	write := ClaudeWorkflowArgs(cfg, false, nil).AllowedTools
+	if !slices.Equal(cfg.Workflow.Agent.ReadonlyTools, originalReadonly) {
+		t.Fatal("ClaudeWorkflowArgs đã sửa cấu hình mặc định")
+	}
 	checked := 0
 	for _, d := range fx.Denials {
 		cmd := strings.ReplaceAll(d.Input.Command, "<BINT>", exe)
@@ -407,10 +411,6 @@ func TestClaudeReadonlyAllowsCurrentBintExecutable(t *testing.T) {
 		if strings.Contains(r, "bint") {
 			t.Fatalf("tự thêm rule bint dù cấu hình đã gỡ: %s", r)
 		}
-	}
-	// Không sửa slice trong cấu hình gốc.
-	if len(config.Default().Workflow.Agent.ReadonlyTools) != 11 {
-		t.Fatal("cấu hình mặc định bị đổi")
 	}
 }
 

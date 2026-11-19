@@ -1,0 +1,9 @@
+Running as unit: bint-diag-nt-acceptance-verify-3431d74a.service
+{"preflight_cgroup": "<test-cgroup>", "limits": {"memory.high": "1610612736", "memory.max": "2147483648", "memory.swap.max": "0", "pids.max": "256", "cpu.max": "200000 100000"}, "env": {"GOMAXPROCS": "2", "GOFLAGS": "-buildvcs=false -p=2", "GOCACHE": "<cache-dir>/gocache", "XDG_CACHE_HOME": "<cache-dir>/xdg", "TMPDIR": null, "BINT_CODEX_CONFIG_LIVE": null, "BINT_CODEX_RESTRICTED_LIVE": null}}
+{"postflight_cgroup": "<test-cgroup>", "metrics": {"memory.current": "422928384", "memory.peak": "821215232", "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0", "pids.current": "1", "pids.events": "max 0", "cpu.stat": "usage_usec 285692551\nuser_usec 215978495\nsystem_usec 69714056\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 3063\nnr_throttled 422\nthrottled_usec 35338996\nnr_bursts 0\nburst_usec 0"}, "command_exit": 0}
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 5min 6.338s
+CPU time consumed: 4min 45.697s
+Memory peak: 4.3M
+Memory swap peak: 0B

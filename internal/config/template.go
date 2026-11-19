@@ -203,7 +203,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
     model: null
     permission_mode: acceptEdits
     allowed_tools: [Read, Edit, Write, Glob, Grep, Bash, "mcp__bint__*"]          # bước có quyền ghi (b-feat)
-    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "mcp__bint__*"]   # b-req, b-review
+    readonly_tools: [Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)", "mcp__bint__*"]   # b-req, b-review
     setting_sources: ""     # rỗng = mặc định của harness (gồm hook ghi nhận)
     extra_args: []
 

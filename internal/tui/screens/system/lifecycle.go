@@ -321,7 +321,13 @@ func (m *Model) onUpgradePlan(msg actions.ResultMsg) tea.Cmd {
 		m.setToast(m.t("sy.upgrade.uptodate"), false)
 		return nil
 	}
-	body := []string{m.th.S(theme.Muted, pl.Path), m.t("sy.upgrade.added", i18n.A{"keys": orDash(strings.Join(pl.Added, ", "))})}
+	body := []string{m.th.S(theme.Muted, pl.Path)}
+	if len(pl.Added) > 0 || len(pl.Migrated) == 0 {
+		body = append(body, m.t("sy.upgrade.added", i18n.A{"keys": orDash(strings.Join(pl.Added, ", "))}))
+	}
+	if len(pl.Migrated) > 0 {
+		body = append(body, m.t("sy.upgrade.migrated", i18n.A{"keys": strings.Join(pl.Migrated, ", ")}))
+	}
 	if pl.Fixed > 0 {
 		body = append(body, m.t("sy.upgrade.fixed", i18n.A{"count": pl.Fixed}))
 	}
@@ -329,7 +335,11 @@ func (m *Model) onUpgradePlan(msg actions.ResultMsg) tea.Cmd {
 		body = append(body, m.th.S(theme.Warn, "! "+m.cli(n)))
 	}
 	// Lưu ý sao lưu đứng trước diff: diff dài sẽ cuộn, còn dòng này phải đọc được ngay.
-	body = append(body, m.th.S(theme.Muted, m.t("sy.upgrade.backup_note")), "")
+	note := "sy.upgrade.backup_note"
+	if len(pl.Migrated) > 0 {
+		note = "sy.upgrade.backup_note.migrated"
+	}
+	body = append(body, m.th.S(theme.Muted, m.t(note)), "")
 	body = append(body, coloredDiff(m.th, pl.Diff)...)
 	m.dlg = &dialog{c: confirm.Model{Title: m.t("sy.upgrade.title"), Body: body, YesLabel: m.t("sy.upgrade.run"), NoLabel: m.t("sy.upgrade.keep")},
 		onYes: func(string) tea.Cmd { return m.request("system.config_upgrade", nil) }}

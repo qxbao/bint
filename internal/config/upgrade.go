@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -12,7 +13,7 @@ import (
 
 // UpgradeResult là kết quả nâng cấu hình cũ lên mẫu hiện tại.
 type UpgradeResult struct {
-	// Content là nội dung mới (bằng nội dung cũ khi không có gì để thêm).
+	// Content là nội dung mới (bằng nội dung cũ khi không có gì thay đổi).
 	Content []byte
 	// Added liệt kê khoá đã thêm (đường dẫn dạng a.b.c), theo thứ tự trong mẫu.
 	Added []string
@@ -20,19 +21,22 @@ type UpgradeResult struct {
 	Notes []string
 	// Fixed: số dòng chú thích hỏng do mẫu cũ sinh ra đã được sửa.
 	Fixed int
+	// Migrated liệt kê các giá trị mẫu cũ được nâng có chọn lọc.
+	Migrated []string
 }
 
 // Changed cho biết nội dung có thay đổi.
-func (r UpgradeResult) Changed() bool { return len(r.Added) > 0 || r.Fixed > 0 }
+func (r UpgradeResult) Changed() bool { return len(r.Added) > 0 || r.Fixed > 0 || len(r.Migrated) > 0 }
 
 // templateFixes sửa chú thích hỏng mà mẫu của bản Bint cũ đã ghi ra (ký tự % đi qua
 // Fprintf: "+10 điểm % không" thành "+10 điểm %!k(MISSING)hông").
 var templateFixes = strings.NewReplacer("%!k(MISSING)hông", "% không")
 
 // Upgrade thêm vào cấu hình cũ (old) mọi khoá có trong mẫu Render nhưng còn thiếu,
-// kèm chú thích của mẫu. Thay đổi chỉ là chèn dòng: mọi dòng sẵn có (giá trị, chú
-// thích, căn cột, dòng trống) giữ nguyên từng byte; khoá mới đứng ngay sau khoá đi
-// trước nó trong mẫu.
+// kèm chú thích của mẫu; khoá mới đứng ngay sau khoá đi trước nó trong mẫu.
+// Ngoài việc thêm khoá, sửa chú thích mẫu cũ bị hỏng và nâng readonly_tools khi
+// danh sách khớp chính xác mẫu lịch sử. Danh sách tuỳ biến được giữ nguyên; các
+// dòng ngoài các vùng thay đổi được giữ nguyên từng byte.
 //
 // Ngoại lệ giữ hành vi cũ: harness đã đặt tay model chung (workflow.agent.model với
 // Claude, harnesses.<h>.model với Codex/Antigravity) mà chưa có khối models thì khối
@@ -77,6 +81,10 @@ func UpgradeWith(old []byte, sug UpgradeSuggestions) (UpgradeResult, error) {
 		tmplLines: splitLines(tmplText),
 		inserts:   map[int][]string{},
 	}
+	if u.upgradeReadonlySequence(doc.Content[0]) {
+		res.Migrated = append(res.Migrated, "workflow.agent.readonly_tools")
+		res.Notes = append(res.Notes, "đã nâng danh sách readonly_tools theo mẫu cũ; xem diff trước khi áp dụng")
+	}
 	for i, l := range u.oldLines {
 		if fixed := templateFixes.Replace(l); fixed != l {
 			u.oldLines[i] = fixed
@@ -85,7 +93,7 @@ func UpgradeWith(old []byte, sug UpgradeSuggestions) (UpgradeResult, error) {
 	}
 	u.merge(doc.Content[0], tmpl.Content[0], "", 0)
 	res.Notes = append(res.Notes, u.notes...)
-	if len(u.added) == 0 && res.Fixed == 0 {
+	if len(u.added) == 0 && res.Fixed == 0 && len(res.Migrated) == 0 {
 		return res, nil
 	}
 	for h, path := range p.KeepGenericModel {
@@ -99,6 +107,9 @@ func UpgradeWith(old []byte, sug UpgradeSuggestions) (UpgradeResult, error) {
 	sort.Strings(res.Notes)
 
 	out := u.apply()
+	if !bytes.HasSuffix(old, []byte("\n")) {
+		out = strings.TrimSuffix(out, "\n")
+	}
 	check := Default()
 	if err := Decode(strings.NewReader(out), &check); err != nil {
 		return res, fmt.Errorf("cấu hình sau khi nâng không giải mã được: %w", err)
@@ -108,6 +119,85 @@ func UpgradeWith(old []byte, sug UpgradeSuggestions) (UpgradeResult, error) {
 	}
 	res.Content, res.Added = []byte(out), u.added
 	return res, nil
+}
+
+// Chỉ nâng sequence khớp toàn bộ mẫu lịch sử, không union quyền tuỳ biến.
+func (u *upgrader) upgradeReadonlySequence(root *yaml.Node) bool {
+	lines := u.oldLines
+	n := root
+	for _, key := range []string{"workflow", "agent", "readonly_tools"} {
+		if n.Kind != yaml.MappingNode {
+			return false
+		}
+		i := mapIndex(n, key)
+		if i < 0 {
+			return false
+		}
+		n = n.Content[i+1]
+	}
+	if n.Kind != yaml.SequenceNode || n.Line < 1 || n.Line > len(lines) {
+		return false
+	}
+	var got []string
+	for _, item := range n.Content {
+		if item.Kind != yaml.ScalarNode || item.Tag != "!!str" {
+			return false
+		}
+		got = append(got, item.Value)
+	}
+	base := []string{"Read", "Glob", "Grep", "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)"}
+	legacy := append(slices.Clone(base), "mcp__bint__*")
+	legacyGrep := append(slices.Clone(base), "Bash(grep:*)", "Bash(git grep:*)", "mcp__bint__*")
+	if !slices.Equal(got, legacy) && !slices.Equal(got, legacyGrep) {
+		return false
+	}
+	// Danh sách khớp mẫu cũ nhưng bố cục không sửa tự động được: báo để người dùng tự nâng, không im lặng bỏ qua.
+	manual := func() bool {
+		u.notes = append(u.notes, "workflow.agent.readonly_tools theo mẫu cũ nhưng bố cục không tự sửa được — thêm tay "+
+			`"Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)" (thiếu thì b-req/b-review bị chặn các lệnh này)`)
+		return false
+	}
+	if n.Style&yaml.FlowStyle == 0 {
+		last := n.Content[len(n.Content)-1]
+		if last.Line < 1 || last.Line > len(lines) {
+			return manual()
+		}
+		line := lines[last.Line-1]
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		if !strings.HasPrefix(line[indent:], "- ") {
+			return manual()
+		}
+		// Giữ kiểu xuống dòng của tệp: apply() nối bằng \n, dòng cũ CRLF còn giữ \r.
+		eol := ""
+		if strings.HasSuffix(line, "\r") {
+			eol = "\r"
+		}
+		prefix := strings.Repeat(" ", indent) + "- "
+		var add []string
+		if slices.Equal(got, legacy) {
+			add = append(add, prefix+`"Bash(grep:*)"`+eol, prefix+`"Bash(git grep:*)"`+eol)
+		}
+		add = append(add, prefix+`"Bash(git ls-files:*)"`+eol)
+		u.inserts[last.Line-1] = append(u.inserts[last.Line-1], add...)
+		return true
+	}
+	for _, item := range n.Content {
+		if item.Line != n.Line {
+			return manual()
+		}
+	}
+	line := lines[n.Line-1]
+	start := n.Column - 1
+	if start < 0 || start >= len(line) || line[start] != '[' {
+		return manual()
+	}
+	end := strings.IndexByte(line[start:], ']')
+	if end < 0 {
+		return manual()
+	}
+	const replacement = `[Read, Glob, Grep, "Bash(bint:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)", "Bash(grep:*)", "Bash(git grep:*)", "Bash(git ls-files:*)", "mcp__bint__*"]`
+	lines[n.Line-1] = line[:start] + replacement + line[start+end+1:]
+	return true
 }
 
 // genericModels: harness → đường dẫn khoá model chung đã được đặt tay (khác null/rỗng).

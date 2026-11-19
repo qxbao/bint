@@ -239,6 +239,49 @@ func TestHooksCurrentDetectsStaleMatcher(t *testing.T) {
 	}
 }
 
+func TestInstallHooksUpgradesStalePreservingOthers(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hooks.json")
+	backup := t.TempDir()
+	old := `{"metadata":{"owner":"user"},"hooks":{
+"SessionStart":[{"hooks":[{"type":"command","command":"bint hook codex"}]}],
+"SessionEnd":[{"hooks":[{"type":"command","command":"bint hook codex"}]}],
+"PreToolUse":[{"matcher":"apply_patch|Bash|shell|exec_command","extra":"keep-group","hooks":[{"type":"command","command":"bint hook codex"},{"type":"command","command":"user-hook","timeout":7}]}],
+"PostToolUse":[{"matcher":"apply_patch|Bash|shell|exec_command|mcp__bint__.*","hooks":[{"type":"command","command":"bint hook codex"}]}]}}`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := HooksInstalled(path); err != nil || !ok {
+		t.Fatalf("installed: %v %v", ok, err)
+	}
+	if ok, err := HooksCurrent(path); err != nil || ok {
+		t.Fatalf("stale: %v %v", ok, err)
+	}
+	res, err := InstallHooks(path, "bint", backup, time.Now())
+	if err != nil || !res.Changed {
+		t.Fatalf("upgrade: %+v %v", res, err)
+	}
+	copy, err := os.ReadFile(res.BackupPath)
+	if err != nil || string(copy) != old {
+		t.Fatalf("backup %q: %v", res.BackupPath, err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{`"owner": "user"`, `"extra": "keep-group"`, `"command": "user-hook"`, `"timeout": 7`, "local_shell"} {
+		if !strings.Contains(string(b), s) {
+			t.Errorf("lost %s", s)
+		}
+	}
+	if ok, err := HooksCurrent(path); err != nil || !ok {
+		t.Fatalf("current: %v %v", ok, err)
+	}
+	again, err := InstallHooks(path, "bint", backup, time.Now())
+	if err != nil || again.Changed {
+		t.Fatalf("second install: %+v %v", again, err)
+	}
+}
+
 func desiredGroupsList(cmd string) map[string][]map[string]any {
 	out := map[string][]map[string]any{}
 	for ev, g := range desiredGroups(cmd) {

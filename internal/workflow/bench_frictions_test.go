@@ -25,7 +25,7 @@ func TestVerifyUsesPrivateTempDir(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		show = `printf %s "$(cygpath -w "$TMPDIR")"`
 	}
-	cmd := `test -f done.txt && test -d "$TMPDIR" && ` + show + ` > ` + filepath.ToSlash(out)
+	cmd := `test -f done.txt && test -d "$TMPDIR" && ` + show + ` > '` + strings.ReplaceAll(filepath.ToSlash(out), "'", `'\''`) + `'`
 	h.cfg.Eval.TestCommand = &cmd
 	id := h.finishFeat() // b-feat → kiểm chứng của Runner
 	ran := func() string {
@@ -35,7 +35,7 @@ func TestVerifyUsesPrivateTempDir(t *testing.T) {
 			t.Fatalf("lệnh kiểm chứng không chạy hoặc thiếu TMPDIR: %v (%+v)", err, h.load(id).State.LastVerification())
 		}
 		os.Remove(out)
-		return string(b)
+		return strings.TrimSpace(string(b))
 	}
 	base := verifyTempBase(h.tasks.Dir)
 	check := func(who, dir string) {

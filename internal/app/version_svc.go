@@ -14,9 +14,11 @@ type VersionStatus struct {
 	Revision string
 	// LockVersion là bint_version trong .bint/skills/core.lock ("" = chưa có lock).
 	LockVersion string
-	// ConfigOutdated: cấu hình theo mẫu cũ (config.Upgrade có gì để thêm).
+	// ConfigOutdated: cấu hình theo mẫu cũ (config.Upgrade có gì để đổi); ConfigAdded: khoá còn thiếu,
+	// ConfigMigrated: khoá có giá trị mẫu cũ sẽ được nâng.
 	ConfigOutdated bool
 	ConfigAdded    []string
+	ConfigMigrated []string
 	// LockMismatch: core.lock ghi phiên bản khác binary (skill xuất bản bằng bản Bint khác) → chạy sync.
 	LockMismatch bool
 	// Direction: hướng lệch của binary so với bản đã ghi core.lock (cùng semver thì xét revision/vcs.time).
@@ -41,7 +43,7 @@ func VersionInfo(ctx context.Context, dir, binVersion string) (VersionStatus, er
 	bin.Version = binVersion
 	vs.Direction = skills.CompareBuild(lock, bin)
 	if up, uerr := readUpgrade(root); uerr == nil && up.Changed() {
-		vs.ConfigOutdated, vs.ConfigAdded = true, up.Added
+		vs.ConfigOutdated, vs.ConfigAdded, vs.ConfigMigrated = true, up.Added, up.Migrated
 	}
 	return vs, nil
 }
