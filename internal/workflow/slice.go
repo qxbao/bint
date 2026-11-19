@@ -686,6 +686,7 @@ func (r *Runner) applySliceChoice(ctx context.Context, rs *runState, choice stri
 			t.State.SliceGreen = &task.SliceGreen{Tree: snap, At: r.at(), Measured: gMeasured, Red: append([]string{}, gRed...)}
 		} else {
 			s.Status, s.Reason = task.SliceDiscarded, "người bỏ lát ("+old+")"
+			voidRedChecks(&t.State) // cây đã quay về điểm xanh: số đo đỏ của lát bỏ không còn nói về cây hiện tại
 		}
 		t.State.LastStep, t.State.LastImplement = nil, nil
 		next = activateNext(&t.State)
@@ -699,6 +700,15 @@ func (r *Runner) applySliceChoice(ctx context.Context, rs *runState, choice stri
 	rs.t = t
 	r.logf("  lát %d/%d: người chọn %s", n, total, choice)
 	return true
+}
+
+// voidRedChecks đánh dấu Voided lần đo cuối đang đỏ của kiểm chứng, cổng mục tiêu, ngân sách và perf (thuộc cây lát vừa bỏ).
+func voidRedChecks(st *task.State) {
+	for _, list := range []*[]task.Verification{&st.Verifications, &st.GoalChecks, &st.BudgetChecks, &st.PerfChecks} {
+		if n := len(*list); n > 0 && !(*list)[n-1].Passed {
+			(*list)[n-1].Voided = true
+		}
+	}
 }
 
 // ---- kết luận ----

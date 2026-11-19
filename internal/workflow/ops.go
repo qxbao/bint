@@ -810,7 +810,7 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 	}
 	n := len(t.State.Verifications) + 1
 	log := t.LogPath(fmt.Sprintf("verify-%d.log", n))
-	timeout := time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes) * time.Minute
+	timeout := time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes) * verifyTimeoutUnit
 	ran, scope := cmd, ""
 	var sel *affected.Selection
 	run := true
@@ -1202,3 +1202,6 @@ func truncate(s string, n int) string {
 	}
 	return string(r[:n-1]) + "…"
 }
+
+// verifyTimeoutUnit là đơn vị của workflow.verify_timeout_minutes (biến để test rút ngắn).
+var verifyTimeoutUnit = time.Minute

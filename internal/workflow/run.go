@@ -2718,6 +2718,16 @@ func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) reverifyResu
 		rs.res.Notes = append(rs.res.Notes, "lần kiểm chứng mới nhất đã qua đầy đủ trên đúng cây hiện tại: không chạy lại")
 		return reverifyOK
 	}
+	if partial && !ok && r.reusableAffectedPass(ctx, rs.t) {
+		// Lần affected đã xanh trên đúng cây và đã chạy mọi gói của verify.command: không chạy lại đầy đủ.
+		last := rs.t.State.LastVerification()
+		if t, err := r.adoptAffectedAsFull(rs.t); err == nil {
+			rs.t = t
+			r.setFinalizeFP(rs, "")
+			rs.res.Notes = append(rs.res.Notes, "kiểm chứng affected ("+last.At+") đã qua trên đúng cây hiện tại và bao trùm mọi gói của verify.command: không chạy lại đầy đủ")
+			return reverifyOK
+		}
+	}
 	id := rs.t.State.ID
 	reason := "tiếp tục sau khi finalize bị chặn (worktree không đổi, không review lại)"
 	if ok {
@@ -2755,6 +2765,13 @@ func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) reverifyResu
 	if v.TimedOut {
 		how = "quá giờ"
 	}
+	if v.TimedOut {
+		// Quá giờ là lỗi môi trường, không phải lỗi mã: không mở vòng sửa b-feat, chờ người.
+		r.blockFinalize(ctx, rs, fmt.Sprintf("kiểm chứng ở finalize quá giờ (%s, log %s): không phải lỗi mã nên không mở vòng sửa; "+
+			"tăng workflow.verify_timeout_minutes rồi chạy lại `%s`, hoặc người xác nhận bỏ qua bằng `bint task land %s --force`",
+			v.Command, v.Log, r.resumeCmd(rs), rs.t.State.ID))
+		return reverifyStop
+	}
 	if partial {
 		if r.fixAfterFullVerify(rs, how) {
 			return reverifyFix
@@ -2771,18 +2788,41 @@ func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) reverifyResu
 // blockFinalize chặn tác vụ ở finalize vì thiếu bằng chứng, nhớ dấu vân tay worktree để resume không đổi thì không mở
 // lượt b-review mới (chỉ chạy lại kiểm chứng một lần rồi áp cổng done).
 func (r *Runner) blockFinalize(ctx context.Context, rs *runState, reason string) {
-	// Chỉ khi lần kiểm chứng cuối không qua (kiểm chứng hỏng, có thể do lý do ngoài mã); chặn vì lý do khác (lệnh chưa
-	// xác nhận, tiêu chí chưa đạt...) thì xoá dấu vân tay: resume vẫn review lại như cũ.
+	// Nhớ dấu vân tay khi lần kiểm chứng cuối không qua (có thể do lý do ngoài mã), hoặc khi chưa có lần kiểm chứng nào VÀ
+	// lý do chặn chỉ là lệnh kiểm chứng chưa được xác nhận (cây đã qua review, chỉ thiếu bằng chứng). Chặn vì lý do khác
+	// (tiêu chí chưa đạt, lát chưa chốt, ngân sách/perf...) thì xoá dấu vân tay: resume vẫn review lại như cũ.
 	fp := ""
-	// Chưa có lần kiểm chứng nào (lệnh chưa được xác nhận nên Bint không chạy): cây đã qua review, chỉ thiếu bằng chứng kiểm chứng.
-	// Cũng nhớ dấu vân tay để resume sau `bint task approve` chạy kiểm chứng thay vì review lại (cây đổi thì vẫn review lại).
-	if v := rs.t.State.LastVerification(); v == nil || !v.Passed {
+	if v := rs.t.State.LastVerification(); (v != nil && !v.Passed) || (v == nil && r.blockedOnlyByUnconfirmedVerify(rs)) {
 		if root, err := r.RootFor(rs.t); err == nil {
 			fp = task.WorktreeFingerprint(ctx, root)
 		}
 	}
 	r.setFinalizeFP(rs, fp)
 	r.blockKeep(rs, reason)
+}
+
+// blockedOnlyByUnconfirmedVerify: chưa có lần kiểm chứng nào, lệnh kiểm chứng của phiếu chưa được xác nhận và không còn lý do
+// chặn nào khác (lát chưa chốt, đường dẫn chờ duyệt, tiêu chí chưa đạt, ngân sách/perf đỏ).
+func (r *Runner) blockedOnlyByUnconfirmedVerify(rs *runState) bool {
+	t := rs.t
+	if strings.TrimSpace(t.Ticket.Verify.Command) == "" || r.VerifyConfirmed(t) {
+		return false
+	}
+	if len(t.State.OpenSlices()) > 0 || len(t.State.PendingPaths) > 0 {
+		return false
+	}
+	for i := range t.Ticket.Verify.Criteria {
+		if c := t.State.CriterionStatus(i + 1); c != nil && !c.Met {
+			return false
+		}
+	}
+	if b := t.State.LastBudgetCheck(); b != nil && !b.Passed {
+		return false
+	}
+	if p := t.State.LastPerfCheck(); p != nil && !p.Passed {
+		return false
+	}
+	return true
 }
 
 // markFinalizeResume đặt rs.finalizeResume khi resume từ blocked ở finalize (to = in_review) mà worktree không đổi kể từ
