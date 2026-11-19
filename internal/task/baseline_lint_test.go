@@ -66,7 +66,7 @@ func TestLintPlanningBaselineExemptWarning(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			d := goodDocs()
 			d["requirement"] = strings.Replace(goodReq, "## Tiêu chí chấp nhận", "## Hiện trạng\n"+c.hient+"\n## Tiêu chí chấp nhận", 1)
-			r := lintPlanning(goodTicket(), d, nil, true, c.version)
+			r := lintPlanning(goodTicket(), d, nil, true, c.version, nil)
 			if got := hasCode(r.Warnings, "baseline_exempt"); got != c.want {
 				t.Errorf("baseline_exempt=%v muốn %v (warnings %s)", got, c.want, codes(r.Warnings))
 			}
