@@ -676,6 +676,10 @@ func bgPerfRun(t *testing.T, perfYAML string, first, fix func(root string) error
 		if err := bgSetYAML(h, perfYAML); err != nil {
 			return h, nil, err
 		}
+		// Lệnh đo phải được người xác nhận mới chạy; ở đây coi như đã xác nhận qua eval.test_command (đường approve: TestPerfCommandNeedsApproval).
+		if pc := strings.TrimSpace(h.cfg.Workflow.Perf.Command); pc != "" {
+			h.cfg.Eval.TestCommand = &pc
+		}
 	}
 	feats := 0
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {

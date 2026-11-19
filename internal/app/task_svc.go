@@ -757,6 +757,8 @@ type ApprovePlan struct {
 	// SetupSHA là băm của đúng lệnh đó, gửi kèm lúc ghi để Approve từ chối nếu cấu hình đổi sau khi người xem.
 	SetupCommand string
 	SetupSHA     string
+	// PerfCommand là workflow.perf.command sẽ được xác nhận ("" nếu không có lệnh hoặc đã xác nhận).
+	PerfCommand string
 	// Paths là các đường dẫn sẽ được duyệt: đang chờ (PendingPaths), thay đổi chưa duyệt tính từ diff hiện tại,
 	// và đường dẫn --path.
 	Paths []string
@@ -766,7 +768,7 @@ type ApprovePlan struct {
 
 // Empty: không có gì để duyệt.
 func (p ApprovePlan) Empty() bool {
-	return p.VerifyCommand == "" && p.SetupCommand == "" && len(p.Paths) == 0
+	return p.VerifyCommand == "" && p.SetupCommand == "" && p.PerfCommand == "" && len(p.Paths) == 0
 }
 
 // PlanTaskApprove tính điều sẽ được duyệt mà không ghi gì (không đổi state.json). Cùng quy tắc với Approve.
@@ -782,6 +784,9 @@ func PlanTaskApprove(ctx context.Context, ws *TaskWS, o TaskApproveOptions) (App
 	}
 	if ss := ws.SetupStatus(t); ss.Pending() {
 		p.SetupCommand, p.SetupSHA = ss.Command, ss.SHA256
+	}
+	if pc := strings.TrimSpace(ws.Cfg.Workflow.Perf.Command); pc != "" && !ws.PerfConfirmed(t) {
+		p.PerfCommand = pc
 	}
 	add := func(xs ...string) {
 		for _, x := range xs {

@@ -50,14 +50,23 @@ func (r *Runner) budgetOver(ctx context.Context, rs *runState, from, what string
 	}
 	snap, err := WorktreeSnapshot(ctx, r.Root)
 	if err != nil {
+		r.budgetUnmeasured(rs, what, err)
 		return false, ""
 	}
 	n, err := diffLines(ctx, r.Root, from, snap, rs.t)
 	if err != nil {
+		r.budgetUnmeasured(rs, what, err)
 		return false, ""
 	}
 	msg = fmt.Sprintf("%d dòng thêm+xoá %s, trần workflow.max_diff_lines = %d (không tính tệp kiểm tra mục tiêu đóng băng)", n, what, limit)
 	return n > limit, msg
+}
+
+// budgetUnmeasured ghi Notes và log khi không đo được diff (cổng ngân sách bỏ qua chứ không im lặng).
+func (r *Runner) budgetUnmeasured(rs *runState, what string, err error) {
+	note := fmt.Sprintf("ngân sách diff: không đo được %s (workflow.max_diff_lines = %d), bỏ qua cổng: %v", what, r.Cfg.Workflow.MaxDiffLines, err)
+	rs.res.Notes = append(rs.res.Notes, note)
+	r.logf("  %s", note)
 }
 
 // budgetGate chạy sau bước b-feat khi không chia lát: ghi kết quả đo vào State.BudgetChecks (đỏ vào vòng sửa qua redVerification).
