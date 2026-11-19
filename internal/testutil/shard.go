@@ -12,6 +12,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"bint/internal/fslock"
 )
 
 // Chia test của một gói ra nhiều tiến trình con.
@@ -202,8 +205,50 @@ func runShards(names []string, procs int) int {
 	return 0
 }
 
+// envShardSlots đặt tổng số tiến trình con được chạy cùng lúc trên cả máy, cộng mọi gói (go test ./... chạy nhiều
+// gói song song, gói nào cũng chia). Mặc định max(4, số CPU/2): quá tải làm test có hạn chờ (TUI, codegraph) hỏng.
+const envShardSlots = "BINT_TEST_SLOTS"
+
+func shardSlots() int {
+	n := max(4, runtime.NumCPU()/2)
+	if v := os.Getenv(envShardSlots); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p >= 1 {
+			n = p
+		}
+	}
+	return n
+}
+
+// acquireSlot giữ một chỗ chạy chung của cả máy: khoá tệp %TEMP%/bint-test-slots/<k> (fslock, hệ điều hành tự
+// nhả khi tiến trình chết). Không xin được chỗ nào thì chờ; lỗi mở tệp thì chạy luôn, không chặn test.
+func acquireSlot() (release func()) {
+	dir := filepath.Join(os.TempDir(), "bint-test-slots")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return func() {}
+	}
+	total := shardSlots()
+	for delay := 5 * time.Millisecond; ; delay = min(delay*2, 100*time.Millisecond) {
+		for k := range total {
+			f, err := os.OpenFile(filepath.Join(dir, strconv.Itoa(k)), os.O_CREATE|os.O_RDWR, 0o644)
+			if err != nil {
+				return func() {}
+			}
+			busy, err := fslock.Try(f, true)
+			if err == nil && !busy {
+				return func() { f.Close() }
+			}
+			f.Close()
+			if err != nil {
+				return func() {}
+			}
+		}
+		time.Sleep(delay)
+	}
+}
+
 // runBatch chạy một mẻ test trong tiến trình con với đúng cờ của tiến trình cha.
 func runBatch(base, names []string, logDir string) ([]byte, bool) {
+	defer acquireSlot()()
 	args := append([]string{}, base...)
 	if logDir != "" {
 		args = append(args, testlogFlag+batchLog(logDir, names[0]))
