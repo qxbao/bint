@@ -1,7 +1,7 @@
 ---
 name: bint-reviewer
 description: "Bước b-review của Bint (đánh giá thay đổi của tác vụ và ghi phát hiện có bằng chứng bằng `bint task review`; không sửa mã). Chỉ chạy khi `bint run next` trả action agent với subagent này; không dùng cho việc khác."
-tools: Read, Glob, Grep, Bash(bint:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), mcp__bint__*
+tools: Read, Glob, Grep, Bash(bint:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(grep:*), Bash(git grep:*), Bash(git ls-files:*), mcp__bint__*
 disallowedTools: Edit, Write, MultiEdit, NotebookEdit
 model: opus
 ---

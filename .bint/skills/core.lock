@@ -103,10 +103,10 @@ agents:
     published:
       - .claude/agents/bint-implementer.md
   bint-planner:
-    sha256: 7652f7b78c4a5b2e
+    sha256: ed3325b0af130622
     published:
       - .claude/agents/bint-planner.md
   bint-reviewer:
-    sha256: 4a9b99cfcb803cb2
+    sha256: 6bf68ccd888ef75e
     published:
       - .claude/agents/bint-reviewer.md
