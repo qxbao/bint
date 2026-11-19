@@ -17,15 +17,23 @@ const EnvDenyRead = "BINT_DENY_READ"
 // GuardrailDenyRead là id của guardrail dựng sẵn trong sự kiện guardrail.triggered.
 const GuardrailDenyRead = "bint-deny-read"
 
-// denyReadPaths đọc EnvDenyRead thành danh sách đường dẫn đã chuẩn hoá để so khớp (dấu /, không phân biệt hoa thường).
-func denyReadPaths(env string) []string {
-	var out []string
+// denyReadPaths đọc EnvDenyRead thành danh sách đường dẫn cấm và danh sách ngoại lệ đã chuẩn hoá để so khớp (dấu /, không phân biệt
+// hoa thường). Dòng bắt đầu bằng "!" là ngoại lệ: phần nhắc tới đường dẫn đó bị bỏ khỏi chuỗi trước khi quét (vd thư mục tác vụ bị cấm
+// nhưng requirement.md được đọc). Dòng cấm có thể là thư mục: mọi đường dẫn bên trong cũng bị chặn (trừ ngoại lệ).
+func denyReadPaths(env string) (deny, allow []string) {
 	for l := range strings.SplitSeq(strings.ReplaceAll(env, "\r\n", "\n"), "\n") {
-		if l = strings.TrimSpace(l); l != "" {
-			out = append(out, normDenyPath(l))
+		l = strings.TrimSpace(l)
+		switch {
+		case l == "":
+		case strings.HasPrefix(l, "!"):
+			if l = strings.TrimSpace(l[1:]); l != "" {
+				allow = append(allow, normDenyPath(l))
+			}
+		default:
+			deny = append(deny, normDenyPath(l))
 		}
 	}
-	return out
+	return deny, allow
 }
 
 func normDenyPath(p string) string {
@@ -34,7 +42,7 @@ func normDenyPath(p string) string {
 
 // denyReadDecision cho biết lời gọi công cụ (tool_input) có nhắc tới đường dẫn bị cấm đọc không; trả đường dẫn đầu tiên khớp.
 func denyReadDecision(env string, toolInput map[string]any) (hit string, deny bool) {
-	paths := denyReadPaths(env)
+	paths, allow := denyReadPaths(env)
 	if len(paths) == 0 || len(toolInput) == 0 {
 		return "", false
 	}
@@ -43,6 +51,9 @@ func denyReadDecision(env string, toolInput map[string]any) (hit string, deny bo
 		switch x := v.(type) {
 		case string:
 			s := strings.ToLower(strings.ReplaceAll(x, `\`, "/"))
+			for _, a := range allow {
+				s = strings.ReplaceAll(s, a, "")
+			}
 			if i := slices.IndexFunc(paths, func(p string) bool { return strings.Contains(s, p) }); i >= 0 {
 				hit = paths[i]
 				return true

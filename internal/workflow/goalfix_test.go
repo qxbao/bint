@@ -88,6 +88,13 @@ func TestGoalFixRound(t *testing.T) {
 		if gt == nil || !slices.Equal(gt.Paths(), []string{frozenRel}) || gt.Files[0].SHA256 != goalSHA(frozenBody) {
 			t.Errorf("GoalTest phải ghi sha256 của nội dung đã duyệt %s: %+v", goalSHA(frozenBody), gt)
 		}
+		// D3: đóng băng qua stepGoalCheck (resume) vẫn phải ghi RunID của lượt b-goal, không để rỗng.
+		if gt != nil && gt.RunID == "" {
+			t.Errorf("GoalTest.RunID rỗng khi đóng băng sau resume: %+v", gt)
+		}
+		if tk.State.GoalCheckRunID != "" {
+			t.Errorf("GoalCheckRunID phải được xoá sau khi đóng băng: %q", tk.State.GoalCheckRunID)
+		}
 	})
 
 	// #7 (driver session `bint run next`): cùng hành vi.
@@ -275,9 +282,9 @@ func TestGoalFixRound(t *testing.T) {
 			t.Fatalf("%+v %v calls=%v", res, err, h.calls)
 		}
 		tk := loadTask(t, h, res.TaskID)
-		want := []string{filepath.Clean(tk.ArtifactPath("plan")), filepath.Clean(tk.ArtifactPath("tasks"))}
+		want := []string{filepath.Clean(tk.ArtifactPath("plan")), filepath.Clean(tk.ArtifactPath("tasks")), filepath.Clean(tk.Dir), "!" + filepath.Clean(tk.ArtifactPath("requirement"))}
 		for _, p := range want {
-			if !filepath.IsAbs(p) {
+			if !filepath.IsAbs(strings.TrimPrefix(p, "!")) {
 				t.Fatalf("đường dẫn artifact phải tuyệt đối: %s", p)
 			}
 		}

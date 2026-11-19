@@ -557,6 +557,9 @@ type State struct {
 	// GoalAwaitingCheck: agent b-goal đã xong nhưng kiểm phạm vi dừng chờ người (tệp test chạm đường dẫn bảo vệ/deny...) nên chưa đóng băng
 	// (GoalTest nil). Resume chỉ chạy phần sau kiểm phạm vi (đóng băng đúng nội dung đã duyệt), không gọi lại agent b-goal, tương tự AwaitingCheck.
 	GoalAwaitingCheck bool `json:"goal_awaiting_check,omitempty"`
+	// GoalCheckRunID là lượt con của agent b-goal đã xong khi GoalAwaitingCheck được đặt; resume (stepGoalCheck) không còn rs.res.Steps
+	// nên GoalTest.RunID lấy từ đây.
+	GoalCheckRunID string `json:"goal_check_run_id,omitempty"`
 	// Slices là các lát mỏng khi b-do chạy kế hoạch lớn theo lát (workflow.slice_timeout_minutes > 0; slice.go): theo thứ tự nhóm trong plan.md,
 	// ghi một lần ở b-feat đầu tiên. SliceGreen là điểm xanh của lát (nil trước lát 1); SliceMark là mốc đếm của lát đang chạy.
 	Slices     []Slice     `json:"slices,omitempty"`
