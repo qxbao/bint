@@ -1,0 +1,58 @@
+{
+ "run": "A-1",
+ "commit": "23cb3f8d4390ae93d9c5265650a8e10797ab0d7b",
+ "build_ok": true,
+ "build_err": "",
+ "diffstat": "32 files changed, 718 insertions(+), 130 deletions(-)",
+ "files_changed": 32,
+ "hidden_exit": 0,
+ "hidden_tail": "fixture: {'FX-S1': True, 'FX-S2': True, 'FX-S3': True, 'FX-S4': True, 'FX-S5': True, 'FX-S6': True} \nS1 verify-output lộ: []\nS2 agent-output lộ: []\nS3 task-description lộ: ['aws_key_id', 'aws_secret', 'bearer', 'github_token', 'password', 'private_key', 'url_creds']\nS4 review lộ: []\nS5 hook-events lộ: []\nS6 task-docs lộ: ['aws_key_id', 'aws_secret', 'bearer', 'github_token', 'password', 'private_key', 'url_creds']\nN1: True {'verify_exit': 0, 'done_exit': 0, 'show_exit': 0, 'missing_in_log': [], 'done_out': '01M7X0MK4CV8D41FX1RPMJ5ZX4 → done\\n', 'verify_out': 'TOKEN=$CI_TOKEN sh ok.sh → qua (mã 0)\\nlog: D:\\\\bt\\\\A-1-1795196307\\\\hidden\\\\n1\\\\c\\\\state\\\\repo-a6cda61eb796\\\\runtime\\\\tasks\\\\01M7X0MK4CV8D41FX1RPMJ5ZX4\\\\logs\\\\verify-1.log\\n'}\n",
+ "hidden_clean": 22,
+ "hidden_total": 36,
+ "hidden_pct": 61.1,
+ "hidden_per_group": {
+  "S1": "7/7",
+  "S2": "7/7",
+  "S3": "0/7",
+  "S4": "7/7",
+  "S5": "1/1",
+  "S6": "0/7"
+ },
+ "hidden_per_type": {
+  "aws_key_id": "3/5",
+  "aws_secret": "3/5",
+  "bearer": "3/5",
+  "github_token": "3/5",
+  "password": "3/5",
+  "private_key": "4/6",
+  "url_creds": "3/5"
+ },
+ "N1": true,
+ "fixture_error": null,
+ "N2": {
+  "cand_s": [
+   19.93,
+   20.92,
+   22.52
+  ],
+  "base_s": [
+   1.19,
+   3.54,
+   2.17
+  ],
+  "cand_exit": [
+   0,
+   0,
+   0
+  ],
+  "ratio": 9.62,
+  "pass": false
+ },
+ "gotest_exit": 1,
+ "gotest_fail_pkgs": [
+  "FAIL"
+ ],
+ "gotest_fail_tests": [
+  "TestCleanupWorktreeReleasesGatewayBounded"
+ ]
+}

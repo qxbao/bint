@@ -1,0 +1,82 @@
+ok  	bint/internal/affected	80.609s
+--- FAIL: TestRepoWritesGoThroughRepoWriter (0.06s)
+--- FAIL: TestMCPIndexIgnoresWrapperLauncher (3.97s)
+FAIL
+FAIL	bint/internal/app	506.989s
+ok  	bint/internal/app/evolvesvc	22.981s
+--- FAIL: TestBintDoesNotPersistCredentials (264.86s)
+--- FAIL: TestGoalBDoLeanSlicesAndGates (980.27s)
+--- FAIL: TestGoalBReqBaselineAndSkillGates (39.55s)
+FAIL
+FAIL	bint/internal/cli	1044.422s
+ok  	bint/internal/codexconfig	0.797s
+ok  	bint/internal/config	517.509s
+ok  	bint/internal/ctxengine	1.487s
+ok  	bint/internal/detect	4.260s
+ok  	bint/internal/eval	426.226s
+ok  	bint/internal/evolve	644.361s
+ok  	bint/internal/flow	1.167s
+ok  	bint/internal/fsafe	1.260s
+ok  	bint/internal/fslock	0.856s
+ok  	bint/internal/gitrepo	12.673s
+ok  	bint/internal/harness	2.885s
+ok  	bint/internal/harness/claude	1.825s
+ok  	bint/internal/harness/codex	6.167s
+ok  	bint/internal/harness/hookcore	18.206s
+ok  	bint/internal/hcomp	2.846s
+ok  	bint/internal/i18n	1.019s
+ok  	bint/internal/inspect	8.494s
+ok  	bint/internal/iso	12.119s
+ok  	bint/internal/kindex	1.431s
+ok  	bint/internal/knowledge	33.312s
+ok  	bint/internal/knowledge/importer	1.499s
+ok  	bint/internal/mcpcat	0.765s
+ok  	bint/internal/mcpcat/probe	6.144s
+--- FAIL: TestExclusiveGroup (5.77s)
+FAIL
+FAIL	bint/internal/mcpgw	157.172s
+ok  	bint/internal/mcpserver	1.671s
+ok  	bint/internal/pathutil	0.964s
+ok  	bint/internal/runlog	20.470s
+ok  	bint/internal/skills	5.044s
+ok  	bint/internal/state	0.800s
+ok  	bint/internal/store	2.362s
+ok  	bint/internal/symbols	0.770s
+ok  	bint/internal/task	124.291s
+ok  	bint/internal/testutil	1.055s
+ok  	bint/internal/tui	1.589s
+ok  	bint/internal/tui/actions	517.227s
+--- FAIL: TestCLIRefTasksScreen (10.35s)
+FAIL
+FAIL	bint/internal/tui/app	557.879s
+ok  	bint/internal/tui/components/barchart	1.235s
+ok  	bint/internal/tui/components/confirm	1.052s
+ok  	bint/internal/tui/components/footer	1.072s
+ok  	bint/internal/tui/components/form	0.423s
+ok  	bint/internal/tui/components/frame	1.106s
+ok  	bint/internal/tui/components/input	1.172s
+ok  	bint/internal/tui/components/list	1.477s
+ok  	bint/internal/tui/components/logo	1.408s
+ok  	bint/internal/tui/components/logview	1.231s
+ok  	bint/internal/tui/components/markdown	1.357s
+ok  	bint/internal/tui/components/meter	1.327s
+ok  	bint/internal/tui/components/palette	1.432s
+ok  	bint/internal/tui/components/tabs	1.307s
+ok  	bint/internal/tui/components/text	1.274s
+ok  	bint/internal/tui/components/viewer	1.509s
+ok  	bint/internal/tui/components/zone	1.268s
+ok  	bint/internal/tui/gallery	3.203s
+ok  	bint/internal/tui/jobs	1.496s
+ok  	bint/internal/tui/screens/evolve	0.662s
+ok  	bint/internal/tui/screens/initwizard	0.673s
+ok  	bint/internal/tui/screens/knowledge	478.955s
+ok  	bint/internal/tui/screens/mcp	0.413s
+ok  	bint/internal/tui/screens/overview	0.427s
+ok  	bint/internal/tui/screens/tasks	4.988s
+ok  	bint/internal/tui/theme	0.957s
+ok  	bint/internal/tui/ui	0.388s
+ok  	bint/internal/ulid	0.690s
+--- FAIL: TestCleanupWorktreeReleasesGatewayBounded (12.48s)
+FAIL
+FAIL	bint/internal/workflow	1216.675s
+FAIL

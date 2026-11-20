@@ -1,0 +1,65 @@
+{
+ "run": "Bp-1",
+ "commit": "003d4e1719b029dd3ac8389b916e2a28157fb1d7",
+ "build_ok": true,
+ "build_err": "",
+ "diffstat": "87 files changed, 3299 insertions(+), 219 deletions(-)",
+ "files_changed": 87,
+ "hidden_exit": 0,
+ "hidden_tail": "fixture: {'FX-S1': True, 'FX-S2': True, 'FX-S3': True, 'FX-S4': True, 'FX-S5': True, 'FX-S6': True} \nS1 verify-output lộ: ['private_key']\nS2 agent-output lộ: ['private_key']\nS3 task-description lộ: ['private_key']\nS4 review lộ: ['private_key']\nS5 hook-events lộ: ['private_key']\nS6 task-docs lộ: ['private_key']\nN1: True {'verify_exit': 0, 'done_exit': 0, 'show_exit': 0, 'missing_in_log': [], 'done_out': '01M7X2TG9FEA5J6NGC1VM31PPY → done\\n', 'verify_out': 'TOKEN=$CI_TOKEN sh ok.sh → qua (mã 0)\\nlog: D:\\\\bt\\\\Bp-1-1795198617\\\\hidden\\\\n1\\\\c\\\\state\\\\repo-cec5b41bbc82\\\\runtime\\\\tasks\\\\01M7X2TG9FEA5J6NGC1VM31PPY\\\\logs\\\\verify-1.log\\n'}\n",
+ "hidden_clean": 30,
+ "hidden_total": 36,
+ "hidden_pct": 83.3,
+ "hidden_per_group": {
+  "S1": "6/7",
+  "S2": "6/7",
+  "S3": "6/7",
+  "S4": "6/7",
+  "S5": "0/1",
+  "S6": "6/7"
+ },
+ "hidden_per_type": {
+  "aws_key_id": "5/5",
+  "aws_secret": "5/5",
+  "bearer": "5/5",
+  "github_token": "5/5",
+  "password": "5/5",
+  "private_key": "0/6",
+  "url_creds": "5/5"
+ },
+ "N1": true,
+ "fixture_error": null,
+ "N2": {
+  "cand_s": [
+   9.73,
+   8.86,
+   8.91
+  ],
+  "base_s": [
+   0.57,
+   0.55,
+   0.6
+  ],
+  "cand_exit": [
+   0,
+   0,
+   0
+  ],
+  "ratio": 15.74,
+  "pass": false
+ },
+ "gotest_exit": 1,
+ "gotest_fail_pkgs": [
+  "FAIL",
+  "FAIL"
+ ],
+ "gotest_fail_tests": [
+  "TestGateEvidenceAndBudget",
+  "TestGateEvidenceAndBudget/perf_gate",
+  "TestGateEvidenceAndBudget/perf_gate/chậm_đỏ_rồi_vòng_sửa_xanh",
+  "TestGoalBDoLeanSlicesAndGates",
+  "TestGoalBDoLeanSlicesAndGates/skills_package_tests_synced",
+  "TestGoalBReqBaselineAndSkillGates",
+  "TestGoalBReqBaselineAndSkillGates/skill_published_copies"
+ ]
+}
