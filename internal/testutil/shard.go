@@ -290,8 +290,8 @@ func splitTestlog(args []string) (rest []string, path string) {
 	return rest, path
 }
 
-// mergeTestlogs ghi nhật ký đầu vào gộp từ mọi mẻ. Trước mỗi mẻ thêm dòng chdir về thư mục gói: go test tính
-// đường dẫn tương đối theo dòng chdir gần nhất, mà mỗi tiến trình con bắt đầu ở thư mục gói.
+// mergeTestlogs ghi nhật ký đầu vào gộp từ mọi mẻ, đã rút gọn (xem compactTestlog). Mỗi tiến trình con bắt đầu ở
+// thư mục gói, nên đường dẫn tương đối của từng mẻ được tính theo thư mục gói và các dòng chdir của chính mẻ đó.
 func mergeTestlogs(path, dir string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -301,17 +301,90 @@ func mergeTestlogs(path, dir string) error {
 	if err != nil {
 		return err
 	}
-	var buf bytes.Buffer
-	buf.WriteString(testlogMagic)
+	c := newTestlogCompactor(cwd, os.TempDir())
 	for _, e := range ents {
 		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(&buf, "chdir %s\n", cwd)
-		buf.Write(bytes.TrimPrefix(b, []byte(testlogMagic)))
+		c.add(string(b))
 	}
-	return os.WriteFile(path, buf.Bytes(), 0o644)
+	return os.WriteFile(path, c.buf.Bytes(), 0o644)
+}
+
+// testlogCompactor rút gọn nhật ký đầu vào test trước khi go test lưu nó.
+//
+// Mỗi lần lưu và mỗi lần tra bộ nhớ đệm kết quả test, go test duyệt từng dòng open/stat; đường dẫn nằm ngoài
+// module bị bỏ qua nhưng chỉ sau hai lần filepath.EvalSymlinks (search.InDir), rất đắt trên Windows. Test E2E của
+// Bint mở/stat hàng trăm nghìn tệp trong repo tạm, nên nhật ký gói workflow lên ~1,1 triệu dòng và go test ngồi tính
+// hơn 20 phút với một nhân CPU, không có tiến trình con, trông như treo. Rút gọn:
+//   - bỏ open/stat trong thư mục tạm (repo tạm của test, nằm ngoài module nên go test vốn không dùng làm đầu vào);
+//   - đổi đường dẫn tương đối thành tuyệt đối rồi bỏ dòng trùng (getenv lặp lại theo từng test).
+//
+// Nếu chính module nằm trong thư mục tạm thì không bỏ dòng nào theo thư mục tạm.
+type testlogCompactor struct {
+	cwd, tmp string
+	seen     map[string]bool
+	buf      bytes.Buffer
+}
+
+func newTestlogCompactor(cwd, tmp string) *testlogCompactor {
+	tmp = filepath.Clean(tmp)
+	if tmp == "" || tmp == "." || underDir(cwd, tmp) {
+		tmp = ""
+	}
+	c := &testlogCompactor{cwd: cwd, tmp: tmp, seen: map[string]bool{}}
+	c.buf.WriteString(testlogMagic)
+	c.emit("chdir " + cwd)
+	return c
+}
+
+func (c *testlogCompactor) emit(line string) {
+	if c.seen[line] {
+		return
+	}
+	c.seen[line] = true
+	c.buf.WriteString(line)
+	c.buf.WriteByte('\n')
+}
+
+// add thêm nhật ký của một mẻ.
+func (c *testlogCompactor) add(log string) {
+	pwd := c.cwd
+	for line := range strings.SplitSeq(strings.TrimPrefix(log, testlogMagic), "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		if line == "" {
+			continue
+		}
+		op, name, ok := strings.Cut(line, " ")
+		switch {
+		case !ok:
+			c.emit(line) // giữ nguyên: go test tự coi nhật ký hỏng là không dùng được bộ nhớ đệm
+		case op == "chdir":
+			pwd = name
+			c.emit(line)
+		case op == "open" || op == "stat":
+			if !filepath.IsAbs(name) {
+				name = filepath.Join(pwd, name)
+			}
+			if c.tmp != "" && underDir(name, c.tmp) {
+				continue
+			}
+			c.emit(op + " " + name)
+		default:
+			c.emit(line)
+		}
+	}
+}
+
+// underDir cho biết path nằm trong dir (hoặc chính là dir), so theo từ vựng; trên Windows filepath.Rel không phân
+// biệt hoa thường.
+func underDir(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil || filepath.IsAbs(rel) {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // testlogMagic: dòng đầu nhật ký đầu vào (testing/internal/testdeps, cmd/go/internal/test).
