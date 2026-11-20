@@ -237,6 +237,10 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 			cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(o.Request, assess)
 		}
 	}
+	// Luồng B′ chỉ áp cho b-do gốc có b-req; chốt một lần, đổi cấu hình sau đó không đổi tác vụ.
+	if e.Cfg.Workflow.Variant == config.VariantBPrime && o.Workflow == StepDo && fd.IsBuiltin() && planning && cls.Plan {
+		cls.Variant = task.VariantBPrime
+	}
 	iso, err := e.chooseIsolation(o.Isolation)
 	if err != nil {
 		return nil, task.Assessment{}, err

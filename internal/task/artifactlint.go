@@ -271,6 +271,12 @@ func LintPlanningTextV(ticket Ticket, docs map[string]string, strict bool, versi
 }
 
 func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]error, strict bool, version int, frozen []string) ArtifactReport {
+	return lintPlanningLean(ticket, docs, unreadable, strict, version, frozen, false)
+}
+
+// lintPlanningLean: lean (luồng B′) chỉ kiểm cấu trúc AC/TSK/Q và đối chiếu phiếu; bỏ luật v2 (hiện trạng, bề mặt, giả định, tệp
+// trong phạm vi, chiến lược) và cảnh báo goal_check_missing.
+func lintPlanningLean(ticket Ticket, docs map[string]string, unreadable map[string]error, strict bool, version int, frozen []string, lean bool) ArtifactReport {
 	b := &reportBuilder{r: ArtifactReport{Errors: []ArtifactIssue{}, Warnings: []ArtifactIssue{}, OpenQuestions: []ArtifactIssue{}}}
 	usable := map[string]bool{}
 	for _, n := range ArtifactNames() {
@@ -345,6 +351,9 @@ func lintPlanning(ticket Ticket, docs map[string]string, unreadable map[string]e
 		b.r.Errors = []ArtifactIssue{}
 	}
 	// Luật hợp đồng v2 (hiện trạng đo được, bề mặt, giả định, tệp trong phạm vi): lỗi ở v2, chỉ cảnh báo ở v1; v0 bỏ qua.
+	if lean {
+		return b.r
+	}
 	if version >= PlanningContractV1 {
 		v2 := &reportBuilder{}
 		if usable["requirement"] {
@@ -678,7 +687,7 @@ func LintPlanningTask(t *Task, strict bool) ArtifactReport {
 			bad[n] = err
 		}
 	}
-	return lintPlanning(t.Ticket, docs, bad, strict, t.State.PlanningContractVersion, t.State.GoalTest.Paths())
+	return lintPlanningLean(t.Ticket, docs, bad, strict, t.State.PlanningContractVersion, t.State.GoalTest.Paths(), IsBPrime(t))
 }
 
 const (

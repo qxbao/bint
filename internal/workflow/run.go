@@ -2995,7 +2995,11 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		skill = step
 	}
 	sk, _ := r.stepSkill(skill) // lỗi đã được beginStep chặn trước khi dựng đề bài
+	bprime := stepDef.Kind == flow.KindPlan && bprimeRequested(t)
 	body := strings.ReplaceAll(sk.Body(), "$ARGUMENTS", "tác vụ "+t.State.ID)
+	if bprime {
+		body = bprimeReqGuide
+	}
 	var b strings.Builder
 	b.WriteString(body)
 	fmt.Fprintf(&b, "\n\n---\n\n<bint-task id=%q step=%q run=%q>\n", t.State.ID, step, child)
@@ -3024,20 +3028,24 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		b.WriteString("\n")
 	}
 	if stepDef.Kind == flow.KindPlan {
-		depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
-		if c := t.State.Classification; c != nil {
-			depth = c.EffectiveDepth()
-			if c.DepthReason != "" {
-				reason = c.DepthReason
+		if bprime {
+			b.WriteString("Luồng B′ (workflow.variant: bprime): không cần độ sâu phân tích, hiện trạng đo sẵn hay chiến lược lát mỏng; làm theo chỉ dẫn gọn ở trên.\n\n")
+		} else {
+			depth, reason := task.DepthStandard, "mặc định (tác vụ chưa ghi độ sâu)"
+			if c := t.State.Classification; c != nil {
+				depth = c.EffectiveDepth()
+				if c.DepthReason != "" {
+					reason = c.DepthReason
+				}
 			}
-		}
-		fmt.Fprintf(&b, "Phân tích: %s\nLý do: %s\n(Độ sâu do Bint Core chọn một lần lúc tạo tác vụ; làm theo mục \"Độ sâu phân tích\" của skill.)\n\n", depth, reason)
-		if bp := r.writeBaseline(ctx, t); bp != "" {
-			fmt.Fprintf(&b, "Hiện trạng đã đo sẵn (dung lượng thư mục trạng thái, số tệp khớp scope.allow): %s\nĐọc tệp này trước khi lập kế hoạch; requirement.md phải có mục `## Hiện trạng` với số đo và ít nhất một AC có số đo (`bint task lint` chặn nếu thiếu).\n\n", bp)
-		}
-		b.WriteString(planConfigBlock(r.Cfg.Workflow))
-		if !session && rs.planSizeGated() && r.slicingEnabled() {
-			b.WriteString(sliceGuideBlock)
+			fmt.Fprintf(&b, "Phân tích: %s\nLý do: %s\n(Độ sâu do Bint Core chọn một lần lúc tạo tác vụ; làm theo mục \"Độ sâu phân tích\" của skill.)\n\n", depth, reason)
+			if bp := r.writeBaseline(ctx, t); bp != "" {
+				fmt.Fprintf(&b, "Hiện trạng đã đo sẵn (dung lượng thư mục trạng thái, số tệp khớp scope.allow): %s\nĐọc tệp này trước khi lập kế hoạch; requirement.md phải có mục `## Hiện trạng` với số đo và ít nhất một AC có số đo (`bint task lint` chặn nếu thiếu).\n\n", bp)
+			}
+			b.WriteString(planConfigBlock(r.Cfg.Workflow))
+			if !session && rs.planSizeGated() && r.slicingEnabled() {
+				b.WriteString(sliceGuideBlock)
+			}
 		}
 	}
 	ticket, _ := yaml.Marshal(t.Ticket)

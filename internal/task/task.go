@@ -186,6 +186,16 @@ type Classification struct {
 	// b-feat một phiên, cổng kiểm chứng, đúng một vòng b-review rồi (nếu còn phát hiện nghiêm trọng) một vòng sửa nối tiếp
 	// phiên b-feat và finalize không review lại. Rỗng (phiếu cũ) = false = đường đầy đủ.
 	Fast bool `json:"fast,omitempty"`
+	// Variant là luồng b-do được chốt một lần lúc lập phiếu từ workflow.variant: chỉ ghi VariantBPrime (luồng B′); rỗng = luồng hiện tại.
+	Variant string `json:"variant,omitempty"`
+}
+
+// VariantBPrime là giá trị Classification.Variant của luồng B′ (trùng config.VariantBPrime).
+const VariantBPrime = "bprime"
+
+// IsBPrime cho biết tác vụ chạy luồng B′ (b-req gọn, lint và cổng cỡ kế hoạch không đòi mục mở rộng).
+func IsBPrime(t *Task) bool {
+	return t != nil && t.State.Classification != nil && t.State.Classification.Variant == VariantBPrime
 }
 
 // Driver của tác vụ (docs/isolation-subagent-plan.md mục 6): ai chạy các bước agent.

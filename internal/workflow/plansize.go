@@ -36,6 +36,14 @@ func (r *Runner) planSizeReasons(t *task.Task) []string {
 	if err != nil {
 		return []string{"không đọc được plan.md"}
 	}
+	if task.IsBPrime(t) {
+		// Luồng B′: kế hoạch gọn không có Cỡ kế hoạch/Bề mặt/Kiểm tra mục tiêu; chỉ đường dẫn được bảo vệ cần người xem.
+		_, files := task.PlanSizeDecl(string(plan))
+		if prot := r.planProtected(t, files); len(prot) > 0 {
+			return []string{"chạm đường dẫn được bảo vệ (" + strings.Join(prot, ", ") + ")"}
+		}
+		return nil
+	}
 	var why []string
 	verdict, files := task.PlanSizeDecl(string(plan))
 	switch verdict {

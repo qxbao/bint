@@ -439,6 +439,9 @@ type Workflow struct {
 	// GoalCheck chọn khi nào b-do chạy b-goal (kiểm tra mục tiêu độc lập): auto (theo dòng `Kiểm tra mục tiêu độc lập (b-goal):` trong plan.md;
 	// plan không ghi thì chạy như cũ) | off (không bao giờ) | always (như hành vi cũ). `--fast` bỏ cả hai.
 	GoalCheck string `yaml:"goal_check"`
+	// Variant chọn luồng b-do cho tác vụ MỚI (chốt một lần vào classification.variant): classic (mặc định, luồng hiện tại) | bprime
+	// (luồng B′: b-req chỉ hỏi khi thiếu đặc tả và chỉ ghi danh sách "xong là gì" ngắn).
+	Variant string `yaml:"variant"`
 	// MaxDiffLines là trần số dòng thêm+xoá (git diff --numstat, bỏ tệp kiểm tra mục tiêu đóng băng) trên tệp của tác vụ: của mỗi lát so với điểm
 	// xanh, hoặc của phần b-feat đã làm so với mốc tác vụ khi không chia lát. Vượt sau một bước b-feat thì coi như kiểm chứng không qua. 0 = tắt.
 	MaxDiffLines int `yaml:"max_diff_lines"`
@@ -495,6 +498,15 @@ const (
 	GateOff    = "off"    // không bao giờ
 	GateAlways = "always" // luôn (hành vi cũ)
 )
+
+// Giá trị của workflow.variant.
+const (
+	VariantClassic = "classic"
+	VariantBPrime  = "bprime"
+)
+
+// Variants là các giá trị hợp lệ của workflow.variant.
+var Variants = []string{VariantClassic, VariantBPrime}
 
 // GateModes là các giá trị hợp lệ của workflow.slicing và workflow.goal_check.
 var GateModes = []string{GateAuto, GateOff, GateAlways}
@@ -736,7 +748,7 @@ func Default() Config {
 		},
 		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
-			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, Slicing: GateAuto, GoalCheck: GateAuto, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
+			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, Slicing: GateAuto, GoalCheck: GateAuto, Variant: VariantClassic, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Verify: WorkflowVerify{Scope: VerifyScopeFull, BintConfigFull: true}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
 			Agent: WorkflowAgent{
@@ -1186,6 +1198,9 @@ func (c Config) Validate() error {
 	}
 	if !slices.Contains(GateModes, c.Workflow.Slicing) {
 		add("workflow.slicing: phải là %s", strings.Join(GateModes, " | "))
+	}
+	if !slices.Contains(Variants, c.Workflow.Variant) {
+		add("workflow.variant: phải là %s", strings.Join(Variants, " | "))
 	}
 	if !slices.Contains(GateModes, c.Workflow.GoalCheck) {
 		add("workflow.goal_check: phải là %s", strings.Join(GateModes, " | "))
