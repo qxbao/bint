@@ -1,0 +1,12 @@
+{
+ "run": "B-L1",
+ "label": "seg1",
+ "tree": "562813bcde99557d2d97e346aab15060cde28b2d",
+ "commit": "6c80aa7e8b998b4b0145b7018e6d785222eac31a",
+ "build_ok": true,
+ "build_err": "",
+ "diffstat": "286 files changed, 1483 insertions(+), 68920 deletions(-)",
+ "hidden_exit": 0,
+ "hidden_tail": "fixture: {'FX-S1': True, 'FX-S2': True, 'FX-S3': True, 'FX-S4': True, 'FX-S5': True, 'FX-S6': True} \nS1 verify-output lộ: ['aws_key_id', 'aws_secret', 'private_key']\nS2 agent-output lộ: ['aws_key_id', 'aws_secret', 'private_key']\nS3 task-description lộ: ['aws_key_id', 'aws_secret', 'bearer', 'github_token', 'password', 'private_key', 'url_creds']\nS4 review lộ: ['aws_key_id', 'aws_secret', 'bearer', 'github_token', 'password', 'private_key', 'url_creds']\nS5 hook-events lộ: ['private_key']\nS6 task-docs lộ: ['aws_key_id', 'aws_secret', 'bearer', 'github_token', 'password', 'private_key', 'url_creds']\nN1: True {'verify_exit': 0, 'done_exit': 0, 'show_exit': 0, 'missing_in_log': [], 'done_out': '01M7TW6Q2QWQJ1E8DXWS1W34E9 → done\\n', 'verify_out': 'TOKEN=$CI_TOKEN sh ok.sh → qua (mã 0)\\nlog: D:\\\\bench\\\\bench-bint-v6-20261120\\\\tmp\\\\hidden-B-L1-seg1\\\\n1\\\\c\\\\state\\\\repo-259c4fc83f3e\\\\runtime\\\\tasks\\\\01M7TW6Q2QWQJ1E8DXWS1W34E9\\\\logs\\\\verify-1.log\\n'}\n",
+ "matrix": "D:\\bench\\bench-bint-v6-20261120\\results\\B-L1\\seg1.hidden.json 8/36 (22.2%) {'S1': '4/7', 'S2': '4/7', 'S3': '0/7', 'S4': '0/7', 'S5': '0/1', 'S6': '0/7'} N1: True"
+}

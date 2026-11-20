@@ -1,0 +1,91 @@
+{
+ "bint": "D:\\bench\\bench-bint-v6-20261120\\tmp\\snap-A-L1-seg2\\bint.exe",
+ "fixture": {
+  "FX-S1": true,
+  "FX-S2": true,
+  "FX-S3": true,
+  "FX-S4": true,
+  "FX-S5": true,
+  "FX-S6": true
+ },
+ "tasks": {
+  "S1": "01M7TXZ4TJG925BEFHEQY5WCN5",
+  "S2": "01M7TXZ6774TW4D393A595KXVW",
+  "S3": "01M7TXZ7S57Y3K50P4714TD8M7"
+ },
+ "leaks": {
+  "S1": {},
+  "S2": {},
+  "S3": {
+   "github_token": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml"
+   ],
+   "aws_key_id": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml"
+   ],
+   "aws_secret": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml"
+   ],
+   "bearer": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml"
+   ],
+   "url_creds": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml"
+   ],
+   "password": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml"
+   ],
+   "private_key": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/task.yml"
+   ]
+  },
+  "S4": {},
+  "S5": {},
+  "S6": {
+   "github_token": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md"
+   ],
+   "aws_key_id": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md"
+   ],
+   "aws_secret": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md"
+   ],
+   "bearer": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md"
+   ],
+   "url_creds": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md"
+   ],
+   "password": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md"
+   ],
+   "private_key": [
+    "c/state/repo-43eb52f1078f/runtime/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md",
+    "c/repo/.bint/tasks/01M7TXZ7S57Y3K50P4714TD8M7/requirement.md"
+   ]
+  }
+ },
+ "N1": {
+  "pass": true,
+  "verify_exit": 0,
+  "done_exit": 0,
+  "show_exit": 0,
+  "missing_in_log": [],
+  "done_out": "01M7TXZANNG5AAJB9T6C8MWY3K → done\n",
+  "verify_out": "TOKEN=$CI_TOKEN sh ok.sh → qua (mã 0)\nlog: D:\\bench\\bench-bint-v6-20261120\\tmp\\hidden-A-L1-seg2\\n1\\c\\state\\repo-a961c08ec569\\runtime\\tasks\\01M7TXZANNG5AAJB9T6C8MWY3K\\logs\\verify-1.log\n"
+ }
+}

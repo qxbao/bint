@@ -1,0 +1,29 @@
+{
+  "label": "X",
+  "verdicts": [
+    {
+      "id": "X1",
+      "verdict": "confirmed",
+      "severity": "medium",
+      "evidence": "Đúng. redact.go:106 FromEnv lấy giá trị của mọi biến tên khớp secretKey; New() (dòng 85-93) đưa mọi giá trị từ 3 rune vào strings.NewReplacer, thay theo chuỗi con, không xét ranh giới từ (chỉ nhánh short <3 rune ở dòng 203-219 mới kiểm wordRune); scrubValue dòng 321 lọc cả khoá JSON. Chạy thử trong bản sao (tmp/verify-X) với DB_PASSWORD=test, PGPASSWORD=postgres: JSON {\"event_type\":\"test.completed\",\"worktree\":\"D:/w/test-app\",\"payload\":{\"test_passed\":true,...}} thành {\"event_type\":\"***.completed\",\"payload\":{\"***_passed\":true,\"files\":[\"internal/foo_***.go\"]},\"worktree\":\"D:/w/***-app\"}; {\"landed\":{\"files\":[\"internal/foo_test.go\",\"pkg/postgres/db.go\"]}} thành foo_***.go và pkg/***/db.go; dòng log 'foo_test.go:12: got 1' thành 'foo_***.go:*** got 1' (maskedKey còn che thêm sau literal). spool.Write/ReadFile (spool.go:133-141, 276-287) và stateJSON (task.go:951, trường 'landed') đều đi qua bộ lọc này, nên sự kiện spool.TestCompleted mất loại, state.json lưu Landed.Files hỏng vĩnh viễn; UnapprovedChanges (workflow/ops.go:596-625) dùng Landed.Files sau khi đưa về, nên có thể sinh điều chặn 'đường dẫn bảo vệ chưa duyệt' với tên tệp không tồn tại. Giữ medium: hậu quả là hỏng dữ liệu thật, nhưng chỉ xảy ra khi môi trường của tiến trình Bint có biến kiểu credential mang giá trị là từ thông dụng (test, secret, postgres, admin...). Biến CI/token thật thường dài, ngẫu nhiên nên vô hại; giá trị ngắn kiểu 'test' được export toàn cục không phải cấu hình mặc định. Nếu môi trường có đúng giá trị như vậy thì mức tác động gần critical (hỏng state.json, mất tín hiệu test)."
+    },
+    {
+      "id": "X2",
+      "verdict": "confirmed",
+      "severity": "medium",
+      "evidence": "Đúng. log_scrub.go:60-66 chỉ lấy mcpgw.LockOffline khi --gateway; nhánh workspace không lấy khoá task (fslock) hay khoá writes. scrubLogFile (223-249) đọc, ghi tệp tạm rồi root.Rename đè state.json/review.json/outcomes/writes.jsonl, nên Update chen giữa bị mất. diagnosticPath đánh dấu remove=true cho spool/.tmp-* (dòng 161-162), toàn bộ spool/rejected/*, runtime/writes.jsonl.tmp-*, shellsnap-*.json (173), tệp hook-trace, prompt.txt/.bint-prompt-*.txt (214). Không có --dry-run, xác nhận hay sao lưu; cli/runs.go:223-242 chỉ có dòng Long nhắc dừng phiên. Thêm vào đó, ghi đè này làm hỏng dữ liệu thật vĩnh viễn khi kết hợp X1 (state.json cũ bị viết lại với Landed.Files bị che). Giữ medium, không nâng: đây là lệnh thủ công người dùng tự gọi, có hướng dẫn dừng phiên; đua chỉ xảy ra khi có phiên/hook chạy song song; phần bị xoá chủ yếu là chẩn đoán, không phải phiếu/tri thức/cấu hình. Thiếu xem trước/sao lưu cho thao tác phá huỷ đúng là mục 2 của risk-spec."
+    },
+    {
+      "id": "X4",
+      "verdict": "downgraded",
+      "severity": "low",
+      "evidence": "Mô tả mã đúng (spool.go:296-317: Reject ghi tệp giữ chỗ rồi os.Remove; ErrTooLong đổi thành ErrCorrupt) nhưng hậu quả 'mất sự kiện hợp lệ' bị phóng đại. Trước thay đổi, tệp hỏng cũng bị từ chối cả tệp, các sự kiện hợp lệ cùng tệp cũng không bao giờ được nạp; rejected/ chỉ để xem tay (chỉ doctor.go:223 đếm số tệp, không có lệnh nạp lại). Trước đây dòng quá 4MB làm sc.Err() trả lỗi không phải ErrCorrupt, nên Ingest 'Skipped' mãi, tệp kẹt trong pending và sự kiện cũng không được nạp. Tệp spool được ghi nguyên tử (CreateTemp rồi rename), nên hỏng rất hiếm. JSONLWriter (writer.go:67-85) chỉ thay bằng {\"discarded\":true} những dòng vốn đã không phân tích được hoặc quá 4MB, tức là những dòng vốn đã làm cả tệp bị từ chối; giới hạn 4MB của nó bằng giới hạn Scanner nên không biến dòng hợp lệ thành dòng hỏng. Cái mất thật chỉ là bản sao để kiểm tra tay của tệp hỏng; việc này có chủ ý (nội dung có thể chứa bí mật) và không làm hỏng luồng chính."
+    },
+    {
+      "id": "X5",
+      "verdict": "confirmed",
+      "severity": "medium",
+      "evidence": "Đúng, đã chạy thử trong bản sao (redact.New().Writer). (a) Dòng JSON bị cắt '{\"msg\":\"unterminated' theo sau là '--- FAIL: TestA', 'a_test.go:3: boom', 'FAIL', 'exit status 1': đầu ra chỉ còn '=== RUN TestA' rồi '***', mọi dòng FAIL bị nuốt (writer.go:100-117: jsonNesting gặp nháy không đóng nên giữ depth>0; Flush gọi finishJSONBlock, JSON không hợp lệ thì ra Marker). (b) Khối cân bằng nhưng không phải JSON, như object Node in nhiều dòng ('{' / 'a: 1,' / '}') hay diff kiểu Jest ('  {' / '-   \"a\": 1,' / '}'): cả khối thành '***', đúng chỗ chứa thông tin lỗi. JSON hợp lệ in đẹp thì giữ nguyên. Vì eval/shell.go đặt tailBuffer sau scrub.Writer, cả log kiểm chứng lẫn CmdResult.Tail bị ảnh hưởng; failSetOf (slice.go:335) đọc log nên có thể đo sai lát. Giữ medium, không phải critical: kết quả qua/không qua của verify dựa vào mã thoát nên luồng chính vẫn chạy; thiệt hại là chẩn đoán cho agent/người và phép đo lát trong những trường hợp đầu ra có dạng trên."
+    }
+  ]
+}

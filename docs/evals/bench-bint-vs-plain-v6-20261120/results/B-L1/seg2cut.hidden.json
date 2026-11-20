@@ -1,0 +1,100 @@
+{
+ "bint": "D:\\bench\\bench-bint-v6-20261120\\tmp\\snap-B-L1-seg2cut\\bint.exe",
+ "fixture": {
+  "FX-S1": true,
+  "FX-S2": true,
+  "FX-S3": true,
+  "FX-S4": true,
+  "FX-S5": true,
+  "FX-S6": true
+ },
+ "tasks": {
+  "S1": "01M7TX3449VZP289RT55HPG3BX",
+  "S2": "01M7TX35MJ57QCY7S8BTA7E8YF",
+  "S3": "01M7TX383PYJ00QBA5M9QZ5KGP"
+ },
+ "leaks": {
+  "S1": {
+   "aws_key_id": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/logs/verify-1.log"
+   ],
+   "aws_secret": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/logs/verify-1.log"
+   ],
+   "private_key": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/logs/verify-1.log"
+   ]
+  },
+  "S2": {
+   "aws_key_id": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX35MJ57QCY7S8BTA7E8YF/logs/b-feat-01M7TX36P6HT62Q8SZQKKQCJDJ.log"
+   ],
+   "aws_secret": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX35MJ57QCY7S8BTA7E8YF/logs/b-feat-01M7TX36P6HT62Q8SZQKKQCJDJ.log"
+   ],
+   "private_key": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX35MJ57QCY7S8BTA7E8YF/logs/b-feat-01M7TX36P6HT62Q8SZQKKQCJDJ.log"
+   ]
+  },
+  "S3": {
+   "aws_key_id": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/task.yml",
+    "c/repo/.bint/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/task.yml"
+   ],
+   "aws_secret": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/task.yml",
+    "c/repo/.bint/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/task.yml"
+   ],
+   "private_key": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/task.yml",
+    "c/repo/.bint/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/task.yml"
+   ]
+  },
+  "S4": {
+   "aws_key_id": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/review.json",
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/review.md",
+    "c/repo/.bint/tasks/01M7TX3449VZP289RT55HPG3BX/review.json"
+   ],
+   "aws_secret": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/review.json",
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/review.md",
+    "c/repo/.bint/tasks/01M7TX3449VZP289RT55HPG3BX/review.json"
+   ],
+   "private_key": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/review.json",
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX3449VZP289RT55HPG3BX/review.md",
+    "c/repo/.bint/tasks/01M7TX3449VZP289RT55HPG3BX/review.json"
+   ]
+  },
+  "S5": {
+   "private_key": [
+    "c/state/repo-5052f4f52a9b/state.sqlite",
+    "c/state/repo-5052f4f52a9b/state.sqlite#dump"
+   ]
+  },
+  "S6": {
+   "aws_key_id": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/requirement.md",
+    "c/repo/.bint/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/requirement.md"
+   ],
+   "aws_secret": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/requirement.md",
+    "c/repo/.bint/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/requirement.md"
+   ],
+   "private_key": [
+    "c/state/repo-5052f4f52a9b/runtime/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/requirement.md",
+    "c/repo/.bint/tasks/01M7TX383PYJ00QBA5M9QZ5KGP/requirement.md"
+   ]
+  }
+ },
+ "N1": {
+  "pass": true,
+  "verify_exit": 0,
+  "done_exit": 0,
+  "show_exit": 0,
+  "missing_in_log": [],
+  "done_out": "01M7TX3CEZ3NPNGESYE9Y3D18J → done\n",
+  "verify_out": "TOKEN=$CI_TOKEN sh ok.sh → qua (mã 0)\nlog: D:\\bench\\bench-bint-v6-20261120\\tmp\\hidden-B-L1-seg2cut\\n1\\c\\state\\repo-60fbce89b32d\\runtime\\tasks\\01M7TX3CEZ3NPNGESYE9Y3D18J\\logs\\verify-1.log\n"
+ }
+}

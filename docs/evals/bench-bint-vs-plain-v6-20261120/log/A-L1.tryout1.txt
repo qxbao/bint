@@ -1,0 +1,10 @@
+$ bint runs scrub
+Tệp đã lọc 0, tệp đã xoá 0, trường SQLite đã lọc 0.
+lỗi: repository chưa được khởi tạo Bint trên máy này (chạy `bint init`)
+exit=0
+$ bint mcp gateway stop
+Gateway không chạy.
+exit=0
+$ bint runs scrub --gateway
+Tệp đã lọc 0, tệp đã xoá 0, trường SQLite đã lọc 0.
+exit=0

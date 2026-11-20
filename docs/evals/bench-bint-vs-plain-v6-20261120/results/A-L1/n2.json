@@ -1,0 +1,22 @@
+{
+ "bint": "D:/bench/bench-bint-v6-20261120/tmp/snap-A-L1-seg3/bint.exe",
+ "N2": {
+  "cand_s": [
+   18.24,
+   17.89,
+   17.07
+  ],
+  "base_s": [
+   0.92,
+   0.89,
+   0.82
+  ],
+  "cand_exit": [
+   0,
+   0,
+   0
+  ],
+  "ratio": 20.11,
+  "pass": false
+ }
+}

@@ -1,0 +1,17 @@
+## build
+exit=0
+## vet windows
+exit=0
+## vet linux
+exit=0
+## staticcheck windows
+exit=0
+## staticcheck linux
+exit=0
+## go test
+exit=1
+--- FAIL: TestCleanupWorktreeReleasesGatewayBounded (9.28s)
+--- FAIL: TestGateEvidenceAndBudget (212.20s)
+FAIL
+FAIL	bint/internal/workflow	938.066s
+FAIL

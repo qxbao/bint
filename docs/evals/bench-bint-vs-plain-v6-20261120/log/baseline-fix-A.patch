@@ -1,0 +1,68 @@
+diff --git a/internal/app/subagent_hook_test.go b/internal/app/subagent_hook_test.go
+index c26ee5e..60364a5 100644
+--- a/internal/app/subagent_hook_test.go
++++ b/internal/app/subagent_hook_test.go
+@@ -61,6 +61,9 @@ func TestReadonlyGuardrailProjectRules(t *testing.T) {
+ 	root, _ := subagentRepo(t)
+ 	// Nạp chính cấu hình dự án được theo dõi, thay vì chỉ kiểm mẫu init mới.
+ 	project, err := os.ReadFile(filepath.Join("..", "..", ".bint", "config.yml"))
++	if os.IsNotExist(err) {
++		t.Skip("bench: repo không có .bint/config.yml (bên A đã gỡ Bint)")
++	}
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/internal/cli/bdo_lean_goal_test.go b/internal/cli/bdo_lean_goal_test.go
+index e235b6c..2e6eb0c 100644
+--- a/internal/cli/bdo_lean_goal_test.go
++++ b/internal/cli/bdo_lean_goal_test.go
+@@ -753,9 +753,19 @@ func checkSkills(t *testing.T) {
+ // ---------- kiểm tra mục tiêu ----------
+ 
+ func TestGoalBDoLeanSlicesAndGates(t *testing.T) {
+-	t.Run("config_keys", checkConfigKeys)
++	t.Run("config_keys", func(t *testing.T) {
++		if _, err := os.Stat(filepath.Join("..", "..", ".bint")); err != nil {
++			t.Skip("bench: bên A đã gỡ Bint")
++		}
++		checkConfigKeys(t)
++	})
+ 	t.Run("lint_strategy", checkLintStrategy)
+-	t.Run("skills_package_tests_synced", checkSkills)
++	t.Run("skills_package_tests_synced", func(t *testing.T) {
++		if _, err := os.Stat(filepath.Join("..", "..", ".bint")); err != nil {
++			t.Skip("bench: bên A đã gỡ Bint")
++		}
++		checkSkills(t)
++	})
+ 
+ 	// AC-2: khoá workflow.slicing / workflow.goal_check và plan.md quyết định b-goal và lát.
+ 	t.Run("gating", func(t *testing.T) {
+diff --git a/internal/cli/breq_baseline_goal_test.go b/internal/cli/breq_baseline_goal_test.go
+index 0636344..961c199 100644
+--- a/internal/cli/breq_baseline_goal_test.go
++++ b/internal/cli/breq_baseline_goal_test.go
+@@ -131,6 +131,10 @@ func TestGoalBReqBaselineAndSkillGates(t *testing.T) {
+ 		}
+ 	})
+ 	t.Run("skill_published_copies", func(t *testing.T) {
++		if _, err := os.Stat(filepath.Join("..", "..", ".bint")); err != nil {
++			t.Skip("bench: bên A đã gỡ Bint")
++		}
++
+ 		repo := filepath.Join("..", "..")
+ 		for _, name := range []string{"b-do", "b-req"} {
+ 			s, ok := skills.Get(name)
+diff --git a/internal/cli/doc_commands_test.go b/internal/cli/doc_commands_test.go
+index 54187ed..a50fd46 100644
+--- a/internal/cli/doc_commands_test.go
++++ b/internal/cli/doc_commands_test.go
+@@ -20,7 +20,7 @@ import (
+ // Không quét tài liệu kế hoạch/nghiệm thu (docs/*-plan.md, next-directions.md, acceptance…): chúng nhắc lệnh dự kiến.
+ var docCommandSources = []string{
+ 	"internal/skills/core", // mọi *.md bên dưới
+-	"AGENTS.md",
++	// "AGENTS.md" — bench: bên A đã gỡ Bint (gồm AGENTS.md)
+ 	"README.md",
+ 	"docs/README.md",
+ 	"docs/usage.md",

@@ -1,0 +1,85 @@
+{
+ "cells": {
+  "S1": [
+   "aws_key_id",
+   "aws_secret",
+   "bearer",
+   "github_token",
+   "password",
+   "private_key",
+   "url_creds"
+  ],
+  "S2": [
+   "aws_key_id",
+   "aws_secret",
+   "bearer",
+   "github_token",
+   "password",
+   "private_key",
+   "url_creds"
+  ],
+  "S3": [
+   "aws_key_id",
+   "aws_secret",
+   "bearer",
+   "github_token",
+   "password",
+   "private_key",
+   "url_creds"
+  ],
+  "S4": [
+   "aws_key_id",
+   "aws_secret",
+   "bearer",
+   "github_token",
+   "password",
+   "private_key",
+   "url_creds"
+  ],
+  "S5": [
+   "private_key"
+  ],
+  "S6": [
+   "aws_key_id",
+   "aws_secret",
+   "bearer",
+   "github_token",
+   "password",
+   "private_key",
+   "url_creds"
+  ]
+ },
+ "total": 36,
+ "D:\\bench\\bench-bint-v6-20261120\\results\\B-L1\\seg1.hidden.json": {
+  "clean": 8,
+  "score_pct": 22.2,
+  "per_group": {
+   "S1": "4/7",
+   "S2": "4/7",
+   "S3": "0/7",
+   "S4": "0/7",
+   "S5": "0/1",
+   "S6": "0/7"
+  },
+  "per_type": {
+   "aws_key_id": "0/5",
+   "aws_secret": "0/5",
+   "bearer": "2/5",
+   "github_token": "2/5",
+   "password": "2/5",
+   "private_key": "0/6",
+   "url_creds": "2/5"
+  },
+  "leaks_outside_cells": {},
+  "N1": true,
+  "fixture": {
+   "FX-S1": true,
+   "FX-S2": true,
+   "FX-S3": true,
+   "FX-S4": true,
+   "FX-S5": true,
+   "FX-S6": true
+  },
+  "fixture_error": null
+ }
+}

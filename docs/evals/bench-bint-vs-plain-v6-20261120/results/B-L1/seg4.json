@@ -1,0 +1,12 @@
+{
+ "run": "B-L1",
+ "label": "seg4",
+ "tree": "fb2d52fcc0d90e549f59a3f31586d64d12a4e964",
+ "commit": "c58bb5cbefd6d66815df0475dd52bb091b3d5cad",
+ "build_ok": true,
+ "build_err": "",
+ "diffstat": "63 files changed, 3232 insertions(+), 209 deletions(-)",
+ "hidden_exit": 0,
+ "hidden_tail": "fixture: {'FX-S1': True, 'FX-S2': True, 'FX-S3': True, 'FX-S4': True, 'FX-S5': True, 'FX-S6': True} \nS1 verify-output lộ: ['aws_key_id', 'aws_secret', 'private_key']\nS2 agent-output lộ: ['aws_key_id', 'aws_secret', 'private_key']\nS3 task-description lộ: ['aws_key_id', 'aws_secret', 'private_key']\nS4 review lộ: ['aws_key_id', 'aws_secret', 'private_key']\nS5 hook-events lộ: ['private_key']\nS6 task-docs lộ: ['aws_key_id', 'aws_secret', 'private_key']\nN1: True {'verify_exit': 0, 'done_exit': 0, 'show_exit': 0, 'missing_in_log': [], 'done_out': '01M7V1GTW0HKE4EANNRQ47BDCJ → done\\n', 'verify_out': 'TOKEN=$CI_TOKEN sh ok.sh → qua (mã 0)\\nlog: D:\\\\bench\\\\bench-bint-v6-20261120\\\\tmp\\\\hidden-B-L1-seg4\\\\n1\\\\c\\\\state\\\\repo-8b7ac52ad06c\\\\runtime\\\\tasks\\\\01M7V1GTW0HKE4EANNRQ47BDCJ\\\\logs\\\\verify-1.log\\n'}\n",
+ "matrix": "D:\\bench\\bench-bint-v6-20261120\\results\\B-L1\\seg4.hidden.json 20/36 (55.6%) {'S1': '4/7', 'S2': '4/7', 'S3': '4/7', 'S4': '4/7', 'S5': '0/1', 'S6': '4/7'} N1: True"
+}

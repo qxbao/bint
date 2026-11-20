@@ -1,0 +1,105 @@
+{
+  "label": "X",
+  "summary": "Thay đổi thêm gói redact và áp dụng mặc định khi ghi log tiến trình, spool, state.json, review/outcomes, writes journal, SQLite, gateway; thêm lệnh `bint runs scrub` để lọc dữ liệu cũ. Lệnh kiểm chứng vẫn khớp nhờ băm (command_sha256), ticket/config/knowledge không bị đụng. Lỗi chặn chính: (1) giá trị của mọi biến môi trường có tên kiểu credential bị thay theo chuỗi con (không theo ranh giới từ) trên cả dữ liệu cấu trúc mà Bint dựa vào (event_type, khoá JSON, Landed.Files, đường dẫn finding), nên một biến dev phổ biến như DB_PASSWORD=test làm hỏng spool/state; (2) `runs scrub` ghi đè state.json/writes.jsonl/spool bằng rename mà không lấy khoá task/journal, xoá tệp .tmp đang ghi và tệp rejected, không có sao lưu; nó còn lọc writes.jsonl bằng bộ lọc chung (che đường dẫn bằng *** thay vì băm), không khớp với AppendWrites; (3) spool.Reject giờ xoá nội dung tệp hỏng, kể cả các sự kiện hợp lệ trong đó; (4) redact.Writer có trạng thái khối JSON/dấu nháy dễ nuốt toàn bộ phần đầu ra còn lại, áp cho cả log lẫn CmdResult.Tail; (5) vài hồi quy nhỏ hơn: cache tools/list của gateway bị tắt âm thầm, mất chẩn đoán của daemon chạy tách và của hook-trace, log cũ chỉ được lọc khi người dùng tự chạy lệnh.",
+  "findings": [
+    {
+      "id": "X1",
+      "severity": "medium",
+      "title": "Giá trị biến môi trường kiểu credential bị thay theo chuỗi con trên cả dữ liệu cấu trúc (event_type, khoá JSON, Landed.Files, đường dẫn)",
+      "file": "internal/redact/redact.go",
+      "lines": "56-113, 187-201, 317-339",
+      "scenario": "Người dùng hay CI có biến dev phổ biến như DB_PASSWORD=test, JWT_SECRET=secret hoặc PGPASSWORD=postgres. FromEnv(os.Environ()) biến 'test' thành literal; strings.Replacer thay mọi chuỗi con, không xét ranh giới từ (chỉ giá trị dưới 3 rune mới xét). Hậu quả: spool.Write ghi event_type 'test.completed' thành '***.completed'. spool.ReadFile cũng lọc khi đọc, nên ingest không còn nhận ra sự kiện test. Khoá JSON cũng bị đổi (cleanKey := r.Text(key)), ví dụ 'test_passed' thành '***_passed', nên struct giải mã lại mất trường. state.json 'landed' (Landed.Files) đổi 'internal/foo_test.go' thành 'internal/foo_***.go'. task diff (task_diff.go:105) và UnapprovedChanges (ops.go:600) dùng danh sách này làm pathspec hoặc để so với ProtectedApproval.Paths, nên diff thiếu tệp hoặc báo nhầm tệp chưa duyệt. f.Path của finding (review.go:245) và runs.worktree cũng bị đổi.",
+      "evidence": "redact.go:106 `secretKey.MatchString(k)` → values=append(values,v); New(): `pairs = append(pairs, s, Marker)` với mọi s dài từ 3 rune, strings.NewReplacer, không xét ranh giới từ. scrubValue: `cleanKey := r.Text(key)` áp lên khoá. spool.go:133-141 `scrub.Marshal(e)` sau Validate; spool.go:287 `b, err = scrub.JSON(b)` khi đọc. task.go:962 lọc cả 'landed'. Ở nhánh short (dòng 203-219) có kiểm wordRune nhưng nhánh literal thì không."
+    },
+    {
+      "id": "X2",
+      "severity": "medium",
+      "title": "`bint runs scrub` ghi đè state.json, writes.jsonl và spool mà không lấy khoá; xoá tệp tạm đang ghi; không sao lưu",
+      "file": "internal/app/log_scrub.go",
+      "lines": "36-134, 156-176, 223-249",
+      "scenario": "Một phiên Claude hoặc Codex khác vẫn gọi hook, hoặc `bint run` đang chạy ở worktree khác, trong lúc người dùng chạy `bint runs scrub`. scrubLogFile đọc runtime/tasks/<id>/state.json rồi ghi tệp tạm và rename đè. Lần Update state xen giữa (đã lấy fslock của task) bị mất, vì ScrubLogs không lấy khoá task (chỉ lấy LockOffline cho gateway). Tương tự, writes.jsonl bị rename đè trong khi AppendWrites nối dòng vào inode cũ, nên mất bản ghi ghi của Bint và ReadonlyViolations coi đó là ghi trái phép. diagnosticPath còn chọn spool/.tmp-* và runtime/shellsnap-*.json để xoá (remove=true). Tệp spool đang được hook ghi giữa chừng bị xoá nên sự kiện mất, ảnh chụp git status của lệnh shell đang chạy cũng mất. Mọi tệp spool/rejected/* bị xoá vĩnh viễn. Không có chế độ xem trước hay sao lưu.",
+      "evidence": "log_scrub.go:60-66 chỉ khoá khi gateway; :160-162 `partial := strings.HasPrefix(file, \".tmp-\")` → remove; `parts[1] == \"rejected\"` → remove; :173-174 shellsnap → remove; :245 `root.Rename(tmp, name)` không có khoá task/lockWrites. Chỉ có dòng Long của cobra nhắc 'Dừng các phiên Bint' (cli/runs.go)."
+    },
+    {
+      "id": "X3",
+      "severity": "medium",
+      "title": "runs scrub lọc writes.jsonl bằng JSONLWriter chung: đường dẫn bị che bằng *** thay vì băm PathDigest, làm hỏng khớp chuỗi ghi",
+      "file": "internal/app/log_scrub.go",
+      "lines": "168-172, 274-279",
+      "scenario": "writes.jsonl có bản ghi path chứa chuỗi khớp mẫu hoặc literal của env, ví dụ 'C:/repo/internal/foo_test.go' khi DB_PASSWORD=test. ScrubLogs chọn writes.jsonl (ext .jsonl) và lọc bằng JSONLWriter, nên path thành 'C:/repo/internal/foo_***.go' (vẫn ở trường path, không có path_sha256). ReadonlyViolations lấy khoá là HashBytes(r.Path) của đường dẫn đã hỏng, còn tra cứu dùng HashBytes(NormalizeWritePath(abs)) của đường dẫn thật, nên không khớp. Lần ghi hợp lệ của Bint/người bị coi là ghi không rõ nguồn và bị báo vi phạm chỉ đọc.",
+      "evidence": "log_scrub.go:171 `case file == writes: return true, false` → copyScrubbedLog ext .jsonl → `scrub.JSONLWriter(dst)`. Trong khi writes.go:119-125 `WriteRecord.scrubbed` đặt `PathDigest = HashBytes(path), Path = \"\"`; isolation.go:368-386 tra theo digest."
+    },
+    {
+      "id": "X4",
+      "severity": "medium",
+      "title": "spool.Reject giờ xoá nội dung tệp hỏng, kể cả các sự kiện hợp lệ cùng tệp; dòng quá dài hay dòng {\"discarded\":true} kéo cả tệp vào đường xoá",
+      "file": "internal/spool/spool.go",
+      "lines": "296-317",
+      "scenario": "Một tệp spool có nhiều sự kiện, trong đó một dòng hỏng hoặc dài hơn 4MB. ReadFile trả ErrCorrupt; riêng ErrTooLong trước đây không phải ErrCorrupt, nay được đổi thành ErrCorrupt. Ingest gọi Reject, hàm này ghi tệp giữ chỗ 'Nội dung đã bị loại bỏ' rồi os.Remove tệp gốc: mọi sự kiện hợp lệ khác mất vĩnh viễn, trước đây được chuyển nguyên vào rejected/ để kiểm tra. Ngoài ra `bint runs scrub` lọc tệp spool đang chờ bằng JSONLWriter, thay dòng hỏng hoặc quá dài bằng {\"discarded\":true}. Dòng này không qua Validate (schema_version 0), nên lần ingest sau loại và xoá cả tệp.",
+      "evidence": "spool.go:308-317 `fsafe.WriteAtomic(... \"Tệp spool hỏng. Nội dung đã bị loại bỏ.\") ; return os.Remove(path)`; :299-302 `errors.Is(err, bufio.ErrTooLong)` → ErrCorrupt; redact/writer.go:69-82 placeholder `{\"discarded\":true}`; runlog/ingest.go:47-48 gọi Reject."
+    },
+    {
+      "id": "X5",
+      "severity": "medium",
+      "title": "redact.Writer có trạng thái khối JSON/dấu nháy: một dòng '{' hay '[\"' không cân bằng làm nuốt mọi đầu ra sau đó, cả trong log lẫn CmdResult.Tail",
+      "file": "internal/redact/writer.go",
+      "lines": "98-147, 163-194",
+      "scenario": "Lệnh kiểm chứng hoặc agent in một dòng chỉ có '{' (object JS/Node in nhiều dòng, template) hoặc một dòng JSON bị cắt như '{\"msg\":\"unterminated'. startsJSON trả true và jsonNesting cho depth > 0, nên các dòng sau dồn vào jsonBlock. Nếu không bao giờ cân bằng lại, hoặc khối vượt 4MB, cả phần còn lại được ghi thành một dấu '***' khi Flush. Tương tự, dòng như `password=\"` không đóng nháy làm bỏ mọi dòng cho tới dấu nháy kế tiếp. Vì tailBuffer nằm sau Writer (shell.go), Tail dùng cho thông báo 'agent thoát với mã N: …' và claudeResumeMissingRe cũng chỉ còn '***'. Log kiểm chứng mất dòng '--- FAIL', nên failSetOf (slice.go) không đo được lát.",
+      "evidence": "writer.go:100-117 `if w.jsonDepth != 0 || ... startsJSON(line) { depth := jsonNesting(...) ... return nil }`; :150-160 finishJSONBlock → Marker nếu JSON không hợp lệ hoặc jsonLarge; :139-143 openQuote → w.quote, :119-123 bỏ dòng tới khi gặp nháy. eval/shell.go: `writers := []io.Writer{tail}` → `combined` → `scrub.Writer(combined)`."
+    },
+    {
+      "id": "X6",
+      "severity": "low",
+      "title": "Giá trị gán nội tuyến trong lệnh kiểm chứng thành literal bí mật cho toàn bộ log: `DB_PASSWORD=test go test ./...` xoá chữ 'test' khắp log/Tail",
+      "file": "internal/redact/redact.go",
+      "lines": "139-155",
+      "scenario": "verify.command là `DB_PASSWORD=test go test ./...`, chạy qua `sh -c`. FromProcess nhận ra args dạng [-c, cmd], lấy 'test' làm known literal, rồi thay mọi chuỗi con 'test' trong log và Tail: 'foo_test.go:12' thành 'foo_***.go:12', 'go test' thành 'go ***'. Subtest tên chữ thường cũng bị đổi. Kết quả là log kiểm chứng và đầu ra cho agent sửa lỗi bị biến dạng.",
+      "evidence": "redact.go:139-151 `if len(args) == 2 && (args[0] == \"-c\" ...) { for ... assignment, flags ... known = append(known, value) }` → New() replacer không xét ranh giới từ."
+    },
+    {
+      "id": "X7",
+      "severity": "low",
+      "title": "Cache tools/list trên đĩa của gateway bị tắt âm thầm khi schema có thuộc tính tên kiểu credential; mọi cache cũ bị vô hiệu",
+      "file": "internal/mcpgw/toolscache.go",
+      "lines": "36-53, 66-68",
+      "scenario": "Một upstream MCP có tool với inputSchema.properties chứa 'token', 'password', 'api_key', 'cookie' hay 'credentials', hoặc mô tả chứa '--token x' hay 'password: …'. scrub.JSON làm dữ liệu khác đi (secretKey che giá trị object của khoá đó), nên cacheStore return mà không ghi. Mỗi lần daemon khởi động lạnh đều phải spawn upstream để lấy tools/list, tức là cache mất tác dụng chính. Format=2 cũng vô hiệu toàn bộ cache hiện có.",
+      "evidence": "toolscache.go: `clean, err := scrub.JSON(data); if err != nil || !bytes.Equal(clean, data) { return }`; redact.go:323 `if item != nil && secretKey.MatchString(key) { cleanMap[cleanKey] = Marker`."
+    },
+    {
+      "id": "X8",
+      "severity": "low",
+      "title": "Daemon gateway chạy tách mất stdout/stderr: lỗi trước mcpgw.Start hoặc panic không còn được ghi, parent chỉ báo hết giờ",
+      "file": "internal/mcpgw/control.go",
+      "lines": "70-93, 133-144",
+      "scenario": "Tiến trình con lỗi trước khi tới nhánh Foreground (ví dụ đọc cấu hình hoặc đường dẫn hỏng), hoặc panic. Trước đây stdout/stderr được ghi vào gateway.log, nên logTail cho người dùng biết lý do. Nay cmd.Stdout/Stderr là nil và log chỉ mở khi mcpgw.Start trả lỗi, nên `bint mcp gateway start` thất bại không kèm chẩn đoán.",
+      "evidence": "control.go: bỏ `cmd.Stdout, cmd.Stderr = lf, lf`; app/mcp_gateway_svc.go:54-68 chỉ mở log khi `o.Foreground && detached`, chỉ ghi lỗi của mcpgw.Start."
+    },
+    {
+      "id": "X9",
+      "severity": "low",
+      "title": "BINT_HOOK_TRACE mất chức năng chẩn đoán: .in/.out chỉ còn kích thước và cờ",
+      "file": "internal/app/hook_trace.go",
+      "lines": "16-100",
+      "scenario": "Người bật BINT_HOOK_TRACE=1 để điều tra hook (NT-ISO-LEAK). Tệp .in không còn đầu vào, .out không còn output, spool_file hay thông báo lỗi. Tên tệp đổi sự kiện lạ thành 'unknown'. Luồng chẩn đoán đổi hành vi thay vì chỉ che bí mật trong nội dung.",
+      "evidence": "`body := fmt.Sprintf(\"{\\\"input_bytes\\\":%d,\\\"valid_payload\\\":%t}\\n\", ...)`; `out := map[string]any{\"output_bytes\": len(res.Output), ... \"failed\": err != nil}`."
+    },
+    {
+      "id": "X10",
+      "severity": "low",
+      "title": "Dữ liệu đã lưu trước đó chỉ được lọc khi người dùng tự chạy `bint runs scrub` (và lần nữa với --gateway), sau khi tự dừng các phiên",
+      "file": "internal/cli/runs.go",
+      "lines": "223-245",
+      "scenario": "Sau khi nâng cấp, log, SQLite và spool cũ vẫn giữ bí mật cho tới khi người dùng biết và chạy lệnh thủ công. Gateway còn cần lệnh riêng với --gateway sau khi dừng daemon. Điều này trái thẻ 'mặc định bật, không phải bật tay'.",
+      "evidence": "newRunsScrubCmd là lối vào duy nhất của app.ScrubLogs/runlog.ScrubHistory; coverage.go ghi 'bảo trì nhật ký ngoại tuyến'; không có điểm gọi tự động nào."
+    },
+    {
+      "id": "X11",
+      "severity": "low",
+      "title": "Ledger: bundle cục bộ được lọc và review.json bị nén lại, nên hash khác base cũ và gây export/xung đột giả ở lần sync đầu",
+      "file": "internal/task/ledger.go",
+      "lines": "221-249, 605-631",
+      "scenario": "Tác vụ có review/outcomes hay state chứa chuỗi khớp mẫu, ví dụ lệnh có '-u origin' hay evidence 'token: …'. localBundle giờ lọc và json.Marshal gọn lại, nên L.hash() khác base hash ghi bởi bản cũ. decide coi như cục bộ đã đổi: export lại, hoặc báo LedgerConflict nếu cây cũng đổi, và người phải giải tay. Kết quả lọc còn phụ thuộc env của tiến trình gọi sync.",
+      "evidence": "ledger.go: `if n == ReviewFile || n == OutcomeFile { data, err = scrub.JSON(data) }`; redact.JSON trả json.Marshal (gọn, khoá sắp xếp) khi có thay đổi; ledger_sync.go:124-131 so hL/hB."
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+Lần trước bạn đang làm dở việc tôi nhờ: «Tôi sợ mật khẩu với token bị lưu lại trong log của bint, xử lý giúp tôi. Mọi chỗ bint lưu đều phải sạch, việc này lớn nên cứ làm từ từ qua nhiều lần cũng được.» Làm tiếp cho xong, đừng làm lại phần đã xong.

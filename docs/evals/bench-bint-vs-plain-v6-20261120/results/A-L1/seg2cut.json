@@ -1,0 +1,12 @@
+{
+ "run": "A-L1",
+ "label": "seg2cut",
+ "tree": "c1d97b76a36df001bce4feaab4855fcad08a19b4",
+ "commit": "89a3c7cec7f4bd7519b6a0d644225b905f1678e2",
+ "build_ok": true,
+ "build_err": "",
+ "diffstat": "55 files changed, 1623 insertions(+), 187 deletions(-)",
+ "hidden_exit": 0,
+ "hidden_tail": "fixture: {'FX-S1': True, 'FX-S2': True, 'FX-S3': True, 'FX-S4': True, 'FX-S5': True, 'FX-S6': True} \nS1 verify-output lộ: []\nS2 agent-output lộ: []\nS3 task-description lộ: ['aws_key_id', 'aws_secret', 'bearer', 'github_token', 'password', 'private_key', 'url_creds']\nS4 review lộ: ['aws_key_id', 'aws_secret', 'bearer', 'github_token', 'password', 'private_key', 'url_creds']\nS5 hook-events lộ: []\nS6 task-docs lộ: ['aws_key_id', 'aws_secret', 'bearer', 'github_token', 'password', 'private_key', 'url_creds']\nN1: True {'verify_exit': 0, 'done_exit': 0, 'show_exit': 0, 'missing_in_log': [], 'done_out': '01M7TX2CWJDPT0T2Y3KZNJV8SJ → done\\n', 'verify_out': 'TOKEN=$CI_TOKEN sh ok.sh → qua (mã 0)\\nlog: D:\\\\bench\\\\bench-bint-v6-20261120\\\\tmp\\\\hidden-A-L1-seg2cut\\\\n1\\\\c\\\\state\\\\repo-1d5886336df7\\\\runtime\\\\tasks\\\\01M7TX2CWJDPT0T2Y3KZNJV8SJ\\\\logs\\\\verify-1.log\\n'}\n",
+ "matrix": "D:\\bench\\bench-bint-v6-20261120\\results\\A-L1\\seg2cut.hidden.json 15/36 (41.7%) {'S1': '7/7', 'S2': '7/7', 'S3': '0/7', 'S4': '0/7', 'S5': '1/1', 'S6': '0/7'} N1: True"
+}

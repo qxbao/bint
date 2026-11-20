@@ -75,6 +75,11 @@ Nhận xét:
 - Đề xuất cải tiến: chia b-feat theo nhóm bề mặt kèm test riêng; Bint tự chạy kiểm tra mục tiêu dạng hộp đen (cài bí mật thật vào mọi đường nhập rồi quét) thay vì dựa vào test do agent viết;
   đặt trần token cho b-feat đầu; làm phiếu riêng sửa `detect.Redact` mới (các lỗi cụ thể ở `bench-bint-vs-plain-v5-20261117/review/T2-verified.json`).
 
+Đợt 6 (2026-11-20, Windows, `gpt-6.2-sol`, task dài L1 qua tối đa 4 phiên × 30 phút có cắt cứng; [plan v6](../benchmark-bint-vs-plain-v6-plan.md),
+[biên bản](bench-bint-vs-plain-v6-20261120/README.md)): **Hoà** theo bảng chốt. Ma trận loại × nơi lưu A 22/36, B 20/36; cả hai trượt N2
+(A 20,1×, B 5,5×); B thêm 3 critical do che quá rộng và `go test` đỏ thật; B/A = 2,41× token vào. Lượt đầu bị huỷ vì repo còn tài liệu
+benchmark cũ (agent đọc làm đáp án).
+
 ## 6. Ghi chú về dữ liệu trong thư mục này
 Các biên bản đã bỏ: mã test ẩn (`hidden/`), công cụ chạy (`tools/`), bản ghi thô của agent (`*.jsonl`) và tệp > 400 KB. Các chuỗi giống token/khoá trong kết quả
 là mẫu giả của test ẩn và đã được thay bằng `<FIXTURE>`. Đường dẫn máy (`/home/…`) giữ nguyên như biên bản gốc.
