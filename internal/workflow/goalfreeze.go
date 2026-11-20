@@ -55,6 +55,9 @@ func (rs *runState) goalPending() bool {
 	if strings.TrimSpace(rs.t.Ticket.Verify.Command) == "" {
 		return false
 	}
+	if task.IsBPrime(rs.t) {
+		return !st.GoalDropped // B′: thăm dò hộp đen, không cần mục Kiểm tra mục tiêu của requirement.md; người đã gỡ thì không chạy lại
+	}
 	data, err := os.ReadFile(rs.t.ArtifactPath("requirement"))
 	return err == nil && task.GoalCheck(string(data)) != ""
 }
@@ -107,10 +110,26 @@ func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 		return false
 	}
 	var files []task.GoalFile
+	bprime := task.IsBPrime(rs.t)
 	for _, p := range rs.t.State.Touched {
 		if sum, ok := fileSHA256(r.Root, p); ok {
+			if bprime && !hasProbeMarker(r.Root, p) {
+				continue // B′: chỉ tệp thăm dò có dòng `Loại đầu vào:` mới đóng băng
+			}
 			files = append(files, task.GoalFile{Path: p, SHA256: sum})
 		}
+	}
+	if bprime && len(files) == 0 {
+		// Thăm dò rỗng hoặc sai dạng: không đóng băng, không chặn; b-feat chạy tiếp (tệp đã viết, nếu có, là test thường).
+		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+			t.State.GoalAwaitingCheck, t.State.GoalCheckRunID, t.State.GoalDropped = false, "", true // GoalDropped: goalPending không chạy lại b-goal
+			return nil
+		}); err == nil {
+			rs.t = t
+		}
+		rs.res.Notes = append(rs.res.Notes, "luồng B′: b-goal không để lại tệp thăm dò có dòng `"+probeMarker+"` nên không có thước đo đóng băng; b-feat chạy tiếp")
+		r.refreshLastPlan(ctx, rs)
+		return true
 	}
 	if len(files) == 0 {
 		// Không có tệp để đóng băng: resume phải chạy lại b-goal (agent), không phải phần sau kiểm phạm vi.
@@ -376,6 +395,9 @@ func frozenGoalBlock(t *task.Task) string {
 	gt := t.State.GoalTest
 	if gt == nil {
 		return ""
+	}
+	if task.IsBPrime(t) {
+		return bprimeFrozenBlock(t)
 	}
 	return "\nKiểm tra mục tiêu ĐÃ ĐƯỢC VIẾT độc lập (b-goal, từ requirement.md) và Bint đã đóng băng, KHÔNG viết lại và KHÔNG sửa, xoá hay đổi tên các tệp này " +
 		"(sửa thì tác vụ bị chặn trước kiểm chứng): " + strings.Join(gt.Paths(), ", ") + ".\n" +

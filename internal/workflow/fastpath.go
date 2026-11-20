@@ -66,7 +66,7 @@ const fastReason = "yêu cầu ngắn, mơ hồ, rủi ro thấp: đường nhan
 // finalize; review chạy tay) theo luật thường.
 func (rs *runState) fastPath() bool {
 	c := rs.t.State.Classification
-	return c != nil && c.Fast && !rs.t.State.FastFixed && rs.flow.Name == StepDo && rs.countKind(flow.KindReview) == 1
+	return c != nil && (c.Fast || task.IsBPrime(rs.t)) && !rs.t.State.FastFixed && rs.flow.Name == StepDo && rs.countKind(flow.KindReview) == 1
 }
 
 // fixCeiling là trần cứng của vòng sửa khi review đang hội tụ: 2 × workflow.max_review_rounds cộng số vòng người cho thêm.

@@ -135,6 +135,8 @@ type RunOptions struct {
 	// Accept (cùng Resume): tác vụ đang chờ sau khi hết vòng sửa — chấp nhận kết quả như hiện tại, vào thẳng finalize.
 	// FixRound: cho thêm đúng một vòng sửa (b-feat rồi b-review). Chỉ người dùng được (app kiểm), loại trừ nhau.
 	Accept, FixRound bool
+	// DropGoal (cùng Resume): tác vụ B′ có thước đo thăm dò đóng băng mà người cho là sai: gỡ đóng băng (GoalTest, scope.deny). Chỉ người dùng (app kiểm).
+	DropGoal bool
 	// Slice (cùng Resume): lựa chọn của người với lát đang giữ chờ người (keep | discard | more); rỗng = more. Chỉ người dùng được (app kiểm).
 	Slice string
 	// Isolation: chế độ cô lập khi tự lập phiếu (""/auto | shared | worktree); không dùng cùng TaskRef.
@@ -392,10 +394,13 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if !o.Resume && task.Paused(t.State.Status) {
 			return nil, fmt.Errorf("tác vụ %s đang %s (%s): dùng `%s`", t.State.ID, t.State.Status, t.State.Reason, t.State.ResumeCommand())
 		}
-		if !o.Resume && (o.Answer != "" || o.Accept || o.FixRound) {
-			return nil, errors.New("--answer/--accept/--fix-round chỉ dùng khi tiếp tục tác vụ (bint run resume <id>)")
+		if !o.Resume && (o.Answer != "" || o.Accept || o.FixRound || o.DropGoal) {
+			return nil, errors.New("--answer/--accept/--fix-round/--drop-goal chỉ dùng khi tiếp tục tác vụ (bint run resume <id>)")
 		}
 		if err := checkResumeFlags(t, o.Answer, o.Accept, o.FixRound); err != nil {
+			return nil, err
+		}
+		if err := checkDropGoal(t, o.DropGoal); err != nil {
 			return nil, err
 		}
 		if o.Slice != "" && !o.Resume {
@@ -509,6 +514,9 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 			return rs.res, err
 		}
 		r.applyResume(rs, o.Answer, o.FixRound, rs.reviewFixStep(rs.currentReview()))
+		if o.DropGoal {
+			r.dropGoal(rs)
+		}
 		if o.Accept {
 			rs.acceptReview, rs.accepted = true, true
 		} else {
@@ -1081,17 +1089,29 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	env := []string{EnvRunID + "=" + sr.child, EnvTaskID + "=" + rs.t.State.ID, "BINT_AGENT=1",
 		task.EnvRunnerPID + "=" + strconv.Itoa(os.Getpid()),
 		EnvApprovedPaths + "=" + strings.Join(ApprovedPaths(rs.t), "\n")}
+	denyRead := false
 	if sr.kind == flow.KindGoal {
 		// Rào thực thi của b-goal (goalfreeze.go): hook không cho đọc plan.md/tasks.md; chỉ bước này có biến.
 		// Cấm cả thư mục tác vụ (plan.md, tasks.md, review.md, logs... nằm cạnh requirement.md mà đề bài in đường dẫn), chỉ chừa requirement.md
 		// ("!" = ngoại lệ, hookcore/deny_read.go); plan.md/tasks.md liệt kê riêng để thông báo từ chối nêu đúng tên tệp.
-		env = append(env, hookcore.EnvDenyRead+"="+strings.Join([]string{rs.t.ArtifactPath("plan"), rs.t.ArtifactPath("tasks"), rs.t.Dir,
-			"!" + rs.t.ArtifactPath("requirement")}, "\n"))
+		// Luồng B′: thăm dò không đọc cả requirement.md (0 ngoại lệ), nguồn là yêu cầu gốc trong đề bài (bprime.go).
+		list := []string{rs.t.ArtifactPath("plan"), rs.t.ArtifactPath("tasks"), rs.t.Dir}
+		if task.IsBPrime(rs.t) {
+			list = append(list, rs.t.ArtifactPath("requirement"))
+		} else {
+			list = append(list, "!"+rs.t.ArtifactPath("requirement"))
+		}
+		env = append(env, hookcore.EnvDenyRead+"="+strings.Join(list, "\n"))
+		denyRead = true
+	} else if sr.kind == flow.KindReview && task.IsBPrime(rs.t) {
+		// Luồng B′: review ngữ cảnh sạch, không thấy kế hoạch (không cấm cả thư mục: log kiểm chứng và review.md nằm ở đó).
+		env = append(env, hookcore.EnvDenyRead+"="+strings.Join([]string{rs.t.ArtifactPath("plan"), rs.t.ArtifactPath("tasks")}, "\n"))
+		denyRead = true
 	}
 	// Mọi bước driver process có đúng một MCP server là bint (M0 của docs/mcp-gateway-plan.md).
 	mcpPath, mcpTools, cleanMCP := r.stepMCP(sr, rs.t.State.ID)
 	defer cleanMCP()
-	denySettings, cleanDeny := r.stepDenyReadSettings(sr) // b-goal (Claude): hook cho Grep/Glob để rào BINT_DENY_READ chặn được (mcp.go)
+	denySettings, cleanDeny := r.stepDenyReadSettings(sr, denyRead) // b-goal, review B′ (Claude): hook cho Grep/Glob để rào BINT_DENY_READ chặn được (mcp.go)
 	defer cleanDeny()
 	r.armPlanHandoff(ctx, rs, sr)
 	last := rs.t.State.LastStep // chụp trước khi xoá (bước thật sự bắt đầu ngay dưới)
@@ -3000,6 +3020,9 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	if bprime {
 		body = bprimeReqGuide
 	}
+	if stepDef.Kind == flow.KindGoal && task.IsBPrime(t) {
+		body = bprimeGoalGuide
+	}
 	var b strings.Builder
 	b.WriteString(body)
 	fmt.Fprintf(&b, "\n\n---\n\n<bint-task id=%q step=%q run=%q>\n", t.State.ID, step, child)
@@ -3051,8 +3074,11 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	ticket, _ := yaml.Marshal(t.Ticket)
 	fmt.Fprintf(&b, "Phiếu tác vụ (task.yml):\n```yaml\n%s```\n", ticket)
 	for _, n := range task.ArtifactNames() {
-		if stepDef.Kind == flow.KindGoal && n != "requirement" {
-			continue // b-goal chỉ thấy requirement.md: không nêu đường dẫn plan.md/tasks.md
+		if stepDef.Kind == flow.KindGoal && (n != "requirement" || task.IsBPrime(t)) {
+			continue // b-goal chỉ thấy requirement.md (B′: không thấy tài liệu nào): không nêu đường dẫn plan.md/tasks.md
+		}
+		if stepDef.Kind == flow.KindReview && task.IsBPrime(t) && (n == "plan" || n == "tasks") {
+			continue // review B′ ngữ cảnh sạch: không nêu đường dẫn kế hoạch
 		}
 		p := t.ArtifactPath(n)
 		if _, err := os.Stat(p); err == nil {
@@ -3064,7 +3090,11 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	}
 	switch stepDef.Kind {
 	case flow.KindGoal:
-		b.WriteString(goalPromptBlock(t))
+		if task.IsBPrime(t) {
+			b.WriteString(bprimeGoalBlock())
+		} else {
+			b.WriteString(goalPromptBlock(t))
+		}
 	case flow.KindImplement:
 		if c := t.State.Classification; c != nil && c.Fast {
 			if _, err := os.Stat(t.ArtifactPath("requirement")); err != nil {

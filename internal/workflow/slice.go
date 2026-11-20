@@ -44,7 +44,8 @@ func (rs *runState) activeSlice() *task.Slice {
 // sliceTimeoutFor là trần thời gian agent của bước: workflow.timeout_minutes, và với lát đang chạy thì min với slice_timeout_minutes.
 func (r *Runner) sliceTimeoutFor(rs *runState, implement bool) time.Duration {
 	d := time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute
-	if implement && rs.activeSlice() != nil {
+	// Luồng B′: vòng sửa duy nhất sau review (FastFixed) có trần như một lát.
+	if implement && (rs.activeSlice() != nil || (task.IsBPrime(rs.t) && rs.t.State.FastFixed)) {
 		if sd := time.Duration(r.Cfg.Workflow.SliceTimeoutMinutes) * time.Minute; sd > 0 && sd < d {
 			return sd
 		}

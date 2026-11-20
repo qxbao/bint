@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"bint/internal/config"
-	"bint/internal/flow"
 	"bint/internal/harness/claude"
 	"bint/internal/mcpgw"
 )
@@ -46,8 +45,8 @@ func writeStepDenyReadSettings(stateRoot, runID, exe string) (string, error) {
 
 // stepDenyReadSettings cấp settings của rào đọc cho bước b-goal chạy bằng Claude (harness khác không dùng --settings theo nghĩa này:
 // Codex không có công cụ Grep/Glob riêng, đọc qua shell). path rỗng = không cấp (bước vẫn chạy, rào chỉ còn Read/Bash của hook đã cài).
-func (r *Runner) stepDenyReadSettings(sr *stepRun) (path string, cleanup func()) {
-	if sr.kind != flow.KindGoal || sr.harness != "claude" || r.Spool == "" {
+func (r *Runner) stepDenyReadSettings(sr *stepRun, denyRead bool) (path string, cleanup func()) {
+	if !denyRead || sr.harness != "claude" || r.Spool == "" {
 		return "", func() {}
 	}
 	exe := r.BintExe

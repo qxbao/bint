@@ -21,6 +21,7 @@ type runFlags struct {
 	slice        string
 	accept       bool
 	fixRound     bool
+	dropGoal     bool
 	taskRef      string
 	step         string
 	depth        string
@@ -164,7 +165,7 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 	if resume != nil {
 		ro = app.RunResumeDefaults(config.Default())
 		ro.Ref, ro.NoReview, ro.NoWait, ro.Rerun, ro.Fresh, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.rerun, rf.fresh, rf.harness, rf.roles, rf.model, rf.agentCommand
-		ro.Answer, ro.Accept, ro.FixRound, ro.Slice = rf.answer, rf.accept, rf.fixRound, rf.slice
+		ro.Answer, ro.Accept, ro.FixRound, ro.Slice, ro.DropGoal = rf.answer, rf.accept, rf.fixRound, rf.slice, rf.dropGoal
 		if err := ro.Validate(); err != nil {
 			return err
 		}
@@ -298,6 +299,9 @@ Tác vụ dừng sau khi hết vòng sửa review (workflow.max_review_rounds l�
 quả như hiện tại (vào thẳng bước hoàn tất, bỏ qua phát hiện còn lại), --fix-round cho sửa thêm đúng một vòng (b-feat rồi b-review),
 hoặc bint task cancel. --accept và --fix-round chỉ người dùng chạy được (không phải phiên agent).
 
+Luồng B′ (workflow.variant: bprime) có thước đo thăm dò đóng băng mà người cho là sai (b-feat đã dừng và hỏi): trả lời bằng --answer thì
+thước đo được giữ (người xác nhận); --drop-goal thôi đóng băng nó (chỉ người dùng, chỉ tác vụ B′).
+
 Tác vụ chạy theo lát mỏng dừng khi một lát quá trần thời gian agent, không đạt số đo, vượt ngân sách diff/hiệu năng hoặc agent lỗi: Bint GIỮ
 cây của lát (không tự quay về điểm xanh) và in ba lựa chọn: --slice keep (chốt cây hiện tại làm điểm xanh, sang lát kế), --slice discard
 (đưa tệp của tác vụ về điểm xanh, sang lát kế), --slice more (chạy lại lát từ cây hiện tại, thêm một trần thời gian; mặc định khi không nêu
@@ -313,6 +317,7 @@ cây của lát (không tự quay về điểm xanh) và in ba lựa chọn: --s
 	c.Flags().StringVar(&rf.slice, "slice", "", "lát đang giữ chờ người: keep (chốt cây hiện tại) | discard (đưa tệp của tác vụ về điểm xanh) | more (chạy lại lát từ cây hiện tại); chỉ người dùng")
 	c.Flags().BoolVar(&rf.accept, "accept", false, "sau khi hết vòng sửa review: chấp nhận kết quả như hiện tại, vào thẳng bước hoàn tất (chỉ người dùng)")
 	c.Flags().BoolVar(&rf.fixRound, "fix-round", false, "sau khi hết vòng sửa review: cho sửa thêm đúng một vòng (b-feat rồi b-review; chỉ người dùng)")
+	c.Flags().BoolVar(&rf.dropGoal, "drop-goal", false, "luồng B′: thôi đóng băng thước đo thăm dò mà người cho là sai (tệp test vẫn còn trên đĩa; chỉ người dùng)")
 	return c
 }
 

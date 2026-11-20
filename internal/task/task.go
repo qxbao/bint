@@ -563,6 +563,8 @@ type State struct {
 	// GoalTest là kiểm tra mục tiêu độc lập do bước b-goal viết (chỉ thấy requirement.md) và Bint đóng băng: tệp và băm lúc b-goal xong.
 	// Nil = chưa có (phiếu cũ, --fast, thiếu mục Kiểm tra mục tiêu, b-goal chưa chạy).
 	GoalTest *GoalTest `json:"goal_test,omitempty"`
+	// GoalDropped (luồng B′): thước đo thăm dò đã bị gỡ (`bint run resume --drop-goal`) hoặc b-goal không để lại tệp thăm dò hợp lệ; b-goal không chạy lại.
+	GoalDropped bool `json:"goal_dropped,omitempty"`
 	// GoalChecks là các lần chạy cổng mục tiêu riêng (log goal-N.log); lần cuối quyết định điều kiện done.
 	GoalChecks []Verification `json:"goal_checks,omitempty"`
 	// BudgetChecks là các lần đo ngân sách diff sau bước b-feat khi không chia lát (workflow.max_diff_lines > 0); Command mô tả số đo, đỏ (Passed=false)

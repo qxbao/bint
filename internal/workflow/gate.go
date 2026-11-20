@@ -528,6 +528,11 @@ func (r *Runner) reviewPrompt(ctx context.Context, rs *runState, b *strings.Buil
 		fmt.Fprintf(b, "\nPhạm vi review: thay đổi so với commit %s — xem bằng `bint task diff %s` (tác vụ lập trước khi Bint theo dõi tệp "+
 			"riêng của từng tác vụ nên lệnh này so với commit đó trên toàn cây).\n", base, id)
 	}
+	if task.IsBPrime(t) {
+		b.WriteString(bprimeReviewBlock)
+		b.WriteString(r.bprimeReviewTail(t))
+		return
+	}
 	b.WriteString("\nNhiệm vụ ngoài việc soi lỗi trong diff: chấm theo MỤC TIÊU của người dùng (YÊU CẦU GỐC ở cuối đề bài và mục \"Kiểm tra mục tiêu\" nếu có), rồi đối chiếu " +
 		"từng TIÊU CHÍ CHẤP NHẬN và mục \"Bề mặt bị ảnh hưởng\" của plan.md với diff để tìm chỗ BỊ BỎ SÓT — nơi mục tiêu, một AC hay dòng bề mặt nói tới mà diff không đụng tới. " +
 		"Được chỉ tệp ngoài diff: ghi phát hiện với `path` là tệp chưa được xử lý và `criterion` là số tiêu chí liên quan (tiêu chí của kiểm tra mục tiêu, hoặc tiêu chí gần nhất). " +
