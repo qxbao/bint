@@ -162,6 +162,8 @@ type TaskNewOptions struct {
 	DependsOn []string
 	// Fast: người dùng chọn đường nhanh của b-do (`--fast`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
 	Fast bool
+	// Variant: luồng b-do của phiếu (`--variant classic|bprime`, chỉ CLI; không có thẻ flag nên form TUI không đổi); rỗng theo workflow.variant.
+	Variant string
 }
 
 // TaskNewDefaults: workflow b-do, độ sâu và driver tự chọn (như mặc định của cờ).
@@ -192,7 +194,24 @@ func (o TaskNewOptions) Validate() error {
 	if err != nil {
 		return err
 	}
+	if err := checkVariant(o.Variant, ""); err != nil {
+		return err
+	}
 	return checkFast(o.Fast, wfOrDefault(o.Workflow), o.Plan || o.NoPlan, depth)
+}
+
+// checkVariant kiểm --variant: rỗng hoặc một giá trị của workflow.variant; không đi cùng --task (luồng chốt lúc lập phiếu).
+func checkVariant(v, taskRef string) error {
+	if v == "" {
+		return nil
+	}
+	if !slices.Contains(config.Variants, v) {
+		return Usagef("--variant phải là %s (nhận %q)", strings.Join(config.Variants, " | "), v)
+	}
+	if strings.TrimSpace(taskRef) != "" {
+		return Usagef("--variant chỉ chọn lúc lập phiếu: không dùng cùng --task (luồng đã ghi trong phiếu)")
+	}
+	return nil
 }
 
 // checkFast kiểm lỗi dùng sai của --fast (chỉ b-do, không đi cùng --plan/--no-plan/--depth). Runner kiểm lại cùng luật.
@@ -231,6 +250,7 @@ func NewTask(ctx context.Context, ws *TaskWS, o TaskNewOptions) (TaskCreated, er
 	wo.Parent, wo.DependsOn = o.Parent, o.DependsOn
 	wo.Driver, _ = workflow.NormalizeDriverFlag(o.Driver) // đã kiểm ở Validate
 	wo.Fast = o.Fast
+	wo.Variant = o.Variant
 	if o.Plan || o.NoPlan {
 		p := o.Plan
 		wo.Plan = &p

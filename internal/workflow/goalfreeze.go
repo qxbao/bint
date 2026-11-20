@@ -56,7 +56,7 @@ func (rs *runState) goalPending() bool {
 		return false
 	}
 	if task.IsBPrime(rs.t) {
-		return !st.GoalDropped // B′: thăm dò hộp đen, không cần mục Kiểm tra mục tiêu của requirement.md; người đã gỡ thì không chạy lại
+		return false // B′ giai đoạn 4: b-feat lõi chạy trước; thăm dò hộp đen chạy song song (bprime_probe.go) hoặc tuần tự sau lõi (pha probe của pickStep)
 	}
 	data, err := os.ReadFile(rs.t.ArtifactPath("requirement"))
 	return err == nil && task.GoalCheck(string(data)) != ""
@@ -111,24 +111,38 @@ func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 	}
 	var files []task.GoalFile
 	bprime := task.IsBPrime(rs.t)
-	for _, p := range rs.t.State.Touched {
+	cands := rs.t.State.Touched
+	if bprime {
+		if rs.probeFiles != nil {
+			cands = rs.probeFiles // thăm dò nền đã gộp: đúng các tệp thăm dò vừa chép vào cây
+		} else {
+			// b-goal chạy tuần tự sau lõi: tệp thăm dò = tệp mới trong Touched kể từ lúc lõi xong.
+			cands = slices.DeleteFunc(slices.Clone(cands), func(p string) bool { return slices.Contains(rs.t.State.BPrimeCoreTouched, p) })
+		}
+	}
+	for _, p := range cands {
 		if sum, ok := fileSHA256(r.Root, p); ok {
-			if bprime && !hasProbeMarker(r.Root, p) {
-				continue // B′: chỉ tệp thăm dò có dòng `Loại đầu vào:` mới đóng băng
-			}
 			files = append(files, task.GoalFile{Path: p, SHA256: sum})
 		}
 	}
+	if bprime && !slices.ContainsFunc(files, func(f task.GoalFile) bool { return hasProbeMarker(r.Root, f.Path) }) {
+		files = nil // B′: chỉ đóng băng khi có ít nhất một tệp mang dòng `Loại đầu vào:`; khi có thì đóng băng cả tệp phụ (helper, fixture)
+	}
 	if bprime && len(files) == 0 {
-		// Thăm dò rỗng hoặc sai dạng: không đóng băng, không chặn; b-feat chạy tiếp (tệp đã viết, nếu có, là test thường).
+		// Thăm dò rỗng hoặc sai dạng: không đóng băng, không chặn; không có lượt mở rộng (tệp đã viết, nếu có, là test thường).
 		if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
-			t.State.GoalAwaitingCheck, t.State.GoalCheckRunID, t.State.GoalDropped = false, "", true // GoalDropped: goalPending không chạy lại b-goal
+			t.State.GoalAwaitingCheck, t.State.GoalCheckRunID, t.State.GoalDropped = false, "", true // GoalDropped: không chạy lại b-goal
+			t.State.BPrimePhase = bprimePhaseDone
 			return nil
 		}); err == nil {
 			rs.t = t
 		}
-		rs.res.Notes = append(rs.res.Notes, "luồng B′: b-goal không để lại tệp thăm dò có dòng `"+probeMarker+"` nên không có thước đo đóng băng; b-feat chạy tiếp")
+		rs.res.Notes = append(rs.res.Notes, noProbeNote)
 		r.refreshLastPlan(ctx, rs)
+		if rs.probeFiles == nil && rs.t.State.Status == task.StatusInProgress {
+			// b-goal tuần tự: lõi đã xong và đã kiểm chứng, đi tiếp sang review.
+			return r.implementDone(ctx, rs, rs.currentImplement().ID, false)
+		}
 		return true
 	}
 	if len(files) == 0 {
@@ -149,6 +163,9 @@ func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 	if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		t.State.GoalTest = &task.GoalTest{Files: files, RunID: runID, At: r.at()}
 		t.State.GoalAwaitingCheck, t.State.GoalCheckRunID = false, ""
+		if bprime {
+			t.State.BPrimePhase = bprimePhaseExtend // thước đo đã đóng băng: b-feat kế tiếp là lượt mở rộng
+		}
 		t.Ticket.Scope.Deny = appendUnique(t.Ticket.Scope.Deny, paths...)
 		return nil
 	}); err != nil {
@@ -210,9 +227,13 @@ func (r *Runner) freezeGate(rs *runState) bool {
 	if len(bad) == 0 {
 		return true
 	}
-	reason := fmt.Sprintf("kiểm tra mục tiêu đóng băng bị sửa: %s — b-feat không được chạm các tệp này (do b-goal viết độc lập từ requirement.md). "+
+	src := "do b-goal viết độc lập từ requirement.md"
+	if task.IsBPrime(rs.t) {
+		src = "thăm dò hộp đen do b-goal viết độc lập từ yêu cầu gốc"
+	}
+	reason := fmt.Sprintf("kiểm tra mục tiêu đóng băng bị sửa: %s — b-feat không được chạm các tệp này (%s). "+
 		"Khôi phục chúng (git restore -- <tệp>) rồi `%s`; `bint task approve` không bỏ qua cổng này",
-		strings.Join(bad, ", "), r.resumeCmd(rs))
+		strings.Join(bad, ", "), src, r.resumeCmd(rs))
 	r.RecordError(rs.t.State.ID, "scope", reason)
 	r.block(rs, reason)
 	return false

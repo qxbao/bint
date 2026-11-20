@@ -373,7 +373,7 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 		}
 		// Rào đọc của bước b-goal (deny_read.go): chỉ khi Runner đặt BINT_DENY_READ cho tiến trình này; plan.md/tasks.md nằm ngoài
 		// repository nên phải chặn trước bộ lọc "tệp ngoài repository" bên dưới.
-		if env := os.Getenv(EnvDenyRead); env != "" && d.PreToolDecide != nil && containsDecision(d.PreToolDecisions, "deny") {
+		if env := denyReadEnv(d, hi, paths.Runtime); env != "" && d.PreToolDecide != nil && containsDecision(d.PreToolDecisions, "deny") {
 			if hit, deny := denyReadDecision(env, hi.ToolInput); deny {
 				ge := ev
 				ge.Type = spool.GuardrailTriggered

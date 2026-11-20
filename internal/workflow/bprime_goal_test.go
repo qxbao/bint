@@ -137,7 +137,8 @@ func TestBPrimeGoalReviewGoal(t *testing.T) {
 		return func(_ context.Context, h *harness, e *Env, id string) error {
 			h.write("app.txt", "v2\n")
 			h.write("done.txt", "ok\n")
-			if n++; n == 1 {
+			// Giai đoạn 4: b-feat đầu là lõi (chưa có thước đo đóng băng); tranh chấp thước đo đến ở lượt MỞ RỘNG (lần gọi thứ hai).
+			if n++; n == 2 {
 				_, err := e.RecordQuestion(id, StepFeat, "Thước đo goal/probe.sh có vẻ sai?")
 				return err
 			}
@@ -201,8 +202,12 @@ func TestBPrimeGoalReviewGoal(t *testing.T) {
 		if !slices.Contains(tk.Ticket.Scope.Deny, bpProbeRel) {
 			t.Errorf("(L2×N2) scope.deny thiếu %s: %v", bpProbeRel, tk.Ticket.Scope.Deny)
 		}
-		fp, _, _ := bpReq(t, h, StepFeat, 0)
-		for _, want := range []string{"Thước đo thăm dò hộp đen (luồng B′)", "--question", "--drop-goal", bpProbeRel} {
+		core, _, _ := bpReq(t, h, StepFeat, 0)
+		if strings.Contains(core, bpProbeRel) || !strings.Contains(core, "LÕI trước") {
+			t.Errorf("(L2×N3) đề bài b-feat lõi không được thấy thước đo và phải là khối lõi")
+		}
+		fp, _, _ := bpReq(t, h, StepFeat, 1) // lượt mở rộng
+		for _, want := range []string{"Thước đo thăm dò hộp đen (luồng B′)", "--question", "--drop-goal", bpProbeRel, "lượt MỞ RỘNG"} {
 			if !strings.Contains(fp, want) {
 				t.Errorf("(L2×N3) đề bài b-feat thiếu %q", want)
 			}
@@ -221,15 +226,16 @@ func TestBPrimeGoalReviewGoal(t *testing.T) {
 		if !slices.Contains(deny, tk.ArtifactPath("plan")) || !slices.Contains(deny, tk.ArtifactPath("tasks")) || slices.Contains(deny, tk.Dir) {
 			t.Errorf("(L2×N4) rào đọc review phải cấm plan.md và tasks.md (không cấm cả thư mục): %v", deny)
 		}
-		// N5: một lượt review, hai lượt b-feat rồi finalize; vòng sửa có trần min(timeout, slice).
-		if got := strings.Join(h.calls, ","); got != "b-req,b-goal,b-feat,b-review,b-feat" {
+		// N5: lõi (b-goal chạy song song nên thứ tự b-feat/b-goal không xác định), mở rộng, một lượt review, một vòng sửa rồi finalize;
+		// vòng sửa có trần min(timeout, slice).
+		if got := strings.Join(h.calls, ","); got != "b-req,b-goal,b-feat,b-feat,b-review,b-feat" && got != "b-req,b-feat,b-goal,b-feat,b-review,b-feat" {
 			t.Errorf("(L2×N5) bước đã chạy: %s", got)
 		}
 		if res.Status != task.StatusDone {
 			t.Errorf("(L2×N5) trạng thái = %s (%s), muốn done", res.Status, res.Reason)
 		}
 		_, _, first := bpReq(t, h, StepFeat, 0)
-		_, _, fix := bpReq(t, h, StepFeat, 1)
+		_, _, fix := bpReq(t, h, StepFeat, 2)
 		if first != time.Duration(h.cfg.Workflow.TimeoutMinutes)*bpMinutes {
 			t.Errorf("(L2×N5) b-feat đầu có trần %v, muốn timeout_minutes", first)
 		}

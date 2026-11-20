@@ -32,12 +32,12 @@ skills:
     variants:
       agents: f2b29ca509e142d6
   b-do:
-    sha256: f312b6ced1605fcc
+    sha256: 480843f3ff37477c
     published:
       - .agents/skills/b-do/SKILL.md
       - .claude/skills/b-do/SKILL.md
     variants:
-      agents: 032339e11a978faf
+      agents: 6cd08f08fc0736e7
   b-do-fast:
     sha256: 10e767abfefbb9c5
     published:

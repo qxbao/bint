@@ -35,15 +35,33 @@ func (c *fakeClock) Add(d time.Duration) {
 
 // bvMilestone là một mốc của b-feat giả: sửa tệp, rồi (check) gọi Env.Check, (wait) chờ kiểm nền của mốc xong.
 type bvMilestone struct {
-	edit  func(h *harness)
-	wait  bool
-	check bool
+	edit   func(h *harness)
+	wait   bool
+	check  bool
+	pause  time.Duration // chờ sau khi sửa (cho kiểm nền kịp chạy)
+	cancel bool          // huỷ ngữ cảnh của Run sau khi sửa
 }
 
 // bvRun chạy b-do (B′ hoặc classic) với b-feat giả làm các mốc ms. Module Go (a, c) đã commit; verify.command đếm mỗi lần chạy vào
 // tệp đếm (ghi thư mục chạy); affected_command ghi aff.txt và đỏ khi red.txt tồn tại. Đồng hồ giả tiến 5 phút trước mỗi mốc và 15 phút sau.
 func bvRun(t *testing.T, variant string, ms []bvMilestone) (h *harness, res *Result, counter string, checks []CheckResult) {
 	t.Helper()
+	return bvRunOpt(t, bvOpts{variant: variant}, ms)
+}
+
+// bvOpts chỉnh bvRun: extra nối vào verify.command (điều kiện kiểm nền phải qua), slow làm verify.command chậm và ghi S/E vào <counter>.log
+// (đo hai lần chạy chồng nhau), cancel đặt hàm huỷ ngữ cảnh của Run (b-feat giả gọi nó qua bvMilestone.cancel).
+type bvOpts struct {
+	variant string
+	extra   string
+	slow    bool
+}
+
+func bvRunOpt(t *testing.T, o bvOpts, ms []bvMilestone) (h *harness, res *Result, counter string, checks []CheckResult) {
+	t.Helper()
+	variant := o.variant
+	runCtx, cancelRun := context.WithCancel(context.Background())
+	t.Cleanup(cancelRun)
 	old := bgPollInterval
 	bgPollInterval = 10 * time.Millisecond
 	t.Cleanup(func() { bgPollInterval = old })
@@ -51,7 +69,10 @@ func bvRun(t *testing.T, variant string, ms []bvMilestone) (h *harness, res *Res
 	clock := &fakeClock{t: time.Date(2026, 11, 20, 8, 0, 0, 0, time.UTC)}
 	h = bpHarness(t, bpOpts{variant: variant, goal: func(context.Context, *Env, string) error { return nil },
 		cfg: func(h *harness) {
-			full := "test -f done.txt && echo \"$PWD\" >> " + counter
+			full := "test -f done.txt" + o.extra + " && echo \"$PWD\" >> " + counter
+			if o.slow {
+				full = "test -f done.txt" + o.extra + " && echo S >> " + counter + ".log && sleep 0.2 && echo \"$PWD\" >> " + counter + " && echo E >> " + counter + ".log"
+			}
 			h.cfg.Eval.TestCommand = &full
 			h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeAffected,
 				AffectedCommand: "echo AFFECTED {test_dirs} >> aff.txt; test ! -f red.txt"}
@@ -62,6 +83,12 @@ func bvRun(t *testing.T, variant string, ms []bvMilestone) (h *harness, res *Res
 			for _, m := range ms {
 				clock.Add(5 * time.Minute)
 				m.edit(h)
+				if m.pause > 0 {
+					time.Sleep(m.pause)
+				}
+				if m.cancel {
+					cancelRun()
+				}
 				if m.check {
 					_, cr, err := e.Check(ctx, id)
 					if err != nil {
@@ -87,7 +114,7 @@ func bvRun(t *testing.T, variant string, ms []bvMilestone) (h *harness, res *Res
 	r := h.runner()
 	r.Env.Now = clock.Now
 	var err error
-	res, err = r.Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueGoalReq})
+	res, err = r.Run(runCtx, RunOptions{Workflow: StepDo, Request: vagueGoalReq})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,8 +232,92 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 		}
 		h, res, _, _ := bvRun(t, config.VariantBPrime, ms)
 		tk := h.load(res.TaskID)
-		if vs := tk.State.Verifications; len(vs) == 0 || strings.Contains(vs[0].Reason, "chạy nền") {
-			t.Errorf("(L5×N3) cây đã đổi: phải kiểm chứng tuần tự trước, có %d lần, đầu: %q", len(tk.State.Verifications), tk.State.Verifications[0].Reason)
+		if vs := tk.State.Verifications; len(vs) == 0 {
+			t.Errorf("(L5×N3) cây đã đổi: phải có kiểm chứng tuần tự, state.verifications rỗng")
+		} else if strings.Contains(vs[0].Reason, "chạy nền") {
+			t.Errorf("(L5×N3) cây đã đổi: phải kiểm chứng tuần tự trước, có %d lần, đầu: %q", len(vs), vs[0].Reason)
+		}
+	})
+
+	// L7 (kiểm nền ĐỎ) × N2/N3/N6: ghi background_verifications Passed=false, không dùng lại, kiểm chứng sau b-feat chạy tuần tự;
+	// lệnh `bint task check` kế tiếp (kiểm hẹp xanh) ghi chú checkout sạch thay vì bảo agent sửa.
+	t.Run("kiểm nền đỏ", func(t *testing.T) {
+		var h *harness
+		var res *Result
+		var crs []CheckResult
+		ms := []bvMilestone{
+			{edit: func(h *harness) { editA(2)(h); h.write("bgred.txt", "x\n") }, check: true, wait: true},
+			{edit: func(h *harness) { os.Remove(filepath.Join(h.root, "bgred.txt")) }, check: true},
+		}
+		h, res, _, crs = bvRunOpt(t, bvOpts{variant: config.VariantBPrime, extra: " && test ! -f bgred.txt"}, ms)
+		tk := h.load(res.TaskID)
+		bgs := tk.State.BackgroundVerifications
+		if len(bgs) == 0 || bgs[0].Passed {
+			t.Fatalf("(L7×N2) lần nền đầu phải đỏ và được ghi: %+v", bgs)
+		}
+		if len(crs) != 2 || !crs[1].Check.Passed {
+			t.Fatalf("(L7×N6) kiểm hẹp thứ hai phải xanh: %+v", crs)
+		}
+		if len(crs[1].Note) == 0 && bgRedNote(tk) == "" && !(len(bgs) > 1 && bgs[len(bgs)-1].Passed) {
+			t.Errorf("(L7×N6) nền đỏ mà kiểm hẹp xanh phải có ghi chú checkout sạch")
+		}
+		if n := crs[1].Note; n != "" && !strings.Contains(n, "checkout sạch") {
+			t.Errorf("(L7×N6) ghi chú phải nêu checkout sạch: %q", n)
+		}
+		for _, b := range bgs {
+			if !b.Passed && tk.State.Verifications != nil {
+				for _, v := range tk.State.Verifications {
+					if v.Tree == b.Tree && strings.Contains(v.Reason, "chạy nền") {
+						t.Errorf("(L7×N3) lần nền đỏ không được dùng làm kiểm chứng: %+v", v)
+					}
+				}
+			}
+		}
+		if vs := tk.State.Verifications; len(vs) == 0 || !vs[0].Passed {
+			t.Errorf("(L7×N3) kiểm chứng sau b-feat phải xanh trên cây đã sửa: %+v", vs)
+		}
+	})
+
+	// L8 (nhiều kiểm hẹp xanh dồn dập) × N2: tối đa 1 lần chạy nền đồng thời (log S/E không bao giờ có hai S liền nhau).
+	t.Run("tối đa một lần nền đồng thời", func(t *testing.T) {
+		ms := []bvMilestone{
+			{edit: editA(2), check: true, pause: 40 * time.Millisecond},
+			{edit: func(h *harness) { h.write("c/c.go", "package c\n\nfunc C() int { return 1 }\n") }, check: true, pause: 40 * time.Millisecond},
+			{edit: editA(3), check: true, pause: 40 * time.Millisecond},
+		}
+		h, res, counter, _ := bvRunOpt(t, bvOpts{variant: config.VariantBPrime, slow: true}, ms)
+		tk := h.load(res.TaskID)
+		if len(tk.State.BackgroundVerifications) < 1 {
+			t.Fatalf("(L8×N2) cần ≥ 1 kiểm nền")
+		}
+		b, _ := os.ReadFile(counter + ".log")
+		prev := "E"
+		for _, l := range strings.Fields(string(b)) {
+			if l == prev {
+				t.Errorf("(L8×N2) hai lần nền chạy chồng nhau (log S/E: %q)", strings.Fields(string(b)))
+				break
+			}
+			prev = l
+		}
+	})
+
+	// L9 (huỷ giữa kiểm nền) × N2: huỷ ngữ cảnh khi kiểm nền đang chạy thì không sót worktree tạm.
+	t.Run("huỷ giữa kiểm nền dọn worktree tạm", func(t *testing.T) {
+		ms := []bvMilestone{
+			{edit: editA(2), check: true, pause: 80 * time.Millisecond, cancel: true},
+		}
+		h, _, _, _ := bvRunOpt(t, bvOpts{variant: config.VariantBPrime, slow: true}, ms)
+		if n := roWorktrees(t, h.root); n != 1 {
+			t.Errorf("(L9×N2) git worktree list còn %d mục sau huỷ, muốn 1", n)
+		}
+		// Thư mục cha chung (Windows: %TEMP%/bv dùng chung mọi tiến trình): chỉ đếm checkout (có .git) thuộc kho của test này.
+		base := verifyTempBase(h.tasks.Dir)
+		ents, _ := os.ReadDir(base)
+		for _, e := range ents {
+			gitFile, err := os.ReadFile(filepath.Join(base, e.Name(), ".git"))
+			if err == nil && strings.Contains(filepath.ToSlash(string(gitFile)), filepath.ToSlash(h.root)) {
+				t.Errorf("(L9×N2) checkout tạm %s của kho test còn sót sau huỷ", e.Name())
+			}
 		}
 	})
 

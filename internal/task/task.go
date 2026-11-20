@@ -565,6 +565,13 @@ type State struct {
 	GoalTest *GoalTest `json:"goal_test,omitempty"`
 	// GoalDropped (luồng B′): thước đo thăm dò đã bị gỡ (`bint run resume --drop-goal`) hoặc b-goal không để lại tệp thăm dò hợp lệ; b-goal không chạy lại.
 	GoalDropped bool `json:"goal_dropped,omitempty"`
+	// BPrimePhase (luồng B′, giai đoạn 4) là pha của b-feat: "" = lõi (chạy được trước, thăm dò hộp đen chạy song song), "probe" = cần b-goal tuần tự
+	// (driver session hoặc thăm dò nền không dùng được), "extend" = lượt mở rộng sau khi lõi xanh và thước đo đã gộp/đóng băng, "done" = xong.
+	BPrimePhase string `json:"bprime_phase,omitempty"`
+	// BPrimeCoreFix đếm lượt sửa lõi (lõi đỏ thì được đúng 1 lượt sửa trước khi gộp thăm dò).
+	BPrimeCoreFix int `json:"bprime_core_fix,omitempty"`
+	// BPrimeCoreTouched là Touched lúc lõi xong khi b-goal chạy tuần tự (pha probe): tệp thăm dò = Touched sau b-goal trừ danh sách này.
+	BPrimeCoreTouched []string `json:"bprime_core_touched,omitempty"`
 	// GoalChecks là các lần chạy cổng mục tiêu riêng (log goal-N.log); lần cuối quyết định điều kiện done.
 	GoalChecks []Verification `json:"goal_checks,omitempty"`
 	// BudgetChecks là các lần đo ngân sách diff sau bước b-feat khi không chia lát (workflow.max_diff_lines > 0); Command mô tả số đo, đỏ (Passed=false)

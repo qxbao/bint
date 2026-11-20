@@ -49,9 +49,11 @@ func bprimeGoalBlock() string {
 // hasProbeMarker: tệp rel (dấu /) dưới root có dòng chú thích `Loại đầu vào:`.
 func hasProbeMarker(root, rel string) bool {
 	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
-	if err != nil {
-		return false
-	}
+	return err == nil && probeMarkerIn(data)
+}
+
+// probeMarkerIn: nội dung có dòng chú thích `Loại đầu vào:`.
+func probeMarkerIn(data []byte) bool {
 	for _, line := range strings.Split(string(data), "\n") {
 		l := strings.TrimSpace(line)
 		l = strings.TrimLeft(l, "/#*; \t-")

@@ -19,6 +19,20 @@ type CheckResult struct {
 	Check      task.Verification
 	Skipped    string // lý do không chạy (kể cả phạm vi full)
 	Background *task.Verification
+	// Note: ghi chú cho agent khi kiểm nền đỏ mà kiểm hẹp xanh (bgRedNote).
+	Note string
+}
+
+// bgRedNote: kiểm nền đỏ trong khi kiểm hẹp gần nhất xanh thì lỗi có thể do môi trường chứ không do mã. Kiểm nền chạy trên checkout sạch của ảnh chụp cây
+// (git worktree tạm): tệp bị .gitignore (mã sinh, vendor tải về, .env test) và submodule chưa khởi tạo không có ở đó. Không bảo agent sửa mã ngay.
+func bgRedNote(t *task.Task) string {
+	bg := lastBackground(t)
+	if bg == nil || bg.Passed || len(t.State.Checks) == 0 || !t.State.Checks[len(t.State.Checks)-1].Passed {
+		return ""
+	}
+	return "kiểm nền ĐỎ nhưng kiểm hẹp gần nhất XANH: kiểm nền chạy trên checkout sạch của ảnh chụp cây (không có tệp bị .gitignore như mã sinh, vendor, .env test, " +
+		"và submodule chưa khởi tạo), khác thư mục làm việc thật. Đọc log " + bg.Log + ": nếu lỗi do thiếu thứ đó thì đừng sửa mã; ghi `bint task error " +
+		t.State.ID + " --step b-feat \"<lỗi môi trường checkout sạch>\"` và đi tiếp."
 }
 
 // Check chạy kiểm hẹp cho tác vụ ref. Cùng luật xác nhận lệnh như Verify.
@@ -88,6 +102,7 @@ func (e *Env) Check(ctx context.Context, ref string) (*task.Task, CheckResult, e
 	}
 	res.Check = v
 	res.Background = lastBackground(t)
+	res.Note = bgRedNote(t)
 	return t, res, nil
 }
 

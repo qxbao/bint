@@ -27,6 +27,7 @@ type runFlags struct {
 	depth        string
 	plan, noPlan bool
 	fast         bool
+	variant      string
 	noReview     bool
 	noWait       bool
 	rerun        bool
@@ -117,7 +118,7 @@ blocked / failed / interrupted.`,
 			autoResync(cmd, stdio)
 			return runWorkflow(cmd, stdio, rf, func(o *app.RunWorkflowOptions) {
 				o.Workflow, o.Request, o.Task, o.NoReview, o.Step = args[0], strings.Join(args[1:], " "), rf.taskRef, rf.noReview, rf.step
-				o.Plan, o.NoPlan, o.Depth, o.Fast = rf.plan, rf.noPlan, rf.depth, rf.fast
+				o.Plan, o.NoPlan, o.Depth, o.Fast, o.Variant = rf.plan, rf.noPlan, rf.depth, rf.fast, rf.variant
 				o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = rf.ef.goal, rf.ef.verify, rf.ef.autonomy, rf.ef.criteria, rf.ef.allow, rf.ef.deny
 				o.Constraints, o.ClearScope = rf.ef.constraints, rf.ef.clearScope
 				o.GoalSet, o.VerifyCommandSet, o.AutonomySet = rf.ef.changed(cmd)
@@ -145,6 +146,7 @@ func addRunFlags(c *cobra.Command, rf *runFlags, full bool) {
 		f.BoolVar(&rf.plan, "plan", false, "luôn qua b-req")
 		f.BoolVar(&rf.noPlan, "no-plan", false, "bỏ qua b-req")
 		f.BoolVar(&rf.fast, "fast", false, fastFlagHelp)
+		f.StringVar(&rf.variant, "variant", "", variantFlagHelp)
 		f.StringVar(&rf.depth, "depth", "auto", depthFlagHelp)
 		f.BoolVar(&rf.worktree, "worktree", false, "tác vụ mới chạy trong worktree riêng (song song với tác vụ khác); loại trừ --shared, không đi cùng --task")
 		f.BoolVar(&rf.shared, "shared", false, "tác vụ mới sửa thẳng trên cây đang làm; loại trừ --worktree, không đi cùng --task")

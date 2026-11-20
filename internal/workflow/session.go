@@ -694,6 +694,15 @@ func (r *Runner) writeSessionStep(rs *runState, ps *task.PendingStep) {
 	}
 	rec := hookcore.SessionStepRecord{RunID: ps.RunID, TaskID: rs.t.State.ID, Step: ps.Step,
 		Subagent: ps.Subagent, Worktree: wt, Isolated: rs.t.State.Origin != "", Until: ps.LeaseUntil}
+	if task.IsBPrime(rs.t) {
+		// Luồng B′: subagent không có biến môi trường riêng, rào đọc đi qua bản ghi này (hook: hookcore.denyReadEnv).
+		switch flow.Kind(ps.Kind) {
+		case flow.KindGoal:
+			rec.DenyRead = probeDenyRead(rs.t)
+		case flow.KindReview:
+			rec.DenyRead = []string{rs.t.ArtifactPath("plan"), rs.t.ArtifactPath("tasks")}
+		}
+	}
 	err = hookcore.WriteSessionStep(runtimeDir, rec)
 	if err == nil && ps.OriginRunID != "" {
 		// Bước nối tiếp: prompt đầu của subagent nêu run ID của lượt gốc, nên hook tra theo run ID đó (bản ghi alias).

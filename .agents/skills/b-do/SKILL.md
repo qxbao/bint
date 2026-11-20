@@ -78,6 +78,21 @@ giữa lượt.
 <!-- bint:anchor routing -->
 <!-- bint:anchor-end routing -->
 
+## Luồng B′ (chọn bật; mặc định vẫn là luồng hiện tại)
+
+B′ đảo thứ tự spec → test → mã thành **mã chạy được trước**, thước đo độc lập chạy song song, mở rộng phạm vi sau khi lõi xanh. Chỉ
+dùng khi người dùng muốn (thử nghiệm, đo so với luồng hiện tại); **đừng tự chọn**. Bật cho một phiếu lúc lập phiếu:
+`bint task new "…" --workflow b-do --variant bprime` (hoặc `bint run b-do --variant bprime "…"`); bật cho mọi phiếu mới:
+`workflow.variant: bprime` trong `.bint/config.yml`/`local.yml`. `--variant classic` ép luồng hiện tại. Luồng chốt một lần lúc lập
+phiếu (`classification.variant` trong `bint task show <id> --json`), không đi cùng `--task`.
+
+Thứ tự của B′ (bước do Bint điều phối như thường, bạn vẫn chỉ điều phối): b-req gọn (chỉ hỏi khi thiếu đặc tả) → b-feat **lõi**
+(đơn giản nhất đáp ứng tiêu chí, `bint task check` sau mỗi nhóm) cùng lúc b-goal thăm dò hộp đen viết từ yêu cầu gốc trong worktree tạm →
+lõi xanh thì Bint gộp, đóng băng thước đo → đúng một lượt b-feat **mở rộng** → một lượt b-review (không thấy kế hoạch).
+Driver session chạy các bước đó tuần tự (b-goal sau lõi): làm theo `action` của `bint run next` như Bước 2b, `prompt` nguyên văn.
+b-feat dừng vì thước đo có vẻ sai thì chuyển câu hỏi cho người dùng; chỉ **người** gỡ thước đo bằng `bint run resume <id> --drop-goal`.
+Cách dựng bốn nhánh A/A+/B/B′ để đo: `docs/workflows.md`, mục "Luồng B′: bật và đo A/A+/B/B′".
+
 ## Bước 1b — Chế độ cô lập (chạy ở đâu)
 
 Bint chọn **một lần lúc lập phiếu**, ghi vào phiếu: `shared` (agent sửa thẳng trên cây đang làm,

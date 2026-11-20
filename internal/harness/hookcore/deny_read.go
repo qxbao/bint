@@ -1,13 +1,15 @@
 package hookcore
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 )
 
-// Rào đọc của bước b-goal (goalfreeze.go): b-goal chỉ được viết kiểm tra mục tiêu từ requirement.md, không đọc plan.md/tasks.md. Runner đặt
-// EnvDenyRead (đường dẫn tuyệt đối, mỗi dòng một đường) CHỈ cho bước kind goal chạy bằng tiến trình; hook PreToolUse trả deny cho lời gọi công
+// Rào đọc của bước b-goal (goalfreeze.go) và của review/thăm dò luồng B′: b-goal chỉ được viết kiểm tra mục tiêu từ requirement.md (B′: từ yêu cầu gốc), review B′ không
+// đọc plan.md/tasks.md. Runner đặt EnvDenyRead (đường dẫn tuyệt đối, mỗi dòng một đường) cho các bước đó khi chạy bằng tiến trình, hoặc ghi DenyRead vào
+// bản ghi session-step khi chạy bằng subagent (driver session); hook PreToolUse trả deny cho lời gọi công
 // cụ có giá trị nào nhắc tới các đường dẫn đó (đọc tệp, Grep/Glob, lệnh shell). Đây là rào chống đọc nhầm, không phải ranh giới bảo mật: lệnh
 // cố tình né (ghép chuỗi, biến, glob) không bị bắt. Hook không trả lỗi; thiếu biến thì không chặn gì.
 
@@ -77,6 +79,30 @@ func denyReadDecision(env string, toolInput map[string]any) (hit string, deny bo
 		return hit, true
 	}
 	return "", false
+}
+
+// denyReadEnv trả giá trị rào đọc của lời gọi hiện tại: biến môi trường (driver process) hoặc, khi không có, DenyRead trong bản ghi session-step của bước subagent
+// (tra bằng khối <bint-task … run=…> ở đầu prompt của subagent). Không có thì "" (không chặn gì).
+func denyReadEnv(d Dialect, hi Input, runtimeDir string) string {
+	if env := os.Getenv(EnvDenyRead); env != "" {
+		return env
+	}
+	if d.SubagentPrompt == nil || hi.AgentType == "" || !HasSessionSteps(runtimeDir) {
+		return ""
+	}
+	prompt, ok := d.SubagentPrompt(hi)
+	if !ok {
+		return ""
+	}
+	tid, _, run, ok := PromptTaskHeader(prompt)
+	if !ok {
+		return ""
+	}
+	rec, ok := ReadSessionStep(runtimeDir, run)
+	if !ok || rec.TaskID != tid || len(rec.DenyRead) == 0 {
+		return ""
+	}
+	return strings.Join(rec.DenyRead, "\n")
 }
 
 // denyReadReason là lý do deny hiển thị cho agent.

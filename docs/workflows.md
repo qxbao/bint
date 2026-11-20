@@ -1688,3 +1688,51 @@ kết quả kiểm chứng đầu tiên đến sớm trong ngân sách (đợt 6
   và đi đường cũ (kiểm chứng affected rồi kiểm chứng đầy đủ ở finalize). Kết quả của lượt ghi chú "kết quả kiểm chứng đầu tiên ở N % ngân sách b-feat" (`workflow.timeout_minutes`).
 - Giới hạn: tiến trình `bint` bị giết giữa lúc kiểm nền có thể để lại worktree tạm (`git worktree list`) và thư mục `bv/`; dọn bằng `git worktree prune`.
   TUI chưa hiển thị kiểm nền.
+
+### Luồng B′: bật và đo A/A+/B/B′
+
+Luồng B′ (tài liệu nền: `reports/Luồng core Bint có lệch hướng.md`) là lựa chọn bật; luồng hiện tại (classic) vẫn là mặc định. Bốn giai đoạn trước đã thêm
+`workflow.variant`, b-req gọn, thăm dò hộp đen, review một lượt và kiểm hẹp/kiểm nền; giai đoạn 4 **đảo thứ tự spec → test → mã**.
+
+**Cách bật** (chốt một lần lúc lập phiếu, ghi vào `classification.variant`; đổi cấu hình sau đó không đổi phiếu đã lập):
+
+| Cách | Phạm vi |
+|---|---|
+| `workflow.variant: bprime` trong `.bint/config.yml` hoặc `.bint/local.yml` | mọi phiếu b-do mới (có b-req) |
+| `bint task new "…" --workflow b-do --variant bprime` | một phiếu |
+| `bint run b-do --variant bprime "…"` | một phiếu tự lập bởi `bint run` |
+| `--variant classic` | ép luồng hiện tại cho một phiếu khi cấu hình là `bprime` |
+
+`--variant` không đi cùng `--task`; giá trị lạ bị từ chối (mã 2). B′ chỉ áp cho b-do gốc có b-req.
+
+**Thứ tự của B′** (driver process):
+
+1. b-req gọn: danh sách "xong là gì" ngắn, chỉ hỏi khi thiếu đặc tả.
+2. b-feat **lõi**: phần chạy được đơn giản nhất đáp ứng tiêu chí, `bint task check` sau mỗi nhóm; **chưa mở rộng**. Cùng lúc, Runner chạy b-goal (thăm dò hộp đen)
+   ở nền trong **worktree tạm** dựng từ mốc tác vụ (`State.Base`): thăm dò không thấy mã đang viết, không đọc được thư mục tác vụ (`BINT_DENY_READ`), nguồn là yêu cầu gốc.
+3. Lõi xong: lõi đỏ thì đúng **1 lượt sửa lõi**; rồi Bint chờ thăm dò (trần `min(timeout_minutes, slice_timeout_minutes)`), **gộp mọi tệp thăm dò** (kể cả helper/fixture không có dòng
+   `Loại đầu vào:`) vào cây, đóng băng chúng khi có ít nhất một tệp mang dòng nhãn, rồi chạy cổng mốc. Tệp chạm đường dẫn bảo vệ/`scope.deny`, hoặc trùng đường dẫn với tệp
+   b-feat đã sửa (giữ bản b-feat), không được gộp (ghi chú). Thăm dò rỗng, lỗi, quá trần hoặc không có tệp nhãn: không đóng băng, **không có lượt mở rộng**, đi thẳng sang review.
+4. Đúng **một lượt b-feat mở rộng** (nối tiếp phiên lõi khi được): loại đầu vào còn lại, mọi nơi dữ liệu đi qua, làm thước đo đóng băng xanh. Thước đo có vẻ sai thì b-feat dừng và hỏi
+   (`--question`); người trả lời để giữ thước đo hoặc `bint run resume <id> --drop-goal` (chỉ người) để gỡ.
+5. Một lượt b-review ngữ cảnh sạch (không thấy `plan.md`/`tasks.md`; thân chỉ dẫn riêng của B′, không phải thân skill b-review), tối đa một vòng sửa có trần.
+
+Pha hiện tại là `state.bprime_phase` (rỗng = lõi, `probe` = b-goal tuần tự, `extend` = lượt mở rộng, `done`). **Driver session** không chạy song song: lõi → b-goal (subagent) → mở rộng →
+review qua `bint run next`/`complete`; rào đọc đi qua trường `deny_read` của bản ghi `runtime/session-steps/<run_id>.json` để hook áp như `BINT_DENY_READ`.
+
+**Giới hạn đã biết**: worktree tạm của thăm dò (`<tmp>/bv/…`) và của kiểm nền sót lại khi tiến trình `bint` bị giết giữa chừng (`git worktree prune`, xoá thư mục `bv/`);
+kiểm nền chạy trên **checkout sạch** của ảnh chụp cây nên thiếu tệp bị `.gitignore` và submodule chưa khởi tạo — nền đỏ mà kiểm hẹp xanh thì `bint task check` ghi chú "checkout sạch" thay vì bảo agent sửa mã;
+thăm dò đã gộp sống trong bộ nhớ của lượt `bint run` (resume giữa lõi và gộp chạy lại thăm dò); TUI chưa hiển thị pha B′; kiểm nền chưa có ở driver session.
+
+**Dựng bốn nhánh để đo** (cùng model, cùng repo, mỗi ô nhiều lượt; thiết kế đề xuất của báo cáo, ngưỡng dừng chốt bằng tính công suất trước khi chạy):
+
+| Nhánh | Cách dựng | Chủ đích |
+|---|---|---|
+| A | prompt trực tiếp cho agent, không Bint | đường cơ sở |
+| A+ | như A, thêm lượt "tự kiểm lại và sửa" lặp tới khi tiêu hết **cùng ngân sách token với B** (đo token B trước; không cần lệnh Bint mới) | tách "tiêu nhiều hơn" khỏi "cấu trúc tốt hơn" |
+| B | `bint task new "…" --workflow b-do --variant classic` rồi `bint run b-do --task <id>` | luồng hiện tại |
+| B′ | `bint task new "…" --workflow b-do --variant bprime` rồi `bint run b-do --task <id>` | luồng đảo |
+
+Giữ nguyên giữa các nhánh: model (`harnesses.<h>.models`), `verify.command` đã xác nhận, `workflow.timeout_minutes`, `workflow.goal_check` (hai phép cắt rẻ: B′ với `goal_check: off` = không thăm dò;
+B′ với `--drop-goal` = bỏ thước đo), môi trường sạch cho từng lượt. Chấm bằng test ẩn tất định, thời gian, token và trạng thái test repo; ghi tỷ lệ lượt bị trần cắt. Kết quả hết hạn
+theo thế hệ model và phải chạy lại khi đổi model.

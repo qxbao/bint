@@ -96,6 +96,7 @@ func newTaskNewCmd(stdio IO) *cobra.Command {
 		plan     bool
 		noPlan   bool
 		fast     bool
+		variant  string
 		asJSON   bool
 		fromFile string
 		depth    string
@@ -150,7 +151,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 				req = args[0]
 			}
 			o := app.TaskNewDefaults(config.Default())
-			o.Request, o.Workflow, o.Plan, o.NoPlan, o.Depth, o.Fast = req, wf, plan, noPlan, depth, fast
+			o.Request, o.Workflow, o.Plan, o.NoPlan, o.Depth, o.Fast, o.Variant = req, wf, plan, noPlan, depth, fast, variant
 			o.Goal, o.VerifyCommand, o.Autonomy, o.Criteria, o.Allow, o.Deny = ef.goal, ef.verify, ef.autonomy, ef.criteria, ef.allow, ef.deny
 			o.Constraints, o.ClearScope = ef.constraints, ef.clearScope
 			o.GoalSet, o.VerifyCommandSet, o.AutonomySet = ef.changed(cmd)
@@ -204,6 +205,7 @@ Driver (chọn một lần lúc lập phiếu): process (mặc định, workflow
 	c.Flags().BoolVar(&plan, "plan", false, "luôn qua b-req")
 	c.Flags().BoolVar(&noPlan, "no-plan", false, "bỏ qua b-req")
 	c.Flags().BoolVar(&fast, "fast", false, fastFlagHelp)
+	c.Flags().StringVar(&variant, "variant", "", variantFlagHelp)
 	c.Flags().StringVar(&depth, "depth", "auto", depthFlagHelp)
 	c.Flags().BoolVar(&worktree, "worktree", false, "chạy tác vụ trong worktree riêng (song song với tác vụ khác); loại trừ --shared")
 	c.Flags().BoolVar(&shared, "shared", false, "sửa thẳng trên cây đang làm, không vào worktree riêng; loại trừ --worktree")
@@ -953,6 +955,8 @@ bint task write <id> requirement -, rồi bint run resume <id>.`,
 const depthFlagHelp = app.DepthFlagHelp
 
 // fastFlagHelp là mô tả cờ --fast dùng chung cho `bint task new` và `bint run`.
+const variantFlagHelp = "luồng b-do của phiếu mới: classic (luồng hiện tại, mặc định) | bprime (luồng B′: lõi chạy được trước, thăm dò hộp đen song song, mở rộng sau); ghi đè workflow.variant cho riêng phiếu này, không dùng cùng --task"
+
 const fastFlagHelp = "đường nhanh của b-do: không b-req, một phiên b-feat, kiểm chứng, một lượt review, tối đa một vòng sửa (chỉ b-do; không đi cùng --plan/--no-plan/--depth; chạm đường dẫn bảo vệ thì vẫn qua b-req)"
 
 // printDepthLine in độ sâu phân tích của b-req (chỉ khi tác vụ có b-req).
@@ -1398,7 +1402,7 @@ Agent gọi được; cùng luật xác nhận lệnh như task verify. In kèm 
 			}
 			res := cr.Result
 			if asJSON {
-				if err := writeJSON(stdio.Out, map[string]any{"task_id": cr.Task.State.ID, "skipped": res.Skipped, "check": res.Check, "background": res.Background}); err != nil {
+				if err := writeJSON(stdio.Out, map[string]any{"task_id": cr.Task.State.ID, "skipped": res.Skipped, "check": res.Check, "background": res.Background, "note": res.Note}); err != nil {
 					return err
 				}
 				if res.Skipped == "" && !res.Check.Passed {
@@ -1420,6 +1424,9 @@ Agent gọi được; cùng luật xác nhận lệnh như task verify. In kèm 
 				fmt.Fprintf(stdio.Out, "kiểm nền gần nhất (%s): %s → %s (mã %d)\nlog: %s\n", b.At, b.Command, passText(b.Passed), b.ExitCode, b.Log)
 			} else {
 				fmt.Fprintln(stdio.Out, "kiểm nền: chưa có kết quả")
+			}
+			if res.Note != "" {
+				fmt.Fprintln(stdio.Out, res.Note)
 			}
 			if res.Skipped == "" && !res.Check.Passed {
 				return withCode(ExitError, errors.New("kiểm hẹp không qua"))

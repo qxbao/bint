@@ -87,8 +87,11 @@ func (r *Runner) fastFix(ctx context.Context, rs *runState, fix string, last *ta
 	if len(blocking) == 0 {
 		why = "review sạch nhưng kiểm chứng cuối không qua"
 	}
-	if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa theo review vòng %d (%s; đường nhanh: một vòng sửa rồi finalize, không review lại)",
-		last.Round, why)); err != nil {
+	mode := "đường nhanh: một vòng sửa rồi finalize, không review lại"
+	if task.IsBPrime(rs.t) {
+		mode = "luồng B′: một lượt review, một vòng sửa có trần rồi finalize, không review lại"
+	}
+	if err := r.transition(rs, task.StatusInProgress, fmt.Sprintf("sửa theo review vòng %d (%s; %s)", last.Round, why, mode)); err != nil {
 		r.fail(rs, fix, err.Error())
 		return false
 	}
@@ -109,12 +112,16 @@ func fastFixNote(t *task.Task) string {
 			}
 		}
 	}
-	if len(ids) == 0 {
-		return fmt.Sprintf("đường nhanh: review vòng 1 sạch nhưng kiểm chứng không qua; vòng sửa duy nhất đã chạy nhưng chưa được review lại; "+
-			"muốn review lại thì `bint run b-review --task %s`", t.State.ID)
+	label := "đường nhanh"
+	if task.IsBPrime(t) {
+		label = "luồng B′"
 	}
-	return fmt.Sprintf("đường nhanh: phát hiện nghiêm trọng của review vòng 1 (%s) đã qua một vòng sửa nhưng chưa được review lại; "+
-		"muốn review lại thì `bint run b-review --task %s`", strings.Join(ids, ", "), t.State.ID)
+	if len(ids) == 0 {
+		return fmt.Sprintf("%s: review vòng 1 sạch nhưng kiểm chứng không qua; vòng sửa duy nhất đã chạy nhưng chưa được review lại; "+
+			"muốn review lại thì `bint run b-review --task %s`", label, t.State.ID)
+	}
+	return fmt.Sprintf("%s: phát hiện nghiêm trọng của review vòng 1 (%s) đã qua một vòng sửa nhưng chưa được review lại; "+
+		"muốn review lại thì `bint run b-review --task %s`", label, strings.Join(ids, ", "), t.State.ID)
 }
 
 // fastPrompt là khối đề bài của b-feat ở đường nhanh khi chưa có kế hoạch b-req.

@@ -58,6 +58,9 @@ type SessionStepRecord struct {
 	Isolated bool `json:"isolated"`
 	// Until: hạn hợp đồng thuê của bước (RFC3339); quá hạn thì không còn tính là "đang chạy" khi không ánh xạ được.
 	Until string `json:"until,omitempty"`
+	// DenyRead: rào đọc của bước (như BINT_DENY_READ của driver process; dòng "!" là ngoại lệ). Subagent không có biến môi trường riêng nên hook đọc từ đây
+	// (luồng B′: b-goal và review không được đọc kế hoạch/thư mục tác vụ). Rỗng = bước không có rào đọc.
+	DenyRead []string `json:"deny_read,omitempty"`
 }
 
 const (

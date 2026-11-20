@@ -114,6 +114,8 @@ type NewTaskOptions struct {
 	// Fast: người dùng chủ động chọn đường nhanh (--fast): không b-req, một phiên b-feat, cổng kiểm chứng, một lượt review, tối đa một
 	// vòng sửa. Chỉ b-do gốc; không đi cùng Plan/Depth; chạm đường dẫn bảo vệ thì giữ b-req. Độc lập với workflow.fast_path.
 	Fast bool
+	// Variant: ""/auto = theo workflow.variant; classic|bprime = người dùng chỉ định cho riêng phiếu này (--variant).
+	Variant string
 	// Isolation: ""/auto = theo workflow.isolation; shared|worktree = người dùng chỉ định (--shared/--worktree).
 	Isolation string
 	// Driver: ""/auto = theo workflow.driver; process|session = người dùng chỉ định (--driver).
@@ -237,8 +239,15 @@ func (e *Env) NewTask(ctx context.Context, o NewTaskOptions) (*task.Task, task.A
 			cls.Depth, cls.DepthReason = task.ChoosePlanningDepth(o.Request, assess)
 		}
 	}
-	// Luồng B′ chỉ áp cho b-do gốc có b-req; chốt một lần, đổi cấu hình sau đó không đổi tác vụ.
-	if e.Cfg.Workflow.Variant == config.VariantBPrime && o.Workflow == StepDo && fd.IsBuiltin() && planning && cls.Plan {
+	// Luồng B′ chỉ áp cho b-do gốc có b-req; chốt một lần, đổi cấu hình sau đó không đổi tác vụ. --variant thắng workflow.variant.
+	variant := o.Variant
+	if variant == "" {
+		variant = e.Cfg.Workflow.Variant
+	}
+	if !slices.Contains(config.Variants, variant) {
+		return nil, task.Assessment{}, fmt.Errorf("--variant %q không hợp lệ: phải là %s", variant, strings.Join(config.Variants, " | "))
+	}
+	if variant == config.VariantBPrime && o.Workflow == StepDo && fd.IsBuiltin() && planning && cls.Plan {
 		cls.Variant = task.VariantBPrime
 	}
 	iso, err := e.chooseIsolation(o.Isolation)

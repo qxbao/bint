@@ -118,8 +118,9 @@ func TestGoalBReqBaselineAndSkillGates(t *testing.T) {
 	// --- Skill: cỡ và bản xuất bản (không cần repo tạm). ---
 	t.Run("skill_size", func(t *testing.T) {
 		// Nâng trần (26000→26400, 15500→16800) cho mục Chiến lược thực thi, lựa chọn --slice và luật test hẹp (phiếu 01M7RZQ7).
+		// b-do 26400→28200 cho mục "Luồng B′" (giai đoạn 4, phiếu 01M7VM1C4Z).
 		// Nâng 16800→18000 cho ma trận loại × nơi, giữ phạm vi theo lời người dùng và cấu hình hiệu lực (benchmark đợt 6).
-		limits := map[string]int{"b-do": 26400, "b-req": 18000}
+		limits := map[string]int{"b-do": 28200, "b-req": 18000}
 		for _, name := range []string{"b-do", "b-req"} {
 			s, ok := skills.Get(name)
 			if !ok {

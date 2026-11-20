@@ -115,6 +115,8 @@ type RunOptions struct {
 	// Fast: chọn đường nhanh của b-do (--fast): lúc tự lập phiếu, hoặc với TaskRef khi phiếu còn created. Chỉ b-do gốc; không đi cùng
 	// Plan/Depth. Phạm vi chạm đường dẫn bảo vệ thì giữ b-req.
 	Fast bool
+	// Variant: --variant lúc tự lập phiếu (classic | bprime); rỗng theo workflow.variant. Không dùng với TaskRef (chốt lúc lập phiếu).
+	Variant string
 	// Depth: ""/auto = tự chọn (hoặc giữ độ sâu đã lưu); standard|deep = người dùng chỉ định.
 	Depth    string
 	NoReview bool
@@ -259,6 +261,13 @@ type runState struct {
 	sliceTimedOut bool
 	// goalOff: workflow.goal_check / plan.md không cho chạy b-goal ở tác vụ này (nextStep đặt trước pickStep; zero = như cũ).
 	goalOff bool
+	// probe: thăm dò nền của luồng B′ (bprime_probe.go) đang chạy cùng b-feat lõi; probeStarted: đã khởi chạy trong lượt này (không chạy lần hai khi có vòng sửa lõi);
+	// probeFiles: tệp thăm dò vừa gộp, afterGoal đóng băng đúng danh sách này.
+	probe        *bprimeProbe
+	probeStarted bool
+	probeFiles   []string
+	// probeDir khác rỗng chỉ trong lúc startProbe dựng đề bài: worktree tạm của thăm dò (prompt nêu nó thay cho worktree tác vụ).
+	probeDir string
 }
 
 // endedStep là handle phiên của bước vừa kết thúc, giữ để cổng sau bước ghi awaiting_human vào State.LastStep.
@@ -313,6 +322,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		rs.flow = flow.Def{Name: o.Workflow}
 	}
 	rs.res.RunID = rs.runID
+	defer func() { rs.probe.stop() }() // thăm dò nền B′ còn chạy khi lượt kết thúc: huỷ và dọn worktree tạm
 
 	// Classify: lập phiếu hoặc nạp tác vụ có sẵn.
 	var assess task.Assessment
@@ -322,7 +332,7 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		}
 		saved := r.RunID
 		r.RunID = ""
-		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth, Fast: o.Fast,
+		t, a, err := r.NewTask(ctx, NewTaskOptions{Request: o.Request, Workflow: o.Workflow, Edit: o.Edit, Plan: o.Plan, Depth: o.Depth, Fast: o.Fast, Variant: o.Variant,
 			Isolation: o.Isolation, Driver: o.Driver, DriverFlagOnly: true})
 		r.RunID = saved
 		if err != nil {
@@ -876,6 +886,15 @@ func (rs *runState) pickStep() (step string, finalize bool) {
 			return stepCheck, false
 		}
 		if st == task.StatusInProgress {
+			if rs.t.State.BPrimePhase == bprimePhaseProbe && rs.t.State.GoalTest == nil && !rs.t.State.GoalDropped {
+				// Luồng B′: lõi đã xong, b-goal chạy tuần tự (driver session, hoặc thăm dò nền không dùng được) rồi mới đến lượt mở rộng.
+				if rs.t.State.GoalAwaitingCheck {
+					return stepGoalCheck, false
+				}
+				if g, ok := fd.FirstOfKind(flow.KindGoal); ok {
+					return g.ID, false
+				}
+			}
 			return rs.currentImplement().ID, false // bước implement đang dở hoặc kế tiếp (nhiều bước implement)
 		}
 		if rs.t.State.GoalAwaitingCheck && rs.t.State.GoalTest == nil && st == task.StatusPlanned {
@@ -1144,6 +1163,10 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	startNow := r.now()
 	if sr.kind == flow.KindImplement {
 		bg = r.startBackground(ctx, rs)
+		if rs.t.State.BPrimePhase == "" && !rs.probeStarted && r.bprimeSplit(rs) {
+			rs.probeStarted = true
+			rs.probe = r.startProbe(ctx, rs) // luồng B′: thăm dò hộp đen song song với b-feat lõi
+		}
 	}
 	var res eval.AgentResult
 	if resumeID != "" {
@@ -2046,6 +2069,12 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 				return true
 			case sliceStop:
 				return false
+			}
+		}
+		if !nextImpl {
+			// Luồng B′ giai đoạn 4: lõi xong → gộp thăm dò, đóng băng, lượt mở rộng (bprime_probe.go).
+			if cont, handled := r.bprimeAfterCore(ctx, rs); handled {
+				return cont
 			}
 		}
 		return r.implementDone(ctx, rs, step, nextImpl)
@@ -3029,6 +3058,9 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	if stepDef.Kind == flow.KindGoal && task.IsBPrime(t) {
 		body = bprimeGoalGuide
 	}
+	if stepDef.Kind == flow.KindReview && task.IsBPrime(t) {
+		body = bprimeReviewGuide // review B′ ngữ cảnh sạch: thân skill gốc nhắc plan.md mà hook chặn đọc
+	}
 	var b strings.Builder
 	b.WriteString(body)
 	fmt.Fprintf(&b, "\n\n---\n\n<bint-task id=%q step=%q run=%q>\n", t.State.ID, step, child)
@@ -3042,7 +3074,11 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		b.WriteString("Bạn đang chạy dưới `bint run` (Bint Core điều phối). Không gọi `bint task status`, `bint task approve` hay `bint task verify` " +
 			"— Bint Core chuyển trạng thái, chạy lệnh kiểm chứng và quyết định hoàn thành. Task ID cũng có trong biến BINT_TASK_ID.\n\n")
 	}
-	if t.State.Origin != "" {
+	if rs.probeDir != "" {
+		// Thăm dò nền B′: thư mục làm việc là worktree tạm (không có mã b-feat đang viết), KHÔNG phải worktree của tác vụ.
+		fmt.Fprintf(&b, "Thư mục làm việc: %s — worktree TẠM dựng từ mốc của tác vụ (không có mã mà b-feat đang viết). Chỉ tạo/sửa tệp thăm dò trong thư mục này; "+
+			"không đọc hay ghi ở nơi khác, Bint tự thu các tệp mới/sửa ở đây.\n\n", rs.probeDir)
+	} else if t.State.Origin != "" {
 		b.WriteString(r.worktreeNote(t))
 		if session {
 			// Công cụ Agent không nhận thư mục làm việc: subagent bắt đầu ở thư mục của phiên cha.
@@ -3114,6 +3150,12 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		}
 		b.WriteString(goalCheckBlock(t))
 		if task.IsBPrime(t) {
+			switch {
+			case t.State.BPrimePhase == bprimePhaseExtend:
+				b.WriteString(bprimeExtendBlock(t))
+			case t.State.BPrimePhase == "" && r.bprimeSplit(rs):
+				b.WriteString(bprimeCoreBlock(t, t.State.BPrimeCoreFix > 0))
+			}
 			b.WriteString(bprimeCheckBlock(t))
 		}
 		if !session {

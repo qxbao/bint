@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -131,7 +132,7 @@ func TestSessionStepRecordLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := ReadSessionStep(rt, "run1")
-	if !ok || got != rec {
+	if !ok || !reflect.DeepEqual(got, rec) {
 		t.Fatalf("đọc lại: %+v %v", got, ok)
 	}
 	if _, ok := ReadSessionStep(rt, "khac"); ok {
