@@ -101,7 +101,8 @@ func (r *Runner) planHandoffPrompt(rs *runState, sr *stepRun, l *task.StepStop) 
 	}
 	b.WriteString(qaBlock(t.State.AnsweredQuestions(sr.step)))
 	b.WriteString(goalCheckBlock(t))
-	b.WriteString(sliceBlock(t)) // tác vụ chia lát: lượt nối tiếp từ b-req cũng chỉ làm lát hiện tại (slice.go)
+	b.WriteString(r.bprimeImplementBlocks(rs)) // B′: lượt nối tiếp từ b-req thường chính là lượt LÕI (đợt 7: thiếu khối này, lõi chạm 59 tệp)
+	b.WriteString(sliceBlock(t))               // tác vụ chia lát: lượt nối tiếp từ b-req cũng chỉ làm lát hiện tại (slice.go)
 	for _, n := range task.ArtifactNames() {
 		if p := t.ArtifactPath(n); fileExists(p) {
 			fmt.Fprintf(&b, "- %s: %s\n", n, p)

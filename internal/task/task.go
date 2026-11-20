@@ -267,8 +267,15 @@ type Verification struct {
 	Passed    bool   `json:"passed"`
 	TimedOut  bool   `json:"timed_out,omitempty"`
 	// Voided: lần đo đỏ thuộc cây của lát đã bị bỏ (--slice discard); redVerification bỏ qua nó (cây đã quay về điểm xanh).
-	Voided bool   `json:"voided,omitempty"`
-	Log    string `json:"log,omitempty"`
+	Voided bool `json:"voided,omitempty"`
+	// RedClass phân loại lần kiểm chứng đỏ sau khi Bint chạy lại riêng các test đỏ (workflow: triageRed): "code" (đỏ do mã, mở vòng sửa),
+	// "flaky" (chạy lại xanh), "timeout" (chỉ hết giờ, chạy lại với trần gấp đôi xanh), "preexisting" (cũng đỏ ở mốc tác vụ). Rỗng = chưa phân loại.
+	RedClass string `json:"red_class,omitempty"`
+	// RedTests là các test đỏ (gói + tên) mà phân loại dựa vào.
+	RedTests []string `json:"red_tests,omitempty"`
+	// Partial: kết quả tạm của lần kiểm nền còn đang chạy (gói đầu tiên đã đỏ); lần chạy xong ghi một mục đầy đủ sau nó. Không phải bằng chứng done.
+	Partial bool   `json:"partial,omitempty"`
+	Log     string `json:"log,omitempty"`
 	// Worktree là fingerprint trạng thái mã lúc kiểm chứng (HEAD + thay đổi chưa commit).
 	Worktree string `json:"worktree,omitempty"`
 	// Tree là mã cây ảnh chụp cây làm việc sau lệnh kiểm chứng ("" nếu không chụp được); dùng để
@@ -284,6 +291,8 @@ type Verification struct {
 	Scope string `json:"scope,omitempty"`
 	// Ran là lệnh thực chạy khi khác Command (scope affected); rỗng khi không chạy gì (none) hay chạy Command.
 	Ran string `json:"ran,omitempty"`
+	// Skipped là lý do lần kiểm hẹp được gọi mà không chạy test nào (chỉ ở Checks); Passed=false nhưng không phải kết quả đỏ.
+	Skipped string `json:"skipped,omitempty"`
 	// Seconds và BaselineSeconds là số đo của cổng hiệu năng (nhỏ nhất của 3 lần, giây) và mốc trước b-feat đầu; chỉ có ở PerfChecks.
 	Seconds         float64 `json:"seconds,omitempty"`
 	BaselineSeconds float64 `json:"baseline_seconds,omitempty"`
@@ -371,6 +380,9 @@ type SliceGreen struct {
 	// Measured: cổng mục tiêu ở điểm này đo được tập ô đỏ (Red); false là chưa đo được (vd. biên dịch hỏng): lát chỉ cần làm cho đo được.
 	Measured bool     `json:"measured"`
 	Red      []string `json:"red,omitempty"`
+	// OldRed là test cũ (ngoài kiểm tra mục tiêu) đang đỏ mà người đã chấp nhận khi giữ lát (--slice keep): lát sau không bị giữ lại vì đúng các
+	// test này (chỉ test cũ MỚI đỏ mới giữ), và đề bài của lát sau nêu chúng để sửa nếu do tác vụ gây ra.
+	OldRed []string `json:"old_red,omitempty"`
 }
 
 // SliceMark ghi số lần kiểm chứng và số lần chạy cổng mục tiêu lúc lát hiện tại bắt đầu: kết quả của lát là các lần sau mốc này.
@@ -572,6 +584,12 @@ type State struct {
 	BPrimeCoreFix int `json:"bprime_core_fix,omitempty"`
 	// BPrimeCoreTouched là Touched lúc lõi xong khi b-goal chạy tuần tự (pha probe): tệp thăm dò = Touched sau b-goal trừ danh sách này.
 	BPrimeCoreTouched []string `json:"bprime_core_touched,omitempty"`
+	// RequestCriteria là verify.criteria của phiếu LÚC TẠO (do người dùng nêu, trước khi b-req thêm). Thăm dò B′ chỉ thấy danh sách này, không thấy
+	// tiêu chí b-req viết (đợt 7: thăm dò nhận nguyên 5 tiêu chí của b-req nên không "khác thông tin"). RequestCriteriaSet=false: phiếu cũ, chưa ghi.
+	// BudgetStart là lúc lượt b-feat đầu tiên của tác vụ B′ bắt đầu, mốc tính workflow.budget_minutes (giữ qua resume).
+	BudgetStart        string   `json:"budget_start,omitempty"`
+	RequestCriteria    []string `json:"request_criteria,omitempty"`
+	RequestCriteriaSet bool     `json:"request_criteria_set,omitempty"`
 	// GoalChecks là các lần chạy cổng mục tiêu riêng (log goal-N.log); lần cuối quyết định điều kiện done.
 	GoalChecks []Verification `json:"goal_checks,omitempty"`
 	// BudgetChecks là các lần đo ngân sách diff sau bước b-feat khi không chia lát (workflow.max_diff_lines > 0); Command mô tả số đo, đỏ (Passed=false)
@@ -917,6 +935,9 @@ func (s Store) Create(t Ticket, st State, now time.Time) (*Task, error) {
 		st.Status = StatusCreated
 	}
 	st.CreatedAt, st.UpdatedAt = Now(now), Now(now)
+	if !st.RequestCriteriaSet {
+		st.RequestCriteria, st.RequestCriteriaSet = slices.Clone(t.Verify.Criteria), true
+	}
 	st.History = append(st.History, Transition{From: "", To: st.Status, At: Now(now), By: "bint", Reason: "tạo tác vụ"})
 	task := &Task{Dir: dir, Ticket: t, State: st}
 	data, err := encodeTicket(t)

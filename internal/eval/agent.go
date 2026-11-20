@@ -64,14 +64,24 @@ type AgentRequest struct {
 	// Profile khác nil: chạy harness trong profile `bint iso` này (ghi đè profile mặc định của agent). Env dựng bằng
 	// iso.Begin: HOME/CODEX_HOME hoặc CLAUDE_CONFIG_DIR của profile, BINT_STATE_DIR/BINT_CONFIG_HOME thật.
 	Profile *iso.Profile
+	// IdleTimeout > 0: dừng lượt khi harness không ghi gì ra trong khoảng này (treo); kết quả có Infra (lỗi ngoại cảnh, nối tiếp được). Claude chạy
+	// stream-json để có đầu ra liên tục; Codex vốn ghi luồng sự kiện. Harness khác bỏ qua trường này.
+	IdleTimeout time.Duration
+}
+
+// idleInfra là AgentResult.Infra khi lượt bị dừng vì treo.
+func idleInfra(d time.Duration) string {
+	return "harness không có đầu ra trong " + d.String() + " (treo): dừng sớm thay vì chờ hết trần thời gian"
 }
 
 // AgentResult là những gì đo được từ một lần chạy agent. Con trỏ nil = harness
 // không báo (không thay bằng 0).
 type AgentResult struct {
-	ExitCode     int
-	Duration     time.Duration
-	TimedOut     bool
+	ExitCode int
+	Duration time.Duration
+	TimedOut bool
+	// Idle: lượt bị dừng vì harness không có đầu ra trong AgentRequest.IdleTimeout (treo); TimedOut cũng true, Infra nêu lý do.
+	Idle         bool
 	Error        string
 	NumTurns     *int64
 	InputTokens  *int64
@@ -196,7 +206,7 @@ func (a *ClaudeAgent) ArgsFor(req AgentRequest) []string {
 		}
 	}
 	tools := append([]string{}, a.Cfg.AllowedTools...)
-	if req.HasSkills || req.Trace {
+	if req.HasSkills || req.Trace || req.IdleTimeout > 0 {
 		// Cần tool_use để biết skill có được gọi không (và để bản tóm tắt thất bại đọc được
 		// vết): stream-json (kèm --verbose) vẫn kết thúc bằng dòng type=result cùng trường với
 		// json nên phần đọc chi phí không đổi.
@@ -250,12 +260,15 @@ func (a *ClaudeAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 	}
 	defer senv.End()
 	var stdout bytes.Buffer
-	r := runProcess(ctx, req.Dir, a.bin(), a.ArgsFor(req), req.Timeout, req.LogPath, senv.Env, strings.NewReader(req.Prompt), &stdout)
+	r := runProcessIdle(ctx, req.Dir, a.bin(), a.ArgsFor(req), req.Timeout, req.IdleTimeout, req.LogPath, senv.Env, strings.NewReader(req.Prompt), &stdout)
 	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, SessionID: cmp.Or(req.SessionID, req.ResumeSessionID)}
 	if r.Err != nil {
 		res.Error = r.Err.Error()
 	}
 	parseClaudeJSON(stdout.Bytes(), &res)
+	if r.Idle {
+		res.Idle, res.Infra = true, idleInfra(req.IdleTimeout)
+	}
 	res.ResumeMissing = req.ResumeSessionID != "" && res.NoResult && r.ExitCode != 0 && claudeResumeMissingRe.MatchString(r.Tail)
 	if req.HasSkills {
 		res.SkillsActivated = parseClaudeSkills(stdout.Bytes())

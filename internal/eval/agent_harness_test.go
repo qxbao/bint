@@ -101,6 +101,18 @@ func TestCodexJSONLRequiresCompletedTurn(t *testing.T) {
 	if res.Error != "" {
 		t.Fatalf("malformed/unknown lines before a completed turn must not fail the run: %+v", res)
 	}
+	// Codex tự kết nối lại rồi lượt vẫn xong (đợt 7: lượt b-feat bị đánh failed oan): không phải lỗi. Thử lại mà lượt không xong thì vẫn là lỗi.
+	retry := `{"type":"error","message":"Reconnecting... 2/5 (stream disconnected before completion: websocket closed by server before response.completed)"}` + "\n"
+	res = AgentResult{}
+	parseCodexJSONL([]byte(retry+codexSample), &res)
+	if res.Error != "" || res.NoResult {
+		t.Fatalf("reconnect followed by a completed turn must not fail the run: %+v", res)
+	}
+	res = AgentResult{}
+	parseCodexJSONL([]byte(codexSample+"{\"type\":\"turn.started\"}\n"+retry), &res)
+	if !strings.Contains(res.Error, "Reconnecting") {
+		t.Fatalf("reconnect without a later completed turn must be reported: %+v", res)
+	}
 	res = AgentResult{Error: "process cancelled"}
 	parseCodexJSONL([]byte(`{"type":"turn.failed","error":{"message":"secondary error"}}`), &res)
 	if res.Error != "process cancelled" {

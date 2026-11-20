@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"bint/internal/affected"
+	"bint/internal/config"
 	"bint/internal/task"
 )
 
@@ -151,6 +152,37 @@ func (e *Env) adoptAffectedAsFull(t *task.Task) (*task.Task, error) {
 		nv.At, nv.By, nv.RunID = e.at(), e.actor(), e.RunID
 		nv.Scope, nv.Ran, nv.Selection = "", "", nil
 		nv.Reason = "dùng lại lần kiểm chứng affected (" + last.At + "): đã qua trên đúng cây và bao trùm verify.command"
+		t.State.Verifications = append(t.State.Verifications, nv)
+		return nil
+	})
+}
+
+// graphDoneAccepted: workflow.verify.done = graph và lần kiểm chứng cuối chọn test theo đồ thị phụ thuộc thật (scope graph/package, có nguồn ảnh hưởng),
+// được xác nhận, xanh, trên đúng cây hiện tại. Thứ bị bỏ so với full: phụ thuộc không đi qua import (testdata, embed, go.mod, CI đã tự nới ra full).
+func (e *Env) graphDoneAccepted(ctx context.Context, t *task.Task) bool {
+	if e.Cfg.Workflow.Verify.Done != config.VerifyDoneGraph || strings.TrimSpace(t.Ticket.Verify.Command) == "" || !e.VerifyConfirmed(t) {
+		return false
+	}
+	v := t.State.LastVerification()
+	if v == nil || !v.Passed || !v.Confirmed || v.Worktree == "" || v.Command != strings.TrimSpace(t.Ticket.Verify.Command) ||
+		(v.Scope != string(affected.TierGraph) && v.Scope != string(affected.TierPackage)) || v.Selection == nil || v.Selection.Source == "" {
+		return false
+	}
+	root, err := e.RootFor(t)
+	return err == nil && task.WorktreeFingerprint(ctx, root) == v.Worktree
+}
+
+// adoptGraphAsFull ghi một Verification đầy đủ dẫn xuất từ lần kiểm chứng theo đồ thị cuối (cùng log, cùng cây) để cổng done nhận.
+func (e *Env) adoptGraphAsFull(t *task.Task) (*task.Task, error) {
+	return e.Tasks.Update(t.State.ID, e.now(), func(t *task.Task) error {
+		last := t.State.LastVerification()
+		if last == nil {
+			return nil
+		}
+		nv := *last
+		nv.At, nv.By, nv.RunID = e.at(), e.actor(), e.RunID
+		nv.Scope, nv.Ran, nv.Selection = "", "", nil
+		nv.Reason = "dùng lại lần kiểm chứng theo đồ thị phụ thuộc (scope " + last.Scope + ", " + last.At + "): workflow.verify.done = graph"
 		t.State.Verifications = append(t.State.Verifications, nv)
 		return nil
 	})

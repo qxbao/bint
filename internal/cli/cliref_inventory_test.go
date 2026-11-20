@@ -71,6 +71,7 @@ var baseExclusions = []exclusion{
 	{"task/task.go", "verify.command chỉ được Bint chạy", rFile + ": chú thích đầu task.yml"},
 	{"eval/case.go", "Ứng viên tác vụ đánh giá", rFile + ": chú thích của tệp ứng viên đánh giá"},
 	{"eval/case.go", "Tác vụ đánh giá đã duyệt", rFile + ": chú thích của tệp tác vụ đánh giá"},
+	{"workflow/gate.go", "bint task check", rAgent + " (đề bài vòng sửa lõi B′: kiểm hẹp cổng lõi đỏ)"},
 	{"workflow/gate.go", "(thêm `--name-only` hoặc `--stat`)", rAgent + " (đề bài bước review: diff vượt ngưỡng)"},
 	{"workflow/gate.go", "`--stat` để định hướng, `--name-only`", rAgent + " (đề bài bước review)"},
 	{"workflow/gate.go", " --accept", rSplit + " (lệnh tiếp tục theo driver + cờ --accept: ba lựa chọn khi hết vòng sửa review)"},

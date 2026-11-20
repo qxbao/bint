@@ -10,6 +10,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +30,23 @@ import (
 
 // SchemaVersion là phiên bản schema cấu hình hiện hành.
 const SchemaVersion = 1
+
+// DefaultReviewReserveMinutes là phần của workflow.budget_minutes giữ cho review và một vòng sửa khi workflow.review_reserve_minutes = 0.
+const DefaultReviewReserveMinutes = 25
+
+// DefaultIdleTimeoutMinutes là workflow.idle_timeout_minutes khi khoá = 0.
+const DefaultIdleTimeoutMinutes = 30
+
+// IdleTimeout là trần im lặng hiệu dụng của một bước agent (0 = tắt).
+func (w Workflow) IdleTimeout() time.Duration {
+	switch {
+	case w.IdleTimeoutMinutes < 0:
+		return 0
+	case w.IdleTimeoutMinutes == 0:
+		return DefaultIdleTimeoutMinutes * time.Minute
+	}
+	return time.Duration(w.IdleTimeoutMinutes) * time.Minute
+}
 
 const (
 	DirName       = ".bint"
@@ -442,11 +460,26 @@ type Workflow struct {
 	// Variant chọn luồng b-do cho tác vụ MỚI (chốt một lần vào classification.variant): classic (mặc định, luồng hiện tại) | bprime
 	// (luồng B′: b-req chỉ hỏi khi thiếu đặc tả và chỉ ghi danh sách "xong là gì" ngắn).
 	Variant string `yaml:"variant"`
+	// ProbeCatalog (luồng B′) là tệp danh mục loại đầu vào, đường dẫn tương đối gốc repo (ví dụ danh sách quy tắc của một công cụ quét bí mật): đề bài
+	// thăm dò chép nó và đòi phủ từng mục hoặc ghi lý do loại trừ. Nguồn thông tin ngoài model, vì thước đo cùng model viết bỏ sót cùng loại với mã
+	// (đợt 7: PEM). Rỗng = không dùng.
+	ProbeCatalog string `yaml:"probe_catalog"`
+	// ProbeConfirm (luồng B′): true = sau khi thăm dò được đóng băng, dừng chờ người xem dòng `Loại đầu vào:` và bổ sung loại còn thiếu.
+	ProbeConfirm bool `yaml:"probe_confirm"`
+	// BudgetMinutes (luồng B′) là trần tổng thời gian các lượt b-feat trong một lần chạy b-do; Bint trừ sẵn ReviewReserveMinutes cho review và một
+	// vòng sửa, nên lượt b-feat bị rút trần khi gần hết (đợt 6–7: trần ngoài cắt trước review). 0 = tắt.
+	BudgetMinutes int `yaml:"budget_minutes"`
+	// ReviewReserveMinutes là phần của BudgetMinutes giữ cho review và một vòng sửa; 0 = mặc định 25 phút (để trống trong mẫu cấu hình để binary cũ
+	// vẫn đọc được .bint/config.yml).
+	ReviewReserveMinutes int `yaml:"review_reserve_minutes"`
 	// MaxDiffLines là trần số dòng thêm+xoá (git diff --numstat, bỏ tệp kiểm tra mục tiêu đóng băng) trên tệp của tác vụ: của mỗi lát so với điểm
 	// xanh, hoặc của phần b-feat đã làm so với mốc tác vụ khi không chia lát. Vượt sau một bước b-feat thì coi như kiểm chứng không qua. 0 = tắt.
 	MaxDiffLines int `yaml:"max_diff_lines"`
 	// VerifyTimeoutMinutes giới hạn thời gian lệnh kiểm chứng của phiếu tác vụ.
 	VerifyTimeoutMinutes int `yaml:"verify_timeout_minutes"`
+	// IdleTimeoutMinutes dừng một bước agent khi harness không có đầu ra trong số phút này (treo), thay vì chờ hết timeout_minutes; bước dừng kiểu
+	// này nối tiếp được khi resume. 0 = mặc định DefaultIdleTimeoutMinutes, -1 = tắt. Phải lớn hơn lệnh công cụ dài nhất agent hay chạy (go test).
+	IdleTimeoutMinutes int `yaml:"idle_timeout_minutes"`
 	// Isolation chọn nơi tác vụ chạy, một lần lúc lập phiếu: auto | shared | worktree
 	// (docs/isolation-subagent-plan.md mục 5.1).
 	Isolation string `yaml:"isolation"`
@@ -490,7 +523,16 @@ type WorkflowVerify struct {
 	// BintConfigFull: true (mặc định) thì thay đổi trong .bint/** nới kiểm chứng ra full (affected.ReasonBintConfig); false thì thay đổi
 	// chỉ trong .bint/** không nới (cổng done vẫn chạy đầy đủ một lần).
 	BintConfigFull bool `yaml:"bint_config_full"`
+	// Done: bằng chứng cổng done khi scope affected. "" hoặc full (mặc định): chạy verify.command đầy đủ một lần trước done; graph: nhận lần kiểm
+	// chứng chọn theo đồ thị phụ thuộc đã xanh trên đúng cây (toàn bộ bộ test để CI hoặc bước land).
+	Done string `yaml:"done,omitempty"`
 }
+
+// Giá trị của workflow.verify.done.
+const (
+	VerifyDoneFull  = "full"
+	VerifyDoneGraph = "graph"
+)
 
 // Giá trị của workflow.slicing và workflow.goal_check.
 const (
@@ -1190,6 +1232,9 @@ func (c Config) Validate() error {
 	if c.Workflow.MaxReviewRounds < 0 || c.Workflow.MaxReviewRounds > 10 {
 		add("workflow.max_review_rounds: phải trong khoảng 0..10")
 	}
+	if c.Workflow.IdleTimeoutMinutes < -1 {
+		add("workflow.idle_timeout_minutes: phải >= -1 (0 = %d phút, -1 = tắt)", DefaultIdleTimeoutMinutes)
+	}
 	if c.Workflow.TimeoutMinutes < 1 || c.Workflow.VerifyTimeoutMinutes < 1 {
 		add("workflow.timeout_minutes, workflow.verify_timeout_minutes: phải >= 1")
 	}
@@ -1202,6 +1247,18 @@ func (c Config) Validate() error {
 	if !slices.Contains(Variants, c.Workflow.Variant) {
 		add("workflow.variant: phải là %s", strings.Join(Variants, " | "))
 	}
+	if p := c.Workflow.ProbeCatalog; p != "" && (filepath.IsAbs(p) || p == ".." || strings.HasPrefix(filepath.ToSlash(p), "../")) {
+		add("workflow.probe_catalog: phải là đường dẫn tương đối trong repository")
+	}
+	if c.Workflow.BudgetMinutes < 0 {
+		add("workflow.budget_minutes: phải >= 0 (0 = tắt)")
+	}
+	if c.Workflow.ReviewReserveMinutes < 0 {
+		add("workflow.review_reserve_minutes: phải >= 0")
+	}
+	if reserve := cmp.Or(c.Workflow.ReviewReserveMinutes, DefaultReviewReserveMinutes); c.Workflow.BudgetMinutes > 0 && reserve >= c.Workflow.BudgetMinutes {
+		add("workflow.review_reserve_minutes: phần giữ cho review (%d phút; 0 = %d) phải nhỏ hơn workflow.budget_minutes", reserve, DefaultReviewReserveMinutes)
+	}
 	if !slices.Contains(GateModes, c.Workflow.GoalCheck) {
 		add("workflow.goal_check: phải là %s", strings.Join(GateModes, " | "))
 	}
@@ -1210,6 +1267,9 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.Perf.MaxSlowdown < 1 {
 		add("workflow.perf.max_slowdown: phải >= 1 (tỷ lệ chậm tối đa so với mốc)")
+	}
+	if d := c.Workflow.Verify.Done; d != "" && d != VerifyDoneFull && d != VerifyDoneGraph {
+		add("workflow.verify.done: phải là full | graph")
 	}
 	if !slices.Contains(VerifyScopes, c.Workflow.Verify.Scope) {
 		add("workflow.verify.scope: phải là %s", strings.Join(VerifyScopes, " | "))

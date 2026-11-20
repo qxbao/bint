@@ -140,7 +140,10 @@ func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 		rs.res.Notes = append(rs.res.Notes, noProbeNote)
 		r.refreshLastPlan(ctx, rs)
 		if rs.probeFiles == nil && rs.t.State.Status == task.StatusInProgress {
-			// b-goal tuần tự: lõi đã xong và đã kiểm chứng, đi tiếp sang review.
+			// b-goal tuần tự: lõi đã xong và đã qua cổng; không có lượt mở rộng nên kiểm rộng một lần (nếu lõi chỉ qua cổng hẹp) rồi sang review.
+			if !r.wideAfterGate(ctx, rs) {
+				return false
+			}
 			return r.implementDone(ctx, rs, rs.currentImplement().ID, false)
 		}
 		return true
@@ -182,6 +185,9 @@ func (r *Runner) afterGoal(ctx context.Context, rs *runState) bool {
 		rs.res.Notes = append(rs.res.Notes, "cổng mục tiêu xanh ngay sau b-goal (trước khi b-feat sửa gì): test có thể quá yếu hoặc chức năng đã có sẵn, xem "+g.Log)
 	}
 	r.refreshLastPlan(ctx, rs)
+	if bprime && rs.probeFiles == nil && !r.probeConfirmGate(rs) {
+		return false // b-goal tuần tự của B′ (workflow.probe_confirm); đường song song hỏi trong bprimeAfterCore
+	}
 	return true
 }
 

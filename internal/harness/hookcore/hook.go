@@ -434,6 +434,15 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 			if snap, ok := takeSnapshot(sctx, repo.Toplevel, nil); ok {
 				saveSnapshot(paths.Runtime, h, hi.SessionID, hi.ToolUseID, snap)
 			}
+			if why := wideTestDenial(paths.Runtime, info.Command); why != "" && d.PreToolDecide != nil && containsDecision(d.PreToolDecisions, "deny") {
+				ge := ev
+				ge.Type = spool.GuardrailTriggered
+				ge.Payload = map[string]any{"guardrail": GuardrailWideTest, "outcome": "fired", "on": hcomp.OnPreBash, "action": hcomp.ActDeny,
+					"requested": hcomp.ActDeny, "blocked": true, "tool": hi.ToolName, "command": detect.Redact(info.Command, 300)}
+				ge.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), "guardrail", GuardrailWideTest, "fired", hcomp.OnPreBash)
+				f, _ := spool.Write(paths.Spool, ge)
+				return Result{Written: f != "", SpoolFile: f, Output: d.PreToolDecide("", hcomp.ActDeny, why)}, nil
+			}
 			if g := newSessionGuard(); g != nil {
 				gout := g.pre(hcomp.OnPreBash, nil, info.Command)
 				if out := gout.merge(d, "", ""); out != "" {

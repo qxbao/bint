@@ -62,9 +62,10 @@ func bvRunOpt(t *testing.T, o bvOpts, ms []bvMilestone) (h *harness, res *Result
 	variant := o.variant
 	runCtx, cancelRun := context.WithCancel(context.Background())
 	t.Cleanup(cancelRun)
-	old := bgPollInterval
+	old, oldQuiet := bgPollInterval, autoCheckQuiet
 	bgPollInterval = 10 * time.Millisecond
-	t.Cleanup(func() { bgPollInterval = old })
+	autoCheckQuiet = 24 * time.Hour // các ca này đếm đúng số lần kiểm hẹp do agent gọi; kiểm hẹp tự động có test riêng (TestAutoCheckWhenTreeQuiet)
+	t.Cleanup(func() { bgPollInterval, autoCheckQuiet = old, oldQuiet })
 	counter = filepath.ToSlash(filepath.Join(t.TempDir(), "count.txt"))
 	clock := &fakeClock{t: time.Date(2026, 11, 20, 8, 0, 0, 0, time.UTC)}
 	h = bpHarness(t, bpOpts{variant: variant, goal: func(context.Context, *Env, string) error { return nil },
@@ -121,6 +122,17 @@ func bvRunOpt(t *testing.T, o bvOpts, ms []bvMilestone) (h *harness, res *Result
 	return
 }
 
+// agentChecks là các lần kiểm hẹp do agent gọi (bỏ lần Bint chạy làm cổng lõi sau lượt b-feat: check.go coreGate).
+func agentChecks(tk *task.Task) []task.Verification {
+	var out []task.Verification
+	for _, c := range tk.State.Checks {
+		if !strings.HasPrefix(c.Reason, checkGateReason) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 func counted(counter string) int {
 	b, err := os.ReadFile(counter)
 	if err != nil {
@@ -161,13 +173,13 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 		h, res, counter, _ = bvRun(t, config.VariantBPrime, ms)
 		id = res.TaskID
 		tk := h.load(id)
-		if len(tk.State.Checks) != 3 {
-			t.Errorf("(L1×N1) state.checks = %d, muốn 3", len(tk.State.Checks))
+		if len(agentChecks(tk)) != 3 {
+			t.Errorf("(L1×N1) state.checks = %d, muốn 3", len(agentChecks(tk)))
 		}
 		if n := len(tk.State.BackgroundVerifications); n < 3 {
 			t.Errorf("(L4×N2) state.background_verifications = %d, muốn ≥ 3", n)
 		}
-		for i, c := range tk.State.Checks {
+		for i, c := range agentChecks(tk) {
 			if c.Scope != "graph" || !c.Passed || c.Tree == "" {
 				t.Errorf("(L1×N1) check %d: %+v", i, c)
 			}
@@ -192,11 +204,11 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 		}
 		h, res, _, _ := bvRun(t, config.VariantBPrime, ms)
 		tk := h.load(res.TaskID)
-		if len(tk.State.Checks) != 3 || tk.State.Checks[1].Passed {
-			t.Fatalf("(L2×N1) checks: %+v", tk.State.Checks)
+		if len(agentChecks(tk)) != 3 || agentChecks(tk)[1].Passed {
+			t.Fatalf("(L2×N1) checks: %+v", agentChecks(tk))
 		}
 		for _, b := range tk.State.BackgroundVerifications {
-			if b.Tree == tk.State.Checks[1].Tree {
+			if b.Tree == agentChecks(tk)[1].Tree {
 				t.Errorf("(L2×N2) kiểm nền chạy trên cây của kiểm hẹp đỏ")
 			}
 		}
@@ -213,8 +225,8 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 		if len(crs) != 2 || crs[1].Skipped == "" || !strings.Contains(crs[1].Skipped, "full") {
 			t.Fatalf("(L3×N1) kiểm hẹp mốc full phải bị bỏ qua: %+v", crs)
 		}
-		if len(tk.State.Checks) != 1 {
-			t.Errorf("(L3×N1) state.checks = %d, muốn 1 (mốc full không ghi)", len(tk.State.Checks))
+		if len(agentChecks(tk)) != 2 || agentChecks(tk)[1].Skipped == "" || agentChecks(tk)[1].Passed {
+			t.Errorf("(L3×N1) state.checks muốn 2, lần thứ hai ghi là bị bỏ qua (mốc full không chạy): %+v", agentChecks(tk))
 		}
 		if n := len(tk.State.Verifications); n != 1 || strings.Contains(tk.State.Verifications[0].Reason, "chạy nền") || tk.State.Verifications[0].Scope != "full" {
 			t.Errorf("(L3×N3) cây cuối đổi: phải kiểm chứng tuần tự full, có %+v", tk.State.Verifications)
@@ -349,11 +361,11 @@ func TestBPrimeEarlyVerification(t *testing.T) {
 		t.Errorf("(L1×N5) đề bài b-feat B′ thiếu khối kiểm hẹp theo mốc")
 	}
 	// Mốc 1 ở +5 phút, mốc 2 ở +25 phút: kết quả đầu tiên phải đến trước mốc 2 và ≤ 34 % ngân sách (60 phút).
-	if len(tk.State.Checks) < 2 {
-		t.Fatalf("(L1×N1) cần ≥ 2 kiểm hẹp: %d", len(tk.State.Checks))
+	if len(agentChecks(tk)) < 2 {
+		t.Fatalf("(L1×N1) cần ≥ 2 kiểm hẹp: %d", len(agentChecks(tk)))
 	}
-	first, _ := time.Parse(time.RFC3339, tk.State.Checks[0].At)
-	second, _ := time.Parse(time.RFC3339, tk.State.Checks[1].At)
+	first, _ := time.Parse(time.RFC3339, agentChecks(tk)[0].At)
+	second, _ := time.Parse(time.RFC3339, agentChecks(tk)[1].At)
 	if !first.Before(second) {
 		t.Errorf("(L1×N1) kết quả đầu (%s) phải trước mốc 2 (%s)", first, second)
 	}

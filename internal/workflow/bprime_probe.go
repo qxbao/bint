@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,6 +47,62 @@ type bprimeProbe struct {
 	res   eval.AgentResult
 	files map[string][]byte
 	err   string
+	// reused: tệp lấy từ bản đã lưu của một lần thăm dò trước (tiến trình chết trước khi gộp), không chạy agent.
+	reused bool
+}
+
+// probeSaveDir là thư mục (trong thư mục tác vụ) lưu tệp thăm dò ngay khi thăm dò xong, để resume không phải chạy lại thăm dò (đợt 7: tiến trình bị
+// giết trước khi gộp làm mất ~6,6M token thăm dò). Thăm dò bị rào đọc cả thư mục tác vụ nên không thấy bản lưu.
+const probeSaveDir = "probe-saved"
+
+// probeManifest mô tả bản lưu: mốc base lúc thăm dò (khác mốc hiện tại thì bỏ) và danh sách tệp.
+type probeManifest struct {
+	Base  string   `json:"base"`
+	Child string   `json:"child"`
+	Files []string `json:"files"`
+}
+
+// saveProbe ghi tệp thăm dò và manifest vào thư mục tác vụ. Lỗi ghi chỉ làm mất khả năng dùng lại.
+func saveProbe(dir, base, child string, files map[string][]byte) {
+	root := filepath.Join(dir, probeSaveDir)
+	removeAllForce(root)
+	m := probeManifest{Base: base, Child: child}
+	for rel, data := range files {
+		dst := filepath.Join(root, "files", filepath.FromSlash(rel))
+		if os.MkdirAll(filepath.Dir(dst), 0o700) != nil || os.WriteFile(dst, data, 0o600) != nil {
+			removeAllForce(root)
+			return
+		}
+		m.Files = append(m.Files, rel)
+	}
+	slices.Sort(m.Files)
+	data, err := json.Marshal(m)
+	if err != nil {
+		return
+	}
+	os.WriteFile(filepath.Join(root, "manifest.json"), data, 0o600) // manifest ghi sau cùng: có manifest nghĩa là đủ tệp
+}
+
+// loadSavedProbe đọc bản lưu khớp mốc base; nil khi không có hoặc không dùng được.
+func loadSavedProbe(dir, base string) (map[string][]byte, string) {
+	root := filepath.Join(dir, probeSaveDir)
+	data, err := os.ReadFile(filepath.Join(root, "manifest.json"))
+	if err != nil {
+		return nil, ""
+	}
+	var m probeManifest
+	if json.Unmarshal(data, &m) != nil || m.Base != base || len(m.Files) == 0 {
+		return nil, ""
+	}
+	files := map[string][]byte{}
+	for _, rel := range m.Files {
+		b, err := os.ReadFile(filepath.Join(root, "files", filepath.FromSlash(rel)))
+		if err != nil {
+			return nil, ""
+		}
+		files[rel] = b
+	}
+	return files, m.Child
 }
 
 // stop huỷ thăm dò và chờ goroutine dọn xong (worktree tạm đã xoá khi trả về).
@@ -104,6 +161,12 @@ func (r *Runner) startProbe(ctx context.Context, rs *runState) *bprimeProbe {
 	if base == "" {
 		return fallback("phiếu không có mốc base")
 	}
+	if files, child := loadSavedProbe(t.Dir, base); files != nil {
+		p := &bprimeProbe{cancel: func() {}, done: make(chan struct{}), child: child, started: time.Now(), files: files, reused: true}
+		close(p.done)
+		rs.res.Notes = append(rs.res.Notes, "luồng B′: dùng lại tệp thăm dò đã lưu của lượt "+child+" (không chạy lại thăm dò)")
+		return p
+	}
 	spec := rs.spec(StepGoal)
 	agent, err := r.Agent(spec, nil, nil)
 	if err != nil {
@@ -161,7 +224,7 @@ func (r *Runner) startProbe(ctx context.Context, rs *runState) *bprimeProbe {
 			gitrepo.Run(context.WithoutCancel(ctx), root, "worktree", "remove", "--force", wt)
 			removeAllForce(wt)
 		}()
-		res := agent.Run(pctx, eval.AgentRequest{Dir: wt, Prompt: prompt, SessionID: sessionID, Profile: sr.prof, Timeout: timeout,
+		res := agent.Run(pctx, eval.AgentRequest{Dir: wt, Prompt: prompt, SessionID: sessionID, Profile: sr.prof, Timeout: timeout, IdleTimeout: r.Cfg.Workflow.IdleTimeout(),
 			LogPath: log, Env: env, WritableDirs: r.stateDirs(), MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools, Settings: denySettings})
 		p.res = res
 		switch {
@@ -173,6 +236,9 @@ func (r *Runner) startProbe(ctx context.Context, rs *runState) *bprimeProbe {
 			p.err = cmpStr(res.Error, fmt.Sprintf("agent thoát với mã %d", res.ExitCode))
 		default:
 			p.files, p.err = collectProbeFiles(pctx, wt)
+			if p.err == "" && len(p.files) > 0 {
+				saveProbe(t.Dir, base, child, p.files)
+			}
 		}
 	}()
 	return p
@@ -212,24 +278,28 @@ func (r *Runner) mergeProbe(ctx context.Context, rs *runState, p *bprimeProbe) [
 		p.stop()
 		return nil
 	}
-	if p.res.CostUSD != nil {
-		rs.spent += *p.res.CostUSD
-		rs.costKnown = true
-	} else {
-		rs.costMissing = true
+	// Bản lưu dùng lại: lượt thăm dò gốc đã chạy (và tính chi phí) ở lần chạy trước; không ghi thêm bước hay chi phí.
+	if !p.reused {
+		if p.res.CostUSD != nil {
+			rs.spent += *p.res.CostUSD
+			rs.costKnown = true
+		} else {
+			rs.costMissing = true
+		}
+		status := "completed"
+		if p.err != "" {
+			status = "failed"
+		}
+		rs.res.Steps = append(rs.res.Steps, StepResult{Step: StepGoal, RunID: p.child, Harness: p.harness, Model: p.res.Model, CostUSD: p.res.CostUSD,
+			Duration: time.Since(p.started).Round(time.Second).String(), Error: p.err, Status: status})
+		payload := map[string]any{"status": status, "end_reason": p.err, "model": p.res.Model, "task_id": rs.t.State.ID,
+			"result_summary": truncate(strings.TrimSpace(p.res.Text), 500)}
+		if p.res.CostUSD != nil {
+			payload["cost_usd"] = *p.res.CostUSD
+		}
+		r.emitRun(p.child, spool.WorkflowFinished, payload)
 	}
-	status := "completed"
-	if p.err != "" {
-		status = "failed"
-	}
-	rs.res.Steps = append(rs.res.Steps, StepResult{Step: StepGoal, RunID: p.child, Harness: p.harness, Model: p.res.Model, CostUSD: p.res.CostUSD,
-		Duration: time.Since(p.started).Round(time.Second).String(), Error: p.err, Status: status})
-	payload := map[string]any{"status": status, "end_reason": p.err, "model": p.res.Model, "task_id": rs.t.State.ID,
-		"result_summary": truncate(strings.TrimSpace(p.res.Text), 500)}
-	if p.res.CostUSD != nil {
-		payload["cost_usd"] = *p.res.CostUSD
-	}
-	r.emitRun(p.child, spool.WorkflowFinished, payload)
+	defer removeAllForce(filepath.Join(rs.t.Dir, probeSaveDir)) // đã gộp (hoặc bỏ): bản lưu hết tác dụng
 	if p.err != "" {
 		rs.res.Notes = append(rs.res.Notes, "luồng B′: thăm dò nền kết thúc không có thước đo ("+p.err+"); b-feat chạy tiếp không có thước đo đóng băng")
 		return nil
@@ -291,6 +361,9 @@ func (r *Runner) bprimeAfterCore(ctx context.Context, rs *runState) (cont, handl
 		rs.probe.stop()
 		rs.probe = nil
 		r.setBPrime(rs, func(s *task.State) { s.BPrimePhase = bprimePhaseDone })
+		if !r.wideAfterGate(ctx, rs) { // không có lượt mở rộng: kiểm rộng một lần trước review (cổng theo pha, check.go)
+			return false, true
+		}
 		return false, false
 	}
 	if !r.bprimeSplit(rs) {
@@ -298,7 +371,7 @@ func (r *Runner) bprimeAfterCore(ctx context.Context, rs *runState) (cont, handl
 	}
 	if red := redVerification(rs.t); red != nil && rs.t.State.BPrimeCoreFix < 1 {
 		r.setBPrime(rs, func(s *task.State) { s.BPrimeCoreFix++ })
-		rs.res.Notes = append(rs.res.Notes, "luồng B′: lõi chưa xanh (`"+red.Command+"`): 1 lượt sửa lõi trước khi gộp thước đo")
+		rs.res.Notes = append(rs.res.Notes, "luồng B′: lõi chưa xanh (`"+cmpStr(red.Ran, red.Command)+"`): 1 lượt sửa lõi trước khi gộp thước đo")
 		return true, true
 	}
 	p := rs.probe
@@ -317,6 +390,9 @@ func (r *Runner) bprimeAfterCore(ctx context.Context, rs *runState) (cont, handl
 		if len(rs.res.Notes) == 0 || rs.res.Notes[len(rs.res.Notes)-1] != noProbeNote {
 			rs.res.Notes = append(rs.res.Notes, noProbeNote)
 		}
+		if !r.wideAfterGate(ctx, rs) {
+			return false, true
+		}
 		return false, false
 	}
 	// Pha probe trong lúc đóng băng: kiểm phạm vi dừng chờ người thì resume vào stepGoalCheck (không chạy lại b-feat lõi).
@@ -329,9 +405,19 @@ func (r *Runner) bprimeAfterCore(ctx context.Context, rs *runState) (cont, handl
 	}
 	if rs.t.State.GoalTest == nil {
 		r.setBPrime(rs, func(s *task.State) { s.BPrimePhase = bprimePhaseDone })
+		if !r.wideAfterGate(ctx, rs) {
+			return false, true
+		}
 		return false, false
 	}
 	r.setBPrime(rs, func(s *task.State) { s.BPrimePhase = bprimePhaseExtend })
-	rs.res.Notes = append(rs.res.Notes, "luồng B′: lõi xanh, đã gộp và đóng băng thước đo thăm dò; chạy 1 lượt b-feat mở rộng")
+	lead := "lõi xanh"
+	if redVerification(rs.t) != nil {
+		lead = "lõi CHƯA xanh sau lượt sửa lõi (lượt mở rộng sửa trước)"
+	}
+	rs.res.Notes = append(rs.res.Notes, "luồng B′: "+lead+", đã gộp và đóng băng thước đo thăm dò; chạy 1 lượt b-feat mở rộng")
+	if !r.probeConfirmGate(rs) {
+		return false, true // workflow.probe_confirm: chờ người bổ sung loại đầu vào; resume --answer chạy lượt mở rộng
+	}
 	return true, true
 }

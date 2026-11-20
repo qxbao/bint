@@ -1387,9 +1387,10 @@ func newTaskCheckCmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "check <task-id>",
 		Short: "Kiểm hẹp theo mốc: chỉ test của gói bị chạm so với mốc tác vụ, kèm kết quả kiểm nền gần nhất",
-		Long: `Chạy workflow.verify.affected_command cho các gói bị chạm so với mốc của tác vụ (không bao giờ chạy toàn repo:
-phạm vi full thì bỏ qua, kiểm chứng toàn repo chạy nền ở luồng B′). Kết quả ghi vào state.checks, không tính vào cổng done.
-Agent gọi được; cùng luật xác nhận lệnh như task verify. In kèm kết quả kiểm nền gần nhất.`,
+		Long: `Chạy workflow.verify.affected_command cho test của chính các gói có tệp đổi kể từ lần kiểm hẹp xanh trước (lần đầu: so với mốc
+của tác vụ). Không bao giờ chạy toàn repo: phạm vi full thì bỏ qua, kiểm chứng toàn repo chạy nền ở luồng B′. Cây chưa đổi kể từ lần
+kiểm gần nhất (kể cả lần Bint tự chạy khi cây đứng yên) thì in lại kết quả đó. Mọi lần gọi, kể cả lần bị bỏ qua, ghi vào state.checks;
+không tính vào cổng done. Agent gọi được; cùng luật xác nhận lệnh như task verify. In kèm kết quả kiểm nền gần nhất.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ws, err := openTasks(cmd)
@@ -1402,7 +1403,7 @@ Agent gọi được; cùng luật xác nhận lệnh như task verify. In kèm 
 			}
 			res := cr.Result
 			if asJSON {
-				if err := writeJSON(stdio.Out, map[string]any{"task_id": cr.Task.State.ID, "skipped": res.Skipped, "check": res.Check, "background": res.Background, "note": res.Note}); err != nil {
+				if err := writeJSON(stdio.Out, map[string]any{"task_id": cr.Task.State.ID, "skipped": res.Skipped, "check": res.Check, "cached": res.Cached, "background": res.Background, "note": res.Note, "summary": res.Summary}); err != nil {
 					return err
 				}
 				if res.Skipped == "" && !res.Check.Passed {
@@ -1414,14 +1415,24 @@ Agent gọi được; cùng luật xác nhận lệnh như task verify. In kèm 
 				fmt.Fprintf(stdio.Out, "Bỏ qua: %s\n", res.Skipped)
 			} else {
 				v := res.Check
+				if res.Cached {
+					fmt.Fprintf(stdio.Out, "cây chưa đổi kể từ lần kiểm hẹp lúc %s (%s): dùng lại kết quả đó\n", v.At, v.By)
+				}
 				if v.Ran == "" {
 					fmt.Fprintf(stdio.Out, "kiểm hẹp (scope %s): không test nào bị ảnh hưởng → %s\n", v.Scope, passText(v.Passed))
 				} else {
 					fmt.Fprintf(stdio.Out, "kiểm hẹp (scope %s): %s → %s (mã %d)\nlog: %s\n", v.Scope, v.Ran, passText(v.Passed), v.ExitCode, v.Log)
 				}
+				if res.Summary != "" {
+					fmt.Fprintln(stdio.Out, res.Summary)
+				}
 			}
 			if b := res.Background; b != nil {
-				fmt.Fprintf(stdio.Out, "kiểm nền gần nhất (%s): %s → %s (mã %d)\nlog: %s\n", b.At, b.Command, passText(b.Passed), b.ExitCode, b.Log)
+				tmp := ""
+				if b.Partial {
+					tmp = " — TẠM: đã có gói đỏ, lệnh còn chạy"
+				}
+				fmt.Fprintf(stdio.Out, "kiểm nền gần nhất (%s): %s → %s (mã %d)%s\nlog: %s\n", b.At, b.Command, passText(b.Passed), b.ExitCode, tmp, b.Log)
 			} else {
 				fmt.Fprintln(stdio.Out, "kiểm nền: chưa có kết quả")
 			}

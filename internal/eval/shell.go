@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,8 +21,10 @@ type CmdResult struct {
 	ExitCode int
 	Duration time.Duration
 	TimedOut bool
-	Tail     string // phần cuối đầu ra (stdout+stderr)
-	Err      error  // lỗi khởi chạy (không phải mã thoát khác 0)
+	// Idle: tiến trình bị dừng vì không ghi gì ra stdout/stderr trong khoảng idle (runProcessIdle); khi đó TimedOut cũng true.
+	Idle bool
+	Tail string // phần cuối đầu ra (stdout+stderr)
+	Err  error  // lỗi khởi chạy (không phải mã thoát khác 0)
 }
 
 // OK cho biết lệnh chạy xong với mã thoát 0.
@@ -49,14 +52,65 @@ func RunShell(ctx context.Context, dir, command string, timeout time.Duration, l
 	return runProcess(ctx, dir, prog, args, timeout, logPath, env, nil, nil)
 }
 
+// RunShellWatch như RunShell; watch nhận thêm một bản sao đầu ra (stdout+stderr) trong lúc lệnh chạy (đọc tín hiệu sớm như gói test đầu tiên đỏ).
+func RunShellWatch(ctx context.Context, dir, command string, timeout time.Duration, logPath string, env []string, watch io.Writer) CmdResult {
+	prog, args := shellCommand(command)
+	return runProcessIdle(ctx, dir, prog, args, timeout, 0, logPath, env, nil, nil, watch)
+}
+
 // runProcess chạy prog. Nếu stdout khác nil, stdout của tiến trình được giữ riêng
 // vào đó (vẫn được ghi vào log).
 func runProcess(ctx context.Context, dir, prog string, args []string, timeout time.Duration, logPath string, env []string, stdin io.Reader, stdout *bytes.Buffer) CmdResult {
+	return runProcessIdle(ctx, dir, prog, args, timeout, 0, logPath, env, stdin, stdout)
+}
+
+// idleWriter ghi lại thời điểm có đầu ra gần nhất (UnixNano).
+type idleWriter struct{ last atomic.Int64 }
+
+func (w *idleWriter) Write(p []byte) (int, error) {
+	if len(p) > 0 {
+		w.last.Store(time.Now().UnixNano())
+	}
+	return len(p), nil
+}
+
+// runProcessIdle như runProcess; idle > 0 thì dừng tiến trình khi nó không ghi gì ra stdout/stderr trong khoảng idle (harness treo: lịch sử repo có
+// lượt review bình thường ≤ 11 phút mà hai lượt treo tới trần 176 phút). Kết quả khi đó có TimedOut và Idle.
+func runProcessIdle(ctx context.Context, dir, prog string, args []string, timeout, idle time.Duration, logPath string, env []string, stdin io.Reader, stdout *bytes.Buffer, extra ...io.Writer) CmdResult {
 	start := time.Now()
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
+	}
+	var iw *idleWriter
+	var idleHit atomic.Bool
+	if idle > 0 {
+		iw = &idleWriter{}
+		iw.last.Store(start.UnixNano())
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			tk := time.NewTicker(max(min(idle/4, time.Minute), 10*time.Millisecond))
+			defer tk.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ctx.Done():
+					return
+				case <-tk.C:
+					if time.Since(time.Unix(0, iw.last.Load())) > idle {
+						idleHit.Store(true)
+						cancel()
+						return
+					}
+				}
+			}
+		}()
 	}
 	cmd := exec.CommandContext(ctx, prog, args...)
 	cmd.Dir = dir
@@ -69,6 +123,14 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
 
 	tail := &tailBuffer{max: tailBytes}
 	writers := []io.Writer{tail}
+	if iw != nil {
+		writers = append(writers, iw)
+	}
+	for _, w := range extra {
+		if w != nil {
+			writers = append(writers, w)
+		}
+	}
 	if logPath != "" {
 		if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err == nil {
 			if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
@@ -88,6 +150,10 @@ func runProcess(ctx context.Context, dir, prog string, args []string, timeout ti
 
 	err := cmd.Run()
 	res := CmdResult{Duration: time.Since(start), Tail: tail.String()}
+	if idleHit.Load() {
+		res.TimedOut, res.Idle, res.ExitCode = true, true, -1
+		return res
+	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		res.TimedOut = true
 		res.ExitCode = -1

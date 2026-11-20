@@ -182,14 +182,20 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   slicing: auto                # khi nào chia kế hoạch lớn thành lát mỏng: auto (theo dòng "Chia lát" trong mục Chiến lược thực thi của plan.md) | off (không bao giờ) | always (như cũ, không cần plan chọn); cần slice_timeout_minutes > 0
   goal_check: auto             # khi nào chạy b-goal (kiểm tra mục tiêu độc lập): auto (theo dòng "Kiểm tra mục tiêu độc lập" trong plan.md) | off | always; --fast bỏ cả hai
   # variant: classic          # luồng b-do của tác vụ MỚI, chốt một lần lúc lập phiếu: classic (luồng hiện tại) | bprime (luồng B′: b-req chỉ hỏi khi thiếu đặc tả và chỉ ghi danh sách "xong là gì" ngắn)
-  max_diff_lines: 0            # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát được giữ cây chờ người / vào vòng sửa); 0 = tắt
+  # probe_catalog: ""         # (luồng B′) tệp danh mục loại đầu vào, đường dẫn tương đối gốc repo (ví dụ danh sách quy tắc gitleaks/detect-secrets): thăm dò phải phủ mỗi mục hoặc ghi lý do loại trừ; rỗng = không dùng
+  # probe_confirm: false      # (luồng B′) true = sau khi thăm dò đóng băng, dừng chờ người xem danh sách loại đầu vào và bổ sung loại còn thiếu (bint run resume <id> --answer "…")
+  # budget_minutes: 0         # (luồng B′) trần tổng thời gian của các lượt b-feat trong một lần chạy b-do; Bint giữ sẵn review_reserve_minutes cho review và một vòng sửa; 0 = tắt
+  # review_reserve_minutes: 0  # (luồng B′) phần của budget_minutes giữ cho review và một vòng sửa; 0 = 25 phút
+  max_diff_lines: 0           # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát được giữ cây chờ người / vào vòng sửa); 0 = tắt
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
+  # idle_timeout_minutes: 0   # dừng bước agent khi harness im lặng quá số phút này (treo), resume nối tiếp được; 0 = 30 phút, -1 = tắt
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
   verify:                   # phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (cổng done và bint task verify luôn chạy đầy đủ)
     scope: full             # full (chạy verify.command của phiếu) | affected (chỉ chạy test bị ảnh hưởng bởi thay đổi; thay đổi lạ thì tự nới ra full)
     affected_command: ""    # lệnh cho scope affected, có {test_dirs} hoặc {test_files}, ví dụ "go test -count=1 {test_dirs}"
     bint_config_full: true  # true = thay đổi trong .bint/** nới kiểm chứng ra full; false = không nới (cổng done vẫn chạy đầy đủ một lần)
+    # done: full              # bằng chứng cổng done khi scope affected: full = chạy đầy đủ một lần trước done; graph = nhận lần chọn theo đồ thị phụ thuộc đã xanh trên đúng cây (toàn bộ để CI/land)
 `)
 	if p.SuggestedAffectedCommand != "" {
 		w("    suggested_affected_command: %s   # phát hiện khi init, chưa xác nhận: chép sang affected_command và đặt scope: affected để bật\n", quote(p.SuggestedAffectedCommand))

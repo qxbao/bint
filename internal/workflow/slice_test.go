@@ -117,11 +117,23 @@ func TestOldTestsGreen(t *testing.T) {
 		{"không đo được", &task.Verification{Log: build, ExitCode: 1}, false, "không đo được"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ok, why := oldTestsGreen(tc.v, goal)
+			ok, why := oldTestsGreen(tc.v, goal, nil)
 			if ok != tc.want || !strings.Contains(why, tc.why) {
 				t.Errorf("oldTestsGreen = %v %q, muốn %v chứa %q", ok, why, tc.want, tc.why)
 			}
 		})
+	}
+	// Test cũ đỏ người đã chấp nhận (--slice keep ở lát trước) không giữ lát lại; test cũ MỚI đỏ thì vẫn giữ.
+	mv := &task.Verification{Log: mixed, ExitCode: 1}
+	red, _ := failSetOf(mv)
+	acc := oldRedOf(red, goal)
+	if ok, why := oldTestsGreen(mv, goal, acc); !ok {
+		t.Errorf("test cũ đỏ đã chấp nhận vẫn giữ lát: %q", why)
+	}
+	if len(acc) > 0 {
+		if ok, _ := oldTestsGreen(mv, goal, acc[1:]); ok {
+			t.Errorf("test cũ mới đỏ (ngoài tập đã chấp nhận) phải giữ lát")
+		}
 	}
 }
 

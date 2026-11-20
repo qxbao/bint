@@ -152,6 +152,13 @@ func TestBPrimeReorderGoal(t *testing.T) {
 		if !strings.Contains(gp, bprimeGoalMarker) || strings.Contains(gp, tk.ArtifactPath("plan")) {
 			t.Errorf("[%s × N2] đề bài thăm dò sai dạng", L)
 		}
+		// Thăm dò khác thông tin với người viết mã: không thấy tiêu chí b-req thêm vào phiếu (đợt 7 thấy nguyên 5 tiêu chí).
+		if strings.Contains(gp, "app.txt ghi v2") {
+			t.Errorf("[%s × N2] đề bài thăm dò chứa tiêu chí do b-req viết", L)
+		}
+		if !tk.State.RequestCriteriaSet || len(tk.State.RequestCriteria) != 0 {
+			t.Errorf("[%s × N2] phiếu phải ghi tiêu chí lúc tạo (rỗng): %+v", L, tk.State.RequestCriteria)
+		}
 		if n := roWorktrees(t, h.root); n != 1 {
 			t.Errorf("[%s × N2] git worktree list còn %d mục, muốn 1", L, n)
 		}
@@ -196,6 +203,10 @@ func TestBPrimeReorderGoal(t *testing.T) {
 		}
 		if rd := bpDenyList(renv); !slices.Contains(rd, tk.ArtifactPath("plan")) || !slices.Contains(rd, tk.ArtifactPath("tasks")) {
 			t.Errorf("[%s × N5] rào đọc review thiếu plan/tasks: %v", L, rd)
+		}
+		// N5: review soát độ phủ của thước đo, thấy đúng dòng `Loại đầu vào:` của tệp thăm dò đã đóng băng.
+		if !strings.Contains(rp, "SOÁT ĐỘ PHỦ CỦA THƯỚC ĐO") || !strings.Contains(rp, roProbeRel+":") || !strings.Contains(rp, probeMarker) {
+			t.Errorf("[%s × N5] đề bài review thiếu khối soát độ phủ của thước đo:\n%s", L, rp)
 		}
 		// N6: lời văn.
 		notes := strings.Join(res.Notes, "\n")

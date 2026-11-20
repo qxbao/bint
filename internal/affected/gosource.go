@@ -231,6 +231,29 @@ func (g *goGraph) TestRefs(p string) ([]string, error) {
 	return out, nil
 }
 
+// SelectDirect trả tệp kiểm thử của chính các gói trong dirs (không lan sang gói phụ thuộc).
+func (g *goGraph) SelectDirect(dirs []string) ([]string, error) {
+	var files []string
+	for _, d := range dirs {
+		ip, ok := g.dirs[d]
+		if !ok {
+			return nil, fmt.Errorf("thư mục %s không phải gói Go", d)
+		}
+		if _, hasTests := g.tests[ip]; !hasTests {
+			continue
+		}
+		p := g.byImport[ip]
+		if p == nil {
+			return nil, fmt.Errorf("không có gói %s cho test", ip)
+		}
+		for _, f := range append(slices.Clone(p.TestGoFiles), p.XTestGoFiles...) {
+			files = append(files, path.Join(g.dirOf[ip], f))
+		}
+	}
+	slices.Sort(files)
+	return slices.Compact(files), nil
+}
+
 func (g *goGraph) Select(dirs []string) ([]string, error) {
 	changed := map[string]bool{}
 	for _, d := range dirs {

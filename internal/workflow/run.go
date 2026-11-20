@@ -1155,7 +1155,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	}
 	runAgent := func(prompt, sessionID, resume string) eval.AgentResult {
 		return sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt, SessionID: sessionID, ResumeSessionID: resume, Profile: sr.prof,
-			Timeout: r.sliceTimeoutFor(rs, sr.kind == flow.KindImplement),
+			Timeout: r.sliceTimeoutFor(rs, sr.kind == flow.KindImplement), IdleTimeout: r.Cfg.Workflow.IdleTimeout(),
 			LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
 			MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools, Settings: denySettings})
 	}
@@ -1524,6 +1524,8 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	switch {
 	case ctx.Err() != nil:
 		status, endReason = "interrupted", "người dùng huỷ"
+	case res.Idle:
+		status, endReason = "failed", res.Infra+" (workflow.idle_timeout_minutes)"
 	case res.TimedOut:
 		status, endReason = "failed", fmt.Sprintf("quá workflow.timeout_minutes (%d phút)", r.Cfg.Workflow.TimeoutMinutes)
 	case res.Error != "" || res.ExitCode != 0:
@@ -2014,35 +2016,14 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			}
 		}
 		preVerify := r.preVerifyFingerprint(ctx, rs)
-		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" && (sd.VerifyOn() || !nextImpl) && !r.reuseBackground(ctx, rs) {
-			// Kiểm chứng chạy dưới khoá độc quyền: lệnh kiểm chứng hay ghi tệp (coverage, snapshot, build) nên
-			// không được chạy song song với bước chỉ đọc của tác vụ khác (sẽ bị quy là vi phạm chỉ đọc).
-			lock, ok := r.lockStep(ctx, rs, "verify", LockExclusive)
+		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" && (sd.VerifyOn() || !nextImpl) {
+			// B′, lượt LÕI/SỬA LÕI (cổng theo pha): cổng chặn luồng là kiểm hẹp; kiểm rộng để lượt mở rộng (hoặc bprimeAfterCore khi không có lượt mở rộng).
+			gated, ok := r.coreGate(ctx, rs, nextImpl)
 			if !ok {
 				return false
 			}
-			t, vr, err := r.VerifyScoped(ctx, rs.t.State.ID, "")
-			lock.Release()
-			switch {
-			case err != nil && ctx.Err() != nil:
-				r.interrupt(rs, "người dùng huỷ khi kiểm chứng")
+			if !gated && !r.reuseBackground(ctx, rs) && !r.verifyAfterImplement(ctx, rs) {
 				return false
-			case err != nil:
-				r.fail(rs, "verify", err.Error())
-				return false
-			case vr.Skipped != "":
-				rs.res.Notes = append(rs.res.Notes, "kiểm chứng: "+vr.Skipped)
-			default:
-				rs.t = t
-				v := vr.Verification
-				switch {
-				case v.Scope == string(affected.TierNone):
-					r.logf("  kiểm chứng (scope %s): không chạy lệnh — không test nào bị ảnh hưởng bởi thay đổi (lệnh của phiếu: %s)", v.Scope, v.Command)
-				case v.Scope != "":
-					r.logf("  kiểm chứng (scope %s): %s → %s", v.Scope, cmpStr(v.Ran, v.Command), passWord(v.Passed))
-				default:
-					r.logf("  kiểm chứng: %s → %s", v.Command, passWord(v.Passed))
-				}
 			}
 		}
 		if !r.goalGate(ctx, rs, "") { // cổng mục tiêu riêng (log goal-N.log); đỏ vào vòng sửa qua redVerification
@@ -2096,6 +2077,44 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 		return r.reviewDecision(ctx, rs, last)
 	}
 	return false
+}
+
+// verifyAfterImplement chạy kiểm chứng (phạm vi theo workflow.verify.scope) sau bước implement và ghi vào State.Verifications. Trả false khi workflow
+// phải dừng (huỷ, lỗi; đã đặt trạng thái); kiểm chứng đỏ vẫn trả true (vòng sửa đi qua redVerification).
+func (r *Runner) verifyAfterImplement(ctx context.Context, rs *runState) bool {
+	// Kiểm chứng chạy dưới khoá độc quyền: lệnh kiểm chứng hay ghi tệp (coverage, snapshot, build) nên
+	// không được chạy song song với bước chỉ đọc của tác vụ khác (sẽ bị quy là vi phạm chỉ đọc).
+	lock, ok := r.lockStep(ctx, rs, "verify", LockExclusive)
+	if !ok {
+		return false
+	}
+	t, vr, err := r.VerifyScoped(ctx, rs.t.State.ID, "")
+	lock.Release()
+	switch {
+	case err != nil && ctx.Err() != nil:
+		r.interrupt(rs, "người dùng huỷ khi kiểm chứng")
+		return false
+	case err != nil:
+		r.fail(rs, "verify", err.Error())
+		return false
+	case vr.Skipped != "":
+		rs.res.Notes = append(rs.res.Notes, "kiểm chứng: "+vr.Skipped)
+	default:
+		rs.t = t
+		v := vr.Verification
+		switch {
+		case v.Scope == string(affected.TierNone):
+			r.logf("  kiểm chứng (scope %s): không chạy lệnh — không test nào bị ảnh hưởng bởi thay đổi (lệnh của phiếu: %s)", v.Scope, v.Command)
+		case v.Scope != "":
+			r.logf("  kiểm chứng (scope %s): %s → %s", v.Scope, cmpStr(v.Ran, v.Command), passWord(v.Passed))
+		default:
+			r.logf("  kiểm chứng: %s → %s", v.Command, passWord(v.Passed))
+		}
+		if !v.Passed && !r.triageRed(ctx, rs) { // đỏ do hết giờ, test hay đỏ hay đỏ sẵn ở mốc thì không mở vòng sửa (redtriage.go)
+			return false
+		}
+	}
+	return true
 }
 
 // implementDone là phần cuối của cổng sau bước implement (sau kiểm chứng, cổng mục tiêu và, với kế hoạch chia lát, chốt lát cuối): bước
@@ -2786,6 +2805,17 @@ func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) reverifyResu
 			return reverifyOK
 		}
 	}
+	if partial && !ok && r.graphDoneAccepted(ctx, rs.t) {
+		// workflow.verify.done: graph — lần chọn theo đồ thị phụ thuộc đã xanh trên đúng cây: nhận làm bằng chứng done (toàn bộ để CI/land).
+		last := rs.t.State.LastVerification()
+		if t, err := r.adoptGraphAsFull(rs.t); err == nil {
+			rs.t = t
+			r.setFinalizeFP(rs, "")
+			rs.res.Notes = append(rs.res.Notes, "kiểm chứng theo đồ thị phụ thuộc (scope "+last.Scope+", "+last.At+") đã qua trên đúng cây hiện tại; "+
+				"workflow.verify.done = graph nên không chạy lại toàn bộ bộ test")
+			return reverifyOK
+		}
+	}
 	id := rs.t.State.ID
 	reason := "tiếp tục sau khi finalize bị chặn (worktree không đổi, không review lại)"
 	if ok {
@@ -3113,7 +3143,12 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 			}
 		}
 	}
-	ticket, _ := yaml.Marshal(t.Ticket)
+	tk := t.Ticket
+	if stepDef.Kind == flow.KindGoal && task.IsBPrime(t) && t.State.RequestCriteriaSet {
+		// Thăm dò B′ phải khác thông tin với người viết mã: chỉ tiêu chí người dùng nêu lúc tạo phiếu, không tiêu chí b-req thêm.
+		tk.Verify.Criteria = t.State.RequestCriteria
+	}
+	ticket, _ := yaml.Marshal(tk)
 	fmt.Fprintf(&b, "Phiếu tác vụ (task.yml):\n```yaml\n%s```\n", ticket)
 	for _, n := range task.ArtifactNames() {
 		if stepDef.Kind == flow.KindGoal && (n != "requirement" || task.IsBPrime(t)) {
@@ -3134,6 +3169,7 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 	case flow.KindGoal:
 		if task.IsBPrime(t) {
 			b.WriteString(bprimeGoalBlock())
+			b.WriteString(r.probeCatalogBlock())
 		} else {
 			b.WriteString(goalPromptBlock(t))
 		}
@@ -3149,15 +3185,7 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 			fmt.Fprintf(&b, "\nCâu hỏi đã trả lời trong requirement.md (nguyên văn; đây là quyết định của người dùng, làm theo):\n%s\n", strings.Join(qs, "\n"))
 		}
 		b.WriteString(goalCheckBlock(t))
-		if task.IsBPrime(t) {
-			switch {
-			case t.State.BPrimePhase == bprimePhaseExtend:
-				b.WriteString(bprimeExtendBlock(t))
-			case t.State.BPrimePhase == "" && r.bprimeSplit(rs):
-				b.WriteString(bprimeCoreBlock(t, t.State.BPrimeCoreFix > 0))
-			}
-			b.WriteString(bprimeCheckBlock(t))
-		}
+		b.WriteString(r.bprimeImplementBlocks(rs))
 		if !session {
 			b.WriteString(sliceBlock(t)) // kế hoạch lớn chạy theo lát: lần này chỉ một nhóm (slice.go)
 		}

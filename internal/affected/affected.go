@@ -117,6 +117,14 @@ type Input struct {
 	// IgnoreBintConfig: tệp dưới .bint/ không nới ra full (workflow.verify.bint_config_full: false); vẫn nằm trong Changed. Mặc định false:
 	// thay đổi .bint/** nới ra full (ReasonBintConfig).
 	IgnoreBintConfig bool
+	// Direct: chỉ chọn test của chính các gói có tệp đổi, không lan theo đồ thị phụ thuộc (tầng hẹp của kiểm hẹp theo mốc; phần lan để kiểm nền).
+	// Graph không hỗ trợ (không cài DirectSelector) thì dùng Select như thường.
+	Direct bool
+}
+
+// DirectSelector là Graph chọn được test của chính các gói trong dirs, không lan sang gói phụ thuộc.
+type DirectSelector interface {
+	SelectDirect(dirs []string) ([]string, error)
 }
 
 func isBintPath(p string) bool { return p == ".bint" || strings.HasPrefix(p, ".bint/") }
@@ -191,7 +199,12 @@ func Select(ctx context.Context, in Input) Selection {
 	case TierNone:
 		return sel
 	}
-	files, err := g.Select(res.Dirs)
+	var files []string
+	if ds, ok := g.(DirectSelector); ok && in.Direct {
+		files, err = ds.SelectDirect(res.Dirs)
+	} else {
+		files, err = g.Select(res.Dirs)
+	}
 	if err != nil {
 		return sel.full(Widening{Tier: TierFull, Reason: ReasonSourceUnavailable, Detail: err.Error()})
 	}

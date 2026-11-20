@@ -212,7 +212,7 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 		args = append([]string{"--no-daemon"}, args...)
 	}
 	var stdout bytes.Buffer
-	r := runProcess(ctx, req.Dir, a.bin(), args, req.Timeout, req.LogPath, env, strings.NewReader(req.Prompt), &stdout)
+	r := runProcessIdle(ctx, req.Dir, a.bin(), args, req.Timeout, req.IdleTimeout, req.LogPath, env, strings.NewReader(req.Prompt), &stdout)
 	res := AgentResult{ExitCode: r.ExitCode, Duration: r.Duration, TimedOut: r.TimedOut, Model: a.Model, SessionID: req.ResumeSessionID}
 	if r.Err != nil {
 		res.Error = r.Err.Error()
@@ -224,6 +224,9 @@ func (a *CodexAgent) Run(ctx context.Context, req AgentRequest) AgentResult {
 		res.Error, integrity = codexStreamErrors(stdout.Bytes(), &res)
 	} else {
 		codexStreamErrors(stdout.Bytes(), &res)
+	}
+	if r.Idle {
+		res.Idle, res.Infra = true, idleInfra(req.IdleTimeout)
 	}
 	if res.Error != "" && res.Infra == "" {
 		res.Infra, res.QuotaHit = codexInfra(res.Error)
@@ -254,6 +257,9 @@ func parseCodexJSONL(out []byte, res *AgentResult) {
 	}
 }
 
+// codexRetryRe khớp thông báo "error" của Codex khi nó đang tự kết nối lại/thử lại (không phải lỗi kết thúc lượt).
+var codexRetryRe = regexp.MustCompile(`(?i)^\s*(reconnecting|retrying)\b`)
+
 // codexStreamErrors điền Text/token vào res và trả riêng lỗi Codex tự báo (lỗi đầu tiên)
 // và lỗi toàn vẹn luồng (thiếu turn.completed hoặc dòng không phải JSON); không ghi res.Error.
 func codexStreamErrors(out []byte, res *AgentResult) (reported, integrity string) {
@@ -261,6 +267,10 @@ func codexStreamErrors(out []byte, res *AgentResult) (reported, integrity string
 	haveUsage := false
 	completed := false
 	malformed := ""
+	// Sự kiện "error" báo Codex đang thử lại ("Reconnecting... 2/5" khi proxy chập chờn): nếu sau đó lượt vẫn turn.completed thì Codex đã tự
+	// hồi phục, không phải lỗi bước. Đợt 7: một lượt b-feat 28 phút xong bình thường bị đánh failed và chạy lại (~9,6M token). Lỗi thử lại chỉ báo
+	// khi không có turn.completed nào theo sau; sự kiện "error" khác và turn.failed vẫn là lỗi.
+	pending := ""
 	fail := func(message string) {
 		if reported == "" {
 			reported = message
@@ -311,6 +321,7 @@ func codexStreamErrors(out []byte, res *AgentResult) (reported, integrity string
 			}
 		case "turn.completed":
 			completed = true
+			pending = ""
 			if ev.Usage != nil {
 				haveUsage = true
 				in += ev.Usage.InputTokens
@@ -330,8 +341,16 @@ func codexStreamErrors(out []byte, res *AgentResult) (reported, integrity string
 			if message == "" {
 				message = "error"
 			}
-			fail("codex báo lỗi: " + truncate(message, 300))
+			switch {
+			case !codexRetryRe.MatchString(message):
+				fail("codex báo lỗi: " + truncate(message, 300))
+			case pending == "":
+				pending = "codex báo lỗi: " + truncate(message, 300)
+			}
 		}
+	}
+	if pending != "" {
+		fail(pending)
 	}
 	// Dòng hỏng chỉ đáng báo khi lượt không kết thúc: nó có thể là sự kiện kết thúc bị cắt.
 	if !completed {

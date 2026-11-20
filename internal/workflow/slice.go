@@ -47,10 +47,48 @@ func (r *Runner) sliceTimeoutFor(rs *runState, implement bool) time.Duration {
 	// Luồng B′: vòng sửa duy nhất sau review (FastFixed) có trần như một lát.
 	if implement && (rs.activeSlice() != nil || (task.IsBPrime(rs.t) && rs.t.State.FastFixed)) {
 		if sd := time.Duration(r.Cfg.Workflow.SliceTimeoutMinutes) * time.Minute; sd > 0 && sd < d {
-			return sd
+			d = sd
+		}
+	}
+	if implement {
+		if b, ok := r.budgetLeft(rs); ok && b < d {
+			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("luồng B′: workflow.budget_minutes còn %s trước phần giữ cho review và một vòng sửa; lượt b-feat này bị rút trần còn %s",
+				b.Round(time.Minute), b.Round(time.Minute)))
+			d = b
 		}
 	}
 	return d
+}
+
+// defaultReviewReserve là phần giữ cho review và một vòng sửa khi workflow.review_reserve_minutes không đặt (0).
+const defaultReviewReserve = config.DefaultReviewReserveMinutes * time.Minute
+
+// budgetMinTurn là trần nhỏ nhất của một lượt b-feat khi ngân sách tổng gần hết (một lượt ngắn hơn thì gần như không làm được gì).
+const budgetMinTurn = 3 * time.Minute
+
+// budgetLeft (luồng B′, workflow.budget_minutes > 0): thời gian còn cho lượt b-feat TRƯỚC review, đã trừ review_reserve_minutes, tính từ lúc b-feat đầu tiên
+// của tác vụ bắt đầu (State.BudgetStart, giữ qua resume). Vòng sửa sau review (FastFixed) dùng phần giữ sẵn nên không bị rút. ok=false khi không áp dụng.
+// Đợt 6–7: trần ngoài cắt B/B′ trước hoặc giữa review vì không bước nào biết tổng còn bao nhiêu.
+func (r *Runner) budgetLeft(rs *runState) (time.Duration, bool) {
+	t := rs.t
+	budget := time.Duration(r.Cfg.Workflow.BudgetMinutes) * time.Minute
+	if budget <= 0 || !task.IsBPrime(t) || t.State.FastFixed {
+		return 0, false
+	}
+	start, err := time.Parse(time.RFC3339, t.State.BudgetStart)
+	if err != nil {
+		now := r.now()
+		if nt, err := r.Tasks.Update(t.State.ID, now, func(t *task.Task) error { t.State.BudgetStart = task.Now(now); return nil }); err == nil {
+			rs.t = nt
+		}
+		start = now
+	}
+	reserve := time.Duration(r.Cfg.Workflow.ReviewReserveMinutes) * time.Minute
+	if reserve <= 0 {
+		reserve = defaultReviewReserve // khoá để trống/0 (mẫu cấu hình để chú thích cho binary cũ đọc được): dùng mặc định
+	}
+	left := budget - reserve - r.now().Sub(start)
+	return max(left, budgetMinTurn), true
 }
 
 // planStrategy đọc `## Chiến lược thực thi` của plan.md của tác vụ ("có" | "không" | "" khi thiếu/sai).
@@ -260,6 +298,10 @@ func sliceBlock(t *task.Task) string {
 	if t.State.GoalTest != nil && cur.N == t.State.Slices[0].N {
 		b.WriteString(sliceFirstStubNote)
 	}
+	if g := t.State.SliceGreen; g != nil && len(g.OldRed) > 0 {
+		fmt.Fprintf(&b, "Test cũ đang ĐỎ mà người đã cho giữ ở lát trước: %s. Đọc log kiểm chứng gần nhất: test nào đỏ do tác vụ gây ra thì sửa TRƯỚC phần của lát này; "+
+			"test đỏ sẵn từ trước tác vụ thì để nguyên và ghi rõ trong báo cáo. Bint không giữ lát lại vì đúng các test này, chỉ vì test cũ MỚI đỏ.\n", strings.Join(g.OldRed, ", "))
+	}
 	var done, later, dropped []string
 	for _, s := range t.State.Slices {
 		switch {
@@ -374,7 +416,9 @@ func goalTestNames(root string, t *task.Task, goalRed []string) map[string]bool 
 
 // oldTestsGreen: test cũ (ngoài kiểm tra mục tiêu) vẫn xanh sau lát. v là lần kiểm chứng của lát (nil: không chạy được, coi là xanh). Qua, hoặc
 // scope none (không test nào bị ảnh hưởng) là xanh; ngược lại log phải đo được và mọi ô đỏ thuộc kiểm tra mục tiêu (goal).
-func oldTestsGreen(v *task.Verification, goal map[string]bool) (ok bool, why string) {
+// accepted là test cũ đỏ người đã chấp nhận ở lát trước (SliceGreen.OldRed): chúng không giữ lát lại, chỉ test cũ MỚI đỏ mới giữ (đợt 7: 4 lần dừng
+// liên tiếp vì cùng các test đỏ sẵn ở mốc, người chọn giữ cả 4 lần).
+func oldTestsGreen(v *task.Verification, goal map[string]bool, accepted []string) (ok bool, why string) {
 	if v == nil || v.Passed || v.Scope == "none" {
 		return true, ""
 	}
@@ -383,8 +427,8 @@ func oldTestsGreen(v *task.Verification, goal map[string]bool) (ok bool, why str
 		return false, "kiểm chứng sau lát không đo được test cũ (biên dịch hỏng, panic, quá giờ hoặc không có dòng --- FAIL: trong " + cmpStr(v.Log, "log") + ")"
 	}
 	var bad []string
-	for _, c := range red {
-		if !goal[topName(c)] {
+	for _, c := range oldRedOf(red, goal) {
+		if !slices.Contains(accepted, c) {
 			bad = append(bad, c)
 		}
 	}
@@ -392,6 +436,17 @@ func oldTestsGreen(v *task.Verification, goal map[string]bool) (ok bool, why str
 		return false, "test cũ đỏ: " + strings.Join(bad, ", ")
 	}
 	return true, ""
+}
+
+// oldRedOf lọc tập ô đỏ của lần kiểm chứng: bỏ ô thuộc kiểm tra mục tiêu (goal), còn lại là test cũ đỏ.
+func oldRedOf(red []string, goal map[string]bool) []string {
+	var out []string
+	for _, c := range red {
+		if !goal[topName(c)] {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // sliceVerdict quyết định chốt (ok) hay giữ lát chờ người theo số đo: test cũ xanh VÀ ô đỏ của cổng mục tiêu giảm so với điểm xanh trước. Điểm xanh trước
@@ -450,7 +505,7 @@ func (r *Runner) sliceGate(ctx context.Context, rs *runState) sliceOutcome {
 		return sliceStop
 	}
 	red, measured := failSetOf(goal)
-	oldOK, oldWhy := oldTestsGreen(ver, goalTestNames(r.Root, rs.t, red))
+	oldOK, oldWhy := oldTestsGreen(ver, goalTestNames(r.Root, rs.t, red), st.SliceGreen.OldRed)
 	ok, why := sliceVerdict(st.SliceGreen, red, measured, oldOK, oldWhy)
 	if !ok {
 		var rd []string
@@ -472,11 +527,22 @@ func (r *Runner) sliceGate(ctx context.Context, rs *runState) sliceOutcome {
 	if n := len(rs.res.Steps); n > 0 {
 		runID = rs.res.Steps[n-1].RunID
 	}
+	// Test cũ đỏ đã chấp nhận mà vẫn còn đỏ thì mang sang điểm xanh mới (đã xanh lại thì thôi).
+	var carry []string
+	if ver != nil && !ver.Passed {
+		if vr, ok := failSetOf(ver); ok {
+			for _, c := range oldRedOf(vr, goalTestNames(r.Root, rs.t, red)) {
+				if slices.Contains(st.SliceGreen.OldRed, c) {
+					carry = append(carry, c)
+				}
+			}
+		}
+	}
 	next := false
 	t, uerr := r.Tasks.Update(st.ID, r.now(), func(t *task.Task) error {
 		s := &t.State.Slices[idx]
 		s.Status, s.Reason, s.Red, s.Tree, s.RunID = task.SliceAccepted, why, append([]string{}, red...), snap, runID
-		t.State.SliceGreen = &task.SliceGreen{Tree: snap, At: r.at(), Measured: true, Red: append([]string{}, red...)}
+		t.State.SliceGreen = &task.SliceGreen{Tree: snap, At: r.at(), Measured: true, Red: append([]string{}, red...), OldRed: carry}
 		next = activateNext(&t.State)
 		return nil
 	})
@@ -680,6 +746,22 @@ func (r *Runner) applySliceChoice(ctx context.Context, rs *runState, choice stri
 		pg := *st.SliceGreen
 		prevGreen = &pg
 	}
+	// keep: test cũ đang đỏ trên cây được giữ thành tập đã chấp nhận, mang sang lát sau (gộp với tập đã chấp nhận trước đó).
+	var oldRed []string
+	if choice == SliceKeep {
+		if prevGreen != nil {
+			oldRed = slices.Clone(prevGreen.OldRed)
+		}
+		mark := task.SliceMark{}
+		if st.SliceMark != nil {
+			mark = *st.SliceMark
+		}
+		if n := len(st.Verifications); n > mark.VerifyN {
+			if vr, ok := failSetOf(&st.Verifications[n-1]); ok && !st.Verifications[n-1].Passed {
+				oldRed = unionSorted(oldRed, oldRedOf(vr, goalTestNames(r.Root, rs.t, red)))
+			}
+		}
+	}
 	next := false
 	t, err := r.Tasks.Update(id, r.now(), func(t *task.Task) error {
 		s := &t.State.Slices[idx]
@@ -693,7 +775,7 @@ func (r *Runner) applySliceChoice(ctx context.Context, rs *runState, choice stri
 				// Lát chưa đo (quá trần/agent lỗi): giữ số đo của điểm xanh trước để sliceVerdict không bị chốt thành "chưa đo được".
 				gRed, gMeasured = prevGreen.Red, prevGreen.Measured
 			}
-			t.State.SliceGreen = &task.SliceGreen{Tree: snap, At: r.at(), Measured: gMeasured, Red: append([]string{}, gRed...)}
+			t.State.SliceGreen = &task.SliceGreen{Tree: snap, At: r.at(), Measured: gMeasured, Red: append([]string{}, gRed...), OldRed: oldRed}
 		} else {
 			s.Status, s.Reason = task.SliceDiscarded, "người bỏ lát ("+old+")"
 			voidRedChecks(&t.State) // cây đã quay về điểm xanh: số đo đỏ của lát bỏ không còn nói về cây hiện tại

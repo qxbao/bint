@@ -39,10 +39,11 @@ func choicesFor(t *task.Task) []Choice {
 	cancel := Choice{Label: "huỷ tác vụ", Command: "bint task cancel " + st.ID}
 	switch {
 	case st.HeldSlice() != nil:
+		// "more" (cũng là mặc định khi không chọn) đứng đầu: người không rành chọn mục đầu, và giữ một lát còn test cũ đỏ dễ đẩy hồi quy tới cuối.
 		return []Choice{
-			{Label: "giữ cây hiện tại của lát: chốt làm điểm xanh rồi sang lát kế", Command: resume + " --slice keep"},
+			{Label: "thêm giờ: chạy lại lát từ cây hiện tại với thêm một trần thời gian (mặc định)", Command: resume + " --slice more"},
+			{Label: "giữ cây hiện tại của lát: chốt làm điểm xanh rồi sang lát kế (test cũ đang đỏ được mang sang lát kế để sửa)", Command: resume + " --slice keep"},
 			{Label: "bỏ lát: đưa tệp của tác vụ về điểm xanh rồi sang lát kế", Command: resume + " --slice discard"},
-			{Label: "thêm giờ: chạy lại lát từ cây hiện tại với thêm một trần thời gian", Command: resume + " --slice more"},
 			cancel,
 		}
 	case st.ReviewExhausted:
@@ -355,6 +356,10 @@ func verifyRedBlock(t *task.Task) string {
 		return fmt.Sprintf("\nNgân sách diff bị vượt (coi như kiểm chứng không qua): %s. Thu gọn thay đổi (bỏ phần không cần, tách việc ra tác vụ khác) tới khi dưới trần.\n",
 			strings.TrimPrefix(v.Command, "ngân sách diff: "))
 	}
+	if strings.HasPrefix(v.Reason, checkGateReason) {
+		return fmt.Sprintf("\nKiểm hẹp cổng lõi (test của các gói vừa đổi) không qua: `%s` (%s%s). Đọc log, sửa tới khi `bint task check %s` xanh; "+
+			"đừng nới hay xoá test cho dễ qua.\n", cmpStr(v.Ran, v.Command), how, log, t.State.ID)
+	}
 	if isGoalCheck(t, v) {
 		return fmt.Sprintf("\nCổng kiểm tra mục tiêu (test đóng băng do b-goal viết độc lập) không qua: `%s` (%s%s). Đọc log và sửa MÃ SẢN PHẨM tới khi nó qua; "+
 			"không sửa, xoá hay nới các tệp test đóng băng.\n", v.Command, how, log)
@@ -368,7 +373,11 @@ func verifyRedBlock(t *task.Task) string {
 // finalize (chặn "chưa đủ bằng chứng" kèm dấu vân tay để resume không review lại, không đốt vòng sửa): lần Bint tự kiểm chứng lại có lý
 // do (tệp ngoài tác vụ đổi, chỉ test bị ảnh hưởng) và lần người chạy tay `bint task verify` (thường sau sự cố môi trường).
 func redVerification(t *task.Task) *task.Verification {
-	if v := t.State.LastVerification(); v != nil && !v.Passed && !v.Voided && v.Reason == "" && v.RunID != "" {
+	// B′ cổng theo pha: kiểm hẹp cổng lõi đỏ và chưa có kiểm chứng rộng nào sau nó (bprime_probe: lượt sửa lõi; check.go: coreGate).
+	if g := gateAfterVerify(t); g != nil && !g.Passed {
+		return g
+	}
+	if v := t.State.LastVerification(); v != nil && !v.Passed && !v.Voided && v.Reason == "" && v.RunID != "" && v.RedClass != redPreexisting {
 		return v
 	}
 	// Cổng mục tiêu riêng (kiểm tra mục tiêu đóng băng) đỏ sau bước implement: cùng cách xử lý (review thấy, vòng sửa, không finalize).
@@ -572,7 +581,10 @@ func (r *Runner) reviewPrompt(ctx context.Context, rs *runState, b *strings.Buil
 	}
 	if v := t.State.LastVerification(); v != nil {
 		fmt.Fprintf(b, "Kiểm chứng gần nhất: `%s` → %s.\n", v.Command, passWord(v.Passed))
-		if !v.Passed {
+		if !v.Passed && v.RedClass == redPreexisting {
+			fmt.Fprintf(b, "Kiểm chứng cuối KHÔNG QUA nhưng các test đỏ (%s) cũng đỏ ở mốc tác vụ, tức đỏ sẵn từ trước, không do thay đổi này: "+
+				"đừng ghi phát hiện cho chúng; chỉ ghi nếu thay đổi làm chúng đỏ theo cách khác.\n", strings.Join(v.RedTests, ", "))
+		} else if !v.Passed {
 			log := "(không có log)"
 			if v.Log != "" {
 				log = v.Log
