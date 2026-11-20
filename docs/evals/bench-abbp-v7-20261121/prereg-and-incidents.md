@@ -35,7 +35,10 @@ Với n = 5 mỗi nhánh, CI tính bằng t (Welch) trên hiệu trung bình; nh
 ## Sự cố trong lúc chạy
 - 22:49: người điều phối gắn dlv vào tiến trình `bint run resume` của Bp-1 để xem nó có treo không (thực ra đang chạy kiểm chứng `go test`
   chậm, ~20 phút); thoát dlv đã giết tiến trình ở giây 4337. Script tự `bint run resume`; lần kiểm chứng đang chạy dở bị mất và chạy lại.
-  Bp-1 mất khoảng 20–25 phút ngân sách 180 phút vì sự cố này (không do Bint).
-- 00:09: Bp-1 `failed` vì lỗi mạng của proxy Codex ("websocket closed by server before response.completed") giữa lượt b-feat mở rộng,
-  ở giây 9100. Cây lúc đó đã chấm: `runs/Bp-1/grade-failed-9100s.json` (30/36). Chạy tiếp bằng `tools/cont.py` với
+  Bp-1 mất khoảng 38 phút ngân sách 180 phút vì sự cố này (không do Bint; đính chính 2026-11-21: bản đầu ghi 20–25 phút, mâu thuẫn với dòng bù
+  bên dưới; tệp thô ủng hộ 38,4 phút).
+- 00:09: Bp-1 `failed` ở giây 9100. Đính chính 2026-11-21: đây **không** phải lượt bị mất vì lỗi mạng. Log
+  `logs/b-feat-01M7WXAMJMX449FBSME4KHV9HM.log` có sự kiện `error` "Reconnecting... 2/5 (stream disconnected before completion: websocket closed
+  by server before response.completed)" ở dòng 4 nhưng lượt vẫn `turn.completed` ở dòng 212; Bint (bản `63a6114`) coi sự kiện `error` đầu tiên là lỗi
+  bước nên đánh `failed` một lượt đã xong, và B′ được chạy thêm một lượt mở rộng ngoài thiết kế. Cây lúc đó đã chấm: `runs/Bp-1/grade-failed-9100s.json` (30/36). Chạy tiếp bằng `tools/cont.py` với
   ngân sách = phần còn của trần 180 phút (1700 s) + bù sự cố dlv 22:49 (lần kiểm chứng bị giết chạy từ ~22:11, mất ~38 phút = 2280 s) = 3980 s.
