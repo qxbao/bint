@@ -1671,3 +1671,20 @@ xoá khi dừng), `gateway.log`, `tools-cache/` (M3).
   harness + session thì không ghi (đếm trong `dropped_events`). Daemon không mở SQLite.
 
 Chưa kiểm với service thật trên máy và Job Object trên Windows thật (CI chỉ biên dịch và vet cho Windows).
+
+### Luồng B′ giai đoạn 3: đảo kiểm chứng (kiểm hẹp theo mốc, kiểm nền)
+
+Chỉ áp dụng cho tác vụ B′ (`workflow.variant: bprime`, chốt lúc lập phiếu); luồng classic giữ nguyên (một lần kiểm chứng sau b-feat). Mục tiêu:
+kết quả kiểm chứng đầu tiên đến sớm trong ngân sách (đợt 6 của `reports/Luồng core Bint có lệch hướng.md`: kiểm chứng đầu tiên bắt đầu ở 78 % ngân sách).
+
+- **Kiểm hẹp theo mốc**: đề bài b-feat B′ dặn agent chạy `bint task check <id>` sau mỗi nhóm sửa (mỗi TSK). Lệnh chỉ chạy
+  `workflow.verify.affected_command` cho gói bị chạm so với mốc tác vụ; phạm vi `full` (go.mod, cấu hình...) thì **không** chạy toàn repo, báo "để kiểm nền lo".
+  Kết quả ghi vào `state.checks` (log `check-N.log`), không tính vào cổng done. Cùng luật xác nhận lệnh như `bint task verify`; agent được gọi.
+  Cần `workflow.verify.affected_command` và `verify.command` đã xác nhận. Lệnh cũng in kiểm nền gần nhất.
+- **Kiểm toàn repo nền**: trong lúc b-feat chạy, Runner thăm `state.checks` mỗi 5 giây; kiểm hẹp xanh mới thì chạy `verify.command` đầy đủ trên ảnh chụp cây
+  của lần kiểm đó, trong worktree tạm dưới thư mục tạm (`bv/`). Tối đa một lần chạy một lúc; kiểm hẹp xanh mới hơn khi đang chạy thì chờ (gộp về cây mới nhất).
+  Kết quả ghi vào `state.background_verifications` (log `bg-N.log`).
+- **Sau b-feat**: kiểm nền xanh trên đúng cây cuối thì ghi làm lần kiểm chứng đầy đủ (không chạy lại tuần tự); đang chạy trên đúng cây cuối thì chờ; khác cây thì huỷ
+  và đi đường cũ (kiểm chứng affected rồi kiểm chứng đầy đủ ở finalize). Kết quả của lượt ghi chú "kết quả kiểm chứng đầu tiên ở N % ngân sách b-feat" (`workflow.timeout_minutes`).
+- Giới hạn: tiến trình `bint` bị giết giữa lúc kiểm nền có thể để lại worktree tạm (`git worktree list`) và thư mục `bv/`; dọn bằng `git worktree prune`.
+  TUI chưa hiển thị kiểm nền.

@@ -27,3 +27,10 @@ Kết thúc: báo task ID, các tiêu chí chấp nhận và câu hỏi mở (n�
 
 // bprimeRequested: đề bài b-req dùng chỉ dẫn B′ thay skill đầy đủ.
 func bprimeRequested(t *task.Task) bool { return task.IsBPrime(t) }
+
+// bprimeCheckBlock là khối đề bài b-feat B′ về kiểm hẹp theo mốc (giai đoạn 3): kết quả kiểm chứng đầu tiên phải đến sớm.
+func bprimeCheckBlock(t *task.Task) string {
+	return "\nLuồng B′ — kiểm hẹp theo mốc: sau MỖI nhóm sửa (mỗi TSK) chạy `bint task check " + t.State.ID + "` (chỉ test của gói bạn vừa chạm; nhanh). " +
+		"Đỏ thì sửa trước khi sang nhóm sau. Bint tự chạy kiểm chứng toàn repo ở nền sau mỗi lần kiểm hẹp xanh và lệnh in kết quả nền gần nhất: " +
+		"nền đỏ thì đọc log được in và sửa. Đừng tự chạy toàn bộ bộ test hay verify.command.\n"
+}

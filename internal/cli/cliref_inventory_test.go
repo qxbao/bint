@@ -62,6 +62,7 @@ var baseExclusions = []exclusion{
 	{"workflow/bprime_goal.go", " --step b-feat --question", rAgent + " (đề bài b-feat B′: lối thoát khi thước đo có vẻ sai)"},
 	{"workflow/bprime_goal.go", " --drop-goal`).", rAgent + " (đề bài b-feat B′: lệnh người dùng gỡ thước đo)"},
 	{"workflow/run.go", "bint task criteria <id>", rAgent},
+	{"workflow/bprime.go", "bint task check", rAgent + " (đề bài b-feat B′: kiểm hẹp theo mốc)"},
 	{"knowledge/render.go", "bint bootstrap publish", rFile + ": khối AGENTS.md"},
 	{"knowledge/render.go", "bint knowledge add", rFile + ": khối AGENTS.md"},
 	{"task/task.go", "Phiếu tác vụ Bint", rFile + ": chú thích đầu task.yml"},

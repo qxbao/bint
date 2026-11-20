@@ -1140,6 +1140,11 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 			LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
 			MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools, Settings: denySettings})
 	}
+	var bg *bgVerifier // luồng B′: kiểm toàn repo nền trong lúc b-feat chạy (bgverify.go)
+	startNow := r.now()
+	if sr.kind == flow.KindImplement {
+		bg = r.startBackground(ctx, rs)
+	}
 	var res eval.AgentResult
 	if resumeID != "" {
 		res = runAgent(sr.prompt, "", resumeID)
@@ -1162,6 +1167,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		res = runAgent(sr.prompt, sr.sessionID, "")
 	}
 	r.settleProcessUsage(rs, sr, &res, cmp.Or(res.SessionID, sr.sessionID), resumeID != "")
+	r.endBackground(ctx, rs, sr, bg, startNow)
 	return r.endStep(ctx, rs, sr, res)
 }
 
@@ -1985,7 +1991,7 @@ func (r *Runner) afterStep(ctx context.Context, rs *runState, step string) bool 
 			}
 		}
 		preVerify := r.preVerifyFingerprint(ctx, rs)
-		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" && (sd.VerifyOn() || !nextImpl) {
+		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" && (sd.VerifyOn() || !nextImpl) && !r.reuseBackground(ctx, rs) {
 			// Kiểm chứng chạy dưới khoá độc quyền: lệnh kiểm chứng hay ghi tệp (coverage, snapshot, build) nên
 			// không được chạy song song với bước chỉ đọc của tác vụ khác (sẽ bị quy là vi phạm chỉ đọc).
 			lock, ok := r.lockStep(ctx, rs, "verify", LockExclusive)
@@ -3107,6 +3113,9 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 			fmt.Fprintf(&b, "\nCâu hỏi đã trả lời trong requirement.md (nguyên văn; đây là quyết định của người dùng, làm theo):\n%s\n", strings.Join(qs, "\n"))
 		}
 		b.WriteString(goalCheckBlock(t))
+		if task.IsBPrime(t) {
+			b.WriteString(bprimeCheckBlock(t))
+		}
 		if !session {
 			b.WriteString(sliceBlock(t)) // kế hoạch lớn chạy theo lát: lần này chỉ một nhóm (slice.go)
 		}

@@ -43,6 +43,7 @@ var Data = Coverage{
 		"task restore-green": "thao tác chỉ dành cho người (ghi đè tệp về điểm verify xanh cuối của tác vụ dừng), chưa đưa vào TUI; điểm xanh và tệp đã đổi từ đó hiện ở bint task show",
 		"findings set":       "thao tác chỉ dành cho người (đổi kết cục phát hiện), chưa đưa vào TUI",
 		"test affected":      "công cụ dòng lệnh cho CI và người dùng (chọn/chạy test bị ảnh hưởng theo thay đổi); vòng kiểm chứng của tác vụ ghi phạm vi (scope) vào lần kiểm chứng hiện ở thẻ Kiểm chứng (màn Tác vụ)",
+		"task check":         "agent gọi sau mỗi mốc của b-feat luồng B′ (kiểm hẹp theo gói bị chạm), không phải thao tác của người; kết quả ghi vào state.checks và state.background_verifications của phiếu, chưa có màn TUI",
 		"task ready":         "TUI đánh dấu phiếu sẵn sàng/chờ phụ thuộc ở danh sách tác vụ và chế độ cây (phím P), dùng task.Ready",
 		"mcp serve":          "máy chủ MCP qua stdio cho agent, không có giao diện; trạng thái đăng ký MCP hiện ở Hệ thống › Harness (HarnessRuntime), công cụ của nó hiện ở thẻ Công cụ Bint của màn MCP",
 		"iso create":         "thao tác của máy (profile tài khoản ngoài repo, chạy harness tương tác hoặc dọn đĩa), chưa có màn TUI; số profile, dung lượng và cảnh báo hiện ở dòng iso của thẻ Doctor (Hệ thống)",

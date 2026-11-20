@@ -573,6 +573,10 @@ type State struct {
 	// PerfBaseline là mốc hiệu năng (giây, nhỏ nhất của 3 lần) đo trước b-feat đầu tiên khi workflow.perf.command bật; PerfChecks là các lần đo sau mỗi b-feat (log perf-N.log).
 	PerfBaseline *float64       `json:"perf_baseline,omitempty"`
 	PerfChecks   []Verification `json:"perf_checks,omitempty"`
+	// Checks (luồng B′) là các lần kiểm hẹp theo mốc của b-feat (`bint task check`, log check-N.log): chỉ test của gói bị chạm, không tính vào cổng done.
+	// BackgroundVerifications là các lần chạy verify.command đầy đủ nền trên ảnh chụp cây (Tree) sau một kiểm hẹp xanh (log bg-N.log).
+	Checks                  []Verification `json:"checks,omitempty"`
+	BackgroundVerifications []Verification `json:"background_verifications,omitempty"`
 	// GoalAwaitingCheck: agent b-goal đã xong nhưng kiểm phạm vi dừng chờ người (tệp test chạm đường dẫn bảo vệ/deny...) nên chưa đóng băng
 	// (GoalTest nil). Resume chỉ chạy phần sau kiểm phạm vi (đóng băng đúng nội dung đã duyệt), không gọi lại agent b-goal, tương tự AwaitingCheck.
 	GoalAwaitingCheck bool `json:"goal_awaiting_check,omitempty"`
@@ -939,14 +943,14 @@ func writeState(t *Task) error {
 
 func loadDir(dir string) (*Task, error) {
 	t := &Task{Dir: dir}
-	data, err := os.ReadFile(filepath.Join(dir, StateFile))
+	data, err := fsafe.ReadFile(filepath.Join(dir, StateFile))
 	if err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal(data, &t.State); err != nil {
 		return nil, fmt.Errorf("%s: %w", filepath.Join(dir, StateFile), err)
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, TicketFile))
+	raw, err := fsafe.ReadFile(filepath.Join(dir, TicketFile))
 	if err != nil {
 		return nil, err
 	}

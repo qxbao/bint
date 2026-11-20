@@ -1180,3 +1180,30 @@ func relations(ws *TaskWS, t *task.Task) (parent *RelatedTask, deps, children []
 func WriteTaskArtifactFor(_ context.Context, ws *TaskWS, o TaskWriteOptions) (*task.Task, string, error) {
 	return ws.WriteArtifact(o.Ref, o.Name, o.Content)
 }
+
+// ---- task check ----
+
+// TaskCheckOptions: `bint task check <task-id>` (kiểm hẹp theo mốc của b-feat, luồng B′).
+type TaskCheckOptions struct {
+	Ref string `arg:"task-id" form:"required,suggest=tasks"`
+}
+
+func TaskCheckDefaults(config.Config) TaskCheckOptions { return TaskCheckOptions{} }
+func (o TaskCheckOptions) Validate() error {
+	if strings.TrimSpace(o.Ref) == "" {
+		return Usagef("cần ID tác vụ")
+	}
+	return nil
+}
+
+// TaskChecked là kết quả một lần kiểm hẹp.
+type TaskChecked struct {
+	Task   *task.Task
+	Result workflow.CheckResult
+}
+
+// CheckTask chạy test của gói bị chạm (không bao giờ chạy toàn repo) và ghi vào state.checks; agent được gọi.
+func CheckTask(ctx context.Context, ws *TaskWS, o TaskCheckOptions) (TaskChecked, error) {
+	t, res, err := ws.Check(ctx, o.Ref)
+	return TaskChecked{Task: t, Result: res}, err
+}

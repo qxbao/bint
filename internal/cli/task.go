@@ -83,7 +83,7 @@ Chỉ người mới: xác nhận lệnh kiểm chứng và duyệt thay đổi 
 (bint task approve), đặt autonomy auto, xác nhận hoàn thành khi thiếu bằng chứng (--force).`,
 	}
 	c.AddCommand(newTaskNewCmd(stdio), newTaskListCmd(stdio), newTaskReadyCmd(stdio), newTaskShowCmd(stdio), newTaskSetCmd(stdio),
-		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskDoneCmd(stdio), newTaskVerifyCmd(stdio), newTaskCriteriaCmd(stdio),
+		newTaskWriteCmd(stdio), newTaskStatusCmd(stdio), newTaskDoneCmd(stdio), newTaskVerifyCmd(stdio), newTaskCheckCmd(stdio), newTaskCriteriaCmd(stdio),
 		newTaskErrorCmd(stdio), newTaskReviewCmd(stdio), newTaskApproveCmd(stdio), newTaskTransitionsCmd(stdio),
 		newTaskLintCmd(stdio), newTaskDiffCmd(stdio), newTaskLandCmd(stdio), newTaskRestoreGreenCmd(stdio), newTaskCancelCmd(stdio), newTaskSyncCmd(stdio))
 	return c
@@ -1374,6 +1374,59 @@ tác vụ. Chỉ người chạy được: phiên agent bị từ chối.`,
 		},
 	}
 	c.Flags().BoolVar(&o.Apply, "apply", false, "ghi đè tệp (mặc định chỉ xem trước)")
+	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	return c
+}
+
+func newTaskCheckCmd(stdio IO) *cobra.Command {
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "check <task-id>",
+		Short: "Kiểm hẹp theo mốc: chỉ test của gói bị chạm so với mốc tác vụ, kèm kết quả kiểm nền gần nhất",
+		Long: `Chạy workflow.verify.affected_command cho các gói bị chạm so với mốc của tác vụ (không bao giờ chạy toàn repo:
+phạm vi full thì bỏ qua, kiểm chứng toàn repo chạy nền ở luồng B′). Kết quả ghi vào state.checks, không tính vào cổng done.
+Agent gọi được; cùng luật xác nhận lệnh như task verify. In kèm kết quả kiểm nền gần nhất.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ws, err := openTasks(cmd)
+			if err != nil {
+				return err
+			}
+			cr, err := app.CheckTask(cmd.Context(), ws, app.TaskCheckOptions{Ref: args[0]})
+			if err != nil {
+				return err
+			}
+			res := cr.Result
+			if asJSON {
+				if err := writeJSON(stdio.Out, map[string]any{"task_id": cr.Task.State.ID, "skipped": res.Skipped, "check": res.Check, "background": res.Background}); err != nil {
+					return err
+				}
+				if res.Skipped == "" && !res.Check.Passed {
+					return withCode(ExitError, errors.New("kiểm hẹp không qua"))
+				}
+				return nil
+			}
+			if res.Skipped != "" {
+				fmt.Fprintf(stdio.Out, "Bỏ qua: %s\n", res.Skipped)
+			} else {
+				v := res.Check
+				if v.Ran == "" {
+					fmt.Fprintf(stdio.Out, "kiểm hẹp (scope %s): không test nào bị ảnh hưởng → %s\n", v.Scope, passText(v.Passed))
+				} else {
+					fmt.Fprintf(stdio.Out, "kiểm hẹp (scope %s): %s → %s (mã %d)\nlog: %s\n", v.Scope, v.Ran, passText(v.Passed), v.ExitCode, v.Log)
+				}
+			}
+			if b := res.Background; b != nil {
+				fmt.Fprintf(stdio.Out, "kiểm nền gần nhất (%s): %s → %s (mã %d)\nlog: %s\n", b.At, b.Command, passText(b.Passed), b.ExitCode, b.Log)
+			} else {
+				fmt.Fprintln(stdio.Out, "kiểm nền: chưa có kết quả")
+			}
+			if res.Skipped == "" && !res.Check.Passed {
+				return withCode(ExitError, errors.New("kiểm hẹp không qua"))
+			}
+			return nil
+		},
+	}
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
 	return c
 }
