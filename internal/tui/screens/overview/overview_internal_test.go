@@ -1,12 +1,14 @@
 package overview
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 	"reflect"
 	"testing"
 
+	"bint/internal/app"
 	"bint/internal/i18n"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
@@ -89,5 +91,30 @@ func TestRunsLineStackedBarAndLegend(t *testing.T) {
 	}
 	if got := runsLine(ui.Env{Th: theme.New(theme.Mono), Cat: i18n.MustLoad("vi")}, 0, nil, 40); got != "0" {
 		t.Fatalf("không có lượt: %q", got)
+	}
+}
+
+// Hộp thư xếp theo mức nghiêm trọng; mỗi loại từ 2 mục gộp một dòng có số đếm; có dòng tri thức lỗi thời/dời dòng.
+func TestInboxSeverityOrderAndGrouping(t *testing.T) {
+	var ev []string
+	for i := range 81 {
+		ev = append(ev, fmt.Sprintf("E%03d", i))
+	}
+	d := Data{Pending: &app.PendingWorkReport{
+		EvalCandidates: ev, KnowledgeStale: 10, KnowledgeRelocated: 16,
+		Doctor: []app.Check{{Name: "git", Level: app.LevelWarn, Detail: "a"}, {Name: "x", Level: app.LevelWarn, Detail: "b"}, {Name: "h", Level: app.LevelFail, Detail: "c"}},
+	}, Binary: "1", LockVersion: "2"}
+	var keys []string
+	for _, in := range d.Inbox() {
+		keys = append(keys, in.Level+":"+in.Key)
+	}
+	want := "fail:overview.inbox.knowledge_stale fail:overview.inbox.doctor_fail warn:overview.inbox.knowledge_relocated warn:overview.inbox.version_skew warn:overview.inbox.doctor_warn_many info:overview.inbox.eval_many"
+	if got := strings.Join(keys, " "); got != want {
+		t.Errorf("thứ tự/gộp: %s\nmuốn:       %s", got, want)
+	}
+	for _, in := range d.Inbox() {
+		if in.Key == "overview.inbox.eval_many" && in.Count != 81 {
+			t.Errorf("số đếm ứng viên: %d", in.Count)
+		}
 	}
 }

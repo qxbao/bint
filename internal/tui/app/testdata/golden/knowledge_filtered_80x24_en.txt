@@ -3,11 +3,11 @@
 └───────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Knowledge│──────────────────────────────────────────────────────────────────┐
 │  ‹  List  1/9 ›                                                ● 2 selected  │
-│ ┌─│List (2/6)│──────────────────────────────────────pending · nguon:lo-thu─┐ │
-│ │   ● ◌ ⚑ rule     Endpoint phải có /v1                     api/**         │ │
-│ │ ▸ ● ◌ ⚑ warning  Không gọi sql.Open trực tiếp             internal/db/** │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
+│ ┌─│List (4/6)│─────────────────────────────────────────────────────pending─┐ │
+│ │   ● ◌   ⚑ rule     Endpoint phải có /v1                   api/**         │ │
+│ │   ● ◌   ⚑ warning  Không gọi sql.Open trực tiếp           internal/db/** │ │
+│ │ ▸   ⟳     fact     Cổng mặc định là 8080                  cmd/**         │ │
+│ │     ◌     lesson   Chạy go vet với GOOS=windows           *              │ │
 │ │                                                                          │ │
 │ │                                                                          │ │
 │ │                                                                          │ │

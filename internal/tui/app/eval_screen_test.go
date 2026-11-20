@@ -399,8 +399,13 @@ func TestInboxEnterOnEvalCandidateOpensEvalScreenAtThatCase(t *testing.T) {
 		d.Pending[0].ID, d.Pending[1].ID = "01EVAL1", "01EVAL2"
 		return d, nil
 	}
-	m := newModel(t, Options{Mode: theme.Mono, EvalLoader: loader}, fullPending(), 140, 40)
-	press(t, m, "j", "j", "j", "j", "j", "j", "j", "j", "enter") // 0,1 lô; 2 còn lại; 3,4 thành phần; 5 tác vụ; 6 đề xuất; 7,8 ứng viên
+	one := func(id string) *Model { // mỗi lần một ứng viên: dòng riêng (từ 2 ứng viên hộp thư gộp một dòng)
+		d := fullPending()
+		d.Pending.EvalCandidates = []string{id}
+		return newModel(t, Options{Mode: theme.Mono, EvalLoader: loader}, d, 140, 40)
+	}
+	m := one("01EVAL2")
+	pickInbox(t, m, "overview.inbox.eval", 0)
 	if m.Tab() != 4 || m.el.Tab() != 0 {
 		t.Fatalf("tab = %d, thẻ = %d, muốn 4 và 0", m.Tab(), m.el.Tab())
 	}
@@ -409,7 +414,8 @@ func TestInboxEnterOnEvalCandidateOpensEvalScreenAtThatCase(t *testing.T) {
 	}
 	hasAll(t, plain(m.Render()), "Chi tiết · 01EVAL2")
 	// Từ lại hộp thư, dòng thứ nhất.
-	press(t, m, "1", "k", "enter")
+	m = one("01EVAL1")
+	pickInbox(t, m, "overview.inbox.eval", 0)
 	if c := m.el.Cand(); c == nil || c.ID != "01EVAL1" || m.Tab() != 4 {
 		t.Fatalf("ứng viên thứ nhất: %+v tab=%d", c, m.Tab())
 	}

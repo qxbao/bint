@@ -201,6 +201,14 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 	th := env.Th
 	iw, ih := frame.Inner(w, h)
 	title := m.t("kn.list.title", i18n.A{"shown": len(m.view), "total": len(m.Data.Items)})
+	if errs, warns := m.healthCounts(); errs > 0 || warns > 0 {
+		if errs > 0 {
+			title += fmt.Sprintf(" · ✗%d", errs)
+		}
+		if warns > 0 {
+			title += fmt.Sprintf(" · !%d", warns)
+		}
+	}
 	chips := th.S(theme.Key, text.Truncate(m.filterChips(), max(w/2, 12)))
 	var body string
 	switch {
@@ -209,7 +217,7 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 	case len(m.view) == 0:
 		body = "\n " + th.S(theme.Muted, m.t("kn.empty_filtered"))
 	default:
-		widths := list.Widths(iw-2, 1, []int{1, 1, 1, 8, 0, 14})
+		widths := list.Widths(iw-2, 1, []int{1, 1, 1, 1, 8, 0, 14})
 		body = m.lst.Render(iw, ih, func(i int, cursor bool) string {
 			m.RowsDrawn++
 			it := m.Data.Items[m.view[i]]
@@ -225,7 +233,7 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 			if !it.Scope.Global() {
 				scope = strings.Join(it.Scope.Paths, ",")
 			}
-			line := list.Row(widths, 1, sel, th.S(role, glyph), flag, it.Type, it.Title, th.S(theme.Muted, scope))
+			line := list.Row(widths, 1, sel, th.S(role, glyph), m.healthCell(th, it), flag, it.Type, it.Title, th.S(theme.Muted, scope))
 			if cursor {
 				return th.S(theme.Key, "▸ ") + th.Selected(stripColor(th, line))
 			}
@@ -283,6 +291,62 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 	for _, s := range text.Wrap(it.Title, w) {
 		add(th.Bold(s))
 	}
+	d, have := m.cache[it.ID]
+	derr := m.cacheErr[it.ID]
+	checkUp := have && derr == nil && len(d.Check.Findings) > 0
+	checkBlock := func() {
+		if !checkUp {
+			add("", m.section(env, m.t("kn.section.check"), w))
+		}
+		switch {
+		case derr != nil:
+			add(ui.ErrBlock(th, ui.ErrText(m.rw, derr), w, "")...)
+		case !have:
+			add(th.S(theme.Muted, m.t("ui.loading")))
+		case len(d.Check.Findings) == 0:
+			add(th.S(theme.OK, "✓ ") + m.t("kn.check.ok"))
+		default:
+			errs := 0
+			for _, f := range d.Check.Findings {
+				if f.Level == kn.LevelError {
+					errs++
+				}
+			}
+			if errs > 0 {
+				add(th.S(theme.Err, "✗ ") + m.cat.N("kn.check.errors", errs) + th.S(theme.Muted, " · "+m.t("kn.check.technical")))
+			} else {
+				add(th.S(theme.Warn, "! ") + m.t("kn.check.warnings") + th.S(theme.Muted, " · "+m.t("kn.check.technical")))
+			}
+			hint := m.t("kn.check.hint_warn")
+			if errs > 0 {
+				hint = m.t("kn.check.hint_error")
+			}
+			add(th.S(theme.Key, "→ ") + hint)
+			for _, f := range d.Check.Findings {
+				icon, r := "!", theme.Warn
+				if f.Level == kn.LevelError {
+					icon, r = "✗", theme.Err
+				}
+				pre := th.S(r, icon) + " " + m.findingLabel(f)
+				add(pre)
+				if iss, ok := f.IssueOf(); ok {
+					// Bằng chứng lệch: dòng có cấu trúc dựng qua i18n (vị trí cũ, vị trí mới/ứng viên/số dòng, cách xử lý), không qua Rewriter.
+					for _, ln := range ui.EvidenceLines(m.rw, iss) {
+						for _, s := range text.Wrap(ln, max(w-4, 8)) {
+							add("    " + th.S(theme.Muted, s))
+						}
+					}
+					continue
+				}
+				for _, s := range text.Wrap(m.cli(f.Detail), max(w-4, 8)) {
+					add("    " + th.S(theme.Muted, s))
+				}
+			}
+		}
+	}
+	if checkUp {
+		checkBlock()
+	}
 	meta := func(k, v string) {
 		if strings.TrimSpace(v) == "" {
 			return
@@ -322,8 +386,6 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 		add(s)
 	}
 
-	d, have := m.cache[it.ID]
-	derr := m.cacheErr[it.ID]
 	add("", m.section(env, m.t("kn.section.evidence"), w))
 	if len(it.Evidence) == 0 {
 		add(th.S(theme.Muted, m.t("kn.evidence.none")))
@@ -349,46 +411,8 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 		}
 	}
 
-	add("", m.section(env, m.t("kn.section.check"), w))
-	switch {
-	case derr != nil:
-		add(ui.ErrBlock(th, ui.ErrText(m.rw, derr), w, "")...)
-	case !have:
-		add(th.S(theme.Muted, m.t("ui.loading")))
-	case len(d.Check.Findings) == 0:
-		add(th.S(theme.OK, "✓ ") + m.t("kn.check.ok"))
-	default:
-		errs := 0
-		for _, f := range d.Check.Findings {
-			if f.Level == kn.LevelError {
-				errs++
-			}
-		}
-		if errs > 0 {
-			add(th.S(theme.Err, "✗ ") + m.cat.N("kn.check.errors", errs) + th.S(theme.Muted, " · "+m.t("kn.check.technical")))
-		} else {
-			add(th.S(theme.Warn, "! ") + m.t("kn.check.warnings") + th.S(theme.Muted, " · "+m.t("kn.check.technical")))
-		}
-		for _, f := range d.Check.Findings {
-			icon, r := "!", theme.Warn
-			if f.Level == kn.LevelError {
-				icon, r = "✗", theme.Err
-			}
-			pre := th.S(r, icon) + " " + m.findingLabel(f)
-			add(pre)
-			if iss, ok := f.IssueOf(); ok {
-				// Bằng chứng lệch: dòng có cấu trúc dựng qua i18n (vị trí cũ, vị trí mới/ứng viên/số dòng, cách xử lý), không qua Rewriter.
-				for _, ln := range ui.EvidenceLines(m.rw, iss) {
-					for _, s := range text.Wrap(ln, max(w-4, 8)) {
-						add("    " + th.S(theme.Muted, s))
-					}
-				}
-				continue
-			}
-			for _, s := range text.Wrap(m.cli(f.Detail), max(w-4, 8)) {
-				add("    " + th.S(theme.Muted, s))
-			}
-		}
+	if !checkUp {
+		checkBlock()
 	}
 	return l
 }

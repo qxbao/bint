@@ -12,13 +12,13 @@
 │  │ core.lock  ⟦none~~⟧                                                   │   │
 │  └─ ⟦Version~~~⟧ 0.1.0 · ✓ ⟦current template~~~~~~~⟧ ────────────────────┘   │
 │                                                                              │
-│  ⟦Needs you~~~~⟧ (4)                                                         │
-│ ▸ ◌ ⟦2 knowledge items awaiting review in batch nguon:lo…  → ⟦Knowledge~~~~⟧ │
-│   ◌ ⟦1 knowledge item awaiting review (no batch)~~~~~~~~…  → ⟦Knowledge~~~~⟧ │
+│  ⟦Needs you~~~~⟧ (3)                                                         │
+│ ▸ ! ⟦Doctor warning — config: cấu hình theo mẫu cũ: ⟦press U…  → ⟦System~~~⟧ │
+│   ◌ ⟦3 knowledge items awaiting review~~~~~~~~~~~~~⟧       → ⟦Knowledge~~~~⟧ │
 │   ◌ ⟦Evolution proposal awaiting review — update EP0000K…  → ⟦Evolution~~~~⟧ │
-│     ⟦2 knowledge items awaiting review in batch nguon:lo-                    │
-│     thu~~~~~~~~~~~~~~~~~⟧                                                    │
-│   ⟦… rows 1-3 of 4~~~~~⟧                                                     │
+│     ⟦Doctor warning — config: cấu hình theo mẫu cũ: ⟦press U in              │
+│     ⟦System~~~⟧ › ⟦Config~~~⟧~~~~⟧~~~~~~~⟧                                   │
 │                                                                              │
 │  ⟦Doctor~~~⟧  ✓ 2  ! 1  ✗ 0                                                  │
+│                                                                              │
 └─[r→ ⟦Refre…] [:→ ⟦Comma…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]─────────────┘

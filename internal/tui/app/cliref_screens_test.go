@@ -178,9 +178,11 @@ func TestCLIRefTasksScreen(t *testing.T) {
 	f.press("3")
 	f.press("enter")
 	// Điều kiện chưa thể done nằm ở thẻ Phiếu (Info).
+	f.pumpFor(300 * time.Millisecond)
 	out := plain(f.m.Render())
 	for i := 0; i < 10 && !strings.Contains(flat(out), "phím a ở Tác vụ"); i++ {
 		f.press("pgdown")
+		f.pumpFor(150 * time.Millisecond)
 		out = plain(f.m.Render())
 	}
 	if !strings.Contains(flat(out), "phím a ở Tác vụ") {
@@ -261,7 +263,8 @@ func TestCLIRefOverviewAndSystemDoctor(t *testing.T) {
 		rows.WriteString(flat(m.Render()) + "\n")
 		press(t, m, "j")
 	}
-	for _, w := range []string{"nhấn U ở Hệ thống › Cấu hình", "nhấn s ở Hệ thống › Skill"} {
+	// Cảnh báo doctor khác (skill lệch → bint sync) gộp một dòng có số đếm; chi tiết nằm ở Hệ thống › Doctor (kiểm ở dưới).
+	for _, w := range []string{"nhấn U ở Hệ thống › Cấu hình"} {
 		if !strings.Contains(rows.String(), w) {
 			t.Errorf("hộp thư Tổng quan thiếu %q:\n%s", w, rows.String())
 		}

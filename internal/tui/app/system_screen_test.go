@@ -278,13 +278,11 @@ func TestSystemRenderFormShowsOutput(t *testing.T) {
 
 // Enter trên dòng thành phần candidate của hộp thư mở thẳng thành phần đó ở màn Hệ thống.
 func TestInboxEnterOnComponentOpensThatComponent(t *testing.T) {
-	d := sampleData()
-	d.Pending = &bintapp.PendingWorkReport{Components: []bintapp.PendingComponent{{Kind: "guidance", ID: "api-style"}, {Kind: "script", ID: "fmt-check"}}}
-	for i, want := range []string{"api-style", "fmt-check"} {
+	for _, c := range []bintapp.PendingComponent{{Kind: "guidance", ID: "api-style"}, {Kind: "script", ID: "fmt-check"}} {
+		want := c.ID
+		d := sampleData() // mỗi lần một thành phần: dòng riêng (từ 2 thành phần hộp thư gộp một dòng)
+		d.Pending = &bintapp.PendingWorkReport{Components: []bintapp.PendingComponent{c}}
 		m := newModel(t, Options{Mode: theme.Mono}, d, 140, 40)
-		for j := 0; j < i; j++ {
-			press(t, m, "j")
-		}
 		press(t, m, "enter")
 		if m.Tab() != 6 || m.sy.Tab() != syscreen.TabComponents {
 			t.Fatalf("tab = %d, thẻ = %d", m.Tab(), m.sy.Tab())

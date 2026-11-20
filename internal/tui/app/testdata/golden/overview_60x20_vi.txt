@@ -12,9 +12,9 @@
 │    │ core.lock  chưa có                             │    │
 │    └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại ────────┘    │
 │                                                          │
-│  Việc cần bạn (4)                                        │
-│ ▸ ◌ 2 mục tri thức chờ duyệt thuộc lô nguon…  → Tri thức │
-│   ◌ 1 mục tri thức chờ duyệt (không thuộc l…  → Tri thức │
-│     2 mục tri thức chờ duyệt thuộc lô nguon:lo-thu       │
-│   … dòng 1-2 / 4                                         │
+│  Việc cần bạn (3)                                        │
+│ ▸ ! Doctor cảnh báo — config: cấu hình theo…  → Hệ thống │
+│   ◌ 3 mục tri thức chờ duyệt                  → Tri thức │
+│     Doctor cảnh báo — config: cấu hình theo mẫu cũ:      │
+│     nhấn U ở Hệ thống › Cấu hình                         │
 └─[r→ Làm mới] [:→ Lệnh] [L→ Ngôn] [q→ Thoát] [?→ Trợ]─────┘

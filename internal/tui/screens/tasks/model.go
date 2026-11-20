@@ -322,6 +322,20 @@ func (m *Model) Visible() []*task.Task {
 	return out
 }
 
+// hiddenCount là số phiếu done/cancelled đang bị lọc mặc định ẩn (0 khi đã bật hiện cả xong/huỷ).
+func (m *Model) hiddenCount() int {
+	if m.showAll {
+		return 0
+	}
+	n := 0
+	for _, t := range m.Data.Tasks {
+		if GroupOf(t.State.Status) == groupFinished {
+			n++
+		}
+	}
+	return n
+}
+
 // ShowAll cho biết đang hiện cả done/cancelled.
 func (m *Model) ShowAll() bool { return m.showAll }
 

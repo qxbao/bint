@@ -3,18 +3,22 @@
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Knowledge│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │   List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context · Import                             ● 2 selected  │
-│ ┌─│List (2/6)│──────────────────pending · nguon:lo-thu─┐┌─│Details│────────────────────────────────────────────────────────────────────┐ │
-│ │   ● ◌ ⚑ rule     Endpoint phải có /v1 api/**         ││ 01KNOW000002                                                                 │ │
-│ │ ▸ ● ◌ ⚑ warning  Không gọi sql.Open … internal/db/** ││ ◌ warning · candidate · agent ⚑                                              │ │
-│ │                                                      ││ Không gọi sql.Open trực tiếp                                                 │ │
-│ │                                                      ││ Scope        internal/db/**                                                  │ │
-│ │                                                      ││ Symbols/tags nguon:lo-thu                                                    │ │
-│ │                                                      ││ Origin       agent ⚑ (Tester <t@example.com>, 2026-11-11T00:00:00Z)          │ │
-│ │                                                      ││ File         /work/demo/.bint/knowledge/items/01KNOW000002.md                │ │
+│ ┌─│List (4/6)│─────────────────────────────────pending─┐┌─│Details│────────────────────────────────────────────────────────────────────┐ │
+│ │   ● ◌   ⚑ rule     Endpoint phải có … api/**         ││ 01KNOW000004                                                                 │ │
+│ │   ● ◌   ⚑ warning  Không gọi sql.Ope… internal/db/** ││ ⟳ fact · stale · agent                                                       │ │
+│ │ ▸   ⟳     fact     Cổng mặc định là … cmd/**         ││ Cổng mặc định là 8080                                                        │ │
+│ │     ◌     lesson   Chạy go vet với G… *              ││ ✗ 1 error · technical detail                                                 │ │
+│ │                                                      ││ → f: refresh fingerprint (review content, then approve) · v: update          │ │
+│ │                                                      ││   evidence position                                                          │ │
+│ │                                                      ││ ✗ Evidence changed since it was recorded                                     │ │
+│ │                                                      ││     bằng chứng đã thay đổi                                                   │ │
+│ │                                                      ││ Scope        cmd/**                                                          │ │
+│ │                                                      ││ Origin       agent (Tester <t@example.com>, 2026-11-11T00:00:00Z)            │ │
+│ │                                                      ││ File         /work/demo/.bint/knowledge/items/01KNOW000004.md                │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││ ── Content                                                                   │ │
 │ │                                                      ││   ─────────────────────────────────────────────────────────────────          │ │
-│ │                                                      ││ Nội dung của mục Không gọi sql.Open trực tiếp.                               │ │
+│ │                                                      ││ Nội dung của mục Cổng mặc định là 8080.                                      │ │
 │ │                                                      ││ Dòng thứ hai của nội dung.                                                   │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││ ── Evidence                                                                  │ │
@@ -23,10 +27,6 @@
 │ │                                                      ││   │   40  func Open() {                                                      │ │
 │ │                                                      ││   │   41      return nil                                                     │ │
 │ │                                                      ││   │   42  }                                                                  │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── Checks                                                                    │ │
-│ │                                                      ││   ──────────────────────────────────────────────────────────────────         │ │
-│ │                                                      ││ ✓ 0 errors                                                                   │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │

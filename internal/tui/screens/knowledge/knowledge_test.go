@@ -997,3 +997,37 @@ func TestImportTabInvalidatesPreviousPreview(t *testing.T) {
 		})
 	}
 }
+
+// Kiểm nền: mục lỗi/cảnh báo lên đầu, tiêu đề có số đếm, ô sức khoẻ đúng glyph, và đệm theo khoá bằng chứng
+// (nạp lại cùng dữ liệu không kiểm lại).
+func TestHealthCheckBackgroundSortsAndCaches(t *testing.T) {
+	calls := 0
+	res := map[string]kn.Result{
+		"01B": {Findings: []kn.Finding{{Level: kn.LevelError, Code: kn.CodeFingerprint}}},
+		"01E": {Findings: []kn.Finding{{Level: kn.LevelWarn, Code: kn.CodeRelocated}}},
+	}
+	chk := func(_ context.Context, _ Data, items []*kn.Item) map[string]kn.Result {
+		calls++
+		out := map[string]kn.Result{}
+		for _, it := range items {
+			out[it.ID] = res[it.ID]
+		}
+		return out
+	}
+	h := newHarness(t, sample(), Options{Checker: chk})
+	if calls != 1 {
+		t.Fatalf("kiểm nền chạy %d lần sau lần nạp đầu, muốn 1", calls)
+	}
+	vis := h.m.Visible()
+	if vis[0].ID != "01B" || vis[1].ID != "01E" {
+		t.Errorf("thứ tự: muốn 01B (✗) rồi 01E (!) đứng đầu, được %s", ids(vis))
+	}
+	out := h.view(100, 20)
+	if !strings.Contains(out, "✗1") || !strings.Contains(out, "!1") {
+		t.Errorf("tiêu đề khung thiếu số ✗1/!1:\n%s", out)
+	}
+	h.run(h.m.Load())
+	if calls != 1 {
+		t.Errorf("nạp lại cùng dữ liệu kiểm lại (calls=%d), muốn đệm theo khoá bằng chứng", calls)
+	}
+}

@@ -531,11 +531,11 @@ func TestEvolveHumanOnlyActionsLockedInAgentSession(t *testing.T) {
 // Hộp thư: Enter trên dòng đề xuất mở màn Tiến hoá tại đúng đề xuất, kể cả khi nó không phải dòng đầu.
 func TestInboxEnterOnProposalFocusesIt(t *testing.T) {
 	d := sampleData()
-	d.Pending.Proposals = []bintapp.PendingProposal{{ID: "01EP0000KNOW", Action: "update"}, {ID: "01EP0000GUID", Action: "create"}}
+	d.Pending.Proposals = []bintapp.PendingProposal{{ID: "01EP0000GUID", Action: "create"}} // một đề xuất: dòng riêng (từ 2 đề xuất hộp thư gộp)
 	d.Pending.KnowledgeBatches, d.Pending.KnowledgeOther = nil, 0
 	m, _ := newCapModel(t, Options{})
 	m = newModelData(t, m, d)
-	press(t, m, "j", "enter") // dòng đề xuất thứ hai
+	pickInbox(t, m, "overview.inbox.proposal", 0)
 	if m.Tab() != 5 {
 		t.Fatalf("tab = %d, muốn 5 (Tiến hoá)", m.Tab())
 	}

@@ -55,6 +55,8 @@ type Options struct {
 	// Loader/Detailer thay được trong kiểm thử; nil = nạp thật.
 	Loader   Loader
 	Detailer Detailer
+	// Checker kiểm nền sức khoẻ các mục (nil: Verifier thật trên Data.WS).
+	Checker Checker
 	// Gate cho biết hành động có dùng được không theo sổ hành động và chế độ (nil = luôn dùng được). Màn hình
 	// hỏi trước khi mở form/hộp thoại của thao tác ghi để báo ngay; mô hình gốc vẫn kiểm lại khi nhận yêu cầu.
 	Gate func(id string) actions.Availability
@@ -94,6 +96,11 @@ type Model struct {
 	cache    map[string]app.KnowledgeDetail
 	cacheErr map[string]error
 	asked    map[string]bool
+
+	// health: kết quả kiểm nền theo ID (đệm theo khoá bằng chứng); checking: một lượt kiểm đang bay; recheck: cần kiểm thêm.
+	health   map[string]healthEntry
+	checking bool
+	recheck  bool
 
 	sub   int
 	pnls  [numSubs]*panel
@@ -243,6 +250,7 @@ func (m *Model) refilter() {
 			m.view = append(m.view, i)
 		}
 	}
+	m.sortByHealth()
 	m.lst.SetN(len(m.view))
 	if keep != "" { // giữ con trỏ theo ID sau khi đọc lại hoặc đổi bộ lọc
 		for i, ix := range m.view {
@@ -315,13 +323,15 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 					p.form.SetSuggestions("ids", msg.Data.IDs())
 				}
 			}
-			cmds = append(cmds, m.wantDetail())
+			cmds = append(cmds, m.wantDetail(), m.startCheck())
 		}
 		if m.reloadAgain {
 			m.reloadAgain = false
 			cmds = append(cmds, m.Load())
 		}
 		return tea.Batch(cmds...)
+	case HealthMsg:
+		return m.onHealth(msg)
 	case DetailMsg:
 		if msg.Err != nil {
 			m.cacheErr[msg.ID] = msg.Err

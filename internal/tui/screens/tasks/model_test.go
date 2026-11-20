@@ -257,6 +257,25 @@ func TestToggleAllShowsFinished(t *testing.T) {
 	}
 }
 
+// Lọc mặc định ẩn phiếu xong/huỷ: chip ghi số bị ẩn (không "chưa lọc"); bật A thì chip trở về "chưa lọc"; bộ lọc chữ
+// của người dùng vẫn dùng thông điệp "khớp bộ lọc".
+func TestHiddenFinishedChipAndEmptyMessage(t *testing.T) {
+	r := newRig(t, tasks.Options{})
+	out := r.view(140, 30)
+	if !strings.Contains(out, "ẩn 2") || strings.Contains(out, "chưa lọc") {
+		t.Fatalf("chip phải ghi số phiếu bị ẩn:\n%s", out)
+	}
+	r.press("A")
+	if out := r.view(140, 30); strings.Contains(out, "ẩn 2") || !strings.Contains(out, "cả xong/huỷ") {
+		t.Fatalf("bật A: chip không còn ghi ẩn:\n%s", out)
+	}
+	r.press("A", "/")
+	r.typ("zzz-khong-co")
+	if out := r.view(140, 30); !strings.Contains(out, "Không có tác vụ nào khớp bộ lọc") || strings.Contains(out, "đã xong/huỷ bị ẩn") {
+		t.Fatalf("lọc của người dùng phải dùng thông điệp khớp bộ lọc:\n%s", out)
+	}
+}
+
 func TestFilterByText(t *testing.T) {
 	r := newRig(t, tasks.Options{})
 	r.press("/")

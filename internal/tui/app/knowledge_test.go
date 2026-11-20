@@ -46,60 +46,48 @@ func fullPending() overview.Data {
 	return d
 }
 
-// Mỗi nguồn của hộp thư sinh đúng dòng và đúng đích.
+// Mỗi nguồn của hộp thư sinh đúng dòng và đúng đích; xếp theo mức nghiêm trọng (✗, !, ◌), loại có từ 2 mục gộp một dòng.
 func TestInboxLinesAndTargets(t *testing.T) {
 	d := fullPending()
 	in := d.Inbox()
 	type want struct {
 		key    string
+		level  string
 		target actions.Screen
 	}
 	wants := []want{
-		{"overview.inbox.batch", actions.Knowledge}, {"overview.inbox.batch", actions.Knowledge}, {"overview.inbox.knowledge", actions.Knowledge},
-		{"overview.inbox.component", actions.System}, {"overview.inbox.component", actions.System}, {"overview.inbox.task", actions.Tasks},
-		{"overview.inbox.proposal", actions.Evolve}, {"overview.inbox.eval", actions.Eval}, {"overview.inbox.eval", actions.Eval},
-		{"overview.inbox.doctor_warn", actions.System}, {"overview.inbox.doctor_fail", actions.System},
-		{"overview.inbox.source_error", actions.Evolve},
+		{"overview.inbox.doctor_fail", "fail", actions.System}, {"overview.inbox.source_error", "fail", actions.Evolve},
+		{"overview.inbox.task", "warn", actions.Tasks}, {"overview.inbox.doctor_warn", "warn", actions.System},
+		{"overview.inbox.knowledge_many", "info", actions.Knowledge}, {"overview.inbox.components_many", "info", actions.System},
+		{"overview.inbox.proposal", "info", actions.Evolve}, {"overview.inbox.eval_many", "info", actions.Eval},
 	}
 	if len(in) != len(wants) {
 		t.Fatalf("%d dòng, muốn %d: %+v", len(in), len(wants), in)
 	}
 	for i, w := range wants {
-		if in[i].Key != w.key || in[i].Target != w.target {
-			t.Errorf("dòng %d: %s → %s, muốn %s → %s", i, in[i].Key, in[i].Target, w.key, w.target)
+		if in[i].Key != w.key || in[i].Target != w.target || in[i].Level != w.level {
+			t.Errorf("dòng %d: %s %s → %s, muốn %s %s → %s", i, in[i].Level, in[i].Key, in[i].Target, w.level, w.key, w.target)
 		}
 	}
-	if f := in[0].Filter; f == nil || f.Batch != "nguon:lo-thu" || len(f.Statuses) != 2 || in[0].Count != 5 {
-		t.Errorf("dòng lô: %+v", in[0])
+	if f := in[4].Filter; f == nil || f.Batch != "" || len(f.Statuses) != 2 || in[4].Count != 10 {
+		t.Errorf("dòng tri thức chờ duyệt gộp: %+v", in[4])
 	}
-	if f := in[2].Filter; f == nil || f.Batch != "" || !f.NoBatch || len(f.Statuses) != 2 || in[2].Count != 3 {
-		t.Errorf("dòng tri thức còn lại: %+v", in[2])
+	if in[5].Count != 2 || in[7].Count != 2 || in[5].SystemTab != "components" {
+		t.Errorf("dòng gộp thành phần/ứng viên phải có số đếm: %+v %+v", in[5], in[7])
 	}
-	// Mỗi thành phần candidate một dòng, mang loại và ID để Enter mở đúng thành phần ở màn Hệ thống.
-	for i, c := range [][2]string{{"guidance", "g1"}, {"guardrail", "r1"}} {
-		if got := strings.Join(in[3+i].Commands, ";"); got != "bint harness component approve "+c[1] || in[3+i].ComponentID != c[1] || in[3+i].ComponentKind != c[0] {
-			t.Errorf("dòng thành phần %d: %s / %q %q", i, got, in[3+i].ComponentKind, in[3+i].ComponentID)
-		}
-	}
-	if got := strings.Join(in[5].Commands, ";"); got != "bint task show 01TASK1" {
+	if got := strings.Join(in[2].Commands, ";"); got != "bint task show 01TASK1" || in[2].TaskID != "01TASK1" {
 		t.Errorf("lệnh tác vụ: %s", got)
 	}
-	// Mỗi ứng viên đánh giá một dòng, mang ID để Enter chọn đúng ứng viên ở màn Đánh giá.
-	for i, id := range []string{"01EVAL1", "01EVAL2"} {
-		if got := strings.Join(in[7+i].Commands, ";"); got != "bint eval show "+id || in[7+i].EvalCaseID != id {
-			t.Errorf("dòng eval %d: %s / %q", i, got, in[7+i].EvalCaseID)
-		}
+	if got := strings.Join(in[3].Commands, ";"); got != "bint doctor;bint init --update" || in[3].SystemTab != "doctor" {
+		t.Errorf("doctor mẫu cũ phải gợi ý init --update và mở thẻ Doctor: %s / %q", got, in[3].SystemTab)
 	}
-	if got := strings.Join(in[9].Commands, ";"); got != "bint doctor;bint init --update" || in[9].SystemTab != "doctor" {
-		t.Errorf("doctor mẫu cũ phải gợi ý init --update và mở thẻ Doctor: %s / %q", got, in[9].SystemTab)
+	if !strings.Contains(in[1].Detail, "proposals") {
+		t.Errorf("nguồn lỗi phải là một dòng lỗi riêng: %+v", in[1])
 	}
-	if in[11].Level != "fail" || !strings.Contains(in[11].Detail, "proposals") {
-		t.Errorf("nguồn lỗi phải là một dòng lỗi riêng: %+v", in[11])
-	}
-	// Nguồn lỗi không làm mất nguồn khác: đủ dòng của năm nguồn còn lại ở trên.
+	// Nguồn lỗi không làm mất nguồn khác: đủ dòng của năm nguồn còn lại.
 	out := plain(newModel(t, Options{Mode: theme.Mono}, d, 140, 40).Render())
-	for _, want := range []string{"5 mục tri thức chờ duyệt thuộc lô nguon:lo-thu", "3 mục tri thức chờ duyệt (không thuộc lô nào)", "Thành phần harness chờ duyệt — guidance g1", "Thành phần harness chờ duyệt — guardrail r1",
-		"Tác vụ bị chặn — Thêm cột email", "Đề xuất tiến hoá chờ duyệt — create 01PROP1", "Ứng viên đánh giá chờ duyệt — 01EVAL1", "Ứng viên đánh giá chờ duyệt — 01EVAL2", "Doctor cảnh báo", "Doctor báo lỗi", "Không đọc được nguồn việc"} {
+	for _, want := range []string{"10 mục tri thức chờ duyệt", "2 thành phần harness chờ duyệt", "Tác vụ bị chặn — Thêm cột email",
+		"Đề xuất tiến hoá chờ duyệt — create 01PROP1", "2 ứng viên đánh giá chờ duyệt", "Doctor cảnh báo", "Doctor báo lỗi", "Không đọc được nguồn việc"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("thiếu %q:\n%s", want, out)
 		}
@@ -107,8 +95,10 @@ func TestInboxLinesAndTargets(t *testing.T) {
 }
 
 func TestInboxEnterOnBatchSetsKnowledgeFilter(t *testing.T) {
-	m := newModel(t, Options{Mode: theme.Mono}, fullPending(), 140, 40)
-	press(t, m, "j", "enter") // dòng lô thứ hai: nguon:lo-hai
+	d := fullPending()
+	d.Pending.KnowledgeBatches, d.Pending.KnowledgeOther = d.Pending.KnowledgeBatches[1:], 0 // một lô: dòng riêng của lô
+	m := newModel(t, Options{Mode: theme.Mono}, d, 140, 40)
+	pickInbox(t, m, "overview.inbox.batch", 0)
 	if m.Tab() != 1 {
 		t.Fatalf("tab = %d", m.Tab())
 	}
@@ -126,7 +116,7 @@ func TestInboxEnterOnBatchSetsKnowledgeFilter(t *testing.T) {
 // giữ chỗ kèm lệnh CLI.
 func TestInboxEnterOnBlockedTaskOpensTasksScreenAtThatTask(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, fullPending(), 140, 40)
-	press(t, m, "j", "j", "j", "j", "j", "enter") // 0,1 lô; 2 còn lại; 3,4 thành phần; 5 tác vụ
+	pickInbox(t, m, "overview.inbox.task", 0)
 	if m.Tab() != 2 {
 		t.Fatalf("tab = %d, muốn 2 (Tác vụ)", m.Tab())
 	}
@@ -137,7 +127,8 @@ func TestInboxEnterOnBlockedTaskOpensTasksScreenAtThatTask(t *testing.T) {
 	if !strings.Contains(out, "Thêm cột email") || !strings.Contains(out, "Chi tiết") {
 		t.Fatalf("màn Tác vụ phải hiện tác vụ đó:\n%s", out)
 	}
-	press(t, m, "1", "j", "j", "j", "j", "enter") // dòng doctor → Hệ thống, thẻ Doctor (4 dòng sau tác vụ: đề xuất, hai ứng viên, doctor)
+	press(t, m, "1")
+	pickInbox(t, m, "overview.inbox.doctor_fail", 0) // dòng Doctor → Hệ thống, thẻ Doctor
 	if m.Tab() != 6 || m.sy.Tab() != syscreen.TabDoctor {
 		t.Fatalf("tab = %d, thẻ = %d, muốn 6 và Doctor", m.Tab(), m.sy.Tab())
 	}
@@ -420,7 +411,8 @@ func TestMilestoneApproveThirtyItemsFromInbox(t *testing.T) {
 		keys++
 		press(t, m, k)
 	}
-	press1("enter") // dòng đầu của hộp thư: lô nguon:lo-thu
+	keys++
+	pickInbox(t, m, "overview.inbox.batch", 0) // dòng lô nguon:lo-thu của hộp thư
 	if m.Tab() != 1 || m.kn.Filter().Batch != "nguon:lo-thu" {
 		t.Fatalf("Enter phải tới màn Tri thức với bộ lọc lô: tab=%d filter=%+v\n%s", m.Tab(), m.kn.Filter(), plain(m.Render()))
 	}
@@ -457,8 +449,10 @@ func TestMilestoneApproveThirtyItemsFromInbox(t *testing.T) {
 // Dòng hộp thư "tri thức còn lại" đếm mục không thuộc lô nào: Enter phải mở danh sách chỉ gồm các mục đó
 // (không lẫn mục của lô), và A không chọn gì lập lô đúng bằng số ở dòng hộp thư.
 func TestInboxOtherKnowledgeFilterExcludesBatchItems(t *testing.T) {
-	m := newModel(t, Options{Mode: theme.Mono}, fullPending(), 140, 40)
-	press(t, m, "j", "j", "enter") // hai dòng lô, rồi dòng "không thuộc lô nào"
+	d := fullPending()
+	d.Pending.KnowledgeBatches = nil // chỉ còn dòng "không thuộc lô nào" (nhiều dòng tri thức sẽ gộp)
+	m := newModel(t, Options{Mode: theme.Mono}, d, 140, 40)
+	pickInbox(t, m, "overview.inbox.knowledge", 0)
 	f := m.kn.Filter()
 	if !f.NoBatch || f.Batch != "" || len(f.Statuses) != 2 {
 		t.Fatalf("%+v", f)

@@ -170,6 +170,9 @@ func (m *Model) filterChips() string {
 	if m.showAll {
 		parts = append(parts, m.t("tk.filter.all"))
 	}
+	if n := m.hiddenCount(); n > 0 {
+		parts = append(parts, m.t("tk.filter.hidden", i18n.A{"count": n}))
+	}
 	if m.tree {
 		parts = append(parts, m.t("tk.filter.tree"))
 	}
@@ -205,6 +208,8 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 	switch {
 	case len(m.Data.Tasks) == 0:
 		body = "\n " + th.S(theme.Muted, m.t("tk.empty"))
+	case shown == 0 && m.filter == "" && !m.textIn && m.hiddenCount() > 0:
+		body = "\n " + th.S(theme.Muted, m.t("tk.empty_hidden", i18n.A{"count": m.hiddenCount()}))
 	case shown == 0:
 		body = "\n " + th.S(theme.Muted, m.t("tk.empty_filtered"))
 	default:

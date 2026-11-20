@@ -126,6 +126,33 @@ overview.inbox.doctor_fail: "Doctor error — {detail}"
 overview.inbox.doctor_warn: "Doctor warning — {detail}"
 overview.inbox.source_error: "Could not read a work source — {detail}"
 overview.inbox.window: "… rows {from}-{to} of {total}"
+overview.inbox.knowledge_stale:
+  one: "{count} outdated knowledge item"
+  other: "{count} outdated knowledge items"
+overview.inbox.knowledge_relocated:
+  one: "{count} knowledge item moved (lines shifted)"
+  other: "{count} knowledge items moved (lines shifted)"
+overview.inbox.knowledge_many:
+  one: "{count} knowledge item awaiting review"
+  other: "{count} knowledge items awaiting review"
+overview.inbox.components_many:
+  one: "{count} harness component awaiting approval"
+  other: "{count} harness components awaiting approval"
+overview.inbox.tasks_many:
+  one: "{count} blocked task"
+  other: "{count} blocked tasks"
+overview.inbox.proposals_many:
+  one: "{count} evolution proposal awaiting review"
+  other: "{count} evolution proposals awaiting review"
+overview.inbox.eval_many:
+  one: "{count} evaluation candidate awaiting review"
+  other: "{count} evaluation candidates awaiting review"
+overview.inbox.doctor_fail_many:
+  one: "Doctor reports {count} error"
+  other: "Doctor reports {count} errors"
+overview.inbox.doctor_warn_many:
+  one: "Doctor has {count} warning"
+  other: "Doctor has {count} warnings"
 overview.doctor.title: "Doctor"
 overview.error: "Could not read the repository status."
 overview.error.hint: "Press r to retry, or open System › Doctor (key 7, then pick the Doctor tab) for details."
@@ -236,6 +263,8 @@ kn.check.errors:
   other: "{count} errors"
 kn.check.warnings: "warnings only"
 kn.check.technical: "technical detail"
+kn.check.hint_error: "f: refresh fingerprint (review content, then approve) · v: update evidence position"
+kn.check.hint_warn: "v: update evidence position"
 kn.dialog.confirm: "Confirm"
 kn.dialog.cancel: "Cancel"
 kn.dialog.close: "Close"
@@ -903,6 +932,8 @@ tk.excerpt.title: "File excerpt"
 tk.fail: "failed"
 tk.filter.all: "incl. done/cancelled"
 tk.filter.none: "no filter"
+tk.filter.hidden: "{count} hidden"
+tk.empty_hidden: "0 open · {count} done/cancelled hidden — press A to show"
 tk.force.blockers: "Missing:"
 tk.force.no_blockers: "No evidence is missing."
 tk.force.title: "Force the transition"

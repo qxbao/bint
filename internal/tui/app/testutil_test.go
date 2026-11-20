@@ -266,3 +266,27 @@ func sampleTaskRuns() bintapp.TaskRunsResult {
 	steps, total, partial := bintapp.StepCosts(rows, []string{"b-feat", "b-review"})
 	return bintapp.TaskRunsResult{Runs: rows, Steps: steps, TotalUSD: total, TotalPartial: partial}
 }
+
+// pickInbox đưa con trỏ hộp thư Tổng quan tới dòng thứ nth (từ 0) có khoá key rồi nhấn Enter; thứ tự dòng
+// theo mức nghiêm trọng nên test không đếm số lần bấm j.
+func pickInbox(t *testing.T, m *Model, key string, nth int) {
+	t.Helper()
+	in := m.ov.Data.Inbox()
+	idx, seen := -1, 0
+	for i, r := range in {
+		if r.Key == key {
+			if seen == nth {
+				idx = i
+				break
+			}
+			seen++
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("hộp thư không có dòng %s #%d: %+v", key, nth, in)
+	}
+	for m.ov.Cursor != idx {
+		press(t, m, "j")
+	}
+	press(t, m, "enter")
+}

@@ -52,10 +52,13 @@ type PendingWorkReport struct {
 	// không thuộc lô nào (một dòng).
 	KnowledgeBatches []PendingBatch
 	KnowledgeOther   int
-	Components       []PendingComponent
-	BlockedTasks     []PendingTask
-	Proposals        []PendingProposal
-	EvalCandidates   []string
+	// KnowledgeStale: mục còn hiệu lực có kiểm tra mức lỗi (fingerprint đổi, bằng chứng mất); KnowledgeRelocated:
+	// mục chỉ dời dòng (cảnh báo relocated). Kết quả Verifier như `bint knowledge verify`, không áp chuyển trạng thái.
+	KnowledgeStale, KnowledgeRelocated int
+	Components                         []PendingComponent
+	BlockedTasks                       []PendingTask
+	Proposals                          []PendingProposal
+	EvalCandidates                     []string
 	// Doctor: chỉ các kiểm tra mức warn và fail (gồm cấu hình theo mẫu cũ, skill lệch phiên bản);
 	// DoctorAll là báo cáo đầy đủ (để Tổng quan đếm mà không chạy doctor lần hai).
 	Doctor    []Check
@@ -133,6 +136,24 @@ func PendingWork(ctx context.Context, dir string) (*PendingWorkReport, error) {
 			rep.KnowledgeBatches = append(rep.KnowledgeBatches, *b)
 		}
 		sort.Slice(rep.KnowledgeBatches, func(i, j int) bool { return rep.KnowledgeBatches[i].Tag < rep.KnowledgeBatches[j].Tag })
+		v := knowledge.Verifier{Src: k.Source(), All: items, FindMoved: true}
+		for _, it := range items {
+			if !it.Active() {
+				continue
+			}
+			res := v.Verify(it)
+			switch knowledge.HealthOf(res) {
+			case knowledge.HealthError:
+				rep.KnowledgeStale++
+			case knowledge.HealthWarn:
+				for _, f := range res.Findings {
+					if f.Code == knowledge.CodeRelocated {
+						rep.KnowledgeRelocated++
+						break
+					}
+				}
+			}
+		}
 	}
 
 	// 2. Thành phần harness candidate.

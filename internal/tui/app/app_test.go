@@ -144,11 +144,12 @@ func TestTabNavigation(t *testing.T) {
 // Hộp thư: Enter nhảy thẳng tới chỗ xử lý.
 func TestInboxEnterJumpsToTarget(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, sampleData(), 100, 30)
-	press(t, m, "enter") // dòng đầu: lô tri thức chờ duyệt
+	pickInbox(t, m, "overview.inbox.knowledge_many", 0) // tri thức chờ duyệt (gộp một dòng)
 	if m.Tab() != 1 {
 		t.Fatalf("tab = %d, muốn 1 (Tri thức)", m.Tab())
 	}
-	press(t, m, "1", "j", "j", "enter") // dòng thứ ba: đề xuất tiến hoá
+	press(t, m, "1")
+	pickInbox(t, m, "overview.inbox.proposal", 0) // đề xuất tiến hoá
 	if m.Tab() != 5 {
 		t.Fatalf("tab = %d, muốn 5 (Tiến hoá)", m.Tab())
 	}
@@ -166,7 +167,7 @@ func TestLanguageSwitchChangesView(t *testing.T) {
 	if m.Lang() != "en" || !strings.Contains(en, "Needs you") || !strings.Contains(en, "Overview") || strings.Contains(en, "Việc cần bạn") {
 		t.Fatalf("en (lang=%s):\n%s", m.Lang(), en)
 	}
-	if !strings.Contains(en, "2 knowledge items awaiting review in batch nguon:lo-thu") || !strings.Contains(en, "Quit") {
+	if !strings.Contains(en, "3 knowledge items awaiting review") || !strings.Contains(en, "Quit") {
 		t.Fatalf("en thiếu chuỗi dịch (số nhiều, chân phím):\n%s", en)
 	}
 	press(t, m, "L")
@@ -777,7 +778,9 @@ func TestOverlayHidesBackground(t *testing.T) {
 // Cảnh báo doctor chỉ hiện một lần (ở hộp thư); mục Doctor chỉ có số đếm.
 func TestDoctorWarningNotDuplicated(t *testing.T) {
 	for _, sz := range [][2]int{{80, 24}, {140, 40}} {
-		out := plain(newModel(t, Options{Mode: theme.Mono}, sampleData(), sz[0], sz[1]).Render())
+		m := newModel(t, Options{Mode: theme.Mono}, sampleData(), sz[0], sz[1])
+		press(t, m, "j") // con trỏ rời dòng doctor: nguyên văn hàng đang chọn không lặp lại cảnh báo
+		out := plain(m.Render())
 		if n := strings.Count(out, "cấu hình theo mẫu cũ"); n != 1 {
 			t.Errorf("%v: cảnh báo doctor xuất hiện %d lần, muốn 1:\n%s", sz, n, out)
 		}

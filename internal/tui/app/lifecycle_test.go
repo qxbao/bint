@@ -524,7 +524,14 @@ func TestInboxVersionSkewSyncClearsItem(t *testing.T) {
 	if !skew() {
 		t.Fatalf("hộp thư phải có mục lệch phiên bản: %+v", f.m.ov.Data.Inbox())
 	}
-	f.press("enter", "s")
+	f.press("enter")
+	// Wait for the System screen's panes to finish loading before 's': otherwise
+	// the sync_plan action races the background loads and the pane is still empty.
+	f.pump(func() bool {
+		s := f.screen()
+		return strings.Contains(s, "core.lock") && !strings.Contains(s, "Đang tải")
+	}, nil)
+	f.press("s")
 	f.pump(func() bool {
 		select {
 		case <-previewStarted:

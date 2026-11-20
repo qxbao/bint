@@ -4,11 +4,11 @@
 ┌─│Tri thức│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │   Danh sách · Tìm kiếm · Thống kê · Thay đổi · Thẩm định lại · Xuất bản AGENTS.md · Khảo sát · Ngữ cảnh · Nhập                           │
 │ ┌─│Danh sách (5/6)│───────────────mọi mục còn hiệu lực─┐┌─│Chi tiết│───────────────────────────────────────────────────────────────────┐ │
-│ │ ▸   ◌ ⚑ rule     Endpoint phải có /v1 api/**         ││ 01KNOW000001                                                                 │ │
-│ │     ◌ ⚑ warning  Không gọi sql.Open … internal/db/** ││ ◌ rule · candidate · agent ⚑                                                 │ │
-│ │     ✓   pattern  Handler đi qua wrap… *              ││ Endpoint phải có /v1                                                         │ │
-│ │     ⟳   fact     Cổng mặc định là 80… cmd/**         ││ Phạm vi      api/**                                                          │ │
-│ │     ◌   lesson   Chạy go vet với GOO… *              ││ Ký hiệu/thẻ  nguon:lo-thu                                                    │ │
+│ │ ▸   ◌   ⚑ rule     Endpoint phải có … api/**         ││ 01KNOW000001                                                                 │ │
+│ │     ◌   ⚑ warning  Không gọi sql.Ope… internal/db/** ││ ◌ rule · candidate · agent ⚑                                                 │ │
+│ │     ✓     pattern  Handler đi qua wr… *              ││ Endpoint phải có /v1                                                         │ │
+│ │     ⟳     fact     Cổng mặc định là … cmd/**         ││ Phạm vi      api/**                                                          │ │
+│ │     ◌     lesson   Chạy go vet với G… *              ││ Ký hiệu/thẻ  nguon:lo-thu                                                    │ │
 │ │                                                      ││ Nguồn gốc    agent ⚑ (Tester <t@example.com>, 2026-11-11T00:00:00Z)          │ │
 │ │                                                      ││ Tệp          /work/demo/.bint/knowledge/items/01KNOW000001.md                │ │
 │ │                                                      ││                                                                              │ │

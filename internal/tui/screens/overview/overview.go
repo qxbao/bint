@@ -72,8 +72,6 @@ type Inbox struct {
 	Commands []string
 }
 
-const maxTaskRows, maxProposalRows, maxEvalRows, maxComponentRows = 5, 5, 5, 5
-
 // shortID rút ID dài thành 10 ký tự cuối (phần phân biệt của ULID); ID ngắn hơn giữ nguyên.
 func shortID(id string) string {
 	if r := []rune(id); len(r) > 10 {
@@ -88,9 +86,9 @@ var sourceTarget = map[string]actions.Screen{
 	app.PendingSrcProposals: actions.Evolve, app.PendingSrcEval: actions.Eval, app.PendingSrcDoctor: actions.System,
 }
 
-// Inbox dựng danh sách việc cần người xử lý từ sáu nguồn của mục 4.3.1: tri thức chờ duyệt (một dòng mỗi
-// lô nguon:*, phần còn lại một dòng), thành phần harness candidate, tác vụ blocked, đề xuất tiến hoá,
-// ứng viên đánh giá và cảnh báo/lỗi doctor; nguồn đọc lỗi thành một dòng lỗi riêng.
+// Inbox dựng danh sách việc cần người xử lý từ các nguồn của mục 4.3.1, xếp theo mức nghiêm trọng (lỗi, cảnh
+// báo, thông tin; cùng mức giữ thứ tự nguồn). Mỗi loại có từ 2 mục thành một dòng có số đếm (điều hướng tới
+// màn đích để chọn mục cụ thể); loại chỉ có một mục giữ dòng chi tiết.
 func (d Data) Inbox() []Inbox {
 	p := d.Pending
 	if p == nil {
@@ -98,29 +96,49 @@ func (d Data) Inbox() []Inbox {
 	}
 	var out []Inbox
 	pend := []string{knowledge.StatusCandidate, knowledge.StatusStale}
-	for _, b := range p.KnowledgeBatches {
-		out = append(out, Inbox{Level: "info", Key: "overview.inbox.batch", Count: b.Count(), Detail: b.Tag, Target: actions.Knowledge,
-			Filter: &knowledge.Filter{Statuses: pend, Batch: b.Tag}})
+
+	// Tri thức: lỗi thời (✗), dời dòng (!), chờ duyệt (◌).
+	if p.KnowledgeStale > 0 {
+		out = append(out, Inbox{Level: "fail", Key: "overview.inbox.knowledge_stale", Count: p.KnowledgeStale, Target: actions.Knowledge,
+			Commands: []string{"bint knowledge verify"}})
 	}
+	if p.KnowledgeRelocated > 0 {
+		out = append(out, Inbox{Level: "warn", Key: "overview.inbox.knowledge_relocated", Count: p.KnowledgeRelocated, Target: actions.Knowledge,
+			Commands: []string{"bint knowledge verify --apply"}})
+	}
+	kRows := len(p.KnowledgeBatches)
 	if p.KnowledgeOther > 0 {
-		out = append(out, Inbox{Level: "info", Key: "overview.inbox.knowledge", Count: p.KnowledgeOther, Target: actions.Knowledge,
-			Filter: &knowledge.Filter{Statuses: pend, NoBatch: true}})
+		kRows++
 	}
-	for i, c := range p.Components {
-		if i == maxComponentRows {
-			out = append(out, Inbox{Level: "info", Key: "overview.inbox.components_more", Count: len(p.Components) - maxComponentRows, Target: actions.System,
-				SystemTab: "components", Commands: []string{"bint harness component list --status candidate"}})
-			break
+	if kRows >= 2 {
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.knowledge_many", Count: p.KnowledgeTotal(), Target: actions.Knowledge,
+			Filter: &knowledge.Filter{Statuses: pend}})
+	} else {
+		for _, b := range p.KnowledgeBatches {
+			out = append(out, Inbox{Level: "info", Key: "overview.inbox.batch", Count: b.Count(), Detail: b.Tag, Target: actions.Knowledge,
+				Filter: &knowledge.Filter{Statuses: pend, Batch: b.Tag}})
 		}
+		if p.KnowledgeOther > 0 {
+			out = append(out, Inbox{Level: "info", Key: "overview.inbox.knowledge", Count: p.KnowledgeOther, Target: actions.Knowledge,
+				Filter: &knowledge.Filter{Statuses: pend, NoBatch: true}})
+		}
+	}
+
+	// Thành phần harness candidate.
+	if n := len(p.Components); n >= 2 {
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.components_many", Count: n, Target: actions.System,
+			SystemTab: "components", Commands: []string{"bint harness component list --status candidate"}})
+	} else if n == 1 {
+		c := p.Components[0]
 		out = append(out, Inbox{Level: "info", Key: "overview.inbox.component", Detail: strings.TrimSpace(c.Kind + " " + c.ID), Target: actions.System,
 			ComponentID: c.ID, ComponentKind: c.Kind, Commands: []string{"bint harness component approve " + c.ID}})
 	}
-	for i, t := range p.BlockedTasks {
-		if i == maxTaskRows {
-			out = append(out, Inbox{Level: "info", Key: "overview.inbox.tasks_more", Count: len(p.BlockedTasks) - maxTaskRows, Target: actions.Tasks,
-				Commands: []string{"bint task list"}})
-			break
-		}
+
+	// Tác vụ blocked.
+	if n := len(p.BlockedTasks); n >= 2 {
+		out = append(out, Inbox{Level: "warn", Key: "overview.inbox.tasks_many", Count: n, Target: actions.Tasks, Commands: []string{"bint task list"}})
+	} else if n == 1 {
+		t := p.BlockedTasks[0]
 		detail := t.Goal
 		if detail == "" {
 			detail = t.ID
@@ -128,49 +146,73 @@ func (d Data) Inbox() []Inbox {
 		out = append(out, Inbox{Level: "warn", Key: "overview.inbox.task", Detail: detail, Target: actions.Tasks, TaskID: t.ID,
 			Commands: []string{"bint task show " + t.ID}})
 	}
-	for i, e := range p.Proposals {
-		if i == maxProposalRows {
-			out = append(out, Inbox{Level: "info", Key: "overview.inbox.proposals_more", Count: len(p.Proposals) - maxProposalRows, Target: actions.Evolve,
-				Commands: []string{"bint evolve list"}})
-			break
-		}
-		id := e.ID
-		if r := []rune(id); len(r) > 10 {
-			id = string(r[len(r)-10:])
-		}
-		out = append(out, Inbox{Level: "info", Key: "overview.inbox.proposal", Detail: strings.TrimSpace(e.Action + " " + id), Target: actions.Evolve,
+
+	// Đề xuất tiến hoá.
+	if n := len(p.Proposals); n >= 2 {
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.proposals_many", Count: n, Target: actions.Evolve, Commands: []string{"bint evolve list"}})
+	} else if n == 1 {
+		e := p.Proposals[0]
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.proposal", Detail: strings.TrimSpace(e.Action + " " + shortID(e.ID)), Target: actions.Evolve,
 			ProposalID: e.ID, Commands: []string{"bint evolve show " + e.ID}})
 	}
-	for i, id := range p.EvalCandidates {
-		if i == maxEvalRows {
-			out = append(out, Inbox{Level: "info", Key: "overview.inbox.eval_more", Count: len(p.EvalCandidates) - maxEvalRows, Target: actions.Eval,
-				Commands: []string{"bint eval list"}})
-			break
-		}
+
+	// Ứng viên đánh giá.
+	if n := len(p.EvalCandidates); n >= 2 {
+		out = append(out, Inbox{Level: "info", Key: "overview.inbox.eval_many", Count: n, Target: actions.Eval, Commands: []string{"bint eval list"}})
+	} else if n == 1 {
+		id := p.EvalCandidates[0]
 		out = append(out, Inbox{Level: "info", Key: "overview.inbox.eval", Detail: shortID(id), Target: actions.Eval, EvalCaseID: id,
 			Commands: []string{"bint eval show " + id}})
 	}
+
 	if d.LockMismatch() {
 		out = append(out, Inbox{Level: "warn", Key: "overview.inbox.version_skew", Detail: d.LockVersion + " ≠ " + d.Binary, Target: actions.System,
 			SystemTab: "skills", Commands: []string{"bint sync"}})
 	}
+
+	// Doctor: cấu hình mẫu cũ giữ riêng (có hành động riêng); lỗi và cảnh báo còn lại gộp theo mức khi từ 2 mục.
+	var dFail, dWarn []app.Check
 	for _, c := range p.Doctor {
-		in := Inbox{Level: "warn", Key: "overview.inbox.doctor_warn", Detail: c.Name + ": " + c.Detail, Target: actions.System, SystemTab: "doctor", Commands: []string{"bint doctor"}}
+		if c.Name == app.CheckConfigTemplate {
+			in := Inbox{Level: "warn", Key: "overview.inbox.doctor_warn", Detail: c.Name + ": " + c.Detail, Target: actions.System, ConfigUpgrade: true,
+				Commands: []string{"bint doctor"}}
+			if c.Level == app.LevelFail {
+				in.Level, in.Key = "fail", "overview.inbox.doctor_fail"
+			}
+			if strings.Contains(c.Detail, "init --update") {
+				in.Commands = append(in.Commands, "bint init --update")
+			}
+			out = append(out, in)
+			continue
+		}
 		if c.Level == app.LevelFail {
-			in.Level, in.Key = "fail", "overview.inbox.doctor_fail"
+			dFail = append(dFail, c)
+		} else {
+			dWarn = append(dWarn, c)
 		}
-		if strings.Contains(c.Detail, "init --update") {
-			in.Commands = append(in.Commands, "bint init --update")
-		}
-		if c.Name == app.CheckConfigTemplate { // mẫu cũ: Enter mở thẳng hộp nâng cấu hình thay vì thẻ Doctor
-			in.ConfigUpgrade, in.SystemTab = true, ""
-		}
-		out = append(out, in)
 	}
+	doctorRows := func(cs []app.Check, level, key, manyKey string) {
+		switch {
+		case len(cs) >= 2:
+			out = append(out, Inbox{Level: level, Key: manyKey, Count: len(cs), Target: actions.System, SystemTab: "doctor", Commands: []string{"bint doctor"}})
+		case len(cs) == 1:
+			c := cs[0]
+			in := Inbox{Level: level, Key: key, Detail: c.Name + ": " + c.Detail, Target: actions.System, SystemTab: "doctor", Commands: []string{"bint doctor"}}
+			if strings.Contains(c.Detail, "init --update") {
+				in.Commands = append(in.Commands, "bint init --update")
+			}
+			out = append(out, in)
+		}
+	}
+	doctorRows(dFail, "fail", "overview.inbox.doctor_fail", "overview.inbox.doctor_fail_many")
+	doctorRows(dWarn, "warn", "overview.inbox.doctor_warn", "overview.inbox.doctor_warn_many")
+
 	for _, e := range p.Errors {
 		out = append(out, Inbox{Level: "fail", Key: "overview.inbox.source_error", Detail: e.Source + ": " + e.Err.Error(),
 			Target: sourceTarget[e.Source], Commands: []string{"bint doctor"}})
 	}
+	rank := map[string]int{"fail": 0, "warn": 1, "info": 2}
+	sort.SliceStable(out, func(i, j int) bool { return rank[out[i].Level] < rank[out[j].Level] })
 	return out
 }
 
@@ -308,9 +350,9 @@ func (m Model) View(env ui.Env) string {
 	case !m.Loaded:
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, env.T("ui.loading"))
 	}
-	out := m.body(env, true)
-	if len(out) > env.H { // thiếu chỗ (cửa sổ thấp): bỏ chữ "bint." và khẩu hiệu trang trí để nhường chỗ cho thông tin và hộp thư
-		out = m.body(env, false)
+	out, windowed := m.body(env, true)
+	if len(out) > env.H || windowed { // thiếu chỗ (cửa sổ thấp) hoặc hộp thư bị cuộn: bỏ chữ "bint." và khẩu hiệu trang trí để nhường chỗ cho thông tin và hộp thư
+		out, _ = m.body(env, false)
 	}
 	if len(out) > env.H {
 		out = out[:env.H]
@@ -319,9 +361,9 @@ func (m Model) View(env ui.Env) string {
 }
 
 // body dựng các dòng của màn Tổng quan; decor = có chữ "bint." (hoặc logo) và khẩu hiệu ở đầu.
-func (m Model) body(env ui.Env, decor bool) []string {
+func (m Model) body(env ui.Env, decor bool) (lines []string, windowed bool) {
 	th := env.Th
-	var lines []string
+
 	add := func(l ...string) { lines = append(lines, l...) }
 	center := func(l []string) []string {
 		out := make([]string, len(l))
@@ -402,7 +444,7 @@ func (m Model) body(env ui.Env, decor bool) []string {
 	// Doctor rút gọn: chỉ số đếm. Mọi cảnh báo/lỗi doctor đã nằm trong hộp thư ở trên (Inbox), nên không
 	// liệt kê lại chi tiết ở đây.
 	add(" " + th.Bold(env.T("overview.doctor.title")) + "  " + m.doctorSummary(th))
-	return lines
+	return lines, len(inbox) > to-from
 }
 
 // centerVertically đặt khối lines vào giữa chiều cao h khi còn thừa nhiều chỗ (từ minSpare dòng), để

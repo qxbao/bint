@@ -3,18 +3,22 @@
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
 ┌─│Tri thức│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │   Danh sách · Tìm kiếm · Thống kê · Thay đổi · Thẩm định lại · Xuất bản AGENTS.md · Khảo sát · Ngữ cảnh · Nhập              ● 2 đã chọn  │
-│ ┌─│Danh sách (2/6)│───────────chờ duyệt · nguon:lo-thu─┐┌─│Chi tiết│───────────────────────────────────────────────────────────────────┐ │
-│ │   ● ◌ ⚑ rule     Endpoint phải có /v1 api/**         ││ 01KNOW000002                                                                 │ │
-│ │ ▸ ● ◌ ⚑ warning  Không gọi sql.Open … internal/db/** ││ ◌ warning · candidate · agent ⚑                                              │ │
-│ │                                                      ││ Không gọi sql.Open trực tiếp                                                 │ │
-│ │                                                      ││ Phạm vi      internal/db/**                                                  │ │
-│ │                                                      ││ Ký hiệu/thẻ  nguon:lo-thu                                                    │ │
-│ │                                                      ││ Nguồn gốc    agent ⚑ (Tester <t@example.com>, 2026-11-11T00:00:00Z)          │ │
-│ │                                                      ││ Tệp          /work/demo/.bint/knowledge/items/01KNOW000002.md                │ │
+│ ┌─│Danh sách (4/6)│──────────────────────────chờ duyệt─┐┌─│Chi tiết│───────────────────────────────────────────────────────────────────┐ │
+│ │   ● ◌   ⚑ rule     Endpoint phải có … api/**         ││ 01KNOW000004                                                                 │ │
+│ │   ● ◌   ⚑ warning  Không gọi sql.Ope… internal/db/** ││ ⟳ fact · stale · agent                                                       │ │
+│ │ ▸   ⟳     fact     Cổng mặc định là … cmd/**         ││ Cổng mặc định là 8080                                                        │ │
+│ │     ◌     lesson   Chạy go vet với G… *              ││ ✗ 1 lỗi · chi tiết kỹ thuật                                                  │ │
+│ │                                                      ││ → f: làm mới fingerprint (xem lại nội dung rồi duyệt) · v: cập nhật vị trí   │ │
+│ │                                                      ││   bằng chứng                                                                 │ │
+│ │                                                      ││ ✗ Bằng chứng đã thay đổi kể từ khi ghi                                       │ │
+│ │                                                      ││     bằng chứng đã thay đổi                                                   │ │
+│ │                                                      ││ Phạm vi      cmd/**                                                          │ │
+│ │                                                      ││ Nguồn gốc    agent (Tester <t@example.com>, 2026-11-11T00:00:00Z)            │ │
+│ │                                                      ││ Tệp          /work/demo/.bint/knowledge/items/01KNOW000004.md                │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││ ── Nội dung                                                                  │ │
 │ │                                                      ││   ────────────────────────────────────────────────────────────────           │ │
-│ │                                                      ││ Nội dung của mục Không gọi sql.Open trực tiếp.                               │ │
+│ │                                                      ││ Nội dung của mục Cổng mặc định là 8080.                                      │ │
 │ │                                                      ││ Dòng thứ hai của nội dung.                                                   │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││ ── Bằng chứng                                                                │ │
@@ -23,10 +27,6 @@
 │ │                                                      ││   │   40  func Open() {                                                      │ │
 │ │                                                      ││   │   41      return nil                                                     │ │
 │ │                                                      ││   │   42  }                                                                  │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── Kiểm tra                                                                  │ │
-│ │                                                      ││   ────────────────────────────────────────────────────────────────           │ │
-│ │                                                      ││ ✓ 0 lỗi                                                                      │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │
 │ │                                                      ││                                                                              │ │

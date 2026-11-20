@@ -60,7 +60,8 @@ func mainScreens(t *testing.T, lang string, w, h int) map[string]func() *Model {
 		},
 		"knowledge_filtered": func() *Model {
 			m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, fullPending(), w, h)
-			press(t, m, "enter", "x", "x")
+			pickInbox(t, m, "overview.inbox.knowledge_many", 0)
+			press(t, m, "x", "x")
 			return m
 		},
 		"knowledge_batch": func() *Model {
@@ -405,4 +406,23 @@ func TestGoldenNarrow(t *testing.T) {
 	} {
 		checkGolden(t, fmt.Sprintf("%s_%dx%d_vi.txt", name, w, h), plain(build().Render())+"\n")
 	}
+}
+
+// Tổng quan 100×30 với nhiều ứng viên đánh giá, tri thức lỗi thời/dời dòng và cảnh báo Doctor: mọi loại việc đều
+// thấy được (gộp một dòng có số đếm, xếp ✗ → ! → ◌), ứng viên đánh giá không lấn át cảnh báo.
+func TestGoldenOverviewBusyInbox(t *testing.T) {
+	d := fullPending()
+	p := d.Pending
+	p.KnowledgeStale, p.KnowledgeRelocated = 10, 16
+	for i := range 81 {
+		p.EvalCandidates = append(p.EvalCandidates, fmt.Sprintf("01EVALX%04d", i))
+	}
+	p.Doctor = append(p.Doctor, bintapp.Check{Name: "git", Level: bintapp.LevelWarn, Detail: "git cũ"}, bintapp.Check{Name: "codex", Level: bintapp.LevelWarn, Detail: "chưa đăng nhập"})
+	out := plain(newModel(t, Options{Mode: theme.Mono, Lang: "vi"}, d, 100, 30).Render())
+	for _, want := range []string{"10 mục tri thức lỗi thời", "16 mục tri thức dời dòng", "Doctor báo lỗi", "cảnh báo", "83 ứng viên đánh giá chờ duyệt"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("thiếu %q ở 100×30:\n%s", want, out)
+		}
+	}
+	checkGolden(t, "overview_100x30_vi.txt", out+"\n")
 }
