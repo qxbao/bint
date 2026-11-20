@@ -57,7 +57,7 @@ và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ả
   kèm lệnh gợi ý, ví dụ `bint task new "<giai đoạn 2>" --parent <id> --depends-on <id giai đoạn 1>`. Rồi chỉ lập kế hoạch
   chi tiết cho giai đoạn đầu. Từ hai dòng `G-N`, Bint ghi vào kết quả cuối `mới xong 1/N giai đoạn`: người dùng thấy mục tiêu **chưa đạt đủ**.
 - **Không tự cắt phạm vi.** Chỉ tách khi người dùng đã chia giai đoạn hoặc phần sau có giá trị riêng. Khi mục
-  tiêu của người dùng là **toàn bộ** ("không nơi nào lưu bí mật", "dọn mọi dữ liệu cũ") thì **cấm tách giai đoạn chỉ vì ngân
+  tiêu của người dùng là **toàn bộ** ("không nơi nào còn X", "mọi Y") thì **cấm tách giai đoạn chỉ vì ngân
   sách AC/TSK** hay vì "bề mặt còn nhiều": mọi nhóm bề mặt nằm trong AC của phiếu này (gộp theo nhóm, xem "Ngân sách") và
   kiểm tra mục tiêu phải đạt ngay trong phiếu này.
 - **Không tự lập phiếu con** (`bint task new`), kể cả khi là agent con của phiên điều phối (cổng mã chỉ chặn khi có `BINT_RUN_ID`): đề xuất trong `plan.md`. Chạy tay thì hỏi người dùng.
@@ -67,13 +67,16 @@ và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ả
 Người dùng thường mô tả mục đích ("sợ lộ mật khẩu", "thư mục dữ liệu phình to"), không mô tả nơi phải sửa. Đo kế hoạch
 theo **mục đích**, nhưng chọn **bản nhỏ nhất vẫn đạt mục đích**: mỗi bề mặt thêm vào phải gắn với lời người dùng hoặc một rủi ro cụ thể.
 
+- **Giữ phạm vi theo lời người dùng**: `AC` chỉ phủ điều người dùng nói và nơi mục tiêu bắt buộc chạm. **Phần mở rộng** (lệnh/tính năng
+  không được hỏi; sửa, di trú, ghi đè dữ liệu đã có; đổi dữ liệu còn được dùng nguyên văn như tệp chép, lệnh sẽ chạy, cấu hình) không vào
+  `AC`: ghi một dòng `G-N` (phiếu sau), hoặc khi `Chia lát: có` thì là nhóm bề mặt **cuối cùng** ghi `(mở rộng)`.
 - **Ngân sách**: yêu cầu mơ hồ hoặc rộng thì khoảng ≤ 5 `AC` và ≤ 5 `TSK`. Ngân sách là để **gộp** bề mặt theo nhóm, **không để cắt mục tiêu**
   (chỉ phần việc khác có giá trị riêng mới vào `## Đề xuất tách giai đoạn`).
 - **`## Bề mặt bị ảnh hưởng`** trong `plan.md` (bắt buộc, cả `standard` lẫn `deep`): lần theo từng nơi dữ liệu hoặc hành vi
   đi qua (ghi, lưu, hiển thị, xuất, sao chép) rồi **gộp theo nhóm**, khoảng ≤ 8–10 dòng, mỗi dòng một nhóm kèm vài ví dụ.
   Mỗi nhóm gắn một `AC-N` kiểm được **hoặc** vào `## Ngoài phạm vi` với lý do nằm ngoài phạm vi và **hậu quả người dùng
-  sẽ thấy**; không im lặng bỏ phần để sau. Gợi ý: *bí mật* là log, mô tả phiếu, `review.md`, bản chiếu
-  `.bint/tasks`, SQLite, spool, bản xuất; *dọn dữ liệu* là các loại dữ liệu trong state dir (tự dọn không, giữ bao lâu, ai xoá).
+  sẽ thấy**; không im lặng bỏ phần để sau. Gợi ý: lần theo nơi dữ liệu được ghi, lưu,
+  lưu đệm, sao chép và xuất (log, cơ sở dữ liệu, tệp tạm, bản sao, đầu ra, bản xuất), và vòng đời của nó (tạo ở đâu, giữ bao lâu, ai xoá).
   Lint chặn `surface_missing`/`surface_unmapped` nếu thiếu mục hoặc nhóm không nêu AC-N có thật.
 - **`## Giả định thay người dùng`** trong `plan.md` (bắt buộc): quyết định kỹ thuật mà người không rành kỹ thuật không trả
   lời được (mốc thời gian, ngưỡng, mức che) thì chọn giá trị mặc định hợp lý, ghi rõ là giả định và cách đổi. Giả định
@@ -90,15 +93,17 @@ theo **mục đích**, nhưng chọn **bản nhỏ nhất vẫn đạt mục đ�
 `requirement.md` **bắt buộc** có mục `## Kiểm tra mục tiêu` (cấp 2): mô tả **một kiểm tra chạy được** đo MỤC TIÊU của người dùng,
 suy từ lời họ lẫn **từng nhóm** của `## Bề mặt bị ảnh hưởng` (mỗi nhóm có một đường nhập cài dữ liệu giả hoặc một điểm đo). Gồm:
 
+- **Ma trận loại × nơi**: dòng `Loại:` (từng dạng dữ liệu) và `Nơi:` (nhóm bề mặt); kiểm **mọi cặp**, mỗi cặp một ô. `Loại:` **không được
+  hẹp hơn** loại người dùng nêu, bộ quy tắc/danh mục sẵn có của dự án cho dữ liệu đó (mẫu nhận dạng, bảng, enum), và các biến thể phổ biến
+  ngoài đời mà dự án chưa xử lý; ghi nguồn của danh sách;
 - **Chuẩn bị**: dữ liệu giả cài vào mọi đường nhập/nơi lưu theo từng nhóm bề mặt;
 - **Hành động**: thao tác cần chạy;
 - **Quét/đo**: chỗ phải quét hoặc đo sau hành động (toàn bộ nơi lưu, không chỉ phần định sửa);
 - **Điều kiện đạt**: kết quả đo được, báo rõ từng chỗ còn sót;
 - **Tên test và tệp dự kiến**: b-feat viết thành test tự động nằm trong bộ test mà `verify.command` chạy (b-req chỉ đọc).
 
-Ví dụ: *không lưu bí mật* — cài bí mật giả có dấu dễ grep vào mọi đường nhập (phiếu, tiêu chí, lệnh kiểm chứng, đầu ra
-agent, log, hook), chạy lại luồng rồi quét toàn bộ state dir và repo, báo từng tệp còn thô. *Dọn dữ liệu cũ* — dựng dữ liệu cũ
-giả mỗi loại trong state dir, kiểm preview liệt kê đủ và clean giải phóng dung lượng đo được, không đụng việc đang dở.
+Ví dụ: mục tiêu *"không còn X ở đâu"* — cài X giả có dấu dễ tìm, mỗi loại một mẫu, vào mọi đường nhập, chạy luồng, quét toàn bộ
+nơi lưu và báo từng ô (loại, nơi) còn sót. Mục tiêu *"giảm/dọn Y"* — dựng Y giả mỗi loại, đo trước và sau, kiểm phần đang dùng không bị đụng.
 
 Thêm **đúng một AC** cho kiểm tra này ("kiểm tra mục tiêu `<tên test>` xanh") vào phiếu và `requirement.md`, cùng một `TSK` phủ
 nó. Việc thuần nội bộ thì giữ mục, ghi lý do ngắn không có kiểm tra chạy được. Thiếu mục, `bint task lint` cảnh báo `goal_check_missing`.
@@ -123,7 +128,8 @@ Kết luận: nhỏ
 
 ## Chiến lược thực thi (mọi mức phân tích)
 
-Bắt buộc. Với `workflow.slicing`/`goal_check` = `auto`, Bint chỉ chia lát / chạy b-goal khi plan chọn `có`.
+Bắt buộc. Với `workflow.slicing`/`goal_check` = `auto`, Bint chỉ chia lát / chạy b-goal khi plan chọn `có`. Giá trị cấu hình lấy từ khối
+**Cấu hình hiệu lực** trong đề bài (đã hợp nhất); đừng suy từ một tệp `.bint/*.yml` riêng lẻ. Chạy tay: `.bint/local.yml` thắng `.bint/config.yml`.
 
 ```markdown
 ## Chiến lược thực thi
@@ -186,7 +192,7 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
 
 - `AC-N` liên tục từ 1, khớp từng chữ với tiêu chí thứ N của phiếu; mỗi `TSK` có `[AC-N]` hợp lệ và `— xong khi:` có nội dung; mọi
   `AC-N` có `TSK` bao phủ; không placeholder (`<…>`, `…`, `TODO`, `TBD`) trong dòng AC/TSK.
-- "xong khi" của TSK nêu test hẹp của gói đã sửa, không đòi `go test ./...` (Bint chạy `verify.command` đầy đủ ở cổng done).
+- "xong khi" của TSK nêu test hẹp của phần đã sửa, không đòi chạy toàn bộ bộ test (Bint chạy `verify.command` đầy đủ ở cổng done).
 - `## Hiện trạng` (requirement.md, đọc `baseline.md` Bint đã đo) có số đo, và ít nhất một AC có số đo mục tiêu người dùng. Số đo là chữ số
   ngoài code span. Việc thuần nội bộ thì ghi một dòng `Không đo được: <lý do>` (cảnh báo `baseline_exempt`); **cấm bịa số**.
 - `## Câu hỏi mở` chỉ chứa câu hỏi **cản trở triển khai**, dạng `- [ ] Q-1: …`; còn dòng chưa trả lời thì b-feat bị chặn. Người dùng

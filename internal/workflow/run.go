@@ -3035,6 +3035,7 @@ func (r *Runner) prompt(ctx context.Context, rs *runState, step, child string, s
 		if bp := r.writeBaseline(ctx, t); bp != "" {
 			fmt.Fprintf(&b, "Hiện trạng đã đo sẵn (dung lượng thư mục trạng thái, số tệp khớp scope.allow): %s\nĐọc tệp này trước khi lập kế hoạch; requirement.md phải có mục `## Hiện trạng` với số đo và ít nhất một AC có số đo (`bint task lint` chặn nếu thiếu).\n\n", bp)
 		}
+		b.WriteString(planConfigBlock(r.Cfg.Workflow))
 		if !session && rs.planSizeGated() && r.slicingEnabled() {
 			b.WriteString(sliceGuideBlock)
 		}

@@ -124,9 +124,9 @@ func fastPrompt() string {
 		"Không mở rộng sang việc không được yêu cầu. Nếu một điều chưa rõ làm đổi cách làm (không thể chọn giả định an toàn), hỏi người " +
 		"bằng cơ chế câu hỏi của b-feat (`bint task error <id> --step b-feat --question \"…\"`) rồi dừng.\n" +
 		"Kiểm tra mục tiêu: TRƯỚC khi sửa, viết một test tự động kiểm MỤC TIÊU của người dùng (không chỉ phần bạn định làm): cài dữ liệu giả " +
-		"vào mọi đường nhập và nơi lưu liên quan rồi quét/đo toàn bộ chỗ mục tiêu nói tới (ví dụ \"không lưu bí mật\": cài bí mật giả có " +
-		"dấu dễ grep vào mọi đường nhập, quét toàn bộ thư mục trạng thái và repo; \"dọn dữ liệu cũ\": dựng dữ liệu cũ giả, kiểm preview " +
-		"liệt kê đủ và clean giải phóng dung lượng). Đặt test trong bộ test mà lệnh kiểm chứng của phiếu chạy (`bint task show <id>`), " +
+		"vào mọi đường nhập và nơi lưu liên quan rồi quét/đo toàn bộ chỗ mục tiêu nói tới (ví dụ \"không còn X ở đâu\": cài X giả có " +
+		"dấu dễ tìm, mỗi loại một mẫu, vào mọi đường nhập rồi quét toàn bộ nơi lưu; \"giảm/dọn Y\": dựng Y giả mỗi loại, đo trước và sau, " +
+		"kiểm phần đang dùng không bị đụng). Đặt test trong bộ test mà lệnh kiểm chứng của phiếu chạy (`bint task show <id>`), " +
 		"chạy nó sau mỗi nhóm sửa và sửa tiếp tới khi xanh; đừng nới test cho dễ qua.\n"
 }
 

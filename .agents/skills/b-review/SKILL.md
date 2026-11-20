@@ -61,8 +61,8 @@ bint context --paths <các tệp trong diff>
 0. **Chấm theo MỤC TIÊU của người dùng, không chỉ theo kế hoạch của agent; tìm chỗ bị bỏ sót, không chỉ lỗi trong phần đã sửa.**
    Nguồn đối chiếu theo thứ tự: yêu cầu gốc của người dùng và mục `## Kiểm tra mục tiêu` của `requirement.md` (đề bài dưới
    `bint run` chép sẵn), rồi từng tiêu chí chấp nhận, rồi từng dòng của `## Bề mặt bị ảnh hưởng` (plan.md). Nơi nào mục tiêu,
-   một **AC** hay dòng bề mặt nói tới mà diff **không đụng tới** (ví dụ log, mô tả phiếu, `review.md`, bản chiếu `.bint/tasks`,
-   SQLite; hay một loại dữ liệu trong state dir)? Đọc mã **ngoài diff** để xác minh nơi đó còn xử lý hay chưa (grep đường đi của
+   một **AC** hay dòng bề mặt nói tới mà diff **không đụng tới** (ví dụ log, cơ sở dữ liệu, bản sao, bản xuất;
+   hay một loại dữ liệu mục tiêu nói tới)? Đọc mã **ngoài diff** để xác minh nơi đó còn xử lý hay chưa (grep đường đi của
    dữ liệu). Kiểm test mục tiêu mà b-feat viết có **đúng đặc tả** (đủ đường nhập, quét đủ nơi lưu, không bị nới cho dễ qua). Nếu
    đề bài nêu kiểm chứng cuối **không qua**, đọc log và ghi một phát hiện `high` cho nguyên nhân.
    - Chỗ sót mà **kiểm tra mục tiêu hoặc bằng chứng cụ thể** (lần theo dữ liệu tới tệp:dòng còn thô, lệnh tái hiện, test mục tiêu

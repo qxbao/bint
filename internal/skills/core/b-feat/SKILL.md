@@ -78,11 +78,11 @@ bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
   người đồng ý trước.
 
 <!-- bint:anchor test-strategy -->
-Ưu tiên kiểm thử hẹp nhất bao phủ thay đổi: chỉ chạy test của gói đã sửa (ví dụ `go test ./internal/x/...`) và kiểm tra mục tiêu; **không** chạy
-`go test ./...` hay `verify.command` đầy đủ (rất chậm trên Windows). Bint tự chạy kiểm chứng sau bước này và chạy đầy đủ một lần ở cổng done.
+Ưu tiên kiểm thử hẹp nhất bao phủ thay đổi: chỉ chạy test của phần đã sửa bằng lệnh test của dự án và kiểm tra mục tiêu; **không** chạy
+toàn bộ bộ test hay `verify.command` đầy đủ (có thể rất chậm). Bint tự chạy kiểm chứng sau bước này và chạy đầy đủ một lần ở cổng done.
 <!-- bint:anchor-end test-strategy -->
 
-Trong `bint run` chỉ chạy test nhắm đúng phần vừa sửa (`go test ./pkg -run '<TênTest>'`); không chạy cả gói, cả repo hay `verify.command` (gói `internal/workflow` mất ~20 phút trên Windows, quá giới hạn Bash). Kiểm chứng đầy đủ là việc của Bint.
+Trong `bint run` chỉ chạy test nhắm đúng phần vừa sửa (lọc theo tên test hoặc tệp test); không chạy cả module lớn, cả repo hay `verify.command` (dễ vượt giới hạn thời gian của lệnh). Kiểm chứng đầy đủ là việc của Bint.
 
 Mỗi lần thử sửa thất bại đáng kể (kiểm thử đỏ sau khi sửa, hướng làm phải bỏ), ghi lại:
 
@@ -116,7 +116,7 @@ lệnh kiểm chứng đã được người xác nhận mới là bằng chứn
 
 `unmet` chặn tác vụ hoàn thành kể cả khi lệnh kiểm chứng của Bint qua, nên chỉ ghi `unmet` khi có
 bằng chứng phần việc còn thiếu hoặc sai. Nếu phần chưa có bằng chứng của một tiêu chí chỉ là lệnh
-mà `verify.command` của phiếu bao phủ (ví dụ "go test toàn bộ đạt") và bạn không chạy được nó
+mà `verify.command` của phiếu bao phủ (ví dụ "toàn bộ test đạt") và bạn không chạy được nó
 trong sandbox (socket, mạng, quyền hệ thống...): **đừng** ghi `unmet` vì lý do đó. Để tiêu chí
 chưa ghi, nêu lý do trong báo cáo; Bint tự chạy lệnh kiểm chứng ngoài sandbox sau bước này.
 Không sửa tệp `tasks.md` ngoài việc đánh dấu `[x]`: giữ nguyên nội dung từng dòng TSK, kể cả

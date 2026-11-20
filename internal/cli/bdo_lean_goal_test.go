@@ -689,7 +689,8 @@ func checkLintStrategy(t *testing.T) {
 
 // ---------- skill ----------
 
-var bdoPkgTestRule = regexp.MustCompile(`(?i)(test|kiểm thử)[^\n]{0,80}(gói|package)[^\n]{0,40}(đã sửa|vừa sửa|bị sửa|đã đổi|mình sửa|có thay đổi|bị ảnh hưởng)`)
+// Không gắn với Go: "gói", "package" hay "phần" đã sửa đều được (Bint chạy cho dự án mọi ngôn ngữ).
+var bdoPkgTestRule = regexp.MustCompile(`(?i)(test|kiểm thử)[^\n]{0,80}(gói|package|phần)[^\n]{0,40}(đã sửa|vừa sửa|bị sửa|đã đổi|mình sửa|có thay đổi|bị ảnh hưởng)`)
 
 func checkSkills(t *testing.T) {
 	repo := filepath.Join("..", "..")
@@ -745,8 +746,8 @@ func checkSkills(t *testing.T) {
 			t.Errorf("skill b-req chưa hướng dẫn ghi %q trong plan.md", want)
 		}
 	}
-	if !strings.Contains(string(req.Content), "go test ./...") {
-		t.Errorf("skill b-req phải nói rõ tasks.md không đòi `go test ./...` toàn bộ (không nhắc tới `go test ./...`)")
+	if !strings.Contains(string(req.Content), "không đòi chạy toàn bộ bộ test") {
+		t.Errorf("skill b-req phải nói rõ tasks.md không đòi chạy toàn bộ bộ test")
 	}
 }
 

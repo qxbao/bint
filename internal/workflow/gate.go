@@ -533,8 +533,8 @@ func (r *Runner) reviewPrompt(ctx context.Context, rs *runState, b *strings.Buil
 		"Được chỉ tệp ngoài diff: ghi phát hiện với `path` là tệp chưa được xử lý và `criterion` là số tiêu chí liên quan (tiêu chí của kiểm tra mục tiêu, hoặc tiêu chí gần nhất). " +
 		"Chỗ sót mà kiểm tra mục tiêu hoặc bằng chứng cụ thể (lần theo dữ liệu tới tệp:dòng còn thô, lệnh tái hiện) cho thấy mục tiêu người dùng chưa đạt là `high` " +
 		"kể cả khi nằm ngoài kế hoạch hay trong \"ngoài phạm vi\" của plan; chỉ giữ `low` cho chỗ sót ngoài mục tiêu hoặc suy đoán \"có thể còn sót\" không bằng chứng (xem skill b-review).\n" +
-		"LUẬT BẰNG CHỨNG: phát hiện bug/risk mức high/critical phải kèm trường `repro` — lệnh trong dấu backtick (ví dụ \"`go test -run TestX ./internal/a`\" chạy ra lỗi) " +
-		"hoặc tệp:dòng có thật nơi dữ liệu còn sai (ví dụ \"internal/a/b.go:45\"). Thiếu repro hợp lệ thì Bint ghi mức medium kèm downgraded_from, không mở vòng sửa " +
+		"LUẬT BẰNG CHỨNG: phát hiện bug/risk mức high/critical phải kèm trường `repro` — lệnh trong dấu backtick (lệnh test hẹp của dự án chạy ra lỗi, ví dụ \"`pytest tests/test_a.py::test_x`\" hay \"`go test -run TestX ./a`\") " +
+		"hoặc tệp:dòng có thật nơi dữ liệu còn sai (ví dụ \"src/a/b.py:45\"). Thiếu repro hợp lệ thì Bint ghi mức medium kèm downgraded_from, không mở vòng sửa " +
 		"và không tính vào đếm hội tụ; \"bỏ sót bề mặt\" chỉ dựa trên lập luận là mức không chặn.\n")
 	if data, err := os.ReadFile(t.ArtifactPath("requirement")); err == nil {
 		if gc := task.GoalCheck(string(data)); gc != "" {

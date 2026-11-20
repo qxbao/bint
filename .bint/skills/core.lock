@@ -2,9 +2,6 @@
 # tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (lớp phủ) hoặc .bint/skills/<tên>/ (skill tuỳ biến)
 # rồi chạy `bint sync`.
 bint_version: 0.1.0-dev
-bint_revision: 1a02000bd9501b6f0f6f73d4ad0501c930a6a16c
-bint_revision_time: "2026-11-19T16:26:00Z"
-bint_modified: true
 skills:
   b-add-flow:
     sha256: 8f3fc4c9f47c552f
@@ -49,26 +46,26 @@ skills:
     variants:
       agents: 14fe9940baf73088
   b-feat:
-    sha256: 8035e1345d9ea3a0
+    sha256: 23eb90efe452f121
     published:
       - .agents/skills/b-feat/SKILL.md
       - .claude/skills/b-feat/SKILL.md
     variants:
-      agents: 179d795bb7a62a11
+      agents: 8a43e87a5a1d792a
   b-fix:
-    sha256: 3134a8c1195539c7
+    sha256: 8bc68a1a04dde79a
     published:
       - .agents/skills/b-fix/SKILL.md
       - .claude/skills/b-fix/SKILL.md
     variants:
-      agents: 183a804ea303fb3b
+      agents: 5ab1aadc6187075e
   b-goal:
-    sha256: 6c205b7fd54cda7a
+    sha256: 53b3e953b1196ab1
     published:
       - .agents/skills/b-goal/SKILL.md
       - .claude/skills/b-goal/SKILL.md
     variants:
-      agents: 3e78a74f48a67da9
+      agents: dacb0ca05fb35fed
   b-knowledge:
     sha256: 8b83fb2d6d7d36e6
     published:
@@ -84,19 +81,19 @@ skills:
     variants:
       agents: b43f900e7803026a
   b-req:
-    sha256: 282718e4b72fa871
+    sha256: 24781c829a08fdd4
     published:
       - .agents/skills/b-req/SKILL.md
       - .claude/skills/b-req/SKILL.md
     variants:
-      agents: 2d94c6184c7d9220
+      agents: f0a4df87da711afb
   b-review:
-    sha256: 48b726a2007de138
+    sha256: d16cb3cbacb10bf6
     published:
       - .agents/skills/b-review/SKILL.md
       - .claude/skills/b-review/SKILL.md
     variants:
-      agents: ed14c4633821b388
+      agents: dc04f1ce4228c73d
 agents:
   bint-implementer:
     sha256: 0100c78c477c64c7

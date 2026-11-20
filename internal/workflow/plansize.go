@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"bint/internal/config"
 	"bint/internal/flow"
 	"bint/internal/task"
 )
@@ -159,4 +160,30 @@ func (r *Runner) planSizeGate(rs *runState) bool {
 	r.block(rs, fmt.Sprintf("kế hoạch lớn: %s — b-feat chưa chạy. Xem kế hoạch (`bint task show %s`; requirement.md, plan.md, tasks.md), sửa nếu cần, "+
 		"rồi `%s` để chạy b-feat (không chạy lại b-req)", list, id, r.resumeCmd(rs)))
 	return false
+}
+
+// planConfigBlock là khối đề bài của bước lập kế hoạch nêu các khoá workflow ĐÃ HỢP NHẤT (.bint/config.yml, .bint/local.yml, cấu hình
+// người dùng) mà b-req dựa vào khi chọn chiến lược. Planner đọc một tệp .bint/*.yml riêng lẻ có thể thấy giá trị đã bị lớp sau ghi đè
+// (benchmark đợt 6: đọc slice_timeout_minutes: 0 ở config.yml trong khi local.yml đặt 30, nên chọn không chia lát).
+func planConfigBlock(w config.Workflow) string {
+	slicing := "bật (theo dòng `Chia lát` của plan.md)"
+	switch {
+	case w.SliceTimeoutMinutes <= 0 || w.Slicing == config.GateOff:
+		slicing = "tắt (ghi `Chia lát: không`)"
+	case w.Slicing == config.GateAlways:
+		slicing = "luôn chia kế hoạch lớn"
+	}
+	verify := w.Verify.Scope
+	if w.Verify.Scope == config.VerifyScopeAffected && strings.TrimSpace(w.Verify.AffectedCommand) != "" {
+		verify += " (`" + strings.TrimSpace(w.Verify.AffectedCommand) + "`)"
+	}
+	var b strings.Builder
+	b.WriteString("Cấu hình hiệu lực của Bint (đã hợp nhất .bint/config.yml, .bint/local.yml và cấu hình người dùng). Dùng đúng các giá trị " +
+		"này; đừng suy cấu hình từ một tệp .bint/*.yml riêng lẻ vì lớp sau ghi đè lớp trước:\n")
+	fmt.Fprintf(&b, "- workflow.slicing: %s, workflow.slice_timeout_minutes: %d → chia lát: %s\n", w.Slicing, w.SliceTimeoutMinutes, slicing)
+	fmt.Fprintf(&b, "- workflow.goal_check: %s\n", w.GoalCheck)
+	fmt.Fprintf(&b, "- workflow.small_plan_max_files: %d\n", w.SmallPlanMaxFiles)
+	fmt.Fprintf(&b, "- workflow.verify.scope: %s\n", verify)
+	fmt.Fprintf(&b, "- workflow.max_review_rounds: %d\n\n", w.MaxReviewRounds)
+	return b.String()
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"bint/internal/config"
 	"bint/internal/task"
 )
 
@@ -622,5 +623,38 @@ func TestClassifyAssumptionWithFastPathOff(t *testing.T) {
 				t.Fatalf("--fast phải chọn đường nhanh: %v %+v", err, tk2.State.Classification)
 			}
 		})
+	}
+}
+
+// Đề bài b-req nêu cấu hình workflow đã hợp nhất (benchmark đợt 6: planner đọc config.yml riêng lẻ, bỏ sót local.yml ghi đè);
+// b-feat không nhận khối này.
+func TestPlanPromptHasEffectiveConfig(t *testing.T) {
+	for _, tc := range []struct {
+		minutes int
+		slicing string
+		want    string
+	}{
+		{30, config.GateAuto, "workflow.slicing: auto, workflow.slice_timeout_minutes: 30 → chia lát: bật"},
+		{0, config.GateAuto, "workflow.slice_timeout_minutes: 0 → chia lát: tắt"},
+		{30, config.GateOff, "workflow.slicing: off, workflow.slice_timeout_minutes: 30 → chia lát: tắt"},
+	} {
+		h := newHarness(t)
+		h.cfg.Workflow.SliceTimeoutMinutes = tc.minutes
+		h.cfg.Workflow.Slicing = tc.slicing
+		h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeAffected, AffectedCommand: "go test {test_dirs}"}
+		if _, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng v2 cho app.txt",
+			Edit: TicketEdit{VerifyCommand: ptr("true")}}); err != nil {
+			t.Fatal(err)
+		}
+		p := h.prompts[StepReq]
+		for _, want := range []string{"Cấu hình hiệu lực của Bint (đã hợp nhất", tc.want, "workflow.verify.scope: affected (`go test {test_dirs}`)",
+			"workflow.small_plan_max_files: 5"} {
+			if !strings.Contains(p, want) {
+				t.Errorf("slice %d/%s: prompt b-req thiếu %q:\n%s", tc.minutes, tc.slicing, want, p)
+			}
+		}
+		if strings.Contains(h.prompts[StepFeat], "Cấu hình hiệu lực") {
+			t.Error("prompt b-feat không nhận khối cấu hình của b-req")
+		}
 	}
 }

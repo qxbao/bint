@@ -69,7 +69,7 @@ bint task criteria <id> 1 met --evidence "go test ./internal/x -run TestY qua; g
 ```
 
 Không đánh dấu `met` khi chưa có bằng chứng. `unmet` chặn tác vụ hoàn thành kể cả khi lệnh kiểm chứng
-của Bint qua: nếu phần chưa có bằng chứng chỉ là lệnh mà `verify.command` bao phủ (ví dụ "go test toàn bộ
+của Bint qua: nếu phần chưa có bằng chứng chỉ là lệnh mà `verify.command` bao phủ (ví dụ "toàn bộ test
 đạt") và bạn không chạy được nó trong sandbox (socket, mạng, quyền hệ thống...), **đừng** ghi `unmet` vì lý
 do đó. Để tiêu chí chưa ghi và nêu lý do trong báo cáo; Bint tự chạy lệnh kiểm chứng ngoài sandbox.
 

@@ -118,7 +118,7 @@ func TestCoreSkillBReqSurfacesAndAssumptions(t *testing.T) {
 	flat := strings.Join(strings.Fields(body), " ") // gộp xuống dòng để cụm từ không phụ thuộc cách ngắt dòng
 	for _, want := range []string{
 		"## Bề mặt bị ảnh hưởng", "## Giả định thay người dùng",
-		"từng nơi", "gộp theo nhóm", "lý do nằm ngoài phạm vi", "state dir", "mật khẩu", ".bint/tasks", "review.md",
+		"từng nơi", "gộp theo nhóm", "lý do nằm ngoài phạm vi", "lưu đệm, sao chép và xuất", "vòng đời",
 		"bản nhỏ nhất vẫn đạt mục đích", "không im lặng bỏ", "hậu quả người dùng sẽ thấy",
 		"≤ 5 `AC`", "≤ 5 `TSK`", "## Đề xuất tách giai đoạn",
 		"không đảo ngược được", "đảo ngược được, ít xâm lấn", "`--dry-run`", "cảnh báo thay vì từ chối",
@@ -173,7 +173,7 @@ func TestCoreSkillBReqGoalCheckAndNoScopeCut(t *testing.T) {
 	flat := strings.Join(strings.Fields(s.Body()), " ")
 	for _, want := range []string{
 		"## Kiểm tra mục tiêu", "một kiểm tra chạy được", "từng nhóm", "Chuẩn bị", "Hành động", "Quét/đo", "Điều kiện đạt", "Tên test",
-		"bí mật giả", "Dọn dữ liệu cũ", "preview liệt kê đủ", "giải phóng dung lượng", "đúng một AC", "goal_check_missing",
+		"không còn X ở đâu", "mỗi loại một mẫu", "giảm/dọn Y", "đo trước và sau", "đúng một AC", "goal_check_missing",
 		"bộ test mà `verify.command` chạy",
 		"Không tự cắt phạm vi", "cấm tách giai đoạn chỉ vì ngân sách AC/TSK", "toàn bộ", "`- G-N:", "`G-1` là phiếu này", "mới xong 1/N giai đoạn",
 	} {
@@ -494,6 +494,35 @@ func TestCoreSkillsNoSubagentsAndNonConvergence(t *testing.T) {
 	for _, want := range []string{"last_green", "open_findings", "bint task restore-green", "chỉ người dùng chạy"} {
 		if !strings.Contains(strings.Join(strings.Fields(do.Body()), " "), want) {
 			t.Errorf("b-do thiếu %q (điểm verify xanh)", want)
+		}
+	}
+}
+
+// Benchmark đợt 6: kiểm tra mục tiêu đo theo ma trận loại × nơi, không hẹp hơn bộ mẫu sẵn có; b-req giữ phạm vi theo lời người
+// dùng (phần mở rộng tách G-N hoặc lát cuối) và đọc cấu hình đã hợp nhất.
+func TestCoreSkillsGoalMatrixScopeAndMergedConfig(t *testing.T) {
+	flat := func(name string) string {
+		s, _ := Get(name)
+		return strings.Join(strings.Fields(s.Body()), " ")
+	}
+	req := flat("b-req")
+	for _, want := range []string{
+		"**Ma trận loại × nơi**", "`Loại:`", "`Nơi:`", "**mọi cặp**", "**không được hẹp hơn** loại người dùng nêu, bộ quy tắc/danh mục sẵn có của dự án",
+		"biến thể phổ biến ngoài đời", "**Giữ phạm vi theo lời người dùng**", "**Phần mở rộng**", "không vào `AC`: ghi một dòng `G-N`",
+		"nhóm bề mặt **cuối cùng** ghi `(mở rộng)`", "**Cấu hình hiệu lực**", "đừng suy từ một tệp `.bint/*.yml` riêng lẻ",
+		"`.bint/local.yml` thắng `.bint/config.yml`",
+	} {
+		if !strings.Contains(req, want) {
+			t.Errorf("b-req thiếu %q", want)
+		}
+	}
+	goal := flat("b-goal")
+	for _, want := range []string{
+		"**Phủ ma trận loại × nơi**", "subtest `<loại>/<nơi>`", "**Không hẹp hơn bộ mẫu sẵn có**", "dòng `Loại:` của requirement.md",
+		"vẫn thêm vào test", "**hình dạng thật**", "danh sách loại × nơi đã phủ",
+	} {
+		if !strings.Contains(goal, want) {
+			t.Errorf("b-goal thiếu %q", want)
 		}
 	}
 }

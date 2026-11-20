@@ -254,8 +254,8 @@ func sliceBlock(t *task.Task) string {
 	if cur.Reason != "" {
 		fmt.Fprintf(&b, "Lần chạy trước của lát này dừng giữa chừng (%s); cây của lát được GIỮ NGUYÊN (phần dở ghim ở %s): làm tiếp từ cây hiện tại, đừng làm lại từ đầu.\n", cur.Reason, cur.Backup)
 	}
-	b.WriteString("Giữ trong phạm vi lát: chỉ sửa tệp thuộc nhóm này, không làm trước phần của lát sau. Chỉ chạy test của gói đã sửa (ví dụ `go test ./internal/<gói>/...`), " +
-		"không chạy `go test ./...` hay lệnh kiểm chứng đầy đủ: Bint chạy kiểm chứng sau lát và chạy đầy đủ một lần ở cổng done.\n")
+	b.WriteString("Giữ trong phạm vi lát: chỉ sửa tệp thuộc nhóm này, không làm trước phần của lát sau. Chỉ chạy test của phần đã sửa, " +
+		"không chạy toàn bộ bộ test hay lệnh kiểm chứng đầy đủ: Bint chạy kiểm chứng sau lát và chạy đầy đủ một lần ở cổng done.\n")
 	if t.State.GoalTest != nil && cur.N == t.State.Slices[0].N {
 		b.WriteString(sliceFirstStubNote)
 	}

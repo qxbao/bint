@@ -197,7 +197,7 @@ func TestFastPromptAsksForGoalCheck(t *testing.T) {
 	if err != nil || res.Status != task.StatusDone {
 		t.Fatalf("%+v %v", res, err)
 	}
-	for _, want := range []string{"Kiểm tra mục tiêu: TRƯỚC khi sửa", "bí mật giả", "dọn dữ liệu cũ", "bộ test mà lệnh kiểm chứng"} {
+	for _, want := range []string{"Kiểm tra mục tiêu: TRƯỚC khi sửa", "không còn X ở đâu", "giảm/dọn Y", "bộ test mà lệnh kiểm chứng"} {
 		if !strings.Contains(h.prompts[StepFeat], want) {
 			t.Errorf("đề bài đường nhanh thiếu %q:\n%s", want, h.prompts[StepFeat])
 		}
