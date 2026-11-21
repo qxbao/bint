@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ Enter chọn  L chỉ phiên ────────────────────────────────────────────────────┘
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                 

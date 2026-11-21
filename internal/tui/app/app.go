@@ -204,6 +204,7 @@ type Model struct {
 	zones    []zone.Zone
 	mouseOff bool
 	// Tỉ lệ pane (layout.go): đang kéo đường chia, số thứ tự lần hẹn ghi, các màn có tỉ lệ chưa ghi.
+	palFind     bool // bảng lệnh đang là hộp tìm mọi nơi (search.go)
 	dragSplit   bool
 	layoutSeq   int
 	layoutDirty map[string]bool
@@ -525,6 +526,9 @@ func (m *Model) Init() tea.Cmd {
 // Update xử lý thông điệp.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	mm, cmd := m.update(msg)
+	if _, key := msg.(tea.KeyPressMsg); !key && m.palFind {
+		m.refreshFind() // dữ liệu của các màn vừa về: bổ sung dòng cho hộp tìm
+	}
 	m.harvestLedgerWarnings()
 	m.harvestNotices()
 	return mm, cmd
@@ -826,6 +830,8 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.run("app.help")
 	case ":", "ctrl+k":
 		return m.run("app.palette")
+	case "ctrl+f":
+		return m.run("app.find")
 	case "L":
 		return m.run("app.language")
 	case "!":
@@ -859,7 +865,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func globalKey(s string) bool {
 	switch s {
 	case "q", "ctrl+c", "?", ":", "ctrl+k", "L", "!", "[", "]", "left", "right", "shift+tab", "1", "2", "3", "4", "5", "6", "7", "8",
-		"<", ">", "z", "=":
+		"<", ">", "z", "=", "ctrl+f":
 		return true
 	}
 	return false
@@ -868,10 +874,14 @@ func globalKey(s string) bool {
 func (m *Model) paletteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch s := msg.String(); s {
 	case "esc", "ctrl+c":
-		m.pal = nil
+		m.pal, m.palFind = nil, false
 	case "enter":
 		it, ok := m.pal.Selected()
-		m.pal = nil
+		find := m.palFind
+		m.pal, m.palFind = nil, false
+		if ok && find {
+			return m.findJump(it.ID)
+		}
 		if ok {
 			if it.Locked != "" {
 				m.setToast(it.Locked, true)
@@ -923,7 +933,9 @@ func (m *Model) run(id string) (tea.Model, tea.Cmd) {
 		m.showHelp, m.helpTop = true, 0
 	case "app.palette":
 		p := palette.New(m.paletteItems())
-		m.pal = &p
+		m.pal, m.palFind = &p, false
+	case "app.find":
+		return m, m.openFind()
 	case "app.language":
 		m.cycleLanguage()
 	case "app.mouse":
@@ -1157,12 +1169,17 @@ func (m *Model) render() string {
 		lines = text.Overlay(lines, box, (w-bw)/2, max((h-len(box))/2, 1))
 	case m.pal != nil:
 		bw, bh := min(w-4, 76), min(h-6, 16)
-		box := strings.Split(m.pal.View(m.th, bw, bh, m.cat.T("palette.title"), m.cat.T("palette.empty")), "\n")
-		lines = text.Overlay(lines, markModal(box), (w-bw)/2, 4)
+		title, empty := m.cat.T("palette.title"), m.cat.T("palette.empty")
+		if m.palFind {
+			bw, bh = min(w-4, 110), min(h-4, 24) // hộp tìm rộng hơn: tiêu đề tri thức/tác vụ dài
+			title, empty = m.cat.T("find.title"), m.cat.T("find.empty")
+		}
+		box := strings.Split(m.pal.View(m.th, bw, bh, title, empty), "\n")
+		lines = text.Overlay(lines, markModal(box), (w-bw)/2, 2)
 	case m.showHelp:
 		bw, bh := m.helpSize()
 		box := strings.Split(help.Render(m.th, bw, bh, m.cat.T("help.title"), m.helpGroups(), m.helpTop, m.helpPos), "\n")
-		lines = text.Overlay(lines, markModal(box), (w-bw)/2, 4)
+		lines = text.Overlay(lines, markModal(box), (w-bw)/2, 2)
 	default:
 		lines, _ = m.overlayDialog(lines, w, h)
 	}

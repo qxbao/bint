@@ -37,4 +37,4 @@
 │                                                             ││                                                                           │
 │                                                             ││                                                                           │
 └─ Enter ⟦con…  s ⟦syn…  o ⟦ove…  n ⟦new…  c ⟦che…  d ⟦dif… ──┘└───────────────────────────────────────────────────────────────────────────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                                        
+ [:→ ⟦Commands~~~~⟧] [ctrl+f→ ⟦Find~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                     

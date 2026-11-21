@@ -21,4 +21,4 @@
 │ ⟦Missing varia… ⟦all set~~~⟧                                                 │
 │                                                                              │
 └─ Enter ⟦Open~…  a ⟦Add~~⟧  c ⟦Check…  x ⟦Remov…  i ⟦Index…  R ⟦Resta… ───────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

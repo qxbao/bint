@@ -21,4 +21,4 @@
 │   ⟦Turn limit (max_turns)~~~~~~~~~⟧                           ✓    ✗    ✗    │
 │   ⟦Skill activation events~~~~~~~~~~⟧                         ✓    ✗    ✗    │
 └─ V ⟦version~~~⟧  Enter ⟦open~~⟧ ─────────────────────────────────────────────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

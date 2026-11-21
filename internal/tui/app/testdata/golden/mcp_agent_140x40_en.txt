@@ -37,4 +37,4 @@
 │                                                                           ││                                                             │
 │                                                                           ││                                                             │
 └─ Enter Open  c Check ─────────────────────────────────────────────────────┘└─ l Log  p Project filter  s Start gateway ──────────────────┘
- [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                                                                            
+ [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                                                                             

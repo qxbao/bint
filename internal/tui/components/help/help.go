@@ -49,15 +49,34 @@ func Layout(th theme.Theme, iw int, groups []Group) []string {
 		}
 		for _, r := range g.Rows {
 			key := th.S(theme.Key, text.Pad(r.Key, kw))
-			tail := ""
+			avail := max(iw-kw-3, 8)
+			hang := strings.Repeat(" ", kw+3)
+			// Mô tả ngắt dòng (không cắt); lý do khoá luôn hiện; lệnh CLI chỉ hiện khi vừa trọn trên dòng cuối (hẹp thì bỏ, không cắt dở).
+			body := text.Wrap(r.Title, avail)
+			if len(body) == 0 {
+				body = []string{""}
+			}
+			last := len(body) - 1
 			switch {
 			case r.Locked != "":
-				tail = th.S(theme.Warn, " ("+r.Locked+")")
-			case r.CLI != "":
-				tail = th.S(theme.Muted, "  "+r.CLI)
+				lock := " (" + r.Locked + ")"
+				if text.Width(body[last])+text.Width(lock) <= avail {
+					body[last] += th.S(theme.Warn, lock)
+				} else {
+					for _, l := range text.Wrap(strings.TrimSpace(lock), avail) {
+						body = append(body, th.S(theme.Warn, l))
+					}
+				}
+			case r.CLI != "" && text.Width(body[last])+2+text.Width(r.CLI) <= avail:
+				body[last] += th.S(theme.Muted, "  "+r.CLI)
 			}
-			body := text.Truncate(r.Title, max(iw-kw-3, 4))
-			lines = append(lines, " "+key+"  "+body+text.Truncate(tail, max(iw-kw-4-text.Width(body), 0)))
+			for i, l := range body {
+				if i == 0 {
+					lines = append(lines, " "+key+"  "+l)
+				} else {
+					lines = append(lines, hang+l)
+				}
+			}
 		}
 	}
 	return lines

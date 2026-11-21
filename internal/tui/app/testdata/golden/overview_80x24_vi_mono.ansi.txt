@@ -21,4 +21,4 @@
                                                                                 
                                                                                 
                                                                                 
- [␛[1mr␛[m→ Làm mới] [␛[1m:␛[m→ Lệnh] [␛[1mL␛[m→ Ngôn ngữ] [␛[1mq␛[m→ Thoát] [␛[1m?␛[m→ Trợ giúp]                  
+ [␛[1mr␛[m→ Làm mới] [␛[1m:␛[m→ Lệnh] [␛[1mctrl+f␛[m→ Tìm] [␛[1mL␛[m→ Ngôn ngữ] [␛[1mq␛[m→ Thoát] [␛[1m?␛[m→ Trợ giúp]    

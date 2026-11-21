@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ Enter ⟦conte…  s ⟦sync~…  o ⟦overl…  n ⟦new~~⟧  c ⟦check…  d ⟦diff~… ───────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

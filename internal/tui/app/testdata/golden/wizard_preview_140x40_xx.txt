@@ -37,4 +37,4 @@
   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint init --harness claude --hooks --git track                                                        
   ⟦An estimate; nothing is written until you press Enter.~~~~~~~~~~~~~~~~~~~~~~⟧                                                            
   Enter ⟦run init~~~~⟧  Esc ⟦back~~⟧                                                                                                        
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                                        
+ [:→ ⟦Commands~~~~⟧] [ctrl+f→ ⟦Find~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                     

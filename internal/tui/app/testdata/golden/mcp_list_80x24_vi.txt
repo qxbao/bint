@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ Enter Mở  a Thêm  c Kiểm tra  x Gỡ  i Chỉ mục  R Chạy lại ──────────────────┘
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                 

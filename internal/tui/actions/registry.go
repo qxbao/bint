@@ -42,6 +42,7 @@ func Default() *Registry {
 		{ID: "app.quit", Key: "q", Footer: true, Priority: 0, Pinned: true, LabelKey: "action.app.quit.label", TitleKey: "action.app.quit.title"},
 		{ID: "app.help", Key: "?", Footer: true, Priority: 0, Pinned: true, LabelKey: "action.app.help.label", TitleKey: "action.app.help.title"},
 		{ID: "app.palette", Key: ":", Footer: true, Priority: 2, LabelKey: "action.app.palette.label", TitleKey: "action.app.palette.title"},
+		{ID: "app.find", Key: "ctrl+f", Footer: true, Priority: 5, LabelKey: "action.app.find.label", TitleKey: "action.app.find.title"},
 		{ID: "app.language", Key: "L", Footer: true, Priority: 6, LabelKey: "action.app.language.label", TitleKey: "action.app.language.title"},
 		{ID: "app.notifications", Key: "!", LabelKey: "action.app.notifications.label", TitleKey: "action.app.notifications.title"},
 		{ID: "app.mouse", LabelKey: "action.app.mouse.label", TitleKey: "action.app.mouse.title"},

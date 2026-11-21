@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ n ⟦add~~⟧  a ⟦approve~~~⟧  d ⟦deprecate~~~~⟧  R ⟦render~~~⟧  f ⟦filter~~~⟧ ─┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

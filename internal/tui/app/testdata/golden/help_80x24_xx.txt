@@ -1,24 +1,24 @@
  ⟦Overview~~~~⟧ │⟦Kn~⟧ (3) │⟦Tk~⟧ │⟦Rn~⟧ │⟦Ev~⟧ │⟦Evo~~⟧ │⟦Sy~⟧ │⟦MCP~~⟧        
                                                                                 
-                                                                                
-                                                                                
   ┌─│⟦Help~~⟧│───────────────────────────────────────────────────────────────┐  
   │ ⟦Overview~~~~⟧                                                           │  
   │  ⟦Overview: repository status and the “Needs you” inbox (items awaiting  │  
   │  review, doctor warnings). Enter on a row opens the screen that handles  │  
   │  it.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧          │  
-  │  r                 ⟦Refresh the repository status~~~~~~~~~~~~⟧  bint s…  │  
-  │                    ⟦Check the environment (doctor)~~~~~~~~~~~~⟧  bint …  │  
+  │  r                 ⟦Refresh the repository status~~~~~~~~~~~~⟧           │  
+  │                    ⟦Check the environment (doctor)~~~~~~~~~~~~⟧          │  
   │                                                                          │  
   │ ⟦Global~~~⟧                                                              │  
   │  q                 ⟦Quit Bint~~~~⟧                                       │  
   │  ?                 ⟦Show the full help~~~~~~~~⟧                          │  
-  │  :                 ⟦Open the command palette (search every action)~~~~~… │  
+  │  :                 ⟦Open the command palette (search every               │  
+  │                    action)~~~~~~~~~~~~~~~~~~~⟧                           │  
+  │  ctrl+f            ⟦Find anywhere: knowledge (incl. deprecated), tasks   │  
+  │                    (incl. done), runs, eval                              │  
+  │                    candidates~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧        │  
   │  L                 ⟦Switch interface language (vi ⇄ en)~~~~~~~~~~~~~~⟧   │  
-  │  !                 ⟦Read the current notice in full plus the last 50 no… │  
-  │                    ⟦Turn the mouse on/off for this session (scroll, cli… │  
-  │  ]                 ⟦Go to the next tab~~~~~~~~⟧                          │  
-  └───────────────────────────────────────────────────────────⟦1–15/218 ↕~~⟧─┘  
+  │  !                 ⟦Read the current notice in full plus the last 50     │  
+  │                    notices from every                                    │  
+  └───────────────────────────────────────────────────────────⟦1–18/383 ↕~~⟧─┘  
                                                                                 
-                                                                                
- [r→ ⟦Refresh~…] [:→ ⟦Commands…] [L→ ⟦Language…] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]    
+ [r→ ⟦Ref…] [:→ ⟦Com…] [ctrl+f→ ⟦Fin…] [L→ ⟦Lan…] [q→ ⟦Qui…] [?→ ⟦Hel…]         

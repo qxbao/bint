@@ -21,4 +21,4 @@
                                                                                 
                                                                                 
                                                                                 
- [r→ Refresh] [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                   
+ [r→ Refresh] [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]    

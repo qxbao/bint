@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ Enter ⟦choose~~~⟧  L ⟦session only~~~~~⟧ ───────────────────────────────────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

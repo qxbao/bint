@@ -21,4 +21,4 @@
 │     disable-model-invocation: chỉ chạy khi người gọi /b-…                    │
 │  ✓ ⟦Bint MCP server~~~~~~⟧ .mcp.json cấp dự án (⟦key e in ⟦System~~~⟧ ›      │
 └──────────────────────────────────────────────────────────────────────────────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

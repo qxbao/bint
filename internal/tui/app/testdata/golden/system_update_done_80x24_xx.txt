@@ -21,4 +21,4 @@
 │   go: downloading modernc.org/sqlite v1.34.0                                 │
 │   bint/internal/app                                                          │
 └─ u ⟦Update~~~⟧  R ⟦Restart~~~⟧ ──────────────────────────────────────────────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

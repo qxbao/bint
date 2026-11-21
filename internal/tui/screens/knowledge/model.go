@@ -107,6 +107,7 @@ type Model struct {
 	recheck  bool
 	// forceCheck: lượt kiểm kế tiếp bỏ qua đệm (Ctrl+R); checkGen/checkCancel: thế hệ và hàm huỷ của lượt đang bay (kết quả của lượt
 	// cũ bị bỏ khi đã nạp lại).
+	sortMode    int // cách sắp danh sách (sortHealth…), phím s
 	forceCheck  bool
 	checkGen    int
 	checkCancel context.CancelFunc
@@ -268,7 +269,7 @@ func (m *Model) refilter() {
 			m.view = append(m.view, i)
 		}
 	}
-	m.sortByHealth()
+	m.sortView()
 	m.lst.SetN(len(m.view))
 	if keep != "" { // giữ con trỏ theo ID sau khi đọc lại hoặc đổi bộ lọc
 		for i, ix := range m.view {
@@ -570,6 +571,11 @@ func (m *Model) listKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	case "T":
 		m.showTransitions()
 		return nil, true
+	case "s":
+		m.sortMode = (m.sortMode + 1) % numSorts
+		m.refilter()
+		m.lst.Home()
+		return m.wantDetail(), true
 	case "ctrl+r", "f5":
 		m.forceCheck = true // nạp lại tay: kiểm lại sức khoẻ mọi mục, không dùng đệm (bằng chứng có thể đổi mà giữ cỡ và mtime)
 		m.cancelCheck()
@@ -1009,7 +1015,7 @@ var keyOf = map[string]string{
 	"knowledge.approve": "a", "knowledge.approve_refresh": "f", "knowledge.reject": "r", "knowledge.deprecate": "d",
 	"knowledge.approve_batch": "A", "knowledge.reject_batch": "R", "knowledge.edit": "e", "knowledge.add": "n",
 	"knowledge.rm": "delete", "knowledge.verify": "v", "knowledge.verify_apply": "v", "knowledge.list": "F", "knowledge.filter": "/",
-	"knowledge.select": "x", "knowledge.transitions": "T", "knowledge.refresh": "ctrl+r", "knowledge.show": "enter",
+	"knowledge.select": "x", "knowledge.transitions": "T", "knowledge.sort": "s", "knowledge.refresh": "ctrl+r", "knowledge.show": "enter",
 }
 
 // subOf đổi ID hành động của thẻ phụ thành tên thẻ (và chế độ Khảo sát).
@@ -1066,3 +1072,22 @@ func keyMsgOf(s string) tea.KeyPressMsg {
 
 // cli viết lại đoạn nhắc lệnh CLI trong thông điệp của tầng dịch vụ thành phím/hành động TUI (ui.Rewrite).
 func (m *Model) cli(s string) string { return m.rw.Rewrite(s) }
+
+// FocusID đưa danh sách tới mục id (tìm mọi nơi): bỏ bộ lọc (mục đã loại bỏ thì lọc theo trạng thái của nó), đặt con trỏ vào mục.
+func (m *Model) FocusID(id string) tea.Cmd {
+	m.sub, m.pane, m.dlg, m.frm, m.textIn = subList, paneList, nil, nil, false
+	m.fopts = actions.FilterOptions{}
+	for _, it := range m.Data.Items {
+		if it.ID == id && !it.Active() {
+			m.fopts.Status = it.Status // danh sách mặc định ẩn mục không còn hiệu lực: lọc theo đúng trạng thái của mục
+		}
+	}
+	m.sel.Clear()
+	m.refilter()
+	for pos, ix := range m.view {
+		if m.Data.Items[ix].ID == id {
+			m.lst.MoveTo(pos)
+		}
+	}
+	return m.wantDetail()
+}

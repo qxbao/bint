@@ -34,9 +34,9 @@ var writesAudit = map[string]string{
 // Hành động không ghi: đọc, xem trước (kế hoạch), hoặc giao diện thuần.
 var readOnlyAudit = []string{
 	"app.quit", "app.help", "app.palette", "app.language", "app.notifications", "app.mouse", "app.next_tab", "app.prev_tab",
-	"app.split_grow", "app.split_shrink", "app.split_zoom", "app.split_reset",
+	"app.find", "app.split_grow", "app.split_shrink", "app.split_zoom", "app.split_reset",
 	"overview.refresh", "overview.doctor", "init.plan", "init.continue", "init.recheck",
-	"knowledge.plan_batch", "knowledge.verify", "knowledge.review", "knowledge.list", "knowledge.show", "knowledge.filter", "knowledge.select", "knowledge.transitions", "knowledge.refresh",
+	"knowledge.plan_batch", "knowledge.verify", "knowledge.review", "knowledge.list", "knowledge.show", "knowledge.filter", "knowledge.select", "knowledge.transitions", "knowledge.sort", "knowledge.refresh",
 	"knowledge.next_view", "knowledge.prev_view", "knowledge.search", "knowledge.stats", "knowledge.diff", "bootstrap.publish_preview", "knowledge.import_preview", "inspect", "bootstrap.skill", "context",
 	"tasks.plan_approve", "tasks.lint", "tasks.diff", "tasks.transitions", "tasks.list", "tasks.tree", "tasks.graph", "tasks.findings", "tasks.show", "tasks.runs", "tasks.filter", "tasks.refresh", "tasks.next_view", "tasks.prev_view", "tasks.finding_prefill",
 	"runs.list", "runs.show", "runs.lesson_show", "runs.lesson_digest", "runs.filter", "runs.refresh", "runs.next_view", "runs.prev_view",

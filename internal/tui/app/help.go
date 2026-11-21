@@ -11,7 +11,7 @@ import (
 )
 
 // helpSize là kích thước hộp trợ giúp.
-func (m *Model) helpSize() (w, h int) { return min(m.w-4, 84), min(m.h-7, 26) }
+func (m *Model) helpSize() (w, h int) { return min(m.w-4, 110), max(m.h-4, 8) }
 
 // helpContext dựng nhóm đầu của hộp trợ giúp: tên màn và thẻ phụ đang xem, đoạn giới thiệu ngắn của thẻ (khoá help.ctx.<màn>[.<thẻ>]) và các
 // phím của thẻ — chính chân phím trong khung mà màn hình dựng khi vẽ (đã lọc theo chỉ đọc qua ui.Env.Allowed), nên không bao giờ lệch.

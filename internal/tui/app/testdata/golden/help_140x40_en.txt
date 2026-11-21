@@ -1,40 +1,40 @@
  Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System │ MCP                                    /work/demo · bint 0.1.0 
                                                                                                                                             
+               ┌─│Help│─────────────────────────────────────────────────────────────────────────────────────────────────────┐               
+               │ Overview                                                                                                   │               
+               │  Overview: repository status and the “Needs you” inbox (items awaiting review, doctor warnings). Enter on  │               
+               │  a row opens the screen that handles it.                                                                   │               
+               │  r           Refresh the repository status  bint status                                                    │               
+               │              Check the environment (doctor)  bint doctor                                                   │               
+               │                                                                                                            │               
+               │ Global                                                                                                     │               
+               │  q           Quit Bint                                                                                     │               
+               │  ?           Show the full help                                                                            │               
+               │  :           Open the command palette (search every action)                                                │               
+               │  ctrl+f      Find anywhere: knowledge (incl. deprecated), tasks (incl. done), runs, eval candidates        │               
+               │  L           Switch interface language (vi ⇄ en)                                                           │               
+               │  !           Read the current notice in full plus the last 50 notices from every screen                    │               
+               │              Turn the mouse on/off for this session (scroll, click tabs, rows, footer keys)                │               
+               │  ]           Go to the next tab                                                                            │               
+               │  [           Go to the previous tab                                                                        │               
+               │  1-8         Jump to a tab                                                                                 │               
+               │  >           Widen the left pane by 5% (two-pane screens; the ratio is saved)                              │               
+               │  <           Narrow the left pane by 5% (two-pane screens; the ratio is saved)                             │               
+               │  z           Zoom/unzoom the focused pane                                                                  │               
+               │  =           Reset the pane ratio to the default                                                           │               
+               │  Ctrl+V      Paste clipboard text into the open input                                                      │               
+               │  Drag        Select with the mouse (drag left button) and copy to the clipboard                            │               
+               │  Shift+drag  Select with the terminal (hold Shift while dragging, or turn the mouse off from the command   │               
+               │              palette)                                                                                      │               
+               │                                                                                                            │               
+               │ Knowledge                                                                                                  │               
+               │  a           Approve the item (candidate/stale → verified); humans only  bint knowledge approve            │               
+               │  f           Approve and refresh the evidence fingerprint (stale item)  bint knowledge approve             │               
+               │  r           Reject a pending item (→ deprecated, asks for a reason)  bint knowledge reject                │               
+               │  d           Remove an item (→ deprecated, a reason is required)  bint knowledge deprecate                 │               
+               │  A           Approve in bulk (selected items or the whole filtered list); items with check errors are left │               
+               │              out                                                                                           │               
+               │  R           Reject in bulk (selected items or the whole filtered list)                                    │               
+               └─────────────────────────────────────────────────────────────────────────────────────────────────1–34/225 ↕─┘               
                                                                                                                                             
-                                                                                                                                            
-                            ┌─│Help│───────────────────────────────────────────────────────────────────────────┐                            
-                            │ Overview                                                                         │                            
-                            │  Overview: repository status and the “Needs you” inbox (items awaiting review,   │                            
-                            │  doctor warnings). Enter on a row opens the screen that handles it.              │                            
-                            │  r           Refresh the repository status  bint status                          │                            
-                            │              Check the environment (doctor)  bint doctor                         │                            
-                            │                                                                                  │                            
-                            │ Global                                                                           │                            
-                            │  q           Quit Bint                                                           │                            
-                            │  ?           Show the full help                                                  │                            
-                            │  :           Open the command palette (search every action)                      │                            
-                            │  L           Switch interface language (vi ⇄ en)                                 │                            
-                            │  !           Read the current notice in full plus the last 50 notices from ever… │                            
-                            │              Turn the mouse on/off for this session (scroll, click tabs, rows, … │                            
-                            │  ]           Go to the next tab                                                  │                            
-                            │  [           Go to the previous tab                                              │                            
-                            │  1-8         Jump to a tab                                                       │                            
-                            │  >           Widen the left pane by 5% (two-pane screens; the ratio is saved)    │                            
-                            │  <           Narrow the left pane by 5% (two-pane screens; the ratio is saved)   │                            
-                            │  z           Zoom/unzoom the focused pane                                        │                            
-                            │  =           Reset the pane ratio to the default                                 │                            
-                            │  Ctrl+V      Paste clipboard text into the open input                            │                            
-                            │  Drag        Select with the mouse (drag left button) and copy to the clipboard  │                            
-                            │  Shift+drag  Select with the terminal (hold Shift while dragging, or turn the m… │                            
-                            │                                                                                  │                            
-                            └───────────────────────────────────────────────────────────────────────1–24/217 ↕─┘                            
-                                                                                                                                            
-                                                                                                                                            
-                                                                                                                                            
-                                                                                                                                            
-                                                                                                                                            
-                                                                                                                                            
-                                                                                                                                            
-                                                                                                                                            
-                                                                                                                                            
- [r→ Refresh] [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                                                               
+ [r→ Refresh] [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                                                                

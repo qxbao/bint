@@ -37,4 +37,4 @@
 │                                                             ││  ✓ ⟦Cost reporting (max_cost_usd)~~~~~~~~~~~~⟧ total_cost_usd;            │
 │                                                             ││     --max-budget-usd                                                      │
 └─ V ⟦version~~~⟧  Enter ⟦open~~⟧ ────────────────────────────┘└───────────────────────────────────────────────────────────────────────────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                                        
+ [:→ ⟦Commands~~~~⟧] [ctrl+f→ ⟦Find~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                     

@@ -21,4 +21,4 @@
                                                                                 
                                                                                 
   Enter ⟦next~~⟧  Esc ⟦back~~⟧  Space ⟦select~~~⟧  d ⟦use defaults~~~~~⟧        
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

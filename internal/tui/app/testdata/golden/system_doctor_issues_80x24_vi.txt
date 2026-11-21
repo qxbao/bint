@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ w cảnh báo/lỗi  Ctrl+R làm mới  Enter mở ───────────────────────────────────┘
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                 

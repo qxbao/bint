@@ -1,7 +1,5 @@
  Tổng quan │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP      /work/demo · bint 0.1.0 
                                                                                 
-                                                                                
-                                                                                
   ┌─│Trợ giúp│───────────────────────────────────────────────────────────────┐  
   │ Tổng quan                                                                │  
   │  Tổng quan: tình trạng repository và hộp thư “Việc cần bạn” (mục chờ     │  
@@ -13,12 +11,14 @@
   │  q          Thoát Bint                                                   │  
   │  ?          Mở bảng trợ giúp đầy đủ                                      │  
   │  :          Mở bảng lệnh (tìm mọi hành động)                             │  
+  │  ctrl+f     Tìm mọi nơi: tri thức (kể cả đã loại bỏ), tác vụ (kể cả đã   │  
+  │             xong), lượt chạy, ứng viên đánh giá                          │  
   │  L          Đổi ngôn ngữ giao diện (vi ⇄ en)                             │  
-  │  !          Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi … │  
-  │             Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân… │  
+  │  !          Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi   │  
+  │             màn hình                                                     │  
+  │             Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân  │  
+  │             trang)                                                       │  
   │  ]          Chuyển tới tab kế tiếp                                       │  
-  │  [          Chuyển về tab trước                                          │  
-  └───────────────────────────────────────────────────────────────1–15/217 ↕─┘  
+  └───────────────────────────────────────────────────────────────1–18/261 ↕─┘  
                                                                                 
-                                                                                
- [r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                  
+ [r→ Làm mới] [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]    

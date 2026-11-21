@@ -44,6 +44,9 @@ func (m *Model) View(env ui.Env) string {
 		return "\n  " + th.S(theme.Accent, env.Spin) + " " + th.S(theme.Muted, m.t("ui.loading"))
 	}
 	bar := m.tabBar(env)
+	if m.textIn { // ô lọc nhanh đang nhập: hiện ngay chữ đang gõ và số mục khớp
+		bar = ui.WithFilter(bar, ui.FilterPrompt(env.Th, m.rw, m.filter, len(m.idx), len(m.Data.Rows)), env.W)
+	}
 	bodyEnv := env.WithSize(env.W, max(env.H-1, 1))
 	var body string
 	switch {

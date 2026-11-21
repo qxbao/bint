@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ u Update ───────────────────────────────────────────────────────────────────┘
- [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                
+ [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                 

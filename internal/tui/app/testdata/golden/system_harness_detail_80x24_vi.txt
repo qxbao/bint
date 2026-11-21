@@ -21,4 +21,4 @@
 │  ✓ MCP server của Bint .mcp.json cấp dự án (phím e ở Hệ thống › Cài đặt [ô   │
 │     Đăng ký MCP])                                                            │
 └──────────────────────────────────────────────────────────────────────────────┘
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                 

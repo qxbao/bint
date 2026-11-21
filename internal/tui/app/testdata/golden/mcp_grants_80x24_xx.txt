@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ e ⟦Edit config~~~~~⟧  Enter ⟦Open~~⟧ ───────────────────────────────────────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

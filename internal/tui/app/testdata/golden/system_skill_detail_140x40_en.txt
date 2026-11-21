@@ -37,4 +37,4 @@
 │                                                             ││   (`isolation: worktree` trong                                            │
 │                                                             ││ `bint task show <id>`) đó là **worktree riêng của tác vụ** (nhánh         │
 └─ Enter content  s sync  o overlay  n new  c check  d diff ──┘└───────────────────────────────────────────────────────────────────────────┘
- [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                                                                            
+ [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                                                                             

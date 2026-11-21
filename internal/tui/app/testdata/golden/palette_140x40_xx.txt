@@ -1,13 +1,12 @@
  ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
                                                                                                                                             
-                                                                                                                                            
-                                                                                                                                            
                                 ┌─│⟦Command palette~~~~~~⟧│────────────────────────────────────────────────┐                                
                                 │ : ▏                                                                      │                                
                                 │                                                                          │                                
                                 │ ▸ ⟦Quit Bint~~~~⟧                                                      q │                                
                                 │   ⟦Show the full help~~~~~~~~⟧                                         ? │                                
                                 │   ⟦Open the command palette (search every action)~~~~~~~~~~~~~~~~~~~⟧  : │                                
+                                │   ⟦Find anywhere: knowledge (incl. deprecated), tasks (incl. don… ctrl+f │                                
                                 │   ⟦Switch interface language (vi ⇄ en)~~~~~~~~~~~~~~⟧                  L │                                
                                 │   ⟦Read the current notice in full plus the last 50 notices from ever… ! │                                
                                 │   ⟦Turn the mouse on/off for this session (scroll, click tabs, rows, f…  │                                
@@ -16,7 +15,6 @@
                                 │   ⟦Go to Overview~~~~~~⟧                                               1 │                                
                                 │   ⟦Go to Knowledge~~~~~~⟧                                              2 │                                
                                 │   ⟦Go to Tasks~~~~~⟧                                                   3 │                                
-                                │   ⟦Go to Runs~~~~⟧                                                     4 │                                
                                 └──────────────────────────────────────────────────────────────────────────┘                                
                                                                                                                                             
                                                                                                                                             
@@ -37,4 +35,6 @@
                                                                                                                                             
                                                                                                                                             
                                                                                                                                             
- [r→ ⟦Refresh~~~⟧] [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                      
+                                                                                                                                            
+                                                                                                                                            
+ [r→ ⟦Refresh~~~⟧] [:→ ⟦Commands~~~~⟧] [ctrl+f→ ⟦Find~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                   

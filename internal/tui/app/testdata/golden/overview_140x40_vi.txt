@@ -37,4 +37,4 @@
                                                                                                                                             
                                                                                                                                             
                                                                                                                                             
- [r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                              
+ [r→ Làm mới] [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                

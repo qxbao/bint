@@ -37,4 +37,4 @@
 │                                                             ││   (`isolation: worktree` trong                                            │
 │                                                             ││ `bint task show <id>`) đó là **worktree riêng của tác vụ** (nhánh         │
 └─ Enter nội dung  s sync  o lớp phủ  n mới  c check  d diff ─┘└───────────────────────────────────────────────────────────────────────────┘
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                                           
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                             

@@ -21,4 +21,4 @@
 │ Missing variab… all set                                                      │
 │                                                                              │
 └─ Enter Open  a Add  c Check  x Remove  i Index  R Restart ───────────────────┘
- [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                
+ [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                 

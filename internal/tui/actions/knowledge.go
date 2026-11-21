@@ -207,6 +207,7 @@ func knowledgeActions() []Action {
 		mk("knowledge.filter", "filter", "/", true, 4, "", FilterOptions{}, false, false, nil),
 		mk("knowledge.select", "select", "x", true, 5, "", MarkOptions{}, false, false, nil),
 		mk("knowledge.transitions", "transitions", "T", false, 9, "knowledge transitions", nil, false, false, nil),
+		mk("knowledge.sort", "sort", "s", false, 7, "", nil, false, false, nil),
 		mk("knowledge.refresh", "refresh", "ctrl+r", false, 9, "", nil, false, false, nil),
 		mk("knowledge.next_view", "next_view", ".", false, 9, "", nil, false, false, nil),
 		mk("knowledge.prev_view", "prev_view", ",", false, 9, "", nil, false, false, nil),

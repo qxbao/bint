@@ -1,7 +1,5 @@
  Overview │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ Sy │ MCP      /work/demo · bint 0.1.0 
                                                                                 
-                                                                                
-                                                                                
   ┌─│Help│───────────────────────────────────────────────────────────────────┐  
   │ Overview                                                                 │  
   │  Overview: repository status and the “Needs you” inbox (items awaiting   │  
@@ -14,11 +12,13 @@
   │  q           Quit Bint                                                   │  
   │  ?           Show the full help                                          │  
   │  :           Open the command palette (search every action)              │  
+  │  ctrl+f      Find anywhere: knowledge (incl. deprecated), tasks (incl.   │  
+  │              done), runs, eval candidates                                │  
   │  L           Switch interface language (vi ⇄ en)                         │  
-  │  !           Read the current notice in full plus the last 50 notices f… │  
-  │              Turn the mouse on/off for this session (scroll, click tabs… │  
-  │  ]           Go to the next tab                                          │  
-  └───────────────────────────────────────────────────────────────1–15/218 ↕─┘  
+  │  !           Read the current notice in full plus the last 50 notices    │  
+  │              from every screen                                           │  
+  │              Turn the mouse on/off for this session (scroll, click tabs, │  
+  │              rows, footer keys)                                          │  
+  └───────────────────────────────────────────────────────────────1–18/284 ↕─┘  
                                                                                 
-                                                                                
- [r→ Refresh] [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                   
+ [r→ Refresh] [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]    

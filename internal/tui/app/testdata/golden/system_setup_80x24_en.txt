@@ -21,4 +21,4 @@
 │  change is sent, after a preview.                                            │
 │                                                                              │
 └─ e Edit  U Upgrade template ─────────────────────────────────────────────────┘
- [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                
+ [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                 

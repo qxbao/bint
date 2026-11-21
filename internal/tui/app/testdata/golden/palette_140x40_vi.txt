@@ -1,13 +1,12 @@
  Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
                                                                                                                                             
-                                                                                                                                            
-                                                                                                                                            
                                 ┌─│Bảng lệnh│──────────────────────────────────────────────────────────────┐                                
                                 │ : ▏                                                                      │                                
                                 │                                                                          │                                
                                 │ ▸ Thoát Bint                                                           q │                                
                                 │   Mở bảng trợ giúp đầy đủ                                              ? │                                
                                 │   Mở bảng lệnh (tìm mọi hành động)                                     : │                                
+                                │   Tìm mọi nơi: tri thức (kể cả đã loại bỏ), tác vụ (kể cả đã xon… ctrl+f │                                
                                 │   Đổi ngôn ngữ giao diện (vi ⇄ en)                                     L │                                
                                 │   Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi màn hình  ! │                                
                                 │   Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân trang)     │                                
@@ -16,7 +15,6 @@
                                 │   Chuyển tới Tổng quan                                                 1 │                                
                                 │   Chuyển tới Tri thức                                                  2 │                                
                                 │   Chuyển tới Tác vụ                                                    3 │                                
-                                │   Chuyển tới Lượt chạy                                                 4 │                                
                                 └──────────────────────────────────────────────────────────────────────────┘                                
                                                                                                                                             
                                                                                                                                             
@@ -37,4 +35,6 @@
                                                                                                                                             
                                                                                                                                             
                                                                                                                                             
- [r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                              
+                                                                                                                                            
+                                                                                                                                            
+ [r→ Làm mới] [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                

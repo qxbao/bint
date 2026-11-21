@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"bint/internal/i18n"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/theme"
 )
@@ -80,4 +81,21 @@ func SubBar(th theme.Theme, names []string, ids []int, selected, width int) stri
 		right = " " + mark(hi+1, th.S(theme.Muted, "›"))
 	}
 	return left + " " + strings.Join(parts, " ") + right
+}
+
+// FilterPrompt dựng ô lọc nhanh đang nhập ("/ chữ▏ · 12/57 khớp · Enter giữ · Esc huỷ"); shown/total < 0 thì không ghi số khớp.
+func FilterPrompt(th theme.Theme, rw Rewriter, query string, shown, total int) string {
+	s := th.S(theme.Key, "/ ") + query + th.S(theme.Key, "▏")
+	if shown >= 0 && total >= 0 {
+		s += th.S(theme.Muted, "  "+rw.Cat.T("ui.filter.count", i18n.A{"shown": shown, "total": total}))
+	}
+	return s + th.S(theme.Muted, "  "+rw.Cat.T("ui.filter.keys"))
+}
+
+// WithFilter đặt ô lọc vào bên phải dòng thanh thẻ phụ bar (rộng w ô); thiếu chỗ thì ô lọc thay cho thanh thẻ phụ.
+func WithFilter(bar, prompt string, w int) string {
+	if text.Width(bar)+2+text.Width(prompt) <= w {
+		return bar + strings.Repeat(" ", w-text.Width(bar)-text.Width(prompt)) + prompt
+	}
+	return " " + text.Truncate(prompt, max(w-1, 1))
 }

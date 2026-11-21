@@ -37,4 +37,4 @@
 │                                                             ││  ✓ Skill activation events PostToolUse công cụ Skill → skill.activated    │
 │                                                             ││                                                                           │
 └─ V version  Enter open ─────────────────────────────────────┘└───────────────────────────────────────────────────────────────────────────┘
- [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                                                                            
+ [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                                                                             

@@ -37,4 +37,4 @@
                                                                                                                                             
                                                                                                                                             
   Enter tiếp  Esc lùi  Space chọn  d dùng mặc định                                                                                          
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                                           
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                             

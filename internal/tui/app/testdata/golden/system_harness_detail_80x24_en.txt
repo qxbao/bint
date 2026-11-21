@@ -21,4 +21,4 @@
 │  ✓ Bint MCP server .mcp.json cấp dự án (key e in System › Setup [field       │
 │     Register MCP])                                                           │
 └──────────────────────────────────────────────────────────────────────────────┘
- [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                
+ [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                 

@@ -189,6 +189,7 @@ TUI: ghi vào `secrets.env`.
 | `1`-`8` | chuyển thẳng tới tab (`1` Tổng quan … `7` Hệ thống, `8` MCP) |
 | `[` `]` | tab trước / sau |
 | `:` hoặc `Ctrl+K` | bảng lệnh: tìm mờ trên mọi hành động của mọi màn, kể cả hành động không có phím |
+| `ctrl+f` | tìm mọi nơi: tri thức (kể cả đã loại bỏ), tác vụ (kể cả đã xong), lượt chạy, ứng viên đánh giá; `Enter` nhảy tới mục |
 | `?` | trợ giúp theo ngữ cảnh: giới thiệu thẻ đang xem, phím của thẻ, phím toàn cục, các màn khác (cuộn bằng `j`/`k`, `PgUp`/`PgDn`, bánh xe) |
 | `!` | hộp Thông báo: nguyên văn thông báo hiện tại và 50 thông báo gần nhất (thông báo bị cắt bằng `…` luôn đọc đủ ở đây) |
 | `L` | đổi ngôn ngữ trong phiên (vi ⇄ en) |

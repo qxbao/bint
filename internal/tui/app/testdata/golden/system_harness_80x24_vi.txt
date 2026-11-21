@@ -21,4 +21,4 @@
 │   Giới hạn số lượt (max_turns)                                ✓    ✗    ✗    │
 │   Ghi nhận skill được kích hoạt                               ✓    ✗    ✗    │
 └─ V phiên bản  Enter mở ──────────────────────────────────────────────────────┘
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                 

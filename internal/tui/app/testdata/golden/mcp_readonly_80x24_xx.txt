@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ Enter ⟦Open~~⟧  c ⟦Check~~⟧  l ⟦Log~~⟧  p ⟦Project filter~~~~~~⟧ ───────────┘
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            
+ [:→ ⟦Comma…] [ctrl+f→ ⟦Find~…] [L→ ⟦Langu…] [q→ ⟦Quit~…] [?→ ⟦Help~…]          

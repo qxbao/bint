@@ -17,4 +17,4 @@
   … dòng 1-2 / 3                                            
                                                             
  Doctor  ✓ 2  ! 1  ✗ 0                                      
- [r→ Làm mới] [:→ Lệnh] [L→ Ngôn] [q→ Thoát] [?→ Trợ]       
+ [r] [:] [ctrl+f] [L] [q] [?]                               

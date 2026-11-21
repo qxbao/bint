@@ -21,4 +21,4 @@
 │                                                                              │
 │                                                                              │
 └─ Enter Mở  c Kiểm tra  l Log  p Lọc dự án ───────────────────────────────────┘
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                 

@@ -21,4 +21,4 @@ bint.  ⟦Recording, measurement and knowledge for coding agents~~~~~~~~~~~~~~~~
  ⟦Doctor~~~⟧  ✓ 2  ! 1  ✗ 0                                                     
                                                                                 
                                                                                 
- [r→ ⟦Refresh~…] [:→ ⟦Commands…] [L→ ⟦Language…] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]    
+ [r→ ⟦Ref…] [:→ ⟦Com…] [ctrl+f→ ⟦Fin…] [L→ ⟦Lan…] [q→ ⟦Qui…] [?→ ⟦Hel…]         

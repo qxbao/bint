@@ -184,6 +184,37 @@ func (m *Model) healthCounts() (errs, warns int) {
 	return
 }
 
+// Cách sắp danh sách (phím s vòng qua): sức khoẻ (mặc định), mới nhất, loại, phạm vi.
+const (
+	sortHealth = iota
+	sortNewest
+	sortType
+	sortScope
+	numSorts
+)
+
+// sortView sắp ổn định m.view theo m.sortMode (sức khoẻ: lỗi, cảnh báo, còn lại; phần còn lại giữ thứ tự gốc).
+func (m *Model) sortView() {
+	at := func(i int) *kn.Item { return m.Data.Items[m.view[i]] }
+	switch m.sortMode {
+	case sortNewest:
+		sort.SliceStable(m.view, func(a, b int) bool { return at(a).CreatedAt > at(b).CreatedAt })
+	case sortType:
+		sort.SliceStable(m.view, func(a, b int) bool { return at(a).Type < at(b).Type })
+	case sortScope:
+		sort.SliceStable(m.view, func(a, b int) bool {
+			return strings.Join(at(a).Scope.Paths, ",") < strings.Join(at(b).Scope.Paths, ",")
+		})
+	default:
+		m.sortByHealth()
+	}
+}
+
+// sortLabel là tên cách sắp đang dùng (hiện ở chip lọc khi khác mặc định).
+func (m *Model) sortLabel() string {
+	return []string{m.t("kn.sort.health"), m.t("kn.sort.newest"), m.t("kn.sort.type"), m.t("kn.sort.scope")}[m.sortMode]
+}
+
 // sortByHealth sắp ổn định m.view: lỗi, cảnh báo, còn lại.
 func (m *Model) sortByHealth() {
 	if len(m.health) == 0 {

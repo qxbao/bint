@@ -37,4 +37,4 @@
   Lệnh CLI tương đương: bint init --harness claude --hooks --git track                                                                      
   Dự kiến, không ghi gì cho tới khi bạn bấm Enter.                                                                                          
   Enter chạy init  Esc lùi                                                                                                                  
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                                           
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                             

@@ -37,4 +37,4 @@
                                                                                                                                             
                                                                                                                                             
   Enter ⟦continue~~~~⟧  j/k ⟦pick a step~~~~~⟧                                                                                              
- [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                                        
+ [:→ ⟦Commands~~~~⟧] [ctrl+f→ ⟦Find~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                     

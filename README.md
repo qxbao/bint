@@ -186,6 +186,7 @@ dụng, loại bỏ) bị khoá kèm lý do.
 | `1`-`8` | chuyển thẳng tới tab (`1` Tổng quan … `7` Hệ thống, `8` MCP) |
 | `[` `]` | tab trước / sau |
 | `:` hoặc `Ctrl+K` | bảng lệnh: tìm mờ trên mọi hành động của mọi màn |
+| `ctrl+f` | tìm mọi nơi: tri thức (kể cả đã loại bỏ), tác vụ (kể cả đã xong), lượt chạy, ứng viên đánh giá; `Enter` nhảy tới mục |
 | `?` | trợ giúp theo ngữ cảnh |
 | `!` | hộp Thông báo: nguyên văn thông báo hiện tại và 50 thông báo gần nhất |
 | `L` | đổi ngôn ngữ trong phiên (vi ⇄ en) |

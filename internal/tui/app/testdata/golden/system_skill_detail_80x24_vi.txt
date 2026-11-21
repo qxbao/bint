@@ -21,4 +21,4 @@
 │   chưa có bằng                                                               │
 │ chứng, và không sửa tệp trạng thái trong thư mục của tác vụ.                 │
 └──────────────────────────────────────────────────────────────────────────────┘
- [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               
+ [:→ Lệnh] [ctrl+f→ Tìm] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                 

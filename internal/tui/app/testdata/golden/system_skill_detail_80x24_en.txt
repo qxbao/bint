@@ -21,4 +21,4 @@
 │   chưa có bằng                                                               │
 │ chứng, và không sửa tệp trạng thái trong thư mục của tác vụ.                 │
 └──────────────────────────────────────────────────────────────────────────────┘
- [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                
+ [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                 
