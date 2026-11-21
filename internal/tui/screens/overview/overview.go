@@ -12,7 +12,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"bint/internal/app"
+	"bint/internal/i18n"
 	"bint/internal/knowledge"
+	"bint/internal/runlog"
 	"bint/internal/tui/actions"
 	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/list"
@@ -484,6 +486,8 @@ func (m Model) infoBox(env ui.Env) []string {
 		{env.T("overview.harness"), strings.Join(st.Harnesses, ", ")},
 		{env.T("overview.schema"), fmt.Sprintf("v%d", st.Schema)},
 		{env.T("overview.runs"), ""},
+		{env.T("overview.activity"), ""},
+		{env.T("overview.knowledge"), ""},
 	}
 	lw := 0
 	for _, r := range rows {
@@ -497,6 +501,8 @@ func (m Model) infoBox(env ui.Env) []string {
 	// Giá trị dài (như thống kê lượt chạy) ngắt dòng thay vì bị cắt: dòng tiếp thụt theo cột giá trị.
 	vw := max(env.W-2-4-lw-2, 12)
 	rows[4][1] = runsLine(env, st.TotalRuns, st.Runs, vw)
+	rows[5][1] = activityLine(env, st.Daily)
+	rows[6][1] = m.knowledgeLine(env)
 	var body []string
 	for _, r := range rows {
 		vals := text.WrapHang(r[1], vw, "", "")
@@ -664,4 +670,48 @@ func runsLine(env ui.Env, total int, runs map[string]int, vw int) string {
 		return out + "  " + strings.Join(legend, sep)
 	}
 	return out + "  " + th.S(theme.Muted, strings.Join(plain, " · "))
+}
+
+// activityLine là sparkline số lượt chạy theo ngày (ngày có lượt hỏng tô màu lỗi) kèm tổng và tỉ lệ hỏng của cả cửa sổ.
+func activityLine(env ui.Env, days []runlog.Day) string {
+	th := env.Th
+	if len(days) == 0 {
+		return th.S(theme.Muted, "-")
+	}
+	vals := make([]int, len(days))
+	total, failed := 0, 0
+	for i, d := range days {
+		vals[i] = d.Total
+		total += d.Total
+		failed += d.Failed
+	}
+	spark := meter.Spark(th, vals, theme.Accent, theme.Err, func(i int) bool { return days[i].Failed > 0 })
+	rate := 0
+	if total > 0 {
+		rate = (failed*100 + total/2) / total
+	}
+	return spark + "  " + env.T("overview.activity.sum", i18n.A{"days": len(days), "runs": total, "rate": rate})
+}
+
+// knowledgeLine tóm tắt sức khoẻ tri thức: lỗi thời, dời dòng, chờ duyệt (✓ khi không có gì).
+func (m Model) knowledgeLine(env ui.Env) string {
+	th := env.Th
+	var stale, moved int
+	if p := m.Data.Pending; p != nil {
+		stale, moved = p.KnowledgeStale, p.KnowledgeRelocated
+	}
+	var parts []string
+	if stale > 0 {
+		parts = append(parts, th.S(theme.Err, "✗ ")+env.T("overview.kn.stale", i18n.A{"count": stale}))
+	}
+	if moved > 0 {
+		parts = append(parts, th.S(theme.Warn, "! ")+env.T("overview.kn.moved", i18n.A{"count": moved}))
+	}
+	if n := m.Data.Candidates; n > 0 {
+		parts = append(parts, th.S(theme.Muted, "◌ ")+env.T("overview.kn.pending", i18n.A{"count": n}))
+	}
+	if len(parts) == 0 {
+		return th.S(theme.OK, "✓ ") + env.T("overview.kn.ok")
+	}
+	return strings.Join(parts, th.S(theme.Muted, " · "))
 }

@@ -234,7 +234,7 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 			if it.Origin.ThirdParty {
 				flag = "⚑"
 			}
-			cells := list.Pick([]string{sel, th.S(role, glyph), m.healthCell(th, it), flag, it.Type, it.Title, th.S(theme.Muted, scope(it))}, keep)
+			cells := list.Pick([]string{sel, th.S(role, glyph), m.healthCell(th, it), flag, th.S(typeRole(it.Type), it.Type), it.Title, th.S(theme.Muted, scope(it))}, keep)
 			line := list.Row(widths, 1, cells...)
 			if cursor {
 				return th.S(theme.Key, "▸ ") + th.Selected(stripColor(th, line))
@@ -289,7 +289,7 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 	if it.Origin.ThirdParty {
 		origin += " ⚑"
 	}
-	add(th.S(theme.Muted, it.ID), th.S(role, glyph)+" "+it.Type+" · "+it.Status+" · "+origin)
+	add(th.S(theme.Muted, it.ID), th.S(role, glyph)+" "+th.S(typeRole(it.Type), it.Type)+" · "+it.Status+" · "+origin)
 	for _, s := range text.Wrap(it.Title, w) {
 		add(th.Bold(s))
 	}
@@ -515,4 +515,21 @@ func (m *Model) panelFooter(env ui.Env, p *panel) []footer.Hint {
 		k("Esc", m.t("kn.hint.back"), "")
 	}
 	return env.AllowedHints(hints)
+}
+
+// typeRole là màu của loại tri thức: quy tắc bắt buộc đỏ, cảnh báo vàng, mẫu xanh lá, sự kiện xanh ngọc, bài học cam.
+func typeRole(typ string) theme.Role {
+	switch typ {
+	case kn.TypeRule:
+		return theme.Err
+	case kn.TypeWarning:
+		return theme.Warn
+	case kn.TypePattern:
+		return theme.OK
+	case kn.TypeFact:
+		return theme.Accent
+	case kn.TypeLesson:
+		return theme.Key
+	}
+	return theme.Fg
 }

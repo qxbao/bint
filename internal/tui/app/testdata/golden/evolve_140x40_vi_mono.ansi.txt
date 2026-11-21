@@ -1,4 +1,4 @@
- Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ ␛[7m␛[1mTiến hoá␛[m␛[m │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
+ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ ␛[1;7mTiến hoá␛[m │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
   Cơ hội ·␛[7m␛[1m Đề xuất ␛[m␛[m· Lịch sử · Hàng đợi                                                                                                     
 ┌─│␛[1mĐề xuất (6)␛[m│─────────────────────────────────────────────␛[1mđang chờ␛[m─┐┌─│␛[7m␛[1mChi tiết · EP0000KNOW␛[m␛[m│────────────────────────────────────────────┐
 │ ␛[1m▸ ␛[m␛[7m␛[1m◌ 00KNOW proposed update    ␛[7mhigh␛[m   supported -         Thất bại…␛[m␛[m ││  Thông tin ·␛[7m␛[1m Thay đổi ␛[m␛[m· Đối chiếu                                  │

@@ -49,13 +49,14 @@ func Render(th theme.Theme, width int, items []Item, selected int, compact bool)
 			}
 			label = text.NFC(label)
 			var s string
-			if i == selected {
-				s = th.Selected(label)
-			} else {
-				s = th.S(theme.Accent, label)
-			}
+			badge := ""
 			if it.Badge > 0 {
-				s += th.S(theme.Key, fmt.Sprintf(" (%d)", it.Badge))
+				badge = fmt.Sprintf(" (%d)", it.Badge)
+			}
+			if i == selected { // tab đang chọn: nền màu
+				s = th.Tab(label + badge)
+			} else {
+				s = th.S(theme.Accent, label) + th.S(theme.Key, badge)
 			}
 			parts[i] = zone.Mark(ZoneID(i), s)
 		}

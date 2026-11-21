@@ -1,4 +1,4 @@
- Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[7m␛[1mHệ thống␛[m␛[m │ MCP                               /work/demo · bint 0.1.0 
+ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[1;7mHệ thống␛[m │ MCP                               /work/demo · bint 0.1.0 
   Cấu hình ·␛[7m␛[1m Harness ␛[m␛[m· Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                                
 ┌─│␛[7m␛[1mHarness␛[m␛[m│───────────────────────────────────────────────────┐┌─│␛[1mChi tiết · claude␛[m│───────────────────────────────────────────────────────┐
 │   HARNESS     BẬT  MÁY   PHIÊN BẢN ĐỐI CHIẾU  CẤP           ││ Claude Code (claude)                                                      │

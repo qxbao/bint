@@ -12,13 +12,14 @@ import (
 
 	bintapp "bint/internal/app"
 	"bint/internal/knowledge"
+	"bint/internal/runlog"
 	"bint/internal/task"
 	evscreen "bint/internal/tui/screens/evolve"
 	knscreen "bint/internal/tui/screens/knowledge"
 	"bint/internal/tui/screens/overview"
 	rnscreen "bint/internal/tui/screens/runs"
-	tkscreen "bint/internal/tui/screens/tasks"
 	"bint/internal/tui/screens/shared"
+	tkscreen "bint/internal/tui/screens/tasks"
 	"bint/internal/tui/theme"
 )
 
@@ -31,6 +32,8 @@ func sampleData() overview.Data {
 		Status: &bintapp.StatusReport{
 			Repo: "/work/demo", RepoID: "7f3a9c", StateDir: "/state/demo-7f3a9c", Schema: 6,
 			Harnesses: []string{"claude", "codex"}, Runs: map[string]int{"completed": 33, "failed": 3, "interrupted": 1, "running": 5}, TotalRuns: 42,
+			Daily: []runlog.Day{{Date: "2026-11-15", Total: 2}, {Date: "2026-11-16", Total: 5, Failed: 1}, {Date: "2026-11-17"}, {Date: "2026-11-18", Total: 8},
+				{Date: "2026-11-19", Total: 12, Failed: 2}, {Date: "2026-11-20", Total: 9}, {Date: "2026-11-21", Total: 6, Failed: 1}},
 			PendingProposals: 2,
 		},
 		Doctor: &bintapp.DoctorReport{Checks: []bintapp.Check{

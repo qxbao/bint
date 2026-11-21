@@ -3,11 +3,13 @@
          bint.  Recording, measurement and knowledge for coding agents          
                                                                                 
  ┌─│Repository│──────────────────────────────────────────────────────────────┐  
- │ Path     /work/demo                                                       │  
- │ State    /state/demo-7f3a9c                                               │  
- │ Harness  claude, codex                                                    │  
- │ Schema   v6                                                               │  
- │ Runs     42 ███▓▚▞ █ 33 done · ▓ 3 failed · ▚ 1 interrupted · ▞ 5 running │  
+ │ Path       /work/demo                                                     │  
+ │ State      /state/demo-7f3a9c                                             │  
+ │ Harness    claude, codex                                                  │  
+ │ Schema     v6                                                             │  
+ │ Runs       42 █▓▚▞ █ 33 done · ▓ 3 failed · ▚ 1 interrupted · ▞ 5 running │  
+ │ Activity   ▃▄▁▆█▇▅ 7 days · 42 runs · 10% failed                          │  
+ │ Knowledge  ◌ 3 pending review                                             │  
  └─ Version 0.1.0 · ✓ current template · core.lock none ─────────────────────┘  
                                                                                 
  Needs you (3)                                                                  
@@ -17,8 +19,6 @@
     Doctor warning — config: cấu hình theo mẫu cũ: press U in System › Config   
                                                                                 
  Doctor  ✓ 2  ! 1  ✗ 0                                                          
-                                                                                
-                                                                                
                                                                                 
                                                                                 
  [r→ Refresh] [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]    

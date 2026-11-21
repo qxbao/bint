@@ -30,7 +30,12 @@ type StatusReport struct {
 	LinkedWorktree bool
 	// MainWorktree là đường dẫn worktree chính (rỗng nếu không phải worktree phụ hoặc không biết).
 	MainWorktree string
+	// Daily là số lượt chạy theo ngày của DailyDays ngày gần nhất (cũ trước), cho biểu đồ ở Tổng quan.
+	Daily []runlog.Day
 }
+
+// DailyDays là số ngày của StatusReport.Daily.
+const DailyDays = 14
 
 // Status mở workspace đã khởi tạo ở dir, nạp spool rồi đọc trạng thái. Lỗi ErrNotInitialized
 // khi repository chưa `bint init`.
@@ -72,6 +77,7 @@ func status(ctx context.Context, dir string, ingest bool) (*StatusReport, error)
 		rep.TotalRuns += n
 	}
 	rep.PendingProposals = countPendingProposals(ctx, s.DB)
+	rep.Daily, _ = runlog.DailyCounts(ctx, s.DB, DailyDays, time.Now()) // lỗi đọc chỉ làm mất biểu đồ, không làm hỏng trạng thái
 	return rep, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // Run là bản tóm tắt một lượt chạy để hiển thị.
@@ -181,4 +182,46 @@ func StatusCounts(ctx context.Context, db *sql.DB) (map[string]int, error) {
 		out[s] = n
 	}
 	return out, rows.Err()
+}
+
+// Day là số lượt chạy bắt đầu trong một ngày (giờ UTC) và số lượt hỏng (failed, interrupted) trong đó.
+type Day struct {
+	Date   string // "2006-01-02"
+	Total  int
+	Failed int
+}
+
+// DailyCounts trả số lượt chạy theo ngày của days ngày gần nhất tính tới now (ngày không có lượt nào vẫn có mặt với 0), cũ trước.
+func DailyCounts(ctx context.Context, db *sql.DB, days int, now time.Time) ([]Day, error) {
+	if days <= 0 {
+		return nil, nil
+	}
+	start := now.UTC().AddDate(0, 0, -(days - 1))
+	from := start.Format("2006-01-02")
+	rows, err := db.QueryContext(ctx, `SELECT substr(started_at, 1, 10) AS d, COUNT(*),
+		SUM(CASE WHEN status IN ('failed', 'interrupted') THEN 1 ELSE 0 END)
+		FROM runs WHERE started_at >= ? GROUP BY d`, from)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	got := map[string]Day{}
+	for rows.Next() {
+		var d Day
+		if err := rows.Scan(&d.Date, &d.Total, &d.Failed); err != nil {
+			return nil, err
+		}
+		got[d.Date] = d
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]Day, days)
+	for i := range days {
+		date := start.AddDate(0, 0, i).Format("2006-01-02")
+		d := got[date]
+		d.Date = date
+		out[i] = d
+	}
+	return out, nil
 }

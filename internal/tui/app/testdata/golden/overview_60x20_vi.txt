@@ -6,6 +6,8 @@
   │ Schema      v6                                      │   
   │ Lượt chạy   42 33 xong · 3 lỗi · 1 bị ngắt · 5 đang │   
   │             chạy                                    │   
+  │ Hoạt động   ▃▄▁▆█▇▅ 7 ngày · 42 lượt · hỏng 10%     │   
+  │ Tri thức    ◌ 3 chờ duyệt                           │   
   │ core.lock  chưa có                                  │   
   └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại ─────────────┘   
                                                             
@@ -15,6 +17,4 @@
     Doctor cảnh báo — config: cấu hình theo mẫu cũ: nhấn U  
     ở Hệ thống › Cấu hình                                   
   … dòng 1-2 / 3                                            
-                                                            
- Doctor  ✓ 2  ! 1  ✗ 0                                      
  [r] [:] [ctrl+f] [L] [q] [?]                               

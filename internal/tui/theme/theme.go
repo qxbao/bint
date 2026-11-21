@@ -170,5 +170,22 @@ func (t Theme) Selected(s string) string {
 	return t.bold.Render(s)
 }
 
+// Tab tô nhãn tab đang chọn bằng nền màu accent (chữ đậm); 16 màu và đơn sắc dùng đảo màu.
+func (t Theme) Tab(s string) string {
+	if s == "" {
+		return s
+	}
+	st := lipgloss.NewStyle().Bold(true)
+	switch t.Mode {
+	case Dark:
+		st = st.Foreground(hex("#10201C")).Background(hex("#5FB3A1"))
+	case Light:
+		st = st.Foreground(hex("#FFFFFF")).Background(hex("#1E7F6D"))
+	default:
+		st = st.Reverse(true)
+	}
+	return st.Render(s)
+}
+
 // Colored cho biết chế độ có màu (không phải Mono).
 func (t Theme) Colored() bool { return t.Mode != Mono }

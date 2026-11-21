@@ -146,3 +146,29 @@ func Money(v *float64, partial bool) string {
 	}
 	return s
 }
+
+// sparkRunes là tám mức của sparkline (thấp → cao).
+var sparkRunes = []rune("▁▂▃▄▅▆▇█")
+
+// Spark vẽ sparkline một dòng: mỗi giá trị một ô, chiều cao tỉ lệ với giá trị lớn nhất; giá trị 0 vẽ mức thấp nhất màu muted.
+// hot(i) đúng thì ô i tô màu hotRole (vd ngày có lượt hỏng), còn lại tô role.
+func Spark(th theme.Theme, vals []int, role, hotRole theme.Role, hot func(i int) bool) string {
+	top := 0
+	for _, v := range vals {
+		top = max(top, v)
+	}
+	var b strings.Builder
+	for i, v := range vals {
+		if v <= 0 || top == 0 {
+			b.WriteString(th.S(theme.Muted, string(sparkRunes[0])))
+			continue
+		}
+		lvl := max(1, min(len(sparkRunes)-1, (v*(len(sparkRunes)-1)+top-1)/top))
+		r := role
+		if hot != nil && hot(i) {
+			r = hotRole
+		}
+		b.WriteString(paint(th, r, string(sparkRunes[lvl])))
+	}
+	return b.String()
+}

@@ -1,4 +1,4 @@
- Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[7m␛[1mHệ thống␛[m␛[m │ MCP                               /work/demo · bint 0.1.0 
+ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[1;7mHệ thống␛[m │ MCP                               /work/demo · bint 0.1.0 
   Cấu hình · Harness ·␛[7m␛[1m Thành phần ␛[m␛[m· Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                                
 ┌─│␛[7m␛[1mThành phần (3/3)␛[m␛[m│──────────────────────────␛[1m1 tệp bị bỏ qua␛[m─┐┌─│␛[1mChi tiết · fmt-check␛[m│────────────────────────────────────────────────────┐
 │   ✓ guardrail test-before-stop            verified   low    ││ Loại        script                                                        │
