@@ -23,6 +23,9 @@ Trạng thái: bản nháp chờ người dùng duyệt (2026-11-21). Chưa vi�
 | 1.10 phát hiện treo | xong: `workflow.idle_timeout_minutes` (0 = 30 phút, -1 = tắt); trần theo loại bước không làm vì phát hiện treo đã phủ ca 176 phút | `eval/shell.go` (`runProcessIdle`), `eval/agent.go`, `run.go` |
 | 1.11 review vòng sau chỉ nhận diff mới | chưa làm: reviewer cần thấy cả diff để bắt bản sửa làm hỏng chỗ khác | — |
 | Ngân sách tổng | xong (phiên khác) | `slice.go` (`budgetLeft`) |
+| Sau đợt 9 (a): phân loại đỏ của cổng lõi | xong: cổng lõi đỏ thì chạy lại riêng test đỏ (không chạy lại test hết giờ); hết giờ, test hay đỏ, đỏ sẵn ở mốc không mở lượt sửa lõi | `redtriage.go` (`redRerun`, `triageGate`), `check.go` (`coreGate`), `gate.go` (`redVerification`) |
+| Sau đợt 9 (b): trần lượt sửa lõi | xong: `slice_timeout_minutes`, không đặt thì 1/4 `budget_minutes` | `slice.go` (`coreFixCap`) |
+| Sau đợt 9 (c): lượt bị ngân sách cắt không failed | xong: lượt b-feat trước review bị rút trần (ngân sách, sửa lõi) mà chạm trần thì giữ cây, chạy cổng kiểm rồi vào review; hết ngân sách sau lõi thì bỏ sửa lõi/mở rộng | `run.go` (`softCap`), `slice.go` (`bprimeSoftCap`, `budgetSpent`), `bprime_probe.go` |
 
 ## Vấn đề
 

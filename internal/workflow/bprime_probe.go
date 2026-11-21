@@ -372,6 +372,11 @@ func (r *Runner) bprimeAfterCore(ctx context.Context, rs *runState) (cont, handl
 	if !r.bprimeSplit(rs) {
 		return done()
 	}
+	if r.budgetSpent(rs) {
+		// Ngân sách trước review đã hết: không mở lượt sửa lõi hay mở rộng (mỗi lượt chỉ còn budgetMinTurn), vào review với phần giữ sẵn.
+		rs.res.Notes = append(rs.res.Notes, "luồng B′: hết workflow.budget_minutes trước review: bỏ lượt sửa lõi/mở rộng, kiểm rộng một lần rồi vào review")
+		return done()
+	}
 	if red := redVerification(rs.t); red != nil && rs.t.State.BPrimeCoreFix < 1 {
 		r.setBPrime(rs, func(s *task.State) { s.BPrimeCoreFix++ })
 		rs.res.Notes = append(rs.res.Notes, "luồng B′: lõi chưa xanh (`"+cmpStr(red.Ran, red.Command)+"`): 1 lượt sửa lõi trước khi gộp thước đo")

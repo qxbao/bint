@@ -1021,6 +1021,8 @@ type stepRun struct {
 	step, child, stepID string
 	// timeout là trần thời gian THẬT đã giao cho agent (sliceTimeoutFor: lát, vòng sửa B′, ngân sách tổng), để lý do dừng nói đúng con số.
 	timeout time.Duration
+	// softCap: timeout bị rút bởi ngân sách tổng hoặc trần sửa lõi của B′ (bprimeSoftCap); chạm trần thì đi tiếp cổng kiểm thay vì failed.
+	softCap bool
 	// kind là kind của bước theo flow lúc mở (ghi vào PendingStep.Kind ở driver session); endStep rẽ nhánh theo nó.
 	kind flow.Kind
 	// role, base: role của bước và role gốc theo kind (chọn quyền MCP của bước driver process); rỗng ở bước dựng lại từ
@@ -1157,6 +1159,7 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	}
 	runAgent := func(prompt, sessionID, resume string) eval.AgentResult {
 		sr.timeout = r.sliceTimeoutFor(rs, sr.kind == flow.KindImplement)
+		sr.softCap = sr.kind == flow.KindImplement && r.bprimeSoftCap(rs, sr.timeout)
 		return sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt, SessionID: sessionID, ResumeSessionID: resume, Profile: sr.prof,
 			Timeout: sr.timeout, IdleTimeout: r.Cfg.Workflow.IdleTimeout(),
 			LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
@@ -1687,6 +1690,15 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 			// chờ người chọn `--slice keep|discard|more`; Bint không tự bỏ lát hay đưa cây về điểm xanh.
 			r.RecordError(rs.t.State.ID, step, step+": "+endReason)
 			rs.sliceFail, rs.sliceTimedOut = cmp.Or(endReason, "lỗi không rõ"), res.TimedOut
+			return true
+		}
+		if sr.kind == flow.KindImplement && res.TimedOut && !res.Idle && sr.softCap && len(violations) == 0 {
+			// B′: lượt bị cắt theo ngân sách tổng, trần sửa lõi hoặc trần vòng sửa (bprimeSoftCap). Giữ cây, chạy cổng kiểm rồi đi tiếp như lượt xong.
+			r.RecordError(rs.t.State.ID, step, step+": "+endReason)
+			rs.res.Notes = append(rs.res.Notes, "luồng B′: "+step+" "+endReason+": giữ cây, chạy cổng kiểm rồi đi tiếp thay vì đánh failed")
+			if t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error { t.State.AwaitingCheck = true; return nil }); err == nil {
+				rs.t = t
+			}
 			return true
 		}
 		if sr.maxCost != nil && res.CostUSD != nil && *res.CostUSD >= *sr.maxCost*0.98 {

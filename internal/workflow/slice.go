@@ -50,6 +50,12 @@ func (r *Runner) sliceTimeoutFor(rs *runState, implement bool) time.Duration {
 			d = sd
 		}
 	}
+	if implement && bprimeCoreFixTurn(rs) {
+		if c := r.coreFixCap(); c > 0 && c < d {
+			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("luồng B′: lượt sửa lõi có trần %s (slice_timeout_minutes, hoặc 1/4 workflow.budget_minutes)", c.Round(time.Minute)))
+			d = c
+		}
+	}
 	if implement {
 		if b, ok := r.budgetLeft(rs); ok && b < d {
 			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("luồng B′: workflow.budget_minutes còn %s trước phần giữ cho review và một vòng sửa; lượt b-feat này bị rút trần còn %s",
@@ -67,6 +73,37 @@ func (r *Runner) sliceTimeoutFor(rs *runState, implement bool) time.Duration {
 		}
 	}
 	return d
+}
+
+// bprimeCoreFixTurn: lượt b-feat sắp chạy là lượt SỬA LÕI của B′ (sau cổng lõi đỏ, trước thăm dò/mở rộng/review).
+func bprimeCoreFixTurn(rs *runState) bool {
+	s := &rs.t.State
+	return task.IsBPrime(rs.t) && !s.FastFixed && s.BPrimePhase == "" && s.BPrimeCoreFix > 0 && rs.activeSlice() == nil
+}
+
+// coreFixCap là trần của lượt sửa lõi B′: slice_timeout_minutes, không đặt thì 1/4 workflow.budget_minutes; 0 khi không có cả hai. Đợt 9: lượt sửa lõi
+// không có trần riêng, chạy tới hết ngân sách (56 phút) vì test hết giờ ngoài vùng sửa, nên B′ không tới lượt mở rộng hay review.
+func (r *Runner) coreFixCap() time.Duration {
+	if sd := time.Duration(r.Cfg.Workflow.SliceTimeoutMinutes) * time.Minute; sd > 0 {
+		return sd
+	}
+	return time.Duration(r.Cfg.Workflow.BudgetMinutes) * time.Minute / 4
+}
+
+// bprimeSoftCap: trần của lượt b-feat vừa giao bị rút dưới workflow.timeout_minutes bởi ngân sách tổng, trần sửa lõi hoặc trần vòng sửa sau review của B′
+// (không chia lát). Lượt như vậy chạm trần thì không làm tác vụ failed: Bint giữ cây và đi tiếp cổng kiểm (endStep). Trước review thì vào review, vì
+// review_reserve_minutes giữ phần thời gian cho review và một vòng sửa; vòng sửa sau review thì finalize, hoặc dừng blocked với ba lựa chọn khi kiểm chứng
+// còn đỏ (implementDone, đường FastFixed), thay vì failed và mất cả cây đã sửa (đợt 8). Đợt 9: lượt b-feat bị cắt ở 41 phút theo ngân sách và tác vụ kết thúc failed, không review lần nào.
+func (r *Runner) bprimeSoftCap(rs *runState, timeout time.Duration) bool {
+	t := rs.t
+	cfg := time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute
+	return task.IsBPrime(t) && rs.activeSlice() == nil && timeout > 0 && (cfg <= 0 || timeout < cfg)
+}
+
+// budgetSpent (luồng B′): ngân sách tổng trước review đã hết (còn không quá budgetMinTurn), nên không mở thêm lượt b-feat trước review.
+func (r *Runner) budgetSpent(rs *runState) bool {
+	b, ok := r.budgetLeft(rs)
+	return ok && b <= budgetMinTurn
 }
 
 // fixRoundLeft (luồng B′, workflow.budget_minutes > 0): thời gian còn của ngân sách tổng cho vòng sửa sau review (FastFixed), tính từ State.BudgetStart.

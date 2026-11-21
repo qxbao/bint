@@ -263,6 +263,9 @@ func (r *Runner) coreGate(ctx context.Context, rs *runState, nextImpl bool) (gat
 		rs.t = nt
 	}
 	r.logf("  kiểm hẹp cổng lõi (scope %s): %s → %s", v.Scope, cmpStr(v.Ran, "không test nào bị ảnh hưởng"), passWord(v.Passed))
+	if !v.Passed && !r.triageGate(ctx, rs) { // hết giờ, test hay đỏ, đỏ sẵn ở mốc: không mở lượt sửa lõi (redtriage.go)
+		return false, false
+	}
 	return true, true
 }
 

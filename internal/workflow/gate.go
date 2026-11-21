@@ -374,7 +374,8 @@ func verifyRedBlock(t *task.Task) string {
 // do (tệp ngoài tác vụ đổi, chỉ test bị ảnh hưởng) và lần người chạy tay `bint task verify` (thường sau sự cố môi trường).
 func redVerification(t *task.Task) *task.Verification {
 	// B′ cổng theo pha: kiểm hẹp cổng lõi đỏ và chưa có kiểm chứng rộng nào sau nó (bprime_probe: lượt sửa lõi; check.go: coreGate).
-	if g := gateAfterVerify(t); g != nil && !g.Passed {
+	// Lần đỏ đã phân loại là không do mã (triageGate) thì không mở lượt sửa lõi.
+	if g := gateAfterVerify(t); g != nil && !g.Passed && (g.RedClass == "" || g.RedClass == redCode) {
 		return g
 	}
 	if v := t.State.LastVerification(); v != nil && !v.Passed && !v.Voided && v.Reason == "" && v.RunID != "" && v.RedClass != redPreexisting {

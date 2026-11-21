@@ -71,6 +71,82 @@ func goFlagsTimeout(cmd string) ([]string, time.Duration) {
 	return flags, d
 }
 
+// redRerun phân loại một lần kiểm đỏ v bằng cách chạy lại RIÊNG các test đỏ của nó: trên cây hiện tại (xanh → flaky, hoặc timeout khi chỉ hết giờ),
+// rồi nếu còn đỏ thì trên mốc tác vụ (cũng đỏ → preexisting); còn lại là code. logBase là tiền tố tệp log ("verify-3", "check-9").
+// rerunTimed=false (cổng hẹp): test hết giờ không chạy lại vì lần chạy lại có thể tốn gấp đôi trần; hết giờ ở cổng hẹp là chưa kết luận, kiểm rộng sau đó
+// đo lại. Khi đó lần đỏ chỉ vì hết giờ là timeout ngay, không chạy gì. ok=false: không phân loại được (log lạ, không chạy lại được, bị huỷ: xem ctx.Err()).
+func (r *Runner) redRerun(ctx context.Context, rs *runState, v task.Verification, logBase string, rerunTimed bool) (class string, names []string, ok bool) {
+	failed, timed, parsed := redTestsOf(&v)
+	if !parsed {
+		return "", nil, false
+	}
+	root, err := r.RootFor(rs.t)
+	if err != nil {
+		return "", nil, false
+	}
+	flags, limit := goFlagsTimeout(cmpStr(v.Ran, v.Command))
+	all := append(slices.Clone(failed), timed...)
+	names = make([]string, len(all))
+	for i, x := range all {
+		names[i] = x.String()
+	}
+	rerun := all
+	if !rerunTimed {
+		if len(failed) == 0 {
+			return redTimeout, names, true
+		}
+		rerun = failed
+	}
+	id := rs.t.State.ID
+	run := func(dir string, ts []testreport.Test, tag string) (eval.CmdResult, testreport.Report, bool) {
+		cmd := testreport.GoRerunCommand(flags, ts, 2*limit)
+		if cmd == "" {
+			return eval.CmdResult{}, testreport.Report{}, false
+		}
+		lock, locked := r.lockStep(ctx, rs, "verify", LockExclusive)
+		if !locked {
+			return eval.CmdResult{}, testreport.Report{}, false
+		}
+		defer lock.Release()
+		log := rs.t.LogPath(fmt.Sprintf("%s-%s.log", logBase, tag))
+		env := eval.VerifyEnvFrom(verifyEnviron())
+		tmp, cleanup := r.verifyTempDir()
+		if tmp != "" {
+			env = append(env, verifyTempEnv(tmp)...)
+		}
+		done := r.beginActivity(id, task.ActivityRerun, cmd, log)
+		res := eval.RunShell(ctx, dir, cmd, 2*limit+time.Minute, log, env)
+		done()
+		cleanup()
+		data, _ := os.ReadFile(log)
+		return res, testreport.Parse(string(data)), true
+	}
+	class = redCode
+	cur, curRep, ran := run(root, rerun, "rerun")
+	switch {
+	case ctx.Err() != nil, !ran:
+		return "", nil, false
+	case cur.OK() && len(failed) == 0:
+		class = redTimeout
+	case cur.OK():
+		class = redFlaky
+	case strings.TrimSpace(rs.t.State.Base) != "" && curRep.Complete():
+		if r.redAtBase(ctx, rs, root, curRep.Failed, run) {
+			class = redPreexisting
+		}
+		if ctx.Err() != nil {
+			return "", nil, false
+		}
+	}
+	return class, names, true
+}
+
+// limitOf là trần -timeout của lệnh đã chạy của v (mặc định của go test khi không đặt).
+func limitOf(v task.Verification) time.Duration {
+	_, d := goFlagsTimeout(cmpStr(v.Ran, v.Command))
+	return d
+}
+
 // triageRed phân loại lần kiểm chứng cuối của tác vụ khi nó đỏ (kiểm chứng sau bước implement), ghi RedClass/RedTests. flaky/timeout: ghi thêm một lần
 // kiểm chứng xanh (lần đầy đủ chỉ đỏ ở đúng các test này, và chúng xanh khi chạy lại). Trả false khi workflow phải dừng (huỷ).
 func (r *Runner) triageRed(ctx context.Context, rs *runState) bool {
@@ -83,64 +159,13 @@ func (r *Runner) triageRed(ctx context.Context, rs *runState) bool {
 	if v.Passed || v.Voided || v.RedClass != "" || v.Reason != "" || v.RunID == "" {
 		return true
 	}
-	failed, timed, ok := redTestsOf(&v)
-	if !ok {
-		return true
-	}
-	root, err := r.RootFor(t)
-	if err != nil {
-		return true
-	}
-	flags, limit := goFlagsTimeout(cmpStr(v.Ran, v.Command))
-	all := append(slices.Clone(failed), timed...)
-	names := make([]string, len(all))
-	for i, x := range all {
-		names[i] = x.String()
-	}
-	run := func(dir string, ts []testreport.Test, tag string) (eval.CmdResult, testreport.Report, bool) {
-		cmd := testreport.GoRerunCommand(flags, ts, 2*limit)
-		if cmd == "" {
-			return eval.CmdResult{}, testreport.Report{}, false
-		}
-		lock, locked := r.lockStep(ctx, rs, "verify", LockExclusive)
-		if !locked {
-			return eval.CmdResult{}, testreport.Report{}, false
-		}
-		defer lock.Release()
-		log := t.LogPath(fmt.Sprintf("verify-%d-%s.log", n, tag))
-		env := eval.VerifyEnvFrom(verifyEnviron())
-		tmp, cleanup := r.verifyTempDir()
-		if tmp != "" {
-			env = append(env, verifyTempEnv(tmp)...)
-		}
-		done := r.beginActivity(t.State.ID, task.ActivityRerun, cmd, log)
-		res := eval.RunShell(ctx, dir, cmd, 2*limit+time.Minute, log, env)
-		done()
-		cleanup()
-		data, _ := os.ReadFile(log)
-		return res, testreport.Parse(string(data)), true
-	}
-	class := redCode
-	cur, curRep, ran := run(root, all, "rerun")
-	switch {
-	case ctx.Err() != nil:
+	class, names, ok := r.redRerun(ctx, rs, v, fmt.Sprintf("verify-%d", n), true)
+	if ctx.Err() != nil {
 		r.interrupt(rs, "người dùng huỷ khi chạy lại test đỏ")
 		return false
-	case !ran:
+	}
+	if !ok {
 		return true
-	case cur.OK() && len(failed) == 0:
-		class = redTimeout
-	case cur.OK():
-		class = redFlaky
-	case strings.TrimSpace(t.State.Base) != "" && curRep.Complete():
-		still := curRep.Failed
-		if pre := r.redAtBase(ctx, rs, root, still, run); pre {
-			class = redPreexisting
-		}
-		if ctx.Err() != nil {
-			r.interrupt(rs, "người dùng huỷ khi chạy lại test đỏ trên mốc tác vụ")
-			return false
-		}
 	}
 	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
 		if len(t.State.Verifications) < n {
@@ -165,12 +190,52 @@ func (r *Runner) triageRed(ctx context.Context, rs *runState) bool {
 		rs.res.Notes = append(rs.res.Notes, "kiểm chứng đỏ chỉ ở "+list+" và các test đó xanh khi chạy lại riêng: coi là test hay đỏ, không mở vòng sửa")
 	case redTimeout:
 		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("kiểm chứng đỏ chỉ vì hết giờ (%s) và các test đó xanh khi chạy lại với trần %s: không phải lỗi mã, "+
-			"không mở vòng sửa; nên đặt -timeout lớn hơn trong verify.command", list, 2*limit))
+			"không mở vòng sửa; nên đặt -timeout lớn hơn trong verify.command", list, 2*limitOf(v)))
 	case redPreexisting:
 		rs.res.Notes = append(rs.res.Notes, "kiểm chứng đỏ ở "+list+" nhưng các test đó cũng đỏ ở mốc tác vụ (đỏ sẵn từ trước): không mở vòng sửa; "+
 			"cổng done vẫn cần người quyết (sửa riêng, hoặc xác nhận)")
 	}
 	r.logf("  phân loại kiểm chứng đỏ: %s (%s)", class, list)
+	return true
+}
+
+// triageGate phân loại lần kiểm hẹp cổng lõi cuối của B′ khi nó đỏ (redRerun, không chạy lại test hết giờ). Lớp khác code (hết giờ, test hay đỏ, đỏ
+// sẵn ở mốc) thì redVerification không coi cổng là đỏ, nên không mở lượt sửa lõi: kiểm rộng sau đó (lượt mở rộng hoặc wideAfterGate) đo lại và có
+// phân loại riêng. Đợt 9: cổng lõi đỏ vì một test nhạy tải và một test CLI hết giờ 10 phút, lượt sửa lõi ăn hết ngân sách nên B′ không tới review.
+// Trả false khi workflow phải dừng (huỷ).
+func (r *Runner) triageGate(ctx context.Context, rs *runState) bool {
+	n := len(rs.t.State.Checks)
+	if n == 0 {
+		return true
+	}
+	g := rs.t.State.Checks[n-1]
+	if g.Passed || g.Voided || g.Skipped != "" || g.RedClass != "" || !strings.HasPrefix(g.Reason, checkGateReason) {
+		return true
+	}
+	class, names, ok := r.redRerun(ctx, rs, g, fmt.Sprintf("check-%d", n), false)
+	if ctx.Err() != nil {
+		r.interrupt(rs, "người dùng huỷ khi chạy lại test đỏ của kiểm hẹp")
+		return false
+	}
+	if !ok {
+		return true
+	}
+	nt, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+		if len(t.State.Checks) >= n {
+			t.State.Checks[n-1].RedClass, t.State.Checks[n-1].RedTests = class, names
+		}
+		return nil
+	})
+	if err != nil {
+		return true
+	}
+	rs.t = nt
+	list := strings.Join(names, ", ")
+	r.logf("  phân loại kiểm hẹp cổng lõi đỏ: %s (%s)", class, list)
+	if class != redCode {
+		rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("luồng B′: kiểm hẹp cổng lõi đỏ ở %s nhưng không do mã (%s: hết giờ, test hay đỏ hoặc đỏ sẵn ở mốc): "+
+			"không mở lượt sửa lõi; kiểm rộng sau đó đo lại", list, class))
+	}
 	return true
 }
 
