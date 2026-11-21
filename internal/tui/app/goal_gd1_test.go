@@ -44,8 +44,8 @@ import (
 	mcscreen "bint/internal/tui/screens/mcp"
 	"bint/internal/tui/screens/overview"
 	rnscreen "bint/internal/tui/screens/runs"
-	syscreen "bint/internal/tui/screens/system"
 	"bint/internal/tui/screens/shared"
+	syscreen "bint/internal/tui/screens/system"
 	tkscreen "bint/internal/tui/screens/tasks"
 	"bint/internal/tui/theme"
 )
@@ -342,7 +342,9 @@ func gd1Repo(t *testing.T) *gd1Fixture {
 	return f
 }
 
-func gd1Stamp(d time.Duration) string { return time.Now().UTC().Add(-d).Format("2006-01-02T15:04:05.000Z") }
+func gd1Stamp(d time.Duration) string {
+	return time.Now().UTC().Add(-d).Format("2006-01-02T15:04:05.000Z")
+}
 
 const gd1RunDesc = "Chạy lại kiểm thử của gói workflow sau khi sửa cách khôi phục bước bị ngắt giữa chừng trong lúc agent đang ghi tệp"
 
