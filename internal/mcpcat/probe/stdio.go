@@ -54,7 +54,24 @@ func Stdio(cmd *exec.Cmd) (*Client, error) {
 		waited: make(chan struct{}), errBuf: eb}
 	go t.readLoop(out)
 	go func() { _ = cmd.Wait(); close(t.waited) }()
-	return &Client{t: t, stderr: eb.String}, nil
+	return &Client{t: t, stderr: t.stderr}, nil
+}
+
+// stderrDrainWait: thời gian tối đa chờ exec chép nốt stderr khi upstream đã đóng stdout.
+const stderrDrainWait = 2 * time.Second
+
+// stderr trả phần cuối stderr. Upstream đã đóng stdout (thường là đã thoát) thì EOF có thể tới trước khi exec chép xong
+// stderr vào errBuf; Wait chỉ trả về sau khi chép xong, nên chờ nó (có hạn) để lỗi kèm đủ dấu vết.
+func (t *stdioT) stderr() string {
+	select {
+	case <-t.done:
+		select {
+		case <-t.waited:
+		case <-time.After(stderrDrainWait):
+		}
+	default:
+	}
+	return t.errBuf.String()
 }
 
 func (t *stdioT) readLoop(r io.Reader) {
