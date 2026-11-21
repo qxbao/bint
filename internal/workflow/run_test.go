@@ -342,9 +342,16 @@ func newHarness(t *testing.T) *harness {
 func (h *harness) write(name, body string) {
 	p := filepath.Join(h.root, filepath.FromSlash(name))
 	os.MkdirAll(filepath.Dir(p), 0o755)
-	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
-		h.t.Fatal(err)
+	// Windows: kiểm nền chụp cây gốc bằng git trong lúc agent giả sửa tệp; git có thể đang map tệp ("user-mapped section open"),
+	// ghi lúc đó bị từ chối tạm thời. Thử lại trong ~2 s như agent thật sẽ làm.
+	var err error
+	for range 200 {
+		if err = os.WriteFile(p, []byte(body), 0o644); err == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	h.t.Fatal(err)
 }
 
 func (h *harness) happy(_ context.Context, step string, e *Env, id string) error {
