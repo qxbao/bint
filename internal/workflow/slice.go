@@ -56,8 +56,42 @@ func (r *Runner) sliceTimeoutFor(rs *runState, implement bool) time.Duration {
 				b.Round(time.Minute), b.Round(time.Minute)))
 			d = b
 		}
+		if f, ok := r.fixRoundLeft(rs); ok && f > d {
+			// Vòng sửa duy nhất sau review dùng hết phần ngân sách tổng còn lại thay vì trần lát (đợt 8: vòng sửa bị cắt ở 30 phút
+			// khi ngân sách 170 phút còn khoảng 35 phút, nên B′ không kết thúc được). Không vượt workflow.timeout_minutes.
+			if lim := time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute; lim > 0 && f > lim {
+				f = lim
+			}
+			rs.res.Notes = append(rs.res.Notes, fmt.Sprintf("luồng B′: vòng sửa sau review dùng phần còn lại của workflow.budget_minutes: %s", f.Round(time.Minute)))
+			d = f
+		}
 	}
 	return d
+}
+
+// fixRoundLeft (luồng B′, workflow.budget_minutes > 0): thời gian còn của ngân sách tổng cho vòng sửa sau review (FastFixed), tính từ State.BudgetStart.
+// ok=false khi không áp dụng (không phải vòng sửa B′, không có ngân sách hay chưa có mốc).
+func (r *Runner) fixRoundLeft(rs *runState) (time.Duration, bool) {
+	t := rs.t
+	budget := time.Duration(r.Cfg.Workflow.BudgetMinutes) * time.Minute
+	if budget <= 0 || !task.IsBPrime(t) || !t.State.FastFixed {
+		return 0, false
+	}
+	start, err := time.Parse(time.RFC3339, t.State.BudgetStart)
+	if err != nil {
+		return 0, false
+	}
+	return max(budget-r.now().Sub(start), budgetMinTurn), true
+}
+
+// timeoutReason là lý do dừng khi agent quá trần: nêu trần thật đã giao (lát, vòng sửa, ngân sách tổng) thay cho workflow.timeout_minutes
+// (đợt 8: báo "quá 180 phút" cho vòng sửa thật ra bị cắt ở 30 phút).
+func (r *Runner) timeoutReason(sr *stepRun) string {
+	cfg := time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute
+	if sr == nil || sr.timeout <= 0 || sr.timeout == cfg {
+		return fmt.Sprintf("quá workflow.timeout_minutes (%d phút)", r.Cfg.Workflow.TimeoutMinutes)
+	}
+	return fmt.Sprintf("quá trần của lượt này (%s; lát/vòng sửa/ngân sách tổng, workflow.timeout_minutes là %d phút)", sr.timeout.Round(time.Second), r.Cfg.Workflow.TimeoutMinutes)
 }
 
 // defaultReviewReserve là phần giữ cho review và một vòng sửa khi workflow.review_reserve_minutes không đặt (0).

@@ -1,0 +1,69 @@
+{
+ "run": "Bp-1",
+ "arm": "Bp",
+ "k": 1,
+ "cap_s": 10800,
+ "events": [
+  {
+   "t": 0,
+   "kind": "init",
+   "exit": 1
+  },
+  {
+   "t": 0,
+   "kind": "codex_hooks_trusted",
+   "count": 4
+  },
+  {
+   "t": 0.0,
+   "kind": "started"
+  },
+  {
+   "t": 8062.0,
+   "kind": "cmd",
+   "label": "b-do",
+   "cmd": [
+    "D:\\bench\\bench-v8-20261121\\bin\\bint.exe",
+    "run",
+    "b-do",
+    "--variant",
+    "bprime",
+    "--harness",
+    "codex",
+    "--model",
+    "gpt-6.2-sol",
+    "--autonomy",
+    "auto",
+    "--shared",
+    "--json",
+    "Tôi hay đổi tên hoặc chuyển thư mục dự án sang chỗ khác, mà mỗi lần như vậy bint quên sạch: tác vụ, lịch sử, mọi thứ. Sửa giúp tôi để chuyển\nthư mục thoải mái mà không mất gì. Việc này chắc lớn nên cứ làm từ từ qua nhiều lần cũng được."
+   ],
+   "start": 0.0,
+   "dur": 8062.0,
+   "exit": 1,
+   "how": "exit",
+   "out": "D:\\bench\\bench-v8-20261121\\runs\\Bp-1\\log\\01-b-do.out"
+  },
+  {
+   "t": 8062.0,
+   "kind": "status",
+   "status": "failed",
+   "reason": "b-feat: quá workflow.timeout_minutes (180 phút)",
+   "how": "exit",
+   "choices": []
+  }
+ ],
+ "user_actions": [],
+ "start": "2026-11-21T05:58:41+0700",
+ "task_id": "01M7XJXXSPHMZJM337CMRVMAET",
+ "end": "failed",
+ "wall_s": 8062.0,
+ "finish": "2026-11-21T08:13:03+0700",
+ "tokens": {
+  "sessions": 4,
+  "input": 78401440,
+  "cached": 77308032,
+  "output": 175041
+ },
+ "cost_usd": null
+}

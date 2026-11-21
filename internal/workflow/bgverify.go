@@ -292,12 +292,17 @@ func (r *Runner) firstResultNote(t *task.Task, since time.Time) string {
 		}
 		return "luồng B′: không có lần kiểm hẹp nào (agent không gọi, Bint không tự chạy) nên chưa có kết quả kiểm chứng sớm"
 	}
-	budget := time.Duration(r.Cfg.Workflow.TimeoutMinutes) * time.Minute
+	// Mẫu số là ngân sách thật: workflow.budget_minutes khi đặt (đợt 8 ghi "/ 180 phút" theo timeout_minutes dù ngân sách là 170), không thì timeout_minutes.
+	mins, key := r.Cfg.Workflow.TimeoutMinutes, "workflow.timeout_minutes"
+	if r.Cfg.Workflow.BudgetMinutes > 0 {
+		mins, key = r.Cfg.Workflow.BudgetMinutes, "workflow.budget_minutes"
+	}
+	budget := time.Duration(mins) * time.Minute
 	d := first.Sub(since.Truncate(time.Second))
 	if budget <= 0 {
 		return fmt.Sprintf("luồng B′: kết quả kiểm chứng đầu tiên sau %s", d)
 	}
-	return fmt.Sprintf("luồng B′: kết quả kiểm chứng đầu tiên ở %.0f %% ngân sách b-feat (%s / %d phút)", float64(d)/float64(budget)*100, d, r.Cfg.Workflow.TimeoutMinutes)
+	return fmt.Sprintf("luồng B′: kết quả kiểm chứng đầu tiên ở %.0f %% ngân sách (%s / %d phút, %s)", float64(d)/float64(budget)*100, d, mins, key)
 }
 
 // endBackground chạy sau agent của bước implement: chốt kiểm nền theo cây cuối và ghi chú thời điểm kết quả sớm đầu tiên (chỉ luồng B′).

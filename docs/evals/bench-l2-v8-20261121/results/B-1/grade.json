@@ -1,0 +1,177 @@
+{
+  "run": "B-1",
+  "label": "final",
+  "commit": "9818e3b864a35d41753a12430c014f5c247dc399",
+  "baseline": "e63cbbcb4b64367752da65cf85c5b14780e445b7",
+  "build_ok": true,
+  "build_err": "",
+  "diffstat": "28 files changed, 2820 insertions(+), 110 deletions(-)",
+  "graded_at": "2026-11-21T08:50:54+0700",
+  "waited_for_lock_s": 0.0,
+  "hidden_clean": 36,
+  "hidden_total": 36,
+  "hidden_pct": 100.0,
+  "N1": {
+    "pass": true,
+    "cases": {
+      "clone": {
+        "pass": true,
+        "checks": {
+          "D1": "ok",
+          "D2": "missing",
+          "D3": "log_missing",
+          "D5": "missing",
+          "D6": "missing",
+          "D7": "missing",
+          "D8": "missing",
+          "D9": "missing",
+          "K": "missing",
+          "D4": "ok"
+        },
+        "origin_isolated": true
+      },
+      "same_name": {
+        "pass": true
+      },
+      "round_trip": {
+        "pass": true,
+        "checks": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok",
+          "K": "ok"
+        }
+      },
+      "normal_use": {
+        "pass": true,
+        "checks": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok",
+          "K": "ok"
+        },
+        "new_task": "ok"
+      },
+      "old_path_reused": {
+        "pass": true,
+        "status_after_move_exit": 0,
+        "new_repo_isolated": true,
+        "new_repo": {
+          "D1": "missing",
+          "D2": "missing",
+          "D3": "task_absent",
+          "D5": "missing",
+          "D6": "missing",
+          "D7": "task_absent",
+          "D8": "missing",
+          "D9": "task_absent",
+          "K": "missing"
+        },
+        "moved_repo": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok",
+          "K": "ok"
+        }
+      }
+    }
+  },
+  "N2": {
+    "pass": true,
+    "ratio": 1.0534875393869951,
+    "moved_usable": true,
+    "seconds": {
+      "base_stationary": [
+        0.138049,
+        0.215664,
+        0.13652,
+        0.210711,
+        0.13964
+      ],
+      "stationary": [
+        0.136303,
+        0.137148,
+        0.205986,
+        0.133683,
+        0.212513
+      ],
+      "moved": [
+        0.139096,
+        0.147109,
+        0.135227,
+        0.211166,
+        0.374982
+      ]
+    },
+    "exit": {
+      "base_stationary": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "stationary": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "moved": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "medians_s": {
+      "base_stationary": 0.13964,
+      "stationary": 0.137148,
+      "moved": 0.147109
+    },
+    "first_after_move": {
+      "seconds": 0.23056050000013784,
+      "exit": 0
+    },
+    "decoys": 200
+  },
+  "N2_file": "n2-20261121T085156-176716000.json",
+  "gotest_exit": 1,
+  "gotest_fail_tests": [
+    "TestCleanupWorktreeReleasesGatewayBounded",
+    "TestDiffTaskWorktreeShowsFilesOutsideTouched"
+  ],
+  "gotest_fail_pkgs": [
+    "bint/internal/app",
+    "bint/internal/workflow"
+  ],
+  "gotest_baseline_fail_tests": [],
+  "gotest_new_fail_tests": [
+    "TestCleanupWorktreeReleasesGatewayBounded",
+    "TestDiffTaskWorktreeShowsFilesOutsideTouched"
+  ],
+  "gotest_new_fail_pkgs": [
+    "bint/internal/app",
+    "bint/internal/workflow"
+  ]
+}

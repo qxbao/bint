@@ -204,11 +204,16 @@ func (f *fixture) pump(until func() bool, cmd tea.Cmd) {
 	// Hạn chỉ để chặn treo, không đo tốc độ: trên Windows mỗi lệnh git/sh tốn 20–70 ms, và khi go test ./... chạy
 	// nhiều gói cùng lúc (mỗi gói lại chia nhiều tiến trình, testutil.RunTests) một bước init/b-do có thể quá 20 s.
 	deadline := time.After(90 * time.Second)
+	// Kiểm lại điều kiện theo chu kỳ, không chỉ khi có thông điệp: điều kiện theo thời gian (pumpFor) đúng mà không còn thông điệp nào tới thì
+	// trước đây chờ tới hạn 90 s rồi báo "hết hạn chờ" (CI race, TestCLIRefTasksScreen sau khi TUI không còn tick khi rảnh).
+	recheck := time.NewTicker(20 * time.Millisecond)
+	defer recheck.Stop()
 	for !until() {
 		select {
 		case msg := <-f.msgs:
 			_, next := f.m.Update(msg)
 			run(next)
+		case <-recheck.C:
 		case <-deadline:
 			f.t.Fatalf("hết hạn chờ; màn hình:\n%s", plain(f.m.Render()))
 		}

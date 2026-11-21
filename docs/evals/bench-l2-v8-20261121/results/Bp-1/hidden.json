@@ -1,0 +1,155 @@
+{
+  "green": 36,
+  "total": 36,
+  "matrix": {
+    "M1": {
+      "discovery_exits": [
+        0
+      ],
+      "cells": {
+        "D1": "ok",
+        "D2": "ok",
+        "D3": "ok",
+        "D4": "ok",
+        "D5": "ok",
+        "D6": "ok",
+        "D7": "ok",
+        "D8": "ok",
+        "D9": "ok"
+      }
+    },
+    "M2": {
+      "discovery_exits": [
+        0
+      ],
+      "cells": {
+        "D1": "ok",
+        "D2": "ok",
+        "D3": "ok",
+        "D4": "ok",
+        "D5": "ok",
+        "D6": "ok",
+        "D7": "ok",
+        "D8": "ok",
+        "D9": "ok"
+      }
+    },
+    "M3": {
+      "discovery_exits": [
+        0
+      ],
+      "cells": {
+        "D1": "ok",
+        "D2": "ok",
+        "D3": "ok",
+        "D4": "ok",
+        "D5": "ok",
+        "D6": "ok",
+        "D7": "ok",
+        "D8": "ok",
+        "D9": "ok"
+      }
+    },
+    "M4": {
+      "discovery_exits": [
+        0,
+        0,
+        0
+      ],
+      "cells": {
+        "D1": "ok",
+        "D2": "ok",
+        "D3": "ok",
+        "D4": "ok",
+        "D5": "ok",
+        "D6": "ok",
+        "D7": "ok",
+        "D8": "ok",
+        "D9": "ok"
+      }
+    }
+  },
+  "N1": {
+    "pass": true,
+    "cases": {
+      "clone": {
+        "pass": true,
+        "checks": {
+          "D1": "ok",
+          "D2": "missing",
+          "D3": "log_missing",
+          "D5": "missing",
+          "D6": "missing",
+          "D7": "missing",
+          "D8": "missing",
+          "D9": "missing",
+          "K": "missing",
+          "D4": "ok"
+        },
+        "origin_isolated": true
+      },
+      "same_name": {
+        "pass": true
+      },
+      "round_trip": {
+        "pass": true,
+        "checks": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok",
+          "K": "ok"
+        }
+      },
+      "normal_use": {
+        "pass": true,
+        "checks": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok",
+          "K": "ok"
+        },
+        "new_task": "ok"
+      },
+      "old_path_reused": {
+        "pass": true,
+        "status_after_move_exit": 0,
+        "new_repo_isolated": true,
+        "new_repo": {
+          "D1": "missing",
+          "D2": "missing",
+          "D3": "task_absent",
+          "D5": "missing",
+          "D6": "missing",
+          "D7": "task_absent",
+          "D8": "missing",
+          "D9": "task_absent",
+          "K": "missing"
+        },
+        "moved_repo": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok",
+          "K": "ok"
+        }
+      }
+    }
+  }
+}

@@ -69,6 +69,7 @@ func roWorktrees(t *testing.T, root string) int {
 }
 
 func TestBPrimeReorderGoal(t *testing.T) {
+	noEarlyStop(t) // các ca này đo nhánh có lượt mở rộng; dừng sớm có test riêng (TestBPrimeEarlyStopSkipsExtension)
 	ctx := context.Background()
 
 	// Loại 1: driver process B′ — lõi chạy ngay sau b-req, thăm dò chạy song song trong worktree tạm, gộp + đóng băng sau lõi xanh, một lượt mở rộng.

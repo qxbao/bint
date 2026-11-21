@@ -1,0 +1,1587 @@
+[
+  {
+    "run": "A-1",
+    "arm": "A",
+    "record": {
+      "run": "A-1",
+      "arm": "A",
+      "k": 1,
+      "cap_s": 10800,
+      "events": [
+        {
+          "t": 0.0,
+          "kind": "started"
+        },
+        {
+          "t": 1664.3,
+          "kind": "cmd",
+          "label": "codex",
+          "cmd": [
+            "codex",
+            "exec",
+            "--json",
+            "--sandbox",
+            "workspace-write",
+            "--skip-git-repo-check",
+            "--cd",
+            "D:\\bench\\bench-v8-20261121\\runs\\A-1\\repo",
+            "--model",
+            "gpt-6.2-sol",
+            "-",
+            "<stdin>"
+          ],
+          "start": 0.0,
+          "dur": 1664.3,
+          "exit": 0,
+          "how": "exit",
+          "out": "D:\\bench\\bench-v8-20261121\\runs\\A-1\\log\\01-codex.out"
+        }
+      ],
+      "user_actions": [],
+      "start": "2026-11-21T05:30:49+0700",
+      "end": "agent_exit",
+      "wall_s": 1664.4,
+      "finish": "2026-11-21T05:58:34+0700",
+      "tokens": {
+        "sessions": 1,
+        "input": 11426303,
+        "cached": 11241216,
+        "output": 55999
+      },
+      "cost_usd": null
+    },
+    "grade": {
+      "run": "A-1",
+      "label": "final",
+      "commit": "8683dcc325fbe8a8dfdb35c5f2e6541d9b824a06",
+      "baseline": "4db2657684776b37a1e1fb95c788a6930202ba43",
+      "build_ok": true,
+      "build_err": "",
+      "diffstat": "23 files changed, 869 insertions(+), 90 deletions(-)",
+      "graded_at": "2026-11-21T08:32:37+0700",
+      "waited_for_lock_s": 0.002,
+      "hidden_clean": 36,
+      "hidden_total": 36,
+      "hidden_pct": 100.0,
+      "N1": {
+        "pass": true,
+        "cases": {
+          "clone": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "missing",
+              "D3": "log_missing",
+              "D5": "missing",
+              "D6": "missing",
+              "D7": "missing",
+              "D8": "missing",
+              "D9": "missing",
+              "K": "missing",
+              "D4": "ok"
+            },
+            "origin_isolated": true
+          },
+          "same_name": {
+            "pass": true
+          },
+          "round_trip": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            }
+          },
+          "normal_use": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            },
+            "new_task": "ok"
+          },
+          "old_path_reused": {
+            "pass": true,
+            "status_after_move_exit": 0,
+            "new_repo_isolated": true,
+            "new_repo": {
+              "D1": "missing",
+              "D2": "missing",
+              "D3": "task_absent",
+              "D5": "missing",
+              "D6": "missing",
+              "D7": "task_absent",
+              "D8": "missing",
+              "D9": "task_absent",
+              "K": "missing"
+            },
+            "moved_repo": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            }
+          }
+        }
+      },
+      "N2": {
+        "pass": true,
+        "ratio": 1.0451224857546388,
+        "moved_usable": true,
+        "seconds": {
+          "base_stationary": [
+            0.230042,
+            0.154293,
+            0.227593,
+            0.20533,
+            0.142004
+          ],
+          "stationary": [
+            0.139123,
+            0.135601,
+            0.140242,
+            0.141596,
+            0.210176
+          ],
+          "moved": [
+            0.234014,
+            0.143669,
+            0.143905,
+            0.216012,
+            0.214595
+          ]
+        },
+        "exit": {
+          "base_stationary": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "stationary": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "moved": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "medians_s": {
+          "base_stationary": 0.20533,
+          "stationary": 0.140242,
+          "moved": 0.214595
+        },
+        "first_after_move": {
+          "seconds": 0.17182940000202507,
+          "exit": 0
+        },
+        "decoys": 200
+      },
+      "N2_file": "n2-20261121T083340-025051800.json",
+      "gotest_exit": 1,
+      "gotest_fail_tests": [
+        "TestGateEvidenceAndBudget",
+        "TestGateEvidenceAndBudget/perf_gate",
+        "TestGateEvidenceAndBudget/perf_gate/chậm_đỏ_rồi_vòng_sửa_xanh",
+        "TestServiceMessageCLIInventory"
+      ],
+      "gotest_fail_pkgs": [
+        "bint/internal/cli",
+        "bint/internal/workflow"
+      ],
+      "gotest_baseline_fail_tests": [],
+      "gotest_new_fail_tests": [
+        "TestGateEvidenceAndBudget",
+        "TestGateEvidenceAndBudget/perf_gate",
+        "TestGateEvidenceAndBudget/perf_gate/chậm_đỏ_rồi_vòng_sửa_xanh",
+        "TestServiceMessageCLIInventory"
+      ],
+      "gotest_new_fail_pkgs": [
+        "bint/internal/cli",
+        "bint/internal/workflow"
+      ]
+    },
+    "telemetry": {
+      "first_code_s": 267.4,
+      "first_verify_s": 159.5,
+      "review_s": null,
+      "narrow_count": 0,
+      "narrow_automatic": 0
+    },
+    "checkpoints": {}
+  },
+  {
+    "run": "B-1",
+    "arm": "B",
+    "record": {
+      "run": "B-1",
+      "arm": "B",
+      "k": 1,
+      "cap_s": 10800,
+      "events": [
+        {
+          "t": 0,
+          "kind": "init",
+          "exit": 1
+        },
+        {
+          "t": 0,
+          "kind": "codex_hooks_trusted",
+          "count": 4
+        },
+        {
+          "t": 0.0,
+          "kind": "started"
+        },
+        {
+          "t": 582.2,
+          "kind": "cmd",
+          "label": "b-do",
+          "cmd": [
+            "D:\\bench\\bench-v8-20261121\\bin\\bint.exe",
+            "run",
+            "b-do",
+            "--variant",
+            "classic",
+            "--harness",
+            "codex",
+            "--model",
+            "gpt-6.2-sol",
+            "--autonomy",
+            "auto",
+            "--shared",
+            "--json",
+            "Tôi hay đổi tên hoặc chuyển thư mục dự án sang chỗ khác, mà mỗi lần như vậy bint quên sạch: tác vụ, lịch sử, mọi thứ. Sửa giúp tôi để chuyển\nthư mục thoải mái mà không mất gì. Việc này chắc lớn nên cứ làm từ từ qua nhiều lần cũng được."
+          ],
+          "start": 0.0,
+          "dur": 582.2,
+          "exit": 1,
+          "how": "exit",
+          "out": "D:\\bench\\bench-v8-20261121\\runs\\B-1\\log\\01-b-do.out"
+        },
+        {
+          "t": 582.2,
+          "kind": "status",
+          "status": "blocked",
+          "reason": "kế hoạch lớn: b-req kết luận kế hoạch lớn; 30 tệp sẽ sửa, vượt ngưỡng workflow.small_plan_max_files = 5 — b-feat chưa chạy. Xem kế hoạch (`bint task show 01M7XHDRY2GTHBZJ837Z73K6J8`; requirement.md, plan.md, tasks.md), sửa nếu cần, rồi `bint run resume 01M7XHDRY2GTHBZJ837Z73K6J8` để chạy b-feat (không chạy lại b-req)",
+          "how": "exit",
+          "choices": []
+        },
+        {
+          "t": 10802.2,
+          "kind": "cmd",
+          "label": "resume",
+          "cmd": [
+            "D:\\bench\\bench-v8-20261121\\bin\\bint.exe",
+            "run",
+            "resume",
+            "01M7XHDRY2GTHBZJ837Z73K6J8",
+            "--json"
+          ],
+          "start": 582.2,
+          "dur": 10220.0,
+          "exit": 1,
+          "how": "cap",
+          "out": "D:\\bench\\bench-v8-20261121\\runs\\B-1\\log\\02-resume.out"
+        },
+        {
+          "t": 10802.2,
+          "kind": "status",
+          "status": "interrupted",
+          "reason": "người dùng huỷ trong bước b-review",
+          "how": "cap",
+          "choices": []
+        }
+      ],
+      "user_actions": [
+        {
+          "t": 582.2,
+          "action": "approve_large_plan",
+          "reason": "kế hoạch lớn: b-req kết luận kế hoạch lớn; 30 tệp sẽ sửa, vượt ngưỡng workflow.small_plan_max_files = 5 — b-feat chưa chạy. Xem kế hoạch (`bint task show 01M7XHDRY2GTHBZJ837Z73K6J8`; requirement.md, plan.md, tasks.md), sửa nếu cần, rồi `bint run resume 01M7XHDRY2GTHBZJ837Z73K6J8` để chạy b-feat (khô"
+        }
+      ],
+      "start": "2026-11-21T05:32:22+0700",
+      "task_id": "01M7XHDRY2GTHBZJ837Z73K6J8",
+      "end": "cap",
+      "wall_s": 10802.2,
+      "finish": "2026-11-21T08:32:25+0700",
+      "tokens": {
+        "sessions": 4,
+        "input": 86625815,
+        "cached": 85435904,
+        "output": 188253
+      },
+      "cost_usd": null
+    },
+    "grade": {
+      "run": "B-1",
+      "label": "final",
+      "commit": "9818e3b864a35d41753a12430c014f5c247dc399",
+      "baseline": "e63cbbcb4b64367752da65cf85c5b14780e445b7",
+      "build_ok": true,
+      "build_err": "",
+      "diffstat": "28 files changed, 2820 insertions(+), 110 deletions(-)",
+      "graded_at": "2026-11-21T08:50:54+0700",
+      "waited_for_lock_s": 0.0,
+      "hidden_clean": 36,
+      "hidden_total": 36,
+      "hidden_pct": 100.0,
+      "N1": {
+        "pass": true,
+        "cases": {
+          "clone": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "missing",
+              "D3": "log_missing",
+              "D5": "missing",
+              "D6": "missing",
+              "D7": "missing",
+              "D8": "missing",
+              "D9": "missing",
+              "K": "missing",
+              "D4": "ok"
+            },
+            "origin_isolated": true
+          },
+          "same_name": {
+            "pass": true
+          },
+          "round_trip": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            }
+          },
+          "normal_use": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            },
+            "new_task": "ok"
+          },
+          "old_path_reused": {
+            "pass": true,
+            "status_after_move_exit": 0,
+            "new_repo_isolated": true,
+            "new_repo": {
+              "D1": "missing",
+              "D2": "missing",
+              "D3": "task_absent",
+              "D5": "missing",
+              "D6": "missing",
+              "D7": "task_absent",
+              "D8": "missing",
+              "D9": "task_absent",
+              "K": "missing"
+            },
+            "moved_repo": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            }
+          }
+        }
+      },
+      "N2": {
+        "pass": true,
+        "ratio": 1.0534875393869951,
+        "moved_usable": true,
+        "seconds": {
+          "base_stationary": [
+            0.138049,
+            0.215664,
+            0.13652,
+            0.210711,
+            0.13964
+          ],
+          "stationary": [
+            0.136303,
+            0.137148,
+            0.205986,
+            0.133683,
+            0.212513
+          ],
+          "moved": [
+            0.139096,
+            0.147109,
+            0.135227,
+            0.211166,
+            0.374982
+          ]
+        },
+        "exit": {
+          "base_stationary": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "stationary": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "moved": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "medians_s": {
+          "base_stationary": 0.13964,
+          "stationary": 0.137148,
+          "moved": 0.147109
+        },
+        "first_after_move": {
+          "seconds": 0.23056050000013784,
+          "exit": 0
+        },
+        "decoys": 200
+      },
+      "N2_file": "n2-20261121T085156-176716000.json",
+      "gotest_exit": 1,
+      "gotest_fail_tests": [
+        "TestCleanupWorktreeReleasesGatewayBounded",
+        "TestDiffTaskWorktreeShowsFilesOutsideTouched"
+      ],
+      "gotest_fail_pkgs": [
+        "bint/internal/app",
+        "bint/internal/workflow"
+      ],
+      "gotest_baseline_fail_tests": [],
+      "gotest_new_fail_tests": [
+        "TestCleanupWorktreeReleasesGatewayBounded",
+        "TestDiffTaskWorktreeShowsFilesOutsideTouched"
+      ],
+      "gotest_new_fail_pkgs": [
+        "bint/internal/app",
+        "bint/internal/workflow"
+      ]
+    },
+    "telemetry": {
+      "first_code_s": 870.9,
+      "first_verify_s": 7041.0,
+      "review_s": 7193.1,
+      "narrow_count": 0,
+      "narrow_automatic": 0
+    },
+    "checkpoints": {
+      "60": {
+        "run": "B-1",
+        "label": "min-60",
+        "commit": "a9a2655631e3fb3b7e68edc672775575d365c914",
+        "baseline": "e63cbbcb4b64367752da65cf85c5b14780e445b7",
+        "build_ok": true,
+        "build_err": "",
+        "diffstat": "8 files changed, 1921 insertions(+), 36 deletions(-)",
+        "graded_at": "2026-11-21T08:46:56+0700",
+        "waited_for_lock_s": 0.0,
+        "hidden_clean": 30,
+        "hidden_total": 36,
+        "hidden_pct": 83.333,
+        "N1": {
+          "pass": false,
+          "cases": {
+            "clone": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "missing",
+                "D3": "log_missing",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "missing",
+                "D8": "missing",
+                "D9": "missing",
+                "K": "missing",
+                "D4": "ok"
+              },
+              "origin_isolated": true
+            },
+            "same_name": {
+              "pass": true
+            },
+            "round_trip": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            },
+            "normal_use": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              },
+              "new_task": "ok"
+            },
+            "old_path_reused": {
+              "pass": false,
+              "status_after_move_exit": 0,
+              "new_repo_isolated": true,
+              "new_repo": {
+                "D1": "missing",
+                "D2": "missing",
+                "D3": "task_absent",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "task_absent",
+                "D8": "missing",
+                "D9": "task_absent",
+                "K": "missing"
+              },
+              "moved_repo": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "exit:1",
+                "K": "ok"
+              }
+            }
+          }
+        },
+        "N2": {
+          "pass": true,
+          "ratio": 1.0774585540689123,
+          "moved_usable": true,
+          "seconds": {
+            "base_stationary": [
+              0.139361,
+              0.136537,
+              0.145344,
+              0.140062,
+              0.153084
+            ],
+            "stationary": [
+              0.143484,
+              0.143578,
+              0.151083,
+              0.148726,
+              0.237884
+            ],
+            "moved": [
+              0.214494,
+              0.145792,
+              0.150911,
+              0.150131,
+              0.161025
+            ]
+          },
+          "exit": {
+            "base_stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "moved": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "medians_s": {
+            "base_stationary": 0.140062,
+            "stationary": 0.148726,
+            "moved": 0.150911
+          },
+          "first_after_move": {
+            "seconds": 0.13852900004712865,
+            "exit": 0
+          },
+          "decoys": 200
+        },
+        "N2_file": "n2-20261121T084801-354165200.json"
+      },
+      "120": {
+        "run": "B-1",
+        "label": "min-120",
+        "commit": "da0b6df3b35421f63daf3f9aea4b12ec9747a16e",
+        "baseline": "e63cbbcb4b64367752da65cf85c5b14780e445b7",
+        "build_ok": true,
+        "build_err": "",
+        "diffstat": "27 files changed, 2351 insertions(+), 103 deletions(-)",
+        "graded_at": "2026-11-21T08:48:17+0700",
+        "waited_for_lock_s": 0.0,
+        "hidden_clean": 36,
+        "hidden_total": 36,
+        "hidden_pct": 100.0,
+        "N1": {
+          "pass": true,
+          "cases": {
+            "clone": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "missing",
+                "D3": "log_missing",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "missing",
+                "D8": "missing",
+                "D9": "missing",
+                "K": "missing",
+                "D4": "ok"
+              },
+              "origin_isolated": true
+            },
+            "same_name": {
+              "pass": true
+            },
+            "round_trip": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            },
+            "normal_use": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              },
+              "new_task": "ok"
+            },
+            "old_path_reused": {
+              "pass": true,
+              "status_after_move_exit": 0,
+              "new_repo_isolated": true,
+              "new_repo": {
+                "D1": "missing",
+                "D2": "missing",
+                "D3": "task_absent",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "task_absent",
+                "D8": "missing",
+                "D9": "task_absent",
+                "K": "missing"
+              },
+              "moved_repo": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            }
+          }
+        },
+        "N2": {
+          "pass": true,
+          "ratio": 1.0107627242234212,
+          "moved_usable": true,
+          "seconds": {
+            "base_stationary": [
+              0.142637,
+              0.13714,
+              0.135849,
+              0.150637,
+              0.136391
+            ],
+            "stationary": [
+              0.207391,
+              0.137585,
+              0.144164,
+              0.13409,
+              0.148965
+            ],
+            "moved": [
+              0.13794,
+              0.136378,
+              0.138616,
+              0.143366,
+              0.213042
+            ]
+          },
+          "exit": {
+            "base_stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "moved": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "medians_s": {
+            "base_stationary": 0.13714,
+            "stationary": 0.144164,
+            "moved": 0.138616
+          },
+          "first_after_move": {
+            "seconds": 0.1416044000070542,
+            "exit": 0
+          },
+          "decoys": 200
+        },
+        "N2_file": "n2-20261121T084920-726453100.json"
+      },
+      "180": {
+        "run": "B-1",
+        "label": "min-180",
+        "commit": "392ce828b7743c224529af11225da8dfd22b58c6",
+        "baseline": "e63cbbcb4b64367752da65cf85c5b14780e445b7",
+        "build_ok": true,
+        "build_err": "",
+        "diffstat": "28 files changed, 2820 insertions(+), 110 deletions(-)",
+        "graded_at": "2026-11-21T08:49:36+0700",
+        "waited_for_lock_s": 0.0,
+        "hidden_clean": 36,
+        "hidden_total": 36,
+        "hidden_pct": 100.0,
+        "N1": {
+          "pass": true,
+          "cases": {
+            "clone": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "missing",
+                "D3": "log_missing",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "missing",
+                "D8": "missing",
+                "D9": "missing",
+                "K": "missing",
+                "D4": "ok"
+              },
+              "origin_isolated": true
+            },
+            "same_name": {
+              "pass": true
+            },
+            "round_trip": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            },
+            "normal_use": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              },
+              "new_task": "ok"
+            },
+            "old_path_reused": {
+              "pass": true,
+              "status_after_move_exit": 0,
+              "new_repo_isolated": true,
+              "new_repo": {
+                "D1": "missing",
+                "D2": "missing",
+                "D3": "task_absent",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "task_absent",
+                "D8": "missing",
+                "D9": "task_absent",
+                "K": "missing"
+              },
+              "moved_repo": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            }
+          }
+        },
+        "N2": {
+          "pass": true,
+          "ratio": 1.012521383598691,
+          "moved_usable": true,
+          "seconds": {
+            "base_stationary": [
+              0.214375,
+              0.291755,
+              0.132377,
+              0.140879,
+              0.133506
+            ],
+            "stationary": [
+              0.210104,
+              0.365755,
+              0.143476,
+              0.139447,
+              0.138373
+            ],
+            "moved": [
+              0.212286,
+              0.285199,
+              0.139812,
+              0.135889,
+              0.142643
+            ]
+          },
+          "exit": {
+            "base_stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "moved": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "medians_s": {
+            "base_stationary": 0.140879,
+            "stationary": 0.143476,
+            "moved": 0.142643
+          },
+          "first_after_move": {
+            "seconds": 0.14919089997420087,
+            "exit": 0
+          },
+          "decoys": 200
+        },
+        "N2_file": "n2-20261121T085038-334882400.json"
+      }
+    }
+  },
+  {
+    "run": "Bp-1",
+    "arm": "Bp",
+    "record": {
+      "run": "Bp-1",
+      "arm": "Bp",
+      "k": 1,
+      "cap_s": 10800,
+      "events": [
+        {
+          "t": 0,
+          "kind": "init",
+          "exit": 1
+        },
+        {
+          "t": 0,
+          "kind": "codex_hooks_trusted",
+          "count": 4
+        },
+        {
+          "t": 0.0,
+          "kind": "started"
+        },
+        {
+          "t": 8062.0,
+          "kind": "cmd",
+          "label": "b-do",
+          "cmd": [
+            "D:\\bench\\bench-v8-20261121\\bin\\bint.exe",
+            "run",
+            "b-do",
+            "--variant",
+            "bprime",
+            "--harness",
+            "codex",
+            "--model",
+            "gpt-6.2-sol",
+            "--autonomy",
+            "auto",
+            "--shared",
+            "--json",
+            "Tôi hay đổi tên hoặc chuyển thư mục dự án sang chỗ khác, mà mỗi lần như vậy bint quên sạch: tác vụ, lịch sử, mọi thứ. Sửa giúp tôi để chuyển\nthư mục thoải mái mà không mất gì. Việc này chắc lớn nên cứ làm từ từ qua nhiều lần cũng được."
+          ],
+          "start": 0.0,
+          "dur": 8062.0,
+          "exit": 1,
+          "how": "exit",
+          "out": "D:\\bench\\bench-v8-20261121\\runs\\Bp-1\\log\\01-b-do.out"
+        },
+        {
+          "t": 8062.0,
+          "kind": "status",
+          "status": "failed",
+          "reason": "b-feat: quá workflow.timeout_minutes (180 phút)",
+          "how": "exit",
+          "choices": []
+        }
+      ],
+      "user_actions": [],
+      "start": "2026-11-21T05:58:41+0700",
+      "task_id": "01M7XJXXSPHMZJM337CMRVMAET",
+      "end": "failed",
+      "wall_s": 8062.0,
+      "finish": "2026-11-21T08:13:03+0700",
+      "tokens": {
+        "sessions": 4,
+        "input": 78401440,
+        "cached": 77308032,
+        "output": 175041
+      },
+      "cost_usd": null
+    },
+    "grade": {
+      "run": "Bp-1",
+      "label": "final",
+      "commit": "fdc903515380eb0fd64b9f40a7aac8a2950feb37",
+      "baseline": "e63cbbcb4b64367752da65cf85c5b14780e445b7",
+      "build_ok": true,
+      "build_err": "",
+      "diffstat": "38 files changed, 1867 insertions(+), 112 deletions(-)",
+      "graded_at": "2026-11-21T09:08:35+0700",
+      "waited_for_lock_s": 0.0,
+      "hidden_clean": 36,
+      "hidden_total": 36,
+      "hidden_pct": 100.0,
+      "N1": {
+        "pass": true,
+        "cases": {
+          "clone": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "missing",
+              "D3": "log_missing",
+              "D5": "missing",
+              "D6": "missing",
+              "D7": "missing",
+              "D8": "missing",
+              "D9": "missing",
+              "K": "missing",
+              "D4": "ok"
+            },
+            "origin_isolated": true
+          },
+          "same_name": {
+            "pass": true
+          },
+          "round_trip": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            }
+          },
+          "normal_use": {
+            "pass": true,
+            "checks": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            },
+            "new_task": "ok"
+          },
+          "old_path_reused": {
+            "pass": true,
+            "status_after_move_exit": 0,
+            "new_repo_isolated": true,
+            "new_repo": {
+              "D1": "missing",
+              "D2": "missing",
+              "D3": "task_absent",
+              "D5": "missing",
+              "D6": "missing",
+              "D7": "task_absent",
+              "D8": "missing",
+              "D9": "task_absent",
+              "K": "missing"
+            },
+            "moved_repo": {
+              "D1": "ok",
+              "D2": "ok",
+              "D3": "ok",
+              "D4": "ok",
+              "D5": "ok",
+              "D6": "ok",
+              "D7": "ok",
+              "D8": "ok",
+              "D9": "ok",
+              "K": "ok"
+            }
+          }
+        }
+      },
+      "N2": {
+        "pass": true,
+        "ratio": 1.0303133013056678,
+        "moved_usable": true,
+        "seconds": {
+          "base_stationary": [
+            0.135467,
+            0.132235,
+            0.139392,
+            0.135716,
+            0.136364
+          ],
+          "stationary": [
+            0.208438,
+            0.138647,
+            0.147489,
+            0.135736,
+            0.214481
+          ],
+          "moved": [
+            0.133274,
+            0.146308,
+            0.14704,
+            0.13983,
+            0.138699
+          ]
+        },
+        "exit": {
+          "base_stationary": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "stationary": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "moved": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "medians_s": {
+          "base_stationary": 0.135716,
+          "stationary": 0.147489,
+          "moved": 0.13983
+        },
+        "first_after_move": {
+          "seconds": 0.14062820002436638,
+          "exit": 0
+        },
+        "decoys": 200
+      },
+      "N2_file": "n2-20261121T090937-891096500.json",
+      "gotest_exit": 1,
+      "gotest_fail_tests": [
+        "TestGateEvidenceAndBudget",
+        "TestGateEvidenceAndBudget/perf_gate",
+        "TestGateEvidenceAndBudget/perf_gate/chậm_đỏ_rồi_vòng_sửa_xanh"
+      ],
+      "gotest_fail_pkgs": [
+        "bint/internal/workflow"
+      ],
+      "gotest_baseline_fail_tests": [],
+      "gotest_new_fail_tests": [
+        "TestGateEvidenceAndBudget",
+        "TestGateEvidenceAndBudget/perf_gate",
+        "TestGateEvidenceAndBudget/perf_gate/chậm_đỏ_rồi_vòng_sửa_xanh"
+      ],
+      "gotest_new_fail_pkgs": [
+        "bint/internal/workflow"
+      ]
+    },
+    "telemetry": {
+      "first_code_s": 312.7,
+      "first_verify_s": 382.0,
+      "review_s": 5678.8,
+      "narrow_count": 18,
+      "narrow_automatic": 8
+    },
+    "checkpoints": {
+      "60": {
+        "run": "Bp-1",
+        "label": "min-60",
+        "commit": "f9634112fbb07ae4e7570d8464e44f5daae754bd",
+        "baseline": "e63cbbcb4b64367752da65cf85c5b14780e445b7",
+        "build_ok": true,
+        "build_err": "",
+        "diffstat": "26 files changed, 1300 insertions(+), 108 deletions(-)",
+        "graded_at": "2026-11-21T09:05:59+0700",
+        "waited_for_lock_s": 0.0,
+        "hidden_clean": 36,
+        "hidden_total": 36,
+        "hidden_pct": 100.0,
+        "N1": {
+          "pass": true,
+          "cases": {
+            "clone": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "missing",
+                "D3": "log_missing",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "missing",
+                "D8": "missing",
+                "D9": "missing",
+                "K": "missing",
+                "D4": "ok"
+              },
+              "origin_isolated": true
+            },
+            "same_name": {
+              "pass": true
+            },
+            "round_trip": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            },
+            "normal_use": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              },
+              "new_task": "ok"
+            },
+            "old_path_reused": {
+              "pass": true,
+              "status_after_move_exit": 0,
+              "new_repo_isolated": true,
+              "new_repo": {
+                "D1": "missing",
+                "D2": "missing",
+                "D3": "task_absent",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "task_absent",
+                "D8": "missing",
+                "D9": "task_absent",
+                "K": "missing"
+              },
+              "moved_repo": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            }
+          }
+        },
+        "N2": {
+          "pass": true,
+          "ratio": 0.9950450740732785,
+          "moved_usable": true,
+          "seconds": {
+            "base_stationary": [
+              0.139963,
+              0.13867,
+              0.214697,
+              0.139245,
+              0.139659
+            ],
+            "stationary": [
+              0.135733,
+              0.140132,
+              0.138303,
+              0.135964,
+              0.136396
+            ],
+            "moved": [
+              0.135594,
+              0.138967,
+              0.135283,
+              0.210479,
+              0.217032
+            ]
+          },
+          "exit": {
+            "base_stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "moved": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "medians_s": {
+            "base_stationary": 0.139659,
+            "stationary": 0.136396,
+            "moved": 0.138967
+          },
+          "first_after_move": {
+            "seconds": 0.14566159999230877,
+            "exit": 0
+          },
+          "decoys": 200
+        },
+        "N2_file": "n2-20261121T090700-804620600.json"
+      },
+      "120": {
+        "run": "Bp-1",
+        "label": "min-120",
+        "commit": "a41f5b5acc032d43710128c5dcb5a082e91ddabc",
+        "baseline": "e63cbbcb4b64367752da65cf85c5b14780e445b7",
+        "build_ok": true,
+        "build_err": "",
+        "diffstat": "38 files changed, 1867 insertions(+), 112 deletions(-)",
+        "graded_at": "2026-11-21T09:07:16+0700",
+        "waited_for_lock_s": 0.0,
+        "hidden_clean": 36,
+        "hidden_total": 36,
+        "hidden_pct": 100.0,
+        "N1": {
+          "pass": true,
+          "cases": {
+            "clone": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "missing",
+                "D3": "log_missing",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "missing",
+                "D8": "missing",
+                "D9": "missing",
+                "K": "missing",
+                "D4": "ok"
+              },
+              "origin_isolated": true
+            },
+            "same_name": {
+              "pass": true
+            },
+            "round_trip": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            },
+            "normal_use": {
+              "pass": true,
+              "checks": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              },
+              "new_task": "ok"
+            },
+            "old_path_reused": {
+              "pass": true,
+              "status_after_move_exit": 0,
+              "new_repo_isolated": true,
+              "new_repo": {
+                "D1": "missing",
+                "D2": "missing",
+                "D3": "task_absent",
+                "D5": "missing",
+                "D6": "missing",
+                "D7": "task_absent",
+                "D8": "missing",
+                "D9": "task_absent",
+                "K": "missing"
+              },
+              "moved_repo": {
+                "D1": "ok",
+                "D2": "ok",
+                "D3": "ok",
+                "D4": "ok",
+                "D5": "ok",
+                "D6": "ok",
+                "D7": "ok",
+                "D8": "ok",
+                "D9": "ok",
+                "K": "ok"
+              }
+            }
+          }
+        },
+        "N2": {
+          "pass": true,
+          "ratio": 1.025803038763335,
+          "moved_usable": true,
+          "seconds": {
+            "base_stationary": [
+              0.136108,
+              0.134648,
+              0.13762,
+              0.138645,
+              0.13171
+            ],
+            "stationary": [
+              0.146942,
+              0.137505,
+              0.131663,
+              0.213937,
+              0.136654
+            ],
+            "moved": [
+              0.216691,
+              0.132062,
+              0.13962,
+              0.131603,
+              0.141196
+            ]
+          },
+          "exit": {
+            "base_stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "stationary": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "moved": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "medians_s": {
+            "base_stationary": 0.136108,
+            "stationary": 0.137505,
+            "moved": 0.13962
+          },
+          "first_after_move": {
+            "seconds": 0.1461779999663122,
+            "exit": 0
+          },
+          "decoys": 200
+        },
+        "N2_file": "n2-20261121T090819-527408400.json"
+      }
+    }
+  }
+]

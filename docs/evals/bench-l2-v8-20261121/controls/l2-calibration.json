@@ -1,0 +1,445 @@
+{
+  "base_green": [
+    9,
+    9,
+    9
+  ],
+  "base_N1": [
+    {
+      "pass": false,
+      "cases": {
+        "clone": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "missing",
+            "D3": "log_missing",
+            "D5": "missing",
+            "D6": "missing",
+            "D7": "missing",
+            "D8": "missing",
+            "D9": "missing",
+            "K": "missing",
+            "D4": "ok"
+          },
+          "origin_isolated": true
+        },
+        "same_name": {
+          "pass": true
+        },
+        "round_trip": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "ok"
+          }
+        },
+        "normal_use": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "ok"
+          },
+          "new_task": "ok"
+        },
+        "old_path_reused": {
+          "pass": false,
+          "status_after_move_exit": 4,
+          "new_repo_isolated": false,
+          "new_repo": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "missing"
+          },
+          "moved_repo": {
+            "D1": "exit:4",
+            "D2": "exit:4",
+            "D3": "exit:4",
+            "D4": "exit:4",
+            "D5": "exit:4",
+            "D6": "exit:4",
+            "D7": "exit:4",
+            "D8": "exit:4",
+            "D9": "exit:4",
+            "K": "ok"
+          }
+        }
+      }
+    },
+    {
+      "pass": false,
+      "cases": {
+        "clone": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "missing",
+            "D3": "log_missing",
+            "D5": "missing",
+            "D6": "missing",
+            "D7": "missing",
+            "D8": "missing",
+            "D9": "missing",
+            "K": "missing",
+            "D4": "ok"
+          },
+          "origin_isolated": true
+        },
+        "same_name": {
+          "pass": true
+        },
+        "round_trip": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "ok"
+          }
+        },
+        "normal_use": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "ok"
+          },
+          "new_task": "ok"
+        },
+        "old_path_reused": {
+          "pass": false,
+          "status_after_move_exit": 4,
+          "new_repo_isolated": false,
+          "new_repo": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "missing"
+          },
+          "moved_repo": {
+            "D1": "exit:4",
+            "D2": "exit:4",
+            "D3": "exit:4",
+            "D4": "exit:4",
+            "D5": "exit:4",
+            "D6": "exit:4",
+            "D7": "exit:4",
+            "D8": "exit:4",
+            "D9": "exit:4",
+            "K": "ok"
+          }
+        }
+      }
+    },
+    {
+      "pass": false,
+      "cases": {
+        "clone": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "missing",
+            "D3": "log_missing",
+            "D5": "missing",
+            "D6": "missing",
+            "D7": "missing",
+            "D8": "missing",
+            "D9": "missing",
+            "K": "missing",
+            "D4": "ok"
+          },
+          "origin_isolated": true
+        },
+        "same_name": {
+          "pass": true
+        },
+        "round_trip": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "ok"
+          }
+        },
+        "normal_use": {
+          "pass": true,
+          "checks": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "ok"
+          },
+          "new_task": "ok"
+        },
+        "old_path_reused": {
+          "pass": false,
+          "status_after_move_exit": 4,
+          "new_repo_isolated": false,
+          "new_repo": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok",
+            "K": "missing"
+          },
+          "moved_repo": {
+            "D1": "exit:4",
+            "D2": "exit:4",
+            "D3": "exit:4",
+            "D4": "exit:4",
+            "D5": "exit:4",
+            "D6": "exit:4",
+            "D7": "exit:4",
+            "D8": "exit:4",
+            "D9": "exit:4",
+            "K": "ok"
+          }
+        }
+      }
+    }
+  ],
+  "base_N1_waived": true,
+  "base_N2": [
+    {
+      "pass": true,
+      "ratio": 0.8195286382662411,
+      "moved_usable": false,
+      "seconds": {
+        "base_stationary": [
+          0.25489,
+          0.226971,
+          0.251569,
+          0.29637,
+          0.250612
+        ],
+        "stationary": [
+          0.329907,
+          0.229977,
+          0.273948,
+          0.31151,
+          0.312743
+        ],
+        "moved": [
+          0.145063,
+          0.213979,
+          0.206168,
+          0.156293,
+          0.226142
+        ]
+      },
+      "exit": {
+        "base_stationary": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "stationary": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "moved": [
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "medians_s": {
+        "base_stationary": 0.251569,
+        "stationary": 0.31151,
+        "moved": 0.206168
+      },
+      "first_after_move": {
+        "seconds": 0.15547599998535588,
+        "exit": 4
+      },
+      "decoys": 200
+    },
+    {
+      "pass": true,
+      "ratio": 0.7655297647668755,
+      "moved_usable": false,
+      "seconds": {
+        "base_stationary": [
+          0.372269,
+          0.290315,
+          0.828126,
+          0.848598,
+          0.256529
+        ],
+        "stationary": [
+          0.32935,
+          0.672962,
+          0.721979,
+          1.226263,
+          0.305364
+        ],
+        "moved": [
+          0.148124,
+          0.438424,
+          0.284983,
+          0.440173,
+          0.166976
+        ]
+      },
+      "exit": {
+        "base_stationary": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "stationary": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "moved": [
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "medians_s": {
+        "base_stationary": 0.372269,
+        "stationary": 0.672962,
+        "moved": 0.284983
+      },
+      "first_after_move": {
+        "seconds": 0.3683411999954842,
+        "exit": 4
+      },
+      "decoys": 200
+    },
+    {
+      "pass": true,
+      "ratio": 0.5016261231907885,
+      "moved_usable": false,
+      "seconds": {
+        "base_stationary": [
+          0.334538,
+          0.312019,
+          0.269058,
+          0.391418,
+          0.448228
+        ],
+        "stationary": [
+          0.396372,
+          0.290107,
+          0.280897,
+          0.401852,
+          0.22661
+        ],
+        "moved": [
+          0.251664,
+          0.148555,
+          0.178877,
+          0.14041,
+          0.167813
+        ]
+      },
+      "exit": {
+        "base_stationary": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "stationary": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "moved": [
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "medians_s": {
+        "base_stationary": 0.334538,
+        "stationary": 0.290107,
+        "moved": 0.167813
+      },
+      "first_after_move": {
+        "seconds": 0.23492489999625832,
+        "exit": 4
+      },
+      "decoys": 200
+    }
+  ],
+  "stable": true
+}

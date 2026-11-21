@@ -72,7 +72,7 @@ func bvRunOpt(t *testing.T, o bvOpts, ms []bvMilestone) (h *harness, res *Result
 		cfg: func(h *harness) {
 			full := "test -f done.txt" + o.extra + " && echo \"$PWD\" >> " + counter
 			if o.slow {
-				full = "test -f done.txt" + o.extra + " && echo S >> " + counter + ".log && sleep 0.2 && echo \"$PWD\" >> " + counter + " && echo E >> " + counter + ".log"
+				full = "test -f done.txt" + o.extra + " && echo S$$ >> " + counter + ".log && sleep 0.2 && echo \"$PWD\" >> " + counter + " && echo E$$ >> " + counter + ".log"
 			}
 			h.cfg.Eval.TestCommand = &full
 			h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeAffected,
@@ -303,13 +303,8 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 			t.Fatalf("(L8×N2) cần ≥ 1 kiểm nền")
 		}
 		b, _ := os.ReadFile(counter + ".log")
-		prev := "E"
-		for _, l := range strings.Fields(string(b)) {
-			if l == prev {
-				t.Errorf("(L8×N2) hai lần nền chạy chồng nhau (log S/E: %q)", strings.Fields(string(b)))
-				break
-			}
-			prev = l
+		if ov := overlappingRuns(strings.Fields(string(b))); ov != "" {
+			t.Errorf("(L8×N2) hai lần nền chạy chồng nhau: %s (log: %q)", ov, strings.Fields(string(b)))
 		}
 	})
 
@@ -382,4 +377,26 @@ func TestBPrimeEarlyVerification(t *testing.T) {
 		t.Errorf("(L4×N2) cần ≥ 1 kiểm nền, có %d", n)
 	}
 	var _ task.Verification
+}
+
+// overlappingRuns tìm hai lần chạy chồng nhau trong log "S<pid>"/"E<pid>": một lần chạy trọn (có cả S và E) mà giữa S và E của nó có S của lần khác.
+// Lần bị huỷ hợp lệ (cây đổi, finish huỷ kiểm nền khác cây cuối) chỉ có S, không có E, nên không bị tính là chồng (CI race: "S E S S E" là huỷ rồi chạy lại).
+func overlappingRuns(lines []string) string {
+	for i, l := range lines {
+		if !strings.HasPrefix(l, "S") {
+			continue
+		}
+		id := l[1:]
+		for j := i + 1; j < len(lines); j++ {
+			if lines[j] == "E"+id {
+				for k := i + 1; k < j; k++ {
+					if strings.HasPrefix(lines[k], "S") {
+						return "lần " + lines[k][1:] + " bắt đầu khi lần " + id + " chưa xong"
+					}
+				}
+				break
+			}
+		}
+	}
+	return ""
 }

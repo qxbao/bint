@@ -11,6 +11,9 @@ import (
 )
 
 func countCalls(h *harness, step string) int {
+	// Khoá h.mu: ở luồng B′ thăm dò chạy song song trong goroutine riêng và fakeAgent.Run ghi h.calls (data race ở CI -race).
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	n := 0
 	for _, c := range h.calls {
 		if c == step {

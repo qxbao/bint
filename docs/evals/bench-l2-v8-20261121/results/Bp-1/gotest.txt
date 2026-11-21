@@ -1,0 +1,86 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/affected	26.507s
+ok  	bint/internal/app	359.044s
+ok  	bint/internal/app/evolvesvc	21.026s
+ok  	bint/internal/cli	782.310s
+ok  	bint/internal/codexconfig	1.199s
+ok  	bint/internal/config	358.874s
+ok  	bint/internal/ctxengine	1.495s
+ok  	bint/internal/detect	2.511s
+ok  	bint/internal/eval	450.197s
+ok  	bint/internal/evolve	365.609s
+ok  	bint/internal/flow	1.328s
+ok  	bint/internal/fsafe	1.500s
+ok  	bint/internal/fslock	1.100s
+ok  	bint/internal/gitrepo	12.201s
+ok  	bint/internal/harness	2.641s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	1.788s
+ok  	bint/internal/harness/codex	6.554s
+ok  	bint/internal/harness/hookcore	17.488s
+ok  	bint/internal/hcomp	1.519s
+ok  	bint/internal/i18n	1.250s
+ok  	bint/internal/inspect	7.873s
+ok  	bint/internal/iso	11.209s
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	1.511s
+ok  	bint/internal/knowledge	23.820s
+ok  	bint/internal/knowledge/importer	1.998s
+ok  	bint/internal/mcpcat	0.943s
+ok  	bint/internal/mcpcat/probe	6.425s
+?   	bint/internal/mcpcat/probe/probetest	[no test files]
+ok  	bint/internal/mcpgw	111.933s
+ok  	bint/internal/mcpserver	2.774s
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/pathutil	1.019s
+ok  	bint/internal/runlog	17.745s
+ok  	bint/internal/skills	5.735s
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	5.857s
+ok  	bint/internal/store	2.818s
+ok  	bint/internal/symbols	1.121s
+ok  	bint/internal/task	69.754s
+ok  	bint/internal/testutil	1.016s
+ok  	bint/internal/tui	1.543s
+ok  	bint/internal/tui/actions	443.856s
+ok  	bint/internal/tui/app	374.408s
+?   	bint/internal/tui/clipboard	[no test files]
+ok  	bint/internal/tui/components/barchart	1.166s
+ok  	bint/internal/tui/components/confirm	1.016s
+ok  	bint/internal/tui/components/footer	1.019s
+ok  	bint/internal/tui/components/form	0.566s
+ok  	bint/internal/tui/components/frame	1.184s
+?   	bint/internal/tui/components/help	[no test files]
+ok  	bint/internal/tui/components/input	1.127s
+ok  	bint/internal/tui/components/list	1.392s
+ok  	bint/internal/tui/components/logo	1.313s
+ok  	bint/internal/tui/components/logview	1.379s
+ok  	bint/internal/tui/components/markdown	1.368s
+ok  	bint/internal/tui/components/meter	1.346s
+ok  	bint/internal/tui/components/palette	1.417s
+ok  	bint/internal/tui/components/tabs	1.452s
+ok  	bint/internal/tui/components/text	1.422s
+ok  	bint/internal/tui/components/viewer	1.445s
+ok  	bint/internal/tui/components/zone	1.479s
+ok  	bint/internal/tui/gallery	2.751s
+ok  	bint/internal/tui/jobs	1.975s
+?   	bint/internal/tui/screens/eval	[no test files]
+ok  	bint/internal/tui/screens/evolve	0.524s
+ok  	bint/internal/tui/screens/initwizard	0.538s
+ok  	bint/internal/tui/screens/knowledge	358.265s
+ok  	bint/internal/tui/screens/mcp	0.630s
+ok  	bint/internal/tui/screens/overview	1.107s
+?   	bint/internal/tui/screens/runs	[no test files]
+?   	bint/internal/tui/screens/shared	[no test files]
+?   	bint/internal/tui/screens/system	[no test files]
+ok  	bint/internal/tui/screens/tasks	5.482s
+ok  	bint/internal/tui/theme	1.665s
+ok  	bint/internal/tui/ui	0.971s
+ok  	bint/internal/ulid	1.432s
+--- FAIL: TestGateEvidenceAndBudget (166.00s)
+    --- FAIL: TestGateEvidenceAndBudget/perf_gate (52.77s)
+        --- FAIL: TestGateEvidenceAndBudget/perf_gate/chậm_đỏ_rồi_vòng_sửa_xanh (25.21s)
+            budget_goal_test.go:738: vòng sửa về 0 s: perf xanh rồi done, được blocked "review vòng 2 không còn phát hiện nghiêm trọng nhưng kiểm chứng cuối không qua (`hiệu năng (perf): 0.241 giây (nhỏ nhất của 3 lần) so với mốc 0.125 giây = ×1.93, trần workflow.perf.max_slowdown = 1.50 và sàn nhiễu 0.1 giây, log D:\\bt\\v8g-axn5bzn8\\TestGateEvidenceAndBudgetperf_gatechậm_đỏ_rồi_vòng_s2794249538\\006\\runtime\\tasks\\01M7XY49AR9QX860H275TPRZM8\\logs\\perf-2.log`, mã thoát 1, log D:\\bt\\v8g-axn5bzn8\\TestGateEvidenceAndBudgetperf_gatechậm_đỏ_rồi_vòng_s2794249538\\006\\runtime\\tasks\\01M7XY49AR9QX860H275TPRZM8\\logs\\perf-2.log); đã dùng hết vòng sửa (1 vòng sửa trong workflow.max_review_rounds = 1). Xem D:\\bt\\v8g-axn5bzn8\\TestGateEvidenceAndBudgetperf_gatechậm_đỏ_rồi_vòng_s2794249538\\006\\runtime\\tasks\\01M7XY49AR9QX860H275TPRZM8\\review.md rồi chọn một: chấp nhận kết quả như hiện tại `bint run resume 01M7XY49AR9QX860H275TPRZM8 --accept`; cho sửa thêm một vòng `bint run resume 01M7XY49AR9QX860H275TPRZM8 --fix-round`; huỷ `bint task cancel 01M7XY49AR9QX860H275TPRZM8`"
+FAIL
+FAIL	bint/internal/workflow	782.800s
+FAIL

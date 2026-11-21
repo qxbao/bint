@@ -1,0 +1,48 @@
+{
+ "run": "A-1",
+ "arm": "A",
+ "k": 1,
+ "cap_s": 10800,
+ "events": [
+  {
+   "t": 0.0,
+   "kind": "started"
+  },
+  {
+   "t": 1664.3,
+   "kind": "cmd",
+   "label": "codex",
+   "cmd": [
+    "codex",
+    "exec",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--skip-git-repo-check",
+    "--cd",
+    "D:\\bench\\bench-v8-20261121\\runs\\A-1\\repo",
+    "--model",
+    "gpt-6.2-sol",
+    "-",
+    "<stdin>"
+   ],
+   "start": 0.0,
+   "dur": 1664.3,
+   "exit": 0,
+   "how": "exit",
+   "out": "D:\\bench\\bench-v8-20261121\\runs\\A-1\\log\\01-codex.out"
+  }
+ ],
+ "user_actions": [],
+ "start": "2026-11-21T05:30:49+0700",
+ "end": "agent_exit",
+ "wall_s": 1664.4,
+ "finish": "2026-11-21T05:58:34+0700",
+ "tokens": {
+  "sessions": 1,
+  "input": 11426303,
+  "cached": 11241216,
+  "output": 55999
+ },
+ "cost_usd": null
+}

@@ -1,0 +1,363 @@
+{
+  "scores": [
+    36,
+    36,
+    36
+  ],
+  "checks": [
+    {
+      "green": 36,
+      "total": 36,
+      "matrix": {
+        "M1": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M2": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M3": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M4": {
+          "discovery_exits": [
+            0,
+            0,
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        }
+      },
+      "fixture_before_move": {
+        "M1": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M2": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M3": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M4": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        }
+      }
+    },
+    {
+      "green": 36,
+      "total": 36,
+      "matrix": {
+        "M1": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M2": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M3": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M4": {
+          "discovery_exits": [
+            0,
+            0,
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        }
+      },
+      "fixture_before_move": {
+        "M1": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M2": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M3": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M4": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        }
+      }
+    },
+    {
+      "green": 36,
+      "total": 36,
+      "matrix": {
+        "M1": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M2": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M3": {
+          "discovery_exits": [
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        },
+        "M4": {
+          "discovery_exits": [
+            0,
+            0,
+            0
+          ],
+          "cells": {
+            "D1": "ok",
+            "D2": "ok",
+            "D3": "ok",
+            "D4": "ok",
+            "D5": "ok",
+            "D6": "ok",
+            "D7": "ok",
+            "D8": "ok",
+            "D9": "ok"
+          }
+        }
+      },
+      "fixture_before_move": {
+        "M1": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M2": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M3": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        },
+        "M4": {
+          "D1": "ok",
+          "D2": "ok",
+          "D3": "ok",
+          "D4": "ok",
+          "D5": "ok",
+          "D6": "ok",
+          "D7": "ok",
+          "D8": "ok",
+          "D9": "ok"
+        }
+      }
+    }
+  ]
+}

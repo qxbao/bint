@@ -1,0 +1,26 @@
+{
+  "at": "2026-11-21T05:10:19+07:00",
+  "files": {
+    "plan-v8.md": "a219b2efea3ab5a5282a09f72bfd5a31f35812469588cc84f6e8d0274a580244",
+    "log/persona-card.md": "5126c5a2646a94eb10b0868a3e2c228db7674ca0ca10d1d4fea4f145ccf1df53",
+    "bin/bint.exe": "f6e5cba054db643eda4e404cf1267046cff95d43e019653dcd61323d0329dbca",
+    "bin/bint-base.exe": "68fc1389987cc74e4214b71d91fdf50611aca1d88fbd995e9bf861ca3005fa3a",
+    "hidden/hidden_l2.py": "08f77287019438154bfd7d69b9b5f29873a420c78440fe7f5cd34992cb519097",
+    "controls/l2_oracle.py": "33f8612b6b39f8428f7bcfb6babcc9bcb54b166b0e19e1c57b33a5f0690e0da0",
+    "controls/gotest-baseline-4db265768477.json": "ef88d268a630cd0979540d16a466187a1952cdd020df579e0f3c58f9943cda8a",
+    "controls/gotest-baseline-e63cbbcb4b64.json": "190ac7032b6c85f511af28df587518de8616eef39c6c00a588cd8d37e5acdc21",
+    "controls/template-baseline-comparison.json": "715c2ffc9bfc66dd61745add855a3be3570a1bbc0bfb63f09575ecc313705b78",
+    "controls/l2-oracle.json": "5547f90cb5661654b84feddb5581eca5684cfa85eab161f792a33061583f67aa",
+    "controls/l2-calibration.json": "9ab16546cc3a68c898e45067a68f47bb49c220d68b0b44b6c13c83feb2887295",
+    "controls/n2-decoys/complete.json": "f0caebcfbda4fbaab6feeec45890015b682742ae59957f5812bcac0d094697d7",
+    "controls/l2-base-1.json": "0e361aad1fc378e1f09a58897cf3f3682da74409333a08bcca74d4040b49808e",
+    "controls/l2-base-2.json": "0e361aad1fc378e1f09a58897cf3f3682da74409333a08bcca74d4040b49808e",
+    "controls/l2-base-3.json": "0e361aad1fc378e1f09a58897cf3f3682da74409333a08bcca74d4040b49808e",
+    "controls/l2-base-n2-1.json": "cab568ab1a2c20e46554ea3581b0a936ac2c3f85d9a37be1c3e375721fb71940",
+    "controls/l2-base-n2-2.json": "16c904cf13925b8e73156a506982ad0612754ae227866f813b00e87f01629629",
+    "controls/l2-base-n2-3.json": "ae26e4f5219cf1e734b7d91e84ee27fe63662b3c7bb6fb001cf70746b2d4df00",
+    "controls/l2-oracle-1.json": "9985eaa4ed7e7cc70c6fa48707612c4f7181bec4805a54a569010691ed7f52d3",
+    "controls/l2-oracle-2.json": "9985eaa4ed7e7cc70c6fa48707612c4f7181bec4805a54a569010691ed7f52d3",
+    "controls/l2-oracle-3.json": "9985eaa4ed7e7cc70c6fa48707612c4f7181bec4805a54a569010691ed7f52d3"
+  }
+}

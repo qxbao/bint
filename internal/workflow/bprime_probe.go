@@ -30,6 +30,9 @@ const (
 	bprimePhaseDone   = "done"
 )
 
+// bprimeEarlyStop: bỏ lượt mở rộng khi thước đo thăm dò đã xanh ngay trên lõi (bprimeAfterCore). Biến để kiểm thử nhánh mở rộng tắt nó.
+var bprimeEarlyStop = true
+
 // noProbeNote là ghi chú khi thăm dò không để lại tệp có dòng nhãn: không đóng băng, không có lượt mở rộng.
 const noProbeNote = "luồng B′: thăm dò không để lại tệp có dòng `" + probeMarker + "` nên không có thước đo đóng băng; không chạy lượt mở rộng"
 
@@ -406,6 +409,19 @@ func (r *Runner) bprimeAfterCore(ctx context.Context, rs *runState) (cont, handl
 	if rs.t.State.GoalTest == nil {
 		r.setBPrime(rs, func(s *task.State) { s.BPrimePhase = bprimePhaseDone })
 		if !r.wideAfterGate(ctx, rs) {
+			return false, true
+		}
+		return false, false
+	}
+	if g := rs.t.State.LastGoalCheck(); bprimeEarlyStop && g != nil && g.Passed && redVerification(rs.t) == nil && !r.Cfg.Workflow.ProbeConfirm {
+		// Dừng sớm: lõi đã làm thước đo thăm dò vừa đóng băng xanh và kiểm chứng của lõi không đỏ, nên lượt mở rộng không còn mục tiêu đo được.
+		// Đợt 8: B′ đạt đủ test ẩn ở phút 60 nhưng vẫn chạy lượt mở rộng (12,5M token), review rồi vòng sửa tới phút 134. Review vẫn soát độ phủ
+		// của thước đo (probeCoverageBlock), nên thước đo quá yếu vẫn bị bắt ở review.
+		r.setBPrime(rs, func(s *task.State) { s.BPrimePhase = bprimePhaseDone })
+		rs.res.Notes = append(rs.res.Notes, "luồng B′: thước đo thăm dò đã xanh ngay trên lõi và kiểm chứng không đỏ: bỏ lượt mở rộng, vào review")
+		// Tệp thăm dò vừa gộp làm cây khác cây đã kiểm chứng của lõi: kiểm chứng lại một lần trên cây hiện tại (dùng lại kiểm nền nếu đúng cây),
+		// nếu không cổng hoàn tất chặn vì "mã đã thay đổi sau lần kiểm chứng cuối".
+		if strings.TrimSpace(rs.t.Ticket.Verify.Command) != "" && !r.reuseBackground(ctx, rs) && !r.verifyAfterImplement(ctx, rs) {
 			return false, true
 		}
 		return false, false

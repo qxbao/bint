@@ -1,0 +1,100 @@
+{
+ "run": "B-1",
+ "arm": "B",
+ "k": 1,
+ "cap_s": 10800,
+ "events": [
+  {
+   "t": 0,
+   "kind": "init",
+   "exit": 1
+  },
+  {
+   "t": 0,
+   "kind": "codex_hooks_trusted",
+   "count": 4
+  },
+  {
+   "t": 0.0,
+   "kind": "started"
+  },
+  {
+   "t": 582.2,
+   "kind": "cmd",
+   "label": "b-do",
+   "cmd": [
+    "D:\\bench\\bench-v8-20261121\\bin\\bint.exe",
+    "run",
+    "b-do",
+    "--variant",
+    "classic",
+    "--harness",
+    "codex",
+    "--model",
+    "gpt-6.2-sol",
+    "--autonomy",
+    "auto",
+    "--shared",
+    "--json",
+    "Tôi hay đổi tên hoặc chuyển thư mục dự án sang chỗ khác, mà mỗi lần như vậy bint quên sạch: tác vụ, lịch sử, mọi thứ. Sửa giúp tôi để chuyển\nthư mục thoải mái mà không mất gì. Việc này chắc lớn nên cứ làm từ từ qua nhiều lần cũng được."
+   ],
+   "start": 0.0,
+   "dur": 582.2,
+   "exit": 1,
+   "how": "exit",
+   "out": "D:\\bench\\bench-v8-20261121\\runs\\B-1\\log\\01-b-do.out"
+  },
+  {
+   "t": 582.2,
+   "kind": "status",
+   "status": "blocked",
+   "reason": "kế hoạch lớn: b-req kết luận kế hoạch lớn; 30 tệp sẽ sửa, vượt ngưỡng workflow.small_plan_max_files = 5 — b-feat chưa chạy. Xem kế hoạch (`bint task show 01M7XHDRY2GTHBZJ837Z73K6J8`; requirement.md, plan.md, tasks.md), sửa nếu cần, rồi `bint run resume 01M7XHDRY2GTHBZJ837Z73K6J8` để chạy b-feat (không chạy lại b-req)",
+   "how": "exit",
+   "choices": []
+  },
+  {
+   "t": 10802.2,
+   "kind": "cmd",
+   "label": "resume",
+   "cmd": [
+    "D:\\bench\\bench-v8-20261121\\bin\\bint.exe",
+    "run",
+    "resume",
+    "01M7XHDRY2GTHBZJ837Z73K6J8",
+    "--json"
+   ],
+   "start": 582.2,
+   "dur": 10220.0,
+   "exit": 1,
+   "how": "cap",
+   "out": "D:\\bench\\bench-v8-20261121\\runs\\B-1\\log\\02-resume.out"
+  },
+  {
+   "t": 10802.2,
+   "kind": "status",
+   "status": "interrupted",
+   "reason": "người dùng huỷ trong bước b-review",
+   "how": "cap",
+   "choices": []
+  }
+ ],
+ "user_actions": [
+  {
+   "t": 582.2,
+   "action": "approve_large_plan",
+   "reason": "kế hoạch lớn: b-req kết luận kế hoạch lớn; 30 tệp sẽ sửa, vượt ngưỡng workflow.small_plan_max_files = 5 — b-feat chưa chạy. Xem kế hoạch (`bint task show 01M7XHDRY2GTHBZJ837Z73K6J8`; requirement.md, plan.md, tasks.md), sửa nếu cần, rồi `bint run resume 01M7XHDRY2GTHBZJ837Z73K6J8` để chạy b-feat (khô"
+  }
+ ],
+ "start": "2026-11-21T05:32:22+0700",
+ "task_id": "01M7XHDRY2GTHBZJ837Z73K6J8",
+ "end": "cap",
+ "wall_s": 10802.2,
+ "finish": "2026-11-21T08:32:25+0700",
+ "tokens": {
+  "sessions": 4,
+  "input": 86625815,
+  "cached": 85435904,
+  "output": 188253
+ },
+ "cost_usd": null
+}

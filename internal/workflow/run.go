@@ -1019,6 +1019,8 @@ func minPtr(a, b *float64) *float64 {
 // session lưu phần cần thiết vào task.PendingStep giữa `bint run next` và `bint run complete` rồi dựng lại.
 type stepRun struct {
 	step, child, stepID string
+	// timeout là trần thời gian THẬT đã giao cho agent (sliceTimeoutFor: lát, vòng sửa B′, ngân sách tổng), để lý do dừng nói đúng con số.
+	timeout time.Duration
 	// kind là kind của bước theo flow lúc mở (ghi vào PendingStep.Kind ở driver session); endStep rẽ nhánh theo nó.
 	kind flow.Kind
 	// role, base: role của bước và role gốc theo kind (chọn quyền MCP của bước driver process); rỗng ở bước dựng lại từ
@@ -1154,8 +1156,9 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 		}
 	}
 	runAgent := func(prompt, sessionID, resume string) eval.AgentResult {
+		sr.timeout = r.sliceTimeoutFor(rs, sr.kind == flow.KindImplement)
 		return sr.agent.Run(ctx, eval.AgentRequest{Dir: r.Root, Prompt: prompt, SessionID: sessionID, ResumeSessionID: resume, Profile: sr.prof,
-			Timeout: r.sliceTimeoutFor(rs, sr.kind == flow.KindImplement), IdleTimeout: r.Cfg.Workflow.IdleTimeout(),
+			Timeout: sr.timeout, IdleTimeout: r.Cfg.Workflow.IdleTimeout(),
 			LogPath: sr.stepLog, Env: env, ReadOnly: sr.readOnly, WritableDirs: r.stateDirs(),
 			MCPConfig: mcpPath, ExclusiveMCP: mcpPath != "", MCPTools: mcpTools, Settings: denySettings})
 	}
@@ -1527,7 +1530,7 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 	case res.Idle:
 		status, endReason = "failed", res.Infra+" (workflow.idle_timeout_minutes)"
 	case res.TimedOut:
-		status, endReason = "failed", fmt.Sprintf("quá workflow.timeout_minutes (%d phút)", r.Cfg.Workflow.TimeoutMinutes)
+		status, endReason = "failed", r.timeoutReason(sr)
 	case res.Error != "" || res.ExitCode != 0:
 		status, endReason = "failed", res.Error
 		if endReason == "" {

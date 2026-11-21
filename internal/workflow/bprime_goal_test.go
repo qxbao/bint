@@ -122,6 +122,7 @@ func bpDenyList(env map[string]string) []string {
 }
 
 func TestBPrimeGoalReviewGoal(t *testing.T) {
+	noEarlyStop(t) // các ca này đo nhánh có lượt mở rộng
 	ctx := context.Background()
 	run := func(t *testing.T, h *harness) (*Runner, *Result) {
 		t.Helper()

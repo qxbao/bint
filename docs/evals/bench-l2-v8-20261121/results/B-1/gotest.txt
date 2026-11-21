@@ -1,0 +1,90 @@
+?   	bint/cmd/bint	[no test files]
+ok  	bint/internal/affected	26.503s
+gateway MCP: bỏ qua định danh phiên: định danh phiên MCP không hợp lệ
+gateway MCP: bỏ qua định danh phiên: định danh phiên MCP không hợp lệ
+gateway MCP: bỏ qua định danh phiên: định danh phiên MCP không hợp lệ
+--- FAIL: TestDiffTaskWorktreeShowsFilesOutsideTouched (7.42s)
+    task_diff_outside_test.go:86: không nằm trong repository Git
+FAIL
+FAIL	bint/internal/app	422.633s
+ok  	bint/internal/app/evolvesvc	461.989s
+ok  	bint/internal/cli	797.767s
+ok  	bint/internal/codexconfig	0.745s
+ok  	bint/internal/config	397.883s
+ok  	bint/internal/ctxengine	1.168s
+ok  	bint/internal/detect	2.553s
+ok  	bint/internal/eval	429.332s
+ok  	bint/internal/evolve	455.420s
+ok  	bint/internal/flow	1.078s
+ok  	bint/internal/fsafe	1.071s
+ok  	bint/internal/fslock	0.746s
+ok  	bint/internal/gitrepo	11.186s
+ok  	bint/internal/harness	2.589s
+?   	bint/internal/harness/antigravity	[no test files]
+ok  	bint/internal/harness/claude	1.716s
+ok  	bint/internal/harness/codex	4.863s
+ok  	bint/internal/harness/hookcore	17.639s
+ok  	bint/internal/hcomp	1.271s
+ok  	bint/internal/i18n	0.999s
+ok  	bint/internal/inspect	5.868s
+ok  	bint/internal/iso	12.702s
+?   	bint/internal/jsondoc	[no test files]
+ok  	bint/internal/kindex	1.199s
+ok  	bint/internal/knowledge	22.046s
+ok  	bint/internal/knowledge/importer	1.391s
+ok  	bint/internal/mcpcat	0.714s
+ok  	bint/internal/mcpcat/probe	6.241s
+?   	bint/internal/mcpcat/probe/probetest	[no test files]
+ok  	bint/internal/mcpgw	106.245s
+ok  	bint/internal/mcpserver	2.936s
+?   	bint/internal/pathglob	[no test files]
+ok  	bint/internal/pathutil	0.661s
+ok  	bint/internal/runlog	16.144s
+ok  	bint/internal/skills	5.843s
+?   	bint/internal/spool	[no test files]
+ok  	bint/internal/state	8.311s
+ok  	bint/internal/store	2.850s
+ok  	bint/internal/symbols	0.869s
+ok  	bint/internal/task	68.794s
+ok  	bint/internal/testutil	0.975s
+ok  	bint/internal/tui	1.536s
+ok  	bint/internal/tui/actions	397.632s
+ok  	bint/internal/tui/app	462.693s
+?   	bint/internal/tui/clipboard	[no test files]
+ok  	bint/internal/tui/components/barchart	1.280s
+ok  	bint/internal/tui/components/confirm	1.259s
+ok  	bint/internal/tui/components/footer	1.281s
+ok  	bint/internal/tui/components/form	0.536s
+ok  	bint/internal/tui/components/frame	1.409s
+?   	bint/internal/tui/components/help	[no test files]
+ok  	bint/internal/tui/components/input	1.418s
+ok  	bint/internal/tui/components/list	1.530s
+ok  	bint/internal/tui/components/logo	1.757s
+ok  	bint/internal/tui/components/logview	2.004s
+ok  	bint/internal/tui/components/markdown	1.877s
+ok  	bint/internal/tui/components/meter	1.457s
+ok  	bint/internal/tui/components/palette	1.156s
+ok  	bint/internal/tui/components/tabs	1.016s
+ok  	bint/internal/tui/components/text	1.368s
+ok  	bint/internal/tui/components/viewer	1.355s
+ok  	bint/internal/tui/components/zone	1.324s
+ok  	bint/internal/tui/gallery	3.152s
+ok  	bint/internal/tui/jobs	2.066s
+?   	bint/internal/tui/screens/eval	[no test files]
+ok  	bint/internal/tui/screens/evolve	0.397s
+ok  	bint/internal/tui/screens/initwizard	0.415s
+ok  	bint/internal/tui/screens/knowledge	448.368s
+ok  	bint/internal/tui/screens/mcp	0.489s
+ok  	bint/internal/tui/screens/overview	0.467s
+?   	bint/internal/tui/screens/runs	[no test files]
+?   	bint/internal/tui/screens/shared	[no test files]
+?   	bint/internal/tui/screens/system	[no test files]
+ok  	bint/internal/tui/screens/tasks	5.199s
+ok  	bint/internal/tui/theme	1.005s
+ok  	bint/internal/tui/ui	0.515s
+ok  	bint/internal/ulid	0.931s
+--- FAIL: TestCleanupWorktreeReleasesGatewayBounded (9.85s)
+    codegraph_test.go:233: nhả treo làm chặn dọn 5.2462608s
+FAIL
+FAIL	bint/internal/workflow	803.221s
+FAIL

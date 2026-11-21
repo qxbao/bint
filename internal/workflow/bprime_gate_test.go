@@ -92,6 +92,7 @@ func gateEditA(v string, red bool) func(h *harness) {
 }
 
 func TestBPrimeCoreGate(t *testing.T) {
+	noEarlyStop(t) // các ca này đo nhánh có lượt mở rộng
 	// Lõi xanh có lượt mở rộng: lõi chỉ qua kiểm hẹp, không có kiểm chứng rộng nào trước lượt mở rộng; lượt mở rộng chạy kiểm rộng một lần.
 	t.Run("lõi xanh, có lượt mở rộng", func(t *testing.T) {
 		h, res, rec, _ := gateRun(t, true, []func(*harness){gateEditA("2", false), gateEditA("3", false)})
