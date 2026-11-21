@@ -849,7 +849,7 @@ người xác nhận; lệnh chạy là `workflow.verify.affected_command`, tron
 workflow:
   verify:
     scope: affected
-    affected_command: "go test -count=1 {test_dirs}"   # bắt buộc có {test_dirs} hoặc {test_files}
+    affected_command: "go test -count=1 -timeout=30m {test_dirs}"   # bắt buộc có {test_dirs} hoặc {test_files}
 ```
 
 Tập thay đổi là mọi tệp khác nhau giữa commit gốc của tác vụ (`Base`) và cây làm việc hiện tại (gồm thay đổi chưa commit và tệp
@@ -1689,19 +1689,20 @@ kết quả kiểm chứng đầu tiên đến sớm trong ngân sách (đợt 6
 - Giới hạn: tiến trình `bint` bị giết giữa lúc kiểm nền có thể để lại worktree tạm (`git worktree list`) và thư mục `bv/`; dọn bằng `git worktree prune`.
   TUI chưa hiển thị kiểm nền.
 
-### Luồng B′: bật và đo A/A+/B/B′
+### Luồng B′: mặc định và đo A/A+/B/B′
 
-Luồng B′ (tài liệu nền: `reports/Luồng core Bint có lệch hướng.md`) là lựa chọn bật; luồng hiện tại (classic) vẫn là mặc định. Bốn giai đoạn trước đã thêm
-`workflow.variant`, b-req gọn, thăm dò hộp đen, review một lượt và kiểm hẹp/kiểm nền; giai đoạn 4 **đảo thứ tự spec → test → mã**.
+Luồng B′ (tài liệu nền: `reports/Luồng core Bint có lệch hướng.md`) là **luồng mặc định** của phiếu b-do mới (`workflow.variant` mặc định `bprime`), không cần cờ;
+luồng cũ (classic) chỉ còn để chọn lui. Bốn giai đoạn trước đã thêm `workflow.variant`, b-req gọn, thăm dò hộp đen, review một lượt và kiểm hẹp/kiểm nền;
+giai đoạn 4 **đảo thứ tự spec → test → mã**.
 
-**Cách bật** (chốt một lần lúc lập phiếu, ghi vào `classification.variant`; đổi cấu hình sau đó không đổi phiếu đã lập):
+**Chọn luồng** (chốt một lần lúc lập phiếu, ghi vào `classification.variant`; đổi cấu hình sau đó không đổi phiếu đã lập, phiếu lập trước khi đổi mặc định giữ luồng cũ):
 
 | Cách | Phạm vi |
 |---|---|
-| `workflow.variant: bprime` trong `.bint/config.yml` hoặc `.bint/local.yml` | mọi phiếu b-do mới (có b-req) |
-| `bint task new "…" --workflow b-do --variant bprime` | một phiếu |
-| `bint run b-do --variant bprime "…"` | một phiếu tự lập bởi `bint run` |
-| `--variant classic` | ép luồng hiện tại cho một phiếu khi cấu hình là `bprime` |
+| không làm gì | mọi phiếu b-do mới (có b-req) chạy B′ |
+| `workflow.variant: classic` trong `.bint/config.yml` hoặc `.bint/local.yml` | mọi phiếu b-do mới chạy luồng cũ |
+| `bint task new "…" --workflow b-do --variant classic` / `bint run b-do --variant classic "…"` | ép luồng cũ cho một phiếu |
+| `--variant bprime` | ép B′ cho một phiếu khi cấu hình là `classic` |
 
 `--variant` không đi cùng `--task`; giá trị lạ bị từ chối (mã 2). B′ chỉ áp cho b-do gốc có b-req.
 

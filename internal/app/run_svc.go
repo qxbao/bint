@@ -61,7 +61,7 @@ type RunWorkflowOptions struct {
 
 	// Fast: chọn đường nhanh của b-do (`--fast`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
 	Fast bool
-	// Variant: luồng b-do của phiếu mới (`--variant classic|bprime`, chỉ CLI; không có thẻ flag nên form TUI không đổi).
+	// Variant: luồng b-do của phiếu mới (`--variant bprime|classic`, mặc định bprime theo workflow.variant, chỉ CLI; không có thẻ flag nên form TUI không đổi).
 	Variant string
 
 	GoalSet, VerifyCommandSet, AutonomySet bool

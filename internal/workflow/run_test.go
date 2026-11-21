@@ -330,6 +330,8 @@ func newHarness(t *testing.T) *harness {
 	cfg.Eval.TestCommand = &cmd
 	// Các test cũ kiểm hành vi chế độ shared (nhiều tác vụ trên một cây); test worktree đặt isolation riêng.
 	cfg.Workflow.Isolation = config.IsolationShared
+	// Các test cũ kiểm luồng classic; test luồng B′ (mặc định thật) đặt variant bprime riêng (bpHarness).
+	cfg.Workflow.Variant = config.VariantClassic
 	h := &harness{t: t, root: root, cfg: cfg, tasks: task.NewStore(filepath.Join(st, "runtime")), spool: filepath.Join(st, "spool"),
 		db: filepath.Join(st, "state.sqlite"), prompts: map[string]string{}}
 	h.behave = h.happy

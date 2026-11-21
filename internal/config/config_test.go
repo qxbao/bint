@@ -57,7 +57,7 @@ func TestRenderMatchesDefaults(t *testing.T) {
 	want := Default()
 	want.Project.Name = "p"
 	// workflow.variant là khoá bật tay: mẫu chỉ ghi chú thích (binary cũ không biết khoá vẫn nạp được config), nên giải mã ra rỗng;
-	// giá trị mặc định classic đến từ Default() khi hợp nhất lớp (xem TestWorkflowVariant).
+	// giá trị mặc định bprime đến từ Default() khi hợp nhất lớp (xem TestWorkflowVariant).
 	want.Workflow.Variant = ""
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("rendered config differs from Default():\n got %+v\nwant %+v", cfg, want)
@@ -380,24 +380,24 @@ func TestWorkflowFastPathAndSmallPlanDefaults(t *testing.T) {
 	}
 }
 
-// workflow.variant: mặc định classic, có trong mẫu Render, chỉ nhận classic|bprime.
+// workflow.variant: mặc định bprime, có trong mẫu Render, chỉ nhận classic|bprime.
 func TestWorkflowVariant(t *testing.T) {
 	d := Default()
-	if d.Workflow.Variant != VariantClassic {
-		t.Fatalf("mặc định variant = %q, muốn classic", d.Workflow.Variant)
+	if d.Workflow.Variant != VariantBPrime {
+		t.Fatalf("mặc định variant = %q, muốn bprime", d.Workflow.Variant)
 	}
-	// Khoá bật tay nằm trong mẫu dưới dạng chú thích (binary cũ không biết khoá vẫn nạp được .bint/config.yml); mặc định đến từ Default().
+	// Khoá nằm trong mẫu dưới dạng chú thích (binary cũ không biết khoá vẫn nạp được .bint/config.yml); mặc định đến từ Default().
 	tpl := Render(InitParams{ProjectName: "p"})
-	if !strings.Contains(tpl, "# variant: classic") {
+	if !strings.Contains(tpl, "# variant: bprime") {
 		t.Fatalf("mẫu Render thiếu dòng chú thích variant")
 	}
 	cfg := Config{}
 	if err := Decode(strings.NewReader(tpl), &cfg); err != nil || cfg.Workflow.Variant != "" {
 		t.Fatalf("mẫu Render không được đặt variant: %v %q", err, cfg.Workflow.Variant)
 	}
-	d.Workflow.Variant = VariantBPrime
+	d.Workflow.Variant = VariantClassic
 	if err := d.Validate(); err != nil {
-		t.Fatalf("bprime hợp lệ: %v", err)
+		t.Fatalf("classic hợp lệ: %v", err)
 	}
 	for _, bad := range []string{"", "B'", "b-prime"} {
 		d.Workflow.Variant = bad

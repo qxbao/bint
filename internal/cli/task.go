@@ -955,7 +955,7 @@ bint task write <id> requirement -, rồi bint run resume <id>.`,
 const depthFlagHelp = app.DepthFlagHelp
 
 // fastFlagHelp là mô tả cờ --fast dùng chung cho `bint task new` và `bint run`.
-const variantFlagHelp = "luồng b-do của phiếu mới: classic (luồng hiện tại, mặc định) | bprime (luồng B′: lõi chạy được trước, thăm dò hộp đen song song, mở rộng sau); ghi đè workflow.variant cho riêng phiếu này, không dùng cùng --task"
+const variantFlagHelp = "luồng b-do của phiếu mới: bprime (luồng B′, mặc định: lõi chạy được trước, thăm dò hộp đen song song, mở rộng sau) | classic (luồng cũ); ghi đè workflow.variant cho riêng phiếu này, không dùng cùng --task"
 
 const fastFlagHelp = "đường nhanh của b-do: không b-req, một phiên b-feat, kiểm chứng, một lượt review, tối đa một vòng sửa (chỉ b-do; không đi cùng --plan/--no-plan/--depth; chạm đường dẫn bảo vệ thì vẫn qua b-req)"
 

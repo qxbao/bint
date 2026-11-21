@@ -181,7 +181,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   slice_timeout_minutes: 30    # kế hoạch lớn của b-do chạy theo lát mỏng (mỗi nhóm bề mặt một b-feat, tối đa số phút này; lát không giảm ô đỏ của kiểm tra mục tiêu hoặc làm đỏ test cũ thì được giữ cây và dừng blocked chờ người: resume --slice keep|discard|more); 0 = tắt, chạy một b-feat
   slicing: auto                # khi nào chia kế hoạch lớn thành lát mỏng: auto (theo dòng "Chia lát" trong mục Chiến lược thực thi của plan.md) | off (không bao giờ) | always (như cũ, không cần plan chọn); cần slice_timeout_minutes > 0
   goal_check: auto             # khi nào chạy b-goal (kiểm tra mục tiêu độc lập): auto (theo dòng "Kiểm tra mục tiêu độc lập" trong plan.md) | off | always; --fast bỏ cả hai
-  # variant: classic          # luồng b-do của tác vụ MỚI, chốt một lần lúc lập phiếu: classic (luồng hiện tại) | bprime (luồng B′: b-req chỉ hỏi khi thiếu đặc tả và chỉ ghi danh sách "xong là gì" ngắn)
+  # variant: bprime           # luồng b-do của tác vụ MỚI, chốt một lần lúc lập phiếu: bprime (mặc định, luồng B′: b-req chỉ hỏi khi thiếu đặc tả và chỉ ghi danh sách "xong là gì" ngắn) | classic (luồng cũ)
   # probe_catalog: ""         # (luồng B′) tệp danh mục loại đầu vào, đường dẫn tương đối gốc repo (ví dụ danh sách quy tắc gitleaks/detect-secrets): thăm dò phải phủ mỗi mục hoặc ghi lý do loại trừ; rỗng = không dùng
   # probe_confirm: false      # (luồng B′) true = sau khi thăm dò đóng băng, dừng chờ người xem danh sách loại đầu vào và bổ sung loại còn thiếu (bint run resume <id> --answer "…")
   # budget_minutes: 0         # (luồng B′) trần tổng thời gian của các lượt b-feat trong một lần chạy b-do; Bint giữ sẵn review_reserve_minutes cho review và một vòng sửa; 0 = tắt

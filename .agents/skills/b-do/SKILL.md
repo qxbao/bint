@@ -78,13 +78,13 @@ giữa lượt.
 <!-- bint:anchor routing -->
 <!-- bint:anchor-end routing -->
 
-## Luồng B′ (chọn bật; mặc định vẫn là luồng hiện tại)
+## Luồng B′ (luồng mặc định của b-do)
 
-B′ đảo thứ tự spec → test → mã thành **mã chạy được trước**, thước đo độc lập chạy song song, mở rộng phạm vi sau khi lõi xanh. Chỉ
-dùng khi người dùng muốn (thử nghiệm, đo so với luồng hiện tại); **đừng tự chọn**. Bật cho một phiếu lúc lập phiếu:
-`bint task new "…" --workflow b-do --variant bprime` (hoặc `bint run b-do --variant bprime "…"`); bật cho mọi phiếu mới:
-`workflow.variant: bprime` trong `.bint/config.yml`/`local.yml`. `--variant classic` ép luồng hiện tại. Luồng chốt một lần lúc lập
-phiếu (`classification.variant` trong `bint task show <id> --json`), không đi cùng `--task`.
+B′ đảo thứ tự spec → test → mã thành **mã chạy được trước**, thước đo độc lập chạy song song, mở rộng phạm vi sau khi lõi xanh. Đây
+là luồng mặc định của phiếu b-do mới, không cần cờ. Luồng cũ chỉ khi người dùng muốn (**đừng tự chọn**): `--variant classic` cho một
+phiếu (`bint task new "…" --workflow b-do --variant classic` hoặc `bint run b-do --variant classic "…"`), hoặc
+`workflow.variant: classic` trong `.bint/config.yml`/`local.yml` cho mọi phiếu mới. Luồng chốt một lần lúc lập phiếu
+(`classification.variant` trong `bint task show <id> --json`; phiếu cũ lập trước khi đổi mặc định giữ luồng cũ), không đi cùng `--task`.
 
 Thứ tự của B′ (bước do Bint điều phối như thường, bạn vẫn chỉ điều phối): b-req gọn (chỉ hỏi khi thiếu đặc tả) → b-feat **lõi**
 (đơn giản nhất đáp ứng tiêu chí, `bint task check` sau mỗi nhóm) cùng lúc b-goal thăm dò hộp đen viết từ yêu cầu gốc trong worktree tạm →

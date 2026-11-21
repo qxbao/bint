@@ -301,7 +301,7 @@ Tác vụ dừng sau khi hết vòng sửa review (workflow.max_review_rounds l�
 quả như hiện tại (vào thẳng bước hoàn tất, bỏ qua phát hiện còn lại), --fix-round cho sửa thêm đúng một vòng (b-feat rồi b-review),
 hoặc bint task cancel. --accept và --fix-round chỉ người dùng chạy được (không phải phiên agent).
 
-Luồng B′ (workflow.variant: bprime) có thước đo thăm dò đóng băng mà người cho là sai (b-feat đã dừng và hỏi): trả lời bằng --answer thì
+Luồng B′ (mặc định của b-do; workflow.variant: classic để quay về luồng cũ) có thước đo thăm dò đóng băng mà người cho là sai (b-feat đã dừng và hỏi): trả lời bằng --answer thì
 thước đo được giữ (người xác nhận); --drop-goal thôi đóng băng nó (chỉ người dùng, chỉ tác vụ B′).
 
 Tác vụ chạy theo lát mỏng dừng khi một lát quá trần thời gian agent, không đạt số đo, vượt ngân sách diff/hiệu năng hoặc agent lỗi: Bint GIỮ

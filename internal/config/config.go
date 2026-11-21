@@ -457,8 +457,8 @@ type Workflow struct {
 	// GoalCheck chọn khi nào b-do chạy b-goal (kiểm tra mục tiêu độc lập): auto (theo dòng `Kiểm tra mục tiêu độc lập (b-goal):` trong plan.md;
 	// plan không ghi thì chạy như cũ) | off (không bao giờ) | always (như hành vi cũ). `--fast` bỏ cả hai.
 	GoalCheck string `yaml:"goal_check"`
-	// Variant chọn luồng b-do cho tác vụ MỚI (chốt một lần vào classification.variant): classic (mặc định, luồng hiện tại) | bprime
-	// (luồng B′: b-req chỉ hỏi khi thiếu đặc tả và chỉ ghi danh sách "xong là gì" ngắn).
+	// Variant chọn luồng b-do cho tác vụ MỚI (chốt một lần vào classification.variant): bprime (mặc định, luồng B′: b-req chỉ hỏi khi
+	// thiếu đặc tả và chỉ ghi danh sách "xong là gì" ngắn) | classic (luồng cũ, chỉ để chọn lui).
 	Variant string `yaml:"variant"`
 	// ProbeCatalog (luồng B′) là tệp danh mục loại đầu vào, đường dẫn tương đối gốc repo (ví dụ danh sách quy tắc của một công cụ quét bí mật): đề bài
 	// thăm dò chép nó và đòi phủ từng mục hoặc ghi lý do loại trừ. Nguồn thông tin ngoài model, vì thước đo cùng model viết bỏ sót cùng loại với mã
@@ -802,7 +802,7 @@ func Default() Config {
 		},
 		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
-			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, Slicing: GateAuto, GoalCheck: GateAuto, Variant: VariantClassic, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
+			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, Slicing: GateAuto, GoalCheck: GateAuto, Variant: VariantBPrime, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Verify: WorkflowVerify{Scope: VerifyScopeFull, BintConfigFull: true}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
 			Agent: WorkflowAgent{

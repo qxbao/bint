@@ -55,7 +55,8 @@ func writeDoc(t *testing.T, root, id, name, body string) {
 
 func TestTaskLint(t *testing.T) {
 	root := newLintRepo(t)
-	id := newTaskID(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
+	// Lint đầy đủ của luồng classic (B′ là mặc định và có lint gọn riêng).
+	id := newTaskID(t, root, "--plan", "--variant", "classic", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 
 	// v1 thiếu artifact: mã 1, JSON có mã lỗi ổn định và mảng rỗng (không null).
 	out, code := run(t, root, "", "task", "lint", id, "--json")

@@ -295,7 +295,8 @@ func (b *bdoBox) writeLocal(o bdoOpts) {
 	}
 	var y strings.Builder
 	fmt.Fprintf(&y, "eval:\n  test_command: %q\n", b.vc)
-	fmt.Fprintf(&y, "workflow:\n  isolation: shared\n  slice_timeout_minutes: %d\n", sliceMin)
+	// Các ca này kiểm luồng classic (lát mỏng, cổng); B′ là mặc định nên ghim variant.
+	fmt.Fprintf(&y, "workflow:\n  isolation: shared\n  variant: classic\n  slice_timeout_minutes: %d\n", sliceMin)
 	if o.slicing != "" {
 		fmt.Fprintf(&y, "  slicing: %s\n", o.slicing)
 	}

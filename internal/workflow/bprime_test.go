@@ -54,9 +54,9 @@ func TestBPrimeLeanPlanningGoal(t *testing.T) {
 	const request = vagueGoalReq
 	headings := []string{"## Bề mặt bị ảnh hưởng", "## Giả định thay người dùng", "## Cỡ kế hoạch"}
 
-	// (a) mặc định là classic.
-	if v := config.Default().Workflow.Variant; v != config.VariantClassic {
-		t.Errorf("(a) Default().Workflow.Variant = %q, muốn %q", v, config.VariantClassic)
+	// (a) mặc định là bprime.
+	if v := config.Default().Workflow.Variant; v != config.VariantBPrime {
+		t.Errorf("(a) Default().Workflow.Variant = %q, muốn %q", v, config.VariantBPrime)
 	}
 
 	run := func(t *testing.T, variant string, switchBack bool) (*harness, *task.Task, string) {
