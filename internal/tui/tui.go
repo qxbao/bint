@@ -94,6 +94,10 @@ func Run(ctx context.Context, o Options) error {
 	}
 	mode := DetectMode(getenv, p, dark)
 
+	// Việc nền của TUI (doctor, nạp dữ liệu, tiến trình con) chạy trên ngữ cảnh riêng, huỷ ngay khi thoát để không tiến trình con nào
+	// còn chạy (và đụng tới terminal) sau khi TUI đã trả terminal lại.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	var model tea.Model
 	var root *tuiapp.Model
 	if o.Gallery {
@@ -110,7 +114,19 @@ func Run(ctx context.Context, o Options) error {
 	if o.Out != nil {
 		opts = append(opts, tea.WithOutput(o.Out))
 	}
-	if _, err := tea.NewProgram(model, opts...).Run(); err != nil {
+	inF, _ := o.In.(*os.File)
+	if o.In == nil {
+		inF = os.Stdin
+	}
+	outF, _ := out.(*os.File)
+	restore := saveConsole(inF, outF)
+	restoreCursor := saveCursor(inF, outF)
+	_, err := tea.NewProgram(model, opts...).Run()
+	cancel()
+	time.Sleep(consoleSettle) // tiến trình con bị huỷ kịp thoát trước khi đặt lại terminal
+	restore()
+	restoreCursor()
+	if err != nil {
 		return err
 	}
 	// Cập nhật xong và người dùng chọn khởi động lại: Bubble Tea đã thoát (terminal đã được trả lại) rồi mới exec tệp vừa cài với
@@ -129,3 +145,6 @@ func relaunch(path string, o Options) error {
 	}
 	return restartSelf(path, args, os.Environ())
 }
+
+// consoleSettle là thời gian chờ tiến trình con của TUI (đã huỷ) thoát hẳn trước khi đặt lại chế độ terminal.
+const consoleSettle = 150 * time.Millisecond
