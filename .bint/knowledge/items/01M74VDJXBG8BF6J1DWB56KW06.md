@@ -11,7 +11,7 @@ scope:
     - review
 evidence:
   - path: internal/harness/hookcore/hook.go
-    lines: 539-544
+    lines: 564-569
     fingerprint: lines:5bd75daa80a7086a
 origin:
   kind: human
@@ -19,11 +19,11 @@ origin:
   inputs:
     - internal/harness/hookcore/hook.go
 author: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-16T07:19:33Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-21T03:52:29Z"
 version: 1
 created_at: "2026-11-11T08:26:02Z"
-verified_at: "2026-11-16T07:19:33Z"
+verified_at: "2026-11-21T03:52:29Z"
 ---
 
 Ghi thêm ev.Payload[memory_reset]=true/false (hoặc lỗi cắt ngắn) để kiểm tra bằng spool sau một phiên dài thật.

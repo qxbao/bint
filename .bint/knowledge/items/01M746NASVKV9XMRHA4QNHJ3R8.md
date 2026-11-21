@@ -16,7 +16,7 @@ evidence:
     lines: "1"
     fingerprint: lines:c8cbc89b0cec1123
   - path: docs/ci-cd.md
-    lines: 110-112
+    lines: 120-122
     fingerprint: lines:221bf96ec24295c7
 origin:
   kind: agent
@@ -27,13 +27,13 @@ origin:
     - docs/ci-cd.md
     - internal/workflow/flock_unix.go
 author: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-16T07:19:57Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-21T03:52:12Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:16Z"
 updated_at: "2026-11-11T02:27:25Z"
-verified_at: "2026-11-16T07:19:57Z"
+verified_at: "2026-11-21T03:52:12Z"
 status_reason: người duyệt chấp nhận
 ---
 

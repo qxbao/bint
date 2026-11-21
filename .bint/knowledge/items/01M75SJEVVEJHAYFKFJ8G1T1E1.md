@@ -9,22 +9,22 @@ scope:
     - internal/tui/screens/**
 evidence:
   - path: internal/tui/screens/system/model.go
-    lines: "635"
+    lines: "637"
     fingerprint: lines:74be6a639f6e2c6f
   - path: internal/tui/app/knowledge_test.go
-    lines: "183"
+    lines: "174"
     fingerprint: lines:af5d8bd75ddea8cb
 origin:
   kind: agent
   session: 6cbf352c-523c-4831-a7ef-92e1ad1b1d41
   commit: 191ac2b850cec907b823ff67a6f35a8b6ecf7226
 author: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-16T07:19:31Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-21T03:52:18Z"
 version: 1
 created_at: "2026-11-11T17:12:59Z"
 updated_at: "2026-11-11T17:47:13Z"
-verified_at: "2026-11-16T07:19:31Z"
+verified_at: "2026-11-21T03:52:18Z"
 status_reason: qua kiểm tra xác định được
 ---
 

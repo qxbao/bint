@@ -13,7 +13,7 @@ evidence:
     lines: 75-95
     fingerprint: lines:b597accd9642fdfe
   - path: internal/tui/app/tasks_fixture_test.go
-    lines: 228-261
+    lines: 233-266
     fingerprint: lines:9f4639a614c279f5
 origin:
   kind: agent
@@ -21,11 +21,11 @@ origin:
   commit: c6972a0c7e799ea7aca6e2a6e3691730ab5e076d
 author: orca <dquanbao@gmail.com>
 reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-19T17:47:06Z"
+reviewed_at: "2026-11-21T03:52:15Z"
 version: 1
 created_at: "2026-11-19T17:44:49Z"
 updated_at: "2026-11-19T17:47:06Z"
-verified_at: "2026-11-19T17:47:06Z"
+verified_at: "2026-11-21T03:52:15Z"
 status_reason: người duyệt chấp nhận
 ---
 

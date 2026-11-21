@@ -10,19 +10,19 @@ scope:
     - internal/tui/actions/**
 evidence:
   - path: internal/cli/cliref_inventory_test.go
-    lines: "89"
+    lines: "110"
     fingerprint: lines:f3a3838944fd478e
 origin:
   kind: agent
   session: d78237c6-bd8b-4c03-b358-5aa96047ec1c
   commit: 3debc5691742df84ebd914af0bf83b2a390be51e
 author: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-16T07:19:16Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-21T03:52:17Z"
 version: 1
 created_at: "2026-11-12T22:22:38Z"
 updated_at: "2026-11-13T03:46:35Z"
-verified_at: "2026-11-16T07:19:16Z"
+verified_at: "2026-11-21T03:52:17Z"
 status_reason: người duyệt chấp nhận
 ---
 

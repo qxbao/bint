@@ -16,7 +16,7 @@ evidence:
     lines: 19-31
     fingerprint: lines:a89fd436e83e0814
   - path: internal/cli/commands.go
-    lines: 238-241
+    lines: 240-243
     fingerprint: lines:bca66967c0d90458
 origin:
   kind: agent
@@ -28,13 +28,13 @@ origin:
     - internal/cli/commands.go
     - internal/harness/claude/hook.go
 author: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-16T07:20:04Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-21T03:52:19Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:28Z"
 updated_at: "2026-11-11T02:27:38Z"
-verified_at: "2026-11-16T07:20:04Z"
+verified_at: "2026-11-21T03:52:19Z"
 status_reason: người duyệt chấp nhận
 ---
 

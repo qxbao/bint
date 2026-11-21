@@ -10,22 +10,22 @@ scope:
     - internal/app/iso_import*
 evidence:
   - path: internal/iso/import.go
-    lines: "51"
+    lines: "52"
     fingerprint: lines:453c5d91c4a132db
   - path: internal/iso/import.go
-    lines: "414"
+    lines: "422"
     fingerprint: lines:950861a8e787270a
 origin:
   kind: agent
   session: a06f0a5b-d4b9-447f-9a33-384b86f7537f
   commit: 339f13400f3d3150607c79924ccc8ab952eb71aa
 author: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-16T11:08:58Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-21T03:52:15Z"
 version: 1
 created_at: "2026-11-16T10:04:20Z"
 updated_at: "2026-11-16T11:08:58Z"
-verified_at: "2026-11-16T11:08:58Z"
+verified_at: "2026-11-21T03:52:15Z"
 status_reason: người duyệt chấp nhận
 ---
 

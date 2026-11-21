@@ -11,7 +11,7 @@ scope:
 evidence:
   - path: internal/harness/hookcore/hook.go
     lines: 1144-1157
-    fingerprint: lines:f28483b58bd6871b
+    fingerprint: lines:b252be85fcce6f5c
   - path: internal/app/subagent_hook_test.go
     symbol: TestReadonlyGuardrailFailsClosedOnBadConfig
     fingerprint: symbol:c9252c30290f385c
@@ -22,13 +22,13 @@ origin:
     - internal/harness/hookcore/hook.go
     - internal/app/subagent_hook_test.go
 author: honggduc <148782719+Leekiri1234@users.noreply.github.com>
-reviewed_by: honggduc <148782719+Leekiri1234@users.noreply.github.com>
-reviewed_at: "2026-11-15T16:07:15Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-21T03:53:57Z"
 confidence: high
 version: 1
 created_at: "2026-11-14T09:56:40Z"
 updated_at: "2026-11-15T16:07:15Z"
-verified_at: "2026-11-15T16:07:15Z"
+verified_at: "2026-11-21T03:53:57Z"
 status_reason: 'Duyệt theo yêu cầu trực tiếp của người dùng trong phiên PR #8; đã đối chiếu nội dung với mã hiện tại, cập nhật bằng chứng resolver và vị trí bằng chứng dịch dòng.'
 ---
 
