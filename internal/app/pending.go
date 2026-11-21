@@ -98,6 +98,29 @@ func (r PendingWorkReport) ErrorOf(src string) error {
 // gì. Nguồn đọc lỗi được ghi vào Errors và không làm mất các nguồn khác. Repository chưa init cho lỗi
 // ErrNotInitialized (người gọi hiện màn khởi tạo thay vì hộp thư).
 func PendingWork(ctx context.Context, dir string) (*PendingWorkReport, error) {
+	return PendingWorkWith(ctx, dir, PendingOptions{})
+}
+
+// PendingOptions điều chỉnh PendingWork. NoDoctor: bỏ nguồn Doctor (chậm nhất, ~1 s); người gọi tự chạy Doctor rồi SetDoctor.
+type PendingOptions struct {
+	NoDoctor bool
+}
+
+// SetDoctor gắn báo cáo doctor vào hộp thư (cảnh báo và lỗi thành việc cần người).
+func (rep *PendingWorkReport) SetDoctor(d *DoctorReport) {
+	rep.DoctorAll, rep.Doctor = d, nil
+	if d == nil {
+		return
+	}
+	for _, c := range d.Checks {
+		if c.Level == LevelWarn || c.Level == LevelFail {
+			rep.Doctor = append(rep.Doctor, c)
+		}
+	}
+}
+
+// PendingWorkWith như PendingWork với tuỳ chọn o.
+func PendingWorkWith(ctx context.Context, dir string, o PendingOptions) (*PendingWorkReport, error) {
 	rep := &PendingWorkReport{}
 	ws, err := OpenWorkspace(ctx, dir, true)
 	if err != nil {
@@ -220,11 +243,8 @@ func PendingWork(ctx context.Context, dir string) (*PendingWorkReport, error) {
 	}
 
 	// 6. Doctor: cảnh báo và lỗi.
-	rep.DoctorAll = Doctor(ctx, dir)
-	for _, c := range rep.DoctorAll.Checks {
-		if c.Level == LevelWarn || c.Level == LevelFail {
-			rep.Doctor = append(rep.Doctor, c)
-		}
+	if !o.NoDoctor {
+		rep.SetDoctor(Doctor(ctx, dir))
 	}
 	return rep, nil
 }

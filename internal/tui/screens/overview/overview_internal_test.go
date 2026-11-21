@@ -85,3 +85,21 @@ func TestInboxSeverityOrderAndGrouping(t *testing.T) {
 		}
 	}
 }
+
+// Nạp nhanh (chưa có doctor) rồi DoctorMsg về: hộp thư bổ sung cảnh báo doctor; lần nạp nhanh sau dùng tạm doctor cũ.
+func TestDoctorArrivesAfterFastLoad(t *testing.T) {
+	warn := &app.DoctorReport{Checks: []app.Check{{Name: "config", Level: app.LevelWarn, Detail: "cũ"}, {Name: "git", Level: app.LevelOK}}}
+	var m Model
+	m, _ = m.Update(LoadedMsg{Data: Data{Status: &app.StatusReport{}, Pending: &app.PendingWorkReport{}, DoctorPending: true}})
+	if m.Data.Doctor != nil || len(m.Data.Pending.Doctor) != 0 {
+		t.Fatal("nạp nhanh chưa có doctor")
+	}
+	m, _ = m.Update(DoctorMsg{Report: warn})
+	if m.Data.Doctor != warn || len(m.Data.Pending.Doctor) != 1 || m.Data.DoctorPending {
+		t.Fatalf("doctor về phải gắn vào hộp thư: %+v", m.Data.Pending.Doctor)
+	}
+	m, _ = m.Update(LoadedMsg{Data: Data{Status: &app.StatusReport{}, Pending: &app.PendingWorkReport{}, DoctorPending: true}, Soft: true})
+	if m.Data.Doctor != warn || len(m.Data.Pending.Doctor) != 1 || !m.Data.DoctorPending {
+		t.Fatalf("nạp lại nhanh phải dùng tạm doctor cũ: %+v", m.Data)
+	}
+}

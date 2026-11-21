@@ -365,18 +365,19 @@ func (m *Model) loadMode(soft bool) tea.Cmd {
 	}
 	m.ov.Loading = true
 	loader := m.opts.Loader
-	if loader == nil {
-		loader = overview.Load
-		if m.opts.ReadOnly {
-			loader = overview.LoadNoIngest // chế độ chỉ đọc không ghi SQLite (mục 7.4)
-		}
-	}
 	ctx, dir := m.ctx, m.opts.Dir
+	var doctor tea.Cmd
+	if loader == nil {
+		// Nạp nhanh (chế độ chỉ đọc không ghi SQLite, mục 7.4) rồi Doctor — nguồn chậm nhất — chạy song song và bổ sung khi xong,
+		// để Tổng quan hiện ngay thay vì chờ cả doctor.
+		loader = overview.LoadFast(!m.opts.ReadOnly)
+		doctor = overview.LoadDoctor(ctx, dir)
+	}
 	load := func() tea.Msg {
 		d, err := loader(ctx, dir)
 		return overview.LoadedMsg{Data: d, Err: err, Soft: soft}
 	}
-	return tea.Batch(load, m.loadActive(true), m.startTick())
+	return tea.Batch(load, doctor, m.loadActive(true), m.startTick())
 }
 
 // activeStepsMsg: kết quả đọc các bước đang chạy trên cây làm việc; watch != nil khi vừa dựng lại.
@@ -582,6 +583,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(msg)
 		return m, cmd
+	case overview.DoctorMsg:
+		m.ov, _ = m.ov.Update(msg)
+		return m, nil
 	case overview.LoadedMsg:
 		msg.Data.Binary, msg.Data.Revision = m.opts.Version, bintapp.SelfRevision()
 		m.ov, _ = m.ov.Update(msg)

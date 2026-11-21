@@ -42,6 +42,8 @@ type Data struct {
 	LockVersion      string
 	ConfigOutdated   bool
 	ConfigAdded      []string
+	// DoctorPending: Doctor đang chạy ở nền (LoadFast); hộp thư và tóm tắt Doctor bổ sung khi DoctorMsg về.
+	DoctorPending bool
 }
 
 // LockMismatch: core.lock ghi phiên bản khác binary đang chạy (skill xuất bản bằng bản Bint khác → bint sync).
@@ -228,12 +230,26 @@ type LoadedMsg struct {
 
 // Load đọc dữ liệu của Tổng quan ở repository chứa dir. Repository chưa init cho Data.NotInit = true
 // (không phải lỗi). Chạy ngoài vòng Update (trong tea.Cmd).
-func Load(ctx context.Context, dir string) (Data, error) { return load(ctx, dir, true) }
+func Load(ctx context.Context, dir string) (Data, error) { return load(ctx, dir, true, false) }
 
 // LoadNoIngest như Load nhưng không nạp spool vào cơ sở dữ liệu (chế độ chỉ đọc, mục 7.4).
-func LoadNoIngest(ctx context.Context, dir string) (Data, error) { return load(ctx, dir, false) }
+func LoadNoIngest(ctx context.Context, dir string) (Data, error) { return load(ctx, dir, false, false) }
 
-func load(ctx context.Context, dir string, ingest bool) (Data, error) {
+// LoadFast như Load nhưng chưa chạy Doctor (nguồn chậm nhất): Data.DoctorPending = true; mô hình gốc chạy LoadDoctor song song và
+// gửi DoctorMsg để bổ sung. ingest=false: không nạp spool (chế độ chỉ đọc).
+func LoadFast(ingest bool) func(ctx context.Context, dir string) (Data, error) {
+	return func(ctx context.Context, dir string) (Data, error) { return load(ctx, dir, ingest, true) }
+}
+
+// DoctorMsg mang báo cáo doctor chạy ở nền (sau LoadFast).
+type DoctorMsg struct{ Report *app.DoctorReport }
+
+// LoadDoctor chạy doctor ở nền cho Tổng quan.
+func LoadDoctor(ctx context.Context, dir string) tea.Cmd {
+	return func() tea.Msg { return DoctorMsg{Report: app.Doctor(ctx, dir)} }
+}
+
+func load(ctx context.Context, dir string, ingest, noDoctor bool) (Data, error) {
 	var d Data
 	status := app.Status
 	if !ingest {
@@ -251,7 +267,7 @@ func load(ctx context.Context, dir string, ingest bool) (Data, error) {
 	}
 	d.Status = st
 	// Hộp thư đọc sáu nguồn, mỗi nguồn lỗi riêng; chỉ lỗi mở repository mới làm hỏng cả lần nạp.
-	p, err := app.PendingWork(ctx, dir)
+	p, err := app.PendingWorkWith(ctx, dir, app.PendingOptions{NoDoctor: noDoctor})
 	switch {
 	case errors.Is(err, app.ErrNotInitialized):
 		d.NotInit, d.Status = true, nil
@@ -259,7 +275,7 @@ func load(ctx context.Context, dir string, ingest bool) (Data, error) {
 	case err != nil:
 		return d, err
 	}
-	d.Pending, d.Doctor = p, p.DoctorAll
+	d.Pending, d.Doctor, d.DoctorPending = p, p.DoctorAll, noDoctor
 	d.Candidates = p.KnowledgeTotal()
 	if vs, err := app.VersionInfo(ctx, dir, ""); err == nil {
 		d.LockVersion, d.ConfigOutdated, d.ConfigAdded = vs.LockVersion, vs.ConfigOutdated, vs.ConfigAdded
@@ -301,6 +317,8 @@ type Model struct {
 	Loading bool
 	Err     error
 	Cursor  int // dòng đang chọn trong hộp thư
+	// doctor là báo cáo doctor gần nhất (DoctorMsg): lần nạp nhanh sau dùng tạm tới khi doctor mới về.
+	doctor *app.DoctorReport
 }
 
 // Update xử lý thông điệp của màn hình.
@@ -314,6 +332,15 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.Err = msg.Err
 		if msg.Err == nil {
 			m.Data, m.Loaded = msg.Data, true
+			if m.Data.DoctorPending && m.doctor != nil { // doctor của lần trước dùng tạm (không làm hộp thư nhấp nháy)
+				m.attachDoctor(m.doctor, true)
+			}
+			m.Cursor = min(m.Cursor, max(len(m.Data.Inbox())-1, 0))
+		}
+	case DoctorMsg:
+		m.doctor = msg.Report
+		if m.Loaded {
+			m.attachDoctor(msg.Report, false)
 			m.Cursor = min(m.Cursor, max(len(m.Data.Inbox())-1, 0))
 		}
 	case tea.KeyPressMsg:
@@ -452,11 +479,20 @@ func (m Model) body(env ui.Env, decor bool) (lines []string, windowed bool) {
 
 	// Doctor rút gọn: chỉ số đếm. Mọi cảnh báo/lỗi doctor đã nằm trong hộp thư ở trên (Inbox), nên không
 	// liệt kê lại chi tiết ở đây.
-	add(" " + th.Bold(env.T("overview.doctor.title")) + "  " + m.doctorSummary(th))
+	add(" " + th.Bold(env.T("overview.doctor.title")) + "  " + m.doctorSummary(env))
 	return lines, len(inbox) > to-from
 }
 
-func (m Model) doctorSummary(th theme.Theme) string {
+// attachDoctor gắn báo cáo doctor d vào dữ liệu đang hiện; pending: vẫn còn lượt doctor mới đang chạy.
+func (m *Model) attachDoctor(d *app.DoctorReport, pending bool) {
+	if m.Data.Pending != nil {
+		m.Data.Pending.SetDoctor(d)
+	}
+	m.Data.Doctor, m.Data.DoctorPending = d, pending
+}
+
+func (m Model) doctorSummary(env ui.Env) string {
+	th := env.Th
 	var ok, warn, fail int
 	if m.Data.Doctor != nil {
 		for _, c := range m.Data.Doctor.Checks {
@@ -470,7 +506,14 @@ func (m Model) doctorSummary(th theme.Theme) string {
 			}
 		}
 	}
-	return th.S(theme.OK, fmt.Sprintf("✓ %d", ok)) + "  " + th.S(theme.Warn, fmt.Sprintf("! %d", warn)) + "  " + th.S(theme.Err, fmt.Sprintf("✗ %d", fail))
+	out := th.S(theme.OK, fmt.Sprintf("✓ %d", ok)) + "  " + th.S(theme.Warn, fmt.Sprintf("! %d", warn)) + "  " + th.S(theme.Err, fmt.Sprintf("✗ %d", fail))
+	if m.Data.DoctorPending {
+		if m.Data.Doctor == nil {
+			return th.S(theme.Muted, env.T("overview.doctor.checking"))
+		}
+		out += th.S(theme.Muted, "  "+env.T("overview.doctor.checking"))
+	}
+	return out
 }
 
 // infoBox là hộp thông tin repository, rộng vừa nội dung.

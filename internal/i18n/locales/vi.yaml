@@ -181,6 +181,7 @@ overview.inbox.doctor_warn_many:
   one: "Doctor có {count} cảnh báo"
   other: "Doctor có {count} cảnh báo"
 overview.doctor.title: "Doctor"
+overview.doctor.checking: "đang kiểm…"
 overview.error: "Không đọc được trạng thái repository."
 overview.error.hint: "Nhấn r để thử lại, hoặc mở Hệ thống › Doctor (phím 7, rồi chọn thẻ Doctor) để xem chi tiết."
 

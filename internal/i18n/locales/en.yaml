@@ -182,6 +182,7 @@ overview.inbox.doctor_warn_many:
   one: "Doctor has {count} warning"
   other: "Doctor has {count} warnings"
 overview.doctor.title: "Doctor"
+overview.doctor.checking: "checking…"
 overview.error: "Could not read the repository status."
 overview.error.hint: "Press r to retry, or open System › Doctor (key 7, then pick the Doctor tab) for details."
 
