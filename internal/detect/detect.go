@@ -156,7 +156,7 @@ func exists(root, name string) bool {
 func SuggestCommands(root string) Commands {
 	switch {
 	case exists(root, "go.mod"):
-		return Commands{Test: "go test ./...", Setup: "go mod download", Affected: "go test -count=1 {test_dirs}", Reason: "go.mod"}
+		return Commands{Test: "go test ./...", Setup: "go mod download", Affected: "go test -count=1 -timeout=30m {test_dirs}", Reason: "go.mod"}
 	case exists(root, "package.json"):
 		pm := "npm"
 		switch {

@@ -193,7 +193,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
   verify:                   # phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (cổng done và bint task verify luôn chạy đầy đủ)
     scope: full             # full (chạy verify.command của phiếu) | affected (chỉ chạy test bị ảnh hưởng bởi thay đổi; thay đổi lạ thì tự nới ra full)
-    affected_command: ""    # lệnh cho scope affected, có {test_dirs} hoặc {test_files}, ví dụ "go test -count=1 {test_dirs}"
+    affected_command: ""    # lệnh cho scope affected, có {test_dirs} hoặc {test_files}, ví dụ "go test -count=1 -timeout=30m {test_dirs}"
     bint_config_full: true  # true = thay đổi trong .bint/** nới kiểm chứng ra full; false = không nới (cổng done vẫn chạy đầy đủ một lần)
     # done: full              # bằng chứng cổng done khi scope affected: full = chạy đầy đủ một lần trước done; graph = nhận lần chọn theo đồ thị phụ thuộc đã xanh trên đúng cây (toàn bộ để CI/land)
 `)

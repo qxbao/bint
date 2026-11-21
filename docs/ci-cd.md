@@ -149,7 +149,7 @@ các khối `run:`).
 
 Workflow CI của dự án khác (dùng bint) có thể rút ngắn job test bằng cùng bộ chọn mà vòng kiểm chứng của tác vụ dùng
 (xem [workflows.md](workflows.md#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)). Checkout đủ lịch sử (`fetch-depth: 0`)
-để tính `merge-base`, đặt `workflow.verify.affected_command` (ví dụ `go test -count=1 {test_dirs}`) và `eval.test_command` (lệnh chạy
+để tính `merge-base`, đặt `workflow.verify.affected_command` (ví dụ `go test -count=1 -timeout=30m {test_dirs}`) và `eval.test_command` (lệnh chạy
 toàn bộ) trong `.bint/config.yml`, rồi:
 
 ```sh
