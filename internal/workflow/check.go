@@ -138,7 +138,9 @@ func (e *Env) check(ctx context.Context, ref, reason string) (*task.Task, CheckR
 		if tmp != "" {
 			env = append(env, verifyTempEnv(tmp)...)
 		}
+		done := e.beginActivity(t.State.ID, task.ActivityCheck, ran, log)
 		r = eval.RunShell(ctx, root, ran, time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes)*verifyTimeoutUnit, log, env)
+		done()
 		cleanup()
 		if r.Err != nil && ctx.Err() != nil {
 			return t, res, ctx.Err()

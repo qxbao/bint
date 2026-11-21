@@ -592,7 +592,7 @@ func gd1FrameCells(t *testing.T) {
 				t.Errorf("C-CHROME/%s: không thấy dòng nội dung đầu tiên:\n%s", where, s)
 				return
 			}
-			if first > 3 {
+			if first > 3 && pl.screen == "knowledge" { // Tổng quan căn giữa theo chiều dọc khi thừa chỗ: chỉ đo khung ở màn danh sách
 				t.Errorf("C-CHROME/%s: có %d dòng khung phía trên dòng nội dung đầu tiên, muốn tối đa 3:\n%s", where, first, s)
 			}
 			if bars > 1 {

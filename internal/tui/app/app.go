@@ -238,7 +238,7 @@ func New(ctx context.Context, opts Options) *Model {
 	m.kn = knscreen.New(knscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Agent: opts.Agent, Ctx: ctx,
 		Loader: opts.KnowledgeLoader, Detailer: opts.KnowledgeDetailer, Gate: m.gate})
 	m.tk = tkscreen.New(tkscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.TasksLoader, Detailer: opts.TasksDetailer,
-		Runs: opts.TasksRuns, RunsDebounce: opts.TasksRunsDebounce, Gate: m.gate, Jobs: m.jobs})
+		Runs: opts.TasksRuns, RunsDebounce: opts.TasksRunsDebounce, Poll: tasksPoll(opts.ActivePoll), Gate: m.gate, Jobs: m.jobs})
 	m.rn = rnscreen.New(rnscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.RunsLoader, Detailer: opts.RunsDetailer,
 		Lessons: opts.RunsLessons, Gate: m.gate})
 	m.ev = evscreen.New(evscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.EvolveLoader, Detailer: opts.EvolveDetailer,
@@ -1403,4 +1403,12 @@ func (m *Model) helpGroups() []help.Group {
 		}
 	}
 	return groups
+}
+
+// tasksPoll là nhịp nạp mềm của màn Tác vụ khi có tác vụ đang chạy: 2 s khi mô hình gốc có thăm dò (TUI thật), 0 = tắt (kiểm thử).
+func tasksPoll(active time.Duration) time.Duration {
+	if active <= 0 {
+		return 0
+	}
+	return 2 * time.Second
 }

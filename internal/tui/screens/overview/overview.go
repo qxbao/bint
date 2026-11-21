@@ -386,10 +386,21 @@ func (m Model) View(env ui.Env) string {
 	if len(out) > env.H {
 		out = out[:env.H]
 	}
-	if len(out) < env.H { // một dòng trống dưới thanh tab cho thoáng; nội dung bám trên (không căn giữa theo chiều dọc)
-		out = append([]string{""}, out...)
+	return strings.Join(centerVertically(out, env.H), "\n")
+}
+
+// centerVertically đặt khối lines vào giữa chiều cao h khi còn thừa nhiều chỗ (từ minSpare dòng); thừa ít thì chỉ chừa một dòng trống
+// dưới thanh tab.
+func centerVertically(lines []string, h int) []string {
+	const minSpare = 4
+	spare := h - len(lines)
+	switch {
+	case spare >= minSpare:
+		return append(make([]string, spare/2), lines...)
+	case spare > 0:
+		return append([]string{""}, lines...)
 	}
-	return strings.Join(out, "\n")
+	return lines
 }
 
 // body dựng các dòng của màn Tổng quan; decor = có chữ "bint." (hoặc logo) và khẩu hiệu ở đầu.
@@ -409,6 +420,7 @@ func (m Model) body(env ui.Env, decor bool) (lines []string, windowed bool) {
 	if decor {
 		if logo.Fits(env.W, env.H+2) { // đủ cao (tính cả thanh tab và chân phím): logo điểm ảnh và khẩu hiệu
 			add(center(logo.Render(th, true))...)
+			add("") // logo và khẩu hiệu cách một dòng
 			add(text.Center(th.S(theme.Muted, env.T("app.tagline")), env.W))
 		} else { // thấp hơn: một dòng "bint.  khẩu hiệu"
 			add(text.Center(strings.Join(logo.Render(th, false), "")+th.S(theme.Muted, "  "+env.T("app.tagline")), env.W))
@@ -547,7 +559,11 @@ func (m Model) infoBox(env ui.Env) []string {
 	rows[5][1] = activityLine(env, st.Daily)
 	rows[6][1] = m.knowledgeLine(env)
 	var body []string
-	for _, r := range rows {
+	roomy := env.H >= 30 // đủ cao: tách nhóm "nơi chứa" (thư mục…schema) và nhóm "hoạt động" (lượt chạy…tri thức) bằng một dòng trống
+	for ri, r := range rows {
+		if ri == 4 && roomy {
+			body = append(body, "")
+		}
 		vals := text.WrapHang(r[1], vw, "", "")
 		if len(vals) == 0 {
 			vals = []string{""}

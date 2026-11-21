@@ -58,6 +58,9 @@ const (
 type Options struct {
 	Dir      string
 	ReadOnly bool
+	// Poll là nhịp nạp mềm khi có tác vụ đang được điều phối hoặc đang chạy việc dài (trạng thái, thời gian, đuôi log cập nhật theo
+	// nhịp này); 0 = không thăm dò (kiểm thử).
+	Poll time.Duration
 	// Loader/Detailer/Runs thay được trong kiểm thử; nil = nạp thật.
 	Loader   Loader
 	Detailer Detailer
@@ -86,11 +89,13 @@ type row struct {
 
 // Model là trạng thái màn Tác vụ.
 type Model struct {
-	o   Options
-	sp  split.State // tỉ lệ hai pane (ui.Splitter); khởi tạo lười trong Splitter
-	cat *i18n.Catalog
-	rw  ui.Rewriter
-	th  theme.Theme
+	o Options
+	// runnerTicking: đang có chuỗi nhịp nạp mềm khi có tác vụ được điều phối (activity.go).
+	runnerTicking bool
+	sp            split.State // tỉ lệ hai pane (ui.Splitter); khởi tạo lười trong Splitter
+	cat           *i18n.Catalog
+	rw            ui.Rewriter
+	th            theme.Theme
 
 	Data        Data
 	Loaded      bool
@@ -484,6 +489,9 @@ func (m *Model) invalidate() {
 // Update xử lý thông điệp không phải phím; trả lệnh kế tiếp.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
+	case runnerTickMsg:
+		m.runnerTicking = false
+		return m.Refresh()
 	case LoadedMsg:
 		soft := m.soft
 		m.Loading, m.soft = false, false
@@ -507,6 +515,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			m.reloadAgain = false
 			cmds = append(cmds, m.Load())
 		}
+		cmds = append(cmds, m.pollRunners())
 		return tea.Batch(cmds...)
 	case DetailMsg:
 		if msg.Err != nil {

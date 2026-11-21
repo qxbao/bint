@@ -363,6 +363,12 @@ func newRunStatusCmd(stdio IO) *cobra.Command {
 			}
 			fmt.Fprintf(w, "\n  %s\n", t.Ticket.Goal)
 			printIsolationLines(w, "  ", t)
+			if a := t.State.Activity; a != nil && (a.PID <= 0 || task.RunnerAlive(&task.Runner{PID: a.PID})) {
+				fmt.Fprintf(w, "  Đang chạy:   %s: %s (từ %s)\n", a.Kind, a.Command, fmtRFC(a.Started))
+				if a.Log != "" {
+					fmt.Fprintf(w, "               log: %s\n", a.Log)
+				}
+			}
 			printDriverLines(w, "  ", t)
 			printLastStepLine(w, "  ", t)
 			if len(rows) == 0 {

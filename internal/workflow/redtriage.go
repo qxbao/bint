@@ -113,7 +113,9 @@ func (r *Runner) triageRed(ctx context.Context, rs *runState) bool {
 		if tmp != "" {
 			env = append(env, verifyTempEnv(tmp)...)
 		}
+		done := r.beginActivity(t.State.ID, task.ActivityRerun, cmd, log)
 		res := eval.RunShell(ctx, dir, cmd, 2*limit+time.Minute, log, env)
+		done()
 		cleanup()
 		data, _ := os.ReadFile(log)
 		return res, testreport.Parse(string(data)), true

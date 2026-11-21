@@ -461,6 +461,23 @@ type Runner struct {
 	Started string `json:"started"`
 }
 
+// Activity mô tả việc dài đang chạy của tác vụ (State.Activity).
+type Activity struct {
+	Kind    string `json:"kind"` // Activity*
+	Command string `json:"command"`
+	Log     string `json:"log,omitempty"`
+	Started string `json:"started"`
+	PID     int    `json:"pid,omitempty"` // tiến trình Bint chạy lệnh (TUI bỏ qua hoạt động của tiến trình đã chết)
+}
+
+// Loại hoạt động của State.Activity.
+const (
+	ActivityVerify = "verify" // lệnh kiểm chứng của phiếu
+	ActivityGoal   = "goal"   // cổng kiểm tra mục tiêu
+	ActivityCheck  = "check"  // kiểm hẹp theo gói bị chạm
+	ActivityRerun  = "rerun"  // chạy lại riêng test đỏ để phân loại
+)
+
 // State là trạng thái tác vụ (state.json), chỉ Bint ghi.
 type State struct {
 	Schema   int    `json:"schema"`
@@ -472,6 +489,9 @@ type State struct {
 	// flow tuỳ biến: khác băm hiện tại nghĩa là flow đã đổi giữa chừng và tác vụ bị chặn.
 	FlowStep string `json:"flow_step,omitempty"`
 	FlowSHA  string `json:"flow_sha,omitempty"`
+	// Activity là việc dài Bint đang tự chạy cho tác vụ (lệnh kiểm chứng, cổng mục tiêu): ghi khi bắt đầu, xoá khi xong, để TUI và
+	// `bint run status` hiện ngay lệnh đang chạy và log của nó thay vì chờ kết quả.
+	Activity *Activity `json:"activity,omitempty"`
 	// AgentChoices ghi lựa chọn harness/model hiệu lực theo role để resume không đổi agent khi cấu hình đổi.
 	AgentChoices map[string]AgentChoice `json:"agent_choices,omitempty"`
 	CreatedAt    string                 `json:"created_at"`

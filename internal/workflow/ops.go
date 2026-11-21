@@ -845,7 +845,9 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 		if tmp != "" {
 			env = append(env, verifyTempEnv(tmp)...)
 		}
+		done := e.beginActivity(t.State.ID, task.ActivityVerify, ran, log)
 		r = eval.RunShell(ctx, root, ran, timeout, log, env)
+		done()
 		cleanup()
 		if r.Err != nil && ctx.Err() != nil {
 			return t, res, ctx.Err()
@@ -1218,3 +1220,23 @@ func truncate(s string, n int) string {
 
 // verifyTimeoutUnit là đơn vị của workflow.verify_timeout_minutes (biến để test rút ngắn).
 var verifyTimeoutUnit = time.Minute
+
+// beginActivity ghi State.Activity của tác vụ id (việc dài vừa bắt đầu) để TUI hiện ngay lệnh đang chạy; lỗi ghi chỉ làm mất phần
+// hiển thị, không làm hỏng việc. Trả hàm xoá Activity (gọi khi xong, kể cả khi lỗi).
+func (e *Env) beginActivity(id, kind, cmd, log string) func() {
+	act := &task.Activity{Kind: kind, Command: cmd, Log: log, Started: e.at(), PID: os.Getpid()}
+	if _, err := e.Tasks.Update(id, e.now(), func(t *task.Task) error {
+		t.State.Activity = act
+		return nil
+	}); err != nil {
+		return func() {}
+	}
+	return func() {
+		_, _ = e.Tasks.Update(id, e.now(), func(t *task.Task) error {
+			if t.State.Activity != nil && t.State.Activity.Started == act.Started && t.State.Activity.Kind == act.Kind {
+				t.State.Activity = nil
+			}
+			return nil
+		})
+	}
+}

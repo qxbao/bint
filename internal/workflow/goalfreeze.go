@@ -353,7 +353,9 @@ func (r *Runner) goalGate(ctx context.Context, rs *runState, reason string) bool
 	if tmp != "" {
 		env = append(env, verifyTempEnv(tmp)...)
 	}
+	done := r.beginActivity(t.State.ID, task.ActivityGoal, cmd, log)
 	res := eval.RunShell(ctx, root, cmd, time.Duration(r.Cfg.Workflow.VerifyTimeoutMinutes)*time.Minute, log, env)
+	done()
 	cleanup()
 	lock.Release()
 	if res.Err != nil && ctx.Err() != nil {

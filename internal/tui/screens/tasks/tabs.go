@@ -13,6 +13,7 @@ import (
 	"bint/internal/tui/components/markdown"
 	"bint/internal/tui/components/meter"
 	"bint/internal/tui/components/text"
+	"bint/internal/tui/screens/shared"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 	"bint/internal/workflow"
@@ -81,6 +82,7 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 	add := func(s ...string) { l = append(l, s...) }
 	st, tk := t.State, t.Ticket
 	add(m.spotlightLines(env, t, w)...)
+	add(m.activityLines(env, t, w)...)
 	// Điều cần người xử lý nằm ngay dưới khối nổi bật: câu hỏi, điều chặn done, đường dẫn chờ duyệt.
 	if have && derr == nil {
 		if len(d.Assessment.Questions) > 0 {
@@ -206,7 +208,15 @@ func (m *Model) infoLines(env ui.Env, t *task.Task, d Detail, have bool, derr er
 			if from == "" {
 				from = "∅"
 			}
-			add(th.S(theme.Muted, fmtAt(h.At)+"  ") + from + " → " + h.To + th.S(theme.Muted, " ("+h.By+") "+m.cli(h.Reason)))
+			// Mỗi lần chuyển: dòng đầu là thời điểm, chuyển trạng thái và người/tiến trình; lý do ngắt dòng thụt vào bên dưới; các lần chuyển
+			// cách nhau một dòng trống cho dễ đọc.
+			if len(st.History)-i > 1 {
+				add("")
+			}
+			add(th.S(theme.Muted, fmtAt(h.At)+"  ") + th.Bold(from+" → "+h.To) + th.S(theme.Muted, "  · "+shared.Person(h.By)))
+			if r := strings.TrimSpace(m.cli(h.Reason)); r != "" {
+				add(text.WrapHang(r, w, "    ", "    ")...)
+			}
 		}
 	}
 	return l
