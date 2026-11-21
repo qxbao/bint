@@ -103,6 +103,8 @@ type Options struct {
 	// LedgerWarnings lấy (và xoá) cảnh báo sổ phiếu .bint/tasks đang chờ (lỗi ghi, xung đột, thay đổi chờ nhập);
 	// TUI hiện chúng thành thông báo lỗi sau mỗi lần Update. nil = không có.
 	LedgerWarnings func() []string
+	// Layout là ui.layout đọc sẵn lúc mở TUI (tỉ lệ pane theo màn); nil = đọc ở nền khi Init.
+	Layout map[string]int
 	// ExitGrace là thời gian chờ việc nền kết thúc sau khi huỷ lúc thoát; 0 = 15 giây.
 	ExitGrace time.Duration
 	// TailEvery là chu kỳ đọc đuôi log của bước agent đang chạy; 0 = 400 ms.
@@ -205,6 +207,7 @@ type Model struct {
 	dragSplit   bool
 	layoutSeq   int
 	layoutDirty map[string]bool
+	layoutReady bool
 	notes       notices
 	// Chọn/chép bằng chuột (selection.go) và clipboard (paste.go).
 	sel  selection
@@ -231,7 +234,7 @@ func New(ctx context.Context, opts Options) *Model {
 	if m.clip == nil {
 		m.clip = clipboard.System()
 	}
-	m.kn = knscreen.New(knscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Agent: opts.Agent,
+	m.kn = knscreen.New(knscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Agent: opts.Agent, Ctx: ctx,
 		Loader: opts.KnowledgeLoader, Detailer: opts.KnowledgeDetailer, Gate: m.gate})
 	m.tk = tkscreen.New(tkscreen.Options{Dir: opts.Dir, ReadOnly: opts.ReadOnly, Loader: opts.TasksLoader, Detailer: opts.TasksDetailer,
 		Runs: opts.TasksRuns, RunsDebounce: opts.TasksRunsDebounce, Gate: m.gate, Jobs: m.jobs})
@@ -248,6 +251,9 @@ func New(ctx context.Context, opts Options) *Model {
 		actions.System: m.sy, actions.MCP: m.mc, actions.Init: m.wiz}
 	for _, sc := range m.screens {
 		sc.SetEnv(m.th, m.rw())
+	}
+	if opts.Layout != nil {
+		m.applyLayout(opts.Layout)
 	}
 	return m
 }
@@ -509,7 +515,12 @@ func (m *Model) reloadData() tea.Cmd {
 }
 
 // Init nạp dữ liệu ban đầu.
-func (m *Model) Init() tea.Cmd { return tea.Batch(m.load(), m.loadLayout()) }
+func (m *Model) Init() tea.Cmd {
+	if m.layoutReady {
+		return m.load()
+	}
+	return tea.Batch(m.load(), m.loadLayout())
+}
 
 // Update xử lý thông điệp.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

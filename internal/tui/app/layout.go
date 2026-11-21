@@ -41,15 +41,16 @@ func (m *Model) loadLayout() tea.Cmd {
 	dir := m.opts.Dir
 	return func() tea.Msg {
 		l, err := bintapp.UILayout(context.Background(), dir)
-		if err != nil || len(l) == 0 {
-			return nil
+		if err != nil {
+			l = nil // repo chưa init hoặc cấu hình lỗi: giữ tỉ lệ mặc định (lỗi cấu hình đã hiện ở Tổng quan/Hệ thống)
 		}
 		return layoutLoadedMsg{layout: l}
 	}
 }
 
-// applyLayout đặt tỉ lệ đã lưu cho từng màn.
+// applyLayout đặt tỉ lệ đã lưu cho từng màn (layoutReady: đã đọc cấu hình, kể cả khi không có tỉ lệ nào).
 func (m *Model) applyLayout(l map[string]int) {
+	m.layoutReady = true
 	for s, sc := range m.screens {
 		sp, ok := sc.(ui.Splitter)
 		if !ok {

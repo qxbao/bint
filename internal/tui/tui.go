@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	bintapp "bint/internal/app"
+	"bint/internal/config"
 	"bint/internal/i18n"
 	tuiapp "bint/internal/tui/app"
 	"bint/internal/tui/gallery"
@@ -60,13 +61,13 @@ func DetectMode(getenv func(string) string, p colorprofile.Profile, darkBackgrou
 	return theme.Detect(noColor, p == colorprofile.ANSI, darkBackground)
 }
 
-// configLang đọc ui.language từ cấu hình của repository ("" nếu không đọc được).
-func configLang(ctx context.Context, dir string) string {
+// configUI đọc khối ui của cấu hình hiệu lực (rỗng nếu chưa init hoặc lỗi).
+func configUI(ctx context.Context, dir string) config.UI {
 	ws, err := bintapp.OpenWorkspace(ctx, dir, false)
 	if err != nil {
-		return ""
+		return config.UI{}
 	}
-	return ws.Config.UI.Language
+	return ws.Config.UI
 }
 
 // Run mở TUI và chạy tới khi người dùng thoát.
@@ -79,7 +80,8 @@ func Run(ctx context.Context, o Options) error {
 	if out == nil {
 		out = os.Stdout
 	}
-	lang := ResolveLang(o.Lang, configLang(ctx, o.Dir), getenv)
+	ui := configUI(ctx, o.Dir)
+	lang := ResolveLang(o.Lang, ui.Language, getenv)
 	p := colorprofile.Detect(out, os.Environ())
 	dark := true
 	if in, ok := o.In.(*os.File); ok || o.In == nil {
@@ -98,7 +100,7 @@ func Run(ctx context.Context, o Options) error {
 		model = gallery.New(gallery.Options{Lang: lang, Mode: mode})
 	} else {
 		root = tuiapp.New(ctx, tuiapp.Options{Dir: o.Dir, Version: o.Version, BintPath: o.BintPath, Lang: lang, LangFlag: o.Lang, Mode: mode,
-			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported, ActivePoll: activePoll, DataPoll: dataPoll, LedgerWarnings: o.LedgerWarnings})
+			Agent: o.Agent, ReadOnly: o.ReadOnly, CanRestart: RestartSupported, ActivePoll: activePoll, DataPoll: dataPoll, LedgerWarnings: o.LedgerWarnings, Layout: ui.Layout})
 		model = root
 	}
 	opts := []tea.ProgramOption{tea.WithContext(ctx)}

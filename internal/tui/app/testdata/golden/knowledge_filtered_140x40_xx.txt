@@ -4,9 +4,10 @@
 │   ● ◌ ⚑ rule     Endpoint phải có /v1               api/**         ││ 01KNOW000004                                                       │
 │   ● ◌ ⚑ warning  Không gọi sql.Open trực tiếp       internal/db/** ││ ⟳ fact · stale · agent                                             │
 │ ▸   ⟳   fact     Cổng mặc định là 8080              cmd/**         ││ Cổng mặc định là 8080                                              │
-│     ◌   lesson   Chạy go vet với GOOS=windows       *              ││ ✗ ⟦1 error~~~⟧ · ⟦technical detail~~~~~~~⟧                         │
-│                                                                    ││ → ⟦f: refresh fingerprint (review content, then approve) · v:      │
-│                                                                    ││   update evidence position~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧      │
+│     ◌   lesson   Chạy go vet với GOOS=windows       *              ││ ── ⟦Checks~~~⟧ ──────────────────────────────────────────────────  │
+│                                                                    ││ ✗ ⟦1 error~~~⟧ · ⟦technical detail~~~~~~~⟧                         │
+│                                                                    ││ → ⟦f: refresh fingerprint (review content, then                    │
+│                                                                    ││   approve)~~~~~~~~~~~~~~~~~~~~~~⟧                                  │
 │                                                                    ││ ✗ ⟦Evidence changed since it was recorded~~~~~~~~~~~~~~~~⟧         │
 │                                                                    ││     bằng chứng đã thay đổi                                         │
 │                                                                    ││ ⟦Scope~~⟧    cmd/**                                                │
@@ -22,7 +23,6 @@
 │                                                                    ││   │   40  func Open() {                                            │
 │                                                                    ││   │   41      return nil                                           │
 │                                                                    ││   │   42  }                                                        │
-│                                                                    ││                                                                    │
 │                                                                    ││                                                                    │
 │                                                                    ││                                                                    │
 │                                                                    ││                                                                    │

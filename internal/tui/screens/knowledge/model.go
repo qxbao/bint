@@ -58,6 +58,8 @@ type Options struct {
 	Detailer Detailer
 	// Checker kiểm nền sức khoẻ các mục (nil: Verifier thật trên Data.WS).
 	Checker Checker
+	// Ctx là ngữ cảnh cha của việc nền (huỷ khi thoát TUI); nil = context.Background().
+	Ctx context.Context
 	// Gate cho biết hành động có dùng được không theo sổ hành động và chế độ (nil = luôn dùng được). Màn hình
 	// hỏi trước khi mở form/hộp thoại của thao tác ghi để báo ngay; mô hình gốc vẫn kiểm lại khi nhận yêu cầu.
 	Gate func(id string) actions.Availability
@@ -103,6 +105,11 @@ type Model struct {
 	health   map[string]healthEntry
 	checking bool
 	recheck  bool
+	// forceCheck: lượt kiểm kế tiếp bỏ qua đệm (Ctrl+R); checkGen/checkCancel: thế hệ và hàm huỷ của lượt đang bay (kết quả của lượt
+	// cũ bị bỏ khi đã nạp lại).
+	forceCheck  bool
+	checkGen    int
+	checkCancel context.CancelFunc
 
 	sub   int
 	pnls  [numSubs]*panel
@@ -142,6 +149,9 @@ func (m *Model) Splitter() *split.State { return &m.sp }
 
 // SetEnv đặt danh mục chuỗi và bảng màu (gọi lại khi đổi ngôn ngữ).
 func (m *Model) SetEnv(th theme.Theme, rw ui.Rewriter) { m.th, m.rw, m.cat = th, rw, rw.Cat }
+
+// gateOK cho biết hành động id dùng được ở chế độ hiện tại (không báo gì; dùng khi vẽ gợi ý).
+func (m *Model) gateOK(id string) bool { return m.o.Gate == nil || m.o.Gate(id) == actions.Available }
 
 // allowed kiểm sổ hành động cho id; không được thì báo bằng thông báo ngắn.
 func (m *Model) allowed(id string) bool {
@@ -561,6 +571,8 @@ func (m *Model) listKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		m.showTransitions()
 		return nil, true
 	case "ctrl+r", "f5":
+		m.forceCheck = true // nạp lại tay: kiểm lại sức khoẻ mọi mục, không dùng đệm (bằng chứng có thể đổi mà giữ cỡ và mtime)
+		m.cancelCheck()
 		return m.Load(), true
 	}
 	return nil, false

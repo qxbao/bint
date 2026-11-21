@@ -23,6 +23,7 @@ type Checker func(ctx context.Context, d Data, items []*kn.Item) map[string]kn.R
 // HealthMsg là kết quả kiểm nền: sức khoẻ theo ID mục kèm khoá đệm lúc kiểm.
 type HealthMsg struct {
 	Entries map[string]healthEntry
+	gen     int
 }
 
 // Target cho mô hình gốc biết thông điệp thuộc màn Tri thức.
@@ -84,7 +85,7 @@ func (m *Model) startCheck() tea.Cmd {
 			continue
 		}
 		k := m.healthKey(it)
-		if e, ok := m.health[it.ID]; ok && e.Key == k {
+		if e, ok := m.health[it.ID]; ok && e.Key == k && !m.forceCheck {
 			continue
 		}
 		todo = append(todo, it)
@@ -93,23 +94,46 @@ func (m *Model) startCheck() tea.Cmd {
 	if len(todo) == 0 {
 		return nil
 	}
-	m.checking = true
-	chk, d := m.o.Checker, m.Data
+	m.checking, m.forceCheck = true, false
+	m.checkGen++
+	parent := m.o.Ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	m.checkCancel = cancel
+	chk, d, gen := m.o.Checker, m.Data, m.checkGen
 	if chk == nil {
 		chk = defaultCheck
 	}
 	return func() tea.Msg {
-		res := chk(context.Background(), d, todo)
+		defer cancel()
+		res := chk(ctx, d, todo)
 		out := make(map[string]healthEntry, len(res))
 		for id, r := range res {
 			out[id] = healthEntry{Key: keys[id], Health: kn.HealthOf(r)}
 		}
-		return HealthMsg{Entries: out}
+		return HealthMsg{Entries: out, gen: gen}
+	}
+}
+
+// cancelCheck huỷ lượt kiểm đang bay (nạp lại tay, thoát): kết quả của nó bị bỏ qua khi về.
+func (m *Model) cancelCheck() {
+	if m.checkCancel != nil {
+		m.checkCancel()
+		m.checkCancel = nil
+	}
+	if m.checking {
+		m.checking, m.recheck = false, false
+		m.checkGen++
 	}
 }
 
 func (m *Model) onHealth(msg HealthMsg) tea.Cmd {
-	m.checking = false
+	if msg.gen != 0 && msg.gen != m.checkGen {
+		return nil // lượt đã huỷ
+	}
+	m.checking, m.checkCancel = false, nil
 	if m.health == nil {
 		m.health = map[string]healthEntry{}
 	}

@@ -283,7 +283,8 @@ func gd0LeftTag(line string) (int, int, bool) {
 // listTitleLine: dòng viền trên của khung danh sách Tri thức (dòng có viền và tổng số mục).
 func gd0ListTitleLine(screen string) string {
 	for l := range strings.SplitSeq(screen, "\n") {
-		if strings.Contains(l, "─") && strings.Contains(l, strconv.Itoa(gd0Items)) && !gd0TagRe.MatchString(l) {
+		// "/57)" chỉ có trong số đếm "(shown/57)" của tiêu đề khung; đường dẫn tạm trên thanh tab có thể chứa "57" ngẫu nhiên.
+		if strings.Contains(l, "─") && strings.Contains(l, "/"+strconv.Itoa(gd0Items)+")") && !gd0TagRe.MatchString(l) {
 			// Chỉ phần của khung danh sách (khung chi tiết đứng cạnh ở bố cục rộng).
 			if i := strings.Index(l, "┐"); i > 0 {
 				l = l[:i]

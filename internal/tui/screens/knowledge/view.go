@@ -291,7 +291,9 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 	derr := m.cacheErr[it.ID]
 	checkUp := have && derr == nil && len(d.Check.Findings) > 0
 	checkBlock := func() {
-		if !checkUp {
+		if checkUp { // khối đưa lên ngay dưới tiêu đề mục: vẫn có dòng tiêu đề khối, không chèn dòng trống
+			add(m.section(env, m.t("kn.section.check"), w))
+		} else {
 			add("", m.section(env, m.t("kn.section.check"), w))
 		}
 		switch {
@@ -313,11 +315,22 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 			} else {
 				add(th.S(theme.Warn, "! ") + m.t("kn.check.warnings") + th.S(theme.Muted, " · "+m.t("kn.check.technical")))
 			}
-			hint := m.t("kn.check.hint_warn")
-			if errs > 0 {
-				hint = m.t("kn.check.hint_error")
+			// Gợi ý phím xử lý: f (làm mới fingerprint) khi có lỗi, v (cập nhật vị trí) khi bằng chứng dời dòng/chuyển tệp; chỉ phím mà
+			// sổ hành động cho dùng ở chế độ hiện tại (chỉ đọc, phiên agent không gợi ý).
+			moved := false
+			for _, f := range d.Check.Findings {
+				moved = moved || f.Code == kn.CodeRelocated || f.Code == kn.CodeMoved
 			}
-			add(th.S(theme.Key, "→ ") + hint)
+			var hints []string
+			if errs > 0 && m.gateOK("knowledge.approve_refresh") {
+				hints = append(hints, m.t("kn.check.hint_refresh"))
+			}
+			if moved && m.gateOK("knowledge.verify_apply") {
+				hints = append(hints, m.t("kn.check.hint_relocate"))
+			}
+			if len(hints) > 0 {
+				add(th.S(theme.Key, "→ ") + strings.Join(hints, " · "))
+			}
 			for _, f := range d.Check.Findings {
 				icon, r := "!", theme.Warn
 				if f.Level == kn.LevelError {

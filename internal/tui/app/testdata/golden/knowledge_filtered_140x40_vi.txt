@@ -4,9 +4,9 @@
 │   ● ◌ ⚑ rule     Endpoint phải có /v1               api/**         ││ 01KNOW000004                                                       │
 │   ● ◌ ⚑ warning  Không gọi sql.Open trực tiếp       internal/db/** ││ ⟳ fact · stale · agent                                             │
 │ ▸   ⟳   fact     Cổng mặc định là 8080              cmd/**         ││ Cổng mặc định là 8080                                              │
-│     ◌   lesson   Chạy go vet với GOOS=windows       *              ││ ✗ 1 lỗi · chi tiết kỹ thuật                                        │
-│                                                                    ││ → f: làm mới fingerprint (xem lại nội dung rồi duyệt) · v: cập     │
-│                                                                    ││   nhật vị trí bằng chứng                                           │
+│     ◌   lesson   Chạy go vet với GOOS=windows       *              ││ ── Kiểm tra ─────────────────────────────────────────────────────  │
+│                                                                    ││ ✗ 1 lỗi · chi tiết kỹ thuật                                        │
+│                                                                    ││ → f: làm mới fingerprint (xem lại nội dung rồi duyệt)              │
 │                                                                    ││ ✗ Bằng chứng đã thay đổi kể từ khi ghi                             │
 │                                                                    ││     bằng chứng đã thay đổi                                         │
 │                                                                    ││ Phạm vi      cmd/**                                                │

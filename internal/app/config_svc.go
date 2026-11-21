@@ -402,7 +402,7 @@ func SetUILayout(ctx context.Context, dir, screen string, pct int) (changed bool
 	if _, err := config.ValidateWith(root, config.LayerLocal, next); err != nil {
 		return false, err
 	}
-	_, err = writeConfigLayer(ws, root, config.LayerLocal, hashBytes(cur), next, "bint tui layout")
+	_, err = writeConfigLayer(ws, root, config.LayerLocal, hashBytes(cur), next, "tui: ui.layout")
 	return err == nil, err
 }
 

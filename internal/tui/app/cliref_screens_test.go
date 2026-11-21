@@ -177,8 +177,11 @@ func TestCLIRefTasksScreen(t *testing.T) {
 	f.selectTask(id)
 	f.press("3")
 	f.press("enter")
-	// Điều kiện chưa thể done nằm ở thẻ Phiếu (Info).
-	f.pumpFor(300 * time.Millisecond)
+	// Điều kiện chưa thể done nằm ở thẻ Phiếu (Info): chờ tới khi chi tiết nạp xong (hết "Đang tải"), không chờ một khoảng cố định.
+	f.pump(func() bool {
+		s := plain(f.m.Render())
+		return strings.Contains(s, "Đổi cách tính phí") && !strings.Contains(s, "Đang tải")
+	}, nil)
 	out := plain(f.m.Render())
 	for i := 0; i < 10 && !strings.Contains(flat(out), "phím a ở Tác vụ"); i++ {
 		f.press("pgdown")
