@@ -34,39 +34,6 @@ func TestRunParts(t *testing.T) {
 	}
 }
 
-func TestCenterVertically(t *testing.T) {
-	lines := []string{"a", "b", "c"}
-	for _, c := range []struct {
-		name    string
-		h       int
-		wantPad int
-	}{
-		{"spare 0", 3, 0},
-		{"spare 3 (dưới ngưỡng) giữ sát trên", 6, 0},
-		{"spare 4 (đúng ngưỡng) đệm 2", 7, 2},
-		{"spare 5 đệm 2", 8, 2},
-		{"spare lớn", 23, 10},
-	} {
-		got := centerVertically(lines, c.h)
-		if len(got) != len(lines)+c.wantPad {
-			t.Errorf("%s: %d dòng, muốn %d", c.name, len(got), len(lines)+c.wantPad)
-			continue
-		}
-		for i := 0; i < c.wantPad; i++ {
-			if got[i] != "" {
-				t.Errorf("%s: dòng đệm %d không rỗng: %q", c.name, i, got[i])
-			}
-		}
-		if !reflect.DeepEqual(got[c.wantPad:], lines) {
-			t.Errorf("%s: nội dung đổi: %q", c.name, got)
-		}
-	}
-	// nội dung dài hơn h: không đệm, không cắt
-	if got := centerVertically(lines, 2); len(got) != 3 {
-		t.Errorf("h nhỏ hơn nội dung: %d dòng", len(got))
-	}
-}
-
 func TestRunsLineStackedBarAndLegend(t *testing.T) {
 	runs := map[string]int{"completed": 33, "failed": 3, "interrupted": 1, "running": 5}
 	for _, mode := range []theme.Mode{theme.Dark, theme.Mono} {

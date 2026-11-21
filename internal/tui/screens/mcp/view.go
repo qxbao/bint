@@ -139,7 +139,7 @@ func (m *Model) tabBody(env ui.Env) string {
 	case TabServices:
 		// Hai khung cạnh nhau (≥ WideW): mỗi khung hẹp nên chia chân phím làm hai nửa; một khung thì mang đủ phím.
 		wide := env.W >= WideW
-		return m.splitAt(env, env.W*11/20, func(w int) string { return m.servicesList(env, w, env.H, wide) }, func(w int) string { return m.servicesDetail(env, w, env.H, wide) })
+		return m.split(env, func(w int) string { return m.servicesList(env, w, env.H, wide) }, func(w int) string { return m.servicesDetail(env, w, env.H, wide) })
 	case TabGrants:
 		if m.grants.NotInit {
 			return frame.Box{Title: m.t("mc.grants.title"), TitleAt: frame.Left, Focused: true}.Render(env.Th, env.W, env.H,
@@ -153,28 +153,7 @@ func (m *Model) tabBody(env ui.Env) string {
 
 // split chia vùng thành khung trái và phải (≥ WideW cột), hoặc một khung theo pane.
 func (m *Model) split(env ui.Env, left, right func(w int) string) string {
-	return m.splitAt(env, 0, left, right)
-}
-
-// splitAt như split nhưng khung trái rộng leftW ô khi hiện cạnh nhau (0 = mặc định: nửa chiều rộng trừ 6, tối thiểu 46).
-func (m *Model) splitAt(env ui.Env, leftW int, left, right func(w int) string) string {
-	w := env.W
-	if w >= WideW {
-		lw := max(w/2-6, 46)
-		if leftW > 0 {
-			lw = min(leftW, w-40)
-		}
-		l, r := strings.Split(left(lw), "\n"), strings.Split(right(w-lw), "\n")
-		out := make([]string, len(l))
-		for i := range l {
-			out[i] = l[i] + r[i]
-		}
-		return strings.Join(out, "\n")
-	}
-	if m.pane == paneDetail {
-		return right(w)
-	}
-	return left(w)
+	return m.Splitter().Render(env.W, m.pane == paneDetail, left, right)
 }
 
 func (m *Model) listBox(env ui.Env, w, h int, title, top string, hints []footer.Hint, body string) string {

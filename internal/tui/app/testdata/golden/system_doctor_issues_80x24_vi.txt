@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP                             │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│ ‹ Harness Thành phần Skill Chỉ mục Ngôn ngữ  Doctor  Cài đặt Cập nhật        │
-│ ┌─│Doctor: 1 cảnh báo, 1 lỗi│─────────────────────────────chỉ cảnh báo/lỗi─┐ │
-│ │ ▸ ! cấu hình                                                             │ │
-│ │   ✗ hook claude                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ w cảnh báo/lỗi  Ctrl+R làm mới  Enter mở ───────────────────────────────┘ │
-└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘
+ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP       /work/demo · bint 0.1.0 
+ Cấu hình Harness Thành phần Skill Chỉ mục Ngôn ngữ  Doctor  Cài đặt Cập nhật   
+┌─│Doctor: 1 cảnh báo, 1 lỗi│─────────────────────────────────chỉ cảnh báo/lỗi─┐
+│ ▸ ! cấu hình                                                                 │
+│   ✗ hook claude                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ w cảnh báo/lỗi  Ctrl+R làm mới  Enter mở ───────────────────────────────────┘
+ [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               

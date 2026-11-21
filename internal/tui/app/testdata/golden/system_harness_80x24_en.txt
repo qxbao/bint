@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP                              │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config  Harness  Components Skills Index Language Doctor Setup Update       │
-│ ┌─│Harnesses│──────────────────────────────────────────────────────────────┐ │
-│ │   HARNESS     ON   HOST  VERSION   VERIFIED   LEVEL                      │ │
-│ │ ▸ claude      yes  yes   -         Claude Co… 3                          │ │
-│ │   codex       -    -     -         codex-cli… 3                          │ │
-│ │   antigravity -    -     -         agy 1.5.3  3                          │ │
-│ │                                                                          │ │
-│ │  Capabilities                                                            │ │
-│ │                                                           cla… cod… ant… │ │
-│ │   Skill sync                                              ✓    ✓    ✓    │ │
-│ │   Hidden skills / explicit invocation only                ✓    ~    ✗    │ │
-│ │   Bint MCP server                                         ✓    ~    ✗    │ │
-│ │   Event-recording hooks                                   ✓    ~    ~    │ │
-│ │   Path-based context injection                            ✓    ~    ✗    │ │
-│ │   Ask a human before editing protected paths              ✓    ~    ✓    │ │
-│ │   Workflow guardrails                                     ✓    ~    ~    │ │
-│ │   Programmatic execution (task runs)                      ✓    ✓    ✓    │ │
-│ │   Keep read-only steps read-only                          ✓    ~    ~    │ │
-│ └─ V version  Enter open ──────────────────────────────────────────────────┘ │
-└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘
+ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP        /work/demo · bint 0.1.0 
+ Config  Harness  Components Skills Index Language Doctor Setup Update          
+┌─│Harnesses│──────────────────────────────────────────────────────────────────┐
+│   HARNESS     ON   HOST  VERSION   VERIFIED   LEVEL                          │
+│ ▸ claude      yes  yes   -         Claude Co… 3                              │
+│   codex       -    -     -         codex-cli… 3                              │
+│   antigravity -    -     -         agy 1.5.3  3                              │
+│                                                                              │
+│  Capabilities                                                                │
+│                                                               cla… cod… ant… │
+│   Skill sync                                                  ✓    ✓    ✓    │
+│   Hidden skills / explicit invocation only                    ✓    ~    ✗    │
+│   Bint MCP server                                             ✓    ~    ✗    │
+│   Event-recording hooks                                       ✓    ~    ~    │
+│   Path-based context injection                                ✓    ~    ✗    │
+│   Ask a human before editing protected paths                  ✓    ~    ✓    │
+│   Workflow guardrails                                         ✓    ~    ~    │
+│   Programmatic execution (task runs)                          ✓    ✓    ✓    │
+│   Keep read-only steps read-only                              ✓    ~    ~    │
+│   Cost reporting (max_cost_usd)                               ✓    ✗    ✗    │
+│   Turn limit (max_turns)                                      ✓    ✗    ✗    │
+│   Skill activation events                                     ✓    ✗    ✗    │
+└─ V version  Enter open ──────────────────────────────────────────────────────┘
+ [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                

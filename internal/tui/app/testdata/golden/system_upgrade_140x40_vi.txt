@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                     │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Hệ thống│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                             │
-│ ┌─│Nhóm khoá│──────────────────────────────────────schema v1─┐┌─│Lớp nguồn│────────────────────────────────────────────────────────────┐ │
-│ │ ▸ Lớp nguồn                                                ││ Cấu hình hiệu lực = toàn cục → dự án → strategy → cục bộ (lớp sau đè   │ │
-│ │   project                                                  ││   lớp trước).                                                          │ │
-│ │   state                                                    ││                                                                        │ │
-│ │   harnesses                                                ││ ○ toàn cục    không có                                                 │ │
-│ │   roles                                                    ││     /home/u/.config/bint/config.yml                                    │ │
-│ │   context                                                  ││ ● dự án       đang dùng                                                │ │
-│ │   knowledge                                                ││     /work/demo/.bint/config.yml                                        │ │
-│ │   memory              ┌─│Nâng mẫu cấu hình│──────────────────────────────────────────────────────────────────┐                       │ │
-│ │   eval                │ /work/demo/.bint/config.yml                                                          │                       │ │
-│ │   evolution           │ Thêm khoá: harnesses.claude.models                                                   │                       │ │
-│ │   workflow            │ ! giữ model chung đã đặt tay                                                         │                       │ │
-│ │   limits              │ Giá trị và chú thích sẵn có giữ nguyên; bản cũ được sao lưu vào thư mục trạng thái   │                       │ │
-│ │   security            │ trước khi ghi. Nâng cấu hình ở Cài đặt (e) cũng làm mới skill và hook đã cài.        │                       │ │
-│ │   ui                  │                                                                                      │                       │ │
-│ │                       │ --- .bint/config.yml                                                                 │                       │ │
-│ │                       │ +++ .bint/config.yml (mẫu mới)                                                       │                       │ │
-│ │                       │   harnesses:                                                                         │                       │ │
-│ │                       │     claude:                                                                          │                       │ │
-│ │                       │       model: sonnet                                                                  │                       │ │
-│ │                       │ +     models:                                                                        │                       │ │
-│ │                       │ +       planner: opus                                                                │                       │ │
-│ │                       │                                                                                      │                       │ │
-│ │                       │ [Enter] Nâng cấp   [Esc] Giữ nguyên                                                  │                       │ │
-│ │                       └──────────────────────────────────────────────────────────────────────────────────────┘                       │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ └─ e sửa  Enter mở ──────────────────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
-└─[Esc→ Thoát]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
+  Cấu hình · Harness · Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                                
+┌─│Nhóm khoá│───────────────────────────────────────schema v1─┐┌─│Lớp nguồn│───────────────────────────────────────────────────────────────┐
+│ ▸ Lớp nguồn                                                 ││ Cấu hình hiệu lực = toàn cục → dự án → strategy → cục bộ (lớp sau đè lớp  │
+│   project                                                   ││   trước).                                                                 │
+│   state                                                     ││                                                                           │
+│   harnesses                                                 ││ ○ toàn cục    không có                                                    │
+│   roles                                                     ││     /home/u/.config/bint/config.yml                                       │
+│   context                                                   ││ ● dự án       đang dùng                                                   │
+│   knowledge                                                 ││     /work/demo/.bint/config.yml                                           │
+│   memory                                                    ││     sửa được bằng e                                                       │
+│   eval                  ┌─│Nâng mẫu cấu hình│──────────────────────────────────────────────────────────────────┐                         │
+│   evolution             │ /work/demo/.bint/config.yml                                                          │                         │
+│   workflow              │ Thêm khoá: harnesses.claude.models                                                   │                         │
+│   limits                │ ! giữ model chung đã đặt tay                                                         │                         │
+│   security              │ Giá trị và chú thích sẵn có giữ nguyên; bản cũ được sao lưu vào thư mục trạng thái   │                         │
+│   ui                    │ trước khi ghi. Nâng cấu hình ở Cài đặt (e) cũng làm mới skill và hook đã cài.        │                         │
+│                         │                                                                                      │                         │
+│                         │ --- .bint/config.yml                                                                 │                         │
+│                         │ +++ .bint/config.yml (mẫu mới)                                                       │                         │
+│                         │   harnesses:                                                                         │                         │
+│                         │     claude:                                                                          │                         │
+│                         │       model: sonnet                                                                  │                         │
+│                         │ +     models:                                                                        │                         │
+│                         │ +       planner: opus                                                                │                         │
+│                         │                                                                                      │                         │
+│                         │ [Enter] Nâng cấp   [Esc] Giữ nguyên                                                  │                         │
+│                         └──────────────────────────────────────────────────────────────────────────────────────┘                         │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+└─ e sửa  Enter mở ───────────────────────────────────────────┘└───────────────────────────────────────────────────────────────────────────┘
+ [Esc→ Thoát]                                                                                                                               

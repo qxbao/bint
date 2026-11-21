@@ -1,20 +1,20 @@
-┌───────────────────────│bint 0.1.0│───────────────────────┐
-│ Tổng quan │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP        │
-└───────────────────────────────────────────── /work/demo ─┘
-┌─│Tổng quan│──────────────────────────────────────────────┐
-│    ┌─│Repository│───────────────────────────────────┐    │
-│    │ Thư mục     /work/demo                         │    │
-│    │ Trạng thái  /state/demo-7f3a9c                 │    │
-│    │ Harness     claude, codex                      │    │
-│    │ Schema      v6                                 │    │
-│    │ Lượt chạy   42 33 xong · 3 lỗi · 1 bị ngắt · 5 │    │
-│    │             đang chạy                          │    │
-│    │ core.lock  chưa có                             │    │
-│    └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại ────────┘    │
-│                                                          │
-│  Việc cần bạn (3)                                        │
-│ ▸ ! Doctor cảnh báo — config: cấu hình theo…  → Hệ thống │
-│   ◌ 3 mục tri thức chờ duyệt                  → Tri thức │
-│     Doctor cảnh báo — config: cấu hình theo mẫu cũ:      │
-│     nhấn U ở Hệ thống › Cấu hình                         │
-└─[r→ Làm mới] [:→ Lệnh] [L→ Ngôn] [q→ Thoát] [?→ Trợ]─────┘
+ Tổng quan │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP          
+  ┌─│Repository│────────────────────────────────────────┐   
+  │ Thư mục     /work/demo                              │   
+  │ Trạng thái  /state/demo-7f3a9c                      │   
+  │ Harness     claude, codex                           │   
+  │ Schema      v6                                      │   
+  │ Lượt chạy   42 33 xong · 3 lỗi · 1 bị ngắt · 5 đang │   
+  │             chạy                                    │   
+  │ core.lock  chưa có                                  │   
+  └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại ─────────────┘   
+                                                            
+ Việc cần bạn (3)                                           
+▸ ! Doctor cảnh báo — config: cấu hình theo mẫu…  → Hệ thống
+  ◌ 3 mục tri thức chờ duyệt                      → Tri thức
+    Doctor cảnh báo — config: cấu hình theo mẫu cũ: nhấn U  
+    ở Hệ thống › Cấu hình                                   
+  … dòng 1-2 / 3                                            
+                                                            
+ Doctor  ✓ 2  ! 1  ✗ 0                                      
+ [r→ Làm mới] [:→ Lệnh] [L→ Ngôn] [q→ Thoát] [?→ Trợ]       

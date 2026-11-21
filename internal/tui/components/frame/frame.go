@@ -123,7 +123,7 @@ func (b Box) edge(th theme.Theme, bs func(string) string, w int, l, r, label str
 	os, ow := seg(other)
 	if os != "" && lw+ow+1 > avail { // thiếu chỗ cho nhãn phụ: rút gọn (có …) thay vì bỏ mất; không còn chỗ tối thiểu mới bỏ
 		if room := avail - lw - 1; room >= 8 {
-			os = text.Truncate(os, room)
+			os = text.Truncate(os, room-1) + " " // cách "…" với đường viền để không trông như viền bị cắt
 			ow = text.Width(os)
 		} else {
 			os, ow = "", 0

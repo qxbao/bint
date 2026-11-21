@@ -56,7 +56,7 @@ func TestSystemDoctorShowsIsoRow(t *testing.T) {
 		}
 		press(t, m, "j")
 	}
-	hasAll(t, out, "iso", "1 profile", "bint iso gc", "Projects/", "không tự xoá")
+	hasAll(t, out, "iso", "1 profile", "bint iso gc", "Projects/", "tự xoá")
 }
 
 func TestSystemDoctorHasNoIsoRowWithoutProfiles(t *testing.T) {

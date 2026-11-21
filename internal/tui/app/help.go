@@ -37,8 +37,7 @@ func (m *Model) helpContext() (help.Group, bool) {
 		var hints []footer.Hint
 		env := m.newEnv(m.w, m.h)
 		env.Collect = func(hs []footer.Hint) { hints = append(hints, hs...) }
-		mainH := m.h - 3
-		iw, ih := frame.Inner(m.w, mainH)
+		iw, ih := m.bodySize()
 		_ = m.screenBody(env.WithSize(iw, ih))
 		seen := map[string]bool{}
 		for _, h := range hints {

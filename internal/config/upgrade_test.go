@@ -275,7 +275,7 @@ func TestUpgradeAddsUILanguage(t *testing.T) {
 	}
 	// Người dùng đã đặt ui.language: giữ nguyên giá trị.
 	mine, err := Upgrade([]byte(old + "\nui:\n  language: en\n"))
-	if err != nil || strings.Contains(strings.Join(mine.Added, ","), "ui") {
+	if err != nil || slices.Contains(mine.Added, "ui") || slices.Contains(mine.Added, "ui.language") {
 		t.Fatalf("không được chèn lại: %v %v", err, mine.Added)
 	}
 }

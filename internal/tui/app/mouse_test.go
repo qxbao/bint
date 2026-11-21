@@ -167,8 +167,8 @@ func TestMouseClickTabs(t *testing.T) {
 	}{{"Tri thức", actions.Knowledge}, {"Tác vụ", actions.Tasks}, {"Lượt chạy", actions.Runs}, {"Đánh giá", actions.Eval}, {"Tiến hoá", actions.Evolve},
 		{"Hệ thống", actions.System}, {"Tổng quan", actions.Overview}} {
 		x, y := cellOf(t, m, s.name)
-		if y != 1 {
-			t.Fatalf("%s phải ở thanh tab (dòng 1), thấy ở dòng %d", s.name, y)
+		if y != 0 {
+			t.Fatalf("%s phải ở thanh tab (dòng 0), thấy ở dòng %d", s.name, y)
 		}
 		clickAt(t, m, x, y)
 		if m.Screen() != s.want {

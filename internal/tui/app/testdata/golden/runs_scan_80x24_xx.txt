@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Runs~~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧     │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦Runs~~⟧│───────────────────────────────────────────────────────────────────┐
-│   ⟦List~~⟧ · ⟦Lessons~~~⟧                                                    │
-│ ┌─│⟦Scan Git history: link commits to runs, detect reverted changes~~~~~…│─┐ │
-│ │ ▸ ⟦Days~~⟧            30▏                                                │ │
-│ │   ⟦Revert days~~~~~⟧  14                                                 │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │   ⓘ ⟦Consider runs from the last N days~~~~~~~~~~~~~~⟧                   │ │
-│ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint runs scan                     │ │
-│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Runs~~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧       
+  ⟦List~~⟧ · ⟦Lessons~~~⟧                                                       
+┌─│⟦Scan Git history: link commits to runs, detect reverted changes~~~~~~~~~…│─┐
+│ ▸ ⟦Days~~⟧            30▏                                                    │
+│   ⟦Revert days~~~~~⟧  14                                                     │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   ⓘ ⟦Consider runs from the last N days~~~~~~~~~~~~~~⟧                       │
+│   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint runs scan                         │
+│   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [Esc→ ⟦Leave~~⟧]                                                               

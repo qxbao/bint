@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP                              │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness Components Skills Index Language Doctor Setup  Update        │
-│ ┌─│Update Bint from source (go install)│───────────────────────────────────┐ │
-│ │ ▸ Source directory         /home/u/src/bint▏                             │ │
-│ │   git pull --ff-only first [ ]                                           │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │   ⓘ Empty: BINT_SOURCE_DIR or the build directory                        │ │
-│ │   Equivalent CLI command: bint update                                    │ │
-│ │   Enter submit  Tab next field  Ctrl+Y copy command  Esc leave           │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘
+ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP        /work/demo · bint 0.1.0 
+ Config Harness Components Skills Index Language Doctor Setup  Update           
+┌─│Update Bint from source (go install)│───────────────────────────────────────┐
+│ ▸ Source directory          /home/u/src/bint▏                                │
+│   git pull --ff-only first  [ ]                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   ⓘ Empty: BINT_SOURCE_DIR or the build directory                            │
+│   Equivalent CLI command: bint update                                        │
+│   Enter submit  Tab next field  Ctrl+Y copy command  Esc leave               │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [Esc→ Leave]                                                                   

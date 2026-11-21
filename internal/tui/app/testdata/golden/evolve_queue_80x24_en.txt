@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evolution │ Sy │ MCP                            │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Evolution│──────────────────────────────────────────────────────────────────┐
-│   Opportunities · Proposals · History · Queue                                │
-│ ┌─│Evolution request queue│───────────────────────────────────────pending ─┐ │
-│ │ Execution mode: manual                                                   │ │
-│ │                                                                          │ │
-│ │ er_1 2026-11-11 09:00 pending failure_hotspot internal/db bị sửa ở 3     │ │
-│ │     lượt thất bại                                                        │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ P process queue  A all states ──────────────────────────────────────────┘ │
-└─[s→ Scan] [p→ Prop…] [a→ Apply] [x→ Reje…] [:→ Comm…] [q→ Quit] [?→ Help]────┘
+ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evolution │ Sy │ MCP      /work/demo · bint 0.1.0 
+  Opportunities · Proposals · History · Queue                                   
+┌─│Evolution request queue│───────────────────────────────────────────pending ─┐
+│ Execution mode: manual                                                       │
+│                                                                              │
+│ er_1 2026-11-11 09:00 pending failure_hotspot internal/db bị sửa ở 3 lượt    │
+│     thất bại                                                                 │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ P process queue  A all states ──────────────────────────────────────────────┘
+ [s→ Scan] [p→ Prop…] [a→ Apply] [x→ Reje…] [:→ Comm…] [q→ Quit] [?→ Help]      

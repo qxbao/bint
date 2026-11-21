@@ -192,6 +192,7 @@ TUI: ghi vào `secrets.env`.
 | `?` | trợ giúp theo ngữ cảnh: giới thiệu thẻ đang xem, phím của thẻ, phím toàn cục, các màn khác (cuộn bằng `j`/`k`, `PgUp`/`PgDn`, bánh xe) |
 | `!` | hộp Thông báo: nguyên văn thông báo hiện tại và 50 thông báo gần nhất (thông báo bị cắt bằng `…` luôn đọc đủ ở đây) |
 | `L` | đổi ngôn ngữ trong phiên (vi ⇄ en) |
+| `<` `>` `z` `=` | màn hai pane: thu / nới pane trái 5%, phóng to pane đang chọn, về tỉ lệ mặc định (kéo đường chia bằng chuột cũng được); tỉ lệ lưu vào `ui.layout` của `.bint/local.yml` |
 | `r` | làm mới ở Tổng quan (các màn khác: `Ctrl+R`) |
 | `q` | thoát (còn việc nền thì hỏi: huỷ an toàn rồi thoát, hoặc ở lại) |
 

@@ -74,3 +74,22 @@ func Render(th theme.Theme, width int, items []Item, selected int, compact bool)
 	}
 	return text.Truncate(line, width)
 }
+
+// Width là độ rộng nhỏ nhất mà Render cần để không cắt tab nào (compact: tab chưa chọn dùng nhãn rút gọn, dấu ngăn hẹp nhất).
+func Width(items []Item, selected int, compact bool) int {
+	n := 0
+	for i, it := range items {
+		label := it.Label
+		if compact && i != selected && it.Short != "" {
+			label = it.Short
+		}
+		n += text.Width(text.NFC(label))
+		if it.Badge > 0 {
+			n += text.Width(fmt.Sprintf(" (%d)", it.Badge))
+		}
+	}
+	if len(items) > 1 {
+		n += (len(items) - 1) * text.Width(seps[len(seps)-1])
+	}
+	return n
+}

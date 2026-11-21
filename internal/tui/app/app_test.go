@@ -76,7 +76,7 @@ func TestTooSmallShowsMessage(t *testing.T) {
 
 func TestHeaderHasSevenTabsAndBadge(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono}, sampleData(), 140, 40)
-	hdr := lines(m.Render())[1]
+	hdr := lines(m.Render())[0]
 	for _, want := range []string{"Tổng quan", "Tri thức (3)", "Tác vụ", "Lượt chạy", "Đánh giá", "Tiến hoá", "Hệ thống"} {
 		if !strings.Contains(hdr, want) {
 			t.Errorf("thiếu tab %q: %s", want, hdr)
@@ -84,12 +84,12 @@ func TestHeaderHasSevenTabsAndBadge(t *testing.T) {
 	}
 	// Hẹp: tab chưa chọn rút gọn, tab đang chọn giữ nhãn đầy đủ.
 	m = newModel(t, Options{Mode: theme.Mono}, sampleData(), 80, 24)
-	hdr = lines(m.Render())[1]
+	hdr = lines(m.Render())[0]
 	if !strings.Contains(hdr, "Tổng quan") || !strings.Contains(hdr, "TT (3)") || strings.Contains(hdr, "Lượt chạy") {
 		t.Fatalf("tab hẹp: %s", hdr)
 	}
 	press(t, m, "4")
-	if hdr = lines(m.Render())[1]; !strings.Contains(hdr, "Lượt chạy") || !strings.Contains(hdr, "TQ") {
+	if hdr = lines(m.Render())[0]; !strings.Contains(hdr, "Lượt chạy") || !strings.Contains(hdr, "TQ") {
 		t.Fatalf("tab hẹp sau khi chọn: %s", hdr)
 	}
 }
@@ -101,8 +101,8 @@ func TestTabNavigation(t *testing.T) {
 		if m.Tab() != i {
 			t.Fatalf("phím %s → tab %d", k, m.Tab())
 		}
-		if got := lines(m.Render())[3]; !strings.Contains(got, "│") {
-			t.Fatalf("khung chính thiếu tiêu đề: %s", got)
+		if got := lines(m.Render())[0]; !strings.Contains(got, "bint ") {
+			t.Fatalf("thanh tab thiếu phiên bản: %s", got)
 		}
 	}
 	press(t, m, "]")
@@ -637,7 +637,7 @@ func TestWorktreeWarningInHeader(t *testing.T) {
 	d := sampleData()
 	d.Status.LinkedWorktree, d.Status.MainWorktree = true, "/work/main"
 	m := newModel(t, Options{Mode: theme.Mono}, d, 120, 30)
-	if third := lines(m.Render())[2]; !strings.Contains(third, "worktree phụ") || !strings.Contains(third, "/work/main") {
+	if third := lines(m.Render())[0]; !strings.Contains(third, "worktree phụ") || !strings.Contains(third, "/work/main") {
 		t.Fatalf("cảnh báo worktree phụ: %s", third)
 	}
 }
@@ -790,29 +790,6 @@ func TestDoctorWarningNotDuplicated(t *testing.T) {
 	}
 }
 
-// Cửa sổ cao: nội dung được căn giữa theo chiều dọc thay vì dồn lên trên, chừa chỗ cân đối hai đầu.
-func TestOverviewCentersVerticallyInTallWindow(t *testing.T) {
-	ls := lines(newModel(t, Options{Mode: theme.Mono}, sampleData(), 140, 40).Render())
-	body := ls[4 : len(ls)-1] // trong khung nội dung (bỏ viền trên/dưới)
-	blank := func(l string) bool { return strings.Trim(l, "│ ") == "" }
-	top, bottom := 0, 0
-	for i := 0; i < len(body) && blank(body[i]); i++ {
-		top++
-	}
-	for i := len(body) - 1; i >= 0 && blank(body[i]); i-- {
-		bottom++
-	}
-	if top < 3 || bottom < 3 || top-bottom > 2 || bottom-top > 2 {
-		t.Fatalf("khoảng trống trên=%d dưới=%d không cân đối:\n%s", top, bottom, strings.Join(ls, "\n"))
-	}
-	// Cửa sổ vừa đủ thì vẫn bắt đầu sát trên (không đệm thừa).
-	small := lines(newModel(t, Options{Mode: theme.Mono}, sampleData(), 80, 24).Render())
-	if strings.Trim(small[4], "│ ") == "" && strings.Trim(small[5], "│ ") == "" {
-		t.Fatalf("cửa sổ nhỏ không được đệm đầu:\n%s", strings.Join(small, "\n"))
-	}
-}
-
-// Trạng thái lượt chạy được dịch (vi/en), không còn key=value tiếng Anh.
 func TestRunStatusesTranslated(t *testing.T) {
 	// Chú giải có ký hiệu khớp thanh xếp chồng ("█ 33 xong"); bỏ ký hiệu để so cụm chữ đã dịch.
 	noGlyph := strings.NewReplacer("█ ", "", "▓ ", "", "▒ ", "", "▚ ", "", "▞ ", "", "▪ ", "").Replace

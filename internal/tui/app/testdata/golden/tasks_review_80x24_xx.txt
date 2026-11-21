@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧    │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦Tasks~~⟧│──────────────────────────────────────────────────────────────────┐
-│  ‹  ⟦Review~~~⟧  5/7 ›                                                       │
-│ ┌─│⟦Details~~~⟧ · 01TASK1│─────────────────────────────────────────────────┐ │
-│ │ ⟦Round 1/1 · 2026-11-11 09:30 · agent~~~~~~⟧                             │ │
-│ │ Hai điểm cần sửa                                                         │ │
-│ │                                                                          │ │
-│ │ ── ⟦3 findings~~~~⟧ ───────────────────────────────────────────────────  │ │
-│ │ [⟦critical~~~~⟧ 1] [⟦medium~~~⟧ 1] [⟦low~~⟧ 1]                           │ │
-│ │ ▸ [⟦critical~~~~⟧] Không đóng kết nối  internal/db/db.go:4-5             │ │
-│ │   [⟦medium~~~⟧] Khoá ghi quá rộng  README.md:1                           │ │
-│ │   [⟦low~~⟧]   Đặt tên biến rõ hơn  internal/db/db.go:3                   │ │
-│ │                                                                          │ │
-│ │ ── 01TASK1.2 ──────────────────────────────────────────────────────────  │ │
-│ │ ⟦bug~~⟧ · ⟦critical~~~~⟧                                                 │ │
-│ │ Không đóng kết nối                                                       │ │
-│ │ internal/db/db.go:4-5                                                    │ │
-│ │ ⟦Evidence~~~~⟧ thiếu Close                                               │ │
-│ │                                                                          │ │
-│ │ Gọi Close() trong defer.                                                 │ │
-│ └─ j/k ⟦Finding~…  Enter ⟦View  e ⟦Open  K ⟦→  w ⟦Add ─────────────────────┘ │
-└─[r→ ⟦R…] [c→ ⟦R…] [a→ ⟦A…] [Enter→ ⟦O…] [:→ ⟦C…] [q→ ⟦Q…] [?→ ⟦H…]───────────┘
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧      
+ ‹  ⟦Review~~~⟧  5/7 ›                                                          
+┌─│⟦Details~~~⟧ · 01TASK1│─────────────────────────────────────────────────────┐
+│ ⟦Round 1/1 · 2026-11-11 09:30 · agent~~~~~~⟧                                 │
+│ Hai điểm cần sửa                                                             │
+│                                                                              │
+│ ── ⟦3 findings~~~~⟧ ───────────────────────────────────────────────────────  │
+│ [⟦critical~~~~⟧ 1] [⟦medium~~~⟧ 1] [⟦low~~⟧ 1]                               │
+│ ▸ [⟦critical~~~~⟧] Không đóng kết nối  internal/db/db.go:4-5                 │
+│   [⟦medium~~~⟧] Khoá ghi quá rộng  README.md:1                               │
+│   [⟦low~~⟧]   Đặt tên biến rõ hơn  internal/db/db.go:3                       │
+│                                                                              │
+│ ── 01TASK1.2 ──────────────────────────────────────────────────────────────  │
+│ ⟦bug~~⟧ · ⟦critical~~~~⟧                                                     │
+│ Không đóng kết nối                                                           │
+│ internal/db/db.go:4-5                                                        │
+│ ⟦Evidence~~~~⟧ thiếu Close                                                   │
+│                                                                              │
+│ Gọi Close() trong defer.                                                     │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ j/k ⟦Finding~…  Enter ⟦View  e ⟦Open  K ⟦→  w ⟦Add ─────────────────────────┘
+ [r→ ⟦R…] [c→ ⟦R…] [a→ ⟦A…] [Enter→ ⟦O…] [:→ ⟦C…] [q→ ⟦Q…] [?→ ⟦H…]             

@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧                 │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧  ⟦Update~~~⟧             ⟦Bint updated~~~~~⟧  │
-│ ┌─│⟦Update Bint~~~~~⟧│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
-│ │                                                                                                                                      │ │
-│ │  ⟦Running~~~⟧ 0.1.0 (abc1234)                                                                                                        │ │
-│ │  ⟦Binary~~~⟧  /home/u/go/bin/bint                                                                                                    │ │
-│ │  ⟦Source~~~⟧  /home/u/src/bint                                                                                                       │ │
-│ │                                                                                                                                      │ │
-│ │  ✓ ⟦abc1234 → def5678~~⟧                                                                                                             │ │
-│ │    /home/u/go/bin/bint                                                                                                               │ │
-│ │  ! ⟦The running binary is /usr/local/bin/bint, not the file just installed; check PATH (which bint) if the bint command is still     │ │
-│ │    the old build.~~~~~┌─│⟦Restart now?~~~~~⟧│────────────────────────────────────────────────────────────────┐                       │ │
-│ │  ⟦Not restarted yet: t│ ⟦abc1234 → def5678~~⟧                                                                │                       │ │
-│ │  ⟦In each repository, │ /home/u/go/bin/bint                                                                  │                       │ │
-│ │  skills.~~~~~~~~~~~~~~│                                                                                      │                       │ │
-│ │                       │ ! ⟦The running binary is /usr/local/bin/bint, not the file just installed; check     │                       │ │
-│ │  ⟦go install log~~~~~~│ PATH (which bint) if the bint command is still the old                               │                       │ │
-│ │   go: downloading gith│ build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                              │                       │ │
-│ │   go: downloading mode│                                                                                      │                       │ │
-│ │   bint/internal/app   │ ⟦Restart bint to use the build just installed (same command-line arguments). Choose  │                       │ │
-│ │                       │ Later and the reminder stays on this tab                                             │                       │ │
-│ │                       │ (R).~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                            │                       │ │
-│ │                       │                                                                                      │                       │ │
-│ │                       │ [Enter] ⟦Restart~~~⟧   [Esc] ⟦Later~~⟧                                               │                       │ │
-│ │                       └──────────────────────────────────────────────────────────────────────────────────────┘                       │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ │                                                                                                                                      │ │
-│ └─ u ⟦Update~~~⟧  R ⟦Restart~~~⟧ ──────────────────────────────────────────────────────────────────────────────────────────────────────┘ │
-└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
+ ⟦Config~~~⟧ ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧  ⟦Update~~~⟧      ⟦Bint updated~~~~~⟧ 
+┌─│⟦Update Bint~~~~~⟧│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                                                          │
+│  ⟦Running~~~⟧ 0.1.0 (abc1234)                                                                                                            │
+│  ⟦Binary~~~⟧  /home/u/go/bin/bint                                                                                                        │
+│  ⟦Source~~~⟧  /home/u/src/bint                                                                                                           │
+│                                                                                                                                          │
+│  ✓ ⟦abc1234 → def5678~~⟧                                                                                                                 │
+│    /home/u/go/bin/bint                                                                                                                   │
+│  ! ⟦The running binary is /usr/local/bin/bint, not the file just installed; check PATH (which bint) if the bint command is still the     │
+│    old build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                                                                           │
+│  ⟦Not restarted yet: the running build is still the old one.~~~~~~~~~~~~~~~~~~~~~~~~⟧                                                    │
+│  ⟦In each repository, pr┌─│⟦Restart now?~~~~~⟧│────────────────────────────────────────────────────────────────┐                         │
+│  skills.~~~~~~~~~~~~~~~~│ ⟦abc1234 → def5678~~⟧                                                                │                         │
+│                         │ /home/u/go/bin/bint                                                                  │                         │
+│  ⟦go install log~~~~~~⟧ │                                                                                      │                         │
+│   go: downloading github│ ! ⟦The running binary is /usr/local/bin/bint, not the file just installed; check     │                         │
+│   go: downloading modern│ PATH (which bint) if the bint command is still the old                               │                         │
+│   bint/internal/app     │ build.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                              │                         │
+│                         │                                                                                      │                         │
+│                         │ ⟦Restart bint to use the build just installed (same command-line arguments). Choose  │                         │
+│                         │ Later and the reminder stays on this tab                                             │                         │
+│                         │ (R).~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                            │                         │
+│                         │                                                                                      │                         │
+│                         │ [Enter] ⟦Restart~~~⟧   [Esc] ⟦Later~~⟧                                               │                         │
+│                         └──────────────────────────────────────────────────────────────────────────────────────┘                         │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+│                                                                                                                                          │
+└─ u ⟦Update~~~⟧  R ⟦Restart~~~⟧ ──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ [Esc→ ⟦Leave~~⟧]                                                                                                                           

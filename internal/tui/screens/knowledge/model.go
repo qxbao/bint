@@ -16,13 +16,14 @@ import (
 	"bint/internal/tui/components/confirm"
 	"bint/internal/tui/components/form"
 	"bint/internal/tui/components/list"
+	"bint/internal/tui/components/split"
 	"bint/internal/tui/components/viewer"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
 
 // WideW: từ chiều rộng này danh sách và chi tiết hiện cạnh nhau; hẹp hơn thì một khung (Tab/Enter đổi).
-const WideW = 100
+const WideW = split.WideW
 
 // Các thẻ phụ.
 const (
@@ -71,6 +72,7 @@ type dialog struct {
 // Model là trạng thái màn Tri thức.
 type Model struct {
 	o   Options
+	sp  split.State // tỉ lệ danh sách/chi tiết (ui.Splitter)
 	cat *i18n.Catalog
 	rw  ui.Rewriter
 	th  theme.Theme
@@ -127,10 +129,16 @@ func New(o Options) *Model {
 	if o.Loader == nil {
 		o.Loader = Load
 	}
-	m := &Model{o: o, sel: list.Selection{}, cache: map[string]app.KnowledgeDetail{}, cacheErr: map[string]error{}, asked: map[string]bool{}}
+	m := &Model{o: o, sp: split.New(DefaultSplit), sel: list.Selection{}, cache: map[string]app.KnowledgeDetail{}, cacheErr: map[string]error{}, asked: map[string]bool{}}
 	m.initPanels()
 	return m
 }
+
+// DefaultSplit là tỉ lệ mặc định (phần trăm) của pane danh sách.
+const DefaultSplit = 50
+
+// Splitter trả trạng thái chia danh sách/chi tiết (ui.Splitter).
+func (m *Model) Splitter() *split.State { return &m.sp }
 
 // SetEnv đặt danh mục chuỗi và bảng màu (gọi lại khi đổi ngôn ngữ).
 func (m *Model) SetEnv(th theme.Theme, rw ui.Rewriter) { m.th, m.rw, m.cat = th, rw, rw.Cat }

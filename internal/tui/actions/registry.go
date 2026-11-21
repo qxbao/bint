@@ -51,6 +51,13 @@ func Default() *Registry {
 	for i, s := range Screens {
 		list = append(list, Action{ID: NavID(s), Key: string(rune('1' + i)), TitleKey: "action.nav." + string(s) + ".title"})
 	}
+	// Tỉ lệ pane của màn hai pane (mô hình gốc xử lý, components/split).
+	list = append(list,
+		Action{ID: "app.split_grow", Key: ">", TitleKey: "action.app.split_grow.title"},
+		Action{ID: "app.split_shrink", Key: "<", TitleKey: "action.app.split_shrink.title"},
+		Action{ID: "app.split_zoom", Key: "z", TitleKey: "action.app.split_zoom.title"},
+		Action{ID: "app.split_reset", Key: "=", TitleKey: "action.app.split_reset.title"},
+	)
 	list = append(list,
 		Action{ID: "overview.refresh", Screen: Overview, Key: "r", Footer: true, Priority: 1, LabelKey: "action.overview.refresh.label",
 			TitleKey: "action.overview.refresh.title", CLIPath: "status"},

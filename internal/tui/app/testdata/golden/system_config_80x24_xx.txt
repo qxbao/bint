@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧  │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│    ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ›        │
-│ ┌─│⟦Key groups~~~~⟧│───────────────────────────────────────⟦schema v1~~~~⟧─┐ │
-│ │ ▸ ⟦Source layers~~~~~~⟧                                                  │ │
-│ │   project                                                                │ │
-│ │   state                                                                  │ │
-│ │   harnesses                                                              │ │
-│ │   roles                                                                  │ │
-│ │   context                                                                │ │
-│ │   knowledge                                                              │ │
-│ │   memory                                                                 │ │
-│ │   eval                                                                   │ │
-│ │   evolution                                                              │ │
-│ │   workflow                                                               │ │
-│ │   limits                                                                 │ │
-│ │   security                                                               │ │
-│ │   ui                                                                     │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ e ⟦edit~~⟧  Enter ⟦open~~⟧ ─────────────────────────────────────────────┘ │
-└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧    
+   ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ›           
+┌─│⟦Key groups~~~~⟧│───────────────────────────────────────────⟦schema v1~~~~⟧─┐
+│ ▸ ⟦Source layers~~~~~~⟧                                                      │
+│   project                                                                    │
+│   state                                                                      │
+│   harnesses                                                                  │
+│   roles                                                                      │
+│   context                                                                    │
+│   knowledge                                                                  │
+│   memory                                                                     │
+│   eval                                                                       │
+│   evolution                                                                  │
+│   workflow                                                                   │
+│   limits                                                                     │
+│   security                                                                   │
+│   ui                                                                         │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ e ⟦edit~~⟧  Enter ⟦open~~⟧ ─────────────────────────────────────────────────┘
+ [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            

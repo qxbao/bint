@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP                              │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│System│─────────────────────────────────────────────────────────────────────┐
-│   Config  Harness Components Skills Index Language Doctor Setup Update       │
-│ ┌─┌─│Upgrade the configuration template│─────────────────────────1-13/14─┐─┐ │
-│ │ │ /work/demo/.bint/config.yml                                          │ │ │
-│ │ │ Adds keys: harnesses.claude.models                                   │ │ │
-│ │ │ ! giữ model chung đã đặt tay                                         │ │ │
-│ │ │ Existing values and comments stay as they are; the old file is       │ │ │
-│ │ │ backed up to the state directory before writing. Repository setup (e │ │ │
-│ │ │ in Setup) also refreshes skills and installed hooks.                 │ │ │
-│ │ │                                                                      │ │ │
-│ │ │ --- .bint/config.yml                                                 │ │ │
-│ │ │ +++ .bint/config.yml (mẫu mới)                                       │ │ │
-│ │ │   harnesses:                                                         │ │ │
-│ │ │     claude:                                                          │ │ │
-│ │ │       model: sonnet                                                  │ │ │
-│ │ │ +     models:                                                        │ │ │
-│ │ │                                                                      │ │ │
-│ │ │ [Enter] Upgrade   [Esc] Keep as is                                   │ │ │
-│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
-│ └─ e edit  Enter open ─────────────────────────────────────────────────────┘ │
-└─[Esc→ Leave]─────────────────────────────────────────────────────────────────┘
+ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP        /work/demo · bint 0.1.0 
+  Config  Harness Components Skills Index Language Doctor Setup Update          
+┌─│Key groups│───────────────────────────────────────────────────────schema v1─┐
+│ ┌─│Upgrade the configuration template│─────────────────────────────────────┐ │
+│ │ /work/demo/.bint/config.yml                                              │ │
+│ │ Adds keys: harnesses.claude.models                                       │ │
+│ │ ! giữ model chung đã đặt tay                                             │ │
+│ │ Existing values and comments stay as they are; the old file is backed up │ │
+│ │ to the state directory before writing. Repository setup (e in Setup)     │ │
+│ │ also refreshes skills and installed hooks.                               │ │
+│ │                                                                          │ │
+│ │ --- .bint/config.yml                                                     │ │
+│ │ +++ .bint/config.yml (mẫu mới)                                           │ │
+│ │   harnesses:                                                             │ │
+│ │     claude:                                                              │ │
+│ │       model: sonnet                                                      │ │
+│ │ +     models:                                                            │ │
+│ │ +       planner: opus                                                    │ │
+│ │                                                                          │ │
+│ │ [Enter] Upgrade   [Esc] Keep as is                                       │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+└─ e edit  Enter open ─────────────────────────────────────────────────────────┘
+ [Esc→ Leave]                                                                   

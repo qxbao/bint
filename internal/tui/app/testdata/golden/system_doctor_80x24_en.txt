@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP                              │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness Components Skills Index Language  Doctor  Setup Update       │
-│ ┌─│Doctor: 1 warnings, 1 failures│─────────────────────────────────────────┐ │
-│ │ ▸ ✓ git                                                                  │ │
-│ │   ! cấu hình                                                             │ │
-│ │   ✗ hook claude                                                          │ │
-│ │   · tri thức                                                             │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ w issues  Ctrl+R refresh  Enter open ───────────────────────────────────┘ │
-└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘
+ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP        /work/demo · bint 0.1.0 
+ Config Harness Components Skills Index Language  Doctor  Setup Update          
+┌─│Doctor: 1 warnings, 1 failures│─────────────────────────────────────────────┐
+│ ▸ ✓ git                                                                      │
+│   ! cấu hình                                                                 │
+│   ✗ hook claude                                                              │
+│   · tri thức                                                                 │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ w issues  Ctrl+R refresh  Enter open ───────────────────────────────────────┘
+ [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                

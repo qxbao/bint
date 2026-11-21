@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ Tổng quan │ Tri thức │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                         │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Khởi tạo│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                                                                                                          │
-│   Khởi tạo Bint  Bước 1/7 · Harness                                                                                                      │
-│                                                                                                                                          │
-│   Bint chưa được khởi tạo trong /work/demo. Trình hướng dẫn hỏi vài lựa chọn rồi cho xem trước các tệp sẽ tạo; chưa ghi gì cho tới khi   │
-│   bạn chạy ở bước xem trước.                                                                                                             │
-│                                                                                                                                          │
-│   Chọn các harness (agent lập trình) Bint sẽ làm việc cùng. Cấu hình mới ghi đúng các harness đã chọn.                                   │
-│                                                                                                                                          │
-│ ▸ [x] claude  có trên máy                                                                                                                │
-│   [ ] codex  không thấy trên máy                                                                                                         │
-│   [ ] antigravity  không thấy trên máy                                                                                                   │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│   Enter tiếp  Esc lùi  Space chọn  d dùng mặc định                                                                                       │
-└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────────────────────────────────────────────────────────────────┘
+ Tổng quan │ Tri thức │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                   /work/demo · bint 0.1.0 
+                                                                                                                                            
+  Khởi tạo Bint  Bước 1/7 · Harness                                                                                                         
+                                                                                                                                            
+  Bint chưa được khởi tạo trong /work/demo. Trình hướng dẫn hỏi vài lựa chọn rồi cho xem trước các tệp sẽ tạo; chưa ghi gì cho tới khi bạn  
+  chạy ở bước xem trước.                                                                                                                    
+                                                                                                                                            
+  Chọn các harness (agent lập trình) Bint sẽ làm việc cùng. Cấu hình mới ghi đúng các harness đã chọn.                                      
+                                                                                                                                            
+▸ [x] claude  có trên máy                                                                                                                   
+  [ ] codex  không thấy trên máy                                                                                                            
+  [ ] antigravity  không thấy trên máy                                                                                                      
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+  Enter tiếp  Esc lùi  Space chọn  d dùng mặc định                                                                                          
+ [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                                           

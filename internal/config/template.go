@@ -234,6 +234,7 @@ mcp:                        # MCP dự án dùng và cấp cho agent (bint mcp l
 
 ui:
   language: auto            # giao diện TUI: auto | vi | en (auto: theo BINT_LANG, LANG; mặc định vi)
+  layout: {}                # tỉ lệ pane trái theo màn (20–80 phần trăm), vd {knowledge: 55}; TUI tự ghi vào .bint/local.yml khi đổi
 
 iso:                        # profile tài khoản của harness (bint iso); cài đặt của máy: nên đặt ở cấu hình toàn cục hoặc .bint/local.yml
   home: auto                # auto = <thư mục dữ liệu người dùng>/bint/iso, hoặc đường dẫn tuyệt đối; BINT_ISO_HOME ghi đè

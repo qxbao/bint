@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy │ MCP                          │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Evaluation│─────────────────────────────────────────────────────────────────┐
-│   Candidates · Cases · Batches                                               │
-│ ┌─│Approved cases (2)│──────────────────────────────────────────all splits─┐ │
-│ │ ▸ ✓ c0003cccc     build      Đổi cách tính phí                           │ │
-│ │   ✓ c0004dddd     validation Tách hàm Open                               │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ r run  E estimate  t split  p spec ─────────────────────────────────────┘ │
-└─[m→ Mine] [a→ Appr…] [x→ Reje…] [r→ Run] [:→ Comm…] [q→ Quit] [?→ Help]──────┘
+ Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy │ MCP    /work/demo · bint 0.1.0 
+  Candidates · Cases · Batches                                                  
+┌─│Approved cases (2)│──────────────────────────────────────────────all splits─┐
+│ ▸ ✓ c0003cccc     build      Đổi cách tính phí                               │
+│   ✓ c0004dddd     validation Tách hàm Open                                   │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ r run  E estimate  t split  p spec ─────────────────────────────────────────┘
+ [m→ Mine] [a→ Approve] [x→ Reject] [r→ Run] [:→ Commands] [q→ Quit] [?→ Help]  

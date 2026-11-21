@@ -132,3 +132,30 @@ func TestValidateWith(t *testing.T) {
 		t.Fatal("lớp toàn cục không sửa được")
 	}
 }
+
+func TestSetUILayout(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"no ui", "project:\n  name: x\n", "project:\n  name: x\nui:\n  layout:\n    knowledge: 55\n"},
+		{"ui without layout", "# đầu\nui:\n  # ngôn ngữ\n  language: vi\n# cuối\n", "# đầu\nui:\n  # ngôn ngữ\n  language: vi\n  layout:\n    knowledge: 55\n# cuối\n"},
+		{"replace", "ui:\n  layout:\n    knowledge: 40   # giữ\n    tasks: 42\n", "ui:\n  layout:\n    knowledge: 55   # giữ\n    tasks: 42\n"},
+		{"insert key", "ui:\n  layout:\n    tasks: 42\n  language: vi\n", "ui:\n  layout:\n    tasks: 42\n    knowledge: 55\n  language: vi\n"},
+		{"flow empty", "ui:\n  language: auto\n  layout: {}                # chú thích\n", "ui:\n  language: auto\n  layout: {knowledge: 55}                # chú thích\n"},
+		{"empty file", "", "ui:\n  layout:\n    knowledge: 55\n"},
+	}
+	for _, c := range cases {
+		got, changed, err := SetUILayout([]byte(c.in), "knowledge", 55)
+		if err != nil || !changed || string(got) != c.want {
+			t.Errorf("%s: err=%v changed=%v\n--- got\n%s--- want\n%s", c.name, err, changed, got, c.want)
+		}
+		var cfg Config
+		if err := yaml.Unmarshal(got, &cfg); err != nil || cfg.UI.Layout["knowledge"] != 55 {
+			t.Errorf("%s: kết quả không đọc lại được ui.layout.knowledge=55: %v %+v", c.name, err, cfg.UI)
+		}
+	}
+	if _, _, err := SetUILayout(nil, "nope", 50); err == nil {
+		t.Error("màn lạ phải bị từ chối")
+	}
+	if _, _, err := SetUILayout(nil, "knowledge", 90); err == nil {
+		t.Error("ngoài 20–80 phải bị từ chối")
+	}
+}

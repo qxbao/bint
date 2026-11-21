@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │⟦Kn~⟧ (3) │⟦Tk~⟧ │⟦Rn~⟧ │⟦Ev~⟧ │⟦Evolution~~~~⟧ │⟦Sy~⟧ │⟦MCP~~⟧       │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦Evolution~~~~⟧│────────────────────────────────────────────────────────────┐
-│   ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧         │
-│ ┌─│⟦Apply / rollback history~~~~~~~~~~⟧│───────────────────────────────────┐ │
-│ │ 2026-11-10 10:00 apply EP0000KNOW update (01KNOW000003) Rev              │ │
-│ │     <rev@example.com> ⟦verified=false~~~~⟧                               │ │
-│ │     đã xem                                                               │ │
-│ │     ⟦since applied: retrieved in 4 runs, cited in 1 runs (a hint only;   │ │
-│ │     impact needs a removal                                               │ │
-│ │     evaluation)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                 │ │
-│ │     ⟦evolution cost: generation -, comparison -~~~~~~~~~~~~~~~~⟧         │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[s→ ⟦S…] [p→ ⟦P…] [a→ ⟦A…] [x→ ⟦R…] [:→ ⟦C…] [q→ ⟦Q…] [?→ ⟦H…]───────────────┘
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evolution~~~~⟧ │ ⟦Sy~⟧ │ ⟦MCP~~⟧  
+  ⟦Opportunities~~~~~~⟧ · ⟦Proposals~~~~⟧ · ⟦History~~~⟧ · ⟦Queue~~⟧            
+┌─│⟦Apply / rollback history~~~~~~~~~~⟧│───────────────────────────────────────┐
+│ 2026-11-10 10:00 apply EP0000KNOW update (01KNOW000003) Rev                  │
+│     <rev@example.com> ⟦verified=false~~~~⟧                                   │
+│     đã xem                                                                   │
+│     ⟦since applied: retrieved in 4 runs, cited in 1 runs (a hint only;       │
+│     impact needs a removal                                                   │
+│     evaluation)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                     │
+│     ⟦evolution cost: generation -, comparison -~~~~~~~~~~~~~~~~⟧             │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [s→ ⟦Sca…] [p→ ⟦Pro…] [a→ ⟦App…] [x→ ⟦Rej…] [:→ ⟦Com…] [q→ ⟦Qui…] [?→ ⟦Hel…]   

@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                     │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Hệ thống│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                             │
-│ ┌─│Nhóm khoá│──────────────────────────────────────schema v1─┐┌─│Lớp nguồn│────────────────────────────────────────────────────────────┐ │
-│ │ ▸ Lớp nguồn                                                ││ Cấu hình hiệu lực = toàn cục → dự án → strategy → cục bộ (lớp sau đè   │ │
-│ │   project                                                  ││   lớp trước).                                                          │ │
-│ │   state                                                    ││                                                                        │ │
-│ │   harnesses                                                ││ ○ toàn cục    không có                                                 │ │
-│ │   roles                                                    ││     /home/u/.config/bint/config.yml                                    │ │
-│ │   context                                                  ││ ● dự án       đang dùng                                                │ │
-│ │   knowledge                                                ││     /work/demo/.bint/config.yml                                        │ │
-│ │   memory                                                   ││     sửa được bằng e                                                    │ │
-│ │   eval                                                     ││ ○ strategy    không có                                                 │ │
-│ │   evolution                                                ││     /work/demo/.bint/harness/strategy.yml                              │ │
-│ │   workflow                                                 ││ ○ cục bộ      không có                                                 │ │
-│ │   limits                                                   ││     /work/demo/.bint/local.yml                                         │ │
-│ │   security                                                 ││     sửa được bằng e                                                    │ │
-│ │   ui                                                       ││                                                                        │ │
-│ │                                                            ││ Thư mục gốc: /work/demo                                                │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ └─ e sửa  Enter mở ──────────────────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
-└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────────────────────────────────────────────────────────────────┘
+ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
+  Cấu hình · Harness · Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                                
+┌─│Nhóm khoá│───────────────────────────────────────schema v1─┐┌─│Lớp nguồn│───────────────────────────────────────────────────────────────┐
+│ ▸ Lớp nguồn                                                 ││ Cấu hình hiệu lực = toàn cục → dự án → strategy → cục bộ (lớp sau đè lớp  │
+│   project                                                   ││   trước).                                                                 │
+│   state                                                     ││                                                                           │
+│   harnesses                                                 ││ ○ toàn cục    không có                                                    │
+│   roles                                                     ││     /home/u/.config/bint/config.yml                                       │
+│   context                                                   ││ ● dự án       đang dùng                                                   │
+│   knowledge                                                 ││     /work/demo/.bint/config.yml                                           │
+│   memory                                                    ││     sửa được bằng e                                                       │
+│   eval                                                      ││ ○ strategy    không có                                                    │
+│   evolution                                                 ││     /work/demo/.bint/harness/strategy.yml                                 │
+│   workflow                                                  ││ ○ cục bộ      không có                                                    │
+│   limits                                                    ││     /work/demo/.bint/local.yml                                            │
+│   security                                                  ││     sửa được bằng e                                                       │
+│   ui                                                        ││                                                                           │
+│                                                             ││ Thư mục gốc: /work/demo                                                   │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+└─ e sửa  Enter mở ───────────────────────────────────────────┘└───────────────────────────────────────────────────────────────────────────┘
+ [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                                           

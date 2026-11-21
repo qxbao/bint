@@ -14,6 +14,7 @@ import (
 	"bint/internal/tui/components/form"
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/logview"
+	"bint/internal/tui/components/split"
 	"bint/internal/tui/components/viewer"
 	"bint/internal/tui/jobs"
 	"bint/internal/tui/theme"
@@ -21,7 +22,7 @@ import (
 )
 
 // WideW: từ chiều rộng này danh sách và chi tiết hiện cạnh nhau; hẹp hơn thì một khung (Tab/Enter đổi).
-const WideW = 100
+const WideW = split.WideW
 
 // Các thẻ của màn hình. Thẻ Log chỉ hiện khi có việc nền của Tiến hoá (đang chạy hoặc vừa xong).
 const (
@@ -74,6 +75,7 @@ type dialog struct {
 // Model là trạng thái màn Tiến hoá.
 type Model struct {
 	o   Options
+	sp  split.State // tỉ lệ hai pane (ui.Splitter); khởi tạo lười trong Splitter
 	cat *i18n.Catalog
 	rw  ui.Rewriter
 	th  theme.Theme
@@ -775,3 +777,14 @@ func (m *Model) Command(id string) tea.Cmd {
 
 // cli viết lại đoạn nhắc lệnh CLI trong thông điệp của tầng dịch vụ thành phím/hành động TUI (ui.Rewrite).
 func (m *Model) cli(s string) string { return m.rw.Rewrite(s) }
+
+// DefaultSplit là tỉ lệ mặc định (phần trăm) của pane trái.
+const DefaultSplit = 50
+
+// Splitter trả trạng thái chia hai pane của màn (ui.Splitter).
+func (m *Model) Splitter() *split.State {
+	if m.sp.Def == 0 {
+		m.sp = split.New(DefaultSplit)
+	}
+	return &m.sp
+}

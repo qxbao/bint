@@ -95,20 +95,7 @@ func (m *Model) formView(env ui.Env) string {
 
 // split chia vùng thành khung trái và phải (≥ WideW cột), hoặc một khung theo pane.
 func (m *Model) split(env ui.Env, left, right func(w int) string) string {
-	w := env.W
-	if w >= WideW {
-		lw := max(w/2, 52)
-		l, r := strings.Split(left(lw), "\n"), strings.Split(right(w-lw), "\n")
-		out := make([]string, len(l))
-		for i := range l {
-			out[i] = l[i] + r[i]
-		}
-		return strings.Join(out, "\n")
-	}
-	if m.pane == paneDetail {
-		return right(w)
-	}
-	return left(w)
+	return m.Splitter().Render(env.W, m.pane == paneDetail, left, right)
 }
 
 // hints dựng chân phím của khung (kiểu Plain, tự rút theo độ rộng khung và bấm được bằng chuột).

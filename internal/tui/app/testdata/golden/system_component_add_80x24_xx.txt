@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧  │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧ ⟦Harness~~~⟧  ⟦Components~~~~⟧  ⟦Skills~~~⟧ ⟦Index~~⟧ ›        │
-│ ┌─│⟦Add a workflow component as a candidate (from a template or a file)~…│─┐ │
-│ │ ▸ ⟦Kind~~⟧                 ‹ (●) ⟦(empty)~~~⟧ ›                          │ │
-│ │   ⟦Component file~~~~~~⟧                                                 │ │
-│ │   ⟦Built-in template~~~~~…                                               │ │
-│ │   ▸ ⟦Advanced~~~~⟧                                                       │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │   ⓘ ⟦Only needed with --file~~~~~~~~~~⟧                                  │ │
-│ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint harness component add         │ │
-│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧    
+  ⟦Config~~~⟧ ⟦Harness~~~⟧  ⟦Components~~~~⟧  ⟦Skills~~~⟧ ⟦Index~~⟧ ›           
+┌─│⟦Add a workflow component as a candidate (from a template or a file)~~~~~…│─┐
+│ ▸ ⟦Kind~~⟧                  ‹ (●) ⟦(empty)~~~⟧ ›                             │
+│   ⟦Component file~~~~~~⟧                                                     │
+│   ⟦Built-in template~~~~~~…                                                  │
+│   ▸ ⟦Advanced~~~~⟧                                                           │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   ⓘ ⟦Only needed with --file~~~~~~~~~~⟧                                      │
+│   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint harness component add             │
+│   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [Esc→ ⟦Leave~~⟧]                                                               

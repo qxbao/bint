@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP                             │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Hệ thống│───────────────────────────────────────────────────────────────────┐
-│    Cấu hình  Harness Thành phần Skill Chỉ mục Ngôn ngữ Doctor Cài đặt ›      │
-│ ┌─│Nhóm khoá│────────────────────────────────────────────────────schema v1─┐ │
-│ │ ▸ Lớp nguồn                                                              │ │
-│ │   project                                                                │ │
-│ │   state                                                                  │ │
-│ │   harnesses                                                              │ │
-│ │   roles                                                                  │ │
-│ │   context                                                                │ │
-│ │   knowledge                                                              │ │
-│ │   memory                                                                 │ │
-│ │   eval                                                                   │ │
-│ │   evolution                                                              │ │
-│ │   workflow                                                               │ │
-│ │   limits                                                                 │ │
-│ │   security                                                               │ │
-│ │   ui                                                                     │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ e sửa  Enter mở ────────────────────────────────────────────────────────┘ │
-└─[:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]─────────────────────────────┘
+ TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP       /work/demo · bint 0.1.0 
+  Cấu hình  Harness Thành phần Skill Chỉ mục Ngôn ngữ Doctor Cài đặt Cập nhật   
+┌─│Nhóm khoá│────────────────────────────────────────────────────────schema v1─┐
+│ ▸ Lớp nguồn                                                                  │
+│   project                                                                    │
+│   state                                                                      │
+│   harnesses                                                                  │
+│   roles                                                                      │
+│   context                                                                    │
+│   knowledge                                                                  │
+│   memory                                                                     │
+│   eval                                                                       │
+│   evolution                                                                  │
+│   workflow                                                                   │
+│   limits                                                                     │
+│   security                                                                   │
+│   ui                                                                         │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ e sửa  Enter mở ────────────────────────────────────────────────────────────┘
+ [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                               

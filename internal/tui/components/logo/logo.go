@@ -10,7 +10,7 @@ import (
 )
 
 // Kích thước tối thiểu của vùng nội dung để dùng bản logo điểm ảnh; nhỏ hơn thì chỉ hiện chữ "bint." đậm.
-const MinW, MinH = 100, 30
+const MinW, MinH = 100, 45
 
 // Phông 5 dòng; X = điểm sáng. Chữ cái cách nhau một cột trống.
 var glyphs = map[rune][5]string{

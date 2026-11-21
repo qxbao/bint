@@ -379,3 +379,38 @@ func SetUILanguage(ctx context.Context, dir string, o UILanguageOptions) (UILang
 	res.Changed, res.Backup = err == nil, w.Backup
 	return res, err
 }
+
+// SetUILayout ghi ui.layout.<screen> = pct vào lớp cấu hình cục bộ (.bint/local.yml), chỉ sửa đúng dòng cần sửa. Kiểm bằng
+// Validate() trên cấu hình đã ghép lớp trước khi ghi; không đổi thì không ghi.
+func SetUILayout(ctx context.Context, dir, screen string, pct int) (changed bool, err error) {
+	ws, root, err := configCtx(ctx, dir)
+	if err != nil {
+		return false, err
+	}
+	path := config.LayerPath(root, config.LayerLocal)
+	cur, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	next, changed, err := config.SetUILayout(cur, screen, pct)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", path, err)
+	}
+	if !changed {
+		return false, nil
+	}
+	if _, err := config.ValidateWith(root, config.LayerLocal, next); err != nil {
+		return false, err
+	}
+	_, err = writeConfigLayer(ws, root, config.LayerLocal, hashBytes(cur), next, "bint tui layout")
+	return err == nil, err
+}
+
+// UILayout trả ui.layout hiệu lực (đã ghép lớp) của repository ở dir.
+func UILayout(ctx context.Context, dir string) (map[string]int, error) {
+	ws, err := OpenWorkspace(ctx, dir, false)
+	if err != nil {
+		return nil, err
+	}
+	return ws.Config.UI.Layout, nil
+}

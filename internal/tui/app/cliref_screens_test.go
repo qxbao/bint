@@ -351,7 +351,8 @@ func TestCLIRefLooseFlagsInServiceFlows(t *testing.T) {
 	drive(t, m, cmd)
 	out := flat(m.Render())
 	noFlags(t, "duyệt ứng viên", out)
-	for _, w := range []string{"nếu vẫn muốn duyệt", "hoặc chọn ô “Vẫn duyệt dù …” trong hộp duyệt"} {
+	// Câu dài được ngắt dòng trong hộp: so từng đoạn (flat nối cả chữ của màn nền bên phải hộp vào giữa).
+	for _, w := range []string{"nếu vẫn muốn duyệt", "hoặc chọn ô “Vẫn duyệt", "dù …” trong hộp duyệt"} {
 		if !strings.Contains(out, w) {
 			t.Errorf("duyệt ứng viên: thiếu %q:\n%s", w, out)
 		}

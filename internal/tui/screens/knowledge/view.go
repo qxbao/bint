@@ -166,35 +166,9 @@ func (m *Model) filterChips() string {
 }
 
 func (m *Model) listView(env ui.Env) string {
-	w, h := env.W, env.H
-	wide := w >= WideW
-	showList, showDetail := true, wide
-	if !wide && m.pane == paneDetail {
-		showList, showDetail = false, true
-	}
-	lw, rw := w, w
-	if wide {
-		lw = max(w*5/12, 48)
-		rw = w - lw
-	}
-	var lbox, rbox []string
-	if showList {
-		lbox = strings.Split(m.listBox(env, lw, h), "\n")
-	}
-	if showDetail {
-		rbox = strings.Split(m.detailBox(env, rw, h), "\n")
-	}
-	switch {
-	case showList && showDetail:
-		out := make([]string, len(lbox))
-		for i := range lbox {
-			out[i] = lbox[i] + rbox[i]
-		}
-		return strings.Join(out, "\n")
-	case showList:
-		return strings.Join(lbox, "\n")
-	}
-	return strings.Join(rbox, "\n")
+	return m.sp.Render(env.W, m.pane == paneDetail,
+		func(w int) string { return m.listBox(env, w, env.H) },
+		func(w int) string { return m.detailBox(env, w, env.H) })
 }
 
 func (m *Model) listBox(env ui.Env, w, h int) string {

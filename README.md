@@ -189,6 +189,7 @@ dụng, loại bỏ) bị khoá kèm lý do.
 | `?` | trợ giúp theo ngữ cảnh |
 | `!` | hộp Thông báo: nguyên văn thông báo hiện tại và 50 thông báo gần nhất |
 | `L` | đổi ngôn ngữ trong phiên (vi ⇄ en) |
+| `<` `>` `z` `=` | màn hai pane: thu / nới pane trái 5%, phóng to pane đang chọn, về tỉ lệ mặc định (kéo đường chia bằng chuột cũng được); tỉ lệ lưu vào `ui.layout` của `.bint/local.yml` |
 | `r` | làm mới ở Tổng quan (các màn khác: `Ctrl+R`) |
 | `q` | thoát (còn việc nền thì hỏi trước) |
 

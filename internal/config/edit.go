@@ -2,6 +2,9 @@ package config
 
 import (
 	"fmt"
+	"maps"
+	"slices"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -212,4 +215,120 @@ func runeToByte(s string, runes int) int {
 		i++
 	}
 	return len(s)
+}
+
+// SetUILayout trả nội dung tệp cấu hình data với ui.layout.<screen> = pct, chỉ sửa đúng dòng cần sửa (giữ chú thích và các dòng
+// khác): thay giá trị đã có, chèn khoá vào khối layout, chèn khối layout vào khối ui, hoặc nối khối ui ở cuối tệp.
+func SetUILayout(data []byte, screen string, pct int) ([]byte, bool, error) {
+	if !slices.Contains(UILayoutScreens, screen) {
+		return nil, false, fmt.Errorf("ui.layout: màn lạ %q, chỉ nhận %s", screen, strings.Join(UILayoutScreens, ", "))
+	}
+	if pct < UILayoutMin || pct > UILayoutMax {
+		return nil, false, fmt.Errorf("ui.layout.%s: phải trong %d–%d, nhận %d", screen, UILayoutMin, UILayoutMax, pct)
+	}
+	val := strconv.Itoa(pct)
+	text := string(data)
+	nl := "\n"
+	if strings.Contains(text, "\r\n") {
+		nl = "\r\n"
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, false, fmt.Errorf("không đọc được YAML: %w", err)
+	}
+	var root *yaml.Node
+	if len(doc.Content) > 0 {
+		root = doc.Content[0]
+	}
+	if root != nil && root.Kind != yaml.MappingNode {
+		return nil, false, fmt.Errorf("tệp cấu hình phải là ánh xạ khoá: giá trị ở cấp cao nhất")
+	}
+	lines := strings.SplitAfter(text, "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	insertAfter := func(idx int, add ...string) []byte {
+		out := append([]string{}, lines[:idx+1]...)
+		if !strings.HasSuffix(out[idx], "\n") {
+			out[idx] += nl
+		}
+		for _, a := range add {
+			out = append(out, a+nl)
+		}
+		out = append(out, lines[idx+1:]...)
+		return []byte(strings.Join(out, ""))
+	}
+	// blockEnd: chỉ số dòng cuối (0-based) của khối con val của khoá key (gồm dòng thụt sâu hơn key ngay sau).
+	blockEnd := func(key, val *yaml.Node) int {
+		end := maxLine(val)
+		for end < len(lines) && strings.TrimSpace(lines[end]) != "" && indentOf(lines[end]) > key.Column {
+			end++
+		}
+		return end - 1
+	}
+	// setInMap đặt screen trong khối ánh xạ m (khoá mk): thay giá trị, hoặc chèn khoá mới.
+	setInMap := func(mk, m *yaml.Node) ([]byte, bool, error) {
+		switch {
+		case m.Kind == yaml.MappingNode && m.Style&yaml.FlowStyle == 0 && len(m.Content) > 0:
+			if i := mapIndex(m, screen); i >= 0 {
+				return replaceScalar(lines, m.Content[i+1], val)
+			}
+			indent := strings.Repeat(" ", m.Content[0].Column-1)
+			return insertAfter(blockEnd(mk, m), indent+screen+": "+val), true, nil
+		case m.Kind == yaml.MappingNode && m.Line == maxLine(m) && m.Line == mk.Line: // dạng flow một dòng, vd layout: {} — viết lại {…}
+			ln := m.Line - 1
+			line := lines[ln]
+			start := runeToByte(line, m.Column-1)
+			end := strings.IndexByte(line[start:], '}')
+			if start >= len(line) || line[start] != '{' || end < 0 {
+				return nil, false, fmt.Errorf("không sửa được ui.layout ở dòng %d", m.Line)
+			}
+			kv := map[string]string{}
+			for i := 0; i+1 < len(m.Content); i += 2 {
+				kv[m.Content[i].Value] = m.Content[i+1].Value
+			}
+			if kv[screen] == val {
+				return []byte(strings.Join(lines, "")), false, nil
+			}
+			kv[screen] = val
+			var parts []string
+			for _, k := range slices.Sorted(maps.Keys(kv)) {
+				parts = append(parts, k+": "+kv[k])
+			}
+			lines[ln] = line[:start] + "{" + strings.Join(parts, ", ") + "}" + line[start+end+1:]
+			return []byte(strings.Join(lines, "")), true, nil
+		case m.Kind == yaml.ScalarNode && m.Tag == "!!null":
+			return insertAfter(mk.Line-1, strings.Repeat(" ", mk.Column+1)+screen+": "+val), true, nil
+		}
+		return nil, false, fmt.Errorf("%s phải là một khối khoá (dòng %d)", mk.Value, m.Line)
+	}
+
+	ui := -1
+	if root != nil {
+		ui = mapIndex(root, "ui")
+	}
+	if ui < 0 { // thiếu khối ui: nối ở cuối
+		add := []string{"ui:", "  layout:", "    " + screen + ": " + val}
+		if len(lines) == 0 {
+			return []byte(strings.Join(add, nl) + nl), true, nil
+		}
+		out := text
+		if !strings.HasSuffix(out, "\n") {
+			out += nl
+		}
+		return []byte(out + strings.Join(add, nl) + nl), true, nil
+	}
+	uk, uv := root.Content[ui], root.Content[ui+1]
+	if uv.Kind == yaml.MappingNode && uv.Style&yaml.FlowStyle == 0 && len(uv.Content) > 0 {
+		if li := mapIndex(uv, "layout"); li >= 0 {
+			return setInMap(uv.Content[li], uv.Content[li+1])
+		}
+		indent := strings.Repeat(" ", uv.Content[0].Column-1)
+		return insertAfter(blockEnd(uk, uv), indent+"layout:", indent+"  "+screen+": "+val), true, nil
+	}
+	if uv.Kind == yaml.ScalarNode && uv.Tag == "!!null" {
+		in := strings.Repeat(" ", uk.Column+1)
+		return insertAfter(uk.Line-1, in+"layout:", in+"  "+screen+": "+val), true, nil
+	}
+	return nil, false, fmt.Errorf("ui phải là một khối khoá nhiều dòng để ghi ui.layout (dòng %d)", uv.Line)
 }

@@ -34,6 +34,7 @@ var writesAudit = map[string]string{
 // Hành động không ghi: đọc, xem trước (kế hoạch), hoặc giao diện thuần.
 var readOnlyAudit = []string{
 	"app.quit", "app.help", "app.palette", "app.language", "app.notifications", "app.mouse", "app.next_tab", "app.prev_tab",
+	"app.split_grow", "app.split_shrink", "app.split_zoom", "app.split_reset",
 	"overview.refresh", "overview.doctor", "init.plan", "init.continue", "init.recheck",
 	"knowledge.plan_batch", "knowledge.verify", "knowledge.review", "knowledge.list", "knowledge.show", "knowledge.filter", "knowledge.select", "knowledge.transitions", "knowledge.refresh",
 	"knowledge.next_view", "knowledge.prev_view", "knowledge.search", "knowledge.stats", "knowledge.diff", "bootstrap.publish_preview", "knowledge.import_preview", "inspect", "bootstrap.skill", "context",

@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧  │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│    ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ›        │
-│ ┌─│⟦Edit a configuration layer (config.yml or local.yml) in $EDITOR; che…│─┐ │
-│ │ ▸ ⟦Layer to edit (project… (●) project ( ) local                         │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint                               │ │
-│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧    
+   ⟦Config~~~⟧  ⟦Harness~~~⟧ ⟦Components~~~~⟧ ⟦Skills~~~⟧ ⟦Index~~⟧ ›           
+┌─│⟦Edit a configuration layer (config.yml or local.yml) in $EDITOR; checked…│─┐
+│ ▸ ⟦Layer to edit (project … (●) project ( ) local                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint                                   │
+│   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [Esc→ ⟦Leave~~⟧]                                                               

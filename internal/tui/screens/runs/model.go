@@ -16,13 +16,14 @@ import (
 	"bint/internal/tui/components/form"
 	"bint/internal/tui/components/input"
 	"bint/internal/tui/components/list"
+	"bint/internal/tui/components/split"
 	"bint/internal/tui/components/viewer"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
 
 // WideW: từ chiều rộng này danh sách và chi tiết hiện cạnh nhau; hẹp hơn thì một khung (Tab/Enter đổi).
-const WideW = 100
+const WideW = split.WideW
 
 // Các thẻ của màn hình.
 const (
@@ -60,6 +61,7 @@ type dialog struct {
 // Model là trạng thái màn Lượt chạy.
 type Model struct {
 	o   Options
+	sp  split.State // tỉ lệ hai pane (ui.Splitter); khởi tạo lười trong Splitter
 	cat *i18n.Catalog
 	rw  ui.Rewriter
 	th  theme.Theme
@@ -711,4 +713,15 @@ func (m *Model) Command(id string) tea.Cmd {
 		return m.setTab((m.tab + numTabs - 1) % numTabs)
 	}
 	return nil
+}
+
+// DefaultSplit là tỉ lệ mặc định (phần trăm) của pane trái.
+const DefaultSplit = 50
+
+// Splitter trả trạng thái chia hai pane của màn (ui.Splitter).
+func (m *Model) Splitter() *split.State {
+	if m.sp.Def == 0 {
+		m.sp = split.New(DefaultSplit)
+	}
+	return &m.sp
 }

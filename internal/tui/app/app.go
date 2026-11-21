@@ -23,7 +23,6 @@ import (
 	"bint/internal/tui/clipboard"
 	"bint/internal/tui/components/confirm"
 	"bint/internal/tui/components/footer"
-	"bint/internal/tui/components/frame"
 	"bint/internal/tui/components/help"
 	"bint/internal/tui/components/palette"
 	"bint/internal/tui/components/tabs"
@@ -202,7 +201,11 @@ type Model struct {
 	// Chuột (mouse.go): vùng bấm của lần vẽ gần nhất, tắt/bật trong phiên, lịch sử thông báo và hộp Thông báo đang mở.
 	zones    []zone.Zone
 	mouseOff bool
-	notes    notices
+	// Tỉ lệ pane (layout.go): đang kéo đường chia, số thứ tự lần hẹn ghi, các màn có tỉ lệ chưa ghi.
+	dragSplit   bool
+	layoutSeq   int
+	layoutDirty map[string]bool
+	notes       notices
 	// Chọn/chép bằng chuột (selection.go) và clipboard (paste.go).
 	sel  selection
 	clip clipboard.Clipboard
@@ -506,7 +509,7 @@ func (m *Model) reloadData() tea.Cmd {
 }
 
 // Init nạp dữ liệu ban đầu.
-func (m *Model) Init() tea.Cmd { return m.load() }
+func (m *Model) Init() tea.Cmd { return tea.Batch(m.load(), m.loadLayout()) }
 
 // Update xử lý thông điệp.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -519,13 +522,32 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.MouseClickMsg:
+		if msg.Button == tea.MouseLeft && m.splitPress(tea.Mouse(msg)) {
+			return m, nil // nhấn trúng đường chia: kéo đổi tỉ lệ thay cho chọn chữ
+		}
 		m.selPress(tea.Mouse(msg)) // chỉ ghi điểm neo: hành động của vùng bấm chạy khi thả (selRelease) nếu không kéo
 		return m, nil
 	case tea.MouseMotionMsg:
+		if m.splitMotion(tea.Mouse(msg)) {
+			return m, nil
+		}
 		m.selMotion(tea.Mouse(msg))
 		return m, nil
 	case tea.MouseReleaseMsg:
+		if cmd, ok := m.splitRelease(tea.Mouse(msg)); ok {
+			return m, cmd
+		}
 		return m, m.selRelease(tea.Mouse(msg))
+	case layoutLoadedMsg:
+		m.applyLayout(msg.layout)
+		return m, nil
+	case layoutSaveMsg:
+		return m, m.saveLayout(msg.seq)
+	case layoutSavedMsg:
+		if msg.err != nil {
+			m.setToast(m.cat.T("ui.layout.save_err", i18n.A{"err": msg.err.Error()}), true)
+		}
+		return m, nil
 	case tea.PasteMsg:
 		m.clearSelection()
 		return m.paste(msg.Content)
@@ -783,6 +805,10 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch s {
+	case "<", ">", "z", "=":
+		if cmd, ok := m.splitKey(s); ok {
+			return m, cmd
+		}
 	case "ctrl+c", "q":
 		return m.run("app.quit")
 	case "?":
@@ -821,7 +847,8 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // globalKey: phím toàn cục mà màn hình không được chiếm (điều hướng tab, thoát, trợ giúp, bảng lệnh, ngôn ngữ).
 func globalKey(s string) bool {
 	switch s {
-	case "q", "ctrl+c", "?", ":", "ctrl+k", "L", "!", "[", "]", "left", "right", "shift+tab", "1", "2", "3", "4", "5", "6", "7", "8":
+	case "q", "ctrl+c", "?", ":", "ctrl+k", "L", "!", "[", "]", "left", "right", "shift+tab", "1", "2", "3", "4", "5", "6", "7", "8",
+		"<", ">", "z", "=":
 		return true
 	}
 	return false
@@ -897,6 +924,10 @@ func (m *Model) run(id string) (tea.Model, tea.Cmd) {
 		}
 	case "app.notifications":
 		m.openNotices()
+	case "app.split_grow", "app.split_shrink", "app.split_zoom", "app.split_reset":
+		key := map[string]string{"app.split_grow": ">", "app.split_shrink": "<", "app.split_zoom": "z", "app.split_reset": "="}[id]
+		cmd, _ := m.splitKey(key)
+		return m, cmd
 	case "app.next_tab":
 		m.tab = (m.tab + 1) % len(actions.Screens)
 		return m, m.ensure()
@@ -1097,21 +1128,16 @@ func (m *Model) render() string {
 	}
 	env := m.newEnv(w, h)
 
+	// Bố cục: một dòng thanh tab, vùng nội dung không khung bao (mỗi pane tự có viền), một dòng chân phím.
 	header := m.header(env)
-	mainH := h - 3
-	iw, ih := frame.Inner(w, mainH)
-	body := m.screenBody(env.WithSize(iw, ih))
+	bw, bh := m.bodySize()
+	body := m.screenBody(env.WithSize(bw, bh))
 	if m.pal != nil || m.showHelp || m.notes.dlg != nil {
-		// Hộp phủ đang mở: che nền trong khung nội dung để chữ của màn bên dưới không lộ (bị cắt ngang)
-		// ở hai bên và dưới hộp.
+		// Hộp phủ đang mở: che nền để chữ của màn bên dưới không lộ (bị cắt ngang) ở hai bên và dưới hộp.
 		body = ""
 	}
-	main := frame.Box{
-		Title: m.screenTitle(), TitleAt: frame.Left, Focused: true,
-		Top:    m.toastLabel(),
-		Bottom: footer.Line(m.th, m.Hints(), w-6), BottomAt: frame.Left,
-	}.Render(m.th, w, mainH, body)
-	lines := strings.Split(header+"\n"+main, "\n")
+	lines := append([]string{header}, text.Block(body, bw, bh)...)
+	lines = append(lines, m.footerLine(w))
 
 	switch {
 	case m.notes.dlg != nil:
@@ -1151,22 +1177,17 @@ func (m *Model) tooSmall(w, h int) string {
 	return strings.Join(out, "\n")
 }
 
-func (m *Model) screenTitle() string {
-	if m.Screen() == actions.Init {
-		return m.cat.T("init.group")
-	}
-	return m.cat.T("tab." + string(actions.Screens[m.tab]))
-}
-
-// toastLabel dựng thông báo ở viền trên khung chính. Dài quá chỗ (rộng khung trừ tiêu đề) thì rút gọn bằng "…" kèm "[!]": phím ! hoặc
-// bấm vào đó mở hộp Thông báo hiện đủ nội dung.
+// toastLabel dựng thông báo ở bên phải dòng chân phím (chừa toastHintRoom ô cho các phím). Dài quá chỗ thì rút gọn bằng "…" kèm "[!]":
+// phím ! hoặc bấm vào đó mở hộp Thông báo hiện đủ nội dung.
 func (m *Model) toastLabel() string {
 	if m.toast == "" {
 		return ""
 	}
-	room := m.w - 4 - (text.Width(m.screenTitle()) + 2) - 1
-	return ui.ToastLabel(m.th, m.rw().Rewrite(m.toast), m.toastErr, room)
+	return ui.ToastLabel(m.th, m.rw().Rewrite(m.toast), m.toastErr, m.w-2-toastHintRoom)
 }
+
+// toastHintRoom là số ô tối thiểu dành cho chân phím khi có thông báo.
+const toastHintRoom = 24
 
 func (m *Model) screenBody(env ui.Env) string {
 	switch s := m.Screen(); s {
@@ -1199,8 +1220,6 @@ func (m *Model) header(env ui.Env) string {
 	if m.ov.Loaded && m.ov.Data.Pending != nil {
 		items[2].Badge = len(m.ov.Data.Pending.BlockedTasks) // Tác vụ chờ người
 	}
-	bar := tabs.Render(m.th, w-4, items, m.tab, w < NarrowW)
-
 	var flags []string
 	if m.opts.ReadOnly {
 		flags = append(flags, m.th.S(theme.Key, "["+m.cat.T("ui.readonly")+"]"))
@@ -1214,15 +1233,65 @@ func (m *Model) header(env ui.Env) string {
 	if n := m.jobs.Len(); n > 0 {
 		flags = append(flags, m.th.S(theme.Key, m.spin.View()+" "+m.cat.N("job.running", n)))
 	}
-	bottom := m.th.S(theme.Muted, " "+text.Path(m.opts.Dir, max(w/2, 20))+" ")
+	// Phần phải: cờ trạng thái, đường dẫn repo, "bint <phiên bản>". Thiếu chỗ thì rút đường dẫn trước, rồi bỏ cờ; nhãn tab được ưu
+	// tiên giữ (tabs.Render tự chuyển nhãn rút gọn khi hẹp).
+	ver := m.th.S(theme.Muted, "bint "+m.opts.Version)
+	pathRole, path := theme.Muted, m.opts.Dir
 	if m.ov.Loaded && m.ov.Data.Status != nil && m.ov.Data.Status.LinkedWorktree {
-		main := m.ov.Data.Status.MainWorktree
-		bottom = m.th.S(theme.Warn, " "+m.cat.T("ui.worktree", i18n.A{"main": text.Path(main, max(w/2, 20))})+" ")
+		pathRole, path = theme.Warn, "" // worktree phụ: chữ cảnh báo thay cho đường dẫn
 	}
-	return frame.Box{
-		Title: "bint " + m.opts.Version, TitleAt: frame.Center, Top: strings.Join(flags, " "),
-		Bottom: bottom, BottomAt: frame.Right,
-	}.Render(m.th, w, 3, bar)
+	fl := strings.Join(flags, " ")
+	// right dựng phần phải vừa room ô: đủ (cờ, đường dẫn, phiên bản) → bỏ đường dẫn → bỏ cờ → chỉ phiên bản; "" nếu không vừa.
+	right := func(room int) string {
+		withFlags := func(r string) string {
+			if fl == "" {
+				return r
+			}
+			return fl + " " + r
+		}
+		for _, cand := range []string{withFlags(ver), ver} {
+			if text.Width(cand) > room {
+				continue
+			}
+			if pw := room - text.Width(cand) - 3; pw >= 8 {
+				var p string
+				if path == "" {
+					pre := text.Width(m.cat.T("ui.worktree", i18n.A{"main": ""}))
+					p = text.Truncate(m.cat.T("ui.worktree", i18n.A{"main": text.Path(m.ov.Data.Status.MainWorktree, max(pw-pre, 8))}), pw)
+				} else {
+					p = text.Path(path, pw)
+				}
+				return m.th.S(pathRole, p) + m.th.S(theme.Muted, " · ") + cand
+			}
+			return cand
+		}
+		return ""
+	}
+	// Nhãn tab đầy đủ được ưu tiên: chỉ rút gọn nhãn (compact) khi phần phải không còn chỗ cho phiên bản.
+	compact := w < NarrowW
+	natural := tabs.Render(m.th, w, items, m.tab, compact)
+	r := right(w - 2 - text.Width(natural) - 2)
+	// Worktree phụ: cảnh báo quan trọng hơn nhãn tab đầy đủ — thiếu chỗ (bị rút gọn) thì rút nhãn tab.
+	wtCut := path == "" && !strings.Contains(r, text.Path(m.ov.Data.Status.MainWorktree, 1<<10))
+	if (r == "" || wtCut) && !compact {
+		compact = true
+		natural = tabs.Render(m.th, w, items, m.tab, true)
+		r = right(w - 2 - text.Width(natural) - 2)
+	}
+	bar := tabs.Render(m.th, w-2-text.Width(r)-1, items, m.tab, compact)
+	gap := max(w-2-text.Width(bar)-text.Width(r), 1)
+	return text.Fit(" "+bar+strings.Repeat(" ", gap)+r+" ", w)
+}
+
+// bodySize là cỡ vùng nội dung của màn hình: trọn chiều rộng, trừ dòng thanh tab và dòng chân phím.
+func (m *Model) bodySize() (w, h int) { return m.w, max(m.h-2, 0) }
+
+// footerLine là dòng chân phím (không viền); thông báo (toast) nằm bên phải, rút gọn kèm [!] khi thiếu chỗ.
+func (m *Model) footerLine(w int) string {
+	toast := m.toastLabel()
+	hints := footer.Line(m.th, m.Hints(), max(w-2-text.Width(toast)-1, 10))
+	gap := max(w-1-text.Width(hints)-text.Width(toast), 1)
+	return text.Fit(" "+hints+strings.Repeat(" ", gap)+toast, w)
 }
 
 // activeLabel là dòng trạng thái "<bước> của <tác vụ> đang chạy trên cây này" (rỗng nếu không có bước nào).

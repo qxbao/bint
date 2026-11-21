@@ -91,8 +91,8 @@ func TestMCPTabKeyBracketsAndMouse(t *testing.T) {
 	}
 	press(t, m, "1")
 	x, y := cellOf(t, m, "MCP")
-	if y != 1 {
-		t.Fatalf("nhãn tab MCP nằm ở hàng %d, muốn hàng thanh tab (1)", y)
+	if y != 0 {
+		t.Fatalf("nhãn tab MCP nằm ở hàng %d, muốn hàng thanh tab (0)", y)
 	}
 	clickAt(t, m, x+1, y)
 	if m.Screen() != actions.MCP {
@@ -107,7 +107,7 @@ func TestMCPTabBarShowsAllEightLabelsAtEveryTab(t *testing.T) {
 		m := newModel(t, Options{Mode: theme.Mono, Lang: lang}, sampleData(), 80, 24)
 		for i, s := range actions.Screens {
 			press(t, m, string(rune('1'+i)))
-			bar := lines(m.Render())[1]
+			bar := lines(m.Render())[0]
 			for j, other := range actions.Screens {
 				key := "tab." + string(other) + ".short"
 				if i == j {
@@ -415,7 +415,7 @@ func TestMCPToolsTab(t *testing.T) {
 func TestSystemScreenHasNoMCPTab(t *testing.T) {
 	m := newModel(t, Options{Mode: theme.Mono, Lang: "vi"}, sampleData(), 200, 40)
 	press(t, m, "7")
-	bar := lines(m.Render())[4]
+	bar := lines(m.Render())[1]
 	if strings.Contains(bar, "MCP") {
 		t.Fatalf("thanh thẻ con của Hệ thống còn MCP: %s", bar)
 	}

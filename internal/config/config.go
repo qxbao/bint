@@ -672,7 +672,19 @@ var UILanguages = []string{"auto", "vi", "en"}
 // UI là cấu hình giao diện (TUI).
 type UI struct {
 	Language string `yaml:"language"`
+	// Layout: tỉ lệ (phần trăm độ rộng pane trái, UILayoutMin–UILayoutMax) của màn hai pane, theo tên màn (UILayoutScreens).
+	// TUI ghi khi người dùng đổi tỉ lệ (phím < > hoặc kéo đường chia) vào .bint/local.yml.
+	Layout map[string]int `yaml:"layout"`
 }
+
+// UILayoutScreens là các màn hai pane nhận tỉ lệ trong ui.layout.
+var UILayoutScreens = []string{"knowledge", "tasks", "runs", "eval", "evolve", "system", "mcp"}
+
+// Giới hạn tỉ lệ của ui.layout (phần trăm).
+const (
+	UILayoutMin = 20
+	UILayoutMax = 80
+)
 
 // IsoShareNames là các mục chia sẻ cache mà iso.share chấp nhận (docs/iso-plan.md mục 5.4).
 // Danh mục chi tiết (đường dẫn, biến env) nằm ở internal/iso; test của iso buộc hai nơi khớp nhau
@@ -802,7 +814,7 @@ func Default() Config {
 		},
 		Limits:   Limits{Workflows: map[string]PerRunLimits{}, ProtectedPaths: []string{"migrations/**", ".github/workflows/**"}},
 		Security: Security{RequireApprovalForCommands: true},
-		UI:       UI{Language: "auto"},
+		UI:       UI{Language: "auto", Layout: map[string]int{}},
 		MCP:      MCP{Services: map[string]MCPService{}, Grants: map[string][]string{}},
 		Iso: Iso{Home: "auto", Cache: "shared", Share: slices.Clone(IsoShareNames),
 			CacheTTL: "720h", SessionsTTL: "2160h", GCInterval: "6h", TmpTTL: "24h",
@@ -1342,6 +1354,14 @@ func (c Config) Validate() error {
 	}
 	if !slices.Contains(UILanguages, c.UI.Language) {
 		add("ui.language: phải là %s, nhận %q", strings.Join(UILanguages, " | "), c.UI.Language)
+	}
+	for _, k := range slices.Sorted(maps.Keys(c.UI.Layout)) {
+		switch v := c.UI.Layout[k]; {
+		case !slices.Contains(UILayoutScreens, k):
+			add("ui.layout.%s: màn lạ, chỉ nhận %s", k, strings.Join(UILayoutScreens, ", "))
+		case v < UILayoutMin || v > UILayoutMax:
+			add("ui.layout.%s: phải trong %d–%d (phần trăm), nhận %d", k, UILayoutMin, UILayoutMax, v)
+		}
 	}
 	errs = append(errs, validateMCP(c.MCP)...)
 	errs = append(errs, validateIso(c.Iso)...)

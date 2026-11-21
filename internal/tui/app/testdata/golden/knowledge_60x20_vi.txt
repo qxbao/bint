@@ -1,20 +1,20 @@
-┌───────────────────────│bint 0.1.0│───────────────────────┐
-│ TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP         │
-└───────────────────────────────────────────── /work/demo ─┘
-┌─│Tri thức│───────────────────────────────────────────────┐
-│  ‹  Danh sách  1/9 ›                                     │
-│ ┌─│Danh sách (5/6)│───────────────mọi mục còn hiệu lực─┐ │
-│ │ ▸   ◌   ⚑ rule     Endpoint phải có … api/**         │ │
-│ │     ◌   ⚑ warning  Không gọi sql.Ope… internal/db/** │ │
-│ │     ✓     pattern  Handler đi qua wr… *              │ │
-│ │     ⟳     fact     Cổng mặc định là … cmd/**         │ │
-│ │     ◌     lesson   Chạy go vet với G… *              │ │
-│ │                                                      │ │
-│ │                                                      │ │
-│ │                                                      │ │
-│ │                                                      │ │
-│ │                                                      │ │
-│ │                                                      │ │
-│ │                                                      │ │
-│ └──────────────────────────────────────────────────────┘ │
-└─[a] [r] [Enter] [:] [q] [?]──────────────────────────────┘
+ TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP           
+ ‹  Danh sách  1/9 ›                                        
+┌─│Danh sách (5/6)│───────────────────mọi mục còn hiệu lực─┐
+│ ▸   ◌   ⚑ rule     Endpoint phải có /v1   api/**         │
+│     ◌   ⚑ warning  Không gọi sql.Open tr… internal/db/** │
+│     ✓     pattern  Handler đi qua wrap()  *              │
+│     ⟳     fact     Cổng mặc định là 8080  cmd/**         │
+│     ◌     lesson   Chạy go vet với GOOS=… *              │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+ [a→ Du…] [r→ Từ] [Enter→ Mở] [:→ Lệ…] [q→ Th…] [?→ Trợ]    

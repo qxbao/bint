@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP                              │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│System│─────────────────────────────────────────────────────────────────────┐
-│  Config Harness Components  Skills  Index Language Doctor Setup Update       │
-│ ┌─│Skills (3)│─────────────────────────────────────────────────────────────┐ │
-│ │ ▸ core  b-do                                     aaaa1111  published     │ │
-│ │   core  b-feat                                   bbbb2222  differs       │ │
-│ │   evol… api-guide                                v2        missing       │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ Enter content  s sync  o overlay  n new  c check  d diff ───────────────┘ │
-└─[:→ Commands] [L→ Language] [q→ Quit] [?→ Help]──────────────────────────────┘
+ Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP        /work/demo · bint 0.1.0 
+ Config Harness Components  Skills  Index Language Doctor Setup Update          
+┌─│Skills (3)│─────────────────────────────────────────────────────────────────┐
+│ ▸ core  b-do                                         aaaa1111  published     │
+│   core  b-feat                                       bbbb2222  differs       │
+│   evol… api-guide                                    v2        missing       │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ Enter content  s sync  o overlay  n new  c check  d diff ───────────────────┘
+ [:→ Commands] [L→ Language] [q→ Quit] [?→ Help]                                

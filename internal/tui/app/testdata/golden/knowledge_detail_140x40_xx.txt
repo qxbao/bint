@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧                 │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦Knowledge~~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│  ‹  ⟦List~~⟧  1/9 ›                                                                                                                      │
-│ ┌─│⟦List (5/6)~~~~⟧│─────────⟦all active items~~~~~~~⟧─┐┌─│⟦Details~~~⟧│───────────────────────────────────────────────────────────────┐ │
-│ │     ◌   ⚑ rule     Endpoint phải có … api/**         ││ 01KNOW000002                                                                 │ │
-│ │ ▸   ◌   ⚑ warning  Không gọi sql.Ope… internal/db/** ││ ◌ warning · candidate · agent ⚑                                              │ │
-│ │     ✓     pattern  Handler đi qua wr… *              ││ Không gọi sql.Open trực tiếp                                                 │ │
-│ │     ⟳     fact     Cổng mặc định là … cmd/**         ││ ⟦Scope~~⟧    internal/db/**                                                  │ │
-│ │     ◌     lesson   Chạy go vet với G… *              ││ ⟦Symbols/tags~~~~~⟧ nguon:lo-thu                                             │ │
-│ │                                                      ││ ⟦Origin~~~⟧  agent ⚑ (Tester <t@example.com>, 2026-11-11T00:00:00Z)          │ │
-│ │                                                      ││ ⟦File~~⟧     /work/demo/.bint/knowledge/items/01KNOW000002.md                │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── ⟦Content~~~⟧                                                              │ │
-│ │                                                      ││   ────────────────────────────────────────────────────────────               │ │
-│ │                                                      ││ Nội dung của mục Không gọi sql.Open trực tiếp.                               │ │
-│ │                                                      ││ Dòng thứ hai của nội dung.                                                   │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── ⟦Evidence~~~~⟧                                                            │ │
-│ │                                                      ││   ──────────────────────────────────────────────────────────                 │ │
-│ │                                                      ││ internal/db/db.go:40-52                                                      │ │
-│ │                                                      ││   │   40  func Open() {                                                      │ │
-│ │                                                      ││   │   41      return nil                                                     │ │
-│ │                                                      ││   │   42  }                                                                  │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││ ── ⟦Checks~~~⟧                                                               │ │
-│ │                                                      ││   ─────────────────────────────────────────────────────────────              │ │
-│ │                                                      ││ ✓ ⟦0 errors~~~~⟧                                                             │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ │                                                      ││                                                                              │ │
-│ └──────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘ │
-└─[a→ ⟦Approve~~~⟧] [r→ ⟦Reject~~~⟧] [Enter→ ⟦Open~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]─────────────────────────────────────┘
+ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
+ ‹  ⟦List~~⟧  1/9 ›                                                                                                                         
+┌─│⟦List (5/6)~~~~⟧│───────────────────────⟦all active items~~~~~~~⟧─┐┌─│⟦Details~~~⟧│─────────────────────────────────────────────────────┐
+│     ◌   ⚑ rule     Endpoint phải có /v1             api/**         ││ 01KNOW000002                                                       │
+│ ▸   ◌   ⚑ warning  Không gọi sql.Open trực tiếp     internal/db/** ││ ◌ warning · candidate · agent ⚑                                    │
+│     ✓     pattern  Handler đi qua wrap()            *              ││ Không gọi sql.Open trực tiếp                                       │
+│     ⟳     fact     Cổng mặc định là 8080            cmd/**         ││ ⟦Scope~~⟧    internal/db/**                                        │
+│     ◌     lesson   Chạy go vet với GOOS=windows     *              ││ ⟦Symbols/tags~~~~~⟧ nguon:lo-thu                                   │
+│                                                                    ││ ⟦Origin~~~⟧  agent ⚑ (Tester <t@example.com>,                      │
+│                                                                    ││              2026-11-11T00:00:00Z)                                 │
+│                                                                    ││ ⟦File~~⟧     /work/demo/.bint/knowledge/items/01KNOW000002.md      │
+│                                                                    ││                                                                    │
+│                                                                    ││ ── ⟦Content~~~⟧                                                    │
+│                                                                    ││   ──────────────────────────────────────────────────               │
+│                                                                    ││ Nội dung của mục Không gọi sql.Open trực tiếp.                     │
+│                                                                    ││ Dòng thứ hai của nội dung.                                         │
+│                                                                    ││                                                                    │
+│                                                                    ││ ── ⟦Evidence~~~~⟧                                                  │
+│                                                                    ││   ────────────────────────────────────────────────                 │
+│                                                                    ││ internal/db/db.go:40-52                                            │
+│                                                                    ││   │   40  func Open() {                                            │
+│                                                                    ││   │   41      return nil                                           │
+│                                                                    ││   │   42  }                                                        │
+│                                                                    ││                                                                    │
+│                                                                    ││ ── ⟦Checks~~~⟧                                                     │
+│                                                                    ││   ───────────────────────────────────────────────────              │
+│                                                                    ││ ✓ ⟦0 errors~~~~⟧                                                   │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+└────────────────────────────────────────────────────────────────────┘└────────────────────────────────────────────────────────────────────┘
+ [a→ ⟦Approve~~~⟧] [r→ ⟦Reject~~~⟧] [Enter→ ⟦Open~~⟧] [:→ ⟦Commands~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                       

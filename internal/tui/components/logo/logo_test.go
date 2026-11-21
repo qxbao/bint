@@ -39,7 +39,7 @@ func TestTextLogoAndFits(t *testing.T) {
 	if len(ls) != 1 || ansi.Strip(ls[0]) != "bint." {
 		t.Fatalf("%q", ls)
 	}
-	if Fits(99, 30) || Fits(100, 29) || !Fits(100, 30) || !Fits(140, 40) {
-		t.Fatal("ngưỡng 100×30")
+	if Fits(99, 45) || Fits(100, 44) || !Fits(100, 45) || !Fits(140, 50) {
+		t.Fatal("ngưỡng 100×45")
 	}
 }

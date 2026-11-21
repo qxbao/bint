@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧                 │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧ · ⟦Setup~~⟧ · ⟦Update~~~⟧       │
-│ ┌─│⟦Components (3/3)~~~~~~⟧│─────────⟦1 files skipped~~~~~~⟧─┐┌─│⟦Details~~~⟧ · fmt-check│─────────────────────────────────────────────┐ │
-│ │   ✓ guardrail test-before-stop           verified   low    ││ ⟦Kind~~⟧    script                                                     │ │
-│ │   ◌ guidance  api-style                  candidate  low    ││ ⟦ID~⟧       fmt-check                                                  │ │
-│ │ ▸ ◌ script    fmt-check                  candidate  high   ││ ⟦Scope~~⟧   global                                                     │ │
-│ │                                                            ││ ⟦Status~~~⟧ ◌ candidate                                                │ │
-│ │                                                            ││ ⟦Origin~~~⟧ agent                                                      │ │
-│ │                                                            ││ ⟦Version~~… 1                                                          │ │
-│ │                                                            ││ ⟦Risk~~⟧    high                                                       │ │
-│ │                                                            ││ ⟦Approved … -                                                          │ │
-│ │                                                            ││ ⟦File~~⟧    .bint/harness/scripts/fmt-check.yml                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                       ┌─│⟦Approve fmt-check?~~~~⟧│───────────────────────────────────────────────────────────┐                       │ │
-│ │                       │ script fmt-check · global · candidate · ⟦risk high~~⟧                                │                       │ │
-│ │                       │                                                                                      │                       │ │
-│ │                       │ ⟦A script is executable code: Bint never runs it by itself.~~~~~~~~~~~~~~~~~~~~~~~~⟧ │                       │ │
-│ │                       │                                                                                      │                       │ │
-│ │                       │ id: fmt-check                                                                        │ by                    │ │
-│ │                       │ description: Kiểm tra định dạng                                                      │                       │ │
-│ │                       │                                                                                      │                       │ │
-│ │                       │ [Enter] ⟦Approve~~~⟧   [Esc] ⟦Cancel~~~⟧                                             │                       │ │
-│ │                       └──────────────────────────────────────────────────────────────────────────────────────┘                       │ │
-│ │                                                            ││ ⟦1 files skipped~~~~~~⟧                                                │ │
-│ │                                                            ││ ! guidance/hong.md: thiếu tiêu đề                                      │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ │                                                            ││                                                                        │ │
-│ └─ n ⟦add~~⟧  a ⟦appro…  d ⟦depre…  R ⟦rende…  f ⟦filte… ────┘└────────────────────────────────────────────────────────────────────────┘ │
-└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
+  ⟦Config~~~⟧ · ⟦Harness~~~⟧ · ⟦Components~~~~⟧ · ⟦Skills~~~⟧ · ⟦Index~~⟧ · ⟦Language~~~~⟧ · ⟦Doctor~~~⟧ · ⟦Setup~~⟧ · ⟦Update~~~⟧          
+┌─│⟦Components (3/3)~~~~~~⟧│──────────⟦1 files skipped~~~~~~⟧─┐┌─│⟦Details~~~⟧ · fmt-check│────────────────────────────────────────────────┐
+│   ✓ guardrail test-before-stop            verified   low    ││ ⟦Kind~~⟧    script                                                        │
+│   ◌ guidance  api-style                   candidate  low    ││ ⟦ID~⟧       fmt-check                                                     │
+│ ▸ ◌ script    fmt-check                   candidate  high   ││ ⟦Scope~~⟧   global                                                        │
+│                                                             ││ ⟦Status~~~⟧ ◌ candidate                                                   │
+│                                                             ││ ⟦Origin~~~⟧ agent                                                         │
+│                                                             ││ ⟦Version~~… 1                                                             │
+│                                                             ││ ⟦Risk~~⟧    high                                                          │
+│                                                             ││ ⟦Approved … -                                                             │
+│                                                             ││ ⟦File~~⟧    .bint/harness/scripts/fmt-check.yml                           │
+│                                                             ││                                                                           │
+│                                                             ││ ⟦Content~~~⟧                                                              │
+│                                                             ││ id: fmt-check                                                             │
+│                         ┌─│⟦Approve fmt-check?~~~~⟧│───────────────────────────────────────────────────────────┐                         │
+│                         │ script fmt-check · global · candidate · ⟦risk high~~⟧                                │                         │
+│                         │                                                                                      │                         │
+│                         │ ⟦A script is executable code: Bint never runs it by itself.~~~~~~~~~~~~~~~~~~~~~~~~⟧ │by                       │
+│                         │                                                                                      │                         │
+│                         │ id: fmt-check                                                                        │                         │
+│                         │ description: Kiểm tra định dạng                                                      │                         │
+│                         │                                                                                      │                         │
+│                         │ [Enter] ⟦Approve~~~⟧   [Esc] ⟦Cancel~~~⟧                                             │                         │
+│                         └──────────────────────────────────────────────────────────────────────────────────────┘                         │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+│                                                             ││                                                                           │
+└─ n ⟦add~~⟧  a ⟦appro…  d ⟦depre…  R ⟦rende…  f ⟦filte… ─────┘└───────────────────────────────────────────────────────────────────────────┘
+ [Esc→ ⟦Leave~~⟧]                                                                                                                           

@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Tổng quan │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP                            │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Tổng quan│──────────────────────────────────────────────────────────────────┐
-│ ┌─│Trợ giúp│───────────────────────────────────────────────────────────────┐ │
-│ │ Tổng quan                                                                │ │
-│ │  Tổng quan: tình trạng repository và hộp thư “Việc cần bạn” (mục chờ     │ │
-│ │  duyệt, cảnh báo doctor). Enter ở một dòng mở màn xử lý nó.              │ │
-│ │  r          Làm mới trạng thái repository  bint status                   │ │
-│ │             Kiểm tra môi trường (doctor)  bint doctor                    │ │
-│ │                                                                          │ │
-│ │ Toàn cục                                                                 │ │
-│ │  q          Thoát Bint                                                   │ │
-│ │  ?          Mở bảng trợ giúp đầy đủ                                      │ │
-│ │  :          Mở bảng lệnh (tìm mọi hành động)                             │ │
-│ │  L          Đổi ngôn ngữ giao diện (vi ⇄ en)                             │ │
-│ │  !          Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi … │ │
-│ │             Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân… │ │
-│ │  ]          Chuyển tới tab kế tiếp                                       │ │
-│ │  [          Chuyển về tab trước                                          │ │
-│ └───────────────────────────────────────────────────────────────1–15/213 ↕─┘ │
-│                                                                              │
-│                                                                              │
-└─[r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]────────────────┘
+ Tổng quan │ TT (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP      /work/demo · bint 0.1.0 
+                                                                                
+                                                                                
+                                                                                
+  ┌─│Trợ giúp│───────────────────────────────────────────────────────────────┐  
+  │ Tổng quan                                                                │  
+  │  Tổng quan: tình trạng repository và hộp thư “Việc cần bạn” (mục chờ     │  
+  │  duyệt, cảnh báo doctor). Enter ở một dòng mở màn xử lý nó.              │  
+  │  r          Làm mới trạng thái repository  bint status                   │  
+  │             Kiểm tra môi trường (doctor)  bint doctor                    │  
+  │                                                                          │  
+  │ Toàn cục                                                                 │  
+  │  q          Thoát Bint                                                   │  
+  │  ?          Mở bảng trợ giúp đầy đủ                                      │  
+  │  :          Mở bảng lệnh (tìm mọi hành động)                             │  
+  │  L          Đổi ngôn ngữ giao diện (vi ⇄ en)                             │  
+  │  !          Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi … │  
+  │             Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân… │  
+  │  ]          Chuyển tới tab kế tiếp                                       │  
+  │  [          Chuyển về tab trước                                          │  
+  └───────────────────────────────────────────────────────────────1–15/217 ↕─┘  
+                                                                                
+                                                                                
+ [r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                  

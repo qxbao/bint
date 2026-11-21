@@ -37,7 +37,7 @@ func openTab(t *testing.T, m *Model, screenKey, name string) bool {
 	m.Render()
 	found := false
 	for y, l := range lines(m.Render()) {
-		if y < 4 {
+		if y < 1 {
 			continue
 		}
 		if i := strings.Index(l, name); i >= 0 {

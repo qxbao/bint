@@ -89,10 +89,10 @@ func helpBoxLines(out string) []string {
 	var res []string
 	for _, l := range strings.Split(plain(out), "\n") {
 		parts := strings.Split(l, "│")
-		if len(parts) != 5 {
+		if len(parts) != 3 { // viền trái và phải của hộp (màn hình không còn khung bao ngoài)
 			continue
 		}
-		res = append(res, strings.Join(strings.Fields(parts[2]), " "))
+		res = append(res, strings.Join(strings.Fields(parts[1]), " "))
 	}
 	return res
 }

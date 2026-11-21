@@ -309,3 +309,20 @@ func tailFit(s string, w int) string {
 	}
 	return string(runes[start:])
 }
+
+// Block cắt/đệm s thành đúng h dòng, mỗi dòng rộng đúng w ô.
+func Block(s string, w, h int) []string {
+	out := make([]string, 0, h)
+	if s != "" {
+		for _, l := range strings.Split(s, "\n") {
+			if len(out) == h {
+				break
+			}
+			out = append(out, Fit(l, w))
+		}
+	}
+	for len(out) < h {
+		out = append(out, strings.Repeat(" ", w))
+	}
+	return out
+}

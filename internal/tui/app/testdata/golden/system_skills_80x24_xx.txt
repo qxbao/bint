@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧  │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Harness~~~⟧ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦Language~~~~⟧ ›     │
-│ ┌─│⟦Skills (3)~~~~⟧│───────────────────────────────────────────────────────┐ │
-│ │ ▸ ⟦cor… b-do                                     aaaa1111  ⟦published~~… │ │
-│ │   ⟦cor… b-feat                                   bbbb2222  ⟦differs~~~⟧  │ │
-│ │   ⟦evo… api-guide                                v2        ⟦missing~~~⟧  │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └─ Enter ⟦conte…  s ⟦sync~…  o ⟦overl…  n ⟦new~~⟧  c ⟦check…  d ⟦diff~… ───┘ │
-└─[:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]──────────┘
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧    
+‹ ⟦Harness~~~⟧ ⟦Components~~~~⟧  ⟦Skills~~~⟧  ⟦Index~~⟧ ⟦Language~~~~⟧ ›        
+┌─│⟦Skills (3)~~~~⟧│───────────────────────────────────────────────────────────┐
+│ ▸ ⟦cor… b-do                                         aaaa1111  ⟦published~~… │
+│   ⟦cor… b-feat                                       bbbb2222  ⟦differs~~~⟧  │
+│   ⟦evo… api-guide                                    v2        ⟦missing~~~⟧  │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└─ Enter ⟦conte…  s ⟦sync~…  o ⟦overl…  n ⟦new~~⟧  c ⟦check…  d ⟦diff~… ───────┘
+ [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]            

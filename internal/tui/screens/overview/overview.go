@@ -357,7 +357,10 @@ func (m Model) View(env ui.Env) string {
 	if len(out) > env.H {
 		out = out[:env.H]
 	}
-	return strings.Join(centerVertically(out, env.H), "\n")
+	if len(out) < env.H { // một dòng trống dưới thanh tab cho thoáng; nội dung bám trên (không căn giữa theo chiều dọc)
+		out = append([]string{""}, out...)
+	}
+	return strings.Join(out, "\n")
 }
 
 // body dựng các dòng của màn Tổng quan; decor = có chữ "bint." (hoặc logo) và khẩu hiệu ở đầu.
@@ -375,8 +378,12 @@ func (m Model) body(env ui.Env, decor bool) (lines []string, windowed bool) {
 
 	// Logo (nếu đủ chỗ) và khẩu hiệu.
 	if decor {
-		add(center(logo.Render(th, logo.Fits(env.W+4, env.H+5)))...)
-		add(text.Center(th.S(theme.Muted, env.T("app.tagline")), env.W))
+		if logo.Fits(env.W, env.H+2) { // đủ cao (tính cả thanh tab và chân phím): logo điểm ảnh và khẩu hiệu
+			add(center(logo.Render(th, true))...)
+			add(text.Center(th.S(theme.Muted, env.T("app.tagline")), env.W))
+		} else { // thấp hơn: một dòng "bint.  khẩu hiệu"
+			add(text.Center(strings.Join(logo.Render(th, false), "")+th.S(theme.Muted, "  "+env.T("app.tagline")), env.W))
+		}
 		add("")
 	}
 
@@ -445,17 +452,6 @@ func (m Model) body(env ui.Env, decor bool) (lines []string, windowed bool) {
 	// liệt kê lại chi tiết ở đây.
 	add(" " + th.Bold(env.T("overview.doctor.title")) + "  " + m.doctorSummary(th))
 	return lines, len(inbox) > to-from
-}
-
-// centerVertically đặt khối lines vào giữa chiều cao h khi còn thừa nhiều chỗ (từ minSpare dòng), để
-// cửa sổ cao không dồn hết nội dung lên trên; thừa ít thì giữ sát trên như trước.
-func centerVertically(lines []string, h int) []string {
-	const minSpare = 4
-	spare := h - len(lines)
-	if spare < minSpare {
-		return lines
-	}
-	return append(make([]string, spare/2), lines...)
 }
 
 func (m Model) doctorSummary(th theme.Theme) string {

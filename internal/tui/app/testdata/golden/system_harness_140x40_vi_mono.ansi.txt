@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│␛[1mbint 0.1.0␛[m│───────────────────────────────────────────────────────────────┐
-│ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[7m␛[1mHệ thống␛[m␛[m │ MCP                                                     │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│␛[7m␛[1mHệ thống␛[m␛[m│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│   Cấu hình ·␛[7m␛[1m Harness ␛[m␛[m· Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                             │
-│ ┌─│␛[7m␛[1mHarness␛[m␛[m│──────────────────────────────────────────────────┐┌─│␛[1mChi tiết · claude␛[m│────────────────────────────────────────────1-32/36─┐ │
-│ │   HARNESS     BẬT  MÁY   PHIÊN BẢN ĐỐI CHIẾU  CẤP          ││ Claude Code (claude)                                                   │ │
-│ │ ␛[1m▸ ␛[m␛[7m␛[1mclaude      có   có    -         Claude Co… 3           ␛[m␛[m ││ Cấp                 3 — + thực thi theo chương trình                   │ │
-│ │   codex       -    -     -         codex-cli… 3            ││ Chương trình        /usr/local/bin/claude                              │ │
-│ │   antigravity -    -     -         agy 1.5.3  3            ││ Phiên bản           - (Đối chiếu Claude Code 2.x)                      │ │
-│ │                                                            ││ Bật trong cấu hình  có                                                 │ │
-│ │  Bảng khả năng                                             ││ Thư mục skill       .claude/skills                                     │ │
-│ │                                             cla… cod… ant… ││                                                                        │ │
-│ │   Đồng bộ skill                             ✓    ✓    ✓    ││ Hook và MCP                                                            │ │
-│ │   Ẩn skill / chỉ gọi tường minh             ✓    ~    ✗    ││   ✓ Hook — phạm vi đã cài: project                                     │ │
-│ │   MCP server của Bint                       ✓    ~    ✗    ││       phạm vi project                                                  │ │
-│ │   Hook ghi nhận sự kiện                     ✓    ~    ~    ││   ✓ MCP server của Bint đã đăng ký                                     │ │
-│ │   Chèn ngữ cảnh theo đường dẫn              ✓    ~    ✗    ││   Cài/gỡ hook và MCP: Hệ thống › Cài đặt (phím e).                     │ │
-│ │   Hỏi người khi sửa đường dẫn bảo vệ        ✓    ~    ✓    ││                                                                        │ │
-│ │   Guardrail quy trình                       ✓    ~    ~    ││ Bảng khả năng                                                          │ │
-│ │   Thực thi theo chương trình (chạy tác vụ)  ✓    ✓    ✓    ││  ✓ Đồng bộ skill .claude/skills/<tên>/SKILL.md                         │ │
-│ │   Giữ bước chỉ đọc                          ✓    ~    ~    ││  ✓ Ẩn skill / chỉ gọi tường minh disable-model-invocation: chỉ chạy    │ │
-│ │   Báo chi phí (áp max_cost_usd)             ✓    ✗    ✗    ││     khi người gọi /b-…                                                 │ │
-│ │   Giới hạn số lượt (max_turns)              ✓    ✗    ✗    ││  ✓ MCP server của Bint .mcp.json cấp dự án (phím e ở Hệ thống › Cài    │ │
-│ │   Ghi nhận skill được kích hoạt             ✓    ✗    ✗    ││     đặt [ô Đăng ký MCP])                                               │ │
-│ │   ✓ hỗ trợ  ~ một phần  ✗ không                            ││  ✓ Hook ghi nhận sự kiện SessionStart, SessionEnd, PostToolUse,        │ │
-│ │                                                            ││     PostToolUseFailure                                                 │ │
-│ │                                                            ││  ✓ Chèn ngữ cảnh theo đường dẫn PreToolUse trước Read/Edit/Write       │ │
-│ │                                                            ││     (additionalContext)                                                │ │
-│ │                                                            ││  ✓ Hỏi người khi sửa đường dẫn bảo vệ PreToolUse                       │ │
-│ │                                                            ││     permissionDecision=ask                                             │ │
-│ │                                                            ││  ✓ Guardrail quy trình pre_edit/pre_bash: remind (additionalContext),  │ │
-│ │                                                            ││     ask, deny; stop: Stop decision=block (remind một lần, deny tối đa  │ │
-│ │                                                            ││     3 lần)                                                             │ │
-│ │                                                            ││  ✓ Thực thi theo chương trình (chạy tác vụ) claude -p --output-format  │ │
-│ │                                                            ││     json                                                               │ │
-│ │                                                            ││  ✓ Giữ bước chỉ đọc --disallowedTools Edit,Write,…; Bint kiểm tra cây  │ │
-│ │                                                            ││     làm việc sau bước                                                  │ │
-│ └─ ␛[1mV␛[m phiên bản  ␛[1mEnter␛[m mở ────────────────────────────────────┘└────────────────────────────────────────────────────────────────────────┘ │
-└─[␛[1m:␛[m→ Lệnh] [␛[1mL␛[m→ Ngôn ngữ] [␛[1mq␛[m→ Thoát] [␛[1m?␛[m→ Trợ giúp]─────────────────────────────────────────────────────────────────────────────────────────┘
+ Tổng quan │ Tri thức␛[1m (3)␛[m │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ ␛[7m␛[1mHệ thống␛[m␛[m │ MCP                               /work/demo · bint 0.1.0 
+  Cấu hình ·␛[7m␛[1m Harness ␛[m␛[m· Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                                
+┌─│␛[7m␛[1mHarness␛[m␛[m│───────────────────────────────────────────────────┐┌─│␛[1mChi tiết · claude␛[m│───────────────────────────────────────────────────────┐
+│   HARNESS     BẬT  MÁY   PHIÊN BẢN ĐỐI CHIẾU  CẤP           ││ Claude Code (claude)                                                      │
+│ ␛[1m▸ ␛[m␛[7m␛[1mclaude      có   có    -         Claude Co… 3            ␛[m␛[m ││ Cấp                 3 — + thực thi theo chương trình                      │
+│   codex       -    -     -         codex-cli… 3             ││ Chương trình        /usr/local/bin/claude                                 │
+│   antigravity -    -     -         agy 1.5.3  3             ││ Phiên bản           - (Đối chiếu Claude Code 2.x)                         │
+│                                                             ││ Bật trong cấu hình  có                                                    │
+│  Bảng khả năng                                              ││ Thư mục skill       .claude/skills                                        │
+│                                              cla… cod… ant… ││                                                                           │
+│   Đồng bộ skill                              ✓    ✓    ✓    ││ Hook và MCP                                                               │
+│   Ẩn skill / chỉ gọi tường minh              ✓    ~    ✗    ││   ✓ Hook — phạm vi đã cài: project                                        │
+│   MCP server của Bint                        ✓    ~    ✗    ││       phạm vi project                                                     │
+│   Hook ghi nhận sự kiện                      ✓    ~    ~    ││   ✓ MCP server của Bint đã đăng ký                                        │
+│   Chèn ngữ cảnh theo đường dẫn               ✓    ~    ✗    ││   Cài/gỡ hook và MCP: Hệ thống › Cài đặt (phím e).                        │
+│   Hỏi người khi sửa đường dẫn bảo vệ         ✓    ~    ✓    ││                                                                           │
+│   Guardrail quy trình                        ✓    ~    ~    ││ Bảng khả năng                                                             │
+│   Thực thi theo chương trình (chạy tác vụ)   ✓    ✓    ✓    ││  ✓ Đồng bộ skill .claude/skills/<tên>/SKILL.md                            │
+│   Giữ bước chỉ đọc                           ✓    ~    ~    ││  ✓ Ẩn skill / chỉ gọi tường minh disable-model-invocation: chỉ chạy khi   │
+│   Báo chi phí (áp max_cost_usd)              ✓    ✗    ✗    ││     người gọi /b-…                                                        │
+│   Giới hạn số lượt (max_turns)               ✓    ✗    ✗    ││  ✓ MCP server của Bint .mcp.json cấp dự án (phím e ở Hệ thống › Cài đặt   │
+│   Ghi nhận skill được kích hoạt              ✓    ✗    ✗    ││     [ô Đăng ký MCP])                                                      │
+│   ✓ hỗ trợ  ~ một phần  ✗ không                             ││  ✓ Hook ghi nhận sự kiện SessionStart, SessionEnd, PostToolUse,           │
+│                                                             ││     PostToolUseFailure                                                    │
+│                                                             ││  ✓ Chèn ngữ cảnh theo đường dẫn PreToolUse trước Read/Edit/Write          │
+│                                                             ││     (additionalContext)                                                   │
+│                                                             ││  ✓ Hỏi người khi sửa đường dẫn bảo vệ PreToolUse permissionDecision=ask   │
+│                                                             ││  ✓ Guardrail quy trình pre_edit/pre_bash: remind (additionalContext),     │
+│                                                             ││     ask, deny; stop: Stop decision=block (remind một lần, deny tối đa 3   │
+│                                                             ││     lần)                                                                  │
+│                                                             ││  ✓ Thực thi theo chương trình (chạy tác vụ) claude -p --output-format     │
+│                                                             ││     json                                                                  │
+│                                                             ││  ✓ Giữ bước chỉ đọc --disallowedTools Edit,Write,…; Bint kiểm tra cây     │
+│                                                             ││     làm việc sau bước                                                     │
+│                                                             ││  ✓ Báo chi phí (áp max_cost_usd) total_cost_usd; --max-budget-usd         │
+│                                                             ││  ✓ Giới hạn số lượt (max_turns) --max-turns                               │
+│                                                             ││  ✓ Ghi nhận skill được kích hoạt PostToolUse công cụ Skill →              │
+│                                                             ││     skill.activated                                                       │
+└─ ␛[1mV␛[m phiên bản  ␛[1mEnter␛[m mở ─────────────────────────────────────┘└───────────────────────────────────────────────────────────────────────────┘
+ [␛[1m:␛[m→ Lệnh] [␛[1mL␛[m→ Ngôn ngữ] [␛[1mq␛[m→ Thoát] [␛[1m?␛[m→ Trợ giúp]                                                                                           

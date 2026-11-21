@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧  │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Index~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧  ⟦Setup~~⟧  ⟦Update~~~⟧               │
-│ ┌─│⟦Repo setup~~~~⟧│───────────────────────────────────────────────────────┐ │
-│ │ ┌─│⟦Init preview~~~~~⟧│────────────────────────────────────────────────┐ │ │
-│ │ │ + ⟦create~~~⟧  .mcp.json  đăng ký MCP server của Bint cho claude     │ │ │
-│ │ │ + ⟦create~~~⟧  .codex/config.toml  đăng ký MCP server của Bint cho   │ │ │
-│ │ │ codex                                                                │ │ │
-│ │ │                                                                      │ │ │
-│ │ │ · ⟦keep~~⟧  .bint/config.yml  đã tồn tại, giữ nguyên                 │ │ │
-│ │ │ · ⟦keep~~⟧  .claude/settings.json  hook claude: không đổi            │ │ │
-│ │ │                                                                      │ │ │
-│ │ │ ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint init --mcp                  │ │ │
-│ │ │ ⟦An estimate; the report after running is the exact                  │ │ │
-│ │ │ result.~~~~~~~~~~~~~~~~~~~~~~~~⟧                                     │ │ │
-│ │ │                                                                      │ │ │
-│ │ │ [Enter] ⟦Run init~~~~⟧   [Esc] ⟦Cancel~~~⟧                           │ │ │
-│ │ └──────────────────────────────────────────────────────────────────────┘ │ │
-│ │    harnesses.claude.models, harnesses.codex.models~~~~~~~~~~⟧            │ │
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧    
+‹ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧  ⟦Setup~~⟧  ⟦Update~~~⟧      
+┌─│⟦Repo setup~~~~⟧│───────────────────────────────────────────────────────────┐
+│                                                                              │
+│  ⟦Repository~~~~⟧ /work/demo                                                 │
+│ ┌─│⟦Init preview~~~~~⟧│────────────────────────────────────────────────────┐ │
+│ │ + ⟦create~~~⟧  .mcp.json  đăng ký MCP server của Bint cho claude         │ │
+│ │ + ⟦create~~~⟧  .codex/config.toml  đăng ký MCP server của Bint cho codex │ │
 │ │                                                                          │ │
-│ └─ e ⟦Edit~~⟧  U ⟦Upgrade template~~~~~~~⟧ ────────────────────────────────┘ │
-└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘
+│ │ · ⟦keep~~⟧  .bint/config.yml  đã tồn tại, giữ nguyên                     │ │
+│ │ · ⟦keep~~⟧  .claude/settings.json  hook claude: không đổi                │ │
+│ │                                                                          │ │
+│ │ ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint init --mcp                      │ │
+│ │ ⟦An estimate; the report after running is the exact                      │ │
+│ │ result.~~~~~~~~~~~~~~~~~~~~~~~~⟧                                         │ │
+│ │                                                                          │ │
+│ │ [Enter] ⟦Run init~~~~⟧   [Esc] ⟦Cancel~~~⟧                               │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  ⟦Re-runs init with a form prefilled from the current state; only what you   │
+│  change is sent, after a                                                     │
+│  preview.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                         │
+└─ e ⟦Edit~~⟧  U ⟦Upgrade template~~~~~~~⟧ ────────────────────────────────────┘
+ [Esc→ ⟦Leave~~⟧]                                                               

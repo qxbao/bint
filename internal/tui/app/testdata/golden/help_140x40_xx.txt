@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧                 │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦Overview~~~~⟧│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                           ┌─│⟦Help~~⟧│───────────────────────────────────────────────────────────────────────┐                           │
-│                           │ ⟦Overview~~~~⟧                                                                   │                           │
-│                           │  ⟦Overview: repository status and the “Needs you” inbox (items awaiting review,  │                           │
-│                           │  doctor warnings). Enter on a row opens the screen that handles                  │                           │
-│                           │  it.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                  │                           │
-│                           │  r                 ⟦Refresh the repository status~~~~~~~~~~~~⟧  bint status      │                           │
-│                           │                    ⟦Check the environment (doctor)~~~~~~~~~~~~⟧  bint doctor     │                           │
-│                           │                                                                                  │                           │
-│                           │ ⟦Global~~~⟧                                                                      │                           │
-│                           │  q                 ⟦Quit Bint~~~~⟧                                               │                           │
-│                           │  ?                 ⟦Show the full help~~~~~~~~⟧                                  │                           │
-│                           │  :                 ⟦Open the command palette (search every action)~~~~~~~~~~~~~… │                           │
-│                           │  L                 ⟦Switch interface language (vi ⇄ en)~~~~~~~~~~~~~~⟧           │                           │
-│                           │  !                 ⟦Read the current notice in full plus the last 50 notices fr… │                           │
-│                           │                    ⟦Turn the mouse on/off for this session (scroll, click tabs,… │                           │
-│                           │  ]                 ⟦Go to the next tab~~~~~~~~⟧                                  │                           │
-│                           │  [                 ⟦Go to the previous tab~~~~~~~~~⟧                             │                           │
-│                           │  1-8               ⟦Jump to a tab~~~~~~⟧                                         │                           │
-│                           │  Ctrl+V            ⟦Paste clipboard text into the open input~~~~~~~~~~~~~~~~⟧    │                           │
-│                           │  ⟦Drag~~⟧          ⟦Select with the mouse (drag left button) and copy to the cl… │                           │
-│                           │  ⟦Shift+drag~~~~⟧  ⟦Select with the terminal (hold Shift while dragging, or tur… │                           │
-│                           │                                                                                  │                           │
-│                           │ ⟦Knowledge~~~~⟧                                                                  │                           │
-│                           │  a                 ⟦Approve the item (candidate/stale → verified); humans only~… │                           │
-│                           │  f                 ⟦Approve and refresh the evidence fingerprint (stale item)~~… │                           │
-│                           └───────────────────────────────────────────────────────────────────⟦1–24/214 ↕~~⟧─┘                           │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-└─[r→ ⟦Refresh~~~⟧] [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]────────────────────────────────────────────────────┘
+ ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                            ┌─│⟦Help~~⟧│───────────────────────────────────────────────────────────────────────┐                            
+                            │ ⟦Overview~~~~⟧                                                                   │                            
+                            │  ⟦Overview: repository status and the “Needs you” inbox (items awaiting review,  │                            
+                            │  doctor warnings). Enter on a row opens the screen that handles                  │                            
+                            │  it.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~⟧                  │                            
+                            │  r                 ⟦Refresh the repository status~~~~~~~~~~~~⟧  bint status      │                            
+                            │                    ⟦Check the environment (doctor)~~~~~~~~~~~~⟧  bint doctor     │                            
+                            │                                                                                  │                            
+                            │ ⟦Global~~~⟧                                                                      │                            
+                            │  q                 ⟦Quit Bint~~~~⟧                                               │                            
+                            │  ?                 ⟦Show the full help~~~~~~~~⟧                                  │                            
+                            │  :                 ⟦Open the command palette (search every action)~~~~~~~~~~~~~… │                            
+                            │  L                 ⟦Switch interface language (vi ⇄ en)~~~~~~~~~~~~~~⟧           │                            
+                            │  !                 ⟦Read the current notice in full plus the last 50 notices fr… │                            
+                            │                    ⟦Turn the mouse on/off for this session (scroll, click tabs,… │                            
+                            │  ]                 ⟦Go to the next tab~~~~~~~~⟧                                  │                            
+                            │  [                 ⟦Go to the previous tab~~~~~~~~~⟧                             │                            
+                            │  1-8               ⟦Jump to a tab~~~~~~⟧                                         │                            
+                            │  >                 ⟦Widen the left pane by 5% (two-pane screens; the ratio is s… │                            
+                            │  <                 ⟦Narrow the left pane by 5% (two-pane screens; the ratio is … │                            
+                            │  z                 ⟦Zoom/unzoom the focused pane~~~~~~~~~~~~⟧                    │                            
+                            │  =                 ⟦Reset the pane ratio to the default~~~~~~~~~~~~~~⟧           │                            
+                            │  Ctrl+V            ⟦Paste clipboard text into the open input~~~~~~~~~~~~~~~~⟧    │                            
+                            │  ⟦Drag~~⟧          ⟦Select with the mouse (drag left button) and copy to the cl… │                            
+                            │  ⟦Shift+drag~~~~⟧  ⟦Select with the terminal (hold Shift while dragging, or tur… │                            
+                            └───────────────────────────────────────────────────────────────────⟦1–24/218 ↕~~⟧─┘                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+ [r→ ⟦Refresh~~~⟧] [:→ ⟦Commands~~~~⟧] [L→ ⟦Language~~~~⟧] [q→ ⟦Quit~~⟧] [?→ ⟦Help~~⟧]                                                      

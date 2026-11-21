@@ -13,6 +13,7 @@ import (
 	"bint/internal/tui/components/confirm"
 	"bint/internal/tui/components/form"
 	"bint/internal/tui/components/list"
+	"bint/internal/tui/components/split"
 	"bint/internal/tui/components/viewer"
 	"bint/internal/tui/jobs"
 	"bint/internal/tui/screens/overview"
@@ -21,7 +22,7 @@ import (
 )
 
 // WideW: từ chiều rộng này danh sách và chi tiết hiện cạnh nhau; hẹp hơn thì một khung (Tab/Enter đổi).
-const WideW = 100
+const WideW = split.WideW
 
 // jobIDs là các hành động nền của màn hình (log hiện ở khung chi tiết khi đang chạy).
 var jobIDs = []string{"mcp.check", "mcp.index", "mcp.restart"}
@@ -66,6 +67,7 @@ type outPane struct {
 // Model là trạng thái màn MCP.
 type Model struct {
 	o   Options
+	sp  split.State // tỉ lệ hai pane (ui.Splitter); khởi tạo lười trong Splitter
 	cat *i18n.Catalog
 	rw  ui.Rewriter
 	th  theme.Theme
@@ -934,4 +936,15 @@ func (m *Model) logLines(r app.MCPGatewayLogResult) []string {
 		out = append(out, "", m.th.S(theme.Warn, m.t("mc.log.note", i18n.A{"note": r.Note})))
 	}
 	return out
+}
+
+// DefaultSplit là tỉ lệ mặc định (phần trăm) của pane trái.
+const DefaultSplit = 55
+
+// Splitter trả trạng thái chia hai pane của màn (ui.Splitter).
+func (m *Model) Splitter() *split.State {
+	if m.sp.Def == 0 {
+		m.sp = split.New(DefaultSplit)
+	}
+	return &m.sp
 }

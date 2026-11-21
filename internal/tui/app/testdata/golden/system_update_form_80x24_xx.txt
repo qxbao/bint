@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧  │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦System~~~⟧│────────────────────────────────────────────────────────────────┐
-│ ‹ ⟦Index~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧  ⟦Update~~~⟧                │
-│ ┌─│⟦Update Bint from source (go install)~~~~~~~~~~~~~~~⟧│──────────────────┐ │
-│ │ ▸ ⟦Source directory~~~~~~… /home/u/src/bint▏                             │ │
-│ │   ⟦git pull --ff-only fir… [ ]                                           │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │   ⓘ ⟦Empty: BINT_SOURCE_DIR or the build directory~~~~~~~~~~~~~~~~~~⟧    │ │
-│ │   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint update                        │ │
-│ │   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧               │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[Esc→ ⟦Leave~~⟧]─────────────────────────────────────────────────────────────┘
+ ⟦Ov~⟧ │ ⟦Kn~⟧ (3) │ ⟦Tk~⟧ │ ⟦Rn~⟧ │ ⟦Ev~⟧ │ ⟦Evo~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧    
+‹ ⟦Skills~~~⟧ ⟦Index~~⟧ ⟦Language~~~~⟧ ⟦Doctor~~~⟧ ⟦Setup~~⟧  ⟦Update~~~⟧       
+┌─│⟦Update Bint from source (go install)~~~~~~~~~~~~~~~⟧│──────────────────────┐
+│ ▸ ⟦Source directory~~~~~~~⟧ /home/u/src/bint▏                                │
+│   ⟦git pull --ff-only firs… [ ]                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│   ⓘ ⟦Empty: BINT_SOURCE_DIR or the build directory~~~~~~~~~~~~~~~~~~⟧        │
+│   ⟦Equivalent CLI command:~~~~~~~~~~⟧ bint update                            │
+│   Enter ⟦submit~~…  Tab ⟦next  Ctrl+Y ⟦copy  Esc ⟦leave~~⟧                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [Esc→ ⟦Leave~~⟧]                                                               

@@ -3,6 +3,7 @@ package ui
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"bint/internal/tui/components/split"
 	"bint/internal/tui/theme"
 )
 
@@ -70,4 +71,10 @@ type Refresher interface {
 	Refresh() tea.Cmd
 	// MarkStale đánh dấu dữ liệu đã cũ: lần Ensure kế tiếp (khi người dùng chuyển tới màn) nạp mềm lại.
 	MarkStale()
+}
+
+// Splitter là giao diện tuỳ chọn của màn hai pane: trạng thái chia dùng chung (tỉ lệ, phóng to) để mô hình gốc xử phím <, >, z, =,
+// kéo đường chia bằng chuột và lưu tỉ lệ theo màn (ui.layout).
+type Splitter interface {
+	Splitter() *split.State
 }

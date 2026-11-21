@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                     │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Tổng quan│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                      ██      ██            ██                                                            │
-│                                                      ██                  ██████                                                          │
-│                                                      ████    ██  ████      ██                                                            │
-│                                                      ██  ██  ██  ██  ██    ██                                                            │
-│                                                      ████    ██  ██  ██    ████  ██                                                      │
-│                                             Ghi nhận, đo lường và tri thức cho coding agent                                              │
-│                                                                                                                                          │
-│                          ┌─│Repository│──────────────────────────────────────────────────────────────────────┐                           │
-│                          │ Thư mục     /work/demo                                                            │                           │
-│                          │ Trạng thái  /state/demo-7f3a9c                                                    │                           │
-│                          │ Harness     claude, codex                                                         │                           │
-│                          │ Schema      v6                                                                    │                           │
-│                          │ Lượt chạy   42 ████████████▓▚▞▞ █ 33 xong · ▓ 3 lỗi · ▚ 1 bị ngắt · ▞ 5 đang chạy │                           │
-│                          └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại · core.lock chưa có ───────────────────────┘                           │
-│                                                                                                                                          │
-│  Việc cần bạn (3)                                                                                                                        │
-│ ▸ ! Doctor cảnh báo — config: cấu hình theo mẫu cũ: nhấn U ở Hệ thống › Cấu hình                                              → Hệ thống │
-│   ◌ 3 mục tri thức chờ duyệt                                                                                                  → Tri thức │
-│   ◌ Đề xuất tiến hoá chờ duyệt — update EP0000KNOW                                                                            → Tiến hoá │
-│                                                                                                                                          │
-│  Doctor  ✓ 2  ! 1  ✗ 0                                                                                                                   │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-└─[r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]────────────────────────────────────────────────────────────────────────────┘
+ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
+                                                                                                                                            
+                                           bint.  Ghi nhận, đo lường và tri thức cho coding agent                                           
+                                                                                                                                            
+                           ┌─│Repository│──────────────────────────────────────────────────────────────────────┐                            
+                           │ Thư mục     /work/demo                                                            │                            
+                           │ Trạng thái  /state/demo-7f3a9c                                                    │                            
+                           │ Harness     claude, codex                                                         │                            
+                           │ Schema      v6                                                                    │                            
+                           │ Lượt chạy   42 ████████████▓▚▞▞ █ 33 xong · ▓ 3 lỗi · ▚ 1 bị ngắt · ▞ 5 đang chạy │                            
+                           └─ Phiên bản 0.1.0 · ✓ theo mẫu hiện tại · core.lock chưa có ───────────────────────┘                            
+                                                                                                                                            
+ Việc cần bạn (3)                                                                                                                           
+▸ ! Doctor cảnh báo — config: cấu hình theo mẫu cũ: nhấn U ở Hệ thống › Cấu hình                                                  → Hệ thống
+  ◌ 3 mục tri thức chờ duyệt                                                                                                      → Tri thức
+  ◌ Đề xuất tiến hoá chờ duyệt — update EP0000KNOW                                                                                → Tiến hoá
+                                                                                                                                            
+ Doctor  ✓ 2  ! 1  ✗ 0                                                                                                                      
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+ [r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                              

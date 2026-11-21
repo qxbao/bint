@@ -1,40 +1,40 @@
-┌───────────────────────────────────────────────────────────────│bint 0.1.0│───────────────────────────────────────────────────────────────┐
-│ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                                                     │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Tổng quan│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                           ┌─│Trợ giúp│───────────────────────────────────────────────────────────────────────┐                           │
-│                           │ Tổng quan                                                                        │                           │
-│                           │  Tổng quan: tình trạng repository và hộp thư “Việc cần bạn” (mục chờ duyệt,      │                           │
-│                           │  cảnh báo doctor). Enter ở một dòng mở màn xử lý nó.                             │                           │
-│                           │  r          Làm mới trạng thái repository  bint status                           │                           │
-│                           │             Kiểm tra môi trường (doctor)  bint doctor                            │                           │
-│                           │                                                                                  │                           │
-│                           │ Toàn cục                                                                         │                           │
-│                           │  q          Thoát Bint                                                           │                           │
-│                           │  ?          Mở bảng trợ giúp đầy đủ                                              │                           │
-│                           │  :          Mở bảng lệnh (tìm mọi hành động)                                     │                           │
-│                           │  L          Đổi ngôn ngữ giao diện (vi ⇄ en)                                     │                           │
-│                           │  !          Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi màn hình  │                           │
-│                           │             Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân trang)   │                           │
-│                           │  ]          Chuyển tới tab kế tiếp                                               │                           │
-│                           │  [          Chuyển về tab trước                                                  │                           │
-│                           │  1-8        Chuyển nhanh tới một tab                                             │                           │
-│                           │  Ctrl+V     Dán chữ từ clipboard vào ô nhập đang mở                              │                           │
-│                           │  Kéo chuột  Bôi đen bằng chuột (kéo trái) để chọn và chép vào clipboard          │                           │
-│                           │  Shift+kéo  Chọn bằng terminal (giữ Shift khi kéo, hoặc tắt chuột bằng bảng lện… │                           │
-│                           │                                                                                  │                           │
-│                           │ Tri thức                                                                         │                           │
-│                           │  a          Duyệt mục (candidate/stale → verified); chỉ người dùng  bint knowl…  │                           │
-│                           │  f          Duyệt và làm mới fingerprint của bằng chứng (mục stale)  bint know…  │                           │
-│                           │  r          Từ chối mục chờ duyệt (→ deprecated, hỏi lý do)  bint knowledge re…  │                           │
-│                           └───────────────────────────────────────────────────────────────────────1–24/213 ↕─┘                           │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-│                                                                                                                                          │
-└─[r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]────────────────────────────────────────────────────────────────────────────┘
+ Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                            ┌─│Trợ giúp│───────────────────────────────────────────────────────────────────────┐                            
+                            │ Tổng quan                                                                        │                            
+                            │  Tổng quan: tình trạng repository và hộp thư “Việc cần bạn” (mục chờ duyệt,      │                            
+                            │  cảnh báo doctor). Enter ở một dòng mở màn xử lý nó.                             │                            
+                            │  r          Làm mới trạng thái repository  bint status                           │                            
+                            │             Kiểm tra môi trường (doctor)  bint doctor                            │                            
+                            │                                                                                  │                            
+                            │ Toàn cục                                                                         │                            
+                            │  q          Thoát Bint                                                           │                            
+                            │  ?          Mở bảng trợ giúp đầy đủ                                              │                            
+                            │  :          Mở bảng lệnh (tìm mọi hành động)                                     │                            
+                            │  L          Đổi ngôn ngữ giao diện (vi ⇄ en)                                     │                            
+                            │  !          Xem đủ thông báo hiện tại và 50 thông báo gần nhất của mọi màn hình  │                            
+                            │             Bật/tắt chuột trong phiên (cuộn, bấm tab, hàng, phím ở chân trang)   │                            
+                            │  ]          Chuyển tới tab kế tiếp                                               │                            
+                            │  [          Chuyển về tab trước                                                  │                            
+                            │  1-8        Chuyển nhanh tới một tab                                             │                            
+                            │  >          Nới pane trái thêm 5% (màn hai pane; tỉ lệ được lưu)                 │                            
+                            │  <          Thu pane trái bớt 5% (màn hai pane; tỉ lệ được lưu)                  │                            
+                            │  z          Phóng to/thu lại pane đang chọn                                      │                            
+                            │  =          Đưa tỉ lệ pane về mặc định                                           │                            
+                            │  Ctrl+V     Dán chữ từ clipboard vào ô nhập đang mở                              │                            
+                            │  Kéo chuột  Bôi đen bằng chuột (kéo trái) để chọn và chép vào clipboard          │                            
+                            │  Shift+kéo  Chọn bằng terminal (giữ Shift khi kéo, hoặc tắt chuột bằng bảng lện… │                            
+                            │                                                                                  │                            
+                            └───────────────────────────────────────────────────────────────────────1–24/217 ↕─┘                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+ [r→ Làm mới] [:→ Lệnh] [L→ Ngôn ngữ] [q→ Thoát] [?→ Trợ giúp]                                                                              

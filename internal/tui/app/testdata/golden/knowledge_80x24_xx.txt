@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ ⟦Ov~⟧ │⟦Knowledge~~~~⟧ (3) │⟦Tk~⟧ │⟦Rn~⟧ │⟦Ev~⟧ │⟦Evo~~⟧ │⟦Sy~⟧ │⟦MCP~~⟧     │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│⟦Knowledge~~~~⟧│────────────────────────────────────────────────────────────┐
-│  ‹  ⟦List~~⟧  1/9 ›                                                          │
-│ ┌─│⟦List (5/6)~~~~⟧│─────────────────────────────⟦all active items~~~~~~~⟧─┐ │
-│ │ ▸   ◌   ⚑ rule     Endpoint phải có /v1                   api/**         │ │
-│ │     ◌   ⚑ warning  Không gọi sql.Open trực tiếp           internal/db/** │ │
-│ │     ✓     pattern  Handler đi qua wrap()                  *              │ │
-│ │     ⟳     fact     Cổng mặc định là 8080                  cmd/**         │ │
-│ │     ◌     lesson   Chạy go vet với GOOS=windows           *              │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ │                                                                          │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[a→ ⟦App…] [r→ ⟦Rej…] [Enter→ ⟦Ope…] [:→ ⟦Com…] [q→ ⟦Qui…] [?→ ⟦Hel…]────────┘
+ ⟦Ov~⟧ │⟦Knowledge~~~~⟧ (3) │⟦Tk~⟧ │⟦Rn~⟧ │⟦Ev~⟧ │⟦Evo~~⟧ │⟦Sy~⟧ │⟦MCP~~⟧       
+ ‹  ⟦List~~⟧  1/9 ›                                                             
+┌─│⟦List (5/6)~~~~⟧│─────────────────────────────────⟦all active items~~~~~~~⟧─┐
+│ ▸   ◌   ⚑ rule     Endpoint phải có /v1                       api/**         │
+│     ◌   ⚑ warning  Không gọi sql.Open trực tiếp               internal/db/** │
+│     ✓     pattern  Handler đi qua wrap()                      *              │
+│     ⟳     fact     Cổng mặc định là 8080                      cmd/**         │
+│     ◌     lesson   Chạy go vet với GOOS=windows               *              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [a→ ⟦App…] [r→ ⟦Rej…] [Enter→ ⟦Ope…] [:→ ⟦Com…] [q→ ⟦Qui…] [?→ ⟦Hel…]          

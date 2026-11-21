@@ -1,24 +1,24 @@
-┌─────────────────────────────────│bint 0.1.0│─────────────────────────────────┐
-│ Ov │ Kn (3) │ Tasks │ Rn │ Ev │ Evo │ Sy │ MCP                               │
-└───────────────────────────────────────────────────────────────── /work/demo ─┘
-┌─│Tasks│──────────────────────────────────────────────────────────────────────┐
-│   Ticket · Documents · Criteria · Verify · Review · Errors · Runs            │
-│ ┌─│Details · 01TASK1│──────────────────────────────────────────────1-16/31─┐ │
-│ │ [blocked] 01TASK1                                        Total ≥$0.3000  │ │
-│ │ thay đổi cần người duyệt: migrations/002.sql                             │ │
-│ │ Thêm cột email                                                           │ │
-│ │                                                                          │ │
-│ │ ✓ b-feat $0.3000 → ✓ b-review ?                                          │ │
-│ │                                                                          │ │
-│ │ ? Lệnh kiểm chứng là gì?                                                 │ │
-│ │                                                                          │ │
-│ │ ── Not done yet ───────────────────────────────────────────────────────  │ │
-│ │ - chưa có bằng chứng                                                     │ │
-│ │                                                                          │ │
-│ │ ── Pending approval ───────────────────────────────────────────────────  │ │
-│ │   migrations/002.sql                                                     │ │
-│ │ Press a to review and approve.                                           │ │
-│ │                                                                          │ │
-│ │ Workflow     b-do                                                        │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
-└─[r→ Run] [c→ Re…] [a→ Ap…] [Enter→ Op…] [:→ Co…] [q→ Qu…] [?→ He…]───────────┘
+ Ov │ Kn (3) │ Tasks │ Rn │ Ev │ Evo │ Sy │ MCP         /work/demo · bint 0.1.0 
+  Ticket · Documents · Criteria · Verify · Review · Errors · Runs               
+┌─│Details · 01TASK1│──────────────────────────────────────────────────1-19/31─┐
+│ [blocked] 01TASK1                                            Total ≥$0.3000  │
+│ thay đổi cần người duyệt: migrations/002.sql                                 │
+│ Thêm cột email                                                               │
+│                                                                              │
+│ ✓ b-feat $0.3000 → ✓ b-review ?                                              │
+│                                                                              │
+│ ? Lệnh kiểm chứng là gì?                                                     │
+│                                                                              │
+│ ── Not done yet ───────────────────────────────────────────────────────────  │
+│ - chưa có bằng chứng                                                         │
+│                                                                              │
+│ ── Pending approval ───────────────────────────────────────────────────────  │
+│   migrations/002.sql                                                         │
+│ Press a to review and approve.                                               │
+│                                                                              │
+│ Workflow     b-do                                                            │
+│ Autonomy     ask_on_protected                                                │
+│ Updated      2026-11-11 10:00                                                │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [r→ Run] [c→ Resu…] [a→ Appr…] [Enter→ Open] [:→ Comm…] [q→ Quit] [?→ Help]    
