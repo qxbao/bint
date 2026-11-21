@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -14,6 +16,10 @@ import (
 // người xác nhận → `a` (hộp duyệt hiện đúng lệnh) → tiếp tục → thẻ Review hiện vòng của b-review → done.
 func TestMilestoneTaskToDone(t *testing.T) {
 	f := newFixture(t, Options{})
+	// Kịch bản theo thứ tự bước của luồng classic (b-goal trước b-feat); B′ là mặc định nên ghim variant.
+	if err := os.WriteFile(filepath.Join(f.root, ".bint", "local.yml"), []byte("workflow:\n  variant: classic\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	f.press("3")
 	f.pump(func() bool { return f.m.tk.Loaded }, nil)
 

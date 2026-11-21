@@ -127,7 +127,8 @@ func TestDepthReachesReqPromptOnly(t *testing.T) {
 	t.Setenv("BINT", bintBin)
 	t.Setenv("MARK", filepath.Join(t.TempDir(), "mark"))
 	t.Setenv("PDIR", pdir)
-	out, code := run(t, root, "", "run", "b-do", "--agent-command", "sh "+script, "--depth", "deep",
+	// Độ sâu phân tích chỉ có ở luồng classic (B′ mặc định dùng b-req gọn).
+	out, code := run(t, root, "", "run", "b-do", "--agent-command", "sh "+script, "--depth", "deep", "--variant", "classic",
 		"--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 	if code != 0 || !strings.Contains(out, ": done") {
 		t.Fatalf("run b-do: %d\n%s", code, out)

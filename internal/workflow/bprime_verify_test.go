@@ -295,7 +295,8 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 		ms := []bvMilestone{
 			{edit: editA(2), check: true, pause: 40 * time.Millisecond},
 			{edit: func(h *harness) { h.write("c/c.go", "package c\n\nfunc C() int { return 1 }\n") }, check: true, pause: 40 * time.Millisecond},
-			{edit: editA(3), check: true, pause: 40 * time.Millisecond},
+			// wait: máy chậm (CI -race) thì lần nền đầu chưa xong khi b-feat kết thúc, bị huỷ vì cây đã đổi, và không còn lần nào được ghi.
+			{edit: editA(3), check: true, pause: 40 * time.Millisecond, wait: true},
 		}
 		h, res, counter, _ := bvRunOpt(t, bvOpts{variant: config.VariantBPrime, slow: true}, ms)
 		tk := h.load(res.TaskID)
