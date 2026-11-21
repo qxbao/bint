@@ -1,11 +1,11 @@
  TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP           
  ‹  Danh sách  1/9 ›                                        
 ┌─│Danh sách (5/6)│───────────────────mọi mục còn hiệu lực─┐
-│ ▸   ◌   ⚑ rule     Endpoint phải có /v1   api/**         │
-│     ◌   ⚑ warning  Không gọi sql.Open tr… internal/db/** │
-│     ✓     pattern  Handler đi qua wrap()  *              │
-│     ⟳     fact     Cổng mặc định là 8080  cmd/**         │
-│     ◌     lesson   Chạy go vet với GOOS=… *              │
+│ ▸ ◌ ⚑ rule     Endpoint phải có /v1       api/**         │
+│   ◌ ⚑ warning  Không gọi sql.Open trực t… internal/db/** │
+│   ✓   pattern  Handler đi qua wrap()      *              │
+│   ⟳   fact     Cổng mặc định là 8080      cmd/**         │
+│   ◌   lesson   Chạy go vet với GOOS=wind… *              │
 │                                                          │
 │                                                          │
 │                                                          │

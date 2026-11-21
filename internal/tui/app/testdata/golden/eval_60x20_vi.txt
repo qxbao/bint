@@ -1,11 +1,11 @@
  TQ │ TT (3) │ TV │ LC │ Đánh giá │ TH │ HT │ MCP           
   Ứng viên · Tác vụ · Đợt                                   
 ┌─│Ứng viên (2)│─────────────────────────────────chờ duyệt─┐
+│  Cột: K kiểm chứng · R rò rỉ lời giải · Đ đặc tả         │
+│  ✓ đạt · ! cần xem · ✗ hỏng · · chưa có                  │
+│     ID            K R Đ Đề bài                           │
 │ ▸ ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người d… │
 │   ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu       │
-│                                                          │
-│                                                          │
-│                                                          │
 │                                                          │
 │                                                          │
 │                                                          │

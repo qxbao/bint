@@ -11,7 +11,7 @@
 │ Nguồn commit                                                                 │
 │ Commit      c0002bbbbcom (Sửa lỗi khoá cơ sở dữ liệu)                        │
 │ Commit gốc  c0002bbbbbas                                                     │
-│ Tác giả     Dev 2026-11-10                                                   │
+│ Tác giả     Dev · 11 ngày trước                                              │
 │ Quy mô      2 tệp, 30 dòng mã, 20 dòng kiểm thử                              │
 │                                                                              │
 │ Kiểm chứng fail→pass                                                         │

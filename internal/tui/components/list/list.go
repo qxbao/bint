@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/components/zone"
 )
@@ -161,4 +163,30 @@ func Row(widths []int, gap int, cells ...string) string {
 		parts[i] = text.Fit(c, w)
 	}
 	return strings.Join(parts, sep)
+}
+
+// Uniform cho biết cột (giá trị cell(i) của n hàng, so theo chữ đã bỏ màu) giống hệt nhau ở mọi hàng, từ hai hàng trở lên: cột như vậy không
+// phân biệt được hàng nào nên ẩn đi cho thoáng.
+func Uniform(n int, cell func(i int) string) bool {
+	if n < 2 {
+		return false
+	}
+	first := ansi.Strip(cell(0))
+	for i := 1; i < n; i++ {
+		if ansi.Strip(cell(i)) != first {
+			return false
+		}
+	}
+	return true
+}
+
+// Pick giữ các phần tử của xs mà keep[i] đúng (dùng để bỏ cột ẩn khỏi độ rộng và ô).
+func Pick[T any](xs []T, keep []bool) []T {
+	out := make([]T, 0, len(xs))
+	for i, x := range xs {
+		if i < len(keep) && keep[i] {
+			out = append(out, x)
+		}
+	}
+	return out
 }

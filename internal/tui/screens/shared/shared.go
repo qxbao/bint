@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"bint/internal/i18n"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/theme"
 )
@@ -76,4 +77,55 @@ func KV(th theme.Theme, lw, w int, label, val string) []string {
 		}
 	}
 	return out
+}
+
+// Now là đồng hồ của Ago (kiểm thử golden đặt cố định).
+var Now = time.Now
+
+// Person bỏ phần " <email>" của "Tên <email>" (khung chi tiết chỉ cần tên; email nằm trong tệp/Git).
+func Person(s string) string {
+	if i := strings.Index(s, " <"); i > 0 && strings.HasSuffix(strings.TrimSpace(s), ">") {
+		return s[:i]
+	}
+	return s
+}
+
+// ParseTime đọc thời điểm ở các dạng Bint lưu (cơ sở dữ liệu, RFC 3339, ngày).
+func ParseTime(s string) (time.Time, bool) {
+	for _, f := range []string{"2006-01-02T15:04:05.000Z", time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"} {
+		if t, err := time.Parse(f, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+// Ago là thời gian tương đối tới Now ("3 giờ trước") trong 30 ngày; xa hơn thì ngày địa phương. Không đọc được thì trả nguyên s; rỗng → "-".
+// cat là danh mục chuỗi (khoá ago.*).
+func Ago(cat Catalog, s string) string {
+	if s == "" {
+		return "-"
+	}
+	t, ok := ParseTime(s)
+	if !ok {
+		return s
+	}
+	d := Now().Sub(t)
+	switch {
+	case d < time.Minute:
+		return cat.T("ago.now")
+	case d < time.Hour:
+		return cat.N("ago.minutes", int(d/time.Minute))
+	case d < 48*time.Hour:
+		return cat.N("ago.hours", int(d/time.Hour))
+	case d < 30*24*time.Hour:
+		return cat.N("ago.days", int(d/(24*time.Hour)))
+	}
+	return t.Local().Format("2006-01-02")
+}
+
+// Catalog là phần danh mục chuỗi mà Ago cần (i18n.Catalog thoả).
+type Catalog interface {
+	T(key string, args ...i18n.A) string
+	N(key string, count int, args ...i18n.A) string
 }

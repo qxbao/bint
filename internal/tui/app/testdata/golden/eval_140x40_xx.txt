@@ -1,24 +1,24 @@
  ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
   ⟦Candidates~~~~⟧ · ⟦Cases~~⟧ · ⟦Batches~~~⟧                                                                                               
 ┌─│⟦Candidates (2)~~~~~~⟧│──────────────────────────────⟦pending~~~⟧─┐┌─│⟦Details~~~⟧ · c0001aaaa│─────────────────────────────────────────┐
-│ ▸ ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng         ││ c0001aaaa                                                          │
-│   ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu                 ││ ⟦Status~~~⟧ ⟦candidate~~~~⟧                                        │
-│                                                                    ││ ⟦File~~⟧    /state/demo/evals/candidates/c0001aaaa.yml             │
-│                                                                    ││                                                                    │
-│                                                                    ││ ⟦Prompt~~~⟧                                                        │
+│  ⟦Columns: V verified · L solution leak · S spec~~~~~~~~~~~~~~~~~… ││ c0001aaaa                                                          │
+│  ⟦✓ pass · ! review · ✗ fail · · not yet~~~~~~~~~~~~~~~~⟧          ││ ⟦Status~~~⟧ ⟦candidate~~~~⟧                                        │
+│     ⟦ID~⟧         … … … ⟦Task~~⟧                                   ││ ⟦File~~⟧    /state/demo/evals/candidates/c0001aaaa.yml             │
+│ ▸ ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng         ││                                                                    │
+│   ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu                 ││ ⟦Prompt~~~⟧                                                        │
 │                                                                    ││   Thêm cột email vào bảng người dùng và trả nó ở API.              │
 │                                                                    ││                                                                    │
 │                                                                    ││ ⟦Source commit~~~~~~⟧                                              │
 │                                                                    ││ ⟦Commit~~~⟧ c0001aaaacom (Thêm cột email vào bảng người dùng)      │
 │                                                                    ││ ⟦Base~~⟧    c0001aaaabas                                           │
-│                                                                    ││ ⟦Author~~~⟧ Dev 2026-11-10                                         │
+│                                                                    ││ ⟦Author~~~⟧ Dev · ⟦11 days ago~~~~⟧                                │
 │                                                                    ││ ⟦Size~~⟧    ⟦2 files, 30 source lines, 20 test                     │
 │                                                                    ││             lines~~~~~~~~~~~~~~⟧                                   │
 │                                                                    ││                                                                    │
 │                                                                    ││ ⟦Fail→pass verification~~~~~~~~~⟧                                  │
 │                                                                    ││   ✓ ⟦verified (fail→pass)~~~~~~~~⟧                                 │
 │                                                                    ││     ⟦failed before: ⟦yes~~⟧; passed after: ⟦yes~~⟧; runs after:    │
-│                                                                    ││     2; at 2026-11-11T08:00:00Z~~~~~~~~~~~~~~~~~~~~⟧                │
+│                                                                    ││     2; at ⟦9 days ago~~~~⟧~~~~~~~~~~~~~~~~~~~~⟧                    │
 │                                                                    ││                                                                    │
 │                                                                    ││ ⟦Solution leakage~~~~~~~⟧                                          │
 │                                                                    ││   ✓ ⟦no leak~~~⟧                                                   │

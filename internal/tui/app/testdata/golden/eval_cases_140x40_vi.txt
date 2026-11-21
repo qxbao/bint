@@ -12,13 +12,13 @@
 │                                                                    ││ Nguồn commit                                                       │
 │                                                                    ││ Commit      c0003cccccom (Đổi cách tính phí)                       │
 │                                                                    ││ Commit gốc  c0003ccccbas                                           │
-│                                                                    ││ Tác giả     Dev 2026-11-10                                         │
+│                                                                    ││ Tác giả     Dev · 11 ngày trước                                    │
 │                                                                    ││ Quy mô      2 tệp, 30 dòng mã, 20 dòng kiểm thử                    │
 │                                                                    ││                                                                    │
 │                                                                    ││ Kiểm chứng fail→pass                                               │
 │                                                                    ││   ✓ đạt (fail→pass)                                                │
-│                                                                    ││     thất bại trước: có; qua sau: có; số lần chạy sau: 2; lúc       │
-│                                                                    ││     2026-11-11T08:00:00Z                                           │
+│                                                                    ││     thất bại trước: có; qua sau: có; số lần chạy sau: 2; lúc 9     │
+│                                                                    ││     ngày trước                                                     │
 │                                                                    ││                                                                    │
 │                                                                    ││ Rò rỉ lời giải                                                     │
 │                                                                    ││   ✓ không rò rỉ                                                    │

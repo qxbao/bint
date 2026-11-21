@@ -539,7 +539,7 @@ func (m *Model) componentsDetail(env ui.Env, w, h int) string {
 			kv("origin", c.Origin)
 			kv("version", fmt.Sprintf("%d", c.Version))
 			kv("risk", d.Row.Risk)
-			kv("approved", c.ApprovedBy)
+			kv("approved", shared.Person(c.ApprovedBy))
 			kv("file", d.Row.File)
 			out = append(out, "", th.S(theme.Accent, m.t("sy.comp.content")))
 			out = append(out, strings.Split(strings.TrimRight(d.Content, "\n"), "\n")...)

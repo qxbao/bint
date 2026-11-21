@@ -118,7 +118,7 @@ func (m *Model) oppListBox(env ui.Env, w, h int) string {
 			if o.Ready {
 				glyph, role = "●", theme.OK
 			}
-			line := list.Row(widths, 1, th.S(role, glyph), th.S(theme.Muted, o.ID), o.Kind, o.Action, o.Summary)
+			line := list.Row(widths, 1, th.S(role, glyph), th.S(theme.Muted, o.ID), o.Kind, o.Action, m.Data.OppText(o))
 			if cursor {
 				return th.S(theme.Key, "▸ ") + th.Selected(shared.StripColor(th, line))
 			}
@@ -187,7 +187,7 @@ func (m *Model) oppDetailBox(env ui.Env, w, h int) string {
 			lvl = o.Level
 		}
 		lines = append(lines, text.WrapHang(fmt.Sprintf("  %s %s → %s [%s] %s", lvl, o.Kind, o.Action, o.Generator, state), lw, "", "    ")...)
-		lines = append(lines, text.WrapHang("  "+o.Summary, lw, "", "    ")...)
+		lines = append(lines, text.WrapHang("  "+m.Data.OppText(*o), lw, "", "    ")...)
 		for _, f := range o.Files {
 			lines = append(lines, text.WrapHang(m.t("ev.opp.file", i18n.A{"path": f.Path, "runs": f.Runs, "failures": f.Failures}), lw, "    ", "    ")...)
 			if len(f.Members) > 0 {

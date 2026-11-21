@@ -1,11 +1,11 @@
  Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy │ MCP    /work/demo · bint 0.1.0 
   Candidates · Cases · Batches                                                  
 ┌─│Candidates (2)│─────────────────────────────────────────────────────pending─┐
+│  Columns: V verified · L solution leak · S spec                              │
+│  ✓ pass · ! review · ✗ fail · · not yet                                      │
+│     ID            V L S Task                                                 │
 │ ▸ ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng                   │
 │   ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu                           │
-│                                                                              │
-│                                                                              │
-│                                                                              │
 │                                                                              │
 │                                                                              │
 │                                                                              │

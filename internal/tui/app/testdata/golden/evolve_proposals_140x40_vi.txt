@@ -8,7 +8,7 @@
 │   ◌ 00SCRI proposed create    high   -         -         Thất bại… ││ Lý do         Thất bại lặp lại ở internal/db                       │
 │   ◌ 00STRA proposed create    medium -         -         Thất bại… ││ Lợi ích       bớt thất bại lặp lại                                 │
 │                                                                    ││ Rủi ro        high sửa mục đã duyệt                                │
-│                                                                    ││ Tạo bởi       agent:fake, 2026-11-11 10:00                         │
+│                                                                    ││ Tạo bởi       agent:fake, 9 ngày trước                             │
 │                                                                    ││ Kế hoạch      superiority · pass_rate — bớt thất bại               │
 │                                                                    ││ Kiểm chứng    điều kiện tiên quyết chưa đạt lúc đề xuất — CHƯA     │
 │                                                                    ││               kiểm chứng định lượng                                │

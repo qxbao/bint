@@ -1,7 +1,10 @@
 package runs
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -126,13 +129,20 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 	case len(m.idx) == 0:
 		body = "\n " + th.S(theme.Muted, m.t("rn.empty_filtered"))
 	default:
-		widths := list.Widths(iw-2, 1, []int{1, 6, 11, 7, 11, 0})
+		row := func(i int) app.RunRow { return m.Data.Rows[m.idx[i]] }
+		n := len(m.idx)
+		// Cột: nhãn (ký hiệu), mã ngắn, trạng thái, harness, thời điểm, lý do nhãn. Nhãn chỉ hiện bằng ký hiệu (chữ nhãn trùng nghĩa
+		// nằm ở chi tiết); cột giống hệt nhau ở mọi hàng (vd mọi lượt đều completed) bị ẩn.
+		keep := []bool{true, true,
+			!list.Uniform(n, func(i int) string { return row(i).Run.Status }),
+			!list.Uniform(n, func(i int) string { return row(i).Run.Harness.String }), true, true}
+		widths := list.Widths(iw-2, 1, list.Pick([]int{1, 6, 11, 7, 11, 0}, keep))
 		body = m.lst.Render(iw, ih, func(i int, cursor bool) string {
-			r := m.Data.Rows[m.idx[i]]
+			r := row(i)
 			glyph, role := labelGlyph(r.Label)
 			id := shared.Short(r.Run.RunID)
-			line := list.Row(widths, 1, th.S(role, glyph), th.S(theme.Muted, id[max(len(id)-6, 0):]), r.Run.Status,
-				shared.Dash(r.Run.Harness.String), shared.TimeShort(r.Run.StartedAt.String), m.labelName(r.Label))
+			line := list.Row(widths, 1, list.Pick([]string{th.S(role, glyph), th.S(theme.Muted, id[max(len(id)-6, 0):]), r.Run.Status,
+				shared.Dash(r.Run.Harness.String), shared.TimeShort(r.Run.StartedAt.String), th.S(theme.Muted, r.Reason)}, keep)...)
 			if cursor {
 				return th.S(theme.Key, "▸ ") + th.Selected(shared.StripColor(th, line))
 			}
@@ -227,7 +237,7 @@ func (m *Model) detailLines(env ui.Env, d *app.RunDetail, w int) []string {
 	kv("tokens", tok)
 	kv("git", shared.Dash(run.GitBranch.String)+" @ "+shared.Dash(run.GitBaseCommit.String))
 	kv("worktree", run.Worktree.String)
-	kv("time", shared.Time(run.StartedAt.String)+" → "+shared.Time(run.FinishedAt.String)+" ("+fmtDuration(run)+")")
+	kv("time", shared.Ago(m.cat, run.StartedAt.String)+" · "+shared.Time(run.StartedAt.String)+" ("+fmtDuration(run)+")")
 	glyph, role := labelGlyph(d.Label)
 	out = append(out, th.S(theme.Accent, text.Pad(m.t("rn.f.label"), 12))+th.S(role, glyph+" "+m.labelName(d.Label)))
 	out = append(out, text.WrapHang(d.Reason, w, strings.Repeat(" ", 12), strings.Repeat(" ", 12))...)
@@ -252,7 +262,51 @@ func (m *Model) detailLines(env ui.Env, d *app.RunDetail, w int) []string {
 	}
 	out = append(out, "", th.S(theme.Accent, m.t("rn.sec.events", i18n.A{"count": len(d.Events)})))
 	for _, e := range d.Events {
-		out = append(out, fmt.Sprintf("  %s  %s %s", shared.Time(e.Timestamp), text.Pad(e.Type, 16), e.Payload))
+		out = append(out, fmt.Sprintf("  %s  %s", th.S(theme.Muted, shared.Time(e.Timestamp)), e.Type))
+		out = append(out, payloadLines(th, e.Payload, w)...)
+	}
+	return out
+}
+
+// payloadLines hiện payload JSON của sự kiện: đối tượng thành các dòng "khoá: giá trị" (giá trị dài ngắt theo từ, thụt theo cột giá
+// trị), giá trị lồng nhau viết gọn một dòng JSON; không phải đối tượng JSON thì ngắt dòng nguyên văn.
+func payloadLines(th theme.Theme, payload string, w int) []string {
+	payload = strings.TrimSpace(payload)
+	if payload == "" || payload == "{}" {
+		return nil
+	}
+	dec := json.NewDecoder(strings.NewReader(payload))
+	dec.UseNumber()
+	var obj map[string]any
+	if err := dec.Decode(&obj); err != nil || len(obj) == 0 {
+		return text.WrapHang(payload, w, "      ", "      ")
+	}
+	keys := slices.Sorted(maps.Keys(obj))
+	kw := 0
+	for _, k := range keys {
+		kw = max(kw, text.Width(k))
+	}
+	kw = min(kw, 18)
+	var out []string
+	for _, k := range keys {
+		var v string
+		switch x := obj[k].(type) {
+		case string:
+			v = x
+		case json.Number:
+			v = x.String()
+		case nil:
+			v = "null"
+		default:
+			b, _ := json.Marshal(x)
+			v = string(b)
+		}
+		pre := "      " + text.Pad(k+":", kw+2)
+		lines := text.WrapHang(v, w, pre, strings.Repeat(" ", text.Width(pre)))
+		if len(lines) > 0 {
+			lines[0] = th.S(theme.Muted, pre) + strings.TrimPrefix(lines[0], pre)
+		}
+		out = append(out, lines...)
 	}
 	return out
 }

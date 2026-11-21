@@ -1,30 +1,30 @@
  ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
  ‹  ⟦List~~⟧  1/9 ›                                                                                                                         
 ┌─│⟦List (5/6)~~~~⟧│───────────────────────⟦all active items~~~~~~~⟧─┐┌─│⟦Details~~~⟧│─────────────────────────────────────────────────────┐
-│ ▸   ◌   ⚑ rule     Endpoint phải có /v1             api/**         ││ 01KNOW000001                                                       │
-│     ◌   ⚑ warning  Không gọi sql.Open trực tiếp     internal/db/** ││ ◌ rule · candidate · agent ⚑                                       │
-│     ✓     pattern  Handler đi qua wrap()            *              ││ Endpoint phải có /v1                                               │
-│     ⟳     fact     Cổng mặc định là 8080            cmd/**         ││ ⟦Scope~~⟧    api/**                                                │
-│     ◌     lesson   Chạy go vet với GOOS=windows     *              ││ ⟦Symbols/tags~~~~~⟧ nguon:lo-thu                                   │
-│                                                                    ││ ⟦Origin~~~⟧  agent ⚑ (Tester <t@example.com>,                      │
-│                                                                    ││              2026-11-11T00:00:00Z)                                 │
+│ ▸ ◌ ⚑ rule     Endpoint phải có /v1                 api/**         ││ 01KNOW000001                                                       │
+│   ◌ ⚑ warning  Không gọi sql.Open trực tiếp         internal/db/** ││ ◌ rule · candidate · agent ⚑                                       │
+│   ✓   pattern  Handler đi qua wrap()                *              ││ Endpoint phải có /v1                                               │
+│   ⟳   fact     Cổng mặc định là 8080                cmd/**         ││ ⟦Scope~~⟧    api/**                                                │
+│   ◌   lesson   Chạy go vet với GOOS=windows         *              ││ ⟦Symbols/tags~~~~~⟧ nguon:lo-thu                                   │
+│                                                                    ││ ⟦Origin~~~⟧  agent ⚑ (Tester, ⟦10 days ago~~~~⟧)                   │
 │                                                                    ││ ⟦File~~⟧     /work/demo/.bint/knowledge/items/01KNOW000001.md      │
 │                                                                    ││                                                                    │
-│                                                                    ││ ── ⟦Content~~~⟧                                                    │
-│                                                                    ││   ──────────────────────────────────────────────────               │
+│                                                                    ││ ── ⟦Content~~~⟧ ─────────────────────────────────────────────────  │
 │                                                                    ││ Nội dung của mục Endpoint phải có /v1.                             │
 │                                                                    ││ Dòng thứ hai của nội dung.                                         │
 │                                                                    ││                                                                    │
-│                                                                    ││ ── ⟦Evidence~~~~⟧                                                  │
-│                                                                    ││   ────────────────────────────────────────────────                 │
+│                                                                    ││ ── ⟦Evidence~~~~⟧ ───────────────────────────────────────────────  │
 │                                                                    ││ internal/db/db.go:40-52                                            │
 │                                                                    ││   │   40  func Open() {                                            │
 │                                                                    ││   │   41      return nil                                           │
 │                                                                    ││   │   42  }                                                        │
 │                                                                    ││                                                                    │
-│                                                                    ││ ── ⟦Checks~~~⟧                                                     │
-│                                                                    ││   ───────────────────────────────────────────────────              │
+│                                                                    ││ ── ⟦Checks~~~⟧ ──────────────────────────────────────────────────  │
 │                                                                    ││ ✓ ⟦0 errors~~~~⟧                                                   │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
 │                                                                    ││                                                                    │
 │                                                                    ││                                                                    │
 │                                                                    ││                                                                    │

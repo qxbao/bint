@@ -1,9 +1,9 @@
  TQ │ TT (3) │ TV │ Lượt chạy │ ĐG │ TH │ HT │ MCP          
   Danh sách · Bài học                                       
 ┌─│Lượt chạy 3/3│───────────────────────────tối đa 20 lượt─┐
-│ ▸ · 000003 completed   claude  11-11 10:00 chưa gán nhãn │
-│   ✗ 000002 failed      codex   11-11 09:00 thất bại      │
-│   ✓ 000001 completed   claude  11-11 08:00 thành công    │
+│ ▸ · 000003 completed   claude  11-11 10:00 không có tín… │
+│   ✗ 000002 failed      codex   11-11 09:00 người dùng c… │
+│   ✓ 000001 completed   claude  11-11 08:00 người dùng c… │
 │                                                          │
 │                                                          │
 │                                                          │

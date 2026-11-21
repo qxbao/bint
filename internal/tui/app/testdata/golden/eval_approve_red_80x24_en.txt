@@ -1,7 +1,7 @@
  Ov │ Kn (3) │ Tk │ Rn │ Evaluation │ Evo │ Sy │ MCP    /work/demo · bint 0.1.0 
   Candidates · Cases · Batches                                                  
 ┌─│Candidates (2)│─────────────────────────────────────────────────────pending─┐
-│   ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng                   │
+│  Columns: V verified · L solution leak · S spec                              │
 │ ┌─│Approve candidate c0002bbbb?│───────────────────────────────────────────┐ │
 │ │ This candidate does not meet the approval conditions. Tick the boxes     │ │
 │ │ below only if you are sure.                                              │ │

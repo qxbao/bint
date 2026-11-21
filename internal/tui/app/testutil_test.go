@@ -18,6 +18,7 @@ import (
 	"bint/internal/tui/screens/overview"
 	rnscreen "bint/internal/tui/screens/runs"
 	tkscreen "bint/internal/tui/screens/tasks"
+	"bint/internal/tui/screens/shared"
 	"bint/internal/tui/theme"
 )
 
@@ -133,8 +134,15 @@ func sampleTaskDetail(_ context.Context, _ string, id string, _ bool) (tkscreen.
 func notInitData() overview.Data { return overview.Data{NotInit: true} }
 
 // newModel dựng mô hình với loader giả và đã nạp xong dữ liệu.
+// goldenNow là "bây giờ" của dữ liệu mẫu (shared.Ago).
+var goldenNow = time.Date(2026, 11, 21, 0, 0, 0, 0, time.UTC)
+
 func newModel(t *testing.T, o Options, data overview.Data, w, h int) *Model {
 	t.Helper()
+	// Thời gian tương đối ("… trước") trong golden phải ổn định: đồng hồ cố định cho mô hình dựng bằng dữ liệu mẫu.
+	old := shared.Now
+	shared.Now = func() time.Time { return goldenNow }
+	t.Cleanup(func() { shared.Now = old })
 	if o.Dir == "" {
 		o.Dir = "/work/demo"
 	}

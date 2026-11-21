@@ -1,11 +1,11 @@
  Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
   Ứng viên · Tác vụ · Đợt                                                                                                                   
 ┌─│Ứng viên (2)│───────────────────────────────────────────chờ duyệt─┐┌─│Chi tiết · c0002bbbb│─────────────────────────────────────────────┐
-│   ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng         ││ c0002bbbb                                                          │
-│ ▸ ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu                 ││ Trạng thái  chờ duyệt                                              │
-│                                                                    ││ Tệp         /state/demo/evals/candidates/c0002bbbb.yml             │
-│                                                                    ││                                                                    │
-│                                                                    ││ Đề bài                                                             │
+│  Cột: K kiểm chứng · R rò rỉ lời giải · Đ đặc tả                   ││ c0002bbbb                                                          │
+│  ✓ đạt · ! cần xem · ✗ hỏng · · chưa có                            ││ Trạng thái  chờ duyệt                                              │
+│     ID            K R Đ Đề bài                                     ││ Tệp         /state/demo/evals/candidates/c0002bbbb.yml             │
+│   ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng         ││                                                                    │
+│ ▸ ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu                 ││ Đề bài                                                             │
 │                                                                    ││   Sửa lỗi khoá: gọi Close() trong defer.                           │
 │                                                                    ││                                                                    │
 │                                                                    ││ Nguồn commit                                                       │

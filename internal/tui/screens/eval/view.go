@@ -175,7 +175,13 @@ func (m *Model) candListBox(env ui.Env, w, h int) string {
 		body = "\n " + th.S(theme.Muted, m.t("eval.cands.empty"))
 	} else {
 		widths := list.Widths(iw-2, 1, []int{1, 13, 1, 1, 1, 0})
-		body = m.clst.Render(iw, ih, func(i int, cursor bool) string {
+		// Hai dòng đầu: tiêu đề cột và chú giải ký hiệu (ba cột ký hiệu: kiểm chứng, rò rỉ đề bài, đặc tả).
+		head := "  " + th.S(theme.Muted, list.Row(widths, 1, "", m.t("eval.col.id"), m.t("eval.col.verify"), m.t("eval.col.leak"), m.t("eval.col.spec"), m.t("eval.col.subject")))
+		var legend []string
+		for _, k := range []string{"eval.legend.cols", "eval.legend.glyphs"} {
+			legend = append(legend, " "+th.S(theme.Muted, text.Truncate(m.t(k), max(iw-1, 10))))
+		}
+		rows := m.clst.Render(iw, max(ih-len(legend)-1, 1), func(i int, cursor bool) string {
 			c := m.Data.Pending[m.cidx[i]]
 			glyph, role := "◌", theme.Fg
 			if c.Status == eval.StatusRejected {
@@ -190,6 +196,7 @@ func (m *Model) candListBox(env ui.Env, w, h int) string {
 			}
 			return "  " + line
 		})
+		body = strings.Join(append(legend, head, rows), "\n")
 	}
 	chip := m.t("eval.filter.pending")
 	if m.all {
@@ -293,7 +300,7 @@ func (m *Model) caseLines(env ui.Env, c *eval.Case, cmd string, cmdErr error, pa
 	add("eval.d.source")
 	kv("eval.f.commit", shortStr(c.Source.Commit, 12)+" ("+shared.Dash(c.Source.Subject)+")")
 	kv("eval.f.base", shortStr(c.Source.Base, 12))
-	kv("eval.f.author", strings.TrimSpace(c.Source.Author+" "+c.Source.Date))
+	kv("eval.f.author", strings.TrimSpace(shared.Person(c.Source.Author)+" · "+shared.Ago(m.cat, c.Source.Date)))
 	kv("eval.f.stats", m.t("eval.d.stats", i18n.A{"files": c.Stats.Files, "src": c.Stats.SourceLines, "test": c.Stats.TestLines}))
 	if c.OriginalMessage != "" {
 		kv("eval.f.original", strings.Join(strings.Fields(c.OriginalMessage), " "))
@@ -305,7 +312,7 @@ func (m *Model) caseLines(env ui.Env, c *eval.Case, cmd string, cmdErr error, pa
 		lines = append(lines, "  "+th.S(role, glyph)+" "+m.t("eval.d.verify.none"))
 	} else {
 		lines = append(lines, "  "+th.S(role, glyph)+" "+m.tr("eval.vs.", v.Status))
-		lines = append(lines, text.WrapHang(m.t("eval.d.verify.detail", i18n.A{"before": yesNo(m, v.FailBefore), "after": yesNo(m, v.PassAfter), "runs": v.AfterRuns, "at": shared.Dash(v.VerifiedAt)}), lw, "    ", "    ")...)
+		lines = append(lines, text.WrapHang(m.t("eval.d.verify.detail", i18n.A{"before": yesNo(m, v.FailBefore), "after": yesNo(m, v.PassAfter), "runs": v.AfterRuns, "at": shared.Ago(m.cat, v.VerifiedAt)}), lw, "    ", "    ")...)
 		if v.Detail != "" {
 			lines = append(lines, text.WrapHang(m.cli(v.Detail), lw, "    ", "    ")...)
 		}

@@ -116,7 +116,8 @@ func TestRunsListDetailAndFilter(t *testing.T) {
 	m, _ := newCapModel(t, Options{})
 	press(t, m, "4")
 	out := plain(m.Render())
-	hasAll(t, out, "Lượt chạy 3/3", "000003", "000002", "000001", "thất bại", "thành công", "chưa gán nhãn", "Tín hiệu kết quả (1)", "Đầu ra (1)", "Sự kiện (2)", "session.started")
+	// Danh sách chỉ hiện nhãn bằng ký hiệu; chữ nhãn của lượt đang chọn nằm ở chi tiết.
+	hasAll(t, out, "Lượt chạy 3/3", "000003", "000002", "000001", "thất bại", "Tín hiệu kết quả (1)", "Đầu ra (1)", "Sự kiện (2)", "session.started")
 	press(t, m, "j")
 	hasAll(t, plain(m.Render()), "1RUN000002", "người dùng chấm bad")
 	press(t, m, "/")

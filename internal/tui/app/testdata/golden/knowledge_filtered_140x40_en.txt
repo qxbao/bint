@@ -1,29 +1,29 @@
  Overview │ Knowledge (10) │ Tasks (1) │ Runs │ Evaluation │ Evolution │ System │ MCP                               /work/demo · bint 0.1.0 
   List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context · Import                                 ● 2 selected 
 ┌─│List (4/6)│───────────────────────────────────────────────pending─┐┌─│Details│──────────────────────────────────────────────────────────┐
-│   ● ◌   ⚑ rule     Endpoint phải có /v1             api/**         ││ 01KNOW000004                                                       │
-│   ● ◌   ⚑ warning  Không gọi sql.Open trực tiếp     internal/db/** ││ ⟳ fact · stale · agent                                             │
-│ ▸   ⟳     fact     Cổng mặc định là 8080            cmd/**         ││ Cổng mặc định là 8080                                              │
-│     ◌     lesson   Chạy go vet với GOOS=windows     *              ││ ✗ 1 error · technical detail                                       │
+│   ● ◌ ⚑ rule     Endpoint phải có /v1               api/**         ││ 01KNOW000004                                                       │
+│   ● ◌ ⚑ warning  Không gọi sql.Open trực tiếp       internal/db/** ││ ⟳ fact · stale · agent                                             │
+│ ▸   ⟳   fact     Cổng mặc định là 8080              cmd/**         ││ Cổng mặc định là 8080                                              │
+│     ◌   lesson   Chạy go vet với GOOS=windows       *              ││ ✗ 1 error · technical detail                                       │
 │                                                                    ││ → f: refresh fingerprint (review content, then approve) · v:       │
 │                                                                    ││   update evidence position                                         │
 │                                                                    ││ ✗ Evidence changed since it was recorded                           │
 │                                                                    ││     bằng chứng đã thay đổi                                         │
 │                                                                    ││ Scope        cmd/**                                                │
-│                                                                    ││ Origin       agent (Tester <t@example.com>, 2026-11-11T00:00:00Z)  │
+│                                                                    ││ Origin       agent (Tester, 10 days ago)                           │
 │                                                                    ││ File         /work/demo/.bint/knowledge/items/01KNOW000004.md      │
 │                                                                    ││                                                                    │
-│                                                                    ││ ── Content                                                         │
-│                                                                    ││   ───────────────────────────────────────────────────────          │
+│                                                                    ││ ── Content ──────────────────────────────────────────────────────  │
 │                                                                    ││ Nội dung của mục Cổng mặc định là 8080.                            │
 │                                                                    ││ Dòng thứ hai của nội dung.                                         │
 │                                                                    ││                                                                    │
-│                                                                    ││ ── Evidence                                                        │
-│                                                                    ││   ──────────────────────────────────────────────────────           │
+│                                                                    ││ ── Evidence ─────────────────────────────────────────────────────  │
 │                                                                    ││ internal/db/db.go:40-52                                            │
 │                                                                    ││   │   40  func Open() {                                            │
 │                                                                    ││   │   41      return nil                                           │
 │                                                                    ││   │   42  }                                                        │
+│                                                                    ││                                                                    │
+│                                                                    ││                                                                    │
 │                                                                    ││                                                                    │
 │                                                                    ││                                                                    │
 │                                                                    ││                                                                    │

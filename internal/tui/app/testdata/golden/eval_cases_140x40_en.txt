@@ -12,13 +12,13 @@
 │                                                                    ││ Source commit                                                      │
 │                                                                    ││ Commit      c0003cccccom (Đổi cách tính phí)                       │
 │                                                                    ││ Base        c0003ccccbas                                           │
-│                                                                    ││ Author      Dev 2026-11-10                                         │
+│                                                                    ││ Author      Dev · 11 days ago                                      │
 │                                                                    ││ Size        2 files, 30 source lines, 20 test lines                │
 │                                                                    ││                                                                    │
 │                                                                    ││ Fail→pass verification                                             │
 │                                                                    ││   ✓ verified (fail→pass)                                           │
-│                                                                    ││     failed before: yes; passed after: yes; runs after: 2; at       │
-│                                                                    ││     2026-11-11T08:00:00Z                                           │
+│                                                                    ││     failed before: yes; passed after: yes; runs after: 2; at 9     │
+│                                                                    ││     days ago                                                       │
 │                                                                    ││                                                                    │
 │                                                                    ││ Solution leakage                                                   │
 │                                                                    ││   ✓ no leak                                                        │

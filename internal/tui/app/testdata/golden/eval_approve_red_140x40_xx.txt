@@ -1,11 +1,11 @@
  ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
   ⟦Candidates~~~~⟧ · ⟦Cases~~⟧ · ⟦Batches~~~⟧                                                                                               
 ┌─│⟦Candidates (2)~~~~~~⟧│──────────────────────────────⟦pending~~~⟧─┐┌─│⟦Details~~~⟧ · c0002bbbb│─────────────────────────────────────────┐
-│   ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng         ││ c0002bbbb                                                          │
-│ ▸ ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu                 ││ ⟦Status~~~⟧ ⟦candidate~~~~⟧                                        │
-│                                                                    ││ ⟦File~~⟧    /state/demo/evals/candidates/c0002bbbb.yml             │
-│                                                                    ││                                                                    │
-│                                                                    ││ ⟦Prompt~~~⟧                                                        │
+│  ⟦Columns: V verified · L solution leak · S spec~~~~~~~~~~~~~~~~~… ││ c0002bbbb                                                          │
+│  ⟦✓ pass · ! review · ✗ fail · · not yet~~~~~~~~~~~~~~~~⟧          ││ ⟦Status~~~⟧ ⟦candidate~~~~⟧                                        │
+│     ⟦ID~⟧         … … … ⟦Task~~⟧                                   ││ ⟦File~~⟧    /state/demo/evals/candidates/c0002bbbb.yml             │
+│   ◌ c0001aaaa     ✓ ✓ · Thêm cột email vào bảng người dùng         ││                                                                    │
+│ ▸ ◌ c0002bbbb     · ✗ · Sửa lỗi khoá cơ sở dữ liệu                 ││ ⟦Prompt~~~⟧                                                        │
 │                                                                    ││   Sửa lỗi khoá: gọi Close() trong defer.                           │
 │                                                                    ││                                                                    │
 │                                                                    ││ ⟦Source commit~~~~~~⟧                                              │

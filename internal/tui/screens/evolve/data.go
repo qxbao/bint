@@ -6,6 +6,7 @@ package evolve
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"bint/internal/app/evolvesvc"
@@ -27,6 +28,8 @@ type Data struct {
 	Scan    *evolve.ScanResult
 	ScanErr error
 	Stamp   time.Time
+	// Titles: tiêu đề mục tri thức theo ID (danh sách cơ hội hiện tiêu đề thay cho ULID).
+	Titles map[string]string
 }
 
 // IDs trả ID của các đề xuất đang nạp (gợi ý cho form).
@@ -100,6 +103,12 @@ func Load(ctx context.Context, dir string, q Query, readOnly bool) (Data, error)
 	if d.Queue, err = evolvesvc.Queue(e, evolvesvc.QueueOptions{All: q.QueueAll}); err != nil {
 		return Data{}, err
 	}
+	if items, _, err := e.K.Items(); err == nil {
+		d.Titles = make(map[string]string, len(items))
+		for _, it := range items {
+			d.Titles[it.ID] = it.Title
+		}
+	}
 	if res, err := evolvesvc.Scan(ctx, e, evolvesvc.ScanOptions{NoGit: true}); err != nil {
 		d.ScanErr = err
 	} else {
@@ -116,4 +125,15 @@ func LoadDetail(ctx context.Context, dir, id string, readOnly bool) (*evolvesvc.
 	}
 	defer e.Close()
 	return evolvesvc.Show(ctx, e, evolvesvc.ShowOptions{ID: id})
+}
+
+// OppText là mô tả ngắn của cơ hội cho danh sách: ULID mục tri thức trong Summary được thay bằng tiêu đề (nếu biết).
+func (d Data) OppText(o evolve.Opportunity) string {
+	s := o.Summary
+	for _, id := range o.Targets {
+		if t, ok := d.Titles[id]; ok && t != "" {
+			s = strings.ReplaceAll(s, id, "“"+t+"”")
+		}
+	}
+	return s
 }

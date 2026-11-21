@@ -2,6 +2,7 @@ package knowledge
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -13,6 +14,7 @@ import (
 	"bint/internal/tui/components/list"
 	"bint/internal/tui/components/text"
 	"bint/internal/tui/components/zone"
+	"bint/internal/tui/screens/shared"
 	"bint/internal/tui/theme"
 	"bint/internal/tui/ui"
 )
@@ -191,10 +193,33 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 	case len(m.view) == 0:
 		body = "\n " + th.S(theme.Muted, m.t("kn.empty_filtered"))
 	default:
-		widths := list.Widths(iw-2, 1, []int{1, 1, 1, 1, 8, 0, 14})
+		item := func(i int) *kn.Item { return m.Data.Items[m.view[i]] }
+		n := len(m.view)
+		scope := func(it *kn.Item) string {
+			if it.Scope.Global() {
+				return "*"
+			}
+			return strings.Join(it.Scope.Paths, ",")
+		}
+		// Cột: chọn, trạng thái, sức khoẻ, cờ bên thứ ba, loại, tiêu đề, phạm vi. Cột giống hệt nhau ở mọi hàng bị ẩn (không giúp phân
+		// biệt hàng); cột chọn chỉ hiện khi có mục được chọn.
+		keep := []bool{
+			m.sel.Count() > 0,
+			!list.Uniform(n, func(i int) string { g, _ := statusGlyph(item(i).Status); return g }),
+			!list.Uniform(n, func(i int) string { return m.healthCell(th, item(i)) }),
+			!list.Uniform(n, func(i int) string { return strconv.FormatBool(item(i).Origin.ThirdParty) }),
+			!list.Uniform(n, func(i int) string { return item(i).Type }), true, true,
+		}
+		// Phạm vi co theo nội dung (8–18 ô); tiêu đề nhận phần còn lại.
+		scopeW := 8
+		for i := range n {
+			scopeW = max(scopeW, min(text.Width(scope(item(i))), 18))
+		}
+		fixed := list.Pick([]int{1, 1, 1, 1, 8, 0, scopeW}, keep)
+		widths := list.Widths(iw-2, 1, fixed)
 		body = m.lst.Render(iw, ih, func(i int, cursor bool) string {
 			m.RowsDrawn++
-			it := m.Data.Items[m.view[i]]
+			it := item(i)
 			glyph, role := statusGlyph(it.Status)
 			sel, flag := " ", " "
 			if m.sel.Has(it.ID) {
@@ -203,11 +228,8 @@ func (m *Model) listBox(env ui.Env, w, h int) string {
 			if it.Origin.ThirdParty {
 				flag = "⚑"
 			}
-			scope := "*"
-			if !it.Scope.Global() {
-				scope = strings.Join(it.Scope.Paths, ",")
-			}
-			line := list.Row(widths, 1, sel, th.S(role, glyph), m.healthCell(th, it), flag, it.Type, it.Title, th.S(theme.Muted, scope))
+			cells := list.Pick([]string{sel, th.S(role, glyph), m.healthCell(th, it), flag, it.Type, it.Title, th.S(theme.Muted, scope(it))}, keep)
+			line := list.Row(widths, 1, cells...)
 			if cursor {
 				return th.S(theme.Key, "▸ ") + th.Selected(stripColor(th, line))
 			}
@@ -247,7 +269,7 @@ func (m *Model) detailBox(env ui.Env, w, h int) string {
 
 func (m *Model) section(env ui.Env, label string, w int) string {
 	s := "── " + label + " "
-	return env.Th.S(theme.Accent, s+strings.Repeat("─", max(w+1-text.Width(s), 0)))
+	return env.Th.S(theme.Accent, s+strings.Repeat("─", max(w-text.Width(s), 0)))
 }
 
 // detailLines dựng nội dung chi tiết của một mục: siêu dữ liệu, nội dung, bằng chứng kèm trích đoạn dòng và
@@ -346,10 +368,10 @@ func (m *Model) detailLines(env ui.Env, it *kn.Item, w int) []string {
 	if it.Origin.RunID != "" {
 		src += ", " + m.t("kn.meta.run") + " " + it.Origin.RunID
 	}
-	meta("origin", fmt.Sprintf("%s (%s, %s)", src, it.Author, it.CreatedAt))
+	meta("origin", fmt.Sprintf("%s (%s, %s)", src, shared.Person(it.Author), shared.Ago(m.cat, it.CreatedAt)))
 	meta("inputs", strings.Join(it.Origin.Inputs, ", "))
 	if it.ReviewedBy != "" {
-		meta("reviewer", it.ReviewedBy+" ("+it.ReviewedAt+")")
+		meta("reviewer", shared.Person(it.ReviewedBy)+" ("+shared.Ago(m.cat, it.ReviewedAt)+")")
 	}
 	meta("reason", it.StatusReason)
 	meta("confidence", it.Confidence)

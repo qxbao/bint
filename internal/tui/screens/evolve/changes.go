@@ -52,7 +52,7 @@ func (m *Model) infoLines(env ui.Env, d *evolvesvc.ShowResult, w int) []string {
 	if p.Model != "" {
 		by = append(by, p.Model)
 	}
-	made := strings.Join(by, " ") + ", " + shared.Time(p.CreatedAt)
+	made := strings.Join(by, " ") + ", " + shared.Ago(m.cat, p.CreatedAt)
 	if p.CostUSD != nil {
 		made += fmt.Sprintf(", $%.4f", *p.CostUSD)
 	}
