@@ -2,24 +2,24 @@
 # tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (lớp phủ) hoặc .bint/skills/<tên>/ (skill tuỳ biến)
 # rồi chạy `bint sync`.
 bint_version: 0.1.0-dev
-bint_revision: 016dac101d0d07605116713da11abe8d5c69fd4c
-bint_revision_time: "2026-11-23T12:39:15Z"
+bint_revision: 610acef3e0e43d7aa4e119bada93e8523d537ba7
+bint_revision_time: "2026-11-23T13:38:55Z"
 bint_modified: true
 skills:
   b-add-flow:
-    sha256: 8f3fc4c9f47c552f
+    sha256: fa4d809ced36ecb8
     published:
       - .agents/skills/b-add-flow/SKILL.md
       - .claude/skills/b-add-flow/SKILL.md
     variants:
-      agents: c4c6159681bc42d3
+      agents: 43b2a9a629b44b6c
   b-add-skill:
-    sha256: 9f396a31b854d2cc
+    sha256: 831f1fecf1e9157c
     published:
       - .agents/skills/b-add-skill/SKILL.md
       - .claude/skills/b-add-skill/SKILL.md
     variants:
-      agents: 802d97cd6d2a01e5
+      agents: 021ac222df84a0a4
   b-bootstrap:
     sha256: 4ce0e1d98454a778
     published:
@@ -35,12 +35,12 @@ skills:
     variants:
       agents: f2b29ca509e142d6
   b-do:
-    sha256: 0937bffcf6a55250
+    sha256: f4e6b8c8a6f91503
     published:
       - .agents/skills/b-do/SKILL.md
       - .claude/skills/b-do/SKILL.md
     variants:
-      agents: 664da6c1231f44e3
+      agents: 1c4b0c3ce58b9315
   b-do-fast:
     sha256: 10e767abfefbb9c5
     published:
@@ -49,26 +49,26 @@ skills:
     variants:
       agents: 14fe9940baf73088
   b-feat:
-    sha256: a04d1325f9e28da3
+    sha256: 5085719fb473bd4a
     published:
       - .agents/skills/b-feat/SKILL.md
       - .claude/skills/b-feat/SKILL.md
     variants:
-      agents: 0208ea40741fc832
+      agents: aebc1a9acc1e4eac
   b-fix:
-    sha256: 8bc68a1a04dde79a
+    sha256: 50fb481500650d4d
     published:
       - .agents/skills/b-fix/SKILL.md
       - .claude/skills/b-fix/SKILL.md
     variants:
-      agents: 5ab1aadc6187075e
+      agents: 6f193fa6fe56c873
   b-goal:
-    sha256: 53b3e953b1196ab1
+    sha256: f30bc40b6026e3ed
     published:
       - .agents/skills/b-goal/SKILL.md
       - .claude/skills/b-goal/SKILL.md
     variants:
-      agents: dacb0ca05fb35fed
+      agents: c7194df524d3b2fe
   b-knowledge:
     sha256: 89fc6603e02e1ff8
     published:
@@ -77,33 +77,393 @@ skills:
     variants:
       agents: 737de59640107905
   b-knowledge-audit:
-    sha256: 37935b432c8a07fd
+    sha256: f3122c2a04b5f63f
     published:
       - .agents/skills/b-knowledge-audit/SKILL.md
       - .claude/skills/b-knowledge-audit/SKILL.md
     variants:
-      agents: 37935b432c8a07fd
+      agents: f3122c2a04b5f63f
   b-repro:
-    sha256: 91f25768d2371ad2
+    sha256: 372ce0c90eb1ec42
     published:
       - .agents/skills/b-repro/SKILL.md
       - .claude/skills/b-repro/SKILL.md
     variants:
-      agents: b43f900e7803026a
+      agents: 6b215f149995e96b
   b-req:
-    sha256: b8b971c042ecc1b4
+    sha256: e32426ecee1dc59a
     published:
       - .agents/skills/b-req/SKILL.md
       - .claude/skills/b-req/SKILL.md
     variants:
-      agents: 571ac9274b773b50
+      agents: 1fe5cb189ad90ccd
   b-review:
-    sha256: d16cb3cbacb10bf6
+    sha256: f7a3b319c0ce6833
     published:
       - .agents/skills/b-review/SKILL.md
       - .claude/skills/b-review/SKILL.md
     variants:
-      agents: dc04f1ce4228c73d
+      agents: 0934050f9536f28e
+  codebase-design:
+    sha256: 3efc292928566169
+    published:
+      - .agents/skills/codebase-design/SKILL.md
+      - .agents/skills/codebase-design/DEEPENING.md
+      - .agents/skills/codebase-design/DESIGN-IT-TWICE.md
+      - .agents/skills/codebase-design/LICENSE
+      - .agents/skills/codebase-design/UPSTREAM.md
+      - .agents/skills/codebase-design/agents/openai.yaml
+      - .claude/skills/codebase-design/SKILL.md
+      - .claude/skills/codebase-design/DEEPENING.md
+      - .claude/skills/codebase-design/DESIGN-IT-TWICE.md
+      - .claude/skills/codebase-design/LICENSE
+      - .claude/skills/codebase-design/UPSTREAM.md
+      - .claude/skills/codebase-design/agents/openai.yaml
+    variants:
+      agents: 188b9bf98829835f
+    files:
+      .agents/skills/codebase-design/DEEPENING.md: f3dd099ce99289bd
+      .agents/skills/codebase-design/DESIGN-IT-TWICE.md: c222ab5a82e04056
+      .agents/skills/codebase-design/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/codebase-design/UPSTREAM.md: 2be8fe4359ac91ee
+      .agents/skills/codebase-design/agents/openai.yaml: edebc9e4fcfe1021
+      .claude/skills/codebase-design/DEEPENING.md: f3dd099ce99289bd
+      .claude/skills/codebase-design/DESIGN-IT-TWICE.md: c222ab5a82e04056
+      .claude/skills/codebase-design/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/codebase-design/UPSTREAM.md: 2be8fe4359ac91ee
+      .claude/skills/codebase-design/agents/openai.yaml: edebc9e4fcfe1021
+  create-verification-skill:
+    sha256: 1530763d17c2ce74
+    published:
+      - .agents/skills/create-verification-skill/SKILL.md
+      - .agents/skills/create-verification-skill/LICENSE
+      - .agents/skills/create-verification-skill/UPSTREAM.md
+      - .agents/skills/create-verification-skill/agents/openai.yaml
+      - .agents/skills/create-verification-skill/references/feature-map-example/README.md
+      - .agents/skills/create-verification-skill/references/feature-map-example/create-note.md
+      - .agents/skills/create-verification-skill/references/feature-map-example/search.md
+      - .claude/skills/create-verification-skill/SKILL.md
+      - .claude/skills/create-verification-skill/LICENSE
+      - .claude/skills/create-verification-skill/UPSTREAM.md
+      - .claude/skills/create-verification-skill/agents/openai.yaml
+      - .claude/skills/create-verification-skill/references/feature-map-example/README.md
+      - .claude/skills/create-verification-skill/references/feature-map-example/create-note.md
+      - .claude/skills/create-verification-skill/references/feature-map-example/search.md
+    variants:
+      agents: 966ceb4edfe62bb8
+    files:
+      .agents/skills/create-verification-skill/LICENSE: bc957ca6bee02792
+      .agents/skills/create-verification-skill/UPSTREAM.md: e5863e5f895ef2c3
+      .agents/skills/create-verification-skill/agents/openai.yaml: 8d896ac4ce12e8d0
+      .agents/skills/create-verification-skill/references/feature-map-example/README.md: cb7bd782cf89968a
+      .agents/skills/create-verification-skill/references/feature-map-example/create-note.md: 644a44c74f35d38c
+      .agents/skills/create-verification-skill/references/feature-map-example/search.md: 6e87b9e7f2791a77
+      .claude/skills/create-verification-skill/LICENSE: bc957ca6bee02792
+      .claude/skills/create-verification-skill/UPSTREAM.md: e5863e5f895ef2c3
+      .claude/skills/create-verification-skill/agents/openai.yaml: 8d896ac4ce12e8d0
+      .claude/skills/create-verification-skill/references/feature-map-example/README.md: cb7bd782cf89968a
+      .claude/skills/create-verification-skill/references/feature-map-example/create-note.md: 644a44c74f35d38c
+      .claude/skills/create-verification-skill/references/feature-map-example/search.md: 6e87b9e7f2791a77
+  diagnosing-bugs:
+    sha256: 9e103118d984789e
+    published:
+      - .agents/skills/diagnosing-bugs/SKILL.md
+      - .agents/skills/diagnosing-bugs/LICENSE
+      - .agents/skills/diagnosing-bugs/UPSTREAM.md
+      - .agents/skills/diagnosing-bugs/agents/openai.yaml
+      - .agents/skills/diagnosing-bugs/scripts/hitl-loop.template.sh
+      - .claude/skills/diagnosing-bugs/SKILL.md
+      - .claude/skills/diagnosing-bugs/LICENSE
+      - .claude/skills/diagnosing-bugs/UPSTREAM.md
+      - .claude/skills/diagnosing-bugs/agents/openai.yaml
+      - .claude/skills/diagnosing-bugs/scripts/hitl-loop.template.sh
+    variants:
+      agents: c35ad53e660d8aa7
+    files:
+      .agents/skills/diagnosing-bugs/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/diagnosing-bugs/UPSTREAM.md: f9cd9e9e5cda7ef2
+      .agents/skills/diagnosing-bugs/agents/openai.yaml: 3e430dbe4334a875
+      .agents/skills/diagnosing-bugs/scripts/hitl-loop.template.sh: 35103539fc36873e
+      .claude/skills/diagnosing-bugs/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/diagnosing-bugs/UPSTREAM.md: f9cd9e9e5cda7ef2
+      .claude/skills/diagnosing-bugs/agents/openai.yaml: 3e430dbe4334a875
+      .claude/skills/diagnosing-bugs/scripts/hitl-loop.template.sh: 35103539fc36873e
+  domain-modeling:
+    sha256: a74063a1a0268f82
+    published:
+      - .agents/skills/domain-modeling/SKILL.md
+      - .agents/skills/domain-modeling/ADR-FORMAT.md
+      - .agents/skills/domain-modeling/GLOSSARY-FORMAT.md
+      - .agents/skills/domain-modeling/LICENSE
+      - .agents/skills/domain-modeling/UPSTREAM.md
+      - .agents/skills/domain-modeling/agents/openai.yaml
+      - .claude/skills/domain-modeling/SKILL.md
+      - .claude/skills/domain-modeling/ADR-FORMAT.md
+      - .claude/skills/domain-modeling/GLOSSARY-FORMAT.md
+      - .claude/skills/domain-modeling/LICENSE
+      - .claude/skills/domain-modeling/UPSTREAM.md
+      - .claude/skills/domain-modeling/agents/openai.yaml
+    variants:
+      agents: 4912f79f543090c5
+    files:
+      .agents/skills/domain-modeling/ADR-FORMAT.md: 944c92aa790e8fbd
+      .agents/skills/domain-modeling/GLOSSARY-FORMAT.md: 21dcc40cdec8e151
+      .agents/skills/domain-modeling/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/domain-modeling/UPSTREAM.md: fc5dec211ac7504c
+      .agents/skills/domain-modeling/agents/openai.yaml: f6bf2aa996c6e6f5
+      .claude/skills/domain-modeling/ADR-FORMAT.md: 944c92aa790e8fbd
+      .claude/skills/domain-modeling/GLOSSARY-FORMAT.md: 21dcc40cdec8e151
+      .claude/skills/domain-modeling/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/domain-modeling/UPSTREAM.md: fc5dec211ac7504c
+      .claude/skills/domain-modeling/agents/openai.yaml: f6bf2aa996c6e6f5
+  grill-with-docs:
+    sha256: f951d554697a907b
+    published:
+      - .agents/skills/grill-with-docs/SKILL.md
+      - .agents/skills/grill-with-docs/LICENSE
+      - .agents/skills/grill-with-docs/UPSTREAM.md
+      - .agents/skills/grill-with-docs/agents/openai.yaml
+      - .claude/skills/grill-with-docs/SKILL.md
+      - .claude/skills/grill-with-docs/LICENSE
+      - .claude/skills/grill-with-docs/UPSTREAM.md
+      - .claude/skills/grill-with-docs/agents/openai.yaml
+    variants:
+      agents: b08f6a4309266051
+    files:
+      .agents/skills/grill-with-docs/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/grill-with-docs/UPSTREAM.md: 590e288f5d94791d
+      .agents/skills/grill-with-docs/agents/openai.yaml: 904f5ef63baa3284
+      .claude/skills/grill-with-docs/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/grill-with-docs/UPSTREAM.md: 590e288f5d94791d
+      .claude/skills/grill-with-docs/agents/openai.yaml: 904f5ef63baa3284
+  grilling:
+    sha256: e4ff312435cc0e78
+    published:
+      - .agents/skills/grilling/SKILL.md
+      - .agents/skills/grilling/LICENSE
+      - .agents/skills/grilling/UPSTREAM.md
+      - .agents/skills/grilling/agents/openai.yaml
+      - .claude/skills/grilling/SKILL.md
+      - .claude/skills/grilling/LICENSE
+      - .claude/skills/grilling/UPSTREAM.md
+      - .claude/skills/grilling/agents/openai.yaml
+    variants:
+      agents: abef98911dfcb8f2
+    files:
+      .agents/skills/grilling/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/grilling/UPSTREAM.md: 598435536c7fd2ea
+      .agents/skills/grilling/agents/openai.yaml: 1411d7df7d99b7e6
+      .claude/skills/grilling/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/grilling/UPSTREAM.md: 598435536c7fd2ea
+      .claude/skills/grilling/agents/openai.yaml: 1411d7df7d99b7e6
+  handoff:
+    sha256: 4fea21b17459e47a
+    published:
+      - .agents/skills/handoff/SKILL.md
+      - .agents/skills/handoff/LICENSE
+      - .agents/skills/handoff/UPSTREAM.md
+      - .agents/skills/handoff/agents/openai.yaml
+      - .claude/skills/handoff/SKILL.md
+      - .claude/skills/handoff/LICENSE
+      - .claude/skills/handoff/UPSTREAM.md
+      - .claude/skills/handoff/agents/openai.yaml
+    variants:
+      agents: 4571aa606946ca63
+    files:
+      .agents/skills/handoff/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/handoff/UPSTREAM.md: 19f52e329c5f312f
+      .agents/skills/handoff/agents/openai.yaml: 7c49c6dfd02a4265
+      .claude/skills/handoff/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/handoff/UPSTREAM.md: 19f52e329c5f312f
+      .claude/skills/handoff/agents/openai.yaml: 7c49c6dfd02a4265
+  improve-arch:
+    sha256: ec6719e536212bea
+    published:
+      - .agents/skills/improve-arch/SKILL.md
+      - .agents/skills/improve-arch/HTML-REPORT.md
+      - .agents/skills/improve-arch/LICENSE
+      - .agents/skills/improve-arch/UPSTREAM.md
+      - .agents/skills/improve-arch/agents/openai.yaml
+      - .claude/skills/improve-arch/SKILL.md
+      - .claude/skills/improve-arch/HTML-REPORT.md
+      - .claude/skills/improve-arch/LICENSE
+      - .claude/skills/improve-arch/UPSTREAM.md
+      - .claude/skills/improve-arch/agents/openai.yaml
+    variants:
+      agents: 2da6b75b80715ca0
+    files:
+      .agents/skills/improve-arch/HTML-REPORT.md: 581e8bb5a521e46b
+      .agents/skills/improve-arch/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/improve-arch/UPSTREAM.md: dedb99f79e9bd816
+      .agents/skills/improve-arch/agents/openai.yaml: b1f10ef821708641
+      .claude/skills/improve-arch/HTML-REPORT.md: 581e8bb5a521e46b
+      .claude/skills/improve-arch/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/improve-arch/UPSTREAM.md: dedb99f79e9bd816
+      .claude/skills/improve-arch/agents/openai.yaml: b1f10ef821708641
+  maintain-verification-skill:
+    sha256: bd1339daf73bbea2
+    published:
+      - .agents/skills/maintain-verification-skill/SKILL.md
+      - .agents/skills/maintain-verification-skill/LICENSE
+      - .agents/skills/maintain-verification-skill/UPSTREAM.md
+      - .agents/skills/maintain-verification-skill/agents/openai.yaml
+      - .claude/skills/maintain-verification-skill/SKILL.md
+      - .claude/skills/maintain-verification-skill/LICENSE
+      - .claude/skills/maintain-verification-skill/UPSTREAM.md
+      - .claude/skills/maintain-verification-skill/agents/openai.yaml
+    variants:
+      agents: af784b4eff837103
+    files:
+      .agents/skills/maintain-verification-skill/LICENSE: bc957ca6bee02792
+      .agents/skills/maintain-verification-skill/UPSTREAM.md: b7c712a3fc60414f
+      .agents/skills/maintain-verification-skill/agents/openai.yaml: afb2d94561ca80fd
+      .claude/skills/maintain-verification-skill/LICENSE: bc957ca6bee02792
+      .claude/skills/maintain-verification-skill/UPSTREAM.md: b7c712a3fc60414f
+      .claude/skills/maintain-verification-skill/agents/openai.yaml: afb2d94561ca80fd
+  principles:
+    sha256: 482c1b10fe0b5100
+    published:
+      - .agents/skills/principles/SKILL.md
+      - .agents/skills/principles/LICENSE
+      - .agents/skills/principles/UPSTREAM.md
+      - .agents/skills/principles/agents/openai.yaml
+      - .agents/skills/principles/attack-the-premise.md
+      - .agents/skills/principles/boundary-discipline.md
+      - .agents/skills/principles/encode-lessons-in-structure.md
+      - .agents/skills/principles/explain-the-number.md
+      - .agents/skills/principles/fix-root-causes.md
+      - .agents/skills/principles/laziness-protocol.md
+      - .agents/skills/principles/make-operations-idempotent.md
+      - .agents/skills/principles/model-the-domain.md
+      - .agents/skills/principles/prove-it-works.md
+      - .agents/skills/principles/separate-before-serializing-shared-state.md
+      - .agents/skills/principles/sequence-verifiable-units.md
+      - .agents/skills/principles/subtract-before-you-add.md
+      - .agents/skills/principles/test-behavior-not-implementation.md
+      - .claude/skills/principles/SKILL.md
+      - .claude/skills/principles/LICENSE
+      - .claude/skills/principles/UPSTREAM.md
+      - .claude/skills/principles/agents/openai.yaml
+      - .claude/skills/principles/attack-the-premise.md
+      - .claude/skills/principles/boundary-discipline.md
+      - .claude/skills/principles/encode-lessons-in-structure.md
+      - .claude/skills/principles/explain-the-number.md
+      - .claude/skills/principles/fix-root-causes.md
+      - .claude/skills/principles/laziness-protocol.md
+      - .claude/skills/principles/make-operations-idempotent.md
+      - .claude/skills/principles/model-the-domain.md
+      - .claude/skills/principles/prove-it-works.md
+      - .claude/skills/principles/separate-before-serializing-shared-state.md
+      - .claude/skills/principles/sequence-verifiable-units.md
+      - .claude/skills/principles/subtract-before-you-add.md
+      - .claude/skills/principles/test-behavior-not-implementation.md
+    variants:
+      agents: 84e5a302edb011a5
+    files:
+      .agents/skills/principles/LICENSE: bc957ca6bee02792
+      .agents/skills/principles/UPSTREAM.md: 8b1e9ca831d90904
+      .agents/skills/principles/agents/openai.yaml: 0395865a6ea1bcdd
+      .agents/skills/principles/attack-the-premise.md: 59b468f6b363da84
+      .agents/skills/principles/boundary-discipline.md: b28f6dd506c12eeb
+      .agents/skills/principles/encode-lessons-in-structure.md: 8bec4cc467cf29dd
+      .agents/skills/principles/explain-the-number.md: 2024c72cdbad652b
+      .agents/skills/principles/fix-root-causes.md: 35b44a3b5c380267
+      .agents/skills/principles/laziness-protocol.md: adc935e29ef0e633
+      .agents/skills/principles/make-operations-idempotent.md: 9d26c51545f92e4f
+      .agents/skills/principles/model-the-domain.md: c3189f2534cbefe0
+      .agents/skills/principles/prove-it-works.md: a25695d3fa56128d
+      .agents/skills/principles/separate-before-serializing-shared-state.md: 17b66611d5b71b90
+      .agents/skills/principles/sequence-verifiable-units.md: 0217b31a71221b71
+      .agents/skills/principles/subtract-before-you-add.md: d8c03a51bf875892
+      .agents/skills/principles/test-behavior-not-implementation.md: 1e7919d1442be11e
+      .claude/skills/principles/LICENSE: bc957ca6bee02792
+      .claude/skills/principles/UPSTREAM.md: 8b1e9ca831d90904
+      .claude/skills/principles/agents/openai.yaml: 0395865a6ea1bcdd
+      .claude/skills/principles/attack-the-premise.md: 59b468f6b363da84
+      .claude/skills/principles/boundary-discipline.md: b28f6dd506c12eeb
+      .claude/skills/principles/encode-lessons-in-structure.md: 8bec4cc467cf29dd
+      .claude/skills/principles/explain-the-number.md: 2024c72cdbad652b
+      .claude/skills/principles/fix-root-causes.md: 35b44a3b5c380267
+      .claude/skills/principles/laziness-protocol.md: adc935e29ef0e633
+      .claude/skills/principles/make-operations-idempotent.md: 9d26c51545f92e4f
+      .claude/skills/principles/model-the-domain.md: c3189f2534cbefe0
+      .claude/skills/principles/prove-it-works.md: a25695d3fa56128d
+      .claude/skills/principles/separate-before-serializing-shared-state.md: 17b66611d5b71b90
+      .claude/skills/principles/sequence-verifiable-units.md: 0217b31a71221b71
+      .claude/skills/principles/subtract-before-you-add.md: d8c03a51bf875892
+      .claude/skills/principles/test-behavior-not-implementation.md: 1e7919d1442be11e
+  retro:
+    sha256: b103c9dd94c3ac2b
+    published:
+      - .agents/skills/retro/SKILL.md
+      - .agents/skills/retro/LICENSE
+      - .agents/skills/retro/UPSTREAM.md
+      - .agents/skills/retro/agents/openai.yaml
+      - .claude/skills/retro/SKILL.md
+      - .claude/skills/retro/LICENSE
+      - .claude/skills/retro/UPSTREAM.md
+      - .claude/skills/retro/agents/openai.yaml
+    variants:
+      agents: 66289052efd0b8af
+    files:
+      .agents/skills/retro/LICENSE: 34d7213019a8a163
+      .agents/skills/retro/UPSTREAM.md: 08f8abe8f8614f14
+      .agents/skills/retro/agents/openai.yaml: d1fd0785b0aa177b
+      .claude/skills/retro/LICENSE: 34d7213019a8a163
+      .claude/skills/retro/UPSTREAM.md: 08f8abe8f8614f14
+      .claude/skills/retro/agents/openai.yaml: d1fd0785b0aa177b
+  tdd:
+    sha256: 247e162d23eb15e2
+    published:
+      - .agents/skills/tdd/SKILL.md
+      - .agents/skills/tdd/LICENSE
+      - .agents/skills/tdd/UPSTREAM.md
+      - .agents/skills/tdd/agents/openai.yaml
+      - .agents/skills/tdd/mocking.md
+      - .agents/skills/tdd/tests.md
+      - .claude/skills/tdd/SKILL.md
+      - .claude/skills/tdd/LICENSE
+      - .claude/skills/tdd/UPSTREAM.md
+      - .claude/skills/tdd/agents/openai.yaml
+      - .claude/skills/tdd/mocking.md
+      - .claude/skills/tdd/tests.md
+    variants:
+      agents: 2514a3adf6e40317
+    files:
+      .agents/skills/tdd/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/tdd/UPSTREAM.md: caa498b0f2f7e212
+      .agents/skills/tdd/agents/openai.yaml: ea6f01cf1b8c06a4
+      .agents/skills/tdd/mocking.md: 3ceb807fdf4a47d6
+      .agents/skills/tdd/tests.md: 859f9e592c188fda
+      .claude/skills/tdd/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/tdd/UPSTREAM.md: caa498b0f2f7e212
+      .claude/skills/tdd/agents/openai.yaml: ea6f01cf1b8c06a4
+      .claude/skills/tdd/mocking.md: 3ceb807fdf4a47d6
+      .claude/skills/tdd/tests.md: 859f9e592c188fda
+  writing-for-agents:
+    sha256: 5fa32cccdbb890e5
+    published:
+      - .agents/skills/writing-for-agents/SKILL.md
+      - .agents/skills/writing-for-agents/LICENSE
+      - .agents/skills/writing-for-agents/SKILL-MECHANICS.md
+      - .agents/skills/writing-for-agents/UPSTREAM.md
+      - .agents/skills/writing-for-agents/agents/openai.yaml
+      - .claude/skills/writing-for-agents/SKILL.md
+      - .claude/skills/writing-for-agents/LICENSE
+      - .claude/skills/writing-for-agents/SKILL-MECHANICS.md
+      - .claude/skills/writing-for-agents/UPSTREAM.md
+      - .claude/skills/writing-for-agents/agents/openai.yaml
+    variants:
+      agents: 7ba8cfb63bab8953
+    files:
+      .agents/skills/writing-for-agents/LICENSE: 0e7ac423bf2c6e22
+      .agents/skills/writing-for-agents/SKILL-MECHANICS.md: c768e6307c7c1072
+      .agents/skills/writing-for-agents/UPSTREAM.md: 0f6cdcb30f4e90db
+      .agents/skills/writing-for-agents/agents/openai.yaml: eacb24b2a618cfb8
+      .claude/skills/writing-for-agents/LICENSE: 0e7ac423bf2c6e22
+      .claude/skills/writing-for-agents/SKILL-MECHANICS.md: c768e6307c7c1072
+      .claude/skills/writing-for-agents/UPSTREAM.md: 0f6cdcb30f4e90db
+      .claude/skills/writing-for-agents/agents/openai.yaml: eacb24b2a618cfb8
 agents:
   bint-implementer:
     sha256: 0100c78c477c64c7
@@ -117,3 +477,32 @@ agents:
     sha256: 6bf68ccd888ef75e
     published:
       - .claude/agents/bint-reviewer.md
+custom:
+  verify-bint:
+    sha256: 65b543fd7ceb3d53
+    published:
+      - .agents/skills/verify-bint/SKILL.md
+      - .agents/skills/verify-bint/features/README.md
+      - .agents/skills/verify-bint/features/knowledge.md
+      - .agents/skills/verify-bint/features/skills-publish.md
+      - .agents/skills/verify-bint/features/tasks.md
+      - .agents/skills/verify-bint/scripts/vb.sh
+      - .claude/skills/verify-bint/SKILL.md
+      - .claude/skills/verify-bint/features/README.md
+      - .claude/skills/verify-bint/features/knowledge.md
+      - .claude/skills/verify-bint/features/skills-publish.md
+      - .claude/skills/verify-bint/features/tasks.md
+      - .claude/skills/verify-bint/scripts/vb.sh
+    files:
+      .agents/skills/verify-bint/SKILL.md: 65b543fd7ceb3d53
+      .agents/skills/verify-bint/features/README.md: 9486839633f63f20
+      .agents/skills/verify-bint/features/knowledge.md: 89999a4d9eb0fb12
+      .agents/skills/verify-bint/features/skills-publish.md: 13aa796475db4e4a
+      .agents/skills/verify-bint/features/tasks.md: a08fff5ee9d9abec
+      .agents/skills/verify-bint/scripts/vb.sh: 669cb87a74f68844
+      .claude/skills/verify-bint/SKILL.md: 65b543fd7ceb3d53
+      .claude/skills/verify-bint/features/README.md: 9486839633f63f20
+      .claude/skills/verify-bint/features/knowledge.md: 89999a4d9eb0fb12
+      .claude/skills/verify-bint/features/skills-publish.md: 13aa796475db4e4a
+      .claude/skills/verify-bint/features/tasks.md: a08fff5ee9d9abec
+      .claude/skills/verify-bint/scripts/vb.sh: 669cb87a74f68844
