@@ -219,7 +219,7 @@ trừ fingerprint → `verify --apply` làm mới fingerprint và đưa về `ve
 đưa nhận định `valid`/`outdated`/`fix-evidence`/`unsure` vào `knowledge_revalidations` — không tự đổi trạng thái. Mục `stale`
 quá `knowledge.stale_deprecate_days` (30) được đề xuất `deprecated`.
 
-**Rà soát bằng agent qua skill** (không cần `--budget`): `/b-knowledge audit` hướng dẫn agent chạy
+**Rà soát bằng agent qua skill** (không cần `--budget`): skill `b-knowledge-audit` (agent tự dùng khi được nhờ rà soát, hoặc gọi `/b-knowledge-audit`) hướng dẫn agent chạy
 `bint knowledge audit` (liệt kê mục `stale` và mục `verified` có fingerprint lệch kèm lý do và mã hiện tại của
 bằng chứng; mục chỉ dời dòng/chuyển tệp được tự áp như `verify --apply` nên không còn trong danh sách), đọc mã,
 rồi lưu từng nhận định bằng `bint knowledge verdict <id> --verdict valid|outdated|fix-evidence|unsure --reason "…"`
