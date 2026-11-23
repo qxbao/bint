@@ -35,6 +35,6 @@
                │  A           Approve in bulk (selected items or the whole filtered list); items with check errors are left │               
                │              out                                                                                           │               
                │  R           Reject in bulk (selected items or the whole filtered list)                                    │               
-               └─────────────────────────────────────────────────────────────────────────────────────────────────1–34/225 ↕─┘               
+               └─────────────────────────────────────────────────────────────────────────────────────────────────1–34/228 ↕─┘               
                                                                                                                                             
  [r→ Refresh] [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]                                                                

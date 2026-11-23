@@ -1,5 +1,5 @@
  Overview │ Knowledge (10) │ Tasks (1) │ Runs │ Evaluation │ Evolution │ System │ MCP                               /work/demo · bint 0.1.0 
-  List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context · Import                                 ● 2 selected 
+  List · Search · Stats · Changes · Revalidate · Verdicts · Publish AGENTS.md · Survey · Context · Import                      ● 2 selected 
 ┌─│List (4/6)│───────────────────────────────────────────────pending─┐┌─│Details│──────────────────────────────────────────────────────────┐
 │   ● ◌ ⚑ rule     Endpoint phải có /v1               api/**         ││ 01KNOW000004                                                       │
 │   ● ◌ ⚑ warning  Không gọi sql.Open trực tiếp       internal/db/** ││ ⟳ fact · stale · agent                                             │

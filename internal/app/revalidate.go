@@ -23,9 +23,14 @@ import (
 // dữ liệu cho người duyệt: không bao giờ tự đổi trạng thái tri thức.
 type Revalidation struct {
 	ID      string   `json:"id"`
-	Verdict string   `json:"verdict"` // valid | outdated | unsure
+	Verdict string   `json:"verdict"` // valid | outdated | fix-evidence | unsure
 	Reason  string   `json:"reason"`
 	Cost    *float64 `json:"cost_usd,omitempty"`
+	// Evidence: bằng chứng đề xuất khi Verdict = fix-evidence (path/lines/symbol mới).
+	Evidence *ProposedEvidence `json:"evidence,omitempty"`
+	// Harness, Model: agent và mô hình đã tạo ra nhận định.
+	Harness string `json:"harness,omitempty"`
+	Model   string `json:"model,omitempty"`
 	// Blocked: kiểm tra xác định được thất bại ngoài fingerprint (đường dẫn, ký hiệu,
 	// ví dụ mã) — không tốn agent, người dùng sửa mục hoặc loại bỏ.
 	Blocked string `json:"blocked,omitempty"`
@@ -134,20 +139,20 @@ func RevalidateKnowledge(ctx context.Context, k *KnowledgeWS, opts RevalidateOpt
 	if err != nil {
 		return rep, err
 	}
+	src := k.Source()
+	v := knowledge.Verifier{Src: src, All: all}
 	targets, err := selectItems(all, opts.Refs, func(it *knowledge.Item) bool {
-		return it.Status == knowledge.StatusStale && knowledge.HighRisk(it.Type)
+		return knowledge.HighRisk(it.Type) && needsReview(it, v.Verify(it))
 	})
 	if err != nil {
 		return rep, err
 	}
-	src := k.Source()
-	v := knowledge.Verifier{Src: src, All: all}
 	var queue []*knowledge.Item
 	for _, it := range targets {
-		if it.Status != knowledge.StatusStale {
-			return rep, fmt.Errorf("%s ở trạng thái %s: chỉ xác thực lại mục stale", it.ID, it.Status)
-		}
 		r := v.Verify(it)
+		if !needsReview(it, r) {
+			return rep, fmt.Errorf("%s ở trạng thái %s: chỉ xác thực lại mục stale hoặc verified có fingerprint lệch", it.ID, it.Status)
+		}
 		if !r.OK() && !r.OnlyErrors(knowledge.CodeFingerprint) {
 			rep.Results = append(rep.Results, Revalidation{ID: it.ID, Verdict: "unsure", Blocked: firstNonFingerprint(r)})
 			continue
@@ -198,7 +203,7 @@ func RevalidateKnowledge(ctx context.Context, k *KnowledgeWS, opts RevalidateOpt
 		for i, it := range batch {
 			rv, ok := verdicts[it.ID]
 			if !ok {
-				rv = Revalidation{ID: it.ID, Verdict: "unsure", Reason: "agent không trả nhận định cho mục này"}
+				rv = Revalidation{ID: it.ID, Verdict: VerdictUnsure, Reason: "agent không trả nhận định cho mục này"}
 				if res.Error != "" {
 					rv.Reason += ": " + res.Error
 				}
@@ -206,14 +211,10 @@ func RevalidateKnowledge(ctx context.Context, k *KnowledgeWS, opts RevalidateOpt
 			if i == 0 {
 				rv.Cost = cost // chi phí cả lô ghi ở mục đầu
 			}
+			rv.Harness, rv.Model = opts.Agent.Name(), res.Model
 			rep.Results = append(rep.Results, rv)
 			if db != nil {
-				_, err := db.DB.ExecContext(ctx, `INSERT INTO knowledge_revalidations
-					(revalidation_id, item_id, evidence_key, verdict, reason, harness, model, cost_usd, created_at)
-					VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?)`,
-					ulid.New(), it.ID, evidenceKey(it, src), rv.Verdict, rv.Reason, opts.Agent.Name(), res.Model,
-					nullCost(rv.Cost), store.FormatTime(opts.Now))
-				if err != nil {
+				if err := insertVerdict(ctx, db, it, src, rv, opts.Now); err != nil {
 					return rep, err
 				}
 			}
@@ -296,22 +297,11 @@ Không sửa tệp nào.
 
 `)
 	for _, it := range items {
-		fmt.Fprintf(&b, "=== Mục %s (%s) ===\nTiêu đề: %s\nPhạm vi: %s\nNội dung:\n%s\n", it.ID, it.Type, it.Title,
-			strings.Join(it.Scope.Paths, ", "), it.Body)
-		if it.StatusReason != "" {
-			fmt.Fprintf(&b, "Lý do lỗi thời: %s\n", it.StatusReason)
-		}
-		for _, e := range it.Evidence {
-			fmt.Fprintf(&b, "\nBằng chứng %s — mã HIỆN TẠI:\n%s", e.String(), excerpt(e, src, 60))
-		}
+		b.WriteString(ItemReviewBlock(it, src))
 		b.WriteString("\n")
 	}
 	b.WriteString(`Cuối câu trả lời, in DUY NHẤT một khối JSON dạng:
-{"verdicts":[{"id":"<ID>","verdict":"valid|outdated|unsure","reason":"<một câu, dẫn tệp:dòng>"}]}
-- valid: tri thức vẫn đúng nguyên văn với mã hiện tại.
-- outdated: mã đã đổi làm tri thức sai hoặc thừa.
-- unsure: không đủ căn cứ.
-`)
+` + VerdictJSONFormat + "\n" + VerdictDefinitions)
 	return b.String()
 }
 
@@ -331,10 +321,14 @@ func parseVerdicts(text string) map[string]Revalidation {
 	}
 	for _, r := range v.Verdicts {
 		r.ID = strings.TrimSpace(r.ID)
-		switch r.Verdict {
-		case "valid", "outdated", "unsure":
-		default:
-			r.Verdict = "unsure"
+		if !validVerdict(r.Verdict) {
+			r.Verdict = VerdictUnsure
+		}
+		if r.Verdict == VerdictFixEvidence && r.Evidence.empty() {
+			r.Verdict, r.Reason = VerdictUnsure, "fix-evidence thiếu bằng chứng đề xuất: "+r.Reason
+		}
+		if r.Verdict != VerdictFixEvidence {
+			r.Evidence = nil
 		}
 		out[r.ID] = r
 	}

@@ -216,8 +216,19 @@ nguyên ở vị trí khác (khối thay đổi không chồng lên vùng) thì 
 cập nhật `lines`. Xác thực lại: loại rủi ro thấp (`fact`, `pattern`, `decision`, `lesson`) qua mọi kiểm tra
 trừ fingerprint → `verify --apply` làm mới fingerprint và đưa về `verified`; `rule`/`warning` cần người
 (`approve --refresh`), `knowledge revalidate` cho agent (chỉ Read/Grep/Glob, theo lô, trong ngân sách)
-đưa nhận định `valid`/`outdated`/`unsure` vào `knowledge_revalidations` — không tự đổi trạng thái. Mục `stale`
+đưa nhận định `valid`/`outdated`/`fix-evidence`/`unsure` vào `knowledge_revalidations` — không tự đổi trạng thái. Mục `stale`
 quá `knowledge.stale_deprecate_days` (30) được đề xuất `deprecated`.
+
+**Rà soát bằng agent qua skill** (không cần `--budget`): `/b-knowledge audit` hướng dẫn agent chạy
+`bint knowledge audit` (liệt kê mục `stale` và mục `verified` có fingerprint lệch kèm lý do và mã hiện tại của
+bằng chứng; mục chỉ dời dòng/chuyển tệp được tự áp như `verify --apply` nên không còn trong danh sách), đọc mã,
+rồi lưu từng nhận định bằng `bint knowledge verdict <id> --verdict valid|outdated|fix-evidence|unsure --reason "…"`
+(`fix-evidence` kèm `--path/--lines/--symbol` đề xuất). `verdict` chỉ ghi vào `knowledge_revalidations` cùng
+agent/mô hình tạo ra nó, không đổi trạng thái nên agent gọi được. `knowledge revalidate --budget` dùng chung định
+dạng nhận định (và prompt) và nhận cả mục `verified` có fingerprint lệch. Người xem nhận định bằng
+`bint knowledge verdicts` hoặc thẻ **Nhận định** của màn Tri thức và áp theo lô (`verdicts --apply`, phím `w`/`V` ở
+thẻ): `valid` → làm mới fingerprint, `outdated` → `deprecated`, `fix-evidence` → sửa bằng chứng rồi làm mới;
+`unsure` và nhận định cũ (mã đổi tiếp sau nhận định) bị bỏ qua.
 
 **Tín hiệu kết quả** (mục 9.6, bảng `outcome_signals`, không gộp thành một điểm): `tests` (mạnh nếu
 lệnh khớp `eval.test_command` đã xác nhận, ngược lại trung bình), `rating` (người chấm, mạnh), `committed`

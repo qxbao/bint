@@ -44,7 +44,8 @@ Chỉ người mới duyệt được quy tắc bắt buộc (rule).`,
 		newKnowledgeRejectCmd(stdio, "deprecate", "Loại bỏ một mục (→ deprecated)"),
 		newKnowledgeRmCmd(stdio), newKnowledgeTransitionsCmd(stdio),
 		newKnowledgeSearchCmd(stdio), newKnowledgeStatsCmd(stdio), newKnowledgeDiffCmd(stdio),
-		newKnowledgeRevalidateCmd(stdio), newKnowledgeCiteCmd(stdio), newKnowledgeImportCmd(stdio))
+		newKnowledgeRevalidateCmd(stdio), newKnowledgeCiteCmd(stdio), newKnowledgeImportCmd(stdio),
+		newKnowledgeAuditCmd(stdio), newKnowledgeVerdictCmd(stdio), newKnowledgeVerdictsCmd(stdio))
 	return c
 }
 

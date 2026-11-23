@@ -22,7 +22,7 @@ func newKnowledgeRevalidateCmd(stdio IO) *cobra.Command {
 		Short: "Cho agent nhận định lại mục stale rủi ro cao (rule, warning), theo lô, trong ngân sách",
 		Long: `Xác thực lại theo mục 8.4:
   1. Kiểm tra xác định được trước (bint knowledge verify --apply xử lý mục rủi ro thấp).
-  2. Mục stale loại rule/warning: agent đọc mã hiện tại (chỉ Read/Grep/Glob) và nhận
+  2. Mục stale hoặc verified có fingerprint lệch, loại rule/warning: agent đọc mã hiện tại (chỉ Read/Grep/Glob) và nhận
      định valid | outdated | unsure, gom theo lô, dừng khi hết ngân sách.
 
 Nhận định chỉ là dữ liệu cho người duyệt; trạng thái không đổi. Sau đó:
@@ -55,7 +55,7 @@ Nhận định chỉ là dữ liệu cho người duyệt; trạng thái không 
 				fmt.Fprintln(stdio.Out, "Không có mục stale rủi ro cao cần xác thực lại.")
 				return nil
 			}
-			icon := map[string]string{"valid": "✓", "outdated": "✗", "unsure": "?"}
+			icon := map[string]string{"valid": "✓", "outdated": "✗", "fix-evidence": "~", "unsure": "?"}
 			for _, r := range rep.Results {
 				if r.Blocked != "" {
 					fmt.Fprintf(stdio.Out, "! %s  kiểm tra xác định được thất bại: %s (sửa mục hoặc deprecate)\n", r.ID, r.Blocked)

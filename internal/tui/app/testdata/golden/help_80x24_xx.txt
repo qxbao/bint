@@ -19,6 +19,6 @@
   │  L                 ⟦Switch interface language (vi ⇄ en)~~~~~~~~~~~~~~⟧   │  
   │  !                 ⟦Read the current notice in full plus the last 50     │  
   │                    notices from every                                    │  
-  └───────────────────────────────────────────────────────────⟦1–18/383 ↕~~⟧─┘  
+  └───────────────────────────────────────────────────────────⟦1–18/390 ↕~~⟧─┘  
                                                                                 
  [r→ ⟦Ref…] [:→ ⟦Com…] [ctrl+f→ ⟦Fin…] [L→ ⟦Lan…] [q→ ⟦Qui…] [?→ ⟦Hel…]         

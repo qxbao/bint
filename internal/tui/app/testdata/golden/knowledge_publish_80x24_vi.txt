@@ -1,5 +1,5 @@
  TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP       /work/demo · bint 0.1.0 
- ‹  Xuất bản AGENTS.md  6/9 ›                                                   
+ ‹  Xuất bản AGENTS.md  7/10 ›                                                  
 ┌─│Tham số│────────────────────────────────────────────────────────────────────┐
 │ ▸ Ghi đè  [ ]                                                                │
 │                                                                              │

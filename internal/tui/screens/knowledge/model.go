@@ -32,6 +32,7 @@ const (
 	subStats
 	subDiff
 	subRevalidate
+	subVerdicts
 	subPublish
 	subSurvey
 	subContext
@@ -39,7 +40,7 @@ const (
 	numSubs
 )
 
-var subNames = [numSubs]string{"list", "search", "stats", "diff", "revalidate", "publish", "survey", "context", "import"}
+var subNames = [numSubs]string{"list", "search", "stats", "diff", "revalidate", "verdicts", "publish", "survey", "context", "import"}
 
 type pane int
 
@@ -1020,7 +1021,7 @@ var keyOf = map[string]string{
 
 // subOf đổi ID hành động của thẻ phụ thành tên thẻ (và chế độ Khảo sát).
 var subOf = map[string]string{
-	"knowledge.search": "search", "knowledge.stats": "stats", "knowledge.diff": "diff", "knowledge.revalidate": "revalidate",
+	"knowledge.search": "search", "knowledge.stats": "stats", "knowledge.diff": "diff", "knowledge.revalidate": "revalidate", "knowledge.verdicts": "verdicts", "knowledge.verdicts_apply": "verdicts",
 	"bootstrap.publish": "publish", "bootstrap.publish_preview": "publish", "context": "context",
 	"inspect": "survey", "bootstrap": "survey", "bootstrap.skill": "survey",
 	"knowledge.import_preview": "import", "knowledge.import": "import",

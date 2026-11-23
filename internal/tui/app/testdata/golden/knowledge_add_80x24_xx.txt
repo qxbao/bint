@@ -1,5 +1,5 @@
  ⟦Ov~⟧ │⟦Knowledge~~~~⟧ (3) │⟦Tk~⟧ │⟦Rn~⟧ │⟦Ev~⟧ │⟦Evo~~⟧ │⟦Sy~⟧ │⟦MCP~~⟧       
- ‹  ⟦List~~⟧  1/9 ›                                                             
+ ‹  ⟦List~~⟧  1/10 ›                                                            
 ┌─│⟦Add a knowledge item (form)~~~~~~~~~~~⟧│───────────────────────────────────┐
 │ ▸ ⟦Type~~⟧*           ‹ (●) warning ›                                        │
 │   ⟦Title~~⟧                                                                  │

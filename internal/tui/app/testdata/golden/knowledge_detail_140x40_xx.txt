@@ -1,5 +1,5 @@
  ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
- ‹  ⟦List~~⟧  1/9 ›                                                                                                                         
+ ‹  ⟦List~~⟧  1/10 ›                                                                                                                        
 ┌─│⟦List (5/6)~~~~⟧│───────────────────────⟦all active items~~~~~~~⟧─┐┌─│⟦Details~~~⟧│─────────────────────────────────────────────────────┐
 │   ◌ ⚑ rule     Endpoint phải có /v1                 api/**         ││ 01KNOW000002                                                       │
 │ ▸ ◌ ⚑ warning  Không gọi sql.Open trực tiếp         internal/db/** ││ ◌ warning · candidate · agent ⚑                                    │

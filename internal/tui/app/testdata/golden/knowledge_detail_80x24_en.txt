@@ -1,5 +1,5 @@
  Ov │ Knowledge (3) │ Tk │ Rn │ Ev │ Evo │ Sy │ MCP     /work/demo · bint 0.1.0 
- ‹  List  1/9 ›                                                                 
+ ‹  List  1/10 ›                                                                
 ┌─│Details│────────────────────────────────────────────────────────────1-19/20─┐
 │ 01KNOW000002                                                                 │
 │ ◌ warning · candidate · agent ⚑                                              │

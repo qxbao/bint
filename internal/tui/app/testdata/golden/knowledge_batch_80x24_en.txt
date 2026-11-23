@@ -1,5 +1,5 @@
  Ov │ Knowledge (3) │ Tk │ Rn │ Ev │ Evo │ Sy │ MCP     /work/demo · bint 0.1.0 
- ‹  List  1/9 ›                                                                 
+ ‹  List  1/10 ›                                                                
 ┌─│List (5/6)│────────────────────────────────────────────────all active items─┐
 │ ▸ ◌ ⚑ rule     Endpoint phải có /v1                           api/**         │
 │   ◌ ⚑ warning  Không gọi sql.Open trực tiếp                   internal/db/** │

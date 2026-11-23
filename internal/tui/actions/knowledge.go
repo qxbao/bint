@@ -200,6 +200,18 @@ func knowledgeActions() []Action {
 				vo := o.(app.VerifyOptions)
 				return app.VerifyKnowledge(ctx, k, vo.Refs, true, time.Now())
 			})),
+		mk("knowledge.verdicts", "verdicts", "", false, 0, "knowledge verdicts", app.VerdictsOptions{}, false, false,
+			withK("knowledge.verdicts", func(ctx context.Context, k *app.KnowledgeWS, o any) (any, error) {
+				vo := o.(app.VerdictsOptions)
+				vo.Apply = false
+				return app.KnowledgeVerdicts(ctx, k, vo)
+			})),
+		mk("knowledge.verdicts_apply", "verdicts_apply", "V", false, 4, "knowledge verdicts", app.VerdictsOptions{}, true, true,
+			withK("knowledge.verdicts_apply", func(ctx context.Context, k *app.KnowledgeWS, o any) (any, error) {
+				vo := o.(app.VerdictsOptions)
+				vo.Apply = true
+				return app.KnowledgeVerdicts(ctx, k, vo)
+			})),
 		// Duyệt/lọc/xem: hành động giao diện thuần (mô hình màn hình xử lý), có trong bảng lệnh.
 		mk("knowledge.review", "review", "", false, 0, "knowledge review", app.ReviewQueueOptions{}, false, false, nil),
 		mk("knowledge.list", "list", "F", true, 6, "knowledge list", app.KnowledgeListOptions{}, false, false, nil),

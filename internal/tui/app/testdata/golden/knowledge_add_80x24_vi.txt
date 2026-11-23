@@ -1,5 +1,5 @@
  TQ │ Tri thức (3) │ TV │ LC │ ĐG │ TH │ HT │ MCP       /work/demo · bint 0.1.0 
- ‹  Danh sách  1/9 ›                                                            
+ ‹  Danh sách  1/10 ›                                                           
 ┌─│Thêm một mục tri thức (form)│───────────────────────────────────────────────┐
 │ ▸ Loại*       ‹ (●) warning ›                                                │
 │   Tiêu đề                                                                    │

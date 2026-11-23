@@ -43,6 +43,8 @@ type panel struct {
 	// Nhập: băm kế hoạch đã xem và số mục sẽ tạo; bước ghi chỉ chạy khi kế hoạch lúc ghi trùng băm này.
 	lastHash   string
 	lastCreate int
+	// Nhận định: báo cáo gần nhất của thẻ Nhận định (để đếm mục áp được khi xác nhận).
+	lastVerdicts app.VerdictsReport
 }
 
 func inputOf(s string) *input.Model { i := input.New(s); return &i }
@@ -64,6 +66,8 @@ func (m *Model) initPanels() {
 	m.pnls[subDiff] = newPanel("knowledge.diff", "knowledge.diff", "knowledge diff", app.DiffDefaults(cfg), true)
 	m.pnls[subDiff].inForm = false
 	m.pnls[subRevalidate] = newPanel("knowledge.revalidate", "knowledge.revalidate", "knowledge revalidate", app.RevalidateDefaults(cfg), false)
+	m.pnls[subVerdicts] = newPanel("knowledge.verdicts", "knowledge.verdicts", "knowledge verdicts", app.VerdictsDefaults(cfg), true)
+	m.pnls[subVerdicts].inForm = false
 	m.pnls[subPublish] = newPanel("bootstrap.publish_preview", "bootstrap.publish", "bootstrap publish", app.PublishDefaults(cfg, "."), false)
 	m.pnls[subImport] = newPanel("knowledge.import_preview", "knowledge.import", "knowledge import", app.ImportDefaults(cfg), false)
 	m.pnls[subContext] = newPanel("context", "context", "context", app.ContextDefaults(cfg), false)
@@ -104,7 +108,8 @@ func (m *Model) cur() *panel {
 func (m *Model) panelFor(id string) *panel {
 	for _, p := range m.allPanels() {
 		if p.action == id || (id == "bootstrap.publish" && p.action == "bootstrap.publish_preview") ||
-			(id == "knowledge.import" && p.action == "knowledge.import_preview") {
+			(id == "knowledge.import" && p.action == "knowledge.import_preview") ||
+			(id == "knowledge.verdicts_apply" && p.action == "knowledge.verdicts") {
 			return p
 		}
 	}
@@ -198,10 +203,12 @@ func (m *Model) panelKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		return nil, false
-	case "w":
+	case "w", "V":
 		switch m.sub {
 		case subPublish:
 			return m.confirmPublish(p), true
+		case subVerdicts:
+			return m.confirmVerdicts(p), true
 		case subImport:
 			return m.confirmImport(p), true
 		}
@@ -332,17 +339,55 @@ func (m *Model) panelResult(p *panel, r actions.ResultMsg) tea.Cmd {
 			}
 			add(icon+" "+short(e.ID)+meta+" "+title, "    "+th.S(theme.Muted, m.t("kn.diff.by", i18n.A{"authors": strings.Join(e.Authors, ", ")})))
 		}
+	case app.VerdictsReport:
+		p.lastVerdicts = v
+		if len(v.Rows) == 0 && len(v.Applied) == 0 {
+			add(th.S(theme.Muted, m.t("kn.verdicts.none")))
+		}
+		vicon := map[string]string{"valid": th.S(theme.OK, "✓"), "outdated": th.S(theme.Err, "✗"), "fix-evidence": th.S(theme.Warn, "~"), "unsure": th.S(theme.Warn, "?")}
+		for _, a := range v.Applied {
+			mark := th.S(theme.Muted, "-")
+			if a.Applied {
+				mark = th.S(theme.OK, "✓")
+			}
+			add(mark + " " + short(a.ID) + "  " + a.Verdict + ": " + m.cli(a.Detail))
+		}
+		if len(v.Applied) > 0 {
+			add("")
+			reload = true
+		}
+		for _, r := range v.Rows {
+			note := ""
+			switch {
+			case r.Stale:
+				note = " [" + m.t("kn.verdicts.old") + "]"
+			case !r.Actionable:
+				note = " [" + m.t("kn.verdicts.noapply") + "]"
+			}
+			who := r.Harness
+			if r.Model != "" {
+				who += "/" + r.Model
+			}
+			add(vicon[r.Verdict] + " " + short(r.ID) + " " + r.Verdict + note + " — " + r.Reason + th.S(theme.Muted, " ("+who+")"))
+			if r.Evidence != nil {
+				add("    " + th.S(theme.Muted, m.t("kn.verdicts.proposed")+" "+r.Evidence.Path+":"+r.Evidence.Lines+" "+r.Evidence.Symbol))
+			}
+		}
+		add("", th.S(theme.Muted, m.t("kn.verdicts.hint")))
 	case app.RevalidateReport:
 		if len(v.Results) == 0 && len(v.Skipped) == 0 {
 			add(th.S(theme.Muted, m.t("kn.revalidate.none")))
 		}
-		icon := map[string]string{"valid": th.S(theme.OK, "✓"), "outdated": th.S(theme.Err, "✗"), "unsure": th.S(theme.Warn, "?")}
+		icon := map[string]string{"valid": th.S(theme.OK, "✓"), "outdated": th.S(theme.Err, "✗"), "fix-evidence": th.S(theme.Warn, "~"), "unsure": th.S(theme.Warn, "?")}
 		for _, rv := range v.Results {
 			if rv.Blocked != "" {
 				add(th.S(theme.Warn, "! ") + short(rv.ID) + " " + m.t("kn.revalidate.blocked") + ": " + m.cli(rv.Blocked))
 				continue
 			}
 			add(icon[rv.Verdict] + " " + short(rv.ID) + "  " + rv.Verdict + " — " + rv.Reason)
+			if rv.Evidence != nil {
+				add("    " + th.S(theme.Muted, m.t("kn.verdicts.proposed")+" "+rv.Evidence.Path+":"+rv.Evidence.Lines+" "+rv.Evidence.Symbol))
+			}
 		}
 		for _, id := range v.Skipped {
 			add(th.S(theme.Muted, "- "+short(id)+"  "+m.t("kn.revalidate.skipped")))
@@ -608,4 +653,30 @@ func (m *Model) contextLines(res app.ContextResult) []string {
 		l = append(l, strings.Split(strings.TrimRight(p.Render(), "\n"), "\n")...)
 	}
 	return l
+}
+
+// confirmVerdicts mở hộp xác nhận áp nhận định của agent theo lô (chỉ người).
+func (m *Model) confirmVerdicts(p *panel) tea.Cmd {
+	if !m.allowed("knowledge.verdicts_apply") {
+		return nil
+	}
+	rep, ok := p.lastVerdicts, p.ran
+	n := 0
+	for _, r := range rep.Rows {
+		if r.Actionable {
+			n++
+		}
+	}
+	if !ok || n == 0 {
+		m.setToast(m.t("kn.verdicts.nothing"), true)
+		return nil
+	}
+	body := []string{m.t("kn.verdicts.confirm", i18n.A{"count": n}), "", m.th.S(theme.Muted, m.t("kn.verdicts.confirm_note"))}
+	m.dlg = &dialog{c: confirm.Model{Title: m.t("kn.verdicts.title"), Body: body, Danger: true,
+		YesLabel: m.t("kn.verdicts.apply"), NoLabel: m.t("kn.dialog.cancel")},
+		onYes: func(string) tea.Cmd {
+			p.running, p.err = true, nil
+			return request("knowledge.verdicts_apply", app.VerdictsOptions{})
+		}}
+	return nil
 }

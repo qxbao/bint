@@ -19,6 +19,6 @@
   │              from every screen                                           │  
   │              Turn the mouse on/off for this session (scroll, click tabs, │  
   │              rows, footer keys)                                          │  
-  └───────────────────────────────────────────────────────────────1–18/284 ↕─┘  
+  └───────────────────────────────────────────────────────────────1–18/288 ↕─┘  
                                                                                 
  [r→ Refresh] [:→ Commands] [ctrl+f→ Find] [L→ Language] [q→ Quit] [?→ Help]    

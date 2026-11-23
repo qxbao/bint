@@ -1,5 +1,5 @@
  Ov │ Knowledge (3) │ Tk │ Rn │ Ev │ Evo │ Sy │ MCP     /work/demo · bint 0.1.0 
- ‹  Publish AGENTS.md  6/9 ›                                                    
+ ‹  Publish AGENTS.md  7/10 ›                                                   
 ┌─│Parameters│─────────────────────────────────────────────────────────────────┐
 │ ▸ Overwrite  [ ]                                                             │
 │                                                                              │

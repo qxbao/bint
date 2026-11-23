@@ -1,5 +1,5 @@
  ⟦Overview~~~~⟧ │ ⟦Knowledge~~~~⟧ (3) │ ⟦Tasks~~⟧ │ ⟦Runs~~⟧ │ ⟦Evaluation~~~~⟧ │ ⟦Evolution~~~~⟧ │ ⟦System~~~⟧ │ ⟦MCP~~⟧        bint 0.1.0 
- ‹  ⟦List~~⟧  1/9 ›                                                                                                                         
+ ‹  ⟦List~~⟧  1/10 ›                                                                                                                        
 ┌─│⟦Add a knowledge item (form)~~~~~~~~~~~⟧│───────────────────────────────────────────────────────────────────────────────────────────────┐
 │ ▸ ⟦Type~~⟧*           ( ) rule (●) warning ( ) pattern ( ) fact ( ) decision ( ) lesson                                                  │
 │   ⟦Title~~⟧                                                                                                                              │

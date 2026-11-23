@@ -1,5 +1,5 @@
  Overview │ Knowledge (3) │ Tasks │ Runs │ Evaluation │ Evolution │ System │ MCP                                    /work/demo · bint 0.1.0 
-  List · Search · Stats · Changes · Revalidate · Publish AGENTS.md · Survey · Context · Import                                              
+  List · Search · Stats · Changes · Revalidate · Verdicts · Publish AGENTS.md · Survey · Context · Import                                   
 ┌─│Parameters│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ ▸ Overwrite  [ ]                                                                                                                         │
 │                                                                                                                                          │

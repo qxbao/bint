@@ -13,7 +13,7 @@ var writesAudit = map[string]string{
 	// ghi tệp / cơ sở dữ liệu / mở trình soạn thảo
 	"init.run": "ghi cấu hình, hook, skill", "knowledge.approve": "ghi mục tri thức", "knowledge.approve_refresh": "ghi mục tri thức", "knowledge.reject": "ghi mục tri thức",
 	"knowledge.deprecate": "ghi mục tri thức", "knowledge.approve_batch": "ghi mục tri thức", "knowledge.reject_batch": "ghi mục tri thức", "knowledge.edit": "mở trình soạn thảo",
-	"knowledge.add": "ghi mục tri thức", "knowledge.rm": "xoá tệp mục", "knowledge.verify_apply": "ghi chuyển trạng thái", "knowledge.revalidate": "ghi mục, tiêu tiền",
+	"knowledge.add": "ghi mục tri thức", "knowledge.rm": "xoá tệp mục", "knowledge.verify_apply": "ghi chuyển trạng thái", "knowledge.revalidate": "ghi mục, tiêu tiền", "knowledge.verdicts_apply": "áp nhận định: ghi chuyển trạng thái, bằng chứng",
 	"bootstrap.publish": "ghi AGENTS.md", "knowledge.import": "ghi mục candidate nhập từ bộ nhớ harness", "bootstrap": "ghi báo cáo khảo sát",
 	"tasks.run": "chạy workflow, ghi tác vụ", "tasks.resume": "chạy workflow", "tasks.approve": "ghi xác nhận", "tasks.status": "ghi trạng thái", "tasks.new": "tạo tác vụ",
 	"tasks.verify": "ghi kết quả kiểm chứng", "tasks.set": "ghi phiếu", "tasks.write": "ghi tài liệu", "tasks.edit_doc": "mở trình soạn thảo", "tasks.criteria": "ghi tiêu chí",
@@ -36,7 +36,7 @@ var readOnlyAudit = []string{
 	"app.quit", "app.help", "app.palette", "app.language", "app.notifications", "app.mouse", "app.next_tab", "app.prev_tab",
 	"app.find", "app.split_grow", "app.split_shrink", "app.split_zoom", "app.split_reset",
 	"overview.refresh", "overview.doctor", "init.plan", "init.continue", "init.recheck",
-	"knowledge.plan_batch", "knowledge.verify", "knowledge.review", "knowledge.list", "knowledge.show", "knowledge.filter", "knowledge.select", "knowledge.transitions", "knowledge.sort", "knowledge.refresh",
+	"knowledge.plan_batch", "knowledge.verify", "knowledge.verdicts", "knowledge.review", "knowledge.list", "knowledge.show", "knowledge.filter", "knowledge.select", "knowledge.transitions", "knowledge.sort", "knowledge.refresh",
 	"knowledge.next_view", "knowledge.prev_view", "knowledge.search", "knowledge.stats", "knowledge.diff", "bootstrap.publish_preview", "knowledge.import_preview", "inspect", "bootstrap.skill", "context",
 	"tasks.plan_approve", "tasks.lint", "tasks.diff", "tasks.transitions", "tasks.list", "tasks.tree", "tasks.graph", "tasks.findings", "tasks.show", "tasks.runs", "tasks.filter", "tasks.refresh", "tasks.next_view", "tasks.prev_view", "tasks.finding_prefill",
 	"runs.list", "runs.show", "runs.lesson_show", "runs.lesson_digest", "runs.filter", "runs.refresh", "runs.next_view", "runs.prev_view",

@@ -36,6 +36,8 @@ var Data = Coverage{
 		"hook codex":         "harness gọi qua hook, không phải thao tác của người; trạng thái hook hiện ở Hệ thống › Harness (HarnessRuntime)",
 		"run next":           "giao thức của phiên điều phối (orchestrator) chạy bước bằng subagent, không phải thao tác của người; bước đang chạy bằng subagent hiện ở thẻ Phiếu và bảng tác vụ",
 		"run complete":       "giao thức của phiên điều phối (orchestrator) chạy bước bằng subagent, không phải thao tác của người; bước đang chạy bằng subagent hiện ở thẻ Phiếu và bảng tác vụ",
+		"knowledge audit":    "agent rà soát tri thức qua skill b-knowledge (liệt kê mục cần xem, tự áp mục chỉ dời dòng), không phải thao tác của người; mục cần xem và nhận định hiện ở màn Tri thức",
+		"knowledge verdict":  "agent lưu nhận định về một mục (không đổi trạng thái), không phải thao tác của người; người xem và áp bằng knowledge.verdicts_apply ở màn Tri thức",
 		"knowledge cite":     "agent báo trích dẫn tri thức trong lượt bint run (gắn BINT_RUN_ID), không phải thao tác của người; trích dẫn được nạp vào knowledge_citations cùng sự kiện của hook",
 		"runs history":       "lịch sử lượt chạy theo tệp cho agent (cùng hàm dựng với công cụ MCP history_for_paths), không phải thao tác của người; lượt chạy hiện ở màn Lượt chạy",
 		"runs get":           "chi tiết một lượt chạy cho agent (cùng hàm dựng với công cụ MCP run_get); người xem bằng runs.show ở màn Lượt chạy",
