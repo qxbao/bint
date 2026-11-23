@@ -15,11 +15,11 @@ evidence:
     lines: 52-78
     fingerprint: lines:36935ef6954954c1
   - path: internal/cli/knowledge_e2e_test.go
-    lines: 14-25
-    fingerprint: lines:9d1570d97e0499c2
+    lines: 17-21
+    fingerprint: lines:18e0cb9af0b4c246
   - path: internal/evolve/evolve_test.go
-    lines: 23-29
-    fingerprint: lines:a331080b6e61ef56
+    lines: 23-27
+    fingerprint: lines:18e0cb9af0b4c246
 origin:
   kind: agent
   session: edfbaec3-afde-4296-aadf-402dd3973dac
@@ -32,15 +32,15 @@ origin:
     - internal/app/context_test.go
 author: Duong Quan Bao <dquanbao@gmail.com>
 reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-21T03:54:04Z"
+reviewed_at: "2026-11-23T12:57:36Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:55Z"
 updated_at: "2026-11-12T02:15:26Z"
-verified_at: "2026-11-21T03:54:04Z"
+verified_at: "2026-11-23T12:57:36Z"
 status_reason: người duyệt chấp nhận
 ---
 
 `app.InAgentSession` coi tiến trình là agent khi có một biến trong `agentEnvVars` (BINT_AGENT, CLAUDECODE, AI_AGENT, CODEX_SANDBOX...); khi đó approve/apply/reject trả `ErrAgentForbidden`.
 `testutil.Isolate` chỉ xoá CLAUDE_CODE_SESSION_ID/BINT_RUN_ID/BINT_TASK_ID/BINT_APPROVED_PATHS, KHÔNG xoá các biến trên. Kiểm thử đóng vai người phải gọi `asHuman(t)` (hoặc đặt rỗng từng biến); nếu không, test qua trên CI nhưng hỏng khi agent chạy `go test`.
-Danh sách biến bị chép tay trong `internal/cli/knowledge_e2e_test.go` và `internal/evolve/evolve_test.go`: thêm biến vào `agentEnvVars` thì sửa cả hai.
+Kiểm thử lấy danh sách từ `app.AgentEnvVars()` (xem `asHuman` trong `internal/cli/knowledge_e2e_test.go`, `internal/evolve/evolve_test.go`): thêm biến vào `agentEnvVars` là đủ, đừng chép tay danh sách.

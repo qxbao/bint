@@ -117,7 +117,7 @@ func TestVietnameseDetectorSanity(t *testing.T) {
 	}
 }
 
-// keyCallRE bắt cả T("…")/N("…") viết hoa và m.t("…")/m.n("…") viết thường của các màn hình (k:01M75NXM4Z6S1CS3X7B2M63EBC).
+// keyCallRE bắt cả T("…")/N("…") viết hoa và m.t("…")/m.n("…") viết thường của các màn hình.
 var keyCallRE = regexp.MustCompile(`\b(?:T|N|t|n)\("([a-z0-9_.]+)"`)
 var keyFieldRE = regexp.MustCompile(`\b(?:LabelKey|TitleKey|Key):\s*"([a-z0-9_.]+)"`)
 

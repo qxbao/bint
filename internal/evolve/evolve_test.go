@@ -20,10 +20,8 @@ import (
 	"bint/internal/ulid"
 )
 
-var agentVars = []string{"BINT_AGENT", "CLAUDECODE", "AI_AGENT", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "GEMINI_CLI"}
-
 func asHuman(t *testing.T) {
-	for _, k := range agentVars {
+	for _, k := range app.AgentEnvVars() {
 		t.Setenv(k, "")
 	}
 }

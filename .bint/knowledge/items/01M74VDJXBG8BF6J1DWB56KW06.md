@@ -2,7 +2,7 @@
 schema: 1
 id: 01M74VDJXBG8BF6J1DWB56KW06
 type: warning
-status: verified
+status: deprecated
 title: Không có dấu vết để xác nhận ngoài thực tế rằng việc quên bộ nhớ đã xảy ra
 scope:
   paths:
@@ -23,7 +23,9 @@ reviewed_by: orca <dquanbao@gmail.com>
 reviewed_at: "2026-11-21T03:52:29Z"
 version: 1
 created_at: "2026-11-11T08:26:02Z"
+updated_at: "2026-11-23T13:00:29Z"
 verified_at: "2026-11-21T03:52:29Z"
+status_reason: Việc tồn đọng chứ không phải điểm dễ sai; chuyển thành issue https://github.com/qxbao/bint/issues/10
 ---
 
 Ghi thêm ev.Payload[memory_reset]=true/false (hoặc lỗi cắt ngắn) để kiểm tra bằng spool sau một phiên dài thật.

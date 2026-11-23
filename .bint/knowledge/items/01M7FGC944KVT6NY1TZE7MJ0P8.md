@@ -23,15 +23,16 @@ origin:
     - internal/evolve/apply.go
 author: orca <dquanbao@gmail.com>
 reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-15T11:45:54Z"
+reviewed_at: "2026-11-23T12:53:23Z"
 confidence: high
 version: 1
 created_at: "2026-11-15T11:44:44Z"
 updated_at: "2026-11-15T11:45:54Z"
-verified_at: "2026-11-15T11:45:54Z"
+verified_at: "2026-11-23T12:53:23Z"
 status_reason: người duyệt chấp nhận
 ---
 
 Khoá giữa các tiến trình dùng `fslock.Try(f, exclusive)` (gói `internal/fslock`, cặp `internal/fslock/fslock_unix.go`/`internal/fslock/fslock_windows.go`): hệ điều hành tự nhả khoá khi tiến trình chết, nên không có bước thu hồi.
 Đừng dựng lại mẫu O_EXCL + `task.ProcessAlive` + `os.Remove`: đọc khoá thấy PID chết rồi xoá có thể gỡ nhầm khoá của chủ mới đang sống (race R1, commit 755b544). Nội dung PID/thời điểm trong tệp khoá chỉ để báo lỗi, không dùng để quyết định khoá.
+Nhả khoá bằng cách đóng handle, giữ nguyên tệp khoá: xoá hay đổi tên tệp khoá có thể làm hai chủ cùng giữ khoá trên hai inode khác nhau.
 Mẫu: `evolve.AcquireLock` (sửa ở V0, NT-P6-01), `workflow` (`internal/workflow/lock_flock.go`), `task`. Thay cho mục 01M746PTBYPSXDT0WJZS38KPFD đã lỗi thời.

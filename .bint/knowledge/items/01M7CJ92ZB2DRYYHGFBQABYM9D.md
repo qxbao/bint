@@ -3,7 +3,7 @@ schema: 1
 id: 01M7CJ92ZB2DRYYHGFBQABYM9D
 type: warning
 status: verified
-title: 'go test ./... trên Windows chậm (~10 phút) chủ yếu do tiến trình git: mỗi lần spawn git ~25 ms, test không dùng t.Paral…'
+title: 'go test ./... trên Windows chậm chủ yếu do tiến trình git và Defender: đo trước khi tối ưu, đừng cache gitrepo.Discover'
 scope:
   paths:
     - internal/**/*_test.go
@@ -26,4 +26,4 @@ verified_at: "2026-11-16T07:19:10Z"
 status_reason: người duyệt chấp nhận
 ---
 
-go test ./... trên Windows chậm (~10 phút) chủ yếu do tiến trình git: mỗi lần spawn git ~25 ms, test không dùng t.Parallel (Isolate dùng t.Setenv) và repo tạm nằm trong %TEMP% bị Defender quét thời gian thực. Gói workflow (~600 s) và tui/app (~300 s) là đường găng. Đo trước khi tối ưu: go test -json rồi tính thời gian từng test; profile bằng -test.cpuprofile, thời gian chờ git hiện thành runtime.cgocall/ReadFile. Đừng cache gitrepo.Discover chỉ để test nhanh (đổi hành vi sau khi xoá worktree).
+go test ./... trên Windows chậm chủ yếu do tiến trình git: mỗi lần spawn git tốn hàng chục ms, test không dùng t.Parallel (Isolate dùng t.Setenv; song song hoá bằng chia tiến trình con, xem 01M7TEJGBPS4W8FSHG6B1B8Y34) và repo tạm nằm trong %TEMP% bị Defender quét thời gian thực. Gói workflow và tui/app là đường găng. Đo trước khi tối ưu: go test -json rồi tính thời gian từng test; profile bằng -test.cpuprofile, thời gian chờ git hiện thành runtime.cgocall/ReadFile. Đừng cache gitrepo.Discover chỉ để test nhanh (đổi hành vi sau khi xoá worktree).

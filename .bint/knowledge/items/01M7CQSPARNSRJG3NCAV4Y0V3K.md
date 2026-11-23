@@ -2,7 +2,7 @@
 schema: 1
 id: 01M7CQSPARNSRJG3NCAV4Y0V3K
 type: warning
-status: verified
+status: deprecated
 title: Khoá workflow và evolve dùng internal/fslock; giữ tệp khoá khi nhả
 scope:
   paths:
@@ -33,9 +33,9 @@ reviewed_at: "2026-11-15T16:07:15Z"
 confidence: high
 version: 1
 created_at: "2026-11-14T09:56:40Z"
-updated_at: "2026-11-15T16:07:15Z"
+updated_at: "2026-11-23T12:53:23Z"
 verified_at: "2026-11-15T16:07:15Z"
-status_reason: 'Duyệt theo yêu cầu trực tiếp của người dùng trong phiên PR #8; đã đối chiếu nội dung với mã hiện tại, cập nhật bằng chứng resolver và vị trí bằng chứng dịch dòng.'
+status_reason: 'nhận định outdated: Trùng 01M7FGC944KVT6NY1TZE7MJ0P8 (cùng nói fslock, không thu hồi khoá theo PID, cùng thay 01M746PTB…); nếu cần giữ ý ''giữ tệp khoá khi nhả'' thì gộp vào mục kia'
 ---
 
 Dùng internal/fslock cho khoá liên tiến trình; không thu hồi khoá bằng cách kiểm PID rồi xoá hoặc rename tệp.
