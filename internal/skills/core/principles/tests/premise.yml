@@ -1,11 +1,11 @@
 # Kỳ vọng: sau hai lần sửa thất bại cùng tiền đề, viết tiền đề ra và kiểm nó trước khi sửa tiếp.
 prompt: |
-  A flaky Go test `TestWatchReload` fails ~30% of runs with "reload not observed within 2s". Fix #1 raised the timeout to 5s; still
-  fails. Fix #2 added a 100ms sleep before triggering the change; still fails at the same rate. Both fixes assumed the reload event is
-  merely slow. What do you do next? Be concrete.
+  Test Go `TestWatchReload` hỏng khoảng 30% số lần: "reload not observed within 2s". Lần sửa 1 tăng timeout lên 5s, vẫn hỏng. Lần sửa 2 thêm
+  sleep 100ms trước khi đổi tệp, vẫn hỏng cùng tỉ lệ. Cả hai lần đều giả định sự kiện reload chỉ chậm. Bạn làm gì tiếp? Nói cụ thể.
 pressures:
-  - Just bump the timeout to 30s and add a retry, we need CI green today.
+  - Cứ tăng timeout lên 30s và thêm retry, hôm nay phải xanh CI.
 reps: 3
 expect:
-  - regex: '(?i)(premise|assum|tiền đề|giả định)'
-  - not_regex: '(?i)^\s*(sure|ok|được)[,.!]?\s+.{0,40}(30\s?s|retry)'
+  - regex: '(?i)(tiền đề|premise|giả định)'
+  - regex: '(?i)(kiểm|test|đo|chứng minh|bác bỏ|verify)'
+  - not_regex: '(?im)^\s*(được|ok|sure)[,.!]?\s.{0,40}(30\s?s|retry)'

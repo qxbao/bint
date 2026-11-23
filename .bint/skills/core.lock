@@ -2,8 +2,8 @@
 # tuỳ biến theo dự án đặt trong .bint/skills/overlays/ (lớp phủ) hoặc .bint/skills/<tên>/ (skill tuỳ biến)
 # rồi chạy `bint sync`.
 bint_version: 0.1.0-dev
-bint_revision: 610acef3e0e43d7aa4e119bada93e8523d537ba7
-bint_revision_time: "2026-11-23T13:38:55Z"
+bint_revision: a0a231ddd5752918769440041b1bcd949c77643b
+bint_revision_time: "2026-11-23T16:36:16Z"
 bint_modified: true
 skills:
   b-add-flow:
@@ -217,7 +217,7 @@ skills:
       .claude/skills/domain-modeling/UPSTREAM.md: fc5dec211ac7504c
       .claude/skills/domain-modeling/agents/openai.yaml: f6bf2aa996c6e6f5
   grill-with-docs:
-    sha256: f951d554697a907b
+    sha256: eced4f46507c3e86
     published:
       - .agents/skills/grill-with-docs/SKILL.md
       - .agents/skills/grill-with-docs/LICENSE
@@ -228,7 +228,7 @@ skills:
       - .claude/skills/grill-with-docs/UPSTREAM.md
       - .claude/skills/grill-with-docs/agents/openai.yaml
     variants:
-      agents: b08f6a4309266051
+      agents: 58054942896f58b8
     files:
       .agents/skills/grill-with-docs/LICENSE: 0e7ac423bf2c6e22
       .agents/skills/grill-with-docs/UPSTREAM.md: 590e288f5d94791d

@@ -327,3 +327,24 @@ GĐ0 → GĐ1 (tệp phụ cho skill gốc là việc chặn) → GĐ2 → GĐ3 
 | GĐ4b | `create-verification-skill`, `maintain-verification-skill`; b-feat/b-goal dùng `verify-<app>`; `.bint/skills/verify-bint/` (CLI, đã chạy trọn một lượt: launch → doctor → 3 tính năng → cleanup); tri thức `enforced_by` + `--enforced-by` + tín hiệu audit `unenforced` |
 | TSK-5.1 | Biến thể `bint@skills=mp` (`internal/eval/arms.go`, `SkillSets`, `writeCoreSkills`) |
 | TSK-5.2/5.3 | **Chưa chạy** (tốn tiền) |
+
+### Kết quả TSK-1.4 (`bint skill test --arm both`, claude/haiku, 3 lượt mỗi nhánh, 2026-11-24)
+
+Chạy trên bản chép tạm `.bint/skills/mp-<tên>/` (tên skill gốc bị cấm cho skill tuỳ biến). Lượt đầu bằng opus cho thấy kịch bản quá dễ
+(nhánh without đạt ~100%) nên đã viết lại kịch bản và chạy bằng haiku; chi phí cả đợt ≈ $0.4 (opus ≈ $0.12/lượt, haiku ≈ $0.005/lượt).
+
+| Skill | without | with |
+|---|---|---|
+| codebase-design | 0/3 | 3/3 |
+| diagnosing-bugs | 1/3 | 3/3 |
+| domain-modeling | 0/3 | 3/3 |
+| grilling | 0/3 | 3/3 |
+| grill-with-docs | 0/3 | 1/3 (sau khi thêm "vòng rút gọn khi bị đòi bỏ qua câu hỏi"; trước đó 0/3) |
+| handoff | 1/3 | 3/3 |
+| improve-arch | 1/3 | 3/3 |
+| principles | 1/3 | 3/3 |
+| retro | 3/3 | 3/3 (kịch bản chưa phân biệt được) |
+| tdd | 4/6 | 6/6 |
+| writing-for-agents | 2/3 | 3/3 |
+
+Việc tiếp: `grill-with-docs` cần sửa thêm (dưới áp lực vẫn in lệnh trước khi hỏi); kịch bản `retro` cần áp lực khó hơn.

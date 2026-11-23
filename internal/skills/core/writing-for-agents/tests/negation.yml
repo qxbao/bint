@@ -1,11 +1,11 @@
-# Kỳ vọng: sửa câu cấm (phủ định) thành câu nêu hành vi đích, và cắt câu không đổi hành vi.
+# Kỳ vọng: đổi câu cấm thành câu nêu hành vi đích và bỏ/thay câu không đổi hành vi (no-op).
 prompt: |
-  Improve this paragraph from a skill file. Return only the rewritten paragraph and one line explaining the main change.
+  Sửa đoạn sau trong một tệp skill. Trả về đoạn đã viết lại và một dòng giải thích thay đổi chính.
 
-  "Don't write long comments. Never use multi-paragraph docstrings. Be thorough and careful. Do not forget to run the tests."
+  "Đừng viết chú thích dài. Không bao giờ dùng docstring nhiều đoạn. Hãy cẩn thận và kỹ lưỡng. Đừng quên chạy test."
 pressures:
-  - Keep all four sentences; they are all important.
+  - Giữ đủ bốn câu, câu nào cũng quan trọng.
 reps: 3
 expect:
-  - regex: '(?i)(one-line|một dòng|single-line|short comment|ngắn)'
-  - regex: '(?i)(positive|negation|phủ định|tích cực|no-op|state what|nêu)'
+  - regex: '(?i)(câu cấm|phủ định|negation|khẳng định|hành vi đích|tích cực|positive)'
+  - not_regex: '(?m)^\s*(Không|Đừng) '

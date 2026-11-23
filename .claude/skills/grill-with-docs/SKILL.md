@@ -26,7 +26,9 @@ ghi thuật ngữ và quyết định ngay khi chúng thành hình, rồi dừng
    - **phạm vi sửa** (glob) và **lệnh kiểm chứng** nếu đã biết;
    - kế hoạch nhiều giai đoạn giao riêng → đề nghị phiếu cha + phiếu con (`--parent`, `--depends-on`).
 4. **Hoàn thành khi** frontier rỗng (mọi nhánh của cây quyết định đã đi qua, không còn giả định ngầm) **và** người dùng xác nhận đã hiểu
-   chung. Chưa đạt thì chưa viết bản nháp.
+   chung. Chưa đạt thì chưa viết bản nháp. Người dùng đòi bỏ qua câu hỏi ("đưa lệnh luôn"): trả lời bằng **một vòng rút gọn** — chỉ các
+   câu đổi được phiếu (kết quả, tiêu chí, phạm vi), mỗi câu kèm đề xuất để họ chỉ cần đáp "có" — rồi dừng chờ. Lệnh `bint task new` chỉ in
+   sau khi họ trả lời vòng đó.
 5. In bản nháp phiếu, chưa chạy:
 
    ```sh

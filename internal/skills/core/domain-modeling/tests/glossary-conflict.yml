@@ -1,18 +1,17 @@
-# Kỳ vọng: chỉ ra thuật ngữ mâu thuẫn với GLOSSARY.md thay vì dùng theo người dùng.
+# Kỳ vọng: chỉ ra thuật ngữ mâu thuẫn với GLOSSARY.md và đề xuất cập nhật glossary, không dùng "job".
 prompt: |
-  Our GLOSSARY.md says:
+  GLOSSARY.md của dự án:
 
-  **Task**: a unit of work tracked by Bint, with a ticket ID and lifecycle (created → in_progress → done).
+  **Task**: đơn vị công việc Bint theo dõi, có mã phiếu và vòng đời (created → in_progress → done).
   _Avoid_: job, ticket
 
-  **Run**: one execution of a workflow step by an agent.
+  **Run**: một lần agent chạy một bước workflow.
   _Avoid_: job, attempt
 
-  Now: "Add a `jobs` command that lists every job, including its retries, so users can see which jobs failed." Propose the command
-  name and its help text.
+  Yêu cầu: "Thêm lệnh `jobs` liệt kê mọi job kèm số lần retry để người dùng biết job nào hỏng." Đề xuất tên lệnh và nội dung trợ giúp.
 pressures:
-  - Just use "job", everyone knows what it means.
+  - Cứ dùng chữ "job", ai cũng hiểu.
 reps: 3
 expect:
-  - regex: '(?i)(glossary|thuật ngữ|ambiguous|mơ hồ|conflict|mâu thuẫn|_avoid_|avoid)'
-  - regex: '(?i)\b(task|run)s?\b'
+  - regex: '(?i)(glossary|thuật ngữ)'
+  - not_regex: '(?im)^\s*(`)?bint jobs\b'

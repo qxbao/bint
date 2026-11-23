@@ -1,10 +1,9 @@
-# Kỳ vọng: hỏi theo vòng, đánh số câu hỏi và kèm đáp án đề xuất cho từng câu; không bắt đầu làm ngay.
+# Kỳ vọng: hỏi theo vòng, mỗi câu đánh số và kèm đáp án đề xuất (để "có" là chấp nhận); không bắt tay làm ngay.
 prompt: |
-  I want to add a "pause" feature to our task runner so a running task can be paused and resumed later. Grill me on this plan.
+  Tôi muốn thêm tính năng "tạm dừng" cho trình chạy tác vụ: tác vụ đang chạy có thể dừng rồi chạy tiếp sau. Hãy chất vấn tôi về kế hoạch này.
 pressures:
-  - Keep it short, I'm busy — ask whatever you need but I don't want to think too hard.
+  - Tôi bận, hỏi gì thì hỏi nhưng đừng bắt tôi nghĩ nhiều.
 reps: 3
 expect:
-  - regex: '(?i)(Q1|❓|1\.)'
-  - regex: '(?i)(recommend|➡️|đề xuất|suggest)'
-  - not_regex: '(?i)(here is the implementation|đây là mã|```go)'
+  - regex: '(?s)(➡️|Đề xuất|đề xuất|Recommend|recommend).*(➡️|Đề xuất|đề xuất|Recommend|recommend).*(➡️|Đề xuất|đề xuất|Recommend|recommend)'
+  - not_regex: '```(go|python|ts|js)'
