@@ -11,21 +11,27 @@ import (
 
 func newKnowledgeAuditCmd(stdio IO) *cobra.Command {
 	var asJSON bool
+	var o app.AuditOptions
 	c := &cobra.Command{
 		Use:   "audit [id...]",
-		Short: "Liệt kê mục tri thức cần rà soát (stale, verified có fingerprint lệch) kèm lý do và mã hiện tại",
+		Short: "Liệt kê mục tri thức cần rà soát (stale, bằng chứng lệch; --all: quét tổng quát kèm mức sử dụng) cho agent nhận định",
 		Long: `Dành cho agent rà soát tri thức qua skill (không cần --budget, không gọi mô hình):
   1. Mục chỉ dời dòng hoặc chuyển tệp (nội dung bằng chứng không đổi) được tự áp như
      verify --apply và không có trong danh sách.
   2. Mục stale, hoặc verified mà fingerprint của bằng chứng lệch, được liệt kê kèm lý do
      và trích đoạn mã HIỆN TẠI của bằng chứng.
+  --all quét tổng quát mọi mục còn hiệu lực (kể cả candidate chờ duyệt và mục bằng chứng vẫn
+     khớp) kèm tín hiệu: problem (phải nhận định), never_used / unused (không ai truy xuất,
+     trích dẫn), review_old (duyệt đã lâu), warning (trùng lặp…), và số lần dùng. Mục có vấn đề
+     đứng đầu, rồi mục ít dùng.
 Đọc mã, nhận định từng mục rồi lưu bằng bint knowledge verdict. Lệnh không đổi trạng thái.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			k, err := openKnowledge(cmd)
 			if err != nil {
 				return err
 			}
-			rep, err := app.AuditKnowledge(cmd.Context(), k, args)
+			o.Refs = args
+			rep, err := app.AuditKnowledgeWith(cmd.Context(), k, o)
 			if err != nil {
 				return err
 			}
@@ -41,6 +47,17 @@ func newKnowledgeAuditCmd(stdio IO) *cobra.Command {
 			}
 			for _, it := range rep.Items {
 				fmt.Fprintf(stdio.Out, "%s", it.Block)
+				if len(it.Signals) > 0 {
+					fmt.Fprintf(stdio.Out, "Tín hiệu: %s\n", strings.Join(it.Signals, ", "))
+				}
+				if u := it.Usage; u != nil {
+					last := u.LastUsed
+					if last == "" {
+						last = "chưa"
+					}
+					fmt.Fprintf(stdio.Out, "Sử dụng: truy xuất %d lần (%d lượt chạy), trích dẫn %d lần, dùng gần nhất %s; duyệt %d ngày trước\n",
+						u.Retrieved, u.Runs, u.Cited, last, u.ReviewAgeDays)
+				}
 				for _, r := range it.Reasons {
 					fmt.Fprintf(stdio.Out, "Lý do cần xem: %s\n", r)
 				}
@@ -52,6 +69,9 @@ func newKnowledgeAuditCmd(stdio IO) *cobra.Command {
 		},
 	}
 	c.Flags().BoolVar(&asJSON, "json", false, "xuất JSON")
+	c.Flags().BoolVar(&o.All, "all", false, "quét tổng quát mọi mục còn hiệu lực kèm tín hiệu và mức sử dụng")
+	c.Flags().StringSliceVar(&o.Types, "type", nil, "chỉ xét các loại này (rule,warning,pattern,fact,decision,lesson)")
+	c.Flags().IntVar(&o.UnusedDays, "unused-days", 90, "không được dùng hoặc duyệt quá số ngày này thì gắn tín hiệu unused/review_old")
 	return c
 }
 

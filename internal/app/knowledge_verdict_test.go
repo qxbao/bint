@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -157,4 +158,48 @@ func TestAuditListsVerifiedWithDeletedEvidenceFile(t *testing.T) {
 		}
 	}
 	t.Fatalf("mục verified có tệp bằng chứng bị xoá phải vào audit: %+v", rep.Items)
+}
+
+// Quét tổng quát: liệt kê cả mục bằng chứng vẫn khớp và candidate, mục có vấn đề đứng đầu kèm tín hiệu problem; nhận định
+// valid trên candidate được áp thành duyệt.
+func TestAuditAllListsEveryActiveItem(t *testing.T) {
+	root, good, _ := seedKnowledge(t, 3, "nguon:tongquat")
+	ctx := context.Background()
+	k, _ := OpenKnowledge(ctx, root)
+	if _, err := ApproveKnowledge(ctx, k, ApproveOptions{Refs: good[:2]}); err != nil {
+		t.Fatal(err)
+	}
+	writeSrc(t, root, "src/f01.go", "package src\n\nfunc F01() { _ = 1 }\n") // good[1]: bằng chứng đổi
+	rep, err := AuditKnowledgeWith(ctx, k, AuditOptions{All: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rep.All || len(rep.Items) < 3 {
+		t.Fatalf("--all phải liệt kê mọi mục còn hiệu lực: %+v", rep.Items)
+	}
+	if rep.Items[0].ID != good[1] || !slices.Contains(rep.Items[0].Signals, SignalProblem) {
+		t.Fatalf("mục có vấn đề phải đứng đầu kèm problem: %+v", rep.Items[0])
+	}
+	var cand *AuditItem
+	for i := range rep.Items {
+		if rep.Items[i].ID == good[2] {
+			cand = &rep.Items[i]
+		}
+	}
+	if cand == nil || cand.Status != "candidate" {
+		t.Fatalf("candidate phải có trong quét tổng quát: %+v", cand)
+	}
+	if _, err := RecordVerdict(ctx, k, VerdictOptions{Ref: good[2], Verdict: VerdictValid, Reason: "đúng, src/f02.go:3", Model: "m"}); err != nil {
+		t.Fatal(err)
+	}
+	asHuman(t)
+	if _, err := KnowledgeVerdicts(ctx, k, VerdictsOptions{Refs: []string{good[2]}, Apply: true}); err != nil {
+		t.Fatal(err)
+	}
+	items, _, _ := k.Items()
+	for _, it := range items {
+		if it.ID == good[2] && it.Status != "verified" {
+			t.Fatalf("valid trên candidate phải duyệt: %s", it.Status)
+		}
+	}
 }

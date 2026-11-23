@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"bint/internal/config"
+	"bint/internal/kindex"
 	"bint/internal/knowledge"
 	"bint/internal/store"
 	"bint/internal/ulid"
@@ -145,8 +146,22 @@ type AuditItem struct {
 	Status  string   `json:"status"`
 	Title   string   `json:"title"`
 	Reasons []string `json:"reasons"`
+	// Signals: dấu hiệu máy đo được để agent cân nhắc (problem, never_used, unused, review_old, warning), chỉ ở chế độ --all.
+	Signals []string `json:"signals,omitempty"`
+	// Usage: số lần truy xuất/trích dẫn (nil khi không đọc được cơ sở dữ liệu trạng thái).
+	Usage *AuditUsage `json:"usage,omitempty"`
 	// Block là mô tả đầy đủ cho agent (ItemReviewBlock).
 	Block string `json:"block"`
+}
+
+// AuditUsage là mức sử dụng của một mục (kindex.ItemStats) và tuổi của lần duyệt cuối.
+type AuditUsage struct {
+	Retrieved int    `json:"retrieved"`
+	Cited     int    `json:"cited"`
+	Runs      int    `json:"runs"`
+	LastUsed  string `json:"last_used,omitempty"`
+	// ReviewAgeDays: số ngày kể từ lần duyệt (reviewed_at, không có thì verified_at, created_at); -1 khi không rõ.
+	ReviewAgeDays int `json:"review_age_days"`
 }
 
 // AuditReport là kết quả `bint knowledge audit`.
@@ -154,23 +169,66 @@ type AuditReport struct {
 	Items []AuditItem `json:"items"`
 	// Relocated: mục chỉ dời dòng/chuyển tệp đã được tự áp (nội dung bằng chứng không đổi) nên không cần rà soát.
 	Relocated []string `json:"relocated"`
+	// All: quét tổng quát (--all).
+	All bool `json:"all,omitempty"`
 }
 
-// AuditKnowledge liệt kê mục cần rà soát (stale, verified có fingerprint lệch) và tự áp các mục chỉ dời
-// dòng/chuyển tệp như `verify --apply`. Agent gọi được: không đổi trạng thái, chỉ cập nhật vị trí bằng chứng.
+// AuditOptions điều khiển `bint knowledge audit`.
+type AuditOptions struct {
+	Refs []string
+	// All: quét tổng quát mọi mục còn hiệu lực (kể cả candidate chờ duyệt và mục bằng chứng vẫn khớp), kèm mức sử dụng, để agent
+	// đề xuất giữ, sửa bằng chứng hay loại bỏ (mục sai, thừa, trùng, không ai dùng). Mặc định chỉ liệt kê mục có vấn đề bằng chứng.
+	All bool
+	// Types: chỉ xét các loại này (rỗng = mọi loại).
+	Types []string
+	// UnusedDays: mục không được truy xuất/trích dẫn trong số ngày này mang tín hiệu unused (0 = 90 ngày).
+	UnusedDays int
+	Now        time.Time
+}
+
+// Tín hiệu của AuditItem.Signals.
+const (
+	SignalProblem   = "problem"    // bằng chứng lệch hoặc mục stale: phải nhận định
+	SignalNeverUsed = "never_used" // chưa từng được truy xuất hay trích dẫn
+	SignalUnused    = "unused"     // không được dùng trong UnusedDays ngày
+	SignalReviewOld = "review_old" // lần duyệt cuối quá UnusedDays ngày
+	SignalWarning   = "warning"    // kiểm tra xác định được có cảnh báo (trùng lặp, thiếu fingerprint…)
+)
+
+// AuditKnowledge là AuditKnowledgeWith chỉ với danh sách mục (chế độ mặc định).
 func AuditKnowledge(ctx context.Context, k *KnowledgeWS, refs []string) (AuditReport, error) {
-	rep := AuditReport{Items: []AuditItem{}, Relocated: []string{}}
+	return AuditKnowledgeWith(ctx, k, AuditOptions{Refs: refs})
+}
+
+// AuditKnowledgeWith liệt kê mục cần rà soát (stale, verified có bằng chứng lệch) và tự áp các mục chỉ dời dòng/chuyển tệp như
+// `verify --apply`. Với All, liệt kê mọi mục còn hiệu lực kèm tín hiệu và mức sử dụng (mục có vấn đề trước, rồi mục ít dùng).
+// Agent gọi được: không đổi trạng thái, chỉ cập nhật vị trí bằng chứng.
+func AuditKnowledgeWith(ctx context.Context, k *KnowledgeWS, o AuditOptions) (AuditReport, error) {
+	rep := AuditReport{Items: []AuditItem{}, Relocated: []string{}, All: o.All}
+	if o.Now.IsZero() {
+		o.Now = time.Now()
+	}
+	if o.UnusedDays <= 0 {
+		o.UnusedDays = 90
+	}
 	all, _, err := k.Items()
 	if err != nil {
 		return rep, err
 	}
-	targets, err := selectItems(all, refs, func(it *knowledge.Item) bool { return it.Active() })
+	targets, err := selectItems(all, o.Refs, func(it *knowledge.Item) bool {
+		return it.Active() && (len(o.Types) == 0 || slices.Contains(o.Types, it.Type))
+	})
 	if err != nil {
 		return rep, err
+	}
+	var usage map[string]kindex.Stats
+	if o.All {
+		usage = auditUsage(ctx, k)
 	}
 	src := k.Source()
 	v := knowledge.Verifier{Src: src, All: all, FindMoved: true}
 	w := k.writer("knowledge audit")
+	rank := map[string]int{}
 	for _, it := range targets {
 		r := v.Verify(it)
 		if r.ApplyRelocations(it) {
@@ -180,21 +238,102 @@ func AuditKnowledge(ctx context.Context, k *KnowledgeWS, refs []string) (AuditRe
 			rep.Relocated = append(rep.Relocated, it.ID)
 			r = v.Verify(it)
 		}
-		if !needsReview(it, r) {
+		problem := needsReview(it, r)
+		if !problem && !o.All {
 			continue
 		}
 		ai := AuditItem{ID: it.ID, Type: it.Type, Status: it.Status, Title: it.Title, Block: ItemReviewBlock(it, src)}
-		if it.StatusReason != "" {
+		if it.StatusReason != "" && it.Status != knowledge.StatusVerified {
 			ai.Reasons = append(ai.Reasons, it.StatusReason)
 		}
 		for _, f := range r.Findings {
-			if f.Level == knowledge.LevelError {
+			switch {
+			case f.Level == knowledge.LevelError:
 				ai.Reasons = append(ai.Reasons, f.Detail)
+			case o.All && f.Level == knowledge.LevelWarn:
+				ai.Reasons = append(ai.Reasons, "cảnh báo: "+f.Detail)
+				if !slices.Contains(ai.Signals, SignalWarning) {
+					ai.Signals = append(ai.Signals, SignalWarning)
+				}
 			}
 		}
+		if o.All {
+			if problem {
+				ai.Signals = append([]string{SignalProblem}, ai.Signals...)
+			}
+			ai.Usage, ai.Signals = auditSignals(it, usage, o, ai.Signals)
+			if it.Status == knowledge.StatusCandidate {
+				ai.Reasons = append(ai.Reasons, "mục chờ duyệt: valid = đề xuất duyệt, outdated = đề xuất loại")
+			}
+		}
+		rank[it.ID] = auditRank(ai.Signals, problem)
 		rep.Items = append(rep.Items, ai)
 	}
+	slices.SortStableFunc(rep.Items, func(a, b AuditItem) int { return rank[a.ID] - rank[b.ID] })
 	return rep, nil
+}
+
+// auditUsage đọc mức sử dụng của các mục (nạp spool trước như `bint knowledge stats`); lỗi thì trả nil (không có tín hiệu dùng).
+func auditUsage(ctx context.Context, k *KnowledgeWS) map[string]kindex.Stats {
+	c, err := OpenContext(ctx, k.Root)
+	if err != nil {
+		return nil
+	}
+	defer c.Close()
+	if c.Memory {
+		return nil
+	}
+	_, _ = c.K.Ingest(ctx, c.Store, time.Now())
+	st, err := KnowledgeStats(ctx, c)
+	if err != nil {
+		return nil
+	}
+	out := make(map[string]kindex.Stats, len(st))
+	for _, s := range st {
+		out[s.ID] = s
+	}
+	return out
+}
+
+// auditSignals thêm tín hiệu sử dụng/tuổi duyệt cho it.
+func auditSignals(it *knowledge.Item, usage map[string]kindex.Stats, o AuditOptions, sig []string) (*AuditUsage, []string) {
+	age := -1
+	for _, ts := range []string{it.ReviewedAt, it.VerifiedAt, it.CreatedAt} {
+		if t, err := time.Parse(time.RFC3339, ts); err == nil {
+			age = int(o.Now.Sub(t).Hours() / 24)
+			break
+		}
+	}
+	if age > o.UnusedDays {
+		sig = append(sig, SignalReviewOld)
+	}
+	if usage == nil {
+		return nil, sig
+	}
+	s := usage[it.ID]
+	u := &AuditUsage{Retrieved: s.Retrieved, Cited: s.Cited, Runs: s.Runs, LastUsed: s.LastUsed, ReviewAgeDays: age}
+	switch {
+	case s.Retrieved == 0 && s.Cited == 0:
+		sig = append(sig, SignalNeverUsed)
+	case s.LastUsed != "":
+		if t, err := time.Parse(time.RFC3339, s.LastUsed); err == nil && o.Now.Sub(t) > time.Duration(o.UnusedDays)*24*time.Hour {
+			sig = append(sig, SignalUnused)
+		}
+	}
+	return u, sig
+}
+
+// auditRank: mục có vấn đề trước, rồi mục có tín hiệu (chưa dùng, lâu không dùng, cảnh báo, duyệt đã lâu), cuối cùng mục bình thường.
+func auditRank(sig []string, problem bool) int {
+	switch {
+	case problem:
+		return 0
+	case slices.Contains(sig, SignalNeverUsed), slices.Contains(sig, SignalUnused), slices.Contains(sig, SignalWarning):
+		return 1
+	case len(sig) > 0:
+		return 2
+	}
+	return 3
 }
 
 // ---- verdict ----
@@ -378,7 +517,7 @@ func ApplyVerdicts(ctx context.Context, k *KnowledgeWS, o VerdictApplyOptions) (
 	}
 	targets, err := selectItems(all, o.Refs, func(it *knowledge.Item) bool {
 		_, ok := latest[it.ID]
-		return ok && it.Active() && (it.Status == knowledge.StatusStale || it.Status == knowledge.StatusVerified)
+		return ok && it.Active() // candidate: valid = duyệt, outdated = loại; stale/verified như cũ
 	})
 	if err != nil {
 		return nil, err
@@ -504,7 +643,7 @@ type VerdictRow struct {
 	Title  string `json:"title"`
 	Type   string `json:"type"`
 	Status string `json:"status"`
-	// Actionable: áp được ngay (không unsure, không cũ, mục còn stale/verified).
+	// Actionable: áp được ngay (không unsure, không cũ, mục còn hiệu lực: candidate, verified, stale).
 	Actionable bool `json:"actionable"`
 }
 
@@ -543,7 +682,7 @@ func KnowledgeVerdicts(ctx context.Context, k *KnowledgeWS, o VerdictsOptions) (
 			continue
 		}
 		rep.Rows = append(rep.Rows, VerdictRow{StoredVerdict: sv, Title: it.Title, Type: it.Type, Status: it.Status,
-			Actionable: sv.Verdict != VerdictUnsure && !sv.Stale && (it.Status == knowledge.StatusStale || it.Status == knowledge.StatusVerified)})
+			Actionable: sv.Verdict != VerdictUnsure && !sv.Stale && it.Active()})
 	}
 	return rep, nil
 }

@@ -230,6 +230,12 @@ dạng nhận định (và prompt) và nhận cả mục `verified` có fingerpr
 thẻ): `valid` → làm mới fingerprint, `outdated` → `deprecated`, `fix-evidence` → sửa bằng chứng rồi làm mới;
 `unsure` và nhận định cũ (mã đổi tiếp sau nhận định) bị bỏ qua.
 
+**Quét tổng quát** (`bint knowledge audit --all`, mặc định của skill): liệt kê mọi mục còn hiệu lực, kể cả `candidate`
+chờ duyệt và mục bằng chứng vẫn khớp, kèm tín hiệu `problem` (stale/bằng chứng lệch), `never_used`/`unused` (không được
+truy xuất, trích dẫn trong `--unused-days`, mặc định 90), `review_old`, `warning` (trùng lặp…) và số lần dùng; mục có vấn
+đề đứng đầu, rồi mục ít dùng. Agent đề xuất giữ (`valid`), loại (`outdated`: sai, thừa, trùng; ít dùng thôi không đủ)
+hay sửa bằng chứng; người áp theo lô như trên. Với `candidate`, `valid` = duyệt, `outdated` = loại.
+
 **Tín hiệu kết quả** (mục 9.6, bảng `outcome_signals`, không gộp thành một điểm): `tests` (mạnh nếu
 lệnh khớp `eval.test_command` đã xác nhận, ngược lại trung bình), `rating` (người chấm, mạnh), `committed`
 (commit chạm tệp lượt đã sửa trong 24 giờ sau lượt, yếu — gắn theo thời gian/tệp là gần đúng),
