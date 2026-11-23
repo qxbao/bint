@@ -157,10 +157,53 @@ bint evolve cycle --budget 20         # đề xuất → đối chiếu validati
 ```
 
 Trong phiên của harness có hỗ trợ skill, gọi trực tiếp `/b-bootstrap`, `/b-knowledge`, `/b-req`,
-`/b-feat`, `/b-review`, `/b-do`, `/b-add-skill`, `/b-add-flow` (cùng `/<tên>` cho mỗi flow tuỳ biến), và các skill kỷ luật nhập từ
-mattpocock/skills và pstack: `/grill-with-docs`, `/improve-arch`, `/retro`, `/handoff`, `/create-verification-skill`, `/maintain-verification-skill`
-(người gọi), `grilling`, `domain-modeling`, `codebase-design`, `tdd`, `diagnosing-bugs`, `writing-for-agents`, `principles` (agent tự gọi;
-[ADR 0001](docs/adr/0001-mattpocock-skills.md)). Toàn bộ lệnh, mã thoát và phím tắt: [docs/usage.md](docs/usage.md).
+`/b-feat`, `/b-review`, `/b-do`, `/b-add-skill`, `/b-add-flow` (cùng `/<tên>` cho mỗi flow tuỳ biến). Toàn bộ lệnh, mã thoát và phím
+tắt: [docs/usage.md](docs/usage.md).
+
+## Hướng dẫn sử dụng
+
+Dùng hằng ngày, theo việc cần làm. Lệnh `/…` gõ trong phiên Claude Code (Codex: `$…`); lệnh `bint …` gõ trong terminal.
+
+**Lần đầu trong một repository**
+
+1. `bint init --hooks` rồi `bint doctor`.
+2. `/b-bootstrap` để agent khảo sát repo và đề xuất tri thức ban đầu.
+3. `bint knowledge review` (hoặc tab Tri thức trong TUI) để duyệt từng mục, rồi `bint bootstrap publish` để đưa quy tắc đã duyệt vào
+   `AGENTS.md`/`CLAUDE.md`.
+
+**Giao một việc cho agent**
+
+| Tình huống | Cách làm |
+|---|---|
+| Việc đã rõ (sửa nhỏ, thêm tính năng có mô tả cụ thể) | `/b-do <mô tả>`: agent lập kế hoạch → viết test trước rồi sửa mã → tự review |
+| Ý tưởng còn mơ hồ, việc lớn | `/grill-with-docs <ý tưởng>`: agent hỏi bạn từng vòng (mỗi câu kèm đáp án đề xuất), ghi thuật ngữ vào `GLOSSARY.md` và quyết định vào `docs/adr/`, cuối cùng đưa lệnh `bint task new …` soạn sẵn để bạn chạy hoặc chuyển sang `/b-do` |
+| Có lỗi cần sửa | `bint run b-debug "<mô tả lỗi>"`: tái hiện bằng test hỏng trước, rồi mới sửa |
+| Muốn biết mã nên tái cấu trúc ở đâu | `/improve-arch`: đề xuất chỗ làm module "sâu" hơn, dễ test hơn |
+
+Agent tự dùng các skill kỷ luật khi hợp ngữ cảnh, bạn không cần gọi: `tdd` (test trước), `diagnosing-bugs` (tìm nguyên nhân gốc
+trước khi sửa), `codebase-design`, `domain-modeling`, `grilling`, `principles`, `writing-for-agents`
+([ADR 0001](docs/adr/0001-mattpocock-skills.md)).
+
+**Sau khi làm việc**
+
+- `bint knowledge review`: duyệt các điều agent phát hiện trong lúc làm (chỉ người duyệt được; mục chưa duyệt không có hiệu lực).
+- `/retro`: khi agent mắc cùng một lỗi nhiều lần, đề xuất cách **chặn tự động** (lint, test, hook) thay vì chỉ thêm ghi chú.
+- `/handoff`: tóm tắt phiên dở dang để agent khác hoặc người khác làm tiếp.
+
+**Giữ tri thức có giá trị**
+
+- Quy tắc đã có công cụ tự kiểm thì ghi lại bằng `--enforced-by`, ví dụ
+  `bint knowledge add --type rule --enforced-by test:internal/config/config_test.go --evidence internal/config/config.go:40 "…"`.
+- `bint knowledge audit --all` (hoặc `/b-knowledge-audit`) định kỳ: báo mục lỗi thời, trùng lặp, ít dùng, và quy tắc quan trọng
+  chưa có gì tự kiểm (`unenforced`), tức chỗ nên viết lint/test.
+
+**Cho agent tự chạy thử ứng dụng**
+
+`/create-verification-skill` tạo skill `verify-<app>` để agent dựng và chạy ứng dụng thật, lấy bằng chứng thay vì chỉ dựa vào unit test;
+`/b-do` sẽ dùng nó khi tiêu chí chấp nhận nói về hành vi người dùng thấy. Ứng dụng đổi cách chạy thì cập nhật bằng
+`/maintain-verification-skill`. Ví dụ: `.bint/skills/verify-bint/` của chính repo này.
+
+**Tuỳ biến quy trình**: `/b-add-skill` thêm skill riêng của dự án, `/b-add-flow` thêm chuỗi bước riêng; chạy `bint sync` để xuất bản.
 
 ## Giao diện terminal (TUI)
 
