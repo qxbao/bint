@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -193,6 +194,9 @@ const (
 	SignalUnused    = "unused"     // không được dùng trong UnusedDays ngày
 	SignalReviewOld = "review_old" // lần duyệt cuối quá UnusedDays ngày
 	SignalWarning   = "warning"    // kiểm tra xác định được có cảnh báo (trùng lặp, thiếu fingerprint…)
+	// SignalUnenforced: quy tắc (rule/warning) chưa có cơ chế máy cưỡng chế (enforced_by rỗng, hoặc tệp của nó không còn): /retro
+	// cân nhắc chuyển thành lint/test/hook.
+	SignalUnenforced = "unenforced"
 )
 
 // AuditKnowledge là AuditKnowledgeWith chỉ với danh sách mục (chế độ mặc định).
@@ -262,6 +266,10 @@ func AuditKnowledgeWith(ctx context.Context, k *KnowledgeWS, o AuditOptions) (Au
 				ai.Signals = append([]string{SignalProblem}, ai.Signals...)
 			}
 			ai.Usage, ai.Signals = auditSignals(it, usage, o, ai.Signals)
+			if r, ok := unenforced(it, k.Root); ok {
+				ai.Signals = append(ai.Signals, SignalUnenforced)
+				ai.Reasons = append(ai.Reasons, r)
+			}
 			if it.Status == knowledge.StatusCandidate {
 				ai.Reasons = append(ai.Reasons, "mục chờ duyệt: valid = đề xuất duyệt, outdated = đề xuất loại")
 			}
@@ -685,4 +693,25 @@ func KnowledgeVerdicts(ctx context.Context, k *KnowledgeWS, o VerdictsOptions) (
 			Actionable: sv.Verdict != VerdictUnsure && !sv.Stale && it.Active()})
 	}
 	return rep, nil
+}
+
+// unenforced cho biết mục rule/warning chưa có cơ chế máy cưỡng chế còn tồn tại (enforced_by rỗng, hoặc mọi tệp của nó đã mất),
+// kèm lý do để agent đề xuất chuyển thành check (/retro).
+func unenforced(it *knowledge.Item, root string) (string, bool) {
+	if it.Type != knowledge.TypeRule && it.Type != knowledge.TypeWarning {
+		return "", false
+	}
+	if len(it.EnforcedBy) == 0 {
+		return "chưa có gì cưỡng chế (enforced_by rỗng): cân nhắc lint/test/hook rồi ghi enforced_by", true
+	}
+	var missing []string
+	for _, e := range it.EnforcedBy {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(e.Path))); err != nil {
+			missing = append(missing, e.Kind+":"+e.Path)
+		}
+	}
+	if len(missing) == len(it.EnforcedBy) {
+		return "enforced_by trỏ tới tệp không còn: " + strings.Join(missing, ", "), true
+	}
+	return "", false
 }

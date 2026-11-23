@@ -132,6 +132,8 @@ type AddOptions struct {
 	Origin     string   `flag:"origin" form:"advanced,choices=human|agent"` // "" = tự xác định (agent nếu trong phiên agent, ngược lại human)
 	ThirdParty bool     `flag:"third-party"`
 	Confidence string   `flag:"confidence" form:"advanced,choices=high|medium|low"`
+	// EnforcedBy: cơ chế cưỡng chế quy tắc, dạng <loại>:<tệp>[#ghi chú] (knowledge.ParseEnforcement).
+	EnforcedBy []string `flag:"enforced-by" form:"advanced,suggest=files"`
 	RunID      string   `flag:"run-id" form:"advanced"`
 	EvalCase   string   `flag:"eval-case" form:"hidden"`
 	// FromReview là ID phát hiện của b-review (<task-id>.<n>): tiêu đề, nội dung, phạm vi và bằng chứng điền sẵn
@@ -286,6 +288,13 @@ func AddKnowledge(ctx context.Context, k *KnowledgeWS, opts AddOptions) (AddResu
 		d.Origin.Session = s
 	}
 	it := k.buildItem(ctx, d)
+	for _, spec := range opts.EnforcedBy {
+		e, err := knowledge.ParseEnforcement(spec)
+		if err != nil {
+			return res, Usagef("%v", err)
+		}
+		it.EnforcedBy = append(it.EnforcedBy, e)
+	}
 	author := it.Author
 	if origin == knowledge.OriginHuman {
 		it.Status = knowledge.StatusVerified

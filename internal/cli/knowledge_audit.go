@@ -22,7 +22,8 @@ func newKnowledgeAuditCmd(stdio IO) *cobra.Command {
      và trích đoạn mã HIỆN TẠI của bằng chứng.
   --all quét tổng quát mọi mục còn hiệu lực (kể cả candidate chờ duyệt và mục bằng chứng vẫn
      khớp) kèm tín hiệu: problem (phải nhận định), never_used / unused (không ai truy xuất,
-     trích dẫn), review_old (duyệt đã lâu), warning (trùng lặp…), và số lần dùng. Mục có vấn đề
+     trích dẫn), review_old (duyệt đã lâu), warning (trùng lặp…), unenforced (rule/warning chưa có
+     lint/test/hook cưỡng chế: enforced_by), và số lần dùng. Mục có vấn đề
      đứng đầu, rồi mục ít dùng.
 Đọc mã, nhận định từng mục rồi lưu bằng bint knowledge verdict. Lệnh không đổi trạng thái.`,
 		RunE: func(cmd *cobra.Command, args []string) error {

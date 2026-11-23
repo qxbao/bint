@@ -142,6 +142,7 @@ hiện; cờ khác ghi đè. Mục do agent đề xuất theo cách này vẫn �
 	f.StringVar(&o.Origin, "origin", "", "human | agent (mặc định theo môi trường)")
 	f.BoolVar(&o.ThirdParty, "third-party", false, "mục dựa trên nội dung bên thứ ba (dependency, tài liệu ngoài, issue)")
 	f.StringVar(&o.Confidence, "confidence", "", "high | medium | low")
+	f.StringArrayVar(&o.EnforcedBy, "enforced-by", nil, "cơ chế máy cưỡng chế quy tắc: <lint|test|hook|type|ci|script>:<tệp>[#ghi chú] (lặp lại được)")
 	f.StringVar(&o.RunID, "run-id", "", "lượt chạy đã tạo mục này")
 	f.StringVar(&o.EvalCase, "eval-case", "", "tác vụ đánh giá mà mục này rút ra từ đó")
 	f.StringVar(&bodyFile, "body-file", "", "đọc nội dung từ tệp")

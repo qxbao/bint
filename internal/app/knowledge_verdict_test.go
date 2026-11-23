@@ -203,3 +203,47 @@ func TestAuditAllListsEveryActiveItem(t *testing.T) {
 		}
 	}
 }
+
+// GĐ4b (TSK-4b.4): quy tắc chưa có cơ chế máy cưỡng chế mang tín hiệu unenforced trong audit --all; enforced_by trỏ tới tệp có thật
+// thì không; cú pháp sai bị từ chối lúc thêm.
+func TestAuditAllFlagsUnenforcedRules(t *testing.T) {
+	root, _, _ := seedKnowledge(t, 1, "nguon:cuongche")
+	ctx := context.Background()
+	k, _ := OpenKnowledge(ctx, root)
+	add := func(title string, enforced []string) (AddResult, error) {
+		return AddKnowledge(ctx, k, AddOptions{Type: knowledge.TypeRule, Title: title, Body: title + ": nội dung quy tắc riêng.",
+			Paths: []string{"src/**"}, Evidence: []string{"src/f00.go:3"}, EnforcedBy: enforced})
+	}
+	bare, err := add("Quy tắc chưa có check", nil)
+	if err != nil || !bare.Saved {
+		t.Fatalf("%v %+v", err, bare.Check.Findings)
+	}
+	held, err := add("Quy tắc có test cưỡng chế", []string{"test:src/f00.go#TestF00"})
+	if err != nil || !held.Saved || len(held.Item.EnforcedBy) != 1 || held.Item.EnforcedBy[0].Note != "TestF00" {
+		t.Fatalf("%v %+v", err, held.Item)
+	}
+	if _, err := add("Quy tắc sai cú pháp", []string{"src/f00.go"}); err == nil {
+		t.Fatal("enforced-by thiếu loại phải bị từ chối")
+	}
+	rep, err := AuditKnowledgeWith(ctx, k, AuditOptions{All: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig := map[string][]string{}
+	for _, it := range rep.Items {
+		sig[it.ID] = it.Signals
+	}
+	if !slices.Contains(sig[bare.Item.ID], SignalUnenforced) {
+		t.Fatalf("quy tắc không có enforced_by phải mang unenforced: %v", sig[bare.Item.ID])
+	}
+	if slices.Contains(sig[held.Item.ID], SignalUnenforced) {
+		t.Fatalf("quy tắc có enforced_by còn tệp không được mang unenforced: %v", sig[held.Item.ID])
+	}
+	// Đọc lại từ đĩa: enforced_by được ghi và nạp lại.
+	items, _, _ := k.Items()
+	for _, it := range items {
+		if it.ID == held.Item.ID && (len(it.EnforcedBy) != 1 || it.EnforcedBy[0].Path != "src/f00.go") {
+			t.Fatalf("enforced_by không được lưu: %+v", it.EnforcedBy)
+		}
+	}
+}

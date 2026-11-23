@@ -61,7 +61,7 @@ func names(fs []Field) string {
 // Trường sinh đúng kiểu, nhóm Nâng cao, ẩn, bắt buộc, lựa chọn từ thẻ của Options.
 func TestFieldsFromOptions(t *testing.T) {
 	fs := Fields(app.AddOptions{})
-	if got := names(fs); got != "type,title,body,paths,symbols,tags,domains,evidence,input,origin,third-party,confidence,run-id,from-review" {
+	if got := names(fs); got != "type,title,body,paths,symbols,tags,domains,evidence,input,origin,third-party,confidence,enforced-by,run-id,from-review" {
 		t.Fatalf("AddOptions: %s (eval-case phải ẩn, Now không có thẻ)", got)
 	}
 	by := map[string]Field{}
@@ -195,7 +195,7 @@ func TestAdvancedGroupCollapsedByDefault(t *testing.T) {
 		t.Fatalf("%d hàng", collapsed)
 	}
 	m.Update(k("ctrl+o"))
-	if shown() != 14+1 {
+	if shown() != 15+1 {
 		t.Fatalf("%d hàng sau khi mở nhóm Nâng cao", shown())
 	}
 	m.Update(k("ctrl+o"))

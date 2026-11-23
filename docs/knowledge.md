@@ -31,8 +31,9 @@ bint bootstrap skill            # in nội dung skill cho harness chưa có adap
 **Định dạng.** Mỗi mục là `.bint/knowledge/items/<ulid>.md` (commit được): phần đầu YAML gồm
 `type` (`rule`, `warning`, `pattern`, `fact`, `decision`, `lesson`), `status`, `scope` (glob đường dẫn, ký
 hiệu, thẻ), `evidence` (`path`, `lines`, `symbol`, `commit`, `fingerprint`), `origin` (`human` |
-`agent` | `imported`, phiên/lượt chạy, đầu vào đã đọc, cờ `third_party`, `eval_case`), tác giả,
-người duyệt, thời điểm; sau đó là nội dung Markdown. Tệp là nguồn chuẩn duy nhất.
+`agent` | `imported`, phiên/lượt chạy, đầu vào đã đọc, cờ `third_party`, `eval_case`), `enforced_by` (tuỳ chọn:
+danh sách `{kind: lint|test|hook|type|ci|script, path, note}` — cơ chế máy cưỡng chế quy tắc; `bint knowledge add --enforced-by
+test:internal/x/y_test.go#TestZ`), tác giả, người duyệt, thời điểm; sau đó là nội dung Markdown. Tệp là nguồn chuẩn duy nhất.
 
 **Trạng thái** `candidate → verified → stale → deprecated`:
 
@@ -232,7 +233,8 @@ thẻ): `valid` → làm mới fingerprint, `outdated` → `deprecated`, `fix-ev
 
 **Quét tổng quát** (`bint knowledge audit --all`, mặc định của skill): liệt kê mọi mục còn hiệu lực, kể cả `candidate`
 chờ duyệt và mục bằng chứng vẫn khớp, kèm tín hiệu `problem` (stale/bằng chứng lệch), `never_used`/`unused` (không được
-truy xuất, trích dẫn trong `--unused-days`, mặc định 90), `review_old`, `warning` (trùng lặp…) và số lần dùng; mục có vấn
+truy xuất, trích dẫn trong `--unused-days`, mặc định 90), `review_old`, `warning` (trùng lặp…), `unenforced` (rule/warning chưa có `enforced_by` còn tệp: ứng viên để `/retro` chuyển
+thành check) và số lần dùng; mục có vấn
 đề đứng đầu, rồi mục ít dùng. Agent đề xuất giữ (`valid`), loại (`outdated`: sai, thừa, trùng; ít dùng thôi không đủ)
 hay sửa bằng chứng; người áp theo lô như trên. Với `candidate`, `valid` = duyệt, `outdated` = loại.
 

@@ -85,6 +85,9 @@ type Item struct {
 	VerifiedAt string     `yaml:"verified_at,omitempty" json:"verified_at,omitempty"`
 	// StatusReason ghi lý do của lần chuyển trạng thái gần nhất (từ chối, lỗi thời...).
 	StatusReason string `yaml:"status_reason,omitempty" json:"status_reason,omitempty"`
+	// EnforcedBy: cơ chế máy cưỡng chế quy tắc này (lint, test, hook, kiểu…). Rỗng = chỉ dựa vào agent đọc tri thức; audit --all
+	// gắn tín hiệu "unenforced" cho rule/warning chưa có để /retro đề xuất chuyển thành check.
+	EnforcedBy []Enforcement `yaml:"enforced_by,omitempty" json:"enforced_by,omitempty"`
 
 	// Body là nội dung Markdown sau phần đầu.
 	Body string `yaml:"-" json:"-"`
@@ -150,6 +153,39 @@ type Origin struct {
 	Provenance string `yaml:"provenance,omitempty" json:"provenance,omitempty"`
 	// Runs: lượt chạy làm bằng chứng cho mục có Provenance (các lượt thất bại trong nhóm).
 	Runs []string `yaml:"runs,omitempty" json:"runs,omitempty"`
+}
+
+// Enforcement là một cơ chế máy cưỡng chế quy tắc của mục tri thức: chạy được, đỏ khi quy tắc bị vi phạm.
+type Enforcement struct {
+	// Kind: một trong EnforcementKinds.
+	Kind string `yaml:"kind" json:"kind"`
+	// Path: tệp chứa check (tương đối với gốc repository, dạng '/').
+	Path string `yaml:"path" json:"path"`
+	// Note: ghi chú ngắn (tên test, tên luật lint…), tuỳ chọn.
+	Note string `yaml:"note,omitempty" json:"note,omitempty"`
+}
+
+// EnforcementKinds là các loại cơ chế cưỡng chế hợp lệ.
+var EnforcementKinds = []string{"lint", "test", "hook", "type", "ci", "script"}
+
+// ParseEnforcement đọc chuỗi kind:path[#note] (ví dụ "test:internal/x/y_test.go#TestZ").
+func ParseEnforcement(spec string) (Enforcement, error) {
+	kind, rest, ok := strings.Cut(strings.TrimSpace(spec), ":")
+	if !ok {
+		return Enforcement{}, fmt.Errorf("enforced-by %q: cần dạng <loại>:<tệp>[#ghi chú], loại là %s", spec, strings.Join(EnforcementKinds, " | "))
+	}
+	e := Enforcement{Kind: strings.TrimSpace(kind)}
+	if p, note, found := strings.Cut(rest, "#"); found {
+		rest, e.Note = p, strings.TrimSpace(note)
+	}
+	e.Path = cleanRel(rest)
+	if !slices.Contains(EnforcementKinds, e.Kind) {
+		return e, fmt.Errorf("enforced-by %q: loại %q không hợp lệ (%s)", spec, e.Kind, strings.Join(EnforcementKinds, ", "))
+	}
+	if err := ValidRelPath(e.Path); err != nil {
+		return e, fmt.Errorf("enforced-by %q: %v", spec, err)
+	}
+	return e, nil
 }
 
 // ProvenanceFailureLesson là nguồn của bài học rút từ lượt thất bại (kế hoạch E).
@@ -317,6 +353,14 @@ func (it *Item) Validate() []string {
 		}
 		if e.Commit != "" && !ValidRev(e.Commit) {
 			add("evidence[%d].commit: %q không phải revision hợp lệ", i, e.Commit)
+		}
+	}
+	for i, e := range it.EnforcedBy {
+		if !slices.Contains(EnforcementKinds, e.Kind) {
+			add("enforced_by[%d].kind: %q không hợp lệ (%s)", i, e.Kind, strings.Join(EnforcementKinds, ", "))
+		}
+		if err := ValidRelPath(e.Path); err != nil {
+			add("enforced_by[%d].path: %v", i, err)
 		}
 	}
 	if it.Origin.Commit != "" && !ValidRev(it.Origin.Commit) {
