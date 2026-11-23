@@ -6,8 +6,8 @@
 
 Trạng thái (2026-11-23): **GĐ0–GĐ3, GĐ4b và TSK-5.1 đã viết mã** (làm thẳng trong một phiên, không qua phiếu b-do). Đã chốt: cách
 hỏi-đáp A + B (mục 3.1), 0 agent con ở bước implement (mục 3.2), đưa thẳng vào skill gốc nhúng (mục 3.3), `GLOSSARY.md` ở gốc repo
-(mục 3.4). Còn lại: phần tốn tiền (TSK-1.4 `bint skill test --arm both`, TSK-5.2/5.3 eval), kiểm Codex với `agents/openai.yaml`
-(rủi ro 1), GĐ4 và GĐ6 (chỉ làm khi cần). Xem mục 9.
+(mục 3.4). Đã chạy TSK-1.4, TSK-5.2 (validation) và kiểm Codex (rủi ro 1).
+Còn lại: TSK-5.3, eval trên tập test khi có thêm tác vụ, GĐ4 và GĐ6 (chỉ làm khi cần). Xem mục 9.
 
 ## 1. Mục tiêu và kết luận khả thi
 
@@ -321,12 +321,12 @@ GĐ0 → GĐ1 (tệp phụ cho skill gốc là việc chặn) → GĐ2 → GĐ3 
 | GĐ0 | ADR [docs/adr/0001-mattpocock-skills.md](adr/0001-mattpocock-skills.md); mỗi skill nhập có `LICENSE` + `UPSTREAM.md`; thân tiếng Anh, mục Bint tiếng Việt |
 | TSK-1.0 | `skills.Skill.Files` + `Version()`; `Core()` nạp tệp phụ (trừ `tests/`, `.sh` → 0755); `Install` xuất bản/băm từng tệp (`LockEntry.Files`), xung đột khi sửa tay, gỡ tệp thừa (`internal/skills/core_files.go`, test `TestInstallCoreAuxFiles`) |
 | TSK-1.1–1.3 | 6 skill tự gọi trong `internal/skills/core/`, mục "Khi chạy dưới Bint", kịch bản áp lực `tests/*.yml` (không xuất bản; `TestCoreSkillScenariosParse`). Ví dụ flow `tdd` đổi thành `testfirst` vì trùng tên skill gốc |
-| TSK-1.4 | **Chưa chạy** (tốn tiền): chép thư mục skill sang `.bint/skills/<tên>/` rồi `bint skill test <tên> --arm both` (xem ước tính trước `--yes`) |
+| TSK-1.4 | Đã chạy, xem "Kết quả TSK-1.4" bên dưới |
 | GĐ2 | `grill-with-docs`, `improve-arch`, `retro` (gộp `correct`), `handoff` + kịch bản; định tuyến ở điểm neo `routing` của `/b-do`. `/why` (tuỳ chọn) chưa làm |
 | GĐ3 | b-req, b-feat, b-review, b-repro, b-fix, b-add-skill sửa thẳng; skill `principles` (13 nguyên tắc, tệp lá). `## Seam kiểm thử` mới là khuyến nghị, lint chưa bắt buộc (không đổi hợp đồng v1) |
 | GĐ4b | `create-verification-skill`, `maintain-verification-skill`; b-feat/b-goal dùng `verify-<app>`; `.bint/skills/verify-bint/` (CLI, đã chạy trọn một lượt: launch → doctor → 3 tính năng → cleanup); tri thức `enforced_by` + `--enforced-by` + tín hiệu audit `unenforced` |
 | TSK-5.1 | Biến thể `bint@skills=mp` (`internal/eval/arms.go`, `SkillSets`, `writeCoreSkills`) |
-| TSK-5.2/5.3 | **Chưa chạy** (tốn tiền) |
+| TSK-5.2 | Đã chạy trên tập validation, xem "Kết quả TSK-5.2" bên dưới. TSK-5.3 chưa làm (tuỳ chọn) |
 
 ### Kết quả TSK-1.4 (`bint skill test --arm both`, claude/haiku, 3 lượt mỗi nhánh, 2026-11-24)
 
@@ -355,3 +355,22 @@ Hai skill hoàng yến trong `.agents/skills/` của repo nháp, giống hệt n
 skill bị chặn **không** được Codex tự gọi (0/2 lượt), skill đối chứng được tự gọi (2/2), gọi tường minh `$weather-hanoi` vẫn chạy.
 Kết luận: Codex đọc `agents/openai.yaml` của skill dự án; skill do người gọi của Bint giữ đúng chính sách trên Codex.
 Lưu ý khi tự động hoá `codex exec`: đóng stdin (`</dev/null`), không thì nó treo chờ "additional input from stdin".
+
+### Kết quả TSK-5.2 (eval `bint` vs `bint@skills=mp`, 2026-11-24)
+
+Tập validation gồm 6 tác vụ đã duyệt, chấm bằng `go test -count=1 {test_dirs}`. Chạy claude/sonnet ở chế độ strict, 2 lần lặp, đợt
+`eb_01M84T9JZCYPZR5CWPSKFH4KN6`. Tri thức tại từng commit gốc dựng bằng `bint eval bootstrap` ($1.33); lượt chạy tốn $3.93.
+
+| Nhánh | Đạt (CI95) | $/lượt | Thời gian (s) | Lượt agent |
+|---|---|---|---|---|
+| bint | 75% [42, 100] | 0.159 | 175 | 9.7 |
+| bint@skills=mp | 67% [33, 100] | 0.169 | 157 | 11.8 |
+
+Δ theo cặp (mp − bint): đạt −8.3 điểm [−25, 0], chi phí +$0.010 [+0.004, +0.017], thời gian −18 s [−35, −3].
+Cả chênh lệch đều do một tác vụ (`c85f3c845ee69`: bint đạt 1/2, mp đạt 0/2). `c320f4ece3f4f` trượt ở cả hai nhánh; 4 tác vụ còn lại
+cả hai nhánh đều đạt 2/2.
+
+Kết luận: với 6 tác vụ, eval **không đo được lợi ích** của bộ skill kỷ luật trên tác vụ sửa lỗi nhỏ. Bộ skill tốn thêm khoảng 6% chi phí
+và khoảng 2 lượt agent mỗi lần chạy, nhưng khoảng tin cậy chứa 0. Bộ skill vẫn giữ trong lõi vì TSK-1.4 cho thấy nó đổi hành vi đúng
+hướng trên kịch bản áp lực. Muốn kết luận về hiệu quả end-to-end cần ≥ 20 tác vụ (máy đã báo tập hiện tại quá nhỏ) và nhánh `ideal`
+cho cổng 2.
