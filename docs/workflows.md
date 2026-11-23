@@ -424,7 +424,7 @@ sau cổng cỡ kế hoạch, khi `requirement.md` có mục `## Kiểm tra mụ
   được tính là việc `b-feat` đã làm (cổng "không đổi tệp nào"). Lối thoát khi chính test đóng băng sai: cổng mục tiêu đỏ là điều chặn người bỏ qua được như kiểm chứng đỏ, tức
   `bint task land <id> --force --reason "<lý do>"` (tác vụ worktree) hoặc `bint task status <id> done --force` (tác vụ shared); với `land --force` lý do và điều chặn ghi vào
   `Landed.Bypassed`, còn `status done --force` (không cần `--reason`, không giới hạn theo `Forceable`) ghi các điều chặn đã bỏ qua vào lý do của lịch sử trạng thái ("người xác nhận dù thiếu bằng chứng: …"). Chỉ người dùng được cờ ép (agent bị từ chối). "Chưa chạy cổng mục tiêu" vẫn là điều chặn cứng. Chưa có lệnh chạy lại `b-goal` hay đóng băng lại.
-- **Cổng riêng**: lệnh là `workflow.verify.affected_command` mở rộng trên tệp đóng băng khi đã đặt, không thì `verify.command`. Khi lệnh bắt đầu bằng `go test`, chưa có
+- **Cổng riêng**: lệnh là lệnh bgraph dựng cho riêng các đơn vị test chứa tệp đóng băng; bgraph không dựng được thì `workflow.verify.affected_command` trên tệp đóng băng khi đã đặt, không thì `verify.command`. Khi lệnh bắt đầu bằng `go test`, chưa có
   `-run` và tệp đóng băng là `*_test.go`, Bint thêm `-run "^(TestA|TestB)$"` (nháy kép, chạy được dưới `sh` và `cmd /C`) gồm đúng các hàm `Test*` của tệp đóng băng để cổng không chạy cả gói (tệp khác Go,
   tệp không có hàm `Test*` hay lệnh đã có `-run` giữ lệnh cũ); chạy một lần ngay sau `b-goal`
   (mốc, không chặn; xanh ngay thì ghi chú "test có thể quá yếu") và sau kiểm chứng của mỗi bước implement. Log `goal-N.log`, kết quả ở `State.GoalChecks`, hiện ở
@@ -531,8 +531,8 @@ thành **lát** (`internal/workflow/slice.go`), mỗi lát một lượt `b-feat
   `--fast` bỏ cả hai. Chia lát còn cần `workflow.slice_timeout_minutes > 0` và cần b-goal chạy (lát đo bằng kiểm tra mục tiêu đóng băng). Đặt `slice_timeout_minutes: 0` hoặc `slicing: off` khi tác vụ đang chia lát thì lần
   `resume` sau chuyển các lát chưa chốt sang `unsliced` và chạy **một** `b-feat` thường cho phần còn lại (cây giữ nguyên, lát đã chốt giữ nguyên). Hạn chế đã biết: driver session không chia lát; hiển thị lát trong TUI và
   `bint task show` chưa có (xem `slices` trong JSON kết quả, `state.json`).
-- **Nhanh hơn**: giữa các lát chỉ chạy `workflow.verify.affected_command` (khi `verify.scope: affected`); `verify.command` đầy đủ chạy một lần ở cổng done. Đề bài lát giữ `b-feat` trong phạm vi lát và chỉ chạy test của gói
-  đã sửa. `workflow.verify.bint_config_full: false` thì thay đổi chỉ trong `.bint/**` không nới kiểm chứng ra full (mặc định `true`).
+- **Nhanh hơn**: mọi lần kiểm chứng giữa các lát và ở cổng done chỉ chạy test bị ảnh hưởng do bgraph chọn. Đề bài lát giữ `b-feat` trong phạm vi lát và chỉ chạy test của gói
+  đã sửa. `workflow.verify.bint_config_full: false` thì `.bint/**` bị bỏ khỏi tập thay đổi (mặc định `true`).
 
 **Ngân sách diff mỗi lát/bước b-feat (`workflow.max_diff_lines`).** Mặc định `0` = tắt (`Validate` từ chối số âm). Bật thì Bint đếm số dòng thêm+xoá (`git diff --numstat`) trên tệp của tác vụ,
 **không tính tệp kiểm tra mục tiêu đóng băng**:
@@ -711,7 +711,7 @@ gói ngữ cảnh của Context Engine. Giới hạn vận hành (mục 5):
 | `workflow.verify.bint_config_full` (`true`) | `false` = thay đổi chỉ trong `.bint/**` không nới kiểm chứng affected ra full (cổng done vẫn chạy đầy đủ một lần) |
 | `workflow.max_diff_lines` (`0`) | trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần `b-feat` đã làm so với mốc tác vụ khi không chia lát; vượt thì coi như kiểm chứng không qua (lát được giữ cây chờ người / vào vòng sửa); `0` = tắt |
 | `workflow.perf.command` (`""`), `workflow.perf.max_slowdown` (`1.5`) | cổng hiệu năng: đo mốc trước `b-feat` đầu và sau mỗi `b-feat` (nhỏ nhất của 3 lần); chậm quá `max_slowdown` lần và quá sàn nhiễu 0,1 giây, hoặc lệnh thoát khác 0, thì coi như kiểm chứng không qua; rỗng = tắt |
-| `workflow.verify.scope` (`full`), `verify.affected_command` | `affected`: kiểm chứng sau implement chỉ chạy test bị ảnh hưởng; done vẫn đòi chạy đầy đủ ([phạm vi kiểm chứng](#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)) |
+| `workflow.verify.affected_command`, `verify.bint_config_full` | mọi lần chạy test chạy test bị ảnh hưởng do bgraph chọn; `affected_command` chỉ là lệnh chạy danh sách tệp cho cổng mục tiêu khi bgraph không dựng được lệnh ([chọn test bị ảnh hưởng](#chọn-test-bị-ảnh-hưởng-bgraph-và-bint-test-affected)) |
 
 **Dừng, duyệt đường dẫn bảo vệ và chạy tiếp (`resume`).** Ctrl-C trong `bint run` chuyển tác vụ sang
 `interrupted`; timeout chuyển sang `failed`; tiến trình điều phối bị kill sẽ được phát hiện ở lần đọc
@@ -837,67 +837,58 @@ lint); `bint flow show <tên>` in định nghĩa đã chuẩn hoá (role mặc �
 chú thích, thứ tự khoá hay mô tả). Trong TUI: ba hành động chỉ đọc "Liệt kê/Xem/Kiểm flow" ở bảng lệnh (`:`), kết quả ở khung đầu ra
 của thẻ Skill.
 
-#### Phạm vi kiểm chứng: `workflow.verify.scope` và `bint test affected`
+#### Chọn test bị ảnh hưởng (bgraph) và `bint test affected`
 
-Mặc định (`workflow.verify.scope: full`) mọi lần kiểm chứng chạy nguyên `verify.command` của phiếu. Với
-`scope: affected`, **vòng kiểm chứng sau bước implement** (sau `b-feat` và các bước implement của flow tuỳ biến) chỉ chạy
-các test bị ảnh hưởng bởi thay đổi của tác vụ, để vòng review/sửa nhanh hơn. Chỉ áp dụng khi `verify.command` của phiếu đã được
-người xác nhận; lệnh chạy là `workflow.verify.affected_command`, trong đó `{test_dirs}` (thư mục `./dir`) và `{test_files}`
-được thay bằng test được chọn, ví dụ:
+Bint không có bước "chạy cả bộ test". **Mọi lần chạy test** của tác vụ (kiểm chứng sau bước implement, kiểm hẹp `bint task check`,
+kiểm nền của luồng B′, cổng mục tiêu, cổng `done`, `bint task verify`) chạy các test bị ảnh hưởng do
+[bgraph](https://github.com/qxbao/bgraph) chọn, nhúng như thư viện trong binary của Bint (`internal/affected`).
 
-```yaml
-workflow:
-  verify:
-    scope: affected
-    affected_command: "go test -count=1 -timeout=30m {test_dirs}"   # bắt buộc có {test_dirs} hoặc {test_files}
-```
+bgraph dựng đồ thị phụ thuộc mức tệp của cây mốc và cây mới cho Node (JS/TS), Python, Rust, JVM, .NET và Go, đi ngược từ tệp đổi và
+chọn đơn vị test (tệp test, Cargo target, module Maven/Gradle, project .NET, gói Go). Nó hiểu manifest, cấu hình runner và lockfile,
+và dựng luôn lệnh chạy cho runner của dự án (`vitest run …`, `pytest …`, `cargo test -p …`, `mvn -pl …`, `dotnet test …`,
+`go test ./…`). Khi không chắc (import tính lúc chạy, tệp build không đánh giá được, lockfile, tệp CI…), bgraph **nới** phạm vi và
+ghi lý do; không bao giờ thu hẹp im lặng.
 
-Tập thay đổi là mọi tệp khác nhau giữa commit gốc của tác vụ (`Base`) và cây làm việc hiện tại (gồm thay đổi chưa commit và tệp
-chưa theo dõi, không gồm sổ phiếu `.bint/tasks`). Phạm vi chọn theo tầng, từ hẹp đến rộng:
+Tập thay đổi là mọi tệp khác nhau giữa commit gốc của tác vụ (`Base`) và cây làm việc (gồm thay đổi chưa commit và tệp chưa theo dõi).
+Sổ phiếu `.bint/tasks/**` không bao giờ là thay đổi; `.bint/**` cũng bị bỏ khi `workflow.verify.bint_config_full: false`.
 
-| Tầng | Khi nào | Lần kiểm chứng làm gì |
+| Tầng | Ý nghĩa | Lần chạy làm gì |
 |---|---|---|
-| `none` | chỉ `*.md`/`*.txt` ngoài mọi gói mà không test nào nhắc tới tên tệp (test có nhắc thì nới lên `package`, lý do `test_reference`; `.md`/`.txt` trong thư mục con của gói thuộc gói đó); hoặc không gói nào có test bị ảnh hưởng | không chạy lệnh nào, ghi nhận là qua |
-| `graph` | có tệp mã (`.go`) trong thư mục gói | chạy `affected_command` với test của gói đổi và mọi gói có test phụ thuộc bắc cầu vào nó |
-| `package` | thay đổi không phải mã nằm trong gói: `testdata/`, tệp được `//go:embed`, tệp khác trong thư mục gói | như `graph` |
-| `full` | `go.mod`, `go.sum`, `go.work`, khoá phụ thuộc, cấu hình công cụ, `.bint/**`, `.github/**`, `Makefile`, script, tệp lạ ngoài gói, module lồng, hoặc nguồn ảnh hưởng không dùng được | chạy nguyên `verify.command` |
+| `none` | không test nào bị ảnh hưởng | không chạy, ghi nhận là qua |
+| `graph` | chứng minh được từ đồ thị phụ thuộc | chạy lệnh bgraph dựng cho các đơn vị test được chọn |
+| `package` | nới tới gói/thư mục/target | như `graph` |
+| `module` | nới tới cả dự án (package.json, crate, module Maven, project .NET, module Go): manifest đổi, import không phân giải được… | như `graph`, với mọi test của dự án đó |
+| `full` | bgraph đòi chạy cả bộ: không có mốc, tệp CI hay toolchain pin đổi, lỗi nội bộ | chạy `verify.command` của phiếu, lý do ghi trong `selection.widening` |
 
-**Quy tắc nới (không bao giờ thu hẹp).** Gặp thay đổi không phân loại chắc được thì phạm vi nới lên tầng rộng hơn, và mỗi lần
-nới ghi đường dẫn, tầng và lý do (`root_config`, `ci_config`, `bint_config`, `testdata`, `embedded_file`, `non_code_change`,
-`nested_module`, `unknown_package`, `deleted_package`, `unknown_file`, `source_unavailable`, `unsupported_language`, `no_base`).
-Cụ thể: `go list` lỗi hoặc không có trên `PATH`, gói lỗi nhập/biên dịch, thư mục có `.go` mà không ra gói nào, gói bị xoá, tệp
-thuộc module lồng (`go.mod` con), dự án không có nguồn hỗ trợ (không có `go.mod`) và không có commit gốc đều ra `full`.
-Phạm vi rỗng ở `graph`/`package` hạ về `none` (không bao giờ để `{test_dirs}` rỗng, vì `go test` không đối số sẽ chạy thư mục
-hiện tại).
+Lý do nới là mã ổn định của bgraph (`manifest_changed`, `lock_changed`, `unknown_import`, `dynamic_import`, `unreferenced_file`,
+`global_input`, `no_base`, …; xem tài liệu của bgraph). Bint thêm `source_unavailable` (không mở được repo/git lỗi) và
+`no_selective_command` (bgraph chọn được nhưng không dựng được lệnh riêng).
 
-**Nguồn ảnh hưởng theo ngôn ngữ** nằm sau interface `affected.Source` (`internal/affected`). Hiện có Go: một lần
-`go list -e -test -json ./...` cho đồ thị phụ thuộc mức gói, ánh xạ tệp đổi theo thư mục gói (tệp bị build tag loại như
-`*_windows.go` vẫn ra gói của nó, chạy được trên mọi GOOS), chọn gói có test mà phụ thuộc bắc cầu vào gói đổi. Không dùng codegraph
-làm nguồn cho Go vì nó bỏ sót gói phụ thuộc theo từng tệp build tag. Ngôn ngữ chưa hỗ trợ → `full`.
+**Bằng chứng.** `Verification` ghi `scope`, `selection` (`source: bgraph`, `base`, `changed` tối đa 200 tệp, `widening`,
+`warnings`, `tests`, `commands`) và `ran` (lệnh thực chạy). Lần kiểm chứng theo bgraph so với mốc tác vụ trên đúng cây cuối là đủ cho
+cổng `done`; finalize không chạy thêm lần nào. Bản ghi cũ chọn bằng bộ chọn riêng cho Go trước đây (không có `source: bgraph`) chưa
+được coi là phủ trọn: finalize kiểm chứng lại một lần theo bgraph.
 
-**Bằng chứng.** `Verification` ghi `scope`, `selection` (`base`, `head` là mã cây, `changed` tối đa 200 tệp kèm cờ cắt,
-`widening`, test được chọn) và `ran` (lệnh thực chạy); payload `task.verified` có `scope`. state.json cũ không có `scope` = full.
+**Kiểm hẹp** (`bint task check`) chọn kể từ ảnh chụp cây của lần kiểm hẹp xanh trước (Bint giữ nó bằng ref `refs/bint/green/<id>`),
+lần đầu kể từ mốc tác vụ. **Cổng mục tiêu** chỉ chạy các đơn vị test chứa tệp đóng băng; bgraph không dựng được lệnh cho chúng
+(ví dụ kiểm tra viết bằng shell) thì dùng `workflow.verify.affected_command` trên danh sách tệp (`{test_files}`/`{test_dirs}`) nếu
+đặt, không thì `verify.command`.
 
-**Vẫn chạy đầy đủ trước khi xong.** Lần kiểm chứng một phần chỉ là bằng chứng trung gian:
-
-- cổng `done` không nhận lần kiểm chứng cuối có `scope` khác `full` (điều chặn mới, ép được bằng `--force` như các điều chặn
-  bằng chứng khác);
-- finalize tự chạy `verify.command` đầy đủ một lần trước `done`/`land` khi lần cuối chỉ là affected (ghi lý do vào lần kiểm
-  chứng). Nếu lần chạy đầy đủ này hỏng, tác vụ quay về bước sửa (`in_progress`, như vòng sửa sau review, chung ngân sách
-  `workflow.max_review_rounds`); hết vòng mới chặn chờ người;
-- `bint task verify` và cổng đỏ (`expect: fail`) luôn chạy đầy đủ.
+Lệnh bgraph dựng chỉ chạy khi `verify.command` của phiếu đã được người xác nhận (cùng luật như trước). Khoá cũ
+`workflow.verify.scope`, `workflow.verify.done` và `workflow.verify.suggested_affected_command` không còn dùng; cấu hình cũ vẫn nạp
+được và `bint init --update` nhắc xoá.
 
 **`bint test affected`** dùng cùng bộ chọn ngoài tác vụ (cho CI và người dùng):
 
 ```sh
-bint test affected --base origin/main            # in scope, base/head, tệp đổi, lý do nới, thư mục test
+bint test affected --base origin/main            # in scope, base, tệp đổi, lý do nới, thư mục test, lệnh
 bint test affected --base origin/main --json     # như trên dạng JSON (selection, command, ran, exit_code)
 bint test affected --base origin/main --run      # chạy luôn và thoát theo mã của lệnh test
 ```
 
 `--base` mặc định `HEAD` (chỉ thay đổi chưa commit và tệp chưa theo dõi); gốc so sánh là điểm tách của `--base` khỏi `HEAD`
-(`merge-base`). `--run` chạy `affected_command` ở tầng `graph`/`package`, `eval.test_command` ở tầng `full`, không chạy gì ở
-`none`; thiếu lệnh tương ứng thì báo lỗi. Với `--json`, đầu ra của lệnh test đi sang stderr.
+(`merge-base`). `--run` chạy lệnh bgraph dựng, `eval.test_command` khi bgraph đòi cả bộ, không chạy gì ở `none`. Với `--json`, đầu
+ra của lệnh test đi sang stderr. Chỉ mục của bgraph nằm trong thư mục trạng thái của Bint (`<state>/bgraph`), không ghi vào repo.
 
 #### Khoá `expect: fail` (cổng đỏ)
 
@@ -1677,15 +1668,15 @@ Chưa kiểm với service thật trên máy và Job Object trên Windows thật
 Chỉ áp dụng cho tác vụ B′ (`workflow.variant: bprime`, chốt lúc lập phiếu); luồng classic giữ nguyên (một lần kiểm chứng sau b-feat). Mục tiêu:
 kết quả kiểm chứng đầu tiên đến sớm trong ngân sách (đợt 6 của `reports/Luồng core Bint có lệch hướng.md`: kiểm chứng đầu tiên bắt đầu ở 78 % ngân sách).
 
-- **Kiểm hẹp theo mốc**: đề bài b-feat B′ dặn agent chạy `bint task check <id>` sau mỗi nhóm sửa (mỗi TSK). Lệnh chỉ chạy
-  `workflow.verify.affected_command` cho gói bị chạm so với mốc tác vụ; phạm vi `full` (go.mod, cấu hình...) thì **không** chạy toàn repo, báo "để kiểm nền lo".
+- **Kiểm hẹp theo mốc**: đề bài b-feat B′ dặn agent chạy `bint task check <id>` sau mỗi nhóm sửa (mỗi TSK). Lệnh chạy test bị ảnh hưởng
+  do bgraph chọn kể từ lần kiểm hẹp xanh trước (lần đầu: kể từ mốc tác vụ); bgraph đòi cả bộ thì chạy `verify.command` và ghi lý do.
   Kết quả ghi vào `state.checks` (log `check-N.log`), không tính vào cổng done. Cùng luật xác nhận lệnh như `bint task verify`; agent được gọi.
-  Cần `workflow.verify.affected_command` và `verify.command` đã xác nhận. Lệnh cũng in kiểm nền gần nhất.
-- **Kiểm toàn repo nền**: trong lúc b-feat chạy, Runner thăm `state.checks` mỗi 5 giây; kiểm hẹp xanh mới thì chạy `verify.command` đầy đủ trên ảnh chụp cây
-  của lần kiểm đó, trong worktree tạm dưới thư mục tạm (`bv/`). Tối đa một lần chạy một lúc; kiểm hẹp xanh mới hơn khi đang chạy thì chờ (gộp về cây mới nhất).
-  Kết quả ghi vào `state.background_verifications` (log `bg-N.log`).
-- **Sau b-feat**: kiểm nền xanh trên đúng cây cuối thì ghi làm lần kiểm chứng đầy đủ (không chạy lại tuần tự); đang chạy trên đúng cây cuối thì chờ; khác cây thì huỷ
-  và đi đường cũ (kiểm chứng affected rồi kiểm chứng đầy đủ ở finalize). Kết quả của lượt ghi chú "kết quả kiểm chứng đầu tiên ở N % ngân sách b-feat" (`workflow.timeout_minutes`).
+  Lệnh cũng in kiểm nền gần nhất.
+- **Kiểm nền**: trong lúc b-feat chạy, Runner thăm `state.checks` mỗi 5 giây; kiểm hẹp xanh mới thì chạy phần chọn của bgraph so với mốc tác vụ
+  trên ảnh chụp cây của lần kiểm đó, trong worktree tạm dưới thư mục tạm (`bv/`). Tối đa một lần chạy một lúc; kiểm hẹp xanh mới hơn khi đang chạy thì chờ
+  (gộp về cây mới nhất). Kết quả ghi vào `state.background_verifications` (log `bg-N.log`).
+- **Sau b-feat**: kiểm nền xanh trên đúng cây cuối thì ghi làm lần kiểm chứng của tác vụ (không chạy lại tuần tự); đang chạy trên đúng cây cuối thì chờ; khác cây
+  thì huỷ và kiểm chứng tuần tự. Kết quả của lượt ghi chú "kết quả kiểm chứng đầu tiên ở N % ngân sách b-feat" (`workflow.timeout_minutes`).
 - Giới hạn: tiến trình `bint` bị giết giữa lúc kiểm nền có thể để lại worktree tạm (`git worktree list`) và thư mục `bv/`; dọn bằng `git worktree prune`.
   TUI chưa hiển thị kiểm nền.
 

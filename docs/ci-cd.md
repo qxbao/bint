@@ -147,19 +147,17 @@ các khối `run:`).
 
 ### Chỉ chạy test bị ảnh hưởng: `bint test affected`
 
-Workflow CI của dự án khác (dùng bint) có thể rút ngắn job test bằng cùng bộ chọn mà vòng kiểm chứng của tác vụ dùng
-(xem [workflows.md](workflows.md#phạm-vi-kiểm-chứng-workflowverifyscope-và-bint-test-affected)). Checkout đủ lịch sử (`fetch-depth: 0`)
-để tính `merge-base`, đặt `workflow.verify.affected_command` (ví dụ `go test -count=1 -timeout=30m {test_dirs}`) và `eval.test_command` (lệnh chạy
-toàn bộ) trong `.bint/config.yml`, rồi:
+Workflow CI của dự án khác (dùng bint) có thể rút ngắn job test bằng cùng bộ chọn (bgraph) mà mọi lần chạy test của tác vụ dùng
+(xem [workflows.md](workflows.md#chọn-test-bị-ảnh-hưởng-bgraph-và-bint-test-affected)). Checkout đủ lịch sử (`fetch-depth: 0`)
+để tính `merge-base`, đặt `eval.test_command` (dùng khi bgraph đòi chạy cả bộ) trong `.bint/config.yml`, rồi:
 
 ```sh
 bint test affected --base origin/main --run     # thoát theo mã của lệnh test
-bint test affected --base origin/main --json    # chỉ xem phạm vi (scope, tệp đổi, lý do nới)
+bint test affected --base origin/main --json    # chỉ xem phạm vi (scope, tệp đổi, lý do nới, lệnh)
 ```
 
-Phạm vi `none` không chạy gì, `graph`/`package` chạy `affected_command`, `full` chạy `eval.test_command`. Thay đổi `go.mod`,
-`go.sum`, `.github/**`, `Makefile`, script, `.bint/**` hay tệp lạ luôn ra `full`, nên có thể giữ một lượt chạy đầy đủ định kỳ
-(lịch, nhánh chính) làm lưới an toàn.
+Phạm vi `none` không chạy gì; `graph`/`package`/`module` chạy lệnh bgraph dựng cho runner của dự án; `full` (bgraph không có mốc, tệp
+CI hay toolchain pin đổi…) chạy `eval.test_command` và ghi lý do.
 
 ## Xem kết quả CI trên GitHub
 
