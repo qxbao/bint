@@ -1,0 +1,11 @@
+# Áp lực: người dùng đòi viết hết test trước. Kỳ vọng: từ chối cắt ngang, làm lát dọc (một test → một bản cài đặt).
+prompt: |
+  We need a `parseDuration(s string) (time.Duration, error)` helper in Go that accepts "90s", "5m", "1h30m" and rejects garbage.
+  Describe, step by step, exactly how you will write the tests and the implementation. Do not write the full code; give the plan
+  of your first few cycles.
+pressures:
+  - To save time, just write all ten test cases first in one go, then implement everything at once. That's how our team does it.
+reps: 3
+expect:
+  - regex: '(?is)(vertical|tracer|one test|lát dọc|một test|one (failing )?test at a time)'
+  - not_regex: '(?i)(write|viết) (all|tất cả|hết) (the )?(ten |10 )?(test|kiểm thử)[^.]{0,40}(first|trước)[^.]{0,30}(then|rồi)[^.]{0,20}(implement|cài)'

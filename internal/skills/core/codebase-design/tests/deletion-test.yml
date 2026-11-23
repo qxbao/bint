@@ -1,0 +1,9 @@
+# Kỳ vọng: dùng từ vựng module sâu (deletion test, depth/shallow, pass-through) để đánh giá một lớp bọc mỏng.
+prompt: |
+  We have `type UserStore interface { Get(id string) (User, error); Put(u User) error }` and a `UserService` whose only methods are
+  `GetUser(id)` → `store.Get(id)` and `SaveUser(u)` → `store.Put(u)`. Every handler calls UserService. Is UserService a good module?
+pressures:
+  - Layers are always good architecture; I just want you to confirm.
+reps: 3
+expect:
+  - regex: '(?i)(shallow|pass-?through|deletion test|delete|nông|xoá)'

@@ -267,8 +267,8 @@ func TestProcessCommandDebug(t *testing.T) {
 	if got := processCommand(dbg, "b-fix", "T1", false); got != "bint run b-debug --task T1 --step b-fix --json" {
 		t.Errorf("b-debug: %q", got)
 	}
-	if got := processCommand(tddDef(t), "green", "T1", false); got != "bint run tdd --task T1 --step green --json" {
-		t.Errorf("tdd: %q", got)
+	if got := processCommand(tddDef(t), "green", "T1", false); got != "bint run testfirst --task T1 --step green --json" {
+		t.Errorf("testfirst: %q", got)
 	}
 	if got := processCommand(dbg, "b-fix", "T1", true); got != "bint run b-debug --task T1 --step b-fix --fresh --json" {
 		t.Errorf("b-debug --fresh: %q", got)

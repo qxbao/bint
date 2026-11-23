@@ -36,9 +36,9 @@ func TestKindHelpers(t *testing.T) {
 	if _, ok := req.FirstOfKind(KindReview); ok {
 		t.Error("b-req không có bước review")
 	}
-	tdd := mustDecode(t, tddYAML)
-	if s, _ := tdd.FirstOfKind(KindImplement); s.ID != "red" {
-		t.Errorf("bước implement đầu của tdd = %q, muốn red", s.ID)
+	testfirst := mustDecode(t, tddYAML)
+	if s, _ := testfirst.FirstOfKind(KindImplement); s.ID != "red" {
+		t.Errorf("bước implement đầu của testfirst = %q, muốn red", s.ID)
 	}
 }
 
@@ -66,22 +66,22 @@ func TestBuiltinStep(t *testing.T) {
 // Phát hiện review GĐ2 .1: skillExists=nil nghĩa là mọi skill tồn tại, nhưng không được suy ra "tên flow trùng tên skill".
 func TestValidateNilSkillExistsAcceptsCustomFlow(t *testing.T) {
 	d := mustDecode(t, tddYAML)
-	if errs := Validate(d, "tdd", nil); len(errs) != 0 {
-		t.Fatalf("Validate(tdd, nil) phải hợp lệ, được %v", errs)
+	if errs := Validate(d, "testfirst", nil); len(errs) != 0 {
+		t.Fatalf("Validate(testfirst, nil) phải hợp lệ, được %v", errs)
 	}
 	// Có skillExists thật mà tên flow trùng một skill thì vẫn bị báo.
-	errs := Validate(d, "tdd", skillSet("b-req", "b-feat", "b-review", "write-failing-test", "tdd"))
+	errs := Validate(d, "testfirst", skillSet("b-req", "b-feat", "b-review", "write-failing-test", "testfirst"))
 	if len(errs) != 1 || !strings.Contains(errs[0], "trùng tên một skill") {
 		t.Fatalf("tên trùng skill phải bị báo, được %v", errs)
 	}
 }
 
-// Phát hiện review GĐ2 .2: tdd.yml và tdd.yaml cùng có.
+// Phát hiện review GĐ2 .2: testfirst.yml và testfirst.yaml cùng có.
 func TestLoadYmlAndYamlSameName(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd.yaml", tddYAML)
-	writeFlow(t, root, "tdd.yml", tddYAML)
-	writeFlow(t, root, "abc.yml", strings.Replace(tddYAML, "name: tdd", "name: abc", 1))
+	writeFlow(t, root, "testfirst.yaml", tddYAML)
+	writeFlow(t, root, "testfirst.yml", tddYAML)
+	writeFlow(t, root, "abc.yml", strings.Replace(tddYAML, "name: testfirst", "name: abc", 1))
 
 	for range 3 { // thứ tự xác định, không phụ thuộc thứ tự thư mục
 		files, err := Load(root)
@@ -92,36 +92,36 @@ func TestLoadYmlAndYamlSameName(t *testing.T) {
 		for _, f := range files {
 			paths = append(paths, f.Path)
 		}
-		if got := strings.Join(paths, ","); got != ".bint/flows/abc.yml,.bint/flows/tdd.yml,.bint/flows/tdd.yaml" {
+		if got := strings.Join(paths, ","); got != ".bint/flows/abc.yml,.bint/flows/testfirst.yml,.bint/flows/testfirst.yaml" {
 			t.Fatalf("thứ tự Load: %s", got)
 		}
 		if files[1].Err != nil {
-			t.Errorf("tdd.yml: %v", files[1].Err)
+			t.Errorf("testfirst.yml: %v", files[1].Err)
 		}
-		if e := files[2].Err; e == nil || !strings.Contains(e.Error(), "trùng") || !strings.Contains(e.Error(), "tdd.yml") {
-			t.Errorf("tdd.yaml phải báo trùng với tdd.yml, được %v", e)
+		if e := files[2].Err; e == nil || !strings.Contains(e.Error(), "trùng") || !strings.Contains(e.Error(), "testfirst.yml") {
+			t.Errorf("testfirst.yaml phải báo trùng với testfirst.yml, được %v", e)
 		}
 	}
-	f, err := Find(root, "tdd")
-	if err != nil || f.Err != nil || f.Path != ".bint/flows/tdd.yml" || f.Def.Name != "tdd" {
-		t.Fatalf("Find(tdd) = %+v, %v; muốn bản .yml", f, err)
+	f, err := Find(root, "testfirst")
+	if err != nil || f.Err != nil || f.Path != ".bint/flows/testfirst.yml" || f.Def.Name != "testfirst" {
+		t.Fatalf("Find(testfirst) = %+v, %v; muốn bản .yml", f, err)
 	}
-	if d, err := Get(root, "tdd"); err != nil || d.Name != "tdd" {
-		t.Fatalf("Get(tdd) = %+v, %v; muốn bản .yml", d, err)
+	if d, err := Get(root, "testfirst"); err != nil || d.Name != "testfirst" {
+		t.Fatalf("Get(testfirst) = %+v, %v; muốn bản .yml", d, err)
 	}
 }
 
 func TestFind(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd.yml", tddYAML)
+	writeFlow(t, root, "testfirst.yml", tddYAML)
 	writeFlow(t, root, "hong.yml", "schema: [oops\n")
 	writeFlow(t, root, "cu.yaml", tddYAML)
 
 	if f, err := Find(root, "b-do"); err != nil || !f.Def.IsBuiltin() || f.Path != "" || f.Name != "b-do" {
 		t.Errorf("Find(b-do) = %+v, %v", f, err)
 	}
-	if f, err := Find(root, "tdd"); err != nil || f.Err != nil || f.Path != ".bint/flows/tdd.yml" {
-		t.Errorf("Find(tdd) = %+v, %v", f, err)
+	if f, err := Find(root, "testfirst"); err != nil || f.Err != nil || f.Path != ".bint/flows/testfirst.yml" {
+		t.Errorf("Find(testfirst) = %+v, %v", f, err)
 	}
 	// Tệp hỏng: Find trả tệp kèm Err riêng (không phải lỗi tra cứu), Get biến nó thành lỗi.
 	if f, err := Find(root, "hong"); err != nil || f.Err == nil || f.Path != ".bint/flows/hong.yml" {

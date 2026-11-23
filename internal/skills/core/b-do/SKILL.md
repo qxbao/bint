@@ -77,6 +77,7 @@ muốn bỏ b-req thì tự chạy `bint run b-do --task <id> --no-plan` trong t
 giữa lượt.
 
 <!-- bint:anchor routing -->
+Gợi ý: ý chưa chốt → `/grill-with-docs`; tìm refactor → `/improve-arch`; lỗi lặp → `/retro`.
 <!-- bint:anchor-end routing -->
 
 ## Luồng B′ (luồng mặc định của b-do)

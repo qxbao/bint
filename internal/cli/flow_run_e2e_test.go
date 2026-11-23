@@ -10,10 +10,10 @@ import (
 	"bint/internal/testutil"
 )
 
-// E2E GĐ4 của docs/custom-flow-plan.md: chạy flow tuỳ biến tdd (plan optional, red verify:false role test-writer, green,
+// E2E GĐ4 của docs/custom-flow-plan.md: chạy flow tuỳ biến testfirst (plan optional, red verify:false role test-writer, green,
 // review fix:green) bằng tiến trình bint thật với tác nhân giả. Tác nhân ghi bước nó chạy vào $STEPLOG để kiểm thứ tự.
 
-// tddAgent là tác nhân giả của flow tdd. Hành vi sai (plan ghi tệp, red ghi ngoài scope) bật bằng tệp cờ trong $FLAGS.
+// tddAgent là tác nhân giả của flow testfirst. Hành vi sai (plan ghi tệp, red ghi ngoài scope) bật bằng tệp cờ trong $FLAGS.
 const tddAgent = `set -e
 P="$(cat "$BINT_EVAL_PROMPT_FILE")"
 STEP="$(printf '%s' "$P" | sed -n 's/.*<bint-task id="[^"]*" step="\([^"]*\)".*/\1/p' | head -1)"
@@ -50,7 +50,7 @@ esac
 echo '{"type":"result","total_cost_usd":0.01,"num_turns":2,"result":"xong"}'
 `
 
-// tddRepo dựng repo có flow tdd, skill tuỳ biến write-failing-test và lệnh kiểm chứng đếm số lần chạy vào $VERIFYLOG.
+// tddRepo dựng repo có flow testfirst, skill tuỳ biến write-failing-test và lệnh kiểm chứng đếm số lần chạy vào $VERIFYLOG.
 func tddRepo(t *testing.T) (root string, env map[string]string) {
 	t.Helper()
 	testutil.Isolate(t)
@@ -83,8 +83,8 @@ func tddRepo(t *testing.T) (root string, env map[string]string) {
 		t.Fatal(err)
 	}
 	os.WriteFile(skill, append(b, []byte("\nVIẾT-KIỂM-THỬ-ĐỎ-TRƯỚC: tạo kiểm thử thất bại rồi dừng.\n")...), 0o644)
-	writeFlowE2E(t, root, "tdd.yml", e2eTDD)
-	if out, code := run(t, root, "", "flow", "lint", "tdd"); code != 0 {
+	writeFlowE2E(t, root, "testfirst.yml", e2eTDD)
+	if out, code := run(t, root, "", "flow", "lint", "testfirst"); code != 0 {
 		t.Fatalf("flow lint: %d\n%s", code, out)
 	}
 	script := filepath.Join(tmp, "agent.sh")
@@ -127,10 +127,10 @@ func showFlowTask(t *testing.T, root, id string) flowTask {
 
 func newFlowTask(t *testing.T, root string, args ...string) string {
 	t.Helper()
-	out, code := run(t, root, "", append([]string{"task", "new", "--json", "--workflow", "tdd"}, args...)...)
+	out, code := run(t, root, "", append([]string{"task", "new", "--json", "--workflow", "testfirst"}, args...)...)
 	var c struct{ ID string }
 	if code != 0 || json.Unmarshal([]byte(out), &c) != nil || c.ID == "" {
-		t.Fatalf("task new --workflow tdd: %d\n%s", code, out)
+		t.Fatalf("task new --workflow testfirst: %d\n%s", code, out)
 	}
 	return c.ID
 }
@@ -143,13 +143,13 @@ func TestFlowRunTDDEndToEnd(t *testing.T) {
 
 	id := newFlowTask(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 	s := showFlowTask(t, root, id)
-	if s.State.Workflow != "tdd" || !strings.HasPrefix(s.State.FlowSHA, "sha256:") {
+	if s.State.Workflow != "testfirst" || !strings.HasPrefix(s.State.FlowSHA, "sha256:") {
 		t.Fatalf("phiếu phải mang flow và băm: %+v", s.State)
 	}
 
-	out, code := run(t, root, "", "run", "tdd", "--task", id, "--agent-command", cmd)
+	out, code := run(t, root, "", "run", "testfirst", "--task", id, "--agent-command", cmd)
 	if code != 0 || !strings.Contains(out, ": done") {
-		t.Fatalf("run tdd: %d\n%s", code, out)
+		t.Fatalf("run testfirst: %d\n%s", code, out)
 	}
 	if got, want := strings.Join(readLines(t, env["STEPLOG"]), ","), "plan,red,green,review,green,review"; got != want {
 		t.Fatalf("thứ tự bước = %s, muốn %s\n%s", got, want, out)
@@ -165,12 +165,12 @@ func TestFlowRunTDDEndToEnd(t *testing.T) {
 	if out, code = run(t, root, "", "run", "status", id); code != 0 {
 		t.Fatalf("run status: %d\n%s", code, out)
 	}
-	for _, want := range []string{"tdd", "plan", "red", "green", "review"} {
+	for _, want := range []string{"testfirst", "plan", "red", "green", "review"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("run status thiếu %q:\n%s", want, out)
 		}
 	}
-	if out, code = run(t, root, "", "task", "show", id); code != 0 || !strings.Contains(out, "Workflow:   tdd") || !strings.Contains(out, "Bước flow:  review") {
+	if out, code = run(t, root, "", "task", "show", id); code != 0 || !strings.Contains(out, "Workflow:   testfirst") || !strings.Contains(out, "Bước flow:  review") {
 		t.Fatalf("task show phải hiện flow và bước flow: %d\n%s", code, out)
 	}
 	// Prompt của red chứa thân skill tuỳ biến; prompt của green là skill gốc b-feat.
@@ -190,7 +190,7 @@ func TestFlowRunReadOnlyAndScopeEndToEnd(t *testing.T) {
 
 	os.WriteFile(filepath.Join(env["FLAGS"], "plan-writes"), nil, 0o644)
 	id := newFlowTask(t, root, "--plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
-	out, code := run(t, root, "", "run", "tdd", "--task", id, "--agent-command", cmd)
+	out, code := run(t, root, "", "run", "testfirst", "--task", id, "--agent-command", cmd)
 	if code == 0 || !strings.Contains(out, "chỉ đọc") || !strings.Contains(out, "plan-wrote.txt") {
 		t.Fatalf("plan ghi tệp phải blocked vì chỉ đọc: %d\n%s", code, out)
 	}
@@ -203,7 +203,7 @@ func TestFlowRunReadOnlyAndScopeEndToEnd(t *testing.T) {
 	os.Remove(filepath.Join(env["FLAGS"], "plan-writes"))
 	os.WriteFile(filepath.Join(env["FLAGS"], "red-outside"), nil, 0o644)
 	id = newFlowTask(t, root, "--no-plan", "--deny", "secret/**", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
-	out, code = run(t, root, "", "run", "tdd", "--task", id, "--agent-command", cmd)
+	out, code = run(t, root, "", "run", "testfirst", "--task", id, "--agent-command", cmd)
 	if code == 0 || !strings.Contains(out, "secret/leak.txt") {
 		t.Fatalf("red sửa ngoài scope phải blocked: %d\n%s", code, out)
 	}
@@ -225,26 +225,26 @@ func TestFlowRunChangedFlowBlocksEndToEnd(t *testing.T) {
 	cmd := agentCmd(env)
 	id := newFlowTask(t, root, "--no-plan", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 
-	writeFlowE2E(t, root, "tdd.yml", strings.Replace(e2eTDD, "verify: false", "verify: true", 1))
-	out, code := run(t, root, "", "run", "tdd", "--task", id, "--agent-command", cmd)
-	if code == 0 || !strings.Contains(out, "flow tdd đã đổi từ lúc lập phiếu") {
+	writeFlowE2E(t, root, "testfirst.yml", strings.Replace(e2eTDD, "verify: false", "verify: true", 1))
+	out, code := run(t, root, "", "run", "testfirst", "--task", id, "--agent-command", cmd)
+	if code == 0 || !strings.Contains(out, "flow testfirst đã đổi từ lúc lập phiếu") {
 		t.Fatalf("flow đổi phải blocked: %d\n%s", code, out)
 	}
 	s := showFlowTask(t, root, id)
-	if s.State.Status != "blocked" || !strings.Contains(s.State.Reason, ".bint/flows/tdd.yml") {
+	if s.State.Status != "blocked" || !strings.Contains(s.State.Reason, ".bint/flows/testfirst.yml") {
 		t.Fatalf("trạng thái: %+v", s.State)
 	}
 	if len(readLines(t, env["STEPLOG"])) != 0 {
 		t.Fatal("không bước nào được chạy khi flow đổi")
 	}
-	if out, code = run(t, root, "", "run", "resume", id, "--agent-command", cmd); code == 0 || !strings.Contains(out, "flow tdd đã đổi") {
+	if out, code = run(t, root, "", "run", "resume", id, "--agent-command", cmd); code == 0 || !strings.Contains(out, "flow testfirst đã đổi") {
 		t.Fatalf("resume phải blocked: %d\n%s", code, out)
 	}
-	if out, code = run(t, root, "", "run", "tdd", "--task", id, "--agent-command", cmd); code == 0 || !strings.Contains(out, "flow tdd đã đổi") {
+	if out, code = run(t, root, "", "run", "testfirst", "--task", id, "--agent-command", cmd); code == 0 || !strings.Contains(out, "flow testfirst đã đổi") {
 		t.Fatalf("run --task phải blocked: %d\n%s", code, out)
 	}
 
-	writeFlowE2E(t, root, "tdd.yml", e2eTDD)
+	writeFlowE2E(t, root, "testfirst.yml", e2eTDD)
 	if out, code = run(t, root, "", "run", "resume", id, "--agent-command", cmd); code != 0 || !strings.Contains(out, ": done") {
 		t.Fatalf("resume sau khi khôi phục flow: %d\n%s", code, out)
 	}
@@ -258,9 +258,9 @@ func TestFlowRunNewTaskAndStepEndToEnd(t *testing.T) {
 	root, env := tddRepo(t)
 	cmd := agentCmd(env)
 
-	out, code := run(t, root, "", "run", "tdd", "--no-plan", "--agent-command", cmd, "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
+	out, code := run(t, root, "", "run", "testfirst", "--no-plan", "--agent-command", cmd, "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 	if code != 0 || !strings.Contains(out, ": done") {
-		t.Fatalf("run tdd tự lập phiếu: %d\n%s", code, out)
+		t.Fatalf("run testfirst tự lập phiếu: %d\n%s", code, out)
 	}
 	if got := strings.Join(readLines(t, env["STEPLOG"]), ","); got != "red,green,review,green,review" {
 		t.Fatalf("thứ tự = %s", got)
@@ -270,17 +270,17 @@ func TestFlowRunNewTaskAndStepEndToEnd(t *testing.T) {
 		t.Fatalf("flow lạ phải lỗi: %d\n%s", code, out)
 	}
 	id := newFlowTask(t, root, "--no-plan", "--criteria", "app.txt chứa v2", "Việc khác cho app.txt")
-	if out, code = run(t, root, "", "run", "tdd", "--step", "red", "--agent-command", cmd, "Việc"); code != 2 {
+	if out, code = run(t, root, "", "run", "testfirst", "--step", "red", "--agent-command", cmd, "Việc"); code != 2 {
 		t.Fatalf("--step không có --task phải là lỗi dùng sai (mã 2): %d\n%s", code, out)
 	}
 	if out, code = run(t, root, "", "run", "b-feat", "--task", id, "--step", "red"); code != 2 {
 		t.Fatalf("--step với workflow gốc phải mã 2: %d\n%s", code, out)
 	}
-	if out, code = run(t, root, "", "run", "tdd", "--task", id, "--step", "green", "--agent-command", cmd); code == 0 || !strings.Contains(out, "bước kế tiếp") {
+	if out, code = run(t, root, "", "run", "testfirst", "--task", id, "--step", "green", "--agent-command", cmd); code == 0 || !strings.Contains(out, "bước kế tiếp") {
 		t.Fatalf("--step không phải bước kế tiếp phải bị từ chối: %d\n%s", code, out)
 	}
 	os.Remove(env["STEPLOG"])
-	if out, code = run(t, root, "", "run", "tdd", "--task", id, "--step", "red", "--agent-command", cmd); code != 0 {
+	if out, code = run(t, root, "", "run", "testfirst", "--task", id, "--step", "red", "--agent-command", cmd); code != 0 {
 		t.Fatalf("--step red: %d\n%s", code, out)
 	}
 	if got := strings.Join(readLines(t, env["STEPLOG"]), ","); got != "red" {
@@ -307,7 +307,7 @@ func sessM(t *testing.T, dir string, args ...string) (sessActModel, int, string)
 	return a, code, out
 }
 
-// Driver session trên flow tdd: step/subagent/readonly/model từng bước, vòng sửa về green, kiểm chứng đúng số lần, done.
+// Driver session trên flow testfirst: step/subagent/readonly/model từng bước, vòng sửa về green, kiểm chứng đúng số lần, done.
 func TestFlowSessionTDDEndToEnd(t *testing.T) {
 	root, env := tddRepo(t)
 	asAgent(t) // phiên orchestrator: không BINT_RUN_ID
@@ -411,23 +411,23 @@ func TestFlowSessionProcessStepAndChangedFlowEndToEnd(t *testing.T) {
 	id := newFlowTask(t, root, "--no-plan", "--shared", "--driver", "session", "--criteria", "app.txt chứa v2", "Thêm tính năng v2 cho app.txt")
 
 	// Flow đổi trước khi mở bước nào ⇒ blocked, không bước nào được mở.
-	writeFlowE2E(t, root, "tdd.yml", strings.Replace(e2eTDD, "verify: false", "verify: true", 1))
+	writeFlowE2E(t, root, "testfirst.yml", strings.Replace(e2eTDD, "verify: false", "verify: true", 1))
 	a, code, out := sessM(t, root, "next", id, "--json")
-	if code != 1 || a.Action != "blocked" || !strings.Contains(a.Reason, "flow tdd đã đổi từ lúc lập phiếu") || a.RunID != "" {
+	if code != 1 || a.Action != "blocked" || !strings.Contains(a.Reason, "flow testfirst đã đổi từ lúc lập phiếu") || a.RunID != "" {
 		t.Fatalf("flow đổi phải blocked: %d\n%s", code, out)
 	}
 	if a, code, out = sessM(t, root, "next", id, "--resume", "--json"); code != 1 || a.Action != "blocked" {
 		t.Fatalf("next --resume khi flow còn lệch phải blocked: %d\n%s", code, out)
 	}
-	writeFlowE2E(t, root, "tdd.yml", e2eTDD)
+	writeFlowE2E(t, root, "testfirst.yml", e2eTDD)
 
 	a, code, out = sessM(t, root, "next", id, "--resume", "--json")
-	want := "bint run tdd --task " + id + " --step red --json"
+	want := "bint run testfirst --task " + id + " --step red --json"
 	if code != 0 || a.Action != "process" || a.Step != "red" || a.Command != want {
 		t.Fatalf("role test-writer=codex phải trả process --step red: %d\n%s", code, out)
 	}
 	// Chạy lệnh process (thêm tác nhân giả), rồi next trả bước kế tiếp (green, role implementer ⇒ claude ⇒ agent).
-	if out, code = run(t, root, "", "run", "tdd", "--task", id, "--step", "red", "--agent-command", agentCmd(env)); code != 0 {
+	if out, code = run(t, root, "", "run", "testfirst", "--task", id, "--step", "red", "--agent-command", agentCmd(env)); code != 0 {
 		t.Fatalf("chạy lệnh process: %d\n%s", code, out)
 	}
 	if got := strings.Join(readLines(t, env["STEPLOG"]), ","); got != "red" {

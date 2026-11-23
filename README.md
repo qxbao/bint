@@ -157,7 +157,10 @@ bint evolve cycle --budget 20         # đề xuất → đối chiếu validati
 ```
 
 Trong phiên của harness có hỗ trợ skill, gọi trực tiếp `/b-bootstrap`, `/b-knowledge`, `/b-req`,
-`/b-feat`, `/b-review`, `/b-do`, `/b-add-skill`, `/b-add-flow` (cùng `/<tên>` cho mỗi flow tuỳ biến). Toàn bộ lệnh, mã thoát và phím tắt: [docs/usage.md](docs/usage.md).
+`/b-feat`, `/b-review`, `/b-do`, `/b-add-skill`, `/b-add-flow` (cùng `/<tên>` cho mỗi flow tuỳ biến), và các skill kỷ luật nhập từ
+mattpocock/skills và pstack: `/grill-with-docs`, `/improve-arch`, `/retro`, `/handoff`, `/create-verification-skill`, `/maintain-verification-skill`
+(người gọi), `grilling`, `domain-modeling`, `codebase-design`, `tdd`, `diagnosing-bugs`, `writing-for-agents`, `principles` (agent tự gọi;
+[ADR 0001](docs/adr/0001-mattpocock-skills.md)). Toàn bộ lệnh, mã thoát và phím tắt: [docs/usage.md](docs/usage.md).
 
 ## Giao diện terminal (TUI)
 

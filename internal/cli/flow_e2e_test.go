@@ -12,7 +12,7 @@ import (
 
 const e2eTDD = `# flow mẫu của kế hoạch
 schema: 1
-name: tdd
+name: testfirst
 description: "Dùng khi muốn viết kiểm thử đỏ trước khi sửa mã"
 steps:
   - {id: plan,   kind: plan,      skill: b-req, optional: true}
@@ -57,24 +57,24 @@ func TestFlowCommandsEndToEnd(t *testing.T) {
 		t.Fatalf("flow lint b-do: %d\n%s", code, out)
 	}
 
-	// tdd chưa có skill write-failing-test → thoát 1 và nêu skill.
-	writeFlowE2E(t, root, "tdd.yml", e2eTDD)
-	if out, code = run(t, root, "", "flow", "lint", "tdd"); code != 1 || !strings.Contains(out, "write-failing-test") {
-		t.Fatalf("flow lint tdd thiếu skill: %d\n%s", code, out)
+	// testfirst chưa có skill write-failing-test → thoát 1 và nêu skill.
+	writeFlowE2E(t, root, "testfirst.yml", e2eTDD)
+	if out, code = run(t, root, "", "flow", "lint", "testfirst"); code != 1 || !strings.Contains(out, "write-failing-test") {
+		t.Fatalf("flow lint testfirst thiếu skill: %d\n%s", code, out)
 	}
 
 	// Tạo skill tuỳ biến bằng bint skill new → flow mẫu thoát 0.
 	if out, code = run(t, root, "", "skill", "new", "write-failing-test"); code != 0 {
 		t.Fatalf("skill new: %d\n%s", code, out)
 	}
-	if out, code = run(t, root, "", "flow", "lint", "tdd"); code != 0 || !strings.Contains(out, "✓ .bint/flows/tdd.yml") {
-		t.Fatalf("flow lint tdd: %d\n%s", code, out)
+	if out, code = run(t, root, "", "flow", "lint", "testfirst"); code != 0 || !strings.Contains(out, "✓ .bint/flows/testfirst.yml") {
+		t.Fatalf("flow lint testfirst: %d\n%s", code, out)
 	}
 	if out, code = run(t, root, "", "flow", "lint"); code != 0 {
 		t.Fatalf("flow lint (tất cả): %d\n%s", code, out)
 	}
 
-	// list: năm flow nhúng + tdd, ở dạng JSON.
+	// list: năm flow nhúng + testfirst, ở dạng JSON.
 	out, _ = run(t, root, "", "flow", "list", "--json")
 	var rows []struct {
 		Name, Source, Path string
@@ -84,14 +84,14 @@ func TestFlowCommandsEndToEnd(t *testing.T) {
 	if json.Unmarshal([]byte(out), &rows) != nil || len(rows) != 6 {
 		t.Fatalf("flow list --json: %s", out)
 	}
-	if last := rows[5]; last.Name != "tdd" || last.Source != "custom" || last.Steps != 4 || !last.OK || last.Path != ".bint/flows/tdd.yml" {
-		t.Fatalf("dòng tdd: %+v", last)
+	if last := rows[5]; last.Name != "testfirst" || last.Source != "custom" || last.Steps != 4 || !last.OK || last.Path != ".bint/flows/testfirst.yml" {
+		t.Fatalf("dòng testfirst: %+v", last)
 	}
-	if out, _ = run(t, root, "", "flow", "list"); !strings.Contains(out, "tdd") || !strings.Contains(out, "Dùng khi muốn viết kiểm thử đỏ") {
-		t.Fatalf("flow list thiếu tdd:\n%s", out)
+	if out, _ = run(t, root, "", "flow", "list"); !strings.Contains(out, "testfirst") || !strings.Contains(out, "Dùng khi muốn viết kiểm thử đỏ") {
+		t.Fatalf("flow list thiếu testfirst:\n%s", out)
 	}
 
-	// show: b-do in ba bước, tdd in bốn bước đã điền role mặc định.
+	// show: b-do in ba bước, testfirst in bốn bước đã điền role mặc định.
 	out, code = run(t, root, "", "flow", "show", "b-do")
 	if code != 0 {
 		t.Fatalf("flow show b-do: %d\n%s", code, out)
@@ -101,21 +101,21 @@ func TestFlowCommandsEndToEnd(t *testing.T) {
 			t.Errorf("flow show b-do thiếu %q:\n%s", want, out)
 		}
 	}
-	out, code = run(t, root, "", "flow", "show", "tdd")
+	out, code = run(t, root, "", "flow", "show", "testfirst")
 	if code != 0 {
-		t.Fatalf("flow show tdd: %d\n%s", code, out)
+		t.Fatalf("flow show testfirst: %d\n%s", code, out)
 	}
-	for _, want := range []string{".bint/flows/tdd.yml", "id: plan", "id: red", "id: green", "id: review", "role: test-writer", "role: reviewer", "verify: false", "sha256:"} {
+	for _, want := range []string{".bint/flows/testfirst.yml", "id: plan", "id: red", "id: green", "id: review", "role: test-writer", "role: reviewer", "verify: false", "sha256:"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("flow show tdd thiếu %q:\n%s", want, out)
+			t.Errorf("flow show testfirst thiếu %q:\n%s", want, out)
 		}
 	}
-	out, _ = run(t, root, "", "flow", "show", "tdd", "--json")
+	out, _ = run(t, root, "", "flow", "show", "testfirst", "--json")
 	var shown struct {
 		Name, Hash string
 		Definition struct{ Steps []struct{ ID, Role string } }
 	}
-	if json.Unmarshal([]byte(out), &shown) != nil || shown.Name != "tdd" || len(shown.Definition.Steps) != 4 || shown.Definition.Steps[0].Role != "planner" {
+	if json.Unmarshal([]byte(out), &shown) != nil || shown.Name != "testfirst" || len(shown.Definition.Steps) != 4 || shown.Definition.Steps[0].Role != "planner" {
 		t.Fatalf("flow show --json: %s", out)
 	}
 	if _, code = run(t, root, "", "flow", "show", "khong-co"); code == 0 {
@@ -129,10 +129,10 @@ func TestFlowCommandsEndToEnd(t *testing.T) {
 		"saithutu":   {"schema: 1\nname: saithutu\nsteps:\n  - {id: a, kind: review, skill: b-review}\n  - {id: b, kind: implement, skill: b-feat}\n", "plan → implement → review"},
 		"thieuimpl":  {"schema: 1\nname: thieuimpl\nsteps:\n  - {id: a, kind: plan, skill: b-req}\n", "thiếu bước implement"},
 		"fixsai":     {strings.Replace(e2eTDD, "fix: green", "fix: plan", 1), "fix"},
-		"b-do":       {strings.Replace(e2eTDD, "name: tdd", "name: b-do", 1), "trùng workflow gốc"},
+		"b-do":       {strings.Replace(e2eTDD, "name: testfirst", "name: b-do", 1), "trùng workflow gốc"},
 		"khongskill": {strings.Replace(e2eTDD, "write-failing-test", "khong-co-skill", 1), "khong-co-skill"},
 	} {
-		writeFlowE2E(t, root, name+".yml", strings.Replace(c.yaml, "name: tdd", "name: "+name, 1))
+		writeFlowE2E(t, root, name+".yml", strings.Replace(c.yaml, "name: testfirst", "name: "+name, 1))
 		out, code = run(t, root, "", "flow", "lint", name)
 		if code != 1 || !strings.Contains(out, c.want) {
 			t.Errorf("flow %s: thoát %d, muốn 1 kèm %q:\n%s", name, code, c.want, out)
@@ -140,7 +140,7 @@ func TestFlowCommandsEndToEnd(t *testing.T) {
 	}
 	// Lint không tên: một flow hỏng làm cả lệnh thoát 1 nhưng vẫn in flow tốt.
 	out, code = run(t, root, "", "flow", "lint")
-	if code != 1 || !strings.Contains(out, "✓ .bint/flows/tdd.yml") {
+	if code != 1 || !strings.Contains(out, "✓ .bint/flows/testfirst.yml") {
 		t.Fatalf("flow lint tất cả: %d\n%s", code, out)
 	}
 }

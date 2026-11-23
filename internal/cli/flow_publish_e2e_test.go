@@ -16,22 +16,22 @@ func TestSyncPublishesAndRemovesFlowSkillEndToEnd(t *testing.T) {
 	if out, code := run(t, root, "", "init", "--no-hooks"); code != 0 {
 		t.Fatalf("init: %d\n%s", code, out)
 	}
-	// tdd dùng skill tuỳ biến write-failing-test nên cần skill đó trước.
+	// testfirst dùng skill tuỳ biến write-failing-test nên cần skill đó trước.
 	if out, code := run(t, root, "", "skill", "new", "write-failing-test"); code != 0 {
 		t.Fatalf("skill new: %d\n%s", code, out)
 	}
-	writeFlowE2E(t, root, "tdd.yml", e2eTDD)
-	claude := filepath.Join(root, ".claude", "skills", "tdd", "SKILL.md")
-	agents := filepath.Join(root, ".agents", "skills", "tdd", "SKILL.md")
+	writeFlowE2E(t, root, "testfirst.yml", e2eTDD)
+	claude := filepath.Join(root, ".claude", "skills", "testfirst", "SKILL.md")
+	agents := filepath.Join(root, ".agents", "skills", "testfirst", "SKILL.md")
 
-	if out, code := run(t, root, "", "sync"); code != 0 || !strings.Contains(out, ".claude/skills/tdd/SKILL.md") {
+	if out, code := run(t, root, "", "sync"); code != 0 || !strings.Contains(out, ".claude/skills/testfirst/SKILL.md") {
 		t.Fatalf("sync: %d\n%s", code, out)
 	}
 	b, err := os.ReadFile(claude)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"disable-model-invocation: true", "bint task new", "--workflow tdd", "bint run tdd --task", "| red | implement | write-failing-test | test-writer |"} {
+	for _, want := range []string{"disable-model-invocation: true", "bint task new", "--workflow testfirst", "bint run testfirst --task", "| red | implement | write-failing-test | test-writer |"} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("skill điều phối thiếu %q", want)
 		}
@@ -39,7 +39,7 @@ func TestSyncPublishesAndRemovesFlowSkillEndToEnd(t *testing.T) {
 	if a, err := os.ReadFile(agents); err != nil || strings.Contains(string(a), "disable-model-invocation") {
 		t.Fatalf("bản .agents: %v\n%s", err, a)
 	}
-	if lock, _ := os.ReadFile(filepath.Join(root, ".bint", "skills", "core.lock")); !strings.Contains(string(lock), "flows:") || !strings.Contains(string(lock), ".claude/skills/tdd/SKILL.md") {
+	if lock, _ := os.ReadFile(filepath.Join(root, ".bint", "skills", "core.lock")); !strings.Contains(string(lock), "flows:") || !strings.Contains(string(lock), ".claude/skills/testfirst/SKILL.md") {
 		t.Fatalf("core.lock thiếu mục flows:\n%s", lock)
 	}
 
@@ -56,7 +56,7 @@ func TestSyncPublishesAndRemovesFlowSkillEndToEnd(t *testing.T) {
 	}
 
 	// Xoá flow: skill điều phối được gỡ, mục lock biến mất.
-	if err := os.Remove(filepath.Join(root, ".bint", "flows", "tdd.yml")); err != nil {
+	if err := os.Remove(filepath.Join(root, ".bint", "flows", "testfirst.yml")); err != nil {
 		t.Fatal(err)
 	}
 	if out, code := run(t, root, "", "sync"); code != 0 {

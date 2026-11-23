@@ -20,7 +20,7 @@ import (
 // không cần skill tuỳ biến; id bước chỉ gồm chữ thường và gạch ngang (stepRe của agent giả).
 
 const tddFlow = `schema: 1
-name: tdd
+name: testfirst
 steps:
   - {id: plan,   kind: plan,      skill: b-req, optional: true}
   - {id: red,    kind: implement, skill: b-feat, role: test-writer, verify: false}
@@ -104,7 +104,7 @@ func TestPickStepFourStepFlow(t *testing.T) {
 			if c.noPlan != nil {
 				tk.State.Classification = &task.Classification{Plan: *c.noPlan}
 			}
-			rs := &runState{opts: RunOptions{Workflow: "tdd", NoReview: c.noReview}, flow: fd, t: tk, ran: map[string]int{}}
+			rs := &runState{opts: RunOptions{Workflow: "testfirst", NoReview: c.noReview}, flow: fd, t: tk, ran: map[string]int{}}
 			step, fin := rs.pickStep()
 			if step != c.want || fin != c.finalize {
 				t.Fatalf("pickStep = (%q, %v), muốn (%q, %v)", step, fin, c.want, c.finalize)
@@ -117,12 +117,12 @@ func TestPickStepFourStepFlow(t *testing.T) {
 // kiểm sau mỗi bước implement; vòng sửa về đúng bước fix (green), không về red.
 func TestRunCustomFlowOrderVerifyAndFix(t *testing.T) {
 	h := newHarness(t)
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	h.behave = h.tddBehave(1)
 	r := h.runner()
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(true)})
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(true)})
 	if err != nil || res.Status != task.StatusDone {
-		t.Fatalf("run tdd: %+v %v", res, err)
+		t.Fatalf("run testfirst: %+v %v", res, err)
 	}
 	if got, want := strings.Join(h.calls, ","), "plan,red,green,review,green,review"; got != want {
 		t.Fatalf("thứ tự bước = %s, muốn %s", got, want)
@@ -131,7 +131,7 @@ func TestRunCustomFlowOrderVerifyAndFix(t *testing.T) {
 	if n := len(tk.State.Verifications); n != 2 {
 		t.Fatalf("kiểm chứng %d lần, muốn 2 (sau mỗi green, không sau red)", n)
 	}
-	if tk.State.Workflow != "tdd" || tk.State.FlowSHA != flow.Hash(tddDef(t)) {
+	if tk.State.Workflow != "testfirst" || tk.State.FlowSHA != flow.Hash(tddDef(t)) {
 		t.Fatalf("phiếu phải mang flow và băm: %q %q", tk.State.Workflow, tk.State.FlowSHA)
 	}
 	// Chỉ đọc theo kind của bước trong flow: plan và review chỉ đọc, red/green ghi được.
@@ -157,12 +157,12 @@ func TestRunCustomFlowOrderVerifyAndFix(t *testing.T) {
 // Review .2 của GĐ3: vòng sửa về đúng bước Step.Fix, rồi chạy tiếp các bước sau nó. Fix = red quay về red rồi green.
 func TestReviewFixReturnsToFixStepThenContinues(t *testing.T) {
 	h := newHarness(t)
-	h.writeFlow("tdd", strings.Replace(tddFlow, "fix: green", "fix: red", 1))
+	h.writeFlow("testfirst", strings.Replace(tddFlow, "fix: green", "fix: red", 1))
 	h.behave = h.tddBehave(1)
 	r := h.runner()
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false)})
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false)})
 	if err != nil || res.Status != task.StatusDone {
-		t.Fatalf("run tdd: %+v %v", res, err)
+		t.Fatalf("run testfirst: %+v %v", res, err)
 	}
 	if got, want := strings.Join(h.calls, ","), "red,green,review,red,green,review"; got != want {
 		t.Fatalf("thứ tự bước = %s, muốn %s", got, want)
@@ -172,12 +172,12 @@ func TestReviewFixReturnsToFixStepThenContinues(t *testing.T) {
 // Review không khai báo fix ⇒ vòng sửa về bước implement cuối (flow nhiều bước vẫn áp quyết định).
 func TestReviewWithoutFixReturnsToLastImplement(t *testing.T) {
 	h := newHarness(t)
-	h.writeFlow("tdd", strings.Replace(tddFlow, ", fix: green", "", 1))
+	h.writeFlow("testfirst", strings.Replace(tddFlow, ", fix: green", "", 1))
 	h.behave = h.tddBehave(1)
 	r := h.runner()
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false)})
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false)})
 	if err != nil || res.Status != task.StatusDone {
-		t.Fatalf("run tdd: %+v %v", res, err)
+		t.Fatalf("run testfirst: %+v %v", res, err)
 	}
 	if got, want := strings.Join(h.calls, ","), "red,green,review,green,review"; got != want {
 		t.Fatalf("thứ tự bước = %s, muốn %s", got, want)
@@ -188,12 +188,12 @@ func TestReviewWithoutFixReturnsToLastImplement(t *testing.T) {
 func TestReviewRoundsExhaustedBlocks(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Workflow.MaxReviewRounds = 1
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	h.behave = h.tddBehave(10)
 	r := h.runner()
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false)})
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false)})
 	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "max_review_rounds") {
-		t.Fatalf("run tdd: %+v %v", res, err)
+		t.Fatalf("run testfirst: %+v %v", res, err)
 	}
 }
 
@@ -261,7 +261,7 @@ func TestMaxReviewRoundsBlocksWhenFixRoundsExceeded(t *testing.T) {
 // chạy; kiểm chứng không chạy sau bước bị chặn.
 func TestCustomFlowScopeCheckedAfterEachImplement(t *testing.T) {
 	h := newHarness(t)
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	inner := h.tddBehave(0)
 	h.behave = func(ctx context.Context, step string, e *Env, id string) error {
 		if step == "red" {
@@ -271,10 +271,10 @@ func TestCustomFlowScopeCheckedAfterEachImplement(t *testing.T) {
 	}
 	r := h.runner()
 	r.Confirm = nil
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false),
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false),
 		Edit: TicketEdit{Deny: []string{"outside/**"}}})
 	if err != nil || res.Status != task.StatusBlocked {
-		t.Fatalf("run tdd: %+v %v", res, err)
+		t.Fatalf("run testfirst: %+v %v", res, err)
 	}
 	if strings.Join(h.calls, ",") != "red" {
 		t.Fatalf("green không được chạy sau red bị chặn: %v", h.calls)
@@ -288,7 +288,7 @@ func TestCustomFlowScopeCheckedAfterEachImplement(t *testing.T) {
 // vẫn được kiểm chứng.
 func TestVerifyBeforeReviewEvenWhenLastImplementOptsOut(t *testing.T) {
 	h := newHarness(t)
-	rv := flow.Def{Schema: 1, Name: "tdd", Steps: []flow.Step{
+	rv := flow.Def{Schema: 1, Name: "testfirst", Steps: []flow.Step{
 		{ID: "red", Kind: flow.KindImplement, Skill: "b-feat", Verify: ptr(false)},
 		{ID: "green", Kind: flow.KindImplement, Skill: "b-feat", Verify: ptr(false)},
 		{ID: "review", Kind: flow.KindReview, Skill: "b-review"}}}
@@ -311,7 +311,7 @@ func TestVerifyBeforeReviewEvenWhenLastImplementOptsOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	loaded := loadTask(t, h, tk.State.ID)
-	rs = &runState{opts: RunOptions{Workflow: "tdd"}, flow: rv, t: loaded, runID: "r1", res: &Result{Steps: []StepResult{}}, ran: map[string]int{}}
+	rs = &runState{opts: RunOptions{Workflow: "testfirst"}, flow: rv, t: loaded, runID: "r1", res: &Result{Steps: []StepResult{}}, ran: map[string]int{}}
 	if !r.afterStep(context.Background(), rs, "green") {
 		t.Fatalf("afterStep dừng: %+v", rs.res)
 	}
@@ -402,10 +402,10 @@ func mustFlow(t *testing.T, y string) flow.Def {
 // flow thì resume chạy tiếp. Flow bị xoá cũng blocked.
 func TestChangedFlowBlocksRunAndResume(t *testing.T) {
 	h := newHarness(t)
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	h.behave = h.tddBehave(0)
 	r := h.runner()
-	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Thêm tính năng phiên bản v2 cho app.txt", Workflow: "tdd", Plan: ptr(false)})
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Thêm tính năng phiên bản v2 cho app.txt", Workflow: "testfirst", Plan: ptr(false)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,29 +413,29 @@ func TestChangedFlowBlocksRunAndResume(t *testing.T) {
 	if tk.State.FlowSHA == "" {
 		t.Fatal("phiếu flow tuỳ biến phải có FlowSHA")
 	}
-	h.writeFlow("tdd", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id})
-	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "flow tdd đã đổi từ lúc lập phiếu") ||
-		!strings.Contains(res.Reason, ".bint/flows/tdd.yml") {
+	h.writeFlow("testfirst", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id})
+	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "flow testfirst đã đổi từ lúc lập phiếu") ||
+		!strings.Contains(res.Reason, ".bint/flows/testfirst.yml") {
 		t.Fatalf("flow đổi phải blocked: %+v %v", res, err)
 	}
 	if len(h.calls) != 0 {
 		t.Fatalf("không bước nào được chạy: %v", h.calls)
 	}
-	res, err = r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id, Resume: true})
+	res, err = r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id, Resume: true})
 	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "đã đổi") || len(h.calls) != 0 {
 		t.Fatalf("resume khi flow còn lệch: %+v %v", res, err)
 	}
 	// Flow bị xoá.
-	if err := os.Remove(filepath.Join(h.root, ".bint", "flows", "tdd.yml")); err != nil {
+	if err := os.Remove(filepath.Join(h.root, ".bint", "flows", "testfirst.yml")); err != nil {
 		t.Fatal(err)
 	}
-	res, err = r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id, Resume: true})
+	res, err = r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id, Resume: true})
 	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "không còn dùng được") {
 		t.Fatalf("flow bị xoá: %+v %v", res, err)
 	}
-	h.writeFlow("tdd", tddFlow)
-	res, err = r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id, Resume: true})
+	h.writeFlow("testfirst", tddFlow)
+	res, err = r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id, Resume: true})
 	if err != nil || res.Status != task.StatusDone {
 		t.Fatalf("resume sau khi khôi phục: %+v %v", res, err)
 	}
@@ -447,15 +447,15 @@ func TestChangedFlowBlocksRunAndResume(t *testing.T) {
 // Driver session: flow đổi ⇒ next blocked (không mở bước); khôi phục rồi next --resume mở bước đầu.
 func TestSessionNextBlocksWhenFlowChanged(t *testing.T) {
 	h := newHarness(t)
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	r := h.runner()
-	tk := h.newSession(r, NewTaskOptions{Workflow: "tdd", Plan: ptr(false)})
-	h.writeFlow("tdd", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
+	tk := h.newSession(r, NewTaskOptions{Workflow: "testfirst", Plan: ptr(false)})
+	h.writeFlow("testfirst", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
 	act, err := r.Next(context.Background(), NextOptions{TaskRef: tk.State.ID})
-	if err != nil || act.Action != ActionBlocked || !strings.Contains(act.Reason, "flow tdd đã đổi từ lúc lập phiếu") || act.RunID != "" {
+	if err != nil || act.Action != ActionBlocked || !strings.Contains(act.Reason, "flow testfirst đã đổi từ lúc lập phiếu") || act.RunID != "" {
 		t.Fatalf("next: %+v %v", act, err)
 	}
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	act, err = r.Next(context.Background(), NextOptions{TaskRef: tk.State.ID, Resume: true})
 	if err != nil || act.Action != ActionAgent || act.Step != "red" {
 		t.Fatalf("next --resume sau khi khôi phục: %+v %v", act, err)
@@ -467,10 +467,10 @@ func TestSessionNextBlocksWhenFlowChanged(t *testing.T) {
 func TestSessionCustomFlowActions(t *testing.T) {
 	h := newHarness(t)
 	h.cfg.Harnesses.Claude.Models.Extra = map[string]string{"test-writer": "haiku"}
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	h.behave = h.tddBehave(1)
 	r := h.runner()
-	tk := h.newSession(r, NewTaskOptions{Workflow: "tdd", Plan: ptr(true)})
+	tk := h.newSession(r, NewTaskOptions{Workflow: "testfirst", Plan: ptr(true)})
 	type row struct {
 		step, subagent, model string
 		ro                    bool
@@ -507,14 +507,14 @@ func TestSessionCustomFlowActions(t *testing.T) {
 	h = newHarness(t)
 	h.cfg.Harnesses.Enabled = []string{"claude", "codex"}
 	h.cfg.Roles.Extra = map[string]string{"test-writer": "codex"}
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	r = h.runner()
-	tk = h.newSession(r, NewTaskOptions{Workflow: "tdd", Plan: ptr(false)})
+	tk = h.newSession(r, NewTaskOptions{Workflow: "testfirst", Plan: ptr(false)})
 	act, err := r.Next(context.Background(), NextOptions{TaskRef: tk.State.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if act.Action != ActionProcess || act.Step != "red" || act.Command != "bint run tdd --task "+tk.State.ID+" --step red --json" ||
+	if act.Action != ActionProcess || act.Step != "red" || act.Command != "bint run testfirst --task "+tk.State.ID+" --step red --json" ||
 		!strings.Contains(strings.Join(act.Notes, " "), "test-writer") {
 		t.Fatalf("action process: %+v", act)
 	}
@@ -523,13 +523,13 @@ func TestSessionCustomFlowActions(t *testing.T) {
 // --step: chỉ với --task và flow tuỳ biến, phải là bước kế tiếp; chạy đúng một bước rồi dừng.
 func TestRunStepRequest(t *testing.T) {
 	h := newHarness(t)
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	h.behave = h.tddBehave(0)
 	r := h.runner()
-	if _, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", Request: "x", Step: "red"}); err == nil || !strings.Contains(err.Error(), "--step") {
+	if _, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", Request: "x", Step: "red"}); err == nil || !strings.Contains(err.Error(), "--step") {
 		t.Fatalf("--step không --task: %v", err)
 	}
-	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Thêm tính năng phiên bản v2 cho app.txt", Workflow: "tdd", Plan: ptr(false)})
+	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Thêm tính năng phiên bản v2 cho app.txt", Workflow: "testfirst", Plan: ptr(false)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -537,13 +537,13 @@ func TestRunStepRequest(t *testing.T) {
 	if _, err := r.Run(context.Background(), RunOptions{Workflow: StepFeat, TaskRef: id, Step: "red"}); err == nil || !strings.Contains(err.Error(), "--step") {
 		t.Fatalf("--step với workflow gốc: %v", err)
 	}
-	if _, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id, Step: "green"}); err == nil || !strings.Contains(err.Error(), "bước kế tiếp") {
+	if _, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id, Step: "green"}); err == nil || !strings.Contains(err.Error(), "bước kế tiếp") {
 		t.Fatalf("--step không phải bước kế tiếp: %v", err)
 	}
 	if len(h.calls) != 0 || loadTask(t, h, id).State.Status != task.StatusCreated {
 		t.Fatalf("--step sai không được đổi gì: %v %s", h.calls, loadTask(t, h, id).State.Status)
 	}
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id, Step: "red"})
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id, Step: "red"})
 	if err != nil || strings.Join(h.calls, ",") != "red" {
 		t.Fatalf("--step red: %+v %v %v", res, err, h.calls)
 	}
@@ -551,7 +551,7 @@ func TestRunStepRequest(t *testing.T) {
 	if got.State.Status != task.StatusInProgress || got.State.FlowStep != "green" {
 		t.Fatalf("sau red: %s FlowStep=%q", got.State.Status, got.State.FlowStep)
 	}
-	if _, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id, Step: "green"}); err != nil {
+	if _, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id, Step: "green"}); err != nil {
 		t.Fatal(err)
 	}
 	if got = loadTask(t, h, id); got.State.Status != task.StatusInReview {
@@ -597,13 +597,13 @@ func TestCheckFlowSwitch(t *testing.T) {
 		taskWF, run string
 		wantErr     bool
 	}{
-		{"b-do", "b-feat", false}, // như cũ
-		{"b-req", "tdd", false},   // tác vụ mới chỉ lập kế hoạch được chạy bằng flow tuỳ biến
-		{"tdd", "tdd", false},     // chính nó
-		{"tdd", "b-feat", true},   // tác vụ flow tuỳ biến không chạy bằng workflow khác
-		{"tdd", "khac", true},     // cũng không bằng flow khác
-		{"b-do", "tdd", true},     // flow tuỳ biến không nhận tác vụ b-do
-		{"", "tdd", false},        // phiếu rất cũ
+		{"b-do", "b-feat", false},         // như cũ
+		{"b-req", "testfirst", false},     // tác vụ mới chỉ lập kế hoạch được chạy bằng flow tuỳ biến
+		{"testfirst", "testfirst", false}, // chính nó
+		{"testfirst", "b-feat", true},     // tác vụ flow tuỳ biến không chạy bằng workflow khác
+		{"testfirst", "khac", true},       // cũng không bằng flow khác
+		{"b-do", "testfirst", true},       // flow tuỳ biến không nhận tác vụ b-do
+		{"", "testfirst", false},          // phiếu rất cũ
 	}
 	for _, c := range cases {
 		err := checkFlowSwitch(mk(c.taskWF), c.run)
@@ -613,7 +613,7 @@ func TestCheckFlowSwitch(t *testing.T) {
 	}
 	// b-req → flow tuỳ biến: Run ghi workflow và băm của flow.
 	h := newHarness(t)
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	h.behave = h.tddBehave(0)
 	r := h.runner()
 	tk, _, err := r.NewTask(context.Background(), NewTaskOptions{Request: "Thêm tính năng phiên bản v2 cho app.txt", Workflow: StepReq})
@@ -623,12 +623,12 @@ func TestCheckFlowSwitch(t *testing.T) {
 	if tk.State.FlowSHA != "" {
 		t.Fatalf("workflow gốc không có FlowSHA: %q", tk.State.FlowSHA)
 	}
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: tk.State.ID, Plan: ptr(false)})
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: tk.State.ID, Plan: ptr(false)})
 	if err != nil || res.Status != task.StatusDone {
-		t.Fatalf("run tdd trên tác vụ b-req: %+v %v", res, err)
+		t.Fatalf("run testfirst trên tác vụ b-req: %+v %v", res, err)
 	}
 	got := loadTask(t, h, tk.State.ID)
-	if got.State.Workflow != "tdd" || got.State.FlowSHA != flow.Hash(tddDef(t)) {
+	if got.State.Workflow != "testfirst" || got.State.FlowSHA != flow.Hash(tddDef(t)) {
 		t.Fatalf("workflow/băm sau khi đổi: %q %q", got.State.Workflow, got.State.FlowSHA)
 	}
 }
@@ -712,11 +712,11 @@ func TestStepMCPGrantRole(t *testing.T) {
 	// Qua Run: RunBinding.Role của từng bước.
 	h := newHarness(t)
 	h.cfg.MCP.Grants = map[string][]string{"implementer": {"codegraph.explore"}, "test-writer": {"deepwiki.read"}}
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	h.behave = h.tddBehave(0)
 	r := h.runner()
 	r.BintExe = "/opt/bint/bint"
-	if res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false)}); err != nil || res.Status != task.StatusDone {
+	if res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", Request: "Thêm tính năng phiên bản v2 cho app.txt", Plan: ptr(false)}); err != nil || res.Status != task.StatusDone {
 		t.Fatalf("run: %+v %v", res, err)
 	}
 	var roles []string
@@ -736,21 +736,21 @@ func TestStepMCPGrantRole(t *testing.T) {
 // nghĩa mới, mà chặn tác vụ kèm lý do nêu flow.
 func TestSessionCompleteWhenFlowChangedBlocks(t *testing.T) {
 	h := newHarness(t)
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	h.behave = h.tddBehave(0)
 	r := h.runner()
-	tk := h.newSession(r, NewTaskOptions{Workflow: "tdd", Plan: ptr(false)})
+	tk := h.newSession(r, NewTaskOptions{Workflow: "testfirst", Plan: ptr(false)})
 	act, err := r.Next(context.Background(), NextOptions{TaskRef: tk.State.ID})
 	if err != nil || act.Step != "red" {
 		t.Fatalf("next: %+v %v", act, err)
 	}
 	h.subagent(act)
-	h.writeFlow("tdd", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
+	h.writeFlow("testfirst", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
 	c, err := r.Complete(context.Background(), CompleteOptions{TaskRef: tk.State.ID, RunID: act.RunID, AgentID: "a-red"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Action != ActionBlocked || !strings.Contains(c.Reason, "flow tdd đã đổi từ lúc lập phiếu") || c.Result == nil || c.Result.Status != "completed" {
+	if c.Action != ActionBlocked || !strings.Contains(c.Reason, "flow testfirst đã đổi từ lúc lập phiếu") || c.Result == nil || c.Result.Status != "completed" {
 		t.Fatalf("complete: %+v", c)
 	}
 	got := loadTask(t, h, tk.State.ID)
@@ -758,12 +758,12 @@ func TestSessionCompleteWhenFlowChangedBlocks(t *testing.T) {
 		t.Fatalf("bước phải được đóng và tác vụ blocked: pending=%v status=%s", got.State.PendingStep, got.State.Status)
 	}
 	// Abort vẫn chạy được khi flow đã đổi (không phụ thuộc định nghĩa flow).
-	h.writeFlow("tdd", tddFlow)
+	h.writeFlow("testfirst", tddFlow)
 	act, err = r.Next(context.Background(), NextOptions{TaskRef: tk.State.ID, Resume: true})
 	if err != nil || act.Action != ActionAgent {
 		t.Fatalf("next --resume: %+v %v", act, err)
 	}
-	h.writeFlow("tdd", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
+	h.writeFlow("testfirst", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
 	if _, err := r.Abort(context.Background(), tk.State.ID, "thử"); err != nil {
 		t.Fatalf("abort khi flow đã đổi: %v", err)
 	}
@@ -894,25 +894,25 @@ func TestSwitchFromReqToBrokenFlowRecordsHashLater(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := tk.State.ID
-	h.writeFlow("tdd", "schema: 1\nname: tdd\nsteps:\n  - {id: red, kind: implement, skill: skill-khong-ton-tai}\n")
-	res, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id})
-	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, ".bint/flows/tdd.yml") {
+	h.writeFlow("testfirst", "schema: 1\nname: testfirst\nsteps:\n  - {id: red, kind: implement, skill: skill-khong-ton-tai}\n")
+	res, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id})
+	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, ".bint/flows/testfirst.yml") {
 		t.Fatalf("flow đích hỏng: %+v %v", res, err)
 	}
-	if got := loadTask(t, h, id); got.State.Workflow != "tdd" || got.State.FlowSHA != "" {
+	if got := loadTask(t, h, id); got.State.Workflow != "testfirst" || got.State.FlowSHA != "" {
 		t.Fatalf("sau lần chuyển hỏng: %q %q", got.State.Workflow, got.State.FlowSHA)
 	}
 	// Sửa flow, resume đúng một bước (plan): chạy được và băm được ghi.
-	h.writeFlow("tdd", tddFlow)
-	if _, err := r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id, Resume: true, Step: "plan"}); err != nil {
+	h.writeFlow("testfirst", tddFlow)
+	if _, err := r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id, Resume: true, Step: "plan"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := loadTask(t, h, id); got.State.FlowSHA != flow.Hash(tddDef(t)) {
 		t.Fatalf("FlowSHA chưa được ghi ở lần đầu flow nạp được: %q", got.State.FlowSHA)
 	}
 	// Flow bị sửa giữa chừng sau khi đã có băm.
-	h.writeFlow("tdd", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
-	res, err = r.Run(context.Background(), RunOptions{Workflow: "tdd", TaskRef: id, Resume: true})
+	h.writeFlow("testfirst", strings.Replace(tddFlow, "verify: false", "verify: true", 1))
+	res, err = r.Run(context.Background(), RunOptions{Workflow: "testfirst", TaskRef: id, Resume: true})
 	if err != nil || res.Status != task.StatusBlocked || !strings.Contains(res.Reason, "đã đổi từ lúc lập phiếu") {
 		t.Fatalf("flow sửa giữa chừng phải bị chặn: %+v %v", res, err)
 	}

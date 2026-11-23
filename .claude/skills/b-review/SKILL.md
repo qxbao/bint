@@ -80,6 +80,22 @@ bint context --paths <các tệp trong diff>
    phải bằng chứng lỗi: `verify.command` của phiếu do Bint chạy ngoài sandbox, xem kết quả ở
    `bint task show <id>`.
 
+**Hai trục, chấm tách nhau** (làm tuần tự trong phiên này, không sinh agent con):
+
+- **Spec**: thay đổi có đạt mục tiêu người dùng, từng AC, từng nhóm bề mặt không (mục 0–1 và 3 ở trên). Mọi phát hiện chặn
+  (`high`/`critical`) thường thuộc trục này.
+- **Standards**: tri thức của dự án (`context_for_paths`), quy ước trong mã xung quanh, `GLOSSARY.md` (tên mới khớp từ vựng miền), cùng
+  nền **code smell** (Fowler: hàm/tham số quá dài, mã lặp, feature envy, module nông chỉ chuyển tiếp lời gọi — thuật ngữ ở skill
+  `codebase-design`, test lặp lại logic của mã — skill `tdd`). Smell đơn thuần là `suggestion` mức `low`; chỉ lên mức cao hơn khi vi
+  phạm một quy tắc tri thức `rule` hoặc gây lỗi thật.
+
+Ghi trục ở đầu `title` (`[Spec] …` / `[Standards] …`). Không xếp hạng chung giữa hai trục: một loạt smell không bù được một AC chưa đạt,
+và ngược lại. Trục Spec xong trước rồi mới tới Standards.
+
+**Bằng chứng theo bậc** (thang 1–5): 1 tự nói → 2 chỉ dòng mã → 3 lập luận đường hỏng từ đầu vào tới chỗ sai → 4 chạy lệnh/test cho
+thấy lỗi → 5 tái hiện trên app thật. Mọi phát hiện, mức nào cũng vậy, ưu tiên đạt bậc 4 (luật `repro` dưới đây bắt buộc nó cho
+`high`/`critical`); ghi bậc đạt được vào `evidence` khi dưới 4 (ví dụ "bậc 3: …").
+
 <!-- bint:anchor review-checklist -->
 <!-- bint:anchor-end review-checklist -->
 
@@ -141,6 +157,9 @@ người dùng (lối "hết vòng sửa"); bạn chỉ cần xếp mức đúng
 Không có phát hiện thì ghi `"findings": []` (YAML: `findings: []`) kèm `summary`. Bint ghi nhận "không phát hiện
 vấn đề nghiêm trọng", nhưng đó **không** phải bằng chứng thay đổi an toàn — nói rõ phần
 bạn chưa kiểm tra được.
+
+Trong `summary`, nêu thêm **một sự thật làm thay đổi an toàn** (điều nếu đúng thì thay đổi không thể làm hỏng gì ngoài phạm vi, ví dụ
+"mọi nơi gọi `X` đều đi qua `Y` đã sửa") và bậc bằng chứng nó đạt trên thang 1–5. Chưa tìm được thì nói vậy.
 
 ## Bước 5 — Kết thúc
 

@@ -46,6 +46,11 @@ Có công cụ MCP của Bint (`context_for_task`, `context_for_paths`) thì dù
   khác, không đánh dấu `skip`.
 - Giữ test nhỏ, xác định (không phụ thuộc thời gian, mạng, thứ tự chạy) và không chứa lời giải: kiểm kết quả
   mong muốn, không kiểm cách sửa.
+- Theo skill `diagnosing-bugs` (Phase 1–2): test là **vòng phản hồi chặt** — đỏ đúng triệu chứng người dùng tả, nhanh (vài giây),
+  xác định. Có test đỏ rồi thì **thu nhỏ** nó: bỏ từng đầu vào, bước, cấu hình, dữ liệu một lần, chạy lại sau mỗi lần cắt, giữ lại
+  chỉ phần mà bỏ đi thì test xanh. Lỗi không xác định thì nâng tỉ lệ tái hiện (lặp, song song, `-count=N`) thay vì bỏ cuộc.
+- **Seam đúng**: test phải đi qua đúng chuỗi gọi gây lỗi ở nơi gọi thật. Seam duy nhất chạm được quá nông (test một nơi gọi trong khi
+  lỗi cần nhiều nơi gọi) thì đó là **một phát hiện**: ghi rõ trong báo cáo và `bint task error`, vẫn viết test ở seam cao nhất có thể.
 
 ## Bước 4 — Chạy test hẹp và ghi bằng chứng đỏ
 

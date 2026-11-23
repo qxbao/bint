@@ -11,7 +11,7 @@ import (
 
 const tddYAML = `# flow mẫu của kế hoạch
 schema: 1
-name: tdd
+name: testfirst
 description: "Dùng khi muốn viết kiểm thử đỏ trước khi sửa mã"
 steps:
   - {id: plan,   kind: plan,      skill: b-req, optional: true}
@@ -47,39 +47,39 @@ func TestValidateTable(t *testing.T) {
 	tests := []struct {
 		name string
 		yaml string
-		file string // "" = tdd
+		file string // "" = testfirst
 		want string // chuỗi con của lỗi; "" = hợp lệ
 	}{
-		{name: "hợp lệ: flow tdd mẫu", yaml: tddYAML},
+		{name: "hợp lệ: flow testfirst mẫu", yaml: tddYAML},
 		{name: "schema 2", want: "schema: 2", yaml: strings.Replace(tddYAML, "schema: 1", "schema: 2", 1)},
 		{name: "kind sai", want: `kind "build" không hợp lệ`, yaml: strings.Replace(tddYAML, "kind: plan,", "kind: build,", 1)},
 		{name: "implement trước plan", want: "plan → implement → review", yaml: `
 schema: 1
-name: tdd
+name: testfirst
 steps:
   - {id: green, kind: implement, skill: b-feat}
   - {id: plan, kind: plan, skill: b-req}
 `},
 		{name: "review trước implement", want: "plan → implement → review", yaml: `
 schema: 1
-name: tdd
+name: testfirst
 steps:
   - {id: review, kind: review, skill: b-review}
   - {id: green, kind: implement, skill: b-feat}
 `},
 		{name: "thiếu bước implement", want: "thiếu bước implement", yaml: `
 schema: 1
-name: tdd
+name: testfirst
 steps:
   - {id: plan, kind: plan, skill: b-req}
   - {id: review, kind: review, skill: b-review}
 `},
-		{name: "không có bước", want: "không có bước nào", yaml: "schema: 1\nname: tdd\nsteps: []\n"},
+		{name: "không có bước", want: "không có bước nào", yaml: "schema: 1\nname: testfirst\nsteps: []\n"},
 		{name: "skill không tồn tại", want: `skill "khong-co" không tồn tại`, yaml: strings.Replace(tddYAML, "write-failing-test", "khong-co", 1)},
 		{name: "skill rỗng", want: "skill rỗng", yaml: strings.Replace(tddYAML, "skill: b-feat}", "skill: ''}", 1)},
 		{name: "fix trỏ bước review", want: "fix phải trỏ tới bước implement", yaml: `
 schema: 1
-name: tdd
+name: testfirst
 steps:
   - {id: green, kind: implement, skill: b-feat}
   - {id: r1, kind: review, skill: b-review}
@@ -88,11 +88,11 @@ steps:
 		{name: "fix trỏ bước plan", want: "fix phải trỏ tới bước implement", yaml: strings.Replace(tddYAML, "fix: green", "fix: plan", 1)},
 		{name: "fix trỏ bước không tồn tại", want: `fix trỏ tới bước "ma" không tồn tại`, yaml: strings.Replace(tddYAML, "fix: green", "fix: ma", 1)},
 		{name: "fix ở bước không phải review", want: "fix chỉ dùng được ở bước review", yaml: strings.Replace(tddYAML, "skill: b-feat}", "skill: b-feat, fix: red}", 1)},
-		{name: "tên trùng workflow gốc", want: "trùng workflow gốc", file: "b-do", yaml: strings.Replace(tddYAML, "name: tdd", "name: b-do", 1)},
-		{name: "tiền tố b-", want: "tiền tố b-", file: "b-tdd", yaml: strings.Replace(tddYAML, "name: tdd", "name: b-tdd", 1)},
-		{name: "tên sai quy tắc", want: "không hợp lệ (chữ thường", file: "TDD", yaml: strings.Replace(tddYAML, "name: tdd", "name: TDD", 1)},
+		{name: "tên trùng workflow gốc", want: "trùng workflow gốc", file: "b-do", yaml: strings.Replace(tddYAML, "name: testfirst", "name: b-do", 1)},
+		{name: "tiền tố b-", want: "tiền tố b-", file: "b-testfirst", yaml: strings.Replace(tddYAML, "name: testfirst", "name: b-testfirst", 1)},
+		{name: "tên sai quy tắc", want: "không hợp lệ (chữ thường", file: "TDD", yaml: strings.Replace(tddYAML, "name: testfirst", "name: TDD", 1)},
 		{name: "tên khác tên tệp", want: "khác tên tệp", file: "khac", yaml: tddYAML},
-		{name: "tên trùng skill", want: "trùng tên một skill", file: "write-failing-test", yaml: strings.Replace(tddYAML, "name: tdd", "name: write-failing-test", 1)},
+		{name: "tên trùng skill", want: "trùng tên một skill", file: "write-failing-test", yaml: strings.Replace(tddYAML, "name: testfirst", "name: write-failing-test", 1)},
 		{name: "id trùng", want: "id trùng với bước trước", yaml: strings.Replace(tddYAML, "id: green", "id: red", 1)},
 		{name: "id rỗng", want: "id rỗng", yaml: strings.Replace(tddYAML, "id: green", "id: ''", 1)},
 		{name: "id post-feat", want: "bước giả", yaml: strings.Replace(tddYAML, "id: green", "id: post-feat", 1)},
@@ -106,7 +106,7 @@ steps:
 		t.Run(tc.name, func(t *testing.T) {
 			file := tc.file
 			if file == "" {
-				file = "tdd"
+				file = "testfirst"
 			}
 			d := mustDecode(t, tc.yaml)
 			errs := Validate(d, file, testSkills)
@@ -229,7 +229,7 @@ func TestValidateExpect(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Decode: %v", err)
 			}
-			errs := Validate(d, "tdd", testSkills)
+			errs := Validate(d, "testfirst", testSkills)
 			if tc.want == "" {
 				if len(errs) != 0 {
 					t.Fatalf("muốn hợp lệ, được %v", errs)
@@ -272,8 +272,8 @@ func TestBuiltinReturnsFreshCopy(t *testing.T) {
 	if d, ok := GetBuiltin("b-feat"); !ok || d.Steps[0].Role != "implementer" {
 		t.Fatalf("GetBuiltin(b-feat) = %+v, %v", d, ok)
 	}
-	if _, ok := GetBuiltin("tdd"); ok {
-		t.Fatal("tdd không phải flow nhúng")
+	if _, ok := GetBuiltin("testfirst"); ok {
+		t.Fatal("testfirst không phải flow nhúng")
 	}
 }
 
@@ -286,7 +286,7 @@ func TestHash(t *testing.T) {
 
 	// Đổi chú thích, thứ tự khoá, mô tả, cách viết (flow/block), role mặc định viết tường minh: không đổi băm.
 	same := `
-name: tdd
+name: testfirst
 steps:
   - kind: plan
     id: plan
@@ -309,7 +309,7 @@ schema: 1
 		"đổi verify":  strings.Replace(tddYAML, "verify: false", "verify: true", 1),
 		"đổi fix":     strings.Replace(tddYAML, "fix: green", "fix: red", 1),
 		"bỏ optional": strings.Replace(tddYAML, ", optional: true", "", 1),
-		"đổi tên":     strings.Replace(tddYAML, "name: tdd", "name: tdd2", 1),
+		"đổi tên":     strings.Replace(tddYAML, "name: testfirst", "name: tdd2", 1),
 	} {
 		if Hash(mustDecode(t, y)) == h {
 			t.Errorf("%s: băm không đổi", name)
@@ -368,7 +368,7 @@ func TestLoad(t *testing.T) {
 	if files, err := Load(root); err != nil || len(files) != 0 {
 		t.Fatalf("thư mục không có: %v, %v", files, err)
 	}
-	writeFlow(t, root, "tdd.yml", tddYAML)
+	writeFlow(t, root, "testfirst.yml", tddYAML)
 	writeFlow(t, root, "hong.yml", "schema: [oops\n")
 	writeFlow(t, root, "la.yml", "schema: 1\nname: la\nlalala: 1\nsteps: []\n")
 	writeFlow(t, root, "cu.yaml", tddYAML)
@@ -386,11 +386,11 @@ func TestLoad(t *testing.T) {
 		byName[f.Name] = f
 		names = append(names, f.Name)
 	}
-	if strings.Join(names, ",") != "cu,hong,la,lon,tdd" {
+	if strings.Join(names, ",") != "cu,hong,la,lon,testfirst" {
 		t.Fatalf("tệp nạp được: %v", names)
 	}
-	if byName["tdd"].Err != nil || byName["tdd"].Def.Name != "tdd" || byName["tdd"].Path != ".bint/flows/tdd.yml" {
-		t.Errorf("tdd: %+v", byName["tdd"])
+	if byName["testfirst"].Err != nil || byName["testfirst"].Def.Name != "testfirst" || byName["testfirst"].Path != ".bint/flows/testfirst.yml" {
+		t.Errorf("testfirst: %+v", byName["testfirst"])
 	}
 	for _, n := range []string{"hong", "la", "cu", "lon"} {
 		if byName[n].Err == nil {
@@ -405,7 +405,7 @@ func TestLoad(t *testing.T) {
 func TestLoadRejectsSymlink(t *testing.T) {
 	root := t.TempDir()
 	writeFlow(t, root, "that.yml", tddYAML)
-	link := filepath.Join(root, filepath.FromSlash(Rel), "tdd.yml")
+	link := filepath.Join(root, filepath.FromSlash(Rel), "testfirst.yml")
 	if err := os.Symlink(filepath.Join(root, filepath.FromSlash(Rel), "that.yml"), link); err != nil {
 		if runtime.GOOS == "windows" {
 			t.Skipf("không tạo được symlink: %v", err)
@@ -417,7 +417,7 @@ func TestLoadRejectsSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range files {
-		if f.Name == "tdd" && f.Err == nil {
+		if f.Name == "testfirst" && f.Err == nil {
 			t.Error("symlink phải bị từ chối")
 		}
 		if f.Name == "that" && f.Err != nil {
@@ -428,16 +428,16 @@ func TestLoadRejectsSymlink(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd.yml", tddYAML)
+	writeFlow(t, root, "testfirst.yml", tddYAML)
 	writeFlow(t, root, "hong.yml", "schema: [oops\n")
 	// Flow nhúng được tra trước, kể cả khi có tệp trùng tên.
-	writeFlow(t, root, "b-do.yml", strings.Replace(tddYAML, "name: tdd", "name: b-do", 1))
+	writeFlow(t, root, "b-do.yml", strings.Replace(tddYAML, "name: testfirst", "name: b-do", 1))
 
 	if d, err := Get(root, "b-do"); err != nil || !d.IsBuiltin() {
 		t.Errorf("Get(b-do) = %+v, %v; muốn flow nhúng", d, err)
 	}
-	if d, err := Get(root, "tdd"); err != nil || d.Name != "tdd" || d.IsBuiltin() {
-		t.Errorf("Get(tdd) = %+v, %v", d, err)
+	if d, err := Get(root, "testfirst"); err != nil || d.Name != "testfirst" || d.IsBuiltin() {
+		t.Errorf("Get(testfirst) = %+v, %v", d, err)
 	}
 	if _, err := Get(root, "hong"); err == nil || errors.Is(err, ErrNotFound) {
 		t.Errorf("Get(hong): muốn lỗi nạp (không phải ErrNotFound), được %v", err)
@@ -463,7 +463,7 @@ func TestWarnings(t *testing.T) {
 // Kind goal chỉ dành cho flow nhúng b-do: flow tuỳ biến dùng kind này bị từ chối.
 func TestGoalKindOnlyForBuiltinDo(t *testing.T) {
 	core := skillSet("b-req", "b-goal", "b-feat", "b-review", "b-do")
-	custom := Def{Schema: Schema, Name: "tdd-goal", Steps: []Step{
+	custom := Def{Schema: Schema, Name: "testfirst-goal", Steps: []Step{
 		{ID: "mine-goal", Kind: KindGoal, Skill: "b-goal"},
 		{ID: "mine-feat", Kind: KindImplement, Skill: "b-feat"},
 	}}

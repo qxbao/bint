@@ -49,50 +49,50 @@ func flowRig(t *testing.T, flows []string, wf, step string) *rig {
 
 // Form run chọn được flow tuỳ biến cùng workflow gốc và gửi RunWorkflowOptions.Workflow = tên flow.
 func TestRunFormPicksCustomFlow(t *testing.T) {
-	r := flowRig(t, []string{"tdd"}, "", "")
+	r := flowRig(t, []string{"testfirst"}, "", "")
 	r.press("r")
-	if out := r.view(140, 34); !strings.Contains(out, "tdd") {
+	if out := r.view(140, 34); !strings.Contains(out, "testfirst") {
 		t.Fatalf("form run thiếu flow tuỳ biến:\n%s", out)
 	}
-	r.press("right", "right", "right", "right", "right") // b-do → b-req → b-feat → b-review → b-debug → tdd
+	r.press("right", "right", "right", "right", "right") // b-do → b-req → b-feat → b-review → b-debug → testfirst
 	r.press("ctrl+s")
 	req := r.lastReq()
 	ro, ok := req.Opts.(app.RunWorkflowOptions)
-	if req.ID != "tasks.run" || !ok || ro.Workflow != "tdd" || ro.Task != "01TASK1" {
+	if req.ID != "tasks.run" || !ok || ro.Workflow != "testfirst" || ro.Task != "01TASK1" {
 		t.Fatalf("run: %+v", req)
 	}
 }
 
 // Tác vụ của flow tuỳ biến: form run mặc định đúng flow của nó (kể cả khi flow không còn trong danh sách lint sạch).
 func TestRunFormDefaultsToTaskCustomFlow(t *testing.T) {
-	for _, flows := range [][]string{{"tdd"}, nil} {
-		r := flowRig(t, flows, "tdd", "")
+	for _, flows := range [][]string{{"testfirst"}, nil} {
+		r := flowRig(t, flows, "testfirst", "")
 		r.press("r", "ctrl+s")
 		ro, ok := r.lastReq().Opts.(app.RunWorkflowOptions)
-		if !ok || ro.Workflow != "tdd" {
-			t.Fatalf("flows=%v: workflow mặc định phải là tdd, được %+v", flows, r.lastReq())
+		if !ok || ro.Workflow != "testfirst" {
+			t.Fatalf("flows=%v: workflow mặc định phải là testfirst, được %+v", flows, r.lastReq())
 		}
 	}
 }
 
-// Không có flow tuỳ biến: danh sách workflow của thẻ choices giữ nguyên (không có tdd); form task new cũng chọn được flow.
+// Không có flow tuỳ biến: danh sách workflow của thẻ choices giữ nguyên (không có testfirst); form task new cũng chọn được flow.
 func TestFormsWithoutCustomFlowsKeepStaticChoices(t *testing.T) {
 	r := flowRig(t, nil, "", "")
 	r.press("n")
-	if out := r.view(140, 34); strings.Contains(out, "tdd") {
-		t.Fatalf("không có flow tuỳ biến mà form hiện tdd:\n%s", out)
+	if out := r.view(140, 34); strings.Contains(out, "testfirst") {
+		t.Fatalf("không có flow tuỳ biến mà form hiện testfirst:\n%s", out)
 	}
 	r.press("esc")
-	r = flowRig(t, []string{"tdd"}, "", "")
+	r = flowRig(t, []string{"testfirst"}, "", "")
 	r.press("n")
-	if out := r.view(140, 34); !strings.Contains(out, "tdd") {
+	if out := r.view(140, 34); !strings.Contains(out, "testfirst") {
 		t.Fatalf("form task new thiếu flow tuỳ biến:\n%s", out)
 	}
 }
 
 // Chi tiết tác vụ hiện bước hiện tại của flow.
 func TestDetailShowsFlowStep(t *testing.T) {
-	r := flowRig(t, []string{"tdd"}, "tdd", "green")
+	r := flowRig(t, []string{"testfirst"}, "testfirst", "green")
 	out := r.view(140, 40)
 	if !strings.Contains(out, "Bước flow") || !strings.Contains(out, "green") {
 		t.Fatalf("thẻ Phiếu thiếu bước flow:\n%s", out)

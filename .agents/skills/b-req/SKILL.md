@@ -42,6 +42,8 @@ Dùng MCP `context_for_task`, hoặc `bint context "<mục tiêu>"` nếu không
 Áp dụng một mục tri thức (`[k:<id>]`) thì báo trích dẫn: công cụ MCP `cite_knowledge`, hoặc
 `bint knowledge cite <id>` khi không có MCP.
 
+Có `GLOSSARY.md` / `docs/adr/` thì dùng đúng từ vựng miền và không mở lại quyết định đã chốt. Nguyên tắc chung: skill `principles`.
+
 Đọc mã ở các khu vực liên quan. Tìm yêu cầu còn thiếu hoặc mâu thuẫn; nếu một điểm
 mơ hồ thay đổi cách làm **và chỉ người dùng mới trả lời được**, ghi nó vào mục "Câu hỏi mở" (khuôn
 `- [ ] Q-N: …`, xem Bước 3) thay vì tự chọn; điểm kỹ thuật người không rành không trả lời được thì bạn chọn
@@ -56,6 +58,8 @@ và ghi vào "Giả định thay người dùng" (xem mục "Bề mặt bị ả
   `- G-N: <mục tiêu> — <phạm vi (--allow)> — <phụ thuộc giai đoạn nào>` (`G-1` là phiếu này; Bint đọc các dòng `G-N` này) —
   kèm lệnh gợi ý, ví dụ `bint task new "<giai đoạn 2>" --parent <id> --depends-on <id giai đoạn 1>`. Rồi chỉ lập kế hoạch
   chi tiết cho giai đoạn đầu. Từ hai dòng `G-N`, Bint ghi vào kết quả cuối `mới xong 1/N giai đoạn`: người dùng thấy mục tiêu **chưa đạt đủ**.
+- Mỗi `G-N` là một **lát dọc** chạy được đầu–cuối, không cắt theo tầng; thay đổi làm vỡ nơi gọi thì expand–contract (thêm đường mới →
+  chuyển nơi gọi → gỡ đường cũ).
 - **Không tự cắt phạm vi.** Chỉ tách khi người dùng đã chia giai đoạn hoặc phần sau có giá trị riêng. Khi mục
   tiêu của người dùng là **toàn bộ** ("không nơi nào còn X", "mọi Y") thì **cấm tách giai đoạn chỉ vì ngân
   sách AC/TSK** hay vì "bề mặt còn nhiều": mọi nhóm bề mặt nằm trong AC của phiếu này (gộp theo nhóm, xem "Ngân sách") và
@@ -87,6 +91,8 @@ theo **mục đích**, nhưng chọn **bản nhỏ nhất vẫn đạt mục đ�
   trước/bật tay không; điều gì không được mất, hỏng hay chậm), không hỏi điều kỹ thuật, và chưa lập kế hoạch đầy đủ: ghi bản
   phác hợp lệ (≥ 1 `AC`, `plan.md` vài dòng, ≥ 1 `TSK`) rồi dừng; Bint chuyển tác vụ sang chờ người, trả lời xong thì nối tiếp
   phiên này. Điều đã có câu trả lời trong đề bài thì không hỏi lại.
+- **Cách hỏi** (skill `grilling`): `- [ ] Q-1: <câu hỏi> — Đề xuất: <đáp án khuyên>` ("có" = chọn đề xuất). Mỗi vòng hỏi trọn
+  frontier (câu đủ tiền đề); câu phụ thuộc câu chưa trả lời để vòng sau. Điều tra được trong repo thì tự tra.
 
 ## Kiểm tra mục tiêu (mọi mức phân tích)
 
@@ -199,7 +205,8 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
   trả lời thì ghi `- [x] Q-1: <câu hỏi> — Trả lời: <nội dung>` (không tự bịa câu trả lời).
 
 <!-- bint:anchor plan-template -->
-`plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Chiến lược thực thi` (`Chia lát:` và `Kiểm tra mục tiêu độc lập (b-goal):`, mỗi dòng có|không kèm lý do), `## Cỡ kế hoạch` (`Kết luận: nhỏ|lớn` + tệp), `## Bề mặt bị ảnh hưởng`
+`plan.md` gồm: hướng triển khai (vì sao chọn cách này), tệp/ký hiệu sẽ chạm, `## Seam kiểm thử` (seam cao nhất, càng ít càng tốt; mỗi dòng: bắt được
+gì, bỏ sót gì), `## Chiến lược thực thi` (`Chia lát:` và `Kiểm tra mục tiêu độc lập (b-goal):`, mỗi dòng có|không kèm lý do), `## Cỡ kế hoạch` (`Kết luận: nhỏ|lớn` + tệp), `## Bề mặt bị ảnh hưởng`
 (theo nhóm, ≤ 8–10 dòng, mỗi nhóm một AC hoặc lý do ngoài phạm vi), `## Giả định thay người dùng`, rủi ro,
 chiến lược kiểm thử (gồm kiểm tra mục tiêu của `requirement.md`), `## Đề xuất tách giai đoạn` khi thật sự tách (mỗi giai đoạn
 một dòng `- G-N: …`). `tasks.md`: danh sách `- [ ] TSK-N [AC-N]: <việc> — xong khi: <điều kiện>`.

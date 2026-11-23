@@ -810,7 +810,7 @@ vòng sửa về `b-feat`; `b-debug` xem mục "Flow `b-debug`" dưới đây). 
 
 ```yaml
 schema: 1
-name: tdd                # trùng tên tệp; không trùng workflow gốc, không tiền tố b-, không trùng tên skill
+name: testfirst                # trùng tên tệp; không trùng workflow gốc, không tiền tố b-, không trùng tên skill
 description: "Dùng khi muốn viết kiểm thử đỏ trước khi sửa mã"
 steps:
   - {id: plan,   kind: plan,      skill: b-req, optional: true}
@@ -986,7 +986,7 @@ harness khác Claude trả action `process` với lệnh chạy đúng một bư
 `--step` (nâng cao) chỉ nhận cùng `--task` và flow gắn phiếu (flow tuỳ biến hoặc `b-debug`), và phải là bước kế tiếp của tác vụ; Runner chạy đúng một bước cùng cổng
 sau bước (kể cả quyết định review) rồi dừng.
 
-Ví dụ nghiệm thu: `internal/cli/flow_run_e2e_test.go` chạy flow `tdd` ở trên bằng driver process và driver session với agent giả
+Ví dụ nghiệm thu: `internal/cli/flow_run_e2e_test.go` chạy flow `testfirst` ở trên bằng driver process và driver session với agent giả
 (thứ tự `plan, red, green, review, green, review` → done; không kiểm chứng sau `red`, một lần sau mỗi `green`).
 
 #### Xuất bản flow và `/b-add-flow` (GĐ5)

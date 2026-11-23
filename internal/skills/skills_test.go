@@ -476,7 +476,7 @@ func TestCoreSkillBAddFlowContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ví dụ flow: %v", err)
 	}
-	if errs := flow.Validate(def, "tdd", func(n string) bool { _, ok := Get(n); return ok || n == "viet-kiem-thu-do" }); len(errs) != 0 {
+	if errs := flow.Validate(def, "testfirst", func(n string) bool { _, ok := Get(n); return ok || n == "viet-kiem-thu-do" }); len(errs) != 0 {
 		t.Fatalf("ví dụ flow không qua lint: %v", errs)
 	}
 }

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Improve Architecture"
+  short_description: "Find deepening opportunities, report as HTML"
+policy:
+  allow_implicit_invocation: false

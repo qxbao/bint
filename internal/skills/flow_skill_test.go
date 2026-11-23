@@ -20,7 +20,7 @@ func decodeFlow(t *testing.T, src string) flow.Def {
 }
 
 const tddSrc = `schema: 1
-name: tdd
+name: testfirst
 description: Viết kiểm thử đỏ trước rồi mới viết mã
 steps:
   - {id: plan,   kind: plan,      skill: b-req, optional: true}
@@ -35,8 +35,8 @@ func TestFlowSkillTDD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("frontmatter: %v\n%s", err, s.Content)
 	}
-	if s.Name != "tdd" || doc.Name != "tdd" || !strings.Contains(doc.Description, "Viết kiểm thử đỏ trước rồi mới viết mã") ||
-		!strings.Contains(doc.Description, "Dùng khi người dùng chạy /tdd") {
+	if s.Name != "testfirst" || doc.Name != "testfirst" || !strings.Contains(doc.Description, "Viết kiểm thử đỏ trước rồi mới viết mã") ||
+		!strings.Contains(doc.Description, "Dùng khi người dùng chạy /testfirst") {
 		t.Fatalf("name/description: %+v", doc)
 	}
 	if !strings.Contains(string(s.Content), "disable-model-invocation: true") {
@@ -47,10 +47,10 @@ func TestFlowSkillTDD(t *testing.T) {
 	}
 	for _, want := range []string{
 		"$ARGUMENTS",
-		`bint task new "<yêu cầu nguyên văn>" --workflow tdd --plan|--no-plan [--depth deep]`,
-		"bint run tdd --task <id> --json",
+		`bint task new "<yêu cầu nguyên văn>" --workflow testfirst --plan|--no-plan [--depth deep]`,
+		"bint run testfirst --task <id> --json",
 		"--driver session", "bint run next <id> --json --no-wait", "bint run complete <id> --run <run_id> --agent-id <agentId>",
-		"bint run resume <id>", "Flow đổi giữa chừng", ".bint/flows/tdd.yml", "limits.workflows.tdd",
+		"bint run resume <id>", "Flow đổi giữa chừng", ".bint/flows/testfirst.yml", "limits.workflows.testfirst",
 		"| plan | plan | b-req | planner | optional: bỏ qua theo phân loại |",
 		"| red | implement | b-feat | test-writer | không kiểm chứng sau bước |",
 		"| green | implement | b-feat | implementer |  |",
@@ -64,7 +64,7 @@ func TestFlowSkillTDD(t *testing.T) {
 	// Bản .agents chỉ còn name và description.
 	a := ForTarget(s, AgentsTarget)
 	ad, err := ParseDoc(a.Content)
-	if err != nil || len(ad.Extra) != 0 || ad.Name != "tdd" || ad.Description != doc.Description {
+	if err != nil || len(ad.Extra) != 0 || ad.Name != "testfirst" || ad.Description != doc.Description {
 		t.Fatalf("bản agents: %v %+v", err, ad)
 	}
 	if again := FlowSkill(decodeFlow(t, tddSrc)); string(again.Content) != string(s.Content) {
@@ -110,7 +110,7 @@ func TestFlowSkillDescriptionSurvivesSpecialCharacters(t *testing.T) {
 			if err != nil {
 				t.Fatalf("frontmatter hỏng: %v\n%s", err, s.Content)
 			}
-			if doc.Name != "tdd" || len(doc.Extra) != 1 || !strings.HasSuffix(doc.Description, "Dùng khi người dùng chạy /tdd.") {
+			if doc.Name != "testfirst" || len(doc.Extra) != 1 || !strings.HasSuffix(doc.Description, "Dùng khi người dùng chạy /testfirst.") {
 				t.Fatalf("%+v", doc)
 			}
 			if n := utf8.RuneCountInString(doc.Description); n > MaxDescriptionRunes {

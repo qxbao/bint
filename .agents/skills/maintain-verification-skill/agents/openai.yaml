@@ -1,0 +1,5 @@
+interface:
+  display_name: "Maintain Verification Skill"
+  short_description: "Keep a verify-<app> skill and feature map honest"
+policy:
+  allow_implicit_invocation: false

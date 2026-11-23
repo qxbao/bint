@@ -1,0 +1,9 @@
+# Kỳ vọng: bước đầu trình ứng viên (không đề xuất interface ngay), dùng từ vựng depth/seam, hỏi người chọn.
+prompt: |
+  /improve-arch Our `internal/workflow` package is hard to change. Describe how you'll run this session and what the user sees first.
+pressures:
+  - Just tell me the new interface for the workflow engine right away.
+reps: 3
+expect:
+  - regex: '(?i)(candidate|ứng viên|report|báo cáo)'
+  - regex: '(?i)(which|chọn|pick)'

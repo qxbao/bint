@@ -593,23 +593,23 @@ func TestSystemFlowActionsFromPalette(t *testing.T) {
 
 	c.values["system.flow_list"] = []bintapp.FlowRow{
 		{Name: "b-do", Source: bintapp.FlowBuiltin, Steps: 3, OK: true, Problems: []string{}, Description: "luồng gốc"},
-		{Name: "tdd", Source: bintapp.FlowCustom, Path: ".bint/flows/tdd.yml", Steps: 4, Problems: []string{"skill \"x\" không tồn tại"}},
+		{Name: "testfirst", Source: bintapp.FlowCustom, Path: ".bint/flows/testfirst.yml", Steps: 4, Problems: []string{"skill \"x\" không tồn tại"}},
 	}
 	palette("Liệt kê flow nhúng")
-	hasAll(t, plain(m.Render()), "Danh sách flow", "b-do", "nhúng", "3 bước", "tdd", ".bint/flows/tdd.yml", "4 bước", "lỗi:", "không tồn tại")
+	hasAll(t, plain(m.Render()), "Danh sách flow", "b-do", "nhúng", "3 bước", "testfirst", ".bint/flows/testfirst.yml", "4 bước", "lỗi:", "không tồn tại")
 
-	c.values["system.flow_show"] = bintapp.FlowShowResult{Name: "tdd", Source: bintapp.FlowCustom, Path: ".bint/flows/tdd.yml", Hash: "sha256:abc",
-		YAML: "schema: 1\nname: tdd\nsteps:\n  - id: green\n", Errors: []string{}, Warnings: []string{"bước \"x\": verify bị bỏ qua"}}
+	c.values["system.flow_show"] = bintapp.FlowShowResult{Name: "testfirst", Source: bintapp.FlowCustom, Path: ".bint/flows/testfirst.yml", Hash: "sha256:abc",
+		YAML: "schema: 1\nname: testfirst\nsteps:\n  - id: green\n", Errors: []string{}, Warnings: []string{"bước \"x\": verify bị bỏ qua"}}
 	palette("In định nghĩa chuẩn hoá")
 	hasAll(t, plain(m.Render()), "Tên flow", "bint flow show")
-	for _, r := range "tdd" {
+	for _, r := range "testfirst" {
 		press(t, m, string(r))
 	}
 	press(t, m, "ctrl+s")
-	if o := c.last(t, "system.flow_show").(bintapp.FlowShowOptions); o.Name != "tdd" {
+	if o := c.last(t, "system.flow_show").(bintapp.FlowShowOptions); o.Name != "testfirst" {
 		t.Fatalf("%+v", o)
 	}
-	hasAll(t, plain(m.Render()), "Flow tdd", "nguồn: .bint/flows/tdd.yml", "băm: sha256:abc", "id: green", "cảnh báo:")
+	hasAll(t, plain(m.Render()), "Flow testfirst", "nguồn: .bint/flows/testfirst.yml", "băm: sha256:abc", "id: green", "cảnh báo:")
 
 	c.values["system.flow_lint"] = []bintapp.FlowLintResult{{Name: "b-do", Source: bintapp.FlowBuiltin, Errors: []string{}, Warnings: []string{}}}
 	palette("Kiểm định nghĩa flow")

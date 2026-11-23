@@ -38,12 +38,18 @@ Có công cụ MCP của Bint (`context_for_task`, `context_for_paths`) thì dù
 
 ## Bước 3 — Giả thuyết trước, sửa sau
 
+Theo skill `diagnosing-bugs` (Phase 3–6):
+
 1. Chạy lại test tái hiện, đọc thông báo hỏng và lần theo đường chạy tới chỗ kết quả bắt đầu sai.
-2. Ghi giả thuyết về nguyên nhân gốc thành một câu, kèm bằng chứng `tệp:dòng` (đọc mã, không đoán). Có nhiều giả
-   thuyết thì kiểm cái rẻ nhất trước (log tạm, test hẹp); gỡ mọi thứ tạm trước khi xong.
+2. Lập **3–5 giả thuyết xếp hạng** trước khi kiểm cái nào, mỗi giả thuyết **bác bỏ được**: "Nếu <X> là nguyên nhân thì <đổi Y> làm lỗi
+   biến mất / <đổi Z> làm nó nặng hơn"; kèm bằng chứng `tệp:dòng` (đọc mã, không đoán). Kiểm cái rẻ nhất trước, **đổi một biến mỗi
+   lần**. Log debug tạm gắn thẻ riêng (ví dụ `[DEBUG-a4f2]`) để dọn bằng một lần grep; gỡ mọi thứ tạm trước khi xong.
 3. Sửa **nguyên nhân gốc** bằng thay đổi nhỏ nhất, trong phạm vi `scope.allow` của phiếu và không chạm
-   `scope.deny`. Không sửa triệu chứng (bắt lỗi rồi bỏ qua, đặc biệt hoá giá trị trong test), không tái cấu trúc
-   ngoài việc cần.
+   `scope.deny`: sửa ở **nơi hệ thống sai đầu tiên**, không ở nơi lỗi lộ ra. Một guard (kiểm điều kiện rồi bỏ qua/trả mặc định) chỉ là
+   bản sửa khi trạng thái nó xử lý là **hợp lệ**; trạng thái không được phép xảy ra thì sửa nơi tạo ra nó. Không sửa triệu chứng (bắt lỗi
+   rồi bỏ qua, đặc biệt hoá giá trị trong test), không tái cấu trúc ngoài việc cần.
+   Lượt sửa thứ hai trở đi cho cùng một test/phát hiện còn đỏ: viết ra tiền đề chung của các lần sửa trước và kiểm nó bằng lệnh chạy
+   được trước khi sửa tiếp (skill `principles`: attack-the-premise).
 4. **Không làm yếu test tái hiện**: không đổi điều khẳng định cho khớp mã, không `skip`, không xoá. Test sai thật
    (kỳ vọng ngược yêu cầu) thì nêu rõ lý do và báo người dùng thay vì lặng lẽ sửa.
 
@@ -75,5 +81,6 @@ do đó. Để tiêu chí chưa ghi và nêu lý do trong báo cáo; Bint tự c
 
 ## Bước 5 — Kết thúc
 
-Không tự chuyển trạng thái (Bint chuyển sang review). Báo người dùng: nguyên nhân gốc (kèm `tệp:dòng`), tệp đã sửa,
+Không tự chuyển trạng thái (Bint chuyển sang review). Báo người dùng: giả thuyết đúng (để người debug sau học được) và các giả thuyết
+đã bác, nguyên nhân gốc (kèm `tệp:dòng`), tệp đã sửa,
 kiểm thử đã chạy và kết quả, tiêu chí nào đạt/chưa, rủi ro còn lại.

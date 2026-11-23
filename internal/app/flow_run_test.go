@@ -17,7 +17,7 @@ import (
 )
 
 const appTDDFlow = `schema: 1
-name: tdd
+name: testfirst
 steps:
   - {id: plan,   kind: plan,      skill: b-req, optional: true}
   - {id: red,    kind: implement, skill: b-feat, role: test-writer, verify: false}
@@ -112,12 +112,12 @@ func TestRunWorkflowValidateStep(t *testing.T) {
 		o    RunWorkflowOptions
 		want string // "" = hợp lệ
 	}{
-		{"flow tuỳ biến với --task", RunWorkflowOptions{Workflow: "tdd", Task: "x", Step: "red"}, ""},
-		{"không có --task", RunWorkflowOptions{Workflow: "tdd", Step: "red"}, "--step chỉ dùng với --task"},
+		{"flow tuỳ biến với --task", RunWorkflowOptions{Workflow: "testfirst", Task: "x", Step: "red"}, ""},
+		{"không có --task", RunWorkflowOptions{Workflow: "testfirst", Step: "red"}, "--step chỉ dùng với --task"},
 		{"workflow gốc", RunWorkflowOptions{Workflow: "b-feat", Task: "x", Step: "red"}, "--step chỉ dùng với flow tuỳ biến"},
-		{"flow tuỳ biến, không --step", RunWorkflowOptions{Workflow: "tdd", Request: "x"}, ""},
+		{"flow tuỳ biến, không --step", RunWorkflowOptions{Workflow: "testfirst", Request: "x"}, ""},
 		{"--depth với workflow gốc không có plan", RunWorkflowOptions{Workflow: "b-feat", Depth: "deep"}, "b-do hoặc b-req"},
-		{"--depth với flow tuỳ biến hoãn tới Runner", RunWorkflowOptions{Workflow: "tdd", Depth: "deep"}, ""},
+		{"--depth với flow tuỳ biến hoãn tới Runner", RunWorkflowOptions{Workflow: "testfirst", Depth: "deep"}, ""},
 	}
 	for _, c := range cases {
 		err := c.o.Validate()
@@ -152,19 +152,19 @@ func TestRunCustomFlowThroughService(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".bint", "flows"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, ".bint", "flows", "tdd.yml"), []byte(appTDDFlow), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, ".bint", "flows", "testfirst.yml"), []byte(appTDDFlow), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	ws.K.Config.Harnesses.Claude.Models.Extra = map[string]string{"test-writer": "haiku"}
 
 	o := TaskNewDefaults(ws.K.Config)
-	o.Request, o.VerifyCommand, o.Criteria, o.Workflow, o.NoPlan = "Sửa hàm A trong a.go", "git --version", []string{"A đúng"}, "tdd", true
+	o.Request, o.VerifyCommand, o.Criteria, o.Workflow, o.NoPlan = "Sửa hàm A trong a.go", "git --version", []string{"A đúng"}, "testfirst", true
 	c, err := NewTask(ctx, ws, o)
 	if err != nil {
-		t.Fatalf("task new --workflow tdd: %v", err)
+		t.Fatalf("task new --workflow testfirst: %v", err)
 	}
 	id := c.Task.State.ID
-	if c.Task.State.Workflow != "tdd" || !strings.HasPrefix(c.Task.State.FlowSHA, "sha256:") {
+	if c.Task.State.Workflow != "testfirst" || !strings.HasPrefix(c.Task.State.FlowSHA, "sha256:") {
 		t.Fatalf("phiếu: %+v", c.Task.State)
 	}
 	if _, err := NewTask(ctx, ws, TaskNewOptions{Request: "x", Workflow: "khong-co"}); err == nil || !errors.Is(err, workflow.ErrUnknownWorkflow) {
@@ -181,7 +181,7 @@ func TestRunCustomFlowThroughService(t *testing.T) {
 		return stepWriter{root}, nil
 	}}
 	run := RunWorkflowDefaults(ws.K.Config)
-	run.Workflow, run.Task, run.NoReview = "tdd", id, true
+	run.Workflow, run.Task, run.NoReview = "testfirst", id, true
 	run.RunCallbacks = cb
 	res, err := RunWorkflow(ctx, ws, run)
 	if err != nil {
@@ -213,13 +213,13 @@ func TestDoctorFlowChecks(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".bint", "flows"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, ".bint", "flows", "tdd.yml"), []byte(appTDDFlow), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, ".bint", "flows", "testfirst.yml"), []byte(appTDDFlow), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.Default()
 	maxTurns := 5
-	cfg.Limits.Workflows = map[string]config.PerRunLimits{"b-do": {MaxTurns: &maxTurns}, "tdd": {MaxTurns: &maxTurns},
-		"red": {MaxTurns: &maxTurns}, "tdd-typo": {MaxTurns: &maxTurns}}
+	cfg.Limits.Workflows = map[string]config.PerRunLimits{"b-do": {MaxTurns: &maxTurns}, "testfirst": {MaxTurns: &maxTurns},
+		"red": {MaxTurns: &maxTurns}, "testfirst-typo": {MaxTurns: &maxTurns}}
 	cfg.Roles.Extra = map[string]string{"test-writer": "claude", "test-writter": "claude"}
 	cfg.Harnesses.Codex.Models.Extra = map[string]string{"test-writter": "x", "test-writer": "y"}
 	r := &DoctorReport{}
@@ -232,12 +232,12 @@ func TestDoctorFlowChecks(t *testing.T) {
 		got = append(got, c.Name+": "+c.Detail)
 	}
 	joined := strings.Join(got, "\n")
-	for _, want := range []string{`khoá "tdd-typo"`, "roles.test-writter"} {
+	for _, want := range []string{`khoá "testfirst-typo"`, "roles.test-writter"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("thiếu cảnh báo %q:\n%s", want, joined)
 		}
 	}
-	for _, bad := range []string{`"tdd"`, `"b-do"`, `"red"`, "roles.test-writer ", "test-writer không"} {
+	for _, bad := range []string{`"testfirst"`, `"b-do"`, `"red"`, "roles.test-writer ", "test-writer không"} {
 		if strings.Contains(joined, bad) {
 			t.Errorf("cảnh báo thừa %q:\n%s", bad, joined)
 		}

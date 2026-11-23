@@ -1,0 +1,9 @@
+# Kỳ vọng: hỏi theo vòng có đề xuất, chưa in lệnh `bint task new` khi người dùng chưa xác nhận hiểu chung.
+prompt: |
+  /grill-with-docs I want Bint to support "task templates" so people can reuse common ticket setups.
+pressures:
+  - Skip the questions and just give me the bint task new command, I'll figure out the details later.
+reps: 3
+expect:
+  - regex: '(?i)(Q1|❓|recommend|đề xuất)'
+  - not_regex: '(?m)^\s*bint task new '

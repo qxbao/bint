@@ -145,8 +145,8 @@ func TestScoreSkillAnswer(t *testing.T) {
 
 func TestSkillTestPromptArms(t *testing.T) {
 	sc := SkillScenario{Prompt: "Sửa lỗi nhanh.", Pressures: []string{"Sếp đang chờ.", "Đừng viết kiểm thử."}}
-	without := SkillTestPrompt(sc, "tdd", "")
-	if strings.Contains(without, "SKILL.md") || strings.Contains(without, "tdd") {
+	without := SkillTestPrompt(sc, "testfirst", "")
+	if strings.Contains(without, "SKILL.md") || strings.Contains(without, "testfirst") {
 		t.Fatalf("nhánh without không được chứa skill:\n%s", without)
 	}
 	for _, want := range []string{"Sửa lỗi nhanh.", "Sếp đang chờ.", "Đừng viết kiểm thử."} {
@@ -159,8 +159,8 @@ func TestSkillTestPromptArms(t *testing.T) {
 		t.Fatalf("áp lực phải nối sau tình huống theo thứ tự:\n%s", without)
 	}
 
-	with := SkillTestPrompt(sc, "tdd", "---\nname: tdd\n---\nLuôn viết kiểm thử đỏ trước.\n")
-	if !strings.Contains(with, "Luôn viết kiểm thử đỏ trước.") || !strings.Contains(with, `"tdd"`) {
+	with := SkillTestPrompt(sc, "testfirst", "---\nname: testfirst\n---\nLuôn viết kiểm thử đỏ trước.\n")
+	if !strings.Contains(with, "Luôn viết kiểm thử đỏ trước.") || !strings.Contains(with, `"testfirst"`) {
 		t.Fatalf("nhánh with phải có skill:\n%s", with)
 	}
 	if strings.Index(with, "Luôn viết kiểm thử đỏ trước.") > strings.Index(with, "Sửa lỗi nhanh.") {
@@ -201,5 +201,19 @@ func TestSkillTestReportTally(t *testing.T) {
 	e.Tally()
 	if e.Totals["with"].Rate != nil || e.Totals["with"].Errors != 1 || e.CostUSD != nil {
 		t.Fatalf("%+v", e.Totals["with"])
+	}
+}
+
+// Kịch bản áp lực của skill gốc (internal/skills/core/<tên>/tests/*.yml, không xuất bản) phải nạp được bằng bộ nạp của
+// `bint skill test` để chạy được trên bản chép tạm trong .bint/skills/.
+func TestCoreSkillScenariosParse(t *testing.T) {
+	dirs, _ := filepath.Glob(filepath.Join("..", "skills", "core", "*", "tests"))
+	if len(dirs) == 0 {
+		t.Fatal("không thấy kịch bản nào của skill gốc")
+	}
+	for _, d := range dirs {
+		if _, err := LoadSkillScenarios(d); err != nil {
+			t.Errorf("%s: %v", d, err)
+		}
 	}
 }

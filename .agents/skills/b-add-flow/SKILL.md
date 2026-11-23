@@ -69,7 +69,7 @@ skill tuỳ biến hay skill tiến hoá nào, vì flow xuất bản thành skil
 
 ```yaml
 schema: 1
-name: tdd
+name: testfirst
 description: Viết kiểm thử đỏ trước rồi mới viết mã
 steps:
   - {id: plan,   kind: plan,      skill: b-req, optional: true}

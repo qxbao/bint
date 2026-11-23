@@ -65,7 +65,7 @@ func TestValidateExtraRoles(t *testing.T) {
 			c.Harnesses.Antigravity.Models.Extra = map[string]string{"A B": "x"}
 		}, "harnesses.antigravity.models"},
 		{"limits tên flow", func(c *Config) {
-			c.Limits.Workflows = map[string]PerRunLimits{"tdd": {MaxTurns: ptr(5)}}
+			c.Limits.Workflows = map[string]PerRunLimits{"testfirst": {MaxTurns: ptr(5)}}
 		}, ""},
 		{"limits khoá sai cú pháp", func(c *Config) {
 			c.Limits.Workflows = map[string]PerRunLimits{"Bad_Name": {MaxTurns: ptr(5)}}

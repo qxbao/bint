@@ -19,7 +19,7 @@ func newFlowCmd(stdio IO) *cobra.Command {
 gốc (b-do, b-req, b-feat, b-review) là flow nhúng. Flow tuỳ biến do người dùng khai báo trong .bint/flows/<tên>.yml:
 
   schema: 1
-  name: tdd                  # trùng tên tệp; không trùng workflow gốc, không tiền tố b-, không trùng tên skill
+  name: testfirst                  # trùng tên tệp; không trùng workflow gốc, không tiền tố b-, không trùng tên skill
   description: "Dùng khi ..."
   steps:
     - {id: plan,   kind: plan,      skill: b-req, optional: true}

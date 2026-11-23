@@ -13,7 +13,7 @@ import (
 )
 
 const tddFlow = `schema: 1
-name: tdd
+name: testfirst
 description: "Dùng khi muốn viết kiểm thử đỏ trước khi sửa mã"
 steps:
   - {id: plan,   kind: plan,      skill: b-req, optional: true}
@@ -74,9 +74,9 @@ func TestFlowServices(t *testing.T) {
 		t.Fatalf("%v %+v", err, res)
 	}
 
-	// Flow tdd tham chiếu skill tuỳ biến chưa có → bị từ chối.
-	writeFlowFile(t, root, "tdd.yml", tddFlow)
-	res, err := LintFlows(ctx, root, FlowLintOptions{Name: "tdd"})
+	// Flow testfirst tham chiếu skill tuỳ biến chưa có → bị từ chối.
+	writeFlowFile(t, root, "testfirst.yml", tddFlow)
+	res, err := LintFlows(ctx, root, FlowLintOptions{Name: "testfirst"})
 	if err != nil || len(res) != 1 || res[0].OK() || !strings.Contains(strings.Join(res[0].Errors, "\n"), "write-failing-test") {
 		t.Fatalf("muốn lỗi skill không tồn tại: %v %+v", err, res)
 	}
@@ -90,20 +90,20 @@ func TestFlowServices(t *testing.T) {
 	if err := os.WriteFile(sk.Abs, []byte("---\nname: write-failing-test\ndescription: x\n---\n\n[l](nope.md)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if res, _ = LintFlows(ctx, root, FlowLintOptions{Name: "tdd"}); res[0].OK() {
+	if res, _ = LintFlows(ctx, root, FlowLintOptions{Name: "testfirst"}); res[0].OK() {
 		t.Fatalf("skill tuỳ biến lỗi lint mà flow vẫn qua: %+v", res)
 	}
 	// Sửa skill → flow qua.
 	if err := os.WriteFile(sk.Abs, []byte(good), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if res, _ = LintFlows(ctx, root, FlowLintOptions{Name: "tdd"}); !res[0].OK() || res[0].Source != FlowCustom || res[0].Path != ".bint/flows/tdd.yml" {
-		t.Fatalf("flow tdd mẫu phải qua: %+v", res)
+	if res, _ = LintFlows(ctx, root, FlowLintOptions{Name: "testfirst"}); !res[0].OK() || res[0].Source != FlowCustom || res[0].Path != ".bint/flows/testfirst.yml" {
+		t.Fatalf("flow testfirst mẫu phải qua: %+v", res)
 	}
 
-	// Thêm flow hỏng: list vẫn có tdd, lint không tên trả cả hai, lỗi của tệp này không chặn tệp kia.
+	// Thêm flow hỏng: list vẫn có testfirst, lint không tên trả cả hai, lỗi của tệp này không chặn tệp kia.
 	writeFlowFile(t, root, "la.yml", "schema: 1\nname: la\nnhieu: 1\nsteps: []\n")
-	writeFlowFile(t, root, "b-do.yml", strings.Replace(tddFlow, "name: tdd", "name: b-do", 1))
+	writeFlowFile(t, root, "b-do.yml", strings.Replace(tddFlow, "name: testfirst", "name: b-do", 1))
 	rows, _ = ListFlows(ctx, root, FlowListOptions{})
 	got := map[string]FlowRow{}
 	for _, r := range rows {
@@ -111,11 +111,11 @@ func TestFlowServices(t *testing.T) {
 			got[r.Name] = r
 		}
 	}
-	if len(rows) != 8 || !got["tdd"].OK || got["tdd"].Steps != 4 || got["la"].OK || got["b-do"].OK {
+	if len(rows) != 8 || !got["testfirst"].OK || got["testfirst"].Steps != 4 || got["la"].OK || got["b-do"].OK {
 		t.Fatalf("list: %+v", rows)
 	}
 	all, err := LintFlows(ctx, root, FlowLintOptions{})
-	if err != nil || len(all) != 3 || all[0].Name != "b-do" || all[1].Name != "la" || all[2].Name != "tdd" {
+	if err != nil || len(all) != 3 || all[0].Name != "b-do" || all[1].Name != "la" || all[2].Name != "testfirst" {
 		t.Fatalf("%v %+v", err, all)
 	}
 	if all[0].OK() || all[1].OK() || !all[2].OK() {
@@ -130,7 +130,7 @@ func TestFlowServices(t *testing.T) {
 	}
 
 	// Flow tên trùng skill tiến hoá/tuỳ biến lỗi.
-	writeFlowFile(t, root, "write-failing-test.yml", strings.Replace(tddFlow, "name: tdd", "name: write-failing-test", 1))
+	writeFlowFile(t, root, "write-failing-test.yml", strings.Replace(tddFlow, "name: testfirst", "name: write-failing-test", 1))
 	if r, _ := LintFlows(ctx, root, FlowLintOptions{Name: "write-failing-test"}); r[0].OK() || !strings.Contains(strings.Join(r[0].Errors, "\n"), "trùng tên một skill") {
 		t.Fatalf("%+v", r)
 	}
@@ -160,16 +160,16 @@ func TestShowFlow(t *testing.T) {
 		t.Errorf("%+v", do)
 	}
 
-	writeFlowFile(t, root, "tdd.yml", tddFlow)
-	tdd, err := ShowFlow(ctx, root, FlowShowOptions{Name: "tdd"})
-	if err != nil || tdd.Source != FlowCustom || tdd.Path != ".bint/flows/tdd.yml" {
-		t.Fatalf("%v %+v", err, tdd)
+	writeFlowFile(t, root, "testfirst.yml", tddFlow)
+	testfirst, err := ShowFlow(ctx, root, FlowShowOptions{Name: "testfirst"})
+	if err != nil || testfirst.Source != FlowCustom || testfirst.Path != ".bint/flows/testfirst.yml" {
+		t.Fatalf("%v %+v", err, testfirst)
 	}
-	if len(tdd.Errors) == 0 { // skill write-failing-test chưa có: vẫn in nhưng báo lỗi
-		t.Errorf("muốn lỗi lint kèm theo: %+v", tdd)
+	if len(testfirst.Errors) == 0 { // skill write-failing-test chưa có: vẫn in nhưng báo lỗi
+		t.Errorf("muốn lỗi lint kèm theo: %+v", testfirst)
 	}
-	if !strings.Contains(tdd.YAML, "role: test-writer") || !strings.Contains(tdd.YAML, "role: reviewer") {
-		t.Errorf("YAML chuẩn hoá:\n%s", tdd.YAML)
+	if !strings.Contains(testfirst.YAML, "role: test-writer") || !strings.Contains(testfirst.YAML, "role: reviewer") {
+		t.Errorf("YAML chuẩn hoá:\n%s", testfirst.YAML)
 	}
 
 	writeFlowFile(t, root, "hong.yml", "schema: [oops\n")

@@ -109,7 +109,7 @@ blocked / failed / interrupted.`,
   bint run b-do --agent-command ./my-agent.sh "…"
   bint run b-do --role implementer=codex "…"   # b-feat bằng Codex, các bước khác theo roles
   bint run b-review --harness antigravity --task 01J…
-  bint run tdd "Thêm cờ --json cho bint flow list"   # flow tuỳ biến .bint/flows/tdd.yml`,
+  bint run testfirst "Thêm cờ --json cho bint flow list"   # flow tuỳ biến .bint/flows/testfirst.yml`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {

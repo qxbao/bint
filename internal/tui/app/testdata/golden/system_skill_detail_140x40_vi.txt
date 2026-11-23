@@ -1,6 +1,6 @@
  Tổng quan │ Tri thức (3) │ Tác vụ │ Lượt chạy │ Đánh giá │ Tiến hoá │ Hệ thống │ MCP                               /work/demo · bint 0.1.0 
   Cấu hình · Harness · Thành phần · Skill · Chỉ mục · Ngôn ngữ · Doctor · Cài đặt · Cập nhật                                                
-┌─│Skill (3)│─────────────────────────────────────────────────┐┌─│Nội dung b-feat│────────────────────────────────────────────────1-35/193─┐
+┌─│Skill (3)│─────────────────────────────────────────────────┐┌─│Nội dung b-feat│────────────────────────────────────────────────1-35/212─┐
 │   gốc   b-do                        aaaa1111  đã xuất bản   ││ ---                                                                       │
 │ ▸ gốc   b-feat                      bbbb2222  khác bản Bint ││ name: b-feat                                                              │
 │   t.hoá api-guide                   v2        chưa xuất bản ││ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai      │

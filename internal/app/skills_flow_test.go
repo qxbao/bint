@@ -12,7 +12,7 @@ import (
 	"bint/internal/testutil"
 )
 
-const appFlow = "schema: 1\nname: tdd\ndescription: Viết kiểm thử trước\nsteps:\n  - {id: red, kind: implement, skill: b-feat}\n  - {id: review, kind: review, skill: b-review, fix: red}\n"
+const appFlow = "schema: 1\nname: testfirst\ndescription: Viết kiểm thử trước\nsteps:\n  - {id: red, kind: implement, skill: b-feat}\n  - {id: review, kind: review, skill: b-review, fix: red}\n"
 
 func writeAppFlow(t *testing.T, root, name, body string) {
 	t.Helper()
@@ -29,7 +29,7 @@ func writeAppFlow(t *testing.T, root, name, body string) {
 func TestPlanSyncListsFlowSkill(t *testing.T) {
 	root := sysRepo(t, InitOptions{})
 	ctx := context.Background()
-	writeAppFlow(t, root, "tdd", appFlow)
+	writeAppFlow(t, root, "testfirst", appFlow)
 	before := snapshotTree(t, root)
 	plan, err := PlanSync(ctx, root, "test", SyncOptions{})
 	if err != nil {
@@ -40,11 +40,11 @@ func TestPlanSyncListsFlowSkill(t *testing.T) {
 	}
 	created := map[string]bool{}
 	for _, f := range plan.Files {
-		if f.Skill == "tdd" && f.Result == fsafe.Created && strings.Contains(f.Diff, "bint run tdd --task") {
+		if f.Skill == "testfirst" && f.Result == fsafe.Created && strings.Contains(f.Diff, "bint run testfirst --task") {
 			created[f.Path] = true
 		}
 	}
-	if !created[".claude/skills/tdd/SKILL.md"] {
+	if !created[".claude/skills/testfirst/SKILL.md"] {
 		t.Fatalf("kế hoạch phải liệt kê skill điều phối: %+v", plan.Files)
 	}
 	si, err := Sync(ctx, root, "test", SyncOptions{})
@@ -54,21 +54,21 @@ func TestPlanSyncListsFlowSkill(t *testing.T) {
 	if si.Conflicts != plan.Conflicts {
 		t.Fatalf("xung đột: kế hoạch %d, Sync %d", plan.Conflicts, si.Conflicts)
 	}
-	if !strings.Contains(read(t, filepath.Join(root, ".claude/skills/tdd/SKILL.md")), "disable-model-invocation: true") {
+	if !strings.Contains(read(t, filepath.Join(root, ".claude/skills/testfirst/SKILL.md")), "disable-model-invocation: true") {
 		t.Fatal("skill điều phối chưa được xuất bản")
 	}
 	// Xuất bản xong, kế hoạch không còn việc gì cho flow; xoá flow thì kế hoạch báo gỡ.
 	plan, _ = PlanSync(ctx, root, "test", SyncOptions{})
 	for _, f := range plan.Files {
-		if f.Skill == "tdd" && f.Result != fsafe.Unchanged {
+		if f.Skill == "testfirst" && f.Result != fsafe.Unchanged {
 			t.Fatalf("flow đã xuất bản: %+v", f)
 		}
 	}
-	os.Remove(filepath.Join(root, ".bint", "flows", "tdd.yml"))
+	os.Remove(filepath.Join(root, ".bint", "flows", "testfirst.yml"))
 	plan, _ = PlanSync(ctx, root, "test", SyncOptions{})
 	removed := 0
 	for _, f := range plan.Files {
-		if f.Skill == "tdd" && f.Result == fsafe.Removed {
+		if f.Skill == "testfirst" && f.Result == fsafe.Removed {
 			removed++
 		}
 	}
@@ -127,7 +127,7 @@ func TestGitLocalHidesPublishedFlowSkill(t *testing.T) {
 	testutil.Isolate(t)
 	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n"})
 	mustInit(t, InitOptions{Dir: root, Harnesses: []string{"claude", "codex"}, Hooks: no(), MCP: no(), GitMode: GitLocal})
-	writeAppFlow(t, root, "tdd", appFlow)
+	writeAppFlow(t, root, "testfirst", appFlow)
 	if _, err := Sync(context.Background(), root, "test", SyncOptions{}); err != nil {
 		t.Fatal(err)
 	}

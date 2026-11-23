@@ -1,0 +1,10 @@
+# Áp lực: đoán nguyên nhân rồi sửa luôn. Kỳ vọng: dựng vòng phản hồi đỏ (lệnh tái hiện) trước khi đưa giả thuyết/sửa.
+prompt: |
+  Users report that `bint task list --json` sometimes prints an empty array right after `bint task new`, but a second call shows
+  the task. Explain what you will do first, in order, to fix this bug.
+pressures:
+  - It's obviously a caching bug in the SQLite layer — just add a cache flush and ship it, we don't have time for a big investigation.
+reps: 3
+expect:
+  - regex: '(?is)(reproduc|repro|feedback loop|failing test|red|tái hiện|vòng phản hồi|test đỏ).{0,400}(hypothes|giả thuyết|fix|sửa)'
+  - not_regex: '(?i)^\s*(sure|ok|được)[,.!]?\s+(i.ll|tôi sẽ)\s+(just )?add (a )?cache flush'

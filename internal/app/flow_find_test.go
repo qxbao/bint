@@ -11,19 +11,19 @@ import (
 // Phát hiện review GĐ2 .3: findFlow dùng chung đường tra với flow.Get/Find; không có flow thì lỗi cách dùng.
 func TestFindFlowSharesLookupWithFlowGet(t *testing.T) {
 	root := t.TempDir()
-	writeFlowFile(t, root, "tdd.yml", tddFlow)
-	writeFlowFile(t, root, "tdd.yaml", tddFlow)
+	writeFlowFile(t, root, "testfirst.yml", tddFlow)
+	writeFlowFile(t, root, "testfirst.yaml", tddFlow)
 	writeFlowFile(t, root, "hong.yml", "schema: [oops\n")
 
 	d, file, path, err := findFlow(root, "b-do")
 	if err != nil || !d.IsBuiltin() || file != "" || path != "" {
 		t.Fatalf("findFlow(b-do) = %+v %q %q %v", d, file, path, err)
 	}
-	// Cả tdd.yml và tdd.yaml cùng có: luôn chọn bản .yml, giống flow.Get.
-	d, file, path, err = findFlow(root, "tdd")
-	want, gerr := flow.Get(root, "tdd")
-	if err != nil || gerr != nil || file != "tdd" || path != ".bint/flows/tdd.yml" || d.Name != want.Name || flow.Hash(d) != flow.Hash(want) {
-		t.Fatalf("findFlow(tdd) = %+v %q %q %v (flow.Get: %v)", d, file, path, err, gerr)
+	// Cả testfirst.yml và testfirst.yaml cùng có: luôn chọn bản .yml, giống flow.Get.
+	d, file, path, err = findFlow(root, "testfirst")
+	want, gerr := flow.Get(root, "testfirst")
+	if err != nil || gerr != nil || file != "testfirst" || path != ".bint/flows/testfirst.yml" || d.Name != want.Name || flow.Hash(d) != flow.Hash(want) {
+		t.Fatalf("findFlow(testfirst) = %+v %q %q %v (flow.Get: %v)", d, file, path, err, gerr)
 	}
 	if _, _, _, err = findFlow(root, "khong-co"); !IsUsage(err) || !strings.Contains(err.Error(), `không có flow "khong-co"`) ||
 		!strings.Contains(err.Error(), "bint flow list") {
@@ -37,22 +37,22 @@ func TestFindFlowSharesLookupWithFlowGet(t *testing.T) {
 func TestFlowServicesWithYmlAndYamlSameName(t *testing.T) {
 	root := sysRepo(t, InitOptions{})
 	ctx := context.Background()
-	writeFlowFile(t, root, "tdd.yaml", tddFlow)
-	writeFlowFile(t, root, "tdd.yml", tddFlow)
+	writeFlowFile(t, root, "testfirst.yaml", tddFlow)
+	writeFlowFile(t, root, "testfirst.yml", tddFlow)
 
-	res, err := ShowFlow(ctx, root, FlowShowOptions{Name: "tdd"})
-	if err != nil || res.Source != FlowCustom || res.Path != ".bint/flows/tdd.yml" {
-		t.Fatalf("ShowFlow(tdd): %v %+v", err, res)
+	res, err := ShowFlow(ctx, root, FlowShowOptions{Name: "testfirst"})
+	if err != nil || res.Source != FlowCustom || res.Path != ".bint/flows/testfirst.yml" {
+		t.Fatalf("ShowFlow(testfirst): %v %+v", err, res)
 	}
-	lint, err := LintFlows(ctx, root, FlowLintOptions{Name: "tdd"})
-	if err != nil || len(lint) != 2 || lint[0].Path != ".bint/flows/tdd.yml" || lint[1].Path != ".bint/flows/tdd.yaml" {
-		t.Fatalf("LintFlows(tdd): %v %+v", err, lint)
+	lint, err := LintFlows(ctx, root, FlowLintOptions{Name: "testfirst"})
+	if err != nil || len(lint) != 2 || lint[0].Path != ".bint/flows/testfirst.yml" || lint[1].Path != ".bint/flows/testfirst.yaml" {
+		t.Fatalf("LintFlows(testfirst): %v %+v", err, lint)
 	}
 	if len(lint[1].Errors) != 1 || !strings.Contains(lint[1].Errors[0], "trùng") {
-		t.Fatalf("tdd.yaml phải báo trùng: %+v", lint[1])
+		t.Fatalf("testfirst.yaml phải báo trùng: %+v", lint[1])
 	}
 	rows, err := ListFlows(ctx, root, FlowListOptions{})
-	if err != nil || len(rows) != 7 || rows[5].Path != ".bint/flows/tdd.yml" || rows[6].Path != ".bint/flows/tdd.yaml" || rows[6].OK {
+	if err != nil || len(rows) != 7 || rows[5].Path != ".bint/flows/testfirst.yml" || rows[6].Path != ".bint/flows/testfirst.yaml" || rows[6].OK {
 		t.Fatalf("ListFlows: %v %+v", err, rows)
 	}
 }

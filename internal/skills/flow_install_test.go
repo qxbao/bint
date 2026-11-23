@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	flowClaude = ".claude/skills/tdd/SKILL.md"
-	flowAgents = ".agents/skills/tdd/SKILL.md"
+	flowClaude = ".claude/skills/testfirst/SKILL.md"
+	flowAgents = ".agents/skills/testfirst/SKILL.md"
 )
 
 func writeFlow(t *testing.T, root, name, content string) {
@@ -37,7 +37,7 @@ func hasConflict(outs []Outcome, path, detail string) bool {
 
 func TestInstallFlowsPublishesToBothTargets(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd", tddSrc)
+	writeFlow(t, root, "testfirst", tddSrc)
 	opts := customOpts(t, root)
 	outs, err := Install(opts)
 	if err != nil {
@@ -49,15 +49,15 @@ func TestInstallFlowsPublishesToBothTargets(t *testing.T) {
 		}
 	}
 	claude := readFile(t, root, flowClaude)
-	if !strings.Contains(claude, "disable-model-invocation: true") || !strings.Contains(claude, "bint run tdd --task <id> --json") ||
-		!strings.Contains(claude, "--workflow tdd") {
+	if !strings.Contains(claude, "disable-model-invocation: true") || !strings.Contains(claude, "bint run testfirst --task <id> --json") ||
+		!strings.Contains(claude, "--workflow testfirst") {
 		t.Fatalf("claude:\n%s", claude)
 	}
-	if got := readFile(t, root, flowAgents); strings.Contains(got, "disable-model-invocation") || !strings.HasPrefix(got, "---\nname: tdd\n") {
+	if got := readFile(t, root, flowAgents); strings.Contains(got, "disable-model-invocation") || !strings.HasPrefix(got, "---\nname: testfirst\n") {
 		t.Fatalf("agents chỉ giữ name/description:\n%s", got)
 	}
 	lock, _ := ReadLock(root)
-	e := lock.Flows["tdd"]
+	e := lock.Flows["testfirst"]
 	if len(e.Published) != 2 || e.SHA256 == "" || e.Variants[FormatAgents] == "" {
 		t.Fatalf("lock.Flows: %+v", e)
 	}
@@ -70,7 +70,7 @@ func TestInstallFlowsPublishesToBothTargets(t *testing.T) {
 		t.Fatalf("lần hai: %v", r)
 	}
 	// Đổi flow → cập nhật cả hai target.
-	writeFlow(t, root, "tdd", strings.Replace(tddSrc, "Viết kiểm thử đỏ trước", "Viết test đỏ trước", 1))
+	writeFlow(t, root, "testfirst", strings.Replace(tddSrc, "Viết kiểm thử đỏ trước", "Viết test đỏ trước", 1))
 	outs, _ = Install(opts)
 	if r, _ := resultOf(outs, flowAgents); r != fsafe.Updated {
 		t.Fatalf("flow đổi: %v", r)
@@ -84,7 +84,7 @@ func TestInstallFlowsPublishesToBothTargets(t *testing.T) {
 func TestInstallFlowsWithCustomStepSkill(t *testing.T) {
 	root := t.TempDir()
 	writeCustom(t, root, "red-first", "SKILL.md", goodSkill("red-first"))
-	writeFlow(t, root, "tdd", "schema: 1\nname: tdd\nsteps:\n  - {id: red, kind: implement, skill: red-first}\n")
+	writeFlow(t, root, "testfirst", "schema: 1\nname: testfirst\nsteps:\n  - {id: red, kind: implement, skill: red-first}\n")
 	outs, err := Install(customOpts(t, root))
 	if err != nil {
 		t.Fatal(err)
@@ -99,19 +99,19 @@ func TestInstallFlowsWithCustomStepSkill(t *testing.T) {
 
 func TestInstallFlowsLintFailureKeepsPublished(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd", tddSrc)
+	writeFlow(t, root, "testfirst", tddSrc)
 	opts := customOpts(t, root)
 	if _, err := Install(opts); err != nil {
 		t.Fatal(err)
 	}
 	good := readFile(t, root, flowClaude)
 	before, _ := ReadLock(root)
-	writeFlow(t, root, "tdd", strings.Replace(tddSrc, "skill: b-review", "skill: khong-co", 1))
+	writeFlow(t, root, "testfirst", strings.Replace(tddSrc, "skill: b-review", "skill: khong-co", 1))
 	outs, err := Install(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !hasConflict(outs, ".bint/flows/tdd.yml", "giữ bản đã xuất bản") || !hasConflict(outs, ".bint/flows/tdd.yml", "khong-co") {
+	if !hasConflict(outs, ".bint/flows/testfirst.yml", "giữ bản đã xuất bản") || !hasConflict(outs, ".bint/flows/testfirst.yml", "khong-co") {
 		t.Fatalf("phải báo xung đột nêu lỗi: %+v", outs)
 	}
 	if readFile(t, root, flowClaude) != good {
@@ -122,9 +122,9 @@ func TestInstallFlowsLintFailureKeepsPublished(t *testing.T) {
 		t.Fatalf("mục lock bị đổi:\n%s\n%s", b, a)
 	}
 	// Tệp YAML hỏng cũng vậy.
-	writeFlow(t, root, "tdd", "schema: [")
+	writeFlow(t, root, "testfirst", "schema: [")
 	outs, _ = Install(opts)
-	if !hasConflict(outs, ".bint/flows/tdd.yml", "giữ bản đã xuất bản") || readFile(t, root, flowClaude) != good {
+	if !hasConflict(outs, ".bint/flows/testfirst.yml", "giữ bản đã xuất bản") || readFile(t, root, flowClaude) != good {
 		t.Fatalf("tệp hỏng: %+v", outs)
 	}
 	// Flow lỗi chưa từng xuất bản thì không có gì được tạo.
@@ -146,12 +146,12 @@ func mustYAML(t *testing.T, v any) string {
 
 func TestInstallFlowsRemoveFlowUnpublishes(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd", tddSrc)
+	writeFlow(t, root, "testfirst", tddSrc)
 	opts := customOpts(t, root)
 	if _, err := Install(opts); err != nil {
 		t.Fatal(err)
 	}
-	os.Remove(filepath.Join(root, ".bint/flows/tdd.yml"))
+	os.Remove(filepath.Join(root, ".bint/flows/testfirst.yml"))
 	outs, err := Install(opts)
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func TestInstallFlowsRemoveFlowUnpublishes(t *testing.T) {
 			t.Fatalf("%s: %v", rel, r)
 		}
 	}
-	if exists(root, ".claude/skills/tdd") {
+	if exists(root, ".claude/skills/testfirst") {
 		t.Fatal("thư mục rỗng phải được dọn")
 	}
 	if lock, _ := ReadLock(root); len(lock.Flows) != 0 {
@@ -171,7 +171,7 @@ func TestInstallFlowsRemoveFlowUnpublishes(t *testing.T) {
 
 func TestInstallFlowsHandEditedConflictAndForce(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd", tddSrc)
+	writeFlow(t, root, "testfirst", tddSrc)
 	opts := customOpts(t, root)
 	if _, err := Install(opts); err != nil {
 		t.Fatal(err)
@@ -181,15 +181,15 @@ func TestInstallFlowsHandEditedConflictAndForce(t *testing.T) {
 	opts.Manifest, _ = fsafe.LoadManifest(filepath.Join(t.TempDir(), "m2.json"))
 
 	// 1) Sửa nguồn rồi sync: xung đột ở bản sửa tay, bản agents (chưa sửa) vẫn cập nhật.
-	writeFlow(t, root, "tdd", strings.Replace(tddSrc, "Viết kiểm thử đỏ trước", "Viết test đỏ trước", 1))
+	writeFlow(t, root, "testfirst", strings.Replace(tddSrc, "Viết kiểm thử đỏ trước", "Viết test đỏ trước", 1))
 	outs, _ := Install(opts)
-	if !hasConflict(outs, flowClaude, ".bint/flows/tdd.yml") || readFile(t, root, flowClaude) != "sửa tay" {
+	if !hasConflict(outs, flowClaude, ".bint/flows/testfirst.yml") || readFile(t, root, flowClaude) != "sửa tay" {
 		t.Fatalf("phải xung đột: %+v", outs)
 	}
 	if r, _ := resultOf(outs, flowAgents); r != fsafe.Updated {
 		t.Fatalf("agents: %v", r)
 	}
-	if lock, _ := ReadLock(root); len(lock.Flows["tdd"].Published) != 2 {
+	if lock, _ := ReadLock(root); len(lock.Flows["testfirst"].Published) != 2 {
 		t.Fatalf("lock phải giữ rel xung đột: %+v", lock.Flows)
 	}
 
@@ -207,7 +207,7 @@ func TestInstallFlowsHandEditedConflictAndForce(t *testing.T) {
 
 	// 3) Sửa tay rồi xoá flow: xung đột, giữ tệp và mục lock; bản không sửa tay bị gỡ.
 	os.WriteFile(filepath.Join(root, flowClaude), []byte("sửa tay lần hai"), 0o644)
-	os.Remove(filepath.Join(root, ".bint/flows/tdd.yml"))
+	os.Remove(filepath.Join(root, ".bint/flows/testfirst.yml"))
 	outs, _ = Install(opts)
 	if !hasConflict(outs, flowClaude, "bị sửa tay") || readFile(t, root, flowClaude) != "sửa tay lần hai" {
 		t.Fatalf("xoá flow đã sửa tay: %+v", outs)
@@ -216,7 +216,7 @@ func TestInstallFlowsHandEditedConflictAndForce(t *testing.T) {
 		t.Fatalf("agents: %v", r)
 	}
 	lock, _ := ReadLock(root)
-	if got := lock.Flows["tdd"].Published; len(got) != 1 || got[0] != flowClaude {
+	if got := lock.Flows["testfirst"].Published; len(got) != 1 || got[0] != flowClaude {
 		t.Fatalf("lock giữ rel xung đột: %+v", lock.Flows)
 	}
 }
@@ -265,24 +265,24 @@ func TestInstallFlowsRejectsNamesOfOtherSkills(t *testing.T) {
 // Skill tuỳ biến được tạo trùng tên flow đã xuất bản: skill thắng, mục flows bị bỏ khỏi lock mà không gỡ tệp.
 func TestInstallFlowsCustomSkillTakesOverPublishedName(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd", tddSrc)
+	writeFlow(t, root, "testfirst", tddSrc)
 	opts := customOpts(t, root)
 	if _, err := Install(opts); err != nil {
 		t.Fatal(err)
 	}
-	writeCustom(t, root, "tdd", "SKILL.md", goodSkill("tdd"))
+	writeCustom(t, root, "testfirst", "SKILL.md", goodSkill("testfirst"))
 	outs, err := Install(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := readFile(t, root, flowClaude); got != goodSkill("tdd") {
+	if got := readFile(t, root, flowClaude); got != goodSkill("testfirst") {
 		t.Fatalf("skill tuỳ biến phải thắng:\n%s", got)
 	}
 	lock, _ := ReadLock(root)
-	if _, ok := lock.Flows["tdd"]; ok || len(lock.Custom["tdd"].Published) != 2 {
+	if _, ok := lock.Flows["testfirst"]; ok || len(lock.Custom["testfirst"].Published) != 2 {
 		t.Fatalf("lock: flows=%+v custom=%+v", lock.Flows, lock.Custom)
 	}
-	if !hasConflict(outs, ".bint/flows/tdd.yml", "trùng một skill khác") {
+	if !hasConflict(outs, ".bint/flows/testfirst.yml", "trùng một skill khác") {
 		t.Fatalf("phải báo xung đột: %+v", outs)
 	}
 }
@@ -291,9 +291,9 @@ func TestInstallFlowsCustomSkillTakesOverPublishedName(t *testing.T) {
 // điều phối cũ vẫn thuộc mục flows; xoá flow ở lần sync sau thì gỡ được, không thành tệp mồ côi.
 func TestInstallFlowsNameTakenByUnpublishedSkillKeepsEntryForRemoval(t *testing.T) {
 	cases := map[string]func(t *testing.T, root string){
-		"tuỳ biến lỗi lint": func(t *testing.T, root string) { writeCustom(t, root, "tdd", "SKILL.md", "hỏng\n") },
+		"tuỳ biến lỗi lint": func(t *testing.T, root string) { writeCustom(t, root, "testfirst", "SKILL.md", "hỏng\n") },
 		"tiến hoá không active": func(t *testing.T, root string) {
-			if err := newEvolved("tdd", goodDesc, "1. Gọi Reset.", "internal/core/**").Save(root); err != nil {
+			if err := newEvolved("testfirst", goodDesc, "1. Gọi Reset.", "internal/core/**").Save(root); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -301,7 +301,7 @@ func TestInstallFlowsNameTakenByUnpublishedSkillKeepsEntryForRemoval(t *testing.
 	for name, claim := range cases {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
-			writeFlow(t, root, "tdd", tddSrc)
+			writeFlow(t, root, "testfirst", tddSrc)
 			opts := customOpts(t, root)
 			opts.Files = []string{"docs/x.md"} // không khớp internal/core/** nên skill tiến hoá không active
 			if _, err := Install(opts); err != nil {
@@ -315,18 +315,18 @@ func TestInstallFlowsNameTakenByUnpublishedSkillKeepsEntryForRemoval(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !hasConflict(outs, ".bint/flows/tdd.yml", "trùng một skill khác") {
+			if !hasConflict(outs, ".bint/flows/testfirst.yml", "trùng một skill khác") {
 				t.Fatalf("phải báo xung đột: %+v", outs)
 			}
 			lock, _ := ReadLock(root)
-			if len(lock.Flows["tdd"].Published) != 2 {
+			if len(lock.Flows["testfirst"].Published) != 2 {
 				t.Fatalf("tệp chưa ai nhận phải còn trong mục flows: %+v", lock.Flows)
 			}
 			if !exists(root, flowClaude) || !exists(root, flowAgents) {
 				t.Fatal("không được gỡ tệp khi flow còn")
 			}
 			// Xoá flow: lần sync sau gỡ skill điều phối cũ và mục lock.
-			if err := os.Remove(filepath.Join(root, ".bint/flows/tdd.yml")); err != nil {
+			if err := os.Remove(filepath.Join(root, ".bint/flows/testfirst.yml")); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := Install(opts); err != nil {
@@ -345,24 +345,24 @@ func TestInstallFlowsNameTakenByUnpublishedSkillKeepsEntryForRemoval(t *testing.
 // Xoá flow X và tạo skill tuỳ biến X trong cùng một lần Install: bản tuỳ biến còn, không bị gỡ nhầm.
 func TestInstallFlowsDeletedFlowDoesNotRemoveNewCustomSkill(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd", tddSrc)
+	writeFlow(t, root, "testfirst", tddSrc)
 	opts := customOpts(t, root)
 	if _, err := Install(opts); err != nil {
 		t.Fatal(err)
 	}
-	os.Remove(filepath.Join(root, ".bint/flows/tdd.yml"))
-	writeCustom(t, root, "tdd", "SKILL.md", goodSkill("tdd"))
+	os.Remove(filepath.Join(root, ".bint/flows/testfirst.yml"))
+	writeCustom(t, root, "testfirst", "SKILL.md", goodSkill("testfirst"))
 	if _, err := Install(opts); err != nil {
 		t.Fatal(err)
 	}
-	if got := readFile(t, root, flowClaude); got != goodSkill("tdd") {
+	if got := readFile(t, root, flowClaude); got != goodSkill("testfirst") {
 		t.Fatalf("bản tuỳ biến bị gỡ/đè:\n%s", got)
 	}
 	if !exists(root, flowAgents) {
 		t.Fatal("bản agents bị gỡ nhầm")
 	}
 	lock, _ := ReadLock(root)
-	if _, ok := lock.Flows["tdd"]; ok || len(lock.Custom["tdd"].Published) != 2 {
+	if _, ok := lock.Flows["testfirst"]; ok || len(lock.Custom["testfirst"].Published) != 2 {
 		t.Fatalf("lock: flows=%+v custom=%+v", lock.Flows, lock.Custom)
 	}
 }
@@ -411,7 +411,7 @@ func TestInstallFlowsLegacyLockReadable(t *testing.T) {
 	if len(lock.Flows) != 0 || strings.Contains(readFile(t, root, LockRel), "flows:") {
 		t.Fatalf("không có flow thì lock không có mục flows:\n%s", readFile(t, root, LockRel))
 	}
-	writeFlow(t, root, "tdd", tddSrc)
+	writeFlow(t, root, "testfirst", tddSrc)
 	if _, err := Install(opts); err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +423,7 @@ func TestInstallFlowsLegacyLockReadable(t *testing.T) {
 // Tắt một harness không làm mất mục đã xuất bản ở target đó.
 func TestInstallFlowsKeepsEntryOfDisabledTarget(t *testing.T) {
 	root := t.TempDir()
-	writeFlow(t, root, "tdd", tddSrc)
+	writeFlow(t, root, "testfirst", tddSrc)
 	opts := customOpts(t, root)
 	if _, err := Install(opts); err != nil {
 		t.Fatal(err)
@@ -433,7 +433,7 @@ func TestInstallFlowsKeepsEntryOfDisabledTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	lock, _ := ReadLock(root)
-	if e := lock.Flows["tdd"]; len(e.Published) != 2 || e.Variants[FormatAgents] == "" {
+	if e := lock.Flows["testfirst"]; len(e.Published) != 2 || e.Variants[FormatAgents] == "" {
 		t.Fatalf("lock phải giữ mục của target đã tắt: %+v", e)
 	}
 	if !exists(root, flowAgents) {

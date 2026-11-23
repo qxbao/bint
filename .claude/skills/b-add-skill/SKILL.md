@@ -107,7 +107,8 @@ harness không có subagent thì nhờ người dùng mở phiên mới, và ghi
 ## Bước 3 — GREEN: viết skill tối thiểu
 
 Skill đã có thư mục từ Bước 2 (`bint skill new <tên>` tạo `.bint/skills/<tên>/SKILL.md` từ mẫu). Viết lại SKILL.md theo
-kết quả RED, chỉ trả lời đúng những lỗi và lời biện minh đã ghi:
+kết quả RED, chỉ trả lời đúng những lỗi và lời biện minh đã ghi. Tài liệu tham chiếu cho phần viết (context pointer, leading word,
+nêu hành vi đích thay vì cấm, tách tài liệu theo nhánh, bỏ câu không đổi hành vi): skill `writing-for-agents`.
 
 - `description` chỉ nêu **khi nào dùng** (điều kiện, triệu chứng, từ khoá agent sẽ gặp), mở đầu "Dùng khi …", ngôi thứ
   ba, dưới 1024 ký tự. **Không tóm tắt cách làm**: agent đọc bản tóm tắt sẽ làm theo nó thay vì đọc skill.

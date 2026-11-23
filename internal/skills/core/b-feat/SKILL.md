@@ -73,6 +73,16 @@ bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
   chạy, **trước khi sửa** (đỏ lúc này là bình thường). Test đo MỤC TIÊU của người dùng (cài dữ liệu giả vào mọi đường nhập, quét/đo mọi
   nơi lưu liên quan), không chỉ phần bạn định sửa. Chạy riêng test này sau mỗi nhóm sửa; còn đỏ thì sửa tiếp. Không nới hay xoá test cho dễ qua.
 - Làm theo từng nhóm thay đổi nhỏ; sau mỗi nhóm chạy kiểm thử phù hợp.
+- **Lát dọc tại seam đã chốt** (skill `tdd`): test mới chỉ viết ở seam trong mục `## Seam kiểm thử` của `plan.md` (không có mục đó thì
+  seam cao nhất chạm được hành vi). Mỗi vòng **một test đỏ → bản cài đặt tối thiểu cho nó xanh**, rồi mới tới test kế tiếp; không viết
+  hết test trước. Test kiểm hành vi qua interface công khai, giá trị kỳ vọng lấy từ nguồn độc lập (không tính lại theo cách mã tính).
+  Refactor nằm ngoài vòng đỏ → xanh: thấy cần thì ghi vào báo cáo.
+- **Hành vi người dùng thấy** (tiêu chí nói về điều người dùng quan sát trên CLI/TUI/giao diện/API): dự án có skill tuỳ biến
+  `verify-<app>` (`.bint/skills/verify-*/`) thì dùng nó lái app thật cho tính năng đã sửa và ghi chứng cứ thu được vào `--evidence` của
+  tiêu chí, ngoài unit test. Không có thì nói rõ tiêu chí chỉ được kiểm qua test.
+- **Vòng sửa** (đề bài là lượt sửa sau review hoặc kiểm chứng đỏ): từ lần sửa **thứ hai** cho cùng một cổng (cùng test/phát hiện còn đỏ),
+  trước khi sửa tiếp hãy viết ra **tiền đề chung** của các lần sửa trước (điều chúng cùng giả định là đúng) và kiểm tiền đề đó bằng một
+  lệnh chạy được; tiền đề sai thì đổi hướng, đừng vá thêm lớp nữa (skill `principles`: attack-the-premise, fix-root-causes).
 - Tự làm tuần tự trong phiên này; **không sinh agent con** để chia việc (mỗi con nạp lại ngữ cảnh, tốn token gấp bội).
 - Thao tác có nguy cơ mất dữ liệu (xoá, ghi đè, migration, `git reset`/`push`) phải được
   người đồng ý trước.
