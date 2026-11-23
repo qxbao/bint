@@ -485,9 +485,12 @@ type Workflow struct {
 	Isolation string `yaml:"isolation"`
 	// Driver chọn ai chạy các bước của tác vụ mới: process (`bint run` tự gọi harness) | session (phiên đang mở
 	// chạy bước bằng subagent qua `bint run next/complete`); docs/isolation-subagent-plan.md mục 6.
-	Driver   string           `yaml:"driver"`
-	Worktree WorkflowWorktree `yaml:"worktree"`
-	Agent    WorkflowAgent    `yaml:"agent"`
+	Driver string `yaml:"driver"`
+	// PreexistingRed: cổng done gặp test đỏ cả ở mốc tác vụ (đỏ sẵn, vẫn đỏ khi chạy lại tuần tự lúc máy rảnh): "" hoặc ask = chờ người
+	// quyết; accept = cho done khi tác vụ không đổi tệp nào trong gói của các test đó (ghi chú rõ). Khoá bật tay: mẫu chỉ ghi chú thích.
+	PreexistingRed string           `yaml:"preexisting_red"`
+	Worktree       WorkflowWorktree `yaml:"worktree"`
+	Agent          WorkflowAgent    `yaml:"agent"`
 	// Verify chọn phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (sau bước implement).
 	Verify WorkflowVerify `yaml:"verify"`
 	// Perf là cổng hồi quy hiệu năng tuỳ chọn (Command rỗng = tắt).
@@ -561,6 +564,12 @@ const (
 	IsolationAuto     = "auto"     // sửa thẳng trên cây đang làm; vào worktree riêng khi cây đó đang có tác vụ khác
 	IsolationShared   = "shared"   // luôn sửa thẳng trên cây đang làm
 	IsolationWorktree = "worktree" // luôn chạy trong worktree riêng của tác vụ
+)
+
+// Giá trị của workflow.preexisting_red.
+const (
+	PreexistingAsk    = "ask"
+	PreexistingAccept = "accept"
 )
 
 // IsolationModes là các giá trị hợp lệ của workflow.isolation.
@@ -1293,6 +1302,9 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.Perf.MaxSlowdown < 1 {
 		add("workflow.perf.max_slowdown: phải >= 1 (tỷ lệ chậm tối đa so với mốc)")
+	}
+	if !slices.Contains([]string{"", PreexistingAsk, PreexistingAccept}, c.Workflow.PreexistingRed) {
+		add("workflow.preexisting_red: phải là %s | %s", PreexistingAsk, PreexistingAccept)
 	}
 	if !slices.Contains(IsolationModes, c.Workflow.Isolation) {
 		add("workflow.isolation: phải là %s", strings.Join(IsolationModes, " | "))

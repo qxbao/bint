@@ -25,6 +25,9 @@ const (
 	redFlaky       = "flaky"
 	redTimeout     = "timeout"
 	redPreexisting = "preexisting"
+	// redUnstable: đỏ cả khi chạy lại ở mốc, nhưng cây mốc từng có lần kiểm chứng xanh phủ các gói đó (baseWasGreen): lần chạy lại ở mốc
+	// trùng lúc máy tải nặng. Không mở vòng sửa; cổng done chạy lại tuần tự lúc máy rảnh (doneRerun).
+	redUnstable = "unstable"
 )
 
 // triageMaxTests: đỏ nhiều test hơn thế thì gần như chắc là do mã; không chạy lại.
@@ -136,6 +139,9 @@ func (r *Runner) redRerun(ctx context.Context, rs *runState, v task.Verification
 	case strings.TrimSpace(rs.t.State.Base) != "" && curRep.Complete():
 		if r.redAtBase(ctx, rs, root, curRep.Failed, run) {
 			class = redPreexisting
+			if r.baseWasGreen(rs.t, curRep.Failed) {
+				class = redUnstable
+			}
 		}
 		if ctx.Err() != nil {
 			return "", nil, false
@@ -197,6 +203,9 @@ func (r *Runner) triageRed(ctx context.Context, rs *runState) bool {
 	case redPreexisting:
 		rs.res.Notes = append(rs.res.Notes, "kiểm chứng đỏ ở "+list+" nhưng các test đó cũng đỏ ở mốc tác vụ (đỏ sẵn từ trước): không mở vòng sửa; "+
 			"cổng done vẫn cần người quyết (sửa riêng, hoặc xác nhận)")
+	case redUnstable:
+		rs.res.Notes = append(rs.res.Notes, "kiểm chứng đỏ ở "+list+" và chạy lại ở mốc cũng đỏ, nhưng cây mốc từng xanh ở các gói đó: coi là test nhạy tải, "+
+			"không mở vòng sửa; cổng done chạy lại tuần tự lúc máy rảnh")
 	}
 	r.logf("  phân loại kiểm chứng đỏ: %s (%s)", class, list)
 	return true

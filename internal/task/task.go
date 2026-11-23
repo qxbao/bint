@@ -269,10 +269,14 @@ type Verification struct {
 	// Voided: lần đo đỏ thuộc cây của lát đã bị bỏ (--slice discard); redVerification bỏ qua nó (cây đã quay về điểm xanh).
 	Voided bool `json:"voided,omitempty"`
 	// RedClass phân loại lần kiểm chứng đỏ sau khi Bint chạy lại riêng các test đỏ (workflow: triageRed): "code" (đỏ do mã, mở vòng sửa),
-	// "flaky" (chạy lại xanh), "timeout" (chỉ hết giờ, chạy lại với trần gấp đôi xanh), "preexisting" (cũng đỏ ở mốc tác vụ). Rỗng = chưa phân loại.
+	// "flaky" (chạy lại xanh), "timeout" (chỉ hết giờ, chạy lại với trần gấp đôi xanh), "preexisting" (cũng đỏ ở mốc tác vụ), "unstable" (đỏ cả ở mốc lúc
+	// chạy lại nhưng cây mốc từng có lần kiểm chứng xanh phủ các gói đó: nhạy tải, không phải đỏ sẵn). Rỗng = chưa phân loại.
 	RedClass string `json:"red_class,omitempty"`
 	// RedTests là các test đỏ (gói + tên) mà phân loại dựa vào.
 	RedTests []string `json:"red_tests,omitempty"`
+	// AcceptedPreexisting: lần đỏ "preexisting" được chấp nhận ở cổng done theo workflow.preexisting_red: accept (tác vụ không đổi gói
+	// của các test đỏ); cổng done không coi nó là kiểm chứng không qua.
+	AcceptedPreexisting bool `json:"accepted_preexisting,omitempty"`
 	// Partial: kết quả tạm của lần kiểm nền còn đang chạy (gói đầu tiên đã đỏ); lần chạy xong ghi một mục đầy đủ sau nó. Không phải bằng chứng done.
 	Partial bool   `json:"partial,omitempty"`
 	Log     string `json:"log,omitempty"`

@@ -188,6 +188,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
   # idle_timeout_minutes: 0   # dừng bước agent khi harness im lặng quá số phút này (treo), resume nối tiếp được; 0 = 30 phút, -1 = tắt
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
+  # preexisting_red: ask     # (bật tay) cổng done gặp test đỏ sẵn ở mốc tác vụ (vẫn đỏ khi chạy lại tuần tự lúc máy rảnh): ask = chờ người quyết | accept = cho done khi tác vụ không đổi gói của các test đó
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
   verify:                   # mọi lần chạy test của tác vụ chạy các test bị ảnh hưởng do bgraph chọn; verify.command của phiếu chỉ chạy khi bgraph đòi chạy cả bộ
     affected_command: ""    # lệnh chạy một danh sách tệp test, có {test_files} hoặc {test_dirs}; chỉ dùng khi bgraph không dựng được lệnh cho các tệp đó (vd. kiểm tra mục tiêu viết bằng shell); rỗng = verify.command

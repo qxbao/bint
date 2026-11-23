@@ -207,7 +207,7 @@ func DoneBlockersTyped(t *Task, in DoneInput) []Blocker {
 			add(BlockVerifyMissing, "chưa chạy lệnh kiểm chứng (bint task verify)")
 		case v.Command != cmd:
 			add(BlockVerifyChanged, "lệnh kiểm chứng đã đổi sau lần chạy cuối (bint task verify)")
-		case !v.Passed:
+		case !v.Passed && !v.AcceptedPreexisting:
 			add(BlockVerifyFailed, "lần kiểm chứng cuối không qua")
 		case in.Worktree == "" || v.Worktree != in.Worktree:
 			if len(in.OutsideSinceVerify) > 0 {

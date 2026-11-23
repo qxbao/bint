@@ -378,7 +378,7 @@ func redVerification(t *task.Task) *task.Verification {
 	if g := gateAfterVerify(t); g != nil && !g.Passed && (g.RedClass == "" || g.RedClass == redCode) {
 		return g
 	}
-	if v := t.State.LastVerification(); v != nil && !v.Passed && !v.Voided && v.Reason == "" && v.RunID != "" && v.RedClass != redPreexisting {
+	if v := t.State.LastVerification(); v != nil && !v.Passed && !v.Voided && v.Reason == "" && v.RunID != "" && v.RedClass != redPreexisting && v.RedClass != redUnstable {
 		return v
 	}
 	// Cổng mục tiêu riêng (kiểm tra mục tiêu đóng băng) đỏ sau bước implement: cùng cách xử lý (review thấy, vòng sửa, không finalize).
@@ -582,7 +582,7 @@ func (r *Runner) reviewPrompt(ctx context.Context, rs *runState, b *strings.Buil
 	}
 	if v := t.State.LastVerification(); v != nil {
 		fmt.Fprintf(b, "Kiểm chứng gần nhất: `%s` → %s.\n", v.Command, passWord(v.Passed))
-		if !v.Passed && v.RedClass == redPreexisting {
+		if !v.Passed && (v.RedClass == redPreexisting || v.RedClass == redUnstable) {
 			fmt.Fprintf(b, "Kiểm chứng cuối KHÔNG QUA nhưng các test đỏ (%s) cũng đỏ ở mốc tác vụ, tức đỏ sẵn từ trước, không do thay đổi này: "+
 				"đừng ghi phát hiện cho chúng; chỉ ghi nếu thay đổi làm chúng đỏ theo cách khác.\n", strings.Join(v.RedTests, ", "))
 		} else if !v.Passed {

@@ -2731,6 +2731,9 @@ func (r *Runner) finalize(ctx context.Context, rs *runState) bool {
 			return false
 		}
 	}
+	if !r.doneRerun(ctx, rs) {
+		return false
+	}
 	t, blockers, err := r.SetStatus(ctx, rs.t.State.ID, task.StatusDone, TransitionOptions{Reason: rs.flow.Name + " finalize", Orchestrator: true})
 	if t != nil {
 		rs.t = t

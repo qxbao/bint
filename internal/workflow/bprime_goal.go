@@ -123,7 +123,7 @@ func (r *Runner) bprimeReviewTail(t *task.Task) string {
 	if v := t.State.LastVerification(); v != nil {
 		fmt.Fprintf(&b, "Kiểm chứng gần nhất: `%s` → %s.\n", v.Command, passWord(v.Passed))
 		switch {
-		case !v.Passed && v.RedClass == redPreexisting:
+		case !v.Passed && (v.RedClass == redPreexisting || v.RedClass == redUnstable):
 			fmt.Fprintf(&b, "Kiểm chứng cuối KHÔNG QUA nhưng các test đỏ (%s) cũng đỏ ở mốc tác vụ, tức đỏ sẵn từ trước, không do thay đổi này: "+
 				"đừng ghi phát hiện cho chúng; chỉ ghi nếu thay đổi làm chúng đỏ theo cách khác.\n", strings.Join(v.RedTests, ", "))
 		case !v.Passed:
