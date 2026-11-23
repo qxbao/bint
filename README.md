@@ -177,7 +177,7 @@ Dùng hằng ngày, theo việc cần làm. Lệnh `/…` gõ trong phiên Claud
 |---|---|
 | Việc đã rõ (sửa nhỏ, thêm tính năng có mô tả cụ thể) | `/b-do <mô tả>`: agent lập kế hoạch → viết test trước rồi sửa mã → tự review |
 | Ý tưởng còn mơ hồ, việc lớn | `/grill-with-docs <ý tưởng>`: agent hỏi bạn từng vòng (mỗi câu kèm đáp án đề xuất), ghi thuật ngữ vào `GLOSSARY.md` và quyết định vào `docs/adr/`, cuối cùng đưa lệnh `bint task new …` soạn sẵn để bạn chạy hoặc chuyển sang `/b-do` |
-| Có lỗi cần sửa | `bint run b-debug "<mô tả lỗi>"`: tái hiện bằng test hỏng trước, rồi mới sửa |
+| Có lỗi cần sửa | `/b-debug <mô tả lỗi>`: tái hiện bằng test hỏng trước, rồi mới sửa, sau đó tự review |
 | Muốn biết mã nên tái cấu trúc ở đâu | `/improve-arch`: đề xuất chỗ làm module "sâu" hơn, dễ test hơn |
 
 Agent tự dùng các skill kỷ luật khi hợp ngữ cảnh, bạn không cần gọi: `tdd` (test trước), `diagnosing-bugs` (tìm nguyên nhân gốc
