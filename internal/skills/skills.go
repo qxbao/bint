@@ -13,10 +13,13 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -31,6 +34,25 @@ var coreFS embed.FS
 type Skill struct {
 	Name    string
 	Content []byte
+	// Files: tệp phụ của skill gốc (mọi tệp trong core/<tên>/ trừ SKILL.md và thư mục tests/), xuất bản nguyên văn
+	// cạnh SKILL.md. Rỗng ở skill tuỳ biến/tiến hoá dạng Skill (tệp phụ của chúng đi đường riêng).
+	Files []CustomFile
+}
+
+// Version là băm phiên bản skill gốc dùng trong core.lock (SHA256): bằng Hash() khi không có tệp phụ (core.lock cũ
+// không đổi), ngược lại băm cả SKILL.md lẫn từng tệp phụ (đường dẫn, bit thực thi, nội dung) để đổi riêng tệp phụ
+// cũng làm đổi phiên bản.
+func (s Skill) Version() string {
+	if len(s.Files) == 0 {
+		return s.Hash()
+	}
+	h := sha256.New()
+	h.Write(s.Content)
+	for _, f := range s.Files {
+		fmt.Fprintf(h, "\x00%s\x00%o\x00%d\x00", f.Rel, f.Mode&0o111, len(f.Content))
+		h.Write(f.Content)
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
 // Hash trả về băm nội dung (dùng làm phiên bản trong core.lock).
@@ -53,6 +75,10 @@ func (s Skill) Body() string {
 
 // Core trả về các skill gốc có trong bản này.
 func Core() []Skill {
+	return slices.Clone(loadCore())
+}
+
+var loadCore = sync.OnceValue(func() []Skill {
 	entries, err := fs.ReadDir(coreFS, "core")
 	if err != nil {
 		panic(err)
@@ -66,9 +92,46 @@ func Core() []Skill {
 		if err != nil {
 			continue
 		}
-		out = append(out, Skill{Name: e.Name(), Content: b})
+		out = append(out, Skill{Name: e.Name(), Content: b, Files: coreFiles(e.Name())})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+})
+
+// coreFiles nạp tệp phụ nhúng của skill gốc name: mọi tệp dưới core/<name>/ trừ SKILL.md ở gốc và thư mục tests/
+// (kịch bản kiểm thử skill, không xuất bản). embed không giữ quyền tệp nên script .sh được coi là thực thi.
+func coreFiles(name string) []CustomFile {
+	base := "core/" + name
+	var out []CustomFile
+	err := fs.WalkDir(coreFS, base, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel := strings.TrimPrefix(strings.TrimPrefix(p, base), "/")
+		if d.IsDir() {
+			if rel == "tests" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if rel == "SKILL.md" {
+			return nil
+		}
+		b, err := coreFS.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		mode := os.FileMode(0o644)
+		if path.Ext(rel) == ".sh" {
+			mode = 0o755
+		}
+		out = append(out, CustomFile{Rel: rel, Content: b, Mode: mode})
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Rel < out[j].Rel })
 	return out
 }
 
@@ -228,7 +291,7 @@ func ForTarget(s Skill, t Target) Skill {
 		return s
 	}
 	enc.Close()
-	return Skill{Name: s.Name, Content: []byte("---\n" + buf.String() + "---\n" + c[4+end+5:])}
+	return Skill{Name: s.Name, Content: []byte("---\n" + buf.String() + "---\n" + c[4+end+5:]), Files: s.Files}
 }
 
 // Outcome của một lần xuất bản.
@@ -285,7 +348,7 @@ func stampOrNone(b BuildStamp) string {
 // coreChanged: băm skill gốc nhúng khác (hoặc chưa có trong) core.lock.
 func coreChanged(lock Lock) bool {
 	for _, c := range Core() {
-		if lock.Skills[c.Name].SHA256 != c.Hash() {
+		if lock.Skills[c.Name].SHA256 != c.Version() {
 			return true
 		}
 	}
@@ -342,10 +405,11 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 			}
 			continue
 		}
-		entry := LockEntry{SHA256: core.Hash(), Overlay: ov.Hash()}
+		entry := LockEntry{SHA256: core.Version(), Overlay: ov.Hash()}
 		if ov != nil {
 			entry.Composed = s.Hash()
 		}
+		handled := map[string]bool{}
 		for _, t := range opts.Targets {
 			rel := filepath.ToSlash(filepath.Join(t.Dir, s.Name, "SKILL.md"))
 			ts := ForTarget(s, t)
@@ -361,10 +425,21 @@ func Install(opts InstallOptions) ([]Outcome, error) {
 			if err != nil {
 				return outs, err
 			}
-			outs = append(outs, o)
 			if o.Result != fsafe.Conflict {
 				entry.Published = append(entry.Published, rel)
 			}
+			fo, err := publishCoreFiles(opts, t, s, prev, &entry, handled)
+			o, fo = foldAuxOutcomes(o, fo)
+			outs = append(outs, o)
+			outs = append(outs, fo...)
+			if err != nil {
+				return outs, err
+			}
+		}
+		ro, err := removeStaleCoreFiles(opts, s.Name, prev, &entry, handled)
+		outs = append(outs, ro...)
+		if err != nil {
+			return outs, err
 		}
 		lock.Skills[s.Name] = entry
 	}
@@ -486,7 +561,7 @@ func PublishedState(root string, t Target, s, core Skill, e LockEntry) (string, 
 	if t.Format != "" {
 		locked = e.Variants[t.Format]
 	}
-	if locked != "" && e.SHA256 != "" && e.SHA256 != core.Hash() && (Skill{Content: b}).Hash() == locked {
+	if locked != "" && e.SHA256 != "" && e.SHA256 != core.Version() && (Skill{Content: b}).Hash() == locked {
 		return StateOtherVersion, nil
 	}
 	return st, nil
@@ -504,8 +579,11 @@ func Status(root string, t Target, s Skill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if fsafe.Hash(string(b)) == fsafe.Hash(string(s.Content)) {
-		return "current", nil
+	if fsafe.Hash(string(b)) != fsafe.Hash(string(s.Content)) {
+		return "differs", nil
 	}
-	return "differs", nil
+	if len(s.Files) > 0 {
+		return CustomFilesStatus(root, t, &CustomSkill{Name: s.Name, Files: s.Files})
+	}
+	return "current", nil
 }

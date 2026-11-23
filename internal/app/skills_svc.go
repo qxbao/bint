@@ -71,7 +71,7 @@ func ListSkills(k *KnowledgeWS, o SkillListOptions) (SkillList, error) {
 		row.Published = strings.Join(parts, " ")
 	}
 	for _, core := range skills.Core() {
-		row := SkillRow{Name: core.Name, Version: core.Hash(), Overlay: "-", Published: "-", Kind: "core"}
+		row := SkillRow{Name: core.Name, Version: core.Version(), Overlay: "-", Published: "-", Kind: "core"}
 		if as, err := core.Anchors(); err == nil {
 			for _, a := range as {
 				row.Anchors = append(row.Anchors, a.Name)

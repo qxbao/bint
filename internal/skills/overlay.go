@@ -293,7 +293,7 @@ func Composed(root string, s Skill) (Skill, *Overlay, error) {
 	if err != nil {
 		return s, o, err
 	}
-	return Skill{Name: s.Name, Content: c}, o, nil
+	return Skill{Name: s.Name, Content: c, Files: s.Files}, o, nil
 }
 
 // OverlayTemplate dựng tệp lớp phủ mẫu liệt kê các điểm neo của skill. Ví dụ được

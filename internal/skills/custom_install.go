@@ -133,9 +133,15 @@ func underTargets(targets []Target, name, rel string) bool {
 
 // removeCustom gỡ một tệp đã xuất bản của skill tuỳ biến (nếu chưa bị sửa tay) rồi dọn thư mục rỗng.
 func removeCustom(opts InstallOptions, name, rel string, entry LockEntry) (Outcome, error) {
-	o, err := unpublishFile(opts, name, rel, []string{entry.Files[rel]},
+	return removeSkillFile(opts, name, rel, entry.Files[rel],
 		"tệp không còn trong nguồn skill tuỳ biến nhưng bản đã xuất bản bị sửa tay: không xoá; xoá tay hoặc --force",
 		"gỡ: không còn trong nguồn skill tuỳ biến")
+}
+
+// removeSkillFile gỡ một tệp đã xuất bản rel của skill name (nếu chưa bị sửa tay: băm khớp hash hoặc manifest) rồi dọn
+// thư mục rỗng từ thư mục chứa tệp lên tới thư mục skill.
+func removeSkillFile(opts InstallOptions, name, rel, hash, conflict, removed string) (Outcome, error) {
+	o, err := unpublishFile(opts, name, rel, []string{hash}, conflict, removed)
 	if err != nil || o.Result != fsafe.Removed {
 		return o, err
 	}
