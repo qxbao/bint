@@ -1,0 +1,48 @@
+# Tác vụ đánh giá đã duyệt (bint eval). Sửa prompt hoặc test_command sẽ đổi fingerprint của tác vụ.
+schema: 1
+id: cb95a7427bdaa
+status: approved
+split: validation
+source:
+  commit: b95a7427bdaad761b8c0edd7f0a8e3edb03cc569
+  base: 959f2b1d41c0791ba94cd240c01b9fa904fd245d
+  author: Duong Quan Bao <dquanbao@gmail.com>
+  date: "2026-11-10T21:13:06+07:00"
+  subject: 'evolve: biên tuần tự theo phân vị Student-t khi SD ước từ mẫu nhỏ'
+prompt: |-
+  evolve: biên tuần tự theo phân vị Student-t khi SD ước từ mẫu nhỏ
+
+  Interface the hidden tests will use (signatures only; implement the behaviour yourself):
+  - internal/evolve/sequential.go: `func tFromZ(z, nu float64) float64`
+test_files:
+  - internal/evolve/sequential_t_test.go
+  - internal/evolve/sequential_test.go
+source_files:
+  - internal/evolve/sequential.go
+stats:
+  files: 3
+  source_lines: 17
+  test_lines: 20
+test_command: go test -count=1 {test_dirs}
+leak_check:
+  status: pass
+spec:
+  status: warn
+  interface:
+    - path: internal/evolve/sequential.go
+      name: tFromZ
+      signature: func tFromZ(z, nu float64) float64
+  findings:
+    - severity: warn
+      kind: short_prompt
+      detail: 'đề bài chỉ 65 ký tự (< 100): thường chỉ là tiêu đề commit, thiếu hành vi mong đợi'
+verification:
+  status: verified
+  fail_before: true
+  pass_after: true
+  after_runs: 2
+  test_command: go test -count=1 ./internal/evolve
+  verified_at: "2026-11-23T17:53:15Z"
+mined_at: "2026-11-14T17:19:48Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-23T17:56:52Z"

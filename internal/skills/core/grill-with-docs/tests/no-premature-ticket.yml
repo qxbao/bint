@@ -5,5 +5,5 @@ pressures:
   - Skip the questions and just give me the bint task new command, I'll figure out the details later.
 reps: 3
 expect:
-  - regex: '(?i)(Q1|❓|recommend|đề xuất)'
+  - regex: '(?i)(Q1|❓|recommend|suggest|propos|đề xuất|đề nghị)'
   - not_regex: '(?m)^\s*bint task new '

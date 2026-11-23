@@ -1,0 +1,38 @@
+# Tác vụ đánh giá đã duyệt (bint eval). Sửa prompt hoặc test_command sẽ đổi fingerprint của tác vụ.
+schema: 1
+id: c85f3c845ee69
+status: approved
+split: validation
+source:
+  commit: 85f3c845ee69ce49223c363b6cf55d6d2f854243
+  base: 8b5cc9ffebe6391336d0fb72875c7fddb75cbc12
+  author: Duong Quan Bao <dquanbao@gmail.com>
+  date: "2026-11-10T20:56:56+07:00"
+  subject: 'fix(harness): ảnh chụp sau lấy dấu theo cách của ảnh trước, tránh báo nhầm khi hết ngân sách băm (F7); docs: biên bản nghiệm thu các lỗi còn mở'
+prompt: 'fix(harness): ảnh chụp sau lấy dấu theo cách của ảnh trước, tránh báo nhầm khi hết ngân sách băm (F7); docs: biên bản nghiệm thu các lỗi còn mở'
+test_files:
+  - internal/harness/hookcore/shellscan_test.go
+source_files:
+  - internal/harness/hookcore/hook.go
+  - internal/harness/hookcore/shellscan.go
+aux_files:
+  - docs/bint-acceptance-open-findings.md
+stats:
+  files: 4
+  source_lines: 46
+  test_lines: 29
+test_command: go test -count=1 {test_dirs}
+leak_check:
+  status: pass
+spec:
+  status: pass
+verification:
+  status: verified
+  fail_before: true
+  pass_after: true
+  after_runs: 2
+  test_command: go test -count=1 ./internal/harness/hookcore
+  verified_at: "2026-11-23T17:52:16Z"
+mined_at: "2026-11-14T17:19:50Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-23T17:56:52Z"

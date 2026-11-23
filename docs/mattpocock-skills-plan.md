@@ -339,12 +339,19 @@ Chạy trên bản chép tạm `.bint/skills/mp-<tên>/` (tên skill gốc bị 
 | diagnosing-bugs | 1/3 | 3/3 |
 | domain-modeling | 0/3 | 3/3 |
 | grilling | 0/3 | 3/3 |
-| grill-with-docs | 0/3 | 1/3 (sau khi thêm "vòng rút gọn khi bị đòi bỏ qua câu hỏi"; trước đó 0/3) |
+| grill-with-docs | 0/3 | 3/3 (sau khi thêm "vòng rút gọn khi bị đòi bỏ qua câu hỏi" và sửa regex chấm) |
 | handoff | 1/3 | 3/3 |
 | improve-arch | 1/3 | 3/3 |
 | principles | 1/3 | 3/3 |
-| retro | 3/3 | 3/3 (kịch bản chưa phân biệt được) |
+| retro | 1/3 | 3/3 (kịch bản mới: time.Now() trong workflow, áp lực "chỉ cần tri thức") |
 | tdd | 4/6 | 6/6 |
 | writing-for-agents | 2/3 | 3/3 |
 
-Việc tiếp: `grill-with-docs` cần sửa thêm (dưới áp lực vẫn in lệnh trước khi hỏi); kịch bản `retro` cần áp lực khó hơn.
+Mọi skill nhập đều có nhánh with hơn nhánh without trên kịch bản hiện tại.
+
+### Rủi ro 1: Codex và `agents/openai.yaml` (2026-11-24, codex-cli 0.171.0)
+
+Hai skill hoàng yến trong `.agents/skills/` của repo nháp, giống hệt nhau trừ `policy.allow_implicit_invocation: false` ở một skill:
+skill bị chặn **không** được Codex tự gọi (0/2 lượt), skill đối chứng được tự gọi (2/2), gọi tường minh `$weather-hanoi` vẫn chạy.
+Kết luận: Codex đọc `agents/openai.yaml` của skill dự án; skill do người gọi của Bint giữ đúng chính sách trên Codex.
+Lưu ý khi tự động hoá `codex exec`: đóng stdin (`</dev/null`), không thì nó treo chờ "additional input from stdin".

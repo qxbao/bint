@@ -1,0 +1,53 @@
+# Tác vụ đánh giá đã duyệt (bint eval). Sửa prompt hoặc test_command sẽ đổi fingerprint của tác vụ.
+schema: 1
+id: cc1794a65baa2
+status: approved
+split: validation
+source:
+  commit: c1794a65baa207ca73438c09b0effe66246de84a
+  base: 340459e16254855b8c1f831f66d7fb90da0433e1
+  author: Duong Quan Bao <dquanbao@gmail.com>
+  date: "2026-11-11T02:54:26+07:00"
+  subject: 'knowledge: ký hiệu định danh đầy đủ (Lớp.phương_thức) khớp theo tên cuối khi kiểm bằng chứng'
+prompt: |-
+  knowledge: ký hiệu định danh đầy đủ (Lớp.phương_thức) khớp theo tên cuối khi kiểm bằng chứng
+
+  Định nghĩa trong mã chỉ ghi tên cuối (def __post_init__), nên ký hiệu
+  RunPaths.__post_init__ luôn bị báo 'không có trong' và đề xuất của evolver
+  neo theo phương thức (bản sửa F2/F4) bị loại.
+
+  Claude-Session: https://claude.ai/code/session_01SJkTT9GBVFdJX2xBXRRJt6
+
+  Interface the hidden tests will use (signatures only; implement the behaviour yourself):
+  - internal/knowledge/verify.go: `func containsSymbol(b []byte, sym string) bool`
+test_files:
+  - internal/knowledge/symbol_qualified_test.go
+source_files:
+  - internal/knowledge/verify.go
+stats:
+  files: 2
+  source_lines: 19
+  test_lines: 16
+test_command: go test -count=1 {test_dirs}
+leak_check:
+  status: pass
+spec:
+  status: warn
+  interface:
+    - path: internal/knowledge/verify.go
+      name: containsSymbol
+      signature: func containsSymbol(b []byte, sym string) bool
+  findings:
+    - severity: warn
+      kind: interface_gap
+      detail: 'kiểm thử dùng 1 định danh mới không trích được chữ ký (khoá, chuỗi, thuộc tính…): __post_init__'
+verification:
+  status: verified
+  fail_before: true
+  pass_after: true
+  after_runs: 2
+  test_command: go test -count=1 ./internal/knowledge
+  verified_at: "2026-11-23T17:51:30Z"
+mined_at: "2026-11-14T17:19:42Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-23T17:56:52Z"

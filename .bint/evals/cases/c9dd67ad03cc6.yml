@@ -1,0 +1,42 @@
+# Tác vụ đánh giá đã duyệt (bint eval). Sửa prompt hoặc test_command sẽ đổi fingerprint của tác vụ.
+schema: 1
+id: c9dd67ad03cc6
+status: approved
+split: validation
+source:
+  commit: 9dd67ad03cc611b73bddb49eacd9ee806c1e33a3
+  base: 89e5fe08f4b32d9d6d530e0fd6e948664cccb98d
+  author: Leekiri1234 <hongducluong0603@gmail.com>
+  date: "2026-11-11T02:09:14+07:00"
+  subject: 'fix(harness): loại chạy nền và toán tử shell khỏi tín hiệu test Codex'
+prompt: 'fix(harness): loại chạy nền và toán tử shell khỏi tín hiệu test Codex'
+test_files:
+  - internal/detect/detect_test.go
+source_files:
+  - internal/detect/template.go
+stats:
+  files: 2
+  source_lines: 39
+  test_lines: 4
+test_command: go test -count=1 {test_dirs}
+leak_check:
+  status: pass
+spec:
+  status: warn
+  findings:
+    - severity: warn
+      kind: short_prompt
+      detail: 'đề bài chỉ 69 ký tự (< 100): thường chỉ là tiêu đề commit, thiếu hành vi mong đợi'
+    - severity: warn
+      kind: exact_text
+      detail: kiểm thử so khớp nguyên văn 3 chuỗi mới của lời giải mà đề bài không nêu, ví dụ "go test ./... &"
+verification:
+  status: verified
+  fail_before: true
+  pass_after: true
+  after_runs: 2
+  test_command: go test -count=1 ./internal/detect
+  verified_at: "2026-11-23T17:52:01Z"
+mined_at: "2026-11-14T17:19:42Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-23T17:56:52Z"

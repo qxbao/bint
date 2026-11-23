@@ -1,0 +1,42 @@
+# Tác vụ đánh giá đã duyệt (bint eval). Sửa prompt hoặc test_command sẽ đổi fingerprint của tác vụ.
+schema: 1
+id: c320f4ece3f4f
+status: approved
+split: validation
+source:
+  commit: 320f4ece3f4fe28c19047687c32f8cc6b0cb4d95
+  base: 74fffb2730c847b806e3623ed6d719fc2319e30e
+  author: Leekiri1234 <hongducluong0603@gmail.com>
+  date: "2026-11-11T02:00:44+07:00"
+  subject: 'fix(harness): không suy test chạy từ script bị rẽ nhánh hoặc bỏ qua'
+prompt: 'fix(harness): không suy test chạy từ script bị rẽ nhánh hoặc bỏ qua'
+test_files:
+  - internal/detect/detect_test.go
+source_files:
+  - internal/detect/template.go
+stats:
+  files: 2
+  source_lines: 13
+  test_lines: 13
+test_command: go test -count=1 {test_dirs}
+leak_check:
+  status: pass
+spec:
+  status: warn
+  findings:
+    - severity: warn
+      kind: short_prompt
+      detail: 'đề bài chỉ 67 ký tự (< 100): thường chỉ là tiêu đề commit, thiếu hành vi mong đợi'
+    - severity: warn
+      kind: exact_text
+      detail: kiểm thử so khớp nguyên văn 1 chuỗi mới của lời giải mà đề bài không nêu, ví dụ "go test ./..."
+verification:
+  status: verified
+  fail_before: true
+  pass_after: true
+  after_runs: 2
+  test_command: go test -count=1 ./internal/detect
+  verified_at: "2026-11-23T17:51:51Z"
+mined_at: "2026-11-14T17:19:43Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-23T17:56:52Z"

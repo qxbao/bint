@@ -1,0 +1,57 @@
+# Tác vụ đánh giá đã duyệt (bint eval). Sửa prompt hoặc test_command sẽ đổi fingerprint của tác vụ.
+schema: 1
+id: c7b98b94d0144
+status: approved
+split: validation
+source:
+  commit: 7b98b94d014430382cb0897e7a323ca54833d465
+  base: 0f285b752a6c5b6511ad70f55c99e91f1e62b881
+  author: orca <dquanbao@gmail.com>
+  date: "2026-11-14T23:36:59+07:00"
+  subject: 'fix(doctor): báo sandbox Codex không ghi được thư mục trạng thái'
+prompt: |-
+  fix(doctor): báo sandbox Codex không ghi được thư mục trạng thái
+
+  Phiên Codex tương tác (sandbox workspace-write) chỉ cho ghi repository, nên
+  lệnh bint do agent chạy báo Access denied/readonly database khi state nằm
+  ngoài repo. Doctor kiểm writable_roots trong ~/.codex/config.toml (và cấu
+  hình dự án đã tin cậy), cảnh báo kèm đoạn TOML cần thêm; lỗi spool trong
+  phiên agent có thêm gợi ý về sandbox.
+
+  Interface the hidden tests will use (signatures only; implement the behaviour yourself):
+  - internal/harness/codex/sandbox.go: `func SandboxAllowsWrite(repoRoot, dir string) bool`
+test_files:
+  - internal/harness/codex/sandbox_test.go
+source_files:
+  - internal/app/doctor.go
+  - internal/harness/codex/sandbox.go
+stats:
+  files: 3
+  source_lines: 96
+  test_lines: 39
+test_command: go test -count=1 {test_dirs}
+leak_check:
+  status: pass
+spec:
+  status: warn
+  interface:
+    - path: internal/harness/codex/sandbox.go
+      name: SandboxAllowsWrite
+      signature: func SandboxAllowsWrite(repoRoot, dir string) bool
+  findings:
+    - severity: warn
+      kind: interface_gap
+      detail: 'kiểm thử dùng 4 định danh mới không trích được chữ ký (khoá, chuỗi, thuộc tính…): nwritable_roots, sandbox_mode, sandbox_workspace_write, writable_roots'
+    - severity: warn
+      kind: exact_text
+      detail: kiểm thử so khớp nguyên văn 3 chuỗi mới của lời giải mà đề bài không nêu, ví dụ "thư mục trong repository"
+verification:
+  status: verified
+  fail_before: true
+  pass_after: true
+  after_runs: 2
+  test_command: go test -count=1 ./internal/harness/codex
+  verified_at: "2026-11-23T17:52:53Z"
+mined_at: "2026-11-14T17:19:23Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-23T17:56:52Z"
