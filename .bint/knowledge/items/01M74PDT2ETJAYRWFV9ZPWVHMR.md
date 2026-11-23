@@ -10,7 +10,7 @@ scope:
     - internal/eval/**
 evidence:
   - path: internal/config/config.go
-    lines: 661-665
+    lines: 664-668
     fingerprint: lines:599f9b25a6dff930
   - path: internal/app/eval_run.go
     lines: "220"
@@ -20,11 +20,11 @@ origin:
   commit: 183ac178f5a3bffae7c0b44ebfd17d9e2731ea06
 author: Leekiri1234 <hongducluong0603@gmail.com>
 reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-21T03:52:19Z"
+reviewed_at: "2026-11-23T12:35:59Z"
 version: 1
 created_at: "2026-11-11T06:58:46Z"
 updated_at: "2026-11-12T03:23:57Z"
-verified_at: "2026-11-21T03:52:19Z"
+verified_at: "2026-11-23T12:35:59Z"
 status_reason: qua kiểm tra xác định được
 ---
 

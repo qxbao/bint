@@ -17,7 +17,7 @@ evidence:
     lines: 95-100
     fingerprint: lines:97715b34914ac70e
   - path: internal/app/revalidate.go
-    lines: "80"
+    lines: "85"
     fingerprint: lines:6460315d6a9d6415
   - path: internal/knowledge/transition.go
     lines: 81-92
@@ -31,13 +31,13 @@ origin:
     - internal/evolve/apply.go
     - internal/knowledge/transition.go
 author: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_by: Duong Quan Bao <dquanbao@gmail.com>
-reviewed_at: "2026-11-16T07:19:41Z"
+reviewed_by: orca <dquanbao@gmail.com>
+reviewed_at: "2026-11-23T12:36:07Z"
 confidence: high
 version: 1
 created_at: "2026-11-11T02:23:57Z"
 updated_at: "2026-11-12T02:15:27Z"
-verified_at: "2026-11-16T07:19:41Z"
+verified_at: "2026-11-23T12:36:07Z"
 status_reason: người duyệt chấp nhận
 ---
 

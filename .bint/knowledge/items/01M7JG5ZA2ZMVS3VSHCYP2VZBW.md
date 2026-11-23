@@ -11,17 +11,17 @@ scope:
 evidence:
   - path: internal/config/upgrade.go
     symbol: upgradeReadonlySequence
-    fingerprint: file:52c3563b19246cf8
+    fingerprint: file:245f673fb6eb291d
 origin:
   kind: agent
   commit: 339f13400f3d3150607c79924ccc8ab952eb71aa
 author: Leekiri1234 <hongducluong0603@gmail.com>
 reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-21T03:52:36Z"
+reviewed_at: "2026-11-23T12:36:04Z"
 version: 1
 created_at: "2026-11-16T15:39:00Z"
 updated_at: "2026-11-17T01:51:45Z"
-verified_at: "2026-11-21T03:52:36Z"
+verified_at: "2026-11-23T12:36:04Z"
 status_reason: người duyệt chấp nhận
 ---
 
