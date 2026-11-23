@@ -8,6 +8,7 @@ import (
 	"bint/internal/affected"
 	"bint/internal/gitrepo"
 	"bint/internal/task"
+	"bint/internal/testsel"
 )
 
 // ReasonNoBase: không có commit/ref gốc để so (nới ra full).
@@ -34,11 +35,11 @@ func SelectAffected(ctx context.Context, root, base string, o SelectOpts) affect
 	if !o.BintConfigFull {
 		ex = append(ex, ".bint/**")
 	}
-	in := affected.Input{Root: root, Base: base, Head: o.Head, Exclude: ex, Only: o.Only, PreviouslyFailed: o.PreviouslyFailed}
+	in := testsel.Input{Root: root, Base: base, Head: o.Head, Exclude: ex, Only: o.Only, PreviouslyFailed: o.PreviouslyFailed}
 	if o.TasksDir != "" {
 		in.StateDir = bgraphDirFor(o.TasksDir)
 	}
-	return affected.Select(ctx, in)
+	return testsel.Select(ctx, in)
 }
 
 // bgraphDirFor là thư mục chỉ mục bền của bgraph (<state>/bgraph) ứng với thư mục tác vụ tasksDir (<state>/runtime/tasks). Nằm ngoài cây
