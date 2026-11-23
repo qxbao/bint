@@ -187,3 +187,28 @@ func TestIdealArmKeepsLessons(t *testing.T) {
 		t.Fatalf("bài học ideal phải nằm trong AGENTS.md: %+v\n%s", s, agents)
 	}
 }
+
+// TSK-5.1: biến thể skills=mp đặt tập skill kỷ luật (kèm tệp phụ) vào cả hai thư mục skill của lượt; tên tập lạ bị từ chối.
+func TestSkillsVariant(t *testing.T) {
+	_, v, err := SplitArm("bint@skills=mp")
+	if err != nil || v.Skills != "mp" {
+		t.Fatalf("%+v %v", v, err)
+	}
+	if _, _, err := SplitArm("bint@skills=khac"); err == nil {
+		t.Fatal("tập skill lạ phải lỗi")
+	}
+	dir := t.TempDir()
+	desc, err := writeCoreSkills(dir, SkillSets["mp"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{".claude/skills/tdd/SKILL.md", ".claude/skills/tdd/tests.md", ".agents/skills/principles/fix-root-causes.md",
+		".agents/skills/diagnosing-bugs/scripts/hitl-loop.template.sh"} {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("thiếu %s: %v", rel, err)
+		}
+	}
+	if !strings.HasPrefix(desc, "+skills[codebase-design@") {
+		t.Fatalf("mô tả kiểm toán: %s", desc)
+	}
+}

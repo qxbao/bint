@@ -93,8 +93,10 @@ thật — cận trên, không phải kết quả của Bint. `bint`/`ideal` c�
 
 **Biến thể ngữ cảnh (`bint@…`).** Nhánh `bint` nhận thêm tham số sau dấu `@` (nối bằng `+` vì
 `--arms` phân cách nhánh bằng dấu phẩy) để bật/tắt từng kênh ngữ cảnh (`task=on|off`, `path=on|off`,
-`mcp=on|off`), chọn tập thành phần quy trình (`harness=off|on|all`) hoặc giới hạn ngân sách
-(`tokens=<N>`, `items=<N>`):
+`mcp=on|off`), chọn tập thành phần quy trình (`harness=off|on|all`), giới hạn ngân sách
+(`tokens=<N>`, `items=<N>`) hoặc đặt thêm tập skill kỷ luật (`skills=mp`: `grilling`, `domain-modeling`, `codebase-design`, `tdd`,
+`diagnosing-bugs`, `writing-for-agents`, `principles` kèm tệp phụ vào `.claude/skills` và `.agents/skills` của lượt; so `bint` với
+`bint@skills=mp`, xem [mattpocock-skills-plan.md](mattpocock-skills-plan.md) GĐ5):
 
 ```sh
 bint eval run --arms 'none,minimal,bint,bint@path=off+tokens=3000+items=3' --budget 20

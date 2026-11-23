@@ -85,7 +85,7 @@ const (
 var ErrArmUnavailable = errors.New("nhánh không khả dụng")
 
 // ContextVariant là chiến lược chọn/đưa ngữ cảnh của nhánh bint (P8: thử nghiệm chiến lược
-// chọn ngữ cảnh). Viết sau tên nhánh: "bint@task=off+path=off+mcp=off+harness=all+tokens=3000+items=3" (dấu + vì --arms tách theo dấu phẩy).
+// chọn ngữ cảnh). Viết sau tên nhánh: "bint@task=off+path=off+mcp=off+harness=all+tokens=3000+items=3+skills=mp" (dấu + vì --arms tách theo dấu phẩy).
 // Hai biến thể cùng đợt được so sánh ghép cặp như mọi nhánh.
 type ContextVariant struct {
 	NoTaskHook, NoPathHook, NoMCP bool
@@ -93,6 +93,14 @@ type ContextVariant struct {
 	// Harness: tập thành phần quy trình của nhánh (hcomp.Mode): off = chỉ bản dựng sẵn (đúng
 	// nhánh bint trước H), on = + thành phần verified (mặc định), all = + cả candidate.
 	Harness hcomp.Mode
+	// Skills: tập skill kỷ luật đặt vào .claude/skills và .agents/skills của lượt (SkillSets): "" = không đặt (mặc định),
+	// "mp" = skill nhập từ mattpocock/skills và pstack (docs/mattpocock-skills-plan.md GĐ5).
+	Skills string
+}
+
+// SkillSets: tập skill gốc của biến thể skills=<tên> (docs/mattpocock-skills-plan.md, TSK-5.1).
+var SkillSets = map[string][]string{
+	"mp": {"codebase-design", "diagnosing-bugs", "domain-modeling", "grilling", "principles", "tdd", "writing-for-agents"},
 }
 
 // SplitArm tách tên nhánh và biến thể ngữ cảnh. Chỉ nhánh bint nhận biến thể.
@@ -127,6 +135,11 @@ func SplitArm(arm string) (string, ContextVariant, error) {
 				return base, v, fmt.Errorf("biến thể %q: harness chỉ nhận off|on|all", arm)
 			}
 			v.Harness = m
+		case "skills":
+			if _, ok := SkillSets[val]; !ok {
+				return base, v, fmt.Errorf("biến thể %q: skills chỉ nhận %s", arm, strings.Join(skillSetNames(), "|"))
+			}
+			v.Skills = val
 		case "tokens", "items":
 			n, err := strconv.Atoi(val)
 			if err != nil || n <= 0 {
@@ -138,7 +151,7 @@ func SplitArm(arm string) (string, ContextVariant, error) {
 				v.PathMaxItems = n
 			}
 		default:
-			return base, v, fmt.Errorf("biến thể %q: khoá %q không hỗ trợ (task, path, mcp, harness, tokens, items)", arm, k)
+			return base, v, fmt.Errorf("biến thể %q: khoá %q không hỗ trợ (task, path, mcp, harness, tokens, items, skills)", arm, k)
 		}
 	}
 	return base, v, nil
@@ -434,6 +447,13 @@ func prepareArm(ctx context.Context, env Env, arm, mode string, c *Case, leakIn 
 	// phần thêm bằng đúng từng byte ghi chú MCP cũ (xem hcomp.MCPToolsNote).
 	full := append(content, []byte(hset.RenderGuidance(hcomp.RenderOpts{MCP: !cv.NoMCP}))...)
 	s.ContextSource = fmt.Sprintf("%s+engine#%s", ks.src, hash12(full))
+	if cv.Skills != "" {
+		desc, err := writeCoreSkills(dir, SkillSets[cv.Skills])
+		if err != nil {
+			return s, err
+		}
+		s.ContextSource += desc
+	}
 	if !files.Empty() {
 		s.ContextSource += "+harness#" + files.Hash()
 	}
@@ -614,4 +634,40 @@ func writeSkillSet(dir string, set map[string][]byte) (string, error) {
 func hash12(b []byte) string {
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])[:12]
+}
+
+func skillSetNames() []string {
+	var out []string
+	for n := range SkillSets {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// writeCoreSkills đặt các skill gốc names (SKILL.md theo định dạng từng nơi và tệp phụ) vào .claude/skills và .agents/skills của
+// thư mục làm việc, trả về mô tả để kiểm toán ("+skills[tên@phiên-bản,…]").
+func writeCoreSkills(dir string, names []string) (string, error) {
+	var parts []string
+	for _, n := range names {
+		sk, ok := skills.Get(n)
+		if !ok {
+			return "", fmt.Errorf("skill gốc %q không có trong bản này", n)
+		}
+		for _, t := range []skills.Target{skills.ClaudeTarget, skills.AgentsTarget} {
+			base := filepath.Join(dir, filepath.FromSlash(t.Dir), n)
+			files := append([]skills.CustomFile{{Rel: "SKILL.md", Content: skills.ForTarget(sk, t).Content, Mode: 0o644}}, sk.Files...)
+			for _, f := range files {
+				p := filepath.Join(base, filepath.FromSlash(f.Rel))
+				if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+					return "", err
+				}
+				if err := os.WriteFile(p, f.Content, f.Mode); err != nil {
+					return "", err
+				}
+			}
+		}
+		parts = append(parts, n+"@"+sk.Version())
+	}
+	return "+skills[" + strings.Join(parts, ",") + "]", nil
 }
