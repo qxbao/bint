@@ -159,11 +159,10 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 		}
 		sug := detect.SuggestCommands(root)
 		content := config.Render(config.InitParams{
-			ProjectName:              filepath.Base(root),
-			Harnesses:                harnesses,
-			SuggestedTestCommand:     sug.Test,
-			SuggestedSetupCommand:    sug.Setup,
-			SuggestedAffectedCommand: sug.Affected,
+			ProjectName:           filepath.Base(root),
+			Harnesses:             harnesses,
+			SuggestedTestCommand:  sug.Test,
+			SuggestedSetupCommand: sug.Setup,
 		})
 		if err := w.WriteNew(cfgPath, []byte(content)); err != nil {
 			return nil, fmt.Errorf("tạo %s: %w", cfgPath, err)
@@ -174,10 +173,6 @@ func Init(ctx context.Context, opts InitOptions) (*InitReport, error) {
 				sug.Reason, sug.Test, sug.Setup)
 		} else {
 			rep.add("lệnh kiểm thử", StepSkipped, "không phát hiện được; điền eval.test_command thủ công nếu có")
-		}
-		if sug.Affected != "" {
-			rep.add("kiểm chứng theo thay đổi", StepSkipped, "đề xuất từ %s: %q — chưa bật; chép sang workflow.verify.affected_command và đặt workflow.verify.scope: affected",
-				sug.Reason, sug.Affected)
 		}
 	} else if cfgRoot != root {
 		rep.add(".bint/config.yml", StepOK, "dùng cấu hình của worktree chính %s (chưa có trong worktree này)", cfgRoot)

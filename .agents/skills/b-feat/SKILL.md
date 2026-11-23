@@ -78,7 +78,7 @@ bint context --paths <tệp sẽ sửa>   # quy tắc theo đường dẫn
 
 <!-- bint:anchor test-strategy -->
 Ưu tiên kiểm thử hẹp nhất bao phủ thay đổi: chỉ chạy test của phần đã sửa bằng lệnh test của dự án và kiểm tra mục tiêu; **không** chạy
-toàn bộ bộ test hay `verify.command` đầy đủ (có thể rất chậm). Bint tự chạy kiểm chứng sau bước này và chạy đầy đủ một lần ở cổng done.
+toàn bộ bộ test hay `verify.command` (có thể rất chậm). Sau bước này Bint tự chạy các test bị ảnh hưởng bởi thay đổi (bgraph chọn theo đồ thị phụ thuộc).
 <!-- bint:anchor-end test-strategy -->
 
 Trong `bint run` chỉ chạy test nhắm đúng phần vừa sửa (lọc theo tên test hoặc tệp test); không chạy cả module lớn, cả repo hay `verify.command` (dễ vượt giới hạn thời gian của lệnh). Kiểm chứng đầy đủ là việc của Bint.

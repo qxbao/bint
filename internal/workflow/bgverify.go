@@ -16,8 +16,8 @@ import (
 	"bint/internal/task"
 )
 
-// Kiểm chứng toàn repo chạy nền (luồng B′, giai đoạn 3). Trong lúc b-feat chạy, mỗi kiểm hẹp xanh mới (State.Checks) khởi chạy verify.command
-// đầy đủ trên ảnh chụp cây của lần kiểm đó, trong worktree tạm; tối đa một lần chạy một lúc (kiểm hẹp xanh mới hơn khi đang chạy thì chờ,
+// Kiểm chứng chạy nền (luồng B′, giai đoạn 3). Trong lúc b-feat chạy, mỗi kiểm hẹp xanh mới (State.Checks) khởi chạy phần chọn của bgraph so với
+// mốc tác vụ (bằng chứng cho cổng done) trên ảnh chụp cây của lần kiểm đó, trong worktree tạm; tối đa một lần chạy một lúc (kiểm hẹp xanh mới hơn khi đang chạy thì chờ,
 // gộp về cây mới nhất). Sau b-feat, kết quả xanh trên đúng cây cuối thay lần kiểm chứng tuần tự (reuseBackground).
 
 // bgPollInterval là chu kỳ thăm State.Checks; biến để kiểm thử rút ngắn.
@@ -154,7 +154,7 @@ func (b *bgVerifier) tick(only string) {
 	}()
 }
 
-// run chạy verify.command trên cây tree trong worktree tạm và ghi kết quả.
+// run chạy phần chọn của bgraph (hoặc verify.command khi bgraph đòi cả bộ) trên cây tree trong worktree tạm và ghi kết quả.
 func (b *bgVerifier) run(t *task.Task, tree string) {
 	r, ctx := b.r, b.runCtx
 	cmd := strings.TrimSpace(t.Ticket.Verify.Command)
@@ -178,6 +178,18 @@ func (b *bgVerifier) run(t *task.Task, tree string) {
 		gitrepo.Run(context.Background(), b.root, "worktree", "remove", "--force", wt)
 		removeAllForce(wt)
 	}()
+	// Phần chọn của bgraph cho commit của cây chụp so với mốc tác vụ (đọc từ object git, không cần worktree); bgraph đòi cả bộ thì chạy lệnh của phiếu.
+	sel := SelectAffected(ctx, b.root, t.State.Base, SelectOpts{Head: commit, BintConfigFull: r.Cfg.Workflow.Verify.BintConfigFull, TasksDir: r.Tasks.Dir})
+	ran, runIt := testRun(sel, cmd)
+	if !runIt {
+		v := task.Verification{At: r.at(), Command: cmd, Confirmed: true, Passed: true, Tree: tree, By: "bint", RunID: r.RunID, Reason: bgReason,
+			Scope: string(sel.Scope), Selection: &sel}
+		r.Tasks.Update(b.id, r.now(), func(t *task.Task) error {
+			t.State.BackgroundVerifications = append(t.State.BackgroundVerifications, v)
+			return nil
+		})
+		return
+	}
 	log := t.LogPath(fmt.Sprintf("bg-%d.log", len(t.State.BackgroundVerifications)+1))
 	env := eval.VerifyEnvFrom(verifyEnviron())
 	if tmp, cleanup := r.verifyTempDir(); tmp != "" {
@@ -191,18 +203,21 @@ func (b *bgVerifier) run(t *task.Task, tree string) {
 			return
 		}
 		pv := task.Verification{At: r.at(), Command: cmd, Confirmed: true, ExitCode: 1, Log: log, Tree: tree, By: "bint", RunID: r.RunID,
-			Reason: bgReason + " (tạm: đã có gói đỏ, lệnh còn chạy)", Scope: "full", Partial: true}
+			Reason: bgReason + " (tạm: đã có gói đỏ, lệnh còn chạy)", Scope: string(sel.Scope), Selection: &sel, Partial: true}
 		r.Tasks.Update(b.id, r.now(), func(t *task.Task) error {
 			t.State.BackgroundVerifications = append(t.State.BackgroundVerifications, pv)
 			return nil
 		})
 	}}
-	cr := eval.RunShellWatch(ctx, wt, cmd, time.Duration(r.Cfg.Workflow.VerifyTimeoutMinutes)*verifyTimeoutUnit, log, env, early)
+	cr := eval.RunShellWatch(ctx, wt, ran, time.Duration(r.Cfg.Workflow.VerifyTimeoutMinutes)*verifyTimeoutUnit, log, env, early)
 	if ctx.Err() != nil {
 		return // bị huỷ (cây đã đổi hoặc người huỷ): không ghi kết quả dở
 	}
 	v := task.Verification{At: r.at(), Command: cmd, Confirmed: true, ExitCode: cr.ExitCode, Passed: cr.OK(), TimedOut: cr.TimedOut, Log: log,
-		Tree: tree, By: "bint", RunID: r.RunID, Reason: bgReason, Scope: "full"}
+		Tree: tree, By: "bint", RunID: r.RunID, Reason: bgReason, Scope: string(sel.Scope), Selection: &sel}
+	if ran != cmd {
+		v.Ran = ran
+	}
 	r.Tasks.Update(b.id, r.now(), func(t *task.Task) error {
 		t.State.BackgroundVerifications = append(t.State.BackgroundVerifications, v)
 		return nil
@@ -230,7 +245,7 @@ func (b *bgVerifier) finish(ctx context.Context, finalTree string) {
 	b.runCancel()
 }
 
-// reuseBackground: có lần kiểm nền xanh trên đúng cây hiện tại thì ghi nó làm lần kiểm chứng đầy đủ (không chạy lại tuần tự).
+// reuseBackground: có lần kiểm nền xanh trên đúng cây hiện tại thì ghi nó làm lần kiểm chứng của tác vụ (không chạy lại tuần tự).
 func (r *Runner) reuseBackground(ctx context.Context, rs *runState) bool {
 	t := rs.t
 	if !task.IsBPrime(t) || len(t.State.BackgroundVerifications) == 0 {
@@ -251,7 +266,7 @@ func (r *Runner) reuseBackground(ctx context.Context, rs *runState) bool {
 		return false
 	}
 	v := *bg
-	v.Worktree, v.Reason, v.At = task.WorktreeFingerprint(ctx, r.Root), "kiểm chứng đầy đủ đã chạy nền trên đúng cây cuối ("+bg.At+")", r.at()
+	v.Worktree, v.Reason, v.At = task.WorktreeFingerprint(ctx, r.Root), "kiểm chứng đã chạy nền trên đúng cây cuối ("+bg.At+")", r.at()
 	nt, err := r.Tasks.Update(t.State.ID, r.now(), func(t *task.Task) error {
 		t.State.Verifications = append(t.State.Verifications, v)
 		return nil

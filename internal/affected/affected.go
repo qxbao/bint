@@ -1,10 +1,12 @@
-// Package affected chọn tập kiểm thử bị ảnh hưởng bởi một tập tệp thay đổi để lệnh kiểm chứng chỉ chạy phần cần thiết.
+// Package affected chọn test bị ảnh hưởng bởi một thay đổi, cho mọi lần chạy test của Bint. Phần chọn do bgraph
+// (github.com/qxbao/bgraph) tính: đồ thị phụ thuộc mức tệp của cây mốc và cây mới, đi ngược từ tệp đổi, cho Node, Python, Rust, JVM, .NET
+// và Go. Gói này chỉ chuyển kết quả sang dạng Bint lưu trong state.json và dựng lệnh chạy.
 //
-// Phân tầng (từ hẹp đến rộng): none (không cần chạy test) → graph (test của gói đổi và gói phụ thuộc bắc cầu vào nó)
-// → package (như graph nhưng có thay đổi không phải mã nằm trong gói: testdata, tệp nhúng...) → full (chạy toàn bộ).
+// Phân tầng (từ hẹp đến rộng): none (không test nào bị ảnh hưởng) → graph (chứng minh được từ đồ thị) → package (nới tới gói/thư mục/target)
+// → module (nới tới dự án: package.json, crate, module Maven, project .NET, module Go) → full (bgraph không chắc ở mức nào hẹp hơn).
 //
-// Nguyên tắc: không bao giờ thu hẹp. Thay đổi lạ, nguồn ảnh hưởng không dùng được hay không chắc thì nới ra tầng
-// rộng hơn và ghi lý do (Widening). Nguồn ảnh hưởng tách theo ngôn ngữ sau interface Source; hiện có Go.
+// Nguyên tắc: không bao giờ thu hẹp im lặng. Mọi lần nới có lý do (Widening). Scope full chỉ xảy ra khi bgraph nói vậy, kèm lý do; khi đó
+// người gọi chạy lệnh kiểm chứng của phiếu (verify.command).
 package affected
 
 import (
@@ -12,53 +14,54 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/qxbao/bgraph"
 )
 
 // Tier là tầng phạm vi kiểm thử.
 type Tier string
 
 const (
-	TierNone    Tier = "none"
-	TierGraph   Tier = "graph"
-	TierPackage Tier = "package"
-	TierFull    Tier = "full"
+	TierNone    Tier = Tier(bgraph.TierNone)
+	TierGraph   Tier = Tier(bgraph.TierGraph)
+	TierPackage Tier = Tier(bgraph.TierPackage)
+	TierModule  Tier = Tier(bgraph.TierModule)
+	TierFull    Tier = Tier(bgraph.TierFull)
 )
 
-func (t Tier) rank() int {
-	switch t {
-	case TierNone:
-		return 0
-	case TierGraph:
-		return 1
-	case TierPackage:
-		return 2
-	}
-	return 3
+// Lý do nới riêng của Bint (lý do của bgraph giữ nguyên mã của nó, xem bgraph.Reason*).
+const (
+	// ReasonSourceUnavailable: không tính được phần chọn (git lỗi, không mở được repo): nới ra full.
+	ReasonSourceUnavailable = "source_unavailable"
+	// ReasonNoBase: không có commit mốc để so.
+	ReasonNoBase = bgraph.ReasonNoBase
+)
+
+// Widening ghi một lần nới: tệp nào buộc phạm vi lên tầng nào, vì sao, và gợi ý thu hẹp (luật bgraph.toml) nếu có.
+type Widening struct {
+	Path    string `json:"path,omitempty"`
+	Tier    Tier   `json:"tier"`
+	Reason  string `json:"reason"`
+	Detail  string `json:"detail,omitempty"`
+	Scope   string `json:"scope,omitempty"`
+	Suggest string `json:"suggest,omitempty"`
 }
 
-// Lý do nới (mã ổn định, dùng trong Widening.Reason).
-const (
-	ReasonRootConfig        = "root_config"        // go.mod/go.sum/go.work, khoá phụ thuộc, cấu hình công cụ
-	ReasonCIConfig          = "ci_config"          // .github/**, Makefile, script
-	ReasonBintConfig        = "bint_config"        // .bint/**
-	ReasonNonCode           = "non_code_change"    // tệp không phải mã trong thư mục gói
-	ReasonTestdata          = "testdata"           // testdata/ của một gói
-	ReasonEmbedded          = "embedded_file"      // tệp được //go:embed
-	ReasonNestedModule      = "nested_module"      // tệp thuộc module lồng
-	ReasonSourceUnavailable = "source_unavailable" // nguồn ảnh hưởng lỗi/không có công cụ
-	ReasonUnknownPackage    = "unknown_package"    // thư mục có mã mà không ra gói nào
-	ReasonDeletedPackage    = "deleted_package"    // gói bị xoá
-	ReasonUnsupported       = "unsupported_language"
-	ReasonUnknownFile       = "unknown_file"   // tệp lạ ngoài gói
-	ReasonTestRef           = "test_reference" // tệp .md/.txt ngoài gói mà test nhắc tới tên tệp
-)
+// Test là một đơn vị test được chọn (tệp test, Cargo target, module Maven, project .NET, gói Go).
+type Test struct {
+	Unit    string   `json:"unit"`
+	Runner  string   `json:"runner,omitempty"`
+	Project string   `json:"project,omitempty"`
+	Files   []string `json:"files,omitempty"`
+	Widened bool     `json:"widened,omitempty"`
+}
 
-// Widening ghi một lần nới: tệp nào buộc phạm vi lên tầng nào, vì sao.
-type Widening struct {
-	Path   string `json:"path,omitempty"`
-	Tier   Tier   `json:"tier"`
-	Reason string `json:"reason"`
-	Detail string `json:"detail,omitempty"`
+// Command là một lệnh chạy test do bgraph dựng cho runner của dự án.
+type Command struct {
+	Runner  string   `json:"runner"`
+	Project string   `json:"project"`
+	Argv    []string `json:"argv"`
+	Env     []string `json:"env,omitempty"`
 }
 
 // MaxChanged là số tệp đổi tối đa ghi vào Selection.Changed.
@@ -74,155 +77,215 @@ type Selection struct {
 	ChangedTotal int        `json:"changed_total"`
 	Truncated    bool       `json:"truncated,omitempty"`
 	Widening     []Widening `json:"widening,omitempty"`
-	// TestFiles là tệp kiểm thử của các gói được chọn (tầng graph/package); TestDirs là thư mục của chúng (./dir).
+	Warnings     []Widening `json:"warnings,omitempty"`
+	Tests        []Test     `json:"tests,omitempty"`
+	// TestFiles là các tệp test của đơn vị được chọn; TestDirs là thư mục của chúng (./dir). Dùng để hiển thị và cho lệnh có {test_files}.
 	TestFiles []string `json:"test_files,omitempty"`
 	TestDirs  []string `json:"test_dirs,omitempty"`
-}
-
-// Graph là đồ thị phụ thuộc của một dự án đã nạp bởi Source.
-type Graph interface {
-	// PackageDir: thư mục (gạch xuôi, tương đối gốc; "." là gốc) là một gói của ngôn ngữ.
-	PackageDir(dir string) bool
-	// HasCode: thư mục còn tệp mã nguồn của ngôn ngữ trên đĩa.
-	HasCode(dir string) bool
-	// Embedded: các thư mục gói nhúng tệp p (rỗng nếu không ai nhúng).
-	Embedded(p string) []string
-	// Nested: p thuộc một module/dự án lồng mà Source không bao phủ.
-	Nested(p string) bool
-	// IsCode: p là tệp mã nguồn của ngôn ngữ.
-	IsCode(p string) bool
-	// TestRefs: thư mục các gói có tệp kiểm thử nhắc tới tên tệp p (literal chuỗi, so theo tên cơ sở; nới, không thu hẹp).
-	// Lỗi đọc nguồn trả error để người gọi nới full.
-	TestRefs(p string) ([]string, error)
-	// Select trả tệp kiểm thử của mọi gói có test phụ thuộc bắc cầu vào (hoặc chính là) một thư mục trong dirs.
-	Select(dirs []string) ([]string, error)
-}
-
-// Source là nguồn ảnh hưởng của một ngôn ngữ.
-type Source interface {
-	Name() string
-	// Detect: root là dự án của ngôn ngữ này.
-	Detect(root string) bool
-	// Load nạp đồ thị; lỗi thì người gọi nới ra full.
-	Load(ctx context.Context, root string) (Graph, error)
+	// Commands: lệnh chạy phần chọn (rỗng khi scope none hoặc full).
+	Commands []Command `json:"commands,omitempty"`
 }
 
 // Input là đầu vào của Select.
 type Input struct {
-	Root    string
-	Base    string
-	Head    string
-	Changed []string // đường dẫn tương đối gốc
-	Sources []Source // nil = DefaultSources()
-	// IgnoreBintConfig: tệp dưới .bint/ không nới ra full (workflow.verify.bint_config_full: false); vẫn nằm trong Changed. Mặc định false:
-	// thay đổi .bint/** nới ra full (ReasonBintConfig).
-	IgnoreBintConfig bool
-	// Direct: chỉ chọn test của chính các gói có tệp đổi, không lan theo đồ thị phụ thuộc (tầng hẹp của kiểm hẹp theo mốc; phần lan để kiểm nền).
-	// Graph không hỗ trợ (không cài DirectSelector) thì dùng Select như thường.
-	Direct bool
+	Root string
+	// Base: commit/ref mốc. Rỗng → full (no_base).
+	Base string
+	// Head: commit đích; rỗng thì so với cây làm việc ở Root (gồm phần chưa commit và tệp chưa theo dõi không bị ignore).
+	Head string
+	// Exclude: mẫu đường dẫn (gạch xuôi, tương đối gốc repo, `dir/**`) bỏ khỏi tập thay đổi: sổ phiếu của Bint, và .bint/** khi
+	// workflow.verify.bint_config_full là false.
+	Exclude []string
+	// StateDir: thư mục chỉ mục bền của bgraph (rỗng: thư mục cache của người dùng).
+	StateDir string
+	// PreviouslyFailed: test đỏ ở lần trước, luôn chạy lại.
+	PreviouslyFailed []string
+	// Only: nếu khác rỗng, chỉ giữ các đơn vị test chứa một trong các tệp này (cổng mục tiêu chạy riêng test đóng băng). Không đơn vị nào
+	// khớp thì scope full (người gọi chạy lệnh của phiếu).
+	Only []string
 }
 
-// DirectSelector là Graph chọn được test của chính các gói trong dirs, không lan sang gói phụ thuộc.
-type DirectSelector interface {
-	SelectDirect(dirs []string) ([]string, error)
-}
-
-func isBintPath(p string) bool { return p == ".bint" || strings.HasPrefix(p, ".bint/") }
-
-// DefaultSources là các nguồn hỗ trợ.
-func DefaultSources() []Source { return []Source{GoSource{}} }
-
-func (s *Selection) full(w Widening) Selection {
-	s.Scope = TierFull
-	s.Widening = append(s.Widening, w)
-	s.TestFiles, s.TestDirs = nil, nil
-	return *s
-}
-
-// Select chọn phạm vi kiểm thử cho tập thay đổi in.Changed.
+// Select tính phần chọn. Không bao giờ trả lỗi: lỗi hạ tầng (git không chạy, repo hỏng) thành scope full kèm lý do.
 func Select(ctx context.Context, in Input) Selection {
-	changed := make([]string, len(in.Changed))
-	for i, c := range in.Changed {
-		changed[i] = path.Clean(strings.ReplaceAll(c, "\\", "/"))
+	full := func(reason, detail string) Selection {
+		return Selection{Scope: TierFull, Base: in.Base, Head: in.Head, Source: "bgraph", Changed: []string{},
+			Widening: []Widening{{Tier: TierFull, Reason: reason, Detail: detail}}}
 	}
-	slices.Sort(changed)
-	changed = slices.Compact(changed)
-	sel := Selection{Base: in.Base, Head: in.Head, Changed: changed, ChangedTotal: len(changed), Scope: TierNone}
-	if len(changed) > MaxChanged {
-		sel.Changed, sel.Truncated = changed[:MaxChanged], true
+	if strings.TrimSpace(in.Base) == "" {
+		return full(ReasonNoBase, "không có commit mốc để so thay đổi")
 	}
-	if len(changed) == 0 {
-		return sel
-	}
-	classify := changed
-	if in.IgnoreBintConfig {
-		classify = make([]string, 0, len(changed))
-		for _, c := range changed {
-			if !isBintPath(c) {
-				classify = append(classify, c)
-			}
-		}
-		if len(classify) == 0 {
-			return sel // chỉ .bint/** đổi và khoá cho phép không nới: không test nào bị ảnh hưởng
-		}
-	}
-	// Tệp cấu hình/CI quyết định full mà không cần nguồn.
-	if ws := configWidenings(classify); len(ws) > 0 {
-		sel.Widening, sel.Scope = ws, TierFull
-		return sel
-	}
-	sources := in.Sources
-	if sources == nil {
-		sources = DefaultSources()
-	}
-	var src Source
-	for _, s := range sources {
-		if s.Detect(in.Root) {
-			src = s
-			break
-		}
-	}
-	if src == nil {
-		return sel.full(Widening{Tier: TierFull, Reason: ReasonUnsupported, Detail: "không có nguồn ảnh hưởng cho dự án này"})
-	}
-	sel.Source = src.Name()
-	g, err := src.Load(ctx, in.Root)
+	ix, err := bgraph.Open(ctx, in.Root, bgraph.Options{StateDir: in.StateDir})
 	if err != nil {
-		return sel.full(Widening{Tier: TierFull, Reason: ReasonSourceUnavailable, Detail: err.Error()})
+		return full(ReasonSourceUnavailable, err.Error())
 	}
-	res := Classify(classify, g)
-	sel.Widening = res.Widening
-	switch res.Tier {
-	case TierFull:
-		sel.Scope = TierFull
-		return sel
-	case TierNone:
-		return sel
-	}
-	var files []string
-	if ds, ok := g.(DirectSelector); ok && in.Direct {
-		files, err = ds.SelectDirect(res.Dirs)
-	} else {
-		files, err = g.Select(res.Dirs)
-	}
+	defer ix.Close()
+	ch := bgraph.Change{Base: in.Base, Head: in.Head, Worktree: in.Head == "", PreviouslyFailed: in.PreviouslyFailed, Exclude: in.Exclude}
+	bs, err := ix.Select(ctx, ch)
 	if err != nil {
-		return sel.full(Widening{Tier: TierFull, Reason: ReasonSourceUnavailable, Detail: err.Error()})
+		return full(ReasonSourceUnavailable, err.Error())
 	}
-	if len(files) == 0 {
-		return sel // không gói nào có test bị ảnh hưởng: không bao giờ để {test_dirs} rỗng
+	if len(in.Only) > 0 {
+		bs = restrict(bs, in.Only)
 	}
-	sel.Scope = res.Tier
-	sel.TestFiles = files
-	seen := map[string]bool{}
-	for _, f := range files {
-		d := path.Dir(f)
-		if d != "." {
-			d = "./" + d
-		}
-		if !seen[d] {
-			seen[d] = true
-			sel.TestDirs = append(sel.TestDirs, d)
-		}
+	sel := FromBgraph(bs)
+	if in.Head == "" {
+		sel.Head = ""
 	}
 	return sel
 }
+
+// ReasonOnlyUnselected: Input.Only không khớp đơn vị test nào bgraph biết.
+const ReasonOnlyUnselected = "only_files_unselected"
+
+// restrict giữ các đơn vị test của bs chứa một tệp trong only (so theo Files, hoặc Unit khi đơn vị là một tệp/thư mục chứa tệp).
+func restrict(bs bgraph.Selection, only []string) bgraph.Selection {
+	if bs.Scope == bgraph.TierFull || bs.Scope == bgraph.TierNone && len(bs.Tests) == 0 {
+		// full: không biết đơn vị; none: bgraph không thấy tệp nào đổi ảnh hưởng tới chúng, vẫn phải chạy chúng nên lùi về lệnh của phiếu.
+		bs.Scope = bgraph.TierFull
+		bs.Tests = nil
+		bs.Widening = append(bs.Widening, bgraph.Widening{Tier: bgraph.TierFull, Reason: ReasonOnlyUnselected,
+			Detail: "không dựng được đơn vị test cho: " + strings.Join(only, ", ")})
+		return bs
+	}
+	match := func(t bgraph.SelectedTest) bool {
+		dir, isDir := unitDir(t)
+		for _, o := range only {
+			if t.Unit == o || slices.Contains(t.Files, o) || isDir && path.Dir(o) == dir {
+				return true
+			}
+		}
+		return false
+	}
+	var keep []bgraph.SelectedTest
+	for _, t := range bs.Tests {
+		if match(t) {
+			keep = append(keep, t)
+		}
+	}
+	if len(keep) == 0 {
+		bs.Tests = nil
+		return restrict(bgraph.Selection{Scope: bgraph.TierFull, Base: bs.Base, Head: bs.Head, Changed: bs.Changed, Widening: bs.Widening}, only)
+	}
+	bs.Tests = keep
+	return bs
+}
+
+// unitDir: thư mục của đơn vị test là cả một gói (Go: SelectedTest.Dir, Files chỉ là nút ảo). ok=false với đơn vị theo tệp.
+func unitDir(t bgraph.SelectedTest) (string, bool) {
+	return t.Dir, t.Dir != ""
+}
+
+// FromBgraph chuyển Selection của bgraph sang dạng Bint, kèm lệnh chạy.
+func FromBgraph(bs bgraph.Selection) Selection {
+	sel := Selection{Scope: Tier(bs.Scope), Base: bs.Base, Head: bs.Head, Source: "bgraph", Changed: slices.Clone(bs.Changed)}
+	if sel.Changed == nil {
+		sel.Changed = []string{}
+	}
+	sel.ChangedTotal = len(sel.Changed)
+	if len(sel.Changed) > MaxChanged {
+		sel.Changed, sel.Truncated = sel.Changed[:MaxChanged], true
+	}
+	conv := func(ws []bgraph.Widening) []Widening {
+		var out []Widening
+		for _, w := range ws {
+			out = append(out, Widening{Path: w.Path, Tier: Tier(w.Tier), Reason: w.Reason, Detail: w.Detail, Scope: w.Scope, Suggest: w.Suggest})
+		}
+		return out
+	}
+	sel.Widening, sel.Warnings = conv(bs.Widening), conv(bs.Warnings)
+	if sel.Scope == TierFull {
+		return sel
+	}
+	seenF, seenD := map[string]bool{}, map[string]bool{}
+	for _, t := range bs.Tests {
+		sel.Tests = append(sel.Tests, Test{Unit: t.Unit, Runner: t.Runner, Project: t.Project, Files: slices.Clone(t.Files), Widened: t.Widened})
+		addDir := func(d string) {
+			if d != "." {
+				d = "./" + strings.TrimPrefix(d, "./")
+			}
+			if !seenD[d] {
+				seenD[d] = true
+				sel.TestDirs = append(sel.TestDirs, d)
+			}
+		}
+		if d, ok := unitDir(t); ok {
+			addDir(d) // đơn vị là cả gói (Go): Files chỉ là nút ảo
+			continue
+		}
+		for _, f := range t.Files {
+			if !seenF[f] {
+				seenF[f] = true
+				sel.TestFiles = append(sel.TestFiles, f)
+			}
+			addDir(path.Dir(f))
+		}
+	}
+	slices.Sort(sel.TestFiles)
+	slices.Sort(sel.TestDirs)
+	if sel.Scope == TierNone {
+		return sel
+	}
+	plan, err := bgraph.Commands(bs, bgraph.CommandOptions{})
+	if err != nil {
+		sel.Scope = TierFull
+		sel.Widening = append(sel.Widening, Widening{Tier: TierFull, Reason: ReasonSourceUnavailable, Detail: "không dựng được lệnh chạy: " + err.Error()})
+		return sel
+	}
+	if Tier(plan.Scope) == TierFull {
+		// bgraph không dựng được lệnh chọn lọc (đơn vị không chạy riêng được): chạy cả bộ, ghi lý do.
+		sel.Scope = TierFull
+		sel.Widening = append(sel.Widening, Widening{Tier: TierFull, Reason: "no_selective_command", Detail: strings.Join(plan.Notes, "; ")})
+		return sel
+	}
+	for _, c := range plan.Commands {
+		sel.Commands = append(sel.Commands, Command{Runner: c.Runner, Project: c.Project, Argv: slices.Clone(c.Argv), Env: slices.Clone(c.Env)})
+	}
+	return sel
+}
+
+// Script dựng một lệnh sh chạy mọi lệnh của phần chọn, chạy hết cả khi một lệnh đỏ (để có đủ danh sách test đỏ) rồi thoát 1 nếu có lệnh đỏ.
+// Rỗng khi không có lệnh (scope none hoặc full).
+func (s Selection) Script() string {
+	if len(s.Commands) == 0 {
+		return ""
+	}
+	if len(s.Commands) == 1 {
+		return commandLine(s.Commands[0])
+	}
+	var b strings.Builder
+	b.WriteString("rc=0")
+	for _, c := range s.Commands {
+		b.WriteString("; (" + commandLine(c) + ") || rc=1")
+	}
+	b.WriteString("; exit $rc")
+	return b.String()
+}
+
+func commandLine(c Command) string {
+	var parts []string
+	for _, e := range c.Env {
+		k, v, _ := strings.Cut(e, "=")
+		parts = append(parts, k+"="+shellQuote(v))
+	}
+	for _, a := range c.Argv {
+		parts = append(parts, shellQuote(a))
+	}
+	line := strings.Join(parts, " ")
+	if p := strings.TrimSpace(c.Project); p != "" && p != "." {
+		line = "cd " + shellQuote(p) + " && " + line
+	}
+	return line
+}
+
+// shellQuote đặt s trong nháy đơn khi cần (sh: nháy đơn bên trong viết '\”).
+func shellQuote(s string) string {
+	if s != "" && !strings.ContainsFunc(s, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("-_./:=@,+%^", r))
+	}) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// Full: phần chọn đòi chạy cả bộ.
+func (s Selection) Full() bool { return s.Scope == TierFull }

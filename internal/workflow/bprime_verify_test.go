@@ -49,12 +49,71 @@ func bvRun(t *testing.T, variant string, ms []bvMilestone) (h *harness, res *Res
 	return bvRunOpt(t, bvOpts{variant: variant}, ms)
 }
 
-// bvOpts chỉnh bvRun: extra nối vào verify.command (điều kiện kiểm nền phải qua), slow làm verify.command chậm và ghi S/E vào <counter>.log
-// (đo hai lần chạy chồng nhau), cancel đặt hàm huỷ ngữ cảnh của Run (b-feat giả gọi nó qua bvMilestone.cancel).
+// bvOpts chỉnh bvRun: needLocal làm test Go đòi tệp local.env bị gitignore (có ở cây chính, không có ở checkout sạch: kiểm nền đỏ, kiểm hẹp xanh),
+// slow làm test Go chậm và ghi S/E vào <counter>.log ở lần chạy nền (đo hai lần chạy chồng nhau).
 type bvOpts struct {
-	variant string
-	extra   string
-	slow    bool
+	variant   string
+	needLocal bool
+	slow      bool
+}
+
+// bvTestFile là tệp test Go của gói pkg cho bộ kiểm nền: đỏ khi tệp cờ BV_RED tồn tại; với BV_NEEDLOCAL đỏ khi thiếu local.env ở gốc module; ở lần
+// chạy nền (gốc module khác BV_ROOT) ghi gốc module vào BV_COUNTER, và với BV_SLOW ghi S/E kèm pid vào <BV_COUNTER>.log quanh một lần ngủ 0,2 giây.
+func bvTestFile(pkg, name string) string {
+	return "package " + pkg + `
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+func ` + name + `(t *testing.T) {
+	if _, err := os.Stat(os.Getenv("BV_RED")); err == nil {
+		t.Fatal("đỏ")
+	}
+	wd, _ := os.Getwd()
+	root := filepath.Dir(wd)
+	if os.Getenv("BV_NEEDLOCAL") != "" {
+		if _, err := os.Stat(filepath.Join(root, "local"+".env")); err != nil {
+			t.Fatal("thiếu tệp cục bộ")
+		}
+	}
+	if strings.EqualFold(filepath.Clean(root), filepath.Clean(os.Getenv("BV_ROOT"))) {
+		return
+	}
+	appendLine := func(p, s string) {
+		f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		fmt.Fprintln(f, s)
+	}
+	c := os.Getenv("BV_COUNTER")
+	if os.Getenv("BV_SLOW") != "" {
+		appendLine(c+".log", fmt.Sprint("S", os.Getpid()))
+		time.Sleep(200 * time.Millisecond)
+		defer appendLine(c+".log", fmt.Sprint("E", os.Getpid()))
+	}
+	appendLine(c, filepath.ToSlash(root))
+}
+`
+}
+
+// bvSetRed bật/tắt cờ làm test Go đỏ (ngoài repo, không phải thay đổi của cây).
+func bvSetRed(t *testing.T, on bool) {
+	p := os.Getenv("BV_RED")
+	if on {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	os.Remove(p)
 }
 
 func bvRunOpt(t *testing.T, o bvOpts, ms []bvMilestone) (h *harness, res *Result, counter string, checks []CheckResult) {
@@ -67,16 +126,18 @@ func bvRunOpt(t *testing.T, o bvOpts, ms []bvMilestone) (h *harness, res *Result
 	autoCheckQuiet = 24 * time.Hour // các ca này đếm đúng số lần kiểm hẹp do agent gọi; kiểm hẹp tự động có test riêng (TestAutoCheckWhenTreeQuiet)
 	t.Cleanup(func() { bgPollInterval, autoCheckQuiet = old, oldQuiet })
 	counter = filepath.ToSlash(filepath.Join(t.TempDir(), "count.txt"))
+	// Test Go giả (bvTestFile) ghi vào counter thư mục gốc của mỗi lần chạy NỀN (checkout sạch ngoài cây chính); kiểm hẹp và kiểm chứng tuần tự
+	// chạy trong cây chính nên không đếm. -p=1: các gói của một lần chạy nối tiếp nhau (để log S/E đo chồng lấn giữa các lần nền).
+	t.Setenv("GOFLAGS", "-count=1 -p=1")
+	t.Setenv("BV_COUNTER", counter)
+	t.Setenv("BV_RED", filepath.Join(t.TempDir(), "red"))
+	t.Setenv("BV_SLOW", map[bool]string{true: "1"}[o.slow])
+	t.Setenv("BV_NEEDLOCAL", map[bool]string{true: "1"}[o.needLocal])
 	clock := &fakeClock{t: time.Date(2026, 11, 20, 8, 0, 0, 0, time.UTC)}
 	h = bpHarness(t, bpOpts{variant: variant, goal: func(context.Context, *Env, string) error { return nil },
 		cfg: func(h *harness) {
-			full := "test -f done.txt" + o.extra + " && echo \"$PWD\" >> " + counter
-			if o.slow {
-				full = "test -f done.txt" + o.extra + " && echo S$$ >> " + counter + ".log && sleep 0.2 && echo \"$PWD\" >> " + counter + " && echo E$$ >> " + counter + ".log"
-			}
+			full := "test -f done.txt"
 			h.cfg.Eval.TestCommand = &full
-			h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeAffected,
-				AffectedCommand: "echo AFFECTED {test_dirs} >> aff.txt; test ! -f red.txt"}
 		},
 		feat: func(ctx context.Context, h *harness, e *Env, id string) error {
 			e.Now = clock.Now // Env của agent giả là bản riêng: dùng cùng đồng hồ giả để At của kiểm hẹp tính theo mốc
@@ -105,11 +166,14 @@ func bvRunOpt(t *testing.T, o bvOpts, ms []bvMilestone) (h *harness, res *Result
 			}
 			return nil
 		}})
+	t.Setenv("BV_ROOT", h.root)
 	h.write("go.mod", "module example.com/m\n\ngo 1.21\n")
 	h.write("a/a.go", "package a\n\nfunc A() int { return 1 }\n")
-	h.write("a/a_test.go", "package a\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {}\n")
+	h.write("a/a_test.go", bvTestFile("a", "TestA"))
 	h.write("c/c.go", "package c\n\nfunc C() {}\n")
-	h.write("c/c_test.go", "package c\n\nimport \"testing\"\n\nfunc TestC(t *testing.T) {}\n")
+	h.write("c/c_test.go", bvTestFile("c", "TestC"))
+	h.write(".gitignore", "done.txt\nlocal.env\n")
+	h.write("local.env", "x\n") // bị gitignore: có ở cây chính, không có ở checkout sạch của kiểm nền
 	testutil.Git(t, h.root, "add", "-A")
 	testutil.Git(t, h.root, "commit", "-m", "go module")
 	r := h.runner()
@@ -133,12 +197,17 @@ func agentChecks(tk *task.Task) []task.Verification {
 	return out
 }
 
+// counted: số lần chạy nền (mỗi lần chạy nền dùng một checkout tạm riêng; các gói của cùng lần ghi cùng gốc).
 func counted(counter string) int {
 	b, err := os.ReadFile(counter)
 	if err != nil {
 		return 0
 	}
-	return len(strings.Fields(string(b)))
+	seen := map[string]bool{}
+	for _, l := range strings.Fields(string(b)) {
+		seen[l] = true
+	}
+	return len(seen)
 }
 
 func waitBG(t *testing.T, h *harness, id string, n int) {
@@ -197,10 +266,10 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 		ms := []bvMilestone{
 			{edit: editA(2), check: true, wait: true},
 			{edit: func(h *harness) {
-				h.write("red.txt", "x\n")
+				bvSetRed(t, true)
 				h.write("c/c.go", "package c\n\nfunc C() int { return 2 }\n")
 			}, check: true},
-			{edit: func(h *harness) { os.Remove(filepath.Join(h.root, "red.txt")) }, check: true},
+			{edit: func(h *harness) { bvSetRed(t, false); editA(5)(h) }, check: true},
 		}
 		h, res, _, _ := bvRun(t, config.VariantBPrime, ms)
 		tk := h.load(res.TaskID)
@@ -214,25 +283,19 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 		}
 	})
 
-	// L3 (thay đổi buộc nới full) × N1/N3: kiểm hẹp không chạy toàn repo, kiểm chứng đi đường cũ.
-	t.Run("nới full", func(t *testing.T) {
+	// L3 (manifest đổi: bgraph nới tới cả module) × N1/N3: kiểm hẹp vẫn chạy (cả module), không bị bỏ qua; kiểm chứng của tác vụ xanh.
+	t.Run("nới module", func(t *testing.T) {
 		ms := []bvMilestone{
 			{edit: editA(2), check: true, wait: true},
 			{edit: func(h *harness) { h.write("go.mod", "module example.com/m\n\ngo 1.22\n") }, check: true},
 		}
-		h, res, counter, crs := bvRun(t, config.VariantBPrime, ms)
+		h, res, _, crs := bvRun(t, config.VariantBPrime, ms)
 		tk := h.load(res.TaskID)
-		if len(crs) != 2 || crs[1].Skipped == "" || !strings.Contains(crs[1].Skipped, "full") {
-			t.Fatalf("(L3×N1) kiểm hẹp mốc full phải bị bỏ qua: %+v", crs)
+		if len(crs) != 2 || crs[1].Skipped != "" || crs[1].Check.Scope != "module" || !crs[1].Check.Passed {
+			t.Fatalf("(L3×N1) kiểm hẹp sau khi go.mod đổi phải chạy cả module và xanh: %+v", crs)
 		}
-		if len(agentChecks(tk)) != 2 || agentChecks(tk)[1].Skipped == "" || agentChecks(tk)[1].Passed {
-			t.Errorf("(L3×N1) state.checks muốn 2, lần thứ hai ghi là bị bỏ qua (mốc full không chạy): %+v", agentChecks(tk))
-		}
-		if n := len(tk.State.Verifications); n != 1 || strings.Contains(tk.State.Verifications[0].Reason, "chạy nền") || tk.State.Verifications[0].Scope != "full" {
-			t.Errorf("(L3×N3) cây cuối đổi: phải kiểm chứng tuần tự full, có %+v", tk.State.Verifications)
-		}
-		if got, want := counted(counter), len(tk.State.BackgroundVerifications)+1; got != want {
-			t.Errorf("(L3×N3) verify.command chạy %d lần, muốn %d (nền + 1 tuần tự)", got, want)
+		if vs := tk.State.Verifications; len(vs) != 1 || !vs[0].Passed || !vs[0].Complete() {
+			t.Errorf("(L3×N3) kiểm chứng của tác vụ: %+v", vs)
 		}
 	})
 
@@ -258,10 +321,10 @@ func TestBPrimeBackgroundVerify(t *testing.T) {
 		var res *Result
 		var crs []CheckResult
 		ms := []bvMilestone{
-			{edit: func(h *harness) { editA(2)(h); h.write("bgred.txt", "x\n") }, check: true, wait: true},
-			{edit: func(h *harness) { os.Remove(filepath.Join(h.root, "bgred.txt")) }, check: true},
+			{edit: editA(2), check: true, wait: true},
+			{edit: editA(3), check: true},
 		}
-		h, res, _, crs = bvRunOpt(t, bvOpts{variant: config.VariantBPrime, extra: " && test ! -f bgred.txt"}, ms)
+		h, res, _, crs = bvRunOpt(t, bvOpts{variant: config.VariantBPrime, needLocal: true}, ms)
 		tk := h.load(res.TaskID)
 		bgs := tk.State.BackgroundVerifications
 		if len(bgs) == 0 || bgs[0].Passed {

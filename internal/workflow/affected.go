@@ -2,7 +2,7 @@ package workflow
 
 import (
 	"context"
-	"fmt"
+	"path/filepath"
 	"strings"
 
 	"bint/internal/affected"
@@ -11,70 +11,98 @@ import (
 )
 
 // ReasonNoBase: không có commit/ref gốc để so (nới ra full).
-const ReasonNoBase = "no_base"
+const ReasonNoBase = affected.ReasonNoBase
 
-// SelectAffected chọn phạm vi kiểm thử cho mọi thay đổi của cây làm việc ở root so với base (commit/ref/cây): gồm
-// thay đổi đã commit, chưa commit và tệp chưa theo dõi (không bị .gitignore loại). Không tính được tập thay đổi thì nới
-// ra full kèm lý do, không bao giờ thu hẹp.
-func SelectAffected(ctx context.Context, root, base string) affected.Selection {
-	return SelectAffectedCfg(ctx, root, base, true)
+// SelectOpts là tuỳ chọn của SelectAffected.
+type SelectOpts struct {
+	// Head: commit đích; rỗng thì so với cây làm việc ở root.
+	Head string
+	// BintConfigFull: workflow.verify.bint_config_full. false thì thay đổi chỉ trong .bint/** không ảnh hưởng test.
+	BintConfigFull bool
+	// TasksDir: thư mục tác vụ của Bint (<state>/runtime/tasks) để đặt chỉ mục bền của bgraph cạnh state; rỗng thì bgraph dùng cache của người dùng.
+	TasksDir string
+	// Only: chỉ giữ đơn vị test chứa các tệp này (affected.Input.Only).
+	Only []string
+	// PreviouslyFailed: test đỏ ở lần trước, luôn chạy lại.
+	PreviouslyFailed []string
 }
 
-// SelectAffectedCfg như SelectAffected; bintConfigFull là workflow.verify.bint_config_full: false thì thay đổi chỉ trong .bint/** không nới ra full.
-func SelectAffectedCfg(ctx context.Context, root, base string, bintConfigFull bool) affected.Selection {
-	full := func(head, reason, detail string) affected.Selection {
-		return affected.Selection{Scope: affected.TierFull, Base: base, Head: head, Changed: []string{},
-			Widening: []affected.Widening{{Tier: affected.TierFull, Reason: reason, Detail: detail}}}
+// SelectAffected chọn test bị ảnh hưởng bởi thay đổi của cây làm việc ở root (hoặc commit o.Head) so với base, bằng bgraph. Sổ phiếu
+// (.bint/tasks) không bao giờ là thay đổi. Không tính được thì nới ra full kèm lý do, không bao giờ thu hẹp.
+func SelectAffected(ctx context.Context, root, base string, o SelectOpts) affected.Selection {
+	ex := []string{task.LedgerDir + "/**"}
+	if !o.BintConfigFull {
+		ex = append(ex, ".bint/**")
 	}
-	if strings.TrimSpace(base) == "" {
-		return full("", ReasonNoBase, "không có commit gốc để so thay đổi")
+	in := affected.Input{Root: root, Base: base, Head: o.Head, Exclude: ex, Only: o.Only, PreviouslyFailed: o.PreviouslyFailed}
+	if o.TasksDir != "" {
+		in.StateDir = bgraphDirFor(o.TasksDir)
 	}
-	head, changed, err := changedSince(ctx, root, base)
-	if err != nil {
-		return full(head, affected.ReasonSourceUnavailable, err.Error())
-	}
-	return affected.Select(ctx, affected.Input{Root: root, Base: base, Head: head, Changed: changed, IgnoreBintConfig: !bintConfigFull})
+	return affected.Select(ctx, in)
 }
 
-// changedSince trả ảnh chụp cây (head) và tệp đổi của cây làm việc ở root so với base. Không chụp được cây (git add bị chặn ghi .git/objects,
-// ví dụ sandbox của agent — đợt 7: 24/24 lần kiểm hẹp bị bỏ vì vậy) thì tính tệp đổi bằng các lệnh git chỉ đọc; khi đó head rỗng.
-func changedSince(ctx context.Context, root, base string) (head string, changed []string, err error) {
-	head, serr := WorktreeSnapshot(ctx, root)
-	if serr == nil {
-		changed, err = DiffPaths(ctx, root, base, head)
-		if err != nil {
-			return head, nil, fmt.Errorf("không tính được tệp đổi so với %s: %v", base, err)
+// bgraphDirFor là thư mục chỉ mục bền của bgraph (<state>/bgraph) ứng với thư mục tác vụ tasksDir (<state>/runtime/tasks). Nằm ngoài cây
+// DataWatch theo dõi nên cập nhật chỉ mục không kích hoạt nạp lại TUI.
+func bgraphDirFor(tasksDir string) string {
+	return filepath.Join(filepath.Dir(filepath.Dir(tasksDir)), "bgraph")
+}
+
+// selectFor chọn test của tác vụ t so với base (rỗng: mốc tác vụ) trên cây làm việc root, theo cấu hình của Env.
+func (e *Env) selectFor(ctx context.Context, t *task.Task, root, base string, only []string) affected.Selection {
+	if base == "" {
+		base = t.State.Base
+	}
+	return SelectAffected(ctx, root, base, SelectOpts{BintConfigFull: e.Cfg.Workflow.Verify.BintConfigFull, TasksDir: e.Tasks.Dir, Only: only})
+}
+
+// testRun là lệnh chạy cho một phần chọn: script của bgraph, verify.command của phiếu khi scope full, hoặc không chạy gì khi none.
+func testRun(sel affected.Selection, cmd string) (ran string, run bool) {
+	switch sel.Scope {
+	case affected.TierNone:
+		return "", false
+	case affected.TierFull:
+		return cmd, true
+	}
+	if s := sel.Script(); s != "" {
+		return s, true
+	}
+	return cmd, true
+}
+
+// fullReason mô tả vì sao bgraph đòi chạy cả bộ (rỗng khi không phải full).
+func fullReason(sel affected.Selection) string {
+	if sel.Scope != affected.TierFull {
+		return ""
+	}
+	var parts []string
+	for _, w := range sel.Widening {
+		if w.Tier != affected.TierFull {
+			continue
 		}
-		return head, changed, nil
+		s := w.Reason
+		if w.Path != "" {
+			s += " " + w.Path
+		}
+		if w.Detail != "" {
+			s += " (" + w.Detail + ")"
+		}
+		parts = append(parts, s)
 	}
-	changed, err = worktreeChangedReadOnly(ctx, root, base)
-	if err != nil {
-		return "", nil, fmt.Errorf("không chụp được cây làm việc (%v) và không tính được tệp đổi bằng lệnh chỉ đọc: %v", serr, err)
-	}
-	return "", changed, nil
+	return strings.Join(parts, "; ")
 }
 
-// worktreeChangedReadOnly: tệp đổi của cây làm việc so với base (đã commit, chưa commit, chưa theo dõi và không bị ignore) mà không ghi gì vào .git.
-func worktreeChangedReadOnly(ctx context.Context, root, base string) ([]string, error) {
-	seen := map[string]bool{}
-	var out []string
-	add := func(s string) {
-		for p := range strings.SplitSeq(s, "\x00") {
-			if p != "" && !task.IsLedgerPath(p) && !seen[p] {
-				seen[p] = true
-				out = append(out, p)
-			}
-		}
+// greenCommit trả commit (con của mốc tác vụ) chứa cây tree, giữ bằng ref refs/bint/green/<id> để git gc không xoá: dùng làm mốc của kiểm hẹp
+// "kể từ lần kiểm xanh trước". Lỗi (sandbox chặn ghi .git) thì trả rỗng và người gọi so với mốc tác vụ.
+func greenCommit(ctx context.Context, root string, t *task.Task, tree string) string {
+	if tree == "" || strings.TrimSpace(t.State.Base) == "" {
+		return ""
 	}
-	d, err := gitrepo.Run(ctx, root, "--no-optional-locks", "--literal-pathspecs", "diff", "--name-only", "--no-renames", "-z", base)
+	c, err := commitTree(ctx, root, tree, "bint: kiểm hẹp xanh")
 	if err != nil {
-		return nil, err
+		return ""
 	}
-	add(d)
-	u, err := gitrepo.Run(ctx, root, "--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z")
-	if err != nil {
-		return nil, err
+	if _, err := gitrepo.Run(ctx, root, "update-ref", "refs/bint/green/"+t.State.ID, c); err != nil {
+		return ""
 	}
-	add(u)
-	return out, nil
+	return c
 }

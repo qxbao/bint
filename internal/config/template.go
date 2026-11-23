@@ -13,8 +13,6 @@ type InitParams struct {
 	DefaultHarness        string
 	SuggestedTestCommand  string
 	SuggestedSetupCommand string
-	// SuggestedAffectedCommand: lệnh đề xuất cho workflow.verify.affected_command (chỉ ghi khi khác rỗng).
-	SuggestedAffectedCommand string
 	// KeepGenericModel: harness → khoá model chung đã đặt tay; khối models của harness đó
 	// được để trống (chỉ dùng khi nâng cấu hình cũ, Upgrade).
 	KeepGenericModel map[string]string
@@ -191,15 +189,10 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   # idle_timeout_minutes: 0   # dừng bước agent khi harness im lặng quá số phút này (treo), resume nối tiếp được; 0 = 30 phút, -1 = tắt
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
-  verify:                   # phạm vi lệnh kiểm chứng ở vòng kiểm chứng của tác vụ (cổng done và bint task verify luôn chạy đầy đủ)
-    scope: full             # full (chạy verify.command của phiếu) | affected (chỉ chạy test bị ảnh hưởng bởi thay đổi; thay đổi lạ thì tự nới ra full)
-    affected_command: ""    # lệnh cho scope affected, có {test_dirs} hoặc {test_files}, ví dụ "go test -count=1 -timeout=30m {test_dirs}"
-    bint_config_full: true  # true = thay đổi trong .bint/** nới kiểm chứng ra full; false = không nới (cổng done vẫn chạy đầy đủ một lần)
-    # done: full              # bằng chứng cổng done khi scope affected: full = chạy đầy đủ một lần trước done; graph = nhận lần chọn theo đồ thị phụ thuộc đã xanh trên đúng cây (toàn bộ để CI/land)
+  verify:                   # mọi lần chạy test của tác vụ chạy các test bị ảnh hưởng do bgraph chọn; verify.command của phiếu chỉ chạy khi bgraph đòi chạy cả bộ
+    affected_command: ""    # lệnh chạy một danh sách tệp test, có {test_files} hoặc {test_dirs}; chỉ dùng khi bgraph không dựng được lệnh cho các tệp đó (vd. kiểm tra mục tiêu viết bằng shell); rỗng = verify.command
+    bint_config_full: true  # true = thay đổi trong .bint/** là thay đổi như mọi tệp khác; false = bỏ .bint/** khỏi tập thay đổi
 `)
-	if p.SuggestedAffectedCommand != "" {
-		w("    suggested_affected_command: %s   # phát hiện khi init, chưa xác nhận: chép sang affected_command và đặt scope: affected để bật\n", quote(p.SuggestedAffectedCommand))
-	}
 	w(`  perf:                     # cổng hồi quy hiệu năng (tuỳ chọn): đo mốc trước b-feat đầu tiên và đo lại sau mỗi b-feat (nhỏ nhất của 3 lần, giây)
     command: ""             # lệnh đo, ví dụ "go test -run xxx -bench Hot ./..."; rỗng = tắt; chỉ chạy khi lệnh kiểm chứng đã được xác nhận
     max_slowdown: 1.5       # chậm hơn mốc quá số lần này (và quá sàn nhiễu 0,1 giây) hoặc lệnh thoát khác 0 thì coi như kiểm chứng không qua

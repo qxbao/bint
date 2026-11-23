@@ -601,14 +601,15 @@ func (m *Model) relationLines(env ui.Env, st task.State, d Detail, w int) []stri
 	return append([]string{"", m.section(env, m.t("tk.section.relations"), w)}, l...)
 }
 
-// scopeLines: phạm vi của một lần kiểm chứng (full/none/graph/package), số thư mục và tệp test được chọn, lý do nới.
+// scopeLines: phạm vi của một lần kiểm chứng (none/graph/package/module của bgraph, full khi bgraph đòi cả bộ hoặc bản ghi cũ không có
+// phạm vi), số thư mục và tệp test được chọn, lý do nới.
 func (m *Model) scopeLines(v task.Verification) []string {
 	scope := v.Scope
-	if v.Full() {
+	if scope == "" {
 		scope = "full"
 	}
 	label := map[string]string{"full": "tk.verify.scope.full", "none": "tk.verify.scope.none",
-		"graph": "tk.verify.scope.graph", "package": "tk.verify.scope.package"}[scope]
+		"graph": "tk.verify.scope.graph", "package": "tk.verify.scope.package", "module": "tk.verify.scope.module"}[scope]
 	if label == "" {
 		label = "tk.verify.scope.full"
 	}

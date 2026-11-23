@@ -363,10 +363,9 @@ func readUpgrade(cfgRoot string) (config.UpgradeResult, error) {
 	return upgradeWithSuggestions(old, cfgRoot)
 }
 
-// upgradeWithSuggestions nâng cấu hình như config.Upgrade, kèm các lệnh phát hiện được ở cfgRoot (hiện chỉ
-// workflow.verify.suggested_affected_command, thêm khi khoá còn thiếu và affected_command chưa đặt).
-func upgradeWithSuggestions(old []byte, cfgRoot string) (config.UpgradeResult, error) {
-	return config.UpgradeWith(old, config.UpgradeSuggestions{AffectedCommand: detect.SuggestCommands(cfgRoot).Affected})
+// upgradeWithSuggestions nâng cấu hình như config.Upgrade (cfgRoot để dành cho đề xuất phát hiện được ở repo; hiện không có).
+func upgradeWithSuggestions(old []byte, _ string) (config.UpgradeResult, error) {
+	return config.UpgradeWith(old, config.UpgradeSuggestions{})
 }
 
 // PlanChange là loại thay đổi của một mục trong kế hoạch.

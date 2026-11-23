@@ -45,11 +45,8 @@ func Upgrade(old []byte) (UpgradeResult, error) {
 	return UpgradeWith(old, UpgradeSuggestions{})
 }
 
-// UpgradeSuggestions là các lệnh phát hiện được ở repository, được thêm như khoá suggested_* còn thiếu khi nâng.
-type UpgradeSuggestions struct {
-	// AffectedCommand: đề xuất cho workflow.verify.affected_command; bỏ qua khi người dùng đã đặt affected_command.
-	AffectedCommand string
-}
+// UpgradeSuggestions là các lệnh phát hiện được ở repository, được thêm như khoá suggested_* còn thiếu khi nâng (hiện không có).
+type UpgradeSuggestions struct{}
 
 // UpgradeWith như Upgrade, kèm đề xuất sug.
 func UpgradeWith(old []byte, sug UpgradeSuggestions) (UpgradeResult, error) {
@@ -67,9 +64,6 @@ func UpgradeWith(old []byte, sug UpgradeSuggestions) (UpgradeResult, error) {
 	}
 	p := InitParams{ProjectName: cur.Project.Name, Harnesses: cur.Harnesses.Enabled, DefaultHarness: cur.Harnesses.Default,
 		KeepGenericModel: genericModels(cur)}
-	if cur.Workflow.Verify.AffectedCommand == "" {
-		p.SuggestedAffectedCommand = sug.AffectedCommand
-	}
 	tmplText := Render(p)
 	var tmpl yaml.Node
 	if err := yaml.Unmarshal([]byte(tmplText), &tmpl); err != nil {
@@ -93,6 +87,9 @@ func UpgradeWith(old []byte, sug UpgradeSuggestions) (UpgradeResult, error) {
 	}
 	u.merge(doc.Content[0], tmpl.Content[0], "", 0)
 	res.Notes = append(res.Notes, u.notes...)
+	if keys := cur.Workflow.Verify.DeprecatedVerifyKeys(); len(keys) > 0 {
+		res.Notes = append(res.Notes, strings.Join(keys, ", ")+" không còn dùng (bgraph chọn test bị ảnh hưởng cho mọi lần chạy test); có thể xoá")
+	}
 	if len(u.added) == 0 && res.Fixed == 0 && len(res.Migrated) == 0 {
 		return res, nil
 	}

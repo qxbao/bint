@@ -2764,7 +2764,7 @@ const (
 func fullVerifyFailRounds(t *task.Task) int {
 	n := 0
 	for _, v := range t.State.Verifications {
-		if !v.Passed && v.Full() && strings.HasPrefix(v.Reason, partialReasonPrefix) {
+		if !v.Passed && v.Complete() && strings.HasPrefix(v.Reason, partialReasonPrefix) {
 			n++
 		}
 	}
@@ -2809,27 +2809,6 @@ func (r *Runner) reverifyIfStale(ctx context.Context, rs *runState) reverifyResu
 		r.setFinalizeFP(rs, "")
 		rs.res.Notes = append(rs.res.Notes, "lần kiểm chứng mới nhất đã qua đầy đủ trên đúng cây hiện tại: không chạy lại")
 		return reverifyOK
-	}
-	if partial && !ok && r.reusableAffectedPass(ctx, rs.t) {
-		// Lần affected đã xanh trên đúng cây và đã chạy mọi gói của verify.command: không chạy lại đầy đủ.
-		last := rs.t.State.LastVerification()
-		if t, err := r.adoptAffectedAsFull(rs.t); err == nil {
-			rs.t = t
-			r.setFinalizeFP(rs, "")
-			rs.res.Notes = append(rs.res.Notes, "kiểm chứng affected ("+last.At+") đã qua trên đúng cây hiện tại và bao trùm mọi gói của verify.command: không chạy lại đầy đủ")
-			return reverifyOK
-		}
-	}
-	if partial && !ok && r.graphDoneAccepted(ctx, rs.t) {
-		// workflow.verify.done: graph — lần chọn theo đồ thị phụ thuộc đã xanh trên đúng cây: nhận làm bằng chứng done (toàn bộ để CI/land).
-		last := rs.t.State.LastVerification()
-		if t, err := r.adoptGraphAsFull(rs.t); err == nil {
-			rs.t = t
-			r.setFinalizeFP(rs, "")
-			rs.res.Notes = append(rs.res.Notes, "kiểm chứng theo đồ thị phụ thuộc (scope "+last.Scope+", "+last.At+") đã qua trên đúng cây hiện tại; "+
-				"workflow.verify.done = graph nên không chạy lại toàn bộ bộ test")
-			return reverifyOK
-		}
 	}
 	id := rs.t.State.ID
 	reason := "tiếp tục sau khi finalize bị chặn (worktree không đổi, không review lại)"

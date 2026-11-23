@@ -284,43 +284,6 @@ func TestTasksLedgerKey(t *testing.T) {
 	}
 }
 
-func TestWorkflowVerifyScope(t *testing.T) {
-	c := Default()
-	if c.Workflow.Verify.Scope != VerifyScopeFull || c.Workflow.Verify.AffectedCommand != "" {
-		t.Fatalf("mặc định verify = %+v", c.Workflow.Verify)
-	}
-	ok := []WorkflowVerify{
-		{Scope: "full"},
-		{Scope: "full", AffectedCommand: "go test {test_dirs}"},
-		{Scope: "affected", AffectedCommand: "go test -count=1 {test_dirs}"},
-		{Scope: "affected", AffectedCommand: "pytest {test_files}"},
-	}
-	for _, v := range ok {
-		c := Default()
-		c.Workflow.Verify = v
-		if err := c.Validate(); err != nil {
-			t.Errorf("%+v: %v", v, err)
-		}
-	}
-	bad := []struct {
-		v    WorkflowVerify
-		want string
-	}{
-		{WorkflowVerify{Scope: "partial"}, "workflow.verify.scope"},
-		{WorkflowVerify{Scope: ""}, "workflow.verify.scope"},
-		{WorkflowVerify{Scope: "affected"}, "workflow.verify.affected_command"},
-		{WorkflowVerify{Scope: "affected", AffectedCommand: "  "}, "workflow.verify.affected_command"},
-		{WorkflowVerify{Scope: "affected", AffectedCommand: "go test ./..."}, "workflow.verify.affected_command"},
-	}
-	for _, tc := range bad {
-		c := Default()
-		c.Workflow.Verify = tc.v
-		if err := c.Validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
-			t.Errorf("%+v: muốn lỗi chứa %q, được %v", tc.v, tc.want, err)
-		}
-	}
-}
-
 func TestValidateHarnessProfile(t *testing.T) {
 	ok := Default()
 	ok.Harnesses.Claude.Profile = "work"
@@ -427,5 +390,30 @@ func TestWorkflowSliceTimeoutMinutes(t *testing.T) {
 	d.Workflow.SliceTimeoutMinutes = -1
 	if err := d.Validate(); err == nil || !strings.Contains(err.Error(), "workflow.slice_timeout_minutes") {
 		t.Fatalf("số âm phải bị từ chối: %v", err)
+	}
+}
+
+// Khoá của bộ chọn cũ (workflow.verify.scope, affected_command, suggested_affected_command, done) vẫn nạp được, không bị kiểm, và được liệt kê
+// để Upgrade nhắc xoá.
+func TestDeprecatedVerifyKeysStillLoad(t *testing.T) {
+	c := Default()
+	if keys := c.Workflow.Verify.DeprecatedVerifyKeys(); len(keys) != 0 {
+		t.Fatalf("mặc định không được đặt khoá cũ: %v", keys)
+	}
+	old := `workflow:
+  verify:
+    scope: partial
+    affected_command: "go test ./..."
+    suggested_affected_command: "x"
+    done: graph
+`
+	if err := Decode(strings.NewReader(old), &c); err != nil {
+		t.Fatalf("cấu hình cũ phải nạp được: %v", err)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("khoá cũ không còn được kiểm: %v", err)
+	}
+	if keys := c.Workflow.Verify.DeprecatedVerifyKeys(); len(keys) != 3 {
+		t.Fatalf("khoá cũ = %v, muốn đủ 3", keys)
 	}
 }

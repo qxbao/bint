@@ -494,15 +494,6 @@ type Workflow struct {
 	Perf WorkflowPerf `yaml:"perf"`
 }
 
-// Phạm vi kiểm chứng (workflow.verify.scope).
-const (
-	VerifyScopeFull     = "full"     // luôn chạy verify.command của phiếu
-	VerifyScopeAffected = "affected" // chỉ chạy test bị ảnh hưởng bởi thay đổi (internal/affected)
-)
-
-// VerifyScopes là các giá trị hợp lệ của workflow.verify.scope.
-var VerifyScopes = []string{VerifyScopeFull, VerifyScopeAffected}
-
 // WorkflowPerf cấu hình cổng hồi quy hiệu năng: Bint đo Command trước b-feat đầu tiên (mốc) và sau mỗi b-feat (nhỏ nhất của 3 lần);
 // chậm hơn mốc quá MaxSlowdown lần (và quá sàn nhiễu 0,1 giây) hoặc lệnh thoát khác 0 thì coi như kiểm chứng không qua.
 type WorkflowPerf struct {
@@ -510,29 +501,36 @@ type WorkflowPerf struct {
 	MaxSlowdown float64 `yaml:"max_slowdown"`
 }
 
-// WorkflowVerify cấu hình phạm vi kiểm chứng của tác vụ. Cổng done và `bint task verify` luôn chạy đầy đủ.
+// WorkflowVerify cấu hình kiểm chứng của tác vụ. Mọi lần chạy test (kiểm chứng sau b-feat, kiểm hẹp, kiểm nền, cổng done, bint task verify) chạy
+// các test bị ảnh hưởng do bgraph chọn so với mốc tác vụ; verify.command của phiếu chỉ chạy khi bgraph đòi chạy cả bộ (kèm lý do).
 type WorkflowVerify struct {
-	// Scope: full (mặc định) | affected.
-	Scope string `yaml:"scope"`
-	// AffectedCommand là lệnh chạy khi Scope=affected; {test_dirs}/{test_files} được thay bằng test bị ảnh hưởng,
-	// ví dụ "go test -count=1 -timeout=30m {test_dirs}". Chỉ dùng khi verify.command của phiếu đã được người xác nhận.
-	AffectedCommand string `yaml:"affected_command"`
-	// SuggestedAffectedCommand: lệnh `bint init` đề xuất cho AffectedCommand (chưa xác nhận, Bint không dùng). Người
-	// dùng chép sang affected_command và đặt scope affected để bật.
-	SuggestedAffectedCommand *string `yaml:"suggested_affected_command,omitempty"`
-	// BintConfigFull: true (mặc định) thì thay đổi trong .bint/** nới kiểm chứng ra full (affected.ReasonBintConfig); false thì thay đổi
-	// chỉ trong .bint/** không nới (cổng done vẫn chạy đầy đủ một lần).
+	// BintConfigFull: true (mặc định) thì thay đổi trong .bint/** là thay đổi như mọi tệp khác (bgraph thường nới vì không ai tham chiếu);
+	// false thì bỏ .bint/** khỏi tập thay đổi.
 	BintConfigFull bool `yaml:"bint_config_full"`
-	// Done: bằng chứng cổng done khi scope affected. "" hoặc full (mặc định): chạy verify.command đầy đủ một lần trước done; graph: nhận lần kiểm
-	// chứng chọn theo đồ thị phụ thuộc đã xanh trên đúng cây (toàn bộ bộ test để CI hoặc bước land).
-	Done string `yaml:"done,omitempty"`
+	// AffectedCommand: lệnh chạy một danh sách tệp test ({test_files}/{test_dirs}), chỉ dùng khi bgraph không dựng được lệnh cho các tệp đó
+	// (ví dụ kiểm tra mục tiêu viết bằng shell). Rỗng thì chạy verify.command của phiếu.
+	AffectedCommand string `yaml:"affected_command"`
+	// Scope, SuggestedAffectedCommand, Done: khoá của bộ chọn cũ, đã bỏ. Còn đọc được để cấu hình cũ nạp không lỗi; Bint không dùng
+	// (DeprecatedVerifyKeys liệt kê khoá còn đặt).
+	Scope                    string  `yaml:"scope,omitempty"`
+	SuggestedAffectedCommand *string `yaml:"suggested_affected_command,omitempty"`
+	Done                     string  `yaml:"done,omitempty"`
 }
 
-// Giá trị của workflow.verify.done.
-const (
-	VerifyDoneFull  = "full"
-	VerifyDoneGraph = "graph"
-)
+// DeprecatedVerifyKeys trả các khoá đã bỏ của workflow.verify còn đặt trong cấu hình.
+func (v WorkflowVerify) DeprecatedVerifyKeys() []string {
+	var out []string
+	if v.Scope != "" {
+		out = append(out, "workflow.verify.scope")
+	}
+	if v.SuggestedAffectedCommand != nil {
+		out = append(out, "workflow.verify.suggested_affected_command")
+	}
+	if v.Done != "" {
+		out = append(out, "workflow.verify.done")
+	}
+	return out
+}
 
 // Giá trị của workflow.slicing và workflow.goal_check.
 const (
@@ -804,7 +802,7 @@ func Default() Config {
 		Workflow: Workflow{
 			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, Slicing: GateAuto, GoalCheck: GateAuto, Variant: VariantBPrime, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
-			Verify: WorkflowVerify{Scope: VerifyScopeFull, BintConfigFull: true}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
+			Verify: WorkflowVerify{BintConfigFull: true}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
 			Agent: WorkflowAgent{
 				PermissionMode: "acceptEdits",
 				AllowedTools:   []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash", "mcp__bint__*"},
@@ -1279,17 +1277,6 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.Perf.MaxSlowdown < 1 {
 		add("workflow.perf.max_slowdown: phải >= 1 (tỷ lệ chậm tối đa so với mốc)")
-	}
-	if d := c.Workflow.Verify.Done; d != "" && d != VerifyDoneFull && d != VerifyDoneGraph {
-		add("workflow.verify.done: phải là full | graph")
-	}
-	if !slices.Contains(VerifyScopes, c.Workflow.Verify.Scope) {
-		add("workflow.verify.scope: phải là %s", strings.Join(VerifyScopes, " | "))
-	} else if c.Workflow.Verify.Scope == VerifyScopeAffected {
-		cmd := c.Workflow.Verify.AffectedCommand
-		if strings.TrimSpace(cmd) == "" || (!strings.Contains(cmd, "{test_dirs}") && !strings.Contains(cmd, "{test_files}")) {
-			add("workflow.verify.affected_command: scope affected cần lệnh có {test_dirs} hoặc {test_files}")
-		}
 	}
 	if !slices.Contains(IsolationModes, c.Workflow.Isolation) {
 		add("workflow.isolation: phải là %s", strings.Join(IsolationModes, " | "))

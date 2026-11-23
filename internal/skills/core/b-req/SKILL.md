@@ -193,7 +193,7 @@ Quy tắc của hợp đồng v1 (máy kiểm được, không chấm chất lư
 
 - `AC-N` liên tục từ 1, khớp từng chữ với tiêu chí thứ N của phiếu; mỗi `TSK` có `[AC-N]` hợp lệ và `— xong khi:` có nội dung; mọi
   `AC-N` có `TSK` bao phủ; không placeholder (`<…>`, `…`, `TODO`, `TBD`) trong dòng AC/TSK.
-- "xong khi" của TSK nêu test hẹp của phần đã sửa, không đòi chạy toàn bộ bộ test (Bint chạy `verify.command` đầy đủ ở cổng done).
+- "xong khi" của TSK nêu test hẹp của phần đã sửa, không đòi chạy toàn bộ bộ test (Bint tự chạy các test bị ảnh hưởng bởi thay đổi).
 - `## Hiện trạng` (requirement.md, đọc `baseline.md` Bint đã đo) có số đo, và ít nhất một AC có số đo mục tiêu người dùng. Số đo là chữ số
   ngoài code span. Việc thuần nội bộ thì ghi một dòng `Không đo được: <lý do>` (cảnh báo `baseline_exempt`); **cấm bịa số**.
 - `## Câu hỏi mở` chỉ chứa câu hỏi **cản trở triển khai**, dạng `- [ ] Q-1: …`; còn dòng chưa trả lời thì b-feat bị chặn. Người dùng

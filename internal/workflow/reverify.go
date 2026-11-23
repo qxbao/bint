@@ -99,7 +99,7 @@ func (e *Env) partialVerifyOnly(ctx context.Context, t *task.Task) bool {
 		return false
 	}
 	v := t.State.LastVerification()
-	if v == nil || v.Command != cmd || !v.Passed || v.Full() {
+	if v == nil || v.Command != cmd || !v.Passed || v.Complete() {
 		return false
 	}
 	in, err := e.DoneInputDetailed(ctx, t)
@@ -135,7 +135,7 @@ func (e *Env) freshFullPass(ctx context.Context, t *task.Task) bool {
 		return false
 	}
 	v := t.State.LastVerification()
-	if v == nil || !v.Passed || !v.Confirmed || !v.Full() || v.Command != cmd || v.Worktree == "" {
+	if v == nil || !v.Passed || !v.Confirmed || !v.Complete() || v.Command != cmd || v.Worktree == "" {
 		return false
 	}
 	root, err := e.RootFor(t)
@@ -180,7 +180,7 @@ func (r *Runner) markVerifiedFixResume(ctx context.Context, rs *runState, to str
 			break
 		}
 	}
-	if failed == nil || !failed.Full() || !strings.HasPrefix(failed.Reason, partialReasonPrefix) || failed.Worktree != last.Worktree {
+	if failed == nil || !failed.Complete() || !strings.HasPrefix(failed.Reason, partialReasonPrefix) || failed.Worktree != last.Worktree {
 		return
 	}
 	if !r.freshFullPass(ctx, rs.t) {

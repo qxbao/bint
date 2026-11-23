@@ -425,8 +425,12 @@ func (s *State) LastGoalCheck() *Verification {
 	return &s.GoalChecks[len(s.GoalChecks)-1]
 }
 
-// Full cho biết lần kiểm chứng đã chạy verify.command đầy đủ.
-func (v *Verification) Full() bool { return v.Scope == "" || v.Scope == string(affected.TierFull) }
+// Complete cho biết lần kiểm chứng phủ trọn thay đổi của tác vụ so với mốc: phần chọn của bgraph (đi ngược đồ thị phụ thuộc từ mọi tệp đổi, nới
+// khi không chắc), hoặc lệnh của phiếu (bản ghi cũ, hay khi bgraph đòi chạy cả bộ). Bản ghi cũ chọn bằng bộ chọn riêng cho Go của Bint (Source
+// khác "bgraph") chưa phủ trọn: finalize kiểm chứng lại một lần.
+func (v *Verification) Complete() bool {
+	return v.Scope == "" || v.Scope == string(affected.TierFull) || v.Selection != nil && v.Selection.Source == "bgraph"
+}
 
 // Approval là một lần người duyệt.
 type Approval struct {

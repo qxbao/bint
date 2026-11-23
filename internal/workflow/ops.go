@@ -794,9 +794,8 @@ func (e *Env) VerifyWith(ctx context.Context, ref, reason string) (*task.Task, V
 	return e.verify(ctx, ref, reason, false)
 }
 
-// VerifyScoped như VerifyWith nhưng theo workflow.verify.scope: với scope affected và verify.command đã được xác nhận,
-// chỉ chạy test bị ảnh hưởng (affected_command), chạy verify.command đầy đủ khi phải nới ra full, hoặc không chạy gì khi
-// không test nào bị ảnh hưởng. Chỉ dùng ở vòng kiểm chứng sau bước implement; cổng done đòi lần kiểm chứng đầy đủ.
+// VerifyScoped như VerifyWith (giữ tên cho các chỗ gọi cũ): mọi lần kiểm chứng đều chạy phần chọn của bgraph khi verify.command đã được xác
+// nhận: lệnh bgraph dựng cho test bị ảnh hưởng, verify.command khi bgraph đòi cả bộ, hoặc không chạy gì khi không test nào bị ảnh hưởng.
 func (e *Env) VerifyScoped(ctx context.Context, ref, reason string) (*task.Task, VerifyResult, error) {
 	return e.verify(ctx, ref, reason, true)
 }
@@ -824,19 +823,15 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 	n := len(t.State.Verifications) + 1
 	log := t.LogPath(fmt.Sprintf("verify-%d.log", n))
 	timeout := time.Duration(e.Cfg.Workflow.VerifyTimeoutMinutes) * verifyTimeoutUnit
+	// Mọi lần kiểm chứng chạy phần chọn của bgraph so với mốc tác vụ. Lệnh của phiếu chỉ chạy khi bgraph nói phải chạy cả bộ (lý do ghi trong
+	// Selection.Widening), hoặc khi lệnh chưa được người xác nhận (khi đó Bint không chạy lệnh do bgraph dựng thay cho lệnh người đã duyệt).
 	ran, scope := cmd, ""
 	var sel *affected.Selection
 	run := true
-	if vc := e.Cfg.Workflow.Verify; scoped && confirmed && vc.Scope == config.VerifyScopeAffected && strings.TrimSpace(vc.AffectedCommand) != "" {
-		s := SelectAffectedCfg(ctx, root, t.State.Base, vc.BintConfigFull)
+	if confirmed {
+		s := e.selectFor(ctx, t, root, "", nil)
 		sel, scope = &s, string(s.Scope)
-		switch s.Scope {
-		case affected.TierNone:
-			run = false
-		case affected.TierFull:
-		default:
-			ran = eval.ExpandTestCommand(strings.TrimSpace(vc.AffectedCommand), s.TestFiles)
-		}
+		ran, run = testRun(s, cmd)
 	}
 	var r eval.CmdResult
 	if run {

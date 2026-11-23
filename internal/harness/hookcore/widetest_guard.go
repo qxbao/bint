@@ -28,8 +28,8 @@ func wideTestDenial(runtimeDir, command string) string {
 	if verify == "" || !sameWideRun(command, verify) {
 		return ""
 	}
-	return "luồng B′: đừng tự chạy toàn bộ bộ test (`" + verify + "`) trong lượt b-feat. Chạy `bint task check " + id + "`: test của các gói vừa đổi, " +
-		"kèm kết quả kiểm toàn repo Bint đang chạy nền; Bint tự chạy kiểm chứng đầy đủ sau lượt này."
+	return "luồng B′: đừng tự chạy cả bộ test (`" + verify + "`) trong lượt b-feat. Chạy `bint task check " + id + "`: các test bị ảnh hưởng " +
+		"(bgraph) kể từ lần kiểm xanh trước, kèm kết quả kiểm nền; Bint tự kiểm chứng sau lượt này."
 }
 
 // sameWideRun: cmd là lệnh kiểm chứng verify (bỏ khác biệt khoảng trắng), hoặc chạy cùng chương trình test với mọi mẫu "toàn bộ" (đuôi /... hoặc .)

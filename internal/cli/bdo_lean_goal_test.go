@@ -226,7 +226,12 @@ func (o bdoOpts) docs() map[string]string {
 		"## Bề mặt bị ảnh hưởng\n" + surf.String() + "- Tài liệu hướng dẫn: ngoài phạm vi\n" +
 		bdoStrategy(o.planSlice, o.planGoal) +
 		"## Giả định thay người dùng\n- Giữ nguyên a/a.go.\n"
-	goal := "package goal\n\nimport \"testing\"\n\n// CELLS: " + strings.TrimSpace(crit.String()) + "\nfunc TestGoal(t *testing.T) {}\n"
+	// Kiểm tra mục tiêu thật (go test do bgraph dựng chạy nó): ô cK xanh khi a/cK.txt ghi ok-cK. Dòng CELLS để rec.sh (lệnh của phiếu) đo cùng
+	// luật khi bgraph đòi chạy cả bộ.
+	goal := "package goal\n\nimport (\n\t\"os\"\n\t\"path/filepath\"\n\t\"strings\"\n\t\"testing\"\n)\n\n// CELLS: " + strings.TrimSpace(crit.String()) +
+		"\nfunc TestGoal(t *testing.T) {\n\tfor _, c := range strings.Fields(\"" + strings.TrimSpace(crit.String()) + "\") {\n" +
+		"\t\tt.Run(c, func(t *testing.T) {\n\t\t\tb, _ := os.ReadFile(filepath.Join(\"..\", \"a\", c+\".txt\"))\n" +
+		"\t\t\tif strings.TrimSpace(string(b)) != \"ok-\"+c {\n\t\t\t\tt.Fatal(\"chưa xanh\")\n\t\t\t}\n\t\t})\n\t}\n}\n"
 	return map[string]string{"requirement.md": req, "plan.md": plan, "tasks.md": tasks.String(), "goal_test.go": goal,
 		"feats": strings.Join(o.feats, "\n") + "\n"}
 }
@@ -280,6 +285,7 @@ func newBDo(t *testing.T, o bdoOpts) *bdoBox {
 	t.Setenv("BDO_DOCS", filepath.ToSlash(b.docs))
 	t.Setenv("BDO_CELLS", strings.Join(o.cells, " "))
 	t.Setenv("BDO_FEAT_COST", strconv.FormatFloat(o.featCost, 'f', -1, 64))
+	t.Setenv("GOFLAGS", "-count=1") // kiểm tra mục tiêu đọc a/cK.txt: không dùng kết quả test đã cache
 	return b
 }
 
@@ -303,7 +309,7 @@ func (b *bdoBox) writeLocal(o bdoOpts) {
 	if o.goalCheck != "" {
 		fmt.Fprintf(&y, "  goal_check: %s\n", o.goalCheck)
 	}
-	fmt.Fprintf(&y, "  verify:\n    scope: affected\n    affected_command: %q\n", b.ac)
+	fmt.Fprintf(&y, "  verify:\n    affected_command: %q\n", b.ac)
 	if o.cfgFull != nil {
 		fmt.Fprintf(&y, "    bint_config_full: %v\n", *o.cfgFull)
 	}
@@ -797,8 +803,8 @@ func TestGoalBDoLeanSlicesAndGates(t *testing.T) {
 		}
 	})
 
-	// AC-6 (+ AC-2 auto/có): tác vụ 2 lát, verify.scope affected: verify.command đầy đủ đúng 1 lần, ở finalize.
-	t.Run("two_slices_full_verify_once", func(t *testing.T) {
+	// AC-6 (+ AC-2 auto/có): tác vụ 2 lát: không lần nào chạy cả bộ (verify.command); mọi lần kiểm chứng là phần chọn của bgraph, cổng done nhận nó.
+	t.Run("two_slices_no_full_run", func(t *testing.T) {
 		b := newBDo(t, bdoOpts{cells: []string{"c1", "c2"}, planSlice: "có", planGoal: "có", feats: []string{"w:c1", "w:c2"}})
 		r := b.start()
 		b.checkNoSilentDone(r)
@@ -812,25 +818,13 @@ func TestGoalBDoLeanSlicesAndGates(t *testing.T) {
 		if r.Status != task.StatusDone {
 			t.Errorf("hai lát đạt: tác vụ phải done, được %s %q\n%s", r.Status, r.Reason, b.dump())
 		}
-		if n := b.fullRuns(); n != 1 {
-			t.Errorf("verify.command đầy đủ chạy %d lần, muốn đúng 1 (ở finalize)\n%s", n, b.dump())
+		if n := b.fullRuns(); n != 0 {
+			t.Errorf("verify.command (cả bộ) chạy %d lần, muốn 0\n%s", n, b.dump())
 		}
-		full := 0
 		for i, v := range st.Verifications {
-			if v.Scope == "" || v.Scope == "full" {
-				full++
-				if i != len(st.Verifications)-1 {
-					t.Errorf("lần kiểm chứng %d/%d chạy đầy đủ trước finalize (scope %q, widening %+v)", i+1, len(st.Verifications), v.Scope, v.Selection)
-				}
+			if v.Selection == nil || v.Scope == "" || v.Scope == "full" {
+				t.Errorf("lần kiểm chứng %d/%d không phải phần chọn của bgraph: scope %q selection %+v", i+1, len(st.Verifications), v.Scope, v.Selection)
 			}
-		}
-		if full != 1 {
-			t.Errorf("State.Verifications có %d lần đầy đủ, muốn 1: %+v", full, st.Verifications)
-		}
-		// Sau lần đầy đủ (finalize) chỉ còn tối đa cổng mục tiêu của finalize.
-		lines := b.recLines()
-		if i := slices.Index(lines, "full"); i < 0 || len(lines)-1-i > 1 {
-			t.Errorf("lần chạy đầy đủ phải ở cuối lượt (finalize), chuỗi lệnh đếm %q", lines)
 		}
 		for k := 1; k <= 2; k++ {
 			p := b.featPrompt(k)
@@ -1005,7 +999,7 @@ func TestGoalBDoLeanSlicesAndGates(t *testing.T) {
 		}
 	})
 
-	// AC-5: bint_config_full: false → thay đổi .bint/** không nới full (0 widening bint_config).
+	// AC-5: bint_config_full: false → .bint/** bị bỏ khỏi tập thay đổi (không vào Changed, không gây nới).
 	t.Run("bint_config_full_false", func(t *testing.T) {
 		f := false
 		b := newBDo(t, bdoOpts{cells: []string{"c1", "c2"}, planSlice: "không", planGoal: "không", cfgFull: &f, feats: []string{"cfg"}})
@@ -1031,9 +1025,9 @@ func TestGoalBDoLeanSlicesAndGates(t *testing.T) {
 			}
 		}
 		if scoped == 0 {
-			t.Errorf("không có lần kiểm chứng affected nào (Selection rỗng): %+v\n%s", st.Verifications, b.dump())
-		} else if !sawCfg {
-			t.Errorf("lần kiểm chứng affected không thấy .bint/config.yml đổi (kịch bản không đo được): %+v", st.Verifications)
+			t.Errorf("không có lần kiểm chứng nào có Selection: %+v\n%s", st.Verifications, b.dump())
+		} else if sawCfg {
+			t.Errorf("bint_config_full: false thì .bint/config.yml phải bị bỏ khỏi tập thay đổi: %+v", st.Verifications)
 		}
 	})
 }

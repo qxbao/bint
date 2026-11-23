@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,18 +18,20 @@ import (
 // bị cắt theo ngân sách thì đi tiếp tới review.
 
 // v9Run chạy b-do B′ trên module Go (gói a đã commit) với affected_command là go test thật; core sửa cây ở lượt b-feat đầu, các lượt sau ghi done.txt.
-func v9Run(t *testing.T, affected string, core func(h *harness)) (*harness, *Result, int) {
+func v9Run(t *testing.T, goflags string, core func(h *harness)) (*harness, *Result, int) {
 	t.Helper()
 	noEarlyStop(t)
 	old := autoCheckQuiet
 	autoCheckQuiet = 24 * time.Hour
 	t.Cleanup(func() { autoCheckQuiet = old })
 	feats := 0
+	if goflags != "" {
+		t.Setenv("GOFLAGS", goflags) // lệnh go test do bgraph dựng nhận cờ qua GOFLAGS
+	}
 	h := bpHarness(t, bpOpts{variant: config.VariantBPrime, goal: func(_ context.Context, e *Env, _ string) error { return roWriteProbe(e) },
 		cfg: func(h *harness) {
 			full := "test -f done.txt"
 			h.cfg.Eval.TestCommand = &full
-			h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeAffected, AffectedCommand: affected}
 		},
 		feat: func(_ context.Context, h *harness, _ *Env, _ string) error {
 			feats++
@@ -44,7 +45,7 @@ func v9Run(t *testing.T, affected string, core func(h *harness)) (*harness, *Res
 	h.write("go.mod", "module example.com/m\n\ngo 1.21\n")
 	h.write("a/a.go", "package a\n\nfunc A() int { return 1 }\n")
 	h.write("a/a_test.go", "package a\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {}\n")
-	h.write(".gitignore", "*.mark\n")
+	h.write(".gitignore", "*.mark\ndone.txt\napp.txt\n")
 	testutil.Git(t, h.root, "add", "-A")
 	testutil.Git(t, h.root, "commit", "-m", "go module")
 	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueGoalReq})
@@ -61,7 +62,7 @@ const v9NoCoreFix = "b-req,b-feat,b-goal,b-feat,b-review"
 func TestBPrimeGateTriage(t *testing.T) {
 	t.Run("test hay đỏ ở cổng lõi: không mở lượt sửa lõi", func(t *testing.T) {
 		mark := filepath.ToSlash(filepath.Join(t.TempDir(), "flaky.mark"))
-		h, res, feats := v9Run(t, "go test -count=1 {test_dirs}", func(h *harness) {
+		h, res, feats := v9Run(t, "-count=1", func(h *harness) {
 			h.write("a/a.go", "package a\n\nfunc A() int { return 2 }\n")
 			h.write("a/flaky_test.go", "package a\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\nfunc TestFlaky(t *testing.T) {\n"+
 				"\tif _, err := os.Stat(\""+mark+"\"); err != nil {\n\t\tos.WriteFile(\""+mark+"\", nil, 0o644)\n\t\tt.Fatal(\"lần đầu đỏ\")\n\t}\n}\n")
@@ -83,7 +84,7 @@ func TestBPrimeGateTriage(t *testing.T) {
 	})
 
 	t.Run("chỉ hết giờ ở cổng lõi: không chạy lại, không mở lượt sửa lõi", func(t *testing.T) {
-		_, res, feats := v9Run(t, "go test -count=1 -timeout=1s {test_dirs}", func(h *harness) {
+		_, res, feats := v9Run(t, "-count=1 -timeout=1s", func(h *harness) {
 			h.write("a/slow_test.go", "package a\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\nfunc TestSlow(t *testing.T) { time.Sleep(20 * time.Second) }\n")
 		})
 		if steps := roStepNames(res); !strings.HasPrefix(steps, v9NoCoreFix) || hasNote(res.Notes, "lõi chưa xanh") {
@@ -95,7 +96,7 @@ func TestBPrimeGateTriage(t *testing.T) {
 	})
 
 	t.Run("đỏ do mã ở cổng lõi: vẫn mở lượt sửa lõi", func(t *testing.T) {
-		h, res, feats := v9Run(t, "go test -count=1 {test_dirs}", func(h *harness) {
+		h, res, feats := v9Run(t, "-count=1", func(h *harness) {
 			h.write("a/a.go", "package a\n\nfunc A() int { return 2 }\n")
 			h.write("a/new_test.go", "package a\n\nimport \"testing\"\n\nfunc TestNew(t *testing.T) {\n\tif A() != 3 {\n\t\tt.Fatal(\"A sai\")\n\t}\n}\n")
 		})
@@ -222,7 +223,6 @@ func TestBPrimeBudgetSpentSkipsCoreFix(t *testing.T) {
 		cfg: func(h *harness) {
 			full := "test -f done.txt"
 			h.cfg.Eval.TestCommand = &full
-			h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeAffected, AffectedCommand: "test ! -f red.txt"}
 			h.cfg.Workflow.BudgetMinutes, h.cfg.Workflow.ReviewReserveMinutes = 120, 30
 		},
 		feat: func(_ context.Context, h *harness, _ *Env, _ string) error {
@@ -230,10 +230,10 @@ func TestBPrimeBudgetSpentSkipsCoreFix(t *testing.T) {
 			h.write("a/a.go", "package a\n\nfunc A() int { return 2 }\n")
 			h.write("done.txt", "ok\n")
 			if feats == 1 {
-				h.write("red.txt", "x\n")
+				h.write("a/a_test.go", "package a\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) { t.Fatal(\"đỏ\") }\n")
 				clock = clock.Add(100 * time.Minute) // lượt lõi ăn hết 90 phút trước review
 			} else {
-				_ = os.Remove(filepath.Join(h.root, "red.txt"))
+				h.write("a/a_test.go", "package a\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {}\n")
 			}
 			return nil
 		}})

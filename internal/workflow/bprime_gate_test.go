@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -27,13 +26,14 @@ type gateTurn struct {
 	lastGate      *task.Verification
 }
 
-// gateRun chạy b-do B′ trên module Go (gói a, c đã commit). verify.command ghi một dòng vào count.txt mỗi lần chạy đầy đủ; affected_command đỏ khi
-// red.txt tồn tại. probe: thăm dò để lại tệp có dòng `Loại đầu vào:` (có lượt mở rộng) hay không. turns[i] sửa cây ở lượt b-feat thứ i.
+// gateRun chạy b-do B′ trên module Go (gói a, c đã commit). Mọi lần chạy test là phần chọn của bgraph (go test thật); verify.command chỉ chạy khi
+// bgraph đòi cả bộ. probe: thăm dò để lại tệp có dòng `Loại đầu vào:` (có lượt mở rộng) hay không. turns[i] sửa cây ở lượt b-feat thứ i.
 func gateRun(t *testing.T, probe bool, turns []func(h *harness)) (*harness, *Result, *gateRec, string) {
 	t.Helper()
 	old := autoCheckQuiet
 	autoCheckQuiet = 24 * time.Hour // chỉ đo cổng; kiểm hẹp tự động có test riêng
 	t.Cleanup(func() { autoCheckQuiet = old })
+	t.Setenv("GOFLAGS", "-count=1") // test Go thật do bgraph chọn: không dùng kết quả cache
 	counter := filepath.ToSlash(filepath.Join(t.TempDir(), "count.txt"))
 	rec := &gateRec{}
 	goal := func(context.Context, *Env, string) error { return nil }
@@ -42,10 +42,8 @@ func gateRun(t *testing.T, probe bool, turns []func(h *harness)) (*harness, *Res
 	}
 	h := bpHarness(t, bpOpts{variant: config.VariantBPrime, goal: goal,
 		cfg: func(h *harness) {
-			full := "test -f done.txt && test ! -f red.txt && echo run >> " + counter
+			full := "test -f done.txt && echo run >> " + counter
 			h.cfg.Eval.TestCommand = &full
-			h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeAffected,
-				AffectedCommand: "echo AFFECTED {test_dirs} >> aff.txt; test ! -f red.txt"}
 		},
 		feat: func(_ context.Context, h *harness, _ *Env, id string) error {
 			tk := h.load(id)
@@ -69,7 +67,7 @@ func gateRun(t *testing.T, probe bool, turns []func(h *harness)) (*harness, *Res
 	h.write("a/a_test.go", "package a\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {}\n")
 	h.write("c/c.go", "package c\n\nfunc C() {}\n")
 	h.write("c/c_test.go", "package c\n\nimport \"testing\"\n\nfunc TestC(t *testing.T) {}\n")
-	h.write(".gitignore", "aff.txt\n")
+	h.write(".gitignore", "aff.txt\ndone.txt\n")
 	testutil.Git(t, h.root, "add", "-A")
 	testutil.Git(t, h.root, "commit", "-m", "go module")
 	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueGoalReq})
@@ -79,15 +77,16 @@ func gateRun(t *testing.T, probe bool, turns []func(h *harness)) (*harness, *Res
 	return h, res, rec, counter
 }
 
+// gateEditA sửa gói a; red thì test của a đỏ thật (go test do bgraph chọn sẽ đỏ).
 func gateEditA(v string, red bool) func(h *harness) {
 	return func(h *harness) {
 		h.write("a/a.go", "package a\n\nfunc A() int { return "+v+" }\n")
 		h.write("done.txt", "ok\n")
+		body := "func TestA(t *testing.T) {}\n"
 		if red {
-			h.write("red.txt", "x\n")
-		} else {
-			_ = os.Remove(filepath.Join(h.root, "red.txt"))
+			body = "func TestA(t *testing.T) { t.Fatal(\"đỏ\") }\n"
 		}
+		h.write("a/a_test.go", "package a\n\nimport \"testing\"\n\n"+body)
 	}
 }
 

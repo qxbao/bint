@@ -139,7 +139,7 @@ const (
 	BlockVerifyChanged                         // lệnh đổi sau lần chạy cuối
 	BlockVerifyFailed                          // lần kiểm chứng cuối không qua
 	BlockVerifyStale                           // mã đổi sau lần kiểm chứng cuối
-	BlockVerifyPartial                         // lần kiểm chứng cuối chỉ chạy test bị ảnh hưởng, chưa chạy đầy đủ
+	BlockVerifyPartial                         // lần kiểm chứng cuối dùng bộ chọn cũ, chưa phủ trọn thay đổi (Verification.Complete)
 	BlockNoEvidence                            // phiếu không có lệnh kiểm chứng lẫn tiêu chí
 	BlockCriterionUnmet                        // tiêu chí đã đánh dấu chưa đạt
 	BlockCriterionUnchecked                    // tiêu chí chưa đối chiếu
@@ -216,8 +216,8 @@ func DoneBlockersTyped(t *Task, in DoneInput) []Blocker {
 			} else {
 				add(BlockVerifyStale, "mã đã thay đổi sau lần kiểm chứng cuối (bint task verify)")
 			}
-		case !v.Full():
-			add(BlockVerifyPartial, "lần kiểm chứng cuối chỉ chạy test bị ảnh hưởng (scope "+v.Scope+"): cần chạy đầy đủ (bint task verify "+st.ID+")")
+		case !v.Complete():
+			add(BlockVerifyPartial, "lần kiểm chứng cuối dùng bộ chọn cũ (scope "+v.Scope+"), chưa phủ trọn thay đổi: kiểm chứng lại (bint task verify "+st.ID+")")
 		}
 	}
 	if st.GoalTest != nil && cmd != "" && in.VerifyConfirmed {

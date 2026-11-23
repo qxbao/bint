@@ -16,7 +16,7 @@ func triageHarness(t *testing.T, aTest string) *harness {
 	h := newHarness(t)
 	cmd := "go test -count=1 ./..."
 	h.cfg.Eval.TestCommand = &cmd
-	h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeFull}
+	h.cfg.Workflow.Verify = config.WorkflowVerify{BintConfigFull: true}
 	h.write("go.mod", "module example.com/m\n\ngo 1.21\n")
 	h.write("a/a.go", "package a\n\nfunc A() int { return 1 }\n")
 	h.write("a/a_test.go", aTest)

@@ -641,13 +641,13 @@ func TestPlanPromptHasEffectiveConfig(t *testing.T) {
 		h := newHarness(t)
 		h.cfg.Workflow.SliceTimeoutMinutes = tc.minutes
 		h.cfg.Workflow.Slicing = tc.slicing
-		h.cfg.Workflow.Verify = config.WorkflowVerify{Scope: config.VerifyScopeAffected, AffectedCommand: "go test {test_dirs}"}
+		h.cfg.Workflow.Verify = config.WorkflowVerify{AffectedCommand: "go test {test_dirs}"}
 		if _, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: "Thêm tính năng v2 cho app.txt",
 			Edit: TicketEdit{VerifyCommand: ptr("true")}}); err != nil {
 			t.Fatal(err)
 		}
 		p := h.prompts[StepReq]
-		for _, want := range []string{"Cấu hình hiệu lực của Bint (đã hợp nhất", tc.want, "workflow.verify.scope: affected (`go test {test_dirs}`)",
+		for _, want := range []string{"Cấu hình hiệu lực của Bint (đã hợp nhất", tc.want, "kiểm chứng: Bint chạy các test bị ảnh hưởng (bgraph",
 			"workflow.small_plan_max_files: 5"} {
 			if !strings.Contains(p, want) {
 				t.Errorf("slice %d/%s: prompt b-req thiếu %q:\n%s", tc.minutes, tc.slicing, want, p)

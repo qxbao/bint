@@ -4,13 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"bint/internal/task"
-	"bint/internal/testutil"
 )
 
 // AC-1: `bint task check` (Env.Check) chỉ chạy test của gói bị chạm, không bao giờ toàn repo, ghi state.checks và kèm kiểm nền gần nhất.
@@ -37,11 +35,11 @@ func TestTaskCheckNarrow(t *testing.T) {
 	}{
 		{"none", func() { h.write("docs/readme.md", "đổi\n") }, "", "none", ""},
 		{"graph", func() { h.write("a/a.go", "package a\n\nfunc A() int { return 2 }\n") }, "", "graph", "AFFECTED ./a"},
-		{"full", func() { h.write("go.mod", "module example.com/m\n\ngo 1.22\n") }, "phạm vi full", "", ""},
+		{"module", func() { h.write("go.mod", "module example.com/m\n\ngo 1.22\n") }, "", "module", "AFFECTED ./a ./c"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h.write("ran.txt", "")
+			h.clearRan()
 			tc.edit()
 			before := len(h.load(id).State.Checks)
 			tk, res, err := e.Check(ctx, id)
@@ -60,7 +58,7 @@ func TestTaskCheckNarrow(t *testing.T) {
 				}
 			}
 			if got := h.ran(); got != tc.ran {
-				t.Errorf("ran.txt = %q, muốn %q (kiểm hẹp không được chạy verify.command đầy đủ)", got, tc.ran)
+				t.Errorf("ran = %q, muốn %q (kiểm hẹp chạy phần chọn của bgraph)", got, tc.ran)
 			}
 			if res.Background == nil || res.Background.At != "2026-11-20T08:00:00Z" {
 				t.Errorf("thiếu kiểm nền gần nhất: %+v", res.Background)
@@ -110,6 +108,7 @@ func TestTaskCheckSinceLastGreen(t *testing.T) {
 	}
 
 	// Chỉ c đổi kể từ lần xanh: chạy ./c, không chạy lại ./a.
+	h.clearRan()
 	h.write("c/c.go", "package c\n\nfunc C() int { return 1 }\n")
 	_, res, err = e.Check(ctx, id)
 	if err != nil || res.Cached || !res.Check.Passed {
@@ -120,36 +119,6 @@ func TestTaskCheckSinceLastGreen(t *testing.T) {
 	}
 	if !strings.Contains(res.Check.Reason, "kể từ lần kiểm trước") {
 		t.Errorf("Reason phải nói rõ tầng hẹp so với lần kiểm trước: %q", res.Check.Reason)
-	}
-}
-
-// Không chụp được cây (sandbox chặn ghi .git/objects) thì tệp đổi tính bằng lệnh git chỉ đọc phải ra cùng tập với đường ảnh chụp.
-func TestWorktreeChangedReadOnlyMatchesSnapshot(t *testing.T) {
-	h := goHarness(t)
-	base := strings.TrimSpace(testutil.Git(t, h.root, "rev-parse", "HEAD"))
-	h.write("a/a.go", "package a\n\nfunc A() int { return 9 }\n") // sửa tệp đã theo dõi
-	h.write("b/b.go", "package b\n")                              // tệp mới chưa theo dõi
-	os.Remove(filepath.Join(h.root, "docs", "readme.md"))         // xoá
-	h.write(".gitignore", "ignored.txt\n")
-	h.write("ignored.txt", "x\n")
-	testutil.Git(t, h.root, "add", "a/a.go")
-	ctx := context.Background()
-	head, err := WorktreeSnapshot(ctx, h.root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want, err := DiffPaths(ctx, h.root, base, head)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := worktreeChangedReadOnly(ctx, h.root, base)
-	if err != nil {
-		t.Fatal(err)
-	}
-	slices.Sort(want)
-	slices.Sort(got)
-	if !slices.Equal(got, want) {
-		t.Errorf("chỉ đọc = %v, ảnh chụp = %v", got, want)
 	}
 }
 

@@ -1,6 +1,6 @@
  Ov │ Kn (3) │ Tk │ Rn │ Ev │ Evo │ System │ MCP        /work/demo · bint 0.1.0 
  Config Harness Components  Skills  Index Language Doctor Setup Update          
-┌─│Content of b-feat│─────────────────────────────────────────────────1-19/190─┐
+┌─│Content of b-feat│─────────────────────────────────────────────────1-19/191─┐
 │ ---                                                                          │
 │ name: b-feat                                                                 │
 │ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai trực    │

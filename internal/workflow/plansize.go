@@ -181,17 +181,13 @@ func planConfigBlock(w config.Workflow) string {
 	case w.Slicing == config.GateAlways:
 		slicing = "luôn chia kế hoạch lớn"
 	}
-	verify := w.Verify.Scope
-	if w.Verify.Scope == config.VerifyScopeAffected && strings.TrimSpace(w.Verify.AffectedCommand) != "" {
-		verify += " (`" + strings.TrimSpace(w.Verify.AffectedCommand) + "`)"
-	}
 	var b strings.Builder
 	b.WriteString("Cấu hình hiệu lực của Bint (đã hợp nhất .bint/config.yml, .bint/local.yml và cấu hình người dùng). Dùng đúng các giá trị " +
 		"này; đừng suy cấu hình từ một tệp .bint/*.yml riêng lẻ vì lớp sau ghi đè lớp trước:\n")
 	fmt.Fprintf(&b, "- workflow.slicing: %s, workflow.slice_timeout_minutes: %d → chia lát: %s\n", w.Slicing, w.SliceTimeoutMinutes, slicing)
 	fmt.Fprintf(&b, "- workflow.goal_check: %s\n", w.GoalCheck)
 	fmt.Fprintf(&b, "- workflow.small_plan_max_files: %d\n", w.SmallPlanMaxFiles)
-	fmt.Fprintf(&b, "- workflow.verify.scope: %s\n", verify)
+	b.WriteString("- kiểm chứng: Bint chạy các test bị ảnh hưởng (bgraph, so với mốc tác vụ); verify.command chỉ chạy khi bgraph đòi chạy cả bộ\n")
 	fmt.Fprintf(&b, "- workflow.max_review_rounds: %d\n\n", w.MaxReviewRounds)
 	return b.String()
 }

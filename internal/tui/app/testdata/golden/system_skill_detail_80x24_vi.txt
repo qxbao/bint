@@ -1,6 +1,6 @@
  TQ │ TT (3) │ TV │ LC │ ĐG │ TH │ Hệ thống │ MCP       /work/demo · bint 0.1.0 
  Cấu hình Harness Thành phần  Skill  Chỉ mục Ngôn ngữ Doctor Cài đặt Cập nhật   
-┌─│Nội dung b-feat│───────────────────────────────────────────────────1-19/190─┐
+┌─│Nội dung b-feat│───────────────────────────────────────────────────1-19/191─┐
 │ ---                                                                          │
 │ name: b-feat                                                                 │
 │ description: Thực thi một phiếu tác vụ Bint (hoặc yêu cầu triển khai trực    │

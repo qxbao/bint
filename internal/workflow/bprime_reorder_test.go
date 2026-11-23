@@ -46,10 +46,17 @@ func roStepNames(res *Result) string {
 	return strings.Join(names, ",")
 }
 
+// roPassedVerifs đếm lần lõi được kiểm xanh: kiểm chứng rộng xanh, hoặc kiểm hẹp cổng lõi xanh (cổng theo pha: lõi chỉ qua cổng hẹp, kể cả khi
+// bgraph đòi cả bộ thì cổng hẹp chạy verify.command).
 func roPassedVerifs(t *task.Task) int {
 	n := 0
 	for _, v := range t.State.Verifications {
 		if v.Passed {
+			n++
+		}
+	}
+	for _, c := range t.State.Checks {
+		if c.Passed && c.Skipped == "" && strings.HasPrefix(c.Reason, checkGateReason) {
 			n++
 		}
 	}

@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode"
 
+	"bint/internal/affected"
 	"bint/internal/eval"
 	"bint/internal/flow"
 	"bint/internal/task"
@@ -245,14 +246,23 @@ func (r *Runner) freezeGate(rs *runState) bool {
 	return false
 }
 
-// goalCommand là lệnh cổng mục tiêu: workflow.verify.affected_command mở rộng trên tệp đóng băng khi đã đặt (có {test_files}/{test_dirs}),
-// không thì verify.command của phiếu. Lệnh `go test` trên tệp đóng băng `*_test.go` được thu hẹp bằng -run (goalRunOnly) để cổng chỉ chạy
-// test mục tiêu, không chạy cả gói. root là cây chứa tệp đóng băng (rỗng thì không thu hẹp).
+// goalCommand là lệnh cổng mục tiêu: lệnh bgraph dựng cho riêng các đơn vị test chứa tệp đóng băng; bgraph không dựng được thì
+// workflow.verify.affected_command trên các tệp đó (khi đặt), không thì verify.command của phiếu. Lệnh `go test` trên tệp đóng băng `*_test.go` được thu hẹp bằng -run (goalRunOnly) để cổng chỉ chạy test mục tiêu, không chạy cả
+// gói. root là cây chứa tệp đóng băng (rỗng thì không thu hẹp và không chọn).
 func (r *Runner) goalCommand(t *task.Task, root string) string {
 	cmd := strings.TrimSpace(t.Ticket.Verify.Command)
-	if ac := strings.TrimSpace(r.Cfg.Workflow.Verify.AffectedCommand); ac != "" &&
-		(strings.Contains(ac, "{test_files}") || strings.Contains(ac, "{test_dirs}")) {
-		cmd = eval.ExpandTestCommand(ac, t.State.GoalTest.Paths())
+	if root != "" {
+		sel := SelectAffected(context.Background(), root, t.State.Base,
+			SelectOpts{BintConfigFull: r.Cfg.Workflow.Verify.BintConfigFull, TasksDir: r.Tasks.Dir, Only: t.State.GoalTest.Paths()})
+		switch ac := strings.TrimSpace(r.Cfg.Workflow.Verify.AffectedCommand); {
+		case sel.Scope != affected.TierFull:
+			if ran, run := testRun(sel, cmd); run {
+				cmd = ran
+			}
+		case ac != "" && (strings.Contains(ac, "{test_files}") || strings.Contains(ac, "{test_dirs}")):
+			// bgraph không dựng được lệnh cho tệp đóng băng (vd. kiểm tra viết bằng shell): lệnh chạy danh sách tệp của cấu hình.
+			cmd = eval.ExpandTestCommand(ac, t.State.GoalTest.Paths())
+		}
 	}
 	return goalRunOnly(cmd, root, t.State.GoalTest.Paths())
 }

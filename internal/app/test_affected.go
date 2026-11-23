@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ type TestAffectedResult struct {
 }
 
 // TestAffected chọn kiểm thử bị ảnh hưởng bởi thay đổi của cây làm việc so với o.Base. Thay đổi gồm cả chưa commit và
-// tệp chưa theo dõi. Với Run, chạy affected_command (tầng graph/package) hoặc eval.test_command (tầng full).
+// tệp chưa theo dõi. Phần chọn và lệnh chạy do bgraph dựng; Run chạy lệnh đó, hoặc eval.test_command khi bgraph đòi chạy cả bộ.
 func TestAffected(ctx context.Context, dir string, o TestAffectedOptions) (TestAffectedResult, error) {
 	var res TestAffectedResult
 	ws, err := OpenWorkspace(ctx, dir, false)
@@ -58,28 +59,27 @@ func TestAffected(ctx context.Context, dir string, o TestAffectedOptions) (TestA
 		commit = strings.TrimSpace(mb)
 	}
 	cfg := ws.Config
-	res.Selection = workflow.SelectAffectedCfg(ctx, root, commit, cfg.Workflow.Verify.BintConfigFull)
-	vc := cfg.Workflow.Verify
+	tasksDir := ""
+	if ws.Paths.Initialized() {
+		tasksDir = filepath.Join(ws.Paths.Runtime, "tasks")
+	}
+	res.Selection = workflow.SelectAffected(ctx, root, commit, workflow.SelectOpts{BintConfigFull: cfg.Workflow.Verify.BintConfigFull, TasksDir: tasksDir})
 	sel := res.Selection
 	switch sel.Scope {
 	case affected.TierNone:
 	case affected.TierFull:
+		// bgraph đòi chạy cả bộ (lý do trong Selection.Widening): lệnh test của dự án.
 		if tc := cfg.Eval.TestCommand; tc != nil {
 			res.Command = strings.TrimSpace(*tc)
 		}
 	default:
-		if strings.TrimSpace(vc.AffectedCommand) != "" {
-			res.Command = eval.ExpandTestCommand(strings.TrimSpace(vc.AffectedCommand), sel.TestFiles)
-		}
+		res.Command = sel.Script()
 	}
 	if !o.Run || sel.Scope == affected.TierNone {
 		return res, nil
 	}
 	if res.Command == "" {
-		if sel.Scope == affected.TierFull {
-			return res, errors.New("phạm vi full nhưng chưa có eval.test_command để chạy toàn bộ kiểm thử")
-		}
-		return res, errors.New("chưa đặt workflow.verify.affected_command để chạy test bị ảnh hưởng")
+		return res, errors.New("bgraph đòi chạy cả bộ test nhưng chưa có eval.test_command")
 	}
 	out := o.Out
 	if out == nil {

@@ -15,9 +15,9 @@ import (
 )
 
 // Kiểm hẹp theo mốc của b-feat (luồng B′, giai đoạn 3). Agent gọi `bint task check` sau mỗi nhóm sửa, và Bint tự chạy nó khi cây làm việc đứng yên
-// (bgverify.go). Tầng hẹp chỉ chạy test của CHÍNH các gói có tệp đổi kể từ lần kiểm hẹp trước (lần đầu: so với mốc tác vụ), không lan theo đồ thị
-// phụ thuộc — phần lan và toàn repo để kiểm nền. Phạm vi phải nới ra full thì KHÔNG chạy toàn repo. Mọi lần gọi đều ghi vào State.Checks, kể cả lần
-// bị bỏ qua (Skipped kèm lý do), để biết "không gọi" khác "gọi nhưng không chạy". Không tính vào cổng done.
+// (bgverify.go). Kiểm hẹp chạy phần chọn của bgraph kể từ lần kiểm hẹp xanh trước (lần đầu: so với mốc tác vụ). bgraph đòi chạy cả bộ (kèm lý do)
+// thì chạy lệnh của phiếu. Mọi lần gọi đều ghi vào State.Checks, kể cả lần bị bỏ qua (Skipped kèm lý do), để biết "không gọi" khác "gọi nhưng không
+// chạy". Không tính vào cổng done.
 
 // checkReason, checkAutoReason, checkGateReason là Verification.Reason của kiểm hẹp do agent gọi, do Bint tự chạy khi cây đứng yên, và do Bint chạy
 // làm cổng sau lượt b-feat LÕI/SỬA LÕI của B′ (cổng theo pha: thay lần kiểm chứng rộng chặn luồng; kiểm rộng để lượt mở rộng và kiểm nền).
@@ -77,7 +77,6 @@ func (e *Env) check(ctx context.Context, ref, reason string) (*task.Task, CheckR
 	}
 	res.Background = lastBackground(t)
 	cmd := strings.TrimSpace(t.Ticket.Verify.Command)
-	vc := e.Cfg.Workflow.Verify
 	by := e.actor()
 	if reason != checkReason {
 		by = "bint"
@@ -104,8 +103,6 @@ func (e *Env) check(ctx context.Context, ref, reason string) (*task.Task, CheckR
 		return skip("phiếu chưa có verify.command (bint task set --verify-command)", nil)
 	case !e.VerifyConfirmed(t) && e.Cfg.Security.RequireApprovalForCommands:
 		return skip("lệnh kiểm chứng chưa được người xác nhận; Bint không chạy lệnh do agent đề xuất (bint task approve "+t.State.ID+")", nil)
-	case strings.TrimSpace(vc.AffectedCommand) == "":
-		return skip("chưa cấu hình workflow.verify.affected_command nên không có kiểm hẹp", nil)
 	}
 	root, err := e.RootFor(t)
 	if err != nil {
@@ -120,16 +117,12 @@ func (e *Env) check(ctx context.Context, ref, reason string) (*task.Task, CheckR
 		}
 		return t, res, nil
 	}
-	sel, since := e.narrowSelection(ctx, t, root, vc.BintConfigFull)
-	if sel.Scope == affected.TierFull {
-		why := "thay đổi buộc chạy toàn bộ bộ test (phạm vi full)"
-		if len(sel.Widening) > 0 {
-			w := sel.Widening[0]
-			why += fmt.Sprintf(" vì %s %s %s", w.Reason, w.Path, w.Detail)
-		}
-		return skip(why+": kiểm hẹp không chạy, để kiểm nền lo", &sel)
+	sel, since := e.narrowSelection(ctx, t, root)
+	// Phần chọn của bgraph kể từ lần kiểm xanh trước; bgraph đòi chạy cả bộ thì chạy lệnh của phiếu và ghi lý do (fullReason).
+	ran, run := testRun(sel, cmd)
+	if why := fullReason(sel); why != "" {
+		reason += " (bgraph nới ra cả bộ: " + why + ")"
 	}
-	ran, run := eval.ExpandTestCommand(strings.TrimSpace(vc.AffectedCommand), sel.TestFiles), sel.Scope != affected.TierNone
 	log := t.LogPath(fmt.Sprintf("check-%d.log", len(t.State.Checks)+1))
 	var r eval.CmdResult
 	if run {
@@ -172,36 +165,22 @@ func (e *Env) check(ctx context.Context, ref, reason string) (*task.Task, CheckR
 	return t, res, nil
 }
 
-// narrowSelection chọn tầng hẹp: tệp đổi kể từ ảnh chụp của lần kiểm hẹp XANH gần nhất (nếu có, since là cây đó), không thì kể từ mốc tác vụ;
-// chỉ test của chính các gói có tệp đổi. Lần kiểm trước đỏ thì so với mốc của lần xanh trước nữa, để gói đỏ được kiểm lại.
-func (e *Env) narrowSelection(ctx context.Context, t *task.Task, root string, bintConfigFull bool) (affected.Selection, string) {
-	since := ""
+// narrowSelection chọn test bị ảnh hưởng kể từ ảnh chụp của lần kiểm hẹp XANH gần nhất (since là commit giữ cây đó), không thì kể từ mốc tác vụ.
+// Lần kiểm trước đỏ thì so với mốc của lần xanh trước nữa, để test đỏ được kiểm lại.
+func (e *Env) narrowSelection(ctx context.Context, t *task.Task, root string) (affected.Selection, string) {
+	tree := ""
 	for i := len(t.State.Checks) - 1; i >= 0; i-- {
 		c := t.State.Checks[i]
 		if c.Skipped != "" {
 			continue
 		}
-		if !c.Passed {
-			break // gói đỏ của lần đó phải chạy lại: không thu hẹp qua nó
+		if c.Passed {
+			tree = c.Tree
 		}
-		if c.Tree != "" {
-			since = c.Tree
-		}
-		break
+		break // gói đỏ của lần đó phải chạy lại: không thu hẹp qua nó
 	}
-	base := t.State.Base
-	if since != "" {
-		base = since
-	}
-	if strings.TrimSpace(base) == "" {
-		return SelectAffectedCfg(ctx, root, base, bintConfigFull), ""
-	}
-	head, changed, err := changedSince(ctx, root, base)
-	if err != nil {
-		return affected.Selection{Scope: affected.TierFull, Base: base, Changed: []string{},
-			Widening: []affected.Widening{{Tier: affected.TierFull, Reason: affected.ReasonSourceUnavailable, Detail: err.Error()}}}, since
-	}
-	return affected.Select(ctx, affected.Input{Root: root, Base: base, Head: head, Changed: changed, IgnoreBintConfig: !bintConfigFull, Direct: true}), since
+	since := greenCommit(ctx, root, t, tree)
+	return e.selectFor(ctx, t, root, since, nil), since
 }
 
 func lastBackground(t *task.Task) *task.Verification {

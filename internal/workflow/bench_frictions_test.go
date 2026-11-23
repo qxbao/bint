@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"bint/internal/task"
 )
@@ -200,82 +199,6 @@ func TestFeatRewritingTasksRestoresWholeWhenIDsDiffer(t *testing.T) {
 	b, _ := os.ReadFile(h.load(res.TaskID).ArtifactPath("tasks"))
 	if before == "" || string(b) != before {
 		t.Fatalf("phải phục hồi nguyên bản trước bước: %q, muốn %q", b, before)
-	}
-}
-
-// Điểm vướng 4 (B-mid): kiểm chứng đầy đủ ở finalize đỏ giả làm Runner mở vòng sửa (in_review → in_progress); vòng sửa
-// bị dừng chờ người, người chạy lại `bint task verify` (xanh, cùng cây) rồi resume. Runner không được chạy lại b-feat rồi
-// b-review mà vào thẳng finalize. Cây đổi sau lần xanh đó thì vòng sửa chạy như cũ.
-func TestResumeSkipsFixWhenLatestFullVerifyPassed(t *testing.T) {
-	for _, tc := range []string{"cây không đổi", "cây đổi sau lần xanh"} {
-		t.Run(tc, func(t *testing.T) {
-			ctx := context.Background()
-			h := goHarness(t)
-			h.cfg.Workflow.MaxReviewRounds = 2
-			flag := filepath.ToSlash(filepath.Join(t.TempDir(), "outage"))
-			full := "test -f done.txt && ! test -f " + flag // hỏng khi có cờ ngoài cây: mô phỏng đỏ giả do môi trường
-			h.cfg.Eval.TestCommand = &full
-			feats := 0
-			h.behaveFeat(func() {
-				feats++
-				h.write("a/a.go", "package a\n\nfunc A() int { return 2 }\n")
-				h.write("done.txt", "ok\n")
-			})
-			id := h.runFeat("Thêm tính năng cho gói a", "").TaskID
-			if v := h.load(id).State.LastVerification(); v == nil || v.Full() {
-				t.Fatalf("b-feat phải kiểm chứng affected: %+v", v)
-			}
-			if _, err := h.tasks.Update(id, time.Now(), func(tk *task.Task) error {
-				tk.Ticket.Autonomy = task.AutonomyAskAlways // vòng sửa dừng chờ người ở đầu b-feat
-				return nil
-			}); err != nil {
-				t.Fatal(err)
-			}
-			setFlag(t, flag, true)
-			r := h.runner()
-			r.Confirm = func(q Question) bool { return q.Key != QConfirmFeat }
-			res, err := r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: id, Resume: true})
-			if err != nil {
-				t.Fatal(err)
-			}
-			got := h.load(id)
-			if res.Status != task.StatusBlocked || got.State.ResumeFrom != task.StatusInProgress || feats != 1 || !inVerifyFix(got) {
-				t.Fatalf("phải mở vòng sửa rồi dừng ở b-feat: %+v resume_from=%s feats=%d", res, got.State.ResumeFrom, feats)
-			}
-			// Người sửa môi trường và chạy lại kiểm chứng: qua, đầy đủ, cùng cây.
-			setFlag(t, flag, false)
-			if _, vr, err := h.runner().Verify(ctx, id); err != nil || !vr.Verification.Passed || !vr.Verification.Full() {
-				t.Fatalf("verify của người: %+v %v", vr, err)
-			}
-			if tc == "cây đổi sau lần xanh" {
-				h.write("docs/note.md", "người sửa thêm\n")
-			}
-			r = h.runner()
-			r.Confirm = func(Question) bool { return true }
-			nv := len(h.load(id).State.Verifications)
-			res, err = r.Run(ctx, RunOptions{Workflow: StepDo, TaskRef: id, Resume: true})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if tc == "cây đổi sau lần xanh" {
-				if feats != 2 {
-					t.Fatalf("cây đổi: vòng sửa phải chạy như cũ, feats=%d %+v", feats, res)
-				}
-				return
-			}
-			if res.Status != task.StatusDone || feats != 1 || len(res.Steps) != 0 {
-				t.Fatalf("phải done mà không chạy b-feat/b-review: %+v steps=%v feats=%d", res, stepNames(res), feats)
-			}
-			got = h.load(id)
-			if len(got.State.Verifications) != nv {
-				t.Fatalf("không được kiểm chứng lại: %d → %d", nv, len(got.State.Verifications))
-			}
-			if !slices.ContainsFunc(got.State.History, func(tr task.Transition) bool {
-				return tr.From == task.StatusInProgress && tr.To == task.StatusInReview && strings.HasPrefix(tr.Reason, "bỏ vòng sửa")
-			}) {
-				t.Fatalf("lịch sử phải ghi việc bỏ vòng sửa: %+v", got.State.History)
-			}
-		})
 	}
 }
 
