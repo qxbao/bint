@@ -831,7 +831,7 @@ func (e *Env) verify(ctx context.Context, ref, reason string, scoped bool) (*tas
 	if confirmed {
 		s := e.selectFor(ctx, t, root, "", nil)
 		sel, scope = &s, string(s.Scope)
-		ran, run = testRun(s, cmd)
+		ran, run = testRun(s, cmd, e.Cfg.Workflow.Verify.RunnerArgs)
 	}
 	var r eval.CmdResult
 	if run {

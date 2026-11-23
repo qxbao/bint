@@ -54,11 +54,14 @@ func redTestsOf(v *task.Verification) (failed, timed []testreport.Test, ok bool)
 	return rep.Failed, rep.TimedOut, true
 }
 
-// goFlagsTimeout tách cờ của lệnh `go test` thuần (goTestCommand) và trần -timeout của nó (mặc định của go test khi không đặt).
-func goFlagsTimeout(cmd string) ([]string, time.Duration) {
+// goFlagsTimeoutOK tách cờ của lệnh `go test` thuần và trần -timeout của nó (mặc định của go test khi không đặt). Nhận cả cờ có giá trị
+// rời (`-timeout 30m`, goTestFlags); ok=false khi cmd không phải go test thuần.
+func goFlagsTimeoutOK(cmd string) ([]string, time.Duration, bool) {
 	flags, _, ok := goTestCommand(cmd)
 	if !ok {
-		return nil, triageDefaultTimeout
+		if flags, ok = goTestFlags(cmd); !ok {
+			return nil, triageDefaultTimeout, false
+		}
 	}
 	d := triageDefaultTimeout
 	for _, f := range flags {
@@ -68,7 +71,7 @@ func goFlagsTimeout(cmd string) ([]string, time.Duration) {
 			}
 		}
 	}
-	return flags, d
+	return flags, d, true
 }
 
 // redRerun phân loại một lần kiểm đỏ v bằng cách chạy lại RIÊNG các test đỏ của nó: trên cây hiện tại (xanh → flaky, hoặc timeout khi chỉ hết giờ),
@@ -84,7 +87,7 @@ func (r *Runner) redRerun(ctx context.Context, rs *runState, v task.Verification
 	if err != nil {
 		return "", nil, false
 	}
-	flags, limit := goFlagsTimeout(cmpStr(v.Ran, v.Command))
+	flags, limit := goFlagsTimeoutOf(v)
 	all := append(slices.Clone(failed), timed...)
 	names = make([]string, len(all))
 	for i, x := range all {
@@ -143,7 +146,7 @@ func (r *Runner) redRerun(ctx context.Context, rs *runState, v task.Verification
 
 // limitOf là trần -timeout của lệnh đã chạy của v (mặc định của go test khi không đặt).
 func limitOf(v task.Verification) time.Duration {
-	_, d := goFlagsTimeout(cmpStr(v.Ran, v.Command))
+	_, d := goFlagsTimeoutOf(v)
 	return d
 }
 

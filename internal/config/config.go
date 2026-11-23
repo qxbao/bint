@@ -510,6 +510,11 @@ type WorkflowVerify struct {
 	// AffectedCommand: lệnh chạy một danh sách tệp test ({test_files}/{test_dirs}), chỉ dùng khi bgraph không dựng được lệnh cho các tệp đó
 	// (ví dụ kiểm tra mục tiêu viết bằng shell). Rỗng thì chạy verify.command của phiếu.
 	AffectedCommand string `yaml:"affected_command"`
+	// RunnerArgs: tham số thêm vào lệnh chạy test do bgraph dựng, theo runner của lệnh (go, pytest, django, cargo, dotnet, maven, gradle,
+	// vitest, jest…). Lệnh chọn lọc của bgraph không mang cờ của verify.command (`-timeout`, `--runInBand`, `-n auto`…), nên kiểm hẹp và
+	// kiểm rộng có thể chạy khác nhau. Runner go không có khoá thì Bint tự chép cờ từ verify.command khi đó là `go test …` thuần; đặt
+	// `go: []` để tắt việc đó.
+	RunnerArgs map[string][]string `yaml:"runner_args"`
 	// Scope, SuggestedAffectedCommand, Done: khoá của bộ chọn cũ, đã bỏ. Còn đọc được để cấu hình cũ nạp không lỗi; Bint không dùng
 	// (DeprecatedVerifyKeys liệt kê khoá còn đặt).
 	Scope                    string  `yaml:"scope,omitempty"`
@@ -1274,6 +1279,17 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.MaxDiffLines < 0 {
 		add("workflow.max_diff_lines: phải >= 0 (0 = tắt ngân sách diff)")
+	}
+	for r, args := range c.Workflow.Verify.RunnerArgs {
+		if strings.TrimSpace(r) == "" || strings.ContainsAny(r, " \t") {
+			add("workflow.verify.runner_args: tên runner %q không hợp lệ", r)
+		}
+		for _, a := range args {
+			if a == "" || strings.ContainsAny(a, "\n\r") {
+				add("workflow.verify.runner_args.%s: tham số rỗng hoặc có xuống dòng", r)
+				break
+			}
+		}
 	}
 	if c.Workflow.Perf.MaxSlowdown < 1 {
 		add("workflow.perf.max_slowdown: phải >= 1 (tỷ lệ chậm tối đa so với mốc)")

@@ -56,15 +56,16 @@ func (e *Env) selectFor(ctx context.Context, t *task.Task, root, base string, on
 	return SelectAffected(ctx, root, base, SelectOpts{BintConfigFull: e.Cfg.Workflow.Verify.BintConfigFull, TasksDir: e.Tasks.Dir, Only: only})
 }
 
-// testRun là lệnh chạy cho một phần chọn: script của bgraph, verify.command của phiếu khi scope full, hoặc không chạy gì khi none.
-func testRun(sel affected.Selection, cmd string) (ran string, run bool) {
+// testRun là lệnh chạy cho một phần chọn: script của bgraph (kèm workflow.verify.runner_args, xem withRunnerArgs), verify.command của phiếu
+// khi scope full, hoặc không chạy gì khi none.
+func testRun(sel affected.Selection, cmd string, runnerArgs map[string][]string) (ran string, run bool) {
 	switch sel.Scope {
 	case affected.TierNone:
 		return "", false
 	case affected.TierFull:
 		return cmd, true
 	}
-	if s := sel.Script(); s != "" {
+	if s := withRunnerArgs(sel, cmd, runnerArgs).Script(); s != "" {
 		return s, true
 	}
 	return cmd, true

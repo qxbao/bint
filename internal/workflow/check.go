@@ -119,7 +119,7 @@ func (e *Env) check(ctx context.Context, ref, reason string) (*task.Task, CheckR
 	}
 	sel, since := e.narrowSelection(ctx, t, root)
 	// Phần chọn của bgraph kể từ lần kiểm xanh trước; bgraph đòi chạy cả bộ thì chạy lệnh của phiếu và ghi lý do (fullReason).
-	ran, run := testRun(sel, cmd)
+	ran, run := testRun(sel, cmd, e.Cfg.Workflow.Verify.RunnerArgs)
 	if why := fullReason(sel); why != "" {
 		reason += " (bgraph nới ra cả bộ: " + why + ")"
 	}

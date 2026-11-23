@@ -227,10 +227,20 @@ func TestCleanupWorktreeReleasesGatewayBounded(t *testing.T) {
 	stop := make(chan struct{})
 	t.Cleanup(func() { close(stop) })
 	releaseGatewayWorktree = func(context.Context, string) error { <-stop; return nil } // treo
+	// Đo riêng phần nhả: cleanupWorktree còn 5–6 lệnh git mà trên Windows tải nặng (agent, thăm dò, go test song song, Defender) mất vài
+	// giây, nên đo cả hàm làm test đỏ theo tải máy (6–7 s > trần 5 s) dù phần nhả vẫn dừng đúng hạn.
 	start := time.Now()
-	r.cleanupWorktree(context.Background(), "ID1", h.root, wt)
+	r.releaseWorktreeParts(context.Background(), wt)
 	if d := time.Since(start); d > releaseTimeout+2*time.Second {
-		t.Fatalf("nhả treo làm chặn dọn %s", d)
+		t.Fatalf("nhả treo không dừng sau releaseTimeout: %s", d)
+	}
+	// Dọn với nhả treo vẫn phải xong (không chờ gateway mãi); trần rộng vì gồm các lệnh git.
+	done := make(chan struct{})
+	go func() { r.cleanupWorktree(context.Background(), "ID1", h.root, wt); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(releaseTimeout + time.Minute):
+		t.Fatal("nhả treo làm chặn dọn worktree")
 	}
 }
 

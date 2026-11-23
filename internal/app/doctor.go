@@ -297,6 +297,11 @@ func Doctor(ctx context.Context, dir string) *DoctorReport {
 		r.add("lệnh kiểm thử", LevelInfo, "eval.test_command chưa được xác nhận%s", hint)
 	} else {
 		r.add("lệnh kiểm thử", LevelOK, "%s", *cfg.Eval.TestCommand)
+		// Lệnh chọn lọc của bgraph chỉ là `<runner> <test>…`: tùy chọn nằm trong script (npm test, make test, pytest -n auto…) không đi theo.
+		// Riêng `go test …` thuần thì Bint tự chép cờ; lệnh khác cần workflow.verify.runner_args.
+		if tc := strings.TrimSpace(*cfg.Eval.TestCommand); !strings.HasPrefix(tc, "go test") && len(cfg.Workflow.Verify.RunnerArgs) == 0 {
+			r.add("tham số runner", LevelInfo, "lệnh chọn lọc của bgraph không mang tùy chọn của %q; test cần cờ riêng (timeout, chạy tuần tự, cấu hình…) thì đặt workflow.verify.runner_args", tc)
+		}
 	}
 	setupChecks(r, repo.Toplevel, paths, cfg)
 	flowChecks(r, filepath.Dir(filepath.Dir(src.Project)), cfg)

@@ -192,6 +192,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   verify:                   # mọi lần chạy test của tác vụ chạy các test bị ảnh hưởng do bgraph chọn; verify.command của phiếu chỉ chạy khi bgraph đòi chạy cả bộ
     affected_command: ""    # lệnh chạy một danh sách tệp test, có {test_files} hoặc {test_dirs}; chỉ dùng khi bgraph không dựng được lệnh cho các tệp đó (vd. kiểm tra mục tiêu viết bằng shell); rỗng = verify.command
     bint_config_full: true  # true = thay đổi trong .bint/** là thay đổi như mọi tệp khác; false = bỏ .bint/** khỏi tập thay đổi
+    # runner_args: {}       # (bật tay; mẫu chỉ ghi chú thích để binary cũ vẫn nạp được config) tham số thêm vào lệnh test do bgraph dựng, theo runner, vd. {go: ["-timeout=30m"], jest: ["--runInBand"], pytest: ["-n", "auto"]}; go không có khoá thì chép cờ của verify.command khi đó là go test thuần; go: [] = tắt
 `)
 	w(`  perf:                     # cổng hồi quy hiệu năng (tuỳ chọn): đo mốc trước b-feat đầu tiên và đo lại sau mỗi b-feat (nhỏ nhất của 3 lần, giây)
     command: ""             # lệnh đo, ví dụ "go test -run xxx -bench Hot ./..."; rỗng = tắt; chỉ chạy khi lệnh kiểm chứng đã được xác nhận

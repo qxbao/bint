@@ -180,7 +180,7 @@ func (b *bgVerifier) run(t *task.Task, tree string) {
 	}()
 	// Phần chọn của bgraph cho commit của cây chụp so với mốc tác vụ (đọc từ object git, không cần worktree); bgraph đòi cả bộ thì chạy lệnh của phiếu.
 	sel := SelectAffected(ctx, b.root, t.State.Base, SelectOpts{Head: commit, BintConfigFull: r.Cfg.Workflow.Verify.BintConfigFull, TasksDir: r.Tasks.Dir})
-	ran, runIt := testRun(sel, cmd)
+	ran, runIt := testRun(sel, cmd, r.Cfg.Workflow.Verify.RunnerArgs)
 	if !runIt {
 		v := task.Verification{At: r.at(), Command: cmd, Confirmed: true, Passed: true, Tree: tree, By: "bint", RunID: r.RunID, Reason: bgReason,
 			Scope: string(sel.Scope), Selection: &sel}

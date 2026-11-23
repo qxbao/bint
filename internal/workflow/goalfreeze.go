@@ -256,7 +256,7 @@ func (r *Runner) goalCommand(t *task.Task, root string) string {
 			SelectOpts{BintConfigFull: r.Cfg.Workflow.Verify.BintConfigFull, TasksDir: r.Tasks.Dir, Only: t.State.GoalTest.Paths()})
 		switch ac := strings.TrimSpace(r.Cfg.Workflow.Verify.AffectedCommand); {
 		case sel.Scope != affected.TierFull:
-			if ran, run := testRun(sel, cmd); run {
+			if ran, run := testRun(sel, cmd, r.Cfg.Workflow.Verify.RunnerArgs); run {
 				cmd = ran
 			}
 		case ac != "" && (strings.Contains(ac, "{test_files}") || strings.Contains(ac, "{test_dirs}")):
