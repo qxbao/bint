@@ -158,7 +158,6 @@ tasks:
 
 workflow:                   # workflow gốc do Bint điều phối (bint run)
   verify:
-    scope: affected
     affected_command: "go test -timeout 30m {test_dirs}"
     bint_config_full: false # đổi .bint/** không nới kiểm chứng ra full (cổng done vẫn chạy đầy đủ một lần)
   perf:
@@ -173,6 +172,8 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   goal_check: auto          # khi nào chạy b-goal: auto (theo "Kiểm tra mục tiêu độc lập" trong plan.md) | off | always; --fast bỏ cả hai
   max_diff_lines: 0            # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát được giữ cây chờ người / vào vòng sửa); 0 = tắt
   verify_timeout_minutes: 60  # lệnh kiểm chứng của phiếu tác vụ
+  # idle_timeout_minutes: 0   # dừng bước agent khi harness im lặng quá số phút này (treo), resume nối tiếp được; 0 = 30 phút, -1 = tắt
+  external_retry: ["30s", "2m", "5m"]   # lịch chờ giữa các lần Bint tự nối tiếp phiên cũ khi bước dừng vì lỗi ngoại cảnh (5xx/529 quá tải, hạn mức, mất kết nối, harness chết); số phần tử = số lần thử tối đa; [] = tắt
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)
   worktree:                 # chỉ dùng khi tác vụ chạy trong worktree riêng
