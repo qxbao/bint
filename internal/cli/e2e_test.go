@@ -20,8 +20,27 @@ var bintBin string
 // envE2EBin: binary bint đã build của tiến trình cha, để các tiến trình con (testutil.RunTests) không build lại.
 const envE2EBin = "BINT_TEST_E2E_BIN"
 
+// pathBintDir là thư mục chứa BẢN SAO của bint đã build, đặt đầu PATH (testutil.UseTreeBint): luồng workflow gọi `bint`
+// trên PATH (cliSkewCheck) phải gặp bản của cây, không phải bản cài trên máy. Là bản sao, không phải chính bintBin:
+// `bint init` ghi `bint hook claude` khi bint trên PATH là CÙNG tệp với binary đang chạy (os.SameFile), còn TestEndToEnd
+// kiểm hook trỏ đường dẫn tuyệt đối của bintBin.
+func pathBintDir(bin string) string { return filepath.Join(filepath.Dir(bin), "path") }
+
+func copyPathBint(bin string) error {
+	dir := pathBintDir(bin)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	b, err := os.ReadFile(bin)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, filepath.Base(bin)), b, 0o755)
+}
+
 func TestMain(m *testing.M) {
 	if bintBin = os.Getenv(envE2EBin); bintBin != "" {
+		testutil.UseTreeBint(pathBintDir(bintBin))
 		code := testutil.RunTests(m)
 		testutil.CleanupHarness()
 		os.Exit(code)
@@ -45,6 +64,11 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Setenv(envE2EBin, bintBin)
+	if err := copyPathBint(bintBin); err != nil {
+		fmt.Fprintf(os.Stderr, "chép bint cho PATH: %v\n", err)
+		os.Exit(1)
+	}
+	testutil.UseTreeBint(pathBintDir(bintBin))
 	code := testutil.RunTests(m)
 	os.RemoveAll(dir)
 	testutil.CleanupHarness()

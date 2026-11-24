@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"bint/internal/config"
+	"bint/internal/eval"
 	"bint/internal/gitrepo"
 	"bint/internal/task"
 )
@@ -670,6 +671,7 @@ echo "perf ok $s"
 func bgPerfRun(t *testing.T, perfYAML string, first, fix func(root string) error) (*harness, *Result, error) {
 	h := newHarness(t)
 	h.cfg.Workflow.MaxReviewRounds = 1
+	bgPerfScriptedClock(t)
 	h.write("perf.sh", bgPerfScript)
 	h.commitAll(h.root, "lệnh đo hiệu năng")
 	if perfYAML != "" {
@@ -704,6 +706,30 @@ func bgPerfRun(t *testing.T, perfYAML string, first, fix func(root string) error
 	}
 	res, err := h.runner().Run(context.Background(), RunOptions{Workflow: StepDo, Request: vagueReq, Plan: ptr(false)})
 	return h, res, err
+}
+
+// bgPerfScriptedClock: lệnh đo vẫn chạy thật (mã thoát, log), nhưng thời gian đo lấy theo slow.txt của kịch bản thay vì đồng hồ thật.
+// Trên Windows tải nặng, sinh tiến trình sh (cộng cat/sleep) mất 0,3–6 s mỗi lần và dao động giữa lần đo mốc với lần đo sau b-feat,
+// nên khoảng cách 0,6 s của kịch bản bị nhiễu nuốt (mốc chậm hơn ×1.5 so với lần "chậm"): cổng không đỏ và test hỏng theo tải máy.
+func bgPerfScriptedClock(t *testing.T) {
+	t.Helper()
+	orig := perfRunShell
+	t.Cleanup(func() { perfRunShell = orig })
+	perfRunShell = func(ctx context.Context, dir, command string, timeout time.Duration, logPath string, env []string) eval.CmdResult {
+		res := orig(ctx, dir, command, timeout, logPath, env)
+		if !res.OK() {
+			return res
+		}
+		res.Duration = 0
+		if b, err := os.ReadFile(filepath.Join(dir, "slow.txt")); err == nil {
+			s, err := strconv.ParseFloat(strings.TrimSpace(string(b)), 64)
+			if err != nil {
+				t.Errorf("slow.txt: %v", err)
+			}
+			res.Duration = time.Duration(s * float64(time.Second))
+		}
+		return res
+	}
 }
 
 func bgWriteFn(name, body string) func(string) error {

@@ -25,9 +25,8 @@ import (
 
 func TestMain(m *testing.M) {
 	probetest.MaybeRun() // MCP/codegraph giả: chạy lại chính tệp test (xem probetest)
-	code := testutil.RunTests(m)
-	testutil.CleanupHarness()
-	os.Exit(code)
+	// Luồng workflow tới b-review (vd. TestH8*) chạy `bint` trên PATH: dùng bản dựng từ cây này, không phải bản cài.
+	testutil.MainWithBint(m)
 }
 
 const secretValue = "hunter2-S3CRET"
@@ -493,13 +492,16 @@ func TestMCPCheckCodegraphDisabledDetailQuotesError(t *testing.T) {
 	}
 }
 
-// Low còn lại của NT-MCP-PROBE: mỗi lời gọi thử tool có hạn riêng (mcpProbeToolTimeout), độc lập với mcpCheckTimeout.
-// Hai tool treo (explore, node) cộng hạn vượt mcpCheckTimeout; tool đứng sau (callers) bị tắt vẫn được gọi và báo,
-// tool khác không bị gán quá hạn hay lỗi truyền tải, tiến trình upstream không bị giết giữa chừng.
+// Low còn lại của NT-MCP-PROBE: mỗi lời gọi thử tool có hạn riêng (mcpProbeToolTimeout), độc lập với hạn khởi tạo
+// (cctx, mcpCheckTimeout). Check huỷ cctx ngay sau tools/list nên lời gọi thử tool dựng nhầm từ cctx hỏng tức thì (lỗi
+// truyền tải "context canceled"), không phụ thuộc khởi tạo nhanh hay chậm: mcpCheckTimeout giữ mặc định, chỉ là hạn
+// chống treo (trước đây đặt 2 s để hai tool treo cộng hạn vượt nó, nhưng máy bận thì chính initialize quá 2 s).
+// Tool đứng sau (callers) bị tắt vẫn được gọi và báo, tool khác không bị gán quá hạn hay lỗi truyền tải, tiến trình
+// upstream không bị giết giữa chừng.
 func TestMCPCheckCodegraphHungToolHasOwnTimeout(t *testing.T) {
-	oldCheck, oldTool := mcpCheckTimeout, mcpProbeToolTimeout
-	mcpCheckTimeout, mcpProbeToolTimeout = 2*time.Second, 1200*time.Millisecond
-	defer func() { mcpCheckTimeout, mcpProbeToolTimeout = oldCheck, oldTool }()
+	oldTool := mcpProbeToolTimeout
+	mcpProbeToolTimeout = 1200 * time.Millisecond
+	defer func() { mcpProbeToolTimeout = oldTool }()
 	f := newMCPFx(t, "")
 	f.secrets(t, "ok", codegraphTools())
 	f.secretsExtra(t, probetest.EnvHangOn, "codegraph_explore,codegraph_node", probetest.EnvDisabled, "codegraph_callers")
@@ -513,7 +515,7 @@ func TestMCPCheckCodegraphHungToolHasOwnTimeout(t *testing.T) {
 			t.Errorf("Detail thiếu %q: %q", w, c.Detail)
 		}
 	}
-	for _, w := range []string{"codegraph_search", "codegraph_status", "initialize", "tools/list", "upstream đã đóng", "context deadline"} {
+	for _, w := range []string{"codegraph_search", "codegraph_status", "initialize", "tools/list", "upstream đã đóng", "context deadline", "context canceled"} {
 		if strings.Contains(c.Detail, w) {
 			t.Errorf("Detail không được nêu %q: %q", w, c.Detail)
 		}

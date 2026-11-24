@@ -2,15 +2,20 @@ package mcpgw
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
 // Nhóm exclusive (specmatic.mock): phiên thứ hai chờ có giới hạn rồi nhận busy; dùng được sau DELETE hoặc khi khoá hết TTL.
+// TTL tính theo đồng hồ dịch được: máy chậm (một lời gọi mất vài giây) không làm khoá hết hạn giữa chừng.
 func TestExclusiveGroup(t *testing.T) {
+	const ttl = time.Hour
+	var skew atomic.Int64
 	h := newHarness(t, func(o *Options) {
 		o.ExclusiveWait = 200 * time.Millisecond
-		o.ExclusiveTTL = 500 * time.Millisecond
+		o.ExclusiveTTL = ttl
+		o.now = func() time.Time { return time.Now().Add(time.Duration(skew.Load())) }
 	})
 	h.register("specmatic")
 	repo := evalDir(t, newRepo(t, true))
@@ -62,7 +67,7 @@ func TestExclusiveGroup(t *testing.T) {
 	if m, _ := c.call(1, "manage_mock_server", nil); rpcCode(m) != CodeBusy {
 		t.Fatalf("b đang giữ khoá: %s", m.Error)
 	}
-	time.Sleep(600 * time.Millisecond)
+	skew.Add(int64(ttl + time.Minute))
 	if m, _ := c.call(2, "manage_mock_server", nil); len(m.Error) > 0 {
 		t.Errorf("sau khi khoá hết TTL: %s", m.Error)
 	}

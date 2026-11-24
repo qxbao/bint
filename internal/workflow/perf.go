@@ -19,6 +19,10 @@ const (
 	perfNoiseFloor = 100 * time.Millisecond
 )
 
+// perfRunShell chạy một lần lệnh đo (seam cho test): trên máy tải nặng chỉ riêng việc sinh tiến trình sh đã mất 0,3–6 s, nên test
+// cổng không thể dựa vào đồng hồ thật để phân biệt lần chậm với mốc; test thay bằng bản chạy lệnh thật rồi đặt Duration theo kịch bản.
+var perfRunShell = eval.RunShell
+
 // perfEnabled: lệnh đo đã khai báo và chính lệnh đó đã được người xác nhận (bint task approve ghi băm vào PerfApproval;
 // lệnh đổi sau đó thì không chạy), hoặc dự án không đòi duyệt lệnh.
 func (r *Runner) perfEnabled(t *task.Task) bool {
@@ -42,7 +46,7 @@ func (r *Runner) perfMeasure(ctx context.Context, root, logPath string) (best ti
 		if i > 0 {
 			lp = logPath + fmt.Sprintf(".%d.tmp", i)
 		}
-		res = eval.RunShell(ctx, root, r.Cfg.Workflow.Perf.Command, timeout, lp, env)
+		res = perfRunShell(ctx, root, r.Cfg.Workflow.Perf.Command, timeout, lp, env)
 		if i > 0 {
 			_ = os.Remove(lp)
 		}

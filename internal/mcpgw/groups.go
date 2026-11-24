@@ -32,12 +32,13 @@ func (p *partition) group(name string) *groupState {
 // lockExclusive giữ khoá của nhóm cho phiên sessID: chờ có giới hạn rồi trả CodeBusy. Chủ khoá dùng lại thì gia hạn TTL;
 // khoá hết hạn thì phiên khác lấy được. Khoá nhả khi phiên đóng (unlockExclusive).
 func (p *partition) lockExclusive(ctx context.Context, sessID string, g mcpcat.Group) error {
+	// TTL của khoá tính theo opts.clock (kiểm thử dịch được); hạn chờ của người gọi tính theo đồng hồ thật.
 	wait, ttl := p.d.opts.ExclusiveWait, p.d.opts.ExclusiveTTL
 	deadline := time.Now().Add(wait)
 	for {
 		p.gmu.Lock()
 		gs := p.group(g.Name)
-		now := time.Now()
+		now := p.d.opts.clock()
 		if gs.holder == "" || gs.holder == sessID || !now.Before(gs.expires) {
 			if gs.holder != sessID {
 				gs.holder = sessID
@@ -48,13 +49,12 @@ func (p *partition) lockExclusive(ctx context.Context, sessID string, g mcpcat.G
 			p.gmu.Unlock()
 			return nil
 		}
-		ch, expiry := gs.changed, gs.expires
+		ch, left := gs.changed, gs.expires.Sub(now)
 		p.gmu.Unlock()
-		until := deadline
-		if expiry.Before(until) {
-			until = expiry
+		if w := time.Until(deadline); w < left {
+			left = w
 		}
-		t := time.NewTimer(time.Until(until))
+		t := time.NewTimer(left)
 		select {
 		case <-ch:
 		case <-t.C:
@@ -66,7 +66,7 @@ func (p *partition) lockExclusive(ctx context.Context, sessID string, g mcpcat.G
 		if !time.Now().Before(deadline) {
 			p.gmu.Lock()
 			gs := p.group(g.Name)
-			stillHeld := gs.holder != "" && gs.holder != sessID && time.Now().Before(gs.expires)
+			stillHeld := gs.holder != "" && gs.holder != sessID && p.d.opts.clock().Before(gs.expires)
 			p.gmu.Unlock()
 			if stillHeld {
 				return &rpcError{Code: CodeBusy, Message: fmt.Sprintf("nhóm %s.%s đang do phiên khác giữ (độc quyền, TTL %s); thử lại sau hoặc chờ phiên đó đóng", p.svc.ID, g.Name, ttl)}

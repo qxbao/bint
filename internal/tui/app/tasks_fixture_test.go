@@ -183,6 +183,15 @@ func (f *fixture) tryTask(id string) *task.Task {
 // thử) tới khi until() đúng; quá hạn thì báo lỗi kèm màn hình hiện tại.
 func (f *fixture) pump(until func() bool, cmd tea.Cmd) {
 	f.t.Helper()
+	// Hạn chỉ để chặn treo, không đo tốc độ: trên Windows mỗi lệnh git/sh tốn 20–70 ms, và khi go test ./... chạy
+	// nhiều gói cùng lúc (mỗi gói lại chia nhiều tiến trình, testutil.RunTests) một bước init/b-do có thể quá 20 s.
+	f.pumpWithin(90*time.Second, until, cmd)
+}
+
+// pumpWithin như pump với hạn chặn treo riêng, cho lần chờ bao trọn một chuỗi dài lệnh git/sh thật (vd. pha chuẩn bị
+// của eval.Run: hàng chục tiến trình git, mỗi cái tới vài giây khi máy bận) mà 90 s của pump không còn là hạn chặn treo.
+func (f *fixture) pumpWithin(limit time.Duration, until func() bool, cmd tea.Cmd) {
+	f.t.Helper()
 	var run func(tea.Cmd)
 	run = func(c tea.Cmd) {
 		if c == nil {
@@ -201,9 +210,7 @@ func (f *fixture) pump(until func() bool, cmd tea.Cmd) {
 		}()
 	}
 	run(cmd)
-	// Hạn chỉ để chặn treo, không đo tốc độ: trên Windows mỗi lệnh git/sh tốn 20–70 ms, và khi go test ./... chạy
-	// nhiều gói cùng lúc (mỗi gói lại chia nhiều tiến trình, testutil.RunTests) một bước init/b-do có thể quá 20 s.
-	deadline := time.After(90 * time.Second)
+	deadline := time.After(limit)
 	// Kiểm lại điều kiện theo chu kỳ, không chỉ khi có thông điệp: điều kiện theo thời gian (pumpFor) đúng mà không còn thông điệp nào tới thì
 	// trước đây chờ tới hạn 90 s rồi báo "hết hạn chờ" (CI race, TestCLIRefTasksScreen sau khi TUI không còn tick khi rảnh).
 	recheck := time.NewTicker(20 * time.Millisecond)

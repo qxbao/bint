@@ -252,12 +252,17 @@ func TestEvalRunEscCancelsBatchAndShowsResumeCommand(t *testing.T) {
 	f.press("ctrl+s")
 	f.pump(func() bool { return f.m.prompt != nil }, nil)
 	f.press("enter")
-	f.pump(func() bool {
-		_, err := os.Stat(filepath.FromSlash(started))
-		return err == nil
-	}, nil)
+	// Chờ này bao trọn pha chuẩn bị của eval.Run trước lượt đầu (dựng đầu vào rò rỉ, repo gốc bare, clone, commit…:
+	// khoảng 50 tiến trình git, đo được 43 s khi máy bận vừa phải), nên hạn 90 s của pump không còn là hạn chặn treo.
+	// Đợt kết thúc mà agent chưa chạy thì dừng ngay kèm màn hình, không chờ hết hạn.
+	agentStarted := func() bool { _, err := os.Stat(filepath.FromSlash(started)); return err == nil }
+	f.pumpWithin(5*time.Minute, func() bool { return agentStarted() || f.m.jobs.Len() == 0 }, nil)
+	if !agentStarted() {
+		t.Fatalf("đợt kết thúc trước khi agent chạy: %+v\n%s", f.batches(), f.screen())
+	}
 	f.press("esc") // Esc ở thẻ Log huỷ an toàn
-	f.pump(func() bool { return strings.Contains(f.screen(), "Kết quả chạy đợt") }, nil)
+	// Sau Esc: huỷ lượt (taskkill cây tiến trình) rồi đóng đợt qua git/SQLite; cùng lý do, hạn chỉ chặn treo.
+	f.pumpWithin(5*time.Minute, func() bool { return strings.Contains(f.screen(), "Kết quả chạy đợt") }, nil)
 	f.waitJobsDone()
 	bs := f.batches()
 	if len(bs) != 1 || bs[0].Status != "cancelled" {

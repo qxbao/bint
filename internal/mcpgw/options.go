@@ -54,6 +54,17 @@ type Options struct {
 	ExclusiveWait time.Duration
 	Retries       int
 	Backoff       time.Duration
+
+	// now là đồng hồ tính hạn TTL của khoá độc quyền (nil = time.Now); kiểm thử dịch nó để khoá hết hạn mà không phải
+	// ngủ, nên kết quả không phụ thuộc máy chậm hay nhanh. Thời gian chờ ExclusiveWait luôn theo đồng hồ thật.
+	now func() time.Time
+}
+
+func (o *Options) clock() time.Time {
+	if o.now != nil {
+		return o.now()
+	}
+	return time.Now()
 }
 
 func (o *Options) fill() {

@@ -527,7 +527,14 @@ func TestInboxVersionSkewSyncClearsItem(t *testing.T) {
 	f.press("enter")
 	// Wait for the System screen's panes to finish loading before 's': otherwise
 	// the sync_plan action races the background loads and the pane is still empty.
+	// Check the screen and tab first: the Overview inbox line itself says
+	// "core.lock … nhấn s ở Hệ thống › Skill", so while Enter's NavMsg is still in
+	// flight (settle only waits 40 ms of quiet) the text check alone already holds
+	// on Overview and 's' would be pressed there and lost.
 	f.pump(func() bool {
+		if f.m.Screen() != actions.System || f.m.sy.Tab() != syscreen.TabSkills {
+			return false
+		}
 		s := f.screen()
 		return strings.Contains(s, "core.lock") && !strings.Contains(s, "Đang tải")
 	}, nil)

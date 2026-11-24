@@ -35,6 +35,16 @@ func artifactsFn(t *testing.T, root string) func() []runlog.Artifact {
 	}
 }
 
+// slowSnapshotsOK nới hạn chụp ảnh working tree của hook Bash (context.path_hook_timeout_ms, mặc định 1,5 s) lên mức tối
+// đa cho phép. Hook quá hạn thì bỏ ảnh chụp (đúng thiết kế: không chặn agent, không đoán), nên trên máy bận `git status`
+// chậm hơn 1,5 s làm mất ảnh trước/sau và mất sự kiện. Kiểm thử đo logic ghi sự kiện, không đo tốc độ: hạn này chỉ để chống treo.
+func slowSnapshotsOK(t *testing.T, root string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(root, ".bint", "local.yml"), []byte("context:\n  path_hook_timeout_ms: 10000\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func modified(arts []runlog.Artifact) map[string]int {
 	m := map[string]int{}
 	for _, a := range arts {
@@ -50,6 +60,7 @@ func TestBashFileChangesRecorded(t *testing.T) {
 	testutil.Isolate(t)
 	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n", "b.go": "package b\n"})
 	mustInit(t, InitOptions{Dir: root, Hooks: yes()})
+	slowSnapshotsOK(t, root)
 	arts := artifactsFn(t, root)
 	const sid = "s1"
 	runHook(t, hookInput(sid, "SessionStart", root, map[string]any{"source": "startup"}))
@@ -92,6 +103,7 @@ func TestParallelBashKeyedByToolUseID(t *testing.T) {
 	testutil.Isolate(t)
 	root := testutil.NewRepo(t, map[string]string{"go.mod": "module demo\n", "a.go": "package a\n", "b.go": "package b\n"})
 	mustInit(t, InitOptions{Dir: root, Hooks: yes()})
+	slowSnapshotsOK(t, root)
 	arts := artifactsFn(t, root)
 	runHook(t, hookInput("s3", "SessionStart", root, nil))
 	in := func(id string) map[string]any {

@@ -539,6 +539,9 @@ func mcpCheckOne(ctx context.Context, dir string, svc mcpcat.Service, reg config
 	if err != nil {
 		return upstreamFail("tools/list", err)
 	}
+	// Phần khởi tạo xong: huỷ cctx ngay để không lời gọi nào sau đây (thử tool, mỗi lời gọi một hạn riêng) dùng nhầm
+	// nó; lời gọi dựng từ cctx sẽ hỏng tức thì thay vì chỉ hỏng khi khởi tạo nhanh hơn mcpCheckTimeout.
+	cancel()
 	have := map[string]bool{}
 	for _, t := range tools {
 		r.Tools = append(r.Tools, t.Name)

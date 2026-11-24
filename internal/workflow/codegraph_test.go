@@ -226,22 +226,43 @@ func TestCleanupWorktreeReleasesGatewayBounded(t *testing.T) {
 
 	stop := make(chan struct{})
 	t.Cleanup(func() { close(stop) })
-	releaseGatewayWorktree = func(context.Context, string) error { <-stop; return nil } // treo
-	// Đo riêng phần nhả: cleanupWorktree còn 5–6 lệnh git mà trên Windows tải nặng (agent, thăm dò, go test song song, Defender) mất vài
-	// giây, nên đo cả hàm làm test đỏ theo tải máy (6–7 s > trần 5 s) dù phần nhả vẫn dừng đúng hạn.
-	start := time.Now()
-	r.releaseWorktreeParts(context.Background(), wt)
-	if d := time.Since(start); d > releaseTimeout+2*time.Second {
-		t.Fatalf("nhả treo không dừng sau releaseTimeout: %s", d)
+	// Nhả treo (bỏ qua ctx). Giới hạn được kiểm bằng hạn chót của ctx mà nhả nhận, không bằng đồng hồ tường: trên Windows tải nặng
+	// (agent, thăm dò, go test song song, Defender) việc đánh thức goroutine và các lệnh git của cleanupWorktree trễ vài giây, nên
+	// so thời gian chạy với releaseTimeout+Δ làm test đỏ theo tải máy dù hàm vẫn dừng đúng ở hạn chót. Trần thời gian dưới đây chỉ
+	// chặn treo.
+	deadlines := make(chan time.Time, 4)
+	releaseGatewayWorktree = func(ctx context.Context, _ string) error {
+		d, _ := ctx.Deadline()
+		select {
+		case deadlines <- d:
+		default:
+		}
+		<-stop
+		return nil
 	}
-	// Dọn với nhả treo vẫn phải xong (không chờ gateway mãi); trần rộng vì gồm các lệnh git.
-	done := make(chan struct{})
-	go func() { r.cleanupWorktree(context.Background(), "ID1", h.root, wt); close(done) }()
+	waitDone := func(what string, f func()) {
+		t.Helper()
+		done := make(chan struct{})
+		go func() { f(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(releaseTimeout + time.Minute):
+			t.Fatalf("nhả treo làm chặn %s", what)
+		}
+	}
+	waitDone("releaseWorktreeParts", func() { r.releaseWorktreeParts(context.Background(), wt) })
+	returned := time.Now()
 	select {
-	case <-done:
-	case <-time.After(releaseTimeout + time.Minute):
-		t.Fatal("nhả treo làm chặn dọn worktree")
+	case d := <-deadlines:
+		// Hạn chót = (thời điểm trong lời gọi) + releaseTimeout, nên không thể muộn hơn lúc hàm trả + releaseTimeout.
+		if d.IsZero() || d.After(returned.Add(releaseTimeout)) {
+			t.Fatalf("nhả gateway phải nhận ctx có hạn chót trong releaseTimeout (%s); hạn chót %v, hàm trả lúc %v", releaseTimeout, d, returned)
+		}
+	case <-time.After(time.Minute): // goroutine nhả có thể chưa kịp chạy khi hàm đã trả ở hạn chót
+		t.Fatal("releaseWorktreeParts không gọi nhả gateway")
 	}
+	// Dọn với nhả treo vẫn phải xong (không chờ gateway mãi).
+	waitDone("dọn worktree", func() { r.cleanupWorktree(context.Background(), "ID1", h.root, wt) })
 }
 
 // Gốc đã có chỉ mục (codegraph tự lập, không qua bint mcp index) nhưng info/exclude thiếu .codegraph/: bước chuẩn bị phải thêm

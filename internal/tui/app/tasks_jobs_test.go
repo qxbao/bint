@@ -180,7 +180,10 @@ func TestEscOnLogCancelsJobAndInterruptsTask(t *testing.T) {
 // Hộp thoại thoát khi còn việc workflow: liệt kê việc kèm lệnh tiếp tục; "Ở lại" không thoát; "Huỷ việc rồi thoát"
 // huỷ context và chỉ tea.Quit sau khi việc báo xong.
 func TestExitDialogWithRunningWorkflow(t *testing.T) {
-	f := newFixture(t, Options{})
+	// Test kiểm nhánh "chờ việc báo xong rồi mới thoát", không phải nhánh hết hạn (exitTimeoutMsg có test riêng trong
+	// app_test.go). Huỷ b-do còn phải ghi trạng thái interrupted qua git; dưới tải việc đó có thể quá 3 s mặc định của
+	// fixture, khi ấy exitTimeoutMsg tới trước DoneMsg và mô hình thoát khi việc còn chạy. Hạn ân hạn ở đây chỉ chặn treo.
+	f := newFixture(t, Options{ExitGrace: 10 * time.Minute})
 	started := make(chan struct{})
 	f.behave = func(ctx context.Context, step string, e *workflow.Env, id, log string) error {
 		if step == workflow.StepFeat {

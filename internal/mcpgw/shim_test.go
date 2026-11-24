@@ -186,7 +186,10 @@ func TestShimForwardsWithPrefix(t *testing.T) {
 	h := newHarness(t, nil)
 	h.register("codegraph")
 	repo := evalDir(t, newRepo(t, false))
-	sh, err := NewShim(ShimOptions{Dir: h.dir, Services: []string{"codegraph"}, Worktree: repo})
+	// Hạn mặc định (3 s + 4 s, vừa với timeout khởi động của harness) chỉ là chặn treo ở đây: máy tải nặng spawn upstream
+	// giả lâu hơn 4 s thì instructions nêu lỗi hết hạn thay vì kiểm được chuyển tiếp.
+	sh, err := NewShim(ShimOptions{Dir: h.dir, Services: []string{"codegraph"}, Worktree: repo,
+		StartWait: 15 * time.Second, OpenWait: 15 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,7 +501,7 @@ func newFakeGateway(t *testing.T) (*fakeGW, ShimOptions) {
 	if err := writeInfo(dir, Info{PID: os.Getpid(), Port: port, Token: "tok"}); err != nil {
 		t.Fatal(err)
 	}
-	return f, ShimOptions{Dir: dir, Services: []string{"specmatic"}, Worktree: t.TempDir(),
+	return f, ShimOptions{Dir: dir, Services: []string{"specmatic"}, Worktree: t.TempDir(), StartWait: 15 * time.Second, OpenWait: 15 * time.Second,
 		Start: func(context.Context, string) (Info, error) {
 			return Info{}, errors.New("không được khởi động")
 		}}
