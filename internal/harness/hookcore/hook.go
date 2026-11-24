@@ -452,6 +452,15 @@ func Handle(ctx context.Context, hi Input, d Dialect, env Env) (Result, error) {
 					return Result{Output: out}, nil
 				}
 			}
+			if d.RemindPreTool && d.PreToolOutput != nil && wideTestNudge(hcomp.SessionPath(paths.Runtime, h, hi.SessionID), hi.AgentType, info.Command) {
+				ge := ev
+				ge.Type = spool.GuardrailTriggered
+				ge.Payload = map[string]any{"guardrail": GuardrailWideTestNudge, "outcome": "fired", "on": hcomp.OnPreBash, "action": hcomp.ActRemind,
+					"requested": hcomp.ActRemind, "blocked": false, "tool": hi.ToolName, "command": detect.Redact(info.Command, 300)}
+				ge.EventID = EventID(h, hi.SessionID, hi.RawEvent, toolKey(), "guardrail", GuardrailWideTestNudge, "fired", hcomp.OnPreBash)
+				f, _ := spool.Write(paths.Spool, ge)
+				return Result{Written: f != "", SpoolFile: f, Output: d.PreToolOutput(WideTestNudge, "")}, nil
+			}
 			return Result{Skipped: "ảnh chụp trước lệnh shell"}, nil
 		}
 		if info.Kind != ToolRead && info.Kind != ToolEdit {

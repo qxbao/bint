@@ -112,7 +112,11 @@ func RenderAgents(items []*Item, opts RenderOptions) (string, Selection) {
 		b.WriteString("## Quy ước của dự án (Bint)\n\n")
 		b.WriteString("Ghi lại điều bất thường vừa phát hiện (lệnh đặc biệt, chỗ dễ sai) bằng\n")
 		b.WriteString("`bint knowledge add --type warning --paths '<glob>' --evidence <tệp>:<dòng> \"<nội dung>\"`;\n")
-		b.WriteString("mục do agent ghi chờ người duyệt, không tự có hiệu lực.\n")
+		b.WriteString("mục do agent ghi chờ người duyệt, không tự có hiệu lực.\n\n")
+		// Lời dặn chọn test (cùng cách của khối `bgraph agent install`, trỏ tới CLI của Bint vì bgraph nhúng trong Bint): nêu sự thật, ngắn,
+		// đọc được cả ở subagent. Trong tác vụ, đề bài b-feat và `bint task check` đã nói điều này.
+		b.WriteString("Sau khi sửa mã ngoài tác vụ Bint, `bint test affected --run` chạy các test mà thay đổi chưa commit có thể ảnh hưởng\n")
+		b.WriteString("(bgraph chọn; không thu hẹp được thì chạy cả bộ) thay cho cả bộ test; CI vẫn là lần kiểm cuối.\n")
 	}
 
 	if sel.Count() == 0 {

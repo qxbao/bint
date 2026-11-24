@@ -890,6 +890,12 @@ bint test affected --base origin/main --run      # chạy luôn và thoát theo 
 (`merge-base`). `--run` chạy lệnh bgraph dựng, `eval.test_command` khi bgraph đòi cả bộ, không chạy gì ở `none`. Với `--json`, đầu
 ra của lệnh test đi sang stderr. Chỉ mục của bgraph nằm trong thư mục trạng thái của Bint (`<state>/bgraph`), không ghi vào repo.
 
+**Agent ngoài tác vụ.** Khối Bint trong `AGENTS.md` có một dòng trỏ tới `bint test affected --run` sau khi sửa mã. Hook PreToolUse
+(harness chèn được ngữ cảnh trước công cụ) nhắc một lần mỗi phiên khi agent sắp chạy cả bộ test (`go test ./...`, `npm test`,
+`pytest`… theo `agent.IsFullSuiteCommand` của bgraph); chỉ nhắc, không chặn, ghi sự kiện guardrail `wide-test-nudge`. Không nhắc
+trong tác vụ (`BINT_TASK_ID`, subagent `bint-*`): ở đó luồng B′ chặn hẳn lệnh kiểm chứng đầy đủ (`bprime-wide-test`). Bint không
+dùng `bgraph agent install` vì khối đó gọi binary `bgraph`, còn Bint nhúng bgraph làm thư viện.
+
 #### Khoá `expect: fail` (cổng đỏ)
 
 Bước implement khai báo `expect: fail` là bước viết **kiểm thử tái hiện lỗi**: sau nó Bint luôn chạy lệnh kiểm chứng của phiếu

@@ -8,6 +8,9 @@ Ghi lại điều bất thường vừa phát hiện (lệnh đặc biệt, ch�
 `bint knowledge add --type warning --paths '<glob>' --evidence <tệp>:<dòng> "<nội dung>"`;
 mục do agent ghi chờ người duyệt, không tự có hiệu lực.
 
+Sau khi sửa mã ngoài tác vụ Bint, `bint test affected --run` chạy các test mà thay đổi chưa commit có thể ảnh hưởng
+(bgraph chọn; không thu hẹp được thì chạy cả bộ) thay cho cả bộ test; CI vẫn là lần kiểm cuối.
+
 ### Quy tắc bắt buộc
 
 - **Mã phải qua go vet và staticcheck với GOOS=windows; mã theo nền tảng tách cặp *_unix.go / *_windows.go** [k:01M746NASVKV9XMRHA4QNHJ3R8]

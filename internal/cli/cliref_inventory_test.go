@@ -67,6 +67,7 @@ var baseExclusions = []exclusion{
 	{"workflow/check.go", " --step b-feat \"<lỗi môi trường checkout sạch>\"", rAgent + " (ghi chú của bint task check: lỗi môi trường của kiểm nền)"},
 	{"knowledge/render.go", "bint bootstrap publish", rFile + ": khối AGENTS.md"},
 	{"knowledge/render.go", "bint knowledge add", rFile + ": khối AGENTS.md"},
+	{"knowledge/render.go", "bint test affected", rFile + ": khối AGENTS.md"},
 	{"task/task.go", "Phiếu tác vụ Bint", rFile + ": chú thích đầu task.yml"},
 	{"task/task.go", "verify.command chỉ được Bint chạy", rFile + ": chú thích đầu task.yml"},
 	{"eval/case.go", "Ứng viên tác vụ đánh giá", rFile + ": chú thích của tệp ứng viên đánh giá"},
