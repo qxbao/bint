@@ -2,12 +2,17 @@ package testutil
 
 import (
 	"bytes"
+	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -136,16 +141,20 @@ func listTests() ([]string, error) {
 // quả test. Mỗi mẻ ghi nhật ký riêng; tiến trình cha gộp lại vào tệp go test chờ (xem mergeTestlogs).
 const testlogFlag = "-test.testlogfile="
 
-// runShards phân test thành nhiều mẻ nhỏ cho procs tiến trình con lấy dần (mẻ nhỏ để test dài không dồn vào một
-// tiến trình). Đầu ra mỗi mẻ được in nguyên khối khi mẻ xong, bỏ dòng PASS/FAIL cuối; dòng kết thúc của gói in một
-// lần ở cuối để go test và test2json đọc như một lần chạy.
+// runShards chạy mỗi test top-level trong một tiến trình con (khởi động binary test chỉ tốn vài chục ms), procs
+// tiến trình cùng lúc, test dài trước theo thời gian đo ở lần chạy trước (durations; test chưa đo xếp đầu). Gói
+// chậm có vài test dài hàng trăm giây: chạy chúng sau cùng thì thời gian cả gói thành tổng của phần còn lại cộng
+// test dài nhất. Đầu ra mỗi mẻ được in nguyên khối khi mẻ xong, bỏ dòng PASS/FAIL cuối; dòng kết thúc của gói in
+// một lần ở cuối để go test và test2json đọc như một lần chạy.
 func runShards(names []string, procs int) int {
 	procs = min(procs, len(names))
-	size := max(1, len(names)/(procs*6))
-	var batches [][]string
-	for i := 0; i < len(names); i += size {
-		batches = append(batches, names[i:min(i+size, len(names))])
+	known := loadDurations()
+	order := longestFirst(names, known)
+	batches := make([][]string, len(order))
+	for i, n := range order {
+		batches[i] = []string{n}
 	}
+	measured := map[string]float64{}
 	failfast := hasFlag(os.Args[1:], "failfast")
 	args, testlog := splitTestlog(os.Args[1:])
 	var logDir string
@@ -180,8 +189,11 @@ func runShards(names []string, procs int) int {
 		go func() {
 			defer wg.Done()
 			for b := take(); b != nil; b = take() {
-				out, ok := runBatch(args, b, logDir)
+				out, ok, took := runBatch(args, b, logDir)
 				mu.Lock()
+				if ok {
+					measured[b[0]] = took.Seconds()
+				}
 				os.Stdout.Write(out)
 				if !ok {
 					failed = true
@@ -191,6 +203,7 @@ func runShards(names []string, procs int) int {
 		}()
 	}
 	wg.Wait()
+	saveDurations(known, measured)
 	if testlog != "" {
 		if err := mergeTestlogs(testlog, logDir); err != nil {
 			fmt.Fprintf(os.Stderr, "testutil: gộp nhật ký đầu vào test: %v\n", err)
@@ -247,7 +260,7 @@ func acquireSlot() (release func()) {
 }
 
 // runBatch chạy một mẻ test trong tiến trình con với đúng cờ của tiến trình cha.
-func runBatch(base, names []string, logDir string) ([]byte, bool) {
+func runBatch(base, names []string, logDir string) ([]byte, bool, time.Duration) {
 	defer acquireSlot()()
 	args := append([]string{}, base...)
 	if logDir != "" {
@@ -261,8 +274,73 @@ func runBatch(base, names []string, logDir string) ([]byte, bool) {
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
+	start := time.Now()
 	err := cmd.Run()
-	return trimResultLine(buf.Bytes()), err == nil
+	return trimResultLine(buf.Bytes()), err == nil, time.Since(start)
+}
+
+// Thời gian từng test top-level của gói, đo ở lần chạy trước (chỉ test qua), để xếp test dài chạy trước. Lưu ở
+// %TEMP%/bint-test-durations/<băm thư mục gói>.json: tiến trình test của go test chạy ở thư mục gói. Chỉ là gợi ý
+// xếp lịch: tệp thiếu hay hỏng thì xếp theo thứ tự khai báo.
+func durationsPath() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(strings.ToLower(filepath.Clean(cwd))))
+	return filepath.Join(os.TempDir(), "bint-test-durations", hex.EncodeToString(sum[:8])+".json")
+}
+
+func loadDurations() map[string]float64 {
+	m := map[string]float64{}
+	if p := durationsPath(); p != "" {
+		if b, err := os.ReadFile(p); err == nil {
+			_ = json.Unmarshal(b, &m)
+		}
+	}
+	return m
+}
+
+// saveDurations gộp số đo mới vào số đo cũ (test không chạy lần này giữ số cũ) rồi ghi lại; lỗi bỏ qua.
+func saveDurations(old, measured map[string]float64) {
+	p := durationsPath()
+	if p == "" || len(measured) == 0 {
+		return
+	}
+	for k, v := range measured {
+		old[k] = v
+	}
+	b, err := json.Marshal(old)
+	if err != nil {
+		return
+	}
+	if os.MkdirAll(filepath.Dir(p), 0o755) != nil {
+		return
+	}
+	tmp := fmt.Sprintf("%s.%d.tmp", p, os.Getpid())
+	if os.WriteFile(tmp, b, 0o644) == nil && os.Rename(tmp, p) != nil {
+		os.Remove(tmp)
+	}
+}
+
+// longestFirst xếp test theo thời gian đã đo giảm dần; test chưa đo (mới, hoặc chưa có số đo) lên đầu theo thứ tự
+// khai báo, vì có thể dài.
+func longestFirst(names []string, known map[string]float64) []string {
+	out := slices.Clone(names)
+	slices.SortStableFunc(out, func(a, b string) int {
+		da, oka := known[a]
+		db, okb := known[b]
+		switch {
+		case !oka && !okb:
+			return 0
+		case !oka:
+			return -1
+		case !okb:
+			return 1
+		}
+		return cmp.Compare(db, da)
+	})
+	return out
 }
 
 // trimResultLine bỏ dòng kết quả gói ("PASS"/"FAIL", có thể kèm byte khung \x16 của test2json) ở cuối đầu ra.

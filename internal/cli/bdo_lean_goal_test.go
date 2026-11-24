@@ -760,274 +760,276 @@ func checkSkills(t *testing.T) {
 
 // ---------- kiểm tra mục tiêu ----------
 
-func TestGoalBDoLeanSlicesAndGates(t *testing.T) {
-	t.Run("config_keys", checkConfigKeys)
-	t.Run("lint_strategy", checkLintStrategy)
-	t.Run("skills_package_tests_synced", checkSkills)
+// TestGoalBDoLeanSlicesAndGates tách thành các test top-level (trước là một test với các subtest tuần tự, ~420 s): bộ chia tiến trình
+// của testutil chỉ chia được ở mức top-level, nên test gộp là đường găng của cả gói cli.
+func TestGoalBDoLeanSlicesAndGates_config_keys(t *testing.T) { checkConfigKeys(t) }
 
-	// AC-2: khoá workflow.slicing / workflow.goal_check và plan.md quyết định b-goal và lát.
-	t.Run("gating", func(t *testing.T) {
-		for _, tc := range []struct {
-			name      string
-			o         bdoOpts
-			wantGoal  bool
-			wantSlice bool
-		}{
-			{"plan_no_auto", bdoOpts{planSlice: "không", planGoal: "không"}, false, false},
-			{"plan_yes_off", bdoOpts{planSlice: "có", planGoal: "có", slicing: "off", goalCheck: "off"}, false, false},
-			{"plan_no_always", bdoOpts{planSlice: "không", planGoal: "không", slicing: "always", goalCheck: "always",
-				feats: []string{"w:c1", "w:c2", "w:c3"}}, true, true},
-			{"fast", bdoOpts{planSlice: "có", planGoal: "có", fast: true}, false, false},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				b := newBDo(t, tc.o)
-				r := b.start()
-				b.checkNoSilentDone(r)
-				if b.featN() == 0 {
-					t.Fatalf("không chạy tới b-feat (không đo được b-goal/lát): %s %q\n%s", r.Status, r.Reason, b.dump())
-				}
-				goals, sl := b.count("b-goal"), len(b.show().Slices)
-				if tc.wantGoal && goals != 1 {
-					t.Errorf("muốn đúng 1 lần gọi agent b-goal, được %d\n%s", goals, b.dump())
-				}
-				if !tc.wantGoal && goals != 0 {
-					t.Errorf("muốn 0 lần gọi agent b-goal, được %d\n%s", goals, b.dump())
-				}
-				if tc.wantSlice && (sl < 2 || b.sliceFeats() < 2) {
-					t.Errorf("muốn chạy theo lát như cũ (≥ 2 lát): State.Slices %d, b-feat theo lát %d\n%s", sl, b.sliceFeats(), b.dump())
-				}
-				if !tc.wantSlice && (sl != 0 || b.sliceFeats() != 0) {
-					t.Errorf("muốn 0 lát: State.Slices %d, b-feat theo lát %d\n%s", sl, b.sliceFeats(), b.dump())
-				}
-			})
-		}
-	})
+func TestGoalBDoLeanSlicesAndGates_lint_strategy(t *testing.T) { checkLintStrategy(t) }
 
-	// AC-6 (+ AC-2 auto/có): tác vụ 2 lát: không lần nào chạy cả bộ (verify.command); mọi lần kiểm chứng là phần chọn của bgraph, cổng done nhận nó.
-	t.Run("two_slices_no_full_run", func(t *testing.T) {
-		b := newBDo(t, bdoOpts{cells: []string{"c1", "c2"}, planSlice: "có", planGoal: "có", feats: []string{"w:c1", "w:c2"}})
-		r := b.start()
-		b.checkNoSilentDone(r)
-		if got := b.count("b-goal"); got != 1 {
-			t.Errorf("plan ghi có, goal_check auto: muốn 1 lần b-goal, được %d", got)
-		}
-		st := b.show()
-		if len(st.Slices) != 2 || b.sliceFeats() != 2 {
-			t.Fatalf("plan ghi có, slicing auto: muốn 2 lát, State.Slices %d, b-feat theo lát %d\n%s", len(st.Slices), b.sliceFeats(), b.dump())
-		}
-		if r.Status != task.StatusDone {
-			t.Errorf("hai lát đạt: tác vụ phải done, được %s %q\n%s", r.Status, r.Reason, b.dump())
-		}
-		if n := b.fullRuns(); n != 0 {
-			t.Errorf("verify.command (cả bộ) chạy %d lần, muốn 0\n%s", n, b.dump())
-		}
-		for i, v := range st.Verifications {
-			if v.Selection == nil || v.Scope == "" || v.Scope == "full" {
-				t.Errorf("lần kiểm chứng %d/%d không phải phần chọn của bgraph: scope %q selection %+v", i+1, len(st.Verifications), v.Scope, v.Selection)
+func TestGoalBDoLeanSlicesAndGates_skills_package_tests_synced(t *testing.T) { checkSkills(t) }
+
+// AC-2: khoá workflow.slicing / workflow.goal_check và plan.md quyết định b-goal và lát.
+func TestGoalBDoLeanSlicesAndGates_gating(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		o         bdoOpts
+		wantGoal  bool
+		wantSlice bool
+	}{
+		{"plan_no_auto", bdoOpts{planSlice: "không", planGoal: "không"}, false, false},
+		{"plan_yes_off", bdoOpts{planSlice: "có", planGoal: "có", slicing: "off", goalCheck: "off"}, false, false},
+		{"plan_no_always", bdoOpts{planSlice: "không", planGoal: "không", slicing: "always", goalCheck: "always",
+			feats: []string{"w:c1", "w:c2", "w:c3"}}, true, true},
+		{"fast", bdoOpts{planSlice: "có", planGoal: "có", fast: true}, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := newBDo(t, tc.o)
+			r := b.start()
+			b.checkNoSilentDone(r)
+			if b.featN() == 0 {
+				t.Fatalf("không chạy tới b-feat (không đo được b-goal/lát): %s %q\n%s", r.Status, r.Reason, b.dump())
 			}
-		}
-		for k := 1; k <= 2; k++ {
-			p := b.featPrompt(k)
-			if !strings.Contains(p, bdoGroup(fmt.Sprintf("c%d", k))) {
-				t.Errorf("đề bài lát %d thiếu nguyên văn nhóm của lát:\n%.2000s", k, p)
+			goals, sl := b.count("b-goal"), len(b.show().Slices)
+			if tc.wantGoal && goals != 1 {
+				t.Errorf("muốn đúng 1 lần gọi agent b-goal, được %d\n%s", goals, b.dump())
 			}
-			if !bdoPkgTestRule.MatchString(p) {
-				t.Errorf("đề bài lát %d không dặn chỉ chạy test của gói đã sửa", k)
+			if !tc.wantGoal && goals != 0 {
+				t.Errorf("muốn 0 lần gọi agent b-goal, được %d\n%s", goals, b.dump())
 			}
-		}
-	})
-
-	// AC-3: lát không đạt → giữ cây, blocked với 3 lựa chọn; mỗi lựa chọn chạy đúng hành vi.
-	t.Run("failed_slice", func(t *testing.T) {
-		for _, opt := range []string{"keep", "discard", "more"} {
-			t.Run(opt, func(t *testing.T) {
-				b := newBDo(t, bdoOpts{planSlice: "có", planGoal: "có", feats: []string{"w:c1", "bad:c2"}})
-				r := b.start()
-				b.checkNoSilentDone(r)
-				if b.featN() < 2 {
-					t.Fatalf("lát 2 không chạy: %s %q\n%s", r.Status, r.Reason, b.dump())
-				}
-				if b.featN() != 2 {
-					t.Errorf("lát 2 không đạt: Bint phải dừng hỏi người, không tự chạy b-feat tiếp (đã chạy %d b-feat)\n%s", b.featN(), b.dump())
-				}
-				if r.Status != task.StatusBlocked {
-					t.Errorf("lát 2 không đạt: tác vụ phải blocked, được %s %q", r.Status, r.Reason)
-				}
-				if miss := bdoHasSliceOptions(r); len(miss) > 0 {
-					t.Errorf("lý do chặn/lựa chọn thiếu %v: %q %+v", miss, r.Reason, r.Choices)
-				}
-				reverted := 0
-				for rel, want := range map[string]string{"a/c2.txt": "sai", "a/x2.txt": "x", "a/c1.txt": "ok-c1"} {
-					if got := b.read(rel); got != want {
-						reverted++
-						t.Errorf("%s bị đổi sau lát hỏng: %q, muốn giữ %q", rel, got, want)
-					}
-				}
-				if reverted > 0 {
-					t.Errorf("%d tệp bị Bint đưa về điểm xanh, muốn 0", reverted)
-				}
-				r = b.resume("--slice", opt)
-				b.checkNoSilentDone(r)
-				if b.featN() < 3 {
-					t.Fatalf("resume --slice %s không chạy b-feat nào: %s %q\n%s", opt, r.Status, r.Reason, b.dump())
-				}
-				fs, _ := b.featState(3)
-				files := b.featFiles(3)
-				act := fs.active()
-				switch opt {
-				case "keep":
-					if files["c2"] != "sai" || files["x2"] != "x" {
-						t.Errorf("keep: lát kế phải bắt đầu từ cây của lát 2 (c2=sai, x2=x), được %v", files)
-					}
-					if act == nil || act.N != 3 {
-						t.Errorf("keep: b-feat kế phải là lát 3, lát active %+v", act)
-					}
-					if len(fs.Slices) >= 2 && fs.Slices[1].Status != task.SliceAccepted {
-						t.Errorf("keep: lát 2 phải được chốt (accepted), được %q", fs.Slices[1].Status)
-					}
-				case "discard":
-					if files["c2"] != "<none>" || files["x2"] != "<none>" || files["c1"] != "ok-c1" {
-						t.Errorf("discard: cây phải về điểm xanh sau lát 1 (c1=ok-c1, không c2, không x2), được %v", files)
-					}
-					if act == nil || act.N != 3 {
-						t.Errorf("discard: b-feat kế phải là lát 3, lát active %+v", act)
-					}
-					if len(fs.Slices) >= 2 && fs.Slices[1].Status != task.SliceDiscarded {
-						t.Errorf("discard: lát 2 phải discarded, được %q", fs.Slices[1].Status)
-					}
-				case "more":
-					if files["c2"] != "sai" || files["x2"] != "x" {
-						t.Errorf("more: lát 2 chạy lại phải bắt đầu từ cây hiện tại (c2=sai, x2=x), được %v", files)
-					}
-					if act == nil || act.N != 2 {
-						t.Errorf("more: b-feat kế phải chạy lại lát 2, lát active %+v", act)
-					}
-				}
-			})
-		}
-	})
-
-	// AC-3: agent lỗi trong lát → giữ cây, blocked với 3 lựa chọn.
-	t.Run("agent_error_slice", func(t *testing.T) {
-		b := newBDo(t, bdoOpts{planSlice: "có", planGoal: "có", feats: []string{"w:c1", "err:c2"}})
-		r := b.start()
-		b.checkNoSilentDone(r)
-		if b.featN() != 2 {
-			t.Errorf("agent lỗi ở lát 2: muốn dừng sau 2 b-feat, đã chạy %d\n%s", b.featN(), b.dump())
-		}
-		if r.Status != task.StatusBlocked {
-			t.Errorf("agent lỗi ở lát 2: tác vụ phải blocked, được %s %q", r.Status, r.Reason)
-		}
-		if miss := bdoHasSliceOptions(r); len(miss) > 0 {
-			t.Errorf("lý do chặn/lựa chọn thiếu %v: %q %+v", miss, r.Reason, r.Choices)
-		}
-		for rel, want := range map[string]string{"a/c2.txt": "dở", "a/x2.txt": "x"} {
-			if got := b.read(rel); got != want {
-				t.Errorf("%s bị đưa về điểm xanh sau agent lỗi: %q, muốn giữ %q", rel, got, want)
+			if tc.wantSlice && (sl < 2 || b.sliceFeats() < 2) {
+				t.Errorf("muốn chạy theo lát như cũ (≥ 2 lát): State.Slices %d, b-feat theo lát %d\n%s", sl, b.sliceFeats(), b.dump())
 			}
-		}
-	})
-
-	// AC-3/AC-4: trần lát chỉ tính thời gian agent; lát quá trần giữ cây và hỏi người.
-	t.Run("slice_cap_agent_time_only", func(t *testing.T) {
-		b := newBDo(t, bdoOpts{cells: []string{"c1", "c2"}, planSlice: "có", planGoal: "có", sliceMin: 1, recSleep: 20,
-			feats: []string{"slow:c1", "hang:c2"}})
-		r := b.start()
-		b.checkNoSilentDone(r)
-		st := b.show()
-		if len(st.Slices) != 2 {
-			t.Fatalf("muốn 2 lát, State.Slices %+v\n%s", st.Slices, b.dump())
-		}
-		if st.Slices[0].Status != task.SliceAccepted {
-			t.Errorf("lát 1: agent 25 giây < trần 1 phút (kiểm chứng + cổng mục tiêu ~40 giây không tính) phải accepted, được %q %q",
-				st.Slices[0].Status, st.Slices[0].Reason)
-		}
-		if b.featN() != 2 {
-			t.Errorf("lát 2 quá trần: muốn dừng sau 2 b-feat, đã chạy %d", b.featN())
-		}
-		if r.Status != task.StatusBlocked {
-			t.Errorf("lát 2 quá trần: tác vụ phải blocked, được %s %q", r.Status, r.Reason)
-		}
-		if miss := bdoHasSliceOptions(r); len(miss) > 0 {
-			t.Errorf("lý do chặn/lựa chọn thiếu %v: %q %+v", miss, r.Reason, r.Choices)
-		}
-		if got := b.read("a/x2.txt"); got != "x" {
-			t.Errorf("a/x2.txt của lát quá trần bị đưa về điểm xanh: %q, muốn giữ", got)
-		}
-		if got := b.read("a/c1.txt"); got != "ok-c1" {
-			t.Errorf("a/c1.txt (lát 1 đã chốt) phải còn: %q", got)
-		}
-	})
-
-	// AC-4: tắt lát khi tác vụ đang chia lát → resume chạy 1 b-feat thường cho phần còn lại.
-	t.Run("disable_slicing_midway", func(t *testing.T) {
-		for _, tc := range []struct {
-			name string
-			off  func(*bdoOpts)
-		}{
-			{"slice_timeout_0", func(o *bdoOpts) { o.sliceMin = -1 }},
-			{"slicing_off", func(o *bdoOpts) { o.slicing = "off" }},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				// Lát 1 ghi ô c1 rồi hỏi người (bint task error --question): tác vụ dừng giữa chừng khi đang chia lát.
-				o := bdoOpts{planSlice: "có", planGoal: "có", feats: []string{"ask:c1"}}
-				b := newBDo(t, o)
-				r := b.start()
-				b.checkNoSilentDone(r)
-				st := b.show()
-				if b.featN() != 1 || len(st.Slices) != 3 || r.Status != task.StatusBlocked {
-					t.Fatalf("điều kiện đầu: muốn dừng chờ người trong lát 1/3 (b-feat %d, lát %d, %s %q)\n%s",
-						b.featN(), len(st.Slices), r.Status, r.Reason, b.dump())
-				}
-				tc.off(&o)
-				b.writeLocal(o)
-				r = b.resume("--answer", "Làm nốt mọi ô còn lại trong một lượt.")
-				b.checkNoSilentDone(r)
-				b.checkOpenListed(r)
-				if got := b.featN() - 1; got != 1 {
-					t.Errorf("sau khi tắt lát, resume phải chạy đúng 1 b-feat, đã chạy %d\n%s", got, b.dump())
-				}
-				if fs, ok := b.featState(2); ok && fs.active() != nil {
-					t.Errorf("b-feat sau khi tắt lát vẫn chạy như lát %d", fs.active().N)
-				}
-				if b.featN() >= 2 {
-					if p := b.featPrompt(2); regexp.MustCompile(`lát\s*\d+\s*/\s*3`).MatchString(p) && strings.Contains(p, "CHỈ LÀM") {
-						t.Errorf("đề bài b-feat sau khi tắt lát vẫn là đề bài lát:\n%.1500s", p)
-					}
-				}
-			})
-		}
-	})
-
-	// AC-5: bint_config_full: false → .bint/** bị bỏ khỏi tập thay đổi (không vào Changed, không gây nới).
-	t.Run("bint_config_full_false", func(t *testing.T) {
-		f := false
-		b := newBDo(t, bdoOpts{cells: []string{"c1", "c2"}, planSlice: "không", planGoal: "không", cfgFull: &f, feats: []string{"cfg"}})
-		r := b.start()
-		b.checkNoSilentDone(r)
-		if b.featN() == 0 {
-			t.Fatalf("không chạy tới b-feat: %s %q\n%s", r.Status, r.Reason, b.dump())
-		}
-		st := b.show()
-		scoped, sawCfg := 0, false
-		for i, v := range st.Verifications {
-			if v.Selection == nil {
-				continue
+			if !tc.wantSlice && (sl != 0 || b.sliceFeats() != 0) {
+				t.Errorf("muốn 0 lát: State.Slices %d, b-feat theo lát %d\n%s", sl, b.sliceFeats(), b.dump())
 			}
-			scoped++
-			if slices.Contains(v.Selection.Changed, ".bint/config.yml") {
-				sawCfg = true
+		})
+	}
+}
+
+// AC-6 (+ AC-2 auto/có): tác vụ 2 lát: không lần nào chạy cả bộ (verify.command); mọi lần kiểm chứng là phần chọn của bgraph, cổng done nhận nó.
+func TestGoalBDoLeanSlicesAndGates_two_slices_no_full_run(t *testing.T) {
+	b := newBDo(t, bdoOpts{cells: []string{"c1", "c2"}, planSlice: "có", planGoal: "có", feats: []string{"w:c1", "w:c2"}})
+	r := b.start()
+	b.checkNoSilentDone(r)
+	if got := b.count("b-goal"); got != 1 {
+		t.Errorf("plan ghi có, goal_check auto: muốn 1 lần b-goal, được %d", got)
+	}
+	st := b.show()
+	if len(st.Slices) != 2 || b.sliceFeats() != 2 {
+		t.Fatalf("plan ghi có, slicing auto: muốn 2 lát, State.Slices %d, b-feat theo lát %d\n%s", len(st.Slices), b.sliceFeats(), b.dump())
+	}
+	if r.Status != task.StatusDone {
+		t.Errorf("hai lát đạt: tác vụ phải done, được %s %q\n%s", r.Status, r.Reason, b.dump())
+	}
+	if n := b.fullRuns(); n != 0 {
+		t.Errorf("verify.command (cả bộ) chạy %d lần, muốn 0\n%s", n, b.dump())
+	}
+	for i, v := range st.Verifications {
+		if v.Selection == nil || v.Scope == "" || v.Scope == "full" {
+			t.Errorf("lần kiểm chứng %d/%d không phải phần chọn của bgraph: scope %q selection %+v", i+1, len(st.Verifications), v.Scope, v.Selection)
+		}
+	}
+	for k := 1; k <= 2; k++ {
+		p := b.featPrompt(k)
+		if !strings.Contains(p, bdoGroup(fmt.Sprintf("c%d", k))) {
+			t.Errorf("đề bài lát %d thiếu nguyên văn nhóm của lát:\n%.2000s", k, p)
+		}
+		if !bdoPkgTestRule.MatchString(p) {
+			t.Errorf("đề bài lát %d không dặn chỉ chạy test của gói đã sửa", k)
+		}
+	}
+}
+
+// AC-3: lát không đạt → giữ cây, blocked với 3 lựa chọn; mỗi lựa chọn chạy đúng hành vi.
+func TestGoalBDoLeanSlicesAndGates_failed_slice(t *testing.T) {
+	for _, opt := range []string{"keep", "discard", "more"} {
+		t.Run(opt, func(t *testing.T) {
+			b := newBDo(t, bdoOpts{planSlice: "có", planGoal: "có", feats: []string{"w:c1", "bad:c2"}})
+			r := b.start()
+			b.checkNoSilentDone(r)
+			if b.featN() < 2 {
+				t.Fatalf("lát 2 không chạy: %s %q\n%s", r.Status, r.Reason, b.dump())
 			}
-			for _, w := range v.Selection.Widening {
-				if w.Reason == "bint_config" {
-					t.Errorf("lần kiểm chứng %d nới %s vì bint_config (%s) dù bint_config_full: false", i+1, v.Scope, w.Path)
+			if b.featN() != 2 {
+				t.Errorf("lát 2 không đạt: Bint phải dừng hỏi người, không tự chạy b-feat tiếp (đã chạy %d b-feat)\n%s", b.featN(), b.dump())
+			}
+			if r.Status != task.StatusBlocked {
+				t.Errorf("lát 2 không đạt: tác vụ phải blocked, được %s %q", r.Status, r.Reason)
+			}
+			if miss := bdoHasSliceOptions(r); len(miss) > 0 {
+				t.Errorf("lý do chặn/lựa chọn thiếu %v: %q %+v", miss, r.Reason, r.Choices)
+			}
+			reverted := 0
+			for rel, want := range map[string]string{"a/c2.txt": "sai", "a/x2.txt": "x", "a/c1.txt": "ok-c1"} {
+				if got := b.read(rel); got != want {
+					reverted++
+					t.Errorf("%s bị đổi sau lát hỏng: %q, muốn giữ %q", rel, got, want)
 				}
 			}
+			if reverted > 0 {
+				t.Errorf("%d tệp bị Bint đưa về điểm xanh, muốn 0", reverted)
+			}
+			r = b.resume("--slice", opt)
+			b.checkNoSilentDone(r)
+			if b.featN() < 3 {
+				t.Fatalf("resume --slice %s không chạy b-feat nào: %s %q\n%s", opt, r.Status, r.Reason, b.dump())
+			}
+			fs, _ := b.featState(3)
+			files := b.featFiles(3)
+			act := fs.active()
+			switch opt {
+			case "keep":
+				if files["c2"] != "sai" || files["x2"] != "x" {
+					t.Errorf("keep: lát kế phải bắt đầu từ cây của lát 2 (c2=sai, x2=x), được %v", files)
+				}
+				if act == nil || act.N != 3 {
+					t.Errorf("keep: b-feat kế phải là lát 3, lát active %+v", act)
+				}
+				if len(fs.Slices) >= 2 && fs.Slices[1].Status != task.SliceAccepted {
+					t.Errorf("keep: lát 2 phải được chốt (accepted), được %q", fs.Slices[1].Status)
+				}
+			case "discard":
+				if files["c2"] != "<none>" || files["x2"] != "<none>" || files["c1"] != "ok-c1" {
+					t.Errorf("discard: cây phải về điểm xanh sau lát 1 (c1=ok-c1, không c2, không x2), được %v", files)
+				}
+				if act == nil || act.N != 3 {
+					t.Errorf("discard: b-feat kế phải là lát 3, lát active %+v", act)
+				}
+				if len(fs.Slices) >= 2 && fs.Slices[1].Status != task.SliceDiscarded {
+					t.Errorf("discard: lát 2 phải discarded, được %q", fs.Slices[1].Status)
+				}
+			case "more":
+				if files["c2"] != "sai" || files["x2"] != "x" {
+					t.Errorf("more: lát 2 chạy lại phải bắt đầu từ cây hiện tại (c2=sai, x2=x), được %v", files)
+				}
+				if act == nil || act.N != 2 {
+					t.Errorf("more: b-feat kế phải chạy lại lát 2, lát active %+v", act)
+				}
+			}
+		})
+	}
+}
+
+// AC-3: agent lỗi trong lát → giữ cây, blocked với 3 lựa chọn.
+func TestGoalBDoLeanSlicesAndGates_agent_error_slice(t *testing.T) {
+	b := newBDo(t, bdoOpts{planSlice: "có", planGoal: "có", feats: []string{"w:c1", "err:c2"}})
+	r := b.start()
+	b.checkNoSilentDone(r)
+	if b.featN() != 2 {
+		t.Errorf("agent lỗi ở lát 2: muốn dừng sau 2 b-feat, đã chạy %d\n%s", b.featN(), b.dump())
+	}
+	if r.Status != task.StatusBlocked {
+		t.Errorf("agent lỗi ở lát 2: tác vụ phải blocked, được %s %q", r.Status, r.Reason)
+	}
+	if miss := bdoHasSliceOptions(r); len(miss) > 0 {
+		t.Errorf("lý do chặn/lựa chọn thiếu %v: %q %+v", miss, r.Reason, r.Choices)
+	}
+	for rel, want := range map[string]string{"a/c2.txt": "dở", "a/x2.txt": "x"} {
+		if got := b.read(rel); got != want {
+			t.Errorf("%s bị đưa về điểm xanh sau agent lỗi: %q, muốn giữ %q", rel, got, want)
 		}
-		if scoped == 0 {
-			t.Errorf("không có lần kiểm chứng nào có Selection: %+v\n%s", st.Verifications, b.dump())
-		} else if sawCfg {
-			t.Errorf("bint_config_full: false thì .bint/config.yml phải bị bỏ khỏi tập thay đổi: %+v", st.Verifications)
+	}
+}
+
+// AC-3/AC-4: trần lát chỉ tính thời gian agent; lát quá trần giữ cây và hỏi người.
+func TestGoalBDoLeanSlicesAndGates_slice_cap_agent_time_only(t *testing.T) {
+	b := newBDo(t, bdoOpts{cells: []string{"c1", "c2"}, planSlice: "có", planGoal: "có", sliceMin: 1, recSleep: 20,
+		feats: []string{"slow:c1", "hang:c2"}})
+	r := b.start()
+	b.checkNoSilentDone(r)
+	st := b.show()
+	if len(st.Slices) != 2 {
+		t.Fatalf("muốn 2 lát, State.Slices %+v\n%s", st.Slices, b.dump())
+	}
+	if st.Slices[0].Status != task.SliceAccepted {
+		t.Errorf("lát 1: agent 25 giây < trần 1 phút (kiểm chứng + cổng mục tiêu ~40 giây không tính) phải accepted, được %q %q",
+			st.Slices[0].Status, st.Slices[0].Reason)
+	}
+	if b.featN() != 2 {
+		t.Errorf("lát 2 quá trần: muốn dừng sau 2 b-feat, đã chạy %d", b.featN())
+	}
+	if r.Status != task.StatusBlocked {
+		t.Errorf("lát 2 quá trần: tác vụ phải blocked, được %s %q", r.Status, r.Reason)
+	}
+	if miss := bdoHasSliceOptions(r); len(miss) > 0 {
+		t.Errorf("lý do chặn/lựa chọn thiếu %v: %q %+v", miss, r.Reason, r.Choices)
+	}
+	if got := b.read("a/x2.txt"); got != "x" {
+		t.Errorf("a/x2.txt của lát quá trần bị đưa về điểm xanh: %q, muốn giữ", got)
+	}
+	if got := b.read("a/c1.txt"); got != "ok-c1" {
+		t.Errorf("a/c1.txt (lát 1 đã chốt) phải còn: %q", got)
+	}
+}
+
+// AC-4: tắt lát khi tác vụ đang chia lát → resume chạy 1 b-feat thường cho phần còn lại.
+func TestGoalBDoLeanSlicesAndGates_disable_slicing_midway(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		off  func(*bdoOpts)
+	}{
+		{"slice_timeout_0", func(o *bdoOpts) { o.sliceMin = -1 }},
+		{"slicing_off", func(o *bdoOpts) { o.slicing = "off" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Lát 1 ghi ô c1 rồi hỏi người (bint task error --question): tác vụ dừng giữa chừng khi đang chia lát.
+			o := bdoOpts{planSlice: "có", planGoal: "có", feats: []string{"ask:c1"}}
+			b := newBDo(t, o)
+			r := b.start()
+			b.checkNoSilentDone(r)
+			st := b.show()
+			if b.featN() != 1 || len(st.Slices) != 3 || r.Status != task.StatusBlocked {
+				t.Fatalf("điều kiện đầu: muốn dừng chờ người trong lát 1/3 (b-feat %d, lát %d, %s %q)\n%s",
+					b.featN(), len(st.Slices), r.Status, r.Reason, b.dump())
+			}
+			tc.off(&o)
+			b.writeLocal(o)
+			r = b.resume("--answer", "Làm nốt mọi ô còn lại trong một lượt.")
+			b.checkNoSilentDone(r)
+			b.checkOpenListed(r)
+			if got := b.featN() - 1; got != 1 {
+				t.Errorf("sau khi tắt lát, resume phải chạy đúng 1 b-feat, đã chạy %d\n%s", got, b.dump())
+			}
+			if fs, ok := b.featState(2); ok && fs.active() != nil {
+				t.Errorf("b-feat sau khi tắt lát vẫn chạy như lát %d", fs.active().N)
+			}
+			if b.featN() >= 2 {
+				if p := b.featPrompt(2); regexp.MustCompile(`lát\s*\d+\s*/\s*3`).MatchString(p) && strings.Contains(p, "CHỈ LÀM") {
+					t.Errorf("đề bài b-feat sau khi tắt lát vẫn là đề bài lát:\n%.1500s", p)
+				}
+			}
+		})
+	}
+}
+
+// AC-5: bint_config_full: false → .bint/** bị bỏ khỏi tập thay đổi (không vào Changed, không gây nới).
+func TestGoalBDoLeanSlicesAndGates_bint_config_full_false(t *testing.T) {
+	f := false
+	b := newBDo(t, bdoOpts{cells: []string{"c1", "c2"}, planSlice: "không", planGoal: "không", cfgFull: &f, feats: []string{"cfg"}})
+	r := b.start()
+	b.checkNoSilentDone(r)
+	if b.featN() == 0 {
+		t.Fatalf("không chạy tới b-feat: %s %q\n%s", r.Status, r.Reason, b.dump())
+	}
+	st := b.show()
+	scoped, sawCfg := 0, false
+	for i, v := range st.Verifications {
+		if v.Selection == nil {
+			continue
 		}
-	})
+		scoped++
+		if slices.Contains(v.Selection.Changed, ".bint/config.yml") {
+			sawCfg = true
+		}
+		for _, w := range v.Selection.Widening {
+			if w.Reason == "bint_config" {
+				t.Errorf("lần kiểm chứng %d nới %s vì bint_config (%s) dù bint_config_full: false", i+1, v.Scope, w.Path)
+			}
+		}
+	}
+	if scoped == 0 {
+		t.Errorf("không có lần kiểm chứng nào có Selection: %+v\n%s", st.Verifications, b.dump())
+	} else if sawCfg {
+		t.Errorf("bint_config_full: false thì .bint/config.yml phải bị bỏ khỏi tập thay đổi: %+v", st.Verifications)
+	}
 }

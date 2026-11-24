@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -103,5 +104,14 @@ func TestUnderDir(t *testing.T) {
 		if got := underDir(c.path, base); got != c.want {
 			t.Errorf("underDir(%q, %q) = %v, muốn %v", c.path, base, got, c.want)
 		}
+	}
+}
+
+func TestLongestFirstPutsUnmeasuredThenSlowest(t *testing.T) {
+	known := map[string]float64{"TestA": 1, "TestB": 30, "TestC": 5}
+	got := longestFirst([]string{"TestA", "TestNew1", "TestB", "TestC", "TestNew2"}, known)
+	want := []string{"TestNew1", "TestNew2", "TestB", "TestC", "TestA"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("longestFirst = %v, muốn %v", got, want)
 	}
 }
