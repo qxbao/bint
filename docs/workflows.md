@@ -843,10 +843,10 @@ Bint không có bước "chạy cả bộ test". **Mọi lần chạy test** c�
 kiểm nền của luồng B′, cổng mục tiêu, cổng `done`, `bint task verify`) chạy các test bị ảnh hưởng do
 [bgraph](https://github.com/qxbao/bgraph) chọn, nhúng như thư viện trong binary của Bint (`internal/affected`).
 
-bgraph dựng đồ thị phụ thuộc mức tệp của cây mốc và cây mới cho Node (JS/TS), Python, Rust, JVM, .NET và Go, đi ngược từ tệp đổi và
-chọn đơn vị test (tệp test, Cargo target, module Maven/Gradle, project .NET, gói Go). Nó hiểu manifest, cấu hình runner và lockfile,
+bgraph dựng đồ thị phụ thuộc mức tệp của cây mốc và cây mới cho Node (JS/TS), Python, Rust, JVM, .NET, Go, PHP và Ruby, đi ngược từ tệp
+đổi và chọn đơn vị test (tệp test, Cargo target, module Maven/Gradle, project .NET, gói Go, project Composer). Nó hiểu manifest, cấu hình runner và lockfile,
 và dựng luôn lệnh chạy cho runner của dự án (`vitest run …`, `pytest …`, `cargo test -p …`, `mvn -pl …`, `dotnet test …`,
-`go test ./…`). Khi không chắc (import tính lúc chạy, tệp build không đánh giá được, lockfile, tệp CI…), bgraph **nới** phạm vi và
+`go test ./…`, `phpunit …`, `rspec …`). Khi không chắc (import tính lúc chạy, tệp build không đánh giá được, lockfile, tệp CI…), bgraph **nới** phạm vi và
 ghi lý do; không bao giờ thu hẹp im lặng.
 
 Tập thay đổi là mọi tệp khác nhau giữa commit gốc của tác vụ (`Base`) và cây làm việc (gồm thay đổi chưa commit và tệp chưa theo dõi).

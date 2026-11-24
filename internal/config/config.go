@@ -514,7 +514,7 @@ type WorkflowVerify struct {
 	// (ví dụ kiểm tra mục tiêu viết bằng shell). Rỗng thì chạy verify.command của phiếu.
 	AffectedCommand string `yaml:"affected_command"`
 	// RunnerArgs: tham số thêm vào lệnh chạy test do bgraph dựng, theo runner của lệnh (go, pytest, django, cargo, dotnet, maven, gradle,
-	// vitest, jest…). Lệnh chọn lọc của bgraph không mang cờ của verify.command (`-timeout`, `--runInBand`, `-n auto`…), nên kiểm hẹp và
+	// vitest, jest, phpunit, pest, rspec, minitest…). Lệnh chọn lọc của bgraph không mang cờ của verify.command (`-timeout`, `--runInBand`, `-n auto`…), nên kiểm hẹp và
 	// kiểm rộng có thể chạy khác nhau. Runner go không có khoá thì Bint tự chép cờ từ verify.command khi đó là `go test …` thuần; đặt
 	// `go: []` để tắt việc đó.
 	RunnerArgs map[string][]string `yaml:"runner_args"`

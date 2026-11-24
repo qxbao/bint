@@ -27,20 +27,22 @@ func newTestAffectedCmd(stdio IO) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "affected",
 		Short: "Chọn (và chạy) các test bị ảnh hưởng bởi thay đổi so với một commit gốc",
-		Long: `Chọn phạm vi kiểm thử theo tệp đã đổi so với --base (mặc định HEAD), gồm thay đổi đã commit,
-chưa commit và tệp chưa theo dõi. Phạm vi từ hẹp đến rộng:
+		Long: `Chọn các test bị ảnh hưởng bởi thay đổi so với --base (mặc định HEAD), bằng bgraph nhúng trong Bint
+(Node, Python, Rust, JVM, .NET, Go, PHP, Ruby). Thay đổi gồm phần đã commit kể từ điểm tách của --base
+khỏi HEAD (merge-base), phần chưa commit và tệp chưa theo dõi. Phạm vi từ hẹp đến rộng:
 
-  none     không cần chạy test (chỉ *.md/*.txt ngoài mọi gói mà không test nào nhắc tới tên tệp)
-  graph    test của gói đổi và gói phụ thuộc bắc cầu vào nó (Go: go list -test)
-  package  như graph, có thay đổi không phải mã trong gói (testdata, tệp //go:embed)
-  full     chạy toàn bộ (go.mod/go.sum, cấu hình, CI, script, tệp lạ, nguồn ảnh hưởng không dùng được)
+  none     không test nào bị ảnh hưởng
+  graph    đơn vị test chứng minh được từ đồ thị phụ thuộc (tệp test, gói Go, Cargo target, project…)
+  package  nới tới gói/thư mục/target
+  module   nới tới cả dự án (manifest đổi, import không phân giải được…)
+  full     cả bộ (không có mốc, tệp CI hay toolchain pin đổi, nguồn chọn không dùng được)
 
-Không bao giờ thu hẹp: không chắc thì nới ra rộng hơn và ghi lý do. In phạm vi, base/head, tệp đổi,
-lý do nới và thư mục test được chọn.
+Không bao giờ thu hẹp im lặng: không chắc thì nới rộng và ghi lý do. In phạm vi, base/head, tệp đổi,
+lý do nới và lệnh chạy.
 
---run chạy luôn: workflow.verify.affected_command (thay {test_dirs}/{test_files}) khi phạm vi
-graph/package, eval.test_command khi full, không chạy gì khi none. Bint thoát theo mã thoát của lệnh test,
-dùng được trong CI. Với --json, đầu ra của lệnh test đi sang stderr.`,
+--run chạy luôn: lệnh bgraph dựng cho runner của dự án khi graph/package/module, eval.test_command
+khi full, không chạy gì khi none. Bint thoát theo mã thoát của lệnh test, dùng được trong CI. Với --json,
+đầu ra của lệnh test đi sang stderr.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir, err := cwd()

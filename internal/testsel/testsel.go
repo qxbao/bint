@@ -1,5 +1,5 @@
 // Package testsel chọn test bị ảnh hưởng bởi một thay đổi cho mọi lần chạy test của Bint, bằng bgraph (github.com/qxbao/bgraph): đồ thị
-// phụ thuộc mức tệp của cây mốc và cây mới, đi ngược từ tệp đổi, cho Node, Python, Rust, JVM, .NET và Go. Kết quả là affected.Selection (kiểu
+// phụ thuộc mức tệp của cây mốc và cây mới, đi ngược từ tệp đổi, cho Node, Python, Rust, JVM, .NET, Go, PHP và Ruby. Kết quả là affected.Selection (kiểu
 // Bint lưu trong state.json) kèm lệnh chạy do bgraph dựng cho runner của dự án.
 //
 // Tách khỏi internal/affected vì bgraph kéo theo chỉ mục SQLite: các gói chỉ cần kiểu dữ liệu (task, mcpgw) không được phụ thuộc nó.
