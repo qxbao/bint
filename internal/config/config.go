@@ -830,7 +830,7 @@ func Default() Config {
 		Workflow: Workflow{
 			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, Slicing: GateAuto, GoalCheck: GateAuto, Variant: VariantBPrime, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
 			ExternalRetry: []string{"30s", "2m", "5m"},
-			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
+			Isolation:     IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Verify: WorkflowVerify{BintConfigFull: true}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
 			Agent: WorkflowAgent{
 				PermissionMode: "acceptEdits",
