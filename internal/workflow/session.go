@@ -38,6 +38,9 @@ const (
 	ActionDone    = "done"
 	ActionBlocked = "blocked" // chờ người (xem Reason, Questions); người xử lý xong thì `bint run next --resume`
 	ActionFailed  = "failed"
+	// ActionWait: bước dừng vì lỗi ngoại cảnh (quá tải, hạn mức, mất kết nối) và Bint sẽ tự nối tiếp phiên cũ: chờ tới RetryAt rồi gọi lại
+	// `bint run next` (gọi sớm hơn vẫn trả wait). Tác vụ không failed/blocked.
+	ActionWait = "wait"
 )
 
 // Tên subagent do Bint cài theo role (tệp định nghĩa do `bint init` sinh, phiếu G3b).
@@ -79,6 +82,10 @@ type SessionAction struct {
 	// ContinueAgentID khác rỗng: bước nối tiếp phiên của agent này — gửi Prompt (lời nhắn nối tiếp) bằng SendMessage tới agent đó
 	// thay vì gọi Agent mới; không gửi được thì `bint run next <id> --fresh` để nhận đề bài đầy đủ.
 	ContinueAgentID string `json:"continue_agent_id,omitempty"`
+	// RetryAt (RFC3339) và RetryAttempt/RetryMax của action "wait": thời điểm thử lại sớm nhất và lần tự thử đang chờ.
+	RetryAt      string `json:"retry_at,omitempty"`
+	RetryAttempt int    `json:"retry_attempt,omitempty"`
+	RetryMax     int    `json:"retry_max,omitempty"`
 	// Command của action "process" (hoặc lệnh kế tiếp ở `complete` khi tác vụ còn tiếp tục).
 	Command   string   `json:"command,omitempty"`
 	Reason    string   `json:"reason,omitempty"`
@@ -224,6 +231,12 @@ func (r *Runner) stopAction(rs *runState) *SessionAction {
 	st := rs.t.State
 	a := &SessionAction{TaskID: st.ID, Status: st.Status, Reason: st.Reason, Questions: rs.res.Questions,
 		Notes: rs.res.Notes, PlanningIssues: rs.res.PlanningIssues, Choices: choicesFor(rs.t)}
+	if pr := rs.retry; pr != nil && rs.session && !task.Paused(st.Status) {
+		// Bước dừng vì lỗi ngoại cảnh, Bint tự nối tiếp: không failed/blocked, driver chờ tới RetryAt.
+		a.Action, a.RetryAt, a.RetryAttempt, a.RetryMax = ActionWait, pr.retryAt, pr.dec.Attempt, pr.dec.Max
+		a.Reason = fmt.Sprintf("bước %s dừng vì lỗi ngoại cảnh (%s): tự thử lại lần %d/%d lúc %s", pr.step, pr.reason, pr.dec.Attempt, pr.dec.Max, pr.retryAt)
+		return a
+	}
 	switch st.Status {
 	case task.StatusDone:
 		a.Action = ActionDone
@@ -407,6 +420,12 @@ func (r *Runner) Next(ctx context.Context, o NextOptions) (*SessionAction, error
 			a.Notes = append(a.Notes, freshNote)
 		}
 		return a, nil
+	}
+	if !o.Resume && !o.Fresh {
+		// Bước dừng vì lỗi ngoại cảnh, đang chờ lần tự thử lại: chưa tới giờ thì vẫn trả wait (gọi sớm an toàn). --resume/--fresh bỏ chờ.
+		if a := r.retryWaitAction(t); a != nil {
+			return a, nil
+		}
 	}
 	if nextAfterLoad != nil {
 		nextAfterLoad()

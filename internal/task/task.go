@@ -728,6 +728,9 @@ type StepStop struct {
 	// Continuations: số lần nối tiếp external/timeout liên tiếp đã dùng cho bước này; OriginRunID: lượt đầu của agent.
 	Continuations int    `json:"continuations,omitempty"`
 	OriginRunID   string `json:"origin_run_id,omitempty"`
+	// RetryAt (RFC3339, driver session): thời điểm sớm nhất Bint tự nối tiếp phiên sau lỗi ngoại cảnh (workflow.external_retry); trước đó
+	// `bint run next` trả action wait. Rỗng = không có lần tự thử đang chờ.
+	RetryAt string `json:"retry_at,omitempty"`
 	// Usage là usage cộng dồn của agent lúc dừng (mốc để bước nối tiếp không tính trùng).
 	Usage *UsageMark `json:"usage,omitempty"`
 }

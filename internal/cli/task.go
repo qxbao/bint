@@ -1074,6 +1074,10 @@ func printLastStepLine(w io.Writer, indent string, t *task.Task) {
 	if ls.Continuations > 0 {
 		fmt.Fprintf(w, ", đã nối tiếp %d lần", ls.Continuations)
 	}
+	if ls.RetryAt != "" {
+		// Driver session: lần tự thử lại đang chờ (workflow.external_retry); lần đã dùng là Continuations.
+		fmt.Fprintf(w, ", tự thử lại lần %d lúc %s", ls.Continuations+1, fmtRFC(ls.RetryAt))
+	}
 	fmt.Fprintln(w)
 }
 

@@ -305,6 +305,8 @@ type harness struct {
 	// turns / turnLimits: số lượt mỗi bước báo về và giới hạn lượt Runner truyền xuống.
 	turns      *int64
 	turnLimits []*int
+	// waits là các lần chờ trước khi tự thử lại bước dừng vì lỗi ngoại cảnh (Runner.RetrySleep giả: không chờ thật).
+	waits []time.Duration
 	// profile (nếu có) là profile `bint iso` mà agent giả báo (eval.ProfileAgent); đổi giữa hai lượt để mô phỏng đổi harnesses.<h>.profile.
 	profile *iso.Profile
 }
@@ -332,6 +334,8 @@ func newHarness(t *testing.T) *harness {
 	cfg.Workflow.Isolation = config.IsolationShared
 	// Các test cũ kiểm luồng classic; test luồng B′ (mặc định thật) đặt variant bprime riêng (bpHarness).
 	cfg.Workflow.Variant = config.VariantClassic
+	// Các test cũ kỳ vọng lỗi ngoại cảnh dừng ngay (failed); test tự thử lại (autoretry_test.go) bật lịch riêng.
+	cfg.Workflow.ExternalRetry = nil
 	h := &harness{t: t, root: root, cfg: cfg, tasks: task.NewStore(filepath.Join(st, "runtime")), spool: filepath.Join(st, "spool"),
 		db: filepath.Join(st, "state.sqlite"), prompts: map[string]string{}}
 	h.behave = h.happy
@@ -417,7 +421,12 @@ func (h *harness) runner() *Runner {
 			name = h.agentNameFor(step)
 		}
 		return &fakeAgent{h: h, cost: cost, turns: h.turns, name: name, profile: h.profile, model: model}, nil
-	}, CLISkewCheck: noCLISkew}
+	}, CLISkewCheck: noCLISkew, RetrySleep: func(_ context.Context, d time.Duration) bool {
+		h.mu.Lock()
+		h.waits = append(h.waits, d)
+		h.mu.Unlock()
+		return true
+	}}
 }
 
 func (h *harness) ingest() *store.Store {

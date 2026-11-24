@@ -580,6 +580,19 @@ mất phiên, cây đổi hoặc `--fresh` thì `b-feat` chạy đề bài đầ
 `bint-planner` chỉ có công cụ đọc nên không làm implementer qua SendMessage (b-feat ở session vẫn nạp lại ngữ cảnh). Giả định chưa đo thật:
 cờ chỉ đọc/ghi áp theo từng lần gọi harness, và nối tiếp làm giảm lượt khám phá lại mã (NT-FAST-BENCH).
 
+**Tự phục hồi khi lỗi ngoại cảnh (`workflow.external_retry`).** Bước dừng lớp `external` (5xx/529 quá tải, hạn mức, mất kết nối, harness chết) mà
+nối tiếp được (có phiên, fingerprint cây không đổi) thì Bint không đánh `failed` mà chờ rồi nối tiếp phiên cũ. Khoá là danh sách thời lượng,
+phần tử thứ N là thời gian chờ trước lần tự thử thứ N; mặc định `["30s", "2m", "5m"]`, `[]` = tắt (như trước). Số lần tự thử dùng chung bộ đếm
+nối tiếp (`maxContinueExternal` = 3 nên tối đa 3 lần dù lịch dài hơn); mỗi lần nối tiếp đi qua `beginStep` nên ngân sách `limits` vẫn áp.
+Không tự thử với lớp `intrinsic`, `timeout`, `awaiting_human`, khi người huỷ (`Ctrl-C` trong lúc chờ đưa tác vụ về `interrupted`), `--fresh`,
+bước hết hạn thuê, hay khi cây đổi trong lúc chờ. Hết lượt thì `failed`, reason kết thúc bằng "(đã tự thử lại N lần, vẫn lỗi ngoại cảnh)".
+- **Driver process**: `bint run` chờ ngay trong tiến trình (Runner) rồi nối tiếp; mỗi lần ghi một dòng `notes` ("tự thử lại lần k/N sau <thời gian>")
+  và một sự kiện lỗi `tự thử lại: …` hiện ở `bint run status`.
+- **Driver session**: `bint run complete --failed "<lỗi ngoại cảnh>"` trả `action: "wait"` với `retry_at` (RFC3339), `retry_attempt`, `retry_max`;
+  `bint run next` trước `retry_at` vẫn trả `wait` (gọi sớm an toàn, `--resume`/`--fresh` bỏ chờ), sau `retry_at` trả bước nối tiếp
+  (`continue_agent_id`, SendMessage). Skill `b-do` hướng dẫn chờ rồi gọi lại. `bint task show` / `bint run status` in "tự thử lại lần k lúc …"
+  ở dòng "Bước dừng".
+
 **Điểm verify xanh (`last_green`).** Mỗi lần kiểm chứng qua (không tính scope `none`) mà có ảnh chụp cây (`Verification.Tree`, tác vụ có theo
 dõi tệp riêng) thì Bint ghim ảnh chụp bằng ref `refs/bint/tasks/<id>/green` (commit-tree, như base-tree) để `git gc` không dọn; ref xoá cùng
 base khi tác vụ kết thúc. Không thêm trường vào `state.json`: điểm xanh cuối suy ra từ `Verifications`. Khi tác vụ dừng (`blocked`,

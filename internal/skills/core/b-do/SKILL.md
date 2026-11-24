@@ -220,6 +220,8 @@ bint run complete <id> --run <run_id> --agent-id <agentId> --json
    - `action: "blocked"`: xử lý như Bước 3. Có `command` là lệnh `bint run complete …` (bước còn hạn mà
      tác vụ đang dừng): chạy **đúng lệnh đó**, **không** chạy lại subagent. Hết ngân sách `limits.workflows.b-do`
      cũng dừng ở đây: báo người dùng, đừng lách.
+   - `action: "wait"` (`retry_at`): lỗi ngoại cảnh (quá tải, hạn mức, mất kết nối), Bint tự nối tiếp phiên cũ, tác vụ không failed. Chờ tới
+     `retry_at` (`sleep`, nền nếu Bash có giới hạn giờ) rồi gọi lại `bint run next`: gọi sớm vẫn trả `wait`; hết lịch `workflow.external_retry` thì `failed`.
    - `action: "failed"` / `done`: báo cáo như Bước 4.
    - Gọi `bint run next` lại khi bước còn hạn trả đúng bước cũ (cùng `run_id`), an toàn. Phiên này chết giữa
      bước: người dùng chạy `bint run abort <id>` rồi `bint run next <id> --resume`.

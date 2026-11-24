@@ -48,6 +48,17 @@ func (w Workflow) IdleTimeout() time.Duration {
 	return time.Duration(w.IdleTimeoutMinutes) * time.Minute
 }
 
+// ExternalRetrySchedule là lịch chờ đã giải mã của workflow.external_retry (phần tử không đọc được hoặc <= 0 bị bỏ; Validate đã từ chối chúng).
+func (w Workflow) ExternalRetrySchedule() []time.Duration {
+	var out []time.Duration
+	for _, s := range w.ExternalRetry {
+		if d, err := time.ParseDuration(strings.TrimSpace(s)); err == nil && d > 0 {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
 const (
 	DirName       = ".bint"
 	FileName      = "config.yml"
@@ -480,6 +491,9 @@ type Workflow struct {
 	// IdleTimeoutMinutes dừng một bước agent khi harness không có đầu ra trong số phút này (treo), thay vì chờ hết timeout_minutes; bước dừng kiểu
 	// này nối tiếp được khi resume. 0 = mặc định DefaultIdleTimeoutMinutes, -1 = tắt. Phải lớn hơn lệnh công cụ dài nhất agent hay chạy (go test).
 	IdleTimeoutMinutes int `yaml:"idle_timeout_minutes"`
+	// ExternalRetry là lịch chờ (chuỗi thời lượng Go, ví dụ "30s", "2m") giữa các lần Bint tự nối tiếp phiên cũ khi một bước dừng vì lỗi ngoại cảnh
+	// (5xx/529 quá tải, hạn mức, mất kết nối, harness chết) mà nối tiếp được: phần tử thứ N là thời gian chờ trước lần tự thử thứ N. Danh sách rỗng = tắt.
+	ExternalRetry []string `yaml:"external_retry"`
 	// Isolation chọn nơi tác vụ chạy, một lần lúc lập phiếu: auto | shared | worktree
 	// (docs/isolation-subagent-plan.md mục 5.1).
 	Isolation string `yaml:"isolation"`
@@ -815,6 +829,7 @@ func Default() Config {
 		Tasks: Tasks{Ledger: LedgerGit},
 		Workflow: Workflow{
 			MaxReviewRounds: 2, FastPath: false, SmallPlanMaxFiles: 5, TimeoutMinutes: 60, SliceTimeoutMinutes: 30, Slicing: GateAuto, GoalCheck: GateAuto, Variant: VariantBPrime, MaxDiffLines: 0, VerifyTimeoutMinutes: 15,
+			ExternalRetry: []string{"30s", "2m", "5m"},
 			Isolation: IsolationAuto, Driver: DriverProcess, Worktree: WorkflowWorktree{Copy: []string{}},
 			Verify: WorkflowVerify{BintConfigFull: true}, Perf: WorkflowPerf{MaxSlowdown: 1.5},
 			Agent: WorkflowAgent{
@@ -1258,6 +1273,11 @@ func (c Config) Validate() error {
 	}
 	if c.Workflow.IdleTimeoutMinutes < -1 {
 		add("workflow.idle_timeout_minutes: phải >= -1 (0 = %d phút, -1 = tắt)", DefaultIdleTimeoutMinutes)
+	}
+	for i, s := range c.Workflow.ExternalRetry {
+		if d, err := time.ParseDuration(strings.TrimSpace(s)); err != nil || d <= 0 {
+			add("workflow.external_retry[%d]: %q phải là thời lượng dương như 30s hoặc 2m (danh sách rỗng = tắt)", i, s)
+		}
 	}
 	if c.Workflow.TimeoutMinutes < 1 || c.Workflow.VerifyTimeoutMinutes < 1 {
 		add("workflow.timeout_minutes, workflow.verify_timeout_minutes: phải >= 1")

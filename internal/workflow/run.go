@@ -91,6 +91,9 @@ type Runner struct {
 	// CLISkewCheck kiểm `bint` trên PATH của agent có đọc được cấu hình của tác vụ không (nil = chạy `bint task show`); trả đường dẫn binary và
 	// lỗi (rỗng = ổn), kèm lý do bỏ qua kiểm (skipped, ghi vào Notes). Seam cho kiểm thử (config_preflight.go).
 	CLISkewCheck func(ctx context.Context, root, taskID string) (exe, msg, skipped string)
+	// RetrySleep chờ d trước một lần tự thử lại bước dừng vì lỗi ngoại cảnh (autoretry.go); trả false nếu ctx bị huỷ (nil = chờ thật).
+	// Seam cho kiểm thử.
+	RetrySleep func(ctx context.Context, d time.Duration) bool
 }
 
 // StepEvent báo một bước agent của lượt điều phối. Log là đường dẫn log của bước (ghi dần khi agent chạy).
@@ -211,6 +214,9 @@ type Result struct {
 
 type runState struct {
 	opts RunOptions
+	// retry: lần tự thử lại do endStep quyết định, runStep thực hiện (autoretry.go); autoTries: số lần đã tự thử trong lượt này.
+	retry     *pendingRetry
+	autoTries int
 	// flow là định nghĩa flow của workflow đang chạy (nhúng hoặc tuỳ biến): nguồn của kind bước, thứ tự bước, chế độ chỉ
 	// đọc, role và cổng sau bước.
 	flow flow.Def
@@ -1197,7 +1203,16 @@ func (r *Runner) runStep(ctx context.Context, rs *runState, step string) bool {
 	}
 	r.settleProcessUsage(rs, sr, &res, cmp.Or(res.SessionID, sr.sessionID), resumeID != "")
 	r.endBackground(ctx, rs, sr, bg, startNow)
-	return r.endStep(ctx, rs, sr, res)
+	ok = r.endStep(ctx, rs, sr, res)
+	if pr := rs.retry; pr != nil {
+		// Lỗi ngoại cảnh nối tiếp được: endStep chưa đánh failed; chờ theo lịch rồi chạy lại bước ở chế độ nối tiếp phiên cũ.
+		rs.retry = nil
+		if !r.waitAutoRetry(ctx, rs, sr, pr) {
+			return false
+		}
+		return r.runStep(ctx, rs, step)
+	}
+	return ok
 }
 
 // armProcessContinuation quyết định nối tiếp cho bước driver process vừa mở. Nối tiếp được thì đặt các trường nối tiếp của sr
@@ -1706,7 +1721,18 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 			r.block(rs, fmt.Sprintf("bước %s chạm giới hạn chi phí %.2f USD", step, *sr.maxCost))
 			return false
 		}
-		r.fail(rs, step, step+": "+endReason)
+		if !held && len(deniedPaths) == 0 && sr.isoLeak == "" && len(violations) == 0 && !sr.timedOut {
+			// Lỗi ngoại cảnh nối tiếp được: không đánh failed. Driver process: runStep chờ theo lịch rồi nối tiếp phiên cũ; driver session:
+			// ghi RetryAt, `bint run next` trả action wait (autoretry.go).
+			if rs.retry = r.planAutoRetry(rs, sr, stop, ctx.Err(), endReason); rs.retry != nil {
+				return false
+			}
+		}
+		tries := rs.autoTries
+		if rs.session {
+			tries = sr.continuations // mỗi lệnh complete/next là một tiến trình: số lần nối tiếp đã dùng nằm ở bước dừng
+		}
+		r.fail(rs, step, step+": "+endReason+retryTail(tries, class))
 		return false
 	}
 	r.logf("✓ %s xong (%s)", step, srr.Duration)

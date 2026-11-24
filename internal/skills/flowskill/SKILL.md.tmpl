@@ -99,6 +99,8 @@ bint run next <id> --json --no-wait
    - `action: "process"` (role gán harness khác Claude): chạy đúng `command`, xong gọi lại `bint run next`.
    - `action: "blocked"`: xử lý như Bước 3. Có `command` là lệnh `bint run complete …` thì chạy **đúng lệnh đó**, không chạy lại
      subagent.
+   - `action: "wait"` (kèm `retry_at`): bước dừng vì lỗi ngoại cảnh, Bint sẽ tự nối tiếp phiên cũ (tác vụ không failed). Chờ tới
+     `retry_at` rồi gọi lại `bint run next <id> --json --no-wait` (gọi sớm vẫn trả `wait`); hết lịch `workflow.external_retry` thì `failed`.
    - `action: "failed"` / `done`: báo cáo như Bước 4.
 3. Tác vụ `worktree`: `prompt` đã dặn `cd <worktree> && …`; hook của Bint chặn công cụ sửa tệp ngoài worktree và bước chỉ đọc
    (kind plan, review). Bị chặn là thiết kế: đừng tìm đường vòng, đừng chạy tay bằng cây gốc, giữ `prompt` nguyên văn.

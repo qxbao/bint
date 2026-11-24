@@ -187,6 +187,7 @@ workflow:                   # workflow gốc do Bint điều phối (bint run)
   max_diff_lines: 0           # trần số dòng thêm+xoá (bỏ tệp kiểm tra mục tiêu đóng băng) của mỗi lát so với điểm xanh, hoặc của phần b-feat đã làm khi không chia lát; vượt thì coi như kiểm chứng không qua (lát được giữ cây chờ người / vào vòng sửa); 0 = tắt
   verify_timeout_minutes: 15   # lệnh kiểm chứng của phiếu tác vụ
   # idle_timeout_minutes: 0   # dừng bước agent khi harness im lặng quá số phút này (treo), resume nối tiếp được; 0 = 30 phút, -1 = tắt
+  external_retry: ["30s", "2m", "5m"]   # lịch chờ giữa các lần Bint tự nối tiếp phiên cũ khi bước dừng vì lỗi ngoại cảnh (5xx/529 quá tải, hạn mức, mất kết nối, harness chết); số phần tử = số lần thử tối đa; [] = tắt
   isolation: auto           # nơi tác vụ chạy, chọn một lần lúc lập phiếu: auto (sửa thẳng trên cây đang làm, vào worktree riêng khi cây đó đang có tác vụ khác chưa xong) | shared | worktree
   # preexisting_red: ask     # (bật tay) cổng done gặp test đỏ sẵn ở mốc tác vụ (vẫn đỏ khi chạy lại tuần tự lúc máy rảnh): ask = chờ người quyết | accept = cho done khi tác vụ không đổi gói của các test đó
   driver: process           # ai chạy các bước của tác vụ mới: process (bint run tự gọi harness) | session (phiên đang mở chạy bước bằng subagent: bint run next → Agent → bint run complete)

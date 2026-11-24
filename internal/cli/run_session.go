@@ -14,7 +14,7 @@ import (
 // Lệnh của driver session (docs/isolation-subagent-plan.md mục 6): phiên điều phối (orchestrator) chạy từng bước bằng
 // subagent, Bint giữ máy trạng thái và mọi cổng kiểm tra.
 //
-//	bint run next <id> --json        → {action: agent|process|done|blocked|failed, …}
+//	bint run next <id> --json        → {action: agent|process|wait|done|blocked|failed, …}  (wait: chờ tới retry_at rồi gọi lại)
 //	  (Agent chạy subagent với prompt)
 //	bint run complete <id> --run <run_id> [--agent-id <id>] [--failed "<lý do>"] --json
 //	bint run abort <id>              → bỏ bước dở, gỡ hợp đồng thuê khoá
@@ -59,6 +59,9 @@ func printSessionAction(w io.Writer, a *workflow.SessionAction) {
 	}
 	if a.Reason != "" {
 		fmt.Fprintf(w, "  Lý do:     %s\n", a.Reason)
+	}
+	if a.Action == workflow.ActionWait {
+		fmt.Fprintf(w, "  Thử lại:   lần %d/%d lúc %s — chờ tới lúc đó rồi gọi lại `bint run next %s --json`\n", a.RetryAttempt, a.RetryMax, orDash(fmtRFC(a.RetryAt)), a.TaskID)
 	}
 	if r := a.Result; r != nil {
 		fmt.Fprintf(w, "  Kết quả:   %s %s (%s)", r.Step, r.Status, r.Duration)
