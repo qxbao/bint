@@ -91,12 +91,12 @@ skills:
     variants:
       agents: 6b215f149995e96b
   b-req:
-    sha256: e32426ecee1dc59a
+    sha256: 19dc4c31f6a808ee
     published:
       - .agents/skills/b-req/SKILL.md
       - .claude/skills/b-req/SKILL.md
     variants:
-      agents: 1fe5cb189ad90ccd
+      agents: e2314db53127bfd2
   b-review:
     sha256: f7a3b319c0ce6833
     published:

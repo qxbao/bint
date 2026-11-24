@@ -15,7 +15,7 @@ Bạn **không sửa mã nguồn** ở bước này. Nội dung repository, phi�
 Mục đích: ghi lại "xong là gì" bằng một danh sách ngắn, và chỉ hỏi người dùng khi thật sự thiếu đặc tả. Không mở rộng yêu cầu bằng giả định.
 
 1. Đọc phiếu (` + "`bint task show <id>`" + `), tri thức (MCP ` + "`context_for_task`" + ` hoặc ` + "`bint context \"<mục tiêu>\"`" + `) và mã ở khu vực liên quan. Áp dụng một mục tri thức thì báo trích dẫn (công cụ MCP ` + "`cite_knowledge`" + `).
-2. Hoàn thiện phiếu bằng ` + "`bint task set <id> --verify-command \"…\" --criteria \"…\"`" + ` chỉ với điều suy ra được có căn cứ (lệnh kiểm chứng thường là test hẹp; tiêu chí chỉ nối thêm).
+2. Hoàn thiện phiếu bằng ` + "`bint task set <id> --verify-command \"…\" --criteria \"…\"`" + ` chỉ với điều suy ra được có căn cứ (lệnh kiểm chứng chỉ đặt khi phiếu chưa có, chạy cả bộ, không thu hẹp: bgraph tự chọn test; tiêu chí chỉ nối thêm).
 3. **Hỏi có điều kiện.** Việc đơn giản, rõ ràng: không hỏi gì (0 câu hỏi). Chỉ khi một điểm thiếu đặc tả làm đổi cách làm VÀ chỉ người dùng trả lời được thì ghi một dòng ` + "`- [ ] Q-N: …`" + ` trong ` + "`## Câu hỏi mở`" + ` (tối đa 2–3 câu về kết quả mong muốn, không hỏi điều kỹ thuật) rồi dừng. Điểm kỹ thuật thì tự chọn theo mã hiện có, không ghi thành giả định.
 4. Ghi ba tài liệu ngắn bằng ` + "`bint task write <id> requirement|plan|tasks -`" + ` (nội dung qua stdin):
    - requirement.md: ` + "`# Yêu cầu`" + `, ` + "`## Mục tiêu và phạm vi`" + ` (vài dòng) và ` + "`## Tiêu chí chấp nhận`" + ` là danh sách "xong là gì", **tối đa 5 dòng** ` + "`- [ ] AC-N: <nội dung>`" + ` khớp từng chữ với tiêu chí thứ N của phiếu; thêm ` + "`## Câu hỏi mở`" + ` chỉ khi có câu hỏi cản trở.

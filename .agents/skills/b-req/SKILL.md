@@ -27,8 +27,8 @@ bint task set <id> --verify-command "<lệnh kiểm chứng>" \
   --allow 'internal/db/**' --deny 'migrations/**'
 ```
 
-- `--verify-command`: một lệnh chứng minh tác vụ xong (thường là kiểm thử hẹp); **chưa được chạy** cho tới khi người xác nhận
-  (`bint task approve`), trừ khi trùng `eval.test_command` đã xác nhận.
+- `--verify-command`: chỉ khi phiếu **chưa có**; lệnh test cả bộ, không thu hẹp (bgraph tự chọn test bị ảnh hưởng). **Chưa được
+  chạy** cho tới khi người xác nhận (`bint task approve`), trừ khi trùng `eval.test_command` đã xác nhận.
 - `--criteria`: tiêu chí kiểm tra được (có số đo), chỉ **nối thêm**; lập kế hoạch lại trên tác vụ đã có tiêu chí thì dùng
   `bint task set <id> --clear-criteria --criteria "…"` để `AC-N` không lệch tiêu chí thứ N.
 - `--allow`/`--deny`: phạm vi được sửa (truy xuất, giới hạn ghi, và `lint` kiểm tệp trong kế hoạch).

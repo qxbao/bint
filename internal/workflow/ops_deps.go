@@ -108,6 +108,9 @@ func (e *Env) SetTicketAndDependencies(ref string, ed TicketEdit, add []string, 
 		if task.Terminal(t.State.Status) {
 			return fmt.Errorf("tác vụ đã %s", t.State.Status)
 		}
+		if err := e.guardConfirmedVerify(t, ed); err != nil {
+			return err
+		}
 		before := slices.Clone(t.Ticket.Verify.Criteria)
 		if err := ed.apply(&t.Ticket); err != nil {
 			return err

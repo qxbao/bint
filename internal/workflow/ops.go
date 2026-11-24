@@ -416,6 +416,9 @@ func (e *Env) SetTicketSynced(ref string, ed TicketEdit) (*task.Task, task.Asses
 		if task.Terminal(t.State.Status) {
 			return fmt.Errorf("tác vụ đã %s", t.State.Status)
 		}
+		if err := e.guardConfirmedVerify(t, ed); err != nil {
+			return err
+		}
 		before := slices.Clone(t.Ticket.Verify.Criteria)
 		if err := ed.apply(&t.Ticket); err != nil {
 			return err
@@ -428,6 +431,20 @@ func (e *Env) SetTicketSynced(ref string, ed TicketEdit) (*task.Task, task.Asses
 	}
 	e.emitSynced(t, sync)
 	return t, e.Assess(t), sync.notes, nil
+}
+
+// guardConfirmedVerify chặn agent ghi đè verify.command người đã xác nhận bằng một lệnh khác: lệnh mới chưa được
+// duyệt nên mọi lần kiểm chứng sau đó bị bỏ qua và tác vụ chỉ dừng chờ người ở bước cuối. Thu hẹp phạm vi test là
+// việc của bgraph (verify chạy phần test bị ảnh hưởng), không phải của lệnh kiểm chứng.
+func (e *Env) guardConfirmedVerify(t *task.Task, ed TicketEdit) error {
+	if e.Human || ed.VerifyCommand == nil || !e.VerifyConfirmed(t) {
+		return nil
+	}
+	if strings.TrimSpace(*ed.VerifyCommand) == strings.TrimSpace(t.Ticket.Verify.Command) {
+		return nil
+	}
+	return fmt.Errorf("%w: verify.command %q đã được người xác nhận; agent không đổi được (Bint tự chạy phần test bị ảnh hưởng bằng bgraph, "+
+		"không cần thu hẹp lệnh)", ErrAgent, t.Ticket.Verify.Command)
 }
 
 // criteriaSync gom kết quả đồng bộ tiêu chí trong một lần Update để phát sự kiện sau khi phiếu đã được lưu.
