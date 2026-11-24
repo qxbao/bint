@@ -9,7 +9,7 @@ scope:
     - internal/testutil/**
 evidence:
   - path: internal/testutil/shard.go
-    lines: "296"
+    lines: "286"
     fingerprint: lines:69fcfb1efb8c6da1
 origin:
   kind: agent
@@ -17,11 +17,11 @@ origin:
   commit: 39a9b702c4f995ee2551b64b968acbcccb8e0e80
 author: orca <dquanbao@gmail.com>
 reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-20T10:58:53Z"
+reviewed_at: "2026-11-24T17:04:46Z"
 version: 1
 created_at: "2026-11-20T07:20:41Z"
 updated_at: "2026-11-20T10:58:53Z"
-verified_at: "2026-11-20T10:58:53Z"
+verified_at: "2026-11-24T17:04:46Z"
 status_reason: người duyệt chấp nhận
 ---
 

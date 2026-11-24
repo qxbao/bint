@@ -9,18 +9,18 @@ scope:
     - internal/workflow/run.go
 evidence:
   - path: internal/workflow/run.go
-    lines: "729"
+    lines: "735"
     fingerprint: lines:d439d21b32589415
 origin:
   kind: agent
   commit: e9ce282ba1671a476b195eb9b5d2a490fb77acac
 author: Leekiri1234 <hongducluong0603@gmail.com>
 reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-23T12:53:23Z"
+reviewed_at: "2026-11-24T17:04:47Z"
 version: 1
 created_at: "2026-11-12T07:16:44Z"
 updated_at: "2026-11-13T07:57:39Z"
-verified_at: "2026-11-23T12:53:23Z"
+verified_at: "2026-11-24T17:04:47Z"
 status_reason: người duyệt chấp nhận
 ---
 

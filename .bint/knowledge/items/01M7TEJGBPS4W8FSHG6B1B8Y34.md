@@ -10,7 +10,7 @@ scope:
     - internal/testutil/**
 evidence:
   - path: internal/testutil/shard.go
-    lines: 75-95
+    lines: 80-100
     fingerprint: lines:b597accd9642fdfe
   - path: internal/tui/app/tasks_fixture_test.go
     lines: 233-266
@@ -21,11 +21,11 @@ origin:
   commit: c6972a0c7e799ea7aca6e2a6e3691730ab5e076d
 author: orca <dquanbao@gmail.com>
 reviewed_by: orca <dquanbao@gmail.com>
-reviewed_at: "2026-11-21T03:52:15Z"
+reviewed_at: "2026-11-24T17:04:46Z"
 version: 1
 created_at: "2026-11-19T17:44:49Z"
 updated_at: "2026-11-19T17:47:06Z"
-verified_at: "2026-11-21T03:52:15Z"
+verified_at: "2026-11-24T17:04:46Z"
 status_reason: người duyệt chấp nhận
 ---
 
