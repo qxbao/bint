@@ -434,20 +434,17 @@ const (
 // git chỉ làm khối thiếu đi (đề bài vẫn có lệnh `bint task diff`), không chặn bước.
 func (r *Runner) reviewDiffBlock(ctx context.Context, t *task.Task) string {
 	id := t.State.ID
-	var from string
-	var paths []string
-	switch {
-	case t.State.TracksTouched():
-		files, err := ScopeFiles(ctx, r.Root, r.Tasks, t, r.Cfg.Limits.ProtectedPaths)
-		if err != nil {
-			return ""
-		}
-		from, paths = t.State.BaseTree, files
-	default:
+	if !t.State.TracksTouched() {
 		return "" // phiếu cũ: so commit base trên toàn cây, để reviewer chạy `bint task diff`
 	}
+	from := t.State.BaseTree
 	cur, err := WorktreeSnapshot(ctx, r.Root)
 	if err != nil || from == "" {
+		return ""
+	}
+	// Phạm vi tính trên cùng ảnh chụp cur (một lần chụp thay vì hai).
+	paths, err := ScopeFiles(withSnapshot(ctx, r.Root, cur), r.Root, r.Tasks, t, r.Cfg.Limits.ProtectedPaths)
+	if err != nil {
 		return ""
 	}
 	all, err := DiffPaths(ctx, r.Root, from, cur)

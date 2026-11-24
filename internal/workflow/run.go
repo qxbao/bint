@@ -1491,7 +1491,7 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eval.AgentResult) bool {
 	defer sr.release()
 	step, child := sr.step, sr.child
-	r.endTouched(ctx, rs, sr.featBefore)
+	afterFeat := r.endTouched(ctx, rs, sr.featBefore)
 	if (sr.kind == flow.KindImplement || sr.kind == flow.KindGoal) && ctx.Err() == nil {
 		if sr.kind == flow.KindImplement {
 			r.guardTasks(rs, step, sr.tasksBefore) // tasks.md nằm ở thư mục trạng thái, không vào phạm vi tệp
@@ -1499,7 +1499,8 @@ func (r *Runner) endStep(ctx context.Context, rs *runState, sr *stepRun, res eva
 		// Tính phạm vi khi còn giữ khoá độc quyền: sau khi nhả, b-feat của tác vụ khác có thể ghi tệp dở
 		// dang vào cây và bị quy nhầm cho tác vụ này. Chỉ tính ở đây; hỏi người (checkScope) làm sau khi
 		// nhả khoá để không chặn tác vụ khác trong lúc chờ.
-		rs.featScope, rs.featScopeErr = ScopeFiles(ctx, r.Root, r.Tasks, rs.t, r.Cfg.Limits.ProtectedPaths)
+		// Ngay sau ảnh chụp của endTouched, vẫn giữ khoá, không gì chạy ở giữa: dùng lại ảnh chụp đó.
+		rs.featScope, rs.featScopeErr = ScopeFiles(withSnapshot(ctx, r.Root, afterFeat), r.Root, r.Tasks, rs.t, r.Cfg.Limits.ProtectedPaths)
 		rs.featScopeSet = true
 	}
 	var humanWrites, violations []string

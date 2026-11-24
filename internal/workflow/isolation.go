@@ -289,11 +289,28 @@ func (l *Lock) Release() {
 	l.f = nil
 }
 
+type snapHintKey struct{}
+
+type snapHint struct{ root, tree string }
+
+// withSnapshot gắn vào ctx ảnh chụp tree của root vừa chụp: WorktreeSnapshot với ctx này trả lại tree thay vì chụp lại
+// (mỗi lần chụp tốn ba tiến trình git). Chỉ dùng cho lời gọi chỉ đọc ngay sau lần chụp, khi cây chắc chắn không đổi ở
+// giữa (cùng khoá độc quyền, không agent hay lệnh nào chạy); đừng truyền ctx này xuống chỗ chạy lệnh hay agent.
+func withSnapshot(ctx context.Context, root, tree string) context.Context {
+	if tree == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, snapHintKey{}, snapHint{root: root, tree: tree})
+}
+
 // WorktreeSnapshot trả về mã cây (git tree) đại diện cho toàn bộ cây làm việc: tệp
 // đã theo dõi và tệp mới chưa bị .gitignore loại, kể cả .bint/knowledge/: việc tạo
 // ứng viên tri thức mới được phân loại riêng bởi ReadonlyViolations, còn sửa/xoá mục
 // đã có vẫn bị tính là vi phạm. Dùng chỉ mục tạm nên không đụng tới chỉ mục của người dùng.
 func WorktreeSnapshot(ctx context.Context, root string) (string, error) {
+	if h, ok := ctx.Value(snapHintKey{}).(snapHint); ok && h.tree != "" && samePath(h.root, root) {
+		return h.tree, nil
+	}
 	tmp, err := os.CreateTemp("", "bint-index-*")
 	if err != nil {
 		return "", err

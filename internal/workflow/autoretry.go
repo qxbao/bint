@@ -15,7 +15,7 @@ import (
 // AutoRetryFacts là dữ kiện của quyết định tự thử lại.
 type AutoRetryFacts struct {
 	// Class và Continuable là của bước dừng; Interrupted: người huỷ; Fresh: người yêu cầu bỏ nối tiếp.
-	Class                         string
+	Class                           string
 	Continuable, Interrupted, Fresh bool
 	// Continuations là số lần nối tiếp external/timeout liên tiếp đã dùng cho bước (đã gồm các lần tự thử trước).
 	Continuations int

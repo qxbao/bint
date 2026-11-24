@@ -174,10 +174,11 @@ func (r *Runner) beginTouched(ctx context.Context, rs *runState, firstFeat bool)
 }
 
 // endTouched chụp cây sau agent b-feat (kể cả khi agent lỗi hoặc bị huỷ: ctx của lần chụp không bị
-// huỷ theo) và hợp các tệp đã đổi vào Touched.
-func (r *Runner) endTouched(ctx context.Context, rs *runState, before string) {
+// huỷ theo) và hợp các tệp đã đổi vào Touched. Trả ảnh chụp sau bước ("" khi không theo dõi hoặc lỗi) để người gọi
+// dùng lại khi còn giữ khoá (withSnapshot).
+func (r *Runner) endTouched(ctx context.Context, rs *runState, before string) string {
 	if before == "" {
-		return
+		return ""
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 	defer cancel()
@@ -188,7 +189,7 @@ func (r *Runner) endTouched(ctx context.Context, rs *runState, before string) {
 	}
 	if err != nil {
 		r.dropTouched(rs, "chụp cây làm việc sau b-feat: "+err.Error())
-		return
+		return ""
 	}
 	t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
 		t.State.Touched = unionSorted(t.State.Touched, changed)
@@ -196,9 +197,10 @@ func (r *Runner) endTouched(ctx context.Context, rs *runState, before string) {
 	})
 	if err != nil {
 		r.dropTouched(rs, "ghi tập tệp của tác vụ: "+err.Error())
-		return
+		return ""
 	}
 	rs.t = t
+	return after
 }
 
 // dropTouched bỏ theo dõi tập tệp (quay về chế độ cũ: tính theo toàn bộ thay đổi so với Base) và ghi chú.
