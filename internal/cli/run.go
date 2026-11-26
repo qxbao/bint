@@ -22,6 +22,7 @@ type runFlags struct {
 	accept       bool
 	fixRound     bool
 	dropGoal     bool
+	refreezeGoal bool
 	taskRef      string
 	step         string
 	depth        string
@@ -167,7 +168,7 @@ func runWorkflow(cmd *cobra.Command, stdio IO, rf runFlags, fillRun func(*app.Ru
 	if resume != nil {
 		ro = app.RunResumeDefaults(config.Default())
 		ro.Ref, ro.NoReview, ro.NoWait, ro.Rerun, ro.Fresh, ro.Harness, ro.Roles, ro.Model, ro.AgentCommand = *resume, rf.noReview, rf.noWait, rf.rerun, rf.fresh, rf.harness, rf.roles, rf.model, rf.agentCommand
-		ro.Answer, ro.Accept, ro.FixRound, ro.Slice, ro.DropGoal = rf.answer, rf.accept, rf.fixRound, rf.slice, rf.dropGoal
+		ro.Answer, ro.Accept, ro.FixRound, ro.Slice, ro.DropGoal, ro.RefreezeGoal = rf.answer, rf.accept, rf.fixRound, rf.slice, rf.dropGoal, rf.refreezeGoal
 		if err := ro.Validate(); err != nil {
 			return err
 		}
@@ -304,6 +305,10 @@ hoặc bint task cancel. --accept và --fix-round chỉ người dùng chạy đ
 Luồng B′ (mặc định của b-do; workflow.variant: classic để quay về luồng cũ) có thước đo thăm dò đóng băng mà người cho là sai (b-feat đã dừng và hỏi): trả lời bằng --answer thì
 thước đo được giữ (người xác nhận); --drop-goal thôi đóng băng nó (chỉ người dùng, chỉ tác vụ B′).
 
+Tác vụ dừng vì tệp kiểm tra mục tiêu đóng băng bị sửa (b-feat hay phiên điều phối sửa test sai: lỗi biên dịch, panic, dữ liệu không còn):
+khôi phục tệp (git restore) rồi resume, hoặc xem git diff của tệp đó rồi --refreeze-goal để đóng băng lại bản đã sửa (tệp đã xoá thì thôi
+đóng băng riêng tệp đó; muốn bỏ một subtest thì xoá nó khỏi tệp rồi --refreeze-goal). Mọi luồng b-do; chỉ người dùng.
+
 Tác vụ chạy theo lát mỏng dừng khi một lát quá trần thời gian agent, không đạt số đo, vượt ngân sách diff/hiệu năng hoặc agent lỗi: Bint GIỮ
 cây của lát (không tự quay về điểm xanh) và in ba lựa chọn: --slice keep (chốt cây hiện tại làm điểm xanh, sang lát kế), --slice discard
 (đưa tệp của tác vụ về điểm xanh, sang lát kế), --slice more (chạy lại lát từ cây hiện tại, thêm một trần thời gian; mặc định khi không nêu
@@ -320,6 +325,7 @@ cây của lát (không tự quay về điểm xanh) và in ba lựa chọn: --s
 	c.Flags().BoolVar(&rf.accept, "accept", false, "sau khi hết vòng sửa review: chấp nhận kết quả như hiện tại, vào thẳng bước hoàn tất (chỉ người dùng)")
 	c.Flags().BoolVar(&rf.fixRound, "fix-round", false, "sau khi hết vòng sửa review: cho sửa thêm đúng một vòng (b-feat rồi b-review; chỉ người dùng)")
 	c.Flags().BoolVar(&rf.dropGoal, "drop-goal", false, "luồng B′: thôi đóng băng thước đo thăm dò mà người cho là sai (tệp test vẫn còn trên đĩa; chỉ người dùng)")
+	c.Flags().BoolVar(&rf.refreezeGoal, "refreeze-goal", false, "đã xem bản sửa tệp kiểm tra mục tiêu đóng băng (test sai): đóng băng lại theo cây hiện tại, tệp đã xoá thì thôi đóng băng (chỉ người dùng)")
 	return c
 }
 

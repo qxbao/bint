@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -47,7 +48,7 @@ func (rs *runState) goalPending() bool {
 		return false
 	}
 	st := &rs.t.State
-	if st.GoalTest != nil || st.Status != task.StatusPlanned {
+	if st.GoalTest != nil || st.GoalDropped || st.Status != task.StatusPlanned {
 		return false
 	}
 	if c := st.Classification; c != nil && c.Fast {
@@ -213,24 +214,13 @@ func (r *Runner) refreshLastPlan(ctx context.Context, rs *runState) {
 	}
 }
 
-// freezeGate từ chối diff chạm tệp đóng băng: tệp bị sửa, xoá hoặc đổi tên (băm khác hay không đọc được) thì tác vụ blocked, trước
-// kiểm phạm vi, kiểm chứng và review. Không đi qua duyệt đường dẫn: `bint task approve` không bỏ qua; người khôi phục tệp rồi resume.
-// Trả true khi mọi tệp còn nguyên (hoặc tác vụ không có kiểm tra mục tiêu đóng băng).
+// freezeGate từ chối cây có tệp đóng băng bị chạm: tệp bị sửa, xoá hoặc đổi tên (băm khác hay không đọc được) thì tác vụ blocked. Chạy sau
+// mỗi bước implement (trước kiểm phạm vi, kiểm chứng và review) và trước khi bước implement bắt đầu (beginStep): tệp bị sửa tay giữa hai lượt
+// thì dừng ngay, không tốn một lượt b-feat cho kết cục đã biết. Không đi qua duyệt đường dẫn: `bint task approve` không bỏ qua; người khôi phục
+// tệp rồi resume, hoặc duyệt bản sửa bằng `bint run resume <id> --refreeze-goal` (refreezeGoal). Trả true khi mọi tệp còn nguyên (hoặc tác
+// vụ không có kiểm tra mục tiêu đóng băng).
 func (r *Runner) freezeGate(rs *runState) bool {
-	gt := rs.t.State.GoalTest
-	if gt == nil {
-		return true
-	}
-	var bad []string
-	for _, f := range gt.Files {
-		sum, ok := fileSHA256(r.Root, f.Path)
-		switch {
-		case !ok:
-			bad = append(bad, f.Path+" (bị xoá hoặc đổi tên)")
-		case sum != f.SHA256:
-			bad = append(bad, f.Path+" (nội dung đã sửa)")
-		}
-	}
+	bad, paths := frozenDrift(r.Root, rs.t.State.GoalTest)
 	if len(bad) == 0 {
 		return true
 	}
@@ -238,12 +228,111 @@ func (r *Runner) freezeGate(rs *runState) bool {
 	if task.IsBPrime(rs.t) {
 		src = "thăm dò hộp đen do b-goal viết độc lập từ yêu cầu gốc"
 	}
-	reason := fmt.Sprintf("kiểm tra mục tiêu đóng băng bị sửa: %s — b-feat không được chạm các tệp này (%s). "+
-		"Khôi phục chúng (git restore -- <tệp>) rồi `%s`; `bint task approve` không bỏ qua cổng này",
-		strings.Join(bad, ", "), src, r.resumeCmd(rs))
+	reason := fmt.Sprintf("kiểm tra mục tiêu đóng băng bị sửa: %s — agent không được chạm các tệp này (%s). "+
+		"Khôi phục chúng (git restore -- <tệp>) rồi `%s`; `bint task approve` không bỏ qua cổng này. "+
+		"Nếu chính test sai (lỗi biên dịch, panic, dữ liệu không còn) và bản sửa là có chủ đích: người dùng xem `git diff -- %s` "+
+		"rồi `bint run resume %s --refreeze-goal` để đóng băng lại bản đã sửa (tệp đã xoá thì thôi đóng băng tệp đó)",
+		strings.Join(bad, ", "), src, r.resumeCmd(rs), strings.Join(paths, " "), rs.t.State.ID)
 	r.RecordError(rs.t.State.ID, "scope", reason)
 	r.block(rs, reason)
 	return false
+}
+
+// frozenDrift liệt kê tệp đóng băng không còn nguyên dưới root: bad kèm lý do (để báo), paths chỉ đường dẫn.
+func frozenDrift(root string, gt *task.GoalTest) (bad, paths []string) {
+	if gt == nil {
+		return nil, nil
+	}
+	for _, f := range gt.Files {
+		sum, ok := fileSHA256(root, f.Path)
+		switch {
+		case !ok:
+			bad = append(bad, f.Path+" (bị xoá hoặc đổi tên)")
+		case sum != f.SHA256:
+			bad = append(bad, f.Path+" (nội dung đã sửa)")
+		default:
+			continue
+		}
+		paths = append(paths, f.Path)
+	}
+	return bad, paths
+}
+
+// checkRefreezeGoal kiểm điều kiện của --refreeze-goal trên phiếu t: có kiểm tra mục tiêu đóng băng, ít nhất một tệp đã đổi so với lúc
+// đóng băng, và không đi cùng --drop-goal.
+func (r *Runner) checkRefreezeGoal(t *task.Task, refreeze, drop bool) error {
+	if !refreeze {
+		return nil
+	}
+	if drop {
+		return errors.New("--refreeze-goal và --drop-goal loại trừ nhau")
+	}
+	if t.State.GoalTest == nil {
+		return errors.New("--refreeze-goal: tác vụ " + t.State.ID + " không có kiểm tra mục tiêu đóng băng")
+	}
+	root, err := r.RootFor(t)
+	if err != nil {
+		return err
+	}
+	if bad, _ := frozenDrift(root, t.State.GoalTest); len(bad) == 0 {
+		return fmt.Errorf("--refreeze-goal: các tệp đóng băng của tác vụ %s chưa đổi (%s); tiếp tục bình thường thì bỏ cờ này",
+			t.State.ID, strings.Join(t.State.GoalTest.Paths(), ", "))
+	}
+	return nil
+}
+
+// refreezeGoal đóng băng lại kiểm tra mục tiêu theo cây hiện tại khi người đã duyệt bản sửa test (--refreeze-goal): tệp đã sửa nhận băm
+// mới, tệp đã xoá thôi đóng băng (gỡ khỏi GoalTest và scope.deny); các lần chạy cổng mục tiêu cũ bị vô hiệu (đo trên bản test cũ). Không
+// còn tệp nào thì như --drop-goal: không còn cổng mục tiêu và b-goal không chạy lại.
+func (r *Runner) refreezeGoal(rs *runState) {
+	gt := rs.t.State.GoalTest
+	if gt == nil {
+		return
+	}
+	var (
+		kept            []task.GoalFile
+		edited, removed []string
+	)
+	for _, f := range gt.Files {
+		sum, ok := fileSHA256(r.Root, f.Path)
+		switch {
+		case !ok:
+			removed = append(removed, f.Path)
+		case sum != f.SHA256:
+			edited = append(edited, f.Path)
+			kept = append(kept, task.GoalFile{Path: f.Path, SHA256: sum})
+		default:
+			kept = append(kept, f)
+		}
+	}
+	t, err := r.Tasks.Update(rs.t.State.ID, r.now(), func(t *task.Task) error {
+		if len(kept) == 0 {
+			t.State.GoalTest, t.State.GoalDropped = nil, true
+		} else {
+			t.State.GoalTest = &task.GoalTest{Files: kept, RunID: t.State.GoalTest.RunID, At: r.at()}
+		}
+		t.Ticket.Scope.Deny = slices.DeleteFunc(slices.Clone(t.Ticket.Scope.Deny), func(d string) bool { return slices.Contains(removed, d) })
+		for i := range t.State.GoalChecks {
+			t.State.GoalChecks[i].Voided = true
+		}
+		return nil
+	})
+	if err != nil {
+		rs.res.Notes = append(rs.res.Notes, "không đóng băng lại được kiểm tra mục tiêu: "+err.Error())
+		return
+	}
+	rs.t = t
+	var parts []string
+	if len(edited) > 0 {
+		parts = append(parts, "đóng băng lại bản đã sửa: "+strings.Join(edited, ", "))
+	}
+	if len(removed) > 0 {
+		parts = append(parts, "thôi đóng băng tệp đã xoá: "+strings.Join(removed, ", "))
+	}
+	if len(kept) == 0 {
+		parts = append(parts, "không còn tệp nào nên không còn cổng mục tiêu")
+	}
+	rs.res.Notes = append(rs.res.Notes, "người dùng duyệt bản sửa kiểm tra mục tiêu (--refreeze-goal): "+strings.Join(parts, "; "))
 }
 
 // goalCommand là lệnh cổng mục tiêu: lệnh bgraph dựng cho riêng các đơn vị test chứa tệp đóng băng; bgraph không dựng được thì
@@ -398,7 +487,7 @@ func (r *Runner) goalFinal(ctx context.Context, rs *runState) bool {
 		return true
 	}
 	g := rs.t.State.LastGoalCheck()
-	if g == nil || g.Worktree != task.WorktreeFingerprint(ctx, root) {
+	if g == nil || g.Voided || g.Worktree != task.WorktreeFingerprint(ctx, root) {
 		if !r.goalGate(ctx, rs, goalReasonFinalize) {
 			return false
 		}

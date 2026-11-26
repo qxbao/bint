@@ -1725,7 +1725,9 @@ giai đoạn 4 **đảo thứ tự spec → test → mã**.
    `Loại đầu vào:`) vào cây, đóng băng chúng khi có ít nhất một tệp mang dòng nhãn, rồi chạy cổng mốc. Tệp chạm đường dẫn bảo vệ/`scope.deny`, hoặc trùng đường dẫn với tệp
    b-feat đã sửa (giữ bản b-feat), không được gộp (ghi chú). Thăm dò rỗng, lỗi, quá trần hoặc không có tệp nhãn: không đóng băng, **không có lượt mở rộng**, đi thẳng sang review.
 4. Đúng **một lượt b-feat mở rộng** (nối tiếp phiên lõi khi được): loại đầu vào còn lại, mọi nơi dữ liệu đi qua, làm thước đo đóng băng xanh. Thước đo có vẻ sai thì b-feat dừng và hỏi
-   (`--question`); người trả lời để giữ thước đo hoặc `bint run resume <id> --drop-goal` (chỉ người) để gỡ.
+   (`--question`); người trả lời để giữ thước đo hoặc `bint run resume <id> --drop-goal` (chỉ người) để gỡ. Chính thước đo hỏng (lỗi biên dịch, panic, tệp dữ liệu
+   không còn): người sửa test, xem `git diff`, rồi `bint run resume <id> --refreeze-goal` (mọi luồng b-do, chỉ người) để đóng băng lại bản đã sửa; tệp đã xoá thì
+   thôi đóng băng riêng tệp đó. Tệp đóng băng bị đổi giữa hai lượt thì Bint chặn ngay trước khi b-feat bắt đầu, không chạy b-feat cho kết cục đã biết.
 5. Một lượt b-review ngữ cảnh sạch (không thấy `plan.md`/`tasks.md`; thân chỉ dẫn riêng của B′, không phải thân skill b-review), tối đa một vòng sửa có trần.
 
 Pha hiện tại là `state.bprime_phase` (rỗng = lõi, `probe` = b-goal tuần tự, `extend` = lượt mở rộng, `done`). **Driver session** không chạy song song: lõi → b-goal (subagent) → mở rộng →

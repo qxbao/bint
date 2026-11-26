@@ -144,6 +144,8 @@ type RunResumeOptions struct {
 	FixRound bool `flag:"fix-round"`
 	// DropGoal: tác vụ luồng B′ có thước đo đóng băng mà người cho là sai: thôi đóng băng (GoalTest và scope.deny). Chỉ người dùng.
 	DropGoal bool `flag:"drop-goal" form:"advanced"`
+	// RefreezeGoal: người đã xem bản sửa tệp kiểm tra mục tiêu đóng băng (test sai) và chấp nhận: đóng băng lại theo cây hiện tại. Chỉ người dùng.
+	RefreezeGoal bool `flag:"refreeze-goal" form:"advanced"`
 	// Slice: lựa chọn với lát b-do đang giữ chờ người (quá trần, không đạt, vượt ngân sách, agent lỗi): keep (chốt cây hiện tại) | discard
 	// (đưa tệp của tác vụ về điểm xanh) | more (chạy lại lát từ cây hiện tại). Chỉ người dùng (không phải phiên agent).
 	Slice string `flag:"slice" form:"advanced"`
@@ -169,6 +171,11 @@ func (o RunResumeOptions) Validate() error {
 	}
 	if o.DropGoal {
 		if err := RequireHuman("bint run resume --drop-goal"); err != nil {
+			return err
+		}
+	}
+	if o.RefreezeGoal {
+		if err := RequireHuman("bint run resume --refreeze-goal"); err != nil {
 			return err
 		}
 	}
@@ -233,7 +240,7 @@ func ResumeWorkflow(ctx context.Context, ws *TaskWS, o RunResumeOptions) (*workf
 		return nil, Usagef("--rerun: tác vụ %s không có bước chỉ đọc nào đang được giữ để chạy lại", t.State.ID)
 	}
 	wo := workflow.RunOptions{Workflow: wf, TaskRef: t.State.ID, Resume: true, NoReview: o.NoReview, NoWait: o.NoWait, Rerun: o.Rerun, Fresh: o.Fresh,
-		Answer: o.Answer, Accept: o.Accept, FixRound: o.FixRound, DropGoal: o.DropGoal, Slice: o.Slice}
+		Answer: o.Answer, Accept: o.Accept, FixRound: o.FixRound, DropGoal: o.DropGoal, RefreezeGoal: o.RefreezeGoal, Slice: o.Slice}
 	return runWith(ctx, ws, wo, o.Harness, o.Roles, o.AgentCommand, o.Model, o.RunCallbacks)
 }
 

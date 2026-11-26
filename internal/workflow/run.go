@@ -142,6 +142,9 @@ type RunOptions struct {
 	Accept, FixRound bool
 	// DropGoal (cùng Resume): tác vụ B′ có thước đo thăm dò đóng băng mà người cho là sai: gỡ đóng băng (GoalTest, scope.deny). Chỉ người dùng (app kiểm).
 	DropGoal bool
+	// RefreezeGoal (cùng Resume): người đã xem bản sửa tệp kiểm tra mục tiêu đóng băng (test sai: lỗi biên dịch, panic, dữ liệu không còn) và
+	// chấp nhận nó: đóng băng lại theo cây hiện tại (tệp đã xoá thì thôi đóng băng). Mọi luồng b-do; loại trừ DropGoal. Chỉ người dùng (app kiểm).
+	RefreezeGoal bool
 	// Slice (cùng Resume): lựa chọn của người với lát đang giữ chờ người (keep | discard | more); rỗng = more. Chỉ người dùng được (app kiểm).
 	Slice string
 	// Isolation: chế độ cô lập khi tự lập phiếu (""/auto | shared | worktree); không dùng cùng TaskRef.
@@ -410,13 +413,16 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		if !o.Resume && task.Paused(t.State.Status) {
 			return nil, fmt.Errorf("tác vụ %s đang %s (%s): dùng `%s`", t.State.ID, t.State.Status, t.State.Reason, t.State.ResumeCommand())
 		}
-		if !o.Resume && (o.Answer != "" || o.Accept || o.FixRound || o.DropGoal) {
-			return nil, errors.New("--answer/--accept/--fix-round/--drop-goal chỉ dùng khi tiếp tục tác vụ (bint run resume <id>)")
+		if !o.Resume && (o.Answer != "" || o.Accept || o.FixRound || o.DropGoal || o.RefreezeGoal) {
+			return nil, errors.New("--answer/--accept/--fix-round/--drop-goal/--refreeze-goal chỉ dùng khi tiếp tục tác vụ (bint run resume <id>)")
 		}
 		if err := checkResumeFlags(t, o.Answer, o.Accept, o.FixRound); err != nil {
 			return nil, err
 		}
 		if err := checkDropGoal(t, o.DropGoal); err != nil {
+			return nil, err
+		}
+		if err := r.checkRefreezeGoal(t, o.RefreezeGoal, o.DropGoal); err != nil {
 			return nil, err
 		}
 		if o.Slice != "" && !o.Resume {
@@ -532,6 +538,9 @@ func (r *Runner) Run(ctx context.Context, o RunOptions) (*Result, error) {
 		r.applyResume(rs, o.Answer, o.FixRound, rs.reviewFixStep(rs.currentReview()))
 		if o.DropGoal {
 			r.dropGoal(rs)
+		}
+		if o.RefreezeGoal {
+			r.refreezeGoal(rs)
 		}
 		if o.Accept {
 			rs.acceptReview, rs.accepted = true, true
@@ -1300,6 +1309,9 @@ func (r *Runner) beginStep(ctx context.Context, rs *runState, step string, sessi
 		}
 		if !r.preflightFeat(rs) {
 			return nil, false
+		}
+		if kind == flow.KindImplement && !r.freezeGate(rs) {
+			return nil, false // tệp đóng băng bị sửa giữa hai lượt (người/phiên điều phối sửa tay): dừng trước khi tốn một lượt b-feat
 		}
 		firstFeat = !rs.t.State.EverInProgress() // phải xét trước khi chuyển in_progress ở dưới
 		if others := r.sharedWriteConflicts(rs.t); len(others) > 0 {

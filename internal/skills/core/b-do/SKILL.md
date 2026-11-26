@@ -92,7 +92,7 @@ Thứ tự của B′ (bước do Bint điều phối như thường, bạn vẫ
 (đơn giản nhất đáp ứng tiêu chí, `bint task check` sau mỗi nhóm) cùng lúc b-goal thăm dò hộp đen viết từ yêu cầu gốc trong worktree tạm →
 lõi xanh thì Bint gộp, đóng băng thước đo → đúng một lượt b-feat **mở rộng** → một lượt b-review (không thấy kế hoạch).
 Driver session chạy các bước đó tuần tự (b-goal sau lõi): làm theo `action` của `bint run next` như Bước 2b, `prompt` nguyên văn.
-b-feat dừng vì thước đo có vẻ sai thì chuyển câu hỏi cho người dùng; chỉ **người** gỡ thước đo bằng `bint run resume <id> --drop-goal`.
+b-feat dừng vì thước đo có vẻ sai: hỏi người dùng; chỉ **người** gỡ (`bint run resume <id> --drop-goal`) hoặc sửa test rồi `--refreeze-goal`, không phải bạn.
 Cách dựng bốn nhánh A/A+/B/B′ để đo: `docs/workflows.md`, mục "Luồng B′: bật và đo A/A+/B/B′".
 
 ## Bước 1b — Chế độ cô lập (chạy ở đâu)
